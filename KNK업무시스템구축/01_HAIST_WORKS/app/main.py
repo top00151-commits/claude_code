@@ -15227,6 +15227,119 @@ async def projects_import_confirm(request: Request):
 
 
 # ==========================================================
+# v5H226z339 (대표 지시): 수주번호 소급 일괄 발급 — 발주일은 있는데 수주번호(SO)가 빈
+#   비소모품 프로젝트에 '발주일 기준' 수주번호(사업부-발주일)를 소급 발급.
+#   관리자 화면 버튼(작업일정표 툴바) → ①미리보기 ②실행(DB 백업 후 발급).
+#   안전장치: 멱등(이미 SO 있으면 건너뜀)·발주일 없으면 대상 제외·상태/단계 보존(부수효과 0)·
+#   실패는 행단위 표면화(except:pass 금지). 소모품(전용 co_no 체계)은 대상 제외.
+# ==========================================================
+_SO_BACKFILL_SQL = (
+    "SELECT p.* FROM projects p "
+    "WHERE COALESCE(p.project_type,'') != 'CONSUMABLE' "
+    "  AND COALESCE(p.order_date,'') != '' "
+    "  AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.project_id = p.id) "
+    "ORDER BY p.order_date, p.id"
+)
+
+
+@app.get("/projects/so-backfill/preview")
+async def projects_so_backfill_preview(request: Request):
+    """소급 발급 대상 미리보기 — 발주일 있고 수주번호(SO) 없는 비소모품."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    items = []
+    try:
+        with db_session() as c:
+            for _r in c.execute(_SO_BACKFILL_SQL).fetchall():
+                r = dict(_r)
+                items.append({
+                    "id": r.get("id"), "mgmt_code": r.get("mgmt_code") or "",
+                    "name": (r.get("name") or "")[:40], "biz_div": r.get("biz_div") or "",
+                    "order_date": (r.get("order_date") or "")[:10],
+                    "amount": float(r.get("order_amount") or 0),
+                })
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"조회 실패: {str(e)[:160]}"}, 500)
+    return JSONResponse({"ok": True, "count": len(items), "items": items})
+
+
+@app.post("/projects/so-backfill/run")
+async def projects_so_backfill_run(request: Request):
+    """소급 발급 실행 — DB 백업 후, 대상에 발주일 기준 수주번호(사업부-발주일) 발급.
+    confirm_order_multi 가 status='수주확정'·stage='수주'로 덮어쓰므로 원래 상태·단계 복원."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    # 1) DB 백업 (필수 — 실패 시 중단)
+    import shutil, datetime as _dt
+    try:
+        bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+        os.makedirs(bdir, exist_ok=True)
+        ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = os.path.join(bdir, f"knk.db.bak_sobackfill_{ts}")
+        shutil.copy2(DB_PATH, backup)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"백업 실패 — 중단: {str(e)[:160]}"}, 500)
+    # 2) 대상 재조회 (실행 시점)
+    try:
+        with db_session() as c:
+            targets = [dict(_r) for _r in c.execute(_SO_BACKFILL_SQL).fetchall()]
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"대상 조회 실패: {str(e)[:160]}"}, 500)
+    issued = []
+    failed = []
+    skipped = []
+    for t in targets:
+        try:
+            with db_session() as c:
+                # 멱등 재확인 — 그 사이 SO 생겼으면 건너뜀
+                if c.execute("SELECT 1 FROM orders WHERE project_id=? LIMIT 1",
+                             (t.get("id"),)).fetchone():
+                    skipped.append({"id": t.get("id"), "reason": "이미 수주번호 있음"})
+                    continue
+                _od = (t.get("order_date") or "")[:10]
+                _amt = float(t.get("order_amount") or 0)
+                units = [{
+                    "label": (t.get("name") or "1호기"),
+                    "amount": _amt,
+                    "qty": max(1, int(t.get("unit_qty") or 1)),
+                    "due_date": t.get("due_date") or "",
+                    "ship_to": t.get("ship_to") or "",
+                    "note": t.get("note") or "",
+                }]
+                _pwf.confirm_order_multi(
+                    c, int(t.get("id")), units=units, order_date=_od,
+                    created_by=u.get("id") or 0, po_number="")
+                # 상태·단계 복원 (소급 발급은 '수주번호만' 추가 — 부수효과 0)
+                c.execute("UPDATE projects SET status=?, stage=? WHERE id=?",
+                          (t.get("status"), t.get("stage"), t.get("id")))
+                _ust = t.get("status") if t.get("status") in ("진행중", "납품완료", "취소", "보류") else "진행중"
+                c.execute("UPDATE order_items SET unit_status=? "
+                          "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?)",
+                          (_ust, t.get("id")))
+                _row = c.execute("SELECT order_no FROM orders WHERE project_id=? "
+                                 "ORDER BY id DESC LIMIT 1", (t.get("id"),)).fetchone()
+                _so = _row["order_no"] if _row else ""
+            issued.append({"id": t.get("id"), "mgmt_code": t.get("mgmt_code") or "",
+                           "so_no": _so, "order_date": _od})
+        except Exception as e:
+            failed.append({"id": t.get("id"), "mgmt_code": t.get("mgmt_code") or "",
+                           "name": (t.get("name") or "")[:30], "error": str(e)[:160]})
+    return JSONResponse({
+        "ok": True,
+        "issued_count": len(issued), "failed_count": len(failed),
+        "skipped_count": len(skipped),
+        "issued": issued, "failed": failed, "skipped": skipped,
+        "backup": os.path.basename(backup),
+    })
+
+
+# ==========================================================
 # v5H226z216 (2026-06-05 대표 지시): A/S 관리(수리 접수·처리) 화면 — 라이프밸류 전용 2단계.
 #   목록(/as) · 접수 등록(/as/new) · 상세(/as/{id}) · 상태변경 · 수리 처리
 # ==========================================================

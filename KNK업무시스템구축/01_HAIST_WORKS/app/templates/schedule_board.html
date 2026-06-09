@@ -269,6 +269,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     {# v5H226z316 (대표 지시): 엑셀 내보내기 + 일괄등록 양식 다운로드 #}
     <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'">📥 엑셀로 저장</button>
     <button type="button" onclick="location.href='/sales/schedule/bulk-template.xlsx'">📄 일괄등록 양식</button>
+    {# v5H226z339 (대표 지시): 수주번호 소급 일괄 발급 — 발주일 있는데 수주번호 빈 비소모품 #}
+    <button type="button" onclick="openSoBackfill()" title="발주일은 있는데 수주번호가 빈 항목에 발주일 기준으로 수주번호를 소급 발급 (미리보기 후 실행·자동 DB 백업)">🧾 수주번호 소급 발급</button>
     {# z332(대표 지시): '표 보기'(칸·날짜) / '정렬' 두 그룹을 박스로 묶어 각 초기화 범위를 명확히 #}
     <div class="tool-box">
       <span class="tbx-label">표 보기</span>
@@ -435,6 +437,69 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 </main>
 </div>
 
+{# v5H226z339 (대표 지시): 수주번호 소급 일괄 발급 모달 — SPA 안전(.main 안 · 독립 IIFE · window 노출 · load-time DOM 작업 없음) #}
+<div id="soBackfillModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.4);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;width:760px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+    <div style="padding:12px 16px;border-bottom:1px solid #eee;font-weight:700;display:flex;justify-content:space-between;align-items:center;">
+      <span>🧾 수주번호 소급 일괄 발급</span>
+      <span style="cursor:pointer;color:#888;font-size:18px;" onclick="closeSoBackfill()">✕</span>
+    </div>
+    <div id="soBackfillBody" style="padding:14px 16px;overflow:auto;font-size:13px;">불러오는 중…</div>
+    <div style="padding:10px 16px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" onclick="closeSoBackfill()">닫기</button>
+      <button type="button" id="soBackfillRunBtn" onclick="runSoBackfill()" disabled style="background:var(--knk-red,#c0392b);color:#fff;border:1px solid var(--knk-red,#c0392b);padding:6px 14px;border-radius:8px;cursor:pointer;">발주일 기준 발급 실행</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function won(n){ try{ return Number(n||0).toLocaleString(); }catch(e){ return n; } }
+  window.openSoBackfill = function(){
+    var m=document.getElementById('soBackfillModal'); if(!m) return;
+    m.style.display='flex';
+    var body=document.getElementById('soBackfillBody');
+    var run=document.getElementById('soBackfillRunBtn'); if(run) run.disabled=true;
+    body.innerHTML='대상 조회 중…';
+    fetch('/projects/so-backfill/preview').then(function(r){return r.json();}).then(function(j){
+      if(!j.ok){ body.innerHTML='<div style="color:#b91c1c;">조회 실패: '+esc(j.error||'')+'</div>'; return; }
+      if(!j.count){ body.innerHTML='<div style="color:#15803d;">발주일이 있는데 수주번호가 빈 항목이 없습니다. (소급 발급할 대상 없음)</div>'; return; }
+      var rows=j.items.map(function(it){
+        return '<tr><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;"><b>'+esc(it.biz_div)+'</b></td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;">'+esc(it.name)+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+esc(it.order_date)+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:right;">'+won(it.amount)+'</td></tr>';
+      }).join('');
+      body.innerHTML='<div style="margin-bottom:8px;">대상 <b style="color:#c0392b;">'+j.count+'</b>건 — 각 항목의 <b>발주일</b> 기준으로 수주번호(사업부-발주일, 예 M-260518)를 발급합니다.<br>'+
+        '<span style="font-size:11px;color:#666;">· 실행 전 DB 자동 백업 · 이미 수주번호 있으면 건너뜀 · 발주일 없는 건은 대상 아님 · 상태/단계는 그대로 보존</span></div>'+
+        '<div style="max-height:46vh;overflow:auto;border:1px solid #eee;border-radius:6px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">사업부</th><th style="padding:5px 6px;text-align:left;">프로젝트</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;text-align:right;">수주액</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      var run2=document.getElementById('soBackfillRunBtn'); if(run2) run2.disabled=false;
+    }).catch(function(e){ body.innerHTML='<div style="color:#b91c1c;">조회 오류: '+esc(e)+'</div>'; });
+  };
+  window.closeSoBackfill = function(){ var m=document.getElementById('soBackfillModal'); if(m) m.style.display='none'; };
+  window.runSoBackfill = function(){
+    var body=document.getElementById('soBackfillBody');
+    var run=document.getElementById('soBackfillRunBtn');
+    if(!confirm('발주일 기준으로 수주번호를 일괄 발급합니다.\n(실행 전 DB 자동 백업) 계속할까요?')) return;
+    if(run) run.disabled=true;
+    body.innerHTML='발급 중… (DB 백업 후 처리합니다. 잠시만요)';
+    fetch('/projects/so-backfill/run',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(r){return r.json();}).then(function(j){
+      if(!j.ok){ body.innerHTML='<div style="color:#b91c1c;">실패: '+esc(j.error||'')+'</div>'; if(run) run.disabled=false; return; }
+      var html='<div style="color:#15803d;font-weight:700;font-size:14px;">✅ 발급 완료 — '+j.issued_count+'건</div>';
+      if(j.skipped_count) html+='<div style="color:#666;">건너뜀(이미 수주번호 있음): '+j.skipped_count+'건</div>';
+      if(j.failed_count) html+='<div style="color:#b91c1c;">실패: '+j.failed_count+'건 — '+esc((j.failed[0]||{}).error||'')+' …</div>';
+      html+='<div style="font-size:11px;color:#888;margin-top:4px;">DB 백업: '+esc(j.backup||'')+'</div>';
+      var rows=(j.issued||[]).slice(0,300).map(function(it){
+        return '<tr><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;color:#1d4ed8;"><b>'+esc(it.so_no||'')+'</b></td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+esc(it.order_date||'')+'</td></tr>';
+      }).join('');
+      if(rows) html+='<div style="max-height:42vh;overflow:auto;border:1px solid #eee;border-radius:6px;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;text-align:left;">발급 수주번호</th><th style="padding:5px 6px;">발주일</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      html+='<div style="font-size:12px;color:#666;margin-top:8px;">목록을 새로고침하면 반영됩니다.</div>';
+      body.innerHTML=html;
+    }).catch(function(e){ body.innerHTML='<div style="color:#b91c1c;">오류: '+esc(e)+'</div>'; var run2=document.getElementById('soBackfillRunBtn'); if(run2) run2.disabled=false; });
+  };
+})();
+</script>
 <script>
 (function(){
 // v5H226z271: SPA 재실행 안전 — 전체를 IIFE로 감싸 const 재선언 오류 방지 + document 리스너 정리.
