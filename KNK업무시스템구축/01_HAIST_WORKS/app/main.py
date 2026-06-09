@@ -15227,24 +15227,33 @@ async def projects_import_confirm(request: Request):
 
 
 # ==========================================================
-# v5H226z339 (대표 지시): 수주번호 소급 일괄 발급 — 발주일은 있는데 수주번호(SO)가 빈
-#   비소모품 프로젝트에 '발주일 기준' 수주번호(사업부-발주일)를 소급 발급.
-#   관리자 화면 버튼(작업일정표 툴바) → ①미리보기 ②실행(DB 백업 후 발급).
-#   안전장치: 멱등(이미 SO 있으면 건너뜀)·발주일 없으면 대상 제외·상태/단계 보존(부수효과 0)·
-#   실패는 행단위 표면화(except:pass 금지). 소모품(전용 co_no 체계)은 대상 제외.
+# v5H226z339→z340 (대표 지시): 수주번호 소급 일괄 발급 — 발주일은 있는데 '정상 수주번호'가
+#   없는 비소모품 프로젝트에 '발주일 기준' 수주번호(사업부-발주일)를 소급 발급/수리.
+#   관리자 화면 버튼(작업일정표 툴바) → ①미리보기(신규/수리 구분) ②실행(DB 백업 후 발급).
+#   z340 보강(대표 지시·근본원인 감사):
+#     · 대상 판정을 'orders 행 존재'가 아니라 '정상 형식 order_no(GLOB) 존재'로 → 과거 일괄적재
+#       잔존값(TMP-…·'-260323-1' 등 깨진 번호)도 잡는다(z339 빈틈 수정).
+#     · 깨진/빈 번호 행이 있으면 새 행 만들지 않고 '그 행을 정식 번호로 수리(UPDATE)'.
+#     · 단계 정규화(대표 결정): 초기협의 등 수주前 단계는 '수주확정/수주'로 올림.
+#       진행중·납품완료·취소·보류는 보존(덮어쓰지 않음).
+#   안전: DB 백업 선행·멱등(정상 SO 있으면 건너뜀)·발주일 없으면 대상 제외·실패 행단위 표면화·소모품 제외.
 # ==========================================================
+# 정상 수주번호 형식: [사업부 1글자]-[YYMMDD][접미]. TMP-…·'-260305-1'(선행대시)·빈값은 비정상으로 간주.
+_SO_OK_GLOB = "[TMLEC]-[0-9][0-9][0-9][0-9][0-9][0-9]*"
 _SO_BACKFILL_SQL = (
     "SELECT p.* FROM projects p "
     "WHERE COALESCE(p.project_type,'') != 'CONSUMABLE' "
     "  AND COALESCE(p.order_date,'') != '' "
-    "  AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.project_id = p.id) "
+    "  AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.project_id = p.id "
+    "       AND COALESCE(TRIM(o.order_no),'') != '' "
+    "       AND o.order_no GLOB '" + _SO_OK_GLOB + "') "
     "ORDER BY p.order_date, p.id"
 )
 
 
 @app.get("/projects/so-backfill/preview")
 async def projects_so_backfill_preview(request: Request):
-    """소급 발급 대상 미리보기 — 발주일 있고 수주번호(SO) 없는 비소모품."""
+    """소급 발급 대상 미리보기 — 발주일 있고 '정상 수주번호' 없는 비소모품. 신규/수리 구분 표시."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -15255,11 +15264,16 @@ async def projects_so_backfill_preview(request: Request):
         with db_session() as c:
             for _r in c.execute(_SO_BACKFILL_SQL).fetchall():
                 r = dict(_r)
+                _ex = c.execute("SELECT COUNT(*) FROM orders WHERE project_id=?",
+                                (r.get("id"),)).fetchone()
+                _exc = int(_ex[0]) if _ex else 0
                 items.append({
                     "id": r.get("id"), "mgmt_code": r.get("mgmt_code") or "",
                     "name": (r.get("name") or "")[:40], "biz_div": r.get("biz_div") or "",
                     "order_date": (r.get("order_date") or "")[:10],
                     "amount": float(r.get("order_amount") or 0),
+                    "status": r.get("status") or "",
+                    "mode": "수리" if _exc > 0 else "신규",   # 행 있으나 번호 비정상 = 수리
                 })
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"조회 실패: {str(e)[:160]}"}, 500)
@@ -15268,15 +15282,14 @@ async def projects_so_backfill_preview(request: Request):
 
 @app.post("/projects/so-backfill/run")
 async def projects_so_backfill_run(request: Request):
-    """소급 발급 실행 — DB 백업 후, 대상에 발주일 기준 수주번호(사업부-발주일) 발급.
-    confirm_order_multi 가 status='수주확정'·stage='수주'로 덮어쓰므로 원래 상태·단계 복원."""
+    """소급 발급 실행 — DB 백업 후, 발주일 기준 수주번호 발급/수리 + 단계 정규화(초기협의→수주확정)."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     if not can_use_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
-    # 1) DB 백업 (필수 — 실패 시 중단)
     import shutil, datetime as _dt
+    # 1) DB 백업 (필수 — 실패 시 중단)
     try:
         bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
         os.makedirs(bdir, exist_ok=True)
@@ -15291,44 +15304,73 @@ async def projects_so_backfill_run(request: Request):
             targets = [dict(_r) for _r in c.execute(_SO_BACKFILL_SQL).fetchall()]
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"대상 조회 실패: {str(e)[:160]}"}, 500)
+    _PRESERVE = ("진행중", "납품완료", "취소", "보류")   # 단계 보존(수주확정으로 안 올림)
     issued = []
     failed = []
     skipped = []
     for t in targets:
+        pid = t.get("id")
         try:
+            _od = (t.get("order_date") or "")[:10]
+            _orig = t.get("status")
+            _biz = (t.get("biz_div") or "T")
+            try:
+                _ref = _dt.datetime.strptime(_od, "%Y-%m-%d").date()
+            except Exception:
+                _ref = None
             with db_session() as c:
-                # 멱등 재확인 — 그 사이 SO 생겼으면 건너뜀
-                if c.execute("SELECT 1 FROM orders WHERE project_id=? LIMIT 1",
-                             (t.get("id"),)).fetchone():
-                    skipped.append({"id": t.get("id"), "reason": "이미 수주번호 있음"})
+                # 멱등 — '정상' SO 이미 있으면 건너뜀
+                if c.execute("SELECT 1 FROM orders WHERE project_id=? "
+                             "AND COALESCE(TRIM(order_no),'')!='' AND order_no GLOB ? LIMIT 1",
+                             (pid, _SO_OK_GLOB)).fetchone():
+                    skipped.append({"id": pid, "reason": "이미 정상 수주번호 있음"})
                     continue
-                _od = (t.get("order_date") or "")[:10]
-                _amt = float(t.get("order_amount") or 0)
-                units = [{
-                    "label": (t.get("name") or "1호기"),
-                    "amount": _amt,
-                    "qty": max(1, int(t.get("unit_qty") or 1)),
-                    "due_date": t.get("due_date") or "",
-                    "ship_to": t.get("ship_to") or "",
-                    "note": t.get("note") or "",
-                }]
-                _pwf.confirm_order_multi(
-                    c, int(t.get("id")), units=units, order_date=_od,
-                    created_by=u.get("id") or 0, po_number="")
-                # 상태·단계 복원 (소급 발급은 '수주번호만' 추가 — 부수효과 0)
-                c.execute("UPDATE projects SET status=?, stage=? WHERE id=?",
-                          (t.get("status"), t.get("stage"), t.get("id")))
-                _ust = t.get("status") if t.get("status") in ("진행중", "납품완료", "취소", "보류") else "진행중"
+                # 깨진/빈 번호 행이 있으면 → 그 행(들)을 정식 번호로 '수리'(새 행 안 만듦)
+                _bads = c.execute("SELECT id FROM orders WHERE project_id=? "
+                                  "AND (COALESCE(TRIM(order_no),'')='' OR order_no NOT GLOB ?) "
+                                  "ORDER BY id", (pid, _SO_OK_GLOB)).fetchall()
+                _nos = []
+                if _bads:
+                    for _b in _bads:
+                        _nn = _pwf.generate_so_no(c, _biz, _ref)
+                        c.execute("UPDATE orders SET order_no=? WHERE id=?", (_nn, _b["id"]))
+                        _nos.append(_nn)
+                    _mode = "수리"
+                else:
+                    # orders 행 자체가 없음 → 신규 발급
+                    _amt = float(t.get("order_amount") or 0)
+                    units = [{
+                        "label": (t.get("name") or "1호기"),
+                        "amount": _amt,
+                        "qty": max(1, int(t.get("unit_qty") or 1)),
+                        "due_date": t.get("due_date") or "",
+                        "ship_to": t.get("ship_to") or "",
+                        "note": t.get("note") or "",
+                    }]
+                    _pwf.confirm_order_multi(
+                        c, int(pid), units=units, order_date=_od,
+                        created_by=u.get("id") or 0, po_number="")
+                    _r2 = c.execute("SELECT order_no FROM orders WHERE project_id=? "
+                                    "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+                    _nos.append(_r2["order_no"] if _r2 else "")
+                    _mode = "신규"
+                # 단계 정규화 (대표 결정): 초기협의 등 → 수주확정/수주, 더 뒤 단계는 보존
+                if _orig in _PRESERVE:
+                    c.execute("UPDATE projects SET status=?, stage=? WHERE id=?",
+                              (_orig, t.get("stage"), pid))
+                    _ust = _orig
+                else:
+                    c.execute("UPDATE projects SET status='수주확정', stage='수주' WHERE id=?", (pid,))
+                    _ust = "진행중"
                 c.execute("UPDATE order_items SET unit_status=? "
                           "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?)",
-                          (_ust, t.get("id")))
-                _row = c.execute("SELECT order_no FROM orders WHERE project_id=? "
-                                 "ORDER BY id DESC LIMIT 1", (t.get("id"),)).fetchone()
-                _so = _row["order_no"] if _row else ""
-            issued.append({"id": t.get("id"), "mgmt_code": t.get("mgmt_code") or "",
-                           "so_no": _so, "order_date": _od})
+                          (_ust, pid))
+            issued.append({"id": pid, "mgmt_code": t.get("mgmt_code") or "",
+                           "so_no": ", ".join([n for n in _nos if n]),
+                           "order_date": _od, "mode": _mode,
+                           "stage_to": ("수주확정" if _orig not in _PRESERVE else (_orig or ""))})
         except Exception as e:
-            failed.append({"id": t.get("id"), "mgmt_code": t.get("mgmt_code") or "",
+            failed.append({"id": pid, "mgmt_code": t.get("mgmt_code") or "",
                            "name": (t.get("name") or "")[:30], "error": str(e)[:160]})
     return JSONResponse({
         "ok": True,

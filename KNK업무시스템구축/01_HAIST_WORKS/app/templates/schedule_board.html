@@ -465,15 +465,18 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       if(!j.ok){ body.innerHTML='<div style="color:#b91c1c;">조회 실패: '+esc(j.error||'')+'</div>'; return; }
       if(!j.count){ body.innerHTML='<div style="color:#15803d;">발주일이 있는데 수주번호가 빈 항목이 없습니다. (소급 발급할 대상 없음)</div>'; return; }
       var rows=j.items.map(function(it){
+        var md = it.mode==='수리' ? '<span style="color:#b45309;font-weight:700;">수리</span>' : '<span style="color:#15803d;font-weight:700;">신규</span>';
         return '<tr><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+md+'</td>'+
           '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;"><b>'+esc(it.biz_div)+'</b></td>'+
           '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;">'+esc(it.name)+'</td>'+
           '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+esc(it.order_date)+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888;">'+esc(it.status||'')+'</td>'+
           '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:right;">'+won(it.amount)+'</td></tr>';
       }).join('');
-      body.innerHTML='<div style="margin-bottom:8px;">대상 <b style="color:#c0392b;">'+j.count+'</b>건 — 각 항목의 <b>발주일</b> 기준으로 수주번호(사업부-발주일, 예 M-260518)를 발급합니다.<br>'+
-        '<span style="font-size:11px;color:#666;">· 실행 전 DB 자동 백업 · 이미 수주번호 있으면 건너뜀 · 발주일 없는 건은 대상 아님 · 상태/단계는 그대로 보존</span></div>'+
-        '<div style="max-height:46vh;overflow:auto;border:1px solid #eee;border-radius:6px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">사업부</th><th style="padding:5px 6px;text-align:left;">프로젝트</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;text-align:right;">수주액</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      body.innerHTML='<div style="margin-bottom:8px;">대상 <b style="color:#c0392b;">'+j.count+'</b>건 — 각 항목의 <b>발주일</b> 기준으로 수주번호(사업부-발주일, 예 M-260518)를 발급/수리합니다.<br>'+
+        '<span style="font-size:11px;color:#666;">· 실행 전 DB 자동 백업 · 이미 정상 수주번호 있으면 건너뜀 · 발주일 없는 건은 대상 아님 · <b>신규</b>=새 발급, <b>수리</b>=깨진 번호 교체 · <b>초기협의 단계는 수주확정으로 올림</b>(진행중·납품완료는 보존)</span></div>'+
+        '<div style="max-height:46vh;overflow:auto;border:1px solid #eee;border-radius:6px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">처리</th><th style="padding:5px 6px;">사업부</th><th style="padding:5px 6px;text-align:left;">프로젝트</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;">현재단계</th><th style="padding:5px 6px;text-align:right;">수주액</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
       var run2=document.getElementById('soBackfillRunBtn'); if(run2) run2.disabled=false;
     }).catch(function(e){ body.innerHTML='<div style="color:#b91c1c;">조회 오류: '+esc(e)+'</div>'; });
   };
@@ -491,9 +494,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       if(j.failed_count) html+='<div style="color:#b91c1c;">실패: '+j.failed_count+'건 — '+esc((j.failed[0]||{}).error||'')+' …</div>';
       html+='<div style="font-size:11px;color:#888;margin-top:4px;">DB 백업: '+esc(j.backup||'')+'</div>';
       var rows=(j.issued||[]).slice(0,300).map(function(it){
-        return '<tr><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;color:#1d4ed8;"><b>'+esc(it.so_no||'')+'</b></td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+esc(it.order_date||'')+'</td></tr>';
+        var md = it.mode==='수리' ? '<span style="color:#b45309;">수리</span>' : '<span style="color:#15803d;">신규</span>';
+        return '<tr><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+md+'</td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;color:#1d4ed8;"><b>'+esc(it.so_no||'')+'</b></td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+esc(it.order_date||'')+'</td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888;">'+esc(it.stage_to||'')+'</td></tr>';
       }).join('');
-      if(rows) html+='<div style="max-height:42vh;overflow:auto;border:1px solid #eee;border-radius:6px;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;text-align:left;">발급 수주번호</th><th style="padding:5px 6px;">발주일</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      if(rows) html+='<div style="max-height:42vh;overflow:auto;border:1px solid #eee;border-radius:6px;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">처리</th><th style="padding:5px 6px;text-align:left;">발급 수주번호</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;">단계</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
       html+='<div style="font-size:12px;color:#666;margin-top:8px;">목록을 새로고침하면 반영됩니다.</div>';
       body.innerHTML=html;
     }).catch(function(e){ body.innerHTML='<div style="color:#b91c1c;">오류: '+esc(e)+'</div>'; var run2=document.getElementById('soBackfillRunBtn'); if(run2) run2.disabled=false; });
