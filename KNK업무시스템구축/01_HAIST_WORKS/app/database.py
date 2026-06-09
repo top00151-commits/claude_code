@@ -2363,6 +2363,8 @@ def init_db():
             #   같은 프로젝트명이라도 장비명이 다르면 관리번호가 다를 수 있음(프로젝트명 비유일).
             #   model_name=장비 모델명. 부품/기타는 이 장비에 딸린 납품물(project_items).
             ("equip_name",         "TEXT"),
+            # v5H226z349 (대표 지시): 형태(제품/상품/기타) — 회계 성격 분류. NULL=미지정.
+            ("form_type",          "TEXT"),
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -2370,6 +2372,11 @@ def init_db():
                     c.execute(f"ALTER TABLE projects ADD COLUMN {col} {decl}")
                 except Exception:
                     pass
+        # v5H226z349 (대표 지시): PO유형 'A/S' → '수리' 이름변경에 따른 기존 데이터 일괄 변환(멱등).
+        try:
+            c.execute("UPDATE projects SET po_type='수리' WHERE po_type='A/S'")
+        except Exception:
+            pass
         # v5H137: parent_project_id 인덱스 (소모품 → 부모 장비 역조회 가속)
         try:
             c.execute("CREATE INDEX IF NOT EXISTS idx_projects_parent ON projects(parent_project_id)")
@@ -4235,7 +4242,12 @@ NEEDS_CODE_STAGES = ("수주확정", "납품")
 WON_STATUSES = ("진행중", "납품완료")
 # v5H97: 거래 구분 (내수/수출)
 TRADE_TYPES = ("내수", "수출")
-PO_TYPES = ["신규", "추가", "개조", "A/S", "기타"]
+# v5H226z349 (대표 지시): PO유형 'A/S' → '수리'로 이름변경. → 신규/추가/개조/수리/기타.
+#   기존 po_type='A/S' 데이터는 초기화 마이그레이션에서 '수리'로 일괄 변환(아래 ALTER 직후).
+PO_TYPES = ["신규", "추가", "개조", "수리", "기타"]
+# v5H226z349 (대표 지시): 형태(회계 성격) — 제품(자체 제작)/상품(매입 판매·다품목)/기타.
+#   기존 '유형(project_type: 신규장비/소모품/수리/기타)'과는 별개 축. 작업일정표 컬럼·일괄등록 양식에서 사용.
+FORM_TYPES = ("제품", "상품", "기타")
 LOGI_STATUSES = ["초기협의", "제안서전달", "견적발행", "수주예정", "진행중", "납품완료", "보류", "취소", "기타"]
 
 # v5H137 (2026-05-05) — 프로젝트 유형 분류 (대표 직접 요청)
@@ -5085,6 +5097,12 @@ def _project_insert_or_update_values(data: dict) -> dict:
         ),
         # v5H226z211: 장비명 — 관리번호=장비 단위 (프로젝트명 비유일)
         "equip_name": (data.get("equip_name") or "").strip() or None,
+        # v5H226z349 (대표 지시): 형태(제품/상품/기타) — 유효값만 저장, 그 외 빈값.
+        "form_type": (
+            (data.get("form_type") or "").strip()
+            if (data.get("form_type") or "").strip() in FORM_TYPES
+            else ""
+        ),
     }
 
 
@@ -5180,9 +5198,9 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                      project_type, parent_project_id,
                      fx_rate, amount_krw,
                      proposal_date, quotation_date,
-                     shipment_form, equip_name,
+                     shipment_form, equip_name, form_type,
                      created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
@@ -5198,6 +5216,7 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                       vals.get("fx_rate"), vals.get("amount_krw"),
                       vals.get("proposal_date"), vals.get("quotation_date"),
                       vals.get("shipment_form") or "ASSEMBLY", vals.get("equip_name"),
+                      vals.get("form_type") or "",
                       now, now))
                 new_id = cur.lastrowid
                 # v5H101: 프로젝트 생성 이벤트 기록
@@ -11305,6 +11324,8 @@ _SCHED_CELL_MAP = {
                    # v5H226z282 (대표 지시): 고객사2·연락처·영업담당자·발주일·납품일 편집
                    "cust2": "secondary_customer", "contact": "cc_phone",
                    "sales_owner": "sales_name",
+                   # v5H226z349 (대표 지시): 형태(제품/상품/기타) 보드 인라인 편집
+                   "form_type": "form_type",
                    "order_date": "order_date", "due_date": "due_date"},
     "consumable": {"note": "note",      "dept": "cc_dept", "owner": "cc_name", "ship_to": "ship_to",
                    # 소모품은 고객사2·연락처·영업담당자 컬럼이 없어 발주일·납품일만
@@ -11320,6 +11341,9 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
     if ref_kind not in _SCHED_CELL_MAP or not ref_id or not field:
         return (False, "허용되지 않은 대상/필드")
     val = (value or "").strip()
+    # v5H226z349 (대표 지시): 형태는 고정 선택지(제품/상품/기타)만 — 그 외 값 차단(빈값=해제 허용)
+    if field == "form_type" and val and val not in FORM_TYPES:
+        return (False, "형태는 제품/상품/기타 중에서만 선택")
     # v5H226z277: 숫자 필드(수량·단가·금액)는 콤마 제거 후 숫자로
     if field in _SCHED_NUM_FIELDS:
         _raw = val.replace(",", "").strip()

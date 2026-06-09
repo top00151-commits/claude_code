@@ -77,7 +77,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched thead .c1, .sched thead .c2, .sched thead .c3 { z-index:8; }
 /* z280: 모델명 칸 글꼴을 나머지와 동일하게(기본 글꼴·12px) — 별도 Consolas/11px 제거(대표 지시) */
 .sched .cw-note { color:var(--qv-ink-3); }
-.sched .cw-qty, .sched .cw-trade, .sched .cw-po { text-align:center; }
+.sched .cw-qty, .sched .cw-trade, .sched .cw-po, .sched .cw-form { text-align:center; }
 .sched .cw-price, .sched .cw-amount { text-align:right; padding:0 8px; font-variant-numeric:tabular-nums; }
 .sched thead .cw-price, .sched thead .cw-amount { text-align:center; padding:0; }
 .sched .cw-ord, .sched .cw-due { text-align:center; }                 /* z282: 발주일·납품일 가운데 */
@@ -101,7 +101,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 
 /* 헤더 래퍼 + 너비조정 핸들 — th 폭 전체를 채워 경계에 정확히 위치 */
 .th-wrap { position:relative; width:100%; height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; padding:0 8px; }
-.sched thead .c-info .th-wrap { justify-content:flex-start; }
+/* v5H226z349 (대표 지시): 헤더행 항목명 가운데 정렬(이전 flex-start=좌측 → center). 데이터칸 정렬은 불변. */
+.sched thead .c-info .th-wrap { justify-content:center; }
 .col-resizer { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:9; user-select:none; }
 .col-resizer:hover { background:rgba(176,16,16,.25); }
 /* z331: 헤더 제목 클릭 정렬 — 제목 클릭 시 오름↔내림 토글, 빈칸은 항상 아래. (폭조절 핸들 영역은 col-resize 유지) */
@@ -310,7 +311,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       <colgroup id="schedCols">
         <col data-col="code"><col data-col="so_no"><col data-col="name">
         <col data-col="model"><col data-col="equip"><col data-col="note">
-        <col data-col="qty">{% if can_money %}<col data-col="price"><col data-col="amount">{% endif %}<col data-col="trade"><col data-col="po">
+        <col data-col="qty">{% if can_money %}<col data-col="price"><col data-col="amount">{% endif %}<col data-col="trade"><col data-col="po"><col data-col="form">
         <col data-col="cust"><col data-col="cust2"><col data-col="dept"><col data-col="owner"><col data-col="contact"><col data-col="ship"><col data-col="order_date"><col data-col="due_date">
         <col data-col="stage">
         {% for d in days %}<col class="cgd" data-day="{{ d }}">{% endfor %}
@@ -331,6 +332,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {% endif %}
           <th class="c-info cw-trade" data-col="trade"><div class="th-wrap">거래구분<span class="col-resizer" data-col="trade"></span></div></th>
           <th class="c-info cw-po" data-col="po"><div class="th-wrap">PO유형<span class="col-resizer" data-col="po"></span></div></th>
+          <th class="c-info cw-form" data-col="form"><div class="th-wrap">형태<span class="col-resizer" data-col="form"></span></div></th>
           <th class="c-info cw-cust" data-col="cust"><div class="th-wrap">고객사1<span class="col-resizer" data-col="cust"></span></div></th>
           <th class="c-info cw-cust2" data-col="cust2"><div class="th-wrap">고객사2<span class="col-resizer" data-col="cust2"></span></div></th>
           <th class="c-info cw-dept" data-col="dept"><div class="th-wrap">부서<span class="col-resizer" data-col="dept"></span></div></th>
@@ -364,6 +366,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {% endif %}
           <td class="c-info cw-trade" data-col="trade">{{ r.trade }}</td>
           <td class="c-info cw-po" data-col="po">{{ r.po_type or '—' }}</td>
+          {# v5H226z349 (대표 지시): 형태(제품/상품/기타) — 프로젝트는 드롭다운 선택 편집, 소모품은 '상품' 고정(읽기전용) #}
+          <td class="c-info cw-form{% if r.kind != 'consumable' %} editable{% if r.form_type %} filled{% endif %}{% endif %}" data-col="form"{% if r.kind != 'consumable' %} data-edit="form_type"{% endif %}>{{ r.form_type or ('＋' if r.kind != 'consumable' else '—') }}</td>
           <td class="c-info cw-cust{% if not r.cust_ok %} cust-unmatched{% endif %}" data-col="cust" title="{{ r.customer }}{% if not r.cust_ok %} — 등록 고객사 미연결(확인 필요){% endif %}">{{ r.customer }}</td>
           <td class="c-info cw-cust2{% if r.kind != 'consumable' %} editable{% if r.cust2 %} filled{% endif %}{% endif %}" data-col="cust2"{% if r.kind != 'consumable' %} data-edit="cust2"{% endif %} title="{{ r.cust2 }}">{{ r.cust2 or ('＋' if r.kind != 'consumable' else '') }}</td>
           <td class="c-info cw-dept editable{% if r.dept %} filled{% endif %}" data-col="dept" data-edit="dept">{{ r.dept or '＋' }}</td>
@@ -529,10 +533,10 @@ window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].remove
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // ===== z265→z279: 작업 일정표 — 고정 px 컬럼 모델(엑셀식 · 좌우 스크롤) =====
 // z282: 고객사2·연락처·발주일·납품일·영업담당자(맨 끝, 날짜 뒤) 추가
-const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','cust','cust2','dept','owner','contact','ship','order_date','due_date','stage','sales_owner'];
-const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',stage:'단계',sales_owner:'영업담당자'};
+const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date','stage','sales_owner'];
+const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',stage:'단계',sales_owner:'영업담당자'};
 // z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
-const COL_DEFAULTS = {code:90,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,stage:150,sales_owner:96};
+const COL_DEFAULTS = {code:90,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,stage:150,sales_owner:96};
 const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 폭(px)
 const LAST_DAY = {{ days|length }};
 let COLS = {};
@@ -878,6 +882,8 @@ if(_tbody){
 function startEdit(td){
   if(_editing) return;
   const tr=td.closest('tr');
+  // v5H226z349 (대표 지시): 형태 = 드롭다운(제품/상품/기타) 선택 편집
+  if(td.dataset.edit==='form_type'){ startSelectEdit(td, tr, ['','제품','상품','기타']); return; }
   let cur = td.classList.contains('filled') ? td.textContent.trim() : '';
   // 숫자/금액 칸은 통화기호·콤마 빼고 순수 숫자만 편집
   if(['qty','price','amount'].indexOf(td.dataset.edit)>=0) cur=cur.replace(_MONEY_STRIP,'');
@@ -905,6 +911,30 @@ function startEdit(td){
   };
   inp.addEventListener('blur',()=>finish(true));
   inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+}
+// v5H226z349 (대표 지시): 선택형 셀(형태=제품/상품/기타) 인라인 드롭다운 편집 — 텍스트 에디터와 동일 저장 경로.
+function startSelectEdit(td, tr, opts){
+  if(_editing) return;
+  let cur = td.classList.contains('filled') ? td.textContent.trim() : '';
+  const sel=document.createElement('select'); sel.className='cell-input';
+  opts.forEach(o=>{ const op=document.createElement('option'); op.value=o; op.textContent=o||'—'; if(o===cur) op.selected=true; sel.appendChild(op); });
+  _editing={td}; td.textContent=''; td.appendChild(sel); sel.focus();
+  let done=false;
+  const finish=(save)=>{
+    if(done) return; done=true;
+    const val=sel.value;
+    if(!save || val===cur){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
+    fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val})})
+      .then(r=>r.json()).then(j=>{
+        _editing=null;
+        if(j.ok){ td.textContent=val||'＋'; td.classList.toggle('filled',!!val); td.title=val; toast('저장됨'); }
+        else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ '+(j.error||'저장 실패')); }
+      }).catch(()=>{ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
+  };
+  sel.addEventListener('change',()=>finish(true));
+  sel.addEventListener('blur',()=>finish(true));
+  sel.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
 function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'})[c]||'₩'; }

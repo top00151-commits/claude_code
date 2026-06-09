@@ -12856,7 +12856,8 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "qty": p.get("unit_qty") or "", "price": p.get("unit_price") or 0,
             "amount": p.get("order_amount") or 0, "currency": (p.get("currency") or "KRW"),
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
-            "po_type": p.get("po_type") or "", "customer": p.get("customer_name") or "—",
+            "po_type": p.get("po_type") or "", "form_type": p.get("form_type") or "",
+            "customer": p.get("customer_name") or "—",
             "cust_ok": bool(p.get("customer_id")), "cust2": p.get("secondary_customer") or "",
             "dept": p.get("cc_dept") or "", "owner": p.get("cc_name") or "",
             "contact": p.get("cc_phone") or "", "ship_to": _ship,
@@ -12883,7 +12884,8 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
-                "po_type": "소모품", "customer": cr.get("customer_name") or "—",
+                "po_type": "소모품", "form_type": "상품",
+                "customer": cr.get("customer_name") or "—",
                 "cust_ok": bool(cr.get("customer_id")), "cust2": cr.get("secondary_customer") or "",
                 "contact": cr.get("cc_phone") or "", "sales_owner": cr.get("sales_name") or "",
                 "dept": cr.get("cc_dept") or "", "owner": cr.get("cc_name") or "",
@@ -12938,9 +12940,9 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
     keys = ["code", "so_no", "name", "model", "equip", "note", "qty"]
     if can_money:
         headers += ["단가", "금액", "통화"]; keys += ["price", "amount", "currency"]
-    headers += ["거래구분", "PO유형", "고객사1", "고객사2", "부서", "담당자", "연락처",
+    headers += ["거래구분", "PO유형", "형태", "고객사1", "고객사2", "부서", "담당자", "연락처",
                 "납품위치", "발주일", "납기", "단계", "영업담당자"]
-    keys += ["trade", "po_type", "customer", "cust2", "dept", "owner", "contact",
+    keys += ["trade", "po_type", "form_type", "customer", "cust2", "dept", "owner", "contact",
              "ship_to", "order_date", "due_date", "st_cur", "sales_owner"]
     out_rows = [[r.get(k, "") for k in keys] for r in rows]
     sheets = [{"name": f"작업일정표 {_y}-{_m:02d}", "headers": headers, "rows": out_rows}]
@@ -12963,9 +12965,10 @@ def _build_bulk_template_buf():
     ws = wb.active
     ws.title = "일괄등록"
     # v5H226z341 (대표 지시): 고객사(등록)→고객사1, 2차고객사→고객사2, 납품위치 다음에 영업담당자(우리 회사) 추가
+    # v5H226z349 (대표 지시): 거래구분 다음에 '형태'(제품/상품/기타) 추가. PO유형은 A/S→수리 반영.
     headers = ["관리번호*", "프로젝트명", "모델명", "장비명", "고객사1*", "고객사2",
                "발주일(YYYY-MM-DD)", "납기(YYYY-MM-DD)", "수량", "단가", "통화", "거래구분",
-               "PO유형", "담당자", "연락처", "납품위치", "영업담당자", "비고"]
+               "형태", "PO유형", "담당자", "연락처", "납품위치", "영업담당자", "비고"]
     ws.append(headers)
     knk_fill = PatternFill("solid", fgColor="A5282C")
     white = Font(color="FFFFFF", bold=True)
@@ -12979,11 +12982,14 @@ def _build_bulk_template_buf():
     ws.freeze_panes = "A2"
     dv_trade = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
-    for dv in (dv_trade, dv_ccy):
+    # v5H226z349 (대표 지시): 형태(제품/상품/기타)·PO유형(신규/추가/개조/수리/기타) 드롭다운
+    dv_form = DataValidation(type="list", formula1='"제품,상품,기타"', allow_blank=True)
+    dv_po = DataValidation(type="list", formula1='"신규,추가,개조,수리,기타"', allow_blank=True)
+    for dv in (dv_trade, dv_ccy, dv_form, dv_po):
         ws.add_data_validation(dv)
-    dv_ccy.add("K2:K500"); dv_trade.add("L2:L500")
+    dv_ccy.add("K2:K500"); dv_trade.add("L2:L500"); dv_form.add("M2:M500"); dv_po.add("N2:N500")
     ws.append(["005T2601", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "삼성전자", "",
-               "2026-01-15", "2026-03-30", "1", "0", "KRW", "내수", "신규",
+               "2026-01-15", "2026-03-30", "1", "0", "KRW", "내수", "제품", "신규",
                "홍길동", "010-0000-0000", "고객사 본사", "김영업(당사)", "예시 행 — 삭제 후 작성하세요"])
     for ci in range(1, len(headers) + 1):
         ws.cell(2, ci).font = Font(color="999999", italic=True)
@@ -12998,6 +13004,8 @@ def _build_bulk_template_buf():
         ["발주일 / 납기", "YYYY-MM-DD 형식 (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일입니다 — 비우면 수주번호가 발행되지 않습니다(헤더만 등록)."],
         ["수량 / 단가", "숫자만 입력"],
         ["통화 / 거래구분", "드롭다운(KRW·USD.. / 내수·수출)"],
+        ["형태", "드롭다운(제품·상품·기타). 제품=자체 제작 / 상품=매입 판매(여러 품목으로 구성) / 기타. 비워도 됩니다."],
+        ["PO유형", "드롭다운(신규·추가·개조·수리·기타). 비우면 '신규'로 저장됩니다."],
         ["담당자 / 연락처", "고객사 담당자 이름 / 연락처"],
         ["영업담당자", "우리 회사(KNK) 영업담당자 이름 — 이 건을 담당하는 당사 영업사원"],
         ["상태(납품완료·수금완료)", "이 양식에는 없음 — 등록 후 작업일정표/상세에서 직접 설정합니다."],
@@ -13146,6 +13154,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "currency": (p.get("currency") or "KRW"),  # v5H226z278: 통화
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
             "po_type": p.get("po_type") or "",
+            "form_type": p.get("form_type") or "",               # v5H226z349: 형태(제품/상품/기타)
             "customer": p.get("customer_name") or "—",          # 고객사1(직접 고객)
             "cust_ok": bool(p.get("customer_id")),               # v5H226z294: 등록 고객사 연결 여부(미연결=적색)
             # v5H226z282 (대표 지시): 고객사2(최종)·연락처·영업담당자·발주일·납품일 컬럼
@@ -13182,7 +13191,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
-                "po_type": "소모품", "customer": cr.get("customer_name") or "—",
+                "po_type": "소모품", "form_type": "상품",
+                "customer": cr.get("customer_name") or "—",
                 "cust_ok": bool(cr.get("customer_id")),          # v5H226z294: 등록 고객사 연결 여부
                 # v5H226z287: 엑셀 정보란 반영으로 소모품도 고객사2·연락처·영업담당자 표시
                 "cust2": cr.get("secondary_customer") or "", "contact": cr.get("cc_phone") or "",
@@ -13250,7 +13260,8 @@ async def schedule_board_cell(request: Request):
     field = (b.get("field") or "").strip()
     value = b.get("value") or ""
     if field not in ("note", "dept", "owner", "ship_to", "qty", "price", "amount",
-                     "cust2", "contact", "sales_owner", "order_date", "due_date"):  # v5H226z282
+                     "cust2", "contact", "sales_owner", "order_date", "due_date",
+                     "form_type"):  # v5H226z282 / z349(형태)
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
     # v5H226z277: 단가·금액은 권한(영업·관리)만 — 서버에서 차단
     if field in ("price", "amount") and not can_view_sales(u):
@@ -14342,6 +14353,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         # v5H226z341: 고객사2(=옛 '2차고객사')·영업담당자 새 헤더 인식 + 옛 헤더 호환
         _cC = _col("고객사"); _cC2 = _col("고객사2", "2차"); _cOd = _col("발주일"); _cDd = _col("납기")
         _cQ = _col("수량"); _cP = _col("단가"); _cCur = _col("통화"); _cTr = _col("거래"); _cPo = _col("PO")
+        _cForm = _col("형태")   # v5H226z349 (대표 지시): 형태(제품/상품/기타)
         _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품"); _cNt = _col("비고")
         _cSa = _col("영업")   # 영업담당자(우리 회사 영업사원) — sales_name 으로 저장
         _gseq = {}
@@ -14459,6 +14471,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 "currency": (_to_str(_g(_cCur)) or "KRW").upper(),
                 "is_export": 1 if "수출" in _trade else 0,
                 "po_type": _to_str(_g(_cPo)) or "신규",
+                "form_type": _to_str(_g(_cForm)),   # v5H226z349: 형태(제품/상품/기타)
                 "cc_name": _to_str(_g(_cCc)),
                 "cc_phone": _to_str(_g(_cPh)),
                 "ship_to": _to_str(_g(_cSh)),
@@ -15152,6 +15165,8 @@ async def projects_import_confirm(request: Request):
                 "two_tier_order": r.get("two_tier_order") or 0,
                 "secondary_customer": r.get("secondary_customer") or "",
                 "final_amount": (r.get("final_amount") if r.get("final_amount") is not None else ""),
+                # v5H226z349 (대표 지시): 형태(제품/상품/기타) — 일괄등록도 저장
+                "form_type": r.get("form_type") or "",
             })
             # 상태가 won 이면 자동 SO 발행 (단일 호기, 사용자 폴백 경로 모방)
             status_v = r.get("status") or ""
