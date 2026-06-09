@@ -12947,21 +12947,18 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
     return _make_xlsx_response(sheets, f"작업일정표_{_y}-{_m:02d}")
 
 
-@app.get("/sales/schedule/bulk-template.xlsx")
-async def schedule_bulk_template(request: Request):
-    """v5H226z316 (대표 지시): 예전 일정 '일괄 등록'용 빈 양식(.xlsx) 다운로드.
-    (업로드→일괄 생성은 다음 단계로 제공 — 본 라우트는 양식 다운로드만)"""
-    u = get_user(request)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.worksheet.datavalidation import DataValidation
-    except ImportError:
-        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _build_bulk_template_buf():
+    """v5H226z341/z342: 관리번호 기반 일괄등록 빈 양식(.xlsx)을 코드로 동적 생성 → BytesIO 반환.
+    작업일정표(/sales/schedule/bulk-template.xlsx)와 일괄등록 탭(/projects/import-template-mgmt) 공용 →
+    한 곳만 고치면 두 다운로드가 항상 동기화(정적 스냅샷이 따로 놀던 staleness 제거).
+    헤더: 고객사1/고객사2/영업담당자(우리 회사) 포함. (openpyxl 미설치 시 ImportError 전파)"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.worksheet.datavalidation import DataValidation
+    import io
     wb = Workbook()
     ws = wb.active
     ws.title = "일괄등록"
@@ -13014,13 +13011,29 @@ async def schedule_bulk_template(request: Request):
     ws2.column_dimensions["B"].width = 72
     for ci in (1, 2):
         cc = ws2.cell(1, ci); cc.font = white; cc.fill = knk_fill
-    import io
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return buf
+
+
+@app.get("/sales/schedule/bulk-template.xlsx")
+async def schedule_bulk_template(request: Request):
+    """v5H226z316→z342 (대표 지시): 일괄 등록용 빈 양식(.xlsx) 다운로드 — 공용 헬퍼로 동적 생성."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    try:
+        buf = _build_bulk_template_buf()
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
     from urllib.parse import quote
     fn = "작업일정표_일괄등록_양식.xlsx"
     return StreamingResponse(
-        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}"})
+        buf, media_type=_XLSX_MIME,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
+                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"})
 
 
 @app.get("/sales/schedule", response_class=HTMLResponse)
@@ -14891,20 +14904,25 @@ async def projects_import_template_biz(request: Request, biz: str):
 
 @app.get("/projects/import-template-mgmt")
 async def projects_import_template_mgmt(request: Request):
-    """v5H226z326 (대표 지시): 관리번호 기반 일괄등록 표준 양식(4개 탭 공통) 다운로드 — 정적 파일 그대로."""
+    """v5H226z326→z342 (대표 지시): 관리번호 기반 일괄등록 표준 양식 다운로드.
+    z342 근본수정: 정적 스냅샷(프로젝트_일괄등록_관리번호양식.xlsx)이 코드 변경을 못 따라가
+      옛 헤더(고객사*(등록)·2차고객사)가 계속 내려가던 문제 → _build_bulk_template_buf() 동적 생성으로 전환.
+      이제 작업일정표 양식과 항상 동일(고객사1/고객사2/영업담당자)."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
-    from pathlib import Path as _Path
-    p = _Path(__file__).parent / "static" / "templates" / "프로젝트_일괄등록_관리번호양식.xlsx"
-    if not p.exists():
-        return JSONResponse({"error": "양식 파일을 찾을 수 없습니다"}, 404)
-    return FileResponse(
-        str(p), filename="KNK_프로젝트_일괄등록_양식.xlsx",
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    try:
+        buf = _build_bulk_template_buf()
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    from urllib.parse import quote
+    fn = "KNK_프로젝트_일괄등록_양식.xlsx"
+    return StreamingResponse(
+        buf, media_type=_XLSX_MIME,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
+                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
                  "Pragma": "no-cache", "Expires": "0"})
 
 
