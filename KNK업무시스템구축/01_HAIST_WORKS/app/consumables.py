@@ -33,12 +33,13 @@ CO_STATUS_LABELS = {
 
 
 def generate_co_no(biz_div: str = "M", today=None) -> str:
-    """v5H226z248 (대표 지시): 소모품 발주번호 = 기존 수주번호와 동일 형식 [사업부]-[YYMMDD].
-    같은 날 첫 건은 접미 없음, 두 번째부터 -1, -2 순차. (예: M-260602, M-260602-1)
+    """v5H226z248→z338 (대표 확정): 소모품 발주번호 = 수주번호와 동일 형식 [사업부]-[YYMMDD],
+    앞글자는 소모품 'C' 고정 (예: C-260602, C-260602-1). 같은 날 첫 건은 접미 없음, 두 번째부터 -1, -2 순차.
     수주번호(orders.order_no)와 충돌 방지를 위해 orders + consumable_orders 양쪽을 스캔."""
-    bd = (biz_div or "M").strip().upper()
-    if bd not in ("T", "M", "L"):
-        bd = "M"
+    # v5H226z338 (대표 확정): 소모품 발주번호 앞글자 = 소모품 'C' 고정 (수주번호 사업부글자 규칙: 소모품=C).
+    #   z248 의 '진행 사업부 T/M/L 사용'을 'C-' 로 통일. 진행 사업부는 consumable_orders.biz_div 컬럼에 별도 보존
+    #   (co_no 앞글자로 사업부 판별하는 로직 없음 — 집계는 biz_div 컬럼 기준, 회귀 없음).
+    bd = "C"
     d = today or datetime.now()
     yymmdd = d.strftime("%y%m%d")
     base = f"{bd}-{yymmdd}"
