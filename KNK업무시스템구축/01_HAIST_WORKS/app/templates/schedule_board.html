@@ -38,7 +38,8 @@
 .sched-tools .tbx-reset:hover { background:#fff; }
 /* v5H226z345 (대표 지시): 작업일정표 상단 3개 행 시각 구분 — 역할 띠(라벨 + 옅은 배경)로 한눈에 구분 */
 .sb-band { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:7px 11px; border-radius:11px; border:1px solid var(--line); margin:0 var(--content-pad) 8px; }
-.sb-band > .band-tag { flex:0 0 auto; font-size:11px; font-weight:800; color:#fff; padding:3px 10px; border-radius:7px; white-space:nowrap; letter-spacing:.3px; }
+/* v5H226z348 (대표 지시): 3개 띠 라벨(사업부·작업·표 설정) 너비 동일 고정 — 세로로 가지런히 정렬 */
+.sb-band > .band-tag { flex:0 0 auto; box-sizing:border-box; min-width:58px; text-align:center; font-size:11px; font-weight:800; color:#fff; padding:3px 10px; border-radius:7px; white-space:nowrap; letter-spacing:.3px; }
 .band-filter { background:#eef3fa; border-color:#d4e2f2; }  .band-filter > .band-tag { background:#2f6aa8; }
 .band-action { background:#fbf0ed; border-color:#f1d9d3; }  .band-action > .band-tag { background:var(--knk-red,#b0271f); }
 .band-view   { background:#f4f5f7; border-color:#e3e5ea; }  .band-view   > .band-tag { background:#6b7280; }
