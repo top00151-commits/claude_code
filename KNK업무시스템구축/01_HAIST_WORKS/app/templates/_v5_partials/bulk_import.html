@@ -6,7 +6,7 @@
     <div class="bulk-imp-row">
       <a class="bi-btn dl" href="/projects/import-template-mgmt">📥 양식 다운로드</a>
       <button type="button" class="bi-btn up" onclick="document.getElementById('importXlsx').click()">📤 엑셀 업로드</button>
-      <input type="file" id="importXlsx" accept=".xlsx" style="display:none;" onchange="uploadProjectsXlsx(this.files[0])">
+      <input type="file" id="importXlsx" accept=".xlsx" style="display:none;" onchange="if(window.uploadProjectsXlsx){window.uploadProjectsXlsx(this.files[0]);}else{alert('업로드 기능이 로드되지 않았습니다 — 키보드 F5로 새로고침 후 다시 시도해 주세요. (계속 안 되면 알려주세요)');}">
     </div>
     <div class="bi-hint"><b>관리번호</b> 있으면 그대로 사용, 없으면 <b>발주일자로 자동 발급</b>(사업부 = {{ bulk_label }}). 중복 관리번호는 건너뜀. · 흐름: 양식 다운로드 → 입력(2행 예시 삭제) → 업로드 → 미리보기 → 확정</div>
   </div>
@@ -67,16 +67,23 @@
 var BULK_BIZ = '{{ bulk_biz }}';   // v5H226z326: 관리번호 없는 행의 자동발급 사업부(업로드 탭)
 var _importRows = [];
 async function uploadProjectsXlsx(file) {
-  if (!file) return;
+  if (!file) { alert('파일이 선택되지 않았습니다.'); return; }
   var fd = new FormData();
   fd.append('xlsx', file);
-  fd.append('biz', BULK_BIZ);
+  fd.append('biz', (typeof BULK_BIZ !== 'undefined' ? BULK_BIZ : ''));
   var _mig = document.getElementById('importMigrateMode');
   fd.append('migrate_mode', (_mig && _mig.checked) ? '1' : '0');
   var r;
-  try { r = await fetch('/projects/import-xlsx', {method:'POST', body: fd}); }
-  catch (e) { alert('업로드 실패: ' + e); return; }
-  var j = await r.json();
+  try { r = await fetch('/projects/import-xlsx', {method:'POST', body: fd, credentials:'same-origin'}); }
+  catch (e) { alert('업로드 통신 실패: ' + e); return; }
+  // v5H226z343: 실패를 조용히 묻지 않게 — HTTP 에러·비JSON(로그인 풀림 등) 응답을 표면화
+  if (!r.ok) {
+    alert('업로드 실패 (HTTP ' + r.status + ')' + ((r.status === 401 || r.status === 403) ? ' — 로그인이 풀렸거나 등록 권한이 없습니다. F5로 새로고침 후 다시 로그인해 주세요.' : ''));
+    return;
+  }
+  var j;
+  try { j = await r.json(); }
+  catch (e) { alert('업로드 응답을 읽지 못했습니다 — 서버가 JSON이 아닌 응답을 보냈습니다(로그인 풀림 가능). F5로 새로고침 후 다시 시도해 주세요.'); return; }
   if (!j.ok) { alert('파싱 실패: ' + (j.error || '알 수 없음')); return; }
   _importRows = j.rows || [];
   renderImportPreview(j);
@@ -189,4 +196,8 @@ async function confirmImport() {
     try { (window.top || window).location.href = '/projects'; } catch (e) { location.href = '/projects'; }
   } else { btn.disabled = false; }
 }
+// v5H226z343: 인라인 onclick/onchange 가 항상 찾도록 window 에 명시 노출 (모달/주입 컨텍스트 안전망)
+window.uploadProjectsXlsx = uploadProjectsXlsx;
+window.closeImportPreview = closeImportPreview;
+window.confirmImport = confirmImport;
 </script>
