@@ -8278,7 +8278,8 @@ async def sales_orders_add_unit(req: Request, oid: int):
     raw_a = (form.get("amount") or "0").strip().replace(",", "")
     note  = (form.get("note") or "").strip()
     cur_v = (form.get("currency") or "").strip().upper() or "KRW"
-    if cur_v not in ("KRW", "USD", "VND"):
+    # v5H226z357 (통화 중대버그): 6종 통화 허용 (EUR/JPY/CNY 누락 수정)
+    if cur_v not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
         cur_v = "KRW"
     # v5H110: 수량 — N대 한 번에 추가 (모두 같은 단가, 라벨은 자동 증가)
     raw_qty = (form.get("qty") or "1").strip()
@@ -8416,7 +8417,8 @@ async def sales_orders_quick_edit(req: Request, oid: int):
     raw_ord = (form.get("order_date") or "").strip()
     raw_ship = (form.get("ship_to") or "").strip()
     sets, vals = [], []
-    if raw_c in ("KRW", "USD", "VND"):
+    # v5H226z357 (통화 중대버그): 6종 통화 허용 (EUR/JPY/CNY 선택 시 통화만 저장 안 되던 버그 수정)
+    if raw_c in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
         sets.append("currency=?"); vals.append(raw_c)
     if raw_q:
         try:
@@ -13536,7 +13538,7 @@ async def projects_bulk_template_download(request: Request):
         ("납품처",     14, "평택",          "선택"),
         ("수량",       8,  1,              "필수. 숫자(대 단위)"),
         ("단가",       14, 50000000,       "필수. 숫자(원/외화). 콤마 없이"),
-        ("통화",       8,  "KRW",          "KRW / USD / VND. 비우면 KRW"),
+        ("통화",       8,  "KRW",          "KRW / USD / VND / JPY / CNY / EUR. 비우면 KRW"),
         ("수주일",     12, "2026-05-08",   "YYYY-MM-DD 형식"),
         ("납기",       12, "2026-06-15",   "YYYY-MM-DD 형식"),
         ("상태",       12, "진행중",        "초기협의/제안서전달/견적발행/수주예정/진행중/납품완료/취소/보류"),
@@ -13607,7 +13609,7 @@ async def projects_bulk_template_download(request: Request):
     dv_form = DataValidation(type="list", formula1='"ASSEMBLY,PARTS"', allow_blank=True)
     dv_form.add(f"D3:D57")
     ws.add_data_validation(dv_form)
-    dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND"', allow_blank=True)
+    dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)  # v5H226z357: 6종 통화
     dv_ccy.add(f"J3:J57")
     ws.add_data_validation(dv_ccy)
     dv_st = DataValidation(type="list",
@@ -13635,7 +13637,7 @@ async def projects_bulk_template_download(request: Request):
         ("출고형태", "T/M 사업부에서만. ASSEMBLY=완제품 / PARTS=부품수출"),
         ("고객사", "DB에 등록된 고객사명과 정확히 일치해야 함. 띄어쓰기/괄호 주의."),
         ("날짜", "YYYY-MM-DD 형식 (예: 2026-05-08)"),
-        ("통화", "KRW / USD / VND. 비우면 KRW로 처리."),
+        ("통화", "KRW / USD / VND / JPY / CNY / EUR. 비우면 KRW로 처리."),
         ("상태", "초기협의 / 제안서전달 / 견적발행 / 수주예정 / 진행중 / 납품완료 / 취소 / 보류"),
         ("업로드", "관리자 메뉴 → '프로젝트 일괄등록'에서 이 파일 그대로 업로드"),
         ("주의", "업로드 전 반드시 '전체 초기화' 단계가 먼저 수행되어야 함 (대표 직접 지시)"),
@@ -14258,7 +14260,7 @@ PROJ_IMPORT_HEADERS = [
     "거래구분", "발주일", "납기일", "단가", "수량",
     "통화", "상태", "PM", "영업담당", "납품처", "비고"
 ]
-PROJ_IMPORT_CURRENCIES = {"KRW", "USD", "VND"}
+PROJ_IMPORT_CURRENCIES = {"KRW", "USD", "VND", "JPY", "CNY", "EUR"}  # v5H226z357 (통화 중대버그): 6종 (EUR/JPY/CNY 누락 수정)
 PROJ_IMPORT_STATUSES = {
     "초기협의", "제안서전달", "견적발행", "수주예정",
     "진행중", "납품완료", "취소", "보류"
@@ -14702,7 +14704,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 unit_qty = max(1, min(_qty_cap, unit_qty))
             # 통화
             if currency not in PROJ_IMPORT_CURRENCIES:
-                errors.append(f"통화 화이트리스트 위반: '{currency}' (KRW/USD/VND)")
+                errors.append(f"통화 화이트리스트 위반: '{currency}' (KRW/USD/VND/JPY/CNY/EUR)")
                 currency = "KRW"
             # 상태
             if status not in PROJ_IMPORT_STATUSES:

@@ -5055,8 +5055,10 @@ def _project_insert_or_update_values(data: dict) -> dict:
         "po_type": (data.get("po_type") or "신규").strip() or "신규",
         "status": (data.get("status") or "수주예정").strip() or "수주예정",
         "customer_po": (data.get("customer_po") or "").strip(),
+        # v5H226z357 (대표 지시·통화 중대버그): 허용 통화를 단일 진실 소스(CURRENCY_OPTIONS, 6종)로.
+        #   기존 (KRW,USD,VND) 3종 제한이 EUR/JPY/CNY 를 조용히 KRW 로 강등시키던 버그 수정.
         "currency": ((data.get("currency") or "KRW").strip().upper()
-                     if (data.get("currency") or "KRW").strip().upper() in ("KRW","USD","VND")
+                     if (data.get("currency") or "KRW").strip().upper() in CURRENCY_OPTIONS
                      else "KRW"),
         "is_export": 1 if str(data.get("is_export") or data.get("trade_type") or "").lower() in ("1","true","수출","export") else 0,
         "order_amount": float(data.get("order_amount") or 0),
