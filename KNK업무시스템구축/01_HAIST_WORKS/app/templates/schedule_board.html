@@ -66,6 +66,8 @@
 .sched-wrap { margin:0 var(--content-pad); border:1px solid var(--line); border-radius:10px;
   overflow:auto; max-height:calc(100vh - 250px); background:var(--paper-3); }
 .sched-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; max-height:100vh; border-radius:0; }
+/* v5H226z363 (대표 지시): 휴대폰에선 보드 높이 제한 해제 → 표 전체가 보이고 페이지가 세로 스크롤(표는 가로 스크롤 유지) */
+@media (max-width:1023px){ .sched-wrap:not(.fs) { max-height:none; } }
 /* z279: 고정 px + 좌우 스크롤(엑셀식). 표 폭 = 칸 px 합 (JS가 지정). 한 칸 조정해도 다른 칸 불변. */
 table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-layout:fixed; width:0; }
 .sched th, .sched td { border-bottom:1px solid var(--line); border-right:1px solid #eee5d4; padding:0; height:30px; overflow:hidden; }

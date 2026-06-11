@@ -217,6 +217,15 @@ button { font-family: inherit; cursor: pointer; }
 @media (max-width: 1023px) {
   /* v5H38: 모바일에선 min-width 해제 — 가로 스크롤 없이 단일 컬럼 */
   .app { grid-template-columns: 1fr; grid-template-rows: var(--topbar-h, 80px) 1fr; min-width: auto !important; }
+  /* v5H226z363 (대표 지시): 휴대폰에선 데스크톱 고정 셸(height:100vh·overflow:hidden) 해제 →
+     페이지가 정상적으로 스크롤·확대축소 되고 본문(작업일정표·초기화 등)이 다 보이게 한다.
+     (데스크톱은 위 html/body/.app overflow:hidden 그대로 유지 — 모바일 분기만 풀어줌) */
+  html, body { height: auto !important; overflow: visible !important; }
+  html { overflow-x: auto !important; }
+  .app { height: auto !important; min-height: 100vh; overflow: visible !important; }
+  .main { overflow: visible !important; height: auto !important; }
+  .main::after { display: none; }
+  .top { position: sticky; top: 0; z-index: 80; }   /* 스크롤해도 상단바(☰ 메뉴) 유지 */
   .top { min-width: auto !important; }
   .sidebar { display: none; position: fixed; top: var(--topbar-h, 80px); left: 0; bottom: 0; width: 280px; z-index: 90; background: var(--paper); border-right: 1px solid var(--line); box-shadow: 4px 0 16px rgba(0,0,0,.12); overflow-y: auto; }
   body.mob-sb-open .sidebar { display: block; }
