@@ -735,6 +735,188 @@ def recompute_co_total(co_id: int) -> float:
     return total
 
 
+# ────────────────────────────────────────────────────────────────────
+# v5H226z358 (대표 지시): 소모품 '통합 일괄등록' — 엑셀 한 장에 여러 고객사·여러 발주.
+#   한 줄 = 한 품목. (고객사 + 발주일 + 발주구분) 이 같은 줄들이 한 발주로 묶임.
+#   1월~현재 과거 대량 데이터를 한 번에 올리기 위함. 사진은 통합 양식엔 없음(상세에서 추가).
+# ────────────────────────────────────────────────────────────────────
+CO_BULK_HEADERS = ["고객사*", "사업부*", "발주일(YYYY-MM-DD)*", "납기(YYYY-MM-DD)", "발주구분",
+                   "품명*", "규격", "모델", "장비명", "수량*", "단위", "단가", "통화",
+                   "연결관리번호", "비고"]
+
+
+def build_co_bulk_template_buf():
+    """통합 소모품 일괄등록 빈 양식(.xlsx) → BytesIO. (openpyxl 필요)"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.worksheet.datavalidation import DataValidation
+    import io as _io
+    wb = Workbook(); ws = wb.active; ws.title = "소모품일괄"
+    ws.append(CO_BULK_HEADERS)
+    fill = PatternFill("solid", fgColor="2F6AA8"); white = Font(color="FFFFFF", bold=True)
+    thin = Side(style="thin", color="DDDDDD"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    widths = [16, 8, 19, 17, 10, 20, 14, 13, 15, 8, 7, 12, 8, 15, 18]
+    for ci, _ in enumerate(CO_BULK_HEADERS, 1):
+        c = ws.cell(1, ci); c.font = white; c.fill = fill
+        c.alignment = Alignment(horizontal="center", vertical="center"); c.border = border
+        ws.column_dimensions[c.column_letter].width = widths[ci - 1]
+    ws.freeze_panes = "A2"
+    dv_biz = DataValidation(type="list", formula1='"T,M"', allow_blank=True)
+    dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
+    ws.add_data_validation(dv_biz); ws.add_data_validation(dv_ccy)
+    dv_biz.add("B2:B2000"); dv_ccy.add("M2:M2000")
+    # 예시 3줄 (1~2: 같은 발주 2품목 / 3: 다른 고객·발주). 업로드 시 '지우고' 신호로 자동 스킵.
+    ws.append(["삼성전자", "T", "2026-01-15", "2026-01-30", "1", "예) Grip Pad", "KNK-P-001", "WATCH9", "낙하지그", "6", "EA", "380000", "KRW", "", "예시 — 같은 발주(구분 1)의 1번째 품목"])
+    ws.append(["삼성전자", "T", "2026-01-15", "2026-01-30", "1", "예) Finger Pad", "KNK-P-002", "WATCH9", "낙하지그", "4", "EA", "250000", "KRW", "", "예시 — 같은 발주(구분 1)의 2번째 품목"])
+    ws.append(["LG전자", "M", "2026-02-03", "", "", "예) 센서 브라켓", "BRK-22", "", "검사라인", "10", "EA", "52000", "KRW", "", "예시 — 다른 고객·다른 발주 · 이 예시 3줄은 지우고 작성하세요"])
+    for r in (2, 3, 4):
+        for ci in range(1, len(CO_BULK_HEADERS) + 1):
+            ws.cell(r, ci).font = Font(color="999999", italic=True)
+    ws2 = wb.create_sheet("작성안내")
+    guide = [
+        ["항목", "설명"],
+        ["기본 원리", "한 줄 = 한 품목. 한 발주에 품목이 여러 개면 여러 줄로 적습니다. (고객사 · 발주일 · 발주구분) 이 같은 줄들이 '한 발주'로 자동으로 묶입니다."],
+        ["고객사 *", "필수. 시스템에 등록된 고객사명과 정확히 일치해야 자동 연결됩니다(미일치 시 텍스트로만 저장 · 미리보기에서 표시)."],
+        ["사업부 *", "T=검사기 / M=자동화 (진행 사업부 — 드롭다운). 소모품 관리번호는 'C'로 자동 발급됩니다."],
+        ["발주일 *", "YYYY-MM-DD 형식. 발주번호(C-YYMMDD)의 발행 기준일입니다."],
+        ["발주구분", "같은 고객사·같은 날에 발주가 여러 건이면 1·2.. 또는 고객 PO번호로 구분. 비우면 (고객사+발주일)로 묶습니다."],
+        ["품명 * / 수량 *", "필수. 품목명 / 수량(숫자)."],
+        ["단가 / 통화", "숫자(콤마 없이) / 드롭다운 KRW·USD·VND·JPY·CNY·EUR (비우면 KRW)."],
+        ["연결관리번호", "이 품목이 어느 장비(관리번호)의 소모품인지 연결(선택). 예: 012T2601. 못 찾으면 미연결로 등록 + 안내."],
+        ["사진", "통합 양식에는 없습니다 — 등록 후 각 발주 상세에서 품목별로 추가하세요."],
+        ["주의", "2~4행의 예시는 삭제 후 작성하세요. 업로드 → 미리보기(발주 N건·품목 M개) → 확정 순서입니다."],
+    ]
+    for r in guide:
+        ws2.append(r)
+    ws2.column_dimensions["A"].width = 20; ws2.column_dimensions["B"].width = 76
+    for ci in (1, 2):
+        cc = ws2.cell(1, ci); cc.font = white; cc.fill = fill
+    buf = _io.BytesIO(); wb.save(buf); buf.seek(0)
+    return buf
+
+
+def parse_co_bulk_xlsx(file_bytes: bytes) -> dict:
+    """통합 소모품 일괄등록 파서 — 평면 행 → 발주별 묶음.
+    그룹키 = (고객사 정규화 + 발주일 + 발주구분). 발주구분 비면 (고객사+발주일).
+    반환: {ok, orders:[{customer_name, cust_ok, biz_div, order_date, due_date, currency,
+                       group_label, items:[{...,_errors}], item_count, total_amount, _errors, _warn}],
+           total_orders, total_items}."""
+    from openpyxl import load_workbook
+    import io as _io
+    wb = load_workbook(_io.BytesIO(file_bytes), read_only=True, data_only=True)
+    ws = None
+    for nm in wb.sheetnames:
+        if nm != "작성안내":
+            ws = wb[nm]; break
+    if ws is None:
+        ws = wb.worksheets[0]
+    grid = list(ws.iter_rows(values_only=True))
+    if not grid:
+        return {"ok": True, "orders": [], "total_orders": 0, "total_items": 0}
+    hmap = {}
+    for ci, hv in enumerate(grid[0]):
+        if hv:
+            hmap[str(hv).strip()] = ci
+
+    def _col(*subs):
+        for k, ci in hmap.items():
+            for s in subs:
+                if s in k:
+                    return ci
+        return None
+
+    c_cust = _col("고객사"); c_biz = _col("사업부"); c_od = _col("발주일"); c_due = _col("납기")
+    c_grp = _col("발주구분"); c_pn = _col("품명"); c_spec = _col("규격"); c_model = _col("모델")
+    c_equip = _col("장비"); c_qty = _col("수량"); c_unit = _col("단위"); c_price = _col("단가")
+    c_ccy = _col("통화"); c_link = _col("연결관리"); c_note = _col("비고")
+    cust_set = set()
+    try:
+        with db_session() as c:
+            for r in c.execute("SELECT name FROM customers"):
+                cust_set.add((r[0] or "").strip())
+    except Exception:
+        pass
+
+    def _g(rv, ci):
+        return rv[ci] if (ci is not None and ci < len(rv)) else None
+
+    def _s(v):
+        return "" if v is None else str(v).strip()
+
+    def _to_date(v):
+        if v is None:
+            return ""
+        if hasattr(v, "strftime"):
+            try:
+                return v.strftime("%Y-%m-%d")
+            except Exception:
+                return ""
+        return str(v).strip()[:10]
+
+    groups = {}; order_seq = []
+    for ridx in range(1, len(grid)):
+        rv = grid[ridx]
+        cust = _s(_g(rv, c_cust)); pn = _s(_g(rv, c_pn))
+        note_v = _s(_g(rv, c_note))
+        if not cust and not pn:
+            continue
+        # 예시행 스킵 — 품명 '예)' 접두 또는 안내문('지우고') (양식 2~4행 예시 안전 제거)
+        if pn.startswith("예)") or "지우고" in note_v:
+            continue
+        biz = _s(_g(rv, c_biz)).upper()
+        od = _to_date(_g(rv, c_od)); due = _to_date(_g(rv, c_due))
+        grp = _s(_g(rv, c_grp))
+        ccy = _norm_ccy(_g(rv, c_ccy)) or "KRW"
+        try:
+            qty = float(str(_g(rv, c_qty) or 0).replace(",", "") or 0)
+        except Exception:
+            qty = 0.0
+        try:
+            price = float(str(_g(rv, c_price) or 0).replace(",", "") or 0)
+        except Exception:
+            price = 0.0
+        item = {
+            "row_no": ridx + 1, "part_name": pn, "spec": _s(_g(rv, c_spec)),
+            "model_use": _s(_g(rv, c_model)), "equip": _s(_g(rv, c_equip)),
+            "qty": qty, "unit": _s(_g(rv, c_unit)) or "EA", "unit_price": price,
+            "link_mgmt": _s(_g(rv, c_link)).upper(), "note": note_v, "_errors": [],
+        }
+        if not pn:
+            item["_errors"].append("품명 누락")
+        if qty <= 0:
+            item["_errors"].append("수량 누락/0")
+        key = (cust.replace(" ", "").upper(), od, grp)
+        if key not in groups:
+            cust_ok = cust in cust_set
+            o = {
+                "customer_name": cust, "cust_ok": cust_ok,
+                "biz_div": biz if biz in ("T", "M", "L") else "",
+                "order_date": od, "due_date": due, "currency": ccy,
+                "group_label": grp, "note": "", "items": [], "_errors": [], "_warn": "",
+            }
+            if not cust:
+                o["_errors"].append("고객사 누락")
+            elif not cust_ok:
+                o["_warn"] = f"미등록 고객사 '{cust}' (텍스트로만 저장 · 미연결)"
+            if not od:
+                o["_errors"].append("발주일 누락")
+            if not o["biz_div"]:
+                o["_errors"].append("사업부(T/M) 누락")
+            groups[key] = o; order_seq.append(key)
+        groups[key]["items"].append(item)
+    orders = []
+    for key in order_seq:
+        o = groups[key]
+        o["item_count"] = len(o["items"])
+        o["total_amount"] = round(sum(it["qty"] * it["unit_price"] for it in o["items"]), 2)
+        if o["items"] and all(it["_errors"] for it in o["items"]):
+            o["_errors"].append("유효 품목 없음(모든 품목 행에 오류)")
+        orders.append(o)
+    return {"ok": True, "orders": orders,
+            "total_orders": len(orders),
+            "total_items": sum(o["item_count"] for o in orders)}
+
+
 def co_get(co_id: int) -> dict | None:
     with db_session() as c:
         r = c.execute(

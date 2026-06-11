@@ -23507,6 +23507,117 @@ async def consumables_import_template(request: Request):
     )
 
 
+# v5H226z358 (대표 지시): 소모품 '통합 일괄등록' — 엑셀 한 장에 여러 고객사·여러 발주 한 번에.
+#   1월~현재 과거 대량 데이터용. 흐름: 양식 다운로드 → 입력 → 업로드(미리보기) → 확정.
+@app.get("/consumables/import-bulk-template")
+async def consumables_import_bulk_template(request: Request):
+    """통합 소모품 일괄등록 빈 양식(.xlsx) 다운로드 — 동적 생성."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    try:
+        buf = _co.build_co_bulk_template_buf()
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    from urllib.parse import quote as _q
+    fn = "KNK 소모품 통합 일괄등록 양식.xlsx"
+    return StreamingResponse(
+        buf, media_type=_XLSX_MIME,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{_q(fn)}",
+                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"})
+
+
+@app.post("/consumables/import-bulk")
+async def consumables_import_bulk(request: Request, file: UploadFile = File(...)):
+    """통합 양식 업로드 → 파싱 → 미리보기(발주별 묶음) JSON. DB 미반영(확정 전)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    raw = await file.read()
+    try:
+        res = _co.parse_co_bulk_xlsx(raw)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"파싱 실패: {str(e)[:160]}"}, 400)
+    return JSONResponse(res)
+
+
+@app.post("/consumables/import-bulk-confirm")
+async def consumables_import_bulk_confirm(request: Request):
+    """미리보기 확정 → 발주별로 co_create + 품목 일괄 insert. 연결관리번호는 관리코드로 해석(못 찾으면 미연결+안내)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    orders = body.get("orders") or []
+    if not isinstance(orders, list) or not orders:
+        return JSONResponse({"ok": False, "error": "no_orders"}, 400)
+    created, failed, link_warnings = [], [], []
+    for o in orders:
+        if o.get("_errors"):   # 차단 오류 발주는 스킵(연결성 표면화)
+            failed.append({"customer": o.get("customer_name"), "order_date": o.get("order_date"),
+                           "error": "; ".join(o.get("_errors") or [])})
+            continue
+        biz = (o.get("biz_div") or "").strip().upper()
+        if biz not in ("T", "M", "L"):
+            failed.append({"customer": o.get("customer_name"), "error": "사업부(T/M) 누락"})
+            continue
+        items_in = [it for it in (o.get("items") or []) if not it.get("_errors")]
+        if not items_in:
+            failed.append({"customer": o.get("customer_name"), "error": "유효 품목 없음"})
+            continue
+        try:
+            co_id, co_no = _co.co_create(
+                customer_name=(o.get("customer_name") or "").strip(), biz_div=biz,
+                order_date=(o.get("order_date") or "").strip(),
+                due_date=(o.get("due_date") or "").strip(),
+                currency=(o.get("currency") or "KRW").strip().upper(),
+                note=(o.get("note") or "").strip(),
+                source_file="통합 일괄등록", created_by=u.get("id"))
+        except Exception as e:
+            failed.append({"customer": o.get("customer_name"), "error": f"발주 생성 실패: {str(e)[:120]}"})
+            continue
+        items_out = []
+        for ln, it in enumerate(items_in, 1):
+            _lpid = None
+            _lm = (it.get("link_mgmt") or "").strip().upper()
+            if _lm:
+                try:
+                    with db_session() as c:
+                        _r = c.execute("SELECT id FROM projects WHERE mgmt_code=? LIMIT 1", (_lm,)).fetchone()
+                    if _r:
+                        _lpid = _r[0]
+                    else:
+                        link_warnings.append(f"{co_no} · 연결관리번호 '{_lm}' 미발견 → 미연결 등록")
+                except Exception:
+                    pass
+            items_out.append({
+                "line_no": ln, "part_name": it.get("part_name"), "spec": it.get("spec"),
+                "model_use": it.get("model_use"), "equip": it.get("equip"),
+                "qty": it.get("qty"), "unit": it.get("unit"), "unit_price": it.get("unit_price"),
+                "linked_project_id": _lpid, "note": it.get("note"),
+            })
+        try:
+            _co.coi_bulk_insert(co_id, items_out)
+        except Exception as e:
+            failed.append({"customer": o.get("customer_name"), "co_no": co_no,
+                           "error": f"품목 저장 실패: {str(e)[:120]}"})
+            continue
+        created.append({"co_no": co_no, "customer": o.get("customer_name"),
+                        "order_date": o.get("order_date"), "items": len(items_out)})
+    return JSONResponse({"ok": True, "created_count": len(created), "failed_count": len(failed),
+                         "created": created, "failed": failed, "link_warnings": link_warnings})
+
+
 @app.post("/consumables/upload-xlsx")
 async def consumables_upload_xlsx(request: Request,
                                    file: UploadFile = File(...),
