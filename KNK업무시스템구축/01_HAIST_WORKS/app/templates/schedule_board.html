@@ -363,7 +363,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
             data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}">
           <td class="c-info c1" data-col="code">{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> <a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}" title="프로젝트 상세">{{ r.code }}</a>{% endif %}</td>
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
-          <td class="c-info c3" data-col="name" title="{{ r.name }}">{{ r.name or '—' }}</td>
+          {# v5H226z365 (대표 지시): 프로젝트명 보드 인라인 편집 — 프로젝트만(소모품은 '소모품' 고정 표시·읽기전용) #}
+          <td class="c-info c3{% if r.kind != 'consumable' %} editable{% if r.name %} filled{% endif %}{% endif %}" data-col="name"{% if r.kind != 'consumable' %} data-edit="name"{% endif %} title="{{ r.name }}">{{ r.name or ('＋' if r.kind != 'consumable' else '—') }}</td>
           <td class="c-info cw-model" data-col="model" title="{{ r.model }}">{{ r.model or '—' }}</td>
           <td class="c-info cw-equip" data-col="equip" title="{{ r.equip }}">{{ r.equip or '—' }}</td>
           <td class="c-info cw-note editable{% if r.note %} filled{% endif %}" data-col="note" data-edit="note" title="{{ r.note }}">{{ r.note or '＋' }}</td>

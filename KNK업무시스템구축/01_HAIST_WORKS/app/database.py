@@ -11336,7 +11336,8 @@ def view_prefs_set(user_id: int, view_key: str, config: str) -> bool:
 # 일정표 셀 → 원본 컬럼 매핑 (화이트리스트 — 이 외 필드/테이블은 절대 수정 안 함)
 # v5H226z277 (대표 지시): 수량·단가·금액 추가. price/amount 는 라우트에서 can_view_sales 권한 게이트.
 _SCHED_CELL_MAP = {
-    "project":    {"note": "logi_note", "dept": "cc_dept", "owner": "cc_name",
+    "project":    {"name": "name",  # v5H226z365 (대표 지시): 프로젝트명 보드 인라인 편집(프로젝트만)
+                   "note": "logi_note", "dept": "cc_dept", "owner": "cc_name",
                    "qty": "unit_qty", "price": "unit_price",
                    # v5H226z282 (대표 지시): 고객사2·연락처·영업담당자·발주일·납품일 편집
                    "cust2": "secondary_customer", "contact": "cc_phone",
@@ -11358,6 +11359,9 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
     if ref_kind not in _SCHED_CELL_MAP or not ref_id or not field:
         return (False, "허용되지 않은 대상/필드")
     val = (value or "").strip()
+    # v5H226z365 (대표 지시): 프로젝트명은 빈 값으로 지우기 금지 — 클릭 실수로 이름이 사라지는 사고 방지(실패 표면화)
+    if field == "name" and not val:
+        return (False, "프로젝트명은 비울 수 없습니다")
     # v5H226z349 (대표 지시): 형태는 고정 선택지(제품/상품/기타)만 — 그 외 값 차단(빈값=해제 허용)
     if field == "form_type" and val and val not in FORM_TYPES:
         return (False, "형태는 제품/상품/기타 중에서만 선택")

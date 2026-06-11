@@ -13263,9 +13263,9 @@ async def schedule_board_cell(request: Request):
     ref_id = b.get("ref_id")
     field = (b.get("field") or "").strip()
     value = b.get("value") or ""
-    if field not in ("note", "dept", "owner", "ship_to", "qty", "price", "amount",
+    if field not in ("name", "note", "dept", "owner", "ship_to", "qty", "price", "amount",
                      "cust2", "contact", "sales_owner", "order_date", "due_date",
-                     "form_type"):  # v5H226z282 / z349(형태)
+                     "form_type"):  # v5H226z282 / z349(형태) / z365(프로젝트명)
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
     # v5H226z277: 단가·금액은 권한(영업·관리)만 — 서버에서 차단
     if field in ("price", "amount") and not can_view_sales(u):
