@@ -13372,6 +13372,7 @@ async def schedule_board_diag(request: Request):
     concl_html = "".join(f"<li>{x}</li>" for x in concl) or "<li>판정 데이터 부족</li>"
 
     body = [
+        "<meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>",  # v5H226z361: 휴대폰 정상 표시
         "<div style='font-family:Pretendard,system-ui,sans-serif;max-width:980px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
         "<h1 style='font-size:22px;'>🔎 작업일정표 데이터 진단 — 사업부별 노출 가능 여부</h1>",
         "<p style='color:#666;font-size:13px;'>작업일정표는 <b>프로젝트의 발주일~납기가 그 달과 겹치는 건만</b> 표시하고, <b>관리번호 4번째 글자</b>로 사업부를 분류합니다. (읽기전용·수정 없음)</p>",
