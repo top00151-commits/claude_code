@@ -173,6 +173,13 @@
 
 <aside class="sidebar" data-dn="sidebar" data-dn-tone="blue">
   <div class="sb-scroll">{# v5H226z268b: 메뉴는 이 영역 안에서만 스크롤 — 하단 50px 띠는 밖(고정) #}
+  {# v5H226z362 (대표 지시): 휴대폰에선 상단 허브 전환 탭(통합/매출영업/자재구매)이 숨겨져 매출영업센터로 못 넘어감
+     → 사이드바 맨 위에 허브 전환 버튼을 휴대폰 전용으로 추가 (데스크톱은 상단 탭이 있으므로 숨김) #}
+  <div class="mob-hub-tabs">
+    <a class="mob-hub{% if _at == 'home' %} on{% endif %}" href="/home">🏠 통합</a>
+    <a class="mob-hub{% if _at == 'sales' %} on{% endif %}" href="/sales">📊 매출영업</a>
+    <a class="mob-hub{% if _at == 'logi' %} on{% endif %}" href="/logistics">📦 자재구매</a>
+  </div>
   {# ─────────── 허브별 메뉴 (상단 탭 선택에 따라 변경) ─────────── #}
   {% if _at == 'sales' %}
     <div class="sb-group">매출·영업</div>

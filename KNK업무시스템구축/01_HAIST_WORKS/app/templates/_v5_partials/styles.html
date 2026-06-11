@@ -228,6 +228,10 @@ button { font-family: inherit; cursor: pointer; }
   .tb-brand div div:last-child { display: none; }
   .top-tabs { display: none; }
   .mob-sb-btn { display: inline-flex !important; align-items:center; justify-content:center; width: 40px; height: 40px; margin-left: 8px; background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; font-size: 18px; cursor: pointer; }
+  /* v5H226z362 (대표 지시): 휴대폰 사이드바 맨 위 허브 전환(통합/매출영업/자재구매) — 상단 탭이 숨겨지므로 여기서 전환 */
+  .mob-hub-tabs { display: flex !important; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .mob-hub { flex: 1; text-align: center; padding: 10px 4px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; font-weight: 700; color: var(--qv-ink-2); text-decoration: none; background: var(--paper-2); white-space: nowrap; }
+  .mob-hub.on { background: var(--knk-red); color: #fff; border-color: var(--knk-red); }
   .page-head { flex-direction: column; align-items: flex-start !important; gap: 10px; }
   .page-title { font-size: 22px !important; }
   .tbl-wrap { overflow-x: auto; }
@@ -237,6 +241,7 @@ button { font-family: inherit; cursor: pointer; }
   .form-card { padding: var(--space-4) !important; }
 }
 .mob-sb-btn { display: none; }
+.mob-hub-tabs { display: none; }   /* v5H226z362: 데스크톱은 상단 허브 탭 사용 → 사이드바 허브 전환은 숨김 */
 </style>
 
 {# v5H226z48 (2026-05-09): Quiet Tone v3 — 빨강 톤 ↓, 잉크/회색 + 표 zebra (전 페이지) #}
