@@ -5,8 +5,12 @@
 <title>작업 일정표 · KNK HAIST WORKS</title>
 {% include "_v5_partials/styles.html" %}
 <style>
+/* v5H226z359 (대표 지시): 노트북 등 좁은 화면 — 상단 선택 영역을 납작하게 줄여 데이터가 더 보이게.
+   (styles.html 다음에 와서 .page-head/.page-title 를 이 페이지에 한해 덮어씀) */
+.page-head { padding-bottom:2px; }
+.page-title { font-size:20px; margin:1px 0 0; line-height:1.2; }
 /* v5H226z256: 작업 일정표 / z264: 도구 / z265: 비율(채움) 레이아웃 — 항상 폭 100% 채움 */
-.sched-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 var(--content-pad) 10px; }
+.sched-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 var(--content-pad) 6px; }
 .sched-nav { display:flex; align-items:center; gap:6px; }
 .sched-nav a, .sched-nav .cur { padding:6px 12px; border:1px solid var(--line); border-radius:7px; font-size:13px; font-weight:700; text-decoration:none; color:var(--ink); background:var(--paper-2); }
 .sched-nav .cur { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
@@ -37,7 +41,7 @@
 .sched-tools .tbx-reset { background:var(--paper-3); }
 .sched-tools .tbx-reset:hover { background:#fff; }
 /* v5H226z345 (대표 지시): 작업일정표 상단 3개 행 시각 구분 — 역할 띠(라벨 + 옅은 배경)로 한눈에 구분 */
-.sb-band { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:7px 11px; border-radius:11px; border:1px solid var(--line); margin:0 var(--content-pad) 8px; }
+.sb-band { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:4px 11px; border-radius:11px; border:1px solid var(--line); margin:0 var(--content-pad) 4px; }
 /* v5H226z348 (대표 지시): 3개 띠 라벨(사업부·작업·표 설정) 너비 동일 고정 — 세로로 가지런히 정렬 */
 .sb-band > .band-tag { flex:0 0 auto; box-sizing:border-box; min-width:58px; text-align:center; font-size:11px; font-weight:800; color:#fff; padding:3px 10px; border-radius:7px; white-space:nowrap; letter-spacing:.3px; }
 .band-filter { background:#eef3fa; border-color:#d4e2f2; }  .band-filter > .band-tag { background:#2f6aa8; }
@@ -55,7 +59,7 @@
 .cols-pop label:hover { background:#fdf3f3; }
 .cols-pop .cols-allbtn { display:block; width:100%; box-sizing:border-box; margin:0 0 6px; padding:6px 8px; border:1px solid var(--knk-red); border-radius:6px; background:var(--knk-red); color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
 .cols-pop .cols-allbtn:hover { filter:brightness(.94); }
-.sched-hint { font-size:11px; color:var(--qv-ink-3); }
+.sched-hint { font-size:10px; color:var(--qv-ink-3); line-height:1.2; }
 
 .sched-wrap { margin:0 var(--content-pad); border:1px solid var(--line); border-radius:10px;
   overflow:auto; max-height:calc(100vh - 250px); background:var(--paper-3); }
