@@ -13324,6 +13324,101 @@ async def schedule_board_cols(request: Request):
     return JSONResponse({"ok": True})
 
 
+@app.get("/sales/schedule/diag", response_class=HTMLResponse)
+async def schedule_board_diag(request: Request):
+    """v5H226z360 (대표 지시·읽기전용 진단): 작업일정표에 사업부별(특히 검사기) 데이터가
+    왜 안 뜨는지 운영에서 바로 확인. 사업부별 발주일/납기 채움·관리번호 사업부글자·보드 노출 가능 수 집계.
+    수정 없음(SELECT 전용)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home", 303)
+
+    def _esc(s):
+        return ("" if s is None else str(s)).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    rows, t_dist, t_ym, t_sample = [], [], [], []
+    with db_session() as c:
+        _notco = "COALESCE(UPPER(project_type),'')!='CONSUMABLE'"
+        for bd, label in [("T", "검사기"), ("M", "자동화"), ("L", "라이프밸류"), ("E", "기타")]:
+            tot = c.execute(f"SELECT COUNT(*) FROM projects WHERE biz_div=? AND {_notco}", (bd,)).fetchone()[0]
+            od = c.execute(f"SELECT COUNT(*) FROM projects WHERE biz_div=? AND {_notco} AND order_date IS NOT NULL AND order_date!=''", (bd,)).fetchone()[0]
+            dd = c.execute(f"SELECT COUNT(*) FROM projects WHERE biz_div=? AND {_notco} AND due_date IS NOT NULL AND due_date!=''", (bd,)).fetchone()[0]
+            board = c.execute(f"SELECT COUNT(*) FROM projects WHERE biz_div=? AND {_notco} AND ((order_date IS NOT NULL AND order_date!='') OR (due_date IS NOT NULL AND due_date!=''))", (bd,)).fetchone()[0]
+            mgmt_ok = c.execute(f"SELECT COUNT(*) FROM projects WHERE biz_div=? AND {_notco} AND substr(mgmt_code,4,1)=?", (bd, bd)).fetchone()[0]
+            mgmt_bad = tot - mgmt_ok
+            rows.append((label, bd, tot, od, dd, board, mgmt_ok, mgmt_bad))
+        t_dist = c.execute("SELECT COALESCE(NULLIF(substr(mgmt_code,4,1),''),'(빈칸/형식이상)') ch, COUNT(*) n FROM projects WHERE biz_div='T' GROUP BY ch ORDER BY n DESC").fetchall()
+        t_ym = c.execute("SELECT COALESCE(NULLIF(substr(order_date,1,7),''),'(발주일 없음)') ym, COUNT(*) n FROM projects WHERE biz_div='T' GROUP BY ym ORDER BY n DESC LIMIT 18").fetchall()
+        t_sample = c.execute("SELECT mgmt_code, order_date, due_date, name, status FROM projects WHERE biz_div='T' ORDER BY id DESC LIMIT 12").fetchall()
+
+    # 결론 자동 판정 (검사기 기준)
+    _t = next((r for r in rows if r[1] == "T"), None)
+    concl = []
+    if _t:
+        _label, _bd, _tot, _od, _dd, _board, _mok, _mbad = _t
+        if _tot == 0:
+            concl.append("검사기(biz_div=T) 프로젝트가 0건 — 이 화면 기준엔 검사기 데이터가 없습니다(소모품 제외).")
+        else:
+            if _board == 0:
+                concl.append(f"🔴 <b>원인 1 확정</b>: 검사기 {_tot}건 전부 <b>발주일·납기가 비어 있음</b> → 작업일정표(발주일 기준)에 한 건도 안 뜸. (수주(SO)엔 날짜가 있어도 <b>프로젝트 레코드</b>에 없으면 보드는 못 띄움)")
+            elif _board < _tot:
+                concl.append(f"🟠 검사기 {_tot}건 중 <b>{_tot - _board}건은 발주일·납기가 비어</b> 보드에 안 뜸. {_board}건만 노출 가능.")
+            if _mbad > 0:
+                concl.append(f"🔴 <b>원인 2</b>: 검사기 {_mbad}건은 <b>관리번호 4번째 글자가 'T'가 아님</b> → 보드가 검사기로 분류 못 함(검사기 탭에서 누락).")
+            if _board > 0 and _mbad == 0:
+                concl.append(f"🟢 검사기 {_board}건은 발주일/납기·관리번호 정상 → 해당 <b>발주월</b>로 이동하면 보드에 보입니다(아래 '발주일 월 분포' 참고).")
+    concl_html = "".join(f"<li>{x}</li>" for x in concl) or "<li>판정 데이터 부족</li>"
+
+    body = [
+        "<div style='font-family:Pretendard,system-ui,sans-serif;max-width:980px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+        "<h1 style='font-size:22px;'>🔎 작업일정표 데이터 진단 — 사업부별 노출 가능 여부</h1>",
+        "<p style='color:#666;font-size:13px;'>작업일정표는 <b>프로젝트의 발주일~납기가 그 달과 겹치는 건만</b> 표시하고, <b>관리번호 4번째 글자</b>로 사업부를 분류합니다. (읽기전용·수정 없음)</p>",
+        "<table style='border-collapse:collapse;width:100%;font-size:13px;margin:10px 0 18px;'>",
+        "<thead><tr style='background:#eef3fa;'>",
+        "<th style='padding:8px;border:1px solid #d4e2f2;text-align:left;'>사업부</th>",
+        "<th style='padding:8px;border:1px solid #d4e2f2;'>전체</th>",
+        "<th style='padding:8px;border:1px solid #d4e2f2;'>발주일 있음</th>",
+        "<th style='padding:8px;border:1px solid #d4e2f2;'>납기 있음</th>",
+        "<th style='padding:8px;border:1px solid #d4e2f2;'>보드 노출 가능<br><span style='font-weight:400;font-size:11px;'>(발주일 또는 납기 有)</span></th>",
+        "<th style='padding:8px;border:1px solid #d4e2f2;'>관리번호 정상<br><span style='font-weight:400;font-size:11px;'>(4번째=사업부)</span></th>",
+        "<th style='padding:8px;border:1px solid #d4e2f2;'>관리번호 이상</th>",
+        "</tr></thead><tbody>",
+    ]
+    for (label, bd, tot, od, dd, board, mok, mbad) in rows:
+        body.append(
+            f"<tr><td style='padding:8px;border:1px solid #e3e8ef;'><b>{_esc(label)}({bd})</b></td>"
+            f"<td style='padding:8px;border:1px solid #e3e8ef;text-align:center;'>{tot}</td>"
+            f"<td style='padding:8px;border:1px solid #e3e8ef;text-align:center;'>{od}</td>"
+            f"<td style='padding:8px;border:1px solid #e3e8ef;text-align:center;'>{dd}</td>"
+            f"<td style='padding:8px;border:1px solid #e3e8ef;text-align:center;font-weight:700;color:{'#c33' if board == 0 and tot > 0 else '#1f2937'};'>{board}</td>"
+            f"<td style='padding:8px;border:1px solid #e3e8ef;text-align:center;'>{mok}</td>"
+            f"<td style='padding:8px;border:1px solid #e3e8ef;text-align:center;color:{'#c33' if mbad else '#999'};font-weight:{'700' if mbad else '400'};'>{mbad}</td></tr>")
+    body.append("</tbody></table>")
+    body.append("<div style='background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:14px 18px;margin-bottom:18px;'>")
+    body.append("<b style='font-size:15px;'>📌 판정</b><ul style='margin:8px 0 0;padding-left:20px;line-height:1.8;font-size:13.5px;'>" + concl_html + "</ul></div>")
+    body.append("<h3 style='font-size:15px;'>검사기(T) — 관리번호 4번째 글자 분포</h3><div style='font-size:13px;color:#444;'>")
+    body.append(" · ".join(f"<b>{_esc(r[0])}</b>={r[1]}건" for r in t_dist) or "(없음)")
+    body.append("</div><h3 style='font-size:15px;margin-top:14px;'>검사기(T) — 발주일 월 분포</h3><div style='font-size:13px;color:#444;'>")
+    body.append(" · ".join(f"<b>{_esc(r[0])}</b>={r[1]}건" for r in t_ym) or "(없음)")
+    body.append("</div><h3 style='font-size:15px;margin-top:14px;'>검사기(T) 최근 12건 샘플</h3>")
+    body.append("<table style='border-collapse:collapse;width:100%;font-size:12px;'><thead><tr style='background:#f4f5f7;'>"
+                "<th style='padding:5px;border:1px solid #e3e8ef;'>관리번호</th><th style='padding:5px;border:1px solid #e3e8ef;'>발주일</th>"
+                "<th style='padding:5px;border:1px solid #e3e8ef;'>납기</th><th style='padding:5px;border:1px solid #e3e8ef;'>상태</th>"
+                "<th style='padding:5px;border:1px solid #e3e8ef;text-align:left;'>프로젝트명</th></tr></thead><tbody>")
+    for r in t_sample:
+        body.append(
+            f"<tr><td style='padding:5px;border:1px solid #eee;font-family:monospace;'>{_esc(r['mgmt_code'])}</td>"
+            f"<td style='padding:5px;border:1px solid #eee;text-align:center;color:{'#c33' if not r['order_date'] else '#1f2937'};'>{_esc(r['order_date']) or '(없음)'}</td>"
+            f"<td style='padding:5px;border:1px solid #eee;text-align:center;color:{'#c33' if not r['due_date'] else '#1f2937'};'>{_esc(r['due_date']) or '(없음)'}</td>"
+            f"<td style='padding:5px;border:1px solid #eee;text-align:center;'>{_esc(r['status'])}</td>"
+            f"<td style='padding:5px;border:1px solid #eee;'>{_esc(r['name'])}</td></tr>")
+    body.append("</tbody></table>")
+    body.append("<p style='color:#999;font-size:12px;margin-top:18px;'>※ 이 페이지는 읽기전용 진단용입니다. 빅터에게 위 '판정' 내용을 알려주시면 바로 해결하겠습니다.</p></div>")
+    return HTMLResponse("".join(body))
+
+
 # v5H226z270 (대표 지시): 작업 일정표 단계 파이프라인 — 패널 조회 + 단계 저장.
 #   누구나 클릭(로그인만) · 누른 사람 기록 · 단계 화이트리스트 · tax_invoice(금액)는 can_view_sales 만.
 def _sched_user_name(u: dict) -> str:
