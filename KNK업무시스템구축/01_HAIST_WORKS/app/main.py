@@ -13263,9 +13263,10 @@ async def schedule_board_cell(request: Request):
     ref_id = b.get("ref_id")
     field = (b.get("field") or "").strip()
     value = b.get("value") or ""
-    if field not in ("name", "note", "dept", "owner", "ship_to", "qty", "price", "amount",
+    if field not in ("name", "model", "equip", "note", "dept", "owner", "ship_to",
+                     "qty", "price", "amount", "trade", "po_type", "cust",
                      "cust2", "contact", "sales_owner", "order_date", "due_date",
-                     "form_type"):  # v5H226z282 / z349(형태) / z365(프로젝트명)
+                     "form_type"):  # v5H226z282 / z349(형태) / z365(프로젝트명) / z366(모델·장비·거래구분·PO유형·고객사1)
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
     # v5H226z277: 단가·금액은 권한(영업·관리)만 — 서버에서 차단
     if field in ("price", "amount") and not can_view_sales(u):
@@ -13274,7 +13275,65 @@ async def schedule_board_cell(request: Request):
         ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    # v5H226z366: 고객사1은 '연결 성공/미매칭'을 화면에 표시해야 하므로 cust_ok 동봉(msg=matched/unmatched는 내부신호 → error로 노출 안 함)
+    if field == "cust" and ok:
+        return JSONResponse({"ok": True, "error": "", "value": (value or "").strip(),
+                             "cust_ok": (msg == "matched")})
     return JSONResponse({"ok": ok, "error": msg, "value": (value or "").strip()})
+
+
+@app.post("/sales/schedule/bulk-cell")
+async def schedule_board_bulk_cell(request: Request):
+    """v5H226z366 (대표 지시): 작업일정표 일괄 수정 — 선택한 여러 건에 한 항목을 한꺼번에 적용.
+    셀 단건 수정(schedule_cell_update)과 '동일 정책·검증'을 그대로 재사용(건별 호출).
+    건별 성공/실패를 모두 모아 표면화(조용히 누락 금지). 금액류(수량·단가·금액)는 일괄 footgun 방지로 제외."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    field = (b.get("field") or "").strip()
+    value = b.get("value") or ""
+    targets = b.get("targets") or []
+    # 일괄 허용 필드(텍스트·선택·날짜류만 — 수량/단가/금액 제외)
+    if field not in ("name", "model", "equip", "note", "trade", "po_type", "form_type",
+                     "cust", "cust2", "dept", "owner", "contact", "ship_to",
+                     "order_date", "due_date", "sales_owner"):
+        return JSONResponse({"ok": False, "error": "일괄수정 허용되지 않은 항목"}, 400)
+    if not isinstance(targets, list) or not targets:
+        return JSONResponse({"ok": False, "error": "선택된 대상이 없습니다"}, 400)
+    if len(targets) > 2000:
+        return JSONResponse({"ok": False, "error": "한 번에 최대 2000건까지 가능합니다"}, 400)
+    ok_count = 0
+    failures = []
+    cust_results = {}
+    ok_keys = []   # v5H226z366 리뷰반영: 성공 키(kind:ref)를 직접 반환 → 클라가 '성공건만' 화면 갱신(실패목록 잘림과 무관하게 정확)
+    for t in targets:
+        try:
+            _kind = (t.get("kind") or "").strip()
+            _ref = int(t.get("ref_id"))
+        except Exception:
+            failures.append({"ref_id": (t or {}).get("ref_id"), "error": "대상 형식 오류"})
+            continue
+        try:
+            ok, msg = _logi.schedule_cell_update(_kind, _ref, field, value)
+        except Exception as e:
+            failures.append({"ref_id": _ref, "kind": _kind, "error": str(e)[:120]})
+            continue
+        if ok:
+            ok_count += 1
+            ok_keys.append(f"{_kind}:{_ref}")
+            if field == "cust":
+                cust_results[str(_ref)] = (msg == "matched")
+        else:
+            failures.append({"ref_id": _ref, "kind": _kind, "error": msg or "실패"})
+    return JSONResponse({"ok": True, "total": len(targets), "ok_count": ok_count,
+                        "fail_count": len(failures), "failures": failures[:80],
+                        "ok_keys": ok_keys, "cust_results": cust_results, "field": field})
 
 
 @app.post("/sales/schedule/memo")

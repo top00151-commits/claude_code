@@ -11337,6 +11337,8 @@ def view_prefs_set(user_id: int, view_key: str, config: str) -> bool:
 # v5H226z277 (대표 지시): 수량·단가·금액 추가. price/amount 는 라우트에서 can_view_sales 권한 게이트.
 _SCHED_CELL_MAP = {
     "project":    {"name": "name",  # v5H226z365 (대표 지시): 프로젝트명 보드 인라인 편집(프로젝트만)
+                   # v5H226z366 (대표 지시): 모델명·장비명·PO유형도 보드 인라인 편집(프로젝트만). 거래구분·고객사1은 특수처리(아래).
+                   "model": "model_name", "equip": "equip_name", "po_type": "po_type",
                    "note": "logi_note", "dept": "cc_dept", "owner": "cc_name",
                    "qty": "unit_qty", "price": "unit_price",
                    # v5H226z282 (대표 지시): 고객사2·연락처·영업담당자·발주일·납품일 편집
@@ -11362,6 +11364,31 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
     # v5H226z365 (대표 지시): 프로젝트명은 빈 값으로 지우기 금지 — 클릭 실수로 이름이 사라지는 사고 방지(실패 표면화)
     if field == "name" and not val:
         return (False, "프로젝트명은 비울 수 없습니다")
+    # v5H226z366 (대표 지시): 거래구분(수출/내수)=is_export 변환 — 프로젝트만
+    if field == "trade":
+        if ref_kind != "project":
+            return (False, "거래구분은 프로젝트만 편집 가능")
+        if val not in ("수출", "내수"):
+            return (False, "거래구분은 수출/내수만 가능")
+        with db_session() as c:
+            c.execute("UPDATE projects SET is_export=? WHERE id=?",
+                      (1 if val == "수출" else 0, int(ref_id)))
+        return (True, "")
+    # v5H226z366 (대표 지시): 고객사1 = customers 안전연결 — '정확히 1곳만 일치'할 때만 자동연결, 애매하면 미매칭(수동확인). 프로젝트만.
+    if field == "cust":
+        if ref_kind != "project":
+            return (False, "고객사1은 프로젝트만 편집 가능")
+        if not val:
+            return (False, "고객사명은 비울 수 없습니다")
+        with db_session() as c:
+            _m = c.execute("SELECT id FROM customers WHERE name=?", (val,)).fetchall()
+            _cid = _m[0][0] if len(_m) == 1 else None  # 명확한 단일후보만 자동연결(데이터 연결성 안전원칙)
+            c.execute("UPDATE projects SET customer_name=?, customer_id=? WHERE id=?",
+                      (val, _cid, int(ref_id)))
+        return (True, "matched" if _cid else "unmatched")  # 호출측(엔드포인트)이 연결여부 판단에 사용
+    # v5H226z366 (대표 지시): PO유형은 고정 선택지만(빈값=해제 허용). 저장은 아래 일반경로(화이트리스트 컬럼).
+    if field == "po_type" and val and val not in PO_TYPES:
+        return (False, "PO유형은 신규/추가/개조/수리/기타 중에서만 선택")
     # v5H226z349 (대표 지시): 형태는 고정 선택지(제품/상품/기타)만 — 그 외 값 차단(빈값=해제 허용)
     if field == "form_type" and val and val not in FORM_TYPES:
         return (False, "형태는 제품/상품/기타 중에서만 선택")
@@ -11395,8 +11422,13 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
         if not _col:
             return (False, "허용되지 않은 필드")
         _store = int(_num) if field == "qty" else _num
+        # v5H226z366 리뷰반영: 대상 테이블을 ref_kind로 동적 선택('projects' 하드코딩 제거) — 향후 소모품 숫자필드 추가 시 엉뚱한 테이블 수정 방지(데이터 안전)
+        _ntable = "projects" if ref_kind == "project" else "consumable_orders"
         with db_session() as c:
-            c.execute(f"UPDATE projects SET {_col}=? WHERE id=?", (_store, int(ref_id)))
+            _ncols = {r[1] for r in c.execute(f"PRAGMA table_info({_ntable})").fetchall()}
+            if _col not in _ncols:
+                return (False, f"{_ntable}.{_col} 컬럼 없음")
+            c.execute(f"UPDATE {_ntable} SET {_col}=? WHERE id=?", (_store, int(ref_id)))
         return (True, "")
     # 프로젝트 납품위치 = 대표 SO(orders 최신 id)의 ship_to 수정 (별도 처리)
     if ref_kind == "project" and field == "ship_to":
