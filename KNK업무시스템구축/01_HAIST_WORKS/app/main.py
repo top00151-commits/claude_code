@@ -4315,8 +4315,21 @@ async def project_detail(req: Request, pid: int):
                                    "dist": {"진행중":0,"납품완료":0,"취소":0,"보류":0},
                                    "total": 0, "done": 0, "ratio_text": "",
                                    "has_canceled": False, "has_held": False}
+    # v5H226z372 (대표 지시): 제작요청 발행 모달용 부서(팀) 목록 — 활성 인원 있는 팀만
+    _prod_teams = []
+    try:
+        with db_session() as _ptc:
+            _prod_teams = [dict(r) for r in _ptc.execute(
+                "SELECT t.id, t.name, COUNT(u.id) AS member_count "
+                "FROM teams t LEFT JOIN users u ON u.team_id=t.id AND COALESCE(u.is_active,1)=1 "
+                "GROUP BY t.id, t.name HAVING member_count > 0 ORDER BY t.display_order, t.id"
+            ).fetchall()]
+    except Exception:
+        _prod_teams = []
     return ctx(req, "project_detail.html",
                project_display_status=project_display_status,
+               teams=_prod_teams,
+               can_money=can_view_sales(u),   # v5H226z372 리뷰반영: 단가·금액은 영업·관리 권한자만(제작요청 통보 받은 부서원에 비공개)
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
@@ -4333,6 +4346,95 @@ async def project_detail(req: Request, pid: int):
                PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS,
                parent_project=parent_project,
                child_projects=child_projects)
+
+
+@app.post("/projects/{pid:int}/issue-prod-request")
+async def issue_prod_request(request: Request, pid: int):
+    """v5H226z372 (대표 지시): 제작요청 '발행' — ① 작업일정표 '제작요청' 단계 자동 체크(누가·언제)
+    ② 선택 부서(전부서) WORKS 내부 통보. 단가·금액은 통보에서 제외(자료경로·모델·품명·수량·납기·요청사항만 전달).
+    제작메일 대체 — 한 번 발행으로 일정표 기록 + 전부서 통보."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_sales(u) or can_use_logistics(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        b = {}
+    cust_req = (b.get("cust_req") or "").strip()
+    note = (b.get("note") or "").strip()
+    # 리뷰반영: 양수 팀ID만(음수/0 거부)
+    team_ids = [int(t) for t in (b.get("team_ids") or []) if str(t).strip().isdigit() and int(t) > 0]
+    if not team_ids:
+        return JSONResponse({"ok": False, "error": "no_team", "message": "통보할 부서를 1개 이상 선택하세요"}, 400)
+    with db_session() as c:
+        p = c.execute("SELECT id, mgmt_code, name, customer_name, model_name, equip_name, "
+                      "unit_qty, due_date, server_path FROM projects WHERE id=?", (pid,)).fetchone()
+        if not p:
+            return JSONResponse({"ok": False, "error": "not_found"}, 404)
+        p = dict(p)
+        so_nos = [r[0] for r in c.execute(
+            "SELECT order_no FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall() if r[0]]
+    from datetime import datetime as _dt2
+    today = _dt2.now().strftime("%Y-%m-%d")
+    now_str = _dt2.now().strftime("%Y-%m-%d %H:%M")
+    by_name = u.get("name") or u.get("login_id") or "—"
+    mgmt = p.get("mgmt_code") or "—"
+    model = p.get("model_name") or "—"
+    pname = p.get("name") or "—"
+    qty = p.get("unit_qty") or 1
+    due = (str(p.get("due_date") or "")[:10]) or "—"
+    spath = p.get("server_path") or ""
+    # ① 작업일정표 '제작요청' 단계 자동 체크(+요청사항·발행정보 기록)
+    import json as _json
+    _extra = _json.dumps({"cust_req": cust_req, "note": note, "issued_at": now_str,
+                          "so_nos": so_nos}, ensure_ascii=False)
+    _memo = "제작요청 발행" + (f" · {cust_req[:60]}" if cust_req else "")
+    # 리뷰반영: stage_set 실패를 침묵하지 말고 표면화(핵심 요구 — 일정표 자동기록)
+    _stage_warn = ""
+    try:
+        _sok, _smsg = _logi.stage_set("project", pid, "prod_request", done=True, on_date=today,
+                                      memo=_memo, extra=_extra, user_id=u.get("id"), user_name=by_name)
+        if not _sok:
+            _stage_warn = f"일정표 단계 기록 실패: {_smsg}"
+    except Exception as _e:
+        _stage_warn = f"일정표 단계 기록 오류: {str(_e)[:80]}"
+    # ② 전부서 통보 — 단가·금액 제외(생산에 필요한 자료경로·모델·품명·수량·납기·요청사항만)
+    title = f"📋 제작요청 [{mgmt}] {model}"
+    body = (f"관리코드: {mgmt}\n"
+            f"고객사: {p.get('customer_name') or '—'} · 모델: {model}\n"
+            f"품명: {pname} · 수량: {qty} · 납기: {due}\n")
+    if so_nos:
+        body += f"수주번호: {', '.join(so_nos)}\n"
+    if spath:
+        body += f"자료경로: {spath}\n"
+    if cust_req:
+        body += f"\n[고객사 요청사항]\n{cust_req}\n"
+    if note:
+        body += f"\n[기타 요청사항]\n{note}\n"
+    body += f"\n요청자: {by_name} · 발행: {now_str}"
+    link = f"/project/{pid}"
+    sent_to = 0
+    dept_count = 0
+    try:
+        with db_session() as c:
+            ph = ",".join("?" * len(team_ids))
+            rows = c.execute(
+                f"SELECT id FROM users WHERE team_id IN ({ph}) AND COALESCE(is_active,1)=1 AND id != ?",
+                (*team_ids, u.get("id"))).fetchall()
+            dept_count = c.execute(
+                f"SELECT COUNT(DISTINCT team_id) FROM users WHERE team_id IN ({ph}) "
+                f"AND COALESCE(is_active,1)=1 AND id != ?", (*team_ids, u.get("id"))).fetchone()[0]
+            for r in rows:
+                uid = r[0] if not isinstance(r, dict) else r["id"]
+                c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
+                          (uid, "prod_request", title, body, link))
+                sent_to += 1
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"db_error: {str(e)[:120]}"}, 500)
+    return JSONResponse({"ok": True, "sent_to": sent_to, "dept_count": dept_count,
+                         "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn})
 
 
 # =====================================================

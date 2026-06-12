@@ -44,7 +44,8 @@
         <div class="notif-icon">{% if n.kind == 'task' %}📝{% elif n.kind == 'comment' %}💬{% elif n.kind == 'ticket' %}🎫{% elif n.kind == 'change' %}📌{% elif n.kind == 'issue' %}🚨{% elif n.kind == 'po' %}📦{% elif n.kind == 'sales' %}💼{% else %}🔔{% endif %}</div>
         <div class="notif-body">
           <div class="notif-ttl">{{ n.title }}</div>
-          {% if n.message %}<div class="notif-msg">{{ n.message }}</div>{% endif %}
+          {# v5H226z372 리뷰반영: 알림 본문 컬럼명은 body — 기존 n.message(미존재 컬럼)라 본문이 안 보이던 버그 수정. 줄바꿈 보존. #}
+          {% set _nmsg = n.body or n.message %}{% if _nmsg %}<div class="notif-msg" style="white-space:pre-wrap;">{{ _nmsg }}</div>{% endif %}
           <div class="notif-time">{{ n.created_at }}{% if n.from_name %} · {{ n.from_name }}{% endif %}</div>
         </div>
         {% if not n.is_read %}<span class="pill pill-danger">NEW</span>{% endif %}

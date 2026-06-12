@@ -1172,7 +1172,7 @@ function editorHtml(s,r){
   let ex={}; try{ ex=(r&&r.extra)?JSON.parse(r.extra):{}; }catch(e){ ex={}; }
   let pre='';
   if(s.key==='verify') pre='<div class="sr-meta" style="margin-left:0">검사기 → 반복성검사·성적서 / 자동화 → 드라이런</div>';
-  if(s.key==='prod_request') pre='<div class="sr-meta" style="margin-left:0">제작요청 메일 자동발송은 다음 단계에서 (지금은 발송 표시만)</div>';
+  if(s.key==='prod_request') pre='<div class="sr-meta" style="margin-left:0">제작요청 발행은 프로젝트 상세의 「📋 제작요청 발행」에서 — 전부서 WORKS 통보(단가·금액 제외)가 발송됩니다</div>';
   let h=pre+'<label>날짜</label><input type="date" class="se-date" value="'+esc(date)+'">';
   if(s.key==='ship'){
     h+='<div class="sr-inline"><span><label>수량</label><input type="number" class="se-qty" value="'+esc(ex.qty||'')+'" style="width:80px"></span>'
