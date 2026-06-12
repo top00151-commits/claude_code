@@ -12817,14 +12817,18 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         with db_session() as _c:
             _ocols = {r[1] for r in _c.execute("PRAGMA table_info(orders)").fetchall()}
             _ship_sql = "ship_to" if "ship_to" in _ocols else "'' AS ship_to"
+            # v5H226z367: 거래명세서/세금계산서 발행일자도 대표 SO에서 — 컬럼 없으면 빈값(마이그레이션 전 방어)
+            _stmt_sql = "statement_date" if "statement_date" in _ocols else "'' AS statement_date"
+            _taxd_sql = "tax_invoice_date" if "tax_invoice_date" in _ocols else "'' AS tax_invoice_date"
             for _r2 in _c.execute(
-                    f"SELECT project_id, order_no, {_ship_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+                    f"SELECT project_id, order_no, {_ship_sql}, {_stmt_sql}, {_taxd_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
                 _pid2 = _r2[0]
                 if not _pid2:
                     continue
                 _ono2, _sto2 = (_r2[1] or ""), (_r2[2] or "")
+                _stmt2, _taxd2 = (_r2[3] or ""), (_r2[4] or "")
                 if _pid2 not in _so_map:
-                    _so_map[_pid2] = [_ono2, _sto2]
+                    _so_map[_pid2] = [_ono2, _sto2, _stmt2, _taxd2]   # 대표(최신) SO 값
                 elif not _so_map[_pid2][1] and _sto2:
                     _so_map[_pid2][1] = _sto2
     except Exception:
@@ -12850,7 +12854,8 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue
-        _so, _ship = _so_map.get(p.get("id"), ("", ""))
+        _sorec = _so_map.get(p.get("id")) or ["", "", "", ""]
+        _so, _ship, _stmt, _taxd = _sorec[0], _sorec[1], _sorec[2], _sorec[3]
         info = {
             "ref_id": p.get("id"), "code": p.get("mgmt_code") or "—", "so_no": _so,
             "name": p.get("name") or "", "model": p.get("model_name") or "",
@@ -12866,6 +12871,9 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "contact": p.get("cc_phone") or "", "ship_to": _ship,
             "order_date": str(p.get("order_date") or "")[:10],
             "due_date": str(p.get("due_date") or "")[:10],
+            # v5H226z367 리뷰반영: export 빌더 프로젝트 dict에도 발행일자 포함(페이지 빌더와 일관)
+            "statement_date": str(_stmt or "")[:10],
+            "tax_invoice_date": str(_taxd or "")[:10],
             "sales_owner": p.get("sales_name") or "",
             "memo": _smemos.get(("project", p.get("id")), ""),
             "st": _stage_map.get(("project", p.get("id")), _empty_st),
@@ -12895,6 +12903,9 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 "ship_to": cr.get("ship_to") or "",
                 "order_date": str(cr.get("order_date") or "")[:10],
                 "due_date": str(cr.get("due_date") or "")[:10],
+                # v5H226z367 (대표 지시): 소모품도 거래명세서·세금계산서 발행일자(consumable_orders 컬럼)
+                "statement_date": str(cr.get("statement_date") or "")[:10],
+                "tax_invoice_date": str(cr.get("tax_invoice_date") or "")[:10],
                 "memo": _smemos.get(("consumable", cr.get("id")), ""),
                 "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
             }
@@ -13106,14 +13117,18 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         with db_session() as _c:
             _ocols = {r[1] for r in _c.execute("PRAGMA table_info(orders)").fetchall()}
             _ship_sql = "ship_to" if "ship_to" in _ocols else "'' AS ship_to"
+            # v5H226z367: 거래명세서/세금계산서 발행일자도 대표 SO에서 — 컬럼 없으면 빈값(마이그레이션 전 방어)
+            _stmt_sql = "statement_date" if "statement_date" in _ocols else "'' AS statement_date"
+            _taxd_sql = "tax_invoice_date" if "tax_invoice_date" in _ocols else "'' AS tax_invoice_date"
             for _r2 in _c.execute(
-                f"SELECT project_id, order_no, {_ship_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+                f"SELECT project_id, order_no, {_ship_sql}, {_stmt_sql}, {_taxd_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
                 _pid2 = _r2[0]
                 if not _pid2:
                     continue
                 _ono2, _sto2 = (_r2[1] or ""), (_r2[2] or "")
+                _stmt2, _taxd2 = (_r2[3] or ""), (_r2[4] or "")
                 if _pid2 not in _so_map:
-                    _so_map[_pid2] = [_ono2, _sto2]      # 최신 SO 기준(번호·납품처)
+                    _so_map[_pid2] = [_ono2, _sto2, _stmt2, _taxd2]   # 최신 SO 기준(번호·납품처·발행일자)
                 elif not _so_map[_pid2][1] and _sto2:
                     _so_map[_pid2][1] = _sto2             # 최신에 납품처 없으면 다음 최신값으로 보강
     except Exception:
@@ -13142,7 +13157,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue  # 소모품은 아래 co_list 로 (중복 방지)
-        _so, _ship = _so_map.get(p.get("id"), ("", ""))
+        _sorec = _so_map.get(p.get("id")) or ["", "", "", ""]
+        _so, _ship, _stmt, _taxd = _sorec[0], _sorec[1], _sorec[2], _sorec[3]
         info = {
             "ref_id": p.get("id"),                         # v5H226z264: 셀 편집/메모용
             "code": p.get("mgmt_code") or "—",
@@ -13170,6 +13186,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "ship_to": _ship,
             "order_date": str(p.get("order_date") or "")[:10],   # 발주일
             "due_date": str(p.get("due_date") or "")[:10],       # 납품일
+            # v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자(대표 SO 기준). 영업·관리 권한만 표시.
+            "statement_date": str(_stmt or "")[:10],
+            "tax_invoice_date": str(_taxd or "")[:10],
             "sales_owner": p.get("sales_name") or "",            # 영업담당자(우리 회사)
             "memo": _smemos.get(("project", p.get("id")), ""),
             "st": _stage_map.get(("project", p.get("id")), _empty_st),
@@ -13205,6 +13224,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "ship_to": cr.get("ship_to") or "",
                 "order_date": str(cr.get("order_date") or "")[:10],
                 "due_date": str(cr.get("due_date") or "")[:10],
+                # v5H226z367 (대표 지시): 소모품도 거래명세서·세금계산서 발행일자(consumable_orders 컬럼)
+                "statement_date": str(cr.get("statement_date") or "")[:10],
+                "tax_invoice_date": str(cr.get("tax_invoice_date") or "")[:10],
                 "memo": _smemos.get(("consumable", cr.get("id")), ""),
                 "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
             }
@@ -13266,10 +13288,11 @@ async def schedule_board_cell(request: Request):
     if field not in ("name", "model", "equip", "note", "dept", "owner", "ship_to",
                      "qty", "price", "amount", "trade", "po_type", "cust",
                      "cust2", "contact", "sales_owner", "order_date", "due_date",
-                     "form_type"):  # v5H226z282 / z349(형태) / z365(프로젝트명) / z366(모델·장비·거래구분·PO유형·고객사1)
+                     "form_type", "statement_date", "tax_invoice_date"):
+        # v5H226z282 / z349(형태) / z365(프로젝트명) / z366(모델·장비·거래구분·PO유형·고객사1) / z367(거래명세서·세금계산서 발행일자)
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
-    # v5H226z277: 단가·금액은 권한(영업·관리)만 — 서버에서 차단
-    if field in ("price", "amount") and not can_view_sales(u):
+    # v5H226z277/z367: 단가·금액·발행일자(거래명세서·세금계산서)는 청구 성격 — 영업·관리 권한만(서버 차단)
+    if field in ("price", "amount", "statement_date", "tax_invoice_date") and not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
     try:
         ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
@@ -13302,8 +13325,12 @@ async def schedule_board_bulk_cell(request: Request):
     # 일괄 허용 필드(텍스트·선택·날짜류만 — 수량/단가/금액 제외)
     if field not in ("name", "model", "equip", "note", "trade", "po_type", "form_type",
                      "cust", "cust2", "dept", "owner", "contact", "ship_to",
-                     "order_date", "due_date", "sales_owner"):
+                     "order_date", "due_date", "sales_owner",
+                     "statement_date", "tax_invoice_date"):   # v5H226z367: 발행일자 일괄도 허용
         return JSONResponse({"ok": False, "error": "일괄수정 허용되지 않은 항목"}, 400)
+    # v5H226z367: 발행일자(거래명세서·세금계산서)는 청구 성격 — 영업·관리 권한만 일괄 가능
+    if field in ("statement_date", "tax_invoice_date") and not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
     if not isinstance(targets, list) or not targets:
         return JSONResponse({"ok": False, "error": "선택된 대상이 없습니다"}, 400)
     if len(targets) > 2000:

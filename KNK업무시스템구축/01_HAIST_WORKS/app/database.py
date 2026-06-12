@@ -2481,6 +2481,11 @@ def init_db():
                 if _coladd not in cocols:
                     c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_coladd} TEXT")
                     print(f"[v5H226z287] consumable_orders.{_coladd} 컬럼 추가됨")
+            # v5H226z367 (대표 지시): 소모품도 거래명세서·세금계산서 발행일자 추적 — 작업일정표 컬럼 연동(소모품 포함 결정)
+            for _dc in ("statement_date", "tax_invoice_date"):
+                if _dc not in cocols:
+                    c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_dc} TEXT")
+                    print(f"[v5H226z367] consumable_orders.{_dc} 컬럼 추가됨")
             # v5H226z286 (대표 지시): 엑셀의 사진 칸 2개 모두 반영 — 라인에 '사진위치' 이미지 컬럼 추가.
             _coicols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
             for _lc in ("image_loc_path", "image_loc_thumb_path"):
@@ -2809,6 +2814,8 @@ def init_db():
                 ("tax_invoice_no",     "ALTER TABLE orders ADD COLUMN tax_invoice_no TEXT"),
                 ("tax_invoice_date",   "ALTER TABLE orders ADD COLUMN tax_invoice_date TEXT"),
                 ("tax_invoice_note",   "ALTER TABLE orders ADD COLUMN tax_invoice_note TEXT"),
+                # v5H226z367 (대표 지시): 거래명세서 발행일자 — 세금계산서(tax_invoice_date)와 나란히 SO 단위 추적(작업일정표 컬럼)
+                ("statement_date",     "ALTER TABLE orders ADD COLUMN statement_date TEXT"),
                 # v5H78: 호기별 다중 발주 — 1호기/2호기 ... 호기 라벨 + 비고
                 ("unit_label",         "ALTER TABLE orders ADD COLUMN unit_label TEXT"),
                 ("unit_note",          "ALTER TABLE orders ADD COLUMN unit_note TEXT"),
@@ -11349,7 +11356,9 @@ _SCHED_CELL_MAP = {
                    "order_date": "order_date", "due_date": "due_date"},
     "consumable": {"note": "note",      "dept": "cc_dept", "owner": "cc_name", "ship_to": "ship_to",
                    # 소모품은 고객사2·연락처·영업담당자 컬럼이 없어 발주일·납품일만
-                   "order_date": "order_date", "due_date": "due_date"},
+                   "order_date": "order_date", "due_date": "due_date",
+                   # v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자(소모품도 포함). consumable_orders 컬럼 직접.
+                   "statement_date": "statement_date", "tax_invoice_date": "tax_invoice_date"},
 }
 _SCHED_NUM_FIELDS = {"qty", "price", "amount"}  # 숫자 필드 (콤마 제거 후 저장)
 
@@ -11442,6 +11451,24 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
                 return (False, "이 프로젝트에 수주(SO)가 없어 납품위치를 저장할 수 없습니다")
             c.execute("UPDATE orders SET ship_to=? WHERE id=?", (val, int(r[0])))
         return (True, "")
+    # v5H226z367 (대표 지시): 거래명세서/세금계산서 발행일자 = 대표 SO(orders 최신)의 날짜.
+    #   세금계산서는 기존 '세금계산서 발행 관리'(orders.tax_invoice_date)와 단일출처 연동 — 발행일 입력=발행함, 지움=미발행.
+    if ref_kind == "project" and field in ("statement_date", "tax_invoice_date"):
+        _v = val or None   # 빈값 = 발행 취소(NULL)
+        with db_session() as c:
+            _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+            if field not in _ocols:
+                return (False, f"orders.{field} 컬럼 없음")
+            r = c.execute("SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1",
+                          (int(ref_id),)).fetchone()
+            if not r:
+                return (False, "이 프로젝트에 수주(SO)가 없어 발행일자를 저장할 수 없습니다")
+            c.execute(f"UPDATE orders SET {field}=? WHERE id=?", (_v, int(r[0])))
+            # 세금계산서: 발행일 입력 → 발행여부(issued)=1, 지움 → 0 (발행관리 화면과 일관)
+            if field == "tax_invoice_date" and "tax_invoice_issued" in _ocols:
+                c.execute("UPDATE orders SET tax_invoice_issued=? WHERE id=?",
+                          (1 if _v else 0, int(r[0])))
+        return (True, "")
     col = _SCHED_CELL_MAP[ref_kind].get(field)
     if not col:
         return (False, "허용되지 않은 필드")
@@ -11451,7 +11478,9 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
         _cols = {r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
         if col not in _cols:
             return (False, f"{table}.{col} 컬럼 없음")
-        c.execute(f"UPDATE {table} SET {col}=? WHERE id=?", (val, int(ref_id)))
+        # v5H226z367 리뷰반영: 발행일자(거래명세서·세금계산서)는 빈값=미발행이므로 NULL로 저장(프로젝트 경로와 동일·''/NULL 혼재 방지)
+        _sv = (val or None) if field in ("statement_date", "tax_invoice_date") else val
+        c.execute(f"UPDATE {table} SET {col}=? WHERE id=?", (_sv, int(ref_id)))
     return (True, "")
 
 

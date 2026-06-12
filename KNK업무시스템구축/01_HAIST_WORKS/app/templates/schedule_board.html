@@ -355,7 +355,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         <col data-col="code"><col data-col="so_no"><col data-col="name">
         <col data-col="model"><col data-col="equip"><col data-col="note">
         <col data-col="qty">{% if can_money %}<col data-col="price"><col data-col="amount">{% endif %}<col data-col="trade"><col data-col="po"><col data-col="form">
-        <col data-col="cust"><col data-col="cust2"><col data-col="dept"><col data-col="owner"><col data-col="contact"><col data-col="ship"><col data-col="order_date"><col data-col="due_date">
+        <col data-col="cust"><col data-col="cust2"><col data-col="dept"><col data-col="owner"><col data-col="contact"><col data-col="ship"><col data-col="order_date"><col data-col="due_date">{% if can_money %}<col data-col="statement"><col data-col="tax_inv">{% endif %}
         <col data-col="stage">
         {% for d in days %}<col class="cgd" data-day="{{ d }}">{% endfor %}
         <col data-col="sales_owner">
@@ -384,6 +384,11 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           <th class="c-info cw-ship" data-col="ship"><div class="th-wrap">납품위치<span class="col-resizer" data-col="ship"></span></div></th>
           <th class="c-info cw-ord" data-col="order_date"><div class="th-wrap">발주일<span class="col-resizer" data-col="order_date"></span></div></th>
           <th class="c-info cw-due" data-col="due_date"><div class="th-wrap">납품일<span class="col-resizer" data-col="due_date"></span></div></th>
+          {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자 — 영업·관리 권한만 #}
+          {% if can_money %}
+          <th class="c-info cw-stmt" data-col="statement"><div class="th-wrap">거래명세서<span class="col-resizer" data-col="statement"></span></div></th>
+          <th class="c-info cw-taxinv" data-col="tax_inv"><div class="th-wrap">세금계산서<span class="col-resizer" data-col="tax_inv"></span></div></th>
+          {% endif %}
           <th class="c-info cw-stage" data-col="stage"><div class="th-wrap">단계<span class="col-resizer" data-col="stage"></span></div></th>
           {% for d in days %}
           <th class="day{% if d == today_day %} today{% endif %}" data-day="{{ d }}">{{ d }}</th>
@@ -420,6 +425,11 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           <td class="c-info cw-ship editable{% if r.ship_to %} filled{% endif %}" data-col="ship" data-edit="ship_to" title="{{ r.ship_to }}">{{ r.ship_to or '＋' }}</td>
           <td class="c-info cw-ord editable{% if r.order_date %} filled{% endif %}" data-col="order_date" data-edit="order_date">{{ r.order_date or '＋' }}</td>
           <td class="c-info cw-due editable{% if r.due_date %} filled{% endif %}" data-col="due_date" data-edit="due_date">{{ r.due_date or '＋' }}</td>
+          {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자(YYYY-MM-DD 직접 입력) — 프로젝트=대표 SO 연동·소모품=자체. 영업·관리만. #}
+          {% if can_money %}
+          <td class="c-info cw-stmt editable{% if r.statement_date %} filled{% endif %}" data-col="statement" data-edit="statement_date" title="거래명세서 발행일자{% if r.statement_date %}: {{ r.statement_date }}{% endif %}">{{ r.statement_date or '＋' }}</td>
+          <td class="c-info cw-taxinv editable{% if r.tax_invoice_date %} filled{% endif %}" data-col="tax_inv" data-edit="tax_invoice_date" title="세금계산서 발행일자{% if r.tax_invoice_date %}: {{ r.tax_invoice_date }}{% endif %}">{{ r.tax_invoice_date or '＋' }}</td>
+          {% endif %}
           <td class="c-info cw-stage stage-cell" data-col="stage" data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" title="클릭 → 단계 기록">
             {% if r.st_cur %}<span class="stg-badge">{{ r.st_cur }}</span>{% else %}<span class="stg-badge stg-none">시작 전</span>{% endif %}
             <span class="stg-prog">{% for s in stage_spec %}{% if s.key == 'progress' %}{% for sk, sl in s.subs %}<i class="stg-dot{% if r.st.prog.get(sk) %} on{% endif %}" title="{{ sl }}"></i>{% endfor %}{% endif %}{% endfor %}</span>
@@ -591,10 +601,10 @@ window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].remove
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // ===== z265→z279: 작업 일정표 — 고정 px 컬럼 모델(엑셀식 · 좌우 스크롤) =====
 // z282: 고객사2·연락처·발주일·납품일·영업담당자(맨 끝, 날짜 뒤) 추가
-const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date','stage','sales_owner'];
-const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',stage:'단계',sales_owner:'영업담당자'};
+const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date'{% if can_money %},'statement','tax_inv'{% endif %},'stage','sales_owner'];
+const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',statement:'거래명세서',tax_inv:'세금계산서',stage:'단계',sales_owner:'영업담당자'};
 // z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
-const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,stage:150,sales_owner:96};
+const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv:100,stage:150,sales_owner:96};
 const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 폭(px)
 const LAST_DAY = {{ days|length }};
 let COLS = {};
@@ -1235,6 +1245,8 @@ var BULK_FIELDS = [
   {f:'ship_to', label:'납품위치', type:'text'},
   {f:'order_date', label:'발주일', type:'date'},
   {f:'due_date', label:'납품일', type:'date'},
+  {% if can_money %}{f:'statement_date', label:'거래명세서 발행일', type:'date'},
+  {f:'tax_invoice_date', label:'세금계산서 발행일', type:'date'},{% endif %}
   {f:'sales_owner', label:'영업담당자', type:'text'}
 ];
 var _BF={}; BULK_FIELDS.forEach(function(x){ _BF[x.f]=x; });
