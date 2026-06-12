@@ -736,185 +736,296 @@ def recompute_co_total(co_id: int) -> float:
 
 
 # ────────────────────────────────────────────────────────────────────
-# v5H226z358 (대표 지시): 소모품 '통합 일괄등록' — 엑셀 한 장에 여러 고객사·여러 발주.
-#   한 줄 = 한 품목. (고객사 + 발주일 + 발주구분) 이 같은 줄들이 한 발주로 묶임.
-#   1월~현재 과거 대량 데이터를 한 번에 올리기 위함. 사진은 통합 양식엔 없음(상세에서 추가).
+# v5H226z368 (대표 지시): 소모품 '통합 일괄등록' — KNK 표준 소모품 발주 양식(24열) 그대로 업로드.
+#   1행=안내문구, 2행=머리글, 3행~=품목. '구분 번호'가 같은 줄들 = 한 발주(여러 품목).
+#   품목 사진(PICTURE)·사진위치(PICTURE LOCATION) 임베드 이미지도 함께 가져옴(첨부 표준 양식 기준).
 # ────────────────────────────────────────────────────────────────────
-CO_BULK_HEADERS = ["고객사*", "사업부*", "발주일(YYYY-MM-DD)*", "납기(YYYY-MM-DD)", "발주구분",
-                   "품명*", "규격", "모델", "장비명", "수량*", "단위", "단가", "통화",
-                   "연결관리번호", "비고"]
+CO_BULK_HEADERS = ["연결 관리번호", "구분 번호", "모델명", "장비명", "소모품 품명",
+                   "소모품 규격 (SPEC)", "사진(PICTURE LOCATION)", "사진 (PICTURE)",
+                   "1차 고객사", "2차 고객사", "발주일", "납품일", "통화", "거래구분", "형태",
+                   "수량", "단위", "단가", "금액", "고객사 담당자", "고객사 담당자 연락처",
+                   "납품위치", "영업담당자", "비고"]
+# 1행 안내 문구(컬럼 위치 1-indexed별)
+CO_BULK_HINTS = {1: "있으면 입력(예:012T2601)", 2: "같은 발주=같은 번호", 5: "필수",
+                 7: "ALT+크기조정", 8: "ALT+크기조정", 9: "필수(등록 고객사명)",
+                 11: "YYYY-MM-DD", 13: "KRW/USD/…", 14: "내수/수출", 15: "제품/상품/기타", 16: "필수"}
 
 
 def build_co_bulk_template_buf():
-    """통합 소모품 일괄등록 빈 양식(.xlsx) → BytesIO. (openpyxl 필요)"""
+    """KNK 표준 소모품 발주 양식(24열) 빈 양식(.xlsx) → BytesIO. (openpyxl 필요)
+    1행=안내, 2행=머리글, 3행~=품목. 통화·거래구분·형태 드롭다운. 사진 칸은 이미지 붙여넣기."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.worksheet.datavalidation import DataValidation
     import io as _io
-    wb = Workbook(); ws = wb.active; ws.title = "소모품일괄"
-    ws.append(CO_BULK_HEADERS)
-    fill = PatternFill("solid", fgColor="2F6AA8"); white = Font(color="FFFFFF", bold=True)
+    wb = Workbook(); ws = wb.active; ws.title = "소모품"
+    fill = PatternFill("solid", fgColor="2F6AA8"); white = Font(color="FFFFFF", bold=True, size=10)
+    hintf = Font(color="9AA3AF", italic=True, size=9)
     thin = Side(style="thin", color="DDDDDD"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    widths = [16, 8, 19, 17, 10, 20, 14, 13, 15, 8, 7, 12, 8, 15, 18]
-    for ci, _ in enumerate(CO_BULK_HEADERS, 1):
-        c = ws.cell(1, ci); c.font = white; c.fill = fill
-        c.alignment = Alignment(horizontal="center", vertical="center"); c.border = border
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    widths = [14, 8, 18, 16, 20, 16, 16, 14, 13, 13, 12, 12, 7, 9, 9, 7, 6, 11, 12, 12, 14, 12, 11, 16]
+    # 1행 = 안내 문구
+    for ci in range(1, len(CO_BULK_HEADERS) + 1):
+        hc = ws.cell(1, ci, CO_BULK_HINTS.get(ci, "")); hc.font = hintf; hc.alignment = center
+    # 2행 = 머리글
+    for ci, h in enumerate(CO_BULK_HEADERS, 1):
+        c = ws.cell(2, ci, h); c.font = white; c.fill = fill; c.alignment = center; c.border = border
         ws.column_dimensions[c.column_letter].width = widths[ci - 1]
-    ws.freeze_panes = "A2"
-    dv_biz = DataValidation(type="list", formula1='"T,M"', allow_blank=True)
+    ws.row_dimensions[2].height = 30
+    ws.freeze_panes = "A3"
+    # 드롭다운: 통화(M=13)·거래구분(N=14)·형태(O=15)
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
-    ws.add_data_validation(dv_biz); ws.add_data_validation(dv_ccy)
-    dv_biz.add("B2:B2000"); dv_ccy.add("M2:M2000")
-    # 예시 3줄 (1~2: 같은 발주 2품목 / 3: 다른 고객·발주). 업로드 시 '지우고' 신호로 자동 스킵.
-    ws.append(["삼성전자", "T", "2026-01-15", "2026-01-30", "1", "예) Grip Pad", "KNK-P-001", "WATCH9", "낙하지그", "6", "EA", "380000", "KRW", "", "예시 — 같은 발주(구분 1)의 1번째 품목"])
-    ws.append(["삼성전자", "T", "2026-01-15", "2026-01-30", "1", "예) Finger Pad", "KNK-P-002", "WATCH9", "낙하지그", "4", "EA", "250000", "KRW", "", "예시 — 같은 발주(구분 1)의 2번째 품목"])
-    ws.append(["LG전자", "M", "2026-02-03", "", "", "예) 센서 브라켓", "BRK-22", "", "검사라인", "10", "EA", "52000", "KRW", "", "예시 — 다른 고객·다른 발주 · 이 예시 3줄은 지우고 작성하세요"])
-    for r in (2, 3, 4):
-        for ci in range(1, len(CO_BULK_HEADERS) + 1):
-            ws.cell(r, ci).font = Font(color="999999", italic=True)
+    dv_exp = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
+    dv_form = DataValidation(type="list", formula1='"제품,상품,기타"', allow_blank=True)
+    for dv in (dv_ccy, dv_exp, dv_form):
+        ws.add_data_validation(dv)
+    dv_ccy.add("M3:M2000"); dv_exp.add("N3:N2000"); dv_form.add("O3:O2000")
+    # 예시 1줄(3행) — 업로드 시 품명 '예)' 접두로 자동 스킵
+    ex = ["", "1", "WATCH9 검사기", "WATCH9 소모품", "예) Grip Pad", "KNK-P-001", "", "",
+          "삼성전자", "", "2026-01-15", "2026-01-30", "KRW", "내수", "상품",
+          "6", "EA", "380000", "2280000", "홍길동", "010-0000-0000", "수원 본사", "김영업", "예시 — 지우고 작성"]
+    ws.append(ex)
+    for ci in range(1, len(CO_BULK_HEADERS) + 1):
+        ws.cell(3, ci).font = Font(color="9AA3AF", italic=True)
+    # 안내 시트
     ws2 = wb.create_sheet("작성안내")
     guide = [
-        ["항목", "설명"],
-        ["기본 원리", "한 줄 = 한 품목. 한 발주에 품목이 여러 개면 여러 줄로 적습니다. (고객사 · 발주일 · 발주구분) 이 같은 줄들이 '한 발주'로 자동으로 묶입니다."],
-        ["고객사 *", "필수. 시스템에 등록된 고객사명과 정확히 일치해야 자동 연결됩니다(미일치 시 텍스트로만 저장 · 미리보기에서 표시)."],
-        ["사업부 *", "T=검사기 / M=자동화 (진행 사업부 — 드롭다운). 소모품 관리번호는 'C'로 자동 발급됩니다."],
-        ["발주일 *", "YYYY-MM-DD 형식. 발주번호(C-YYMMDD)의 발행 기준일입니다."],
-        ["발주구분", "같은 고객사·같은 날에 발주가 여러 건이면 1·2.. 또는 고객 PO번호로 구분. 비우면 (고객사+발주일)로 묶습니다."],
-        ["품명 * / 수량 *", "필수. 품목명 / 수량(숫자)."],
-        ["단가 / 통화", "숫자(콤마 없이) / 드롭다운 KRW·USD·VND·JPY·CNY·EUR (비우면 KRW)."],
-        ["연결관리번호", "이 품목이 어느 장비(관리번호)의 소모품인지 연결(선택). 예: 012T2601. 못 찾으면 미연결로 등록 + 안내."],
-        ["사진", "통합 양식에는 없습니다 — 등록 후 각 발주 상세에서 품목별로 추가하세요."],
-        ["주의", "2~4행의 예시는 삭제 후 작성하세요. 업로드 → 미리보기(발주 N건·품목 M개) → 확정 순서입니다."],
+        ["소모품 통합 일괄등록 — 작성 안내", ""],
+        ["", ""],
+        ["기본 원리", "[소모품] 시트 3행부터 한 줄에 한 품목씩 입력. '구분 번호'가 같은 줄들이 '한 발주(여러 품목)'로 자동으로 묶입니다."],
+        ["구분 번호 *", "한 발주 = 한 번호. 같은 발주의 품목은 모두 같은 번호. 발주가 다르면 번호를 다르게(1,2,3…)."],
+        ["1차 고객사 *", "등록 고객사명과 (주)/㈜·공백 차이 무시하고 상호로 자동 연결. 못 찾으면 텍스트로만 저장(미리보기에서 표시)."],
+        ["발주일·납품일", "YYYY-MM-DD. 발주일이 발주번호(C-YYMMDD) 기준일."],
+        ["품명·수량 *", "필수. 단가/금액은 숫자(콤마 없이). 금액 비우면 수량×단가로 자동."],
+        ["통화·거래구분·형태", "드롭다운(통화 KRW… / 내수·수출 / 제품·상품·기타). 통화 비우면 KRW, 거래구분 비우면 내수."],
+        ["연결 관리번호", "이 품목이 어느 장비(관리번호)의 소모품인지(선택). 예: 012T2601. 못 찾으면 미연결 등록 + 안내."],
+        ["사진 / 사진위치", "'사진(PICTURE)'·'사진위치(PICTURE LOCATION)' 칸에 이미지를 붙여넣으면 품목별로 함께 등록됩니다."],
+        ["주의", "3행 예시는 지우고 작성. 업로드 → 미리보기(발주 N건·품목 M개·사진 K개) → 확정."],
     ]
     for r in guide:
         ws2.append(r)
-    ws2.column_dimensions["A"].width = 20; ws2.column_dimensions["B"].width = 76
+    ws2.column_dimensions["A"].width = 18; ws2.column_dimensions["B"].width = 82
     for ci in (1, 2):
         cc = ws2.cell(1, ci); cc.font = white; cc.fill = fill
     buf = _io.BytesIO(); wb.save(buf); buf.seek(0)
     return buf
 
 
-def parse_co_bulk_xlsx(file_bytes: bytes) -> dict:
-    """통합 소모품 일괄등록 파서 — 평면 행 → 발주별 묶음.
-    그룹키 = (고객사 정규화 + 발주일 + 발주구분). 발주구분 비면 (고객사+발주일).
-    반환: {ok, orders:[{customer_name, cust_ok, biz_div, order_date, due_date, currency,
-                       group_label, items:[{...,_errors}], item_count, total_amount, _errors, _warn}],
-           total_orders, total_items}."""
+def _co_bulk_detect_header(ws, max_scan: int = 16) -> int:
+    """머리글 행 자동 감지 — 알려진 머리글 키워드가 가장 많은 행(>=4). 못 찾으면 0."""
+    KEYS = ["품명", "구분", "수량", "고객사", "발주일", "모델", "장비", "통화", "단가", "비고"]
+    best_row, best = 0, 0
+    for r in range(1, min(max_scan, ws.max_row) + 1):
+        score = 0
+        for c in range(1, min(ws.max_column, 30) + 1):
+            v = ws.cell(r, c).value
+            if v is None:
+                continue
+            t = re.sub(r"\s+", "", str(v))
+            if any(k in t for k in KEYS):
+                score += 1
+        if score > best:
+            best, best_row = score, r
+    return best_row if best >= 4 else 0
+
+
+def _co_bulk_colmap(header_cells) -> dict:
+    """header_cells: [(ci, text), ...] (1-indexed). → {key: ci}. 한 컬럼은 1키에만.
+    더 구체적 라벨 먼저(영업담당자→연락처→담당자 순 등 충돌 방지)."""
+    cm: dict = {}
+    cells = [(ci, re.sub(r"\s+", "", str(t)).upper()) for ci, t in header_cells if t not in (None, "")]
+
+    def take(key, *needles, exclude=()):
+        if key in cm:
+            return
+        for ci, t in cells:
+            if ci in cm.values():
+                continue
+            if any(n.upper() in t for n in needles) and not any(e.upper() in t for e in exclude):
+                cm[key] = ci
+                return
+
+    take("link_mgmt", "연결관리번호", "연결관리")
+    take("group", "구분번호", "구분")
+    take("equip", "장비명", "EQUIP")
+    take("model_use", "모델명", "MODEL")
+    take("part_name", "소모품품명", "품명", "PARTNAME", "SUPPLIERNAME")
+    take("spec", "규격", "SPEC")
+    take("loc_photo", "PICTURELOCATION", "사진위치", "위치")
+    take("photo", "PICTURE", "사진", exclude=("LOCATION", "위치"))   # 리뷰반영: 사진위치 제외 명시
+    take("customer2", "2차고객사")
+    take("customer", "1차고객사", exclude=("담당자",))               # 리뷰반영: 담당자 컬럼 오매핑 방지
+    take("order_date", "발주일", "ORDERDATE")
+    take("due_date", "납품일", "납기", "DUEDATE")
+    take("currency", "통화", "CURRENCY")
+    take("is_export", "거래구분")
+    take("form_type", "형태")
+    take("qty", "수량", "QTY", "Q'TY", "QUANTITY")
+    take("unit", "단위", "UNIT")
+    take("price", "단가", "UNITPRICE")
+    take("amount", "금액", "AMOUNT")
+    take("sales_name", "영업담당자")
+    take("cc_phone", "연락처")
+    take("cc_name", "담당자", exclude=("영업", "연락처"))
+    take("ship_to", "납품위치", "납품처")
+    take("note", "비고", "REMARK")
+    if "customer" not in cm:
+        take("customer", "고객사", exclude=("담당자", "2차"))
+    return cm
+
+
+def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict:
+    """KNK 표준 소모품 발주 양식(24열) 파서 — '구분 번호'가 같은 줄 = 한 발주.
+    1행=안내, 2행(자동 감지)=머리글, 3행~=품목. 품목 사진/사진위치 임베드 이미지도 추출(image_out_dir).
+    반환: {ok, orders:[{group_label, customer_name, cust_ok, customer2, order_date, due_date,
+            currency, is_export, cc_name, cc_phone, ship_to, sales_name, biz_div, note,
+            items:[{row, line_no, part_name, spec, model_use, equip, qty, unit, unit_price,
+                    amount, link_mgmt, note, _imgs:[{full,thumb,category}], _errors}],
+            item_count, total_amount, image_count, _errors, _warn}],
+           total_orders, total_items, total_images, header_row}."""
     from openpyxl import load_workbook
-    import io as _io
-    wb = load_workbook(_io.BytesIO(file_bytes), read_only=True, data_only=True)
+    wb = load_workbook(file_path, data_only=True)   # read_only=False → 이미지(_images) 접근 가능
     ws = None
     for nm in wb.sheetnames:
         if nm != "작성안내":
             ws = wb[nm]; break
     if ws is None:
         ws = wb.worksheets[0]
-    grid = list(ws.iter_rows(values_only=True))
-    if not grid:
-        return {"ok": True, "orders": [], "total_orders": 0, "total_items": 0}
-    hmap = {}
-    for ci, hv in enumerate(grid[0]):
-        if hv:
-            hmap[str(hv).strip()] = ci
+    hdr = _co_bulk_detect_header(ws)
+    if not hdr:
+        return {"ok": False, "error": "머리글(구분 번호·소모품 품명·수량…)을 찾지 못했습니다",
+                "orders": [], "total_orders": 0, "total_items": 0, "total_images": 0}
+    maxc = min(ws.max_column, 30)
+    cm = _co_bulk_colmap([(c, ws.cell(hdr, c).value) for c in range(1, maxc + 1)])
+    if "part_name" not in cm:
+        return {"ok": False, "error": "'소모품 품명' 열을 찾지 못했습니다",
+                "orders": [], "total_orders": 0, "total_items": 0, "total_images": 0}
 
-    def _col(*subs):
-        for k, ci in hmap.items():
-            for s in subs:
-                if s in k:
-                    return ci
-        return None
+    def gv(r, key):
+        ci = cm.get(key)
+        return ws.cell(r, ci).value if ci else None
 
-    c_cust = _col("고객사"); c_biz = _col("사업부"); c_od = _col("발주일"); c_due = _col("납기")
-    c_grp = _col("발주구분"); c_pn = _col("품명"); c_spec = _col("규격"); c_model = _col("모델")
-    c_equip = _col("장비"); c_qty = _col("수량"); c_unit = _col("단위"); c_price = _col("단가")
-    c_ccy = _col("통화"); c_link = _col("연결관리"); c_note = _col("비고")
-    cust_set = set()
-    try:
-        with db_session() as c:
-            for r in c.execute("SELECT name FROM customers"):
-                cust_set.add((r[0] or "").strip())
-    except Exception:
-        pass
-
-    def _g(rv, ci):
-        return rv[ci] if (ci is not None and ci < len(rv)) else None
-
-    def _s(v):
+    def s(v):
         return "" if v is None else str(v).strip()
 
-    def _to_date(v):
-        if v is None:
-            return ""
-        if hasattr(v, "strftime"):
-            try:
-                return v.strftime("%Y-%m-%d")
-            except Exception:
-                return ""
-        return str(v).strip()[:10]
+    def num(v):
+        try:
+            return float(str("" if v is None else v).replace(",", "").strip() or 0)
+        except Exception:
+            return 0.0
 
-    groups = {}; order_seq = []
-    for ridx in range(1, len(grid)):
-        rv = grid[ridx]
-        cust = _s(_g(rv, c_cust)); pn = _s(_g(rv, c_pn))
-        note_v = _s(_g(rv, c_note))
-        if not cust and not pn:
-            continue
-        # 예시행 스킵 — 품명 '예)' 접두 또는 안내문('지우고') (양식 2~4행 예시 안전 제거)
-        if pn.startswith("예)") or "지우고" in note_v:
-            continue
-        biz = _s(_g(rv, c_biz)).upper()
-        od = _to_date(_g(rv, c_od)); due = _to_date(_g(rv, c_due))
-        grp = _s(_g(rv, c_grp))
-        ccy = _norm_ccy(_g(rv, c_ccy)) or "KRW"
-        try:
-            qty = float(str(_g(rv, c_qty) or 0).replace(",", "") or 0)
-        except Exception:
-            qty = 0.0
-        try:
-            price = float(str(_g(rv, c_price) or 0).replace(",", "") or 0)
-        except Exception:
-            price = 0.0
-        item = {
-            "row_no": ridx + 1, "part_name": pn, "spec": _s(_g(rv, c_spec)),
-            "model_use": _s(_g(rv, c_model)), "equip": _s(_g(rv, c_equip)),
-            "qty": qty, "unit": _s(_g(rv, c_unit)) or "EA", "unit_price": price,
-            "link_mgmt": _s(_g(rv, c_link)).upper(), "note": note_v, "_errors": [],
+    groups: dict = {}; seq = []; all_lines = []; line_seq = 0
+    for r in range(hdr + 1, ws.max_row + 1):
+        pn = s(gv(r, "part_name"))
+        if not pn or pn.startswith("예)"):
+            continue   # 빈 행·예시행 스킵
+        line_seq += 1
+        grp = s(gv(r, "group")) or f"_auto_{s(gv(r, 'customer'))}_{_date_str(gv(r, 'order_date'))}"
+        qty = num(gv(r, "qty")); price = num(gv(r, "price")); amt = num(gv(r, "amount"))
+        if not amt and qty > 0 and price > 0:   # 리뷰반영: 음수/0 가드
+            amt = round(qty * price, 2)
+        it = {
+            "row": r, "line_no": line_seq, "part_name": pn,
+            "spec": s(gv(r, "spec")), "model_use": s(gv(r, "model_use")),
+            "equip": s(gv(r, "equip")), "qty": qty, "unit": s(gv(r, "unit")) or "EA",
+            "unit_price": price, "amount": amt, "link_mgmt": s(gv(r, "link_mgmt")).upper(),
+            "note": s(gv(r, "note")), "_imgs": [], "_errors": [],
         }
-        if not pn:
-            item["_errors"].append("품명 누락")
         if qty <= 0:
-            item["_errors"].append("수량 누락/0")
-        key = (cust.replace(" ", "").upper(), od, grp)
-        if key not in groups:
-            cust_ok = cust in cust_set
+            it["_errors"].append("수량 누락/0")
+        if grp not in groups:
+            cust = s(gv(r, "customer"))
+            _exp_raw = s(gv(r, "is_export")).upper()
             o = {
-                "customer_name": cust, "cust_ok": cust_ok,
-                "biz_div": biz if biz in ("T", "M", "L") else "",
-                "order_date": od, "due_date": due, "currency": ccy,
-                "group_label": grp, "note": "", "items": [], "_errors": [], "_warn": "",
+                "group_label": s(gv(r, "group")), "customer_name": cust,
+                "customer2": s(gv(r, "customer2")),
+                "order_date": _date_str(gv(r, "order_date")), "due_date": _date_str(gv(r, "due_date")),
+                "currency": _norm_ccy(gv(r, "currency")) or "KRW",
+                "is_export": 1 if ("수출" in _exp_raw or "EXPORT" in _exp_raw) else 0,
+                "cc_name": s(gv(r, "cc_name")), "cc_phone": s(gv(r, "cc_phone")),
+                "ship_to": s(gv(r, "ship_to")), "sales_name": s(gv(r, "sales_name")),
+                "cust_ok": bool(match_customer_by_name(cust)) if cust else False,
+                "biz_div": "", "note": "", "items": [], "_errors": [], "_warn": "",
             }
             if not cust:
-                o["_errors"].append("고객사 누락")
-            elif not cust_ok:
+                o["_errors"].append("1차 고객사 누락")
+            elif not o["cust_ok"]:
                 o["_warn"] = f"미등록 고객사 '{cust}' (텍스트로만 저장 · 미연결)"
-            if not od:
+            if not o["order_date"]:
                 o["_errors"].append("발주일 누락")
-            if not o["biz_div"]:
-                o["_errors"].append("사업부(T/M) 누락")
-            groups[key] = o; order_seq.append(key)
-        groups[key]["items"].append(item)
+            groups[grp] = o; seq.append(grp)
+        else:
+            # 그룹 발주 정보 보강(첫 행이 비었으면 이후 행 값으로 채움)
+            o = groups[grp]
+            for k_meta, k_src, is_date in (("customer_name", "customer", False), ("customer2", "customer2", False),
+                                           ("order_date", "order_date", True), ("due_date", "due_date", True),
+                                           ("cc_name", "cc_name", False), ("cc_phone", "cc_phone", False),
+                                           ("ship_to", "ship_to", False), ("sales_name", "sales_name", False)):
+                if not o.get(k_meta):
+                    v = _date_str(gv(r, k_src)) if is_date else s(gv(r, k_src))
+                    if v:
+                        o[k_meta] = v
+        groups[grp]["items"].append(it)
+        all_lines.append(it)
+
+    # 이미지 추출 → 데이터 행 기하 매칭(기존 단일 업로드 z284~z286 로직 재사용)
+    total_images = 0
+    if image_out_dir and all_lines:
+        try:
+            os.makedirs(image_out_dir, exist_ok=True)
+            _ymax = ws.max_row
+            for _im in (getattr(ws, "_images", []) or []):
+                _t = getattr(_im.anchor, "to", None) or getattr(_im.anchor, "_to", None)
+                if _t is not None and getattr(_t, "row", None) is not None and (_t.row + 3) > _ymax:
+                    _ymax = _t.row + 3
+            _P = _row_y_prefix(ws, _ymax)
+            _photo_col, _loc_col = _find_photo_cols(ws, hdr)
+            for idx, img in enumerate(getattr(ws, "_images", []) or []):
+                try:
+                    a = img.anchor; raw = img._data()
+                    if not raw:
+                        continue
+                    _cy = _image_center_y(a, _P)
+                    ml = (_line_for_center(all_lines, _cy, _P) if _cy is not None
+                          else _find_nearest_line(all_lines, getattr(getattr(a, "_from", None), "row", 0) + 1))
+                    if ml is None:
+                        continue
+                    _frm = getattr(a, "_from", None)
+                    _col = (_frm.col + 1) if (_frm is not None and getattr(_frm, "col", None) is not None) else None
+                    _cat = "photo"
+                    if _col is not None and _loc_col is not None:
+                        if _photo_col is not None:
+                            _cat = "loc" if abs(_col - _loc_col) < abs(_col - _photo_col) else "photo"
+                        elif _col == _loc_col:
+                            _cat = "loc"
+                    fn = f"l{ml['line_no']:03d}_{idx + 1}.jpg"
+                    fnt = f"l{ml['line_no']:03d}_{idx + 1}_t.jpg"
+                    big, thumb, _info = compress_image_bytes(raw)
+                    with open(os.path.join(image_out_dir, fn), "wb") as f:
+                        f.write(big)
+                    with open(os.path.join(image_out_dir, fnt), "wb") as f:
+                        f.write(thumb)
+                    ml["_imgs"].append({"full": fn, "thumb": fnt, "category": _cat})
+                    total_images += 1
+                except Exception:
+                    continue
+            for ln in all_lines:
+                ln["_imgs"].sort(key=lambda x: 0 if x.get("category") == "photo" else 1)
+        except Exception:
+            pass
+
     orders = []
-    for key in order_seq:
-        o = groups[key]
+    for grp in seq:
+        o = groups[grp]
         o["item_count"] = len(o["items"])
         o["total_amount"] = round(sum(it["qty"] * it["unit_price"] for it in o["items"]), 2)
+        o["image_count"] = sum(len(it["_imgs"]) for it in o["items"])
         if o["items"] and all(it["_errors"] for it in o["items"]):
             o["_errors"].append("유효 품목 없음(모든 품목 행에 오류)")
         orders.append(o)
-    return {"ok": True, "orders": orders,
-            "total_orders": len(orders),
-            "total_items": sum(o["item_count"] for o in orders)}
+    return {"ok": True, "orders": orders, "total_orders": len(orders),
+            "total_items": sum(o["item_count"] for o in orders),
+            "total_images": total_images, "header_row": hdr}
 
 
 def co_get(co_id: int) -> dict | None:

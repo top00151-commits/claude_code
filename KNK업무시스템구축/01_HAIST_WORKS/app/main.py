@@ -23714,23 +23714,61 @@ async def consumables_import_bulk_template(request: Request):
 
 @app.post("/consumables/import-bulk")
 async def consumables_import_bulk(request: Request, file: UploadFile = File(...)):
-    """통합 양식 업로드 → 파싱 → 미리보기(발주별 묶음) JSON. DB 미반영(확정 전)."""
+    """v5H226z368: KNK 표준 소모품 발주 양식(24열) 업로드 → 파싱 → 미리보기 JSON.
+    품목 사진은 임시폴더(token)에 추출해 두고, 확정 때 발주별 폴더로 이동. DB 미반영(확정 전)."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "auth"}, 401)
     if not (can_use_logistics(u) or can_use_sales(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    # 리뷰반영: 확장자·크기 검증(다른 import 라우트와 동일 가드)
+    _fn = (file.filename or "")
+    if not _fn.lower().endswith((".xlsx", ".xlsm")):
+        return JSONResponse({"ok": False, "error": "엑셀(.xlsx) 파일만 업로드할 수 있습니다"}, 400)
     raw = await file.read()
+    if len(raw) > 60 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "파일이 너무 큽니다 (최대 60MB)"}, 400)
+    # 리뷰반영: 미확정으로 방치된 오래된(>3시간) 임시 사진폴더 정리(누수 방지)
     try:
-        res = _co.parse_co_bulk_xlsx(raw)
+        import time as _t
+        _root = tempfile.gettempdir(); _now = _t.time()
+        for _d in os.listdir(_root):
+            if _d.startswith("cobulk_"):
+                _p = os.path.join(_root, _d)
+                try:
+                    if os.path.isdir(_p) and (_now - os.path.getmtime(_p)) > 3 * 3600:
+                        shutil.rmtree(_p, ignore_errors=True)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    _uid = str(u.get("id") or "0")
+    tmp_dir = tempfile.mkdtemp(prefix=f"cobulk_{_uid}_")   # 리뷰반영: 토큰에 사용자ID 포함(타사용자 토큰 재사용 차단)
+    tmp_path = os.path.join(tmp_dir, "upload.xlsx")
+    try:
+        with open(tmp_path, "wb") as f:
+            f.write(raw)
+        res = _co.parse_co_bulk_xlsx(tmp_path, image_out_dir=tmp_dir)
     except Exception as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
         return JSONResponse({"ok": False, "error": f"파싱 실패: {str(e)[:160]}"}, 400)
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+    if not res.get("ok"):
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    else:
+        res["token"] = os.path.basename(tmp_dir)   # 확정 때 사진을 이 임시폴더에서 발주별로 이동
     return JSONResponse(res)
 
 
 @app.post("/consumables/import-bulk-confirm")
 async def consumables_import_bulk_confirm(request: Request):
-    """미리보기 확정 → 발주별로 co_create + 품목 일괄 insert. 연결관리번호는 관리코드로 해석(못 찾으면 미연결+안내)."""
+    """v5H226z368: 미리보기 확정 → 발주별 co_create + 메타 반영 + 품목/사진 일괄 등록.
+    고객사는 상호 안전매칭(정확 1건만 연결), 연결관리번호는 관리코드로 해석(못 찾으면 미연결+안내),
+    품목 사진은 임시폴더(token)에서 발주 폴더로 이동. 건별 실패 표면화."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "auth"}, 401)
@@ -23743,31 +23781,72 @@ async def consumables_import_bulk_confirm(request: Request):
     orders = body.get("orders") or []
     if not isinstance(orders, list) or not orders:
         return JSONResponse({"ok": False, "error": "no_orders"}, 400)
-    created, failed, link_warnings = [], [], []
+    # 사진 임시폴더(token) — 경로 traversal 방지(basename·패턴 검증)
+    import re as _re
+    _uid = str(u.get("id") or "0")
+    token = (body.get("token") or "").strip()
+    tmp_dir = None
+    # 리뷰반영: 토큰 형식 + '본인 ID 폴더'인지 확인(타사용자 토큰 재사용 차단) + 존재 확인
+    if token and _re.match(r"^cobulk_[A-Za-z0-9_]+$", token) and token.startswith(f"cobulk_{_uid}_"):
+        _cand = os.path.join(tempfile.gettempdir(), token)
+        if os.path.isdir(_cand):
+            tmp_dir = _cand
+    _safe_img = _re.compile(r"^l\d+_\d+(_t)?\.jpg$")
+    created, failed, link_warnings, unmatched_customers = [], [], [], []
+    images_attached = 0; images_failed = 0
     for o in orders:
         if o.get("_errors"):   # 차단 오류 발주는 스킵(연결성 표면화)
             failed.append({"customer": o.get("customer_name"), "order_date": o.get("order_date"),
                            "error": "; ".join(o.get("_errors") or [])})
             continue
-        biz = (o.get("biz_div") or "").strip().upper()
-        if biz not in ("T", "M", "L"):
-            failed.append({"customer": o.get("customer_name"), "error": "사업부(T/M) 누락"})
-            continue
         items_in = [it for it in (o.get("items") or []) if not it.get("_errors")]
         if not items_in:
             failed.append({"customer": o.get("customer_name"), "error": "유효 품목 없음"})
             continue
+        cust_raw = (o.get("customer_name") or "").strip()
+        _match = _co.match_customer_by_name(cust_raw) if cust_raw else None
+        cust_name = _match["name"] if _match else cust_raw
         try:
             co_id, co_no = _co.co_create(
-                customer_name=(o.get("customer_name") or "").strip(), biz_div=biz,
+                customer_name=cust_name, biz_div="",     # 소모품: 관리번호 C 자동·진행사업부 미사용
                 order_date=(o.get("order_date") or "").strip(),
                 due_date=(o.get("due_date") or "").strip(),
                 currency=(o.get("currency") or "KRW").strip().upper(),
                 note=(o.get("note") or "").strip(),
-                source_file="통합 일괄등록", created_by=u.get("id"))
+                source_file="통합 일괄등록(표준양식)", created_by=u.get("id"))
         except Exception as e:
-            failed.append({"customer": o.get("customer_name"), "error": f"발주 생성 실패: {str(e)[:120]}"})
+            failed.append({"customer": cust_name, "error": f"발주 생성 실패: {str(e)[:120]}"})
             continue
+        # 리뷰반영: 미등록(미연결) 고객사는 확정 후에도 표면화(텍스트로만 저장됨 — 확인 유도)
+        if not _match and cust_raw:
+            unmatched_customers.append({"co_no": co_no, "customer": cust_raw})
+        # 발주 메타 보강(고객사 연결·2차고객사·담당자·연락처·납품위치·영업담당자·거래구분)
+        try:
+            with db_session() as c:
+                _cocols = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+                _sets, _vals = [], []
+
+                def _put(col, val):
+                    if val not in (None, "") and col in _cocols:
+                        _sets.append(f"{col}=?"); _vals.append(val)
+
+                if _match:
+                    _put("customer_id", _match["id"])
+                _put("secondary_customer", o.get("customer2"))
+                # 리뷰반영: 발주(헤더) 대표 모델/장비 = 첫 품목(보드 소모품행 모델명 표시용)
+                if items_in:
+                    _put("model_name", (items_in[0].get("model_use") or "").strip())
+                    _put("equip_name", (items_in[0].get("equip") or "").strip())
+                _put("cc_name", o.get("cc_name")); _put("cc_phone", o.get("cc_phone"))
+                _put("ship_to", o.get("ship_to")); _put("sales_name", o.get("sales_name"))
+                if o.get("is_export") is not None and "is_export" in _cocols:
+                    _sets.append("is_export=?"); _vals.append(int(o.get("is_export") or 0))
+                if _sets:
+                    _vals.append(co_id)
+                    c.execute(f"UPDATE consumable_orders SET {', '.join(_sets)} WHERE id=?", _vals)
+        except Exception:
+            pass
+        img_dir = _co.co_image_dir(co_id)
         items_out = []
         for ln, it in enumerate(items_in, 1):
             _lpid = None
@@ -23782,22 +23861,57 @@ async def consumables_import_bulk_confirm(request: Request):
                         link_warnings.append(f"{co_no} · 연결관리번호 '{_lm}' 미발견 → 미연결 등록")
                 except Exception:
                     pass
+            # 품목 사진 이동(임시폴더 → 발주폴더). _imgs 는 파서가 '사진(photo) 우선'으로 정렬.
+            #   첫 이미지 = 대표사진(image_path), 둘째 = 보조(image_loc_path). 표준양식(사진+사진위치)·
+            #   이 파일(사진을 사진위치 칸에 붙임) 둘 다 대표 썸네일이 채워지도록 — 슬롯 2개까지.
+            _chosen = []
+            for im in (it.get("_imgs") or []):
+                if len(_chosen) >= 2 or not tmp_dir:
+                    break
+                fn = im.get("full") or ""; ft = im.get("thumb") or ""
+                if not (_safe_img.match(fn) and _safe_img.match(ft)):
+                    continue
+                try:
+                    ok_move = True
+                    for nm in (fn, ft):
+                        src = os.path.join(tmp_dir, nm)
+                        if os.path.isfile(src):
+                            shutil.move(src, os.path.join(img_dir, nm))
+                        else:
+                            ok_move = False
+                    if ok_move:
+                        _chosen.append((fn, ft)); images_attached += 1
+                    else:
+                        images_failed += 1   # 리뷰반영: 이동 못한 사진 표면화
+                except Exception:
+                    images_failed += 1
+            _photo = _chosen[0] if _chosen else None
+            _loc = _chosen[1] if len(_chosen) > 1 else None
             items_out.append({
                 "line_no": ln, "part_name": it.get("part_name"), "spec": it.get("spec"),
                 "model_use": it.get("model_use"), "equip": it.get("equip"),
                 "qty": it.get("qty"), "unit": it.get("unit"), "unit_price": it.get("unit_price"),
                 "linked_project_id": _lpid, "note": it.get("note"),
+                "image_path": (_co.co_image_url(co_id, _photo[0]) if _photo else None),
+                "image_thumb_path": (_co.co_image_url(co_id, _photo[1]) if _photo else None),
+                "image_loc_path": (_co.co_image_url(co_id, _loc[0]) if _loc else None),
+                "image_loc_thumb_path": (_co.co_image_url(co_id, _loc[1]) if _loc else None),
             })
         try:
             _co.coi_bulk_insert(co_id, items_out)
         except Exception as e:
-            failed.append({"customer": o.get("customer_name"), "co_no": co_no,
+            failed.append({"customer": cust_name, "co_no": co_no,
                            "error": f"품목 저장 실패: {str(e)[:120]}"})
             continue
-        created.append({"co_no": co_no, "customer": o.get("customer_name"),
-                        "order_date": o.get("order_date"), "items": len(items_out)})
+        created.append({"co_no": co_no, "customer": cust_name,
+                        "order_date": o.get("order_date"), "items": len(items_out),
+                        "images": sum(1 for _io in items_out if _io.get("image_path") or _io.get("image_loc_path"))})
+    if tmp_dir:
+        shutil.rmtree(tmp_dir, ignore_errors=True)   # 완료/실패 무관 임시 사진폴더 정리
     return JSONResponse({"ok": True, "created_count": len(created), "failed_count": len(failed),
-                         "created": created, "failed": failed, "link_warnings": link_warnings})
+                         "created": created, "failed": failed, "link_warnings": link_warnings,
+                         "unmatched_customers": unmatched_customers,
+                         "images_attached": images_attached, "images_failed": images_failed})
 
 
 @app.post("/consumables/upload-xlsx")
