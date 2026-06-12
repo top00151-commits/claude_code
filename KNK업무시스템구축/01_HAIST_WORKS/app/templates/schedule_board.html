@@ -175,8 +175,11 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sr-edit .sr-btns button { padding:5px 14px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:#fff; }
 .sr-edit .sr-btns .sr-save { background:#2563eb; color:#fff; border-color:#2563eb; }
 .sr-subs { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 2px 26px; }
-.sr-sub { font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:14px; border:1px solid var(--line); cursor:pointer; background:#fff; color:var(--qv-ink-2); }
+.sr-sub { font-size:11.5px; font-weight:700; padding:4px 11px; border-radius:14px; border:1px solid var(--line); cursor:pointer; background:#fff; color:var(--qv-ink-2); text-align:center; line-height:1.25; }
 .sr-sub.on { background:#16a34a; color:#fff; border-color:#16a34a; }
+/* v5H226z369 (대표 지시): 진행 6세부 담당 부서 — 세부 버튼 안에 작게 표기(사업부별) */
+.sr-sub .so { display:block; font-size:9px; font-weight:600; color:#64748b; margin-top:1px; }
+.sr-sub.on .so { color:#dcfce7; }
 .sr-export { margin:8px 0 0 26px; padding:8px; border:1px dashed #f59e0b; border-radius:8px; background:#fffbeb; }
 .sr-export .se-t { font-size:11px; font-weight:800; color:#b45309; margin-bottom:5px; }
 .sr-export label { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; margin:2px 10px 2px 0; }
@@ -1118,16 +1121,16 @@ function renderStages(){
     if(s.group!==lastGrp){ html+='<div class="sm-grp">'+esc(s.group)+'</div>'; lastGrp=s.group; }
     if(s.key==='progress'){
       const subs=s.subs||[];
-      html+='<div class="stg-row"><div class="sr-top"><span class="sr-label">진행 (동시 진행)</span><span class="sr-owner">'+esc(s.owner)+'</span></div>'
-        +'<div class="sr-subs">'+subs.map(p=>{ const sk=p[0],sl=p[1]; const r=_srow('progress',sk); const on=r&&r.done;
-            return '<span class="sr-sub'+(on?' on':'')+'" data-sub="'+sk+'">'+esc(sl)+(on&&r.by_name?' · '+esc(r.by_name):'')+'</span>'; }).join('')
+      html+='<div class="stg-row"><div class="sr-top"><span class="sr-label">진행 (동시 진행)</span>'+(s.owner?'<span class="sr-owner">'+esc(s.owner)+'</span>':'')+'</div>'
+        +'<div class="sr-subs">'+subs.map(p=>{ const sk=p[0],sl=p[1],so=p[2]||''; const r=_srow('progress',sk); const on=r&&r.done;
+            return '<span class="sr-sub'+(on?' on':'')+'" data-sub="'+sk+'" title="'+esc(so)+'">'+esc(sl)+(so?'<span class="so">'+esc(so)+'</span>':'')+(on&&r.by_name?'<span class="so" style="color:#16a34a">· '+esc(r.by_name)+'</span>':'')+'</span>'; }).join('')
         +'</div></div>';
       return;
     }
     const r=_srow(s.key,''); const done=r&&r.done;
     html+='<div class="stg-row'+(done?' is-done':'')+'" data-key="'+s.key+'">'
       +'<div class="sr-top"><span class="sr-chk">'+(done?'✓':'')+'</span>'
-      +'<span class="sr-label">'+esc(s.label)+'</span><span class="sr-owner">'+esc(s.owner)+'</span></div>'
+      +'<span class="sr-label">'+esc(s.label)+'</span>'+(s.owner?'<span class="sr-owner">'+esc(s.owner)+'</span>':'')+'</div>'
       +((done&&r)?('<div class="sr-meta">'+esc(r.on_date||'')+(r.by_name?' · '+esc(r.by_name):'')+(r.memo?' · '+esc(r.memo):'')+'</div>'):'')
       +'<div class="sr-edit">'+editorHtml(s,r)+'</div></div>';
   });

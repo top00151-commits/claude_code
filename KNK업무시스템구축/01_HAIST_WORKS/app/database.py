@@ -11509,6 +11509,57 @@ STAGE_SPEC = [
 STAGE_KEYS = {s["key"] for s in STAGE_SPEC}
 STAGE_SUBS = {s["key"]: {k for k, _ in s.get("subs", [])} for s in STAGE_SPEC}
 
+# =====================================================
+# v5H226z369 (대표 지시): 단계 '담당'을 실제 부서명 · 사업부별로 표기.
+#   div = 관리번호 4번째 글자(T 검사기 / M 자동화 / L 라이프밸류 / E 기타 / C 소모품).
+#   기타(E)=담당 표시 안 함(빈값). 소모품(C)=전 단계 기술영업팀(세금계산서 발행도 기술영업팀).
+#   진행(progress) 단계는 헤더 담당 비우고 6세부(설계·회로·프로그램·전장·조립·테스트)에 부서를 실어 표시.
+#   ※ 검사기/자동화/라이프밸류 일부는 초안 — 화면 보며 대표 지시로 수정 예정.
+# =====================================================
+_STG_OWNER_COMMON = {"input": "기술영업팀", "quote": "기술영업팀", "order": "기술영업팀",
+                     "prod_request": "기술영업팀→생산", "progress": "",
+                     "label": "기술영업팀", "ship": "기술영업팀", "tax_invoice": "관리팀"}
+STAGE_OWNERS_BY_DIV = {
+    "T": {**_STG_OWNER_COMMON, "verify": "품질팀",       "pack": "제조기술1팀"},
+    "M": {**_STG_OWNER_COMMON, "verify": "품질팀",       "pack": "제조기술2팀"},
+    "L": {**_STG_OWNER_COMMON, "verify": "라이프밸류팀", "pack": "가공팀"},
+    # 소모품: 전 단계 기술영업팀(생산세부 없음·세금계산서도 기술영업팀)
+    "C": {k: "기술영업팀" for k in ("input", "quote", "order", "prod_request", "progress",
+                                  "verify", "label", "pack", "ship", "tax_invoice")},
+    "E": {},   # 기타: 담당 표시 안 함
+}
+STAGE_SUB_OWNERS_BY_DIV = {
+    "T": {"design": "설계팀", "circuit": "설계팀", "program": "개발혁신팀",
+          "wiring": "제조기술1팀", "assembly": "제조기술1팀", "test": "품질팀"},
+    "M": {"design": "설계팀", "circuit": "전장설계팀", "program": "소프트웨어팀",
+          "wiring": "전장설계팀", "assembly": "제조기술2팀", "test": "제조기술2팀"},
+    "L": {k: "라이프밸류팀" for k in ("design", "circuit", "program", "wiring", "assembly", "test")},
+    "C": {k: "기술영업팀" for k in ("design", "circuit", "program", "wiring", "assembly", "test")},
+    "E": {},
+}
+
+
+def stage_spec_for_div(div: str) -> list:
+    """사업부(div)에 맞는 담당(owner) + 진행 6세부 담당을 채운 STAGE_SPEC 사본.
+    E(기타)=담당 빈값. 미지정 div=기존 일반 담당 유지(안전 폴백). subs는 [key,label,owner] 3요소."""
+    div = (div or "").upper()
+    omap = STAGE_OWNERS_BY_DIV.get(div)
+    smap = STAGE_SUB_OWNERS_BY_DIV.get(div, {})
+    out = []
+    for s in STAGE_SPEC:
+        if div == "E":
+            owner = ""
+        elif omap is not None and s["key"] in omap:
+            owner = omap[s["key"]]
+        else:
+            owner = s["owner"]   # 미지정 div → 기존 일반 담당 유지
+        out.append({
+            "key": s["key"], "label": s["label"], "owner": owner,
+            "group": s["group"], "sales_only": bool(s.get("sales_only")),
+            "subs": [[sk, sl, ("" if div == "E" else smap.get(sk, ""))] for sk, sl in s.get("subs", [])],
+        })
+    return out
+
 
 def stage_rows_for(ref_kind: str, ref_id: int) -> dict:
     """한 건의 단계 기록 → {(stage_key, sub_key): dict}."""

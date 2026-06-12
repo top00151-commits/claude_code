@@ -13523,14 +13523,24 @@ async def schedule_board_stages(request: Request, kind: str = "", ref_id: int = 
     # v5H226z272: 어떤 예외든 JSON 으로 반환(전역 HTML 핸들러로 새지 않게) — 프론트가 원인 표시 가능
     try:
         can_money = bool(can_view_sales(u))
+        # v5H226z369: 이 건의 사업부(div)로 담당 부서를 채움(관리번호 4번째 글자 / 소모품=C / 폴백 biz_div)
+        _div = "C" if kind == "consumable" else ""
+        if kind == "project":
+            try:
+                with db_session() as _c:
+                    _pr = _c.execute("SELECT mgmt_code, biz_div FROM projects WHERE id=?",
+                                     (int(ref_id),)).fetchone()
+                if _pr:
+                    _mc = (_pr[0] or "")
+                    _div = _mc[3] if (len(_mc) >= 4 and _mc[3] in "TMLEC") else ((_pr[1] or "").upper())
+            except Exception:
+                _div = ""
         # spec 구성 — 금액(sales_only) 단계는 권한 없으면 제외(데이터 자체 미전송)
         spec = []
-        for s in _logi.STAGE_SPEC:
+        for s in _logi.stage_spec_for_div(_div):
             if s.get("sales_only") and not can_money:
                 continue
-            spec.append({"key": s["key"], "label": s["label"], "owner": s["owner"],
-                         "group": s["group"], "subs": s.get("subs", []),
-                         "sales_only": bool(s.get("sales_only"))})
+            spec.append(s)
         rows = _logi.stage_rows_for(kind, int(ref_id))
         out_rows = {}
         for (sk, sub), v in rows.items():
