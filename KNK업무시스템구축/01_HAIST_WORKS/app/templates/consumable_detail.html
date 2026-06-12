@@ -143,6 +143,9 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <a class="btn-secondary" href="/consumables">← 목록</a>
+        {# v5H226z370(대표 지시): 수정 반영(저장) — 현재 입력값(고객사 포함) 전부 한 번에 저장 후 새로고침. 자동저장도 유지. #}
+        <button id="coSaveBtn" type="button" onclick="coSaveAll()" style="background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">💾 수정 반영(저장)</button>
+        <span id="coSaveMsg" style="font-size:12px;font-weight:700;color:#16a34a;"></span>
         {# v5H145 — 관련부서 통보 발송 (자재구매·생산팀 + admin) #}
         <button id="notifyBtn" class="btn-notify" type="button" onclick="sendNotify()">📤 관련부서 통보</button>
         <span id="notifyMsg"></span>
@@ -270,6 +273,7 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
           <th style="width:60px;">단위</th>
           <th style="width:110px;">단가</th>
           <th style="width:130px;" class="amount">합계</th>
+          <th style="width:160px;">비고</th>
           <th style="width:170px;">자재코드</th>
           <th style="width:160px;">관리번호</th>
           <th style="width:50px;"></th>
@@ -301,6 +305,8 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
             <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ it.unit_price or 0 }}" /></td>
             <td class="amount cell-amount">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
+            {# v5H226z370(대표 지시): 비고 — 일괄등록 비고 표시 + 편집(자동저장). 백엔드 note 이미 지원. #}
+            <td><input data-k="note" value="{{ it.note|e }}" placeholder="비고" /></td>
             {# v5H226z300(대표 지시): 자재코드 연결 — 등록 자재 자동연결(업로드)+추천+수동검색 #}
             <td>
               {% if it.part_id %}
@@ -335,7 +341,7 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
           <tr>
             <td colspan="10" style="text-align:right;">합계</td>
             <td class="amount" id="footTotal">{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency=='KRW' %}원{% endif %}</td>
-            <td colspan="3"></td>
+            <td colspan="4"></td>
           </tr>
         </tfoot>
       </table>
@@ -431,6 +437,31 @@ document.querySelectorAll('.header-grid .ef').forEach(el=>{
     }catch(e){ el.style.background='#fee2e2'; }
   });
 });
+
+// v5H226z370 (대표 지시): 수정 반영(저장) — 현재 입력값(헤더 .ef + 라인 data-k) 전부 한 번에 저장 후 새로고침.
+//   자동저장(change)이 안 걸린 값(예: 입력 후 포커스 안 옮긴 칸)·고객사 재선택도 확실히 반영.
+async function coSaveAll(){
+  const btn=document.getElementById('coSaveBtn'), msg=document.getElementById('coSaveMsg');
+  const _t = btn ? btn.textContent : '';
+  if(btn){ btn.disabled=true; btn.textContent='저장 중…'; }
+  if(msg){ msg.textContent=''; }
+  const header={};
+  document.querySelectorAll('.header-grid .ef').forEach(el=>{ if(el.dataset.field) header[el.dataset.field]=el.value; });
+  const lines=[];
+  document.querySelectorAll('table.items tbody tr[data-iid]').forEach(tr=>{
+    const iid=parseInt(tr.dataset.iid,10); if(!iid) return;
+    const f={};
+    tr.querySelectorAll('input[data-k]').forEach(inp=>{ f[inp.dataset.k]= inp.classList.contains('knk-money') ? (inp.value||'').replace(/,/g,'') : inp.value; });
+    lines.push({iid:iid, fields:f});
+  });
+  try{
+    const r=await fetch(`/consumables/${CO_ID}/save-all`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({header:header, lines:lines})});
+    const j=await r.json();
+    if(j.ok){ if(msg){ msg.textContent='✓ 저장됨'; } setTimeout(()=>location.reload(), 350); }
+    else { if(btn){ btn.disabled=false; btn.textContent=_t; } alert('저장 실패: '+(j.error||'')); }
+  }catch(e){ if(btn){ btn.disabled=false; btn.textContent=_t; } alert('통신 오류: '+e); }
+}
+window.coSaveAll = coSaveAll;
 
 document.querySelectorAll('table.items input').forEach(inp => {
   inp.addEventListener('change', async () => {
@@ -558,8 +589,8 @@ document.querySelectorAll('.s-pill').forEach(pill => {
 // v5H226z303/z305(대표 지시): 라인 표 — 칸 너비조정 + 칸 표시/숨기기 + 전체화면 + 화면인쇄 (작업일정표 메뉴 이식, 날짜 컨트롤 제외)
 const ITEMS_VIEW_KEY = 'co_items_view_v2';
 const ITEMS_COLW_OLDKEY = 'co_items_colw_v1';
-const ITEMS_COLW_DEFAULTS = [40,100,100,120,120,150,150,70,55,100,110,170,160,56];
-const ITEMS_COL_LABELS = ['No','사진(LOC)','사진(PIC)','모델','장비명','품명','규격','수량','단위','단가','합계','자재코드','관리번호','삭제'];
+const ITEMS_COLW_DEFAULTS = [40,100,100,120,120,150,150,70,55,100,110,160,170,160,56];
+const ITEMS_COL_LABELS = ['No','사진(LOC)','사진(PIC)','모델','장비명','품명','규격','수량','단위','단가','합계','비고','자재코드','관리번호','삭제'];
 const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 않게
 (function(){
   const table = document.querySelector('table.items');

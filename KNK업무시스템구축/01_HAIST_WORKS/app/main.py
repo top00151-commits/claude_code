@@ -24173,6 +24173,71 @@ async def consumables_edit_field(request: Request, co_id: int):
     return JSONResponse({"ok": True, "value": new_v, "cust_ok": cust_ok})
 
 
+@app.post("/consumables/{co_id:int}/save-all")
+async def consumables_save_all(request: Request, co_id: int):
+    """v5H226z370 (대표 지시): 상세 화면 '수정 반영' — 헤더(.ef)+라인(data-k) 현재값을 한 번에 저장.
+    헤더=co_update_order_field, 라인=coi_update 재사용(자동저장과 동일 정책·이력 기록). 고객사 재선택도 확실히 반영."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    _by_id = u.get("id"); _by_name = (u.get("name") or u.get("login_id") or "")
+    header = b.get("header") or {}
+    lines = b.get("lines") or []
+    cust_ok = None
+    saved = 0
+    if isinstance(header, dict):
+        for field, value in header.items():
+            try:
+                ok, _v, _o, _cok = _co.co_update_order_field(co_id, str(field), value,
+                                                             by_id=_by_id, by_name=_by_name)
+                if ok:
+                    saved += 1
+                    if str(field) in ("customer_id", "customer_name"):
+                        cust_ok = _cok
+            except Exception:
+                pass
+    _LINE_OK = {"model_use", "equip_name", "part_name", "spec", "qty", "unit", "unit_price", "note"}
+    if isinstance(lines, list):
+        for ln in lines:
+            try:
+                iid = int(ln.get("iid"))
+            except Exception:
+                continue
+            f = ln.get("fields") or {}
+            if not isinstance(f, dict):
+                continue
+            fields = {}
+            for k, v in f.items():
+                if k not in _LINE_OK:
+                    continue
+                if k in ("qty", "unit_price"):
+                    try:
+                        fields[k] = float(str(v).replace(",", "") or 0)
+                    except ValueError:
+                        fields[k] = 0
+                else:
+                    fields[k] = ("" if v is None else str(v)).strip()
+            if fields:
+                try:
+                    _co.coi_update(iid, fields, by_id=_by_id, by_name=_by_name)
+                    saved += 1
+                except Exception:
+                    pass
+    try:
+        _co.recompute_co_total(co_id)   # 합계 재계산(라인 수량·단가 변경 반영)
+    except Exception:
+        pass
+    co = _co.co_get(co_id)
+    return JSONResponse({"ok": True, "saved": saved, "cust_ok": cust_ok,
+                         "total_amount": (co or {}).get("total_amount", 0)})
+
+
 @app.post("/consumables/{co_id:int}/items/{iid:int}/link-project")
 async def consumables_item_link_project(request: Request, co_id: int, iid: int):
     u = get_user(request)
