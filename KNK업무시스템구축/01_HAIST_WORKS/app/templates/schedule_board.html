@@ -52,6 +52,15 @@
 /* v5H226z366 (대표 지시): 찾기·일괄 띠 + 검색창 + 행 선택/일괄수정 바 */
 .band-find   { background:#eef7f0; border-color:#cfe6d6; }  .band-find   > .band-tag { background:#2f8a52; }
 .sched-search { width:330px; max-width:44vw; padding:5px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:#fff; }
+/* v5H226z371 (대표 지시): 기간(범위) 찾기 입력 */
+.period-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+.period-grp.on { border-color:#2f8a52; background:#eef7f0; }
+.period-lab { font-size:12px; font-weight:800; color:#2f8a52; }
+.period-inp { padding:3px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px; background:#fff; }
+.period-sep { color:#888; }
+.period-go { padding:4px 11px; border:1px solid #2f8a52; background:#2f8a52; color:#fff; border-radius:7px; font-size:12px; font-weight:800; cursor:pointer; }
+.period-go:hover { background:#256e42; }
+.period-clear { font-size:12px; font-weight:700; color:#6b7280; text-decoration:none; padding:3px 6px; }
 .find-grp { display:flex; align-items:center; gap:6px; }
 .find-count { font-size:12px; font-weight:700; color:#2f8a52; min-width:52px; }
 .selall-lab { display:flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:#374151; cursor:pointer; padding:3px 9px; border:1px solid var(--line); border-radius:7px; background:#fff; }
@@ -272,10 +281,16 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 
   <div class="sched-top">
     <div class="sched-nav">
+      {% if range_mode %}
+      {# v5H226z371: 기간 보기 — 월 이동 대신 기간 표시 + 월 보기 복귀 #}
+      <span class="cur">📅 기간 {{ pf }} ~ {{ pt }}</span>
+      <a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="월 보기로 돌아가기">↩ 월 보기</a>
+      {% else %}
       <a href="?ym={{ prev_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이전 달">←</a>
       <span class="cur">📅 {{ month_label }}</span>
       <a href="?ym={{ next_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="다음 달">→</a>
       {% if ym != cur_ym %}<a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이번 달">오늘</a>{% endif %}
+      {% endif %}
     </div>
     <div class="sched-sum">
       <span class="pill s-total">전체 {{ summary.total }}</span>
@@ -295,12 +310,14 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
   <div class="sched-tabs sb-band band-filter">
     <span class="band-tag">사업부</span>
     {% set _q = ('&cust=' ~ cust) if cust else '' %}
-    <a class="sbm{% if not biz %} on{% endif %}" href="?ym={{ ym }}{{ _q }}"><span class="ti">🗂</span> 전체 <b>{{ div_counts.all }}</b></a>
-    <a class="sbm{% if biz=='T' %} on{% endif %}" href="?ym={{ ym }}&biz=T{{ _q }}"><span class="ti">🔬</span> 검사기 <b>{{ div_counts.T }}</b></a>
-    <a class="sbm{% if biz=='M' %} on{% endif %}" href="?ym={{ ym }}&biz=M{{ _q }}"><span class="ti">⚙</span> 자동화 <b>{{ div_counts.M }}</b></a>
-    <a class="sbm{% if biz=='L' %} on{% endif %}" href="?ym={{ ym }}&biz=L{{ _q }}"><span class="ti">💄</span> 라이프밸류 <b>{{ div_counts.L }}</b></a>
-    <a class="sbm{% if biz=='E' %} on{% endif %}" href="?ym={{ ym }}&biz=E{{ _q }}"><span class="ti">🗂</span> 기타 <b>{{ div_counts.E }}</b></a>
-    <a class="sbm{% if biz=='C' %} on{% endif %}" href="?ym={{ ym }}&biz=C{{ _q }}"><span class="ti">🧴</span> 소모품 <b>{{ div_counts.C }}</b></a>
+    {# v5H226z371: 기간 모드면 사업부 필터가 기간을 유지하도록 ym 대신 pf~pt 사용 #}
+    {% set _period = ('pf=' ~ pf ~ '&pt=' ~ pt) if range_mode else ('ym=' ~ ym) %}
+    <a class="sbm{% if not biz %} on{% endif %}" href="?{{ _period }}{{ _q }}"><span class="ti">🗂</span> 전체 <b>{{ div_counts.all }}</b></a>
+    <a class="sbm{% if biz=='T' %} on{% endif %}" href="?{{ _period }}&biz=T{{ _q }}"><span class="ti">🔬</span> 검사기 <b>{{ div_counts.T }}</b></a>
+    <a class="sbm{% if biz=='M' %} on{% endif %}" href="?{{ _period }}&biz=M{{ _q }}"><span class="ti">⚙</span> 자동화 <b>{{ div_counts.M }}</b></a>
+    <a class="sbm{% if biz=='L' %} on{% endif %}" href="?{{ _period }}&biz=L{{ _q }}"><span class="ti">💄</span> 라이프밸류 <b>{{ div_counts.L }}</b></a>
+    <a class="sbm{% if biz=='E' %} on{% endif %}" href="?{{ _period }}&biz=E{{ _q }}"><span class="ti">🗂</span> 기타 <b>{{ div_counts.E }}</b></a>
+    <a class="sbm{% if biz=='C' %} on{% endif %}" href="?{{ _period }}&biz=C{{ _q }}"><span class="ti">🧴</span> 소모품 <b>{{ div_counts.C }}</b></a>
   </div>
 
   <div class="sched-tools sb-band band-action">
@@ -339,6 +356,15 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <span class="find-grp">
       <input type="search" id="schedSearch" class="sched-search" placeholder="🔍 관리번호·프로젝트명·모델·장비·고객사 검색" oninput="schedDoSearch()" autocomplete="off" />
       <span class="find-count" id="schedFindCount"></span>
+    </span>
+    {# v5H226z371 (대표 지시): 기간(범위) 찾기 — 여러 달에 걸친 항목을 한 번에 불러와 검색. 기간 모드에선 달력 칸 숨김. #}
+    <span class="period-grp{% if range_mode %} on{% endif %}">
+      <span class="period-lab">기간</span>
+      <input type="date" id="schedPF" class="period-inp" value="{{ pf }}" title="기간 시작(발주일~납기 겹침)" />
+      <span class="period-sep">~</span>
+      <input type="date" id="schedPT" class="period-inp" value="{{ pt }}" title="기간 끝" />
+      <button type="button" class="period-go" onclick="schedRangeGo()"><span class="ti">🔎</span> 기간으로 찾기</button>
+      {% if range_mode %}<a class="period-clear" href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}">월 보기로</a>{% endif %}
     </span>
     <label class="selall-lab"><input type="checkbox" id="schedSelAll" onclick="schedToggleAll(this)" /> 보이는 행 전체선택</label>
     <span class="bulk-wrap" id="schedBulkBar" style="display:none;">
@@ -449,7 +475,11 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       </tbody>
     </table>
     {% else %}
+    {% if range_mode %}
+    <div class="empty">📅 기간 {{ pf }} ~ {{ pt }} 에 표시할 일정이 없습니다. (발주일·납기일이 이 기간과 겹치는 건이 없음)</div>
+    {% else %}
     <div class="empty">📅 {{ month_label }}에 표시할 일정이 없습니다. (발주일·납기일이 이 달과 겹치는 건이 없음)</div>
+    {% endif %}
     {% endif %}
   </div>
   {# v5H226z271: 모달·토스트를 .main 안으로 — SPA 이동(.main 교체) 시에도 함께 들어오도록 #}
@@ -1256,6 +1286,17 @@ var _BF={}; BULK_FIELDS.forEach(function(x){ _BF[x.f]=x; });
 // 소모품에도 적용되는 항목(나머지는 프로젝트 전용 → 소모품은 건너뜀)
 var CONS_OK_FIELDS=['note','dept','owner','ship_to','order_date','due_date'];
 
+// v5H226z371 (대표 지시): 기간(범위) 찾기 — pf~pt 로 이동(여러 달 한 번에 로드). 사업부·고객사 필터 유지.
+var _SCHED_BIZ = {{ biz|tojson }}, _SCHED_CUST = {{ cust|tojson }};
+function schedRangeGo(){
+  var f=(document.getElementById('schedPF')||{}).value||'', t=(document.getElementById('schedPT')||{}).value||'';
+  if(!f || !t){ toast('기간 시작·끝 날짜를 모두 정하세요'); return; }
+  if(f>t){ toast('시작일이 끝일보다 늦습니다'); return; }
+  var q='?pf='+encodeURIComponent(f)+'&pt='+encodeURIComponent(t);
+  if(_SCHED_BIZ) q+='&biz='+encodeURIComponent(_SCHED_BIZ);
+  if(_SCHED_CUST) q+='&cust='+encodeURIComponent(_SCHED_CUST);
+  location.href=q;
+}
 function schedDoSearch(){
   var inp=document.getElementById('schedSearch'); if(!inp||!_tbody) return;
   var q=(inp.value||'').trim().toLowerCase();
@@ -1391,7 +1432,7 @@ _buildBulkFieldSel(); syncBulkBar();   // z366: 일괄수정 항목 드롭다운
 var _bulkM=document.getElementById('bulkModal'); if(_bulkM) _on(_bulkM,'click',function(e){ if(e.target.id==='bulkModal') closeBulkModal(); });
 _on(window,'load',()=>setTimeout(updateSticky,80));
 // v5H226z271: 인라인 onclick/onchange 핸들러용 전역 노출 (IIFE 내부 함수들)
-Object.assign(window, {schedFullscreen, schedPrint, openPrintModal, closePrintModal, printColsAll, doPrint, toggleColsMenu, stepDateW, setDayRange, resetCols, resetSort, closeMemo, saveMemo, closeStagePanel, openRegModal, closeRegModal, schedDoSearch, schedToggleAll, schedRowSel, schedClearSel, schedBulkFieldChange, schedBulkPreview, schedBulkConfirm, closeBulkModal});
+Object.assign(window, {schedFullscreen, schedPrint, openPrintModal, closePrintModal, printColsAll, doPrint, toggleColsMenu, stepDateW, setDayRange, resetCols, resetSort, closeMemo, saveMemo, closeStagePanel, openRegModal, closeRegModal, schedDoSearch, schedToggleAll, schedRowSel, schedClearSel, schedBulkFieldChange, schedBulkPreview, schedBulkConfirm, closeBulkModal, schedRangeGo});
 })();
 </script>
 </body>

@@ -13059,7 +13059,8 @@ async def schedule_bulk_template(request: Request):
 
 
 @app.get("/sales/schedule", response_class=HTMLResponse)
-async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""):
+async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
+                         pf: str = "", pt: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -13089,6 +13090,15 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             return _dt.strptime(str(s)[:10], "%Y-%m-%d").date()
         except Exception:
             return None
+
+    # v5H226z371 (대표 지시): 기간(범위) 찾기 — pf~pt 가 유효하면 그 기간 전체 로드(여러 달 가능),
+    #   달력(간트 1~31)은 여러 달에 못 담으므로 숨김(days 비움). 겹침 판정은 월 보기와 동일(발주일~납기).
+    _pf, _pt = _pd(pf), _pd(pt)
+    range_mode = bool(_pf and _pt and _pf <= _pt)
+    if range_mode:
+        mstart, mend = _pf, _pt
+        days = []
+        today_day = None
 
     def _mk_row(info, od, dd, status, kind):
         """info=표시필드 dict, od/dd=발주·납기, status, kind. 달 겹침·막대 계산 후 dict 반환."""
@@ -13237,8 +13247,11 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 rows.append(_r)
     except Exception:
         pass
-    # 정렬: 납품일(있는 것 먼저, 빠른 순) → 관리코드
-    rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
+    # 정렬: 월 보기=납품일(일자) 우선 / 기간 보기=실제 날짜(여러 달이므로 전체 날짜) 순
+    if range_mode:
+        rows.sort(key=lambda r: (r.get("due_date") or "9999-99-99", r.get("order_date") or "9999-99-99", r["code"]))
+    else:
+        rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
     # v5H226z275 (대표 지시): 사업부별 탭 — 각 행 사업부(관리번호 4번째 글자) + 탭별 건수 + biz 필터
     for r in rows:
         _rc = r.get("code") or ""
@@ -13264,7 +13277,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                days=days, today_day=today_day, rows=rows, summary=summary, cust=cust,
                col_prefs=_col_prefs, can_money=_can_money, stage_spec=_logi.STAGE_SPEC,
-               biz=_biz, div_counts=div_counts)
+               biz=_biz, div_counts=div_counts,
+               range_mode=range_mode, pf=(pf[:10] if range_mode else ""), pt=(pt[:10] if range_mode else ""))
 
 
 # v5H226z264 (대표 지시): 작업 일정표 보드 — 셀 편집/메모/칸설정 저장 라우트.
