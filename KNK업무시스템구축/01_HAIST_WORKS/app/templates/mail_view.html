@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ m.subject }} · 메일함 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .mv-head{border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px 18px;margin-bottom:14px}
+  .mv-subj{font-size:18px;font-weight:700;margin:0 0 8px;line-height:1.4}
+  .mv-meta{font-size:12.5px;color:var(--mute);line-height:1.85}
+  .mv-badge{font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle}
+  .mv-ai{border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#1e3a8a;white-space:pre-wrap;line-height:1.75}
+  .mv-body{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;white-space:pre-wrap;line-height:1.8;font-size:14px;color:var(--ink)}
+  .mv-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;align-items:center}
+  .mv-trans{border:1px dashed #c7d2fe;background:#f5f7ff;border-radius:10px;padding:12px 14px;margin-top:12px;display:none}
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">메일함</a> · 메일 보기</div>
+  </div></div>
+
+  {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
+  {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
+
+  <div class="mv-head">
+    <h1 class="mv-subj">{{ m.subject }}<span class="mv-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span></h1>
+    <div class="mv-meta">
+      <b>보낸사람</b> {{ m.from_name }} &lt;{{ m.from_email }}&gt;<br>
+      <b>받은주소</b> {{ m.to_email }}{% if m.cc %} · <b>참조</b> {{ m.cc }}{% endif %}<br>
+      <b>받은시각</b> {{ m.received_at }}{% if m.lang %} · <b>언어</b> {{ m.lang }}{% endif %}
+    </div>
+  </div>
+
+  {% if m.summary %}
+  <div class="mv-ai"><b>📝 AI 요약</b><br>{{ m.summary }}</div>
+  {% endif %}
+
+  <div class="mv-actions">
+    <button type="button" class="btn btn-secondary" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
+    <button type="button" class="btn btn-secondary" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
+    <span style="flex:1"></span>
+    <button type="button" class="btn btn-secondary" style="color:var(--knk-red)" onclick="delMail({{ m.id }})">🗑 삭제</button>
+    <a href="/mail/inbox" class="btn btn-secondary">← 목록</a>
+  </div>
+
+  <div class="mv-body">{{ m.body_text }}</div>
+
+  <div class="mv-trans" id="transBox">
+    <div style="font-size:12px;color:var(--mute);margin-bottom:6px;"><b id="transLabel">번역</b> <span id="transStatus"></span></div>
+    <div style="font-weight:700;margin-bottom:6px;" id="transSubj"></div>
+    <div style="white-space:pre-wrap;line-height:1.8;" id="transBody"></div>
+  </div>
+</main></div>
+<script>
+const MAIL_ID = {{ m.id }};
+async function translateMail(target){
+  const box=document.getElementById('transBox');
+  const st=document.getElementById('transStatus');
+  box.style.display='block';
+  st.textContent='번역 중...';
+  document.getElementById('transLabel').textContent = (target==='ko'?'🇰🇷 한국어 번역':'🇻🇳 베트남어 번역');
+  document.getElementById('transSubj').textContent='';
+  document.getElementById('transBody').textContent='';
+  try{
+    const fd=new FormData(); fd.append('target',target);
+    const r=await fetch('/api/mail/'+MAIL_ID+'/translate',{method:'POST',body:fd});
+    const j=await r.json();
+    if(j.ok){ st.textContent=''; document.getElementById('transSubj').textContent=j.subject||''; document.getElementById('transBody').textContent=j.body||''; }
+    else { st.textContent='⚠ '+(j.message||'번역 실패'); }
+  }catch(e){ st.textContent='⚠ 네트워크 오류'; }
+}
+async function delMail(id){
+  if(!confirm('이 메일을 삭제할까요?')) return;
+  try{ const r=await fetch('/mail/'+id+'/delete',{method:'POST'}); const j=await r.json();
+    if(j.ok){ location.href='/mail/inbox'; } else { alert('삭제 실패'); }
+  }catch(e){ alert('네트워크 오류'); }
+}
+</script>
+</body></html>

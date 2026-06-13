@@ -10072,6 +10072,126 @@ async def contact_mail_send(req: Request, cid: int):
     return JSONResponse({"ok": ok, "message": msg})
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  메일함(받기) — KNK 자체 메일 Phase 0 POC (2026-06-13 대표 지시)
+#  · Cloudflare Email Routing(Worker) → POST /api/mail/inbound → mail_store 적재
+#  · /mail/inbox(받은편지함)·/mail/{id}(보기)·별표·삭제·AI 번역
+# ═══════════════════════════════════════════════════════════════════════════
+from . import mail_store as _mailbox
+
+_MAIL_CATEGORIES = ("견적", "발주", "세금계산서", "일반")
+
+
+@app.post("/api/mail/inbound")
+async def mail_inbound(req: Request):
+    """Cloudflare Email Routing(Worker)가 받은 메일을 밀어넣는 받는 구멍.
+    보안: 비밀토큰(KNK_MAIL_INBOUND_TOKEN) 일치 필수. 미설정 시 비활성(안전 폴백)."""
+    token_env = (os.environ.get("KNK_MAIL_INBOUND_TOKEN") or "").strip()
+    if not token_env:
+        return JSONResponse({"ok": False, "message": "수신 기능 비활성(서버 토큰 미설정)"}, 403)
+    token = (req.headers.get("X-KNK-Mail-Token")
+             or req.query_params.get("token") or "").strip()
+    if token != token_env:
+        return JSONResponse({"ok": False, "message": "인증 실패"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "JSON 본문이 필요합니다."}, 400)
+    to_email = (d.get("to") or "").strip()
+    if not to_email:
+        return JSONResponse({"ok": False, "message": "수신 주소(to)가 없습니다."}, 400)
+    with db_session() as c:
+        mid, owner = _mailbox.store_inbound(
+            c, to_email=to_email,
+            from_email=d.get("from") or "", from_name=d.get("from_name") or "",
+            subject=d.get("subject") or "", text=d.get("text") or "",
+            html=d.get("html") or "", cc=d.get("cc") or "",
+            size=d.get("size") or 0, run_ai=True,
+        )
+    if not mid:
+        # 데이터 연결성 원칙: 조용히 버리지 않고 사유 표면화
+        return JSONResponse({"ok": False, "message": "수신자 매핑 실패(받는 사람을 찾지 못함)"}, 422)
+    return JSONResponse({"ok": True, "id": mid, "owner": owner})
+
+
+@app.get("/mail/inbox")
+async def mail_inbox_page(req: Request, cat: str = ""):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        mails = _mailbox.list_inbox(c, u["id"], category=cat)
+        unread = _mailbox.count_unread(c, u["id"])
+        cat_counts = _mailbox.category_counts(c, u["id"])
+    return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
+               cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES,
+               ai_on=ai_enabled_for(u))
+
+
+@app.post("/mail/inbox/demo")
+async def mail_inbox_demo(req: Request):
+    """Cloudflare 연결 전, 본인 메일함에 샘플 메일 1건 주입(동작 확인용)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    lang = (form.get("lang") or "vi").strip()
+    with db_session() as c:
+        mid, _owner = _mailbox.make_demo_mail(c, u["id"], lang=lang)
+    return JSONResponse({"ok": bool(mid), "id": mid})
+
+
+@app.get("/mail/{mail_id:int}")
+async def mail_view_page(req: Request, mail_id: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m:
+            return RedirectResponse("/mail/inbox", 303)
+        _mailbox.mark_read(c, mail_id, u["id"])
+    return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u))
+
+
+@app.post("/mail/{mail_id:int}/star")
+async def mail_star(req: Request, mail_id: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        new = _mailbox.toggle_star(c, mail_id, u["id"])
+    if new is None:
+        return JSONResponse({"ok": False}, 404)
+    return JSONResponse({"ok": True, "starred": bool(new)})
+
+
+@app.post("/mail/{mail_id:int}/delete")
+async def mail_delete(req: Request, mail_id: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        ok = _mailbox.soft_delete(c, mail_id, u["id"])
+    return JSONResponse({"ok": ok})
+
+
+@app.post("/api/mail/{mail_id:int}/translate")
+async def mail_translate(req: Request, mail_id: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    target = (form.get("target") or "ko").strip()
+    if target not in ("ko", "vi", "en"):
+        target = "ko"
+    with db_session() as c:
+        ok, res = _mailbox.translate_mail(c, mail_id, u["id"], target=target)
+    if not ok:
+        return JSONResponse({"ok": False, "message": res})
+    return JSONResponse({"ok": True, "subject": res["subject"], "body": res["body"]})
+
+
 def _customer_contacts_from_form(form) -> list[dict]:
     """v5H56/v5H66: 폼에서 contact_*_N 패턴으로 다중 담당자 수집.
     v5H66: 'note' (특징) 필드 추가, 'role' 은 hidden 으로 '기타' 기본."""

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일함 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .mbx-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+  .mbx-cat{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;color:var(--ink);text-decoration:none;background:#fff}
+  .mbx-cat.on{background:var(--knk-red);color:#fff;border-color:var(--knk-red)}
+  .mbx-cat .n{font-size:11px;opacity:.7}
+  .mbx-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+  .mbx-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
+  .mbx-row:last-child{border-bottom:0}
+  .mbx-row:hover{background:#f9fafb}
+  .mbx-row.unread{background:#fffdf5}
+  .mbx-star{font-size:15px;cursor:pointer;color:#d1d5db;background:none;border:0;padding:0;line-height:1}
+  .mbx-star.on{color:#f59e0b}
+  .mbx-from{width:172px;min-width:110px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mbx-main{flex:1;min-width:0}
+  .mbx-subj{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mbx-row.unread .mbx-subj{font-weight:700}
+  .mbx-sum{font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .mbx-badge{font-size:11px;padding:2px 8px;border-radius:6px;white-space:nowrap}
+  .mbx-time{width:92px;text-align:right;font-size:11.5px;color:var(--mute);white-space:nowrap}
+  .mbx-empty{padding:48px 16px;text-align:center;color:var(--mute);line-height:1.7}
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><b>메일함</b> · 받은편지함</div>
+    <h1 class="page-title">📧 <em>메일함</em>
+      <span style="font-size:13px;color:var(--mute);font-weight:500;">— 자체 메일(시범){% if unread %} · 안읽음 {{ unread }}{% endif %}</span>
+    </h1>
+  </div></div>
+
+  {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
+  {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
+
+  <div class="mbx-toolbar">
+    <a href="/mail/inbox" class="mbx-cat {{ 'on' if not cur_cat else '' }}">전체</a>
+    {% for ct in categories %}
+    <a href="/mail/inbox?cat={{ ct }}" class="mbx-cat {{ 'on' if cur_cat==ct else '' }}">{{ ct }} <span class="n">{{ cat_counts.get(ct,0) }}</span></a>
+    {% endfor %}
+    <span style="flex:1"></span>
+    <button type="button" class="btn btn-secondary" onclick="demoMail('vi')">＋ 시범 메일(베트남어)</button>
+    <button type="button" class="btn btn-secondary" onclick="demoMail('ko')">＋ 시범 메일(한국어)</button>
+  </div>
+
+  {% if not ai_on %}
+  <div class="form-card" style="border-color:var(--amber);margin-bottom:12px;">
+    <div style="font-size:12.5px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 AI 키가 설정돼 있을 때 작동합니다. 지금은 메일 저장·열람만 됩니다.</div>
+  </div>
+  {% endif %}
+
+  {% if mails %}
+  <div class="mbx-list">
+    {% for m in mails %}
+    <a href="/mail/{{ m.id }}" class="mbx-row {{ 'unread' if not m.is_read else '' }}">
+      <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>
+      <div class="mbx-from">{{ m.from_name or m.from_email or '(보낸사람 없음)' }}</div>
+      <div class="mbx-main">
+        <div class="mbx-subj">{{ m.subject }}</div>
+        {% if m.summary_short %}<div class="mbx-sum">📝 {{ m.summary_short }}</div>{% endif %}
+      </div>
+      <span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>
+      <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="mbx-list"><div class="mbx-empty">
+    📭 받은 메일이 없습니다.<br><br>
+    <span style="font-size:12.5px;">위 <b>＋ 시범 메일</b> 버튼을 눌러 자체 메일함이 어떻게 동작하는지(받기·AI 분류·요약·번역) 확인해 보세요.</span>
+  </div></div>
+  {% endif %}
+</main></div>
+<script>
+async function toggleStar(ev, id){
+  ev.preventDefault(); ev.stopPropagation();
+  const btn = ev.currentTarget;
+  try{
+    const r = await fetch('/mail/'+id+'/star',{method:'POST'});
+    const j = await r.json();
+    if(j.ok){ btn.classList.toggle('on', j.starred); }
+  }catch(e){}
+}
+async function demoMail(lang){
+  const fd = new FormData(); fd.append('lang', lang);
+  try{
+    const r = await fetch('/mail/inbox/demo',{method:'POST',body:fd});
+    const j = await r.json();
+    if(j.ok){ location.reload(); } else { alert('실패: '+(j.message||'')); }
+  }catch(e){ alert('네트워크 오류'); }
+}
+</script>
+</body></html>

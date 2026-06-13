@@ -304,6 +304,53 @@ CREATE TABLE IF NOT EXISTS user_mail_creds (
     updated_at        TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- ─── KNK Mail (자체 메일 시스템 Phase 0 POC, 2026-06-13 대표 지시) ───
+-- 받은 메일 보관함. Cloudflare Email Routing → /api/mail/inbound → 적재.
+-- AI(ai_client)가 category(견적/발주/세금계산서/일반)·lang·summary 자동 채움.
+CREATE TABLE IF NOT EXISTS mail_messages (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,  -- 받는 사람(소유자)
+    direction   TEXT DEFAULT 'in',          -- in(받음) / out(보냄)
+    from_email  TEXT,
+    from_name   TEXT,
+    to_email    TEXT,                        -- 받은 주소(@knk-mailtest.com 등)
+    cc          TEXT,
+    subject     TEXT,
+    body_text   TEXT,                        -- 화면 표시용 본문(텍스트)
+    body_html   TEXT,                        -- 원문 HTML 보관(표시는 text)
+    category    TEXT DEFAULT '일반',         -- AI 분류: 견적/발주/세금계산서/일반
+    lang        TEXT,                        -- AI 언어감지: ko/vi/en
+    summary     TEXT,                        -- AI 5줄 요약
+    is_read     INTEGER DEFAULT 0,
+    is_starred  INTEGER DEFAULT 0,
+    is_deleted  INTEGER DEFAULT 0,
+    raw_size    INTEGER DEFAULT 0,
+    received_at TEXT DEFAULT (datetime('now','localtime')),
+    read_at     TEXT,
+    deleted_at  TEXT,
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mailmsg_user ON mail_messages(user_id, is_deleted, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mailmsg_cat  ON mail_messages(user_id, category);
+
+CREATE TABLE IF NOT EXISTS mail_attachments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    mail_id     INTEGER REFERENCES mail_messages(id) ON DELETE CASCADE,
+    filename    TEXT,
+    mime        TEXT,
+    size        INTEGER DEFAULT 0,
+    path        TEXT,                        -- NAS/uploads 저장 경로
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mailatt_mail ON mail_attachments(mail_id);
+
+-- 수신 주소 → WORKS 사용자 매핑(없으면 대표 기본). POC: test@ → 대표.
+CREATE TABLE IF NOT EXISTS mail_aliases (
+    address     TEXT PRIMARY KEY,            -- 소문자 정규화된 수신 주소
+    user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     code TEXT,
