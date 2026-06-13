@@ -796,10 +796,19 @@ async def victor_route_query(req: Request):
     candidates = _menu.search(q, limit=5)
     print(f"[VICTOR-ROUTE] candidates={len(candidates)} → {[c['code'] for c in candidates]}")
     if not candidates:
-        # v5H226z126 (2026-05-31): 메뉴 무매치 → 빅터 AI(LLM) 폴백 (Phase 1: 읽기·안내·작성 보조)
-        # 블로킹 API 호출은 threadpool 로 — 이벤트 루프 안 막음. 데이터 안전: 민감 DB 미주입.
+        from starlette.concurrency import run_in_threadpool
+        # v5H226z410 (대표 지시): 키워드 무매치 → ① AI가 카탈로그에서 메뉴 직접 선택(업무순서 추천).
+        #   "검사기 등록 어디서?" 같은 자연어를 AI가 이해해 '제작요청 등록부터' 처럼 안내 + 클릭 메뉴 제공.
         try:
-            from starlette.concurrency import run_in_threadpool
+            from .victor import ai_pick_menu
+            route_res = await run_in_threadpool(ai_pick_menu, u, q)
+            if route_res and route_res.get("candidates"):
+                print(f"[VICTOR-ROUTE] AI 메뉴 라우팅 → {[c['code'] for c in route_res['candidates']]}")
+                return JSONResponse(route_res)
+        except Exception as _e:
+            print(f"[VICTOR-ROUTE] AI route error: {_e}")
+        # v5H226z126: ② 메뉴로도 못 잡으면 AI 텍스트 답변(읽기·안내·작성 보조).
+        try:
             from .victor import h_ai_assist
             ai_res = await run_in_threadpool(h_ai_assist, u, db_session, q)
             if ai_res and ai_res.get("text"):
@@ -1337,10 +1346,26 @@ async def login_page(req: Request):
     return ctx(req, "login.html", messenger_url=MESSENGER_BASE, error=None)
 
 
+def _safe_next_path(nxt: str) -> str:
+    """SSO 입장 후 착지할 '내부 경로'만 허용 — 오픈 리다이렉트 차단.
+    반드시 '/' 로 시작하는 같은-사이트 경로만 통과(프로토콜상대 '//'·'/\\'·외부 URL·제어문자 거부).
+    예: '/mail/inbox?app=1' 허용 / 'https://evil.com' · '//evil.com' 거부.
+    통과 시 경로 그대로, 아니면 빈 문자열(→ 기본 /home)."""
+    nxt = (nxt or "").strip()
+    if not nxt or not nxt.startswith("/"):
+        return ""
+    if nxt.startswith("//") or nxt.startswith("/\\"):
+        return ""
+    if any(ch in nxt for ch in ("\\", "\n", "\r", "\t", " ")):
+        return ""
+    return nxt
+
+
 @app.get("/sso/land")
 async def sso_land(req: Request):
     """메신저가 발급한 JWT 를 받아 입장 — 발주 §3.
-    토큰 검증 → works_access 게이트 → 계정 upsert → WORKS 세션 생성 → 역할별 홈."""
+    토큰 검증 → works_access 게이트 → 계정 upsert → WORKS 세션 생성 → 역할별 홈.
+    next=<내부경로> 가 있으면(메신저 📧메일 아이콘 등) 그 경로로 착지(안전검사 통과 시)."""
     from .sso_client import (verify_token, upsert_user_from_payload,
                              mark_pwv_checked, MESSENGER_BASE)
     token = req.query_params.get("token") or ""
@@ -1374,7 +1399,9 @@ async def sso_land(req: Request):
 
     # 메신저 진입 첫 화면 = '업무현황'(/home) 고정 (대표 지시 2026-05-31)
     # role 무관 — 대표도 업무현황으로 진입 (대시보드는 메뉴에서 이동)
-    return RedirectResponse("/home", 303)
+    # 단, next=<내부경로> 가 지정되면(메신저 📧메일 아이콘 등) 그 화면으로 착지.
+    nxt = _safe_next_path(req.query_params.get("next") or "")
+    return RedirectResponse(nxt or "/home", 303)
 
 
 @app.get("/logout")
