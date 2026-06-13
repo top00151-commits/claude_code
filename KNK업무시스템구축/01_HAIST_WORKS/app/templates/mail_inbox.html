@@ -53,6 +53,7 @@
     <a href="/mail/compose" class="btn btn-primary">✏️ 메일 쓰기</a>
     {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a>{% endif %}
     {% if box=='in' %}
+    <a href="/mail/rules" class="btn btn-secondary" title="보낸사람·제목 키워드로 메일을 자동 분류하는 규칙 관리">⚙ 자동분류</a>
     <button type="button" class="btn btn-secondary" onclick="demoMail('vi')">＋ 시범(베)</button>
     <button type="button" class="btn btn-secondary" onclick="demoMail('ko')">＋ 시범(한)</button>
     {% endif %}

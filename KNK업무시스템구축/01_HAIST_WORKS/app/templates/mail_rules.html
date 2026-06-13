@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 자동분류 규칙 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .rl-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:760px;margin-bottom:14px}
+  .rl-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .rl-form select,.rl-form input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;outline:none}
+  .rl-form input[name=pattern]{flex:1;min-width:180px}
+  .rl-list{list-style:none;padding:0;margin:14px 0 0}
+  .rl-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:13px;flex-wrap:wrap}
+  .rl-when{color:var(--mute)}
+  .rl-pat{font-weight:700}
+  .rl-arrow{color:var(--mute)}
+  .rl-cat{font-weight:700;padding:2px 9px;border-radius:6px}
+  .rl-del{margin-left:auto;color:var(--knk-red);background:none;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px}
+  .rl-empty{color:var(--mute);padding:18px;text-align:center;line-height:1.7}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 자동분류 규칙</div>
+    <h1 class="page-title">⚙ 메일 <em>자동분류 규칙</em></h1>
+  </div></div>
+
+  {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
+  {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
+
+  <div class="rl-card">
+    <div style="font-size:13px;color:var(--mute);margin-bottom:10px;line-height:1.7;">
+      보낸사람(이메일·도메인·이름)이나 제목에 특정 단어가 들어가면 <b>그 분류로 자동 지정</b>합니다.
+      규칙이 있으면 AI 자동분류보다 <b>우선</b>합니다(위 규칙부터 먼저 적용).
+      <br>예: 보낸사람에 <code>@taxoffice.co.kr</code> 포함 → 세금계산서 / 제목에 <code>발주</code> 포함 → 발주
+    </div>
+    <form class="rl-form" method="POST" action="/mail/rules">
+      <select name="match_type">
+        <option value="sender">보낸사람에</option>
+        <option value="subject">제목에</option>
+      </select>
+      <input type="text" name="pattern" placeholder="예: @taxoffice.co.kr  또는  세금계산서" maxlength="120" required>
+      <span style="color:var(--mute)">포함 →</span>
+      <select name="category">
+        {% for ct in categories %}<option value="{{ ct }}">{{ ct }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary">+ 규칙 추가</button>
+    </form>
+  </div>
+
+  <div class="rl-card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+      <b style="font-size:13.5px;">내 규칙 {{ rules|length }}개</b>
+      <span style="flex:1"></span>
+      <button type="button" class="btn btn-secondary" onclick="applyRules()" {% if not rules %}disabled{% endif %}>🔁 기존 메일에 지금 적용</button>
+      <a href="/mail/inbox" class="btn btn-secondary">← 메일함</a>
+    </div>
+    {% if rules %}
+    <ul class="rl-list">
+      {% for r in rules %}
+      <li class="rl-item">
+        <span class="rl-when">{{ '보낸사람' if r.match_type=='sender' else '제목' }}에</span>
+        <span class="rl-pat">“{{ r.pattern }}”</span>
+        <span class="rl-arrow">포함 →</span>
+        <span class="rl-cat" style="background:{{ BG.get(r.category,'#f3f4f6') }};color:{{ FG.get(r.category,'#4b5563') }}">{{ r.category }}</span>
+        <button type="button" class="rl-del" onclick="delRule({{ r.id }})">삭제</button>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="rl-empty">아직 규칙이 없습니다.<br>위에서 첫 규칙을 추가해보세요.</div>
+    {% endif %}
+  </div>
+</main></div>
+<script>
+(function(){
+  window.delRule=async function(id){
+    if(!confirm('이 규칙을 삭제할까요?')) return;
+    try{ var r=await fetch('/mail/rules/'+id+'/delete',{method:'POST'}); var j=await r.json();
+      if(j.ok) location.reload(); else alert('삭제 실패');
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  window.applyRules=async function(){
+    if(!confirm('지금까지 받은 메일에 규칙을 다시 적용할까요?\n(분류가 규칙대로 바뀝니다)')) return;
+    try{ var r=await fetch('/mail/rules/apply',{method:'POST'}); var j=await r.json();
+      if(j.ok){ alert('✅ '+(j.message||'적용했습니다')); location.href='/mail/inbox'; }
+      else alert('⚠ '+(j.message||'실패'));
+    }catch(e){ alert('네트워크 오류'); }
+  };
+})();
+</script>
+</body></html>

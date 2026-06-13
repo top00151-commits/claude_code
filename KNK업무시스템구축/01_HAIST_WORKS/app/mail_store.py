@@ -157,6 +157,13 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     if run_ai:
         category, lang = _ai_classify(subject, body)
         summary = _ai_summary(body)
+    # 사용자 자동분류 규칙이 일치하면 AI 결과를 덮어씀(명시 의도 우선)
+    try:
+        _rcat = match_rules(c, owner, from_email, from_name, subject)
+        if _rcat:
+            category = _rcat
+    except Exception:
+        pass
     try:
         sz = int(size or 0)
     except Exception:
@@ -174,6 +181,79 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     if attachments:
         _save_attachments(c, mail_id, attachments)
     return (mail_id, owner)
+
+
+# ─── 자동분류 규칙 (사용자별) ────────────────────────────────────────
+# 보낸사람(이메일/도메인/이름) 또는 제목 키워드가 포함되면 그 카테고리로 강제 분류.
+# 받은 메일 저장 시 AI 분류 결과를 사용자 규칙이 '덮어쓰기'(명시 의도 우선).
+def _ensure_rules(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        match_type TEXT NOT NULL,
+        pattern TEXT NOT NULL,
+        category TEXT NOT NULL,
+        enabled INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now','localtime'))
+    )""")
+
+
+def list_rules(c, user_id: int):
+    _ensure_rules(c)
+    rows = c.execute("SELECT * FROM mail_rules WHERE user_id=? ORDER BY id", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_rule(c, user_id: int, match_type: str, pattern: str, category: str):
+    _ensure_rules(c)
+    match_type = match_type if match_type in ("sender", "subject") else "sender"
+    pattern = (pattern or "").strip()
+    category = category if category in CATEGORIES else "일반"
+    if not pattern:
+        return None
+    cur = c.execute("INSERT INTO mail_rules(user_id, match_type, pattern, category) VALUES(?,?,?,?)",
+                    (user_id, match_type, pattern[:120], category))
+    return cur.lastrowid
+
+
+def delete_rule(c, rule_id: int, user_id: int):
+    _ensure_rules(c)
+    c.execute("DELETE FROM mail_rules WHERE id=? AND user_id=?", (rule_id, user_id))
+
+
+def match_rules(c, user_id: int, from_email: str = "", from_name: str = "", subject: str = ""):
+    """첫 일치 규칙의 카테고리 반환(없으면 None). 보낸사람=이메일/이름 부분일치, 제목=키워드 부분일치."""
+    try:
+        _ensure_rules(c)
+        rules = c.execute("SELECT match_type, pattern, category FROM mail_rules "
+                          "WHERE user_id=? AND enabled=1 ORDER BY id", (user_id,)).fetchall()
+    except Exception:
+        return None
+    sender_hay = (from_email or "").lower() + " " + (from_name or "").lower()
+    subj = (subject or "").lower()
+    for r in rules:
+        pat = (r["pattern"] or "").lower().strip()
+        if not pat:
+            continue
+        if r["match_type"] == "sender" and pat in sender_hay:
+            return r["category"]
+        if r["match_type"] == "subject" and pat in subj:
+            return r["category"]
+    return None
+
+
+def apply_rules_existing(c, user_id: int) -> int:
+    """기존 받은편지함 메일에 규칙 소급 적용 — 카테고리 갱신. 변경 건수 반환."""
+    _ensure_rules(c)
+    rows = c.execute("SELECT id, from_email, from_name, subject, category FROM mail_messages "
+                     "WHERE user_id=? AND direction='in' AND is_deleted=0", (user_id,)).fetchall()
+    changed = 0
+    for m in rows:
+        newcat = match_rules(c, user_id, m["from_email"], m["from_name"], m["subject"])
+        if newcat and newcat != m["category"]:
+            c.execute("UPDATE mail_messages SET category=? WHERE id=?", (newcat, m["id"]))
+            changed += 1
+    return changed
 
 
 # ─── 조회 ───────────────────────────────────────────────────────────

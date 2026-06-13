@@ -11065,6 +11065,51 @@ async def mail_to_contact(req: Request, mail_id: int):
                          "message": "연락처로 등록했습니다. (상세에서 회사·연락처를 채워주세요)"})
 
 
+# ─── 메일 자동분류 규칙 (Phase2) — 보낸사람/제목 키워드 → 카테고리 강제 ───
+@app.get("/mail/rules", response_class=HTMLResponse)
+async def mail_rules_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        rules = _mailbox.list_rules(c, u["id"])
+    return ctx(req, "mail_rules.html", user=u, rules=rules, categories=_MAIL_CATEGORIES)
+
+
+@app.post("/mail/rules")
+async def mail_rules_add(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    with db_session() as c:
+        _mailbox.add_rule(c, u["id"], (form.get("match_type") or "sender"),
+                          (form.get("pattern") or ""), (form.get("category") or "일반"))
+    return RedirectResponse("/mail/rules", 303)
+
+
+@app.post("/mail/rules/{rid:int}/delete")
+async def mail_rules_delete(req: Request, rid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        _mailbox.delete_rule(c, rid, u["id"])
+    return JSONResponse({"ok": True})
+
+
+@app.post("/mail/rules/apply")
+async def mail_rules_apply(req: Request):
+    """기존 받은 메일에 규칙을 지금 소급 적용(다시 분류)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        n = _mailbox.apply_rules_existing(c, u["id"])
+    return JSONResponse({"ok": True, "changed": n,
+                         "message": f"기존 메일 {n}건을 규칙대로 다시 분류했습니다."})
+
+
 @app.get("/mail/{mail_id:int}/att/{att_id:int}")
 async def mail_attachment(req: Request, mail_id: int, att_id: int):
     """첨부/인라인 이미지 서빙(소유권 강제: 메일 소유자만). 이미지는 inline, 그 외 다운로드."""
