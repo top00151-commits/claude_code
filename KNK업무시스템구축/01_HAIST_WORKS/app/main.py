@@ -10157,15 +10157,25 @@ async def mail_inbound(req: Request):
     return JSONResponse({"ok": True, "id": mid, "owner": owner})
 
 
+_MAIL_POC_ADDR = "test@knk-mailtest.com"
+
+
 @app.get("/admin/mail-inbound", response_class=HTMLResponse)
 async def admin_mail_inbound_page(req: Request):
-    """메일 받기 설정 (admin/ceo) — 받는 구멍 비밀토큰 생성·확인 + Cloudflare 연결 안내."""
+    """메일 받기 설정 (admin/ceo) — 토큰 + 받는 사람 + Cloudflare 연결 안내."""
     u = require(req, ["admin", "ceo"])
     if not u:
         _au = get_user(req)
         return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    with db_session() as c:
+        rid = _mailbox.resolve_recipient(c, _MAIL_POC_ADDR)
+        rrow = c.execute("SELECT name, role FROM users WHERE id=?", (rid,)).fetchone() if rid else None
+        recip_name = (rrow["name"] if rrow else "(미지정)")
+    recip_is_me = bool(rid and rid == u["id"])
     return ctx(req, "admin_mail_inbound.html", user=u, active="admin",
                token=_mail_inbound_token(), inbound_url=_MAIL_INBOUND_URL,
+               poc_addr=_MAIL_POC_ADDR, recip_name=recip_name, recip_is_me=recip_is_me,
+               bound=req.query_params.get("bound"),
                saved=(req.query_params.get("saved") == "1"))
 
 
@@ -10183,6 +10193,25 @@ async def admin_mail_inbound_gen(req: Request):
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             ("mail_inbound_token", new_token))
     return RedirectResponse("/admin/mail-inbound?saved=1", 303)
+
+
+@app.post("/admin/mail-inbound/bind-me")
+async def admin_mail_inbound_bind(req: Request):
+    """받는 사람을 '지금 로그인한 본인' 으로 지정 — 운영 DB 동명 계정 혼동 방지.
+    ① 기본 수신자 설정 ② test@ 별칭 ③ 이미 들어온 test@ 메일을 내 메일함으로 이동."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        c.execute("INSERT INTO app_settings(key, value) VALUES('mail_default_user_id', ?) "
+                  "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(u["id"]),))
+        c.execute("INSERT INTO mail_aliases(address, user_id) VALUES(?, ?) "
+                  "ON CONFLICT(address) DO UPDATE SET user_id=excluded.user_id",
+                  (_MAIL_POC_ADDR, u["id"]))
+        moved = c.execute(
+            "UPDATE mail_messages SET user_id=? WHERE to_email=? AND is_deleted=0",
+            (u["id"], _MAIL_POC_ADDR)).rowcount
+    return RedirectResponse(f"/admin/mail-inbound?bound={moved}", 303)
 
 
 @app.get("/mail/inbox")

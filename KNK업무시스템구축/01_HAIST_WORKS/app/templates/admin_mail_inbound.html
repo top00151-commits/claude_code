@@ -30,6 +30,30 @@
   </div>
   {% endif %}
 
+  {% if bound is not none %}
+  <div class="mi-card" style="border-color:#6ee7b7;background:#ecfdf5;">
+    <div style="color:#065f46;font-size:13.5px;">✅ 받는 사람을 <b>{{ user.name }}</b> 님(현재 로그인 계정)으로 지정했습니다. 이미 들어온 메일 <b>{{ bound }}</b>통도 이 메일함으로 옮겼습니다.</div>
+  </div>
+  {% endif %}
+
+  <!-- 0. 받는 사람 -->
+  <div class="mi-card" style="{% if not recip_is_me %}border-color:var(--amber);{% endif %}">
+    <h2>📥 받는 사람 (메일이 들어갈 메일함)</h2>
+    <p class="mi-note"><code>{{ poc_addr }}</code> 으로 온 메일은 → <b>{{ recip_name }}</b> 님 메일함으로 들어갑니다.</p>
+    {% if recip_is_me %}
+      <div style="font-size:13px;color:#047857;font-weight:700;">✅ 현재 로그인하신 본인({{ user.name }}) 메일함으로 설정돼 있습니다.</div>
+    {% else %}
+      <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;margin-bottom:10px;">
+        ⚠ 지금은 받는 사람이 <b>{{ recip_name }}</b>(본인이 아닐 수 있음)으로 돼 있습니다.
+        운영 시스템에 동명 계정이 여럿이라 받은 메일이 엉뚱한 메일함에 들어갈 수 있습니다.
+        아래 버튼으로 <b>지금 로그인한 본인({{ user.name }}) 메일함</b>으로 지정하세요. (이미 들어온 메일도 함께 옮깁니다)
+      </div>
+      <form method="POST" action="/admin/mail-inbound/bind-me">
+        <button type="submit" class="btn btn-primary">📥 내 메일함({{ user.name }})으로 받기</button>
+      </form>
+    {% endif %}
+  </div>
+
   <!-- 1. 토큰 -->
   <div class="mi-card">
     <h2>① 받는 구멍 비밀토큰

@@ -48,7 +48,9 @@ def default_owner(c):
 
 
 def resolve_recipient(c, to_email: str):
-    """수신 주소 → WORKS 사용자 id. alias 우선, 없으면 기본 소유자(대표)."""
+    """수신 주소 → WORKS 사용자 id.
+    ① mail_aliases(주소별 매핑) → ② 관리자 지정 기본 수신자(mail_default_user_id) → ③ default_owner.
+    ②는 관리자가 '내 메일함으로 받기'로 지정 — 운영 DB에 동명 계정이 여럿일 때 엉뚱한 계정으로 가는 것 방지."""
     addr = _norm_addr(to_email)
     if addr:
         try:
@@ -57,6 +59,16 @@ def resolve_recipient(c, to_email: str):
                 return r["user_id"]
         except Exception:
             pass
+    # 관리자 지정 기본 수신자
+    try:
+        r = c.execute("SELECT value FROM app_settings WHERE key='mail_default_user_id'").fetchone()
+        if r and (r["value"] or "").strip():
+            uid = int(r["value"])
+            ok = c.execute("SELECT 1 FROM users WHERE id=? AND is_active=1", (uid,)).fetchone()
+            if ok:
+                return uid
+    except Exception:
+        pass
     return default_owner(c)
 
 
