@@ -26,8 +26,42 @@ SMTP_HOST = os.environ.get("KNK_SMTP_HOST", "smtps.hiworks.com")
 SMTP_PORT = int(os.environ.get("KNK_SMTP_PORT", "465"))
 
 
-def _fernet():
+def _mail_key() -> str:
+    """메일 암호화 키.
+    ① 환경변수 KNK_MAIL_KEY (정석·우선) → ② 없으면 데이터 폴더의 키 파일(.mail_key) 1회 자동생성.
+    (A안 2026-06-13 대표 결정: 전산 env 없이 자체 생성. 운영 본격전환 땐 env 키로 교체 권장.)
+    키 파일은 DB 와 같은 폴더 — git 미포함·DB덤프 미포함, 배포(git pull)에도 보존."""
     key = (os.environ.get("KNK_MAIL_KEY") or "").strip()
+    if key:
+        return key
+    try:
+        from cryptography.fernet import Fernet
+        try:
+            from .database import DB_PATH as _dbp
+            data_dir = os.path.dirname(os.path.abspath(_dbp))
+        except Exception:
+            data_dir = os.path.join(os.getcwd(), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        kpath = os.path.join(data_dir, ".mail_key")
+        if os.path.exists(kpath):
+            with open(kpath, "r", encoding="utf-8") as f:
+                fk = f.read().strip()
+            if fk:
+                return fk
+        fk = Fernet.generate_key().decode()
+        with open(kpath, "w", encoding="utf-8") as f:
+            f.write(fk)
+        try:
+            os.chmod(kpath, 0o600)
+        except Exception:
+            pass
+        return fk
+    except Exception:
+        return ""
+
+
+def _fernet():
+    key = _mail_key()
     if not key:
         return None
     try:
