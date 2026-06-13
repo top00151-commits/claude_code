@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>영업 기회 (수주 전) · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.op-wrap{max-width:1100px;margin:0 auto var(--space-6);padding:0 var(--content-pad);}
+.op-intro{font-size:12.5px;color:#64748b;line-height:1.6;margin:var(--space-2) 0 var(--space-4);}
+.op-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.op-chip{padding:6px 13px;border:1px solid #d6cdb6;border-radius:999px;font-size:12.5px;text-decoration:none;color:#64748b;background:#fff;}
+.op-chip.on{background:#A5282C;color:#fff;border-color:#A5282C;font-weight:700;}
+.op-chip .n{font-weight:800;margin-left:5px;opacity:.85;}
+.op-bar .sp{flex:1;}
+.op-new{padding:8px 16px;background:#A5282C;color:#fff;border-radius:8px;font-size:13.5px;font-weight:800;text-decoration:none;}
+.op-toggle{font-size:12px;color:#64748b;text-decoration:none;}
+table.op{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid #f1e8d4;border-radius:10px;overflow:hidden;}
+table.op th,table.op td{padding:9px 11px;border-bottom:1px solid #f1e8d4;text-align:left;}
+table.op th{font-size:11.5px;color:#8a7842;font-weight:700;background:#faf7ef;}
+table.op td.num,table.op th.num{text-align:right;font-variant-numeric:tabular-nums;}
+table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
+.op-stage{display:inline-block;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;}
+.op-stage.수주확정,.op-stage.수주예정{background:#d1fae5;color:#065f46;}
+.op-stage.보류{background:#e5e7eb;color:#4b5563;}
+.op-stage.실주{background:#fee2e2;color:#991b1b;}
+.op-next{color:#A5282C;font-weight:700;}
+.op-prog{font-size:11px;color:#94a3b8;letter-spacing:1px;}
+.op-prog b{color:#15a34a;}
+.op-muted{color:#94a3b8;}
+.op-name a{font-weight:700;color:#1e293b;text-decoration:none;}
+</style></head>
+<body>
+<div class="app">{% set active_tab='sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/sales">매출·영업</a> · <b>영업 기회 (수주 전)</b></div>
+    <h1 class="page-title">영업 기회 <em>— 수주 전 진행</em></h1>
+  </div></div>
+  <div class="op-wrap">
+    <p class="op-intro">관리코드 발번 전 <b>수주 전 영업 건</b>을 관리합니다 — <b>미팅 → 제안서 → 견적서</b> 진행을 기록하고, 수주 확정 시 <b>[✅ 제작요청(프로젝트) 승격]</b>으로 관리코드를 발번합니다.</p>
+
+    <div class="op-bar">
+      <a class="op-chip {{ 'on' if not stage_f }}" href="/sales/opportunities{{ '?closed=1' if show_closed }}">전체</a>
+      {% for s in stages %}
+        <a class="op-chip {{ 'on' if stage_f==s }}" href="/sales/opportunities?stage={{ s }}{{ '&closed=1' if show_closed }}">{{ s }}<span class="n">{{ counts[s] }}</span></a>
+      {% endfor %}
+      <span class="sp"></span>
+      <a class="op-toggle" href="/sales/opportunities?{{ ('stage=' ~ stage_f ~ '&') if stage_f }}{{ '' if show_closed else 'closed=1' }}">{{ '진행중만 보기' if show_closed else '완료·실주도 보기' }}</a>
+      {% if can_edit %}<a class="op-new" href="/sales/opportunities/new">+ 새 영업 기회</a>{% endif %}
+    </div>
+
+    <table class="op">
+      <thead><tr>
+        <th>기회번호</th><th>건명</th><th>고객사</th><th>사업부</th><th>단계</th>
+        <th>진행</th><th class="num">예상금액</th><th>담당</th><th>다음 할 일</th>
+      </tr></thead>
+      <tbody>
+      {% for o in rows %}
+      <tr onclick="location.href='/sales/opportunities/{{ o.id }}'">
+        <td style="font-family:Consolas,monospace;font-size:11px;color:#8a7842;">{{ o.opp_no }}</td>
+        <td class="op-name"><a href="/sales/opportunities/{{ o.id }}">{{ o.title }}</a></td>
+        <td class="op-muted">{{ o.customer_name or '—' }}</td>
+        <td>{{ {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타'}.get(o.biz_div, o.biz_div or '—') }}</td>
+        <td><span class="op-stage {{ o.stage }}">{{ o.stage }}</span></td>
+        <td class="op-prog">
+          <b>{{ '●' if o.meeting_done else '○' }}</b>미팅
+          <b>{{ '●' if o.proposal_done else '○' }}</b>제안
+          <b>{{ '●' if o.quotation_done else '○' }}</b>견적
+        </td>
+        <td class="num">{% if can_money %}{% if o.expected_amount %}{{ '{:,.0f}'.format(o.expected_amount) }} {{ o.currency }}{% else %}—{% endif %}{% else %}🔒{% endif %}</td>
+        <td class="op-muted">{{ o.owner_name or '—' }}</td>
+        <td class="op-next">{{ o.next_action }}</td>
+      </tr>
+      {% endfor %}
+      {% if not rows %}<tr><td colspan="9" class="op-muted" style="text-align:center;padding:30px 0;">{{ '해당 조건의 영업 기회가 없습니다.' if stage_f else '아직 등록된 영업 기회가 없습니다. [+ 새 영업 기회]로 시작하세요.' }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+  </div>
+</main></div></body></html>

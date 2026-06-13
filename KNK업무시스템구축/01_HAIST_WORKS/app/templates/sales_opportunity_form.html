@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>영업 기회 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.op-wrap{max-width:880px;margin:0 auto var(--space-6);padding:0 var(--content-pad);}
+.op-meta{font-size:12.5px;color:#64748b;margin-bottom:12px;}
+.op-meta b{color:#1e293b;}
+.op-saved{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
+.op-promoted{background:#eef6ff;border:1px solid #b9d2ff;color:#1e40af;border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
+.op-promoted a{color:#1d4ed8;font-weight:700;}
+.op-err{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
+.op-card{background:#fff;border:1px solid #f1e8d4;border-radius:10px;padding:16px 18px;margin-bottom:14px;}
+.op-card h3{margin:0 0 12px;font-size:13.5px;font-weight:800;color:#A5282C;}
+.op-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px;}
+@media(max-width:640px){.op-grid{grid-template-columns:1fr;}}
+.op-f{display:flex;flex-direction:column;gap:5px;}
+.op-f.full{grid-column:1 / -1;}
+.op-f label{font-size:12px;font-weight:700;color:#334155;}
+.op-f label .req{color:#dc2626;}
+.op-f input,.op-f select,.op-f textarea{padding:8px 11px;border:1px solid #d6cdb6;border-radius:7px;font-size:13.5px;font-family:inherit;color:#1e293b;background:#fff;}
+.op-f input:focus,.op-f select:focus,.op-f textarea:focus{outline:none;border-color:#A5282C;}
+.op-f textarea{resize:vertical;min-height:42px;}
+.op-step{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed #f1e8d4;flex-wrap:wrap;}
+.op-step:last-child{border-bottom:none;}
+.op-step .lbl{width:90px;font-weight:700;font-size:13px;color:#334155;flex-shrink:0;}
+.op-step .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;}
+.op-step input[type=date]{padding:6px 9px;border:1px solid #d6cdb6;border-radius:6px;font-size:12.5px;}
+.op-step .memo{flex:1;min-width:160px;padding:6px 10px;border:1px solid #d6cdb6;border-radius:6px;font-size:12.5px;font-family:inherit;}
+.op-actions{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;}
+.op-btn{padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:800;cursor:pointer;text-decoration:none;border:1px solid #d6cdb6;background:#fff;color:#334155;display:inline-block;}
+.op-btn.primary{background:#A5282C;color:#fff;border-color:#A5282C;}
+.op-btn.promote{background:#15a34a;color:#fff;border-color:#15a34a;}
+.op-btn.danger{background:#fff;color:#b91c1c;border-color:#fca5a5;}
+.op-locked{font-size:11.5px;color:#94a3b8;}
+</style></head>
+<body>
+<div class="app">{% set active_tab='sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/sales/opportunities">영업 기회</a> · <b>{{ opp.opp_no if opp else '신규 등록' }}</b></div>
+    <h1 class="page-title">영업 기회 <em>{{ ('— ' + opp.title) if opp else '— 신규 등록' }}</em></h1>
+  </div></div>
+  <div class="op-wrap">
+    {% if request.query_params.get('saved') %}<div class="op-saved">✅ 저장됐습니다.</div>{% endif %}
+    {% if request.query_params.get('error') == 'title' %}<div class="op-err">건명을 입력해 주세요.</div>{% endif %}
+    {% if request.query_params.get('promote_err') %}<div class="op-err">승격 실패: {{ request.query_params.get('promote_err') }}</div>{% endif %}
+    {% if promoted %}<div class="op-promoted">✅ 이 영업 기회는 프로젝트로 <b>승격 완료</b> → <a href="/project/{{ promoted.id }}">[{{ promoted.mgmt_code }}] {{ promoted.name }}</a> (해당 프로젝트에서 제작요청 발행)</div>{% endif %}
+    {% if opp %}<div class="op-meta">기회번호 <b>{{ opp.opp_no }}</b> · 단계 <b>{{ opp.stage }}</b> · 다음 할 일: <b style="color:#A5282C;">{{ opp.next_action }}</b></div>{% endif %}
+
+    <form method="post" action="{{ ('/sales/opportunities/' ~ opp.id ~ '/edit') if opp else '/sales/opportunities' }}">
+      <div class="op-card">
+        <h3>기본</h3>
+        <div class="op-grid">
+          <div class="op-f full"><label>건명 <span class="req">*</span></label>
+            <input type="text" name="title" required value="{{ opp.title|default('') }}" placeholder="예: 삼성 PBA 검사기 신규 문의" {% if not can_edit %}disabled{% endif %}></div>
+          <div class="op-f"><label>고객사</label>
+            <input type="text" name="customer_name" list="custList" value="{{ opp.customer_name|default('') }}" {% if not can_edit %}disabled{% endif %}>
+            <datalist id="custList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist></div>
+          <div class="op-f"><label>예상 사업부</label>
+            <select name="biz_div" {% if not can_edit %}disabled{% endif %}>
+              {% set bd = opp.biz_div if opp else 'T' %}
+              <option value="T" {{ 'selected' if bd=='T' }}>T 검사기</option>
+              <option value="M" {{ 'selected' if bd=='M' }}>M 자동화</option>
+              <option value="L" {{ 'selected' if bd=='L' }}>L 라이프밸류</option>
+              <option value="E" {{ 'selected' if bd=='E' }}>E 기타</option>
+            </select></div>
+          <div class="op-f"><label>모델명 / 장비명</label>
+            <input type="text" name="model_name" value="{{ opp.model_name|default('') }}" {% if not can_edit %}disabled{% endif %}></div>
+          <div class="op-f"><label>영업 담당</label>
+            <select name="owner_user_id" {% if not can_edit %}disabled{% endif %}>
+              <option value="">— 선택 —</option>
+              {% for ow in owners %}<option value="{{ ow.id }}" {{ 'selected' if opp and opp.owner_user_id==ow.id }}>{{ ow.name }}</option>{% endfor %}
+            </select></div>
+          <div class="op-f"><label>예상 수주월</label>
+            <input type="month" name="expected_order_ym" value="{{ opp.expected_order_ym|default('') }}" {% if not can_edit %}disabled{% endif %}></div>
+          {% if can_money %}
+          <div class="op-f"><label>예상 금액</label>
+            <input type="text" name="expected_amount" inputmode="numeric" value="{{ (opp.expected_amount|int) if opp and opp.expected_amount else '' }}" {% if not can_edit %}disabled{% endif %}></div>
+          <div class="op-f"><label>통화</label>
+            <select name="currency" {% if not can_edit %}disabled{% endif %}>
+              {% set cc = opp.currency if opp else 'KRW' %}
+              {% for x in ['KRW','USD','VND','JPY','CNY','EUR'] %}<option value="{{ x }}" {{ 'selected' if cc==x }}>{{ x }}</option>{% endfor %}
+            </select></div>
+          {% else %}
+          <div class="op-f"><label>예상 금액</label><div class="op-locked">🔒 (권한 없음)</div></div>
+          {% endif %}
+          <div class="op-f"><label>단계</label>
+            <select name="stage" {% if not can_edit %}disabled{% endif %}>
+              {% set sg = opp.stage if opp else '미팅' %}
+              {% for s in stages %}<option value="{{ s }}" {{ 'selected' if sg==s }}>{{ s }}</option>{% endfor %}
+            </select></div>
+          <div class="op-f"><label>상태</label>
+            <select name="status" {% if not can_edit %}disabled{% endif %}>
+              {% set stv = opp.status if opp else 'active' %}
+              <option value="active" {{ 'selected' if stv=='active' }}>진행중</option>
+              <option value="hold" {{ 'selected' if stv=='hold' }}>보류</option>
+              <option value="won" {{ 'selected' if stv=='won' }}>수주(완료)</option>
+              <option value="lost" {{ 'selected' if stv=='lost' }}>실주</option>
+            </select></div>
+        </div>
+      </div>
+
+      <div class="op-card">
+        <h3>수주 전 진행 (미팅 → 제안서 → 견적서)</h3>
+        {% set steps = [('meeting','① 미팅','고객 미팅·논의 메모'),('proposal','② 제안서','제안서 작성·제출 메모'),('quotation','③ 견적서','견적서 작성·제출 메모')] %}
+        {% for key,lbl,ph in steps %}
+        <div class="op-step">
+          <span class="lbl">{{ lbl }}</span>
+          <label class="chk"><input type="checkbox" name="{{ key }}_done" value="1" {{ 'checked' if opp and opp[key ~ '_done'] }} {% if not can_edit %}disabled{% endif %}> 완료</label>
+          <input type="date" name="{{ key }}_date" value="{{ opp[key ~ '_date']|default('') if opp else '' }}" {% if not can_edit %}disabled{% endif %}>
+          <input type="text" class="memo" name="{{ key }}_memo" placeholder="{{ ph }}" value="{{ opp[key ~ '_memo']|default('') if opp else '' }}" {% if not can_edit %}disabled{% endif %}>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="op-card">
+        <h3>비고</h3>
+        <div class="op-f full"><textarea name="note" rows="2" {% if not can_edit %}disabled{% endif %}>{{ opp.note|default('') }}</textarea></div>
+      </div>
+
+      <div class="op-actions">
+        {% if can_edit %}<button type="submit" class="op-btn primary">💾 저장</button>{% endif %}
+        <a href="/sales/opportunities" class="op-btn">목록으로</a>
+      </div>
+    </form>
+
+    {% if opp and can_edit and not opp.promoted_project_id %}
+    <div class="op-actions" style="margin-top:16px;">
+      <form method="post" action="/sales/opportunities/{{ opp.id }}/promote" onsubmit="return confirm('이 영업 기회를 수주 확정하고 프로젝트(관리코드)로 승격할까요?\n관리코드가 자동 발번되고, 이후 그 프로젝트에서 제작요청을 발행합니다.');">
+        <button type="submit" class="op-btn promote">✅ 수주 확정 → 제작요청(프로젝트) 승격</button>
+      </form>
+      <form method="post" action="/sales/opportunities/{{ opp.id }}/delete" onsubmit="return confirm('이 영업 기회를 삭제할까요? (되돌릴 수 없음)');">
+        <button type="submit" class="op-btn danger">삭제</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</main></div></body></html>
