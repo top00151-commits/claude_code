@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ emp.name }} 업무 매뉴얼 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.wm-wrap{max-width:880px;margin:0 auto var(--space-6);padding:0 var(--content-pad);}
+.wm-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.wm-toolbar a.pd{padding:6px 13px;border:1px solid #d6cdb6;border-radius:999px;font-size:12.5px;text-decoration:none;color:#64748b;background:#fff;}
+.wm-toolbar a.pd.on{background:#A5282C;color:#fff;border-color:#A5282C;font-weight:700;}
+.wm-toolbar .sp{flex:1;}
+.wm-btn{padding:8px 16px;border:0;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;}
+.wm-btn.gen{background:#15a34a;color:#fff;}
+.wm-btn.sec{background:#fff;border:1px solid #d6cdb6;color:#334155;}
+.wm-btn:disabled{opacity:.55;cursor:default;}
+.wm-banner{background:#eef6ff;border:1px solid #cfe3fb;color:#1e3a5f;border-radius:10px;padding:9px 13px;font-size:12px;line-height:1.6;margin-bottom:14px;}
+.wm-doc{background:#fff;border:1px solid #e7ddca;border-radius:10px;padding:30px 34px;min-height:200px;color:#1f2937;line-height:1.8;font-size:14px;}
+.wm-doc h1{font-size:22px;font-weight:800;margin:0 0 4px;color:#111827;border-bottom:2px solid #A5282C;padding-bottom:10px;}
+.wm-doc h2{font-size:16px;font-weight:800;margin:22px 0 8px;color:#A5282C;}
+.wm-doc h3{font-size:14px;font-weight:700;margin:14px 0 6px;color:#334155;}
+.wm-doc ul,.wm-doc ol{margin:6px 0 6px 4px;padding-left:22px;}
+.wm-doc li{margin:3px 0;}
+.wm-doc p{margin:8px 0;}
+.wm-doc strong{color:#111827;}
+.wm-doc .ph{color:#94a3b8;font-style:italic;}
+.wm-meta{font-size:11.5px;color:#94a3b8;margin-top:12px;}
+.wm-empty{color:#94a3b8;text-align:center;padding:40px 0;}
+@media print{
+  header.top, aside.sidebar, .wm-noprint, #victorDock, #victorToggleBtn, .page-head, .top, .mob-sb-btn { display:none !important; }
+  .main{padding:0 !important;margin:0 !important;}
+  .wm-wrap{max-width:none;padding:0;}
+  .wm-doc{border:0;padding:0;}
+  body{background:#fff;}
+}
+</style></head>
+<body>
+<div class="app">{% set active_tab='home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head wm-noprint"><div>
+    <div class="crumbs"><a href="/admin">관리자</a> · <a href="/admin/work-patterns?days={{ days }}">직원 업무 패턴</a> · <a href="/admin/work-patterns/{{ emp.id }}?days={{ days }}">{{ emp.name }}</a> · <b>업무 매뉴얼</b></div>
+    <h1 class="page-title">{{ emp.name }} <em>업무 매뉴얼 (초안)</em></h1>
+  </div></div>
+  <div class="wm-wrap">
+    <div class="wm-banner wm-noprint">📄 모은 업무 패턴(일일업무·티켓·이슈·공정)을 근거로 <b>AI가 인수인계·교육용 매뉴얼 초안</b>을 작성합니다. 사실 기반·인사평가 없음. 생성 후 <b>인쇄(PDF 저장)</b>·<b>복사</b>로 내보내고, 대표님이 직접 다듬어 완성하세요.</div>
+    <div class="wm-toolbar wm-noprint">
+      {% for d,l in [(90,'최근 90일'),(365,'최근 1년'),(1095,'최근 3년')] %}
+        <a class="pd {{ 'on' if days==d else '' }}" href="?days={{ d }}">{{ l }}</a>
+      {% endfor %}
+      <span class="sp"></span>
+      <button class="wm-btn gen" id="genBtn" onclick="wmGen()">📄 매뉴얼 초안 생성 (AI)</button>
+      <button class="wm-btn sec" id="copyBtn" onclick="wmCopy()" disabled>복사</button>
+      <button class="wm-btn sec" id="printBtn" onclick="window.print()" disabled>인쇄 / PDF</button>
+    </div>
+    <div class="wm-doc" id="wmDoc"><div class="wm-empty">위 <b>‘매뉴얼 초안 생성’</b> 버튼을 누르면 이 자리에 매뉴얼이 작성됩니다. (기간: {{ period_label }})</div></div>
+    <div class="wm-meta wm-noprint">분석 기간 {{ start }} ~ {{ end }} · 생성된 초안은 저장되지 않습니다(필요 시 복사/인쇄). 다시 생성하면 최신 데이터로 새로 작성됩니다.</div>
+  </div>
+</main></div>
+<script>
+var WM_UID={{ emp.id }}, WM_DAYS={{ days }}, WM_RAW='';
+function wmEsc(s){return (s||'').replace(/[&<>]/g,function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m];});}
+function wmInline(s){ return wmEsc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
+function wmRender(md){
+  var lines=(md||'').split('\n'), html=[], list=null;
+  function closeList(){ if(list){ html.push('</'+list+'>'); list=null; } }
+  for(var i=0;i<lines.length;i++){
+    var ln=lines[i], t=ln.trim();
+    if(!t){ closeList(); continue; }
+    var m;
+    if(m=t.match(/^#\s+(.*)/)){ closeList(); html.push('<h1>'+wmInline(m[1])+'</h1>'); }
+    else if(m=t.match(/^##\s+(.*)/)){ closeList(); html.push('<h2>'+wmInline(m[1])+'</h2>'); }
+    else if(m=t.match(/^###\s+(.*)/)){ closeList(); html.push('<h3>'+wmInline(m[1])+'</h3>'); }
+    else if(m=t.match(/^\d+\.\s+(.*)/)){ if(list!=='ol'){ closeList(); html.push('<ol>'); list='ol'; } html.push('<li>'+wmInline(m[1])+'</li>'); }
+    else if(m=t.match(/^[-*]\s+(.*)/)){ if(list!=='ul'){ closeList(); html.push('<ul>'); list='ul'; } html.push('<li>'+wmInline(m[1])+'</li>'); }
+    else { closeList(); html.push('<p>'+wmInline(t)+'</p>'); }
+  }
+  closeList();
+  return html.join('');
+}
+async function wmGen(){
+  var b=document.getElementById('genBtn'), doc=document.getElementById('wmDoc');
+  b.disabled=true; var old=b.textContent; b.textContent='🤖 작성 중… (10~20초)';
+  doc.innerHTML='<div class="wm-empty">🤖 매뉴얼을 작성하고 있습니다…</div>';
+  try{
+    var r=await fetch('/admin/work-patterns/'+WM_UID+'/manual/generate?days='+WM_DAYS,{method:'POST'});
+    var j=await r.json();
+    WM_RAW=j.manual||'';
+    if(WM_RAW){
+      doc.innerHTML=wmRender(WM_RAW);
+      document.getElementById('copyBtn').disabled=false;
+      document.getElementById('printBtn').disabled=false;
+    } else {
+      doc.innerHTML='<div class="wm-empty">'+wmEsc(j.error||'생성 실패')+'</div>';
+    }
+    b.textContent='다시 생성';
+  }catch(e){
+    doc.innerHTML='<div class="wm-empty">통신 오류: '+wmEsc(e.message||'')+'</div>';
+    b.textContent=old;
+  }
+  b.disabled=false;
+}
+async function wmCopy(){
+  try{ await navigator.clipboard.writeText(WM_RAW); var b=document.getElementById('copyBtn'); var o=b.textContent; b.textContent='복사됨 ✓'; setTimeout(function(){b.textContent=o;},1500); }
+  catch(e){ alert('복사 실패: '+(e.message||e)); }
+}
+</script>
+</body></html>

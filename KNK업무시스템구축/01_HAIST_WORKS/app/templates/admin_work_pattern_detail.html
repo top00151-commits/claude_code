@@ -64,7 +64,8 @@ ul.wp-list li .n{color:#94a3b8;font-variant-numeric:tabular-nums;}
     <div class="wp-card">
       <h3>🤖 AI 업무 요약 <span class="wp-muted" style="font-weight:400;">— 개인 업무 매뉴얼의 씨앗</span></h3>
       <button class="wp-aibtn" id="aiBtn" onclick="wpGenSummary()">AI 요약 생성</button>
-      <div class="wp-aihint">집계 데이터와 업무 제목만 AI에 전달합니다 (메모 본문은 보내지 않음). 인사평가가 아니라 주 담당 업무·반복 업무 정리입니다.</div>
+      <a class="wp-aibtn" style="background:#1e40af;text-decoration:none;display:inline-block;margin-left:8px;" href="/admin/work-patterns/{{ emp.id }}/manual?days=365">📄 업무 매뉴얼 만들기 →</a>
+      <div class="wp-aihint">집계 데이터와 업무 제목만 AI에 전달합니다 (메모 본문은 보내지 않음). 인사평가가 아니라 주 담당 업무·반복 업무 정리입니다. <b>매뉴얼 만들기</b>는 인수인계용 문서 초안을 작성·인쇄합니다.</div>
       <div class="wp-aiout" id="aiOut" style="display:none;"></div>
     </div>
 

@@ -1580,6 +1580,120 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
         return JSONResponse({"ok": False, "error": str(e), "summary": "AI 호출 중 오류가 발생했습니다."})
 
 
+@app.get("/admin/work-patterns/{uid:int}/manual", response_class=HTMLResponse)
+async def admin_work_pattern_manual(request: Request, uid: int):
+    """v5H226z413 (3단계): 개인 업무 매뉴얼 초안 — 인쇄/내보내기용 문서 페이지. 김정락 대표 전용."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_work_patterns(u):
+        return RedirectResponse(role_home(u), 303)
+    start, end, plabel, days = _wp_period(request)
+    with db_session() as c:
+        emp = c.execute(
+            "SELECT u.id, u.name, u.rank, COALESCE(tm.name,'') AS team_name "
+            "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
+        if not emp:
+            return RedirectResponse("/admin/work-patterns", 303)
+        emp = dict(emp)
+    return ctx(request, "admin_work_manual.html", user=u, emp=emp,
+               period_label=plabel, days=days, start=start, end=end)
+
+
+def _wp_collab_list(c, uid, start, end):
+    """협업 대상(이름·횟수) — 내 업무에 댓글 단 사람 + 내가 댓글 단 남의 업무."""
+    collab = {}
+    try:
+        for r in c.execute(
+            "SELECT tc.author_id AS pid, COUNT(*) AS n FROM task_comments tc JOIN tasks t ON t.id=tc.task_id "
+            "WHERE t.user_id=? AND tc.author_id<>? AND date(tc.created_at) BETWEEN ? AND ? GROUP BY tc.author_id",
+            (uid, uid, start, end)):
+            collab[r["pid"]] = collab.get(r["pid"], 0) + r["n"]
+        for r in c.execute(
+            "SELECT t.user_id AS pid, COUNT(*) AS n FROM task_comments tc JOIN tasks t ON t.id=tc.task_id "
+            "WHERE tc.author_id=? AND t.user_id<>? AND date(tc.created_at) BETWEEN ? AND ? GROUP BY t.user_id",
+            (uid, uid, start, end)):
+            collab[r["pid"]] = collab.get(r["pid"], 0) + r["n"]
+    except Exception:
+        return []
+    if not collab:
+        return []
+    ids = list(collab.keys())
+    qm = ",".join("?" * len(ids))
+    namemap = {r["id"]: r["name"] for r in c.execute(f"SELECT id, name FROM users WHERE id IN ({qm})", ids)}
+    return sorted([{"name": namemap.get(p, f"#{p}"), "n": n} for p, n in collab.items()],
+                  key=lambda x: -x["n"])[:8]
+
+
+@app.post("/admin/work-patterns/{uid:int}/manual/generate")
+async def admin_work_pattern_manual_generate(request: Request, uid: int):
+    """v5H226z413 (3단계): AI가 종합 데이터로 '개인 업무 매뉴얼 초안'(마크다운)을 한 편으로 작성.
+    인수인계·교육용. 메타데이터(집계+업무 제목)만 전송, notes 본문 제외. 인사평가 금지."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not can_view_work_patterns(u):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    start, end, plabel, days = _wp_period(request)
+    with db_session() as c:
+        emp = c.execute(
+            "SELECT u.name, u.rank, COALESCE(tm.name,'') AS team FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?",
+            (uid,)).fetchone()
+        if not emp:
+            return JSONResponse({"ok": False, "error": "notfound"}, 404)
+        emp = dict(emp)
+        cats, stat, weekly, projs, custs = _wp_detail_data(c, uid, start, end)
+        extra = _wp_detail_extra(c, uid, start, end)
+        collab = _wp_collab_list(c, uid, start, end)
+        titles = [r[0] for r in c.execute(
+            "SELECT title FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(title,'')<>'' "
+            "ORDER BY work_date DESC LIMIT 40", (start, end, uid)).fetchall()]
+    total = sum(x["n"] for x in cats)
+    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"]):
+        return JSONResponse({"ok": True, "manual": f"# {emp['name']} 업무 매뉴얼 (초안)\n\n이 기간({plabel})에 기록된 업무 데이터가 없어 매뉴얼을 작성할 근거가 없습니다. 기간을 넓히거나 업무 기록이 쌓인 뒤 다시 생성하세요."})
+    cat_txt = ", ".join(f"{x['category']} {x['n']}건({round(100*x['n']/total)}%)" for x in cats) if total else "—"
+    proj_txt = ", ".join(f"{x['label']}({x['n']})" for x in projs) or "—"
+    cust_txt = ", ".join(f"{x['label']}({x['n']})" for x in custs) or "—"
+    collab_txt = ", ".join(f"{x['name']}({x['n']})" for x in collab) or "—"
+    tkt_txt = (", ".join(f"{x['category']} {x['n']}건" for x in extra["tkt_recv"]) or "—") \
+        + f" (받아 처리 {extra['tkt_recv_n']} · 요청 {extra['tkt_sent_n']})"
+    iss_txt = ", ".join(f"{x['severity']} {x['n']}건" for x in extra["issues"]) or "—"
+    pha_txt = ", ".join(f"{x['status']} {x['n']}건" for x in extra["phases"]) or "—"
+    title_txt = "\n".join(f"- {t}" for t in titles)
+    try:
+        from . import ai_client
+        from starlette.concurrency import run_in_threadpool
+        if not ai_client.ai_available():
+            return JSONResponse({"ok": False, "error": "ai_off",
+                                 "manual": "AI가 연결되어 있지 않습니다. (관리자 → AI 설정에서 키 등록 후 사용)"})
+        system = (
+            "당신은 ㈜케이엔케이(KNK · 검사기·자동화 설비 제조)의 업무 매뉴얼 작성 비서입니다. "
+            "아래 한 직원의 업무 집계(일일업무·티켓·이슈·공정 메타데이터)와 업무 제목을 근거로, "
+            "이 직원의 '업무 매뉴얼 초안'을 작성하세요. 용도는 인수인계·교육(이 사람이 없어도 업무가 이어지도록)입니다.\n"
+            "반드시 마크다운으로, 아래 섹션 구조를 지키세요:\n"
+            "# (이름) 업무 매뉴얼 (초안)\n"
+            "## 1. 담당 개요\n## 2. 핵심·반복 업무\n## 3. 담당 프로젝트·고객\n"
+            "## 4. 티켓·이슈·공정에서의 역할\n## 5. 주요 협업 관계\n## 6. 인수인계 체크리스트\n"
+            "규칙: ① 사실 기반으로만(주어진 데이터에서 추론). ② 우수/부진 등 인사평가·근무태도 평가 절대 금지. "
+            "③ 데이터로 알 수 없는 절차의 구체적 방법은 추측하지 말고 '담당자 확인 필요'로 표시. "
+            "④ 2~6은 불릿/번호로 인수인계자가 바로 쓰도록 실용적으로.")
+        prompt = (
+            f"직원: {emp['name']} ({emp['team'] or '부서미상'}{(' · ' + emp['rank']) if emp.get('rank') else ''}) · 분석기간 {plabel} ({start}~{end})\n"
+            f"[일일업무 구성] {cat_txt}\n[주요 프로젝트] {proj_txt}\n[주요 고객/대상] {cust_txt}\n"
+            f"[받은 티켓] {tkt_txt}\n[담당 이슈] {iss_txt}\n[담당 공정] {pha_txt}\n[주요 협업] {collab_txt}\n"
+            f"[일일업무 제목 표본(최근 {len(titles)}건)]:\n{title_txt}")
+        ok, ans = await run_in_threadpool(
+            ai_client.ai_chat, prompt, system, max_tokens=1900, temperature=0.35)
+        if not ok or not (ans or "").strip():
+            return JSONResponse({"ok": False, "error": "ai_fail",
+                                 "manual": "매뉴얼 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."})
+        return JSONResponse({"ok": True, "manual": ans.strip(),
+                             "emp_name": emp["name"], "period": plabel})
+    except Exception as e:
+        print(f"[WORK-PATTERN MANUAL] {e}")
+        return JSONResponse({"ok": False, "error": str(e), "manual": "AI 호출 중 오류가 발생했습니다."})
+
+
 def can_use_sales(user) -> bool:
     """매출·영업 **쓰기** (등록·편집·견적·수주) 권한 (Plan Y S1).
     - admin / ceo / executive: 항상 허용
