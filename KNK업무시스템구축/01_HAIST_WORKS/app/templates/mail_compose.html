@@ -40,6 +40,12 @@
       <a href="javascript:void(0)" id="bccToggle" style="font-size:12px;color:var(--mute);text-decoration:none;flex:none;">+ 숨은참조</a></div>
     <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}"></div>
     <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}"></div>
+    {% if ai_on %}
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
+      <button type="button" class="btn btn-primary" id="cAiBtn" style="background:#7c3aed;border-color:#7c3aed;" onclick="aiCompose()">✨ AI로 정리</button>
+      <span style="font-size:11.5px;color:var(--mute);">본문에 요점만 막 적고 누르면 → 정중한 업무 메일로 다듬어 줍니다</span>
+    </div>
+    {% endif %}
     <div class="cmp-tb" id="cTb">
       <button type="button" data-cmd="bold" title="굵게"><b>B</b></button>
       <button type="button" data-cmd="italic" title="기울임"><i>I</i></button>
@@ -184,6 +190,34 @@
       if(j.ok){ document.getElementById('cDraftId').value=j.draft_id; cmsg('💾 임시저장됨 — 임시보관함에서 이어쓸 수 있어요','green'); }
       else cmsg('⚠ 저장 실패','red');
     }catch(e){ cmsg('⚠ 네트워크 오류','red'); }
+  };
+
+  // ── AI로 정리 (요점 메모 → 정중한 업무 메일) ──
+  var AI_PREV=null;
+  window.aiUndo=function(){ if(AI_PREV!=null){ document.getElementById('cBody').innerHTML=AI_PREV; AI_PREV=null; cmsg('되돌렸습니다',''); } };
+  window.aiCompose=async function(){
+    var ed=document.getElementById('cBody'); var full=ed.innerText;
+    // 서명/원본인용 구분선 앞부분만 AI 정리(서명·인용 보존)
+    var lines=full.split('\n'); var cut=-1;
+    for(var i=0;i<lines.length;i++){ var t=lines[i].trim(); if(t==='--'||t.indexOf('────')>=0){ cut=i; break; } }
+    var content=(cut>=0? lines.slice(0,cut).join('\n'):full).trim();
+    var tail=(cut>=0? lines.slice(cut).join('\n'):'');
+    if(!content){ cmsg('먼저 본문에 요점을 적어주세요','red'); return; }
+    var btn=document.getElementById('cAiBtn'); if(btn)btn.disabled=true; cmsg('✨ AI가 정리하는 중...','');
+    try{
+      var fd=new FormData(); fd.append('body',content); fd.append('subject',document.getElementById('cSubj').value.trim());
+      var r=await fetch('/api/mail/ai-compose',{method:'POST',body:fd}); var j=await r.json();
+      if(j.ok){
+        AI_PREV=ed.innerHTML;
+        var nt=(j.body||'').replace(/\s+$/,''); if(tail) nt+='\n\n'+tail.replace(/^\s+/,'');
+        ed.innerText=nt;
+        var subj=document.getElementById('cSubj'); if(j.subject && !subj.value.trim()) subj.value=j.subject;
+        var m=document.getElementById('cMsg'); m.textContent='✨ AI가 정리했습니다. '; m.style.color='var(--success)';
+        var ul=document.createElement('a'); ul.href='javascript:void(0)'; ul.textContent='↩ 되돌리기';
+        ul.style.cssText='color:var(--knk-red);margin-left:4px'; ul.addEventListener('click',window.aiUndo); m.appendChild(ul);
+      } else cmsg('⚠ '+(j.message||'정리 실패'),'red');
+    }catch(e){ cmsg('⚠ 네트워크 오류','red'); }
+    finally{ if(btn)btn.disabled=false; }
   };
 
   window.sendMail=async function(){

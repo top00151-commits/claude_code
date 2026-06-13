@@ -10514,6 +10514,50 @@ async def mail_contacts_api(req: Request, q: str = ""):
     return JSONResponse({"ok": True, "items": items})
 
 
+@app.post("/api/mail/ai-compose")
+async def mail_ai_compose(req: Request):
+    """메일 쓰기 'AI로 정리' — 거친 메모를 정중한 업무 메일로 다듬어 {subject, body} 반환."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    rough = (form.get("body") or "").strip()
+    cur_subject = (form.get("subject") or "").strip()
+    if not rough:
+        return JSONResponse({"ok": False, "message": "먼저 본문에 요점을 적어주세요."})
+    try:
+        import json as _json
+        from . import ai_client
+        if not ai_client.ai_available():
+            return JSONResponse({"ok": False, "message": "AI가 비활성 상태입니다(키 미설정)."})
+        system = (
+            "당신은 ㈜케이엔케이(KNK·검사기/자동화 설비 제조)의 비즈니스 이메일 작성 도우미입니다. "
+            "사용자가 적은 거친 메모·요점을 정중하고 명확한 업무 이메일로 다듬으세요. "
+            "규칙: ①인사말·본문·맺음말을 갖춘 자연스러운 메일 ②메모에 없는 사실(수치·날짜·금액·약속)을 "
+            "절대 지어내지 말 것 ③서명은 넣지 말 것(시스템이 따로 붙임) ④간결·정중·과장 금지 "
+            "⑤원문이 베트남어면 베트남어로, 한국어면 한국어로 작성. "
+            '출력은 JSON 한 줄만: {"subject":"제목 제안","body":"메일 본문"} . 다른 텍스트·설명·코드블록 금지.'
+        )
+        prompt = f"[현재 제목]\n{cur_subject or '(없음)'}\n\n[거친 메모]\n{rough[:4000]}"
+        ok, resp = ai_client.ai_chat(prompt, system=system, max_tokens=900, temperature=0.4)
+        if not ok:
+            return JSONResponse({"ok": False, "message": "AI 정리 실패 — 잠시 후 다시 시도해주세요."})
+        subject, bodyout = cur_subject, (resp or "").strip()
+        try:
+            s = resp or ""
+            i, j = s.find("{"), s.rfind("}")
+            if i >= 0 and j > i:
+                d = _json.loads(s[i:j + 1])
+                bodyout = (d.get("body") or "").strip() or bodyout
+                if not cur_subject:
+                    subject = (d.get("subject") or "").strip() or subject
+        except Exception:
+            pass  # 파싱 실패 시 응답 전체를 본문으로
+        return JSONResponse({"ok": True, "subject": subject, "body": bodyout})
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": f"오류: {str(e)[:80]}"})
+
+
 @app.get("/mail/signature", response_class=HTMLResponse)
 async def mail_signature_page(req: Request):
     u = get_user(req)
@@ -10590,7 +10634,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         else:
             prefill["body"] = sigblock
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
-               from_addr=_mail_from_address())
+               from_addr=_mail_from_address(), ai_on=ai_enabled_for(u))
 
 
 @app.post("/mail/send")
