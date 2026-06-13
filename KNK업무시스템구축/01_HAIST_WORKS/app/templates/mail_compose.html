@@ -52,13 +52,13 @@
     <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
     <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>
     <input type="hidden" id="cDraftId" value="{{ prefill.draft_id }}">
-    <div class="cmp-row"><label>첨부</label><input id="cFiles" type="file" multiple></div>
     <div class="cmp-row" style="border-bottom:0;align-items:flex-start;">
-      <label style="padding-top:6px;">대용량 첨부</label>
+      <label style="padding-top:6px;">첨부</label>
       <div style="flex:1;">
-        <input id="cLargeFiles" type="file" multiple>
-        <div style="font-size:11px;color:var(--mute);margin-top:2px;">큰 파일(개당 최대 500MB)은 NAS에 올려 <b>다운로드 링크</b>로 보냅니다 · 30일 유효</div>
-        <div id="cLargeList" style="margin-top:6px;display:flex;flex-direction:column;gap:4px;"></div>
+        <button type="button" class="btn btn-secondary" id="cAttachBtn">📎 파일 첨부</button>
+        <input type="file" id="cFiles" multiple style="display:none">
+        <span style="font-size:11px;color:var(--mute);margin-left:8px;">10MB 넘는 파일은 자동으로 <b>대용량(NAS 링크·30일)</b>으로 전송</span>
+        <div id="cAttList" style="margin-top:8px;display:flex;flex-direction:column;gap:5px;"></div>
       </div>
     </div>
     <div class="cmp-actions">
@@ -68,46 +68,63 @@
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
       <span id="cMsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
-    <div style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 일반 첨부 합계 24MB 이하. 더 큰 파일은 위 <b>대용량 첨부</b>(NAS 링크·30일 유효)로 보내세요.</div>
+    <div style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 첨부한 파일이 <b>10MB</b>를 넘으면 자동으로 <b>대용량(NAS 다운로드 링크·30일 유효)</b>으로 보냅니다. (작은 파일은 메일에 그대로 첨부)</div>
   </div>
 </main></div>
 <script>
 (function(){
-  var LARGE = [];  // 업로드 완료된 대용량 첨부 토큰들
+  var NORMAL = [];   // 일반 첨부(File) — 메일에 그대로 첨부
+  var LARGE = [];    // 대용량 첨부 토큰 — NAS 다운로드 링크
+  var LARGE_TH = 10*1024*1024;      // 10MB 초과 → 자동 대용량
+  var NORMAL_BUDGET = 20*1024*1024; // 일반 첨부 누적 상한(Cloudflare 25MB 한도 안전)
 
   function cmsg(t,c){ var m=document.getElementById('cMsg'); if(!m)return; m.textContent=t;
     m.style.color = c==='red'?'var(--knk-red)':(c==='green'?'var(--success)':'var(--mute)'); }
-
   function hsize(n){ var u=['B','KB','MB','GB']; var i=0; n=n||0;
     while(n>=1024 && i<3){ n/=1024; i++; } return (i===0? n+' B' : n.toFixed(1)+' '+u[i]); }
 
-  async function uploadOne(file){
-    var list=document.getElementById('cLargeList');
+  function attRow(icon, file){
+    var list=document.getElementById('cAttList');
     var row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:4px 9px;background:#fafafa';
+    row.style.cssText='display:flex;align-items:center;gap:8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;background:#fafafa';
     var nm=document.createElement('span'); nm.style.flex='1';
-    nm.textContent='📎 '+file.name+' ('+hsize(file.size)+')';   // textContent = XSS 안전
-    var st=document.createElement('span'); st.textContent='⏳ 올리는 중...'; st.style.color='var(--mute)';
-    row.appendChild(nm); row.appendChild(st); list.appendChild(row);
+    nm.textContent=icon+' '+file.name+' ('+hsize(file.size)+')';   // textContent = XSS 안전
+    row.appendChild(nm); list.appendChild(row);
+    return row;
+  }
+  function renderNormal(file){
+    var row=attRow('📎', file);
+    var tag=document.createElement('span'); tag.textContent='첨부'; tag.style.cssText='font-size:11px;color:var(--mute)';
+    var rm=document.createElement('a'); rm.href='javascript:void(0)'; rm.textContent='✕'; rm.style.cssText='color:var(--knk-red);text-decoration:none;margin-left:2px';
+    rm.addEventListener('click',function(){ var k=NORMAL.indexOf(file); if(k>=0)NORMAL.splice(k,1); row.remove(); });
+    row.appendChild(tag); row.appendChild(rm);
+  }
+  async function uploadLarge(file){
+    var row=attRow('🔗', file);
+    var st=document.createElement('span'); st.textContent='⏳ 대용량 올리는 중...'; st.style.cssText='font-size:11px;color:var(--mute)';
+    row.appendChild(st);
     try{
       var fd=new FormData(); fd.append('file', file);
-      var r=await fetch('/mail/large/upload',{method:'POST',body:fd});
-      var j=await r.json();
-      if(j.ok){
-        st.textContent='✅ 완료'; st.style.color='var(--success)'; LARGE.push(j.token);
-        var rm=document.createElement('a'); rm.href='javascript:void(0)'; rm.textContent='✕';
-        rm.style.cssText='color:var(--knk-red);text-decoration:none;margin-left:2px';
+      var resp=await fetch('/mail/large/upload',{method:'POST',body:fd}); var j=await resp.json();
+      if(j.ok){ st.textContent='대용량 링크'; st.style.color='var(--success)'; LARGE.push(j.token);
+        var rm=document.createElement('a'); rm.href='javascript:void(0)'; rm.textContent='✕'; rm.style.cssText='color:var(--knk-red);text-decoration:none;margin-left:4px';
         rm.addEventListener('click',function(){ var k=LARGE.indexOf(j.token); if(k>=0)LARGE.splice(k,1); row.remove(); });
         row.appendChild(rm);
       } else { st.textContent='⚠ '+(j.message||'실패'); st.style.color='var(--knk-red)'; }
     }catch(e){ st.textContent='⚠ 네트워크 오류'; st.style.color='var(--knk-red)'; }
   }
-
-  var lf=document.getElementById('cLargeFiles');
-  if(lf) lf.addEventListener('change', async function(e){
+  function normalTotal(){ var s=0; NORMAL.forEach(function(f){ s+=f.size; }); return s; }
+  async function addFile(file){
+    if(file.size > LARGE_TH || (normalTotal()+file.size) > NORMAL_BUDGET){ await uploadLarge(file); }
+    else { NORMAL.push(file); renderNormal(file); }
+  }
+  var cf=document.getElementById('cFiles');
+  var ab=document.getElementById('cAttachBtn');
+  if(ab && cf) ab.addEventListener('click',function(){ cf.click(); });
+  if(cf) cf.addEventListener('change', async function(e){
     var files=e.target.files;
-    for(var i=0;i<files.length;i++){ await uploadOne(files[i]); }
-    e.target.value='';   // 같은 파일 재선택 가능하게 초기화
+    for(var i=0;i<files.length;i++){ await addFile(files[i]); }
+    e.target.value='';   // 같은 파일 재선택 가능
   });
 
   // ── 서식 편집기(rich text) 초기화 + 툴바 ──
@@ -161,8 +178,7 @@
     fd.append('body', ed.innerText);
     fd.append('body_html', ed.innerHTML);
     fd.append('bcc', document.getElementById('cBcc').value.trim());
-    var files=document.getElementById('cFiles').files;
-    for(var i=0;i<files.length;i++) fd.append('files', files[i]);
+    NORMAL.forEach(function(f){ fd.append('files', f); });
     fd.append('large_tokens', LARGE.join(','));
     var did0=document.getElementById('cDraftId').value; if(did0) fd.append('draft_id', did0);
     try{
