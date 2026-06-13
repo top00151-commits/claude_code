@@ -57,6 +57,7 @@
     <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary">↪ 전달</a>
     {% if m.direction != 'out' %}
     <button type="button" class="btn btn-secondary" style="border-color:#16a34a;color:#15803d;font-weight:700" onclick="mailToTask()" title="이 메일을 내 할 일(일일카드)로 등록 — 메일이 곧 업무">📋 할 일로 추가</button>
+    {% if sender_contact %}<a href="/contacts/{{ sender_contact.id }}" class="btn btn-secondary" style="border-color:#7c3aed;color:#7c3aed" title="이 보낸사람의 주소록 연락처 보기">📇 {{ sender_contact.name }}{% if sender_contact.company %} · {{ sender_contact.company }}{% endif %} 연락처</a>{% else %}<button type="button" class="btn btn-secondary" style="border-color:#7c3aed;color:#7c3aed" onclick="mailToContact()" title="보낸사람을 전사 주소록에 등록">📇 연락처로 등록</button>{% endif %}
     {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" class="btn btn-secondary" style="border-color:#1d4ed8;color:#1d4ed8" title="견적 작성 화면 열기(이 메일 참고)">📝 견적 작성</a>{% endif %}
     {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" class="btn btn-secondary" style="border-color:#047857;color:#047857" title="수주 등록 화면 열기(이 메일 참고)">📦 수주 등록</a>{% endif %}
     <button type="button" class="btn btn-secondary" onclick="markUnread()">● 안읽음 표시</button>{% endif %}
@@ -151,6 +152,13 @@
     try{ var r=await fetch('/mail/'+MAIL_ID+'/to-task',{method:'POST'}); var j=await r.json();
       if(j.ok){ if(confirm('✅ '+(j.message||'추가했습니다')+'\n\n지금 할 일 화면으로 갈까요?')) location.href='/daily'; }
       else { alert('⚠ '+(j.message||'추가 실패')); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  window.mailToContact=async function(){
+    if(!confirm('보낸사람을 전사 주소록(연락처)에 등록할까요?')) return;
+    try{ var r=await fetch('/mail/'+MAIL_ID+'/to-contact',{method:'POST'}); var j=await r.json();
+      if(j.ok){ if(confirm('📇 '+(j.message||'')+'\n\n지금 연락처를 열까요?')) location.href='/contacts/'+j.contact_id; else location.reload(); }
+      else { alert('⚠ '+(j.message||'등록 실패')); }
     }catch(e){ alert('네트워크 오류'); }
   };
   var f=document.getElementById('mvFrame');

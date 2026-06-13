@@ -10827,8 +10827,18 @@ async def mail_view_page(req: Request, mail_id: int):
         inline_atts = [a for a in all_atts if a.get("is_inline")]
         file_atts = [a for a in all_atts if not a.get("is_inline")]
         safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts)
+        # 보낸사람 ↔ 연락처 자동연결 — 이메일 '정확 일치 1건'이면 링크, 없으면 등록 유도.
+        #   (데이터 연결 안전: 추측 매칭 안 함. 정확히 같은 이메일만 단일 후보로 연결)
+        sender_contact = None
+        _fe = (m.get("from_email") or "").strip()
+        if _fe:
+            _sc = c.execute("SELECT id, name, company FROM shared_contacts "
+                            "WHERE email IS NOT NULL AND lower(email)=lower(?) ORDER BY id LIMIT 1",
+                            (_fe,)).fetchone()
+            sender_contact = dict(_sc) if _sc else None
     return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u),
-               safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html))
+               safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
+               sender_contact=sender_contact)
 
 
 @app.post("/mail/{mail_id:int}/to-task")
@@ -10860,6 +10870,33 @@ async def mail_to_task(req: Request, mail_id: int):
         tid = c.lastrowid
     return JSONResponse({"ok": True, "task_id": tid,
                          "message": "내 할 일(일일카드)에 추가했습니다."})
+
+
+@app.post("/mail/{mail_id:int}/to-contact")
+async def mail_to_contact(req: Request, mail_id: int):
+    """받은 메일의 보낸사람을 전사 연락처(주소록)로 등록 — 데이터 연결(메일↔주소록).
+    이미 같은 이메일이 있으면 새로 만들지 않고 그 연락처로 안내(중복 방지)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m:
+            return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다(본인 메일만)."}, 404)
+        email = (m.get("from_email") or "").strip()
+        if not email or "@" not in email:
+            return JSONResponse({"ok": False, "message": "보낸사람 이메일이 없어 등록할 수 없습니다."}, 400)
+        name = (m.get("from_name") or "").strip() or email.split("@")[0]
+        row = c.execute("SELECT id FROM shared_contacts WHERE email IS NOT NULL "
+                        "AND lower(email)=lower(?) ORDER BY id LIMIT 1", (email,)).fetchone()
+        if row:
+            return JSONResponse({"ok": True, "contact_id": row["id"], "existed": True,
+                                 "message": "이미 등록된 연락처입니다."})
+        cur = c.execute("INSERT INTO shared_contacts(name, email, source) VALUES(?,?,'signature')",
+                        (name[:80], email[:120]))
+        cid = cur.lastrowid
+    return JSONResponse({"ok": True, "contact_id": cid, "existed": False,
+                         "message": "연락처로 등록했습니다. (상세에서 회사·연락처를 채워주세요)"})
 
 
 @app.get("/mail/{mail_id:int}/att/{att_id:int}")
