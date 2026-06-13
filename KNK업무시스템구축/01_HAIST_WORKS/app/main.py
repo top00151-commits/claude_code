@@ -1877,6 +1877,48 @@ async def api_create_task(req: Request):
     return JSONResponse({"ok": True, "id": new_id})
 
 
+# =====================================================
+# v5H226z405 (대표 지시): 동시 편집 감지 — 낙관적 잠금(optimistic lock)
+#   화면을 열 때 들고 있던 수정시각(updated_at=base_ts)을 저장할 때 함께 보냄.
+#   그새 그 행의 updated_at 이 바뀌었으면(다른 탭/사람이 먼저 저장) → 충돌 → 저장 거부.
+#   ⚠ base_ts 가 비어 있으면(미전송) 검사하지 않음 → 기존 동작 100% 보존(하위호환·안전).
+#   table 은 화이트리스트만(SQL 안전). orders/order_items 는 updated_at 컬럼 추가 후 동작(없으면 no-op).
+# =====================================================
+_EDIT_LOCK_TABLES = {"tasks", "projects", "orders", "order_items", "consumable_orders"}
+
+
+def _edit_conflict(c, table, row_id, base_ts):
+    """(conflict: bool, current_ts: str). base_ts 미전송이면 (False, 현재값). 컬럼/행 없으면 (False, '')."""
+    if table not in _EDIT_LOCK_TABLES:
+        return False, ""
+    try:
+        row = c.execute(f"SELECT updated_at FROM {table} WHERE id=?", (row_id,)).fetchone()
+    except Exception:
+        return False, ""   # updated_at 컬럼 미존재(마이그레이션 전) → 검사 생략
+    if not row:
+        return False, ""
+    cur = str((row[0] if not isinstance(row, dict) else row.get("updated_at")) or "")
+    if not (base_ts or "").strip():
+        return False, cur
+    return (cur != str(base_ts).strip()), cur
+
+
+def _conflict_resp(current_ts):
+    return JSONResponse({
+        "ok": False, "conflict": True, "current_ts": current_ts,
+        "message": "이 항목이 다른 곳(다른 탭/사람)에서 먼저 저장됐습니다. 새로고침 후 다시 저장하세요.",
+    }, status_code=409)
+
+
+def _row_ts(c, table, row_id):
+    """저장 후 새 updated_at 반환(클라이언트가 base_ts 갱신용). 없으면 ''."""
+    try:
+        r = c.execute(f"SELECT updated_at FROM {table} WHERE id=?", (row_id,)).fetchone()
+        return str((r[0] if r and not isinstance(r, dict) else (r.get("updated_at") if r else "")) or "")
+    except Exception:
+        return ""
+
+
 @app.put("/api/task/{tid}")
 async def api_update_task(req: Request, tid: int):
     u = get_user(req)
@@ -1892,6 +1934,10 @@ async def api_update_task(req: Request, tid: int):
         prev = c.execute("SELECT user_id, status, title, project_id FROM tasks WHERE id=?", (tid,)).fetchone()
         if not prev or prev["user_id"] != u["id"]:
             return JSONResponse({"error": "권한 없음"}, 403)
+        # v5H226z405: 동시 편집 감지(낙관적 잠금)
+        _conf, _cur = _edit_conflict(c, "tasks", tid, d.get("base_ts"))
+        if _conf:
+            return _conflict_resp(_cur)
         c.execute(
             """UPDATE tasks SET title=?, category=?, project_id=?, customer_id=?,
                                status=?, hours=?, notes=?, next_plan=?, due_date=?,
@@ -1914,9 +1960,10 @@ async def api_update_task(req: Request, tid: int):
             log_activity(c, u["id"], "task_status",
                          title=f"{u['name']}: {prev['title'][:50]} — {prev['status']} → {new_status}",
                          task_id=tid, project_id=prev["project_id"], team_id=u.get("team_id"))
+        _new_ts = _row_ts(c, "tasks", tid)
     if prev["status"] != new_status and new_status == "지연":
         notify_status_change(tid, u["id"], prev["status"], new_status)
-    return JSONResponse({"ok": True})
+    return JSONResponse({"ok": True, "updated_at": _new_ts})
 
 
 @app.delete("/api/task/{tid}")
@@ -1963,11 +2010,16 @@ async def api_update_notes(req: Request, tid: int):
         prev = c.execute("SELECT user_id FROM tasks WHERE id=?", (tid,)).fetchone()
         if not prev or prev["user_id"] != u["id"]:
             return JSONResponse({"error": "권한 없음"}, 403)
+        # v5H226z405: 동시 편집 감지 (메모 자동저장도 다른 곳 변경 시 덮어쓰기 방지)
+        _conf, _cur = _edit_conflict(c, "tasks", tid, d.get("base_ts"))
+        if _conf:
+            return _conflict_resp(_cur)
         c.execute(
             "UPDATE tasks SET notes=?, updated_at=datetime('now','localtime') WHERE id=?",
             (notes, tid),
         )
-    return JSONResponse({"ok": True})
+        _new_ts = _row_ts(c, "tasks", tid)
+    return JSONResponse({"ok": True, "updated_at": _new_ts})
 
 
 # v5H226z115 (2026-05-31): 업무 카드 사진 첨부 (드래그앤드롭 + 클립보드)
@@ -2061,6 +2113,10 @@ async def api_quick_status(req: Request, tid: int):
         prev = c.execute("SELECT status, title, user_id, project_id FROM tasks WHERE id=?", (tid,)).fetchone()
         if not prev or prev["user_id"] != u["id"]:
             return JSONResponse({"error":"권한 없음"}, 403)
+        # v5H226z405: 동시 편집 감지
+        _conf, _cur = _edit_conflict(c, "tasks", tid, d.get("base_ts"))
+        if _conf:
+            return _conflict_resp(_cur)
         c.execute(
             "UPDATE tasks SET status=?, updated_at=datetime('now','localtime') WHERE id=?",
             (new_status, tid),
@@ -2069,9 +2125,10 @@ async def api_quick_status(req: Request, tid: int):
             log_activity(c, u["id"], "task_status",
                          title=f"{u['name']}: {prev['title'][:50]} — {prev['status']} → {new_status}",
                          task_id=tid, project_id=prev["project_id"], team_id=u.get("team_id"))
+        _new_ts = _row_ts(c, "tasks", tid)
     if prev["status"] != new_status and new_status == "지연":
         notify_status_change(tid, u["id"], prev["status"], new_status)
-    return JSONResponse({"ok": True})
+    return JSONResponse({"ok": True, "updated_at": _new_ts})
 
 
 @app.post("/api/carry-forward")

@@ -255,7 +255,7 @@
                     <span style="margin-left:auto;font-size:11px;color:var(--qv-ink-4);font-family:ui-monospace,Consolas,monospace;">{{ (t.created_at or '')[11:16] }}</span>
                   </div>
                   {# v5H226z112: 메모 인라인 편집 (자동저장 디바운스 600ms) #}
-                  <textarea class="task-notes-edit" data-task-id="{{ t.id }}" placeholder="메모를 입력하세요. (자동 저장)">{{ t.notes or '' }}</textarea>
+                  <textarea class="task-notes-edit" data-task-id="{{ t.id }}" data-ts="{{ t.updated_at or '' }}" placeholder="메모를 입력하세요. (자동 저장)">{{ t.notes or '' }}</textarea>
                   <div class="notes-status" data-status-for="{{ t.id }}"></div>
 
                   {# v5H226z115: 사진 첨부 (드래그앤드롭 + 클립보드 Ctrl+V + 클릭 선택) #}
@@ -417,10 +417,14 @@ async function carry(tid) {
 async function changeStatus(tid) {
   const newStatus = prompt('새 상태 (진행중/완료/지연/대기/보류):');
   if (!newStatus) return;
-  const r = await fetch('/api/task/' + tid, {
-    method: 'PATCH', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ status: newStatus })
+  // v5H226z405: 동시 편집 감지 — 카드가 들고 있던 수정시각(base_ts) 함께 전송
+  const ta = document.querySelector('.task-notes-edit[data-task-id="' + tid + '"]');
+  const base_ts = ta ? (ta.dataset.ts || '') : '';
+  const r = await fetch('/api/task/' + tid + '/status', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: newStatus, base_ts: base_ts })
   });
+  if (r.status === 409) { alert('⚠ 이 작업이 다른 곳(다른 탭/사람)에서 먼저 변경됐습니다.\n새로고침 후 다시 시도하세요.'); return; }
   if (r.ok) location.reload();
 }
 
@@ -573,6 +577,8 @@ async function changeStatus(tid) {
   const SAVE_DEBOUNCE_MS = 600;
   const timers = {};   // tid → timeoutId
   const lastSaved = {}; // tid → 마지막 저장된 값 (중복 방지)
+  const baseTs = {};        // v5H226z405: tid → 화면이 들고 있는 updated_at (동시 편집 감지)
+  const noteConflicted = {}; // v5H226z405: tid → 충돌 발생(저장 중단) 플래그
 
   function setStatus(tid, kind, text){
     const el = document.querySelector('.notes-status[data-status-for="' + tid + '"]');
@@ -582,14 +588,24 @@ async function changeStatus(tid) {
   }
 
   async function saveNotes(tid, notes){
+    if (noteConflicted[tid]) return;   // v5H226z405: 충돌 상태면 더 저장 안 함(상대 내용 덮어쓰기 방지)
     setStatus(tid, 'saving', '저장 중...');
     try {
       const r = await fetch('/api/task/' + tid + '/notes', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ notes: notes }),
+        body: JSON.stringify({ notes: notes, base_ts: baseTs[tid] || '' }),
       });
+      if (r.status === 409) {   // v5H226z405: 다른 곳(다른 탭/사람)에서 먼저 저장됨
+        noteConflicted[tid] = true;
+        setStatus(tid, 'error', '⚠ 다른 곳에서 먼저 저장됨 — 새로고침 후 편집하세요');
+        const ta = document.querySelector('.task-notes-edit[data-task-id="' + tid + '"]');
+        if (ta) { ta.style.borderColor = '#dc2626'; ta.readOnly = true; }
+        return;
+      }
       if (r.ok) {
+        let j = {}; try { j = await r.json(); } catch(_){}
+        if (j.updated_at) baseTs[tid] = j.updated_at;   // 다음 저장 기준 갱신
         lastSaved[tid] = notes;
         const now = new Date();
         const hh = String(now.getHours()).padStart(2,'0');
@@ -613,6 +629,7 @@ async function changeStatus(tid) {
       const tid = ta.dataset.taskId;
       if (!tid) return;
       lastSaved[tid] = ta.value;
+      baseTs[tid] = ta.dataset.ts || '';   // v5H226z405: 화면 로드 시점 updated_at (동시 편집 감지 기준)
       ta.addEventListener('input', function(){
         const val = ta.value;
         // 마지막 저장값과 같으면 skip
