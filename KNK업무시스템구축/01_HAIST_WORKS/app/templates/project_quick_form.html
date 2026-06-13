@@ -89,7 +89,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         <input type="hidden" name="proposal_date" value="{{ (project.proposal_date|string)[:10] if project.proposal_date else '' }}">
         <input type="hidden" name="quotation_date" value="{{ (project.quotation_date|string)[:10] if project.quotation_date else '' }}">
         <input type="hidden" name="pm" value="{{ project.pm_name|default('') }}">
-        <input type="hidden" name="cc_position" value="{{ project.cc_position|default('') }}">
+        {# v5H226z375: cc_position 은 본문에 직책 입력칸으로 표시(중복 hidden 제거) #}
         <input type="hidden" name="cc_email" value="{{ project.cc_email|default('') }}">
         <input type="hidden" name="cc_note" value="{{ project.cc_note|default('') }}">
         {% else %}
@@ -159,6 +159,11 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# 3행 — 모델명 · 장비명 (둘 다 넓게). 수량은 모델·장비가 6칸씩 차지해 자동으로 4행으로 내려감 #}
           <div class="qf-f c6"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명" value="{{ project.model_name|default('') if ed else '' }}"></div>
           <div class="qf-f c6"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)" value="{{ project.equip_name|default('') if ed else '' }}"></div>
+          {# v5H226z375(대표 지시): 제작요청서 항목 — 각인(장비 마킹) + 자료 경로(제품자료 서버 경로). 신규 등록 전용 #}
+          {% if not ed %}
+          <div class="qf-f c4"><label>각인 <span style="font-weight:400;color:var(--qv-ink-3);">(장비 마킹)</span></label><input name="engraving" placeholder="예: S3908 ASSY"></div>
+          <div class="qf-f c8"><label>자료 경로 <span style="font-weight:400;color:var(--qv-ink-3);">(제품자료 서버 경로)</span></label><input name="server_path" placeholder="예: Z:\기타\TSP\고객사\모델\9. 제품자료"></div>
+          {% endif %}
 
           {# 4행 — 수량(0000·좁게) · 통화 · 단가 · 금액(단가보다 크게). 수량은 항상 표시, 금액류는 영업·관리만 #}
           <div class="qf-f c2"><label>수량</label><input type="number" name="unit_qty" min="1" placeholder="0000" value="{{ project.unit_qty|default(1) if ed else 1 }}"></div>
@@ -184,9 +189,11 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# v5H226z353(대표 지시): 담당자 연락처(cc_phone) 추가 — 등록 시 고객사 주소록(담당자)에 자동 연동. #}
           <div class="qf-f c3"><label>고객사 부서</label><input name="cc_dept" placeholder="고객사 담당 부서" value="{{ project.cc_dept|default('') if ed else '' }}"></div>
           <div class="qf-f c3"><label>담당자</label><input name="cc_name" placeholder="고객사 담당자" value="{{ project.cc_name|default('') if ed else '' }}"></div>
-          <div class="qf-f c3"><label>담당자 연락처 <span style="font-weight:400;color:var(--qv-ink-3);">(주소록 연동)</span></label><input name="cc_phone" placeholder="예: 010-0000-0000" value="{{ project.cc_phone|default('') if ed else '' }}"></div>
+          {# v5H226z375(대표 지시): 고객사 담당자 직책(예: 이사) — cc_position 은 UPDATE 지원이라 신규·수정 공통 #}
+          <div class="qf-f c2"><label>직책</label><input name="cc_position" placeholder="예: 이사" value="{{ project.cc_position|default('') if ed else '' }}"></div>
+          <div class="qf-f c2"><label>연락처 <span style="font-weight:400;color:var(--qv-ink-3);">(주소록)</span></label><input name="cc_phone" placeholder="010-…" value="{{ project.cc_phone|default('') if ed else '' }}"></div>
           {# 납품위치: 수정 모드는 대표 SO(orders)의 ship_to 와 연결(name=ship_to) #}
-          <div class="qf-f c3"><label>납품위치</label><input id="qShip" {% if ed %}name="ship_to"{% endif %} placeholder="납품 위치" value="{{ ship_to|default('') if ed else '' }}"></div>
+          <div class="qf-f c2"><label>납품위치</label><input id="qShip" {% if ed %}name="ship_to"{% endif %} placeholder="납품 위치" value="{{ ship_to|default('') if ed else '' }}"></div>
 
           {# 7행 — 영업담당자(좁게·이름 3글자) · 비고(넓게) #}
           <div class="qf-f c3"><label>영업담당자 <span style="font-weight:400;color:var(--qv-ink-3);">(당사)</span></label><input name="sales" placeholder="당사 영업담당자" value="{{ project.sales_name|default('') if ed else '' }}"></div>
@@ -202,9 +209,9 @@ html,body{background:#fff!important;overflow:auto!important;}
           </label>
           <div style="font-size:11.5px;color:#9a3412;opacity:.9;margin:6px 0 0 24px;">제작메일 대체 · 통보에는 <b>단가·금액이 포함되지 않습니다</b>(자료경로·모델·품명·수량·납기·요청사항만). 제안 단계 등록이면 체크를 해제하세요.</div>
           <div id="qProdBox" style="margin-top:10px;">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;">
-              <div class="qf-f"><label>고객사 요청사항</label><textarea name="pr_cust_req" rows="2" placeholder="예: 기능검사기 MODIFY · 변경품 …" style="resize:vertical;"></textarea></div>
-              <div class="qf-f"><label>기타 요청사항</label><textarea name="pr_note" rows="2" placeholder="(선택)" style="resize:vertical;"></textarea></div>
+            <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+              <div class="qf-f"><label>고객사 요청사항 <span style="font-weight:400;color:#9a3412;">(케이스·개조·반출일정 등 상세 사양 — 여러 줄 OK)</span></label><textarea name="pr_cust_req" rows="8" placeholder="예:&#10;1. S3908 ASSY 검사기 1호기&#10;-. 케이스 제외.&#10;-. S3916A 모델 → S3908 모델로 개조 진행.&#10;-. 검사기·시료·IC보드 반출일정: 06/18~19" style="resize:vertical;"></textarea></div>
+              <div class="qf-f"><label>기타 요청사항</label><textarea name="pr_note" rows="3" placeholder="(선택)" style="resize:vertical;"></textarea></div>
             </div>
             <details class="qf-adv" style="margin-top:8px;">
               <summary>통보 부서 선택 <span>(기본 전부서 — 빼려면 체크 해제)</span></summary>

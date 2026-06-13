@@ -2365,6 +2365,8 @@ def init_db():
             ("equip_name",         "TEXT"),
             # v5H226z349 (대표 지시): 형태(제품/상품/기타) — 회계 성격 분류. NULL=미지정.
             ("form_type",          "TEXT"),
+            # v5H226z375 (대표 지시): 각인 — 장비에 새기는 마킹 문구(제작요청서 항목). 예: 'S3908 ASSY'
+            ("engraving",          "TEXT"),
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -5093,6 +5095,9 @@ def _project_insert_or_update_values(data: dict) -> dict:
         "pm_name": (data.get("pm_name") or data.get("pm") or "").strip(),
         "sales_name": (data.get("sales_name") or data.get("sales") or "").strip(),
         "logi_note": (data.get("logi_note") or data.get("note") or "").strip(),
+        # v5H226z375 (대표 지시): 제작요청서 항목 — 자료 경로(제품자료 서버 경로) + 각인(마킹 문구)
+        "server_path": (data.get("server_path") or "").strip() or None,
+        "engraving":   (data.get("engraving") or "").strip() or None,
         # v5H137: 프로젝트 유형 + 부모 프로젝트 (소모품/수리 연결)
         "project_type": (
             (data.get("project_type") or "NEW_EQUIP").strip().upper()
@@ -5223,8 +5228,9 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                      fx_rate, amount_krw,
                      proposal_date, quotation_date,
                      shipment_form, equip_name, form_type,
+                     server_path, engraving,
                      created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (code, vals["name"], vals["biz_div"], cust_id, vals["customer_name"],
                       vals["model_name"], vals["stage"], vals["po_type"], vals["status"],
                       vals["customer_po"], vals["currency"], vals["order_amount"],
@@ -5241,6 +5247,7 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                       vals.get("proposal_date"), vals.get("quotation_date"),
                       vals.get("shipment_form") or "ASSEMBLY", vals.get("equip_name"),
                       vals.get("form_type") or "",
+                      vals.get("server_path"), vals.get("engraving"),
                       now, now))
                 new_id = cur.lastrowid
                 # v5H101: 프로젝트 생성 이벤트 기록
@@ -5281,6 +5288,8 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
                     ("PM",           "", vals.get("pm_name") or ""),
                     ("영업담당",     "", vals.get("sales_name") or ""),
                     ("비고",         "", (vals.get("logi_note") or "")[:120]),
+                    ("각인",         "", vals.get("engraving") or ""),
+                    ("자료경로",     "", vals.get("server_path") or ""),
                 ]
                 for _label, _ov, _nv in _initial_fields:
                     if _nv:  # 값이 있는 항목만 기록 (빈값은 노이즈)

@@ -4354,7 +4354,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     uid_self = user.get("id") or -1   # None 이면 'id != NULL' 이 전 행 배제 → -1 로 방어
     with db_session() as c:
         p = c.execute("SELECT id, mgmt_code, name, customer_name, model_name, equip_name, "
-                      "unit_qty, due_date, server_path FROM projects WHERE id=?", (pid,)).fetchone()
+                      "unit_qty, due_date, server_path, engraving, cc_name, cc_position "
+                      "FROM projects WHERE id=?", (pid,)).fetchone()
         if not p:
             return {"ok": False, "error": "not_found"}
         p = dict(p)
@@ -4376,6 +4377,9 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     qty = p.get("unit_qty") or 1
     due = (str(p.get("due_date") or "")[:10]) or "—"
     spath = p.get("server_path") or ""
+    eng = p.get("engraving") or ""
+    cc_nm = p.get("cc_name") or ""
+    cc_pos = p.get("cc_position") or ""
     # ① 작업일정표 '제작요청' 단계 자동 체크(+요청사항·발행정보 기록)
     _extra = _json.dumps({"cust_req": cust_req, "note": note, "issued_at": now_str,
                           "so_nos": so_nos}, ensure_ascii=False)
@@ -4393,8 +4397,12 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     # ② 통보 — 단가·금액 제외(생산에 필요한 자료경로·모델·품명·수량·납기·요청사항만)
     title = f"📋 제작요청 [{mgmt}] {model}"
     body = (f"관리코드: {mgmt}\n"
-            f"고객사: {p.get('customer_name') or '—'} · 모델: {model}\n"
-            f"품명: {pname} · 수량: {qty} · 납기: {due}\n")
+            f"고객사: {p.get('customer_name') or '—'} · 모델: {model}\n")
+    if eng:
+        body += f"각인: {eng}\n"
+    body += f"품명: {pname} · 수량: {qty} · 납기: {due}\n"
+    if cc_nm:
+        body += f"고객사 담당자: {cc_nm}{(' ' + cc_pos) if cc_pos else ''}\n"
     if so_nos:
         body += f"수주번호: {', '.join(so_nos)}\n"
     if spath:
@@ -14342,6 +14350,9 @@ async def projects_new_submit(request: Request):
         "two_tier_order": form.get("two_tier_order", ""),
         "secondary_customer": form.get("secondary_customer", ""),
         "final_amount": form.get("final_amount", ""),
+        # v5H226z375 (대표 지시): 제작요청서 항목 — 자료 경로(제품자료 서버 경로) + 각인(마킹 문구)
+        "server_path": form.get("server_path", ""),
+        "engraving": form.get("engraving", ""),
     })
     # v5H226z209 (2026-06-04 대표 지시·2단계): 품목(project_items) 저장.
     #   · item1 = 폼 기본 필드(출고형태·모델·수량·단가) — 대표 품목.
