@@ -339,7 +339,10 @@ CREATE TABLE IF NOT EXISTS mail_attachments (
     filename    TEXT,
     mime        TEXT,
     size        INTEGER DEFAULT 0,
-    path        TEXT,                        -- NAS/uploads 저장 경로
+    path        TEXT,                        -- NAS/uploads 저장 경로(미사용 시 NULL)
+    content_id  TEXT,                        -- 인라인 이미지 cid 매핑(<...> 제거 보관)
+    is_inline   INTEGER DEFAULT 0,           -- 1=본문 인라인 이미지(서명 로고 등)
+    data        BLOB,                        -- 첨부 바이트(POC: DB 보관, 상한 초과 시 메타만)
     created_at  TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_mailatt_mail ON mail_attachments(mail_id);
@@ -2127,6 +2130,22 @@ def init_db():
                     c.execute(ddl)
                 except Exception:
                     pass
+        # z393 (2026-06-13 대표 지시): 메일 첨부 본문 저장 + 인라인 이미지(서명 로고) 표시
+        try:
+            macols = [r[1] for r in c.execute("PRAGMA table_info(mail_attachments)").fetchall()]
+            for col, ddl in [
+                ("content_id", "ALTER TABLE mail_attachments ADD COLUMN content_id TEXT"),
+                ("is_inline",  "ALTER TABLE mail_attachments ADD COLUMN is_inline INTEGER DEFAULT 0"),
+                ("data",       "ALTER TABLE mail_attachments ADD COLUMN data BLOB"),
+            ]:
+                if col not in macols:
+                    try:
+                        c.execute(ddl)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
         # 마이그레이션: users에 lang 컬럼 추가
         ucols = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
         if "lang" not in ucols:

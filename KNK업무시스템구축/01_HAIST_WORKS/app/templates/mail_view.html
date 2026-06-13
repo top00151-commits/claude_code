@@ -10,6 +10,16 @@
   .mv-body{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;white-space:pre-wrap;line-height:1.8;font-size:14px;color:var(--ink)}
   .mv-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;align-items:center}
   .mv-trans{border:1px dashed #c7d2fe;background:#f5f7ff;border-radius:10px;padding:12px 14px;margin-top:12px;display:none}
+  .mv-viewtabs{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+  .mv-vtab{font-size:12.5px;padding:5px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}
+  .mv-vtab.active{background:var(--knk-red,#c0392b);color:#fff;border-color:transparent}
+  .mv-vnote{font-size:11.5px;color:var(--mute)}
+  .mv-frame{width:100%;min-height:240px;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .mv-atts{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 14px}
+  .mv-atts-h{font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:8px}
+  .mv-att{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:4px 6px 0 0;font-size:12.5px;color:var(--ink);text-decoration:none;background:#fafafa}
+  .mv-att:hover{background:#f0f0f0}
+  .mv-att-sz{color:var(--mute);font-size:11px}
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
@@ -43,7 +53,31 @@
     <a href="/mail/inbox" class="btn btn-secondary">← 목록</a>
   </div>
 
+  {% if has_html %}
+  <div class="mv-viewtabs">
+    <button type="button" class="mv-vtab active" id="vtabHtml" onclick="mvShow('html')">📄 원본(서식)</button>
+    <button type="button" class="mv-vtab" id="vtabText" onclick="mvShow('text')">🔤 텍스트만</button>
+    <span class="mv-vnote">서명 로고·서식 포함 · 스크립트·추적은 차단된 안전 보기</span>
+  </div>
+  <iframe id="mvFrame" class="mv-frame" sandbox="allow-same-origin allow-popups"
+          srcdoc="<!DOCTYPE html><html><head><meta charset='utf-8'><base target='_blank'><style>html,body{margin:0;padding:14px;font-family:system-ui,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:14px;line-height:1.7;color:#111;word-break:break-word;background:#fff}img{max-width:100%;height:auto}table{max-width:100%}a{color:#1d4ed8}</style></head><body>{{ safe_html }}</body></html>"></iframe>
+  <div class="mv-body" id="mvText" style="display:none">{{ m.body_text }}</div>
+  {% else %}
   <div class="mv-body">{{ m.body_text }}</div>
+  {% endif %}
+
+  {% if file_atts %}
+  <div class="mv-atts">
+    <div class="mv-atts-h">📎 첨부파일 {{ file_atts|length }}개</div>
+    {% for a in file_atts %}
+    <a class="mv-att" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer">
+      <span>📄</span>
+      <span>{{ a.filename }}</span>
+      <span class="mv-att-sz">{% if a.size %}{{ (a.size / 1024)|round(1) }} KB{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <div class="mv-trans" id="transBox">
     <div style="font-size:12px;color:var(--mute);margin-bottom:6px;"><b id="transLabel">번역</b> <span id="transStatus"></span></div>
@@ -52,28 +86,47 @@
   </div>
 </main></div>
 <script>
-const MAIL_ID = {{ m.id }};
-async function translateMail(target){
-  const box=document.getElementById('transBox');
-  const st=document.getElementById('transStatus');
-  box.style.display='block';
-  st.textContent='번역 중...';
-  document.getElementById('transLabel').textContent = (target==='ko'?'🇰🇷 한국어 번역':'🇻🇳 베트남어 번역');
-  document.getElementById('transSubj').textContent='';
-  document.getElementById('transBody').textContent='';
-  try{
-    const fd=new FormData(); fd.append('target',target);
-    const r=await fetch('/api/mail/'+MAIL_ID+'/translate',{method:'POST',body:fd});
-    const j=await r.json();
-    if(j.ok){ st.textContent=''; document.getElementById('transSubj').textContent=j.subject||''; document.getElementById('transBody').textContent=j.body||''; }
-    else { st.textContent='⚠ '+(j.message||'번역 실패'); }
-  }catch(e){ st.textContent='⚠ 네트워크 오류'; }
-}
-async function delMail(id){
-  if(!confirm('이 메일을 삭제할까요?')) return;
-  try{ const r=await fetch('/mail/'+id+'/delete',{method:'POST'}); const j=await r.json();
-    if(j.ok){ location.href='/mail/inbox'; } else { alert('삭제 실패'); }
-  }catch(e){ alert('네트워크 오류'); }
-}
+(function(){
+  var MAIL_ID = {{ m.id }};
+  function mvResize(){
+    var f=document.getElementById('mvFrame'); if(!f) return;
+    try{ var d=f.contentDocument||f.contentWindow.document;
+      var h=Math.max(d.body.scrollHeight||0, d.documentElement.scrollHeight||0);
+      f.style.height=(h+24)+'px';
+    }catch(e){ f.style.height='600px'; }
+  }
+  window.mvShow=function(which){
+    var f=document.getElementById('mvFrame'), t=document.getElementById('mvText');
+    var bh=document.getElementById('vtabHtml'), bt=document.getElementById('vtabText');
+    if(which==='text'){ if(f)f.style.display='none'; if(t)t.style.display='block';
+      if(bt)bt.classList.add('active'); if(bh)bh.classList.remove('active'); }
+    else { if(t)t.style.display='none'; if(f){ f.style.display='block'; setTimeout(mvResize,30);}
+      if(bh)bh.classList.add('active'); if(bt)bt.classList.remove('active'); }
+  };
+  window.translateMail=async function(target){
+    var box=document.getElementById('transBox');
+    var st=document.getElementById('transStatus');
+    box.style.display='block';
+    st.textContent='번역 중...';
+    document.getElementById('transLabel').textContent=(target==='ko'?'🇰🇷 한국어 번역':'🇻🇳 베트남어 번역');
+    document.getElementById('transSubj').textContent='';
+    document.getElementById('transBody').textContent='';
+    try{
+      var fd=new FormData(); fd.append('target',target);
+      var r=await fetch('/api/mail/'+MAIL_ID+'/translate',{method:'POST',body:fd});
+      var j=await r.json();
+      if(j.ok){ st.textContent=''; document.getElementById('transSubj').textContent=j.subject||''; document.getElementById('transBody').textContent=j.body||''; }
+      else { st.textContent='⚠ '+(j.message||'번역 실패'); }
+    }catch(e){ st.textContent='⚠ 네트워크 오류'; }
+  };
+  window.delMail=async function(id){
+    if(!confirm('이 메일을 삭제할까요?')) return;
+    try{ var r=await fetch('/mail/'+id+'/delete',{method:'POST'}); var j=await r.json();
+      if(j.ok){ location.href='/mail/inbox'; } else { alert('삭제 실패'); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  var f=document.getElementById('mvFrame');
+  if(f){ f.addEventListener('load',mvResize); setTimeout(mvResize,120); }
+})();
 </script>
 </body></html>

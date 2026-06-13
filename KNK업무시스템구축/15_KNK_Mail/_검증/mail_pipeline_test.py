@@ -122,7 +122,9 @@ raw4 = (
     f"Content-Disposition: attachment; filename=\"{_fn4}\"\r\n\r\n"
     "%PDF-1.4 fake\r\n--BB--\r\n")
 p4 = MS.parse_raw_email(raw4)
-check("S4 첨부 파일명 인식", p4.get("attachments") == ["세금계산서_2026.pdf"], str(p4.get("attachments")))
+_a4 = p4.get("attachments") or []
+check("S4 첨부 파일명 인식", len(_a4) == 1 and _a4[0].get("filename") == "세금계산서_2026.pdf",
+      str([a.get("filename") for a in _a4]))
 check("S4 본문에 첨부 표기", "[첨부 1개:" in (p4.get("text") or ""), repr((p4.get("text") or "")[-40:]))
 check("S4 본문 텍스트 보존", "세금계산서 첨부" in (p4.get("text") or ""))
 

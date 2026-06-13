@@ -142,9 +142,10 @@ def _ai_summary(body: str) -> str:
 # ─── 저장(받기) ─────────────────────────────────────────────────────
 def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = "",
                   subject: str = "", text: str = "", html: str = "", cc: str = "",
-                  size=0, owner_id=None, run_ai: bool = True):
+                  size=0, owner_id=None, run_ai: bool = True, attachments=None):
     """받은 메일 1건 저장. 반환 (mail_id, owner_id).
-    owner_id 미지정 시 to_email 로 수신자 해석. 수신자 없으면 (None, None)."""
+    owner_id 미지정 시 to_email 로 수신자 해석. 수신자 없으면 (None, None).
+    attachments: parse_raw_email 이 만든 [{filename,mime,size,content_id,inline,data}, ...]."""
     owner = owner_id or resolve_recipient(c, to_email)
     if not owner:
         return (None, None)
@@ -167,7 +168,10 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
          _norm_addr(to_email), (cc or "").strip(), subject, body, html or "",
          category, lang, summary, sz),
     )
-    return (cur.lastrowid, owner)
+    mail_id = cur.lastrowid
+    if attachments:
+        _save_attachments(c, mail_id, attachments)
+    return (mail_id, owner)
 
 
 # ─── 조회 ───────────────────────────────────────────────────────────
@@ -394,13 +398,30 @@ def parse_raw_email(raw) -> dict:
             ctype = (part.get_content_type() or "").lower()
             disp = str(part.get("Content-Disposition") or "").lower()
             fname = part.get_filename()
-            if "attachment" in disp or fname:
-                if fname:
-                    fname = _recover8(fname)
+            cid = (part.get("Content-ID") or "").strip().strip("<>").strip()
+            # 첨부/인라인 판정: 파일명 있음 · disposition attachment/inline · 이미지+Content-ID
+            is_att = bool(fname) or ("attachment" in disp) or ("inline" in disp) \
+                or (cid and ctype.startswith("image/"))
+            if is_att:
+                fn = _recover8(fname) if fname else ""
+                if fn:
                     try:
-                        atts.append(str(make_header(decode_header(fname))))
+                        fn = str(make_header(decode_header(fn)))
                     except Exception:
-                        atts.append(fname)
+                        pass
+                try:
+                    data = part.get_payload(decode=True) or b""
+                except Exception:
+                    data = b""
+                atts.append({
+                    "filename": fn or (cid or "image"),
+                    "mime": ctype or "application/octet-stream",
+                    "size": len(data),
+                    "content_id": cid,
+                    "inline": 1 if (("inline" in disp) or (cid and not fn)
+                                    or (cid and ctype.startswith("image/"))) else 0,
+                    "data": data,
+                })
                 continue
             if ctype == "text/plain" and not text:
                 text = _decode_part(part)
@@ -413,9 +434,94 @@ def parse_raw_email(raw) -> dict:
             text = _decode_part(msg)
 
     body = text or _html_to_text(html)
-    if atts:
-        body = (body or "").rstrip() + f"\n\n[첨부 {len(atts)}개: " + ", ".join(atts[:10]) + "]"
+    # 텍스트 본문 끝에는 '진짜 첨부'(인라인 서명이미지 제외)만 표기
+    real_atts = [a for a in atts if not a.get("inline")]
+    if real_atts:
+        body = (body or "").rstrip() + f"\n\n[첨부 {len(real_atts)}개: " \
+            + ", ".join(a["filename"] for a in real_atts[:10]) + "]"
     return {
         "from_email": from_addr, "from_name": from_name, "to_email": to_addr,
         "subject": subject, "text": body, "html": html, "cc": cc, "attachments": atts,
     }
+
+
+# ─── 첨부 저장·조회 + 안전 HTML 렌더(원본처럼 보이기) ────────────────
+# 첨부 바이트는 POC 단계에서 DB(mail_attachments.data)에 보관. 상한 초과분은 메타만.
+_ATT_STORE_MAX = 12 * 1024 * 1024   # 12MB/건
+
+
+def _save_attachments(c, mail_id: int, attachments) -> None:
+    """파싱된 첨부 리스트를 mail_attachments 에 저장(인라인 이미지 포함)."""
+    for a in (attachments or []):
+        try:
+            data = a.get("data") or b""
+            store = data if (data and len(data) <= _ATT_STORE_MAX) else None
+            c.execute(
+                """INSERT INTO mail_attachments
+                   (mail_id, filename, mime, size, content_id, is_inline, data)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (mail_id, (a.get("filename") or "")[:255], (a.get("mime") or "")[:120],
+                 int(a.get("size") or 0), (a.get("content_id") or "")[:255],
+                 1 if a.get("inline") else 0, store),
+            )
+        except Exception:
+            # 데이터 연결성: 첨부 1건 실패가 메일 저장을 막지 않게(메일은 이미 저장됨)
+            pass
+
+
+def list_attachments(c, mail_id: int, *, inline=None):
+    """메일의 첨부 목록(바이트 제외 메타). inline=True/False 로 인라인/일반 필터."""
+    where = "mail_id=?"
+    args = [mail_id]
+    if inline is not None:
+        where += " AND is_inline=?"
+        args.append(1 if inline else 0)
+    rows = c.execute(
+        f"SELECT id, filename, mime, size, content_id, is_inline "
+        f"FROM mail_attachments WHERE {where} ORDER BY id", args,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_attachment(c, att_id: int, user_id: int):
+    """첨부 1건의 바이트(소유권 강제: 메일 소유자만). 없거나 미보관이면 None."""
+    r = c.execute(
+        "SELECT a.filename, a.mime, a.data FROM mail_attachments a "
+        "JOIN mail_messages m ON m.id = a.mail_id "
+        "WHERE a.id=? AND m.user_id=? AND m.is_deleted=0",
+        (att_id, user_id),
+    ).fetchone()
+    if not r or r["data"] is None:
+        return None
+    return {"filename": r["filename"] or "attachment",
+            "mime": r["mime"] or "application/octet-stream", "data": r["data"]}
+
+
+def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
+    """받은 메일 HTML 을 '격리 iframe' 안에서 보여줄 안전 HTML 로 정리.
+    - 스크립트/폼/임베드 등 위험 태그 제거, on* 이벤트·javascript: 스킴 제거.
+    - 인라인 이미지(src="cid:...")는 우리 서버(/mail/{id}/att/{att_id})로 치환 → 서명 로고 표시.
+    - 최종은 sandbox iframe 에 넣으므로(스크립트 실행 불가) 이중 안전.
+    원격 이미지(http(s))는 원본 충실도를 위해 허용(내부 업무용)."""
+    if not html:
+        return ""
+    s = html
+    # 위험 쌍태그 통째 제거
+    s = re.sub(r"(?is)<\s*(script|style|iframe|object|embed|form|noscript|svg|math)\b.*?<\s*/\s*\1\s*>", " ", s)
+    # 위험 단독/잔여 태그 제거
+    s = re.sub(r"(?is)<\s*/?\s*(script|style|iframe|object|embed|form|noscript|meta|base|link|input|button|textarea|select|svg|math)\b[^>]*>", " ", s)
+    # on... 이벤트 핸들러 속성 제거
+    s = re.sub(r"(?is)\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", " ", s)
+    # href/src 의 javascript: 스킴 무력화
+    s = re.sub(r"(?is)(href|src)\s*=\s*([\"'])\s*javascript:[^\"']*\2", r'\1=\2#\2', s)
+    # cid: 인라인 이미지 → 우리 서버 URL 로 치환
+    cid_map = {(a.get("content_id") or "").lower(): a["id"]
+               for a in (inline_atts or []) if a.get("content_id")}
+
+    def _cid_sub(m):
+        q, cid = m.group(1), m.group(2).strip().lower()
+        aid = cid_map.get(cid)
+        return f'src={q}/mail/{mail_id}/att/{aid}{q}' if aid else f'src={q}#{q}'
+
+    s = re.sub(r"(?is)src\s*=\s*([\"'])\s*cid:([^\"']+)\1", _cid_sub, s)
+    return s

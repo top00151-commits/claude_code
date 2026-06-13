@@ -10238,6 +10238,7 @@ async def mail_inbound(req: Request):
          "html": d.get("html") or "", "cc": d.get("cc") or "",
          "size": d.get("size") or 0}
     raw = d.get("raw") or ""
+    _atts = None
     if raw:
         parsed = _mailbox.parse_raw_email(raw)
         if parsed:
@@ -10247,6 +10248,7 @@ async def mail_inbound(req: Request):
             if not f["to_email"] and parsed.get("to_email"):
                 f["to_email"] = parsed["to_email"]
             f["size"] = len(raw)
+            _atts = parsed.get("attachments")
 
     if not f["to_email"]:
         return JSONResponse({"ok": False, "message": "수신 주소(to)가 없습니다."}, 400)
@@ -10255,6 +10257,7 @@ async def mail_inbound(req: Request):
             c, to_email=f["to_email"], from_email=f["from_email"],
             from_name=f["from_name"], subject=f["subject"], text=f["text"],
             html=f["html"], cc=f["cc"], size=f["size"], run_ai=True,
+            attachments=_atts,
         )
     if not mid:
         # 데이터 연결성 원칙: 조용히 버리지 않고 사유 표면화
@@ -10356,7 +10359,35 @@ async def mail_view_page(req: Request, mail_id: int):
         if not m:
             return RedirectResponse("/mail/inbox", 303)
         _mailbox.mark_read(c, mail_id, u["id"])
-    return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u))
+        all_atts = _mailbox.list_attachments(c, mail_id)
+        inline_atts = [a for a in all_atts if a.get("is_inline")]
+        file_atts = [a for a in all_atts if not a.get("is_inline")]
+        safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts)
+    return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u),
+               safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html))
+
+
+@app.get("/mail/{mail_id:int}/att/{att_id:int}")
+async def mail_attachment(req: Request, mail_id: int, att_id: int):
+    """첨부/인라인 이미지 서빙(소유권 강제: 메일 소유자만). 이미지는 inline, 그 외 다운로드."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        a = _mailbox.get_attachment(c, att_id, u["id"])
+    if not a:
+        return Response(status_code=404)
+    mime = a["mime"] or "application/octet-stream"
+    # 파일명 RFC5987(한글 안전) — ASCII fallback + UTF-8
+    import urllib.parse as _up
+    fn = a["filename"] or "attachment"
+    disp = "inline" if mime.startswith("image/") else "attachment"
+    headers = {
+        "Content-Disposition": f"{disp}; filename*=UTF-8''{_up.quote(fn)}",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, max-age=3600",
+    }
+    return Response(content=a["data"], media_type=mime, headers=headers)
 
 
 @app.post("/mail/{mail_id:int}/star")
