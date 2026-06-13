@@ -524,7 +524,7 @@ def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
     s = re.sub(r"(?is)\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", " ", s)
     s = re.sub(r"(?is)(href|src)\s*=\s*([\"'])\s*javascript:[^\"']*\2", r'\1=\2#\2', s)
 
-    # cid: 인라인 이미지 → 우리 서버 URL. 매칭 견고화(content_id·파일명·도메인앞부분).
+    # cid 매칭 맵(content_id·파일명·도메인앞부분)
     cid_map = {}
     for a in (inline_atts or []):
         aid = a["id"]
@@ -537,10 +537,22 @@ def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
         if fname:
             cid_map.setdefault(fname, aid)
 
-    def _cid_sub(m):
-        q, cid = m.group(1), m.group(2).strip().lower()
+    # <img> 통째 처리: ①cid 해결→우리서버 URL ②cid 미해결→깔끔한 자리표시(깨진 박스 방지)
+    #                   ③원격(http) 이미지는 그대로 표시
+    def _img_sub(m):
+        tag = m.group(0)
+        cm = re.search(r"(?is)src\s*=\s*[\"']\s*cid:([^\"']+)[\"']", tag)
+        if not cm:
+            return tag  # 원격(http/https) 이미지 등은 그대로
+        cid = cm.group(1).strip().lower()
         aid = cid_map.get(cid) or cid_map.get(cid.split("@", 1)[0])
-        return f'src={q}/mail/{mail_id}/att/{aid}{q}' if aid else f'src={q}#{q}'
+        if aid:
+            return re.sub(r"(?is)src\s*=\s*([\"'])\s*cid:[^\"']+\1",
+                          f'src="/mail/{mail_id}/att/{aid}"', tag)
+        # 미해결(예: 기능 이전 수신메일은 원문 이미지 미저장) → 깨진 이미지 대신 자리표시
+        return ('<span style="display:inline-block;padding:1px 7px;font-size:11px;'
+                'color:#9ca3af;border:1px dashed #d1d5db;border-radius:4px;'
+                'font-family:sans-serif">\U0001F5BC 이미지</span>')
 
-    s = re.sub(r"(?is)src\s*=\s*([\"'])\s*cid:([^\"']+)\1", _cid_sub, s)
+    s = re.sub(r"(?is)<img\b[^>]*>", _img_sub, s)
     return s
