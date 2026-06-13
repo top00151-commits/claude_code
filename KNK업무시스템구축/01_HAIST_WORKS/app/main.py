@@ -11007,6 +11007,34 @@ async def mail_view_page(req: Request, mail_id: int):
                sender_contact=sender_contact)
 
 
+@app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
+async def mail_view_pane(req: Request, mail_id: int):
+    # A1 읽기 창(아웃룩식) — 받은편지함 우측에 innerHTML 주입할 메일 내용 '조각'.
+    #   풀페이지 /mail/{id} 와 동일 로직(본인 메일·읽음처리·sanitize) — 보안 동일.
+    u = get_user(req)
+    if not u:
+        return HTMLResponse("<div style='padding:24px;color:#b91c1c'>로그인이 필요합니다.</div>", status_code=401)
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m:
+            return HTMLResponse("<div style='padding:24px;color:#b91c1c'>메일을 찾을 수 없습니다.</div>", status_code=404)
+        _mailbox.mark_read(c, mail_id, u["id"])
+        all_atts = _mailbox.list_attachments(c, mail_id)
+        inline_atts = [a for a in all_atts if a.get("is_inline")]
+        file_atts = [a for a in all_atts if not a.get("is_inline")]
+        safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts)
+        sender_contact = None
+        _fe = (m.get("from_email") or "").strip()
+        if _fe:
+            _sc = c.execute("SELECT id, name, company FROM shared_contacts "
+                            "WHERE email IS NOT NULL AND lower(email)=lower(?) ORDER BY id LIMIT 1",
+                            (_fe,)).fetchone()
+            sender_contact = dict(_sc) if _sc else None
+    return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=ai_enabled_for(u),
+               safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
+               sender_contact=sender_contact)
+
+
 @app.post("/mail/{mail_id:int}/to-task")
 async def mail_to_task(req: Request, mail_id: int):
     """받은 메일 → 내 '할 일'(일일카드) 등록 — 메일을 업무로 전환(메일=업무 관문).

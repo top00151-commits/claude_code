@@ -1,0 +1,144 @@
+{# 메일 내용 본문 — 풀페이지(mail_view.html)와 읽기 창(mail_view_pane.html) 공용 #}
+{# 기대 컨텍스트: m, safe_html, has_html, file_atts, sender_contact, (선택) pane #}
+{% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
+{% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
+
+<div class="mv-head">
+  <h1 class="mv-subj">{{ m.subject }}<span class="mv-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span></h1>
+  <div class="mv-meta">
+    <b>보낸사람</b> {{ m.from_name }} &lt;{{ m.from_email }}&gt;<br>
+    <b>받은주소</b> {{ m.to_email }}{% if m.cc %} · <b>참조</b> {{ m.cc }}{% endif %}<br>
+    <b>받은시각</b> {{ m.received_at }}{% if m.lang %} · <b>언어</b> {{ m.lang }}{% endif %}
+  </div>
+</div>
+
+{% if m.summary %}
+<div class="mv-ai"><b>📝 AI 요약</b><br>{{ m.summary }}</div>
+{% endif %}
+
+<div class="mv-actions">
+  {% if m.direction != 'out' %}<a href="/mail/compose?reply={{ m.id }}" class="btn btn-primary">↩ 답장</a>
+  <a href="/mail/compose?replyall={{ m.id }}" class="btn btn-secondary">↩↩ 전체답장</a>{% endif %}
+  <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary">↪ 전달</a>
+  {% if m.direction != 'out' %}
+  <button type="button" class="btn btn-secondary" style="border-color:#16a34a;color:#15803d;font-weight:700" onclick="mailToTask()" title="이 메일을 내 할 일(일일카드)로 등록 — 메일이 곧 업무">📋 할 일로 추가</button>
+  {% if sender_contact %}<a href="/contacts/{{ sender_contact.id }}" class="btn btn-secondary" style="border-color:#7c3aed;color:#7c3aed" title="이 보낸사람의 주소록 연락처 보기">📇 {{ sender_contact.name }}{% if sender_contact.company %} · {{ sender_contact.company }}{% endif %} 연락처</a>{% else %}<button type="button" class="btn btn-secondary" style="border-color:#7c3aed;color:#7c3aed" onclick="mailToContact()" title="보낸사람을 전사 주소록에 등록">📇 연락처로 등록</button>{% endif %}
+  {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" class="btn btn-secondary" style="border-color:#1d4ed8;color:#1d4ed8" title="견적 작성 화면 열기(이 메일 참고)">📝 견적 작성</a>{% endif %}
+  {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" class="btn btn-secondary" style="border-color:#047857;color:#047857" title="수주 등록 화면 열기(이 메일 참고)">📦 수주 등록</a>{% endif %}
+  <button type="button" class="btn btn-secondary" onclick="markUnread()">● 안읽음 표시</button>{% endif %}
+  <button type="button" class="btn btn-secondary" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
+  <button type="button" class="btn btn-secondary" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
+  <button type="button" class="btn btn-secondary" onclick="window.print()" title="이 메일을 인쇄하거나 PDF로 저장(인쇄 대화상자에서 'PDF로 저장' 선택)">🖨 인쇄/PDF</button>
+  <span style="flex:1"></span>
+  <button type="button" class="btn btn-secondary" style="color:var(--knk-red)" onclick="delMail({{ m.id }})">🗑 삭제</button>
+  {% if not pane %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}
+</div>
+
+{% if has_html %}
+<div class="mv-viewtabs">
+  <button type="button" class="mv-vtab active" id="vtabHtml" onclick="mvShow('html')">📄 원본(서식)</button>
+  <button type="button" class="mv-vtab" id="vtabText" onclick="mvShow('text')">🔤 텍스트만</button>
+  <span class="mv-vnote">서명 로고·서식 포함 · 스크립트·추적은 차단된 안전 보기</span>
+</div>
+<iframe id="mvFrame" class="mv-frame" sandbox="allow-same-origin allow-popups"
+        srcdoc="<!DOCTYPE html><html><head><meta charset='utf-8'><base target='_blank'><style>html,body{margin:0;padding:12px;font-family:-apple-system,system-ui,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#111;word-break:break-word;background:#fff}img{max-width:100%;height:auto}table{max-width:100%}</style></head><body>{{ safe_html }}</body></html>"></iframe>
+<div class="mv-body" id="mvText" style="display:none">{{ m.body_text }}</div>
+{% else %}
+<div class="mv-body">{{ m.body_text }}</div>
+{% endif %}
+
+{% if file_atts %}
+<div class="mv-atts">
+  <div class="mv-atts-h">📎 첨부파일 {{ file_atts|length }}개</div>
+  {% for a in file_atts %}
+    {% if a.mime and a.mime.startswith('image/') %}
+    <a class="mv-att-img" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer" title="{{ a.filename }} — 클릭하면 원본 크기로">
+      <img src="/mail/{{ m.id }}/att/{{ a.id }}" alt="{{ a.filename }}" loading="lazy">
+      <span class="mv-att-cap">🖼 {{ a.filename }}</span>
+    </a>
+    {% else %}
+    <a class="mv-att" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer">
+      <span>{% if a.mime == 'application/pdf' %}📕{% else %}📄{% endif %}</span>
+      <span>{{ a.filename }}</span>
+      <span class="mv-att-sz">{% if a.size %}{{ (a.size / 1024)|round(1) }} KB{% endif %}</span>
+    </a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="mv-trans" id="transBox">
+  <div style="font-size:12px;color:var(--mute);margin-bottom:6px;"><b id="transLabel">번역</b> <span id="transStatus"></span></div>
+  <div style="font-weight:700;margin-bottom:6px;" id="transSubj"></div>
+  <div style="white-space:pre-wrap;line-height:1.8;" id="transBody"></div>
+</div>
+
+<script>
+(function(){
+  var MAIL_ID = {{ m.id }};
+  var IN_PANE = {{ 'true' if pane else 'false' }};
+  // 읽기 창(pane)에서 목록으로 돌아갈 때 현재 검색·앱모드 파라미터 유지
+  function inboxHref(){ return '/mail/inbox' + (IN_PANE ? (location.search||'') : ''); }
+  function mvResize(){
+    var f=document.getElementById('mvFrame'); if(!f) return;
+    try{ var d=f.contentDocument||f.contentWindow.document;
+      var h=Math.max(d.body.scrollHeight||0, d.documentElement.scrollHeight||0);
+      f.style.height=(h+24)+'px';
+    }catch(e){ f.style.height='600px'; }
+  }
+  window.mvResize=mvResize;
+  window.mvShow=function(which){
+    var f=document.getElementById('mvFrame'), t=document.getElementById('mvText');
+    var bh=document.getElementById('vtabHtml'), bt=document.getElementById('vtabText');
+    if(which==='text'){ if(f)f.style.display='none'; if(t)t.style.display='block';
+      if(bt)bt.classList.add('active'); if(bh)bh.classList.remove('active'); }
+    else { if(t)t.style.display='none'; if(f){ f.style.display='block'; setTimeout(mvResize,30);}
+      if(bh)bh.classList.add('active'); if(bt)bt.classList.remove('active'); }
+  };
+  window.translateMail=async function(target){
+    var box=document.getElementById('transBox');
+    var st=document.getElementById('transStatus');
+    box.style.display='block';
+    st.textContent='번역 중...';
+    document.getElementById('transLabel').textContent=(target==='ko'?'🇰🇷 한국어 번역':'🇻🇳 베트남어 번역');
+    document.getElementById('transSubj').textContent='';
+    document.getElementById('transBody').textContent='';
+    try{
+      var fd=new FormData(); fd.append('target',target);
+      var r=await fetch('/api/mail/'+MAIL_ID+'/translate',{method:'POST',body:fd});
+      var j=await r.json();
+      if(j.ok){ st.textContent=''; document.getElementById('transSubj').textContent=j.subject||''; document.getElementById('transBody').textContent=j.body||''; }
+      else { st.textContent='⚠ '+(j.message||'번역 실패'); }
+    }catch(e){ st.textContent='⚠ 네트워크 오류'; }
+  };
+  window.delMail=async function(id){
+    if(!confirm('이 메일을 삭제할까요?')) return;
+    try{ var r=await fetch('/mail/'+id+'/delete',{method:'POST'}); var j=await r.json();
+      if(j.ok){ if(IN_PANE && window.mailPaneAfterDelete){ window.mailPaneAfterDelete(id); } else { location.href=inboxHref(); } }
+      else { alert('삭제 실패'); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  window.markUnread=async function(){
+    try{ var fd=new FormData(); fd.append('read','0');
+      await fetch('/mail/'+MAIL_ID+'/read',{method:'POST',body:fd});
+      if(IN_PANE && window.mailPaneAfterUnread){ window.mailPaneAfterUnread(MAIL_ID); } else { location.href=inboxHref(); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  window.mailToTask=async function(){
+    if(!confirm('이 메일을 내 할 일(일일카드)에 추가할까요?')) return;
+    try{ var r=await fetch('/mail/'+MAIL_ID+'/to-task',{method:'POST'}); var j=await r.json();
+      if(j.ok){ if(confirm('✅ '+(j.message||'추가했습니다')+'\n\n지금 할 일 화면으로 갈까요?')) location.href='/daily'; }
+      else { alert('⚠ '+(j.message||'추가 실패')); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  window.mailToContact=async function(){
+    if(!confirm('보낸사람을 전사 주소록(연락처)에 등록할까요?')) return;
+    try{ var r=await fetch('/mail/'+MAIL_ID+'/to-contact',{method:'POST'}); var j=await r.json();
+      if(j.ok){ if(confirm('📇 '+(j.message||'')+'\n\n지금 연락처를 열까요?')) location.href='/contacts/'+j.contact_id; else if(!IN_PANE) location.reload(); }
+      else { alert('⚠ '+(j.message||'등록 실패')); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  var f=document.getElementById('mvFrame');
+  if(f){ f.addEventListener('load',mvResize); setTimeout(mvResize,120); }
+})();
+</script>

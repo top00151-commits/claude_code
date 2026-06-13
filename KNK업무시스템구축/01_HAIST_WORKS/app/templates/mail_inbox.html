@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>HAIST WORKS 메일함 · KNK</title>
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_view_styles.html" %}
 <style>
   .mbx-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
   .mbx-cat{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;color:var(--ink);text-decoration:none;background:#fff}
@@ -9,11 +10,19 @@
   /* 안읽음 강조 뱃지 — 빨강 알약 (대표 지시 2026-06-14) */
   .mbx-cat .nbadge{background:#dc2626;color:#fff;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:3px;line-height:1.6}
   .mbx-cat.on .nbadge{background:#fff;color:var(--knk-red)}
+  /* 읽기 창 2단 레이아웃 — 목록 | 내용 (아웃룩식, 대표 지시 2026-06-14) */
+  .mbx-split{display:grid;grid-template-columns:minmax(330px,440px) 1fr;gap:14px;align-items:start}
+  .mbx-listcol{min-width:0}
+  .mbx-readpane{border:1px solid var(--line);border-radius:12px;background:#f7f8fa;padding:16px;min-height:440px;position:sticky;top:12px;max-height:calc(100vh - 96px);overflow:auto}
+  .mbx-readpane.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mute);text-align:center;font-size:13px;line-height:1.9;gap:8px;font-weight:500}
+  .mbx-readpane.empty .mbx-rp-ico{font-size:34px;opacity:.6}
   .mbx-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
   .mbx-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
   .mbx-row:last-child{border-bottom:0}
   .mbx-row:hover{background:#f9fafb}
   .mbx-row.unread{background:#fffdf5}
+  .mbx-row.active{background:#eef2ff !important}
+  .mbx-row.active .mbx-subj{font-weight:700}
   .mbx-star{font-size:15px;cursor:pointer;color:#d1d5db;background:none;border:0;padding:0;line-height:1}
   .mbx-star.on{color:#f59e0b}
   .mbx-from{width:172px;min-width:110px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -24,6 +33,8 @@
   .mbx-badge{font-size:11px;padding:2px 8px;border-radius:6px;white-space:nowrap}
   .mbx-time{width:92px;text-align:right;font-size:11.5px;color:var(--mute);white-space:nowrap}
   .mbx-empty{padding:48px 16px;text-align:center;color:var(--mute);line-height:1.7}
+  /* 좁은 화면: 읽기 창 접고 목록만 → 행 클릭 시 풀페이지로 폴백 */
+  @media(max-width:900px){ .mbx-split{grid-template-columns:1fr} .mbx-readpane{display:none} }
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -33,7 +44,7 @@
   <div class="page-head"><div>
     <div class="crumbs"><b>HAIST WORKS 메일함</b> · {{ box_label }}</div>
     <h1 class="page-title">📧 HAIST WORKS <em>메일함</em>
-      <span style="font-size:13px;color:var(--mute);font-weight:500;">— {{ box_label }}{% if box=='in' and unread %} · 안읽음 {{ unread }}{% endif %}</span>
+      <span style="font-size:13px;color:var(--mute);font-weight:500;">— {{ box_label }}<span id="unreadTitleWrap"{% if not (box=='in' and unread) %} style="display:none"{% endif %}> · 안읽음 <span id="unreadTitle">{{ unread }}</span></span></span>
     </h1>
   </div></div>
 
@@ -41,7 +52,7 @@
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
 
   <div class="mbx-toolbar">
-    <a href="/mail/inbox" class="mbx-cat {{ 'on' if box=='in' and not cur_cat else '' }}">📥 받은편지함{% if unread %} <span class="nbadge" title="안 읽은 메일 {{ unread }}통">{{ unread }}</span>{% endif %}</a>
+    <a href="/mail/inbox" class="mbx-cat {{ 'on' if box=='in' and not cur_cat else '' }}">📥 받은편지함 <span class="nbadge" id="unreadBadge" title="안 읽은 메일"{% if not unread %} style="display:none"{% endif %}>{{ unread }}</span></a>
     <a href="/mail/sent" class="mbx-cat {{ 'on' if box=='sent' else '' }}">📤 보낸편지함</a>
     <a href="/mail/drafts" class="mbx-cat {{ 'on' if box=='draft' else '' }}">📝 임시보관함{% if drafts_n|default(0) %} <span class="n">{{ drafts_n }}</span>{% endif %}</a>
     {% if box=='in' %}
@@ -84,34 +95,44 @@
   </div>
   {% endif %}
 
-  {% if mails %}
-  <div class="mbx-list">
-    {% for m in mails %}
-    <a href="{% if box=='draft' %}/mail/compose?draft={{ m.id }}{% else %}/mail/{{ m.id }}{% endif %}" class="mbx-row {{ 'unread' if (box=='in' and not m.is_read) else '' }}">
-      {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
-      <div class="mbx-from">{% if box=='sent' or box=='draft' %}→ {{ m.to_email or '(받는사람 미정)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</div>
-      <div class="mbx-main">
-        <div class="mbx-subj">{{ m.subject }}</div>
-        {% if m.summary_short %}<div class="mbx-sum">{% if box=='in' %}📝 {% endif %}{{ m.summary_short }}</div>{% endif %}
-      </div>
-      {% if box != 'draft' %}<span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}
-      <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="mbx-list"><div class="mbx-empty">
-    {% if q or cur_star|default(false) or cur_unread|default(false) %}
-    🔍 조건에 맞는 메일이 없습니다.<br><br><span style="font-size:12.5px;">검색어나 필터를 바꿔보세요.</span>
-    {% elif box=='sent' %}
-    📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
-    {% elif box=='draft' %}
-    📝 임시저장된 메일이 없습니다.<br><br><span style="font-size:12.5px;">메일 쓰기에서 <b>💾 임시저장</b>을 누르면 여기에 보관됩니다.</span>
+  <div class="{{ 'mbx-split' if box=='in' else '' }}">
+    <div class="mbx-listcol">
+    {% if mails %}
+    <div class="mbx-list">
+      {% for m in mails %}
+      <a href="{% if box=='draft' %}/mail/compose?draft={{ m.id }}{% else %}/mail/{{ m.id }}{% endif %}" class="mbx-row {{ 'unread' if (box=='in' and not m.is_read) else '' }}" data-mail-id="{{ m.id }}"{% if box=='in' %} onclick="return rowClick(event,{{ m.id }})"{% endif %}>
+        {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
+        <div class="mbx-from">{% if box=='sent' or box=='draft' %}→ {{ m.to_email or '(받는사람 미정)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</div>
+        <div class="mbx-main">
+          <div class="mbx-subj">{{ m.subject }}</div>
+          {% if m.summary_short %}<div class="mbx-sum">{% if box=='in' %}📝 {% endif %}{{ m.summary_short }}</div>{% endif %}
+        </div>
+        {% if box != 'draft' %}<span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}
+        <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
+      </a>
+      {% endfor %}
+    </div>
     {% else %}
-    📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>＋ 시범</b> 버튼으로 동작을 보거나, 실제 메일이 오면 여기 쌓입니다.</span>
+    <div class="mbx-list"><div class="mbx-empty">
+      {% if q or cur_star|default(false) or cur_unread|default(false) %}
+      🔍 조건에 맞는 메일이 없습니다.<br><br><span style="font-size:12.5px;">검색어나 필터를 바꿔보세요.</span>
+      {% elif box=='sent' %}
+      📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
+      {% elif box=='draft' %}
+      📝 임시저장된 메일이 없습니다.<br><br><span style="font-size:12.5px;">메일 쓰기에서 <b>💾 임시저장</b>을 누르면 여기에 보관됩니다.</span>
+      {% else %}
+      📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>＋ 시범</b> 버튼으로 동작을 보거나, 실제 메일이 오면 여기 쌓입니다.</span>
+      {% endif %}
+    </div></div>
     {% endif %}
-  </div></div>
-  {% endif %}
+    </div>{# /mbx-listcol #}
+    {% if box=='in' %}
+    <div id="readPane" class="mbx-readpane empty">
+      <div class="mbx-rp-ico">📧</div>
+      왼쪽에서 메일을 선택하면<br>여기에서 바로 내용을 볼 수 있어요.
+    </div>
+    {% endif %}
+  </div>
 </main></div>
 <script>
 async function toggleStar(ev, id){
@@ -131,5 +152,67 @@ async function demoMail(lang){
     if(j.ok){ location.reload(); } else { alert('실패: '+(j.message||'')); }
   }catch(e){ alert('네트워크 오류'); }
 }
+
+/* ── 읽기 창(읽는 칸) — 아웃룩식 (대표 지시 2026-06-14) ───────────────── */
+function paneWide(){ return window.matchMedia('(min-width:901px)').matches; }
+// 행 클릭: 넓은 화면이면 읽기 창에 로드(이동 안 함), 좁은 화면이면 풀페이지로 이동
+function rowClick(ev, id){
+  if(paneWide()){
+    ev.preventDefault();
+    loadPane(id, ev.currentTarget);
+    return false;
+  }
+  return true;
+}
+function setUnread(n){
+  n = Math.max(0, n);
+  var b=document.getElementById('unreadBadge');
+  var t=document.getElementById('unreadTitle');
+  var tw=document.getElementById('unreadTitleWrap');
+  if(b){ b.textContent=n; b.style.display=n?'':'none'; }
+  if(t){ t.textContent=n; }
+  if(tw){ tw.style.display=n?'':'none'; }
+}
+function curUnread(){ var b=document.getElementById('unreadBadge'); return b?(parseInt(b.textContent||'0',10)||0):0; }
+function decUnreadBadge(){ setUnread(curUnread()-1); }
+function incUnreadBadge(){ setUnread(curUnread()+1); }
+function resetPane(){
+  var pane=document.getElementById('readPane'); if(!pane) return;
+  document.querySelectorAll('.mbx-row.active').forEach(function(r){ r.classList.remove('active'); });
+  pane.classList.add('empty');
+  pane.innerHTML='<div class="mbx-rp-ico">📧</div>왼쪽에서 메일을 선택하면<br>여기에서 바로 내용을 볼 수 있어요.';
+}
+async function loadPane(id, rowEl){
+  var pane=document.getElementById('readPane'); if(!pane) return;
+  document.querySelectorAll('.mbx-row.active').forEach(function(r){ r.classList.remove('active'); });
+  if(rowEl) rowEl.classList.add('active');
+  pane.classList.remove('empty');
+  pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#9ca3af">메일 불러오는 중…</div>';
+  try{
+    var r=await fetch('/mail/'+id+'/pane',{headers:{'X-Requested-With':'fetch'}});
+    if(!r.ok){ pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#b91c1c">메일을 불러오지 못했습니다.</div>'; return; }
+    var html=await r.text();
+    pane.innerHTML=html;
+    // innerHTML 은 <script> 를 실행하지 않으므로 재생성해 실행 (IIFE 라 재실행 안전)
+    pane.querySelectorAll('script').forEach(function(old){
+      var s=document.createElement('script');
+      if(old.src) s.src=old.src; else s.textContent=old.textContent;
+      old.replaceWith(s);
+    });
+    // 서버가 pane 로드 시 읽음 처리 → 목록 행 unread 해제 + 안읽음 수 감소
+    if(rowEl && rowEl.classList.contains('unread')){ rowEl.classList.remove('unread'); decUnreadBadge(); }
+  }catch(e){ pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#b91c1c">네트워크 오류</div>'; }
+}
+// 읽기 창 안의 삭제/안읽음표시 후 목록 갱신 (mail_view_body.html 스크립트가 호출)
+window.mailPaneAfterDelete=function(id){
+  var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]');
+  if(row){ if(row.classList.contains('unread')) decUnreadBadge(); row.remove(); }
+  resetPane();
+};
+window.mailPaneAfterUnread=function(id){
+  var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]');
+  if(row && !row.classList.contains('unread')){ row.classList.add('unread'); incUnreadBadge(); }
+  resetPane();
+};
 </script>
 </body></html>
