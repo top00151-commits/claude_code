@@ -11124,7 +11124,8 @@ async def mail_attachment(req: Request, mail_id: int, att_id: int):
     # 파일명 RFC5987(한글 안전) — ASCII fallback + UTF-8
     import urllib.parse as _up
     fn = a["filename"] or "attachment"
-    disp = "inline" if mime.startswith("image/") else "attachment"
+    # 이미지·PDF 는 브라우저에서 바로 미리보기(inline), 그 외는 다운로드 (Phase4)
+    disp = "inline" if (mime.startswith("image/") or mime == "application/pdf") else "attachment"
     headers = {
         "Content-Disposition": f"{disp}; filename*=UTF-8''{_up.quote(fn)}",
         "X-Content-Type-Options": "nosniff",

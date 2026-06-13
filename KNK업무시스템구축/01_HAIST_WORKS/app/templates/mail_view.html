@@ -20,6 +20,11 @@
   .mv-att{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:4px 6px 0 0;font-size:12.5px;color:var(--ink);text-decoration:none;background:#fafafa}
   .mv-att:hover{background:#f0f0f0}
   .mv-att-sz{color:var(--mute);font-size:11px}
+  /* 첨부 이미지 인라인 미리보기 (대표 지시 2026-06-14 Phase4) */
+  .mv-att-img{display:inline-block;vertical-align:top;margin:6px 8px 0 0;border:1px solid var(--line);border-radius:9px;overflow:hidden;text-decoration:none;background:#fafafa;width:140px}
+  .mv-att-img img{display:block;width:140px;height:104px;object-fit:cover;background:#f0f0f0}
+  .mv-att-img:hover{border-color:var(--knk-red)}
+  .mv-att-cap{display:block;font-size:11px;color:var(--mute);padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* 인쇄/PDF — 메뉴·버튼·번역창은 숨기고 메일 본문만 깔끔히 (대표 지시 2026-06-14) */
   @media print {
     .mail-app-top, .mv-actions, .mv-viewtabs, .mv-trans, .page-head { display:none !important; }
@@ -86,11 +91,18 @@
   <div class="mv-atts">
     <div class="mv-atts-h">📎 첨부파일 {{ file_atts|length }}개</div>
     {% for a in file_atts %}
-    <a class="mv-att" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer">
-      <span>📄</span>
-      <span>{{ a.filename }}</span>
-      <span class="mv-att-sz">{% if a.size %}{{ (a.size / 1024)|round(1) }} KB{% endif %}</span>
-    </a>
+      {% if a.mime and a.mime.startswith('image/') %}
+      <a class="mv-att-img" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer" title="{{ a.filename }} — 클릭하면 원본 크기로">
+        <img src="/mail/{{ m.id }}/att/{{ a.id }}" alt="{{ a.filename }}" loading="lazy">
+        <span class="mv-att-cap">🖼 {{ a.filename }}</span>
+      </a>
+      {% else %}
+      <a class="mv-att" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer">
+        <span>{% if a.mime == 'application/pdf' %}📕{% else %}📄{% endif %}</span>
+        <span>{{ a.filename }}</span>
+        <span class="mv-att-sz">{% if a.size %}{{ (a.size / 1024)|round(1) }} KB{% endif %}</span>
+      </a>
+      {% endif %}
     {% endfor %}
   </div>
   {% endif %}
