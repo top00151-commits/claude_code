@@ -78,6 +78,7 @@
     </div>
     <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
     <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>
+    <textarea id="cSigHtml" style="display:none">{{ sig_html|default('') }}</textarea>
     <input type="hidden" id="cDraftId" value="{{ prefill.draft_id }}">
     <div class="cmp-row" style="border-bottom:0;align-items:flex-start;">
       <label style="padding-top:6px;">첨부</label>
@@ -176,7 +177,19 @@
 
   // ── 서식 편집기(rich text) 초기화 + 툴바 ──
   var ED=document.getElementById('cBody');
-  (function(){ var pf=document.getElementById('cPrefill'); if(ED && pf) ED.innerText = pf.value; })();
+  (function(){
+    var pf=document.getElementById('cPrefill'); if(ED && pf) ED.innerText = pf.value;
+    // 서명(HTML/이미지 가능)을 본문 위쪽(인용 앞)에 삽입. 드래프트는 sig_html 이 비어 중복 안 됨.
+    var sg=document.getElementById('cSigHtml');
+    if(ED && sg && sg.value.trim()){
+      var sig=document.createElement('div'); var v=sg.value;
+      if(/<[a-z][\s\S]*>/i.test(v)) sig.innerHTML='--<br>'+v;   // HTML 서명
+      else sig.innerText='--\n'+v;                              // 텍스트 서명(줄바꿈 보존)
+      var blank=document.createElement('div'); blank.innerHTML='<br>';
+      ED.insertBefore(sig, ED.firstChild);
+      ED.insertBefore(blank, sig);
+    }
+  })();
   var tb=document.getElementById('cTb');
   if(tb) tb.addEventListener('click',function(e){
     var b=e.target.closest('button'); if(!b)return; var cmd=b.getAttribute('data-cmd'); if(!cmd)return;

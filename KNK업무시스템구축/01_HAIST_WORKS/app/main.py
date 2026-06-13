@@ -11336,7 +11336,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
     with db_session() as c:
         ready = _mail.system_send_ready(c)
         sig = _mailbox.get_signature(c, u["id"])
-        sigblock = ("\n\n--\n" + sig) if sig else ""
+        sigblock = ""   # 서명은 HTML 로 분리 전달(아래 sig_html) — 텍스트 본문에 안 엮음 (이미지 서명 지원)
         my_addr = (_mail_from_address() or "").lower()
         if draft:
             d = _mailbox.get_draft(c, draft, u["id"])
@@ -11375,7 +11375,8 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         else:
             prefill["body"] = sigblock
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
-               from_addr=_mail_from_address(), ai_on=ai_enabled_for(u))
+               from_addr=_mail_from_address(), ai_on=ai_enabled_for(u),
+               sig_html=("" if draft else sig))   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
 
 @app.post("/mail/send")
