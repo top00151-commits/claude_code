@@ -104,6 +104,8 @@ html,body{background:#fff!important;overflow:auto!important;}
         <input type="hidden" name="unit_due[]" id="qUnitDue" value="">
         <input type="hidden" name="unit_ship[]" id="qUnitShip" value="">
         <input type="hidden" name="unit_currency[]" id="qUnitCur" value="KRW">
+        {# z389: 호기별 단가가 서로 다르면 '1'(헤더 단가 비움·평균 금지). 전부 동일하면 ''(공통단가 저장). #}
+        <input type="hidden" name="multi_unit" id="qMultiUnit" value="">
 
         {# v5H226z351(대표 지시): 필드 순서·비율 재정리 — 12열 그리드 7행 배치.
            1)관리번호·수주번호·고객사1·고객사2  2)프로젝트명·거래구분·PO유형·형태(드롭다운)
@@ -364,9 +366,12 @@ function qUnitSum(){
   var s=document.getElementById('qUnitSum'); if(s) s.textContent=sum.toLocaleString('en-US');
   var sc=document.getElementById('qUnitSumCur'); if(sc) sc.textContent=v.cur;
   if(v.qty>=2){
-    // v5H226z383: 호기별이면 헤더 금액=합계, 단가=호기 평균(자동·잠금)
+    // z389(대표 지시): 헤더 금액=합계. 단가는 '평균 금지' — 호기 전부 동일하면 공통단가, 다르면 비움+'(호기별)' 표시.
     var amt=document.getElementById('qAmount'); if(amt) amt.value=sum.toLocaleString('en-US');
-    var up=document.getElementById('qUnitPrice'); if(up) up.value=(v.qty>0?Math.round(sum/v.qty):0).toLocaleString('en-US');
+    var _a=[]; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(x){ _a.push(parseFloat((x.value||'0').replace(/,/g,''))||0); });
+    var _eq=_a.length>0 && _a.every(function(x){ return x===_a[0]; });
+    var up=document.getElementById('qUnitPrice');
+    if(up){ up.value=_eq?_a[0].toLocaleString('en-US'):''; up.placeholder=_eq?'0':'(호기별)'; }
   }
 }
 // v5H226z383(대표 지시): 호기별이면 헤더 단가·금액 칸 잠금 — 입력은 호기별 금액 칸으로만.
@@ -453,10 +458,15 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
     qSyncUnitStatic(true);
   } else if(_q>=2 && document.getElementById('qUnitWrap')){
     qSyncUnitStatic(true);
-    // 프로젝트 수주액(order_amount)=호기 합, 단가=합/수량(평균) 으로 맞춰 '폼/SO 불일치' 경고 방지
-    var _sum=0; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ _sum+=parseFloat((a.value||'0').replace(/,/g,''))||0; });
+    // z389(대표 지시): 평균 주입 금지. 호기 전부 동일 → 공통단가 저장 / 다름 → 단가 비움 + multi_unit=1 (보드에서 호기별 분할 표시).
+    var _amts=[]; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ _amts.push(parseFloat((a.value||'0').replace(/,/g,''))||0); });
+    var _sum=_amts.reduce(function(s,x){ return s+x; },0);
     if(_sum<=0){ e.preventDefault(); err.textContent='호기별 금액을 입력하세요 (한 대 이상).'; err.classList.add('show'); return; }
-    var _up=document.querySelector('[name=unit_price]'); if(_up) _up.value=String(_sum/_q);
+    var _eq=_amts.length>0 && _amts.every(function(x){ return x===_amts[0]; });
+    var _up=document.querySelector('[name=unit_price]');
+    var _mu=document.getElementById('qMultiUnit');
+    if(_eq){ if(_up) _up.value=String(_amts[0]); if(_mu) _mu.value=''; }
+    else { if(_up) _up.value=''; if(_mu) _mu.value='1'; }
     var _oa=document.getElementById('qAmount'); if(_oa) _oa.value=String(_sum);
   } else {
     qSyncUnitStatic(false);

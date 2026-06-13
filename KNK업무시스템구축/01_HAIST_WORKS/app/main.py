@@ -13288,6 +13288,78 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
 # v5H226z256 (대표 지시): 작업 일정표(전사 일정 운영 보드) — 1단계 읽기전용.
 #   설계: _기획/작업일정표_운영보드_설계.md v1.0. 월별 달력 그리드, 관리코드 1줄,
 #   발주일~납기일 일정 막대 + 납품일(●), 오늘 열 강조, 헤더/좌측 고정. 전사(프로젝트+소모품).
+# v5H226z389 (대표 지시): 호기(검사기 N대)별 단가·납기가 다르면 작업일정표에 '호기당 1줄'로 분할.
+#   전부 동일하면 기존처럼 1줄. 분할 판정은 order_items(호기 라인) 기준 — 등록 시 평균을 안 쓰므로
+#   데이터(order_items)에 호기별 실금액·실납기가 그대로 살아 있다(소급 적용됨).
+def _board_split_lines_map():
+    """프로젝트별 호기 라인(order_items)을 읽어, **단가(금액) 또는 납기가 호기마다 다른** 프로젝트만
+    {project_id: [line, ...]} 로 반환. (라인 1건이거나 전부 동일하면 제외 → 그 프로젝트는 기존 1줄 유지)
+
+    line = {label, price, amount, currency, order_date, due_date, ship_to, so_no}
+      · 납기/납품지/발주일/통화는 호기 override(order_items) 우선, 없으면 SO(orders) 값 상속.
+      · 취소(CANCELLED) SO 는 제외.
+    """
+    out: dict = {}
+    try:
+        with db_session() as _c:
+            _oi_cols = {r[1] for r in _c.execute("PRAGMA table_info(order_items)").fetchall()}
+            _has_extra = ("due_date" in _oi_cols and "ship_to" in _oi_cols
+                          and "order_date" in _oi_cols and "currency" in _oi_cols)
+            if _has_extra:
+                _sql = (
+                    "SELECT o.project_id AS pid, o.order_no AS so_no, "
+                    "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, "
+                    "COALESCE(o.currency,'KRW') AS o_cur, "
+                    "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, "
+                    "oi.order_date AS i_ord, oi.due_date AS i_due, oi.ship_to AS i_ship, oi.currency AS i_cur "
+                    "FROM order_items oi JOIN orders o ON oi.order_id=o.id "
+                    "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
+                    "ORDER BY o.project_id, oi.id"
+                )
+            else:
+                _sql = (
+                    "SELECT o.project_id AS pid, o.order_no AS so_no, "
+                    "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, "
+                    "'KRW' AS o_cur, "
+                    "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, "
+                    "'' AS i_ord, '' AS i_due, '' AS i_ship, '' AS i_cur "
+                    "FROM order_items oi JOIN orders o ON oi.order_id=o.id "
+                    "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
+                    "ORDER BY o.project_id, oi.id"
+                )
+            _by: dict = {}
+            for _r in _c.execute(_sql):
+                d = dict(_r)
+                pid = d.get("pid")
+                if not pid:
+                    continue
+                eff_due = (str(d.get("i_due") or "").strip() or str(d.get("o_due") or "").strip())
+                eff_ord = (str(d.get("i_ord") or "").strip() or str(d.get("o_ord") or "").strip())
+                eff_ship = (str(d.get("i_ship") or "").strip() or str(d.get("o_ship") or "").strip())
+                eff_cur = (str(d.get("i_cur") or "").strip() or str(d.get("o_cur") or "").strip() or "KRW")
+                _by.setdefault(pid, []).append({
+                    "label": (d.get("lbl") or "").strip(),
+                    "price": float(d.get("up") or 0),
+                    "amount": float(d.get("amt") or 0),
+                    "currency": eff_cur,
+                    "order_date": eff_ord[:10],
+                    "due_date": eff_due[:10],
+                    "ship_to": eff_ship,
+                    "so_no": d.get("so_no") or "",
+                })
+            for pid, lines in _by.items():
+                if len(lines) < 2:
+                    continue
+                # 호기 금액(=단가, qty=1) 집합 / 납기 집합 — 둘 중 하나라도 2종 이상이면 분할
+                _amts = {round(float(l["amount"]), 2) for l in lines}
+                _dues = {l["due_date"] for l in lines}
+                if len(_amts) > 1 or len(_dues) > 1:
+                    out[pid] = lines
+    except Exception:
+        return {}
+    return out
+
+
 # v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
 #   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
 def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""):
@@ -13361,6 +13433,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         return _cur, len(_st.get("prog", {}))
 
     rows = []
+    _split_map = _board_split_lines_map()   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue
@@ -13389,9 +13462,29 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "st": _stage_map.get(("project", p.get("id")), _empty_st),
         }
         info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
-        _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
-        if _r and not (cust and cust not in (_r["customer"] or "")):
-            rows.append(_r)
+        _ulines = _split_map.get(p.get("id"))
+        if _ulines:
+            # z389 (대표 지시): 호기별 단가·납기가 다름 → 호기당 1줄로 분할(각 줄=그 호기의 단가·금액·납기·SO·간트막대).
+            #   단가/금액/수량 칸은 호기 라인 값이라 보드 인라인편집(프로젝트 수정) 대상에서 제외(is_unit) → 오기록 방지.
+            for _ln in _ulines:
+                _iu = dict(info)
+                _iu["is_unit"] = True
+                _iu["unit_label"] = _ln["label"]
+                _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
+                _iu["price"] = _ln["price"]
+                _iu["amount"] = _ln["amount"]
+                _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
+                _iu["qty"] = 1
+                _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
+                _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
+                _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
+                _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), p.get("status"), "project")
+                if _ru and not (cust and cust not in (_ru["customer"] or "")):
+                    rows.append(_ru)
+        else:
+            _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+            if _r and not (cust and cust not in (_r["customer"] or "")):
+                rows.append(_r)
     try:
         from . import consumables as _co_mod
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
@@ -13674,6 +13767,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         return _cur, len(_st.get("prog", {}))
 
     rows = []
+    _split_map = _board_split_lines_map()   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue  # 소모품은 아래 co_list 로 (중복 방지)
@@ -13714,9 +13808,29 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "st": _stage_map.get(("project", p.get("id")), _empty_st),
         }
         info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
-        _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
-        if _r and not (cust and cust not in (_r["customer"] or "")):
-            rows.append(_r)
+        _ulines = _split_map.get(p.get("id"))
+        if _ulines:
+            # z389 (대표 지시): 호기별 단가·납기가 다름 → 호기당 1줄로 분할(각 줄=그 호기의 단가·금액·납기·SO·간트막대).
+            #   단가/금액/수량 칸은 호기 라인 값이라 보드 인라인편집(프로젝트 수정) 대상에서 제외(is_unit) → 오기록 방지.
+            for _ln in _ulines:
+                _iu = dict(info)
+                _iu["is_unit"] = True
+                _iu["unit_label"] = _ln["label"]
+                _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
+                _iu["price"] = _ln["price"]
+                _iu["amount"] = _ln["amount"]
+                _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
+                _iu["qty"] = 1
+                _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
+                _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
+                _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
+                _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), p.get("status"), "project")
+                if _ru and not (cust and cust not in (_ru["customer"] or "")):
+                    rows.append(_ru)
+        else:
+            _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+            if _r and not (cust and cust not in (_r["customer"] or "")):
+                rows.append(_r)
     # 소모품 일정 (전사 포함)
     try:
         from . import consumables as _co_mod
@@ -14597,6 +14711,9 @@ async def projects_new_submit(request: Request):
         _up_v = 0
     _status_v = (form.get("status") or "초기협의").strip()
     _confirm_now_v = (form.get("confirm_now") or "").strip() in ("1", "on", "true", "yes")
+    # v5H226z389 (대표 지시): 호기별(검사기 N대) 단가가 서로 다르면 헤더 '단가'를 비워 보냄(평균 금지).
+    #   이 경우 단가 필수 검증을 면제하고 '호기 합계(order_amount)>0' 로 대신 검증한다.
+    _multi_v = (form.get("multi_unit") or "").strip() in ("1", "on", "true", "yes")
     # v5H222: 소모품(CONSUMABLE)은 라인이 비어있는 상태로 등록 → 단가/수량 검증 면제
     _is_consumable = (_ptype_form == "CONSUMABLE")
     _strict = (_status_v in ("진행중", "납품완료") or _confirm_now_v) and not _is_consumable
@@ -14608,7 +14725,15 @@ async def projects_new_submit(request: Request):
             return _err_redirect("order_date_required")
         if not due_date_v:
             return _err_redirect("due_date_required")
-        if _up_v <= 0:
+        if _multi_v:
+            # 호기별 단가 — 단가칸은 비어 있음. 대신 호기 합계(폼 order_amount)로 검증.
+            try:
+                _oa_chk = float((form.get("order_amount") or "0").strip().replace(",", ""))
+            except ValueError:
+                _oa_chk = 0
+            if _oa_chk <= 0:
+                return _err_redirect("unit_price_required")
+        elif _up_v <= 0:
             return _err_redirect("unit_price_required")
     # 외화 시 기준환율 — strict 단계에서만 필수 (제안 단계는 환율 미정 OK)
     _ccy_v = (form.get("currency") or "KRW").strip().upper()
@@ -14645,8 +14770,9 @@ async def projects_new_submit(request: Request):
     # 0 이거나 단가>0 이면 항상 단가×수량으로 재계산 (자가치유)
     if unit_price > 0:
         amt = unit_price * unit_qty
-    elif amt > 0 and unit_qty >= 1:
+    elif amt > 0 and unit_qty >= 1 and not _multi_v:
         # 폴백: 단가 미입력이면 amt/qty 를 단가로 추정
+        # v5H226z389: 호기별(_multi_v)이면 평균(amt/qty) 추정 금지 — unit_price=None 유지(보드는 호기별로 분할 표시).
         unit_price = amt / unit_qty
     # v5H77: '수주확정 동시발급' 체크 — 등록 직후 confirm_order 호출
     confirm_now = (form.get("confirm_now") or "").strip() in ("1", "on", "true", "yes")
