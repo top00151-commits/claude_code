@@ -33,6 +33,10 @@ ul.wp-list li .n{color:#94a3b8;font-variant-numeric:tabular-nums;}
 .wp-aibtn:disabled{opacity:.6;cursor:default;}
 .wp-aiout{margin-top:12px;background:#f7fdf9;border:1px solid #bbe9cd;border-left:3px solid #15a34a;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.75;white-space:pre-wrap;color:#14361f;}
 .wp-aihint{font-size:11.5px;color:#94a3b8;margin-top:6px;}
+.ex-h{font-size:12.5px;font-weight:800;color:#334155;margin-bottom:6px;}
+.ex-h .wp-muted{font-weight:400;}
+.ex-col{flex:1;min-width:200px;}
+.ex-wrap{display:flex;gap:18px;flex-wrap:wrap;}
 </style></head>
 <body>
 <div class="app">{% set active_tab='home' %}
@@ -62,6 +66,33 @@ ul.wp-list li .n{color:#94a3b8;font-variant-numeric:tabular-nums;}
       <button class="wp-aibtn" id="aiBtn" onclick="wpGenSummary()">AI 요약 생성</button>
       <div class="wp-aihint">집계 데이터와 업무 제목만 AI에 전달합니다 (메모 본문은 보내지 않음). 인사평가가 아니라 주 담당 업무·반복 업무 정리입니다.</div>
       <div class="wp-aiout" id="aiOut" style="display:none;"></div>
+    </div>
+
+    <div class="wp-card">
+      <h3>종합 활동 <span class="wp-muted" style="font-weight:400;">— 일일업무 외 (티켓·이슈·공정)</span></h3>
+      <div class="ex-wrap">
+        <div class="ex-col">
+          <div class="ex-h">🎫 티켓 <span class="wp-muted">받아 처리 {{ extra.tkt_recv_n }} · 요청 {{ extra.tkt_sent_n }}</span></div>
+          <ul class="wp-list">
+            {% for x in extra.tkt_recv %}<li><span>{{ x.category }}</span><span class="n">{{ x.n }}건{% if x.done %} · 완료 {{ x.done }}{% endif %}</span></li>{% endfor %}
+            {% if not extra.tkt_recv %}<li class="wp-muted">받아 처리한 티켓 없음</li>{% endif %}
+          </ul>
+        </div>
+        <div class="ex-col">
+          <div class="ex-h">🔥 담당 이슈 <span class="wp-muted">{{ extra.issues_n }}건</span></div>
+          <ul class="wp-list">
+            {% for x in extra.issues %}<li><span>{{ x.severity }}</span><span class="n">{{ x.n }}건</span></li>{% endfor %}
+            {% if not extra.issues %}<li class="wp-muted">담당 이슈 없음</li>{% endif %}
+          </ul>
+        </div>
+        <div class="ex-col">
+          <div class="ex-h">🏗 담당 공정 <span class="wp-muted">{{ extra.phases_n }}건</span></div>
+          <ul class="wp-list">
+            {% for x in extra.phases %}<li><span>{{ x.status }}</span><span class="n">{{ x.n }}건</span></li>{% endfor %}
+            {% if not extra.phases %}<li class="wp-muted">담당 공정 없음</li>{% endif %}
+          </ul>
+        </div>
+      </div>
     </div>
 
     {% if total %}

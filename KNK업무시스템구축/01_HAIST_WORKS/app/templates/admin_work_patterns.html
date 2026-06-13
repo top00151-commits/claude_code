@@ -33,7 +33,7 @@ table.wp tbody tr:hover td{background:#fcfaf3;}
     <h1 class="page-title">직원 업무 패턴 <em>— 한 일 모아보기</em></h1>
   </div></div>
   <div class="wp-wrap">
-    <div class="wp-banner">📋 <b>업무분장·인수인계·개인 업무 매뉴얼용 기초자료</b>입니다 (감시용이 아닙니다). 지금은 <b>일일업무</b> 기록 기준이며, 다음 단계에서 티켓·이슈·공정·협업까지 합산됩니다. · 열람: <b>대표(최고관리자) 전용</b>.</div>
+    <div class="wp-banner">📋 <b>업무분장·인수인계·개인 업무 매뉴얼용 기초자료</b>입니다 (감시용이 아닙니다). <b>일일업무 + 티켓 + 이슈 + 프로젝트 공정</b>을 합산한 종합 패턴입니다. 활동량 많은 순으로 정렬됩니다. · 열람: <b>대표(최고관리자) 전용</b>.</div>
 
     <div class="wp-period">
       {% for d,l in [(30,'최근 30일'),(90,'최근 90일'),(365,'최근 1년')] %}
@@ -45,33 +45,37 @@ table.wp tbody tr:hover td{background:#fcfaf3;}
     <div class="wp-card">
       <h3>부서별 요약</h3>
       <table class="wp">
-        <thead><tr><th>부서</th><th class="num">인원</th><th class="num">업무</th><th class="num">공수(h)</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
+        <thead><tr><th>부서</th><th class="num">인원</th><th class="num">일일업무</th><th class="num">티켓</th><th class="num">이슈</th><th class="num">공정</th><th class="num">공수(h)</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
         <tbody>
         {% for d in depts %}<tr class="wp-dept">
           <td>{{ d.team_name }}</td><td class="num">{{ d.people }}</td><td class="num">{{ d.cnt }}</td>
+          <td class="num">{{ d.tickets }}</td><td class="num">{{ d.issues }}</td><td class="num">{{ d.phases }}</td>
           <td class="num">{{ d.hours }}</td><td class="num">{{ d.rate }}%</td>
           <td class="num">{% if d.delayed %}<span class="wp-late">{{ d.delayed }}</span>{% else %}0{% endif %}</td>
         </tr>{% endfor %}
-        {% if not depts %}<tr><td colspan="6" class="wp-muted">기간 내 기록이 없습니다.</td></tr>{% endif %}
+        {% if not depts %}<tr><td colspan="9" class="wp-muted">기간 내 기록이 없습니다.</td></tr>{% endif %}
         </tbody>
       </table>
     </div>
 
     <div class="wp-card">
-      <h3>직원별 <span class="wp-muted" style="font-weight:400;">(업무 많은 순 · 이름 클릭 → 상세·AI 요약)</span></h3>
+      <h3>직원별 <span class="wp-muted" style="font-weight:400;">(활동 많은 순 · 이름 클릭 → 상세·AI 요약)</span></h3>
       <table class="wp">
-        <thead><tr><th>이름</th><th>부서</th><th class="num">업무</th><th class="num">공수(h)</th><th>주 업무</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
+        <thead><tr><th>이름</th><th>부서</th><th class="num">일일업무</th><th class="num">티켓</th><th class="num">이슈</th><th class="num">공정</th><th class="num">공수(h)</th><th>주 업무</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
         <tbody>
         {% for r in rows %}<tr>
           <td class="wp-name"><a href="/admin/work-patterns/{{ r.user_id }}?days={{ days }}">{{ r.name }}</a></td>
           <td class="wp-muted">{{ r.team_name }}</td>
           <td class="num">{{ r.cnt }}</td>
+          <td class="num">{{ r.tickets or '·' }}</td>
+          <td class="num">{{ r.issues or '·' }}</td>
+          <td class="num">{{ r.phases or '·' }}</td>
           <td class="num">{{ r.hours }}</td>
           <td>{{ r.top_cats }}</td>
-          <td class="num"><span class="wp-bar"><i style="width:{{ r.rate }}%"></i></span>{{ r.rate }}%</td>
+          <td class="num">{% if r.cnt %}<span class="wp-bar"><i style="width:{{ r.rate }}%"></i></span>{{ r.rate }}%{% else %}<span class="wp-muted">·</span>{% endif %}</td>
           <td class="num">{% if r.delayed %}<span class="wp-late">{{ r.delayed }}</span>{% else %}0{% endif %}</td>
         </tr>{% endfor %}
-        {% if not rows %}<tr><td colspan="7" class="wp-muted">기간 내 일일업무 기록이 있는 직원이 없습니다.</td></tr>{% endif %}
+        {% if not rows %}<tr><td colspan="10" class="wp-muted">기간 내 업무 기록이 있는 직원이 없습니다.</td></tr>{% endif %}
         </tbody>
       </table>
     </div>

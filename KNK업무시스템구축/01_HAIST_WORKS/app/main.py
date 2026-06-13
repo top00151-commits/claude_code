@@ -1316,47 +1316,84 @@ async def admin_work_patterns(request: Request):
     start, end, plabel, days = _wp_period(request)
     from collections import defaultdict
     with db_session() as c:
-        agg = [dict(r) for r in c.execute(
-            """SELECT t.user_id, u.name, u.team_id, COALESCE(tm.name,'(부서없음)') AS team_name,
-                      COUNT(*) AS cnt, COALESCE(SUM(t.hours),0) AS hours,
+        # 일일업무(tasks) 집계
+        task_map = {r["uid"]: dict(r) for r in c.execute(
+            """SELECT t.user_id AS uid, COUNT(*) AS cnt, COALESCE(SUM(t.hours),0) AS hours,
                       SUM(CASE WHEN t.status='완료' THEN 1 ELSE 0 END) AS done,
                       SUM(CASE WHEN t.status='지연' THEN 1 ELSE 0 END) AS delayed
-               FROM tasks t JOIN users u ON u.id=t.user_id
-               LEFT JOIN teams tm ON tm.id=u.team_id
-               WHERE t.work_date BETWEEN ? AND ? AND COALESCE(u.is_active,1)=1
-               GROUP BY t.user_id""",
-            (start, end),
-        ).fetchall()]
+               FROM tasks t WHERE t.work_date BETWEEN ? AND ? GROUP BY t.user_id""",
+            (start, end)).fetchall()}
         catrows = c.execute(
-            """SELECT t.user_id AS uid, t.category AS cat, COUNT(*) AS n
-               FROM tasks t
+            """SELECT t.user_id AS uid, t.category AS cat, COUNT(*) AS n FROM tasks t
                WHERE t.work_date BETWEEN ? AND ? AND COALESCE(t.category,'')<>''
-               GROUP BY t.user_id, t.category""",
-            (start, end),
-        ).fetchall()
+               GROUP BY t.user_id, t.category""", (start, end)).fetchall()
+        # v5H226z412 (2단계): 종합 신호 — 티켓(처리)·이슈(담당)·공정(담당). 테이블/컬럼 없으면 graceful.
+        tkt_map, iss_map, pha_map = {}, {}, {}
+        try:
+            for r in c.execute("SELECT recipient_user_id AS uid, COUNT(*) AS n FROM tickets "
+                               "WHERE recipient_user_id IS NOT NULL AND date(COALESCE(created_at,'')) BETWEEN ? AND ? "
+                               "GROUP BY recipient_user_id", (start, end)):
+                tkt_map[r["uid"]] = r["n"]
+        except Exception:
+            pass
+        try:
+            for r in c.execute("SELECT owner_user_id AS uid, COUNT(*) AS n FROM issues "
+                               "WHERE owner_user_id IS NOT NULL AND date(COALESCE(created_at,'')) BETWEEN ? AND ? "
+                               "GROUP BY owner_user_id", (start, end)):
+                iss_map[r["uid"]] = r["n"]
+        except Exception:
+            pass
+        try:
+            for r in c.execute("SELECT assignee_id AS uid, COUNT(*) AS n FROM project_phases "
+                               "WHERE assignee_id IS NOT NULL AND date(COALESCE(updated_at,'')) BETWEEN ? AND ? "
+                               "GROUP BY assignee_id", (start, end)):
+                pha_map[r["uid"]] = r["n"]
+        except Exception:
+            pass
+        # 활동(어느 신호든)이 있는 사번 union → 이름/부서 해석 (활성 사용자만)
+        uids = set(task_map) | set(tkt_map) | set(iss_map) | set(pha_map)
+        umap = {}
+        if uids:
+            qm = ",".join("?" * len(uids))
+            for r in c.execute(f"SELECT u.id, u.name, COALESCE(tm.name,'(부서없음)') AS team_name "
+                               f"FROM users u LEFT JOIN teams tm ON tm.id=u.team_id "
+                               f"WHERE u.id IN ({qm}) AND COALESCE(u.is_active,1)=1", list(uids)):
+                umap[r["id"]] = dict(r)
     catmap = defaultdict(list)
     for r in catrows:
         catmap[r["uid"]].append((r["n"], r["cat"]))
-    for r in agg:
-        cats = sorted(catmap.get(r["user_id"], []), reverse=True)
-        r["top_cats"] = ", ".join(cc for _, cc in cats[:2]) or "—"
-        r["rate"] = round(100 * r["done"] / r["cnt"]) if r["cnt"] else 0
-        r["hours"] = round(r["hours"], 1)
-    agg.sort(key=lambda x: -x["cnt"])
+    rows = []
+    for uid in uids:
+        if uid not in umap:   # 비활성/삭제 사용자 제외
+            continue
+        t = task_map.get(uid, {})
+        cnt = t.get("cnt", 0) or 0
+        done = t.get("done", 0) or 0
+        cats = sorted(catmap.get(uid, []), reverse=True)
+        tickets = tkt_map.get(uid, 0); issues = iss_map.get(uid, 0); phases = pha_map.get(uid, 0)
+        rows.append({
+            "user_id": uid, "name": umap[uid]["name"], "team_name": umap[uid]["team_name"],
+            "cnt": cnt, "hours": round(t.get("hours", 0) or 0, 1),
+            "done": done, "delayed": t.get("delayed", 0) or 0,
+            "rate": round(100 * done / cnt) if cnt else 0,
+            "top_cats": ", ".join(cc for _, cc in cats[:2]) or "—",
+            "tickets": tickets, "issues": issues, "phases": phases,
+            "activity": cnt + tickets + issues + phases,
+        })
+    rows.sort(key=lambda x: -x["activity"])
     depts = {}
-    for r in agg:
-        d = depts.setdefault(r["team_name"], {"team_name": r["team_name"], "people": 0, "cnt": 0, "hours": 0.0, "done": 0, "delayed": 0})
-        d["people"] += 1
-        d["cnt"] += r["cnt"]
-        d["hours"] += r["hours"]
-        d["done"] += r["done"]
-        d["delayed"] += r["delayed"]
-    dept_list = sorted(depts.values(), key=lambda x: -x["cnt"])
+    for r in rows:
+        d = depts.setdefault(r["team_name"], {"team_name": r["team_name"], "people": 0, "cnt": 0,
+                                              "hours": 0.0, "done": 0, "delayed": 0,
+                                              "tickets": 0, "issues": 0, "phases": 0})
+        d["people"] += 1; d["cnt"] += r["cnt"]; d["hours"] += r["hours"]; d["done"] += r["done"]
+        d["delayed"] += r["delayed"]; d["tickets"] += r["tickets"]; d["issues"] += r["issues"]; d["phases"] += r["phases"]
+    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"]))
     for d in dept_list:
         d["rate"] = round(100 * d["done"] / d["cnt"]) if d["cnt"] else 0
         d["hours"] = round(d["hours"], 1)
-    return ctx(request, "admin_work_patterns.html", user=u, rows=agg, depts=dept_list,
-               period_label=plabel, days=days, start=start, end=end, total_people=len(agg))
+    return ctx(request, "admin_work_patterns.html", user=u, rows=rows, depts=dept_list,
+               period_label=plabel, days=days, start=start, end=end, total_people=len(rows))
 
 
 def _wp_detail_data(c, uid, start, end):
@@ -1382,6 +1419,41 @@ def _wp_detail_data(c, uid, start, end):
         "WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(customer_label,'')<>'' "
         "GROUP BY customer_label ORDER BY n DESC LIMIT 8", (start, end, uid))]
     return cats, stat, weekly, projs, custs
+
+
+def _wp_detail_extra(c, uid, start, end):
+    """v5H226z412 (2단계): 종합 신호 상세 — 티켓(처리/요청)·이슈(담당)·공정(담당).
+    테이블/컬럼 없으면 빈 구조로 graceful."""
+    out = {"tkt_recv": [], "tkt_recv_n": 0, "tkt_sent_n": 0, "issues": [], "issues_n": 0, "phases": [], "phases_n": 0}
+    try:
+        out["tkt_recv"] = [dict(r) for r in c.execute(
+            "SELECT COALESCE(NULLIF(category,''),'(미분류)') AS category, COUNT(*) AS n, "
+            "SUM(CASE WHEN status='완료' THEN 1 ELSE 0 END) AS done FROM tickets "
+            "WHERE recipient_user_id=? AND date(COALESCE(created_at,'')) BETWEEN ? AND ? "
+            "GROUP BY category ORDER BY n DESC", (uid, start, end))]
+        out["tkt_recv_n"] = sum(x["n"] for x in out["tkt_recv"])
+        out["tkt_sent_n"] = c.execute(
+            "SELECT COUNT(*) FROM tickets WHERE requester_id=? AND date(COALESCE(created_at,'')) BETWEEN ? AND ?",
+            (uid, start, end)).fetchone()[0]
+    except Exception:
+        pass
+    try:
+        out["issues"] = [dict(r) for r in c.execute(
+            "SELECT COALESCE(NULLIF(severity,''),'(미지정)') AS severity, COUNT(*) AS n FROM issues "
+            "WHERE owner_user_id=? AND date(COALESCE(created_at,'')) BETWEEN ? AND ? "
+            "GROUP BY severity ORDER BY n DESC", (uid, start, end))]
+        out["issues_n"] = sum(x["n"] for x in out["issues"])
+    except Exception:
+        pass
+    try:
+        out["phases"] = [dict(r) for r in c.execute(
+            "SELECT COALESCE(NULLIF(status,''),'(미지정)') AS status, COUNT(*) AS n FROM project_phases "
+            "WHERE assignee_id=? AND date(COALESCE(updated_at,'')) BETWEEN ? AND ? "
+            "GROUP BY status ORDER BY n DESC", (uid, start, end))]
+        out["phases_n"] = sum(x["n"] for x in out["phases"])
+    except Exception:
+        pass
+    return out
 
 
 @app.get("/admin/work-patterns/{uid:int}", response_class=HTMLResponse)
@@ -1423,6 +1495,7 @@ async def admin_work_pattern_detail(request: Request, uid: int):
             collab_list = sorted(
                 [{"name": namemap.get(pid, f"#{pid}"), "n": n} for pid, n in collab.items()],
                 key=lambda x: -x["n"])[:6]
+        extra = _wp_detail_extra(c, uid, start, end)
     total = sum(x["n"] for x in cats)
     total_h = round(sum(x["h"] for x in cats), 1)
     done = next((s["n"] for s in stat if s["status"] == "완료"), 0)
@@ -1437,7 +1510,7 @@ async def admin_work_pattern_detail(request: Request, uid: int):
         w["pct"] = round(100 * w["n"] / wmax)
     return ctx(request, "admin_work_pattern_detail.html", user=u, emp=emp,
                cats=cats, stat=stat, weekly=weekly, projs=projs, custs=custs, collab=collab_list,
-               total=total, total_h=total_h, rate=rate, delayed=delayed,
+               extra=extra, total=total, total_h=total_h, rate=rate, delayed=delayed,
                period_label=plabel, days=days, start=start, end=end)
 
 
@@ -1459,17 +1532,22 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
             return JSONResponse({"ok": False, "error": "notfound"}, 404)
         emp = dict(emp)
         cats, stat, weekly, projs, custs = _wp_detail_data(c, uid, start, end)
+        extra = _wp_detail_extra(c, uid, start, end)
         titles = [r[0] for r in c.execute(
             "SELECT title FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(title,'')<>'' "
             "ORDER BY work_date DESC LIMIT 30", (start, end, uid)).fetchall()]
     total = sum(x["n"] for x in cats)
-    if not total:
-        return JSONResponse({"ok": True, "summary": "이 기간에 기록된 일일업무가 없어 요약할 내용이 없습니다."})
-    cat_txt = ", ".join(f"{x['category']} {x['n']}건({round(100*x['n']/total)}%)" for x in cats)
-    stat_txt = ", ".join(f"{x['status']} {x['n']}건" for x in stat)
+    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"]):
+        return JSONResponse({"ok": True, "summary": "이 기간에 기록된 업무(일일업무·티켓·이슈·공정)가 없어 요약할 내용이 없습니다."})
+    cat_txt = ", ".join(f"{x['category']} {x['n']}건({round(100*x['n']/total)}%)" for x in cats) if total else "—"
+    stat_txt = ", ".join(f"{x['status']} {x['n']}건" for x in stat) or "—"
     proj_txt = ", ".join(f"{x['label']}({x['n']})" for x in projs) or "—"
     cust_txt = ", ".join(f"{x['label']}({x['n']})" for x in custs) or "—"
     title_txt = "\n".join(f"- {t}" for t in titles)
+    tkt_txt = (", ".join(f"{x['category']} {x['n']}건" for x in extra["tkt_recv"]) or "—") \
+        + f" (받아 처리 {extra['tkt_recv_n']} · 요청 {extra['tkt_sent_n']})"
+    iss_txt = ", ".join(f"{x['severity']} {x['n']}건" for x in extra["issues"]) or "—"
+    pha_txt = ", ".join(f"{x['status']} {x['n']}건" for x in extra["phases"]) or "—"
     try:
         from . import ai_client
         from starlette.concurrency import run_in_threadpool
@@ -1478,18 +1556,19 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
                                  "summary": "AI가 연결되어 있지 않습니다. (관리자 → AI 설정에서 키 등록 후 사용)"})
         system = (
             "당신은 ㈜케이엔케이(KNK · 검사기·자동화 설비 제조)의 업무 분석 비서입니다. "
-            "아래는 한 직원이 기간 동안 남긴 '일일업무' 집계(메타데이터)와 업무 제목 목록입니다. "
+            "아래는 한 직원이 기간 동안 남긴 업무 집계(일일업무·티켓·이슈·프로젝트 공정 · 메타데이터)와 업무 제목 목록입니다. "
             "이 사람이 실제로 맡고 있는 '주 담당 업무 영역'과 '업무 특성'을 한국어로 정리하세요. "
             "목적은 감시가 아니라 업무분장·인수인계·개인 업무 매뉴얼 작성을 위한 기초자료입니다.\n"
-            "출력 형식:\n① 한 문단 요약 (이 직원의 주 담당 영역)\n"
+            "출력 형식:\n① 한 문단 요약 (이 직원의 주 담당 영역 — 일일업무뿐 아니라 티켓·이슈·공정 역할 포함)\n"
             "② '반복·핵심 업무' 불릿 3~6개 (매뉴얼화 후보 — 인수인계 시 알아야 할 일)\n"
             "③ 한 줄 메모 (협업 관계나 주의점)\n"
             "주의: 우수/부진 같은 인사평가나 추측은 하지 말고, 주어진 사실만으로 정리할 것.")
         prompt = (
             f"직원: {emp['name']} ({emp['team'] or '부서미상'}) · 기간 {plabel} ({start}~{end})\n"
-            f"업무 구성: {cat_txt}\n진행 상태: {stat_txt}\n"
+            f"[일일업무] 구성: {cat_txt}\n진행 상태: {stat_txt}\n"
             f"주요 프로젝트: {proj_txt}\n주요 고객/대상: {cust_txt}\n"
-            f"업무 제목 표본(최근 {len(titles)}건):\n{title_txt}")
+            f"[받은 티켓] {tkt_txt}\n[담당 이슈] {iss_txt}\n[담당 공정] {pha_txt}\n"
+            f"[일일업무 제목 표본(최근 {len(titles)}건)]:\n{title_txt}")
         ok, ans = await run_in_threadpool(
             ai_client.ai_chat, prompt, system, max_tokens=800, temperature=0.3)
         if not ok or not (ans or "").strip():
