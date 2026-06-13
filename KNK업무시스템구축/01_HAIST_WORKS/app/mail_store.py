@@ -178,7 +178,8 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
 
 # ─── 조회 ───────────────────────────────────────────────────────────
 def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
-               starred=None, unread=None, limit: int = 200, offset: int = 0):
+               starred=None, unread=None, date_from: str = "", date_to: str = "",
+               has_att=None, limit: int = 200, offset: int = 0):
     where = "user_id=? AND direction='in' AND is_deleted=0"
     args = [user_id]
     if category and category in CATEGORIES:
@@ -188,6 +189,19 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
         where += " AND is_starred=1"
     if unread:
         where += " AND is_read=0"
+    # 날짜 범위(받은시각) — received_at 은 'YYYY-MM-DD HH:MM…' 정렬가능 문자열이라 문자열 비교로 충분
+    date_from = (date_from or "").strip()
+    date_to = (date_to or "").strip()
+    if date_from:
+        where += " AND received_at >= ?"
+        args.append(date_from + " 00:00")
+    if date_to:
+        where += " AND received_at <= ?"
+        args.append(date_to + " 23:59:59")
+    # 첨부(일반 파일) 있는 메일만 — 인라인 이미지 제외
+    if has_att:
+        where += (" AND EXISTS(SELECT 1 FROM mail_attachments a "
+                  "WHERE a.mail_id=mail_messages.id AND COALESCE(a.is_inline,0)=0)")
     q = (q or "").strip()
     if q:
         where += " AND (from_email LIKE ? OR from_name LIKE ? OR subject LIKE ? OR body_text LIKE ?)"

@@ -62,8 +62,15 @@
     <input type="text" name="q" value="{{ q|default('') }}" autocomplete="off"
            placeholder="🔍 {{ '받는사람' if box=='sent' else '보낸사람' }}·제목·본문 검색"
            style="flex:1;min-width:200px;padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;outline:none;">
+    {% if box=='in' %}
+    <input type="hidden" name="cat" value="{{ cur_cat|default('') }}">
+    <input type="date" name="df" value="{{ cur_df|default('') }}" title="받은날짜 시작" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
+    <span style="color:var(--mute);font-size:12px;">~</span>
+    <input type="date" name="dt" value="{{ cur_dt|default('') }}" title="받은날짜 끝" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
+    <label class="mbx-cat" style="cursor:pointer;{% if cur_att|default(false) %}background:var(--knk-red);color:#fff;border-color:var(--knk-red);{% endif %}" title="첨부파일이 있는 메일만"><input type="checkbox" name="att" value="1" {% if cur_att|default(false) %}checked{% endif %} onchange="this.form.submit()" style="margin-right:4px;vertical-align:middle;">📎 첨부</label>
+    {% endif %}
     <button type="submit" class="btn btn-secondary">검색</button>
-    {% if q %}<a href="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}" class="btn btn-secondary">✕ 해제</a>{% endif %}
+    {% if q or cur_df|default('') or cur_dt|default('') or cur_att|default(false) %}<a href="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}" class="btn btn-secondary">✕ 해제</a>{% endif %}
     {% if box=='in' %}
       <a href="/mail/inbox?star=1" class="mbx-cat {{ 'on' if cur_star|default(false) else '' }}">⭐ 별표</a>
       <a href="/mail/inbox?unread=1" class="mbx-cat {{ 'on' if cur_unread|default(false) else '' }}">● 안읽음</a>

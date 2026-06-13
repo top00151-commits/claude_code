@@ -10784,18 +10784,20 @@ async def admin_mail_inbound_bind(req: Request):
 
 
 @app.get("/mail/inbox")
-async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0):
+async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0,
+                          df: str = "", dt: str = "", att: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
         mails = _mailbox.list_inbox(c, u["id"], category=cat, q=q,
-                                    starred=bool(star), unread=bool(unread))
+                                    starred=bool(star), unread=bool(unread),
+                                    date_from=df, date_to=dt, has_att=bool(att))
         unread_n = _mailbox.count_unread(c, u["id"])
         cat_counts = _mailbox.category_counts(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread_n,
-               cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES,
+               cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES, cur_df=df, cur_dt=dt, cur_att=bool(att),
                ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
                drafts_n=drafts_n)
 
