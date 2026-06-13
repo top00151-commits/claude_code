@@ -6,6 +6,9 @@
   .mbx-cat{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;color:var(--ink);text-decoration:none;background:#fff}
   .mbx-cat.on{background:var(--knk-red);color:#fff;border-color:var(--knk-red)}
   .mbx-cat .n{font-size:11px;opacity:.7}
+  /* 안읽음 강조 뱃지 — 빨강 알약 (대표 지시 2026-06-14) */
+  .mbx-cat .nbadge{background:#dc2626;color:#fff;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:3px;line-height:1.6}
+  .mbx-cat.on .nbadge{background:#fff;color:var(--knk-red)}
   .mbx-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
   .mbx-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
   .mbx-row:last-child{border-bottom:0}
@@ -38,7 +41,7 @@
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
 
   <div class="mbx-toolbar">
-    <a href="/mail/inbox" class="mbx-cat {{ 'on' if box=='in' and not cur_cat else '' }}">📥 받은편지함{% if unread %} <span class="n">{{ unread }}</span>{% endif %}</a>
+    <a href="/mail/inbox" class="mbx-cat {{ 'on' if box=='in' and not cur_cat else '' }}">📥 받은편지함{% if unread %} <span class="nbadge" title="안 읽은 메일 {{ unread }}통">{{ unread }}</span>{% endif %}</a>
     <a href="/mail/sent" class="mbx-cat {{ 'on' if box=='sent' else '' }}">📤 보낸편지함</a>
     <a href="/mail/drafts" class="mbx-cat {{ 'on' if box=='draft' else '' }}">📝 임시보관함{% if drafts_n|default(0) %} <span class="n">{{ drafts_n }}</span>{% endif %}</a>
     {% if box=='in' %}

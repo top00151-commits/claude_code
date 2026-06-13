@@ -20,6 +20,13 @@
   .mv-att{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:4px 6px 0 0;font-size:12.5px;color:var(--ink);text-decoration:none;background:#fafafa}
   .mv-att:hover{background:#f0f0f0}
   .mv-att-sz{color:var(--mute);font-size:11px}
+  /* 인쇄/PDF — 메뉴·버튼·번역창은 숨기고 메일 본문만 깔끔히 (대표 지시 2026-06-14) */
+  @media print {
+    .mail-app-top, .mv-actions, .mv-viewtabs, .mv-trans, .page-head { display:none !important; }
+    .mv-head, .mv-body, .mv-atts, .mv-ai { border:0 !important; box-shadow:none !important; padding:0 !important; }
+    .mv-frame { border:0 !important; }
+    body, .app, .main { margin:0 !important; padding:0 !important; background:#fff !important; }
+  }
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -55,6 +62,7 @@
     <button type="button" class="btn btn-secondary" onclick="markUnread()">● 안읽음 표시</button>{% endif %}
     <button type="button" class="btn btn-secondary" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
     <button type="button" class="btn btn-secondary" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
+    <button type="button" class="btn btn-secondary" onclick="window.print()" title="이 메일을 인쇄하거나 PDF로 저장(인쇄 대화상자에서 'PDF로 저장' 선택)">🖨 인쇄/PDF</button>
     <span style="flex:1"></span>
     <button type="button" class="btn btn-secondary" style="color:var(--knk-red)" onclick="delMail({{ m.id }})">🗑 삭제</button>
     <a href="/mail/inbox" class="btn btn-secondary">← 목록</a>
