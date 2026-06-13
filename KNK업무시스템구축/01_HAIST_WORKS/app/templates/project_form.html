@@ -440,6 +440,8 @@ html,body{background:#fff!important;overflow:auto!important;}
             var codeEl  = document.querySelector('input[name="mgmt_code"]');
             var verify  = document.getElementById('pfMgmtVerify');
             if (!codeEl || !verify) return;
+            // 저장형 XSS 방지: API/입력값을 verify.innerHTML 에 넣기 전 이스케이프
+            function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
             function isFollowup(){ return ptypeEl && ptypeEl.value && ptypeEl.value !== '신규'; }
             function show(html, color){ verify.innerHTML = html; verify.style.color = color; verify.style.display = 'block'; }
             function clearV(){ verify.style.display = 'none'; verify.innerHTML = ''; }
@@ -460,18 +462,18 @@ html,body{background:#fff!important;overflow:auto!important;}
                 if (!hit){ window.__pfMgmtState='notfound'; window.__pfMgmtMsg='관리번호 '+code+' 의 기존 프로젝트를 찾을 수 없습니다.'; show('⚠ 관리번호 <b>'+code+'</b> 의 기존 프로젝트를 찾을 수 없습니다. 번호를 확인하세요.', 'var(--knk-red)'); return; }
                 var cn = ((document.querySelector('input[name="customer_name"]')||{}).value||'').trim();
                 var pn = ((document.querySelector('input[name="name"]')||{}).value||'').trim();
-                var msgs = ['📌 기존 프로젝트: <b>'+(hit.name||'')+'</b> · 고객사 <b>'+(hit.customer_name||'—')+'</b> → 이 프로젝트에 추가 발주됩니다.'];
+                var msgs = ['📌 기존 프로젝트: <b>'+esc(hit.name||'')+'</b> · 고객사 <b>'+esc(hit.customer_name||'—')+'</b> → 이 프로젝트에 추가 발주됩니다.'];
                 var color = '#16a34a';
                 var custBad = (cn && hit.customer_name && cn !== (hit.customer_name||'').trim());
                 if (custBad){
-                  msgs.push('⚠ 입력 고객사 <b>'+cn+'</b> ≠ 기존 <b>'+hit.customer_name+'</b> — <b>다릅니다. 확인하세요</b> (저장 차단).');
+                  msgs.push('⚠ 입력 고객사 <b>'+esc(cn)+'</b> ≠ 기존 <b>'+esc(hit.customer_name)+'</b> — <b>다릅니다. 확인하세요</b> (저장 차단).');
                   color = 'var(--knk-red)';
                   window.__pfMgmtState='mismatch'; window.__pfMgmtMsg='입력한 고객사 "'+cn+'" 가 관리번호 '+code+' 의 기존 고객사 "'+hit.customer_name+'" 와 다릅니다.';
                 } else {
                   window.__pfMgmtState='ok'; window.__pfMgmtMsg='';
                 }
                 if (pn && hit.name && pn !== (hit.name||'').trim()){
-                  msgs.push('⚠ 입력 프로젝트명 <b>'+pn+'</b> ≠ 기존 <b>'+hit.name+'</b> — 확인하세요.');
+                  msgs.push('⚠ 입력 프로젝트명 <b>'+esc(pn)+'</b> ≠ 기존 <b>'+esc(hit.name)+'</b> — 확인하세요.');
                   if (color === '#16a34a') color = '#d97706';
                 }
                 show(msgs.join('<br>'), color);
@@ -565,6 +567,8 @@ html,body{background:#fff!important;overflow:auto!important;}
         var box = document.getElementById('pfParentResults');
         var hid = document.getElementById('pfParentId');
         if (!inp || !box || !hid) return;
+        // 저장형 XSS 방지: API가 돌려준 고객사명/프로젝트명 등은 innerHTML 삽입 전 반드시 이스케이프
+        function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
         var t = null;
         async function search(q){
           try {
@@ -575,8 +579,8 @@ html,body{background:#fff!important;overflow:auto!important;}
             (j.rows || []).forEach(function(row){
               var d = document.createElement('div');
               d.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--qv-line);font-size:12.5px;';
-              d.innerHTML = '<b style="font-family:monospace;color:var(--qv-ink-2);">' + (row.mgmt_code||'—') + '</b>'
-                          + ' · ' + (row.name||'') + ' <span style="color:var(--qv-ink-3);font-size:11px;">(' + (row.customer_name||'—') + ')</span>';
+              d.innerHTML = '<b style="font-family:monospace;color:var(--qv-ink-2);">' + esc(row.mgmt_code||'—') + '</b>'
+                          + ' · ' + esc(row.name||'') + ' <span style="color:var(--qv-ink-3);font-size:11px;">(' + esc(row.customer_name||'—') + ')</span>';
               d.onmouseover = function(){ d.style.background = 'var(--qv-surface-3)'; };
               d.onmouseout = function(){ d.style.background = ''; };
               d.onclick = function(){
@@ -1335,6 +1339,8 @@ html,body{background:#fff!important;overflow:auto!important;}
     var form = document.querySelector('form.pf-wrap');
     if (!form) return;
     var banner = document.getElementById('pfValidateBanner');
+    // 저장형 XSS 방지: 배너는 innerHTML 이므로 동적 메시지(고객사명 포함 가능)를 이스케이프
+    function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
     function findField(name){
       return form.querySelector('[name="' + name + '"]');
     }
@@ -1417,8 +1423,8 @@ html,body{background:#fff!important;overflow:auto!important;}
         if (missing.length) popup += '\n• 입력 필요: ' + missing.join(', ');
         popup += '\n\n[확인]을 누르면 해당 입력칸으로 이동합니다.';
         if (banner) {
-          banner.innerHTML = '⚠ ' + (mgmtErr ? mgmtErr + '<br>' : '')
-                           + (missing.length ? '입력 필요: <b>' + missing.join('</b>, <b>') + '</b>' : '');
+          banner.innerHTML = '⚠ ' + (mgmtErr ? esc(mgmtErr) + '<br>' : '')
+                           + (missing.length ? '입력 필요: <b>' + missing.map(esc).join('</b>, <b>') + '</b>' : '');
           banner.style.display = 'block';
         }
         alert(popup);                              // 팝업 경고
