@@ -5040,7 +5040,15 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
     today = today or _date.today()
     yymm = today.strftime("%y%m")
     pat = f"%{biz_div}{yymm}"
+    # v5H226z386 (대표 지시): 검증(테스트) 모드 — 켜져 있으면 관리번호를 'A' 접두로 발급(A01T2606...).
+    #   'A' 시작 = 임시 테스트 데이터 → '검증 데이터 관리' 화면에서 일괄 삭제 대상. (실 관리번호는 항상 숫자 3자리로 시작)
+    _test = False
     with db_session() as c:
+        try:
+            _tr = c.execute("SELECT value FROM app_settings WHERE key='test_mode'").fetchone()
+            _test = ((_tr[0] if _tr else "") or "").strip().lower() in ("1", "on", "true", "yes")
+        except Exception:
+            _test = False
         rows = c.execute(
             "SELECT mgmt_code FROM projects WHERE mgmt_code LIKE ?", (pat,)
         ).fetchall()
@@ -5052,6 +5060,17 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
                 ).fetchall())
             except Exception:
                 pass
+    if _test:
+        # A 접두 테스트 코드: A + 2자리 일련 + 사업부 + 연월 (A01T2606). 기존 A 코드 중 최대 +1.
+        a_seq = 0
+        for r in rows:
+            code = r["mgmt_code"] or ""
+            if len(code) == 8 and code[0] == "A" and code[3] == biz_div and code[4:] == yymm:
+                try:
+                    a_seq = max(a_seq, int(code[1:3]))
+                except ValueError:
+                    pass
+        return f"A{a_seq + 1:02d}{biz_div}{yymm}"
     max_seq = 0
     for r in rows:
         code = r["mgmt_code"] or ""

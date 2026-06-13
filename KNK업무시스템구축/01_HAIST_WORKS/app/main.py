@@ -5095,6 +5095,82 @@ async def admin_ai_settings_test(req: Request):
     })
 
 
+@app.get("/admin/test-data", response_class=HTMLResponse)
+async def admin_test_data_page(req: Request):
+    """v5H226z386 (대표 지시): 검증(테스트) 데이터 관리 — 검증 모드 토글(관리번호 A 접두 발급) + A 관리번호 일괄 삭제(서버 백업 없이 즉시)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    test_on = (get_setting("test_mode", "") or "").strip().lower() in ("1", "on", "true", "yes")
+    with db_session() as c:
+        a_total = c.execute("SELECT COUNT(*) FROM projects WHERE mgmt_code LIKE 'A%'").fetchone()[0]
+        a_by_div = [dict(r) for r in c.execute(
+            "SELECT substr(mgmt_code,4,1) AS div, COUNT(*) AS n FROM projects "
+            "WHERE mgmt_code LIKE 'A%' GROUP BY substr(mgmt_code,4,1) ORDER BY div").fetchall()]
+    return ctx(req, "admin_test_data.html", user=u, active="admin",
+               test_on=test_on, a_total=a_total, a_by_div=a_by_div,
+               saved=(req.query_params.get("saved") == "1"),
+               deleted=req.query_params.get("deleted"))
+
+
+@app.post("/admin/test-data/toggle")
+async def admin_test_data_toggle(req: Request, on: str = Form("")):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    val = "1" if (on or "").strip().lower() in ("1", "on", "true", "yes") else "0"
+    with db_session() as c:
+        c.execute("INSERT INTO app_settings(key, value) VALUES('test_mode', ?) "
+                  "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (val,))
+    return RedirectResponse("/admin/test-data?saved=1", 303)
+
+
+@app.post("/admin/test-data/delete-a")
+async def admin_test_data_delete_a(req: Request):
+    """v5H226z386 (대표 지시): 'A' 시작 관리번호(테스트) 프로젝트 + 연관행 즉시 삭제(서버 백업 없음).
+    실 관리번호는 항상 숫자 3자리로 시작 → 'A%'는 테스트 데이터에만 매칭(실데이터 0 위험)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    n_proj = 0
+    with db_session() as c:
+        try:
+            c.execute("PRAGMA foreign_keys=OFF")
+        except Exception:
+            pass
+        pids = [r[0] for r in c.execute("SELECT id FROM projects WHERE mgmt_code LIKE 'A%'").fetchall()]
+        for pid in pids:
+            oids = [r[0] for r in c.execute("SELECT id FROM orders WHERE project_id=?", (pid,)).fetchall()]
+            for oid in oids:
+                for t, col in (("order_items", "order_id"), ("order_status_history", "order_id")):
+                    try:
+                        c.execute(f"DELETE FROM {t} WHERE {col}=?", (oid,))
+                    except Exception:
+                        pass
+            c.execute("DELETE FROM orders WHERE project_id=?", (pid,))
+            for _t in ("project_items", "project_changes"):
+                try:
+                    c.execute(f"DELETE FROM {_t} WHERE project_id=?", (pid,))
+                except Exception:
+                    pass
+            try:
+                c.execute("DELETE FROM project_stage_log WHERE ref_kind='project' AND ref_id=?", (pid,))
+            except Exception:
+                pass
+            try:
+                c.execute("DELETE FROM notifications WHERE link=?", (f"/project/{pid}",))
+            except Exception:
+                pass
+            c.execute("DELETE FROM projects WHERE id=?", (pid,))
+        n_proj = len(pids)
+        try:
+            c.execute("PRAGMA foreign_keys=ON")
+        except Exception:
+            pass
+    return RedirectResponse(f"/admin/test-data?deleted={n_proj}", 303)
+
+
 @app.post("/admin/sync-directory")
 async def admin_sync_directory(req: Request):
     """메신저 직원 명부 → 전 직원 일괄 동기화 (admin/ceo 전용)."""
@@ -14268,9 +14344,11 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
             ).fetchall()]
     except Exception:
         _teams = []
+    # v5H226z386 (대표 지시): 검증 모드 ON 이면 관리번호가 A 접두로 발급됨 — 화면에 표시(잊지 않게)
+    _test_on = (get_setting("test_mode", "") or "").strip().lower() in ("1", "on", "true", "yes")
     return ctx(request, "project_quick_form.html",
                user=u, active="sales_projects", embed=_embed, preset_biz=_bd,
-               can_money=bool(can_view_sales(u)), teams=_teams,
+               can_money=bool(can_view_sales(u)), teams=_teams, test_on=_test_on,
                PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
                customers=_logi.customers_for_picker())
 

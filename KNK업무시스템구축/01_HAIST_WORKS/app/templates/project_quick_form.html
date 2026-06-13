@@ -69,6 +69,8 @@ html,body{background:#fff!important;overflow:auto!important;}
     {% if not (project is defined and project) %}{% set reg_active = 'OTHER' if preset_biz == 'E' else preset_biz %}{% include "_v5_partials/reg_tabs.html" %}{% endif %}
     <div class="qf-card">
       <div class="qf-err" id="qfErr"></div>
+      {# v5H226z386(대표 지시): 검증 모드 ON 표시 — 이 등록 관리번호는 A 접두(테스트)로 발급됨 #}
+      {% if test_on %}<div style="background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:700;margin-bottom:12px;line-height:1.6;">🧪 검증(테스트) 모드 — 이 등록의 관리번호는 <b>A 접두</b>(예: A01T2606)로 발급됩니다. 검증 끝나면 <a href="/admin/test-data" style="color:#92400e;text-decoration:underline;">관리자 → 검증 데이터 관리</a>에서 <b>끄고 A 관리번호 삭제</b>하세요.</div>{% endif %}
       {# v5H226z354(대표 지시): 빠른 폼을 신규/수정 양용으로 — project 가 오면 '수정 모드'. 저장은 기존 /projects/{id}/edit 재사용 #}
       {% set ed = (project is defined and project) %}
       <form id="quickForm" method="post" action="{% if ed %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}">
@@ -116,7 +118,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c2" style="position:relative;"><label>관리번호</label>
             {% if ed %}<div class="qf-code" title="영구 잠금(감사 무결성)">{{ project.mgmt_code|default('—') }}</div>
             {% else %}
-            <div class="qf-code" id="qMgmtAuto">자동 발급</div>
+            <div class="qf-code" id="qMgmtAuto">{% if test_on %}🧪 A 자동 발급{% else %}자동 발급{% endif %}</div>
             {# v5H226z384(대표 지시): PO유형이 추가/개조/수리/기타면 '기존 관리번호 검색'으로 전환 — 같은 관리번호 + 새 수주번호 자동. #}
             <input type="text" name="mgmt_code" id="qMgmtInput" placeholder="관리번호·고객사·모델로 검색" autocomplete="off" disabled style="display:none;font-family:Consolas,monospace;font-weight:700;" oninput="qMgmtSearch()" onfocus="qMgmtSearch()" onblur="setTimeout(qMgmtHide,180)">
             <div id="qMgmtList" style="display:none;position:absolute;top:100%;left:0;z-index:50;min-width:300px;max-height:240px;overflow:auto;background:#fff;border:1px solid var(--qv-line);border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.12);margin-top:2px;"></div>

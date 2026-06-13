@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>검증 데이터 관리 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.td-wrap { max-width: 760px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.td-card { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+.td-card h3 { margin:0 0 12px; font-size:14px; font-weight:800; color:#1e293b; }
+.td-row { display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:7px 0; border-bottom:1px dashed #f1e8d4; }
+.td-row .k { color:#64748b; } .td-row .v { font-weight:700; color:#1e293b; }
+.td-badge { display:inline-block; padding:2px 12px; border-radius:999px; font-size:12px; font-weight:800; }
+.td-badge.on { background:#fef3c7; color:#92400e; } .td-badge.off { background:#e5e7eb; color:#374151; }
+.td-btn { padding:9px 18px; border:0; border-radius:8px; font-size:14px; font-weight:800; cursor:pointer; }
+.td-btn.toggle-on { background:#b45309; color:#fff; } .td-btn.toggle-off { background:#374151; color:#fff; }
+.td-btn.danger { background:#dc2626; color:#fff; }
+.td-note { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; border-radius:8px; padding:10px 14px; font-size:12.5px; line-height:1.7; margin-bottom:14px; }
+.td-danger-note { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; border-radius:8px; padding:10px 14px; font-size:12.5px; line-height:1.7; margin-bottom:14px; }
+.td-saved { background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
+.td-divs { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.td-div { background:#f8fafc; border:1px solid var(--qv-line); border-radius:7px; padding:5px 12px; font-size:12.5px; font-family:ui-monospace,Consolas,monospace; }
+</style></head>
+<body>
+<div class="app">{% set active_tab = 'home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>검증 데이터 관리</b></div>
+      <h1 class="page-title">🧪 검증(테스트) 데이터 <em>관리</em></h1>
+    </div>
+  </div>
+
+  <div class="td-wrap">
+    {% if saved %}<div class="td-saved">✅ 검증 모드 설정이 저장됐습니다.</div>{% endif %}
+    {% if deleted is not none %}<div class="td-saved">🗑 'A' 시작 관리번호 <b>{{ deleted }}개</b> 프로젝트 + 연관 수주·라인·단계·통보를 즉시 삭제했습니다(백업 없음).</div>{% endif %}
+
+    <div class="td-note">
+      <b>'A' 시작 관리번호 = 임시 테스트</b>입니다. 검증 모드를 켜면 새 관리번호가 <b>A 접두</b>(예: <code>A01T2606</code>)로 발급됩니다.
+      실제 관리번호는 항상 숫자 3자리로 시작하므로, <b>'A%' 삭제는 테스트 데이터에만</b> 적용됩니다(실데이터 위험 없음).
+    </div>
+
+    <div class="td-card">
+      <h3>검증 모드</h3>
+      <div class="td-row">
+        <span class="k">현재 상태</span>
+        <span class="v">{% if test_on %}<span class="td-badge on">🧪 ON — 새 관리번호 A 접두 발급</span>{% else %}<span class="td-badge off">OFF — 정상(숫자) 발급</span>{% endif %}</span>
+      </div>
+      <form method="post" action="/admin/test-data/toggle" style="margin-top:14px;">
+        {% if test_on %}
+        <input type="hidden" name="on" value="0">
+        <button type="submit" class="td-btn toggle-off">검증 모드 끄기 (정상 발급으로)</button>
+        <div class="td-note" style="margin:10px 0 0;">⚠ 검증 끝나면 <b>반드시 끄세요</b>. 켜진 채로 실제 등록하면 그 관리번호도 A로 발급돼 삭제 대상이 됩니다.</div>
+        {% else %}
+        <input type="hidden" name="on" value="1">
+        <button type="submit" class="td-btn toggle-on">🧪 검증 모드 켜기 (A 접두 발급)</button>
+        {% endif %}
+      </form>
+    </div>
+
+    <div class="td-card">
+      <h3>현재 'A' 테스트 관리번호</h3>
+      <div class="td-row"><span class="k">총 개수</span><span class="v" style="color:{% if a_total %}#dc2626{% else %}#16a34a{% endif %};">{{ a_total }} 개</span></div>
+      {% if a_by_div %}
+      <div class="td-divs">
+        {% set _dl = {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타','C':'소모품'} %}
+        {% for r in a_by_div %}<span class="td-div"><b>{{ r.div }}</b> {{ _dl.get(r.div, r.div) }} · {{ r.n }}개</span>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="td-card">
+      <h3>🗑 'A' 관리번호 일괄 삭제</h3>
+      <div class="td-danger-note">
+        'A'로 시작하는 관리번호 프로젝트 <b>{{ a_total }}개</b>와 그에 딸린 <b>수주(SO)·라인·단계기록·이력·제작요청 통보</b>를 <b>즉시 삭제</b>합니다.
+        <b>서버 백업을 만들지 않으며 되돌릴 수 없습니다.</b>
+      </div>
+      <form method="post" action="/admin/test-data/delete-a" onsubmit="return confirm('A 시작 관리번호 {{ a_total }}개 프로젝트와 연관 데이터를 즉시 삭제합니다.\n\n· 서버 백업 없음 · 복구 불가\n\n진행할까요?');">
+        <button type="submit" class="td-btn danger" {% if not a_total %}disabled style="opacity:.5;cursor:not-allowed;"{% endif %}>🗑 'A' 관리번호 전체 삭제 (즉시·백업없음)</button>
+      </form>
+    </div>
+  </div>
+</main>
+</div>
+</body></html>
