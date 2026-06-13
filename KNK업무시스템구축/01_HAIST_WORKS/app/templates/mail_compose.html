@@ -28,6 +28,15 @@
   .crop-stage img{display:block;max-width:82vw;max-height:58vh;user-select:none;-webkit-user-drag:none}
   .crop-sel{position:absolute;border:2px dashed #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move;box-sizing:border-box}
   .crop-sel .br{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;background:#7c3aed;border:2px solid #fff;border-radius:50%;cursor:se-resize}
+  .cmp-editor table td,.cmp-editor table th{min-width:24px}
+  .cmp-editor td.tblsel{outline:2px solid #7c3aed;outline-offset:-2px}
+  .paste-pop{position:absolute;z-index:80;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:6px;display:flex;gap:6px;align-items:center;font-size:12px}
+  .paste-pop button{height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;padding:0 10px;font-size:12px}
+  .paste-pop button:hover{background:#f0f0f0}
+  .tbl-tb{position:absolute;z-index:70;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+  .tbl-tb button{height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;padding:0 7px;font-size:11.5px}
+  .tbl-tb button:hover{background:#f0f0f0}
+  .tbl-tb .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
@@ -259,6 +268,95 @@
     im.src=img.src;
     if(im.complete && im.naturalWidth) initCrop();
   }
+
+  // ── 엑셀/표 붙여넣기(텍스트/표 선택) + 표 편집 메뉴 ──
+  function escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var TD_STYLE='border:1px solid #b9b9b9;padding:4px 8px;font-size:13px';
+  function clipTableData(text, html){
+    if(text && text.indexOf('\t')>=0){
+      return text.replace(/\r/g,'').replace(/\n+$/,'').split('\n').map(function(r){ return r.split('\t'); });
+    }
+    if(html && html.toLowerCase().indexOf('<table')>=0){
+      var tmp=document.createElement('div'); tmp.innerHTML=html; var data=[];
+      tmp.querySelectorAll('tr').forEach(function(tr){ var row=[];
+        tr.querySelectorAll('td,th').forEach(function(c){ row.push((c.innerText||c.textContent||'').replace(/\s+/g,' ').trim()); });
+        if(row.length) data.push(row); });
+      return data;
+    }
+    return null;
+  }
+  function dataToTableHtml(data){
+    var h='<table style="border-collapse:collapse;margin:6px 0">';
+    data.forEach(function(row){ h+='<tr>'; row.forEach(function(c){ h+='<td style="'+TD_STYLE+'">'+(escHtml(c)||'&nbsp;')+'</td>'; }); h+='</tr>'; });
+    return h+'</table>';
+  }
+  var pastePop=null, pasteRange=null, pasteData=null, pasteText='';
+  function closePaste(){ if(pastePop){ pastePop.remove(); pastePop=null; } }
+  function insertHtmlAtRange(html){
+    ED.focus(); var sel=window.getSelection(); sel.removeAllRanges(); if(pasteRange) sel.addRange(pasteRange);
+    try{ document.execCommand('insertHTML', false, html); }catch(_){}
+  }
+  if(ED) ED.addEventListener('paste', function(e){
+    var cd=e.clipboardData||window.clipboardData; if(!cd) return;
+    var text=cd.getData('text/plain')||''; var html=cd.getData('text/html')||'';
+    var data=clipTableData(text, html);
+    if(!data || data.length===0 || (data.length===1 && data[0].length<=1)) return;  // 표 아님 → 기본 붙여넣기
+    e.preventDefault();
+    var s=window.getSelection(); pasteRange = s.rangeCount? s.getRangeAt(0).cloneRange() : null;
+    pasteData=data; pasteText=text; closePaste();
+    pastePop=document.createElement('div'); pastePop.className='paste-pop';
+    var lab=document.createElement('span'); lab.textContent='붙여넣기:'; lab.style.color='var(--mute)'; pastePop.appendChild(lab);
+    var bt=document.createElement('button'); bt.type='button'; bt.textContent='📊 표로';
+    bt.addEventListener('click',function(){ insertHtmlAtRange(dataToTableHtml(pasteData)); closePaste(); });
+    var bx=document.createElement('button'); bx.type='button'; bx.textContent='📝 텍스트로';
+    bx.addEventListener('click',function(){ insertHtmlAtRange(escHtml(pasteText).replace(/\t/g,'&nbsp;&nbsp;&nbsp;&nbsp;').replace(/\n/g,'<br>')); closePaste(); });
+    pastePop.appendChild(bt); pastePop.appendChild(bx);
+    var rect=null; try{ rect=pasteRange.getBoundingClientRect(); }catch(_){}
+    if(!rect || (!rect.width && !rect.height && !rect.top)) rect=ED.getBoundingClientRect();
+    document.body.appendChild(pastePop);
+    pastePop.style.left=(rect.left+window.scrollX)+'px'; pastePop.style.top=(rect.bottom+window.scrollY+4)+'px';
+  });
+
+  var selCell=null, tblTb=null;
+  function clearTbl(){ if(selCell) selCell.classList.remove('tblsel'); selCell=null; if(tblTb){ tblTb.remove(); tblTb=null; } }
+  function posTblTb(){ if(!selCell||!tblTb)return; var t=selCell.closest('table'); if(!t)return; var r=t.getBoundingClientRect();
+    tblTb.style.left=(r.left+window.scrollX)+'px'; tblTb.style.top=Math.max(0,(r.top+window.scrollY-32))+'px'; }
+  function cellPos(cell){ var tr=cell.parentNode, table=cell.closest('table');
+    var rows=Array.prototype.slice.call(table.rows); var tcells=Array.prototype.slice.call(tr.cells);
+    return {table:table, rows:rows, ri:rows.indexOf(tr), ci:tcells.indexOf(cell), tr:tr}; }
+  function newCell(){ var td=document.createElement('td'); td.setAttribute('style',TD_STYLE); td.innerHTML='&nbsp;'; return td; }
+  function addRow(below){ if(!selCell)return; var p=cellPos(selCell); var n=p.tr.cells.length;
+    var tr=document.createElement('tr'); for(var i=0;i<n;i++) tr.appendChild(newCell());
+    p.tr.parentNode.insertBefore(tr, below? p.tr.nextSibling : p.tr); posTblTb(); }
+  function delRow(){ if(!selCell)return; var p=cellPos(selCell); if(p.table.rows.length<=1)return; p.tr.parentNode.removeChild(p.tr); clearTbl(); }
+  function addCol(right){ if(!selCell)return; var p=cellPos(selCell);
+    p.rows.forEach(function(tr){ var ref=tr.cells[p.ci]; var c=newCell(); if(ref) tr.insertBefore(c, right? ref.nextSibling : ref); else tr.appendChild(c); }); posTblTb(); }
+  function delCol(){ if(!selCell)return; var p=cellPos(selCell); if(p.tr.cells.length<=1)return;
+    p.rows.forEach(function(tr){ if(tr.cells[p.ci]) tr.removeChild(tr.cells[p.ci]); }); clearTbl(); }
+  function toggleHeader(){ if(!selCell)return; var first=selCell.closest('table').rows[0]; if(!first)return;
+    var on=/f3f4f6/.test(first.cells[0] ? (first.cells[0].getAttribute('style')||'') : '');
+    Array.prototype.forEach.call(first.cells,function(c){ c.setAttribute('style', TD_STYLE + (on? '' : ';background:#f3f4f6;font-weight:700')); }); }
+  function showTblTb(cell){
+    clearImgSel(); clearTbl(); selCell=cell; cell.classList.add('tblsel');
+    tblTb=document.createElement('div'); tblTb.className='tbl-tb';
+    function mk(t,fn){ var b=document.createElement('button'); b.type='button'; b.textContent=t;
+      b.addEventListener('mousedown',function(e){e.preventDefault();});
+      b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();fn();}); tblTb.appendChild(b); }
+    function sep(){ var s=document.createElement('span'); s.className='sep'; tblTb.appendChild(s); }
+    mk('＋행▼',function(){addRow(true);}); mk('＋행▲',function(){addRow(false);}); mk('−행',delRow); sep();
+    mk('＋열▶',function(){addCol(true);}); mk('＋열◀',function(){addCol(false);}); mk('−열',delCol); sep();
+    mk('헤더행',toggleHeader); mk('🗑 표삭제',function(){ var t=selCell.closest('table'); clearTbl(); if(t)t.remove(); });
+    document.body.appendChild(tblTb); posTblTb();
+  }
+  if(ED) ED.addEventListener('click',function(e){
+    var cell=(e.target && e.target.closest)? e.target.closest('td,th') : null;
+    if(cell && ED.contains(cell)) showTblTb(cell); else clearTbl();
+  });
+  document.addEventListener('click',function(e){
+    if(pastePop && !pastePop.contains(e.target)) closePaste();
+    if(tblTb && !tblTb.contains(e.target) && !(e.target.closest && e.target.closest('td,th'))) clearTbl();
+  });
+  window.addEventListener('scroll',posTblTb,true); window.addEventListener('resize',posTblTb);
 
   // ── 숨은참조(BCC) 토글 ──
   var bt=document.getElementById('bccToggle');
