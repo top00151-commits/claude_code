@@ -900,6 +900,105 @@ INTENTS = [
 
 
 # =====================================================
+# v5H226z410 (대표 지시) — 빅터 AI 메뉴 라우팅 (업무 순서 인지)
+# 키워드 사전으로 못 잡은 자연어를 AI가 '메뉴 카탈로그'에서 직접 고르고,
+# 일 순서상 '먼저 해야 할 단계'를 우선 추천한다.
+#   예) "검사기 등록 어디서해?" → (검사기는 제작요청부터) → 제작요청 등록 추천 + 이유.
+# =====================================================
+
+# KNK 업무 순서(도메인 지식) — AI가 '먼저 할 일'을 알도록 주입하는 핵심 맥락.
+KNK_WORK_SEQUENCE = """[KNK 업무 순서 — '먼저 할 일'을 추천할 때 반드시 참고]
+· KNK는 검사기(사업부 T)·자동화 설비(사업부 M)를 제작하는 회사다. "검사기 / 자동화 / 설비 / 장비 / 호기" = 만들 제품.
+· 새 설비를 시작·등록하는 순서:
+  ① 제작요청 등록 (/projects/quick) ← 가장 먼저! 여기서 관리코드 자동 발번 + 전부서 통보가 시작된다.
+     "검사기 등록·제작·주문", "자동화 등록", "새 설비 시작", "제작요청"은 모두 이 첫 단계로 보낸다.
+  ② 수주 항목·호기 입력(프로젝트 상세) → ③ 작업일정표 진행관리 (/sales/schedule) → 출하·수금 (/sales/shipments-receipts).
+· 소모품은 별도 흐름: 소모품 발주 등록 (/consumables/new).
+· 견적 = 견적서 (/sales/quotations) · 부품/자재 = 부품 등록 (/parts/new) · 발주 = 발주 작성 (/po/new).
+· '어디서 등록/시작하냐'는 질문엔 위 순서상 '첫 단계'를 첫 후보로 추천하고, 이유를 한 줄 곁들인다."""
+
+
+def ai_pick_menu(user, query: str):
+    """v5H226z410: 자연어 → 카탈로그에서 AI가 최적 메뉴 선택 + 업무순서 추천.
+    반환: {ok, ai_route, msg(이유), candidates:[{code,label,path,tip}]} | None(AI 비활성·실패·무매칭).
+    데이터 안전: 메뉴 카탈로그(공개 메뉴 구조)만 보냄 — 민감 DB 미전송."""
+    try:
+        from . import ai_client
+        from . import menu_catalog as _menu
+    except Exception:
+        return None
+    try:
+        if not ai_client.ai_available():
+            return None
+    except Exception:
+        return None
+    try:
+        menus = _menu.all_menus()
+        catalog = "\n".join(
+            f"{m['code']} | {m['label']} | {m['path']} | {m['tip']}" for m in menus
+        )
+    except Exception:
+        return None
+    system = (
+        "당신은 ㈜케이엔케이(KNK) 'HAIST WORKS' 업무 플랫폼의 메뉴 안내 AI '빅터'입니다.\n"
+        "사용자의 자연어 요청을 읽고, 아래 [메뉴 카탈로그] 중에서 가장 알맞은 화면을 1~3개 고르세요.\n\n"
+        + KNK_WORK_SEQUENCE + "\n\n"
+        "[메뉴 카탈로그] (code | 이름 | 경로 | 설명)\n" + catalog + "\n\n"
+        "규칙:\n"
+        "1) 반드시 위 카탈로그에 실제로 있는 code/path 만 사용한다(없는 경로를 지어내지 말 것).\n"
+        "2) '등록·시작·어디서' 류 질문은 업무 순서상 '먼저 할 일'을 첫 후보로 둔다.\n"
+        "3) 정말 맞는 메뉴가 없으면 picks 를 빈 배열([])로 둔다.\n"
+        "4) 오직 아래 형식의 JSON 한 개만 출력한다(앞뒤 설명·코드블록 금지):\n"
+        '{"reason":"한국어 한두 줄 이유","picks":[{"code":"M-..","path":"/.."}]}'
+    )
+    try:
+        ok, ans = ai_client.ai_chat(query, system=system, max_tokens=400, temperature=0.1)
+    except Exception:
+        return None
+    if not ok or not ans or not ans.strip():
+        return None
+    # JSON 파싱 (코드펜스·잡텍스트 관용)
+    import json
+    txt = ans.strip()
+    if txt.startswith("```"):
+        txt = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", txt).strip()
+    mobj = re.search(r"\{.*\}", txt, re.S)
+    if not mobj:
+        return None
+    try:
+        data = json.loads(mobj.group(0))
+    except Exception:
+        return None
+    reason = (data.get("reason") or "").strip()
+    picks = data.get("picks") or []
+    if not isinstance(picks, list):
+        return None
+    cands: list[dict] = []
+    seen: set[str] = set()
+    for p in picks[:3]:
+        if not isinstance(p, dict):
+            continue
+        path = (p.get("path") or "").strip()
+        code = (p.get("code") or "").strip().upper()
+        mc = _menu.by_code(code) if code else None
+        if not mc and path:
+            mc = _menu.by_path(path.split("?")[0])
+        if not mc or mc["code"] in seen:
+            continue
+        seen.add(mc["code"])
+        # AI가 ?biz_div=M 같은 유효 쿼리를 준 경우 그 경로를 살림(카탈로그 경로의 확장일 때만).
+        use_path = path if (path and path.split("?")[0] == mc["path"]) else mc["path"]
+        cands.append({"code": mc["code"], "label": mc["label"], "path": use_path, "tip": mc["tip"]})
+    if not cands:
+        return None
+    return {
+        "ok": True, "ai_route": True,
+        "msg": reason or "요청에 맞는 메뉴를 찾았어요.",
+        "candidates": cands,
+    }
+
+
+# =====================================================
 # 메인 진입점
 # =====================================================
 def h_ai_assist(user, db_session_func, query: str):

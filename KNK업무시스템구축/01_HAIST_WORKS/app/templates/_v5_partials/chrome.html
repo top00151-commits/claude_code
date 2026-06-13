@@ -408,10 +408,21 @@ async function victorAsk(q){
     var j = await r.json();
     if (_think) _think.remove();
     if (j.ok && j.auto_navigate && j.path){
-      body.insertAdjacentHTML('beforeend',
-        '<div class="vd-msg">→ <b>' + _vdEsc(j.label||'') + '</b> 페이지로 이동합니다 (' + _vdEsc(j.code||'') + ')</div>');
+      var navHtml = '<div class="vd-msg">→ <b>' + _vdEsc(j.label||'') + '</b> 페이지로 이동합니다 (' + _vdEsc(j.code||'') + ')';
+      if (j.tip) navHtml += '<div style="margin-top:5px;color:var(--mute);font-size:11.5px;">' + _vdEsc(j.tip) + '</div>';
+      navHtml += '</div>';
+      body.insertAdjacentHTML('beforeend', navHtml);
       body.scrollTop = body.scrollHeight;
-      setTimeout(function(){ location.href = j.path; }, 800);
+      setTimeout(function(){ location.href = j.path; }, j.tip ? 1400 : 800);
+    } else if (j.ok && j.ai_route && j.candidates && j.candidates.length){
+      /* v5H226z410: AI 메뉴 라우팅 — 이유 말풍선 + 클릭 가능한 추천 메뉴(업무 순서 반영) */
+      var aiHtml = '<div class="vd-msg vd-ai">🤖 ' + _vdEsc(j.msg||'').replace(/\n/g,'<br>');
+      j.candidates.forEach(function(c){
+        aiHtml += '<a href="' + c.path + '">→ <b>' + _vdEsc(c.label) + '</b> <span style="color:var(--mute);">(' + _vdEsc(c.code) + ')</span></a>';
+      });
+      aiHtml += '</div>';
+      body.insertAdjacentHTML('beforeend', aiHtml);
+      body.scrollTop = body.scrollHeight;
     } else if (j.ok && j.candidates && j.candidates.length){
       var html = '<div class="vd-msg">후보 ' + j.candidates.length + '건 — 선택하세요:';
       j.candidates.forEach(function(c){

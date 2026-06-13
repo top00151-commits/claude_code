@@ -68,6 +68,9 @@ _RAW: list[tuple] = [
     ("M-01-11-N", "01", "원산지증명서 작성", "/export/fta/new",   ["원산지 작성", "FTA 작성", "원산지 등록", "FTA 등록", "FTA 발급"],          "FTA 원산지증명서 신규 작성.", "영업팀"),
     ("M-01-12", "01", "관리코드대장",       "/projects",         ["프로젝트", "관리코드", "프로젝트 코드", "PJT", "PJT 코드", "프로젝트 목록", "프로젝트 대장"],              "PMS 8자리 관리코드(NNNTYYMM) 발번 대장.", "영업팀"),
     ("M-01-12-N", "01", "프로젝트 등록",    "/projects/new",     ["프로젝트 등록", "프로젝트 입력", "프로젝트 작성", "프로젝트 만들기", "신규 프로젝트", "관리코드 발번", "PJT 등록", "PJT 입력", "프로젝트 추가", "관리코드 등록"], "신규 프로젝트(관리코드) 등록 폼. 관리코드 자동 발번.", "영업·관리"),
+    # v5H226z410 (대표 지시): 제작요청 등록 = 검사기·자동화 설비를 새로 시작하는 '첫 단계'.
+    #   간편폼(/projects/quick)에서 제작요청 발행 → 관리코드 발번 + 전부서 통보. 빅터가 회사 업무어(검사기/자동화/설비/호기)를 인식하도록 별칭 대폭 등록.
+    ("M-01-15-N", "01", "제작요청 등록",    "/projects/quick",   ["제작요청", "제작 요청", "제작요청서", "제작요청 등록", "제작요청 발행", "제작 등록", "제작 시작", "제작 의뢰", "검사기", "검사기 등록", "검사기 제작", "검사기 신규", "검사기 만들기", "검사기 주문", "자동화", "자동화 등록", "자동화 제작", "자동화 설비", "자동화 신규", "설비 제작", "설비 등록", "설비 신규", "장비 제작", "장비 등록", "신규 제작", "신규 설비", "호기 등록", "신규 설비 등록"], "검사기·자동화 설비를 새로 시작하는 첫 단계 — 제작요청 등록(관리코드 자동 발번 + 전부서 통보). 화면에서 사업부(검사기T/자동화M) 선택.", "영업·관리"),
     # ============ M-02 자재구매센터 ============
     ("M-02-01", "02", "자재구매 홈",        "/logistics",      ["자재 홈", "구매 홈", "물류", "자재구매"],                            "발주·입고·재고·환율 통합 KPI.", "자재·구매팀"),
     ("M-02-02", "02", "부품 마스터",        "/parts",          ["부품", "부품 마스터", "품번", "부품 목록", "자재 목록"],                           "부품 등록·단가·안전재고 설정.", "자재팀"),
@@ -148,7 +151,8 @@ _FORM_INTENT_WORDS = {
 # 허브 키워드 — 토큰이 매칭되면 해당 허브 메뉴 전체에 가중
 _HUB_KEYWORDS = {
     "00": ["통합", "전체", "공통"],
-    "01": ["매출", "영업", "고객", "거래처", "수출", "수출입", "선적", "견적", "수주"],
+    "01": ["매출", "영업", "고객", "거래처", "수출", "수출입", "선적", "견적", "수주",
+           "검사기", "자동화", "설비", "장비", "제작", "제작요청", "호기"],
     "02": ["자재", "구매", "재고", "부품", "품번", "공급", "공급사", "발주", "입고", "출고", "수불", "환율"],
     "03": ["인사", "HR", "근태", "휴가", "급여"],
     "04": ["관리", "관리자", "어드민", "권한", "회사", "설정", "환경"],
@@ -255,10 +259,19 @@ def search(query: str, limit: int = 5) -> list[dict]:
                 matched_hubs.add(hub_code)
                 break
 
+    # v5H226z410 (대표 지시): "등록/작성" 같은 의도어는 '내용 토큰'에서 제외 —
+    #   그래야 "검사기 등록"에서 의도어 '등록'이 게시글/연락처 등 무관 /new 폼의 별칭과
+    #   매칭돼 가짜 후보를 만드는 일이 없다. 의도어는 아래 5)에서만 가중치로 쓴다.
+    content_tokens = [t for t in tokens if t not in _FORM_INTENT_WORDS]
+
     scored: list[tuple[int, dict]] = []
 
     for m in all_menus():
-        score = 0
+        # content = 실제로 사용자가 친 '단어'가 라벨/별칭/토큰에 맞은 점수(1~3).
+        #           이게 0이면 후보 자격 없음 — 허브·의도어 가중만으로는 후보가 못 된다.
+        # bonus   = 허브·의도어 가중(4~5). 순위만 조정, 후보 생성은 못 함.
+        content = 0
+        bonus = 0
         label_low = m["label"].lower()
         label_nospace = label_low.replace(" ", "")
         tip_low = m["tip"].lower()
@@ -266,57 +279,59 @@ def search(query: str, limit: int = 5) -> list[dict]:
 
         # 1) 라벨 매칭 (공백 무시 포함)
         if q_low == label_low or norm == label_low:
-            score += 100
+            content += 100
         elif q_nospace == label_nospace:
-            score += 95
+            content += 95
         elif label_low in q_low or q_low in label_low:
-            score += 30
+            content += 30
         elif label_nospace in q_nospace or q_nospace in label_nospace:
-            score += 28
+            content += 28
 
         # 2) 별칭 매칭 (공백 무시 포함)
         for a in m["aliases"]:
             a_low = a.lower()
             a_nospace = a_low.replace(" ", "")
             if q_low == a_low or norm == a_low:
-                score += 90
+                content += 90
             elif q_nospace == a_nospace:
-                score += 85  # 공백 차이만 있는 경우 (예: "자재등록" vs "자재 등록")
+                content += 85  # 공백 차이만 있는 경우 (예: "자재등록" vs "자재 등록")
             elif a_low in q_low or q_low in a_low:
-                score += 30
+                content += 30
             elif a_low in norm or norm in a_low:
-                score += 25
+                content += 25
             elif a_nospace in q_nospace or q_nospace in a_nospace:
-                score += 22
+                content += 22
 
-        # 3) 토큰별 매칭 (라벨·별칭·tip)
-        for tok in tokens:
+        # 3) 토큰별 매칭 (라벨·별칭·tip) — 의도어 제외한 '내용 토큰'만
+        for tok in content_tokens:
             if tok in label_low or tok in label_nospace:
-                score += 22
+                content += 22
             for a in m["aliases"]:
                 a_low = a.lower()
                 a_nospace = a_low.replace(" ", "")
                 if tok == a_low:
-                    score += 35
+                    content += 35
                 elif tok in a_low or a_low in tok:
-                    score += 12
+                    content += 12
                 elif tok in a_nospace or a_nospace in tok:
-                    score += 10
+                    content += 10
             if tok in tip_low:
-                score += 4
+                content += 4
 
-        # 4) 허브 키워드 가중 — "자재" 같은 허브 단어 매칭 시 해당 허브 메뉴 +25
+        # 4) 허브 키워드 가중 — "자재" 같은 허브 단어 매칭 시 해당 허브 메뉴 +25 (순위만)
         if matched_hubs and m["hub"] in matched_hubs:
-            score += 25
+            bonus += 25
 
-        # 5) 의도어 가중
-        if is_form_intent and is_new_entry:
-            score += 30  # "입력/등록/작성" 포함 시 /new 폼 우선
-        elif is_form_intent and not is_new_entry:
-            score = max(0, score - 10)  # 일반 list에서 약하게 감점
+        # 5) 의도어 가중 — '내용 매칭이 있는' 항목에만 적용(가짜 후보 방지)
+        if content > 0:
+            if is_form_intent and is_new_entry:
+                bonus += 30  # "입력/등록/작성" 포함 시 /new 폼 우선
+            elif is_form_intent and not is_new_entry:
+                bonus -= 10  # 같은 주제의 일반 list 는 약하게 감점
 
-        if score > 0:
-            scored.append((score, m))
+        # 후보 자격: 사용자가 친 단어가 실제로 맞았을 때(content>0)만.
+        if content > 0:
+            scored.append((content + bonus, m))
 
     scored.sort(key=lambda x: -x[0])
     return [m for _, m in scored[:limit]]
