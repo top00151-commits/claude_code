@@ -113,8 +113,14 @@ html,body{background:#fff!important;overflow:auto!important;}
              1행 관리2·수주2·고객사1=4·고객사2=4  2행 프로젝트명6·거래2·PO2·형태2  3행 모델6·장비6
              4행 수량2·통화3·단가3·금액4  6행 부서4·담당4·납품4  7행 영업3·비고9 (각 행 합=12) #}
           {# 1행 — 관리번호 · 수주번호 · 고객사1 · 고객사2  (수정 모드는 기존값 채움) #}
-          <div class="qf-f c2"><label>관리번호</label>
-            {% if ed %}<div class="qf-code" title="영구 잠금(감사 무결성)">{{ project.mgmt_code|default('—') }}</div>{% else %}<div class="qf-code">자동 발급</div>{% endif %}</div>
+          <div class="qf-f c2" style="position:relative;"><label>관리번호</label>
+            {% if ed %}<div class="qf-code" title="영구 잠금(감사 무결성)">{{ project.mgmt_code|default('—') }}</div>
+            {% else %}
+            <div class="qf-code" id="qMgmtAuto">자동 발급</div>
+            {# v5H226z384(대표 지시): PO유형이 추가/개조/수리/기타면 '기존 관리번호 검색'으로 전환 — 같은 관리번호 + 새 수주번호 자동. #}
+            <input type="text" name="mgmt_code" id="qMgmtInput" placeholder="기존 관리번호 검색" autocomplete="off" disabled style="display:none;font-family:Consolas,monospace;font-weight:700;text-transform:uppercase;" oninput="qMgmtSearch()" onblur="setTimeout(qMgmtHide,180)">
+            <div id="qMgmtList" style="display:none;position:absolute;top:100%;left:0;z-index:50;min-width:300px;max-height:240px;overflow:auto;background:#fff;border:1px solid var(--qv-line);border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.12);margin-top:2px;"></div>
+            {% endif %}</div>
           <div class="qf-f c2"><label>수주번호</label>
             {% if ed %}<div class="qf-code" style="color:#7c4a03;background:#fdf3e3;">{{ so_no|default('—') or '—' }}</div>{% else %}<div class="qf-code" style="color:#7c4a03;background:#fdf3e3;" title="저장 시 발주일 기준 자동 발행">자동 발급</div>{% endif %}</div>
           <div class="qf-f c4"><label>고객사1 <span class="req">*</span></label>
@@ -138,7 +144,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             <input type="hidden" name="po_type" value="{{ project.po_type|default('신규') }}">
             {% else %}
             {# v5H226z350: 하드코딩(신규/추가) → PO_TYPES(신규/추가/개조/수리/기타) #}
-            <select name="po_type">{% for t in PO_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+            <select name="po_type" id="qPoType" onchange="qSyncPoType()">{% for t in PO_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
             {% endif %}
           </div>
           {# v5H226z351/z352(대표 지시): 형태 드롭다운 — 옵션 짧게(좁은 칸 맞춤). 내부값(ASSEMBLY/PARTS/ETC) 유지 #}
@@ -285,6 +291,44 @@ function qToggleProd(){
   var c=document.getElementById('qProdNotify'); var b=document.getElementById('qProdBox');
   if(b) b.style.display=(c && c.checked)?'block':'none';
 }
+// v5H226z384(대표 지시): 추가 발주 — PO유형 추가/개조/수리/기타면 관리번호=기존 검색(같은 관리번호+새 수주번호). 신규면 자동 발급.
+function qIsFollowup(){ var po=(document.getElementById('qPoType')||{}).value||'신규'; return !!(po && po!=='신규'); }
+function qSyncPoType(){
+  var f=qIsFollowup();
+  var auto=document.getElementById('qMgmtAuto'), inp=document.getElementById('qMgmtInput');
+  if(inp){
+    if(f){ if(auto) auto.style.display='none'; inp.style.display=''; inp.disabled=false; }
+    else { if(auto) auto.style.display=''; inp.style.display='none'; inp.disabled=true; inp.value=''; qMgmtHide(); }
+  }
+  qBuildUnits();   // 추가면 호기별 숨김 재평가
+}
+function qMgmtHide(){ var l=document.getElementById('qMgmtList'); if(l) l.style.display='none'; }
+function qEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function qMgmtPick(rw){
+  var inp=document.getElementById('qMgmtInput'); if(inp) inp.value=(rw.mgmt_code||'').toUpperCase();
+  qMgmtHide();
+  var cust=document.querySelector('[name=customer_name]'); if(cust && !cust.value && rw.customer_name) cust.value=rw.customer_name;
+  // 프로젝트명은 백엔드 필수(추가발주 분기보다 먼저 검증) → 비어 있으면 기존값/모델/관리번호로 채움
+  var nm=document.querySelector('[name=name]'); if(nm && !nm.value) nm.value=(rw.name || rw.model_name || ('추가발주 '+(rw.mgmt_code||'')));
+}
+function qMgmtSearch(){
+  var inp=document.getElementById('qMgmtInput'), lst=document.getElementById('qMgmtList'); if(!inp||!lst) return;
+  var q=(inp.value||'').trim();
+  if(q.length<1){ lst.style.display='none'; return; }
+  fetch('/api/projects/search?q='+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(j){
+    var rows=(j&&j.rows)||[]; lst.innerHTML='';
+    if(!rows.length){ lst.innerHTML='<div style="padding:7px 10px;color:#999;font-size:12px;">일치하는 관리번호 없음</div>'; lst.style.display='block'; return; }
+    rows.slice(0,15).forEach(function(rw){
+      var d=document.createElement('div');
+      d.style.cssText='padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f1f1;background:#fff;';
+      d.onmouseenter=function(){ d.style.background='#eff6ff'; }; d.onmouseleave=function(){ d.style.background='#fff'; };
+      d.innerHTML='<b style="font-family:Consolas,monospace;color:#1e40af;">'+qEsc(rw.mgmt_code||'')+'</b> · '+qEsc((rw.name||rw.model_name)||'')+(rw.customer_name?' <span style="color:#999;">('+qEsc(rw.customer_name)+')</span>':'');
+      d.onmousedown=function(e){ e.preventDefault(); qMgmtPick(rw); };
+      lst.appendChild(d);
+    });
+    lst.style.display='block';
+  }).catch(function(){ qMgmtHide(); });
+}
 // v5H226z380(대표 지시): 호기별 금액·납기 — 수량(호기)≥2 면 펼침. 기본 단가·납품일로 채우고 호기마다 수정 가능. 합계=호기 금액 합.
 function qUnitRowHTML(i, amt, due, ship, cur){
   return '<div class="qf-unit-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
@@ -344,7 +388,7 @@ function qBuildUnits(){
   var wrap=document.getElementById('qUnitWrap'), rows=document.getElementById('qUnitRows');
   if(!wrap||!rows) return;   // 금액 권한 없으면 섹션 없음 → 단일 호기
   var v=qUnitVals();
-  if(v.qty<2){ wrap.style.display='none'; rows.innerHTML=''; qSyncUnitStatic(false); qLockHeaderPrice(false); qUnitSum(); return; }
+  if(v.qty<2 || qIsFollowup()){ wrap.style.display='none'; rows.innerHTML=''; qSyncUnitStatic(false); qLockHeaderPrice(false); qUnitSum(); return; }   // 1대 또는 추가발주 → 단일 단가
   wrap.style.display='';
   var existing=rows.querySelectorAll('.qf-unit-row');
   if(existing.length!==v.qty){
@@ -384,14 +428,24 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   var g=function(n){ return (this.querySelector('[name='+n+']').value||'').trim(); }.bind(this);
   var name=g('name'), cust=g('customer_name'), model=g('model'), equip=g('equip_name');
   var err=document.getElementById('qfErr');
-  if(!name||!cust||!model||!equip){ e.preventDefault();
-    err.textContent='필수 항목을 채워주세요 — 프로젝트명·고객사·모델명·장비명.'; err.classList.add('show'); return; }
+  // v5H226z384: 추가 발주(PO≠신규)는 관리번호+고객사 필수(모델·장비는 기존 프로젝트 상속), 신규는 프로젝트명·고객사·모델·장비 필수
+  if(qIsFollowup()){
+    var _mc=(document.getElementById('qMgmtInput')||{}).value||'';
+    if(!_mc.trim()){ e.preventDefault(); err.textContent='추가 발주는 기존 관리번호를 검색해 선택하세요.'; err.classList.add('show'); return; }
+    if(!cust){ e.preventDefault(); err.textContent='고객사(이번 발주처)를 입력하세요.'; err.classList.add('show'); return; }
+  } else {
+    if(!name||!cust||!model||!equip){ e.preventDefault();
+      err.textContent='필수 항목을 채워주세요 — 프로젝트명·고객사·모델명·장비명.'; err.classList.add('show'); return; }
+  }
   var curSel=document.getElementById('qCurrency'), fx=document.getElementById('qFx');
   if(curSel && curSel.value!=='KRW' && (!fx || !fx.value.trim())){ e.preventDefault();
     err.textContent='외화('+curSel.value+')는 환율을 입력하세요.'; err.classList.add('show'); return; }
   // 호기 동기화 — 수량≥2(호기별)면 행들이 unit_*[] 배열로 제출(정적 단일 hidden 비활성), 1대면 기존 단일 동기화
   var _q=parseInt((this.querySelector('[name=unit_qty]')||{value:'1'}).value||'1',10)||1;
-  if(_q>=2 && document.getElementById('qUnitWrap')){
+  if(qIsFollowup()){
+    // 추가 발주 — unit_*[] 미전송 → add_followup_order 가 단가(1대)×수량 으로 호기 N줄 생성
+    qSyncUnitStatic(true);
+  } else if(_q>=2 && document.getElementById('qUnitWrap')){
     qSyncUnitStatic(true);
     // 프로젝트 수주액(order_amount)=호기 합, 단가=합/수량(평균) 으로 맞춰 '폼/SO 불일치' 경고 방지
     var _sum=0; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ _sum+=parseFloat((a.value||'0').replace(/,/g,''))||0; });
@@ -431,7 +485,7 @@ if(window.knkScanMoney) knkScanMoney();
   var dd=document.getElementById('qDueDate'); if(dd) dd.addEventListener('change', qBuildUnits);
   var sh=document.getElementById('qShip'); if(sh) sh.addEventListener('change', qBuildUnits);
   var cu=document.getElementById('qCurrency'); if(cu) cu.addEventListener('change', qBuildUnits);
-  qBuildUnits();
+  qSyncPoType();   // PO유형 초기 반영(추가발주면 관리번호 검색칸) + qBuildUnits 내부 호출
 })();
 </script>
 </body>

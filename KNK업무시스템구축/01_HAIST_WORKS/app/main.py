@@ -14492,7 +14492,23 @@ async def projects_new_submit(request: Request):
                     note=form.get("note", ""), qty=_fu_qty,
                     so_type=_fu_sotype, currency=_ccy_v, ship_to="",
                     order_customer_id=_fu_cust_id)
-            return RedirectResponse(f"/project/{_existing['id']}?followup=1", status_code=303)
+            # v5H226z384 (대표 지시): 추가 발주도 제작요청 발행(전부서 통보) — 신규처럼. 같은 관리번호의 기존 프로젝트로 통보.
+            _fu_url = f"/project/{_existing['id']}?followup=1"
+            if (form.get("prod_notify") or "").strip() in ("1", "on", "true", "yes"):
+                try:
+                    _fu_t = [int(t) for t in form.getlist("pr_team_ids") if str(t).strip().isdigit() and int(t) > 0]
+                    _fu_res = _prod_request_notify_core(int(_existing["id"]),
+                                                        (form.get("pr_cust_req") or "").strip(),
+                                                        (form.get("pr_note") or "").strip(), _fu_t, _u)
+                    if _fu_res.get("ok"):
+                        _fu_url += f"&prod_sent={_fu_res.get('sent_to', 0)}&prod_dept={_fu_res.get('dept_count', 0)}"
+                        if _fu_res.get("stage_warn"):
+                            _fu_url += "&prod_stagewarn=1"
+                    else:
+                        _fu_url += "&prod_err=1"
+                except Exception:
+                    _fu_url += "&prod_err=1"
+            return RedirectResponse(_fu_url, status_code=303)
         else:
             if _existing:
                 return _err_redirect("mgmt_code_dup", f"code={mgmt_code_in}")
@@ -23836,7 +23852,7 @@ async def api_projects_search(request: Request, q: str = ""):
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "auth"}, 401)
-    if not can_use_logistics(u):
+    if not (can_use_sales(u) or can_use_logistics(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
     q = (q or "").strip()
     rows = []
