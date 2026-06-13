@@ -10368,6 +10368,120 @@ async def mail_translate(req: Request, mail_id: int):
     return JSONResponse({"ok": True, "subject": res["subject"], "body": res["body"]})
 
 
+# ─── 보내기 (메일 쓰기·답장·발송·보낸편지함 + 발송망 설정) ───────────────
+def _mail_from_address() -> str:
+    return (get_setting("mail_from_address", "") or "").strip() or _MAIL_POC_ADDR
+
+
+@app.get("/mail/compose", response_class=HTMLResponse)
+async def mail_compose_page(req: Request, reply: int = 0):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    prefill = {"to": "", "cc": "", "subject": "", "body": ""}
+    with db_session() as c:
+        ready = _mail.system_send_ready(c)
+        if reply:
+            m = _mailbox.get_mail(c, reply, u["id"])
+            if m:
+                prefill["to"] = m.get("from_email") or ""
+                subj = (m.get("subject") or "").strip()
+                prefill["subject"] = subj if subj.lower().startswith("re:") else f"Re: {subj}"
+                prefill["body"] = "\n\n\n──────── 원본 메일 ────────\n" + (m.get("body_text") or "")
+    return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
+               from_addr=_mail_from_address())
+
+
+@app.post("/mail/send")
+async def mail_send_route(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    to_email = (form.get("to") or "").strip()
+    cc = (form.get("cc") or "").strip()
+    subject = (form.get("subject") or "").strip()
+    body = (form.get("body") or "")
+    attachments, total = [], 0
+    for f in form.getlist("files"):
+        if hasattr(f, "read"):
+            data = await f.read()
+            if not data:
+                continue
+            total += len(data)
+            attachments.append((f.filename or "file", data,
+                                getattr(f, "content_type", "") or "application/octet-stream"))
+    if total > 24 * 1024 * 1024:
+        return JSONResponse({"ok": False, "message": "첨부 합계가 24MB를 넘습니다. 큰 파일은 링크로 보내세요(대용량 첨부는 추후 기능)."}, 400)
+    if not _mail.is_valid_email(to_email):
+        return JSONResponse({"ok": False, "message": "받는 메일주소가 올바르지 않습니다."}, 400)
+    from_addr = _mail_from_address()
+    with db_session() as c:
+        if not _mail.system_send_ready(c):
+            return JSONResponse({"ok": False, "message": "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 발송망을 먼저 등록하세요."}, 400)
+        ok, msg = _mail.send_system(c, from_addr, to_email, subject, body,
+                                    from_name=u.get("name") or "", cc=cc, attachments=attachments)
+        if ok:
+            _mailbox.store_outbound(c, user_id=u["id"], from_email=from_addr,
+                                    from_name=u.get("name") or "", to_email=to_email,
+                                    subject=subject, body=body, cc=cc,
+                                    size=len(body or "") + total)
+    return JSONResponse({"ok": ok, "message": msg})
+
+
+@app.get("/mail/sent", response_class=HTMLResponse)
+async def mail_sent_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        mails = _mailbox.list_sent(c, u["id"])
+        sent_n = _mailbox.count_sent(c, u["id"])
+        unread = _mailbox.count_unread(c, u["id"])
+    return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
+               cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
+               ai_on=ai_enabled_for(u), box="sent", sent_n=sent_n)
+
+
+@app.get("/admin/mail-send", response_class=HTMLResponse)
+async def admin_mail_send_page(req: Request):
+    """메일 보내기 설정 (admin/ceo) — 발송망(Cloudflare/AWS SMTP) 자격 + 보내는 주소."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    with db_session() as c:
+        ready = _mail.system_send_ready(c)
+    return ctx(req, "admin_mail_send.html", user=u, active="admin",
+               ready=ready, mail_key=_mail.mail_available(),
+               cur_host=get_setting("mail_send_host", ""),
+               cur_port=(get_setting("mail_send_port", "") or "465"),
+               cur_user=get_setting("mail_send_user", ""),
+               has_pass=bool(get_setting("mail_send_pass_enc", "")),
+               cur_from=_mail_from_address(),
+               saved=(req.query_params.get("saved") == "1"))
+
+
+@app.post("/admin/mail-send")
+async def admin_mail_send_save(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _mail.mail_available():
+        return JSONResponse({"ok": False, "message": "메일 암호화 키(KNK_MAIL_KEY)가 서버에 없습니다. 전산담당자에게 .env 등록 요청."}, 400)
+    form = await req.form()
+    with db_session() as c:
+        _mail.save_send_config(c, (form.get("host") or "").strip(),
+                               (form.get("port") or "465").strip(),
+                               (form.get("user") or "").strip(),
+                               (form.get("password") or "").strip())
+        from_addr = (form.get("from_address") or "").strip()
+        if from_addr:
+            c.execute("INSERT INTO app_settings(key, value) VALUES('mail_from_address', ?) "
+                      "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (from_addr,))
+    return RedirectResponse("/admin/mail-send?saved=1", 303)
+
+
 def _customer_contacts_from_form(form) -> list[dict]:
     """v5H56/v5H66: 폼에서 contact_*_N 패턴으로 다중 담당자 수집.
     v5H66: 'note' (특징) 필드 추가, 'role' 은 hidden 으로 '기타' 기본."""

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 쓰기 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .cmp-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:840px}
+  .cmp-from{font-size:12px;color:var(--mute);padding:4px 2px 10px;border-bottom:1px solid var(--line)}
+  .cmp-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:10px 2px}
+  .cmp-row label{width:84px;font-size:13px;color:var(--mute);flex:none}
+  .cmp-row input{flex:1;border:0;font-size:14px;outline:none;background:transparent}
+  .cmp-body{width:100%;min-height:300px;border:0;outline:none;font-size:14px;line-height:1.75;resize:vertical;padding:12px 2px;font-family:inherit;box-sizing:border-box}
+  .cmp-actions{display:flex;gap:8px;align-items:center;margin-top:12px}
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 쓰기</div>
+    <h1 class="page-title">✏️ 메일 <em>쓰기</em></h1>
+  </div></div>
+
+  {% if not ready %}
+  <div class="form-card" style="border-color:var(--amber);margin-bottom:12px;max-width:840px;">
+    <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;">⚠ 아직 <b>보내기 설정(발송망)</b>이 안 돼 있어 실제 발송이 안 됩니다.
+      {% if is_admin %}<a href="/admin/mail-send"><b>메일 보내기 설정</b></a>에서 발송망(Cloudflare/AWS SMTP)을 먼저 등록하세요.{% else %}관리자에게 보내기 설정을 요청하세요.{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="cmp-card">
+    <div class="cmp-from">보내는 사람 &nbsp;<b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</div>
+    <div class="cmp-row"><label>받는사람</label><input id="cTo" type="email" placeholder="customer@example.com" value="{{ prefill.to }}"></div>
+    <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}"></div>
+    <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}"></div>
+    <textarea id="cBody" class="cmp-body" placeholder="내용을 입력하세요...">{{ prefill.body }}</textarea>
+    <div class="cmp-row" style="border-bottom:0;"><label>첨부</label><input id="cFiles" type="file" multiple></div>
+    <div class="cmp-actions">
+      <button type="button" class="btn btn-primary" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
+      <a href="/mail/inbox" class="btn btn-secondary">취소</a>
+      <span id="cMsg" style="font-size:12.5px;margin-left:6px;"></span>
+    </div>
+    <div style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 첨부 합계 24MB 이하. 더 큰 파일은 추후 '대용량 첨부'(NAS 링크)로 보냅니다.</div>
+  </div>
+</main></div>
+<script>
+async function sendMail(){
+  const to=document.getElementById('cTo').value.trim();
+  if(!to){ cmsg('받는사람을 입력하세요','red'); return; }
+  const btn=document.getElementById('cSendBtn'); btn.disabled=true; cmsg('📤 보내는 중...','');
+  const fd=new FormData();
+  fd.append('to', to);
+  fd.append('cc', document.getElementById('cCc').value.trim());
+  fd.append('subject', document.getElementById('cSubj').value.trim());
+  fd.append('body', document.getElementById('cBody').value);
+  const files=document.getElementById('cFiles').files;
+  for(let i=0;i<files.length;i++) fd.append('files', files[i]);
+  try{
+    const r=await fetch('/mail/send',{method:'POST',body:fd});
+    const j=await r.json();
+    if(j.ok){ cmsg('✅ 보냈습니다. 보낸편지함으로 이동합니다...','green'); setTimeout(()=>location.href='/mail/sent',800); }
+    else { cmsg('⚠ '+(j.message||'발송 실패'),'red'); btn.disabled=false; }
+  }catch(e){ cmsg('⚠ 네트워크 오류','red'); btn.disabled=false; }
+}
+function cmsg(t,c){ const m=document.getElementById('cMsg'); m.textContent=t; m.style.color = c==='red'?'var(--knk-red)':(c==='green'?'var(--success)':'var(--mute)'); }
+</script>
+</body></html>

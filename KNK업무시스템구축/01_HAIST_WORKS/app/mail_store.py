@@ -170,7 +170,7 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
 
 # ─── 조회 ───────────────────────────────────────────────────────────
 def list_inbox(c, user_id: int, *, category: str = "", limit: int = 200, offset: int = 0):
-    where = "user_id=? AND is_deleted=0"
+    where = "user_id=? AND direction='in' AND is_deleted=0"
     args = [user_id]
     if category and category in CATEGORIES:
         where += " AND category=?"
@@ -188,7 +188,8 @@ def list_inbox(c, user_id: int, *, category: str = "", limit: int = 200, offset:
 
 def count_unread(c, user_id: int) -> int:
     r = c.execute(
-        "SELECT COUNT(*) AS n FROM mail_messages WHERE user_id=? AND is_deleted=0 AND is_read=0",
+        "SELECT COUNT(*) AS n FROM mail_messages "
+        "WHERE user_id=? AND direction='in' AND is_deleted=0 AND is_read=0",
         (user_id,),
     ).fetchone()
     return (r["n"] if r else 0) or 0
@@ -197,10 +198,45 @@ def count_unread(c, user_id: int) -> int:
 def category_counts(c, user_id: int) -> dict:
     rows = c.execute(
         "SELECT category, COUNT(*) AS n FROM mail_messages "
-        "WHERE user_id=? AND is_deleted=0 GROUP BY category",
+        "WHERE user_id=? AND direction='in' AND is_deleted=0 GROUP BY category",
         (user_id,),
     ).fetchall()
     return {r["category"]: r["n"] for r in rows}
+
+
+# ─── 보낸 메일(발송) ────────────────────────────────────────────────
+def store_outbound(c, *, user_id: int, from_email: str, to_email: str, subject: str = "",
+                   body: str = "", from_name: str = "", cc: str = "", size=0):
+    """발송한 메일을 보낸편지함에 기록(direction='out')."""
+    cur = c.execute(
+        """INSERT INTO mail_messages
+           (user_id, direction, from_email, from_name, to_email, cc,
+            subject, body_text, category, is_read, raw_size)
+           VALUES(?,?,?,?,?,?,?,?,?,1,?)""",
+        (user_id, "out", _norm_addr(from_email), (from_name or "").strip(),
+         _norm_addr(to_email), (cc or "").strip(), (subject or "(제목 없음)").strip(),
+         body or "", "일반", int(size or 0)),
+    )
+    return cur.lastrowid
+
+
+def list_sent(c, user_id: int, *, limit: int = 200, offset: int = 0):
+    rows = c.execute(
+        """SELECT id, to_email, from_name, subject, category, received_at, is_starred,
+                  substr(COALESCE(body_text,''),1,160) AS summary_short
+           FROM mail_messages WHERE user_id=? AND direction='out' AND is_deleted=0
+           ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?""",
+        (user_id, limit, offset),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_sent(c, user_id: int) -> int:
+    r = c.execute(
+        "SELECT COUNT(*) AS n FROM mail_messages "
+        "WHERE user_id=? AND direction='out' AND is_deleted=0", (user_id,),
+    ).fetchone()
+    return (r["n"] if r else 0) or 0
 
 
 def get_mail(c, mail_id: int, user_id: int):

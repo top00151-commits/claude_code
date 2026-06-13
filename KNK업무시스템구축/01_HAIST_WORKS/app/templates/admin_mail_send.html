@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 보내기 설정 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .ms-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px 18px;margin-bottom:14px;max-width:860px}
+  .ms-card h2{margin:0 0 10px;font-size:15px}
+  .ms-status{display:inline-block;font-size:12px;padding:3px 10px;border-radius:999px;font-weight:700}
+  .ms-on{background:#ecfdf5;color:#047857}.ms-off{background:#fef2f2;color:#b91c1c}
+  .frow{display:flex;gap:14px;flex-wrap:wrap}
+  .fld{flex:1;min-width:180px;margin-bottom:10px}
+  .fld label{display:block;font-size:12.5px;color:var(--mute);margin-bottom:4px}
+  .fld input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px}
+  .ms-step{display:flex;gap:10px;margin:9px 0}
+  .ms-num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--knk-red);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .ms-step div{font-size:13px;line-height:1.6}
+  .ms-note{font-size:12px;color:var(--mute);line-height:1.7}
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><b>관리</b> · 메일 보내기 설정</div>
+    <h1 class="page-title">📤 HAIST WORKS 메일함 <em>보내기 설정</em></h1>
+  </div></div>
+
+  {% if saved %}
+  <div class="ms-card" style="border-color:#6ee7b7;background:#ecfdf5;">
+    <div style="color:#065f46;font-size:13.5px;">✅ 저장했습니다. 메일함에서 <a href="/mail/compose">메일 쓰기</a>로 시험 발송해 보세요.</div>
+  </div>
+  {% endif %}
+
+  {% if not mail_key %}
+  <div class="ms-card" style="border-color:var(--amber);">
+    <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;">⚠ 서버에 메일 암호화 키(<code>KNK_MAIL_KEY</code>)가 없어 발송 비밀번호를 안전하게 저장할 수 없습니다.
+      전산담당자에게 <code>.env</code> 에 <code>KNK_MAIL_KEY</code> 등록을 요청하세요. (등록 후 이 화면에서 입력)</div>
+  </div>
+  {% endif %}
+
+  <!-- 상태 + 입력 -->
+  <form class="ms-card" method="POST" action="/admin/mail-send" autocomplete="off">
+    <h2>발송망(SMTP) 자격
+      {% if ready %}<span class="ms-status ms-on">발송 준비됨</span>{% else %}<span class="ms-status ms-off">미설정</span>{% endif %}
+    </h2>
+    <p class="ms-note">회사 발송망(Cloudflare 보내기)으로 메일을 내보냅니다. 아래 ②~④ 안내대로 Cloudflare에서 발급한 값을 입력하세요. 비밀번호는 암호화 보관됩니다.</p>
+    <div class="frow">
+      <div class="fld"><label>SMTP 호스트</label><input name="host" value="{{ cur_host or 'smtp.mx.cloudflare.net' }}" placeholder="smtp.mx.cloudflare.net"></div>
+      <div class="fld" style="max-width:120px;"><label>포트</label><input name="port" value="{{ cur_port or '465' }}" placeholder="465"></div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label>발송 계정(아이디)</label><input name="user" value="{{ cur_user }}" placeholder="Cloudflare 발급 사용자명"></div>
+      <div class="fld"><label>발송 비밀번호 {% if has_pass %}<span style="font-size:10px;">— 변경 시에만</span>{% endif %}</label>
+        <input type="password" name="password" placeholder="{% if has_pass %}그대로 두면 기존 유지{% else %}Cloudflare 발급 비밀번호(API 토큰){% endif %}"></div>
+    </div>
+    <div class="frow">
+      <div class="fld"><label>보내는 주소(From)</label><input name="from_address" type="email" value="{{ cur_from }}" placeholder="test@knk-mailtest.com"></div>
+    </div>
+    <div class="actions" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px;">
+      <button type="submit" class="btn btn-primary">💾 저장</button>
+      <a href="/mail/compose" class="btn btn-secondary">메일 쓰기로</a>
+      <a href="/admin/mail-inbound" class="btn btn-secondary">받기 설정</a>
+    </div>
+  </form>
+
+  <!-- Cloudflare 보내기 연결 안내 -->
+  <div class="ms-card">
+    <h2>Cloudflare 보내기 연결 순서</h2>
+    <div class="ms-step"><div class="ms-num">1</div><div>Cloudflare → <b>Workers 요금제</b>를 <b>유료(Workers Paid, 약 $5/월)</b>로 업그레이드 (보내기는 유료에서 제공)</div></div>
+    <div class="ms-step"><div class="ms-num">2</div><div>Cloudflare → <b>컴퓨트 → 이메일 서비스 → 이메일 보내기(Email Sending)</b> → <b>도메인 온보드</b>로 <code>knk-mailtest.com</code> 추가 → DKIM 레코드 자동 추가(승인)</div></div>
+    <div class="ms-step"><div class="ms-num">3</div><div>발송용 <b>SMTP 자격(사용자명·비밀번호)</b> 발급 — 호스트 <code>smtp.mx.cloudflare.net</code>, 포트 <code>465</code></div></div>
+    <div class="ms-step"><div class="ms-num">4</div><div>위 ①~④ 칸에 <b>호스트·계정·비밀번호·보내는 주소</b> 입력 → <b>저장</b></div></div>
+    <div class="ms-step"><div class="ms-num">5</div><div><a href="/mail/compose">메일 쓰기</a>에서 본인 다른 메일로 시험 발송 → 도착 확인</div></div>
+    <p class="ms-note">막히는 화면이 나오면 캡처해서 빅터에게 보내주세요. 단계별로 안내합니다. (대량 발송이 필요해지면 AWS SES로 호스트만 바꿔도 됩니다)</p>
+  </div>
+</main></div>
+</body></html>

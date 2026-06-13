@@ -150,3 +150,90 @@ def send_mail(from_email: str, password: str, to_email: str, subject: str, body:
         return (False, "로그인 실패 — 메일주소/비밀번호 확인. (하이웍스에서 POP3/SMTP 활성화 + 앱 비밀번호 사용)")
     except Exception as e:
         return (False, f"발송 오류: {str(e)[:120]}")
+
+
+# ─── 시스템 발송 (자체 메일망 — Cloudflare/AWS SMTP) ──────────────────
+# 직원 개인 계정이 아닌 '회사 발송망(SMTP)' 으로 보냄. 로그인 계정(시스템)과
+# 보내는 주소(From=직원@우리도메인)가 다를 수 있어 _smtp_send 로 분리.
+# 설정은 app_settings: mail_send_host / mail_send_port / mail_send_user / mail_send_pass_enc(암호화).
+def _setting(c, key: str, default: str = "") -> str:
+    try:
+        r = c.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+        return ((r["value"] if r else default) or default)
+    except Exception:
+        return default
+
+
+def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
+               from_email: str, to_email: str, subject: str, body: str,
+               from_name: str = "", cc: str = "", attachments=None) -> tuple[bool, str]:
+    """임의 SMTP 서버로 발송. login 계정과 From 이 달라도 됨(시스템 발송망용)."""
+    if not is_valid_email(from_email):
+        return (False, "보내는 메일주소가 올바르지 않습니다.")
+    if not is_valid_email(to_email):
+        return (False, "받는 메일주소가 올바르지 않습니다.")
+    msg = EmailMessage()
+    msg["From"] = formataddr((from_name or from_email, from_email))
+    msg["To"] = to_email
+    if cc.strip():
+        msg["Cc"] = cc.strip()
+    msg["Subject"] = subject or "(제목 없음)"
+    msg.set_content(body or "")
+    for fname, data, mime in (attachments or []):
+        maintype, _, subtype = (mime or "application/octet-stream").partition("/")
+        msg.add_attachment(data, maintype=maintype or "application",
+                           subtype=subtype or "octet-stream", filename=fname)
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, int(port or 465), context=ctx, timeout=30) as s:
+            s.login(login_user, login_pass)
+            s.send_message(msg)
+        return (True, "발송 완료")
+    except smtplib.SMTPAuthenticationError:
+        return (False, "발송망 로그인 실패 — 보내기 설정의 계정/비밀번호를 확인하세요.")
+    except Exception as e:
+        return (False, f"발송 오류: {str(e)[:120]}")
+
+
+def get_send_config(c):
+    """시스템 발송망 설정. 없으면 None."""
+    host = _setting(c, "mail_send_host")
+    user = _setting(c, "mail_send_user")
+    pw_enc = _setting(c, "mail_send_pass_enc")
+    if not (host and user and pw_enc):
+        return None
+    try:
+        pw = decrypt(pw_enc)
+    except Exception:
+        return None
+    if not pw:
+        return None
+    return {"host": host, "port": int(_setting(c, "mail_send_port", "465") or "465"),
+            "user": user, "password": pw}
+
+
+def system_send_ready(c) -> bool:
+    """시스템 발송 가능 여부(암호화키 + 호스트·계정·비번 설정)."""
+    return mail_available() and get_send_config(c) is not None
+
+
+def save_send_config(c, host: str, port: str, user: str, password: str) -> None:
+    """보내기 설정 저장. password 빈 값이면 기존 비번 유지."""
+    def _set(k, v):
+        c.execute("INSERT INTO app_settings(key,value) VALUES(?,?) "
+                  "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
+    _set("mail_send_host", (host or "").strip())
+    _set("mail_send_port", str(port or "465").strip())
+    _set("mail_send_user", (user or "").strip())
+    if password:
+        _set("mail_send_pass_enc", encrypt(password))
+
+
+def send_system(c, from_email: str, to_email: str, subject: str, body: str,
+                from_name: str = "", cc: str = "", attachments=None) -> tuple[bool, str]:
+    """회사 발송망(시스템 SMTP)으로 발송. from_email = 보내는 직원의 @우리도메인 주소."""
+    cfg = get_send_config(c)
+    if not cfg:
+        return (False, "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 입력하세요.")
+    return _smtp_send(cfg["host"], cfg["port"], cfg["user"], cfg["password"],
+                      from_email, to_email, subject, body, from_name, cc, attachments)
