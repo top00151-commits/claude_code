@@ -10,9 +10,21 @@
   /* 안읽음 강조 뱃지 — 빨강 알약 (대표 지시 2026-06-14) */
   .mbx-cat .nbadge{background:#dc2626;color:#fff;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:3px;line-height:1.6}
   .mbx-cat.on .nbadge{background:#fff;color:var(--knk-red)}
-  /* 읽기 창 2단 레이아웃 — 목록 | 내용 (아웃룩식, 대표 지시 2026-06-14) */
-  .mbx-split{display:grid;grid-template-columns:minmax(330px,440px) 1fr;gap:14px;align-items:start}
+  /* 읽기 창 레이아웃 — 거래처 폴더 | 목록 | 내용 (아웃룩식 3단, 대표 지시 2026-06-14) */
+  .mbx-split{display:grid;grid-template-columns:196px minmax(300px,420px) 1fr;gap:14px;align-items:start}
   .mbx-listcol{min-width:0}
+  /* C1 거래처 폴더 트리 (좌측) */
+  .mbx-folders{border:1px solid var(--line);border-radius:12px;background:#fff;padding:8px;align-self:start;position:sticky;top:12px;max-height:calc(100vh - 96px);overflow:auto}
+  .mbx-fold-h{font-size:11px;font-weight:700;color:var(--mute);padding:6px 8px 8px;letter-spacing:.02em}
+  .mbx-fold{display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:8px;font-size:12.5px;color:var(--ink);text-decoration:none;margin-bottom:1px}
+  .mbx-fold:hover{background:#f3f4f6}
+  .mbx-fold.on{background:var(--knk-red);color:#fff}
+  .mbx-fold .fname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mbx-fold .cnt{font-size:11px;opacity:.65}
+  .mbx-fold.on .cnt{opacity:.9}
+  .mbx-fold .fbadge{background:#dc2626;color:#fff;font-size:9.5px;font-weight:700;padding:0 6px;border-radius:999px;line-height:1.7}
+  .mbx-fold.on .fbadge{background:#fff;color:var(--knk-red)}
+  .mbx-fold-div{height:1px;background:var(--line);margin:6px 4px}
   .mbx-readpane{border:1px solid var(--line);border-radius:12px;background:#f7f8fa;padding:16px;min-height:440px;position:sticky;top:12px;max-height:calc(100vh - 96px);overflow:auto}
   .mbx-readpane.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mute);text-align:center;font-size:13px;line-height:1.9;gap:8px;font-weight:500}
   .mbx-readpane.empty .mbx-rp-ico{font-size:34px;opacity:.6}
@@ -50,7 +62,9 @@
   .mbx-row.mbx-child{padding-left:34px;background:#fbfcfe}
   .mbx-row.mbx-child .mbx-subj{font-size:13px}
   .mbx-row.mbx-child::before{content:"↳";color:#cbd5e1;margin-right:-4px}
-  /* 좁은 화면: 읽기 창 접고 목록만 → 행 클릭 시 풀페이지로 폴백 */
+  /* 중간 너비: 거래처 폴더 접고 목록|읽기창 2단 */
+  @media(max-width:1180px){ .mbx-split{grid-template-columns:minmax(300px,440px) 1fr} .mbx-folders{display:none} }
+  /* 좁은 화면: 읽기 창도 접고 목록만 → 행 클릭 시 풀페이지로 폴백 */
   @media(max-width:900px){ .mbx-split{grid-template-columns:1fr} .mbx-readpane{display:none} }
 </style>
 </head><body>
@@ -93,6 +107,7 @@
            style="flex:1;min-width:200px;padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;outline:none;">
     {% if box=='in' %}
     <input type="hidden" name="cat" value="{{ cur_cat|default('') }}">
+    <input type="hidden" name="cust" value="{{ cur_cust|default('') }}">
     <input type="date" name="df" value="{{ cur_df|default('') }}" title="받은날짜 시작" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
     <span style="color:var(--mute);font-size:12px;">~</span>
     <input type="date" name="dt" value="{{ cur_dt|default('') }}" title="받은날짜 끝" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;">
@@ -103,7 +118,7 @@
     {% if box=='in' %}
       <a href="/mail/inbox?star=1" class="mbx-cat {{ 'on' if cur_star|default(false) else '' }}">⭐ 별표</a>
       <a href="/mail/inbox?unread=1" class="mbx-cat {{ 'on' if cur_unread|default(false) else '' }}">● 안읽음</a>
-      <a href="/mail/inbox?thread={{ 0 if thread_on|default(true) else 1 }}" class="mbx-cat {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:)으로 오가는 메일을 한 대화로 묶어 보기">💬 대화묶기</a>
+      <a href="/mail/inbox?thread={{ 0 if thread_on|default(true) else 1 }}{% if cur_cust|default('') %}&cust={{ cur_cust }}{% endif %}" class="mbx-cat {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:)으로 오가는 메일을 한 대화로 묶어 보기">💬 대화묶기</a>
     {% endif %}
   </form>
 
@@ -128,6 +143,31 @@
   {% endmacro %}
 
   <div class="{{ 'mbx-split' if box=='in' else '' }}">
+    {% if box=='in' and folders %}
+    {# C1 거래처 폴더 트리 — 보낸사람→연락처→거래처(이메일 정확일치). 미매핑=미분류 #}
+    <nav class="mbx-folders" aria-label="거래처 폴더">
+      <div class="mbx-fold-h">📁 거래처 폴더</div>
+      <a href="/mail/inbox" class="mbx-fold {{ 'on' if not cur_cust|default('') else '' }}">
+        <span class="fname">📥 전체</span>
+        <span class="cnt">{{ folders.total }}</span>
+        {% if folders.total_unread %}<span class="fbadge" title="안읽음 {{ folders.total_unread }}통">{{ folders.total_unread }}</span>{% endif %}
+      </a>
+      {% if folders.customers %}<div class="mbx-fold-div"></div>{% endif %}
+      {% for cf in folders.customers %}
+      <a href="/mail/inbox?cust={{ cf.id }}" class="mbx-fold {{ 'on' if cur_cust|default('') == cf.id|string else '' }}" title="{{ cf.name }}">
+        <span class="fname">🏢 {{ cf.name }}</span>
+        <span class="cnt">{{ cf.cnt }}</span>
+        {% if cf.unread %}<span class="fbadge" title="안읽음 {{ cf.unread }}통">{{ cf.unread }}</span>{% endif %}
+      </a>
+      {% endfor %}
+      <div class="mbx-fold-div"></div>
+      <a href="/mail/inbox?cust=none" class="mbx-fold {{ 'on' if cur_cust|default('') == 'none' else '' }}" title="거래처가 연결되지 않은 보낸사람의 메일">
+        <span class="fname">🗂 미분류</span>
+        <span class="cnt">{{ folders.unclassified }}</span>
+        {% if folders.unclassified_unread %}<span class="fbadge" title="안읽음 {{ folders.unclassified_unread }}통">{{ folders.unclassified_unread }}</span>{% endif %}
+      </a>
+    </nav>
+    {% endif %}
     <div class="mbx-listcol">
     {% if mails %}
     <div class="mbx-list">

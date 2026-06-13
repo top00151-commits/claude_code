@@ -259,7 +259,7 @@ def apply_rules_existing(c, user_id: int) -> int:
 # ─── 조회 ───────────────────────────────────────────────────────────
 def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                starred=None, unread=None, date_from: str = "", date_to: str = "",
-               has_att=None, limit: int = 200, offset: int = 0):
+               has_att=None, cust: str = "", limit: int = 200, offset: int = 0):
     where = "user_id=? AND direction='in' AND is_deleted=0"
     args = [user_id]
     if category and category in CATEGORIES:
@@ -282,6 +282,17 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     if has_att:
         where += (" AND EXISTS(SELECT 1 FROM mail_attachments a "
                   "WHERE a.mail_id=mail_messages.id AND COALESCE(a.is_inline,0)=0)")
+    # C1 거래처 폴더 — 보낸사람 이메일 정확일치(소문자)로만 거래처 매핑(추측 금지). cust='none'=미분류.
+    cust = (cust or "").strip()
+    if cust == "none":
+        where += (" AND NOT EXISTS(SELECT 1 FROM shared_contacts sc "
+                  "WHERE sc.email IS NOT NULL AND lower(sc.email)=lower(mail_messages.from_email) "
+                  "AND sc.customer_id IS NOT NULL)")
+    elif cust.isdigit():
+        where += (" AND EXISTS(SELECT 1 FROM shared_contacts sc "
+                  "WHERE sc.email IS NOT NULL AND lower(sc.email)=lower(mail_messages.from_email) "
+                  "AND sc.customer_id=?)")
+        args.append(int(cust))
     q = (q or "").strip()
     if q:
         where += " AND (from_email LIKE ? OR from_name LIKE ? OR subject LIKE ? OR body_text LIKE ?)"
@@ -331,6 +342,44 @@ def group_threads(mails: list) -> list:
         if not m.get("is_read"):
             g["unread_count"] += 1
     return [groups[k] for k in order]
+
+
+def customer_folder_counts(c, user_id: int) -> dict:
+    """받은편지함을 보낸사람→연락처→거래처 매핑으로 거래처별 집계 (C1 폴더, 2026-06-14).
+    매핑은 이메일 '정확일치(소문자)'만 — 추측 금지([[feedback-data-connectivity]]). 미매핑=미분류.
+    반환: {total, total_unread, unclassified, unclassified_unread, customers:[{id,name,cnt,unread}]}."""
+    base_args = (user_id,)
+    tot = c.execute(
+        "SELECT COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u "
+        "FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0",
+        base_args).fetchone()
+    rows = c.execute(
+        """SELECT cu.id AS id, cu.name AS name,
+                  COUNT(DISTINCT m.id) AS cnt,
+                  COUNT(DISTINCT CASE WHEN m.is_read=0 THEN m.id END) AS unread
+           FROM mail_messages m
+           JOIN shared_contacts sc ON sc.email IS NOT NULL
+                AND lower(sc.email)=lower(m.from_email) AND sc.customer_id IS NOT NULL
+           JOIN customers cu ON cu.id=sc.customer_id
+           WHERE m.user_id=? AND m.direction='in' AND m.is_deleted=0
+           GROUP BY cu.id, cu.name
+           ORDER BY cnt DESC, cu.name""",
+        base_args).fetchall()
+    unc = c.execute(
+        """SELECT COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u
+           FROM mail_messages m
+           WHERE m.user_id=? AND m.direction='in' AND m.is_deleted=0
+             AND NOT EXISTS(SELECT 1 FROM shared_contacts sc
+                  WHERE sc.email IS NOT NULL AND lower(sc.email)=lower(m.from_email)
+                    AND sc.customer_id IS NOT NULL)""",
+        base_args).fetchone()
+    return {
+        "total": (tot["n"] or 0) if tot else 0,
+        "total_unread": (tot["u"] or 0) if tot else 0,
+        "unclassified": (unc["n"] or 0) if unc else 0,
+        "unclassified_unread": (unc["u"] or 0) if unc else 0,
+        "customers": [dict(r) for r in rows],
+    }
 
 
 def count_unread(c, user_id: int) -> int:

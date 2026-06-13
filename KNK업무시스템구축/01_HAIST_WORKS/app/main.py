@@ -10949,24 +10949,27 @@ async def admin_mail_inbound_bind(req: Request):
 
 @app.get("/mail/inbox")
 async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0,
-                          df: str = "", dt: str = "", att: int = 0, thread: int = 1):
+                          df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
         mails = _mailbox.list_inbox(c, u["id"], category=cat, q=q,
                                     starred=bool(star), unread=bool(unread),
-                                    date_from=df, date_to=dt, has_att=bool(att))
+                                    date_from=df, date_to=dt, has_att=bool(att), cust=cust)
         unread_n = _mailbox.count_unread(c, u["id"])
         cat_counts = _mailbox.category_counts(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
+        # C1 거래처 폴더 — 보낸사람→연락처→거래처 매핑 집계(전체·거래처별·미분류). 매핑은 이메일 정확일치만.
+        folders = _mailbox.customer_folder_counts(c, u["id"])
     # B1 대화 묶기: 같은 제목(RE/FW 접두 제거) 받은 메일을 한 대화로(기본 ON). thread=0 이면 평면 목록.
     thread_on = bool(thread)
     threads = _mailbox.group_threads(mails) if thread_on else None
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread_n,
                cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES, cur_df=df, cur_dt=dt, cur_att=bool(att),
                ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
-               drafts_n=drafts_n, thread_on=thread_on, threads=threads)
+               drafts_n=drafts_n, thread_on=thread_on, threads=threads,
+               folders=folders, cur_cust=(cust or "").strip())
 
 
 @app.post("/mail/inbox/demo")
