@@ -60,6 +60,32 @@ def migrate(db_path: str) -> dict:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_opp_owner "
                         "ON sales_opportunities(owner_user_id)")
             created.append("sales_opportunities")
+        # v5H226z418 (대표 지시): 정식 견적서 링크 컬럼 + 첨부파일 테이블 (idempotent)
+        opp_cols = {r[1] for r in cur.execute("PRAGMA table_info(sales_opportunities)").fetchall()}
+        if opp_cols and "quotation_id" not in opp_cols:
+            try:
+                cur.execute("ALTER TABLE sales_opportunities ADD COLUMN quotation_id INTEGER")
+                created.append("sales_opportunities.quotation_id")
+            except Exception:
+                pass
+        have2 = {r[0] for r in cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if "sales_opportunity_files" not in have2:
+            cur.execute("""
+                CREATE TABLE sales_opportunity_files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    opp_id INTEGER NOT NULL,
+                    kind TEXT DEFAULT 'etc',
+                    orig_name TEXT,
+                    url TEXT,
+                    size INTEGER DEFAULT 0,
+                    uploaded_by INTEGER,
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_opp_files "
+                        "ON sales_opportunity_files(opp_id, kind)")
+            created.append("sales_opportunity_files")
         conn.commit()
     finally:
         conn.close()

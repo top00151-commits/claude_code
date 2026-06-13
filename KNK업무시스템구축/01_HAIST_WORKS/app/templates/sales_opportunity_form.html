@@ -32,6 +32,19 @@
 .op-btn.promote{background:#15a34a;color:#fff;border-color:#15a34a;}
 .op-btn.danger{background:#fff;color:#b91c1c;border-color:#fca5a5;}
 .op-locked{font-size:11.5px;color:#94a3b8;}
+.op-qsel{flex:1;min-width:200px;padding:6px 10px;border:1px solid #d6cdb6;border-radius:6px;font-size:12.5px;font-family:inherit;}
+.op-qlink{font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:700;white-space:nowrap;}
+.op-fgroup{padding:8px 0;border-bottom:1px dashed #f1e8d4;}
+.op-fgroup:last-of-type{border-bottom:none;}
+.op-fhead{display:flex;align-items:center;gap:10px;font-size:13px;color:#334155;margin-bottom:4px;}
+.op-fbtn{padding:4px 11px;border:1px solid #b9d2ff;background:#e0edff;color:#1d4ed8;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;}
+.op-flist{list-style:none;margin:0;padding:0 0 0 2px;}
+.op-flist li{font-size:12.5px;padding:3px 0;display:flex;align-items:center;gap:8px;}
+.op-flist li a{color:#1e293b;text-decoration:none;}
+.op-flist li a:hover{color:#A5282C;text-decoration:underline;}
+.op-flist li .sz{color:#94a3b8;font-size:11px;}
+.op-flist li .del{color:#b91c1c;font-weight:800;text-decoration:none;margin-left:auto;}
+.op-fnone{color:#cbd5e1;font-size:11.5px;}
 </style></head>
 <body>
 <div class="app">{% set active_tab='sales' %}
@@ -112,6 +125,17 @@
           <input type="text" class="memo" name="{{ key }}_memo" placeholder="{{ ph }}" value="{{ opp[key ~ '_memo']|default('') if opp else '' }}" {% if not can_edit %}disabled{% endif %}>
         </div>
         {% endfor %}
+        {% if can_money %}
+        <div class="op-step">
+          <span class="lbl">🔗 견적서 연결</span>
+          <select name="quotation_id" class="op-qsel" {% if not can_edit %}disabled{% endif %}>
+            <option value="">— 정식 견적서 연결 안 함 —</option>
+            {% for q in quotations %}<option value="{{ q.id }}" {{ 'selected' if opp and opp.quotation_id==q.id }}>{{ q.quote_no }} · {{ q.cust or '-' }} · {{ '{:,.0f}'.format(q.total_amount or 0) }}원</option>{% endfor %}
+          </select>
+          {% if opp and opp.quotation_id %}<a href="/sales/quotations/{{ opp.quotation_id }}/print" target="_blank" class="op-qlink">견적서 보기 →</a>{% endif %}
+          <a href="/sales/quotations" target="_blank" class="op-qlink">+ 새 견적서</a>
+        </div>
+        {% endif %}
       </div>
 
       <div class="op-card">
@@ -125,6 +149,27 @@
       </div>
     </form>
 
+    {% if opp %}
+    <div class="op-card">
+      <h3>첨부 파일 <span style="font-weight:400;color:#94a3b8;font-size:11.5px;">— 제안서·견적서·미팅 (PDF·엑셀·한글·이미지 등, 25MB 이하)</span></h3>
+      {% for key,lbl in [('proposal','📝 제안서'),('quotation','💰 견적서'),('meeting','🤝 미팅')] %}
+      <div class="op-fgroup">
+        <div class="op-fhead"><b>{{ lbl }}</b>
+          {% if can_edit %}<button type="button" class="op-fbtn" onclick="opPick('{{ key }}')">+ 파일 첨부</button>{% endif %}
+        </div>
+        <ul class="op-flist" id="oplist_{{ key }}">
+          {% for f in (files.get(key) or []) %}
+          <li data-fid="{{ f.id }}"><a href="{{ f.url }}" target="_blank">📎 {{ f.orig_name }}</a> <span class="sz">{{ (f.size/1024)|round|int }}KB</span>{% if can_edit %} <a href="#" class="del" onclick="opDel({{ f.id }},this);return false;">×</a>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+      <input type="file" id="opFile" data-knk-no-dropzone style="display:none;" onchange="opUp(this)">
+    </div>
+    {% else %}
+    <div class="op-card" style="font-size:12px;color:#94a3b8;">💾 먼저 저장하면 제안서·견적서 파일을 첨부할 수 있습니다.</div>
+    {% endif %}
+
     {% if opp and can_edit and not opp.promoted_project_id %}
     <div class="op-actions" style="margin-top:16px;">
       <form method="post" action="/sales/opportunities/{{ opp.id }}/promote" onsubmit="return confirm('이 영업 기회를 수주 확정하고 프로젝트(관리코드)로 승격할까요?\n관리코드가 자동 발번되고, 이후 그 프로젝트에서 제작요청을 발행합니다.');">
@@ -136,4 +181,37 @@
     </div>
     {% endif %}
   </div>
+{% if opp %}
+<script>
+(function(){
+  var OID = {{ opp.id }}, kind = 'etc';
+  function esc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];}); }
+  window.opPick = function(k){ kind=k; var i=document.getElementById('opFile'); if(i){ i.value=''; i.click(); } };
+  window.opUp = async function(input){
+    if(!input.files || !input.files[0]) return;
+    var f=input.files[0];
+    var fd=new FormData(); fd.append('file', f); fd.append('kind', kind);
+    try{
+      var r=await fetch('/sales/opportunities/'+OID+'/upload', {method:'POST', body:fd});
+      var j=await r.json();
+      if(!j.ok){ alert('업로드 실패: '+(j.error||'')); return; }
+      var ul=document.getElementById('oplist_'+j.kind);
+      if(ul){
+        var li=document.createElement('li'); li.setAttribute('data-fid', j.id);
+        li.innerHTML='<a href="'+j.url+'" target="_blank">📎 '+esc(j.orig_name)+'</a> <span class="sz">'+Math.round((j.size||0)/1024)+'KB</span> <a href="#" class="del" onclick="opDel('+j.id+',this);return false;">×</a>';
+        ul.appendChild(li);
+      }
+    }catch(e){ alert('업로드 통신 오류: '+(e.message||e)); }
+  };
+  window.opDel = async function(fid, el){
+    if(!confirm('이 파일을 삭제할까요?')) return;
+    try{
+      var r=await fetch('/sales/opportunities/'+OID+'/files/'+fid+'/delete', {method:'POST'});
+      var j=await r.json();
+      if(j.ok){ var li=el.closest('li'); if(li) li.remove(); } else alert('삭제 실패: '+(j.error||''));
+    }catch(e){ alert('삭제 통신 오류: '+(e.message||e)); }
+  };
+})();
+</script>
+{% endif %}
 </main></div></body></html>
