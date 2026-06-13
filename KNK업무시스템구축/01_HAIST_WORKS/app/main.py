@@ -8222,6 +8222,10 @@ async def sales_order_item_edit(req: Request, iid: int):
                 "ok": False,
                 "message": f"{st} 상태 SO 의 호기는 수정 불가"
             }, 400)
+        # v5H226z407: 동시 편집 감지(호기 라인 — 낙관적 잠금)
+        _conf, _cur = _edit_conflict(c, "order_items", iid, form.get("base_ts"))
+        if _conf:
+            return _conflict_resp(_cur)
         # v5H177: order_items 에 override 컬럼이 있을 때만 같이 업데이트 (백워드 호환)
         try:
             _oicols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
@@ -8281,6 +8285,7 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("description=?"); vals_set.append((u_description or "").strip() or None)
             if u_pallet is not None and "pallet_size" in _oicols:
                 cols_set.append("pallet_size=?"); vals_set.append((u_pallet or "").strip() or None)
+            cols_set.append("updated_at=datetime('now','localtime')")   # v5H226z407: 낙관적 잠금 버전 증가
             vals_set.append(iid)
             c.execute(
                 f"UPDATE order_items SET {','.join(cols_set)} WHERE id=?",
@@ -8288,7 +8293,7 @@ async def sales_order_item_edit(req: Request, iid: int):
             )
         else:
             c.execute(
-                "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=? WHERE id=?",
+                "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, updated_at=datetime('now','localtime') WHERE id=?",
                 (label or None, amt, amt, note or None, iid)
             )
         # SO total_amount = SUM(items.amount), unit_label 재구성
@@ -8299,7 +8304,7 @@ async def sales_order_item_edit(req: Request, iid: int):
         ).fetchall()
         new_total = sum(float(r["amount"] or 0) for r in rows)
         new_label = " · ".join((r["unit_label"] or f"호기 {i+1}") for i, r in enumerate(rows))
-        c.execute("UPDATE orders SET total_amount=?, unit_label=? WHERE id=?",
+        c.execute("UPDATE orders SET total_amount=?, unit_label=?, updated_at=datetime('now','localtime') WHERE id=?",
                   (new_total, new_label, oid))
         # 프로젝트 합계 동기화
         try:
@@ -8382,7 +8387,8 @@ async def sales_order_item_edit(req: Request, iid: int):
                     )
         except Exception:
             pass
-    return JSONResponse({"ok": True, "message": "라인 수정 완료"})
+        _new_ts = _row_ts(c, "order_items", iid)
+    return JSONResponse({"ok": True, "message": "라인 수정 완료", "updated_at": _new_ts})
 
 
 UNIT_STATUSES = ("진행중", "납품완료", "취소", "보류")

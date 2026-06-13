@@ -2154,6 +2154,22 @@ def init_db():
                     c.execute(ddl)
                 except Exception:
                     pass
+        # z407 (2026-06-13 대표 지시): 동시 편집 감지(낙관적 잠금)용 updated_at 보강.
+        #   수주(orders)·호기(order_items)·소모품수주(consumable_orders)에 updated_at 추가 +
+        #   기존 행은 created_at(있으면)으로 백필(없으면 now) → 잠금 기준(baseline) 확보. (additive·안전)
+        for _tbl in ("orders", "order_items", "consumable_orders"):
+            try:
+                _tcols = [r[1] for r in c.execute(f"PRAGMA table_info({_tbl})").fetchall()]
+                if not _tcols:
+                    continue   # 테이블 없음 → 건너뜀
+                if "updated_at" not in _tcols:
+                    c.execute(f"ALTER TABLE {_tbl} ADD COLUMN updated_at TEXT")
+                    if "created_at" in _tcols:
+                        c.execute(f"UPDATE {_tbl} SET updated_at=created_at WHERE updated_at IS NULL")
+                    else:
+                        c.execute(f"UPDATE {_tbl} SET updated_at=datetime('now','localtime') WHERE updated_at IS NULL")
+            except Exception:
+                pass
         # z393 (2026-06-13 대표 지시): 메일 첨부 본문 저장 + 인라인 이미지(서명 로고) 표시
         try:
             macols = [r[1] for r in c.execute("PRAGMA table_info(mail_attachments)").fetchall()]
