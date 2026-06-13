@@ -29,6 +29,8 @@ HAIST AI 클라이언트 — 공급사 무관(Claude / OpenAI) 중앙 래퍼
 from __future__ import annotations
 
 import os
+import base64
+import hashlib
 from typing import Any, Optional
 
 # ── 공급사·모델 기본값 ────────────────────────────────────────────
@@ -69,25 +71,114 @@ def _setting(key: str) -> str:
         return ""
 
 
+# ── v5H226z381 (대표 지시): 화면(관리자 AI 설정)에서 키 입력·저장 ──────────
+#   기존 정책(키=OS 환경변수 only)에서 → 화면 DB 저장 허용으로 확장.
+#   보안 완화책: ① 저장 시 난독화(KNK_SECRET_KEY 기반 XOR, 평문 회피) ② 화면 마스킹만
+#   ③ admin/ceo 전용 라우트. (강한 암호화는 아님 — DB/백업 접근 관리는 별도 필요)
+def _obfus_salt() -> bytes:
+    """KNK_SECRET_KEY 기반 난독화 솔트(32B). 미설정 시 고정 솔트(약함 — 평문 회피용)."""
+    secret = (os.environ.get("KNK_SECRET_KEY") or "knk-haist-works-ai-keystore-v1").encode("utf-8")
+    return hashlib.sha256(secret).digest()
+
+
+def _enc(raw: str) -> str:
+    """평문 키 → 'enc:'+base64(XOR salt). DB 평문 저장 회피용 난독화(강한 암호화 아님)."""
+    if not raw:
+        return ""
+    salt = _obfus_salt()
+    b = raw.encode("utf-8")
+    x = bytes(ch ^ salt[i % len(salt)] for i, ch in enumerate(b))
+    return "enc:" + base64.b64encode(x).decode("ascii")
+
+
+def _dec(stored: str) -> str:
+    """저장값 → 평문. 'enc:' 접두 없으면 평문(직접 입력/구버전)으로 간주."""
+    if not stored:
+        return ""
+    if not stored.startswith("enc:"):
+        return stored.strip()
+    try:
+        x = base64.b64decode(stored[4:])
+        salt = _obfus_salt()
+        b = bytes(ch ^ salt[i % len(salt)] for i, ch in enumerate(x))
+        return b.decode("utf-8")
+    except Exception:
+        return ""
+
+
+def _mask(k: str) -> str:
+    if not k:
+        return ""
+    return (k[:7] + "…" + k[-4:]) if len(k) > 14 else "설정됨"
+
+
+def save_api_key(provider: str, raw: str) -> None:
+    """공급사 키를 난독화해 app_settings 저장 (provider: 'openai'|'claude')."""
+    skey = "openai_api_key" if provider == "openai" else "anthropic_api_key"
+    try:
+        from .database import db_session
+        with db_session() as c:
+            c.execute(
+                "INSERT INTO app_settings(key, value) VALUES(?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (skey, _enc(raw)))
+    except Exception:
+        pass
+
+
+def clear_api_key(provider: str) -> None:
+    skey = "openai_api_key" if provider == "openai" else "anthropic_api_key"
+    try:
+        from .database import db_session
+        with db_session() as c:
+            c.execute("DELETE FROM app_settings WHERE key=?", (skey,))
+    except Exception:
+        pass
+
+
+def key_info() -> dict:
+    """공급사별 키 상태(마스킹·출처) — 원문 비노출. 화면 표시용.
+    src: 'db'(화면 저장) / 'env'(환경변수) / ''(미설정)."""
+    out = {}
+    for prov, skey, env in (("openai", "openai_api_key", _OPENAI_KEY_ENV),
+                            ("claude", "anthropic_api_key", _CLAUDE_KEY_ENV)):
+        dbval = _setting(skey)
+        dbk = _dec(dbval) if dbval else ""
+        envk = (os.environ.get(env) or "").strip()
+        if dbk:
+            out[prov] = {"set": True, "src": "db", "masked": _mask(dbk)}
+        elif envk:
+            out[prov] = {"set": True, "src": "env", "masked": _mask(envk)}
+        else:
+            out[prov] = {"set": False, "src": "", "masked": ""}
+    return out
+
+
 def get_provider() -> str:
     """현재 사용할 공급사 결정. claude | openai | '' (비활성).
-    우선순위: 환경변수 KNK_AI_PROVIDER → 앱설정 ai_provider → 키 자동감지."""
-    p = (os.environ.get("KNK_AI_PROVIDER") or "").strip().lower()
+    v5H226z381 (대표 지시): 화면(DB) 설정 우선 → 환경변수 → 키 자동감지."""
+    p = _setting("ai_provider").lower()
     if not p:
-        p = _setting("ai_provider").lower()
+        p = (os.environ.get("KNK_AI_PROVIDER") or "").strip().lower()
     if p in ("claude", "anthropic"):
         return "claude"
     if p in ("openai", "gpt"):
         return "openai"
-    # 자동 감지: Claude 키 우선, 없으면 OpenAI
-    if (os.environ.get(_CLAUDE_KEY_ENV) or "").strip():
+    # 자동 감지: Claude 키 우선, 없으면 OpenAI (화면 DB 키 + 환경변수 모두 고려)
+    if _key_for("claude"):
         return "claude"
-    if (os.environ.get(_OPENAI_KEY_ENV) or "").strip():
+    if _key_for("openai"):
         return "openai"
     return ""
 
 
 def _key_for(provider: str) -> str:
+    # v5H226z381 (대표 지시): 화면(DB)에 등록된 키 우선 → 없으면 OS 환경변수 폴백.
+    skey = "openai_api_key" if provider == "openai" else "anthropic_api_key"
+    dbval = _setting(skey)
+    if dbval:
+        k = _dec(dbval)
+        if k:
+            return k
     env = _CLAUDE_KEY_ENV if provider == "claude" else _OPENAI_KEY_ENV
     return (os.environ.get(env) or "").strip()
 
@@ -97,10 +188,10 @@ def _sdk_ok(provider: str) -> bool:
 
 
 def default_model(provider: str = "") -> str:
-    """모델 결정. 우선순위: 환경변수 KNK_AI_MODEL → 앱설정 ai_model → 공급사 기본."""
-    override = (os.environ.get("KNK_AI_MODEL") or "").strip()
+    """모델 결정. v5H226z381: 화면(DB) ai_model 우선 → 환경변수 KNK_AI_MODEL → 공급사 기본."""
+    override = _setting("ai_model")
     if not override:
-        override = _setting("ai_model")
+        override = (os.environ.get("KNK_AI_MODEL") or "").strip()
     if override:
         return override
     provider = provider or get_provider()

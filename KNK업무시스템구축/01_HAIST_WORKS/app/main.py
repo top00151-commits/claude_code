@@ -5037,22 +5037,41 @@ async def admin_ai_settings_page(req: Request):
         "default_openai": ai_client.DEFAULT_MODEL_OPENAI,
         "default_claude": ai_client.DEFAULT_MODEL_CLAUDE,
     }
+    # v5H226z381 (대표 지시): 화면에서 키 입력 — 공급사별 키 상태(마스킹·출처) + SDK 설치 여부
+    _ki = ai_client.key_info()
+    info["openai_key"] = _ki["openai"]
+    info["claude_key"] = _ki["claude"]
+    info["sdk_claude"] = ai_client._ANTHROPIC_OK
+    info["sdk_openai"] = ai_client._OPENAI_OK
     return ctx(req, "admin_ai_settings.html", user=u, active="admin",
                info=info, saved=(req.query_params.get("saved") == "1"))
 
 
 @app.post("/admin/ai-settings")
 async def admin_ai_settings_save(req: Request,
-                                 ai_provider: str = Form(""), ai_model: str = Form("")):
+                                 ai_provider: str = Form(""), ai_model: str = Form(""),
+                                 openai_api_key: str = Form(""), anthropic_api_key: str = Form(""),
+                                 openai_key_clear: str = Form(""), anthropic_key_clear: str = Form("")):
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
+    from . import ai_client
     with db_session() as c:
         for k, v in (("ai_provider", (ai_provider or "").strip()),
                      ("ai_model", (ai_model or "").strip())):
             c.execute(
                 "INSERT INTO app_settings(key, value) VALUES(?, ?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
+    # v5H226z381 (대표 지시): API 키 화면 입력 — 비우면 유지, '삭제' 체크면 제거, 값 있으면 난독화 저장.
+    _clr = lambda x: (x or "").strip().lower() in ("1", "on", "true", "yes")
+    if _clr(openai_key_clear):
+        ai_client.clear_api_key("openai")
+    elif (openai_api_key or "").strip():
+        ai_client.save_api_key("openai", openai_api_key.strip())
+    if _clr(anthropic_key_clear):
+        ai_client.clear_api_key("claude")
+    elif (anthropic_api_key or "").strip():
+        ai_client.save_api_key("claude", anthropic_api_key.strip())
     return RedirectResponse("/admin/ai-settings?saved=1", 303)
 
 
@@ -10080,38 +10099,90 @@ async def contact_mail_send(req: Request, cid: int):
 from . import mail_store as _mailbox
 
 _MAIL_CATEGORIES = ("견적", "발주", "세금계산서", "일반")
+_MAIL_INBOUND_URL = "https://works.knknara.co.kr/api/mail/inbound"
+
+
+def _mail_inbound_token() -> str:
+    """받는 구멍 비밀토큰 — WORKS 관리자 설정(app_settings) 우선, 없으면 환경변수."""
+    t = (get_setting("mail_inbound_token", "") or "").strip()
+    if t:
+        return t
+    return (os.environ.get("KNK_MAIL_INBOUND_TOKEN") or "").strip()
 
 
 @app.post("/api/mail/inbound")
 async def mail_inbound(req: Request):
     """Cloudflare Email Routing(Worker)가 받은 메일을 밀어넣는 받는 구멍.
-    보안: 비밀토큰(KNK_MAIL_INBOUND_TOKEN) 일치 필수. 미설정 시 비활성(안전 폴백)."""
-    token_env = (os.environ.get("KNK_MAIL_INBOUND_TOKEN") or "").strip()
-    if not token_env:
-        return JSONResponse({"ok": False, "message": "수신 기능 비활성(서버 토큰 미설정)"}, 403)
+    보안: 비밀토큰 일치 필수(관리자 설정 mail_inbound_token 또는 환경변수). 미설정 시 비활성.
+    payload: {to, from, subject, raw(MIME 원문), ...} — raw 있으면 파이썬으로 파싱."""
+    token_cfg = _mail_inbound_token()
+    if not token_cfg:
+        return JSONResponse({"ok": False, "message": "수신 기능 비활성 — 관리자 '메일 받기 설정'에서 토큰을 먼저 생성하세요."}, 403)
     token = (req.headers.get("X-KNK-Mail-Token")
              or req.query_params.get("token") or "").strip()
-    if token != token_env:
+    if token != token_cfg:
         return JSONResponse({"ok": False, "message": "인증 실패"}, 401)
     try:
         d = await req.json()
     except Exception:
         return JSONResponse({"ok": False, "message": "JSON 본문이 필요합니다."}, 400)
-    to_email = (d.get("to") or "").strip()
-    if not to_email:
+
+    f = {"to_email": (d.get("to") or "").strip(),
+         "from_email": d.get("from") or "", "from_name": d.get("from_name") or "",
+         "subject": d.get("subject") or "", "text": d.get("text") or "",
+         "html": d.get("html") or "", "cc": d.get("cc") or "",
+         "size": d.get("size") or 0}
+    raw = d.get("raw") or ""
+    if raw:
+        parsed = _mailbox.parse_raw_email(raw)
+        if parsed:
+            for k in ("from_email", "from_name", "subject", "text", "html", "cc"):
+                if parsed.get(k):
+                    f[k] = parsed[k]
+            if not f["to_email"] and parsed.get("to_email"):
+                f["to_email"] = parsed["to_email"]
+            f["size"] = len(raw)
+
+    if not f["to_email"]:
         return JSONResponse({"ok": False, "message": "수신 주소(to)가 없습니다."}, 400)
     with db_session() as c:
         mid, owner = _mailbox.store_inbound(
-            c, to_email=to_email,
-            from_email=d.get("from") or "", from_name=d.get("from_name") or "",
-            subject=d.get("subject") or "", text=d.get("text") or "",
-            html=d.get("html") or "", cc=d.get("cc") or "",
-            size=d.get("size") or 0, run_ai=True,
+            c, to_email=f["to_email"], from_email=f["from_email"],
+            from_name=f["from_name"], subject=f["subject"], text=f["text"],
+            html=f["html"], cc=f["cc"], size=f["size"], run_ai=True,
         )
     if not mid:
         # 데이터 연결성 원칙: 조용히 버리지 않고 사유 표면화
         return JSONResponse({"ok": False, "message": "수신자 매핑 실패(받는 사람을 찾지 못함)"}, 422)
     return JSONResponse({"ok": True, "id": mid, "owner": owner})
+
+
+@app.get("/admin/mail-inbound", response_class=HTMLResponse)
+async def admin_mail_inbound_page(req: Request):
+    """메일 받기 설정 (admin/ceo) — 받는 구멍 비밀토큰 생성·확인 + Cloudflare 연결 안내."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    return ctx(req, "admin_mail_inbound.html", user=u, active="admin",
+               token=_mail_inbound_token(), inbound_url=_MAIL_INBOUND_URL,
+               saved=(req.query_params.get("saved") == "1"))
+
+
+@app.post("/admin/mail-inbound")
+async def admin_mail_inbound_gen(req: Request):
+    """새 비밀토큰 생성·저장(app_settings). 기존 토큰은 즉시 무효."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    import secrets
+    new_token = secrets.token_urlsafe(32)
+    with db_session() as c:
+        c.execute(
+            "INSERT INTO app_settings(key, value) VALUES(?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            ("mail_inbound_token", new_token))
+    return RedirectResponse("/admin/mail-inbound?saved=1", 303)
 
 
 @app.get("/mail/inbox")
