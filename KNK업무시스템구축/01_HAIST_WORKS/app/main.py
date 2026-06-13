@@ -10717,6 +10717,37 @@ async def mail_view_page(req: Request, mail_id: int):
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html))
 
 
+@app.post("/mail/{mail_id:int}/to-task")
+async def mail_to_task(req: Request, mail_id: int):
+    """받은 메일 → 내 '할 일'(일일카드) 등록 — 메일을 업무로 전환(메일=업무 관문).
+    ⚠ 프로젝트·고객 자동연결은 하지 않음(데이터 연결 안전 원칙): 애매한 추측 대신
+    사용자가 일일카드에서 직접 연결하도록 유도. 출처(보낸이·원문링크)는 메모에 남김."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m:
+            return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다(본인 메일만)."}, 404)
+        subj = ((m.get("subject") or "").strip() or "(제목 없음)")[:180]
+        frm = (m.get("from_name") or "").strip()
+        fmail = (m.get("from_email") or "").strip()
+        who = (frm + (f" <{fmail}>" if fmail else "")).strip() or "(보낸이 미상)"
+        summ = (m.get("summary") or "").strip()
+        notes = f"📧 메일에서 생성 · 보낸이: {who}"
+        if summ:
+            notes += "\n" + summ
+        notes += f"\n원문: {_WORKS_PUBLIC_BASE}/mail/{mail_id}"
+        c.execute(
+            "INSERT INTO tasks(user_id, work_date, title, category, status, notes) "
+            "VALUES(?,?,?,?,?,?)",
+            (u["id"], fake_today_iso(req), f"[메일] {subj}", "고객대응", "진행중", notes),
+        )
+        tid = c.lastrowid
+    return JSONResponse({"ok": True, "task_id": tid,
+                         "message": "내 할 일(일일카드)에 추가했습니다."})
+
+
 @app.get("/mail/{mail_id:int}/att/{att_id:int}")
 async def mail_attachment(req: Request, mail_id: int, att_id: int):
     """첨부/인라인 이미지 서빙(소유권 강제: 메일 소유자만). 이미지는 inline, 그 외 다운로드."""
