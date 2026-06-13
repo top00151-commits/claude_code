@@ -96,6 +96,26 @@ ul.wp-list li .n{color:#94a3b8;font-variant-numeric:tabular-nums;}
       </div>
     </div>
 
+    <div class="wp-card">
+      <h3>소통 활동 <span class="wp-muted" style="font-weight:400;">— 메일·메신저(Eum) · 건수만(본문 미수집)</span></h3>
+      <div class="ex-wrap">
+        <div class="ex-col">
+          <div class="ex-h">📧 메일 <span class="wp-muted">보낸 {{ mail.sent }} · 받은 {{ mail.recv }} (총 {{ mail.total }})</span></div>
+          <ul class="wp-list">
+            {% for x in mail.corr %}<li><span>{{ x.addr }}</span><span class="n">{{ x.n }}건</span></li>{% endfor %}
+            {% if not mail.corr %}<li class="wp-muted">메일 기록 없음(또는 메일 미사용)</li>{% endif %}
+          </ul>
+        </div>
+        <div class="ex-col">
+          <div class="ex-h">💬 메신저(Eum) <span class="wp-muted">메시지 {{ msgr.msgs }} · 방 {{ msgr.rooms }} · 멘션 {{ msgr.mentions }}</span></div>
+          <ul class="wp-list">
+            {% for x in msgr.top_rooms %}<li><span>{{ x.name }}</span><span class="n">{{ x.n }}건</span></li>{% endfor %}
+            {% if not msgr.top_rooms %}<li class="wp-muted">메신저 기록 없음(또는 사번 미연결)</li>{% endif %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
     {% if total %}
     <div class="wp-card">
       <h3>업무 구성 (카테고리)</h3>

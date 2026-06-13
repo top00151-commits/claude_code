@@ -1350,45 +1350,65 @@ async def admin_work_patterns(request: Request):
                 pha_map[r["uid"]] = r["n"]
         except Exception:
             pass
-        # 활동(어느 신호든)이 있는 사번 union → 이름/부서 해석 (활성 사용자만)
-        uids = set(task_map) | set(tkt_map) | set(iss_map) | set(pha_map)
-        umap = {}
-        if uids:
-            qm = ",".join("?" * len(uids))
-            for r in c.execute(f"SELECT u.id, u.name, COALESCE(tm.name,'(부서없음)') AS team_name "
-                               f"FROM users u LEFT JOIN teams tm ON tm.id=u.team_id "
-                               f"WHERE u.id IN ({qm}) AND COALESCE(u.is_active,1)=1", list(uids)):
-                umap[r["id"]] = dict(r)
+        # v5H226z414 (Phase2): 메일(WORKS mail_messages) 집계 — user_id 기준
+        mail_map = {}
+        try:
+            for r in c.execute(
+                "SELECT user_id AS uid, COUNT(*) AS total FROM mail_messages "
+                "WHERE COALESCE(is_deleted,0)=0 AND date(COALESCE(received_at, created_at, '')) BETWEEN ? AND ? "
+                "GROUP BY user_id", (start, end)):
+                if r["uid"]:
+                    mail_map[r["uid"]] = r["total"]
+        except Exception:
+            pass
+        # 메일·메신저 전용 활동자도 포함하려고 '전 활성 사용자' 기준 + 사번(employee_no)
+        try:
+            urows = c.execute(
+                "SELECT u.id, u.name, COALESCE(tm.name,'(부서없음)') AS team_name, COALESCE(u.employee_no,'') AS empno "
+                "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE COALESCE(u.is_active,1)=1").fetchall()
+        except Exception:
+            urows = c.execute(
+                "SELECT u.id, u.name, COALESCE(tm.name,'(부서없음)') AS team_name, '' AS empno "
+                "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE COALESCE(u.is_active,1)=1").fetchall()
+        umap = {r["id"]: dict(r) for r in urows}
+    # 메신저(별도 DB 읽기전용·z143 승인 방식) — 사번별 메시지 수. with 밖(별도 연결).
+    msgr_map = _wp_messenger_map(start, end)
     catmap = defaultdict(list)
     for r in catrows:
         catmap[r["uid"]].append((r["n"], r["cat"]))
     rows = []
-    for uid in uids:
-        if uid not in umap:   # 비활성/삭제 사용자 제외
-            continue
+    for uid, uinfo in umap.items():
         t = task_map.get(uid, {})
         cnt = t.get("cnt", 0) or 0
         done = t.get("done", 0) or 0
         cats = sorted(catmap.get(uid, []), reverse=True)
         tickets = tkt_map.get(uid, 0); issues = iss_map.get(uid, 0); phases = pha_map.get(uid, 0)
+        mail = mail_map.get(uid, 0)
+        empno = str(uinfo.get("empno") or "")
+        msgr = ((msgr_map.get(empno) or {}).get("msgs", 0)) if empno else 0
+        activity = cnt + tickets + issues + phases + mail + msgr
+        if activity <= 0:
+            continue
         rows.append({
-            "user_id": uid, "name": umap[uid]["name"], "team_name": umap[uid]["team_name"],
+            "user_id": uid, "name": uinfo["name"], "team_name": uinfo["team_name"],
             "cnt": cnt, "hours": round(t.get("hours", 0) or 0, 1),
             "done": done, "delayed": t.get("delayed", 0) or 0,
             "rate": round(100 * done / cnt) if cnt else 0,
             "top_cats": ", ".join(cc for _, cc in cats[:2]) or "—",
             "tickets": tickets, "issues": issues, "phases": phases,
-            "activity": cnt + tickets + issues + phases,
+            "mail": mail, "msgr": msgr,
+            "activity": activity,
         })
     rows.sort(key=lambda x: -x["activity"])
     depts = {}
     for r in rows:
         d = depts.setdefault(r["team_name"], {"team_name": r["team_name"], "people": 0, "cnt": 0,
                                               "hours": 0.0, "done": 0, "delayed": 0,
-                                              "tickets": 0, "issues": 0, "phases": 0})
+                                              "tickets": 0, "issues": 0, "phases": 0, "mail": 0, "msgr": 0})
         d["people"] += 1; d["cnt"] += r["cnt"]; d["hours"] += r["hours"]; d["done"] += r["done"]
         d["delayed"] += r["delayed"]; d["tickets"] += r["tickets"]; d["issues"] += r["issues"]; d["phases"] += r["phases"]
-    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"]))
+        d["mail"] += r["mail"]; d["msgr"] += r["msgr"]
+    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"]))
     for d in dept_list:
         d["rate"] = round(100 * d["done"] / d["cnt"]) if d["cnt"] else 0
         d["hours"] = round(d["hours"], 1)
@@ -1456,6 +1476,121 @@ def _wp_detail_extra(c, uid, start, end):
     return out
 
 
+# v5H226z414 (Phase 2, 대표 지시): Eum 메신저·메일 활동 통합 — 더 완전한 패턴.
+#   메신저는 별도 앱이지만 같은 컨테이너 → DB 읽기전용 집계(z143 대표 승인 방식). 메신저 앱은 안 건드림.
+#   메타데이터만(메시지 '건수'·방·멘션). 본문 미수집.
+def _wp_open_messenger_ro():
+    """메신저 DB 읽기전용 연결 (없으면 None)."""
+    try:
+        from . import sso_client
+        import os, sqlite3 as _sq
+        path = sso_client.MESSENGER_DB_PATH
+        if not path or not os.path.exists(path):
+            return None
+        conn = _sq.connect(f"file:{path}?mode=ro", uri=True)
+        conn.row_factory = _sq.Row
+        return conn
+    except Exception as e:
+        print(f"[WP messenger] open: {e}")
+        return None
+
+
+def _wp_messenger_map(start, end):
+    """사번별 메신저 메시지 집계 {emp: {msgs, rooms}} (시스템 메시지 제외). DB 없으면 {}."""
+    conn = _wp_open_messenger_ro()
+    if conn is None:
+        return {}
+    out = {}
+    try:
+        for r in conn.execute(
+            "SELECT COALESCE(NULLIF(u.employee_no,''), u.username) AS emp, COUNT(*) AS msgs, "
+            "COUNT(DISTINCT m.room_id) AS rooms FROM messages m JOIN users u ON u.id=m.user_id "
+            "WHERE COALESCE(m.kind,'text')<>'system' AND date(m.created_at) BETWEEN ? AND ? "
+            "AND COALESCE(u.is_guest,0)=0 GROUP BY emp", (start, end)):
+            if r["emp"]:
+                out[str(r["emp"])] = {"msgs": r["msgs"], "rooms": r["rooms"]}
+    except Exception as e:
+        print(f"[WP messenger] map: {e}")
+    finally:
+        conn.close()
+    return out
+
+
+def _wp_messenger_detail(empno, start, end):
+    """개인 메신저 상세 {msgs, rooms, mentions, top_rooms:[{name,n}]} (사번 기준). 본문 미수집."""
+    out = {"msgs": 0, "rooms": 0, "mentions": 0, "top_rooms": []}
+    empno = str(empno or "").strip()
+    if not empno:
+        return out
+    conn = _wp_open_messenger_ro()
+    if conn is None:
+        return out
+    try:
+        uid_rows = conn.execute(
+            "SELECT id FROM users WHERE COALESCE(NULLIF(employee_no,''), username)=?", (empno,)).fetchall()
+        mids = [x["id"] for x in uid_rows]
+        if not mids:
+            return out
+        qm = ",".join("?" * len(mids))
+        r = conn.execute(
+            f"SELECT COUNT(*) AS msgs, COUNT(DISTINCT room_id) AS rooms FROM messages "
+            f"WHERE user_id IN ({qm}) AND COALESCE(kind,'text')<>'system' AND date(created_at) BETWEEN ? AND ?",
+            mids + [start, end]).fetchone()
+        out["msgs"] = r["msgs"] or 0
+        out["rooms"] = r["rooms"] or 0
+        try:
+            mn = conn.execute(
+                f"SELECT COUNT(*) AS n FROM mentions WHERE mentioned_user_id IN ({qm}) "
+                f"AND date(created_at) BETWEEN ? AND ?", mids + [start, end]).fetchone()
+            out["mentions"] = mn["n"] or 0
+        except Exception:
+            pass
+        try:
+            out["top_rooms"] = [
+                {"name": (x["name"] or f"방#{x['room_id']}"), "n": x["n"]}
+                for x in conn.execute(
+                    f"SELECT m.room_id, rm.name AS name, COUNT(*) AS n FROM messages m "
+                    f"LEFT JOIN rooms rm ON rm.id=m.room_id "
+                    f"WHERE m.user_id IN ({qm}) AND COALESCE(m.kind,'text')<>'system' "
+                    f"AND date(m.created_at) BETWEEN ? AND ? GROUP BY m.room_id ORDER BY n DESC LIMIT 6",
+                    mids + [start, end])]
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"[WP messenger] detail: {e}")
+    finally:
+        conn.close()
+    return out
+
+
+def _wp_mail_detail(c, uid, start, end):
+    """개인 메일 상세 {sent, recv, total, cats:[], corr:[]} (WORKS mail_messages). 본문 미수집."""
+    out = {"sent": 0, "recv": 0, "total": 0, "cats": [], "corr": []}
+    try:
+        for r in c.execute(
+            "SELECT COALESCE(NULLIF(direction,''),'?') AS d, COUNT(*) AS n FROM mail_messages "
+            "WHERE user_id=? AND COALESCE(is_deleted,0)=0 AND date(COALESCE(received_at, created_at,'')) BETWEEN ? AND ? "
+            "GROUP BY direction", (uid, start, end)):
+            out["total"] += r["n"]
+            if str(r["d"]).lower() in ("out", "sent", "발신", "outbound", "send"):
+                out["sent"] += r["n"]
+            elif str(r["d"]).lower() in ("in", "received", "수신", "inbound", "recv"):
+                out["recv"] += r["n"]
+        out["cats"] = [dict(r) for r in c.execute(
+            "SELECT COALESCE(NULLIF(category,''),'(미분류)') AS category, COUNT(*) AS n FROM mail_messages "
+            "WHERE user_id=? AND COALESCE(is_deleted,0)=0 AND date(COALESCE(received_at, created_at,'')) BETWEEN ? AND ? "
+            "GROUP BY category ORDER BY n DESC LIMIT 6", (uid, start, end))]
+        out["corr"] = [dict(r) for r in c.execute(
+            "SELECT CASE WHEN LOWER(COALESCE(direction,'')) IN ('out','sent','발신','outbound','send') "
+            "THEN to_email ELSE from_email END AS addr, COUNT(*) AS n FROM mail_messages "
+            "WHERE user_id=? AND COALESCE(is_deleted,0)=0 AND date(COALESCE(received_at, created_at,'')) BETWEEN ? AND ? "
+            "AND COALESCE(CASE WHEN LOWER(COALESCE(direction,'')) IN ('out','sent','발신','outbound','send') THEN to_email ELSE from_email END,'')<>'' "
+            "GROUP BY addr ORDER BY n DESC LIMIT 6", (uid, start, end))]
+    except Exception as e:
+        print(f"[WP mail] detail: {e}")
+    return out
+
+
 @app.get("/admin/work-patterns/{uid:int}", response_class=HTMLResponse)
 async def admin_work_pattern_detail(request: Request, uid: int):
     u = get_user(request)
@@ -1465,9 +1600,14 @@ async def admin_work_pattern_detail(request: Request, uid: int):
         return RedirectResponse(role_home(u), 303)
     start, end, plabel, days = _wp_period(request)
     with db_session() as c:
-        emp = c.execute(
-            "SELECT u.id, u.name, u.role, u.rank, COALESCE(tm.name,'') AS team_name "
-            "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
+        try:
+            emp = c.execute(
+                "SELECT u.id, u.name, u.role, u.rank, COALESCE(u.employee_no,'') AS empno, COALESCE(tm.name,'') AS team_name "
+                "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
+        except Exception:
+            emp = c.execute(
+                "SELECT u.id, u.name, u.role, u.rank, '' AS empno, COALESCE(tm.name,'') AS team_name "
+                "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
         if not emp:
             return RedirectResponse("/admin/work-patterns", 303)
         emp = dict(emp)
@@ -1496,6 +1636,8 @@ async def admin_work_pattern_detail(request: Request, uid: int):
                 [{"name": namemap.get(pid, f"#{pid}"), "n": n} for pid, n in collab.items()],
                 key=lambda x: -x["n"])[:6]
         extra = _wp_detail_extra(c, uid, start, end)
+        mail_detail = _wp_mail_detail(c, uid, start, end)
+    msgr_detail = _wp_messenger_detail(emp.get("empno"), start, end)
     total = sum(x["n"] for x in cats)
     total_h = round(sum(x["h"] for x in cats), 1)
     done = next((s["n"] for s in stat if s["status"] == "완료"), 0)
@@ -1510,7 +1652,8 @@ async def admin_work_pattern_detail(request: Request, uid: int):
         w["pct"] = round(100 * w["n"] / wmax)
     return ctx(request, "admin_work_pattern_detail.html", user=u, emp=emp,
                cats=cats, stat=stat, weekly=weekly, projs=projs, custs=custs, collab=collab_list,
-               extra=extra, total=total, total_h=total_h, rate=rate, delayed=delayed,
+               extra=extra, mail=mail_detail, msgr=msgr_detail,
+               total=total, total_h=total_h, rate=rate, delayed=delayed,
                period_label=plabel, days=days, start=start, end=end)
 
 
@@ -1525,20 +1668,27 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
     start, end, plabel, days = _wp_period(request)
     with db_session() as c:
-        emp = c.execute(
-            "SELECT u.name, COALESCE(tm.name,'') AS team FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?",
-            (uid,)).fetchone()
+        try:
+            emp = c.execute(
+                "SELECT u.name, COALESCE(u.employee_no,'') AS empno, COALESCE(tm.name,'') AS team "
+                "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
+        except Exception:
+            emp = c.execute(
+                "SELECT u.name, '' AS empno, COALESCE(tm.name,'') AS team "
+                "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
         if not emp:
             return JSONResponse({"ok": False, "error": "notfound"}, 404)
         emp = dict(emp)
         cats, stat, weekly, projs, custs = _wp_detail_data(c, uid, start, end)
         extra = _wp_detail_extra(c, uid, start, end)
+        mail_d = _wp_mail_detail(c, uid, start, end)
         titles = [r[0] for r in c.execute(
             "SELECT title FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(title,'')<>'' "
             "ORDER BY work_date DESC LIMIT 30", (start, end, uid)).fetchall()]
+    msgr_d = _wp_messenger_detail(emp.get("empno"), start, end)
     total = sum(x["n"] for x in cats)
-    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"]):
-        return JSONResponse({"ok": True, "summary": "이 기간에 기록된 업무(일일업무·티켓·이슈·공정)가 없어 요약할 내용이 없습니다."})
+    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"] or mail_d["total"] or msgr_d["msgs"]):
+        return JSONResponse({"ok": True, "summary": "이 기간에 기록된 업무(일일업무·티켓·이슈·공정·메일·메신저)가 없어 요약할 내용이 없습니다."})
     cat_txt = ", ".join(f"{x['category']} {x['n']}건({round(100*x['n']/total)}%)" for x in cats) if total else "—"
     stat_txt = ", ".join(f"{x['status']} {x['n']}건" for x in stat) or "—"
     proj_txt = ", ".join(f"{x['label']}({x['n']})" for x in projs) or "—"
@@ -1556,7 +1706,7 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
                                  "summary": "AI가 연결되어 있지 않습니다. (관리자 → AI 설정에서 키 등록 후 사용)"})
         system = (
             "당신은 ㈜케이엔케이(KNK · 검사기·자동화 설비 제조)의 업무 분석 비서입니다. "
-            "아래는 한 직원이 기간 동안 남긴 업무 집계(일일업무·티켓·이슈·프로젝트 공정 · 메타데이터)와 업무 제목 목록입니다. "
+            "아래는 한 직원이 기간 동안 남긴 업무 집계(일일업무·티켓·이슈·프로젝트 공정·메일·메신저 · 메타데이터)와 업무 제목 목록입니다. "
             "이 사람이 실제로 맡고 있는 '주 담당 업무 영역'과 '업무 특성'을 한국어로 정리하세요. "
             "목적은 감시가 아니라 업무분장·인수인계·개인 업무 매뉴얼 작성을 위한 기초자료입니다.\n"
             "출력 형식:\n① 한 문단 요약 (이 직원의 주 담당 영역 — 일일업무뿐 아니라 티켓·이슈·공정 역할 포함)\n"
@@ -1568,6 +1718,8 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
             f"[일일업무] 구성: {cat_txt}\n진행 상태: {stat_txt}\n"
             f"주요 프로젝트: {proj_txt}\n주요 고객/대상: {cust_txt}\n"
             f"[받은 티켓] {tkt_txt}\n[담당 이슈] {iss_txt}\n[담당 공정] {pha_txt}\n"
+            f"[메일] 보낸 {mail_d['sent']} · 받은 {mail_d['recv']} (총 {mail_d['total']})\n"
+            f"[메신저] 메시지 {msgr_d['msgs']}건 · 방 {msgr_d['rooms']} · 멘션 {msgr_d['mentions']}\n"
             f"[일일업무 제목 표본(최근 {len(titles)}건)]:\n{title_txt}")
         ok, ans = await run_in_threadpool(
             ai_client.ai_chat, prompt, system, max_tokens=800, temperature=0.3)
@@ -1636,20 +1788,27 @@ async def admin_work_pattern_manual_generate(request: Request, uid: int):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
     start, end, plabel, days = _wp_period(request)
     with db_session() as c:
-        emp = c.execute(
-            "SELECT u.name, u.rank, COALESCE(tm.name,'') AS team FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?",
-            (uid,)).fetchone()
+        try:
+            emp = c.execute(
+                "SELECT u.name, u.rank, COALESCE(u.employee_no,'') AS empno, COALESCE(tm.name,'') AS team "
+                "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
+        except Exception:
+            emp = c.execute(
+                "SELECT u.name, u.rank, '' AS empno, COALESCE(tm.name,'') AS team "
+                "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
         if not emp:
             return JSONResponse({"ok": False, "error": "notfound"}, 404)
         emp = dict(emp)
         cats, stat, weekly, projs, custs = _wp_detail_data(c, uid, start, end)
         extra = _wp_detail_extra(c, uid, start, end)
+        mail_d = _wp_mail_detail(c, uid, start, end)
         collab = _wp_collab_list(c, uid, start, end)
         titles = [r[0] for r in c.execute(
             "SELECT title FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(title,'')<>'' "
             "ORDER BY work_date DESC LIMIT 40", (start, end, uid)).fetchall()]
+    msgr_d = _wp_messenger_detail(emp.get("empno"), start, end)
     total = sum(x["n"] for x in cats)
-    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"]):
+    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"] or mail_d["total"] or msgr_d["msgs"]):
         return JSONResponse({"ok": True, "manual": f"# {emp['name']} 업무 매뉴얼 (초안)\n\n이 기간({plabel})에 기록된 업무 데이터가 없어 매뉴얼을 작성할 근거가 없습니다. 기간을 넓히거나 업무 기록이 쌓인 뒤 다시 생성하세요."})
     cat_txt = ", ".join(f"{x['category']} {x['n']}건({round(100*x['n']/total)}%)" for x in cats) if total else "—"
     proj_txt = ", ".join(f"{x['label']}({x['n']})" for x in projs) or "—"
@@ -1659,6 +1818,10 @@ async def admin_work_pattern_manual_generate(request: Request, uid: int):
         + f" (받아 처리 {extra['tkt_recv_n']} · 요청 {extra['tkt_sent_n']})"
     iss_txt = ", ".join(f"{x['severity']} {x['n']}건" for x in extra["issues"]) or "—"
     pha_txt = ", ".join(f"{x['status']} {x['n']}건" for x in extra["phases"]) or "—"
+    mail_txt = f"보낸 {mail_d['sent']} · 받은 {mail_d['recv']} (총 {mail_d['total']})" + \
+        ((" · 주요 상대: " + ", ".join(f"{x['addr']}({x['n']})" for x in mail_d['corr'])) if mail_d['corr'] else "")
+    msgr_txt = f"메시지 {msgr_d['msgs']}건 · 방 {msgr_d['rooms']} · 멘션 {msgr_d['mentions']}" + \
+        ((" · 주요 방: " + ", ".join(f"{x['name']}({x['n']})" for x in msgr_d['top_rooms'])) if msgr_d['top_rooms'] else "")
     title_txt = "\n".join(f"- {t}" for t in titles)
     try:
         from . import ai_client
@@ -1668,19 +1831,20 @@ async def admin_work_pattern_manual_generate(request: Request, uid: int):
                                  "manual": "AI가 연결되어 있지 않습니다. (관리자 → AI 설정에서 키 등록 후 사용)"})
         system = (
             "당신은 ㈜케이엔케이(KNK · 검사기·자동화 설비 제조)의 업무 매뉴얼 작성 비서입니다. "
-            "아래 한 직원의 업무 집계(일일업무·티켓·이슈·공정 메타데이터)와 업무 제목을 근거로, "
+            "아래 한 직원의 업무 집계(일일업무·티켓·이슈·공정·메일·메신저 메타데이터)와 업무 제목을 근거로, "
             "이 직원의 '업무 매뉴얼 초안'을 작성하세요. 용도는 인수인계·교육(이 사람이 없어도 업무가 이어지도록)입니다.\n"
             "반드시 마크다운으로, 아래 섹션 구조를 지키세요:\n"
             "# (이름) 업무 매뉴얼 (초안)\n"
             "## 1. 담당 개요\n## 2. 핵심·반복 업무\n## 3. 담당 프로젝트·고객\n"
-            "## 4. 티켓·이슈·공정에서의 역할\n## 5. 주요 협업 관계\n## 6. 인수인계 체크리스트\n"
+            "## 4. 티켓·이슈·공정에서의 역할\n## 5. 소통·외부 연락 (메신저·메일)\n## 6. 주요 협업 관계\n## 7. 인수인계 체크리스트\n"
             "규칙: ① 사실 기반으로만(주어진 데이터에서 추론). ② 우수/부진 등 인사평가·근무태도 평가 절대 금지. "
             "③ 데이터로 알 수 없는 절차의 구체적 방법은 추측하지 말고 '담당자 확인 필요'로 표시. "
             "④ 2~6은 불릿/번호로 인수인계자가 바로 쓰도록 실용적으로.")
         prompt = (
             f"직원: {emp['name']} ({emp['team'] or '부서미상'}{(' · ' + emp['rank']) if emp.get('rank') else ''}) · 분석기간 {plabel} ({start}~{end})\n"
             f"[일일업무 구성] {cat_txt}\n[주요 프로젝트] {proj_txt}\n[주요 고객/대상] {cust_txt}\n"
-            f"[받은 티켓] {tkt_txt}\n[담당 이슈] {iss_txt}\n[담당 공정] {pha_txt}\n[주요 협업] {collab_txt}\n"
+            f"[받은 티켓] {tkt_txt}\n[담당 이슈] {iss_txt}\n[담당 공정] {pha_txt}\n"
+            f"[메일] {mail_txt}\n[메신저] {msgr_txt}\n[주요 협업] {collab_txt}\n"
             f"[일일업무 제목 표본(최근 {len(titles)}건)]:\n{title_txt}")
         ok, ans = await run_in_threadpool(
             ai_client.ai_chat, prompt, system, max_tokens=1900, temperature=0.35)
