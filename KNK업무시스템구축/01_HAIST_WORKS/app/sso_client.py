@@ -384,6 +384,49 @@ def sync_directory_from_messenger(c) -> dict:
 
 
 # =====================================================
+# v5H226z391 (2026-06-13, 대표 지시): WORKS → 메신저 업무 통보 (제작요청 등)
+#   메신저 'POST /api/works/notify' 호출 → 'WORKS 알림' 봇이 대상 직원에게 1:1 메시지+푸시.
+#   사번(employee_no) 기준. 공유키(X-SSO-Service-Key) 필수. 실패해도 호출측 등록은 진행하되
+#   침묵 금지(에러 문자열 반환 — 연결성 안전 원칙).
+# =====================================================
+def notify_via_messenger(employee_nos, title, body, link="", timeout=10.0) -> dict:
+    """대상 직원(사번 목록)에게 메신저로 1:1 업무 통보.
+    반환: {ok, sent, skipped, room_count, skipped_list} 또는 {ok:False, error}."""
+    emps = [str(e).strip() for e in (employee_nos or []) if str(e).strip()]
+    if not emps:
+        return {"ok": False, "error": "수신 사번 없음(메신저 통보 생략)"}
+    if not SSO_SERVICE_KEY:
+        return {"ok": False, "error": "공유키(KNK_SSO_SERVICE_KEY) 미설정 — NAS .env 등록 필요"}
+    url = f"{MESSENGER_INTERNAL_BASE}/api/works/notify"
+    try:
+        r = httpx.post(
+            url,
+            headers={"X-SSO-Service-Key": SSO_SERVICE_KEY},
+            json={"employee_nos": emps, "title": title, "body": body, "link": link},
+            timeout=timeout,
+        )
+    except Exception as e:
+        return {"ok": False, "error": f"메신저 연결 실패: {e} (통보 API 준비 전일 수 있음)"}
+    if r.status_code == 403:
+        return {"ok": False, "error": "서비스키 거부(403) — 양쪽 KNK_SSO_SERVICE_KEY 확인"}
+    if r.status_code == 404:
+        return {"ok": False, "error": "통보 API(/api/works/notify) 없음 — 메신저 배포 전"}
+    if r.status_code != 200:
+        return {"ok": False, "error": f"예상치 못한 status {r.status_code}"}
+    try:
+        d = r.json() or {}
+    except Exception as e:
+        return {"ok": False, "error": f"응답 파싱 실패: {e}"}
+    return {
+        "ok": bool(d.get("ok")),
+        "sent": len(d.get("sent") or []),
+        "skipped": len(d.get("skipped") or []),
+        "room_count": d.get("room_count") or 0,
+        "skipped_list": d.get("skipped") or [],
+    }
+
+
+# =====================================================
 # v5H226z143 (2026-06-01): 메신저 직원 → WORKS **DB 직접** 1회 동기화
 #   대표 지시(2026-06-01): API/공유키 방식 보류. WORKS·메신저가 같은 컨테이너에
 #   떠 있으므로 메신저 DB 를 직접 읽어 전 직원을 WORKS 에 동일 등록.

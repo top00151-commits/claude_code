@@ -4415,6 +4415,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     link = f"/project/{pid}"
     sent_to = 0
     dept_count = 0
+    emp_nos = []
     try:
         with db_session() as c:
             ph = ",".join("?" * len(tids))
@@ -4424,15 +4425,43 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             dept_count = c.execute(
                 f"SELECT COUNT(DISTINCT team_id) FROM users WHERE team_id IN ({ph}) "
                 f"AND COALESCE(is_active,1)=1 AND id != ?", (*tids, uid_self)).fetchone()[0]
+            uids = []
             for r in rows:
                 uid = r[0] if not isinstance(r, dict) else r["id"]
+                uids.append(uid)
                 c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
                           (uid, "prod_request", title, body, link))
                 sent_to += 1
+            # v5H226z391: 메신저(KNK Eum) 통보용 사번 수집 — 컬럼/사번 없으면 건너뜀(인앱 알림은 위에서 이미 완료).
+            try:
+                if uids:
+                    ph2 = ",".join("?" * len(uids))
+                    erows = c.execute(
+                        f"SELECT employee_no FROM users WHERE id IN ({ph2}) "
+                        f"AND COALESCE(employee_no,'')<>''", tuple(uids)).fetchall()
+                    emp_nos = [(er[0] if not isinstance(er, dict) else er["employee_no"]) for er in erows]
+            except Exception:
+                emp_nos = []
     except Exception as e:
         return {"ok": False, "error": f"db_error: {str(e)[:120]}", "stage_warn": _stage_warn}
+    # v5H226z391 (대표 지시): ③ 메신저(KNK Eum) 통보 — 'WORKS 알림' 봇이 담당자에게 1:1 푸시.
+    #   실패해도 등록·인앱알림은 그대로(침묵 금지 — msg_err 로 표면화). 사번 매칭 안 되면 그 인원은 스킵.
+    msg_sent = 0
+    msg_err = ""
+    try:
+        from . import sso_client
+        _pub = os.environ.get("KNK_WORKS_PUBLIC_BASE", "https://works.knknara.co.kr").rstrip("/")
+        _full_link = f"{_pub}{link}"
+        _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link)
+        if _mres.get("ok"):
+            msg_sent = _mres.get("sent", 0)
+        else:
+            msg_err = _mres.get("error", "메신저 통보 실패")
+    except Exception as _e:
+        msg_err = f"메신저 통보 오류: {str(_e)[:100]}"
     return {"ok": True, "sent_to": sent_to, "dept_count": dept_count,
-            "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn}
+            "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
+            "msg_sent": msg_sent, "msg_err": msg_err}
 
 
 # =====================================================
@@ -14849,6 +14878,9 @@ async def projects_new_submit(request: Request):
                                                         (form.get("pr_note") or "").strip(), _fu_t, _u)
                     if _fu_res.get("ok"):
                         _fu_url += f"&prod_sent={_fu_res.get('sent_to', 0)}&prod_dept={_fu_res.get('dept_count', 0)}"
+                        _fu_url += f"&prod_msg={_fu_res.get('msg_sent', 0)}"
+                        if _fu_res.get("msg_err"):
+                            _fu_url += "&prod_msgerr=1"
                         if _fu_res.get("stage_warn"):
                             _fu_url += "&prod_stagewarn=1"
                     else:
@@ -15016,6 +15048,10 @@ async def projects_new_submit(request: Request):
                 if _res.get("ok"):
                     _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
                     _qs.append(f"prod_dept={_res.get('dept_count', 0)}")
+                    # v5H226z391: 메신저(KNK Eum) 통보 결과 — 보낸 인원 수 / 실패 시 신호
+                    _qs.append(f"prod_msg={_res.get('msg_sent', 0)}")
+                    if _res.get("msg_err"):
+                        _qs.append("prod_msgerr=1")
                     if _res.get("stage_warn"):
                         _qs.append("prod_stagewarn=1")
                 else:
