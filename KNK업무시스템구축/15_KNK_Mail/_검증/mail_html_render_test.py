@@ -141,6 +141,34 @@ check("파일명만으로도 cid 매칭(content_id 없는 참조)", f"/mail/{mid
 check("content_id 정식 참조도 매칭", safe2.count(f"/mail/{mid}/att/{aid}") >= 2,
       f"matches={safe2.count(f'/mail/{mid}/att/{aid}')}")
 
+# ── 견고화: 이미지 누락 자리표시 · 원격이미지 · 지메일/텍스트 메일 ────
+section("견고화 — 누락 이미지 자리표시·원격이미지·지메일식·텍스트전용")
+# (1) 미해결 cid(원문 미저장 등) → 깨진 박스 대신 자리표시, src=# 안 남김
+sm = MS.sanitize_html_for_view('<p>로고:</p><img src="cid:gone@x.com" alt="logo"><p>끝</p>', mid, [])
+check("미해결 cid 이미지 → 자리표시(깨진 박스 방지)", "이미지" in sm and "<img" not in sm.lower(), "")
+check("깨진 src=# / cid 잔존 없음", "cid:" not in sm and 'src="#"' not in sm)
+# (2) 원격(http) 이미지는 그대로 표시
+sr = MS.sanitize_html_for_view('<img src="https://cdn.example.com/logo.png" width="120">', mid, [])
+check("원격(http) 이미지 보존", "https://cdn.example.com/logo.png" in sr and "<img" in sr.lower())
+# (3) 지메일식 multipart/alternative(base64 text+html), 첨부 없음
+def _b(x): return base64.b64encode(x.encode()).decode()
+gmail_raw = (
+    "From: \"보낸이\" <someone@gmail.com>\r\nTo: test@knk-mailtest.com\r\n"
+    f"Subject: =?UTF-8?B?{_b('지메일 테스트')}?=\r\nMIME-Version: 1.0\r\n"
+    "Content-Type: multipart/alternative; boundary=GM\r\n\r\n"
+    "--GM\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+    f"{_b('안녕하세요 지메일 본문입니다.')}\r\n"
+    "--GM\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+    f"{_b('<div>안녕하세요 <b>지메일</b> 본문입니다.</div>')}\r\n--GM--\r\n")
+pg = MS.parse_raw_email(gmail_raw)
+check("지메일식 제목/본문 정상", pg.get("subject") == "지메일 테스트" and "지메일 본문" in (pg.get("text") or ""))
+check("지메일식 첨부 오인 없음", len(pg.get("attachments") or []) == 0)
+check("지메일식 HTML 서식 보존", "<b>" in MS.sanitize_html_for_view(pg.get("html") or "", 99, []))
+# (4) 텍스트 전용 메일 → html 없음(텍스트 경로로 표시)
+pp = MS.parse_raw_email("From: a@b.com\r\nTo: test@knk-mailtest.com\r\nSubject: 텍스트만\r\n"
+                        "Content-Type: text/plain; charset=utf-8\r\n\r\n그냥 텍스트 메일입니다.")
+check("텍스트전용: html 비고 text 정상", not (pp.get("html") or "").strip() and "텍스트 메일" in (pp.get("text") or ""))
+
 print("\n" + "=" * 64)
 print(f"결과: PASS={PASS}  FAIL={FAIL}")
 print("=" * 64)
