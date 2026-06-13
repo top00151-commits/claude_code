@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>직원 업무 패턴 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.wp-wrap{max-width:1100px;margin:0 auto var(--space-6);padding:0 var(--content-pad);}
+.wp-banner{background:#eef6ff;border:1px solid #cfe3fb;color:#1e3a5f;border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.65;margin-bottom:14px;}
+.wp-banner b{color:#1e40af;}
+.wp-period{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.wp-period a{padding:6px 14px;border:1px solid #d6cdb6;border-radius:999px;font-size:12.5px;text-decoration:none;color:#64748b;background:#fff;}
+.wp-period a.on{background:#A5282C;color:#fff;border-color:#A5282C;font-weight:700;}
+.wp-period .meta{color:#94a3b8;font-size:11.5px;}
+.wp-card{background:#fff;border:1px solid #f1e8d4;border-radius:10px;padding:16px 18px;margin-bottom:16px;}
+.wp-card h3{margin:0 0 12px;font-size:14px;font-weight:800;color:#1e293b;}
+table.wp{width:100%;border-collapse:collapse;font-size:12.5px;}
+table.wp th,table.wp td{padding:8px 10px;border-bottom:1px solid #f1e8d4;text-align:left;}
+table.wp th{font-size:11.5px;color:#8a7842;font-weight:700;background:#faf7ef;}
+table.wp td.num,table.wp th.num{text-align:right;font-variant-numeric:tabular-nums;}
+table.wp tbody tr:hover td{background:#fcfaf3;}
+.wp-name a{font-weight:700;color:#1e293b;text-decoration:none;}
+.wp-name a:hover{color:#A5282C;text-decoration:underline;}
+.wp-bar{display:inline-block;height:8px;border-radius:4px;background:#e9edf2;width:54px;vertical-align:middle;overflow:hidden;margin-right:6px;}
+.wp-bar i{display:block;height:100%;background:#3f5c44;}
+.wp-muted{color:#94a3b8;}
+.wp-dept td{font-weight:700;background:#f7faf7;}
+.wp-late{color:#b91c1c;font-weight:700;}
+</style></head>
+<body>
+<div class="app">{% set active_tab='home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/admin">관리자</a> · <b>직원 업무 패턴</b></div>
+    <h1 class="page-title">직원 업무 패턴 <em>— 한 일 모아보기</em></h1>
+  </div></div>
+  <div class="wp-wrap">
+    <div class="wp-banner">📋 <b>업무분장·인수인계·개인 업무 매뉴얼용 기초자료</b>입니다 (감시용이 아닙니다). 지금은 <b>일일업무</b> 기록 기준이며, 다음 단계에서 티켓·이슈·공정·협업까지 합산됩니다. · 열람: <b>대표(최고관리자) 전용</b>.</div>
+
+    <div class="wp-period">
+      {% for d,l in [(30,'최근 30일'),(90,'최근 90일'),(365,'최근 1년')] %}
+        <a href="?days={{ d }}" class="{{ 'on' if days==d else '' }}">{{ l }}</a>
+      {% endfor %}
+      <span class="meta">{{ start }} ~ {{ end }} · 활동 인원 {{ total_people }}명</span>
+    </div>
+
+    <div class="wp-card">
+      <h3>부서별 요약</h3>
+      <table class="wp">
+        <thead><tr><th>부서</th><th class="num">인원</th><th class="num">업무</th><th class="num">공수(h)</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
+        <tbody>
+        {% for d in depts %}<tr class="wp-dept">
+          <td>{{ d.team_name }}</td><td class="num">{{ d.people }}</td><td class="num">{{ d.cnt }}</td>
+          <td class="num">{{ d.hours }}</td><td class="num">{{ d.rate }}%</td>
+          <td class="num">{% if d.delayed %}<span class="wp-late">{{ d.delayed }}</span>{% else %}0{% endif %}</td>
+        </tr>{% endfor %}
+        {% if not depts %}<tr><td colspan="6" class="wp-muted">기간 내 기록이 없습니다.</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="wp-card">
+      <h3>직원별 <span class="wp-muted" style="font-weight:400;">(업무 많은 순 · 이름 클릭 → 상세·AI 요약)</span></h3>
+      <table class="wp">
+        <thead><tr><th>이름</th><th>부서</th><th class="num">업무</th><th class="num">공수(h)</th><th>주 업무</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
+        <tbody>
+        {% for r in rows %}<tr>
+          <td class="wp-name"><a href="/admin/work-patterns/{{ r.user_id }}?days={{ days }}">{{ r.name }}</a></td>
+          <td class="wp-muted">{{ r.team_name }}</td>
+          <td class="num">{{ r.cnt }}</td>
+          <td class="num">{{ r.hours }}</td>
+          <td>{{ r.top_cats }}</td>
+          <td class="num"><span class="wp-bar"><i style="width:{{ r.rate }}%"></i></span>{{ r.rate }}%</td>
+          <td class="num">{% if r.delayed %}<span class="wp-late">{{ r.delayed }}</span>{% else %}0{% endif %}</td>
+        </tr>{% endfor %}
+        {% if not rows %}<tr><td colspan="7" class="wp-muted">기간 내 일일업무 기록이 있는 직원이 없습니다.</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main></div></body></html>

@@ -81,6 +81,7 @@ tbody tr:hover td { background: var(--amber-glow); }
         <h1 class="page-title"><em>관리자</em> 콘솔 <span class="admin-badge">🔐 ADMIN</span></h1>
       </div>
       <div style="display:flex;gap:10px;">
+        {% if can_work_patterns %}<a class="btn btn-secondary" href="/admin/work-patterns">📋 직원 업무 패턴</a>{% endif %}
         <a class="btn btn-secondary" href="/admin/permissions/audit">📜 감사 로그</a>
         <a class="btn btn-primary" href="/admin/permissions">🔐 권한 위임</a>
       </div>

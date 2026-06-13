@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ emp.name }} 업무 패턴 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.wp-wrap{max-width:1000px;margin:0 auto var(--space-6);padding:0 var(--content-pad);}
+.wp-period{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.wp-period a{padding:6px 14px;border:1px solid #d6cdb6;border-radius:999px;font-size:12.5px;text-decoration:none;color:#64748b;background:#fff;}
+.wp-period a.on{background:#A5282C;color:#fff;border-color:#A5282C;font-weight:700;}
+.wp-period .meta{color:#94a3b8;font-size:11.5px;}
+.wp-kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.wp-kpi{flex:1;min-width:120px;background:#fff;border:1px solid #f1e8d4;border-radius:10px;padding:12px 14px;}
+.wp-kpi .lab{font-size:11.5px;color:#8a7842;}
+.wp-kpi .val{font-size:22px;font-weight:800;color:#1e293b;font-variant-numeric:tabular-nums;}
+.wp-card{background:#fff;border:1px solid #f1e8d4;border-radius:10px;padding:16px 18px;margin-bottom:16px;}
+.wp-card h3{margin:0 0 12px;font-size:14px;font-weight:800;color:#1e293b;}
+.wp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:760px){.wp-grid{grid-template-columns:1fr;}}
+.wp-muted{color:#94a3b8;}
+.catrow{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:12.5px;}
+.catrow .nm{width:90px;flex-shrink:0;color:#334155;}
+.catrow .br{flex:1;height:14px;background:#eef1f5;border-radius:7px;overflow:hidden;}
+.catrow .br i{display:block;height:100%;background:#3f5c44;}
+.catrow .vv{width:96px;text-align:right;color:#64748b;font-variant-numeric:tabular-nums;}
+.wk{display:flex;align-items:flex-end;gap:6px;height:90px;padding-top:6px;}
+.wk .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+.wk .col .bar{width:60%;background:#A5282C;border-radius:3px 3px 0 0;min-height:2px;}
+.wk .col .lb{font-size:9.5px;color:#94a3b8;margin-top:4px;}
+.wk .col .ct{font-size:10px;color:#64748b;font-weight:700;}
+ul.wp-list{list-style:none;margin:0;padding:0;font-size:12.5px;}
+ul.wp-list li{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #f1e8d4;}
+ul.wp-list li .n{color:#94a3b8;font-variant-numeric:tabular-nums;}
+.wp-aibtn{padding:9px 18px;border:0;border-radius:8px;background:#15a34a;color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;}
+.wp-aibtn:disabled{opacity:.6;cursor:default;}
+.wp-aiout{margin-top:12px;background:#f7fdf9;border:1px solid #bbe9cd;border-left:3px solid #15a34a;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.75;white-space:pre-wrap;color:#14361f;}
+.wp-aihint{font-size:11.5px;color:#94a3b8;margin-top:6px;}
+</style></head>
+<body>
+<div class="app">{% set active_tab='home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/admin">관리자</a> · <a href="/admin/work-patterns?days={{ days }}">직원 업무 패턴</a> · <b>{{ emp.name }}</b></div>
+    <h1 class="page-title">{{ emp.name }} <em>{{ emp.team_name or '' }}{% if emp.rank %} · {{ emp.rank }}{% endif %}</em></h1>
+  </div></div>
+  <div class="wp-wrap">
+    <div class="wp-period">
+      {% for d,l in [(30,'최근 30일'),(90,'최근 90일'),(365,'최근 1년')] %}
+        <a href="?days={{ d }}" class="{{ 'on' if days==d else '' }}">{{ l }}</a>
+      {% endfor %}
+      <span class="meta">{{ start }} ~ {{ end }} · 일일업무 기준</span>
+    </div>
+
+    <div class="wp-kpis">
+      <div class="wp-kpi"><div class="lab">업무 건수</div><div class="val">{{ total }}</div></div>
+      <div class="wp-kpi"><div class="lab">총 공수(h)</div><div class="val">{{ total_h }}</div></div>
+      <div class="wp-kpi"><div class="lab">완료율</div><div class="val">{{ rate }}%</div></div>
+      <div class="wp-kpi"><div class="lab">지연</div><div class="val">{{ delayed }}</div></div>
+    </div>
+
+    <div class="wp-card">
+      <h3>🤖 AI 업무 요약 <span class="wp-muted" style="font-weight:400;">— 개인 업무 매뉴얼의 씨앗</span></h3>
+      <button class="wp-aibtn" id="aiBtn" onclick="wpGenSummary()">AI 요약 생성</button>
+      <div class="wp-aihint">집계 데이터와 업무 제목만 AI에 전달합니다 (메모 본문은 보내지 않음). 인사평가가 아니라 주 담당 업무·반복 업무 정리입니다.</div>
+      <div class="wp-aiout" id="aiOut" style="display:none;"></div>
+    </div>
+
+    {% if total %}
+    <div class="wp-card">
+      <h3>업무 구성 (카테고리)</h3>
+      {% set cmax = cats[0].n if cats else 1 %}
+      {% for c in cats %}
+      <div class="catrow">
+        <span class="nm">{{ c.category }}</span>
+        <span class="br"><i style="width:{{ (100*c.n/cmax)|round|int }}%"></i></span>
+        <span class="vv">{{ c.n }}건 · {{ c.pct }}% · {{ c.h }}h</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="wp-card">
+      <h3>주간 추이 (건수)</h3>
+      <div class="wk">
+        {% for w in weekly %}
+        <div class="col" title="{{ w.wk }} · {{ w.n }}건 · {{ w.h }}h">
+          <span class="ct">{{ w.n }}</span>
+          <span class="bar" style="height:{{ w.pct }}%"></span>
+          <span class="lb">{{ w.wk.split('-')[1] }}주</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% if not weekly %}<div class="wp-muted">데이터 없음</div>{% endif %}
+    </div>
+
+    <div class="wp-grid">
+      <div class="wp-card">
+        <h3>진행 상태</h3>
+        <ul class="wp-list">
+          {% for s in stat %}<li><span>{{ s.status }}</span><span class="n">{{ s.n }}건</span></li>{% endfor %}
+        </ul>
+      </div>
+      <div class="wp-card">
+        <h3>주 협업 대상</h3>
+        <ul class="wp-list">
+          {% for p in collab %}<li><span>{{ p.name }}</span><span class="n">{{ p.n }}회</span></li>{% endfor %}
+          {% if not collab %}<li class="wp-muted">협업(업무 댓글) 기록 없음</li>{% endif %}
+        </ul>
+      </div>
+      <div class="wp-card">
+        <h3>주 담당 프로젝트</h3>
+        <ul class="wp-list">
+          {% for p in projs %}<li><span>{{ p.label }}</span><span class="n">{{ p.n }}건</span></li>{% endfor %}
+          {% if not projs %}<li class="wp-muted">연결된 프로젝트 없음</li>{% endif %}
+        </ul>
+      </div>
+      <div class="wp-card">
+        <h3>주 고객/대상</h3>
+        <ul class="wp-list">
+          {% for p in custs %}<li><span>{{ p.label }}</span><span class="n">{{ p.n }}건</span></li>{% endfor %}
+          {% if not custs %}<li class="wp-muted">연결된 고객 없음</li>{% endif %}
+        </ul>
+      </div>
+    </div>
+    {% else %}
+    <div class="wp-card wp-muted">이 기간에 기록된 일일업무가 없습니다. 기간을 넓혀 보세요.</div>
+    {% endif %}
+  </div>
+</main></div>
+<script>
+var WP_UID = {{ emp.id }}, WP_DAYS = {{ days }};
+async function wpGenSummary(){
+  var btn=document.getElementById('aiBtn'), out=document.getElementById('aiOut');
+  btn.disabled=true; var old=btn.textContent; btn.textContent='🤖 생성 중…';
+  try{
+    var r=await fetch('/admin/work-patterns/'+WP_UID+'/ai-summary?days='+WP_DAYS, {method:'POST'});
+    var j=await r.json();
+    out.style.display='block';
+    out.textContent = j.summary || j.error || '요약을 가져오지 못했습니다.';
+    btn.textContent='AI 요약 다시 생성';
+  }catch(e){
+    out.style.display='block'; out.textContent='통신 오류: '+(e.message||e);
+    btn.textContent=old;
+  }
+  btn.disabled=false;
+}
+</script>
+</body></html>

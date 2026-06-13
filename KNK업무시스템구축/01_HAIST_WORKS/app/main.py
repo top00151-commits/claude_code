@@ -1276,6 +1276,231 @@ def can_delete_sales(user) -> bool:
         return False
 
 
+def can_view_work_patterns(user) -> bool:
+    """직원 업무 패턴(추적·매뉴얼화) 열람 권한.
+    v5H226z411 (대표 지시 2026-06-14): 지금은 **김정락 대표 한 명만**(사번 5 / login_id 'kjr').
+    향후 확대 예정: 대표·관리자 + 팀장(자기 팀) + 본인 → 이 함수 한 곳만 고치면 됨.
+    ※ ceo 계정이 둘(김동후 포함)이라 role 로 막지 않고 본인만 정확히 지정한다."""
+    if not user:
+        return False
+    try:
+        empno = str((user.get("employee_no") if isinstance(user, dict) else "") or "").strip()
+        login = str((user.get("login_id") if isinstance(user, dict) else "") or "").strip().lower()
+    except Exception:
+        return False
+    return empno == "5" or login == "kjr"
+
+
+def _wp_period(request):
+    """업무 패턴 기간 파라미터 → (start_iso, end_iso, label, days). 기본 최근 30일."""
+    try:
+        days = int((request.query_params.get("days") or "30").strip())
+    except Exception:
+        days = 30
+    days = max(1, min(days, 366))
+    end = date.today()
+    start = end - timedelta(days=days - 1)
+    label = {30: "최근 30일", 90: "최근 90일", 365: "최근 1년"}.get(days, f"최근 {days}일")
+    return start.isoformat(), end.isoformat(), label, days
+
+
+@app.get("/admin/work-patterns", response_class=HTMLResponse)
+async def admin_work_patterns(request: Request):
+    """v5H226z411 (대표 지시): 직원 업무 패턴 — 한 일 모아보기 (1단계: 일일업무 기준).
+    업무분장·인수인계·개인 매뉴얼용 기초자료. 열람=김정락 대표 전용(can_view_work_patterns)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_work_patterns(u):
+        return RedirectResponse(role_home(u), 303)
+    start, end, plabel, days = _wp_period(request)
+    from collections import defaultdict
+    with db_session() as c:
+        agg = [dict(r) for r in c.execute(
+            """SELECT t.user_id, u.name, u.team_id, COALESCE(tm.name,'(부서없음)') AS team_name,
+                      COUNT(*) AS cnt, COALESCE(SUM(t.hours),0) AS hours,
+                      SUM(CASE WHEN t.status='완료' THEN 1 ELSE 0 END) AS done,
+                      SUM(CASE WHEN t.status='지연' THEN 1 ELSE 0 END) AS delayed
+               FROM tasks t JOIN users u ON u.id=t.user_id
+               LEFT JOIN teams tm ON tm.id=u.team_id
+               WHERE t.work_date BETWEEN ? AND ? AND COALESCE(u.is_active,1)=1
+               GROUP BY t.user_id""",
+            (start, end),
+        ).fetchall()]
+        catrows = c.execute(
+            """SELECT t.user_id AS uid, t.category AS cat, COUNT(*) AS n
+               FROM tasks t
+               WHERE t.work_date BETWEEN ? AND ? AND COALESCE(t.category,'')<>''
+               GROUP BY t.user_id, t.category""",
+            (start, end),
+        ).fetchall()
+    catmap = defaultdict(list)
+    for r in catrows:
+        catmap[r["uid"]].append((r["n"], r["cat"]))
+    for r in agg:
+        cats = sorted(catmap.get(r["user_id"], []), reverse=True)
+        r["top_cats"] = ", ".join(cc for _, cc in cats[:2]) or "—"
+        r["rate"] = round(100 * r["done"] / r["cnt"]) if r["cnt"] else 0
+        r["hours"] = round(r["hours"], 1)
+    agg.sort(key=lambda x: -x["cnt"])
+    depts = {}
+    for r in agg:
+        d = depts.setdefault(r["team_name"], {"team_name": r["team_name"], "people": 0, "cnt": 0, "hours": 0.0, "done": 0, "delayed": 0})
+        d["people"] += 1
+        d["cnt"] += r["cnt"]
+        d["hours"] += r["hours"]
+        d["done"] += r["done"]
+        d["delayed"] += r["delayed"]
+    dept_list = sorted(depts.values(), key=lambda x: -x["cnt"])
+    for d in dept_list:
+        d["rate"] = round(100 * d["done"] / d["cnt"]) if d["cnt"] else 0
+        d["hours"] = round(d["hours"], 1)
+    return ctx(request, "admin_work_patterns.html", user=u, rows=agg, depts=dept_list,
+               period_label=plabel, days=days, start=start, end=end, total_people=len(agg))
+
+
+def _wp_detail_data(c, uid, start, end):
+    """개인 업무 패턴 집계(detail·ai 공용). 메타데이터만(notes 본문 미포함)."""
+    cats = [dict(r) for r in c.execute(
+        "SELECT COALESCE(NULLIF(category,''),'(미분류)') AS category, COUNT(*) AS n, COALESCE(SUM(hours),0) AS h "
+        "FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? GROUP BY category ORDER BY n DESC",
+        (start, end, uid))]
+    stat = [dict(r) for r in c.execute(
+        "SELECT COALESCE(NULLIF(status,''),'(미지정)') AS status, COUNT(*) AS n "
+        "FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? GROUP BY status ORDER BY n DESC",
+        (start, end, uid))]
+    weekly = [dict(r) for r in c.execute(
+        "SELECT strftime('%Y-%W', work_date) AS wk, COUNT(*) AS n, COALESCE(SUM(hours),0) AS h "
+        "FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? GROUP BY wk ORDER BY wk",
+        (start, end, uid))]
+    projs = [dict(r) for r in c.execute(
+        "SELECT project_label AS label, COUNT(*) AS n FROM tasks "
+        "WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(project_label,'')<>'' "
+        "GROUP BY project_label ORDER BY n DESC LIMIT 8", (start, end, uid))]
+    custs = [dict(r) for r in c.execute(
+        "SELECT customer_label AS label, COUNT(*) AS n FROM tasks "
+        "WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(customer_label,'')<>'' "
+        "GROUP BY customer_label ORDER BY n DESC LIMIT 8", (start, end, uid))]
+    return cats, stat, weekly, projs, custs
+
+
+@app.get("/admin/work-patterns/{uid:int}", response_class=HTMLResponse)
+async def admin_work_pattern_detail(request: Request, uid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_work_patterns(u):
+        return RedirectResponse(role_home(u), 303)
+    start, end, plabel, days = _wp_period(request)
+    with db_session() as c:
+        emp = c.execute(
+            "SELECT u.id, u.name, u.role, u.rank, COALESCE(tm.name,'') AS team_name "
+            "FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?", (uid,)).fetchone()
+        if not emp:
+            return RedirectResponse("/admin/work-patterns", 303)
+        emp = dict(emp)
+        cats, stat, weekly, projs, custs = _wp_detail_data(c, uid, start, end)
+        # 협업 대상: 내 업무에 댓글 단 사람 + 내가 댓글 단 남의 업무 (task_comments 기준)
+        collab = {}
+        try:
+            for r in c.execute(
+                "SELECT tc.author_id AS pid, COUNT(*) AS n FROM task_comments tc JOIN tasks t ON t.id=tc.task_id "
+                "WHERE t.user_id=? AND tc.author_id<>? AND date(tc.created_at) BETWEEN ? AND ? GROUP BY tc.author_id",
+                (uid, uid, start, end)):
+                collab[r["pid"]] = collab.get(r["pid"], 0) + r["n"]
+            for r in c.execute(
+                "SELECT t.user_id AS pid, COUNT(*) AS n FROM task_comments tc JOIN tasks t ON t.id=tc.task_id "
+                "WHERE tc.author_id=? AND t.user_id<>? AND date(tc.created_at) BETWEEN ? AND ? GROUP BY t.user_id",
+                (uid, uid, start, end)):
+                collab[r["pid"]] = collab.get(r["pid"], 0) + r["n"]
+        except Exception:
+            collab = {}
+        collab_list = []
+        if collab:
+            ids = list(collab.keys())
+            qm = ",".join("?" * len(ids))
+            namemap = {r["id"]: r["name"] for r in c.execute(f"SELECT id, name FROM users WHERE id IN ({qm})", ids)}
+            collab_list = sorted(
+                [{"name": namemap.get(pid, f"#{pid}"), "n": n} for pid, n in collab.items()],
+                key=lambda x: -x["n"])[:6]
+    total = sum(x["n"] for x in cats)
+    total_h = round(sum(x["h"] for x in cats), 1)
+    done = next((s["n"] for s in stat if s["status"] == "완료"), 0)
+    delayed = next((s["n"] for s in stat if s["status"] == "지연"), 0)
+    rate = round(100 * done / total) if total else 0
+    for cc in cats:
+        cc["pct"] = round(100 * cc["n"] / total) if total else 0
+        cc["h"] = round(cc["h"], 1)
+    wmax = max([w["n"] for w in weekly], default=0) or 1
+    for w in weekly:
+        w["h"] = round(w["h"], 1)
+        w["pct"] = round(100 * w["n"] / wmax)
+    return ctx(request, "admin_work_pattern_detail.html", user=u, emp=emp,
+               cats=cats, stat=stat, weekly=weekly, projs=projs, custs=custs, collab=collab_list,
+               total=total, total_h=total_h, rate=rate, delayed=delayed,
+               period_label=plabel, days=days, start=start, end=end)
+
+
+@app.post("/admin/work-patterns/{uid:int}/ai-summary")
+async def admin_work_pattern_ai_summary(request: Request, uid: int):
+    """직원 업무 패턴 AI 요약 = 개인 매뉴얼의 씨앗. 메타데이터(집계+업무 제목)만 전송, notes 본문 제외.
+    인사평가(우수/부진)는 금지하고 사실 기반 주담당 영역·반복업무만 정리."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not can_view_work_patterns(u):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    start, end, plabel, days = _wp_period(request)
+    with db_session() as c:
+        emp = c.execute(
+            "SELECT u.name, COALESCE(tm.name,'') AS team FROM users u LEFT JOIN teams tm ON tm.id=u.team_id WHERE u.id=?",
+            (uid,)).fetchone()
+        if not emp:
+            return JSONResponse({"ok": False, "error": "notfound"}, 404)
+        emp = dict(emp)
+        cats, stat, weekly, projs, custs = _wp_detail_data(c, uid, start, end)
+        titles = [r[0] for r in c.execute(
+            "SELECT title FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(title,'')<>'' "
+            "ORDER BY work_date DESC LIMIT 30", (start, end, uid)).fetchall()]
+    total = sum(x["n"] for x in cats)
+    if not total:
+        return JSONResponse({"ok": True, "summary": "이 기간에 기록된 일일업무가 없어 요약할 내용이 없습니다."})
+    cat_txt = ", ".join(f"{x['category']} {x['n']}건({round(100*x['n']/total)}%)" for x in cats)
+    stat_txt = ", ".join(f"{x['status']} {x['n']}건" for x in stat)
+    proj_txt = ", ".join(f"{x['label']}({x['n']})" for x in projs) or "—"
+    cust_txt = ", ".join(f"{x['label']}({x['n']})" for x in custs) or "—"
+    title_txt = "\n".join(f"- {t}" for t in titles)
+    try:
+        from . import ai_client
+        from starlette.concurrency import run_in_threadpool
+        if not ai_client.ai_available():
+            return JSONResponse({"ok": False, "error": "ai_off",
+                                 "summary": "AI가 연결되어 있지 않습니다. (관리자 → AI 설정에서 키 등록 후 사용)"})
+        system = (
+            "당신은 ㈜케이엔케이(KNK · 검사기·자동화 설비 제조)의 업무 분석 비서입니다. "
+            "아래는 한 직원이 기간 동안 남긴 '일일업무' 집계(메타데이터)와 업무 제목 목록입니다. "
+            "이 사람이 실제로 맡고 있는 '주 담당 업무 영역'과 '업무 특성'을 한국어로 정리하세요. "
+            "목적은 감시가 아니라 업무분장·인수인계·개인 업무 매뉴얼 작성을 위한 기초자료입니다.\n"
+            "출력 형식:\n① 한 문단 요약 (이 직원의 주 담당 영역)\n"
+            "② '반복·핵심 업무' 불릿 3~6개 (매뉴얼화 후보 — 인수인계 시 알아야 할 일)\n"
+            "③ 한 줄 메모 (협업 관계나 주의점)\n"
+            "주의: 우수/부진 같은 인사평가나 추측은 하지 말고, 주어진 사실만으로 정리할 것.")
+        prompt = (
+            f"직원: {emp['name']} ({emp['team'] or '부서미상'}) · 기간 {plabel} ({start}~{end})\n"
+            f"업무 구성: {cat_txt}\n진행 상태: {stat_txt}\n"
+            f"주요 프로젝트: {proj_txt}\n주요 고객/대상: {cust_txt}\n"
+            f"업무 제목 표본(최근 {len(titles)}건):\n{title_txt}")
+        ok, ans = await run_in_threadpool(
+            ai_client.ai_chat, prompt, system, max_tokens=800, temperature=0.3)
+        if not ok or not (ans or "").strip():
+            return JSONResponse({"ok": False, "error": "ai_fail",
+                                 "summary": "AI 요약 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."})
+        return JSONResponse({"ok": True, "summary": ans.strip()})
+    except Exception as e:
+        print(f"[WORK-PATTERN AI] {e}")
+        return JSONResponse({"ok": False, "error": str(e), "summary": "AI 호출 중 오류가 발생했습니다."})
+
+
 def can_use_sales(user) -> bool:
     """매출·영업 **쓰기** (등록·편집·견적·수주) 권한 (Plan Y S1).
     - admin / ceo / executive: 항상 허용
@@ -4950,7 +5175,7 @@ async def admin_page(req: Request):
         customers = [dict(r) for r in c.execute("SELECT * FROM customers ORDER BY tier DESC, id").fetchall()]
     return ctx(req, "admin.html",
                user=u, teams=teams, users=users, projects=projects, customers=customers,
-               active="admin")
+               active="admin", can_work_patterns=can_view_work_patterns(u))
 
 
 @app.post("/api/admin/user")
