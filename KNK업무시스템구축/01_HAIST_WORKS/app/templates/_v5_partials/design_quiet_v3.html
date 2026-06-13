@@ -148,7 +148,9 @@ body { background: var(--qv-surface-2) !important; }
 .top-icon[id="victorToggleBtn"] {
   background: #fff !important;
   width: 36px !important; height: 36px !important;
-  font-size: 13px !important; border-width: 2px !important;
+  font-size: 13px !important;
+  /* z403(대표 지시): 원형 테두리 2배 두껍게 (2px→4px) */
+  border-width: 4px !important;
   /* z402(대표 지시): 녹색 테두리 아래로 보이던 색 = 드롭 섀도(아래로 처진 어두운 그림자) 제거 → 흰 원+녹/빨 테두리만 깔끔히 */
   box-shadow: none !important;
 }
