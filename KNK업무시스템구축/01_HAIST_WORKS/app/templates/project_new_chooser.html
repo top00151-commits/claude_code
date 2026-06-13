@@ -79,7 +79,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <span style="font-family:Consolas,monospace;">001T2605 / 001M2605 / 001L2605 / 001E2605 / 001C2605</span>)가
       자동 발급되며, <b>수주확정</b> 시점에 수주번호도 자동 발행됩니다.
       <span style="color:#8a7842;">· E 기타 / C 소모품은 진행 사업부(검사기/자동화)를 함께 선택하세요.</span>
-      <span style="color:#8a7842;">· 다수 건 일괄 등록은 아래 [엑셀 일괄 등록]을 이용하세요(T·M 전용).</span>
+      <span style="color:#8a7842;">· 다수 건 일괄 등록은 아래 [엑셀 일괄 등록]을 이용하세요(소모품 제외 — 관리번호로 사업부 자동 인식).</span>
     </p>
 
     <div class="pc-grid">
@@ -135,25 +135,21 @@ html,body{background:#fff!important;overflow:auto!important;}
 
     <!-- v5H152: 프로젝트 엑셀 일괄 등록 -->
     <div style="margin-top:14px;padding:16px 20px;background:#fffaf0;border:1px solid #e6dcc0;border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-      {# v5H226z247 (대표 지시): 무엇을 업로드할 수 있는지 명확히 — 출고형태 3종 + 소모품 제외 안내 #}
+      {# v5H226z415 (대표 지시 'A로 통일'): 초기 화면도 구분 안(등록 폼)·작업일정표와 '같은 통합 양식 1종'으로 통일.
+         (기존 출고형태별 3종 ASS'Y/부품/기타는 업로드 파서가 시트명을 인식 못 해 0건이던 미완성 → 폐기) #}
       <div style="font-size:13px;color:#555;line-height:1.6;max-width:560px;">
-        📥 <b>엑셀 일괄 등록</b> — <b>장비</b>(검사기·자동화)를 <b>출고형태별 양식</b>으로 다수 건 한 번에 등록
+        📥 <b>엑셀 일괄 등록</b> — 여러 건을 한 번에 등록 (<b>통합 양식 1종</b> · 등록 폼·작업일정표와 동일한 표준 양식)
         <div style="font-size:11.5px;color:#8a7842;margin-top:6px;line-height:1.7;">
-          <b>올릴 수 있는 항목(아래 3종 양식 중 선택):</b><br>
-          · <b style="color:#1d4ed8;">ASS'Y</b> — 완제품·장비 (한 줄 = 1대)<br>
-          · <b style="color:#b45309;">부품</b> — 한 장비에 딸린 부품 리스트 <b>(1 장비 = 1 파일)</b><br>
-          · <b style="color:#6d28d9;">기타</b> — 검사기/자동화 외 기타 출고 품목<br>
+          · <b>관리번호</b>를 입력하세요 — <b>사업부(T 검사기 / M 자동화 / L 라이프밸류 / E 기타)는 관리번호에서 자동 인식</b>됩니다.<br>
+          · <b>고객사1</b>은 등록된 고객사명과 정확히 일치해야 자동 연결됩니다.<br>
+          · <b>발주일</b>이 있으면 그 시점 기준으로 <b>수주번호 자동 발행</b>(없으면 헤더만 등록).<br>
           <span style="color:#15803d;font-weight:700;">※ 소모품은 여기가 아니라 위 [📦 C 소모품] 카드에서 올립니다.</span><br>
-          <span style="color:#9a8a5a;">흐름: 양식 다운로드 → 입력 → 업로드 → 미리보기 → 확정 · 관리코드는 자동 부여</span>
+          <span style="color:#9a8a5a;">흐름: 양식 다운로드 → 입력(2행 예시 삭제) → 업로드 → 미리보기 → 확정</span>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        {# v5H226z228 (대표 지시): 출고형태별 3종 양식 다운로드 #}
-        <a href="/projects/import-template/assy" style="padding:8px 14px;background:#e0edff;border:1px solid #b9d2ff;border-radius:6px;font-size:13px;font-weight:700;color:#1d4ed8;text-decoration:none;">📥 ASS'Y 양식</a>
-        <a href="/projects/import-template/parts" style="padding:8px 14px;background:#fff3e0;border:1px solid #f0d9a8;border-radius:6px;font-size:13px;font-weight:700;color:#b45309;text-decoration:none;">📥 부품 양식</a>
-        <a href="/projects/import-template/etc" style="padding:8px 14px;background:#f3f0ff;border:1px solid #d8d0f0;border-radius:6px;font-size:13px;font-weight:700;color:#6d28d9;text-decoration:none;">📥 기타 양식</a>
-        {# v5H226z242 (대표 지시): 소모품은 '소모품 수주' 메뉴(/consumables)에서 고객사 파일(드림텍 형식) 직접 업로드 → 프로젝트용 소모품 양식 버튼 숨김 #}
-        {# <a href="/projects/import-template/consumable" ...>📥 소모품 양식</a> #}
+        {# v5H226z415 (대표 지시 'A로 통일'): 구분 안(등록 폼)·작업일정표와 동일한 통합 양식 1종 다운로드(/projects/import-template-mgmt). 출고형태 3종 폐기. #}
+        <a href="/projects/import-template-mgmt" style="padding:8px 14px;background:#e0edff;border:1px solid #b9d2ff;border-radius:6px;font-size:13px;font-weight:700;color:#1d4ed8;text-decoration:none;">📥 양식 다운로드</a>
         <span style="width:1px;height:22px;background:#e6dcc0;margin:0 2px;"></span>
         <button type="button" onclick="document.getElementById('importXlsx').click()" style="padding:8px 14px;background:#b07a18;color:#fff;border:1px solid #b07a18;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 엑셀 업로드</button>
         <input type="file" id="importXlsx" accept=".xlsx" style="display:none;" onchange="uploadProjectsXlsx(this.files[0])">
@@ -230,9 +226,8 @@ html,body{background:#fff!important;overflow:auto!important;}
     if (!j.total) {
       sum.innerHTML = '<div style="color:#b91c1c;font-weight:700;">⚠ 인식된 데이터가 없습니다 (0건).</div>'
         + '<div style="font-size:12px;color:#7c4a03;margin-top:4px;line-height:1.6;">'
-        + '· 데이터 시트 이름이 <b>T_검사기 / M_자동화 / L_라이프밸류 / E_기타 / C_소모품</b> 중 하나여야 인식됩니다.<br>'
-        + '· <b>새 3종 양식(ASS\'Y·부품·기타)</b>은 업로드 인식이 <b>준비 중</b>입니다 — 지금은 <b>기존 통합 양식</b>으로 올려주세요.<br>'
-        + '· 헤더 행(3행)과 데이터 행(5행~)이 비어있지 않은지 확인하세요.</div>';
+        + '· 위 <b>[📥 양식 다운로드]</b>로 받은 <b>통합 양식</b>(시트명 <b>일괄등록</b>)에 입력했는지 확인하세요.<br>'
+        + '· <b>2행 예시 행은 삭제</b>하고 그 아래부터 입력하세요. <b>관리번호·고객사1</b> 등 필수 칸이 채워졌는지 확인하세요.</div>';
     } else {
       sum.innerHTML = '총 <b>' + j.total + '</b>건 · 정상 <b style="color:#2a7a2a;">' + j.valid_count + '</b>건 · 오류 <b style="color:#c33;">' + j.error_count + '</b>건';
     }
