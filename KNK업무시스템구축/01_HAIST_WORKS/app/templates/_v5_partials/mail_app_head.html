@@ -9,7 +9,6 @@
   .mail-app-top a { color:#fff; text-decoration:none; font-size:13px; opacity:.92; padding:5px 10px; border-radius:7px; }
   .mail-app-top a:hover { background:rgba(255,255,255,.16); opacity:1; }
   .mail-app-top .sp { flex:1; }
-  .mail-app-top .exit { font-size:12px; opacity:.85; border:1px solid rgba(255,255,255,.4); }
   /* 접속자(로그인 사용자) 정보 — 누가 로그인했는지 표시 (대표 지시 2026-06-14) */
   .mail-app-top .me { display:inline-flex; align-items:center; gap:7px; font-size:12.5px;
     background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.28);
@@ -33,5 +32,5 @@
     <span class="av">{{ _dn[0] }}</span>
     <b>{{ _dn }}</b>{% if user.rank %}<span class="role">· {{ user.rank }}</span>{% endif %}{% if user.team_name %}<span class="role">· {{ user.team_name }}</span>{% endif %}
   </span>{% endif %}
-  <a href="/mail/inbox?app=0" class="exit" title="WORKS 전체화면(사이드바)으로 보기">⤢ WORKS 전체화면</a>
+  {# 「WORKS 전체화면」(?app=0) 버튼 제거 — 메일은 KNK Eum 전용 독립 창, WORKS는 KNK Eum 🌟 아이콘으로 별도 실행(역할 분리). (대표 지시 2026-06-14) #}
 </div>
