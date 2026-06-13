@@ -88,6 +88,16 @@
 .cols-pop .cols-allbtn { display:block; width:100%; box-sizing:border-box; margin:0 0 6px; padding:6px 8px; border:1px solid var(--knk-red); border-radius:6px; background:var(--knk-red); color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
 .cols-pop .cols-allbtn:hover { filter:brightness(.94); }
 .sched-hint { font-size:10px; color:var(--qv-ink-3); line-height:1.2; }
+/* v5H226z397 (대표 지시): AI 빅터 dock 열면 본문이 320px 좁아져 '작업·보기' 도구 띠가 한 줄 더 줄바꿈되는 문제 —
+   dock 열린 동안(.victor-open)만 도구 띠를 촘촘히(간격·여백·글자 축소)해 한 줄 덜 내려오게. 닫힘(평소) 모양은 그대로. */
+.victor-open .sched-tools { gap:5px; }
+.victor-open .sb-band { gap:5px; padding:3px 9px; }
+.victor-open .sched-tools button,
+.victor-open .sched-tools .tool-btn { padding:5px 9px; font-size:12px; }
+.victor-open .tool-box { padding:4px 7px; gap:6px; }
+.victor-open .tool-grp { padding:2px 7px; gap:4px; }
+.victor-open .sb-band > .band-tag { min-width:46px; padding:3px 7px; }
+.victor-open .sched-hint { font-size:9px; }
 
 .sched-wrap { margin:0 var(--content-pad); border:1px solid var(--line); border-radius:10px;
   overflow:auto; max-height:calc(100vh - 250px); background:var(--paper-3); }

@@ -330,21 +330,21 @@
 .vd-input-wrap button { background: var(--knk-red); color: white; border: 0; border-radius: 8px; padding: 0 14px; font-weight: 700; cursor: pointer; font-size: 12.5px; }
 .vd-input-wrap button:hover { background: #7A1D20; }
 #victorToggleBtn.is-open { box-shadow: 0 0 0 3px rgba(0,0,0,0.22); }  /* 열림=링(AI 상태색 유지) */
-/* v5H226z128: AI 표식 = 아바타형 원형 배지. 동작=파란 원 / 미동작=빨간 원, 글씨 흰색(양쪽서 잘 보임) */
+/* v5H226z128→z397(대표 지시): AI 표식 = 아바타형 원형 배지. KNK Eum(메신저) 브랜드색 #A5282C 로 통일. 사용가능=선명 / 사용불가=같은 색 흐리게. 글씨 흰색 */
 .ai-avatar { display:inline-flex; align-items:center; justify-content:center;
              width:50px; height:50px; border-radius:50%; color:#fff; font-weight:800;
              font-size:17px; letter-spacing:.03em; line-height:1; flex-shrink:0;
              border:2px solid #fff; box-sizing:border-box;
              text-decoration:none; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.20);
              transition:transform .12s ease, box-shadow .15s ease; }
-.ai-avatar.on  { background:#2563eb; }   /* 파랑 = AI 동작/사용 가능 */
-.ai-avatar.off { background:#dc2626; }   /* 빨강 = AI 미동작/사용 불가 */
+.ai-avatar.on  { background:#A5282C; }   /* z397: KNK Eum 색 = AI 사용 가능 */
+.ai-avatar.off { background:#A5282C; opacity:.55; }   /* z397: 같은 KNK Eum 색(흐리게) = 사용 불가 */
 .ai-avatar:hover { transform:translateY(-1px); box-shadow:0 3px 9px rgba(0,0,0,.24); }
 .ai-avatar.sm { width:22px; height:22px; font-size:9px; border-width:1px; box-shadow:0 1px 2px rgba(0,0,0,.16); }
 /* 인라인 텍스트형(문장 속 'AI' 색만) — 보조 */
 .ai-mark { font-weight:800; letter-spacing:.02em; }
-.ai-mark.on  { color:#2563eb; }
-.ai-mark.off { color:#dc2626; }
+.ai-mark.on  { color:#A5282C; }
+.ai-mark.off { color:#A5282C; opacity:.65; }
 /* v5H226z126: 빅터 AI 응답·생각중 메시지 */
 .vd-msg.vd-thinking { opacity: .6; font-style: italic; }
 .vd-msg.vd-ai { background: rgba(165,40,44,0.06); border-left: 3px solid var(--knk-red); line-height: 1.6; white-space: normal; }
