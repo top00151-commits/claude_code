@@ -23,7 +23,7 @@
 
 {# 허브별 path 목록 — longest-prefix 계산용 #}
 {% set _paths_home = ['/home','/daily','/now','/team','/weekly','/dashboard','/board/company'] %}
-{% set _paths_sales = ['/sales','/projects','/sales/schedule','/customers','/sales/quotations','/sales/orders','/consumables','/sales/shipments-receipts','/sales/outstanding','/export','/as'] %}
+{% set _paths_sales = ['/sales','/projects','/projects/new','/sales/schedule','/customers','/sales/quotations','/sales/orders','/consumables','/sales/shipments-receipts','/sales/outstanding','/export','/as'] %}
 {% set _paths_logi = ['/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issue','/rates'] %}
 {% set _paths_common = ['/notifications','/calendar','/tickets','/changes','/issues','/search','/admin','/admin/permissions'] %}
 {% set _all_paths = _paths_home + _paths_sales + _paths_logi + _paths_common %}
@@ -185,6 +185,9 @@
     <div class="sb-group">매출·영업</div>
     {{ a('/sales',                 '🏢 매출 홈',     'M-01-01') }}
     {{ a('/projects',              '📋 프로젝트',                     'M-01-11') }}
+    {# v5H226z374 (대표 지시): 제작요청서 = 프로젝트 신규 등록 진입 — 이름으로 바로 찾도록 사이드바 바로가기 추가.
+       클릭 → 사업부 선택(검사기/자동화/라이프밸류/기타) → 간편폼 하단 「📋 제작요청 발행」(기본 체크) #}
+    {{ a('/projects/new',          '📝 제작요청서',  'M-01-13') }}
     {# v5H226z256 (대표 지시): 작업 일정표(전사 일정 운영 보드) — 1단계 #}
     {{ a('/sales/schedule',        '📅 작업 일정표', 'M-01-14') }}
     {{ a('/customers',             '🤝 고객사',      'M-01-09') }}
