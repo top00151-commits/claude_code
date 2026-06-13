@@ -15,8 +15,10 @@ KNK 자체 메일 시스템 Phase 0 POC (2026-06-13, 대표 지시).
 """
 from __future__ import annotations
 
+import os
 import re
 import json
+import secrets
 from email.utils import parseaddr
 
 # AI 가 판정하는 분류 4종
@@ -556,3 +558,97 @@ def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
 
     s = re.sub(r"(?is)<img\b[^>]*>", _img_sub, s)
     return s
+
+
+# ─── KNK 대용량 첨부 (큰 파일 → NAS 보관 + 다운로드 링크) ─────────────
+# 파일은 data/mail_large/{token}/ (정적 비공개). /dl/{token} 라우트만 서빙(만료·횟수 검사).
+def _large_root() -> str:
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 01_HAIST_WORKS
+    return os.path.join(base, "data", "mail_large")
+
+
+def new_large_token() -> str:
+    return secrets.token_urlsafe(24)
+
+
+def large_file_dir(token: str) -> str:
+    return os.path.join(_large_root(), token)
+
+
+def safe_filename(name: str) -> str:
+    """경로조작·위험문자 제거. 빈 값이면 'file'."""
+    name = os.path.basename((name or "").replace("\\", "/")).strip()
+    name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', "_", name)
+    name = name.lstrip(".") or "file"
+    return name[:180]
+
+
+def register_large_file(c, *, token: str, user_id: int, filename: str, mime: str,
+                        path: str, size: int, expiry_days: int = 30):
+    """업로드 완료된 대용량 파일을 DB 등록. 반환 expires_at(문자열) 또는 None(무기한)."""
+    exp = None
+    if expiry_days and expiry_days > 0:
+        row = c.execute("SELECT datetime('now','localtime',?) AS e",
+                        (f"+{int(expiry_days)} days",)).fetchone()
+        exp = row["e"] if row else None
+    c.execute(
+        """INSERT INTO mail_large_files
+           (token, filename, mime, size, path, uploaded_by, expires_at)
+           VALUES(?,?,?,?,?,?,?)""",
+        (token, (filename or "file")[:255], (mime or "")[:120], int(size or 0),
+         path, user_id, exp),
+    )
+    return exp
+
+
+def get_large_file(c, token: str):
+    """다운로드용 조회. 없으면 None. 만료 시 dict 에 expired=True."""
+    r = c.execute(
+        "SELECT token, filename, mime, size, path, expires_at, "
+        "(expires_at IS NOT NULL AND datetime('now','localtime') > expires_at) AS is_expired "
+        "FROM mail_large_files WHERE token=?", (token,)).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    d["expired"] = bool(d.pop("is_expired"))
+    return d
+
+
+def bump_large_download(c, token: str) -> None:
+    try:
+        c.execute("UPDATE mail_large_files SET download_count = download_count + 1 WHERE token=?",
+                  (token,))
+    except Exception:
+        pass
+
+
+def human_size(n) -> str:
+    try:
+        n = float(n or 0)
+    except Exception:
+        return "0 B"
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024.0
+    return f"{n:.1f} TB"
+
+
+def large_links_block(c, tokens, base_url: str) -> str:
+    """선택된 대용량 첨부 토큰들 → 메일 본문에 붙일 다운로드 링크 블록(텍스트)."""
+    items = []
+    for t in (tokens or []):
+        info = get_large_file(c, t)
+        if not info or info.get("expired"):
+            continue
+        items.append((info["filename"] or "file", info["size"], t))
+    if not items:
+        return ""
+    base = (base_url or "").rstrip("/")
+    lines = ["", "──────────────────────────────",
+             "📎 대용량 첨부파일 (아래 링크로 다운로드 · 30일 유효)"]
+    for fn, sz, tk in items:
+        lines.append(f"• {fn} ({human_size(sz)})")
+        lines.append(f"  {base}/dl/{tk}")
+    lines.append("──────────────────────────────")
+    return "\n".join(lines)

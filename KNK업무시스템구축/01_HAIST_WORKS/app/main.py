@@ -10490,6 +10490,7 @@ async def mail_send_route(req: Request):
     cc = (form.get("cc") or "").strip()
     subject = (form.get("subject") or "").strip()
     body = (form.get("body") or "")
+    large_tokens = [t.strip() for t in (form.get("large_tokens") or "").split(",") if t.strip()]
     attachments, total = [], 0
     for f in form.getlist("files"):
         if hasattr(f, "read"):
@@ -10507,14 +10508,92 @@ async def mail_send_route(req: Request):
     with db_session() as c:
         if not _mail.system_send_ready(c):
             return JSONResponse({"ok": False, "message": "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 발송망을 먼저 등록하세요."}, 400)
-        ok, msg = _mail.send_system(c, from_addr, to_email, subject, body,
+        send_body = body
+        if large_tokens:
+            send_body = body + _mailbox.large_links_block(c, large_tokens, _WORKS_PUBLIC_BASE)
+        ok, msg = _mail.send_system(c, from_addr, to_email, subject, send_body,
                                     from_name=u.get("name") or "", cc=cc, attachments=attachments)
         if ok:
             _mailbox.store_outbound(c, user_id=u["id"], from_email=from_addr,
                                     from_name=u.get("name") or "", to_email=to_email,
-                                    subject=subject, body=body, cc=cc,
-                                    size=len(body or "") + total)
+                                    subject=subject, body=send_body, cc=cc,
+                                    size=len(send_body or "") + total)
     return JSONResponse({"ok": ok, "message": msg})
+
+
+# ─── KNK 대용량 첨부 (큰 파일 → NAS 업로드 + 다운로드 링크) ───────────
+_WORKS_PUBLIC_BASE = "https://works.knknara.co.kr"
+_LARGE_MAX = 500 * 1024 * 1024   # 1파일 최대 500MB
+
+
+@app.post("/mail/large/upload")
+async def mail_large_upload(req: Request):
+    """대용량 첨부 1개 업로드 → NAS 보관 + 토큰 발급. (로그인 직원만)"""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    import os as _os, shutil as _sh
+    form = await req.form()
+    f = form.get("file")
+    if not f or not hasattr(f, "read"):
+        return JSONResponse({"ok": False, "message": "파일이 없습니다."}, 400)
+    fname = getattr(f, "filename", "") or "file"
+    mime = getattr(f, "content_type", "") or "application/octet-stream"
+    token = _mailbox.new_large_token()
+    d = _mailbox.large_file_dir(token)
+    _os.makedirs(d, exist_ok=True)
+    path = _os.path.join(d, _mailbox.safe_filename(fname))
+    size = 0
+    try:
+        with open(path, "wb") as out:
+            while True:
+                chunk = await f.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > _LARGE_MAX:
+                    out.close()
+                    _sh.rmtree(d, ignore_errors=True)
+                    return JSONResponse({"ok": False, "message": "파일이 너무 큽니다(최대 500MB)."}, 400)
+                out.write(chunk)
+    except Exception as e:
+        _sh.rmtree(d, ignore_errors=True)
+        return JSONResponse({"ok": False, "message": f"업로드 실패: {str(e)[:80]}"}, 500)
+    with db_session() as c:
+        exp = _mailbox.register_large_file(c, token=token, user_id=u["id"], filename=fname,
+                                           mime=mime, path=path, size=size, expiry_days=30)
+    return JSONResponse({"ok": True, "token": token, "filename": fname, "size": size,
+                         "size_h": _mailbox.human_size(size),
+                         "url": f"{_WORKS_PUBLIC_BASE}/dl/{token}", "expires_at": exp})
+
+
+@app.get("/dl/{token}")
+async def mail_large_download(req: Request, token: str):
+    """대용량 첨부 다운로드 — 공개(로그인 불필요), 토큰·만료 검사. 외부 수신자도 받을 수 있음."""
+    import os as _os
+    def _msg(title, sub, code):
+        return HTMLResponse(
+            f"<!doctype html><meta charset=utf-8><div style='font-family:system-ui,sans-serif;"
+            f"max-width:520px;margin:80px auto;text-align:center;color:#374151'>"
+            f"<div style='font-size:40px'>📭</div><h2>{title}</h2>"
+            f"<p style='color:#6b7280'>{sub}</p></div>", status_code=code)
+    with db_session() as c:
+        info = _mailbox.get_large_file(c, token)
+        if not info:
+            return _msg("다운로드할 수 없습니다", "링크가 잘못되었거나 파일이 삭제되었습니다.", 404)
+        if info.get("expired"):
+            return _msg("유효기간이 지났습니다", "이 다운로드 링크는 만료되었습니다(보낸 지 30일 경과).", 410)
+        if not info.get("path") or not _os.path.exists(info["path"]):
+            return _msg("파일을 찾을 수 없습니다", "파일이 서버에서 삭제되었을 수 있습니다.", 404)
+        _mailbox.bump_large_download(c, token)
+    import urllib.parse as _up
+    fn = info["filename"] or "download"
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{_up.quote(fn)}",
+        "X-Content-Type-Options": "nosniff",
+    }
+    return FileResponse(info["path"], media_type=info["mime"] or "application/octet-stream",
+                        headers=headers)
 
 
 @app.get("/mail/sent", response_class=HTMLResponse)

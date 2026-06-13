@@ -354,6 +354,22 @@ CREATE TABLE IF NOT EXISTS mail_aliases (
     created_at  TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- KNK 대용량 첨부(2026-06-13 대표 지시): 큰 파일을 NAS 보관 + 다운로드 링크로 발송.
+-- 파일은 data/mail_large/{token}/ (정적 비공개) — /dl/{token} 라우트만 서빙(만료·횟수 검사).
+CREATE TABLE IF NOT EXISTS mail_large_files (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    token          TEXT UNIQUE NOT NULL,       -- 추측 불가 다운로드 토큰
+    filename       TEXT,
+    mime           TEXT,
+    size           INTEGER DEFAULT 0,
+    path           TEXT,                        -- NAS 저장 경로
+    uploaded_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    download_count INTEGER DEFAULT 0,
+    expires_at     TEXT,                        -- 만료 시각(localtime). NULL=무기한
+    created_at     TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mlf_token ON mail_large_files(token);
+
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     code TEXT,

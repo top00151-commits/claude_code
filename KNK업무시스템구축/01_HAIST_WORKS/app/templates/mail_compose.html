@@ -32,34 +32,81 @@
     <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}"></div>
     <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}"></div>
     <textarea id="cBody" class="cmp-body" placeholder="내용을 입력하세요...">{{ prefill.body }}</textarea>
-    <div class="cmp-row" style="border-bottom:0;"><label>첨부</label><input id="cFiles" type="file" multiple></div>
+    <div class="cmp-row"><label>첨부</label><input id="cFiles" type="file" multiple></div>
+    <div class="cmp-row" style="border-bottom:0;align-items:flex-start;">
+      <label style="padding-top:6px;">대용량 첨부</label>
+      <div style="flex:1;">
+        <input id="cLargeFiles" type="file" multiple>
+        <div style="font-size:11px;color:var(--mute);margin-top:2px;">큰 파일(개당 최대 500MB)은 NAS에 올려 <b>다운로드 링크</b>로 보냅니다 · 30일 유효</div>
+        <div id="cLargeList" style="margin-top:6px;display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
+    </div>
     <div class="cmp-actions">
       <button type="button" class="btn btn-primary" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
       <a href="/mail/inbox" class="btn btn-secondary">취소</a>
       <span id="cMsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
-    <div style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 첨부 합계 24MB 이하. 더 큰 파일은 추후 '대용량 첨부'(NAS 링크)로 보냅니다.</div>
+    <div style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 일반 첨부 합계 24MB 이하. 더 큰 파일은 위 <b>대용량 첨부</b>(NAS 링크·30일 유효)로 보내세요.</div>
   </div>
 </main></div>
 <script>
-async function sendMail(){
-  const to=document.getElementById('cTo').value.trim();
-  if(!to){ cmsg('받는사람을 입력하세요','red'); return; }
-  const btn=document.getElementById('cSendBtn'); btn.disabled=true; cmsg('📤 보내는 중...','');
-  const fd=new FormData();
-  fd.append('to', to);
-  fd.append('cc', document.getElementById('cCc').value.trim());
-  fd.append('subject', document.getElementById('cSubj').value.trim());
-  fd.append('body', document.getElementById('cBody').value);
-  const files=document.getElementById('cFiles').files;
-  for(let i=0;i<files.length;i++) fd.append('files', files[i]);
-  try{
-    const r=await fetch('/mail/send',{method:'POST',body:fd});
-    const j=await r.json();
-    if(j.ok){ cmsg('✅ 보냈습니다. 보낸편지함으로 이동합니다...','green'); setTimeout(()=>location.href='/mail/sent',800); }
-    else { cmsg('⚠ '+(j.message||'발송 실패'),'red'); btn.disabled=false; }
-  }catch(e){ cmsg('⚠ 네트워크 오류','red'); btn.disabled=false; }
-}
-function cmsg(t,c){ const m=document.getElementById('cMsg'); m.textContent=t; m.style.color = c==='red'?'var(--knk-red)':(c==='green'?'var(--success)':'var(--mute)'); }
+(function(){
+  var LARGE = [];  // 업로드 완료된 대용량 첨부 토큰들
+
+  function cmsg(t,c){ var m=document.getElementById('cMsg'); if(!m)return; m.textContent=t;
+    m.style.color = c==='red'?'var(--knk-red)':(c==='green'?'var(--success)':'var(--mute)'); }
+
+  function hsize(n){ var u=['B','KB','MB','GB']; var i=0; n=n||0;
+    while(n>=1024 && i<3){ n/=1024; i++; } return (i===0? n+' B' : n.toFixed(1)+' '+u[i]); }
+
+  async function uploadOne(file){
+    var list=document.getElementById('cLargeList');
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:4px 9px;background:#fafafa';
+    var nm=document.createElement('span'); nm.style.flex='1';
+    nm.textContent='📎 '+file.name+' ('+hsize(file.size)+')';   // textContent = XSS 안전
+    var st=document.createElement('span'); st.textContent='⏳ 올리는 중...'; st.style.color='var(--mute)';
+    row.appendChild(nm); row.appendChild(st); list.appendChild(row);
+    try{
+      var fd=new FormData(); fd.append('file', file);
+      var r=await fetch('/mail/large/upload',{method:'POST',body:fd});
+      var j=await r.json();
+      if(j.ok){
+        st.textContent='✅ 완료'; st.style.color='var(--success)'; LARGE.push(j.token);
+        var rm=document.createElement('a'); rm.href='javascript:void(0)'; rm.textContent='✕';
+        rm.style.cssText='color:var(--knk-red);text-decoration:none;margin-left:2px';
+        rm.addEventListener('click',function(){ var k=LARGE.indexOf(j.token); if(k>=0)LARGE.splice(k,1); row.remove(); });
+        row.appendChild(rm);
+      } else { st.textContent='⚠ '+(j.message||'실패'); st.style.color='var(--knk-red)'; }
+    }catch(e){ st.textContent='⚠ 네트워크 오류'; st.style.color='var(--knk-red)'; }
+  }
+
+  var lf=document.getElementById('cLargeFiles');
+  if(lf) lf.addEventListener('change', async function(e){
+    var files=e.target.files;
+    for(var i=0;i<files.length;i++){ await uploadOne(files[i]); }
+    e.target.value='';   // 같은 파일 재선택 가능하게 초기화
+  });
+
+  window.sendMail=async function(){
+    var to=document.getElementById('cTo').value.trim();
+    if(!to){ cmsg('받는사람을 입력하세요','red'); return; }
+    var btn=document.getElementById('cSendBtn'); btn.disabled=true; cmsg('📤 보내는 중...','');
+    var fd=new FormData();
+    fd.append('to', to);
+    fd.append('cc', document.getElementById('cCc').value.trim());
+    fd.append('subject', document.getElementById('cSubj').value.trim());
+    fd.append('body', document.getElementById('cBody').value);
+    var files=document.getElementById('cFiles').files;
+    for(var i=0;i<files.length;i++) fd.append('files', files[i]);
+    fd.append('large_tokens', LARGE.join(','));
+    try{
+      var r=await fetch('/mail/send',{method:'POST',body:fd});
+      var j=await r.json();
+      if(j.ok){ cmsg('✅ 보냈습니다. 보낸편지함으로 이동합니다...','green'); setTimeout(function(){location.href='/mail/sent';},800); }
+      else { cmsg('⚠ '+(j.message||'발송 실패'),'red'); btn.disabled=false; }
+    }catch(e){ cmsg('⚠ 네트워크 오류','red'); btn.disabled=false; }
+  };
+})();
 </script>
 </body></html>
