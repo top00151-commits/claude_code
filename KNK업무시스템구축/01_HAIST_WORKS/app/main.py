@@ -10390,6 +10390,34 @@ async def mail_attachment(req: Request, mail_id: int, att_id: int):
     return Response(content=a["data"], media_type=mime, headers=headers)
 
 
+@app.get("/mail/{mail_id:int}/_diag")
+async def mail_view_diag(req: Request, mail_id: int):
+    """진단(본인 메일만): 첨부 저장 상태 + HTML 의 cid 참조 비교. 이미지 안뜸 원인 파악용."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    import re as _re
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m:
+            return JSONResponse({"ok": False, "message": "메일을 찾을 수 없음(본인 메일만)"}, 404)
+        rows = c.execute(
+            "SELECT id, filename, mime, size, is_inline, content_id, "
+            "(data IS NOT NULL) AS has_data, length(data) AS dlen "
+            "FROM mail_attachments WHERE mail_id=? ORDER BY id", (mail_id,)).fetchall()
+    atts = [dict(r) for r in rows]
+    html = m.get("body_html") or ""
+    cid_refs = _re.findall(r"(?is)src\s*=\s*[\"']\s*cid:([^\"']+)[\"']", html)
+    img_srcs = _re.findall(r"(?is)<img[^>]*\ssrc\s*=\s*[\"']([^\"']{0,80})", html)
+    return JSONResponse({
+        "ok": True, "mail_id": mail_id,
+        "html_len": len(html), "has_html": bool(html),
+        "attachments": atts,
+        "cid_refs_in_html": cid_refs,
+        "img_src_samples": img_srcs[:12],
+    })
+
+
 @app.post("/mail/{mail_id:int}/star")
 async def mail_star(req: Request, mail_id: int):
     u = get_user(req)

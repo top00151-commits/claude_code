@@ -127,6 +127,20 @@ check("cid: → 우리 서버 URL 치환", f"/mail/{mid}/att/{aid}" in safe, "")
 check("원본 cid: 흔적 없음", "cid:" not in safe)
 check("서식(<b>)·이미지(<img>) 보존", "<b>" in safe and "<img" in safe.lower())
 
+# 스타일 보존(줄간격) + @import 제거 + 파일명 기반 cid 매칭
+section("안전 HTML — <style> 보존·@import 제거·파일명 cid 매칭(아웃룩 서명)")
+html2 = ("<html><head><style>@import url('http://evil/x.css');"
+         "p.MsoNormal{margin:0}</style></head><body>"
+         "<p class=MsoNormal>줄1</p><p class=MsoNormal>줄2</p>"
+         "<img src=\"cid:image001.png\">"   # content_id 없이 파일명으로만 참조
+         "<img src=\"cid:image001.png@01DABCDE.KNK\"></body></html>")
+safe2 = MS.sanitize_html_for_view(html2, mid, in_a)
+check("<style> 규칙(MsoNormal margin:0) 보존 → 간격 유지", "MsoNormal{margin:0}" in safe2.replace(" ", ""))
+check("@import(원격 CSS) 제거", "@import" not in safe2.lower())
+check("파일명만으로도 cid 매칭(content_id 없는 참조)", f"/mail/{mid}/att/{aid}" in safe2)
+check("content_id 정식 참조도 매칭", safe2.count(f"/mail/{mid}/att/{aid}") >= 2,
+      f"matches={safe2.count(f'/mail/{mid}/att/{aid}')}")
+
 print("\n" + "=" * 64)
 print(f"결과: PASS={PASS}  FAIL={FAIL}")
 print("=" * 64)

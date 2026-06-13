@@ -506,21 +506,40 @@ def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
     if not html:
         return ""
     s = html
-    # 위험 쌍태그 통째 제거
-    s = re.sub(r"(?is)<\s*(script|style|iframe|object|embed|form|noscript|svg|math)\b.*?<\s*/\s*\1\s*>", " ", s)
-    # 위험 단독/잔여 태그 제거
-    s = re.sub(r"(?is)<\s*/?\s*(script|style|iframe|object|embed|form|noscript|meta|base|link|input|button|textarea|select|svg|math)\b[^>]*>", " ", s)
-    # on... 이벤트 핸들러 속성 제거
+    # 진짜 위험 요소만 제거(스크립트·폼·임베드 등). 서식·<style>·인라인 style 은 보존 →
+    # 아웃룩 서명의 MsoNormal 여백 규칙이 살아 원본 간격이 유지됨. iframe 격리라 안전.
+    s = re.sub(r"(?is)<\s*(script|noscript|iframe|object|embed|applet|form|svg|math)\b.*?<\s*/\s*\1\s*>", " ", s)
+    s = re.sub(r"(?is)<\s*/?\s*(script|noscript|iframe|object|embed|applet|form|svg|math|meta|base|input|button|textarea|select)\b[^>]*>", " ", s)
+
+    # <style> 내용은 보존하되 위험(@import 원격로드·expression·javascript:)만 제거
+    def _style_clean(m):
+        css = m.group(1)
+        css = re.sub(r"(?is)@import[^;]*;", "", css)
+        css = re.sub(r"(?is)expression\s*\([^)]*\)", "", css)
+        css = re.sub(r"(?is)javascript:", "", css)
+        return "<style>" + css + "</style>"
+    s = re.sub(r"(?is)<style\b[^>]*>(.*?)</style>", _style_clean, s)
+
+    # on... 이벤트 핸들러 속성 제거 · href/src javascript: 무력화
     s = re.sub(r"(?is)\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", " ", s)
-    # href/src 의 javascript: 스킴 무력화
     s = re.sub(r"(?is)(href|src)\s*=\s*([\"'])\s*javascript:[^\"']*\2", r'\1=\2#\2', s)
-    # cid: 인라인 이미지 → 우리 서버 URL 로 치환
-    cid_map = {(a.get("content_id") or "").lower(): a["id"]
-               for a in (inline_atts or []) if a.get("content_id")}
+
+    # cid: 인라인 이미지 → 우리 서버 URL. 매칭 견고화(content_id·파일명·도메인앞부분).
+    cid_map = {}
+    for a in (inline_atts or []):
+        aid = a["id"]
+        cidv = (a.get("content_id") or "").strip().lower()
+        fname = (a.get("filename") or "").strip().lower()
+        if cidv:
+            cid_map[cidv] = aid
+            if "@" in cidv:
+                cid_map[cidv.split("@", 1)[0]] = aid
+        if fname:
+            cid_map.setdefault(fname, aid)
 
     def _cid_sub(m):
         q, cid = m.group(1), m.group(2).strip().lower()
-        aid = cid_map.get(cid)
+        aid = cid_map.get(cid) or cid_map.get(cid.split("@", 1)[0])
         return f'src={q}/mail/{mail_id}/att/{aid}{q}' if aid else f'src={q}#{q}'
 
     s = re.sub(r"(?is)src\s*=\s*([\"'])\s*cid:([^\"']+)\1", _cid_sub, s)
