@@ -23,7 +23,7 @@
   .mbx-empty{padding:48px 16px;text-align:center;color:var(--mute);line-height:1.7}
 </style>
 </head><body>
-<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
   {% set box = box|default('in') %}
   {% set box_label = '임시보관함' if box=='draft' else ('보낸편지함' if box=='sent' else '받은편지함') %}

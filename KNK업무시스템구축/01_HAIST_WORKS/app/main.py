@@ -1092,6 +1092,20 @@ def ctx(request, name, **kwargs):
     base["can_sales_del"]  = can_delete_sales(user) if user else False  # 삭제 전용 (더 엄격)
     base["can_logi"]       = can_use_logistics(user) if user else False
     base["is_admin"]       = bool(user and user.get("role") in ("admin", "ceo"))
+    # 메일 '앱(독립 창)' 모드 — KNK Eum 등에서 ?app=1 로 별도 창 실행 시 사이드바 없이 메일만.
+    # 세션 보존(이후 내부 이동도 유지) · ?app=0 으로 해제(WORKS 전체화면 복귀).
+    _mail_app = False
+    try:
+        if hasattr(request, "session"):
+            _ap = request.query_params.get("app") if hasattr(request, "query_params") else None
+            if _ap == "1":
+                request.session["mail_app"] = True
+            elif _ap == "0":
+                request.session["mail_app"] = False
+            _mail_app = bool(request.session.get("mail_app"))
+    except Exception:
+        _mail_app = False
+    base["mail_app"] = _mail_app
     base.update(kwargs)
     # v5H178b: HTML 페이지는 캐시 금지 — 인라인 편집 후 다른 탭/뒤로가기에서 stale 데이터 방지
     resp = tpl.TemplateResponse(request=request, name=name, context=base)

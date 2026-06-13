@@ -22,7 +22,7 @@
   .mv-att-sz{color:var(--mute);font-size:11px}
 </style>
 </head><body>
-<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 보기</div>
