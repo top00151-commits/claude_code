@@ -17,10 +17,12 @@ KNK_MAIL_KEY 생성(1회): python -c "from cryptography.fernet import Fernet;pri
 from __future__ import annotations
 
 import os
+import re
 import ssl
+import base64
 import smtplib
 from email.message import EmailMessage
-from email.utils import formataddr, parseaddr
+from email.utils import formataddr, parseaddr, make_msgid
 
 SMTP_HOST = os.environ.get("KNK_SMTP_HOST", "smtps.hiworks.com")
 SMTP_PORT = int(os.environ.get("KNK_SMTP_PORT", "465"))
@@ -198,6 +200,42 @@ def _setting(c, key: str, default: str = "") -> str:
         return default
 
 
+# 본문에 붙여넣은/삽입한 이미지는 <img src="data:image/...;base64,..."> 로 박혀 발송된다.
+# 지메일·아웃룩 등 일부 수신측은 본문에 박힌 data: 이미지를 보안상 차단(깨져 보임).
+# → 발송 직전에 실제 '인라인 첨부(Content-ID)' 로 바꿔 보내면 수신측에서 사진처럼 정상 표시.
+_DATA_IMG_RE = re.compile(
+    r'(?is)src\s*=\s*(["\'])(data:image/([A-Za-z0-9.+\-]+);base64,([^"\']+))\1'
+)
+
+
+def _inline_data_images(html: str):
+    """HTML 안의 data:image base64 들을 cid: 참조로 치환하고,
+    인라인 첨부 목록 [(cid_full, subtype, bytes), ...] 을 함께 반환.
+    - cid_full 은 <id@host> 형태(add_related 용), HTML 엔 꺾쇠 뺀 cid:id@host 로 넣음.
+    - 디코드 실패/빈 데이터는 원본 그대로 둠(데이터 손실 방지)."""
+    parts = []
+
+    def _repl(m):
+        quote = m.group(1)
+        subtype = (m.group(3) or "png").lower()
+        if subtype == "jpg":
+            subtype = "jpeg"
+        b64 = re.sub(r"\s+", "", m.group(4) or "")
+        try:
+            raw = base64.b64decode(b64)
+        except Exception:
+            return m.group(0)
+        if not raw:
+            return m.group(0)
+        cid_full = make_msgid()        # <xxxx@host>
+        cid = cid_full[1:-1]           # 꺾쇠 제거 → src="cid:xxxx@host"
+        parts.append((cid_full, subtype, raw))
+        return f"src={quote}cid:{cid}{quote}"
+
+    new_html = _DATA_IMG_RE.sub(_repl, html or "")
+    return new_html, parts
+
+
 def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
                from_email: str, to_email: str, subject: str, body: str,
                from_name: str = "", cc: str = "", attachments=None,
@@ -218,7 +256,14 @@ def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
     msg["Subject"] = subject or "(제목 없음)"
     msg.set_content(body or "")
     if html and html.strip():
-        msg.add_alternative(html, subtype="html")
+        html_send, inline_imgs = _inline_data_images(html)
+        msg.add_alternative(html_send, subtype="html")
+        if inline_imgs:
+            # text/html 대체 파트에 인라인 이미지 부착 →
+            # multipart/alternative[text, multipart/related[html, image...]]
+            html_part = msg.get_payload()[1]
+            for cid_full, subtype, data in inline_imgs:
+                html_part.add_related(data, "image", subtype, cid=cid_full)
     for fname, data, mime in (attachments or []):
         maintype, _, subtype = (mime or "application/octet-stream").partition("/")
         msg.add_attachment(data, maintype=maintype or "application",
