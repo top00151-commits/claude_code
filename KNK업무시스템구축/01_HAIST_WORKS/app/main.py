@@ -13883,6 +13883,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "tax_invoice_date": str(_taxd or "")[:10],
             "sales_owner": p.get("sales_name") or "",
             "memo": _smemos.get(("project", p.get("id")), ""),
+            "updated_at": p.get("updated_at") or "",   # v5H226z409: 셀 편집 동시성(낙관적 잠금) base_ts
             "st": _stage_map.get(("project", p.get("id")), _empty_st),
         }
         info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
@@ -13934,6 +13935,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 "statement_date": str(cr.get("statement_date") or "")[:10],
                 "tax_invoice_date": str(cr.get("tax_invoice_date") or "")[:10],
                 "memo": _smemos.get(("consumable", cr.get("id")), ""),
+                "updated_at": cr.get("updated_at") or "",   # v5H226z409: 셀 편집 동시성 base_ts
                 "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
             }
             info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
@@ -14229,6 +14231,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "tax_invoice_date": str(_taxd or "")[:10],
             "sales_owner": p.get("sales_name") or "",            # 영업담당자(우리 회사)
             "memo": _smemos.get(("project", p.get("id")), ""),
+            "updated_at": p.get("updated_at") or "",   # v5H226z409: 셀 편집 동시성(낙관적 잠금) base_ts
             "st": _stage_map.get(("project", p.get("id")), _empty_st),
         }
         info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
@@ -14286,6 +14289,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "statement_date": str(cr.get("statement_date") or "")[:10],
                 "tax_invoice_date": str(cr.get("tax_invoice_date") or "")[:10],
                 "memo": _smemos.get(("consumable", cr.get("id")), ""),
+                "updated_at": cr.get("updated_at") or "",   # v5H226z409: 셀 편집 동시성 base_ts
                 "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
             }
             info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
@@ -14356,15 +14360,34 @@ async def schedule_board_cell(request: Request):
     # v5H226z277/z367: 단가·금액·발행일자(거래명세서·세금계산서)는 청구 성격 — 영업·관리 권한만(서버 차단)
     if field in ("price", "amount", "statement_date", "tax_invoice_date") and not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    # v5H226z409: 동시 편집 감지(낙관적 잠금) — 보드 셀 편집(프로젝트/소모품). base_ts 미전송이면 검사 생략.
+    _lock_tbl = {"project": "projects", "consumable": "consumable_orders"}.get(kind)
+    _new_ts = ""
+    if _lock_tbl:
+        try:
+            with db_session() as _lc:
+                _conf, _cur = _edit_conflict(_lc, _lock_tbl, int(ref_id), b.get("base_ts"))
+            if _conf:
+                return _conflict_resp(_cur)
+        except Exception:
+            pass
     try:
         ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    # v5H226z409: 저장 성공 시 updated_at 버전 증가 + 새 ts 반환(셀 단건만 — bulk 는 base_ts 없어 무영향)
+    if ok and _lock_tbl:
+        try:
+            with db_session() as _lc:
+                _lc.execute(f"UPDATE {_lock_tbl} SET updated_at=datetime('now','localtime') WHERE id=?", (int(ref_id),))
+                _new_ts = _row_ts(_lc, _lock_tbl, int(ref_id))
+        except Exception:
+            pass
     # v5H226z366: 고객사1은 '연결 성공/미매칭'을 화면에 표시해야 하므로 cust_ok 동봉(msg=matched/unmatched는 내부신호 → error로 노출 안 함)
     if field == "cust" and ok:
         return JSONResponse({"ok": True, "error": "", "value": (value or "").strip(),
-                             "cust_ok": (msg == "matched")})
-    return JSONResponse({"ok": ok, "error": msg, "value": (value or "").strip()})
+                             "cust_ok": (msg == "matched"), "updated_at": _new_ts})
+    return JSONResponse({"ok": ok, "error": msg, "value": (value or "").strip(), "updated_at": _new_ts})
 
 
 @app.post("/sales/schedule/bulk-cell")

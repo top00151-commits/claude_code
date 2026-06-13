@@ -2170,6 +2170,13 @@ def init_db():
                         c.execute(f"UPDATE {_tbl} SET updated_at=datetime('now','localtime') WHERE updated_at IS NULL")
             except Exception:
                 pass
+        # z409: tasks·projects 는 updated_at 컬럼이 이미 있으나(위 루프 대상 아님) 기존 행이 NULL 일 수 있음
+        #   → NULL 백필해 낙관적 잠금 baseline 확보(없으면 base_ts 빈값=보호 안 됨).
+        for _bt in ("tasks", "projects"):
+            try:
+                c.execute(f"UPDATE {_bt} SET updated_at=COALESCE(updated_at, created_at, datetime('now','localtime')) WHERE updated_at IS NULL")
+            except Exception:
+                pass
         # z393 (2026-06-13 대표 지시): 메일 첨부 본문 저장 + 인라인 이미지(서명 로고) 표시
         try:
             macols = [r[1] for r in c.execute("PRAGMA table_info(mail_attachments)").fetchall()]
