@@ -118,7 +118,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             {% else %}
             <div class="qf-code" id="qMgmtAuto">자동 발급</div>
             {# v5H226z384(대표 지시): PO유형이 추가/개조/수리/기타면 '기존 관리번호 검색'으로 전환 — 같은 관리번호 + 새 수주번호 자동. #}
-            <input type="text" name="mgmt_code" id="qMgmtInput" placeholder="기존 관리번호 검색" autocomplete="off" disabled style="display:none;font-family:Consolas,monospace;font-weight:700;text-transform:uppercase;" oninput="qMgmtSearch()" onblur="setTimeout(qMgmtHide,180)">
+            <input type="text" name="mgmt_code" id="qMgmtInput" placeholder="관리번호·고객사·모델로 검색" autocomplete="off" disabled style="display:none;font-family:Consolas,monospace;font-weight:700;" oninput="qMgmtSearch()" onfocus="qMgmtSearch()" onblur="setTimeout(qMgmtHide,180)">
             <div id="qMgmtList" style="display:none;position:absolute;top:100%;left:0;z-index:50;min-width:300px;max-height:240px;overflow:auto;background:#fff;border:1px solid var(--qv-line);border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.12);margin-top:2px;"></div>
             {% endif %}</div>
           <div class="qf-f c2"><label>수주번호</label>
@@ -313,16 +313,20 @@ function qMgmtPick(rw){
 }
 function qMgmtSearch(){
   var inp=document.getElementById('qMgmtInput'), lst=document.getElementById('qMgmtList'); if(!inp||!lst) return;
-  var q=(inp.value||'').trim();
-  if(q.length<1){ lst.style.display='none'; return; }
+  var q=(inp.value||'').trim();   // v5H226z385: 비어 있어도(포커스) 최근 프로젝트 표시 — 관리번호 몰라도 고르기 쉽게
   fetch('/api/projects/search?q='+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(j){
     var rows=(j&&j.rows)||[]; lst.innerHTML='';
-    if(!rows.length){ lst.innerHTML='<div style="padding:7px 10px;color:#999;font-size:12px;">일치하는 관리번호 없음</div>'; lst.style.display='block'; return; }
-    rows.slice(0,15).forEach(function(rw){
+    if(!rows.length){ lst.innerHTML='<div style="padding:7px 10px;color:#999;font-size:12px;">'+(q?'일치하는 항목 없음':'등록된 프로젝트 없음')+'</div>'; lst.style.display='block'; return; }
+    var bizMap={T:'검사기',M:'자동화',L:'라이프밸류',E:'기타',C:'소모품'};
+    if(!q){ var hd=document.createElement('div'); hd.style.cssText='padding:5px 10px;color:#94a3b8;font-size:11px;background:#f8fafc;border-bottom:1px solid #eee;'; hd.textContent='최근 프로젝트 — 관리번호·고객사·모델·장비명으로 검색'; lst.appendChild(hd); }
+    rows.slice(0,20).forEach(function(rw){
+      var bz=bizMap[rw.biz_div]||rw.biz_div||'';
+      var sub=[qEsc(rw.customer_name||''), rw.model_name?qEsc(rw.model_name):'', bz, rw.status?qEsc(rw.status):''].filter(Boolean).join(' · ');
       var d=document.createElement('div');
       d.style.cssText='padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f1f1;background:#fff;';
       d.onmouseenter=function(){ d.style.background='#eff6ff'; }; d.onmouseleave=function(){ d.style.background='#fff'; };
-      d.innerHTML='<b style="font-family:Consolas,monospace;color:#1e40af;">'+qEsc(rw.mgmt_code||'')+'</b> · '+qEsc((rw.name||rw.model_name)||'')+(rw.customer_name?' <span style="color:#999;">('+qEsc(rw.customer_name)+')</span>':'');
+      d.innerHTML='<div><b style="font-family:Consolas,monospace;color:#1e40af;">'+qEsc(rw.mgmt_code||'')+'</b> · '+qEsc(rw.name||'')+'</div>'
+        +(sub?'<div style="color:#999;font-size:11px;margin-top:1px;">'+sub+'</div>':'');
       d.onmousedown=function(e){ e.preventDefault(); qMgmtPick(rw); };
       lst.appendChild(d);
     });
