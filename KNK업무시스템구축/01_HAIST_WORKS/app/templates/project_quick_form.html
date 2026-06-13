@@ -96,8 +96,8 @@ html,body{background:#fff!important;overflow:auto!important;}
         <input type="hidden" name="status" value="진행중">
         <input type="hidden" name="confirm_now" value="1">
         {% endif %}
-        {# 호기 1줄 — 납품위치·금액·납품일 을 수주에 싣기 위해 (submit 시 JS 동기화) #}
-        <input type="hidden" name="unit_label[]" value="">
+        {# 호기 1줄(균일) — 납품위치·금액·납품일을 수주에 싣기 위해 (submit 시 JS 동기화). 수량≥2 호기별 모드면 비활성. #}
+        <input type="hidden" name="unit_label[]" id="qUnitLabel" value="">
         <input type="hidden" name="unit_amount[]" id="qUnitAmount" value="">
         <input type="hidden" name="unit_due[]" id="qUnitDue" value="">
         <input type="hidden" name="unit_ship[]" id="qUnitShip" value="">
@@ -185,6 +185,18 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c6"><label>발주일</label><input type="date" name="order_date" id="qOrderDate" value="{{ (project.order_date|string)[:10] if (ed and project.order_date) else '' }}"></div>
           <div class="qf-f c6"><label>납품일</label><input type="date" name="due_date" id="qDueDate" value="{{ (project.due_date|string)[:10] if (ed and project.due_date) else '' }}"></div>
 
+          {# v5H226z380(대표 지시): 호기별 금액·납기 — 검사기 수량(호기) 2 이상이면 자동 펼침.
+             호기마다 금액/납기가 다르면 수정(기본은 단가·납품일로 채움). 합계=호기 금액 합.
+             백엔드 confirm_order_multi 가 (납기·납품지)로 SO 그룹화 → 납기 다른 호기는 수주(SO) 자동 분리.
+             신규 등록 + 영업·관리(금액 권한) 전용. #}
+          {% if not ed and can_money %}
+          <div class="qf-f c12" id="qUnitWrap" style="display:none;">
+            <label>호기별 금액 · 납기 <span style="font-weight:400;color:var(--qv-ink-3);">(수량 2 이상 — 호기마다 다르면 수정. 기본은 단가·납품일로 채워짐. 납기 다르면 수주(SO) 자동 분리)</span></label>
+            <div id="qUnitRows" style="display:flex;flex-direction:column;gap:6px;border:1px solid var(--qv-line);border-radius:8px;padding:9px 11px;background:var(--qv-surface-2,#f7f8fa);"></div>
+            <div style="text-align:right;font-size:13px;margin-top:6px;">호기 합계 <b id="qUnitSum" style="color:var(--knk-red);font-size:14px;">0</b> <span id="qUnitSumCur" style="color:var(--qv-ink-3);font-size:11.5px;">KRW</span></div>
+          </div>
+          {% endif %}
+
           {# 6행 — 고객사 부서 · 담당자 · 담당자 연락처 · 납품위치 (각 3칸) #}
           {# v5H226z353(대표 지시): 담당자 연락처(cc_phone) 추가 — 등록 시 고객사 주소록(담당자)에 자동 연동. #}
           <div class="qf-f c3"><label>고객사 부서</label><input name="cc_dept" placeholder="고객사 담당 부서" value="{{ project.cc_dept|default('') if ed else '' }}"></div>
@@ -271,6 +283,74 @@ function qToggleProd(){
   var c=document.getElementById('qProdNotify'); var b=document.getElementById('qProdBox');
   if(b) b.style.display=(c && c.checked)?'block':'none';
 }
+// v5H226z380(대표 지시): 호기별 금액·납기 — 수량(호기)≥2 면 펼침. 기본 단가·납품일로 채우고 호기마다 수정 가능. 합계=호기 금액 합.
+function qUnitRowHTML(i, amt, due, ship, cur){
+  return '<div class="qf-unit-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+    + '<span style="width:52px;flex:none;font-size:12.5px;font-weight:700;color:var(--qv-ink-2);">'+i+'호기</span>'
+    + '<input type="text" inputmode="numeric" name="unit_amount[]" class="qf-unit-amt knk-money" value="'+(amt||'')+'" placeholder="금액" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12.5px;text-align:right;background:#fff;">'
+    + '<input type="date" name="unit_due[]" class="qf-unit-due" value="'+(due||'')+'" title="이 호기 납기(출하일)" style="flex:none;width:158px;padding:6px 8px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12px;background:#fff;">'
+    + '<input type="hidden" name="unit_label[]" value="'+i+'호기">'
+    + '<input type="hidden" name="unit_ship[]" class="qf-unit-ship" value="'+(ship||'')+'">'
+    + '<input type="hidden" name="unit_currency[]" class="qf-unit-cur" value="'+(cur||'KRW')+'">'
+    + '</div>';
+}
+function qUnitVals(){
+  var g=function(n){ var e=document.querySelector('[name='+n+']'); return e?e.value:''; };
+  return { qty: parseInt((g('unit_qty')||'1'),10)||1,
+           price: parseFloat((g('unit_price')||'0').replace(/,/g,''))||0,
+           due: (document.getElementById('qDueDate')||{}).value||'',
+           ship: (document.getElementById('qShip')||{}).value||'',
+           cur: (document.getElementById('qCurrency')||{}).value||'KRW' };
+}
+function qSyncUnitStatic(disable){
+  ['qUnitLabel','qUnitAmount','qUnitDue','qUnitShip','qUnitCur'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.disabled=!!disable; });
+}
+function qUnitSum(){
+  var sum=0; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ sum+=parseFloat((a.value||'0').replace(/,/g,''))||0; });
+  var v=qUnitVals();
+  var s=document.getElementById('qUnitSum'); if(s) s.textContent=sum.toLocaleString('en-US');
+  var sc=document.getElementById('qUnitSumCur'); if(sc) sc.textContent=v.cur;
+  if(v.qty>=2){ var amt=document.getElementById('qAmount'); if(amt) amt.value=sum.toLocaleString('en-US'); }
+}
+function qBuildUnits(){
+  var wrap=document.getElementById('qUnitWrap'), rows=document.getElementById('qUnitRows');
+  if(!wrap||!rows) return;   // 금액 권한 없으면 섹션 없음 → 단일 호기
+  var v=qUnitVals();
+  if(v.qty<2){ wrap.style.display='none'; rows.innerHTML=''; qSyncUnitStatic(false); qUnitSum(); return; }
+  wrap.style.display='';
+  var existing=rows.querySelectorAll('.qf-unit-row');
+  if(existing.length!==v.qty){
+    var pA=[],pD=[],pT=[];
+    existing.forEach(function(r){ var a=r.querySelector('.qf-unit-amt'); pA.push(a.value); pD.push(r.querySelector('.qf-unit-due').value); pT.push(a.dataset.touched||''); });
+    var html=''; for(var i=1;i<=v.qty;i++){
+      var amt=(pA[i-1]!==undefined&&pA[i-1]!=='')?pA[i-1]:(v.price>0?String(v.price):'');
+      var due=(pD[i-1]!==undefined&&pD[i-1]!=='')?pD[i-1]:v.due;
+      html+=qUnitRowHTML(i, amt, due, v.ship, v.cur);
+    }
+    rows.innerHTML=html;
+    rows.querySelectorAll('.qf-unit-amt').forEach(function(a,idx){
+      if(pT[idx]) a.dataset.touched=pT[idx];
+      a.addEventListener('input', function(){ this.dataset.touched=1; qUnitSum(); });
+    });
+  }
+  rows.querySelectorAll('.qf-unit-row').forEach(function(r){
+    r.querySelector('.qf-unit-ship').value=v.ship;
+    r.querySelector('.qf-unit-cur').value=v.cur;
+    var d=r.querySelector('.qf-unit-due'); if(!d.value) d.value=v.due;
+  });
+  qSyncUnitStatic(true);
+  if(window.knkScanMoney) knkScanMoney();
+  qUnitSum();
+}
+function qUnitReprice(){   // 단가 변경 → 손 안 댄 호기만 단가로 갱신
+  var v=qUnitVals();
+  document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){
+    if(!a.dataset.touched && v.price>0) a.value=v.price.toLocaleString('en-US');
+  });
+  if(window.knkScanMoney) knkScanMoney();
+  qUnitSum();
+}
 document.getElementById('quickForm').addEventListener('submit',function(e){
   var g=function(n){ return (this.querySelector('[name='+n+']').value||'').trim(); }.bind(this);
   var name=g('name'), cust=g('customer_name'), model=g('model'), equip=g('equip_name');
@@ -280,13 +360,23 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   var curSel=document.getElementById('qCurrency'), fx=document.getElementById('qFx');
   if(curSel && curSel.value!=='KRW' && (!fx || !fx.value.trim())){ e.preventDefault();
     err.textContent='외화('+curSel.value+')는 환율을 입력하세요.'; err.classList.add('show'); return; }
-  // 호기 1줄 동기화 (납품위치·금액·납품일·통화 → 수주에 반영)
-  var amt=document.getElementById('qAmount');
-  document.getElementById('qUnitAmount').value=amt?amt.value.replace(/,/g,''):'';
-  document.getElementById('qUnitDue').value=document.getElementById('qDueDate').value||'';
-  document.getElementById('qUnitShip').value=document.getElementById('qShip').value||'';
-  var curSel=document.getElementById('qCurrency');
-  if(curSel) document.getElementById('qUnitCur').value=curSel.value;
+  // 호기 동기화 — 수량≥2(호기별)면 행들이 unit_*[] 배열로 제출(정적 단일 hidden 비활성), 1대면 기존 단일 동기화
+  var _q=parseInt((this.querySelector('[name=unit_qty]')||{value:'1'}).value||'1',10)||1;
+  if(_q>=2 && document.getElementById('qUnitWrap')){
+    qSyncUnitStatic(true);
+    // 프로젝트 수주액(order_amount)=호기 합, 단가=합/수량(평균) 으로 맞춰 '폼/SO 불일치' 경고 방지
+    var _sum=0; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ _sum+=parseFloat((a.value||'0').replace(/,/g,''))||0; });
+    var _up=document.querySelector('[name=unit_price]'); if(_up && _sum>0) _up.value=String(_sum/_q);
+    var _oa=document.getElementById('qAmount'); if(_oa) _oa.value=String(_sum);
+  } else {
+    qSyncUnitStatic(false);
+    var amt=document.getElementById('qAmount');
+    document.getElementById('qUnitAmount').value=amt?amt.value.replace(/,/g,''):'';
+    document.getElementById('qUnitDue').value=document.getElementById('qDueDate').value||'';
+    document.getElementById('qUnitShip').value=document.getElementById('qShip').value||'';
+    var curSel=document.getElementById('qCurrency');
+    if(curSel) document.getElementById('qUnitCur').value=curSel.value;
+  }
 });
 // 서버 검증 오류(고객사 미등록 등) 표시 + 고객사 prefill
 (function(){
@@ -304,6 +394,15 @@ qToggleFx();
 qSyncShip();
 qToggleProd();
 if(window.knkScanMoney) knkScanMoney();
+// v5H226z380: 호기별 금액·납기 — 트리거 연결 + 초기 1회
+(function(){
+  var qy=document.querySelector('[name=unit_qty]'); if(qy) qy.addEventListener('input', qBuildUnits);
+  var up=document.querySelector('[name=unit_price]'); if(up) up.addEventListener('input', qUnitReprice);
+  var dd=document.getElementById('qDueDate'); if(dd) dd.addEventListener('change', qBuildUnits);
+  var sh=document.getElementById('qShip'); if(sh) sh.addEventListener('change', qBuildUnits);
+  var cu=document.getElementById('qCurrency'); if(cu) cu.addEventListener('change', qBuildUnits);
+  qBuildUnits();
+})();
 </script>
 </body>
 </html>
