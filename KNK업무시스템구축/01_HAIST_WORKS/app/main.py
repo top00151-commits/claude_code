@@ -10207,104 +10207,36 @@ async def contacts_delete(req: Request, cid: int):
 from . import mail_send as _mail
 
 
+# ── 개인 메일 로그인 폐지 (대표 지시 2026-06-14) ──────────────────────────
+# 개인 이메일+비밀번호 등록(메일 설정)·개인계정 발송 전면 제거.
+# 메일은 KNK Eum 신원 + 회사 발송망(send_system)만 사용하며, 진입은 메신저 📧 아이콘 전용.
 @app.get("/mail/settings")
 async def mail_settings(req: Request):
-    u = get_user(req)
-    if not u:
+    if not get_user(req):
         return RedirectResponse("/login", 303)
-    with db_session() as c:
-        cur_email = _mail.get_email(c, u["id"])
-        configured = _mail.has_creds(c, u["id"])
-    return ctx(req, "mail_settings.html", user=u,
-               mail_ready=_mail.mail_available(),
-               cur_email=cur_email, configured=configured,
-               saved=req.query_params.get("saved"))
+    return RedirectResponse("/home", 303)   # 개인 메일 로그인 폐지 → 홈으로
 
 
 @app.post("/mail/settings")
-async def mail_settings_save(req: Request):
-    u = get_user(req)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not _mail.mail_available():
-        return JSONResponse({"ok": False, "message": "메일 암호화 키(KNK_MAIL_KEY)가 서버에 설정되지 않았습니다."}, 400)
-    form = await req.form()
-    email = (form.get("smtp_email") or "").strip()
-    password = (form.get("smtp_password") or "").strip()
-    if not _mail.is_valid_email(email):
-        return JSONResponse({"ok": False, "message": "메일주소가 올바르지 않습니다."}, 400)
-    with db_session() as c:
-        _mail.save_creds(c, u["id"], email, password)  # password 빈 값이면 기존 유지
-    return RedirectResponse("/mail/settings?saved=1", 303)
-
-
 @app.post("/mail/settings/delete")
-async def mail_settings_delete(req: Request):
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False}, 401)
-    with db_session() as c:
-        _mail.delete_creds(c, u["id"])
-    return JSONResponse({"ok": True})
-
-
 @app.post("/mail/test")
-async def mail_test(req: Request):
-    """본인 계정 설정 검증 — 자기 자신에게 테스트 메일 발송."""
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
-    with db_session() as c:
-        creds = _mail.get_creds(c, u["id"])
-    if not creds:
-        return JSONResponse({"ok": False, "message": "먼저 메일주소·비밀번호를 저장하세요."})
-    ok, msg = _mail.send_mail(
-        creds["email"], creds["password"], creds["email"],
-        "[HAIST WORKS] 메일 발송 테스트",
-        "이 메일이 보이면 메일 발송 설정이 정상입니다.\n\n— HAIST WORKS",
-        from_name=u.get("name") or "",
-    )
-    return JSONResponse({"ok": ok, "message": msg})
+async def mail_settings_gone(req: Request):
+    # 개인 메일 로그인 폐지 — 자격증명 저장/삭제/테스트 경로 비활성.
+    return JSONResponse({"ok": False, "message": "개인 메일 계정 설정은 더 이상 사용하지 않습니다. 메일은 KNK Eum에서 사용하세요."}, 410)
 
 
+# 연락처 개인계정 발송 폐지 — 위 개인 메일 로그인 폐지와 동일(대표 지시 2026-06-14).
 @app.get("/contacts/{cid:int}/mail")
 async def contact_mail_form(req: Request, cid: int):
-    u = get_user(req)
-    if not u:
+    if not get_user(req):
         return RedirectResponse("/login", 303)
-    with db_session() as c:
-        contact = _contacts.get_contact(c, cid)
-        if not contact:
-            return RedirectResponse("/contacts", 303)
-        configured = _mail.has_creds(c, u["id"])
-        my_email = _mail.get_email(c, u["id"])
-    if not _mail.mail_available() or not configured:
-        # 본인 메일 미설정 → 설정 화면으로 안내
-        return ctx(req, "contact_mail.html", user=u, contact=contact,
-                   need_setup=True, mail_ready=_mail.mail_available())
-    return ctx(req, "contact_mail.html", user=u, contact=contact,
-               need_setup=False, mail_ready=True, my_email=my_email)
+    return RedirectResponse(f"/contacts/{cid}", 303)   # 개인계정 발송 폐지 → 연락처 상세로
 
 
 @app.post("/contacts/{cid:int}/mail")
 async def contact_mail_send(req: Request, cid: int):
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
-    form = await req.form()
-    to_email = (form.get("to_email") or "").strip()
-    subject = (form.get("subject") or "").strip()
-    body = (form.get("body") or "")
-    cc = (form.get("cc") or "").strip()
-    with db_session() as c:
-        creds = _mail.get_creds(c, u["id"])
-    if not creds:
-        return JSONResponse({"ok": False, "message": "본인 메일 계정이 설정되지 않았습니다. 메일 설정에서 등록하세요."}, 400)
-    if not _mail.is_valid_email(to_email):
-        return JSONResponse({"ok": False, "message": "받는 메일주소가 올바르지 않습니다."}, 400)
-    ok, msg = _mail.send_mail(creds["email"], creds["password"], to_email,
-                              subject, body, from_name=u.get("name") or "", cc=cc)
-    return JSONResponse({"ok": ok, "message": msg})
+    # 개인 메일 로그인 폐지 — 연락처 개인계정 발송 비활성.
+    return JSONResponse({"ok": False, "message": "연락처 개인계정 발송은 더 이상 사용하지 않습니다. 메일은 KNK Eum에서 사용하세요."}, 410)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

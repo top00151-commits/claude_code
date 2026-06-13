@@ -24,7 +24,7 @@
       <h1 class="page-title">📇 {{ contact.name }}</h1>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      {% if contact.email %}<a class="btn btn-primary" href="/contacts/{{ contact.id }}/mail">✉ 메일 보내기</a>{% endif %}
+      {# 연락처 개인계정 메일 보내기 제거 — 메일은 KNK Eum 전용(개인 로그인 폐지). (대표 지시 2026-06-14) #}
       <button type="button" class="btn btn-secondary" onclick="openQR()">📱 휴대폰에 저장(QR)</button>
       <a class="btn btn-secondary" href="/contacts/{{ contact.id }}/vcard">📇 vCard 받기</a>
       {% if can_edit %}
