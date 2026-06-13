@@ -224,18 +224,74 @@ def category_counts(c, user_id: int) -> dict:
 
 # ─── 보낸 메일(발송) ────────────────────────────────────────────────
 def store_outbound(c, *, user_id: int, from_email: str, to_email: str, subject: str = "",
-                   body: str = "", from_name: str = "", cc: str = "", size=0):
+                   body: str = "", from_name: str = "", cc: str = "", bcc: str = "",
+                   body_html: str = "", size=0):
     """발송한 메일을 보낸편지함에 기록(direction='out')."""
     cur = c.execute(
         """INSERT INTO mail_messages
-           (user_id, direction, from_email, from_name, to_email, cc,
-            subject, body_text, category, is_read, raw_size)
-           VALUES(?,?,?,?,?,?,?,?,?,1,?)""",
+           (user_id, direction, from_email, from_name, to_email, cc, bcc,
+            subject, body_text, body_html, category, is_read, raw_size)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?)""",
         (user_id, "out", _norm_addr(from_email), (from_name or "").strip(),
-         _norm_addr(to_email), (cc or "").strip(), (subject or "(제목 없음)").strip(),
-         body or "", "일반", int(size or 0)),
+         _norm_addr(to_email), (cc or "").strip(), (bcc or "").strip(),
+         (subject or "(제목 없음)").strip(), body or "", body_html or "", "일반", int(size or 0)),
     )
     return cur.lastrowid
+
+
+# ─── 읽음 수동 표시 + 임시저장(Drafts) — 아웃룩 편의기능 ─────────────
+def set_read(c, mail_id: int, user_id: int, read: bool = True) -> None:
+    c.execute(
+        "UPDATE mail_messages SET is_read=?, "
+        "read_at=CASE WHEN ?=1 THEN datetime('now','localtime') ELSE NULL END "
+        "WHERE id=? AND user_id=?",
+        (1 if read else 0, 1 if read else 0, mail_id, user_id),
+    )
+
+
+def save_draft(c, *, user_id: int, draft_id=None, to_email: str = "", cc: str = "",
+               bcc: str = "", subject: str = "", body: str = "", body_html: str = ""):
+    """임시저장(direction='draft'). draft_id 있으면 갱신, 없으면 신규. 반환 draft_id."""
+    subj = (subject or "(제목 없음)").strip()
+    if draft_id:
+        cur = c.execute(
+            "UPDATE mail_messages SET to_email=?, cc=?, bcc=?, subject=?, body_text=?, "
+            "body_html=?, received_at=datetime('now','localtime') "
+            "WHERE id=? AND user_id=? AND direction='draft'",
+            (to_email, cc, bcc, subj, body, body_html or "", draft_id, user_id))
+        if cur.rowcount:
+            return draft_id
+    cur = c.execute(
+        "INSERT INTO mail_messages(user_id, direction, to_email, cc, bcc, subject, "
+        "body_text, body_html, is_read) VALUES(?,?,?,?,?,?,?,?,1)",
+        (user_id, "draft", to_email, cc, bcc, subj, body, body_html or ""))
+    return cur.lastrowid
+
+
+def list_drafts(c, user_id: int):
+    rows = c.execute(
+        "SELECT id, to_email, subject, received_at, "
+        "substr(COALESCE(body_text,''),1,160) AS summary_short "
+        "FROM mail_messages WHERE user_id=? AND direction='draft' AND is_deleted=0 "
+        "ORDER BY received_at DESC, id DESC LIMIT 200", (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_drafts(c, user_id: int) -> int:
+    r = c.execute("SELECT COUNT(*) AS n FROM mail_messages "
+                  "WHERE user_id=? AND direction='draft' AND is_deleted=0", (user_id,)).fetchone()
+    return (r["n"] if r else 0) or 0
+
+
+def get_draft(c, draft_id: int, user_id: int):
+    r = c.execute("SELECT * FROM mail_messages WHERE id=? AND user_id=? "
+                  "AND direction='draft' AND is_deleted=0", (draft_id, user_id)).fetchone()
+    return dict(r) if r else None
+
+
+def delete_draft(c, draft_id: int, user_id: int) -> None:
+    c.execute("DELETE FROM mail_messages WHERE id=? AND user_id=? AND direction='draft'",
+              (draft_id, user_id))
 
 
 def list_sent(c, user_id: int, *, q: str = "", limit: int = 200, offset: int = 0):

@@ -45,8 +45,10 @@
   {% endif %}
 
   <div class="mv-actions">
-    {% if m.direction != 'out' %}<a href="/mail/compose?reply={{ m.id }}" class="btn btn-primary">↩ 답장</a>{% endif %}
+    {% if m.direction != 'out' %}<a href="/mail/compose?reply={{ m.id }}" class="btn btn-primary">↩ 답장</a>
+    <a href="/mail/compose?replyall={{ m.id }}" class="btn btn-secondary">↩↩ 전체답장</a>{% endif %}
     <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary">↪ 전달</a>
+    {% if m.direction != 'out' %}<button type="button" class="btn btn-secondary" onclick="markUnread()">● 안읽음 표시</button>{% endif %}
     <button type="button" class="btn btn-secondary" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
     <button type="button" class="btn btn-secondary" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
     <span style="flex:1"></span>
@@ -124,6 +126,12 @@
     if(!confirm('이 메일을 삭제할까요?')) return;
     try{ var r=await fetch('/mail/'+id+'/delete',{method:'POST'}); var j=await r.json();
       if(j.ok){ location.href='/mail/inbox'; } else { alert('삭제 실패'); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  window.markUnread=async function(){
+    try{ var fd=new FormData(); fd.append('read','0');
+      await fetch('/mail/'+MAIL_ID+'/read',{method:'POST',body:fd});
+      location.href='/mail/inbox';
     }catch(e){ alert('네트워크 오류'); }
   };
   var f=document.getElementById('mvFrame');

@@ -310,11 +310,12 @@ CREATE TABLE IF NOT EXISTS user_mail_creds (
 CREATE TABLE IF NOT EXISTS mail_messages (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,  -- 받는 사람(소유자)
-    direction   TEXT DEFAULT 'in',          -- in(받음) / out(보냄)
+    direction   TEXT DEFAULT 'in',          -- in(받음) / out(보냄) / draft(임시저장)
     from_email  TEXT,
     from_name   TEXT,
     to_email    TEXT,                        -- 받은 주소(@knk-mailtest.com 등)
     cc          TEXT,
+    bcc         TEXT,                        -- 숨은참조(보낸/임시저장 보관용)
     subject     TEXT,
     body_text   TEXT,                        -- 화면 표시용 본문(텍스트)
     body_html   TEXT,                        -- 원문 HTML 보관(표시는 text)
@@ -2166,6 +2167,14 @@ def init_db():
                         c.execute(ddl)
                     except Exception:
                         pass
+        except Exception:
+            pass
+
+        # 메일 숨은참조(bcc) 컬럼 — 보낸/임시저장 보관용 (2026-06-13 아웃룩 편의기능)
+        try:
+            mmcols = [r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()]
+            if "bcc" not in mmcols:
+                c.execute("ALTER TABLE mail_messages ADD COLUMN bcc TEXT")
         except Exception:
             pass
 

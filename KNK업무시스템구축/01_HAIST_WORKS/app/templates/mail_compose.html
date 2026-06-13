@@ -7,9 +7,15 @@
   .cmp-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:10px 2px}
   .cmp-row label{width:84px;font-size:13px;color:var(--mute);flex:none}
   .cmp-row input{flex:1;border:0;font-size:14px;outline:none;background:transparent}
-  .cmp-body{width:100%;min-height:300px;border:0;outline:none;font-size:14px;line-height:1.75;resize:vertical;padding:12px 2px;font-family:inherit;box-sizing:border-box}
-  .cmp-actions{display:flex;gap:8px;align-items:center;margin-top:12px}
+  .cmp-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
   .ac-box div:hover{background:#f5f7ff}
+  .cmp-tb{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px;background:#fafafa;margin-top:8px}
+  .cmp-tb>button,.cmp-color{font-size:13px;height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
+  .cmp-tb>button:hover,.cmp-color:hover{background:#f0f0f0}
+  .cmp-color{position:relative;font-weight:700;min-width:30px}
+  .cmp-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .cmp-editor{min-height:280px;border:1px solid var(--line);border-radius:0 0 8px 8px;outline:none;font-size:14px;line-height:1.7;padding:12px;overflow:auto;box-sizing:border-box;background:#fff}
+  .cmp-editor:empty:before{content:attr(data-ph);color:#9ca3af}
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
@@ -30,9 +36,22 @@
   <div class="cmp-card">
     <div class="cmp-from">보내는 사람 &nbsp;<b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</div>
     <div class="cmp-row"><label>받는사람</label><input id="cTo" type="email" placeholder="customer@example.com" value="{{ prefill.to }}"></div>
-    <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}"></div>
+    <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}">
+      <a href="javascript:void(0)" id="bccToggle" style="font-size:12px;color:var(--mute);text-decoration:none;flex:none;">+ 숨은참조</a></div>
+    <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}"></div>
     <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}"></div>
-    <textarea id="cBody" class="cmp-body" placeholder="내용을 입력하세요...">{{ prefill.body }}</textarea>
+    <div class="cmp-tb" id="cTb">
+      <button type="button" data-cmd="bold" title="굵게"><b>B</b></button>
+      <button type="button" data-cmd="italic" title="기울임"><i>I</i></button>
+      <button type="button" data-cmd="underline" title="밑줄"><u>U</u></button>
+      <label class="cmp-color" title="글자색">A<input type="color" id="cColor" value="#c0392b"></label>
+      <button type="button" data-cmd="insertUnorderedList" title="글머리 목록">• 목록</button>
+      <button type="button" id="cLink" title="링크 넣기">🔗 링크</button>
+      <button type="button" id="cClear" title="서식 지우기">✕ 서식</button>
+    </div>
+    <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
+    <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>
+    <input type="hidden" id="cDraftId" value="{{ prefill.draft_id }}">
     <div class="cmp-row"><label>첨부</label><input id="cFiles" type="file" multiple></div>
     <div class="cmp-row" style="border-bottom:0;align-items:flex-start;">
       <label style="padding-top:6px;">대용량 첨부</label>
@@ -44,6 +63,7 @@
     </div>
     <div class="cmp-actions">
       <button type="button" class="btn btn-primary" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
+      <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
       <a href="/mail/inbox" class="btn btn-secondary">취소</a>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
       <span id="cMsg" style="font-size:12.5px;margin-left:6px;"></span>
@@ -90,6 +110,45 @@
     e.target.value='';   // 같은 파일 재선택 가능하게 초기화
   });
 
+  // ── 서식 편집기(rich text) 초기화 + 툴바 ──
+  var ED=document.getElementById('cBody');
+  (function(){ var pf=document.getElementById('cPrefill'); if(ED && pf) ED.innerText = pf.value; })();
+  var tb=document.getElementById('cTb');
+  if(tb) tb.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b)return; var cmd=b.getAttribute('data-cmd'); if(!cmd)return;
+    e.preventDefault(); if(ED)ED.focus(); try{ document.execCommand(cmd,false,null); }catch(_){}
+  });
+  var col=document.getElementById('cColor');
+  if(col) col.addEventListener('input',function(){ if(ED)ED.focus(); try{ document.execCommand('foreColor',false,col.value); }catch(_){} });
+  var lnk=document.getElementById('cLink');
+  if(lnk) lnk.addEventListener('click',function(){ var u=prompt('링크 주소(URL)','https://'); if(u){ if(ED)ED.focus(); try{ document.execCommand('createLink',false,u); }catch(_){} } });
+  var clr=document.getElementById('cClear');
+  if(clr) clr.addEventListener('click',function(){ if(ED)ED.focus(); try{ document.execCommand('removeFormat',false,null); document.execCommand('unlink',false,null);}catch(_){} });
+
+  // ── 숨은참조(BCC) 토글 ──
+  var bt=document.getElementById('bccToggle');
+  if(bt) bt.addEventListener('click',function(){ var r=document.getElementById('bccRow');
+    if(!r)return; var show=(r.style.display==='none'||!r.style.display); r.style.display=show?'flex':'none';
+    if(show) document.getElementById('cBcc').focus(); });
+
+  // ── 임시저장 ──
+  window.saveDraft=async function(){
+    var ed=document.getElementById('cBody');
+    var fd=new FormData();
+    fd.append('to', document.getElementById('cTo').value.trim());
+    fd.append('cc', document.getElementById('cCc').value.trim());
+    fd.append('bcc', document.getElementById('cBcc').value.trim());
+    fd.append('subject', document.getElementById('cSubj').value.trim());
+    fd.append('body', ed.innerText);
+    fd.append('body_html', ed.innerHTML);
+    var did=document.getElementById('cDraftId').value; if(did) fd.append('draft_id', did);
+    cmsg('💾 저장 중...','');
+    try{ var r=await fetch('/mail/draft/save',{method:'POST',body:fd}); var j=await r.json();
+      if(j.ok){ document.getElementById('cDraftId').value=j.draft_id; cmsg('💾 임시저장됨 — 임시보관함에서 이어쓸 수 있어요','green'); }
+      else cmsg('⚠ 저장 실패','red');
+    }catch(e){ cmsg('⚠ 네트워크 오류','red'); }
+  };
+
   window.sendMail=async function(){
     var to=document.getElementById('cTo').value.trim();
     if(!to){ cmsg('받는사람을 입력하세요','red'); return; }
@@ -98,10 +157,14 @@
     fd.append('to', to);
     fd.append('cc', document.getElementById('cCc').value.trim());
     fd.append('subject', document.getElementById('cSubj').value.trim());
-    fd.append('body', document.getElementById('cBody').value);
+    var ed=document.getElementById('cBody');
+    fd.append('body', ed.innerText);
+    fd.append('body_html', ed.innerHTML);
+    fd.append('bcc', document.getElementById('cBcc').value.trim());
     var files=document.getElementById('cFiles').files;
     for(var i=0;i<files.length;i++) fd.append('files', files[i]);
     fd.append('large_tokens', LARGE.join(','));
+    var did0=document.getElementById('cDraftId').value; if(did0) fd.append('draft_id', did0);
     try{
       var r=await fetch('/mail/send',{method:'POST',body:fd});
       var j=await r.json();
@@ -150,6 +213,7 @@
   }
   setupAC(document.getElementById('cTo'));
   setupAC(document.getElementById('cCc'));
+  setupAC(document.getElementById('cBcc'));
 })();
 </script>
 </body></html>

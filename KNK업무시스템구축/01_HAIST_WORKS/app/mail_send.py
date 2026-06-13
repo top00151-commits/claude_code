@@ -200,8 +200,10 @@ def _setting(c, key: str, default: str = "") -> str:
 
 def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
                from_email: str, to_email: str, subject: str, body: str,
-               from_name: str = "", cc: str = "", attachments=None) -> tuple[bool, str]:
-    """임의 SMTP 서버로 발송. login 계정과 From 이 달라도 됨(시스템 발송망용)."""
+               from_name: str = "", cc: str = "", attachments=None,
+               bcc: str = "", html: str = "") -> tuple[bool, str]:
+    """임의 SMTP 서버로 발송. login 계정과 From 이 달라도 됨(시스템 발송망용).
+    bcc: 숨은참조(봉투 수신자에 포함, 전송 메시지엔 Bcc 헤더 제거). html: 서식 본문(대체)."""
     if not is_valid_email(from_email):
         return (False, "보내는 메일주소가 올바르지 않습니다.")
     if not is_valid_email(to_email):
@@ -209,10 +211,14 @@ def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
     msg = EmailMessage()
     msg["From"] = formataddr((from_name or from_email, from_email))
     msg["To"] = to_email
-    if cc.strip():
+    if (cc or "").strip():
         msg["Cc"] = cc.strip()
+    if (bcc or "").strip():
+        msg["Bcc"] = bcc.strip()   # send_message 가 봉투 수신자로 쓰고 헤더는 제거
     msg["Subject"] = subject or "(제목 없음)"
     msg.set_content(body or "")
+    if html and html.strip():
+        msg.add_alternative(html, subtype="html")
     for fname, data, mime in (attachments or []):
         maintype, _, subtype = (mime or "application/octet-stream").partition("/")
         msg.add_attachment(data, maintype=maintype or "application",
@@ -221,7 +227,7 @@ def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
         ctx = ssl.create_default_context()
         with smtplib.SMTP_SSL(host, int(port or 465), context=ctx, timeout=30) as s:
             s.login(login_user, login_pass)
-            s.send_message(msg)
+            s.send_message(msg)   # To/Cc/Bcc 헤더에서 봉투 수신자 자동 추출 + Bcc 헤더 삭제
         return (True, "발송 완료")
     except smtplib.SMTPAuthenticationError:
         return (False, "발송망 로그인 실패 — 보내기 설정의 계정/비밀번호를 확인하세요.")
@@ -264,10 +270,12 @@ def save_send_config(c, host: str, port: str, user: str, password: str) -> None:
 
 
 def send_system(c, from_email: str, to_email: str, subject: str, body: str,
-                from_name: str = "", cc: str = "", attachments=None) -> tuple[bool, str]:
+                from_name: str = "", cc: str = "", attachments=None,
+                bcc: str = "", html: str = "") -> tuple[bool, str]:
     """회사 발송망(시스템 SMTP)으로 발송. from_email = 보내는 직원의 @우리도메인 주소."""
     cfg = get_send_config(c)
     if not cfg:
         return (False, "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 입력하세요.")
     return _smtp_send(cfg["host"], cfg["port"], cfg["user"], cfg["password"],
-                      from_email, to_email, subject, body, from_name, cc, attachments)
+                      from_email, to_email, subject, body, from_name, cc, attachments,
+                      bcc=bcc, html=html)

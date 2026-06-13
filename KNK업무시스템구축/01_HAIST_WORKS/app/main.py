@@ -10332,9 +10332,11 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                                     starred=bool(star), unread=bool(unread))
         unread_n = _mailbox.count_unread(c, u["id"])
         cat_counts = _mailbox.category_counts(c, u["id"])
+        drafts_n = _mailbox.count_drafts(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread_n,
                cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES,
-               ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread))
+               ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
+               drafts_n=drafts_n)
 
 
 @app.post("/mail/inbox/demo")
@@ -10441,6 +10443,50 @@ async def mail_delete(req: Request, mail_id: int):
     return JSONResponse({"ok": ok})
 
 
+@app.post("/mail/{mail_id:int}/read")
+async def mail_set_read(req: Request, mail_id: int):
+    """읽음/안읽음 수동 표시."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    form = await req.form()
+    read = (form.get("read") or "1") != "0"
+    with db_session() as c:
+        _mailbox.set_read(c, mail_id, u["id"], read=read)
+    return JSONResponse({"ok": True, "read": read})
+
+
+@app.post("/mail/draft/save")
+async def mail_draft_save(req: Request):
+    """임시저장(신규/갱신). 반환 draft_id."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    form = await req.form()
+    did = (form.get("draft_id") or "").strip()
+    with db_session() as c:
+        nid = _mailbox.save_draft(
+            c, user_id=u["id"], draft_id=int(did) if did.isdigit() else None,
+            to_email=(form.get("to") or "").strip(), cc=(form.get("cc") or "").strip(),
+            bcc=(form.get("bcc") or "").strip(), subject=(form.get("subject") or "").strip(),
+            body=(form.get("body") or ""), body_html=(form.get("body_html") or ""))
+    return JSONResponse({"ok": True, "draft_id": nid})
+
+
+@app.get("/mail/drafts", response_class=HTMLResponse)
+async def mail_drafts_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        mails = _mailbox.list_drafts(c, u["id"])
+        unread = _mailbox.count_unread(c, u["id"])
+        drafts_n = _mailbox.count_drafts(c, u["id"])
+    return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
+               cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
+               ai_on=ai_enabled_for(u), box="draft", drafts_n=drafts_n)
+
+
 @app.post("/api/mail/{mail_id:int}/translate")
 async def mail_translate(req: Request, mail_id: int):
     u = get_user(req)
@@ -10496,21 +10542,39 @@ def _mail_from_address() -> str:
 
 
 @app.get("/mail/compose", response_class=HTMLResponse)
-async def mail_compose_page(req: Request, reply: int = 0, forward: int = 0):
+async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
+                            forward: int = 0, draft: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
-    prefill = {"to": "", "cc": "", "subject": "", "body": ""}
+    prefill = {"to": "", "cc": "", "bcc": "", "subject": "", "body": "", "draft_id": ""}
     with db_session() as c:
         ready = _mail.system_send_ready(c)
         sig = _mailbox.get_signature(c, u["id"])
         sigblock = ("\n\n--\n" + sig) if sig else ""
-        if reply:
-            m = _mailbox.get_mail(c, reply, u["id"])
+        my_addr = (_mail_from_address() or "").lower()
+        if draft:
+            d = _mailbox.get_draft(c, draft, u["id"])
+            if d:
+                prefill.update(to=d.get("to_email") or "", cc=d.get("cc") or "",
+                               bcc=d.get("bcc") or "", subject=(d.get("subject") or "").replace("(제목 없음)", ""),
+                               body=d.get("body_text") or "", draft_id=str(draft))
+        elif reply or replyall:
+            m = _mailbox.get_mail(c, reply or replyall, u["id"])
             if m:
                 prefill["to"] = m.get("from_email") or ""
                 subj = (m.get("subject") or "").strip()
                 prefill["subject"] = subj if subj.lower().startswith("re:") else f"Re: {subj}"
+                if replyall:
+                    seen, cc_list = set(), []
+                    for fld in (m.get("to_email"), m.get("cc")):
+                        for a in (fld or "").replace(";", ",").split(","):
+                            a = a.strip()
+                            al = a.lower()
+                            if a and al not in seen and al not in (my_addr, (m.get("from_email") or "").lower()):
+                                seen.add(al)
+                                cc_list.append(a)
+                    prefill["cc"] = ", ".join(cc_list)
                 prefill["body"] = sigblock + "\n\n\n──────── 원본 메일 ────────\n" + (m.get("body_text") or "")
         elif forward:
             m = _mailbox.get_mail(c, forward, u["id"])
@@ -10539,6 +10603,9 @@ async def mail_send_route(req: Request):
     cc = (form.get("cc") or "").strip()
     subject = (form.get("subject") or "").strip()
     body = (form.get("body") or "")
+    bcc = (form.get("bcc") or "").strip()
+    body_html = (form.get("body_html") or "")
+    draft_id = (form.get("draft_id") or "").strip()
     large_tokens = [t.strip() for t in (form.get("large_tokens") or "").split(",") if t.strip()]
     attachments, total = [], 0
     for f in form.getlist("files"):
@@ -10557,16 +10624,28 @@ async def mail_send_route(req: Request):
     with db_session() as c:
         if not _mail.system_send_ready(c):
             return JSONResponse({"ok": False, "message": "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 발송망을 먼저 등록하세요."}, 400)
-        send_body = body
-        if large_tokens:
-            send_body = body + _mailbox.large_links_block(c, large_tokens, _WORKS_PUBLIC_BASE)
+        large_block = _mailbox.large_links_block(c, large_tokens, _WORKS_PUBLIC_BASE) if large_tokens else ""
+        send_body = body + large_block
+        send_html = ""
+        if body_html and body_html.strip():
+            send_html = _mailbox.sanitize_html_for_view(body_html, 0, [])  # 발신 HTML 위생처리
+            if large_block:
+                import html as _htmlmod
+                send_html += ("<pre style='font-family:inherit;white-space:pre-wrap;margin:0'>"
+                              + _htmlmod.escape(large_block) + "</pre>")
         ok, msg = _mail.send_system(c, from_addr, to_email, subject, send_body,
-                                    from_name=u.get("name") or "", cc=cc, attachments=attachments)
+                                    from_name=u.get("name") or "", cc=cc, attachments=attachments,
+                                    bcc=bcc, html=send_html)
         if ok:
             _mailbox.store_outbound(c, user_id=u["id"], from_email=from_addr,
                                     from_name=u.get("name") or "", to_email=to_email,
-                                    subject=subject, body=send_body, cc=cc,
-                                    size=len(send_body or "") + total)
+                                    subject=subject, body=send_body, cc=cc, bcc=bcc,
+                                    body_html=send_html, size=len(send_body or "") + total)
+            if draft_id:
+                try:
+                    _mailbox.delete_draft(c, int(draft_id), u["id"])
+                except Exception:
+                    pass
     return JSONResponse({"ok": ok, "message": msg})
 
 
@@ -10654,9 +10733,10 @@ async def mail_sent_page(req: Request, q: str = ""):
         mails = _mailbox.list_sent(c, u["id"], q=q)
         sent_n = _mailbox.count_sent(c, u["id"])
         unread = _mailbox.count_unread(c, u["id"])
+        drafts_n = _mailbox.count_drafts(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
-               ai_on=ai_enabled_for(u), box="sent", sent_n=sent_n, q=q)
+               ai_on=ai_enabled_for(u), box="sent", sent_n=sent_n, q=q, drafts_n=drafts_n)
 
 
 @app.get("/admin/mail-send", response_class=HTMLResponse)

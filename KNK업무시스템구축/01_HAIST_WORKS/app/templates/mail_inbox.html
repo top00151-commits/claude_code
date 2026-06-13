@@ -26,10 +26,11 @@
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="main">
   {% set box = box|default('in') %}
+  {% set box_label = '임시보관함' if box=='draft' else ('보낸편지함' if box=='sent' else '받은편지함') %}
   <div class="page-head"><div>
-    <div class="crumbs"><b>HAIST WORKS 메일함</b> · {{ '보낸편지함' if box=='sent' else '받은편지함' }}</div>
+    <div class="crumbs"><b>HAIST WORKS 메일함</b> · {{ box_label }}</div>
     <h1 class="page-title">📧 HAIST WORKS <em>메일함</em>
-      <span style="font-size:13px;color:var(--mute);font-weight:500;">— {{ '보낸편지함' if box=='sent' else '받은편지함' }}{% if box=='in' and unread %} · 안읽음 {{ unread }}{% endif %}</span>
+      <span style="font-size:13px;color:var(--mute);font-weight:500;">— {{ box_label }}{% if box=='in' and unread %} · 안읽음 {{ unread }}{% endif %}</span>
     </h1>
   </div></div>
 
@@ -39,6 +40,7 @@
   <div class="mbx-toolbar">
     <a href="/mail/inbox" class="mbx-cat {{ 'on' if box=='in' and not cur_cat else '' }}">📥 받은편지함{% if unread %} <span class="n">{{ unread }}</span>{% endif %}</a>
     <a href="/mail/sent" class="mbx-cat {{ 'on' if box=='sent' else '' }}">📤 보낸편지함</a>
+    <a href="/mail/drafts" class="mbx-cat {{ 'on' if box=='draft' else '' }}">📝 임시보관함{% if drafts_n|default(0) %} <span class="n">{{ drafts_n }}</span>{% endif %}</a>
     {% if box=='in' %}
       {% for ct in categories %}
       <a href="/mail/inbox?cat={{ ct }}" class="mbx-cat {{ 'on' if cur_cat==ct else '' }}">{{ ct }} <span class="n">{{ cat_counts.get(ct,0) }}</span></a>
@@ -74,14 +76,14 @@
   {% if mails %}
   <div class="mbx-list">
     {% for m in mails %}
-    <a href="/mail/{{ m.id }}" class="mbx-row {{ 'unread' if not m.is_read else '' }}">
-      <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>
-      <div class="mbx-from">{% if box=='sent' %}→ {{ m.to_email or '(받는사람 없음)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</div>
+    <a href="{% if box=='draft' %}/mail/compose?draft={{ m.id }}{% else %}/mail/{{ m.id }}{% endif %}" class="mbx-row {{ 'unread' if (box=='in' and not m.is_read) else '' }}">
+      {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
+      <div class="mbx-from">{% if box=='sent' or box=='draft' %}→ {{ m.to_email or '(받는사람 미정)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</div>
       <div class="mbx-main">
         <div class="mbx-subj">{{ m.subject }}</div>
-        {% if m.summary_short %}<div class="mbx-sum">📝 {{ m.summary_short }}</div>{% endif %}
+        {% if m.summary_short %}<div class="mbx-sum">{% if box=='in' %}📝 {% endif %}{{ m.summary_short }}</div>{% endif %}
       </div>
-      <span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>
+      {% if box != 'draft' %}<span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}
       <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
     </a>
     {% endfor %}
@@ -92,6 +94,8 @@
     🔍 조건에 맞는 메일이 없습니다.<br><br><span style="font-size:12.5px;">검색어나 필터를 바꿔보세요.</span>
     {% elif box=='sent' %}
     📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
+    {% elif box=='draft' %}
+    📝 임시저장된 메일이 없습니다.<br><br><span style="font-size:12.5px;">메일 쓰기에서 <b>💾 임시저장</b>을 누르면 여기에 보관됩니다.</span>
     {% else %}
     📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>＋ 시범</b> 버튼으로 동작을 보거나, 실제 메일이 오면 여기 쌓입니다.</span>
     {% endif %}
