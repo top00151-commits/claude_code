@@ -159,10 +159,10 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# 3행 — 모델명 · 장비명 (둘 다 넓게). 수량은 모델·장비가 6칸씩 차지해 자동으로 4행으로 내려감 #}
           <div class="qf-f c6"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명" value="{{ project.model_name|default('') if ed else '' }}"></div>
           <div class="qf-f c6"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)" value="{{ project.equip_name|default('') if ed else '' }}"></div>
-          {# v5H226z376(대표 지시·배치수정): 각인(장비 마킹) — 모델·장비 옆. 신규 등록 전용.
-             자료 경로는 아래 전체폭 줄로 분리(서버 경로가 길어서 + 실제 양식처럼 '요청사항' 바로 위). #}
+          {# v5H226z377(대표 지시·배치 재수정): 각인 — 전체폭(c12) 독립 줄. 반칸(c6)이면 그리드가 옆 빈 칸에
+             수량·통화를 끌어올려 「각인|수량|통화」로 줄이 깨졌음. 전체폭이면 수량·통화·단가·금액 줄이 온전. 실제 양식의 각인도 전체폭 띠. 신규 등록 전용. #}
           {% if not ed %}
-          <div class="qf-f c6"><label>각인 <span style="font-weight:400;color:var(--qv-ink-3);">(장비 마킹)</span></label><input name="engraving" placeholder="예: S3908 ASSY"></div>
+          <div class="qf-f c12"><label>각인 <span style="font-weight:400;color:var(--qv-ink-3);">(장비 마킹)</span></label><input name="engraving" placeholder="예: S3908 ASSY"></div>
           {% endif %}
 
           {# 4행 — 수량(0000·좁게) · 통화 · 단가 · 금액(단가보다 크게). 수량은 항상 표시, 금액류는 영업·관리만 #}
