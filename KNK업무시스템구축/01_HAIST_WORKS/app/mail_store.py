@@ -31,9 +31,11 @@ def _norm_addr(addr: str) -> str:
 
 
 def default_owner(c):
-    """수신자 미지정 시 기본 소유자 — 대표 김정락(kjr) → 이름 → role=ceo 순."""
+    """수신자 미지정 시 기본 소유자 — 대표 김정락(login_id=kjr) → 이름 → role=ceo 순.
+    ★ 2026-06-13 수정: 'username' 컬럼은 없음(실제 컬럼 login_id) — 과거 1순위 쿼리가
+      항상 실패해 try/except 로 가려진 채 이름 매칭으로 폴백되던 잠복버그(z383 원인 일부)."""
     for sql in (
-        "SELECT id FROM users WHERE username='kjr' AND is_active=1",
+        "SELECT id FROM users WHERE login_id='kjr' AND is_active=1",
         "SELECT id FROM users WHERE name='김정락' AND is_active=1 ORDER BY id LIMIT 1",
         "SELECT id FROM users WHERE role='ceo' AND is_active=1 ORDER BY id LIMIT 1",
         "SELECT id FROM users WHERE role IN ('admin','ceo') AND is_active=1 ORDER BY id LIMIT 1",
@@ -341,18 +343,39 @@ def _decode_part(part) -> str:
             return ""
 
 
-def parse_raw_email(raw: str) -> dict:
-    """raw MIME 문자열 → {from_email, from_name, to_email, subject, text, html, cc, attachments}.
-    파이썬 email 모듈로 안전 파싱(멀티파트·인코딩 헤더 대응). 실패 시 {}."""
-    from email import message_from_string
+def parse_raw_email(raw) -> dict:
+    """raw MIME(문자열/바이트) → {from_email, from_name, to_email, subject, text, html, cc, attachments}.
+    파이썬 email 모듈로 안전 파싱(멀티파트·인코딩 헤더 대응). 실패 시 {}.
+
+    ★ 반드시 바이트로 파싱(message_from_bytes). 문자열 파싱(message_from_string)은
+      인코딩되지 않은 8bit 본문(한글·베트남어 등)을 raw-unicode-escape 로 망가뜨린다
+      (2026-06-13 검증으로 확증). str 입력은 UTF-8 바이트로 변환 후 파싱."""
+    from email import message_from_bytes
     from email.header import decode_header, make_header
     try:
-        msg = message_from_string(raw or "")
+        raw_bytes = raw if isinstance(raw, (bytes, bytearray)) else (raw or "").encode("utf-8", "surrogateescape")
+        msg = message_from_bytes(raw_bytes)
     except Exception:
         return {}
 
+    def _recover8(v) -> str:
+        """message_from_bytes 가 raw 8bit 헤더 바이트를 surrogateescape(U+DC80~DCFF)로
+        담는 경우 UTF-8 로 복구(비표준 메일 견고성). 정상 RFC2047 헤더는 영향 없음.
+        Header 객체 등 str 이 아닌 입력도 안전 처리(절대 예외 X)."""
+        try:
+            if not isinstance(v, str):
+                v = str(v)
+        except Exception:
+            return ""
+        if v and any("\udc80" <= ch <= "\udcff" for ch in v):
+            try:
+                return v.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+            except Exception:
+                return v
+        return v
+
     def _h(name: str) -> str:
-        v = msg.get(name, "") or ""
+        v = _recover8(msg.get(name, "") or "")
         try:
             return str(make_header(decode_header(v)))
         except Exception:
@@ -373,6 +396,7 @@ def parse_raw_email(raw: str) -> dict:
             fname = part.get_filename()
             if "attachment" in disp or fname:
                 if fname:
+                    fname = _recover8(fname)
                     try:
                         atts.append(str(make_header(decode_header(fname))))
                     except Exception:
