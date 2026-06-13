@@ -16,6 +16,18 @@
   .cmp-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
   .cmp-editor{min-height:280px;border:1px solid var(--line);border-radius:0 0 8px 8px;outline:none;font-size:14px;line-height:1.7;padding:12px;overflow:auto;box-sizing:border-box;background:#fff}
   .cmp-editor:empty:before{content:attr(data-ph);color:#9ca3af}
+  .cmp-editor img{max-width:100%;height:auto;cursor:pointer}
+  .cmp-editor img.imgsel{outline:2px solid #7c3aed;outline-offset:1px}
+  .img-tb{position:absolute;z-index:70;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+  .img-tb button{height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;padding:0 7px;font-size:12px}
+  .img-tb button:hover{background:#f0f0f0}
+  .img-tb .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
+  .crop-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center}
+  .crop-box{background:#fff;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;max-width:94vw}
+  .crop-stage{position:relative;overflow:hidden;background:#222;align-self:center;line-height:0}
+  .crop-stage img{display:block;max-width:82vw;max-height:58vh;user-select:none;-webkit-user-drag:none}
+  .crop-sel{position:absolute;border:2px dashed #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move;box-sizing:border-box}
+  .crop-sel .br{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;background:#7c3aed;border:2px solid #fff;border-radius:50%;cursor:se-resize}
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
@@ -167,6 +179,84 @@
   if(lnk) lnk.addEventListener('click',function(){ var u=prompt('링크 주소(URL)','https://'); if(u){ if(ED)ED.focus(); try{ document.execCommand('createLink',false,u); }catch(_){} } });
   var clr=document.getElementById('cClear');
   if(clr) clr.addEventListener('click',function(){ if(ED)ED.focus(); try{ document.execCommand('removeFormat',false,null); document.execCommand('unlink',false,null);}catch(_){} });
+
+  // ── 본문 이미지 편집(크기·정렬·회전·자르기·삭제) ──
+  var selImg=null, imgTb=null;
+  function clearImgSel(){ if(selImg) selImg.classList.remove('imgsel'); selImg=null; if(imgTb){ imgTb.remove(); imgTb=null; } }
+  function posTb(){ if(!selImg||!imgTb)return; var r=selImg.getBoundingClientRect();
+    imgTb.style.left=(r.left+window.scrollX)+'px'; imgTb.style.top=Math.max(0,(r.top+window.scrollY-34))+'px'; }
+  function setW(p){ if(!selImg)return; selImg.style.width=p; selImg.style.height='auto'; posTb(); }
+  function resizeBy(f){ if(!selImg)return; var w=selImg.getBoundingClientRect().width*f; selImg.style.width=Math.max(40,Math.round(w))+'px'; selImg.style.height='auto'; posTb(); }
+  function alignImg(m){ if(!selImg)return; selImg.style.display='block'; selImg.style.margin=m; posTb(); }
+  function rotate90(){ if(!selImg)return; var img=selImg, im=new Image();
+    im.onload=function(){ try{ var c=document.createElement('canvas'); c.width=im.naturalHeight; c.height=im.naturalWidth;
+      var x=c.getContext('2d'); x.translate(c.width/2,c.height/2); x.rotate(Math.PI/2); x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
+      img.src=c.toDataURL('image/png'); img.style.width=''; img.style.height='auto'; setTimeout(posTb,30);
+    }catch(err){ alert('외부(웹) 이미지는 회전이 안 됩니다 — 붙여넣은 이미지만 가능합니다.'); } };
+    im.src=img.src; }
+  function showImgTb(img){
+    clearImgSel(); selImg=img; img.classList.add('imgsel');
+    imgTb=document.createElement('div'); imgTb.className='img-tb';
+    function mk(t,fn){ var b=document.createElement('button'); b.type='button'; b.textContent=t;
+      b.addEventListener('mousedown',function(e){e.preventDefault();});
+      b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();fn();}); imgTb.appendChild(b); }
+    function sep(){ var s=document.createElement('span'); s.className='sep'; imgTb.appendChild(s); }
+    mk('작게',function(){setW('25%');}); mk('중간',function(){setW('50%');}); mk('크게',function(){setW('100%');});
+    mk('−',function(){resizeBy(0.85);}); mk('＋',function(){resizeBy(1/0.85);}); sep();
+    mk('◧',function(){alignImg('6px auto 6px 0');}); mk('가운데',function(){alignImg('6px auto');}); mk('▶',function(){alignImg('6px 0 6px auto');}); sep();
+    mk('↻ 회전',rotate90); mk('✂ 자르기',function(){ openCrop(selImg); }); mk('🗑 삭제',function(){ var i=selImg; clearImgSel(); if(i)i.remove(); });
+    document.body.appendChild(imgTb); posTb();
+  }
+  if(ED) ED.addEventListener('click',function(e){ if(e.target && e.target.tagName==='IMG'){ e.stopPropagation(); showImgTb(e.target); } else clearImgSel(); });
+  document.addEventListener('click',function(e){ if(imgTb && !imgTb.contains(e.target) && e.target!==selImg) clearImgSel(); });
+  window.addEventListener('scroll',posTb,true); window.addEventListener('resize',posTb);
+
+  function openCrop(img){
+    var mask=document.createElement('div'); mask.className='crop-mask';
+    var box=document.createElement('div'); box.className='crop-box';
+    var title=document.createElement('div'); title.textContent='✂ 자르기 — 영역을 끌어 옮기고 오른쪽 아래 점으로 크기를 조절하세요';
+    title.style.cssText='font-size:12.5px;color:var(--mute)';
+    var stage=document.createElement('div'); stage.className='crop-stage';
+    var im=document.createElement('img'); stage.appendChild(im);
+    var bar=document.createElement('div'); bar.style.cssText='display:flex;gap:8px;justify-content:flex-end';
+    var cancel=document.createElement('button'); cancel.className='btn btn-secondary'; cancel.type='button'; cancel.textContent='취소';
+    var apply=document.createElement('button'); apply.className='btn btn-primary'; apply.type='button'; apply.textContent='✂ 적용';
+    bar.appendChild(cancel); bar.appendChild(apply);
+    box.appendChild(title); box.appendChild(stage); box.appendChild(bar); mask.appendChild(box);
+    var sel=document.createElement('div'); sel.className='crop-sel';
+    var br=document.createElement('div'); br.className='br'; sel.appendChild(br);
+    function close(){ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); mask.remove(); }
+    cancel.addEventListener('click',close);
+    mask.addEventListener('click',function(e){ if(e.target===mask) close(); });
+    var W=0,H=0, mode=null, ox=0, oy=0, st=null, inited=false;
+    function onUp(){ mode=null; }
+    function onMove(ev){ if(!mode)return; var dx=ev.clientX-ox, dy=ev.clientY-oy;
+      if(mode==='move'){ sel.style.left=Math.min(Math.max(0,st.l+dx),W-st.w)+'px'; sel.style.top=Math.min(Math.max(0,st.t+dy),H-st.h)+'px'; }
+      else { sel.style.width=Math.min(Math.max(24,st.w+dx),W-sel.offsetLeft)+'px'; sel.style.height=Math.min(Math.max(24,st.h+dy),H-sel.offsetTop)+'px'; } }
+    function initCrop(){
+      if(inited) return; inited=true;
+      W=im.clientWidth; H=im.clientHeight;
+      stage.style.width=W+'px'; stage.style.height=H+'px';
+      sel.style.left=Math.round(W*0.15)+'px'; sel.style.top=Math.round(H*0.15)+'px';
+      sel.style.width=Math.round(W*0.7)+'px'; sel.style.height=Math.round(H*0.7)+'px';
+      stage.appendChild(sel);
+      sel.addEventListener('mousedown',function(ev){ mode=(ev.target===br)?'resize':'move'; ox=ev.clientX; oy=ev.clientY;
+        st={l:sel.offsetLeft,t:sel.offsetTop,w:sel.offsetWidth,h:sel.offsetHeight}; ev.preventDefault(); ev.stopPropagation(); });
+      document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+    }
+    apply.addEventListener('click',function(){
+      try{ var sx=im.naturalWidth/W, sy=im.naturalHeight/H;
+        var cw=Math.round(sel.offsetWidth*sx), ch=Math.round(sel.offsetHeight*sy);
+        var c=document.createElement('canvas'); c.width=cw; c.height=ch;
+        c.getContext('2d').drawImage(im, sel.offsetLeft*sx, sel.offsetTop*sy, cw, ch, 0,0, cw,ch);
+        img.src=c.toDataURL('image/png'); img.style.width=''; img.style.height='auto'; close(); setTimeout(posTb,30);
+      }catch(err){ alert('외부(웹) 이미지는 자르기가 안 됩니다 — 붙여넣은 이미지만 가능합니다.'); }
+    });
+    im.addEventListener('load', initCrop);
+    document.body.appendChild(mask);
+    im.src=img.src;
+    if(im.complete && im.naturalWidth) initCrop();
+  }
 
   // ── 숨은참조(BCC) 토글 ──
   var bt=document.getElementById('bccToggle');
