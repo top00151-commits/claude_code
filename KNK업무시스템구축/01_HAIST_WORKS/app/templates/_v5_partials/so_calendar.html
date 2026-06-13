@@ -11,15 +11,18 @@
     {% for week in cm.weeks %}
     <div class="so-cal-week">
       {% for d in week %}
+        {% set _hol = d.hol_kr or d.hol_vn %}
         {% if d.count > 0 %}
         <a class="so-cal-day {{ d.cls }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if filter_due_date == d.date %}sel{% endif %}"
-           href="?tab={{ tab }}&due_date={{ d.date }}" title="{{ d.date }} · {{ d.count }}건 · {{ '{:,.0f}'.format(d.amount) }}원">
-          <span class="d-num">{{ d.day }}</span>
+           href="?tab={{ tab }}&due_date={{ d.date }}" title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %} · {{ d.count }}건 · {{ '{:,.0f}'.format(d.amount) }}원">
+          {% if _hol %}<span class="hol-b">{% if d.hol_kr %}<span class="b{% if '대체' in d.hol_kr %} alt{% endif %}">K</span>{% endif %}{% if d.hol_vn %}<span class="b vn{% if 'Nghỉ bù' in d.hol_vn %} alt{% endif %}">V</span>{% endif %}</span>{% endif %}
+          <span class="d-num {% if d.is_sun or _hol %}sun{% elif d.is_sat %}sat{% endif %}">{{ d.day }}</span>
           <span class="d-cnt">{{ d.count }}</span>
         </a>
         {% else %}
         <div class="so-cal-day {{ d.cls }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %}">
-          <span class="d-num">{{ d.day }}</span>
+          {% if _hol %}<span class="hol-b">{% if d.hol_kr %}<span class="b{% if '대체' in d.hol_kr %} alt{% endif %}">K</span>{% endif %}{% if d.hol_vn %}<span class="b vn{% if 'Nghỉ bù' in d.hol_vn %} alt{% endif %}">V</span>{% endif %}</span>{% endif %}
+          <span class="d-num {% if d.is_sun or _hol %}sun{% elif d.is_sat %}sat{% endif %}">{{ d.day }}</span>
         </div>
         {% endif %}
       {% endfor %}
@@ -53,19 +56,29 @@
 .so-cal-day .d-num { font-size:11px; font-weight:600; }
 .so-cal-day .d-cnt { font-size:10px; font-weight:800; line-height:1; padding:1px 4px; border-radius:8px;
                      background:rgba(0,0,0,.12); margin-top:1px; min-width:14px; text-align:center; }
-.so-cal-day.out { color:#cbd5e1; background:transparent; }
+.so-cal-day.out { opacity:.25; }
 .so-cal-day.out .d-cnt { display:none; }
-.so-cal-day.today { box-shadow:inset 0 0 0 2px #f59e0b; }
+.so-cal-day.today { box-shadow:inset 0 0 0 2px #d4a574; }
 .so-cal-day.sel { box-shadow:inset 0 0 0 2px #b91c1c; }
 .so-cal-day.empty { }
-.so-cal-day.future { background:#f0fdf4; color:#166534; }
-.so-cal-day.future .d-cnt { background:#86efac; color:#14532d; }
-.so-cal-day.d7 { background:#fef9c3; color:#713f12; }
+.so-cal-day.future { background:#d1fae5; color:#065f46; }
+.so-cal-day.future .d-cnt { background:#86efac; color:#065f46; }
+.so-cal-day.d7 { background:#fef3c7; color:#713f12; }
 .so-cal-day.d7 .d-cnt { background:#fde047; color:#713f12; }
 .so-cal-day.d3 { background:#fed7aa; color:#7c2d12; }
 .so-cal-day.d3 .d-cnt { background:#fb923c; color:#fff; }
-.so-cal-day.overdue, .so-cal-day.past { background:#fecaca; color:#991b1b; }
-.so-cal-day.overdue .d-cnt, .so-cal-day.past .d-cnt { background:#dc2626; color:#fff; }
+.so-cal-day.overdue { background:#fee2e2; color:#991b1b; }
+.so-cal-day.overdue .d-cnt { background:#dc2626; color:#fff; }
+.so-cal-day.past { background:#f3f4f6; color:#6b7280; }
+.so-cal-day.past .d-cnt { background:#e5e7eb; color:#6b7280; }
+/* KNK 달력 표준: 일/공휴일 빨강·토 파랑(날짜 숫자) + 공휴일 K/V 배지 */
+.so-cal-day .d-num.sun { color:#dc2626; }
+.so-cal-day .d-num.sat { color:#2563eb; }
+.so-cal-day .hol-b { position:absolute; top:1px; right:1px; display:flex; gap:1px; }
+.so-cal-day .hol-b .b { min-width:11px; height:11px; line-height:11px; text-align:center; padding:0 1px; border-radius:2px; font-size:8px; font-weight:800; background:#dc2626; color:#fff; }
+.so-cal-day .hol-b .b.vn { background:#fb923c; }
+.so-cal-day .hol-b .b.alt { background:#fff; color:#dc2626; border:1px dashed #dc2626; line-height:9px; }
+.so-cal-day .hol-b .b.vn.alt { color:#fb923c; border-color:#fb923c; }
 .so-cal-day:hover:not(.out):not(.empty) { transform:scale(1.06); z-index:2; box-shadow:0 4px 12px rgba(0,0,0,.18); }
 .so-cal-legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; padding:0 4px; font-size:11px; color:#64748b; }
 .so-cal-legend .lg { font-weight:600; }
