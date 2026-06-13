@@ -6841,10 +6841,15 @@ async def projects_header_edit(req: Request, pid: int):
         old_row = c.execute(f"SELECT {field} FROM projects WHERE id=?", (pid,)).fetchone()
         if not old_row:
             return JSONResponse({"ok": False, "message": "프로젝트 없음"}, 404)
+        # v5H226z406: 동시 편집 감지(낙관적 잠금)
+        _conf, _cur = _edit_conflict(c, "projects", pid, form.get("base_ts"))
+        if _conf:
+            return _conflict_resp(_cur)
         old_val = old_row[0]
         if (old_val or "") == (val or ""):
-            return JSONResponse({"ok": True, "message": "변동 없음", "value": val})
-        c.execute(f"UPDATE projects SET {field}=? WHERE id=?", (val, pid))
+            return JSONResponse({"ok": True, "message": "변동 없음", "value": val, "updated_at": _row_ts(c, "projects", pid)})
+        # v5H226z406: 인라인 편집도 updated_at 갱신(낙관적 잠금 버전 증가)
+        c.execute(f"UPDATE projects SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?", (val, pid))
         # v5H226s: 메타필드(due_date/order_date/currency) 변경 → 자식 SO·호기 cascade
         # (이전 v5H187 currency-only 인라인 로직을 통합 헬퍼로 대체)
         cascade_info = None
@@ -6872,8 +6877,9 @@ async def projects_header_edit(req: Request, pid: int):
             )
         except Exception:
             pass
+        _new_ts = _row_ts(c, "projects", pid)
     return JSONResponse({"ok": True, "field": field, "value": val,
-                          "cascade": cascade_info})
+                          "cascade": cascade_info, "updated_at": _new_ts})
 
 
 @app.post("/projects/{pid:int}/presales-edit")

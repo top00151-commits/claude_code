@@ -1955,16 +1955,24 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
 {# v5H177: 헤더 필드 인라인 편집 (이름/비고/통화·환율/거래구분) #}
 <script>
 (function(){
+  // v5H226z406: 화면 로드 시점 프로젝트 수정시각(동시 편집 감지 기준)
+  var _projTs = {{ (p.updated_at or '')|tojson }};
   async function patchField(pid, field, value){
     const body = new URLSearchParams();
     body.set('field', field);
     body.set('value', value === null || value === undefined ? '' : String(value));
+    body.set('base_ts', _projTs || '');   // v5H226z406: 동시 편집 감지
     const r = await fetch('/projects/' + pid + '/header-edit', {method:'POST', body: body});
     const j = await r.json().catch(() => ({}));
+    if (r.status === 409) {   // 다른 곳(다른 탭/사람)에서 먼저 저장됨
+      alert('⚠ ' + (j.message || '이 항목이 다른 곳에서 먼저 저장됐습니다. 새로고침 후 다시 시도하세요.'));
+      return null;
+    }
     if (!r.ok || !j.ok) {
       alert('⚠ ' + (j.message || j.error || ('HTTP ' + r.status)));
       return null;
     }
+    if (j.updated_at) _projTs = j.updated_at;   // 다음 편집 기준 갱신
     return j;
   }
   // v5H185: 타이틀 옆 ✏️ — 프로젝트명 편집
