@@ -175,7 +175,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="CNY" {% if ed and project.currency == 'CNY' %}selected{% endif %}>¥ CNY (위안)</option><option value="EUR" {% if ed and project.currency == 'EUR' %}selected{% endif %}>€ EUR (유로)</option>
             </select>
           </div>
-          <div class="qf-f c3"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" class="knk-money" placeholder="0" value="{{ project.unit_price|round|int if (ed and project.unit_price) else '' }}"></div>
+          <div class="qf-f c3"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" id="qUnitPrice" class="knk-money" placeholder="0" value="{{ project.unit_price|round|int if (ed and project.unit_price) else '' }}"></div>
           <div class="qf-f c4"><label>금액</label><input type="text" inputmode="numeric" name="order_amount" id="qAmount" class="knk-money" placeholder="0" value="{{ project.order_amount|round|int if (ed and project.order_amount) else '' }}"></div>
           <div class="qf-f c4" id="qFxWrap" style="display:none;"><label>환율 <span class="req">*</span> (1단위=?원)</label>
             <input type="text" inputmode="numeric" name="fx_rate" id="qFx" class="knk-money" placeholder="예: 1,350" value="{{ project.fx_rate if (ed and project.fx_rate) else '' }}"></div>
@@ -191,7 +191,9 @@ html,body{background:#fff!important;overflow:auto!important;}
              신규 등록 + 영업·관리(금액 권한) 전용. #}
           {% if not ed and can_money %}
           <div class="qf-f c12" id="qUnitWrap" style="display:none;">
-            <label>호기별 금액 · 납기 <span style="font-weight:400;color:var(--qv-ink-3);">(수량 2 이상 — 호기마다 다르면 수정. 기본은 단가·납품일로 채워짐. 납기 다르면 수주(SO) 자동 분리)</span></label>
+            <label style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;">호기별 금액 · 납기 <span style="font-weight:400;color:var(--qv-ink-3);">(호기마다 금액 입력 — 단가·금액 칸은 자동 잠금)</span>
+              <span style="margin-left:auto;font-weight:600;color:#1e293b;font-size:12px;cursor:pointer;"><input type="checkbox" id="qUnitDueAll" checked onchange="qUnitDueSync()" style="vertical-align:middle;margin-right:3px;">납기일 일괄 적용 (전체 동일)</span>
+            </label>
             <div id="qUnitRows" style="display:flex;flex-direction:column;gap:6px;border:1px solid var(--qv-line);border-radius:8px;padding:9px 11px;background:var(--qv-surface-2,#f7f8fa);"></div>
             <div style="text-align:right;font-size:13px;margin-top:6px;">호기 합계 <b id="qUnitSum" style="color:var(--knk-red);font-size:14px;">0</b> <span id="qUnitSumCur" style="color:var(--qv-ink-3);font-size:11.5px;">KRW</span></div>
           </div>
@@ -311,13 +313,38 @@ function qUnitSum(){
   var v=qUnitVals();
   var s=document.getElementById('qUnitSum'); if(s) s.textContent=sum.toLocaleString('en-US');
   var sc=document.getElementById('qUnitSumCur'); if(sc) sc.textContent=v.cur;
-  if(v.qty>=2){ var amt=document.getElementById('qAmount'); if(amt) amt.value=sum.toLocaleString('en-US'); }
+  if(v.qty>=2){
+    // v5H226z383: 호기별이면 헤더 금액=합계, 단가=호기 평균(자동·잠금)
+    var amt=document.getElementById('qAmount'); if(amt) amt.value=sum.toLocaleString('en-US');
+    var up=document.getElementById('qUnitPrice'); if(up) up.value=(v.qty>0?Math.round(sum/v.qty):0).toLocaleString('en-US');
+  }
+}
+// v5H226z383(대표 지시): 호기별이면 헤더 단가·금액 칸 잠금 — 입력은 호기별 금액 칸으로만.
+function qLockHeaderPrice(lock){
+  ['qUnitPrice','qAmount'].forEach(function(id){
+    var el=document.getElementById(id); if(!el) return;
+    el.readOnly=!!lock;
+    el.style.background = lock ? '#eef0f3' : '';
+    el.style.color = lock ? '#64748b' : '';
+    el.style.cursor = lock ? 'not-allowed' : '';
+    el.title = lock ? '여러 대(호기별) — 아래 호기별 칸에서 입력. 단가=호기 평균(자동)·금액=합계(자동).' : '';
+  });
+}
+// v5H226z383(대표 지시): 납기일 일괄 적용 — 켜면 모든 호기 납기=헤더 납품일(잠금), 끄면 호기별 개별 입력.
+function qUnitDueSync(){
+  var all=document.getElementById('qUnitDueAll');
+  var on = all ? all.checked : true;
+  var hdr=(document.getElementById('qDueDate')||{}).value||'';
+  document.querySelectorAll('#qUnitRows .qf-unit-due').forEach(function(d){
+    if(on){ d.value=hdr; d.readOnly=true; d.style.background='#eef0f3'; d.style.color='#64748b'; d.title='납기일 일괄 적용 중 — 헤더 납품일과 동일'; }
+    else { d.readOnly=false; d.style.background='#fff'; d.style.color=''; d.title='이 호기 납기(출하일)'; }
+  });
 }
 function qBuildUnits(){
   var wrap=document.getElementById('qUnitWrap'), rows=document.getElementById('qUnitRows');
   if(!wrap||!rows) return;   // 금액 권한 없으면 섹션 없음 → 단일 호기
   var v=qUnitVals();
-  if(v.qty<2){ wrap.style.display='none'; rows.innerHTML=''; qSyncUnitStatic(false); qUnitSum(); return; }
+  if(v.qty<2){ wrap.style.display='none'; rows.innerHTML=''; qSyncUnitStatic(false); qLockHeaderPrice(false); qUnitSum(); return; }
   wrap.style.display='';
   var existing=rows.querySelectorAll('.qf-unit-row');
   if(existing.length!==v.qty){
@@ -340,6 +367,8 @@ function qBuildUnits(){
     var d=r.querySelector('.qf-unit-due'); if(!d.value) d.value=v.due;
   });
   qSyncUnitStatic(true);
+  qLockHeaderPrice(true);   // 호기별 — 헤더 단가·금액 잠금
+  qUnitDueSync();           // 납기 일괄 적용 반영
   if(window.knkScanMoney) knkScanMoney();
   qUnitSum();
 }
@@ -366,7 +395,8 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
     qSyncUnitStatic(true);
     // 프로젝트 수주액(order_amount)=호기 합, 단가=합/수량(평균) 으로 맞춰 '폼/SO 불일치' 경고 방지
     var _sum=0; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ _sum+=parseFloat((a.value||'0').replace(/,/g,''))||0; });
-    var _up=document.querySelector('[name=unit_price]'); if(_up && _sum>0) _up.value=String(_sum/_q);
+    if(_sum<=0){ e.preventDefault(); err.textContent='호기별 금액을 입력하세요 (한 대 이상).'; err.classList.add('show'); return; }
+    var _up=document.querySelector('[name=unit_price]'); if(_up) _up.value=String(_sum/_q);
     var _oa=document.getElementById('qAmount'); if(_oa) _oa.value=String(_sum);
   } else {
     qSyncUnitStatic(false);
