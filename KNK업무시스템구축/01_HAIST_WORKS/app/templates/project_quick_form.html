@@ -192,6 +192,31 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c3"><label>영업담당자 <span style="font-weight:400;color:var(--qv-ink-3);">(당사)</span></label><input name="sales" placeholder="당사 영업담당자" value="{{ project.sales_name|default('') if ed else '' }}"></div>
           <div class="qf-f c9"><label>비고</label><input name="note" placeholder="기타 메모" value="{{ project.logi_note|default('') if ed else '' }}"></div>
         </div>
+        {# v5H226z373(대표 지시): 제작요청 발행 — 등록(발행)과 동시에 ① 작업일정표 '제작요청' 자동기록
+           ② 관련부서 WORKS 통보(단가·금액 제외). 제작메일 대체. 신규 등록 전용(수정 모드 숨김). #}
+        {% if not ed %}
+        <div style="margin-top:14px;border:1px solid #fed7aa;background:#fff7ed;border-radius:10px;padding:14px 16px;">
+          <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;font-weight:800;color:#9a3412;cursor:pointer;line-height:1.4;">
+            <input type="checkbox" name="prod_notify" value="1" id="qProdNotify" checked onchange="qToggleProd()" style="width:16px;height:16px;margin-top:1px;flex:none;">
+            <span>📋 등록과 동시에 <u>제작요청</u> 발행 — 관련부서 통보 + 작업일정표 자동기록</span>
+          </label>
+          <div style="font-size:11.5px;color:#9a3412;opacity:.9;margin:6px 0 0 24px;">제작메일 대체 · 통보에는 <b>단가·금액이 포함되지 않습니다</b>(자료경로·모델·품명·수량·납기·요청사항만). 제안 단계 등록이면 체크를 해제하세요.</div>
+          <div id="qProdBox" style="margin-top:10px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;">
+              <div class="qf-f"><label>고객사 요청사항</label><textarea name="pr_cust_req" rows="2" placeholder="예: 기능검사기 MODIFY · 변경품 …" style="resize:vertical;"></textarea></div>
+              <div class="qf-f"><label>기타 요청사항</label><textarea name="pr_note" rows="2" placeholder="(선택)" style="resize:vertical;"></textarea></div>
+            </div>
+            <details class="qf-adv" style="margin-top:8px;">
+              <summary>통보 부서 선택 <span>(기본 전부서 — 빼려면 체크 해제)</span></summary>
+              <div style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:4px 2px 12px;">
+                {% for t in teams %}
+                <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" checked> {{ t.name }} <span style="color:#999;">{{ t.member_count }}명</span></label>
+                {% endfor %}
+              </div>
+            </details>
+          </div>
+        </div>
+        {% endif %}
         {% if ed %}
         {# v5H226z354(대표 지시): 복잡 건 안전망 — 추가 품목·호기별 금액·부모 프로젝트 연결은 빠른 폼에 아직 없음 → 정식 폼으로 진입 #}
         <div style="margin-top:10px;font-size:12px;color:var(--qv-ink-3);">
@@ -230,6 +255,11 @@ function qSyncShip(){
   if(pm) pm.style.display=(v==='PARTS')?'flex':'none';
   if(en) en.style.display=(v==='ETC')?'flex':'none';
 }
+// v5H226z373(대표 지시): 제작요청 발행 체크 → 요청사항·부서선택 박스 토글
+function qToggleProd(){
+  var c=document.getElementById('qProdNotify'); var b=document.getElementById('qProdBox');
+  if(b) b.style.display=(c && c.checked)?'block':'none';
+}
 document.getElementById('quickForm').addEventListener('submit',function(e){
   var g=function(n){ return (this.querySelector('[name='+n+']').value||'').trim(); }.bind(this);
   var name=g('name'), cust=g('customer_name'), model=g('model'), equip=g('equip_name');
@@ -261,6 +291,7 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
 })();
 qToggleFx();
 qSyncShip();
+qToggleProd();
 if(window.knkScanMoney) knkScanMoney();
 </script>
 </body>

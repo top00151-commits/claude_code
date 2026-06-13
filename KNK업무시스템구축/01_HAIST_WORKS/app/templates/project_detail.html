@@ -220,70 +220,18 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
       {# v5H226z354/z355(대표 지시): 수정도 빠른 폼으로 통일 — NEW_EQUIP(검사기·자동화·라이프) + OTHER(기타)는 빠른 폼 수정,
          소모품(CONSUMABLE)·수리(SERVICE)는 추가품목·복잡 구조라 정식 폼 유지(안전). 복잡 건은 빠른폼의 '고급 편집' 링크로. #}
       <a class="btn btn-secondary" href="/projects/{{ p.id }}/{% if (p.project_type or 'NEW_EQUIP')|upper in ('NEW_EQUIP','OTHER') %}quick-edit{% else %}edit{% endif %}">📂 수정</a>
-      {# v5H226z372(대표 지시): 제작요청 발행 — 일정표 자동기록 + 전부서 통보(금액 제외). 관리번호 발급된 건만. #}
-      {% if p.mgmt_code %}<button type="button" class="btn btn-primary" onclick="openProdReq()" style="background:#c2410c;">📋 제작요청 발행</button>{% endif %}
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
     </div>
   </div>
 
-  {# v5H226z372 (대표 지시): 제작요청 발행 모달 — 발행 한 번에 ① 일정표 '제작요청' 단계 자동기록 ② 전부서 통보(단가·금액 제외) #}
-  <div id="prodReqModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
-    <div style="background:#fff;border-radius:12px;width:640px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.3);">
-      <div style="padding:16px 20px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;">
-        <b style="font-size:16px;">📋 제작요청 발행</b>
-        <button type="button" onclick="closeProdReq()" style="border:none;background:none;font-size:18px;cursor:pointer;color:#888;">✕</button>
-      </div>
-      <div style="padding:16px 20px;font-size:13px;">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px;">
-          <tr><td style="padding:4px 8px;font-weight:700;color:#555;width:84px;">고객사</td><td style="padding:4px 8px;">{{ p.customer_name or '—' }}</td>
-              <td style="padding:4px 8px;font-weight:700;color:#555;width:84px;">관리코드</td><td style="padding:4px 8px;font-family:monospace;">{{ p.mgmt_code or '—' }}</td></tr>
-          <tr><td style="padding:4px 8px;font-weight:700;color:#555;">모델명</td><td style="padding:4px 8px;">{{ p.model_name or '—' }}</td>
-              <td style="padding:4px 8px;font-weight:700;color:#555;">품명</td><td style="padding:4px 8px;">{{ p.name or '—' }}</td></tr>
-          <tr><td style="padding:4px 8px;font-weight:700;color:#555;">수량</td><td style="padding:4px 8px;">{{ p.unit_qty or 1 }}</td>
-              <td style="padding:4px 8px;font-weight:700;color:#555;">납기</td><td style="padding:4px 8px;">{{ p.due_date or '—' }}</td></tr>
-          <tr><td style="padding:4px 8px;font-weight:700;color:#555;">자료경로</td><td colspan="3" style="padding:4px 8px;font-size:11.5px;color:#444;word-break:break-all;">{{ p.server_path or '(미지정)' }}</td></tr>
-        </table>
-        <div style="margin-bottom:8px;">
-          <div style="font-weight:700;color:#555;margin-bottom:3px;">고객사 요청사항</div>
-          <textarea id="prCustReq" rows="3" placeholder="고객사 요청사항 (예: 기능검사기 MODIFY · 변경품 …)" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font:inherit;font-size:13px;resize:vertical;"></textarea>
-        </div>
-        <div style="margin-bottom:10px;">
-          <div style="font-weight:700;color:#555;margin-bottom:3px;">기타 요청사항</div>
-          <textarea id="prNote" rows="2" placeholder="(선택)" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font:inherit;font-size:13px;resize:vertical;"></textarea>
-        </div>
-        <div style="font-weight:700;color:#555;margin-bottom:4px;">통보 받을 부서 <span style="font-weight:400;color:#888;font-size:11px;">(전부서 기본 선택 · 단가·금액은 통보에서 제외)</span></div>
-        <div style="margin-bottom:6px;font-size:12px;"><a onclick="prAll(true)" style="color:#1d4ed8;cursor:pointer;">전체 선택</a> · <a onclick="prAll(false)" style="color:#1d4ed8;cursor:pointer;">전체 해제</a></div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px 14px;max-height:160px;overflow:auto;border:1px solid #eee;border-radius:7px;padding:8px 10px;">
-          {% for t in teams %}
-          <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;"><input type="checkbox" class="pr-team" value="{{ t.id }}" checked> {{ t.name }} <span style="color:#999;">{{ t.member_count }}명</span></label>
-          {% endfor %}
-        </div>
-      </div>
-      <div style="padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">
-        <button type="button" class="btn btn-secondary" onclick="closeProdReq()">취소</button>
-        <button type="button" class="btn btn-primary" id="prSendBtn" onclick="submitProdReq()" style="background:#c2410c;">📋 제작요청 발행</button>
-      </div>
-    </div>
+  {# v5H226z373(대표 지시): 제작요청 발행은 '신규 등록(제작요청서)' 흐름으로 일원화 — 상세 모달/버튼 폐기. 발행 결과 배너만 표시. #}
+  {% if request.query_params.get('prod_sent') is not none %}
+  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13.5px;font-weight:600;line-height:1.5;">
+    📋 제작요청 발행 완료 — {{ request.query_params.get('prod_dept','0') }}개 부서 · {{ request.query_params.get('prod_sent','0') }}명에게 통보 + 작업일정표 '제작요청' 자동기록{% if request.query_params.get('prod_stagewarn') %} <span style="color:#b45309;">(일정표 기록 경고 — 확인 필요)</span>{% endif %}
   </div>
-  <script>
-  function openProdReq(){ var m=document.getElementById('prodReqModal'); if(m) m.style.display='flex'; }
-  function closeProdReq(){ var m=document.getElementById('prodReqModal'); if(m) m.style.display='none'; }
-  function prAll(on){ document.querySelectorAll('.pr-team').forEach(function(c){ c.checked=on; }); }
-  async function submitProdReq(){
-    var team_ids=[]; document.querySelectorAll('.pr-team:checked').forEach(function(c){ team_ids.push(parseInt(c.value,10)); });
-    if(!team_ids.length){ alert('통보할 부서를 1개 이상 선택하세요.'); return; }
-    var cust_req=(document.getElementById('prCustReq')||{}).value||'';
-    var note=(document.getElementById('prNote')||{}).value||'';
-    if(!confirm('제작요청을 발행합니다.\n\n· 작업일정표 \'제작요청\' 단계 자동 체크\n· 선택 부서 '+team_ids.length+'개에 통보 (단가·금액 제외)\n\n진행할까요?')) return;
-    var btn=document.getElementById('prSendBtn'); if(btn){ btn.disabled=true; btn.textContent='발행 중…'; }
-    try{
-      var r=await fetch('/projects/{{ p.id }}/issue-prod-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cust_req:cust_req, note:note, team_ids:team_ids})});
-      var j=await r.json();
-      if(j.ok){ var _m='✓ 제작요청 발행 완료\n\n관리코드: '+j.mgmt_code+'\n통보: '+(j.dept_count||0)+'개 부서 · '+(j.sent_to||0)+'명\n발행: '+j.issued_at; if(j.stage_warn) _m+='\n\n⚠ '+j.stage_warn; alert(_m); location.reload(); }
-      else { if(btn){ btn.disabled=false; btn.textContent='📋 제작요청 발행'; } alert('⚠ '+(j.message||j.error||('HTTP '+r.status))); }
-    }catch(e){ if(btn){ btn.disabled=false; btn.textContent='📋 제작요청 발행'; } alert('⚠ 통신 오류: '+e); }
-  }
-  </script>
+  {% elif request.query_params.get('prod_err') %}
+  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13.5px;font-weight:600;">⚠ 제작요청 통보 중 오류가 발생했습니다 — 관리자에게 문의하세요.</div>
+  {% endif %}
 
   {# v5H196: 수주 확정 모달 폐기. 버튼 클릭 시 등록값 기준 직접 발행 #}
   {# v5H226z149: 모달도 SO 발행 여부 기준 (버튼과 동일) #}
