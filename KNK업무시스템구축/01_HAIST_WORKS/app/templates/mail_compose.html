@@ -55,9 +55,15 @@
     <div class="cmp-row" style="border-bottom:0;align-items:flex-start;">
       <label style="padding-top:6px;">첨부</label>
       <div style="flex:1;">
-        <button type="button" class="btn btn-secondary" id="cAttachBtn">📎 파일 첨부</button>
-        <input type="file" id="cFiles" multiple style="display:none">
-        <span style="font-size:11px;color:var(--mute);margin-left:8px;">10MB 넘는 파일은 자동으로 <b>대용량(NAS 링크·30일)</b>으로 전송</span>
+        <div style="position:relative;display:inline-block;">
+          <button type="button" class="btn btn-secondary" id="cAttachBtn" title="파일 첨부">📎 첨부</button>
+          <div id="cAttachMenu" style="display:none;position:absolute;z-index:60;top:36px;left:0;width:290px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:10px;">
+            <button type="button" class="btn btn-secondary" id="cPickBtn" style="width:100%;margin-bottom:8px;">📁 내 컴퓨터에서 파일 선택</button>
+            <div id="cDrop" style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;font-size:12px;color:var(--mute);">여기로 파일을 <b>끌어다 놓기</b><br><span style="font-size:11px;">여러 개 가능 · 10MB↑ 자동 대용량</span></div>
+          </div>
+        </div>
+        <span style="font-size:11px;color:var(--mute);margin-left:8px;">10MB 넘으면 자동 <b>대용량(NAS 링크·30일)</b></span>
+        <input type="file" id="cFiles" multiple data-knk-no-dropzone style="display:none">
         <div id="cAttList" style="margin-top:8px;display:flex;flex-direction:column;gap:5px;"></div>
       </div>
     </div>
@@ -120,12 +126,26 @@
   }
   var cf=document.getElementById('cFiles');
   var ab=document.getElementById('cAttachBtn');
-  if(ab && cf) ab.addEventListener('click',function(){ cf.click(); });
+  var menu=document.getElementById('cAttachMenu');
+  var pick=document.getElementById('cPickBtn');
+  var drop=document.getElementById('cDrop');
+  function closeMenu(){ if(menu) menu.style.display='none'; }
+  if(ab) ab.addEventListener('click',function(e){ e.stopPropagation();
+    if(menu) menu.style.display=(menu.style.display==='block')?'none':'block'; });
+  document.addEventListener('click',function(e){
+    if(menu && menu.style.display==='block' && !menu.contains(e.target) && e.target!==ab) closeMenu(); });
+  if(pick && cf) pick.addEventListener('click',function(){ cf.click(); });
   if(cf) cf.addEventListener('change', async function(e){
     var files=e.target.files;
     for(var i=0;i<files.length;i++){ await addFile(files[i]); }
-    e.target.value='';   // 같은 파일 재선택 가능
+    e.target.value=''; closeMenu();   // 같은 파일 재선택 가능
   });
+  if(drop){
+    drop.addEventListener('dragover',function(e){ e.preventDefault(); drop.style.background='#fef3c7'; drop.style.borderColor='var(--amber-deep,#b8852e)'; });
+    drop.addEventListener('dragleave',function(e){ e.preventDefault(); drop.style.background=''; drop.style.borderColor='var(--line)'; });
+    drop.addEventListener('drop',async function(e){ e.preventDefault(); drop.style.background=''; drop.style.borderColor='var(--line)';
+      var files=e.dataTransfer.files; for(var i=0;i<files.length;i++){ await addFile(files[i]); } closeMenu(); });
+  }
 
   // ── 서식 편집기(rich text) 초기화 + 툴바 ──
   var ED=document.getElementById('cBody');
