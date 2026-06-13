@@ -298,6 +298,41 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     return [dict(r) for r in rows]
 
 
+# ── 대화 묶기(스레드) — 같은 제목(RE/FW 접두 제거)으로 받은 메일을 한 대화로 (B1, 2026-06-14) ──
+_SUBJ_PREFIX_RE = re.compile(r"^\s*(re|회신|답장|답신|fwd?|fw|전달)\s*[:：]\s*", re.IGNORECASE)
+
+
+def _normalize_subject(s: str) -> str:
+    """제목 앞의 RE:/FW:/회신:/답장: 등 반복 접두를 모두 제거해 '대화 식별 키' 생성.
+    (그룹핑 전용 — 화면 표시는 대표 메일의 원본 제목을 쓴다.)"""
+    s = (s or "").strip()
+    prev = None
+    while s and s != prev:          # 중첩(RE: RE: FW:) 반복 제거
+        prev = s
+        s = _SUBJ_PREFIX_RE.sub("", s, count=1).strip()
+    s = re.sub(r"\s+", " ", s).strip()
+    return s.lower() if s else "(제목 없음)"
+
+
+def group_threads(mails: list) -> list:
+    """list_inbox() 결과(받은시각 내림차순)를 같은 제목 대화로 묶는다.
+    반환: [{key, latest(대표=최신), count, unread_count, items(최신순)}] — 그룹은 최신 대화 먼저.
+    입력이 이미 내림차순이라 키 첫 등장 = 그 대화의 최신 → 그룹 순서가 자연히 최신순."""
+    order, groups = [], {}
+    for m in mails:
+        key = _normalize_subject(m.get("subject"))
+        g = groups.get(key)
+        if g is None:
+            g = {"key": key, "latest": m, "count": 0, "unread_count": 0, "items": []}
+            groups[key] = g
+            order.append(key)
+        g["items"].append(m)
+        g["count"] += 1
+        if not m.get("is_read"):
+            g["unread_count"] += 1
+    return [groups[k] for k in order]
+
+
 def count_unread(c, user_id: int) -> int:
     r = c.execute(
         "SELECT COUNT(*) AS n FROM mail_messages "

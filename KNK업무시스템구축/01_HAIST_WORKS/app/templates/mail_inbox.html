@@ -33,6 +33,23 @@
   .mbx-badge{font-size:11px;padding:2px 8px;border-radius:6px;white-space:nowrap}
   .mbx-time{width:92px;text-align:right;font-size:11.5px;color:var(--mute);white-space:nowrap}
   .mbx-empty{padding:48px 16px;text-align:center;color:var(--mute);line-height:1.7}
+  /* 대화 묶기(스레드) — 같은 제목 RE: 메일을 한 대화로 (B1, 대표 지시 2026-06-14) */
+  .mbx-thread{border-bottom:1px solid var(--line)}
+  .mbx-thread:last-child{border-bottom:0}
+  .mbx-thread .mbx-row{border-bottom:0}
+  .mbx-thread-head{display:flex;align-items:center;gap:4px;padding:0}
+  .mbx-thread-head.unread{background:#fffdf5}
+  .mbx-thread-head.active,.mbx-headlink.active{background:#eef2ff}
+  .mbx-twist{flex:none;width:24px;height:42px;border:0;background:none;color:#9ca3af;cursor:pointer;font-size:12px;line-height:1;padding:0 0 0 8px}
+  .mbx-twist:hover{color:var(--knk-red)}
+  .mbx-headlink{flex:1;display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;color:var(--ink);padding:12px 14px 12px 0}
+  .mbx-headlink.active .mbx-subj{font-weight:700}
+  .mbx-tcount{display:inline-block;font-size:10.5px;font-weight:700;color:#475569;background:#eef2f7;border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:middle}
+  .mbx-tcount.has-unread{background:#dc2626;color:#fff}
+  .mbx-thread-kids{background:#fbfcfe;border-top:1px dashed var(--line)}
+  .mbx-row.mbx-child{padding-left:34px;background:#fbfcfe}
+  .mbx-row.mbx-child .mbx-subj{font-size:13px}
+  .mbx-row.mbx-child::before{content:"↳";color:#cbd5e1;margin-right:-4px}
   /* 좁은 화면: 읽기 창 접고 목록만 → 행 클릭 시 풀페이지로 폴백 */
   @media(max-width:900px){ .mbx-split{grid-template-columns:1fr} .mbx-readpane{display:none} }
 </style>
@@ -86,6 +103,7 @@
     {% if box=='in' %}
       <a href="/mail/inbox?star=1" class="mbx-cat {{ 'on' if cur_star|default(false) else '' }}">⭐ 별표</a>
       <a href="/mail/inbox?unread=1" class="mbx-cat {{ 'on' if cur_unread|default(false) else '' }}">● 안읽음</a>
+      <a href="/mail/inbox?thread={{ 0 if thread_on|default(true) else 1 }}" class="mbx-cat {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:)으로 오가는 메일을 한 대화로 묶어 보기">💬 대화묶기</a>
     {% endif %}
   </form>
 
@@ -95,22 +113,69 @@
   </div>
   {% endif %}
 
+  {# 받은편지함 행 매크로 — 평면 목록·대화 자식행 공용 (BG/FG 는 매크로 스코프상 인자로 전달) #}
+  {% macro mailrow(m, BG, FG, child=False) %}
+  <a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read %} unread{% endif %}{% if child %} mbx-child{% endif %}" data-mail-id="{{ m.id }}" onclick="return rowClick(event,{{ m.id }})">
+    <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>
+    <div class="mbx-from">{{ m.from_name or m.from_email or '(보낸사람 없음)' }}</div>
+    <div class="mbx-main">
+      <div class="mbx-subj">{{ m.subject }}</div>
+      {% if m.summary_short %}<div class="mbx-sum">📝 {{ m.summary_short }}</div>{% endif %}
+    </div>
+    <span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>
+    <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
+  </a>
+  {% endmacro %}
+
   <div class="{{ 'mbx-split' if box=='in' else '' }}">
     <div class="mbx-listcol">
     {% if mails %}
     <div class="mbx-list">
-      {% for m in mails %}
-      <a href="{% if box=='draft' %}/mail/compose?draft={{ m.id }}{% else %}/mail/{{ m.id }}{% endif %}" class="mbx-row {{ 'unread' if (box=='in' and not m.is_read) else '' }}" data-mail-id="{{ m.id }}"{% if box=='in' %} onclick="return rowClick(event,{{ m.id }})"{% endif %}>
-        {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
-        <div class="mbx-from">{% if box=='sent' or box=='draft' %}→ {{ m.to_email or '(받는사람 미정)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</div>
-        <div class="mbx-main">
-          <div class="mbx-subj">{{ m.subject }}</div>
-          {% if m.summary_short %}<div class="mbx-sum">{% if box=='in' %}📝 {% endif %}{{ m.summary_short }}</div>{% endif %}
-        </div>
-        {% if box != 'draft' %}<span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}
-        <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
-      </a>
-      {% endfor %}
+      {% if box=='in' and thread_on|default(true) and threads %}
+        {# 대화 묶기: 2통+ 는 대표(최신)+💬N+펼침, 1통은 단일 행 #}
+        {% for t in threads %}
+          {% if t['count'] > 1 %}
+          <div class="mbx-thread">
+            <div class="mbx-thread-head{% if not t['latest'].is_read %} unread{% endif %}">
+              <button type="button" class="mbx-twist" title="대화 펼치기/접기" aria-expanded="false" onclick="toggleThread(event,this)">▸</button>
+              <a href="/mail/{{ t['latest'].id }}" class="mbx-headlink{% if not t['latest'].is_read %} unread{% endif %}" data-mail-id="{{ t['latest'].id }}" onclick="return rowClick(event,{{ t['latest'].id }})">
+                <button type="button" class="mbx-star {{ 'on' if t['latest'].is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ t['latest'].id }})">★</button>
+                <div class="mbx-from">{{ t['latest'].from_name or t['latest'].from_email or '(보낸사람 없음)' }}</div>
+                <div class="mbx-main">
+                  <div class="mbx-subj">{{ t['latest'].subject }}<span class="mbx-tcount{% if t['unread_count'] %} has-unread{% endif %}" title="이 대화 {{ t['count'] }}통{% if t['unread_count'] %} · 안읽음 {{ t['unread_count'] }}통{% endif %}">💬 {{ t['count'] }}</span></div>
+                  {% if t['latest'].summary_short %}<div class="mbx-sum">📝 {{ t['latest'].summary_short }}</div>{% endif %}
+                </div>
+                <span class="mbx-badge" style="background:{{ BG.get(t['latest'].category,'#f3f4f6') }};color:{{ FG.get(t['latest'].category,'#4b5563') }}">{{ t['latest'].category }}</span>
+                <span class="mbx-time">{{ t['latest'].received_at[5:16] if t['latest'].received_at else '' }}</span>
+              </a>
+            </div>
+            <div class="mbx-thread-kids" style="display:none">
+              {# 대표(최신)는 헤드에 이미 표시 → 자식은 나머지 메일을 오래된→최신순으로 그 아래 쌓기 #}
+              {% for k in t['items'][1:]|reverse %}{{ mailrow(k, BG, FG, child=True) }}{% endfor %}
+            </div>
+          </div>
+          {% else %}
+          {{ mailrow(t['latest'], BG, FG) }}
+          {% endif %}
+        {% endfor %}
+      {% elif box=='in' %}
+        {# 평면(대화묶기 OFF) #}
+        {% for m in mails %}{{ mailrow(m, BG, FG) }}{% endfor %}
+      {% else %}
+        {# 보낸/임시함: 기존 평면 목록 #}
+        {% for m in mails %}
+        <a href="{% if box=='draft' %}/mail/compose?draft={{ m.id }}{% else %}/mail/{{ m.id }}{% endif %}" class="mbx-row">
+          {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
+          <div class="mbx-from">→ {{ m.to_email or '(받는사람 미정)' }}</div>
+          <div class="mbx-main">
+            <div class="mbx-subj">{{ m.subject }}</div>
+            {% if m.summary_short %}<div class="mbx-sum">{{ m.summary_short }}</div>{% endif %}
+          </div>
+          {% if box != 'draft' %}<span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}
+          <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
+        </a>
+        {% endfor %}
+      {% endif %}
     </div>
     {% else %}
     <div class="mbx-list"><div class="mbx-empty">
@@ -176,15 +241,18 @@ function setUnread(n){
 function curUnread(){ var b=document.getElementById('unreadBadge'); return b?(parseInt(b.textContent||'0',10)||0):0; }
 function decUnreadBadge(){ setUnread(curUnread()-1); }
 function incUnreadBadge(){ setUnread(curUnread()+1); }
+function clearActive(){
+  document.querySelectorAll('.mbx-row.active, .mbx-headlink.active').forEach(function(r){ r.classList.remove('active'); });
+}
 function resetPane(){
   var pane=document.getElementById('readPane'); if(!pane) return;
-  document.querySelectorAll('.mbx-row.active').forEach(function(r){ r.classList.remove('active'); });
+  clearActive();
   pane.classList.add('empty');
   pane.innerHTML='<div class="mbx-rp-ico">📧</div>왼쪽에서 메일을 선택하면<br>여기에서 바로 내용을 볼 수 있어요.';
 }
 async function loadPane(id, rowEl){
   var pane=document.getElementById('readPane'); if(!pane) return;
-  document.querySelectorAll('.mbx-row.active').forEach(function(r){ r.classList.remove('active'); });
+  clearActive();
   if(rowEl) rowEl.classList.add('active');
   pane.classList.remove('empty');
   pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#9ca3af">메일 불러오는 중…</div>';
@@ -205,14 +273,29 @@ async function loadPane(id, rowEl){
 }
 // 읽기 창 안의 삭제/안읽음표시 후 목록 갱신 (mail_view_body.html 스크립트가 호출)
 window.mailPaneAfterDelete=function(id){
-  var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]');
-  if(row){ if(row.classList.contains('unread')) decUnreadBadge(); row.remove(); }
+  // 대화 묶기에서 대표(헤드) 삭제는 in-place 정합이 까다로워 목록 재조회(현재 검색·앱모드 유지)
+  var el=document.querySelector('.mbx-list [data-mail-id="'+id+'"]');
+  if(el && el.classList.contains('mbx-headlink')){ location.href='/mail/inbox'+(location.search||''); return; }
+  if(el){ if(el.classList.contains('unread')) decUnreadBadge(); el.remove(); }
   resetPane();
 };
 window.mailPaneAfterUnread=function(id){
-  var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]');
-  if(row && !row.classList.contains('unread')){ row.classList.add('unread'); incUnreadBadge(); }
+  var el=document.querySelector('.mbx-list [data-mail-id="'+id+'"]');
+  if(el && !el.classList.contains('unread')){
+    el.classList.add('unread'); incUnreadBadge();
+    var head=el.closest('.mbx-thread-head'); if(head) head.classList.add('unread');
+  }
   resetPane();
 };
+// 대화 펼치기/접기 (▸/▾) — 행 로드와 충돌 없게 이벤트 차단
+function toggleThread(ev, btn){
+  ev.preventDefault(); ev.stopPropagation();
+  var thread=btn.closest('.mbx-thread'); if(!thread) return;
+  var kids=thread.querySelector('.mbx-thread-kids'); if(!kids) return;
+  var open = kids.style.display !== 'none';
+  kids.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? '▸' : '▾';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+}
 </script>
 </body></html>
