@@ -41,6 +41,7 @@
     <a href="/mail/inbox?cat={{ ct }}" class="mbx-cat {{ 'on' if cur_cat==ct else '' }}">{{ ct }} <span class="n">{{ cat_counts.get(ct,0) }}</span></a>
     {% endfor %}
     <span style="flex:1"></span>
+    {% if is_admin %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기 설정</a>{% endif %}
     <button type="button" class="btn btn-secondary" onclick="demoMail('vi')">＋ 시범 메일(베트남어)</button>
     <button type="button" class="btn btn-secondary" onclick="demoMail('ko')">＋ 시범 메일(한국어)</button>
   </div>

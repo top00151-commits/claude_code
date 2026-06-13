@@ -275,3 +275,75 @@ def make_demo_mail(c, user_id: int, lang: str = "vi"):
         from_email=s["from_email"], from_name=s["from_name"],
         subject=s["subject"], text=s["text"], size=len(s["text"]),
     )
+
+
+# ─── 받은 메일 원문(MIME) 파싱 — Cloudflare Email Worker 가 보내는 raw 처리 ──
+def _decode_part(part) -> str:
+    """MIME 파트 본문을 charset 고려해 문자열로."""
+    try:
+        payload = part.get_payload(decode=True)
+        if payload is None:
+            return ""
+        charset = part.get_content_charset() or "utf-8"
+        return payload.decode(charset, errors="replace")
+    except Exception:
+        try:
+            return part.get_payload() or ""
+        except Exception:
+            return ""
+
+
+def parse_raw_email(raw: str) -> dict:
+    """raw MIME 문자열 → {from_email, from_name, to_email, subject, text, html, cc, attachments}.
+    파이썬 email 모듈로 안전 파싱(멀티파트·인코딩 헤더 대응). 실패 시 {}."""
+    from email import message_from_string
+    from email.header import decode_header, make_header
+    try:
+        msg = message_from_string(raw or "")
+    except Exception:
+        return {}
+
+    def _h(name: str) -> str:
+        v = msg.get(name, "") or ""
+        try:
+            return str(make_header(decode_header(v)))
+        except Exception:
+            return v
+
+    subject = _h("Subject")
+    from_name, from_addr = parseaddr(_h("From"))
+    to_addr = parseaddr(_h("To"))[1] or _h("To")
+    cc = _h("Cc")
+
+    text, html, atts = "", "", []
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.is_multipart():
+                continue
+            ctype = (part.get_content_type() or "").lower()
+            disp = str(part.get("Content-Disposition") or "").lower()
+            fname = part.get_filename()
+            if "attachment" in disp or fname:
+                if fname:
+                    try:
+                        atts.append(str(make_header(decode_header(fname))))
+                    except Exception:
+                        atts.append(fname)
+                continue
+            if ctype == "text/plain" and not text:
+                text = _decode_part(part)
+            elif ctype == "text/html" and not html:
+                html = _decode_part(part)
+    else:
+        if (msg.get_content_type() or "").lower() == "text/html":
+            html = _decode_part(msg)
+        else:
+            text = _decode_part(msg)
+
+    body = text or _html_to_text(html)
+    if atts:
+        body = (body or "").rstrip() + f"\n\n[첨부 {len(atts)}개: " + ", ".join(atts[:10]) + "]"
+    return {
+        "from_email": from_addr, "from_name": from_name, "to_email": to_addr,
+        "subject": subject, "text": body, "html": html, "cc": cc, "attachments": atts,
+    }
