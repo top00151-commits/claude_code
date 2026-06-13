@@ -6996,7 +6996,8 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                     "invoice_unit_price", "invoice_amount",
                     "invoice_unit_price_usd", "invoice_amount_usd",
                     "duty_krw", "duty_usd", "final_amount_usd",
-                    "description", "pallet_size", "weight_kg"):
+                    "description", "pallet_size", "weight_kg",
+                    "updated_at"):   # v5H226z408: 동시 편집 감지(호기 base_ts)
             if col in oicols:
                 sel_extra.append(col)
         sel_extra_sql = (", " + ", ".join("oi." + x for x in sel_extra)) if sel_extra else ""
