@@ -302,8 +302,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       <span><i style="background:#16a34a;"></i>납품일</span>
       <span><i style="background:#fcd9d9;"></i>지연</span>
     </div>
-    {# v5H226z347 (대표 지시): 신규 등록을 첫 줄 범례 옆(오른쪽)으로 이동 — margin-left:auto 로 우측, 최소 30px 띄움 #}
-    <button type="button" onclick="openRegModal()" style="margin-left:auto;background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);border-radius:7px;padding:6px 16px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">＋</span> 신규 등록</button>
+    {# v5H226z395 (대표 지시): '엑셀로 저장'을 상단 우측 '신규 등록' 왼쪽으로 이동 + 약간 녹색 계열. margin-left:auto 가 우측 그룹화를 맡음. #}
+    <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'" style="margin-left:auto;background:#edfaf1;color:#15803d;border:1px solid #7fc49b;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">📥</span> 엑셀로 저장</button>
+    {# v5H226z347→z395 (대표 지시): 신규 등록 — 우측 끝(엑셀 버튼이 margin-left:auto 를 맡으므로 여긴 기본 gap 간격) #}
+    <button type="button" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);border-radius:7px;padding:6px 16px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">＋</span> 신규 등록</button>
   </div>
 
   {# v5H226z275/z345 (대표 지시): 사업부별 탭 — 3개 행 시각 구분 띠(band) · 파랑=보기/필터 #}
@@ -326,7 +328,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <span class="band-tag">작업·보기</span>
     <button type="button" onclick="schedFullscreen()"><span class="ti">⛶</span> 전체화면 보기</button>
     <button type="button" onclick="openPrintModal()" title="출력할 컬럼·날짜 구간을 골라 인쇄 (회의 출력용)"><span class="ti">🖨</span> 인쇄(컬럼·구간 선택)</button>
-    <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'"><span class="ti">📥</span> 엑셀로 저장</button>
+    {# v5H226z395 (대표 지시): '엑셀로 저장'은 상단 '신규 등록' 옆으로 이동(아래 sched-top). #}
     <div class="tool-box">
       <div class="cols-menu">
         <button type="button" class="tool-btn" onclick="toggleColsMenu(event)"><span class="ti">☷</span> 칸 표시/숨기기 ▾</button>
