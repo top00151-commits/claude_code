@@ -188,10 +188,10 @@
   function setW(p){ if(!selImg)return; selImg.style.width=p; selImg.style.height='auto'; posTb(); }
   function resizeBy(f){ if(!selImg)return; var w=selImg.getBoundingClientRect().width*f; selImg.style.width=Math.max(40,Math.round(w))+'px'; selImg.style.height='auto'; posTb(); }
   function alignImg(m){ if(!selImg)return; selImg.style.display='block'; selImg.style.margin=m; posTb(); }
-  function rotate90(){ if(!selImg)return; var img=selImg, im=new Image();
+  function rotate90(){ if(!selImg)return; var img=selImg, curW=Math.round(img.getBoundingClientRect().width), im=new Image();
     im.onload=function(){ try{ var c=document.createElement('canvas'); c.width=im.naturalHeight; c.height=im.naturalWidth;
       var x=c.getContext('2d'); x.translate(c.width/2,c.height/2); x.rotate(Math.PI/2); x.drawImage(im,-im.naturalWidth/2,-im.naturalHeight/2);
-      img.src=c.toDataURL('image/png'); img.style.width=''; img.style.height='auto'; setTimeout(posTb,30);
+      img.src=c.toDataURL('image/png'); img.style.width=curW+'px'; img.style.height='auto'; setTimeout(posTb,30);  // 조정한 크기 유지
     }catch(err){ alert('외부(웹) 이미지는 회전이 안 됩니다 — 붙여넣은 이미지만 가능합니다.'); } };
     im.src=img.src; }
   function showImgTb(img){
@@ -212,6 +212,7 @@
   window.addEventListener('scroll',posTb,true); window.addEventListener('resize',posTb);
 
   function openCrop(img){
+    var preW=Math.round(img.getBoundingClientRect().width);  // 자르기 전 표시 너비(배율 유지용)
     var mask=document.createElement('div'); mask.className='crop-mask';
     var box=document.createElement('div'); box.className='crop-box';
     var title=document.createElement('div'); title.textContent='✂ 자르기 — 영역을 끌어 옮기고 오른쪽 아래 점으로 크기를 조절하세요';
@@ -249,7 +250,8 @@
         var cw=Math.round(sel.offsetWidth*sx), ch=Math.round(sel.offsetHeight*sy);
         var c=document.createElement('canvas'); c.width=cw; c.height=ch;
         c.getContext('2d').drawImage(im, sel.offsetLeft*sx, sel.offsetTop*sy, cw, ch, 0,0, cw,ch);
-        img.src=c.toDataURL('image/png'); img.style.width=''; img.style.height='auto'; close(); setTimeout(posTb,30);
+        var newW=Math.max(40, Math.round(preW * (sel.offsetWidth / W)));  // 자르기 전 배율 유지
+        img.src=c.toDataURL('image/png'); img.style.width=newW+'px'; img.style.height='auto'; close(); setTimeout(posTb,30);
       }catch(err){ alert('외부(웹) 이미지는 자르기가 안 됩니다 — 붙여넣은 이미지만 가능합니다.'); }
     });
     im.addEventListener('load', initCrop);
