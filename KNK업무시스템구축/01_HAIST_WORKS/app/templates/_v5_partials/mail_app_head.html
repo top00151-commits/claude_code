@@ -10,6 +10,16 @@
   .mail-app-top a:hover { background:rgba(255,255,255,.16); opacity:1; }
   .mail-app-top .sp { flex:1; }
   .mail-app-top .exit { font-size:12px; opacity:.85; border:1px solid rgba(255,255,255,.4); }
+  /* 접속자(로그인 사용자) 정보 — 누가 로그인했는지 표시 (대표 지시 2026-06-14) */
+  .mail-app-top .me { display:inline-flex; align-items:center; gap:7px; font-size:12.5px;
+    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.28);
+    padding:4px 11px; border-radius:999px; white-space:nowrap; }
+  .mail-app-top .me .av { width:20px; height:20px; border-radius:50%; background:#fff;
+    color:var(--knk-red,#b91c1c); font-weight:800; font-size:11px; display:inline-flex;
+    align-items:center; justify-content:center; }
+  .mail-app-top .me b { font-weight:700; }
+  .mail-app-top .me .role { opacity:.85; }
+  .mail-app-top .me .addr { opacity:.8; font-size:11.5px; }
 </style>
 <div class="mail-app-top">
   <span class="brand">📧 HAIST WORKS 메일함</span>
@@ -18,5 +28,10 @@
   <a href="/mail/drafts">임시보관함</a>
   <a href="/mail/compose">✏️ 쓰기</a>
   <span class="sp"></span>
+  {% if user %}{% set _dn = vname(user) or '사용자' %}
+  <span class="me" title="현재 로그인한 사용자(접속자) — KNK Eum 자동 로그인">
+    <span class="av">{{ _dn[0] }}</span>
+    <b>{{ _dn }}</b>{% if user.rank %}<span class="role">· {{ user.rank }}</span>{% endif %}{% if user.team_name %}<span class="role">· {{ user.team_name }}</span>{% endif %}
+  </span>{% endif %}
   <a href="/mail/inbox?app=0" class="exit" title="WORKS 전체화면(사이드바)으로 보기">⤢ WORKS 전체화면</a>
 </div>
