@@ -53,6 +53,18 @@
     {% endif %}
   </div>
 
+  <form method="get" action="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}" class="mbx-toolbar" style="margin-top:-4px;">
+    <input type="text" name="q" value="{{ q|default('') }}" autocomplete="off"
+           placeholder="🔍 {{ '받는사람' if box=='sent' else '보낸사람' }}·제목·본문 검색"
+           style="flex:1;min-width:200px;padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;outline:none;">
+    <button type="submit" class="btn btn-secondary">검색</button>
+    {% if q %}<a href="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}" class="btn btn-secondary">✕ 해제</a>{% endif %}
+    {% if box=='in' %}
+      <a href="/mail/inbox?star=1" class="mbx-cat {{ 'on' if cur_star|default(false) else '' }}">⭐ 별표</a>
+      <a href="/mail/inbox?unread=1" class="mbx-cat {{ 'on' if cur_unread|default(false) else '' }}">● 안읽음</a>
+    {% endif %}
+  </form>
+
   {% if not ai_on %}
   <div class="form-card" style="border-color:var(--amber);margin-bottom:12px;">
     <div style="font-size:12.5px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 AI 키가 설정돼 있을 때 작동합니다. 지금은 메일 저장·열람만 됩니다.</div>
@@ -76,7 +88,9 @@
   </div>
   {% else %}
   <div class="mbx-list"><div class="mbx-empty">
-    {% if box=='sent' %}
+    {% if q or cur_star|default(false) or cur_unread|default(false) %}
+    🔍 조건에 맞는 메일이 없습니다.<br><br><span style="font-size:12.5px;">검색어나 필터를 바꿔보세요.</span>
+    {% elif box=='sent' %}
     📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
     {% else %}
     📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>＋ 시범</b> 버튼으로 동작을 보거나, 실제 메일이 오면 여기 쌓입니다.</span>

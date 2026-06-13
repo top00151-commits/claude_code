@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 서명 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .sig-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:720px}
+  .sig-ta{width:100%;min-height:200px;border:1px solid var(--line);border-radius:10px;outline:none;
+    font-size:14px;line-height:1.7;resize:vertical;padding:12px;font-family:inherit;box-sizing:border-box}
+  .sig-actions{display:flex;gap:8px;align-items:center;margin-top:12px}
+  .sig-tip{font-size:12px;color:var(--mute);line-height:1.7;margin-top:10px}
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 서명</div>
+    <h1 class="page-title">✍️ 메일 <em>서명</em></h1>
+  </div></div>
+
+  <div class="sig-card">
+    <div style="font-size:13px;color:var(--mute);margin-bottom:8px;">아래에 서명을 한 번 저장하면, <b>메일 쓰기·답장·전달</b> 시 본문에 자동으로 들어갑니다.</div>
+    <textarea id="sBody" class="sig-ta" placeholder="예)&#10;㈜케이엔케이  김정락 대표&#10;Mobile. 010-0000-0000&#10;E-mail. you@knknara.co.kr&#10;Homepage. www.knknara.co.kr">{{ sig }}</textarea>
+    <div class="sig-actions">
+      <button type="button" class="btn btn-primary" onclick="saveSig()">💾 저장</button>
+      <a href="/mail/compose" class="btn btn-secondary">메일 쓰기로</a>
+      <span id="sMsg" style="font-size:12.5px;margin-left:6px;"></span>
+    </div>
+    <div class="sig-tip">※ 서명은 본인에게만 적용됩니다. 비우고 저장하면 서명 없이 보냅니다.<br>
+      ※ 보낼 때 본문 맨 아래에 <code>--</code> 구분선과 함께 들어갑니다.</div>
+  </div>
+</main></div>
+<script>
+(function(){
+  function smsg(t,c){ var m=document.getElementById('sMsg'); if(!m)return; m.textContent=t;
+    m.style.color = c==='green'?'var(--success)':(c==='red'?'var(--knk-red)':'var(--mute)'); }
+  window.saveSig=async function(){
+    var fd=new FormData(); fd.append('body', document.getElementById('sBody').value);
+    smsg('저장 중...','');
+    try{ var r=await fetch('/mail/signature',{method:'POST',body:fd}); var j=await r.json();
+      if(j.ok){ smsg('✅ 저장했습니다','green'); } else { smsg('⚠ 저장 실패','red'); }
+    }catch(e){ smsg('⚠ 네트워크 오류','red'); }
+  };
+})();
+</script>
+</body></html>

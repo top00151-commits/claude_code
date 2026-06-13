@@ -177,12 +177,22 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
 
 
 # ─── 조회 ───────────────────────────────────────────────────────────
-def list_inbox(c, user_id: int, *, category: str = "", limit: int = 200, offset: int = 0):
+def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
+               starred=None, unread=None, limit: int = 200, offset: int = 0):
     where = "user_id=? AND direction='in' AND is_deleted=0"
     args = [user_id]
     if category and category in CATEGORIES:
         where += " AND category=?"
         args.append(category)
+    if starred:
+        where += " AND is_starred=1"
+    if unread:
+        where += " AND is_read=0"
+    q = (q or "").strip()
+    if q:
+        where += " AND (from_email LIKE ? OR from_name LIKE ? OR subject LIKE ? OR body_text LIKE ?)"
+        like = f"%{q}%"
+        args += [like, like, like, like]
     rows = c.execute(
         f"""SELECT id, from_email, from_name, subject, category, lang,
                    is_read, is_starred, received_at,
@@ -228,15 +238,66 @@ def store_outbound(c, *, user_id: int, from_email: str, to_email: str, subject: 
     return cur.lastrowid
 
 
-def list_sent(c, user_id: int, *, limit: int = 200, offset: int = 0):
+def list_sent(c, user_id: int, *, q: str = "", limit: int = 200, offset: int = 0):
+    where = "user_id=? AND direction='out' AND is_deleted=0"
+    args = [user_id]
+    q = (q or "").strip()
+    if q:
+        where += " AND (to_email LIKE ? OR subject LIKE ? OR body_text LIKE ?)"
+        like = f"%{q}%"
+        args += [like, like, like]
     rows = c.execute(
-        """SELECT id, to_email, from_name, subject, category, received_at, is_starred,
+        f"""SELECT id, to_email, from_name, subject, category, received_at, is_starred,
                   substr(COALESCE(body_text,''),1,160) AS summary_short
-           FROM mail_messages WHERE user_id=? AND direction='out' AND is_deleted=0
+           FROM mail_messages WHERE {where}
            ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?""",
-        (user_id, limit, offset),
+        (*args, limit, offset),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ─── 편의: 서명 · 연락처 자동완성 (2026-06-13 대표 지시) ─────────────
+def get_signature(c, user_id: int) -> str:
+    r = c.execute("SELECT body FROM mail_signatures WHERE user_id=?", (user_id,)).fetchone()
+    return (r["body"] if r else "") or ""
+
+
+def save_signature(c, user_id: int, body: str) -> None:
+    c.execute(
+        "INSERT INTO mail_signatures(user_id, body, updated_at) "
+        "VALUES(?,?,datetime('now','localtime')) "
+        "ON CONFLICT(user_id) DO UPDATE SET body=excluded.body, updated_at=excluded.updated_at",
+        (user_id, (body or "").strip()),
+    )
+
+
+def search_contacts(c, q: str, limit: int = 8):
+    """전사 연락처(shared_contacts)에서 받는사람 자동완성 후보."""
+    q = (q or "").strip()
+    if not q:
+        return []
+    like = f"%{q}%"
+    try:
+        rows = c.execute(
+            """SELECT name, email, company, position FROM shared_contacts
+               WHERE email IS NOT NULL AND email<>''
+                 AND (name LIKE ? OR email LIKE ? OR company LIKE ?)
+               ORDER BY name LIMIT ?""",
+            (like, like, like, int(limit) * 3),
+        ).fetchall()
+    except Exception:
+        return []
+    out, seen = [], set()
+    for r in rows:
+        em = (r["email"] or "").strip()
+        if not em or em.lower() in seen:
+            continue
+        seen.add(em.lower())
+        out.append({"name": r["name"] or "", "email": em,
+                    "company": r["company"] or "", "position": r["position"] or ""})
+        if len(out) >= limit:
+            break
+    return out
 
 
 def count_sent(c, user_id: int) -> int:

@@ -9,6 +9,7 @@
   .cmp-row input{flex:1;border:0;font-size:14px;outline:none;background:transparent}
   .cmp-body{width:100%;min-height:300px;border:0;outline:none;font-size:14px;line-height:1.75;resize:vertical;padding:12px 2px;font-family:inherit;box-sizing:border-box}
   .cmp-actions{display:flex;gap:8px;align-items:center;margin-top:12px}
+  .ac-box div:hover{background:#f5f7ff}
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
@@ -44,6 +45,7 @@
     <div class="cmp-actions">
       <button type="button" class="btn btn-primary" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
       <a href="/mail/inbox" class="btn btn-secondary">취소</a>
+      <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
       <span id="cMsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     <div style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 일반 첨부 합계 24MB 이하. 더 큰 파일은 위 <b>대용량 첨부</b>(NAS 링크·30일 유효)로 보내세요.</div>
@@ -107,6 +109,47 @@
       else { cmsg('⚠ '+(j.message||'발송 실패'),'red'); btn.disabled=false; }
     }catch(e){ cmsg('⚠ 네트워크 오류','red'); btn.disabled=false; }
   };
+
+  // ── 받는사람 자동완성 (전사 연락처) — 쉼표로 여러 명, 마지막 토큰 기준 ──
+  function lastTok(v){ var p=(v||'').split(','); return {pre:p.slice(0,-1).join(','), tok:p[p.length-1].trim()}; }
+  function setupAC(input){
+    if(!input) return;
+    var box=null, items=[], timer=null;
+    function close(){ if(box){ box.remove(); box=null; } items=[]; }
+    function choose(i){ var it=items[i]; if(!it)return; var lt=lastTok(input.value);
+      input.value=(lt.pre? lt.pre.trim()+', ':'')+it.email; close(); input.focus(); }
+    function render(list){
+      close(); if(!list.length) return; items=list;
+      box=document.createElement('div'); box.className='ac-box';
+      var r=input.getBoundingClientRect();
+      box.style.cssText='position:absolute;z-index:9999;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.13);max-height:240px;overflow:auto;';
+      box.style.left=(r.left+window.scrollX)+'px'; box.style.top=(r.bottom+window.scrollY+2)+'px'; box.style.width=Math.max(r.width,240)+'px';
+      list.forEach(function(it,i){
+        var d=document.createElement('div'); d.style.cssText='padding:7px 11px;cursor:pointer;border-bottom:1px solid #f1f1f1';
+        var nm=document.createElement('div'); nm.style.fontWeight='600'; nm.style.fontSize='13px';
+        nm.textContent=(it.name||'')+(it.company? ' · '+it.company:'')+(it.position? ' '+it.position:'');  // textContent=XSS 안전
+        var em=document.createElement('div'); em.style.cssText='color:var(--mute);font-size:11.5px'; em.textContent=it.email;
+        d.appendChild(nm); d.appendChild(em);
+        d.addEventListener('mousedown',function(e){ e.preventDefault(); choose(i); });
+        box.appendChild(d);
+      });
+      document.body.appendChild(box);
+    }
+    input.addEventListener('input',function(){
+      var lt=lastTok(input.value);
+      if(timer) clearTimeout(timer);
+      if(lt.tok.length<1){ close(); return; }
+      timer=setTimeout(async function(){
+        try{ var r=await fetch('/api/mail/contacts?q='+encodeURIComponent(lt.tok));
+          var j=await r.json();
+          if(j.ok && j.items && j.items.length) render(j.items); else close();
+        }catch(e){ close(); }
+      },180);
+    });
+    input.addEventListener('blur',function(){ setTimeout(close,160); });
+  }
+  setupAC(document.getElementById('cTo'));
+  setupAC(document.getElementById('cCc'));
 })();
 </script>
 </body></html>

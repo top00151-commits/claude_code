@@ -10323,17 +10323,18 @@ async def admin_mail_inbound_bind(req: Request):
 
 
 @app.get("/mail/inbox")
-async def mail_inbox_page(req: Request, cat: str = ""):
+async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
-        mails = _mailbox.list_inbox(c, u["id"], category=cat)
-        unread = _mailbox.count_unread(c, u["id"])
+        mails = _mailbox.list_inbox(c, u["id"], category=cat, q=q,
+                                    starred=bool(star), unread=bool(unread))
+        unread_n = _mailbox.count_unread(c, u["id"])
         cat_counts = _mailbox.category_counts(c, u["id"])
-    return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
+    return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread_n,
                cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES,
-               ai_on=ai_enabled_for(u))
+               ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread))
 
 
 @app.post("/mail/inbox/demo")
@@ -10456,26 +10457,74 @@ async def mail_translate(req: Request, mail_id: int):
     return JSONResponse({"ok": True, "subject": res["subject"], "body": res["body"]})
 
 
+@app.get("/api/mail/contacts")
+async def mail_contacts_api(req: Request, q: str = ""):
+    """메일 쓰기 받는사람 자동완성 — 전사 연락처(shared_contacts)에서 추천."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        items = _mailbox.search_contacts(c, q, limit=8)
+    return JSONResponse({"ok": True, "items": items})
+
+
+@app.get("/mail/signature", response_class=HTMLResponse)
+async def mail_signature_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        sig = _mailbox.get_signature(c, u["id"])
+    return ctx(req, "mail_signature.html", user=u, sig=sig)
+
+
+@app.post("/mail/signature")
+async def mail_signature_save(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    form = await req.form()
+    body = (form.get("body") or "")
+    with db_session() as c:
+        _mailbox.save_signature(c, u["id"], body)
+    return JSONResponse({"ok": True})
+
+
 # ─── 보내기 (메일 쓰기·답장·발송·보낸편지함 + 발송망 설정) ───────────────
 def _mail_from_address() -> str:
     return (get_setting("mail_from_address", "") or "").strip() or _MAIL_POC_ADDR
 
 
 @app.get("/mail/compose", response_class=HTMLResponse)
-async def mail_compose_page(req: Request, reply: int = 0):
+async def mail_compose_page(req: Request, reply: int = 0, forward: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     prefill = {"to": "", "cc": "", "subject": "", "body": ""}
     with db_session() as c:
         ready = _mail.system_send_ready(c)
+        sig = _mailbox.get_signature(c, u["id"])
+        sigblock = ("\n\n--\n" + sig) if sig else ""
         if reply:
             m = _mailbox.get_mail(c, reply, u["id"])
             if m:
                 prefill["to"] = m.get("from_email") or ""
                 subj = (m.get("subject") or "").strip()
                 prefill["subject"] = subj if subj.lower().startswith("re:") else f"Re: {subj}"
-                prefill["body"] = "\n\n\n──────── 원본 메일 ────────\n" + (m.get("body_text") or "")
+                prefill["body"] = sigblock + "\n\n\n──────── 원본 메일 ────────\n" + (m.get("body_text") or "")
+        elif forward:
+            m = _mailbox.get_mail(c, forward, u["id"])
+            if m:
+                subj = (m.get("subject") or "").strip()
+                lo = subj.lower()
+                prefill["subject"] = subj if (lo.startswith("fwd:") or lo.startswith("fw:")) else f"Fwd: {subj}"
+                hdr = ("\n\n──────── 전달된 메일 ────────\n"
+                       f"보낸사람: {m.get('from_name') or ''} <{m.get('from_email') or ''}>\n"
+                       f"제목: {m.get('subject') or ''}\n"
+                       f"받은시각: {m.get('received_at') or ''}\n\n")
+                prefill["body"] = sigblock + hdr + (m.get("body_text") or "")
+        else:
+            prefill["body"] = sigblock
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
                from_addr=_mail_from_address())
 
@@ -10597,17 +10646,17 @@ async def mail_large_download(req: Request, token: str):
 
 
 @app.get("/mail/sent", response_class=HTMLResponse)
-async def mail_sent_page(req: Request):
+async def mail_sent_page(req: Request, q: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
-        mails = _mailbox.list_sent(c, u["id"])
+        mails = _mailbox.list_sent(c, u["id"], q=q)
         sent_n = _mailbox.count_sent(c, u["id"])
         unread = _mailbox.count_unread(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
-               ai_on=ai_enabled_for(u), box="sent", sent_n=sent_n)
+               ai_on=ai_enabled_for(u), box="sent", sent_n=sent_n, q=q)
 
 
 @app.get("/admin/mail-send", response_class=HTMLResponse)

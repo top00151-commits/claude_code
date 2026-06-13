@@ -370,6 +370,13 @@ CREATE TABLE IF NOT EXISTS mail_large_files (
 );
 CREATE INDEX IF NOT EXISTS idx_mlf_token ON mail_large_files(token);
 
+-- 메일 서명(2026-06-13 대표 지시·편의기능): 직원별 1회 저장 → 메일 쓸 때 자동 삽입.
+CREATE TABLE IF NOT EXISTS mail_signatures (
+    user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    body       TEXT,
+    updated_at TEXT DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     code TEXT,
