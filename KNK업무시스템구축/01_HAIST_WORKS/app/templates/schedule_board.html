@@ -51,7 +51,7 @@
 .band-view   { background:#f4f5f7; border-color:#e3e5ea; }  .band-view   > .band-tag { background:#6b7280; }
 /* v5H226z366 (대표 지시): 찾기·일괄 띠 + 검색창 + 행 선택/일괄수정 바 */
 .band-find   { background:#eef7f0; border-color:#cfe6d6; }  .band-find   > .band-tag { background:#2f8a52; }
-.sched-search { width:330px; max-width:44vw; padding:5px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:#fff; }
+.sched-search { width:260px; max-width:40vw; padding:5px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:#fff; }
 /* v5H226z371 (대표 지시): 기간(범위) 찾기 입력 */
 .period-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:8px; background:#fff; }
 .period-grp.on { border-color:#2f8a52; background:#eef7f0; }
@@ -98,6 +98,12 @@
 .victor-open .tool-grp { padding:2px 7px; gap:4px; }
 .victor-open .sb-band > .band-tag { min-width:46px; padding:3px 7px; }
 .victor-open .sched-hint { font-size:9px; }
+/* z398(대표 지시): dock 열림 시 '찾기·일괄' 줄(검색·기간·보이는 행 전체선택)이 한 줄에 들어오게 더 촘촘히 */
+.victor-open .sched-search { width:185px; max-width:34vw; }
+.victor-open .find-grp, .victor-open .period-grp { gap:4px; }
+.victor-open .period-inp { padding:3px 4px; font-size:11px; }
+.victor-open .period-go { padding:3px 8px; }
+.victor-open .selall-lab { padding:2px 7px; font-size:11px; }
 
 .sched-wrap { margin:0 var(--content-pad); border:1px solid var(--line); border-radius:10px;
   overflow:auto; max-height:calc(100vh - 250px); background:var(--paper-3); }
