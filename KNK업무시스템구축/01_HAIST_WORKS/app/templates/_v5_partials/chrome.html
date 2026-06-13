@@ -257,6 +257,7 @@
   {{ a('/admin/permissions', '🔐 권한 위임', 'M-04-02') }}
   {% if _role in ('ceo','admin') %}{{ a('/admin/ai-settings', '🤖 AI 모델 설정', 'M-04-08') }}{% endif %}
   {% if _role in ('ceo','admin') %}{{ a('/admin/reset-demo', '🗑 데모 초기화', 'M-04-09') }}{% endif %}
+  {% if _role in ('ceo','admin') %}{{ a('/admin/test-data', '🧪 검증 데이터 관리', 'M-04-10') }}{% endif %}
   {% endif %}
 
   <div class="sb-group">&nbsp;</div>
