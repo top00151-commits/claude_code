@@ -317,8 +317,10 @@
     pastePop.style.left=(rect.left+window.scrollX)+'px'; pastePop.style.top=(rect.bottom+window.scrollY+4)+'px';
   });
 
-  var selCell=null, tblTb=null;
-  function clearTbl(){ if(selCell) selCell.classList.remove('tblsel'); selCell=null; if(tblTb){ tblTb.remove(); tblTb=null; } }
+  var selCell=null, selCells=[], selRect=null, tblTb=null, tblBorderColor='#888888';
+  function clearTbl(){ selCells.forEach(function(c){ c.classList.remove('tblsel'); }); selCells=[]; selCell=null; selRect=null; if(tblTb){ tblTb.remove(); tblTb=null; } }
+  function markSel(cells){ selCells.forEach(function(c){ c.classList.remove('tblsel'); }); selCells=cells; cells.forEach(function(c){ c.classList.add('tblsel'); }); }
+  function eachSel(fn){ (selCells.length? selCells : (selCell?[selCell]:[])).forEach(fn); }
   function posTblTb(){ if(!selCell||!tblTb)return; var t=selCell.closest('table'); if(!t)return; var r=t.getBoundingClientRect();
     tblTb.style.left=(r.left+window.scrollX)+'px'; tblTb.style.top=Math.max(0,(r.top+window.scrollY-32))+'px'; }
   function cellPos(cell){ var tr=cell.parentNode, table=cell.closest('table');
@@ -336,21 +338,60 @@
   function toggleHeader(){ if(!selCell)return; var first=selCell.closest('table').rows[0]; if(!first)return;
     var on=/f3f4f6/.test(first.cells[0] ? (first.cells[0].getAttribute('style')||'') : '');
     Array.prototype.forEach.call(first.cells,function(c){ c.setAttribute('style', TD_STYLE + (on? '' : ';background:#f3f4f6;font-weight:700')); }); }
+  function selectRange(anchor, target){
+    var pa=cellPos(anchor), pt=cellPos(target), table=pa.table;
+    var r0=Math.min(pa.ri,pt.ri), r1=Math.max(pa.ri,pt.ri), c0=Math.min(pa.ci,pt.ci), c1=Math.max(pa.ci,pt.ci);
+    var cells=[]; for(var r=r0;r<=r1;r++){ var tr=table.rows[r]; if(!tr)continue; for(var c=c0;c<=c1;c++){ if(tr.cells[c]) cells.push(tr.cells[c]); } }
+    markSel(cells); selRect={r0:r0,r1:r1,c0:c0,c1:c1,table:table}; }
+  function setBorder(spec){ eachSel(function(c){ c.style.border=spec; }); }
+  function mergeSel(){
+    if(!selRect || selCells.length<2){ alert('Shift+클릭으로 셀 2개 이상을 선택한 뒤 병합하세요.'); return; }
+    var table=selRect.table, anchor=table.rows[selRect.r0].cells[selRect.c0]; if(!anchor)return;
+    var texts=[]; selCells.forEach(function(c){ if(c!==anchor){ var t=(c.innerText||'').trim(); if(t) texts.push(t); } });
+    selCells.forEach(function(c){ if(c!==anchor && c.parentNode) c.parentNode.removeChild(c); });
+    anchor.colSpan=selRect.c1-selRect.c0+1; anchor.rowSpan=selRect.r1-selRect.r0+1;
+    var a=(anchor.innerText||'').trim(); anchor.innerHTML=escHtml([a].concat(texts).filter(Boolean).join(' '))||'&nbsp;';
+    clearTbl(); showTblTb(anchor); }
+  function unmergeSel(){
+    if(!selCell)return; var cell=selCell, cs=cell.colSpan||1, rs=cell.rowSpan||1; if(cs<=1 && rs<=1)return;
+    var p=cellPos(cell), table=p.table, r0=p.ri, c0=p.ci; cell.colSpan=1; cell.rowSpan=1;
+    for(var i=1;i<cs;i++) cell.parentNode.insertBefore(newCell(), cell.nextSibling);
+    for(var r=r0+1;r<r0+rs;r++){ var tr=table.rows[r]; if(!tr)continue; var ref=tr.cells[c0]||null; for(var j=0;j<cs;j++) tr.insertBefore(newCell(), ref); }
+    clearTbl(); showTblTb(cell); }
   function showTblTb(cell){
-    clearImgSel(); clearTbl(); selCell=cell; cell.classList.add('tblsel');
+    clearImgSel(); clearTbl(); selCell=cell; markSel([cell]);
+    var cp=cellPos(cell); selRect={r0:cp.ri,r1:cp.ri,c0:cp.ci,c1:cp.ci,table:cp.table};
     tblTb=document.createElement('div'); tblTb.className='tbl-tb';
     function mk(t,fn){ var b=document.createElement('button'); b.type='button'; b.textContent=t;
       b.addEventListener('mousedown',function(e){e.preventDefault();});
       b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();fn();}); tblTb.appendChild(b); }
     function sep(){ var s=document.createElement('span'); s.className='sep'; tblTb.appendChild(s); }
+    function mkColor(label, def, fn){ var l=document.createElement('label');
+      l.style.cssText='position:relative;height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;display:inline-flex;align-items:center;padding:0 7px;font-size:11.5px';
+      l.textContent=label; var inp=document.createElement('input'); inp.type='color'; inp.value=def;
+      inp.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%';
+      inp.addEventListener('mousedown',function(e){e.stopPropagation();});
+      inp.addEventListener('input',function(){ fn(inp.value); }); l.appendChild(inp); tblTb.appendChild(l); }
     mk('＋행▼',function(){addRow(true);}); mk('＋행▲',function(){addRow(false);}); mk('−행',delRow); sep();
     mk('＋열▶',function(){addCol(true);}); mk('＋열◀',function(){addCol(false);}); mk('−열',delCol); sep();
-    mk('헤더행',toggleHeader); mk('🗑 표삭제',function(){ var t=selCell.closest('table'); clearTbl(); if(t)t.remove(); });
+    mk('🔗 병합',mergeSel); mk('해제',unmergeSel); mk('헤더행',toggleHeader); sep();
+    mkColor('🎨채움','#fff7d6',function(v){ eachSel(function(c){ c.style.backgroundColor=v; }); });
+    mkColor('✏️글자','#111111',function(v){ eachSel(function(c){ c.style.color=v; }); }); sep();
+    mk('실선',function(){ setBorder('1px solid '+tblBorderColor); });
+    mk('굵게',function(){ setBorder('2px solid '+tblBorderColor); });
+    mk('점선',function(){ setBorder('1px dashed '+tblBorderColor); });
+    mk('없음',function(){ setBorder('none'); });
+    mkColor('🖋선색',tblBorderColor,function(v){ tblBorderColor=v; eachSel(function(c){ c.style.borderColor=v; }); }); sep();
+    mk('🗑 표삭제',function(){ var t=selCell.closest('table'); clearTbl(); if(t)t.remove(); });
     document.body.appendChild(tblTb); posTblTb();
   }
+  if(ED) ED.addEventListener('mousedown',function(e){ if(e.shiftKey && e.target.closest && e.target.closest('td,th')) e.preventDefault(); });
   if(ED) ED.addEventListener('click',function(e){
     var cell=(e.target && e.target.closest)? e.target.closest('td,th') : null;
-    if(cell && ED.contains(cell)) showTblTb(cell); else clearTbl();
+    if(cell && ED.contains(cell)){
+      if(e.shiftKey && selCell && selCell.closest('table')===cell.closest('table')) selectRange(selCell, cell);
+      else showTblTb(cell);
+    } else clearTbl();
   });
   document.addEventListener('click',function(e){
     if(pastePop && !pastePop.contains(e.target)) closePaste();
