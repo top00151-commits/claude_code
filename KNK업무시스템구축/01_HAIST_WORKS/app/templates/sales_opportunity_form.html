@@ -47,6 +47,29 @@
 .op-flist li .sz{color:#94a3b8;font-size:11px;}
 .op-flist li .del{color:#b91c1c;font-weight:800;text-decoration:none;margin-left:auto;}
 .op-fnone{color:#cbd5e1;font-size:11.5px;}
+/* z421 부서 요청(수주 전 부서 협업) */
+.op-sub{font-weight:400;color:#94a3b8;font-size:11.5px;}
+.op-reqform{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:7px;}
+.op-reqform select,.op-reqform input[type=text]{padding:7px 10px;border:1px solid #d6cdb6;border-radius:7px;font-size:13px;font-family:inherit;}
+.op-reqform input[type=text]{flex:1;min-width:200px;}
+.op-reqform input[type=date]{padding:6px 9px;border:1px solid #d6cdb6;border-radius:7px;font-size:12.5px;}
+.op-reqhint{font-size:11.5px;color:#64748b;margin-bottom:9px;}
+.op-reqhint a{color:#1d4ed8;font-weight:700;text-decoration:none;}
+.op-reqlist{list-style:none;margin:0;padding:0;}
+.op-reqlist li{border:1px solid #eef0f3;border-radius:9px;padding:9px 12px;margin-bottom:7px;background:#fbfcfe;}
+.op-reqhead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.op-reqdept{font-weight:800;font-size:13.5px;color:#1e293b;}
+.op-reqbadge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;}
+.op-reqbadge.st-requested{background:#fef9c3;color:#854d0e;}
+.op-reqbadge.st-assigned{background:#e0edff;color:#1d4ed8;}
+.op-reqbadge.st-in_progress{background:#dcfce7;color:#166534;}
+.op-reqbadge.st-done{background:#e2e8f0;color:#475569;}
+.op-reqbadge.st-hold{background:#fde2e2;color:#991b1b;}
+.op-reqdue{font-size:11.5px;color:#64748b;}
+.op-reqx{padding:3px 10px;border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;}
+.op-reqdetail{font-size:12.5px;color:#334155;margin:5px 0 4px;}
+.op-reqmeta{font-size:11.5px;color:#64748b;}
+.op-reqmeta b{color:#1e293b;}
 </style></head>
 <body>
 <div class="app">{% set active_tab='sales' %}
@@ -60,6 +83,9 @@
     {% if request.query_params.get('saved') %}<div class="op-saved">✅ 저장됐습니다.</div>{% endif %}
     {% if request.query_params.get('error') == 'title' %}<div class="op-err">건명을 입력해 주세요.</div>{% endif %}
     {% if request.query_params.get('promote_err') %}<div class="op-err">승격 실패: {{ request.query_params.get('promote_err') }}</div>{% endif %}
+    {% if request.query_params.get('req_ok') %}<div class="op-saved">✅ 부서 요청 처리됐습니다{% if request.query_params.get('req_ok')=='1' %} — 해당 부서 팀장에게 메신저 알림을 보냈습니다{% endif %}.</div>{% endif %}
+    {% if request.query_params.get('req_warn')=='noleader' %}<div class="op-promoted">⚠ 요청은 등록됐지만 해당 부서에 <b>팀장이 지정돼 있지 않아</b> 메신저 알림은 보내지 못했습니다. (관리자에서 부서 팀장 지정 필요)</div>{% endif %}
+    {% if request.query_params.get('req_err') %}<div class="op-err">{% if request.query_params.get('req_err')=='dup' %}이미 그 부서에 진행 중인 요청이 있습니다 (영업 기회당 부서별 1건).{% elif request.query_params.get('req_err')=='team' %}요청할 부서를 선택해 주세요.{% else %}부서 요청 처리에 실패했습니다.{% endif %}</div>{% endif %}
     {% if promoted %}<div class="op-promoted">✅ 이 영업 기회는 프로젝트로 <b>승격 완료</b> → <a href="/project/{{ promoted.id }}">[{{ promoted.mgmt_code }}] {{ promoted.name }}</a> (해당 프로젝트에서 제작요청 발행)</div>{% endif %}
     {% if opp %}<div class="op-meta">기회번호 <b>{{ opp.opp_no }}</b> · 단계 <b>{{ opp.stage }}</b> · 다음 할 일: <b style="color:#A5282C;">{{ opp.next_action }}</b></div>{% endif %}
 
@@ -170,6 +196,47 @@
     </div>
     {% else %}
     <div class="op-card" style="font-size:12px;color:#94a3b8;">💾 먼저 저장하면 제안서·견적서 파일을 첨부할 수 있습니다.</div>
+    {% endif %}
+
+    {% if opp %}
+    {# v5H226z421 (대표 지시): 수주 전 부서 협업 — 영업이 부서에 검토·조사 요청 → 팀장에게 메신저 알림 → 팀장 PM 지정 → PM 구성원 추가 #}
+    <div class="op-card">
+      <h3>부서 요청 <span class="op-sub">— 수주 전 검토·시장조사·기술조사 등을 부서에 요청 (영업 기회당 부서별 1건)</span></h3>
+      {% if can_edit %}
+      <form method="post" action="/sales/opportunities/{{ opp.id }}/request" class="op-reqform">
+        <select name="team_id" required>
+          <option value="">— 요청할 부서 —</option>
+          {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+        <input type="text" name="detail" placeholder="요청 내용 (예: 사양 기술검토 · 시장조사 · 기술조사 · 제안 지원)">
+        <input type="date" name="due_date" class="knk-cal" title="희망 기한">
+        <button type="submit" class="op-btn primary">📥 부서에 요청</button>
+      </form>
+      <div class="op-reqhint">요청하면 해당 부서 <b>팀장</b>에게 KNK Eum 메신저로 알림이 갑니다. 팀장이 PM을 지정하고, PM이 구성원을 추가합니다. → <a href="/dept/requests" target="_blank">부서 요청함 열기 ↗</a></div>
+      {% endif %}
+      {% if dept_requests %}
+      <ul class="op-reqlist">
+        {% for r in dept_requests %}
+        <li>
+          <div class="op-reqhead">
+            <span class="op-reqdept">{{ r.team_name or '—' }}</span>
+            <span class="op-reqbadge st-{{ r.status }}">{{ r.status_label }}</span>
+            {% if r.due_date %}<span class="op-reqdue">기한 {{ r.due_date }}</span>{% endif %}
+            {% if can_edit and r.status != 'done' %}
+            <form method="post" action="/sales/opportunities/{{ opp.id }}/request/{{ r.id }}/cancel" onsubmit="return confirm('이 부서 요청을 취소할까요?');" style="margin-left:auto;">
+              <button type="submit" class="op-reqx">취소</button>
+            </form>
+            {% endif %}
+          </div>
+          {% if r.detail %}<div class="op-reqdetail">{{ r.detail }}</div>{% endif %}
+          <div class="op-reqmeta">PM: <b>{{ r.pm_name or '미지정' }}</b>{% if r.members %} · 구성원 {{ r.members|length }}명: {% for m in r.members %}{{ m.user_name }}{% if m.role_in_req=='pm' %}(PM){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="op-fnone">아직 부서 요청이 없습니다.</div>
+      {% endif %}
+    </div>
     {% endif %}
 
     {% if opp and can_edit and not opp.promoted_project_id %}

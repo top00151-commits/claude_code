@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>부서 요청함 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z421 (대표 지시): 부서 연결 페이지 — 좌우 꽉 차게(z420 표준) */
+.dr-wrap{margin:0 var(--content-pad) var(--space-6);padding:0;}
+.dr-flash{border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:11px;}
+.dr-flash.ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;}
+.dr-flash.err{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;}
+.dr-intro{font-size:12.5px;color:#64748b;margin-bottom:14px;}
+.dr-intro b{color:#1e293b;}
+.dr-empty{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:40px 20px;text-align:center;color:#94a3b8;font-size:13.5px;line-height:1.7;}
+.dr-sec{font-size:14px;font-weight:800;color:#A5282C;margin:18px 0 9px;display:flex;align-items:center;gap:8px;}
+.dr-cnt{background:#A5282C;color:#fff;font-size:11px;font-weight:700;padding:1px 9px;border-radius:999px;}
+.dr-role{background:#eef2ff;color:#4338ca;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;}
+.dr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:11px;}
+.dr-card{background:#fff;border:1px solid #f1e8d4;border-radius:11px;padding:12px 15px;box-shadow:0 1px 3px rgba(45,37,32,0.05);}
+.dr-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:5px;}
+.dr-opp{font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:700;}
+.dr-opp:hover{text-decoration:underline;}
+.dr-dept{font-weight:800;font-size:14px;color:#1e293b;}
+.dr-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;}
+.dr-badge.st-requested{background:#fef9c3;color:#854d0e;}
+.dr-badge.st-assigned{background:#e0edff;color:#1d4ed8;}
+.dr-badge.st-in_progress{background:#dcfce7;color:#166534;}
+.dr-badge.st-done{background:#e2e8f0;color:#475569;}
+.dr-badge.st-hold{background:#fde2e2;color:#991b1b;}
+.dr-due{font-size:11.5px;color:#64748b;}
+.dr-detail{font-size:13px;color:#334155;margin:4px 0;line-height:1.5;}
+.dr-meta{font-size:11.5px;color:#64748b;margin:4px 0;}
+.dr-meta b{color:#1e293b;}
+.dr-members{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px;}
+.dr-mchip{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:3px 5px 3px 11px;font-size:12px;color:#1e293b;display:inline-flex;align-items:center;gap:3px;}
+.dr-mx{border:none;background:transparent;color:#b91c1c;font-weight:800;font-size:13px;cursor:pointer;padding:0 4px;line-height:1;}
+.dr-act{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px;}
+.dr-act select{padding:6px 10px;border:1px solid #d6cdb6;border-radius:7px;font-size:12.5px;font-family:inherit;min-width:140px;}
+.dr-btn{padding:6px 14px;border:1px solid #d6cdb6;background:#fff;color:#334155;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;}
+.dr-btn.primary{background:#A5282C;color:#fff;border-color:#A5282C;}
+.dr-note{font-size:11.5px;color:#94a3b8;margin-top:6px;}
+</style></head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs">통합 플랫폼 · <b>부서 요청함</b></div>
+    <h1 class="page-title">부서 요청함 <em>— 수주 전 부서 협업</em></h1>
+  </div></div>
+  <div class="dr-wrap">
+
+    {% set ok = request.query_params.get('ok') %}
+    {% set err = request.query_params.get('err') %}
+    {% if ok %}<div class="dr-flash ok">✅ {% if ok=='pm' %}PM을 지정했습니다 (해당 PM에게 알림 전송).{% elif ok=='member' %}구성원을 추가했습니다 (해당 구성원에게 알림 전송).{% elif ok=='memdel' %}구성원을 제외했습니다.{% elif ok=='status' %}상태를 변경했습니다.{% else %}처리됐습니다.{% endif %}</div>{% endif %}
+    {% if err %}<div class="dr-flash err">⚠ {% if err=='forbidden' %}권한이 없습니다 (해당 부서 팀장 또는 PM만 처리 가능).{% elif err=='pm' %}PM을 선택해 주세요.{% elif err=='member' %}구성원을 선택해 주세요.{% else %}처리에 실패했습니다.{% endif %}</div>{% endif %}
+
+    <div class="dr-intro">영업이 영업 기회에서 부서로 검토·조사를 요청하면 여기로 옵니다. <b>팀장</b>이 PM을 지정 → <b>PM</b>이 구성원을 추가합니다. <span style="color:#cbd5e1;">(구성원의 활동·시간 기록은 2단계)</span></div>
+
+    {% set has_any = as_leader or as_pm or as_member %}
+    {% if not has_any %}
+      <div class="dr-empty">아직 나에게 연결된 부서 요청이 없습니다.<br>영업에서 부서로 검토·조사를 요청하면 이 화면에 표시됩니다.</div>
+    {% endif %}
+
+    {% macro req_head(r) %}
+      <div class="dr-head">
+        {% if r.opp_id %}<a class="dr-opp" href="/sales/opportunities/{{ r.opp_id }}" target="_blank">🎯 {{ r.opp_no or '' }}</a>{% endif %}
+        <span class="dr-dept">{{ r.team_name or '—' }}</span>
+        <span class="dr-badge st-{{ r.status }}">{{ r.status_label }}</span>
+        {% if r.due_date %}<span class="dr-due">기한 {{ r.due_date }}</span>{% endif %}
+      </div>
+      <div class="dr-meta" style="font-weight:700;color:#1e293b;font-size:13px;">{{ r.opp_title or r.title or '—' }}</div>
+      {% if r.detail %}<div class="dr-detail">{{ r.detail }}</div>{% endif %}
+      <div class="dr-meta">요청자 {{ r.requester_name or '—' }} · PM <b>{{ r.pm_name or '미지정' }}</b>{% if r.members %} · 구성원 {% for m in r.members %}{{ m.user_name }}{% if m.role_in_req=='pm' %}(PM){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</div>
+    {% endmacro %}
+
+    {% if as_leader %}
+    <section>
+      <div class="dr-sec">📥 우리 팀에 온 요청 <span class="dr-cnt">{{ as_leader|length }}</span> <span class="dr-role">팀장</span></div>
+      <div class="dr-grid">
+        {% for r in as_leader %}
+        <div class="dr-card">
+          {{ req_head(r) }}
+          <form method="post" action="/dept/requests/{{ r.id }}/assign-pm" class="dr-act">
+            <select name="pm_user_id" required>
+              <option value="">— PM 지정 —</option>
+              {% for mu in team_members.get(r.team_id, []) %}<option value="{{ mu.id }}" {{ 'selected' if r.pm_user_id==mu.id }}>{{ mu.name }}</option>{% endfor %}
+            </select>
+            <button class="dr-btn primary">{{ 'PM 변경' if r.pm_user_id else 'PM 지정' }}</button>
+          </form>
+          {% if not team_members.get(r.team_id) %}<div class="dr-note">이 부서에 등록된 활성 구성원이 없습니다.</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if as_pm %}
+    <section>
+      <div class="dr-sec">🧭 내가 PM인 요청 <span class="dr-cnt">{{ as_pm|length }}</span> <span class="dr-role">PM</span></div>
+      <div class="dr-grid">
+        {% for r in as_pm %}
+        <div class="dr-card">
+          {{ req_head(r) }}
+          <div class="dr-members">
+            {% for m in r.members %}
+            <span class="dr-mchip">{{ m.user_name }}{% if m.role_in_req=='pm' %} ⭐PM{% endif %}{% if m.role_in_req!='pm' %}<form method="post" action="/dept/requests/{{ r.id }}/members/{{ m.id }}/remove" style="display:inline;" onsubmit="return confirm('이 구성원을 제외할까요?');"><button class="dr-mx" title="제외">×</button></form>{% endif %}</span>
+            {% endfor %}
+          </div>
+          <form method="post" action="/dept/requests/{{ r.id }}/members/add" class="dr-act">
+            <select name="user_id" required>
+              <option value="">— 구성원 추가 —</option>
+              {% for au in all_users %}<option value="{{ au.id }}">{{ au.name }}{% if au.team_name %} ({{ au.team_name }}){% endif %}</option>{% endfor %}
+            </select>
+            <button class="dr-btn">+ 구성원 추가</button>
+          </form>
+          <form method="post" action="/dept/requests/{{ r.id }}/status" class="dr-act">
+            <select name="status">
+              {% for k,v in status_map.items() %}{% if k not in ('canceled','requested') %}<option value="{{ k }}" {{ 'selected' if r.status==k }}>{{ v }}</option>{% endif %}{% endfor %}
+            </select>
+            <button class="dr-btn">상태 변경</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if as_member %}
+    <section>
+      <div class="dr-sec">👥 내가 구성원인 요청 <span class="dr-cnt">{{ as_member|length }}</span> <span class="dr-role">구성원</span></div>
+      <div class="dr-grid">
+        {% for r in as_member %}
+        <div class="dr-card">
+          {{ req_head(r) }}
+          <div class="dr-note">내 역할: 구성원 · 활동·시간 기록은 2단계에서 여기에 추가됩니다.</div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+  </div>
+</main></div>
+{% include "_v5_partials/knk_datepicker.html" ignore missing %}
+</body></html>
