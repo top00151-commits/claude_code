@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 받기 설정 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .mi-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px 18px;margin-bottom:14px}
+  .mi-card h2{margin:0 0 10px;font-size:15px}
+  .mi-row{display:flex;align-items:center;gap:8px;margin:8px 0}
+  .mi-key{width:170px;min-width:120px;font-size:12.5px;color:var(--mute)}
+  .mi-val{flex:1;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:#f8fafc;border:1px solid var(--line);border-radius:7px;padding:8px 10px;word-break:break-all}
+  .mi-copy{font-size:11.5px;padding:6px 10px;white-space:nowrap}
+  .mi-status{display:inline-block;font-size:12px;padding:3px 10px;border-radius:999px;font-weight:700}
+  .mi-on{background:#ecfdf5;color:#047857}.mi-off{background:#fef2f2;color:#b91c1c}
+  .mi-step{display:flex;gap:10px;margin:10px 0}
+  .mi-num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--knk-red);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .mi-step div{font-size:13px;line-height:1.6}
+  pre.mi-code{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px;font-size:12px;line-height:1.55;overflow:auto;max-height:340px;margin:8px 0}
+  .mi-note{font-size:12px;color:var(--mute);line-height:1.7}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><b>관리</b> · 메일 받기 설정</div>
+    <h1 class="page-title">📥 HAIST WORKS 메일함 <em>받기 설정</em></h1>
+  </div></div>
+
+  {% if saved %}
+  <div class="mi-card" style="border-color:#6ee7b7;background:#ecfdf5;">
+    <div style="color:#065f46;font-size:13.5px;">✅ 새 비밀토큰을 생성했습니다. 아래 값을 Cloudflare Worker에 붙여넣으세요. <b>(이전 토큰은 즉시 무효)</b></div>
+  </div>
+  {% endif %}
+
+  {% if bound is not none %}
+  <div class="mi-card" style="border-color:#6ee7b7;background:#ecfdf5;">
+    <div style="color:#065f46;font-size:13.5px;">✅ 받는 사람을 <b>{{ user.name }}</b> 님(현재 로그인 계정)으로 지정했습니다. 이미 들어온 메일 <b>{{ bound }}</b>통도 이 메일함으로 옮겼습니다.</div>
+  </div>
+  {% endif %}
+
+  <!-- 0. 받는 사람 -->
+  <div class="mi-card" style="{% if not recip_is_me %}border-color:var(--amber);{% endif %}">
+    <h2>📥 받는 사람 (메일이 들어갈 메일함)</h2>
+    <p class="mi-note"><code>{{ poc_addr }}</code> 으로 온 메일은 → <b>{{ recip_name }}</b> 님 메일함으로 들어갑니다.</p>
+    {% if recip_is_me %}
+      <div style="font-size:13px;color:#047857;font-weight:700;">✅ 현재 로그인하신 본인({{ user.name }}) 메일함으로 설정돼 있습니다.</div>
+    {% else %}
+      <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;margin-bottom:10px;">
+        ⚠ 지금은 받는 사람이 <b>{{ recip_name }}</b>(본인이 아닐 수 있음)으로 돼 있습니다.
+        운영 시스템에 동명 계정이 여럿이라 받은 메일이 엉뚱한 메일함에 들어갈 수 있습니다.
+        아래 버튼으로 <b>지금 로그인한 본인({{ user.name }}) 메일함</b>으로 지정하세요. (이미 들어온 메일도 함께 옮깁니다)
+      </div>
+      <form method="POST" action="/admin/mail-inbound/bind-me">
+        <button type="submit" class="btn btn-primary">📥 내 메일함({{ user.name }})으로 받기</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <!-- 1. 토큰 -->
+  <div class="mi-card">
+    <h2>① 받는 구멍 비밀토큰
+      {% if token %}<span class="mi-status mi-on">활성</span>{% else %}<span class="mi-status mi-off">미설정</span>{% endif %}
+    </h2>
+    <p class="mi-note">외부에서 가짜 메일을 밀어넣지 못하게, WORKS와 Cloudflare Worker가 이 비밀번호를 공유합니다. <b>토큰이 있어야 받기가 켜집니다.</b></p>
+    <div class="mi-row">
+      <div class="mi-key">현재 토큰</div>
+      <div class="mi-val" id="tok">{{ token or "(아직 없음 — 아래 버튼으로 생성)" }}</div>
+      {% if token %}<button type="button" class="btn btn-secondary mi-copy" onclick="copyEl('tok')">복사</button>{% endif %}
+    </div>
+    <form method="POST" action="/admin/mail-inbound" style="margin-top:10px;"
+          onsubmit="return confirm('새 토큰을 생성하면 기존 토큰은 즉시 무효가 됩니다. Cloudflare Worker의 토큰도 새 값으로 바꿔야 합니다. 계속할까요?');">
+      <button type="submit" class="btn btn-primary">🔑 {{ '새 토큰 다시 생성' if token else '토큰 생성' }}</button>
+    </form>
+  </div>
+
+  <!-- 2. Cloudflare 에 넣을 값 -->
+  <div class="mi-card">
+    <h2>② Cloudflare Worker 환경변수에 넣을 값</h2>
+    <p class="mi-note">Cloudflare에서 Worker를 만들 때 <b>Settings → Variables</b> 에 아래 3개를 등록하세요.</p>
+    <div class="mi-row"><div class="mi-key">WORKS_INBOUND_URL</div><div class="mi-val" id="v_url">{{ inbound_url }}</div><button type="button" class="btn btn-secondary mi-copy" onclick="copyEl('v_url')">복사</button></div>
+    <div class="mi-row"><div class="mi-key">KNK_MAIL_INBOUND_TOKEN</div><div class="mi-val" id="v_tok">{{ token or "(먼저 ①에서 토큰 생성)" }}</div>{% if token %}<button type="button" class="btn btn-secondary mi-copy" onclick="copyEl('v_tok')">복사</button>{% endif %}</div>
+    <div class="mi-row"><div class="mi-key">FORWARD_TO (안전망)</div><div class="mi-val" id="v_fwd">knk.jungrack.kim@gmail.com</div><button type="button" class="btn btn-secondary mi-copy" onclick="copyEl('v_fwd')">복사</button></div>
+    <p class="mi-note">FORWARD_TO = 시범 기간 동안 받은 메일을 지메일로도 같이 보내는 안전망(메일 유실 0). 나중에 빼도 됩니다.</p>
+  </div>
+
+  <!-- 3. Worker 코드 -->
+  <div class="mi-card">
+    <h2>③ Cloudflare Worker 코드 (그대로 붙여넣기)</h2>
+    <button type="button" class="btn btn-secondary mi-copy" onclick="copyEl('wcode')">코드 복사</button>
+    <pre class="mi-code" id="wcode">{% raw %}// KNK Mail — Cloudflare Email Worker
+// test@knk-mailtest.com 으로 온 메일을 HAIST WORKS 메일함으로 전달.
+// Settings → Variables 에 WORKS_INBOUND_URL / KNK_MAIL_INBOUND_TOKEN / FORWARD_TO 등록.
+export default {
+  async email(message, env, ctx) {
+    let raw = "";
+    try { raw = await new Response(message.raw).text(); } catch (e) {}
+    const payload = {
+      to: message.to,
+      from: message.from,
+      subject: (message.headers && message.headers.get("subject")) || "",
+      raw: raw,
+      size: raw.length,
+    };
+    // 1) HAIST WORKS 메일함으로 전송
+    try {
+      await fetch(env.WORKS_INBOUND_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-KNK-Mail-Token": env.KNK_MAIL_INBOUND_TOKEN,
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) { /* WORKS 일시 장애여도 아래 지메일 전달은 유지 */ }
+    // 2) 안전망 — 지메일로도 전달(시범 기간, 메일 유실 0)
+    if (env.FORWARD_TO) {
+      try { await message.forward(env.FORWARD_TO); } catch (e) {}
+    }
+  }
+};{% endraw %}</pre>
+  </div>
+
+  <!-- 4. 순서 안내 -->
+  <div class="mi-card">
+    <h2>④ 연결 순서</h2>
+    <div class="mi-step"><div class="mi-num">1</div><div>위 ①에서 <b>토큰 생성</b> (이 화면)</div></div>
+    <div class="mi-step"><div class="mi-num">2</div><div>Cloudflare → <b>Workers & Pages → Create → Worker</b> → 위 ③ 코드 붙여넣기 → 배포</div></div>
+    <div class="mi-step"><div class="mi-num">3</div><div>그 Worker의 <b>Settings → Variables</b> 에 ②의 값 3개 등록</div></div>
+    <div class="mi-step"><div class="mi-num">4</div><div>Cloudflare → <b>Email Routing → 라우팅 규칙</b> → <code>test@knk-mailtest.com</code> 동작을 <b>'이메일로 전송'→'Worker로 전송'</b> 으로 변경(그 Worker 선택)</div></div>
+    <div class="mi-step"><div class="mi-num">5</div><div>실제 메일을 <code>test@knk-mailtest.com</code> 으로 보내 → <a href="/mail/inbox">HAIST WORKS 메일함</a> 에 도착 확인</div></div>
+    <p class="mi-note">막히는 화면이 나오면 캡처해서 빅터에게 보내주세요. 단계별로 안내합니다.</p>
+  </div>
+
+  <div style="margin:8px 0 20px;"><a href="/mail/inbox" class="btn btn-secondary">← HAIST WORKS 메일함</a></div>
+</main></div>
+<script>
+function copyEl(id){
+  const el=document.getElementById(id); if(!el) return;
+  const t=el.innerText;
+  navigator.clipboard.writeText(t).then(()=>{ toast('복사됨'); }).catch(()=>{
+    const r=document.createRange(); r.selectNode(el);
+    const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    try{ document.execCommand('copy'); toast('복사됨'); }catch(e){}
+    s.removeAllRanges();
+  });
+}
+function toast(m){
+  const d=document.createElement('div');
+  d.textContent=m;
+  d.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;z-index:9999;opacity:0;transition:opacity .2s;';
+  document.body.appendChild(d); requestAnimationFrame(()=>d.style.opacity='1');
+  setTimeout(()=>{ d.style.opacity='0'; setTimeout(()=>d.remove(),250); },1200);
+}
+</script>
+</body></html>

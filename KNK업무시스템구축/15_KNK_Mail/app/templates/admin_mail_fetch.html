@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 가져오기 설정 · KNK Eum MAIL</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .mf-wrap{max-width:760px}
+  .mf-row{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;margin-bottom:10px}
+  .mf-row label{font-size:13px;color:var(--mute);font-weight:600}
+  .mf-row input[type=text],.mf-row input[type=number],.mf-row input[type=password]{width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box}
+  .mf-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .mf-status{border:1px solid var(--line);border-radius:10px;background:#f8fafc;padding:12px 14px;font-size:12.5px;color:var(--ink);line-height:1.9;margin-top:14px}
+  .mf-status b{color:var(--mute);font-weight:700}
+  .mf-msg{margin-top:10px;font-size:12.5px;min-height:18px}
+  .mf-help{font-size:12px;color:var(--mute);line-height:1.8;background:#fffbeb;border:1px solid var(--amber);border-radius:9px;padding:10px 13px;margin-bottom:14px}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab='home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">KNK Eum MAIL</a> · 관리</div>
+    <h1 class="page-title">📥 메일 <em>가져오기</em> <span style="font-size:13px;color:var(--mute);font-weight:500;">— 하이웍스 등 기존 메일을 KNK 메일로 당겨오기</span></h1>
+  </div></div>
+
+  <div class="mf-wrap">
+    {% if not key_ok %}
+    <div class="mf-help" style="background:#fef2f2;border-color:#fca5a5;color:#b91c1c;">
+      ⚠ 서버에 메일 암호화 키(<code>KNK_MAIL_KEY</code>)가 없어 비밀번호를 안전하게 저장할 수 없습니다. 전산담당자에게 <code>.env</code> 에 <code>KNK_MAIL_KEY</code> 등록을 요청하세요.
+    </div>
+    {% endif %}
+
+    <div class="mf-help">
+      <b>이렇게 동작합니다</b> — KNK 메일이 기존 메일함(하이웍스 등)에 접속해 <b>새 메일만</b> 당겨옵니다. <b>원본은 삭제하지 않아</b> 기존 메일함 그대로(양수신·되돌리기 가능).<br>
+      · 하이웍스 = <b>POP3</b> · 서버 <code>pop3s.hiworks.com</code> · 포트 <code>995</code> · 보안연결(SSL). (하이웍스 ▸ 환경설정 ▸ POP3/SMTP 에서 <b>'사용 함'</b> 확인)<br>
+      · 비밀번호 = 하이웍스 로그인 비번이 아니라 <b>「메일 전용 비밀번호」</b>(POP3/SMTP 화면의 <b>'메일 전용 비밀번호 설정'</b>에서 발급).<br>
+      · 하이웍스에서 <b>'POP3로 가져간 메일 → 읽지 않음 표시'</b>를 선택하면, KNK로 가져가도 하이웍스에서 계속 '새 메일'로 보입니다(권장).<br>
+      · 순서: <b>🔌 연결 테스트</b> → <b>💾 저장</b> → <b>⏱ 시작점 설정</b>(여기까지는 안 가져옴) → <b>📥 지금 가져오기</b>.
+    </div>
+
+    <div class="form-card">
+      <div class="mf-row"><label>가져오기 방식</label>
+        <div>
+          <label style="font-weight:400;font-size:13px;margin-right:14px;"><input type="radio" name="mfProto" value="pop3" onchange="mfProtoSwitch()" {{ 'checked' if (not acct or acct.protocol != 'imap') else '' }}> POP3 (하이웍스)</label>
+          <label style="font-weight:400;font-size:13px;"><input type="radio" name="mfProto" value="imap" onchange="mfProtoSwitch()" {{ 'checked' if (acct and acct.protocol == 'imap') else '' }}> IMAP</label>
+        </div>
+      </div>
+      <div class="mf-row"><label>서버 주소</label><input type="text" id="mfHost" value="{{ acct.host if acct else 'pop3s.hiworks.com' }}" placeholder="pop3s.hiworks.com"></div>
+      <div class="mf-row"><label>포트</label><input type="number" id="mfPort" value="{{ acct.port if acct else 995 }}" style="max-width:140px"></div>
+      <div class="mf-row"><label>보안연결(SSL)</label><label style="font-weight:400;font-size:13px;"><input type="checkbox" id="mfSsl" {{ 'checked' if (not acct or acct.use_ssl) else '' }}> 사용(권장)</label></div>
+      <div class="mf-row"><label>메일 계정</label><input type="text" id="mfUser" value="{{ acct.username if acct else '' }}" placeholder="top0015@knknara.co.kr" autocomplete="off"></div>
+      <div class="mf-row"><label>비밀번호</label><input type="password" id="mfPass" placeholder="{{ '●●●●●● (저장됨 — 바꿀 때만 입력)' if (acct and acct.password_enc) else '앱 비밀번호 입력' }}" autocomplete="new-password"></div>
+      <div class="mf-actions">
+        <button type="button" class="btn btn-secondary" onclick="mfTest()">🔌 연결 테스트</button>
+        <button type="button" class="btn btn-primary" onclick="mfSave()">💾 저장</button>
+      </div>
+      <div class="mf-msg" id="mfMsg"></div>
+    </div>
+
+    {% if acct %}
+    <div class="mf-status">
+      <div><b>가져올 KNK 사용자</b> {{ user.name if user else owner_name }} (본인 메일함으로 적재)</div>
+      <div><b>마지막 실행</b> {{ acct.last_run or '없음' }} {% if acct.last_status %}· {{ acct.last_status }}{% endif %}</div>
+      <div><b>진행 커서(last_uid)</b> {{ acct.last_uid }} <span style="color:var(--mute)">— 이 번호 초과 메일만 가져옴</span></div>
+    </div>
+    <div class="mf-actions">
+      <button type="button" class="btn btn-secondary" onclick="mfStartPoint()" title="지금까지의 메일은 안 가져오고, '지금 이후' 새 메일부터 가져오게 커서를 현재 최신으로 맞춥니다">⏱ 시작점 설정(지금부터)</button>
+      <button type="button" class="btn btn-primary" onclick="mfRun()">📥 지금 가져오기</button>
+    </div>
+    <div class="mf-msg" id="mfRunMsg"></div>
+    {% endif %}
+  </div>
+</main></div>
+<script>
+function _mfProto(){ var r=document.querySelector('input[name=mfProto]:checked'); return r?r.value:'pop3'; }
+function _mfForm(){
+  return {protocol:_mfProto(),
+          host:document.getElementById('mfHost').value.trim(),
+          port:document.getElementById('mfPort').value.trim(),
+          ssl:document.getElementById('mfSsl').checked?'1':'',
+          user:document.getElementById('mfUser').value.trim(),
+          password:document.getElementById('mfPass').value};
+}
+// 방식 전환 시 서버·포트가 비었거나 다른 방식의 기본값이면 자동으로 맞춰줌
+function mfProtoSwitch(){
+  var p=_mfProto(); var h=document.getElementById('mfHost'), pt=document.getElementById('mfPort');
+  var DEF={pop3:['pop3s.hiworks.com','995'], imap:['imap.hiworks.com','993']};
+  var others=(p==='pop3')?DEF.imap:DEF.pop3;
+  if(!h.value.trim() || h.value.trim()===others[0]) h.value=DEF[p][0];
+  if(!pt.value.trim() || pt.value.trim()===others[1]) pt.value=DEF[p][1];
+}
+function _mfPost(url, body){
+  var fd=new FormData();
+  for(var k in body){ fd.append(k, body[k]); }
+  return fetch(url,{method:'POST',body:fd}).then(function(r){return r.json();});
+}
+function _mfShow(id, ok, msg){
+  var el=document.getElementById(id); if(!el) return;
+  el.style.color = ok ? '#15803d' : '#b91c1c';
+  el.textContent = msg;
+}
+async function mfTest(){
+  _mfShow('mfMsg', true, '연결 확인 중…');
+  try{ var j=await _mfPost('/admin/mail-fetch/test', _mfForm()); _mfShow('mfMsg', j.ok, (j.ok?'✅ ':'⚠ ')+(j.message||'')); }
+  catch(e){ _mfShow('mfMsg', false, '⚠ 네트워크 오류'); }
+}
+async function mfSave(){
+  _mfShow('mfMsg', true, '저장 중…');
+  try{ var j=await _mfPost('/admin/mail-fetch/save', _mfForm());
+    if(j.ok){ _mfShow('mfMsg', true, '✅ 저장했습니다.'); setTimeout(function(){location.reload();}, 700); }
+    else { _mfShow('mfMsg', false, '⚠ '+(j.message||'저장 실패')); }
+  }catch(e){ _mfShow('mfMsg', false, '⚠ 네트워크 오류'); }
+}
+async function mfStartPoint(){
+  if(!confirm('지금까지의 메일은 가져오지 않고, 지금 이후 새 메일부터 가져옵니다. 진행할까요?')) return;
+  _mfShow('mfRunMsg', true, '시작점 설정 중…');
+  try{ var j=await _mfPost('/admin/mail-fetch/start-point', {});
+    if(j.ok){ _mfShow('mfRunMsg', true, '✅ 시작점 설정 완료(커서='+j.uid+'). 이후 새 메일부터 가져옵니다.'); }
+    else { _mfShow('mfRunMsg', false, '⚠ '+(j.message||'실패')); }
+  }catch(e){ _mfShow('mfRunMsg', false, '⚠ 네트워크 오류'); }
+}
+async function mfRun(){
+  _mfShow('mfRunMsg', true, '메일 가져오는 중… (잠시 걸릴 수 있어요)');
+  try{ var j=await _mfPost('/admin/mail-fetch/run', {});
+    if(j.ok){ _mfShow('mfRunMsg', true, '✅ '+j.count+'통 가져왔습니다. KNK 메일 받은편지함에서 확인하세요.'); }
+    else { _mfShow('mfRunMsg', false, '⚠ '+(j.message||'가져오기 실패')); }
+  }catch(e){ _mfShow('mfRunMsg', false, '⚠ 네트워크 오류'); }
+}
+</script>
+</body></html>

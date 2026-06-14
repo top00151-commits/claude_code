@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 정리 · KNK Eum MAIL</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .mp-wrap{max-width:720px}
+  .mp-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px 18px;margin-bottom:14px}
+  .mp-card h3{margin:0 0 4px;font-size:14.5px}
+  .mp-card .sub{font-size:12px;color:var(--mute);line-height:1.7;margin-bottom:12px}
+  .mp-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .mp-row select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .mp-msg{margin-top:10px;font-size:12.5px;min-height:18px}
+  .danger{color:var(--knk-red)!important;border-color:#fca5a5!important}
+  .warn{font-size:12px;color:#b91c1c;background:#fef2f2;border:1px solid #fca5a5;border-radius:9px;padding:9px 12px;line-height:1.7}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab='home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">KNK Eum MAIL</a> · 관리</div>
+    <h1 class="page-title">🧹 메일 <em>정리</em> <span style="font-size:13px;color:var(--mute);font-weight:500;">— 오래된 메일 완전삭제·휴지통·디스크 정리</span></h1>
+  </div></div>
+
+  <div class="mp-wrap">
+    <div class="warn" style="margin-bottom:14px;">⚠ <b>완전삭제는 서버(NAS)에서 영구 제거</b>되어 되돌릴 수 없습니다. 하이웍스 원본과는 무관합니다(우리 시스템만).</div>
+
+    {# ① 휴지통 #}
+    <div class="mp-card">
+      <h3>🗑 휴지통</h3>
+      <div class="sub">삭제(숨김)한 메일이 <b id="mpTrashN">{{ trash_n|default(0) }}</b>통 있습니다. 받은편지함 왼쪽 <b>🗑 휴지통</b>에서 개별 복원·완전삭제할 수 있습니다.</div>
+      <div class="mp-row">
+        <a href="/mail/trash" class="btn btn-secondary">🗑 휴지통 열기</a>
+        <button type="button" class="btn btn-secondary danger" onclick="mpEmpty()">휴지통 비우기(완전삭제)</button>
+      </div>
+      <div class="mp-msg" id="mpEmptyMsg"></div>
+    </div>
+
+    {# ② 오래된 메일 일괄정리 #}
+    <div class="mp-card">
+      <h3>📅 오래된 받은 메일 일괄 완전삭제</h3>
+      <div class="sub">선택한 기간보다 <b>이전에 받은 메일</b>을 한 번에 서버에서 완전삭제합니다. 먼저 <b>건수 미리보기</b>로 확인하세요.</div>
+      <div class="mp-row">
+        <select id="mpMonths">
+          <option value="3">3개월 이전</option>
+          <option value="6">6개월 이전</option>
+          <option value="12" selected>1년(12개월) 이전</option>
+          <option value="24">2년(24개월) 이전</option>
+          <option value="36">3년(36개월) 이전</option>
+        </select>
+        <button type="button" class="btn btn-secondary" onclick="mpPreview()">🔍 건수 미리보기</button>
+        <button type="button" class="btn btn-secondary danger" onclick="mpRun()" id="mpRunBtn" disabled>🗑 완전삭제 실행</button>
+      </div>
+      <div class="mp-msg" id="mpMsg"></div>
+    </div>
+
+    {# ③ 디스크 정리 #}
+    <div class="mp-card">
+      <h3>💾 디스크 공간 회수(VACUUM)</h3>
+      <div class="sub">완전삭제해도 데이터베이스 <b>파일 크기</b>는 바로 줄지 않습니다(빈 공간은 새 메일이 재사용). 파일 크기까지 줄이려면 디스크 정리를 실행하세요. <b>잠깐(수 초~수십 초) 시스템이 느려질 수 있어</b> 사용량 적은 시간에 권장합니다.</div>
+      <button type="button" class="btn btn-secondary" onclick="mpVacuum()" id="mpVacBtn">💾 디스크 정리 실행</button>
+      <div class="mp-msg" id="mpVacMsg"></div>
+    </div>
+  </div>
+</main></div>
+<script>
+function _mpPost(url, body){
+  var fd=new FormData(); for(var k in (body||{})){ fd.append(k, body[k]); }
+  return fetch(url,{method:'POST',body:fd}).then(function(r){return r.json();});
+}
+function _mpShow(id, ok, msg){ var el=document.getElementById(id); if(!el) return; el.style.color=ok?'#15803d':'#b91c1c'; el.textContent=msg; }
+var _mpPreviewed = 0;
+async function mpPreview(){
+  var months=document.getElementById('mpMonths').value;
+  _mpShow('mpMsg', true, '확인 중…');
+  try{ var j=await _mpPost('/admin/mail-purge/preview', {months:months});
+    if(j.ok){ _mpPreviewed=j.count; _mpShow('mpMsg', true, '📦 '+j.before+' 이전 받은 메일 '+j.count+'통 — 완전삭제 대상입니다.');
+      document.getElementById('mpRunBtn').disabled = (j.count===0); }
+    else _mpShow('mpMsg', false, '⚠ '+(j.message||'실패'));
+  }catch(e){ _mpShow('mpMsg', false, '⚠ 네트워크 오류'); }
+}
+async function mpRun(){
+  var months=document.getElementById('mpMonths').value;
+  if(!confirm('선택한 기간 이전 받은 메일을 서버에서 완전삭제합니다.\n되돌릴 수 없습니다. 진행할까요?')) return;
+  _mpShow('mpMsg', true, '완전삭제 중…');
+  try{ var j=await _mpPost('/admin/mail-purge/run', {months:months});
+    if(j.ok){ _mpShow('mpMsg', true, '✅ '+j.count+'통을 완전삭제했습니다. (필요하면 아래 디스크 정리)');
+      document.getElementById('mpRunBtn').disabled=true; }
+    else _mpShow('mpMsg', false, '⚠ '+(j.message||'실패'));
+  }catch(e){ _mpShow('mpMsg', false, '⚠ 네트워크 오류'); }
+}
+async function mpEmpty(){
+  if(!confirm('휴지통의 모든 메일을 서버에서 완전삭제할까요?\n되돌릴 수 없습니다.')) return;
+  _mpShow('mpEmptyMsg', true, '비우는 중…');
+  try{ var j=await _mpPost('/mail/trash/empty', {});
+    if(j.ok){ _mpShow('mpEmptyMsg', true, '✅ '+j.count+'통을 완전삭제했습니다.'); var t=document.getElementById('mpTrashN'); if(t) t.textContent='0'; }
+    else _mpShow('mpEmptyMsg', false, '⚠ 실패');
+  }catch(e){ _mpShow('mpEmptyMsg', false, '⚠ 네트워크 오류'); }
+}
+async function mpVacuum(){
+  if(!confirm('디스크 정리를 실행할까요?\n잠깐 시스템이 느려질 수 있습니다.')) return;
+  var b=document.getElementById('mpVacBtn'); if(b) b.disabled=true;
+  _mpShow('mpVacMsg', true, '디스크 정리 중… (잠시 기다려 주세요)');
+  try{ var j=await _mpPost('/admin/mail-purge/vacuum', {});
+    if(j.ok) _mpShow('mpVacMsg', true, '✅ 디스크 정리 완료.');
+    else _mpShow('mpVacMsg', false, '⚠ '+(j.message||'실패'));
+  }catch(e){ _mpShow('mpVacMsg', false, '⚠ 네트워크 오류'); }
+  if(b) b.disabled=false;
+}
+</script>
+</body></html>

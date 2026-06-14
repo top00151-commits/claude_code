@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 서명 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  .sig-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:720px}
+  .sig-tb{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+  .sig-tb button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 9px;cursor:pointer;font-size:13px}
+  .sig-tb button:hover{background:#f3f4f6}
+  .sig-ed{width:100%;min-height:180px;border:1px solid var(--line);border-radius:10px;outline:none;
+    font-size:14px;line-height:1.7;padding:12px;box-sizing:border-box;background:#fff}
+  .sig-ed:empty:before{content:attr(data-ph);color:var(--mute)}
+  .sig-ed img{max-width:100%}
+  .sig-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .sig-tip{font-size:12px;color:var(--mute);line-height:1.7;margin-top:10px}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 서명</div>
+    <h1 class="page-title">✍️ 메일 <em>서명</em></h1>
+  </div></div>
+
+  <div class="sig-card">
+    <div style="font-size:13px;color:var(--mute);margin-bottom:8px;">한 번 저장하면 <b>메일 쓰기·답장·전달</b> 시 본문에 자동으로 들어갑니다. <b>로고·이미지</b>도 넣을 수 있어요.</div>
+    <div class="sig-tb">
+      <button type="button" onclick="sigCmd('bold')" title="굵게"><b>B</b></button>
+      <button type="button" onclick="sigCmd('italic')" title="기울임"><i>I</i></button>
+      <button type="button" onclick="sigCmd('underline')" title="밑줄"><u>U</u></button>
+      <button type="button" onclick="sigColor()" title="글자색">🎨</button>
+      <button type="button" onclick="sigLink()" title="링크 넣기">🔗</button>
+      <button type="button" onclick="document.getElementById('sigImg').click()" title="이미지/로고 넣기">🖼 이미지</button>
+      <button type="button" onclick="sigCmd('removeFormat')" title="서식 지우기">✕ 서식</button>
+      <input type="file" id="sigImg" accept="image/*" style="display:none">
+    </div>
+    <div id="sBody" class="sig-ed" contenteditable="true" data-ph="예) ㈜케이엔케이  김정락 대표 · Mobile. 010-0000-0000 · E-mail. you@knknara.co.kr"></div>
+    <textarea id="sigSrc" style="display:none">{{ sig }}</textarea>
+    <div class="sig-actions">
+      <button type="button" class="btn btn-primary" onclick="saveSig()">💾 저장</button>
+      <a href="/mail/compose" class="btn btn-secondary">메일 쓰기로</a>
+      <button type="button" class="btn btn-secondary" onclick="clearSig()">비우기</button>
+      <span id="sMsg" style="font-size:12.5px;margin-left:6px;"></span>
+    </div>
+    <div class="sig-tip">※ 서명은 본인에게만 적용됩니다. 비우고 저장하면 서명 없이 보냅니다.<br>
+      ※ 넣은 이미지(로고)는 메일 보낼 때 <b>자동으로 인라인 첨부</b>로 변환돼 받는 쪽에서도 잘 보입니다.</div>
+  </div>
+</main></div>
+<script>
+(function(){
+  var ED=document.getElementById('sBody');
+  // 구버전(텍스트) 서명도 안전 로드: HTML 이면 innerHTML, 아니면 innerText(줄바꿈 보존)
+  (function(){ var s=document.getElementById('sigSrc'); if(!ED||!s)return; var v=s.value;
+    if(/<[a-z][\s\S]*>/i.test(v)) ED.innerHTML=v; else ED.innerText=v; })();
+  function focusED(){ ED.focus(); }
+  window.sigCmd=function(c){ focusED(); document.execCommand(c,false,null); };
+  window.sigColor=function(){ var c=prompt('글자색 (예: #c0392b 또는 red)','#c0392b'); if(c){ focusED(); document.execCommand('foreColor',false,c);} };
+  window.sigLink=function(){ var u=prompt('링크 주소 (예: https://www.knknara.co.kr)','https://'); if(u){ focusED(); document.execCommand('createLink',false,u);} };
+  document.getElementById('sigImg').addEventListener('change', function(e){
+    var f=e.target.files&&e.target.files[0]; if(!f)return;
+    if(f.size>1500000){ alert('이미지가 너무 큽니다(1.5MB 이하 권장). 작은 로고를 사용하세요.'); e.target.value=''; return; }
+    var rd=new FileReader();
+    rd.onload=function(){ focusED();
+      document.execCommand('insertHTML',false,'<img src="'+rd.result+'" style="max-width:240px">'); };
+    rd.readAsDataURL(f); e.target.value='';
+  });
+  function smsg(t,c){ var m=document.getElementById('sMsg'); if(!m)return; m.textContent=t;
+    m.style.color = c==='green'?'var(--success)':(c==='red'?'var(--knk-red)':'var(--mute)'); }
+  window.clearSig=function(){ if(confirm('서명을 비울까요?')) ED.innerHTML=''; };
+  window.saveSig=async function(){
+    var html=ED.innerHTML.trim();
+    if(html==='<br>'||html==='<div><br></div>') html='';
+    var fd=new FormData(); fd.append('body', html);
+    smsg('저장 중...','');
+    try{ var r=await fetch('/mail/signature',{method:'POST',body:fd}); var j=await r.json();
+      if(j.ok){ smsg('✅ 저장했습니다','green'); } else { smsg('⚠ 저장 실패','red'); }
+    }catch(e){ smsg('⚠ 네트워크 오류','red'); }
+  };
+})();
+</script>
+</body></html>

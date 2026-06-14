@@ -63,7 +63,7 @@ r = c.get("/sso/land", follow_redirects=False)
 chk("/sso/land 토큰없음 → 로그인+오류", r.status_code == 200 and "입장 토큰이 없습니다" in r.text)
 
 r = c.post("/admin/dir-sync", follow_redirects=False)
-chk("미로그인 dir-sync → /login", r.status_code in (302,303) and r.headers.get("location") == "/login")
+chk("미로그인 dir-sync 거부(403)", r.status_code == 403)
 
 # dev 로그인 → 미러 upsert + 세션
 r = c.post("/login/dev", data={"name": "테스트대표"}, follow_redirects=False)

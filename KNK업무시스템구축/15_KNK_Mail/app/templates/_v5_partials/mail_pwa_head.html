@@ -1,0 +1,42 @@
+{# 메일 = 설치형 앱(PWA) head — KNK Eum 처럼 설치(바탕화면/홈 아이콘·독립 창). 모든 메일 페이지 <head>에 포함 #}
+<link rel="manifest" href="/mail/manifest.webmanifest">
+<meta name="theme-color" content="#A5282C">
+<link rel="icon" type="image/svg+xml" href="/mail/icon.svg">
+<link rel="apple-touch-icon" href="/mail/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KNK Eum MAIL">
+<script>
+(function(){
+  // 서비스워커 등록(설치 가능 조건). 범위 /mail/
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('/mail/sw.js', { scope: '/mail/' }).catch(function(){});
+    });
+  }
+  // 설치 프롬프트 — 브라우저가 설치 가능 판단 시 이벤트 보관 → '📲 앱 설치' 버튼이 사용
+  window.__knkMailInstall = null;
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault(); window.__knkMailInstall = e;
+    var b = document.getElementById('mailInstallBtn'); if (b) b.style.display = '';
+  });
+  window.addEventListener('appinstalled', function(){
+    window.__knkMailInstall = null;
+    var b = document.getElementById('mailInstallBtn'); if (b) b.style.display = 'none';
+  });
+  // 버튼 클릭 핸들러(헤더의 📲 앱 설치)
+  window.mailInstallApp = function(){
+    var p = window.__knkMailInstall;
+    if (p) {
+      p.prompt();
+      (p.userChoice || Promise.resolve()).finally(function(){
+        window.__knkMailInstall = null;
+        var b = document.getElementById('mailInstallBtn'); if (b) b.style.display = 'none';
+      });
+    } else {
+      // iOS Safari 등 자동 설치 미지원 — 수동 안내
+      alert('앱으로 설치하기\n\n• 아이폰·아이패드(사파리): 아래 공유 버튼 → "홈 화면에 추가"\n• 안드로이드·PC(크롬/엣지): 주소창의 설치 아이콘 또는 브라우저 메뉴 → "앱 설치"\n\n(이미 설치돼 있으면 이 안내만 보입니다.)');
+    }
+  };
+})();
+</script>

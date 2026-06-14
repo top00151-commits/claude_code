@@ -154,6 +154,23 @@ CREATE TABLE IF NOT EXISTS mail_rules (
     enabled INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- ─── 거래처 폴더(C1) 매핑용 스텁 ────────────────────────────────
+-- 보낸사람 이메일 → shared_contacts → customers 로 거래처별 집계(mail_store.customer_folder_counts).
+-- 독립 앱엔 WORKS 연락처/거래처가 없으므로 빈 스텁(폴더는 '미분류'만 표시). 추후 WORKS 동기화로 채움.
+CREATE TABLE IF NOT EXISTS customers (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT
+);
+CREATE TABLE IF NOT EXISTS shared_contacts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT,
+    email       TEXT,
+    company     TEXT,
+    customer_id INTEGER,
+    source      TEXT,
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+);
 """
 
 

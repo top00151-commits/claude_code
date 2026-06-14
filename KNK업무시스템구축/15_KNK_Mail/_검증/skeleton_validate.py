@@ -74,15 +74,7 @@ chk("dev 로그인 → /mail/inbox", r.status_code in (302, 303) and r.headers.g
 
 r = c.get("/mail/inbox")
 chk("로그인 후 /mail/inbox 200", r.status_code == 200)
-chk("받은편지함 렌더(독립 DB 문구)", "독립 DB(mail.db)" in r.text and "받은편지함" in r.text)
-
-# 메일 1통 넣고 표시 확인 (dev 로그인이 만든 미러 사용자 사용)
-with mdb.db_session() as cc:
-    uid = cc.execute("SELECT id FROM users WHERE employee_no='DEV001'").fetchone()["id"]
-    cc.execute("INSERT INTO mail_messages(user_id, direction, from_name, subject, category, received_at) "
-               "VALUES(?, 'in','홍길동','[검증] 독립 메일 1통','견적','2026-06-14 10:00')", (uid,))
-r = c.get("/mail/inbox")
-chk("삽입한 메일 제목 표시", "[검증] 독립 메일 1통" in r.text and "전체 1통" in r.text)
+chk("받은편지함(실제 템플릿) 렌더", "받은편지함" in r.text)  # 상세 렌더는 feature_validate 가 검증
 
 r = c.get("/logout", follow_redirects=False)
 chk("/logout → /login", r.status_code in (302, 303) and r.headers.get("location") == "/login")
