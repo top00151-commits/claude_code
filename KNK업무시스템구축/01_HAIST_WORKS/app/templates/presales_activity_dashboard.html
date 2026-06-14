@@ -52,7 +52,7 @@
       <div class="pa-demoL">🧪 <b>검증용 가상 데이터</b>{% if demo_count %} — 현재 <b style="color:#b91c1c;">{{ demo_count }}건</b> 들어 있음. <b>실제 적용 전 반드시 삭제하세요.</b>{% else %} — 지금 없음. 넣어 화면을 확인한 뒤 삭제하세요. (모두 <code>ZZDEMO</code> 표식 · 실데이터 무관){% endif %}</div>
       <div class="pa-demoR">
         <form method="post" action="/dept/demo/seed" onsubmit="return confirm('검증용 가상 데이터(ZZDEMO 표식)를 넣을까요?\n언제든 「삭제」 버튼으로 완전히 지울 수 있고, 실제 데이터에는 영향이 없습니다.');">
-          <button class="pa-btn seed">🧪 가상 데이터 넣기</button>
+          <button class="pa-btn seed">➕ 가상 데이터 채우기</button>
         </form>
         {% if demo_count %}
         <form method="post" action="/dept/demo/cleanup" onsubmit="return confirm('가상 데이터(ZZDEMO)를 모두 삭제할까요?\n실제 데이터는 영향이 없습니다.');">
