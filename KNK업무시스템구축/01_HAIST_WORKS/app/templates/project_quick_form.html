@@ -321,6 +321,9 @@ function qMgmtPick(rw){
   var cust=document.querySelector('[name=customer_name]'); if(cust && !cust.value && rw.customer_name) cust.value=rw.customer_name;
   // 프로젝트명은 백엔드 필수(추가발주 분기보다 먼저 검증) → 비어 있으면 기존값/모델/관리번호로 채움
   var nm=document.querySelector('[name=name]'); if(nm && !nm.value) nm.value=(rw.name || rw.model_name || ('추가발주 '+(rw.mgmt_code||'')));
+  // v5H226z429(대표 지시): 추가발주로 기존 관리번호 연결 시 모델명·장비명도 그 프로젝트값으로 자동 채움.
+  var md=document.querySelector('[name=model]'); if(md && !md.value && rw.model_name) md.value=rw.model_name;
+  var eq=document.querySelector('[name=equip_name]'); if(eq && !eq.value && rw.equip_name) eq.value=rw.equip_name;
 }
 function qMgmtSearch(){
   var inp=document.getElementById('qMgmtInput'), lst=document.getElementById('qMgmtList'); if(!inp||!lst) return;
