@@ -107,8 +107,6 @@
       {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a><a href="/admin/mail-fetch" class="btn btn-secondary" title="하이웍스 등 기존 메일을 KNK 메일로 당겨오기">📥 가져오기</a>{% endif %}
       {% if box=='in' %}
       <a href="/mail/rules" class="btn btn-secondary" title="보낸사람·제목 키워드로 메일을 자동 분류">⚙ 자동분류</a>
-      <button type="button" class="btn btn-secondary" onclick="demoMail('vi')">＋ 시범(베)</button>
-      <button type="button" class="btn btn-secondary" onclick="demoMail('ko')">＋ 시범(한)</button>
       {% endif %}
     </div>
   </div>
@@ -246,7 +244,7 @@
       {% elif box=='draft' %}
       📝 임시저장된 메일이 없습니다.
       {% else %}
-      📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>＋ 시범</b> 버튼으로 동작을 보거나, 실제 메일이 오면 여기 쌓입니다.</span>
+      📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">메일을 받거나 <b>📥 가져오기</b>로 당겨오면 여기에 쌓입니다.</span>
       {% endif %}
     </div>
     {% endif %}
@@ -268,12 +266,6 @@ async function toggleStar(ev, id){
   try{ const r = await fetch('/mail/'+id+'/star',{method:'POST'}); const j = await r.json();
     if(j.ok){ btn.classList.toggle('on', j.starred); } }catch(e){}
 }
-async function demoMail(lang){
-  const fd = new FormData(); fd.append('lang', lang);
-  try{ const r = await fetch('/mail/inbox/demo',{method:'POST',body:fd}); const j = await r.json();
-    if(j.ok){ location.reload(); } else { alert('실패: '+(j.message||'')); } }catch(e){ alert('네트워크 오류'); }
-}
-
 /* ── 읽기 창 (아웃룩식) ── */
 function paneWide(){ return window.matchMedia('(min-width:901px)').matches; }
 function rowClick(ev, id){
