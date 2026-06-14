@@ -273,6 +273,32 @@
   <div class="sb-bottom-pad" aria-hidden="true"></div>{# v5H226z268b: 고정 하단 50px 띠 — 메뉴 글씨가 이 아래로 안 내려감 #}
 </aside>
 
+<script>
+/* v5H226z452 (대표 지시·휴대폰): 사이드바 드로어 자동 닫힘.
+   증상: 휴대폰에서 ☰로 메뉴를 연 뒤 항목을 골라도 드로어가 그대로 떠 있어 본문을 가림
+        → "메뉴가 항상 위에 배치되어 항목을 고르고 볼 수가 없다".
+   원인: 인앱 링크가 SPA 전환(spa_nav, .main 만 교체)이라 새로고침이 없어 mob-sb-open 이 안 풀림.
+   해결: (1) 사이드바 안 링크 탭 → 닫기  (2) 바깥(어둠막) 탭 → 닫기
+        (3) SPA 전환(knk:navigated)·ESC → 닫기.  데스크톱(≥1024px)은 드로어 미사용이라 영향 없음. */
+(function(){
+  if (window.__knkSbDrawerInit) return; window.__knkSbDrawerInit = true;
+  function isMobile(){ return window.matchMedia('(max-width: 1023px)').matches; }
+  function isOpen(){ return document.body.classList.contains('mob-sb-open'); }
+  function close(){ document.body.classList.remove('mob-sb-open'); }
+  document.addEventListener('click', function(e){
+    if (!isMobile() || !isOpen()) return;
+    var t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('.mob-sb-btn')) return;            // 햄버거 자체는 인라인 토글에 맡김
+    if (t.closest('aside.sidebar a')) { close(); return; }  // 메뉴 항목 선택 → 닫기
+    var sb = document.querySelector('aside.sidebar');
+    if (sb && !sb.contains(t)) close();              // 바깥(어둠막) 탭 → 닫기
+  });
+  document.addEventListener('knk:navigated', close); // SPA 전환 후 확실히 닫기
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') close(); });
+})();
+</script>
+
 {# ─────────── 빅터 AI Dock — 모든 페이지 공통 (v5H22) ─────────── #}
 <aside id="victorDock" class="victor-dock" aria-hidden="true">
   <div class="vd-head">
