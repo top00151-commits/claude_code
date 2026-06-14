@@ -82,6 +82,7 @@ tbody tr:hover td { background: var(--amber-glow); }
       </div>
       <div style="display:flex;gap:10px;">
         {% if can_work_patterns %}<a class="btn btn-secondary" href="/admin/work-patterns">📋 직원 업무 패턴</a>{% endif %}
+        {% if can_work_patterns %}<a class="btn btn-secondary" href="/dept/activity-dashboard">📊 수주 전 활동</a>{% endif %}
         <a class="btn btn-secondary" href="/admin/permissions/audit">📜 감사 로그</a>
         <a class="btn btn-primary" href="/admin/permissions">🔐 권한 위임</a>
       </div>

@@ -71,6 +71,28 @@ def migrate(db_path: str) -> dict:
                         "ON opp_request_members(request_id, user_id)")
             created.append("opp_request_members")
 
+        # v5H226z421 2단계: 구성원 활동·시간(h) 기록 (검토/시장조사/기술조사/제안 등) — 부서별 집계용
+        have3 = {r[0] for r in cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if "opp_request_activities" not in have3:
+            cur.execute("""
+                CREATE TABLE opp_request_activities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    request_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    activity_type TEXT DEFAULT '검토',
+                    hours REAL DEFAULT 0,
+                    act_date TEXT,
+                    memo TEXT,
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_oppact_req "
+                        "ON opp_request_activities(request_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_oppact_user "
+                        "ON opp_request_activities(user_id, act_date)")
+            created.append("opp_request_activities")
+
         conn.commit()
     finally:
         conn.close()

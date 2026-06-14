@@ -37,6 +37,23 @@
 .dr-btn{padding:6px 14px;border:1px solid #d6cdb6;background:#fff;color:#334155;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;}
 .dr-btn.primary{background:#A5282C;color:#fff;border-color:#A5282C;}
 .dr-note{font-size:11.5px;color:#94a3b8;margin-top:6px;}
+/* z421 2단계 활동·시간 */
+.dr-dashbtn{margin-left:auto;background:#A5282C;color:#fff;text-decoration:none;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:8px;}
+.dr-acts{margin-top:9px;border-top:1px dashed #eef0f3;padding-top:8px;}
+.dr-actshead{font-size:12px;color:#334155;font-weight:700;margin-bottom:5px;}
+.dr-actshead b{color:#A5282C;}
+.dr-actlist{list-style:none;margin:0 0 6px;padding:0;}
+.dr-actlist li{font-size:12px;color:#475569;padding:2px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.dr-atype{background:#eef2ff;color:#4338ca;font-weight:700;font-size:11px;padding:1px 7px;border-radius:5px;}
+.dr-adate{color:#94a3b8;font-size:11px;}
+.dr-auser{color:#1e293b;font-weight:600;}
+.dr-actadd{display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#f8fafc;border:1px solid #eef0f3;border-radius:8px;padding:7px 9px;}
+.dr-actadd select,.dr-actadd input[type=text],.dr-actadd input[type=number]{padding:5px 8px;border:1px solid #d6cdb6;border-radius:6px;font-size:12px;font-family:inherit;}
+.dr-hin{width:64px;}
+.dr-amemo{flex:1;min-width:120px;}
+.dr-hwrap{display:flex;gap:3px;align-items:center;}
+.dr-hq{cursor:pointer;background:#fff;border:1px solid #d6cdb6;border-radius:5px;padding:4px 7px;font-size:11px;color:#475569;font-weight:700;}
+.dr-hq:hover{background:#A5282C;color:#fff;border-color:#A5282C;}
 </style></head>
 <body>
 <div class="app">
@@ -50,10 +67,13 @@
 
     {% set ok = request.query_params.get('ok') %}
     {% set err = request.query_params.get('err') %}
-    {% if ok %}<div class="dr-flash ok">✅ {% if ok=='pm' %}PM을 지정했습니다 (해당 PM에게 알림 전송).{% elif ok=='member' %}구성원을 추가했습니다 (해당 구성원에게 알림 전송).{% elif ok=='memdel' %}구성원을 제외했습니다.{% elif ok=='status' %}상태를 변경했습니다.{% else %}처리됐습니다.{% endif %}</div>{% endif %}
-    {% if err %}<div class="dr-flash err">⚠ {% if err=='forbidden' %}권한이 없습니다 (해당 부서 팀장 또는 PM만 처리 가능).{% elif err=='pm' %}PM을 선택해 주세요.{% elif err=='member' %}구성원을 선택해 주세요.{% else %}처리에 실패했습니다.{% endif %}</div>{% endif %}
+    {% if ok %}<div class="dr-flash ok">✅ {% if ok=='pm' %}PM을 지정했습니다 (해당 PM에게 알림 전송).{% elif ok=='member' %}구성원을 추가했습니다 (해당 구성원에게 알림 전송).{% elif ok=='memdel' %}구성원을 제외했습니다.{% elif ok=='status' %}상태를 변경했습니다.{% elif ok=='act' %}활동·시간을 기록했습니다.{% elif ok=='actdel' %}활동 기록을 삭제했습니다.{% else %}처리됐습니다.{% endif %}</div>{% endif %}
+    {% if err %}<div class="dr-flash err">⚠ {% if err=='forbidden' %}권한이 없습니다 (해당 부서 팀장·PM 또는 참여 구성원만 처리 가능).{% elif err=='pm' %}PM을 선택해 주세요.{% elif err=='member' %}구성원을 선택해 주세요.{% elif err=='hours' %}시간(h)을 0보다 크게 입력해 주세요.{% else %}처리에 실패했습니다.{% endif %}</div>{% endif %}
 
-    <div class="dr-intro">영업이 영업 기회에서 부서로 검토·조사를 요청하면 여기로 옵니다. <b>팀장</b>이 PM을 지정 → <b>PM</b>이 구성원을 추가합니다. <span style="color:#cbd5e1;">(구성원의 활동·시간 기록은 2단계)</span></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="dr-intro" style="margin:0;">영업이 영업 기회에서 부서로 검토·조사를 요청하면 여기로 옵니다. <b>팀장</b>이 PM 지정 → <b>PM</b>이 구성원 추가 → <b>구성원</b>이 활동·시간(h)을 기록합니다.</div>
+      {% if can_boss %}<a class="dr-dashbtn" href="/dept/activity-dashboard">📊 수주 전 활동 대시보드 →</a>{% endif %}
+    </div>
 
     {% set has_any = as_leader or as_pm or as_member %}
     {% if not has_any %}
@@ -72,6 +92,31 @@
       <div class="dr-meta">요청자 {{ r.requester_name or '—' }} · PM <b>{{ r.pm_name or '미지정' }}</b>{% if r.members %} · 구성원 {% for m in r.members %}{{ m.user_name }}{% if m.role_in_req=='pm' %}(PM){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</div>
     {% endmacro %}
 
+    {% macro act_section(r, editable) %}
+      <div class="dr-acts">
+        <div class="dr-actshead">⏱ 활동·시간 <b>{{ r.total_hours }}h</b>{% if r.activities %} · {{ r.activities|length }}건{% endif %}</div>
+        {% if r.activities %}
+        <ul class="dr-actlist">
+          {% for a in r.activities %}
+          <li><span class="dr-atype">{{ a.activity_type }}</span> <b>{{ a.hours }}h</b> <span class="dr-adate">{{ a.act_date }}</span> <span class="dr-auser">{{ a.user_name }}</span>{% if a.memo %} — {{ a.memo }}{% endif %}{% if a.user_id == user.id %}<form method="post" action="/dept/requests/{{ r.id }}/activities/{{ a.id }}/delete" style="display:inline;margin-left:auto;" onsubmit="return confirm('이 기록을 삭제할까요?');"><button class="dr-mx" title="삭제">×</button></form>{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if editable %}
+        <form method="post" action="/dept/requests/{{ r.id }}/activities/add" class="dr-actadd">
+          <select name="activity_type">{% for at in act_types %}<option value="{{ at }}">{{ at }}</option>{% endfor %}</select>
+          <span class="dr-hwrap">
+            <input type="number" name="hours" step="0.5" min="0" placeholder="시간" class="dr-hin" required>
+            {% for h in ['0.5','1','2','4','8'] %}<span class="dr-hq" data-h="{{ h }}">{{ h }}</span>{% endfor %}
+          </span>
+          <input type="date" name="act_date" class="knk-cal" title="활동 날짜">
+          <input type="text" name="memo" placeholder="메모(선택)" class="dr-amemo">
+          <button class="dr-btn primary">+ 기록</button>
+        </form>
+        {% endif %}
+      </div>
+    {% endmacro %}
+
     {% if as_leader %}
     <section>
       <div class="dr-sec">📥 우리 팀에 온 요청 <span class="dr-cnt">{{ as_leader|length }}</span> <span class="dr-role">팀장</span></div>
@@ -87,6 +132,7 @@
             <button class="dr-btn primary">{{ 'PM 변경' if r.pm_user_id else 'PM 지정' }}</button>
           </form>
           {% if not team_members.get(r.team_id) %}<div class="dr-note">이 부서에 등록된 활성 구성원이 없습니다.</div>{% endif %}
+          {{ act_section(r, false) }}
         </div>
         {% endfor %}
       </div>
@@ -118,6 +164,7 @@
             </select>
             <button class="dr-btn">상태 변경</button>
           </form>
+          {{ act_section(r, true) }}
         </div>
         {% endfor %}
       </div>
@@ -131,7 +178,7 @@
         {% for r in as_member %}
         <div class="dr-card">
           {{ req_head(r) }}
-          <div class="dr-note">내 역할: 구성원 · 활동·시간 기록은 2단계에서 여기에 추가됩니다.</div>
+          {{ act_section(r, true) }}
         </div>
         {% endfor %}
       </div>
@@ -141,4 +188,14 @@
   </div>
 </main></div>
 {% include "_v5_partials/knk_datepicker.html" ignore missing %}
+<script>
+/* z421 2단계: 시간 빠른버튼(0.5/1/2/4/8h) → 같은 행 시간 입력칸 채움 */
+document.addEventListener('click', function(e){
+  var q = e.target.closest && e.target.closest('.dr-hq');
+  if(!q) return;
+  var wrap = q.closest('.dr-hwrap');
+  var inp = wrap && wrap.querySelector('.dr-hin');
+  if(inp){ inp.value = q.getAttribute('data-h'); }
+});
+</script>
 </body></html>

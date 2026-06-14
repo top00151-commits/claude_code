@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>수주 전 활동 대시보드 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z421 2단계 (대표 지시): 수주 전 활동 대시보드 — 부서별·유형별·인별 시간/건수 */
+.pa-wrap{margin:0 var(--content-pad) var(--space-6);padding:0;}
+.pa-period{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:14px;font-size:12.5px;color:#64748b;}
+.pa-period a{padding:5px 12px;border:1px solid #d6cdb6;border-radius:999px;text-decoration:none;color:#475569;font-weight:700;}
+.pa-period a.on{background:#A5282C;color:#fff;border-color:#A5282C;}
+.pa-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-bottom:16px;}
+.pa-kpi{background:#fff;border:1px solid #f1e8d4;border-radius:11px;padding:14px 16px;box-shadow:0 1px 3px rgba(45,37,32,0.05);}
+.pa-kpi .v{font-size:26px;font-weight:800;color:#A5282C;}
+.pa-kpi .l{font-size:12px;color:#64748b;margin-top:3px;}
+.pa-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;}
+.pa-card{background:#fff;border:1px solid #f1e8d4;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(45,37,32,0.05);}
+.pa-card h3{margin:0 0 11px;font-size:13.5px;font-weight:800;color:#A5282C;}
+.pa-row{margin-bottom:9px;}
+.pa-rhead{display:flex;justify-content:space-between;font-size:12.5px;color:#1e293b;margin-bottom:3px;}
+.pa-rhead .nm{font-weight:700;}
+.pa-rhead .vv{color:#64748b;}
+.pa-rhead .vv b{color:#A5282C;}
+.pa-bar{height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden;}
+.pa-bar>i{display:block;height:100%;background:linear-gradient(90deg,#A5282C,#d4646a);border-radius:999px;}
+.pa-none{color:#cbd5e1;font-size:12.5px;padding:8px 0;}
+.pa-hint{font-size:11.5px;color:#94a3b8;margin-top:14px;}
+</style></head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/dept/requests">부서 요청함</a> · <b>수주 전 활동 대시보드</b></div>
+    <h1 class="page-title">수주 전 활동 대시보드 <em>— 부서가 수주 전에 쓰는 시간·일</em></h1>
+  </div></div>
+  <div class="pa-wrap">
+
+    <div class="pa-period">
+      <span>기간:</span>
+      {% for d,lab in [(7,'최근 7일'),(30,'최근 30일'),(90,'최근 90일'),(365,'최근 1년')] %}
+      <a href="/dept/activity-dashboard?days={{ d }}" class="{{ 'on' if days==d }}">{{ lab }}</a>
+      {% endfor %}
+      <span style="margin-left:6px;">({{ start }} ~ {{ end }})</span>
+    </div>
+
+    <div class="pa-kpis">
+      <div class="pa-kpi"><div class="v">{{ agg.total_hours }}<span style="font-size:14px;">h</span></div><div class="l">총 투입 시간</div></div>
+      <div class="pa-kpi"><div class="v">{{ agg.total_count }}</div><div class="l">활동 건수</div></div>
+      <div class="pa-kpi"><div class="v">{{ agg.req_count }}</div><div class="l">관련 부서 요청</div></div>
+      <div class="pa-kpi"><div class="v">{{ agg.people_count }}</div><div class="l">참여 인원</div></div>
+    </div>
+
+    <div class="pa-cols">
+      {# 부서별 #}
+      <div class="pa-card">
+        <h3>🏢 부서별 투입 시간</h3>
+        {% set tmax = (agg.by_team|map(attribute='hours')|max) if agg.by_team else 0 %}
+        {% if agg.by_team %}
+          {% for r in agg.by_team %}
+          <div class="pa-row">
+            <div class="pa-rhead"><span class="nm">{{ r.name }}</span><span class="vv"><b>{{ r.hours }}h</b> · {{ r.cnt }}건</span></div>
+            <div class="pa-bar"><i style="width: {{ ((r.hours / tmax * 100) if tmax else 0)|round(1) }}%;"></i></div>
+          </div>
+          {% endfor %}
+        {% else %}<div class="pa-none">기간 내 기록이 없습니다.</div>{% endif %}
+      </div>
+
+      {# 유형별 #}
+      <div class="pa-card">
+        <h3>🧪 활동 유형별</h3>
+        {% set ymax = (agg.by_type|map(attribute='hours')|max) if agg.by_type else 0 %}
+        {% if agg.by_type %}
+          {% for r in agg.by_type %}
+          <div class="pa-row">
+            <div class="pa-rhead"><span class="nm">{{ r.name }}</span><span class="vv"><b>{{ r.hours }}h</b> · {{ r.cnt }}건</span></div>
+            <div class="pa-bar"><i style="width: {{ ((r.hours / ymax * 100) if ymax else 0)|round(1) }}%;"></i></div>
+          </div>
+          {% endfor %}
+        {% else %}<div class="pa-none">기간 내 기록이 없습니다.</div>{% endif %}
+      </div>
+
+      {# 인별 #}
+      <div class="pa-card">
+        <h3>👤 인원별 (상위 30)</h3>
+        {% set pmax = (agg.by_person|map(attribute='hours')|max) if agg.by_person else 0 %}
+        {% if agg.by_person %}
+          {% for r in agg.by_person %}
+          <div class="pa-row">
+            <div class="pa-rhead"><span class="nm">{{ r.name }}{% if r.team %} <span style="color:#94a3b8;font-weight:400;">· {{ r.team }}</span>{% endif %}</span><span class="vv"><b>{{ r.hours }}h</b> · {{ r.cnt }}건</span></div>
+            <div class="pa-bar"><i style="width: {{ ((r.hours / pmax * 100) if pmax else 0)|round(1) }}%;"></i></div>
+          </div>
+          {% endfor %}
+        {% else %}<div class="pa-none">기간 내 기록이 없습니다.</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="pa-hint">※ 수주 전(관리코드 발번 전) 부서 요청에 기록된 활동·시간만 집계합니다. 열람은 현재 대표 전용입니다. (수주 확정 후 부서 업무량은 별도 보강 예정)</div>
+  </div>
+</main></div>
+</body></html>
