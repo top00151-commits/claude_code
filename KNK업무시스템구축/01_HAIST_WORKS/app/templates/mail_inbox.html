@@ -104,7 +104,7 @@
     </form>
     <div class="mbx-actions">
       <a href="/mail/compose" class="btn btn-primary">✏️ 메일 쓰기</a>
-      {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a>{% endif %}
+      {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a><a href="/admin/mail-fetch" class="btn btn-secondary" title="하이웍스 등 기존 메일을 KNK 메일로 당겨오기">📥 가져오기</a>{% endif %}
       {% if box=='in' %}
       <a href="/mail/rules" class="btn btn-secondary" title="보낸사람·제목 키워드로 메일을 자동 분류">⚙ 자동분류</a>
       <button type="button" class="btn btn-secondary" onclick="demoMail('vi')">＋ 시범(베)</button>
