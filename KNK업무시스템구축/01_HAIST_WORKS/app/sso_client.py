@@ -198,12 +198,16 @@ def invalidate_pwv_check(user_id: int):
 
 
 # ── 로그인 URL 빌더 ──────────────────────────────────────────
-def build_login_url(redirect_uri: str) -> str:
+def build_login_url(redirect_uri: str, force: bool = False) -> str:
     """메신저 SSO 로그인 화면 URL 생성.
-    redirect_uri 는 절대 URL 권장 (예: https://works.knknara.co.kr/sso/callback)"""
+    redirect_uri 는 절대 URL 권장 (예: https://works.knknara.co.kr/sso/callback)
+    force=True 면 force=1 을 실어, 메신저에 이미 로그인돼 있어도 '재로그인 화면'을 강제
+    (대표 지시 2026-06-14: 항상 메신저를 통해 로그인). 메신저가 force 미지원이면 자동 무시(안전 폴백)."""
     from urllib.parse import urlencode
-    qs = urlencode({"redirect_uri": redirect_uri})
-    return f"{MESSENGER_BASE}/sso/login?{qs}"
+    params = {"redirect_uri": redirect_uri}
+    if force:
+        params["force"] = "1"
+    return f"{MESSENGER_BASE}/sso/login?{urlencode(params)}"
 
 
 # ── 사용자 upsert 헬퍼 (Q1=A 자동 upsert) ───────────────────
