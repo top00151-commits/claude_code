@@ -35,6 +35,21 @@ PUBLIC_BASE = os.environ.get("KNK_MAIL_PUBLIC_BASE", "http://127.0.0.1:8201").rs
 # 개발용 로컬 로그인 우회 (운영 절대 금지) — 기본 off. KNK_MAIL_DEV_LOGIN=1 일 때만.
 DEV_LOGIN = os.environ.get("KNK_MAIL_DEV_LOGIN", "0") == "1"
 
+# 세션 쿠키 Secure(운영=1). 미들웨어가 사용.
+HTTPS_ONLY = os.environ.get("KNK_MAIL_HTTPS_ONLY", "0") == "1"
+
+# ── fail-closed: 운영(HTTPS_ONLY=1)에서 세션키가 비었거나 git 기본값이면 기동 거부 ──
+#   .env 미로드 등으로 SESSION_SECRET 이 공개 기본값으로 떨어지면 누구나 세션 위조 가능 →
+#   조용히 뜨지 말고 즉시 실패(인증 우회 방지).
+if HTTPS_ONLY and (not SESSION_SECRET or SESSION_SECRET == "knk-mail-dev-secret-change-me"):
+    raise RuntimeError(
+        "KNK_MAIL_SESSION_SECRET 가 운영에서 미설정/기본값입니다. "
+        "강력한 무작위 값으로 설정하세요(.env 로드 확인). 공개 기본키로는 기동 거부.")
+if HTTPS_ONLY and PUBLIC_BASE.startswith("http://127.0.0.1"):
+    raise RuntimeError(
+        "KNK_MAIL_PUBLIC_BASE 가 운영에서 localhost 입니다(.env 미로드 의심). "
+        "https://mail.knknara.co.kr 로 설정하세요.")
+
 # ── 표시 ──────────────────────────────────────────────
 APP_NAME = "KNK Eum MAIL"
 THEME_COLOR = "#A5282C"

@@ -27,7 +27,7 @@ app.add_middleware(
     secret_key=config.SESSION_SECRET,
     session_cookie=config.SESSION_COOKIE,
     same_site="lax",
-    https_only=(os.environ.get("KNK_MAIL_HTTPS_ONLY", "0") == "1"),
+    https_only=config.HTTPS_ONLY,
 )
 
 config.ensure_dirs()

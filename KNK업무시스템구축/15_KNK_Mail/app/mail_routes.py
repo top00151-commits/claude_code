@@ -13,6 +13,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse, Response, FileResponse
 from starlette.concurrency import run_in_threadpool
 import os
+import hmac
 
 from . import config, db, ai_client
 from . import mail_send as _mail
@@ -50,7 +51,8 @@ async def mail_inbound(req: Request):
     if not token_cfg:
         return JSONResponse({"ok": False, "message": "수신 기능 비활성 — 관리자 '메일 받기 설정'에서 토큰을 먼저 생성하세요."}, 403)
     token = (req.headers.get("X-KNK-Mail-Token") or req.query_params.get("token") or "").strip()
-    if token != token_cfg:
+    # 상수시간 비교(타이밍 공격 방지)
+    if not hmac.compare_digest(token, token_cfg):
         return JSONResponse({"ok": False, "message": "인증 실패"}, 401)
     try:
         d = await req.json()
@@ -61,6 +63,9 @@ async def mail_inbound(req: Request):
          "subject": d.get("subject") or "", "text": d.get("text") or "",
          "html": d.get("html") or "", "cc": d.get("cc") or "", "size": d.get("size") or 0}
     raw = d.get("raw") or ""
+    # 크기 상한(앱 레이어) — nginx 600M 외에 본문 폭주 방어. 메일 업계 표준 25MB+여유.
+    if raw and len(raw) > 30 * 1024 * 1024:
+        return JSONResponse({"ok": False, "message": "메일이 너무 큽니다(30MB 초과)."}, 413)
     _atts = None
     if raw:
         parsed = _mailbox.parse_raw_email(raw)
@@ -120,7 +125,7 @@ def _mail_pwa_icon_png(size: int) -> bytes:
 async def mail_manifest():
     return JSONResponse({
         "id": "/mail/app", "name": "KNK Eum MAIL", "short_name": "Eum MAIL",
-        "description": "KNK Eum MAIL — 사내 메일", "start_url": "/mail/app", "scope": "/mail/",
+        "description": "KNK Eum MAIL — 사내 메일", "start_url": "/mail/app", "scope": "/",
         "display": "standalone", "orientation": "portrait", "background_color": "#ffffff",
         "theme_color": "#A5282C", "lang": "ko",
         "icons": [

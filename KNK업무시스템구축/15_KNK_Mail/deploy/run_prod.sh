@@ -5,7 +5,8 @@
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 APPROOT="$(cd "$HERE/.." && pwd)"     # 15_KNK_Mail
-[ -f "$HERE/.env" ] && . "$HERE/.env"
+# 운영 .env 는 data/.env (배포 스크립트가 거기 씀). set -a 로 export.
+if [ -f "$APPROOT/data/.env" ]; then set -a; . "$APPROOT/data/.env"; set +a; fi
 cd "$APPROOT"
 exec python3 -m uvicorn app.main:app \
   --host "${KNK_MAIL_HOST:-127.0.0.1}" \
