@@ -135,12 +135,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c4"><label>고객사2 <span style="font-weight:400;color:var(--qv-ink-3);">(최종 고객·선택)</span></label>
             <input list="qCustList" name="secondary_customer" placeholder="최종 고객사명(선택)" autocomplete="off" value="{{ project.secondary_customer|default('') if ed else '' }}"></div>
 
-          {# 2행 — 프로젝트명(넓게) · 거래구분 · PO유형 · 형태(드롭다운) #}
-          <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span></label>
-            <input name="name" placeholder="예: 압착 자동화설비 1호기" value="{{ project.name|default('') if ed else '' }}"></div>
-          <div class="qf-f c2"><label>거래구분</label>
-            <select name="is_export"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option></select>
-          </div>
+          {# 2행(대표 지시 z435 배치 변경) — PO유형 · 형태 · 거래구분 · 프로젝트명(넓게) #}
           <div class="qf-f c2"><label>PO유형{% if ed %} <span style="font-weight:400;color:var(--qv-ink-3);">(잠금)</span>{% endif %}</label>
             {% if ed %}
             {# v5H226z354: 수정 시 PO유형은 영구잠금(감사) — 읽기전용 표시 + hidden 으로 전송 #}
@@ -159,6 +154,11 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="ETC" {% if ed and project.shipment_form == 'ETC' %}selected{% endif %}>🗂 기타</option>
             </select>
           </div>
+          <div class="qf-f c2"><label>거래구분</label>
+            <select name="is_export"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option></select>
+          </div>
+          <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span></label>
+            <input name="name" placeholder="예: 압착 자동화설비 1호기" value="{{ project.name|default('') if ed else '' }}"></div>
           {# 형태=상품(부품 품명/모델) · 기타(기타 품명) 선택 시 펼침 — 신규 등록 전용(수정은 부품 상세를 '고급 편집'에서) #}
           {% if not ed %}
           {# v5H226z430(대표 지시): 형태=상품 → 부품을 폼에서 바로 여러 개 입력(품명·모델·수량·단가). 많으면 등록 후 상세 PACKING LIST·엑셀.
