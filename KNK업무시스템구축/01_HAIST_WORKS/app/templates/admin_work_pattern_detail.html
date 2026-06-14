@@ -116,6 +116,27 @@ ul.wp-list li .n{color:#94a3b8;font-variant-numeric:tabular-nums;}
       </div>
     </div>
 
+    {# v5H226z421 3단계: 수주 전 부서 활동(영업 기회 부서 요청) 합산 #}
+    <div class="wp-card">
+      <h3>수주 전 활동 <span class="wp-muted" style="font-weight:400;">— 영업 기회 부서 요청(검토·시장조사·기술조사·제안) · 총 {{ presales.total_h }}h · {{ presales.total_n }}건</span></h3>
+      <div class="ex-wrap">
+        <div class="ex-col">
+          <div class="ex-h">🧪 활동 유형별</div>
+          <ul class="wp-list">
+            {% for x in presales.by_type %}<li><span>{{ x.activity_type }}</span><span class="n">{{ x.h }}h · {{ x.n }}건</span></li>{% endfor %}
+            {% if not presales.by_type %}<li class="wp-muted">수주 전 활동 기록 없음</li>{% endif %}
+          </ul>
+        </div>
+        <div class="ex-col">
+          <div class="ex-h">📋 관련 부서 요청</div>
+          <ul class="wp-list">
+            {% for x in presales.reqs %}<li><span>{{ x.team_name or '—' }} · {{ x.title or x.opp_no or '요청' }}</span><span class="n">{{ x.h }}h · {{ x.n }}건</span></li>{% endfor %}
+            {% if not presales.reqs %}<li class="wp-muted">관련 요청 없음</li>{% endif %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
     {% if total %}
     <div class="wp-card">
       <h3>업무 구성 (카테고리)</h3>
