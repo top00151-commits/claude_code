@@ -931,10 +931,6 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             <div class="parts-col-toggle" data-dn="parts-col-toggle" data-dn-tone="green" data-so="{{ so.id }}">
               <span class="lbl">📋 컬럼 그룹:</span>
               <button type="button" data-pgroup="basic"   class="active">기본 (사진·품명·규격·수량 등)</button>
-              <button type="button" data-pgroup="customs" class="active">통관 (HS/DUTY/VAT)</button>
-              <button type="button" data-pgroup="invoice" class="active">인보이스 USD</button>
-              <button type="button" data-pgroup="duty"    class="active">관세·최종</button>
-              <button type="button" data-pgroup="meta"    class="active">상세·PALLET·중량</button>
               <button type="button" data-pgroup="somet"   class="active">SO 메타 (단가·일정·상태)</button>
               <button type="button" class="reset" id="partsResetCols-{{ so.id }}" title="컬럼 폭 원복">↻ 폭 리셋</button>
             </div>
@@ -943,7 +939,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
               {# v5H226z19: 중간 스크롤 제거 — wrapper 자연 높이 + 가로 스크롤만. #}
               {# 가로 스크롤이 viewport 하단에 항상 보이도록 sticky horizontal proxy 추가. #}
               <div{% if _is_parts %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% endif %}>
-            <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;min-width:2500px;table-layout:fixed;"{% endif %}>
+            <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;min-width:1500px;table-layout:fixed;"{% endif %}>
               <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
@@ -952,24 +948,13 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
                   {% if _is_parts %}
                   <th style="width:130px;" data-pgroup="basic">규격</th>
-                  <th style="width:80px;"  data-pgroup="basic">메이커</th>
-                  <th style="width:80px;"  data-pgroup="basic">업체명</th>
                   <th style="width:70px;"  data-pgroup="basic">원산지</th>
                   <th style="width:60px;"  data-pgroup="basic">BOX</th>
                   <th class="num" style="width:60px;" data-pgroup="basic">수량</th>
                   <th style="width:50px;"  data-pgroup="basic">단위</th>
-                  <th class="num" style="width:90px;background:#fef9e6;" data-pgroup="customs">금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(VAT 별도)</span></th>
-                  <th style="width:80px;background:#e0f2fe;" data-pgroup="customs">HS CODE</th>
-                  <th class="num" style="width:55px;background:#e0f2fe;" data-pgroup="customs">DUTY</th>
-                  <th class="num" style="width:55px;background:#e0f2fe;" data-pgroup="customs">VAT</th>
-                  <th class="num" style="width:80px;background:#dcfce7;" data-pgroup="invoice">인보이스<br><span style="font-size:10px;font-weight:400;">단가 USD</span></th>
-                  <th class="num" style="width:90px;background:#dcfce7;" data-pgroup="invoice">인보이스<br><span style="font-size:10px;font-weight:400;">금액 USD</span></th>
-                  <th class="num" style="width:80px;background:#fef3c7;" data-pgroup="duty">관세<br><span style="font-size:10px;font-weight:400;">KRW</span></th>
-                  <th class="num" style="width:70px;background:#fef3c7;" data-pgroup="duty">관세<br><span style="font-size:10px;font-weight:400;">USD</span></th>
-                  <th class="num" style="width:90px;background:#fef3c7;" data-pgroup="duty">최종 금액<br><span style="font-size:10px;font-weight:400;">USD</span></th>
-                  <th style="width:140px;" data-pgroup="meta">상세 내용</th>
-                  <th style="width:120px;" data-pgroup="meta">PALLET<br><span style="font-size:10px;font-weight:400;">가로*세로*높이</span></th>
-                  <th class="num" style="width:65px;" data-pgroup="meta">중량<br><span style="font-size:10px;font-weight:400;">kg</span></th>
+                  {# v5H226z440(대표 지시): 금액=기본 그룹. 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD)은 PACKING LIST 에서 제거→수출 문서 모듈에서 입력 #}
+                  <th class="num" style="width:90px;background:#fef9e6;" data-pgroup="basic">금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(VAT 별도)</span></th>
+                  <th style="width:160px;" data-pgroup="basic">상세 내용</th>
                   {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
                   <th class="num" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가</th>
@@ -1025,14 +1010,6 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     {% if _editable %}<input type="text" class="unit-edit spec-inp" data-orig="{{ u.spec or '' }}" value="{{ u.spec or '' }}" style="width:120px;font-size:11.5px;">{% endif %}
                   </td>
                   <td style="font-size:11.5px;">
-                    <span class="display-val">{{ u.maker or '—' }}</span>
-                    {% if _editable %}<input type="text" class="unit-edit maker-inp" data-orig="{{ u.maker or '' }}" value="{{ u.maker or '' }}" style="width:70px;font-size:11.5px;">{% endif %}
-                  </td>
-                  <td style="font-size:11.5px;">
-                    <span class="display-val">{{ u.supplier or '—' }}</span>
-                    {% if _editable %}<input type="text" class="unit-edit supplier-inp" data-orig="{{ u.supplier or '' }}" value="{{ u.supplier or '' }}" style="width:70px;font-size:11.5px;">{% endif %}
-                  </td>
-                  <td style="font-size:11.5px;">
                     <span class="display-val">{{ u.origin or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit origin-inp" data-orig="{{ u.origin or '' }}" value="{{ u.origin or '' }}" style="width:60px;font-size:11.5px;">{% endif %}
                   </td>
@@ -1052,54 +1029,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <td class="num" style="font-size:11.5px;background:#fef9e6;">
                     <span class="display-val" style="font-weight:600;">{% if can_money %}{{ '{:,.0f}'.format(u.amount or 0) }}{% else %}🔒{% endif %}</span>
                   </td>
-                  {# v5H226z6: 통관 — HS CODE / DUTY / VAT #}
-                  <td style="font-size:11px;background:#e0f2fe;font-family:monospace;">
-                    <span class="display-val">{{ u.hs_code or '—' }}</span>
-                    {% if _editable %}<input type="text" class="unit-edit hs-inp" data-orig="{{ u.hs_code or '' }}" value="{{ u.hs_code or '' }}" style="width:75px;font-size:11px;font-family:monospace;">{% endif %}
-                  </td>
-                  <td class="num" style="font-size:11px;background:#e0f2fe;">
-                    <span class="display-val">{% if u.duty_rate is not none and u.duty_rate != 0 %}{{ '{:.1f}%'.format((u.duty_rate or 0) * 100) }}{% else %}—{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit duty-rate-inp" data-orig="{{ u.duty_rate or '' }}" value="{{ u.duty_rate or '' }}" placeholder="0.1" style="width:50px;font-size:11px;text-align:right;">{% endif %}
-                  </td>
-                  <td class="num" style="font-size:11px;background:#e0f2fe;">
-                    <span class="display-val">{% if u.vat_rate is not none and u.vat_rate != 0 %}{{ '{:.1f}%'.format((u.vat_rate or 0) * 100) }}{% else %}—{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit vat-rate-inp" data-orig="{{ u.vat_rate or '' }}" value="{{ u.vat_rate or '' }}" placeholder="0.08" style="width:50px;font-size:11px;text-align:right;">{% endif %}
-                  </td>
-                  {# v5H226z6: 인보이스 USD 단가/금액 #}
-                  <td class="num" style="font-size:11px;background:#dcfce7;">
-                    <span class="display-val">{% if can_money %}{% if u.invoice_unit_price_usd %}{{ '{:,.2f}'.format(u.invoice_unit_price_usd) }}{% else %}—{% endif %}{% else %}🔒{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit inv-up-usd-inp" data-orig="{{ u.invoice_unit_price_usd or '' }}" value="{{ u.invoice_unit_price_usd or '' }}" style="width:75px;font-size:11px;text-align:right;">{% endif %}
-                  </td>
-                  <td class="num" style="font-size:11px;background:#dcfce7;">
-                    <span class="display-val" style="font-weight:600;">{% if can_money %}{% if u.invoice_amount_usd %}{{ '{:,.2f}'.format(u.invoice_amount_usd) }}{% else %}—{% endif %}{% else %}🔒{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit inv-amt-usd-inp" data-orig="{{ u.invoice_amount_usd or '' }}" value="{{ u.invoice_amount_usd or '' }}" style="width:80px;font-size:11px;text-align:right;">{% endif %}
-                  </td>
-                  {# v5H226z6: 관세 KRW/USD #}
-                  <td class="num" style="font-size:11px;background:#fef3c7;">
-                    <span class="display-val">{% if can_money %}{% if u.duty_krw %}{{ '{:,.0f}'.format(u.duty_krw) }}{% else %}—{% endif %}{% else %}🔒{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit duty-krw-inp" data-orig="{{ u.duty_krw or '' }}" value="{{ u.duty_krw or '' }}" style="width:75px;font-size:11px;text-align:right;">{% endif %}
-                  </td>
-                  <td class="num" style="font-size:11px;background:#fef3c7;">
-                    <span class="display-val">{% if can_money %}{% if u.duty_usd %}{{ '{:,.2f}'.format(u.duty_usd) }}{% else %}—{% endif %}{% else %}🔒{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit duty-usd-inp" data-orig="{{ u.duty_usd or '' }}" value="{{ u.duty_usd or '' }}" style="width:60px;font-size:11px;text-align:right;">{% endif %}
-                  </td>
-                  {# v5H226z6: 최종 금액 USD #}
-                  <td class="num" style="font-size:11px;background:#fef3c7;">
-                    <span class="display-val" style="font-weight:700;color:#7c4a03;">{% if can_money %}{% if u.final_amount_usd %}{{ '{:,.2f}'.format(u.final_amount_usd) }}{% else %}—{% endif %}{% else %}🔒{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit final-usd-inp" data-orig="{{ u.final_amount_usd or '' }}" value="{{ u.final_amount_usd or '' }}" style="width:80px;font-size:11px;text-align:right;font-weight:700;">{% endif %}
-                  </td>
-                  {# v5H226z6: 상세 / PALLET / 중량 #}
+                  {# v5H226z440(대표 지시): 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD) PACKING LIST 에서 제거 → 수출 문서 모듈에서 입력. DB 컬럼·데이터는 보존(저장 시 미전송→백엔드 보존). #}
+                  {# 상세 내용 #}
                   <td style="font-size:11px;">
                     <span class="display-val">{{ u.description or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit desc-inp" data-orig="{{ u.description or '' }}" value="{{ u.description or '' }}" style="width:130px;font-size:11px;">{% endif %}
-                  </td>
-                  <td style="font-size:11px;">
-                    <span class="display-val">{{ u.pallet_size or '—' }}</span>
-                    {% if _editable %}<input type="text" class="unit-edit pallet-inp" data-orig="{{ u.pallet_size or '' }}" value="{{ u.pallet_size or '' }}" placeholder="가로*세로*높이" style="width:110px;font-size:11px;">{% endif %}
-                  </td>
-                  <td class="num" style="font-size:11px;">
-                    <span class="display-val">{% if u.weight_kg %}{{ '{:,.2f}'.format(u.weight_kg) }}{% else %}—{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit weight-inp" data-orig="{{ u.weight_kg or '' }}" value="{{ u.weight_kg or '' }}" style="width:55px;font-size:11px;text-align:right;">{% endif %}
                   </td>
                   {% endif %}
                   {% if _is_co %}
