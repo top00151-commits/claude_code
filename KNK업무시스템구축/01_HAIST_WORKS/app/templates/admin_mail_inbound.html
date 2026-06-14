@@ -17,7 +17,7 @@
   .mi-note{font-size:12px;color:var(--mute);line-height:1.7}
 </style>
 </head><body>
-<div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><b>관리</b> · 메일 받기 설정</div>
