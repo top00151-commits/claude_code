@@ -30,6 +30,10 @@
   .mail-app-top .reload:hover { background:rgba(255,255,255,.30); }
   .mail-app-top .reload.spin { animation:mailReloadSpin .7s linear infinite; }
   @keyframes mailReloadSpin { to { transform:rotate(360deg); } }
+  /* ← 이전 페이지 버튼 — 새로고침 왼쪽 (대표 지시 2026-06-14) */
+  .mail-app-top .navbtn { border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:#fff;
+    font-size:12.5px; font-weight:600; padding:5px 11px; border-radius:8px; cursor:pointer; line-height:1; white-space:nowrap; }
+  .mail-app-top .navbtn:hover { background:rgba(255,255,255,.30); }
 </style>
 <div class="mail-app-top">
   <span class="brand">📧 HAIST WORKS 메일함</span>
@@ -39,6 +43,7 @@
   <a href="/mail/compose">✏️ 쓰기</a>
   <span class="sp"></span>
   <button type="button" id="mailInstallBtn" class="install" onclick="mailInstallApp()" title="이 메일을 앱처럼 설치 — 바탕화면/홈 화면 아이콘으로 독립 실행">📲 앱 설치</button>
+  <button type="button" class="navbtn" onclick="mailGoBack()" title="이전 페이지로 돌아가기">← 이전</button>
   <button type="button" id="mailReloadBtn" class="reload" onclick="mailReload()" title="새로고침 — 업데이트를 바로 적용(최신 버전으로 갱신)">🔄</button>
   {% if user %}{% set _dn = vname(user) or '사용자' %}
   <span class="me" title="현재 로그인한 사용자(접속자) — KNK Eum 자동 로그인">
@@ -48,6 +53,11 @@
   {# 「WORKS 전체화면」(?app=0) 버튼 제거 — 메일은 KNK Eum 전용 독립 창, WORKS는 KNK Eum 🌟 아이콘으로 별도 실행(역할 분리). (대표 지시 2026-06-14) #}
 </div>
 <script>
+// ← 이전 페이지로 (히스토리 없으면 받은편지함으로)
+window.mailGoBack = function(){
+  if (window.history && history.length > 1) { history.back(); }
+  else { location.href = '/mail/inbox'; }
+};
 // 🔄 새로고침 — 업데이트(새 버전·다운로드)를 바로 적용: 서비스워커 갱신 + 모든 캐시 삭제 + 새로고침
 window.mailReload = async function(){
   var btn = document.getElementById('mailReloadBtn');
