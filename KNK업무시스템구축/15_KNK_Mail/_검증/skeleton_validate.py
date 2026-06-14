@@ -76,11 +76,11 @@ r = c.get("/mail/inbox")
 chk("로그인 후 /mail/inbox 200", r.status_code == 200)
 chk("받은편지함 렌더(독립 DB 문구)", "독립 DB(mail.db)" in r.text and "받은편지함" in r.text)
 
-# 메일 1통 넣고 표시 확인
+# 메일 1통 넣고 표시 확인 (dev 로그인이 만든 미러 사용자 사용)
 with mdb.db_session() as cc:
-    cc.execute("INSERT INTO users(id, login_id, name, role, is_active) VALUES(1,'dev','테스트대표','ceo',1)")
+    uid = cc.execute("SELECT id FROM users WHERE employee_no='DEV001'").fetchone()["id"]
     cc.execute("INSERT INTO mail_messages(user_id, direction, from_name, subject, category, received_at) "
-               "VALUES(1,'in','홍길동','[검증] 독립 메일 1통','견적','2026-06-14 10:00')")
+               "VALUES(?, 'in','홍길동','[검증] 독립 메일 1통','견적','2026-06-14 10:00')", (uid,))
 r = c.get("/mail/inbox")
 chk("삽입한 메일 제목 표시", "[검증] 독립 메일 1통" in r.text and "전체 1통" in r.text)
 

@@ -6,6 +6,11 @@
   <h2 style="margin:8px 0 4px;">{{ app_name }}</h2>
   <p class="muted" style="margin:0 0 18px;">회사 메일 · KNK Eum 계정으로 로그인</p>
 
+  {% if error %}
+  <div style="background:#fdecea;color:#b71c1c;border:1px solid #f5c6cb;border-radius:8px;
+              padding:10px 12px;font-size:13px;margin-bottom:14px;">{{ error }}</div>
+  {% endif %}
+
   <a class="btn" href="/sso/login" style="width:100%;">KNK Eum(메신저)으로 로그인</a>
   <p class="muted" style="font-size:12px;margin-top:10px;">
     메신저 SSO 연결은 준비 단계입니다(독립 분리 작업 중).

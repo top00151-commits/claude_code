@@ -16,6 +16,7 @@ import os
 
 from . import config
 from . import db
+from . import sso_client
 
 # ── 앱 / 미들웨어 ─────────────────────────────────────
 app = FastAPI(title=config.APP_NAME)
@@ -37,12 +38,36 @@ if os.path.isdir(config.STATIC_DIR):
 
 
 # ── 공통 헬퍼 ─────────────────────────────────────────
-def get_user(req: Request):
-    """세션의 로그인 사용자 dict (없으면 None)."""
+def _load_user(uid):
+    """미러 users 행 → dict (없으면 None)."""
+    if not uid:
+        return None
     try:
-        return req.session.get("user")
+        with db.db_session() as c:
+            r = c.execute("SELECT * FROM users WHERE id=? AND COALESCE(is_active,1)=1", (uid,)).fetchone()
+            return dict(r) if r else None
     except Exception:
         return None
+
+
+def get_user(req: Request):
+    """세션 user_id → 미러 users 로드 (WORKS와 동일 계약: 세션엔 id만)."""
+    try:
+        return _load_user(req.session.get("user_id"))
+    except Exception:
+        return None
+
+
+def _safe_next_path(nxt: str) -> str:
+    """SSO 착지 경로 — 내부 경로만 허용(오픈 리다이렉트 차단)."""
+    nxt = (nxt or "").strip()
+    if not nxt or not nxt.startswith("/"):
+        return ""
+    if nxt.startswith("//") or nxt.startswith("/\\"):
+        return ""
+    if any(ch in nxt for ch in ("\\", "\n", "\r", "\t", " ")):
+        return ""
+    return nxt
 
 
 def require(req: Request):
@@ -110,16 +135,72 @@ async def login_dev(req: Request):
         return JSONResponse({"error": "dev login disabled"}, status_code=403)
     form = await req.form()
     name = (form.get("name") or "개발자").strip()
-    req.session["user"] = {
-        "id": 1, "employee_no": "DEV001", "login_id": "dev",
-        "name": name, "role": "ceo", "email": "dev@knknara.co.kr", "lang": "ko",
-    }
+    with db.db_session() as c:
+        uid = sso_client.upsert_user_from_payload(
+            c, {"sub": "DEV001", "name_kr": name, "email": "dev@knknara.co.kr", "is_admin": True})
+        if uid:
+            c.execute("UPDATE users SET role='ceo' WHERE id=?", (uid,))
+    req.session["user_id"] = uid
     return RedirectResponse("/mail/inbox", status_code=303)
+
+
+# ── 메신저 SSO (WORKS와 동일 계약: /login→메신저, /sso/land?token=) ──
+@app.get("/sso/login")
+def sso_login(req: Request):
+    """메신저 SSO 로그인으로 보냄. redirect_uri = 이 앱 /sso/land."""
+    from urllib.parse import quote
+    nxt = _safe_next_path(req.query_params.get("next") or "/mail/inbox") or "/mail/inbox"
+    redirect_uri = config.PUBLIC_BASE + "/sso/land?next=" + quote(nxt, safe="")
+    return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
+
+
+@app.get("/sso/land")
+def sso_land(req: Request):
+    """메신저가 발급한 JWT(token) 수신 → 검증 → 미러 upsert → 세션."""
+    token = req.query_params.get("token") or ""
+    if not token:
+        return ctx(req, "login.html", dev_login=config.DEV_LOGIN,
+                   error="입장 토큰이 없습니다. KNK Eum(메신저)에서 메일을 다시 열어주세요.")
+    payload = sso_client.verify_token(token)
+    if not payload:
+        return ctx(req, "login.html", dev_login=config.DEV_LOGIN,
+                   error="입장 토큰 검증 실패(만료 가능). 메신저에서 다시 열어주세요.")
+    # 게이트: 인증된 직원(사번 보유)이면 입장. (메신저가 mail_access claim 추가 시 강화)
+    if not str(payload.get("sub") or payload.get("employee_no") or "").strip():
+        return ctx(req, "login.html", dev_login=config.DEV_LOGIN,
+                   error="직원 정보가 없는 토큰입니다. 관리자에게 문의해주세요.")
+    with db.db_session() as c:
+        uid = sso_client.upsert_user_from_payload(c, payload)
+    if not uid:
+        return ctx(req, "login.html", dev_login=config.DEV_LOGIN,
+                   error="사용자 동기화 실패. 관리자에게 문의해주세요.")
+    req.session["user_id"] = uid
+    req.session["sso_pwv"] = int(payload.get("pwv") or 1)
+    req.session["sso_token"] = token
+    sso_client.mark_pwv_checked(uid)
+    nxt = _safe_next_path(req.query_params.get("next") or "") or "/mail/inbox"
+    return RedirectResponse(nxt, 303)
+
+
+@app.post("/admin/dir-sync")
+def dir_sync(req: Request):
+    """직원명부 동기화 — 메신저 GET /api/sso/directory → 미러 upsert (관리자)."""
+    u, redir = require(req)
+    if redir:
+        return redir
+    if u.get("role") not in ("admin", "ceo"):
+        return JSONResponse({"ok": False, "error": "관리자만"}, status_code=403)
+    with db.db_session() as c:
+        res = sso_client.sync_directory_from_messenger(c)
+    return JSONResponse(res)
 
 
 @app.get("/logout")
 def logout(req: Request):
     try:
+        uid = req.session.get("user_id")
+        if uid:
+            sso_client.invalidate_pwv_check(uid)
         req.session.clear()
     except Exception:
         pass

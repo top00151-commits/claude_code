@@ -26,8 +26,11 @@ SESSION_COOKIE = "knk_mail_session"
 
 # ── 메신저 SSO (메일 전용 audience) ───────────────────
 #   메신저가 메일을 새 소비자(SP)로 등록해야 함: audience='knk-mail',
-#   redirect_uri allowlist = https://mail.knknara.co.kr/sso/callback
+#   redirect_uri allowlist = https://mail.knknara.co.kr/sso/land
 SSO_AUDIENCE = os.environ.get("KNK_MAIL_SSO_AUDIENCE", "knk-mail")
+
+# 이 앱의 외부 공개 주소 (SSO redirect_uri 빌드용). 운영 = https://mail.knknara.co.kr
+PUBLIC_BASE = os.environ.get("KNK_MAIL_PUBLIC_BASE", "http://127.0.0.1:8201").rstrip("/")
 
 # 개발용 로컬 로그인 우회 (운영 절대 금지) — 기본 off. KNK_MAIL_DEV_LOGIN=1 일 때만.
 DEV_LOGIN = os.environ.get("KNK_MAIL_DEV_LOGIN", "0") == "1"
