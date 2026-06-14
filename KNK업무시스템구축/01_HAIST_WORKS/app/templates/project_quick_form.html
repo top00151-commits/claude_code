@@ -164,10 +164,13 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
           <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span></label>
             <input name="name" placeholder="예: 압착 자동화설비 1호기" value="{{ project.name|default('') if ed else '' }}"></div>
+          {# v5H226z445(대표 지시): 모델명·장비명을 자재 목록 '위쪽 줄'로 이동 #}
+          <div class="qf-f c6"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명" value="{{ project.model_name|default('') if ed else '' }}"></div>
+          <div class="qf-f c6"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)" value="{{ project.equip_name|default('') if ed else '' }}"></div>
           {# 형태=상품(부품 품명/모델) · 기타(기타 품명) 선택 시 펼침 — 신규 등록 전용(수정은 부품 상세를 '고급 편집'에서) #}
           {% if not ed %}
-          {# v5H226z430(대표 지시): 형태=상품 → 부품을 폼에서 바로 여러 개 입력(품명·모델·수량·단가). 많으면 등록 후 상세 PACKING LIST·엑셀.
-             ⚠ '수주확정' 체크 시에만 저장(제안 단계는 등록 후 상세에서). 모델명 → 상세 '규격' 칸으로 저장. 합계 = 수주 금액(서버 산출). #}
+          {# v5H226z430(대표 지시): 형태=상품 → 자재를 폼에서 바로 여러 개 입력. 많으면 등록 후 상세 PACKING LIST·엑셀.
+             v5H226z444: 부품은 등록 시 함께 저장(confirm_now 고정·별도 체크 없음). 자재모델명 → 상세 '규격' 칸으로 저장. 합계 = 수주 금액(서버 산출). #}
           <div class="qf-f" id="qPartsBox" style="display:none;grid-column:1/-1;">
             <label>자재 목록 <span style="font-weight:400;color:var(--qv-ink-3);">(자재번호·자재품명·자재모델명·제작사·공급사·수량·단가·비고 — 통화는 상단 통화칸 / 몇 개는 여기서 바로, 많으면 등록 후 상세 PACKING LIST·엑셀)</span></label>
             <div id="qPartsRows" style="display:flex;flex-direction:column;gap:6px;"></div>
@@ -175,16 +178,13 @@ html,body{background:#fff!important;overflow:auto!important;}
               <button type="button" onclick="qAddPart()" style="padding:6px 13px;border:1px solid #b9d2ff;background:#e0edff;color:#1d4ed8;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 부품 추가</button>
               <div style="font-size:12.5px;color:var(--qv-ink-2);">합계 <b id="qPartsSum" style="color:var(--knk-red);font-size:14px;">0</b> <span id="qPartsSumCur" style="color:var(--qv-ink-3);font-size:11px;">KRW</span></div>
             </div>
-            <div style="background:#fef9e6;border:1px solid #f0d894;border-radius:8px;padding:8px 11px;font-size:12px;color:#7c4a03;line-height:1.5;margin-top:8px;">
-              ⚠ 부품은 아래 <b>「수주확정」을 체크하고 등록</b>해야 저장됩니다. 제안 단계면 등록 후 <b>상세 → PACKING LIST</b>에서 ＋부품/📤엑셀로 입력하세요. (모델명은 상세 '규격'으로 저장)
+            <div style="background:#eef6ff;border:1px solid #b9d2ff;border-radius:8px;padding:8px 11px;font-size:12px;color:#1e40af;line-height:1.5;margin-top:8px;">
+              💡 여기에 입력한 자재는 <b>등록하면 함께 저장</b>됩니다. 자재가 많거나 사진·통관 등 상세가 필요하면 등록 후 <b>상세 → PACKING LIST</b>에서 ＋부품·📤엑셀로 추가하세요.
             </div>
           </div>
           <div class="qf-f c6" id="qEtcName" style="display:none;"><label>기타 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(모델명 없음)</span></label><input name="etc_name" placeholder="예: C/T 핀블럭"></div>
           {% endif %}
 
-          {# 3행 — 모델명 · 장비명 (둘 다 넓게). 수량은 모델·장비가 6칸씩 차지해 자동으로 4행으로 내려감 #}
-          <div class="qf-f c6"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명" value="{{ project.model_name|default('') if ed else '' }}"></div>
-          <div class="qf-f c6"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)" value="{{ project.equip_name|default('') if ed else '' }}"></div>
           {# v5H226z377(대표 지시·배치 재수정): 각인 — 전체폭(c12) 독립 줄. 반칸(c6)이면 그리드가 옆 빈 칸에
              수량·통화를 끌어올려 「각인|수량|통화」로 줄이 깨졌음. 전체폭이면 수량·통화·단가·금액 줄이 온전. 실제 양식의 각인도 전체폭 띠. 신규 등록 전용. #}
           {% if not ed %}
