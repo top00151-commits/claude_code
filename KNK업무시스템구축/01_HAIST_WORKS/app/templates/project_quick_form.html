@@ -206,7 +206,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           {% endif %}
 
           {# 5행 — 발주일 · 납품일 #}
-          <div class="qf-f c6"><label>발주일</label><input type="date" name="order_date" id="qOrderDate" value="{{ (project.order_date|string)[:10] if (ed and project.order_date) else '' }}"></div>
+          <div class="qf-f c6"><label>발주일 <span style="font-weight:400;color:var(--qv-ink-3);">(비우면 오늘 날짜로 자동 등록)</span></label><input type="date" name="order_date" id="qOrderDate" value="{{ (project.order_date|string)[:10] if (ed and project.order_date) else '' }}"></div>
           <div class="qf-f c6"><label>납품일</label><input type="date" name="due_date" id="qDueDate" value="{{ (project.due_date|string)[:10] if (ed and project.due_date) else '' }}"></div>
 
           {# v5H226z380(대표 지시): 호기별 금액·납기 — 검사기 수량(호기) 2 이상이면 자동 펼침.
