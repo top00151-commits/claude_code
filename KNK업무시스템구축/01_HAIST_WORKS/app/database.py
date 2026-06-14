@@ -3004,6 +3004,8 @@ def init_db():
                 # v5H226z4: 업체명(supplier) + 단위(unit) 별도 컬럼화
                 ("supplier",         "ALTER TABLE order_items ADD COLUMN supplier TEXT"),
                 ("unit",             "ALTER TABLE order_items ADD COLUMN unit TEXT"),
+                # v5H226z441 (대표 지시): 자재(상품) 입력 항목 — 자재번호 자유입력 신설
+                ("material_no",      "ALTER TABLE order_items ADD COLUMN material_no TEXT"),
                 # v5H226z5: 정식 PACKING LIST 통관 컬럼 — HS CODE/DUTY/VAT/인보이스/관세/최종/상세/PALLET/중량
                 ("hs_code",                "ALTER TABLE order_items ADD COLUMN hs_code TEXT"),
                 ("duty_rate",              "ALTER TABLE order_items ADD COLUMN duty_rate REAL"),
