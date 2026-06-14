@@ -5,7 +5,10 @@
 <style>
 /* v5H226z99: page-head 우측 끝까지 확장 (1540→1550) + main 스크롤바 시각 숨김 */
 /* v5H226z103: page-head 높이 110→90px — 상하 padding 축소 */
-/* v5H226z104: page-head sticky 상단 고정 + body scroll 차단 + GPU 가속 (sales_home z100~z102 동일 패턴) */
+/* v5H226z104: page-head sticky 상단 고정 + body scroll 차단 (sales_home z100~z102 동일 패턴) */
+/* v5H226z447: 설치앱(PWA standalone) 스크롤 잔상(위 항목이 상단에 다시 그려짐) 수정 —
+   sticky + will-change/translateZ/backface 가 별도 합성레이어를 강제해 repaint 누락 잔상 유발.
+   GPU 강제 3줄 제거 (불투명 background + position:sticky 만으로 고정 동작·잔상 없음. sales_home도 GPU 강제 없음). */
 body { overflow: hidden !important; }
 .main {
   height: calc(100vh - var(--topbar-h, 80px)) !important;
@@ -22,9 +25,6 @@ body { overflow: hidden !important; }
   background: var(--paper-3, #fff);
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   padding: 14px 0 6px var(--content-pad, 24px) !important;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  will-change: transform;
 }
 /* v5H226z41: 시안1 디자인 토큰 — 본 페이지 한정 도입 (다른 partial 미접촉, body 스코프) */
 /* 발주서 INSTRUCTIONS.md 라인 105 정의값 그대로. _STANDARDS/디자인_의뢰서_HAIST_WORKS_v1.md 정합. */
