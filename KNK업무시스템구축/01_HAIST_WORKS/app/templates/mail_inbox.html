@@ -77,6 +77,37 @@
     .mbx-side{height:auto;max-height:46vh;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
     .mbx-listcol{height:auto;border:1px solid var(--line);border-radius:10px}
   }
+  /* ── 폰(≤640px): 글씨·터치영역 키우고, 폴더는 접어 목록을 바로 크게 (대표 지시 2026-06-14 모바일) ── */
+  .mbx-foldtoggle{display:none}  /* 데스크톱·태블릿에선 숨김 */
+  @media(max-width:640px){
+    .app .main{padding:6px 8px}
+    .mbx-topbar{gap:7px;padding:0 0 8px}
+    .mbx-search{min-width:0;width:100%;gap:5px}
+    .mbx-search input[type=text]{min-width:0;font-size:16px;padding:9px 12px}  /* 16px=아이폰 입력 시 자동확대 방지 */
+    .mbx-search input[type=date]{font-size:13px}
+    .mbx-actions{width:100%;gap:5px}
+    .mbx-actions .btn{flex:1 1 auto;text-align:center;font-size:12.5px;padding:9px 7px}
+    /* 폴더 접기 토글 버튼 */
+    .mbx-foldtoggle{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 8px;
+      padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#fff;
+      font-size:14px;font-weight:600;color:var(--ink);cursor:pointer}
+    .mbx-foldtoggle .chev{margin-left:auto;transition:transform .15s;color:var(--mute)}
+    .mbx-split.folders-collapsed .mbx-side{display:none}
+    .mbx-side{max-height:none;margin:0 0 8px}
+    .mbx-fold{padding:12px 13px;font-size:14px}
+    .mbx-fold-h{font-size:11.5px}
+    /* 메일 목록 — 손가락에 맞게 큼직하게 */
+    .mbx-row{padding:13px 12px;gap:11px}
+    .mbx-child{padding-left:24px !important}
+    .mbx-subj{font-size:15px}
+    .mbx-from{font-size:13px;max-width:58%}
+    .mbx-sum{font-size:12.5px}
+    .mbx-time{font-size:12px}
+    .mbx-badge{font-size:11px}
+    .mbx-star{font-size:20px;padding:3px 2px 0}
+    .mbx-twist{width:30px;font-size:14px;padding:13px 0 0 8px}
+    .mbx-tcount{font-size:11px}
+  }
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -141,6 +172,11 @@
     <button type="button" class="btn btn-secondary" style="color:var(--knk-red);border-color:#fca5a5" onclick="emptyTrash()">🗑 휴지통 비우기</button>
   </div>
   {% endif %}
+
+  {# 폰 전용: 폴더 패널 접기/펼치기 버튼 (데스크톱에선 CSS로 숨김) #}
+  <button type="button" class="mbx-foldtoggle" onclick="toggleFolders(this)" title="메일함·분류·거래처 폴더 보기/숨기기">
+    📁 <span>메일함·폴더</span><span class="chev">▾</span>
+  </button>
 
   {# ── 3분할 본문 ── #}
   <div class="mbx-split{{ '' if box=='in' else ' np' }}">
@@ -423,6 +459,20 @@ function toggleThread(ev, btn){
   }
   attachDrag('[data-g="1"]','--mbx-c1','knkmail.c1',150,520);
   attachDrag('[data-g="2"]','--mbx-c2','knkmail.c2',260,920);
+})();
+
+/* ── 폰: 폴더 패널 접기/펼치기 (대표 지시 2026-06-14 모바일) ── */
+function toggleFolders(btn){
+  var split=document.querySelector('.mbx-split'); if(!split) return;
+  var collapsed=split.classList.toggle('folders-collapsed');
+  var chev=btn.querySelector('.chev'); if(chev) chev.style.transform=collapsed?'':'rotate(180deg)';
+}
+(function(){
+  // 폰 첫 진입 시 폴더는 접어두고 메일 목록을 바로 크게 (JS 없으면 펼쳐진 채 — 안전 폴백)
+  try{
+    var split=document.querySelector('.mbx-split');
+    if(split && window.matchMedia('(max-width:640px)').matches){ split.classList.add('folders-collapsed'); }
+  }catch(e){}
 })();
 </script>
 </body></html>

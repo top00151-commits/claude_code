@@ -34,6 +34,16 @@
   .mail-app-top .navbtn { border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:#fff;
     font-size:12.5px; font-weight:600; padding:5px 11px; border-radius:8px; cursor:pointer; line-height:1; white-space:nowrap; }
   .mail-app-top .navbtn:hover { background:rgba(255,255,255,.30); }
+  /* ── 폰(≤640px): 상단 메일바를 한 줄 가로스크롤로(여러 줄로 안 깨지게) (대표 지시 2026-06-14 모바일) ── */
+  @media(max-width:640px){
+    .mail-app-top{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:4px;padding:8px 10px}
+    .mail-app-top::-webkit-scrollbar{height:0}
+    .mail-app-top .brand{font-size:14px;margin-right:4px;white-space:nowrap;flex:none}
+    .mail-app-top a{font-size:12.5px;padding:6px 8px;white-space:nowrap;flex:none}
+    .mail-app-top .me{flex:none}
+    .mail-app-top .me .addr{display:none}
+    .mail-app-top .navbtn,.mail-app-top .install,.mail-app-top .reload{flex:none}
+  }
 </style>
 <div class="mail-app-top">
   <span class="brand">📧 HAIST WORKS 메일함</span>

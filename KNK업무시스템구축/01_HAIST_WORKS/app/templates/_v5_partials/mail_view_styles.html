@@ -23,6 +23,26 @@
   .mv-att-img img{display:block;width:140px;height:104px;object-fit:cover;background:#f0f0f0}
   .mv-att-img:hover{border-color:var(--knk-red)}
   .mv-att-cap{display:block;font-size:11px;color:var(--mute);padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* ── 폰(≤640px): 메일 읽기 — 여백·글씨 폰 크기, 버튼 2개씩 큼직 (대표 지시 2026-06-14 모바일) ── */
+  @media(max-width:640px){
+    .mv-head{padding:13px 14px;border-radius:10px;margin-bottom:10px}
+    .mv-subj{font-size:16px;line-height:1.35}
+    .mv-meta{font-size:12px;line-height:1.7}
+    .mv-badge{font-size:10.5px}
+    .mv-ai{padding:12px;font-size:13px;border-radius:10px}
+    .mv-body{padding:14px;font-size:14.5px;border-radius:10px}
+    .mv-actions{gap:7px;margin:12px 0}
+    .mv-actions .btn{flex:1 1 46%;min-width:0;text-align:center;padding:10px 6px;font-size:13px}
+    .mv-actions>span[style*="flex:1"]{display:none}   /* 데스크톱용 가로 스페이서는 폰에서 숨김 */
+    .mv-viewtabs{gap:6px}
+    .mv-vtab{font-size:12.5px;padding:7px 12px}
+    .mv-vnote{display:none}                            /* 좁은 폰에선 안내문 숨겨 공간 확보 */
+    .mv-frame{min-height:200px;border-radius:10px}
+    .mv-atts{padding:11px 12px;border-radius:10px}
+    .mv-att-img{width:46%}                             /* 이미지 첨부 2장씩 */
+    .mv-att-img img{width:100%;height:92px}
+    .mv-att{font-size:12px}
+  }
   /* 인쇄/PDF — 메뉴·버튼·번역창은 숨기고 메일 본문만 깔끔히 (대표 지시 2026-06-14) */
   @media print {
     .mail-app-top, .mv-actions, .mv-viewtabs, .mv-trans, .page-head { display:none !important; }
