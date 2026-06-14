@@ -28,14 +28,22 @@
     {% endif %}
 
     <div class="mf-help">
-      <b>이렇게 동작합니다</b> — KNK 메일이 기존 메일함(하이웍스 등)에 <b>읽기전용</b>으로 접속해 <b>새 메일만</b> 당겨옵니다. 기존 메일함 원본은 <b>전혀 바뀌지 않습니다</b>(양수신·되돌리기 가능).<br>
-      · 하이웍스: 보통 서버 <code>imap.hiworks.com</code> · 포트 <code>993</code> · 보안연결(SSL). 비밀번호는 <b>"앱 비밀번호"</b> 사용 권장(2단계 인증 시 필수).<br>
-      · 먼저 <b>🔌 연결 테스트</b> → <b>💾 저장</b> → <b>⏱ 시작점 설정</b>(여기까지는 안 가져옴) → <b>📥 지금 가져오기</b> 순서.
+      <b>이렇게 동작합니다</b> — KNK 메일이 기존 메일함(하이웍스 등)에 접속해 <b>새 메일만</b> 당겨옵니다. <b>원본은 삭제하지 않아</b> 기존 메일함 그대로(양수신·되돌리기 가능).<br>
+      · 하이웍스 = <b>POP3</b> · 서버 <code>pop3s.hiworks.com</code> · 포트 <code>995</code> · 보안연결(SSL). (하이웍스 ▸ 환경설정 ▸ POP3/SMTP 에서 <b>'사용 함'</b> 확인)<br>
+      · 비밀번호 = 하이웍스 로그인 비번이 아니라 <b>「메일 전용 비밀번호」</b>(POP3/SMTP 화면의 <b>'메일 전용 비밀번호 설정'</b>에서 발급).<br>
+      · 하이웍스에서 <b>'POP3로 가져간 메일 → 읽지 않음 표시'</b>를 선택하면, KNK로 가져가도 하이웍스에서 계속 '새 메일'로 보입니다(권장).<br>
+      · 순서: <b>🔌 연결 테스트</b> → <b>💾 저장</b> → <b>⏱ 시작점 설정</b>(여기까지는 안 가져옴) → <b>📥 지금 가져오기</b>.
     </div>
 
     <div class="form-card">
-      <div class="mf-row"><label>IMAP 서버</label><input type="text" id="mfHost" value="{{ acct.host if acct else 'imap.hiworks.com' }}" placeholder="imap.hiworks.com"></div>
-      <div class="mf-row"><label>포트</label><input type="number" id="mfPort" value="{{ acct.port if acct else 993 }}" style="max-width:140px"></div>
+      <div class="mf-row"><label>가져오기 방식</label>
+        <div>
+          <label style="font-weight:400;font-size:13px;margin-right:14px;"><input type="radio" name="mfProto" value="pop3" onchange="mfProtoSwitch()" {{ 'checked' if (not acct or acct.protocol != 'imap') else '' }}> POP3 (하이웍스)</label>
+          <label style="font-weight:400;font-size:13px;"><input type="radio" name="mfProto" value="imap" onchange="mfProtoSwitch()" {{ 'checked' if (acct and acct.protocol == 'imap') else '' }}> IMAP</label>
+        </div>
+      </div>
+      <div class="mf-row"><label>서버 주소</label><input type="text" id="mfHost" value="{{ acct.host if acct else 'pop3s.hiworks.com' }}" placeholder="pop3s.hiworks.com"></div>
+      <div class="mf-row"><label>포트</label><input type="number" id="mfPort" value="{{ acct.port if acct else 995 }}" style="max-width:140px"></div>
       <div class="mf-row"><label>보안연결(SSL)</label><label style="font-weight:400;font-size:13px;"><input type="checkbox" id="mfSsl" {{ 'checked' if (not acct or acct.use_ssl) else '' }}> 사용(권장)</label></div>
       <div class="mf-row"><label>메일 계정</label><input type="text" id="mfUser" value="{{ acct.username if acct else '' }}" placeholder="top0015@knknara.co.kr" autocomplete="off"></div>
       <div class="mf-row"><label>비밀번호</label><input type="password" id="mfPass" placeholder="{{ '●●●●●● (저장됨 — 바꿀 때만 입력)' if (acct and acct.password_enc) else '앱 비밀번호 입력' }}" autocomplete="new-password"></div>
@@ -61,12 +69,22 @@
   </div>
 </main></div>
 <script>
+function _mfProto(){ var r=document.querySelector('input[name=mfProto]:checked'); return r?r.value:'pop3'; }
 function _mfForm(){
-  return {host:document.getElementById('mfHost').value.trim(),
+  return {protocol:_mfProto(),
+          host:document.getElementById('mfHost').value.trim(),
           port:document.getElementById('mfPort').value.trim(),
           ssl:document.getElementById('mfSsl').checked?'1':'',
           user:document.getElementById('mfUser').value.trim(),
           password:document.getElementById('mfPass').value};
+}
+// 방식 전환 시 서버·포트가 비었거나 다른 방식의 기본값이면 자동으로 맞춰줌
+function mfProtoSwitch(){
+  var p=_mfProto(); var h=document.getElementById('mfHost'), pt=document.getElementById('mfPort');
+  var DEF={pop3:['pop3s.hiworks.com','995'], imap:['imap.hiworks.com','993']};
+  var others=(p==='pop3')?DEF.imap:DEF.pop3;
+  if(!h.value.trim() || h.value.trim()===others[0]) h.value=DEF[p][0];
+  if(!pt.value.trim() || pt.value.trim()===others[1]) pt.value=DEF[p][1];
 }
 function _mfPost(url, body){
   var fd=new FormData();

@@ -1,36 +1,53 @@
 # -*- coding: utf-8 -*-
-"""IMAP '가져오기' — 하이웍스 등 외부 IMAP 메일함의 새 메일을 KNK 메일로 당겨온다 (방법 B, 대표 지시 2026-06-14).
+"""메일 '가져오기' — 하이웍스 등 외부 메일함의 새 메일을 KNK 메일로 당겨온다 (방법 B, 대표 지시 2026-06-14).
 
-· 읽기전용(readonly) 접속 → 하이웍스 원본은 절대 바뀌지 않음(양수신 안전).
-· 계정별 last_uid 커서로 중복 방지. '시작점 설정'으로 '지금부터' 새 메일만(과거 폭주 방지).
-· 가져온 원문은 mail_store.parse_raw_email → store_inbound 로 KNK 메일함에 적재(기존 받기 파이프 재사용).
-· 비밀번호는 mail_send.encrypt(Fernet, KNK_MAIL_KEY)로 암호화 저장. (앱 비밀번호 권장)
+· 하이웍스는 POP3(pop3s.hiworks.com:995 SSL) 제공 → POP3 기본 지원. IMAP 도 지원(타 제공사 대비).
+· 원본 삭제(DELE) 절대 안 함 → 하이웍스 원본 그대로(양수신·되돌리기 가능).
+· 중복 방지: POP3 = UIDL(메시지 고유번호) seen 집합 / IMAP = last_uid 커서.
+· '시작점 설정' = 지금까지 메일을 seen 으로 표시(안 가져옴) → 이후 새 메일만.
+· 가져온 원문은 mail_store.parse_raw_email → store_inbound 로 적재(기존 받기 파이프 재사용).
+· 비밀번호는 mail_send.encrypt(Fernet, KNK_MAIL_KEY)로 암호화 저장.
 """
 from __future__ import annotations
 
 import imaplib
+import poplib
 
-# 한 번에 가져오는 최대 통수(폭주 방지). 더 있으면 '지금 가져오기'를 다시 누르면 이어서 가져옴.
-RUN_LIMIT = 100
+RUN_LIMIT = 100  # 한 번에 가져오는 최대 통수(폭주 방지). 더 있으면 다시 누르면 이어서.
+poplib._MAXLINE = 1 << 20  # 긴 헤더 라인 대응
 
 
 def _ensure_table(c):
     c.execute(
         """CREATE TABLE IF NOT EXISTS mail_fetch_accounts (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            owner_user_id   INTEGER UNIQUE,          -- 가져온 메일을 넣을 KNK 사용자
+            owner_user_id   INTEGER UNIQUE,
             label           TEXT,
+            protocol        TEXT DEFAULT 'pop3',     -- pop3 / imap
             host            TEXT,
-            port            INTEGER DEFAULT 993,
+            port            INTEGER DEFAULT 995,
             use_ssl         INTEGER DEFAULT 1,
             username        TEXT,
-            password_enc    TEXT,                    -- Fernet 암호화
-            last_uid        INTEGER DEFAULT 0,       -- 진행 커서(이 UID 초과만 가져옴)
+            password_enc    TEXT,
+            last_uid        INTEGER DEFAULT 0,       -- IMAP 진행 커서
             enabled         INTEGER DEFAULT 1,
             last_run        TEXT,
             last_status     TEXT,
             last_count      INTEGER DEFAULT 0,
             created_at      TEXT DEFAULT (datetime('now','localtime'))
+        )"""
+    )
+    # 기존 테이블에 protocol 컬럼이 없으면 추가(이전 배포 호환)
+    try:
+        c.execute("ALTER TABLE mail_fetch_accounts ADD COLUMN protocol TEXT DEFAULT 'pop3'")
+    except Exception:
+        pass
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS mail_fetch_seen (
+            account_id  INTEGER,
+            uidl        TEXT,
+            fetched_at  TEXT DEFAULT (datetime('now','localtime')),
+            PRIMARY KEY (account_id, uidl)
         )"""
     )
 
@@ -41,28 +58,31 @@ def get_account(c, owner_id):
     return dict(r) if r else None
 
 
-def save_account(c, owner_id, *, host, port, use_ssl, username, password_enc=None, label=""):
-    """비번(password_enc)이 None 이면 기존 비번 유지(미입력 저장 시 비번 안 지워지게)."""
+def save_account(c, owner_id, *, protocol="pop3", host, port, use_ssl, username, password_enc=None, label=""):
+    """비번(password_enc)이 None 이면 기존 비번 유지."""
     _ensure_table(c)
     host = (host or "").strip()
     username = (username or "").strip()
+    protocol = (protocol or "pop3").strip().lower()
+    if protocol not in ("pop3", "imap"):
+        protocol = "pop3"
     try:
-        port = int(port or 993)
+        port = int(port or (995 if protocol == "pop3" else 993))
     except Exception:
-        port = 993
+        port = 995 if protocol == "pop3" else 993
     ssl = 1 if use_ssl else 0
     exist = get_account(c, owner_id)
     if exist:
         if password_enc is None:
-            c.execute("UPDATE mail_fetch_accounts SET host=?,port=?,use_ssl=?,username=?,label=? WHERE owner_user_id=?",
-                      (host, port, ssl, username, label, owner_id))
+            c.execute("UPDATE mail_fetch_accounts SET protocol=?,host=?,port=?,use_ssl=?,username=?,label=? WHERE owner_user_id=?",
+                      (protocol, host, port, ssl, username, label, owner_id))
         else:
-            c.execute("UPDATE mail_fetch_accounts SET host=?,port=?,use_ssl=?,username=?,password_enc=?,label=? WHERE owner_user_id=?",
-                      (host, port, ssl, username, password_enc, label, owner_id))
+            c.execute("UPDATE mail_fetch_accounts SET protocol=?,host=?,port=?,use_ssl=?,username=?,password_enc=?,label=? WHERE owner_user_id=?",
+                      (protocol, host, port, ssl, username, password_enc, label, owner_id))
     else:
-        c.execute("INSERT INTO mail_fetch_accounts(owner_user_id,host,port,use_ssl,username,password_enc,label) "
-                  "VALUES(?,?,?,?,?,?,?)",
-                  (owner_id, host, port, ssl, username, password_enc or "", label))
+        c.execute("INSERT INTO mail_fetch_accounts(owner_user_id,protocol,host,port,use_ssl,username,password_enc,label) "
+                  "VALUES(?,?,?,?,?,?,?,?)",
+                  (owner_id, protocol, host, port, ssl, username, password_enc or "", label))
 
 
 def set_status(c, owner_id, *, last_uid=None, status=None, count=None):
@@ -78,20 +98,106 @@ def set_status(c, owner_id, *, last_uid=None, status=None, count=None):
     c.execute("UPDATE mail_fetch_accounts SET " + ",".join(sets) + " WHERE owner_user_id=?", args)
 
 
-# ── IMAP 접속(순수·DB 무관 — main.py 에서 run_in_threadpool 로 호출) ────────────
-def _connect(host, port, use_ssl, username, password, timeout=25):
+def get_seen(c, account_id) -> set:
+    _ensure_table(c)
+    return {r[0] for r in c.execute("SELECT uidl FROM mail_fetch_seen WHERE account_id=?", (account_id,)).fetchall()}
+
+
+def add_seen(c, account_id, uidls):
+    _ensure_table(c)
+    for u in uidls:
+        try:
+            c.execute("INSERT OR IGNORE INTO mail_fetch_seen(account_id, uidl) VALUES(?,?)", (account_id, u))
+        except Exception:
+            pass
+
+
+# ── POP3 (하이웍스 기본) — 순수·DB 무관(run_in_threadpool 로 호출) ─────────────
+def _pop3_connect(host, port, use_ssl, username, password, timeout=30):
     if use_ssl:
-        M = imaplib.IMAP4_SSL(host, int(port), timeout=timeout)
+        M = poplib.POP3_SSL(host, int(port), timeout=timeout)
     else:
-        M = imaplib.IMAP4(host, int(port), timeout=timeout)
+        M = poplib.POP3(host, int(port), timeout=timeout)
+    M.user(username)
+    M.pass_(password)
+    return M
+
+
+def pop3_test(host, port, use_ssl, username, password):
+    try:
+        M = _pop3_connect(host, port, use_ssl, username, password)
+        try:
+            n, _sz = M.stat()
+        finally:
+            try: M.quit()
+            except Exception: pass
+        return {"ok": True, "message": "연결 성공 — 받은편지함 %d통 확인" % n, "count": n}
+    except Exception as e:
+        return {"ok": False, "message": "연결 실패: %s: %s" % (type(e).__name__, e)}
+
+
+def pop3_uidls(host, port, use_ssl, username, password):
+    """현재 POP3 메일함의 모든 (msgnum, uidl). '시작점 설정'용."""
+    try:
+        M = _pop3_connect(host, port, use_ssl, username, password, timeout=25)
+        try:
+            resp, lines, _o = M.uidl()
+            out = []
+            for ln in lines:
+                s = ln.decode("ascii", "replace").split()
+                if len(s) >= 2:
+                    out.append((int(s[0]), s[1]))
+        finally:
+            try: M.quit()
+            except Exception: pass
+        return {"ok": True, "items": out}
+    except Exception as e:
+        return {"ok": False, "message": "%s: %s" % (type(e).__name__, e)}
+
+
+def pop3_collect(host, port, use_ssl, username, password, seen, limit=RUN_LIMIT):
+    """seen(이미 본 uidl 집합)에 없는 새 메일만 수집(원본 삭제 안 함). 반환 messages:[(uidl, raw_bytes)]."""
+    out = {"ok": False, "messages": [], "error": ""}
+    seen = seen or set()
+    try:
+        M = _pop3_connect(host, port, use_ssl, username, password, timeout=40)
+        try:
+            resp, lines, _o = M.uidl()
+            pairs = []
+            for ln in lines:
+                s = ln.decode("ascii", "replace").split()
+                if len(s) >= 2:
+                    pairs.append((int(s[0]), s[1]))
+            new = [(num, uidl) for (num, uidl) in pairs if uidl not in seen]
+            new.sort(key=lambda x: x[0])
+            if limit and len(new) > limit:
+                new = new[-limit:]   # 가장 최근(높은 msgnum) 위주
+            for num, uidl in new:
+                try:
+                    resp2, mlines, _oc = M.retr(num)
+                    raw = b"\r\n".join(mlines)
+                    out["messages"].append((uidl, raw))
+                except Exception:
+                    pass
+            out["ok"] = True
+        finally:
+            try: M.quit()    # QUIT — DELE 안 했으므로 원본 보존
+            except Exception: pass
+    except Exception as e:
+        out["error"] = "%s: %s" % (type(e).__name__, e)
+    return out
+
+
+# ── IMAP (타 제공사용) — 순수 ─────────────────────────────────────────────────
+def _imap_connect(host, port, use_ssl, username, password, timeout=25):
+    M = imaplib.IMAP4_SSL(host, int(port), timeout=timeout) if use_ssl else imaplib.IMAP4(host, int(port), timeout=timeout)
     M.login(username, password)
     return M
 
 
-def test_connection(host, port, use_ssl, username, password):
-    """연결·로그인·받은편지함 통수 확인."""
+def imap_test(host, port, use_ssl, username, password):
     try:
-        M = _connect(host, port, use_ssl, username, password)
+        M = _imap_connect(host, port, use_ssl, username, password)
         try:
             M.select("INBOX", readonly=True)
             typ, data = M.uid("search", None, "ALL")
@@ -104,10 +210,9 @@ def test_connection(host, port, use_ssl, username, password):
         return {"ok": False, "message": "연결 실패: %s: %s" % (type(e).__name__, e)}
 
 
-def current_max_uid(host, port, use_ssl, username, password):
-    """현재 받은편지함의 최대 UID(=지금까지의 모든 메일). '시작점 설정'(여기까지는 안 가져옴)용."""
+def imap_current_max_uid(host, port, use_ssl, username, password):
     try:
-        M = _connect(host, port, use_ssl, username, password, timeout=20)
+        M = _imap_connect(host, port, use_ssl, username, password, timeout=20)
         try:
             M.select("INBOX", readonly=True)
             typ, data = M.uid("search", None, "ALL")
@@ -121,19 +226,17 @@ def current_max_uid(host, port, use_ssl, username, password):
 
 
 def imap_collect(host, port, use_ssl, username, password, since_uid=0, limit=RUN_LIMIT):
-    """since_uid 초과 UID 의 새 메일 raw 를 수집(읽기전용). limit>0 이면 가장 최근 limit 개만.
-    반환: {ok, messages:[(uid, raw_bytes)...], max_uid, error}."""
     since_uid = int(since_uid or 0)
     out = {"ok": False, "messages": [], "max_uid": since_uid, "error": ""}
     try:
-        M = _connect(host, port, use_ssl, username, password, timeout=35)
+        M = _imap_connect(host, port, use_ssl, username, password, timeout=35)
         try:
             M.select("INBOX", readonly=True)
             typ, data = M.uid("search", None, "ALL")
             uids = sorted(int(x) for x in data[0].split()) if (data and data[0]) else []
             new = [u for u in uids if u > since_uid]
             if limit and len(new) > limit:
-                new = new[-limit:]   # 가장 최근 것 위주
+                new = new[-limit:]
             for u in new:
                 typ, md = M.uid("fetch", str(u), "(RFC822)")
                 if not md or not md[0] or not isinstance(md[0], tuple):
@@ -150,3 +253,10 @@ def imap_collect(host, port, use_ssl, username, password, since_uid=0, limit=RUN
     except Exception as e:
         out["error"] = "%s: %s" % (type(e).__name__, e)
     return out
+
+
+# ── 통합 디스패치 ─────────────────────────────────────────────────────────────
+def test_connection(protocol, host, port, use_ssl, username, password):
+    if (protocol or "pop3").lower() == "imap":
+        return imap_test(host, port, use_ssl, username, password)
+    return pop3_test(host, port, use_ssl, username, password)
