@@ -23,6 +23,15 @@
 .pa-bar>i{display:block;height:100%;background:linear-gradient(90deg,#A5282C,#d4646a);border-radius:999px;}
 .pa-none{color:#cbd5e1;font-size:12.5px;padding:8px 0;}
 .pa-hint{font-size:11.5px;color:#94a3b8;margin-top:14px;}
+.pa-flash{border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
+.pa-flash.ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;}
+.pa-flash.err{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;}
+.pa-demo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:14px;}
+.pa-demoL{font-size:12.5px;color:#92400e;}
+.pa-demoR{display:flex;gap:8px;flex-wrap:wrap;}
+.pa-btn{padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid #d6cdb6;background:#fff;color:#334155;}
+.pa-btn.seed{background:#A5282C;color:#fff;border-color:#A5282C;}
+.pa-btn.del{background:#fff;color:#b91c1c;border-color:#fca5a5;}
 </style></head>
 <body>
 <div class="app">
@@ -33,6 +42,25 @@
     <h1 class="page-title">수주 전 활동 대시보드 <em>— 부서가 수주 전에 쓰는 시간·일</em></h1>
   </div></div>
   <div class="pa-wrap">
+
+    {% set dm = request.query_params.get('demo') %}
+    {% if dm=='seeded' %}<div class="pa-flash ok">🧪 검증용 가상 데이터를 넣었습니다 (활동 {{ request.query_params.get('n') }}건). <b>실제 적용 전 반드시 「가상 데이터 삭제」로 지우세요.</b></div>{% endif %}
+    {% if dm=='cleaned' %}<div class="pa-flash ok">🗑 가상 데이터를 모두 삭제했습니다 (영업기회 {{ request.query_params.get('n') }}건 제거). 실제 데이터는 영향 없습니다.</div>{% endif %}
+    {% if dm=='err' %}<div class="pa-flash err">가상 데이터 생성에 실패했습니다 (활성 직원/부서 확인).</div>{% endif %}
+
+    <div class="pa-demo">
+      <div class="pa-demoL">🧪 <b>검증용 가상 데이터</b>{% if demo_count %} — 현재 <b style="color:#b91c1c;">{{ demo_count }}건</b> 들어 있음. <b>실제 적용 전 반드시 삭제하세요.</b>{% else %} — 지금 없음. 넣어 화면을 확인한 뒤 삭제하세요. (모두 <code>ZZDEMO</code> 표식 · 실데이터 무관){% endif %}</div>
+      <div class="pa-demoR">
+        <form method="post" action="/dept/demo/seed" onsubmit="return confirm('검증용 가상 데이터(ZZDEMO 표식)를 넣을까요?\n언제든 「삭제」 버튼으로 완전히 지울 수 있고, 실제 데이터에는 영향이 없습니다.');">
+          <button class="pa-btn seed">🧪 가상 데이터 넣기</button>
+        </form>
+        {% if demo_count %}
+        <form method="post" action="/dept/demo/cleanup" onsubmit="return confirm('가상 데이터(ZZDEMO)를 모두 삭제할까요?\n실제 데이터는 영향이 없습니다.');">
+          <button class="pa-btn del">🗑 가상 데이터 삭제</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
 
     <div class="pa-period">
       <span>기간:</span>
