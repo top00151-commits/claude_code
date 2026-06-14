@@ -10972,6 +10972,99 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                folders=folders, cur_cust=(cust or "").strip())
 
 
+# ── 메일 = 설치형 앱(PWA) — KNK Eum 처럼 바탕화면/홈 아이콘으로 설치 (대표 지시 2026-06-14) ──
+_MAIL_PWA_ICON_CACHE = {}
+_MAIL_PWA_ICON_SVG = (
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>"
+    "<rect width='512' height='512' rx='104' fill='#A5282C'/>"
+    "<rect x='112' y='168' width='288' height='184' rx='20' fill='#fff'/>"
+    "<path d='M120 180 L256 292 L392 180' fill='none' stroke='#A5282C' "
+    "stroke-width='24' stroke-linejoin='round' stroke-linecap='round'/></svg>"
+)
+
+
+def _mail_pwa_icon_png(size: int) -> bytes:
+    """KNK 빨강 라운드 + 흰 봉투 아이콘을 size×size PNG 로 생성(캐시). maskable 안전영역 고려."""
+    if size in _MAIL_PWA_ICON_CACHE:
+        return _MAIL_PWA_ICON_CACHE[size]
+    from PIL import Image, ImageDraw
+    import io as _io
+    S = size
+    img = Image.new("RGBA", (S, S), (165, 40, 44, 255))   # #A5282C 풀블리드(maskable)
+    d = ImageDraw.Draw(img)
+    m = int(S * 0.24); w = S - 2 * m; h = int(w * 0.66)
+    top = (S - h) // 2; left = m; right = m + w
+    d.rounded_rectangle([left, top, right, top + h], radius=max(3, int(S * 0.04)), fill=(255, 255, 255, 255))
+    lw = max(2, int(S * 0.025))
+    d.line([(left, top), ((left + right) // 2, top + int(h * 0.55)), (right, top)],
+           fill=(165, 40, 44, 255), width=lw, joint="curve")
+    buf = _io.BytesIO(); img.save(buf, "PNG")
+    data = buf.getvalue(); _MAIL_PWA_ICON_CACHE[size] = data
+    return data
+
+
+@app.get("/mail/manifest.webmanifest")
+async def mail_manifest():
+    return JSONResponse({
+        "id": "/mail/app",
+        "name": "KNK 메일",
+        "short_name": "메일",
+        "description": "KNK 사내 메일 — HAIST WORKS",
+        "start_url": "/mail/app",
+        "scope": "/mail/",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#ffffff",
+        "theme_color": "#A5282C",
+        "lang": "ko",
+        "icons": [
+            {"src": "/mail/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/mail/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/mail/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+        ],
+        "categories": ["business", "productivity"],
+    }, media_type="application/manifest+json")
+
+
+@app.get("/mail/sw.js")
+async def mail_sw():
+    js = (
+        "// KNK 메일 PWA 서비스워커 — 설치 가능 + 네트워크 기본(오프라인 골격은 후속)\n"
+        "const KNKMAIL_V='knkmail-v1';\n"
+        "self.addEventListener('install',function(e){self.skipWaiting();});\n"
+        "self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim());});\n"
+        "self.addEventListener('fetch',function(e){/* pass-through: 브라우저 기본 처리 */});\n"
+    )
+    return Response(js, media_type="application/javascript",
+                    headers={"Service-Worker-Allowed": "/mail/", "Cache-Control": "no-cache"})
+
+
+@app.get("/mail/icon-{size:int}.png")
+async def mail_icon_png(size: int):
+    if size not in (180, 192, 512):
+        size = 192
+    return Response(_mail_pwa_icon_png(size), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/mail/icon.svg")
+async def mail_icon_svg():
+    return Response(_MAIL_PWA_ICON_SVG, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/mail/app")
+async def mail_app_launch(req: Request):
+    # 설치형 앱 시작 주소 — 로그인돼 있으면 받은편지함(앱모드), 아니면 KNK Eum SSO 거쳐 자동 로그인 후 복귀
+    u = get_user(req)
+    if u:
+        return RedirectResponse("/mail/inbox?app=1", 303)
+    from urllib.parse import quote
+    from . import sso_client
+    redirect_uri = _WORKS_PUBLIC_BASE + "/sso/land?next=" + quote("/mail/inbox?app=1", safe="")
+    return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
+
+
 @app.post("/mail/inbox/demo")
 async def mail_inbox_demo(req: Request):
     """Cloudflare 연결 전, 본인 메일함에 샘플 메일 1건 주입(동작 확인용)."""
