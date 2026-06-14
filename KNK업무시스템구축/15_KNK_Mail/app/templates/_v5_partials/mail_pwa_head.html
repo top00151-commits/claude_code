@@ -1,4 +1,6 @@
 {# 메일 = 설치형 앱(PWA) head — KNK Eum 처럼 설치(바탕화면/홈 아이콘·독립 창). 모든 메일 페이지 <head>에 포함 #}
+{# 📱 모바일 필수: viewport — 없으면 폰이 PC 폭(약 980px)으로 그린 뒤 축소해 글씨가 깨알같이 작아짐(대표 지시 2026-06-14). 다른 WORKS 페이지엔 다 있는데 메일만 누락돼 있었음 #}
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="manifest" href="/mail/manifest.webmanifest">
 <meta name="theme-color" content="#A5282C">
 <link rel="icon" type="image/svg+xml" href="/mail/icon.svg">
