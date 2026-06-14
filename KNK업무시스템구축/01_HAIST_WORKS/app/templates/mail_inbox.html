@@ -107,6 +107,7 @@
       {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a><a href="/admin/mail-fetch" class="btn btn-secondary" title="하이웍스 등 기존 메일을 KNK 메일로 당겨오기">📥 가져오기</a><a href="/admin/mail-purge" class="btn btn-secondary" title="휴지통 비우기·오래된 메일 완전삭제·디스크 정리">🧹 정리</a>{% endif %}
       {% if box=='in' %}
       <a href="/mail/rules" class="btn btn-secondary" title="보낸사람·제목 키워드로 메일을 자동 분류">⚙ 자동분류</a>
+      {% if box=='in' %}<a href="#" class="btn btn-secondary" title="여러 그룹메일로 같은 메일이 여러 통 온 중복을 1통만 남기고 정리(답장은 안 건드림)" onclick="dedupInbox(event)">🔁 중복정리</a>{% endif %}
       {% endif %}
     </div>
   </div>
@@ -315,6 +316,14 @@ async function emptyTrash(){
   try{ var r=await fetch('/mail/trash/empty',{method:'POST'}); var j=await r.json();
     if(j.ok){ alert(j.count+'통을 완전삭제했습니다.'); location.reload(); }
     else alert('실패'); }catch(e){ alert('네트워크 오류'); }
+}
+/* ── 중복정리: 여러 그룹메일로 같은 메일이 여러 통 온 것을 1통만 남기고 정리(답장 불가침) ── */
+async function dedupInbox(ev){
+  if(ev) ev.preventDefault();
+  if(!confirm('여러 그룹메일로 같은 메일이 여러 통 온 것을 1통만 남기고 정리할까요?\n(답장·내용이 다른 메일은 안 건드리고, 정리된 메일은 휴지통으로 갑니다 — 복구 가능)')) return;
+  try{ var r=await fetch('/mail/dedup',{method:'POST'}); var j=await r.json();
+    if(j.ok){ alert(j.message||'정리 완료'); if(j.removed) location.reload(); }
+    else alert(j.message||'실패'); }catch(e){ alert('네트워크 오류'); }
 }
 /* ── 읽기 창 (아웃룩식) ── */
 function paneWide(){ return window.matchMedia('(min-width:901px)').matches; }
