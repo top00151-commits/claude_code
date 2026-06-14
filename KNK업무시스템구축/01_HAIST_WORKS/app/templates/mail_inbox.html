@@ -104,7 +104,7 @@
     </form>
     <div class="mbx-actions">
       <a href="/mail/compose" class="btn btn-primary">✏️ 메일 쓰기</a>
-      {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a><a href="/admin/mail-fetch" class="btn btn-secondary" title="하이웍스 등 기존 메일을 KNK 메일로 당겨오기">📥 가져오기</a>{% endif %}
+      {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a><a href="/admin/mail-fetch" class="btn btn-secondary" title="하이웍스 등 기존 메일을 KNK 메일로 당겨오기">📥 가져오기</a><a href="/admin/mail-purge" class="btn btn-secondary" title="휴지통 비우기·오래된 메일 완전삭제·디스크 정리">🧹 정리</a>{% endif %}
       {% if box=='in' %}
       <a href="/mail/rules" class="btn btn-secondary" title="보낸사람·제목 키워드로 메일을 자동 분류">⚙ 자동분류</a>
       {% endif %}
@@ -133,6 +133,14 @@
   </a>
   {% endmacro %}
 
+  {% if box=='trash' and mails %}
+  <div style="display:flex;align-items:center;gap:10px;margin:0 2px 8px;padding:8px 12px;border:1px solid #fca5a5;background:#fef2f2;border-radius:9px;flex-wrap:wrap;">
+    <span style="font-size:12.5px;color:#b91c1c;">⚠ 완전삭제하면 서버에서 <b>영구 제거</b>됩니다(되돌리기 불가).</span>
+    <span style="flex:1"></span>
+    <button type="button" class="btn btn-secondary" style="color:var(--knk-red);border-color:#fca5a5" onclick="emptyTrash()">🗑 휴지통 비우기</button>
+  </div>
+  {% endif %}
+
   {# ── 3분할 본문 ── #}
   <div class="mbx-split{{ '' if box=='in' else ' np' }}">
 
@@ -146,6 +154,7 @@
       </a>
       <a href="/mail/sent" class="mbx-fold {{ 'on' if box=='sent' else '' }}"><span class="fname">📤 보낸편지함</span></a>
       <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}"><span class="fname">📝 임시보관함</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
+      <a href="/mail/trash" class="mbx-fold {{ 'on' if box=='trash' else '' }}"><span class="fname">🗑 휴지통</span></a>
 
       {% if box=='in' %}
       <div class="mbx-fold-div"></div>
@@ -215,6 +224,25 @@
         {% endfor %}
       {% elif box=='in' %}
         {% for m in mails %}{{ mailrow(m, BG, FG) }}{% endfor %}
+      {% elif box=='trash' %}
+        {# 휴지통: 복원 / 완전삭제 #}
+        {% for m in mails %}
+        <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
+          <div class="mbx-main">
+            <div class="mbx-r1">
+              <span class="mbx-subj">{{ m.subject or '(제목 없음)' }}</span>
+              <span class="mbx-time">🗑 {{ m.deleted_at[5:16] if m.deleted_at else (m.received_at[5:16] if m.received_at else '') }}</span>
+            </div>
+            <div class="mbx-r2">
+              {% if m.category %}<span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}
+              <span class="mbx-from">{% if m.direction=='out' %}→ {{ m.to_email or '(받는사람 미정)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</span>
+              {% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;white-space:nowrap" onclick="restoreMail(event,{{ m.id }})">↩ 복원</button>
+          <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;color:var(--knk-red);border-color:#fca5a5;white-space:nowrap" onclick="purgeMail(event,{{ m.id }})">🗑 완전삭제</button>
+        </div>
+        {% endfor %}
       {% else %}
         {# 보낸/임시함 (제목 우선 2줄, 보낸사람=받는사람) #}
         {% for m in mails %}
@@ -243,6 +271,8 @@
       📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
       {% elif box=='draft' %}
       📝 임시저장된 메일이 없습니다.
+      {% elif box=='trash' %}
+      🗑 휴지통이 비어 있습니다.<br><br><span style="font-size:12.5px;">메일을 삭제하면 여기로 옮겨지고, 여기서 완전삭제할 수 있습니다.</span>
       {% else %}
       📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">메일을 받거나 <b>📥 가져오기</b>로 당겨오면 여기에 쌓입니다.</span>
       {% endif %}
@@ -265,6 +295,26 @@ async function toggleStar(ev, id){
   const btn = ev.currentTarget;
   try{ const r = await fetch('/mail/'+id+'/star',{method:'POST'}); const j = await r.json();
     if(j.ok){ btn.classList.toggle('on', j.starred); } }catch(e){}
+}
+/* ── 휴지통: 복원 / 완전삭제 / 비우기 (대표 지시 2026-06-14) ── */
+async function restoreMail(ev, id){
+  if(ev) ev.preventDefault();
+  try{ var r=await fetch('/mail/'+id+'/restore',{method:'POST'}); var j=await r.json();
+    if(j.ok){ var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]'); if(row) row.remove(); }
+    else alert('복원 실패'); }catch(e){ alert('네트워크 오류'); }
+}
+async function purgeMail(ev, id){
+  if(ev) ev.preventDefault();
+  if(!confirm('이 메일을 서버에서 완전삭제할까요?\n되돌릴 수 없습니다.')) return;
+  try{ var r=await fetch('/mail/'+id+'/purge',{method:'POST'}); var j=await r.json();
+    if(j.ok){ var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]'); if(row) row.remove(); }
+    else alert('삭제 실패'); }catch(e){ alert('네트워크 오류'); }
+}
+async function emptyTrash(){
+  if(!confirm('휴지통의 모든 메일을 서버에서 완전삭제할까요?\n되돌릴 수 없습니다.')) return;
+  try{ var r=await fetch('/mail/trash/empty',{method:'POST'}); var j=await r.json();
+    if(j.ok){ alert(j.count+'통을 완전삭제했습니다.'); location.reload(); }
+    else alert('실패'); }catch(e){ alert('네트워크 오류'); }
 }
 /* ── 읽기 창 (아웃룩식) ── */
 function paneWide(){ return window.matchMedia('(min-width:901px)').matches; }

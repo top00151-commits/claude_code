@@ -579,6 +579,69 @@ def soft_delete(c, mail_id: int, user_id: int) -> bool:
     return cur.rowcount > 0
 
 
+# ─── 휴지통 · 완전삭제(서버에서 진짜 제거) · 오래된 메일 일괄정리 (대표 지시 2026-06-14) ───
+#   soft_delete 는 숨김(is_deleted=1)만 — DB·첨부는 NAS에 잔존. 아래는 '진짜 삭제'.
+#   첨부는 FK ON DELETE CASCADE 지만 PRAGMA foreign_keys 미보장 → 명시적 DELETE 로 확실히 제거.
+def list_trash(c, user_id: int, *, limit: int = 300):
+    rows = c.execute(
+        """SELECT id, from_email, from_name, to_email, direction, subject, category,
+                  received_at, deleted_at, is_read, is_starred,
+                  substr(COALESCE(summary,''),1,160) AS summary_short
+           FROM mail_messages WHERE user_id=? AND is_deleted=1
+           ORDER BY deleted_at DESC, id DESC LIMIT ?""",
+        (user_id, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_trash(c, user_id: int) -> int:
+    r = c.execute("SELECT COUNT(*) AS n FROM mail_messages WHERE user_id=? AND is_deleted=1",
+                  (user_id,)).fetchone()
+    return (r["n"] if r else 0) or 0
+
+
+def restore_mail(c, mail_id: int, user_id: int) -> bool:
+    cur = c.execute("UPDATE mail_messages SET is_deleted=0, deleted_at=NULL "
+                    "WHERE id=? AND user_id=? AND is_deleted=1", (mail_id, user_id))
+    return cur.rowcount > 0
+
+
+def hard_delete_mail(c, mail_id: int, user_id: int) -> bool:
+    """1건 완전삭제 — 본인 메일만(첨부 blob + 본문 행 진짜 제거)."""
+    own = c.execute("SELECT id FROM mail_messages WHERE id=? AND user_id=?", (mail_id, user_id)).fetchone()
+    if not own:
+        return False
+    c.execute("DELETE FROM mail_attachments WHERE mail_id=?", (mail_id,))
+    cur = c.execute("DELETE FROM mail_messages WHERE id=? AND user_id=?", (mail_id, user_id))
+    return cur.rowcount > 0
+
+
+def empty_trash(c, user_id: int) -> int:
+    """휴지통(is_deleted=1) 전부 완전삭제. 반환 삭제 건수."""
+    c.execute("DELETE FROM mail_attachments WHERE mail_id IN "
+              "(SELECT id FROM mail_messages WHERE user_id=? AND is_deleted=1)", (user_id,))
+    cur = c.execute("DELETE FROM mail_messages WHERE user_id=? AND is_deleted=1", (user_id,))
+    return cur.rowcount
+
+
+def purge_old_count(c, user_id: int, before_iso: str) -> int:
+    """받은 메일 중 before_iso(받은시각) 이전 건수(미리보기)."""
+    r = c.execute("SELECT COUNT(*) AS n FROM mail_messages "
+                  "WHERE user_id=? AND direction='in' AND received_at < ?",
+                  (user_id, before_iso)).fetchone()
+    return (r["n"] if r else 0) or 0
+
+
+def purge_old(c, user_id: int, before_iso: str) -> int:
+    """받은 메일 중 before_iso 이전 완전삭제(첨부 포함). 반환 삭제 건수."""
+    c.execute("DELETE FROM mail_attachments WHERE mail_id IN "
+              "(SELECT id FROM mail_messages WHERE user_id=? AND direction='in' AND received_at < ?)",
+              (user_id, before_iso))
+    cur = c.execute("DELETE FROM mail_messages WHERE user_id=? AND direction='in' AND received_at < ?",
+                    (user_id, before_iso))
+    return cur.rowcount
+
+
 # ─── 번역(요청 시) ──────────────────────────────────────────────────
 def translate_mail(c, mail_id: int, user_id: int, target: str = "ko"):
     """메일 제목·본문을 target(ko/vi/en) 으로 번역. 반환 (성공, dict|메시지)."""
