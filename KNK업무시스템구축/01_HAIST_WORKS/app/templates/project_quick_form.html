@@ -188,7 +188,8 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# v5H226z377(대표 지시·배치 재수정): 각인 — 전체폭(c12) 독립 줄. 반칸(c6)이면 그리드가 옆 빈 칸에
              수량·통화를 끌어올려 「각인|수량|통화」로 줄이 깨졌음. 전체폭이면 수량·통화·단가·금액 줄이 온전. 실제 양식의 각인도 전체폭 띠. 신규 등록 전용. #}
           {% if not ed %}
-          <div class="qf-f c12"><label>각인 <span style="font-weight:400;color:var(--qv-ink-3);">(장비 마킹)</span></label><input name="engraving" placeholder="예: S3908 ASSY"></div>
+          {# v5H226z444(대표 지시): 각인=장비 마킹 → 제품(ASSEMBLY)만. 상품(부품)·기타는 숨김(qSyncShip 토글) #}
+          <div class="qf-f c12" id="qEngraveBox"><label>각인 <span style="font-weight:400;color:var(--qv-ink-3);">(장비 마킹)</span></label><input name="engraving" placeholder="예: S3908 ASSY"></div>
           {% endif %}
 
           {# 4행 — 수량(0000·좁게) · 통화 · 단가 · 금액(단가보다 크게). 수량은 항상 표시, 금액류는 영업·관리만 #}
@@ -304,6 +305,8 @@ function qSyncShip(){
   var pb=document.getElementById('qPartsBox'), en=document.getElementById('qEtcName');
   if(pb){ pb.style.display=(v==='PARTS')?'flex':'none'; if(v==='PARTS' && !document.querySelector('#qPartsRows .qf-part-row')) qAddPart(); }
   if(en) en.style.display=(v==='ETC')?'flex':'none';
+  // v5H226z444(대표 지시): 각인(장비 마킹)은 제품(ASSEMBLY)만 — 상품(부품)·기타는 숨김
+  var eg=document.getElementById('qEngraveBox'); if(eg) eg.style.display=(v==='ASSEMBLY')?'':'none';
   qCalcParts();
 }
 // v5H226z430(대표 지시): 부품 행 1개 HTML(품명·모델·수량·단가·금액·삭제). submit 시 pk_*[] 배열로 전송.
@@ -317,13 +320,13 @@ function qPartRowHtml(){
     + '<input name="pk_maker[]" placeholder="제작사" style="width:88px;'+_s+'">'
     + '<input name="pk_supplier[]" placeholder="공급사" style="width:88px;'+_s+'">'
     + '<input name="pk_qty[]" type="number" min="0" step="1" value="1" placeholder="수량" oninput="qCalcParts()" style="width:58px;text-align:right;'+_s+'">'
-    + '<input name="pk_price[]" type="text" inputmode="numeric" placeholder="단가" oninput="qCalcParts()" style="width:88px;text-align:right;'+_s+'">'
+    + '<input name="pk_price[]" type="text" inputmode="numeric" class="knk-money" placeholder="단가" oninput="qCalcParts()" style="width:88px;text-align:right;'+_s+'">'
     + '<span class="qf-pk-amt" style="width:90px;text-align:right;font-size:12px;color:var(--qv-ink-2);">0</span>'
     + '<input name="pk_note[]" placeholder="비고" style="flex:1;min-width:80px;'+_s+'">'
     + '<button type="button" onclick="this.closest(\'.qf-part-row\').remove();qCalcParts();" title="삭제" style="border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;">×</button>'
     + '</div>';
 }
-function qAddPart(){ var r=document.getElementById('qPartsRows'); if(r){ r.insertAdjacentHTML('beforeend', qPartRowHtml()); } }
+function qAddPart(){ var r=document.getElementById('qPartsRows'); if(r){ r.insertAdjacentHTML('beforeend', qPartRowHtml()); if(window.knkScanMoney) knkScanMoney(); } }  // v5H226z444: 동적 추가 단가칸도 천단위 콤마
 function qCalcParts(){
   var rows=document.querySelectorAll('#qPartsRows .qf-part-row'); var sum=0;
   rows.forEach(function(row){
