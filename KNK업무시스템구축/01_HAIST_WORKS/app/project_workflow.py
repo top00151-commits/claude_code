@@ -558,6 +558,12 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
     if _ship_form_proj == "PARTS":
         _empty_so_allowed = True
         _so_type_for_empty = "PARTS_EXPORT"
+    # v5H226z436 (대표 지시): 추가발주 — 기존 '장비(ASSEMBLY)' 프로젝트에 '형태=상품' 부품 SO 를 붙일 때,
+    #   호출자가 so_type=PARTS_EXPORT 를 명시하면 프로젝트 shipment_form 과 무관하게 빈 PARTS SO 발행 허용.
+    #   (신규 등록 z430 경로는 프로젝트가 이미 PARTS 라 영향 없음 — 상위호환.)
+    if (so_type or "").upper() == "PARTS_EXPORT":
+        _empty_so_allowed = True
+        _so_type_for_empty = "PARTS_EXPORT"
     if not units:
         if _empty_so_allowed:
             so_no = generate_so_no(c, biz_div, ref_d)

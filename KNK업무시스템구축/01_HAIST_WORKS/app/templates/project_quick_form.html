@@ -30,6 +30,9 @@
 .qf-links a { color:#1d4ed8; font-weight:700; text-decoration:none; margin-right:14px; }
 .qf-err { display:none; background:#fee2e2; color:#991b1b; padding:9px 14px; border-radius:8px; font-size:13px; margin-bottom:10px; }
 .qf-err.show { display:block; }
+/* v5H226z436(대표 지시): 등록 실패 시 빨간 안내가 안 보여 '그냥 다시 열린 줄' 오인 → 위로 스크롤 + 강조 흔들림 */
+.qf-err { scroll-margin-top: 90px; border:1px solid #f5b5b5; font-weight:700; }
+@keyframes qErrShake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} }
 @media (max-width:820px){ .qf-grid{ grid-template-columns: repeat(2,1fr);} .qf-f.c2,.qf-f.c3,.qf-f.c4{grid-column:span 1;} .qf-f.c6,.qf-f.c9,.qf-f.c12,.qf-f.span2{grid-column:span 2;} }
 /* v5H226z319(대표 지시): 두 등록 폼 통일 — 고급 항목(출고형태·2차고객사)을 접이식 상세 입력으로 흡수 */
 .qf-adv { margin-top:12px; border:1px dashed var(--qv-line); border-radius:9px; padding:0 12px; background:var(--qv-surface-2,#f7f8fa); }
@@ -478,6 +481,10 @@ function qUnitReprice(){   // 단가 변경 → 손 안 댄 호기만 단가로 
   if(window.knkScanMoney) knkScanMoney();
   qUnitSum();
 }
+// v5H226z436(대표 지시): 오류 빨간 안내를 화면 안으로 끌어와 강조(안 보여서 '그냥 다시 열린 줄' 오인 방지)
+function qScrollErr(){ var e=document.getElementById('qfErr'); if(!e) return;
+  try{ e.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){ }
+  e.style.animation='none'; void e.offsetWidth; e.style.animation='qErrShake .5s ease 2'; }
 document.getElementById('quickForm').addEventListener('submit',function(e){
   var g=function(n){ return (this.querySelector('[name='+n+']').value||'').trim(); }.bind(this);
   var name=g('name'), cust=g('customer_name'), model=g('model'), equip=g('equip_name');
@@ -485,15 +492,15 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   // v5H226z384: 추가 발주(PO≠신규)는 관리번호+고객사 필수(모델·장비는 기존 프로젝트 상속), 신규는 프로젝트명·고객사·모델·장비 필수
   if(qIsFollowup()){
     var _mc=(document.getElementById('qMgmtInput')||{}).value||'';
-    if(!_mc.trim()){ e.preventDefault(); err.textContent='추가 발주는 기존 관리번호를 검색해 선택하세요.'; err.classList.add('show'); return; }
-    if(!cust){ e.preventDefault(); err.textContent='고객사(이번 발주처)를 입력하세요.'; err.classList.add('show'); return; }
+    if(!_mc.trim()){ e.preventDefault(); err.textContent='추가 발주는 기존 관리번호를 검색해 선택하세요.'; err.classList.add('show'); qScrollErr(); return; }
+    if(!cust){ e.preventDefault(); err.textContent='고객사(이번 발주처)를 입력하세요.'; err.classList.add('show'); qScrollErr(); return; }
   } else {
     if(!name||!cust||!model||!equip){ e.preventDefault();
-      err.textContent='필수 항목을 채워주세요 — 프로젝트명·고객사·모델명·장비명.'; err.classList.add('show'); return; }
+      err.textContent='필수 항목을 채워주세요 — 프로젝트명·고객사·모델명·장비명.'; err.classList.add('show'); qScrollErr(); return; }
   }
   var curSel=document.getElementById('qCurrency'), fx=document.getElementById('qFx');
   if(curSel && curSel.value!=='KRW' && (!fx || !fx.value.trim())){ e.preventDefault();
-    err.textContent='외화('+curSel.value+')는 환율을 입력하세요.'; err.classList.add('show'); return; }
+    err.textContent='외화('+curSel.value+')는 환율을 입력하세요.'; err.classList.add('show'); qScrollErr(); return; }
   // 호기 동기화 — 수량≥2(호기별)면 행들이 unit_*[] 배열로 제출(정적 단일 hidden 비활성), 1대면 기존 단일 동기화
   var _q=parseInt((this.querySelector('[name=unit_qty]')||{value:'1'}).value||'1',10)||1;
   if(qIsFollowup()){
@@ -504,7 +511,7 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
     // z389(대표 지시): 평균 주입 금지. 호기 전부 동일 → 공통단가 저장 / 다름 → 단가 비움 + multi_unit=1 (보드에서 호기별 분할 표시).
     var _amts=[]; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ _amts.push(parseFloat((a.value||'0').replace(/,/g,''))||0); });
     var _sum=_amts.reduce(function(s,x){ return s+x; },0);
-    if(_sum<=0){ e.preventDefault(); err.textContent='호기별 금액을 입력하세요 (한 대 이상).'; err.classList.add('show'); return; }
+    if(_sum<=0){ e.preventDefault(); err.textContent='호기별 금액을 입력하세요 (한 대 이상).'; err.classList.add('show'); qScrollErr(); return; }
     var _eq=_amts.length>0 && _amts.every(function(x){ return x===_amts[0]; });
     var _up=document.querySelector('[name=unit_price]');
     var _mu=document.getElementById('qMultiUnit');
@@ -538,7 +545,7 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
       mgmt_code_dup:'이미 등록된 관리번호입니다.',
       mgmt_code_format:'관리번호 형식이 올바르지 않습니다.',
       parts_need_confirm:'부품을 저장하려면 아래 「수주확정」을 체크하고 등록하세요. (제안 단계면 등록 후 상세 → PACKING LIST 에서 입력)'}[er] || ('오류: '+er);
-    var e=document.getElementById('qfErr'); e.textContent=msg; e.classList.add('show');
+    var e=document.getElementById('qfErr'); e.textContent=msg; e.classList.add('show'); qScrollErr();
     var cu=p.get('cust'); if(cu){ var ci=document.querySelector('[name=customer_name]'); if(ci) ci.value=cu; }
   }
 })();
