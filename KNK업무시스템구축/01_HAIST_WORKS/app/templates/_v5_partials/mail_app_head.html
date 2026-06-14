@@ -23,6 +23,13 @@
   .mail-app-top .install { display:none; border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.16);
     color:#fff; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:8px; cursor:pointer; }
   .mail-app-top .install:hover { background:rgba(255,255,255,.28); }
+  /* 🔄 새로고침 아이콘 — 업데이트를 바로 적용(서비스워커 갱신·캐시 비움·새로고침). 로그인 정보 왼쪽 (대표 지시 2026-06-14) */
+  .mail-app-top .reload { border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:#fff;
+    width:30px; height:30px; border-radius:50%; cursor:pointer; padding:0; font-size:15px; line-height:1;
+    display:inline-flex; align-items:center; justify-content:center; }
+  .mail-app-top .reload:hover { background:rgba(255,255,255,.30); }
+  .mail-app-top .reload.spin { animation:mailReloadSpin .7s linear infinite; }
+  @keyframes mailReloadSpin { to { transform:rotate(360deg); } }
 </style>
 <div class="mail-app-top">
   <span class="brand">📧 HAIST WORKS 메일함</span>
@@ -32,6 +39,7 @@
   <a href="/mail/compose">✏️ 쓰기</a>
   <span class="sp"></span>
   <button type="button" id="mailInstallBtn" class="install" onclick="mailInstallApp()" title="이 메일을 앱처럼 설치 — 바탕화면/홈 화면 아이콘으로 독립 실행">📲 앱 설치</button>
+  <button type="button" id="mailReloadBtn" class="reload" onclick="mailReload()" title="새로고침 — 업데이트를 바로 적용(최신 버전으로 갱신)">🔄</button>
   {% if user %}{% set _dn = vname(user) or '사용자' %}
   <span class="me" title="현재 로그인한 사용자(접속자) — KNK Eum 자동 로그인">
     <span class="av">{{ _dn[0] }}</span>
@@ -39,3 +47,21 @@
   </span>{% endif %}
   {# 「WORKS 전체화면」(?app=0) 버튼 제거 — 메일은 KNK Eum 전용 독립 창, WORKS는 KNK Eum 🌟 아이콘으로 별도 실행(역할 분리). (대표 지시 2026-06-14) #}
 </div>
+<script>
+// 🔄 새로고침 — 업데이트(새 버전·다운로드)를 바로 적용: 서비스워커 갱신 + 모든 캐시 삭제 + 새로고침
+window.mailReload = async function(){
+  var btn = document.getElementById('mailReloadBtn');
+  if (btn) btn.classList.add('spin');
+  try {
+    if ('serviceWorker' in navigator) {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      for (var i = 0; i < regs.length; i++) { try { await regs[i].update(); } catch(e){} }
+    }
+    if (window.caches && caches.keys) {
+      var keys = await caches.keys();
+      await Promise.all(keys.map(function(k){ return caches.delete(k); }));
+    }
+  } catch(e){}
+  location.reload();
+};
+</script>
