@@ -23,9 +23,9 @@
 
 {# 허브별 path 목록 — longest-prefix 계산용 #}
 {% set _paths_home = ['/home','/daily','/now','/team','/weekly','/dashboard','/board/company'] %}
-{% set _paths_sales = ['/sales','/projects','/projects/new','/sales/schedule','/customers','/sales/quotations','/sales/orders','/consumables','/sales/shipments-receipts','/sales/outstanding','/export','/as'] %}
+{% set _paths_sales = ['/sales','/sales/opportunities','/projects','/projects/new','/sales/schedule','/customers','/sales/quotations','/sales/orders','/consumables','/sales/shipments-receipts','/sales/outstanding','/export','/as'] %}
 {% set _paths_logi = ['/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issue','/rates'] %}
-{% set _paths_common = ['/notifications','/calendar','/tickets','/changes','/issues','/search','/admin','/admin/permissions'] %}
+{% set _paths_common = ['/notifications','/calendar','/tickets','/changes','/issues','/search','/meetings','/admin','/admin/permissions'] %}
 {% set _all_paths = _paths_home + _paths_sales + _paths_logi + _paths_common %}
 
 {# 정확 일치 찾기. 없으면 _path가 startswith(p+'/')인 path 중 가장 긴 것 선택 #}
@@ -64,8 +64,10 @@
     <a class="top-tab {% if _at == 'sales' %}active{% endif %}" href="/sales">매출영업센터</a>
     <a class="top-tab {% if _at == 'logi' %}active{% endif %}" href="/logistics">자재구매센터</a>
   </div>
-  <div class="tb-headline" style="font-size:28px;font-weight:800;letter-spacing:0.1em;color:var(--knk-red);white-space:nowrap;">HAIST WORKS</div>
+  <div class="tb-headline" style="font-size:27px;font-weight:800;letter-spacing:0.07em;color:var(--knk-red);white-space:nowrap;">KNK Eum WORKS</div>
   <div id="knkTopRight" style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    {# v5H226z422 (대표 지시): KNK Eum WORKS 앱 설치 — 설치 가능할 때만 노출(beforeinstallprompt). 핸들러는 works_pwa_head.html #}
+    <a class="top-icon" id="worksInstallBtn" href="javascript:void(0)" onclick="worksInstallApp()" title="KNK Eum WORKS 앱으로 설치 (바탕화면·홈 아이콘)" style="display:none;background:var(--knk-red);color:#fff;">📲</a>
     {# v5H226z123: 새로고침 — 배포 후 최신 화면 반영. 새 버전 감지 시 빨강 점 강조 #}
     <a class="top-icon" id="knkRefreshBtn" href="javascript:void(0)" onclick="location.reload()" title="새로고침 (새 버전 반영)" style="background:var(--paper-2);color:var(--mute);position:relative;">↻</a>
     {% if _role in ('ceo','admin','leader','executive') %}
@@ -184,6 +186,8 @@
   {% if _at == 'sales' %}
     <div class="sb-group">매출·영업</div>
     {{ a('/sales',                 '🏢 매출 홈',     'M-01-01') }}
+    {# v5H226z416 (대표 지시): 영업 기회 — 수주 전(미팅·제안·견적) → 수주 확정 시 프로젝트 승격 #}
+    {{ a('/sales/opportunities',   '🎯 영업 기회',   'M-01-16') }}
     {{ a('/projects',              '📋 프로젝트',                     'M-01-11') }}
     {# v5H226z374 (대표 지시): 제작요청서 = 프로젝트 신규 등록 진입 — 이름으로 바로 찾도록 사이드바 바로가기 추가.
        클릭 → 사업부 선택(검사기/자동화/라이프밸류/기타) → 간편폼 하단 「📋 제작요청 발행」(기본 체크) #}
@@ -243,6 +247,9 @@
   {{ a('/workflow',           '🧩 일 순서 만들기', 'M-00-18') }}
   {% endif %}
   {{ a('/contacts',      '📇 연락처(주소록)', 'M-00-16') }}
+  {{ a('/meetings',      '📋 회의록',      'M-00-17') }}
+  {# v5H226z421 (대표 지시): 수주 전 부서 협업 — 영업이 부서에 검토·조사 요청 → 팀장 PM 지정 → 구성원 #}
+  {{ a('/dept/requests', '📥 부서 요청함',  'M-00-19') }}
   {# 메일함 메뉴 제거 — 메일 진입은 KNK Eum 메신저 📧 아이콘 전용(별도 창). 메일 라우트/기능은 유지. (대표 지시 2026-06-14) #}
   {{ a('/notifications', '📢 알림함',    'M-00-09') }}
   {{ a('/calendar',      '📅 캘린더',    'M-00-08') }}
@@ -512,6 +519,11 @@ window.setFakeDate = async function(dateStr){
 
 {# v5H144 (2026-05-05): 전역 드래그앤드롭 — 모든 file input 자동 dropzone 화 #}
 {% include "_v5_partials/dragdrop.html" ignore missing %}
+
+{# v5H226z438 (대표 지시·달력표준): KNK 달력(일요일시작·공휴일K/V·일/공휴일빨강·토파랑·오늘 호박테두리)을
+   '모든 시트의 날짜칸(input[type=date])' 에 전역 자동 적용 — 브라우저 기본 달력 대신 통일.
+   기준: 작업기록/달력_캘린더_빌드_조건_사양_2026-06-13.md (§1 데이트픽커). 중복 include 는 내부 가드로 안전. #}
+{% include "_v5_partials/knk_datepicker.html" ignore missing %}
 
 {# v5H226z28 (2026-05-08): 디버그 오버레이 - URL ?debug=1 시 영역명·크기 표시 (전 페이지 공통) #}
 {% include "_v5_partials/debug_overlay.html" ignore missing %}

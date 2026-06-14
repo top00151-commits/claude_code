@@ -56,6 +56,7 @@ input.knk-cal { cursor: pointer; }
 </style>
 <script>
 (function(){
+  if (window.KnkCal) return;  // v5H226z438: 전역 1회만 — 중복 include(페이지 로컬 + chrome 전역) 안전
   // 서버에서 주입된 공휴일 데이터 (context + globals 양쪽 안전망)
   var _hkrData = {{ (KNK_HOLIDAYS_KR | default({}, true)) | tojson }};
   var _hvnData = {{ (KNK_HOLIDAYS_VN | default({}, true)) | tojson }};
@@ -252,9 +253,11 @@ input.knk-cal { cursor: pointer; }
     });
   }
 
-  // 페이지 로드 시 .knk-cal 자동 부착
+  // 페이지 로드 시 자동 부착 — v5H226z438(대표 지시·달력표준): .knk-cal 뿐 아니라
+  //   '모든 input[type=date]' 에 KNK 달력(일요일시작·공휴일K/V·일/공휴일빨강·토파랑) 자동 적용
+  //   → 브라우저 기본 달력 대신 전 시트 통일. (attach 가 type=date→text 로 바꿔 native 픽커 무력화)
   function autoAttach(root){
-    var nodes = (root || document).querySelectorAll('input.knk-cal');
+    var nodes = (root || document).querySelectorAll('input.knk-cal, input[type="date"]');
     for (var i = 0; i < nodes.length; i++) attach(nodes[i]);
   }
   if (document.readyState === 'loading') {
@@ -263,23 +266,26 @@ input.knk-cal { cursor: pointer; }
     autoAttach();
   }
 
-  // 동적 추가 input 도 대응 — MutationObserver
-  try {
-    new MutationObserver(function(mut){
-      for (var i = 0; i < mut.length; i++) {
-        var added = mut[i].addedNodes;
-        for (var j = 0; j < added.length; j++) {
-          var n = added[j];
-          if (n.nodeType !== 1) continue;
-          if (n.matches && n.matches('input.knk-cal')) attach(n);
-          if (n.querySelectorAll) {
-            var sub = n.querySelectorAll('input.knk-cal');
-            for (var k = 0; k < sub.length; k++) attach(sub[k]);
+  // 동적 추가 input 도 대응 — MutationObserver (body 준비 후 1회 설치; head include 시 body null 방지)
+  function _knkObserve(){
+    try {
+      new MutationObserver(function(mut){
+        for (var i = 0; i < mut.length; i++) {
+          var added = mut[i].addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            var n = added[j];
+            if (n.nodeType !== 1) continue;
+            if (n.matches && n.matches('input.knk-cal, input[type="date"]')) attach(n);
+            if (n.querySelectorAll) {
+              var sub = n.querySelectorAll('input.knk-cal, input[type="date"]');
+              for (var k = 0; k < sub.length; k++) attach(sub[k]);
+            }
           }
         }
-      }
-    }).observe(document.body, {childList:true, subtree:true});
-  } catch(e){}
+      }).observe(document.body, {childList:true, subtree:true});
+    } catch(e){}
+  }
+  if (document.body) _knkObserve(); else document.addEventListener('DOMContentLoaded', _knkObserve);
 
   window.KnkCal = { attach: attach, attachAll: autoAttach, show: show, hide: hide };
 })();
