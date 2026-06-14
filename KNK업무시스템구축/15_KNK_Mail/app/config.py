@@ -1,0 +1,43 @@
+# -*- coding: utf-8 -*-
+"""KNK Eum MAIL — 독립 앱 설정 (단일 관리 지점).
+
+WORKS와 완전 분리: 별도 DB(mail.db)·별도 첨부 저장소·별도 세션.
+모든 경로/환경값은 여기서만 정의한다.
+"""
+from __future__ import annotations
+import os
+
+# ── 경로 ──────────────────────────────────────────────
+APP_DIR = os.path.dirname(os.path.abspath(__file__))          # 15_KNK_Mail/app
+PROJECT_DIR = os.path.dirname(APP_DIR)                          # 15_KNK_Mail
+DATA_DIR = os.environ.get("KNK_MAIL_DATA", os.path.join(PROJECT_DIR, "data"))
+TEMPLATES_DIR = os.path.join(APP_DIR, "templates")
+STATIC_DIR = os.path.join(APP_DIR, "static")
+UPLOADS_DIR = os.path.join(DATA_DIR, "mail_uploads")           # 일반 첨부
+LARGE_DIR = os.path.join(DATA_DIR, "mail_large")               # 대용량 첨부(토큰 다운로드)
+
+# ── 별도 DB (WORKS와 무관) ────────────────────────────
+DB_PATH = os.environ.get("KNK_MAIL_DB", os.path.join(DATA_DIR, "mail.db"))
+
+# ── 세션 ──────────────────────────────────────────────
+# max_age 없음 = 세션 쿠키(브라우저 닫으면 만료) — WORKS/메신저 인증 표준과 동일
+SESSION_SECRET = os.environ.get("KNK_MAIL_SESSION_SECRET", "knk-mail-dev-secret-change-me")
+SESSION_COOKIE = "knk_mail_session"
+
+# ── 메신저 SSO (메일 전용 audience) ───────────────────
+#   메신저가 메일을 새 소비자(SP)로 등록해야 함: audience='knk-mail',
+#   redirect_uri allowlist = https://mail.knknara.co.kr/sso/callback
+SSO_AUDIENCE = os.environ.get("KNK_MAIL_SSO_AUDIENCE", "knk-mail")
+
+# 개발용 로컬 로그인 우회 (운영 절대 금지) — 기본 off. KNK_MAIL_DEV_LOGIN=1 일 때만.
+DEV_LOGIN = os.environ.get("KNK_MAIL_DEV_LOGIN", "0") == "1"
+
+# ── 표시 ──────────────────────────────────────────────
+APP_NAME = "KNK Eum MAIL"
+THEME_COLOR = "#A5282C"
+
+
+def ensure_dirs():
+    """데이터/첨부 폴더 보장 (없으면 생성)."""
+    for d in (DATA_DIR, UPLOADS_DIR, LARGE_DIR):
+        os.makedirs(d, exist_ok=True)

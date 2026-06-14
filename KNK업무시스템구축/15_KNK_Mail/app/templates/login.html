@@ -1,0 +1,24 @@
+{% extends "base_mail.html" %}
+{% block title %}로그인 · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:440px;margin:8vh auto;text-align:center;">
+  <div style="font-size:34px;">📧</div>
+  <h2 style="margin:8px 0 4px;">{{ app_name }}</h2>
+  <p class="muted" style="margin:0 0 18px;">회사 메일 · KNK Eum 계정으로 로그인</p>
+
+  <a class="btn" href="/sso/login" style="width:100%;">KNK Eum(메신저)으로 로그인</a>
+  <p class="muted" style="font-size:12px;margin-top:10px;">
+    메신저 SSO 연결은 준비 단계입니다(독립 분리 작업 중).
+  </p>
+
+  {% if dev_login %}
+  <hr style="margin:18px 0;border:0;border-top:1px solid var(--line);">
+  <form method="post" action="/login/dev" style="display:flex;gap:8px;">
+    <input name="name" placeholder="개발용 이름" value="개발자"
+           style="flex:1;padding:9px;border:1px solid var(--line);border-radius:8px;">
+    <button class="btn" type="submit">개발 로그인</button>
+  </form>
+  <p class="muted" style="font-size:11px;margin-top:6px;">⚠ 로컬 개발 전용(운영 비활성)</p>
+  {% endif %}
+</div>
+{% endblock %}

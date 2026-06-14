@@ -1,0 +1,9 @@
+# KNK Eum MAIL — 독립 앱 의존성
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+itsdangerous
+httpx
+pyjwt
+cryptography
