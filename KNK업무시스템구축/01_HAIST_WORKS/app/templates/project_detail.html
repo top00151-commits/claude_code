@@ -1775,6 +1775,19 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           {# v5H138: 프로젝트 유형 pill (사이드 패널) #}
           <dt>유형</dt><dd>{% with ptype=p.project_type, size='sm' %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</dd>
+          {# v5H226z448 (대표 지시): 등록폼과 동일하게 '형태'·'PO유형'도 표시 #}
+          <dt>형태</dt><dd>
+            {% set _sf2 = (p.shipment_form or '')|upper %}
+            {% if (p.project_type or '')|upper == 'CONSUMABLE' %}<span class="pill" style="background:#e7f6ec;color:#15803d;font-size:11.5px;">소모품</span>
+            {% elif _sf2 == 'PARTS' %}<span class="pill pill-warn" style="font-size:11.5px;">🧰 상품</span>
+            {% elif _sf2 == 'ETC' %}<span class="pill pill-muted" style="font-size:11.5px;">🗂 기타</span>
+            {% else %}<span class="pill" style="background:#e0edff;color:#1d4ed8;font-size:11.5px;">📦 제품</span>{% endif %}
+          </dd>
+          <dt>PO유형</dt><dd>
+            {% set _pt2 = p.po_type|default('신규') %}
+            {% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>
+            {% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}
+          </dd>
           {% if parent_project %}
           <dt>연관 관리번호</dt><dd>
             <a href="/project/{{ parent_project.id }}"

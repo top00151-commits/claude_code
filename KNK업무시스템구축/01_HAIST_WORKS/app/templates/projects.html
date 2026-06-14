@@ -130,13 +130,15 @@ body {
     <table class="tbl">
       <thead>
         <tr>
-          {# v5H226z226 (대표 지시): 컬럼 순서 = 관리코드·프로젝트명·장비명·모델명·고객사·출고형태·상태·수주액·발주일 #}
+          {# v5H226z226: 컬럼 = 관리코드·프로젝트명·장비명·모델명·고객사·PO유형·형태·상태·수주액·발주일 #}
+          {# v5H226z448 (대표 지시): '출고형태'→'형태'(등록 드롭다운과 동일 표기) + 'PO유형' 칸 추가 #}
           <th>관리코드</th>
           <th>프로젝트명</th>
           <th>장비명</th>
           <th>모델명</th>
           <th>고객사</th>
-          <th class="center">출고형태</th>
+          <th class="center">PO유형</th>
+          <th class="center">형태</th>
           <th class="center">상태</th>
           <th class="num">수주액</th>
           <th class="center">발주일</th>
@@ -157,14 +159,21 @@ body {
           <td>{{ p.equip_name|default('—') }}{% if _bd_lb %} <span style="font-size:10px;color:var(--qv-ink-3);">(기기)</span>{% endif %}</td>
           <td style="font-family:Consolas,monospace;font-size:12px;">{{ p.model_name|default('—') }}</td>
           <td>{{ p.customer_name|default('—') }}</td>
+          {# v5H226z448: PO유형 칸 — 등록폼 동일(신규/추가/개조/수리/기타). 신규=흐린 글자·그 외=강조 알약. 소모품 행은 po_type 없음 → '—' #}
+          <td class="center">
+            {% if (p.project_type or '')|upper == 'CONSUMABLE' or p._div == 'C' %}<span style="color:var(--qv-ink-3);">—</span>
+            {% else %}{% set _pt = p.po_type|default('신규') %}
+              {% if _pt and _pt != '신규' %}<span class="pill pill-warn" style="font-size:11px;font-weight:700;">{{ _pt }}</span>
+              {% else %}<span style="color:var(--qv-ink-3);font-size:12px;">신규</span>{% endif %}
+            {% endif %}
+          </td>
+          {# v5H226z448: '출고형태'→'형태'. 데이터를 등록 드롭다운과 동일 표기(📦 제품/🧰 상품/🗂 기타). 소모품은 별도 유형이라 그대로 유지. 미설정=등록폼처럼 제품 기본 #}
           <td class="center">
             {% set _sf = (p.shipment_form or '')|upper %}
-            {# v5H226z240: 소모품(유형 CONSUMABLE/사업부 C)은 출고형태 대신 '소모품' 표시 #}
             {% if (p.project_type or '')|upper == 'CONSUMABLE' or p._div == 'C' %}<span class="pill" style="background:#e7f6ec;color:#15803d;">소모품</span>
-            {% elif _sf == 'PARTS' %}<span class="pill pill-warn">부품</span>
-            {% elif _sf == 'ETC' %}<span class="pill pill-muted">기타</span>
-            {% elif _sf == 'ASSEMBLY' %}<span class="pill" style="background:#e0edff;color:#1d4ed8;">ASS'Y</span>
-            {% else %}<span style="color:var(--qv-ink-3);">—</span>{% endif %}
+            {% elif _sf == 'PARTS' %}<span class="pill pill-warn">🧰 상품</span>
+            {% elif _sf == 'ETC' %}<span class="pill pill-muted">🗂 기타</span>
+            {% else %}<span class="pill" style="background:#e0edff;color:#1d4ed8;">📦 제품</span>{% endif %}
           </td>
           {# v5H226z219 (대표 지시): 텍스트 알약만 — 신호등(분포 점) 삭제 #}
           <td class="center">

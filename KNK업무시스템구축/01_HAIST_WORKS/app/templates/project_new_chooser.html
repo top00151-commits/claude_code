@@ -134,11 +134,15 @@ html,body{background:#fff!important;overflow:auto!important;}
     {# v5H226z152 (대표 지시): '등록된 항목 조회 / 프로젝트 목록' 블록 제거 — 상단 [전체 목록] 탭과 중복 #}
 
     <!-- v5H152: 프로젝트 엑셀 일괄 등록 -->
-    <div style="margin-top:14px;padding:16px 20px;background:#fffaf0;border:1px solid #e6dcc0;border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+    {# v5H226z449 (대표 지시): 엑셀 일괄 등록도 자주 쓰지 않으니 평소엔 접기(details, open 없음=기본 닫힘) — 제목 클릭하면 펼침 #}
+    <details style="margin-top:14px;background:#fffaf0;border:1px solid #e6dcc0;border-radius:8px;">
+      <summary style="cursor:pointer;padding:14px 20px;font-size:14px;font-weight:700;color:#8a6a1a;">
+        📥 엑셀 일괄 등록 <span style="font-weight:400;font-size:12px;color:#9a8a5a;">— 여러 건을 한 번에 (통합 양식 1종 · 자주 안 쓰면 접어두세요 · 클릭하면 펼침)</span>
+      </summary>
       {# v5H226z415 (대표 지시 'A로 통일'): 초기 화면도 구분 안(등록 폼)·작업일정표와 '같은 통합 양식 1종'으로 통일.
          (기존 출고형태별 3종 ASS'Y/부품/기타는 업로드 파서가 시트명을 인식 못 해 0건이던 미완성 → 폐기) #}
+      <div style="padding:4px 20px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
       <div style="font-size:13px;color:#555;line-height:1.6;max-width:560px;">
-        📥 <b>엑셀 일괄 등록</b> — 여러 건을 한 번에 등록 (<b>통합 양식 1종</b> · 등록 폼·작업일정표와 동일한 표준 양식)
         <div style="font-size:11.5px;color:#8a7842;margin-top:6px;line-height:1.7;">
           · <b>관리번호</b>를 입력하세요 — <b>사업부(T 검사기 / M 자동화 / L 라이프밸류 / E 기타)는 관리번호에서 자동 인식</b>됩니다.<br>
           · <b>고객사1</b>은 등록된 고객사명과 정확히 일치해야 자동 연결됩니다.<br>
@@ -154,12 +158,15 @@ html,body{background:#fff!important;overflow:auto!important;}
         <button type="button" onclick="document.getElementById('importXlsx').click()" style="padding:8px 14px;background:#b07a18;color:#fff;border:1px solid #b07a18;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 엑셀 업로드</button>
         <input type="file" id="importXlsx" accept=".xlsx" style="display:none;" onchange="uploadProjectsXlsx(this.files[0])">
       </div>
-      {# v5H226z234 (대표 지시): 과거 데이터 일괄이관 모드 — 평상시 OFF, 전체 이관 때만 체크 #}
-      <label style="display:inline-flex;align-items:center;gap:7px;margin-top:6px;padding:6px 10px;background:#fff8ed;border:1px dashed #e0b96a;border-radius:6px;font-size:12.5px;color:#8a6a1a;cursor:pointer;">
-        <input type="checkbox" id="importMigrateMode" style="width:15px;height:15px;cursor:pointer;">
-        <span>📦 <b>과거 데이터 일괄이관 모드</b> — '추가발주'인데 신규 원본이 없으면 <b>발주일 가장 빠른 1줄을 신규로 자동 승격</b> (평상시엔 끄세요)</span>
+      {# v5H226z234: 과거 데이터 일괄이관 모드 — 평상시 OFF, 전체 이관 때만 체크 #}
+      {# v5H226z449 (대표 지시): 체크=ON / 해제=OFF 를 명확히 — 상태 배지(기본 OFF)가 체크에 따라 ON(초록)/OFF(회색)로 즉시 바뀜 #}
+      <label id="migModeLabel" style="display:inline-flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:#fff8ed;border:1px dashed #e0b96a;border-radius:6px;font-size:12.5px;color:#8a6a1a;cursor:pointer;">
+        <input type="checkbox" id="importMigrateMode" onchange="updateMigMode()" style="width:16px;height:16px;cursor:pointer;">
+        <span id="migModeBadge" style="display:inline-block;min-width:40px;text-align:center;padding:2px 9px;border-radius:11px;font-weight:800;font-size:11.5px;background:#e5e7eb;color:#6b7280;">OFF</span>
+        <span>📦 <b>과거 데이터 일괄이관 모드</b> — '추가발주'인데 신규 원본이 없으면 <b>발주일 가장 빠른 1줄을 신규로 자동 승격</b>. <b>평상시엔 OFF</b>(체크 안 함)로 두세요.</span>
       </label>
-    </div>
+      </div>
+    </details>
   </div>
 
   <!-- v5H152: 미리보기 모달 -->
@@ -200,6 +207,21 @@ html,body{background:#fff!important;overflow:auto!important;}
 
   <script>
   let _importRows = [];
+  // v5H226z449 (대표 지시): 과거 데이터 일괄이관 모드 — 체크=ON(초록) / 해제=OFF(회색) 를 배지로 명확히 표시
+  function updateMigMode(){
+    var cb = document.getElementById('importMigrateMode');
+    var b  = document.getElementById('migModeBadge');
+    var lab = document.getElementById('migModeLabel');
+    if (!cb || !b) return;
+    if (cb.checked){
+      b.textContent = 'ON';  b.style.background = '#15803d'; b.style.color = '#fff';
+      if (lab){ lab.style.background = '#eafaf0'; lab.style.borderColor = '#15803d'; lab.style.color = '#15803d'; }
+    } else {
+      b.textContent = 'OFF'; b.style.background = '#e5e7eb'; b.style.color = '#6b7280';
+      if (lab){ lab.style.background = '#fff8ed'; lab.style.borderColor = '#e0b96a'; lab.style.color = '#8a6a1a'; }
+    }
+  }
+  updateMigMode();  // 진입 시 기본 OFF 상태 명시
   async function uploadProjectsXlsx(file) {
     if (!file) return;
     const fd = new FormData();
