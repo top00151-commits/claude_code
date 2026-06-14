@@ -2796,4 +2796,24 @@ function closeMarginAnalysis() {
 }
 </script>
 
+<script>
+/* v5H226z428 (대표 지시): 형태=상품 등록 직후 ?focus=packing → 부품 PACKING LIST(📤엑셀 업로드·＋부품 추가)로 자동 스크롤·강조 */
+(function(){
+  try{
+    var sp = new URLSearchParams(location.search || '');
+    if (sp.get('focus') !== 'packing') return;
+    function go(){
+      var btn = document.querySelector('button[onclick^="openPartsImport"]') || document.querySelector('.add-unit');
+      var target = btn ? (btn.closest('.so-card') || btn) : document.querySelector('.parts-excel');
+      if (!target) return;
+      try { target.scrollIntoView({behavior:'smooth', block:'center'}); } catch(_){ target.scrollIntoView(); }
+      var prev = target.style.boxShadow;
+      target.style.transition = 'box-shadow .35s';
+      target.style.boxShadow = '0 0 0 3px #f0b429, 0 0 22px rgba(240,180,41,.55)';
+      setTimeout(function(){ target.style.boxShadow = prev; }, 2800);
+    }
+    setTimeout(go, 400);
+  }catch(e){}
+})();
+</script>
 </main></div></body></html>

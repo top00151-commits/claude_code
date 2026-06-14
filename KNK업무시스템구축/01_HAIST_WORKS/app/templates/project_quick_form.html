@@ -161,8 +161,14 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
           {# 형태=상품(부품 품명/모델) · 기타(기타 품명) 선택 시 펼침 — 신규 등록 전용(수정은 부품 상세를 '고급 편집'에서) #}
           {% if not ed %}
-          <div class="qf-f c4" id="qPartName" style="display:none;"><label>부품 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(대표 1식)</span></label><input name="part_name" placeholder="예: Grip Finger Pad"></div>
-          <div class="qf-f c4" id="qPartModel" style="display:none;"><label>부품 모델명</label><input name="part_model" placeholder="예: KNK-P-0000"></div>
+          <div class="qf-f c4" id="qPartName" style="display:none;"><label>부품 대표 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(선택)</span></label><input name="part_name" placeholder="예: Grip Finger Pad"></div>
+          <div class="qf-f c4" id="qPartModel" style="display:none;"><label>부품 모델명 <span style="font-weight:400;color:var(--qv-ink-3);">(선택)</span></label><input name="part_model" placeholder="예: KNK-P-0000"></div>
+          {# v5H226z428(대표 지시): 상품(부품)은 가지수가 많음 → 부품 목록·단가는 등록 후 상세 PACKING LIST에서 입력 안내(정해진 흐름) #}
+          <div class="qf-f" id="qPartNote" style="display:none;grid-column:1/-1;">
+            <div style="background:#fef9e6;border:1px solid #f0d894;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#7c4a03;line-height:1.55;">
+              🧰 <b>상품(부품)은 가지수가 많죠.</b> 여기엔 <b>대표 품명만</b>(선택) 적고, <b>부품 목록(여러 개)·수량·단가는 등록 후 「프로젝트 상세 → PACKING LIST」</b>에서 <b>＋부품 추가</b> 또는 <b>📤 엑셀 업로드</b>로 입력합니다. <span style="color:#a16207;">(등록하면 그 화면으로 바로 이동·강조됩니다.)</span>
+            </div>
+          </div>
           <div class="qf-f c6" id="qEtcName" style="display:none;"><label>기타 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(모델명 없음)</span></label><input name="etc_name" placeholder="예: C/T 핀블럭"></div>
           {% endif %}
 
@@ -285,9 +291,10 @@ function qToggleFx(){
 //   2차거래 토글(qSyncSec)은 폐지 — 고객사2가 본문 상시 입력칸이 됨.
 function qSyncShip(){
   var s=document.getElementById('qFormType'); var v=s?s.value:'ASSEMBLY';
-  var pn=document.getElementById('qPartName'), pm=document.getElementById('qPartModel'), en=document.getElementById('qEtcName');
+  var pn=document.getElementById('qPartName'), pm=document.getElementById('qPartModel'), en=document.getElementById('qEtcName'), nt=document.getElementById('qPartNote');
   if(pn) pn.style.display=(v==='PARTS')?'flex':'none';
   if(pm) pm.style.display=(v==='PARTS')?'flex':'none';
+  if(nt) nt.style.display=(v==='PARTS')?'block':'none';
   if(en) en.style.display=(v==='ETC')?'flex':'none';
 }
 // v5H226z373(대표 지시): 제작요청 발행 체크 → 요청사항·부서선택 박스 토글
