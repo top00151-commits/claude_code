@@ -3,7 +3,9 @@
 {% include "_v5_partials/styles.html" %}
 <style>
 /* v5H226z276: '엑셀처럼' 한 화면 평면 등록 폼 */
-.qf-wrap { max-width: 1080px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+/* v5H226z438(대표 지시·시트여백 표준): 좌우 1080px 캡+가운데정렬 제거 → 시트 풀폭 사용.
+   여백=좌우 var(--content-pad)(=page-head 와 동일 정렬)만, 폭은 모니터 따라 자동. 캡 금지. */
+.qf-wrap { margin: 0 0 var(--space-6); padding: 0 var(--content-pad); }
 .qf-intro { font-size: 12.5px; color: var(--qv-ink-3); margin: 6px 0 14px; }
 .qf-card { background:#fff; border:1px solid var(--qv-line); border-radius:12px; padding:18px 20px; }
 /* v5H226z351(대표 지시): 12열 그리드 — 행별 4/3/2등분 비율 정렬 (c3=4등분·c4=3등분·c6=2등분) */
