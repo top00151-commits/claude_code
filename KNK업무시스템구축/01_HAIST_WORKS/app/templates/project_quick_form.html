@@ -161,12 +161,17 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
           {# 형태=상품(부품 품명/모델) · 기타(기타 품명) 선택 시 펼침 — 신규 등록 전용(수정은 부품 상세를 '고급 편집'에서) #}
           {% if not ed %}
-          <div class="qf-f c4" id="qPartName" style="display:none;"><label>부품 대표 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(선택)</span></label><input name="part_name" placeholder="예: Grip Finger Pad"></div>
-          <div class="qf-f c4" id="qPartModel" style="display:none;"><label>부품 모델명 <span style="font-weight:400;color:var(--qv-ink-3);">(선택)</span></label><input name="part_model" placeholder="예: KNK-P-0000"></div>
-          {# v5H226z428(대표 지시): 상품(부품)은 가지수가 많음 → 부품 목록·단가는 등록 후 상세 PACKING LIST에서 입력 안내(정해진 흐름) #}
-          <div class="qf-f" id="qPartNote" style="display:none;grid-column:1/-1;">
-            <div style="background:#fef9e6;border:1px solid #f0d894;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#7c4a03;line-height:1.55;">
-              🧰 <b>상품(부품)은 가지수가 많죠.</b> 여기엔 <b>대표 품명만</b>(선택) 적고, <b>부품 목록(여러 개)·수량·단가는 등록 후 「프로젝트 상세 → PACKING LIST」</b>에서 <b>＋부품 추가</b> 또는 <b>📤 엑셀 업로드</b>로 입력합니다. <span style="color:#a16207;">(등록하면 그 화면으로 바로 이동·강조됩니다.)</span>
+          {# v5H226z430(대표 지시): 형태=상품 → 부품을 폼에서 바로 여러 개 입력(품명·모델·수량·단가). 많으면 등록 후 상세 PACKING LIST·엑셀.
+             ⚠ '수주확정' 체크 시에만 저장(제안 단계는 등록 후 상세에서). 모델명 → 상세 '규격' 칸으로 저장. 합계 = 수주 금액(서버 산출). #}
+          <div class="qf-f" id="qPartsBox" style="display:none;grid-column:1/-1;">
+            <label>부품 목록 <span style="font-weight:400;color:var(--qv-ink-3);">(품명·모델·수량·단가 — 몇 개는 여기서 바로 / 많으면 등록 후 상세 PACKING LIST·엑셀)</span></label>
+            <div id="qPartsRows" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;flex-wrap:wrap;gap:8px;">
+              <button type="button" onclick="qAddPart()" style="padding:6px 13px;border:1px solid #b9d2ff;background:#e0edff;color:#1d4ed8;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 부품 추가</button>
+              <div style="font-size:12.5px;color:var(--qv-ink-2);">합계 <b id="qPartsSum" style="color:var(--knk-red);font-size:14px;">0</b> <span id="qPartsSumCur" style="color:var(--qv-ink-3);font-size:11px;">KRW</span></div>
+            </div>
+            <div style="background:#fef9e6;border:1px solid #f0d894;border-radius:8px;padding:8px 11px;font-size:12px;color:#7c4a03;line-height:1.5;margin-top:8px;">
+              ⚠ 부품은 아래 <b>「수주확정」을 체크하고 등록</b>해야 저장됩니다. 제안 단계면 등록 후 <b>상세 → PACKING LIST</b>에서 ＋부품/📤엑셀로 입력하세요. (모델명은 상세 '규격'으로 저장)
             </div>
           </div>
           <div class="qf-f c6" id="qEtcName" style="display:none;"><label>기타 품명 <span style="font-weight:400;color:var(--qv-ink-3);">(모델명 없음)</span></label><input name="etc_name" placeholder="예: C/T 핀블럭"></div>
@@ -291,11 +296,39 @@ function qToggleFx(){
 //   2차거래 토글(qSyncSec)은 폐지 — 고객사2가 본문 상시 입력칸이 됨.
 function qSyncShip(){
   var s=document.getElementById('qFormType'); var v=s?s.value:'ASSEMBLY';
-  var pn=document.getElementById('qPartName'), pm=document.getElementById('qPartModel'), en=document.getElementById('qEtcName'), nt=document.getElementById('qPartNote');
-  if(pn) pn.style.display=(v==='PARTS')?'flex':'none';
-  if(pm) pm.style.display=(v==='PARTS')?'flex':'none';
-  if(nt) nt.style.display=(v==='PARTS')?'block':'none';
+  var pb=document.getElementById('qPartsBox'), en=document.getElementById('qEtcName');
+  if(pb){ pb.style.display=(v==='PARTS')?'flex':'none'; if(v==='PARTS' && !document.querySelector('#qPartsRows .qf-part-row')) qAddPart(); }
   if(en) en.style.display=(v==='ETC')?'flex':'none';
+  qCalcParts();
+}
+// v5H226z430(대표 지시): 부품 행 1개 HTML(품명·모델·수량·단가·금액·삭제). submit 시 pk_*[] 배열로 전송.
+function qPartRowHtml(){
+  return '<div class="qf-part-row" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
+    + '<input name="pk_name[]" placeholder="품명*" style="flex:2;min-width:130px;padding:6px 9px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12.5px;">'
+    + '<input name="pk_model[]" placeholder="모델/규격" style="flex:1.4;min-width:100px;padding:6px 9px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12.5px;">'
+    + '<input name="pk_qty[]" type="number" min="0" step="1" value="1" placeholder="수량" oninput="qCalcParts()" style="width:62px;padding:6px 6px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12.5px;text-align:right;">'
+    + '<input name="pk_price[]" type="text" inputmode="numeric" placeholder="단가" oninput="qCalcParts()" style="width:94px;padding:6px 8px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12.5px;text-align:right;">'
+    + '<span class="qf-pk-amt" style="width:100px;text-align:right;font-size:12px;color:var(--qv-ink-2);">0</span>'
+    + '<button type="button" onclick="this.closest(\'.qf-part-row\').remove();qCalcParts();" title="삭제" style="border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;">×</button>'
+    + '</div>';
+}
+function qAddPart(){ var r=document.getElementById('qPartsRows'); if(r){ r.insertAdjacentHTML('beforeend', qPartRowHtml()); } }
+function qCalcParts(){
+  var rows=document.querySelectorAll('#qPartsRows .qf-part-row'); var sum=0;
+  rows.forEach(function(row){
+    var qe=row.querySelector('input[name="pk_qty[]"]'), pe=row.querySelector('input[name="pk_price[]"]');
+    var q=parseFloat((qe&&qe.value)||'0')||0;
+    var p=parseFloat(((pe&&pe.value)||'0').replace(/,/g,''))||0;
+    var amt=q*p; sum+=amt;
+    var a=row.querySelector('.qf-pk-amt'); if(a) a.textContent=amt?amt.toLocaleString('en-US'):'0';
+  });
+  var s=document.getElementById('qPartsSum'); if(s) s.textContent=sum.toLocaleString('en-US');
+  var ft=document.getElementById('qFormType');
+  if(ft && ft.value==='PARTS'){
+    var oa=document.querySelector('[name="order_amount"]'); if(oa) oa.value=sum;
+    var curEl=document.querySelector('[name="currency"]'); var cur=(curEl&&curEl.value)||'KRW';
+    var sc=document.getElementById('qPartsSumCur'); if(sc) sc.textContent=cur;
+  }
 }
 // v5H226z373(대표 지시): 제작요청 발행 체크 → 요청사항·부서선택 박스 토글
 function qToggleProd(){
@@ -503,7 +536,8 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
       mgmt_not_found:'그 관리번호의 기존 프로젝트가 없습니다 — 검색해서 선택하세요.',
       mgmt_required_followup:'추가 발주는 기존 관리번호를 검색해 선택하세요.',
       mgmt_code_dup:'이미 등록된 관리번호입니다.',
-      mgmt_code_format:'관리번호 형식이 올바르지 않습니다.'}[er] || ('오류: '+er);
+      mgmt_code_format:'관리번호 형식이 올바르지 않습니다.',
+      parts_need_confirm:'부품을 저장하려면 아래 「수주확정」을 체크하고 등록하세요. (제안 단계면 등록 후 상세 → PACKING LIST 에서 입력)'}[er] || ('오류: '+er);
     var e=document.getElementById('qfErr'); e.textContent=msg; e.classList.add('show');
     var cu=p.get('cust'); if(cu){ var ci=document.querySelector('[name=customer_name]'); if(ci) ci.value=cu; }
   }
