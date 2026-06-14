@@ -30,6 +30,7 @@
   .as-empty { padding:48px; text-align:center; color:var(--qv-ink-3); font-size:14px; }
   .btn-primary { padding:9px 18px; font-size:13.5px; font-weight:800; border:0; border-radius:9px;
                  background:var(--knk-red); color:#fff; text-decoration:none; }
+  @media (max-width: 1023px){ .as-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; } table.as-table{ min-width:760px; } } /* z452 mobile: 넓은 표 가로스크롤 */
 </style></head>
 <body>
 <div class="app">{% set active_tab = 'sales' %}

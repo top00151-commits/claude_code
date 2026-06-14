@@ -20,6 +20,10 @@
 .date-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
 .date-nav a:hover { background: var(--qv-surface-2); }
 .bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }
+/* z452 mobile — 4열 KPI 벤토가 폰에서 너무 좁아지지 않게 2열로 */
+@media (max-width: 768px) {
+  .bento { grid-template-columns: 1fr 1fr !important; }
+}
 </style>
 </head>
 <body>

@@ -124,6 +124,12 @@
 .po-empty { padding: 32px 20px; text-align: center; color: var(--pq-ink-3); }
 .po-empty .ico { font-size: 32px; opacity: 0.5; }
 .po-empty .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); margin: 6px 0 3px; }
+/* z452 mobile — 4열 업데이트 폼·고정폭 이력 행을 폰에서 세로로 */
+@media (max-width: 768px) {
+  .upd-form .grid { grid-template-columns: 1fr !important; }
+  .upd-form .field.col-2, .upd-form .field.col-4 { grid-column: auto !important; }
+  .log-item { grid-template-columns: 1fr !important; gap: 4px; }
+}
 </style>
 </head>
 <body>

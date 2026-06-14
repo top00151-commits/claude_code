@@ -12,6 +12,10 @@ body {
   .bento { grid-template-columns: repeat(2, 1fr) !important; }
   .page-title { font-size: 22px; }
 }
+/* z452 mobile: 송장+수금 2단 그리드가 폰에서 좌우로 쪼개져 표가 너무 좁아짐 → 세로로 쌓기 */
+@media (max-width: 768px) {
+  .section > div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+}
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}

@@ -8,6 +8,8 @@
 .gantt-fill.done { background: var(--success); }
 .gantt-fill.delay { background: var(--knk-red); }
 .gantt-today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--knk-red); z-index: 5; }
+/* z452 mobile: 라벨 200px + 상태 80px 고정폭이 폰에서 바를 짓눌러 → 1열로 쌓아 바를 풀폭으로 */
+@media (max-width: 640px) { .gantt-row { grid-template-columns: 1fr; gap: 6px; } }
 </style></head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">

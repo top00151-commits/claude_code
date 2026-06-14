@@ -6,6 +6,8 @@
 .fld { margin-bottom: 14px; display: grid; grid-template-columns: 200px 1fr; gap: 14px; align-items: center; }
 .fld label { font-size: 12px; font-weight: 600; color: var(--ink); }
 .fld input { padding: 9px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); color: var(--ink); font-family: inherit; }
+/* z452 mobile */
+@media (max-width: 768px) { .fld { grid-template-columns: 1fr !important; align-items: stretch; gap: 6px; } }
 </style></head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">

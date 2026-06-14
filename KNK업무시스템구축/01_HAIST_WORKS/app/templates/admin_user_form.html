@@ -14,6 +14,7 @@
 }
 .req { color: var(--knk-red); font-weight:700; }
 .actions { display:flex; gap:10px; margin-top: var(--space-4); padding-top: var(--space-4); border-top:1px solid var(--line); }
+@media (max-width: 768px){ .frow{ grid-template-columns: 1fr !important; } .fld.full{ grid-column: span 1; } } /* z452 mobile */
 </style></head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">

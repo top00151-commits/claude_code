@@ -1,9 +1,13 @@
 {# v5H226z422 (대표 지시): KNK Eum WORKS = 설치형 앱(PWA) head — 바탕화면/홈 아이콘·독립 창 설치.
    styles.html 에서 1곳 include 로 전 페이지 <head> 에 적용(메일 페이지는 자체 PWA라 제외). #}
+{# v5H226z451 (대표 지시·휴대폰 대응): viewport 메타 — styles.html 포함 전 페이지 일괄 주입.
+   누락 시 폰이 ~980px 로 그린 뒤 통째 축소해 글씨가 깨알이 됨(휴대폰에서 보기 어려움의 최대 원인).
+   user-scalable 허용(접근성·핀치줌). 노치 안전영역=viewport-fit=cover. 인라인 viewport 가진 페이지와 중복돼도 무해. #}
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#A5282C">
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
-<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/svg+xml" href="/icon.svg?v=2">
+<link rel="apple-touch-icon" href="/icon-180.png?v=2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="KNK Eum WORKS">

@@ -103,6 +103,8 @@
 .po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
 .po-empty .cta { margin-top: 16px; }
 .po-empty .cta a { padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+/* z452 mobile: 5열 KPI 스트립 폰에서 2열로 (가로 넘침 방지) */
+@media (max-width:768px){ .kpi-strip{grid-template-columns:repeat(2,1fr) !important;} .kpi-cell:nth-child(2n){border-right:0;} }
 </style>
 </head>
 <body>

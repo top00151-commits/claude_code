@@ -124,6 +124,12 @@
 .submit-bar a.cancel { background: var(--pq-surface-2); color: var(--pq-ink-2); border-color: var(--pq-line-2); }
 .submit-bar button.apply, .submit-bar a.apply { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
 .submit-bar button.apply:hover, .submit-bar a.apply:hover { background: #1e293b; }
+
+/* z452 mobile — 폰에서 가이드 2열·KPI 4열을 좁지 않게 풀기 */
+@media (max-width: 768px) {
+  .guide-grid { grid-template-columns: 1fr !important; }
+  .kpi-strip { grid-template-columns: repeat(2, 1fr) !important; }
+}
 </style>
 </head>
 <body>

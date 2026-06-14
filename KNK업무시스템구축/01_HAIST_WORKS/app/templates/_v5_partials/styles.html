@@ -265,6 +265,13 @@ button { font-family: inherit; cursor: pointer; }
   .app { height: auto !important; min-height: 100vh; overflow: visible !important; display: block !important; }
   .main { overflow: visible !important; height: auto !important; display: block !important; grid-column: auto !important; width: 100% !important; }
   .main::after { display: none; }
+  /* v5H226z451 (대표 지시·휴대폰 대응): 일부 페이지가 자체 <style> 로 body{overflow:hidden}·.main{height:100vh}
+     처럼 셸을 다시 고정함(예: project_detail·sales_home·customer_form). 그 페이지 규칙은 styles.html 보다
+     '나중'이라 같은 특정도면 이김 → 모바일에서 셸이 다시 잠겨 화면이 갇힘. 여기선 더 높은 특정도
+     (html body / body .app / body .main)로 source-order 무관하게 무조건 해제(가로 삐침은 inner .tbl-wrap 가 스크롤). */
+  html body { overflow: visible !important; height: auto !important; }
+  body .app { display: block !important; height: auto !important; min-height: 100vh; min-width: 0 !important; overflow: visible !important; }
+  body .main { display: block !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; width: 100% !important; grid-column: auto !important; padding-right: 0 !important; }
   .top { position: sticky; top: 0; z-index: 80; }   /* 스크롤해도 상단바(☰ 메뉴) 유지 */
   .top { min-width: auto !important; }
   .sidebar { display: none; position: fixed; top: var(--topbar-h, 80px); left: 0; bottom: 0; width: 280px; z-index: 90; background: var(--paper); border-right: 1px solid var(--line); box-shadow: 4px 0 16px rgba(0,0,0,.12); overflow-y: auto; }

@@ -26,6 +26,7 @@
   .af-err { background:#fde2e2; color:#b91c1c; padding:10px 14px; border-radius:9px; font-size:13px;
             font-weight:600; margin-bottom:14px; }
   .paid-toggle { display:inline-flex; align-items:center; gap:8px; font-size:14px; cursor:pointer; padding:8px 0; }
+  @media (max-width: 768px){ .af-row{ grid-template-columns: 1fr !important; } } /* z452 mobile */
 </style></head>
 <body>
 <div class="app">{% set active_tab = 'sales' %}

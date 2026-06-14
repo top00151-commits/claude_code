@@ -121,6 +121,10 @@
 
 .row-check { width: 18px; height: 18px; cursor: pointer; }
 .row-check:disabled { opacity: 0.3; cursor: not-allowed; }
+/* z452 mobile — 폰: KPI 5열을 2열로 (표는 .tbl-zone overflow:auto 로 이미 가로 스크롤) */
+@media (max-width: 768px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr) !important; }
+}
 </style>
 </head>
 <body>

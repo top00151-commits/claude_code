@@ -25,6 +25,8 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
 .op-prog b{color:#15a34a;}
 .op-muted{color:#94a3b8;}
 .op-name a{font-weight:700;color:#1e293b;text-decoration:none;}
+/* z452 mobile: 9컬럼 표(table.op)가 .op-wrap을 넘쳐 폰 전체가 찌부러지는 문제 → 래퍼만 가로 스크롤 */
+@media (max-width:768px){ .op-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;} table.op{min-width:760px;} }
 </style></head>
 <body>
 <div class="app">{% set active_tab='sales' %}

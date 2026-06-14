@@ -55,6 +55,11 @@ details .full { grid-column: 1 / -1; }
 details button { grid-column: 1 / -1; padding:8px; }
 
 .empty { padding:60px; text-align:center; color:var(--qv-ink-3); }
+/* z452 mobile — 넓은 표를 폰에서 가로 스크롤 (기본 overflow:hidden 보정) */
+@media (max-width: 1023px) {
+  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.tbl { min-width: 720px; }
+}
 </style>
 </head>
 <body>

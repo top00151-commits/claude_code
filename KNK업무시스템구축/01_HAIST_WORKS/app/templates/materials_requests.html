@@ -48,6 +48,11 @@ table.tbl { width:100%; border-collapse: collapse; font-size:13px; }
 .new-badge { display:inline-block; background:var(--knk-red); color:#fff; padding:1px 7px; border-radius:8px; font-size:10.5px; font-weight:700; margin-left:4px; }
 
 .empty { padding:60px; text-align:center; color:var(--qv-ink-3); }
+/* z452 mobile — 넓은 표를 폰에서 가로 스크롤 (기본 overflow:hidden 보정) */
+@media (max-width: 1023px) {
+  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.tbl { min-width: 720px; }
+}
 </style>
 </head>
 <body>

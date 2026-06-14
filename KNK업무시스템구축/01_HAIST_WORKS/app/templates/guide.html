@@ -243,6 +243,13 @@
 
   /* 인쇄 */
   @media print{ .guide-bar{ display:none; } .guide-wrap{ padding:0; max-width:none; } }
+
+  /* z452 mobile: 본문 카드 그리드(2·3열) 폰에서 1열 세로 쌓기 (텍스트 카드 짓눌림 방지) */
+  @media (max-width:768px){
+    .guide-wrap{ padding-left:16px; padding-right:16px; }
+    .guide-section [style*="grid-template-columns:repeat(3,1fr)"],
+    .guide-section [style*="grid-template-columns:repeat(2,1fr)"]{ grid-template-columns:1fr !important; }
+  }
 </style>
 </head>
 <body>

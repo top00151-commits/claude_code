@@ -7,6 +7,8 @@
 .phase-card.done .phase-num { background: var(--success); color: white; }
 .phase-card.active .phase-num { background: var(--grad-amber); color: white; }
 .phase-card.delay .phase-num { background: var(--knk-red); color: white; }
+/* z452 mobile: 60+200+120px 고정폭(380px)이 폰 폭 초과 → 1열로 쌓기 */
+@media (max-width: 640px) { .phase-card { grid-template-columns: 1fr; gap: 8px; } }
 </style></head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">

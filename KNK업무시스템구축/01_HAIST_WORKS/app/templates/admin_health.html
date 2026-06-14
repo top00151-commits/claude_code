@@ -7,6 +7,8 @@
 .check-card.warn { border-left: 4px solid var(--warn); }
 .check-card.err { border-left: 4px solid var(--knk-red); }
 .check-icon { font-size: 22px; }
+/* z452 mobile */
+@media (max-width: 768px) { .bento { grid-template-columns: 1fr !important; grid-auto-rows: auto !important; } }
 </style></head><body>
 {% set c = counts or {} %}
 <div class="app">{% include "_v5_partials/chrome.html" with context %}

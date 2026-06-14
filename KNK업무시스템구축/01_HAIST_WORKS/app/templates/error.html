@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><!-- z452 mobile -->
 <title>{{ status_code|default('오류') }} — KNK HAIST WORKS</title>
 <!-- v5 H5 풀이식 (2026-04-30 빅터(05) 권고 100%) — Pretendard 사내 호스팅 -->
 <link rel="stylesheet" href="/static/css/v5_tokens.css?v=20260501v5STANDALONE">
@@ -88,6 +89,8 @@ body { min-height: 100vh; display: grid; place-items: center; padding: var(--spa
 .title-bar h1 { font-size: 26px; font-weight: 700; }
 .title-bar h1 em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .title-bar p { color: var(--mute); margin-top: 6px; font-size: 13px; }
+/* z452 mobile: 3열 갤러리 폰에서 1열 세로 쌓기 + 타이틀바 span 정정 */
+@media (max-width:768px){ .gallery{grid-template-columns:1fr !important;} .title-bar{grid-column:auto !important;} }
 </style>
 </head>
 <body>

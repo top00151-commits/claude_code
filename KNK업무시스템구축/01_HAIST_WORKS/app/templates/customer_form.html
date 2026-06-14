@@ -75,6 +75,11 @@ body { overflow: hidden !important; }
   .form-card:not(.biz-ocr-inline) .frow { grid-template-columns: repeat(2, 1fr) !important; }
   .form-card:not(.biz-ocr-inline) .fld.span-2 { grid-column: span 2 !important; }
 }
+/* z452 mobile: 담당자 테이블(.contacts-tbl)은 고정폭 컬럼 합이 넓고 .tbl 공통 래퍼가 아니라
+   폰에서 가로로 넘침 → 폰에서만 가로 스크롤되게(데스크톱 영향 없음·표 폭 유지). */
+@media (max-width:768px){
+  .contacts-tbl { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+}
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}

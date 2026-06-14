@@ -80,6 +80,10 @@
 .link-chip:hover { border-color: var(--qv-line-3); background: var(--qv-surface-3); }
 .rec-time { font-size:14px; font-weight:800; color: var(--knk-red); font-family:ui-monospace,Consolas,monospace; }
 .rec-status { font-size:12px; color: var(--qv-ink-3); }
+/* z452 mobile — 2열 입력 그리드를 폰에서 세로로 */
+@media (max-width: 768px) {
+  .mf-grid, .mf-grid2 { grid-template-columns: 1fr !important; }
+}
 </style>
 </head>
 <body>

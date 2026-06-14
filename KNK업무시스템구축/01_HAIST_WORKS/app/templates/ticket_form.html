@@ -13,6 +13,11 @@
 .field input, .field select, .field textarea { padding: 10px 14px; font-family: inherit; font-size: 13.5px; color: var(--qv-ink); background: var(--qv-surface-2); border: 1px solid var(--qv-line); border-radius: var(--radius-md); }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--qv-ink); box-shadow: 0 0 0 3px var(--qv-surface-2); }
 .field textarea { min-height: 100px; resize: vertical; }
+/* z452 mobile — 2열 폼을 폰에서 세로로 쌓기 */
+@media (max-width: 768px) {
+  .field-row { grid-template-columns: 1fr; }
+  .field.full { grid-column: auto; }
+}
 </style>
 </head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}

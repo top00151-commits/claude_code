@@ -148,6 +148,13 @@
 .submit-bar button:hover { background: #1e293b; }
 .submit-bar button.force { background: var(--pq-err); }
 .submit-bar button.force:hover { background: #991b1b; }
+/* z452 mobile — 폰: 4열 폼 그리드/구매사 3열/업로드 3열을 세로로 쌓기 (데스크톱 규칙은 위 그대로) */
+@media (max-width: 768px) {
+  .f-grid { grid-template-columns: 1fr !important; }
+  .field.col-2, .field.col-3, .field.col-4 { grid-column: span 1 !important; }
+  #purchaseVendors { grid-template-columns: 1fr !important; }
+  .upload-row { grid-template-columns: 1fr !important; }
+}
 </style>
 </head>
 <body>
