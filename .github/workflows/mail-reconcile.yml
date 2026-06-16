@@ -1,0 +1,63 @@
+name: Mail reconcile - knk-mail(라이브) → 모노레포 15_KNK_Mail
+
+# 라이브(knk-mail)를 진실로, 모노레포 15_KNK_Mail 을 맞춘다.
+#  - report: 차이만 출력(커밋 안 함) — 방향 검토용
+#  - commit: additive 반영(삭제 안 함) 후 작업 브랜치에 커밋
+# 배포저장소(knk-mail)는 읽기만. 커밋은 claude_code 작업 브랜치에만.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'report=미리보기 / commit=반영'
+        type: choice
+        default: report
+        options: [report, commit]
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo (작업 브랜치)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/computer-connection-e34y9c
+          fetch-depth: 0
+
+      - name: Clone knk-mail (read)
+        env:
+          TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mail
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/top00151-commits/knk-mail.git" /tmp/mail
+          rm -rf /tmp/mail/.git
+
+      - name: Diff (report) or Apply (commit)
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+        run: |
+          set -euo pipefail
+          DEST="KNK업무시스템구축/15_KNK_Mail"
+          MODE="${MODE:-report}"
+          echo "MODE=$MODE"
+          rsync -a --exclude='.git' --exclude='.env' --exclude='.env.*' \
+            --exclude='data/' --exclude='uploads/' --exclude='logs/' --exclude='.venv/' \
+            /tmp/mail/ "$DEST/"
+          git add -A
+          echo "=== 변경 요약(stat) ==="
+          git diff --cached --stat | tail -n 60
+          if [ "$MODE" != "commit" ]; then
+            echo "=== 상세 diff (코드, 최대 400줄) — 방향 확인용 ==="
+            git diff --cached -- "$DEST/app" | head -n 400
+            echo "(report 모드: 커밋 안 함)"
+            exit 0
+          fi
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git -c user.name="knk-reconcile-bot" -c user.email="reconcile@users.noreply.github.com" \
+            commit -m "chore(mail): 라이브(knk-mail) 기준으로 15_KNK_Mail 정합 (additive)"
+          git push origin HEAD:claude/computer-connection-e34y9c
+          echo "✅ 작업 브랜치 푸시 완료"
