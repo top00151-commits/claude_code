@@ -1,0 +1,106 @@
+name: Mirror HAIST WORKS → deploy repo (knk-haist-works)
+
+# 목적: 개발은 모노레포(claude_code) 한 곳에서만 하고,
+#       01_HAIST_WORKS 의 변경을 배포 저장소 knk-haist-works(main)로 자동 복사한다.
+#       → NAS 의 1분 cron(auto_deploy.sh)이 그걸 pull 해서 자동 배포.
+#       "휴대폰만 있어도 평소대로 claude_code 에 push 하면 라이브까지 자동" 이 목표.
+#
+# 안전 설계:
+#   - git 이 추적하는 파일만 복사(런타임/비밀 폴더 data·uploads·.env·logs·.venv 는 양쪽 gitignore라 제외됨).
+#   - rsync 에 --delete 를 쓰지 않음(additive). → 배포 저장소에만 있는 파일을 절대 삭제하지 않음.
+#   - report 모드(workflow_dispatch)로 푸시 없이 변경 미리보기 가능.
+#
+# 1회 설정(README_자동미러_설정.md 참고):
+#   claude_code 저장소 Settings → Secrets and variables → Actions →
+#   New repository secret  이름: DEPLOY_REPO_TOKEN
+#   값: knk-haist-works 에 contents:write 권한이 있는 PAT(또는 fine-grained token).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'KNK업무시스템구축/01_HAIST_WORKS/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '실행 모드 (live=배포저장소로 푸시 / report=미리보기만)'
+        type: choice
+        default: report
+        options: [report, live]
+
+concurrency:
+  group: mirror-haist-works
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine mode
+        id: m
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=live" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Export tracked subtree (런타임/비밀 제외는 git 추적으로 자동 보장)
+        run: |
+          set -euo pipefail
+          SUBTREE="KNK업무시스템구축/01_HAIST_WORKS"
+          rm -rf /tmp/src && mkdir -p /tmp/src
+          git archive HEAD:"$SUBTREE" -o /tmp/src.tar
+          tar -xf /tmp/src.tar -C /tmp/src
+          echo "추출된 최상위:"; ls -A1 /tmp/src
+
+      - name: Clone deploy repo
+        env:
+          TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::DEPLOY_REPO_TOKEN 시크릿이 없습니다. README_자동미러_설정.md 참고."
+            exit 1
+          fi
+          rm -rf /tmp/deploy
+          git clone --depth 1 \
+            "https://x-access-token:${TOKEN}@github.com/top00151-commits/knk-haist-works.git" \
+            /tmp/deploy
+
+      - name: Sync (additive — 삭제 안 함)
+        run: |
+          set -euo pipefail
+          rsync -a --exclude='.git' /tmp/src/ /tmp/deploy/
+          echo "=== 배포 저장소 변경(추가/수정) ==="
+          git -C /tmp/deploy add -A
+          git -C /tmp/deploy status --short || true
+          echo "=== 참고: 배포 저장소에만 있어 이번에 건드리지 않은 파일(고아 후보) ==="
+          # src 에 없는데 deploy 에 추적돼 있던 파일 목록(삭제하지 않음 — 점검용)
+          comm -23 \
+            <(git -C /tmp/deploy ls-files | sort) \
+            <(cd /tmp/src && find . -type f | sed 's#^\./##' | sort) || true
+
+      - name: Push (live 모드에서만)
+        if: steps.m.outputs.mode == 'live'
+        run: |
+          set -euo pipefail
+          cd /tmp/deploy
+          if git diff --cached --quiet; then
+            echo "변경 없음 — 푸시 생략."
+            exit 0
+          fi
+          git -c user.name="knk-mirror-bot" \
+              -c user.email="mirror@users.noreply.github.com" \
+              commit -m "mirror: claude_code 01_HAIST_WORKS @ ${GITHUB_SHA::7}"
+          git push origin HEAD:main
+          echo "✅ knk-haist-works(main) 푸시 완료 — NAS cron 이 ~1분 내 자동 배포."
+
+      - name: Report (report 모드)
+        if: steps.m.outputs.mode != 'live'
+        run: echo "ℹ️ report 모드: 위 변경 목록만 표시하고 푸시하지 않았습니다. 문제 없으면 mode=live 로 다시 실행하세요."
