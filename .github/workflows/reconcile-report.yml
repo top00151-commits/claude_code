@@ -1,0 +1,87 @@
+name: Reconcile report - 모노레포 vs 배포저장소 차이 분석
+
+# 읽기 전용. 어디에도 push 하지 않는다.
+# 모노레포(claude_code) 01_HAIST_WORKS  ↔  배포저장소(knk-haist-works) 의
+# 추적 파일을 비교해서:
+#   (1) 라이브에만 있음 (모노레포로 가져올 후보)
+#   (2) 모노레포에만 있음 (라이브엔 없음)
+#   (3) 양쪽에 있으나 내용 다름 (병합 판단 필요) + 코드 파일 실제 diff
+# 를 로그로 출력한다.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Export monorepo subtree (tracked only)
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/src && mkdir -p /tmp/src
+          git archive HEAD:"KNK업무시스템구축/01_HAIST_WORKS" -o /tmp/src.tar
+          tar -xf /tmp/src.tar -C /tmp/src
+
+      - name: Clone deploy repo
+        env:
+          TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/deploy
+          git clone --depth 1 \
+            "https://x-access-token:${TOKEN}@github.com/top00151-commits/knk-haist-works.git" \
+            /tmp/deploy
+
+      - name: Compare
+        run: |
+          set -euo pipefail
+          git -C /tmp/deploy -c core.quotepath=false ls-files | LC_ALL=C sort > /tmp/deploy_files.txt
+          ( cd /tmp/src && find . -type f | sed 's#^\./##' ) | LC_ALL=C sort > /tmp/src_files.txt
+
+          echo "############################################################"
+          echo "## (1) 라이브에만 있음 — 모노레포로 가져올 후보 ##"
+          echo "############################################################"
+          comm -23 /tmp/deploy_files.txt /tmp/src_files.txt || true
+
+          echo ""
+          echo "############################################################"
+          echo "## (2) 모노레포에만 있음 — 라이브엔 없음 ##"
+          echo "############################################################"
+          comm -13 /tmp/deploy_files.txt /tmp/src_files.txt || true
+
+          echo ""
+          echo "############################################################"
+          echo "## (3) 양쪽에 있으나 내용 다름 — 병합 판단 필요 ##"
+          echo "############################################################"
+          : > /tmp/modified.txt
+          comm -12 /tmp/deploy_files.txt /tmp/src_files.txt | while IFS= read -r f; do
+            if [ -f "/tmp/deploy/$f" ] && [ -f "/tmp/src/$f" ]; then
+              if ! cmp -s "/tmp/deploy/$f" "/tmp/src/$f"; then
+                dl=$(wc -l < "/tmp/deploy/$f" 2>/dev/null || echo '?')
+                sl=$(wc -l < "/tmp/src/$f" 2>/dev/null || echo '?')
+                echo "DIFF  $f   (라이브 ${dl}줄 / 모노 ${sl}줄)"
+                echo "$f" >> /tmp/modified.txt
+              fi
+            fi
+          done
+
+          echo ""
+          echo "############################################################"
+          echo "## (3-상세) 코드 파일 실제 diff (라이브=좌 < / 모노=우 > , 파일당 최대 150줄) ##"
+          echo "############################################################"
+          while IFS= read -r f; do
+            case "$f" in
+              *.py|*.html|*.js|*.css|*.txt|*.sql|*.toml|*.cfg|*.ini)
+                echo ""
+                echo "===================== diff: $f ====================="
+                diff "/tmp/deploy/$f" "/tmp/src/$f" | head -n 150 || true
+                ;;
+            esac
+          done < /tmp/modified.txt
+          echo ""
+          echo "=== 끝 ==="
