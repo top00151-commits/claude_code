@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>회의록 · {{ m.title }}</title>
+{# ============================================================
+   meeting_doc.html — 회의록 인쇄/PDF 양식 (16_KNK_Meeting)
+   실 회의 데이터 자동채움. 결재란·보안등급(공개범위 매핑)·배포처 포함.
+   인쇄/PDF: 우상단 버튼(window.print) → @media print 로 버튼 숨김·깔끔 출력.
+   표준 양식 v2 (대표 확정 2026-06-14): 로고·결재란·분류/보안·배포처.
+   ============================================================ #}
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f3f4f6; color: #1a1a1a;
+    font-family: "Malgun Gothic","맑은 고딕",system-ui,sans-serif; font-size: 13.5px; line-height: 1.6; }
+  .page { max-width: 820px; margin: 18px auto; background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 10px; padding: 30px 34px; }
+  h1 { font-size: 24px; font-weight: 800; margin: 3px 0 8px; letter-spacing: 0.02em; }
+  .hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+    border-bottom: 2px solid #333; padding-bottom: 14px; }
+  .logo { width: 52px; height: 52px; border: 1px solid #d1d5db; border-radius: 7px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .logo img { max-width: 100%; max-height: 100%; }
+  .logo span { font-size: 16px; font-weight: 700; letter-spacing: 0.06em; }
+  .co { font-size: 12.5px; color: #6b7280; letter-spacing: 0.03em; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { font-size: 11.5px; padding: 2px 8px; border-radius: 6px; font-weight: 700; white-space: nowrap; }
+  .p-sec { background: #fdecec; color: #b91c1c; }
+  .p-team { background: #eef2f7; color: #475569; }
+  .p-all { background: #e8f3ec; color: #15803d; }
+  .p-no { background: #f3f4f6; color: #6b7280; }
+  table.appr { border-collapse: collapse; width: 232px; flex-shrink: 0; table-layout: fixed; }
+  table.appr td, table.appr th { border: 1px solid #9ca3af; font-size: 11.5px; text-align: center; padding: 4px; }
+  table.appr th { background: #f3f4f6; color: #4b5563; font-weight: 700; }
+  table.appr .v { width: 20px; background: #f3f4f6; color: #4b5563; line-height: 1.25; }
+  .meta { display: grid; grid-template-columns: 72px 1fr 72px 1fr; gap: 0; margin-top: 16px;
+    border: 1px solid #d1d5db; }
+  .meta > div { padding: 6px 10px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+  .meta .k { background: #f7f8fa; color: #4b5563; font-weight: 700; border-right: 1px solid #e5e7eb; }
+  .sec-h { display: flex; align-items: center; gap: 6px; font-size: 14.5px; font-weight: 800;
+    margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #d1d5db; }
+  .sum { white-space: pre-wrap; font-size: 13.5px; line-height: 1.75; background: #fafbfc;
+    border: 1px solid #eceef1; border-radius: 6px; padding: 11px 13px; }
+  table.data { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.data td, table.data th { border: 1px solid #d1d5db; padding: 7px 9px; font-size: 13px;
+    text-align: left; vertical-align: top; }
+  table.data th { background: #f3f4f6; color: #4b5563; font-weight: 700; }
+  .foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid #d1d5db; font-size: 13px;
+    display: flex; flex-direction: column; gap: 6px; }
+  .foot .k { color: #6b7280; font-weight: 700; }
+  .empty { color: #9ca3af; text-align: center; }
+  .toolbar { max-width: 820px; margin: 14px auto 0; display: flex; gap: 8px; justify-content: flex-end; }
+  .btn { font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 7px; cursor: pointer;
+    border: 1px solid #cbd5e1; background: #fff; color: #1f2937; text-decoration: none; }
+  .btn.print { background: #111827; color: #fff; border-color: #111827; }
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none !important; }
+    .page { border: 0; border-radius: 0; margin: 0; max-width: 100%; padding: 0; }
+    @page { margin: 14mm; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a class="btn" href="/meetings/{{ m.id }}">← 회의록으로</a>
+  <a class="btn print" href="javascript:void(0)" onclick="window.print()">🖨 인쇄 / PDF 저장</a>
+</div>
+
+<div class="page">
+
+  <div class="hd">
+    <div style="display:flex; align-items:flex-start; gap:12px;">
+      <div class="logo">
+        <img src="/static/logo.png" alt="KNK" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <span style="display:none;">KNK</span>
+      </div>
+      <div>
+        <div class="co">㈜케이엔케이 · HAIST Innovation</div>
+        <h1>회의록</h1>
+        <div class="badges">
+          <span class="pill {{ 'p-sec' if m.visibility=='private' else ('p-all' if m.visibility=='all' else 'p-team') }}">{{ sec }}</span>
+          <span class="pill p-no">{{ docno }}</span>
+        </div>
+      </div>
+    </div>
+    <table class="appr">
+      <tbody>
+        <tr>
+          <td rowspan="3" class="v">결<br>재</td>
+          <th>작성</th><th>검토</th><th>승인</th>
+        </tr>
+        <tr><td style="height:30px;"></td><td></td><td></td></tr>
+        <tr><td style="font-size:12px;">{{ owner_name }}</td><td></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="meta">
+    <div class="k">회의명</div><div style="border-right:1px solid #e5e7eb;">{{ m.title }}</div>
+    <div class="k">일시</div><div>{{ date_disp }}{% if m.meeting_date %} {{ '' }}{% endif %}</div>
+    <div class="k">장소</div><div style="border-right:1px solid #e5e7eb;">{{ m.location or '—' }}</div>
+    <div class="k">작성자</div><div>{{ owner_name or '—' }}</div>
+    <div class="k" style="border-bottom:0;">참석자</div>
+    <div style="grid-column:2 / -1; border-bottom:0;">{{ m.attendees_text or '—' }}</div>
+  </div>
+
+  <div class="sec-h">📋 회의록 정리</div>
+  {% if m.summary %}<div class="sum">{{ m.summary }}</div>
+  {% else %}<div class="sum empty">아직 정리 전입니다. (회의록에서 「✨ AI로 정리」)</div>{% endif %}
+
+  <div class="sec-h">✔ 결정사항</div>
+  <table class="data">
+    <colgroup><col style="width:32px"><col><col style="width:84px"><col style="width:98px"></colgroup>
+    <thead><tr><th>#</th><th>결정 내용</th><th>책임자</th><th>기한</th></tr></thead>
+    <tbody>
+      {% for d in decisions %}
+      <tr><td>{{ loop.index }}</td><td>{{ d.what }}</td><td>{{ d.who or '—' }}</td><td>{{ d.due or '—' }}</td></tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">결정사항 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="sec-h">📌 할 일 (Action Items)</div>
+  <table class="data">
+    <colgroup><col style="width:32px"><col><col style="width:72px"><col style="width:92px"><col style="width:70px"></colgroup>
+    <thead><tr><th>#</th><th>할 일</th><th>담당</th><th>기한</th><th>상태</th></tr></thead>
+    <tbody>
+      {% for a in actions %}
+      <tr><td>{{ loop.index }}</td><td>{{ a.task }}</td><td>{{ a.assignee_name or '—' }}</td>
+          <td>{{ a.due_date or '—' }}</td>
+          <td>{% if a.linked_task_id %}일일카드{% else %}예정{% endif %}</td></tr>
+      {% else %}
+      <tr><td colspan="5" class="empty">할 일 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="foot">
+    {% if link_proj or link_opp %}<div><span class="k">연결</span> &nbsp;{% if link_proj %}📋 {{ link_proj.mgmt_code or link_proj.code }} {{ link_proj.name }}{% endif %}{% if link_proj and link_opp %} &nbsp;·&nbsp; {% endif %}{% if link_opp %}🎯 {{ link_opp.opp_no }} {{ link_opp.title }}{% endif %}</div>{% endif %}
+    <div><span class="k">분류</span> &nbsp;정기 / 임시 (해당란 표기)</div>
+    <div><span class="k">배포처(회람)</span> &nbsp;________________________________________</div>
+    <div><span class="k">비고</span> &nbsp;</div>
+  </div>
+
+</div>
+</body>
+</html>

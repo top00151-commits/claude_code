@@ -89,8 +89,8 @@
 
     <div class="ai-card">
       <h3>연결 테스트</h3>
-      <div class="ai-hint" style="margin-bottom:10px;">현재 설정된 모델로 실제 호출해 작동 여부를 확인합니다. (잘못된 모델명이면 여기서 오류가 뜹니다)</div>
-      <button type="button" class="ai-btn test" onclick="aiTest(this)">🔌 연결 테스트</button>
+      <div class="ai-hint" style="margin-bottom:10px;">OpenAI·Claude 두 키를 <b>각각</b> 실제 호출해 점검합니다. 음성→글자(Whisper)는 OpenAI 키로 동작합니다.</div>
+      <button type="button" class="ai-btn test" onclick="aiTest(this)">🔌 키 점검 (둘 다)</button>
       <div id="aiTestResult"></div>
     </div>
   </div>
@@ -98,16 +98,25 @@
   <script>
   async function aiTest(btn){
     var box = document.getElementById('aiTestResult');
-    btn.disabled = true; box.innerHTML = '테스트 중…';
+    btn.disabled = true; box.innerHTML = '점검 중… (각 키로 실제 호출, 몇 초 걸립니다)';
+    function esc(s){ return (s==null?'':String(s)).replace(/[<>]/g,''); }
+    function row(label, p){
+      if (!p || !p.set) return '<div style="padding:3px 0;">'+label+': <span style="color:#94a3b8;">미설정</span></div>';
+      return p.ok
+        ? '<div style="padding:3px 0;">'+label+' <span style="color:#64748b;font-size:12px;">'+esc(p.masked)+'</span>: <span class="ai-ok">✅ 정상</span></div>'
+        : '<div style="padding:3px 0;">'+label+': <span class="ai-bad">❌ 실패</span> <span style="color:#8a7842;font-size:12px;">'+esc(p.msg)+'</span></div>';
+    }
     try {
       var r = await fetch('/admin/ai-settings/test', {method:'POST'});
       var j = await r.json();
-      if (j.ok) {
-        box.innerHTML = '<span class="ai-ok">✅ 정상</span> · 공급사 <b>'+(j.provider||'')+'</b> · 모델 <b>'+(j.model||'')+'</b> · 응답: '+(j.answer||'').replace(/[<>]/g,'');
-      } else {
-        box.innerHTML = '<span class="ai-bad">❌ 실패</span> · '+(j.error||'').replace(/[<>]/g,'')+'<br><span style="color:#8a7842;font-size:12px;">모델명이 공급사 공식 이름과 다르거나, 키/권한 문제일 수 있습니다.</span>';
-      }
-    } catch(e){ box.innerHTML = '<span class="ai-bad">❌ 네트워크 오류</span> '+(e.message||''); }
+      if (!j.ok) { box.innerHTML = '<span class="ai-bad">❌ '+esc(j.error||'점검 실패')+'</span>'; btn.disabled=false; return; }
+      var P = j.providers || {};
+      var html = row('OpenAI', P.openai) + row('Claude (Anthropic)', P.claude);
+      var w = j.whisper || {};
+      html += '<div style="padding:3px 0;">음성→글자(Whisper): '+(w.ok ? '<span class="ai-ok">✅ 가능</span>' : '<span class="ai-bad">❌ 불가</span> <span style="color:#8a7842;font-size:12px;">OpenAI 키가 유효해야 동작</span>')+'</div>';
+      html += '<div style="margin-top:8px;color:#64748b;font-size:12px;">현재 글 AI 사용 공급사: <b>'+esc(j.active_provider)+'</b>'+(j.model?(' · 모델 <b>'+esc(j.model)+'</b>'):'')+'</div>';
+      box.innerHTML = html;
+    } catch(e){ box.innerHTML = '<span class="ai-bad">❌ 네트워크 오류</span> '+esc(e.message||''); }
     btn.disabled = false;
   }
   </script>

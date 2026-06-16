@@ -164,7 +164,10 @@ app.add_middleware(
     secret_key=_SECRET,
     same_site="lax",
     https_only=_PROD,
-    max_age=14 * 24 * 60 * 60,  # 14일
+    # v5H226z423 (대표 지시 2026-06-14): 보안 — 14일 자동유지 폐기. 세션 쿠키(브라우저/설치앱을
+    #   닫으면 만료)로 변경 → 다시 열면 항상 KNK Eum 메신저를 통해 로그인. 앱+브라우저 전부 적용.
+    #   (기존 2025-05-31 멀티탭 편의 유지 정책을 대표 지시로 보안 우선 전환.)
+    max_age=None,
 )
 
 
@@ -541,6 +544,42 @@ def startup():
             print(f"[WFB-MIG-Z108N11] {_r10}")
     except Exception as _e:
         print(f"[WFB-MIG-Z108N11 ERR] {_e}")
+    # v5H226z412 (2026-06-14): KNK Meeting(회의록) Phase 1 — 회의 테이블 4종 (idempotent)
+    try:
+        from .migrations.m_z412_knk_meeting import migrate as _meeting_migrate
+        from .database import DB_PATH as _DB_PATH
+        _rmtg = _meeting_migrate(_DB_PATH)
+        if _rmtg.get('created'):
+            print(f"[MEETING-MIG-Z412] {_rmtg}")
+    except Exception as _e:
+        print(f"[MEETING-MIG-Z412 ERR] {_e}")
+    # v5H226z416 (2026-06-14, 대표 지시): 영업 기회(수주 전) 테이블 (idempotent)
+    try:
+        from .migrations.m_z416_sales_opportunity import migrate as _opp_migrate
+        from .database import DB_PATH as _DB_PATH_OPP
+        _ropp = _opp_migrate(_DB_PATH_OPP)
+        if _ropp.get('created'):
+            print(f"[SALES-OPP-MIG-Z416] {_ropp}")
+    except Exception as _e:
+        print(f"[SALES-OPP-MIG-Z416 ERR] {_e}")
+    # v5H226z421 (2026-06-14, 대표 지시): 영업 기회 → 부서 요청 흐름(수주 전 부서 협업) 1단계 (idempotent)
+    try:
+        from .migrations.m_z421_opp_dept_request import migrate as _oppreq_migrate
+        from .database import DB_PATH as _DB_PATH_OPPREQ
+        _roppreq = _oppreq_migrate(_DB_PATH_OPPREQ)
+        if _roppreq.get('created'):
+            print(f"[OPP-DEPT-REQ-MIG-Z421] {_roppreq}")
+    except Exception as _e:
+        print(f"[OPP-DEPT-REQ-MIG-Z421 ERR] {_e}")
+    # v5H226z430 (2026-06-14, 대표 지시): 회의록 ↔ 프로젝트·영업기회 연결 컬럼 (idempotent)
+    try:
+        from .migrations.m_z430_meeting_links import migrate as _mlink_migrate
+        from .database import DB_PATH as _DB_PATH_MLINK
+        _rmlink = _mlink_migrate(_DB_PATH_MLINK)
+        if _rmlink.get('added'):
+            print(f"[MEETING-LINK-MIG-Z430] {_rmlink}")
+    except Exception as _e:
+        print(f"[MEETING-LINK-MIG-Z430 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -1361,6 +1400,17 @@ async def admin_work_patterns(request: Request):
                     mail_map[r["uid"]] = r["total"]
         except Exception:
             pass
+        # v5H226z421 3단계 (대표 지시): 수주 전 부서 활동(opp_request_activities) 합산 — user_id 기준
+        presale_map = {}
+        try:
+            for r in c.execute(
+                "SELECT user_id AS uid, COUNT(*) AS n, COALESCE(SUM(hours),0) AS h "
+                "FROM opp_request_activities WHERE date(act_date) BETWEEN ? AND ? GROUP BY user_id",
+                (start, end)):
+                if r["uid"]:
+                    presale_map[r["uid"]] = {"n": r["n"], "h": round(float(r["h"] or 0), 1)}
+        except Exception:
+            pass
         # 메일·메신저 전용 활동자도 포함하려고 '전 활성 사용자' 기준 + 사번(employee_no)
         try:
             urows = c.execute(
@@ -1386,7 +1436,9 @@ async def admin_work_patterns(request: Request):
         mail = mail_map.get(uid, 0)
         empno = str(uinfo.get("empno") or "")
         msgr = ((msgr_map.get(empno) or {}).get("msgs", 0)) if empno else 0
-        activity = cnt + tickets + issues + phases + mail + msgr
+        pre = presale_map.get(uid, {})
+        presales = pre.get("n", 0); presales_h = pre.get("h", 0)
+        activity = cnt + tickets + issues + phases + mail + msgr + presales
         if activity <= 0:
             continue
         rows.append({
@@ -1397,6 +1449,7 @@ async def admin_work_patterns(request: Request):
             "top_cats": ", ".join(cc for _, cc in cats[:2]) or "—",
             "tickets": tickets, "issues": issues, "phases": phases,
             "mail": mail, "msgr": msgr,
+            "presales": presales, "presales_h": presales_h,
             "activity": activity,
         })
     rows.sort(key=lambda x: -x["activity"])
@@ -1404,14 +1457,17 @@ async def admin_work_patterns(request: Request):
     for r in rows:
         d = depts.setdefault(r["team_name"], {"team_name": r["team_name"], "people": 0, "cnt": 0,
                                               "hours": 0.0, "done": 0, "delayed": 0,
-                                              "tickets": 0, "issues": 0, "phases": 0, "mail": 0, "msgr": 0})
+                                              "tickets": 0, "issues": 0, "phases": 0, "mail": 0, "msgr": 0,
+                                              "presales": 0, "presales_h": 0.0})
         d["people"] += 1; d["cnt"] += r["cnt"]; d["hours"] += r["hours"]; d["done"] += r["done"]
         d["delayed"] += r["delayed"]; d["tickets"] += r["tickets"]; d["issues"] += r["issues"]; d["phases"] += r["phases"]
         d["mail"] += r["mail"]; d["msgr"] += r["msgr"]
-    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"]))
+        d["presales"] += r["presales"]; d["presales_h"] += r["presales_h"]
+    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"] + x["presales"]))
     for d in dept_list:
         d["rate"] = round(100 * d["done"] / d["cnt"]) if d["cnt"] else 0
         d["hours"] = round(d["hours"], 1)
+        d["presales_h"] = round(d["presales_h"], 1)
     return ctx(request, "admin_work_patterns.html", user=u, rows=rows, depts=dept_list,
                period_label=plabel, days=days, start=start, end=end, total_people=len(rows))
 
@@ -1591,6 +1647,29 @@ def _wp_mail_detail(c, uid, start, end):
     return out
 
 
+def _wp_presales_detail(c, uid, start, end):
+    """v5H226z421 3단계: 개인 '수주 전 부서 활동' 상세 {total_h, total_n, by_type:[], reqs:[]}."""
+    out = {"total_h": 0.0, "total_n": 0, "by_type": [], "reqs": []}
+    try:
+        out["by_type"] = [dict(r) for r in c.execute(
+            "SELECT COALESCE(NULLIF(activity_type,''),'기타') AS activity_type, COUNT(*) AS n, "
+            "ROUND(COALESCE(SUM(hours),0),1) AS h FROM opp_request_activities "
+            "WHERE user_id=? AND date(act_date) BETWEEN ? AND ? GROUP BY activity_type ORDER BY h DESC",
+            (uid, start, end))]
+        out["total_n"] = sum(x["n"] for x in out["by_type"])
+        out["total_h"] = round(sum(x["h"] for x in out["by_type"]), 1)
+        out["reqs"] = [dict(r) for r in c.execute(
+            "SELECT t.name AS team_name, o.opp_no AS opp_no, COALESCE(o.title, dr.title) AS title, "
+            "ROUND(COALESCE(SUM(a.hours),0),1) AS h, COUNT(*) AS n "
+            "FROM opp_request_activities a JOIN opp_dept_requests dr ON dr.id=a.request_id "
+            "LEFT JOIN teams t ON t.id=dr.team_id LEFT JOIN sales_opportunities o ON o.id=dr.opp_id "
+            "WHERE a.user_id=? AND date(a.act_date) BETWEEN ? AND ? "
+            "GROUP BY a.request_id ORDER BY h DESC LIMIT 8", (uid, start, end))]
+    except Exception as e:
+        print(f"[WP presales] detail: {e}")
+    return out
+
+
 @app.get("/admin/work-patterns/{uid:int}", response_class=HTMLResponse)
 async def admin_work_pattern_detail(request: Request, uid: int):
     u = get_user(request)
@@ -1637,6 +1716,7 @@ async def admin_work_pattern_detail(request: Request, uid: int):
                 key=lambda x: -x["n"])[:6]
         extra = _wp_detail_extra(c, uid, start, end)
         mail_detail = _wp_mail_detail(c, uid, start, end)
+        presales_detail = _wp_presales_detail(c, uid, start, end)
     msgr_detail = _wp_messenger_detail(emp.get("empno"), start, end)
     total = sum(x["n"] for x in cats)
     total_h = round(sum(x["h"] for x in cats), 1)
@@ -1652,7 +1732,7 @@ async def admin_work_pattern_detail(request: Request, uid: int):
         w["pct"] = round(100 * w["n"] / wmax)
     return ctx(request, "admin_work_pattern_detail.html", user=u, emp=emp,
                cats=cats, stat=stat, weekly=weekly, projs=projs, custs=custs, collab=collab_list,
-               extra=extra, mail=mail_detail, msgr=msgr_detail,
+               extra=extra, mail=mail_detail, msgr=msgr_detail, presales=presales_detail,
                total=total, total_h=total_h, rate=rate, delayed=delayed,
                period_label=plabel, days=days, start=start, end=end)
 
@@ -1682,13 +1762,14 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
         cats, stat, weekly, projs, custs = _wp_detail_data(c, uid, start, end)
         extra = _wp_detail_extra(c, uid, start, end)
         mail_d = _wp_mail_detail(c, uid, start, end)
+        presales_d = _wp_presales_detail(c, uid, start, end)
         titles = [r[0] for r in c.execute(
             "SELECT title FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(title,'')<>'' "
             "ORDER BY work_date DESC LIMIT 30", (start, end, uid)).fetchall()]
     msgr_d = _wp_messenger_detail(emp.get("empno"), start, end)
     total = sum(x["n"] for x in cats)
-    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"] or mail_d["total"] or msgr_d["msgs"]):
-        return JSONResponse({"ok": True, "summary": "이 기간에 기록된 업무(일일업무·티켓·이슈·공정·메일·메신저)가 없어 요약할 내용이 없습니다."})
+    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"] or mail_d["total"] or msgr_d["msgs"] or presales_d["total_n"]):
+        return JSONResponse({"ok": True, "summary": "이 기간에 기록된 업무(일일업무·티켓·이슈·공정·메일·메신저·수주 전 활동)가 없어 요약할 내용이 없습니다."})
     cat_txt = ", ".join(f"{x['category']} {x['n']}건({round(100*x['n']/total)}%)" for x in cats) if total else "—"
     stat_txt = ", ".join(f"{x['status']} {x['n']}건" for x in stat) or "—"
     proj_txt = ", ".join(f"{x['label']}({x['n']})" for x in projs) or "—"
@@ -1698,6 +1779,8 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
         + f" (받아 처리 {extra['tkt_recv_n']} · 요청 {extra['tkt_sent_n']})"
     iss_txt = ", ".join(f"{x['severity']} {x['n']}건" for x in extra["issues"]) or "—"
     pha_txt = ", ".join(f"{x['status']} {x['n']}건" for x in extra["phases"]) or "—"
+    pre_txt = (", ".join(f"{x['activity_type']} {x['h']}h" for x in presales_d["by_type"]) or "—") \
+        + f" (총 {presales_d['total_h']}h · {presales_d['total_n']}건)"
     try:
         from . import ai_client
         from starlette.concurrency import run_in_threadpool
@@ -1720,6 +1803,7 @@ async def admin_work_pattern_ai_summary(request: Request, uid: int):
             f"[받은 티켓] {tkt_txt}\n[담당 이슈] {iss_txt}\n[담당 공정] {pha_txt}\n"
             f"[메일] 보낸 {mail_d['sent']} · 받은 {mail_d['recv']} (총 {mail_d['total']})\n"
             f"[메신저] 메시지 {msgr_d['msgs']}건 · 방 {msgr_d['rooms']} · 멘션 {msgr_d['mentions']}\n"
+            f"[수주 전 활동] {pre_txt}\n"
             f"[일일업무 제목 표본(최근 {len(titles)}건)]:\n{title_txt}")
         ok, ans = await run_in_threadpool(
             ai_client.ai_chat, prompt, system, max_tokens=800, temperature=0.3)
@@ -1802,13 +1886,14 @@ async def admin_work_pattern_manual_generate(request: Request, uid: int):
         cats, stat, weekly, projs, custs = _wp_detail_data(c, uid, start, end)
         extra = _wp_detail_extra(c, uid, start, end)
         mail_d = _wp_mail_detail(c, uid, start, end)
+        presales_d = _wp_presales_detail(c, uid, start, end)
         collab = _wp_collab_list(c, uid, start, end)
         titles = [r[0] for r in c.execute(
             "SELECT title FROM tasks WHERE work_date BETWEEN ? AND ? AND user_id=? AND COALESCE(title,'')<>'' "
             "ORDER BY work_date DESC LIMIT 40", (start, end, uid)).fetchall()]
     msgr_d = _wp_messenger_detail(emp.get("empno"), start, end)
     total = sum(x["n"] for x in cats)
-    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"] or mail_d["total"] or msgr_d["msgs"]):
+    if not total and not (extra["tkt_recv_n"] or extra["issues_n"] or extra["phases_n"] or mail_d["total"] or msgr_d["msgs"] or presales_d["total_n"]):
         return JSONResponse({"ok": True, "manual": f"# {emp['name']} 업무 매뉴얼 (초안)\n\n이 기간({plabel})에 기록된 업무 데이터가 없어 매뉴얼을 작성할 근거가 없습니다. 기간을 넓히거나 업무 기록이 쌓인 뒤 다시 생성하세요."})
     cat_txt = ", ".join(f"{x['category']} {x['n']}건({round(100*x['n']/total)}%)" for x in cats) if total else "—"
     proj_txt = ", ".join(f"{x['label']}({x['n']})" for x in projs) or "—"
@@ -1818,6 +1903,8 @@ async def admin_work_pattern_manual_generate(request: Request, uid: int):
         + f" (받아 처리 {extra['tkt_recv_n']} · 요청 {extra['tkt_sent_n']})"
     iss_txt = ", ".join(f"{x['severity']} {x['n']}건" for x in extra["issues"]) or "—"
     pha_txt = ", ".join(f"{x['status']} {x['n']}건" for x in extra["phases"]) or "—"
+    pre_txt = (", ".join(f"{x['activity_type']} {x['h']}h" for x in presales_d["by_type"]) or "—") \
+        + f" (총 {presales_d['total_h']}h · {presales_d['total_n']}건)"
     mail_txt = f"보낸 {mail_d['sent']} · 받은 {mail_d['recv']} (총 {mail_d['total']})" + \
         ((" · 주요 상대: " + ", ".join(f"{x['addr']}({x['n']})" for x in mail_d['corr'])) if mail_d['corr'] else "")
     msgr_txt = f"메시지 {msgr_d['msgs']}건 · 방 {msgr_d['rooms']} · 멘션 {msgr_d['mentions']}" + \
@@ -1845,6 +1932,7 @@ async def admin_work_pattern_manual_generate(request: Request, uid: int):
             f"[일일업무 구성] {cat_txt}\n[주요 프로젝트] {proj_txt}\n[주요 고객/대상] {cust_txt}\n"
             f"[받은 티켓] {tkt_txt}\n[담당 이슈] {iss_txt}\n[담당 공정] {pha_txt}\n"
             f"[메일] {mail_txt}\n[메신저] {msgr_txt}\n[주요 협업] {collab_txt}\n"
+            f"[수주 전 활동] {pre_txt}\n"
             f"[일일업무 제목 표본(최근 {len(titles)}건)]:\n{title_txt}")
         ok, ans = await run_in_threadpool(
             ai_client.ai_chat, prompt, system, max_tokens=1900, temperature=0.35)
@@ -1919,13 +2007,19 @@ def fetch_customers(c):
 # =====================================================
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(req: Request):
-    """미인증 안내 페이지 — WORKS 는 자체 로그인을 받지 않는다.
-    메신저에서 'WORKS 열기' 버튼으로 진입하도록 안내."""
+    """v5H226z423 (대표 지시 2026-06-14): WORKS 는 자체 로그인 없음. 미인증 시
+    **항상 KNK Eum 메신저 로그인(force)으로 직행** (기존 안내 페이지 대신) — 앱·브라우저 모두
+    항상 메신저를 통해 로그인. 토큰 오류 시 sso_land 가 login.html(안내)로 메시지 표시."""
     u = get_user(req)
     if u:
         return RedirectResponse(role_home(u), 303)
-    from .sso_client import MESSENGER_BASE
-    return ctx(req, "login.html", messenger_url=MESSENGER_BASE, error=None)
+    from urllib.parse import quote
+    from . import sso_client
+    nxt = _safe_next_path(req.query_params.get("next") or "/home") or "/home"
+    redirect_uri = _WORKS_PUBLIC_BASE + "/sso/land?next=" + quote(nxt, safe="")
+    # v5H226z425(대표 지시): force 제거 — 메신저 로그인돼 있으면 자동 로그인(SSO 단일 로그인).
+    #   보안은 세션 비영구화(닫으면 만료→재검증)로 유지. 미인증이면 메신저 로그인 화면.
+    return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
 
 
 def _safe_next_path(nxt: str) -> str:
@@ -2507,7 +2601,7 @@ async def api_create_task(req: Request):
 #   ⚠ base_ts 가 비어 있으면(미전송) 검사하지 않음 → 기존 동작 100% 보존(하위호환·안전).
 #   table 은 화이트리스트만(SQL 안전). orders/order_items 는 updated_at 컬럼 추가 후 동작(없으면 no-op).
 # =====================================================
-_EDIT_LOCK_TABLES = {"tasks", "projects", "orders", "order_items", "consumable_orders"}
+_EDIT_LOCK_TABLES = {"tasks", "projects", "orders", "order_items", "consumable_orders", "meetings"}
 
 
 def _edit_conflict(c, table, row_id, base_ts):
@@ -2540,6 +2634,739 @@ def _row_ts(c, table, row_id):
         return str((r[0] if r and not isinstance(r, dict) else (r.get("updated_at") if r else "")) or "")
     except Exception:
         return ""
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  회의록 (16_KNK_Meeting Phase 1 · 모드 A 텍스트)  — z412
+#  회의 원문 입력 → AI 결정사항·할 일·요약 추출 → 검토 후 1-클릭 일일카드 연동.
+#  · 음성/통역(모드 B·C)은 Phase 2~3. 여기서는 텍스트만.
+#  · 권한(제약2): visibility = team(소속팀+참석자+임원이상) / private(작성자+참석자) / all(전사)
+#  · 데이터 연결 안전: AI 추출은 '제안'일 뿐, 일일카드 등록은 사용자 클릭 시에만(자동 X).
+#    담당자 이름→사용자 연결도 '정확히 1명 단일후보'일 때만(애매하면 미연결).
+# ════════════════════════════════════════════════════════════════════════
+_MEETING_VIS = ("team", "private", "all")
+
+
+def _meeting_match_user_id(c, name):
+    """이름 → 단일후보 user_id. 정확히 1명(활성) 일치할 때만 연결, 애매하면 None.
+    (메모리 feedback_data_connectivity: 단일 후보일 때만 자동연결)."""
+    name = (name or "").strip()
+    if not name:
+        return None
+    try:
+        rows = c.execute(
+            "SELECT id FROM users WHERE name=? AND is_active=1", (name,)
+        ).fetchall()
+        return rows[0][0] if len(rows) == 1 else None
+    except Exception:
+        return None
+
+
+def _meeting_link_attendees(c, mid, attendees_text):
+    """참석자 자유텍스트(쉼표/줄바꿈/세미콜론 구분) → meeting_attendees 재구성.
+    단일후보 매칭 시 user_id 연결."""
+    c.execute("DELETE FROM meeting_attendees WHERE meeting_id=?", (mid,))
+    raw = (attendees_text or "").replace("\n", ",").replace(";", ",").replace("、", ",")
+    seen = set()
+    for nm in (p.strip() for p in raw.split(",")):
+        if not nm or nm in seen:
+            continue
+        seen.add(nm)
+        c.execute(
+            "INSERT INTO meeting_attendees(meeting_id, user_id, name) VALUES(?,?,?)",
+            (mid, _meeting_match_user_id(c, nm), nm),
+        )
+
+
+def _can_view_meeting(c, u, m) -> bool:
+    """회의록 열람 권한 (제약2 권한 분기).
+    - admin/ceo/executive: 전체 열람
+    - 작성자 본인·참석자(연결된 사용자): 항상 열람
+    - visibility 'all': 전 직원
+    - visibility 'team': 작성자와 같은 팀(팀장 포함)
+    - visibility 'private': 작성자+참석자만(위에서 처리) — 그 외 불가
+    """
+    if not u or not m:
+        return False
+    role = (u.get("role") or "member").lower()
+    uid = u.get("id")
+    if role in ("admin", "ceo", "executive"):
+        return True
+    if m.get("owner_id") == uid:
+        return True
+    try:
+        if c.execute(
+            "SELECT 1 FROM meeting_attendees WHERE meeting_id=? AND user_id=?",
+            (m["id"], uid),
+        ).fetchone():
+            return True
+    except Exception:
+        pass
+    vis = m.get("visibility") or "team"
+    if vis == "all":
+        return True
+    if vis == "team" and m.get("team_id") and m.get("team_id") == u.get("team_id"):
+        return True
+    return False
+
+
+def _can_edit_meeting(u, m) -> bool:
+    """회의록 수정·삭제 권한: 작성자 본인 또는 admin/ceo."""
+    if not u or not m:
+        return False
+    if (u.get("role") or "").lower() in ("admin", "ceo"):
+        return True
+    return m.get("owner_id") == u.get("id")
+
+
+def _meeting_due_or_none(s):
+    """기한 문자열이 YYYY-MM-DD 형식이면 그대로, 아니면 None (tasks.due_date 보호)."""
+    s = (s or "").strip()
+    if len(s) == 10 and s[4] == "-" and s[7] == "-" \
+       and s[:4].isdigit() and s[5:7].isdigit() and s[8:10].isdigit():
+        return s
+    return None
+
+
+@app.get("/meetings", response_class=HTMLResponse)
+async def meetings_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    role = (u.get("role") or "member").lower()
+    _sel = """SELECT m.*, t.name AS team_name, usr.name AS owner_name,
+                 (SELECT COUNT(*) FROM meeting_decisions WHERE meeting_id=m.id) AS dec_cnt,
+                 (SELECT COUNT(*) FROM meeting_actions WHERE meeting_id=m.id) AS act_cnt
+              FROM meetings m
+              LEFT JOIN teams t ON m.team_id=t.id
+              LEFT JOIN users usr ON m.owner_id=usr.id """
+    with db_session() as c:
+        if role in ("admin", "ceo", "executive"):
+            rows = c.execute(
+                _sel + "ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300"
+            ).fetchall()
+        else:
+            rows = c.execute(
+                _sel + """WHERE (m.owner_id=?
+                                 OR m.visibility='all'
+                                 OR (m.visibility='team' AND m.team_id=?)
+                                 OR m.id IN (SELECT meeting_id FROM meeting_attendees WHERE user_id=?))
+                          ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300""",
+                (u["id"], u.get("team_id"), u["id"]),
+            ).fetchall()
+        meetings = [dict(r) for r in rows]
+    return ctx(req, "meetings.html", user=u, meetings=meetings)
+
+
+@app.get("/meetings/new", response_class=HTMLResponse)
+async def meeting_new_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import ai_client
+    return ctx(req, "meeting_form.html", user=u, meeting=None,
+               decisions=[], actions=[], attendees=[], can_edit=True,
+               ai_on=ai_client.ai_available(), transcribe_on=ai_client.transcribe_available())
+
+
+@app.get("/meetings/{mid:int}", response_class=HTMLResponse)
+async def meeting_detail_page(req: Request, mid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import ai_client
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return RedirectResponse("/meetings", 303)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            # 존재 은닉 — 목록으로 조용히 복귀
+            return RedirectResponse("/meetings", 303)
+        decisions = [dict(r) for r in c.execute(
+            "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
+        actions = [dict(r) for r in c.execute(
+            "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
+        attendees = [dict(r) for r in c.execute(
+            "SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id", (mid,))]
+        # 연결(프로젝트·영업기회) — 권한 게이트
+        _can_vsales = can_view_sales(u)
+        _can_sales = can_use_sales(u)
+        projects = []
+        if _can_vsales:
+            projects = [dict(r) for r in c.execute(
+                "SELECT id, mgmt_code, code, name, status FROM projects "
+                "WHERE status='진행중' OR id=? ORDER BY (status='진행중') DESC, id DESC LIMIT 600",
+                (m.get("project_id") or 0,))]
+        opps = []
+        if _can_sales:
+            opps = [dict(r) for r in c.execute(
+                "SELECT id, opp_no, title, status FROM sales_opportunities "
+                "WHERE status='active' OR id=? ORDER BY (status='active') DESC, id DESC LIMIT 400",
+                (m.get("opportunity_id") or 0,))]
+        linked_project = None
+        if m.get("project_id"):
+            _r = c.execute("SELECT id, mgmt_code, code, name FROM projects WHERE id=?", (m["project_id"],)).fetchone()
+            linked_project = dict(_r) if _r else None
+        linked_opp = None
+        if m.get("opportunity_id"):
+            _r = c.execute("SELECT id, opp_no, title FROM sales_opportunities WHERE id=?", (m["opportunity_id"],)).fetchone()
+            linked_opp = dict(_r) if _r else None
+    return ctx(req, "meeting_form.html", user=u, meeting=m,
+               decisions=decisions, actions=actions, attendees=attendees,
+               can_edit=_can_edit_meeting(u, m), ai_on=ai_client.ai_available(),
+               transcribe_on=ai_client.transcribe_available(),
+               projects=projects, opps=opps, linked_project=linked_project, linked_opp=linked_opp,
+               can_link_proj=_can_vsales, can_link_sales=_can_sales)
+
+
+@app.get("/meetings/{mid:int}/doc", response_class=HTMLResponse)
+async def meeting_doc_page(req: Request, mid: int):
+    """회의록 표준 양식 — 인쇄/PDF용 standalone 문서. 실 회의 데이터 자동채움.
+    보안등급은 공개범위(visibility) 매핑(private→대외비). 권한 게이트(_can_view_meeting)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return RedirectResponse("/meetings", 303)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            return RedirectResponse("/meetings", 303)
+        decisions = [dict(r) for r in c.execute(
+            "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
+        actions = [dict(r) for r in c.execute(
+            "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
+        orow = c.execute("SELECT name FROM users WHERE id=?", (m.get("owner_id"),)).fetchone()
+        link_proj = None
+        if m.get("project_id"):
+            _r = c.execute("SELECT mgmt_code, code, name FROM projects WHERE id=?", (m["project_id"],)).fetchone()
+            link_proj = dict(_r) if _r else None
+        link_opp = None
+        if m.get("opportunity_id"):
+            _r = c.execute("SELECT opp_no, title FROM sales_opportunities WHERE id=?", (m["opportunity_id"],)).fetchone()
+            link_opp = dict(_r) if _r else None
+    owner_name = ((orow["name"] if orow else "") or "")
+    sec = {"private": "대외비", "team": "사내한정", "all": "공개"}.get(m.get("visibility"), "사내한정")
+    _md = (m.get("meeting_date") or "")
+    docno = "MIN-" + _md.replace("-", "") + f"-{m['id']:04d}"
+    date_disp = _md
+    try:
+        _d = datetime.strptime(_md, "%Y-%m-%d")
+        date_disp = f"{_md} ({'월화수목금토일'[_d.weekday()]})"
+    except Exception:
+        pass
+    return tpl.TemplateResponse(request=req, name="meeting_doc.html", context={
+        "m": m, "decisions": decisions, "actions": actions, "owner_name": owner_name,
+        "sec": sec, "docno": docno, "date_disp": date_disp,
+        "link_proj": link_proj, "link_opp": link_opp,
+    })
+
+
+@app.post("/api/meeting")
+async def api_meeting_create(req: Request):
+    # ⚠ 함수 전체를 try로 감싼다 — req.json()/get_user 등 try 바깥에서 터지면
+    #   Starlette 기본 비-JSON 500이 나가고 브라우저는 일반 '저장 실패'만 표시한다.
+    #   어디서 터지든 '예외종류+메시지'를 JSON으로 노출해 진짜 원인을 화면에 띄운다(표면화 원칙).
+    try:
+        u = get_user(req)
+        if not u:
+            return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+        d = await req.json()
+        title = (d.get("title") or "").strip()
+        if not title:
+            return JSONResponse({"ok": False, "error": "회의 제목은 필수입니다."}, 400)
+        if len(title) > 200:
+            return JSONResponse({"ok": False, "error": "제목은 200자 이내로 입력하세요."}, 400)
+        mdate = (d.get("meeting_date") or "").strip() or date.today().isoformat()
+        vis = d.get("visibility") if d.get("visibility") in _MEETING_VIS else "team"
+        attendees_text = (d.get("attendees_text") or "").strip()
+        with db_session() as c:
+            cur = c.execute(
+                """INSERT INTO meetings(title, meeting_date, mode, team_id, owner_id,
+                                        location, tags, attendees_text, body, visibility, status)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                (title, mdate, "A", u.get("team_id"), u["id"],
+                 (d.get("location") or "").strip(), (d.get("tags") or "").strip(),
+                 attendees_text, (d.get("body") or ""), vis, "draft"),
+            )
+            mid = cur.lastrowid
+            try:  # 참석자 연결 실패는 회의 생성을 막지 않음(비치명)
+                _meeting_link_attendees(c, mid, attendees_text)
+            except Exception:
+                pass
+            try:
+                log_activity(c, u["id"], "meeting_create",
+                             f"{u['name']} 회의록 작성: {title[:60]}",
+                             team_id=u.get("team_id"))
+            except Exception:
+                pass
+            new_ts = _row_ts(c, "meetings", mid)
+    except Exception as e:  # 실제 오류 표면화 — 예외 종류까지(no such column / locked / KeyError 등)
+        return JSONResponse(
+            {"ok": False, "error": f"회의록 저장 실패: {type(e).__name__}: {str(e)[:300]}"}, 500)
+    return JSONResponse({"ok": True, "id": mid, "updated_at": new_ts})
+
+
+@app.put("/api/meeting/{mid:int}")
+async def api_meeting_update(req: Request, mid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    d = await req.json()
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m):
+            return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
+        _conf, _cur = _edit_conflict(c, "meetings", mid, d.get("base_ts"))
+        if _conf:
+            return _conflict_resp(_cur)
+        title = (d.get("title") or "").strip() or m["title"]
+        if len(title) > 200:
+            return JSONResponse({"ok": False, "error": "제목은 200자 이내로 입력하세요."}, 400)
+        mdate = (d.get("meeting_date") or "").strip() or m["meeting_date"]
+        vis = d.get("visibility") if d.get("visibility") in _MEETING_VIS else m.get("visibility", "team")
+        attendees_text = (d.get("attendees_text") if d.get("attendees_text") is not None
+                          else m.get("attendees_text", "")).strip()
+        status = d.get("status") if d.get("status") in ("draft", "done") else m.get("status", "draft")
+        c.execute(
+            """UPDATE meetings SET title=?, meeting_date=?, location=?, tags=?,
+                      attendees_text=?, body=?, visibility=?, status=?,
+                      updated_at=datetime('now','localtime')
+               WHERE id=?""",
+            (title, mdate, (d.get("location") or "").strip(),
+             (d.get("tags") or "").strip(), attendees_text,
+             (d.get("body") if d.get("body") is not None else m.get("body", "")),
+             vis, status, mid),
+        )
+        _meeting_link_attendees(c, mid, attendees_text)
+        new_ts = _row_ts(c, "meetings", mid)
+    return JSONResponse({"ok": True, "updated_at": new_ts})
+
+
+@app.delete("/api/meeting/{mid:int}")
+async def api_meeting_delete(req: Request, mid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        if not _can_edit_meeting(u, dict(m)):
+            return JSONResponse({"ok": False, "error": "삭제 권한이 없습니다."}, 403)
+        # 자식(결정·할일·참석자)은 FK ON DELETE CASCADE 로 정리.
+        # 단, 일일카드(tasks)로 연동된 것은 카드 자체를 지우지 않음(이미 독립 업무).
+        c.execute("DELETE FROM meetings WHERE id=?", (mid,))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/meeting/{mid:int}/extract")
+async def api_meeting_extract(req: Request, mid: int):
+    """회의 원문 → AI 결정사항·할 일·요약 추출 후 저장(검토용). 자동 일일카드 등록 X."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    from . import ai_client
+    if not ai_client.ai_available():
+        return JSONResponse({"ok": False, "error": "AI가 비활성 상태입니다(키 미설정). "
+                             "결정사항·할 일은 직접 추가할 수 있습니다."}, 400)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        body = m.get("body") or ""
+    if not body.strip():
+        return JSONResponse({"ok": False, "error": "회의 내용이 비어 있습니다. 내용을 먼저 입력·저장하세요."}, 400)
+    # 회사 맥락 주입 — 참석자 이름 귀속·구조화 정리에 사용
+    _ctx_parts = []
+    if (m.get("title") or "").strip():
+        _ctx_parts.append(f"회의 제목: {m['title'].strip()}")
+    if (m.get("meeting_date") or "").strip():
+        _ctx_parts.append(f"날짜: {m['meeting_date'].strip()}")
+    if (m.get("attendees_text") or "").strip():
+        _ctx_parts.append(f"참석자: {m['attendees_text'].strip()}")
+    ok, result = ai_client.ai_extract_meeting(body, context="\n".join(_ctx_parts))
+    if not ok:
+        return JSONResponse({"ok": False, "error": result.get("error", "AI 추출 실패")}, 502)
+    with db_session() as c:
+        # AI 추출분만 교체(수기 추가분·이미 일일카드 연동분은 보존)
+        c.execute("DELETE FROM meeting_decisions WHERE meeting_id=? AND source='ai'", (mid,))
+        c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL", (mid,))
+        for dec in result["decisions"]:
+            c.execute(
+                "INSERT INTO meeting_decisions(meeting_id, who, what, due, source) VALUES(?,?,?,?,'ai')",
+                (mid, dec["who"], dec["what"], dec["due"]),
+            )
+        for act in result["actions"]:
+            c.execute(
+                """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source)
+                   VALUES(?,?,?,?,?,'ai')""",
+                (mid, act["assignee"], _meeting_match_user_id(c, act["assignee"]),
+                 act["task"], act["due"]),
+            )
+        if result["summary"]:
+            c.execute("UPDATE meetings SET summary=?, updated_at=datetime('now','localtime') WHERE id=?",
+                      (result["summary"], mid))
+        new_ts = _row_ts(c, "meetings", mid)
+        decisions = [dict(r) for r in c.execute(
+            "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
+        actions = [dict(r) for r in c.execute(
+            "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
+    return JSONResponse({"ok": True, "summary": result["summary"],
+                         "decisions": decisions, "actions": actions, "updated_at": new_ts})
+
+
+@app.post("/api/meeting/{mid:int}/decision")
+async def api_meeting_decision_add(req: Request, mid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    d = await req.json()
+    what = (d.get("what") or "").strip()
+    if not what:
+        return JSONResponse({"ok": False, "error": "결정 내용은 필수입니다."}, 400)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m or not _can_edit_meeting(u, dict(m)):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        cur = c.execute(
+            "INSERT INTO meeting_decisions(meeting_id, who, what, due, source) VALUES(?,?,?,?,'manual')",
+            (mid, (d.get("who") or "").strip(), what, (d.get("due") or "").strip()),
+        )
+        did = cur.lastrowid
+        # 자식 목록 추가는 meetings.updated_at 을 바꾸지 않음(편집 중 base_ts 드리프트 방지).
+    return JSONResponse({"ok": True, "id": did})
+
+
+@app.delete("/api/meeting/{mid:int}/decision/{did:int}")
+async def api_meeting_decision_del(req: Request, mid: int, did: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m or not _can_edit_meeting(u, dict(m)):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        c.execute("DELETE FROM meeting_decisions WHERE id=? AND meeting_id=?", (did, mid))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/meeting/{mid:int}/action")
+async def api_meeting_action_add(req: Request, mid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    d = await req.json()
+    task = (d.get("task") or "").strip()
+    if not task:
+        return JSONResponse({"ok": False, "error": "할 일 내용은 필수입니다."}, 400)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m or not _can_edit_meeting(u, dict(m)):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        assignee = (d.get("assignee") or "").strip()
+        cur = c.execute(
+            """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source)
+               VALUES(?,?,?,?,?,'manual')""",
+            (mid, assignee, _meeting_match_user_id(c, assignee), task, (d.get("due") or "").strip()),
+        )
+        aid = cur.lastrowid
+        # 자식 목록 추가는 meetings.updated_at 을 바꾸지 않음(편집 중 base_ts 드리프트 방지).
+    return JSONResponse({"ok": True, "id": aid})
+
+
+@app.delete("/api/meeting/{mid:int}/action/{aid:int}")
+async def api_meeting_action_del(req: Request, mid: int, aid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m or not _can_edit_meeting(u, dict(m)):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        c.execute("DELETE FROM meeting_actions WHERE id=? AND meeting_id=?", (aid, mid))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/meeting/{mid:int}/action/{aid:int}/to-daily")
+async def api_meeting_action_to_daily(req: Request, mid: int, aid: int):
+    """할 일 1-클릭 → 일일업무카드(tasks) 등록. 중복 등록 방지(linked_task_id).
+    담당자가 단일후보로 연결돼 있으면 그 사람 카드로, 아니면 등록자 본인 카드로."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        a = c.execute("SELECT * FROM meeting_actions WHERE id=? AND meeting_id=?", (aid, mid)).fetchone()
+        if not a:
+            return JSONResponse({"ok": False, "error": "없는 할 일입니다."}, 404)
+        a = dict(a)
+        if a.get("linked_task_id"):
+            return JSONResponse({"ok": False, "error": "이미 일일카드로 등록된 할 일입니다.",
+                                 "task_id": a["linked_task_id"]}, 409)
+        target_uid = a.get("assignee_user_id") or u["id"]
+        title = (a.get("task") or "")[:200]
+        note = f"[회의록] {m['title']} ({m['meeting_date']})"
+        if a.get("assignee_name"):
+            note += f" · 담당: {a['assignee_name']}"
+        cur = c.execute(
+            """INSERT INTO tasks(user_id, work_date, title, category, status, hours, notes, due_date)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (target_uid, date.today().isoformat(), title, "회의", "진행중", 0,
+             note, _meeting_due_or_none(a.get("due_date"))),
+        )
+        tid = cur.lastrowid
+        c.execute("UPDATE meeting_actions SET linked_task_id=?, status='linked' WHERE id=?", (tid, aid))
+        try:
+            log_activity(c, u["id"], "meeting_to_daily",
+                         f"회의 할 일→일일카드: {title[:50]}",
+                         task_id=tid, team_id=u.get("team_id"))
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "task_id": tid, "assigned_to": target_uid})
+
+
+# ── 모드 B: 음성 녹음 → Whisper 음성→글자 (z412+ ) ──────────────────────────
+#  음성은 민감(제약2) → 정적 마운트(/uploads) 가 아니라 'meeting_audio/'(비공개 폴더)에
+#  저장하고, 열람은 권한 게이트 GET 라우트로만 서빙. Whisper 는 OpenAI 키 필요(없으면 graceful).
+_MEETING_AUDIO_EXT = (".webm", ".m4a", ".mp4", ".mp3", ".wav", ".ogg", ".oga",
+                      ".aac", ".3gp", ".mpeg", ".mpga", ".caf")
+_MEETING_AUDIO_MIME = {
+    ".webm": "audio/webm", ".m4a": "audio/mp4", ".mp4": "audio/mp4",
+    ".mp3": "audio/mpeg", ".mpeg": "audio/mpeg", ".mpga": "audio/mpeg",
+    ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg",
+    ".aac": "audio/aac", ".3gp": "audio/3gpp", ".caf": "audio/x-caf",
+}
+
+
+@app.post("/api/meeting/{mid:int}/audio")
+async def api_meeting_audio_upload(req: Request, mid: int, file: UploadFile = File(...)):
+    """휴대폰/브라우저 녹음 업로드. meeting_audio/meeting_{id}/ 에 저장 + mode='B'."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    orig = file.filename or "rec.webm"
+    ext = os.path.splitext(orig)[1].lower() or ".webm"
+    if ext not in _MEETING_AUDIO_EXT:
+        return JSONResponse({"ok": False, "error": f"지원하지 않는 음성 형식({ext})."}, 400)
+    raw = await file.read()
+    if len(raw) < 100:
+        return JSONResponse({"ok": False, "error": "빈/손상 음성 파일입니다."}, 400)
+    if len(raw) > 60 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": f"음성은 60MB 이하만 가능합니다(현재 {len(raw)//1024//1024}MB)."}, 400)
+    import time as _time
+    audio_dir = os.path.join("meeting_audio", f"meeting_{mid}")
+    os.makedirs(audio_dir, exist_ok=True)
+    ts = int(_time.time())
+    disk_path = os.path.join(audio_dir, f"rec_{ts}{ext}")
+    with open(disk_path, "wb") as f:
+        f.write(raw)
+    rel = disk_path.replace("\\", "/")
+    old = (m.get("audio_path") or "").strip()
+    with db_session() as c:
+        c.execute("UPDATE meetings SET audio_path=?, mode='B', updated_at=datetime('now','localtime') WHERE id=?",
+                  (rel, mid))
+        _new_ts = _row_ts(c, "meetings", mid)
+    if old and old != rel:  # 단일 음성 정책 — 이전 파일 정리
+        try:
+            if os.path.exists(old):
+                os.remove(old)
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "audio_url": f"/api/meeting/{mid}/audio?v={ts}",
+                         "size_kb": len(raw) // 1024, "updated_at": _new_ts})
+
+
+@app.get("/api/meeting/{mid:int}/audio")
+async def api_meeting_audio_get(req: Request, mid: int):
+    """녹음 재생 — 권한 게이트(정적 노출 금지). _can_view_meeting 통과자만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"error": "없음"}, 404)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            return JSONResponse({"error": "권한 없음"}, 403)
+    disk = (m.get("audio_path") or "").strip()
+    if not disk or not os.path.exists(disk):
+        return JSONResponse({"error": "녹음 없음"}, 404)
+    ext = os.path.splitext(disk)[1].lower()
+    return FileResponse(disk, media_type=_MEETING_AUDIO_MIME.get(ext, "application/octet-stream"))
+
+
+@app.post("/api/meeting/{mid:int}/transcribe")
+async def api_meeting_transcribe(req: Request, mid: int):
+    """녹음 → Whisper 음성→글자 → 회의 내용(body)에 추가. 그 뒤 「AI로 정리」로 결정·할일 추출."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    from . import ai_client
+    if not ai_client.transcribe_available():
+        return JSONResponse({"ok": False, "error": "음성→글자는 OpenAI 키가 필요합니다(현재 미설정/무효). "
+                             "관리자 → AI 설정에서 등록하면 즉시 동작합니다."}, 400)
+    try:
+        d = await req.json()
+    except Exception:
+        d = {}
+    lang = d.get("lang") if d.get("lang") in ("ko", "vi", "en") else ""
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    disk = (m.get("audio_path") or "").strip()
+    if not disk or not os.path.exists(disk):
+        return JSONResponse({"ok": False, "error": "녹음 파일이 없습니다. 먼저 녹음·업로드하세요."}, 400)
+    # Whisper 1요청 25MB 한도 — 초과(긴 파일 업로드)면 ffmpeg로 모노 32k mp3 자동 압축 시도.
+    stt_path, _tmp_stt = disk, None
+    try:
+        if os.path.getsize(disk) > 25 * 1024 * 1024:
+            import subprocess, time as _t
+            _cand = os.path.join(os.path.dirname(disk), f"stt_{int(_t.time())}.mp3")
+            _r = subprocess.run(["ffmpeg", "-y", "-i", disk, "-ac", "1", "-b:a", "32k", _cand],
+                                capture_output=True, timeout=600)
+            if _r.returncode == 0 and os.path.exists(_cand) and os.path.getsize(_cand) <= 25 * 1024 * 1024:
+                stt_path, _tmp_stt = _cand, _cand
+            elif os.path.exists(_cand):
+                try:
+                    os.remove(_cand)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    if os.path.getsize(stt_path) > 25 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "음성이 25MB를 넘어 음성→글자가 어렵습니다. 브라우저 녹음(자동 압축)을 쓰거나 파일을 나눠 올려주세요."}, 400)
+    ok, text = ai_client.ai_transcribe(stt_path, lang or "")
+    if _tmp_stt:  # 압축 임시파일 정리
+        try:
+            os.remove(_tmp_stt)
+        except Exception:
+            pass
+    if not ok:
+        return JSONResponse({"ok": False, "error": text}, 502)
+    if not text.strip():
+        return JSONResponse({"ok": False, "error": "음성에서 인식된 내용이 없습니다(무음/잡음일 수 있어요)."}, 422)
+    prev = (m.get("body") or "").strip()
+    new_body = ((prev + "\n\n") if prev else "") + "🎙 [음성 변환]\n" + text.strip()
+    with db_session() as c:
+        c.execute("UPDATE meetings SET body=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (new_body, mid))
+        _new_ts = _row_ts(c, "meetings", mid)
+    return JSONResponse({"ok": True, "transcript": text.strip(), "body": new_body, "updated_at": _new_ts})
+
+
+@app.post("/api/meeting/{mid:int}/link")
+async def api_meeting_link(req: Request, mid: int):
+    """회의록 ↔ 프로젝트·영업기회 연결 저장. 명시적 선택만(자동매칭 없음, 데이터 연결 안전)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    d = await req.json()
+
+    def _toint(x):
+        try:
+            return int(x) if x not in (None, "", "0", 0) else None
+        except (ValueError, TypeError):
+            return None
+    pid = _toint(d.get("project_id"))
+    oid = _toint(d.get("opportunity_id"))
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m):
+            return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
+        if pid is not None:
+            if not can_view_sales(u):
+                return JSONResponse({"ok": False, "error": "프로젝트 연결 권한이 없습니다."}, 403)
+            if not c.execute("SELECT 1 FROM projects WHERE id=?", (pid,)).fetchone():
+                pid = None
+        if oid is not None:
+            if not can_use_sales(u):
+                return JSONResponse({"ok": False, "error": "영업기회 연결은 영업 권한이 필요합니다."}, 403)
+            if not c.execute("SELECT 1 FROM sales_opportunities WHERE id=?", (oid,)).fetchone():
+                oid = None
+        c.execute("UPDATE meetings SET project_id=?, opportunity_id=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (pid, oid, mid))
+        if oid:  # 영업기회 역참조 동기화(비어있을 때만 — 기존 연결 보존)
+            try:
+                c.execute("UPDATE sales_opportunities SET meeting_id=? WHERE id=? AND meeting_id IS NULL", (mid, oid))
+            except Exception:
+                pass
+        new_ts = _row_ts(c, "meetings", mid)
+    return JSONResponse({"ok": True, "project_id": pid, "opportunity_id": oid, "updated_at": new_ts})
+
+
+@app.post("/api/meeting/{mid:int}/to-opportunity")
+async def api_meeting_to_opportunity(req: Request, mid: int):
+    """회의록 정보(제목·요약·날짜·작성자)로 영업기회를 새로 만들고 양방향 연결. 영업 권한 필요."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "영업기회 등록은 영업 권한이 필요합니다."}, 403)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        if m.get("opportunity_id"):
+            return JSONResponse({"ok": False, "error": "이미 영업기회와 연결돼 있습니다.",
+                                 "opportunity_id": m["opportunity_id"],
+                                 "url": f"/sales/opportunities/{m['opportunity_id']}"}, 409)
+        memo = ((m.get("summary") or "").strip() or (m.get("body") or "").strip())[:1500]
+        fields = {
+            "opp_no": _gen_opp_no(c),
+            "title": (m.get("title") or "제목 없는 영업기회")[:200],
+            "owner_user_id": u.get("id"),
+            "stage": "미팅", "status": "active",
+            "meeting_done": 1,
+            "meeting_date": (m.get("meeting_date") or None),
+            "meeting_memo": memo,
+            "meeting_id": mid,
+            "created_by": u.get("id"),
+        }
+        cols = list(fields.keys())
+        ph = ",".join("?" * len(cols))
+        cur = c.execute(f"INSERT INTO sales_opportunities({','.join(cols)}) VALUES({ph})",
+                        [fields[k] for k in cols])
+        oid = cur.lastrowid
+        c.execute("UPDATE meetings SET opportunity_id=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (oid, mid))
+        try:
+            log_activity(c, u["id"], "meeting_to_opp",
+                         f"회의록→영업기회 등록: {fields['title'][:50]}", team_id=u.get("team_id"))
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "opportunity_id": oid, "url": f"/sales/opportunities/{oid}"})
 
 
 @app.put("/api/task/{tid}")
@@ -4684,6 +5511,14 @@ async def project_detail(req: Request, pid: int):
         if not p:
             return RedirectResponse("/", 303)
         p = dict(p)
+        # v5H226z421 (대표 지시): 이 프로젝트의 출처 '영업 기회(수주 전)' 역링크 — 수주 전 업무 내용 다시 보기
+        try:
+            _oo = c.execute(
+                "SELECT id, opp_no, title FROM sales_opportunities WHERE promoted_project_id=? LIMIT 1",
+                (pid,)).fetchone()
+            origin_opp = dict(_oo) if _oo else None
+        except Exception:
+            origin_opp = None
         # 참여 전체 카드
         tasks = [dict(r) for r in c.execute(
             """SELECT tk.*, u.name AS user_name, u.rank AS user_rank,
@@ -5015,7 +5850,8 @@ async def project_detail(req: Request, pid: int):
                PROJECT_TYPES=_logi.PROJECT_TYPES,
                PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS,
                parent_project=parent_project,
-               child_projects=child_projects)
+               child_projects=child_projects,
+               origin_opp=origin_opp)
 
 
 def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None):
@@ -5786,21 +6622,28 @@ async def admin_ai_settings_save(req: Request,
 
 @app.post("/admin/ai-settings/test")
 async def admin_ai_settings_test(req: Request):
-    """현재 설정된 모델로 실제 호출 테스트 (잘못된 모델명 즉시 감지)."""
+    """두 공급사(OpenAI·Claude) 키를 각각 실제 호출 점검 + 음성→글자(Whisper, OpenAI) 가능 여부.
+    각 키를 따로 검사하므로 둘 다 등록했을 때 각각 유효한지 한 번에 확인 가능."""
     u = require(req, ["admin", "ceo"])
     if not u:
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
     from . import ai_client
-    if not ai_client.ai_available():
-        return JSONResponse({"ok": False, "error": "AI 비활성 — API 키가 설정돼야 합니다."})
     from starlette.concurrency import run_in_threadpool
-    ok, ans = await run_in_threadpool(
-        lambda: ai_client.ai_chat("한 단어로 'OK' 라고만 답하세요.", max_tokens=10, temperature=0))
+    ki = ai_client.key_info()
+    providers = {}
+    for prov in ("openai", "claude"):
+        if ki[prov]["set"]:
+            ok, msg = await run_in_threadpool(lambda p=prov: ai_client.test_provider(p))
+            providers[prov] = {"set": True, "ok": bool(ok), "masked": ki[prov]["masked"],
+                               "msg": (msg or "")[:200]}
+        else:
+            providers[prov] = {"set": False, "ok": False, "masked": "", "msg": "미설정"}
     return JSONResponse({
-        "ok": bool(ok), "provider": ai_client.get_provider(),
-        "model": ai_client.default_model(),
-        "answer": (ans or "")[:200] if ok else "",
-        "error": "" if ok else (ans or "알 수 없는 오류"),
+        "ok": True,
+        "providers": providers,
+        "whisper": {"ok": bool(providers["openai"]["set"] and providers["openai"]["ok"])},
+        "active_provider": ai_client.get_provider() or "(비활성)",
+        "model": ai_client.default_model() if ai_client.get_provider() else "",
     })
 
 
@@ -7560,6 +8403,1003 @@ async def projects_presales_edit(req: Request, pid: int):
     return JSONResponse({"ok": True, "field": field, "value": val})
 
 
+# =====================================================
+# v5H226z416 (대표 지시): 영업 기회 (수주 전 — 미팅·제안·견적). 관리코드 발번 전에 따로 관리하고,
+#   수주 확정 시 프로젝트로 '승격'(B 구조). 미팅은 간단 체크+메모. 가격은 can_money 게이트.
+# =====================================================
+OPP_STAGES = ["미팅", "제안", "견적", "수주예정", "수주확정", "보류", "실주"]
+
+
+def _opp_next_action(o: dict) -> str:
+    """단계·완료 플래그로 '다음 할 일' 한 줄."""
+    if o.get("promoted_project_id"):
+        return "제작요청(프로젝트)로 승격됨"
+    if (o.get("stage") or "") in ("보류", "실주"):
+        return "—"
+    if not o.get("meeting_done"):
+        return "미팅 진행"
+    if not o.get("proposal_done"):
+        return "제안서 작성·제출"
+    if not o.get("quotation_done"):
+        return "견적서 작성·제출"
+    return "수주 확정 → 제작요청 승격"
+
+
+def _gen_opp_no(c) -> str:
+    """OPP-YYMM-### (입력 시점 한국시간 기준)."""
+    ym = datetime.now().strftime("%y%m")
+    pref = f"OPP-{ym}-"
+    n = c.execute("SELECT COUNT(*) FROM sales_opportunities WHERE opp_no LIKE ?", (pref + "%",)).fetchone()[0]
+    return f"{pref}{int(n) + 1:03d}"
+
+
+def _opp_form_fields(form) -> dict:
+    """등록/수정 공용 — form → 컬럼 dict (안전 파싱)."""
+    def s(k):
+        v = form.get(k, "")
+        v = v.strip() if isinstance(v, str) else v
+        return v or None
+    def chk(k):
+        return 1 if str(form.get(k, "")).strip() in ("1", "on", "true", "yes") else 0
+    def num(k):
+        try:
+            return float(str(form.get(k, "") or "0").replace(",", "").strip() or 0)
+        except Exception:
+            return 0
+    def cid(k):
+        try:
+            return int(form.get(k) or 0) or None
+        except Exception:
+            return None
+    return {
+        "title": (form.get("title") or "").strip(),
+        "customer_id": cid("customer_id"),
+        "customer_name": s("customer_name"),
+        "biz_div": (s("biz_div") or None),
+        "model_name": s("model_name"),
+        "owner_user_id": cid("owner_user_id"),
+        "expected_amount": num("expected_amount"),
+        "currency": (form.get("currency") or "KRW").strip().upper() or "KRW",
+        "expected_order_ym": s("expected_order_ym"),
+        "stage": (form.get("stage") or "미팅").strip() or "미팅",
+        "status": (form.get("status") or "active").strip() or "active",
+        "meeting_done": chk("meeting_done"), "meeting_date": s("meeting_date"), "meeting_memo": s("meeting_memo"),
+        "proposal_done": chk("proposal_done"), "proposal_date": s("proposal_date"), "proposal_memo": s("proposal_memo"),
+        "quotation_done": chk("quotation_done"), "quotation_date": s("quotation_date"), "quotation_memo": s("quotation_memo"),
+        "quotation_id": cid("quotation_id"),
+        "note": s("note"),
+    }
+
+
+def _opp_quotations(c):
+    """연결용 정식 견적서 목록(최근 100)."""
+    try:
+        return [dict(r) for r in c.execute(
+            "SELECT q.id, q.quote_no, COALESCE(q.total_amount,0) AS total_amount, COALESCE(cu.name,'') AS cust "
+            "FROM quotations q LEFT JOIN customers cu ON cu.id=q.customer_id "
+            "ORDER BY q.id DESC LIMIT 100").fetchall()]
+    except Exception:
+        return []
+
+
+def _opp_files(c, oid):
+    """영업 기회 첨부파일 — kind별 그룹."""
+    out = {"meeting": [], "proposal": [], "quotation": [], "etc": []}
+    try:
+        for r in c.execute("SELECT * FROM sales_opportunity_files WHERE opp_id=? ORDER BY id", (oid,)):
+            d = dict(r)
+            out.setdefault(d.get("kind") or "etc", []).append(d)
+    except Exception:
+        pass
+    return out
+
+
+@app.get("/sales/opportunities", response_class=HTMLResponse)
+async def sales_opportunities(request: Request):
+    """영업 진행판 — 수주 전 영업 기회 목록(단계별)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    stage_f = (request.query_params.get("stage") or "").strip()
+    show_closed = (request.query_params.get("closed") or "") in ("1", "on", "true")
+    rows, counts = [], {s: 0 for s in OPP_STAGES}
+    with db_session() as c:
+        try:
+            allrows = [dict(r) for r in c.execute(
+                "SELECT o.*, u.name AS owner_name, p.mgmt_code AS promoted_code, p.id AS promoted_pid "
+                "FROM sales_opportunities o "
+                "LEFT JOIN users u ON u.id=o.owner_user_id "
+                "LEFT JOIN projects p ON p.id=o.promoted_project_id "
+                "ORDER BY (o.status IN ('won','lost')) ASC, o.updated_at DESC, o.id DESC").fetchall()]
+        except Exception:
+            allrows = []
+    for o in allrows:
+        counts[o.get("stage")] = counts.get(o.get("stage"), 0) + 1
+        is_closed = (o.get("status") in ("won", "lost")) or o.get("promoted_project_id")
+        # 특정 단계로 필터 중이면 완료건도 보이게 — '수주확정' 칩 눌렀는데 숫자만 있고 빈 화면 나오던 혼란 방지.
+        # (전체 보기에서만 완료/실주를 숨겨 깔끔하게 유지.)
+        if not show_closed and not stage_f and is_closed:
+            continue
+        if stage_f and o.get("stage") != stage_f:
+            continue
+        o["next_action"] = _opp_next_action(o)
+        rows.append(o)
+    return ctx(request, "sales_opportunities.html", user=u, rows=rows, counts=counts,
+               stages=OPP_STAGES, stage_f=stage_f, show_closed=show_closed,
+               can_money=bool(can_view_sales(u)), can_edit=bool(can_use_sales(u)))
+
+
+@app.get("/sales/opportunities/new", response_class=HTMLResponse)
+async def sales_opportunity_new(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    with db_session() as c:
+        owners = [dict(r) for r in c.execute(
+            "SELECT id, name FROM users WHERE COALESCE(is_active,1)=1 ORDER BY name").fetchall()]
+        quotations = _opp_quotations(c)
+        teams = _teams_for_request(c)
+    return ctx(request, "sales_opportunity_form.html", user=u, opp=None, owners=owners,
+               stages=OPP_STAGES, customers=_logi.customers_for_picker(),
+               quotations=quotations, files={}, promoted=None,
+               teams=teams, dept_requests=[],
+               can_money=bool(can_view_sales(u)), can_edit=True)
+
+
+@app.get("/sales/opportunities/{oid:int}", response_class=HTMLResponse)
+async def sales_opportunity_detail(request: Request, oid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    with db_session() as c:
+        o = c.execute(
+            "SELECT o.*, u.name AS owner_name FROM sales_opportunities o "
+            "LEFT JOIN users u ON u.id=o.owner_user_id WHERE o.id=?", (oid,)).fetchone()
+        if not o:
+            return RedirectResponse("/sales/opportunities", 303)
+        o = dict(o)
+        owners = [dict(r) for r in c.execute(
+            "SELECT id, name FROM users WHERE COALESCE(is_active,1)=1 ORDER BY name").fetchall()]
+        promoted = None
+        if o.get("promoted_project_id"):
+            pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?",
+                           (o["promoted_project_id"],)).fetchone()
+            promoted = dict(pr) if pr else None
+        quotations = _opp_quotations(c)
+        files = _opp_files(c, oid)
+        teams = _teams_for_request(c)
+        dept_requests = _oppreq_list_for_opp(c, oid)
+    o["next_action"] = _opp_next_action(o)
+    return ctx(request, "sales_opportunity_form.html", user=u, opp=o, owners=owners,
+               stages=OPP_STAGES, customers=_logi.customers_for_picker(),
+               quotations=quotations, files=files,
+               teams=teams, dept_requests=dept_requests,
+               promoted=promoted, can_money=bool(can_view_sales(u)), can_edit=bool(can_use_sales(u)))
+
+
+@app.post("/sales/opportunities")
+async def sales_opportunity_create(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    form = await request.form()
+    if not (form.get("title") or "").strip():
+        return RedirectResponse("/sales/opportunities/new?error=title", 303)
+    f = _opp_form_fields(form)
+    with db_session() as c:
+        f2 = {"opp_no": _gen_opp_no(c), "created_by": u.get("id"), **f}
+        cols = list(f2.keys())
+        ph = ",".join("?" * len(cols))
+        cur = c.execute(f"INSERT INTO sales_opportunities({','.join(cols)}) VALUES({ph})",
+                        [f2[k] for k in cols])
+        oid = cur.lastrowid
+    return RedirectResponse(f"/sales/opportunities/{oid}?saved=1", 303)
+
+
+@app.post("/sales/opportunities/{oid:int}/edit")
+async def sales_opportunity_edit(request: Request, oid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    form = await request.form()
+    if not (form.get("title") or "").strip():
+        return RedirectResponse(f"/sales/opportunities/{oid}?error=title", 303)
+    f = _opp_form_fields(form)
+    with db_session() as c:
+        ex = c.execute("SELECT id FROM sales_opportunities WHERE id=?", (oid,)).fetchone()
+        if not ex:
+            return RedirectResponse("/sales/opportunities", 303)
+        sets = ", ".join(f"{k}=?" for k in f.keys()) + ", updated_at=datetime('now','localtime')"
+        c.execute(f"UPDATE sales_opportunities SET {sets} WHERE id=?", list(f.values()) + [oid])
+    return RedirectResponse(f"/sales/opportunities/{oid}?saved=1", 303)
+
+
+@app.post("/sales/opportunities/{oid:int}/promote")
+async def sales_opportunity_promote(request: Request, oid: int):
+    """수주 확정 → 프로젝트(관리코드) 생성 + 영업 기회 연결. 그 뒤 프로젝트에서 제작요청 발행."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    from urllib.parse import quote as _q
+    with db_session() as c:
+        o = c.execute("SELECT * FROM sales_opportunities WHERE id=?", (oid,)).fetchone()
+        if not o:
+            return RedirectResponse("/sales/opportunities", 303)
+        o = dict(o)
+    if o.get("promoted_project_id"):
+        return RedirectResponse(f"/project/{o['promoted_project_id']}", 303)
+    biz = (o.get("biz_div") or "T").strip().upper()
+    if biz not in ("T", "M", "L", "E"):
+        biz = "T"
+    title = o.get("title") or "(영업기회)"
+    model = o.get("model_name") or title
+    try:
+        new_pid, _new_code = _logi.projects_create_logi({
+            "_changed_by": u.get("id"),
+            "force_code": True, "mgmt_code": "",
+            "biz_div": biz, "project_name": title,
+            "customer": o.get("customer_name") or "",
+            "model": model, "equip_name": model,
+            "status": "수주예정",
+            "currency": (o.get("currency") or "KRW"),
+            "order_amount": o.get("expected_amount") or 0,
+            "proposal_date": o.get("proposal_date") or "",
+            "quotation_date": o.get("quotation_date") or "",
+            "note": f"[영업기회 {o.get('opp_no') or oid} 승격] " + (o.get("note") or ""),
+            "project_type": "NEW_EQUIP",
+        })
+    except Exception as e:
+        print(f"[OPP-PROMOTE ERR] {e}")
+        return RedirectResponse(f"/sales/opportunities/{oid}?promote_err={_q(str(e)[:120])}", 303)
+    with db_session() as c:
+        c.execute("UPDATE sales_opportunities SET promoted_project_id=?, status='won', stage='수주확정', "
+                  "updated_at=datetime('now','localtime') WHERE id=?", (new_pid, oid))
+    # 프로젝트 상세에서 '제작요청 발행'(전부서 통보)을 이어서 하도록 안내 플래그와 함께 이동
+    return RedirectResponse(f"/project/{new_pid}?promoted_from_opp={oid}", 303)
+
+
+@app.post("/sales/opportunities/{oid:int}/delete")
+async def sales_opportunity_delete(request: Request, oid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    with db_session() as c:
+        # 승격된(프로젝트 연결) 건은 삭제 금지 — 데이터 연결성 보호
+        c.execute("DELETE FROM sales_opportunities WHERE id=? AND promoted_project_id IS NULL", (oid,))
+    return RedirectResponse("/sales/opportunities", 303)
+
+
+# v5H226z418 (대표 지시): 영업 기회 — 정식 견적서 링크는 폼 필드(quotation_id), 제안·견적 파일 첨부는 아래 업로드.
+_OPP_FILE_EXT = (".pdf", ".xlsx", ".xls", ".docx", ".doc", ".hwp", ".hwpx", ".ppt", ".pptx",
+                 ".jpg", ".jpeg", ".png", ".webp", ".gif", ".zip", ".txt", ".csv")
+
+
+@app.post("/sales/opportunities/{oid:int}/upload")
+async def sales_opportunity_upload(request: Request, oid: int,
+                                   file: UploadFile = File(...), kind: str = Form("etc")):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    kind = (kind or "etc").strip()
+    if kind not in ("meeting", "proposal", "quotation", "etc"):
+        kind = "etc"
+    with db_session() as c:
+        if not c.execute("SELECT id FROM sales_opportunities WHERE id=?", (oid,)).fetchone():
+            return JSONResponse({"ok": False, "error": "notfound"}, 404)
+    orig = file.filename or "file"
+    ext = os.path.splitext(orig)[1].lower()
+    if ext not in _OPP_FILE_EXT:
+        return JSONResponse({"ok": False, "error": f"허용 안 되는 형식: {ext or '없음'}"}, 400)
+    raw = await file.read()
+    if len(raw) > 25 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": f"25MB 이하만 가능 (현재 {len(raw)//1024//1024}MB)"}, 400)
+    if len(raw) < 1:
+        return JSONResponse({"ok": False, "error": "빈 파일"}, 400)
+    import time as _t, re as _re
+    updir = os.path.join("uploads", "opportunities", str(oid))
+    os.makedirs(updir, exist_ok=True)
+    base = _re.sub(r"[^\w.\-]+", "_", os.path.splitext(orig)[0])[:40] or "file"
+    fname = f"{kind}_{int(_t.time())}_{base}{ext}"
+    disk = os.path.join(updir, fname)
+    with open(disk, "wb") as f:
+        f.write(raw)
+    url = "/" + disk.replace("\\", "/")
+    with db_session() as c:
+        cur = c.execute(
+            "INSERT INTO sales_opportunity_files(opp_id, kind, orig_name, url, size, uploaded_by) "
+            "VALUES(?,?,?,?,?,?)", (oid, kind, orig, url, len(raw), u.get("id")))
+        fid = cur.lastrowid
+    return JSONResponse({"ok": True, "id": fid, "kind": kind, "orig_name": orig, "url": url, "size": len(raw)})
+
+
+@app.post("/sales/opportunities/{oid:int}/files/{fid:int}/delete")
+async def sales_opportunity_file_delete(request: Request, oid: int, fid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    with db_session() as c:
+        r = c.execute("SELECT url FROM sales_opportunity_files WHERE id=? AND opp_id=?", (fid, oid)).fetchone()
+        if r:
+            try:
+                disk = (r[0] or "").lstrip("/")
+                if disk and os.path.exists(disk):
+                    os.remove(disk)
+            except Exception:
+                pass
+            c.execute("DELETE FROM sales_opportunity_files WHERE id=? AND opp_id=?", (fid, oid))
+    return JSONResponse({"ok": True})
+
+
+# =====================================================
+# v5H226z421 (대표 지시 2026-06-14): 영업 기회 → 부서 요청 흐름 (수주 전 부서 협업) 1단계
+#   영업(영업기회) → 부서 팀장에게 요청 → 팀장이 PM 지정 → PM이 구성원 추가.
+#   요청 생성 시 팀장에게 메신저(KNK Eum) 푸시 + 인앱 알림. 영업기회 1건당 부서별 1요청.
+#   ※ 활동·시간(h) 기록 + 부서별 집계 대시보드는 2단계.
+# =====================================================
+OPPREQ_STATUS = {
+    "requested": "요청됨", "assigned": "PM 지정", "in_progress": "진행중",
+    "done": "완료", "hold": "보류", "canceled": "취소",
+}
+# z421 2단계: 수주 전 활동 유형 (구성원이 시간 기록)
+ACT_TYPES = ["검토", "시장조사", "기술조사", "제안", "기타"]
+
+
+def _team_leader_id(c, team_id):
+    """부서 팀장 user.id — teams.leader_id 우선, 없으면 그 팀의 role='leader' 활성자."""
+    if not team_id:
+        return None
+    try:
+        r = c.execute("SELECT leader_id FROM teams WHERE id=?", (team_id,)).fetchone()
+        lid = (r[0] if r else None)
+        if lid and c.execute("SELECT 1 FROM users WHERE id=? AND COALESCE(is_active,1)=1", (lid,)).fetchone():
+            return int(lid)
+    except Exception:
+        pass
+    try:
+        r = c.execute("SELECT id FROM users WHERE team_id=? AND role='leader' "
+                      "AND COALESCE(is_active,1)=1 ORDER BY id LIMIT 1", (team_id,)).fetchone()
+        return int(r[0]) if r else None
+    except Exception:
+        return None
+
+
+def _is_team_leader(c, user, team_id) -> bool:
+    """user 가 team_id 부서의 팀장인가 (또는 ceo/admin)."""
+    if not user or not team_id:
+        return False
+    role = (user.get("role") or "").lower()
+    if role in ("ceo", "admin"):
+        return True
+    uid = user.get("id")
+    lid = _team_leader_id(c, team_id)
+    if lid and uid and int(lid) == int(uid):
+        return True
+    if role == "leader" and user.get("team_id") and int(user.get("team_id")) == int(team_id):
+        return True
+    return False
+
+
+def _teams_for_request(c):
+    """요청 대상 부서 목록(display_order)."""
+    try:
+        return [dict(r) for r in c.execute(
+            "SELECT id, name, code FROM teams ORDER BY COALESCE(display_order,999), id").fetchall()]
+    except Exception:
+        return []
+
+
+def _oppreq_members(c, rid):
+    """요청의 PM + 구성원 목록(이름·소속 포함)."""
+    out = []
+    try:
+        for r in c.execute(
+            "SELECT m.id, m.user_id, m.role_in_req, u.name AS user_name, t.name AS team_name "
+            "FROM opp_request_members m LEFT JOIN users u ON u.id=m.user_id "
+            "LEFT JOIN teams t ON t.id=u.team_id "
+            "WHERE m.request_id=? ORDER BY (m.role_in_req='pm') DESC, m.id", (rid,)):
+            out.append(dict(r))
+    except Exception:
+        pass
+    return out
+
+
+def _oppreq_activities(c, rid):
+    """요청의 활동·시간 기록(최근순·기록자 이름 포함)."""
+    out = []
+    try:
+        for r in c.execute(
+            "SELECT a.*, u.name AS user_name FROM opp_request_activities a "
+            "LEFT JOIN users u ON u.id=a.user_id "
+            "WHERE a.request_id=? ORDER BY a.act_date DESC, a.id DESC", (rid,)):
+            out.append(dict(r))
+    except Exception:
+        pass
+    return out
+
+
+def _can_log_activity(c, user, r) -> bool:
+    """user 가 요청 r 에 활동·시간을 기록할 수 있는가 (참여자=PM·구성원, 또는 팀장/관리자)."""
+    if not user:
+        return False
+    uid = user.get("id")
+    if r.get("pm_user_id") and uid and int(r["pm_user_id"]) == int(uid):
+        return True
+    if _is_team_leader(c, user, r.get("team_id")):
+        return True
+    try:
+        if uid and c.execute("SELECT 1 FROM opp_request_members WHERE request_id=? AND user_id=?",
+                             (r.get("id"), uid)).fetchone():
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _oppreq_list_for_opp(c, oid):
+    """한 영업 기회의 부서 요청들(팀명·PM명·구성원·활동시간 포함)."""
+    out = []
+    try:
+        for r in c.execute(
+            "SELECT r.*, t.name AS team_name, pu.name AS pm_name, ru.name AS requester_name "
+            "FROM opp_dept_requests r "
+            "LEFT JOIN teams t ON t.id=r.team_id "
+            "LEFT JOIN users pu ON pu.id=r.pm_user_id "
+            "LEFT JOIN users ru ON ru.id=r.requested_by "
+            "WHERE r.opp_id=? ORDER BY r.id DESC", (oid,)).fetchall():
+            d = dict(r)
+            d["status_label"] = OPPREQ_STATUS.get(d.get("status"), d.get("status"))
+            d["members"] = _oppreq_members(c, d["id"])
+            d["activities"] = _oppreq_activities(c, d["id"])
+            d["total_hours"] = round(sum(float(a.get("hours") or 0) for a in d["activities"]), 1)
+            out.append(d)
+    except Exception:
+        pass
+    return out
+
+
+def _notify_users(c, user_ids, kind, title, body, link):
+    """대상 user_id 들에게 인앱 알림 + 메신저(KNK Eum) 푸시. (실패는 표면화·침묵 금지)"""
+    uids = [int(x) for x in (user_ids or []) if x]
+    if not uids:
+        return {"in_app": 0, "msg_sent": 0, "msg_err": "대상 없음"}
+    in_app = 0
+    for uid in uids:
+        try:
+            c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
+                      (uid, kind, title, body, link))
+            in_app += 1
+        except Exception:
+            pass
+    emp_nos = []
+    try:
+        ph = ",".join("?" * len(uids))
+        erows = c.execute(
+            f"SELECT employee_no FROM users WHERE id IN ({ph}) AND COALESCE(employee_no,'')<>''",
+            tuple(uids)).fetchall()
+        emp_nos = [(er[0] if not isinstance(er, dict) else er["employee_no"]) for er in erows]
+    except Exception:
+        emp_nos = []
+    msg_sent, msg_err = 0, ""
+    try:
+        from . import sso_client
+        _pub = os.environ.get("KNK_WORKS_PUBLIC_BASE", "https://works.knknara.co.kr").rstrip("/")
+        _full = f"{_pub}{link}" if link else ""
+        _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full)
+        if _mres.get("ok"):
+            msg_sent = _mres.get("sent", 0)
+        else:
+            msg_err = _mres.get("error", "메신저 통보 실패")
+    except Exception as _e:
+        msg_err = f"메신저 통보 오류: {str(_e)[:100]}"
+    return {"in_app": in_app, "msg_sent": msg_sent, "msg_err": msg_err}
+
+
+@app.post("/sales/opportunities/{oid:int}/request")
+async def opp_dept_request_create(request: Request, oid: int):
+    """영업 → 부서 요청 생성(영업기회 1건당 부서별 1요청) + 팀장 메신저/인앱 통보."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    form = await request.form()
+    try:
+        team_id = int(form.get("team_id") or 0)
+    except Exception:
+        team_id = 0
+    detail = (form.get("detail") or "").strip()
+    due = (form.get("due_date") or "").strip() or None
+    if not team_id:
+        return RedirectResponse(f"/sales/opportunities/{oid}?req_err=team", 303)
+    had_leader = False
+    with db_session() as c:
+        o = c.execute("SELECT id, opp_no, title FROM sales_opportunities WHERE id=?", (oid,)).fetchone()
+        if not o:
+            return RedirectResponse("/sales/opportunities", 303)
+        o = dict(o)
+        ex = c.execute("SELECT id FROM opp_dept_requests WHERE opp_id=? AND team_id=? "
+                       "AND status != 'canceled'", (oid, team_id)).fetchone()
+        if ex:
+            return RedirectResponse(f"/sales/opportunities/{oid}?req_err=dup", 303)
+        title = o.get("title") or "(영업기회)"
+        cur = c.execute(
+            "INSERT INTO opp_dept_requests(opp_id, team_id, title, detail, due_date, status, requested_by) "
+            "VALUES(?,?,?,?,?, 'requested', ?)", (oid, team_id, title, detail, due, u.get("id")))
+        rid = cur.lastrowid
+        tname = (c.execute("SELECT name FROM teams WHERE id=?", (team_id,)).fetchone() or [""])[0]
+        leader_id = _team_leader_id(c, team_id)
+        if leader_id:
+            had_leader = True
+            ntitle = f"📥 [수주 전 검토요청] {title}"
+            nbody = (f"부서: {tname}\n영업기회: {o.get('opp_no') or oid}\n"
+                     f"요청: {detail or '(상세 없음)'}\n"
+                     + (f"희망기한: {due}\n" if due else "")
+                     + f"요청자: {u.get('name') or '—'}")
+            _notify_users(c, [leader_id], "opp_request", ntitle, nbody, "/dept/requests")
+    flag = "req_ok=1" if had_leader else "req_warn=noleader"
+    return RedirectResponse(f"/sales/opportunities/{oid}?{flag}", 303)
+
+
+@app.post("/sales/opportunities/{oid:int}/request/{rid:int}/cancel")
+async def opp_dept_request_cancel(request: Request, oid: int, rid: int):
+    """영업이 부서 요청 취소(부서별 1요청 제약 해제)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse(role_home(u), 303)
+    with db_session() as c:
+        c.execute("UPDATE opp_dept_requests SET status='canceled', updated_at=datetime('now','localtime') "
+                  "WHERE id=? AND opp_id=?", (rid, oid))
+    return RedirectResponse(f"/sales/opportunities/{oid}?req_ok=cancel", 303)
+
+
+@app.get("/dept/requests", response_class=HTMLResponse)
+async def dept_requests_page(request: Request):
+    """부서 연결 페이지 — 팀장: 우리 팀 요청·PM 지정 / PM: 구성원 추가 / 구성원: 내 할당."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    uid = u.get("id")
+    role = (u.get("role") or "").lower()
+    my_team = u.get("team_id")
+    is_admin = role in ("ceo", "admin")
+    base_sel = ("SELECT r.*, t.name AS team_name, pu.name AS pm_name, ru.name AS requester_name, "
+                "o.opp_no AS opp_no, o.title AS opp_title "
+                "FROM opp_dept_requests r "
+                "LEFT JOIN teams t ON t.id=r.team_id "
+                "LEFT JOIN users pu ON pu.id=r.pm_user_id "
+                "LEFT JOIN users ru ON ru.id=r.requested_by "
+                "LEFT JOIN sales_opportunities o ON o.id=r.opp_id ")
+    with db_session() as c:
+        if is_admin:
+            led_teams = [r[0] for r in c.execute("SELECT id FROM teams").fetchall()]
+        else:
+            led_teams = [r[0] for r in c.execute("SELECT id FROM teams WHERE leader_id=?", (uid,)).fetchall()]
+            if role == "leader" and my_team and my_team not in led_teams:
+                led_teams.append(my_team)
+
+        def _enrich(rows):
+            out = []
+            for r in rows:
+                d = dict(r)
+                d["status_label"] = OPPREQ_STATUS.get(d.get("status"), d.get("status"))
+                d["members"] = _oppreq_members(c, d["id"])
+                d["activities"] = _oppreq_activities(c, d["id"])
+                d["total_hours"] = round(sum(float(a.get("hours") or 0) for a in d["activities"]), 1)
+                out.append(d)
+            return out
+
+        as_leader = []
+        team_members = {}
+        if led_teams:
+            ph = ",".join("?" * len(led_teams))
+            as_leader = _enrich(c.execute(
+                base_sel + f"WHERE r.team_id IN ({ph}) AND r.status != 'canceled' ORDER BY r.id DESC",
+                tuple(led_teams)).fetchall())
+            for tid in led_teams:
+                team_members[tid] = [dict(r) for r in c.execute(
+                    "SELECT id, name FROM users WHERE team_id=? AND COALESCE(is_active,1)=1 ORDER BY name",
+                    (tid,)).fetchall()]
+        as_pm = _enrich(c.execute(
+            base_sel + "WHERE r.pm_user_id=? AND r.status != 'canceled' ORDER BY r.id DESC",
+            (uid,)).fetchall())
+        as_member = _enrich(c.execute(
+            base_sel + "WHERE r.id IN (SELECT request_id FROM opp_request_members "
+            "WHERE user_id=? AND role_in_req='member') "
+            "AND r.status != 'canceled' ORDER BY r.id DESC", (uid,)).fetchall())
+        all_users = [dict(r) for r in c.execute(
+            "SELECT u.id, u.name, t.name AS team_name FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+            "WHERE COALESCE(u.is_active,1)=1 ORDER BY t.name, u.name").fetchall()]
+    return ctx(request, "dept_requests.html", user=u,
+               as_leader=as_leader, as_pm=as_pm, as_member=as_member,
+               team_members=team_members, all_users=all_users,
+               status_map=OPPREQ_STATUS, is_admin=is_admin,
+               act_types=ACT_TYPES, can_boss=bool(can_view_work_patterns(u)))
+
+
+@app.post("/dept/requests/{rid:int}/assign-pm")
+async def dept_request_assign_pm(request: Request, rid: int):
+    """팀장이 요청에 PM 지정 → PM에게 통보."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await request.form()
+    try:
+        pm_uid = int(form.get("pm_user_id") or 0)
+    except Exception:
+        pm_uid = 0
+    with db_session() as c:
+        r = c.execute("SELECT * FROM opp_dept_requests WHERE id=?", (rid,)).fetchone()
+        if not r:
+            return RedirectResponse("/dept/requests", 303)
+        r = dict(r)
+        if not _is_team_leader(c, u, r.get("team_id")):
+            return RedirectResponse("/dept/requests?err=forbidden", 303)
+        if not pm_uid:
+            return RedirectResponse("/dept/requests?err=pm", 303)
+        c.execute("UPDATE opp_dept_requests SET pm_user_id=?, "
+                  "status=CASE WHEN status='requested' THEN 'assigned' ELSE status END, "
+                  "assigned_by=?, assigned_at=datetime('now','localtime'), "
+                  "updated_at=datetime('now','localtime') WHERE id=?", (pm_uid, u.get("id"), rid))
+        try:
+            c.execute("INSERT OR IGNORE INTO opp_request_members(request_id, user_id, role_in_req, added_by) "
+                      "VALUES(?,?, 'pm', ?)", (rid, pm_uid, u.get("id")))
+            c.execute("UPDATE opp_request_members SET role_in_req='pm' WHERE request_id=? AND user_id=?",
+                      (rid, pm_uid))
+        except Exception:
+            pass
+        title = r.get("title") or "요청"
+        _notify_users(c, [pm_uid], "opp_request_pm", f"🧭 [PM 지정] {title}",
+                      f"수주 전 부서 검토요청의 PM으로 지정되었습니다.\n요청: {r.get('detail') or '(상세 없음)'}\n"
+                      f"지정: {u.get('name') or '—'}", "/dept/requests")
+    return RedirectResponse("/dept/requests?ok=pm", 303)
+
+
+@app.post("/dept/requests/{rid:int}/members/add")
+async def dept_request_member_add(request: Request, rid: int):
+    """PM(또는 팀장)이 구성원 추가 → 구성원에게 통보."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await request.form()
+    try:
+        muid = int(form.get("user_id") or 0)
+    except Exception:
+        muid = 0
+    with db_session() as c:
+        r = c.execute("SELECT * FROM opp_dept_requests WHERE id=?", (rid,)).fetchone()
+        if not r:
+            return RedirectResponse("/dept/requests", 303)
+        r = dict(r)
+        is_pm = bool(r.get("pm_user_id") and int(r["pm_user_id"]) == int(u.get("id")))
+        if not (is_pm or _is_team_leader(c, u, r.get("team_id"))):
+            return RedirectResponse("/dept/requests?err=forbidden", 303)
+        if not muid:
+            return RedirectResponse("/dept/requests?err=member", 303)
+        try:
+            c.execute("INSERT OR IGNORE INTO opp_request_members(request_id, user_id, role_in_req, added_by) "
+                      "VALUES(?,?, 'member', ?)", (rid, muid, u.get("id")))
+            c.execute("UPDATE opp_dept_requests SET "
+                      "status=CASE WHEN status IN ('requested','assigned') THEN 'in_progress' ELSE status END, "
+                      "updated_at=datetime('now','localtime') WHERE id=?", (rid,))
+        except Exception:
+            pass
+        title = r.get("title") or "요청"
+        _notify_users(c, [muid], "opp_request_member", f"👥 [구성원 배정] {title}",
+                      f"수주 전 부서 검토요청에 구성원으로 추가되었습니다.\n요청: {r.get('detail') or '(상세 없음)'}",
+                      "/dept/requests")
+    return RedirectResponse("/dept/requests?ok=member", 303)
+
+
+@app.post("/dept/requests/{rid:int}/members/{mid:int}/remove")
+async def dept_request_member_remove(request: Request, rid: int, mid: int):
+    """PM/팀장이 구성원 제거(PM 행은 제거 불가 — 재지정으로 변경)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        r = c.execute("SELECT * FROM opp_dept_requests WHERE id=?", (rid,)).fetchone()
+        if not r:
+            return RedirectResponse("/dept/requests", 303)
+        r = dict(r)
+        is_pm = bool(r.get("pm_user_id") and int(r["pm_user_id"]) == int(u.get("id")))
+        if not (is_pm or _is_team_leader(c, u, r.get("team_id"))):
+            return RedirectResponse("/dept/requests?err=forbidden", 303)
+        c.execute("DELETE FROM opp_request_members WHERE id=? AND request_id=? AND role_in_req!='pm'",
+                  (mid, rid))
+    return RedirectResponse("/dept/requests?ok=memdel", 303)
+
+
+@app.post("/dept/requests/{rid:int}/status")
+async def dept_request_status(request: Request, rid: int):
+    """PM/팀장이 요청 상태 변경(진행중·완료·보류)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await request.form()
+    st = (form.get("status") or "").strip()
+    if st not in OPPREQ_STATUS:
+        return RedirectResponse("/dept/requests?err=status", 303)
+    with db_session() as c:
+        r = c.execute("SELECT * FROM opp_dept_requests WHERE id=?", (rid,)).fetchone()
+        if not r:
+            return RedirectResponse("/dept/requests", 303)
+        r = dict(r)
+        is_pm = bool(r.get("pm_user_id") and int(r["pm_user_id"]) == int(u.get("id")))
+        if not (is_pm or _is_team_leader(c, u, r.get("team_id"))):
+            return RedirectResponse("/dept/requests?err=forbidden", 303)
+        c.execute("UPDATE opp_dept_requests SET status=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (st, rid))
+    return RedirectResponse("/dept/requests?ok=status", 303)
+
+
+# ----- z421 2단계: 구성원 활동·시간(h) 기록 + 수주 전 활동 대시보드(부서별·유형별·대표 전용) -----
+@app.post("/dept/requests/{rid:int}/activities/add")
+async def dept_request_activity_add(request: Request, rid: int):
+    """참여자(PM·구성원)가 활동·시간(h) 기록."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await request.form()
+    atype = (form.get("activity_type") or "기타").strip()
+    if atype not in ACT_TYPES:
+        atype = "기타"
+    try:
+        hours = float(str(form.get("hours") or "0").replace(",", "").strip() or 0)
+    except Exception:
+        hours = 0
+    hours = max(0.0, min(hours, 1000.0))
+    adate = (form.get("act_date") or "").strip() or None
+    memo = (form.get("memo") or "").strip() or None
+    with db_session() as c:
+        r = c.execute("SELECT * FROM opp_dept_requests WHERE id=?", (rid,)).fetchone()
+        if not r:
+            return RedirectResponse("/dept/requests", 303)
+        r = dict(r)
+        if not _can_log_activity(c, u, r):
+            return RedirectResponse("/dept/requests?err=forbidden", 303)
+        if hours <= 0:
+            return RedirectResponse("/dept/requests?err=hours", 303)
+        c.execute("INSERT INTO opp_request_activities(request_id, user_id, activity_type, hours, act_date, memo) "
+                  "VALUES(?,?,?,?, COALESCE(?, date('now','localtime')), ?)",
+                  (rid, u.get("id"), atype, hours, adate, memo))
+        c.execute("UPDATE opp_dept_requests SET "
+                  "status=CASE WHEN status IN ('requested','assigned') THEN 'in_progress' ELSE status END, "
+                  "updated_at=datetime('now','localtime') WHERE id=?", (rid,))
+    return RedirectResponse("/dept/requests?ok=act", 303)
+
+
+@app.post("/dept/requests/{rid:int}/activities/{aid:int}/delete")
+async def dept_request_activity_delete(request: Request, rid: int, aid: int):
+    """본인 기록(또는 PM·팀장)이 활동 기록 삭제."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        r = c.execute("SELECT * FROM opp_dept_requests WHERE id=?", (rid,)).fetchone()
+        if not r:
+            return RedirectResponse("/dept/requests", 303)
+        r = dict(r)
+        a = c.execute("SELECT user_id FROM opp_request_activities WHERE id=? AND request_id=?",
+                      (aid, rid)).fetchone()
+        if not a:
+            return RedirectResponse("/dept/requests", 303)
+        owner = (a[0] if not isinstance(a, dict) else a["user_id"])
+        is_owner = bool(owner and int(owner) == int(u.get("id")))
+        is_pm = bool(r.get("pm_user_id") and int(r["pm_user_id"]) == int(u.get("id")))
+        if not (is_owner or is_pm or _is_team_leader(c, u, r.get("team_id"))):
+            return RedirectResponse("/dept/requests?err=forbidden", 303)
+        c.execute("DELETE FROM opp_request_activities WHERE id=? AND request_id=?", (aid, rid))
+    return RedirectResponse("/dept/requests?ok=actdel", 303)
+
+
+def _presales_activity_agg(c, start, end):
+    """수주 전 활동 집계(기간 내) — 부서별·유형별·인별 시간/건수."""
+    base = ("FROM opp_request_activities a "
+            "JOIN opp_dept_requests r ON r.id=a.request_id "
+            "LEFT JOIN teams t ON t.id=r.team_id "
+            "LEFT JOIN users u ON u.id=a.user_id "
+            "WHERE date(a.act_date) BETWEEN ? AND ?")
+    args = (start, end)
+    out = {}
+    try:
+        out["total_hours"] = round(float(c.execute(
+            f"SELECT COALESCE(SUM(a.hours),0) {base}", args).fetchone()[0] or 0), 1)
+        out["total_count"] = c.execute(f"SELECT COUNT(*) {base}", args).fetchone()[0]
+        out["req_count"] = c.execute(f"SELECT COUNT(DISTINCT a.request_id) {base}", args).fetchone()[0]
+        out["people_count"] = c.execute(f"SELECT COUNT(DISTINCT a.user_id) {base}", args).fetchone()[0]
+        out["by_team"] = [dict(x) for x in c.execute(
+            f"SELECT COALESCE(t.name,'(미지정)') AS name, ROUND(COALESCE(SUM(a.hours),0),1) AS hours, "
+            f"COUNT(*) AS cnt {base} GROUP BY r.team_id ORDER BY hours DESC", args).fetchall()]
+        out["by_type"] = [dict(x) for x in c.execute(
+            f"SELECT COALESCE(a.activity_type,'기타') AS name, ROUND(COALESCE(SUM(a.hours),0),1) AS hours, "
+            f"COUNT(*) AS cnt {base} GROUP BY a.activity_type ORDER BY hours DESC", args).fetchall()]
+        out["by_person"] = [dict(x) for x in c.execute(
+            f"SELECT COALESCE(u.name,'(미상)') AS name, COALESCE(t.name,'') AS team, "
+            f"ROUND(COALESCE(SUM(a.hours),0),1) AS hours, COUNT(*) AS cnt {base} "
+            f"GROUP BY a.user_id ORDER BY hours DESC LIMIT 30", args).fetchall()]
+    except Exception as e:
+        print(f"[PRESALES-AGG ERR] {e}")
+        out = {"total_hours": 0, "total_count": 0, "req_count": 0, "people_count": 0,
+               "by_team": [], "by_type": [], "by_person": []}
+    return out
+
+
+@app.get("/dept/activity-dashboard", response_class=HTMLResponse)
+async def presales_activity_dashboard(request: Request):
+    """수주 전 활동 대시보드 — 부서별·유형별·인별 시간/건수. 열람=대표 전용(can_view_work_patterns)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_work_patterns(u):
+        return RedirectResponse(role_home(u), 303)
+    start, end, label, days = _wp_period(request)
+    with db_session() as c:
+        agg = _presales_activity_agg(c, start, end)
+    with db_session() as c:
+        demo_count = _demo_dept_requests_count(c)
+    return ctx(request, "presales_activity_dashboard.html", user=u, agg=agg,
+               start=start, end=end, label=label, days=days, act_types=ACT_TYPES,
+               demo_count=demo_count)
+
+
+# ----- z421 가상(데모) 데이터 — 검증용. 표식 ZZDEMO 로만 넣고, 한 번에 완전 삭제 (대표 지시: 실제 적용 전 반드시 삭제 가능) -----
+DEMO_OPP_PREFIX = "ZZDEMO-"
+
+
+def _demo_dept_requests_count(c):
+    try:
+        return c.execute("SELECT COUNT(*) FROM sales_opportunities WHERE opp_no LIKE ?",
+                         (DEMO_OPP_PREFIX + "%",)).fetchone()[0]
+    except Exception:
+        return 0
+
+
+def _demo_dept_requests_cleanup(c):
+    """ZZDEMO 표식 영업기회 + 그에 달린 부서요청·구성원·활동·첨부 전부 삭제(실데이터 무관)."""
+    oids = [r[0] for r in c.execute(
+        "SELECT id FROM sales_opportunities WHERE opp_no LIKE ?", (DEMO_OPP_PREFIX + "%",)).fetchall()]
+    rids = []
+    if oids:
+        qm = ",".join("?" * len(oids))
+        rids = [r[0] for r in c.execute(
+            f"SELECT id FROM opp_dept_requests WHERE opp_id IN ({qm})", oids).fetchall()]
+    if rids:
+        qr = ",".join("?" * len(rids))
+        c.execute(f"DELETE FROM opp_request_activities WHERE request_id IN ({qr})", rids)
+        c.execute(f"DELETE FROM opp_request_members WHERE request_id IN ({qr})", rids)
+        c.execute(f"DELETE FROM opp_dept_requests WHERE id IN ({qr})", rids)
+    if oids:
+        qm = ",".join("?" * len(oids))
+        try:
+            c.execute(f"DELETE FROM sales_opportunity_files WHERE opp_id IN ({qm})", oids)
+        except Exception:
+            pass
+        c.execute(f"DELETE FROM sales_opportunities WHERE id IN ({qm})", oids)
+    return {"opps": len(oids), "reqs": len(rids)}
+
+
+def _demo_dept_requests_seed(c):
+    """검증용 가상 데이터 주입 — 전부 ZZDEMO 표식. 재실행 시 기존 데모 먼저 정리(중복 방지).
+    실제 활성 직원을 PM/구성원으로 써서 업무패턴·대시보드가 실제처럼 채워지게 함."""
+    import datetime as _dt
+    _demo_dept_requests_cleanup(c)
+    any_users = [r[0] for r in c.execute(
+        "SELECT id FROM users WHERE COALESCE(is_active,1)=1 ORDER BY id LIMIT 60").fetchall()]
+    if not any_users:
+        return {"opps": 0, "reqs": 0, "acts": 0, "err": "활성 직원이 없습니다"}
+    teams = [dict(r) for r in c.execute(
+        "SELECT id, name FROM teams ORDER BY COALESCE(display_order,999), id").fetchall()]
+    if not teams:
+        return {"opps": 0, "reqs": 0, "acts": 0, "err": "부서(teams)가 없습니다"}
+    eng = [t for t in teams if any(k in (t["name"] or "")
+           for k in ("설계", "소프트", "전장", "검사", "제조", "가공", "품질", "개발"))]
+    pool = eng or teams
+
+    def team_users(tid):
+        return [r[0] for r in c.execute(
+            "SELECT id FROM users WHERE team_id=? AND COALESCE(is_active,1)=1 ORDER BY id LIMIT 6",
+            (tid,)).fetchall()]
+
+    today = _dt.date.today()
+    ATYPES = ["검토", "시장조사", "기술조사", "제안", "기타"]
+    demos = [
+        ("[가상] 삼성 PBA 검사기 신규 문의", "(주)삼성전자", "T", "PBA-INSP-2026"),
+        ("[가상] 배터리 모듈 자동화 라인", "이차전지 고객사", "M", "BAT-AUTO-LINE"),
+        ("[가상] 전장 부품 검사 설비", "전장 고객사", "T", "EE-INSP-200"),
+        ("[가상] 베트남공장 조립 자동화", "KNK Vina", "M", "VN-ASSY-AUTO"),
+        ("[가상] 반도체 외관 검사기", "반도체 고객사", "T", "SEMI-VIS-100"),
+    ]
+    ym = today.strftime("%y%m")
+    opps = reqs = acts = 0
+    seq = 1
+    for i, (title, cust, biz, model) in enumerate(demos):
+        owner = any_users[i % len(any_users)]
+        opp_no = f"{DEMO_OPP_PREFIX}{ym}-{seq:03d}"
+        seq += 1
+        oid = c.execute(
+            "INSERT INTO sales_opportunities(opp_no,title,customer_name,biz_div,model_name,owner_user_id,"
+            "expected_amount,currency,stage,status,note) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (opp_no, title, cust, biz, model, owner, 50000000 * (i + 1), "KRW", "제안", "active",
+             "[가상 데이터] 검증용 · 실제 적용 전 삭제하세요")).lastrowid
+        opps += 1
+        nreq = 1 + (i % 2)
+        for j in range(nreq):
+            t = pool[(i + j) % len(pool)]
+            tu = team_users(t["id"]) or any_users
+            pm = tu[0]
+            members = tu[1:3] if len(tu) > 1 else []
+            due = (today + _dt.timedelta(days=7 + j * 5)).isoformat()
+            rid = c.execute(
+                "INSERT INTO opp_dept_requests(opp_id,team_id,title,detail,due_date,status,pm_user_id,"
+                "requested_by,assigned_by,assigned_at) VALUES(?,?,?,?,?,?,?,?,?,datetime('now','localtime'))",
+                (oid, t["id"], title, f"[가상] {t['name']} 수주 전 기술검토·조사 요청", due,
+                 "in_progress", pm, owner, owner)).lastrowid
+            reqs += 1
+            c.execute("INSERT OR IGNORE INTO opp_request_members(request_id,user_id,role_in_req,added_by) "
+                      "VALUES(?,?,?,?)", (rid, pm, "pm", owner))
+            for m in members:
+                c.execute("INSERT OR IGNORE INTO opp_request_members(request_id,user_id,role_in_req,added_by) "
+                          "VALUES(?,?,?,?)", (rid, m, "member", pm))
+            doers = [pm] + members
+            for k in range(3 + (i + j) % 3):
+                doer = doers[k % len(doers)]
+                at = ATYPES[k % 4]
+                hrs = [1.0, 2.0, 4.0, 0.5, 8.0][k % 5]
+                ad = (today - _dt.timedelta(days=(k * 3 + j) % 25)).isoformat()
+                c.execute("INSERT INTO opp_request_activities(request_id,user_id,activity_type,hours,act_date,memo) "
+                          "VALUES(?,?,?,?,?,?)", (rid, doer, at, hrs, ad, f"[가상] {at} 진행"))
+                acts += 1
+    return {"opps": opps, "reqs": reqs, "acts": acts}
+
+
+@app.post("/dept/demo/seed")
+async def dept_demo_seed(request: Request):
+    """검증용 가상 데이터 넣기 — 대표 전용. ZZDEMO 표식."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_work_patterns(u):
+        return RedirectResponse(role_home(u), 303)
+    with db_session() as c:
+        res = _demo_dept_requests_seed(c)
+    if res.get("err"):
+        return RedirectResponse("/dept/activity-dashboard?demo=err", 303)
+    return RedirectResponse(f"/dept/activity-dashboard?demo=seeded&n={res['acts']}", 303)
+
+
+@app.post("/dept/demo/cleanup")
+async def dept_demo_cleanup(request: Request):
+    """검증용 가상 데이터 전부 삭제 — 대표 전용. 실데이터 무관."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_work_patterns(u):
+        return RedirectResponse(role_home(u), 303)
+    with db_session() as c:
+        res = _demo_dept_requests_cleanup(c)
+    return RedirectResponse(f"/dept/activity-dashboard?demo=cleaned&n={res['opps']}", 303)
+
+
 @app.get("/projects/{pid:int}/orders/{so_id:int}/export-xlsx")
 async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     """v5H226i: 수주(SO) 라인 항목을 엑셀로 다운로드.
@@ -8803,6 +10643,7 @@ async def sales_order_item_edit(req: Request, iid: int):
     u_description = form.get("description")
     u_pallet = form.get("pallet_size")
     u_weight, _ = _opt_float("weight_kg")
+    u_material_no = form.get("material_no")   # v5H226z441: 자재번호(자유입력)
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -8872,6 +10713,8 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("box_no=?"); vals_set.append((u_box or "").strip() or None)
             if u_spec is not None and "spec" in _oicols:
                 cols_set.append("spec=?"); vals_set.append((u_spec or "").strip() or None)
+            if u_material_no is not None and "material_no" in _oicols:   # v5H226z441: 자재번호
+                cols_set.append("material_no=?"); vals_set.append((u_material_no or "").strip() or None)
             if u_arrival is not None and "arrival_status" in _oicols:
                 cols_set.append("arrival_status=?"); vals_set.append((u_arrival or "").strip() or None)
             if u_supplier is not None and "supplier" in _oicols:
@@ -10861,13 +12704,13 @@ async def mail_inbound(req: Request):
          "from_email": d.get("from") or "", "from_name": d.get("from_name") or "",
          "subject": d.get("subject") or "", "text": d.get("text") or "",
          "html": d.get("html") or "", "cc": d.get("cc") or "",
-         "size": d.get("size") or 0}
+         "size": d.get("size") or 0, "message_id": d.get("message_id") or ""}
     raw = d.get("raw") or ""
     _atts = None
     if raw:
         parsed = _mailbox.parse_raw_email(raw)
         if parsed:
-            for k in ("from_email", "from_name", "subject", "text", "html", "cc"):
+            for k in ("from_email", "from_name", "subject", "text", "html", "cc", "message_id"):
                 if parsed.get(k):
                     f[k] = parsed[k]
             if not f["to_email"] and parsed.get("to_email"):
@@ -10882,7 +12725,7 @@ async def mail_inbound(req: Request):
             c, to_email=f["to_email"], from_email=f["from_email"],
             from_name=f["from_name"], subject=f["subject"], text=f["text"],
             html=f["html"], cc=f["cc"], size=f["size"], run_ai=True,
-            attachments=_atts,
+            attachments=_atts, message_id=f.get("message_id", ""),
         )
     if not mid:
         # 데이터 연결성 원칙: 조용히 버리지 않고 사유 표면화
@@ -10974,6 +12817,113 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
 
 # ── 메일 = 설치형 앱(PWA) — KNK Eum 처럼 바탕화면/홈 아이콘으로 설치 (대표 지시 2026-06-14) ──
 _MAIL_PWA_ICON_CACHE = {}
+# =====================================================
+# v5H226z422 (대표 지시): KNK Eum WORKS — 설치형 앱(PWA). 시스템 기본 이름 'KNK Eum' 아래
+#   WORKS/MAIL/메신저 통일. WORKS도 메일(KNK Eum MAIL)·메신저(KNK Eum)처럼 바탕화면/홈 아이콘·
+#   독립 창으로 설치 가능. scope '/' (앱 전체). 아이콘=KNK 빨강 라운드 + 흰 '음'(KNK Eum 정체성).
+# =====================================================
+#   v5H226z426 (대표 지시): 아이콘이 빨강만 나오는 문제 — NAS 에 한글폰트가 없어 PNG '음' 렌더 실패.
+#   → '음'(ㅇ 원 + ㅡ 가로획 + ㅁ 네모)을 **폰트 없이 도형으로** 그림(어느 서버에서나 동일).
+_WORKS_PWA_ICON_SVG = (
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>"
+    "<rect width='512' height='512' rx='104' fill='#A5282C'/>"
+    "<ellipse cx='256' cy='150' rx='92' ry='68' fill='none' stroke='#fff' stroke-width='26'/>"
+    "<rect x='148' y='236' width='216' height='26' rx='13' fill='#fff'/>"
+    "<rect x='170' y='292' width='172' height='122' rx='12' fill='none' stroke='#fff' stroke-width='26'/>"
+    "</svg>"
+)
+_WORKS_PWA_ICON_CACHE = {}
+
+
+def _works_pwa_icon_png(size: int) -> bytes:
+    """KNK 빨강 라운드(풀블리드 maskable) + 흰 '음'. 폰트 의존 없이 도형(ㅇ 원·ㅡ 가로획·ㅁ 네모)으로
+    그림 → NAS 등 한글폰트 없는 환경에서도 항상 '음'이 보임(폰트 폴백으로 빨강만 나오던 문제 해결)."""
+    if size in _WORKS_PWA_ICON_CACHE:
+        return _WORKS_PWA_ICON_CACHE[size]
+    from PIL import Image, ImageDraw
+    import io as _io
+    S = size
+    W = (255, 255, 255, 255)
+    img = Image.new("RGBA", (S, S), (165, 40, 44, 255))   # KNK 빨강 #A5282C 풀블리드
+    d = ImageDraw.Draw(img)
+    sw = max(3, int(round(S * 0.05)))
+    # ㅇ (원/링)
+    d.ellipse([int(S * 0.320), int(S * 0.160), int(S * 0.680), int(S * 0.426)], outline=W, width=sw)
+    # ㅡ (가로획)
+    by = int(S * 0.460)
+    d.rounded_rectangle([int(S * 0.289), by, int(S * 0.711), by + sw], radius=sw // 2, fill=W)
+    # ㅁ (네모)
+    d.rounded_rectangle([int(S * 0.332), int(S * 0.570), int(S * 0.668), int(S * 0.808)],
+                        radius=max(2, int(S * 0.024)), outline=W, width=sw)
+    buf = _io.BytesIO(); img.save(buf, "PNG")
+    data = buf.getvalue(); _WORKS_PWA_ICON_CACHE[size] = data
+    return data
+
+
+@app.get("/manifest.webmanifest")
+async def works_manifest():
+    return JSONResponse({
+        "id": "/?app=works",
+        "name": "KNK Eum WORKS",
+        "short_name": "Eum WORKS",
+        "description": "KNK Eum WORKS — 통합 업무 시스템",
+        "start_url": "/app",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#A5282C",
+        "lang": "ko",
+        "icons": [
+            {"src": "/icon-192.png?v=2", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/icon-512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/icon.svg?v=2", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+        ],
+        "categories": ["business", "productivity"],
+        # v5H226z424 (대표 지시): 메신저 등에서 앱 범위(/) 링크 클릭 시 '브라우저'가 아니라
+        #   '설치된 KNK Eum WORKS 앱'으로 열리게(링크 캡처). 이미 열려 있으면 그 창으로.
+        "launch_handler": {"client_mode": ["focus-existing", "auto"]},
+        "handle_links": "preferred",
+    }, media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+async def works_sw():
+    js = (
+        "// KNK Eum WORKS PWA 서비스워커 — 설치 가능 + 네트워크 기본(pass-through)\n"
+        "const KNKWORKS_V='knkworks-v1';\n"
+        "self.addEventListener('install',function(e){self.skipWaiting();});\n"
+        "self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim());});\n"
+        "self.addEventListener('fetch',function(e){});\n"
+    )
+    return Response(js, media_type="application/javascript",
+                    headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
+@app.get("/icon-{size:int}.png")
+async def works_icon_png(size: int):
+    if size not in (180, 192, 512):
+        size = 192
+    return Response(_works_pwa_icon_png(size), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/icon.svg")
+async def works_icon_svg():
+    return Response(_WORKS_PWA_ICON_SVG, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/app")
+async def works_app_launch(req: Request):
+    """설치형 앱 시작 주소 — v5H226z425(대표 지시): 항상 KNK Eum 메신저 SSO 경유(세션 쿠키 지름길 없음)하되,
+    **메신저에 로그인돼 있으면 자동 로그인**(force 제거 = SSO 단일 로그인). 메신저 로그아웃 상태면 메신저 로그인 화면.
+    보안은 세션 비영구화(max_age None)로 유지 — 앱/브라우저 닫으면 만료 → 다시 열 때 메신저 재검증(권한 회수 반영)."""
+    from urllib.parse import quote
+    from . import sso_client
+    redirect_uri = _WORKS_PUBLIC_BASE + "/sso/land?next=" + quote("/home?app=1", safe="")
+    return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
+
+
 _MAIL_PWA_ICON_SVG = (
     "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>"
     "<rect width='512' height='512' rx='104' fill='#A5282C'/>"
@@ -11007,9 +12957,9 @@ def _mail_pwa_icon_png(size: int) -> bytes:
 async def mail_manifest():
     return JSONResponse({
         "id": "/mail/app",
-        "name": "KNK 메일",
-        "short_name": "메일",
-        "description": "KNK 사내 메일 — HAIST WORKS",
+        "name": "KNK Eum MAIL",
+        "short_name": "Eum MAIL",
+        "description": "KNK Eum MAIL — 사내 메일",
         "start_url": "/mail/app",
         "scope": "/mail/",
         "display": "standalone",
@@ -11023,6 +12973,9 @@ async def mail_manifest():
             {"src": "/mail/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
         ],
         "categories": ["business", "productivity"],
+        # v5H226z424 (대표 지시): /mail 범위 링크 클릭 시 '설치된 KNK Eum MAIL 앱'으로 열림(링크 캡처).
+        "launch_handler": {"client_mode": ["focus-existing", "auto"]},
+        "handle_links": "preferred",
     }, media_type="application/manifest+json")
 
 
@@ -11055,10 +13008,8 @@ async def mail_icon_svg():
 
 @app.get("/mail/app")
 async def mail_app_launch(req: Request):
-    # 설치형 앱 시작 주소 — 로그인돼 있으면 받은편지함(앱모드), 아니면 KNK Eum SSO 거쳐 자동 로그인 후 복귀
-    u = get_user(req)
-    if u:
-        return RedirectResponse("/mail/inbox?app=1", 303)
+    # 설치형 앱 시작 주소 — v5H226z425(대표 지시): 항상 메신저 SSO 경유하되 메신저 로그인돼 있으면 자동 로그인
+    #   (force 제거 = SSO 단일 로그인). 보안은 세션 비영구화로 유지(닫으면 만료→재검증).
     from urllib.parse import quote
     from . import sso_client
     redirect_uri = _WORKS_PUBLIC_BASE + "/sso/land?next=" + quote("/mail/inbox?app=1", safe="")
@@ -11689,6 +13640,277 @@ async def admin_mail_send_save(req: Request):
             c.execute("INSERT INTO app_settings(key, value) VALUES('mail_from_address', ?) "
                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (from_addr,))
     return RedirectResponse("/admin/mail-send?saved=1", 303)
+
+
+# ── 메일 가져오기(IMAP) — 하이웍스 등 기존 메일을 KNK 메일로 당겨오기 (방법 B, 대표 지시 2026-06-14) ──
+@app.get("/admin/mail-fetch", response_class=HTMLResponse)
+async def admin_mail_fetch_page(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    from . import mail_fetch as _mailfetch
+    with db_session() as c:
+        acct = _mailfetch.get_account(c, u["id"])
+    return ctx(req, "admin_mail_fetch.html", user=u, active="admin",
+               acct=acct, key_ok=_mail.mail_available(), owner_name=(u.get("name") or "본인"))
+
+
+@app.post("/admin/mail-fetch/save")
+async def admin_mail_fetch_save(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    if not _mail.mail_available():
+        return JSONResponse({"ok": False, "message": "메일 암호화 키(KNK_MAIL_KEY)가 서버에 없습니다. 전산담당자에게 .env 등록 요청."}, 400)
+    from . import mail_fetch as _mailfetch
+    form = await req.form()
+    password = (form.get("password") or "")
+    pw_enc = _mail.encrypt(password) if password else None   # 미입력이면 기존 비번 유지
+    with db_session() as c:
+        _mailfetch.save_account(c, u["id"],
+                                protocol=(form.get("protocol") or "pop3").strip().lower(),
+                                host=(form.get("host") or "").strip(),
+                                port=(form.get("port") or "").strip(),
+                                use_ssl=bool(form.get("ssl")),
+                                username=(form.get("user") or "").strip(),
+                                password_enc=pw_enc, label="하이웍스")
+    return JSONResponse({"ok": True})
+
+
+def _mailfetch_creds(c, u, form=None):
+    """폼 우선, 없으면 저장값. (protocol,host,port,ssl,user,pw,acct) 반환."""
+    from . import mail_fetch as _mailfetch
+    acct = _mailfetch.get_account(c, u["id"])
+    if form is not None:
+        protocol = (form.get("protocol") or (acct.get("protocol") if acct else "pop3") or "pop3").strip().lower()
+        host = (form.get("host") or "").strip()
+        port = (form.get("port") or "").strip()
+        ssl = bool(form.get("ssl"))
+        user = (form.get("user") or "").strip()
+        pw = (form.get("password") or "")
+    else:
+        protocol = ((acct.get("protocol") if acct else "pop3") or "pop3")
+        host = acct.get("host") if acct else ""
+        port = acct.get("port") if acct else 995
+        ssl = bool(acct.get("use_ssl")) if acct else True
+        user = acct.get("username") if acct else ""
+        pw = ""
+    if not pw and acct:
+        pw = _mail.decrypt(acct.get("password_enc") or "")
+    return protocol, host, port, ssl, user, pw, acct
+
+
+@app.post("/admin/mail-fetch/test")
+async def admin_mail_fetch_test(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    from . import mail_fetch as _mailfetch
+    from starlette.concurrency import run_in_threadpool
+    form = await req.form()
+    with db_session() as c:
+        protocol, host, port, ssl, user, pw, _acct = _mailfetch_creds(c, u, form)
+    if not (host and user and pw):
+        return JSONResponse({"ok": False, "message": "서버·계정·비밀번호를 입력하세요."})
+    res = await run_in_threadpool(_mailfetch.test_connection, protocol, host, port, ssl, user, pw)
+    return JSONResponse(res)
+
+
+@app.post("/admin/mail-fetch/start-point")
+async def admin_mail_fetch_startpoint(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    from . import mail_fetch as _mailfetch
+    from starlette.concurrency import run_in_threadpool
+    with db_session() as c:
+        protocol, host, port, ssl, user, pw, acct = _mailfetch_creds(c, u, None)
+    if not acct or not (host and user and pw):
+        return JSONResponse({"ok": False, "message": "먼저 계정·비밀번호를 저장하세요."}, 400)
+    if protocol == "imap":
+        res = await run_in_threadpool(_mailfetch.imap_current_max_uid, host, port, ssl, user, pw)
+        if not res.get("ok"):
+            return JSONResponse({"ok": False, "message": res.get("message", "연결 실패")})
+        with db_session() as c:
+            _mailfetch.set_status(c, u["id"], last_uid=res["uid"], status="시작점 설정(uid=%d)" % res["uid"])
+        return JSONResponse({"ok": True, "uid": res["uid"]})
+    # POP3: 지금 메일함의 모든 UIDL 을 seen 으로 표시(가져오지 않음) → 이후 새 메일만
+    res = await run_in_threadpool(_mailfetch.pop3_uidls, host, port, ssl, user, pw)
+    if not res.get("ok"):
+        return JSONResponse({"ok": False, "message": res.get("message", "연결 실패")})
+    uidls = [uidl for (_num, uidl) in res.get("items", [])]
+    with db_session() as c:
+        _mailfetch.add_seen(c, acct["id"], uidls)
+        _mailfetch.set_status(c, u["id"], status="시작점 설정(%d통 표시)" % len(uidls))
+    return JSONResponse({"ok": True, "uid": len(uidls)})
+
+
+@app.post("/admin/mail-fetch/run")
+async def admin_mail_fetch_run(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    from . import mail_fetch as _mailfetch
+    from starlette.concurrency import run_in_threadpool
+    with db_session() as c:
+        protocol, host, port, ssl, user, pw, acct = _mailfetch_creds(c, u, None)
+    if not acct or not (host and user and pw):
+        return JSONResponse({"ok": False, "message": "먼저 계정·비밀번호를 저장하세요."}, 400)
+    if protocol == "imap":
+        res = await run_in_threadpool(_mailfetch.imap_collect, host, port, ssl, user, pw, acct.get("last_uid") or 0)
+    else:
+        with db_session() as c:
+            seen = _mailfetch.get_seen(c, acct["id"])
+        res = await run_in_threadpool(_mailfetch.pop3_collect, host, port, ssl, user, pw, seen)
+    if not res.get("ok"):
+        with db_session() as c:
+            _mailfetch.set_status(c, u["id"], status="실패: " + res.get("error", ""))
+        return JSONResponse({"ok": False, "message": "가져오기 실패: " + res.get("error", "")})
+    stored = 0
+    ai_on = ai_enabled_for(u)
+    with db_session() as c:
+        for key, raw in res.get("messages", []):
+            try:
+                parsed = _mailbox.parse_raw_email(raw)
+                if not parsed:
+                    continue
+                mid, _own = _mailbox.store_inbound(
+                    c, to_email=(parsed.get("to_email") or user),
+                    from_email=parsed.get("from_email", ""), from_name=parsed.get("from_name", ""),
+                    subject=parsed.get("subject", ""), text=parsed.get("text", ""),
+                    html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
+                    owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""))
+                if mid:
+                    stored += 1
+            except Exception:
+                pass
+        if protocol == "imap":
+            _mailfetch.set_status(c, u["id"], last_uid=res.get("max_uid", acct.get("last_uid") or 0),
+                                  status="가져오기 %d건" % stored, count=stored)
+        else:
+            # 받아본 UIDL 전부 seen 처리(중복·오류메일 재시도 루프 방지)
+            _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
+            _mailfetch.set_status(c, u["id"], status="가져오기 %d건" % stored, count=stored)
+    return JSONResponse({"ok": True, "count": stored})
+
+
+# ── 휴지통 · 완전삭제(서버에서 진짜 제거) · 오래된 메일 일괄정리 (대표 지시 2026-06-14) ──
+@app.get("/mail/trash", response_class=HTMLResponse)
+async def mail_trash_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        mails = _mailbox.list_trash(c, u["id"])
+        unread = _mailbox.count_unread(c, u["id"])
+        drafts_n = _mailbox.count_drafts(c, u["id"])
+    return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
+               cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
+               ai_on=ai_enabled_for(u), box="trash", drafts_n=drafts_n)
+
+
+@app.post("/mail/{mail_id:int}/restore")
+async def mail_restore(req: Request, mail_id: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        ok_r = _mailbox.restore_mail(c, mail_id, u["id"])
+    return JSONResponse({"ok": ok_r})
+
+
+@app.post("/mail/{mail_id:int}/purge")
+async def mail_purge_one(req: Request, mail_id: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        ok_r = _mailbox.hard_delete_mail(c, mail_id, u["id"])
+    return JSONResponse({"ok": ok_r})
+
+
+@app.post("/mail/trash/empty")
+async def mail_trash_empty(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        n = _mailbox.empty_trash(c, u["id"])
+    return JSONResponse({"ok": True, "count": n})
+
+
+@app.post("/mail/dedup")
+async def mail_dedup(req: Request):
+    """받은편지함의 '진짜 같은 메일' 중복을 1통만 남기고 정리(휴지통). 답장 스레드 불가침."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        n = _mailbox.dedup_inbox(c, u["id"])
+    return JSONResponse({"ok": True, "removed": n,
+                         "message": (f"같은 메일 {n}통을 정리했어요(휴지통으로). 답장은 안 건드렸습니다."
+                                     if n else "정리할 중복이 없습니다.")})
+
+
+def _purge_cutoff_iso(months) -> str:
+    from datetime import datetime, timedelta
+    try:
+        m = max(1, int(months or 12))
+    except Exception:
+        m = 12
+    return (datetime.now() - timedelta(days=m * 30)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+@app.get("/admin/mail-purge", response_class=HTMLResponse)
+async def admin_mail_purge_page(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    with db_session() as c:
+        trash_n = _mailbox.count_trash(c, u["id"])
+    return ctx(req, "admin_mail_purge.html", user=u, active="admin", trash_n=trash_n)
+
+
+@app.post("/admin/mail-purge/preview")
+async def admin_mail_purge_preview(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    form = await req.form()
+    before = _purge_cutoff_iso(form.get("months") or 12)
+    with db_session() as c:
+        n = _mailbox.purge_old_count(c, u["id"], before)
+    return JSONResponse({"ok": True, "count": n, "before": before[:10]})
+
+
+@app.post("/admin/mail-purge/run")
+async def admin_mail_purge_run(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    form = await req.form()
+    before = _purge_cutoff_iso(form.get("months") or 12)
+    with db_session() as c:
+        n = _mailbox.purge_old(c, u["id"], before)
+    return JSONResponse({"ok": True, "count": n, "before": before[:10]})
+
+
+@app.post("/admin/mail-purge/vacuum")
+async def admin_mail_purge_vacuum(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    import sqlite3
+    from .database import DB_PATH
+    try:
+        conn = sqlite3.connect(DB_PATH, isolation_level=None, timeout=60)
+        conn.execute("VACUUM")
+        conn.close()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": "%s" % (str(e)[:120])})
 
 
 def _customer_contacts_from_form(form) -> list[dict]:
@@ -14514,6 +16736,12 @@ def _board_split_lines_map():
             _oi_cols = {r[1] for r in _c.execute("PRAGMA table_info(order_items)").fetchall()}
             _has_extra = ("due_date" in _oi_cols and "ship_to" in _oi_cols
                           and "order_date" in _oi_cols and "currency" in _oi_cols)
+            # v5H226z443 (대표 지시): 호기 분할(단가/납기 상이→호기당 1줄)은 '제품(장비)' 전용.
+            #   상품(PARTS_EXPORT)·소모품(CONSUMABLE) SO 라인은 '소모품 개념' = 작업일정표 1줄 → 분할 제외.
+            #   (부품 PACKING LIST 의 여러 자재를 호기처럼 여러 줄로 쪼개던 버그 수정)
+            _ord_cols = {r[1] for r in _c.execute("PRAGMA table_info(orders)").fetchall()}
+            _excl_sotype = (" AND COALESCE(o.so_type,'') NOT IN ('PARTS_EXPORT','CONSUMABLE') "
+                            if "so_type" in _ord_cols else "")
             if _has_extra:
                 _sql = (
                     "SELECT o.project_id AS pid, o.order_no AS so_no, "
@@ -14523,6 +16751,7 @@ def _board_split_lines_map():
                     "oi.order_date AS i_ord, oi.due_date AS i_due, oi.ship_to AS i_ship, oi.currency AS i_cur "
                     "FROM order_items oi JOIN orders o ON oi.order_id=o.id "
                     "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
+                    + _excl_sotype +
                     "ORDER BY o.project_id, oi.id"
                 )
             else:
@@ -14534,6 +16763,7 @@ def _board_split_lines_map():
                     "'' AS i_ord, '' AS i_due, '' AS i_ship, '' AS i_cur "
                     "FROM order_items oi JOIN orders o ON oi.order_id=o.id "
                     "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
+                    + _excl_sotype +
                     "ORDER BY o.project_id, oi.id"
                 )
             _by: dict = {}
@@ -15948,7 +18178,11 @@ async def projects_new_submit(request: Request):
     _multi_v = (form.get("multi_unit") or "").strip() in ("1", "on", "true", "yes")
     # v5H222: 소모품(CONSUMABLE)은 라인이 비어있는 상태로 등록 → 단가/수량 검증 면제
     _is_consumable = (_ptype_form == "CONSUMABLE")
-    _strict = (_status_v in ("진행중", "납품완료") or _confirm_now_v) and not _is_consumable
+    # v5H226z436 (대표 지시): 형태=상품(부품 PACKING LIST)은 부품 표(품명·모델·수량·단가)로 입력 →
+    #   헤더 '단가·발주일·납품일' 강제 면제(금액=부품 합계, 날짜는 후속/상세). 신규·추가발주 공통.
+    #   부품 자체는 아래에서 '수주확정' 체크 시 저장(parts_need_confirm 가드).
+    _is_parts_reg = (form.get("shipment_form") or "").strip().upper() == "PARTS"
+    _strict = (_status_v in ("진행중", "납품완료") or _confirm_now_v) and not _is_consumable and not _is_parts_reg
     # PO유형은 항상 필수 (관리코드 산출 키)
     if not po_type_v:
         return _err_redirect("po_type_required")
@@ -16047,32 +18281,96 @@ async def projects_new_submit(request: Request):
                 with db_session() as _ccx:
                     _crx = _ccx.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (customer.strip(),)).fetchone()
                 _fu_cust_id = _crx[0] if _crx else None
-            # 호기 확정 단가(첫 유효값) → 1대 단가, 호기 수 → qty (없으면 예상 단가/수량 폴백)
-            _fu_units = form.getlist("unit_amount[]")
-            _fu_price = 0.0
-            for _ua in _fu_units:
-                try:
-                    _v = float((_ua or "0").replace(",", ""))
-                except ValueError:
-                    _v = 0
-                if _v > 0:
-                    _fu_price = _v
-                    break
-            if _fu_price <= 0:
-                _fu_price = unit_price if unit_price > 0 else 0.0
-            _fu_qty = len([1 for _x in _fu_units if (_x or "").strip()]) or unit_qty
-            _fu_sotype = {"NEW_EQUIP": "EQUIPMENT", "CONSUMABLE": "CONSUMABLE",
-                          "SERVICE": "SERVICE", "OTHER": "OTHER"}.get(_ptype, "EQUIPMENT")
-            with db_session() as _cc3:
-                _pwf.add_followup_order(
-                    _cc3, _existing["id"], order_date=order_date_v,
-                    total_amount=_fu_price, due_date=due_date_v,
-                    created_by=_u.get("id"), po_number=form.get("customer_po", ""),
-                    note=form.get("note", ""), qty=_fu_qty,
-                    so_type=_fu_sotype, currency=_ccy_v, ship_to="",
-                    order_customer_id=_fu_cust_id)
+            # v5H226z436 (대표 지시): 형태=상품 + PO=추가 → 부품(pk_*)을 '기존 프로젝트'의 PARTS 수주로 저장.
+            #   신규 등록 z430 과 동일 패턴: 빈 PARTS SO(PARTS_EXPORT) + 부품마다 order_items(품명·모델=규격·수량·단가).
+            #   → 002M2509 같은 기존 프로젝트 상세 PACKING LIST 에 그대로 나타남. (이전엔 부품 무시되고 EQUIPMENT SO만 생겼음)
+            _fu_sf = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
+            if _fu_sf == "PARTS":
+                _fu_parts = []
+                _pn = form.getlist("pk_name[]"); _pm = form.getlist("pk_model[]")
+                _pq = form.getlist("pk_qty[]"); _pp = form.getlist("pk_price[]")
+                _pmat = form.getlist("pk_matno[]"); _pmk = form.getlist("pk_maker[]")  # v5H226z441
+                _psup = form.getlist("pk_supplier[]"); _pnt = form.getlist("pk_note[]")
+                for _i in range(len(_pn)):
+                    _nm = (_pn[_i] or "").strip()
+                    _md = ((_pm[_i] if _i < len(_pm) else "") or "").strip()
+                    if not _nm and not _md:
+                        continue
+                    try:
+                        _qy = float(((_pq[_i] if _i < len(_pq) else "1") or "1").replace(",", ""))
+                    except ValueError:
+                        _qy = 1.0
+                    if _qy <= 0:
+                        _qy = 1.0
+                    try:
+                        _prc = float(((_pp[_i] if _i < len(_pp) else "0") or "0").replace(",", ""))
+                    except ValueError:
+                        _prc = 0.0
+                    _fu_parts.append({"name": _nm or _md, "model": _md, "qty": _qy,
+                                      "price": _prc, "amount": round(_qy * _prc, 2),
+                                      "matno": ((_pmat[_i] if _i < len(_pmat) else "") or "").strip(),
+                                      "maker": ((_pmk[_i] if _i < len(_pmk) else "") or "").strip(),
+                                      "supplier": ((_psup[_i] if _i < len(_psup) else "") or "").strip(),
+                                      "note": ((_pnt[_i] if _i < len(_pnt) else "") or "").strip()})
+                with db_session() as _cc3:
+                    _pres = _pwf.confirm_order_multi(
+                        _cc3, int(_existing["id"]), units=[],
+                        order_date=order_date_v, created_by=_u.get("id") or 0,
+                        po_number=form.get("customer_po", ""), so_type="PARTS_EXPORT")
+                    _po_oid = ((_pres.get("groups") or [{}])[0].get("order_id")) if isinstance(_pres, dict) else None
+                    if _po_oid and _fu_parts:
+                        _oicols = {r[1] for r in _cc3.execute("PRAGMA table_info(order_items)").fetchall()}
+                        for _pp2 in _fu_parts:
+                            _row = {"order_id": _po_oid, "qty": _pp2["qty"],
+                                    "unit_price": _pp2["price"], "amount": _pp2["amount"],
+                                    "unit_label": _pp2["name"], "spec": _pp2["model"],
+                                    "material_no": _pp2.get("matno") or None,
+                                    "maker": _pp2.get("maker") or None,
+                                    "supplier": _pp2.get("supplier") or None,
+                                    "line_note": _pp2.get("note") or None,
+                                    "currency": _ccy_v,
+                                    "order_date": order_date_v or None,
+                                    "due_date": due_date_v or None,
+                                    "unit_status": "CONFIRMED",
+                                    "is_export": form.get("is_export", "0")}
+                            _row = {k: v for k, v in _row.items() if k in _oicols}
+                            _cols2 = list(_row.keys()); _ph2 = ",".join("?" * len(_cols2))
+                            _cc3.execute(f"INSERT INTO order_items({','.join(_cols2)}) VALUES({_ph2})",
+                                         [_row[k] for k in _cols2])
+                        try:
+                            _psum = round(sum(_p["amount"] for _p in _fu_parts), 2)
+                            _cc3.execute("UPDATE orders SET total_amount=? WHERE id=?", (_psum, _po_oid))
+                        except Exception:
+                            pass
+            else:
+                # 호기 확정 단가(첫 유효값) → 1대 단가, 호기 수 → qty (없으면 예상 단가/수량 폴백)
+                _fu_units = form.getlist("unit_amount[]")
+                _fu_price = 0.0
+                for _ua in _fu_units:
+                    try:
+                        _v = float((_ua or "0").replace(",", ""))
+                    except ValueError:
+                        _v = 0
+                    if _v > 0:
+                        _fu_price = _v
+                        break
+                if _fu_price <= 0:
+                    _fu_price = unit_price if unit_price > 0 else 0.0
+                _fu_qty = len([1 for _x in _fu_units if (_x or "").strip()]) or unit_qty
+                _fu_sotype = {"NEW_EQUIP": "EQUIPMENT", "CONSUMABLE": "CONSUMABLE",
+                              "SERVICE": "SERVICE", "OTHER": "OTHER"}.get(_ptype, "EQUIPMENT")
+                with db_session() as _cc3:
+                    _pwf.add_followup_order(
+                        _cc3, _existing["id"], order_date=order_date_v,
+                        total_amount=_fu_price, due_date=due_date_v,
+                        created_by=_u.get("id"), po_number=form.get("customer_po", ""),
+                        note=form.get("note", ""), qty=_fu_qty,
+                        so_type=_fu_sotype, currency=_ccy_v, ship_to="",
+                        order_customer_id=_fu_cust_id)
             # v5H226z384 (대표 지시): 추가 발주도 제작요청 발행(전부서 통보) — 신규처럼. 같은 관리번호의 기존 프로젝트로 통보.
             _fu_url = f"/project/{_existing['id']}?followup=1"
+            if _fu_sf == "PARTS":   # v5H226z436: 상품 추가발주는 상세 PACKING LIST 로 유도
+                _fu_url += "&focus=packing"
             if (form.get("prod_notify") or "").strip() in ("1", "on", "true", "yes"):
                 try:
                     _fu_t = [int(t) for t in form.getlist("pr_team_ids") if str(t).strip().isdigit() and int(t) > 0]
@@ -16102,6 +18400,43 @@ async def projects_new_submit(request: Request):
             return _err_redirect("equip_required")
         if not (form.get("model") or "").strip():
             return _err_redirect("model_required")
+    # v5H226z430 (대표 지시): 형태=상품 폼 부품 입력(pk_*) — 몇 개는 폼에서 바로. 수주확정 시 PARTS SO 라인으로 저장.
+    _sf_reg = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
+    _pk_parts = []
+    if _sf_reg == "PARTS":
+        _pk_n = form.getlist("pk_name[]"); _pk_m = form.getlist("pk_model[]")
+        _pk_q = form.getlist("pk_qty[]"); _pk_p = form.getlist("pk_price[]")
+        _pk_mat = form.getlist("pk_matno[]"); _pk_mk = form.getlist("pk_maker[]")  # v5H226z441
+        _pk_sup = form.getlist("pk_supplier[]"); _pk_nt = form.getlist("pk_note[]")
+        for _i in range(len(_pk_n)):
+            _nm = (_pk_n[_i] or "").strip()
+            _md = ((_pk_m[_i] if _i < len(_pk_m) else "") or "").strip()
+            if not _nm and not _md:
+                continue
+            try:
+                _qy = float(((_pk_q[_i] if _i < len(_pk_q) else "1") or "1").replace(",", ""))
+            except ValueError:
+                _qy = 1.0
+            if _qy <= 0:
+                _qy = 1.0
+            try:
+                _pp = float(((_pk_p[_i] if _i < len(_pk_p) else "0") or "0").replace(",", ""))
+            except ValueError:
+                _pp = 0.0
+            _pk_parts.append({"name": _nm or _md, "model": _md, "qty": _qy,
+                              "price": _pp, "amount": round(_qy * _pp, 2),
+                              "matno": ((_pk_mat[_i] if _i < len(_pk_mat) else "") or "").strip(),
+                              "maker": ((_pk_mk[_i] if _i < len(_pk_mk) else "") or "").strip(),
+                              "supplier": ((_pk_sup[_i] if _i < len(_pk_sup) else "") or "").strip(),
+                              "note": ((_pk_nt[_i] if _i < len(_pk_nt) else "") or "").strip()})
+        if _pk_parts:
+            # 대표 지시: 부품은 '수주확정' 체크 시에만 저장(제안 단계는 등록 후 상세 PACKING LIST)
+            if not confirm_now:
+                return _err_redirect("parts_need_confirm")
+            # 헤더 금액 = 부품 합계(서버 권위). 단가는 부품별이라 헤더 단가 비움.
+            amt = round(sum(_p["amount"] for _p in _pk_parts), 2)
+            unit_price = None
+            unit_qty = 1
     new_pid, _new_code = _logi.projects_create_logi({
         "_changed_by": _u.get("id"),
         # v5H226z194 (대표 지시): 등록 시 관리번호 항상 자동 발급 (제안 단계 포함). 상태는 사용자 선택 유지.
@@ -16119,7 +18454,7 @@ async def projects_new_submit(request: Request):
         "is_export": form.get("is_export", "0"),
         "order_amount": amt,
         "unit_qty": unit_qty,
-        "unit_price": unit_price if unit_price > 0 else None,
+        "unit_price": unit_price if (unit_price is not None and unit_price > 0) else None,  # v5H226z441: None 안전(형태=상품 부품등록 시 unit_price=None)
         "order_date": form.get("order_date", ""),
         "due_date": form.get("due_date", ""),
         # v5H201: 제안 단계 일정 (수주확정 전 스케줄용)
@@ -16239,11 +18574,16 @@ async def projects_new_submit(request: Request):
     _pr_note = (form.get("pr_note") or "").strip()
     _pr_team_ids = [int(t) for t in form.getlist("pr_team_ids") if str(t).strip().isdigit() and int(t) > 0]
 
+    _reg_is_parts = (form.get("shipment_form") or "").strip().upper() == "PARTS"
+
     def _finish_new(_pid, _warn=""):
         """등록 성공 후 공통 종료 — 제작요청 발행(통보)까지 한 번에 처리하고 상세로 이동."""
         _qs = []
         if _warn:
             _qs.append(f"warn={_warn}")
+        # v5H226z428(대표 지시): 형태=상품이면 상세의 PACKING LIST 로 유도(자동 스크롤·강조)
+        if _reg_is_parts:
+            _qs.append("focus=packing")
         # SO 발행 실패(_warn) 시엔 통보하지 않음(미완 상태로 전부서 호출 방지)
         if _pr_notify and _pid and not _warn:
             try:
@@ -16301,13 +18641,44 @@ async def projects_new_submit(request: Request):
         try:
             with db_session() as c:
                 if _ship_form_cn == "PARTS":
-                    _pwf.confirm_order_multi(
+                    _pres = _pwf.confirm_order_multi(
                         c, int(new_pid), units=[],
                         order_date=form.get("order_date", ""),
                         created_by=_u.get("id") or 0,
                         po_number=form.get("customer_po", ""),
                         so_type="PARTS_EXPORT",
                     )
+                    # v5H226z430 (대표 지시): 폼에서 입력한 부품(pk_*) → 이 PARTS SO 의 order_items 로 저장
+                    #   (품명=unit_label · 모델=규격 spec · 수량·단가·금액). → 상세 PACKING LIST 에 그대로 나타남.
+                    try:
+                        _po_oid = ((_pres.get("groups") or [{}])[0].get("order_id")) if isinstance(_pres, dict) else None
+                        if _po_oid and _pk_parts:
+                            _oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+                            for _pp in _pk_parts:
+                                _row = {"order_id": _po_oid, "qty": _pp["qty"],
+                                        "unit_price": _pp["price"], "amount": _pp["amount"],
+                                        "unit_label": _pp["name"], "spec": _pp["model"],
+                                        "material_no": _pp.get("matno") or None,
+                                        "maker": _pp.get("maker") or None,
+                                        "supplier": _pp.get("supplier") or None,
+                                        "line_note": _pp.get("note") or None,
+                                        "currency": _ccy_v,
+                                        "order_date": form.get("order_date", "") or None,
+                                        "due_date": form.get("due_date", "") or None,
+                                        "unit_status": "CONFIRMED",
+                                        "is_export": form.get("is_export", "0")}
+                                _row = {k: v for k, v in _row.items() if k in _oicols}
+                                _cols2 = list(_row.keys()); _ph2 = ",".join("?" * len(_cols2))
+                                c.execute(f"INSERT INTO order_items({','.join(_cols2)}) VALUES({_ph2})",
+                                          [_row[k] for k in _cols2])
+                            _psum = round(sum(_p["amount"] for _p in _pk_parts), 2)
+                            try:
+                                c.execute("UPDATE orders SET total_amount=? WHERE id=?", (_psum, _po_oid))
+                                c.execute("UPDATE projects SET order_amount=? WHERE id=?", (_psum, int(new_pid)))
+                            except Exception:
+                                pass
+                    except Exception as _e:
+                        print(f"[z430 parts insert] {_e}")
                 elif units:
                     _pwf.confirm_order_multi(
                         c, int(new_pid), units=units,
@@ -17354,7 +19725,7 @@ async def projects_import_confirm(request: Request):
                 "is_export": int(r.get("is_export") or 0),
                 "order_amount": amt,
                 "unit_qty": unit_qty,
-                "unit_price": unit_price if unit_price > 0 else None,
+                "unit_price": unit_price if (unit_price is not None and unit_price > 0) else None,  # v5H226z441: None 안전(형태=상품 부품등록 시 unit_price=None)
                 "order_date": r.get("order_date") or "",
                 "due_date": r.get("due_date") or "",
                 "pm": r.get("pm_name") or "",
@@ -18340,7 +20711,7 @@ async def projects_edit_submit(request: Request, pid: int):
         "is_export": form.get("is_export", "0"),
         "order_amount": amt,
         "unit_qty": unit_qty,
-        "unit_price": unit_price if unit_price > 0 else None,
+        "unit_price": unit_price if (unit_price is not None and unit_price > 0) else None,  # v5H226z441: None 안전(형태=상품 부품등록 시 unit_price=None)
         "order_date": form.get("order_date", ""),
         "due_date": form.get("due_date", ""),
         # v5H201: 제안 단계 일정 (수주확정 전 스케줄용)

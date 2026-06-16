@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>회의록 · KNK HAIST WORKS</title>
+{# ============================================================
+   meetings.html — 회의록 목록 (16_KNK_Meeting Phase 1 · 모드 A)
+   회의 원문 → AI 결정·할 일·요약 → 일일카드 연동의 진입 목록.
+   ============================================================ #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.mtg-card { display:block; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 12px; transition: all .16s; text-decoration:none; color:inherit; }
+.mtg-card:hover { border-color: var(--qv-line-3); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.mtg-top { display:flex; align-items:center; gap:10px; }
+.mtg-ttl { font-size: 15px; font-weight: 800; color: var(--qv-ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mtg-meta { display:flex; gap:14px; font-size:12px; color: var(--qv-ink-3); margin-top:6px; flex-wrap:wrap; }
+.mtg-meta b { color: var(--qv-ink-2); font-weight:700; }
+.mtg-badges { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.vis-badge { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; }
+.vis-team { background: var(--qv-surface-3); color: var(--qv-ink-2); }
+.vis-private { background: #fdecec; color: var(--knk-red); }
+.vis-all { background: #e8f3ec; color: #15803d; }
+.cnt-badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background: var(--qv-surface-2); color: var(--qv-ink-2); border:1px solid var(--qv-line); }
+.mtg-empty { padding: 40px 20px; text-align:center; color: var(--qv-ink-3); background: var(--qv-surface); border:1px dashed var(--qv-line-2); border-radius: var(--radius-lg); }
+.mtg-empty .big { font-size: 40px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+
+<main class="main" data-dn="meetings-main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">회의록 · 회의 끝나면 90% 자동 정리</div>
+      <h1 class="page-title">회의록</h1>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-primary" href="/meetings/new">＋ 새 회의록</a>
+    </div>
+  </div>
+
+  {% if meetings %}
+  <div class="bento" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px;">
+    <div class="kpi-card"><div class="kpi-label">전체 회의</div><div class="kpi-num">{{ meetings|length }}</div><div class="kpi-trend neutral">건</div></div>
+    <div class="kpi-card"><div class="kpi-label">결정사항</div><div class="kpi-num">{{ meetings|sum(attribute='dec_cnt') }}</div><div class="kpi-trend neutral">건</div></div>
+    <div class="kpi-card"><div class="kpi-label">할 일</div><div class="kpi-num">{{ meetings|sum(attribute='act_cnt') }}</div><div class="kpi-trend neutral">건</div></div>
+  </div>
+
+  <div class="section">
+    {% for m in meetings %}
+    <a class="mtg-card" href="/meetings/{{ m.id }}">
+      <div class="mtg-top">
+        <div class="mtg-ttl">{{ m.title }}</div>
+        <div class="mtg-badges">
+          {% if m.dec_cnt %}<span class="cnt-badge">✔ 결정 {{ m.dec_cnt }}</span>{% endif %}
+          {% if m.act_cnt %}<span class="cnt-badge">📌 할일 {{ m.act_cnt }}</span>{% endif %}
+          {% if m.visibility == 'private' %}<span class="vis-badge vis-private">비공개</span>
+          {% elif m.visibility == 'all' %}<span class="vis-badge vis-all">전사 공개</span>
+          {% else %}<span class="vis-badge vis-team">팀 공개</span>{% endif %}
+        </div>
+      </div>
+      <div class="mtg-meta">
+        <span>📅 <b>{{ m.meeting_date }}</b></span>
+        {% if m.owner_name %}<span>✍ {{ m.owner_name }}</span>{% endif %}
+        {% if m.team_name %}<span>🏷 {{ m.team_name }}</span>{% endif %}
+        {% if m.location %}<span>📍 {{ m.location }}</span>{% endif %}
+        {% if m.status == 'done' %}<span style="color:#15803d;font-weight:700;">완료</span>{% else %}<span>작성중</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="mtg-empty">
+    <div class="big">📝</div>
+    <div style="font-size:15px;font-weight:700;color:var(--qv-ink-2);margin-bottom:6px;">아직 작성한 회의록이 없습니다</div>
+    <div style="font-size:13px;margin-bottom:16px;">회의 내용을 글로 적으면 AI가 결정사항·할 일·요약을 자동으로 정리합니다.</div>
+    <a class="btn btn-primary" href="/meetings/new">＋ 첫 회의록 작성</a>
+  </div>
+  {% endif %}
+</main>
+</div>
+</body>
+</html>
