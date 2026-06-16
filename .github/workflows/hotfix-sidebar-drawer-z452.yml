@@ -1,0 +1,55 @@
+name: Hotfix z452 - 사이드바 드로어 자동닫힘 → 배포저장소
+
+# 일회용 안전 핫픽스.
+# 전체 미러(mirror-works-to-deploy)는 모노레포가 라이브보다 뒤처진 파일이 있어
+# 지금 live 로 돌리면 운영 코드를 되돌릴 위험이 있다. 그래서 이 핫픽스는
+# 배포저장소(knk-haist-works)의 chrome.html "끝에 z452 스크립트만 추가"한다.
+#   - 덮어쓰기 아님(append) → 배포저장소의 기존 내용/타 기능 보존.
+#   - 이미 적용돼 있으면(__knkSbDrawerInit) 아무것도 안 함(반복 안전).
+#   - 스크립트는 document 레벨 리스너라 파일 어디에 있어도 동일 동작.
+# 수동 실행 전용.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: hotfix-sidebar-z452
+  cancel-in-progress: false
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply hotfix to deploy repo
+        env:
+          TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+          SNIPPET_B64: CjxzY3JpcHQ+Ci8qIHY1SDIyNno0NTIgKOuMgO2RnCDsp4Dsi5zCt+2ctOuMgO2PsCk6IOyCrOydtOuTnOuwlCDrk5zroZzslrQg7J6Q64+ZIOuLq+2emC4KICAg7Kad7IOBOiDtnLTrjIDtj7Dsl5DshJwg4piw66GcIOuplOuJtOulvCDsl7Ag65KkIO2VreuqqeydhCDqs6jrnbzrj4Qg65Oc66Gc7Ja06rCAIOq3uOuMgOuhnCDrlqAg67O466y47J2EIOqwgOumvC4KICAg7JuQ7J24OiDsnbjslbEg66eB7YGs6rCAIFNQQSDsoITtmZgoc3BhX25hdiwgLm1haW4g66eMIOq1kOyytCnsnbTrnbwg7IOI66Gc6rOg7Lmo7J20IOyXhuyWtCBtb2Itc2Itb3BlbiDsnbQg7JWIIO2SgOumvC4KICAg7ZW06rKwOiAoMSkg7IKs7J2065Oc67CUIOyViCDrp4Htgawg7YOtIOKGkiDri6vquLAgKDIpIOuwlOq5pSDtg60g4oaSIOuLq+q4sCAoMykgU1BBIOyghO2ZmMK3RVNDIOKGkiDri6vquLAuICovCihmdW5jdGlvbigpewogIGlmICh3aW5kb3cuX19rbmtTYkRyYXdlckluaXQpIHJldHVybjsgd2luZG93Ll9fa25rU2JEcmF3ZXJJbml0ID0gdHJ1ZTsKICBmdW5jdGlvbiBpc01vYmlsZSgpeyByZXR1cm4gd2luZG93Lm1hdGNoTWVkaWEoJyhtYXgtd2lkdGg6IDEwMjNweCknKS5tYXRjaGVzOyB9CiAgZnVuY3Rpb24gaXNPcGVuKCl7IHJldHVybiBkb2N1bWVudC5ib2R5LmNsYXNzTGlzdC5jb250YWlucygnbW9iLXNiLW9wZW4nKTsgfQogIGZ1bmN0aW9uIGNsb3NlKCl7IGRvY3VtZW50LmJvZHkuY2xhc3NMaXN0LnJlbW92ZSgnbW9iLXNiLW9wZW4nKTsgfQogIGRvY3VtZW50LmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgZnVuY3Rpb24oZSl7CiAgICBpZiAoIWlzTW9iaWxlKCkgfHwgIWlzT3BlbigpKSByZXR1cm47CiAgICB2YXIgdCA9IGUudGFyZ2V0OwogICAgaWYgKCF0IHx8ICF0LmNsb3Nlc3QpIHJldHVybjsKICAgIGlmICh0LmNsb3Nlc3QoJy5tb2Itc2ItYnRuJykpIHJldHVybjsKICAgIGlmICh0LmNsb3Nlc3QoJ2FzaWRlLnNpZGViYXIgYScpKSB7IGNsb3NlKCk7IHJldHVybjsgfQogICAgdmFyIHNiID0gZG9jdW1lbnQucXVlcnlTZWxlY3RvcignYXNpZGUuc2lkZWJhcicpOwogICAgaWYgKHNiICYmICFzYi5jb250YWlucyh0KSkgY2xvc2UoKTsKICB9KTsKICBkb2N1bWVudC5hZGRFdmVudExpc3RlbmVyKCdrbms6bmF2aWdhdGVkJywgY2xvc2UpOwogIGRvY3VtZW50LmFkZEV2ZW50TGlzdGVuZXIoJ2tleWRvd24nLCBmdW5jdGlvbihlKXsgaWYgKGUua2V5ID09PSAnRXNjYXBlJykgY2xvc2UoKTsgfSk7Cn0pKCk7Cjwvc2NyaXB0Pgo=
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::DEPLOY_REPO_TOKEN 시크릿이 없습니다."
+            exit 1
+          fi
+          rm -rf /tmp/deploy
+          git clone --depth 1 \
+            "https://x-access-token:${TOKEN}@github.com/top00151-commits/knk-haist-works.git" \
+            /tmp/deploy
+          F=/tmp/deploy/app/templates/_v5_partials/chrome.html
+          if [ ! -f "$F" ]; then
+            echo "::error::배포저장소에 $F 가 없습니다."
+            exit 1
+          fi
+          if grep -q "__knkSbDrawerInit" "$F"; then
+            echo "✅ 이미 적용돼 있음 — 변경 없음(반복 안전)."
+            exit 0
+          fi
+          printf '\n' >> "$F"
+          echo "$SNIPPET_B64" | base64 -d >> "$F"
+          echo "--- 추가 후 chrome.html 끝부분 ---"
+          tail -n 8 "$F"
+          cd /tmp/deploy
+          git -c user.name="knk-hotfix-bot" \
+              -c user.email="hotfix@users.noreply.github.com" \
+              commit -am "fix(works): 휴대폰 사이드바 드로어 자동 닫힘 z452 (claude_code a08b3d6 동기화)"
+          git push origin HEAD:main
+          echo "✅ 배포저장소(main) 푸시 완료 — NAS cron 이 ~1분 내 자동 배포."
