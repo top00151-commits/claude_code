@@ -30,6 +30,18 @@ app.add_middleware(
     https_only=config.HTTPS_ONLY,
 )
 
+
+# 화면(HTML)은 항상 최신을 받도록 캐시 금지 — '고쳤는데 휴대폰엔 옛 화면' 방지.
+# 정적파일(css/js/이미지)·아이콘·첨부는 text/html 이 아니라 그대로 캐시(속도 유지).
+@app.middleware("http")
+async def _no_store_html(request, call_next):
+    resp = await call_next(request)
+    if resp.headers.get("content-type", "").startswith("text/html"):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+    return resp
+
 config.ensure_dirs()
 db.init_db()
 
