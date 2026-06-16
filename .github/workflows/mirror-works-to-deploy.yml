@@ -103,4 +103,5 @@ jobs:
 
       - name: Report (report 모드)
         if: steps.m.outputs.mode != 'live'
-        run: echo "ℹ️ report 모드: 위 변경 목록만 표시하고 푸시하지 않았습니다. 문제 없으면 mode=live 로 다시 실행하세요."
+        run: |
+          echo "report 모드 - 위 변경 목록만 표시하고 푸시하지 않았습니다. 문제 없으면 mode=live 로 다시 실행하세요."
