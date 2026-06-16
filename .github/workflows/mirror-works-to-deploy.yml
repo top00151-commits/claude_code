@@ -46,7 +46,11 @@ jobs:
         env:
           DISPATCH_MODE: ${{ github.event.inputs.mode }}
         run: |
-          MODE="${DISPATCH_MODE:-live}"
+          # ⚠️ 안전장치: 모노레포와 배포저장소가 아직 완전 일치하지 않으므로(라이브가 일부 앞섬),
+          #    자동(push) 실행은 절대 푸시하지 않고 report(미리보기)만 한다.
+          #    실제 푸시(live)는 사람이 수동 실행(workflow_dispatch, mode=live)으로만 가능.
+          #    두 저장소 재조정(reconcile)이 끝난 뒤 이 기본값을 live 로 바꿔도 안전.
+          MODE="${DISPATCH_MODE:-report}"
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "실행 모드: $MODE"
 
@@ -82,8 +86,9 @@ jobs:
           git -C /tmp/deploy status --short || true
           echo "=== 참고: 배포 저장소에만 있어 이번에 건드리지 않은 파일(고아 후보) ==="
           # src 에 없는데 deploy 에 추적돼 있던 파일 목록(삭제하지 않음 — 점검용)
+          # core.quotepath=false: 한글 파일명을 octal 이스케이프 없이 UTF-8 그대로 출력(오탐 방지)
           comm -23 \
-            <(git -C /tmp/deploy ls-files | sort) \
+            <(git -C /tmp/deploy -c core.quotepath=false ls-files | sort) \
             <(cd /tmp/src && find . -type f | sed 's#^\./##' | sort) || true
 
       - name: Push (live 모드에서만)
