@@ -170,10 +170,12 @@ body {
           {# v5H226z448: '출고형태'→'형태'. 데이터를 등록 드롭다운과 동일 표기(📦 제품/🧰 상품/🗂 기타). 소모품은 별도 유형이라 그대로 유지. 미설정=등록폼처럼 제품 기본 #}
           <td class="center">
             {% set _sf = (p.shipment_form or '')|upper %}
+            {# v5H226z455: 형태 4종 — 완제품(ASSEMBLY)/제품(SEMI)/상품(PARTS)/기타(ETC). 미설정=완제품 #}
             {% if (p.project_type or '')|upper == 'CONSUMABLE' or p._div == 'C' %}<span class="pill" style="background:#e7f6ec;color:#15803d;">소모품</span>
             {% elif _sf == 'PARTS' %}<span class="pill pill-warn">🧰 상품</span>
             {% elif _sf == 'ETC' %}<span class="pill pill-muted">🗂 기타</span>
-            {% else %}<span class="pill" style="background:#e0edff;color:#1d4ed8;">📦 제품</span>{% endif %}
+            {% elif _sf == 'SEMI' %}<span class="pill" style="background:#e0edff;color:#1d4ed8;">📦 제품</span>
+            {% else %}<span class="pill" style="background:#fde7d2;color:#9a3412;">🏭 완제품</span>{% endif %}
           </td>
           {# v5H226z219 (대표 지시): 텍스트 알약만 — 신호등(분포 점) 삭제 #}
           <td class="center">

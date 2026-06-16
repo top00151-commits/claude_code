@@ -278,16 +278,20 @@ html,body{background:#fff!important;overflow:auto!important;}
       {% if _ptype_top == 'NEW_EQUIP' %}
       <div class="pf-row solo">
         <div class="pf-field full">
-          {# v5H226z350 (대표 지시): '출고 형태' → '형태'(제품/상품/기타)로 라벨 통합. 내부값(ASSEMBLY/PARTS/ETC) 유지로 부품 상세·PACKING LIST 로직 그대로 재사용. #}
-          <label>형태 <span class="sub">(상품 = 여러 품목·부품 상세리스트 / 베트남 부품 수출 PACKING LIST)</span></label>
-          <div style="display:flex;gap:18px;padding:8px 4px;">
+          {# v5H226z455 (대표 지시): 형태 4종 — 완제품/제품/상품/기타. 호기는 완제품에서만 매김. 내부값 ASSEMBLY/SEMI/PARTS/ETC. #}
+          <label>형태 <span class="sub">(완제품=장비 완성품·호기 / 제품=반제품·가공품 / 상품=구매품 2차가공없이 재판매)</span></label>
+          <div style="display:flex;gap:18px;padding:8px 4px;flex-wrap:wrap;">
             <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
-              <input type="radio" name="shipment_form" value="ASSEMBLY" {% if _ship_form not in ('PARTS','ETC') %}checked{% endif %}>
-              📦 제품 <span style="color:var(--qv-ink-3);font-weight:400;font-size:12px;">(완제품·호기 단위)</span>
+              <input type="radio" name="shipment_form" value="ASSEMBLY" {% if _ship_form not in ('SEMI','PARTS','ETC') %}checked{% endif %}>
+              🏭 완제품 <span style="color:var(--qv-ink-3);font-weight:400;font-size:12px;">(장비 완성품·호기 단위)</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+              <input type="radio" name="shipment_form" value="SEMI" {% if _ship_form == 'SEMI' %}checked{% endif %}>
+              📦 제품 <span style="color:var(--qv-ink-3);font-weight:400;font-size:12px;">(반제품·가공부품·2차가공·호기 없음)</span>
             </label>
             <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
               <input type="radio" name="shipment_form" value="PARTS" {% if _ship_form == 'PARTS' %}checked{% endif %}>
-              🧰 상품 <span style="color:var(--qv-ink-3);font-weight:400;font-size:12px;">(부품 상세리스트 · PACKING LIST)</span>
+              🧰 상품 <span style="color:var(--qv-ink-3);font-weight:400;font-size:12px;">(구매품을 2차 가공 없이 그대로 판매 · PACKING LIST)</span>
             </label>
             {# v5H226z196 (대표 지시): '기타' — PARTS 만 특수처리이므로 기타=제품 과 동일 일반 동작 #}
             <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
