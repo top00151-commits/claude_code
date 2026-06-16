@@ -580,6 +580,15 @@ def startup():
             print(f"[MEETING-LINK-MIG-Z430] {_rmlink}")
     except Exception as _e:
         print(f"[MEETING-LINK-MIG-Z430 ERR] {_e}")
+    # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
+    try:
+        from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
+        from .database import DB_PATH as _DB_PATH_FT
+        _rft = _ft_migrate(_DB_PATH_FT)
+        if _rft.get('updated'):
+            print(f"[FORM-TYPE-MIG-Z455] resynced {_rft}")
+    except Exception as _e:
+        print(f"[FORM-TYPE-MIG-Z455 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -8184,7 +8193,8 @@ async def projects_confirm_order(req: Request, pid: int):
             "SELECT order_date, due_date, order_amount, customer_po, "
             "       COALESCE(unit_qty,1) AS unit_qty, unit_price, "
             "       COALESCE(currency,'KRW') AS currency, "
-            "       COALESCE(project_type,'NEW_EQUIP') AS project_type "
+            "       COALESCE(project_type,'NEW_EQUIP') AS project_type, "
+            "       COALESCE(shipment_form,'ASSEMBLY') AS shipment_form "
             "FROM projects WHERE id=?", (pid,)
         ).fetchone()
         if not proj:
@@ -8199,10 +8209,13 @@ async def projects_confirm_order(req: Request, pid: int):
             _up = _amt_total / _qty
         # 호기 라벨: project_type 기준 (NEW_EQUIP→N호기 / OTHER→N건 등)
         _ptype = (proj["project_type"] or "NEW_EQUIP").upper()
+        # v5H226z455 (대표 지시): 호기는 '완제품'(ASSEMBLY)에서만 매김. 제품(SEMI)·기타는 1줄(수량=N), 소모품·상품은 빈 SO.
+        _sf_cn = (proj["shipment_form"] or "ASSEMBLY").upper()
         # v5H223: CONSUMABLE 은 빈 SO 발행 (라인 미입력 + 단가 0 → 호기 라인 만들지 않음)
-        if _ptype == "CONSUMABLE":
+        if _ptype == "CONSUMABLE" or _sf_cn == "PARTS":
             _units = []
-        else:
+        elif _sf_cn == "ASSEMBLY":
+            # 완제품 — 수량만큼 호기 N줄
             _units = []
             for i in range(_qty):
                 _units.append({
@@ -8213,6 +8226,17 @@ async def projects_confirm_order(req: Request, pid: int):
                     "currency": proj["currency"] or "KRW",
                     "note": "",
                 })
+        else:
+            # v5H226z455: 제품(SEMI)·기타(ETC) — 호기 없이 1줄 (수량=N, 라인금액=단가×N)
+            _units = [{
+                "label": "",
+                "amount": round(_up * _qty, 2),
+                "qty": _qty,
+                "due_date": proj["due_date"] or "",
+                "ship_to": "",
+                "currency": proj["currency"] or "KRW",
+                "note": "",
+            }]
         res = _pwf.confirm_order_multi(
             c, pid,
             units=_units,
@@ -16722,6 +16746,58 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
 # v5H226z389 (대표 지시): 호기(검사기 N대)별 단가·납기가 다르면 작업일정표에 '호기당 1줄'로 분할.
 #   전부 동일하면 기존처럼 1줄. 분할 판정은 order_items(호기 라인) 기준 — 등록 시 평균을 안 쓰므로
 #   데이터(order_items)에 호기별 실금액·실납기가 그대로 살아 있다(소급 적용됨).
+def _summarize_unit_labels(labels):
+    """v5H226z454: 호기 라벨 묶음을 짧게 요약 — 연속이면 '4~6호기', 흩어지면 '4·5·9호기'(≤4), 많으면 '4호기 외 N'."""
+    import re as _re
+    nums, ok = [], True
+    for lb in labels:
+        m = _re.match(r"^\s*(\d+)\s*호기", str(lb or ""))
+        if m:
+            nums.append(int(m.group(1)))
+        else:
+            ok = False
+            break
+    if ok and nums:
+        nums = sorted(set(nums))
+        if len(nums) >= 2 and nums[-1] - nums[0] == len(nums) - 1:
+            return f"{nums[0]}~{nums[-1]}호기"
+        if len(nums) <= 4:
+            return "·".join(str(n) for n in nums) + "호기"
+        return f"{nums[0]}호기 외 {len(nums)-1}"
+    labs = [str(l).strip() for l in labels if str(l).strip()]
+    if not labs:
+        return ""
+    if len(labs) <= 2:
+        return " · ".join(labs)
+    return f"{labs[0]} 외 {len(labs)-1}"
+
+
+def _merge_units_same(lines):
+    """v5H226z454 (대표 지시): 작업일정표 호기 분할 시, **단가·납기(+통화·발주일·납품지·SO)가 동일한 호기끼리는 1줄로 묶음**.
+    묶인 줄 = label(호기 범위)·amount(그룹 소계=단가×묶음수량)·count(호기 수). 값이 다른 호기는 따로 남음(z389 분할 유지).
+    → '묶음으로 올린 동일 호기'가 작업일정표에서 여러 줄로 중복 나열되던 문제 해소."""
+    groups, order = {}, []
+    for l in lines:
+        key = (round(float(l.get("price") or 0), 2), round(float(l.get("amount") or 0), 2),
+               l.get("currency") or "", l.get("order_date") or "", l.get("due_date") or "",
+               l.get("ship_to") or "", l.get("so_no") or "")
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(l)
+    merged = []
+    for key in order:
+        grp = groups[key]
+        base = dict(grp[0])
+        n = len(grp)
+        base["count"] = n
+        if n > 1:
+            base["label"] = _summarize_unit_labels([g.get("label") for g in grp])
+            base["amount"] = round(float(grp[0].get("amount") or 0) * n, 2)  # 그룹 소계(=단가×묶음수량)
+        merged.append(base)
+    return merged
+
+
 def _board_split_lines_map():
     """프로젝트별 호기 라인(order_items)을 읽어, **단가(금액) 또는 납기가 호기마다 다른** 프로젝트만
     {project_id: [line, ...]} 로 반환. (라인 1건이거나 전부 동일하면 제외 → 그 프로젝트는 기존 1줄 유지)
@@ -16793,7 +16869,8 @@ def _board_split_lines_map():
                 _amts = {round(float(l["amount"]), 2) for l in lines}
                 _dues = {l["due_date"] for l in lines}
                 if len(_amts) > 1 or len(_dues) > 1:
-                    out[pid] = lines
+                    # z454 (대표 지시): 단가·납기 동일한 호기끼리는 1줄로 묶고, 다른 것만 분할(z389 유지).
+                    out[pid] = _merge_units_same(lines)
     except Exception:
         return {}
     return out
@@ -16914,7 +16991,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["price"] = _ln["price"]
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
-                _iu["qty"] = 1
+                _iu["qty"] = _ln.get("count", 1)   # z454: 묶인 동일 호기 수량
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
@@ -17262,7 +17339,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 _iu["price"] = _ln["price"]
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
-                _iu["qty"] = 1
+                _iu["qty"] = _ln.get("count", 1)   # z454: 묶인 동일 호기 수량
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
@@ -18729,10 +18806,11 @@ async def projects_new_submit(request: Request):
                     # v5H132: 수량 N → N개 호기 (각 단가=unit_price)
                     # v5H223: CONSUMABLE 은 빈 SO (라인 후속 추가)
                     # v5H226z: PARTS 도 빈 SO (정식 PACKING LIST 후속 추가)
+                    # v5H226z455 (대표 지시): 호기는 '완제품'(ASSEMBLY)만. 제품(SEMI)·기타는 1줄(수량=N).
+                    _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
                     if _ptype == "CONSUMABLE" or _is_parts_new:
                         _units_list = []
-                    else:
-                        _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
+                    elif _ship_form_new == "ASSEMBLY":
                         _units_list = [{
                             "label": _logi.project_unit_label(_ptype, i + 1),
                             "amount": _per_unit,
@@ -18740,6 +18818,16 @@ async def projects_new_submit(request: Request):
                             "ship_to": "",
                             "note": "",
                         } for i in range(max(1, unit_qty))]
+                    else:
+                        # 제품(SEMI)·기타(ETC) — 호기 없이 1줄 (수량=N)
+                        _units_list = [{
+                            "label": "",
+                            "amount": round(_per_unit * max(1, unit_qty), 2),
+                            "qty": max(1, unit_qty),
+                            "due_date": form.get("due_date", ""),
+                            "ship_to": "",
+                            "note": "",
+                        }]
                     _so_type_new = "PARTS_EXPORT" if _is_parts_new else None
                     _pwf.confirm_order_multi(
                         c, int(new_pid),

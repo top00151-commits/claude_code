@@ -22,6 +22,20 @@
 .qf-f label .req { color:var(--knk-red); }
 .qf-f input, .qf-f select, .qf-f textarea { padding:8px 10px; border:1px solid var(--qv-line); border-radius:7px; font:inherit; font-size:13px; background:var(--qv-surface-2,#f7f8fa); box-sizing:border-box; }
 .qf-f input:focus, .qf-f select:focus, .qf-f textarea:focus { outline:none; border-color:#2563eb; background:#fff; }
+/* v5H226z459(대표 지시): 형태 커스텀 드롭다운 — 기존 select 와 같은 높이/스타일(정렬 복구).
+   열면 각 항목에 설명이 함께 보이고(오버레이·다른 칸 안 밀림), 선택하면 라벨만. */
+.qfsel { position:relative; }
+.qfsel-btn { width:100%; display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid var(--qv-line); border-radius:7px; font:inherit; font-size:13px; background:var(--qv-surface-2,#f7f8fa); color:var(--qv-ink); cursor:pointer; text-align:left; box-sizing:border-box; }
+.qfsel-btn .qfsel-caret { margin-left:auto; color:var(--qv-ink-3); font-size:11px; transition:transform .15s; }
+.qfsel.open .qfsel-btn { border-color:#2563eb; background:#fff; }
+.qfsel.open .qfsel-caret { transform:rotate(180deg); }
+.qfsel-list { display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:200; min-width:320px; max-width:min(380px,86vw); background:#fff; border:1px solid var(--qv-line); border-radius:10px; box-shadow:0 12px 34px rgba(0,0,0,.20); padding:4px; }
+.qfsel.open .qfsel-list { display:block; }
+.qfsel-opt { display:flex; flex-direction:column; gap:2px; width:100%; text-align:left; padding:8px 10px; border:0; background:transparent; border-radius:7px; cursor:pointer; font:inherit; }
+.qfsel-opt:hover { background:var(--qv-surface-2,#f1f3f7); }
+.qfsel-opt.sel { background:#eaf1fe; }
+.qfsel-opt .o-lbl { font-size:13px; font-weight:700; color:var(--qv-ink); }
+.qfsel-opt .o-desc { font-size:11px; line-height:1.45; color:var(--qv-ink-3); white-space:normal; }
 .qf-sec { grid-column:1/-1; font-size:11px; font-weight:800; color:var(--knk-red); letter-spacing:.08em; margin:8px 0 -2px; }
 .qf-code { font-family:Consolas,monospace; font-weight:800; color:#1e40af; background:#eef2ff; padding:8px 10px; border-radius:7px; font-size:13px; }
 .qf-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
@@ -151,13 +165,19 @@ html,body{background:#fff!important;overflow:auto!important;}
             <select name="po_type" id="qPoType" onchange="qSyncPoType()">{% for t in PO_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
             {% endif %}
           </div>
-          {# v5H226z351/z352(대표 지시): 형태 드롭다운 — 옵션 짧게(좁은 칸 맞춤). 내부값(ASSEMBLY/PARTS/ETC) 유지 #}
-          <div class="qf-f c2"><label>형태 <span style="font-weight:400;color:var(--qv-ink-3);">(상품=부품)</span></label>
-            <select name="shipment_form" id="qFormType" onchange="qSyncShip()" title="제품=완제품·호기 / 상품=부품 상세리스트(PACKING LIST) / 기타">
-              <option value="ASSEMBLY" {% if ed and (project.shipment_form|default('ASSEMBLY')) not in ('PARTS','ETC') %}selected{% endif %}>📦 제품</option>
-              <option value="PARTS" {% if ed and project.shipment_form == 'PARTS' %}selected{% endif %}>🧰 상품</option>
-              <option value="ETC" {% if ed and project.shipment_form == 'ETC' %}selected{% endif %}>🗂 기타</option>
-            </select>
+          {# v5H226z459(대표 지시): 형태 = 커스텀 드롭다운 — 열면 '각 항목마다' 설명이 옆/아래에 같이 보이고(오버레이·다른 칸 안 밀림),
+             선택하면 라벨만 남고 설명 사라짐. 내부값(ASSEMBLY/SEMI/PARTS/ETC)은 hidden input(name=shipment_form)에 유지 → 폼/로직 그대로. #}
+          <div class="qf-f c2"><label>형태 <span style="font-weight:400;color:var(--qv-ink-3);">(누르면 의미)</span></label>
+            <div class="qfsel" id="qFormSel">
+              <input type="hidden" name="shipment_form" id="qFormType" value="{% if ed and project.shipment_form == 'SEMI' %}SEMI{% elif ed and project.shipment_form == 'PARTS' %}PARTS{% elif ed and project.shipment_form == 'ETC' %}ETC{% else %}ASSEMBLY{% endif %}">
+              <button type="button" id="qFormBtn" class="qfsel-btn" onclick="qFormToggle()" aria-haspopup="listbox"><span id="qFormBtnLabel">🏭 완제품</span><span class="qfsel-caret">▾</span></button>
+              <div id="qFormList" class="qfsel-list" role="listbox">
+                <button type="button" class="qfsel-opt" data-v="ASSEMBLY" onclick="qFormPick('ASSEMBLY')"><span class="o-lbl">🏭 완제품</span><span class="o-desc">장비 전체 구성이 완료된 완성품. 수량만큼 호기(1호기·2호기…)로 나뉩니다.</span></button>
+                <button type="button" class="qfsel-opt" data-v="SEMI" onclick="qFormPick('SEMI')"><span class="o-lbl">📦 제품</span><span class="o-desc">반제품·가공한 부품·2차 가공품. 호기 없이 한 줄(수량=N)로 들어갑니다.</span></button>
+                <button type="button" class="qfsel-opt" data-v="PARTS" onclick="qFormPick('PARTS')"><span class="o-lbl">🧰 상품</span><span class="o-desc">구매한 상품을 2차 가공 없이 그대로 판매하는 것. 품목별로 입력(PACKING LIST).</span></button>
+                <button type="button" class="qfsel-opt" data-v="ETC" onclick="qFormPick('ETC')"><span class="o-lbl">🗂 기타</span><span class="o-desc">위에 해당하지 않는 항목. 호기 없이 한 줄.</span></button>
+              </div>
+            </div>
           </div>
           <div class="qf-f c2"><label>거래구분</label>
             <select name="is_export"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option></select>
@@ -305,9 +325,39 @@ function qSyncShip(){
   var pb=document.getElementById('qPartsBox'), en=document.getElementById('qEtcName');
   if(pb){ pb.style.display=(v==='PARTS')?'flex':'none'; if(v==='PARTS' && !document.querySelector('#qPartsRows .qf-part-row')) qAddPart(); }
   if(en) en.style.display=(v==='ETC')?'flex':'none';
-  // v5H226z444(대표 지시): 각인(장비 마킹)은 제품(ASSEMBLY)만 — 상품(부품)·기타는 숨김
+  // v5H226z444/z455(대표 지시): 각인(장비 마킹)은 완제품(ASSEMBLY)만 — 제품/상품/기타는 숨김
   var eg=document.getElementById('qEngraveBox'); if(eg) eg.style.display=(v==='ASSEMBLY')?'':'none';
   qCalcParts();
+  qBuildUnits();   // v5H226z455: 형태 바뀌면 호기별 섹션 재평가 — 호기는 완제품만
+}
+// v5H226z459(대표 지시): 형태 커스텀 드롭다운 — 열면 각 항목에 설명 동반(오버레이), 선택하면 라벨만.
+var _qFormLbl={'ASSEMBLY':'🏭 완제품','SEMI':'📦 제품','PARTS':'🧰 상품','ETC':'🗂 기타'};
+function qFormSyncLabel(){
+  var ft=document.getElementById('qFormType'), lbl=document.getElementById('qFormBtnLabel');
+  if(ft && lbl) lbl.textContent=_qFormLbl[ft.value]||'🏭 완제품';
+}
+function qFormToggle(){
+  var sel=document.getElementById('qFormSel'); if(!sel) return;
+  var willOpen=!sel.classList.contains('open');
+  sel.classList.toggle('open', willOpen);
+  if(willOpen){
+    var v=(document.getElementById('qFormType')||{}).value;
+    sel.querySelectorAll('.qfsel-opt').forEach(function(o){ o.classList.toggle('sel', o.getAttribute('data-v')===v); });
+  }
+}
+function qFormPick(v){
+  var ft=document.getElementById('qFormType'); if(ft) ft.value=v;
+  qFormSyncLabel();
+  var sel=document.getElementById('qFormSel'); if(sel) sel.classList.remove('open');
+  qSyncShip();   // 형태 변경 로직(호기/각인/부품 토글)
+}
+// 바깥 클릭 시 닫기 (중복 등록 방지 — SPA/임베드 재로드 안전)
+if(!window.__qFormDocBound){
+  window.__qFormDocBound=true;
+  document.addEventListener('click', function(e){
+    var sel=document.getElementById('qFormSel');
+    if(sel && sel.classList.contains('open') && !sel.contains(e.target)) sel.classList.remove('open');
+  });
 }
 // v5H226z430(대표 지시): 부품 행 1개 HTML(품명·모델·수량·단가·금액·삭제). submit 시 pk_*[] 배열로 전송.
 // v5H226z441(대표 지시): 자재 입력 10항목 — 자재번호·자재품명·자재모델명·제작사·공급사·수량·단가·금액(자동)·비고 (통화=상단 헤더 통화)
@@ -351,6 +401,8 @@ function qToggleProd(){
 }
 // v5H226z384(대표 지시): 추가 발주 — PO유형 추가/개조/수리/기타면 관리번호=기존 검색(같은 관리번호+새 수주번호). 신규면 자동 발급.
 function qIsFollowup(){ var po=(document.getElementById('qPoType')||{}).value||'신규'; return !!(po && po!=='신규'); }
+// v5H226z455(대표 지시): 호기는 '완제품'(ASSEMBLY)에서만 매김. 제품(SEMI)·상품·기타는 호기 없음(단일 줄).
+function qIsFinished(){ var s=document.getElementById('qFormType'); return !s || s.value==='ASSEMBLY'; }
 function qSyncPoType(){
   var f=qIsFollowup();
   var auto=document.getElementById('qMgmtAuto'), inp=document.getElementById('qMgmtInput');
@@ -561,6 +613,7 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   }
 })();
 qToggleFx();
+qFormSyncLabel();   // v5H226z459: 형태 버튼 라벨 초기 동기화(수정 모드 포함)
 qSyncShip();
 qToggleProd();
 if(window.knkScanMoney) knkScanMoney();

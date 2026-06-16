@@ -4379,12 +4379,12 @@ TRADE_TYPES = ("내수", "수출")
 PO_TYPES = ["신규", "추가", "개조", "수리", "기타"]
 # v5H226z349 (대표 지시): 형태 — 제품(완제품·자체 제작)/상품(다품목·부품 상세리스트·PACKING LIST)/기타.
 #   기존 '유형(project_type: 신규장비/소모품/수리/기타)'과는 별개 축. 작업일정표 컬럼·일괄등록 양식에서 사용.
-FORM_TYPES = ("제품", "상품", "기타")
-# v5H226z350 (대표 지시): 형태(form_type) ↔ 출고형태(shipment_form) 통합 매핑.
-#   제품=완제품(ASSEMBLY·호기) / 상품=부품 상세리스트(PARTS·PACKING LIST) / 기타=ETC.
-#   → 형태=상품 선택 시 기존 PARTS(부품 상세·PACKING LIST) 인프라 그대로 재사용.
-FORM_TO_SHIP = {"제품": "ASSEMBLY", "상품": "PARTS", "기타": "ETC"}
-SHIP_TO_FORM = {"ASSEMBLY": "제품", "PARTS": "상품", "ETC": "기타"}
+# v5H226z455 (대표 지시): 형태 4종 — 완제품/제품/상품/기타. '호기'는 완제품에서만 매김.
+#   완제품=장비 전체 완성품(ASSEMBLY·호기 분할) / 제품=반제품·가공부품·2차가공품(SEMI·호기 없음·1줄)
+#   / 상품=부품 상세리스트(PARTS·PACKING LIST) / 기타=ETC. (기존 ASSEMBLY 데이터=완제품 유지)
+FORM_TYPES = ("완제품", "제품", "상품", "기타")
+FORM_TO_SHIP = {"완제품": "ASSEMBLY", "제품": "SEMI", "상품": "PARTS", "기타": "ETC"}
+SHIP_TO_FORM = {"ASSEMBLY": "완제품", "SEMI": "제품", "PARTS": "상품", "ETC": "기타"}
 
 
 def resolve_form_ship(data: dict) -> tuple[str, str]:
@@ -4395,7 +4395,7 @@ def resolve_form_ship(data: dict) -> tuple[str, str]:
     sf = (data.get("shipment_form") or "").strip().upper()
     if ft in FORM_TYPES:
         return ft, FORM_TO_SHIP[ft]
-    if sf in ("ASSEMBLY", "PARTS", "ETC"):
+    if sf in ("ASSEMBLY", "SEMI", "PARTS", "ETC"):
         return SHIP_TO_FORM[sf], sf
     return "", "ASSEMBLY"
 
