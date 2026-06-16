@@ -1,0 +1,85 @@
+name: Mirror KNK Mail → deploy repo (knk-mail)
+
+# 개발은 모노레포(claude_code) 15_KNK_Mail 에서만. 변경을 배포저장소 knk-mail(main)로
+# 자동 복사 → NAS /opt/knk_mail 의 1분 cron 이 pull 해서 자동 배포.
+# 정합(2026-06-16) 완료: 모노레포 메일 == 라이브 == knk-mail 기준. 그래서 push→live 안전.
+# ⚠️ 규칙: 메일 작업은 claude_code 에서만. 라이브(knk-mail) 직접 수정 금지.
+# 안전: git 추적 파일만 복사(.venv/data/.env/logs 제외), --delete 안 함(additive).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'KNK업무시스템구축/15_KNK_Mail/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'live=배포 / report=미리보기'
+        type: choice
+        default: report
+        options: [report, live]
+
+concurrency:
+  group: mirror-knk-mail
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine mode
+        id: m
+        env:
+          DISPATCH_MODE: ${{ github.event.inputs.mode }}
+        run: |
+          MODE="${DISPATCH_MODE:-live}"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "실행 모드: $MODE"
+
+      - name: Export tracked subtree
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/src && mkdir -p /tmp/src
+          git archive HEAD:"KNK업무시스템구축/15_KNK_Mail" -o /tmp/src.tar
+          tar -xf /tmp/src.tar -C /tmp/src
+
+      - name: Clone deploy repo
+        env:
+          TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then echo "::error::DEPLOY_REPO_TOKEN 없음"; exit 1; fi
+          rm -rf /tmp/deploy
+          git clone --depth 1 \
+            "https://x-access-token:${TOKEN}@github.com/top00151-commits/knk-mail.git" /tmp/deploy
+
+      - name: Sync (additive)
+        run: |
+          set -euo pipefail
+          rsync -a --exclude='.git' --exclude='.env' --exclude='.env.*' \
+            --exclude='data/' --exclude='uploads/' --exclude='logs/' --exclude='.venv/' \
+            /tmp/src/ /tmp/deploy/
+          git -C /tmp/deploy add -A
+          echo "=== 배포 저장소 변경 ==="
+          git -C /tmp/deploy status --short || true
+
+      - name: Push (live only)
+        if: steps.m.outputs.mode == 'live'
+        run: |
+          set -euo pipefail
+          cd /tmp/deploy
+          if git diff --cached --quiet; then echo "변경 없음 — 생략"; exit 0; fi
+          git -c user.name="knk-mirror-bot" -c user.email="mirror@users.noreply.github.com" \
+            commit -m "mirror: claude_code 15_KNK_Mail @ ${GITHUB_SHA::7}"
+          git push origin HEAD:main
+          echo "✅ knk-mail(main) 푸시 — NAS cron 자동 배포"
+
+      - name: Report
+        if: steps.m.outputs.mode != 'live'
+        run: |
+          echo "report 모드 - 푸시 안 함. 문제 없으면 mode=live."
