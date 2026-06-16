@@ -1,9 +1,15 @@
-# KNK Eum MAIL — 독립 앱
+.venv/
 data/
+logs/
+uploads/
+__pycache__/
+*.pyc
 *.db
 *.db-wal
 *.db-shm
 .mail_key
-__pycache__/
-*.pyc
 .env
+.env.*
+*.pem
+*.key
+*.log

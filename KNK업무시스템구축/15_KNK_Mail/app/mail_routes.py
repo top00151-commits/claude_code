@@ -61,8 +61,7 @@ async def mail_inbound(req: Request):
     f = {"to_email": (d.get("to") or "").strip(),
          "from_email": d.get("from") or "", "from_name": d.get("from_name") or "",
          "subject": d.get("subject") or "", "text": d.get("text") or "",
-         "html": d.get("html") or "", "cc": d.get("cc") or "", "size": d.get("size") or 0,
-         "message_id": d.get("message_id") or ""}
+         "html": d.get("html") or "", "cc": d.get("cc") or "", "size": d.get("size") or 0}
     raw = d.get("raw") or ""
     # 크기 상한(앱 레이어) — nginx 600M 외에 본문 폭주 방어. 메일 업계 표준 25MB+여유.
     if raw and len(raw) > 30 * 1024 * 1024:
@@ -71,7 +70,7 @@ async def mail_inbound(req: Request):
     if raw:
         parsed = _mailbox.parse_raw_email(raw)
         if parsed:
-            for k in ("from_email", "from_name", "subject", "text", "html", "cc", "message_id"):
+            for k in ("from_email", "from_name", "subject", "text", "html", "cc"):
                 if parsed.get(k):
                     f[k] = parsed[k]
             if not f["to_email"] and parsed.get("to_email"):
@@ -84,7 +83,7 @@ async def mail_inbound(req: Request):
         mid, owner = _mailbox.store_inbound(
             c, to_email=f["to_email"], from_email=f["from_email"], from_name=f["from_name"],
             subject=f["subject"], text=f["text"], html=f["html"], cc=f["cc"], size=f["size"],
-            run_ai=True, attachments=_atts, message_id=f.get("message_id", ""))
+            run_ai=True, attachments=_atts)
     if not mid:
         return JSONResponse({"ok": False, "message": "수신자 매핑 실패(받는 사람을 찾지 못함)"}, 422)
     return JSONResponse({"ok": True, "id": mid, "owner": owner})
@@ -625,19 +624,6 @@ async def mail_trash_empty(req: Request):
     return JSONResponse({"ok": True, "count": n})
 
 
-@router.post("/mail/dedup")
-async def mail_dedup(req: Request):
-    """받은편지함의 '진짜 같은 메일' 중복을 1통만 남기고 정리(휴지통). 답장 스레드 불가침."""
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
-    with db_session() as c:
-        n = _mailbox.dedup_inbox(c, u["id"])
-    return JSONResponse({"ok": True, "removed": n,
-                         "message": (f"같은 메일 {n}통을 정리했어요(휴지통으로). 답장은 안 건드렸습니다."
-                                     if n else "정리할 중복이 없습니다.")})
-
-
 # ─── AI (번역 · 메일 정리) ───────────────────────────────────
 @router.post("/api/mail/{mail_id:int}/translate")
 async def mail_translate(req: Request, mail_id: int):
@@ -920,7 +906,7 @@ async def admin_mail_fetch_run(req: Request):
                     c, to_email=(parsed.get("to_email") or user), from_email=parsed.get("from_email", ""),
                     from_name=parsed.get("from_name", ""), subject=parsed.get("subject", ""),
                     text=parsed.get("text", ""), html=parsed.get("html", ""), cc=parsed.get("cc", ""),
-                    size=len(raw), owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""))
+                    size=len(raw), owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"))
                 if mid:
                     stored += 1
             except Exception:

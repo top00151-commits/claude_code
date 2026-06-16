@@ -38,18 +38,6 @@
   .tbl-tb button{height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;padding:0 7px;font-size:11.5px}
   .tbl-tb button:hover{background:#f0f0f0}
   .tbl-tb .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
-  /* ── 폰(≤640px): 메일 쓰기 — 입력칸 16px(자동확대 방지)·버튼 큼직 (대표 지시 2026-06-14 모바일) ── */
-  @media(max-width:640px){
-    .app .main{padding:8px 10px}
-    .cmp-card{padding:13px;max-width:none}
-    .cmp-row{gap:8px;padding:11px 2px}
-    .cmp-row label{width:62px;font-size:12.5px}
-    .cmp-row input{font-size:16px}                 /* 16px=아이폰 입력 시 자동확대 방지 */
-    .cmp-editor{min-height:220px;font-size:16px}
-    .cmp-tb>button,.cmp-color{height:32px;font-size:14px;padding:0 10px}  /* 서식 버튼 터치영역 키움 */
-    .cmp-actions{gap:7px}
-    .cmp-actions .btn{flex:1 1 46%;min-width:0;text-align:center;padding:11px 8px;font-size:14px}
-  }
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}

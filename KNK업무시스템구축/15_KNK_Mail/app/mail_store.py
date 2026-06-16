@@ -19,7 +19,6 @@ import os
 import re
 import json
 import secrets
-import hashlib
 from email.utils import parseaddr
 
 # AI 가 판정하는 분류 4종
@@ -143,45 +142,9 @@ def _ai_summary(body: str) -> str:
 
 
 # ─── 저장(받기) ─────────────────────────────────────────────────────
-# ─── 중복 메일 자동정리 (Message-ID 기반 · 데이터 안전: 진짜 같은 메일만) ───
-# 여러 그룹메일에 포함돼 같은 메일이 N번 들어오는 중복을 안전하게 합친다.
-# 키 = Message-ID(있으면 그것만, 가장 정확) / 없으면 보낸이+제목+본문 완전일치 해시.
-# 제목만 같은 답장 스레드는 본문이 달라 해시가 달라짐 → 절대 안 묶임(연결성 안전 원칙).
-_DEDUP_COLS_OK = False
-
-
-def _ensure_dedup_cols(c):
-    """mail_messages 에 dedup_hash·dup_count 컬럼/인덱스 보장(idempotent, 프로세스당 1회)."""
-    global _DEDUP_COLS_OK
-    if _DEDUP_COLS_OK:
-        return
-    for ddl in ("ALTER TABLE mail_messages ADD COLUMN dedup_hash TEXT",
-                "ALTER TABLE mail_messages ADD COLUMN dup_count INTEGER DEFAULT 1"):
-        try:
-            c.execute(ddl)
-        except Exception:
-            pass
-    try:
-        c.execute("CREATE INDEX IF NOT EXISTS idx_mailmsg_dedup ON mail_messages(user_id, dedup_hash)")
-    except Exception:
-        pass
-    _DEDUP_COLS_OK = True
-
-
-def _dedup_hash(message_id, from_email, subject, body) -> str:
-    """'같은 메일' 식별 해시. Message-ID 있으면 그것만, 없으면 보낸이+제목+본문 완전일치."""
-    mid = str(message_id or "").strip().strip("<>").strip()
-    if mid:
-        key = "mid:" + mid
-    else:
-        key = "c:" + _norm_addr(from_email) + "\x00" + (subject or "").strip() + "\x00" + (body or "").strip()
-    return hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()
-
-
 def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = "",
                   subject: str = "", text: str = "", html: str = "", cc: str = "",
-                  size=0, owner_id=None, run_ai: bool = True, attachments=None,
-                  message_id: str = ""):
+                  size=0, owner_id=None, run_ai: bool = True, attachments=None):
     """받은 메일 1건 저장. 반환 (mail_id, owner_id).
     owner_id 미지정 시 to_email 로 수신자 해석. 수신자 없으면 (None, None).
     attachments: parse_raw_email 이 만든 [{filename,mime,size,content_id,inline,data}, ...]."""
@@ -190,21 +153,6 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
         return (None, None)
     subject = (subject or "(제목 없음)").strip()
     body = (text or "").strip() or _html_to_text(html)
-    # ── 중복 메일 자동정리: 같은 메일(고유번호/내용 완전일치)이 이미 있으면 새로 안 쌓고 dup_count++ ──
-    _ensure_dedup_cols(c)
-    _dh = _dedup_hash(message_id, from_email, subject, body)
-    try:
-        _dup = c.execute(
-            "SELECT id FROM mail_messages WHERE user_id=? AND direction='in' "
-            "AND is_deleted=0 AND dedup_hash=? ORDER BY id LIMIT 1", (owner, _dh)).fetchone()
-    except Exception:
-        _dup = None
-    if _dup:
-        try:
-            c.execute("UPDATE mail_messages SET dup_count=COALESCE(dup_count,1)+1 WHERE id=?", (_dup["id"],))
-        except Exception:
-            pass
-        return (_dup["id"], owner)   # 중복 — 새로 저장하지 않음(남은 1통에 N 표시)
     category, lang, summary = "일반", "", ""
     if run_ai:
         category, lang = _ai_classify(subject, body)
@@ -223,54 +171,16 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     cur = c.execute(
         """INSERT INTO mail_messages
            (user_id, direction, from_email, from_name, to_email, cc,
-            subject, body_text, body_html, category, lang, summary, raw_size,
-            dedup_hash, dup_count)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            subject, body_text, body_html, category, lang, summary, raw_size)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (owner, "in", _norm_addr(from_email), (from_name or "").strip(),
          _norm_addr(to_email), (cc or "").strip(), subject, body, html or "",
-         category, lang, summary, sz, _dh, 1),
+         category, lang, summary, sz),
     )
     mail_id = cur.lastrowid
     if attachments:
         _save_attachments(c, mail_id, attachments)
     return (mail_id, owner)
-
-
-def dedup_inbox(c, user_id: int) -> int:
-    """받은편지함의 '진짜 같은 메일' 중복을 1통만 남기고 나머지를 휴지통으로(소프트삭제).
-    읽음/별표는 그룹에 하나라도 있으면 보존, 남긴 메일에 dup_count 기록. 반환=정리한 통수.
-    답장 스레드(제목만 같고 본문 다름)는 해시가 달라 절대 안 건드림."""
-    _ensure_dedup_cols(c)
-    # 과거 메일 dedup_hash 백필(예전엔 Message-ID 미저장 → 보낸이+제목+본문 기준)
-    try:
-        for r in c.execute(
-                "SELECT id, from_email, subject, body_text FROM mail_messages "
-                "WHERE user_id=? AND direction='in' AND (dedup_hash IS NULL OR dedup_hash='')",
-                (user_id,)).fetchall():
-            c.execute("UPDATE mail_messages SET dedup_hash=? WHERE id=?",
-                      (_dedup_hash("", r["from_email"], r["subject"], r["body_text"]), r["id"]))
-    except Exception:
-        return 0
-    removed = 0
-    groups = c.execute(
-        "SELECT dedup_hash FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
-        "AND dedup_hash IS NOT NULL AND dedup_hash<>'' GROUP BY dedup_hash HAVING COUNT(*)>1",
-        (user_id,)).fetchall()
-    for g in groups:
-        grp = c.execute(
-            "SELECT id, is_read, is_starred FROM mail_messages WHERE user_id=? AND direction='in' "
-            "AND is_deleted=0 AND dedup_hash=? ORDER BY id", (user_id, g["dedup_hash"])).fetchall()
-        if len(grp) < 2:
-            continue
-        any_read = 1 if any(x["is_read"] for x in grp) else 0
-        any_star = 1 if any(x["is_starred"] for x in grp) else 0
-        c.execute("UPDATE mail_messages SET is_read=?, is_starred=?, dup_count=? WHERE id=?",
-                  (any_read, any_star, len(grp), grp[0]["id"]))
-        for x in grp[1:]:
-            c.execute("UPDATE mail_messages SET is_deleted=1, deleted_at=datetime('now','localtime') "
-                      "WHERE id=?", (x["id"],))
-            removed += 1
-    return removed
 
 
 # ─── 자동분류 규칙 (사용자별) ────────────────────────────────────────
@@ -839,7 +749,6 @@ def parse_raw_email(raw) -> dict:
     from_name, from_addr = parseaddr(_h("From"))
     to_addr = parseaddr(_h("To"))[1] or _h("To")
     cc = _h("Cc")
-    message_id = str(msg.get("Message-ID") or msg.get("Message-Id") or "").strip().strip("<>").strip()
 
     text, html, atts = "", "", []
     if msg.is_multipart():
@@ -893,7 +802,6 @@ def parse_raw_email(raw) -> dict:
     return {
         "from_email": from_addr, "from_name": from_name, "to_email": to_addr,
         "subject": subject, "text": body, "html": html, "cc": cc, "attachments": atts,
-        "message_id": message_id,
     }
 
 
