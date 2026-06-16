@@ -40,6 +40,10 @@ if os.path.isdir(config.STATIC_DIR):
 from . import mail_routes
 app.include_router(mail_routes.router)
 
+# 자동 수신 — 주기적으로 모든 활성 계정의 새 메일을 자동으로 받아옴(수동 '가져오기' 불필요)
+from . import auto_fetch
+auto_fetch.start(app)
+
 
 # ── 헬스 / 진단 ───────────────────────────────────────
 @app.get("/healthz")

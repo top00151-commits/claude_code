@@ -58,6 +58,13 @@ def get_account(c, owner_id):
     return dict(r) if r else None
 
 
+def list_enabled_accounts(c):
+    """자동 수신 대상 — enabled=1 인 모든 계정(dict 목록). auto_fetch 스케줄러용."""
+    _ensure_table(c)
+    rows = c.execute("SELECT * FROM mail_fetch_accounts WHERE enabled=1").fetchall()
+    return [dict(r) for r in rows]
+
+
 def save_account(c, owner_id, *, protocol="pop3", host, port, use_ssl, username, password_enc=None, label=""):
     """비번(password_enc)이 None 이면 기존 비번 유지."""
     _ensure_table(c)
