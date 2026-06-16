@@ -1,0 +1,58 @@
+name: Import live (knk-haist-works) → 모노레포 01_HAIST_WORKS (정합)
+
+# 목적: 라이브 배포저장소가 모노레포보다 앞서 있어(회의록·영업기회·SSO 등),
+#       라이브의 최신 코드를 모노레포 01_HAIST_WORKS 로 끌어와 따라잡게 한다.
+#       → 이후 모노레포가 단일 소스가 되고, mirror(모노→배포)가 안전해진다.
+# 안전:
+#   - 배포저장소(라이브)는 읽기만 한다(절대 push 안 함).
+#   - 모노레포의 작업 브랜치(claude/computer-connection-e34y9c)에만 커밋.
+#   - additive(--delete 없음): 모노레포에만 있던 문서/기록은 보존.
+#   - 런타임/비밀(.env data uploads logs .venv) 제외.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo (작업 브랜치)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/computer-connection-e34y9c
+          fetch-depth: 0
+
+      - name: Clone deploy (read only)
+        env:
+          TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then echo "::error::DEPLOY_REPO_TOKEN 없음"; exit 1; fi
+          rm -rf /tmp/deploy
+          git clone --depth 1 \
+            "https://x-access-token:${TOKEN}@github.com/top00151-commits/knk-haist-works.git" \
+            /tmp/deploy
+
+      - name: Import live → 01_HAIST_WORKS (additive)
+        run: |
+          set -euo pipefail
+          DEST="KNK업무시스템구축/01_HAIST_WORKS"
+          rsync -a \
+            --exclude='.git' --exclude='.env' --exclude='.env.*' \
+            --exclude='data/' --exclude='uploads/' --exclude='logs/' --exclude='.venv/' \
+            /tmp/deploy/ "$DEST/"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "변경 없음 — 이미 일치."
+            exit 0
+          fi
+          echo "=== 가져온 변경 요약 ==="
+          git diff --cached --stat | tail -n 40
+          git -c user.name="knk-reconcile-bot" \
+              -c user.email="reconcile@users.noreply.github.com" \
+              commit -m "chore(works): 라이브(knk-haist-works) 최신 코드를 모노레포로 정합 — 회의록·영업기회·부서요청·SSO보안·AI설정 등 (additive)"
+          git push origin HEAD:claude/computer-connection-e34y9c
+          echo "✅ 작업 브랜치에 정합 커밋 푸시 완료."
