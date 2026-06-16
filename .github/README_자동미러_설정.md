@@ -5,6 +5,18 @@
 
 워크플로 파일: `.github/workflows/mirror-works-to-deploy.yml`
 
+## ✅ 현재 상태 (2026-06-16 활성)
+
+- `DEPLOY_REPO_TOKEN` 시크릿 등록 완료.
+- 두 저장소 **정합(reconcile) 완료** — 라이브의 최신코드(회의록·영업기회·SSO 등)를
+  모노레포로 가져와 일치시킴(import-live-into-monorepo 워크플로, 커밋 df58f6c).
+- 미러 **자동(push→live) 켜짐**: `main` 의 `01_HAIST_WORKS/**` 가 바뀌면 자동으로 라이브 반영.
+
+### ⚠️ 운영 규칙 (반드시)
+- 앞으로 **WORKS 작업은 claude_code(모노레포)에서만** 한다.
+- **라이브 저장소(knk-haist-works)를 직접 수정하지 말 것** — 다음 미러 때 덮어써져 다시 갈라진다.
+- 직접 고쳐야 할 일이 생기면, 먼저 `import-live-into-monorepo` 로 라이브→모노레포 정합 후 작업.
+
 ## 1회 설정 (대표 — 휴대폰 브라우저로도 가능)
 
 ### A. 배포 저장소 쓰기용 토큰 발급

@@ -46,11 +46,11 @@ jobs:
         env:
           DISPATCH_MODE: ${{ github.event.inputs.mode }}
         run: |
-          # ⚠️ 안전장치: 모노레포와 배포저장소가 아직 완전 일치하지 않으므로(라이브가 일부 앞섬),
-          #    자동(push) 실행은 절대 푸시하지 않고 report(미리보기)만 한다.
-          #    실제 푸시(live)는 사람이 수동 실행(workflow_dispatch, mode=live)으로만 가능.
-          #    두 저장소 재조정(reconcile)이 끝난 뒤 이 기본값을 live 로 바꿔도 안전.
-          MODE="${DISPATCH_MODE:-report}"
+          # 두 저장소 정합(reconcile) 완료(2026-06-16) → 자동(push) 실행은 live(실제 배포).
+          # ⚠️ 전제: 앞으로 WORKS 작업은 반드시 claude_code(모노레포)에서만 한다.
+          #    라이브 저장소(knk-haist-works)를 직접 수정하면 다음 push 때 덮어써져 갈라진다.
+          # 미리보기만 하려면 수동 실행(workflow_dispatch)에서 mode=report 선택.
+          MODE="${DISPATCH_MODE:-live}"
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "실행 모드: $MODE"
 
