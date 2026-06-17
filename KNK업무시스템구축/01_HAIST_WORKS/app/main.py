@@ -17376,6 +17376,432 @@ async def schedule_bulk_template(request: Request):
                  "Pragma": "no-cache", "Expires": "0"})
 
 
+# ============================================================
+# v5H226z461 (대표 지시): 상품(PARTS) 일괄등록 — PART LIST 1장(헤더+부품) → 상품 프로젝트 + 부품 자동 등록.
+#   업무흐름: 구매팀 PART LIST(매입단가·납기) → 기술영업팀이 이 양식으로 한 번에 등록 → 등록 후 마진 정리.
+#   장비 일괄양식(행=프로젝트 1건)과 달리, 한 파일=한 상품(위 프로젝트 정보 + 아래 부품 여러 줄).
+# ============================================================
+def _prodbulk_norm(s):
+    import re as _re
+    return _re.sub(r"\s+", "", str(s)).upper() if s is not None else ""
+
+
+def _prodbulk_fmt_date(v):
+    if v in (None, ""):
+        return ""
+    try:
+        import datetime as _dt
+        if isinstance(v, (_dt.datetime, _dt.date)):
+            return v.strftime("%Y-%m-%d")
+    except Exception:
+        pass
+    return str(v).strip()[:10]
+
+
+# 부품 표 컬럼 (헤더 키워드 자동 인식)
+_PRODBULK_PARTCOLS = [
+    ("material_no", ["자재번호", "MATNO", "MATERIALNO", "품번", "PARTNO"]),
+    ("part_name",   ["자재품명", "품명", "PARTNAME", "ITEMNAME", "DESCRIPTION", "PRODUCT"]),
+    ("spec",        ["자재모델명", "규격", "모델", "MODEL", "SPEC"]),
+    ("maker",       ["제작사", "메이커", "MAKER", "제조사", "BRAND", "MFR"]),
+    ("supplier",    ["공급사", "업체명", "SUPPLIER", "VENDOR", "거래처"]),
+    ("qty",         ["수량", "QTY", "Q'TY", "QUANTITY", "EA"]),
+    # 매입단가·마진%는 판매단가('단가')보다 먼저 평가 (매입단가에 '단가' substring 포함)
+    ("cost_price",  ["매입단가", "매입가", "구매단가", "원가단가", "원가", "COST", "BUYINGPRICE", "PURCHASEPRICE"]),
+    ("margin_pct",  ["마진율", "마진%", "마진", "MARGIN", "MARKUP"]),
+    ("unit_price",  ["판매단가", "단가", "UNITPRICE", "PRICE"]),
+    ("due_date",    ["납기", "납품일", "DUE", "DELIVERY", "ETA"]),
+    ("line_note",   ["비고", "REMARK", "NOTE", "메모"]),
+]
+# 프로젝트 헤더(라벨:값) — 부품 표 위쪽 영역에서 라벨 셀 인식
+_PRODBULK_HDRCOLS = [
+    ("mgmt_code",          ["관리번호", "관리코드"]),
+    ("customer",           ["고객사1", "발주처"]),
+    ("secondary_customer", ["고객사2", "최종고객", "2차고객"]),
+    ("name",               ["프로젝트명", "건명"]),
+    ("order_date",         ["발주일"]),
+    ("due_date",           ["납기", "납품일"]),
+    ("currency",           ["통화"]),
+    ("is_export",          ["거래구분"]),
+    ("po_type",            ["PO유형", "발주유형"]),
+    ("sales",              ["영업담당자"]),
+]
+
+
+def _parse_product_bulk_xlsx(path):
+    """상품 일괄등록 양식 파서 — 한 파일 = 한 상품(프로젝트 정보 + 부품 여러 줄).
+    반환: {"project": {...}, "lines": [...]} 또는 {"error": "..."}"""
+    from openpyxl import load_workbook
+    wb = load_workbook(path, data_only=True)
+    ws = wb.worksheets[0]
+    maxr = min(ws.max_row or 1, 400)
+    maxc = min(ws.max_column or 1, 30)
+    # 1) 부품 표 헤더행 찾기 (품명 + 수량 둘 다 있는 행)
+    hdr_row, colmap = 0, {}
+    for r in range(1, maxr + 1):
+        cur, used = {}, set()
+        for cc in range(1, maxc + 1):
+            v = _prodbulk_norm(ws.cell(r, cc).value)
+            if not v:
+                continue
+            for key, kws in _PRODBULK_PARTCOLS:
+                if key in cur or cc in used:
+                    continue
+                if any(_prodbulk_norm(kw) in v for kw in kws):
+                    cur[key] = cc
+                    used.add(cc)
+                    break
+        if "part_name" in cur and "qty" in cur and len(cur) > len(colmap):
+            hdr_row, colmap = r, cur
+    if not hdr_row:
+        return {"error": "부품 표 헤더(자재품명·수량)를 찾지 못했습니다. 양식의 부품 표 머리글을 확인하세요."}
+    # 2) 프로젝트 헤더 — 부품 표 위쪽에서 라벨:값 (값 = 라벨 오른쪽 첫 비어있지 않은 셀)
+    proj = {}
+    for r in range(1, hdr_row):
+        for cc in range(1, maxc + 1):
+            lab = _prodbulk_norm(ws.cell(r, cc).value)
+            if not lab:
+                continue
+            for key, kws in _PRODBULK_HDRCOLS:
+                if key in proj:
+                    continue
+                if any(_prodbulk_norm(kw) in lab for kw in kws):
+                    # 값 = 라벨 '바로 오른쪽' 칸만 (안내문 칸을 값으로 오인하지 않게).
+                    val = ws.cell(r, cc + 1).value if (cc + 1) <= maxc else None
+                    if val in (None, ""):
+                        # 같은 셀에 "라벨: 값" 형태면 ':' 뒤를 사용
+                        raw = ws.cell(r, cc).value
+                        if raw is not None and ":" in str(raw):
+                            after = str(raw).split(":", 1)[1].strip()
+                            val = after or None
+                    if val not in (None, ""):
+                        proj[key] = val
+                    break
+    # 3) 부품 라인
+    def gv(r, key):
+        return ws.cell(r, colmap[key]).value if key in colmap else None
+
+    def gnum(r, key):
+        v = gv(r, key)
+        if v in (None, ""):
+            return 0.0
+        try:
+            return float(str(v).replace(",", "").strip())
+        except Exception:
+            return 0.0
+
+    lines = []
+    pn_col = colmap["part_name"]
+    for r in range(hdr_row + 1, maxr + 1):
+        pn = ws.cell(r, pn_col).value
+        if pn is None or str(pn).strip() == "":
+            continue
+        cost = gnum(r, "cost_price")
+        margin = gnum(r, "margin_pct")
+        sell = gnum(r, "unit_price")
+        if sell <= 0 and cost > 0 and margin != 0:
+            sell = round(cost * (1 + margin / 100.0))
+        qty = gnum(r, "qty") or 1
+        lines.append({
+            "part_name": str(pn).strip(),
+            "spec": str(gv(r, "spec") or "").strip(),
+            "maker": str(gv(r, "maker") or "").strip(),
+            "supplier": str(gv(r, "supplier") or "").strip(),
+            "material_no": str(gv(r, "material_no") or "").strip(),
+            "qty": qty,
+            "cost_price": (cost if cost > 0 else None),
+            "margin_pct": (margin if cost > 0 else None),
+            "unit_price": sell,
+            "amount": round(qty * sell, 2),
+            "due_date": _prodbulk_fmt_date(gv(r, "due_date")),
+            "line_note": str(gv(r, "line_note") or "").strip(),
+        })
+    return {"project": proj, "lines": lines}
+
+
+def _build_product_bulk_template_buf():
+    """상품 일괄등록 빈 양식(.xlsx) 동적 생성 → BytesIO. (openpyxl 미설치 시 ImportError 전파)"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.worksheet.datavalidation import DataValidation
+    import io
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "상품등록"
+    knk = PatternFill("solid", fgColor="A5282C")
+    white = Font(color="FFFFFF", bold=True)
+    info = Font(color="999999", italic=True)
+    hint = Font(color="9A8A5A", italic=True, size=9)
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    ws["A1"] = "KNK 상품 일괄등록 양식 — PART LIST 1장 = 상품 1건 (위: 프로젝트 정보 / 아래: 부품 표)"
+    ws["A1"].font = Font(bold=True, size=13, color="A5282C")
+    ws.merge_cells("A1:K1")
+    # 프로젝트 정보 (col A 라벨 / col B 값(직접입력) / col C 안내)
+    hdr_rows = [
+        ("관리번호", "(비우면 발주일로 자동발급 · 있으면 그 코드 사용)"),
+        ("고객사1*", "(필수 · 등록된 고객사명과 정확히 일치해야 자동연결)"),
+        ("고객사2", "(2단계 발주 시 최종고객 · 선택)"),
+        ("프로젝트명*", "(필수 · 예: 압착지그 부품 세트)"),
+        ("발주일", "(YYYY-MM-DD · 비우면 수주번호 미발행)"),
+        ("납기", "(YYYY-MM-DD · 부품별 납기 비면 이 값 상속)"),
+        ("통화", "(KRW·USD·VND·JPY·CNY·EUR)"),
+        ("거래구분", "(내수·수출)"),
+        ("PO유형", "(신규·추가·개조·수리·기타)"),
+        ("영업담당자", "(우리 회사 KNK 영업담당자)"),
+    ]
+    r0 = 3
+    for i, (lab, gd) in enumerate(hdr_rows):
+        r = r0 + i
+        cA = ws.cell(r, 1, lab); cA.font = white; cA.fill = knk; cA.border = border
+        ws.cell(r, 2, "").border = border           # 값 입력칸
+        ws.cell(r, 3, gd).font = hint
+    ws.column_dimensions["A"].width = 14
+    ws.column_dimensions["B"].width = 22
+    ws.column_dimensions["C"].width = 40
+    # 통화/거래구분/PO유형 드롭다운
+    dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
+    dv_trade = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
+    dv_po = DataValidation(type="list", formula1='"신규,추가,개조,수리,기타"', allow_blank=True)
+    ws.add_data_validation(dv_ccy); ws.add_data_validation(dv_trade); ws.add_data_validation(dv_po)
+    dv_ccy.add("B9"); dv_trade.add("B10"); dv_po.add("B11")
+    # 부품 표 (한 줄 띄우고)
+    phr = r0 + len(hdr_rows) + 1
+    pheaders = ["자재번호", "자재품명*", "규격(모델)", "제작사", "공급사", "수량",
+                "매입단가", "마진%", "판매단가(자동)", "납기", "비고"]
+    widths = [12, 22, 16, 12, 12, 7, 12, 8, 14, 12, 18]
+    for ci, (h, w) in enumerate(zip(pheaders, widths), 1):
+        c = ws.cell(phr, ci, h); c.font = white; c.fill = knk
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True); c.border = border
+        ws.column_dimensions[c.column_letter].width = w
+    ws.freeze_panes = ws.cell(phr + 1, 1)
+    ex = [
+        ["MAT-001", "실린더 CDQ2B", "CDQ2B32-50DZ", "SMC", "대성공압", 2, 85000, 20, 102000, "2026-07-15", "예시 — 삭제 후 작성"],
+        ["MAT-002", "근접센서", "E2E-X5ME1", "Omron", "한국오므론", 4, 12000, 30, 15600, "", "희소부품 마진↑ 예시"],
+    ]
+    for ri, row in enumerate(ex):
+        for ci, v in enumerate(row, 1):
+            ws.cell(phr + 1 + ri, ci, v).font = info
+    # 작성안내 시트
+    ws2 = wb.create_sheet("작성안내")
+    guide = [
+        ["항목", "설명"],
+        ["기본 구조", "한 파일 = 상품 1건. 위쪽 '프로젝트 정보'(관리번호·고객사·프로젝트명 등) + 아래 '부품 표' 여러 줄."],
+        ["관리번호", "비우면 발주일 기준 자동발급(사업부=업로드한 탭). 있으면 그 코드 사용(중복 시 오류). 4번째 글자=사업부(T/M/L/E)."],
+        ["고객사1", "필수. 시스템에 등록된 고객사명과 정확히 일치해야 자동연결(미일치 시 미연결로 표시 — 등록 후 상세에서 연결)."],
+        ["매입단가 / 마진%", "구매팀 PART LIST의 매입단가와 붙일 마진%. 판매단가 = 매입단가 × (1+마진%). 판매단가를 직접 적으면 그 값을 우선."],
+        ["판매단가(자동)", "비워두면 매입단가×마진으로 자동 계산. 마진을 비우면 '판매가 미정'으로 등록되고, 등록 후 상세에서 마진 정리."],
+        ["수량", "부품별 수량. 금액 = 수량 × 판매단가. 합계가 상품(프로젝트) 수주금액."],
+        ["납기", "부품별 납기(YYYY-MM-DD). 비우면 위 프로젝트 '납기' 상속."],
+        ["주의", "부품 표의 '예시' 2줄은 삭제 후 작성하세요. 매입단가·마진은 영업·관리 권한자만 보입니다."],
+    ]
+    for rr in guide:
+        ws2.append(rr)
+    ws2.column_dimensions["A"].width = 18
+    ws2.column_dimensions["B"].width = 88
+    for ci in (1, 2):
+        cc = ws2.cell(1, ci); cc.font = white; cc.fill = knk
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return buf
+
+
+@app.get("/projects/import-product-template")
+async def projects_import_product_template(request: Request):
+    """상품 일괄등록 빈 양식(.xlsx) 다운로드."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(u):
+        return RedirectResponse("/home", 303)
+    try:
+        buf = _build_product_bulk_template_buf()
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    from urllib.parse import quote
+    fn = "상품_일괄등록_양식.xlsx"
+    return StreamingResponse(
+        buf, media_type=_XLSX_MIME,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
+                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"})
+
+
+@app.post("/projects/import-product/parse")
+async def projects_import_product_parse(request: Request,
+                                        xlsx: UploadFile = File(...), biz: str = Form("")):
+    """상품 양식 업로드 → 파싱 + 미리보기 JSON (DB 변경 없음)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    raw = await xlsx.read()
+    if not raw:
+        return JSONResponse({"ok": False, "error": "빈 파일입니다"}, 200)
+    if len(raw) > 10 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "파일이 너무 큽니다 (10MB 제한)"}, 200)
+    fname = (xlsx.filename or "upload.xlsx")
+    if not fname.lower().endswith((".xlsx", ".xlsm")):
+        return JSONResponse({"ok": False, "error": "Excel 파일(.xlsx)만 지원합니다"}, 200)
+    import tempfile, os
+    td = tempfile.mkdtemp(prefix="prodbulk_")
+    tp = os.path.join(td, "u.xlsx")
+    with open(tp, "wb") as f:
+        f.write(raw)
+    try:
+        res = _parse_product_bulk_xlsx(tp)
+    except Exception as e:
+        res = {"error": f"파싱 오류: {e}"}
+    try:
+        os.remove(tp); os.rmdir(td)
+    except Exception:
+        pass
+    if res.get("error"):
+        return JSONResponse({"ok": False, "error": res["error"]}, 200)
+    proj = res.get("project") or {}
+    lines = res.get("lines") or []
+    name = str(proj.get("name") or "").strip()
+    cust = str(proj.get("customer") or "").strip()
+    mgmt = str(proj.get("mgmt_code") or "").strip().upper()
+    errors = []
+    if not cust:
+        errors.append("고객사1 누락 (양식 위쪽 '고객사1' 값을 채우세요)")
+    if not name:
+        errors.append("프로젝트명 누락")
+    if not lines:
+        errors.append("부품 줄이 없습니다 (부품 표에 1줄 이상 입력)")
+    cust_matched = False
+    mgmt_dup = False
+    with db_session() as c:
+        if cust:
+            cust_matched = bool(c.execute("SELECT 1 FROM customers WHERE name=? LIMIT 1", (cust,)).fetchone())
+        if mgmt:
+            mgmt_dup = bool(c.execute("SELECT 1 FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1", (mgmt,)).fetchone())
+    if mgmt_dup:
+        errors.append(f"관리번호 {mgmt} 이미 존재 — 비우면 자동발급됩니다")
+    total = round(sum(float(l.get("amount") or 0) for l in lines), 2)
+    cost_total = round(sum((float(l.get("cost_price") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
+    npriced = sum(1 for l in lines if float(l.get("unit_price") or 0) <= 0)
+    proj_out = {
+        "mgmt_code": mgmt,
+        "customer": cust,
+        "secondary_customer": str(proj.get("secondary_customer") or "").strip(),
+        "name": name,
+        "order_date": _prodbulk_fmt_date(proj.get("order_date")),
+        "due_date": _prodbulk_fmt_date(proj.get("due_date")),
+        "currency": (str(proj.get("currency") or "KRW").strip().upper() or "KRW"),
+        "is_export": ("1" if str(proj.get("is_export") or "").strip() in ("수출", "1", "EXPORT", "export") else "0"),
+        "po_type": (str(proj.get("po_type") or "신규").strip() or "신규"),
+        "sales": str(proj.get("sales") or "").strip(),
+    }
+    return JSONResponse({"ok": True, "project": proj_out, "lines": lines,
+                         "total": total, "cost_total": cost_total,
+                         "cust_matched": cust_matched, "n_unpriced": npriced,
+                         "errors": errors, "biz": (biz or "").strip().upper()})
+
+
+@app.post("/projects/import-product/confirm")
+async def projects_import_product_confirm(request: Request):
+    """미리보기 확정 → 상품 프로젝트 생성 + PARTS SO + 부품(order_items) 일괄 INSERT."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    body = await request.json()
+    proj = body.get("project") or {}
+    lines = body.get("lines") or []
+    biz = (body.get("biz") or "").strip().upper()
+    name = str(proj.get("name") or "").strip()
+    cust = str(proj.get("customer") or "").strip()
+    if not cust or not lines:
+        return JSONResponse({"ok": False, "error": "고객사 또는 부품이 없습니다"}, 200)
+    mgmt = str(proj.get("mgmt_code") or "").strip().upper()
+    if mgmt and len(mgmt) >= 4 and mgmt[3] in ("T", "M", "L", "E", "C"):
+        biz_div = mgmt[3]
+    else:
+        biz_div = biz if biz in ("T", "M", "L", "E") else "T"
+    ccy = (str(proj.get("currency") or "KRW").strip().upper() or "KRW")
+    if ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+        ccy = "KRW"
+    is_export = "1" if str(proj.get("is_export") or "0").strip() in ("수출", "1", "EXPORT", "export") else "0"
+    order_date = _prodbulk_fmt_date(proj.get("order_date"))
+    due_date = _prodbulk_fmt_date(proj.get("due_date"))
+    po_type = (str(proj.get("po_type") or "신규").strip() or "신규")
+    total = round(sum(float(l.get("amount") or 0) for l in lines), 2)
+    try:
+        new_pid, new_code = _logi.projects_create_logi({
+            "_changed_by": u.get("id"),
+            "force_code": True,
+            "mgmt_code": mgmt,
+            "biz_div": biz_div,
+            "project_name": name or "상품",
+            "customer": cust,
+            "model": "", "equip_name": "",
+            "stage": "수주확정",
+            "po_type": po_type,
+            "status": "수주",
+            "customer_po": "",
+            "currency": ccy,
+            "is_export": is_export,
+            "order_amount": total,
+            "unit_qty": 1,
+            "unit_price": None,
+            "order_date": order_date,
+            "due_date": due_date,
+            "shipment_form": "PARTS",
+            "secondary_customer": str(proj.get("secondary_customer") or ""),
+            "sales": str(proj.get("sales") or ""),
+            "note": "[상품 일괄등록]",
+            "project_type": "NEW_EQUIP",
+        })
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"프로젝트 생성 실패: {e}"}, 200)
+    if not new_pid:
+        return JSONResponse({"ok": False, "error": "프로젝트 생성 실패"}, 200)
+    inserted = 0
+    try:
+        with db_session() as c:
+            pres = _pwf.confirm_order_multi(
+                c, int(new_pid), units=[], order_date=order_date,
+                created_by=u.get("id") or 0, po_number="", so_type="PARTS_EXPORT")
+            oid = ((pres.get("groups") or [{}])[0].get("order_id")) if isinstance(pres, dict) else None
+            if oid:
+                oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+                for l in lines:
+                    qty = float(l.get("qty") or 1) or 1
+                    sell = float(l.get("unit_price") or 0)
+                    amt = float(l.get("amount") or round(qty * sell, 2))
+                    cost = l.get("cost_price")
+                    margin = l.get("margin_pct")
+                    row = {
+                        "order_id": oid, "qty": qty, "unit_price": sell, "amount": amt,
+                        "cost_price": (float(cost) if cost not in (None, "") else None),
+                        "margin_pct": (float(margin) if margin not in (None, "") else None),
+                        "unit_label": str(l.get("part_name") or "").strip(),
+                        "spec": (str(l.get("spec") or "").strip() or None),
+                        "material_no": (str(l.get("material_no") or "").strip() or None),
+                        "maker": (str(l.get("maker") or "").strip() or None),
+                        "supplier": (str(l.get("supplier") or "").strip() or None),
+                        "line_note": (str(l.get("line_note") or "").strip() or None),
+                        "currency": ccy,
+                        "order_date": order_date or None,
+                        "due_date": (_prodbulk_fmt_date(l.get("due_date")) or due_date or None),
+                        "unit_status": "CONFIRMED",
+                        "is_export": is_export,
+                    }
+                    row = {k: v for k, v in row.items() if k in oicols}
+                    cols = list(row.keys()); ph = ",".join("?" * len(cols))
+                    c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
+                    inserted += 1
+                c.execute("UPDATE orders SET total_amount=? WHERE id=?", (total, oid))
+                c.execute("UPDATE projects SET order_amount=? WHERE id=?", (total, int(new_pid)))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"부품 등록 중 오류: {e}", "pid": int(new_pid), "code": new_code}, 200)
+    return JSONResponse({"ok": True, "pid": int(new_pid), "code": new_code,
+                         "inserted": inserted, "total": total})
+
+
 @app.get("/sales/schedule", response_class=HTMLResponse)
 async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
                          pf: str = "", pt: str = ""):

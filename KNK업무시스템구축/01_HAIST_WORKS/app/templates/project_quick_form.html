@@ -317,6 +317,8 @@ html,body{background:#fff!important;overflow:auto!important;}
       {% if not ed %}
       {% set bulk_biz = preset_biz %}{% set bulk_label = {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타'}.get(preset_biz,'검사기') %}
       {% include "_v5_partials/bulk_import.html" %}
+      {# v5H226z461(대표 지시): 상품(부품) 전용 일괄등록 — PART LIST 1장(헤더+부품)→상품 프로젝트+부품 자동등록 #}
+      {% include "_v5_partials/product_bulk_import.html" %}
       {% endif %}
     </div>
   </div>
