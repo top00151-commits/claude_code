@@ -17288,20 +17288,20 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
         except Exception:
             pass
 
-        def _ti_cell(_d, _a):
-            _d = str(_d or "")[:10]
+        # v5H226z476 (대표 지시): 세금계산서를 [발행일 | 금액] 분리 칸으로(금액=숫자, 엑셀 합계 가능).
+        def _num(_a):
             try:
-                _a = float(_a) if _a not in (None, "", 0, "0") else 0
+                _a = float(_a)
+                return _a if _a else ""
             except Exception:
-                _a = 0
-            if _d and _a:
-                return f"{_d} ₩{_a:,.0f}"
-            return _d or (f"₩{_a:,.0f}" if _a else "")
+                return ""
         for _row in rows:
             _ti = _taxmap.get((_row.get("kind"), _row.get("ref_id"))) or {}
-            _row["_xl_ti1"] = _ti_cell(_row.get("tax_invoice_date"), _ti.get("tax_invoice_amt1"))
-            _row["_xl_ti2"] = _ti_cell(_ti.get("tax_invoice_date2"), _ti.get("tax_invoice_amt2"))
-            _row["_xl_ti3"] = _ti_cell(_ti.get("tax_invoice_date3"), _ti.get("tax_invoice_amt3"))
+            _row["_ti_d2"] = str(_ti.get("tax_invoice_date2") or "")[:10]
+            _row["_ti_d3"] = str(_ti.get("tax_invoice_date3") or "")[:10]
+            _row["_ti_a1"] = _num(_ti.get("tax_invoice_amt1"))
+            _row["_ti_a2"] = _num(_ti.get("tax_invoice_amt2"))
+            _row["_ti_a3"] = _num(_ti.get("tax_invoice_amt3"))
     headers = ["관리번호", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량"]
     keys = ["code", "so_no", "name", "model", "equip", "note", "qty"]
     if can_money:
@@ -17310,14 +17310,16 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
                 "납품위치", "발주일", "납품일"]
     keys += ["trade", "po_type", "form_type", "customer", "cust2", "dept", "owner", "contact",
              "ship_to", "order_date", "due_date"]
-    # v5H226z475: 화면 추가 컬럼(거래명세서·세금계산서 1/2/3차) — 청구성격이라 can_money 만
+    # v5H226z476 (대표 지시): 거래명세서 + 세금계산서 1/2/3차 — 각 [발행일 | 금액] 분리 칸(청구성격이라 can_money 만)
     if can_money:
-        headers += ["거래명세서", "1세금계산서", "2세금계산서", "3세금계산서"]
-        keys += ["statement_date", "_xl_ti1", "_xl_ti2", "_xl_ti3"]
+        headers += ["거래명세서", "1세금계산서", "금액", "2세금계산서", "금액", "3세금계산서", "금액"]
+        keys += ["statement_date", "tax_invoice_date", "_ti_a1", "_ti_d2", "_ti_a2", "_ti_d3", "_ti_a3"]
     headers += ["단계", "영업담당자"]
     keys += ["st_cur", "sales_owner"]
     out_rows = [[r.get(k, "") for k in keys] for r in rows]
-    sheets = [{"name": f"작업일정표 {_y}-{_m:02d}", "headers": headers, "rows": out_rows}]
+    # v5H226z476 (대표 지시): 이 저장본을 그대로 '일괄업로드' 파일로 쓰도록 시트명을 '일괄등록'으로
+    #   (파서가 '일괄등록' 시트를 찾음 · 자동/표시 컬럼은 업로드 시 무시). 파일명엔 월 표기 유지.
+    sheets = [{"name": "일괄등록", "headers": headers, "rows": out_rows}]
     return _make_xlsx_response(sheets, f"작업일정표_{_y}-{_m:02d}")
 
 
@@ -17338,9 +17340,15 @@ def _build_bulk_template_buf():
     ws.title = "일괄등록"
     # v5H226z341 (대표 지시): 고객사(등록)→고객사1, 2차고객사→고객사2, 납품위치 다음에 영업담당자(우리 회사) 추가
     # v5H226z349 (대표 지시): 거래구분 다음에 '형태'(제품/상품/기타) 추가. PO유형은 A/S→수리 반영.
-    headers = ["관리번호*", "프로젝트명", "모델명", "장비명", "고객사1*", "고객사2",
-               "발주일(YYYY-MM-DD)", "납품일(YYYY-MM-DD)", "수량", "단가", "통화", "거래구분",  # v5H226z475: 납기→납품일(화면 용어 일치·파서는 둘 다 인식)
-               "형태", "PO유형", "담당자", "연락처", "납품위치", "영업담당자", "비고"]
+    # v5H226z476 (대표 지시): 일괄등록 양식 컬럼을 '엑셀로 저장'(작업일정표 export) 결과와 동일하게.
+    #   저장본을 그대로 업로드할 수 있게 같은 헤더·순서. 자동/표시 컬럼(수주번호·금액(수량×단가)·
+    #   거래명세서·세금계산서 1/2/3·금액·단계)은 업로드 시 무시(파서가 안 읽음) — '작성안내' 참고.
+    from openpyxl.utils import get_column_letter
+    headers = ["관리번호*", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량",
+               "단가", "금액", "통화", "거래구분", "PO유형", "형태", "고객사1*", "고객사2", "부서",
+               "담당자", "연락처", "납품위치", "발주일", "납품일",
+               "거래명세서", "1세금계산서", "금액", "2세금계산서", "금액", "3세금계산서", "금액",
+               "단계", "영업담당자"]
     ws.append(headers)
     knk_fill = PatternFill("solid", fgColor="A5282C")
     white = Font(color="FFFFFF", bold=True)
@@ -17350,42 +17358,46 @@ def _build_bulk_template_buf():
         c = ws.cell(1, ci)
         c.font = white; c.fill = knk_fill
         c.alignment = Alignment(horizontal="center", vertical="center"); c.border = border
-        ws.column_dimensions[c.column_letter].width = 16
+        ws.column_dimensions[c.column_letter].width = 15
     ws.freeze_panes = "A2"
     dv_trade = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
-    # v5H226z349 (대표 지시): 형태(제품/상품/기타)·PO유형(신규/추가/개조/수리/기타) 드롭다운
-    dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)  # v5H226z466: 형태 4종(완제품 추가)
+    dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)
     dv_po = DataValidation(type="list", formula1='"신규,추가,개조,수리,기타"', allow_blank=True)
     for dv in (dv_trade, dv_ccy, dv_form, dv_po):
         ws.add_data_validation(dv)
-    dv_ccy.add("K2:K500"); dv_trade.add("L2:L500"); dv_form.add("M2:M500"); dv_po.add("N2:N500")
-    # v5H226z466: 예시행 형태='완제품'
-    ws.append(["005T2601", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "삼성전자", "",
-               "2026-01-15", "2026-03-30", "1", "0", "KRW", "내수", "완제품", "신규",
-               "홍길동", "010-0000-0000", "고객사 본사", "김영업(당사)", "예시 행 — 삭제 후 작성하세요"])
+
+    def _dvrange(_h):   # 헤더명 → 그 컬럼 'X2:X500' (드롭다운 위치 자동 — 컬럼 이동에 안전)
+        _L = get_column_letter(headers.index(_h) + 1)
+        return f"{_L}2:{_L}500"
+    dv_ccy.add(_dvrange("통화")); dv_trade.add(_dvrange("거래구분"))
+    dv_form.add(_dvrange("형태")); dv_po.add(_dvrange("PO유형"))
+    # 예시행 — 헤더와 동일 순서(자동/표시 컬럼은 빈칸). 프로젝트명 '예)' + 기타사항 마커로 업로드 시 스킵.
+    ws.append(["005T2601", "", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "예시 행 — 삭제 후 작성하세요",
+               "1", "0", "", "KRW", "내수", "신규", "완제품", "삼성전자", "", "",
+               "홍길동", "010-0000-0000", "고객사 본사", "2026-01-15", "2026-03-30",
+               "", "", "", "", "", "", "", "", "김영업(당사)"])
     for ci in range(1, len(headers) + 1):
         ws.cell(2, ci).font = Font(color="999999", italic=True)
     ws2 = wb.create_sheet("작성안내")
     # v5H226z466: 형태 4종(완제품/제품/상품/기타) 안내 갱신
     guide = [
         ["항목", "설명"],
-        ["관리번호 *", "필수. 이미 부여된 관리번호를 그대로 입력(자동 생성 안 함). 형식 [일련3][사업부 T/M/L/E/C][YYMM] — 예: 005T2601 = 2026년 1월·검사기. 사업부는 관리번호에서 자동 인식됩니다."],
-        ["프로젝트명", "비우면 장비명으로 대체됩니다"],
-        ["모델명 / 장비명", "고객 아이템 모델명 / 당사 제작 장비명"],
-        ["고객사1 *", "필수. 시스템에 '등록된 고객사'명과 정확히 일치해야 자동 연결됩니다(미일치 시 미연결 표시)"],
-        ["고객사2", "2단계 발주 시 최종 고객(있을 때만)"],
-        ["발주일 / 납품일", "YYYY-MM-DD 형식 (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일입니다 — 비우면 수주번호가 발행되지 않습니다(헤더만 등록)."],
-        ["수량 / 단가", "숫자만 입력"],
-        ["통화 / 거래구분", "드롭다운(KRW·USD.. / 내수·수출)"],
-        # v5H226z466: 형태 4종 안내
-        ["형태", "드롭다운(완제품·제품·상품·기타). 완제품=장비 전체 완성품(수량만큼 호기 자동) / 제품=반제품·가공부품·2차가공(호기 없이 1줄) / 상품=매입해 2차가공 없이 재판매 / 기타. 비우면 완제품. ※상품의 부품 상세·매입단가·마진은 별도 '상품 일괄등록' 양식 사용."],
-        ["PO유형", "드롭다운(신규·추가·개조·수리·기타). 비우면 '신규'로 저장됩니다."],
-        ["담당자 / 연락처", "고객사 담당자 이름 / 연락처"],
-        ["영업담당자", "우리 회사(KNK) 영업담당자 이름 — 이 건을 담당하는 당사 영업사원"],
-        ["상태(출하·수금완료)", "이 양식에는 없음 — 등록 후 작업일정표/상세에서 직접 설정합니다."],
-        ["수주번호", "직접 입력 안 함 — 발주일이 있으면 그 발주년월 기준으로 자동 발행(SO-YYYYMM-####)됩니다. 발주일이 없으면 미발행."],
-        ["* 표시", "필수 항목"],
+        ["⭐ 이 양식 = '엑셀로 저장'과 동일", "작업일정표 '엑셀로 저장'으로 받은 파일을 그대로(또는 행만 새로 추가해) 업로드할 수 있습니다. 시트 이름 '일괄등록' 유지."],
+        ["관리번호 *", "필수. 이미 부여된 관리번호를 그대로 입력(자동 생성 안 함). 형식 [일련3][사업부 T/M/L/E/C][YYMM] — 예: 005T2601. 사업부는 관리번호에서 자동 인식."],
+        ["수주번호", "자동 — 입력하지 마세요(발주일 있으면 자동 발행). 업로드 시 무시됩니다."],
+        ["프로젝트명 / 모델명 / 장비명", "프로젝트명 비우면 장비명으로 대체. 모델=고객 아이템 모델명 / 장비=당사 제작 장비명."],
+        ["기타사항", "메모(자유 입력)."],
+        ["수량 / 단가", "숫자만 입력. '금액'(수량×단가)은 자동 계산 — 업로드 시 무시됩니다."],
+        ["통화 / 거래구분 / 형태 / PO유형", "드롭다운. 형태=완제품(수량만큼 호기 자동)·제품(반제품·1줄)·상품(매입 재판매)·기타(비우면 완제품). PO유형 비우면 '신규'. ※상품 부품·매입단가·마진은 별도 '상품 일괄등록' 양식."],
+        ["고객사1 * / 고객사2", "고객사1 필수 — '등록된 고객사'명과 정확히 일치해야 자동 연결(미일치 시 미연결 표시). 고객사2=2단계 발주 최종 고객."],
+        ["부서 / 담당자 / 연락처", "고객사측 부서·담당자 이름·연락처."],
+        ["납품위치", "납품 장소."],
+        ["발주일 / 납품일", "YYYY-MM-DD (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일 — 비우면 수주번호 미발행(헤더만 등록)."],
+        ["거래명세서 / 1·2·3세금계산서(+금액)", "표시·다운로드 전용 — 업로드 시 무시됩니다. 발행일·금액은 등록 후 작업일정표/상세에서 직접 입력."],
+        ["단계", "자동·관리 항목 — 업로드 시 무시됩니다."],
+        ["영업담당자", "우리 회사(KNK) 영업담당자 이름 — 이 건을 담당하는 당사 영업사원."],
+        ["* 표시", "필수 항목(관리번호·고객사1)."],
         ["주의", "2행의 '예시 행'은 삭제 후 작성하세요."],
     ]
     for r in guide:
@@ -19810,10 +19822,13 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
 
         _cM = _col("관리번호"); _cN = _col("프로젝트명"); _cMo = _col("모델"); _cE = _col("장비")
         # v5H226z341: 고객사2(=옛 '2차고객사')·영업담당자 새 헤더 인식 + 옛 헤더 호환
-        _cC = _col("고객사"); _cC2 = _col("고객사2", "2차"); _cOd = _col("발주일"); _cDd = _col("납기")
-        _cQ = _col("수량"); _cP = _col("단가"); _cCur = _col("통화"); _cTr = _col("거래"); _cPo = _col("PO")
+        # v5H226z476 (대표 지시): 엑셀저장본(작업일정표)=일괄업로드 양식 통일. 헤더 이름 매칭 보강 —
+        #   납기/납품일 모두 인식(z475서 양식 헤더 '납품일'로 바꾼 회귀 수정) · 거래'구분' 우선(거래명세서와 구분) ·
+        #   납품'위치' 한정(납품일과 충돌 방지) · 비고/기타사항 모두 인식. (수주번호·단계·거래명세서·세금계산서·금액은 키 없음=업로드 시 무시)
+        _cC = _col("고객사"); _cC2 = _col("고객사2", "2차"); _cOd = _col("발주일"); _cDd = _col("납기", "납품일")
+        _cQ = _col("수량"); _cP = _col("단가"); _cCur = _col("통화"); _cTr = _col("거래구분", "거래"); _cPo = _col("PO")
         _cForm = _col("형태")   # v5H226z349 (대표 지시): 형태(제품/상품/기타)
-        _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품"); _cNt = _col("비고")
+        _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품위치", "납품지", "납품처"); _cNt = _col("비고", "기타사항")
         _cSa = _col("영업")   # 영업담당자(우리 회사 영업사원) — sales_name 으로 저장
         _gseq = {}
         # v5H226z327 (적대검토): 자동발급 충돌 회피 — 수동 입력 관리번호 사전 수집.
