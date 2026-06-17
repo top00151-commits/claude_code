@@ -2803,6 +2803,13 @@ def init_db():
             )""")
         except Exception as _e:
             print(f"[v5H226z270] 단계 기록표 생성 스킵: {_e}")
+        # v5H226z477 (대표 지시): 단계를 '시작전→진행중→완료'로 — 착수(시작) 시각·담당자 + 완료 소요시간(h)
+        for _c477, _t477 in (("started_at", "TEXT"), ("started_by", "INTEGER"),
+                             ("started_by_name", "TEXT"), ("hours", "REAL")):
+            try:
+                c.execute(f"ALTER TABLE project_stage_log ADD COLUMN {_c477} {_t477}")
+            except Exception:
+                pass   # 이미 있으면 무시(idempotent)
 
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
@@ -11788,13 +11795,21 @@ def stage_rows_for(ref_kind: str, ref_id: int) -> dict:
         return out
     try:
         with db_session() as c:
+            # v5H226z477: 착수(시작전→진행중→완료) + 소요시간(h) 포함
             for r in c.execute(
-                "SELECT stage_key, sub_key, done, on_date, by_user, by_name, memo, extra, updated_at "
+                "SELECT stage_key, sub_key, done, on_date, by_user, by_name, memo, extra, updated_at, "
+                "       started_at, started_by_name, hours "
                 "FROM project_stage_log WHERE ref_kind=? AND ref_id=?", (ref_kind, int(ref_id))):
+                _started = r[9] or ""
+                _done = bool(r[2])
                 out[(r[0], r[1] or "")] = {
-                    "done": bool(r[2]), "on_date": r[3] or "", "by_user": r[4],
+                    "done": _done, "on_date": r[3] or "", "by_user": r[4],
                     "by_name": r[5] or "", "memo": r[6] or "", "extra": r[7] or "",
-                    "updated_at": r[8] or ""}
+                    "updated_at": r[8] or "",
+                    "started_at": _started, "started_by_name": r[10] or "",
+                    "hours": (r[11] if r[11] is not None else ""),
+                    # 상태: 완료 / 진행중(착수했고 미완료) / 시작전
+                    "state": ("done" if _done else ("doing" if _started else "todo"))}
     except Exception:
         pass
     return out
@@ -11802,8 +11817,10 @@ def stage_rows_for(ref_kind: str, ref_id: int) -> dict:
 
 def stage_set(ref_kind: str, ref_id: int, stage_key: str, sub_key: str = "",
               done=True, on_date: str = "", memo: str = "", extra: str = "",
-              user_id=None, user_name: str = "") -> tuple[bool, str]:
-    """단계 기록 upsert. 단계/세부는 화이트리스트만. 반환 (성공, 메시지)."""
+              user_id=None, user_name: str = "", started: bool = False, hours=None) -> tuple[bool, str]:
+    """단계 기록 upsert. 단계/세부는 화이트리스트만. 반환 (성공, 메시지).
+    v5H226z477: started=True → '착수'(진행중) 기록(완료정보 미변경) / 그 외 → 완료/해제(+소요시간 hours).
+    """
     if ref_kind not in ("project", "consumable") or not ref_id:
         return (False, "대상 오류")
     if stage_key not in STAGE_KEYS:
@@ -11815,16 +11832,35 @@ def stage_set(ref_kind: str, ref_id: int, stage_key: str, sub_key: str = "",
     now = _dt.now().isoformat(timespec="seconds")
     try:
         with db_session() as c:
-            c.execute(
-                """INSERT INTO project_stage_log
-                   (ref_kind, ref_id, stage_key, sub_key, done, on_date, by_user, by_name, memo, extra, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                   ON CONFLICT(ref_kind, ref_id, stage_key, sub_key) DO UPDATE SET
-                     done=excluded.done, on_date=excluded.on_date, by_user=excluded.by_user,
-                     by_name=excluded.by_name, memo=excluded.memo, extra=excluded.extra,
-                     updated_at=excluded.updated_at""",
-                (ref_kind, int(ref_id), stage_key, sub, 1 if done else 0, (on_date or "").strip(),
-                 user_id, (user_name or "").strip(), (memo or "").strip(), (extra or "").strip(), now))
+            if started:
+                # v5H226z477: 착수(진행중) — done/on_date/memo 등 완료정보는 손대지 않음. 최초 착수시각만 보존.
+                c.execute(
+                    """INSERT INTO project_stage_log
+                       (ref_kind, ref_id, stage_key, sub_key, done, started_at, started_by, started_by_name, updated_at)
+                       VALUES (?,?,?,?,0,?,?,?,?)
+                       ON CONFLICT(ref_kind, ref_id, stage_key, sub_key) DO UPDATE SET
+                         started_at=COALESCE(NULLIF(started_at,''), excluded.started_at),
+                         started_by=excluded.started_by, started_by_name=excluded.started_by_name,
+                         updated_at=excluded.updated_at""",
+                    (ref_kind, int(ref_id), stage_key, sub, now, user_id, (user_name or "").strip(), now))
+            else:
+                try:
+                    _h = float(hours) if hours not in (None, "") else None
+                except Exception:
+                    _h = None
+                c.execute(
+                    """INSERT INTO project_stage_log
+                       (ref_kind, ref_id, stage_key, sub_key, done, on_date, by_user, by_name, memo, extra, hours, started_at, updated_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                       ON CONFLICT(ref_kind, ref_id, stage_key, sub_key) DO UPDATE SET
+                         done=excluded.done, on_date=excluded.on_date, by_user=excluded.by_user,
+                         by_name=excluded.by_name, memo=excluded.memo, extra=excluded.extra,
+                         hours=excluded.hours,
+                         started_at=COALESCE(NULLIF(started_at,''), excluded.started_at),
+                         updated_at=excluded.updated_at""",
+                    (ref_kind, int(ref_id), stage_key, sub, 1 if done else 0, (on_date or "").strip(),
+                     user_id, (user_name or "").strip(), (memo or "").strip(), (extra or "").strip(),
+                     _h, now, now))
         return (True, "")
     except Exception as e:
         return (False, str(e)[:160])

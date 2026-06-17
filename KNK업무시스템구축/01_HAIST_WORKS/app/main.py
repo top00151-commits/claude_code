@@ -18460,17 +18460,21 @@ async def schedule_board_stage_set(request: Request):
             extra_s = _json.dumps(extra)[:2000]
         except Exception:
             extra_s = ""
+    # v5H226z477 (대표 지시): 착수(진행중)/완료(+소요시간) 3단계. started=True면 착수 기록(완료정보 미변경).
+    _started = bool(b.get("started", False))
+    _done = bool(b.get("done", True))
     try:
         ok, msg = _logi.stage_set(
             kind, int(ref_id), stage_key, sub_key,
-            done=bool(b.get("done", True)), on_date=(b.get("on_date") or ""),
+            done=_done, on_date=(b.get("on_date") or ""),
             memo=(b.get("memo") or ""), extra=extra_s,
-            user_id=u.get("id"), user_name=_sched_user_name(u))
+            user_id=u.get("id"), user_name=_sched_user_name(u),
+            started=_started, hours=b.get("hours"))
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
-    # v5H226z473 (대표 지시): 출하 ⟷ 출하 양방향 연결 [보드→상세] — 단건 출하 단계 완료 시에도.
-    #   stage_key=ship & done 일 때만. 프로젝트=호기 전체 출하, 소모품=SHIPPED. (출하 해제는 미연동)
-    if ok and stage_key == "ship" and bool(b.get("done", True)):
+    # v5H226z473 (대표 지시): 출하 ⟷ 출하 양방향 연결 [보드→상세] — 단건 출하 단계 '완료' 시에만.
+    #   ⚠착수(started)는 제외(아직 출하 아님). stage_key=ship & done & not started 일 때만.
+    if ok and stage_key == "ship" and _done and not _started:
         try:
             if kind == "project":
                 with db_session() as _cz:

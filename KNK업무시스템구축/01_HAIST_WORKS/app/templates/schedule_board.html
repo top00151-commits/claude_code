@@ -239,6 +239,16 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sr-export { margin:8px 0 0 26px; padding:8px; border:1px dashed #f59e0b; border-radius:8px; background:#fffbeb; }
 .sr-export .se-t { font-size:11px; font-weight:800; color:#b45309; margin-bottom:5px; }
 .sr-export label { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; margin:2px 10px 2px 0; }
+/* v5H226z477 (대표 지시): 단계 시작전→진행중→완료 상태 표시 + 착수 버튼 */
+.stg-row.st-doing { background:#eff6ff; border-color:#bfdbfe; }
+.stg-row.st-doing .sr-chk { background:#2563eb; border-color:#2563eb; }
+.sr-state { font-size:10px; font-weight:800; padding:1px 7px; border-radius:8px; margin-left:8px; }
+.sr-state.st-todo { background:#f1f0ec; color:#9b9384; }
+.sr-state.st-doing { background:#dbeafe; color:#1e40af; }
+.sr-state.st-done { background:#dcfce7; color:#15803d; }
+.sr-sub.doing { background:#dbeafe; color:#1e40af; border-color:#93c5fd; }
+.sr-sub.doing .so { color:#1e40af; }
+.sr-btns .sr-start { background:#2563eb; color:#fff; border-color:#2563eb; }
 
 /* z274: 신규 등록 모달(iframe — 기존 등록 폼 그대로) */
 .reg-modal { position:fixed; inset:0; z-index:10060; background:rgba(15,23,42,.42); display:none; }
@@ -1261,6 +1271,15 @@ function _resetCardPos(sel){ const c=document.querySelector(sel); if(c){ ['posit
 });
 function _srow(k,sub){ return _stagePanel.rows[k+'|'+(sub||'')]||null; }
 
+// v5H226z477 (대표 지시): 단계 = 시작전→진행중→완료. 착수(진행 시작)·완료(진행내용+소요시간h).
+function _stToday(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function _stState(r){ return r? (r.state || (r.done?'done':(r.started_at?'doing':'todo'))) : 'todo'; }
+function _stMeta(st,r){
+  if(!r) return '';
+  if(st==='done') return '<div class="sr-meta">완료 '+esc(r.on_date||'')+(r.by_name?' · '+esc(r.by_name):'')+((r.hours!==''&&r.hours!=null)?' · '+esc(r.hours)+'h':'')+(r.memo?' · '+esc(r.memo):'')+'</div>';
+  if(st==='doing') return '<div class="sr-meta">진행중'+(r.started_by_name?' · '+esc(r.started_by_name):'')+(r.started_at?' · '+esc(String(r.started_at).slice(0,16).replace('T',' ')):'')+'</div>';
+  return '';
+}
 function renderStages(){
   const sp=_stagePanel.spec, body=document.getElementById('smBody');
   let html='', lastGrp='';
@@ -1268,29 +1287,35 @@ function renderStages(){
     if(s.group!==lastGrp){ html+='<div class="sm-grp">'+esc(s.group)+'</div>'; lastGrp=s.group; }
     if(s.key==='progress'){
       const subs=s.subs||[];
-      html+='<div class="stg-row"><div class="sr-top"><span class="sr-label">진행 (동시 진행)</span>'+(s.owner?'<span class="sr-owner">'+esc(s.owner)+'</span>':'')+'</div>'
-        +'<div class="sr-subs">'+subs.map(p=>{ const sk=p[0],sl=p[1],so=p[2]||''; const r=_srow('progress',sk); const on=r&&r.done;
-            return '<span class="sr-sub'+(on?' on':'')+'" data-sub="'+sk+'" title="'+esc(so)+'">'+esc(sl)+(so?'<span class="so">'+esc(so)+'</span>':'')+(on&&r.by_name?'<span class="so" style="color:#16a34a">· '+esc(r.by_name)+'</span>':'')+'</span>'; }).join('')
+      html+='<div class="stg-row"><div class="sr-top"><span class="sr-label">진행 (동시 진행 · 클릭: 시작전→진행중→완료)</span>'+(s.owner?'<span class="sr-owner">'+esc(s.owner)+'</span>':'')+'</div>'
+        +'<div class="sr-subs">'+subs.map(p=>{ const sk=p[0],sl=p[1],so=p[2]||''; const r=_srow('progress',sk); const st=_stState(r);
+            const cls = st==='done'?'on':(st==='doing'?'doing':'');
+            const who = (st==='done'&&r&&r.by_name)?r.by_name : (st==='doing'&&r&&r.started_by_name)?r.started_by_name : '';
+            return '<span class="sr-sub '+cls+'" data-sub="'+sk+'" title="'+esc(so)+(st==='todo'?' — 클릭해서 착수':st==='doing'?' (진행중) — 클릭해서 완료':' (완료) — 클릭해서 해제')+'">'+esc(sl)+(so?'<span class="so">'+esc(so)+'</span>':'')+(who?'<span class="so wb">· '+esc(who)+'</span>':'')+'</span>'; }).join('')
         +'</div></div>';
       return;
     }
-    const r=_srow(s.key,''); const done=r&&r.done;
-    html+='<div class="stg-row'+(done?' is-done':'')+'" data-key="'+s.key+'">'
-      +'<div class="sr-top"><span class="sr-chk">'+(done?'✓':'')+'</span>'
-      +'<span class="sr-label">'+esc(s.label)+'</span>'+(s.owner?'<span class="sr-owner">'+esc(s.owner)+'</span>':'')+'</div>'
-      +((done&&r)?('<div class="sr-meta">'+esc(r.on_date||'')+(r.by_name?' · '+esc(r.by_name):'')+(r.memo?' · '+esc(r.memo):'')+'</div>'):'')
-      +'<div class="sr-edit">'+editorHtml(s,r)+'</div></div>';
+    const r=_srow(s.key,''); const st=_stState(r); const done=(st==='done');
+    html+='<div class="stg-row st-'+st+(done?' is-done':'')+'" data-key="'+s.key+'">'
+      +'<div class="sr-top"><span class="sr-chk">'+(done?'✓':(st==='doing'?'▶':''))+'</span>'
+      +'<span class="sr-label">'+esc(s.label)+'</span>'
+      +'<span class="sr-state st-'+st+'">'+(done?'완료':(st==='doing'?'진행중':'시작전'))+'</span>'
+      +(s.owner?'<span class="sr-owner">'+esc(s.owner)+'</span>':'')+'</div>'
+      +_stMeta(st,r)
+      +'<div class="sr-edit">'+editorHtml(s,r,st)+'</div></div>';
   });
   body.innerHTML=html;
   bindStageEvents();
 }
-function editorHtml(s,r){
-  const date=(r&&r.on_date)||''; const memo=(r&&r.memo)||'';
+function editorHtml(s,r,st){
+  const date=(r&&r.on_date)||''; const memo=(r&&r.memo)||''; const hrs=(r&&r.hours!=null&&r.hours!=='')?r.hours:'';
   let ex={}; try{ ex=(r&&r.extra)?JSON.parse(r.extra):{}; }catch(e){ ex={}; }
   let pre='';
   if(s.key==='verify') pre='<div class="sr-meta" style="margin-left:0">검사기 → 반복성검사·성적서 / 자동화 → 드라이런</div>';
   if(s.key==='prod_request') pre='<div class="sr-meta" style="margin-left:0">제작요청 발행은 프로젝트 상세의 「📋 제작요청 발행」에서 — 전부서 WORKS 통보(단가·금액 제외)가 발송됩니다</div>';
-  let h=pre+'<label>날짜</label><input type="date" class="se-date" value="'+esc(date)+'">';
+  let h=pre;
+  if(st==='todo'){ h+='<div class="sr-btns" style="justify-content:flex-start;margin-bottom:8px"><button type="button" class="se-start sr-start">▶ 착수 (진행 시작)</button></div>'; }
+  h+='<label>완료일</label><input type="date" class="se-date" value="'+esc(date||_stToday())+'">';
   if(s.key==='ship'){
     h+='<div class="sr-inline"><span><label>수량</label><input type="number" class="se-qty" value="'+esc(ex.qty||'')+'" style="width:80px"></span>'
       +'<span><label>구분</label> <label><input type="radio" name="se-trade" value="내수" '+(ex.export?'':'checked')+'> 내수</label> '
@@ -1304,20 +1329,25 @@ function editorHtml(s,r){
   if(s.key==='tax_invoice'){
     h+='<label>금액</label><input type="number" class="se-amt" value="'+esc(ex.amount||'')+'">';
   }
-  h+='<label>메모</label><textarea class="se-memo" rows="2">'+esc(memo)+'</textarea>';
-  h+='<div class="sr-btns">'+((r&&r.done)?'<button type="button" class="se-undo">완료 해제</button>':'')+'<button type="button" class="se-save sr-save">저장 (완료)</button></div>';
+  h+='<label>진행 내용</label><textarea class="se-memo" rows="2">'+esc(memo)+'</textarea>';
+  h+='<label>소요시간(h)</label><input type="number" step="0.5" min="0" class="se-hours" value="'+esc(hrs)+'" style="width:90px">';
+  h+='<div class="sr-btns">'+((st==='done')?'<button type="button" class="se-undo">완료 해제</button>':'')+'<button type="button" class="se-save sr-save">✓ 완료 처리</button></div>';
   return h;
 }
 function bindStageEvents(){
   const body=document.getElementById('smBody');
   body.querySelectorAll('.sr-sub').forEach(el=>el.addEventListener('click',()=>{
-    saveStage('progress', el.dataset.sub, {done: !el.classList.contains('on')});
+    const st = el.classList.contains('on')?'done':(el.classList.contains('doing')?'doing':'todo');
+    if(st==='todo') saveStage('progress', el.dataset.sub, {started:true});
+    else if(st==='doing') saveStage('progress', el.dataset.sub, {done:true, on_date:_stToday()});
+    else saveStage('progress', el.dataset.sub, {done:false});   // 완료 → 해제
   }));
   body.querySelectorAll('.stg-row[data-key]').forEach(row=>{
     row.querySelector('.sr-top').addEventListener('click',()=>row.classList.toggle('editing'));
     row.querySelectorAll('input[name="se-trade"]').forEach(rd=>rd.addEventListener('change',()=>{
       const ex=row.querySelector('.sr-export'); if(ex) ex.style.display=(rd.value==='수출')?'block':'none';
     }));
+    const stb=row.querySelector('.se-start'); if(stb) stb.addEventListener('click',(e)=>{ e.stopPropagation(); saveStage(row.dataset.key,'',{started:true}); });
     const sv=row.querySelector('.se-save'); if(sv) sv.addEventListener('click',(e)=>{ e.stopPropagation(); submitStageRow(row,true); });
     const ud=row.querySelector('.se-undo'); if(ud) ud.addEventListener('click',(e)=>{ e.stopPropagation(); submitStageRow(row,false); });
     row.querySelector('.sr-edit').addEventListener('click',(e)=>e.stopPropagation());
@@ -1327,6 +1357,7 @@ function submitStageRow(row,done){
   const key=row.dataset.key;
   const date=(row.querySelector('.se-date')||{}).value||'';
   const memo=(row.querySelector('.se-memo')||{}).value||'';
+  const hours=(row.querySelector('.se-hours')||{}).value||'';
   let extra={};
   if(key==='ship'){
     extra.qty=(row.querySelector('.se-qty')||{}).value||'';
@@ -1335,14 +1366,16 @@ function submitStageRow(row,done){
   }
   if(key==='label'){ extra.kind=(row.querySelector('input[name="se-label"]:checked')||{}).value||''; }
   if(key==='tax_invoice'){ extra.amount=(row.querySelector('.se-amt')||{}).value||''; }
-  saveStage(key,'',{done:done,on_date:date,memo:memo,extra:extra});
+  saveStage(key,'',{done:done,on_date:date,memo:memo,extra:extra,hours:hours});
 }
 function saveStage(stageKey,sub,payload){
+  const isStart=(payload.started===true);
   const body={kind:_stagePanel.kind, ref_id:_stagePanel.ref, stage_key:stageKey, sub_key:sub||'',
-    done:(payload.done!==false), on_date:payload.on_date||'', memo:payload.memo||'', extra:payload.extra||null};
+    started:isStart, done:isStart?false:(payload.done!==false),
+    on_date:payload.on_date||'', memo:payload.memo||'', hours:payload.hours||'', extra:payload.extra||null};
   fetch('/sales/schedule/stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(r=>r.json()).then(j=>{
-      if(j.ok){ _stagePanel.dirty=true; toast('저장됨'); refetchStages(); }
+      if(j.ok){ _stagePanel.dirty=true; toast(isStart?'착수 처리됨':'저장됨'); refetchStages(); }
       else toast('⚠ '+(j.error||'저장 실패'));
     }).catch(()=>toast('⚠ 통신 오류'));
 }
