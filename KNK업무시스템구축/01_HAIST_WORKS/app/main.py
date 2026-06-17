@@ -17315,17 +17315,19 @@ def _build_bulk_template_buf():
     dv_trade = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
     # v5H226z349 (대표 지시): 형태(제품/상품/기타)·PO유형(신규/추가/개조/수리/기타) 드롭다운
-    dv_form = DataValidation(type="list", formula1='"제품,상품,기타"', allow_blank=True)
+    dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)  # v5H226z466: 형태 4종(완제품 추가)
     dv_po = DataValidation(type="list", formula1='"신규,추가,개조,수리,기타"', allow_blank=True)
     for dv in (dv_trade, dv_ccy, dv_form, dv_po):
         ws.add_data_validation(dv)
     dv_ccy.add("K2:K500"); dv_trade.add("L2:L500"); dv_form.add("M2:M500"); dv_po.add("N2:N500")
+    # v5H226z466: 예시행 형태='완제품'
     ws.append(["005T2601", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "삼성전자", "",
-               "2026-01-15", "2026-03-30", "1", "0", "KRW", "내수", "제품", "신규",
+               "2026-01-15", "2026-03-30", "1", "0", "KRW", "내수", "완제품", "신규",
                "홍길동", "010-0000-0000", "고객사 본사", "김영업(당사)", "예시 행 — 삭제 후 작성하세요"])
     for ci in range(1, len(headers) + 1):
         ws.cell(2, ci).font = Font(color="999999", italic=True)
     ws2 = wb.create_sheet("작성안내")
+    # v5H226z466: 형태 4종(완제품/제품/상품/기타) 안내 갱신
     guide = [
         ["항목", "설명"],
         ["관리번호 *", "필수. 이미 부여된 관리번호를 그대로 입력(자동 생성 안 함). 형식 [일련3][사업부 T/M/L/E/C][YYMM] — 예: 005T2601 = 2026년 1월·검사기. 사업부는 관리번호에서 자동 인식됩니다."],
@@ -17336,7 +17338,8 @@ def _build_bulk_template_buf():
         ["발주일 / 납기", "YYYY-MM-DD 형식 (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일입니다 — 비우면 수주번호가 발행되지 않습니다(헤더만 등록)."],
         ["수량 / 단가", "숫자만 입력"],
         ["통화 / 거래구분", "드롭다운(KRW·USD.. / 내수·수출)"],
-        ["형태", "드롭다운(제품·상품·기타). 제품=자체 제작 / 상품=매입 판매(여러 품목으로 구성) / 기타. 비워도 됩니다."],
+        # v5H226z466: 형태 4종 안내
+        ["형태", "드롭다운(완제품·제품·상품·기타). 완제품=장비 전체 완성품(수량만큼 호기 자동) / 제품=반제품·가공부품·2차가공(호기 없이 1줄) / 상품=매입해 2차가공 없이 재판매 / 기타. 비우면 완제품. ※상품의 부품 상세·매입단가·마진은 별도 '상품 일괄등록' 양식 사용."],
         ["PO유형", "드롭다운(신규·추가·개조·수리·기타). 비우면 '신규'로 저장됩니다."],
         ["담당자 / 연락처", "고객사 담당자 이름 / 연락처"],
         ["영업담당자", "우리 회사(KNK) 영업담당자 이름 — 이 건을 담당하는 당사 영업사원"],
@@ -19906,12 +19909,19 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
             amount_raw = _gf("amount")          # '1차 고객사 납품 금액' (있으면 명시값 우선)
             final_amount_raw = _gf("final_amount")  # '2차 고객사 납품 금액 VND' (최종, 참고)
             _sf_raw = _gf("shipment_form").strip()
-            if ("부품" in _sf_raw) or (_sf_raw.replace(" ", "").upper() == "PARTS"):
+            _sf_u = _sf_raw.replace(" ", "").upper()
+            # v5H226z466 (대표 지시): 형태 4종(완제품/제품/상품/기타) + 레거시(부품·ASS'Y) → shipment_form
+            #   ⚠ '완제품'은 '제품'을 포함하므로 완제품을 가장 먼저 판정.
+            if ("완제품" in _sf_raw) or _sf_u in ("ASSEMBLY", "ASSY", "ASS'Y"):
+                shipment_form = "ASSEMBLY"
+            elif ("상품" in _sf_raw) or ("부품" in _sf_raw) or _sf_u == "PARTS":
                 shipment_form = "PARTS"
-            elif ("기타" in _sf_raw) or (_sf_raw.replace(" ", "").upper() == "ETC"):
+            elif ("제품" in _sf_raw) or _sf_u == "SEMI":
+                shipment_form = "SEMI"
+            elif ("기타" in _sf_raw) or _sf_u == "ETC":
                 shipment_form = "ETC"
             else:
-                shipment_form = "ASSEMBLY"      # ASS'Y / 완제품 / 빈값
+                shipment_form = "ASSEMBLY"      # 빈값 → 완제품
             if _fixed_sf:                        # v5H226z232: 새 평면 양식은 출고형태 고정
                 shipment_form = _fixed_sf
             # v5H226z232: 기타는 모델명 칸이 없음 → 기타품명을 품명(모델명 슬롯)으로 보존
@@ -20394,7 +20404,7 @@ async def projects_import_confirm(request: Request):
                 #   호기 N줄 분할 대신 동일단가×수량을 1줄(qty=N)로 저장한다.
                 #   - 부품 판정: 출고형태 부품/기타 OR 대상 프로젝트 유형이 소모품/기타/서비스
                 #   - 장비 프로젝트에 부품을 추가하는 경우 so_type 은 CONSUMABLE 로 기록(호기 번호 오염 방지)
-                _row_is_part = ((r.get("shipment_form") or "") in ("PARTS", "ETC")
+                _row_is_part = ((r.get("shipment_form") or "") in ("PARTS", "ETC", "SEMI")  # v5H226z466: 제품(SEMI)도 호기X·1줄
                                 or _sotype in ("CONSUMABLE", "OTHER", "SERVICE"))
                 _expand = not _row_is_part
                 _so_eff = _sotype if _expand else ("CONSUMABLE" if _sotype == "EQUIPMENT" else _sotype)
@@ -20513,7 +20523,7 @@ async def projects_import_confirm(request: Request):
                             # v5H226z204 (대표 지시): 부품/소모품/기타는 호기 N줄 분할 대신 1줄(수량=N).
                             _ptype_new = {"E": "OTHER", "C": "CONSUMABLE"}.get(biz_div, "NEW_EQUIP")
                             _new_is_part = (_ptype_new in ("OTHER", "CONSUMABLE")
-                                            or (r.get("shipment_form") or "") in ("PARTS", "ETC"))
+                                            or (r.get("shipment_form") or "") in ("PARTS", "ETC", "SEMI"))  # v5H226z466: 제품(SEMI)도 호기X·1줄
                             if _new_is_part:
                                 # 동일단가 × 수량 = 1줄 (라인금액=총액, qty=N)
                                 units_list = [{
