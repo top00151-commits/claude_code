@@ -197,7 +197,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         <summary>관리번호·수주번호는 어떻게 부여되나요?</summary>
         <div class="body">
           · <b>등록하는 순간</b> 관리번호(비우면 자동, 입력하면 그 값)와 <b>수주번호(SO)</b>가 <b>항상 함께 발급</b>됩니다.<br>
-          · 상태(초기협의·제안서전달·견적발행·수주예정·진행중·납품완료)는 <b>고른 그대로 유지</b>돼요 — 단계와 무관하게 번호는 부여됩니다.<br>
+          · 상태(초기협의·제안서전달·견적발행·수주예정·진행중·출하)는 <b>고른 그대로 유지</b>돼요 — 단계와 무관하게 번호는 부여됩니다.<br>
           · 호기별 단가·납품처를 지금 따로 적으려면 아래 <b>③ 금액</b> 섹션의 <b>"수주 확정 동시 발급"</b>을 체크하세요. (안 해도 번호는 발급됨)
         </div>
       </details>
@@ -917,7 +917,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div style="font-size:11.5px;color:var(--qv-ink-3);line-height:1.55;padding:0;">
             ⓘ <b>단가 × 수량</b> 으로 수주액이 자동 계산됩니다.
             외화 선택 시 <b>기준환율</b> 입력하면 향후 원화 매출 확인 시 환산값이 보존됩니다.<br>
-            저장 시 <b>수량 N대</b> 면 <b>호기 N개</b>가 자동으로 만들어집니다 (상태 = 진행중/납품완료 또는 '수주확정 동시발급' 체크).
+            저장 시 <b>수량 N대</b> 면 <b>호기 N개</b>가 자동으로 만들어집니다 (상태 = 진행중/출하 또는 '수주확정 동시발급' 체크).
             <br><span style="font-size:11px;color:var(--qv-ink-3);">※ <b>SO</b> = Sales Order (수주번호). 호기 1대당 또는 같은 납기·납품처 그룹별로 1개씩 발행됩니다 (예: T-260507-1).</span>
             {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 수주가 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.</span>{% endif %}
           </div>
@@ -994,7 +994,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       {# v5H226z182 (대표 지시): '예상 금액'과 아래 '단계·수주 확정' 묶음을 확실히 구분 #}
       <div class="pf-subdiv">📊 단계 · 수주 확정 <span class="sub">— 진행 단계를 정하고, 수주 확정이면 발주일·납기를 입력</span></div>
       {# v5H97: 초기 상태만 설정 — 이후 변경은 프로젝트 상세에서 인라인 클릭으로 #}
-      {# v5H211: 단계별 차등 검증 — 진행중/납품완료 선택 시에만 단가/발주일/납기 필수 #}
+      {# v5H211: 단계별 차등 검증 — 진행중/출하 선택 시에만 단가/발주일/납기 필수 #}
       <div class="pf-row">
         <div class="pf-field full">
           <label>초기 상태 <span class="sub">(저장 후 프로젝트 상세에서 클릭으로 수시 변경 가능)</span></label>
@@ -1013,7 +1013,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         if (!sel || !hint) return;
         function update(){
           var v = sel.value;
-          var strict = (v === '진행중' || v === '납품완료');
+          var strict = (v === '진행중' || v === '출하');
           if (strict) {
             hint.style.background = '#fff8e8';
             hint.style.color = '#7c4a03';
@@ -1021,7 +1021,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           } else {
             hint.style.background = 'var(--qv-surface-3)';
             hint.style.color = 'var(--qv-ink-3)';
-            hint.innerHTML = 'ⓘ 제안 단계 — 단가·발주일·납기는 비워두고 저장 가능합니다. 진행중/납품완료로 전환 시 입력하세요.';
+            hint.innerHTML = 'ⓘ 제안 단계 — 단가·발주일·납기는 비워두고 저장 가능합니다. 진행중/출하로 전환 시 입력하세요.';
           }
         }
         sel.addEventListener('change', update);
@@ -1359,12 +1359,12 @@ html,body{background:#fff!important;overflow:auto!important;}
     form.addEventListener('input', clearMissing, true);
     form.addEventListener('change', clearMissing, true);
     form.addEventListener('submit', function(e){
-      // v5H211: 단계별 차등 검증 — 진행중/납품완료(또는 즉시 수주확정)면 strict
+      // v5H211: 단계별 차등 검증 — 진행중/출하(또는 즉시 수주확정)면 strict
       // 그 전 단계(초기협의/제안서전달/견적발행/수주예정 등)는 추상적 견적이라 단가·발주일·납기 옵션
       var stEl = findField('status');
       var stVal = stEl ? (stEl.value || '').trim() : '';
-      // v5H226z221: confirm_now 제거 → strict 는 상태(진행중/납품완료)로만 판정
-      var strict = (stVal === '진행중' || stVal === '납품완료');
+      // v5H226z221: confirm_now 제거 → strict 는 상태(진행중/출하)로만 판정
+      var strict = (stVal === '진행중' || stVal === '출하');
       // 항상 필수 (v5H226z212: 프로젝트명은 필수 해제 — 장비명으로 대체 가능)
       var checks = [
         { name:'customer_name',label:'고객사', alt:'customer' },

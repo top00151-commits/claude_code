@@ -645,7 +645,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:right;">'+won(it.amount)+'</td></tr>';
       }).join('');
       body.innerHTML='<div style="margin-bottom:8px;">대상 <b style="color:#c0392b;">'+j.count+'</b>건 — 각 항목의 <b>발주일</b> 기준으로 수주번호(사업부-발주일, 예 M-260518)를 발급/수리합니다.<br>'+
-        '<span style="font-size:11px;color:#666;">· 실행 전 DB 자동 백업 · 이미 정상 수주번호 있으면 건너뜀 · 발주일 없는 건은 대상 아님 · <b>신규</b>=새 발급, <b>수리</b>=깨진 번호 교체 · <b>초기협의 단계는 수주확정으로 올림</b>(진행중·납품완료는 보존)</span></div>'+
+        '<span style="font-size:11px;color:#666;">· 실행 전 DB 자동 백업 · 이미 정상 수주번호 있으면 건너뜀 · 발주일 없는 건은 대상 아님 · <b>신규</b>=새 발급, <b>수리</b>=깨진 번호 교체 · <b>초기협의 단계는 수주확정으로 올림</b>(진행중·출하는 보존)</span></div>'+
         '<div style="max-height:46vh;overflow:auto;border:1px solid #eee;border-radius:6px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">처리</th><th style="padding:5px 6px;">사업부</th><th style="padding:5px 6px;text-align:left;">프로젝트</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;">현재단계</th><th style="padding:5px 6px;text-align:right;">수주액</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
       var run2=document.getElementById('soBackfillRunBtn'); if(run2) run2.disabled=false;
     }).catch(function(e){ body.innerHTML='<div style="color:#b91c1c;">조회 오류: '+esc(e)+'</div>'; });

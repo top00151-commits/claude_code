@@ -26,7 +26,7 @@ CO_STATUS_LABELS = {
     "DRAFT": "작성중",
     "QUOTED": "견적완료",
     "CONFIRMED": "발주확정",
-    "SHIPPED": "납품완료",
+    "SHIPPED": "출하",
     "PAID": "수금완료",
     "CANCELLED": "취소",
 }

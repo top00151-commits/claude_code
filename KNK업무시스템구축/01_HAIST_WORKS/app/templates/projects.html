@@ -100,7 +100,7 @@ body {
     <a href="#" data-bm="all"         onclick="projFilter('all');return false;"         class="bm {% if not view %}on{% endif %}">📂 전체 <b>{{ view_counts.all }}</b></a>
     <a href="#" data-bm="unconfirmed" onclick="projFilter('unconfirmed');return false;" class="bm {% if view=='unconfirmed' %}on{% endif %}">🆕 미확정 <b>{{ view_counts.unconfirmed }}</b></a>
     <a href="#" data-bm="ongoing"     onclick="projFilter('ongoing');return false;"     class="bm {% if view=='ongoing' %}on{% endif %}">🟡 진행중 <b>{{ view_counts.ongoing }}</b></a>
-    <a href="#" data-bm="done"        onclick="projFilter('done');return false;"        class="bm {% if view=='done' %}on{% endif %}">🟢 납품완료 <b>{{ view_counts.done }}</b></a>
+    <a href="#" data-bm="done"        onclick="projFilter('done');return false;"        class="bm {% if view=='done' %}on{% endif %}">🟢 출하 <b>{{ view_counts.done }}</b></a>
     <a href="#" data-bm="hold"        onclick="projFilter('hold');return false;"        class="bm {% if view=='hold' %}on{% endif %}">⚫ 보류·취소 <b>{{ view_counts.hold }}</b></a>
   </div>
 
@@ -118,7 +118,7 @@ body {
 
   {# v5H226o: 페이지 안내 — 모든 단계의 프로젝트가 섞여 있어 수주액/발주일 등은 변경될 수 있음 #}
   <div class="proj-intro-note" style="margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fef9e6;border:1px solid #f0d97a;border-left:4px solid #d4b75a;border-radius:6px;font-size:12.5px;line-height:1.65;color:#5a4a00;">
-    ⓘ 이 목록은 <b>초기협의·제안서전달·견적발행·수주예정·수주확정·진행중·납품완료·취소·보류</b> 모든 단계의 프로젝트를 함께 보여줍니다.
+    ⓘ 이 목록은 <b>초기협의·제안서전달·견적발행·수주예정·수주확정·진행중·출하·취소·보류</b> 모든 단계의 프로젝트를 함께 보여줍니다.
     <span style="color:#7c4a03;">수주확정 전 항목의 <b>수주액·발주일·납기·단가</b>는 견적/제안 단계 임시값으로 추후 변경될 수 있습니다.</span>
     <span style="color:#7c4a03;">이제는 <b>등록 시 관리코드·수주번호(SO)가 항상 자동 발급</b>됩니다 (제안 단계 포함). 관리코드 없이는 등록되지 않습니다.</span>
     행 클릭 시 해당 프로젝트 상세 화면으로 이동합니다.
@@ -183,7 +183,7 @@ body {
             {% if _ds and _ds.total > 0 %}
               <span class="pill {% if _ds.tone == 'done' %}pill-done{% elif _ds.tone == 'danger' %}pill-danger{% elif _ds.tone == 'warn' %}pill-warn{% else %}pill-progress{% endif %}" style="font-size:11.5px;font-weight:700;">{{ _ds.label }}</span>
             {% elif p.status %}
-              <span class="pill {% if p.status in ('납품완료','완료','종료') %}pill-done{% elif p.status in ('취소','보류') %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>
+              <span class="pill {% if p.status in ('출하','완료','종료') %}pill-done{% elif p.status in ('취소','보류') %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>
             {% else %}—{% endif %}
           </td>
           <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}

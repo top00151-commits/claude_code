@@ -251,11 +251,11 @@ tpl.env.filters["vname"] = vname
 _STATUS_KR_MAP = {
     # --- 수주(SO) / 매출 ---
     "DRAFT": "임시", "CONFIRMED": "수주확정", "IN_PRODUCTION": "진행중",
-    "READY_TO_SHIP": "납품대기", "SHIPPED": "납품완료", "INVOICED": "송장발행",
+    "READY_TO_SHIP": "납품대기", "SHIPPED": "출하", "INVOICED": "송장발행",
     "PAID": "수금완료", "CANCELLED": "취소", "CANCELED": "취소",
     # --- 수출(export order / CI / PL / BL / 통관) ---
     "CI_ISSUED": "CI발행", "PL_READY": "PL준비", "CLEARED": "통관완료",
-    "ISSUED": "발행", "DELIVERED": "납품완료", "SUBMITTED": "제출",
+    "ISSUED": "발행", "DELIVERED": "출하", "SUBMITTED": "제출",
     "REJECTED": "반려", "APPROVED": "승인",
     # --- 진행현황(progress) ---
     "DONE": "완료", "DELAY": "지연", "PROGRESS": "진행중",
@@ -5954,7 +5954,7 @@ async def project_detail(req: Request, pid: int):
             )
     except Exception:
         project_display_status = {"label": "—", "tone": "muted",
-                                   "dist": {"진행중":0,"납품완료":0,"취소":0,"보류":0},
+                                   "dist": {"진행중":0,"출하":0,"취소":0,"보류":0},
                                    "total": 0, "done": 0, "ratio_text": "",
                                    "has_canceled": False, "has_held": False}
     # v5H226z373 (대표 지시): 제작요청 발행은 '신규 등록(제작요청서)' 흐름으로 일원화 →
@@ -11023,7 +11023,7 @@ async def sales_order_item_edit(req: Request, iid: int):
     return JSONResponse({"ok": True, "message": "라인 수정 완료", "updated_at": _new_ts})
 
 
-UNIT_STATUSES = ("진행중", "납품완료", "취소", "보류")
+UNIT_STATUSES = ("진행중", "출하", "취소", "보류")
 
 
 @app.post("/sales/orders/items/{iid:int}/status")
@@ -16851,8 +16851,8 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
         try:
             from . import consumables as _co_mod
             _co_status_map = {"DRAFT": "초기협의", "QUOTED": "견적발행",
-                               "CONFIRMED": "진행중", "SHIPPED": "납품완료",
-                               "PAID": "납품완료", "CANCELLED": "취소"}
+                               "CONFIRMED": "진행중", "SHIPPED": "출하",
+                               "PAID": "출하", "CANCELLED": "취소"}
             _co_rows = _co_mod.co_list(status="", q=q, limit=500)
             for cr in _co_rows:
                 _co_biz = (cr.get("biz_div") or "").strip().upper() if cr.get("biz_div") else ""
@@ -16884,7 +16884,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     rows.sort(key=lambda r: (str(r.get("order_date") or ""), str(r.get("mgmt_code") or "")), reverse=True)
 
     # v5H226z155 (2026-06-02 대표 지시): 책갈피(탭) — 의미 그룹 5개로 빠른 전환.
-    #   전체 / 미확정(관리번호 없음) / 진행중 / 납품완료 / 보류·취소
+    #   전체 / 미확정(관리번호 없음) / 진행중 / 출하 / 보류·취소
     def _is_unconfirmed(r):
         mc = str(r.get("mgmt_code") or "").strip()
         return mc in ("", "—", "None", "none")
@@ -16894,7 +16894,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
         "all":         len(rows),
         "unconfirmed": sum(1 for r in rows if _is_unconfirmed(r)),
         "ongoing":     sum(1 for r in rows if _st(r) == "진행중"),
-        "done":        sum(1 for r in rows if _st(r) == "납품완료"),
+        "done":        sum(1 for r in rows if _st(r) == "출하"),
         "hold":        sum(1 for r in rows if _st(r) in ("보류", "취소")),
     }
     # 책갈피는 클라이언트에서 즉시 필터(이동 없음 → 전체화면 유지)되도록 각 행에 그룹 태그 부여.
@@ -16905,7 +16905,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
         s = _st(r)
         if s == "진행중":
             g.append("ongoing")
-        elif s == "납품완료":
+        elif s == "출하":
             g.append("done")
         elif s in ("보류", "취소"):
             g.append("hold")
@@ -17102,7 +17102,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         info["bar_s"] = max(s, mstart).day
         info["bar_e"] = min(e, mend).day
         info["dday"] = dd.day if (dd and mstart <= dd <= mend) else None
-        info["is_delay"] = bool(dd and dd < today and status not in ("납품완료", "취소", "보류"))
+        info["is_delay"] = bool(dd and dd < today and status not in ("출하", "취소", "보류"))
         info["status"] = status or ""
         info["kind"] = kind
         return info
@@ -17202,7 +17202,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
     try:
         from . import consumables as _co_mod
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
-                   "SHIPPED": "납품완료", "PAID": "납품완료", "CANCELLED": "취소"}
+                   "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소"}
         for cr in _co_mod.co_list(status="", q="", limit=1000):
             info = {
                 "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
@@ -17343,7 +17343,7 @@ def _build_bulk_template_buf():
         ["PO유형", "드롭다운(신규·추가·개조·수리·기타). 비우면 '신규'로 저장됩니다."],
         ["담당자 / 연락처", "고객사 담당자 이름 / 연락처"],
         ["영업담당자", "우리 회사(KNK) 영업담당자 이름 — 이 건을 담당하는 당사 영업사원"],
-        ["상태(납품완료·수금완료)", "이 양식에는 없음 — 등록 후 작업일정표/상세에서 직접 설정합니다."],
+        ["상태(출하·수금완료)", "이 양식에는 없음 — 등록 후 작업일정표/상세에서 직접 설정합니다."],
         ["수주번호", "직접 입력 안 함 — 발주일이 있으면 그 발주년월 기준으로 자동 발행(SO-YYYYMM-####)됩니다. 발주일이 없으면 미발행."],
         ["* 표시", "필수 항목"],
         ["주의", "2행의 '예시 행'은 삭제 후 작성하세요."],
@@ -17860,7 +17860,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         info["bar_s"] = max(s, mstart).day
         info["bar_e"] = min(e, mend).day
         info["dday"] = dd.day if (dd and mstart <= dd <= mend) else None
-        info["is_delay"] = bool(dd and dd < today and status not in ("납품완료", "취소", "보류"))
+        info["is_delay"] = bool(dd and dd < today and status not in ("출하", "취소", "보류"))
         info["status"] = status or ""
         info["kind"] = kind
         return info
@@ -17980,7 +17980,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     try:
         from . import consumables as _co_mod
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
-                   "SHIPPED": "납품완료", "PAID": "납품완료", "CANCELLED": "취소"}
+                   "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소"}
         for cr in _co_mod.co_list(status="", q="", limit=1000):
             info = {
                 "ref_id": cr.get("id"),                    # v5H226z264: 셀 편집/메모용
@@ -18416,8 +18416,8 @@ async def schedule_board_stage_set(request: Request):
             user_id=u.get("id"), user_name=_sched_user_name(u))
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
-    # v5H226z473 (대표 지시): 출하 ⟷ 납품완료 양방향 연결 [보드→상세] — 단건 출하 단계 완료 시에도.
-    #   stage_key=ship & done 일 때만. 프로젝트=호기 전체 납품완료, 소모품=SHIPPED. (출하 해제는 미연동)
+    # v5H226z473 (대표 지시): 출하 ⟷ 출하 양방향 연결 [보드→상세] — 단건 출하 단계 완료 시에도.
+    #   stage_key=ship & done 일 때만. 프로젝트=호기 전체 출하, 소모품=SHIPPED. (출하 해제는 미연동)
     if ok and stage_key == "ship" and bool(b.get("done", True)):
         try:
             if kind == "project":
@@ -18472,9 +18472,9 @@ async def schedule_board_bulk_ship(request: Request):
                                        user_id=uid, user_name=uname)
         except Exception:
             ok = False
-        # v5H226z473 (대표 지시): 출하 ⟷ 납품완료 양방향 연결 [보드→상세].
-        #   프로젝트=호기 전체 '납품완료'로(→상세 상태 동기화·cascade 안에서 출하단계 재확인),
-        #   소모품=consumable_orders.status='SHIPPED'(=납품완료 표시).
+        # v5H226z473 (대표 지시): 출하 ⟷ 출하 양방향 연결 [보드→상세].
+        #   프로젝트=호기 전체 '출하'로(→상세 상태 동기화·cascade 안에서 출하단계 재확인),
+        #   소모품=consumable_orders.status='SHIPPED'(=출하 표시).
         try:
             if kind == "project":
                 with db_session() as _cz:
@@ -18516,7 +18516,7 @@ async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
         try:
             from . import consumables as _co_mod
             _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
-                       "SHIPPED": "납품완료", "PAID": "납품완료", "CANCELLED": "취소"}
+                       "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소"}
             for cr in _co_mod.co_list(status="", q=q, limit=1000):
                 _cb = (cr.get("biz_div") or "").strip().upper() if cr.get("biz_div") else ""
                 if _biz and _cb != _biz:
@@ -18540,14 +18540,14 @@ async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
     elif view == "ongoing":
         rows = [r for r in rows if (r.get("status") or "") == "진행중"]
     elif view == "done":
-        rows = [r for r in rows if (r.get("status") or "") == "납품완료"]
+        rows = [r for r in rows if (r.get("status") or "") == "출하"]
     elif view == "hold":
         rows = [r for r in rows if (r.get("status") or "") in ("보류", "취소")]
     rows.sort(key=lambda r: (str(r.get("order_date") or ""), str(r.get("mgmt_code") or "")), reverse=True)
 
     _div_label = {"T": "검사기사업부", "M": "자동화사업부", "L": "라이프밸류사업부",
                   "E": "기타", "C": "소모품"}.get(_div, "전체 사업부")
-    _view_label = {"unconfirmed": "미확정", "ongoing": "진행중", "done": "납품완료", "hold": "보류·취소"}.get(view, "전체")
+    _view_label = {"unconfirmed": "미확정", "ongoing": "진행중", "done": "출하", "hold": "보류·취소"}.get(view, "전체")
     _status_label = status or _view_label
     _dates = [str(r.get("order_date") or "") for r in rows if (r.get("order_date") or "").strip()]
     _period = (min(_dates) + " ~ " + max(_dates)) if _dates else "전체 기간"
@@ -18638,7 +18638,7 @@ async def projects_bulk_template_download(request: Request):
         ("통화",       8,  "KRW",          "KRW / USD / VND / JPY / CNY / EUR. 비우면 KRW"),
         ("수주일",     12, "2026-05-08",   "YYYY-MM-DD 형식"),
         ("납기",       12, "2026-06-15",   "YYYY-MM-DD 형식"),
-        ("상태",       12, "진행중",        "초기협의/제안서전달/견적발행/수주예정/진행중/납품완료/취소/보류"),
+        ("상태",       12, "진행중",        "초기협의/제안서전달/견적발행/수주예정/진행중/출하/취소/보류"),
         ("메모",       30, "",             "선택"),
     ]
 
@@ -18710,7 +18710,7 @@ async def projects_bulk_template_download(request: Request):
     dv_ccy.add(f"J3:J57")
     ws.add_data_validation(dv_ccy)
     dv_st = DataValidation(type="list",
-                           formula1='"초기협의,제안서전달,견적발행,수주예정,진행중,납품완료,취소,보류"',
+                           formula1='"초기협의,제안서전달,견적발행,수주예정,진행중,출하,취소,보류"',
                            allow_blank=False)
     dv_st.add(f"M3:M57")
     ws.add_data_validation(dv_st)
@@ -18735,7 +18735,7 @@ async def projects_bulk_template_download(request: Request):
         ("고객사", "DB에 등록된 고객사명과 정확히 일치해야 함. 띄어쓰기/괄호 주의."),
         ("날짜", "YYYY-MM-DD 형식 (예: 2026-05-08)"),
         ("통화", "KRW / USD / VND / JPY / CNY / EUR. 비우면 KRW로 처리."),
-        ("상태", "초기협의 / 제안서전달 / 견적발행 / 수주예정 / 진행중 / 납품완료 / 취소 / 보류"),
+        ("상태", "초기협의 / 제안서전달 / 견적발행 / 수주예정 / 진행중 / 출하 / 취소 / 보류"),
         ("업로드", "관리자 메뉴 → '프로젝트 일괄등록'에서 이 파일 그대로 업로드"),
         ("주의", "업로드 전 반드시 '전체 초기화' 단계가 먼저 수행되어야 함 (대표 직접 지시)"),
         ("진행 순서", "① 양식 다운로드 → ② 채우기 → ③ DB 백업 → ④ 전체 초기화 → ⑤ 일괄 업로드"),
@@ -18983,7 +18983,7 @@ async def projects_new_submit(request: Request):
     if not _ok:
         from urllib.parse import quote as _q
         return _err_redirect("customer_not_registered", f"cust={_q(customer)}")
-    # v5H211: 단계별 차등 검증 — 진행중/납품완료(또는 즉시 수주확정)면 strict, 그 전 단계는 단가·발주일·납기·환율 옵션
+    # v5H211: 단계별 차등 검증 — 진행중/출하(또는 즉시 수주확정)면 strict, 그 전 단계는 단가·발주일·납기·환율 옵션
     # 제안 단계(초기협의/제안서전달/견적발행/수주예정/보류/기타)는 추상적 견적이라 강제 입력 부담 제거
     po_type_v = (form.get("po_type") or "").strip()
     order_date_v = (form.get("order_date") or "").strip()
@@ -19004,7 +19004,7 @@ async def projects_new_submit(request: Request):
     #   헤더 '단가·발주일·납품일' 강제 면제(금액=부품 합계, 날짜는 후속/상세). 신규·추가발주 공통.
     #   부품 자체는 아래에서 '수주확정' 체크 시 저장(parts_need_confirm 가드).
     _is_parts_reg = (form.get("shipment_form") or "").strip().upper() == "PARTS"
-    _strict = (_status_v in ("진행중", "납품완료") or _confirm_now_v) and not _is_consumable and not _is_parts_reg
+    _strict = (_status_v in ("진행중", "출하") or _confirm_now_v) and not _is_consumable and not _is_parts_reg
     # PO유형은 항상 필수 (관리코드 산출 키)
     if not po_type_v:
         return _err_redirect("po_type_required")
@@ -19530,7 +19530,7 @@ async def projects_new_submit(request: Request):
         except Exception:
             return _finish_new(new_pid, "so_issue_failed")
         return _finish_new(new_pid)
-    # v5H87: confirm_now 미체크 + status 가 won (진행중/납품완료) 인 경우
+    # v5H87: confirm_now 미체크 + status 가 won (진행중/출하) 인 경우
     # 자동으로 SO 발행 (관리코드만 있고 SO 없는 모순 상태 방지)
     # v5H132: 수량 N → N개 호기 라인 자동 생성 (단가=unit_price)
     # v5H223: CONSUMABLE 도 자동 SO 발행 (빈 SO — 라인은 후속 추가)
@@ -19613,7 +19613,7 @@ PROJ_IMPORT_HEADERS = [
 PROJ_IMPORT_CURRENCIES = {"KRW", "USD", "VND", "JPY", "CNY", "EUR"}  # v5H226z357 (통화 중대버그): 6종 (EUR/JPY/CNY 누락 수정)
 PROJ_IMPORT_STATUSES = {
     "초기협의", "제안서전달", "견적발행", "수주예정",
-    "진행중", "납품완료", "취소", "보류"
+    "진행중", "출하", "취소", "보류"
 }
 
 
@@ -20528,7 +20528,7 @@ async def projects_import_confirm(request: Request):
                         continue
                     # v5H226z237 (대표 지시): 호기 상태 = 엑셀 상태 반영 (미설정 시 화면 기본값 '진행중'으로 보이던 문제)
                     _fu_ust = (r.get("status") or "").strip()
-                    if _fu_ust not in ("진행중", "납품완료", "취소", "보류"):
+                    if _fu_ust not in ("진행중", "출하", "취소", "보류"):
                         _fu_ust = "진행중"
                     _fu_oid = _res.get("order_id")
                     if _fu_oid:
@@ -20668,7 +20668,7 @@ async def projects_import_confirm(request: Request):
                         pass
                 # v5H226z235 (대표 지시): 과거 데이터 일괄등록 시 라이프사이클 상태 보존.
                 #   자동 수주확정(confirm_order_multi)이 projects.status 를 '수주확정'으로 덮어쓰므로,
-                #   SO·납기는 그대로 두고 사용자가 고른 상태(진행중/납품완료)를 프로젝트에 다시 적용한다.
+                #   SO·납기는 그대로 두고 사용자가 고른 상태(진행중/출하)를 프로젝트에 다시 적용한다.
                 #   (대표 결정: 프로젝트 상태만 보존 — 발주(호기)는 CONFIRMED 유지)
                 if status_v in PROJ_IMPORT_STATUSES:
                     try:
@@ -20676,7 +20676,7 @@ async def projects_import_confirm(request: Request):
                             c.execute("UPDATE projects SET status=? WHERE id=?",
                                       (status_v, new_pid))
                             # v5H226z237 (대표 지시): 호기 상태도 엑셀값 반영 (NULL→화면 기본 '진행중' 대신)
-                            _new_ust = status_v if status_v in ("진행중", "납품완료", "취소", "보류") else "진행중"
+                            _new_ust = status_v if status_v in ("진행중", "출하", "취소", "보류") else "진행중"
                             c.execute("UPDATE order_items SET unit_status=? "
                                       "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?)",
                                       (_new_ust, new_pid))
@@ -20737,7 +20737,7 @@ async def projects_import_confirm(request: Request):
 #       잔존값(TMP-…·'-260323-1' 등 깨진 번호)도 잡는다(z339 빈틈 수정).
 #     · 깨진/빈 번호 행이 있으면 새 행 만들지 않고 '그 행을 정식 번호로 수리(UPDATE)'.
 #     · 단계 정규화(대표 결정): 초기협의 등 수주前 단계는 '수주확정/수주'로 올림.
-#       진행중·납품완료·취소·보류는 보존(덮어쓰지 않음).
+#       진행중·출하·취소·보류는 보존(덮어쓰지 않음).
 #   안전: DB 백업 선행·멱등(정상 SO 있으면 건너뜀)·발주일 없으면 대상 제외·실패 행단위 표면화·소모품 제외.
 # ==========================================================
 # 정상 수주번호 형식: [사업부 1글자]-[YYMMDD][접미]. TMP-…·'-260305-1'(선행대시)·빈값은 비정상으로 간주.
@@ -20806,7 +20806,7 @@ async def projects_so_backfill_run(request: Request):
             targets = [dict(_r) for _r in c.execute(_SO_BACKFILL_SQL).fetchall()]
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"대상 조회 실패: {str(e)[:160]}"}, 500)
-    _PRESERVE = ("진행중", "납품완료", "취소", "보류")   # 단계 보존(수주확정으로 안 올림)
+    _PRESERVE = ("진행중", "출하", "취소", "보류")   # 단계 보존(수주확정으로 안 올림)
     issued = []
     failed = []
     skipped = []
@@ -25929,7 +25929,7 @@ async def export_prep_list(req: Request):
                         WHERE o.project_id=p.id AND oi.origin IS NOT NULL AND TRIM(oi.origin)<>'') AS n_origin
                FROM projects p
                WHERE COALESCE(p.is_export,0)=1
-                 AND COALESCE(p.status,'') NOT IN ('취소','납품완료')
+                 AND COALESCE(p.status,'') NOT IN ('취소','출하')
                ORDER BY (p.due_date IS NULL), p.due_date ASC, p.id DESC
                LIMIT 300"""
         ).fetchall()

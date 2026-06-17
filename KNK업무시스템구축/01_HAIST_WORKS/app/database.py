@@ -3001,7 +3001,7 @@ def init_db():
                 ("due_date",   "ALTER TABLE order_items ADD COLUMN due_date TEXT"),
                 ("ship_to",    "ALTER TABLE order_items ADD COLUMN ship_to TEXT"),
                 ("currency",   "ALTER TABLE order_items ADD COLUMN currency TEXT"),
-                # v5H186: 호기별 상태 — 진행중/납품완료/취소/보류 등
+                # v5H186: 호기별 상태 — 진행중/출하/취소/보류 등
                 ("unit_status", "ALTER TABLE order_items ADD COLUMN unit_status TEXT DEFAULT '진행중'"),
                 # v5H197: 호기별 거래구분 — NULL=프로젝트 상속, 0=내수, 1=수출
                 ("is_export",   "ALTER TABLE order_items ADD COLUMN is_export INTEGER"),
@@ -3146,6 +3146,23 @@ def init_db():
         except Exception:
             pass
 
+        # v5H226z474 (대표 지시): 상태 용어 통일 — '납품완료' → '출하' (기존 저장 데이터 일괄 변환·idempotent).
+        #   호기(order_items.unit_status)·프로젝트(projects.status/stage)에 '납품완료'로 저장된 기존 행을 '출하'로.
+        #   (소모품 consumable_orders·SO orders 는 영어값(SHIPPED 등) 저장이라 대상 아님 / 변경이력 로그는 과거기록이라 보존)
+        try:
+            _z474n = 0
+            for _tbl, _col in (("order_items", "unit_status"),
+                               ("projects", "status"), ("projects", "stage")):
+                try:
+                    _rz = c.execute(f"UPDATE {_tbl} SET {_col}='출하' WHERE {_col}='납품완료'")
+                    _z474n += (_rz.rowcount or 0)
+                except Exception:
+                    pass
+            if _z474n:
+                print(f"[v5H226z474] 상태 통일: '납품완료'→'출하' {_z474n}행 변환")
+        except Exception as _e:
+            print(f"[v5H226z474] 납품완료→출하 통일 마이그레이션 실패: {_e}")
+
         # v5H226t: 상태 cascade 자가치유 백필
         # (1) 모든 호기가 동일 terminal 상태인데 부모 프로젝트가 다르면 → 부모 갱신 (상방)
         # (2) 부모가 terminal 인데 자식 SO/호기가 동기 안 됐으면 → 자식 갱신 (하방)
@@ -3163,7 +3180,7 @@ def init_db():
                     up_promoted += 1
             # (2) 하방 backfill — 프로젝트가 terminal 인데 자식 미반영
             for _pid, _st in c.execute(
-                "SELECT id, status FROM projects WHERE status IN ('진행중','납품완료','취소','보류')"
+                "SELECT id, status FROM projects WHERE status IN ('진행중','출하','취소','보류')"
             ).fetchall():
                 _pwf_csc.cascade_project_status_to_so(c, _pid, _st, None)
             if up_promoted:
@@ -4389,7 +4406,7 @@ BIZ_NAME = {v: k for k, v in BIZ_CODE.items()}
 STAGES = ["제안작성", "제안제출", "수주확정", "납품"]
 NEEDS_CODE_STAGES = ("수주확정", "납품")
 # v5H86: 상태가 '이미 수주된' 의미면 stage 와 무관하게 관리코드 발급
-WON_STATUSES = ("진행중", "납품완료")
+WON_STATUSES = ("진행중", "출하")
 # v5H97: 거래 구분 (내수/수출)
 TRADE_TYPES = ("내수", "수출")
 # v5H226z349 (대표 지시): PO유형 'A/S' → '수리'로 이름변경. → 신규/추가/개조/수리/기타.
@@ -4418,7 +4435,7 @@ def resolve_form_ship(data: dict) -> tuple[str, str]:
     return "", "ASSEMBLY"
 
 
-LOGI_STATUSES = ["초기협의", "제안서전달", "견적발행", "수주예정", "진행중", "납품완료", "보류", "취소", "기타"]
+LOGI_STATUSES = ["초기협의", "제안서전달", "견적발행", "수주예정", "진행중", "출하", "보류", "취소", "기타"]
 
 # v5H137 (2026-05-05) — 프로젝트 유형 분류 (대표 직접 요청)
 # 등록 시점부터 신규장비/소모품/수리/기타 구분 + 소모품·수리는 부모 프로젝트 연결 가능
