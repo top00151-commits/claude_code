@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>PACKING LIST — {{ pl.pl_no }}</title>
+{# v5H226z463 (대표 지시·수출 2단계): 1단계 통관 입력(order_items)으로 생성한 PACKING LIST 인쇄. #}
+<style>
+@page { size: A4 landscape; margin: 12mm 10mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif; color:#0f172a; font-size:10pt; background:#e2e8f0; padding:20px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.actions { max-width:1040px; margin:0 auto 14px; text-align:right; }
+.actions button, .actions a { display:inline-block; padding:7px 16px; font-size:12px; font-weight:700; text-decoration:none; border-radius:6px; cursor:pointer; font-family:inherit; border:1px solid; }
+.actions .print-btn { background:#0f172a; color:#fff; border-color:#0f172a; }
+.actions .xlsx-btn { background:#047857; color:#fff; border-color:#047857; margin-left:6px; }
+.actions .back-btn { background:#fff; color:#334155; border-color:#cbd5e1; margin-left:6px; }
+.sheet { background:#fff; max-width:1040px; margin:0 auto; padding:16mm 14mm; border:1px solid #cbd5e1; box-shadow:0 2px 10px rgba(15,23,42,0.06); }
+.title-block { text-align:center; border-bottom:2.5px solid #0f172a; padding-bottom:9px; margin-bottom:12px; }
+.title-en { font-size:19pt; font-weight:800; letter-spacing:2px; }
+.title-ko { font-size:11pt; color:#475569; margin-top:3px; }
+.doc-no { display:inline-block; margin-top:7px; padding:3px 14px; background:#0f172a; color:#fff; font-size:10pt; font-weight:700; letter-spacing:1px; border-radius:3px; font-family:ui-monospace,Consolas,monospace; }
+.exporter-block { margin:10px 0; padding:9px 12px; background:#f7f8fa; border-left:3px solid #0f172a; }
+.exporter-block .role { font-size:8.5pt; color:#64748b; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
+.exporter-block .name { font-size:12pt; font-weight:800; margin-top:2px; }
+.exporter-block .addr { font-size:9.5pt; color:#334155; margin-top:2px; }
+.meta-table { width:100%; border-collapse:collapse; margin:9px 0; font-size:9pt; }
+.meta-table td { border:1px solid #cbd5e1; padding:5px 8px; }
+.meta-table td.lbl { background:#f1f5f9; width:14%; font-weight:700; font-size:8.5pt; color:#475569; }
+.lines-tbl { width:100%; border-collapse:collapse; margin-top:8px; font-size:8.7pt; }
+.lines-tbl th { background:#0f172a; color:#fff; padding:6px 5px; font-size:8.2pt; font-weight:700; text-align:center; border:1px solid #0f172a; }
+.lines-tbl td { border:1px solid #cbd5e1; padding:4px 6px; }
+.lines-tbl td.num { text-align:right; font-family:ui-monospace,Consolas,monospace; font-variant-numeric:tabular-nums; }
+.lines-tbl td.center { text-align:center; }
+.lines-tbl tbody tr:nth-child(even) td { background:#fafbfc; }
+.lines-tbl tfoot td { background:#f1f5f9; font-weight:700; padding:7px 6px; border-top:2px solid #0f172a; }
+.lines-tbl .empty-row td { text-align:center; color:#94a3b8; padding:18px; font-style:italic; }
+.sig-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:18px; }
+.sig-cell { border:1px solid #cbd5e1; padding:9px 10px; text-align:center; min-height:54px; }
+.sig-cell .role { font-size:8.5pt; font-weight:700; color:#64748b; text-transform:uppercase; padding-bottom:6px; border-bottom:1px dashed #cbd5e1; margin-bottom:14px; }
+.footer-meta { margin-top:12px; padding-top:8px; border-top:1px solid #cbd5e1; font-size:8pt; color:#94a3b8; text-align:center; font-family:ui-monospace,Consolas,monospace; }
+@media print { body { background:#fff; padding:0; } .actions { display:none; } .sheet { border:none; box-shadow:none; max-width:none; padding:0; } }
+</style>
+</head>
+<body>
+<div class="actions">
+  <button class="print-btn" onclick="window.print()">🖨 인쇄 / Print</button>
+  <a class="xlsx-btn" href="/export/prep/{{ pid }}/packing-list.xlsx">📥 엑셀</a>
+  <a class="back-btn" href="/export/prep/{{ pid }}">← 돌아가기</a>
+</div>
+<div class="sheet">
+  <div class="title-block">
+    <div class="title-en">PACKING LIST</div>
+    <div class="title-ko">포장 명세서</div>
+    <div class="doc-no">{{ pl.pl_no }}</div>
+  </div>
+  <div class="exporter-block">
+    <div class="role">Exporter / 수출자</div>
+    <div class="name">KNK · HAIST Innovation</div>
+    <div class="addr">㈜케이엔케이 · KNK Co., Ltd.</div>
+  </div>
+  <table class="meta-table">
+    <tr>
+      <td class="lbl">Buyer / 수입자</td><td colspan="3"><b>{{ pl.buyer }}</b></td>
+      <td class="lbl">발급일</td><td>{{ today }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">관리번호</td><td>{{ pl.mgmt_code }}</td>
+      <td class="lbl">수주번호</td><td>{{ pl.order_no }}</td>
+      <td class="lbl">납기</td><td>{{ pl.due_date or '-' }}</td>
+    </tr>
+  </table>
+  <table class="lines-tbl">
+    <thead><tr>
+      <th style="width:4%;">#</th>
+      <th>품명 / Description</th>
+      <th style="width:14%;">규격 / Spec</th>
+      <th style="width:7%;">원산지</th>
+      <th style="width:9%;">HS CODE</th>
+      <th style="width:7%;">수량</th>
+      <th style="width:6%;">단위</th>
+      <th style="width:8%;">중량(kg)</th>
+      <th style="width:9%;">박스 / Box</th>
+      <th style="width:10%;">팔레트</th>
+    </tr></thead>
+    <tbody>
+      {% for l in lines|default([]) %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td><b>{{ l.part_name }}</b>{% if l.material_no %} <span style="color:#94a3b8;font-size:7.5pt;">[{{ l.material_no }}]</span>{% endif %}</td>
+          <td>{{ l.spec or '-' }}</td>
+          <td class="center">{{ l.origin or '-' }}</td>
+          <td class="center" style="font-family:ui-monospace,Consolas,monospace;">{{ l.hs_code or '-' }}</td>
+          <td class="num">{{ '{:,.0f}'.format(l.qty) }}</td>
+          <td class="center">{{ l.unit }}</td>
+          <td class="num">{% if l.weight_kg %}{{ '{:,.2f}'.format(l.weight_kg) }}{% else %}-{% endif %}</td>
+          <td class="center">{{ l.box_no or '-' }}</td>
+          <td class="center">{{ l.pallet_size or '-' }}</td>
+        </tr>
+      {% else %}
+        <tr class="empty-row"><td colspan="10">품목 없음 — 1단계에서 통관 입력 후 다시 시도하세요.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if lines %}
+    <tfoot><tr>
+      <td colspan="5" class="center"><b>TOTAL / 합계</b></td>
+      <td class="num"><b>{{ '{:,.0f}'.format(pl.total_qty) }}</b></td>
+      <td></td>
+      <td class="num"><b>{{ '{:,.2f}'.format(pl.total_weight) }}</b></td>
+      <td class="center" colspan="2"><b>{{ pl.total_boxes }} 박스 · {{ pl.n_lines }} 품목</b></td>
+    </tr></tfoot>
+    {% endif %}
+  </table>
+  <div class="sig-grid">
+    <div class="sig-cell"><div class="role">Packed by / 포장 담당</div><div>&nbsp;</div></div>
+    <div class="sig-cell"><div class="role">Company Stamp / 회사 인장</div><div>&nbsp;</div></div>
+    <div class="sig-cell"><div class="role">Buyer Confirm / 수입자 확인</div><div>&nbsp;</div></div>
+  </div>
+  <div class="footer-meta">HAIST WORKS · Generated {{ today }} · {{ pl.pl_no }}</div>
+</div>
+<script>
+(function(){ if (new URLSearchParams(location.search).get('auto') === '1') { setTimeout(function(){ window.print(); }, 400); } })();
+</script>
+</body>
+</html>

@@ -23,8 +23,13 @@
       <h1 class="page-title" data-dn="title">🚢 {{ p.name }} <em>통관 입력</em></h1>
       <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">고객사 {{ p.customer_name|default('—') }} · 통화 {{ p.currency|default('KRW') }} · 납기 {{ p.due_date|default('—') }} · <b style="color:#c2410c;">인보이스 금액은 USD 기준</b></div>
     </div>
-    <button type="button" class="btn btn-primary" onclick="saveAllCustoms()" id="saveAllBtn">💾 전체 저장</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button type="button" class="btn btn-primary" onclick="saveAllCustoms()" id="saveAllBtn">💾 전체 저장</button>
+      <a class="btn" href="/export/prep/{{ p.id }}/packing-list" target="_blank" style="border:1px solid #0f172a;background:#0f172a;color:#fff;">📦 패킹리스트</a>
+      <a class="btn" href="/export/prep/{{ p.id }}/packing-list.xlsx" style="border:1px solid #047857;background:#047857;color:#fff;">📥 엑셀</a>
+    </div>
   </div>
+  <div style="margin:2px 0 12px;font-size:11.5px;color:var(--mute);">💡 통관 입력을 <b>저장</b>한 뒤 <b>패킹리스트</b>를 누르면 입력한 품목·중량·박스로 포장명세서가 만들어집니다.</div>
 
   {% set _ns = namespace(any=false) %}
   {% for so in sos %}

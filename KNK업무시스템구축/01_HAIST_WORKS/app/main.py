@@ -25888,6 +25888,128 @@ async def export_item_customs_save(req: Request, iid: int):
     return JSONResponse({"ok": True, "changed": 1})
 
 
+# ------------------------------------------------------------
+# v5H226z463 (대표 지시·수출 2단계): 패킹리스트(PACKING LIST) — 1단계 통관 입력(order_items)에서 생성.
+#   인쇄(A4 HTML)·엑셀(KNK 표준). 데이터 출처 = order_items(품명·규격·원산지·HS·수량·중량·박스·팔레트).
+# ------------------------------------------------------------
+def _export_pl_build(c, pid):
+    """프로젝트의 수출 품목(order_items)으로 PACKING LIST 데이터 구성. (project, pl, lines) 또는 (None,None,None)."""
+    prow = c.execute(
+        """SELECT id, mgmt_code, name, customer_name, currency, order_date, due_date, secondary_customer
+           FROM projects WHERE id=?""", (pid,)).fetchone()
+    if not prow:
+        return None, None, None
+    p = dict(prow)
+    try:
+        sos = _pwf.get_project_orders(c, pid)
+    except Exception:
+        sos = []
+    lines, so_nos, boxes = [], [], set()
+    for so in sos:
+        if so.get("order_no"):
+            so_nos.append(so["order_no"])
+        for u in (so.get("units") or []):
+            _bx = (u.get("box_no") or "").strip()
+            if _bx:
+                boxes.add(_bx)
+            lines.append({
+                "part_name": u.get("unit_label") or "-",
+                "spec": u.get("spec") or "",
+                "origin": u.get("origin") or "",
+                "hs_code": u.get("hs_code") or "",
+                "material_no": u.get("material_no") or "",
+                "qty": float(u.get("qty") or 0),
+                "unit": u.get("unit") or "EA",
+                "weight_kg": float(u.get("weight_kg") or 0),
+                "box_no": _bx,
+                "pallet_size": u.get("pallet_size") or "",
+            })
+    pl = {
+        "pl_no": f"PL-{p.get('mgmt_code') or pid}",
+        "buyer": p.get("customer_name") or "-",
+        "order_no": " · ".join(so_nos) if so_nos else (p.get("mgmt_code") or "-"),
+        "mgmt_code": p.get("mgmt_code") or "-",
+        "order_date": p.get("order_date") or "",
+        "due_date": p.get("due_date") or "",
+        "total_qty": round(sum(l["qty"] for l in lines), 2),
+        "total_weight": round(sum(l["weight_kg"] for l in lines), 2),
+        "total_boxes": len(boxes) if boxes else len(lines),
+        "n_lines": len(lines),
+    }
+    return p, pl, lines
+
+
+@app.get("/export/prep/{pid:int}/packing-list", response_class=HTMLResponse)
+async def export_prep_packing_print(req: Request, pid: int):
+    """PACKING LIST 인쇄(A4) — 1단계 통관 입력 데이터로 생성."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        p, pl, lines = _export_pl_build(c, pid)
+    if not p:
+        return RedirectResponse("/export/prep", 303)
+    import datetime as _dt
+    today = _dt.date.today().isoformat()
+    return ctx(req, "export_prep_packing_print.html", user=u,
+               p=p, pl=pl, lines=lines, today=today, pid=pid)
+
+
+@app.get("/export/prep/{pid:int}/packing-list.xlsx")
+async def export_prep_packing_xlsx(req: Request, pid: int):
+    """PACKING LIST 엑셀(KNK 표준) — 1단계 통관 입력 데이터로 생성."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        p, pl, lines = _export_pl_build(c, pid)
+    if not p:
+        return RedirectResponse("/export/prep", 303)
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        import io, datetime as _dt
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    wb = Workbook(); ws = wb.active; ws.title = "PACKING LIST"
+    knk = PatternFill("solid", fgColor="0F172A"); white = Font(color="FFFFFF", bold=True)
+    thin = Side(style="thin", color="CBD5E1"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    ws.append(["KNK HAIST WORKS — PACKING LIST (포장 명세서)"])
+    ws["A1"].font = Font(bold=True, size=14, color="0F172A")
+    ws.append([f"문서번호: {pl['pl_no']}", "", f"수입자(Buyer): {pl['buyer']}", "",
+               f"관리번호: {pl['mgmt_code']}", "", f"수주번호: {pl['order_no']}"])
+    ws.append([f"발급일: {_dt.date.today().isoformat()}", "", f"발주일: {pl['order_date'] or '-'}",
+               "", f"납기: {pl['due_date'] or '-'}"])
+    ws.append([])
+    headers = ["순번", "품명(Description)", "규격(Spec)", "원산지(Origin)", "HS CODE",
+               "수량(Q'ty)", "단위(Unit)", "중량(kg)", "박스(Box)", "팔레트(Pallet)"]
+    ws.append(headers)
+    hrow = ws.max_row
+    widths = [6, 28, 18, 10, 13, 9, 8, 10, 12, 14]
+    for ci, (h, w) in enumerate(zip(headers, widths), 1):
+        cc = ws.cell(hrow, ci); cc.font = white; cc.fill = knk
+        cc.alignment = Alignment(horizontal="center", vertical="center"); cc.border = border
+        ws.column_dimensions[cc.column_letter].width = w
+    for i, l in enumerate(lines, 1):
+        ws.append([i, l["part_name"], l["spec"], l["origin"], l["hs_code"],
+                   l["qty"], l["unit"], l["weight_kg"], l["box_no"], l["pallet_size"]])
+    # 합계
+    ws.append(["", "합계 / TOTAL", "", "", "", pl["total_qty"], "", pl["total_weight"],
+               f"{pl['total_boxes']} 박스", ""])
+    trow = ws.max_row
+    for ci in range(1, len(headers) + 1):
+        ws.cell(trow, ci).font = Font(bold=True)
+        ws.cell(trow, ci).fill = PatternFill("solid", fgColor="F1F5F9")
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    from urllib.parse import quote
+    fn = f"PACKING_LIST_{pl['mgmt_code']}.xlsx"
+    return StreamingResponse(
+        buf, media_type=_XLSX_MIME,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
+                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"})
+
+
 @app.get("/export/orders/new", response_class=HTMLResponse)
 async def export_order_new_form(req: Request):
     """수출 수주 등록 폼 — 1차 골격 (UI 본문 다음 사이클)."""
