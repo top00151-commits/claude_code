@@ -156,6 +156,12 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .ux-tab input.ux-ship { width:120px; }
 .ux-tab input.ux-note { width:200px; }
 .ux-tab input.ux-date { width:130px; }
+/* v5H226z485: 펼친 호기 세금계산서 — 한 칸 클릭→팝업(보드 메인행과 동일) */
+.ux-tab .ux-ti { cursor:pointer; min-width:108px; line-height:1.25; border:1px solid var(--line); border-radius:5px; padding:3px 8px; background:#fff; }
+.ux-tab .ux-ti:hover { background:#eef6ff; box-shadow:inset 0 0 0 1px #93c5fd; }
+.ux-tab .ux-ti .ti-d { font-size:11px; font-variant-numeric:tabular-nums; }
+.ux-tab .ux-ti .ti-a { font-size:10.5px; color:#1d4ed8; font-weight:700; }
+.ux-tab .ux-ti.ux-locked { cursor:not-allowed; opacity:.55; }
 .ux-tab .ux-ok { box-shadow:0 0 0 2px #86efac; }
 .ux-tab .ux-empty { color:#94a3b8; padding:8px 0; }
 .ux-tab [disabled] { opacity:.55; cursor:not-allowed; }
@@ -1058,6 +1064,7 @@ const _tbody=document.querySelector('#schedTable tbody');
 if(_tbody){
   _tbody.addEventListener('click',(e)=>{
     const ex=e.target.closest('.row-exp'); if(ex){ e.stopPropagation(); toggleRowUnits(ex.closest('tr'), ex); return; }   // v5H226z481: 호기 펼치기/접기
+    const uti=e.target.closest('.ux-ti'); if(uti){ if(uti.classList.contains('ux-locked')){ toast('확정 SO 라 수정 불가'); return; } openUnitTaxPop(uti); return; }   // v5H226z485: 호기 세금계산서 팝업
     const sc=e.target.closest('td.stage-cell'); if(sc){ openStagePanel(sc.dataset.kind, sc.dataset.ref, sc.closest('tr')); return; }
     const td=e.target.closest('td.editable'); if(td){ startEdit(td); return; }
     const bar=e.target.closest('td.bar'); if(bar){ openMemo(bar.closest('tr')); }
@@ -1097,9 +1104,15 @@ function toggleRowUnits(tr, btn){
       // v5H226z483/z484 (대표 지시): 상세(수주 내역)와 동일 정보량 + 호기별 거래명세서·세금계산서(발행일+금액)
       function _dt(field,val,dis){ return '<td><input type="date" class="ux-date" data-field="'+field+'" value="'+_uxEsc(val||'')+'"'+dis+'></td>'; }
       function _mo(field,val,dis){ return '<td><input type="text" inputmode="numeric" class="ux-money" data-field="'+field+'" value="'+(val!=null&&val!==''?Number(val).toLocaleString():'')+'"'+dis+'></td>'; }
+      // v5H226z485 (대표 지시): 세금계산서는 보드와 동일하게 한 칸 클릭→발행일+금액 팝업
+      function _ti(df,af,dv,av,ttl,iid,lk){
+        var has=!!(dv||(av!=null&&av!==''));
+        return '<td><div class="ux-ti'+(lk?' ux-locked':'')+'" data-iid="'+iid+'" data-datefield="'+df+'" data-amtfield="'+af+'" data-date="'+_uxEsc(dv||'')+'" data-amt="'+(av!=null?av:'')+'" title="'+ttl+'">'
+          +(has?('<div class="ti-d">'+_uxEsc(dv||'–')+'</div><div class="ti-a">'+(av!=null&&av!==''?'₩'+Number(av).toLocaleString():'')+'</div>'):'＋')+'</div></td>';
+      }
       let h='<div class="ux-wrap"><table class="ux-tab"><thead><tr><th>호기·품목</th>'+(CM?'<th>단가</th>':'')+'<th>통화</th><th>거래방식</th><th>발주일</th><th>납기</th><th>납품처</th><th>상태</th><th>비고</th>'
-        +(CM?'<th>거래명세서</th><th>1세금계산서</th><th>금액</th><th>2세금계산서</th><th>금액</th><th>3세금계산서</th><th>금액</th>':'')+'</tr></thead><tbody>';
-      const ncol=(CM?16:8);
+        +(CM?'<th>거래명세서</th><th>1세금계산서</th><th>2세금계산서</th><th>3세금계산서</th>':'')+'</tr></thead><tbody>';
+      const ncol=(CM?13:8);
       (j.units||[]).forEach(function(u){
         const dis=u.locked?' disabled title="확정 SO 라 수정 불가"':'';
         h+='<tr data-iid="'+u.iid+'"><td class="ux-lbl">'+_uxEsc(u.label)+(u.so_no?' <span class="ux-so">'+_uxEsc(u.so_no)+'</span>':'')+'</td>';
@@ -1112,9 +1125,9 @@ function toggleRowUnits(tr, btn){
         h+='<td><input type="text" class="ux-txt ux-note" data-field="note" value="'+_uxEsc(u.note||'')+'" placeholder="비고"'+dis+'></td>';
         if(CM){
           h+=_dt('statement_date',u.statement_date,dis)
-            +_dt('tax_invoice_date',u.tax_invoice_date,dis)+_mo('tax_invoice_amt1',u.tax_invoice_amt1,dis)
-            +_dt('tax_invoice_date2',u.tax_invoice_date2,dis)+_mo('tax_invoice_amt2',u.tax_invoice_amt2,dis)
-            +_dt('tax_invoice_date3',u.tax_invoice_date3,dis)+_mo('tax_invoice_amt3',u.tax_invoice_amt3,dis);
+            +_ti('tax_invoice_date','tax_invoice_amt1',u.tax_invoice_date,u.tax_invoice_amt1,'1세금계산서',u.iid,u.locked)
+            +_ti('tax_invoice_date2','tax_invoice_amt2',u.tax_invoice_date2,u.tax_invoice_amt2,'2세금계산서',u.iid,u.locked)
+            +_ti('tax_invoice_date3','tax_invoice_amt3',u.tax_invoice_date3,u.tax_invoice_amt3,'3세금계산서',u.iid,u.locked);
         }
         h+='</tr>';
       });
@@ -1135,6 +1148,46 @@ function _uxSave(iid, field, value, el){
 function schedCollapseUnits(){
   document.querySelectorAll('tr.unit-exp-row').forEach(function(x){ x.remove(); });
   document.querySelectorAll('.row-exp.on').forEach(function(b){ b.textContent='＋'; b.classList.remove('on'); });
+}
+// v5H226z485 (대표 지시): 펼친 호기 줄 세금계산서 — 보드 메인행과 동일한 발행일+금액 팝업(저장은 호기 단위 /unit-field).
+async function _uxSaveTax(iid, field, value){
+  const r=await fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})});
+  const j=await r.json(); if(!j||!j.ok) throw new Error((j&&j.error)||'fail'); return j;
+}
+function openUnitTaxPop(box){
+  if(_editing) return;
+  const iid=box.dataset.iid; if(!iid) return;
+  const curDate=box.dataset.date||''; let curAmt=box.dataset.amt||'';
+  const pop=document.createElement('div'); pop.className='ti-pop';
+  pop.innerHTML='<div class="ti-pop-ttl">'+(box.title||'세금계산서')+'</div>'
+    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">₩</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">원</span></div>'
+    +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd knk-cal" value="'+curDate+'"></div>'
+    +'<div class="ti-pop-hint">이 호기의 세금계산서 발행일·금액을 입력하세요.</div>'
+    +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
+  _editing={box,pop}; document.body.appendChild(pop);
+  const rect=box.getBoundingClientRect();
+  pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px';
+  pop.style.top=(rect.bottom+window.scrollY+4)+'px';
+  const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
+  pa.addEventListener('input',function(){ var raw=pa.value.replace(/[^0-9]/g,''); pa.value=raw?Number(raw).toLocaleString():''; });
+  setTimeout(()=>{ pa.focus(); pa.select(); },0);
+  let done=false;
+  const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
+  // KNK 날짜선택 달력(.knk-cal-pop)은 body에 따로 떠서 '바깥'으로 잡힘 → 달력 클릭 시 닫기 제외(z485)
+  const onDoc=(ev)=>{ if(!pop.contains(ev.target) && ev.target!==box && !box.contains(ev.target) && !(ev.target.closest && ev.target.closest('.knk-cal-pop'))){ document.removeEventListener('mousedown',onDoc); close(); } };
+  setTimeout(()=>document.addEventListener('mousedown',onDoc),0);
+  pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
+  pop.querySelector('.ti-save').addEventListener('click',async ()=>{
+    const dv=(pd.value||'').trim(), av=(pa.value||'').replace(/[^0-9.]/g,'');
+    const btn=pop.querySelector('.ti-save'); btn.disabled=true;
+    try{
+      await _uxSaveTax(iid, box.dataset.datefield, dv);
+      await _uxSaveTax(iid, box.dataset.amtfield, av);
+      box.dataset.date=dv; box.dataset.amt=av;
+      box.innerHTML=(dv||av)?('<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?'₩'+Number(av).toLocaleString():'')+'</div>'):'＋';
+      toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
+    }catch(e){ btn.disabled=false; toast('⚠ '+(e.message||'저장 실패')); }
+  });
 }
 function startEdit(td){
   if(_editing) return;
@@ -1232,7 +1285,8 @@ function startTaxInvEdit(td, tr){
   setTimeout(()=>{ pa.focus(); pa.select(); },0);
   let done=false;
   const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
-  const onDoc=(ev)=>{ if(!pop.contains(ev.target) && ev.target!==td && !td.contains(ev.target)){ document.removeEventListener('mousedown',onDoc); close(); } };
+  // v5H226z485 (대표 지적): KNK 날짜선택 달력(.knk-cal-pop)은 body에 따로 떠서 '바깥'으로 잡힘 → 날짜 클릭 시 팝업이 닫히던 버그. 달력 클릭은 닫기 제외.
+  const onDoc=(ev)=>{ if(!pop.contains(ev.target) && ev.target!==td && !td.contains(ev.target) && !(ev.target.closest && ev.target.closest('.knk-cal-pop'))){ document.removeEventListener('mousedown',onDoc); close(); } };
   setTimeout(()=>document.addEventListener('mousedown',onDoc),0);
   pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
   pop.querySelector('.ti-save').addEventListener('click',async ()=>{
