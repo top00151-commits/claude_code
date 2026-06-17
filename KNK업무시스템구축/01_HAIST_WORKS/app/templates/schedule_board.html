@@ -163,17 +163,24 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 
 .sched td.editable { cursor:text; }
 .sched td.editable:hover { background:#eef6ff !important; box-shadow: inset 0 0 0 1px #93c5fd; }
-/* v5H226z467: 세금계산서 1/2/3차 셀(발행일+금액 2줄) + 미니 편집창 */
+/* v5H226z467/z469: 세금계산서 1/2/3차 셀(발행일+금액 2줄) + 발행상태 + 미니 편집창 */
 .sched td.taxinv-cell { cursor:pointer; line-height:1.25; }
 .sched td.taxinv-cell .ti-d { font-size:11px; font-variant-numeric:tabular-nums; }
 .sched td.taxinv-cell .ti-a { font-size:10.5px; color:#1d4ed8; font-weight:700; }
-.ti-pop { position:absolute; z-index:9999; background:#fff; border:1px solid #94a3b8; border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,0.22); padding:10px 12px; width:216px; font-size:12.5px; }
-.ti-pop-ttl { font-weight:800; color:#0f172a; font-size:12px; margin-bottom:7px; }
-.ti-pop-row { display:flex; align-items:center; gap:7px; margin-bottom:6px; }
-.ti-pop-row label { width:40px; color:#475569; font-weight:600; font-size:11.5px; }
-.ti-pop-row input { flex:1; padding:5px 7px; border:1px solid #cbd5e1; border-radius:6px; font:inherit; font-size:12.5px; }
+.sched td.taxinv-cell .ti-stat { font-size:9px; font-weight:800; margin-top:1px; }
+.sched td.taxinv-cell .ti-stat.bad { color:#c2410c; }
+.sched td.taxinv-cell .ti-stat.ok { color:#15803d; }
+.sched td.taxinv-cell.tax-mismatch { background:#fff4ed !important; box-shadow: inset 2px 0 0 #f59e0b; }
+.sched td.taxinv-cell.tax-ok { background:#f0fdf4 !important; }
+/* z469: 미니 편집창 — 가로폭 확대(라벨 가로 고정·달력 겹침 회피 위해 금액 위·발행일 아래) */
+.ti-pop { position:absolute; z-index:9999; background:#fff; border:1px solid #94a3b8; border-radius:9px; box-shadow:0 10px 30px rgba(0,0,0,0.24); padding:12px 14px; width:296px; box-sizing:border-box; font-size:12.5px; }
+.ti-pop-ttl { font-weight:800; color:#0f172a; font-size:12.5px; margin-bottom:9px; white-space:nowrap; }
+.ti-pop-row { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+.ti-pop-row label { width:46px; flex:none; color:#475569; font-weight:700; font-size:12px; white-space:nowrap; text-align:right; }
+.ti-pop-row input { flex:1; min-width:0; padding:7px 9px; border:1px solid #cbd5e1; border-radius:6px; font:inherit; font-size:13px; }
 .ti-pop-row input.ti-pa { text-align:right; }
-.ti-pop-btns { display:flex; justify-content:flex-end; gap:6px; margin-top:4px; }
+.ti-pop-hint { font-size:10.5px; color:#94a3b8; line-height:1.5; margin:2px 0 9px; }
+.ti-pop-btns { display:flex; justify-content:flex-end; gap:7px; margin-top:2px; }
 .ti-pop-btns button { padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid; }
 .ti-pop-btns .ti-save { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
 .ti-pop-btns .ti-cancel { background:#fff; color:#334155; border-color:#cbd5e1; }
@@ -458,7 +465,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         {% set _cursym = {'KRW':'₩','USD':'$','VND':'₫','JPY':'¥','CNY':'¥','EUR':'€'} %}
         {% for r in rows %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}">
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}">
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> <a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}" title="프로젝트 상세">{{ r.code }}</a>{% if r.unit_label %} <span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#eef2ff;color:#4338ca;font-size:11px;font-weight:700;vertical-align:middle;" title="호기별 단가·납기가 달라 호기당 1줄로 표시">{{ r.unit_label }}</span>{% endif %}{% endif %}</td>
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
           {# v5H226z365 (대표 지시): 프로젝트명 보드 인라인 편집 — 프로젝트만(소모품은 '소모품' 고정 표시·읽기전용) #}
@@ -1087,18 +1094,23 @@ async function taxSave(tr, field, value){
 }
 function startTaxInvEdit(td, tr){
   if(_editing) return;
-  const curDate=td.dataset.date||'', curAmt=td.dataset.amt||'';
+  const curDate=td.dataset.date||'';
+  let curAmt=td.dataset.amt||'';
+  // v5H226z469 (대표 지시): 1세금계산서 금액 기본값 = 수주금액(총액). 비어 있을 때만 채움(다르게 적으면 2/3차 발행이 있다는 뜻).
+  if(!curAmt && td.dataset.edit==='taxinv1'){ const rt=parseFloat(tr.dataset.rowamt||'0')||0; if(rt>0) curAmt=String(Math.round(rt)); }
   const pop=document.createElement('div'); pop.className='ti-pop';
+  // 금액을 위, 발행일을 아래로 — 날짜 달력이 아래로 펼쳐져도 금액칸을 가리지 않게(겹침 해소).
   pop.innerHTML='<div class="ti-pop-ttl">'+(td.title||'세금계산서')+'</div>'
-    +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd" value="'+curDate+'"></div>'
     +'<div class="ti-pop-row"><label>금액</label><input type="text" inputmode="numeric" class="ti-pa" value="'+curAmt+'" placeholder="0"></div>'
-    +'<div class="ti-pop-btns"><button type="button" class="ti-save">저장</button><button type="button" class="ti-cancel">취소</button></div>';
+    +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd" value="'+curDate+'"></div>'
+    +'<div class="ti-pop-hint">1·2·3차 합계가 수주금액과 같아야 <b>발행완료</b>, 다르면 <b>미발행</b>으로 표시됩니다.</div>'
+    +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
   _editing={td,pop}; document.body.appendChild(pop);
   const rect=td.getBoundingClientRect();
-  pop.style.left=Math.max(6,Math.min(rect.left, window.innerWidth-228))+'px';
+  pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px';
   pop.style.top=(rect.bottom+window.scrollY+4)+'px';
   const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
-  setTimeout(()=>pd.focus(),0);
+  setTimeout(()=>{ pa.focus(); pa.select(); },0);
   let done=false;
   const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
   const onDoc=(ev)=>{ if(!pop.contains(ev.target) && ev.target!==td && !td.contains(ev.target)){ document.removeEventListener('mousedown',onDoc); close(); } };
@@ -1113,9 +1125,26 @@ function startTaxInvEdit(td, tr){
       td.dataset.date=dv; td.dataset.amt=av;
       td.innerHTML=(dv||av)?('<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?'₩'+Number(av).toLocaleString():'')+'</div>'):'＋';
       td.classList.toggle('filled', !!(dv||av));
+      refreshTaxStatus(tr);
       toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
     }catch(e){ btn.disabled=false; toast('⚠ '+(e.message||'저장 실패')); }
   });
+}
+// v5H226z469 (대표 지시): 세금계산서 발행 상태 — 1/2/3차 금액 합계가 수주금액과 같으면 '발행완료', 다르면 '미발행' 표기.
+function refreshTaxStatus(tr){
+  const cells=tr.querySelectorAll('td.taxinv-cell'); if(!cells.length) return;
+  let sum=0, anyAmt=false;
+  cells.forEach(c=>{ const a=parseFloat(c.dataset.amt||'0')||0; if((c.dataset.amt||'').trim()) anyAmt=true; sum+=a; });
+  const total=Math.round(parseFloat(tr.dataset.rowamt||'0')||0), ssum=Math.round(sum);
+  let status='none';   // none=입력없음 / ok=합계=총액(발행완료) / mismatch=합계≠총액(미발행)
+  if(anyAmt && total>0) status=(ssum===total)?'ok':'mismatch';
+  cells.forEach(c=>{ c.classList.remove('tax-ok','tax-mismatch'); if(status==='ok') c.classList.add('tax-ok'); else if(status==='mismatch') c.classList.add('tax-mismatch'); });
+  const first=tr.querySelector('td.taxinv-cell[data-edit="taxinv1"]'); if(!first) return;
+  let badge=first.querySelector('.ti-stat');
+  if(status==='none'){ if(badge) badge.remove(); return; }
+  if(!badge){ badge=document.createElement('div'); badge.className='ti-stat'; first.appendChild(badge); }
+  badge.textContent=(status==='ok')?'✓ 발행완료':'⚠ 미발행';
+  badge.className='ti-stat '+(status==='ok'?'ok':'bad');
 }
 // z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
 function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'})[c]||'₩'; }
@@ -1502,6 +1531,8 @@ function setCellDisplay(tr, field, val, cust_ok){
 
 // 초기화
 applyCols(); buildColsMenu(); syncDayInputs();
+// v5H226z469: 세금계산서 발행상태(합계=수주금액 → 발행완료 / 다르면 미발행) 초기 표기
+try{ document.querySelectorAll('#schedTable tbody tr[data-ref]').forEach(refreshTaxStatus); }catch(e){}
 _buildBulkFieldSel(); syncBulkBar();   // z366: 일괄수정 항목 드롭다운 구성 + 바 상태
 var _bulkM=document.getElementById('bulkModal'); if(_bulkM) _on(_bulkM,'click',function(e){ if(e.target.id==='bulkModal') closeBulkModal(); });
 _on(window,'load',()=>setTimeout(updateSticky,80));
