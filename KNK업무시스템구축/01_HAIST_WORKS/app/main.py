@@ -18678,23 +18678,38 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
             _due = "oi.due_date AS i_due," if "due_date" in _cols else "'' AS i_due,"
             _ust = "oi.unit_status AS ust," if "unit_status" in _cols else "'진행중' AS ust,"
             _up = "oi.unit_price AS up," if "unit_price" in _cols else "oi.amount AS up,"
+            # v5H226z483 (대표 지시): 상세(수주 내역)와 동일 정보량 — 발주일·납품처·거래방식·통화·비고 추가
+            _od = "oi.order_date AS i_ord," if "order_date" in _cols else "'' AS i_ord,"
+            _sh = "oi.ship_to AS i_ship," if "ship_to" in _cols else "'' AS i_ship,"
+            _ie = "oi.is_export AS i_iex," if "is_export" in _cols else "NULL AS i_iex,"
+            _ln = "oi.line_note AS lnote," if "line_note" in _cols else "'' AS lnote,"
+            _ic = "oi.currency AS i_cur," if "currency" in _cols else "'' AS i_cur,"
             rows = c.execute(
-                f"SELECT oi.id AS iid, oi.unit_label AS lbl, {_due} {_ust} {_up} "
+                f"SELECT oi.id AS iid, oi.unit_label AS lbl, {_due} {_ust} {_up} {_od} {_sh} {_ie} {_ln} {_ic} "
                 f"oi.amount AS amt, COALESCE(oi.qty,1) AS qty, "
-                f"o.order_no AS so_no, o.due_date AS o_due, COALESCE(o.currency,'KRW') AS cur, "
-                f"COALESCE(o.status,'') AS sost "
+                f"o.order_no AS so_no, o.due_date AS o_due, o.order_date AS o_ord, o.ship_to AS o_ship, "
+                f"COALESCE(o.currency,'KRW') AS o_cur, COALESCE(o.status,'') AS sost, "
+                f"COALESCE(p.is_export,0) AS p_iex "
                 f"FROM order_items oi JOIN orders o ON oi.order_id=o.id "
+                f"LEFT JOIN projects p ON p.id=o.project_id "
                 f"WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id",
                 (int(ref_id),)).fetchall()
             for r in rows:
                 d = dict(r)
                 eff_due = (str(d.get("i_due") or "").strip() or str(d.get("o_due") or "").strip())[:10]
+                eff_ord = (str(d.get("i_ord") or "").strip() or str(d.get("o_ord") or "").strip())[:10]
+                eff_ship = (str(d.get("i_ship") or "").strip() or str(d.get("o_ship") or "").strip())
+                eff_cur = (str(d.get("i_cur") or "").strip() or str(d.get("o_cur") or "").strip() or "KRW")
+                _iex = d.get("i_iex")
+                eff_iex = int(_iex) if _iex is not None else int(d.get("p_iex") or 0)
                 units.append({
-                    "iid": d["iid"], "label": d.get("lbl") or "—", "due_date": eff_due,
+                    "iid": d["iid"], "label": d.get("lbl") or "—",
+                    "due_date": eff_due, "order_date": eff_ord, "ship_to": eff_ship or "",
                     "unit_status": d.get("ust") or "진행중",
                     "unit_price": (float(d.get("up") or 0) if can_money else None),
                     "amount": (float(d.get("amt") or 0) if can_money else None),
-                    "currency": d.get("cur") or "KRW", "so_no": d.get("so_no") or "",
+                    "currency": eff_cur, "is_export": eff_iex, "note": d.get("lnote") or "",
+                    "so_no": d.get("so_no") or "",
                     "locked": ((d.get("sost") or "").upper() in ("INVOICED", "PAID")),
                 })
     except Exception as e:
@@ -18719,7 +18734,8 @@ async def schedule_board_unit_field(request: Request):
         return JSONResponse({"ok": False, "error": "bad_request"}, 400)
     field = (b.get("field") or "").strip()
     value = b.get("value")
-    if field not in ("status", "due_date", "unit_price"):
+    # v5H226z483 (대표 지시): 상세와 동일 항목 — 발주일·납품처·통화·거래방식·비고도 인라인 수정
+    if field not in ("status", "due_date", "unit_price", "order_date", "ship_to", "currency", "is_export", "note"):
         return JSONResponse({"ok": False, "error": "bad_field"}, 400)
     if field == "unit_price" and not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
@@ -18767,6 +18783,23 @@ async def schedule_board_unit_field(request: Request):
                 if pid:
                     row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
                     c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+            elif field == "order_date":
+                c.execute("UPDATE order_items SET order_date=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          (str(value or "").strip() or None, iid))
+            elif field == "ship_to":
+                c.execute("UPDATE order_items SET ship_to=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          (str(value or "").strip() or None, iid))
+            elif field == "note":
+                c.execute("UPDATE order_items SET line_note=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          (str(value or "").strip() or None, iid))
+            elif field == "currency":
+                cv = str(value or "").strip().upper()
+                if cv not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+                    return JSONResponse({"ok": False, "error": "통화 형식 오류"}, 400)
+                c.execute("UPDATE order_items SET currency=?, updated_at=datetime('now','localtime') WHERE id=?", (cv, iid))
+            elif field == "is_export":
+                iv = 1 if str(value).strip() in ("1", "수출", "true", "True") else 0
+                c.execute("UPDATE order_items SET is_export=?, updated_at=datetime('now','localtime') WHERE id=?", (iv, iid))
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True})
