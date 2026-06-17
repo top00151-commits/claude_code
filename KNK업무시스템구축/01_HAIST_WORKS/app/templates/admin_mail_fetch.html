@@ -11,6 +11,13 @@
   .mf-status b{color:var(--mute);font-weight:700}
   .mf-msg{margin-top:10px;font-size:12.5px;min-height:18px}
   .mf-help{font-size:12px;color:var(--mute);line-height:1.8;background:#fffbeb;border:1px solid var(--amber);border-radius:9px;padding:10px 13px;margin-bottom:14px}
+  .mf-auto{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:10px;padding:12px 15px;margin-bottom:14px;font-size:13px;line-height:1.7}
+  .mf-auto.on{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46}
+  .mf-auto.off{background:#f8fafc;border:1px solid var(--line);color:var(--ink)}
+  .mf-auto .mf-auto-main{flex:1;min-width:220px}
+  .mf-auto-badge{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 9px;border-radius:999px;vertical-align:middle}
+  .mf-auto-badge.on{background:#15803d;color:#fff}
+  .mf-auto-badge.off{background:#9ca3af;color:#fff}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab='home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -34,6 +41,17 @@
       · 하이웍스에서 <b>'POP3로 가져간 메일 → 읽지 않음 표시'</b>를 선택하면, KNK로 가져가도 하이웍스에서 계속 '새 메일'로 보입니다(권장).<br>
       · 순서: <b>🔌 연결 테스트</b> → <b>💾 저장</b> → <b>⏱ 시작점 설정</b>(여기까지는 안 가져옴) → <b>📥 지금 가져오기</b>.
     </div>
+
+    {% if acct %}
+    <div class="mf-auto {{ 'on' if acct.enabled else 'off' }}" id="mfAutoBox">
+      <div class="mf-auto-main">
+        <b>⏱ 자동 가져오기</b>
+        {% if acct.enabled %}<span class="mf-auto-badge on">켜짐</span> — 약 <b>{{ fetch_interval_min }}분</b>마다 새 메일을 자동으로 가져옵니다. <b>이제 직접 누르지 않아도 됩니다.</b>
+        {% else %}<span class="mf-auto-badge off">꺼짐</span> — 지금은 자동으로 안 가져옵니다. 아래 <b>「📥 지금 가져오기」</b>로 직접 가져오거나, 오른쪽에서 자동을 켜세요.{% endif %}
+      </div>
+      <button type="button" class="btn btn-secondary" onclick="mfAuto({{ 0 if acct.enabled else 1 }})">{{ '⏸ 자동 끄기' if acct.enabled else '▶ 자동 켜기' }}</button>
+    </div>
+    {% endif %}
 
     <div class="form-card">
       <div class="mf-row"><label>가져오기 방식</label>
@@ -122,6 +140,13 @@ async function mfRun(){
     if(j.ok){ _mfShow('mfRunMsg', true, '✅ '+j.count+'통 가져왔습니다. KNK 메일 받은편지함에서 확인하세요.'); }
     else { _mfShow('mfRunMsg', false, '⚠ '+(j.message||'가져오기 실패')); }
   }catch(e){ _mfShow('mfRunMsg', false, '⚠ 네트워크 오류'); }
+}
+async function mfAuto(on){
+  if(!on && !confirm('자동 가져오기를 끌까요?\n끄면 직접 「📥 지금 가져오기」를 눌러야 새 메일이 들어옵니다.')) return;
+  try{ var j=await _mfPost('/admin/mail-fetch/auto', {on: on?'1':'0'});
+    if(j.ok){ location.reload(); }
+    else { alert('⚠ '+(j.message||'변경 실패')); }
+  }catch(e){ alert('⚠ 네트워크 오류'); }
 }
 </script>
 </body></html>

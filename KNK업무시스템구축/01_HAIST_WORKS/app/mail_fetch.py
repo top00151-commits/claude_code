@@ -98,6 +98,13 @@ def set_status(c, owner_id, *, last_uid=None, status=None, count=None):
     c.execute("UPDATE mail_fetch_accounts SET " + ",".join(sets) + " WHERE owner_user_id=?", args)
 
 
+def set_enabled(c, owner_id, enabled):
+    """자동 가져오기 켜기/끄기 (enabled 1/0). 스케줄러는 enabled=1 계정만 수집."""
+    _ensure_table(c)
+    c.execute("UPDATE mail_fetch_accounts SET enabled=? WHERE owner_user_id=?",
+              (1 if enabled else 0, owner_id))
+
+
 def get_seen(c, account_id) -> set:
     _ensure_table(c)
     return {r[0] for r in c.execute("SELECT uidl FROM mail_fetch_seen WHERE account_id=?", (account_id,)).fetchall()}

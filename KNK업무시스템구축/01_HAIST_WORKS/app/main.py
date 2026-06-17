@@ -613,6 +613,11 @@ def startup():
     _start_tier_refresh_scheduler()
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
+    # 메일 자동 가져오기 스케줄러 시작 (대표 지시 2026-06-14 "가져오기 자동으로")
+    try:
+        _start_mail_fetch_scheduler()
+    except Exception as _e:
+        print(f"[MAIL-FETCH-AUTO start ERR] {_e}")
     # v5H172 (2026-05-06): 통화 데이터 백필.
     #   orders.currency 컬럼은 DEFAULT 'KRW' 라 NULL 이 아니라 'KRW' 명시값이 들어있음.
     #   v5H171 이전 발행 SO 는 실제 프로젝트 통화와 무관하게 'KRW' 가 박혀 있으므로,
@@ -819,6 +824,119 @@ def _start_daily_reminder_scheduler():
     timer = _th.Timer(delay, _daily_reminder_tick)
     timer.daemon = True
     timer.start()
+
+
+# =====================================================
+# 메일 자동 가져오기 스케줄러 (대표 지시 2026-06-14 "가져오기를 자동으로")
+# 수동 /admin/mail-fetch/run 을 N분(기본 5분)마다 자동 실행. 외부 의존 0(stdlib threading.Timer).
+# enabled=1 계정만. POP3 seen·dedup_hash 로 중복 적재 방지. 원본 미삭제(양수신).
+# 타이머 콜백은 별도 데몬 스레드라 블로킹 IO(POP3/IMAP) 직접 호출 가능(event loop 무관).
+# =====================================================
+try:
+    _MAIL_FETCH_INTERVAL_SEC = max(60, int(os.environ.get("KNK_MAIL_FETCH_INTERVAL_SEC", "300") or 300))
+except Exception:
+    _MAIL_FETCH_INTERVAL_SEC = 300
+
+
+def _mailfetch_run_owner(owner_id):
+    """한 계정의 새 메일을 가져와 저장(동기·블로킹 — 스케줄러 스레드에서 호출).
+    /admin/mail-fetch/run 과 동일 수집·적재 로직의 '자동판'. 반환 (ok, stored, msg)."""
+    from . import mail_fetch as _mailfetch
+    with db_session() as c:
+        acct = _mailfetch.get_account(c, owner_id)
+    if not acct or not acct.get("enabled"):
+        return (False, 0, "비활성/미설정")
+    protocol = (acct.get("protocol") or "pop3").strip().lower()
+    host = (acct.get("host") or "").strip()
+    port = acct.get("port") or (993 if protocol == "imap" else 995)
+    ssl = bool(acct.get("use_ssl"))
+    user = (acct.get("username") or "").strip()
+    pw = _mail.decrypt(acct.get("password_enc") or "")
+    if not (host and user and pw):
+        return (False, 0, "계정 미완성")
+    if protocol == "imap":
+        res = _mailfetch.imap_collect(host, port, ssl, user, pw, acct.get("last_uid") or 0)
+    else:
+        with db_session() as c:
+            seen = _mailfetch.get_seen(c, acct["id"])
+        res = _mailfetch.pop3_collect(host, port, ssl, user, pw, seen)
+    if not res.get("ok"):
+        with db_session() as c:
+            _mailfetch.set_status(c, owner_id, status="자동 실패: " + (res.get("error", "") or "")[:200])
+        return (False, 0, res.get("error", ""))
+    # 소유자 사용자 dict → AI 분류 가능 여부 판정(수동 run 과 동일)
+    with db_session() as c:
+        ur = c.execute("SELECT * FROM users WHERE id=?", (owner_id,)).fetchone()
+    owner_user = dict(ur) if ur else {"id": owner_id}
+    try:
+        ai_on = ai_enabled_for(owner_user)
+    except Exception:
+        ai_on = False
+    stored = 0
+    with db_session() as c:
+        for key, raw in res.get("messages", []):
+            try:
+                parsed = _mailbox.parse_raw_email(raw)
+                if not parsed:
+                    continue
+                mid, _own = _mailbox.store_inbound(
+                    c, to_email=(parsed.get("to_email") or user),
+                    from_email=parsed.get("from_email", ""), from_name=parsed.get("from_name", ""),
+                    subject=parsed.get("subject", ""), text=parsed.get("text", ""),
+                    html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
+                    owner_id=acct["owner_user_id"], run_ai=ai_on,
+                    attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""))
+                if mid:
+                    stored += 1
+            except Exception:
+                pass
+        if protocol == "imap":
+            _mailfetch.set_status(c, owner_id, last_uid=res.get("max_uid", acct.get("last_uid") or 0),
+                                  status="자동 가져오기 %d건" % stored, count=stored)
+        else:
+            _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
+            _mailfetch.set_status(c, owner_id, status="자동 가져오기 %d건" % stored, count=stored)
+    return (True, stored, "")
+
+
+def _mail_fetch_tick():
+    """타이머 콜백 — enabled 계정 전부 자동 가져오기 후 1회만 재예약(finally).
+    수집이 간격보다 오래 걸려도 재예약은 작업 완료 후라 겹치지 않음(직렬)."""
+    import threading as _th
+    try:
+        from . import mail_fetch as _mailfetch
+        with db_session() as c:
+            _mailfetch._ensure_table(c)
+            rows = c.execute(
+                "SELECT owner_user_id FROM mail_fetch_accounts "
+                "WHERE enabled=1 AND COALESCE(host,'')<>'' AND COALESCE(username,'')<>'' "
+                "AND COALESCE(password_enc,'')<>''"
+            ).fetchall()
+        owners = [r[0] for r in rows]
+        total = 0
+        for oid in owners:
+            try:
+                _ok, stored, _msg = _mailfetch_run_owner(oid)
+                total += stored
+            except Exception as e:
+                print(f"[MAIL-FETCH-AUTO ERR owner={oid}] {e}")
+        if owners:
+            print(f"[MAIL-FETCH-AUTO] {len(owners)}계정 점검 / 새 메일 {total}건 적재")
+    except Exception as e:
+        print(f"[MAIL-FETCH-AUTO tick ERR] {e}")
+    finally:
+        t = _th.Timer(_MAIL_FETCH_INTERVAL_SEC, _mail_fetch_tick)
+        t.daemon = True
+        t.start()
+
+
+def _start_mail_fetch_scheduler():
+    """startup 1회 — 부팅 60초 후 첫 자동 가져오기, 이후 _MAIL_FETCH_INTERVAL_SEC 마다."""
+    import threading as _th
+    print(f"[MAIL-FETCH-AUTO] 스케줄러 시작 — {_MAIL_FETCH_INTERVAL_SEC}초마다 자동 가져오기.")
+    t = _th.Timer(min(60, _MAIL_FETCH_INTERVAL_SEC), _mail_fetch_tick)
+    t.daemon = True
+    t.start()
 
 
 # =====================================================
@@ -13677,7 +13795,25 @@ async def admin_mail_fetch_page(req: Request):
     with db_session() as c:
         acct = _mailfetch.get_account(c, u["id"])
     return ctx(req, "admin_mail_fetch.html", user=u, active="admin",
-               acct=acct, key_ok=_mail.mail_available(), owner_name=(u.get("name") or "본인"))
+               acct=acct, key_ok=_mail.mail_available(), owner_name=(u.get("name") or "본인"),
+               fetch_interval_min=max(1, _MAIL_FETCH_INTERVAL_SEC // 60))
+
+
+@app.post("/admin/mail-fetch/auto")
+async def admin_mail_fetch_auto(req: Request):
+    """자동 가져오기 켜기/끄기 (enabled 토글). 스케줄러는 enabled=1 계정만 수집."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    from . import mail_fetch as _mailfetch
+    form = await req.form()
+    on = (form.get("on") or "").strip() in ("1", "true", "on", "True")
+    with db_session() as c:
+        acct = _mailfetch.get_account(c, u["id"])
+        if not acct:
+            return JSONResponse({"ok": False, "message": "먼저 계정·비밀번호를 저장하세요."}, 400)
+        _mailfetch.set_enabled(c, u["id"], on)
+    return JSONResponse({"ok": True, "enabled": on})
 
 
 @app.post("/admin/mail-fetch/save")
