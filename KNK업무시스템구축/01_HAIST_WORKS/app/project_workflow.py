@@ -1216,11 +1216,84 @@ def cascade_project_meta_to_so(c, project_id: int,
     return summary
 
 
+def sync_ship_stage_from_units(c, project_id: int, on_date: str = "",
+                               by_user: int | None = None, by_name: str = "") -> bool:
+    """v5H226z473 (대표 지시): 출하(작업일정표 단계 'ship') ⟷ 호기 납품완료 양방향 연결의 [상세→보드] 방향.
+    활성 호기(취소 제외) '전체'가 납품완료면 보드 단계칸 'ship'(출하) 완료 기록.
+    호기가 있는데 전체 납품완료가 아니면 자동 출하표시 해제(보드 일관성). 호기 0건이면 손대지 않음
+    (보드 단건/일괄출하로 찍은 출하 보존). 데이터 연결성 안전원칙: '전체 납품완료' 단일조건일 때만 set."""
+    from datetime import datetime as _dt, date as _date
+    try:
+        rows = c.execute(
+            "SELECT COALESCE(oi.unit_status,'진행중') st, COUNT(*) n "
+            "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+            "WHERE o.project_id=? GROUP BY 1", (project_id,)).fetchall()
+    except Exception:
+        return False
+    total = sum(int(r[1] or 0) for r in rows)
+    if total == 0:
+        return False   # 호기 0건 → 보드 출하 표시 유지(손대지 않음)
+    cancel = sum(int(r[1] or 0) for r in rows if r[0] == '취소')
+    done = sum(int(r[1] or 0) for r in rows if r[0] == '납품완료')
+    active = total - cancel
+    all_delivered = (active > 0 and done == active)
+    now = _dt.now().isoformat(timespec="seconds")
+    od = (on_date or _date.today().isoformat())
+    try:
+        if all_delivered:
+            c.execute(
+                """INSERT INTO project_stage_log
+                   (ref_kind,ref_id,stage_key,sub_key,done,on_date,by_user,by_name,memo,extra,updated_at)
+                   VALUES ('project',?, 'ship','',1,?,?,?,?, '', ?)
+                   ON CONFLICT(ref_kind,ref_id,stage_key,sub_key) DO UPDATE SET
+                     done=1,
+                     on_date=COALESCE(NULLIF(on_date,''), excluded.on_date),
+                     updated_at=excluded.updated_at""",
+                (project_id, od, by_user, (by_name or "납품완료 연동"),
+                 "호기 전체 납품완료 → 출하", now))
+        else:
+            # 호기 있는데 전체 납품완료 아님 → 자동 출하표시 해제(부분납품은 출하 아님)
+            c.execute(
+                "UPDATE project_stage_log SET done=0, updated_at=? "
+                "WHERE ref_kind='project' AND ref_id=? AND stage_key='ship' AND sub_key=''",
+                (now, project_id))
+        return all_delivered
+    except Exception as e:
+        print(f"[v5H226z473] ship-sync err pid={project_id}: {e}")
+        return False
+
+
+def mark_units_delivered(c, project_id: int, changed_by: int | None = None) -> int:
+    """v5H226z473 (대표 지시): 출하 처리 [보드→상세] 방향 — 활성 호기(취소·기납품 제외) 전체를 '납품완료'로.
+    이어서 cascade_unit_status_to_project(프로젝트·SO 상태 동기화 + sync_ship_stage_from_units)까지 호출.
+    반환=새로 납품완료로 바뀐 호기 수."""
+    try:
+        r = c.execute(
+            "UPDATE order_items SET unit_status='납품완료' "
+            "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?) "
+            "  AND COALESCE(unit_status,'진행중') NOT IN ('납품완료','취소')",
+            (project_id,))
+        n = r.rowcount or 0
+    except Exception:
+        n = 0
+    try:
+        cascade_unit_status_to_project(c, project_id, changed_by)
+    except Exception:
+        pass
+    return n
+
+
 def cascade_unit_status_to_project(c, project_id: int,
                                     changed_by: int | None = None) -> dict:
     """v5H226r/x — 호기 unit_status 변경 시 부모 프로젝트 status + SO orders.status 동기화.
     모든 호기가 동일 상태일 때만 부모 상태 변경. 혼합/0건이면 no-op.
-    v5H226x: 4종 모두(진행중/납품완료/취소/보류) 매핑 + SO orders.status 도 함께 동기화."""
+    v5H226x: 4종 모두(진행중/납품완료/취소/보류) 매핑 + SO orders.status 도 함께 동기화.
+    v5H226z473: 진입 시 출하 단계 동기화([상세→보드]) — 모든 호기변경 경로가 이 함수를 거치므로 한 곳에서."""
+    # v5H226z473 (대표 지시): 호기 상태 변경 → 작업일정표 단계칸 'ship'(출하) 동기화
+    try:
+        sync_ship_stage_from_units(c, project_id, by_user=changed_by)
+    except Exception:
+        pass
     try:
         rows = c.execute(
             """SELECT COALESCE(oi.unit_status,'진행중') AS st

@@ -18416,6 +18416,18 @@ async def schedule_board_stage_set(request: Request):
             user_id=u.get("id"), user_name=_sched_user_name(u))
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    # v5H226z473 (대표 지시): 출하 ⟷ 납품완료 양방향 연결 [보드→상세] — 단건 출하 단계 완료 시에도.
+    #   stage_key=ship & done 일 때만. 프로젝트=호기 전체 납품완료, 소모품=SHIPPED. (출하 해제는 미연동)
+    if ok and stage_key == "ship" and bool(b.get("done", True)):
+        try:
+            if kind == "project":
+                with db_session() as _cz:
+                    _pwf.mark_units_delivered(_cz, int(ref_id), u.get("id"))
+            elif kind == "consumable":
+                with db_session() as _cz:
+                    _cz.execute("UPDATE consumable_orders SET status='SHIPPED' WHERE id=?", (int(ref_id),))
+        except Exception:
+            pass
     return JSONResponse({"ok": ok, "error": msg, "by_name": _sched_user_name(u)})
 
 
@@ -18460,6 +18472,18 @@ async def schedule_board_bulk_ship(request: Request):
                                        user_id=uid, user_name=uname)
         except Exception:
             ok = False
+        # v5H226z473 (대표 지시): 출하 ⟷ 납품완료 양방향 연결 [보드→상세].
+        #   프로젝트=호기 전체 '납품완료'로(→상세 상태 동기화·cascade 안에서 출하단계 재확인),
+        #   소모품=consumable_orders.status='SHIPPED'(=납품완료 표시).
+        try:
+            if kind == "project":
+                with db_session() as _cz:
+                    _pwf.mark_units_delivered(_cz, ref_id, uid)
+            elif kind == "consumable":
+                with db_session() as _cz:
+                    _cz.execute("UPDATE consumable_orders SET status='SHIPPED' WHERE id=?", (ref_id,))
+        except Exception:
+            pass
         if ok:
             done_keys.add(key)
             n_ok += 1
