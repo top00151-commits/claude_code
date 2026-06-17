@@ -140,6 +140,22 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched td.cust-unmatched { color:#b91c1c !important; font-weight:800; background:#fef2f2 !important; }
 .sched tbody tr:hover td.cust-unmatched { background:#fde2e2 !important; }
 .sched td.c1 a { color:var(--knk-red); font-weight:700; text-decoration:none; }
+/* v5H226z481 (대표 지시): 관리번호 '+' 펼치기 + 펼친 호기 줄(상태·납기·단가 인라인 수정) */
+.sched .row-exp { float:right; cursor:pointer; user-select:none; font-weight:800; color:var(--knk-red); background:#fff; border:1px solid var(--line); border-radius:5px; width:18px; height:18px; line-height:15px; text-align:center; font-size:13px; margin-left:4px; }
+.sched .row-exp:hover { background:#fff0ef; }
+.sched .row-exp.on { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.sched tr.unit-exp-row > td.ux-cell { background:#f8fafc; padding:0; border-bottom:2px solid var(--knk-red); }
+.ux-wrap { position:sticky; left:0; padding:8px 14px; width:max-content; max-width:96vw; }
+.ux-tab { border-collapse:collapse; font-size:12px; }
+.ux-tab th { text-align:left; font-size:11px; color:#64748b; font-weight:700; padding:2px 14px 5px 0; }
+.ux-tab td { padding:3px 14px 3px 0; vertical-align:middle; }
+.ux-tab .ux-lbl { font-weight:700; color:#1e293b; white-space:nowrap; }
+.ux-tab .ux-so { font-size:10.5px; color:#94a3b8; font-weight:400; }
+.ux-tab select.ux-status, .ux-tab input.ux-due, .ux-tab input.ux-price { border:1px solid var(--line); border-radius:5px; font:inherit; font-size:12px; padding:3px 6px; background:#fff; }
+.ux-tab input.ux-price { width:120px; text-align:right; }
+.ux-tab .ux-ok { box-shadow:0 0 0 2px #86efac; }
+.ux-tab .ux-empty { color:#94a3b8; padding:8px 0; }
+.ux-tab [disabled] { opacity:.55; cursor:not-allowed; }
 .sched .day { text-align:center; color:#15803d; font-weight:800; }
 .sched .day.today { box-shadow: inset 2px 0 0 #b91c1c, inset -2px 0 0 #b91c1c; background:#fffbe6; }
 .sched thead .day.today { background:#fde68a; }
@@ -488,7 +504,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         {% for r in rows %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
             data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}">
-          <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> <a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}" title="프로젝트 상세">{{ r.code }}</a>{% if r.unit_label %} <span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#eef2ff;color:#4338ca;font-size:11px;font-weight:700;vertical-align:middle;" title="호기별 단가·납기가 달라 호기당 1줄로 표시">{{ r.unit_label }}</span>{% endif %}{% endif %}</td>
+          <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> <a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}" title="프로젝트 상세">{{ r.code }}</a>{% if r.unit_label %} <span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#eef2ff;color:#4338ca;font-size:11px;font-weight:700;vertical-align:middle;" title="호기별 단가·납기가 달라 호기당 1줄로 표시">{{ r.unit_label }}</span>{% endif %}{% endif %}{# v5H226z481 (대표 지시): 수량 2개 이상=호기 여러 대 → '+' 펼치기 #}{% if r.kind != 'consumable' and (r.qty|int) >= 2 %}<span class="row-exp" title="호기 펼치기/접기" role="button">＋</span>{% endif %}</td>
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
           {# v5H226z365 (대표 지시): 프로젝트명 보드 인라인 편집 — 프로젝트만(소모품은 '소모품' 고정 표시·읽기전용) #}
           <td class="c-info c3{% if r.kind != 'consumable' %} editable{% if r.name %} filled{% endif %}{% endif %}" data-col="name"{% if r.kind != 'consumable' %} data-edit="name"{% endif %} title="{{ r.name }}">{{ r.name or ('＋' if r.kind != 'consumable' else '—') }}</td>
@@ -814,7 +830,7 @@ function setDayRange(){
   COLS._dayFrom=f; COLS._dayTo=t; syncDayInputs(); applyCols(); saveCols();
 }
 
-function resetCols(){ COLS={}; applyCols(); buildColsMenu(); syncDayInputs(); saveCols(); toast('너비·숨김·날짜를 초기화했습니다'); }
+function resetCols(){ schedCollapseUnits(); COLS={}; applyCols(); buildColsMenu(); syncDayInputs(); saveCols(); toast('너비·숨김·날짜를 초기화했습니다'); }
 
 // ---- 너비 조정(드래그) — z279: 그 칸만 px 로 직접 지정. 다른 칸은 1px도 안 움직임 ----
 let _rz=null, _rzMoved=false;   // z331: _rzMoved=폭조절 드래그 직후 헤더 클릭정렬 억제용
@@ -856,6 +872,7 @@ function _cellSortVal(tr, col){
 }
 function sortByCol(col){
   const tbody=document.querySelector('#schedTable tbody'); if(!tbody) return;
+  schedCollapseUnits();   // v5H226z481: 정렬하면 펼친 호기 줄 접기(재배치 꼬임 방지)
   if(_sortCol===col){ _sortDir = -_sortDir; } else { _sortCol=col; _sortDir=1; }
   const isNum=!!_SORT_NUM[col], dir=_sortDir;
   const rows=Array.from(tbody.querySelectorAll('tr'));
@@ -883,6 +900,7 @@ function _updateSortLabel(col){
 }
 // z332: 정렬 초기화 — 헤더 클릭 정렬을 원래 순서로 되돌림(칸 너비·날짜 설정은 안 건드림)
 function resetSort(){
+  schedCollapseUnits();   // v5H226z481: 정렬 초기화 시 펼친 호기 줄 모두 접기
   const tbody=document.querySelector('#schedTable tbody'); if(!tbody) return;
   const rows=Array.from(tbody.querySelectorAll('tr'));
   rows.sort((a,b)=>(parseInt(a.dataset.ord)||0)-(parseInt(b.dataset.ord)||0));
@@ -1036,10 +1054,60 @@ let _editing=null;
 const _tbody=document.querySelector('#schedTable tbody');
 if(_tbody){
   _tbody.addEventListener('click',(e)=>{
+    const ex=e.target.closest('.row-exp'); if(ex){ e.stopPropagation(); toggleRowUnits(ex.closest('tr'), ex); return; }   // v5H226z481: 호기 펼치기/접기
     const sc=e.target.closest('td.stage-cell'); if(sc){ openStagePanel(sc.dataset.kind, sc.dataset.ref, sc.closest('tr')); return; }
     const td=e.target.closest('td.editable'); if(td){ startEdit(td); return; }
     const bar=e.target.closest('td.bar'); if(bar){ openMemo(bar.closest('tr')); }
   });
+  // v5H226z481: 펼친 호기 줄 인라인 수정(상태/납기/단가) — 위임
+  _tbody.addEventListener('change',(e)=>{
+    const row=e.target.closest('tr[data-iid]'); if(!row) return;
+    const iid=row.dataset.iid;
+    if(e.target.classList.contains('ux-status')) _uxSave(iid,'status',e.target.value,e.target);
+    else if(e.target.classList.contains('ux-due')) _uxSave(iid,'due_date',e.target.value,e.target);
+    else if(e.target.classList.contains('ux-price')) _uxSave(iid,'unit_price',e.target.value,e.target);
+  });
+}
+// v5H226z481 (대표 지시): 관리번호 '+' → 그 건의 호기(order_items)들을 아래로 펼침/접힘. 상태·납기·단가 인라인 수정.
+function _uxEsc(s){ return (''+(s==null?'':s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function toggleRowUnits(tr, btn){
+  if(!tr) return;
+  const ref=tr.dataset.ref, kind=tr.dataset.kind||'project', key=kind+':'+ref;
+  const existing=document.querySelector('tr.unit-exp-row[data-for="'+key+'"]');
+  if(existing){ existing.remove(); if(btn){ btn.textContent='＋'; btn.classList.remove('on'); } return; }
+  if(btn) btn.textContent='…';
+  fetch('/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref),{credentials:'same-origin'})
+    .then(r=>r.json()).then(j=>{
+      if(!j||!j.ok){ toast('호기 불러오기 실패'); if(btn) btn.textContent='＋'; return; }
+      const sub=document.createElement('tr'); sub.className='unit-exp-row'; sub.dataset.for=key;
+      const td=document.createElement('td'); td.colSpan=99; td.className='ux-cell';
+      const sts=j.statuses||['진행중','출하','취소','보류'];
+      let h='<div class="ux-wrap"><table class="ux-tab"><thead><tr><th>호기·품목</th><th>상태</th><th>납기</th>'+(j.can_money?'<th>단가</th>':'')+'</tr></thead><tbody>';
+      (j.units||[]).forEach(function(u){
+        const dis=u.locked?' disabled title="확정 SO 라 수정 불가"':'';
+        h+='<tr data-iid="'+u.iid+'"><td class="ux-lbl">'+_uxEsc(u.label)+(u.so_no?' <span class="ux-so">'+_uxEsc(u.so_no)+'</span>':'')+'</td>';
+        h+='<td><select class="ux-status"'+dis+'>'+sts.map(function(s){return '<option'+(s===u.unit_status?' selected':'')+'>'+_uxEsc(s)+'</option>';}).join('')+'</select></td>';
+        h+='<td><input type="date" class="ux-due" value="'+_uxEsc(u.due_date||'')+'"'+dis+'></td>';
+        if(j.can_money){ h+='<td><input type="number" step="1" min="0" class="ux-price" value="'+(u.unit_price!=null?u.unit_price:'')+'"'+dis+'></td>'; }
+        h+='</tr>';
+      });
+      if(!(j.units||[]).length) h+='<tr><td colspan="4" class="ux-empty">호기·품목 없음</td></tr>';
+      h+='</tbody></table></div>';
+      td.innerHTML=h; sub.appendChild(td);
+      tr.parentNode.insertBefore(sub, tr.nextSibling);
+      if(btn){ btn.textContent='－'; btn.classList.add('on'); }
+    }).catch(()=>{ toast('통신 오류'); if(btn) btn.textContent='＋'; });
+}
+function _uxSave(iid, field, value, el){
+  fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})})
+    .then(r=>r.json()).then(j=>{
+      if(j&&j.ok){ toast('저장됨'); if(el){ el.classList.add('ux-ok'); setTimeout(function(){el.classList.remove('ux-ok');},900);} }
+      else toast('⚠ '+((j&&j.error)||'저장 실패'));
+    }).catch(()=>toast('⚠ 통신 오류'));
+}
+function schedCollapseUnits(){
+  document.querySelectorAll('tr.unit-exp-row').forEach(function(x){ x.remove(); });
+  document.querySelectorAll('.row-exp.on').forEach(function(b){ b.textContent='＋'; b.classList.remove('on'); });
 }
 function startEdit(td){
   if(_editing) return;
@@ -1449,6 +1517,7 @@ function schedRangeGo(){
 }
 function schedDoSearch(){
   var inp=document.getElementById('schedSearch'); if(!inp||!_tbody) return;
+  schedCollapseUnits();   // v5H226z481: 검색 시 펼친 호기 줄 접기(부모행 숨김에 떠다님 방지)
   var q=(inp.value||'').trim().toLowerCase();
   var trs=_tbody.querySelectorAll('tr'), shown=0;
   for(var i=0;i<trs.length;i++){

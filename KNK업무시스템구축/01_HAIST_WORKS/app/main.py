@@ -18664,6 +18664,114 @@ async def schedule_board_bulk_ship(request: Request):
                          "error": ("" if n_ok > 0 else "모두 실패")})
 
 
+@app.get("/sales/schedule/units")
+async def schedule_board_units(request: Request, ref_id: int, kind: str = "project"):
+    """v5H226z481 (대표 지시): 작업일정표 행 펼치기 — 한 프로젝트의 호기(order_items) 목록(상태·납기·단가) JSON."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    can_money = bool(can_view_sales(u))
+    units = []
+    try:
+        with db_session() as c:
+            _cols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            _due = "oi.due_date AS i_due," if "due_date" in _cols else "'' AS i_due,"
+            _ust = "oi.unit_status AS ust," if "unit_status" in _cols else "'진행중' AS ust,"
+            _up = "oi.unit_price AS up," if "unit_price" in _cols else "oi.amount AS up,"
+            rows = c.execute(
+                f"SELECT oi.id AS iid, oi.unit_label AS lbl, {_due} {_ust} {_up} "
+                f"oi.amount AS amt, COALESCE(oi.qty,1) AS qty, "
+                f"o.order_no AS so_no, o.due_date AS o_due, COALESCE(o.currency,'KRW') AS cur, "
+                f"COALESCE(o.status,'') AS sost "
+                f"FROM order_items oi JOIN orders o ON oi.order_id=o.id "
+                f"WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id",
+                (int(ref_id),)).fetchall()
+            for r in rows:
+                d = dict(r)
+                eff_due = (str(d.get("i_due") or "").strip() or str(d.get("o_due") or "").strip())[:10]
+                units.append({
+                    "iid": d["iid"], "label": d.get("lbl") or "—", "due_date": eff_due,
+                    "unit_status": d.get("ust") or "진행중",
+                    "unit_price": (float(d.get("up") or 0) if can_money else None),
+                    "amount": (float(d.get("amt") or 0) if can_money else None),
+                    "currency": d.get("cur") or "KRW", "so_no": d.get("so_no") or "",
+                    "locked": ((d.get("sost") or "").upper() in ("INVOICED", "PAID")),
+                })
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True, "units": units, "can_money": can_money,
+                         "statuses": list(_logi.UNIT_STATUSES)})
+
+
+@app.post("/sales/schedule/unit-field")
+async def schedule_board_unit_field(request: Request):
+    """v5H226z481 (대표 지시): 펼친 호기 줄 인라인 수정 — 상태/납기/단가 1필드. can_use_sales(단가는 can_view_sales).
+    상태=cascade(출하↔납품·단계 연동)·단가=SO 합계·프로젝트 금액 자가치유(편집 엔드포인트와 동일)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+        iid = int(b.get("iid"))
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad_request"}, 400)
+    field = (b.get("field") or "").strip()
+    value = b.get("value")
+    if field not in ("status", "due_date", "unit_price"):
+        return JSONResponse({"ok": False, "error": "bad_field"}, 400)
+    if field == "unit_price" and not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        with db_session() as c:
+            it = c.execute(
+                "SELECT oi.order_id, COALESCE(oi.qty,1) AS qty, oi.unit_label, "
+                "o.project_id, COALESCE(o.status,'') AS sost, o.order_no "
+                "FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.id=?", (iid,)).fetchone()
+            if not it:
+                return JSONResponse({"ok": False, "error": "not_found"}, 404)
+            it = dict(it)
+            if (it.get("sost") or "").upper() in ("INVOICED", "PAID", "CANCELLED"):
+                return JSONResponse({"ok": False, "error": f"{it['sost']} 상태 SO 는 수정 불가"}, 400)
+            pid = it.get("project_id")
+            if field == "status":
+                ns = (value or "").strip()
+                if ns not in _logi.UNIT_STATUSES:
+                    return JSONResponse({"ok": False, "error": "허용 안 된 상태"}, 400)
+                c.execute("UPDATE order_items SET unit_status=?, updated_at=datetime('now','localtime') WHERE id=?", (ns, iid))
+                try:
+                    _logi.log_project_change(c, pid, u.get("id"), f"호기 상태({it.get('unit_label') or '—'})",
+                                             "", ns, note=f"SO {it.get('order_no')} · 일정표 펼침 인라인")
+                except Exception:
+                    pass
+                try:
+                    _pwf.cascade_unit_status_to_project(c, pid, u.get("id"))
+                except Exception:
+                    pass
+            elif field == "due_date":
+                dv = (str(value or "").strip() or None)
+                c.execute("UPDATE order_items SET due_date=?, updated_at=datetime('now','localtime') WHERE id=?", (dv, iid))
+            elif field == "unit_price":
+                try:
+                    up = float(str(value).replace(",", "")) if value not in (None, "") else 0.0
+                except Exception:
+                    return JSONResponse({"ok": False, "error": "단가 형식 오류"}, 400)
+                qty = float(it.get("qty") or 1) or 1
+                c.execute("UPDATE order_items SET unit_price=?, amount=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          (up, up * qty, iid))
+                oid = it.get("order_id")
+                rws = c.execute("SELECT amount FROM order_items WHERE order_id=?", (oid,)).fetchall()
+                new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
+                c.execute("UPDATE orders SET total_amount=?, updated_at=datetime('now','localtime') WHERE id=?", (new_total, oid))
+                if pid:
+                    row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
+                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True})
+
+
 @app.get("/dept/stage-work", response_class=HTMLResponse)
 async def dept_stage_work(request: Request, dept: str = ""):
     """v5H226z478 (대표 지시·Phase 1b): '내 부서 단계 작업' 큐 — 우리 부서가 ①착수 가능 ②진행중 ③최근 완료한
