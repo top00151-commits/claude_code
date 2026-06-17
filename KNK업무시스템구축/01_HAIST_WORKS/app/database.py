@@ -11888,6 +11888,26 @@ def stage_board_map() -> dict:
     return out
 
 
+def stage_log_all_map() -> dict:
+    """v5H226z478 (부서 작업 큐용): 전체 단계기록을 한 번에 →
+    {(ref_kind, ref_id, stage_key, sub_key): {state, on_date, by_name, started_at, started_by_name, hours, memo}}.
+    state = done / doing(착수·미완) / todo. (행이 없으면 호출측에서 todo로 간주)"""
+    out = {}
+    try:
+        with db_session() as c:
+            for r in c.execute(
+                "SELECT ref_kind, ref_id, stage_key, sub_key, done, on_date, by_name, "
+                "       started_at, started_by_name, hours, memo FROM project_stage_log"):
+                _state = "done" if r[4] else ("doing" if r[7] else "todo")
+                out[(r[0], int(r[1]), r[2], r[3] or "")] = {
+                    "state": _state, "on_date": r[5] or "", "by_name": r[6] or "",
+                    "started_at": r[7] or "", "started_by_name": r[8] or "",
+                    "hours": (r[9] if r[9] is not None else ""), "memo": r[10] or ""}
+    except Exception:
+        pass
+    return out
+
+
 def create_fta_certificate(
     fta_type: str,
     customer_id: int = None,

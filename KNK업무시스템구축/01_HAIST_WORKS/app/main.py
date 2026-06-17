@@ -18550,6 +18550,106 @@ async def schedule_board_bulk_ship(request: Request):
                          "error": ("" if n_ok > 0 else "모두 실패")})
 
 
+@app.get("/dept/stage-work", response_class=HTMLResponse)
+async def dept_stage_work(request: Request, dept: str = ""):
+    """v5H226z478 (대표 지시·Phase 1b): '내 부서 단계 작업' 큐 — 우리 부서가 ①착수 가능 ②진행중 ③최근 완료한
+    단계를 한눈에. 누구나 열람(부서 선택)·기본=내 팀. 착수/완료는 기존 /sales/schedule/stage 로 처리(재사용)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from datetime import date as _date, datetime as _dt2
+    can_money = bool(can_view_sales(u))
+    my_team = ""
+    tid = u.get("team_id")
+    if tid:
+        try:
+            with db_session() as _c:
+                _r = _c.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()
+                if _r:
+                    my_team = _r[0] or ""
+        except Exception:
+            my_team = ""
+    all_depts = sorted({d for m in _logi.STAGE_OWNERS_BY_DIV.values() for d in m.values() if d}
+                       | {d for m in _logi.STAGE_SUB_OWNERS_BY_DIV.values() for d in m.values() if d})
+    sel_dept = (dept or "").strip()
+    if not sel_dept:
+        sel_dept = my_team if my_team in all_depts else ""
+    log_map = _logi.stage_log_all_map()
+    today = _date.today()
+    doing, ready, done = [], [], []
+
+    def _dday(due):
+        try:
+            return (_dt2.strptime(str(due)[:10], "%Y-%m-%d").date() - today).days if due else None
+        except Exception:
+            return None
+
+    def _proc(kind, ref_id, code, name, div, due, model=""):
+        spec = _logi.stage_spec_for_div(div)
+        order = [s["key"] for s in spec]
+        done_main = set()
+        for s in spec:
+            if s["key"] == "progress":
+                subs = [x[0] for x in s.get("subs", [])]
+                if subs and all(log_map.get((kind, ref_id, "progress", sk), {}).get("state") == "done" for sk in subs):
+                    done_main.add("progress")
+            elif log_map.get((kind, ref_id, s["key"], ""), {}).get("state") == "done":
+                done_main.add(s["key"])
+        dd = _dday(due)
+        for idx, s in enumerate(spec):
+            if s.get("sales_only") and not can_money:
+                continue
+            if s["key"] == "progress":
+                units = [(sk, s["label"] + " · " + sl, so or s.get("owner") or "",
+                          ("prod_request" in done_main or "prod_request" not in order))
+                         for sk, sl, so in s.get("subs", [])]
+            else:
+                units = [("", s["label"], s.get("owner") or "",
+                          all(order[j] in done_main for j in range(idx)))]
+            for sub, label, owner, prereq in units:
+                if sel_dept and owner != sel_dept:
+                    continue
+                rec = log_map.get((kind, ref_id, s["key"], sub), {})
+                state = rec.get("state", "todo")
+                item = {"kind": kind, "ref_id": ref_id, "code": code, "name": name, "model": model,
+                        "stage_key": s["key"], "sub_key": sub, "stage_label": label, "owner": owner,
+                        "due": (str(due)[:10] if due else ""), "dday": dd,
+                        "on_date": rec.get("on_date", ""), "by_name": rec.get("by_name", ""),
+                        "started_by_name": rec.get("started_by_name", ""),
+                        "hours": rec.get("hours", ""), "memo": rec.get("memo", "")}
+                if state == "doing":
+                    doing.append(item)
+                elif state == "done":
+                    done.append(item)
+                elif prereq:
+                    ready.append(item)
+                # todo & 직전 단계 미완 = '대기' → 큐에 안 띄움(앞 단계 끝나면 착수가능으로 올라옴)
+    for p in (dict(r) for r in _logi.projects_list_logi()):
+        if (p.get("status") or "") == "취소":
+            continue
+        if (p.get("project_type") or "").upper() == "CONSUMABLE":
+            continue
+        code = p.get("mgmt_code") or "—"
+        div = code[3] if (len(code) >= 4 and code[3] in "TMLEC") else ((p.get("biz_div") or "").upper())
+        _proc("project", p.get("id"), code, p.get("name") or "", div, p.get("due_date"), p.get("model_name") or "")
+    try:
+        from . import consumables as _co_mod
+        for cr in _co_mod.co_list(status="", q="", limit=1000):
+            if (cr.get("status") or "") == "CANCELLED":
+                continue
+            _proc("consumable", cr.get("id"), cr.get("mgmt_code") or "—", "소모품", "C",
+                  cr.get("due_date"), cr.get("model_name") or "")
+    except Exception:
+        pass
+    doing.sort(key=lambda x: (x["dday"] if x["dday"] is not None else 9999, x["code"]))
+    ready.sort(key=lambda x: (x["dday"] if x["dday"] is not None else 9999, x["code"]))
+    done.sort(key=lambda x: (x["on_date"] or ""), reverse=True)
+    done = done[:50]
+    return ctx(request, "dept_stage_work.html", user=u, active="dept_stage_work",
+               my_team=my_team, all_depts=all_depts, sel_dept=sel_dept, can_money=can_money,
+               doing=doing, ready=ready, done=done, today=today.isoformat())
+
+
 @app.get("/projects/export.xlsx")
 async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
                                view: str = "", status: str = ""):

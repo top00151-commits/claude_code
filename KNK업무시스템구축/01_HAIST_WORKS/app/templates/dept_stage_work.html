@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>내 부서 단계 작업 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z478 (대표 지시): 내 부서 단계 작업 큐 — 좌우 꽉 차게(z420 표준) */
+.dsw-wrap{margin:0 var(--content-pad) var(--space-6);padding:0;}
+.dsw-intro{font-size:12.5px;color:#64748b;margin:2px 0 12px;line-height:1.6;}
+.dsw-intro b{color:#1e293b;}
+.dsw-depts{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px;}
+.dsw-chip{padding:6px 13px;border:1px solid var(--line);border-radius:18px;font-size:12.5px;font-weight:700;text-decoration:none;color:var(--qv-ink-2);background:var(--paper-2);}
+.dsw-chip:hover{border-color:var(--knk-red);color:var(--knk-red);}
+.dsw-chip.on{background:var(--knk-red);color:#fff;border-color:var(--knk-red);}
+.dsw-chip .mine{font-size:10px;margin-left:4px;opacity:.85;}
+.dsw-sec{font-size:14px;font-weight:800;margin:20px 0 10px;display:flex;align-items:center;gap:8px;}
+.dsw-sec .ic{font-size:16px;}
+.dsw-sec.s-ready{color:#1d4ed8;} .dsw-sec.s-doing{color:#b45309;} .dsw-sec.s-done{color:#15803d;}
+.dsw-cnt{color:#fff;font-size:11px;font-weight:700;padding:1px 9px;border-radius:999px;}
+.s-ready .dsw-cnt{background:#1d4ed8;} .s-doing .dsw-cnt{background:#d97706;} .s-done .dsw-cnt{background:#16a34a;}
+.dsw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:11px;}
+.dsw-card{background:#fff;border:1px solid #f1e8d4;border-radius:11px;padding:12px 14px;box-shadow:0 1px 3px rgba(45,37,32,0.05);}
+.dsw-card.c-doing{border-color:#fcd9a5;background:#fffdf7;}
+.dsw-card.c-done{border-color:#bbf7d0;background:#f7fdf9;}
+.dsw-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;}
+.dsw-code{font-weight:800;font-size:13px;color:var(--knk-red);text-decoration:none;}
+.dsw-code:hover{text-decoration:underline;}
+.dsw-stage{font-weight:800;font-size:13.5px;color:#1e293b;}
+.dsw-owner{font-size:10.5px;color:#fff;background:#94a3b8;border-radius:8px;padding:1px 8px;}
+.dsw-dday{font-size:11px;font-weight:800;padding:1px 8px;border-radius:8px;margin-left:auto;}
+.dsw-dday.over{background:#fee2e2;color:#b91c1c;} .dsw-dday.soon{background:#fef3c7;color:#92400e;} .dsw-dday.ok{background:#eef2ff;color:#3730a3;}
+.dsw-name{font-size:12px;color:#475569;margin:2px 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dsw-meta{font-size:11.5px;color:#64748b;margin:3px 0;}
+.dsw-meta b{color:#334155;}
+.dsw-act{display:flex;gap:7px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+.dsw-btn{padding:6px 14px;border-radius:7px;font-size:12.5px;font-weight:800;cursor:pointer;border:1px solid;}
+.dsw-btn.start{background:#2563eb;color:#fff;border-color:#2563eb;}
+.dsw-btn.done{background:#16a34a;color:#fff;border-color:#16a34a;}
+.dsw-btn.ghost{background:#fff;color:#334155;border-color:var(--line);}
+.dsw-doneform{display:none;margin-top:9px;border-top:1px dashed var(--line);padding-top:9px;}
+.dsw-doneform label{display:block;font-size:11px;color:#64748b;font-weight:700;margin:6px 0 2px;}
+.dsw-doneform input,.dsw-doneform textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12.5px;padding:5px 8px;}
+.dsw-doneform .df-row{display:flex;gap:9px;align-items:flex-end;}
+.dsw-doneform .df-row > span{flex:none;}
+.dsw-empty{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:34px 20px;text-align:center;color:#94a3b8;font-size:13px;line-height:1.7;}
+@media (max-width:768px){ .dsw-grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+<div class="dsw-wrap" id="dsw">
+  <h2 style="margin:0 0 4px;font-size:19px;">📋 내 부서 단계 작업</h2>
+  <div class="dsw-intro">
+    우리 부서가 맡은 단계를 <b>받아서 → 착수 → 완료(내용·시간)</b> 하면 작업일정표에 바로 정리됩니다.
+    {% if my_team %}내 부서: <b>{{ my_team }}</b>{% else %}<b>※ 내 팀이 단계 담당 부서와 매칭되지 않았습니다 — 아래에서 부서를 선택하세요.</b>{% endif %}
+  </div>
+  {# 부서 선택 칩 — 누구나 다른 부서 큐도 볼 수 있음 #}
+  <div class="dsw-depts">
+    <a class="dsw-chip{% if not sel_dept %} on{% endif %}" href="/dept/stage-work?dept=">전체</a>
+    {% for d in all_depts %}
+    <a class="dsw-chip{% if sel_dept==d %} on{% endif %}" href="/dept/stage-work?dept={{ d|urlencode }}">{{ d }}{% if d==my_team %}<span class="mine">(내 부서)</span>{% endif %}</a>
+    {% endfor %}
+  </div>
+
+  {% macro card(it, mode) %}
+  <div class="dsw-card c-{{ mode }}" data-kind="{{ it.kind }}" data-ref="{{ it.ref_id }}" data-stage="{{ it.stage_key }}" data-sub="{{ it.sub_key }}">
+    <div class="dsw-top">
+      {% if it.kind=='consumable' %}<a class="dsw-code" href="/consumables/{{ it.ref_id }}">🧴 {{ it.code }}</a>{% else %}<a class="dsw-code" href="/project/{{ it.ref_id }}">{{ it.code }}</a>{% endif %}
+      <span class="dsw-stage">{{ it.stage_label }}</span>
+      {% if it.owner %}<span class="dsw-owner">{{ it.owner }}</span>{% endif %}
+      {% if it.dday is not none %}
+        <span class="dsw-dday {% if it.dday < 0 %}over{% elif it.dday <= 7 %}soon{% else %}ok{% endif %}">납기 {% if it.dday < 0 %}D+{{ -it.dday }}{% elif it.dday==0 %}D-day{% else %}D-{{ it.dday }}{% endif %}</span>
+      {% endif %}
+    </div>
+    <div class="dsw-name" title="{{ it.name }}{% if it.model %} · {{ it.model }}{% endif %}">{{ it.name }}{% if it.model %} · {{ it.model }}{% endif %}</div>
+    {% if mode=='doing' %}
+      <div class="dsw-meta">🔵 진행중{% if it.started_by_name %} · 착수 <b>{{ it.started_by_name }}</b>{% endif %}</div>
+      <div class="dsw-act">
+        <button type="button" class="dsw-btn done act-done-open">✓ 완료 처리</button>
+      </div>
+      <div class="dsw-doneform">
+        <div class="df-row">
+          <span><label>완료일</label><input type="date" class="df-date" value="{{ today }}" style="width:150px"></span>
+          <span><label>소요시간(h)</label><input type="number" step="0.5" min="0" class="df-hours" style="width:90px"></span>
+        </div>
+        <label>진행 내용</label><textarea class="df-memo" rows="2" placeholder="한 일을 한 줄로"></textarea>
+        <div class="dsw-act"><button type="button" class="dsw-btn done act-done-save">완료 저장</button><button type="button" class="dsw-btn ghost act-done-cancel">취소</button></div>
+      </div>
+    {% elif mode=='ready' %}
+      <div class="dsw-act"><button type="button" class="dsw-btn start act-start">▶ 착수 (진행 시작)</button></div>
+    {% else %}
+      <div class="dsw-meta">✅ 완료 {{ it.on_date }}{% if it.by_name %} · <b>{{ it.by_name }}</b>{% endif %}{% if it.hours not in (none,'') %} · {{ it.hours }}h{% endif %}</div>
+      {% if it.memo %}<div class="dsw-meta">📝 {{ it.memo }}</div>{% endif %}
+    {% endif %}
+  </div>
+  {% endmacro %}
+
+  <div class="dsw-sec s-doing"><span class="ic">🔵</span> 진행중 <span class="dsw-cnt">{{ doing|length }}</span></div>
+  {% if doing %}<div class="dsw-grid">{% for it in doing %}{{ card(it,'doing') }}{% endfor %}</div>{% else %}<div class="dsw-empty">진행중인 단계가 없습니다.</div>{% endif %}
+
+  <div class="dsw-sec s-ready"><span class="ic">▶</span> 착수 가능 <span class="dsw-cnt">{{ ready|length }}</span></div>
+  {% if ready %}<div class="dsw-grid">{% for it in ready %}{{ card(it,'ready') }}{% endfor %}</div>{% else %}<div class="dsw-empty">지금 착수할 단계가 없습니다. (앞 단계가 끝나면 여기 올라옵니다)</div>{% endif %}
+
+  <div class="dsw-sec s-done"><span class="ic">✅</span> 최근 완료 <span class="dsw-cnt">{{ done|length }}</span></div>
+  {% if done %}<div class="dsw-grid">{% for it in done %}{{ card(it,'done') }}{% endfor %}</div>{% else %}<div class="dsw-empty">최근 완료한 단계가 없습니다.</div>{% endif %}
+</div>
+</main>
+{% include "_v5_partials/knk_datepicker.html" ignore missing %}
+<script>
+// v5H226z478 (대표 지시): 착수/완료 처리 — 기존 /sales/schedule/stage 재사용. IIFE·이벤트위임(SPA 안전).
+(function(){
+  var root=document.getElementById('dsw'); if(!root) return;
+  function post(body, ok){
+    fetch('/sales/schedule/stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){return r.json();})
+      .then(function(j){ if(j&&j.ok){ ok(); } else { alert('실패: '+((j&&j.error)||'오류')); } })
+      .catch(function(){ alert('통신 오류'); });
+  }
+  function ctxOf(el){ var c=el.closest('[data-ref]'); return {kind:c.dataset.kind, ref_id:Number(c.dataset.ref), stage_key:c.dataset.stage, sub_key:c.dataset.sub||''}; }
+  root.addEventListener('click', function(e){
+    var st=e.target.closest('.act-start');
+    if(st){ var d=ctxOf(st); d.started=true; st.disabled=true; post(d, function(){ location.reload(); }); return; }
+    var op=e.target.closest('.act-done-open');
+    if(op){ var card=op.closest('.dsw-card'); var f=card.querySelector('.dsw-doneform'); if(f){ f.style.display='block'; op.style.display='none'; } return; }
+    var cc=e.target.closest('.act-done-cancel');
+    if(cc){ var card2=cc.closest('.dsw-card'); var f2=card2.querySelector('.dsw-doneform'); if(f2) f2.style.display='none'; var ob=card2.querySelector('.act-done-open'); if(ob) ob.style.display=''; return; }
+    var sv=e.target.closest('.act-done-save');
+    if(sv){ var card3=sv.closest('.dsw-card'); var d3=ctxOf(sv);
+      d3.done=true;
+      d3.on_date=(card3.querySelector('.df-date')||{}).value||'';
+      d3.memo=(card3.querySelector('.df-memo')||{}).value||'';
+      d3.hours=(card3.querySelector('.df-hours')||{}).value||'';
+      sv.disabled=true; post(d3, function(){ location.reload(); }); return; }
+  });
+})();
+</script>
+</body></html>
