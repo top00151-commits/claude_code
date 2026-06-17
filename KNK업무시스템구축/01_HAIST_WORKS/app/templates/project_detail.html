@@ -948,8 +948,14 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                   <th style="width:60px;"  data-pgroup="basic">BOX</th>
                   <th class="num" style="width:60px;" data-pgroup="basic">수량</th>
                   <th style="width:50px;"  data-pgroup="basic">단위</th>
+                  {# v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%→판매단가. 원가는 영업·관리(can_money)만 #}
+                  {% if can_money %}
+                  <th class="num" style="width:86px;background:#fff7ed;" data-pgroup="basic" title="매입단가(협력사가)">매입단가</th>
+                  <th class="num" style="width:56px;background:#fff7ed;" data-pgroup="basic" title="마진%(매입가에 가산)">마진%</th>
+                  <th class="num" style="width:96px;" data-pgroup="basic" title="판매단가 = 매입 × (1+마진%) · 직접수정 시 마진 역산">판매단가</th>
+                  {% endif %}
                   {# v5H226z440(대표 지시): 금액=기본 그룹. 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD)은 PACKING LIST 에서 제거→수출 문서 모듈에서 입력 #}
-                  <th class="num" style="width:90px;background:#fef9e6;" data-pgroup="basic">금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(VAT 별도)</span></th>
+                  <th class="num" style="width:90px;background:#fef9e6;" data-pgroup="basic">금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(수량×판매)</span></th>
                   <th style="width:160px;" data-pgroup="basic">상세 내용</th>
                   {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
@@ -1021,9 +1027,26 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     <span class="display-val">{{ u.unit or 'EA' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit unit-inp" data-orig="{{ u.unit or 'EA' }}" value="{{ u.unit or 'EA' }}" style="width:42px;font-size:11.5px;text-align:center;">{% endif %}
                   </td>
-                  {# v5H226z6: 금액(KRW) — 단가 × 수량 자동 (또는 원본 amount) — 단가 컬럼은 아래 호기 layout 에서 #}
+                  {# v5H226z460(대표 지시): 매입단가·마진%·판매단가 — 등록 후 '마진 정리'의 핵심. 원가는 can_money 만. #}
+                  {% if can_money %}
+                  {% set _cp = u.get('cost_price') if u.get is defined else u.cost_price %}
+                  {% set _mp = u.get('margin_pct') if u.get is defined else u.margin_pct %}
+                  <td class="num" style="font-size:11.5px;background:#fff7ed;">
+                    <span class="display-val">{{ '{:,.0f}'.format(_cp) if _cp else '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit cost-inp knk-money" data-orig="{{ '%.0f'|format(_cp) if _cp else '' }}" value="{{ '{:,.0f}'.format(_cp) if _cp else '' }}" placeholder="매입가" style="width:78px;font-size:11.5px;text-align:right;">{% endif %}
+                  </td>
+                  <td class="num" style="font-size:11.5px;background:#fff7ed;text-align:center;">
+                    <span class="display-val">{{ ('%g'|format(_mp)) ~ '%' if (_mp is not none) else '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit margin-inp" data-orig="{{ '%g'|format(_mp) if (_mp is not none) else '' }}" value="{{ '%g'|format(_mp) if (_mp is not none) else '' }}" placeholder="%" style="width:48px;font-size:11.5px;text-align:right;">{% endif %}
+                  </td>
+                  <td class="num" style="font-size:11.5px;">
+                    <span class="display-val" style="font-weight:600;">{{ '{:,.0f}'.format(u.unit_price) if u.unit_price else '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit price-inp knk-money" data-orig="{{ '%.0f'|format(u.unit_price) if u.unit_price else '' }}" value="{{ '{:,.0f}'.format(u.unit_price) if u.unit_price else '' }}" placeholder="판매가" style="width:88px;font-size:11.5px;text-align:right;">{% endif %}
+                  </td>
+                  {% endif %}
+                  {# v5H226z6: 금액(KRW) — 수량 × 판매단가 자동. pamt-disp = 편집 중 라이브 갱신용 #}
                   <td class="num" style="font-size:11.5px;background:#fef9e6;">
-                    <span class="display-val" style="font-weight:600;">{% if can_money %}{{ '{:,.0f}'.format(u.amount or 0) }}{% else %}🔒{% endif %}</span>
+                    <span class="display-val pamt-disp" style="font-weight:600;">{% if can_money %}{{ '{:,.0f}'.format(u.amount or 0) }}{% else %}🔒{% endif %}</span>
                   </td>
                   {# v5H226z440(대표 지시): 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD) PACKING LIST 에서 제거 → 수출 문서 모듈에서 입력. DB 컬럼·데이터는 보존(저장 시 미전송→백엔드 보존). #}
                   {# 상세 내용 #}
@@ -1163,6 +1186,11 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 <input type="text" name="label" placeholder="품명 (예: CYLINDER)" style="flex:1;min-width:160px;" title="부품 품명">
                 <input type="number" name="qty" min="1" max="9999" value="1" style="width:70px;text-align:center;" title="수량">
                 <span style="color:var(--mute);font-size:12px;">EA ×</span>
+                {# v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%→판매단가. 마진 비우면 판매가 미정으로 등록 가능. 원가는 can_money 만 #}
+                {% if can_money %}
+                <input type="text" name="cost_price" inputmode="numeric" placeholder="매입단가" class="knk-money add-cost" style="width:92px;text-align:right;background:#fff7ed;" title="매입단가(협력사가)">
+                <input type="text" name="margin_pct" inputmode="numeric" placeholder="마진%" class="add-margin" style="width:62px;text-align:right;background:#fff7ed;" title="마진%(매입가에 가산)">
+                {% endif %}
                 {% elif _is_co %}
                 <input type="text" name="label" placeholder="품명 (예: 릴레이 24V)" style="flex:1;min-width:200px;" title="소모품 항목명">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="수량">
@@ -1267,6 +1295,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 const qtyInp      = row.querySelector('.qty-inp');
                 const unitInp     = row.querySelector('.unit-inp');
                 const arrivalInp  = row.querySelector('.arrival-inp');
+                // v5H226z460: 상품 원가관리 — 매입단가·마진%·판매단가
+                const costInp     = row.querySelector('.cost-inp');
+                const marginInp   = row.querySelector('.margin-inp');
+                const priceInp    = row.querySelector('.price-inp');
                 const hsInp       = row.querySelector('.hs-inp');
                 const dutyRateInp = row.querySelector('.duty-rate-inp');
                 const vatRateInp  = row.querySelector('.vat-rate-inp');
@@ -1283,7 +1315,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 // 헬퍼 — input dirty 검사 (값이 dataset.orig 와 다르면 dirty)
                 const dirtyInp = inp => inp && inp.value !== (inp.dataset.orig || '');
                 const partsInputs = [specInp, makerInp, supplierInp, originInp, boxInp,
-                                     qtyInp, unitInp, arrivalInp, hsInp, dutyRateInp,
+                                     qtyInp, unitInp, arrivalInp, costInp, marginInp, priceInp,
+                                     hsInp, dutyRateInp,
                                      vatRateInp, invUpUsdInp, invAmtUsdInp, dutyKrwInp,
                                      dutyUsdInp, finalUsdInp, descInp, palletInp, weightInp];
                 const partsDirty = partsInputs.some(dirtyInp);
@@ -1301,6 +1334,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 if (dirty) out.push({
                   uid, baseTs, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel, iexSel, statusSel,
                   specInp, makerInp, supplierInp, originInp, boxInp, qtyInp, unitInp, arrivalInp,
+                  costInp, marginInp, priceInp,
                   hsInp, dutyRateInp, vatRateInp, invUpUsdInp, invAmtUsdInp,
                   dutyKrwInp, dutyUsdInp, finalUsdInp, descInp, palletInp, weightInp
                 });
@@ -1338,6 +1372,10 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 if (r.qtyInp)      body.set('qty',            (r.qtyInp.value || '0').replace(/,/g,''));
                 if (r.unitInp)     body.set('unit',           r.unitInp.value || '');
                 if (r.arrivalInp)  body.set('arrival_status', r.arrivalInp.value || '');
+                // v5H226z460: 상품 원가관리 — 매입단가·마진%·판매단가 (input 존재 시에만 전송)
+                if (r.costInp)     body.set('cost_price',     (r.costInp.value || '').replace(/,/g,''));
+                if (r.marginInp)   body.set('margin_pct',     (r.marginInp.value || '').replace(/,/g,''));
+                if (r.priceInp)    body.set('unit_price',     (r.priceInp.value || '').replace(/,/g,''));
                 if (r.hsInp)       body.set('hs_code',        r.hsInp.value || '');
                 if (r.dutyRateInp) body.set('duty_rate',      r.dutyRateInp.value || '');
                 if (r.vatRateInp)  body.set('vat_rate',       r.vatRateInp.value || '');
@@ -1495,6 +1533,18 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             if (addBtn && addCard) {
               const amtInp = addCard.querySelector('input[name="amount"]');
               if (window.knkAttachMoney && amtInp) window.knkAttachMoney(amtInp);
+              // v5H226z460: 부품 추가 — 매입단가·마진%→판매단가 자동(가산)
+              const addCostInp = addCard.querySelector('.add-cost');
+              const addMarginInp = addCard.querySelector('.add-margin');
+              if (window.knkAttachMoney && addCostInp) window.knkAttachMoney(addCostInp);
+              function _addFromCM(){
+                const _p = el => el ? (parseFloat((el.value||'0').replace(/,/g,''))||0) : 0;
+                const c=_p(addCostInp), mRaw=addMarginInp?(addMarginInp.value||'').trim():'';
+                if (amtInp && c>0 && mRaw!=='')
+                  amtInp.value = Math.round(c*(1+(parseFloat(mRaw.replace(/,/g,''))||0)/100)).toLocaleString('en-US');
+              }
+              if (addCostInp) addCostInp.addEventListener('input', _addFromCM);
+              if (addMarginInp) addMarginInp.addEventListener('input', _addFromCM);
               addBtn.addEventListener('click', () => {
                 addCard.classList.toggle('open');
                 if (addCard.classList.contains('open')) {
@@ -1514,8 +1564,12 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                 if (qtyInp) body.set('qty', qtyInp.value || '1');
                 const curSel = addCard.querySelector('select[name="cur"]');
                 if (curSel) body.set('currency', curSel.value);
-                if (parseFloat(body.get('amount')) <= 0) {
-                  alert('⚠ 단가를 입력해주세요'); return;
+                // v5H226z460: 매입단가·마진% 전송 (마진은 등록 후 정리 가능 → 매입가만으로도 추가 허용)
+                const _hasCost = addCostInp && parseFloat((addCostInp.value||'0').replace(/,/g,'')) > 0;
+                if (addCostInp && addCostInp.value) body.set('cost_price', (addCostInp.value||'').replace(/,/g,''));
+                if (addMarginInp && addMarginInp.value) body.set('margin_pct', (addMarginInp.value||'').replace(/,/g,''));
+                if (parseFloat(body.get('amount')) <= 0 && !_hasCost) {
+                  alert('⚠ 판매단가 또는 매입단가를 입력해주세요'); return;
                 }
                 try {
                   const r = await fetch('/sales/orders/' + soid + '/add-unit', {
@@ -1542,6 +1596,38 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
               // 입력 필드의 knkAttachMoney 만 유지 (천단위 콤마).
               const delBtn = row.querySelector('.row-del');
               if (window.knkAttachMoney && amtInp) window.knkAttachMoney(amtInp);
+              // v5H226z460: 상품 원가관리 — 매입단가·마진%→판매단가→금액 라이브 계산 (등록 후 '마진 정리')
+              const costInpR = row.querySelector('.cost-inp');
+              const marginInpR = row.querySelector('.margin-inp');
+              const priceInpR = row.querySelector('.price-inp');
+              const qtyInpR = row.querySelector('.qty-inp');
+              const pamtDispR = row.querySelector('.pamt-disp');
+              if (window.knkAttachMoney) { if (costInpR) knkAttachMoney(costInpR); if (priceInpR) knkAttachMoney(priceInpR); }
+              if (costInpR || priceInpR) {
+                const _pn = el => el ? (parseFloat((el.value||'0').replace(/,/g,''))||0) : 0;
+                const _recalcAmt = () => {
+                  const q = _pn(qtyInpR) || 0, pr = _pn(priceInpR);
+                  const amt = Math.round(q * pr);
+                  const s = amt ? amt.toLocaleString('en-US') : '0';
+                  if (amtInp) amtInp.value = s;
+                  if (pamtDispR) pamtDispR.textContent = s;
+                };
+                const _fromCostMargin = () => {   // 매입·마진 → 판매(가산). 마진 빈칸이면 판매 그대로(미정 유지)
+                  const c = _pn(costInpR), mRaw = marginInpR ? (marginInpR.value||'').trim() : '';
+                  if (priceInpR && c > 0 && mRaw !== '')
+                    priceInpR.value = Math.round(c*(1+(parseFloat(mRaw.replace(/,/g,''))||0)/100)).toLocaleString('en-US');
+                  _recalcAmt();
+                };
+                const _fromPrice = () => {        // 판매 직접수정 → 마진% 역산(매입가 있을 때만)
+                  const c = _pn(costInpR);
+                  if (marginInpR && c > 0) marginInpR.value = Math.round((_pn(priceInpR)/c - 1)*1000)/10;
+                  _recalcAmt();
+                };
+                if (costInpR) costInpR.addEventListener('input', _fromCostMargin);
+                if (marginInpR) marginInpR.addEventListener('input', _fromCostMargin);
+                if (priceInpR) priceInpR.addEventListener('input', _fromPrice);
+                if (qtyInpR) qtyInpR.addEventListener('input', _recalcAmt);
+              }
               if (delBtn) {
                 delBtn.addEventListener('click', async () => {
                   if (!confirm('이 호기 라인을 삭제하시겠습니까?\n\n' + (lblInp ? lblInp.value : '') + ' / ' + (amtInp ? amtInp.value : ''))) return;

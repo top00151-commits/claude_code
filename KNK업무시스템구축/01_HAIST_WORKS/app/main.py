@@ -9582,6 +9582,8 @@ async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
                     # PARTS 기본 메타
                     "maker", "origin", "box_no", "spec", "arrival_status",
                     "supplier", "unit",
+                    # v5H226z460: 상품 원가관리 — 매입단가·마진%
+                    "cost_price", "margin_pct",
                     # PARTS 통관 (v5H226z5)
                     "hs_code", "duty_rate", "vat_rate",
                     "invoice_unit_price", "invoice_amount",
@@ -10215,8 +10217,12 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
         ("origin",      ["원산지", "ORIGIN", "MADEIN", "MADE IN", "COO", "COUNTRYOFORIGIN"]),
         # 출고수량/수량 — '단가/금액' 보다 먼저 평가되어 '수량' substring 충돌 회피
         ("qty",         ["출고수량", "수량", "Q'TY", "QTY", "QUANTITY", "EA"]),
-        # 단가/금액 — VAT 별도 등 부속 텍스트 포함된 셀과 매칭. 'PRICE' 도 흡수
-        ("unit_price",  ["단가", "UNITPRICE", "UNIT PRICE", "PRICE", "U/PRICE", "UPRICE"]),
+        # v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%. 반드시 unit_price('단가') 보다 먼저 평가
+        #   ('매입단가'에 '단가' substring 포함 → 뒤에 두면 unit_price 가 매입단가 칸을 가로챔)
+        ("cost_price",  ["매입단가", "매입가", "구매단가", "원가단가", "매입", "원가", "COST", "BUYINGPRICE", "PURCHASEPRICE", "BUYPRICE"]),
+        ("margin_pct",  ["마진율", "마진%", "마진", "MARGINRATE", "MARGIN", "MARKUP"]),
+        # 단가/금액 — VAT 별도 등 부속 텍스트 포함된 셀과 매칭. 'PRICE' 도 흡수 (판매단가)
+        ("unit_price",  ["판매단가", "단가", "UNITPRICE", "UNIT PRICE", "PRICE", "U/PRICE", "UPRICE"]),
         ("amount",      ["금액", "AMOUNT", "TOTALPRICE", "TOTAL"]),
         # 입고 일정 (공백 포함 원본) / 입고일정 / ARRIVAL DATE / ETA 등
         ("arrival_status", ["입고일정", "입고", "ARRIVAL", "ETA", "DELIVERY"]),
@@ -10311,6 +10317,9 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
             "qty":       gnum("qty"),
             "unit_price": gnum("unit_price"),
             "amount":    gnum("amount"),
+            # v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%(가산). 판매단가 비면 confirm 에서 매입×(1+마진) 산출
+            "cost_price": gnum("cost_price"),
+            "margin_pct": gnum("margin_pct"),
             "arrival_status": (str(gv("arrival_status") or "").strip()),
             "mgmt_code": (str(gv("mgmt_code") or "").strip()),
             # v5H226z5: 통관 (HS CODE / DUTY / VAT / 인보이스 / 관세 / 최종 / 상세 / PALLET / 중량)
@@ -10479,6 +10488,18 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                 qty = float(r.get("qty") or 0)
                 up = float(r.get("unit_price") or 0)
                 amt = float(r.get("amount") or 0)
+                # v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%.
+                #   '단가'(판매)=기존 유지. 판매단가 비었고 매입가+마진 있으면 판매가 자동산출(매입×(1+마진%)).
+                try:
+                    _cost = float(r.get("cost_price") or 0)
+                except (ValueError, TypeError):
+                    _cost = 0.0
+                try:
+                    _margin = float(r.get("margin_pct") or 0)
+                except (ValueError, TypeError):
+                    _margin = 0.0
+                if up <= 0 and _cost > 0 and _margin != 0:
+                    up = round(_cost * (1 + _margin / 100.0))
                 if amt <= 0 and qty > 0 and up > 0:
                     amt = round(qty * up, 2)
                 cols = ["order_id", "unit_label", "qty",
@@ -10496,6 +10517,9 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                     ("supplier", r.get("supplier")),
                     ("unit", r.get("unit") or "EA"),
                     ("currency", so["currency"] or "KRW"),
+                    # v5H226z460: 상품 원가관리 — 매입단가·마진%(매입가 있을 때만 저장)
+                    ("cost_price", _cost if _cost > 0 else None),
+                    ("margin_pct", _margin if _cost > 0 else None),
                     # v5H226z5: 통관 메타 (정식 PACKING LIST 추가 컬럼)
                     ("hs_code",                r.get("hs_code")),
                     ("duty_rate",              r.get("duty_rate")),
@@ -10786,6 +10810,11 @@ async def sales_order_item_edit(req: Request, iid: int):
     u_pallet = form.get("pallet_size")
     u_weight, _ = _opt_float("weight_kg")
     u_material_no = form.get("material_no")   # v5H226z441: 자재번호(자유입력)
+    # v5H226z460(대표 지시): 상품 원가관리 — 판매단가(unit_price)·매입단가(cost_price)·마진%(margin_pct).
+    #   미전송(__SKIP__)이면 기존 호기 로직(unit_price=금액) 유지. PARTS 편집 시에만 전송됨.
+    u_unit_price, _ = _opt_float("unit_price")
+    u_cost_price, _ = _opt_float("cost_price")
+    u_margin_pct, _ = _opt_float("margin_pct")
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -10839,9 +10868,11 @@ async def sales_order_item_edit(req: Request, iid: int):
             if "currency" in _oicols and u_cur:
                 ov_c = u_cur if u_cur != (_so_d.get("currency") or "KRW") else None
             # v5H197: 거래구분 — 폼에서 받은 그대로 (NULL = 변경 안 함이 아니라 명시 입력만)
+            # v5H226z460: PARTS 는 판매단가(unit_price)를 별도 전송 → amt(금액)와 분리. 미전송이면 호기 legacy(=amt).
+            _up_for_save = amt if u_unit_price == "__SKIP__" else u_unit_price
             cols_set = ["unit_label=?", "unit_price=?", "amount=?", "line_note=?",
                         "order_date=?", "due_date=?", "ship_to=?"]
-            vals_set = [label or None, amt, amt, note or None, ov_o, ov_d, ov_s]
+            vals_set = [label or None, _up_for_save, amt, note or None, ov_o, ov_d, ov_s]
             if "currency" in _oicols:
                 cols_set.append("currency=?"); vals_set.append(ov_c)
             if "is_export" in _oicols and u_iex is not None:
@@ -10865,6 +10896,11 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("unit=?"); vals_set.append((u_unit or "EA").strip() or "EA")
             if u_qty is not None:
                 cols_set.append("qty=?"); vals_set.append(u_qty)
+            # v5H226z460: 상품 원가관리 — 매입단가·마진%(form 에 키 있을 때만 갱신)
+            if u_cost_price != "__SKIP__" and "cost_price" in _oicols:
+                cols_set.append("cost_price=?"); vals_set.append(u_cost_price)
+            if u_margin_pct != "__SKIP__" and "margin_pct" in _oicols:
+                cols_set.append("margin_pct=?"); vals_set.append(u_margin_pct)
             # v5H226z6: 통관 메타 인라인 편집
             if u_hs_code is not None and "hs_code" in _oicols:
                 cols_set.append("hs_code=?"); vals_set.append((u_hs_code or "").strip() or None)
@@ -10887,9 +10923,10 @@ async def sales_order_item_edit(req: Request, iid: int):
                 tuple(vals_set)
             )
         else:
+            # v5H226z460: 판매단가(unit_price) 분리 — PARTS 미전송이면 amt(legacy 호기)
             c.execute(
                 "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, updated_at=datetime('now','localtime') WHERE id=?",
-                (label or None, amt, amt, note or None, iid)
+                (label or None, (amt if u_unit_price == "__SKIP__" else u_unit_price), amt, note or None, iid)
             )
         # SO total_amount = SUM(items.amount), unit_label 재구성
         oid = it["order_id"]
@@ -11197,8 +11234,19 @@ async def sales_orders_add_unit(req: Request, oid: int):
         amt = float(raw_a) if raw_a else 0
     except ValueError:
         return JSONResponse({"ok": False, "message": "금액 형식 오류"}, 400)
-    if amt <= 0:
-        return JSONResponse({"ok": False, "message": "금액은 0보다 커야 합니다"}, 400)
+    # v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%. 마진은 등록 후 정리 가능 → 매입가만으로도 추가 허용.
+    _raw_cost = (form.get("cost_price") or "").strip().replace(",", "")
+    _raw_margin = (form.get("margin_pct") or "").strip().replace(",", "")
+    try:
+        _cost_v = float(_raw_cost) if _raw_cost else None
+    except ValueError:
+        _cost_v = None
+    try:
+        _margin_v = float(_raw_margin) if _raw_margin else None
+    except ValueError:
+        _margin_v = None
+    if amt <= 0 and not (_cost_v and _cost_v > 0):
+        return JSONResponse({"ok": False, "message": "판매단가 또는 매입단가를 입력해주세요"}, 400)
     with db_session() as c:
         cur = c.execute(
             "SELECT status, project_id, unit_qty, unit_label, total_amount "
@@ -11247,13 +11295,26 @@ async def sales_orders_add_unit(req: Request, oid: int):
         new_lbl = (old_lbl + " · " + " · ".join(labels_bulk)) if old_lbl else " · ".join(labels_bulk)
 
         # order_items INSERT — bulk_qty 개 모두
+        # v5H226z460: 매입단가·마진% 컬럼이 있고 매입가 입력 시 함께 저장
+        try:
+            _oicols_au = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        except Exception:
+            _oicols_au = set()
+        _has_cm = ("cost_price" in _oicols_au) and ("margin_pct" in _oicols_au)
         for _lbl in labels_bulk:
             try:
-                c.execute(
-                    "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                    "unit_label, line_note) VALUES(?,1,?,?,?,?)",
-                    (oid, amt, amt, _lbl, note)
-                )
+                if _has_cm and (_cost_v is not None):
+                    c.execute(
+                        "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                        "unit_label, line_note, cost_price, margin_pct) VALUES(?,1,?,?,?,?,?,?)",
+                        (oid, amt, amt, _lbl, note, _cost_v, (_margin_v if _cost_v else None))
+                    )
+                else:
+                    c.execute(
+                        "INSERT INTO order_items(order_id, qty, unit_price, amount, "
+                        "unit_label, line_note) VALUES(?,1,?,?,?,?)",
+                        (oid, amt, amt, _lbl, note)
+                    )
             except Exception:
                 pass
         # orders 누적 (+ currency 필요 시 갱신)
@@ -18315,6 +18376,23 @@ async def projects_quick_edit_form(request: Request, pid: int):
                project=p, so_no=_so_no, ship_to=_ship_to)
 
 
+# v5H226z460 (대표 지시): 상품(PARTS) 자재 행의 매입단가·마진% 파싱.
+#   판매단가(unit_price)는 별도(pk_price[]=매입×(1+마진) 자동 또는 직접수정). 여기선 원가/마진만.
+#   반환: (cost_price 또는 None, margin_pct 또는 None) — 매입가 없으면 둘 다 None(원가관리 행 아님).
+def _parse_cost_margin(cost_list, margin_list, i):
+    try:
+        _c = float(((cost_list[i] if i < len(cost_list) else "") or "0").replace(",", ""))
+    except (ValueError, TypeError):
+        _c = 0.0
+    try:
+        _m = float(((margin_list[i] if i < len(margin_list) else "") or "0").replace(",", ""))
+    except (ValueError, TypeError):
+        _m = 0.0
+    if _c <= 0:
+        return None, None
+    return round(_c, 2), round(_m, 2)
+
+
 @app.post("/projects/new")
 async def projects_new_submit(request: Request):
     """v5H52: project_form.html 의 실제 필드명(name/customer_name 등)과
@@ -18504,6 +18582,7 @@ async def projects_new_submit(request: Request):
                 _pq = form.getlist("pk_qty[]"); _pp = form.getlist("pk_price[]")
                 _pmat = form.getlist("pk_matno[]"); _pmk = form.getlist("pk_maker[]")  # v5H226z441
                 _psup = form.getlist("pk_supplier[]"); _pnt = form.getlist("pk_note[]")
+                _pcost = form.getlist("pk_cost[]"); _pmrg = form.getlist("pk_margin[]")  # v5H226z460 매입단가·마진%
                 for _i in range(len(_pn)):
                     _nm = (_pn[_i] or "").strip()
                     _md = ((_pm[_i] if _i < len(_pm) else "") or "").strip()
@@ -18519,8 +18598,10 @@ async def projects_new_submit(request: Request):
                         _prc = float(((_pp[_i] if _i < len(_pp) else "0") or "0").replace(",", ""))
                     except ValueError:
                         _prc = 0.0
+                    _cst, _mrg = _parse_cost_margin(_pcost, _pmrg, _i)  # v5H226z460
                     _fu_parts.append({"name": _nm or _md, "model": _md, "qty": _qy,
                                       "price": _prc, "amount": round(_qy * _prc, 2),
+                                      "cost": _cst, "margin": _mrg,
                                       "matno": ((_pmat[_i] if _i < len(_pmat) else "") or "").strip(),
                                       "maker": ((_pmk[_i] if _i < len(_pmk) else "") or "").strip(),
                                       "supplier": ((_psup[_i] if _i < len(_psup) else "") or "").strip(),
@@ -18536,6 +18617,7 @@ async def projects_new_submit(request: Request):
                         for _pp2 in _fu_parts:
                             _row = {"order_id": _po_oid, "qty": _pp2["qty"],
                                     "unit_price": _pp2["price"], "amount": _pp2["amount"],
+                                    "cost_price": _pp2.get("cost"), "margin_pct": _pp2.get("margin"),  # v5H226z460
                                     "unit_label": _pp2["name"], "spec": _pp2["model"],
                                     "material_no": _pp2.get("matno") or None,
                                     "maker": _pp2.get("maker") or None,
@@ -18621,6 +18703,7 @@ async def projects_new_submit(request: Request):
         _pk_q = form.getlist("pk_qty[]"); _pk_p = form.getlist("pk_price[]")
         _pk_mat = form.getlist("pk_matno[]"); _pk_mk = form.getlist("pk_maker[]")  # v5H226z441
         _pk_sup = form.getlist("pk_supplier[]"); _pk_nt = form.getlist("pk_note[]")
+        _pk_cost = form.getlist("pk_cost[]"); _pk_mrg = form.getlist("pk_margin[]")  # v5H226z460 매입단가·마진%
         for _i in range(len(_pk_n)):
             _nm = (_pk_n[_i] or "").strip()
             _md = ((_pk_m[_i] if _i < len(_pk_m) else "") or "").strip()
@@ -18636,8 +18719,10 @@ async def projects_new_submit(request: Request):
                 _pp = float(((_pk_p[_i] if _i < len(_pk_p) else "0") or "0").replace(",", ""))
             except ValueError:
                 _pp = 0.0
+            _cst, _mrg = _parse_cost_margin(_pk_cost, _pk_mrg, _i)  # v5H226z460
             _pk_parts.append({"name": _nm or _md, "model": _md, "qty": _qy,
                               "price": _pp, "amount": round(_qy * _pp, 2),
+                              "cost": _cst, "margin": _mrg,
                               "matno": ((_pk_mat[_i] if _i < len(_pk_mat) else "") or "").strip(),
                               "maker": ((_pk_mk[_i] if _i < len(_pk_mk) else "") or "").strip(),
                               "supplier": ((_pk_sup[_i] if _i < len(_pk_sup) else "") or "").strip(),
@@ -18870,6 +18955,7 @@ async def projects_new_submit(request: Request):
                             for _pp in _pk_parts:
                                 _row = {"order_id": _po_oid, "qty": _pp["qty"],
                                         "unit_price": _pp["price"], "amount": _pp["amount"],
+                                        "cost_price": _pp.get("cost"), "margin_pct": _pp.get("margin"),  # v5H226z460
                                         "unit_label": _pp["name"], "spec": _pp["model"],
                                         "material_no": _pp.get("matno") or None,
                                         "maker": _pp.get("maker") or None,

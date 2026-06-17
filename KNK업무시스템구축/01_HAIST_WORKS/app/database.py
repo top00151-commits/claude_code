@@ -3006,6 +3006,11 @@ def init_db():
                 ("unit",             "ALTER TABLE order_items ADD COLUMN unit TEXT"),
                 # v5H226z441 (대표 지시): 자재(상품) 입력 항목 — 자재번호 자유입력 신설
                 ("material_no",      "ALTER TABLE order_items ADD COLUMN material_no TEXT"),
+                # v5H226z460 (대표 지시): 상품(PARTS) 원가관리 — 매입단가 + 마진%(가산율).
+                #   판매단가(unit_price) = 매입단가 × (1+마진%/100). 직접수정 시 마진% 역산.
+                #   amount = qty × unit_price(판매) 그대로. 원가는 상세화면 can_money 마스킹.
+                ("cost_price",       "ALTER TABLE order_items ADD COLUMN cost_price REAL"),
+                ("margin_pct",       "ALTER TABLE order_items ADD COLUMN margin_pct REAL"),
                 # v5H226z5: 정식 PACKING LIST 통관 컬럼 — HS CODE/DUTY/VAT/인보이스/관세/최종/상세/PALLET/중량
                 ("hs_code",                "ALTER TABLE order_items ADD COLUMN hs_code TEXT"),
                 ("duty_rate",              "ALTER TABLE order_items ADD COLUMN duty_rate REAL"),

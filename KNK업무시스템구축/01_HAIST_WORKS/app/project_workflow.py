@@ -968,6 +968,7 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                        "linked_project_id",               # v5H226g: 소모품 라인 → 장비 매칭
                        "maker", "origin", "box_no", "spec", "arrival_status",  # v5H226z: 정식 PACKING LIST
                        "supplier", "unit",  # v5H226z4: 업체명/단위 별도
+                       "cost_price", "margin_pct",  # v5H226z460: 상품 원가관리(매입단가·마진%)
                        # v5H226z5: 통관 컬럼
                        "hs_code", "duty_rate", "vat_rate",
                        "invoice_unit_price", "invoice_amount",
