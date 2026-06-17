@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>출고 QR — {{ p.mgmt_code|default('') }}</title>
+{# v5H226z465 (대표 지시·수출 4단계): 출고 QR 라벨 인쇄 — 출하 건 대표 QR + 박스별 QR. #}
+<style>
+@page { size: A4; margin: 12mm; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:"Malgun Gothic","Noto Sans KR",sans-serif; color:#0f172a; background:#e2e8f0; padding:18px; }
+.actions { max-width:900px; margin:0 auto 14px; text-align:right; }
+.actions button, .actions a { display:inline-block; padding:7px 16px; font-size:12px; font-weight:700; text-decoration:none; border-radius:6px; cursor:pointer; border:1px solid; }
+.actions .print-btn { background:#0f172a; color:#fff; border-color:#0f172a; }
+.actions .back-btn { background:#fff; color:#334155; border-color:#cbd5e1; margin-left:6px; }
+.sheet { background:#fff; max-width:900px; margin:0 auto; padding:14mm; border:1px solid #cbd5e1; }
+.ship-hero { display:flex; gap:18px; align-items:center; border:2px solid #0f172a; border-radius:10px; padding:14px 16px; margin-bottom:18px; }
+.ship-hero .qr { width:150px; height:150px; flex:none; }
+.ship-hero .qr svg, .ship-hero .qr img { width:100%; height:100%; }
+.ship-hero .info .t { font-size:9pt; color:#64748b; font-weight:700; text-transform:uppercase; }
+.ship-hero .info .mgmt { font-size:20pt; font-weight:800; font-family:ui-monospace,Consolas,monospace; }
+.ship-hero .info .meta { font-size:11pt; color:#334155; margin-top:6px; line-height:1.6; }
+.box-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.box-lbl { border:1px solid #0f172a; border-radius:8px; padding:10px; text-align:center; page-break-inside:avoid; }
+.box-lbl .qr { width:120px; height:120px; margin:0 auto; }
+.box-lbl .qr img, .box-lbl .qr svg { width:100%; height:100%; }
+.box-lbl .bn { font-size:14pt; font-weight:800; color:#0f172a; margin-top:6px; }
+.box-lbl .mc { font-size:8.5pt; color:#64748b; font-family:ui-monospace,Consolas,monospace; }
+.box-lbl .qt { font-size:9pt; color:#334155; margin-top:3px; }
+.sec-h { font-size:12pt; font-weight:800; margin:18px 0 10px; border-bottom:1.5px solid #0f172a; padding-bottom:5px; }
+@media print { body { background:#fff; padding:0; } .actions { display:none; } .sheet { border:none; max-width:none; padding:0; } }
+</style>
+</head><body>
+<div class="actions">
+  <button class="print-btn" onclick="window.print()">🖨 인쇄 / Print</button>
+  <a class="back-btn" href="/export/prep/{{ pid }}">← 통관 입력</a>
+</div>
+<div class="sheet">
+  <div class="ship-hero">
+    <div class="qr"><img src="/export/ship/{{ pid }}/qr.svg?scale=6" alt="QR"></div>
+    <div class="info">
+      <div class="t">Shipment / 출하 건</div>
+      <div class="mgmt">{{ p.mgmt_code|default('—') }}</div>
+      <div class="meta">
+        {{ p.name }}<br>
+        고객사 {{ p.customer_name|default('—') }} · 총 박스 <b>{{ pl.total_boxes }}</b> · 총 중량 <b>{{ '{:,.2f}'.format(pl.total_weight) }}kg</b> · 품목 {{ pl.n_lines }}<br>
+        <span style="font-size:9pt;color:#94a3b8;">스캔하면 이 출하 건의 품목·박스·통관 정보가 열립니다.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-h">📦 박스별 라벨 ({{ box_list|length }})</div>
+  <div class="box-grid">
+    {% for g in box_list %}
+    <div class="box-lbl">
+      <div class="qr"><img src="/export/ship/{{ pid }}/box-qr.svg?scale=5&b={{ g.box|urlencode }}" alt="QR"></div>
+      <div class="bn">{{ g.box }}</div>
+      <div class="mc">{{ p.mgmt_code|default('') }}</div>
+      <div class="qt">품목 {{ g['items']|length }} · 수량 {{ '{:,.0f}'.format(g.qty) }} · {{ '{:,.2f}'.format(g.weight) }}kg</div>
+    </div>
+    {% else %}
+    <div style="grid-column:1/-1;color:#94a3b8;font-size:11pt;text-align:center;padding:20px;">박스 구분이 없습니다 — 1단계 통관 입력에서 박스를 지정하면 박스별 라벨이 생성됩니다.</div>
+    {% endfor %}
+  </div>
+</div>
+<script>
+(function(){ if (new URLSearchParams(location.search).get('auto') === '1') { setTimeout(function(){ window.print(); }, 500); } })();
+</script>
+</body></html>

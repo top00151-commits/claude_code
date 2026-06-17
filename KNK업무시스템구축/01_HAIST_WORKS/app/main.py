@@ -26012,6 +26012,86 @@ async def export_prep_packing_xlsx(req: Request, pid: int):
                  "Pragma": "no-cache", "Expires": "0"})
 
 
+# ------------------------------------------------------------
+# v5H226z465 (대표 지시·수출 4단계): 출고 QR — 출하 건(관리번호) 라벨 + 박스별 라벨.
+#   QR 에 URL 을 담아(휴대폰 카메라로 스캔 시 바로 열림) 출하 건/박스 내용 화면으로 이동.
+#   기존 _make_qr_svg 재사용. 데이터 출처 = order_items(1단계 통관 입력의 박스·중량).
+# ------------------------------------------------------------
+_EXPORT_QR_BASE = "https://works.knknara.co.kr"  # 스캔용 공개 도메인(LIVE 고정)
+
+
+def _export_ship_boxes(c, pid):
+    """프로젝트의 수출 품목을 박스별로 묶음. (p, pl, lines, box_list) — box_list=[{box,items,qty,weight}]."""
+    p, pl, lines = _export_pl_build(c, pid)
+    if not p:
+        return None, None, None, None
+    boxes = {}
+    for l in (lines or []):
+        b = (l.get("box_no") or "").strip() or "(미지정)"
+        g = boxes.setdefault(b, {"box": b, "items": [], "qty": 0.0, "weight": 0.0})
+        g["items"].append(l)
+        g["qty"] += float(l.get("qty") or 0)
+        g["weight"] += float(l.get("weight_kg") or 0)
+    return p, pl, lines, list(boxes.values())
+
+
+@app.get("/export/ship/{pid:int}/qr.svg")
+async def export_ship_qr_svg(req: Request, pid: int, scale: int = 6):
+    """출하 건 QR(SVG) — 스캔하면 그 건의 출고 내용 화면(/export/ship/{pid})으로."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, status_code=403)
+    svg = _make_qr_svg(f"{_EXPORT_QR_BASE}/export/ship/{pid}", scale=scale)
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@app.get("/export/ship/{pid:int}/box-qr.svg")
+async def export_ship_box_qr_svg(req: Request, pid: int, b: str = "", scale: int = 6):
+    """박스 QR(SVG) — 스캔하면 그 박스 내용(/export/ship/{pid}?b=...)으로."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, status_code=403)
+    from urllib.parse import quote as _q
+    svg = _make_qr_svg(f"{_EXPORT_QR_BASE}/export/ship/{pid}?b={_q(b or '')}", scale=scale)
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@app.get("/export/ship/{pid:int}", response_class=HTMLResponse)
+async def export_ship_view(req: Request, pid: int, b: str = ""):
+    """출하 건 / 박스 내용 조회 (QR 스캔 착지 화면). b 주면 그 박스만."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/login?next=/export/ship/%d" % pid, 303)
+    with db_session() as c:
+        p, pl, lines, box_list = _export_ship_boxes(c, pid)
+    if not p:
+        return RedirectResponse("/export/prep", 303)
+    sel_box = (b or "").strip()
+    sel_items = None
+    if sel_box:
+        for g in (box_list or []):
+            if g["box"] == sel_box:
+                sel_items = g
+                break
+    return ctx(req, "export_ship_view.html", user=u, p=p, pl=pl,
+               lines=lines, box_list=box_list, sel_box=sel_box, sel_items=sel_items,
+               can_money=bool(can_view_sales(u)))
+
+
+@app.get("/export/ship/{pid:int}/qr/print", response_class=HTMLResponse)
+async def export_ship_qr_print(req: Request, pid: int):
+    """출고 QR 라벨 인쇄 — 출하 건 대표 QR(큰) + 박스별 QR 라벨 격자."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        p, pl, lines, box_list = _export_ship_boxes(c, pid)
+    if not p:
+        return RedirectResponse("/export/prep", 303)
+    return ctx(req, "export_ship_qr_print.html", user=u, p=p, pl=pl,
+               box_list=box_list, pid=pid)
+
+
 @app.get("/export/orders/new", response_class=HTMLResponse)
 async def export_order_new_form(req: Request):
     """수출 수주 등록 폼 — 1차 골격 (UI 본문 다음 사이클)."""
