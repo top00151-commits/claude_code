@@ -163,6 +163,20 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 
 .sched td.editable { cursor:text; }
 .sched td.editable:hover { background:#eef6ff !important; box-shadow: inset 0 0 0 1px #93c5fd; }
+/* v5H226z467: 세금계산서 1/2/3차 셀(발행일+금액 2줄) + 미니 편집창 */
+.sched td.taxinv-cell { cursor:pointer; line-height:1.25; }
+.sched td.taxinv-cell .ti-d { font-size:11px; font-variant-numeric:tabular-nums; }
+.sched td.taxinv-cell .ti-a { font-size:10.5px; color:#1d4ed8; font-weight:700; }
+.ti-pop { position:absolute; z-index:9999; background:#fff; border:1px solid #94a3b8; border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,0.22); padding:10px 12px; width:216px; font-size:12.5px; }
+.ti-pop-ttl { font-weight:800; color:#0f172a; font-size:12px; margin-bottom:7px; }
+.ti-pop-row { display:flex; align-items:center; gap:7px; margin-bottom:6px; }
+.ti-pop-row label { width:40px; color:#475569; font-weight:600; font-size:11.5px; }
+.ti-pop-row input { flex:1; padding:5px 7px; border:1px solid #cbd5e1; border-radius:6px; font:inherit; font-size:12.5px; }
+.ti-pop-row input.ti-pa { text-align:right; }
+.ti-pop-btns { display:flex; justify-content:flex-end; gap:6px; margin-top:4px; }
+.ti-pop-btns button { padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid; }
+.ti-pop-btns .ti-save { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+.ti-pop-btns .ti-cancel { background:#fff; color:#334155; border-color:#cbd5e1; }
 .cell-input { width:100%; box-sizing:border-box; border:1px solid #2563eb; border-radius:3px; font:inherit; font-size:12px; padding:1px 6px; height:26px; }
 
 /* z270: 단계 칸 */
@@ -428,7 +442,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자 — 영업·관리 권한만 #}
           {% if can_money %}
           <th class="c-info cw-stmt" data-col="statement"><div class="th-wrap">거래명세서<span class="col-resizer" data-col="statement"></span></div></th>
-          <th class="c-info cw-taxinv" data-col="tax_inv"><div class="th-wrap">세금계산서<span class="col-resizer" data-col="tax_inv"></span></div></th>
+          {# v5H226z467 (대표 지시): 세금계산서 1/2/3차(계약금·중도금·잔금) — 각 발행일+금액 #}
+          <th class="c-info cw-taxinv1" data-col="tax_inv1" title="1차 세금계산서(계약금)"><div class="th-wrap">1차 세금계산서<span class="col-resizer" data-col="tax_inv1"></span></div></th>
+          <th class="c-info cw-taxinv2" data-col="tax_inv2" title="2차 세금계산서(중도금)"><div class="th-wrap">2차 세금계산서<span class="col-resizer" data-col="tax_inv2"></span></div></th>
+          <th class="c-info cw-taxinv3" data-col="tax_inv3" title="3차 세금계산서(잔금)"><div class="th-wrap">3차 세금계산서<span class="col-resizer" data-col="tax_inv3"></span></div></th>
           {% endif %}
           <th class="c-info cw-stage" data-col="stage"><div class="th-wrap">단계<span class="col-resizer" data-col="stage"></span></div></th>
           {% for d in days %}
@@ -469,7 +486,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자(YYYY-MM-DD 직접 입력) — 프로젝트=대표 SO 연동·소모품=자체. 영업·관리만. #}
           {% if can_money %}
           <td class="c-info cw-stmt editable{% if r.statement_date %} filled{% endif %}" data-col="statement" data-edit="statement_date" title="거래명세서 발행일자{% if r.statement_date %}: {{ r.statement_date }}{% endif %}">{{ r.statement_date or '＋' }}</td>
-          <td class="c-info cw-taxinv editable{% if r.tax_invoice_date %} filled{% endif %}" data-col="tax_inv" data-edit="tax_invoice_date" title="세금계산서 발행일자{% if r.tax_invoice_date %}: {{ r.tax_invoice_date }}{% endif %}">{{ r.tax_invoice_date or '＋' }}</td>
+          {# v5H226z467 (대표 지시): 세금계산서 1/2/3차 — 각 칸 발행일+금액, 클릭 시 미니 편집창. 1차=계약금·2차=중도금·3차=잔금. #}
+          <td class="c-info cw-taxinv1 editable taxinv-cell{% if r.tax_invoice_date or r.tax_invoice_amt1 %} filled{% endif %}" data-col="tax_inv1" data-edit="taxinv1" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ r.tax_invoice_date or '' }}" data-amt="{{ r.tax_invoice_amt1 or '' }}" title="1차 세금계산서(계약금) — 발행일·금액">{% if r.tax_invoice_date or r.tax_invoice_amt1 %}<div class="ti-d">{{ r.tax_invoice_date or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt1 %}₩{{ '{:,.0f}'.format(r.tax_invoice_amt1|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
+          <td class="c-info cw-taxinv2 editable taxinv-cell{% if r.tax_invoice_date2 or r.tax_invoice_amt2 %} filled{% endif %}" data-col="tax_inv2" data-edit="taxinv2" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ r.tax_invoice_date2 or '' }}" data-amt="{{ r.tax_invoice_amt2 or '' }}" title="2차 세금계산서(중도금) — 발행일·금액">{% if r.tax_invoice_date2 or r.tax_invoice_amt2 %}<div class="ti-d">{{ r.tax_invoice_date2 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt2 %}₩{{ '{:,.0f}'.format(r.tax_invoice_amt2|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
+          <td class="c-info cw-taxinv3 editable taxinv-cell{% if r.tax_invoice_date3 or r.tax_invoice_amt3 %} filled{% endif %}" data-col="tax_inv3" data-edit="taxinv3" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ r.tax_invoice_date3 or '' }}" data-amt="{{ r.tax_invoice_amt3 or '' }}" title="3차 세금계산서(잔금) — 발행일·금액">{% if r.tax_invoice_date3 or r.tax_invoice_amt3 %}<div class="ti-d">{{ r.tax_invoice_date3 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt3 %}₩{{ '{:,.0f}'.format(r.tax_invoice_amt3|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
           {% endif %}
           <td class="c-info cw-stage stage-cell" data-col="stage" data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" title="클릭 → 단계 기록">
             {% if r.st_cur %}<span class="stg-badge">{{ r.st_cur }}</span>{% else %}<span class="stg-badge stg-none">시작 전</span>{% endif %}
@@ -646,10 +666,10 @@ window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].remove
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // ===== z265→z279: 작업 일정표 — 고정 px 컬럼 모델(엑셀식 · 좌우 스크롤) =====
 // z282: 고객사2·연락처·발주일·납품일·영업담당자(맨 끝, 날짜 뒤) 추가
-const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date'{% if can_money %},'statement','tax_inv'{% endif %},'stage','sales_owner'];
-const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',statement:'거래명세서',tax_inv:'세금계산서',stage:'단계',sales_owner:'영업담당자'};
+const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date'{% if can_money %},'statement','tax_inv1','tax_inv2','tax_inv3'{% endif %},'stage','sales_owner'];
+const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',statement:'거래명세서',tax_inv1:'1차 세금계산서',tax_inv2:'2차 세금계산서',tax_inv3:'3차 세금계산서',stage:'단계',sales_owner:'영업담당자'};
 // z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
-const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv:100,stage:150,sales_owner:96};
+const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv1:104,tax_inv2:104,tax_inv3:104,stage:150,sales_owner:96};
 const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 폭(px)
 const LAST_DAY = {{ days|length }};
 let COLS = {};
@@ -995,6 +1015,8 @@ if(_tbody){
 function startEdit(td){
   if(_editing) return;
   const tr=td.closest('tr');
+  // v5H226z467 (대표 지시): 세금계산서 1/2/3차(계약금/중도금/잔금) — 발행일+금액 미니 편집창
+  if(td.dataset.edit && td.dataset.edit.indexOf('taxinv')===0){ startTaxInvEdit(td, tr); return; }
   // v5H226z349 (대표 지시): 형태 = 드롭다운(제품/상품/기타) 선택 편집
   if(td.dataset.edit==='form_type'){ startSelectEdit(td, tr, ['','제품','상품','기타']); return; }
   // v5H226z366 (대표 지시): 거래구분(수출/내수)·PO유형(신규/추가/개조/수리/기타)도 드롭다운 선택 편집
@@ -1056,6 +1078,44 @@ function startSelectEdit(td, tr, opts){
   sel.addEventListener('change',()=>finish(true));
   sel.addEventListener('blur',()=>finish(true));
   sel.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+}
+// v5H226z467 (대표 지시): 세금계산서 1/2/3차 — 발행일+금액을 작은 편집창에서 함께 입력(계약금/중도금/잔금 분할 발행).
+async function taxSave(tr, field, value){
+  const r=await fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:field,value:value,base_ts:tr.dataset.ts||''})});
+  const j=await r.json(); if(j.updated_at) tr.dataset.ts=j.updated_at; if(!j.ok) throw new Error(j.message||j.error||'fail'); return j;
+}
+function startTaxInvEdit(td, tr){
+  if(_editing) return;
+  const curDate=td.dataset.date||'', curAmt=td.dataset.amt||'';
+  const pop=document.createElement('div'); pop.className='ti-pop';
+  pop.innerHTML='<div class="ti-pop-ttl">'+(td.title||'세금계산서')+'</div>'
+    +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd" value="'+curDate+'"></div>'
+    +'<div class="ti-pop-row"><label>금액</label><input type="text" inputmode="numeric" class="ti-pa" value="'+curAmt+'" placeholder="0"></div>'
+    +'<div class="ti-pop-btns"><button type="button" class="ti-save">저장</button><button type="button" class="ti-cancel">취소</button></div>';
+  _editing={td,pop}; document.body.appendChild(pop);
+  const rect=td.getBoundingClientRect();
+  pop.style.left=Math.max(6,Math.min(rect.left, window.innerWidth-228))+'px';
+  pop.style.top=(rect.bottom+window.scrollY+4)+'px';
+  const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
+  setTimeout(()=>pd.focus(),0);
+  let done=false;
+  const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
+  const onDoc=(ev)=>{ if(!pop.contains(ev.target) && ev.target!==td && !td.contains(ev.target)){ document.removeEventListener('mousedown',onDoc); close(); } };
+  setTimeout(()=>document.addEventListener('mousedown',onDoc),0);
+  pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
+  pop.querySelector('.ti-save').addEventListener('click',async ()=>{
+    const dv=(pd.value||'').trim(), av=(pa.value||'').replace(/[^0-9.]/g,'');
+    const btn=pop.querySelector('.ti-save'); btn.disabled=true;
+    try{
+      await taxSave(tr, td.dataset.datefield, dv);
+      await taxSave(tr, td.dataset.amtfield, av);
+      td.dataset.date=dv; td.dataset.amt=av;
+      td.innerHTML=(dv||av)?('<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?'₩'+Number(av).toLocaleString():'')+'</div>'):'＋';
+      td.classList.toggle('filled', !!(dv||av));
+      toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
+    }catch(e){ btn.disabled=false; toast('⚠ '+(e.message||'저장 실패')); }
+  });
 }
 // z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
 function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'})[c]||'₩'; }

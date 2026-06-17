@@ -18017,6 +18017,30 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 rows.append(_r)
     except Exception:
         pass
+    # v5H226z467 (대표 지시): 세금계산서 1/2/3차(발행일+금액) 주입 — 프로젝트=대표 SO(orders 최신)·소모품=consumable_orders.
+    #   _so_map 튜플 손대지 않고 별도 맵으로 후처리(2빌더 공통 안전). 1차 발행일은 _so_map(tax_invoice_date)에서 이미 set.
+    _taxmap = {}
+    try:
+        _tf = ["tax_invoice_date2", "tax_invoice_date3", "tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"]
+        with db_session() as _tc:
+            _oc = {r[1] for r in _tc.execute("PRAGMA table_info(orders)").fetchall()}
+            _osel = ",".join(f if f in _oc else f"NULL AS {f}" for f in _tf)
+            for _rr in _tc.execute(f"SELECT project_id,{_osel} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+                if _rr[0] and ("project", _rr[0]) not in _taxmap:
+                    _taxmap[("project", _rr[0])] = {_tf[i]: _rr[i + 1] for i in range(len(_tf))}
+            _cc = {r[1] for r in _tc.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+            _csel = ",".join(f if f in _cc else f"NULL AS {f}" for f in _tf)
+            for _rr in _tc.execute(f"SELECT id,{_csel} FROM consumable_orders"):
+                _taxmap[("consumable", _rr[0])] = {_tf[i]: _rr[i + 1] for i in range(len(_tf))}
+    except Exception:
+        pass
+    for _row in rows:
+        _ti = _taxmap.get((_row.get("kind"), _row.get("ref_id"))) or {}
+        _row["tax_invoice_date2"] = str(_ti.get("tax_invoice_date2") or "")[:10]
+        _row["tax_invoice_date3"] = str(_ti.get("tax_invoice_date3") or "")[:10]
+        _row["tax_invoice_amt1"] = _ti.get("tax_invoice_amt1") or ""
+        _row["tax_invoice_amt2"] = _ti.get("tax_invoice_amt2") or ""
+        _row["tax_invoice_amt3"] = _ti.get("tax_invoice_amt3") or ""
     # 정렬: 월 보기=납품일(일자) 우선 / 기간 보기=실제 날짜(여러 달이므로 전체 날짜) 순
     if range_mode:
         rows.sort(key=lambda r: (r.get("due_date") or "9999-99-99", r.get("order_date") or "9999-99-99", r["code"]))
@@ -18072,11 +18096,14 @@ async def schedule_board_cell(request: Request):
     if field not in ("name", "model", "equip", "note", "dept", "owner", "ship_to",
                      "qty", "price", "amount", "trade", "po_type", "cust",
                      "cust2", "contact", "sales_owner", "order_date", "due_date",
-                     "form_type", "statement_date", "tax_invoice_date"):
-        # v5H226z282 / z349(형태) / z365(프로젝트명) / z366(모델·장비·거래구분·PO유형·고객사1) / z367(거래명세서·세금계산서 발행일자)
+                     "form_type", "statement_date", "tax_invoice_date",
+                     # v5H226z467: 세금계산서 3차 분할(발행일 2/3차 + 금액 1/2/3차)
+                     "tax_invoice_date2", "tax_invoice_date3",
+                     "tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"):
+        # v5H226z282 / z349(형태) / z365(프로젝트명) / z366(모델·장비·거래구분·PO유형·고객사1) / z367(거래명세서·세금계산서 발행일자) / z467(세금계산서 3차)
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
-    # v5H226z277/z367: 단가·금액·발행일자(거래명세서·세금계산서)는 청구 성격 — 영업·관리 권한만(서버 차단)
-    if field in ("price", "amount", "statement_date", "tax_invoice_date") and not can_view_sales(u):
+    # v5H226z277/z367/z467: 단가·금액·발행일자·세금계산서(1/2/3차)는 청구 성격 — 영업·관리 권한만(서버 차단)
+    if (field in ("price", "amount", "statement_date") or field.startswith("tax_invoice_")) and not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
     # v5H226z409: 동시 편집 감지(낙관적 잠금) — 보드 셀 편집(프로젝트/소모품). base_ts 미전송이면 검사 생략.
     _lock_tbl = {"project": "projects", "consumable": "consumable_orders"}.get(kind)
