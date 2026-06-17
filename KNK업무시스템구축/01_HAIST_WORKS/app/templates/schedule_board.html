@@ -179,6 +179,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .ti-pop-row label { width:46px; flex:none; color:#475569; font-weight:700; font-size:12px; white-space:nowrap; text-align:right; }
 .ti-pop-row input { flex:1; min-width:0; padding:7px 9px; border:1px solid #cbd5e1; border-radius:6px; font:inherit; font-size:13px; }
 .ti-pop-row input.ti-pa { text-align:right; }
+.ti-pop-row .ti-cur { flex:none; color:#475569; font-weight:800; font-size:13px; }
+.ti-pop-row .ti-unit { flex:none; color:#94a3b8; font-size:11.5px; }
 .ti-pop-hint { font-size:10.5px; color:#94a3b8; line-height:1.5; margin:2px 0 9px; }
 .ti-pop-btns { display:flex; justify-content:flex-end; gap:7px; margin-top:2px; }
 .ti-pop-btns button { padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid; }
@@ -1101,7 +1103,7 @@ function startTaxInvEdit(td, tr){
   const pop=document.createElement('div'); pop.className='ti-pop';
   // 금액을 위, 발행일을 아래로 — 날짜 달력이 아래로 펼쳐져도 금액칸을 가리지 않게(겹침 해소).
   pop.innerHTML='<div class="ti-pop-ttl">'+(td.title||'세금계산서')+'</div>'
-    +'<div class="ti-pop-row"><label>금액</label><input type="text" inputmode="numeric" class="ti-pa" value="'+curAmt+'" placeholder="0"></div>'
+    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">₩</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">원</span></div>'
     +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd" value="'+curDate+'"></div>'
     +'<div class="ti-pop-hint">1·2·3차 합계가 수주금액과 같아야 <b>발행완료</b>, 다르면 <b>미발행</b>으로 표시됩니다.</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
@@ -1110,6 +1112,8 @@ function startTaxInvEdit(td, tr){
   pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px';
   pop.style.top=(rect.bottom+window.scrollY+4)+'px';
   const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
+  // v5H226z470: 금액 입력 시 천단위 콤마 자동 (저장 시엔 숫자만 추출)
+  pa.addEventListener('input',function(){ var raw=pa.value.replace(/[^0-9]/g,''); pa.value=raw?Number(raw).toLocaleString():''; });
   setTimeout(()=>{ pa.focus(); pa.select(); },0);
   let done=false;
   const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
