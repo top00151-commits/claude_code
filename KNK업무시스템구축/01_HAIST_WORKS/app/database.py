@@ -3057,6 +3057,14 @@ def init_db():
                 ("description",            "ALTER TABLE order_items ADD COLUMN description TEXT"),
                 ("pallet_size",            "ALTER TABLE order_items ADD COLUMN pallet_size TEXT"),
                 ("weight_kg",              "ALTER TABLE order_items ADD COLUMN weight_kg REAL"),
+                # v5H226z484 (대표 지시): 호기별 거래명세서·세금계산서(발행일+금액). 호기마다 납품일 다르면 발행일도 다를 수 있어 호기 단위 저장.
+                ("statement_date",     "ALTER TABLE order_items ADD COLUMN statement_date TEXT"),
+                ("tax_invoice_date",   "ALTER TABLE order_items ADD COLUMN tax_invoice_date TEXT"),
+                ("tax_invoice_amt1",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt1 REAL"),
+                ("tax_invoice_date2",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date2 TEXT"),
+                ("tax_invoice_amt2",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt2 REAL"),
+                ("tax_invoice_date3",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date3 TEXT"),
+                ("tax_invoice_amt3",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt3 REAL"),
             ]:
                 if col not in oicols:
                     try:

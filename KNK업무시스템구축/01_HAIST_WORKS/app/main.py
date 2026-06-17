@@ -18684,8 +18684,14 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
             _ie = "oi.is_export AS i_iex," if "is_export" in _cols else "NULL AS i_iex,"
             _ln = "oi.line_note AS lnote," if "line_note" in _cols else "'' AS lnote,"
             _ic = "oi.currency AS i_cur," if "currency" in _cols else "'' AS i_cur,"
+            # v5H226z484 (대표 지시): 호기별 거래명세서·세금계산서(발행일+금액)
+            _stm = "oi.statement_date AS stmt," if "statement_date" in _cols else "'' AS stmt,"
+            _ti1 = "oi.tax_invoice_date AS t1d, oi.tax_invoice_amt1 AS t1a," if "tax_invoice_date" in _cols else "'' AS t1d, NULL AS t1a,"
+            _ti2 = "oi.tax_invoice_date2 AS t2d, oi.tax_invoice_amt2 AS t2a," if "tax_invoice_date2" in _cols else "'' AS t2d, NULL AS t2a,"
+            _ti3 = "oi.tax_invoice_date3 AS t3d, oi.tax_invoice_amt3 AS t3a," if "tax_invoice_date3" in _cols else "'' AS t3d, NULL AS t3a,"
             rows = c.execute(
                 f"SELECT oi.id AS iid, oi.unit_label AS lbl, {_due} {_ust} {_up} {_od} {_sh} {_ie} {_ln} {_ic} "
+                f"{_stm} {_ti1} {_ti2} {_ti3} "
                 f"oi.amount AS amt, COALESCE(oi.qty,1) AS qty, "
                 f"o.order_no AS so_no, o.due_date AS o_due, o.order_date AS o_ord, o.ship_to AS o_ship, "
                 f"COALESCE(o.currency,'KRW') AS o_cur, COALESCE(o.status,'') AS sost, "
@@ -18702,7 +18708,7 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                 eff_cur = (str(d.get("i_cur") or "").strip() or str(d.get("o_cur") or "").strip() or "KRW")
                 _iex = d.get("i_iex")
                 eff_iex = int(_iex) if _iex is not None else int(d.get("p_iex") or 0)
-                units.append({
+                _ud = {
                     "iid": d["iid"], "label": d.get("lbl") or "—",
                     "due_date": eff_due, "order_date": eff_ord, "ship_to": eff_ship or "",
                     "unit_status": d.get("ust") or "진행중",
@@ -18711,7 +18717,17 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                     "currency": eff_cur, "is_export": eff_iex, "note": d.get("lnote") or "",
                     "so_no": d.get("so_no") or "",
                     "locked": ((d.get("sost") or "").upper() in ("INVOICED", "PAID")),
-                })
+                }
+                if can_money:   # v5H226z484: 거래명세서·세금계산서(호기별)는 청구성격 → 영업·관리만
+                    def _amt(v):
+                        return (float(v) if v not in (None, "") else "")
+                    _ud.update({
+                        "statement_date": str(d.get("stmt") or "")[:10],
+                        "tax_invoice_date": str(d.get("t1d") or "")[:10], "tax_invoice_amt1": _amt(d.get("t1a")),
+                        "tax_invoice_date2": str(d.get("t2d") or "")[:10], "tax_invoice_amt2": _amt(d.get("t2a")),
+                        "tax_invoice_date3": str(d.get("t3d") or "")[:10], "tax_invoice_amt3": _amt(d.get("t3a")),
+                    })
+                units.append(_ud)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True, "units": units, "can_money": can_money,
@@ -18734,10 +18750,13 @@ async def schedule_board_unit_field(request: Request):
         return JSONResponse({"ok": False, "error": "bad_request"}, 400)
     field = (b.get("field") or "").strip()
     value = b.get("value")
-    # v5H226z483 (대표 지시): 상세와 동일 항목 — 발주일·납품처·통화·거래방식·비고도 인라인 수정
-    if field not in ("status", "due_date", "unit_price", "order_date", "ship_to", "currency", "is_export", "note"):
+    # v5H226z483/z484 (대표 지시): 발주일·납품처·통화·거래방식·비고 + 호기별 거래명세서·세금계산서(발행일+금액)
+    _TAX_FIELDS = ("statement_date", "tax_invoice_date", "tax_invoice_amt1",
+                   "tax_invoice_date2", "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3")
+    if field not in (("status", "due_date", "unit_price", "order_date", "ship_to", "currency", "is_export", "note") + _TAX_FIELDS):
         return JSONResponse({"ok": False, "error": "bad_field"}, 400)
-    if field == "unit_price" and not can_view_sales(u):
+    # 단가·거래명세서·세금계산서는 청구 성격 → 영업·관리만
+    if (field == "unit_price" or field in _TAX_FIELDS) and not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
     try:
         with db_session() as c:
@@ -18800,6 +18819,16 @@ async def schedule_board_unit_field(request: Request):
             elif field == "is_export":
                 iv = 1 if str(value).strip() in ("1", "수출", "true", "True") else 0
                 c.execute("UPDATE order_items SET is_export=?, updated_at=datetime('now','localtime') WHERE id=?", (iv, iid))
+            elif field in ("statement_date", "tax_invoice_date", "tax_invoice_date2", "tax_invoice_date3"):
+                # v5H226z484: 호기별 발행일(화이트리스트 필드명이라 f-string 안전)
+                c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          (str(value or "").strip() or None, iid))
+            elif field in ("tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"):
+                try:
+                    av = float(str(value).replace(",", "")) if value not in (None, "") else None
+                except Exception:
+                    return JSONResponse({"ok": False, "error": "금액 형식 오류"}, 400)
+                c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?", (av, iid))
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True})
