@@ -17,7 +17,10 @@ body {
   <div class="page-head" data-dn="page-head">
     <div><div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>수출 hub</b></div><h1 class="page-title" data-dn="title">🚢 수출 <em>관리</em></h1>
     <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">CI · P/L · B/L · 통관 신고 워크플로우</div></div>
-    <a class="btn btn-primary" href="/export/orders/new">＋ 수출 수주</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="btn btn-primary" href="/export/prep" style="background:#1d4ed8;border-color:#1d4ed8;">🚢 출하 전 통관 정리</a>
+      <a class="btn" href="/export/orders/new" style="border:1px solid var(--qv-line,#e5e7eb);">＋ 수출 수주</a>
+    </div>
   </div>
 
   <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(5,1fr);grid-auto-rows:110px;">

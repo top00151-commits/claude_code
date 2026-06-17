@@ -25794,6 +25794,100 @@ async def export_home(req: Request):
                st_clr=st_map.get("CLEARED", 0))
 
 
+# ============================================================
+# v5H226z462 (대표 지시): 수출 작업대 — 출하 전, 거래구분=수출 건의 '상품별 통관 입력' (1단계).
+#   장비/부품을 다 만들고 출하 전, 수출 품목마다 관세·원산지·HS·인보이스(USD)·중량·박스를 정리.
+#   데이터 단일 출처 = 수출 SO 의 order_items(통관 칸 기보유, z440이 화면만 떼어냈음). 여기서 입력→2~4단계 PL/CI/QR 로 사용.
+# ============================================================
+@app.get("/export/prep", response_class=HTMLResponse)
+async def export_prep_list(req: Request):
+    """출하 전 수출 건(거래구분=수출) 목록 + 통관 입력 진행률."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = c.execute(
+            """SELECT p.id, p.mgmt_code, p.name, p.customer_name, p.currency,
+                      p.status, p.stage, p.due_date, p.biz_div, p.shipment_form,
+                      (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id=oi.order_id
+                        WHERE o.project_id=p.id) AS n_items,
+                      (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id=oi.order_id
+                        WHERE o.project_id=p.id AND oi.hs_code IS NOT NULL AND TRIM(oi.hs_code)<>'') AS n_hs,
+                      (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id=oi.order_id
+                        WHERE o.project_id=p.id AND oi.origin IS NOT NULL AND TRIM(oi.origin)<>'') AS n_origin
+               FROM projects p
+               WHERE COALESCE(p.is_export,0)=1
+                 AND COALESCE(p.status,'') NOT IN ('취소','납품완료')
+               ORDER BY (p.due_date IS NULL), p.due_date ASC, p.id DESC
+               LIMIT 300"""
+        ).fetchall()
+        items = [dict(r) for r in rows]
+    return ctx(req, "export_prep.html", user=u, active="export", items=items)
+
+
+@app.get("/export/prep/{pid:int}", response_class=HTMLResponse)
+async def export_prep_detail(req: Request, pid: int):
+    """수출 건 1개의 '상품별 통관 입력' 화면 — 그 프로젝트의 모든 SO 품목(order_items)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        prow = c.execute(
+            """SELECT id, mgmt_code, name, customer_name, currency, fx_rate,
+                      status, stage, due_date, order_date, biz_div, shipment_form, is_export
+               FROM projects WHERE id=?""", (pid,)).fetchone()
+        if not prow:
+            return RedirectResponse("/export/prep", 303)
+        p = dict(prow)
+        try:
+            sos = _pwf.get_project_orders(c, pid)
+        except Exception:
+            sos = []
+    return ctx(req, "export_prep_detail.html", user=u, active="export",
+               p=p, sos=sos, can_money=bool(can_view_sales(u)))
+
+
+@app.post("/export/item/{iid:int}/customs")
+async def export_item_customs_save(req: Request, iid: int):
+    """수출 통관 칸만 저장(order_items) — 판매단가/금액/라벨은 절대 건드리지 않음(별도 흐름)."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    form = await req.form()
+    with db_session() as c:
+        oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        sets, vals = [], []
+        # 텍스트형 통관 칸
+        for col in ("hs_code", "origin", "box_no", "pallet_size", "description"):
+            if col in oicols and form.get(col) is not None:
+                sets.append(f"{col}=?")
+                vals.append((form.get(col) or "").strip() or None)
+        # 숫자형 통관 칸 (미전송=건너뜀 / 빈값=NULL)
+        for col in ("duty_rate", "vat_rate", "invoice_unit_price_usd",
+                    "invoice_amount_usd", "duty_krw", "duty_usd",
+                    "final_amount_usd", "weight_kg"):
+            if col not in oicols:
+                continue
+            raw = form.get(col)
+            if raw is None:
+                continue
+            raw = (raw or "").strip().replace(",", "")
+            if raw == "":
+                sets.append(f"{col}=?"); vals.append(None)
+            else:
+                try:
+                    sets.append(f"{col}=?"); vals.append(float(raw))
+                except ValueError:
+                    pass
+        if not sets:
+            return JSONResponse({"ok": True, "changed": 0})
+        if "updated_at" in oicols:
+            sets.append("updated_at=datetime('now','localtime')")
+        vals.append(iid)
+        c.execute(f"UPDATE order_items SET {','.join(sets)} WHERE id=?", vals)
+    return JSONResponse({"ok": True, "changed": 1})
+
+
 @app.get("/export/orders/new", response_class=HTMLResponse)
 async def export_order_new_form(req: Request):
     """수출 수주 등록 폼 — 1차 골격 (UI 본문 다음 사이클)."""
