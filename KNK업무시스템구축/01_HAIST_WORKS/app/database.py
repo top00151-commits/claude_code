@@ -2810,6 +2810,18 @@ def init_db():
                 c.execute(f"ALTER TABLE project_stage_log ADD COLUMN {_c477} {_t477}")
             except Exception:
                 pass   # 이미 있으면 무시(idempotent)
+        # v5H226z479 (대표 지시·Phase 2): 단계 '착수 가능' 부서 통보 1회 dedup 기록
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS stage_notify_log (
+                ref_kind   TEXT NOT NULL,
+                ref_id     INTEGER NOT NULL,
+                stage_key  TEXT NOT NULL,
+                sub_key    TEXT NOT NULL DEFAULT '',
+                notified_at TEXT,
+                UNIQUE(ref_kind, ref_id, stage_key, sub_key)
+            )""")
+        except Exception as _e:
+            print(f"[v5H226z479] stage_notify_log 생성 스킵: {_e}")
 
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을

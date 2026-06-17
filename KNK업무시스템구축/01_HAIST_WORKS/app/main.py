@@ -18436,6 +18436,95 @@ async def schedule_board_stages(request: Request, kind: str = "", ref_id: int = 
                              "trace": _tb.format_exc()[-400:]}, 200)
 
 
+def _stage_ready_notify(kind, ref_id):
+    """v5H226z479 (대표 지시·Phase 2): 단계 완료 후, 새로 '착수 가능'해진 단계의 담당 부서에 1회 통보
+    (인앱 notifications + Eum 메신저 1:1 봇 푸시). (ref_kind, ref_id, stage_key, sub_key)당 1회만(dedup).
+    매칭=단계 담당 부서명(STAGE_OWNERS) == teams.name. 실패해도 본 작업엔 영향 없음(조용히 무시)."""
+    try:
+        with db_session() as c:
+            if kind == "project":
+                p = c.execute("SELECT mgmt_code, name, biz_div, due_date FROM projects WHERE id=?", (ref_id,)).fetchone()
+                if not p:
+                    return
+                code = p[0] or "—"; pname = p[1] or ""
+                div = (code[3] if (len(code) >= 4 and code[3] in "TMLEC") else ((p[2] or "").upper()))
+                due = str(p[3] or "")[:10]
+            else:
+                p = c.execute("SELECT mgmt_code, due_date FROM consumable_orders WHERE id=?", (ref_id,)).fetchone()
+                if not p:
+                    return
+                code = p[0] or "—"; pname = "소모품"; div = "C"; due = str(p[1] or "")[:10]
+        spec = _logi.stage_spec_for_div(div)
+        order = [s["key"] for s in spec]
+        rows = _logi.stage_rows_for(kind, int(ref_id))
+        done_main = set()
+        for s in spec:
+            if s["key"] == "progress":
+                subs = [x[0] for x in s.get("subs", [])]
+                if subs and all(rows.get(("progress", sk), {}).get("state") == "done" for sk in subs):
+                    done_main.add("progress")
+            elif rows.get((s["key"], ""), {}).get("state") == "done":
+                done_main.add(s["key"])
+        ready_units = []   # (stage_key, sub_key, label, owner)
+        for idx, s in enumerate(spec):
+            if s["key"] == "progress":
+                if not ("prod_request" in done_main or "prod_request" not in order):
+                    continue
+                for sk, sl, so in s.get("subs", []):
+                    if rows.get(("progress", sk), {}).get("state", "todo") == "todo":
+                        ready_units.append(("progress", sk, s["label"] + " · " + sl, so or s.get("owner") or ""))
+            else:
+                if all(order[j] in done_main for j in range(idx)) and rows.get((s["key"], ""), {}).get("state", "todo") == "todo":
+                    ready_units.append((s["key"], "", s["label"], s.get("owner") or ""))
+        if not ready_units:
+            return
+        _pub = os.environ.get("KNK_WORKS_PUBLIC_BASE", "https://works.knknara.co.kr").rstrip("/")
+        ddstr = (f" · 납기 {due}" if due else "")
+        for sk, sub, label, owner in ready_units:
+            if not owner:
+                continue
+            emp_nos = []
+            with db_session() as c:
+                # dedup — 처음 통보될 때만(rowcount>0)
+                try:
+                    cur = c.execute(
+                        "INSERT OR IGNORE INTO stage_notify_log(ref_kind, ref_id, stage_key, sub_key, notified_at) "
+                        "VALUES (?,?,?,?, datetime('now','localtime'))", (kind, int(ref_id), sk, sub))
+                    if (cur.rowcount or 0) == 0:
+                        continue
+                except Exception:
+                    continue
+                title = f"🛠 단계 작업 [{code}] {label}"
+                body = (f"관리코드: {code}\n프로젝트: {pname}\n단계: {label} (담당: {owner})\n"
+                        f"앞 단계가 완료되어 지금 착수할 수 있습니다.{ddstr}\n\n'내 부서 단계 작업'에서 착수하세요.")
+                link = "/dept/stage-work"
+                try:
+                    urows = c.execute(
+                        "SELECT u.id, u.employee_no FROM users u JOIN teams t ON t.id=u.team_id "
+                        "WHERE t.name=? AND COALESCE(u.is_active,1)=1", (owner,)).fetchall()
+                    for r in urows:
+                        uid = r[0] if not isinstance(r, dict) else r["id"]
+                        eno = r[1] if not isinstance(r, dict) else r["employee_no"]
+                        try:
+                            c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
+                                      (uid, "stage_ready", title, body, link))
+                        except Exception:
+                            pass
+                        if eno:
+                            emp_nos.append(eno)
+                except Exception:
+                    emp_nos = []
+            # Eum 메신저 1:1 봇 푸시 (사번 매칭된 인원만 · 실패 무시)
+            if emp_nos:
+                try:
+                    from . import sso_client
+                    sso_client.notify_via_messenger(emp_nos, title, body, _pub + link)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 @app.post("/sales/schedule/stage")
 async def schedule_board_stage_set(request: Request):
     """단계 기록 저장(upsert). 누구나 가능, tax_invoice 만 can_view_sales."""
@@ -18482,6 +18571,12 @@ async def schedule_board_stage_set(request: Request):
             elif kind == "consumable":
                 with db_session() as _cz:
                     _cz.execute("UPDATE consumable_orders SET status='SHIPPED' WHERE id=?", (int(ref_id),))
+        except Exception:
+            pass
+    # v5H226z479 (대표 지시·Phase 2): 단계 '완료' 시(착수 제외) → 새로 착수 가능해진 다음 부서에 1회 Eum+인앱 통보.
+    if ok and _done and not _started:
+        try:
+            _stage_ready_notify(kind, int(ref_id))
         except Exception:
             pass
     return JSONResponse({"ok": ok, "error": msg, "by_name": _sched_user_name(u)})
