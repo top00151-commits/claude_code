@@ -1516,6 +1516,19 @@ async def admin_work_patterns(request: Request):
                 pha_map[r["uid"]] = r["n"]
         except Exception:
             pass
+        # v5H226z480 (대표 지시·Phase 3): 단계 작업(완료) — project_stage_log by_user 기준 건수+소요시간(h).
+        #   부서 단계 작업(착수→완료) 적립을 업무패턴 '단계' 신호로. on_date(완료일) 우선·없으면 updated_at.
+        stage_map = {}
+        try:
+            for r in c.execute(
+                "SELECT by_user AS uid, COUNT(*) AS n, COALESCE(SUM(hours),0) AS h FROM project_stage_log "
+                "WHERE done=1 AND by_user IS NOT NULL "
+                "AND date(COALESCE(NULLIF(on_date,''), updated_at)) BETWEEN ? AND ? GROUP BY by_user",
+                (start, end)):
+                if r["uid"]:
+                    stage_map[r["uid"]] = {"n": r["n"], "h": round(float(r["h"] or 0), 1)}
+        except Exception:
+            pass
         # v5H226z414 (Phase2): 메일(WORKS mail_messages) 집계 — user_id 기준
         mail_map = {}
         try:
@@ -1565,7 +1578,9 @@ async def admin_work_patterns(request: Request):
         msgr = ((msgr_map.get(empno) or {}).get("msgs", 0)) if empno else 0
         pre = presale_map.get(uid, {})
         presales = pre.get("n", 0); presales_h = pre.get("h", 0)
-        activity = cnt + tickets + issues + phases + mail + msgr + presales
+        stg = stage_map.get(uid, {})
+        stage_n = stg.get("n", 0); stage_h = stg.get("h", 0)
+        activity = cnt + tickets + issues + phases + mail + msgr + presales + stage_n
         if activity <= 0:
             continue
         rows.append({
@@ -1577,6 +1592,7 @@ async def admin_work_patterns(request: Request):
             "tickets": tickets, "issues": issues, "phases": phases,
             "mail": mail, "msgr": msgr,
             "presales": presales, "presales_h": presales_h,
+            "stage_n": stage_n, "stage_h": stage_h,   # v5H226z480 (Phase3): 단계 작업
             "activity": activity,
         })
     rows.sort(key=lambda x: -x["activity"])
@@ -1585,16 +1601,19 @@ async def admin_work_patterns(request: Request):
         d = depts.setdefault(r["team_name"], {"team_name": r["team_name"], "people": 0, "cnt": 0,
                                               "hours": 0.0, "done": 0, "delayed": 0,
                                               "tickets": 0, "issues": 0, "phases": 0, "mail": 0, "msgr": 0,
-                                              "presales": 0, "presales_h": 0.0})
+                                              "presales": 0, "presales_h": 0.0,
+                                              "stage_n": 0, "stage_h": 0.0})
         d["people"] += 1; d["cnt"] += r["cnt"]; d["hours"] += r["hours"]; d["done"] += r["done"]
         d["delayed"] += r["delayed"]; d["tickets"] += r["tickets"]; d["issues"] += r["issues"]; d["phases"] += r["phases"]
         d["mail"] += r["mail"]; d["msgr"] += r["msgr"]
         d["presales"] += r["presales"]; d["presales_h"] += r["presales_h"]
-    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"] + x["presales"]))
+        d["stage_n"] += r["stage_n"]; d["stage_h"] += r["stage_h"]
+    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"] + x["presales"] + x["stage_n"]))
     for d in dept_list:
         d["rate"] = round(100 * d["done"] / d["cnt"]) if d["cnt"] else 0
         d["hours"] = round(d["hours"], 1)
         d["presales_h"] = round(d["presales_h"], 1)
+        d["stage_h"] = round(d["stage_h"], 1)   # v5H226z480 (Phase3): 단계 작업 시간 합계
     return ctx(request, "admin_work_patterns.html", user=u, rows=rows, depts=dept_list,
                period_label=plabel, days=days, start=start, end=end, total_people=len(rows))
 
