@@ -18419,6 +18419,57 @@ async def schedule_board_stage_set(request: Request):
     return JSONResponse({"ok": ok, "error": msg, "by_name": _sched_user_name(u)})
 
 
+@app.post("/sales/schedule/bulk-ship")
+async def schedule_board_bulk_ship(request: Request):
+    """v5H226z472 (대표 지시): 일괄출하 — 체크한 여러 행을 '실행한 날짜(오늘)'로 '출하' 단계 완료 처리.
+    한꺼번에 많이 출하 처리할 때. 단건 단계 토글(/sales/schedule/stage)과 동일 권한(로그인이면 누구나).
+    (kind, ref_id) 중복 제거(호기 분할로 같은 건이 여러 줄일 수 있음). 단계 'ship' upsert."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    items = b.get("items") or []
+    if not isinstance(items, list) or not items:
+        return JSONResponse({"ok": False, "error": "출하 처리할 대상이 없습니다"}, 400)
+    from datetime import date as _date_z472
+    on_date = _date_z472.today().isoformat()   # 서버(본사 KST) 오늘 — 보드 today_day 와 동일 기준
+    uid = u.get("id")
+    uname = _sched_user_name(u)
+    done_keys = set()
+    n_ok = 0
+    n_fail = 0
+    for it in items[:500]:   # 안전 상한
+        try:
+            kind = (str(it.get("kind") or "")).strip()
+            ref_id = int(it.get("ref_id"))
+        except Exception:
+            n_fail += 1
+            continue
+        if kind not in ("project", "consumable") or not ref_id:
+            n_fail += 1
+            continue
+        key = (kind, ref_id)
+        if key in done_keys:
+            continue   # v5H226z472: 중복(같은 건 여러 줄) 제거
+        try:
+            ok, _msg = _logi.stage_set(kind, ref_id, "ship", "", done=True,
+                                       on_date=on_date, memo="", extra="",
+                                       user_id=uid, user_name=uname)
+        except Exception:
+            ok = False
+        if ok:
+            done_keys.add(key)
+            n_ok += 1
+        else:
+            n_fail += 1
+    return JSONResponse({"ok": n_ok > 0, "n": n_ok, "fail": n_fail,
+                         "on_date": on_date,
+                         "error": ("" if n_ok > 0 else "모두 실패")})
+
+
 @app.get("/projects/export.xlsx")
 async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
                                view: str = "", status: str = ""):

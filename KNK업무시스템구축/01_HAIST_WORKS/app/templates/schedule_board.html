@@ -42,6 +42,10 @@
 .tbx-cur #sortNow { font-weight:800; color:var(--knk-red); }
 .sched-tools .tbx-reset { background:var(--paper-3); }
 .sched-tools .tbx-reset:hover { background:#fff; }
+/* v5H226z472 (대표 지시): 일괄출하 버튼 — 눈에 띄는 청록(출하) 강조·우측 정렬 */
+.sched-tools .bulk-ship-go { background:#0f766e; color:#fff; border-color:#0f766e; font-weight:800; }
+.sched-tools .bulk-ship-go:hover { background:#0e6b63; border-color:#0e6b63; color:#fff; }
+.sched-tools .bulk-ship-go:disabled { opacity:.55; cursor:default; }
 /* v5H226z345 (대표 지시): 작업일정표 상단 3개 행 시각 구분 — 역할 띠(라벨 + 옅은 배경)로 한눈에 구분 */
 .sb-band { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:4px 11px; border-radius:11px; border:1px solid var(--line); margin:0 var(--content-pad) 4px; }
 /* v5H226z348 (대표 지시): 3개 띠 라벨(사업부·작업·표 설정) 너비 동일 고정 — 세로로 가지런히 정렬 */
@@ -406,6 +410,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       {% if range_mode %}<a class="period-clear" href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}">월 보기로</a>{% endif %}
     </span>
     <label class="selall-lab"><input type="checkbox" id="schedSelAll" onclick="schedToggleAll(this)" /> 보이는 행 전체선택</label>
+    {# v5H226z472 (대표 지시): 일괄출하 — 체크한 행들을 오늘 날짜로 '출하' 단계 완료 처리(한꺼번에 많이). 우측 정렬. #}
+    <button type="button" class="bulk-ship-go" onclick="schedBulkShip()" title="체크한 행들을 오늘 날짜로 일괄 출하 처리(단계 '출하' 완료)" style="margin-left:auto;"><span class="ti">🚚</span> 일괄출하</button>
     <span class="bulk-wrap" id="schedBulkBar" style="display:none;">
       <span class="bulk-cnt"><b id="schedSelCount">0</b>건 선택</span>
       <select id="schedBulkField" class="bulk-sel" onchange="schedBulkFieldChange()" title="일괄로 바꿀 항목"></select>
@@ -1447,6 +1453,30 @@ function schedClearSel(){
   _selRows().forEach(function(tr){ var c=tr.querySelector('.row-sel'); if(c) c.checked=false; tr.classList.remove('row-selected'); });
   var sa=document.getElementById('schedSelAll'); if(sa){ sa.checked=false; sa.indeterminate=false; }
   syncBulkBar();
+}
+// v5H226z472 (대표 지시): 일괄출하 — 체크한 행들을 오늘 날짜로 '출하' 단계 완료 처리(여러 건 한꺼번에).
+function schedBulkShip(){
+  var rows=_selRows();
+  if(!rows.length){ toast('출하 처리할 행을 먼저 선택하세요'); return; }
+  var seen={}, items=[];
+  rows.forEach(function(tr){
+    var kind=tr.dataset.kind||'', ref=tr.dataset.ref||'';
+    if(!kind||!ref) return;
+    var k=kind+':'+ref;
+    if(seen[k]) return; seen[k]=1;             // (kind,ref) 중복 제거 — 호기 분할 줄 대비
+    items.push({kind:kind, ref_id:Number(ref)});
+  });
+  if(!items.length){ toast('출하 처리할 대상이 없습니다'); return; }
+  if(!confirm(items.length+'건을 오늘 날짜로 출하 처리할까요?\n(작업일정표 단계칸에 "출하"로 표시되고 출하일이 기록됩니다)')) return;
+  var btn=document.querySelector('.bulk-ship-go'); if(btn) btn.disabled=true;
+  fetch('/sales/schedule/bulk-ship',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j||!j.ok){ toast('출하 처리 실패: '+((j&&j.error)||'오류')); if(btn) btn.disabled=false; return; }
+      toast(j.n+'건 출하 처리 완료 (출하일 '+(j.on_date||'')+')'+(j.fail? ' · 실패 '+j.fail+'건':''));
+      setTimeout(function(){ location.reload(); }, 900);
+    })
+    .catch(function(e){ toast('출하 처리 오류: '+e); if(btn) btn.disabled=false; });
 }
 function _buildBulkFieldSel(){
   var sel=document.getElementById('schedBulkField'); if(!sel) return;
