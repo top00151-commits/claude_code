@@ -2,16 +2,25 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>통관 입력 · {{ p.mgmt_code|default('수출') }} · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-.ex-grid { border-collapse:collapse; white-space:nowrap; font-size:12px; min-width:1200px; }
+.ex-grid { border-collapse:collapse; white-space:nowrap; font-size:12px; min-width:1280px; }
 .ex-grid th, .ex-grid td { border:1px solid #e2e8f0; padding:5px 7px; }
 .ex-grid thead th { position:sticky; top:0; background:#eef2fb; z-index:3; font-weight:700; }
 .ex-grid td.read { background:#fafbfc; }
+.ex-grid td.sale { background:#f3f7ff; text-align:right; font-family:ui-monospace,Consolas,monospace; }
 .ex-grid input.exin { width:100%; box-sizing:border-box; border:1px solid #dbe3ef; border-radius:5px; padding:5px 6px; font:inherit; font-size:12px; }
 .ex-grid input.exin.num { text-align:right; }
 .ex-grid input.exin.usd { background:#fff7ed; }
 .ex-grid tr.dirty td:first-child { box-shadow:inset 3px 0 0 #f59e0b; }
 .ex-sect-h { margin:16px 0 8px; font-size:13.5px; font-weight:800; color:var(--qv-ink-2,#334155); }
 .ex-note { font-size:11.5px; color:var(--mute); margin-top:10px; line-height:1.6; }
+.bulk-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; padding:11px 13px; background:#eef6ff; border:1px solid #b9d2ff; border-radius:9px; margin:6px 0 14px; }
+.bulk-bar .f { display:flex; flex-direction:column; gap:3px; }
+.bulk-bar .f label { font-size:11px; font-weight:700; color:#1e40af; }
+.bulk-bar .f input { padding:6px 8px; border:1px solid #b9d2ff; border-radius:6px; font-size:12.5px; }
+.bulk-bar button { padding:7px 13px; border-radius:7px; font-size:12.5px; font-weight:700; cursor:pointer; border:1px solid; }
+.bulk-bar .apply { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+.bulk-bar .fill { background:#fff; color:#1d4ed8; border-color:#b9d2ff; }
+.pmodel { display:block; font-size:10px; color:#94a3b8; font-weight:500; margin-top:1px; }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}
@@ -21,13 +30,29 @@
     <div>
       <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <b>{{ p.mgmt_code|default('—') }}</b></div>
       <h1 class="page-title" data-dn="title">🚢 {{ p.name }} <em>통관 입력</em></h1>
-      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">고객사 {{ p.customer_name|default('—') }} · 통화 {{ p.currency|default('KRW') }} · 납기 {{ p.due_date|default('—') }} · <b style="color:#c2410c;">인보이스 금액은 USD 기준</b></div>
+      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
+        고객사 {{ p.customer_name|default('—') }}
+        {% if p.model_name %} · 모델 {{ p.model_name }}{% endif %}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}
+        · 통화 <b>{{ p.currency|default('KRW') }}</b>{% if p.fx_rate %} · 환율 {{ '{:,.2f}'.format(p.fx_rate) }}{% endif %}
+        · 납기 {{ p.due_date|default('—') }} · <b style="color:#c2410c;">인보이스 금액은 USD 기준</b>
+      </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <button type="button" class="btn btn-primary" onclick="saveAllCustoms()" id="saveAllBtn">💾 전체 저장</button>
       <a class="btn" href="/export/prep/{{ p.id }}/packing-list" target="_blank" style="border:1px solid #0f172a;background:#0f172a;color:#fff;">📦 패킹리스트</a>
       <a class="btn" href="/export/prep/{{ p.id }}/packing-list.xlsx" style="border:1px solid #047857;background:#047857;color:#fff;">📥 엑셀</a>
     </div>
+  </div>
+
+  {# v5H226z464(대표 지시): 같은 장비 호기는 원산지·HS·단가가 대부분 동일 → 전 품목 일괄 적용 + 판매가→인보이스 자동 #}
+  <div class="bulk-bar">
+    <div class="f"><label>원산지</label><input id="bulkOrigin" style="width:80px;" placeholder="KR"></div>
+    <div class="f"><label>HS CODE</label><input id="bulkHs" style="width:110px;" placeholder="8471.50"></div>
+    <div class="f"><label>인보이스단가(USD)</label><input id="bulkUnitUsd" inputmode="decimal" style="width:120px;text-align:right;" placeholder="0.00"></div>
+    <div class="f"><label>관세율%</label><input id="bulkDutyRate" inputmode="decimal" style="width:70px;text-align:right;" placeholder="0"></div>
+    <button type="button" class="apply" onclick="bulkApply()">⬇ 전 품목 적용</button>
+    <button type="button" class="fill" onclick="fillInvoiceFromSale()" title="판매단가를 인보이스단가(USD)로 — 통화 USD면 그대로, 그 외는 환율 환산">💵 판매단가 → 인보이스단가</button>
+    <span style="font-size:11px;color:#64748b;margin-left:auto;align-self:center;">같은 장비 호기는 한 번에 채우고, 다른 것만 행에서 수정하세요.</span>
   </div>
   <div style="margin:2px 0 12px;font-size:11.5px;color:var(--mute);">💡 통관 입력을 <b>저장</b>한 뒤 <b>패킹리스트</b>를 누르면 입력한 품목·중량·박스로 포장명세서가 만들어집니다.</div>
 
@@ -40,6 +65,7 @@
       <table class="ex-grid">
         <thead><tr>
           <th>품명</th><th>규격</th><th class="num">수량</th>
+          {% if can_money %}<th class="num">판매단가({{ p.currency|default('KRW') }})</th><th class="num">판매금액({{ p.currency|default('KRW') }})</th>{% endif %}
           <th>원산지</th><th>HS CODE</th><th class="num">관세율%</th><th class="num">VAT%</th>
           <th class="num">인보이스단가(USD)</th><th class="num">인보이스금액(USD)</th>
           <th class="num">관세(USD)</th><th class="num">최종(USD)</th>
@@ -48,6 +74,8 @@
         <tbody>
         {% for u in so.units %}
           {% set _qty = u.get('qty') or 0 %}
+          {% set _up = u.get('unit_price') %}
+          {% set _am = u.get('amount') %}
           {% set _origin = u.get('origin') %}
           {% set _hs = u.get('hs_code') %}
           {% set _dr = u.get('duty_rate') %}
@@ -59,10 +87,17 @@
           {% set _wt = u.get('weight_kg') %}
           {% set _bx = u.get('box_no') %}
           {% set _pl = u.get('pallet_size') %}
-          <tr data-iid="{{ u.id }}" data-qty="{{ _qty }}">
-            <td class="read" style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="{{ u.unit_label or '' }}">{{ u.unit_label or ('호기 ' ~ loop.index) }}</td>
+          <tr data-iid="{{ u.id }}" data-qty="{{ _qty }}" data-sale="{{ _up if _up is not none else 0 }}">
+            <td class="read" style="font-weight:600;max-width:220px;" title="{{ u.unit_label or '' }}">
+              {{ u.unit_label or ('호기 ' ~ loop.index) }}
+              {% if p.model_name or p.equip_name %}<span class="pmodel">{{ p.model_name or '' }}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}</span>{% endif %}
+            </td>
             <td class="read">{{ u.get('spec') or '—' }}</td>
             <td class="read num">{{ '{:,.0f}'.format(_qty) }}</td>
+            {% if can_money %}
+            <td class="sale">{{ '{:,.0f}'.format(_up) if _up else '—' }}</td>
+            <td class="sale">{{ '{:,.0f}'.format(_am) if _am else '—' }}</td>
+            {% endif %}
             <td><input class="exin" name="origin" value="{{ _origin or '' }}" placeholder="KR" maxlength="20"></td>
             <td><input class="exin" name="hs_code" value="{{ _hs or '' }}" placeholder="8471.50" maxlength="20"></td>
             <td><input class="exin num" name="duty_rate" inputmode="decimal" value="{{ _dr if _dr is not none else '' }}" placeholder="0"></td>
@@ -87,25 +122,26 @@
 
   <div class="ex-note">
     💡 <b>인보이스금액</b> = 인보이스단가 × 수량, <b>관세(USD)</b> = 인보이스금액 × 관세율%, <b>최종</b> = 인보이스금액 + 관세 — 자동 계산되며 직접 수정도 가능합니다.
-    여기서 입력한 통관 정보로 다음 단계(패킹리스트·인보이스·출고 QR)가 만들어집니다. 판매단가·금액은 이 화면에서 바뀌지 않습니다.
+    여기서 입력한 통관 정보로 다음 단계(패킹리스트·인보이스·출고 QR)가 만들어집니다. 판매단가·금액은 참고용이며 이 화면에서 바뀌지 않습니다.
   </div>
 </main>
 </div>
 <script>
 (function(){
+  var PROJ_CCY = '{{ (p.currency or "KRW")|upper }}';
+  var PROJ_FX = parseFloat('{{ p.fx_rate or 0 }}') || 0;
   function pn(el){ return el ? (parseFloat((el.value||'').replace(/,/g,''))||0) : 0; }
   function setIfEl(row, name, v){ var el=row.querySelector('input[name="'+name+'"]'); if(el) el.value = v; }
+  function val(id){ var e=document.getElementById(id); return e ? (e.value||'').trim() : ''; }
   function fmt(n){ return (Math.round(n*100)/100); }
   function recalc(row){
     var qty = parseFloat(row.dataset.qty||'0')||0;
     var iu = pn(row.querySelector('input[name="invoice_unit_price_usd"]'));
-    var ia = pn(row.querySelector('input[name="invoice_amount_usd"]'));
+    var ia;
     var dr = pn(row.querySelector('input[name="duty_rate"]'));
-    var du = pn(row.querySelector('input[name="duty_usd"]'));
-    // 인보이스금액: 단가 있으면 단가×수량 우선
     if(iu>0){ ia = fmt(iu*qty); setIfEl(row,'invoice_amount_usd', ia); }
     else { ia = pn(row.querySelector('input[name="invoice_amount_usd"]')); }
-    // 관세: 관세율 있으면 금액×율 우선
+    var du;
     if(dr>0){ du = fmt(ia*dr/100); setIfEl(row,'duty_usd', du); }
     else { du = pn(row.querySelector('input[name="duty_usd"]')); }
     setIfEl(row,'final_amount_usd', fmt(ia+du));
@@ -120,6 +156,35 @@
       });
     });
   });
+  // 전 품목 일괄 적용 (비어있지 않은 값만)
+  function bulkApply(){
+    var o=val('bulkOrigin'), h=val('bulkHs'), u=val('bulkUnitUsd'), d=val('bulkDutyRate');
+    if(o===''&&h===''&&u===''&&d===''){ alert('일괄 적용할 값을 한 개 이상 입력하세요.'); return; }
+    var n=0;
+    document.querySelectorAll('.ex-grid tbody tr').forEach(function(row){
+      if(o!=='') setIfEl(row,'origin',o);
+      if(h!=='') setIfEl(row,'hs_code',h);
+      if(u!=='') setIfEl(row,'invoice_unit_price_usd',u);
+      if(d!=='') setIfEl(row,'duty_rate',d);
+      markDirty(row); recalc(row); n++;
+    });
+    alert(n+'개 품목에 일괄 적용했습니다. 저장하려면 [💾 전체 저장]을 누르세요.');
+  }
+  // 판매단가 → 인보이스단가(USD): 통화 USD면 그대로, 그 외 환율(fx_rate=1USD당 원)로 환산
+  function fillInvoiceFromSale(){
+    var n=0, skip=0;
+    document.querySelectorAll('.ex-grid tbody tr').forEach(function(row){
+      var sale = parseFloat(row.dataset.sale||'0')||0;
+      if(sale<=0){ return; }
+      var usd;
+      if(PROJ_CCY==='USD') usd = sale;
+      else if(PROJ_FX>0) usd = fmt(sale/PROJ_FX);
+      else { skip++; return; }
+      setIfEl(row,'invoice_unit_price_usd', usd);
+      markDirty(row); recalc(row); n++;
+    });
+    alert('판매단가 → 인보이스단가(USD) 채움: '+n+'건'+(skip?('\n환율 없어 건너뜀 '+skip+'건 — 직접 입력하세요'):''));
+  }
   async function saveRow(row){
     var fd = new FormData();
     row.querySelectorAll('input.exin').forEach(function(inp){ fd.append(inp.getAttribute('name'), inp.value||''); });
@@ -142,6 +207,8 @@
     alert('통관 저장 완료: ' + ok + '건' + (fail? ('\n실패 ' + fail + '건 — 다시 시도하거나 권한/로그인 확인'):''));
   }
   window.saveAllCustoms = saveAllCustoms;
+  window.bulkApply = bulkApply;
+  window.fillInvoiceFromSale = fillInvoiceFromSale;
 })();
 </script>
 </body></html>

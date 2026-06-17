@@ -25832,8 +25832,10 @@ async def export_prep_detail(req: Request, pid: int):
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
+        # v5H226z464 (대표 지시): 통관 입력 화면에 모델명·장비명 참고 표시 → SELECT 에 추가
         prow = c.execute(
             """SELECT id, mgmt_code, name, customer_name, currency, fx_rate,
+                      model_name, equip_name,
                       status, stage, due_date, order_date, biz_div, shipment_form, is_export
                FROM projects WHERE id=?""", (pid,)).fetchone()
         if not prow:
