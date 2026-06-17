@@ -17268,14 +17268,54 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
         _y, _m = today.year, today.month
     data = build_schedule_board_rows(u, _y, _m, cust=cust, biz=biz)
     rows, can_money = data["rows"], data["can_money"]
+    # v5H226z475 (대표 지시): 엑셀 저장 컬럼을 화면 작업일정표와 일치 — '납기'→'납품일'(이름 일치) +
+    #   화면에 추가된 거래명세서·세금계산서 1/2/3차(can_money) 컬럼 반영. 세금계산서 칸은 화면처럼 발행일+금액.
+    #   세금계산서 2/3차·금액(amt1/2/3)은 export 빌더에 없으므로 페이지 빌더와 동일한 _taxmap 후처리로 주입.
+    if can_money:
+        _taxmap = {}
+        try:
+            _tf = ["tax_invoice_date2", "tax_invoice_date3", "tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"]
+            with db_session() as _tc:
+                _oc = {r[1] for r in _tc.execute("PRAGMA table_info(orders)").fetchall()}
+                _osel = ",".join(f if f in _oc else f"NULL AS {f}" for f in _tf)
+                for _rr in _tc.execute(f"SELECT project_id,{_osel} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+                    if _rr[0] and ("project", _rr[0]) not in _taxmap:
+                        _taxmap[("project", _rr[0])] = {_tf[i]: _rr[i + 1] for i in range(len(_tf))}
+                _cc = {r[1] for r in _tc.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+                _csel = ",".join(f if f in _cc else f"NULL AS {f}" for f in _tf)
+                for _rr in _tc.execute(f"SELECT id,{_csel} FROM consumable_orders"):
+                    _taxmap[("consumable", _rr[0])] = {_tf[i]: _rr[i + 1] for i in range(len(_tf))}
+        except Exception:
+            pass
+
+        def _ti_cell(_d, _a):
+            _d = str(_d or "")[:10]
+            try:
+                _a = float(_a) if _a not in (None, "", 0, "0") else 0
+            except Exception:
+                _a = 0
+            if _d and _a:
+                return f"{_d} ₩{_a:,.0f}"
+            return _d or (f"₩{_a:,.0f}" if _a else "")
+        for _row in rows:
+            _ti = _taxmap.get((_row.get("kind"), _row.get("ref_id"))) or {}
+            _row["_xl_ti1"] = _ti_cell(_row.get("tax_invoice_date"), _ti.get("tax_invoice_amt1"))
+            _row["_xl_ti2"] = _ti_cell(_ti.get("tax_invoice_date2"), _ti.get("tax_invoice_amt2"))
+            _row["_xl_ti3"] = _ti_cell(_ti.get("tax_invoice_date3"), _ti.get("tax_invoice_amt3"))
     headers = ["관리번호", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량"]
     keys = ["code", "so_no", "name", "model", "equip", "note", "qty"]
     if can_money:
         headers += ["단가", "금액", "통화"]; keys += ["price", "amount", "currency"]
     headers += ["거래구분", "PO유형", "형태", "고객사1", "고객사2", "부서", "담당자", "연락처",
-                "납품위치", "발주일", "납기", "단계", "영업담당자"]
+                "납품위치", "발주일", "납품일"]
     keys += ["trade", "po_type", "form_type", "customer", "cust2", "dept", "owner", "contact",
-             "ship_to", "order_date", "due_date", "st_cur", "sales_owner"]
+             "ship_to", "order_date", "due_date"]
+    # v5H226z475: 화면 추가 컬럼(거래명세서·세금계산서 1/2/3차) — 청구성격이라 can_money 만
+    if can_money:
+        headers += ["거래명세서", "1세금계산서", "2세금계산서", "3세금계산서"]
+        keys += ["statement_date", "_xl_ti1", "_xl_ti2", "_xl_ti3"]
+    headers += ["단계", "영업담당자"]
+    keys += ["st_cur", "sales_owner"]
     out_rows = [[r.get(k, "") for k in keys] for r in rows]
     sheets = [{"name": f"작업일정표 {_y}-{_m:02d}", "headers": headers, "rows": out_rows}]
     return _make_xlsx_response(sheets, f"작업일정표_{_y}-{_m:02d}")
@@ -17299,7 +17339,7 @@ def _build_bulk_template_buf():
     # v5H226z341 (대표 지시): 고객사(등록)→고객사1, 2차고객사→고객사2, 납품위치 다음에 영업담당자(우리 회사) 추가
     # v5H226z349 (대표 지시): 거래구분 다음에 '형태'(제품/상품/기타) 추가. PO유형은 A/S→수리 반영.
     headers = ["관리번호*", "프로젝트명", "모델명", "장비명", "고객사1*", "고객사2",
-               "발주일(YYYY-MM-DD)", "납기(YYYY-MM-DD)", "수량", "단가", "통화", "거래구분",
+               "발주일(YYYY-MM-DD)", "납품일(YYYY-MM-DD)", "수량", "단가", "통화", "거래구분",  # v5H226z475: 납기→납품일(화면 용어 일치·파서는 둘 다 인식)
                "형태", "PO유형", "담당자", "연락처", "납품위치", "영업담당자", "비고"]
     ws.append(headers)
     knk_fill = PatternFill("solid", fgColor="A5282C")
@@ -17335,7 +17375,7 @@ def _build_bulk_template_buf():
         ["모델명 / 장비명", "고객 아이템 모델명 / 당사 제작 장비명"],
         ["고객사1 *", "필수. 시스템에 '등록된 고객사'명과 정확히 일치해야 자동 연결됩니다(미일치 시 미연결 표시)"],
         ["고객사2", "2단계 발주 시 최종 고객(있을 때만)"],
-        ["발주일 / 납기", "YYYY-MM-DD 형식 (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일입니다 — 비우면 수주번호가 발행되지 않습니다(헤더만 등록)."],
+        ["발주일 / 납품일", "YYYY-MM-DD 형식 (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일입니다 — 비우면 수주번호가 발행되지 않습니다(헤더만 등록)."],
         ["수량 / 단가", "숫자만 입력"],
         ["통화 / 거래구분", "드롭다운(KRW·USD.. / 내수·수출)"],
         # v5H226z466: 형태 4종 안내
