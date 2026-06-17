@@ -196,11 +196,11 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 
 .sched td.editable { cursor:text; }
 .sched td.editable:hover { background:#eef6ff !important; box-shadow: inset 0 0 0 1px #93c5fd; }
-/* v5H226z467/z469: 세금계산서 1/2/3차 셀(발행일+금액 2줄) + 발행상태 + 미니 편집창 */
-.sched td.taxinv-cell { cursor:pointer; line-height:1.25; }
-.sched td.taxinv-cell .ti-d { font-size:11px; font-variant-numeric:tabular-nums; }
-.sched td.taxinv-cell .ti-a { font-size:10.5px; color:#1d4ed8; font-weight:700; }
-.sched td.taxinv-cell .ti-stat { font-size:9px; font-weight:800; margin-top:1px; }
+/* v5H226z467/z469: 세금계산서 1/2/3차 셀(발행일+금액 2줄) + 미니 편집창. z486(대표 지시): 발행완료 텍스트 제거→2줄·줄간격 압축으로 칸 높이 절감 */
+.sched td.taxinv-cell { cursor:pointer; line-height:1.05; padding-top:1px; padding-bottom:1px; }
+.sched td.taxinv-cell .ti-d { font-size:10.5px; font-variant-numeric:tabular-nums; }
+.sched td.taxinv-cell .ti-a { font-size:10px; color:#1d4ed8; font-weight:700; }
+.sched td.taxinv-cell .ti-stat { display:none; }   /* z486: 발행완료/미발행 텍스트 미표시(색만) */
 .sched td.taxinv-cell .ti-stat.bad { color:#c2410c; }
 .sched td.taxinv-cell .ti-stat.ok { color:#15803d; }
 .sched td.taxinv-cell.tax-mismatch { background:#fff4ed !important; box-shadow: inset 2px 0 0 #f59e0b; }
@@ -1189,6 +1189,16 @@ function openUnitTaxPop(box){
     }catch(e){ btn.disabled=false; toast('⚠ '+(e.message||'저장 실패')); }
   });
 }
+// v5H226z486 (대표 지시): 날짜 직접입력 정규화 — 260618(YYMMDD)·20260618(YYYYMMDD)·2026.06.18·2026/6/8 등 → YYYY-MM-DD. 못 알아보면 원문.
+function _normDate(s){
+  s=(s||'').trim(); if(!s) return s;
+  var m=s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
+  if(m) return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  var d=s.replace(/[^0-9]/g,'');
+  if(d.length===8) return d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8);
+  if(d.length===6) return '20'+d.slice(0,2)+'-'+d.slice(2,4)+'-'+d.slice(4,6);
+  return s;
+}
 function startEdit(td){
   if(_editing) return;
   const tr=td.closest('tr');
@@ -1207,7 +1217,9 @@ function startEdit(td){
   let done=false;
   const finish=(save)=>{
     if(done) return; done=true;
-    const val=inp.value.trim();
+    let val=inp.value.trim();
+    // v5H226z486 (대표 지시): 직접 입력 날짜칸은 일정 서식으로 — 260618·20260618·2026.06.18·2026/6/8 등 → YYYY-MM-DD
+    if(['order_date','due_date','statement_date'].indexOf(td.dataset.edit)>=0) val=_normDate(val);
     if(!save){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
     fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||''})})
@@ -1273,7 +1285,7 @@ function startTaxInvEdit(td, tr){
   pop.innerHTML='<div class="ti-pop-ttl">'+(td.title||'세금계산서')+'</div>'
     +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">₩</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">원</span></div>'
     +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd" value="'+curDate+'"></div>'
-    +'<div class="ti-pop-hint">1·2·3차 합계가 수주금액과 같아야 <b>발행완료</b>, 다르면 <b>미발행</b>으로 표시됩니다.</div>'
+    +'<div class="ti-pop-hint">1·2·3차 합계가 수주금액과 같으면 칸이 <b>초록</b>, 다르면 <b>주황</b>으로 표시됩니다.</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
   _editing={td,pop}; document.body.appendChild(pop);
   const rect=td.getBoundingClientRect();
@@ -1312,12 +1324,9 @@ function refreshTaxStatus(tr){
   let status='none';   // none=입력없음 / ok=합계=총액(발행완료) / mismatch=합계≠총액(미발행)
   if(anyAmt && total>0) status=(ssum===total)?'ok':'mismatch';
   cells.forEach(c=>{ c.classList.remove('tax-ok','tax-mismatch'); if(status==='ok') c.classList.add('tax-ok'); else if(status==='mismatch') c.classList.add('tax-mismatch'); });
-  const first=tr.querySelector('td.taxinv-cell[data-edit="taxinv1"]'); if(!first) return;
-  let badge=first.querySelector('.ti-stat');
-  if(status==='none'){ if(badge) badge.remove(); return; }
-  if(!badge){ badge=document.createElement('div'); badge.className='ti-stat'; first.appendChild(badge); }
-  badge.textContent=(status==='ok')?'✓ 발행완료':'⚠ 미발행';
-  badge.className='ti-stat '+(status==='ok'?'ok':'bad');
+  // v5H226z486 (대표 지시): '✓ 발행완료/⚠ 미발행' 텍스트 뱃지 제거(칸 높이 절약) — 셀 배경색(tax-ok/tax-mismatch)만으로 상태 표시.
+  const first=tr.querySelector('td.taxinv-cell[data-edit="taxinv1"]');
+  if(first){ const old=first.querySelector('.ti-stat'); if(old) old.remove(); }
 }
 // z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
 function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'})[c]||'₩'; }
