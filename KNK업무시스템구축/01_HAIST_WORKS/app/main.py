@@ -18700,7 +18700,7 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True, "units": units, "can_money": can_money,
-                         "statuses": list(_logi.UNIT_STATUSES)})
+                         "statuses": list(UNIT_STATUSES)})   # v5H226z482: UNIT_STATUSES는 main 전역(_logi 아님)
 
 
 @app.post("/sales/schedule/unit-field")
@@ -18737,7 +18737,7 @@ async def schedule_board_unit_field(request: Request):
             pid = it.get("project_id")
             if field == "status":
                 ns = (value or "").strip()
-                if ns not in _logi.UNIT_STATUSES:
+                if ns not in UNIT_STATUSES:   # v5H226z482: UNIT_STATUSES는 main 전역(_logi 아님)
                     return JSONResponse({"ok": False, "error": "허용 안 된 상태"}, 400)
                 c.execute("UPDATE order_items SET unit_status=?, updated_at=datetime('now','localtime') WHERE id=?", (ns, iid))
                 try:
