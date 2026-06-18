@@ -29925,6 +29925,18 @@ async def consumables_import_bulk_confirm(request: Request):
                 _put("ship_to", o.get("ship_to")); _put("sales_name", o.get("sales_name"))
                 if o.get("is_export") is not None and "is_export" in _cocols:
                     _sets.append("is_export=?"); _vals.append(int(o.get("is_export") or 0))
+                # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일·금액 일괄등록 반영
+                _put("statement_date", o.get("statement_date"))
+                _put("tax_invoice_date", o.get("tax_invoice_date"))
+                _put("tax_invoice_date2", o.get("tax_invoice_date2"))
+                _put("tax_invoice_date3", o.get("tax_invoice_date3"))
+                for _ac in ("tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"):
+                    try:
+                        _av = float(o.get(_ac) or 0)
+                    except Exception:
+                        _av = 0.0
+                    if _av > 0 and _ac in _cocols:
+                        _sets.append(f"{_ac}=?"); _vals.append(_av)
                 if _sets:
                     _vals.append(co_id)
                     c.execute(f"UPDATE consumable_orders SET {', '.join(_sets)} WHERE id=?", _vals)

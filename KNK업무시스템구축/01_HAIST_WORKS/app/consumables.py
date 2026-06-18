@@ -744,11 +744,16 @@ CO_BULK_HEADERS = ["연결 관리번호", "구분 번호", "모델명", "장비�
                    "소모품 규격 (SPEC)", "사진(PICTURE LOCATION)", "사진 (PICTURE)",
                    "1차 고객사", "2차 고객사", "발주일", "납품일", "통화", "거래구분", "형태",
                    "수량", "단위", "단가", "금액", "고객사 담당자", "고객사 담당자 연락처",
-                   "납품위치", "영업담당자", "비고"]
+                   "납품위치", "영업담당자", "비고",
+                   # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일·금액 — 발주(구분번호) 단위
+                   "거래명세서 발행일", "1세금계산서 발행일", "1세금계산서 금액",
+                   "2세금계산서 발행일", "2세금계산서 금액", "3세금계산서 발행일", "3세금계산서 금액"]
 # 1행 안내 문구(컬럼 위치 1-indexed별)
 CO_BULK_HINTS = {1: "있으면 입력(예:012T2601)", 2: "같은 발주=같은 번호", 5: "필수",
                  7: "ALT+크기조정", 8: "ALT+크기조정", 9: "필수(등록 고객사명)",
-                 11: "YYYY-MM-DD", 13: "KRW/USD/…", 14: "내수/수출", 15: "제품/상품/기타", 16: "필수"}
+                 11: "YYYY-MM-DD", 13: "KRW/USD/…", 14: "내수/수출", 15: "제품/상품/기타", 16: "필수",
+                 25: "YYYY-MM-DD(선택)", 26: "YYYY-MM-DD", 27: "숫자", 28: "YYYY-MM-DD",
+                 29: "숫자", 30: "YYYY-MM-DD", 31: "숫자"}
 
 
 def build_co_bulk_template_buf():
@@ -763,7 +768,8 @@ def build_co_bulk_template_buf():
     hintf = Font(color="9AA3AF", italic=True, size=9)
     thin = Side(style="thin", color="DDDDDD"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    widths = [14, 8, 18, 16, 20, 16, 16, 14, 13, 13, 12, 12, 7, 9, 9, 7, 6, 11, 12, 12, 14, 12, 11, 16]
+    widths = [14, 8, 18, 16, 20, 16, 16, 14, 13, 13, 12, 12, 7, 9, 9, 7, 6, 11, 12, 12, 14, 12, 11, 16,
+              13, 13, 12, 13, 12, 13, 12]   # v5H226z490: 거래명세서·세금계산서 1/2/3 발행일·금액 7열
     # 1행 = 안내 문구
     for ci in range(1, len(CO_BULK_HEADERS) + 1):
         hc = ws.cell(1, ci, CO_BULK_HINTS.get(ci, "")); hc.font = hintf; hc.alignment = center
@@ -783,7 +789,8 @@ def build_co_bulk_template_buf():
     # 예시 1줄(3행) — 업로드 시 품명 '예)' 접두로 자동 스킵
     ex = ["", "1", "WATCH9 검사기", "WATCH9 소모품", "예) Grip Pad", "KNK-P-001", "", "",
           "삼성전자", "", "2026-01-15", "2026-01-30", "KRW", "내수", "상품",
-          "6", "EA", "380000", "2280000", "홍길동", "010-0000-0000", "수원 본사", "김영업", "예시 — 지우고 작성"]
+          "6", "EA", "380000", "2280000", "홍길동", "010-0000-0000", "수원 본사", "김영업", "예시 — 지우고 작성",
+          "2026-02-05", "2026-02-10", "2280000", "", "", "", ""]   # 거래명세서·1세금계산서(예시), 2/3차 비움
     ws.append(ex)
     for ci in range(1, len(CO_BULK_HEADERS) + 1):
         ws.cell(3, ci).font = Font(color="9AA3AF", italic=True)
@@ -798,6 +805,7 @@ def build_co_bulk_template_buf():
         ["발주일·납품일", "YYYY-MM-DD. 발주일이 발주번호(C-YYMMDD) 기준일."],
         ["품명·수량 *", "필수. 단가/금액은 숫자(콤마 없이). 금액 비우면 수량×단가로 자동."],
         ["통화·거래구분·형태", "드롭다운(통화 KRW… / 내수·수출 / 제품·상품·기타). 통화 비우면 KRW, 거래구분 비우면 내수."],
+        ["거래명세서·세금계산서", "발주(구분번호) 단위로 한 줄에 입력 — 거래명세서 발행일 + 1/2/3세금계산서 발행일·금액(계약금/중도금/잔금). 날짜 YYYY-MM-DD·금액 숫자. 비우면 미발행. 업로드 후 작업일정표 세금계산서 칸에 표시됩니다."],
         ["연결 관리번호", "이 품목이 어느 장비(관리번호)의 소모품인지(선택). 예: 012T2601. 못 찾으면 미연결 등록 + 안내."],
         ["사진 / 사진위치", "'사진(PICTURE)'·'사진위치(PICTURE LOCATION)' 칸에 이미지를 붙여넣으면 품목별로 함께 등록됩니다."],
         ["주의", "3행 예시는 지우고 작성. 업로드 → 미리보기(발주 N건·품목 M개·사진 K개) → 확정."],
@@ -817,7 +825,7 @@ def _co_bulk_detect_header(ws, max_scan: int = 16) -> int:
     best_row, best = 0, 0
     for r in range(1, min(max_scan, ws.max_row) + 1):
         score = 0
-        for c in range(1, min(ws.max_column, 30) + 1):
+        for c in range(1, min(ws.max_column, 40) + 1):
             v = ws.cell(r, c).value
             if v is None:
                 continue
@@ -869,6 +877,14 @@ def _co_bulk_colmap(header_cells) -> dict:
     take("cc_name", "담당자", exclude=("영업", "연락처"))
     take("ship_to", "납품위치", "납품처")
     take("note", "비고", "REMARK")
+    # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일·금액 — 발주 단위. (amount 보다 뒤라 '금액' 단독은 위에서 선점됨)
+    take("statement_date", "거래명세서")
+    take("ti_date1", "1세금계산서발행")
+    take("ti_amt1", "1세금계산서금액")
+    take("ti_date2", "2세금계산서발행")
+    take("ti_amt2", "2세금계산서금액")
+    take("ti_date3", "3세금계산서발행")
+    take("ti_amt3", "3세금계산서금액")
     if "customer" not in cm:
         take("customer", "고객사", exclude=("담당자", "2차"))
     return cm
@@ -895,7 +911,7 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
     if not hdr:
         return {"ok": False, "error": "머리글(구분 번호·소모품 품명·수량…)을 찾지 못했습니다",
                 "orders": [], "total_orders": 0, "total_items": 0, "total_images": 0}
-    maxc = min(ws.max_column, 30)
+    maxc = min(ws.max_column, 40)   # v5H226z490: 컬럼 31개(거래명세서·세금계산서 추가)까지 커버
     cm = _co_bulk_colmap([(c, ws.cell(hdr, c).value) for c in range(1, maxc + 1)])
     if "part_name" not in cm:
         return {"ok": False, "error": "'소모품 품명' 열을 찾지 못했습니다",
@@ -946,6 +962,14 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
                 "ship_to": s(gv(r, "ship_to")), "sales_name": s(gv(r, "sales_name")),
                 "cust_ok": bool(match_customer_by_name(cust)) if cust else False,
                 "biz_div": "", "note": "", "items": [], "_errors": [], "_warn": "",
+                # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) — 발주 단위(첫 줄에서 읽음)
+                "statement_date": _date_str(gv(r, "statement_date")),
+                "tax_invoice_date": _date_str(gv(r, "ti_date1")),
+                "tax_invoice_amt1": num(gv(r, "ti_amt1")),
+                "tax_invoice_date2": _date_str(gv(r, "ti_date2")),
+                "tax_invoice_amt2": num(gv(r, "ti_amt2")),
+                "tax_invoice_date3": _date_str(gv(r, "ti_date3")),
+                "tax_invoice_amt3": num(gv(r, "ti_amt3")),
             }
             if not cust:
                 o["_errors"].append("1차 고객사 누락")
