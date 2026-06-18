@@ -18145,18 +18145,21 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     }
     # v5H226z264: 칸 너비·숨김 '내 계정' 설정 (JSON 문자열 — 템플릿 JS 에서 파싱)
     _col_prefs = _logi.view_prefs_get(u.get("id"), "schedule_board_cols") or "{}"
-    # v5H226z488 (대표 지시): 묶어 발행한 세금계산서 표시용 — 행 서명(row_sig)→{묶음번호·id} 맵 (영업·관리만)
+    # v5H226z488/z489 (대표 지시): 묶어 발행한 세금계산서 표시용 — (행 서명|차수)→{묶음번호·id} 맵 (영업·관리만)
+    #   차수 단위 묶음(z489) = 키 'row_sig|tier'. 같은 건이라도 1차는 묶음·2/3차는 개별이 가능.
     _ti_map = {}
     if _can_money:
         try:
             with db_session() as _tc:
                 _tcols = {r[1] for r in _tc.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
                 if _tcols:
+                    _has_tier = ("tier" in _tcols)
+                    _sel = ("SELECT l.row_sig, l.tier, t.id, t.ti_no" if _has_tier
+                            else "SELECT l.row_sig, 1 AS tier, t.id, t.ti_no")
                     for _tr in _tc.execute(
-                        "SELECT l.row_sig, t.id, t.ti_no FROM tax_invoice_lines l "
-                        "JOIN tax_invoices t ON t.id=l.ti_id WHERE t.status='발행'"):
+                        _sel + " FROM tax_invoice_lines l JOIN tax_invoices t ON t.id=l.ti_id WHERE t.status='발행'"):
                         if _tr[0]:
-                            _ti_map[_tr[0]] = {"id": _tr[1], "no": _tr[2]}
+                            _ti_map[f"{_tr[0]}|{_tr[1] or 1}"] = {"id": _tr[2], "no": _tr[3]}
         except Exception:
             _ti_map = {}
     return ctx(request, "schedule_board.html", user=u, active="sales_schedule",
@@ -18890,6 +18893,13 @@ async def schedule_tax_invoice_issue(request: Request):
         from datetime import date as _d
         issue_date = _d.today().isoformat()
     memo = (str(b.get("memo") or "").strip())
+    # v5H226z489 (대표 지시): 묶음은 세금계산서 차수(1=계약금·2=중도금·3=잔금) 단위 — 여러 건의 같은 차수끼리 한 장.
+    try:
+        tier = int(b.get("tier") or 1)
+    except Exception:
+        tier = 1
+    if tier not in (1, 2, 3):
+        tier = 1
     # 고객사 일치 검사 — 다르면 경고(force 시 허용)
     custs = sorted({(ln.get("customer") or "").strip() for ln in lines if (ln.get("customer") or "").strip() and (ln.get("customer") or "").strip() != "—"})
     if len(custs) > 1 and not force:
@@ -18916,6 +18926,18 @@ async def schedule_tax_invoice_issue(request: Request):
     cust_name = (custs[0] if custs else "")
     try:
         with db_session() as c:
+            # v5H226z489: 같은 차수가 이미 다른 '발행' 세금계산서에 묶여 있으면 차단(이중발행 방지)
+            _sigs = [n["sig"] for n in norm]
+            if _sigs:
+                _ph = ",".join("?" * len(_sigs))
+                _dup = c.execute(
+                    f"SELECT l.mgmt_code, l.label, t.ti_no FROM tax_invoice_lines l "
+                    f"JOIN tax_invoices t ON t.id=l.ti_id "
+                    f"WHERE t.status='발행' AND l.tier=? AND l.row_sig IN ({_ph})",
+                    [tier] + _sigs).fetchall()
+                if _dup:
+                    _names = ", ".join((d[0] or "") + (f"({d[1]})" if d[1] else "") + f"→#{d[2] or ''}" for d in _dup)
+                    return JSONResponse({"ok": False, "error": f"{tier}차가 이미 다른 세금계산서에 묶여 있는 건이 있습니다: {_names}. 먼저 그 발행을 취소하세요."}, 400)
             ym = issue_date[2:4] + issue_date[5:7]   # YYMM
             prefix = f"TI-{ym}-"
             seq = (c.execute("SELECT COUNT(*) FROM tax_invoices WHERE ti_no LIKE ?", (prefix + "%",)).fetchone()[0] or 0) + 1
@@ -18931,12 +18953,12 @@ async def schedule_tax_invoice_issue(request: Request):
             ti_id = cur.lastrowid
             for n in norm:
                 c.execute(
-                    "INSERT INTO tax_invoice_lines(ti_id, row_sig, ref_kind, ref_id, unit_iids, mgmt_code, label, customer, amount) "
-                    "VALUES(?,?,?,?,?,?,?,?,?)",
-                    (ti_id, n["sig"], n["rkind"], n["ref_id"], n["uids"], n["mgmt_code"], n["label"], n["customer"], n["amount"]))
+                    "INSERT INTO tax_invoice_lines(ti_id, row_sig, ref_kind, ref_id, unit_iids, mgmt_code, label, customer, amount, tier) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (ti_id, n["sig"], n["rkind"], n["ref_id"], n["uids"], n["mgmt_code"], n["label"], n["customer"], n["amount"], tier))
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
-    return JSONResponse({"ok": True, "ti_no": ti_no, "ti_id": ti_id, "n": len(norm), "total": total, "currency": currency})
+    return JSONResponse({"ok": True, "ti_no": ti_no, "ti_id": ti_id, "n": len(norm), "total": total, "currency": currency, "tier": tier})
 
 
 @app.get("/sales/schedule/tax-invoice/{ti_id:int}")
@@ -18953,12 +18975,13 @@ async def schedule_tax_invoice_view(request: Request, ti_id: int):
             return JSONResponse({"ok": False, "error": "not_found"}, 404)
         t = dict(t)
         ls = [dict(r) for r in c.execute(
-            "SELECT mgmt_code, label, customer, amount FROM tax_invoice_lines WHERE ti_id=? ORDER BY id", (ti_id,)).fetchall()]
+            "SELECT mgmt_code, label, customer, amount, tier FROM tax_invoice_lines WHERE ti_id=? ORDER BY id", (ti_id,)).fetchall()]
+    _tier = (ls[0].get("tier") if ls else 1) or 1
     return JSONResponse({"ok": True, "invoice": {
         "id": t["id"], "ti_no": t.get("ti_no"), "issue_date": t.get("issue_date"),
         "customer_name": t.get("customer_name"), "total_amount": t.get("total_amount"),
         "currency": t.get("currency"), "memo": t.get("memo"), "status": t.get("status"),
-        "created_by_name": t.get("created_by_name") or ""}, "lines": ls})
+        "tier": _tier, "created_by_name": t.get("created_by_name") or ""}, "lines": ls})
 
 
 @app.post("/sales/schedule/tax-invoice/{ti_id:int}/cancel")

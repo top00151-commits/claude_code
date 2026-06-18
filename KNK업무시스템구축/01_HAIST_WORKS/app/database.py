@@ -2851,9 +2851,14 @@ def init_db():
                 mgmt_code   TEXT,                          -- 관리번호 스냅샷
                 label       TEXT,                          -- 호기 라벨 스냅샷('1~3호기' 등)
                 customer    TEXT,                          -- 고객사 스냅샷
-                amount      REAL DEFAULT 0
+                amount      REAL DEFAULT 0,
+                tier        INTEGER DEFAULT 1              -- v5H226z489: 차수(1=계약금·2=중도금·3=잔금)
             )""")
             c.execute("CREATE INDEX IF NOT EXISTS idx_ti_lines_sig ON tax_invoice_lines(row_sig)")
+            # v5H226z489 (대표 지시): 기존 배포 테이블에 tier(차수) 보강 — 묶음을 1/2/3차 단위로
+            _tlc = {r[1] for r in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
+            if "tier" not in _tlc:
+                c.execute("ALTER TABLE tax_invoice_lines ADD COLUMN tier INTEGER DEFAULT 1")
         except Exception as _e:
             print(f"[v5H226z488] tax_invoices 생성 스킵: {_e}")
 
