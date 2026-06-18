@@ -18,14 +18,14 @@ sso_client.py — 메신저 SSO 클라이언트 (HAIST WORKS Phase 2)
     Q6=C: POST /login 은 admin 백도어 + 일반 사용자는 SSO redirect
 
 확정 인터페이스 (메신저 측):
-    - GET  https://haist.knknara.co.kr/msg/sso/login?redirect_uri=...
-    - GET  https://haist.knknara.co.kr/msg/api/sso/public-key  (PEM 또는 ?format=jwk)
-    - GET  https://haist.knknara.co.kr/msg/api/sso/userinfo    (Bearer)
-    - POST https://haist.knknara.co.kr/msg/api/sso/revoke      (Bearer)
+    - GET  https://msg.knknara.co.kr/sso/login?redirect_uri=...   (v5H226z492: 컨테이너 분리·전용 도메인)
+    - GET  https://msg.knknara.co.kr/api/sso/public-key  (PEM 또는 ?format=jwk)
+    - GET  https://msg.knknara.co.kr/api/sso/userinfo    (Bearer)
+    - POST https://msg.knknara.co.kr/api/sso/revoke      (Bearer)
 
 JWT 규격:
     - 알고리즘: RS256 (메신저 private 서명, SP는 public으로 검증만)
-    - iss: https://haist.knknara.co.kr/msg/
+    - iss: https://msg.knknara.co.kr/   (⚠ 메신저가 이 issuer로 발행해야 검증 통과)
     - aud: haist-works
     - exp: 3600초 (1시간)
     - sub: 사번 (employee_no)
@@ -46,7 +46,7 @@ import jwt as pyjwt
 #   - INTERNAL: 서버측 API 호출용 (NAT loopback 회피 시 localhost)
 MESSENGER_BASE = os.environ.get(
     "KNK_MESSENGER_SSO_BASE",
-    "https://haist.knknara.co.kr/msg",
+    "https://msg.knknara.co.kr",   # v5H226z492 (2026-06-18): 컨테이너 분리 — 메신저 전용 도메인(기존 haist…/msg)
 ).rstrip("/")
 # 서버 내부 호출용 base. 미설정 시 PUBLIC 과 동일 (NAT loopback 가능 환경)
 MESSENGER_INTERNAL_BASE = os.environ.get(
@@ -56,7 +56,7 @@ MESSENGER_INTERNAL_BASE = os.environ.get(
 SSO_AUDIENCE = os.environ.get("KNK_SSO_AUDIENCE", "haist-works")
 SSO_ISSUER   = os.environ.get(
     "KNK_SSO_ISSUER",
-    "https://haist.knknara.co.kr/msg/",
+    "https://msg.knknara.co.kr/",   # v5H226z492: 메신저 전용 도메인 issuer (메신저 JWT iss 와 반드시 일치)
 )
 
 # public key 캐싱 (메모리, TTL 1시간) — Q3=A
@@ -110,7 +110,7 @@ def verify_token(token: str) -> Optional[dict]:
     검증 항목:
       - 서명 (RS256, public key)
       - aud == 'haist-works'
-      - iss == 'https://haist.knknara.co.kr/msg/'
+      - iss == 'https://msg.knknara.co.kr/'   (v5H226z492: 컨테이너 분리·전용 도메인)
       - exp (자동)
     """
     if not token or not isinstance(token, str):
