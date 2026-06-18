@@ -13419,9 +13419,8 @@ async def mail_rules_apply(req: Request):
 
 
 @app.get("/mail/{mail_id:int}/att/{att_id:int}")
-async def mail_attachment(req: Request, mail_id: int, att_id: int, confirm: int = 0):
-    """첨부/인라인 이미지 서빙(소유권 강제: 메일 소유자만). 이미지는 inline, 그 외 다운로드.
-    보안(2026-06-19): 실행파일 등 위험 확장자는 경고 페이지 경유(confirm=1)만 다운로드 — 무심코 클릭→감염 방지."""
+async def mail_attachment(req: Request, mail_id: int, att_id: int):
+    """첨부/인라인 이미지 서빙(소유권 강제: 메일 소유자만). 이미지는 inline, 그 외 다운로드."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -13429,32 +13428,12 @@ async def mail_attachment(req: Request, mail_id: int, att_id: int, confirm: int 
         a = _mailbox.get_attachment(c, att_id, u["id"])
     if not a:
         return Response(status_code=404)
-    fn = a["filename"] or "attachment"
-    _ext = _mailbox._att_ext(fn)
-    _danger = _ext in _mailbox.DANGEROUS_EXTS
-    if _danger and not confirm:
-        import html as _hm
-        sfn, sext = _hm.escape(fn), _hm.escape(_ext)
-        warn = ("<!DOCTYPE html><html lang='ko'><head><meta charset='utf-8'>"
-                "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-                "<title>위험한 첨부</title></head>"
-                "<body style=\"font-family:system-ui,-apple-system,'Malgun Gothic',sans-serif;max-width:520px;margin:42px auto;padding:0 18px;color:#1f2430\">"
-                "<div style='border:2px solid #fca5a5;background:#fef2f2;border-radius:14px;padding:22px'>"
-                "<h2 style='color:#b91c1c;margin:0 0 10px'>⚠ 위험한 첨부파일입니다</h2>"
-                "<p style='font-size:15px;line-height:1.7'><b>" + sfn + "</b><br>이 파일은 <b>실행파일(" + sext +
-                ")</b>이라, 열면 <b>악성코드·랜섬웨어</b>에 감염될 수 있습니다.</p>"
-                "<p style='font-size:14px;color:#6b7280;line-height:1.7'>보낸사람을 <b>확실히 신뢰</b>하고 이 파일을 받기로 "
-                "<b>미리 약속</b>한 게 아니라면 <b>절대 받지 마세요.</b> 조금이라도 의심되면 전산담당자에게 먼저 확인하세요.</p>"
-                "<div style='margin-top:18px;display:flex;gap:10px;flex-wrap:wrap'>"
-                "<a href='javascript:history.back()' style='background:#15803d;color:#fff;text-decoration:none;padding:11px 18px;border-radius:9px;font-weight:700'>← 돌아가기 (안전)</a>"
-                "<a href='?confirm=1' style='background:#fff;color:#b91c1c;border:1px solid #fca5a5;text-decoration:none;padding:11px 18px;border-radius:9px'>위험을 감수하고 받기</a>"
-                "</div></div></body></html>")
-        return HTMLResponse(warn)
     mime = a["mime"] or "application/octet-stream"
     # 파일명 RFC5987(한글 안전) — ASCII fallback + UTF-8
     import urllib.parse as _up
-    # 위험 확장자는 confirm 후에도 브라우저서 바로 안 열리게 무조건 다운로드(attachment). 그 외 이미지·PDF는 미리보기.
-    disp = "attachment" if _danger else ("inline" if (mime.startswith("image/") or mime == "application/pdf") else "attachment")
+    fn = a["filename"] or "attachment"
+    # 이미지·PDF 는 브라우저에서 바로 미리보기(inline), 그 외는 다운로드 (Phase4)
+    disp = "inline" if (mime.startswith("image/") or mime == "application/pdf") else "attachment"
     headers = {
         "Content-Disposition": f"{disp}; filename*=UTF-8''{_up.quote(fn)}",
         "X-Content-Type-Options": "nosniff",
