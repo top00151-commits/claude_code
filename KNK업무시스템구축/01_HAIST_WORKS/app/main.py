@@ -17007,6 +17007,7 @@ def _merge_units_same(lines):
         base = dict(grp[0])
         n = len(grp)
         base["count"] = n
+        base["iids"] = [g.get("iid") for g in grp if g.get("iid")]   # v5H226z487: 묶인 호기 전체 iid(직접수정 대상)
         if n > 1:
             base["label"] = _summarize_unit_labels([g.get("label") for g in grp])
             base["amount"] = round(float(grp[0].get("amount") or 0) * n, 2)  # 그룹 소계(=단가×묶음수량)
@@ -17069,6 +17070,7 @@ def _board_split_lines_map():
                 eff_ship = (str(d.get("i_ship") or "").strip() or str(d.get("o_ship") or "").strip())
                 eff_cur = (str(d.get("i_cur") or "").strip() or str(d.get("o_cur") or "").strip() or "KRW")
                 _by.setdefault(pid, []).append({
+                    "iid": d.get("oi_id"),   # v5H226z487: 호기 분할 줄 직접수정(/unit-field) 라우팅용
                     "label": (d.get("lbl") or "").strip(),
                     "price": float(d.get("up") or 0),
                     "amount": float(d.get("amt") or 0),
@@ -17202,6 +17204,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             for _ln in _ulines:
                 _iu = dict(info)
                 _iu["is_unit"] = True
+                _iu["unit_iids"] = _ln.get("iids") or []   # v5H226z487: 이 줄이 가리키는 호기(order_items) — 직접수정 라우팅
                 _iu["unit_label"] = _ln["label"]
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
                 _iu["price"] = _ln["price"]
@@ -18031,6 +18034,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             for _ln in _ulines:
                 _iu = dict(info)
                 _iu["is_unit"] = True
+                _iu["unit_iids"] = _ln.get("iids") or []   # v5H226z487: 이 줄이 가리키는 호기(order_items) — 직접수정 라우팅
                 _iu["unit_label"] = _ln["label"]
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
                 _iu["price"] = _ln["price"]

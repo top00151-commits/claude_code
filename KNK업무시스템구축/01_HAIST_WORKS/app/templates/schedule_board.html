@@ -512,7 +512,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         {% set _cursym = {'KRW':'₩','USD':'$','VND':'₫','JPY':'¥','CNY':'¥','EUR':'€'} %}
         {% for r in rows %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}">
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}"{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> <a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}" title="프로젝트 상세">{{ r.code }}</a>{% if r.unit_label %} <span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#eef2ff;color:#4338ca;font-size:11px;font-weight:700;vertical-align:middle;" title="호기별 단가·납기가 달라 호기당 1줄로 표시">{{ r.unit_label }}</span>{% endif %}{% endif %}{# v5H226z481 (대표 지시): 수량 2개 이상=호기 여러 대 → '+' 펼치기 #}{% if r.kind != 'consumable' and (r.qty|int) >= 2 %}<span class="row-exp" title="호기 펼치기/접기" role="button">＋</span>{% endif %}</td>
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
           {# v5H226z365 (대표 지시): 프로젝트명 보드 인라인 편집 — 프로젝트만(소모품은 '소모품' 고정 표시·읽기전용) #}
@@ -522,8 +522,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           <td class="c-info cw-note editable{% if r.note %} filled{% endif %}" data-col="note" data-edit="note" title="{{ r.note }}">{{ r.note or '＋' }}</td>
           <td class="c-info cw-qty{% if r.kind != 'consumable' and not r.is_unit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty"{% if r.kind != 'consumable' and not r.is_unit %} data-edit="qty"{% endif %}>{{ r.qty if r.qty else ('＋' if (r.kind != 'consumable' and not r.is_unit) else '') }}</td>
           {% if can_money %}
-          <td class="c-info cw-price{% if r.kind != 'consumable' and not r.is_unit %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' and not r.is_unit %} data-edit="price"{% endif %}>{% if r.price %}{{ _cursym.get(r.currency,'₩') }}{{ "{:,.0f}".format(r.price|float) }}{% else %}{{ '＋' if (r.kind != 'consumable' and not r.is_unit) else '' }}{% endif %}</td>
-          <td class="c-info cw-amount{% if r.kind != 'consumable' and not r.is_unit %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' and not r.is_unit %} data-edit="amount"{% endif %}>{% if r.amount %}{{ _cursym.get(r.currency,'₩') }}{{ "{:,.0f}".format(r.amount|float) }}{% else %}{{ '＋' if (r.kind != 'consumable' and not r.is_unit) else '' }}{% endif %}</td>
+          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.price %}{{ _cursym.get(r.currency,'₩') }}{{ "{:,.0f}".format(r.price|float) }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
+          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.amount %}{{ _cursym.get(r.currency,'₩') }}{{ "{:,.0f}".format(r.amount|float) }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
           {% endif %}
           <td class="c-info cw-trade{% if r.kind != 'consumable' %} editable{% if r.trade %} filled{% endif %}{% endif %}" data-col="trade"{% if r.kind != 'consumable' %} data-edit="trade"{% endif %}>{{ r.trade }}</td>
           <td class="c-info cw-po{% if r.kind != 'consumable' %} editable{% if r.po_type %} filled{% endif %}{% endif %}" data-col="po"{% if r.kind != 'consumable' %} data-edit="po_type"{% endif %}>{{ r.po_type or ('＋' if r.kind != 'consumable' else '—') }}</td>
@@ -1205,10 +1205,14 @@ function startEdit(td){
   // v5H226z467 (대표 지시): 세금계산서 1/2/3차(계약금/중도금/잔금) — 발행일+금액 미니 편집창
   if(td.dataset.edit && td.dataset.edit.indexOf('taxinv')===0){ startTaxInvEdit(td, tr); return; }
   // v5H226z349 (대표 지시): 형태 = 드롭다운(제품/상품/기타) 선택 편집
-  if(td.dataset.edit==='form_type'){ startSelectEdit(td, tr, ['','제품','상품','기타']); return; }
+  if(td.dataset.edit==='form_type'){ startSelectEdit(td, tr, ['','완제품','제품','상품','기타']); return; }
   // v5H226z366 (대표 지시): 거래구분(수출/내수)·PO유형(신규/추가/개조/수리/기타)도 드롭다운 선택 편집
   if(td.dataset.edit==='trade'){ startSelectEdit(td, tr, ['수출','내수']); return; }
   if(td.dataset.edit==='po_type'){ startSelectEdit(td, tr, ['','신규','추가','개조','수리','기타']); return; }
+  // v5H226z487 (대표 지시): 호기 분할 줄(is_unit)은 그 호기(order_items)를 직접 수정 — 단가/금액/납기/발주일/납품처.
+  //   (분할 줄은 프로젝트 대표값이 아니라 호기별 값이므로 /unit-field 로 라우팅. 묶음줄은 묶인 호기 전체에 동일 적용.)
+  var _uids = (tr.dataset.uids||'').split(',').filter(Boolean);
+  if(_uids.length && ['price','amount','due_date','order_date','ship_to'].indexOf(td.dataset.edit)>=0){ startUnitEdit(td, tr, _uids); return; }
   let cur = td.classList.contains('filled') ? td.textContent.trim() : '';
   // 숫자/금액 칸은 통화기호·콤마 빼고 순수 숫자만 편집
   if(['qty','price','amount'].indexOf(td.dataset.edit)>=0) cur=cur.replace(_MONEY_STRIP,'');
@@ -1239,6 +1243,43 @@ function startEdit(td){
         }
         else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ '+(j.message||j.error||'저장 실패')); }
       }).catch(()=>{ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
+  };
+  inp.addEventListener('blur',()=>finish(true));
+  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+}
+// v5H226z487 (대표 지시): 호기 분할 줄(is_unit) 인라인 편집 — 프로젝트 대표값이 아니라 '그 호기(order_items)'를 직접 수정.
+//   단가/금액/납기/발주일/납품처를 호기별 엔드포인트(/unit-field)로 저장. 묶음줄은 묶인 호기 전체에 동일 적용(금액은 호기수로 나눠 단가 역산).
+//   확정 SO(송장·수금·취소) 호기는 서버에서 거부 → 토스트로 표면화. 저장 후 묶음 재계산이 바뀔 수 있어 리로드로 반영.
+function startUnitEdit(td, tr, uids){
+  if(_editing) return;
+  const fld=td.dataset.edit;
+  const isNum=(fld==='price'||fld==='amount');
+  let cur = td.classList.contains('filled') ? td.textContent.trim() : '';
+  if(isNum) cur=cur.replace(_MONEY_STRIP,'');
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur;
+  _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
+  let done=false;
+  const finish=async(save)=>{
+    if(done) return; done=true;
+    let val=inp.value.trim();
+    if(['order_date','due_date'].indexOf(fld)>=0) val=_normDate(val);
+    if(!save){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
+    let ufield, uvalue;
+    if(fld==='price'){ ufield='unit_price'; uvalue=val.replace(/,/g,''); }
+    else if(fld==='amount'){ ufield='unit_price'; var n=parseFloat(val.replace(/,/g,''))||0; uvalue=String(n/Math.max(1,uids.length)); }
+    else { ufield=fld; uvalue=val; }   // due_date·order_date·ship_to 그대로
+    try{
+      let okAll=true, msg='';
+      for(let k=0;k<uids.length;k++){
+        const r=await fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({iid:parseInt(uids[k],10),field:ufield,value:uvalue})});
+        const j=await r.json();
+        if(!j.ok){ okAll=false; msg=j.error||'저장 실패'; break; }
+      }
+      _editing=null;
+      if(okAll){ toast('저장됨 · 호기 반영'); setTimeout(function(){ location.reload(); }, 450); }
+      else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ '+msg); }
+    }catch(e){ _editing=null; td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ 통신 오류'); }
   };
   inp.addEventListener('blur',()=>finish(true));
   inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
@@ -1576,7 +1617,7 @@ var BULK_FIELDS = [
   {f:'cust2', label:'고객사2', type:'text'},
   {f:'po_type', label:'PO유형', type:'select', opts:['신규','추가','개조','수리','기타']},
   {f:'trade', label:'거래구분', type:'select', opts:['수출','내수']},
-  {f:'form_type', label:'형태', type:'select', opts:['제품','상품','기타']},
+  {f:'form_type', label:'형태', type:'select', opts:['완제품','제품','상품','기타']},
   {f:'model', label:'모델명', type:'text'},
   {f:'equip', label:'장비명', type:'text'},
   {f:'note', label:'기타사항', type:'text'},
