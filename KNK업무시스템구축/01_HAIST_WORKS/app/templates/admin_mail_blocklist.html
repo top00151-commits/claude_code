@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/><title>메일 차단목록 · KNK Eum MAIL</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+  .bl-wrap{max-width:820px}
+  .bl-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px 18px;margin-bottom:14px}
+  .bl-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .bl-add input[type=text]{flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px}
+  .bl-add select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .bl-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .bl-row:last-child{border-bottom:0}
+  .bl-pat{flex:1;font-weight:600;font-size:14px;word-break:break-all}
+  .bl-kind{flex:none;font-size:11px;padding:2px 8px;border-radius:6px;background:#f3f4f6;color:#4b5563}
+  .bl-kind.domain{background:#fef3c7;color:#92400e}
+  .bl-note{font-size:12px;color:var(--mute)}
+  .bl-help{font-size:12.5px;color:var(--mute);line-height:1.85;background:#fffbeb;border:1px solid var(--amber);border-radius:9px;padding:11px 14px;margin-bottom:14px}
+  .bl-empty{padding:30px;text-align:center;color:var(--mute)}
+  .bl-msg{font-size:12.5px;min-height:18px;margin-top:8px}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab='home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">KNK Eum MAIL</a> · 관리</div>
+    <h1 class="page-title">🚫 메일 <em>차단목록</em> <span style="font-size:13px;color:var(--mute);font-weight:500;">— 위험·스팸 주소를 등록해 자동 격리</span></h1>
+  </div></div>
+  <div class="bl-wrap">
+    <div class="bl-help">
+      <b>이렇게 동작합니다</b> — 여기 등록한 <b>이메일 주소</b>나 <b>도메인</b>에서 오는 메일은 받은편지함에 안 보이고 <b>🚫 차단함</b>으로 자동 격리됩니다(삭제가 아니라 격리 — 복구 가능).<br>
+      · <b>이메일</b>: <code>spam@evil.com</code> 처럼 그 주소만 차단<br>
+      · <b>도메인</b>: <code>evil.com</code> — 그 도메인의 <b>모든 주소</b>(@evil.com·하위도메인 포함) 차단<br>
+      · 등록하면 <b>이미 받은 메일도 함께</b> 차단함으로 옮깁니다.
+    </div>
+    <div class="bl-card">
+      <div class="bl-add">
+        <select id="blKind"><option value="email">이메일 주소</option><option value="domain">도메인 전체</option></select>
+        <input type="text" id="blPattern" placeholder="spam@evil.com 또는 evil.com" autocomplete="off">
+        <input type="text" id="blNote" placeholder="메모(선택)" style="max-width:160px">
+        <button type="button" class="btn btn-primary" onclick="blAdd()">+ 차단 추가</button>
+      </div>
+      <div class="bl-msg" id="blMsg"></div>
+    </div>
+    <div class="bl-card" style="padding:0">
+      {% if blocks %}
+      {% for b in blocks %}
+      <div class="bl-row" data-id="{{ b.id }}">
+        <span class="bl-kind {{ b.kind }}">{{ '도메인' if b.kind=='domain' else '이메일' }}</span>
+        <span class="bl-pat">{{ b.pattern }}</span>
+        {% if b.note %}<span class="bl-note">{{ b.note }}</span>{% endif %}
+        <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="blRemove({{ b.id }})">해제</button>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="bl-empty">등록된 차단 항목이 없습니다. 위에서 주소나 도메인을 추가하세요.</div>
+      {% endif %}
+    </div>
+    <div style="margin:6px 0 20px;display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="/mail/blocked" class="btn btn-secondary">🚫 차단함 보기{% if blocked_n %} ({{ blocked_n }}){% endif %}</a>
+      <a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a>
+    </div>
+  </div>
+</main></div>
+<script>
+function _blPost(url, body){ var fd=new FormData(); for(var k in body){ fd.append(k, body[k]); } return fetch(url,{method:'POST',body:fd}).then(function(r){return r.json();}); }
+async function blAdd(){
+  var pat=document.getElementById('blPattern').value.trim();
+  var kind=document.getElementById('blKind').value;
+  var note=document.getElementById('blNote').value.trim();
+  var el=document.getElementById('blMsg');
+  if(!pat){ el.style.color='#b91c1c'; el.textContent='주소나 도메인을 입력하세요.'; return; }
+  el.style.color='var(--mute)'; el.textContent='추가 중…';
+  try{ var j=await _blPost('/mail/blocklist/add', {pattern:pat, kind:kind, note:note});
+    if(j.ok){ el.style.color='#15803d'; el.textContent='✅ 차단했습니다'+(j.moved?(' · 기존 '+j.moved+'통도 차단함으로 이동'):''); setTimeout(function(){location.reload();}, 900); }
+    else { el.style.color='#b91c1c'; el.textContent='⚠ '+(j.message||'실패'); }
+  }catch(e){ el.style.color='#b91c1c'; el.textContent='⚠ 네트워크 오류'; }
+}
+async function blRemove(id){
+  if(!confirm('이 차단을 해제할까요?\n(이미 차단함에 있는 메일은 그대로 남습니다 — 차단함에서 개별 복구하세요)')) return;
+  try{ var j=await _blPost('/mail/blocklist/remove', {id:id}); if(j.ok) location.reload(); else alert('실패'); }catch(e){ alert('네트워크 오류'); }
+}
+</script>
+</body></html>

@@ -3,6 +3,12 @@
 {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
 {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
 
+{% if m.risk_level and m.risk_level >= 2 %}
+<div class="mv-warn high">⚠ <b>위험 메일 — 주의</b> · {{ m.risk_note or '외부·미인증 발신' }}. <span>모르는 발신이면 <b>링크·첨부를 절대 누르지 마세요.</b></span>{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">🚫 이 발신 차단</button>{% endif %}</div>
+{% elif m.risk_level and m.risk_level == 1 %}
+<div class="mv-warn low">ℹ️ 외부에서 온 메일입니다. 모르는 발신이면 링크·첨부에 주의하세요.{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">🚫 차단</button>{% endif %}</div>
+{% endif %}
+
 <div class="mv-head">
   <h1 class="mv-subj">{{ m.subject }}<span class="mv-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span></h1>
   <div class="mv-meta">
@@ -57,9 +63,11 @@
       <span class="mv-att-cap">🖼 {{ a.filename }}</span>
     </a>
     {% else %}
-    <a class="mv-att" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer">
-      <span>{% if a.mime == 'application/pdf' %}📕{% else %}📄{% endif %}</span>
-      <span>{{ a.filename }}</span>
+    {% set _ext = (a.filename or '').lower().rsplit('.',1)[-1] if '.' in (a.filename or '') else '' %}
+    {% set _dng = _ext in ('exe','scr','com','pif','bat','cmd','vbs','vbe','js','jse','jar','lnk','msi','reg','ps1','wsf','hta','cpl','scf','inf','chm','iso','img','vhd') %}
+    <a class="mv-att {{ 'danger' if _dng else '' }}" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer"{% if _dng %} title="위험: 실행파일 — 함부로 열지 마세요"{% endif %}>
+      <span>{% if _dng %}⚠{% elif a.mime == 'application/pdf' %}📕{% else %}📄{% endif %}</span>
+      <span>{{ a.filename }}{% if _dng %} <b>(위험: 실행파일)</b>{% endif %}</span>
       <span class="mv-att-sz">{% if a.size %}{{ (a.size / 1024)|round(1) }} KB{% endif %}</span>
     </a>
     {% endif %}
@@ -94,6 +102,13 @@
       if(bt)bt.classList.add('active'); if(bh)bh.classList.remove('active'); }
     else { if(t)t.style.display='none'; if(f){ f.style.display='block'; setTimeout(mvResize,30);}
       if(bh)bh.classList.add('active'); if(bt)bt.classList.remove('active'); }
+  };
+  window.blockSender=async function(id){
+    if(!confirm('이 보낸사람을 차단목록에 추가할까요?\n앞으로 이 발신의 메일은 받은편지함에 안 보이고 🚫차단함으로 자동 격리됩니다(이미 받은 것도 이동·삭제 아님).')) return;
+    try{ var r=await fetch('/mail/'+id+'/block-sender',{method:'POST'}); var j=await r.json();
+      if(j.ok){ alert('🚫 차단했습니다: '+(j.addr||'')+(j.moved?('\n기존 '+j.moved+'통도 차단함으로 옮겼습니다.'):'')); location.href='/mail/inbox'; }
+      else { alert('⚠ '+(j.message||'실패')); }
+    }catch(e){ alert('네트워크 오류'); }
   };
   window.translateMail=async function(target){
     var box=document.getElementById('transBox');

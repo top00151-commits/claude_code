@@ -178,6 +178,127 @@ def _dedup_hash(message_id, from_email, subject, body) -> str:
     return hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()
 
 
+# ── 스팸·피싱 방어 (대표 지시 2026-06-19): 차단목록 + 규칙기반 위험판별 ──
+_SEC_COLS_OK = False
+_OUR_DOMAINS = ("knknara.co.kr",)
+DANGEROUS_EXTS = {".exe", ".scr", ".com", ".pif", ".bat", ".cmd", ".vbs", ".vbe", ".js",
+                  ".jse", ".jar", ".lnk", ".msi", ".reg", ".ps1", ".wsf", ".hta", ".cpl",
+                  ".scf", ".inf", ".chm", ".iso", ".img", ".vhd"}
+
+
+def _ensure_security_cols(c):
+    global _SEC_COLS_OK
+    if _SEC_COLS_OK:
+        return
+    for ddl in ("ALTER TABLE mail_messages ADD COLUMN is_blocked INTEGER DEFAULT 0",
+                "ALTER TABLE mail_messages ADD COLUMN risk_level INTEGER DEFAULT 0",
+                "ALTER TABLE mail_messages ADD COLUMN risk_note TEXT"):
+        try:
+            c.execute(ddl)
+        except Exception:
+            pass
+    try:
+        c.execute("""CREATE TABLE IF NOT EXISTS mail_blocklist(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pattern TEXT UNIQUE, kind TEXT DEFAULT 'email',
+            note TEXT, created_by INTEGER,
+            created_at TEXT DEFAULT (datetime('now','localtime')))""")
+    except Exception:
+        pass
+    _SEC_COLS_OK = True
+
+
+def _att_ext(filename) -> str:
+    fn = (filename or "").strip().lower()
+    return ("." + fn.rsplit(".", 1)[-1]) if "." in fn else ""
+
+
+def is_sender_blocked(c, from_email) -> bool:
+    """차단목록(이메일 정확일치 또는 도메인/서브도메인)에 걸리면 True."""
+    addr = _norm_addr(from_email)
+    if not addr:
+        return False
+    dom = addr.split("@")[-1] if "@" in addr else ""
+    try:
+        _ensure_security_cols(c)
+        rows = c.execute("SELECT pattern, kind FROM mail_blocklist").fetchall()
+    except Exception:
+        return False
+    for r in rows:
+        pat = (r["pattern"] or "").strip().lower()
+        if not pat:
+            continue
+        if r["kind"] == "domain":
+            if dom == pat or dom.endswith("." + pat):
+                return True
+        elif addr == pat:
+            return True
+    return False
+
+
+def add_block(c, pattern, kind="email", note="", by=None) -> bool:
+    _ensure_security_cols(c)
+    pat = (pattern or "").strip().lower()
+    if kind == "domain":
+        pat = pat.lstrip("@")
+    if not pat or "." not in pat:
+        return False
+    try:
+        c.execute("INSERT OR IGNORE INTO mail_blocklist(pattern,kind,note,created_by) VALUES(?,?,?,?)",
+                  (pat, "domain" if kind == "domain" else "email", (note or "").strip(), by))
+        return True
+    except Exception:
+        return False
+
+
+def remove_block(c, block_id) -> None:
+    _ensure_security_cols(c)
+    try:
+        c.execute("DELETE FROM mail_blocklist WHERE id=?", (block_id,))
+    except Exception:
+        pass
+
+
+def list_blocks(c):
+    _ensure_security_cols(c)
+    try:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM mail_blocklist ORDER BY kind, pattern").fetchall()]
+    except Exception:
+        return []
+
+
+_PHISH_KW = ("비밀번호", "암호", "계정", "본인확인", "인증", "정지", "차단", "송장", "청구",
+             "결제", "환불", "긴급", "즉시", "invoice", "verify", "account", "password",
+             "suspend", "urgent", "confirm", "payment", "refund", "login", "secur")
+
+
+def assess_risk(from_email, to_email="", subject="", body="", html="", attachments=None):
+    """규칙기반 위험판별(AI 아님·무료·빠름). 반환 (level 0~3, note문자열).
+    3=실행파일 첨부 / 2=외부발신+의심링크+피싱문구 / 1=외부발신 / 0=내부·안전."""
+    notes = []
+    addr = _norm_addr(from_email)
+    dom = addr.split("@")[-1] if "@" in addr else ""
+    external = bool(dom) and not any(dom == d or dom.endswith("." + d) for d in _OUR_DOMAINS)
+    level = 0
+    danger = [a.get("filename") for a in (attachments or [])
+              if _att_ext(a.get("filename")) in DANGEROUS_EXTS]
+    if danger:
+        level = 3
+        notes.append("실행파일 첨부(" + ", ".join([d for d in danger if d][:3]) + ")")
+    blob = ((subject or "") + " " + (body or "")).lower()
+    _h = (html or "").lower()
+    _b = (body or "").lower()
+    has_link = ("http://" in _h or "https://" in _h or "http://" in _b or "https://" in _b)
+    if external and has_link and any(k in blob for k in _PHISH_KW):
+        level = max(level, 2)
+        notes.append("외부 발신 + 의심 링크·문구(피싱 가능)")
+    elif external:
+        level = max(level, 1)
+        notes.append("외부 발신")
+    return level, " / ".join(notes)
+
+
 def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = "",
                   subject: str = "", text: str = "", html: str = "", cc: str = "",
                   size=0, owner_id=None, run_ai: bool = True, attachments=None,
@@ -220,15 +341,19 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
         sz = int(size or 0)
     except Exception:
         sz = 0
+    # 보안: 차단목록 격리 + 규칙기반 위험판별 (대표 지시 2026-06-19)
+    _ensure_security_cols(c)
+    _blocked = 1 if is_sender_blocked(c, from_email) else 0
+    _rlevel, _rnote = assess_risk(from_email, to_email, subject, body, html, attachments)
     cur = c.execute(
         """INSERT INTO mail_messages
            (user_id, direction, from_email, from_name, to_email, cc,
             subject, body_text, body_html, category, lang, summary, raw_size,
-            dedup_hash, dup_count)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            dedup_hash, dup_count, is_blocked, risk_level, risk_note)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (owner, "in", _norm_addr(from_email), (from_name or "").strip(),
          _norm_addr(to_email), (cc or "").strip(), subject, body, html or "",
-         category, lang, summary, sz, _dh, 1),
+         category, lang, summary, sz, _dh, 1, _blocked, _rlevel, _rnote),
     )
     mail_id = cur.lastrowid
     if attachments:
@@ -350,7 +475,8 @@ def apply_rules_existing(c, user_id: int) -> int:
 def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                starred=None, unread=None, date_from: str = "", date_to: str = "",
                has_att=None, cust: str = "", limit: int = 200, offset: int = 0):
-    where = "user_id=? AND direction='in' AND is_deleted=0"
+    _ensure_security_cols(c)
+    where = "user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0"
     args = [user_id]
     if category and category in CATEGORIES:
         where += " AND category=?"
@@ -390,7 +516,7 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
         args += [like, like, like, like]
     rows = c.execute(
         f"""SELECT id, from_email, from_name, subject, category, lang,
-                   is_read, is_starred, received_at,
+                   is_read, is_starred, received_at, COALESCE(risk_level,0) AS risk_level,
                    substr(COALESCE(summary,''),1,160) AS summary_short
             FROM mail_messages WHERE {where}
             ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?""",
@@ -672,6 +798,53 @@ def soft_delete(c, mail_id: int, user_id: int) -> bool:
 # ─── 휴지통 · 완전삭제(서버에서 진짜 제거) · 오래된 메일 일괄정리 (대표 지시 2026-06-14) ───
 #   soft_delete 는 숨김(is_deleted=1)만 — DB·첨부는 NAS에 잔존. 아래는 '진짜 삭제'.
 #   첨부는 FK ON DELETE CASCADE 지만 PRAGMA foreign_keys 미보장 → 명시적 DELETE 로 확실히 제거.
+def list_blocked(c, user_id: int, *, limit: int = 300):
+    """차단함 — 차단목록에 걸려 격리된 받은 메일(삭제 아님·복구 가능)."""
+    _ensure_security_cols(c)
+    rows = c.execute(
+        """SELECT id, from_email, from_name, subject, category, received_at,
+                  substr(COALESCE(summary,''),1,160) AS summary_short
+           FROM mail_messages
+           WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=1
+           ORDER BY received_at DESC, id DESC LIMIT ?""", (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_blocked(c, user_id: int) -> int:
+    _ensure_security_cols(c)
+    try:
+        return c.execute(
+            "SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' "
+            "AND is_deleted=0 AND COALESCE(is_blocked,0)=1", (user_id,)).fetchone()[0]
+    except Exception:
+        return 0
+
+
+def set_blocked(c, user_id, mail_id, blocked) -> None:
+    """개별 메일 차단함 이동(1)/받은편지함 복구(0). 본인 메일만."""
+    _ensure_security_cols(c)
+    c.execute("UPDATE mail_messages SET is_blocked=? WHERE id=? AND user_id=? AND direction='in'",
+              (1 if blocked else 0, mail_id, user_id))
+
+
+def apply_block_to_existing(c, pattern, kind) -> int:
+    """차단목록 추가 시 기존 받은 메일도 소급 차단함 이동. 반환 옮긴 건수."""
+    _ensure_security_cols(c)
+    pat = (pattern or "").strip().lower()
+    if not pat:
+        return 0
+    if kind == "domain":
+        cur = c.execute(
+            "UPDATE mail_messages SET is_blocked=1 WHERE direction='in' AND is_deleted=0 "
+            "AND COALESCE(is_blocked,0)=0 AND (lower(from_email) LIKE ? OR lower(from_email) LIKE ?)",
+            ("%@" + pat, "%." + pat))
+    else:
+        cur = c.execute(
+            "UPDATE mail_messages SET is_blocked=1 WHERE direction='in' AND is_deleted=0 "
+            "AND COALESCE(is_blocked,0)=0 AND lower(from_email)=?", (pat,))
+    return cur.rowcount if cur else 0
+
+
 def list_trash(c, user_id: int, *, limit: int = 300):
     rows = c.execute(
         """SELECT id, from_email, from_name, to_email, direction, subject, category,

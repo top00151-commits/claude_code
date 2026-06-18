@@ -23,6 +23,12 @@
   .mv-att-img img{display:block;width:140px;height:104px;object-fit:cover;background:#f0f0f0}
   .mv-att-img:hover{border-color:var(--knk-red)}
   .mv-att-cap{display:block;font-size:11px;color:var(--mute);padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 위험 메일 경고배너 (스팸·피싱 방어 2026-06-19) */
+  .mv-warn{border-radius:10px;padding:11px 14px;margin-bottom:12px;font-size:13px;line-height:1.65;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .mv-warn.high{background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;font-weight:600}
+  .mv-warn.low{background:#f8fafc;border:1px solid var(--line);color:var(--mute)}
+  .mv-warn-btn{margin-left:auto;border:1px solid currentColor;background:transparent;color:inherit;font-size:12px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer;white-space:nowrap}
+  .mv-att.danger{border-color:#fca5a5;background:#fef2f2;color:#b91c1c;font-weight:600}
   /* ── 폰(≤640px): 메일 읽기 — 여백·글씨 폰 크기, 버튼 2개씩 큼직 (대표 지시 2026-06-14 모바일) ── */
   @media(max-width:640px){
     .mv-head{padding:13px 14px;border-radius:10px;margin-bottom:10px}

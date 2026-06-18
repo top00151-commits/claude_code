@@ -153,7 +153,7 @@
     <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>
     <div class="mbx-main">
       <div class="mbx-r1">
-        <span class="mbx-subj">{{ m.subject or '(제목 없음)' }}</span>
+        <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
         <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
       </div>
       <div class="mbx-r2">
@@ -192,6 +192,8 @@
       <a href="/mail/sent" class="mbx-fold {{ 'on' if box=='sent' else '' }}"><span class="fname">📤 보낸편지함</span></a>
       <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}"><span class="fname">📝 임시보관함</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
       <a href="/mail/trash" class="mbx-fold {{ 'on' if box=='trash' else '' }}"><span class="fname">🗑 휴지통</span></a>
+      <a href="/mail/blocked" class="mbx-fold {{ 'on' if box=='blocked' else '' }}" title="차단목록에 걸려 격리된 메일(복구 가능)"><span class="fname">🚫 차단함</span></a>
+      {% if is_admin %}<a href="/mail/blocklist" class="mbx-fold {{ 'on' if box=='blocklist' else '' }}" title="위험·스팸 주소 등록 관리"><span class="fname">⛔ 차단목록 관리</span></a>{% endif %}
 
       {% if box=='in' %}
       <div class="mbx-fold-div"></div>
@@ -267,7 +269,7 @@
         <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
           <div class="mbx-main">
             <div class="mbx-r1">
-              <span class="mbx-subj">{{ m.subject or '(제목 없음)' }}</span>
+              <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
               <span class="mbx-time">🗑 {{ m.deleted_at[5:16] if m.deleted_at else (m.received_at[5:16] if m.received_at else '') }}</span>
             </div>
             <div class="mbx-r2">
@@ -280,6 +282,18 @@
           <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;color:var(--knk-red);border-color:#fca5a5;white-space:nowrap" onclick="purgeMail(event,{{ m.id }})">🗑 완전삭제</button>
         </div>
         {% endfor %}
+      {% elif box=='blocked' %}
+        {# 차단함: 격리된 메일 — 열기 / 받은편지함 복구 (삭제 아님) #}
+        {% for m in mails %}
+        <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
+          <div class="mbx-main">
+            <div class="mbx-r1"><span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span><span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span></div>
+            <div class="mbx-r2"><span class="mbx-from">{{ m.from_name or m.from_email or '(보낸사람 없음)' }}</span>{% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}</div>
+          </div>
+          <a href="/mail/{{ m.id }}" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;white-space:nowrap" title="내용 보기(주의해서)">열기</a>
+          <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;color:#15803d;white-space:nowrap" onclick="unblockMail(event,{{ m.id }})" title="받은편지함으로 되돌리기">↩ 복구</button>
+        </div>
+        {% endfor %}
       {% else %}
         {# 보낸/임시함 (제목 우선 2줄, 보낸사람=받는사람) #}
         {% for m in mails %}
@@ -287,7 +301,7 @@
           {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
           <div class="mbx-main">
             <div class="mbx-r1">
-              <span class="mbx-subj">{{ m.subject or '(제목 없음)' }}</span>
+              <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
               <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
             </div>
             <div class="mbx-r2">
@@ -352,6 +366,13 @@ async function emptyTrash(){
   try{ var r=await fetch('/mail/trash/empty',{method:'POST'}); var j=await r.json();
     if(j.ok){ alert(j.count+'통을 완전삭제했습니다.'); location.reload(); }
     else alert('실패'); }catch(e){ alert('네트워크 오류'); }
+}
+/* ── 차단함: 받은편지함으로 복구 (대표 지시 2026-06-19 스팸방어) ── */
+async function unblockMail(ev, id){
+  if(ev) ev.preventDefault();
+  try{ var r=await fetch('/mail/'+id+'/unblock',{method:'POST'}); var j=await r.json();
+    if(j.ok){ var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]'); if(row) row.remove(); }
+    else alert('복구 실패'); }catch(e){ alert('네트워크 오류'); }
 }
 /* ── 중복정리: 여러 그룹메일로 같은 메일이 여러 통 온 것을 1통만 남기고 정리(답장 불가침) ── */
 async function dedupInbox(ev){
