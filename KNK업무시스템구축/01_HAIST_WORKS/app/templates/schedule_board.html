@@ -46,6 +46,30 @@
 .sched-tools .bulk-ship-go { background:#0f766e; color:#fff; border-color:#0f766e; font-weight:800; }
 .sched-tools .bulk-ship-go:hover { background:#0e6b63; border-color:#0e6b63; color:#fff; }
 .sched-tools .bulk-ship-go:disabled { opacity:.55; cursor:default; }
+/* v5H226z488 (대표 지시): 묶어 발행 버튼 + 묶음 세금계산서 칩 */
+.sched-tools .bulk-tax-go { background:#7c3aed; color:#fff; border-color:#7c3aed; font-weight:800; }
+.sched-tools .bulk-tax-go:hover { background:#6d28d9; border-color:#6d28d9; color:#fff; }
+.sched-tools .bulk-tax-go:disabled { opacity:.55; cursor:default; }
+.sched td.taxinv-bundle { cursor:pointer; text-align:center; background:#f5f3ff; }
+.sched td.taxinv-bundle:hover { background:#ede9fe !important; box-shadow: inset 0 0 0 1px #c4b5fd; }
+.ti-bundle-chip { display:inline-block; padding:2px 8px; border-radius:9px; background:#7c3aed; color:#fff; font-size:11px; font-weight:800; white-space:nowrap; }
+/* 묶어발행/구성보기 모달 */
+.ti-modal-back { position:fixed; inset:0; background:rgba(0,0,0,.42); z-index:1200; display:flex; align-items:center; justify-content:center; }
+.ti-modal { background:#fff; border-radius:14px; width:min(640px,94vw); max-height:88vh; overflow:auto; box-shadow:0 18px 50px rgba(0,0,0,.3); }
+.ti-modal h3 { margin:0; padding:14px 18px; border-bottom:1px solid var(--line); font-size:16px; }
+.ti-modal .ti-body { padding:14px 18px; }
+.ti-modal .ti-foot { padding:12px 18px; border-top:1px solid var(--line); display:flex; gap:8px; justify-content:flex-end; }
+.ti-modal table { width:100%; border-collapse:collapse; font-size:13px; }
+.ti-modal th, .ti-modal td { border-bottom:1px solid #eee; padding:6px 7px; text-align:left; }
+.ti-modal td.num, .ti-modal th.num { text-align:right; }
+.ti-modal input.ti-amt { width:120px; text-align:right; border:1px solid #cbd5e1; border-radius:5px; padding:3px 6px; font:inherit; }
+.ti-modal .ti-row-flex { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+.ti-modal .ti-row-flex label { font-size:12px; color:#555; font-weight:700; }
+.ti-modal .ti-warn { background:#fef3c7; border:1px solid #fde68a; color:#92400e; padding:8px 10px; border-radius:8px; font-size:12.5px; margin-bottom:10px; }
+.ti-modal .ti-total { font-size:15px; font-weight:800; }
+.ti-btn { border:1px solid var(--line); background:#fff; border-radius:8px; padding:7px 14px; font-weight:700; cursor:pointer; }
+.ti-btn.primary { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.ti-btn.danger { background:#fff; color:#dc2626; border-color:#fecaca; }
 /* v5H226z345 (대표 지시): 작업일정표 상단 3개 행 시각 구분 — 역할 띠(라벨 + 옅은 배경)로 한눈에 구분 */
 .sb-band { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:4px 11px; border-radius:11px; border:1px solid var(--line); margin:0 var(--content-pad) 4px; }
 /* v5H226z348 (대표 지시): 3개 띠 라벨(사업부·작업·표 설정) 너비 동일 고정 — 세로로 가지런히 정렬 */
@@ -447,6 +471,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <label class="selall-lab"><input type="checkbox" id="schedSelAll" onclick="schedToggleAll(this)" /> 보이는 행 전체선택</label>
     {# v5H226z472 (대표 지시): 일괄출하 — 체크한 행들을 오늘 날짜로 '출하' 단계 완료 처리(한꺼번에 많이). 우측 정렬. #}
     <button type="button" class="bulk-ship-go" onclick="schedBulkShip()" title="체크한 행들을 오늘 날짜로 일괄 출하 처리(단계 '출하' 완료)" style="margin-left:auto;"><span class="ti">🚚</span> 일괄출하</button>
+    {# v5H226z488 (대표 지시): 체크한 여러 출하 건을 한 장의 세금계산서로 묶어 발행. 영업·관리만. #}
+    {% if can_money %}<button type="button" class="bulk-tax-go" onclick="schedIssueTaxInvoice()" title="체크한 여러 건을 한 장의 세금계산서로 묶어 발행"><span class="ti">📄</span> 묶어 발행</button>{% endif %}
     <span class="bulk-wrap" id="schedBulkBar" style="display:none;">
       <span class="bulk-cnt"><b id="schedSelCount">0</b>건 선택</span>
       <select id="schedBulkField" class="bulk-sel" onchange="schedBulkFieldChange()" title="일괄로 바꿀 항목"></select>
@@ -512,7 +538,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         {% set _cursym = {'KRW':'₩','USD':'$','VND':'₫','JPY':'¥','CNY':'¥','EUR':'€'} %}
         {% for r in rows %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}"{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-ulabel="{{ r.unit_label or '' }}"{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<span title="소모품">🧴</span> <a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}" title="프로젝트 상세">{{ r.code }}</a>{% if r.unit_label %} <span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#eef2ff;color:#4338ca;font-size:11px;font-weight:700;vertical-align:middle;" title="호기별 단가·납기가 달라 호기당 1줄로 표시">{{ r.unit_label }}</span>{% endif %}{% endif %}{# v5H226z481 (대표 지시): 수량 2개 이상=호기 여러 대 → '+' 펼치기 #}{% if r.kind != 'consumable' and (r.qty|int) >= 2 %}<span class="row-exp" title="호기 펼치기/접기" role="button">＋</span>{% endif %}</td>
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
           {# v5H226z365 (대표 지시): 프로젝트명 보드 인라인 편집 — 프로젝트만(소모품은 '소모품' 고정 표시·읽기전용) #}
@@ -540,10 +566,16 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자(YYYY-MM-DD 직접 입력) — 프로젝트=대표 SO 연동·소모품=자체. 영업·관리만. #}
           {% if can_money %}
           <td class="c-info cw-stmt editable{% if r.statement_date %} filled{% endif %}" data-col="statement" data-edit="statement_date" title="거래명세서 발행일자{% if r.statement_date %}: {{ r.statement_date }}{% endif %}">{{ r.statement_date or '＋' }}</td>
+          {# v5H226z488 (대표 지시): 묶어 발행한 건은 세금계산서 칸에 📄#묶음번호(3칸 병합)·아니면 기존 1/2/3차. #}
+          {% set _ti = (ti_map.get(r.row_sig) if (ti_map is defined and ti_map and r.row_sig) else None) %}
+          {% if _ti %}
+          <td class="c-info taxinv-bundle filled" data-col="tax_inv1" colspan="3" data-tiid="{{ _ti.id }}" title="묶음 세금계산서 #{{ _ti.no }} — 클릭하면 구성 항목 보기"><span class="ti-bundle-chip">📄 #{{ _ti.no }}</span></td>
+          {% else %}
           {# v5H226z467 (대표 지시): 세금계산서 1/2/3차 — 각 칸 발행일+금액, 클릭 시 미니 편집창. 1차=계약금·2차=중도금·3차=잔금. #}
           <td class="c-info cw-taxinv1 editable taxinv-cell{% if r.tax_invoice_date or r.tax_invoice_amt1 %} filled{% endif %}" data-col="tax_inv1" data-edit="taxinv1" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ r.tax_invoice_date or '' }}" data-amt="{{ r.tax_invoice_amt1 or '' }}" title="1세금계산서 (계약금) — 발행일·금액">{% if r.tax_invoice_date or r.tax_invoice_amt1 %}<div class="ti-d">{{ r.tax_invoice_date or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt1 %}₩{{ '{:,.0f}'.format(r.tax_invoice_amt1|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
           <td class="c-info cw-taxinv2 editable taxinv-cell{% if r.tax_invoice_date2 or r.tax_invoice_amt2 %} filled{% endif %}" data-col="tax_inv2" data-edit="taxinv2" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ r.tax_invoice_date2 or '' }}" data-amt="{{ r.tax_invoice_amt2 or '' }}" title="2세금계산서 (중도금) — 발행일·금액">{% if r.tax_invoice_date2 or r.tax_invoice_amt2 %}<div class="ti-d">{{ r.tax_invoice_date2 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt2 %}₩{{ '{:,.0f}'.format(r.tax_invoice_amt2|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
           <td class="c-info cw-taxinv3 editable taxinv-cell{% if r.tax_invoice_date3 or r.tax_invoice_amt3 %} filled{% endif %}" data-col="tax_inv3" data-edit="taxinv3" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ r.tax_invoice_date3 or '' }}" data-amt="{{ r.tax_invoice_amt3 or '' }}" title="3세금계산서 (잔금) — 발행일·금액">{% if r.tax_invoice_date3 or r.tax_invoice_amt3 %}<div class="ti-d">{{ r.tax_invoice_date3 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt3 %}₩{{ '{:,.0f}'.format(r.tax_invoice_amt3|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
+          {% endif %}
           {% endif %}
           <td class="c-info cw-stage stage-cell" data-col="stage" data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" title="클릭 → 단계 기록">
             {% if r.st_cur %}<span class="stg-badge">{{ r.st_cur }}</span>{% else %}<span class="stg-badge stg-none">시작 전</span>{% endif %}
@@ -1066,6 +1098,7 @@ if(_tbody){
     const ex=e.target.closest('.row-exp'); if(ex){ e.stopPropagation(); toggleRowUnits(ex.closest('tr'), ex); return; }   // v5H226z481: 호기 펼치기/접기
     const uti=e.target.closest('.ux-ti'); if(uti){ if(uti.classList.contains('ux-locked')){ toast('확정 SO 라 수정 불가'); return; } openUnitTaxPop(uti); return; }   // v5H226z485: 호기 세금계산서 팝업
     const sc=e.target.closest('td.stage-cell'); if(sc){ openStagePanel(sc.dataset.kind, sc.dataset.ref, sc.closest('tr')); return; }
+    const tb=e.target.closest('td.taxinv-bundle'); if(tb){ openTiView(tb.dataset.tiid); return; }   // v5H226z488: 묶음 세금계산서 구성 보기
     const td=e.target.closest('td.editable'); if(td){ startEdit(td); return; }
     const bar=e.target.closest('td.bar'); if(bar){ openMemo(bar.closest('tr')); }
   });
@@ -1711,6 +1744,106 @@ function schedBulkShip(){
     })
     .catch(function(e){ toast('출하 처리 오류: '+e); if(btn) btn.disabled=false; });
 }
+// ───── v5H226z488 (대표 지시): 세금계산서 '묶어 발행' — 체크한 여러 건을 한 장으로 ─────
+var _tiLines=null;
+function _tiToday(){ var d=new Date(); var p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function _tiCloseModal(){ var m=document.getElementById('tiModalBack'); if(m) m.remove(); }
+function schedIssueTaxInvoice(){
+  var rows=_selRows();
+  if(!rows.length){ toast('묶을 출하 건을 먼저 선택하세요'); return; }
+  var seen={}, lines=[];
+  rows.forEach(function(tr){
+    var kind=tr.dataset.kind||'project', ref=tr.dataset.ref||'', uids=tr.dataset.uids||'';
+    var sig = uids ? ('unit:'+uids.split(',').map(function(x){return parseInt(x,10);}).sort(function(a,b){return a-b;}).join(',')) : (kind+':'+ref);
+    if(seen[sig]) return; seen[sig]=1;
+    var code=((tr.querySelector('.c1 a')||{}).textContent||'').trim();
+    var cust=((tr.querySelector('td[data-col="cust"]')||{}).textContent||'').trim();
+    var amt=parseFloat(tr.dataset.rowamt||'0')||0;
+    lines.push({kind:kind, ref_id:parseInt(ref,10), uids:uids, code:code, label:(tr.dataset.ulabel||''),
+                customer:cust, amount:amt, currency:(tr.dataset.cur||'KRW')});
+  });
+  if(!lines.length){ toast('대상이 없습니다'); return; }
+  _tiLines=lines;
+  _tiOpenModal(lines, false);
+}
+function _tiOpenModal(lines, force){
+  _tiCloseModal();
+  var custs={}; lines.forEach(function(l){ var c=(l.customer||'').trim(); if(c&&c!=='—') custs[c]=1; });
+  var custKeys=Object.keys(custs);
+  var cur=(lines[0]&&lines[0].currency)||'KRW';
+  var sym={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'}[cur]||'₩';
+  var h='<div class="ti-modal-back" id="tiModalBack"><div class="ti-modal" onclick="event.stopPropagation()">';
+  h+='<h3>📄 세금계산서 묶어 발행 — '+lines.length+'건</h3><div class="ti-body">';
+  if(custKeys.length>1){ h+='<div class="ti-warn">⚠ 고객사가 서로 다릅니다: <b>'+custKeys.map(esc).join(', ')+'</b><br>보통 세금계산서 한 장은 한 고객사입니다. 그래도 한 장으로 묶으려면 아래 <b>[고객 달라도 발행]</b>을 눌러주세요.</div>'; }
+  h+='<div class="ti-row-flex"><label>발행일 <input type="date" id="tiIssueDate" value="'+_tiToday()+'" /></label>';
+  h+='<label>고객사 <b>'+(custKeys.length===1?esc(custKeys[0]):(custKeys.length===0?'(미지정)':custKeys.length+'곳'))+'</b></label></div>';
+  h+='<table><thead><tr><th>관리번호</th><th>호기</th><th>고객사</th><th class="num">금액('+sym+')</th></tr></thead><tbody>';
+  lines.forEach(function(l, i){
+    h+='<tr><td>'+esc(l.code||'—')+'</td><td>'+esc(l.label||'')+'</td><td>'+esc(l.customer||'—')+'</td>'
+      +'<td class="num"><input type="text" class="ti-amt" data-i="'+i+'" value="'+(l.amount?Number(l.amount).toLocaleString():'')+'" oninput="_tiRecalc()" /></td></tr>';
+  });
+  h+='</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700;">합계</td><td class="num ti-total" id="tiTotal">'+sym+'0</td></tr></tfoot></table>';
+  h+='<div class="ti-row-flex" style="margin-top:10px;"><label style="flex:1;">메모 <input type="text" id="tiMemo" style="width:100%;border:1px solid #cbd5e1;border-radius:5px;padding:4px 7px;font:inherit;" placeholder="(선택) 세금계산서 메모" /></label></div>';
+  h+='</div><div class="ti-foot"><button type="button" class="ti-btn" onclick="_tiCloseModal()">취소</button>';
+  h+='<button type="button" class="ti-btn primary" onclick="_tiSubmit('+(custKeys.length>1?'true':'false')+')">'+(custKeys.length>1?'고객 달라도 발행':'발행')+'</button></div>';
+  h+='</div></div>';
+  var wrap=document.createElement('div'); wrap.innerHTML=h; document.body.appendChild(wrap.firstChild);
+  document.getElementById('tiModalBack').addEventListener('click', _tiCloseModal);
+  _tiSym=sym; _tiRecalc();
+}
+var _tiSym='₩';
+function _tiRecalc(){
+  var t=0; document.querySelectorAll('#tiModalBack .ti-amt').forEach(function(inp){ t+=parseFloat((inp.value||'').replace(/,/g,''))||0; });
+  var el=document.getElementById('tiTotal'); if(el) el.textContent=_tiSym+t.toLocaleString();
+}
+function _tiSubmit(force){
+  if(!_tiLines){ return; }
+  var datev=(document.getElementById('tiIssueDate')||{}).value||_tiToday();
+  var memo=(document.getElementById('tiMemo')||{}).value||'';
+  document.querySelectorAll('#tiModalBack .ti-amt').forEach(function(inp){ var i=parseInt(inp.dataset.i,10); if(_tiLines[i]) _tiLines[i].amount=parseFloat((inp.value||'').replace(/,/g,''))||0; });
+  var body={issue_date:datev, memo:memo, force:!!force, lines:_tiLines};
+  fetch('/sales/schedule/tax-invoice/issue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(j&&j.warn==='customer_mismatch'){ toast('⚠ '+(j.error||'고객사 불일치')); _tiOpenModal(_tiLines, true); return; }
+      if(!j||!j.ok){ toast('발행 실패: '+((j&&j.error)||'오류')); return; }
+      _tiCloseModal();
+      toast('세금계산서 #'+j.ti_no+' 발행 완료 ('+j.n+'건)');
+      setTimeout(function(){ location.reload(); }, 800);
+    })
+    .catch(function(e){ toast('발행 오류: '+e); });
+}
+function openTiView(tiid){
+  if(!tiid) return;
+  fetch('/sales/schedule/tax-invoice/'+encodeURIComponent(tiid))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j||!j.ok){ toast('불러오기 실패'); return; }
+      var v=j.invoice, ls=j.lines||[];
+      var sym={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'}[v.currency]||'₩';
+      _tiCloseModal();
+      var h='<div class="ti-modal-back" id="tiModalBack"><div class="ti-modal" onclick="event.stopPropagation()">';
+      h+='<h3>📄 세금계산서 #'+esc(v.ti_no||'')+(v.status==='취소'?' <span style="color:#dc2626;">(취소됨)</span>':'')+'</h3><div class="ti-body">';
+      h+='<div class="ti-row-flex"><label>발행일 <b>'+esc(v.issue_date||'')+'</b></label><label>고객사 <b>'+esc(v.customer_name||'(미지정)')+'</b></label><label>발행자 <b>'+esc(v.created_by_name||'')+'</b></label></div>';
+      h+='<table><thead><tr><th>관리번호</th><th>호기</th><th>고객사</th><th class="num">금액</th></tr></thead><tbody>';
+      ls.forEach(function(l){ h+='<tr><td>'+esc(l.mgmt_code||'—')+'</td><td>'+esc(l.label||'')+'</td><td>'+esc(l.customer||'—')+'</td><td class="num">'+sym+(Number(l.amount||0)).toLocaleString()+'</td></tr>'; });
+      h+='</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700;">합계</td><td class="num ti-total">'+sym+(Number(v.total_amount||0)).toLocaleString()+'</td></tr></tfoot></table>';
+      if(v.memo){ h+='<div style="margin-top:9px;color:#555;font-size:12.5px;">메모: '+esc(v.memo)+'</div>'; }
+      h+='</div><div class="ti-foot">';
+      if(v.status!=='취소'){ h+='<button type="button" class="ti-btn danger" onclick="_tiCancel('+v.id+')">발행 취소</button>'; }
+      h+='<button type="button" class="ti-btn" onclick="_tiCloseModal()">닫기</button></div></div></div>';
+      var wrap=document.createElement('div'); wrap.innerHTML=h; document.body.appendChild(wrap.firstChild);
+      document.getElementById('tiModalBack').addEventListener('click', _tiCloseModal);
+    })
+    .catch(function(e){ toast('불러오기 오류: '+e); });
+}
+function _tiCancel(tiid){
+  if(!confirm('이 세금계산서 묶음 발행을 취소할까요?\n(작업일정표의 묶음 표시가 사라지고, 다시 개별 칸으로 돌아갑니다)')) return;
+  fetch('/sales/schedule/tax-invoice/'+encodeURIComponent(tiid)+'/cancel',{method:'POST'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if(!j||!j.ok){ toast('취소 실패'); return; } _tiCloseModal(); toast('발행 취소됨'); setTimeout(function(){ location.reload(); }, 700); })
+    .catch(function(e){ toast('취소 오류: '+e); });
+}
 function _buildBulkFieldSel(){
   var sel=document.getElementById('schedBulkField'); if(!sel) return;
   sel.innerHTML='';
@@ -1808,7 +1941,7 @@ _buildBulkFieldSel(); syncBulkBar();   // z366: 일괄수정 항목 드롭다운
 var _bulkM=document.getElementById('bulkModal'); if(_bulkM) _on(_bulkM,'click',function(e){ if(e.target.id==='bulkModal') closeBulkModal(); });
 _on(window,'load',()=>setTimeout(updateSticky,80));
 // v5H226z271: 인라인 onclick/onchange 핸들러용 전역 노출 (IIFE 내부 함수들)
-Object.assign(window, {schedFullscreen, schedPrint, openPrintModal, closePrintModal, printColsAll, doPrint, toggleColsMenu, stepDateW, setDayRange, resetCols, resetSort, closeMemo, saveMemo, closeStagePanel, openRegModal, closeRegModal, schedDoSearch, schedToggleAll, schedRowSel, schedClearSel, schedBulkFieldChange, schedBulkPreview, schedBulkConfirm, closeBulkModal, schedRangeGo, schedBulkShip});
+Object.assign(window, {schedFullscreen, schedPrint, openPrintModal, closePrintModal, printColsAll, doPrint, toggleColsMenu, stepDateW, setDayRange, resetCols, resetSort, closeMemo, saveMemo, closeStagePanel, openRegModal, closeRegModal, schedDoSearch, schedToggleAll, schedRowSel, schedClearSel, schedBulkFieldChange, schedBulkPreview, schedBulkConfirm, closeBulkModal, schedRangeGo, schedBulkShip, schedIssueTaxInvoice, _tiCloseModal, _tiSubmit, _tiRecalc, _tiCancel, openTiView});
 })();
 </script>
 </body>

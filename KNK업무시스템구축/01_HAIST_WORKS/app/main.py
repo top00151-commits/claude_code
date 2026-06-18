@@ -17260,6 +17260,8 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
     for r in rows:
         _rc = r.get("code") or ""
         r["div"] = _rc[3] if (len(_rc) >= 4 and _rc[3] in "TMLEC") else ("C" if r.get("kind") == "consumable" else "")
+        # v5H226z488 (대표 지시): 묶어발행 세금계산서 표시용 행 서명(발행 엔드포인트와 동일 규칙)
+        r["row_sig"] = _ti_row_sig(r.get("kind"), r.get("ref_id"), r.get("unit_iids") or []) if _can_money else ""
     div_counts = {"all": len(rows), "T": 0, "M": 0, "L": 0, "E": 0, "C": 0}
     for r in rows:
         if r["div"] in div_counts:
@@ -18125,6 +18127,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     for r in rows:
         _rc = r.get("code") or ""
         r["div"] = _rc[3] if (len(_rc) >= 4 and _rc[3] in "TMLEC") else ("C" if r.get("kind") == "consumable" else "")
+        # v5H226z488 (대표 지시): 묶어발행 세금계산서 표시용 행 서명(발행 엔드포인트와 동일 규칙)
+        r["row_sig"] = _ti_row_sig(r.get("kind"), r.get("ref_id"), r.get("unit_iids") or []) if _can_money else ""
     div_counts = {"all": len(rows), "T": 0, "M": 0, "L": 0, "E": 0, "C": 0}
     for r in rows:
         if r["div"] in div_counts:
@@ -18141,7 +18145,22 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     }
     # v5H226z264: 칸 너비·숨김 '내 계정' 설정 (JSON 문자열 — 템플릿 JS 에서 파싱)
     _col_prefs = _logi.view_prefs_get(u.get("id"), "schedule_board_cols") or "{}"
+    # v5H226z488 (대표 지시): 묶어 발행한 세금계산서 표시용 — 행 서명(row_sig)→{묶음번호·id} 맵 (영업·관리만)
+    _ti_map = {}
+    if _can_money:
+        try:
+            with db_session() as _tc:
+                _tcols = {r[1] for r in _tc.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
+                if _tcols:
+                    for _tr in _tc.execute(
+                        "SELECT l.row_sig, t.id, t.ti_no FROM tax_invoice_lines l "
+                        "JOIN tax_invoices t ON t.id=l.ti_id WHERE t.status='발행'"):
+                        if _tr[0]:
+                            _ti_map[_tr[0]] = {"id": _tr[1], "no": _tr[2]}
+        except Exception:
+            _ti_map = {}
     return ctx(request, "schedule_board.html", user=u, active="sales_schedule",
+               ti_map=_ti_map,
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                days=days, today_day=today_day, rows=rows, summary=summary, cust=cust,
@@ -18835,6 +18854,126 @@ async def schedule_board_unit_field(request: Request):
                 c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?", (av, iid))
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True})
+
+
+# ─── v5H226z488 (대표 지시): 세금계산서 '묶어 발행' — 여러 출하 건을 한 장으로 합산 발행 + 장부 ───
+def _ti_row_sig(kind, ref_id, iids):
+    """작업일정표 행 식별 서명. 호기 분할 줄=정렬한 iids CSV('unit:7,12,30'), 그 외=kind:ref('project:123')."""
+    try:
+        if iids:
+            return "unit:" + ",".join(str(int(x)) for x in sorted(int(i) for i in iids))
+        return f"{kind}:{int(ref_id)}"
+    except Exception:
+        return f"{kind}:{ref_id}"
+
+
+@app.post("/sales/schedule/tax-invoice/issue")
+async def schedule_tax_invoice_issue(request: Request):
+    """작업일정표에서 체크한 여러 출하 건(여러 관리번호/여러 호기/같은 출하시점)을 '한 장의 세금계산서'로 묶어 발행.
+    기본은 같은 고객사만 묶이게(다르면 force 필요). 청구 성격 → can_view_sales."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad_request"}, 400)
+    lines = b.get("lines") or []
+    if not isinstance(lines, list) or not lines:
+        return JSONResponse({"ok": False, "error": "묶을 항목을 선택하세요"}, 400)
+    force = bool(b.get("force"))
+    issue_date = (str(b.get("issue_date") or "").strip())[:10]
+    if not issue_date:
+        from datetime import date as _d
+        issue_date = _d.today().isoformat()
+    memo = (str(b.get("memo") or "").strip())
+    # 고객사 일치 검사 — 다르면 경고(force 시 허용)
+    custs = sorted({(ln.get("customer") or "").strip() for ln in lines if (ln.get("customer") or "").strip() and (ln.get("customer") or "").strip() != "—"})
+    if len(custs) > 1 and not force:
+        return JSONResponse({"ok": False, "warn": "customer_mismatch",
+                             "error": "고객사가 서로 다릅니다: " + ", ".join(custs)}, 200)
+    currency = (lines[0].get("currency") or "KRW")
+    norm, total = [], 0.0
+    for ln in lines:
+        kind = (ln.get("kind") or "project")
+        ref_id = ln.get("ref_id")
+        uids = ln.get("uids") or []
+        if isinstance(uids, str):
+            uids = [x for x in uids.split(",") if x.strip()]
+        try:
+            amt = float(str(ln.get("amount") or 0).replace(",", ""))
+        except Exception:
+            amt = 0.0
+        norm.append({"sig": _ti_row_sig(kind, ref_id, uids),
+                     "rkind": ("unit" if uids else kind), "ref_id": ref_id,
+                     "uids": ",".join(str(x) for x in uids) if uids else "",
+                     "mgmt_code": (ln.get("code") or ""), "label": (ln.get("label") or ""),
+                     "customer": (ln.get("customer") or ""), "amount": amt})
+        total += amt
+    cust_name = (custs[0] if custs else "")
+    try:
+        with db_session() as c:
+            ym = issue_date[2:4] + issue_date[5:7]   # YYMM
+            prefix = f"TI-{ym}-"
+            seq = (c.execute("SELECT COUNT(*) FROM tax_invoices WHERE ti_no LIKE ?", (prefix + "%",)).fetchone()[0] or 0) + 1
+            ti_no = f"{prefix}{seq:04d}"
+            cid = None
+            if cust_name:
+                _m = c.execute("SELECT id FROM customers WHERE name=?", (cust_name,)).fetchall()
+                cid = _m[0][0] if len(_m) == 1 else None   # 명확한 단일후보만(데이터 연결성 안전원칙)
+            cur = c.execute(
+                "INSERT INTO tax_invoices(ti_no, issue_date, customer_name, customer_id, total_amount, currency, memo, status, created_by, created_by_name) "
+                "VALUES(?,?,?,?,?,?,?,'발행',?,?)",
+                (ti_no, issue_date, cust_name, cid, total, currency, memo, u.get("id"), u.get("name") or ""))
+            ti_id = cur.lastrowid
+            for n in norm:
+                c.execute(
+                    "INSERT INTO tax_invoice_lines(ti_id, row_sig, ref_kind, ref_id, unit_iids, mgmt_code, label, customer, amount) "
+                    "VALUES(?,?,?,?,?,?,?,?,?)",
+                    (ti_id, n["sig"], n["rkind"], n["ref_id"], n["uids"], n["mgmt_code"], n["label"], n["customer"], n["amount"]))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True, "ti_no": ti_no, "ti_id": ti_id, "n": len(norm), "total": total, "currency": currency})
+
+
+@app.get("/sales/schedule/tax-invoice/{ti_id:int}")
+async def schedule_tax_invoice_view(request: Request, ti_id: int):
+    """묶음 세금계산서 1장 구성 보기(작업일정표 📄칩 클릭)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    with db_session() as c:
+        t = c.execute("SELECT * FROM tax_invoices WHERE id=?", (ti_id,)).fetchone()
+        if not t:
+            return JSONResponse({"ok": False, "error": "not_found"}, 404)
+        t = dict(t)
+        ls = [dict(r) for r in c.execute(
+            "SELECT mgmt_code, label, customer, amount FROM tax_invoice_lines WHERE ti_id=? ORDER BY id", (ti_id,)).fetchall()]
+    return JSONResponse({"ok": True, "invoice": {
+        "id": t["id"], "ti_no": t.get("ti_no"), "issue_date": t.get("issue_date"),
+        "customer_name": t.get("customer_name"), "total_amount": t.get("total_amount"),
+        "currency": t.get("currency"), "memo": t.get("memo"), "status": t.get("status"),
+        "created_by_name": t.get("created_by_name") or ""}, "lines": ls})
+
+
+@app.post("/sales/schedule/tax-invoice/{ti_id:int}/cancel")
+async def schedule_tax_invoice_cancel(request: Request, ti_id: int):
+    """묶음 세금계산서 취소(발행 철회) — 상태='취소'로, 작업일정표 칩 사라짐."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    with db_session() as c:
+        r = c.execute("SELECT status FROM tax_invoices WHERE id=?", (ti_id,)).fetchone()
+        if not r:
+            return JSONResponse({"ok": False, "error": "not_found"}, 404)
+        c.execute("UPDATE tax_invoices SET status='취소', updated_at=datetime('now','localtime') WHERE id=?", (ti_id,))
     return JSONResponse({"ok": True})
 
 

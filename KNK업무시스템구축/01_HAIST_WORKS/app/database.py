@@ -2823,6 +2823,40 @@ def init_db():
         except Exception as _e:
             print(f"[v5H226z479] stage_notify_log 생성 스킵: {_e}")
 
+        # v5H226z488 (대표 지시): 세금계산서 '묶어 발행' — 여러 출하 건(여러 관리번호/여러 호기/같은 출하시점)을
+        #   한 장의 세금계산서로 합산 발행. 장부(tax_invoices) 1장 + 묶인 항목(tax_invoice_lines).
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS tax_invoices (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                ti_no         TEXT,                       -- 묶음번호 TI-YYMM-####
+                issue_date    TEXT,                       -- 발행일 YYYY-MM-DD
+                customer_name TEXT,
+                customer_id   INTEGER,
+                total_amount  REAL DEFAULT 0,
+                currency      TEXT DEFAULT 'KRW',
+                memo          TEXT,
+                status        TEXT DEFAULT '발행',         -- 발행 / 취소
+                created_by    INTEGER,
+                created_by_name TEXT,
+                created_at    TEXT DEFAULT (datetime('now','localtime')),
+                updated_at    TEXT DEFAULT (datetime('now','localtime'))
+            )""")
+            c.execute("""CREATE TABLE IF NOT EXISTS tax_invoice_lines (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                ti_id       INTEGER NOT NULL REFERENCES tax_invoices(id) ON DELETE CASCADE,
+                row_sig     TEXT,                          -- 작업일정표 행 식별('project:123'/'consumable:45'/'unit:7,12,30')
+                ref_kind    TEXT,                          -- project / consumable / unit
+                ref_id      INTEGER,                       -- 프로젝트·소모품 id (unit이면 프로젝트 id)
+                unit_iids   TEXT,                          -- 호기(order_items) id CSV (whole이면 비움)
+                mgmt_code   TEXT,                          -- 관리번호 스냅샷
+                label       TEXT,                          -- 호기 라벨 스냅샷('1~3호기' 등)
+                customer    TEXT,                          -- 고객사 스냅샷
+                amount      REAL DEFAULT 0
+            )""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_ti_lines_sig ON tax_invoice_lines(row_sig)")
+        except Exception as _e:
+            print(f"[v5H226z488] tax_invoices 생성 스킵: {_e}")
+
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
         #   라이프사이클 'DRAFT → CI_ISSUED → PL_READY → SHIPPED → CLEARED' 반영
