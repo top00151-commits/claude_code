@@ -61,7 +61,7 @@
     {% if not preview.ok %}
       <div class="se-err">
         ⚠ 미리보기 실패: {{ preview.error }}<br>
-        <span style="font-size:12px;">메신저 DB 경로는 환경변수 <code>KNK_MESSENGER_DB</code> 로 지정할 수 있습니다(기본 <code>/opt/knk_messenger/data/messenger.db</code>). 로컬 PC 에는 메신저 DB 가 없어 NAS(운영)에서만 동작합니다.</span>
+        <span style="font-size:12px;">v5H226z493: 메신저 명부를 <code>GET /api/sso/directory</code>(HTTP·공유키)로 받아옵니다. 위 오류는 보통 ① 메신저 미배포/준비 전(명부 API 404) ② 공유키 <code>KNK_SSO_SERVICE_KEY</code> 불일치(403) ③ 메신저 내부주소(<code>KNK_MESSENGER_SSO_INTERNAL_BASE</code>) 연결 실패 입니다. 컨테이너 분리 후에도 볼륨 마운트 없이 동작합니다.</span>
       </div>
     {% else %}
       <div class="se-card">

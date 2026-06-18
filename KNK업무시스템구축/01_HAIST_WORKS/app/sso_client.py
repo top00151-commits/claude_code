@@ -502,12 +502,24 @@ def sync_employees_from_messenger_db(c, msg_db: str = None) -> dict:
     except Exception as e:
         return {"ok": False, "error": f"메신저 DB 읽기 실패: {e}"}
 
+    # v5H226z493: 출처(DB)만 다르고 통계/upsert 로직은 공유 코어로 — API 출처와 동일하게.
+    payloads = [_messenger_row_to_payload(r) for r in rows]
+    res = _sync_employees_core(c, payloads)
+    res["msg_db"] = msg_db
+    res["source"] = "messenger_db"
+    return res
+
+
+def _sync_employees_core(c, payloads) -> dict:
+    """payloads(upsert payload dict 목록) → 미리보기 통계 + upsert. 트랜잭션은 호출측(commit/rollback).
+    출처(메신저 DB 파일 / HTTP 디렉터리 API) 무관하게 동일 로직.
+    반환: {ok, total, updated, inserted, skipped, works_only[], sample_new[], sample_upd[]}"""
     updated = inserted = skipped = 0
     sample_new, sample_upd = [], []
     msg_names = set()
-    for r in rows:
-        payload = _messenger_row_to_payload(r)
-        emp_no, name = payload["employee_no"], payload["name_kr"]
+    for payload in payloads:
+        emp_no = str(payload.get("sub") or payload.get("employee_no") or "").strip()
+        name = (payload.get("name_kr") or payload.get("name") or "").strip()
         if name:
             msg_names.add(name)
         if not emp_no:
@@ -556,7 +568,39 @@ def sync_employees_from_messenger_db(c, msg_db: str = None) -> dict:
         except Exception:
             works_only = []
 
-    return {"ok": True, "total": len(rows), "updated": updated,
+    return {"ok": True, "total": len(payloads), "updated": updated,
             "inserted": inserted, "skipped": skipped,
             "works_only": works_only, "sample_new": sample_new,
-            "sample_upd": sample_upd, "msg_db": msg_db}
+            "sample_upd": sample_upd}
+
+
+def sync_employees_from_messenger_api(c) -> dict:
+    """v5H226z493 (컨테이너 분리·대표 지시): 메신저 명부를 'GET /api/sso/directory'(HTTP)로 받아 동기화.
+    DB 파일 직접읽기(sync_employees_from_messenger_db) 대체 — 분리 후 볼륨 마운트 불필요.
+    미리보기/적용은 호출측 commit/rollback. 반환 = _sync_employees_core 동일 형태(+source)."""
+    if not SSO_SERVICE_KEY:
+        return {"ok": False, "error": "공유키(KNK_SSO_SERVICE_KEY) 미설정 — NAS .env 에 등록 필요"}
+    url = f"{MESSENGER_INTERNAL_BASE}/api/sso/directory"
+    try:
+        r = httpx.get(url, headers={"X-SSO-Service-Key": SSO_SERVICE_KEY}, timeout=20.0)
+    except Exception as e:
+        return {"ok": False, "error": f"메신저 연결 실패: {e} (명부 API 준비 전일 수 있음)"}
+    if r.status_code == 403:
+        return {"ok": False, "error": "서비스키 거부(403) — 양쪽 KNK_SSO_SERVICE_KEY 확인"}
+    if r.status_code == 404:
+        return {"ok": False, "error": "명부 API(/api/sso/directory) 없음 — 메신저 준비 전(또는 메신저 미배포)"}
+    if r.status_code != 200:
+        return {"ok": False, "error": f"예상치 못한 status {r.status_code}"}
+    try:
+        users = (r.json() or {}).get("users") or []
+    except Exception as e:
+        return {"ok": False, "error": f"응답 파싱 실패: {e}"}
+    payloads = [{
+        "sub": u.get("employee_no"), "employee_no": u.get("employee_no"),
+        "name_kr": u.get("name_kr"), "name_en": u.get("name_en"), "name_vi": u.get("name_vi"),
+        "dept": u.get("dept"), "position": u.get("position"), "entity": u.get("entity"),
+        "email": u.get("email"), "phone": u.get("phone"), "is_admin": u.get("is_admin"),
+    } for u in users]
+    res = _sync_employees_core(c, payloads)
+    res["source"] = "messenger_api"
+    return res

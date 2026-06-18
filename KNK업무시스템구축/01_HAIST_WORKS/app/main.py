@@ -6896,7 +6896,7 @@ async def admin_sync_employees_page(req: Request):
     from .database import get_db
     conn = get_db()
     try:
-        preview = sso_client.sync_employees_from_messenger_db(conn.cursor())
+        preview = sso_client.sync_employees_from_messenger_api(conn.cursor())
     finally:
         conn.rollback()   # 미리보기 — 아무 것도 반영하지 않음
         conn.close()
@@ -6916,7 +6916,7 @@ async def admin_sync_employees_apply(req: Request, confirm: str = Form("")):
     def _preview():
         cn = get_db()
         try:
-            return sso_client.sync_employees_from_messenger_db(cn.cursor())
+            return sso_client.sync_employees_from_messenger_api(cn.cursor())
         finally:
             cn.rollback()
             cn.close()
@@ -6941,7 +6941,7 @@ async def admin_sync_employees_apply(req: Request, confirm: str = Form("")):
     # 2) 실제 반영
     conn = get_db()
     try:
-        res = sso_client.sync_employees_from_messenger_db(conn.cursor())
+        res = sso_client.sync_employees_from_messenger_api(conn.cursor())
         if res.get("ok"):
             conn.commit()
             res["backup"] = os.path.basename(backup)
