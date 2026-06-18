@@ -153,9 +153,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   <div class="dsx-empty">📅 {{ month_label }}에 표시할 품목이 없습니다.<br>(발주일·납품일이 이 달과 겹치는 건이 없음)</div>
   {% endif %}
 </div>
-</main>
 
-{# 기록 팝업 #}
+{# 기록 팝업 — SPA(spa_nav)는 .main 만 교체하므로 모달·스크립트도 반드시 .main 안에 둔다(밖에 두면 SPA 진입 시 DOM에서 빠져 스크립트가 null 참조로 throw → 본문 먹통). #}
 <div class="dsx-back" id="dsxBack">
   <div class="dsx-modal" role="dialog" aria-modal="true">
     <h3><span id="dsxTitle">기록</span><button type="button" class="x" id="dsxClose" title="닫기">×</button></h3>
@@ -187,6 +186,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       titleEl=document.getElementById('dsxTitle'), deptSel=document.getElementById('dsxDept'),
       typeSel=document.getElementById('dsxType'), contentEl=document.getElementById('dsxContent'),
       saveBtn=document.getElementById('dsxSave');
+  if(!back||!listEl||!deptSel||!typeSel||!contentEl||!saveBtn) return;   // 가드: 요소 없으면 조용히 종료(throw 방지)
   var cur={kind:'',ref:0,date:'',code:''}, editId=0;
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   var TLABEL={'진행':'prog','완료':'done','변경':'chg','기타':'etc'};
@@ -228,10 +228,12 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     var td=e.target.closest('td.day'); if(td){ openCell(td); }
   });
   // 닫기
-  document.getElementById('dsxClose').addEventListener('click', close);
-  document.getElementById('dsxCancel').addEventListener('click', close);
+  var cBtn=document.getElementById('dsxClose'); if(cBtn) cBtn.addEventListener('click', close);
+  var xBtn=document.getElementById('dsxCancel'); if(xBtn) xBtn.addEventListener('click', close);
   back.addEventListener('click', function(e){ if(e.target===back) close(); });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape'&&back.classList.contains('on')) close(); });
+  // Escape 닫기 — document 리스너는 SPA 재실행마다 쌓이지 않게 전역 1회만(현재 모달을 매번 라이브 조회).
+  if(!window.__dsxKeyBound){ window.__dsxKeyBound=true;
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var b=document.getElementById('dsxBack'); if(b&&b.classList.contains('on')) b.classList.remove('on'); } }); }
   // 목록 내 수정/삭제
   listEl.addEventListener('click', function(e){
     var li=e.target.closest('.dsx-ent'); if(!li) return;
@@ -265,4 +267,5 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   }
 })();
 </script>
+</main>
 </body></html>
