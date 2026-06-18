@@ -13419,8 +13419,9 @@ async def mail_rules_apply(req: Request):
 
 
 @app.get("/mail/{mail_id:int}/att/{att_id:int}")
-async def mail_attachment(req: Request, mail_id: int, att_id: int):
-    """첨부/인라인 이미지 서빙(소유권 강제: 메일 소유자만). 이미지는 inline, 그 외 다운로드."""
+async def mail_attachment(req: Request, mail_id: int, att_id: int, confirm: int = 0):
+    """첨부/인라인 이미지 서빙(소유권 강제: 메일 소유자만). 이미지는 inline, 그 외 다운로드.
+    보안(2026-06-19): 실행파일 등 위험 확장자는 경고 페이지 경유(confirm=1)만 다운로드 — 무심코 클릭→감염 방지."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -13428,12 +13429,32 @@ async def mail_attachment(req: Request, mail_id: int, att_id: int):
         a = _mailbox.get_attachment(c, att_id, u["id"])
     if not a:
         return Response(status_code=404)
+    fn = a["filename"] or "attachment"
+    _ext = _mailbox._att_ext(fn)
+    _danger = _ext in _mailbox.DANGEROUS_EXTS
+    if _danger and not confirm:
+        import html as _hm
+        sfn, sext = _hm.escape(fn), _hm.escape(_ext)
+        warn = ("<!DOCTYPE html><html lang='ko'><head><meta charset='utf-8'>"
+                "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+                "<title>위험한 첨부</title></head>"
+                "<body style=\"font-family:system-ui,-apple-system,'Malgun Gothic',sans-serif;max-width:520px;margin:42px auto;padding:0 18px;color:#1f2430\">"
+                "<div style='border:2px solid #fca5a5;background:#fef2f2;border-radius:14px;padding:22px'>"
+                "<h2 style='color:#b91c1c;margin:0 0 10px'>⚠ 위험한 첨부파일입니다</h2>"
+                "<p style='font-size:15px;line-height:1.7'><b>" + sfn + "</b><br>이 파일은 <b>실행파일(" + sext +
+                ")</b>이라, 열면 <b>악성코드·랜섬웨어</b>에 감염될 수 있습니다.</p>"
+                "<p style='font-size:14px;color:#6b7280;line-height:1.7'>보낸사람을 <b>확실히 신뢰</b>하고 이 파일을 받기로 "
+                "<b>미리 약속</b>한 게 아니라면 <b>절대 받지 마세요.</b> 조금이라도 의심되면 전산담당자에게 먼저 확인하세요.</p>"
+                "<div style='margin-top:18px;display:flex;gap:10px;flex-wrap:wrap'>"
+                "<a href='javascript:history.back()' style='background:#15803d;color:#fff;text-decoration:none;padding:11px 18px;border-radius:9px;font-weight:700'>← 돌아가기 (안전)</a>"
+                "<a href='?confirm=1' style='background:#fff;color:#b91c1c;border:1px solid #fca5a5;text-decoration:none;padding:11px 18px;border-radius:9px'>위험을 감수하고 받기</a>"
+                "</div></div></body></html>")
+        return HTMLResponse(warn)
     mime = a["mime"] or "application/octet-stream"
     # 파일명 RFC5987(한글 안전) — ASCII fallback + UTF-8
     import urllib.parse as _up
-    fn = a["filename"] or "attachment"
-    # 이미지·PDF 는 브라우저에서 바로 미리보기(inline), 그 외는 다운로드 (Phase4)
-    disp = "inline" if (mime.startswith("image/") or mime == "application/pdf") else "attachment"
+    # 위험 확장자는 confirm 후에도 브라우저서 바로 안 열리게 무조건 다운로드(attachment). 그 외 이미지·PDF는 미리보기.
+    disp = "attachment" if _danger else ("inline" if (mime.startswith("image/") or mime == "application/pdf") else "attachment")
     headers = {
         "Content-Disposition": f"{disp}; filename*=UTF-8''{_up.quote(fn)}",
         "X-Content-Type-Options": "nosniff",
@@ -14086,6 +14107,109 @@ async def mail_trash_empty(req: Request):
     with db_session() as c:
         n = _mailbox.empty_trash(c, u["id"])
     return JSONResponse({"ok": True, "count": n})
+
+
+# ── 스팸·피싱 방어 1a: 차단함 + 차단목록 (대표 지시 2026-06-19) ──
+@app.get("/mail/blocked", response_class=HTMLResponse)
+async def mail_blocked_page(req: Request):
+    """차단함 — 차단목록에 걸려 격리된 메일(삭제 아님·복구 가능)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        mails = _mailbox.list_blocked(c, u["id"])
+        unread = _mailbox.count_unread(c, u["id"])
+        drafts_n = _mailbox.count_drafts(c, u["id"])
+    return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
+               cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
+               ai_on=ai_enabled_for(u), box="blocked", drafts_n=drafts_n)
+
+
+@app.post("/mail/{mail_id:int}/block")
+async def mail_block_one(req: Request, mail_id: int):
+    """이 메일만 차단함으로 이동(개별·본인 메일). 발신 전체 차단은 /block-sender."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        _mailbox.set_blocked(c, u["id"], mail_id, True)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/mail/{mail_id:int}/unblock")
+async def mail_unblock_one(req: Request, mail_id: int):
+    """차단함 → 받은편지함 복구(개별·본인 메일)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        _mailbox.set_blocked(c, u["id"], mail_id, False)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/mail/{mail_id:int}/block-sender")
+async def mail_block_sender(req: Request, mail_id: int):
+    """이 메일의 보낸사람을 차단목록에 추가 + 기존 메일 소급 차단(관리자만 — 전사 영향)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만 가능합니다."}, 403)
+    with db_session() as c:
+        row = c.execute("SELECT from_email FROM mail_messages WHERE id=? AND user_id=?",
+                        (mail_id, u["id"])).fetchone()
+        if not row or not (row["from_email"] or "").strip():
+            return JSONResponse({"ok": False, "message": "보낸사람을 찾을 수 없습니다."}, 400)
+        addr = row["from_email"].strip().lower()
+        _mailbox.add_block(c, addr, kind="email", note="메일에서 차단", by=u["id"])
+        moved = _mailbox.apply_block_to_existing(c, addr, "email")
+    return JSONResponse({"ok": True, "addr": addr, "moved": moved})
+
+
+@app.get("/mail/blocklist", response_class=HTMLResponse)
+async def mail_blocklist_page(req: Request):
+    """차단목록 관리 화면(관리자) — 주소/도메인 등록·삭제."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+    with db_session() as c:
+        blocks = _mailbox.list_blocks(c)
+        blocked_n = _mailbox.count_blocked(c, u["id"])
+    return ctx(req, "admin_mail_blocklist.html", user=u, active="admin",
+               blocks=blocks, blocked_n=blocked_n)
+
+
+@app.post("/mail/blocklist/add")
+async def mail_blocklist_add(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만 가능합니다."}, 403)
+    form = await req.form()
+    pattern = (form.get("pattern") or "").strip().lower()
+    kind = (form.get("kind") or "email").strip().lower()
+    if kind not in ("email", "domain"):
+        kind = "email"
+    note = (form.get("note") or "").strip()
+    with db_session() as c:
+        ok_a = _mailbox.add_block(c, pattern, kind=kind, note=note, by=u["id"])
+        moved = _mailbox.apply_block_to_existing(c, pattern.lstrip("@"), kind) if ok_a else 0
+    if not ok_a:
+        return JSONResponse({"ok": False, "message": "형식이 올바르지 않습니다(이메일 또는 도메인)."}, 400)
+    return JSONResponse({"ok": True, "moved": moved})
+
+
+@app.post("/mail/blocklist/remove")
+async def mail_blocklist_remove(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만 가능합니다."}, 403)
+    form = await req.form()
+    try:
+        bid = int(form.get("id") or 0)
+    except Exception:
+        bid = 0
+    with db_session() as c:
+        _mailbox.remove_block(c, bid)
+    return JSONResponse({"ok": True})
 
 
 @app.post("/mail/dedup")
@@ -19125,7 +19249,7 @@ def _dept_sched_dept_of(u):
 
 
 @app.get("/dept/schedule", response_class=HTMLResponse)
-async def dept_schedule(request: Request, ym: str = "", biz: str = ""):
+async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -19229,13 +19353,29 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = ""):
         _biz = ""
     rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
 
+    # 내 부서 + 부서 목록(teams)
+    my_team = _dept_sched_dept_of(u)
+    all_depts = []
+    try:
+        with db_session() as _c:
+            all_depts = [r[0] for r in _c.execute("SELECT name FROM teams ORDER BY id").fetchall() if r[0]]
+    except Exception:
+        all_depts = []
+    # v5H226z497 (Phase 2): 부서 필터 — sel_dept 면 그 부서 기록만 마커/요약에 반영(팝업 목록은 전체 유지)
+    sel_dept = (dept or "").strip()
+
     # 이 달 부서 기록 로드 → logmap[key][day_str]=[entries] , cellsum[key][day_str]={n,color}
+    #   + 월간/품목별 요약(summary): 유형분포·부서별 건수·기록 품목 수 (사업부 필터된 행 대상)
     logmap, cellsum = {}, {}
+    _visible_keys = {f"{r['kind']}:{r['ref_id']}" for r in rows}
+    summary = {"total": 0, "prog": 0, "done": 0, "chg": 0, "etc": 0, "items": 0, "by_dept": []}
+    _by_dept, _items_with = {}, set()
     try:
         with db_session() as _c:
             for lr in _c.execute(
                 "SELECT ref_kind, ref_id, log_date, id, COALESCE(dept,''), COALESCE(log_type,'진행'), "
-                "COALESCE(content,''), COALESCE(created_by_name,''), COALESCE(updated_at,''), COALESCE(created_by,0) "
+                "COALESCE(content,''), COALESCE(created_by_name,''), COALESCE(updated_at,''), COALESCE(created_by,0), "
+                "COALESCE(handoff_to,'') "
                 "FROM dept_schedule_log WHERE log_date BETWEEN ? AND ? ORDER BY id",
                     (mstart.isoformat(), mend.isoformat())):
                 key = f"{lr[0]}:{lr[1]}"
@@ -19245,31 +19385,37 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = ""):
                     continue
                 logmap.setdefault(key, {}).setdefault(dnum, []).append(
                     {"id": lr[3], "dept": lr[4], "type": lr[5], "content": lr[6],
-                     "by": lr[7], "ts": lr[8], "uid": lr[9]})
+                     "by": lr[7], "ts": lr[8], "uid": lr[9], "to": lr[10]})
+                # 요약 — 화면에 보이는 행(사업부 필터 통과)만 집계
+                if key in _visible_keys:
+                    summary["total"] += 1
+                    summary[{"진행": "prog", "완료": "done", "변경": "chg"}.get(lr[5], "etc")] += 1
+                    _by_dept[lr[4] or "(부서없음)"] = _by_dept.get(lr[4] or "(부서없음)", 0) + 1
+                    _items_with.add(key)
+        # 마커(cellsum) — 부서 필터 적용(sel_dept 면 그 부서 기록만 카운트)
         for key, dm in logmap.items():
-            cellsum[key] = {}
+            cs = {}
             for ds, ents in dm.items():
-                types = [e["type"] for e in ents]
+                _e = [e for e in ents if (not sel_dept or e["dept"] == sel_dept)]
+                if not _e:
+                    continue
+                types = [e["type"] for e in _e]
                 color = "done" if "완료" in types else ("chg" if "변경" in types else "prog")
-                cellsum[key][ds] = {"n": len(ents), "color": color}
+                cs[ds] = {"n": len(_e), "color": color}
+            if cs:
+                cellsum[key] = cs
+        summary["items"] = len(_items_with)
+        summary["by_dept"] = sorted(_by_dept.items(), key=lambda x: -x[1])[:6]
     except Exception:
         logmap, cellsum = {}, {}
-
-    # 내 부서 + 부서 목록(teams)
-    my_team = _dept_sched_dept_of(u)
-    all_depts = []
-    try:
-        with db_session() as _c:
-            all_depts = [r[0] for r in _c.execute("SELECT name FROM teams ORDER BY id").fetchall() if r[0]]
-    except Exception:
-        all_depts = []
 
     return ctx(request, "dept_schedule.html", user=u, active="dept_schedule",
                rows=rows, days=days, today_day=today_day,
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                biz=_biz, div_counts=div_counts, cellsum=cellsum, logmap=logmap,
-               my_team=my_team, all_depts=all_depts, types=["진행", "완료", "변경", "기타"],
+               my_team=my_team, all_depts=all_depts, sel_dept=sel_dept, summary=summary,
+               types=["진행", "완료", "변경", "기타"],
                today=today.isoformat(), is_admin=bool(u.get("role") in ("admin", "ceo")), uid=u.get("id"))
 
 
@@ -19288,6 +19434,7 @@ async def dept_schedule_add(request: Request):
     dept = (body.get("dept") or "").strip()
     log_type = (body.get("log_type") or "진행").strip()
     content = (body.get("content") or "").strip()
+    handoff_to = (body.get("handoff_to") or "").strip()   # v5H226z497: 넘길 부서(다음 담당)
     if kind not in ("project", "consumable") or not ref_id or not date:
         return JSONResponse({"ok": False, "error": "잘못된 요청"}, 400)
     if log_type not in ("진행", "완료", "변경", "기타"):
@@ -19301,11 +19448,35 @@ async def dept_schedule_add(request: Request):
         return JSONResponse({"ok": False, "error": "날짜 형식 오류"}, 400)
     if not dept:
         dept = _dept_sched_dept_of(u)
+    notify = {"sent": 0, "in_app": 0, "to": handoff_to}
     with db_session() as c:
-        c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, created_by, created_by_name) "
-                  "VALUES(?,?,?,?,?,?,?,?)",
-                  (kind, ref_id, date, dept, log_type, content, u.get("id"), u.get("name") or ""))
-    return JSONResponse({"ok": True})
+        c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, created_by, created_by_name) "
+                  "VALUES(?,?,?,?,?,?,?,?,?)",
+                  (kind, ref_id, date, dept, log_type, content, handoff_to or None, u.get("id"), u.get("name") or ""))
+        # v5H226z497 (Phase 2): '넘길 부서' 지정 시 그 부서원에게 Eum 1:1 + 인앱 통보(핸드오프)
+        if handoff_to and handoff_to != dept:
+            try:
+                from urllib.parse import quote
+                _code = ""
+                if kind == "project":
+                    _cr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (ref_id,)).fetchone()
+                else:
+                    _cr = c.execute("SELECT mgmt_code FROM consumable_orders WHERE id=?", (ref_id,)).fetchone()
+                _code = (_cr[0] if _cr else "") or f"{kind}#{ref_id}"
+                _ids = [r[0] for r in c.execute(
+                    "SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
+                    "WHERE t.name=? AND COALESCE(u.is_active,1)=1", (handoff_to,)).fetchall()]
+                if _ids:
+                    _title = f"🗓 [부서 일정] {_code} — {dept or '앞 부서'}→{handoff_to}"
+                    _body = (f"{date} · {log_type}\n{content}\n"
+                             f"(기록: {u.get('name') or '—'}{(' / ' + dept) if dept else ''} → {handoff_to}(으)로 넘김)")
+                    _link = "/dept/schedule?dept=" + quote(handoff_to)
+                    _res = _notify_users(c, _ids, "dept_schedule", _title, _body, _link)
+                    notify["sent"] = _res.get("msg_sent", 0)
+                    notify["in_app"] = _res.get("in_app", 0)
+            except Exception:
+                pass   # 통보 실패해도 기록 저장은 유지
+    return JSONResponse({"ok": True, "notify": notify})
 
 
 @app.post("/dept/schedule/cell/update")

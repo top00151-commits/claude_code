@@ -418,8 +418,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       <span><i style="background:#16a34a;"></i>납품일</span>
       <span><i style="background:#fcd9d9;"></i>지연</span>
     </div>
-    {# v5H226z395 (대표 지시): '엑셀로 저장'을 상단 우측 '신규 등록' 왼쪽으로 이동 + 약간 녹색 계열. margin-left:auto 가 우측 그룹화를 맡음. #}
-    <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'" style="margin-left:auto;background:#edfaf1;color:#15803d;border:1px solid #7fc49b;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">📥</span> 엑셀로 저장</button>
+    {# v5H226z497 (대표 지시): 부서 일정표(부서별 진행 기록)로 가는 링크 — 우측 그룹 시작(margin-left:auto). #}
+    <a href="/dept/schedule" data-no-swap title="부서 일정표 — 부서별 진행/완료/변경 기록" style="margin-left:auto;text-decoration:none;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;"><span class="ti">🗓</span> 부서 일정표</a>
+    {# v5H226z395 (대표 지시): '엑셀로 저장'을 상단 우측 '신규 등록' 왼쪽으로 이동 + 약간 녹색 계열. #}
+    <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">📥</span> 엑셀로 저장</button>
     {# v5H226z347→z395 (대표 지시): 신규 등록 — 우측 끝(엑셀 버튼이 margin-left:auto 를 맡으므로 여긴 기본 gap 간격) #}
     <button type="button" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);border-radius:7px;padding:6px 16px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">＋</span> 신규 등록</button>
   </div>

@@ -18,6 +18,20 @@
 .dsx-legend{display:flex;gap:13px;align-items:center;margin-left:auto;font-size:11.5px;color:#64748b;flex-wrap:wrap;}
 .dsx-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:3px;}
 .dsx-legend .mk{position:static;display:inline-block;}
+/* 부서 필터 칩 */
+.dsx-depts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.dsx-chip{padding:4px 11px;border:1px solid var(--line);border-radius:16px;font-size:12px;font-weight:700;text-decoration:none;color:var(--qv-ink-2);background:var(--paper-2);}
+.dsx-chip:hover{border-color:var(--knk-red);color:var(--knk-red);}
+.dsx-chip.on{background:var(--knk-red);color:#fff;border-color:var(--knk-red);}
+.dsx-chip .mine{font-size:10px;opacity:.85;}
+/* 월간 요약 */
+.dsx-summary{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#f8fafc;border:1px solid #e7ecf3;border-radius:10px;padding:8px 13px;margin-bottom:12px;font-size:12.5px;color:#475569;}
+.dsx-summary .s-head{font-weight:800;color:#1e293b;}
+.dsx-summary .s-stat{display:inline-flex;align-items:center;gap:4px;}
+.dsx-summary .s-stat b{color:#1e293b;}
+.dsx-summary .mk{position:static;}
+.dsx-summary .s-dept{color:#64748b;}
+.dsx-summary .s-dept b{color:#334155;}
 
 .dsx-tablewrap{border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:74vh;background:#fff;}
 table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap;}
@@ -64,6 +78,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx-ent .e-type{font-size:10px;font-weight:800;color:#fff;border-radius:7px;padding:1px 7px;}
 .e-type.prog{background:#2563eb;} .e-type.done{background:#16a34a;} .e-type.chg{background:#d97706;} .e-type.etc{background:#64748b;}
 .dsx-ent .e-content{font-size:13px;color:#1e293b;margin-top:4px;white-space:pre-wrap;word-break:break-word;}
+.dsx-ent .e-to{font-size:10.5px;font-weight:800;color:#7c3aed;background:#f3e8ff;border-radius:7px;padding:1px 7px;}
 .dsx-ent .e-act{margin-left:auto;display:flex;gap:6px;}
 .dsx-ent .e-act button{border:0;background:none;cursor:pointer;font-size:11px;color:#64748b;text-decoration:underline;}
 .dsx-ent .e-act button.del{color:#dc2626;}
@@ -89,17 +104,21 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     매일 아침 회의에서 달력에 적던 그대로입니다. {% if my_team %}내 부서: <b>{{ my_team }}</b>{% endif %}
   </div>
 
+  {# 필터 유지용 쿼리 조각(부서·사업부) #}
+  {% set _dq = ('&dept=' ~ (sel_dept|urlencode)) if sel_dept else '' %}
+  {% set _bq = ('&biz=' ~ biz) if biz else '' %}
   <div class="dsx-tools">
     <div class="dsx-mn">
-      <a href="/dept/schedule?ym={{ prev_ym }}{% if biz %}&biz={{ biz }}{% endif %}" title="이전 달">←</a>
+      <a href="/dept/schedule?ym={{ prev_ym }}{{ _bq }}{{ _dq }}" title="이전 달">←</a>
       <span class="mlabel">{{ month_label }}</span>
-      <a href="/dept/schedule?ym={{ next_ym }}{% if biz %}&biz={{ biz }}{% endif %}" title="다음 달">→</a>
-      <a class="today-go" href="/dept/schedule?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}" title="이번 달로">오늘</a>
+      <a href="/dept/schedule?ym={{ next_ym }}{{ _bq }}{{ _dq }}" title="다음 달">→</a>
+      <a class="today-go" href="/dept/schedule?ym={{ cur_ym }}{{ _bq }}{{ _dq }}" title="이번 달로">오늘</a>
+      <a class="today-go" href="/sales/schedule" data-no-swap title="영업 작업일정표로" style="margin-left:8px;">📋 작업일정표</a>
     </div>
     <div class="dsx-tabs">
       {% set _tabs = [('','전체',div_counts.all),('T','검사기',div_counts.T),('M','자동화',div_counts.M),('L','라이프밸류',div_counts.L),('E','기타',div_counts.E),('C','소모품',div_counts.C)] %}
       {% for code,label,cnt in _tabs %}
-      <a class="dsx-tab{% if biz==code %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{% if code %}&biz={{ code }}{% endif %}">{{ label }} {{ cnt }}</a>
+      <a class="dsx-tab{% if biz==code %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{% if code %}&biz={{ code }}{% endif %}{{ _dq }}">{{ label }} {{ cnt }}</a>
       {% endfor %}
     </div>
     <div class="dsx-legend">
@@ -109,6 +128,28 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       <span><span class="mk chg">N</span> 변경</span>
     </div>
   </div>
+
+  {# 부서 필터 칩 — 그 부서가 적은 기록만 마커로(내 부서 기본 표시) #}
+  <div class="dsx-depts">
+    <a class="dsx-chip{% if not sel_dept %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{{ _bq }}">전체 부서</a>
+    {% for d in all_depts %}
+    <a class="dsx-chip{% if sel_dept==d %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{{ _bq }}&dept={{ d|urlencode }}">{{ d }}{% if d==my_team %} <span class="mine">(내 부서)</span>{% endif %}</a>
+    {% endfor %}
+  </div>
+
+  {# 월간·품목별 기록 요약 #}
+  {% if summary and summary.total %}
+  <div class="dsx-summary">
+    <span class="s-head">📊 {{ month_label }}{% if biz %} · {{ {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타','C':'소모품'}.get(biz,'') }}{% endif %} 기록</span>
+    <span class="s-stat">총 <b>{{ summary.total }}</b>건</span>
+    <span class="s-stat"><span class="mk prog">{{ summary.prog }}</span>진행</span>
+    <span class="s-stat"><span class="mk done">{{ summary.done }}</span>완료</span>
+    <span class="s-stat"><span class="mk chg">{{ summary.chg }}</span>변경</span>
+    {% if summary.etc %}<span class="s-stat">기타 {{ summary.etc }}</span>{% endif %}
+    <span class="s-stat">품목 <b>{{ summary['items'] }}</b>개</span>
+    {% if summary.by_dept %}<span class="s-dept">부서별: {% for d,n in summary.by_dept %}<b>{{ d }}</b> {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</span>{% endif %}
+  </div>
+  {% endif %}
 
   {% if rows %}
   <div class="dsx-tablewrap">
@@ -167,6 +208,9 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         </div>
         <label>내용 (진행/완료/변경 사항)</label>
         <textarea id="dsxContent" rows="2" placeholder="예: 전장 배선 완료, 25일 검증팀으로 넘김"></textarea>
+        <div class="row" style="margin-top:8px;">
+          <div class="f-dept"><label>다음 부서로 넘김 (선택 — 고르면 그 부서에 KNK Eum 알림)</label><select id="dsxHandoff"></select></div>
+        </div>
         <div class="dsx-foot">
           <button type="button" class="dsx-btn" id="dsxCancel">닫기</button>
           <button type="button" class="dsx-btn primary" id="dsxSave">기록 추가</button>
@@ -185,7 +229,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   var back=document.getElementById('dsxBack'), listEl=document.getElementById('dsxList'),
       titleEl=document.getElementById('dsxTitle'), deptSel=document.getElementById('dsxDept'),
       typeSel=document.getElementById('dsxType'), contentEl=document.getElementById('dsxContent'),
-      saveBtn=document.getElementById('dsxSave');
+      handoffSel=document.getElementById('dsxHandoff'), saveBtn=document.getElementById('dsxSave');
   if(!back||!listEl||!deptSel||!typeSel||!contentEl||!saveBtn) return;   // 가드: 요소 없으면 조용히 종료(throw 방지)
   var cur={kind:'',ref:0,date:'',code:''}, editId=0;
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -198,6 +242,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     if(!dh) dh='<option value="">(부서)</option>';
     deptSel.innerHTML=dh;
     typeSel.innerHTML=(TYPES||['진행']).map(function(t){return '<option>'+esc(t)+'</option>';}).join('');
+    if(handoffSel){ handoffSel.innerHTML='<option value="">(넘기지 않음)</option>'+(DEPTS||[]).map(function(d){return '<option value="'+esc(d)+'">'+esc(d)+'</option>';}).join(''); }
   })();
   function entries(){ var k=cur.kind+':'+cur.ref; return (LOGS[k]&&LOGS[k][String(cur.day)])||[]; }
   function renderList(){
@@ -209,6 +254,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         +'<div class="e-top"><span class="e-dept">'+esc(e.dept||'(부서)')+'</span>'
         +'<span class="e-type '+typeCls(e.type)+'">'+esc(e.type)+'</span>'
         +'<span>'+esc(e.by||'')+(e.ts?(' · '+esc(String(e.ts).slice(5,16))):'')+'</span>'
+        +(e.to?('<span class="e-to">→ '+esc(e.to)+' 넘김</span>'):'')
         +(can?('<span class="e-act"><button type="button" class="edit">수정</button><button type="button" class="del">삭제</button></span>'):'')
         +'</div><div class="e-content">'+esc(e.content)+'</div></li>';
     }).join('');
@@ -218,6 +264,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       date:td.dataset.date,day:Number(td.dataset.day)};
     titleEl.textContent=cur.code+' · '+cur.date;
     editId=0; contentEl.value=''; if(MYTEAM) deptSel.value=MYTEAM; typeSel.selectedIndex=0;
+    if(handoffSel){ handoffSel.value=''; var hr=handoffSel.closest('.row'); if(hr) hr.style.display=''; }
     saveBtn.textContent='기록 추가';
     renderList(); back.classList.add('on'); contentEl.focus();
   }
@@ -244,6 +291,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       editId=Number(li.dataset.id);
       contentEl.value=li.querySelector('.e-content').textContent;
       var t=li.dataset.type; for(var i=0;i<typeSel.options.length;i++){ if(typeSel.options[i].value===t||typeSel.options[i].text===t){ typeSel.selectedIndex=i; break; } }
+      if(handoffSel){ var hr=handoffSel.closest('.row'); if(hr) hr.style.display='none'; }  // 넘김은 새 기록에만
       saveBtn.textContent='수정 저장'; contentEl.focus();
     }
   });
@@ -255,7 +303,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       var es=entries(), ts=''; es.forEach(function(x){ if(x.id===editId) ts=x.ts; });
       post('/dept/schedule/cell/update',{id:editId,content:content,log_type:type,base_ts:ts});
     } else {
-      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content});
+      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,handoff_to:(handoffSel?handoffSel.value:'')});
     }
   });
   function post(url, body){

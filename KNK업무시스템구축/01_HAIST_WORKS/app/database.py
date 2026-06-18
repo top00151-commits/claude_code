@@ -2880,6 +2880,10 @@ def init_db():
             )""")
             c.execute("CREATE INDEX IF NOT EXISTS idx_dsl_ref ON dept_schedule_log(ref_kind, ref_id, log_date)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_dsl_date ON dept_schedule_log(log_date)")
+            # v5H226z497 (대표 지시·Phase 2): '넘길 부서'(다음 담당) — 기록 시 지정하면 그 부서에 Eum+인앱 통보
+            _dslc = {r[1] for r in c.execute("PRAGMA table_info(dept_schedule_log)").fetchall()}
+            if "handoff_to" not in _dslc:
+                c.execute("ALTER TABLE dept_schedule_log ADD COLUMN handoff_to TEXT")
         except Exception as _e:
             print(f"[v5H226z496] dept_schedule_log 생성 스킵: {_e}")
 
