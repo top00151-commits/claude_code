@@ -614,8 +614,13 @@ def startup():
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
     # 메일 자동 가져오기 스케줄러 시작 (대표 지시 2026-06-14 "가져오기 자동으로")
+    # v5H226z494 (컨테이너 분리): 메일 자동수집은 '메일 컨테이너에서만' — env 게이트(기본 켜짐=현행 유지).
+    #   분리 후 전산이 works·msg 컨테이너엔 KNK_RUN_MAIL_FETCH=0 으로 꺼 3중 폴링 방지(kmail 만 수집).
     try:
-        _start_mail_fetch_scheduler()
+        if os.environ.get("KNK_RUN_MAIL_FETCH", "1").strip().lower() not in ("0", "false", "no", "off"):
+            _start_mail_fetch_scheduler()
+        else:
+            print("[MAIL-FETCH-AUTO] KNK_RUN_MAIL_FETCH=0 — 이 컨테이너에선 메일 자동수집 비활성(분리 모드)")
     except Exception as _e:
         print(f"[MAIL-FETCH-AUTO start ERR] {_e}")
     # v5H172 (2026-05-06): 통화 데이터 백필.
@@ -12894,7 +12899,10 @@ async def contact_mail_send(req: Request, cid: int):
 from . import mail_store as _mailbox
 
 _MAIL_CATEGORIES = ("견적", "발주", "세금계산서", "일반")
-_MAIL_INBOUND_URL = "https://works.knknara.co.kr/api/mail/inbound"
+# v5H226z494 (컨테이너 분리·대표 지시): 메일 공개도메인 env화 — 기본 kmail.knknara.co.kr(메일 전용 컨테이너).
+#   인바운드(Cloudflare→/api/mail/inbound) 표시 대상. env 로 조정 가능(전환 타이밍은 전산이 Cloudflare 와 함께).
+_MAIL_PUBLIC_BASE = os.environ.get("KNK_MAIL_PUBLIC_BASE", "https://kmail.knknara.co.kr").rstrip("/")
+_MAIL_INBOUND_URL = f"{_MAIL_PUBLIC_BASE}/api/mail/inbound"
 
 
 def _mail_inbound_token() -> str:
