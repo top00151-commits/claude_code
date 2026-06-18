@@ -19108,6 +19108,260 @@ async def dept_stage_work(request: Request, dept: str = ""):
                doing=doing, ready=ready, done=done, today=today.isoformat())
 
 
+# ───── v5H226z496 (대표 지시): 부서 일정표 — 부서가 작업일정표 날짜칸을 클릭해 진행/완료/변경 기록 ─────
+#   영업 기준 작업일정표와 별개의 '부서용' 보기. 가격(단가·금액) 컬럼 없음 → 전 직원 안전 열람.
+#   날짜칸 클릭 → 그 (품목×날짜)에 부서별 업무현황(유형+내용) 추가/보기/수정. 단계(STAGE)와 무관·자유 부서.
+def _dept_sched_dept_of(u):
+    """기록자 기본 부서 = 소속 팀 이름."""
+    tid = u.get("team_id")
+    if not tid:
+        return ""
+    try:
+        with db_session() as _c:
+            _r = _c.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()
+            return (_r[0] or "") if _r else ""
+    except Exception:
+        return ""
+
+
+@app.get("/dept/schedule", response_class=HTMLResponse)
+async def dept_schedule(request: Request, ym: str = "", biz: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    import calendar as _cal
+    from datetime import date as _date, datetime as _dt, timedelta as _td
+    today = _dt.now().date()
+    try:
+        _y, _m = (int(ym[:4]), int(ym[5:7])) if (ym and len(ym) >= 7) else (today.year, today.month)
+        if not (1 <= _m <= 12):
+            raise ValueError
+    except Exception:
+        _y, _m = today.year, today.month
+    last_day = _cal.monthrange(_y, _m)[1]
+    mstart, mend = _date(_y, _m, 1), _date(_y, _m, last_day)
+    days = list(range(1, last_day + 1))
+    today_day = today.day if (today.year == _y and today.month == _m) else None
+    _prev, _next = mstart - _td(days=1), mend + _td(days=1)
+    prev_ym, next_ym = f"{_prev.year:04d}-{_prev.month:02d}", f"{_next.year:04d}-{_next.month:02d}"
+
+    def _pd(s):
+        try:
+            return _dt.strptime(str(s)[:10], "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    # 수주번호(SO) 맵 — 프로젝트별 최신 order_no
+    _so_map = {}
+    try:
+        with db_session() as _c:
+            for _r2 in _c.execute("SELECT project_id, order_no FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+                if _r2[0] and _r2[0] not in _so_map:
+                    _so_map[_r2[0]] = _r2[1] or ""
+    except Exception:
+        pass
+
+    def _mk(info, od, dd, status, kind):
+        s, e = (od or dd), (dd or od)
+        if not s and not e:
+            return None
+        s, e = (s or e), (e or s)
+        if e < s:
+            s, e = e, s
+        if e < mstart or s > mend:
+            return None
+        info["bar_s"] = max(s, mstart).day
+        info["bar_e"] = min(e, mend).day
+        info["dday"] = dd.day if (dd and mstart <= dd <= mend) else None
+        info["is_delay"] = bool(dd and dd < today and status not in ("출하", "취소", "보류"))
+        info["kind"] = kind
+        return info
+
+    rows = []
+    for p in (dict(r) for r in _logi.projects_list_logi()):
+        if (p.get("project_type") or "").upper() == "CONSUMABLE":
+            continue
+        code = p.get("mgmt_code") or "—"
+        info = {
+            "kind": "project", "ref_id": p.get("id"), "code": code,
+            "so_no": _so_map.get(p.get("id"), ""),
+            "model": p.get("model_name") or "", "equip": p.get("equip_name") or "",
+            "qty": p.get("unit_qty") or "", "po_type": p.get("po_type") or "",
+            "form_type": p.get("form_type") or _logi.SHIP_TO_FORM.get((p.get("shipment_form") or "").upper(), ""),
+            "customer": p.get("customer_name") or "—", "cust_ok": bool(p.get("customer_id")),
+            "owner": p.get("cc_name") or "",           # 고객사 담당자
+            "order_date": str(p.get("order_date") or "")[:10],
+            "due_date": str(p.get("due_date") or "")[:10],
+        }
+        _r = _mk(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+        if _r:
+            rows.append(_r)
+    try:
+        from . import consumables as _co_mod
+        for cr in _co_mod.co_list(status="", q="", limit=1000):
+            info = {
+                "kind": "consumable", "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
+                "so_no": cr.get("co_no") or "", "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
+                "qty": 1, "po_type": "소모품", "form_type": "상품",
+                "customer": cr.get("customer_name") or "—", "cust_ok": bool(cr.get("customer_id")),
+                "owner": cr.get("cc_name") or "",
+                "order_date": str(cr.get("order_date") or "")[:10],
+                "due_date": str(cr.get("due_date") or "")[:10],
+            }
+            _r = _mk(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")), "", "consumable")
+            if _r:
+                rows.append(_r)
+    except Exception:
+        pass
+
+    # 사업부 분류 + 탭 필터 (관리번호 4번째 글자 T/M/L/E/C)
+    for r in rows:
+        _rc = r.get("code") or ""
+        r["div"] = _rc[3] if (len(_rc) >= 4 and _rc[3] in "TMLEC") else ("C" if r["kind"] == "consumable" else "")
+    div_counts = {"all": len(rows), "T": 0, "M": 0, "L": 0, "E": 0, "C": 0}
+    for r in rows:
+        if r["div"] in div_counts:
+            div_counts[r["div"]] += 1
+    _biz = (biz or "").strip().upper()
+    if _biz in ("T", "M", "L", "E", "C"):
+        rows = [r for r in rows if r["div"] == _biz]
+    else:
+        _biz = ""
+    rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
+
+    # 이 달 부서 기록 로드 → logmap[key][day_str]=[entries] , cellsum[key][day_str]={n,color}
+    logmap, cellsum = {}, {}
+    try:
+        with db_session() as _c:
+            for lr in _c.execute(
+                "SELECT ref_kind, ref_id, log_date, id, COALESCE(dept,''), COALESCE(log_type,'진행'), "
+                "COALESCE(content,''), COALESCE(created_by_name,''), COALESCE(updated_at,''), COALESCE(created_by,0) "
+                "FROM dept_schedule_log WHERE log_date BETWEEN ? AND ? ORDER BY id",
+                    (mstart.isoformat(), mend.isoformat())):
+                key = f"{lr[0]}:{lr[1]}"
+                try:
+                    dnum = str(int(str(lr[2])[8:10]))
+                except Exception:
+                    continue
+                logmap.setdefault(key, {}).setdefault(dnum, []).append(
+                    {"id": lr[3], "dept": lr[4], "type": lr[5], "content": lr[6],
+                     "by": lr[7], "ts": lr[8], "uid": lr[9]})
+        for key, dm in logmap.items():
+            cellsum[key] = {}
+            for ds, ents in dm.items():
+                types = [e["type"] for e in ents]
+                color = "done" if "완료" in types else ("chg" if "변경" in types else "prog")
+                cellsum[key][ds] = {"n": len(ents), "color": color}
+    except Exception:
+        logmap, cellsum = {}, {}
+
+    # 내 부서 + 부서 목록(teams)
+    my_team = _dept_sched_dept_of(u)
+    all_depts = []
+    try:
+        with db_session() as _c:
+            all_depts = [r[0] for r in _c.execute("SELECT name FROM teams ORDER BY id").fetchall() if r[0]]
+    except Exception:
+        all_depts = []
+
+    return ctx(request, "dept_schedule.html", user=u, active="dept_schedule",
+               rows=rows, days=days, today_day=today_day,
+               month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
+               prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
+               biz=_biz, div_counts=div_counts, cellsum=cellsum, logmap=logmap,
+               my_team=my_team, all_depts=all_depts, types=["진행", "완료", "변경", "기타"],
+               today=today.isoformat(), is_admin=bool(u.get("role") in ("admin", "ceo")), uid=u.get("id"))
+
+
+@app.post("/dept/schedule/cell/add")
+async def dept_schedule_add(request: Request):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    kind = (body.get("kind") or "").strip()
+    ref_id = int(body.get("ref_id") or 0)
+    date = (body.get("date") or "").strip()[:10]
+    dept = (body.get("dept") or "").strip()
+    log_type = (body.get("log_type") or "진행").strip()
+    content = (body.get("content") or "").strip()
+    if kind not in ("project", "consumable") or not ref_id or not date:
+        return JSONResponse({"ok": False, "error": "잘못된 요청"}, 400)
+    if log_type not in ("진행", "완료", "변경", "기타"):
+        log_type = "진행"
+    if not content:
+        return JSONResponse({"ok": False, "error": "내용을 입력하세요"}, 400)
+    from datetime import datetime as _dt
+    try:
+        _dt.strptime(date, "%Y-%m-%d")
+    except Exception:
+        return JSONResponse({"ok": False, "error": "날짜 형식 오류"}, 400)
+    if not dept:
+        dept = _dept_sched_dept_of(u)
+    with db_session() as c:
+        c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, created_by, created_by_name) "
+                  "VALUES(?,?,?,?,?,?,?,?)",
+                  (kind, ref_id, date, dept, log_type, content, u.get("id"), u.get("name") or ""))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/dept/schedule/cell/update")
+async def dept_schedule_update(request: Request):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    lid = int(body.get("id") or 0)
+    content = (body.get("content") or "").strip()
+    log_type = (body.get("log_type") or "진행").strip()
+    base_ts = body.get("base_ts") or ""
+    if not lid:
+        return JSONResponse({"ok": False, "error": "잘못된 요청"}, 400)
+    if log_type not in ("진행", "완료", "변경", "기타"):
+        log_type = "진행"
+    if not content:
+        return JSONResponse({"ok": False, "error": "내용을 입력하세요"}, 400)
+    with db_session() as c:
+        row = c.execute("SELECT COALESCE(created_by,0), COALESCE(updated_at,'') FROM dept_schedule_log WHERE id=?", (lid,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "error": "없는 기록입니다"}, 404)
+        if not (row[0] == u.get("id") or u.get("role") in ("admin", "ceo")):
+            return JSONResponse({"ok": False, "error": "작성자만 수정할 수 있습니다"}, 403)
+        if base_ts and row[1] and base_ts != row[1]:
+            return JSONResponse({"ok": False, "error": "다른 곳에서 먼저 수정됐습니다 — 새로고침 후 다시"}, 409)
+        c.execute("UPDATE dept_schedule_log SET content=?, log_type=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (content, log_type, lid))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/dept/schedule/cell/delete")
+async def dept_schedule_delete(request: Request):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    lid = int(body.get("id") or 0)
+    if not lid:
+        return JSONResponse({"ok": False, "error": "잘못된 요청"}, 400)
+    with db_session() as c:
+        row = c.execute("SELECT COALESCE(created_by,0) FROM dept_schedule_log WHERE id=?", (lid,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": True})   # 이미 삭제됨
+        if not (row[0] == u.get("id") or u.get("role") in ("admin", "ceo")):
+            return JSONResponse({"ok": False, "error": "작성자만 삭제할 수 있습니다"}, 403)
+        c.execute("DELETE FROM dept_schedule_log WHERE id=?", (lid,))
+    return JSONResponse({"ok": True})
+
+
 @app.get("/projects/export.xlsx")
 async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
                                view: str = "", status: str = ""):

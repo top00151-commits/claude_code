@@ -2862,6 +2862,27 @@ def init_db():
         except Exception as _e:
             print(f"[v5H226z488] tax_invoices 생성 스킵: {_e}")
 
+        # v5H226z496 (대표 지시): 부서 일정표 — 부서가 작업일정표 날짜칸을 클릭해 진행/완료/변경 사항을 기록.
+        #   아침회의에서 품목별로 "○일까지 완료→다음 부서로 넘김"을 달력칸에 적던 방식을 그대로. 단계(STAGE)와 무관·자유 부서.
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS dept_schedule_log (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                ref_kind        TEXT NOT NULL,                 -- project / consumable
+                ref_id          INTEGER NOT NULL,              -- 프로젝트·소모품 id
+                log_date        TEXT NOT NULL,                 -- 날짜칸 YYYY-MM-DD
+                dept            TEXT,                          -- 기록 부서
+                log_type        TEXT DEFAULT '진행',            -- 진행 / 완료 / 변경 / 기타
+                content         TEXT,
+                created_by      INTEGER,
+                created_by_name TEXT,
+                created_at      TEXT DEFAULT (datetime('now','localtime')),
+                updated_at      TEXT DEFAULT (datetime('now','localtime'))
+            )""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_dsl_ref ON dept_schedule_log(ref_kind, ref_id, log_date)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_dsl_date ON dept_schedule_log(log_date)")
+        except Exception as _e:
+            print(f"[v5H226z496] dept_schedule_log 생성 스킵: {_e}")
+
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
         #   라이프사이클 'DRAFT → CI_ISSUED → PL_READY → SHIPPED → CLEARED' 반영
