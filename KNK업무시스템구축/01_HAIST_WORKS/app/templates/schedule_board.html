@@ -189,6 +189,11 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .ux-tab .ux-ok { box-shadow:0 0 0 2px #86efac; }
 .ux-tab .ux-empty { color:#94a3b8; padding:8px 0; }
 .ux-tab [disabled] { opacity:.55; cursor:not-allowed; }
+/* v5H226z491 (대표 지시): 펼친 호기 줄 — 한 줄씩 구분되게 줄무늬(교차색) + 행 구분선 + 마우스오버 강조 */
+.ux-tab tbody tr > td { border-bottom:1px solid #d7dee8; }
+.ux-tab tbody tr:nth-child(odd) > td { background:#ffffff; }
+.ux-tab tbody tr:nth-child(even) > td { background:#eef3f9; }
+.ux-tab tbody tr:hover > td { background:#fff3d6; }
 .sched .day { text-align:center; color:#15803d; font-weight:800; }
 .sched .day.today { box-shadow: inset 2px 0 0 #b91c1c, inset -2px 0 0 #b91c1c; background:#fffbe6; }
 .sched thead .day.today { background:#fde68a; }
