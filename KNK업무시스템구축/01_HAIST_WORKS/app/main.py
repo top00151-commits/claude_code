@@ -19147,7 +19147,27 @@ async def schedule_tax_invoice_view(request: Request, ti_id: int):
             return JSONResponse({"ok": False, "error": "not_found"}, 404)
         t = dict(t)
         ls = [dict(r) for r in c.execute(
-            "SELECT mgmt_code, label, customer, amount, tier FROM tax_invoice_lines WHERE ti_id=? ORDER BY id", (ti_id,)).fetchall()]
+            "SELECT mgmt_code, label, customer, amount, tier, ref_kind, ref_id FROM tax_invoice_lines WHERE ti_id=? ORDER BY id", (ti_id,)).fetchall()]
+        # v5H226z506 (대표 지시): 관리번호 칸에 수주번호가 들어가던 문제 — ref_id로 '실제 관리번호 + 수주번호'를 조회(스냅샷 무시·기존 묶음도 교정).
+        for ln in ls:
+            _rk = (ln.get("ref_kind") or ""); _rid = ln.get("ref_id")
+            _code, _so = "", ""
+            try:
+                if _rk == "consumable" and _rid:
+                    _rr = c.execute("SELECT mgmt_code, co_no FROM consumable_orders WHERE id=?", (_rid,)).fetchone()
+                    if _rr:
+                        _code, _so = (_rr[0] or ""), (_rr[1] or "")
+                elif _rid:   # project / unit(호기 분할) → 프로젝트
+                    _rr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (_rid,)).fetchone()
+                    if _rr:
+                        _code = _rr[0] or ""
+                    _sr = c.execute("SELECT order_no FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1", (_rid,)).fetchone()
+                    if _sr:
+                        _so = _sr[0] or ""
+            except Exception:
+                pass
+            ln["code"] = _code or (ln.get("mgmt_code") or "")   # 폴백=스냅샷
+            ln["so_no"] = _so
     _tier = (ls[0].get("tier") if ls else 1) or 1
     return JSONResponse({"ok": True, "invoice": {
         "id": t["id"], "ti_no": t.get("ti_no"), "issue_date": t.get("issue_date"),
