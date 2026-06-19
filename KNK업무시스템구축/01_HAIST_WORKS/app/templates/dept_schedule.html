@@ -113,6 +113,31 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 </head>
 <body>
 {% include "_v5_partials/chrome.html" with context %}
+{# v5H226z500 (임시 진단): 본문이 비어도 보이게 — JS오류 + 본문(.main) 상태를 상단 고정 배너에 표시. 원인 확인 후 제거. #}
+<div id="dsxDiag" style="display:none;position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#7f1d1d;color:#fff;font:12px/1.5 'Malgun Gothic',sans-serif;padding:8px 12px;white-space:pre-wrap;word-break:break-all;max-height:50vh;overflow:auto;box-shadow:0 2px 10px rgba(0,0,0,.4);">
+  <button onclick="this.parentNode.style.display='none'" style="float:right;background:#fff;color:#7f1d1d;border:0;border-radius:4px;padding:2px 8px;font-weight:800;cursor:pointer;">닫기</button>
+  <b>🩺 부서일정표 진단</b> <span id="dsxDiagBody"></span>
+</div>
+<script>
+(function(){
+  function show(t){ try{ var b=document.getElementById('dsxDiag'),x=document.getElementById('dsxDiagBody'); if(b&&x){ x.textContent=' '+t; b.style.display='block'; } }catch(e){} }
+  window.addEventListener('error', function(e){ show('JS오류: '+((e&&e.message)||e)+' @ '+((e&&e.filename)||'')+':'+((e&&e.lineno)||'')); });
+  window.addEventListener('unhandledrejection', function(e){ show('Promise오류: '+((e&&e.reason&&e.reason.message)||e.reason||e)); });
+  function report(){
+    try{
+      var m=document.querySelector('main.main');
+      var w=document.getElementById('dsx');
+      var s='readyState='+document.readyState+' | main='+(m?('있음 자식'+m.childElementCount+' 높이'+m.offsetHeight+'px'):'없음')
+        +' | dsx(본문)='+(w?('있음 높이'+w.offsetHeight+'px'):'없음')
+        +' | rows tr='+document.querySelectorAll('table.dsx tbody tr').length
+        +' | initRan='+(window.__dsxInitRan?'예':'아니오')+' | VT='+(document.startViewTransition?'지원':'없음');
+      show(s);
+    }catch(err){ show('report오류: '+(err&&err.message||err)); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(report,500); });
+  else setTimeout(report,500);
+})();
+</script>
 <main class="main">
 <div class="dsx-wrap" id="dsx">
   <h2 style="margin:0 0 4px;font-size:19px;">🗓 부서 일정표</h2>
@@ -255,6 +280,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 (function(){
   // v5H226z498 (FIX): 전체 로드 시엔 첫 렌더(화면전환 스냅샷) 이후로 초기화를 미뤄 본문 먹통 방지. SPA 스왑(이미 로드됨)이면 즉시.
   function init(){
+  window.__dsxInitRan=true;   // v5H226z500 (임시 진단)
   var root=document.getElementById('dsx'); if(!root) return;
   var LOGS={{ logmap|tojson }}, MYTEAM={{ my_team|tojson }}, DEPTS={{ all_depts|tojson }},
       TYPES={{ types|tojson }}, UID={{ uid|tojson }}, ISADMIN={{ is_admin|tojson }};
