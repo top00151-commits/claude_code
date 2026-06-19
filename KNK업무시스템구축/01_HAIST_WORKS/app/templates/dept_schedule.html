@@ -47,6 +47,10 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx tbody tr:hover .c-code{background:#fcfaf3;}
 .dsx .c-code a{color:var(--knk-red);text-decoration:none;}
 .dsx .c-code a:hover{text-decoration:underline;}
+.dsx .tl-btn{cursor:pointer;margin-left:4px;font-size:12px;opacity:.7;}
+.dsx .tl-btn:hover{opacity:1;}
+.dsx td.c-stage{text-align:center;}
+.dsx .stage-badge{display:inline-block;font-size:10.5px;font-weight:800;color:#3730a3;background:#eef2ff;border:1px solid #c7d2fe;border-radius:7px;padding:1px 7px;white-space:nowrap;}
 .dsx .biz-badge{display:inline-block;font-size:9.5px;font-weight:800;color:#fff;background:#94a3b8;border-radius:6px;padding:0 5px;margin-left:3px;vertical-align:1px;}
 .dsx .cust-bad{color:#dc2626;}
 .dsx td.c-num{text-align:center;color:#475569;}
@@ -82,6 +86,16 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .e-type.prog{background:#2563eb;} .e-type.done{background:#16a34a;} .e-type.chg{background:#d97706;} .e-type.etc{background:#64748b;}
 .dsx-ent .e-content{font-size:13px;color:#1e293b;margin-top:4px;white-space:pre-wrap;word-break:break-word;}
 .dsx-ent .e-to{font-size:10.5px;font-weight:800;color:#7c3aed;background:#f3e8ff;border-radius:7px;padding:1px 7px;}
+.dsx-ent .e-unit{font-size:10.5px;font-weight:800;color:#0e7490;background:#cffafe;border-radius:7px;padding:1px 7px;}
+/* 타임라인 */
+.dsx-tl{position:relative;padding-left:6px;}
+.dsx-tl .tl-day{margin:0 0 12px;}
+.dsx-tl .tl-date{font-size:12px;font-weight:800;color:#1e293b;margin-bottom:5px;border-bottom:1px solid #eef2f7;padding-bottom:3px;}
+.dsx-tl .tl-ent{display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;font-size:12.5px;margin:3px 0 3px 6px;}
+.dsx-tl .tl-ent .e-dept{font-weight:800;color:#334155;}
+.dsx-tl .tl-ent .e-type{font-size:10px;font-weight:800;color:#fff;border-radius:7px;padding:1px 7px;}
+.dsx-tl .tl-c{color:#1e293b;}
+.dsx-tl .tl-none{color:#94a3b8;font-size:12.5px;padding:8px 0;}
 .dsx-ent .e-act{margin-left:auto;display:flex;gap:6px;}
 .dsx-ent .e-act button{border:0;background:none;cursor:pointer;font-size:11px;color:#64748b;text-decoration:underline;}
 .dsx-ent .e-act button.del{color:#dc2626;}
@@ -160,7 +174,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       <thead>
         <tr>
           <th class="c-code">관리번호</th><th>수주번호</th><th>모델명</th><th>장비명</th><th>수량</th>
-          <th>PO유형</th><th>형태</th><th>고객사</th><th>고객사담당자</th><th>발주일</th><th>납품일</th>
+          <th>PO유형</th><th>형태</th><th>고객사</th><th>고객사담당자</th><th>발주일</th><th>납품일</th><th>단계</th>
           {% for d in days %}<th class="day{% if d==today_day %} today{% endif %}">{{ d }}</th>{% endfor %}
         </tr>
       </thead>
@@ -168,10 +182,11 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         {% for r in rows %}
         {% set key = r.kind ~ ':' ~ r.ref_id %}
         {% set cs = cellsum.get(key) or {} %}
-        <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}">
+        <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}" data-multi="{{ '1' if r.multi else '' }}">
           <td class="c-code">
             {% if r.kind=='consumable' %}🧴 <a href="/consumables/{{ r.ref_id }}">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}">{{ r.code }}</a>{% endif %}
             {% if r.div %}<span class="biz-badge">{{ r.div }}</span>{% endif %}
+            <span class="tl-btn" title="이 품목의 모든 부서 진행 기록 모아보기" role="button">📜</span>
           </td>
           <td>{{ r.so_no or '—' }}</td>
           <td title="{{ r.model }}">{{ r.model or '—' }}</td>
@@ -183,6 +198,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
           <td title="{{ r.owner }}">{{ r.owner or '—' }}</td>
           <td class="c-date">{{ r.order_date or '—' }}</td>
           <td class="c-date{% if r.is_delay %} delay{% endif %}">{{ r.due_date or '—' }}</td>
+          <td class="c-stage">{% if r.stage %}<span class="stage-badge">{{ r.stage }}</span>{% else %}<span style="color:#cbd5e1">·</span>{% endif %}</td>
           {% for d in days %}
             {% set m = cs.get(d|string) %}
             <td class="day{% if d==today_day %} today{% endif %}{% if r.bar_s and r.bar_s<=d<=r.bar_e %} bar{% if r.is_delay %} delay{% endif %}{% endif %}"
@@ -205,6 +221,9 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     <div class="dsx-body">
       <ul class="dsx-list" id="dsxList"></ul>
       <div class="dsx-form">
+        <div class="row" id="dsxUnitRow" style="display:none;">
+          <div class="f-dept"><label>호기 (수량 여러 대 — 특정 호기만 기록할 때 선택, 비우면 품목 전체)</label><select id="dsxUnit"></select></div>
+        </div>
         <div class="row">
           <div class="f-dept"><label>부서</label><select id="dsxDept"></select></div>
           <div class="f-type"><label>유형</label><select id="dsxType"></select></div>
@@ -223,6 +242,14 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   </div>
 </div>
 
+{# v5H226z499 (Phase 3 #1): 품목별 진행 타임라인 모달 — .main 안(SPA 규칙) #}
+<div class="dsx-back" id="dsxTlBack">
+  <div class="dsx-modal" role="dialog" aria-modal="true">
+    <h3><span id="dsxTlTitle">진행 타임라인</span><button type="button" class="x" id="dsxTlClose" title="닫기">×</button></h3>
+    <div class="dsx-body"><div id="dsxTlBody" class="dsx-tl"></div></div>
+  </div>
+</div>
+
 <script>
 // v5H226z496 (대표 지시): 부서 일정표 — 날짜칸 클릭해 부서별 진행/완료/변경 기록. IIFE·이벤트위임(SPA 안전).
 (function(){
@@ -234,7 +261,10 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   var back=document.getElementById('dsxBack'), listEl=document.getElementById('dsxList'),
       titleEl=document.getElementById('dsxTitle'), deptSel=document.getElementById('dsxDept'),
       typeSel=document.getElementById('dsxType'), contentEl=document.getElementById('dsxContent'),
-      handoffSel=document.getElementById('dsxHandoff'), saveBtn=document.getElementById('dsxSave');
+      handoffSel=document.getElementById('dsxHandoff'), saveBtn=document.getElementById('dsxSave'),
+      unitRow=document.getElementById('dsxUnitRow'), unitSel=document.getElementById('dsxUnit'),
+      tlBack=document.getElementById('dsxTlBack'), tlBody=document.getElementById('dsxTlBody'),
+      tlTitle=document.getElementById('dsxTlTitle');
   if(!back||!listEl||!deptSel||!typeSel||!contentEl||!saveBtn) return;   // 가드: 요소 없으면 조용히 종료(throw 방지)
   var cur={kind:'',ref:0,date:'',code:''}, editId=0;
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -258,6 +288,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       return '<li class="dsx-ent" data-id="'+e.id+'" data-ts="'+esc(e.ts)+'" data-type="'+esc(e.type)+'">'
         +'<div class="e-top"><span class="e-dept">'+esc(e.dept||'(부서)')+'</span>'
         +'<span class="e-type '+typeCls(e.type)+'">'+esc(e.type)+'</span>'
+        +(e.unit?('<span class="e-unit">'+esc(e.unit)+'</span>'):'')
         +'<span>'+esc(e.by||'')+(e.ts?(' · '+esc(String(e.ts).slice(5,16))):'')+'</span>'
         +(e.to?('<span class="e-to">→ '+esc(e.to)+' 넘김</span>'):'')
         +(can?('<span class="e-act"><button type="button" class="edit">수정</button><button type="button" class="del">삭제</button></span>'):'')
@@ -266,17 +297,56 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   }
   function openCell(td){
     var tr=td.closest('tr'); cur={kind:tr.dataset.kind,ref:Number(tr.dataset.ref),code:tr.dataset.code,
-      date:td.dataset.date,day:Number(td.dataset.day)};
+      date:td.dataset.date,day:Number(td.dataset.day),multi:(tr.dataset.multi==='1')};
     titleEl.textContent=cur.code+' · '+cur.date;
     editId=0; contentEl.value=''; if(MYTEAM) deptSel.value=MYTEAM; typeSel.selectedIndex=0;
     if(handoffSel){ handoffSel.value=''; var hr=handoffSel.closest('.row'); if(hr) hr.style.display=''; }
+    // v5H226z499: 호기별 기록 — 수량 여러 대 품목이면 호기 선택 노출(작업일정표 units 재사용)
+    if(unitRow && unitSel){
+      if(cur.multi){
+        unitRow.style.display=''; unitSel.innerHTML='<option value="">(품목 전체)</option><option disabled>불러오는 중…</option>';
+        fetch('/sales/schedule/units?kind='+encodeURIComponent(cur.kind)+'&ref_id='+cur.ref,{credentials:'same-origin'})
+          .then(function(r){return r.json();}).then(function(j){
+            var opts='<option value="">(품목 전체)</option>';
+            ((j&&j.units)||[]).forEach(function(u){ var L=u.label||u.unit_label||''; if(L) opts+='<option value="'+esc(L)+'">'+esc(L)+'</option>'; });
+            unitSel.innerHTML=opts;
+          }).catch(function(){ unitSel.innerHTML='<option value="">(품목 전체)</option>'; });
+      } else { unitRow.style.display='none'; unitSel.innerHTML='<option value="">(품목 전체)</option>'; }
+    }
     saveBtn.textContent='기록 추가';
     renderList(); back.classList.add('on'); contentEl.focus();
   }
+  // v5H226z499 (Phase 3 #1): 품목 진행 타임라인 열기
+  function openTimeline(kind, ref, code){
+    if(!tlBack||!tlBody) return;
+    tlTitle.textContent=(code||'')+' · 진행 타임라인';
+    tlBody.innerHTML='<div class="tl-none">불러오는 중…</div>'; tlBack.classList.add('on');
+    fetch('/dept/schedule/timeline?kind='+encodeURIComponent(kind)+'&ref_id='+ref,{credentials:'same-origin'})
+      .then(function(r){return r.json();}).then(function(j){
+        if(!j||!j.ok){ tlBody.innerHTML='<div class="tl-none">불러오기 실패</div>'; return; }
+        var its=j.items||[]; if(!its.length){ tlBody.innerHTML='<div class="tl-none">아직 기록이 없습니다.</div>'; return; }
+        var html='', curd=null;
+        its.forEach(function(e){
+          if(e.date!==curd){ if(curd!==null) html+='</div>'; curd=e.date; html+='<div class="tl-day"><div class="tl-date">'+esc(e.date)+'</div>'; }
+          html+='<div class="tl-ent"><span class="e-dept">'+esc(e.dept||'(부서)')+'</span>'
+            +'<span class="e-type '+typeCls(e.type)+'">'+esc(e.type)+'</span>'
+            +(e.unit?('<span class="e-unit">'+esc(e.unit)+'</span>'):'')
+            +(e.to?('<span class="e-to">→ '+esc(e.to)+'</span>'):'')
+            +'<span class="tl-c">'+esc(e.content)+'</span>'
+            +'<span style="color:#94a3b8;font-size:11px;">'+esc(e.by||'')+'</span></div>';
+        });
+        if(curd!==null) html+='</div>';
+        tlBody.innerHTML=html;
+      }).catch(function(){ tlBody.innerHTML='<div class="tl-none">통신 오류</div>'; });
+  }
+  function tlClose(){ if(tlBack) tlBack.classList.remove('on'); }
+  var tlc=document.getElementById('dsxTlClose'); if(tlc) tlc.addEventListener('click', tlClose);
+  if(tlBack) tlBack.addEventListener('click', function(e){ if(e.target===tlBack) tlClose(); });
   function close(){ back.classList.remove('on'); editId=0; }
   // 날짜칸 클릭 → 팝업
   root.addEventListener('click', function(e){
     if(e.target.closest('.c-code a')) return;            // 관리번호 링크는 그대로
+    var tlb=e.target.closest('.tl-btn'); if(tlb){ var tr=tlb.closest('tr'); openTimeline(tr.dataset.kind, Number(tr.dataset.ref), tr.dataset.code); return; }
     var td=e.target.closest('td.day'); if(td){ openCell(td); }
   });
   // 닫기
@@ -285,7 +355,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   back.addEventListener('click', function(e){ if(e.target===back) close(); });
   // Escape 닫기 — document 리스너는 SPA 재실행마다 쌓이지 않게 전역 1회만(현재 모달을 매번 라이브 조회).
   if(!window.__dsxKeyBound){ window.__dsxKeyBound=true;
-    document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var b=document.getElementById('dsxBack'); if(b&&b.classList.contains('on')) b.classList.remove('on'); } }); }
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ ['dsxBack','dsxTlBack'].forEach(function(id){ var b=document.getElementById(id); if(b&&b.classList.contains('on')) b.classList.remove('on'); }); } }); }
   // 목록 내 수정/삭제
   listEl.addEventListener('click', function(e){
     var li=e.target.closest('.dsx-ent'); if(!li) return;
@@ -297,6 +367,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       contentEl.value=li.querySelector('.e-content').textContent;
       var t=li.dataset.type; for(var i=0;i<typeSel.options.length;i++){ if(typeSel.options[i].value===t||typeSel.options[i].text===t){ typeSel.selectedIndex=i; break; } }
       if(handoffSel){ var hr=handoffSel.closest('.row'); if(hr) hr.style.display='none'; }  // 넘김은 새 기록에만
+      if(unitRow) unitRow.style.display='none';   // 호기도 새 기록에만(수정은 내용·유형만)
       saveBtn.textContent='수정 저장'; contentEl.focus();
     }
   });
@@ -308,7 +379,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       var es=entries(), ts=''; es.forEach(function(x){ if(x.id===editId) ts=x.ts; });
       post('/dept/schedule/cell/update',{id:editId,content:content,log_type:type,base_ts:ts});
     } else {
-      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,handoff_to:(handoffSel?handoffSel.value:'')});
+      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,handoff_to:(handoffSel?handoffSel.value:''),unit_label:((unitRow&&unitRow.style.display!=='none'&&unitSel)?unitSel.value:'')});
     }
   });
   function post(url, body){

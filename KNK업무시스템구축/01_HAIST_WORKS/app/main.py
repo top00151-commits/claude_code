@@ -1534,6 +1534,17 @@ async def admin_work_patterns(request: Request):
                     stage_map[r["uid"]] = {"n": r["n"], "h": round(float(r["h"] or 0), 1)}
         except Exception:
             pass
+        # v5H226z499 (대표 지시·Phase 3): 부서 일정표 기록(dept_schedule_log) — created_by 기준 건수. 작성일(log_date) 기준.
+        dsx_map = {}
+        try:
+            for r in c.execute(
+                "SELECT created_by AS uid, COUNT(*) AS n FROM dept_schedule_log "
+                "WHERE created_by IS NOT NULL AND date(log_date) BETWEEN ? AND ? GROUP BY created_by",
+                    (start, end)):
+                if r["uid"]:
+                    dsx_map[r["uid"]] = r["n"]
+        except Exception:
+            pass
         # v5H226z414 (Phase2): 메일(WORKS mail_messages) 집계 — user_id 기준
         mail_map = {}
         try:
@@ -1585,7 +1596,8 @@ async def admin_work_patterns(request: Request):
         presales = pre.get("n", 0); presales_h = pre.get("h", 0)
         stg = stage_map.get(uid, {})
         stage_n = stg.get("n", 0); stage_h = stg.get("h", 0)
-        activity = cnt + tickets + issues + phases + mail + msgr + presales + stage_n
+        dsx = dsx_map.get(uid, 0)   # v5H226z499 (Phase3): 부서 일정표 기록 수
+        activity = cnt + tickets + issues + phases + mail + msgr + presales + stage_n + dsx
         if activity <= 0:
             continue
         rows.append({
@@ -1598,6 +1610,7 @@ async def admin_work_patterns(request: Request):
             "mail": mail, "msgr": msgr,
             "presales": presales, "presales_h": presales_h,
             "stage_n": stage_n, "stage_h": stage_h,   # v5H226z480 (Phase3): 단계 작업
+            "dsx": dsx,   # v5H226z499 (Phase3): 부서 일정표 기록 수
             "activity": activity,
         })
     rows.sort(key=lambda x: -x["activity"])
@@ -1607,13 +1620,13 @@ async def admin_work_patterns(request: Request):
                                               "hours": 0.0, "done": 0, "delayed": 0,
                                               "tickets": 0, "issues": 0, "phases": 0, "mail": 0, "msgr": 0,
                                               "presales": 0, "presales_h": 0.0,
-                                              "stage_n": 0, "stage_h": 0.0})
+                                              "stage_n": 0, "stage_h": 0.0, "dsx": 0})
         d["people"] += 1; d["cnt"] += r["cnt"]; d["hours"] += r["hours"]; d["done"] += r["done"]
         d["delayed"] += r["delayed"]; d["tickets"] += r["tickets"]; d["issues"] += r["issues"]; d["phases"] += r["phases"]
         d["mail"] += r["mail"]; d["msgr"] += r["msgr"]
         d["presales"] += r["presales"]; d["presales_h"] += r["presales_h"]
-        d["stage_n"] += r["stage_n"]; d["stage_h"] += r["stage_h"]
-    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"] + x["presales"] + x["stage_n"]))
+        d["stage_n"] += r["stage_n"]; d["stage_h"] += r["stage_h"]; d["dsx"] += r["dsx"]
+    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"] + x["presales"] + x["stage_n"] + x["dsx"]))
     for d in dept_list:
         d["rate"] = round(100 * d["done"] / d["cnt"]) if d["cnt"] else 0
         d["hours"] = round(d["hours"], 1)
@@ -19317,6 +19330,10 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
             "order_date": str(p.get("order_date") or "")[:10],
             "due_date": str(p.get("due_date") or "")[:10],
         }
+        try:
+            info["multi"] = int(p.get("unit_qty") or 0) >= 2   # v5H226z499: 호기 여러 대=완제품 → 호기별 기록 가능
+        except Exception:
+            info["multi"] = False
         _r = _mk(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
         if _r:
             rows.append(_r)
@@ -19353,6 +19370,26 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
         _biz = ""
     rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
 
+    # v5H226z499 (Phase 3 #2): 작업일정표 '단계' 연동 — 각 품목의 현재 단계 라벨(읽기전용 배지). 가격칸 없는 화면이라 sales_only 단계는 제외.
+    try:
+        _smap = _logi.stage_board_map()
+        for r in rows:
+            _st = _smap.get((r["kind"], r["ref_id"])) or {}
+            _done = _st.get("done") or set()
+            _cur = ""
+            for _s in _logi.STAGE_SPEC:
+                if _s.get("sales_only"):
+                    continue
+                if _s["key"] == "progress":
+                    if _st.get("prog"):
+                        _cur = "진행"
+                elif _s["key"] in _done:
+                    _cur = _s["label"]
+            r["stage"] = _cur
+    except Exception:
+        for r in rows:
+            r["stage"] = ""
+
     # 내 부서 + 부서 목록(teams)
     my_team = _dept_sched_dept_of(u)
     all_depts = []
@@ -19375,7 +19412,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
             for lr in _c.execute(
                 "SELECT ref_kind, ref_id, log_date, id, COALESCE(dept,''), COALESCE(log_type,'진행'), "
                 "COALESCE(content,''), COALESCE(created_by_name,''), COALESCE(updated_at,''), COALESCE(created_by,0), "
-                "COALESCE(handoff_to,'') "
+                "COALESCE(handoff_to,''), COALESCE(unit_label,'') "
                 "FROM dept_schedule_log WHERE log_date BETWEEN ? AND ? ORDER BY id",
                     (mstart.isoformat(), mend.isoformat())):
                 key = f"{lr[0]}:{lr[1]}"
@@ -19385,7 +19422,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                     continue
                 logmap.setdefault(key, {}).setdefault(dnum, []).append(
                     {"id": lr[3], "dept": lr[4], "type": lr[5], "content": lr[6],
-                     "by": lr[7], "ts": lr[8], "uid": lr[9], "to": lr[10]})
+                     "by": lr[7], "ts": lr[8], "uid": lr[9], "to": lr[10], "unit": lr[11]})
                 # 요약 — 화면에 보이는 행(사업부 필터 통과)만 집계
                 if key in _visible_keys:
                     summary["total"] += 1
@@ -19435,6 +19472,7 @@ async def dept_schedule_add(request: Request):
     log_type = (body.get("log_type") or "진행").strip()
     content = (body.get("content") or "").strip()
     handoff_to = (body.get("handoff_to") or "").strip()   # v5H226z497: 넘길 부서(다음 담당)
+    unit_label = (body.get("unit_label") or "").strip()[:40]   # v5H226z499: 호기(빈값=품목 전체)
     if kind not in ("project", "consumable") or not ref_id or not date:
         return JSONResponse({"ok": False, "error": "잘못된 요청"}, 400)
     if log_type not in ("진행", "완료", "변경", "기타"):
@@ -19450,9 +19488,9 @@ async def dept_schedule_add(request: Request):
         dept = _dept_sched_dept_of(u)
     notify = {"sent": 0, "in_app": 0, "to": handoff_to}
     with db_session() as c:
-        c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, created_by, created_by_name) "
-                  "VALUES(?,?,?,?,?,?,?,?,?)",
-                  (kind, ref_id, date, dept, log_type, content, handoff_to or None, u.get("id"), u.get("name") or ""))
+        c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, unit_label, created_by, created_by_name) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                  (kind, ref_id, date, dept, log_type, content, handoff_to or None, unit_label or None, u.get("id"), u.get("name") or ""))
         # v5H226z497 (Phase 2): '넘길 부서' 지정 시 그 부서원에게 Eum 1:1 + 인앱 통보(핸드오프)
         if handoff_to and handoff_to != dept:
             try:
@@ -19531,6 +19569,35 @@ async def dept_schedule_delete(request: Request):
             return JSONResponse({"ok": False, "error": "작성자만 삭제할 수 있습니다"}, 403)
         c.execute("DELETE FROM dept_schedule_log WHERE id=?", (lid,))
     return JSONResponse({"ok": True})
+
+
+@app.get("/dept/schedule/timeline")
+async def dept_schedule_timeline(request: Request, kind: str = "", ref_id: int = 0):
+    """v5H226z499 (Phase 3 #1): 품목별 진행 타임라인 — 한 관리번호의 모든 부서 기록을 날짜순으로 모아보기."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    kind = (kind or "").strip()
+    if kind not in ("project", "consumable") or not ref_id:
+        return JSONResponse({"ok": False, "error": "잘못된 요청"}, 400)
+    items, code = [], ""
+    try:
+        with db_session() as c:
+            if kind == "project":
+                _cr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (ref_id,)).fetchone()
+            else:
+                _cr = c.execute("SELECT mgmt_code FROM consumable_orders WHERE id=?", (ref_id,)).fetchone()
+            code = (_cr[0] if _cr else "") or f"{kind}#{ref_id}"
+            for r in c.execute(
+                "SELECT log_date, COALESCE(dept,''), COALESCE(log_type,'진행'), COALESCE(content,''), "
+                "COALESCE(created_by_name,''), COALESCE(handoff_to,''), COALESCE(unit_label,''), COALESCE(updated_at,'') "
+                "FROM dept_schedule_log WHERE ref_kind=? AND ref_id=? ORDER BY log_date, id",
+                    (kind, ref_id)):
+                items.append({"date": str(r[0])[:10], "dept": r[1], "type": r[2], "content": r[3],
+                              "by": r[4], "to": r[5], "unit": r[6], "ts": r[7]})
+    except Exception as _e:
+        return JSONResponse({"ok": False, "error": f"조회 오류: {str(_e)[:80]}"}, 500)
+    return JSONResponse({"ok": True, "code": code, "kind": kind, "ref_id": ref_id, "items": items})
 
 
 @app.get("/projects/export.xlsx")
