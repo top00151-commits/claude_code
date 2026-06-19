@@ -1004,6 +1004,21 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
                     v = _date_str(gv(r, k_src)) if is_date else s(gv(r, k_src))
                     if v:
                         o[k_meta] = v
+            # v5H226z505 (대표 지시): 같은 발주(구분번호) 여러 줄 — 세금계산서 금액은 '합산'(줄마다 적은 부분금액
+            #   누락 방지). 016처럼 한 관리번호에 345,000+370,000 두 줄이면 1세금계산서=715,000. (첫 줄에만 적던
+            #   기존 방식은 이후 줄이 0이라 합산해도 그대로 → 회귀 없음.)
+            for _ak, _src in (("tax_invoice_amt1", "ti_amt1"), ("tax_invoice_amt2", "ti_amt2"), ("tax_invoice_amt3", "ti_amt3")):
+                _add = num(gv(r, _src))
+                if _add:
+                    o[_ak] = round((o.get(_ak) or 0) + _add, 2)
+            # 발행일·묶음번호(-N): 첫 줄이 비었으면 이후 줄에서 채움
+            for _dk, _bk, _src in (("tax_invoice_date", "ti1_bundle", "ti_date1"),
+                                   ("tax_invoice_date2", "ti2_bundle", "ti_date2"),
+                                   ("tax_invoice_date3", "ti3_bundle", "ti_date3")):
+                if not o.get(_dk):
+                    _dd2, _bb2 = _split_date_bundle(gv(r, _src))
+                    if _dd2:
+                        o[_dk] = _dd2; o[_bk] = _bb2
         groups[grp]["items"].append(it)
         all_lines.append(it)
 
