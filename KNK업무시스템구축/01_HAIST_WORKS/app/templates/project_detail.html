@@ -1020,8 +1020,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
                     {% if _editable %}<input type="text" class="unit-edit box-inp" data-orig="{{ u.box_no or '' }}" value="{{ u.box_no or '' }}" style="width:50px;font-size:11.5px;text-align:center;">{% endif %}
                   </td>
                   <td class="num" style="font-size:11.5px;">
-                    <span class="display-val">{{ '{:,.0f}'.format(u.qty or 0) }}</span>
-                    {% if _editable %}<input type="text" class="unit-edit qty-inp" data-orig="{{ u.qty or 0 }}" value="{{ u.qty or 0 }}" style="width:50px;font-size:11.5px;text-align:right;">{% endif %}
+                    <span class="display-val">{{ (u.qty or 0)|qtyfmt }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit qty-inp" data-orig="{{ (u.qty or 0)|qtyfmt }}" value="{{ (u.qty or 0)|qtyfmt }}" style="width:50px;font-size:11.5px;text-align:right;">{% endif %}
                   </td>
                   <td style="font-size:11.5px;text-align:center;color:var(--mute);">
                     <span class="display-val">{{ u.unit or 'EA' }}</span>
@@ -1764,7 +1764,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ r.order_date|default('—') }}</td>
               <td style="font-family:monospace;color:var(--amber-deep);">{{ r.part_code|default(r.part_no_snapshot|default('—')) }}</td>
               <td><b>{{ r.part_name|default(r.part_name_snapshot|default('—')) }}</b>{% if r.spec_snapshot %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ r.spec_snapshot }}</span>{% endif %}</td>
-              <td class="num">{{ '{:,.2f}'.format(r.effective_qty|default(0)) }}{% if r.unit %} {{ r.unit }}{% endif %}{% if r.allocated_qty is not none and r.quantity and r.allocated_qty != r.quantity %}<span style="display:block;font-size:10px;color:var(--mute);">/ {{ '{:,.0f}'.format(r.quantity) }} 분배</span>{% elif r.allocation_pct %}<span style="display:block;font-size:10px;color:var(--mute);">{{ r.allocation_pct }}% 분배</span>{% endif %}</td>
+              <td class="num">{{ (r.effective_qty or 0)|qtyfmt }}{% if r.unit %} {{ r.unit }}{% endif %}{% if r.allocated_qty is not none and r.quantity and r.allocated_qty != r.quantity %}<span style="display:block;font-size:10px;color:var(--mute);">/ {{ '{:,.0f}'.format(r.quantity) }} 분배</span>{% elif r.allocation_pct %}<span style="display:block;font-size:10px;color:var(--mute);">{{ r.allocation_pct }}% 분배</span>{% endif %}</td>
               <td class="num">{% if can_money %}{{ '{:,.0f}'.format(r.unit_price|default(0)) }}{% if r.currency and r.currency != 'KRW' %} {{ r.currency }}{% endif %}{% else %}🔒{% endif %}</td>
               <td class="num" style="font-weight:700;">{% if can_money %}{{ '{:,.0f}'.format(r.effective_amount|default(0)) }}{% else %}🔒{% endif %}</td>
               <td><a href="/po/{{ r.po_id }}" style="font-family:monospace;color:var(--amber-deep);text-decoration:none;">{{ r.po_number|default('PO-' ~ r.po_id) }}</a></td>
@@ -1774,7 +1774,7 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
           {% endfor %}
             <tr style="background:var(--paper-2);font-weight:700;">
               <td colspan="3" style="text-align:right;">합계 ({{ consumables.count }}건)</td>
-              <td class="num">{{ '{:,.2f}'.format(consumables.total_qty) }}</td>
+              <td class="num">{{ (consumables.total_qty or 0)|qtyfmt }}</td>
               <td></td>
               <td class="num" style="color:var(--amber-deep);">{% if can_money %}{{ '{:,.0f}'.format(consumables.total_amount) }}{% else %}🔒{% endif %}</td>
               <td colspan="3"></td>

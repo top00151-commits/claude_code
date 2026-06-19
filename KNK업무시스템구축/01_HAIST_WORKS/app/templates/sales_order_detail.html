@@ -57,9 +57,9 @@ body {
       <div style="flex:1;min-width:260px;">
         <div style="font-weight:700;color:var(--knk-red);margin-bottom:4px;">납품 누계가 수주 수량을 초과했습니다</div>
         <div style="font-size:13px;color:var(--ink);">
-          수주 <b>{{ '{:,.2f}'.format(ship_over_warn.ord_qty) }}</b> ·
-          납품 누계 <b>{{ '{:,.2f}'.format(ship_over_warn.ship_sum) }}</b> ·
-          초과 <b style="color:var(--knk-red);">+{{ '{:,.2f}'.format(ship_over_warn.over) }}</b>
+          수주 <b>{{ ship_over_warn.ord_qty|qtyfmt }}</b> ·
+          납품 누계 <b>{{ ship_over_warn.ship_sum|qtyfmt }}</b> ·
+          초과 <b style="color:var(--knk-red);">+{{ ship_over_warn.over|qtyfmt }}</b>
         </div>
         <div style="font-size:11.5px;color:var(--mute);margin-top:4px;">납품 라인 검토 후 수량을 정정하거나 수주 수량을 조정하세요. (자동 보정 안 함)</div>
       </div>
