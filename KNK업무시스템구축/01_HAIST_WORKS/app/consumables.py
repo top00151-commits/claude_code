@@ -442,6 +442,19 @@ def _date_str(v):
     return str(v).strip()
 
 
+def _split_date_bundle(v):
+    """v5H226z491b (대표 지시): 세금계산서 발행일 셀이 'YYYY-MM-DD-N'(예 2026-03-23-1)이면
+    날짜와 묶음번호(N)로 분리. 같은 '날짜-N'끼리 = 같은 날짜에 한 장으로 묶어 발행한 묶음.
+    반환=(깨끗한 날짜 'YYYY-MM-DD', 묶음번호 '' 또는 'N'). 일반 날짜/날짜객체는 (_date_str, '')."""
+    import re as _re
+    s = _date_str(v)
+    m = _re.match(r"^\s*(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})\s*-\s*(\d+)\s*$", s)
+    if m:
+        y, mo, d, b = m.group(1), int(m.group(2)), int(m.group(3)), m.group(4)
+        return f"{y}-{mo:02d}-{d:02d}", b
+    return s, ""
+
+
 # ────────────────────────────────────────────────────────────────────
 # 이미지 압축 (Pillow)
 # ────────────────────────────────────────────────────────────────────
@@ -806,6 +819,7 @@ def build_co_bulk_template_buf():
         ["품명·수량 *", "필수. 단가/금액은 숫자(콤마 없이). 금액 비우면 수량×단가로 자동."],
         ["통화·거래구분·형태", "드롭다운(통화 KRW… / 내수·수출 / 제품·상품·기타). 통화 비우면 KRW, 거래구분 비우면 내수."],
         ["거래명세서·세금계산서", "발주(구분번호) 단위로 한 줄에 입력 — 거래명세서 발행일 + 1/2/3세금계산서 발행일·금액(계약금/중도금/잔금). 날짜 YYYY-MM-DD·금액 숫자. 비우면 미발행. 업로드 후 작업일정표 세금계산서 칸에 표시됩니다."],
+        ["세금계산서 묶음 발행(-N)", "같은 날짜에 여러 건을 한 장으로 묶어 발행했으면 발행일 뒤에 '-번호'를 붙이세요(예: 2026-03-23-1). 같은 '날짜-번호'를 가진 줄(2건 이상)이 자동으로 한 장의 묶음 세금계산서로 발행됩니다. -번호 없으면 개별."],
         ["연결 관리번호", "이 품목이 어느 장비(관리번호)의 소모품인지(선택). 예: 012T2601. 못 찾으면 미연결 등록 + 안내."],
         ["사진 / 사진위치", "'사진(PICTURE)'·'사진위치(PICTURE LOCATION)' 칸에 이미지를 붙여넣으면 품목별로 함께 등록됩니다."],
         ["주의", "3행 예시는 지우고 작성. 업로드 → 미리보기(발주 N건·품목 M개·사진 K개) → 확정."],
@@ -964,13 +978,14 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
                 "biz_div": "", "note": "", "items": [], "_errors": [], "_warn": "",
                 # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) — 발주 단위(첫 줄에서 읽음)
                 "statement_date": _date_str(gv(r, "statement_date")),
-                "tax_invoice_date": _date_str(gv(r, "ti_date1")),
                 "tax_invoice_amt1": num(gv(r, "ti_amt1")),
-                "tax_invoice_date2": _date_str(gv(r, "ti_date2")),
                 "tax_invoice_amt2": num(gv(r, "ti_amt2")),
-                "tax_invoice_date3": _date_str(gv(r, "ti_date3")),
                 "tax_invoice_amt3": num(gv(r, "ti_amt3")),
             }
+            # v5H226z491b (대표 지시): 세금계산서 발행일 'YYYY-MM-DD-N' → 깨끗한 날짜 + 묶음번호(같은 날짜-N끼리 묶음 발행)
+            o["tax_invoice_date"], o["ti1_bundle"] = _split_date_bundle(gv(r, "ti_date1"))
+            o["tax_invoice_date2"], o["ti2_bundle"] = _split_date_bundle(gv(r, "ti_date2"))
+            o["tax_invoice_date3"], o["ti3_bundle"] = _split_date_bundle(gv(r, "ti_date3"))
             if not cust:
                 o["_errors"].append("1차 고객사 누락")
             elif not o["cust_ok"]:

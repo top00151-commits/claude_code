@@ -19016,6 +19016,33 @@ def _ti_row_sig(kind, ref_id, iids):
         return f"{kind}:{ref_id}"
 
 
+def _ti_make_bundle(c, tier, issue_date, currency, cust_name, lines, created_by, created_by_name, memo=""):
+    """v5H226z491b: 주어진 라인들을 한 장의 묶음 세금계산서(tax_invoices)로 발행(작업일정표 묶어발행과 동일 장부).
+    lines=[{sig, ref_kind, ref_id, mgmt_code, label, customer, amount}]. (ti_no, ti_id, total) 반환. 호출자가 트랜잭션 관리."""
+    issue_date = (str(issue_date or ""))[:10]
+    ym = (issue_date[2:4] + issue_date[5:7]) if len(issue_date) >= 7 else "0000"
+    prefix = f"TI-{ym}-"
+    seq = (c.execute("SELECT COUNT(*) FROM tax_invoices WHERE ti_no LIKE ?", (prefix + "%",)).fetchone()[0] or 0) + 1
+    ti_no = f"{prefix}{seq:04d}"
+    total = sum(float(l.get("amount") or 0) for l in lines)
+    cid = None
+    if cust_name:
+        _m = c.execute("SELECT id FROM customers WHERE name=?", (cust_name,)).fetchall()
+        cid = _m[0][0] if len(_m) == 1 else None   # 명확한 단일후보만(연결성 안전원칙)
+    cur = c.execute(
+        "INSERT INTO tax_invoices(ti_no, issue_date, customer_name, customer_id, total_amount, currency, memo, status, created_by, created_by_name) "
+        "VALUES(?,?,?,?,?,?,?,'발행',?,?)",
+        (ti_no, issue_date, cust_name, cid, total, currency, memo, created_by, created_by_name))
+    ti_id = cur.lastrowid
+    for l in lines:
+        c.execute(
+            "INSERT INTO tax_invoice_lines(ti_id, row_sig, ref_kind, ref_id, unit_iids, mgmt_code, label, customer, amount, tier) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (ti_id, l.get("sig"), l.get("ref_kind", "consumable"), l.get("ref_id"), "",
+             l.get("mgmt_code", ""), l.get("label", ""), l.get("customer", ""), float(l.get("amount") or 0), tier))
+    return ti_no, ti_id, total
+
+
 @app.post("/sales/schedule/tax-invoice/issue")
 async def schedule_tax_invoice_issue(request: Request):
     """작업일정표에서 체크한 여러 출하 건(여러 관리번호/여러 호기/같은 출하시점)을 '한 장의 세금계산서'로 묶어 발행.
@@ -30378,6 +30405,7 @@ async def consumables_import_bulk_confirm(request: Request):
     _safe_img = _re.compile(r"^l\d+_\d+(_t)?\.jpg$")
     created, failed, link_warnings, unmatched_customers = [], [], [], []
     images_attached = 0; images_failed = 0
+    bundle_rows = []   # v5H226z491b: 세금계산서 '-N' 묶음 표기 수집 → 확정 후 묶음 발행
     for o in orders:
         if o.get("_errors"):   # 차단 오류 발주는 스킵(연결성 표면화)
             failed.append({"customer": o.get("customer_name"), "order_date": o.get("order_date"),
@@ -30442,6 +30470,19 @@ async def consumables_import_bulk_confirm(request: Request):
                     c.execute(f"UPDATE consumable_orders SET {', '.join(_sets)} WHERE id=?", _vals)
         except Exception:
             pass
+        # v5H226z491b (대표 지시): 세금계산서 발행일 '-N' 묶음 표기 수집(같은 날짜-N끼리 한 장으로 묶음 발행)
+        _cur_ccy = (o.get("currency") or "KRW").strip().upper()
+        for _tier, _dk, _bk, _ak in [(1, "tax_invoice_date", "ti1_bundle", "tax_invoice_amt1"),
+                                     (2, "tax_invoice_date2", "ti2_bundle", "tax_invoice_amt2"),
+                                     (3, "tax_invoice_date3", "ti3_bundle", "tax_invoice_amt3")]:
+            _bv = str(o.get(_bk) or "").strip(); _dv = str(o.get(_dk) or "").strip()
+            if _bv and _dv:
+                try:
+                    _amt = float(o.get(_ak) or 0)
+                except Exception:
+                    _amt = 0.0
+                bundle_rows.append({"tier": _tier, "date": _dv, "bundle": _bv, "co_id": co_id,
+                                    "co_no": co_no, "customer": cust_name, "currency": _cur_ccy, "amount": _amt})
         img_dir = _co.co_image_dir(co_id)
         items_out = []
         for ln, it in enumerate(items_in, 1):
@@ -30502,12 +30543,35 @@ async def consumables_import_bulk_confirm(request: Request):
         created.append({"co_no": co_no, "customer": cust_name,
                         "order_date": o.get("order_date"), "items": len(items_out),
                         "images": sum(1 for _io in items_out if _io.get("image_path") or _io.get("image_loc_path"))})
+    # v5H226z491b (대표 지시): 같은 (차수·날짜·묶음번호 N) 주문 2건 이상 → 한 장의 묶음 세금계산서로 자동 발행
+    #   (작업일정표 '묶어 발행'과 동일 장부 tax_invoices). 단독 -N(1건)은 날짜만 정리하고 묶지 않음.
+    ti_bundles, ti_lines_bundled, ti_singles = 0, 0, 0
+    if bundle_rows:
+        from collections import defaultdict as _dd
+        _grp = _dd(list)
+        for _br in bundle_rows:
+            _grp[(_br["tier"], _br["date"], _br["bundle"])].append(_br)
+        try:
+            with db_session() as c:
+                for (_t, _d, _b), _mem in _grp.items():
+                    if len(_mem) < 2:
+                        ti_singles += 1
+                        continue
+                    _lines = [{"sig": _ti_row_sig("consumable", m["co_id"], []), "ref_kind": "consumable",
+                               "ref_id": m["co_id"], "mgmt_code": m["co_no"], "label": "",
+                               "customer": m["customer"], "amount": m["amount"]} for m in _mem]
+                    _ti_make_bundle(c, _t, _d, _mem[0]["currency"], _mem[0]["customer"], _lines,
+                                    u.get("id"), u.get("name") or "", memo=f"일괄등록 묶음 {_d}-{_b}")
+                    ti_bundles += 1; ti_lines_bundled += len(_mem)
+        except Exception:
+            pass
     if tmp_dir:
         shutil.rmtree(tmp_dir, ignore_errors=True)   # 완료/실패 무관 임시 사진폴더 정리
     return JSONResponse({"ok": True, "created_count": len(created), "failed_count": len(failed),
                          "created": created, "failed": failed, "link_warnings": link_warnings,
                          "unmatched_customers": unmatched_customers,
-                         "images_attached": images_attached, "images_failed": images_failed})
+                         "images_attached": images_attached, "images_failed": images_failed,
+                         "ti_bundles": ti_bundles, "ti_lines_bundled": ti_lines_bundled, "ti_singles": ti_singles})
 
 
 @app.post("/consumables/upload-xlsx")
