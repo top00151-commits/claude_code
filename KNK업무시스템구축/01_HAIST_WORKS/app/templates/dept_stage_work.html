@@ -45,6 +45,7 @@
 </style>
 </head>
 <body>
+<div class="app">
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main">
 <div class="dsw-wrap" id="dsw">
@@ -104,6 +105,7 @@
   {% if done %}<div class="dsw-grid">{% for it in done %}{{ card(it,'done') }}{% endfor %}</div>{% else %}<div class="dsw-empty">최근 완료한 단계가 없습니다.</div>{% endif %}
 </div>
 </main>
+</div>
 {% include "_v5_partials/knk_datepicker.html" ignore missing %}
 <script>
 // v5H226z478 (대표 지시): 착수/완료 처리 — 기존 /sales/schedule/stage 재사용. IIFE·이벤트위임(SPA 안전).
