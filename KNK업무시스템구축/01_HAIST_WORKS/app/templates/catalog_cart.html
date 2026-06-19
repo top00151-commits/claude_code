@@ -101,7 +101,7 @@ td.num { text-align:right; font-family:monospace; }
           <td style="font-family:monospace; font-weight:700;">{{ it.part_no }}</td>
           <td>{{ it.part_name }}</td>
           <td style="color:var(--qv-ink-3);">{{ it.spec }}</td>
-          <td class="num">{{ it.qty }}</td>
+          <td class="num">{{ it.qty|qtyfmt }}</td>
           <td>
             <form method="post" action="/catalog/cart/remove" style="display:inline;">
               <input type="hidden" name="kind" value="item" />
@@ -131,7 +131,7 @@ td.num { text-align:right; font-family:monospace; }
           <td>{{ it.requested_part_name }}</td>
           <td style="color:var(--qv-ink-3);">{{ it.requested_spec or '' }}</td>
           <td>{{ it.requested_maker or '-' }}</td>
-          <td class="num">{{ it.qty }} {{ it.unit }}</td>
+          <td class="num">{{ it.qty|qtyfmt }} {{ it.unit }}</td>
           <td style="color:var(--qv-ink-3); font-size:12px;">{{ it.request_reason or '' }}</td>
           <td>
             <form method="post" action="/catalog/cart/remove" style="display:inline;">

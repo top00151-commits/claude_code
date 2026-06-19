@@ -280,6 +280,32 @@ tpl.env.filters["status_kr"] = status_kr
 tpl.env.globals["status_kr"] = status_kr
 
 
+# v5H226z507 (대표 지시): 수량·단가 표시 전역 통일.
+#   수량=정수면 소수점 제거(1.0→1·실제 소수 1.5는 유지). 단가=원화(KRW)만 소수점 숨김·외화는 소수 2자리 유지.
+def _fmt_qty(v):
+    try:
+        f = float(str(v).replace(",", "")) if v not in (None, "") else 0.0
+    except Exception:
+        return v
+    return str(int(f)) if f == int(f) else ("%g" % f)
+
+
+def _fmt_price(v, ccy="KRW"):
+    try:
+        f = float(str(v).replace(",", "")) if v not in (None, "") else 0.0
+    except Exception:
+        return v
+    if (str(ccy or "KRW").upper()) == "KRW":
+        return "{:,.0f}".format(f)           # 원화: 소수점 없음
+    return "{:,.2f}".format(f)               # 외화: 소수 2자리 유지
+
+
+tpl.env.filters["qtyfmt"] = _fmt_qty
+tpl.env.filters["pricefmt"] = _fmt_price
+tpl.env.globals["qtyfmt"] = _fmt_qty
+tpl.env.globals["pricefmt"] = _fmt_price
+
+
 # v5H226z123 (2026-05-31): 앱 버전(배포 감지용) — git 커밋 해시.
 # 배포(git pull + 재시작) 때마다 값이 바뀜 → 프론트가 주기 확인해 '새 버전' 안내.
 def _compute_app_version():

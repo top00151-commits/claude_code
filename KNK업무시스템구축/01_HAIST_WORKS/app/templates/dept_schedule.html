@@ -202,7 +202,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
           <td>{{ r.so_no or '—' }}</td>
           <td title="{{ r.model }}">{{ r.model or '—' }}</td>
           <td title="{{ r.equip }}">{{ r.equip or '—' }}</td>
-          <td class="c-num">{{ r.qty or '' }}</td>
+          <td class="c-num">{{ r.qty|qtyfmt if r.qty else '' }}</td>
           <td>{{ r.po_type or '—' }}</td>
           <td>{{ r.form_type or '—' }}</td>
           <td class="{% if not r.cust_ok %}cust-bad{% endif %}" title="{{ r.customer }}{% if not r.cust_ok %} — 등록 고객사 미연결{% endif %}">{{ r.customer }}</td>

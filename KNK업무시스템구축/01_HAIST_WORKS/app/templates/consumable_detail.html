@@ -301,9 +301,9 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
             <td><input data-k="equip_name" value="{{ it.equip_name|e }}" placeholder="장비명" /></td>
             <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" /></td>
             <td><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /></td>
-            <td><input data-k="qty" type="number" step="0.01" value="{{ it.qty or 0 }}" /></td>
+            <td><input data-k="qty" type="number" step="0.01" value="{{ (it.qty or 0)|qtyfmt }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
-            <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ it.unit_price or 0 }}" /></td>
+            <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></td>
             <td class="amount cell-amount">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
             {# v5H226z370(대표 지시): 비고 — 일괄등록 비고 표시 + 편집(자동저장). 백엔드 note 이미 지원. #}
             <td><input data-k="note" value="{{ it.note|e }}" placeholder="비고" /></td>
