@@ -61,6 +61,12 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx table.dsx-uxtab td.num,.dsx table.dsx-uxtab th.num{text-align:right;}
 .dsx table.dsx-uxtab tr:hover td{background:#fcfaf3;}
 .dsx .dsx-ux-empty{padding:8px 10px;color:#94a3b8;}
+/* v5H226z514: 펼친 '호기 줄'(날짜칸 클릭→그 호기 기록) */
+.dsx tr.dsx-unit-row td{background:#f7faff;}
+.dsx tr.dsx-unit-row:hover td{background:#eef4fb;}
+.dsx td.dsx-unit-info{font-size:11.5px;color:#475569;font-weight:600;white-space:nowrap;padding-left:14px;}
+.dsx td.dsx-unit-info .u-arrow{color:#94a3b8;margin-right:3px;}
+.dsx td.dsx-unit-info .u-meta{color:#94a3b8;font-weight:400;font-size:11px;margin-left:6px;}
 .dsx td.c-stage{text-align:center;}
 .dsx .stage-badge{display:inline-block;font-size:10.5px;font-weight:800;color:#3730a3;background:#eef2ff;border:1px solid #c7d2fe;border-radius:7px;padding:1px 7px;white-space:nowrap;}
 .dsx .biz-badge{display:inline-block;font-size:9.5px;font-weight:800;color:#fff;background:#94a3b8;border-radius:6px;padding:0 5px;margin-left:3px;vertical-align:1px;}
@@ -282,7 +288,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   function init(){
   var root=document.getElementById('dsx'); if(!root) return;
   var LOGS={{ logmap|tojson }}, MYTEAM={{ my_team|tojson }}, DEPTS={{ all_depts|tojson }},
-      TYPES={{ types|tojson }}, UID={{ uid|tojson }}, ISADMIN={{ is_admin|tojson }};
+      TYPES={{ types|tojson }}, UID={{ uid|tojson }}, ISADMIN={{ is_admin|tojson }},
+      SEL_DEPT={{ sel_dept|tojson }};   // v5H226z514: 호기 줄 마커 부서필터용
   var back=document.getElementById('dsxBack'), listEl=document.getElementById('dsxList'),
       titleEl=document.getElementById('dsxTitle'), deptSel=document.getElementById('dsxDept'),
       typeSel=document.getElementById('dsxType'), contentEl=document.getElementById('dsxContent'),
@@ -304,7 +311,9 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     typeSel.innerHTML=(TYPES||['진행']).map(function(t){return '<option>'+esc(t)+'</option>';}).join('');
     if(handoffSel){ handoffSel.innerHTML='<option value="">(넘기지 않음)</option>'+(DEPTS||[]).map(function(d){return '<option value="'+esc(d)+'">'+esc(d)+'</option>';}).join(''); }
   })();
-  function entries(){ var k=cur.kind+':'+cur.ref; return (LOGS[k]&&LOGS[k][String(cur.day)])||[]; }
+  // v5H226z514: 그 칸의 기록 중 현재 대상(공통='' 또는 그 호기)만
+  function entries(){ var k=cur.kind+':'+cur.ref; var a=(LOGS[k]&&LOGS[k][String(cur.day)])||[];
+    return a.filter(function(e){ return (e.unit||'')===(cur.unit||''); }); }
   function renderList(){
     var es=entries();
     if(!es.length){ listEl.innerHTML='<li class="dsx-none">아직 기록이 없습니다. 아래에서 추가하세요.</li>'; return; }
@@ -321,69 +330,84 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     }).join('');
   }
   function openCell(td){
-    var tr=td.closest('tr'); cur={kind:tr.dataset.kind,ref:Number(tr.dataset.ref),code:tr.dataset.code,
-      date:td.dataset.date,day:Number(td.dataset.day),multi:(tr.dataset.multi==='1')};
-    titleEl.textContent=cur.code+' · '+cur.date;
+    var tr=td.closest('tr');
+    // v5H226z514: 호기 줄(dsx-unit-row)의 칸이면 그 호기 기록, 본 줄(관리번호)이면 공통('')
+    var isUnit=tr.classList.contains('dsx-unit-row');
+    cur={kind:tr.dataset.kind,ref:Number(tr.dataset.ref),code:tr.dataset.code,
+      date:td.dataset.date,day:Number(td.dataset.day),
+      unit:(isUnit?(tr.dataset.unit||''):'')};
+    titleEl.textContent=cur.code+' · '+cur.date+(cur.unit?(' · '+cur.unit):' · (공통)');
     editId=0; contentEl.value=''; if(MYTEAM) deptSel.value=MYTEAM; typeSel.selectedIndex=0;
     if(handoffSel){ handoffSel.value=''; var hr=handoffSel.closest('.row'); if(hr) hr.style.display=''; }
-    // v5H226z499: 호기별 기록 — 수량 여러 대 품목이면 호기 선택 노출(작업일정표 units 재사용)
-    if(unitRow && unitSel){
-      if(cur.multi){
-        unitRow.style.display=''; unitSel.innerHTML='<option value="">(품목 전체)</option><option disabled>불러오는 중…</option>';
-        fetch('/sales/schedule/units?kind='+encodeURIComponent(cur.kind)+'&ref_id='+cur.ref,{credentials:'same-origin'})
-          .then(function(r){return r.json();}).then(function(j){
-            var opts='<option value="">(품목 전체)</option>';
-            ((j&&j.units)||[]).forEach(function(u){ var L=u.label||u.unit_label||''; if(L) opts+='<option value="'+esc(L)+'">'+esc(L)+'</option>'; });
-            unitSel.innerHTML=opts;
-          }).catch(function(){ unitSel.innerHTML='<option value="">(품목 전체)</option>'; });
-      } else { unitRow.style.display='none'; unitSel.innerHTML='<option value="">(품목 전체)</option>'; }
-    }
+    // v5H226z514: 호기는 줄로 선택(펼침) → 모달 드롭다운 폐지. 공통/호기는 클릭한 줄로 자동 결정.
+    if(unitRow) unitRow.style.display='none';
     saveBtn.textContent='기록 추가';
     renderList(); back.classList.add('on'); contentEl.focus();
   }
   // v5H226z512 (대표 지시): 작업일정표와 동일 — 관리번호 '+'로 호기(프로젝트)/등록품목(소모품) 펼치기(읽기전용).
   //   엔드포인트 재사용: 프로젝트=/sales/schedule/units · 소모품=/sales/schedule/consumable-items. 단가·금액은 can_money만.
+  // v5H226z514 (대표 지시): 그 호기(unit)의 그 날 마커(부서필터 반영). LOGS 의 unit 으로 프론트 계산.
+  function dsxMarker(key, day, unit){
+    var ents=(LOGS[key]&&LOGS[key][String(day)])||[];
+    var e=ents.filter(function(x){ return (x.unit||'')===unit && (!SEL_DEPT || x.dept===SEL_DEPT); });
+    if(!e.length) return '';
+    var t=e.map(function(x){return x.type;});
+    var color=(t.indexOf('완료')>=0)?'done':((t.indexOf('변경')>=0)?'chg':'prog');
+    return '<span class="mk '+color+'">'+e.length+'</span>';
+  }
+  // 본 행의 날짜칸을 그대로 따라 '호기 줄'을 만든다(정렬 일치·날짜칸 클릭→그 호기 기록).
+  function dsxBuildUnitRow(mainTr, key, label, meta){
+    var rtr=document.createElement('tr');
+    rtr.className='dsx-unit-row'; rtr.dataset.for=key;
+    rtr.dataset.kind=mainTr.dataset.kind; rtr.dataset.ref=mainTr.dataset.ref;
+    rtr.dataset.code=mainTr.dataset.code; rtr.dataset.unit=label;
+    var info=document.createElement('td');
+    info.className='dsx-unit-info'; info.colSpan=12;
+    info.innerHTML='<span class="u-arrow">↳</span> <b>'+esc(label||'(호기)')+'</b>'+(meta?(' <span class="u-meta">'+meta+'</span>'):'');
+    rtr.appendChild(info);
+    mainTr.querySelectorAll('td.day').forEach(function(mtd){
+      var d=mtd.dataset.day, dt=mtd.dataset.date;
+      var ctd=document.createElement('td');
+      ctd.className=mtd.className;        // day/today/bar/delay 시각맥락 복사
+      ctd.dataset.day=d; ctd.dataset.date=dt; ctd.dataset.unit=label;
+      ctd.innerHTML=dsxMarker(key, d, label);
+      rtr.appendChild(ctd);
+    });
+    return rtr;
+  }
   function dsxToggleExpand(tr, btn){
     if(!tr) return;
     var kind=tr.dataset.kind||'project', ref=tr.dataset.ref, key=kind+':'+ref;
-    var existing=tr.parentNode.querySelector('tr.dsx-exp-row[data-for="'+key+'"]');
-    if(existing){ existing.remove(); if(btn){ btn.textContent='＋'; btn.classList.remove('on'); } return; }
+    var existing=tr.parentNode.querySelectorAll('tr.dsx-unit-row[data-for="'+key+'"]');
+    if(existing.length){ existing.forEach(function(x){x.remove();}); if(btn){ btn.textContent='＋'; btn.classList.remove('on'); } return; }
     if(btn) btn.textContent='…';
     var url=(kind==='consumable')
       ? '/sales/schedule/consumable-items?ref_id='+encodeURIComponent(ref)
       : '/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref);
     fetch(url,{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(j){
       if(!j||!j.ok){ alert('불러오기 실패'); if(btn) btn.textContent='＋'; return; }
-      var CM=!!j.can_money, h='';
-      function n(v){ return (v!=null&&v!=='')?Number(v).toLocaleString():''; }
+      var newrows=[];
       if(kind==='consumable'){
-        var items=j.items||[];
-        h='<table class="dsx-uxtab"><thead><tr><th>품명</th><th>모델</th><th>장비명</th><th>규격</th><th class="num">수량</th><th>단위</th>'
-          +(CM?'<th class="num">단가</th><th class="num">금액</th>':'')+'<th>비고</th><th>자재코드</th></tr></thead><tbody>';
-        items.forEach(function(it){
-          h+='<tr><td>'+esc(it.part_name||'—')+'</td><td>'+esc(it.model_use||'')+'</td><td>'+esc(it.equip_name||'')+'</td><td>'+esc(it.spec||'')+'</td><td class="num">'+esc(it.qty!=null?String(it.qty):'')+'</td><td>'+esc(it.unit||'')+'</td>';
-          if(CM){ h+='<td class="num">'+n(it.unit_price)+'</td><td class="num">'+n(it.amount)+'</td>'; }
-          h+='<td>'+esc(it.note||'')+'</td><td>'+esc(it.part_no||'')+'</td></tr>';
+        (j.items||[]).forEach(function(it){
+          var label=String(it.part_name||'').slice(0,40);
+          var meta=[it.model_use, it.spec, (it.qty!=null?('수량 '+it.qty+(it.unit||'')):'')].filter(Boolean).map(esc).join(' · ');
+          newrows.push(dsxBuildUnitRow(tr, key, label, meta));
         });
-        if(!items.length) h+='<tr><td colspan="'+(CM?10:8)+'" class="dsx-ux-empty">등록된 품목 없음 — 소모품 상세에서 등록</td></tr>';
-        h+='</tbody></table>';
       } else {
-        var units=j.units||[];
-        h='<table class="dsx-uxtab"><thead><tr><th>호기·품목</th><th>수주번호</th><th>상태</th><th>납기</th><th>납품처</th>'
-          +(CM?'<th class="num">단가</th><th class="num">금액</th>':'')+'</tr></thead><tbody>';
-        units.forEach(function(u){
-          h+='<tr><td>'+esc(u.label||'—')+'</td><td>'+esc(u.so_no||'')+'</td><td>'+esc(u.unit_status||'')+'</td><td>'+esc(u.due_date||'')+'</td><td>'+esc(u.ship_to||'')+'</td>';
-          if(CM){ h+='<td class="num">'+n(u.unit_price)+'</td><td class="num">'+n(u.amount)+'</td>'; }
-          h+='</tr>';
+        (j.units||[]).forEach(function(u){
+          var label=String(u.label||'').slice(0,40);
+          var meta=[u.so_no, u.unit_status, (u.due_date?('납기 '+u.due_date):'')].filter(Boolean).map(esc).join(' · ');
+          newrows.push(dsxBuildUnitRow(tr, key, label, meta));
         });
-        if(!units.length) h+='<tr><td colspan="'+(CM?7:5)+'" class="dsx-ux-empty">호기 없음</td></tr>';
-        h+='</tbody></table>';
       }
-      var sub=document.createElement('tr'); sub.className='dsx-exp-row'; sub.dataset.for=key;
-      var cell=document.createElement('td'); cell.colSpan=99;
-      var wrap=document.createElement('div'); wrap.className='dsx-exp-wrap'; wrap.innerHTML=h;
-      cell.appendChild(wrap); sub.appendChild(cell);
-      tr.parentNode.insertBefore(sub, tr.nextSibling);
+      if(!newrows.length){
+        var er=document.createElement('tr'); er.className='dsx-unit-row'; er.dataset.for=key;
+        var etd=document.createElement('td'); etd.colSpan=99; etd.className='dsx-ux-empty';
+        etd.textContent=(kind==='consumable')?'등록된 품목 없음 — 소모품 상세에서 등록':'호기 없음';
+        er.appendChild(etd); newrows.push(er);
+      }
+      var anchor=tr;
+      newrows.forEach(function(rw){ anchor.parentNode.insertBefore(rw, anchor.nextSibling); anchor=rw; });
       if(btn){ btn.textContent='－'; btn.classList.add('on'); }
     }).catch(function(){ alert('통신 오류'); if(btn) btn.textContent='＋'; });
   }
@@ -418,9 +442,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   root.addEventListener('click', function(e){
     if(e.target.closest('.c-code a')) return;            // 관리번호 링크는 그대로
     var ex=e.target.closest('.dsx-exp'); if(ex){ e.stopPropagation(); dsxToggleExpand(ex.closest('tr'), ex); return; }   // v5H226z512: 호기/등록품목 펼치기
-    if(e.target.closest('tr.dsx-exp-row')) return;       // 펼친 패널 안 클릭은 셀팝업 안 띄움
     var tlb=e.target.closest('.tl-btn'); if(tlb){ var tr=tlb.closest('tr'); openTimeline(tr.dataset.kind, Number(tr.dataset.ref), tr.dataset.code); return; }
-    var td=e.target.closest('td.day'); if(td){ openCell(td); }
+    var td=e.target.closest('td.day'); if(td){ openCell(td); }   // v5H226z514: 본 줄=공통·호기 줄=그 호기
   });
   // 닫기
   var cBtn=document.getElementById('dsxClose'); if(cBtn) cBtn.addEventListener('click', close);
@@ -452,7 +475,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       var es=entries(), ts=''; es.forEach(function(x){ if(x.id===editId) ts=x.ts; });
       post('/dept/schedule/cell/update',{id:editId,content:content,log_type:type,base_ts:ts});
     } else {
-      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,handoff_to:(handoffSel?handoffSel.value:''),unit_label:((unitRow&&unitRow.style.display!=='none'&&unitSel)?unitSel.value:'')});
+      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,handoff_to:(handoffSel?handoffSel.value:''),unit_label:(cur.unit||'')});
     }
   });
   function post(url, body){

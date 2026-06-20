@@ -19552,10 +19552,12 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                     _by_dept[lr[4] or "(부서없음)"] = _by_dept.get(lr[4] or "(부서없음)", 0) + 1
                     _items_with.add(key)
         # 마커(cellsum) — 부서 필터 적용(sel_dept 면 그 부서 기록만 카운트)
+        # v5H226z514 (대표 지시): 관리번호(접힌) 줄 마커는 '공통 기록'(unit_label 빈 것)만 — 호기 지정 기록은
+        #   펼친 호기 줄에서 표시(프론트가 logmap 의 unit 로 계산). 첫 줄=여러 항목 공통.
         for key, dm in logmap.items():
             cs = {}
             for ds, ents in dm.items():
-                _e = [e for e in ents if (not sel_dept or e["dept"] == sel_dept)]
+                _e = [e for e in ents if (not sel_dept or e["dept"] == sel_dept) and not (e.get("unit") or "")]
                 if not _e:
                     continue
                 types = [e["type"] for e in _e]
