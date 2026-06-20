@@ -64,7 +64,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 /* v5H226z514: 펼친 '호기 줄'(날짜칸 클릭→그 호기 기록) */
 .dsx tr.dsx-unit-row td{background:#f7faff;}
 .dsx tr.dsx-unit-row:hover td{background:#eef4fb;}
-.dsx td.dsx-unit-info{font-size:11.5px;color:#475569;font-weight:600;white-space:nowrap;padding-left:14px;}
+.dsx tr.dsx-unit-row td.dsx-unit-blank{background:#f7faff;}
+.dsx td.dsx-unit-info{font-size:11.5px;color:#475569;font-weight:600;white-space:nowrap;padding-left:6px;}
 .dsx td.dsx-unit-info .u-arrow{color:#94a3b8;margin-right:3px;}
 .dsx td.dsx-unit-info .u-meta{color:#94a3b8;font-weight:400;font-size:11px;margin-left:6px;}
 .dsx td.c-stage{text-align:center;}
@@ -361,8 +362,10 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     rtr.className='dsx-unit-row'; rtr.dataset.for=key;
     rtr.dataset.kind=mainTr.dataset.kind; rtr.dataset.ref=mainTr.dataset.ref;
     rtr.dataset.code=mainTr.dataset.code; rtr.dataset.unit=label;
+    // v5H226z515 (대표 지시): 관리번호 칸은 비우고, 호기 리스트는 '수주번호' 칸부터 시작
+    var blank=document.createElement('td'); blank.className='c-code dsx-unit-blank'; rtr.appendChild(blank);
     var info=document.createElement('td');
-    info.className='dsx-unit-info'; info.colSpan=12;
+    info.className='dsx-unit-info'; info.colSpan=11;
     info.innerHTML='<span class="u-arrow">↳</span> <b>'+esc(label||'(호기)')+'</b>'+(meta?(' <span class="u-meta">'+meta+'</span>'):'');
     rtr.appendChild(info);
     mainTr.querySelectorAll('td.day').forEach(function(mtd){
