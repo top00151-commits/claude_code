@@ -222,6 +222,12 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched thead .c-info .th-wrap { justify-content:center; }
 .col-resizer { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:9; user-select:none; }
 .col-resizer:hover { background:rgba(176,16,16,.25); }
+/* v5H226z517 (대표 지시): 데이터 컬럼 위치 변경 — 머리글 ⠿ 그립 드래그 */
+.col-grip { cursor:grab; color:#c0bdb4; font-size:11px; margin-right:3px; user-select:none; -webkit-user-drag:element; }
+.col-grip:hover { color:var(--knk-red); }
+.col-grip:active { cursor:grabbing; }
+.sched thead th.col-dragging { opacity:.45; }
+.sched thead th.col-drop-to .th-wrap { box-shadow:inset 3px 0 0 #2563eb; }
 /* z331: 헤더 제목 클릭 정렬 — 제목 클릭 시 오름↔내림 토글, 빈칸은 항상 아래. (폭조절 핸들 영역은 col-resize 유지) */
 .sched thead .c-info .th-wrap { cursor:pointer; user-select:none; }
 .sched thead .c-info .th-wrap:hover { color:#7f1d1d; }
@@ -881,7 +887,63 @@ function setDayRange(){
   COLS._dayFrom=f; COLS._dayTo=t; syncDayInputs(); applyCols(); saveCols();
 }
 
-function resetCols(){ schedCollapseUnits(); COLS={}; applyCols(); buildColsMenu(); syncDayInputs(); saveCols(); toast('너비·숨김·날짜를 초기화했습니다'); }
+function resetCols(){ schedCollapseUnits(); COLS={}; applyCols(); applyOrder(); buildColsMenu(); syncDayInputs(); saveCols(); toast('너비·숨김·날짜·위치를 초기화했습니다'); }
+
+// ===== v5H226z517 (대표 지시): '데이터 컬럼' 위치(순서) 변경 — 머리글 ⠿ 그립 드래그.
+//   관리번호·수주번호 앞쪽 고정 · 날짜칸/영업담당자 위치 고정 · 계정별 서버 저장(기존 COLS→/sales/schedule/cols 재사용·_order 키).
+const LOCK_COLS=['code','so_no'], FIXED_TAIL=['sales_owner'];
+const REORDER_KEYS=COL_KEYS.filter(k=>LOCK_COLS.indexOf(k)<0 && FIXED_TAIL.indexOf(k)<0);
+function curOrder(){
+  let o=(Array.isArray(COLS._order)?COLS._order.slice():[]).filter(k=>REORDER_KEYS.indexOf(k)>=0);
+  REORDER_KEYS.forEach(k=>{ if(o.indexOf(k)<0) o.push(k); });   // 누락(신규/숨김 컬럼)은 기본 위치로 보충
+  return o;
+}
+function _reorderIn(container, mk, anchorSel, order){
+  const anchor=container.querySelector(anchorSel); if(!anchor) return;
+  let ref=anchor;
+  order.forEach(k=>{ const el=container.querySelector(mk(k)); if(el){ ref.after(el); ref=el; } });
+}
+function applyOrder(){
+  const order=curOrder();
+  const cg=document.getElementById('schedCols');
+  if(cg) _reorderIn(cg, k=>'col[data-col="'+k+'"]', 'col[data-col="so_no"]', order);
+  const thr=document.querySelector('#schedTable thead tr');
+  if(thr) _reorderIn(thr, k=>':scope>[data-col="'+k+'"]', ':scope>[data-col="so_no"]', order);
+  document.querySelectorAll('#schedTable tbody tr').forEach(tr=>{
+    if(tr.classList.contains('unit-exp-row')) return;   // 펼친 호기 줄(colspan)은 제외
+    _reorderIn(tr, k=>':scope>[data-col="'+k+'"]', ':scope>[data-col="so_no"]', order);
+  });
+  updateSticky();
+}
+let _dragCol=null;
+function initColDrag(){
+  document.querySelectorAll('#schedTable thead th[data-col]').forEach(th=>{
+    if(th.dataset.dragInit) return; th.dataset.dragInit='1';   // SPA 재실행 중복바인딩 방지
+    const k=th.dataset.col, wrap=th.querySelector('.th-wrap');
+    const re=(REORDER_KEYS.indexOf(k)>=0);
+    if(re && wrap && !wrap.querySelector('.col-grip')){
+      const grip=document.createElement('span');
+      grip.className='col-grip'; grip.textContent='⠿'; grip.title='드래그해서 컬럼 위치 변경';
+      grip.setAttribute('draggable','true');
+      wrap.insertBefore(grip, wrap.firstChild);
+      grip.addEventListener('click', e=>e.stopPropagation());   // 그립 클릭은 정렬 아님
+      grip.addEventListener('dragstart', e=>{ _dragCol=k; th.classList.add('col-dragging'); try{ e.dataTransfer.setData('text/plain',k); e.dataTransfer.effectAllowed='move'; }catch(_){} });
+      grip.addEventListener('dragend', ()=>{ _dragCol=null; document.querySelectorAll('#schedTable thead th').forEach(x=>x.classList.remove('col-dragging','col-drop-to')); });
+    }
+    if(re){
+      th.addEventListener('dragover', e=>{ if(_dragCol && _dragCol!==k){ e.preventDefault(); try{ e.dataTransfer.dropEffect='move'; }catch(_){} th.classList.add('col-drop-to'); } });
+      th.addEventListener('dragleave', ()=>th.classList.remove('col-drop-to'));
+      th.addEventListener('drop', e=>{
+        e.preventDefault(); th.classList.remove('col-drop-to');
+        if(!_dragCol || _dragCol===k) return;
+        let o=curOrder().filter(x=>x!==_dragCol);
+        let ti=o.indexOf(k); if(ti<0) ti=o.length;
+        o.splice(ti, 0, _dragCol);            // 놓은 대상 '앞'에 삽입
+        COLS._order=o; applyOrder(); saveCols(); if(window.toast) toast('컬럼 위치를 바꿨습니다');
+      });
+    }
+  });
+}
 
 // ---- 너비 조정(드래그) — z279: 그 칸만 px 로 직접 지정. 다른 칸은 1px도 안 움직임 ----
 let _rz=null, _rzMoved=false;   // z331: _rzMoved=폭조절 드래그 직후 헤더 클릭정렬 억제용
@@ -2014,7 +2076,7 @@ function setCellDisplay(tr, field, val, cust_ok){
 }
 
 // 초기화
-applyCols(); buildColsMenu(); syncDayInputs();
+applyCols(); buildColsMenu(); syncDayInputs(); applyOrder(); initColDrag();   // v5H226z517: 저장된 컬럼 순서 적용 + 드래그 그립
 // v5H226z469: 세금계산서 발행상태(합계=수주금액 → 발행완료 / 다르면 미발행) 초기 표기
 try{ document.querySelectorAll('#schedTable tbody tr[data-ref]').forEach(refreshTaxStatus); }catch(e){}
 _buildBulkFieldSel(); syncBulkBar();   // z366: 일괄수정 항목 드롭다운 구성 + 바 상태
