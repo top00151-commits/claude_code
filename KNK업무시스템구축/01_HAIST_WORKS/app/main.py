@@ -18943,6 +18943,43 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                          "statuses": list(UNIT_STATUSES)})   # v5H226z482: UNIT_STATUSES는 main 전역(_logi 아님)
 
 
+@app.get("/sales/schedule/consumable-items")
+async def schedule_board_consumable_items(request: Request, ref_id: int):
+    """v5H226z510 (대표 지시): 작업일정표 소모품 행 펼치기 — 그 소모품(consumable_orders)에 등록된
+      품목(consumable_order_items) 리스트를 읽기전용 JSON 으로. 단가·금액은 영업·관리(can_money)만.
+      편집은 소모품 상세(/consumables/{id})에서. (호기 펼침과 짝 — 소모품은 리스트 보기 전용)"""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    can_money = bool(can_view_sales(u))
+    items = []
+    try:
+        from . import consumables as _co
+        for it in _co.coi_list(int(ref_id)):
+            _d = {
+                "id": it.get("id"),
+                "part_name": it.get("part_name") or "",
+                "model_use": it.get("model_use") or "",
+                "equip_name": it.get("equip_name") or "",
+                "spec": it.get("spec") or "",
+                "qty": (float(it.get("qty")) if it.get("qty") not in (None, "") else None),
+                "unit": it.get("unit") or "",
+                "note": it.get("note") or "",
+                "part_no": it.get("part_no") or "",
+                "linked_mgmt_code": it.get("linked_mgmt_code") or "",
+                "linked_project_id": it.get("linked_project_id") or None,
+                "image_thumb_path": it.get("image_thumb_path") or it.get("image_loc_thumb_path") or "",
+                "image_path": it.get("image_path") or it.get("image_loc_path") or "",
+            }
+            if can_money:   # 단가·금액은 청구성격 → 영업·관리만
+                _d["unit_price"] = (float(it.get("unit_price")) if it.get("unit_price") not in (None, "") else None)
+                _d["amount"] = (float(it.get("amount")) if it.get("amount") not in (None, "") else None)
+            items.append(_d)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True, "items": items, "can_money": can_money})
+
+
 @app.post("/sales/schedule/unit-field")
 async def schedule_board_unit_field(request: Request):
     """v5H226z481 (대표 지시): 펼친 호기 줄 인라인 수정 — 상태/납기/단가 1필드. can_use_sales(단가는 can_view_sales).
