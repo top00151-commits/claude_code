@@ -2783,6 +2783,39 @@ def init_db():
         except Exception as _e:
             print(f"[v5H226z264] 일정표 보드 표 생성 스킵: {_e}")
 
+        # v5H226z518 (대표 지시): WORKS '지시형' 전환 — 업무 지시/요청 원장(work_order).
+        #   '지시'=상급자→부하/부서·영업→부서(제작·프로젝트성, 잡무 제외) / '요청'=동료 수평(수락·반려 자유).
+        #   '내 업무함'(일일업무 개편)·'일 시키기'·'내가 시킨 일'의 단일 저장소. 시간대=입력자 소속 기준.
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS work_order (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind            TEXT NOT NULL DEFAULT '지시',   -- '지시' | '요청'
+                title           TEXT NOT NULL,
+                body            TEXT,
+                created_by      INTEGER NOT NULL,              -- 지시/요청한 사람
+                created_by_name TEXT,
+                target_user_id  INTEGER,                       -- 사람 대상(택1)
+                target_team_id  INTEGER,                       -- 부서 대상(택1)
+                target_label    TEXT,                          -- 표시용(사람명/부서명 스냅샷)
+                project_id      INTEGER,                       -- 연결 관리번호/프로젝트(선택)
+                project_code    TEXT,                          -- 표시용 관리번호 스냅샷
+                due_date        TEXT,
+                priority        TEXT DEFAULT '보통',           -- 긴급|높음|보통|낮음
+                status          TEXT DEFAULT '받음',           -- 받음|진행|완료|반려
+                report          TEXT,                          -- 완료/반려 보고
+                hours           REAL,                          -- 소요시간(h)
+                done_at         TEXT,
+                accepted_by     INTEGER,                       -- 부서 대상일 때 실제 집어든 사람
+                accepted_by_name TEXT,
+                created_at      TEXT,
+                updated_at      TEXT
+            )""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_wo_target_user ON work_order(target_user_id, status)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_wo_target_team ON work_order(target_team_id, status)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_wo_created_by ON work_order(created_by, status)")
+        except Exception as _e:
+            print(f"[v5H226z518] work_order 표 생성 스킵: {_e}")
+
         # v5H226z270 (대표 지시): 작업 일정표 = 업무 원장 허브 — 단계 파이프라인 기록표.
         #   각 프로젝트/소모품의 단계별 진행을 '누가·언제' 와 함께 적재(추적). 단계는 STAGE_SPEC 화이트리스트.
         try:

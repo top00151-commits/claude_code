@@ -2676,6 +2676,30 @@ async def daily_page(req: Request, sel_date: str = ""):
         except Exception as _e:
             print(f"[DAILY-WFCARDS ERR] {_e}")
 
+    # v5H226z518 (대표 지시): 내 업무함 — 받은 지시/요청 + 내가 시킨 일 + 대상(사람/부서) 목록
+    wo_directed, wo_requested, wo_created, wo_users, wo_teams = [], [], [], [], []
+    try:
+        with db_session() as c2:
+            _myteam = u.get("team_id") or 0
+            for r in c2.execute(
+                "SELECT * FROM work_order WHERE (target_user_id=? OR (target_team_id IS NOT NULL AND target_team_id=?)) "
+                "AND COALESCE(status,'') NOT IN ('완료','반려') ORDER BY "
+                "CASE priority WHEN '긴급' THEN 0 WHEN '높음' THEN 1 WHEN '보통' THEN 2 ELSE 3 END, "
+                "COALESCE(NULLIF(due_date,''),'9999-12-31'), id DESC",
+                    (u["id"], _myteam)).fetchall():
+                d = dict(r)
+                (wo_directed if d.get("kind") == "지시" else wo_requested).append(d)
+            wo_created = [dict(r) for r in c2.execute(
+                "SELECT * FROM work_order WHERE created_by=? AND COALESCE(status,'') NOT IN ('완료','반려') "
+                "ORDER BY id DESC LIMIT 60", (u["id"],)).fetchall()]
+            wo_users = [dict(r) for r in c2.execute(
+                "SELECT u.id, u.name, COALESCE(t.name,'') AS team FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                "WHERE COALESCE(u.is_active,1)=1 AND u.id<>? ORDER BY t.name, u.name", (u["id"],)).fetchall()]
+            wo_teams = [dict(r) for r in c2.execute(
+                "SELECT id, name FROM teams ORDER BY display_order, name").fetchall()]
+    except Exception as _e:
+        print(f"[DAILY-WO ERR] {_e}")
+
     return ctx(
         req, "daily.html",
         user=u, tasks=tasks, sel_date=sel_date,
@@ -2684,7 +2708,153 @@ async def daily_page(req: Request, sel_date: str = ""):
         projects=projects, customers=customers,
         week_stats=week_stats, week_range=f"{wk_mon} ~ {wk_sun}",
         wf_cards=wf_cards,  # z107: 워크플로우 업무카드
+        wo_directed=wo_directed, wo_requested=wo_requested, wo_created=wo_created,
+        wo_users=wo_users, wo_teams=wo_teams,   # v5H226z518: 내 업무함
     )
+
+
+# ============================================================
+#   WORKS '지시형' — 업무 지시/요청(work_order)  (v5H226z518, 대표 지시)
+#   '지시'=상급자→부하/부서·영업→부서(제작·프로젝트성) / '요청'=동료 수평(수락·반려 자유)
+# ============================================================
+WO_PRIORITIES = ("긴급", "높음", "보통", "낮음")
+WO_STATUSES = ("받음", "진행", "완료", "반려")
+
+
+def _wo_team_chain_leaders(c, team_id):
+    """그 팀 + 상위 팀들의 leader_id 집합(부서장 포함)."""
+    leaders, seen, tid = set(), set(), team_id
+    while tid and tid not in seen:
+        seen.add(tid)
+        row = c.execute("SELECT leader_id, parent_team_id FROM teams WHERE id=?", (tid,)).fetchone()
+        if not row:
+            break
+        if row[0]:
+            leaders.add(int(row[0]))
+        tid = row[1]
+    return leaders
+
+
+def _wo_can_direct(c, actor, target_user_id, target_team_id):
+    """actor 가 대상에게 '지시' 가능한가? (아니면 '요청')
+    규칙: ①대표/관리자(role admin/ceo·is_admin) ②대상 팀(또는 상위부서)의 팀장 ③영업 권한자→부서."""
+    if (actor.get("role") or "") in ("admin", "ceo") or actor.get("is_admin"):
+        return True
+    aid = actor.get("id")
+    tteam = target_team_id
+    if target_user_id and not tteam:
+        r = c.execute("SELECT team_id FROM users WHERE id=?", (target_user_id,)).fetchone()
+        tteam = (r[0] if r else None)
+    if tteam:
+        if aid in _wo_team_chain_leaders(c, int(tteam)):
+            return True
+        if target_team_id and can_use_sales(actor):   # 영업→부서(실제 영업담당)
+            return True
+    return False
+
+
+@app.post("/work-orders/create")
+async def work_order_create(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    try:
+        b = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    title = (b.get("title") or "").strip()
+    if not title:
+        return JSONResponse({"ok": False, "error": "제목을 입력하세요."}, 400)
+
+    def _toint(v):
+        try:
+            return int(v) if v not in (None, "", "0", 0) else None
+        except Exception:
+            return None
+    tgt_user = _toint(b.get("target_user_id"))
+    tgt_team = _toint(b.get("target_team_id"))
+    if not tgt_user and not tgt_team:
+        return JSONResponse({"ok": False, "error": "받을 사람 또는 부서를 선택하세요."}, 400)
+    body_txt = (b.get("body") or "").strip()
+    due = (b.get("due_date") or "").strip()[:10]
+    prio = b.get("priority") if b.get("priority") in WO_PRIORITIES else "보통"
+    proj_id = _toint(b.get("project_id"))
+    with db_session() as c:
+        kind = "지시" if _wo_can_direct(c, u, tgt_user, tgt_team) else "요청"
+        tgt_label = ""
+        if tgt_user:
+            r = c.execute("SELECT name FROM users WHERE id=?", (tgt_user,)).fetchone(); tgt_label = (r[0] if r else "")
+        elif tgt_team:
+            r = c.execute("SELECT name FROM teams WHERE id=?", (tgt_team,)).fetchone(); tgt_label = (r[0] if r else "")
+        proj_code = ""
+        if proj_id:
+            r = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (proj_id,)).fetchone(); proj_code = (r[0] if r else "")
+        cur = c.execute(
+            "INSERT INTO work_order (kind,title,body,created_by,created_by_name,target_user_id,target_team_id,"
+            "target_label,project_id,project_code,due_date,priority,status,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?, '받음', datetime('now','localtime'), datetime('now','localtime'))",
+            (kind, title, body_txt, u["id"], u.get("name") or "", tgt_user, tgt_team, tgt_label,
+             proj_id, proj_code, due, prio))
+        wid = cur.lastrowid
+        if tgt_user:
+            notify_ids = [tgt_user]
+        else:
+            notify_ids = [int(r[0]) for r in c.execute(
+                "SELECT id FROM users WHERE team_id=? AND COALESCE(is_active,1)=1", (tgt_team,)).fetchall()]
+        try:
+            _notify_users(c, notify_ids, "work_order", f"[{kind}] {title}",
+                          (u.get("name", "") + " → " + (tgt_label or "") + (f" · 기한 {due}" if due else "")),
+                          "/daily")
+        except Exception as _e:
+            print(f"[WO-NOTIFY ERR] {_e}")
+    return JSONResponse({"ok": True, "id": wid, "kind": kind})
+
+
+@app.post("/work-orders/{wid:int}/status")
+async def work_order_status(req: Request, wid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    try:
+        b = await req.json()
+    except Exception:
+        b = {}
+    new = b.get("status")
+    if new not in WO_STATUSES:
+        return JSONResponse({"ok": False, "error": "상태값 오류"}, 400)
+    report = (b.get("report") or "").strip()
+    try:
+        hours = float(b.get("hours") or 0)
+    except Exception:
+        hours = 0.0
+    with db_session() as c:
+        w = c.execute("SELECT * FROM work_order WHERE id=?", (wid,)).fetchone()
+        if not w:
+            return JSONResponse({"ok": False, "error": "없는 업무"}, 404)
+        w = dict(w)
+        allowed = ((w.get("target_user_id") == u["id"])
+                   or (w.get("target_team_id") and w.get("target_team_id") == u.get("team_id"))
+                   or (w.get("created_by") == u["id"])
+                   or ((u.get("role") or "") in ("admin", "ceo")))
+        if not allowed:
+            return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+        # 부서 대상일 때 처음 집어든 사람 기록(보고자)
+        acc_id, acc_name = w.get("accepted_by"), w.get("accepted_by_name")
+        if not acc_id and new in ("진행", "완료"):
+            acc_id, acc_name = u["id"], (u.get("name") or "")
+        done_sql = "datetime('now','localtime')" if new in ("완료", "반려") else "done_at"
+        c.execute(
+            f"UPDATE work_order SET status=?, report=COALESCE(NULLIF(?,''),report), "
+            f"hours=CASE WHEN ?>0 THEN ? ELSE hours END, done_at={done_sql}, "
+            f"accepted_by=?, accepted_by_name=?, updated_at=datetime('now','localtime') WHERE id=?",
+            (new, report, hours, hours, acc_id, acc_name, wid))
+        if new in ("완료", "반려") and w.get("created_by") and w.get("created_by") != u["id"]:
+            try:
+                _notify_users(c, [w["created_by"]], "work_order", f"[{new}] {w.get('title', '')}",
+                              f"{u.get('name', '')} 이(가) '{new}' 보고", "/daily")
+            except Exception:
+                pass
+    return JSONResponse({"ok": True})
 
 
 _TASK_STATUSES = ("진행중", "완료", "지연", "보류", "취소")

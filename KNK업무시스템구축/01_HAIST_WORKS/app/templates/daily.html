@@ -95,6 +95,7 @@
       </div>
     </div>
     <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" onclick="openAssign()" title="다른 사람/부서에 일을 지시하거나 요청합니다">📌 일 시키기</button>
       <a class="btn btn-secondary" href="/history">📜 전체 기록</a>
       <button class="btn btn-primary" onclick="focusNewTask()">＋ 새 업무</button>
     </div>
@@ -148,6 +149,72 @@
     <input type="number" id="newHours" placeholder="⏱ h" title="오늘 이 업무에 들인 시간 (시간 단위, 예: 0.5/1/2/4)" step="0.5" min="0" max="24" style="width:70px;">
     <button class="btn btn-primary" onclick="addTask()">등록</button>
   </div>
+
+  <!-- v5H226z518 (대표 지시): 내 업무함 — 받은 지시/요청 + 내가 시킨 일 -->
+  <style>
+  .wo-sec{margin-top:var(--space-5);}
+  .wo-sec h2{font-size:15px;font-weight:800;margin:0 0 8px;}
+  .wo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;}
+  .wo-card{border:1px solid var(--line,#e5e7eb);border-left:4px solid #94a3b8;border-radius:10px;padding:10px 12px;background:#fff;}
+  .wo-card.k-지시{border-left-color:#dc2626;} .wo-card.k-요청{border-left-color:#2563eb;}
+  .wo-sec.wo-created .wo-card{border-left-color:#a855f7;}
+  .wo-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;}
+  .wo-badge{font-size:10.5px;font-weight:800;border-radius:6px;padding:1px 7px;color:#fff;}
+  .wo-badge.지시{background:#dc2626;} .wo-badge.요청{background:#2563eb;}
+  .wo-prio{font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 6px;}
+  .wo-prio.긴급{background:#fee2e2;color:#b91c1c;} .wo-prio.높음{background:#ffedd5;color:#c2410c;}
+  .wo-prio.보통{background:#f1f5f9;color:#475569;} .wo-prio.낮음{background:#f8fafc;color:#94a3b8;}
+  .wo-title{font-weight:700;font-size:13.5px;}
+  .wo-meta{font-size:11.5px;color:#64748b;margin-top:2px;}
+  .wo-body{font-size:12px;color:#334155;margin-top:5px;white-space:pre-wrap;}
+  .wo-acts{display:flex;gap:6px;margin-top:8px;}
+  .wo-acts button{font-size:11.5px;border:1px solid var(--line,#e5e7eb);background:#fff;border-radius:7px;padding:4px 10px;cursor:pointer;font-weight:700;}
+  .wo-acts .go{color:#2563eb;} .wo-acts .done{color:#15803d;} .wo-acts .rej{color:#b91c1c;}
+  .wo-modal-back{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:1200;display:flex;align-items:center;justify-content:center;}
+  .wo-modal{background:#fff;border-radius:14px;width:min(520px,94vw);max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3);}
+  .wo-modal h3{margin:0;padding:14px 18px;border-bottom:1px solid var(--line,#eee);font-size:16px;}
+  .wo-modal-body{padding:14px 18px;display:flex;flex-direction:column;gap:10px;}
+  .wo-modal-foot{padding:12px 18px;border-top:1px solid var(--line,#eee);display:flex;gap:8px;justify-content:flex-end;}
+  .wo-f{display:flex;flex-direction:column;gap:4px;} .wo-f label{font-size:12px;font-weight:700;color:#475569;}
+  .wo-f input,.wo-f select,.wo-f textarea{padding:8px 10px;border:1px solid var(--line,#cbd5e1);border-radius:8px;font:inherit;width:100%;box-sizing:border-box;}
+  .wo-row{display:flex;gap:10px;} .wo-row .wo-f{flex:1;}
+  </style>
+  {% if wo_directed or wo_requested %}
+  <div class="wo-sec" data-dn="wo-received">
+    <h2>📥 내게 온 일 ({{ (wo_directed|length) + (wo_requested|length) }})</h2>
+    <div class="wo-grid">
+      {% for w in (wo_directed + wo_requested) %}
+      <div class="wo-card k-{{ w.kind }}" data-wid="{{ w.id }}">
+        <div class="wo-top">
+          <span class="wo-badge {{ w.kind }}">{{ w.kind }}</span>
+          <span class="wo-prio {{ w.priority }}">{{ w.priority }}</span>
+          <span class="wo-title">{{ w.title }}</span>
+        </div>
+        <div class="wo-meta">{{ w.created_by_name or '' }} 님{% if w.target_team_id %} → {{ w.target_label }}(부서){% endif %}{% if w.due_date %} · 기한 {{ w.due_date }}{% endif %}{% if w.project_code %} · {{ w.project_code }}{% endif %} · 상태 {{ w.status }}</div>
+        {% if w.body %}<div class="wo-body">{{ w.body }}</div>{% endif %}
+        <div class="wo-acts">
+          <button class="go" onclick="woStatus({{ w.id }},'진행')">진행</button>
+          <button class="done" onclick="woReport({{ w.id }},'완료')">완료 보고</button>
+          <button class="rej" onclick="woReport({{ w.id }},'반려')">반려</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if wo_created %}
+  <div class="wo-sec wo-created" data-dn="wo-created">
+    <h2>📤 내가 시킨 일 ({{ wo_created|length }})</h2>
+    <div class="wo-grid">
+      {% for w in wo_created %}
+      <div class="wo-card k-{{ w.kind }}" data-wid="{{ w.id }}">
+        <div class="wo-top"><span class="wo-badge {{ w.kind }}">{{ w.kind }}</span><span class="wo-prio {{ w.priority }}">{{ w.priority }}</span><span class="wo-title">{{ w.title }}</span></div>
+        <div class="wo-meta">→ {{ w.target_label }}{% if w.accepted_by_name %} · {{ w.accepted_by_name }} 처리{% endif %}{% if w.due_date %} · 기한 {{ w.due_date }}{% endif %} · 상태 {{ w.status }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- z107: 워크플로우 업무카드 (배정된 노드) -->
   {% if wf_cards %}
@@ -324,11 +391,81 @@
   {% endif %}
 
   <div style="height: var(--space-7);"></div>
+
+  <!-- v5H226z518: 일 시키기(지시/요청) 모달 — .main 안(SPA 안전) -->
+  <div id="woBack" class="wo-modal-back" style="display:none;">
+    <div class="wo-modal">
+      <h3>📌 일 시키기 <span style="font-weight:400;font-size:12px;color:#64748b;">— 상급자면 '지시', 동료면 '요청'으로 자동 처리</span></h3>
+      <div class="wo-modal-body">
+        <div class="wo-f"><label>대상 종류</label>
+          <select id="woTgtType" onchange="woTgtSwitch()"><option value="user">사람</option><option value="team">부서</option></select></div>
+        <div class="wo-f" id="woUserWrap"><label>받을 사람</label>
+          <select id="woUser"><option value="">선택</option>
+            {% for x in wo_users %}<option value="{{ x.id }}">{{ x.name }}{% if x.team %} ({{ x.team }}){% endif %}</option>{% endfor %}
+          </select></div>
+        <div class="wo-f" id="woTeamWrap" style="display:none;"><label>받을 부서</label>
+          <select id="woTeam"><option value="">선택</option>
+            {% for t in wo_teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+          </select></div>
+        <div class="wo-f"><label>제목 *</label><input type="text" id="woTitle" placeholder="무슨 일인지 한 줄로"></div>
+        <div class="wo-f"><label>내용</label><textarea id="woBody" rows="3" placeholder="상세 내용(선택)"></textarea></div>
+        <div class="wo-row">
+          <div class="wo-f"><label>기한</label><input type="date" id="woDue"></div>
+          <div class="wo-f"><label>우선순위</label><select id="woPrio"><option>보통</option><option>긴급</option><option>높음</option><option>낮음</option></select></div>
+        </div>
+        <div class="wo-f"><label>연결 관리번호 (선택)</label>
+          <input type="text" id="woProj" list="projectOptions" placeholder="프로젝트/관리번호" autocomplete="off"></div>
+      </div>
+      <div class="wo-modal-foot">
+        <button class="btn btn-secondary" onclick="closeAssign()">취소</button>
+        <button class="btn btn-primary" onclick="submitAssign()">보내기</button>
+      </div>
+    </div>
+  </div>
 </main>
 </div>
 
 <script>
 const SEL_DATE = '{{ sel_date }}';
+
+// ===== v5H226z518 (대표 지시): 일 시키기(지시/요청) + 받은 일 상태 =====
+function openAssign(){ var b=document.getElementById('woBack'); if(b) b.style.display='flex'; }
+function closeAssign(){ var b=document.getElementById('woBack'); if(b) b.style.display='none'; }
+function woTgtSwitch(){ var t=document.getElementById('woTgtType').value;
+  document.getElementById('woUserWrap').style.display=(t==='user')?'':'none';
+  document.getElementById('woTeamWrap').style.display=(t==='team')?'':'none'; }
+function _woProjId(){ var v=(document.getElementById('woProj').value||'').trim(); if(!v) return null;
+  var opts=document.querySelectorAll('#projectOptions option');
+  for(var i=0;i<opts.length;i++){ if(opts[i].value===v) return opts[i].dataset.pid||null; } return null; }
+function submitAssign(){
+  var t=document.getElementById('woTgtType').value;
+  var payload={ title:(document.getElementById('woTitle').value||'').trim(),
+    body:(document.getElementById('woBody').value||'').trim(),
+    target_user_id:(t==='user'?document.getElementById('woUser').value:null),
+    target_team_id:(t==='team'?document.getElementById('woTeam').value:null),
+    due_date:document.getElementById('woDue').value,
+    priority:document.getElementById('woPrio').value,
+    project_id:_woProjId() };
+  if(!payload.title){ alert('제목을 입력하세요'); return; }
+  if(!payload.target_user_id && !payload.target_team_id){ alert('받을 사람 또는 부서를 선택하세요'); return; }
+  fetch('/work-orders/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){return r.json();}).then(function(j){
+      if(j&&j.ok){ alert("'"+(j.kind||'업무')+"'(으)로 보냈습니다."); location.reload(); }
+      else alert('실패: '+((j&&j.error)||'오류')); })
+    .catch(function(){ alert('통신 오류'); });
+}
+function woStatus(id, st, report){
+  fetch('/work-orders/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({status:st, report:report||''})})
+    .then(function(r){return r.json();}).then(function(j){
+      if(j&&j.ok){ location.reload(); } else alert('실패: '+((j&&j.error)||'오류')); })
+    .catch(function(){ alert('통신 오류'); });
+}
+function woReport(id, st){
+  var r=prompt((st==='완료')?'완료 내용을 적어주세요 (선택):':'반려 사유를 적어주세요:', '');
+  if(r===null) return;   // 취소
+  woStatus(id, st, r);
+}
 // "+ 새 업무" 버튼: 빠른입력 바로 스크롤·하이라이트·포커스
 function focusNewTask(){
   var bar = document.querySelector('.qa-bar');
