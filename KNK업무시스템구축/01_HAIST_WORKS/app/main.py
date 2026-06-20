@@ -18862,12 +18862,21 @@ async def schedule_board_bulk_ship(request: Request):
 
 
 @app.get("/sales/schedule/units")
-async def schedule_board_units(request: Request, ref_id: int, kind: str = "project"):
-    """v5H226z481 (대표 지시): 작업일정표 행 펼치기 — 한 프로젝트의 호기(order_items) 목록(상태·납기·단가) JSON."""
+async def schedule_board_units(request: Request, ref_id: int, kind: str = "project", uids: str = ""):
+    """v5H226z481 (대표 지시): 작업일정표 행 펼치기 — 한 프로젝트의 호기(order_items) 목록(상태·납기·단가) JSON.
+    v5H226z509 (대표 지시): 같은 관리번호라도 수주번호가 다른 호기는 따로 — 분할(호기) 줄을 펼치면
+      그 줄의 호기(uids=order_items.id CSV)만 반환해 서로 다른 수주번호가 한 줄 펼침에 섞이지 않게 한다.
+      uids 없으면(분할 안 된 일반 프로젝트) 기존대로 프로젝트 전체 호기."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     can_money = bool(can_view_sales(u))
+    # v5H226z509: 분할 줄이 보낸 호기 id 화이트리스트(정수만) — IN (...) 으로 그 줄 호기만 조회
+    _uid_list = []
+    for _x in (uids or "").split(","):
+        _x = _x.strip()
+        if _x.isdigit():
+            _uid_list.append(int(_x))
     units = []
     try:
         with db_session() as c:
@@ -18895,7 +18904,10 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                 f"COALESCE(p.is_export,0) AS p_iex "
                 f"FROM order_items oi JOIN orders o ON oi.order_id=o.id "
                 f"LEFT JOIN projects p ON p.id=o.project_id "
-                f"WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id",
+                f"WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
+                # v5H226z509: 분할 줄이 호기 id 목록을 보냈으면 그 호기만 — 수주번호 혼합 방지
+                + (f"AND oi.id IN ({','.join(str(_i) for _i in _uid_list)}) " if _uid_list else "")
+                + "ORDER BY oi.id",
                 (int(ref_id),)).fetchall()
             for r in rows:
                 d = dict(r)

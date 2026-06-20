@@ -1136,7 +1136,11 @@ function toggleRowUnits(tr, btn){
   const existing=document.querySelector('tr.unit-exp-row[data-for="'+key+'"]');
   if(existing){ existing.remove(); if(btn){ btn.textContent='＋'; btn.classList.remove('on'); } return; }
   if(btn) btn.textContent='…';
-  fetch('/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref),{credentials:'same-origin'})
+  // v5H226z509 (대표 지시): 같은 관리번호라도 수주번호가 다른 호기는 섞지 않음 —
+  //   분할(호기) 줄은 자기 호기 id(data-uids)만 펼치게 전달. 일반 줄(uids 없음)은 프로젝트 전체.
+  const _uids=(tr.dataset.uids||'').trim();
+  const _uq=_uids?('&uids='+encodeURIComponent(_uids)):'';
+  fetch('/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref)+_uq,{credentials:'same-origin'})
     .then(r=>r.json()).then(j=>{
       if(!j||!j.ok){ toast('호기 불러오기 실패'); if(btn) btn.textContent='＋'; return; }
       const sub=document.createElement('tr'); sub.className='unit-exp-row'; sub.dataset.for=key;
