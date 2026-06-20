@@ -47,7 +47,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx tbody tr:hover .c-code{background:#fcfaf3;}
 .dsx .c-code a{color:var(--knk-red);text-decoration:none;}
 .dsx .c-code a:hover{text-decoration:underline;}
-.dsx .tl-btn{cursor:pointer;margin-left:4px;font-size:12px;opacity:.7;}
+.dsx .tl-btn{cursor:pointer;margin-right:5px;font-size:12px;opacity:.7;}
 .dsx .tl-btn:hover{opacity:1;}
 /* v5H226z512: 관리번호 '+' 펼치기(호기/등록품목 — 읽기전용) */
 .dsx .dsx-exp{cursor:pointer;margin-left:5px;font-weight:800;color:var(--knk-red);background:#fff;border:1px solid #e2e8f0;border-radius:5px;width:17px;height:17px;line-height:14px;text-align:center;font-size:12px;display:inline-block;vertical-align:1px;}
@@ -207,11 +207,11 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         {% set cs = cellsum.get(key) or {} %}
         <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}" data-multi="{{ '1' if r.multi else '' }}">
           <td class="c-code">
+            {# v5H226z513 (대표 지시): 부서 진행기록 모아보기(📜)를 관리번호 앞쪽으로 + 사업부(M) 배지 삭제 #}
+            <span class="tl-btn" title="이 품목의 모든 부서 진행 기록 모아보기" role="button">📜</span>
             {% if r.kind=='consumable' %}<a href="/consumables/{{ r.ref_id }}">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}">{{ r.code }}</a>{% endif %}
             {# v5H226z512 (대표 지시): 작업일정표와 동일 — 관리번호 뒤 '+'로 호기(프로젝트)·등록품목(소모품) 펼치기 #}
             {% if r.kind=='consumable' or (r.qty|int) >= 2 %}<span class="dsx-exp" title="{% if r.kind=='consumable' %}등록 품목 펼치기/접기{% else %}호기 펼치기/접기{% endif %}" role="button">＋</span>{% endif %}
-            {% if r.div %}<span class="biz-badge">{{ r.div }}</span>{% endif %}
-            <span class="tl-btn" title="이 품목의 모든 부서 진행 기록 모아보기" role="button">📜</span>
           </td>
           <td>{{ r.so_no or '—' }}</td>
           <td title="{{ r.model }}">{{ r.model or '—' }}</td>
