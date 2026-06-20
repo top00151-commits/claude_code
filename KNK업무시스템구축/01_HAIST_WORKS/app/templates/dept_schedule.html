@@ -40,11 +40,13 @@
 table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap;}
 .dsx th,.dsx td{border-bottom:1px solid #e7ecf3;border-right:1px solid #eef2f7;padding:5px 8px;text-align:left;vertical-align:middle;}
 .dsx thead th{position:sticky;top:0;z-index:2;background:#f4f1ea;color:#4b5563;font-weight:800;font-size:11.5px;text-align:center;}
-.dsx tbody tr:hover td{background:#fcfaf3;}
+/* v5H226z516 (대표 지시): 행 마우스오버 강조를 더 또렷하게(연한 파랑+왼쪽 파란 띠) — 호기 줄 포함 */
+.dsx tbody tr:hover td{background:#e6eefb !important;}
+.dsx tbody tr:hover td:first-child{box-shadow:inset 4px 0 0 #2563eb;}
 /* 관리번호 칸 고정(가로 스크롤 시 항상 보이게) */
 .dsx .c-code{position:sticky;left:0;z-index:1;background:#fff;font-weight:800;}
 .dsx thead .c-code{z-index:3;background:#efece4;}
-.dsx tbody tr:hover .c-code{background:#fcfaf3;}
+.dsx tbody tr:hover .c-code{background:#dce6f9 !important;}
 .dsx .c-code a{color:var(--knk-red);text-decoration:none;}
 .dsx .c-code a:hover{text-decoration:underline;}
 .dsx .tl-btn{cursor:pointer;margin-right:5px;font-size:12px;opacity:.7;}
@@ -63,7 +65,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx .dsx-ux-empty{padding:8px 10px;color:#94a3b8;}
 /* v5H226z514: 펼친 '호기 줄'(날짜칸 클릭→그 호기 기록) */
 .dsx tr.dsx-unit-row td{background:#f7faff;}
-.dsx tr.dsx-unit-row:hover td{background:#eef4fb;}
+.dsx tr.dsx-unit-row:hover td{background:#d8e6fb !important;}
 .dsx tr.dsx-unit-row td.dsx-unit-blank{background:#f7faff;}
 .dsx td.dsx-unit-info{font-size:11.5px;color:#475569;font-weight:600;white-space:nowrap;padding-left:6px;}
 .dsx td.dsx-unit-info .u-arrow{color:#94a3b8;margin-right:3px;}
