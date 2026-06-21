@@ -143,6 +143,8 @@ tbody tr:hover td { background: var(--amber-glow); }
         .ucf select,.ucf input{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;}
         .corp-badge{font-size:10.5px;font-weight:800;border-radius:7px;padding:1px 8px;background:#e2e8f0;color:#475569;white-space:nowrap;}
         .corp-badge.vn{background:#dbeafe;color:#1d4ed8;}
+        .btn-del-user{border:1px solid #fecaca;background:#fff;color:#dc2626;border-radius:7px;padding:6px 11px;font-weight:700;font-size:12px;cursor:pointer;margin-left:4px;}
+        .btn-del-user:hover{background:#fee2e2;}
         </style>
         <div class="ucf">
           <select id="ucfCorp" onchange="ucfApply()"><option value="">전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
@@ -162,7 +164,7 @@ tbody tr:hover td { background: var(--amber-glow); }
               <th style="width:90px;">직급</th>
               <th style="width:80px;text-align:center;">권한</th>
               <th style="width:70px;text-align:center;">상태</th>
-              <th style="width:80px;text-align:center;">작업</th>
+              <th style="width:130px;text-align:center;">작업</th>
             </tr>
           </thead>
           <tbody>
@@ -184,8 +186,9 @@ tbody tr:hover td { background: var(--amber-glow); }
               <td style="text-align:center;">
                 {% if u.is_active %}<span class="row-active">✓ 활성</span>{% else %}<span class="row-inactive">— 비활성</span>{% endif %}
               </td>
-              <td style="text-align:center;">
+              <td style="text-align:center;white-space:nowrap;">
                 <a class="btn btn-secondary" href="/admin/users/{{ u.id }}/edit">수정</a>
+                <button type="button" class="btn-del-user" onclick="delUser({{ u.id }}, '{{ vname(u)|e }}')">삭제</button>
               </td>
             </tr>
           {% else %}
@@ -209,6 +212,12 @@ tbody tr:hover td { background: var(--amber-glow); }
               r.style.display=ok?'':'none'; if(ok)n++;
             });
             var c=document.getElementById('ucfCnt'); if(c) c.textContent=n+'명 표시';
+          };
+          window.delUser=function(id, name){
+            if(!confirm("'"+name+"' 계정을 영구 삭제할까요?\n\n· 실제 재직 직원이면 '수정 → 비활성'을 권장합니다(기록 보존).\n· 삭제하면 되돌릴 수 없습니다.")) return;
+            fetch('/admin/users/'+id+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+              .then(function(r){return r.json();}).then(function(j){ if(j&&j.ok){ location.reload(); } else alert('삭제 실패: '+((j&&j.error)||'오류')); })
+              .catch(function(){ alert('통신 오류'); });
           };
           ucfApply();
         })();

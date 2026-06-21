@@ -8581,6 +8581,26 @@ async def admin_users_edit_form(req: Request, uid: int):
                user_history=user_history)
 
 
+@app.post("/admin/users/{uid:int}/delete")
+async def admin_users_delete(req: Request, uid: int):
+    """v5H226z532 (대표 지시): 사용자 영구 삭제 — 불필요/삭제표시(_deleted_user)·테스트 계정 정리.
+    안전장치: 본인·관리자/대표 계정 보호. (실제 직원은 '수정→비활성' 권장 — 기록 보존.)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    if uid == u.get("id"):
+        return JSONResponse({"ok": False, "error": "본인 계정은 삭제할 수 없습니다."}, 400)
+    with db_session() as c:
+        row = c.execute("SELECT id, name, role FROM users WHERE id=?", (uid,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "error": "이미 없는 사용자입니다."}, 404)
+        row = dict(row)
+        if (row.get("role") or "") in ("admin", "ceo"):
+            return JSONResponse({"ok": False, "error": "관리자/대표 계정은 삭제할 수 없습니다. (먼저 권한을 'member'로 내린 뒤 삭제)"}, 400)
+        c.execute("DELETE FROM users WHERE id=?", (uid,))
+    return JSONResponse({"ok": True, "name": row.get("name")})
+
+
 @app.post("/admin/users/{uid:int}/edit")
 async def admin_users_edit_submit(req: Request, uid: int):
     u = require(req, ["admin", "ceo"])
