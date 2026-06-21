@@ -426,7 +426,10 @@
 </div>
 
 <script>
-const SEL_DATE = '{{ sel_date }}';
+// v5H226z519 (대표 지시 버그수정): 설치앱(PWA)이 배포 전부터 떠 있으면 SPA 화면전환 시 페이지 스크립트가
+//   재실행되는데, 최상위 'const SEL_DATE' 재선언이 SyntaxError→스크립트 전체 중단→openAssign 등 함수 미정의→
+//   '일 시키기' 등 버튼 먹통. const→window 할당으로 재선언 에러 제거(재실행 안전). bare SEL_DATE 참조는 그대로 동작.
+window.SEL_DATE = '{{ sel_date }}';   // ⛔ const/var 선언 금지(stale PWA 세션의 옛 선언과 재선언 충돌) — bare SEL_DATE 참조는 window로 해석
 
 // ===== v5H226z518 (대표 지시): 일 시키기(지시/요청) + 받은 일 상태 =====
 function openAssign(){ var b=document.getElementById('woBack'); if(b) b.style.display='flex'; }
