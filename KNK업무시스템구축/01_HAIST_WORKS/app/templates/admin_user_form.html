@@ -65,6 +65,13 @@
           <option value="{{ t.id }}" {% if target_user and target_user.team_id == t.id %}selected{% endif %}>{{ t.name }} ({{ t.code }})</option>
           {% endfor %}
         </select>
+        {# v5H226z539: 메신저 부서(원본) 노출 — 매핑 안 된 경우에도 메신저와 비교 가능 #}
+        {% set _mdept = (target_user.dept_code if target_user else '') %}
+        {% if _mdept %}
+        <span style="font-size:11.5px;color:var(--mute);line-height:1.5;">📡 메신저 부서: <b style="color:var(--ink);">{{ _mdept }}</b>{% if target_user and not target_user.team_id %} · 위에서 맞는 팀을 고르거나 <a href="/admin/sync-employees" style="color:var(--knk-red);font-weight:600;">명부 동기화</a>로 일괄 반영하세요.{% endif %}</span>
+        {% elif target_user and not target_user.team_id %}
+        <span style="font-size:11.5px;color:var(--mute);line-height:1.5;">메신저 부서 정보가 아직 없습니다 — <a href="/admin/sync-employees" style="color:var(--knk-red);font-weight:600;">명부 동기화</a>를 한 번 실행하세요.</span>
+        {% endif %}
       </div>
       <div class="fld">
         <label>직급</label>
