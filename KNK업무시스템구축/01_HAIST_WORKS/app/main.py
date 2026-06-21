@@ -639,6 +639,14 @@ def startup():
     _start_tier_refresh_scheduler()
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
+    # v5H226z526 (대표 지시): 매일 새벽 자동 명부 동기화(메신저→WORKS). 공유키 없으면 자동 건너뜀.
+    try:
+        if os.environ.get("KNK_RUN_DIR_SYNC", "1").strip().lower() not in ("0", "false", "no", "off"):
+            _start_directory_sync_scheduler()
+        else:
+            print("[DIR-SYNC] KNK_RUN_DIR_SYNC=0 — 자동 명부 동기화 비활성")
+    except Exception as _e:
+        print(f"[DIR-SYNC start ERR] {_e}")
     # 메일 자동 가져오기 스케줄러 시작 (대표 지시 2026-06-14 "가져오기 자동으로")
     # v5H226z494 (컨테이너 분리): 메일 자동수집은 '메일 컨테이너에서만' — env 게이트(기본 켜짐=현행 유지).
     #   분리 후 전산이 works·msg 컨테이너엔 KNK_RUN_MAIL_FETCH=0 으로 꺼 3중 폴링 방지(kmail 만 수집).
@@ -853,6 +861,80 @@ def _start_daily_reminder_scheduler():
     delay = _seconds_until_next_1630_weekday()
     print(f"[DAILY-REMINDER] 스케줄러 시작. 다음 발송까지 {int(delay)}초 ({int(delay/3600)}시간).")
     timer = _th.Timer(delay, _daily_reminder_tick)
+    timer.daemon = True
+    timer.start()
+
+
+# =====================================================
+# v5H226z526 (대표 지시): 매일 새벽 자동 명부 동기화 (메신저 → WORKS)
+#   신규자는 로그인 시 자동 등록(JIT)되고, 이건 '아직 로그인 안 한 사람 포함 전 직원'을 매일 자동 채움.
+#   공유키(KNK_SSO_SERVICE_KEY) 없으면 조용히 건너뜀(설정되는 즉시 자동 동작). 비파괴(빈칸만 채움·기존 보존).
+# =====================================================
+def _seconds_until_next_0410():
+    from datetime import datetime as _dt, timedelta as _td
+    now = _dt.now()
+    target = now.replace(hour=4, minute=10, second=0, microsecond=0)  # 새벽 4:10 KST(메일 VACUUM 2~7시와 겹침 회피용 늦춤)
+    if target <= now:
+        target += _td(days=1)
+    return max(60.0, (target - now).total_seconds())
+
+
+def _run_directory_autosync():
+    """하루 1회 자동 명부 동기화. 공유키 없으면 건너뜀. 적용 전 DB 백업(자동백업 최근 7개만 보존)."""
+    from . import sso_client
+    if not getattr(sso_client, "SSO_SERVICE_KEY", ""):
+        print("[DIR-SYNC] 공유키(KNK_SSO_SERVICE_KEY) 미설정 — 자동 명부 동기화 건너뜀(설정되면 자동 동작)")
+        return
+    from .database import get_db, DB_PATH
+    import shutil as _sh, datetime as _dt, os as _os
+    try:
+        bdir = _os.path.join(_os.path.dirname(DB_PATH), "backups")
+        _os.makedirs(bdir, exist_ok=True)
+        ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        _sh.copy2(DB_PATH, _os.path.join(bdir, f"knk.db.bak_autoempsync_{ts}"))
+        # 자동백업 누적 방지 — 최근 7개만
+        _fs = sorted(f for f in _os.listdir(bdir) if f.startswith("knk.db.bak_autoempsync_"))
+        for _old in _fs[:-7]:
+            try:
+                _os.remove(_os.path.join(bdir, _old))
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[DIR-SYNC] 백업 실패 — 중단: {e}")
+        return
+    conn = get_db()
+    try:
+        res = sso_client.sync_employees_from_messenger_api(conn.cursor())
+        if res and res.get("ok"):
+            conn.commit()
+            print(f"[DIR-SYNC] 자동 명부 동기화 완료 — 신규 {res.get('inserted','?')} · 갱신 {res.get('updated','?')}")
+        else:
+            conn.rollback()
+            print(f"[DIR-SYNC] 자동 동기화 실패 — {(res or {}).get('error')}")
+    except Exception as e:
+        conn.rollback()
+        print(f"[DIR-SYNC ERR] {e}")
+    finally:
+        conn.close()
+
+
+def _directory_sync_tick():
+    import threading as _th
+    try:
+        _run_directory_autosync()
+    except Exception as e:
+        print(f"[DIR-SYNC tick ERR] {e}")
+    timer = _th.Timer(_seconds_until_next_0410(), _directory_sync_tick)
+    timer.daemon = True
+    timer.start()
+
+
+def _start_directory_sync_scheduler():
+    """startup 1회 호출 — 매일 새벽 4:10 자동 명부 동기화 예약."""
+    import threading as _th
+    delay = _seconds_until_next_0410()
+    print(f"[DIR-SYNC] 자동 명부 동기화 스케줄러 시작. 다음 실행까지 {int(delay/3600)}시간.")
+    timer = _th.Timer(delay, _directory_sync_tick)
     timer.daemon = True
     timer.start()
 
