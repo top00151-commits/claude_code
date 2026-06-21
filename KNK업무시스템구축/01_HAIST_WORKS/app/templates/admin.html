@@ -145,7 +145,7 @@ tbody tr:hover td { background: var(--amber-glow); }
         .corp-badge.vn{background:#dbeafe;color:#1d4ed8;}
         </style>
         <div class="ucf">
-          <select id="ucfCorp" onchange="ucfApply()"><option value="">법인 전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
+          <select id="ucfCorp" onchange="ucfApply()"><option value="">전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
           <select id="ucfDept" onchange="ucfApply()"><option value="">부서 전체</option></select>
           <select id="ucfRank" onchange="ucfApply()"><option value="">직급 전체</option></select>
           <input id="ucfQ" oninput="ucfApply()" placeholder="이름·사번·메일 검색">
@@ -167,14 +167,15 @@ tbody tr:hover td { background: var(--amber-glow); }
           </thead>
           <tbody>
           {% for u in users %}
-            {% set _corp = '베트남법인' if u.team_id==12 else '본사' %}
-            {% set _dept = u.team_name or '미지정' %}
+            {% set _vn = (u.entity=='VN') or (u.team_id==12) %}
+            {% set _corp = '베트남법인' if _vn else '본사' %}
+            {% set _dept = u.team_name or u.dept_code or '미지정' %}
             {% set _rank = u.rank or '' %}
             <tr class="urow" data-corp="{{ _corp }}" data-dept="{{ _dept }}" data-rank="{{ _rank }}" data-q="{{ (vname(u) ~ ' ' ~ (u.login_id or '') ~ ' ' ~ (u.email or ''))|lower }}">
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ u.id }}</td>
               <td><b>{{ vname(u) }}</b></td>
               <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ u.login_id }}{% if u.email %}<br>{{ u.email }}{% endif %}</td>
-              <td><span class="corp-badge {% if u.team_id==12 %}vn{% endif %}">{{ _corp }}</span></td>
+              <td><span class="corp-badge {% if _vn %}vn{% endif %}">{{ _corp }}</span></td>
               <td>{{ _dept }}</td>
               <td>{{ _rank or '—' }}</td>
               <td style="text-align:center;">
