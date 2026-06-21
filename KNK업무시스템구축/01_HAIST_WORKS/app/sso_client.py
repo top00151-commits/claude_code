@@ -386,6 +386,8 @@ def test_directory(key: str = "") -> dict:
         return {"ok": False, "status": 403, "error": "키 거부(403) — 메신저에 설정된 키와 다릅니다.", "base": base}
     if r.status_code == 404:
         return {"ok": False, "status": 404, "error": "명부 API 없음(404) — 메신저 준비 전/미배포.", "base": base}
+    if r.status_code == 503:
+        return {"ok": False, "status": 503, "error": "메신저 쪽 공유키 미설정(503) — 메신저 컨테이너 .env 에 KNK_SSO_SERVICE_KEY 등록 필요(전산).", "base": base}
     if r.status_code != 200:
         return {"ok": False, "status": r.status_code, "error": f"오류 응답 {r.status_code}", "base": base}
     try:
