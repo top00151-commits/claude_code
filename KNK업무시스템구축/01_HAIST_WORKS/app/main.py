@@ -20121,8 +20121,10 @@ async def dept_schedule_add(request: Request):
         c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, unit_label, created_by, created_by_name) "
                   "VALUES(?,?,?,?,?,?,?,?,?,?)",
                   (kind, ref_id, date, dept, log_type, content, handoff_to or None, unit_label or None, u.get("id"), u.get("name") or ""))
-        # v5H226z497 (Phase 2): '넘길 부서' 지정 시 그 부서원에게 Eum 1:1 + 인앱 통보(핸드오프)
-        if handoff_to and handoff_to != dept:
+        # v5H226z543 (대표 지시): '넘길 부서'를 여러 개 선택 가능 — ' | '로 합쳐 옴 → 각 부서원에게 통보(합집합 1회).
+        _targets = [t.strip() for t in (handoff_to or "").split("|") if t.strip()]
+        _targets = [t for t in _targets if t != (dept or "")]
+        if _targets:
             try:
                 from urllib.parse import quote
                 _code = ""
@@ -20131,25 +20133,28 @@ async def dept_schedule_add(request: Request):
                 else:
                     _cr = c.execute("SELECT mgmt_code FROM consumable_orders WHERE id=?", (ref_id,)).fetchone()
                 _code = (_cr[0] if _cr else "") or f"{kind}#{ref_id}"
-                # v5H226z542: handoff_to 는 법인 라벨('베트남 · 설계팀') → 이름+법인으로 정확 매칭
-                _ho_name, _ho_ent = _parse_team_label(handoff_to)
-                if _ho_ent == "VN":
-                    _ids = [r[0] for r in c.execute(
-                        "SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
-                        "WHERE t.name=? AND t.entity='VN' AND COALESCE(u.is_active,1)=1", (_ho_name,)).fetchall()]
-                elif _ho_ent == "KOR":
-                    _ids = [r[0] for r in c.execute(
-                        "SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
-                        "WHERE t.name=? AND COALESCE(t.entity,'KOR')='KOR' AND COALESCE(u.is_active,1)=1", (_ho_name,)).fetchall()]
-                else:
-                    _ids = [r[0] for r in c.execute(
-                        "SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
-                        "WHERE t.name=? AND COALESCE(u.is_active,1)=1", (_ho_name,)).fetchall()]
+                # v5H226z542: 각 대상은 법인 라벨('베트남 · 설계팀') → 이름+법인으로 정확 매칭
+                _ids = set()
+                for _tg in _targets:
+                    _nm, _ent = _parse_team_label(_tg)
+                    if _ent == "VN":
+                        _q = ("SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
+                              "WHERE t.name=? AND t.entity='VN' AND COALESCE(u.is_active,1)=1")
+                    elif _ent == "KOR":
+                        _q = ("SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
+                              "WHERE t.name=? AND COALESCE(t.entity,'KOR')='KOR' AND COALESCE(u.is_active,1)=1")
+                    else:
+                        _q = ("SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
+                              "WHERE t.name=? AND COALESCE(u.is_active,1)=1")
+                    for r in c.execute(_q, (_nm,)).fetchall():
+                        _ids.add(r[0])
+                _ids = list(_ids)
+                _tgt_disp = ", ".join(_targets)
                 if _ids:
-                    _title = f"🗓 [부서 일정] {_code} — {dept or '앞 부서'}→{handoff_to}"
+                    _title = f"🗓 [부서 일정] {_code} — {dept or '앞 부서'}→{_tgt_disp}"
                     _body = (f"{date} · {log_type}\n{content}\n"
-                             f"(기록: {u.get('name') or '—'}{(' / ' + dept) if dept else ''} → {handoff_to}(으)로 넘김)")
-                    _link = "/dept/schedule?dept=" + quote(handoff_to)
+                             f"(기록: {u.get('name') or '—'}{(' / ' + dept) if dept else ''} → {_tgt_disp}(으)로 넘김)")
+                    _link = "/dept/schedule?dept=" + quote(_targets[0])
                     _res = _notify_users(c, _ids, "dept_schedule", _title, _body, _link)
                     notify["sent"] = _res.get("msg_sent", 0)
                     notify["in_app"] = _res.get("in_app", 0)

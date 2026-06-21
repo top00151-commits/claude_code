@@ -128,6 +128,15 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 /* v5H226z542 (대표 지시): 내용칸을 자세히 적을 수 있는 큰 공간으로 — 기본 크게 + 세로 드래그로 더 확장 */
 #dsxContent{min-height:150px;line-height:1.55;padding:9px 11px;resize:vertical;}
 .dsx-form .f-dept{min-width:160px;flex:1;} .dsx-form .f-type{min-width:110px;}
+/* v5H226z543: 다음 부서로 넘김 — 본사/베트남 그룹 + 여러 부서 체크 */
+.dsx-handoff{border:1px solid var(--line);border-radius:8px;background:#fff;max-height:190px;overflow:auto;padding:4px 2px;}
+.dsx-handoff .ho-grp{padding:2px 0 6px;}
+.dsx-handoff .ho-h{font-size:11px;font-weight:800;color:#475569;background:#f1f5f9;border-radius:6px;padding:3px 9px;margin:4px 6px 5px;position:sticky;top:0;}
+.dsx-handoff .ho-items{display:flex;flex-wrap:wrap;gap:4px 6px;padding:0 8px;}
+.dsx-handoff .ho-it{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:#1e293b;font-weight:500;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:4px 9px;cursor:pointer;margin-bottom:0;}
+.dsx-handoff .ho-it input{margin:0;}
+.dsx-handoff .ho-it:has(input:checked){background:#dbeafe;border-color:#93c5fd;color:#1d4ed8;font-weight:700;}
+.dsx-handoff .ho-none{font-size:12px;color:#94a3b8;padding:8px;}
 .dsx-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
 .dsx-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 16px;font-weight:800;font-size:13px;cursor:pointer;}
 .dsx-btn.primary{background:var(--knk-red);color:#fff;border-color:var(--knk-red);}
@@ -267,7 +276,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         <label>내용 (진행/완료/변경 사항) — 자세히 적어도 됩니다</label>
         <textarea id="dsxContent" rows="7" placeholder="진행·완료·변경 사항을 자세히 적어 주세요. 여러 줄로 적어도 됩니다.&#10;예) 전장 배선 완료 / 25일 검증팀으로 넘김&#10;예) 케이블 사양 변경(2.5sq→4sq) 반영 — 도면 Rev.2 기준&#10;(칸 오른쪽 아래 모서리를 끌어 더 크게 늘릴 수 있어요)"></textarea>
         <div class="row" style="margin-top:8px;">
-          <div class="f-dept"><label>다음 부서로 넘김 (선택 — 고르면 그 부서에 KNK Eum 알림)</label><select id="dsxHandoff"></select></div>
+          <div class="f-dept"><label>다음 부서로 넘김 (여러 부서 선택 가능 — 고른 부서마다 KNK Eum 알림)</label><div id="dsxHandoff" class="dsx-handoff"></div></div>
         </div>
         <div class="dsx-foot">
           <button type="button" class="dsx-btn" id="dsxCancel">닫기</button>
@@ -307,15 +316,33 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   var TLABEL={'진행':'prog','완료':'done','변경':'chg','기타':'etc'};
   function typeCls(t){return TLABEL[t]||'etc';}
-  // 셀렉트 채우기
+  // v5H226z543 (대표 지시): 부서는 본사/베트남 '책갈피(그룹)' 형태 + 다음부서는 여러 부서 선택.
+  //   부서명은 '본사 · 설계팀'/'베트남 · 설계팀' 라벨 → 접두로 그룹 분류, 그룹 안에선 짧은 이름만 표시.
+  function deptGrp(d){ if(d.indexOf('본사 · ')===0) return '본사'; if(d.indexOf('베트남 · ')===0) return '베트남'; return '기타'; }
+  function deptShort(d){ return d.replace(/^본사 · /,'').replace(/^베트남 · /,''); }
+  function groupDepts(){ var g={'본사':[],'베트남':[],'기타':[]}; (DEPTS||[]).forEach(function(d){ (g[deptGrp(d)]||g['기타']).push(d); }); return g; }
   (function(){
-    var dh=''; if(MYTEAM){dh+='<option value="'+esc(MYTEAM)+'">'+esc(MYTEAM)+' (내 부서)</option>';}
-    (DEPTS||[]).forEach(function(d){ if(d!==MYTEAM) dh+='<option value="'+esc(d)+'">'+esc(d)+'</option>'; });
-    if(!dh) dh='<option value="">(부서)</option>';
-    deptSel.innerHTML=dh;
+    var g=groupDepts(), order=['본사','베트남','기타'];
+    // 부서(단일) — optgroup
+    var oh='';
+    order.forEach(function(grp){ if(!g[grp].length) return;
+      oh+='<optgroup label="'+esc(grp)+'">';
+      g[grp].forEach(function(d){ oh+='<option value="'+esc(d)+'">'+esc(deptShort(d))+(d===MYTEAM?' (내 부서)':'')+'</option>'; });
+      oh+='</optgroup>'; });
+    deptSel.innerHTML=oh||'<option value="">(부서)</option>';
     typeSel.innerHTML=(TYPES||['진행']).map(function(t){return '<option>'+esc(t)+'</option>';}).join('');
-    if(handoffSel){ handoffSel.innerHTML='<option value="">(넘기지 않음)</option>'+(DEPTS||[]).map(function(d){return '<option value="'+esc(d)+'">'+esc(d)+'</option>';}).join(''); }
+    // 다음 부서로 넘김(복수) — 그룹별 체크박스
+    if(handoffSel){
+      var hh='';
+      order.forEach(function(grp){ if(!g[grp].length) return;
+        hh+='<div class="ho-grp"><div class="ho-h">'+esc(grp)+'</div><div class="ho-items">';
+        g[grp].forEach(function(d){ hh+='<label class="ho-it"><input type="checkbox" value="'+esc(d)+'"> '+esc(deptShort(d))+'</label>'; });
+        hh+='</div></div>'; });
+      handoffSel.innerHTML=hh||'<div class="ho-none">(부서 없음)</div>';
+    }
   })();
+  function handoffClear(){ if(handoffSel){ handoffSel.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){c.checked=false;}); } }
+  function handoffValue(){ var v=[]; if(handoffSel){ handoffSel.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){ v.push(c.value); }); } return v.join(' | '); }
   // v5H226z514: 그 칸의 기록 중 현재 대상(공통='' 또는 그 호기)만
   function entries(){ var k=cur.kind+':'+cur.ref; var a=(LOGS[k]&&LOGS[k][String(cur.day)])||[];
     return a.filter(function(e){ return (e.unit||'')===(cur.unit||''); }); }
@@ -343,7 +370,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       unit:(isUnit?(tr.dataset.unit||''):'')};
     titleEl.textContent=cur.code+' · '+cur.date+(cur.unit?(' · '+cur.unit):' · (공통)');
     editId=0; contentEl.value=''; if(MYTEAM) deptSel.value=MYTEAM; typeSel.selectedIndex=0;
-    if(handoffSel){ handoffSel.value=''; var hr=handoffSel.closest('.row'); if(hr) hr.style.display=''; }
+    handoffClear(); if(handoffSel){ var hr=handoffSel.closest('.row'); if(hr) hr.style.display=''; }
     // v5H226z514: 호기는 줄로 선택(펼침) → 모달 드롭다운 폐지. 공통/호기는 클릭한 줄로 자동 결정.
     if(unitRow) unitRow.style.display='none';
     saveBtn.textContent='기록 추가';
@@ -482,7 +509,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       var es=entries(), ts=''; es.forEach(function(x){ if(x.id===editId) ts=x.ts; });
       post('/dept/schedule/cell/update',{id:editId,content:content,log_type:type,base_ts:ts});
     } else {
-      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,handoff_to:(handoffSel?handoffSel.value:''),unit_label:(cur.unit||'')});
+      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,handoff_to:handoffValue(),unit_label:(cur.unit||'')});
     }
   });
   function post(url, body){
