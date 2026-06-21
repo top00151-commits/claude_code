@@ -95,6 +95,7 @@
       </div>
     </div>
     <div style="display:flex;gap:10px;">
+      <a class="btn btn-secondary" href="/guide/work-orders" title="업무 지시·협조 사용 안내(흐름도)">❓ 안내</a>
       <button class="btn btn-secondary" onclick="openAssign()" title="다른 사람/부서에 일을 지시하거나 요청합니다">📌 일 시키기</button>
       <a class="btn btn-secondary" href="/history">📜 전체 기록</a>
       <button class="btn btn-primary" onclick="focusNewTask()">＋ 새 업무</button>
@@ -500,6 +501,8 @@ function woReport(id, st){
   if(r===null) return;   // 취소
   woStatus(id, st, r);
 }
+// v5H226z522: 사용 안내에서 '바로 창 열기'(?assign=1)로 들어오면 일 시키기 모달 자동 오픈
+(function(){ try{ if(/[?&]assign=1(&|$)/.test(location.search||'')) setTimeout(function(){ if(window.openAssign) openAssign(); }, 200); }catch(e){} })();
 // "+ 새 업무" 버튼: 빠른입력 바로 스크롤·하이라이트·포커스
 function focusNewTask(){
   var bar = document.querySelector('.qa-bar');

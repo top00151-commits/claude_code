@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>업무 지시·협조 사용 안내 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z522 (대표 지시): 업무 지시·협조 흐름도 — 클릭하며 따라하는 시각 가이드(텍스트 최소) */
+.gw-wrap{margin:0 var(--content-pad) var(--space-7);}
+.gw-lead{font-size:13.5px;color:#475569;margin:2px 0 10px;line-height:1.7;}
+.gw-legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+.gw-tag{font-size:12px;font-weight:800;border-radius:18px;padding:4px 12px;color:#fff;}
+.gw-tag.ji{background:#dc2626;} .gw-tag.yo{background:#2563eb;}
+.gw-tag.sub{background:#0f766e;}
+.gw-tracks{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.gw-track{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 16px 20px;}
+.gw-th{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #f1ece1;}
+.gw-th .em{font-size:22px;}
+.gw-track.send .gw-th{color:#b91c1c;} .gw-track.recv .gw-th{color:#1d4ed8;}
+.gw-step{display:flex;align-items:center;gap:12px;background:var(--paper-2,#faf8f3);border:1px solid #f0ebe0;border-radius:12px;padding:11px 13px;}
+.gw-num{flex-shrink:0;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;color:#fff;}
+.send .gw-num{background:#dc2626;} .recv .gw-num{background:#2563eb;}
+.gw-body{flex:1;min-width:0;}
+.gw-tt{font-weight:800;font-size:14px;color:#1e293b;}
+.gw-ss{font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.5;}
+.gw-go{flex-shrink:0;font-size:12px;font-weight:800;text-decoration:none;border-radius:9px;padding:8px 12px;white-space:nowrap;}
+.send .gw-go{background:#fee2e2;color:#b91c1c;} .send .gw-go:hover{background:#fecaca;}
+.recv .gw-go{background:#dbeafe;color:#1d4ed8;} .recv .gw-go:hover{background:#bfdbfe;}
+.gw-arrow{text-align:center;color:#cbd5e1;font-size:18px;line-height:1;margin:5px 0;}
+.gw-cta{margin-top:22px;text-align:center;}
+.gw-cta a{display:inline-block;background:var(--knk-red);color:#fff;font-weight:800;font-size:15px;text-decoration:none;border-radius:12px;padding:14px 30px;box-shadow:0 6px 18px rgba(176,16,16,.25);}
+.gw-cta a:hover{filter:brightness(.95);}
+.gw-cta .hint{display:block;font-size:11.5px;color:#94a3b8;margin-top:8px;}
+.gw-note{margin-top:20px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:12px;padding:13px 15px;font-size:12.5px;color:#475569;line-height:1.7;}
+.gw-note b{color:#1e293b;}
+@media (max-width:860px){ .gw-tracks{grid-template-columns:1fr;} }
+</style></head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">Eum WORKS · 사용 안내</div>
+      <h1 class="page-title">🧭 업무 <em>지시·협조</em> 따라하기</h1>
+    </div>
+    <a class="btn btn-secondary" href="/daily">↩ 일일업무</a>
+  </div>
+
+  <div class="gw-wrap">
+    <div class="gw-lead">버튼을 누르면 실제 화면이 열립니다. <b>그대로 따라 하면서</b> 한 번 보내보세요.</div>
+    <div class="gw-legend">
+      <span class="gw-tag ji">지시 = 상급자 → 부하·부서</span>
+      <span class="gw-tag yo">요청 = 동료끼리</span>
+      <span class="gw-tag sub">영업 → 부서 = 지시</span>
+    </div>
+
+    <div class="gw-tracks">
+      <!-- 보내는 사람 -->
+      <div class="gw-track send">
+        <div class="gw-th"><span class="em">📤</span> 일을 시키는 사람</div>
+        <div class="gw-step"><div class="gw-num">1</div><div class="gw-body"><div class="gw-tt">일일업무 열기</div><div class="gw-ss">왼쪽 메뉴 ‘일일업무’</div></div><a class="gw-go" href="/daily">열기 →</a></div>
+        <div class="gw-arrow">↓</div>
+        <div class="gw-step"><div class="gw-num">2</div><div class="gw-body"><div class="gw-tt">📌 ‘일 시키기’ 누르기</div><div class="gw-ss">오른쪽 위 빨간 영역의 버튼</div></div><a class="gw-go" href="/daily?assign=1">바로 창 열기 →</a></div>
+        <div class="gw-arrow">↓</div>
+        <div class="gw-step"><div class="gw-num">3</div><div class="gw-body"><div class="gw-tt">받는 사람·부서 + 제목·기한</div><div class="gw-ss">사람 또는 부서 선택 → 무슨 일·언제까지</div></div></div>
+        <div class="gw-arrow">↓</div>
+        <div class="gw-step"><div class="gw-num">4</div><div class="gw-body"><div class="gw-tt">‘보내기’</div><div class="gw-ss">상급자면 <b style="color:#dc2626;">지시</b>·동료면 <b style="color:#2563eb;">요청</b>으로 자동 + 알림 발송</div></div></div>
+        <div class="gw-arrow">↓</div>
+        <div class="gw-step"><div class="gw-num">5</div><div class="gw-body"><div class="gw-tt">📋 진행·지연 확인</div><div class="gw-ss">‘내가 시킨 일’에서 누가 어디까지 했는지</div></div><a class="gw-go" href="/work-orders">열기 →</a></div>
+      </div>
+
+      <!-- 받는 사람 -->
+      <div class="gw-track recv">
+        <div class="gw-th"><span class="em">📥</span> 일을 받는 사람</div>
+        <div class="gw-step"><div class="gw-num">1</div><div class="gw-body"><div class="gw-tt">알림 도착</div><div class="gw-ss">화면 🔔 + KNK Eum 메신저로 옴</div></div></div>
+        <div class="gw-arrow">↓</div>
+        <div class="gw-step"><div class="gw-num">2</div><div class="gw-body"><div class="gw-tt">‘📥 내게 온 일’에서 확인</div><div class="gw-ss">일일업무 화면에 카드로 표시</div></div><a class="gw-go" href="/daily">열기 →</a></div>
+        <div class="gw-arrow">↓</div>
+        <div class="gw-step"><div class="gw-num">3</div><div class="gw-body"><div class="gw-tt">‘진행’ 눌러 시작</div><div class="gw-ss">내가 맡았다는 표시(처리자 기록)</div></div></div>
+        <div class="gw-arrow">↓</div>
+        <div class="gw-step"><div class="gw-num">4</div><div class="gw-body"><div class="gw-tt">끝나면 ‘완료 보고’</div><div class="gw-ss">내용·시간 입력 / 못 하면 ‘반려’(사유)</div></div></div>
+        <div class="gw-arrow">↓</div>
+        <div class="gw-step"><div class="gw-num">5</div><div class="gw-body"><div class="gw-tt">시킨 사람에게 자동 알림</div><div class="gw-ss">완료/반려가 바로 전달됨</div></div></div>
+      </div>
+    </div>
+
+    <div class="gw-cta">
+      <a href="/daily?assign=1">🎬 지금 바로 일 시켜보기</a>
+      <span class="hint">‘일 시키기’ 창이 바로 열립니다.</span>
+    </div>
+
+    <div class="gw-note">
+      <b>잡무는 그대로</b> ‘오늘 업무’에 직접 적으세요. 지시·요청은 <b>제작·프로젝트성 일</b>에 씁니다.<br>
+      <b>흐름에서 온 일</b>(단계 작업·부서 요청)도 일일업무 ‘🔀 흐름에서 온 일’에 함께 모입니다.
+    </div>
+  </div>
+</main>
+</div>
+</body></html>

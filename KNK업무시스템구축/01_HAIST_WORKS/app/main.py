@@ -2982,6 +2982,15 @@ async def work_orders_dashboard(request: Request, status: str = "", kind: str = 
                is_admin=is_admin, today=today.isoformat())
 
 
+@app.get("/guide/work-orders", response_class=HTMLResponse)
+async def guide_work_orders(request: Request):
+    """v5H226z522 (대표 지시): 업무 지시·협조 사용 안내(흐름도) — 클릭하며 따라하는 시각 가이드."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(request, "guide_work_orders.html", user=u, active="")
+
+
 _TASK_STATUSES = ("진행중", "완료", "지연", "보류", "취소")
 _TASK_CATEGORIES = ("영업", "구매", "생산", "품질", "기술", "관리", "출장", "회의", "교육", "기타")
 
