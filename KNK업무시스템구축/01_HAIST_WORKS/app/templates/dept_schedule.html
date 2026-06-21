@@ -27,6 +27,14 @@
 .dsx-chip:hover{border-color:var(--knk-red);color:var(--knk-red);}
 .dsx-chip.on{background:var(--knk-red);color:#fff;border-color:var(--knk-red);}
 .dsx-chip .mine{font-size:10px;opacity:.85;}
+/* v5H226z545: 부서 필터를 본사/베트남 책갈피(탭)로 — 누르면 그 법인 부서만 펼침 */
+.dsx-gtab{padding:5px 13px;border:1px solid var(--line);border-radius:16px;font-size:12.5px;font-weight:800;cursor:pointer;background:var(--paper-2);color:var(--qv-ink-2);display:inline-flex;align-items:center;gap:5px;}
+.dsx-gtab:hover{border-color:var(--knk-red);color:var(--knk-red);}
+.dsx-gtab.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8;}
+.dsx-gtab .gn{font-size:10.5px;background:rgba(0,0,0,.08);border-radius:9px;padding:0 6px;font-weight:700;}
+.dsx-gtab.on .gn{background:rgba(255,255,255,.25);}
+.dsx-gbody{background:var(--paper-2);border:1px dashed var(--line);border-radius:10px;padding:8px 10px;margin:-2px 0 10px;}
+.dsx-gbody[hidden]{display:none;}
 /* 월간 요약 */
 .dsx-summary{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#f8fafc;border:1px solid #e7ecf3;border-radius:10px;padding:8px 13px;margin-bottom:12px;font-size:12.5px;color:#475569;}
 .dsx-summary .s-head{font-weight:800;color:#1e293b;}
@@ -189,13 +197,29 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     </div>
   </div>
 
-  {# 부서 필터 칩 — 그 부서가 적은 기록만 마커로(내 부서 기본 표시) #}
+  {# v5H226z545 (대표 지시): 부서 필터를 본사/베트남 책갈피로 — 탭 누르면 그 법인 부서만 펼쳐 선택 #}
+  {% set ns = namespace(kor=[], vn=[], etc=[]) %}
+  {% for d in all_depts %}
+    {% if d.startswith('본사 · ') %}{% set ns.kor = ns.kor + [d] %}
+    {% elif d.startswith('베트남 · ') %}{% set ns.vn = ns.vn + [d] %}
+    {% else %}{% set ns.etc = ns.etc + [d] %}{% endif %}
+  {% endfor %}
+  {% set _selgrp = 'kor' if (sel_dept and sel_dept.startswith('본사 · ')) else ('vn' if (sel_dept and sel_dept.startswith('베트남 · ')) else ('etc' if sel_dept else '')) %}
   <div class="dsx-depts">
     <a class="dsx-chip{% if not sel_dept %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{{ _bq }}">전체 부서</a>
-    {% for d in all_depts %}
-    <a class="dsx-chip{% if sel_dept==d %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{{ _bq }}&dept={{ d|urlencode }}">{{ d }}{% if d==my_team %} <span class="mine">(내 부서)</span>{% endif %}</a>
-    {% endfor %}
+    {% if ns.kor %}<button type="button" class="dsx-gtab{% if _selgrp=='kor' %} on{% endif %}" data-grp="kor">🏢 본사 <span class="gn">{{ ns.kor|length }}</span></button>{% endif %}
+    {% if ns.vn %}<button type="button" class="dsx-gtab{% if _selgrp=='vn' %} on{% endif %}" data-grp="vn">🌏 베트남법인 <span class="gn">{{ ns.vn|length }}</span></button>{% endif %}
+    {% if ns.etc %}<button type="button" class="dsx-gtab{% if _selgrp=='etc' %} on{% endif %}" data-grp="etc">기타 <span class="gn">{{ ns.etc|length }}</span></button>{% endif %}
   </div>
+  {% if ns.kor %}<div class="dsx-depts dsx-gbody" id="dgrp-kor"{% if _selgrp!='kor' %} hidden{% endif %}>
+    {% for d in ns.kor %}<a class="dsx-chip{% if sel_dept==d %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{{ _bq }}&dept={{ d|urlencode }}">{{ d|replace('본사 · ','') }}{% if d==my_team %} <span class="mine">(내 부서)</span>{% endif %}</a>{% endfor %}
+  </div>{% endif %}
+  {% if ns.vn %}<div class="dsx-depts dsx-gbody" id="dgrp-vn"{% if _selgrp!='vn' %} hidden{% endif %}>
+    {% for d in ns.vn %}<a class="dsx-chip{% if sel_dept==d %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{{ _bq }}&dept={{ d|urlencode }}">{{ d|replace('베트남 · ','') }}{% if d==my_team %} <span class="mine">(내 부서)</span>{% endif %}</a>{% endfor %}
+  </div>{% endif %}
+  {% if ns.etc %}<div class="dsx-depts dsx-gbody" id="dgrp-etc"{% if _selgrp!='etc' %} hidden{% endif %}>
+    {% for d in ns.etc %}<a class="dsx-chip{% if sel_dept==d %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{{ _bq }}&dept={{ d|urlencode }}">{{ d }}{% if d==my_team %} <span class="mine">(내 부서)</span>{% endif %}</a>{% endfor %}
+  </div>{% endif %}
 
   {# 월간·품목별 기록 요약 #}
   {% if summary and summary.total %}
@@ -301,6 +325,16 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   // v5H226z498 (FIX): 전체 로드 시엔 첫 렌더(화면전환 스냅샷) 이후로 초기화를 미뤄 본문 먹통 방지. SPA 스왑(이미 로드됨)이면 즉시.
   function init(){
   var root=document.getElementById('dsx'); if(!root) return;
+  // v5H226z545: 본사/베트남 책갈피 탭 → 그 법인 부서 칩만 펼침(클릭 토글·다른 그룹은 접힘)
+  root.querySelectorAll('.dsx-gtab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var g=btn.dataset.grp, body=document.getElementById('dgrp-'+g);
+      var willOpen = body && body.hasAttribute('hidden');
+      root.querySelectorAll('.dsx-gbody').forEach(function(x){ x.setAttribute('hidden',''); });
+      root.querySelectorAll('.dsx-gtab').forEach(function(x){ x.classList.remove('on'); });
+      if(willOpen && body){ body.removeAttribute('hidden'); btn.classList.add('on'); }
+    });
+  });
   var LOGS={{ logmap|tojson }}, MYTEAM={{ my_team|tojson }}, DEPTS={{ all_depts|tojson }},
       TYPES={{ types|tojson }}, UID={{ uid|tojson }}, ISADMIN={{ is_admin|tojson }},
       SEL_DEPT={{ sel_dept|tojson }};   // v5H226z514: 호기 줄 마커 부서필터용
