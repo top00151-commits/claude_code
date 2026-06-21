@@ -361,10 +361,13 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     return (mail_id, owner)
 
 
-def dedup_inbox(c, user_id: int) -> int:
-    """받은편지함의 '진짜 같은 메일' 중복을 1통만 남기고 나머지를 휴지통으로(소프트삭제).
-    읽음/별표는 그룹에 하나라도 있으면 보존, 남긴 메일에 dup_count 기록. 반환=정리한 통수.
-    답장 스레드(제목만 같고 본문 다름)는 해시가 달라 절대 안 건드림."""
+def dedup_inbox(c, user_id: int, hard: bool = False) -> int:
+    """받은편지함의 '진짜 같은 메일' 중복을 1통만 남기고 나머지를 정리. 반환=정리한 통수.
+    읽음/별표는 그룹에 하나라도 있으면 남긴 1통에 보존, dup_count(왔던 총통수) 기록.
+    답장 스레드(제목만 같고 본문 다름)는 해시가 달라 절대 안 건드림.
+    hard=False(기본): 휴지통으로 소프트삭제(복구 가능) — 사람이 누르는 수동 정리용.
+    hard=True: 중복 사본을 첨부까지 영구삭제(원본 1통은 100% 보존 → 잃는 정보 0) — 자동 정리·용량 회수용.
+              신규 중복을 아예 안 쌓는 것(store_inbound)과 같은 원리. 휴지통에 안 쌓여 용량이 실제로 줄어듦."""
     _ensure_dedup_cols(c)
     # 과거 메일 dedup_hash 백필(예전엔 Message-ID 미저장 → 보낸이+제목+본문 기준)
     try:
@@ -392,8 +395,13 @@ def dedup_inbox(c, user_id: int) -> int:
         c.execute("UPDATE mail_messages SET is_read=?, is_starred=?, dup_count=? WHERE id=?",
                   (any_read, any_star, len(grp), grp[0]["id"]))
         for x in grp[1:]:
-            c.execute("UPDATE mail_messages SET is_deleted=1, deleted_at=datetime('now','localtime') "
-                      "WHERE id=?", (x["id"],))
+            if hard:
+                # 영구삭제: 첨부 BLOB 먼저, 그다음 메일 행. 원본(grp[0])은 보존 → 정보손실 0.
+                c.execute("DELETE FROM mail_attachments WHERE mail_id=?", (x["id"],))
+                c.execute("DELETE FROM mail_messages WHERE id=?", (x["id"],))
+            else:
+                c.execute("UPDATE mail_messages SET is_deleted=1, deleted_at=datetime('now','localtime') "
+                          "WHERE id=?", (x["id"],))
             removed += 1
     return removed
 

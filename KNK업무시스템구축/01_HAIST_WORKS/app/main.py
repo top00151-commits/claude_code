@@ -868,6 +868,42 @@ try:
 except Exception:
     _MAIL_FETCH_INTERVAL_SEC = 300
 
+# ── 과거 중복정리 자동화 + DB 압축 (대표 지시 2026-06-21 "같은 메일은 하나만 받게·용량 최대한 줄이기") ──
+# 신규 중복은 store_inbound 가 이미 안 쌓음. 여기선 자동 가져오기 사이클마다 '과거에 쌓인' 중복을
+# dedup_inbox(hard=True)로 영구삭제(원본 1통·읽음·별표 보존 → 정보손실 0)해 용량을 실제로 회수한다.
+# VACUUM(파일 물리 축소)은 무겁고 락이 걸리므로 '하루 1회·새벽(2~7시 KST)·지운 게 있을 때만' 실행.
+_mail_last_vacuum_day = ""            # 'YYYY-MM-DD'(KST) — 하루 1회 보장
+_mail_dedup_removed_since_vacuum = 0  # 직전 VACUUM 이후 영구삭제 누계(>0 일 때만 압축)
+
+
+def _maybe_vacuum_mail_db():
+    """하루 1회·새벽(2~7시 KST)·직전에 영구삭제한 중복이 있을 때만 VACUUM 으로 DB 파일을 물리 축소.
+    SQLite VACUUM 은 트랜잭션 밖(autocommit)에서만 가능 → 별도 연결. 즉시 압축은 수동 버튼(/admin/mail-purge/vacuum)."""
+    global _mail_last_vacuum_day, _mail_dedup_removed_since_vacuum
+    try:
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone(timedelta(hours=9)))  # KST(본사 기준 · timezone_standard)
+        today = now.strftime("%Y-%m-%d")
+        if _mail_last_vacuum_day == today:
+            return
+        if not (2 <= now.hour < 7):           # 업무시간 락 회피 — 한가한 새벽만
+            return
+        if _mail_dedup_removed_since_vacuum <= 0:
+            _mail_last_vacuum_day = today      # 지운 게 없으면 압축 생략(날짜만 갱신해 하루 1회 보장)
+            return
+        import sqlite3
+        from .database import DB_PATH
+        conn = sqlite3.connect(DB_PATH, isolation_level=None, timeout=120)
+        try:
+            conn.execute("VACUUM")
+        finally:
+            conn.close()
+        print(f"[MAIL-FETCH-AUTO] DB 압축(VACUUM) 완료 — 중복 {_mail_dedup_removed_since_vacuum}건 영구삭제 후 파일 축소")
+        _mail_last_vacuum_day = today
+        _mail_dedup_removed_since_vacuum = 0
+    except Exception as e:
+        print(f"[MAIL-FETCH-AUTO VACUUM ERR] {e}")
+
 
 def _mailfetch_run_owner(owner_id):
     """한 계정의 새 메일을 가져와 저장(동기·블로킹 — 스케줄러 스레드에서 호출).
@@ -927,6 +963,16 @@ def _mailfetch_run_owner(owner_id):
         else:
             _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
             _mailfetch.set_status(c, owner_id, status="자동 가져오기 %d건" % stored, count=stored)
+        # 과거에 쌓인 중복을 영구삭제(원본 1통·읽음·별표 보존 → 정보손실 0)해 용량 실제 회수.
+        # 신규 중복은 store_inbound 가 이미 안 쌓으므로 여기선 '과거 잔존분'이 대상(보통 도입 직후 1회만 큼).
+        try:
+            _dups = _mailbox.dedup_inbox(c, owner_id, hard=True)
+        except Exception:
+            _dups = 0
+        if _dups:
+            global _mail_dedup_removed_since_vacuum
+            _mail_dedup_removed_since_vacuum += _dups
+            print(f"[MAIL-FETCH-AUTO] owner={owner_id} 과거 중복 {_dups}건 영구삭제(원본 보존)")
     return (True, stored, "")
 
 
@@ -953,6 +999,7 @@ def _mail_fetch_tick():
                 print(f"[MAIL-FETCH-AUTO ERR owner={oid}] {e}")
         if owners:
             print(f"[MAIL-FETCH-AUTO] {len(owners)}계정 점검 / 새 메일 {total}건 적재")
+        _maybe_vacuum_mail_db()   # 하루 1회·새벽 DB 압축(직전에 영구삭제한 중복이 있을 때만)
     except Exception as e:
         print(f"[MAIL-FETCH-AUTO tick ERR] {e}")
     finally:
