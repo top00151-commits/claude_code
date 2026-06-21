@@ -211,19 +211,94 @@ def build_login_url(redirect_uri: str, force: bool = False) -> str:
 
 
 # ── 사용자 upsert 헬퍼 (Q1=A 자동 upsert) ───────────────────
-def _resolve_team_id(c, dept):
-    """v5H226z140: 메신저 dept(부서명/코드) → HAIST WORKS teams.id 매핑.
-    매칭 실패 시 None (기존 team_id 유지). 권한이 team_id 기반이라 중요."""
+def parse_messenger_dept(dept):
+    """v5H226z540 (대표 지시 '메신저 체계 도입'): 메신저 부서코드 분해.
+    예) '01_KOR/00_총괄' → {'entity':'KOR','func':'총괄','func_code':'00','raw':...}
+        '02_VN/04_설계'  → {'entity':'VN','func':'설계','func_code':'04', ...}
+        '기술영업팀'      → {'entity':None,'func':'기술영업팀','func_code':None, ...}
+    법인(KOR/VN)은 entity 축으로 분리하고, 팀 매핑은 '기능부서명(func)'으로 한다."""
+    import re
+    if not dept:
+        return {"entity": None, "func": None, "func_code": None, "raw": ""}
+    raw = str(dept).strip()
+    entity = None
+    m = re.search(r"(KOR|VN)", raw, re.I)
+    if m:
+        entity = m.group(1).upper()
+    tail = raw.split("/")[-1].strip()           # '00_총괄'
+    func_code = None
+    mm = re.match(r"\s*(\d+)\s*[_\-]\s*(.+)$", tail)
+    if mm:
+        func_code = mm.group(1)
+        func = mm.group(2).strip()
+    else:
+        # 선두 코드가 없으면 tail 자체가 부서명 (단, '01_KOR' 같은 국가토큰은 부서명 아님)
+        func = "" if re.fullmatch(r"\d+[_\-](KOR|VN)", tail, re.I) else tail
+    return {"entity": entity, "func": (func or None), "func_code": func_code, "raw": raw}
+
+
+def _create_team_for_func(c, func, func_code=None):
+    """기능부서명(func)에 해당하는 WORKS 팀을 생성하고 id 반환. '메신저 체계 도입'용.
+    이름은 메신저 부서명 그대로(예 '총괄'), 코드는 유일하게 생성."""
+    name = (func or "").strip()
+    if not name:
+        return None
+    base = (str(func_code).strip() if func_code else "") or ("M" + name[:4])
+    code = base
+    n = 1
+    try:
+        while c.execute("SELECT 1 FROM teams WHERE code=?", (code,)).fetchone():
+            n += 1
+            code = f"{base}_{n}"
+        mo = c.execute("SELECT COALESCE(MAX(display_order),0)+1 FROM teams").fetchone()[0]
+        cur = c.execute(
+            "INSERT INTO teams(code, name, display_order) VALUES(?,?,?)",
+            (code, name, mo or 100))
+        return cur.lastrowid
+    except Exception as e:
+        print(f"[SSO] 팀 자동생성 실패({name}): {e}")
+        return None
+
+
+def _resolve_team_id(c, dept, create_missing=False):
+    """v5H226z540: 메신저 부서코드(01_KOR/00_총괄 형식 포함) → WORKS teams.id.
+    ① 부서코드를 분해해 '기능부서명(func)'으로 매핑(법인 KOR/VN 은 entity 로 별도) →
+    ② 정확매칭(이름/이름+'팀'/코드) → ③ 느슨매칭(LIKE) → ④ create_missing 이면 새 팀 생성.
+    매칭 실패 & 생성 안 함 → None(기존 team_id 유지). 권한이 team_id 기반이라 중요."""
     if not dept:
         return None
-    try:
-        r = c.execute(
-            "SELECT id FROM teams WHERE name=? OR code=? OR name LIKE ? ORDER BY id LIMIT 1",
-            (dept, dept, f"%{dept}%"),
-        ).fetchone()
-        return r["id"] if r else None
-    except Exception:
-        return None
+    info = parse_messenger_dept(dept)
+    func = info.get("func")
+    raw = (dept or "").strip()
+    # ② 정확 매칭 — 원본, 기능부서명, 기능부서명+'팀'
+    exact = []
+    if raw:
+        exact.append(raw)
+    if func:
+        exact += [func, func + "팀"]
+    for d in exact:
+        try:
+            r = c.execute(
+                "SELECT id FROM teams WHERE name=? OR code=? ORDER BY id LIMIT 1",
+                (d, d)).fetchone()
+            if r:
+                return r["id"]
+        except Exception:
+            pass
+    # ③ 느슨 매칭 — 기능부서명 부분일치 (예 '기술영업' → '기술영업팀')
+    if func:
+        try:
+            r = c.execute(
+                "SELECT id FROM teams WHERE name LIKE ? ORDER BY id LIMIT 1",
+                (f"%{func}%",)).fetchone()
+            if r:
+                return r["id"]
+        except Exception:
+            pass
+    # ④ 도입: 없는 기능부서는 새 팀으로 생성
+    if create_missing and func:
+        return _create_team_for_func(c, func, info.get("func_code"))
+    return None
 
 
 def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
@@ -251,7 +326,7 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
     phone   = (payload.get("phone") or "").strip() or None
     is_admin = bool(payload.get("is_admin", False))
 
-    team_id = _resolve_team_id(c, dept)   # 부서 → team_id (권한 동작용)
+    team_id = _resolve_team_id(c, dept, create_missing=True)   # 부서 → team_id (권한 동작용·z540 도입: 없는 기능부서는 팀 자동생성)
 
     # ① 사번으로 매칭
     try:
@@ -572,6 +647,32 @@ def _sync_employees_core(c, payloads) -> dict:
     updated = inserted = skipped = 0
     sample_new, sample_upd = [], []
     msg_names = set()
+
+    # v5H226z540: 메신저 부서 목록 + WORKS 팀 매핑 상태 (업서트 전 읽기전용으로 '사전 상태' 캡처).
+    #             → 동기화 미리보기 화면에 그대로 표시(수동 목록 입력 불필요·메신저 체계 가시화).
+    dept_counts = {}
+    for payload in payloads:
+        d = (payload.get("dept") or payload.get("dept_code") or "").strip()
+        if d:
+            dept_counts[d] = dept_counts.get(d, 0) + 1
+    dept_map = []
+    for d, cnt in sorted(dept_counts.items()):
+        tid = _resolve_team_id(c, d, create_missing=False)
+        tname = None
+        if tid:
+            try:
+                _tr = c.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()
+                tname = _tr["name"] if _tr else None
+            except Exception:
+                tname = None
+        info = parse_messenger_dept(d)
+        dept_map.append({
+            "dept": d, "count": cnt,
+            "entity": info.get("entity"), "func": info.get("func"),
+            "team": tname,
+            "action": "연결" if tname else "새 팀 생성",
+        })
+
     for payload in payloads:
         emp_no = str(payload.get("sub") or payload.get("employee_no") or "").strip()
         name = (payload.get("name_kr") or payload.get("name") or "").strip()
@@ -626,7 +727,7 @@ def _sync_employees_core(c, payloads) -> dict:
     return {"ok": True, "total": len(payloads), "updated": updated,
             "inserted": inserted, "skipped": skipped,
             "works_only": works_only, "sample_new": sample_new,
-            "sample_upd": sample_upd}
+            "sample_upd": sample_upd, "dept_map": dept_map}
 
 
 def sync_employees_from_messenger_api(c) -> dict:
