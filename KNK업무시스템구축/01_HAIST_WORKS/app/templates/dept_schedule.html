@@ -249,7 +249,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         {% for r in rows %}
         {% set key = r.kind ~ ':' ~ r.ref_id %}
         {% set cs = cellsum.get(key) or {} %}
-        <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}" data-multi="{{ '1' if r.multi else '' }}">
+        <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}" data-multi="{{ '1' if r.multi else '' }}" data-uids="{{ (r.uids or [])|join(',') }}">
           <td class="c-code">
             {# v5H226z513 (대표 지시): 부서 진행기록 모아보기(📜)를 관리번호 앞쪽으로 + 사업부(M) 배지 삭제 #}
             <span class="tl-btn" title="이 품목의 모든 부서 진행 기록 모아보기" role="button">📜</span>
@@ -422,9 +422,9 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     return '<span class="mk '+color+'">'+e.length+'</span>';
   }
   // 본 행의 날짜칸을 그대로 따라 '호기 줄'을 만든다(정렬 일치·날짜칸 클릭→그 호기 기록).
-  function dsxBuildUnitRow(mainTr, key, label, meta){
+  function dsxBuildUnitRow(mainTr, rowKey, logKey, label, meta){
     var rtr=document.createElement('tr');
-    rtr.className='dsx-unit-row'; rtr.dataset.for=key;
+    rtr.className='dsx-unit-row'; rtr.dataset.for=rowKey;
     rtr.dataset.kind=mainTr.dataset.kind; rtr.dataset.ref=mainTr.dataset.ref;
     rtr.dataset.code=mainTr.dataset.code; rtr.dataset.unit=label;
     // v5H226z515 (대표 지시): 관리번호 칸은 비우고, 호기 리스트는 '수주번호' 칸부터 시작
@@ -438,20 +438,23 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       var ctd=document.createElement('td');
       ctd.className=mtd.className;        // day/today/bar/delay 시각맥락 복사
       ctd.dataset.day=d; ctd.dataset.date=dt; ctd.dataset.unit=label;
-      ctd.innerHTML=dsxMarker(key, d, label);
+      ctd.innerHTML=dsxMarker(logKey, d, label);
       rtr.appendChild(ctd);
     });
     return rtr;
   }
   function dsxToggleExpand(tr, btn){
     if(!tr) return;
-    var kind=tr.dataset.kind||'project', ref=tr.dataset.ref, key=kind+':'+ref;
-    var existing=tr.parentNode.querySelectorAll('tr.dsx-unit-row[data-for="'+key+'"]');
+    var kind=tr.dataset.kind||'project', ref=tr.dataset.ref;
+    var uids=(tr.dataset.uids||'');                 // v5H226z549: 이 줄(분할 SO)의 호기 id — 그 호기만 펼침
+    var logKey=kind+':'+ref;                         // LOGS(마커)는 프로젝트 단위 키
+    var rowKey=logKey+(uids?(':'+uids):'');          // 펼친 줄 식별은 행별 고유 키(분할 행 충돌 방지)
+    var existing=tr.parentNode.querySelectorAll('tr.dsx-unit-row[data-for="'+rowKey+'"]');
     if(existing.length){ existing.forEach(function(x){x.remove();}); if(btn){ btn.textContent='＋'; btn.classList.remove('on'); } return; }
     if(btn) btn.textContent='…';
     var url=(kind==='consumable')
       ? '/sales/schedule/consumable-items?ref_id='+encodeURIComponent(ref)
-      : '/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref);
+      : '/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref)+(uids?('&uids='+encodeURIComponent(uids)):'');
     fetch(url,{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(j){
       if(!j||!j.ok){ alert('불러오기 실패'); if(btn) btn.textContent='＋'; return; }
       var newrows=[];
@@ -459,17 +462,17 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         (j.items||[]).forEach(function(it){
           var label=String(it.part_name||'').slice(0,40);
           var meta=[it.model_use, it.spec, (it.qty!=null?('수량 '+it.qty+(it.unit||'')):'')].filter(Boolean).map(esc).join(' · ');
-          newrows.push(dsxBuildUnitRow(tr, key, label, meta));
+          newrows.push(dsxBuildUnitRow(tr, rowKey, logKey, label, meta));
         });
       } else {
         (j.units||[]).forEach(function(u){
           var label=String(u.label||'').slice(0,40);
           var meta=[u.so_no, u.unit_status, (u.due_date?('납기 '+u.due_date):'')].filter(Boolean).map(esc).join(' · ');
-          newrows.push(dsxBuildUnitRow(tr, key, label, meta));
+          newrows.push(dsxBuildUnitRow(tr, rowKey, logKey, label, meta));
         });
       }
       if(!newrows.length){
-        var er=document.createElement('tr'); er.className='dsx-unit-row'; er.dataset.for=key;
+        var er=document.createElement('tr'); er.className='dsx-unit-row'; er.dataset.for=rowKey;
         var etd=document.createElement('td'); etd.colSpan=99; etd.className='dsx-ux-empty';
         etd.textContent=(kind==='consumable')?'등록된 품목 없음 — 소모품 상세에서 등록':'호기 없음';
         er.appendChild(etd); newrows.push(er);

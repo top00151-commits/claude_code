@@ -19938,6 +19938,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
         return info
 
     rows = []
+    _split_map = _board_split_lines_map()   # v5H226z549: 작업일정표와 동일 — 호기 단가/납기 상이 시 SO/호기별 분할(펼침이 수량과 일치)
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue
@@ -19952,14 +19953,34 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
             "owner": p.get("cc_name") or "",           # 고객사 담당자
             "order_date": str(p.get("order_date") or "")[:10],
             "due_date": str(p.get("due_date") or "")[:10],
+            "uids": [],   # v5H226z549: 빈=프로젝트 전체(단일/균일) · 분할 시 그 줄의 호기 id만
         }
-        try:
-            info["multi"] = int(p.get("unit_qty") or 0) >= 2   # v5H226z499: 호기 여러 대=완제품 → 호기별 기록 가능
-        except Exception:
-            info["multi"] = False
-        _r = _mk(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
-        if _r:
-            rows.append(_r)
+        _ulines = _split_map.get(p.get("id"))
+        if _ulines:
+            # v5H226z549: 호기 단가/납기 상이 → SO/호기 묶음별 1줄(각 줄 수량·납기·'+'펼침이 그 호기만 일치)
+            for _ln in _ulines:
+                _iu = dict(info)
+                _iu["so_no"] = _ln.get("so_no") or info.get("so_no") or ""
+                _iu["qty"] = _ln.get("count", 1)
+                _iu["order_date"] = (_ln.get("order_date") or info.get("order_date") or "")
+                _iu["due_date"] = (_ln.get("due_date") or info.get("due_date") or "")
+                _iu["uids"] = _ln.get("iids") or []
+                _iu["unit_label"] = _ln.get("label") or ""
+                try:
+                    _iu["multi"] = int(_iu.get("qty") or 0) >= 2
+                except Exception:
+                    _iu["multi"] = False
+                _ru = _mk(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), p.get("status"), "project")
+                if _ru:
+                    rows.append(_ru)
+        else:
+            try:
+                info["multi"] = int(p.get("unit_qty") or 0) >= 2   # v5H226z499: 호기 여러 대=완제품 → 호기별 기록 가능
+            except Exception:
+                info["multi"] = False
+            _r = _mk(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+            if _r:
+                rows.append(_r)
     try:
         from . import consumables as _co_mod
         for cr in _co_mod.co_list(status="", q="", limit=1000):
@@ -19971,6 +19992,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                 "owner": cr.get("cc_name") or "",
                 "order_date": str(cr.get("order_date") or "")[:10],
                 "due_date": str(cr.get("due_date") or "")[:10],
+                "uids": [],   # v5H226z549: 소모품은 등록 품목 전체 펼침(분할 없음)
             }
             _r = _mk(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")), "", "consumable")
             if _r:
