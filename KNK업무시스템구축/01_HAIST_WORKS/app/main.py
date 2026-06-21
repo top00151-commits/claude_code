@@ -6935,8 +6935,10 @@ async def admin_page(req: Request):
         users = [dict(r) for r in c.execute(
             """SELECT u.*, t.name AS team_name FROM users u
                LEFT JOIN teams t ON u.team_id=t.id
-               WHERE u.role!='admin' ORDER BY t.display_order, u.role DESC, u.id"""
-        ).fetchall()]
+               WHERE u.role!='admin'
+               ORDER BY CASE WHEN COALESCE(u.employee_no,'')='' THEN 1 ELSE 0 END,
+                        CAST(u.employee_no AS INTEGER), u.employee_no, u.id"""
+        ).fetchall()]   # v5H226z531: 사번 기준 정렬
         projects = [dict(r) for r in c.execute(
             """SELECT p.*, cu.name AS customer_name FROM projects p
                LEFT JOIN customers cu ON p.customer_id=cu.id ORDER BY p.id DESC"""

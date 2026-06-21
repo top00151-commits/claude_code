@@ -154,9 +154,9 @@ tbody tr:hover td { background: var(--amber-glow); }
         <table id="usersTbl">
           <thead>
             <tr>
-              <th style="width:50px;">ID</th>
+              <th style="width:80px;">사번</th>
               <th>이름</th>
-              <th>사번 / 이메일</th>
+              <th>이메일</th>
               <th style="width:96px;">법인</th>
               <th>부서</th>
               <th style="width:90px;">직급</th>
@@ -171,10 +171,10 @@ tbody tr:hover td { background: var(--amber-glow); }
             {% set _corp = '베트남법인' if _vn else '본사' %}
             {% set _dept = u.team_name or u.dept_code or '미지정' %}
             {% set _rank = u.rank or '' %}
-            <tr class="urow" data-corp="{{ _corp }}" data-dept="{{ _dept }}" data-rank="{{ _rank }}" data-q="{{ (vname(u) ~ ' ' ~ (u.login_id or '') ~ ' ' ~ (u.email or ''))|lower }}">
-              <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ u.id }}</td>
+            <tr class="urow" data-corp="{{ _corp }}" data-dept="{{ _dept }}" data-rank="{{ _rank }}" data-q="{{ (vname(u) ~ ' ' ~ (u.employee_no or '') ~ ' ' ~ (u.login_id or '') ~ ' ' ~ (u.email or ''))|lower }}">
+              <td style="font-family:monospace;font-size:12.5px;font-weight:700;color:var(--ink);">{{ u.employee_no or u.login_id or '—' }}</td>
               <td><b>{{ vname(u) }}</b></td>
-              <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ u.login_id }}{% if u.email %}<br>{{ u.email }}{% endif %}</td>
+              <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ u.email or '—' }}</td>
               <td><span class="corp-badge {% if _vn %}vn{% endif %}">{{ _corp }}</span></td>
               <td>{{ _dept }}</td>
               <td>{{ _rank or '—' }}</td>
