@@ -95,7 +95,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 /* 기록 팝업 */
 .dsx-back{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:1200;display:none;align-items:center;justify-content:center;}
 .dsx-back.on{display:flex;}
-.dsx-modal{background:#fff;border-radius:14px;width:min(560px,94vw);max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3);}
+.dsx-modal{background:#fff;border-radius:14px;width:min(640px,94vw);max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3);}
 .dsx-modal h3{margin:0;padding:14px 18px;border-bottom:1px solid var(--line);font-size:15.5px;display:flex;align-items:center;gap:8px;}
 .dsx-modal h3 .x{margin-left:auto;cursor:pointer;color:#94a3b8;font-size:20px;line-height:1;border:0;background:none;}
 .dsx-body{padding:14px 18px;}
@@ -115,7 +115,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx-tl .tl-ent{display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;font-size:12.5px;margin:3px 0 3px 6px;}
 .dsx-tl .tl-ent .e-dept{font-weight:800;color:#334155;}
 .dsx-tl .tl-ent .e-type{font-size:10px;font-weight:800;color:#fff;border-radius:7px;padding:1px 7px;}
-.dsx-tl .tl-c{color:#1e293b;}
+.dsx-tl .tl-c{color:#1e293b;white-space:pre-wrap;word-break:break-word;}
 .dsx-tl .tl-none{color:#94a3b8;font-size:12.5px;padding:8px 0;}
 .dsx-ent .e-act{margin-left:auto;display:flex;gap:6px;}
 .dsx-ent .e-act button{border:0;background:none;cursor:pointer;font-size:11px;color:#64748b;text-decoration:underline;}
@@ -125,6 +125,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx-form .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
 .dsx-form label{display:block;font-size:11px;color:#64748b;font-weight:700;margin-bottom:3px;}
 .dsx-form select,.dsx-form textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:13px;padding:6px 9px;background:#fff;}
+/* v5H226z542 (대표 지시): 내용칸을 자세히 적을 수 있는 큰 공간으로 — 기본 크게 + 세로 드래그로 더 확장 */
+#dsxContent{min-height:150px;line-height:1.55;padding:9px 11px;resize:vertical;}
 .dsx-form .f-dept{min-width:160px;flex:1;} .dsx-form .f-type{min-width:110px;}
 .dsx-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
 .dsx-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 16px;font-weight:800;font-size:13px;cursor:pointer;}
@@ -262,8 +264,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
           <div class="f-dept"><label>부서</label><select id="dsxDept"></select></div>
           <div class="f-type"><label>유형</label><select id="dsxType"></select></div>
         </div>
-        <label>내용 (진행/완료/변경 사항)</label>
-        <textarea id="dsxContent" rows="2" placeholder="예: 전장 배선 완료, 25일 검증팀으로 넘김"></textarea>
+        <label>내용 (진행/완료/변경 사항) — 자세히 적어도 됩니다</label>
+        <textarea id="dsxContent" rows="7" placeholder="진행·완료·변경 사항을 자세히 적어 주세요. 여러 줄로 적어도 됩니다.&#10;예) 전장 배선 완료 / 25일 검증팀으로 넘김&#10;예) 케이블 사양 변경(2.5sq→4sq) 반영 — 도면 Rev.2 기준&#10;(칸 오른쪽 아래 모서리를 끌어 더 크게 늘릴 수 있어요)"></textarea>
         <div class="row" style="margin-top:8px;">
           <div class="f-dept"><label>다음 부서로 넘김 (선택 — 고르면 그 부서에 KNK Eum 알림)</label><select id="dsxHandoff"></select></div>
         </div>
