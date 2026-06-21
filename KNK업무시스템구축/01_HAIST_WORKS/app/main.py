@@ -6935,7 +6935,6 @@ async def admin_page(req: Request):
         users = [dict(r) for r in c.execute(
             """SELECT u.*, t.name AS team_name FROM users u
                LEFT JOIN teams t ON u.team_id=t.id
-               WHERE u.role!='admin'
                ORDER BY CASE WHEN (COALESCE(u.entity,'')='VN' OR u.team_id=12) THEN 1 ELSE 0 END,
                         CASE WHEN COALESCE(u.employee_no,'')='' THEN 1 ELSE 0 END,
                         CAST(u.employee_no AS INTEGER), u.employee_no, u.id"""
@@ -8572,7 +8571,10 @@ async def admin_users_delete(req: Request, uid: int):
             return JSONResponse({"ok": False, "error": "이미 없는 사용자입니다."}, 404)
         row = dict(row)
         if (row.get("role") or "") in ("admin", "ceo"):
-            return JSONResponse({"ok": False, "error": "관리자/대표 계정은 삭제할 수 없습니다. (먼저 권한을 'member'로 내린 뒤 삭제)"}, 400)
+            # v5H226z537: 중복 관리자/대표 정리 허용 — 단 '마지막 1개'는 보호(전체 잠김 방지)
+            _cnt = c.execute("SELECT COUNT(*) FROM users WHERE role IN ('admin','ceo')").fetchone()[0]
+            if _cnt <= 1:
+                return JSONResponse({"ok": False, "error": "마지막 관리자/대표 계정은 삭제할 수 없습니다."}, 400)
         c.execute("DELETE FROM users WHERE id=?", (uid,))
     return JSONResponse({"ok": True, "name": row.get("name")})
 
