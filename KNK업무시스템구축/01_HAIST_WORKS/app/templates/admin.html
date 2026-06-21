@@ -133,8 +133,8 @@ tbody tr:hover td { background: var(--amber-glow); }
         <div class="table-head">
           <h3>사용자 ({{ users|length }})</h3>
           <div class="actions" style="display:flex;gap:8px;align-items:center;">
-            <a class="btn btn-secondary" href="/admin/sync-employees" title="메신저에 등록된 전 직원 정보(사번·이름(한/영/베)·부서·메일·연락처)를 가져옵니다 — 미리보기 후 반영">🔄 메신저 직원 동기화</a>
-            <a class="btn btn-primary" href="/admin/users/new">＋ 사용자 추가</a>
+            <span style="font-size:11.5px;color:var(--mute);">사용자 등록은 <b>KNK Eum 메신저가 기준</b> — 로그인·동기화로 자동 반영</span>
+            <a class="btn btn-primary" href="/admin/sync-employees" title="메신저에 등록된 전 직원 정보(사번·이름(한/영/베)·부서·메일·연락처)를 가져옵니다 — 미리보기 후 반영">🔄 메신저 직원 동기화</a>
           </div>
         </div>
         <!-- v5H226z529 (대표 지시): 법인(본사/베트남법인)·부서·직급 구분 필터 + 검색 -->

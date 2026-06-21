@@ -6965,12 +6965,8 @@ async def api_admin_user(req: Request):
             if d.get("password"):
                 c.execute("UPDATE users SET password=? WHERE id=?", (hash_pw(d["password"]), d["id"]))
         else:
-            c.execute(
-                """INSERT INTO users(name, login_id, password, team_id, rank, role)
-                   VALUES(?,?,?,?,?,?)""",
-                (d["name"], d["login_id"], hash_pw(d.get("password", "knk1234")),
-                 d.get("team_id") or None, d.get("rank", ""), d.get("role", "member")),
-            )
+            # v5H226z533 (대표 지시): 메신저가 사용자 등록 기준 → WORKS 직접 생성 차단.
+            return JSONResponse({"ok": False, "error": "사용자 신규 등록은 KNK Eum 메신저에서 합니다(메신저가 기준). WORKS는 로그인·동기화로 자동 반영됩니다."}, 400)
     return JSONResponse({"ok": True})
 
 
@@ -8526,11 +8522,8 @@ async def admin_users_new_form(req: Request):
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
-    with db_session() as c:
-        teams = [dict(r) for r in c.execute(
-            "SELECT id, code, name FROM teams ORDER BY display_order").fetchall()]
-    return ctx(req, "admin_user_form.html", user=u, active="admin",
-               target_user=None, teams=teams)
+    # v5H226z533 (대표 지시): 사용자 등록은 KNK Eum 메신저가 '기준'. WORKS 수동 추가 폐지 → 동기화 안내로.
+    return RedirectResponse("/admin/sync-employees", 303)
 
 
 @app.post("/admin/users/new")
@@ -8538,26 +8531,8 @@ async def admin_users_new_submit(req: Request):
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
-    form = await req.form()
-    name = (form.get("name") or "").strip()
-    login_id = (form.get("login_id") or "").strip()
-    password = (form.get("password") or "knk1234").strip()
-    role = (form.get("role") or "member").strip()
-    if not name or not login_id:
-        return RedirectResponse("/admin/users/new?error=required", 303)
-    with db_session() as c:
-        ex = c.execute("SELECT id FROM users WHERE login_id=?", (login_id,)).fetchone()
-        if ex:
-            return RedirectResponse("/admin/users/new?error=duplicate", 303)
-        team_id = form.get("team_id") or None
-        c.execute(
-            "INSERT INTO users(name, login_id, password, role, team_id, rank, "
-            "email, is_active) VALUES(?,?,?,?,?,?,?,?)",
-            (name, login_id, hash_pw(password), role, team_id,
-             form.get("rank", ""), form.get("email", ""),
-             int(form.get("is_active") or 1))
-        )
-    return RedirectResponse("/admin", 303)
+    # v5H226z533: 메신저가 사용자 등록 기준 → WORKS 직접 생성 차단(메신저와 다른 사용자 방지).
+    return RedirectResponse("/admin/sync-employees", 303)
 
 
 @app.get("/admin/users/{uid:int}/edit", response_class=HTMLResponse)
