@@ -2117,7 +2117,7 @@ _buildBulkFieldSel(); syncBulkBar();   // z366: 일괄수정 항목 드롭다운
 var _bulkM=document.getElementById('bulkModal'); if(_bulkM) _on(_bulkM,'click',function(e){ if(e.target.id==='bulkModal') closeBulkModal(); });
 _on(window,'load',()=>setTimeout(updateSticky,80));
 // v5H226z271: 인라인 onclick/onchange 핸들러용 전역 노출 (IIFE 내부 함수들)
-Object.assign(window, {schedFullscreen, schedPrint, openPrintModal, closePrintModal, printColsAll, doPrint, toggleColsMenu, stepDateW, setDayRange, resetCols, resetSort, closeMemo, saveMemo, closeStagePanel, openRegModal, closeRegModal, schedDoSearch, schedToggleAll, schedRowSel, schedClearSel, schedBulkFieldChange, schedBulkPreview, schedBulkConfirm, closeBulkModal, schedRangeGo, schedBulkShip, schedIssueTaxInvoice, _tiCloseModal, _tiSubmit, _tiRecalc, _tiTierChange, _tiCancel, openTiView});
+Object.assign(window, {schedFullscreen, schedPrint, openPrintModal, closePrintModal, printColsAll, doPrint, toggleColsMenu, toggleSchedTools, stepDateW, setDayRange, resetCols, resetSort, closeMemo, saveMemo, closeStagePanel, openRegModal, closeRegModal, schedDoSearch, schedToggleAll, schedRowSel, schedClearSel, schedBulkFieldChange, schedBulkPreview, schedBulkConfirm, closeBulkModal, schedRangeGo, schedBulkShip, schedIssueTaxInvoice, _tiCloseModal, _tiSubmit, _tiRecalc, _tiTierChange, _tiCancel, openTiView});
 })();
 </script>
 </body>
