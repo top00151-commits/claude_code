@@ -278,7 +278,7 @@ def _create_team_for_func(c, func, func_code=None, entity="KOR"):
         return None
 
 
-def _resolve_team_id(c, dept, create_missing=False):
+def _resolve_team_id(c, dept, create_missing=False, entity_hint=None):
     """v5H226z542: 메신저 부서코드(01_KOR/00_총괄 형식) → WORKS teams.id (법인 분리).
     부서를 (법인 KOR/VN, 기능부서명 func)로 분해 → '같은 법인'의 팀에만 매핑.
     ① 정확매칭(이름/이름+'팀'/코드, 같은 법인) → ② 느슨매칭(LIKE, 같은 법인) →
@@ -290,7 +290,9 @@ def _resolve_team_id(c, dept, create_missing=False):
     func = info.get("func")
     if not func:
         return None
-    ent = _norm_entity(info.get("entity"))
+    # v5H226z544: 법인은 ① 부서코드(02_VN/…)에서 읽되, 없으면 ② payload 의 entity 칸(권위) 사용.
+    #   메신저가 부서코드에 법인을 안 붙이고 entity 로만 줄 때도 베트남이 본사로 합쳐지지 않게.
+    ent = _norm_entity(info.get("entity") or entity_hint)
     # 법인 필터: KOR 은 entity='KOR' 또는 NULL/''(레거시 본사) 허용 / VN 은 entity='VN' 만
     has_ent = any(r[1] == "entity" for r in c.execute("PRAGMA table_info(teams)").fetchall())
     if not has_ent:
@@ -367,7 +369,7 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
     phone   = (payload.get("phone") or "").strip() or None
     is_admin = bool(payload.get("is_admin", False))
 
-    team_id = _resolve_team_id(c, dept, create_missing=True)   # 부서 → team_id (권한 동작용·z540 도입: 없는 기능부서는 팀 자동생성)
+    team_id = _resolve_team_id(c, dept, create_missing=True, entity_hint=entity)   # 부서 → team_id (z540 자동생성·z544 법인은 payload entity 우선)
 
     # ① 사번으로 매칭
     try:
@@ -700,10 +702,18 @@ def _sync_employees_core(c, payloads) -> dict:
     for payload in payloads:
         d = (payload.get("dept") or payload.get("dept_code") or "").strip()
         if d:
-            dept_counts[d] = dept_counts.get(d, 0) + 1
+            # z544: 부서별 인원수 + 법인(payload entity 우선 — 부서코드에 법인 없을 때 대비)
+            _pe = (payload.get("entity") or "").strip() or None
+            if d not in dept_counts:
+                dept_counts[d] = {"count": 0, "entity": _pe}
+            dept_counts[d]["count"] += 1
+            if not dept_counts[d]["entity"] and _pe:
+                dept_counts[d]["entity"] = _pe
     dept_map = []
-    for d, cnt in sorted(dept_counts.items()):
-        tid = _resolve_team_id(c, d, create_missing=False)
+    for d, _agg in sorted(dept_counts.items()):
+        cnt = _agg["count"]
+        _pe = _agg.get("entity")
+        tid = _resolve_team_id(c, d, create_missing=False, entity_hint=_pe)
         tname = None
         if tid:
             try:
@@ -714,7 +724,7 @@ def _sync_employees_core(c, payloads) -> dict:
         info = parse_messenger_dept(d)
         dept_map.append({
             "dept": d, "count": cnt,
-            "entity": info.get("entity"), "func": info.get("func"),
+            "entity": info.get("entity") or _pe, "func": info.get("func"),
             "team": tname,
             "action": "연결" if tname else "새 팀 생성",
         })
