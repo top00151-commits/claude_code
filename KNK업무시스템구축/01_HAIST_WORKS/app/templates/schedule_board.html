@@ -133,6 +133,16 @@
 .victor-open .period-go { padding:3px 8px; }
 .victor-open .selall-lab { padding:2px 7px; font-size:11px; }
 
+/* v5H226z547 (대표 지시): '⚙ 도구' 접이 버튼 + 도구 패널(보조 도구 숨김으로 상단 단순화) */
+.sched-gear{ padding:3px 13px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:13px; font-weight:800; color:var(--ink); cursor:pointer; }
+.sched-gear:hover{ background:#fff; border-color:var(--knk-red); color:var(--knk-red); }
+.sched-gear.on{ background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.sched-toolspanel{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0 var(--content-pad) 4px; padding:8px 11px; border:1px solid var(--line); border-radius:11px; background:#f6f7f9; }
+.sched-toolspanel[hidden]{ display:none; }
+.sched-toolspanel > button, .sched-toolspanel .tool-btn{ padding:4px 10px; border:1px solid var(--line); border-radius:7px; background:#fff; font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer; }
+.sched-toolspanel > button:hover{ border-color:var(--knk-red); }
+.sched-toolspanel .bulk-tax-go{ background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.sched-toolspanel .bulk-tax-go:hover{ background:#6d28d9; border-color:#6d28d9; }
 /* v5H226z546 (대표 지시): 상단 툴바 높이 ~절반으로 축소 — 행 간격·패딩·버튼 높이 압축 */
 .sched-top { gap:9px; margin-bottom:3px; }
 .sched-nav a, .sched-nav .cur { padding:3px 11px; }
@@ -435,13 +445,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       <span class="pill s-deliver">오늘 납품 {{ summary.deliver_today }}</span>
       <span class="pill s-delay">지연 {{ summary.delay }}</span>
     </div>
-    <div class="legend">
-      <span><i style="background:#cfe0f5;"></i>일정</span>
-      <span><i style="background:#16a34a;"></i>납품일</span>
-      <span><i style="background:#fcd9d9;"></i>지연</span>
-    </div>
-    {# v5H226z497 (대표 지시): 부서 일정표(부서별 진행 기록)로 가는 링크 — 우측 그룹 시작(margin-left:auto). #}
-    <a href="/dept/schedule" data-no-swap title="부서 일정표 — 부서별 진행/완료/변경 기록" style="margin-left:auto;text-decoration:none;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;"><span class="ti">🗓</span> 부서 일정표</a>
+    {# v5H226z547 (대표 지시): 보조 도구 접이 버튼(⚙ 도구) — 우측 그룹 시작(margin-left:auto). 범례는 도구 패널로 이동. #}
+    <button type="button" class="sched-gear" onclick="toggleSchedTools(event)" style="margin-left:auto;" title="보기·표설정·정렬·묶어발행 도구 열기"><span class="ti">⚙</span> 도구 ▾</button>
+    <a href="/dept/schedule" data-no-swap title="부서 일정표 — 부서별 진행/완료/변경 기록" style="text-decoration:none;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;"><span class="ti">🗓</span> 부서 일정표</a>
     {# v5H226z395 (대표 지시): '엑셀로 저장'을 상단 우측 '신규 등록' 왼쪽으로 이동 + 약간 녹색 계열. #}
     <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">📥</span> 엑셀로 저장</button>
     {# v5H226z347→z395 (대표 지시): 신규 등록 — 우측 끝(엑셀 버튼이 margin-left:auto 를 맡으므로 여긴 기본 gap 간격) #}
@@ -464,11 +470,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 
   {# v5H226z394 (대표 지시 2026-06-13): 상단 띠 높이 축소 — '작업'(전체화면·인쇄·엑셀) 3버튼을 '표 설정' 띠로 합쳐 5줄→4줄.
      z393 에서 제거된 '일괄등록 양식'·'수주번호 소급 발급'은 그대로 dormant(엔드포인트·#soBackfillModal·서버 보존). #}
-  <div class="sched-tools sb-band band-view">
-    <span class="band-tag">작업·보기</span>
+  {# v5H226z547 (대표 지시): '⚙ 도구' 접이 패널 — 가끔 쓰는 보기·표설정·정렬·묶어발행을 숨김(기본 접힘). #}
+  <div class="sched-toolspanel" id="schedToolsPanel" hidden>
     <button type="button" onclick="schedFullscreen()"><span class="ti">⛶</span> 전체화면 보기</button>
     <button type="button" onclick="openPrintModal()" title="출력할 컬럼·날짜 구간을 골라 인쇄 (회의 출력용)"><span class="ti">🖨</span> 인쇄(컬럼·구간 선택)</button>
-    {# v5H226z395 (대표 지시): '엑셀로 저장'은 상단 '신규 등록' 옆으로 이동(아래 sched-top). #}
     <div class="tool-box">
       <div class="cols-menu">
         <button type="button" class="tool-btn" onclick="toggleColsMenu(event)"><span class="ti">☷</span> 칸 표시/숨기기 ▾</button>
@@ -483,7 +488,13 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       <span class="tbx-cur">현재: <span id="sortNow">기본(발주일순)</span></span>
       <button type="button" class="tbx-reset" onclick="resetSort()" title="헤더 클릭 정렬을 기본 순서(발주일순)로 되돌림 (칸 너비는 그대로)"><span class="ti">↕</span> 정렬 초기화</button>
     </div>
-    <span class="sched-hint">칸 경계를 끌어 너비 조정(그 칸만 바뀌고 다른 칸은 그대로) · 표가 넓으면 아래 좌우 스크롤 · 정보칸 클릭해 입력 · 일정 막대 클릭해 메모</span>
+    {# v5H226z547: 묶어 발행(체크한 여러 출하 건을 한 장으로) — 도구 패널로 이동. 영업·관리만. #}
+    {% if can_money %}<button type="button" class="bulk-tax-go" onclick="schedIssueTaxInvoice()" title="체크한 여러 건을 한 장의 세금계산서로 묶어 발행"><span class="ti">📄</span> 묶어 발행</button>{% endif %}
+    <span class="legend" style="margin-left:auto;">
+      <span><i style="background:#cfe0f5;"></i>일정</span>
+      <span><i style="background:#16a34a;"></i>납품일</span>
+      <span><i style="background:#fcd9d9;"></i>지연</span>
+    </span>
   </div>
 
   {# v5H226z366 (대표 지시): 찾기 + 일괄 수정 띠 — 검색으로 좁히고 행 ☐ 를 골라 한 항목 일괄 변경(프로젝트명 통일=그룹화 등). 관리번호·수주번호 빼고 수정 가능. #}
@@ -505,8 +516,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     <label class="selall-lab"><input type="checkbox" id="schedSelAll" onclick="schedToggleAll(this)" /> 보이는 행 전체선택</label>
     {# v5H226z472 (대표 지시): 일괄출하 — 체크한 행들을 오늘 날짜로 '출하' 단계 완료 처리(한꺼번에 많이). 우측 정렬. #}
     <button type="button" class="bulk-ship-go" onclick="schedBulkShip()" title="체크한 행들을 오늘 날짜로 일괄 출하 처리(단계 '출하' 완료)" style="margin-left:auto;"><span class="ti">🚚</span> 일괄출하</button>
-    {# v5H226z488 (대표 지시): 체크한 여러 출하 건을 한 장의 세금계산서로 묶어 발행. 영업·관리만. #}
-    {% if can_money %}<button type="button" class="bulk-tax-go" onclick="schedIssueTaxInvoice()" title="체크한 여러 건을 한 장의 세금계산서로 묶어 발행"><span class="ti">📄</span> 묶어 발행</button>{% endif %}
+    {# v5H226z547: 묶어 발행은 '⚙ 도구' 패널로 이동. #}
     <span class="bulk-wrap" id="schedBulkBar" style="display:none;">
       <span class="bulk-cnt"><b id="schedSelCount">0</b>건 선택</span>
       <select id="schedBulkField" class="bulk-sel" onchange="schedBulkFieldChange()" title="일괄로 바꿀 항목"></select>
@@ -514,7 +524,6 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       <button type="button" class="bulk-go" onclick="schedBulkPreview()"><span class="ti">✎</span> 미리보기·적용</button>
       <button type="button" class="bulk-cl" onclick="schedClearSel()">선택해제</button>
     </span>
-    <span class="sched-hint">검색으로 좁힌 뒤 행 왼쪽 ☐ 를 골라(또는 전체선택) 항목·값을 정해 한꺼번에 수정 — <b>프로젝트명을 같게</b> 하면 여러 건이 한 프로젝트로 묶여 보입니다. (수량·단가·금액은 행별로 수정)</span>
   </div>
 
   <div class="sched-wrap" id="schedWrap">
@@ -888,6 +897,15 @@ function buildColsMenu(){
 }
 function toggleColsMenu(e){ e.stopPropagation(); document.getElementById('colsPop').classList.toggle('show'); }
 _on(document,'click',(e)=>{ if(!e.target.closest('.cols-menu')){ const p=document.getElementById('colsPop'); if(p) p.classList.remove('show'); }});
+// v5H226z547: '⚙ 도구' 접이 패널 토글(보조 도구 숨김/펼침)
+function toggleSchedTools(e){ if(e&&e.stopPropagation) e.stopPropagation();
+  var p=document.getElementById('schedToolsPanel'), g=document.querySelector('.sched-gear');
+  if(!p) return;
+  var open=p.hasAttribute('hidden');
+  if(open){ p.removeAttribute('hidden'); if(g) g.classList.add('on'); }
+  else { p.setAttribute('hidden',''); if(g) g.classList.remove('on');
+    var cp=document.getElementById('colsPop'); if(cp) cp.classList.remove('show'); }
+}
 
 // ---- 날짜 너비 / 표시 범위 ----
 function stepDateW(dir){
