@@ -2878,6 +2878,63 @@ async def work_order_status(req: Request, wid: int):
     return JSONResponse({"ok": True})
 
 
+@app.get("/work-orders", response_class=HTMLResponse)
+async def work_orders_dashboard(request: Request, status: str = "", kind: str = ""):
+    """v5H226z521 (대표 지시): 지시자 대시보드 — '내가 시킨 일'(+우리 부서로 보낸 일·관리자=전체)의
+    진행률·지연을 한눈에. 읽기전용 표 + 요약. 일일업무 '내가 시킨 일'의 풀버전."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from datetime import date as _date, datetime as _dt2
+    is_admin = bool((u.get("role") or "") in ("admin", "ceo") or u.get("is_admin"))
+    today = _date.today()
+    rows = []
+    summary = {"total": 0, "active": 0, "done": 0, "rejected": 0, "delayed": 0}
+    try:
+        with db_session() as c:
+            led = [r[0] for r in c.execute("SELECT id FROM teams WHERE leader_id=?", (u["id"],)).fetchall()]
+            if is_admin:
+                where, params = "1=1", []
+            else:
+                conds, params = ["w.created_by=?"], [u["id"]]
+                if led:
+                    ph = ",".join("?" * len(led)); conds.append(f"w.target_team_id IN ({ph})"); params += led
+                where = "(" + " OR ".join(conds) + ")"
+            allrows = [dict(r) for r in c.execute(
+                "SELECT w.*, COALESCE(tu.name,'') AS tu_name FROM work_order w "
+                "LEFT JOIN users tu ON tu.id=w.target_user_id WHERE " + where + " "
+                "ORDER BY CASE w.status WHEN '진행' THEN 0 WHEN '받음' THEN 1 WHEN '완료' THEN 2 ELSE 3 END, "
+                "COALESCE(NULLIF(w.due_date,''),'9999-12-31'), w.id DESC LIMIT 500", tuple(params)).fetchall()]
+        for w in allrows:
+            st = w.get("status") or "받음"
+            _delayed = (st in ("받음", "진행") and (w.get("due_date") or "") and str(w["due_date"])[:10] < today.isoformat())
+            w["delayed"] = _delayed
+            w["target_disp"] = (w.get("tu_name") or w.get("target_label") or "") + ("" if w.get("target_user_id") else " (부서)")
+            try:
+                w["dday"] = ((_dt2.strptime(str(w["due_date"])[:10], "%Y-%m-%d").date() - today).days
+                             if w.get("due_date") else None)
+            except Exception:
+                w["dday"] = None
+            summary["total"] += 1
+            if st in ("받음", "진행"):
+                summary["active"] += 1
+            elif st == "완료":
+                summary["done"] += 1
+            elif st == "반려":
+                summary["rejected"] += 1
+            if _delayed:
+                summary["delayed"] += 1
+        # 필터(표시용) — 요약은 전체 기준
+        rows = [w for w in allrows
+                if (not status or (w.get("status") or "받음") == status)
+                and (not kind or (w.get("kind") or "") == kind)]
+    except Exception as _e:
+        print(f"[WO-DASH ERR] {_e}")
+    return ctx(request, "work_orders.html", user=u, active="work_orders",
+               rows=rows, summary=summary, f_status=status, f_kind=kind,
+               is_admin=is_admin, today=today.isoformat())
+
+
 _TASK_STATUSES = ("진행중", "완료", "지연", "보류", "취소")
 _TASK_CATEGORIES = ("영업", "구매", "생산", "품질", "기술", "관리", "출장", "회의", "교육", "기타")
 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>내가 시킨 일 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* v5H226z521 (대표 지시): 지시자 대시보드 — 내가 시킨 일/우리 부서로 보낸 일 진행·지연 */
+.wod-wrap{margin:0 var(--content-pad) var(--space-6);}
+.wod-intro{font-size:12.5px;color:#64748b;margin:2px 0 14px;line-height:1.6;}
+.wod-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;}
+.wod-kpi{background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px 14px;}
+.wod-kpi .lab{font-size:11.5px;color:#64748b;font-weight:600;}
+.wod-kpi .num{font-size:24px;font-weight:800;margin-top:3px;}
+.wod-kpi.k-active .num{color:#2563eb;} .wod-kpi.k-done .num{color:#15803d;}
+.wod-kpi.k-delay .num{color:#dc2626;} .wod-kpi.k-rej .num{color:#92400e;}
+.wod-filters{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;align-items:center;}
+.wod-filters .grp{display:flex;gap:6px;}
+.wod-chip{padding:5px 12px;border:1px solid var(--line);border-radius:18px;font-size:12px;font-weight:700;text-decoration:none;color:var(--qv-ink-2);background:var(--paper-2);}
+.wod-chip:hover{border-color:var(--knk-red);color:var(--knk-red);}
+.wod-chip.on{background:var(--knk-red);color:#fff;border-color:var(--knk-red);}
+.wod-sep{width:1px;height:18px;background:var(--line);margin:0 4px;}
+table.wod{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+table.wod th{background:#f4f1ea;color:#4b5563;font-weight:800;font-size:11.5px;padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);}
+table.wod td{padding:8px 10px;border-bottom:1px solid #eef2f7;color:#334155;vertical-align:middle;}
+table.wod tr:hover td{background:#fcfaf3;}
+table.wod tr.delay td{background:#fef5f5;}
+.wo-badge{font-size:10.5px;font-weight:800;border-radius:6px;padding:1px 7px;color:#fff;}
+.wo-badge.지시{background:#dc2626;} .wo-badge.요청{background:#2563eb;}
+.wo-prio{font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 6px;}
+.wo-prio.긴급{background:#fee2e2;color:#b91c1c;} .wo-prio.높음{background:#ffedd5;color:#c2410c;}
+.wo-prio.보통{background:#f1f5f9;color:#475569;} .wo-prio.낮음{background:#f8fafc;color:#94a3b8;}
+.wo-st{font-size:11px;font-weight:700;border-radius:6px;padding:2px 8px;}
+.wo-st.받음{background:#eef2ff;color:#4338ca;} .wo-st.진행{background:#fef9c3;color:#854d0e;}
+.wo-st.완료{background:#dcfce7;color:#15803d;} .wo-st.반려{background:#fee2e2;color:#b91c1c;}
+.wod-dday{font-weight:800;} .wod-dday.over{color:#dc2626;} .wod-dday.soon{color:#c2410c;}
+.wod-empty{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:34px 20px;text-align:center;color:#94a3b8;font-size:13px;}
+@media (max-width:900px){ .wod-kpis{grid-template-columns:repeat(2,1fr);} table.wod{display:block;overflow-x:auto;} }
+</style></head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head" data-dn="wod-pagehead">
+    <div>
+      <div class="page-meta">{{ today }} · 지시/요청 추적</div>
+      <h1 class="page-title">📋 내가 시킨 <em>일</em></h1>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-secondary" href="/daily">↩ 일일업무</a>
+    </div>
+  </div>
+
+  <div class="wod-wrap">
+    <div class="wod-intro">
+      {% if is_admin %}<b>관리자</b> — 전사 지시/요청을 모두 봅니다.{% else %}내가 보낸 <b>지시·요청</b>{% if true %} + 우리 부서(팀장)로 보낸 일{% endif %}을 봅니다.{% endif %}
+      완료/반려는 받은 사람이 보고하면 자동 반영됩니다.
+    </div>
+
+    <div class="wod-kpis">
+      <div class="wod-kpi"><div class="lab">전체</div><div class="num">{{ summary.total }}</div></div>
+      <div class="wod-kpi k-active"><div class="lab">진행 중(받음+진행)</div><div class="num">{{ summary.active }}</div></div>
+      <div class="wod-kpi k-done"><div class="lab">완료</div><div class="num">{{ summary.done }}</div></div>
+      <div class="wod-kpi k-delay"><div class="lab">지연</div><div class="num">{{ summary.delayed }}</div></div>
+      <div class="wod-kpi k-rej"><div class="lab">반려</div><div class="num">{{ summary.rejected }}</div></div>
+    </div>
+
+    {% set _qk = ('&kind=' ~ f_kind) if f_kind else '' %}
+    {% set _qs = ('&status=' ~ f_status) if f_status else '' %}
+    <div class="wod-filters">
+      <div class="grp">
+        <a class="wod-chip {% if not f_status %}on{% endif %}" href="/work-orders?{{ _qk[1:] }}">상태 전체</a>
+        {% for s in ['받음','진행','완료','반려'] %}
+        <a class="wod-chip {% if f_status==s %}on{% endif %}" href="/work-orders?status={{ s }}{{ _qk }}">{{ s }}</a>
+        {% endfor %}
+      </div>
+      <span class="wod-sep"></span>
+      <div class="grp">
+        <a class="wod-chip {% if not f_kind %}on{% endif %}" href="/work-orders?{{ _qs[1:] }}">종류 전체</a>
+        <a class="wod-chip {% if f_kind=='지시' %}on{% endif %}" href="/work-orders?kind=지시{{ _qs }}">지시</a>
+        <a class="wod-chip {% if f_kind=='요청' %}on{% endif %}" href="/work-orders?kind=요청{{ _qs }}">요청</a>
+      </div>
+    </div>
+
+    {% if rows %}
+    <table class="wod">
+      <thead><tr>
+        <th>종류</th><th>우선</th><th>제목</th><th>대상</th><th>지시자</th><th>기한</th><th>D-day</th><th>처리자</th><th>상태</th>
+      </tr></thead>
+      <tbody>
+        {% for w in rows %}
+        <tr class="{% if w.delayed %}delay{% endif %}">
+          <td><span class="wo-badge {{ w.kind }}">{{ w.kind }}</span></td>
+          <td><span class="wo-prio {{ w.priority }}">{{ w.priority }}</span></td>
+          <td title="{{ w.body }}"><b>{{ w.title }}</b>{% if w.project_code %} <span style="color:#94a3b8;font-size:11px;">{{ w.project_code }}</span>{% endif %}</td>
+          <td>{{ w.target_disp }}</td>
+          <td style="color:#64748b;">{{ w.created_by_name }}</td>
+          <td style="color:#475569;">{{ w.due_date or '—' }}</td>
+          <td>{% if w.dday is not none and w.status in ['받음','진행'] %}<span class="wod-dday {% if w.dday < 0 %}over{% elif w.dday <= 2 %}soon{% endif %}">{% if w.dday < 0 %}지연 {{ -w.dday }}일{% else %}D-{{ w.dday }}{% endif %}</span>{% else %}—{% endif %}</td>
+          <td style="color:#475569;">{{ w.accepted_by_name or '—' }}</td>
+          <td><span class="wo-st {{ w.status }}">{{ w.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="wod-empty">해당하는 지시/요청이 없습니다.<br>일일업무의 <b>📌 일 시키기</b>로 일을 보내면 여기에서 진행을 추적할 수 있습니다.</div>
+    {% endif %}
+  </div>
+</main>
+</div>
+</body></html>
