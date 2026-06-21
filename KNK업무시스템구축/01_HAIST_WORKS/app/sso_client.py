@@ -341,17 +341,69 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
 #   발주: _TO_메신저세션/2026-05-31_직원명부API_발주.md
 #   메신저 API 완료 전엔 통신오류 반환(휴면) — 완료되면 즉시 동작.
 # =====================================================
-SSO_SERVICE_KEY = os.environ.get("KNK_SSO_SERVICE_KEY", "")  # 서버↔서버 공유키
+SSO_SERVICE_KEY = os.environ.get("KNK_SSO_SERVICE_KEY", "")  # 서버↔서버 공유키(환경변수)
+
+
+def get_service_key() -> str:
+    """공유키 해석: 환경변수(KNK_SSO_SERVICE_KEY) 우선 → 없으면 WORKS DB(app_settings.sso_service_key).
+    DB는 영구(재부팅 유지)·관리자 페이지(/admin/sso-key)서 설정 가능 → SSH/.env 없이도 동작."""
+    k = (os.environ.get("KNK_SSO_SERVICE_KEY", "") or "").strip()
+    if k:
+        return k
+    try:
+        from . import database as _db
+        return (_db.get_setting("sso_service_key", "") or "").strip()
+    except Exception:
+        return ""
+
+
+def service_key_source() -> str:
+    """'env' | 'db' | 'none' — 키 출처(화면 표시용)."""
+    if (os.environ.get("KNK_SSO_SERVICE_KEY", "") or "").strip():
+        return "env"
+    try:
+        from . import database as _db
+        if (_db.get_setting("sso_service_key", "") or "").strip():
+            return "db"
+    except Exception:
+        pass
+    return "none"
+
+
+def test_directory(key: str = "") -> dict:
+    """주어진(또는 저장된) 공유키로 메신저 명부 API 연결만 시험(저장·반영 안 함).
+    반환: {ok, status, count, base, error}."""
+    k = (key or get_service_key() or "").strip()
+    base = MESSENGER_INTERNAL_BASE
+    if not k:
+        return {"ok": False, "error": "키가 비어 있습니다.", "base": base}
+    url = f"{base}/api/sso/directory"
+    try:
+        r = httpx.get(url, headers={"X-SSO-Service-Key": k}, timeout=15.0)
+    except Exception as e:
+        return {"ok": False, "error": f"메신저 연결 실패(주소/네트워크): {str(e)[:140]}", "base": base}
+    if r.status_code == 403:
+        return {"ok": False, "status": 403, "error": "키 거부(403) — 메신저에 설정된 키와 다릅니다.", "base": base}
+    if r.status_code == 404:
+        return {"ok": False, "status": 404, "error": "명부 API 없음(404) — 메신저 준비 전/미배포.", "base": base}
+    if r.status_code != 200:
+        return {"ok": False, "status": r.status_code, "error": f"오류 응답 {r.status_code}", "base": base}
+    try:
+        cnt = len((r.json() or {}).get("users") or [])
+    except Exception:
+        cnt = 0
+    return {"ok": True, "status": 200, "count": cnt, "base": base}
 
 
 def sync_directory_from_messenger(c) -> dict:
     """메신저 직원 명부를 가져와 전 직원 upsert.
     반환: {ok, synced, total} 또는 {ok:False, error}"""
-    if not SSO_SERVICE_KEY:
-        return {"ok": False, "error": "공유키(KNK_SSO_SERVICE_KEY) 미설정 — NAS .env 에 등록 필요"}
+    _key = get_service_key()
+    if not _key:
+        return {"ok": False, "error": "공유키 미설정 — 관리자 페이지(/admin/sso-key) 또는 NAS .env 에 등록"}
     url = f"{MESSENGER_INTERNAL_BASE}/api/sso/directory"
     try:
-        r = httpx.get(url, headers={"X-SSO-Service-Key": SSO_SERVICE_KEY}, timeout=20.0)
+        r = httpx.get(url, headers={"X-SSO-Service-Key": _key}, timeout=20.0)
     except Exception as e:
         return {"ok": False, "error": f"메신저 연결 실패: {e} (명부 API 준비 전일 수 있음)"}
     if r.status_code == 403:
@@ -399,13 +451,14 @@ def notify_via_messenger(employee_nos, title, body, link="", timeout=10.0) -> di
     emps = [str(e).strip() for e in (employee_nos or []) if str(e).strip()]
     if not emps:
         return {"ok": False, "error": "수신 사번 없음(메신저 통보 생략)"}
-    if not SSO_SERVICE_KEY:
-        return {"ok": False, "error": "공유키(KNK_SSO_SERVICE_KEY) 미설정 — NAS .env 등록 필요"}
+    _key = get_service_key()
+    if not _key:
+        return {"ok": False, "error": "공유키 미설정 — 관리자 페이지(/admin/sso-key) 또는 NAS .env 에 등록"}
     url = f"{MESSENGER_INTERNAL_BASE}/api/works/notify"
     try:
         r = httpx.post(
             url,
-            headers={"X-SSO-Service-Key": SSO_SERVICE_KEY},
+            headers={"X-SSO-Service-Key": _key},
             json={"employee_nos": emps, "title": title, "body": body, "link": link},
             timeout=timeout,
         )
@@ -578,11 +631,12 @@ def sync_employees_from_messenger_api(c) -> dict:
     """v5H226z493 (컨테이너 분리·대표 지시): 메신저 명부를 'GET /api/sso/directory'(HTTP)로 받아 동기화.
     DB 파일 직접읽기(sync_employees_from_messenger_db) 대체 — 분리 후 볼륨 마운트 불필요.
     미리보기/적용은 호출측 commit/rollback. 반환 = _sync_employees_core 동일 형태(+source)."""
-    if not SSO_SERVICE_KEY:
-        return {"ok": False, "error": "공유키(KNK_SSO_SERVICE_KEY) 미설정 — NAS .env 에 등록 필요"}
+    _key = get_service_key()
+    if not _key:
+        return {"ok": False, "error": "공유키 미설정 — 관리자 페이지(/admin/sso-key) 또는 NAS .env 에 등록"}
     url = f"{MESSENGER_INTERNAL_BASE}/api/sso/directory"
     try:
-        r = httpx.get(url, headers={"X-SSO-Service-Key": SSO_SERVICE_KEY}, timeout=20.0)
+        r = httpx.get(url, headers={"X-SSO-Service-Key": _key}, timeout=20.0)
     except Exception as e:
         return {"ok": False, "error": f"메신저 연결 실패: {e} (명부 API 준비 전일 수 있음)"}
     if r.status_code == 403:

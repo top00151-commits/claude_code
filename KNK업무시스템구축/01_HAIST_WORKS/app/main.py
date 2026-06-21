@@ -882,8 +882,8 @@ def _seconds_until_next_0410():
 def _run_directory_autosync():
     """하루 1회 자동 명부 동기화. 공유키 없으면 건너뜀. 적용 전 DB 백업(자동백업 최근 7개만 보존)."""
     from . import sso_client
-    if not getattr(sso_client, "SSO_SERVICE_KEY", ""):
-        print("[DIR-SYNC] 공유키(KNK_SSO_SERVICE_KEY) 미설정 — 자동 명부 동기화 건너뜀(설정되면 자동 동작)")
+    if not sso_client.get_service_key():   # env 또는 DB(관리자 페이지 저장) 키
+        print("[DIR-SYNC] 공유키 미설정(env·DB 모두) — 자동 명부 동기화 건너뜀(설정되면 자동 동작)")
         return
     from .database import get_db, DB_PATH
     import shutil as _sh, datetime as _dt, os as _os
@@ -7388,6 +7388,55 @@ async def admin_sync_employees_apply(req: Request, confirm: str = Form("")):
                    preview=_preview(), done=None, error=res.get("error"))
     return ctx(req, "admin_sync_employees.html", user=u, active="admin",
                preview=res, done=res, error=None)
+
+
+# v5H226z527 (대표 지시): 공유키 입력·연결확인 페이지 — SSH/.env 없이 관리자 페이지서 키 등록.
+#   키는 WORKS DB(app_settings.sso_service_key)에 저장(영구·재부팅 유지). env 가 있으면 env 우선.
+@app.get("/admin/sso-key", response_class=HTMLResponse)
+async def admin_sso_key_page(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import sso_client
+    cur = sso_client.get_service_key()
+    masked = (cur[:2] + "•" * 6 + cur[-2:]) if len(cur) >= 6 else ("설정됨" if cur else "")
+    return ctx(req, "admin_sso_key.html", user=u, active="admin",
+               src=sso_client.service_key_source(), masked=masked,
+               base=sso_client.MESSENGER_INTERNAL_BASE)
+
+
+@app.post("/admin/sso-key/test")
+async def admin_sso_key_test(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    try:
+        b = await req.json()
+    except Exception:
+        b = {}
+    from . import sso_client
+    return JSONResponse(sso_client.test_directory((b.get("key") or "").strip()))
+
+
+@app.post("/admin/sso-key/save")
+async def admin_sso_key_save(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    try:
+        b = await req.json()
+    except Exception:
+        b = {}
+    key = (b.get("key") or "").strip()
+    from .database import set_setting
+    try:
+        set_setting("sso_service_key", key, u.get("id"), "메신저 SSO 공유키(서버↔서버)")
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"저장 실패: {e}"}, 500)
+    from . import sso_client
+    res = sso_client.test_directory(key) if key else {"ok": True, "cleared": True, "base": sso_client.MESSENGER_INTERNAL_BASE}
+    res["saved"] = True
+    return JSONResponse(res)
 
 
 @app.get("/admin/health", response_class=HTMLResponse)
