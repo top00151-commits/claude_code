@@ -137,25 +137,46 @@ tbody tr:hover td { background: var(--amber-glow); }
             <a class="btn btn-primary" href="/admin/users/new">＋ 사용자 추가</a>
           </div>
         </div>
-        <table>
+        <!-- v5H226z529 (대표 지시): 법인(본사/베트남법인)·부서·직급 구분 필터 + 검색 -->
+        <style>
+        .ucf{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 12px;}
+        .ucf select,.ucf input{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;}
+        .corp-badge{font-size:10.5px;font-weight:800;border-radius:7px;padding:1px 8px;background:#e2e8f0;color:#475569;white-space:nowrap;}
+        .corp-badge.vn{background:#dbeafe;color:#1d4ed8;}
+        </style>
+        <div class="ucf">
+          <select id="ucfCorp" onchange="ucfApply()"><option value="">법인 전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
+          <select id="ucfDept" onchange="ucfApply()"><option value="">부서 전체</option></select>
+          <select id="ucfRank" onchange="ucfApply()"><option value="">직급 전체</option></select>
+          <input id="ucfQ" oninput="ucfApply()" placeholder="이름·사번·메일 검색">
+          <span id="ucfCnt" style="color:var(--mute);font-size:12.5px;"></span>
+        </div>
+        <table id="usersTbl">
           <thead>
             <tr>
-              <th style="width:60px;">ID</th>
+              <th style="width:50px;">ID</th>
               <th>이름</th>
               <th>사번 / 이메일</th>
-              <th>팀</th>
-              <th style="width:90px;text-align:center;">권한</th>
-              <th style="width:80px;text-align:center;">상태</th>
-              <th style="width:100px;text-align:center;">작업</th>
+              <th style="width:96px;">법인</th>
+              <th>부서</th>
+              <th style="width:90px;">직급</th>
+              <th style="width:80px;text-align:center;">권한</th>
+              <th style="width:70px;text-align:center;">상태</th>
+              <th style="width:80px;text-align:center;">작업</th>
             </tr>
           </thead>
           <tbody>
           {% for u in users %}
-            <tr>
+            {% set _corp = '베트남법인' if u.team_id==12 else '본사' %}
+            {% set _dept = u.team_name or '미지정' %}
+            {% set _rank = u.rank or '' %}
+            <tr class="urow" data-corp="{{ _corp }}" data-dept="{{ _dept }}" data-rank="{{ _rank }}" data-q="{{ (vname(u) ~ ' ' ~ (u.login_id or '') ~ ' ' ~ (u.email or ''))|lower }}">
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ u.id }}</td>
-              <td><b>{{ vname(u) }}</b>{% if u.rank %} {{ u.rank }}{% endif %}</td>
+              <td><b>{{ vname(u) }}</b></td>
               <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ u.login_id }}{% if u.email %}<br>{{ u.email }}{% endif %}</td>
-              <td>{{ u.team_name|default('—') }}</td>
+              <td><span class="corp-badge {% if u.team_id==12 %}vn{% endif %}">{{ _corp }}</span></td>
+              <td>{{ _dept }}</td>
+              <td>{{ _rank or '—' }}</td>
               <td style="text-align:center;">
                 <span class="role-badge role-{{ u.role|default('member') }}">{{ u.role|default('member') }}</span>
               </td>
@@ -167,10 +188,30 @@ tbody tr:hover td { background: var(--amber-glow); }
               </td>
             </tr>
           {% else %}
-            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--mute);">등록된 사용자가 없습니다.</td></tr>
+            <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--mute);">등록된 사용자가 없습니다.</td></tr>
           {% endfor %}
           </tbody>
         </table>
+        <script>
+        (function(){
+          var tbl=document.getElementById('usersTbl'); if(!tbl) return;
+          var rows=Array.prototype.slice.call(tbl.querySelectorAll('tbody tr.urow'));
+          function uniq(attr){ var s={}; rows.forEach(function(r){ var v=r.getAttribute(attr)||''; if(v) s[v]=1; }); return Object.keys(s).sort(); }
+          function fill(id, vals){ var sel=document.getElementById(id); if(!sel) return; vals.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); }); }
+          fill('ucfDept', uniq('data-dept')); fill('ucfRank', uniq('data-rank'));
+          window.ucfApply=function(){
+            var corp=document.getElementById('ucfCorp').value, dept=document.getElementById('ucfDept').value,
+                rank=document.getElementById('ucfRank').value, q=(document.getElementById('ucfQ').value||'').toLowerCase().trim(), n=0;
+            rows.forEach(function(r){
+              var ok=(!corp||r.getAttribute('data-corp')===corp)&&(!dept||r.getAttribute('data-dept')===dept)
+                   &&(!rank||r.getAttribute('data-rank')===rank)&&(!q||(r.getAttribute('data-q')||'').indexOf(q)>=0);
+              r.style.display=ok?'':'none'; if(ok)n++;
+            });
+            var c=document.getElementById('ucfCnt'); if(c) c.textContent=n+'명 표시';
+          };
+          ucfApply();
+        })();
+        </script>
       </div>
     </div>
 
