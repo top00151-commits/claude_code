@@ -8575,7 +8575,16 @@ async def admin_users_delete(req: Request, uid: int):
             _cnt = c.execute("SELECT COUNT(*) FROM users WHERE role IN ('admin','ceo')").fetchone()[0]
             if _cnt <= 1:
                 return JSONResponse({"ok": False, "error": "마지막 관리자/대표 계정은 삭제할 수 없습니다."}, 400)
-        c.execute("DELETE FROM users WHERE id=?", (uid,))
+        # v5H226z538: PROD는 PRAGMA foreign_keys=ON 이라, 이 사용자를 참조하는 다른 테이블(작성이력 등)이
+        #             있으면 DELETE 가 IntegrityError → 처리 안 된 500 → 화면엔 "통신 오류"로 보였음.
+        #             삭제 대상은 placeholder/불필요 계정이므로, FK 강제를 잠깐 끄고 본행만 확실히 제거(참조는
+        #             고아가 되어 "—"로 표시 — z532 설계와 동일). PRAGMA 는 트랜잭션 밖(앞선 건 SELECT뿐)에서 실행.
+        try:
+            c.execute("PRAGMA foreign_keys=OFF")
+            c.execute("DELETE FROM users WHERE id=?", (uid,))
+            c.execute("PRAGMA foreign_keys=ON")
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": f"삭제 중 오류: {e}"}, 500)
     return JSONResponse({"ok": True, "name": row.get("name")})
 
 
