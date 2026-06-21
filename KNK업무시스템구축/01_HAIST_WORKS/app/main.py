@@ -8593,6 +8593,16 @@ async def admin_users_edit_submit(req: Request, uid: int):
             "FROM users WHERE id=?", (uid,)
         ).fetchone()
         old_data = dict(old_row) if old_row else {}
+        # v5H226z536: 사번(=로그인ID) 중복 사전검사 — 다른 사용자가 이미 쓰면 차단(조용히 실패 금지)
+        _sabeon = (form.get("login_id") or "").strip()
+        if _sabeon:
+            _dup = c.execute(
+                "SELECT name FROM users WHERE id<>? AND (login_id=? OR COALESCE(employee_no,'')=?)",
+                (uid, _sabeon, _sabeon)).fetchone()
+            if _dup:
+                from urllib.parse import quote as _q
+                return RedirectResponse(
+                    f"/admin/users/{uid}/edit?error=dup&val={_q(_sabeon)}&dupname={_q(_dup[0] or '')}", 303)
         # 비번 변경된 경우만 갱신
         new_pw = (form.get("password") or "").strip()
         if new_pw:

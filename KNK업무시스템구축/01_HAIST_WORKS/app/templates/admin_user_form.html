@@ -26,6 +26,15 @@
     </div>
   </div>
 
+  {% set _err = request.query_params.get('error') if request else '' %}
+  {% if _err %}
+  <div style="margin:0 0 14px;padding:11px 15px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:10px;font-size:13px;line-height:1.6;">
+    {% if _err=='dup' %}⚠ 사번/로그인ID <b>'{{ request.query_params.get('val','') }}'</b> 은(는) 이미 <b>{{ request.query_params.get('dupname','다른 사용자') }}</b>님이 사용 중이라 저장하지 못했습니다.<br><span style="color:#7f1d1d;font-size:12px;">→ 그 중복 사용자를 먼저 정리(삭제/비활성)하거나, 다른 사번을 쓰세요.</span>
+    {% elif _err=='required' %}⚠ 필수 항목(이름·사번)을 입력하세요.
+    {% elif _err=='duplicate' %}⚠ 이미 사용 중인 로그인ID입니다.
+    {% else %}⚠ 저장 중 문제: {{ _err }}{% endif %}
+  </div>
+  {% endif %}
   <form class="form-card" method="POST" action="{% if target_user %}/admin/users/{{ target_user.id }}/edit{% else %}/admin/users/new{% endif %}" autocomplete="off">
     <div class="frow">
       <div class="fld">
