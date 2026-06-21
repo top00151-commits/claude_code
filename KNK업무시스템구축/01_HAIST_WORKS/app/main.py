@@ -9049,7 +9049,8 @@ async def sales_opportunity_new(request: Request):
         return RedirectResponse(role_home(u), 303)
     with db_session() as c:
         owners = [dict(r) for r in c.execute(
-            "SELECT id, name FROM users WHERE COALESCE(is_active,1)=1 ORDER BY name").fetchall()]
+            "SELECT u.id, u.name, COALESCE(u.team_id,0) AS team_id FROM users u "
+            "WHERE COALESCE(u.is_active,1)=1 ORDER BY (u.team_id=12), u.name").fetchall()]   # v5H226z525: 본사 먼저·베트남법인(12) 뒤
         quotations = _opp_quotations(c)
         teams = _teams_for_request(c)
     return ctx(request, "sales_opportunity_form.html", user=u, opp=None, owners=owners,
@@ -9074,7 +9075,8 @@ async def sales_opportunity_detail(request: Request, oid: int):
             return RedirectResponse("/sales/opportunities", 303)
         o = dict(o)
         owners = [dict(r) for r in c.execute(
-            "SELECT id, name FROM users WHERE COALESCE(is_active,1)=1 ORDER BY name").fetchall()]
+            "SELECT u.id, u.name, COALESCE(u.team_id,0) AS team_id FROM users u "
+            "WHERE COALESCE(u.is_active,1)=1 ORDER BY (u.team_id=12), u.name").fetchall()]   # v5H226z525: 본사 먼저·베트남법인(12) 뒤
         promoted = None
         if o.get("promoted_project_id"):
             pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?",

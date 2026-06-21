@@ -111,7 +111,16 @@
           <div class="op-f"><label>영업 담당</label>
             <select name="owner_user_id" {% if not can_edit %}disabled{% endif %}>
               <option value="">— 선택 —</option>
-              {% for ow in owners %}<option value="{{ ow.id }}" {{ 'selected' if opp and opp.owner_user_id==ow.id }}>{{ ow.name }}</option>{% endfor %}
+              {# v5H226z525 (대표 지시): 본사 / 베트남법인(team 12) 구분 — 이름은 등록된 그대로 #}
+              <optgroup label="본사">
+                {% for ow in owners if ow.team_id != 12 %}<option value="{{ ow.id }}" {{ 'selected' if opp and opp.owner_user_id==ow.id }}>{{ ow.name }}</option>{% endfor %}
+              </optgroup>
+              {% set _vn = owners|selectattr('team_id','equalto',12)|list %}
+              {% if _vn %}
+              <optgroup label="베트남법인">
+                {% for ow in _vn %}<option value="{{ ow.id }}" {{ 'selected' if opp and opp.owner_user_id==ow.id }}>{{ ow.name }}</option>{% endfor %}
+              </optgroup>
+              {% endif %}
             </select></div>
           <div class="op-f"><label>예상 수주월</label>
             <input type="month" name="expected_order_ym" value="{{ opp.expected_order_ym|default('') }}" {% if not can_edit %}disabled{% endif %}></div>
