@@ -2678,6 +2678,8 @@ async def daily_page(req: Request, sel_date: str = ""):
 
     # v5H226z518 (대표 지시): 내 업무함 — 받은 지시/요청 + 내가 시킨 일 + 대상(사람/부서) 목록
     wo_directed, wo_requested, wo_created, wo_users, wo_teams = [], [], [], [], []
+    flow_requests, flow_stage, my_team_name = [], [], ""   # v5H226z520: 흐름에서 온 일
+    _can_money_daily = bool(can_view_sales(u))
     try:
         with db_session() as c2:
             _myteam = u.get("team_id") or 0
@@ -2697,8 +2699,26 @@ async def daily_page(req: Request, sel_date: str = ""):
                 "WHERE COALESCE(u.is_active,1)=1 AND u.id<>? ORDER BY t.name, u.name", (u["id"],)).fetchall()]
             wo_teams = [dict(r) for r in c2.execute(
                 "SELECT id, name FROM teams ORDER BY display_order, name").fetchall()]
+            # v5H226z520 (흐름 통합): 부서 요청 — 내가 PM/멤버이고 미완(done/canceled 제외)
+            _tn = c2.execute("SELECT name FROM teams WHERE id=?", (_myteam,)).fetchone()
+            my_team_name = (_tn[0] if _tn else "") or ""
+            flow_requests = [dict(r) for r in c2.execute(
+                "SELECT r.id, r.title, r.detail, r.status, r.due_date, t.name AS team_name "
+                "FROM opp_dept_requests r LEFT JOIN teams t ON t.id=r.team_id "
+                "WHERE (r.pm_user_id=? OR r.id IN (SELECT request_id FROM opp_request_members WHERE user_id=?)) "
+                "AND COALESCE(r.status,'') NOT IN ('done','canceled') ORDER BY r.id DESC LIMIT 20",
+                (u["id"], u["id"])).fetchall()]
+            for _fr in flow_requests:
+                _fr["status_label"] = OPPREQ_STATUS.get(_fr.get("status"), _fr.get("status"))
     except Exception as _e:
         print(f"[DAILY-WO ERR] {_e}")
+    # v5H226z520 (흐름 통합): 단계 작업 큐 — 내 부서 착수가능+진행중 (공용 헬퍼·별도 세션이라 c2 밖)
+    if my_team_name:
+        try:
+            _q_doing, _q_ready, _q_done, _q_td = _stage_queue_for(my_team_name, _can_money_daily)
+            flow_stage = (_q_ready + _q_doing)[:10]
+        except Exception as _e:
+            print(f"[DAILY-STAGE ERR] {_e}")
 
     return ctx(
         req, "daily.html",
@@ -2710,6 +2730,7 @@ async def daily_page(req: Request, sel_date: str = ""):
         wf_cards=wf_cards,  # z107: 워크플로우 업무카드
         wo_directed=wo_directed, wo_requested=wo_requested, wo_created=wo_created,
         wo_users=wo_users, wo_teams=wo_teams,   # v5H226z518: 내 업무함
+        flow_requests=flow_requests, flow_stage=flow_stage, my_team_name=my_team_name,  # v5H226z520: 흐름에서 온 일
     )
 
 
@@ -19437,30 +19458,12 @@ async def schedule_tax_invoice_cancel(request: Request, ti_id: int):
     return JSONResponse({"ok": True})
 
 
-@app.get("/dept/stage-work", response_class=HTMLResponse)
-async def dept_stage_work(request: Request, dept: str = ""):
-    """v5H226z478 (대표 지시·Phase 1b): '내 부서 단계 작업' 큐 — 우리 부서가 ①착수 가능 ②진행중 ③최근 완료한
-    단계를 한눈에. 누구나 열람(부서 선택)·기본=내 팀. 착수/완료는 기존 /sales/schedule/stage 로 처리(재사용)."""
-    u = get_user(request)
-    if not u:
-        return RedirectResponse("/login", 303)
+def _stage_queue_for(sel_dept, can_money):
+    """v5H226z520 (대표 지시·흐름 통합): 단계 작업 큐(착수가능 ready / 진행중 doing / 최근완료 done) 산출.
+    '내 부서 단계 작업'(/dept/stage-work)과 일일업무 '흐름에서 온 일'(daily)이 공유(중복 제거).
+    sel_dept='' 면 전 부서. 반환=(doing, ready, done[:50], today)."""
     from datetime import date as _date, datetime as _dt2
-    can_money = bool(can_view_sales(u))
-    my_team = ""
-    tid = u.get("team_id")
-    if tid:
-        try:
-            with db_session() as _c:
-                _r = _c.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()
-                if _r:
-                    my_team = _r[0] or ""
-        except Exception:
-            my_team = ""
-    all_depts = sorted({d for m in _logi.STAGE_OWNERS_BY_DIV.values() for d in m.values() if d}
-                       | {d for m in _logi.STAGE_SUB_OWNERS_BY_DIV.values() for d in m.values() if d})
-    sel_dept = (dept or "").strip()
-    if not sel_dept:
-        sel_dept = my_team if my_team in all_depts else ""
+    from . import consumables as _co_mod
     log_map = _logi.stage_log_all_map()
     today = _date.today()
     doing, ready, done = [], [], []
@@ -19510,7 +19513,6 @@ async def dept_stage_work(request: Request, dept: str = ""):
                     done.append(item)
                 elif prereq:
                     ready.append(item)
-                # todo & 직전 단계 미완 = '대기' → 큐에 안 띄움(앞 단계 끝나면 착수가능으로 올라옴)
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("status") or "") == "취소":
             continue
@@ -19520,7 +19522,6 @@ async def dept_stage_work(request: Request, dept: str = ""):
         div = code[3] if (len(code) >= 4 and code[3] in "TMLEC") else ((p.get("biz_div") or "").upper())
         _proc("project", p.get("id"), code, p.get("name") or "", div, p.get("due_date"), p.get("model_name") or "")
     try:
-        from . import consumables as _co_mod
         for cr in _co_mod.co_list(status="", q="", limit=1000):
             if (cr.get("status") or "") == "CANCELLED":
                 continue
@@ -19531,7 +19532,35 @@ async def dept_stage_work(request: Request, dept: str = ""):
     doing.sort(key=lambda x: (x["dday"] if x["dday"] is not None else 9999, x["code"]))
     ready.sort(key=lambda x: (x["dday"] if x["dday"] is not None else 9999, x["code"]))
     done.sort(key=lambda x: (x["on_date"] or ""), reverse=True)
-    done = done[:50]
+    return doing, ready, done[:50], today
+
+
+@app.get("/dept/stage-work", response_class=HTMLResponse)
+async def dept_stage_work(request: Request, dept: str = ""):
+    """v5H226z478 (대표 지시·Phase 1b): '내 부서 단계 작업' 큐 — 우리 부서가 ①착수 가능 ②진행중 ③최근 완료한
+    단계를 한눈에. 누구나 열람(부서 선택)·기본=내 팀. 착수/완료는 기존 /sales/schedule/stage 로 처리(재사용)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from datetime import date as _date, datetime as _dt2
+    can_money = bool(can_view_sales(u))
+    my_team = ""
+    tid = u.get("team_id")
+    if tid:
+        try:
+            with db_session() as _c:
+                _r = _c.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()
+                if _r:
+                    my_team = _r[0] or ""
+        except Exception:
+            my_team = ""
+    all_depts = sorted({d for m in _logi.STAGE_OWNERS_BY_DIV.values() for d in m.values() if d}
+                       | {d for m in _logi.STAGE_SUB_OWNERS_BY_DIV.values() for d in m.values() if d})
+    sel_dept = (dept or "").strip()
+    if not sel_dept:
+        sel_dept = my_team if my_team in all_depts else ""
+    # v5H226z520: 단계 큐 산출은 공용 헬퍼로(일일업무 '흐름에서 온 일'과 공유·중복 제거)
+    doing, ready, done, today = _stage_queue_for(sel_dept, can_money)
     return ctx(request, "dept_stage_work.html", user=u, active="dept_stage_work",
                my_team=my_team, all_depts=all_depts, sel_dept=sel_dept, can_money=can_money,
                doing=doing, ready=ready, done=done, today=today.isoformat())

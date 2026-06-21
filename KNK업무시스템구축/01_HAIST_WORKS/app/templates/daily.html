@@ -216,6 +216,37 @@
   </div>
   {% endif %}
 
+  <!-- v5H226z520 (대표 지시·흐름 통합): 흐름에서 온 일 — 단계 작업 큐 + 부서 요청 -->
+  <style>
+  .wo-badge.flow{background:#0f766e;} .wo-badge.flowreq{background:#15803d;}
+  .wo-sec.wo-flow .wo-card{border-left-color:#0f766e;}
+  .wo-flow-card{display:block;text-decoration:none;color:inherit;}
+  .wo-flow-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.08);}
+  </style>
+  {% if flow_stage or flow_requests %}
+  <div class="wo-sec wo-flow" data-dn="wo-flow">
+    <h2>🔀 흐름에서 온 일 ({{ (flow_stage|length) + (flow_requests|length) }}){% if my_team_name %} · {{ my_team_name }}{% endif %}</h2>
+    <div class="wo-grid">
+      {% for s in flow_stage %}
+      <a class="wo-card wo-flow-card" href="/dept/stage-work{% if my_team_name %}?dept={{ my_team_name|urlencode }}{% endif %}">
+        <div class="wo-top">
+          <span class="wo-badge flow">단계</span>
+          {% if s.dday is not none %}<span class="wo-prio {% if s.dday < 0 %}긴급{% elif s.dday <= 2 %}높음{% else %}보통{% endif %}">{% if s.dday < 0 %}지연 {{ -s.dday }}일{% else %}D-{{ s.dday }}{% endif %}</span>{% endif %}
+          <span class="wo-title">{{ s.stage_label }}</span>
+        </div>
+        <div class="wo-meta">{{ s.code }}{% if s.model %} · {{ s.model }}{% endif %}{% if s.due %} · 납기 {{ s.due }}{% endif %} · {% if s.on_date %}진행중{% else %}착수 가능{% endif %}</div>
+      </a>
+      {% endfor %}
+      {% for r in flow_requests %}
+      <a class="wo-card wo-flow-card" href="/dept/requests">
+        <div class="wo-top"><span class="wo-badge flowreq">부서요청</span><span class="wo-title">{{ r.title or '(요청)' }}</span></div>
+        <div class="wo-meta">{{ r.team_name or '' }}{% if r.due_date %} · 기한 {{ r.due_date }}{% endif %} · {{ r.status_label or r.status }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- z107: 워크플로우 업무카드 (배정된 노드) -->
   {% if wf_cards %}
   <div class="section" data-dn="daily-wfcards">
