@@ -433,11 +433,11 @@
           <select id="woTgtType" onchange="woTgtSwitch()"><option value="user">사람</option><option value="team">부서</option></select></div>
         <div class="wo-f" id="woUserWrap"><label>받을 사람</label>
           <select id="woUser"><option value="">선택</option>
-            {% for x in wo_users %}<option value="{{ x.id }}">{{ x.name }}{% if x.team %} ({{ x.team }}){% endif %}</option>{% endfor %}
+            {% for x in wo_users %}<option value="{{ x.id }}">{{ x.name }}{% if x.team %} ({{ teamlabel(x.team, x.team_entity) }}){% endif %}</option>{% endfor %}
           </select></div>
         <div class="wo-f" id="woTeamWrap" style="display:none;"><label>받을 부서</label>
           <select id="woTeam"><option value="">선택</option>
-            {% for t in wo_teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+            {% for t in wo_teams %}<option value="{{ t.id }}">{{ teamlabel(t.name, t.entity) }}</option>{% endfor %}
           </select></div>
         <div class="wo-f"><label>제목 *</label><input type="text" id="woTitle" placeholder="무슨 일인지 한 줄로"></div>
         <div class="wo-f"><label>내용</label><textarea id="woBody" rows="3" placeholder="상세 내용(선택)"></textarea></div>

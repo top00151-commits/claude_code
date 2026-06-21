@@ -62,7 +62,7 @@
         <select name="team_id">
           <option value="">— 미배정 —</option>
           {% for t in teams %}
-          <option value="{{ t.id }}" {% if target_user and target_user.team_id == t.id %}selected{% endif %}>{{ t.name }} ({{ t.code }})</option>
+          <option value="{{ t.id }}" {% if target_user and target_user.team_id == t.id %}selected{% endif %}>{{ teamlabel(t.name, t.entity) }} ({{ t.code }})</option>
           {% endfor %}
         </select>
         {# v5H226z539: 메신저 부서(원본) 노출 — 매핑 안 된 경우에도 메신저와 비교 가능 #}

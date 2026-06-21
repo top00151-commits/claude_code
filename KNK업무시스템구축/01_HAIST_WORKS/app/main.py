@@ -306,6 +306,34 @@ tpl.env.globals["qtyfmt"] = _fmt_qty
 tpl.env.globals["pricefmt"] = _fmt_price
 
 
+def _team_label(name, entity=None):
+    """v5H226z542: 팀 이름 앞에 법인(본사/베트남)을 붙여 표시 — 본사/베트남 부서 구분.
+    entity 미지정(베트남법인 버킷·테스트팀 등)은 이름 그대로."""
+    nm = (name or "").strip()
+    if not nm:
+        return nm
+    e = (str(entity or "").strip().upper())
+    if e in ("VN", "VNM"):
+        return "베트남 · " + nm
+    if e in ("KOR", "KR", "KO"):
+        return "본사 · " + nm
+    return nm
+
+
+tpl.env.filters["teamlabel"] = _team_label
+tpl.env.globals["teamlabel"] = _team_label
+
+
+def _parse_team_label(label):
+    """'본사 · 설계팀' → ('설계팀','KOR') / '베트남 · 설계팀' → ('설계팀','VN') / 그 외 → (원문,None).
+    v5H226z542: 부서 일정표 등에서 라벨로 저장된 부서를 팀(이름+법인)으로 되돌릴 때."""
+    s = (label or "").strip()
+    for pre, ent in (("본사 · ", "KOR"), ("베트남 · ", "VN")):
+        if s.startswith(pre):
+            return s[len(pre):].strip(), ent
+    return s, None
+
+
 # v5H226z123 (2026-05-31): 앱 버전(배포 감지용) — git 커밋 해시.
 # 배포(git pull + 재시작) 때마다 값이 바뀜 → 프론트가 주기 확인해 '새 버전' 안내.
 def _compute_app_version():
@@ -2824,10 +2852,15 @@ async def daily_page(req: Request, sel_date: str = ""):
                 "SELECT * FROM work_order WHERE created_by=? AND COALESCE(status,'') NOT IN ('완료','반려') "
                 "ORDER BY id DESC LIMIT 60", (u["id"],)).fetchall()]
             wo_users = [dict(r) for r in c2.execute(
-                "SELECT u.id, u.name, COALESCE(t.name,'') AS team FROM users u LEFT JOIN teams t ON t.id=u.team_id "
-                "WHERE COALESCE(u.is_active,1)=1 AND u.id<>? ORDER BY t.name, u.name", (u["id"],)).fetchall()]
+                "SELECT u.id, u.name, COALESCE(t.name,'') AS team, t.entity AS team_entity "
+                "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                "WHERE COALESCE(u.is_active,1)=1 AND u.id<>? "
+                "ORDER BY (CASE WHEN COALESCE(t.entity,'KOR')='VN' THEN 1 ELSE 0 END), t.name, u.name",
+                (u["id"],)).fetchall()]   # v5H226z542: 본사 먼저·법인 라벨용 entity
             wo_teams = [dict(r) for r in c2.execute(
-                "SELECT id, name FROM teams ORDER BY display_order, name").fetchall()]
+                "SELECT id, name, entity FROM teams "
+                "ORDER BY (CASE WHEN COALESCE(entity,'KOR')='VN' THEN 1 ELSE 0 END), display_order, name"
+                ).fetchall()]   # v5H226z542: 본사 먼저 → 베트남, 법인 라벨
             # v5H226z520 (흐름 통합): 부서 요청 — 내가 PM/멤버이고 미완(done/canceled 제외)
             _tn = c2.execute("SELECT name FROM teams WHERE id=?", (_myteam,)).fetchone()
             my_team_name = (_tn[0] if _tn else "") or ""
@@ -2935,7 +2968,8 @@ async def work_order_create(req: Request):
         if tgt_user:
             r = c.execute("SELECT name FROM users WHERE id=?", (tgt_user,)).fetchone(); tgt_label = (r[0] if r else "")
         elif tgt_team:
-            r = c.execute("SELECT name FROM teams WHERE id=?", (tgt_team,)).fetchone(); tgt_label = (r[0] if r else "")
+            r = c.execute("SELECT name, entity FROM teams WHERE id=?", (tgt_team,)).fetchone()
+            tgt_label = _team_label(r[0], (r[1] if len(r) > 1 else None)) if r else ""   # v5H226z542: 부서 라벨에 법인
         proj_code = ""
         if proj_id:
             r = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (proj_id,)).fetchone(); proj_code = (r[0] if r else "")
@@ -8545,7 +8579,8 @@ async def admin_users_edit_form(req: Request, uid: int):
         if not row:
             return RedirectResponse("/admin", 303)
         teams = [dict(r) for r in c.execute(
-            "SELECT id, code, name FROM teams ORDER BY display_order").fetchall()]
+            "SELECT id, code, name, entity FROM teams "
+            "ORDER BY (CASE WHEN COALESCE(entity,'KOR')='VN' THEN 1 ELSE 0 END), display_order").fetchall()]   # v5H226z542: 법인 라벨·본사 먼저
     # v5H114: 사용자 변경 이력 카드
     try:
         user_history = _logi.get_user_history(uid, limit=50)
@@ -19835,14 +19870,16 @@ async def dept_stage_work(request: Request, dept: str = ""):
 #   영업 기준 작업일정표와 별개의 '부서용' 보기. 가격(단가·금액) 컬럼 없음 → 전 직원 안전 열람.
 #   날짜칸 클릭 → 그 (품목×날짜)에 부서별 업무현황(유형+내용) 추가/보기/수정. 단계(STAGE)와 무관·자유 부서.
 def _dept_sched_dept_of(u):
-    """기록자 기본 부서 = 소속 팀 이름."""
+    """기록자 기본 부서 = 소속 팀 이름(법인 라벨 포함 — '본사 · 설계팀'). v5H226z542."""
     tid = u.get("team_id")
     if not tid:
         return ""
     try:
         with db_session() as _c:
-            _r = _c.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()
-            return (_r[0] or "") if _r else ""
+            _r = _c.execute("SELECT name, entity FROM teams WHERE id=?", (tid,)).fetchone()
+            if not _r:
+                return ""
+            return _team_label(_r[0], (_r[1] if len(_r) > 1 else None))
     except Exception:
         return ""
 
@@ -19981,7 +20018,12 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
     all_depts = []
     try:
         with db_session() as _c:
-            all_depts = [r[0] for r in _c.execute("SELECT name FROM teams ORDER BY id").fetchall() if r[0]]
+            # v5H226z542: 부서 목록에 법인 라벨('본사 · 설계팀'/'베트남 · 설계팀') — 같은 이름도 구분
+            all_depts = [_team_label(r[0], (r[1] if len(r) > 1 else None))
+                         for r in _c.execute(
+                             "SELECT name, entity FROM teams "
+                             "ORDER BY (CASE WHEN COALESCE(entity,'KOR')='VN' THEN 1 ELSE 0 END), display_order, id"
+                         ).fetchall() if r[0]]
     except Exception:
         all_depts = []
     # v5H226z497 (Phase 2): 부서 필터 — sel_dept 면 그 부서 기록만 마커/요약에 반영(팝업 목록은 전체 유지)
@@ -20089,9 +20131,20 @@ async def dept_schedule_add(request: Request):
                 else:
                     _cr = c.execute("SELECT mgmt_code FROM consumable_orders WHERE id=?", (ref_id,)).fetchone()
                 _code = (_cr[0] if _cr else "") or f"{kind}#{ref_id}"
-                _ids = [r[0] for r in c.execute(
-                    "SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
-                    "WHERE t.name=? AND COALESCE(u.is_active,1)=1", (handoff_to,)).fetchall()]
+                # v5H226z542: handoff_to 는 법인 라벨('베트남 · 설계팀') → 이름+법인으로 정확 매칭
+                _ho_name, _ho_ent = _parse_team_label(handoff_to)
+                if _ho_ent == "VN":
+                    _ids = [r[0] for r in c.execute(
+                        "SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
+                        "WHERE t.name=? AND t.entity='VN' AND COALESCE(u.is_active,1)=1", (_ho_name,)).fetchall()]
+                elif _ho_ent == "KOR":
+                    _ids = [r[0] for r in c.execute(
+                        "SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
+                        "WHERE t.name=? AND COALESCE(t.entity,'KOR')='KOR' AND COALESCE(u.is_active,1)=1", (_ho_name,)).fetchall()]
+                else:
+                    _ids = [r[0] for r in c.execute(
+                        "SELECT u.id FROM users u JOIN teams t ON t.id=u.team_id "
+                        "WHERE t.name=? AND COALESCE(u.is_active,1)=1", (_ho_name,)).fetchall()]
                 if _ids:
                     _title = f"🗓 [부서 일정] {_code} — {dept or '앞 부서'}→{handoff_to}"
                     _body = (f"{date} · {log_type}\n{content}\n"

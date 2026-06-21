@@ -222,9 +222,10 @@ def parse_messenger_dept(dept):
         return {"entity": None, "func": None, "func_code": None, "raw": ""}
     raw = str(dept).strip()
     entity = None
-    m = re.search(r"(KOR|VN)", raw, re.I)
+    m = re.search(r"(KOR|KR|KO|VN|VNM)", raw, re.I)
     if m:
-        entity = m.group(1).upper()
+        tok = m.group(1).upper()
+        entity = "VN" if tok in ("VN", "VNM") else "KOR"   # KR/KO/KOR → KOR
     tail = raw.split("/")[-1].strip()           # '00_총괄'
     func_code = None
     mm = re.match(r"\s*(\d+)\s*[_\-]\s*(.+)$", tail)
@@ -233,17 +234,27 @@ def parse_messenger_dept(dept):
         func = mm.group(2).strip()
     else:
         # 선두 코드가 없으면 tail 자체가 부서명 (단, '01_KOR' 같은 국가토큰은 부서명 아님)
-        func = "" if re.fullmatch(r"\d+[_\-](KOR|VN)", tail, re.I) else tail
+        func = "" if re.fullmatch(r"\d+[_\-](KOR|KR|KO|VN|VNM)", tail, re.I) else tail
     return {"entity": entity, "func": (func or None), "func_code": func_code, "raw": raw}
 
 
-def _create_team_for_func(c, func, func_code=None):
-    """기능부서명(func)에 해당하는 WORKS 팀을 생성하고 id 반환. '메신저 체계 도입'용.
-    이름은 메신저 부서명 그대로(예 '총괄'), 코드는 유일하게 생성."""
+def _norm_entity(entity):
+    """KR/KO/KOR → 'KOR', VN/VNM → 'VN', 그 외 → 'KOR'(기본=본사)."""
+    e = str(entity or "").strip().upper()
+    if e in ("VN", "VNM"):
+        return "VN"
+    return "KOR"
+
+
+def _create_team_for_func(c, func, func_code=None, entity="KOR"):
+    """기능부서명(func)+법인(entity)에 해당하는 WORKS 팀을 생성하고 id 반환. '메신저 체계 도입'용.
+    이름은 메신저 부서명 그대로(예 '설계팀'), 법인은 entity 컬럼에 저장(이름 충돌 허용)·코드는 유일하게 생성."""
     name = (func or "").strip()
     if not name:
         return None
-    base = (str(func_code).strip() if func_code else "") or ("M" + name[:4])
+    ent = _norm_entity(entity)
+    # 코드: 법인 접두(V) + 부서코드 → KOR/VN 코드 충돌 회피·가독
+    base = ("V" if ent == "VN" else "") + ((str(func_code).strip() if func_code else "") or ("M" + name[:4]))
     code = base
     n = 1
     try:
@@ -251,53 +262,68 @@ def _create_team_for_func(c, func, func_code=None):
             n += 1
             code = f"{base}_{n}"
         mo = c.execute("SELECT COALESCE(MAX(display_order),0)+1 FROM teams").fetchone()[0]
-        cur = c.execute(
-            "INSERT INTO teams(code, name, display_order) VALUES(?,?,?)",
-            (code, name, mo or 100))
+        # entity 컬럼 존재 여부 가드(마이그레이션 전 환경 호환)
+        has_ent = any(r[1] == "entity" for r in c.execute("PRAGMA table_info(teams)").fetchall())
+        if has_ent:
+            cur = c.execute(
+                "INSERT INTO teams(code, name, display_order, entity) VALUES(?,?,?,?)",
+                (code, name, mo or 100, ent))
+        else:
+            cur = c.execute(
+                "INSERT INTO teams(code, name, display_order) VALUES(?,?,?)",
+                (code, name, mo or 100))
         return cur.lastrowid
     except Exception as e:
-        print(f"[SSO] 팀 자동생성 실패({name}): {e}")
+        print(f"[SSO] 팀 자동생성 실패({ent}/{name}): {e}")
         return None
 
 
 def _resolve_team_id(c, dept, create_missing=False):
-    """v5H226z540: 메신저 부서코드(01_KOR/00_총괄 형식 포함) → WORKS teams.id.
-    ① 부서코드를 분해해 '기능부서명(func)'으로 매핑(법인 KOR/VN 은 entity 로 별도) →
-    ② 정확매칭(이름/이름+'팀'/코드) → ③ 느슨매칭(LIKE) → ④ create_missing 이면 새 팀 생성.
-    매칭 실패 & 생성 안 함 → None(기존 team_id 유지). 권한이 team_id 기반이라 중요."""
+    """v5H226z542: 메신저 부서코드(01_KOR/00_총괄 형식) → WORKS teams.id (법인 분리).
+    부서를 (법인 KOR/VN, 기능부서명 func)로 분해 → '같은 법인'의 팀에만 매핑.
+    ① 정확매칭(이름/이름+'팀'/코드, 같은 법인) → ② 느슨매칭(LIKE, 같은 법인) →
+    ③ create_missing 이면 그 법인 새 팀 생성. KOR 은 entity NULL(레거시)도 본사로 인정.
+    매칭 실패 & 생성 안 함 → None(기존 team_id 유지)."""
     if not dept:
         return None
     info = parse_messenger_dept(dept)
     func = info.get("func")
-    raw = (dept or "").strip()
-    # ② 정확 매칭 — 원본, 기능부서명, 기능부서명+'팀'
-    exact = []
-    if raw:
-        exact.append(raw)
-    if func:
-        exact += [func, func + "팀"]
-    for d in exact:
+    if not func:
+        return None
+    ent = _norm_entity(info.get("entity"))
+    # 법인 필터: KOR 은 entity='KOR' 또는 NULL/''(레거시 본사) 허용 / VN 은 entity='VN' 만
+    has_ent = any(r[1] == "entity" for r in c.execute("PRAGMA table_info(teams)").fetchall())
+    if not has_ent:
+        ent_sql, ent_params = "", ()                       # 컬럼 없으면 법인 무시(구 동작)
+    elif ent == "KOR":
+        ent_sql, ent_params = " AND COALESCE(entity,'KOR')='KOR'", ()
+    else:
+        ent_sql, ent_params = " AND entity='VN'", ()
+    cands = [func, func + "팀", (dept or "").strip()]
+    # ① 정확 매칭(같은 법인)
+    for d in cands:
+        if not d:
+            continue
         try:
             r = c.execute(
-                "SELECT id FROM teams WHERE name=? OR code=? ORDER BY id LIMIT 1",
-                (d, d)).fetchone()
+                f"SELECT id FROM teams WHERE (name=? OR code=?){ent_sql} ORDER BY id LIMIT 1",
+                (d, d, *ent_params)).fetchone()
             if r:
                 return r["id"]
         except Exception:
             pass
-    # ③ 느슨 매칭 — 기능부서명 부분일치 (예 '기술영업' → '기술영업팀')
-    if func:
-        try:
-            r = c.execute(
-                "SELECT id FROM teams WHERE name LIKE ? ORDER BY id LIMIT 1",
-                (f"%{func}%",)).fetchone()
-            if r:
-                return r["id"]
-        except Exception:
-            pass
-    # ④ 도입: 없는 기능부서는 새 팀으로 생성
-    if create_missing and func:
-        return _create_team_for_func(c, func, info.get("func_code"))
+    # ② 느슨 매칭(같은 법인) — 기능부서명 부분일치
+    try:
+        r = c.execute(
+            f"SELECT id FROM teams WHERE name LIKE ?{ent_sql} ORDER BY id LIMIT 1",
+            (f"%{func}%", *ent_params)).fetchone()
+        if r:
+            return r["id"]
+    except Exception:
+        pass
+    # ③ 도입: 같은 법인에 없으면 새 팀 생성
+    if create_missing:
+        return _create_team_for_func(c, func, info.get("func_code"), ent)
     return None
 
 

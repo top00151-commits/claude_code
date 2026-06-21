@@ -3007,6 +3007,32 @@ def init_db():
         except Exception:
             pass
 
+        # v5H226z542: teams 에 법인(entity KOR/VN) 컬럼 — 메신저 본사/베트남 부서 분리 표시·매핑.
+        #   기존 팀 이름은 그대로 둠(공정 STAGE_OWNERS·권한 매칭 안전). NULL 인 것만 1회 세팅(idempotent).
+        try:
+            tcols = [r[1] for r in c.execute("PRAGMA table_info(teams)").fetchall()]
+            if "entity" not in tcols:
+                try:
+                    c.execute("ALTER TABLE teams ADD COLUMN entity TEXT")
+                except Exception:
+                    pass
+            # 본사(KOR) 기능팀 — 기존 13팀 + z540 자동생성 '총괄'
+            for _nm in ("기술영업팀", "검사기팀", "품질팀", "설계팀", "소프트웨어팀", "전장설계팀",
+                        "제조기술1팀", "제조기술2팀", "가공팀", "구매팀", "관리팀", "개발혁신팀",
+                        "라이프밸류팀", "총괄"):
+                try:
+                    c.execute("UPDATE teams SET entity='KOR' WHERE name=? AND (entity IS NULL OR entity='')", (_nm,))
+                except Exception:
+                    pass
+            # 베트남(VN) — z540 자동생성 베트남 전용 이름 + 베트남법인(legacy 버킷)
+            for _nm in ("기술팀", "조립팀", "전장팀", "베트남법인"):
+                try:
+                    c.execute("UPDATE teams SET entity='VN' WHERE name=? AND (entity IS NULL OR entity='')", (_nm,))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # 마이그레이션 (QMS 2차 Pareto·CAPA 심화 · 2026-04-26):
         # corrective_actions / preventive_actions 라이프사이클 컬럼 6종 (CHECK 제약 없이 ALTER ADD)
         # DRAFT → APPROVED → IN_PROGRESS → COMPLETED → VERIFIED
