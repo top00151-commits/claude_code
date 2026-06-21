@@ -301,6 +301,18 @@ def _resolve_team_id(c, dept, create_missing=False):
     return None
 
 
+def _is_system_account(emp_no, name="") -> bool:
+    """v5H226z541: 메신저의 봇/시스템 계정 식별 — WORKS 직원 명부에 들이지 않는다.
+    예) 'zz_ai_report'(업무보고 봇)·'zz_works_notify'·'_deleted_user'(삭제 자리표시).
+    실 사번은 숫자(예 '5') 또는 'VN001' 형식 → zz* / _* 접두는 봇/시스템으로 간주."""
+    e = str(emp_no or "").strip().lower()
+    if not e:
+        return False
+    if e.startswith("zz") or e.startswith("_"):
+        return True
+    return False
+
+
 def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
     """JWT payload (또는 userinfo) 로 HAIST WORKS users 테이블 upsert.
 
@@ -308,12 +320,15 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
     team_id 는 dept 로 매핑해 설정(권한 동작).
 
     Returns:
-        users.id (내부 PK) 또는 None (실패)
+        users.id (내부 PK) 또는 None (실패/제외)
     """
     if not payload:
         return None
     emp_no = str(payload.get("sub") or payload.get("employee_no") or "").strip()
     if not emp_no:
+        return None
+    # z541: 메신저 봇/시스템 계정(zz*, _*)은 WORKS 직원으로 만들지 않음 — 동기화 때마다 되살아나던 원인.
+    if _is_system_account(emp_no, payload.get("name_kr") or payload.get("name") or ""):
         return None
 
     name_kr = (payload.get("name_kr") or payload.get("name") or "").strip() or emp_no
@@ -644,6 +659,11 @@ def _sync_employees_core(c, payloads) -> dict:
     """payloads(upsert payload dict 목록) → 미리보기 통계 + upsert. 트랜잭션은 호출측(commit/rollback).
     출처(메신저 DB 파일 / HTTP 디렉터리 API) 무관하게 동일 로직.
     반환: {ok, total, updated, inserted, skipped, works_only[], sample_new[], sample_upd[]}"""
+    # z541: 메신저 봇/시스템 계정(zz*, _* — 업무보고/삭제자리표시 등) 제외 → 통계·부서표·명부 전부에서 빠짐.
+    payloads = [p for p in (payloads or [])
+                if not _is_system_account(
+                    p.get("sub") or p.get("employee_no"),
+                    p.get("name_kr") or p.get("name") or "")]
     updated = inserted = skipped = 0
     sample_new, sample_upd = [], []
     msg_names = set()
