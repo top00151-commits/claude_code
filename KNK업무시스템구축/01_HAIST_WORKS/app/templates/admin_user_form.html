@@ -34,7 +34,7 @@
       </div>
       <div class="fld">
         <label>사번 (로그인 ID) <span class="req">*</span></label>
-        <input type="text" name="login_id" required value="{% if target_user %}{{ target_user.employee_no|default(target_user.login_id|default('')) }}{% endif %}" placeholder="예: 5 / VN001">
+        <input type="text" name="login_id" required value="{% if target_user %}{{ target_user.employee_no or target_user.login_id or '' }}{% endif %}" placeholder="예: 5 / VN001">
       </div>
       <div class="fld">
         <label>{% if target_user %}새 비밀번호 (변경 시만){% else %}초기 비밀번호 <span class="req">*</span>{% endif %}</label>
