@@ -231,8 +231,21 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     <span class="s-stat"><span class="mk chg">{{ summary.chg }}</span>변경</span>
     {% if summary.etc %}<span class="s-stat">기타 {{ summary.etc }}</span>{% endif %}
     <span class="s-stat">품목 <b>{{ summary['items'] }}</b>개</span>
-    {% if summary.by_dept %}<span class="s-dept">부서별: {% for d,n in summary.by_dept %}<b>{{ d }}</b> {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</span>{% endif %}
+    {% if summary.hours %}<span class="s-stat">⏱ 소요시간 <b>{{ summary.hours }}</b>h</span>{% endif %}
   </div>
+  {# v5H226z570 (대표 지시·업무량 집계): 부서별 / 개인별 건수·완료·시간 #}
+  {% if summary.by_dept %}
+  <div class="dsx-summary" style="margin-top:-6px;">
+    <span class="s-head">🏢 부서별</span>
+    {% for d in summary.by_dept %}<span class="s-dept"><b>{{ d.dept }}</b> {{ d.n }}건{% if d.done %}·완료{{ d.done }}{% endif %}{% if d.hours %}·{{ d.hours }}h{% endif %}</span>{% if not loop.last %}<span style="color:#cbd5e1;">|</span>{% endif %}{% endfor %}
+  </div>
+  {% endif %}
+  {% if summary.by_person %}
+  <div class="dsx-summary" style="margin-top:-6px;">
+    <span class="s-head">🧑 개인별</span>
+    {% for p in summary.by_person %}<span class="s-dept"><b>{{ p.name }}</b> {{ p.n }}건{% if p.hours %}·{{ p.hours }}h{% endif %}</span>{% if not loop.last %}<span style="color:#cbd5e1;">|</span>{% endif %}{% endfor %}
+  </div>
+  {% endif %}
   {% endif %}
 
   {% if rows %}
@@ -296,6 +309,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         <div class="row">
           <div class="f-dept"><label>부서</label><select id="dsxDept"></select></div>
           <div class="f-type"><label>유형</label><select id="dsxType"></select></div>
+          {# v5H226z570 (대표 지시): 소요시간 — 업무량 집계용(선택 입력) #}
+          <div class="f-type"><label>소요시간(시간·선택)</label><input type="number" id="dsxHours" min="0" step="0.5" inputmode="decimal" placeholder="예: 2" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;"></div>
         </div>
         <label>내용 (진행/완료/변경 사항) — 자세히 적어도 됩니다</label>
         <textarea id="dsxContent" rows="7" placeholder="진행·완료·변경 사항을 자세히 적어 주세요. 여러 줄로 적어도 됩니다.&#10;예) 전장 배선 완료 / 25일 검증팀으로 넘김&#10;예) 케이블 사양 변경(2.5sq→4sq) 반영 — 도면 Rev.2 기준&#10;(칸 오른쪽 아래 모서리를 끌어 더 크게 늘릴 수 있어요)"></textarea>
@@ -342,6 +357,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       titleEl=document.getElementById('dsxTitle'), deptSel=document.getElementById('dsxDept'),
       typeSel=document.getElementById('dsxType'), contentEl=document.getElementById('dsxContent'),
       handoffSel=document.getElementById('dsxHandoff'), saveBtn=document.getElementById('dsxSave'),
+      hoursEl=document.getElementById('dsxHours'),
       unitRow=document.getElementById('dsxUnitRow'), unitSel=document.getElementById('dsxUnit'),
       tlBack=document.getElementById('dsxTlBack'), tlBody=document.getElementById('dsxTlBody'),
       tlTitle=document.getElementById('dsxTlTitle');
@@ -390,6 +406,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         +'<span class="e-type '+typeCls(e.type)+'">'+esc(e.type)+'</span>'
         +(e.unit?('<span class="e-unit">'+esc(e.unit)+'</span>'):'')
         +'<span>'+esc(e.by||'')+(e.ts?(' · '+esc(String(e.ts).slice(5,16))):'')+'</span>'
+        +(e.hours?('<span class="e-to" style="background:#fef3c7;color:#92400e;">⏱ '+esc(String(e.hours))+'h</span>'):'')
         +(e.to?('<span class="e-to">→ '+esc(e.to)+' 넘김</span>'):'')
         +(can?('<span class="e-act"><button type="button" class="edit">수정</button><button type="button" class="del">삭제</button></span>'):'')
         +'</div><div class="e-content">'+esc(e.content)+'</div></li>';
@@ -403,7 +420,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       date:td.dataset.date,day:Number(td.dataset.day),
       unit:(isUnit?(tr.dataset.unit||''):'')};
     titleEl.textContent=cur.code+' · '+cur.date+(cur.unit?(' · '+cur.unit):' · (공통)');
-    editId=0; contentEl.value=''; if(MYTEAM) deptSel.value=MYTEAM; typeSel.selectedIndex=0;
+    editId=0; contentEl.value=''; if(hoursEl) hoursEl.value=''; if(MYTEAM) deptSel.value=MYTEAM; typeSel.selectedIndex=0;
     handoffClear(); if(handoffSel){ var hr=handoffSel.closest('.row'); if(hr) hr.style.display=''; }
     // v5H226z514: 호기는 줄로 선택(펼침) → 모달 드롭다운 폐지. 공통/호기는 클릭한 줄로 자동 결정.
     if(unitRow) unitRow.style.display='none';
@@ -532,6 +549,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     } else if(e.target.classList.contains('edit')){
       editId=Number(li.dataset.id);
       contentEl.value=li.querySelector('.e-content').textContent;
+      if(hoursEl){ var _eh=entries().filter(function(x){return x.id===editId;})[0]; hoursEl.value=(_eh&&_eh.hours)?_eh.hours:''; }
       var t=li.dataset.type; for(var i=0;i<typeSel.options.length;i++){ if(typeSel.options[i].value===t||typeSel.options[i].text===t){ typeSel.selectedIndex=i; break; } }
       if(handoffSel){ var hr=handoffSel.closest('.row'); if(hr) hr.style.display='none'; }  // 넘김은 새 기록에만
       if(unitRow) unitRow.style.display='none';   // 호기도 새 기록에만(수정은 내용·유형만)
@@ -542,11 +560,12 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   saveBtn.addEventListener('click', function(){
     var content=(contentEl.value||'').trim(); if(!content){ alert('내용을 입력하세요'); contentEl.focus(); return; }
     var type=typeSel.value||typeSel.options[typeSel.selectedIndex].text;
+    var hours=(hoursEl&&hoursEl.value||'').trim();   // v5H226z570: 소요시간(선택)
     if(editId){
       var es=entries(), ts=''; es.forEach(function(x){ if(x.id===editId) ts=x.ts; });
-      post('/dept/schedule/cell/update',{id:editId,content:content,log_type:type,base_ts:ts});
+      post('/dept/schedule/cell/update',{id:editId,content:content,log_type:type,hours:hours,base_ts:ts});
     } else {
-      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,handoff_to:handoffValue(),unit_label:(cur.unit||'')});
+      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,hours:hours,handoff_to:handoffValue(),unit_label:(cur.unit||'')});
     }
   });
   function post(url, body){

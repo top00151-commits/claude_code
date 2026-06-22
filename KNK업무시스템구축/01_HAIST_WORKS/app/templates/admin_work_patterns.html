@@ -52,7 +52,7 @@ table.wp tbody tr:hover td{background:#fcfaf3;}
           <td>{{ d.team_name }}</td><td class="num">{{ d.people }}</td><td class="num">{{ d.cnt }}</td>
           <td class="num">{{ d.tickets }}</td><td class="num">{{ d.issues }}</td><td class="num">{{ d.phases }}</td>
           <td class="num">{% if d.stage_n %}{{ d.stage_n }}{% if d.stage_h %} ({{ d.stage_h }}h){% endif %}{% else %}·{% endif %}</td>
-          <td class="num">{{ d.dsx or '·' }}</td>
+          <td class="num">{% if d.dsx %}{{ d.dsx }}{% if d.dsx_h %} ({{ d.dsx_h }}h){% endif %}{% else %}·{% endif %}</td>
           <td class="num">{{ d.mail }}</td><td class="num">{{ d.msgr }}</td>
           <td class="num">{% if d.presales_h %}{{ d.presales_h }}{% else %}·{% endif %}</td>
           <td class="num">{{ d.hours }}</td><td class="num">{{ d.rate }}%</td>
@@ -76,7 +76,7 @@ table.wp tbody tr:hover td{background:#fcfaf3;}
           <td class="num">{{ r.issues or '·' }}</td>
           <td class="num">{{ r.phases or '·' }}</td>
           <td class="num">{% if r.stage_n %}{{ r.stage_n }}{% if r.stage_h %} ({{ r.stage_h }}h){% endif %}{% else %}·{% endif %}</td>
-          <td class="num">{{ r.dsx or '·' }}</td>
+          <td class="num">{% if r.dsx %}{{ r.dsx }}{% if r.dsx_h %} ({{ r.dsx_h }}h){% endif %}{% else %}·{% endif %}</td>
           <td class="num">{{ r.mail or '·' }}</td>
           <td class="num">{{ r.msgr or '·' }}</td>
           <td class="num">{% if r.presales_h %}{{ r.presales_h }}{% else %}·{% endif %}</td>

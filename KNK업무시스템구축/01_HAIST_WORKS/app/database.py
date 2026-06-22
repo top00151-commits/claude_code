@@ -2924,6 +2924,9 @@ def init_db():
                 c.execute("ALTER TABLE dept_schedule_log ADD COLUMN handoff_to TEXT")
             if "unit_label" not in _dslc:
                 c.execute("ALTER TABLE dept_schedule_log ADD COLUMN unit_label TEXT")
+            # v5H226z570 (대표 지시·업무량 집계): 소요시간(시간) — 완료 기록 시 직접 입력(부서/개인 업무량 측정)
+            if "hours" not in _dslc:
+                c.execute("ALTER TABLE dept_schedule_log ADD COLUMN hours REAL")
         except Exception as _e:
             print(f"[v5H226z496] dept_schedule_log 생성 스킵: {_e}")
 

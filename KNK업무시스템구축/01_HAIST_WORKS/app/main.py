@@ -1715,11 +1715,11 @@ async def admin_work_patterns(request: Request):
         dsx_map = {}
         try:
             for r in c.execute(
-                "SELECT created_by AS uid, COUNT(*) AS n FROM dept_schedule_log "
+                "SELECT created_by AS uid, COUNT(*) AS n, COALESCE(SUM(hours),0) AS h FROM dept_schedule_log "
                 "WHERE created_by IS NOT NULL AND date(log_date) BETWEEN ? AND ? GROUP BY created_by",
                     (start, end)):
                 if r["uid"]:
-                    dsx_map[r["uid"]] = r["n"]
+                    dsx_map[r["uid"]] = {"n": r["n"], "h": round(float(r["h"] or 0), 1)}   # v5H226z570: 시간 추가
         except Exception:
             pass
         # v5H226z414 (Phase2): 메일(WORKS mail_messages) 집계 — user_id 기준
@@ -1773,7 +1773,8 @@ async def admin_work_patterns(request: Request):
         presales = pre.get("n", 0); presales_h = pre.get("h", 0)
         stg = stage_map.get(uid, {})
         stage_n = stg.get("n", 0); stage_h = stg.get("h", 0)
-        dsx = dsx_map.get(uid, 0)   # v5H226z499 (Phase3): 부서 일정표 기록 수
+        _dsxd = dsx_map.get(uid, {})   # v5H226z499/z570 (Phase3): 부서 일정표 기록 수 + 시간(h)
+        dsx = _dsxd.get("n", 0); dsx_h = _dsxd.get("h", 0)
         activity = cnt + tickets + issues + phases + mail + msgr + presales + stage_n + dsx
         if activity <= 0:
             continue
@@ -1787,7 +1788,7 @@ async def admin_work_patterns(request: Request):
             "mail": mail, "msgr": msgr,
             "presales": presales, "presales_h": presales_h,
             "stage_n": stage_n, "stage_h": stage_h,   # v5H226z480 (Phase3): 단계 작업
-            "dsx": dsx,   # v5H226z499 (Phase3): 부서 일정표 기록 수
+            "dsx": dsx, "dsx_h": dsx_h,   # v5H226z499/z570 (Phase3): 부서 일정표 기록 수 + 시간(h)
             "activity": activity,
         })
     rows.sort(key=lambda x: -x["activity"])
@@ -1797,18 +1798,19 @@ async def admin_work_patterns(request: Request):
                                               "hours": 0.0, "done": 0, "delayed": 0,
                                               "tickets": 0, "issues": 0, "phases": 0, "mail": 0, "msgr": 0,
                                               "presales": 0, "presales_h": 0.0,
-                                              "stage_n": 0, "stage_h": 0.0, "dsx": 0})
+                                              "stage_n": 0, "stage_h": 0.0, "dsx": 0, "dsx_h": 0.0})
         d["people"] += 1; d["cnt"] += r["cnt"]; d["hours"] += r["hours"]; d["done"] += r["done"]
         d["delayed"] += r["delayed"]; d["tickets"] += r["tickets"]; d["issues"] += r["issues"]; d["phases"] += r["phases"]
         d["mail"] += r["mail"]; d["msgr"] += r["msgr"]
         d["presales"] += r["presales"]; d["presales_h"] += r["presales_h"]
-        d["stage_n"] += r["stage_n"]; d["stage_h"] += r["stage_h"]; d["dsx"] += r["dsx"]
+        d["stage_n"] += r["stage_n"]; d["stage_h"] += r["stage_h"]; d["dsx"] += r["dsx"]; d["dsx_h"] += r["dsx_h"]
     dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"] + x["presales"] + x["stage_n"] + x["dsx"]))
     for d in dept_list:
         d["rate"] = round(100 * d["done"] / d["cnt"]) if d["cnt"] else 0
         d["hours"] = round(d["hours"], 1)
         d["presales_h"] = round(d["presales_h"], 1)
         d["stage_h"] = round(d["stage_h"], 1)   # v5H226z480 (Phase3): 단계 작업 시간 합계
+        d["dsx_h"] = round(d["dsx_h"], 1)        # v5H226z570: 부서 일정표 시간 합계
     return ctx(request, "admin_work_patterns.html", user=u, rows=rows, depts=dept_list,
                period_label=plabel, days=days, start=start, end=end, total_people=len(rows))
 
@@ -20363,14 +20365,16 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
     #   + 월간/품목별 요약(summary): 유형분포·부서별 건수·기록 품목 수 (사업부 필터된 행 대상)
     logmap, cellsum = {}, {}
     _visible_keys = {f"{r['kind']}:{r['ref_id']}" for r in rows}
-    summary = {"total": 0, "prog": 0, "done": 0, "chg": 0, "etc": 0, "items": 0, "by_dept": []}
-    _by_dept, _items_with = {}, set()
+    # v5H226z570 (대표 지시·업무량 집계): 월간 요약에 소요시간(hours) + 부서별/개인별 건수·완료·시간
+    summary = {"total": 0, "prog": 0, "done": 0, "chg": 0, "etc": 0, "items": 0,
+               "hours": 0.0, "by_dept": [], "by_person": []}
+    _by_dept, _by_person, _items_with = {}, {}, set()
     try:
         with db_session() as _c:
             for lr in _c.execute(
                 "SELECT ref_kind, ref_id, log_date, id, COALESCE(dept,''), COALESCE(log_type,'진행'), "
                 "COALESCE(content,''), COALESCE(created_by_name,''), COALESCE(updated_at,''), COALESCE(created_by,0), "
-                "COALESCE(handoff_to,''), COALESCE(unit_label,'') "
+                "COALESCE(handoff_to,''), COALESCE(unit_label,''), COALESCE(hours,0) "
                 "FROM dept_schedule_log WHERE log_date BETWEEN ? AND ? ORDER BY id",
                     (mstart.isoformat(), mend.isoformat())):
                 key = f"{lr[0]}:{lr[1]}"
@@ -20380,12 +20384,22 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                     continue
                 logmap.setdefault(key, {}).setdefault(dnum, []).append(
                     {"id": lr[3], "dept": lr[4], "type": lr[5], "content": lr[6],
-                     "by": lr[7], "ts": lr[8], "uid": lr[9], "to": lr[10], "unit": lr[11]})
+                     "by": lr[7], "ts": lr[8], "uid": lr[9], "to": lr[10], "unit": lr[11],
+                     "hours": (float(lr[12]) if lr[12] else 0)})
                 # 요약 — 화면에 보이는 행(사업부 필터 통과)만 집계
                 if key in _visible_keys:
                     summary["total"] += 1
                     summary[{"진행": "prog", "완료": "done", "변경": "chg"}.get(lr[5], "etc")] += 1
-                    _by_dept[lr[4] or "(부서없음)"] = _by_dept.get(lr[4] or "(부서없음)", 0) + 1
+                    _h = float(lr[12] or 0)
+                    summary["hours"] += _h
+                    _dk = lr[4] or "(부서없음)"
+                    _dd = _by_dept.setdefault(_dk, {"n": 0, "done": 0, "hours": 0.0})
+                    _dd["n"] += 1; _dd["hours"] += _h
+                    if lr[5] == "완료":
+                        _dd["done"] += 1
+                    _pk = lr[7] or "(이름없음)"
+                    _pp = _by_person.setdefault(_pk, {"n": 0, "hours": 0.0})
+                    _pp["n"] += 1; _pp["hours"] += _h
                     _items_with.add(key)
         # 마커(cellsum) — 부서 필터 적용(sel_dept 면 그 부서 기록만 카운트)
         # v5H226z514 (대표 지시): 관리번호(접힌) 줄 마커는 '공통 기록'(unit_label 빈 것)만 — 호기 지정 기록은
@@ -20402,7 +20416,11 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
             if cs:
                 cellsum[key] = cs
         summary["items"] = len(_items_with)
-        summary["by_dept"] = sorted(_by_dept.items(), key=lambda x: -x[1])[:6]
+        summary["hours"] = round(summary["hours"], 1)
+        summary["by_dept"] = [{"dept": k, "n": v["n"], "done": v["done"], "hours": round(v["hours"], 1)}
+                              for k, v in sorted(_by_dept.items(), key=lambda x: -x[1]["n"])][:8]
+        summary["by_person"] = [{"name": k, "n": v["n"], "hours": round(v["hours"], 1)}
+                                for k, v in sorted(_by_person.items(), key=lambda x: -x[1]["n"])][:8]
     except Exception:
         logmap, cellsum = {}, {}
 
@@ -20433,6 +20451,13 @@ async def dept_schedule_add(request: Request):
     content = (body.get("content") or "").strip()
     handoff_to = (body.get("handoff_to") or "").strip()   # v5H226z497: 넘길 부서(다음 담당)
     unit_label = (body.get("unit_label") or "").strip()[:40]   # v5H226z499: 호기(빈값=품목 전체)
+    # v5H226z570 (대표 지시): 소요시간(시간) — 업무량 집계용. 빈값/이상치는 None.
+    try:
+        hours = float(str(body.get("hours") or "").replace(",", "").strip())
+        if hours <= 0 or hours > 999:
+            hours = None
+    except Exception:
+        hours = None
     if kind not in ("project", "consumable") or not ref_id or not date:
         return JSONResponse({"ok": False, "error": "잘못된 요청"}, 400)
     if log_type not in ("진행", "완료", "변경", "기타"):
@@ -20448,9 +20473,9 @@ async def dept_schedule_add(request: Request):
         dept = _dept_sched_dept_of(u)
     notify = {"sent": 0, "in_app": 0, "to": handoff_to}
     with db_session() as c:
-        c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, unit_label, created_by, created_by_name) "
-                  "VALUES(?,?,?,?,?,?,?,?,?,?)",
-                  (kind, ref_id, date, dept, log_type, content, handoff_to or None, unit_label or None, u.get("id"), u.get("name") or ""))
+        c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, unit_label, hours, created_by, created_by_name) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                  (kind, ref_id, date, dept, log_type, content, handoff_to or None, unit_label or None, hours, u.get("id"), u.get("name") or ""))
         # v5H226z543 (대표 지시): '넘길 부서'를 여러 개 선택 가능 — ' | '로 합쳐 옴 → 각 부서원에게 통보(합집합 1회).
         _targets = [t.strip() for t in (handoff_to or "").split("|") if t.strip()]
         _targets = [t for t in _targets if t != (dept or "")]
@@ -20506,6 +20531,13 @@ async def dept_schedule_update(request: Request):
     content = (body.get("content") or "").strip()
     log_type = (body.get("log_type") or "진행").strip()
     base_ts = body.get("base_ts") or ""
+    # v5H226z570: 소요시간(시간) 수정 반영
+    try:
+        hours = float(str(body.get("hours") or "").replace(",", "").strip())
+        if hours <= 0 or hours > 999:
+            hours = None
+    except Exception:
+        hours = None
     if not lid:
         return JSONResponse({"ok": False, "error": "잘못된 요청"}, 400)
     if log_type not in ("진행", "완료", "변경", "기타"):
@@ -20520,8 +20552,8 @@ async def dept_schedule_update(request: Request):
             return JSONResponse({"ok": False, "error": "작성자만 수정할 수 있습니다"}, 403)
         if base_ts and row[1] and base_ts != row[1]:
             return JSONResponse({"ok": False, "error": "다른 곳에서 먼저 수정됐습니다 — 새로고침 후 다시"}, 409)
-        c.execute("UPDATE dept_schedule_log SET content=?, log_type=?, updated_at=datetime('now','localtime') WHERE id=?",
-                  (content, log_type, lid))
+        c.execute("UPDATE dept_schedule_log SET content=?, log_type=?, hours=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (content, log_type, hours, lid))
     return JSONResponse({"ok": True})
 
 
