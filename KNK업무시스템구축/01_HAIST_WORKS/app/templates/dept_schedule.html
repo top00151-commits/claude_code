@@ -6,7 +6,7 @@
    전체 로드(이전페이지/새로고침/핸드오프)에 전환을 걸어 무거운 본문이 빈 화면으로 잡히던 먹통 차단. SPA 스왑은 영향 없음. */
 @view-transition { navigation: none; }
 /* v5H226z496 (대표 지시): 부서 일정표 — 좌우 꽉 차게(z420 표준) */
-.dsx-wrap{margin:0 var(--content-pad) var(--space-6);padding:0 0 30px;}  /* v5H226z572 (대표 지시): 하단 여백 30px */
+.dsx-wrap{margin:0 var(--content-pad);padding:0 0 15px;}  /* v5H226z573 (대표 지시): 하단 여백 15px */
 .dsx-intro{font-size:12.5px;color:#64748b;margin:2px 0 12px;line-height:1.6;}
 .dsx-intro b{color:#1e293b;}
 .dsx-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
@@ -44,7 +44,8 @@
 .dsx-summary .s-dept{color:#64748b;}
 .dsx-summary .s-dept b{color:#334155;}
 
-.dsx-tablewrap{border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:74vh;background:#fff;}
+/* v5H226z573 (대표 지시): 표 내부 큰 세로 스크롤바 제거 — max-height/세로 overflow 폐지(가로만 유지·페이지 스크롤 사용) */
+.dsx-tablewrap{border:1px solid var(--line);border-radius:10px;overflow-x:auto;background:#fff;}
 table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap;}
 .dsx th,.dsx td{border-bottom:1px solid #e7ecf3;border-right:1px solid #eef2f7;padding:5px 8px;text-align:left;vertical-align:middle;}
 .dsx thead th{position:sticky;top:0;z-index:2;background:#f4f1ea;color:#4b5563;font-weight:800;font-size:11.5px;text-align:center;}
