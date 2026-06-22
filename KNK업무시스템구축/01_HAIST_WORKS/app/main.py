@@ -13052,6 +13052,7 @@ def _contact_form_data(form) -> dict:
     d["customer_id"] = int(cid) if cid.isdigit() else None
     d["card_image"] = (form.get("card_image") or "").strip()
     d["source"] = (form.get("source") or "manual").strip()
+    d["visibility"] = (form.get("visibility") or "private").strip()   # v5H226z580 공유 범위
     return d
 
 
@@ -13062,7 +13063,7 @@ async def contacts_list(req: Request):
         return RedirectResponse("/login", 303)
     q = (req.query_params.get("q") or "").strip()
     with db_session() as c:
-        items = _contacts.list_contacts(c, q)
+        items = _contacts.list_contacts(c, q, user=u)   # v5H226z580 가시성 필터
     return ctx(req, "contacts_list.html", user=u, contacts=items, q=q,
                total=len(items))
 
@@ -13114,7 +13115,7 @@ async def contacts_export_csv(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
-        data = _contacts.export_csv_bytes(c)
+        data = _contacts.export_csv_bytes(c, user=u)
     from urllib.parse import quote
     fn = "전사연락처.csv"
     headers = {
@@ -13132,7 +13133,7 @@ async def contacts_outlook_csv(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
-        data = _contacts.export_outlook_csv_bytes(c)
+        data = _contacts.export_outlook_csv_bytes(c, user=u)
     from urllib.parse import quote
     fn = "연락처_Outlook.csv"
     headers = {"Content-Disposition":
@@ -13148,7 +13149,7 @@ async def contacts_vcards_all(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
-        text = _contacts.vcards_all(c)
+        text = _contacts.vcards_all(c, user=u)
     from urllib.parse import quote
     fn = "전사연락처.vcf"
     headers = {"Content-Disposition":
@@ -13165,7 +13166,7 @@ async def contacts_vcard(req: Request, cid: int):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         contact = _contacts.get_contact(c, cid)
-    if not contact:
+    if not contact or not _contacts.can_see(contact, u):   # v5H226z580 가시성
         return JSONResponse({"error": "not found"}, 404)
     text = _contacts.to_vcard(contact)
     from urllib.parse import quote
@@ -13184,7 +13185,7 @@ async def contacts_qr(req: Request, cid: int):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         contact = _contacts.get_contact(c, cid)
-    if not contact:
+    if not contact or not _contacts.can_see(contact, u):   # v5H226z580 가시성
         return JSONResponse({"error": "not found"}, 404)
     png = _contacts.vcard_qr_png(contact)
     if png is None:
@@ -13316,6 +13317,9 @@ async def contacts_create(req: Request):
     data = _contact_form_data(form)
     if not data["name"]:
         return JSONResponse({"ok": False, "message": "이름은 필수입니다."}, 400)
+    # v5H226z580 부서 공유면 등록자 소속 팀으로 자동 지정
+    if data.get("visibility") == "dept":
+        data["share_team_id"] = u.get("team_id")
     with db_session() as c:
         new_id = _contacts.create_contact(c, data, u["id"])
     return RedirectResponse(f"/contacts/{new_id}", 303)
@@ -13328,7 +13332,7 @@ async def contacts_detail(req: Request, cid: int):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         contact = _contacts.get_contact(c, cid)
-    if not contact:
+    if not contact or not _contacts.can_see(contact, u):   # v5H226z580 가시성(개인은 본인만)
         return RedirectResponse("/contacts", 303)
     return ctx(req, "contact_detail.html", user=u, contact=contact,
                can_edit=_contacts.can_edit(contact, u))
@@ -13368,6 +13372,10 @@ async def contacts_update(req: Request, cid: int):
         if not data["name"]:
             return JSONResponse({"ok": False, "message": "이름은 필수입니다."}, 400)
         _contacts.update_contact(c, cid, data, u["id"])
+        # v5H226z580 공유 범위도 함께 반영 (폼의 라디오값). 부서면 등록자/수정자 팀.
+        if form.get("visibility") is not None:
+            tid = u.get("team_id") if data.get("visibility") == "dept" else None
+            _contacts.set_share(c, cid, data.get("visibility"), tid, u["id"])
     return RedirectResponse(f"/contacts/{cid}", 303)
 
 
@@ -13385,6 +13393,32 @@ async def contacts_delete(req: Request, cid: int):
                 "message": "삭제 권한이 없습니다 (등록 본인·관리자만 가능)."}, 403)
         _contacts.delete_contact(c, cid)
     return JSONResponse({"ok": True})
+
+
+@app.post("/contacts/{cid:int}/share")
+async def contacts_share(req: Request, cid: int):
+    """v5H226z580 연락처 공유 범위 변경 (개인/부서/전사). 등록 본인·관리자만.
+    부서 공유는 변경자 소속 팀으로 지정."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    vis = (form.get("visibility") or "").strip()
+    if vis not in _contacts.VISIBILITIES:
+        return JSONResponse({"ok": False, "message": "잘못된 공유 범위입니다."}, 400)
+    with db_session() as c:
+        contact = _contacts.get_contact(c, cid)
+        if not contact:
+            return JSONResponse({"ok": False, "message": "연락처를 찾을 수 없습니다."}, 404)
+        if not _contacts.can_edit(contact, u):
+            return JSONResponse({"ok": False,
+                "message": "공유 설정 권한이 없습니다 (등록 본인·관리자만 가능)."}, 403)
+        tid = u.get("team_id") if vis == "dept" else None
+        if vis == "dept" and not tid:
+            return JSONResponse({"ok": False,
+                "message": "소속 부서가 없어 부서 공유를 할 수 없습니다 (관리자에게 부서 배정 요청)."}, 400)
+        _contacts.set_share(c, cid, vis, tid, u["id"])
+    return JSONResponse({"ok": True, "visibility": vis})
 
 
 # ═══════════════════════════════════════════════════════════════════════════

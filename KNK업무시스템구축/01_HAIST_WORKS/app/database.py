@@ -285,6 +285,8 @@ CREATE TABLE IF NOT EXISTS shared_contacts (
     card_image      TEXT,                    -- 명함 사진 파일 경로 (/uploads/contacts/..)
     source          TEXT DEFAULT 'manual',   -- manual / card / signature
     customer_id     INTEGER REFERENCES customers(id) ON DELETE SET NULL,  -- 거래처 연결 (선택)
+    visibility      TEXT DEFAULT 'private',   -- v5H226z580 공유 범위: private(개인)/dept(부서)/company(전사)
+    share_team_id   INTEGER REFERENCES teams(id) ON DELETE SET NULL,      -- dept 공유 시 대상 팀
     created_by      INTEGER REFERENCES users(id),
     created_at      TEXT DEFAULT (datetime('now','localtime')),
     updated_by      INTEGER REFERENCES users(id),
@@ -2154,6 +2156,19 @@ def init_db():
                     c.execute(ddl)
                 except Exception:
                     pass
+        # v5H226z580 (대표 지시 2026-06-22): 연락처 공유 범위 — 기본 개인(private)·부서(dept)·전사(company).
+        #   기존 연락처는 전부 전사 공유였으므로 'company' 로 백필(기존 가시성 보존). 신규는 DEFAULT 'private'.
+        try:
+            sccols = [r[1] for r in c.execute("PRAGMA table_info(shared_contacts)").fetchall()]
+            if sccols:
+                if "visibility" not in sccols:
+                    c.execute("ALTER TABLE shared_contacts ADD COLUMN visibility TEXT DEFAULT 'private'")
+                    # ADD COLUMN 으로 기존 행이 'private' 가 되므로, 기존 전사공유 상태 보존 위해 company 로 백필
+                    c.execute("UPDATE shared_contacts SET visibility='company'")
+                if "share_team_id" not in sccols:
+                    c.execute("ALTER TABLE shared_contacts ADD COLUMN share_team_id INTEGER")
+        except Exception:
+            pass
         # z407 (2026-06-13 대표 지시): 동시 편집 감지(낙관적 잠금)용 updated_at 보강.
         #   수주(orders)·호기(order_items)·소모품수주(consumable_orders)에 updated_at 추가 +
         #   기존 행은 created_at(있으면)으로 백필(없으면 now) → 잠금 기준(baseline) 확보. (additive·안전)

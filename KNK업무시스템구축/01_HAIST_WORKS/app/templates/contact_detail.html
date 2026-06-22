@@ -71,6 +71,25 @@
     </div>
     {% endif %}
 
+    {# v5H226z580 (대표 지시): 공유 범위 표시 + 변경(등록 본인·관리자) #}
+    {% set _vis = contact.visibility|default('private') %}
+    <div style="margin-top:var(--space-4); padding-top:var(--space-3); border-top:1px dashed var(--line);">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="font-size:12px; color:var(--mute); font-weight:600;">🔐 공유 범위</span>
+        <span id="visBadge" style="font-size:12.5px; font-weight:700; padding:3px 10px; border-radius:6px;
+              {% if _vis=='company' %}background:#dcfce7;color:#166534;{% elif _vis=='dept' %}background:#dbeafe;color:#1e40af;{% else %}background:#f1f5f9;color:#475569;{% endif %}">
+          {% if _vis=='company' %}🌐 전사 공유{% elif _vis=='dept' %}👥 부서 공유{% if contact.share_team_name %} · {{ contact.share_team_name }}{% endif %}{% else %}🔒 개인{% endif %}
+        </span>
+      </div>
+      {% if can_edit %}
+      <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="setShare('private')">🔒 개인</button>
+        <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="setShare('dept')">👥 부서 공유{% if user.team_name %}({{ user.team_name }}){% endif %}</button>
+        <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="setShare('company')">🌐 전사 공유</button>
+      </div>
+      {% endif %}
+    </div>
+
     <div class="meta">
       등록: {{ contact.creator_name|default('—') }} · {{ contact.created_at|default('—') }}
       {% if contact.updated_at and contact.updated_at != contact.created_at %}
@@ -103,6 +122,22 @@ function closeQR(){ document.getElementById('qrModal').style.display='none'; }
 
 {% if can_edit %}
 <script>
+async function setShare(vis){
+  const labels={private:'🔒 개인',dept:'👥 부서 공유',company:'🌐 전사 공유'};
+  try{
+    const fd=new FormData(); fd.append('visibility',vis);
+    const r=await fetch('/contacts/{{ contact.id }}/share',{method:'POST',body:fd});
+    const j=await r.json();
+    if(j.ok){
+      const b=document.getElementById('visBadge');
+      if(b){
+        b.textContent=labels[vis];
+        b.style.background = vis==='company'?'#dcfce7':(vis==='dept'?'#dbeafe':'#f1f5f9');
+        b.style.color      = vis==='company'?'#166534':(vis==='dept'?'#1e40af':'#475569');
+      }
+    } else { alert('변경 실패: '+(j.message||'오류')); }
+  }catch(e){ alert('네트워크 오류: '+e.message); }
+}
 async function delContact(){
   if(!confirm("'{{ contact.name }}' 연락처를 삭제할까요? 되돌릴 수 없습니다.")) return;
   try{

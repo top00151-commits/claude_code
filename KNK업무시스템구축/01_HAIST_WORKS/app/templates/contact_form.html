@@ -23,6 +23,27 @@
     <div class="form-card">
       <h2>📋 연락처 정보</h2>
       {% include "_contact_fields.html" %}
+
+      {# v5H226z580 (대표 지시): 공유 범위 — 기본 개인. 부서=내 팀만, 전사=전 직원. #}
+      {% set _vis = (contact.visibility if contact and contact.visibility else 'private') %}
+      <div style="margin-top: var(--space-3); padding-top: var(--space-3); border-top:1px solid var(--line);">
+        <div style="font-size:13px; font-weight:700; margin-bottom:8px;">🔐 공유 범위</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <label style="flex:1; min-width:150px; display:flex; gap:8px; align-items:flex-start; border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer;">
+            <input type="radio" name="visibility" value="private" {% if _vis == 'private' %}checked{% endif %} style="margin-top:2px;">
+            <span><b>🔒 개인</b><br><span style="font-size:11.5px; color:var(--mute);">나만 봅니다 (기본)</span></span>
+          </label>
+          <label style="flex:1; min-width:150px; display:flex; gap:8px; align-items:flex-start; border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer;">
+            <input type="radio" name="visibility" value="dept" {% if _vis == 'dept' %}checked{% endif %} style="margin-top:2px;">
+            <span><b>👥 부서 공유</b><br><span style="font-size:11.5px; color:var(--mute);">내 부서{% if user.team_name %}({{ user.team_name }}){% endif %}만</span></span>
+          </label>
+          <label style="flex:1; min-width:150px; display:flex; gap:8px; align-items:flex-start; border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer;">
+            <input type="radio" name="visibility" value="company" {% if _vis == 'company' %}checked{% endif %} style="margin-top:2px;">
+            <span><b>🌐 전사 공유</b><br><span style="font-size:11.5px; color:var(--mute);">전 직원이 봅니다</span></span>
+          </label>
+        </div>
+      </div>
+
       <div class="actions" style="margin-top: var(--space-3); padding-top: var(--space-3); border-top:1px solid var(--line);">
         <button type="submit" class="btn btn-primary">💾 {% if mode == 'edit' %}수정 저장{% else %}등록{% endif %}</button>
         <a href="{% if mode == 'edit' %}/contacts/{{ contact.id }}{% else %}/contacts{% endif %}" class="btn btn-secondary">취소</a>

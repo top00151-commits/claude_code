@@ -509,51 +509,100 @@ def find_duplicates(c, mobile: str = "", email: str = "", phone: str = "",
 # ─────────────────────────────────────────────────────────────────────────────
 #  CRUD
 # ─────────────────────────────────────────────────────────────────────────────
-def list_contacts(c, q: str = "") -> list[dict]:
-    """전사 연락처 목록 (검색어 있으면 이름·회사·전화·이메일·부서·직책 LIKE)."""
+VISIBILITIES = ("private", "dept", "company")   # v5H226z580 공유 범위
+
+
+def _vis_clause(user) -> tuple[str, list]:
+    """v5H226z580 가시성 필터 (SQL 조각, 파라미터).
+    내가 볼 수 있는 연락처 = ①내가 등록 + ②전사 공유 + ③내 부서로 공유.
+    user None → 필터 없음(내부/시스템용). 관리자도 남의 '개인'은 못 봄(대표 결정)."""
+    if not user:
+        return "", []
+    uid = user.get("id")
+    tid = user.get("team_id")
+    return (
+        "(sc.created_by=? OR sc.visibility='company'"
+        " OR (sc.visibility='dept' AND sc.share_team_id IS NOT NULL AND sc.share_team_id=?))",
+        [uid, tid],
+    )
+
+
+def list_contacts(c, q: str = "", user=None) -> list[dict]:
+    """연락처 목록 — 가시성 필터(개인/부서/전사) 적용.
+    검색어 있으면 이름·회사·전화·이메일·부서·직책 LIKE."""
     q = (q or "").strip()
+    where, params = [], []
     if q:
         like = f"%{q}%"
-        rows = c.execute(
-            """SELECT sc.*, u.name AS creator_name
-               FROM shared_contacts sc
-               LEFT JOIN users u ON sc.created_by = u.id
-               WHERE sc.name LIKE ? OR sc.company LIKE ? OR sc.mobile LIKE ?
-                  OR sc.phone LIKE ? OR sc.email LIKE ? OR sc.department LIKE ?
-                  OR sc.position LIKE ? OR sc.note LIKE ?
-               ORDER BY sc.name COLLATE NOCASE""",
-            (like, like, like, like, like, like, like, like),
-        ).fetchall()
-    else:
-        rows = c.execute(
-            """SELECT sc.*, u.name AS creator_name
-               FROM shared_contacts sc
-               LEFT JOIN users u ON sc.created_by = u.id
-               ORDER BY sc.name COLLATE NOCASE"""
-        ).fetchall()
+        where.append(
+            "(sc.name LIKE ? OR sc.company LIKE ? OR sc.mobile LIKE ?"
+            " OR sc.phone LIKE ? OR sc.email LIKE ? OR sc.department LIKE ?"
+            " OR sc.position LIKE ? OR sc.note LIKE ?)"
+        )
+        params += [like] * 8
+    vsql, vparams = _vis_clause(user)
+    if vsql:
+        where.append(vsql)
+        params += vparams
+    wsql = (" WHERE " + " AND ".join(where)) if where else ""
+    rows = c.execute(
+        "SELECT sc.*, u.name AS creator_name, t.name AS share_team_name "
+        "FROM shared_contacts sc "
+        "LEFT JOIN users u ON sc.created_by = u.id "
+        "LEFT JOIN teams t ON sc.share_team_id = t.id "
+        + wsql + " ORDER BY sc.name COLLATE NOCASE",
+        params,
+    ).fetchall()
     return [dict(r) for r in rows]
 
 
 def get_contact(c, cid: int):
     row = c.execute(
         """SELECT sc.*, u.name AS creator_name, u2.name AS updater_name,
-                  cu.name AS customer_name
+                  cu.name AS customer_name, t.name AS share_team_name
            FROM shared_contacts sc
            LEFT JOIN users u  ON sc.created_by = u.id
            LEFT JOIN users u2 ON sc.updated_by = u2.id
            LEFT JOIN customers cu ON sc.customer_id = cu.id
+           LEFT JOIN teams t ON sc.share_team_id = t.id
            WHERE sc.id = ?""",
         (cid,),
     ).fetchone()
     return dict(row) if row else None
 
 
+def can_see(contact: dict, user: dict) -> bool:
+    """v5H226z580 가시성 단건 판정 — 상세/내보내기 게이트."""
+    if not contact or not user:
+        return False
+    vis = contact.get("visibility") or "private"
+    if vis == "company":
+        return True
+    if contact.get("created_by") == user.get("id"):
+        return True
+    if vis == "dept" and contact.get("share_team_id") and \
+       contact.get("share_team_id") == user.get("team_id"):
+        return True
+    return False
+
+
+def _norm_share(visibility, team_id) -> tuple[str, int | None]:
+    """v5H226z580 공유 범위 정규화 — dept 만 team_id 보존, 그 외 NULL."""
+    vis = (visibility or "private").strip()
+    if vis not in VISIBILITIES:
+        vis = "private"
+    stid = (team_id or None) if vis == "dept" else None
+    return vis, stid
+
+
 def create_contact(c, data: dict, user_id: int) -> int:
+    vis, stid = _norm_share(data.get("visibility"), data.get("share_team_id"))
     cur = c.execute(
         """INSERT INTO shared_contacts
            (name, position, company, department, mobile, phone, fax, email,
-            address, note, card_image, source, customer_id, created_by, updated_by)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            address, note, card_image, source, customer_id,
+            visibility, share_team_id, created_by, updated_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             (data.get("name") or "").strip(),
             (data.get("position") or "").strip() or None,
@@ -568,11 +617,25 @@ def create_contact(c, data: dict, user_id: int) -> int:
             (data.get("card_image") or "").strip() or None,
             (data.get("source") or "manual").strip(),
             data.get("customer_id") or None,
+            vis,
+            stid,
             user_id,
             user_id,
         ),
     )
     return cur.lastrowid
+
+
+def set_share(c, cid: int, visibility: str, team_id, user_id: int) -> None:
+    """v5H226z580 연락처 공유 범위 변경 (개인/부서/전사). 부서=team_id 대상."""
+    vis, stid = _norm_share(visibility, team_id)
+    c.execute(
+        """UPDATE shared_contacts SET
+             visibility=?, share_team_id=?,
+             updated_by=?, updated_at=datetime('now','localtime')
+           WHERE id=?""",
+        (vis, stid, user_id, cid),
+    )
 
 
 def update_contact(c, cid: int, data: dict, user_id: int) -> None:
@@ -616,8 +679,8 @@ def can_edit(contact: dict, user: dict) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 #  CSV 내보내기 (UTF-8 BOM — 사내 정책: openpyxl 미사용)
 # ─────────────────────────────────────────────────────────────────────────────
-def export_csv_bytes(c) -> bytes:
-    rows = list_contacts(c)
+def export_csv_bytes(c, user=None) -> bytes:
+    rows = list_contacts(c, user=user)   # v5H226z580 내가 볼 수 있는 것만
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["이름", "직책", "회사", "부서", "휴대폰", "회사전화", "팩스",
@@ -667,9 +730,9 @@ def to_vcard(ct: dict) -> str:
     return "\r\n".join(lines) + "\r\n"
 
 
-def vcards_all(c) -> str:
-    """전체 연락처 → vCard 묶음 (.vcf 한 파일에 여러 장)."""
-    return "".join(to_vcard(r) for r in list_contacts(c))
+def vcards_all(c, user=None) -> str:
+    """내가 볼 수 있는 연락처 → vCard 묶음 (.vcf 한 파일에 여러 장). v5H226z580."""
+    return "".join(to_vcard(r) for r in list_contacts(c, user=user))
 
 
 def vcard_qr_png(ct: dict) -> bytes | None:
@@ -688,10 +751,10 @@ def vcard_qr_png(ct: dict) -> bytes | None:
     return buf.getvalue()
 
 
-def export_outlook_csv_bytes(c) -> bytes:
+def export_outlook_csv_bytes(c, user=None) -> bytes:
     """Outlook 가져오기용 CSV (영문 헤더 — Outlook 가져오기 마법사가 자동 매핑).
     한글 이름은 First Name 에 넣어 표시명으로 사용. UTF-8 BOM."""
-    rows = list_contacts(c)
+    rows = list_contacts(c, user=user)   # v5H226z580 내가 볼 수 있는 것만
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["First Name", "Last Name", "Title", "Company", "Department",

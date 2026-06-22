@@ -10,6 +10,9 @@
 .src-card { background:#eef6ff; color:#1e40af; }
 .src-sig  { background:#f3e8ff; color:#6d28d9; }
 .src-man  { background:#f1f5f9; color:#475569; }
+.vis-co   { background:#dcfce7; color:#166534; }
+.vis-dept { background:#dbeafe; color:#1e40af; }
+.vis-me   { background:#f1f5f9; color:#475569; }
 .tbl-wrap.tbl-sticky { margin-top: var(--space-3); max-height: calc(100vh - 220px) !important; }
 </style>
 </head><body>
@@ -18,7 +21,8 @@
   <div class="page-head">
     <div>
       <div class="crumbs"><b>연락처(주소록)</b></div>
-      <h1 class="page-title">📇 전사 <em>연락처</em> <span style="font-size:14px;color:var(--mute);font-weight:500;">— {{ total }}명</span></h1>
+      <h1 class="page-title">📇 <em>연락처</em> <span style="font-size:14px;color:var(--mute);font-weight:500;">— 내가 볼 수 있는 {{ total }}명</span></h1>
+      <div style="font-size:11.5px; color:var(--mute); margin-top:2px;">🔒 기본은 개인 연락처(나만) · 필요한 것만 👥부서/🌐전사로 공유합니다. 내려받기는 내가 볼 수 있는 연락처만 포함됩니다.</div>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       {# v5H226z579 (대표 지시): 휴대폰(갤럭시)에 전체 연락처 한 번에 — vCard 다운로드 + 가져오기 안내 #}
@@ -43,7 +47,7 @@
     <table class="tbl">
       <thead><tr>
         <th>이름</th><th>직책</th><th>회사</th><th>부서</th>
-        <th>휴대폰</th><th>이메일</th><th class="center">출처</th><th>등록자</th>
+        <th>휴대폰</th><th>이메일</th><th class="center">공유</th><th class="center">출처</th><th>등록자</th>
       </tr></thead>
       <tbody>
       {% for c in contacts %}
@@ -54,6 +58,12 @@
           <td>{{ c.department|default('—') }}</td>
           <td style="font-family:monospace;font-size:12.5px;">{{ c.mobile|default('—') }}</td>
           <td style="font-size:12.5px;">{{ c.email|default('—') }}</td>
+          <td class="center">
+            {% set v = c.visibility|default('private') %}
+            {% if v == 'company' %}<span class="src-pill vis-co">🌐 전사</span>
+            {% elif v == 'dept' %}<span class="src-pill vis-dept" title="{{ c.share_team_name|default('') }}">👥 부서</span>
+            {% else %}<span class="src-pill vis-me">🔒 개인</span>{% endif %}
+          </td>
           <td class="center">
             {% if c.source == 'card' %}<span class="src-pill src-card">명함</span>
             {% elif c.source == 'signature' %}<span class="src-pill src-sig">서명</span>
