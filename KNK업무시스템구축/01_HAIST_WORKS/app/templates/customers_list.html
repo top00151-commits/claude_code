@@ -24,11 +24,13 @@ body {
 .cu-tab.on .n{ background:rgba(255,255,255,.25); }
 .cu-search{ padding:6px 12px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:#fff; min-width:280px; max-width:42vw; }
 .cu-sysname{ font-size:11px; color:#2563eb; font-weight:700; margin-top:2px; }
-/* v5H226z576 (대표 지시): 시스템명 인라인 편집칸 — 평소엔 칸처럼, 호버/포커스 때 테두리로 편집 가능 표시 */
+/* v5H226z576/z577 (대표 지시): 시스템명 칸 — 평소엔 잠금(readonly·평문처럼), '수정' 버튼 누르면 편집 가능 */
 .cu-alias{ width:100%; box-sizing:border-box; border:1px solid transparent; background:transparent; border-radius:6px; padding:5px 7px; font:inherit; font-size:13px; color:#2563eb; font-weight:700; }
 .cu-alias::placeholder{ color:#cbd5e1; font-weight:400; }
-.cu-alias:hover{ border-color:#e2e8f0; background:#fff; }
-.cu-alias:focus{ outline:none; border-color:#93c5fd; background:#fff; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.cu-alias[readonly]{ cursor:default; }                          /* 잠금: 평문처럼·클릭해도 편집 안 됨 */
+.cu-alias:not([readonly]){ border-color:#cbd5e1; background:#fff; cursor:text; }   /* 편집모드 */
+.cu-alias:not([readonly]):focus{ outline:none; border-color:#93c5fd; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.cu-alias.cu-dirty:not([readonly]){ border-color:#f59e0b; background:#fffbeb; }   /* 변경됨(미저장) */
 .cu-alias.cu-ok{ background:#ecfdf5; border-color:#a7f3d0; }
 </style>
 </head><body>
@@ -43,6 +45,12 @@ body {
       <button type="button" class="btn btn-secondary" onclick="document.getElementById('cuImportXlsx').click()" title="엑셀 업로드 → 미리보기 → 일괄 등록">📤 엑셀 일괄 업로드</button>
       {# v5H226z75: data-knk-no-dropzone — 자동 dropzone 영역 생성 차단 (버튼 클릭으로만 동작) #}
       <input type="file" id="cuImportXlsx" accept=".xlsx" style="display:none;" data-knk-no-dropzone onchange="uploadCustomersXlsx(this.files[0])">
+      {# v5H226z577 (대표 지시): 시스템명은 '수정' 버튼을 눌러 편집모드로 전환해야 입력 가능(실수 방지)·'저장'으로 적용 #}
+      {% if can_sales %}
+      <button type="button" class="btn btn-secondary" id="cuEditBtn" onclick="cuToggleEdit()" title="시스템명 칸 잠금 해제(편집)">✏ 시스템명 수정</button>
+      <button type="button" class="btn btn-primary" id="cuSaveBtn" onclick="cuSaveAll()" style="display:none;">💾 시스템명 저장</button>
+      <button type="button" class="btn btn-secondary" id="cuCancelBtn" onclick="cuCancelEdit()" style="display:none;">취소</button>
+      {% endif %}
       <a class="btn btn-primary" href="/customers/new">＋ 고객사 등록</a>
     </div>
   </div>
@@ -84,7 +92,7 @@ body {
           <td><b>{{ c.name }}</b></td>
           {# v5H226z576 (대표 지시): 시스템명 별도 컬럼 + 이 페이지에서 직접 입력/수정(영업·관리 권한자만 편집·그 외 읽기전용) #}
           {% if can_sales %}
-          <td onclick="event.stopPropagation();"><input type="text" class="cu-alias" data-id="{{ c.id }}" value="{{ c.alias|default('') }}" placeholder="시스템명 입력" onchange="cuSaveAlias(this)" onkeydown="if(event.key==='Enter')this.blur();"></td>
+          <td onclick="event.stopPropagation();"><input type="text" class="cu-alias" data-id="{{ c.id }}" data-orig="{{ c.alias|default('') }}" value="{{ c.alias|default('') }}" placeholder="—" readonly oninput="this.classList.toggle('cu-dirty', this.value!==this.dataset.orig)"></td>
           {% else %}
           <td>{{ c.alias|default('—') }}</td>
           {% endif %}
@@ -197,21 +205,32 @@ body {
       var cc=document.getElementById('cuCnt'); if(cc) cc.textContent=n+'개 표시';
     };
     window.cuApply();
-    // v5H226z576 (대표 지시): 시스템명 인라인 저장 — 칸 벗어나거나 Enter 시 저장(영업·관리만 input 렌더).
-    window.cuSaveAlias=function(inp){
-      var id=inp.dataset.id, v=(inp.value||'').trim();
-      if(v===(inp.dataset.saved!==undefined?inp.dataset.saved:inp.defaultValue)) return;   // 변경 없으면 스킵
-      inp.disabled=true;
-      fetch('/customers/'+id+'/alias',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({alias:v})})
-        .then(function(r){return r.json();})
-        .then(function(j){
-          inp.disabled=false;
-          if(j&&j.ok){
-            inp.dataset.saved=v; inp.classList.add('cu-ok'); setTimeout(function(){inp.classList.remove('cu-ok');},800);
-            var tr=inp.closest('tr');   // 검색용 data-q 갱신(시스템명 즉시 검색 반영)
-            if(tr){ var nm=(tr.querySelector('td b')||{}).textContent||''; tr.dataset.q=((tr.dataset.q||'')+' '+v).toLowerCase(); }
-          } else { alert('저장 실패: '+((j&&j.error)||'오류')); inp.focus(); }
-        }).catch(function(){ inp.disabled=false; alert('통신 오류'); inp.focus(); });
+    // v5H226z577 (대표 지시): 시스템명은 '수정' 버튼으로 편집모드 진입 → '저장' 눌러야 적용(실수 방지).
+    function cuAliasInputs(){ return [].slice.call(document.querySelectorAll('.cu-alias')); }
+    function cuSetEditMode(on){
+      cuAliasInputs().forEach(function(i){ if(on){ i.removeAttribute('readonly'); } else { i.setAttribute('readonly',''); i.classList.remove('cu-dirty'); } });
+      var eb=document.getElementById('cuEditBtn'), sb=document.getElementById('cuSaveBtn'), cb=document.getElementById('cuCancelBtn');
+      if(eb) eb.style.display=on?'none':''; if(sb) sb.style.display=on?'':'none'; if(cb) cb.style.display=on?'':'none';
+    }
+    window.cuToggleEdit=function(){ cuSetEditMode(true); var f=document.querySelector('.cu-alias'); if(f) f.focus(); };
+    window.cuCancelEdit=function(){ cuAliasInputs().forEach(function(i){ i.value=i.dataset.orig||''; }); cuSetEditMode(false); };
+    window.cuSaveAll=function(){
+      var dirty=cuAliasInputs().filter(function(i){ return (i.value||'').trim()!==(i.dataset.orig||''); });
+      if(!dirty.length){ cuSetEditMode(false); return; }
+      var sb=document.getElementById('cuSaveBtn'); if(sb) sb.disabled=true;
+      var ok=0, fail=0, done=0;
+      dirty.forEach(function(inp){
+        var id=inp.dataset.id, v=(inp.value||'').trim();
+        fetch('/customers/'+id+'/alias',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({alias:v})})
+          .then(function(r){return r.json();})
+          .then(function(j){
+            if(j&&j.ok){ ok++; inp.dataset.orig=v; inp.classList.remove('cu-dirty'); inp.classList.add('cu-ok'); setTimeout(function(){inp.classList.remove('cu-ok');},900);
+              var tr=inp.closest('tr'); if(tr){ var nm=(tr.querySelector('td b')||{}).textContent||''; tr.dataset.q=(nm+' '+v+' '+(tr.dataset.q||'')).toLowerCase(); } }
+            else { fail++; }
+          }).catch(function(){ fail++; })
+          .then(function(){ done++; if(done===dirty.length){ if(sb) sb.disabled=false; cuSetEditMode(false);
+            if(fail) alert('일부 저장 실패: 성공 '+ok+'건 · 실패 '+fail+'건'); } });
+      });
     };
   })();
   </script>
