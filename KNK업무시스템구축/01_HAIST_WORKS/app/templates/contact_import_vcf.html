@@ -23,8 +23,8 @@
 <main class="main" data-dn="main">
   <div class="page-head">
     <div>
-      <div class="crumbs"><a href="/contacts">연락처(주소록)</a> · <b>vCard 가져오기</b></div>
-      <h1 class="page-title">📥 휴대폰 <em>연락처 가져오기</em> <span style="font-size:13px;color:var(--mute);font-weight:500;">(.vcf)</span></h1>
+      <div class="crumbs"><a href="/contacts">연락처(주소록)</a> · <b>연락처 가져오기</b></div>
+      <h1 class="page-title">📥 <em>연락처 가져오기</em> <span style="font-size:13px;color:var(--mute);font-weight:500;">(.vcf · .csv)</span></h1>
     </div>
     <div><a class="btn btn-secondary" href="/contacts">목록</a></div>
   </div>
@@ -32,8 +32,8 @@
   <div class="iv-card">
     <div class="iv-row">
       <div class="iv-field">
-        <label>📄 vCard 파일 선택 (.vcf)</label>
-        <input type="file" id="ivFile" accept=".vcf,text/vcard,text/x-vcard" data-knk-no-dropzone onchange="ivParse()">
+        <label>📄 파일 선택 (.vcf 또는 .csv)</label>
+        <input type="file" id="ivFile" accept=".vcf,.csv,text/vcard,text/x-vcard,text/csv,application/vnd.ms-excel" data-knk-no-dropzone onchange="ivParse()">
       </div>
       <div class="iv-field">
         <label>🔐 가져온 연락처 공유 범위</label>
@@ -45,7 +45,8 @@
       </div>
     </div>
     <div class="iv-hint">
-      📱 갤럭시: <b>연락처 앱 → 메뉴 → 설정 → 연락처 가져오기/내보내기 → 내보내기(.vcf)</b> 로 만든 파일을 올리세요.<br>
+      📱 <b>휴대폰(갤럭시)</b>: 연락처 앱 → 설정 → 연락처 내보내기 → <b>.vcf</b> 파일.<br>
+      📧 <b>아웃룩</b>: 파일 → 열기/내보내기 → 가져오기/내보내기 → <b>쉼표로 구분된 값(CSV)</b> → 연락처 폴더.<br>
       한 파일에 여러 명이 있어도 한 번에 가져옵니다. 기본은 🔒개인이며, 위에서 부서/전사로 바꿔 가져올 수 있습니다.
     </div>
     <div id="ivMsg" style="margin-top:12px; font-size:13px; display:none;"></div>

@@ -13320,21 +13320,30 @@ async def contacts_import_vcf(req: Request):
 
 @app.post("/contacts/import-vcf/parse")
 async def contacts_import_vcf_parse(req: Request, file: UploadFile = File(...)):
-    """.vcf 파일 업로드 → 안의 연락처 파싱 + 중복 표시(JSON 미리보기)."""
+    """.vcf(vCard) 또는 .csv(아웃룩 등) 업로드 → 연락처 파싱 + 중복 표시(JSON 미리보기). v5H226z586."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     raw = await file.read()
     if not raw:
         return JSONResponse({"ok": False, "message": "빈 파일입니다."}, 400)
-    if len(raw) > 8 * 1024 * 1024:
-        return JSONResponse({"ok": False, "message": "파일이 너무 큽니다(8MB 이하)."}, 400)
+    if len(raw) > 12 * 1024 * 1024:
+        return JSONResponse({"ok": False, "message": "파일이 너무 큽니다(12MB 이하)."}, 400)
     text = _contacts._decode_vcf_bytes(raw)
-    if "BEGIN:VCARD" not in text.upper():
+    fname = (file.filename or "").lower()
+    is_vcard = ("BEGIN:VCARD" in text.upper())
+    is_csv = (not is_vcard) and (fname.endswith(".csv") or "," in text.splitlines()[0] if text.splitlines() else False)
+    if is_vcard:
+        kind = "vCard"
+        total_blocks = text.upper().count("BEGIN:VCARD")   # 파일 안 카드 수(누락 진단)
+        cards = _contacts.parse_vcards(text)
+    elif is_csv:
+        kind = "CSV"
+        total_blocks = _contacts.count_csv_rows(text)
+        cards = _contacts.parse_contacts_csv(text)
+    else:
         return JSONResponse({"ok": False,
-            "message": "vCard(.vcf) 형식이 아닙니다. 휴대폰 연락처 '내보내기'로 만든 .vcf 파일을 올려주세요."}, 400)
-    total_blocks = text.upper().count("BEGIN:VCARD")   # v5H226z585 파일 안 카드 수(누락 진단)
-    cards = _contacts.parse_vcards(text)
+            "message": "vCard(.vcf) 또는 연락처 CSV(.csv) 형식이 아닙니다. 아웃룩은 '파일→가져오기/내보내기→CSV', 휴대폰은 연락처 '내보내기(.vcf)'로 만든 파일을 올려주세요."}, 400)
     items = []
     with db_session() as c:
         for i, ct in enumerate(cards):
@@ -13353,13 +13362,14 @@ async def contacts_import_vcf_parse(req: Request, file: UploadFile = File(...)):
             })
     dup_n = sum(1 for x in items if x["is_dup"])
     missed = max(0, total_blocks - len(items))
-    msg = f"파일 {total_blocks}장 중 {len(items)}명을 인식했습니다."
+    unit = "줄" if kind == "CSV" else "장"
+    msg = f"{kind} 파일 {total_blocks}{unit} 중 {len(items)}명을 인식했습니다."
     if dup_n:
         msg += f" (이미 있음 {dup_n}명은 체크 해제)"
     if missed:
-        msg += f" · 인식 못 한 {missed}장은 이름·전화·이메일이 전혀 없는 항목입니다."
+        msg += f" · 인식 못 한 {missed}{unit}은 이름·전화·이메일이 전혀 없는 항목입니다."
     return JSONResponse({"ok": True, "count": len(items), "dup_count": dup_n,
-                         "total_blocks": total_blocks, "missed": missed,
+                         "total_blocks": total_blocks, "missed": missed, "kind": kind,
                          "items": items, "message": msg})
 
 

@@ -907,6 +907,97 @@ def parse_vcards(text: str) -> list[dict]:
     return cards
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  CSV(아웃룩 등) 가져오기 — v5H226z586
+#  아웃룩/구글/엑셀이 내보낸 연락처 CSV 업로드 → 일괄 등록. 헤더 자동 매핑(영문·한글).
+# ─────────────────────────────────────────────────────────────────────────────
+# 표준 헤더(소문자) → 우리 필드. 아웃룩·구글·WORKS 내보내기·한글 헤더 모두 인식.
+_CSV_ALIASES = {
+    "name":       ("name", "full name", "display name", "이름", "성명", "fileas", "file as"),
+    "_first":     ("first name", "given name", "이름(영문)", "first"),
+    "_last":      ("last name", "family name", "surname", "성"),
+    "position":   ("job title", "title", "position", "직책", "직위", "직급"),
+    "company":    ("company", "company name", "organization", "회사", "회사명", "상호", "소속"),
+    "department": ("department", "dept", "부서", "팀"),
+    "mobile":     ("mobile phone", "mobile", "cell phone", "cell", "휴대폰", "휴대전화", "핸드폰", "phone (mobile)"),
+    "phone":      ("business phone", "company main phone", "work phone", "business phone 2",
+                   "primary phone", "phone", "tel", "회사전화", "전화", "직장 전화", "phone (work)", "office phone"),
+    "fax":        ("business fax", "home fax", "fax", "팩스", "other fax"),
+    "email":      ("e-mail address", "email address", "email", "e-mail", "이메일", "메일",
+                   "e-mail 2 address", "e-mail display name", "primary email"),
+    "_street":    ("business street", "business address", "street", "주소", "address",
+                   "home street", "business street 2", "mailing address"),
+    "_city":      ("business city", "city", "도시"),
+    "_state":     ("business state", "state", "도", "시/도"),
+    "_zip":       ("business postal code", "postal code", "zip", "zip code", "우편번호"),
+    "_country":   ("business country/region", "business country", "country/region", "country", "국가"),
+    "note":       ("notes", "note", "비고", "메모"),
+}
+
+
+def _csv_pick(norm: dict, field: str) -> str:
+    for h in _CSV_ALIASES.get(field, ()):
+        if norm.get(h):
+            return norm[h]
+    return ""
+
+
+def parse_contacts_csv(data) -> list[dict]:
+    """연락처 CSV(아웃룩/구글/엑셀) → 연락처 dict 목록(FIELD_KEYS). 헤더 자동 매핑."""
+    text = _decode_vcf_bytes(data) if isinstance(data, (bytes, bytearray)) else (data or "")
+    text = text.replace("\r\n", "\n").replace("\r", "\n").lstrip("﻿")
+    lines = text.split("\n")
+    if not lines or not lines[0].strip():
+        return []
+    # 구분자 추정 (쉼표/세미콜론/탭 중 머리글에 가장 많은 것)
+    head = lines[0]
+    delim = max([",", ";", "\t"], key=lambda d: head.count(d))
+    reader = csv.DictReader(io.StringIO(text), delimiter=delim)
+    out: list[dict] = []
+    for row in reader:
+        norm = {}
+        for k, v in row.items():
+            if k is None:
+                continue
+            norm[k.strip().lower()] = (v or "").strip()
+        name = _csv_pick(norm, "name")
+        if not name:
+            fn, ln = _csv_pick(norm, "_first"), _csv_pick(norm, "_last")
+            if fn and ln and re.fullmatch(r"[가-힣]+", fn + ln):
+                name = ln + fn                      # 한글: 성+이름
+            else:
+                name = _join_nonempty([fn, ln])
+        addr = _join_nonempty([
+            _csv_pick(norm, "_street"), _csv_pick(norm, "_city"),
+            _csv_pick(norm, "_state"), _csv_pick(norm, "_zip"), _csv_pick(norm, "_country"),
+        ])
+        rec = {
+            "name": name,
+            "position": _csv_pick(norm, "position"),
+            "company": _csv_pick(norm, "company"),
+            "department": _csv_pick(norm, "department"),
+            "mobile": _norm_phone(_csv_pick(norm, "mobile")),
+            "phone": _norm_phone(_csv_pick(norm, "phone")),
+            "fax": _norm_phone(_csv_pick(norm, "fax")),
+            "email": _csv_pick(norm, "email"),
+            "address": addr,
+            "note": _csv_pick(norm, "note"),
+        }
+        if any(rec.get(k) for k in ("name", "mobile", "phone", "email", "company", "address", "note")):
+            if not rec["name"]:
+                rec["name"] = rec.get("company") or "(이름 없음)"
+            out.append({k: rec.get(k, "") for k in FIELD_KEYS})
+    return out
+
+
+def count_csv_rows(data) -> int:
+    """CSV 데이터 줄 수(머리글 제외, 빈 줄 제외) — 가져오기 진단용."""
+    text = _decode_vcf_bytes(data) if isinstance(data, (bytes, bytearray)) else (data or "")
+    text = text.replace("\r\n", "\n").replace("\r", "\n").lstrip("﻿")
+    lines = [l for l in text.split("\n") if l.strip()]
+    return max(0, len(lines) - 1)
+
+
 def vcard_qr_png(ct: dict) -> bytes | None:
     """연락처 vCard → QR 코드 PNG bytes. 휴대폰 카메라로 스캔 → 즉시 연락처 추가.
     qrcode 미설치 시 None."""
