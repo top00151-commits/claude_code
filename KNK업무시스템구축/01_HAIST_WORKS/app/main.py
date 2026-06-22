@@ -6598,9 +6598,10 @@ async def customers_list(req: Request):
             # v5H181: manager_name / phone / email / is_active / address 도 SELECT
             #         (이전엔 누락되어 list 페이지에서 빈 칸으로 보이던 버그)
             rows = c.execute(
-                """SELECT cu.id, cu.name, cu.tier, cu.note, cu.biz_no, cu.ceo_name,
+                """SELECT cu.id, cu.name, cu.alias, cu.tier, cu.note, cu.biz_no, cu.ceo_name,
                           cu.manager_name, cu.phone, cu.email, cu.address,
                           COALESCE(cu.is_active, 1) AS is_active,
+                          COALESCE(cu.is_overseas, 0) AS is_overseas,
                           COALESCE(cu.tier_score, 0) AS tier_score,
                           cu.tier_computed_at,
                           COUNT(DISTINCT p.id) AS proj_count,
@@ -14889,6 +14890,7 @@ async def customers_new_submit(req: Request):
     # v5H58: 등급은 자동 산정 (사용자 입력 무시) — 신규는 일단 '신규' 로 시작
     fields = {
         "name": name,
+        "alias": (form.get("alias") or "").strip(),   # v5H226z550: 표시용 별칭(연결은 정식명)
         "tier": "신규",
         "biz_no": biz_no,
         "ceo_name": ceo_name,
@@ -14973,6 +14975,7 @@ async def customers_edit_submit(req: Request, cid: int):
         new_is_active = int(form.get("is_active") or 1)
         new_data = {
             "name": name,
+            "alias": (form.get("alias") or "").strip(),   # v5H226z550: 표시용 별칭
             "biz_no": form.get("biz_no", ""),
             "ceo_name": form.get("ceo_name", ""),
             "phone": form.get("phone", ""),
@@ -14993,12 +14996,12 @@ async def customers_edit_submit(req: Request, cid: int):
         }
         # v5H58: 등급(tier) 은 사용자 입력 받지 않음 — 기존 값 유지, 자동 재계산이 갱신
         c.execute(
-            "UPDATE customers SET name=?, biz_no=?, ceo_name=?, "
+            "UPDATE customers SET name=?, alias=?, biz_no=?, ceo_name=?, "
             "phone=?, email=?, address=?, is_active=?, note=?, "
             "business_type=?, business_item=?, zipcode=?, address_detail=?, fax=?, sub_biz_no=?, "
             "is_overseas=?, country=? "
             "WHERE id=?",
-            (new_data["name"], new_data["biz_no"], new_data["ceo_name"],
+            (new_data["name"], new_data["alias"], new_data["biz_no"], new_data["ceo_name"],
              new_data["phone"], new_data["email"], new_data["address"],
              new_data["is_active"], new_data["note"],
              new_data["business_type"], new_data["business_item"], new_data["zipcode"],
@@ -19915,6 +19918,15 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
     except Exception:
         pass
 
+    # v5H226z550 (대표 지시): 고객사 '시스템명(별칭)' 맵 — 일정표 표시는 시스템명 우선(연결/검증은 customer_id 그대로)
+    _cust_alias = {}
+    try:
+        with db_session() as _c:
+            for _ar in _c.execute("SELECT id, alias FROM customers WHERE COALESCE(alias,'')<>''"):
+                _cust_alias[_ar[0]] = _ar[1]
+    except Exception:
+        _cust_alias = {}
+
     def _mk(info, od, dd, status, kind):
         s, e = (od or dd), (dd or od)
         if not s and not e:
@@ -19943,7 +19955,8 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
             "model": p.get("model_name") or "", "equip": p.get("equip_name") or "",
             "qty": p.get("unit_qty") or "", "po_type": p.get("po_type") or "",
             "form_type": p.get("form_type") or _logi.SHIP_TO_FORM.get((p.get("shipment_form") or "").upper(), ""),
-            "customer": p.get("customer_name") or "—", "cust_ok": bool(p.get("customer_id")),
+            "customer": (_cust_alias.get(p.get("customer_id")) or p.get("customer_name") or "—"),   # v5H226z550: 시스템명 우선
+            "cust_ok": bool(p.get("customer_id")),
             "owner": p.get("cc_name") or "",           # 고객사 담당자
             "order_date": str(p.get("order_date") or "")[:10],
             "due_date": str(p.get("due_date") or "")[:10],
@@ -19982,7 +19995,8 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                 "kind": "consumable", "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "", "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
                 "qty": 1, "po_type": "소모품", "form_type": "상품",
-                "customer": cr.get("customer_name") or "—", "cust_ok": bool(cr.get("customer_id")),
+                "customer": (_cust_alias.get(cr.get("customer_id")) or cr.get("customer_name") or "—"),   # v5H226z550: 시스템명 우선
+                "cust_ok": bool(cr.get("customer_id")),
                 "owner": cr.get("cc_name") or "",
                 "order_date": str(cr.get("order_date") or "")[:10],
                 "due_date": str(cr.get("due_date") or "")[:10],

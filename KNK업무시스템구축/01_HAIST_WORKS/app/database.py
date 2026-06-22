@@ -3007,6 +3007,18 @@ def init_db():
         except Exception:
             pass
 
+        # v5H226z550: customers 에 별칭(alias) 컬럼 — 일정표 등 화면 표시용 짧은 이름('주식회사 김정락'→'김정락').
+        #   연결/매칭은 정식 name 으로 그대로, alias 는 표시 전용. (없으면 name 으로 폴백)
+        try:
+            _cucols = [r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()]
+            if "alias" not in _cucols:
+                try:
+                    c.execute("ALTER TABLE customers ADD COLUMN alias TEXT")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # v5H226z542: teams 에 법인(entity KOR/VN) 컬럼 — 메신저 본사/베트남 부서 분리 표시·매핑.
         #   기존 팀 이름은 그대로 둠(공정 STAGE_OWNERS·권한 매칭 안전). NULL 인 것만 1회 세팅(idempotent).
         try:

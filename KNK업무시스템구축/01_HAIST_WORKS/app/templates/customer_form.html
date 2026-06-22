@@ -142,9 +142,13 @@ body { overflow: hidden !important; }
           <div style="padding:5px 10px;border:1px dashed var(--line);border-radius:var(--radius-md);background:var(--paper-2);color:var(--mute);font-size:12px;">등록 시 자동 부여</div>
           {% endif %}
         </div>
-        <div class="fld span-2">
+        <div class="fld">
           <label>고객사명 <span class="req">*</span></label>
-          <input type="text" name="name" required value="{{ customer.name|default('') }}" placeholder="예: ㈜케이엔케이">
+          <input type="text" name="name" required value="{{ customer.name|default('') }}" placeholder="예: 주식회사 케이엔케이">
+        </div>
+        <div class="fld">
+          <label>시스템명 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 일정표 등에 짧게 표시(비우면 고객사명 그대로)</span></label>
+          <input type="text" name="alias" value="{{ customer.alias|default('') }}" placeholder="예: 김정락 (정식: 주식회사 김정락)">
         </div>
         <div class="fld">
           <label>사업자번호 <span class="req" id="cf_biz_req">*</span></label>
