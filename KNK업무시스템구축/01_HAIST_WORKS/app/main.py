@@ -12990,7 +12990,8 @@ async def customers_parse_biz(req: Request, file: UploadFile = File(...)):
         tmp.write(content)
         tmp_path = tmp.name
     try:
-        result = _biz_doc.parse_file(tmp_path, fn)
+        # v5H226z553 (대표 지시): AI 비전 우선(인식율↑) → 실패/비활성 시 로컬 OCR 폴백
+        result = _biz_doc.parse_file_smart(tmp_path, fn)
     finally:
         try:
             os.unlink(tmp_path)

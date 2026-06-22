@@ -749,3 +749,151 @@ def _friendly_error(err: str) -> str:
                 "→ bin 폴더를 PATH에 추가 또는 환경변수 POPPLER_PATH 설정\n"
                 "또는 PDF 대신 JPG/PNG 이미지로 업로드하세요.")
     return err
+
+
+# =====================================================
+# v5H226z553 (대표 지시): AI 비전 API 로 인식율 향상
+#   기존 로컬 Tesseract OCR 의 한계(서버 한국어 OCR 미설치·필기/사진 저인식)를 보완.
+#   이미지(JPG/JPEG/PNG/…) → AI 비전(Claude/OpenAI 멀티모달)으로 항목 직접 판독.
+#   텍스트 PDF(홈택스 발급분)는 로컬 pdfplumber 가 가장 정확·무료 → 그대로 우선.
+#   AI 비활성/실패 시 기존 로컬 OCR(parse_file)로 자동 폴백.
+# =====================================================
+def _img_file_to_png_b64(file_path: str, max_side: int = 2000) -> str:
+    """이미지 파일 → (다운스케일) PNG base64. AI 비전 입력용·포맷/용량 표준화."""
+    import io
+    import base64
+    from PIL import Image
+    img = Image.open(file_path)
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    w, h = img.size
+    m = max(w, h)
+    if m > max_side:
+        sc = max_side / float(m)
+        img = img.resize((max(1, int(w * sc)), max(1, int(h * sc))), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _ai_extract_fields(image_b64: str, mime: str = "image/png"):
+    """ai_vision 으로 사업자등록증 항목 추출 → (fields dict, mode) 또는 (None, 사유)."""
+    try:
+        from . import ai_client
+    except Exception as e:
+        return None, f"ai_client 임포트 실패: {e}"
+    if not ai_client.ai_available():
+        return None, "ai_unavailable"
+    system = ("당신은 한국 사업자등록증 판독 전문가입니다. 이미지에서 각 항목을 정확히 읽어 "
+              "JSON 한 개로만 출력합니다. 추측 금지·읽을 수 없으면 빈 문자열.")
+    prompt = (
+        '이 이미지는 한국 "사업자등록증"입니다. 아래 항목을 추출해 JSON 한 개로만 출력하세요'
+        '(설명·코드펜스 금지):\n'
+        '{"biz_no":"","name":"","ceo_name":"","address":"","biz_kind":"","biz_item":"","open_date":""}\n'
+        "- biz_no: 사업자등록번호 NNN-NN-NNNNN 형식\n"
+        "- name: 상호(법인명)\n"
+        "- ceo_name: 대표자 성명\n"
+        "- address: 사업장 소재지 전체(도로명 또는 지번)\n"
+        "- biz_kind: 업태(여러 개면 대표 1개)\n"
+        "- biz_item: 종목(여러 개면 대표 1개)\n"
+        "- open_date: 개업연월일 YYYY-MM-DD\n"
+        '값이 없으면 "". 숫자·하이픈 정확히.'
+    )
+    ok, resp = ai_client.ai_vision(image_b64, mime, prompt, system=system,
+                                   max_tokens=600, temperature=0.0)
+    if not ok:
+        return None, resp
+    data = ai_client._parse_json_loose(resp)
+    if not isinstance(data, dict):
+        return None, "AI 응답을 JSON 으로 해석하지 못함"
+    out = {"biz_no": "", "name": "", "ceo_name": "", "address": "",
+           "biz_kind": "", "biz_item": "", "open_date": "", "biz_no_valid": False}
+    for k in ("biz_no", "name", "ceo_name", "address", "biz_kind", "biz_item", "open_date"):
+        out[k] = str(data.get(k, "") or "").strip()
+    if out["biz_no"]:
+        nb = _normalize_biz_no(out["biz_no"])
+        if re.match(r"^\d{3}-\d{2}-\d{5}$", nb):
+            out["biz_no"] = nb
+            out["biz_no_valid"] = _validate_biz_no(nb)
+    return out, "ai-vision"
+
+
+def parse_file_ai(file_path: str, original_name: str = ""):
+    """AI 비전 우선 추출. 텍스트 PDF는 로컬(정확·무료) 우선.
+    반환: parse_file 과 동일 형태 dict (ok 시) / None (AI 불가 → 호출부가 폴백)."""
+    name = (original_name or file_path).lower()
+    is_pdf = name.endswith(".pdf")
+    if is_pdf:
+        # 1) 텍스트 PDF(홈택스/정부24 발급분) → 로컬 파싱이 가장 정확·무료
+        try:
+            import pdfplumber
+            with pdfplumber.open(file_path) as pdf:
+                txt = "\n".join((p.extract_text() or "") for p in pdf.pages).strip()
+            if txt and len(txt) > 30:
+                fields = parse_biz_doc(txt)
+                fc = sum(1 for k, v in fields.items() if v and isinstance(v, str))
+                if fc > 0:
+                    return {"ok": True, "mode": "pdf-text", "fields": fields,
+                            "found_count": fc, "message": f"{fc}개 항목 추출(텍스트 PDF)",
+                            "raw_excerpt": txt[:300]}
+        except Exception:
+            pass
+        # 2) 스캔 PDF → 첫 페이지 이미지 → AI 비전
+        try:
+            from pdf2image import convert_from_path
+            import io
+            import base64
+            pages = convert_from_path(file_path, dpi=200)
+            if pages:
+                im = pages[0]
+                if im.mode not in ("RGB", "L"):
+                    im = im.convert("RGB")
+                w, h = im.size
+                m = max(w, h)
+                if m > 2000:
+                    sc = 2000 / float(m)
+                    im = im.resize((int(w * sc), int(h * sc)))
+                buf = io.BytesIO()
+                im.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+                fields, mode = _ai_extract_fields(b64, "image/png")
+                if fields:
+                    fc = sum(1 for k, v in fields.items() if v and isinstance(v, str))
+                    return {"ok": fc > 0, "mode": "ai-vision", "fields": fields,
+                            "found_count": fc,
+                            "message": (f"AI 비전으로 {fc}개 항목 추출" if fc else "AI 비전: 항목 미발견"),
+                            "raw_excerpt": ""}
+        except Exception:
+            pass
+        return None
+    # 이미지(JPG/JPEG/PNG/BMP/TIF) → PNG 표준화 → AI 비전
+    try:
+        b64 = _img_file_to_png_b64(file_path)
+    except Exception:
+        return None
+    fields, mode = _ai_extract_fields(b64, "image/png")
+    if fields is None:
+        return None
+    fc = sum(1 for k, v in fields.items() if v and isinstance(v, str))
+    return {"ok": fc > 0, "mode": "ai-vision", "fields": fields, "found_count": fc,
+            "message": (f"AI 비전으로 {fc}개 항목 추출" if fc else "AI 비전: 항목을 찾지 못함 — 수동 입력"),
+            "raw_excerpt": ""}
+
+
+def parse_file_smart(file_path: str, original_name: str = "") -> dict:
+    """v5H226z553: AI 비전 우선(가능 시) → 실패/비활성 시 로컬 OCR(parse_file) 폴백.
+    엔드포인트(/customers/parse-biz)가 이 함수를 호출."""
+    try:
+        from . import ai_client
+        _ai_on = ai_client.ai_available()
+    except Exception:
+        _ai_on = False
+    if _ai_on:
+        try:
+            r = parse_file_ai(file_path, original_name)
+            if r and r.get("ok"):
+                return r
+        except Exception:
+            pass
+    # 폴백: 기존 로컬(텍스트 PDF / Tesseract)
+    return parse_file(file_path, original_name)
