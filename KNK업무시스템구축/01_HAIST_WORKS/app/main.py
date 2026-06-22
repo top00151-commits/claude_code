@@ -13308,6 +13308,89 @@ async def contacts_check_dup(req: Request):
         for d in dups]})
 
 
+# ── 휴대폰 .vcf 가져오기 (휴대폰 → WORKS) — v5H226z581 ──────────────────────
+@app.get("/contacts/import-vcf")
+async def contacts_import_vcf(req: Request):
+    """휴대폰에서 받은 vCard(.vcf) 업로드 → 일괄 가져오기 화면."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "contact_import_vcf.html", user=u)
+
+
+@app.post("/contacts/import-vcf/parse")
+async def contacts_import_vcf_parse(req: Request, file: UploadFile = File(...)):
+    """.vcf 파일 업로드 → 안의 연락처 파싱 + 중복 표시(JSON 미리보기)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    raw = await file.read()
+    if not raw:
+        return JSONResponse({"ok": False, "message": "빈 파일입니다."}, 400)
+    if len(raw) > 8 * 1024 * 1024:
+        return JSONResponse({"ok": False, "message": "파일이 너무 큽니다(8MB 이하)."}, 400)
+    text = _contacts._decode_vcf_bytes(raw)
+    if "BEGIN:VCARD" not in text.upper():
+        return JSONResponse({"ok": False,
+            "message": "vCard(.vcf) 형식이 아닙니다. 휴대폰 연락처 '내보내기'로 만든 .vcf 파일을 올려주세요."}, 400)
+    cards = _contacts.parse_vcards(text)
+    items = []
+    with db_session() as c:
+        for i, ct in enumerate(cards):
+            dups = _contacts.find_duplicates(
+                c, mobile=ct.get("mobile") or "", email=ct.get("email") or "",
+                phone=ct.get("phone") or "", exclude_id=0)
+            items.append({
+                "idx": i,
+                "name": ct.get("name") or "", "position": ct.get("position") or "",
+                "company": ct.get("company") or "", "department": ct.get("department") or "",
+                "mobile": ct.get("mobile") or "", "phone": ct.get("phone") or "",
+                "fax": ct.get("fax") or "", "email": ct.get("email") or "",
+                "address": ct.get("address") or "", "note": ct.get("note") or "",
+                "is_dup": bool(dups),
+                "dup_name": (dups[0].get("name") if dups else ""),
+            })
+    dup_n = sum(1 for x in items if x["is_dup"])
+    return JSONResponse({"ok": True, "count": len(items), "dup_count": dup_n,
+                         "items": items,
+                         "message": f"{len(items)}명을 읽었습니다." +
+                                    (f" (중복 {dup_n}명은 체크 해제됨)" if dup_n else "")})
+
+
+@app.post("/contacts/import-vcf/confirm")
+async def contacts_import_vcf_confirm(req: Request):
+    """선택한 연락처들을 일괄 등록. body: {visibility, items:[{name,position,...}]}"""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "요청 형식 오류."}, 400)
+    vis = (body.get("visibility") or "private").strip()
+    if vis not in _contacts.VISIBILITIES:
+        vis = "private"
+    stid = u.get("team_id") if vis == "dept" else None
+    if vis == "dept" and not stid:
+        return JSONResponse({"ok": False,
+            "message": "소속 부서가 없어 부서 공유로 가져올 수 없습니다. 개인 또는 전사로 바꿔주세요."}, 400)
+    rows = body.get("items") or []
+    saved = 0
+    with db_session() as c:
+        for r in rows:
+            name = (r.get("name") or "").strip()
+            if not name:
+                continue
+            data = {k: (r.get(k) or "").strip() for k in _contacts.FIELD_KEYS}
+            data["source"] = "manual"
+            data["visibility"] = vis
+            data["share_team_id"] = stid
+            _contacts.create_contact(c, data, u["id"])
+            saved += 1
+    return JSONResponse({"ok": True, "saved": saved,
+                         "message": f"{saved}명을 가져왔습니다."})
+
+
 @app.post("/contacts")
 async def contacts_create(req: Request):
     u = get_user(req)

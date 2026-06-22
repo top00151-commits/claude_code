@@ -735,6 +735,173 @@ def vcards_all(c, user=None) -> str:
     return "".join(to_vcard(r) for r in list_contacts(c, user=user))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  vCard(.vcf) 가져오기 (휴대폰 → WORKS) — v5H226z581
+#  휴대폰(갤럭시/아이폰) 연락처 앱이 내보낸 .vcf 를 업로드해 일괄 등록.
+#  vCard 2.1/3.0/4.0, 한 파일 여러 명, 한글 QUOTED-PRINTABLE, 아이폰 itemN. 그룹,
+#  줄 접힘(folding)·2.1 QP 소프트 줄바꿈까지 처리.
+# ─────────────────────────────────────────────────────────────────────────────
+def _vcard_unescape(s: str) -> str:
+    """vCard 이스케이프 해제 (\\n→줄바꿈, \\, \\; \\\\ → 원문자)."""
+    out, i, n = [], 0, len(s or "")
+    while i < n:
+        ch = s[i]
+        if ch == "\\" and i + 1 < n:
+            nx = s[i + 1]
+            if nx in ("n", "N"):
+                out.append("\n")
+            else:
+                out.append(nx)   # \, \; \\ 등 → 뒤 문자 그대로
+            i += 2
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
+def _decode_vcf_bytes(data: bytes) -> str:
+    """업로드된 .vcf bytes → 텍스트. UTF-8 우선, 실패 시 CP949(한글 윈도우)·latin-1 폴백."""
+    for enc in ("utf-8-sig", "utf-8", "cp949", "euc-kr", "latin-1"):
+        try:
+            return data.decode(enc)
+        except Exception:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def _vcf_logical_lines(text: str) -> list[str]:
+    """물리 줄 → 논리 줄. 3.0 접힘(앞 공백/탭)과 2.1 QUOTED-PRINTABLE 소프트('=' 끝) 합침."""
+    raw = (text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    out: list[str] = []
+    for ln in raw:
+        if out and ln[:1] in (" ", "\t"):
+            out[-1] += ln[1:]                      # 3.0 접힘
+        elif out and out[-1].endswith("=") and "QUOTED-PRINTABLE" in out[-1].upper():
+            out[-1] = out[-1][:-1] + ln            # 2.1 QP 소프트 줄바꿈
+        else:
+            out.append(ln)
+    return out
+
+
+def _decode_qp(value: str, charset: str) -> str:
+    """QUOTED-PRINTABLE 값 디코드 (지정 charset, 기본 utf-8·CP949 폴백)."""
+    import quopri
+    try:
+        b = quopri.decodestring(value.encode("latin-1", errors="ignore"))
+    except Exception:
+        return value
+    for enc in ([charset] if charset else []) + ["utf-8", "cp949", "euc-kr", "latin-1"]:
+        try:
+            return b.decode(enc)
+        except Exception:
+            continue
+    return b.decode("utf-8", errors="replace")
+
+
+def _join_nonempty(parts, sep=" ") -> str:
+    return sep.join(p.strip() for p in parts if p and p.strip())
+
+
+def parse_vcards(text: str) -> list[dict]:
+    """vCard(.vcf) 텍스트 → 연락처 dict 목록(FIELD_KEYS 키). 한 파일 여러 명 지원."""
+    cards: list[dict] = []
+    cur: dict | None = None
+    for line in _vcf_logical_lines(text):
+        s = line.strip()
+        if not s:
+            continue
+        up = s.upper()
+        if up.startswith("BEGIN:VCARD"):
+            cur = _empty_fields()
+            continue
+        if up.startswith("END:VCARD"):
+            if cur is not None:
+                # FN 없으면 N(성;이름) 으로 이름 보강
+                if not cur.get("name") and cur.get("_n"):
+                    fam, giv = cur["_n"]
+                    if re.fullmatch(r"[가-힣]+", (fam + giv)):
+                        cur["name"] = fam + giv          # 한글: 성+이름 붙임
+                    else:
+                        cur["name"] = _join_nonempty([giv, fam])
+                cur.pop("_n", None)
+                if cur.get("name") or cur.get("mobile") or cur.get("phone") or cur.get("email"):
+                    cards.append({k: cur.get(k, "") for k in FIELD_KEYS})
+            cur = None
+            continue
+        if cur is None or ":" not in s:
+            continue
+        head, value = s.split(":", 1)
+        parts = head.split(";")
+        propname = parts[0]
+        if "." in propname:                              # 아이폰 itemN.TEL → TEL
+            propname = propname.split(".", 1)[1]
+        propname = propname.upper()
+        params = [p.upper() for p in parts[1:]]
+        # 인코딩/charset 파라미터
+        charset = ""
+        is_qp = False
+        for p in parts[1:]:
+            pu = p.upper()
+            if pu.startswith("CHARSET="):
+                charset = p.split("=", 1)[1]
+            if "QUOTED-PRINTABLE" in pu:
+                is_qp = True
+        val = _decode_qp(value, charset) if is_qp else value
+        val = _vcard_unescape(val).strip()
+        if not val and propname not in ("N", "ADR", "ORG"):
+            continue
+        # TYPE 값 모으기 (TYPE=CELL,WORK / 또는 그냥 CELL,WORK)
+        types = []
+        for p in params:
+            if p.startswith("TYPE="):
+                types += p.split("=", 1)[1].split(",")
+            elif p in ("CELL", "WORK", "HOME", "VOICE", "FAX", "MOBILE", "IPHONE",
+                       "MAIN", "PREF", "INTERNET"):
+                types.append(p)
+        types = [t.strip() for t in types]
+
+        if propname == "FN":
+            cur["name"] = val
+        elif propname == "N":
+            nf = (value.split(";") + ["", ""])           # 성;이름;...
+            if is_qp:
+                nf = [_decode_qp(x, charset) for x in nf]
+            cur["_n"] = (_vcard_unescape(nf[0]).strip(), _vcard_unescape(nf[1]).strip())
+        elif propname == "ORG":
+            of = [_vcard_unescape(x).strip() for x in (val.split(";") + [""])]
+            cur["company"] = of[0]
+            if len(of) > 1 and of[1] and not cur.get("department"):
+                cur["department"] = of[1]
+        elif propname == "TITLE":
+            cur["position"] = cur.get("position") or val
+        elif propname == "TEL":
+            tel = _norm_phone(val)
+            if any(t in ("CELL", "MOBILE", "IPHONE") for t in types):
+                if not cur.get("mobile"):
+                    cur["mobile"] = tel
+            elif "FAX" in types:
+                if not cur.get("fax"):
+                    cur["fax"] = tel
+            else:
+                if not cur.get("phone"):
+                    cur["phone"] = tel
+                elif not cur.get("mobile") and tel.startswith("01"):
+                    cur["mobile"] = tel
+        elif propname == "EMAIL":
+            if not cur.get("email"):
+                cur["email"] = val
+        elif propname == "ADR":
+            af = [_vcard_unescape(x).strip() for x in val.split(";")]
+            # ;;거리;시;도;우편;국가
+            addr = _join_nonempty(af[2:]) if len(af) > 2 else _join_nonempty(af)
+            if addr and not cur.get("address"):
+                cur["address"] = addr
+        elif propname == "NOTE":
+            if not cur.get("note"):
+                cur["note"] = val
+    return cards
+
+
 def vcard_qr_png(ct: dict) -> bytes | None:
     """연락처 vCard → QR 코드 PNG bytes. 휴대폰 카메라로 스캔 → 즉시 연락처 추가.
     qrcode 미설치 시 None."""
