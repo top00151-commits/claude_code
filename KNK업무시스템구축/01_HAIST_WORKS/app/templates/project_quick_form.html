@@ -289,11 +289,26 @@ html,body{background:#fff!important;overflow:auto!important;}
             </div>
             <details class="qf-adv" style="margin-top:8px;">
               <summary>통보 부서 선택 <span>(기본 전부서 — 빼려면 체크 해제)</span></summary>
-              <div style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:4px 2px 12px;">
-                {% for t in teams %}
-                <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" checked> {{ t.name }} <span style="color:#999;">{{ t.member_count }}명</span></label>
-                {% endfor %}
+              {# v5H226z552 (대표 지시): 전체선택/취소 + 본사/베트남법인 구분 #}
+              <div style="display:flex;gap:8px;align-items:center;padding:6px 2px 2px;">
+                <button type="button" onclick="document.querySelectorAll('.pr-team').forEach(function(c){c.checked=true;});" style="font-size:11.5px;font-weight:700;border:1px solid #fdba74;background:#fff;color:#9a3412;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 선택</button>
+                <button type="button" onclick="document.querySelectorAll('.pr-team').forEach(function(c){c.checked=false;});" style="font-size:11.5px;font-weight:700;border:1px solid #e5e7eb;background:#fff;color:#6b7280;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 취소</button>
               </div>
+              {% set ns = namespace(kor=[], vn=[], etc=[]) %}
+              {% for t in teams %}{% if (t.entity or 'KOR')=='VN' %}{% set ns.vn = ns.vn + [t] %}{% elif (t.entity or 'KOR')=='KOR' %}{% set ns.kor = ns.kor + [t] %}{% else %}{% set ns.etc = ns.etc + [t] %}{% endif %}{% endfor %}
+              {% for grp in [('🏢 본사', ns.kor), ('🌏 베트남법인', ns.vn), ('기타', ns.etc)] %}
+                {% if grp[1] %}
+                <div style="margin-top:8px;padding:0 2px;">
+                  <div style="font-size:11px;font-weight:800;color:#9a3412;margin-bottom:4px;">{{ grp[0] }} <span style="color:#c2772a;font-weight:600;">({{ grp[1]|length }})</span></div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px 14px;">
+                    {% for t in grp[1] %}
+                    <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" checked> {{ t.name }} <span style="color:#999;">{{ t.member_count }}명</span></label>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endif %}
+              {% endfor %}
+              <div style="height:10px;"></div>
             </details>
           </div>
         </div>

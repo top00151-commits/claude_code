@@ -20626,10 +20626,11 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
     try:
         with db_session() as _ptc:
             _teams = [dict(r) for r in _ptc.execute(
-                "SELECT t.id, t.name, COUNT(u.id) AS member_count "
+                "SELECT t.id, t.name, t.entity, COUNT(u.id) AS member_count "
                 "FROM teams t LEFT JOIN users u ON u.team_id=t.id AND COALESCE(u.is_active,1)=1 "
-                "GROUP BY t.id, t.name HAVING member_count > 0 ORDER BY t.display_order, t.id"
-            ).fetchall()]
+                "GROUP BY t.id, t.name, t.entity HAVING member_count > 0 "
+                "ORDER BY (CASE WHEN COALESCE(t.entity,'KOR')='VN' THEN 1 ELSE 0 END), t.display_order, t.id"
+            ).fetchall()]   # v5H226z552: 법인(entity)·본사 먼저
     except Exception:
         _teams = []
     # v5H226z386 (대표 지시): 검증 모드 ON 이면 관리번호가 A 접두로 발급됨 — 화면에 표시(잊지 않게)
