@@ -21,6 +21,9 @@
 .rd-btn.danger:disabled { background:#fca5a5; cursor:not-allowed; }
 .rd-done { background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; border-radius:10px; padding:16px 18px; font-size:13.5px; line-height:1.8; }
 .rd-err  { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; border-radius:10px; padding:12px 16px; font-size:13px; margin-bottom:12px; }
+/* v5H226z556: 초기화 진행 중 오버레이 */
+@keyframes rdspin{to{transform:rotate(360deg)}}
+.rd-spin{width:34px;height:34px;border:4px solid #fecaca;border-top-color:#dc2626;border-radius:50%;animation:rdspin .8s linear infinite;}
 </style></head>
 <body>
 <div class="app">{% set active_tab = 'home' %}
@@ -121,7 +124,8 @@
         var picked = Array.from(document.querySelectorAll('.grpChk:checked'))
           .map(function(c){ return c.parentNode.querySelector('b').textContent.trim(); });
         if (!picked.length) return false;
-        return confirm('다음 항목을 초기화합니다 (백업 자동 생성):\n\n· ' + picked.join('\n· ') + '\n\n계속할까요?');
+        if (!confirm('다음 항목을 초기화합니다 (백업 자동 생성):\n\n· ' + picked.join('\n· ') + '\n\n계속할까요?')) return false;
+        knkResetBusy('선택 항목 초기화'); return true;
       }
     </script>
 
@@ -163,8 +167,9 @@
         var picked = Array.from(document.querySelectorAll('.divChk:checked'))
           .map(function(c){ return c.parentNode.querySelector('b').textContent.trim(); });
         if (!picked.length) return false;
-        return confirm('다음 사업부의 매출 데이터를 초기화합니다 (프로젝트+수주+납품+수금+수출, 백업 자동 생성):\n\n· '
-          + picked.join('\n· ') + '\n\n계속할까요?');
+        if (!confirm('다음 사업부의 매출 데이터를 초기화합니다 (프로젝트+수주+납품+수금+수출, 백업 자동 생성):\n\n· '
+          + picked.join('\n· ') + '\n\n계속할까요?')) return false;
+        knkResetBusy('사업부별 매출 초기화'); return true;
       }
     </script>
 
@@ -210,13 +215,35 @@
     </div>
 
     <form method="post" action="/admin/reset-demo" class="rd-confirm"
-          onsubmit="return confirm('정말 초기화하시겠습니까? 되돌리기 어렵습니다. (백업은 자동 생성)');">
+          onsubmit="return knkFullSubmit();">
       <h3 style="margin:0 0 10px;font-size:14px;font-weight:800;color:#7f1d1d;">실행하려면 아래에 <code>데이터초기화</code> 를 입력하세요</h3>
       <input type="text" name="confirm" id="rdConfirm" placeholder="데이터초기화" autocomplete="off"
              oninput="document.getElementById('rdBtn').disabled = (this.value.trim() !== '데이터초기화');">
       <button type="submit" id="rdBtn" class="rd-btn danger" disabled style="margin-left:10px;">🗑 데모 데이터 초기화 실행</button>
     </form>
   </div>
+
+  {# v5H226z556 (대표 지시): 초기화 진행 중 오버레이 — 제출 시 표시(작업이 수십 초 걸려 멈춘 줄 오해 방지) #}
+  <div id="rdBusy" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.55);align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:14px;padding:26px 32px;max-width:92vw;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.35);">
+      <div class="rd-spin" style="margin:0 auto 14px;"></div>
+      <div style="font-size:15px;font-weight:800;color:#0f172a;">⏳ <span id="rdBusyLabel">초기화</span> 진행 중입니다…</div>
+      <div style="font-size:12.5px;color:#64748b;margin-top:8px;line-height:1.7;">데이터 양에 따라 <b>수십 초</b> 걸릴 수 있어요 · 실행 전 자동 백업 중.<br><b>창을 닫거나 새로고침하지 마세요</b> — 끝나면 결과가 자동으로 표시됩니다.</div>
+    </div>
+  </div>
+  <script>
+    // v5H226z556: 초기화 제출 시 진행 오버레이 — 모든 초기화 폼 공통
+    function knkResetBusy(label){
+      var o=document.getElementById('rdBusy');
+      if(!o) return;
+      var l=document.getElementById('rdBusyLabel'); if(l) l.textContent=label||'초기화';
+      o.style.display='flex';
+    }
+    function knkFullSubmit(){
+      if(!confirm('정말 초기화하시겠습니까? 되돌리기 어렵습니다. (백업은 자동 생성)')) return false;
+      knkResetBusy('전체 데모 데이터 초기화'); return true;
+    }
+  </script>
 </main>
 </div>
 </body></html>
