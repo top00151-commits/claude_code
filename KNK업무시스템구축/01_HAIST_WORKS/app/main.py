@@ -13478,6 +13478,36 @@ async def contacts_delete(req: Request, cid: int):
     return JSONResponse({"ok": True})
 
 
+@app.post("/contacts/bulk-delete")
+async def contacts_bulk_delete(req: Request):
+    """여러 연락처 일괄 삭제 — v5H226z584. body: {ids:[...]}. 권한=등록 본인·관리자만.
+    가시성 없는(내가 못 보는) 항목은 건너뜀."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "요청 형식 오류."}, 400)
+    ids = body.get("ids") or []
+    ids = [int(x) for x in ids if str(x).isdigit()]
+    if not ids:
+        return JSONResponse({"ok": False, "message": "삭제할 항목이 없습니다."}, 400)
+    deleted, skipped = 0, 0
+    with db_session() as c:
+        for cid in ids:
+            contact = _contacts.get_contact(c, cid)
+            if not contact or not _contacts.can_see(contact, u) or not _contacts.can_edit(contact, u):
+                skipped += 1
+                continue
+            _contacts.delete_contact(c, cid)
+            deleted += 1
+    msg = f"{deleted}명을 삭제했습니다."
+    if skipped:
+        msg += f" (권한 없음 {skipped}명 건너뜀)"
+    return JSONResponse({"ok": True, "deleted": deleted, "skipped": skipped, "message": msg})
+
+
 @app.post("/contacts/{cid:int}/share")
 async def contacts_share(req: Request, cid: int):
     """v5H226z580 연락처 공유 범위 변경 (개인/부서/전사). 등록 본인·관리자만.

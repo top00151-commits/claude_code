@@ -13,9 +13,22 @@
 .vis-co   { background:#dcfce7; color:#166534; }
 .vis-dept { background:#dbeafe; color:#1e40af; }
 .vis-me   { background:#f1f5f9; color:#475569; }
-.tbl-wrap.tbl-sticky { margin-top: var(--space-3); max-height: calc(100vh - 220px) !important; overflow:auto; }
-/* v5H226z582/z583: 모든 칸 한 줄로(줄바꿈 금지) — 길면 표 가로 스크롤 */
-.tbl th, .tbl td { white-space:nowrap; }
+.tbl-wrap.tbl-sticky { margin-top: var(--space-3); max-height: calc(100vh - 250px) !important; overflow:auto; }
+/* v5H226z582~584: 모든 칸 한 줄로(줄바꿈 금지)·내가 너비 조절(드래그)·항목 보임/숨김 */
+#cxTbl { table-layout:fixed; border-collapse:collapse; width:auto; }
+#cxTbl th, #cxTbl td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#cxTbl th { position:relative; }
+.cx-chkcol { text-align:center; }
+.cx-resz { position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; user-select:none; }
+.cx-resz:hover { background:var(--knk-red); opacity:.45; }
+.cx-del { color:var(--knk-red); cursor:pointer; background:none; border:none; font-size:14px; padding:2px 6px; line-height:1; }
+.cx-del:hover { background:#fee2e2; border-radius:6px; }
+.cx-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 var(--content-pad) var(--space-2); }
+.cx-colmenu { position:relative; }
+.cx-colmenu-pop { position:absolute; right:0; top:112%; background:#fff; border:1px solid var(--line);
+                  border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,.18); padding:8px; z-index:60; min-width:170px; }
+.cx-colmenu-pop label { display:flex; gap:8px; align-items:center; font-size:13px; padding:5px 6px; cursor:pointer; border-radius:6px; }
+.cx-colmenu-pop label:hover { background:#f1f5f9; }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
@@ -45,34 +58,65 @@
     {% if q %}<a href="/contacts" class="btn btn-secondary">✕ 초기화</a>{% endif %}
   </form>
 
+  {% if contacts %}
+  <div class="cx-toolbar">
+    <button type="button" class="btn btn-secondary" id="cxDelBtn" onclick="cxDelSelected()" disabled style="color:var(--knk-red);">🗑 선택 삭제 (<span id="cxSelN">0</span>)</button>
+    <button type="button" class="btn btn-secondary" onclick="cxSelectNoMobile()" title="휴대폰 번호가 비어있는 연락처를 모두 선택">📵 휴대폰 없는 항목 선택</button>
+    <div class="cx-colmenu">
+      <button type="button" class="btn btn-secondary" onclick="cxToggleColMenu(event)">⚙ 칸 설정</button>
+      <div class="cx-colmenu-pop" id="cxColMenu" style="display:none;"></div>
+    </div>
+    <button type="button" class="btn btn-secondary" onclick="cxResetCols()" title="칸 너비·보임을 기본값으로">↺ 칸 초기화</button>
+    <span style="font-size:11.5px;color:var(--mute);">머리글 경계를 드래그하면 칸 너비를 조절할 수 있습니다.</span>
+  </div>
+  {% endif %}
+
   <div class="tbl-wrap tbl-sticky">
     {% if contacts %}
-    <table class="tbl">
+    <table class="tbl" id="cxTbl">
+      <colgroup>
+        <col style="width:36px"><col data-col="name" style="width:200px"><col data-col="position" style="width:90px">
+        <col data-col="company" style="width:190px"><col data-col="department" style="width:120px">
+        <col data-col="mobile" style="width:130px"><col data-col="email" style="width:220px">
+        <col data-col="vis" style="width:88px"><col data-col="source" style="width:72px">
+        <col data-col="creator" style="width:110px"><col style="width:56px">
+      </colgroup>
       <thead><tr>
-        <th>이름</th><th>직책</th><th>회사</th><th>부서</th>
-        <th>휴대폰</th><th>이메일</th><th class="center">공유</th><th class="center">출처</th><th>등록자</th>
+        <th class="cx-chkcol"><input type="checkbox" id="cxAll" onclick="cxSelAll(this)" title="전체 선택"></th>
+        <th data-col="name">이름<span class="cx-resz" data-rz="name"></span></th>
+        <th data-col="position">직책<span class="cx-resz" data-rz="position"></span></th>
+        <th data-col="company">회사<span class="cx-resz" data-rz="company"></span></th>
+        <th data-col="department">부서<span class="cx-resz" data-rz="department"></span></th>
+        <th data-col="mobile">휴대폰<span class="cx-resz" data-rz="mobile"></span></th>
+        <th data-col="email">이메일<span class="cx-resz" data-rz="email"></span></th>
+        <th data-col="vis" class="center">공유<span class="cx-resz" data-rz="vis"></span></th>
+        <th data-col="source" class="center">출처<span class="cx-resz" data-rz="source"></span></th>
+        <th data-col="creator">등록자<span class="cx-resz" data-rz="creator"></span></th>
+        <th class="center">관리</th>
       </tr></thead>
       <tbody>
       {% for c in contacts %}
-        <tr onclick="location.href='/contacts/{{ c.id }}'" style="cursor:pointer;">
-          <td><b>{{ c.name }}</b></td>
-          <td>{{ c.position|default('—') }}</td>
-          <td>{{ c.company|default('—') }}</td>
-          <td>{{ c.department|default('—') }}</td>
-          <td style="font-family:monospace;font-size:12.5px;">{{ c.mobile|default('—') }}</td>
-          <td style="font-size:12.5px;">{{ c.email|default('—') }}</td>
-          <td class="center">
+        <tr data-id="{{ c.id }}" onclick="cxRowGo(event, {{ c.id }})" style="cursor:pointer;">
+          <td class="cx-chkcol"><input type="checkbox" class="cx-row" data-id="{{ c.id }}" data-mobile="{{ (c.mobile or '')|trim }}" onclick="event.stopPropagation(); cxSyncSel();"></td>
+          <td data-col="name"><b>{{ c.name }}</b></td>
+          <td data-col="position">{{ c.position|default('—') }}</td>
+          <td data-col="company">{{ c.company|default('—') }}</td>
+          <td data-col="department">{{ c.department|default('—') }}</td>
+          <td data-col="mobile" style="font-family:monospace;font-size:12.5px;">{{ c.mobile|default('—') }}</td>
+          <td data-col="email" style="font-size:12.5px;">{{ c.email|default('—') }}</td>
+          <td data-col="vis" class="center">
             {% set v = c.visibility|default('private') %}
             {% if v == 'company' %}<span class="src-pill vis-co">🌐 전사</span>
             {% elif v == 'dept' %}<span class="src-pill vis-dept" title="{{ c.share_team_name|default('') }}">👥 부서</span>
             {% else %}<span class="src-pill vis-me">🔒 개인</span>{% endif %}
           </td>
-          <td class="center">
+          <td data-col="source" class="center">
             {% if c.source == 'card' %}<span class="src-pill src-card">명함</span>
             {% elif c.source == 'signature' %}<span class="src-pill src-sig">서명</span>
             {% else %}<span class="src-pill src-man">직접</span>{% endif %}
           </td>
-          <td style="font-size:12px;color:var(--mute);">{{ c.creator_name|default('—') }}</td>
+          <td data-col="creator" style="font-size:12px;color:var(--mute);">{{ c.creator_name|default('—') }}</td>
+          <td class="center"><button type="button" class="cx-del" title="이 연락처 삭제" onclick="cxDelOne(event, {{ c.id }})">🗑</button></td>
         </tr>
       {% endfor %}
       </tbody>
@@ -112,6 +156,142 @@
   <script>
     window.cxPhoneSave=function(){ var m=document.getElementById('cxPhoneModal'); if(m) m.style.display='flex'; };
     window.cxPhoneClose=function(){ var m=document.getElementById('cxPhoneModal'); if(m) m.style.display='none'; };
+  </script>
+
+  {# v5H226z584 (대표 지시): 칸 너비 조절(드래그)·항목 보임/숨김·행/다중 삭제. SPA 규칙: .main 안·IIFE·window 노출 #}
+  <script>
+  (function(){
+    var TBL = document.getElementById('cxTbl');
+    if(!TBL) return;   // 빈 목록이면 표 없음
+    var COLS = [
+      {k:'name',label:'이름'},{k:'position',label:'직책'},{k:'company',label:'회사'},
+      {k:'department',label:'부서'},{k:'mobile',label:'휴대폰'},{k:'email',label:'이메일'},
+      {k:'vis',label:'공유'},{k:'source',label:'출처'},{k:'creator',label:'등록자'}
+    ];
+    var LS_W='knk.cx.colw', LS_H='knk.cx.hidden';
+    function load(key){ try{ return JSON.parse(localStorage.getItem(key)||'null'); }catch(e){ return null; } }
+    function save(key,v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch(e){} }
+
+    // ── 너비 적용/저장 ──
+    function applyWidths(){
+      var w = load(LS_W) || {};
+      COLS.forEach(function(c){
+        if(w[c.k]){ var col=TBL.querySelector('col[data-col="'+c.k+'"]'); if(col) col.style.width = w[c.k]+'px'; }
+      });
+    }
+    function saveWidth(k, px){ var w = load(LS_W) || {}; w[k] = Math.round(px); save(LS_W, w); }
+
+    // ── 보임/숨김 적용 ──
+    function isHidden(k){ return (load(LS_H)||[]).indexOf(k) >= 0; }
+    function setColVisible(k, vis){
+      TBL.querySelectorAll('[data-col="'+k+'"]').forEach(function(el){ el.style.display = vis ? '' : 'none'; });
+    }
+    function applyHidden(){
+      var h = load(LS_H) || [];
+      COLS.forEach(function(c){ setColVisible(c.k, h.indexOf(c.k) < 0); });
+    }
+
+    // ── 칸 설정 메뉴 ──
+    window.cxToggleColMenu=function(ev){
+      if(ev) ev.stopPropagation();
+      var pop=document.getElementById('cxColMenu'); if(!pop) return;
+      if(pop.style.display==='none'){
+        pop.innerHTML = COLS.map(function(c){
+          return '<label><input type="checkbox" data-col="'+c.k+'" '+(isHidden(c.k)?'':'checked')+'> '+c.label+'</label>';
+        }).join('');
+        pop.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+          cb.addEventListener('change', function(){
+            var k=cb.getAttribute('data-col'); var h=load(LS_H)||[];
+            if(cb.checked){ h=h.filter(function(x){return x!==k;}); } else if(h.indexOf(k)<0){ h.push(k); }
+            save(LS_H,h); setColVisible(k, cb.checked);
+          });
+        });
+        pop.style.display='block';
+      } else { pop.style.display='none'; }
+    };
+    // 바깥 클릭 시 메뉴 닫기 (중복 등록 방지)
+    if(window._cxDocClose) document.removeEventListener('click', window._cxDocClose);
+    window._cxDocClose=function(e){
+      var pop=document.getElementById('cxColMenu');
+      if(pop && pop.style.display==='block' && !e.target.closest('.cx-colmenu')) pop.style.display='none';
+    };
+    document.addEventListener('click', window._cxDocClose);
+
+    window.cxResetCols=function(){
+      save(LS_W,{}); save(LS_H,[]);
+      // 기본 너비 복원
+      var def={name:200,position:90,company:190,department:120,mobile:130,email:220,vis:88,source:72,creator:110};
+      COLS.forEach(function(c){ var col=TBL.querySelector('col[data-col="'+c.k+'"]'); if(col) col.style.width=def[c.k]+'px';
+        setColVisible(c.k, true); });
+      var pop=document.getElementById('cxColMenu'); if(pop) pop.style.display='none';
+    };
+
+    // ── 너비 드래그 ──
+    TBL.querySelectorAll('.cx-resz').forEach(function(rz){
+      rz.addEventListener('mousedown', function(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        var k=rz.getAttribute('data-rz');
+        var col=TBL.querySelector('col[data-col="'+k+'"]');
+        if(!col) return;
+        var startX=ev.clientX, startW=col.getBoundingClientRect ? (parseFloat(col.style.width)|| col.offsetWidth) : 120;
+        if(!startW){ var th=rz.closest('th'); startW = th?th.offsetWidth:120; }
+        function mv(e){ var nw=Math.max(40, startW + (e.clientX-startX)); col.style.width=nw+'px'; }
+        function up(e){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up);
+          saveWidth(k, parseFloat(col.style.width)); }
+        document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+      });
+    });
+
+    // ── 선택/삭제 ──
+    function rows(){ return Array.prototype.slice.call(TBL.querySelectorAll('input.cx-row')); }
+    window.cxSyncSel=function(){
+      var all=rows(), sel=all.filter(function(x){return x.checked;});
+      var n=sel.length;
+      var el=document.getElementById('cxSelN'); if(el) el.textContent=n;
+      var btn=document.getElementById('cxDelBtn'); if(btn) btn.disabled=(n===0);
+      var head=document.getElementById('cxAll');
+      if(head){ head.checked = (n>0 && n===all.length); head.indeterminate = (n>0 && n<all.length); }
+    };
+    window.cxSelAll=function(cb){ rows().forEach(function(x){ x.checked=cb.checked; }); cxSyncSel(); };
+    window.cxSelectNoMobile=function(){
+      var hit=0;
+      rows().forEach(function(x){ var m=(x.getAttribute('data-mobile')||'').trim();
+        var on = (m==='' || m==='—'); x.checked=on; if(on) hit++; });
+      cxSyncSel();
+      if(!hit) alert('휴대폰 번호가 없는 연락처가 없습니다.');
+      else alert('휴대폰 번호 없는 '+hit+'명을 선택했습니다. 확인 후 [🗑 선택 삭제]를 누르세요.');
+    };
+    window.cxRowGo=function(ev, id){
+      if(ev.target.closest('input,button,a,.cx-resz')) return;
+      location.href='/contacts/'+id;
+    };
+    window.cxDelOne=async function(ev, id){
+      ev.stopPropagation();
+      var tr=ev.target.closest('tr');
+      var nm = tr ? (tr.querySelector('[data-col="name"]')||{}).textContent : '';
+      if(!confirm("'"+(nm||'').trim()+"' 연락처를 삭제할까요? 되돌릴 수 없습니다.")) return;
+      try{
+        var r=await fetch('/contacts/'+id+'/delete',{method:'POST'});
+        var j=await r.json();
+        if(j.ok){ if(tr) tr.remove(); cxSyncSel(); } else { alert('삭제 실패: '+(j.message||'오류')); }
+      }catch(e){ alert('네트워크 오류: '+e.message); }
+    };
+    window.cxDelSelected=async function(){
+      var ids=rows().filter(function(x){return x.checked;}).map(function(x){return parseInt(x.getAttribute('data-id'),10);});
+      if(!ids.length){ return; }
+      if(!confirm(ids.length+'명을 삭제할까요? 되돌릴 수 없습니다.')) return;
+      var btn=document.getElementById('cxDelBtn'); if(btn){ btn.disabled=true; }
+      try{
+        var r=await fetch('/contacts/bulk-delete',{method:'POST',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids:ids})});
+        var j=await r.json();
+        if(j.ok){ alert(j.message||'삭제했습니다.'); location.reload(); }
+        else { alert('삭제 실패: '+(j.message||'오류')); if(btn) btn.disabled=false; }
+      }catch(e){ alert('네트워크 오류: '+e.message); if(btn) btn.disabled=false; }
+    };
+
+    applyWidths(); applyHidden(); cxSyncSel();
+  })();
   </script>
 </main></div>
 {% include "_v5_partials/knk_inputs.html" ignore missing %}
