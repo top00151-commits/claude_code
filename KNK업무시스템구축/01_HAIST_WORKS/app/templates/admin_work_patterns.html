@@ -46,12 +46,11 @@ table.wp tbody tr:hover td{background:#fcfaf3;}
     <div class="wp-card">
       <h3>부서별 요약</h3>
       <table class="wp">
-        <thead><tr><th>부서</th><th class="num">인원</th><th class="num">일일업무</th><th class="num">티켓</th><th class="num">이슈</th><th class="num">공정</th><th class="num">단계</th><th class="num">부서일정</th><th class="num">메일</th><th class="num">메신저</th><th class="num">수주전(h)</th><th class="num">공수(h)</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
+        <thead><tr><th>부서</th><th class="num">인원</th><th class="num">일일업무</th><th class="num">티켓</th><th class="num">이슈</th><th class="num">공정</th><th class="num">부서일정</th><th class="num">메일</th><th class="num">메신저</th><th class="num">수주전(h)</th><th class="num">공수(h)</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
         <tbody>
         {% for d in depts %}<tr class="wp-dept">
           <td>{{ d.team_name }}</td><td class="num">{{ d.people }}</td><td class="num">{{ d.cnt }}</td>
           <td class="num">{{ d.tickets }}</td><td class="num">{{ d.issues }}</td><td class="num">{{ d.phases }}</td>
-          <td class="num">{% if d.stage_n %}{{ d.stage_n }}{% if d.stage_h %} ({{ d.stage_h }}h){% endif %}{% else %}·{% endif %}</td>
           <td class="num">{% if d.dsx %}{{ d.dsx }}{% if d.dsx_h %} ({{ d.dsx_h }}h){% endif %}{% else %}·{% endif %}</td>
           <td class="num">{{ d.mail }}</td><td class="num">{{ d.msgr }}</td>
           <td class="num">{% if d.presales_h %}{{ d.presales_h }}{% else %}·{% endif %}</td>
@@ -66,7 +65,7 @@ table.wp tbody tr:hover td{background:#fcfaf3;}
     <div class="wp-card">
       <h3>직원별 <span class="wp-muted" style="font-weight:400;">(활동 많은 순 · 이름 클릭 → 상세·AI 요약)</span></h3>
       <table class="wp">
-        <thead><tr><th>이름</th><th>부서</th><th class="num">일일업무</th><th class="num">티켓</th><th class="num">이슈</th><th class="num">공정</th><th class="num">단계</th><th class="num">부서일정</th><th class="num">메일</th><th class="num">메신저</th><th class="num">수주전(h)</th><th class="num">공수(h)</th><th>주 업무</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
+        <thead><tr><th>이름</th><th>부서</th><th class="num">일일업무</th><th class="num">티켓</th><th class="num">이슈</th><th class="num">공정</th><th class="num">부서일정</th><th class="num">메일</th><th class="num">메신저</th><th class="num">수주전(h)</th><th class="num">공수(h)</th><th>주 업무</th><th class="num">완료율</th><th class="num">지연</th></tr></thead>
         <tbody>
         {% for r in rows %}<tr>
           <td class="wp-name"><a href="/admin/work-patterns/{{ r.user_id }}?days={{ days }}">{{ r.name }}</a></td>
@@ -75,7 +74,6 @@ table.wp tbody tr:hover td{background:#fcfaf3;}
           <td class="num">{{ r.tickets or '·' }}</td>
           <td class="num">{{ r.issues or '·' }}</td>
           <td class="num">{{ r.phases or '·' }}</td>
-          <td class="num">{% if r.stage_n %}{{ r.stage_n }}{% if r.stage_h %} ({{ r.stage_h }}h){% endif %}{% else %}·{% endif %}</td>
           <td class="num">{% if r.dsx %}{{ r.dsx }}{% if r.dsx_h %} ({{ r.dsx_h }}h){% endif %}{% else %}·{% endif %}</td>
           <td class="num">{{ r.mail or '·' }}</td>
           <td class="num">{{ r.msgr or '·' }}</td>

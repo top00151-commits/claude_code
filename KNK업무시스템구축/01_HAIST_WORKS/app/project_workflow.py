@@ -1288,12 +1288,7 @@ def cascade_unit_status_to_project(c, project_id: int,
     """v5H226r/x — 호기 unit_status 변경 시 부모 프로젝트 status + SO orders.status 동기화.
     모든 호기가 동일 상태일 때만 부모 상태 변경. 혼합/0건이면 no-op.
     v5H226x: 4종 모두(진행중/출하/취소/보류) 매핑 + SO orders.status 도 함께 동기화.
-    v5H226z473: 진입 시 출하 단계 동기화([상세→보드]) — 모든 호기변경 경로가 이 함수를 거치므로 한 곳에서."""
-    # v5H226z473 (대표 지시): 호기 상태 변경 → 작업일정표 단계칸 'ship'(출하) 동기화
-    try:
-        sync_ship_stage_from_units(c, project_id, by_user=changed_by)
-    except Exception:
-        pass
+    v5H226z571: 단계 시스템 제거 — 출하 단계 거울 동기화(sync_ship_stage_from_units) 폐지(상태 동기화만 유지)."""
     try:
         rows = c.execute(
             """SELECT COALESCE(oi.unit_status,'진행중') AS st

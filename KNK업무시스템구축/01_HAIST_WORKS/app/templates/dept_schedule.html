@@ -254,7 +254,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       <thead>
         <tr>
           <th class="c-code">관리번호</th><th>수주번호</th><th>모델명</th><th>장비명</th><th>수량</th>
-          <th>PO유형</th><th>형태</th><th>고객사</th><th>고객사담당자</th><th>발주일</th><th>납품일</th><th>단계</th>
+          <th>PO유형</th><th>형태</th><th>고객사</th><th>고객사담당자</th><th>발주일</th><th>납품일</th>
           {% for d in days %}<th class="day{% if d==today_day %} today{% endif %}">{{ d }}</th>{% endfor %}
         </tr>
       </thead>
@@ -280,7 +280,6 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
           <td title="{{ r.owner }}">{{ r.owner or '—' }}</td>
           <td class="c-date">{{ r.order_date or '—' }}</td>
           <td class="c-date{% if r.is_delay %} delay{% endif %}">{{ r.due_date or '—' }}</td>
-          <td class="c-stage">{% if r.stage %}<span class="stage-badge">{{ r.stage }}</span>{% else %}<span style="color:#cbd5e1">·</span>{% endif %}</td>
           {% for d in days %}
             {% set m = cs.get(d|string) %}
             <td class="day{% if d==today_day %} today{% endif %}{% if r.bar_s and r.bar_s<=d<=r.bar_e %} bar{% if r.is_delay %} delay{% endif %}{% endif %}"

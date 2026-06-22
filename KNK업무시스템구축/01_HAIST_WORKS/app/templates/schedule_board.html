@@ -518,8 +518,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       {% if range_mode %}<a class="period-clear" href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}">월 보기로</a>{% endif %}
     </span>
     <label class="selall-lab"><input type="checkbox" id="schedSelAll" onclick="schedToggleAll(this)" /> 보이는 행 전체선택</label>
-    {# v5H226z472 (대표 지시): 일괄출하 — 체크한 행들을 오늘 날짜로 '출하' 단계 완료 처리(한꺼번에 많이). 우측 정렬. #}
-    <button type="button" class="bulk-ship-go" onclick="schedBulkShip()" title="체크한 행들을 오늘 날짜로 일괄 출하 처리(단계 '출하' 완료)" style="margin-left:auto;"><span class="ti">🚚</span> 일괄출하</button>
+    {# v5H226z472 (대표 지시): 일괄출하 — 체크한 행들을 오늘 날짜로 출하(납품완료) 처리(한꺼번에 많이). 우측 정렬. #}
+    <button type="button" class="bulk-ship-go" onclick="schedBulkShip()" title="체크한 행들을 오늘 날짜로 일괄 출하(납품완료) 처리" style="margin-left:auto;"><span class="ti">🚚</span> 일괄출하</button>
     {# v5H226z547: 묶어 발행은 '⚙ 도구' 패널로 이동. #}
     <span class="bulk-wrap" id="schedBulkBar" style="display:none;">
       <span class="bulk-cnt"><b id="schedSelCount">0</b>건 선택</span>
@@ -1896,7 +1896,7 @@ function schedBulkShip(){
     items.push({kind:kind, ref_id:Number(ref)});
   });
   if(!items.length){ toast('출하 처리할 대상이 없습니다'); return; }
-  if(!confirm(items.length+'건을 오늘 날짜로 출하 처리할까요?\n(작업일정표 단계칸에 "출하"로 표시되고 출하일이 기록됩니다)')) return;
+  if(!confirm(items.length+'건을 오늘 날짜로 출하 처리할까요?\n(호기 전체가 납품완료로 처리되고 출하일이 기록됩니다)')) return;
   var btn=document.querySelector('.bulk-ship-go'); if(btn) btn.disabled=true;
   fetch('/sales/schedule/bulk-ship',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})})
     .then(function(r){ return r.json(); })

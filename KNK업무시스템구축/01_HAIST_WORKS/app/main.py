@@ -1698,19 +1698,7 @@ async def admin_work_patterns(request: Request):
                 pha_map[r["uid"]] = r["n"]
         except Exception:
             pass
-        # v5H226z480 (대표 지시·Phase 3): 단계 작업(완료) — project_stage_log by_user 기준 건수+소요시간(h).
-        #   부서 단계 작업(착수→완료) 적립을 업무패턴 '단계' 신호로. on_date(완료일) 우선·없으면 updated_at.
-        stage_map = {}
-        try:
-            for r in c.execute(
-                "SELECT by_user AS uid, COUNT(*) AS n, COALESCE(SUM(hours),0) AS h FROM project_stage_log "
-                "WHERE done=1 AND by_user IS NOT NULL "
-                "AND date(COALESCE(NULLIF(on_date,''), updated_at)) BETWEEN ? AND ? GROUP BY by_user",
-                (start, end)):
-                if r["uid"]:
-                    stage_map[r["uid"]] = {"n": r["n"], "h": round(float(r["h"] or 0), 1)}
-        except Exception:
-            pass
+        # v5H226z571 (대표 지시): '단계' 시스템 완전 제거 — 부서 작업 추적은 부서일정표로 일원화(아래 dsx_map).
         # v5H226z499 (대표 지시·Phase 3): 부서 일정표 기록(dept_schedule_log) — created_by 기준 건수. 작성일(log_date) 기준.
         dsx_map = {}
         try:
@@ -1771,11 +1759,9 @@ async def admin_work_patterns(request: Request):
         msgr = ((msgr_map.get(empno) or {}).get("msgs", 0)) if empno else 0
         pre = presale_map.get(uid, {})
         presales = pre.get("n", 0); presales_h = pre.get("h", 0)
-        stg = stage_map.get(uid, {})
-        stage_n = stg.get("n", 0); stage_h = stg.get("h", 0)
         _dsxd = dsx_map.get(uid, {})   # v5H226z499/z570 (Phase3): 부서 일정표 기록 수 + 시간(h)
         dsx = _dsxd.get("n", 0); dsx_h = _dsxd.get("h", 0)
-        activity = cnt + tickets + issues + phases + mail + msgr + presales + stage_n + dsx
+        activity = cnt + tickets + issues + phases + mail + msgr + presales + dsx
         if activity <= 0:
             continue
         rows.append({
@@ -1787,7 +1773,6 @@ async def admin_work_patterns(request: Request):
             "tickets": tickets, "issues": issues, "phases": phases,
             "mail": mail, "msgr": msgr,
             "presales": presales, "presales_h": presales_h,
-            "stage_n": stage_n, "stage_h": stage_h,   # v5H226z480 (Phase3): 단계 작업
             "dsx": dsx, "dsx_h": dsx_h,   # v5H226z499/z570 (Phase3): 부서 일정표 기록 수 + 시간(h)
             "activity": activity,
         })
@@ -1798,18 +1783,17 @@ async def admin_work_patterns(request: Request):
                                               "hours": 0.0, "done": 0, "delayed": 0,
                                               "tickets": 0, "issues": 0, "phases": 0, "mail": 0, "msgr": 0,
                                               "presales": 0, "presales_h": 0.0,
-                                              "stage_n": 0, "stage_h": 0.0, "dsx": 0, "dsx_h": 0.0})
+                                              "dsx": 0, "dsx_h": 0.0})
         d["people"] += 1; d["cnt"] += r["cnt"]; d["hours"] += r["hours"]; d["done"] += r["done"]
         d["delayed"] += r["delayed"]; d["tickets"] += r["tickets"]; d["issues"] += r["issues"]; d["phases"] += r["phases"]
         d["mail"] += r["mail"]; d["msgr"] += r["msgr"]
         d["presales"] += r["presales"]; d["presales_h"] += r["presales_h"]
-        d["stage_n"] += r["stage_n"]; d["stage_h"] += r["stage_h"]; d["dsx"] += r["dsx"]; d["dsx_h"] += r["dsx_h"]
-    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"] + x["presales"] + x["stage_n"] + x["dsx"]))
+        d["dsx"] += r["dsx"]; d["dsx_h"] += r["dsx_h"]
+    dept_list = sorted(depts.values(), key=lambda x: -(x["cnt"] + x["tickets"] + x["issues"] + x["phases"] + x["mail"] + x["msgr"] + x["presales"] + x["dsx"]))
     for d in dept_list:
         d["rate"] = round(100 * d["done"] / d["cnt"]) if d["cnt"] else 0
         d["hours"] = round(d["hours"], 1)
         d["presales_h"] = round(d["presales_h"], 1)
-        d["stage_h"] = round(d["stage_h"], 1)   # v5H226z480 (Phase3): 단계 작업 시간 합계
         d["dsx_h"] = round(d["dsx_h"], 1)        # v5H226z570: 부서 일정표 시간 합계
     return ctx(request, "admin_work_patterns.html", user=u, rows=rows, depts=dept_list,
                period_label=plabel, days=days, start=start, end=end, total_people=len(rows))
@@ -2831,7 +2815,7 @@ async def daily_page(req: Request, sel_date: str = ""):
 
     # v5H226z518 (대표 지시): 내 업무함 — 받은 지시/요청 + 내가 시킨 일 + 대상(사람/부서) 목록
     wo_directed, wo_requested, wo_created, wo_users, wo_teams = [], [], [], [], []
-    flow_requests, flow_stage, my_team_name = [], [], ""   # v5H226z520: 흐름에서 온 일
+    flow_requests, my_team_name = [], ""   # v5H226z520: 흐름에서 온 일(부서요청). z571: 단계 큐 제거
     _can_money_daily = bool(can_view_sales(u))
     try:
         with db_session() as c2:
@@ -2870,14 +2854,7 @@ async def daily_page(req: Request, sel_date: str = ""):
                 _fr["status_label"] = OPPREQ_STATUS.get(_fr.get("status"), _fr.get("status"))
     except Exception as _e:
         print(f"[DAILY-WO ERR] {_e}")
-    # v5H226z520 (흐름 통합): 단계 작업 큐 — 내 부서 착수가능+진행중 (공용 헬퍼·별도 세션이라 c2 밖)
-    if my_team_name:
-        try:
-            _q_doing, _q_ready, _q_done, _q_td = _stage_queue_for(my_team_name, _can_money_daily)
-            flow_stage = (_q_ready + _q_doing)[:10]
-        except Exception as _e:
-            print(f"[DAILY-STAGE ERR] {_e}")
-
+    # v5H226z571 (대표 지시): 단계 시스템 완전 제거 — daily '흐름에서 온 일'은 부서요청만(단계 큐 폐지).
     return ctx(
         req, "daily.html",
         user=u, tasks=tasks, sel_date=sel_date,
@@ -2888,7 +2865,7 @@ async def daily_page(req: Request, sel_date: str = ""):
         wf_cards=wf_cards,  # z107: 워크플로우 업무카드
         wo_directed=wo_directed, wo_requested=wo_requested, wo_created=wo_created,
         wo_users=wo_users, wo_teams=wo_teams,   # v5H226z518: 내 업무함
-        flow_requests=flow_requests, flow_stage=flow_stage, my_team_name=my_team_name,  # v5H226z520: 흐름에서 온 일
+        flow_requests=flow_requests, my_team_name=my_team_name,  # v5H226z520: 흐름에서 온 일(부서요청)
     )
 
 
@@ -6503,19 +6480,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     cc_nm = p.get("cc_name") or ""
     cc_pos = p.get("cc_position") or ""
     # ① 작업일정표 '제작요청' 단계 자동 체크(+요청사항·발행정보 기록)
-    _extra = _json.dumps({"cust_req": cust_req, "note": note, "issued_at": now_str,
-                          "so_nos": so_nos}, ensure_ascii=False)
-    _memo = "제작요청 발행" + (f" · {cust_req[:60]}" if cust_req else "")
-    # 리뷰반영: stage_set 실패를 침묵하지 말고 표면화(핵심 요구 — 일정표 자동기록)
+    # v5H226z571 (대표 지시): 단계 시스템 제거 — 제작요청의 단계 자동기록 폐지(통보 등 실제 동작은 유지).
     _stage_warn = ""
-    try:
-        _sok, _smsg = _logi.stage_set("project", pid, "prod_request", done=True, on_date=today,
-                                      memo=_memo, extra=_extra, user_id=uid_self if uid_self > 0 else None,
-                                      user_name=by_name)
-        if not _sok:
-            _stage_warn = f"일정표 단계 기록 실패: {_smsg}"
-    except Exception as _e:
-        _stage_warn = f"일정표 단계 기록 오류: {str(_e)[:80]}"
     # ② 통보 — 단가·금액 제외(생산에 필요한 자료경로·모델·품명·수량·납기·요청사항만)
     title = f"📋 제작요청 [{mgmt}] {model}"
     body = (f"관리코드: {mgmt}\n"
@@ -17940,7 +17906,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         pass
 
     _smemos = _logi.schedule_memos_map()
-    _stage_map = _logi.stage_board_map()
+    _stage_map = {}   # v5H226z571 (대표 지시): 단계 시스템 제거 — 작업일정표는 단계를 더 이상 조회/표시하지 않음
     _empty_st = {"done": set(), "prog": {}, "ship_date": ""}
 
     def _st_summary(_st):
@@ -18765,7 +18731,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     # v5H226z264 (대표 지시): 진행기간 막대 '보드 전용 메모' 맵 (원본 무수정)
     _smemos = _logi.schedule_memos_map()
     # v5H226z270 (대표 지시): 단계 파이프라인 요약 맵 (보드 '단계 칸')
-    _stage_map = _logi.stage_board_map()
+    _stage_map = {}   # v5H226z571 (대표 지시): 단계 시스템 제거 — 작업일정표는 단계를 더 이상 조회/표시하지 않음
     _empty_st = {"done": set(), "prog": {}, "ship_date": ""}
 
     def _st_summary(_st):
@@ -18986,7 +18952,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                days=days, today_day=today_day, rows=rows, summary=summary, cust=cust,
-               col_prefs=_col_prefs, can_money=_can_money, stage_spec=_logi.STAGE_SPEC,
+               col_prefs=_col_prefs, can_money=_can_money,
                biz=_biz, div_counts=div_counts,
                range_mode=range_mode, pf=(pf[:10] if range_mode else ""), pt=(pt[:10] if range_mode else ""))
 
@@ -19258,199 +19224,11 @@ def _sched_user_name(u: dict) -> str:
     return (u.get("name") or u.get("username") or u.get("login_id") or "").strip()
 
 
-@app.get("/sales/schedule/stages")
-async def schedule_board_stages(request: Request, kind: str = "", ref_id: int = 0):
-    """단계 패널용 — 단계 정의(spec) + 이 건의 기록(rows). tax_invoice 는 권한 통과자만 포함."""
-    u = get_user(request)
-    if not u:
-        return JSONResponse({"ok": False, "error": "login_required"}, 401)
-    if kind not in ("project", "consumable") or not ref_id:
-        return JSONResponse({"ok": False, "error": "bad_ref"}, 400)
-    # v5H226z272: 어떤 예외든 JSON 으로 반환(전역 HTML 핸들러로 새지 않게) — 프론트가 원인 표시 가능
-    try:
-        can_money = bool(can_view_sales(u))
-        # v5H226z369: 이 건의 사업부(div)로 담당 부서를 채움(관리번호 4번째 글자 / 소모품=C / 폴백 biz_div)
-        _div = "C" if kind == "consumable" else ""
-        if kind == "project":
-            try:
-                with db_session() as _c:
-                    _pr = _c.execute("SELECT mgmt_code, biz_div FROM projects WHERE id=?",
-                                     (int(ref_id),)).fetchone()
-                if _pr:
-                    _mc = (_pr[0] or "")
-                    _div = _mc[3] if (len(_mc) >= 4 and _mc[3] in "TMLEC") else ((_pr[1] or "").upper())
-            except Exception:
-                _div = ""
-        # spec 구성 — 금액(sales_only) 단계는 권한 없으면 제외(데이터 자체 미전송)
-        spec = []
-        for s in _logi.stage_spec_for_div(_div):
-            if s.get("sales_only") and not can_money:
-                continue
-            spec.append(s)
-        rows = _logi.stage_rows_for(kind, int(ref_id))
-        out_rows = {}
-        for (sk, sub), v in rows.items():
-            if sk == "tax_invoice" and not can_money:
-                continue  # 금액 데이터 미전송
-            out_rows[f"{sk}|{sub}"] = v
-        return JSONResponse({"ok": True, "spec": spec, "rows": out_rows, "can_money": can_money})
-    except Exception as e:
-        import traceback as _tb
-        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}",
-                             "trace": _tb.format_exc()[-400:]}, 200)
-
-
-def _stage_ready_notify(kind, ref_id):
-    """v5H226z479 (대표 지시·Phase 2): 단계 완료 후, 새로 '착수 가능'해진 단계의 담당 부서에 1회 통보
-    (인앱 notifications + Eum 메신저 1:1 봇 푸시). (ref_kind, ref_id, stage_key, sub_key)당 1회만(dedup).
-    매칭=단계 담당 부서명(STAGE_OWNERS) == teams.name. 실패해도 본 작업엔 영향 없음(조용히 무시)."""
-    try:
-        with db_session() as c:
-            if kind == "project":
-                p = c.execute("SELECT mgmt_code, name, biz_div, due_date FROM projects WHERE id=?", (ref_id,)).fetchone()
-                if not p:
-                    return
-                code = p[0] or "—"; pname = p[1] or ""
-                div = (code[3] if (len(code) >= 4 and code[3] in "TMLEC") else ((p[2] or "").upper()))
-                due = str(p[3] or "")[:10]
-            else:
-                p = c.execute("SELECT mgmt_code, due_date FROM consumable_orders WHERE id=?", (ref_id,)).fetchone()
-                if not p:
-                    return
-                code = p[0] or "—"; pname = "소모품"; div = "C"; due = str(p[1] or "")[:10]
-        spec = _logi.stage_spec_for_div(div)
-        order = [s["key"] for s in spec]
-        rows = _logi.stage_rows_for(kind, int(ref_id))
-        done_main = set()
-        for s in spec:
-            if s["key"] == "progress":
-                subs = [x[0] for x in s.get("subs", [])]
-                if subs and all(rows.get(("progress", sk), {}).get("state") == "done" for sk in subs):
-                    done_main.add("progress")
-            elif rows.get((s["key"], ""), {}).get("state") == "done":
-                done_main.add(s["key"])
-        ready_units = []   # (stage_key, sub_key, label, owner)
-        for idx, s in enumerate(spec):
-            if s["key"] == "progress":
-                if not ("prod_request" in done_main or "prod_request" not in order):
-                    continue
-                for sk, sl, so in s.get("subs", []):
-                    if rows.get(("progress", sk), {}).get("state", "todo") == "todo":
-                        ready_units.append(("progress", sk, s["label"] + " · " + sl, so or s.get("owner") or ""))
-            else:
-                if all(order[j] in done_main for j in range(idx)) and rows.get((s["key"], ""), {}).get("state", "todo") == "todo":
-                    ready_units.append((s["key"], "", s["label"], s.get("owner") or ""))
-        if not ready_units:
-            return
-        _pub = os.environ.get("KNK_WORKS_PUBLIC_BASE", "https://works.knknara.co.kr").rstrip("/")
-        ddstr = (f" · 납기 {due}" if due else "")
-        for sk, sub, label, owner in ready_units:
-            if not owner:
-                continue
-            emp_nos = []
-            with db_session() as c:
-                # dedup — 처음 통보될 때만(rowcount>0)
-                try:
-                    cur = c.execute(
-                        "INSERT OR IGNORE INTO stage_notify_log(ref_kind, ref_id, stage_key, sub_key, notified_at) "
-                        "VALUES (?,?,?,?, datetime('now','localtime'))", (kind, int(ref_id), sk, sub))
-                    if (cur.rowcount or 0) == 0:
-                        continue
-                except Exception:
-                    continue
-                title = f"🛠 단계 작업 [{code}] {label}"
-                body = (f"관리코드: {code}\n프로젝트: {pname}\n단계: {label} (담당: {owner})\n"
-                        f"앞 단계가 완료되어 지금 착수할 수 있습니다.{ddstr}\n\n'내 부서 단계 작업'에서 착수하세요.")
-                link = "/dept/stage-work"
-                try:
-                    urows = c.execute(
-                        "SELECT u.id, u.employee_no FROM users u JOIN teams t ON t.id=u.team_id "
-                        "WHERE t.name=? AND COALESCE(u.is_active,1)=1", (owner,)).fetchall()
-                    for r in urows:
-                        uid = r[0] if not isinstance(r, dict) else r["id"]
-                        eno = r[1] if not isinstance(r, dict) else r["employee_no"]
-                        try:
-                            c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
-                                      (uid, "stage_ready", title, body, link))
-                        except Exception:
-                            pass
-                        if eno:
-                            emp_nos.append(eno)
-                except Exception:
-                    emp_nos = []
-            # Eum 메신저 1:1 봇 푸시 (사번 매칭된 인원만 · 실패 무시)
-            if emp_nos:
-                try:
-                    from . import sso_client
-                    sso_client.notify_via_messenger(emp_nos, title, body, _pub + link)
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-
-@app.post("/sales/schedule/stage")
-async def schedule_board_stage_set(request: Request):
-    """단계 기록 저장(upsert). 누구나 가능, tax_invoice 만 can_view_sales."""
-    u = get_user(request)
-    if not u:
-        return JSONResponse({"ok": False, "error": "login_required"}, 401)
-    try:
-        b = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
-    kind = (b.get("kind") or "").strip()
-    ref_id = b.get("ref_id")
-    stage_key = (b.get("stage_key") or "").strip()
-    sub_key = (b.get("sub_key") or "").strip()
-    if stage_key == "tax_invoice" and not can_view_sales(u):
-        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
-    import json as _json
-    extra = b.get("extra")
-    extra_s = ""
-    if extra is not None:
-        try:
-            extra_s = _json.dumps(extra)[:2000]
-        except Exception:
-            extra_s = ""
-    # v5H226z477 (대표 지시): 착수(진행중)/완료(+소요시간) 3단계. started=True면 착수 기록(완료정보 미변경).
-    _started = bool(b.get("started", False))
-    _done = bool(b.get("done", True))
-    try:
-        ok, msg = _logi.stage_set(
-            kind, int(ref_id), stage_key, sub_key,
-            done=_done, on_date=(b.get("on_date") or ""),
-            memo=(b.get("memo") or ""), extra=extra_s,
-            user_id=u.get("id"), user_name=_sched_user_name(u),
-            started=_started, hours=b.get("hours"))
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
-    # v5H226z473 (대표 지시): 출하 ⟷ 출하 양방향 연결 [보드→상세] — 단건 출하 단계 '완료' 시에만.
-    #   ⚠착수(started)는 제외(아직 출하 아님). stage_key=ship & done & not started 일 때만.
-    if ok and stage_key == "ship" and _done and not _started:
-        try:
-            if kind == "project":
-                with db_session() as _cz:
-                    _pwf.mark_units_delivered(_cz, int(ref_id), u.get("id"))
-            elif kind == "consumable":
-                with db_session() as _cz:
-                    _cz.execute("UPDATE consumable_orders SET status='SHIPPED' WHERE id=?", (int(ref_id),))
-        except Exception:
-            pass
-    # v5H226z479 (대표 지시·Phase 2): 단계 '완료' 시(착수 제외) → 새로 착수 가능해진 다음 부서에 1회 Eum+인앱 통보.
-    if ok and _done and not _started:
-        try:
-            _stage_ready_notify(kind, int(ref_id))
-        except Exception:
-            pass
-    return JSONResponse({"ok": ok, "error": msg, "by_name": _sched_user_name(u)})
-
-
 @app.post("/sales/schedule/bulk-ship")
 async def schedule_board_bulk_ship(request: Request):
-    """v5H226z472 (대표 지시): 일괄출하 — 체크한 여러 행을 '실행한 날짜(오늘)'로 '출하' 단계 완료 처리.
-    한꺼번에 많이 출하 처리할 때. 단건 단계 토글(/sales/schedule/stage)과 동일 권한(로그인이면 누구나).
-    (kind, ref_id) 중복 제거(호기 분할로 같은 건이 여러 줄일 수 있음). 단계 'ship' upsert."""
+    """v5H226z472/z571 (대표 지시): 일괄출하 — 체크한 여러 행을 오늘 날짜로 '출하(납품완료)' 처리.
+    로그인이면 누구나. (kind, ref_id) 중복 제거(호기 분할로 같은 건이 여러 줄일 수 있음).
+    z571: 단계 시스템 제거 — 단계 거울 없이 실제 출하(호기 납품완료/소모품 SHIPPED)만 수행."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -19481,24 +19259,20 @@ async def schedule_board_bulk_ship(request: Request):
         key = (kind, ref_id)
         if key in done_keys:
             continue   # v5H226z472: 중복(같은 건 여러 줄) 제거
-        try:
-            ok, _msg = _logi.stage_set(kind, ref_id, "ship", "", done=True,
-                                       on_date=on_date, memo="", extra="",
-                                       user_id=uid, user_name=uname)
-        except Exception:
-            ok = False
-        # v5H226z473 (대표 지시): 출하 ⟷ 출하 양방향 연결 [보드→상세].
-        #   프로젝트=호기 전체 '출하'로(→상세 상태 동기화·cascade 안에서 출하단계 재확인),
-        #   소모품=consumable_orders.status='SHIPPED'(=출하 표시).
+        # v5H226z571 (대표 지시): 단계 시스템 제거 — 일괄출하는 '실제 출하'만 수행(단계 거울 폐지).
+        #   프로젝트=호기 전체 납품완료(mark_units_delivered·cascade), 소모품=consumable_orders.status='SHIPPED'.
+        ok = False
         try:
             if kind == "project":
                 with db_session() as _cz:
                     _pwf.mark_units_delivered(_cz, ref_id, uid)
+                ok = True
             elif kind == "consumable":
                 with db_session() as _cz:
                     _cz.execute("UPDATE consumable_orders SET status='SHIPPED' WHERE id=?", (ref_id,))
+                ok = True
         except Exception:
-            pass
+            ok = False
         if ok:
             done_keys.add(key)
             n_ok += 1
@@ -20057,117 +19831,6 @@ async def schedule_tax_invoice_cancel(request: Request, ti_id: int):
     return JSONResponse({"ok": True})
 
 
-def _stage_queue_for(sel_dept, can_money):
-    """v5H226z520 (대표 지시·흐름 통합): 단계 작업 큐(착수가능 ready / 진행중 doing / 최근완료 done) 산출.
-    '내 부서 단계 작업'(/dept/stage-work)과 일일업무 '흐름에서 온 일'(daily)이 공유(중복 제거).
-    sel_dept='' 면 전 부서. 반환=(doing, ready, done[:50], today)."""
-    from datetime import date as _date, datetime as _dt2
-    from . import consumables as _co_mod
-    log_map = _logi.stage_log_all_map()
-    today = _date.today()
-    doing, ready, done = [], [], []
-
-    def _dday(due):
-        try:
-            return (_dt2.strptime(str(due)[:10], "%Y-%m-%d").date() - today).days if due else None
-        except Exception:
-            return None
-
-    def _proc(kind, ref_id, code, name, div, due, model=""):
-        spec = _logi.stage_spec_for_div(div)
-        order = [s["key"] for s in spec]
-        done_main = set()
-        for s in spec:
-            if s["key"] == "progress":
-                subs = [x[0] for x in s.get("subs", [])]
-                if subs and all(log_map.get((kind, ref_id, "progress", sk), {}).get("state") == "done" for sk in subs):
-                    done_main.add("progress")
-            elif log_map.get((kind, ref_id, s["key"], ""), {}).get("state") == "done":
-                done_main.add(s["key"])
-        dd = _dday(due)
-        for idx, s in enumerate(spec):
-            if s.get("sales_only") and not can_money:
-                continue
-            if s["key"] == "progress":
-                units = [(sk, s["label"] + " · " + sl, so or s.get("owner") or "",
-                          ("prod_request" in done_main or "prod_request" not in order))
-                         for sk, sl, so in s.get("subs", [])]
-            else:
-                units = [("", s["label"], s.get("owner") or "",
-                          all(order[j] in done_main for j in range(idx)))]
-            for sub, label, owner, prereq in units:
-                if sel_dept and owner != sel_dept:
-                    continue
-                rec = log_map.get((kind, ref_id, s["key"], sub), {})
-                state = rec.get("state", "todo")
-                item = {"kind": kind, "ref_id": ref_id, "code": code, "name": name, "model": model,
-                        "stage_key": s["key"], "sub_key": sub, "stage_label": label, "owner": owner,
-                        "due": (str(due)[:10] if due else ""), "dday": dd,
-                        "on_date": rec.get("on_date", ""), "by_name": rec.get("by_name", ""),
-                        "started_by_name": rec.get("started_by_name", ""),
-                        "hours": rec.get("hours", ""), "memo": rec.get("memo", "")}
-                if state == "doing":
-                    doing.append(item)
-                elif state == "done":
-                    done.append(item)
-                elif prereq:
-                    ready.append(item)
-    for p in (dict(r) for r in _logi.projects_list_logi()):
-        if (p.get("status") or "") == "취소":
-            continue
-        if (p.get("project_type") or "").upper() == "CONSUMABLE":
-            continue
-        code = p.get("mgmt_code") or "—"
-        div = code[3] if (len(code) >= 4 and code[3] in "TMLEC") else ((p.get("biz_div") or "").upper())
-        _proc("project", p.get("id"), code, p.get("name") or "", div, p.get("due_date"), p.get("model_name") or "")
-    try:
-        for cr in _co_mod.co_list(status="", q="", limit=1000):
-            if (cr.get("status") or "") == "CANCELLED":
-                continue
-            _proc("consumable", cr.get("id"), cr.get("mgmt_code") or "—", "소모품", "C",
-                  cr.get("due_date"), cr.get("model_name") or "")
-    except Exception:
-        pass
-    doing.sort(key=lambda x: (x["dday"] if x["dday"] is not None else 9999, x["code"]))
-    ready.sort(key=lambda x: (x["dday"] if x["dday"] is not None else 9999, x["code"]))
-    done.sort(key=lambda x: (x["on_date"] or ""), reverse=True)
-    return doing, ready, done[:50], today
-
-
-@app.get("/dept/stage-work", response_class=HTMLResponse)
-async def dept_stage_work(request: Request, dept: str = ""):
-    """v5H226z478 (대표 지시·Phase 1b): '내 부서 단계 작업' 큐 — 우리 부서가 ①착수 가능 ②진행중 ③최근 완료한
-    단계를 한눈에. 누구나 열람(부서 선택)·기본=내 팀. 착수/완료는 기존 /sales/schedule/stage 로 처리(재사용)."""
-    u = get_user(request)
-    if not u:
-        return RedirectResponse("/login", 303)
-    from datetime import date as _date, datetime as _dt2
-    can_money = bool(can_view_sales(u))
-    my_team = ""
-    tid = u.get("team_id")
-    if tid:
-        try:
-            with db_session() as _c:
-                _r = _c.execute("SELECT name FROM teams WHERE id=?", (tid,)).fetchone()
-                if _r:
-                    my_team = _r[0] or ""
-        except Exception:
-            my_team = ""
-    all_depts = sorted({d for m in _logi.STAGE_OWNERS_BY_DIV.values() for d in m.values() if d}
-                       | {d for m in _logi.STAGE_SUB_OWNERS_BY_DIV.values() for d in m.values() if d})
-    sel_dept = (dept or "").strip()
-    if not sel_dept:
-        sel_dept = my_team if my_team in all_depts else ""
-    # v5H226z520: 단계 큐 산출은 공용 헬퍼로(일일업무 '흐름에서 온 일'과 공유·중복 제거)
-    doing, ready, done, today = _stage_queue_for(sel_dept, can_money)
-    return ctx(request, "dept_stage_work.html", user=u, active="dept_stage_work",
-               my_team=my_team, all_depts=all_depts, sel_dept=sel_dept, can_money=can_money,
-               doing=doing, ready=ready, done=done, today=today.isoformat())
-
-
-# ───── v5H226z496 (대표 지시): 부서 일정표 — 부서가 작업일정표 날짜칸을 클릭해 진행/완료/변경 기록 ─────
-#   영업 기준 작업일정표와 별개의 '부서용' 보기. 가격(단가·금액) 컬럼 없음 → 전 직원 안전 열람.
-#   날짜칸 클릭 → 그 (품목×날짜)에 부서별 업무현황(유형+내용) 추가/보기/수정. 단계(STAGE)와 무관·자유 부서.
 def _dept_sched_dept_of(u):
     """기록자 기본 부서 = 소속 팀 이름(법인 라벨 포함 — '본사 · 설계팀'). v5H226z542."""
     tid = u.get("team_id")
@@ -20325,26 +19988,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
         _biz = ""
     rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
 
-    # v5H226z499 (Phase 3 #2): 작업일정표 '단계' 연동 — 각 품목의 현재 단계 라벨(읽기전용 배지). 가격칸 없는 화면이라 sales_only 단계는 제외.
-    try:
-        _smap = _logi.stage_board_map()
-        for r in rows:
-            _st = _smap.get((r["kind"], r["ref_id"])) or {}
-            _done = _st.get("done") or set()
-            _cur = ""
-            for _s in _logi.STAGE_SPEC:
-                if _s.get("sales_only"):
-                    continue
-                if _s["key"] == "progress":
-                    if _st.get("prog"):
-                        _cur = "진행"
-                elif _s["key"] in _done:
-                    _cur = _s["label"]
-            r["stage"] = _cur
-    except Exception:
-        for r in rows:
-            r["stage"] = ""
-
+    # v5H226z571 (대표 지시): 단계 시스템 완전 제거 — 부서일정표의 '단계' 연동 컬럼도 폐지.
     # 내 부서 + 부서 목록(teams)
     my_team = _dept_sched_dept_of(u)
     all_depts = []
