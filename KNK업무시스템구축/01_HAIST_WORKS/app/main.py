@@ -19458,10 +19458,14 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                                 else "l.unit_iids, l.row_sig, 1, COALESCE(l.amount,0), t.issue_date"
                         for _bl in c.execute(
                             f"SELECT {_tsel} FROM tax_invoice_lines l JOIN tax_invoices t ON t.id=l.ti_id "
-                            "WHERE t.status='발행' AND l.ref_kind='project' AND l.ref_id=?", (int(ref_id),)).fetchall():
+                            # v5H226z560: 호기 묶음은 ref_kind='unit'(unit_iids=호기 CSV) — z559가 'project'만 봐서 놓쳤음
+                            "WHERE t.status='발행' AND l.ref_kind IN ('project','unit') AND l.ref_id=?", (int(ref_id),)).fetchall():
+                            _sig = str(_bl[1] or "")
                             _ids = [int(x) for x in str(_bl[0] or "").split(",") if x.strip().isdigit()]
+                            if not _ids and _sig.startswith("unit:"):   # unit_iids 비었으면 row_sig서 보조 파싱
+                                _ids = [int(x) for x in _sig[5:].split(",") if x.strip().isdigit()]
                             _tier = int(_bl[2] or 1); _amt = float(_bl[3] or 0); _idate = str(_bl[4] or "")[:10]
-                            if not _ids and str(_bl[1] or "").startswith("project:"):
+                            if not _ids and _sig.startswith("project:"):
                                 _proj_lines.append((_tier, _idate, _amt)); continue
                             _n = len(_ids) or 1
                             for _iid in _ids:
