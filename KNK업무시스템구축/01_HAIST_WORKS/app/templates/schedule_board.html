@@ -1491,8 +1491,17 @@ function startSelectEdit(td, tr, opts){
 }
 // v5H226z467 (대표 지시): 세금계산서 1/2/3차 — 발행일+금액을 작은 편집창에서 함께 입력(계약금/중도금/잔금 분할 발행).
 async function taxSave(tr, field, value){
-  const r=await fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:field,value:value,base_ts:tr.dataset.ts||''})});
+  // v5H226z562 (대표 지시): 세금계산서 단일 진실=호기. 프로젝트는 그 줄 호기 전체에 적용(/row-tax·uids),
+  //   소모품은 호기 개념 없어 기존 /cell(consumable_orders).
+  var url, body;
+  if((tr.dataset.kind||'')==='project'){
+    url='/sales/schedule/row-tax';
+    body={ref_id:tr.dataset.ref, uids:(tr.dataset.uids||''), field:field, value:value};
+  } else {
+    url='/sales/schedule/cell';
+    body={kind:tr.dataset.kind, ref_id:tr.dataset.ref, field:field, value:value, base_ts:tr.dataset.ts||''};
+  }
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const j=await r.json(); if(j.updated_at) tr.dataset.ts=j.updated_at; if(!j.ok) throw new Error(j.message||j.error||'fail'); return j;
 }
 function startTaxInvEdit(td, tr){

@@ -11814,6 +11814,37 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
     }
     if field in _TAXINV_FIELDS:
         _col, _ftype = _TAXINV_FIELDS[field]
+        # v5H226z562 (대표 지시): 프로젝트 세금계산서 단일 진실 = 호기(order_items). 이 경로(일괄수정 등)도 호기에 적용.
+        #   날짜=호기 전체 동일 / 금액=호기수 균등분배(합계 보존). 소모품은 호기 개념 없어 consumable_orders 그대로.
+        if ref_kind == "project":
+            with db_session() as c:
+                _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+                if _col not in _oic:
+                    return (False, f"order_items.{_col} 컬럼 없음")
+                _ids = [int(x[0]) for x in c.execute(
+                    "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                    "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (int(ref_id),)).fetchall()]
+                if not _ids:
+                    return (False, "이 프로젝트에 수주(SO) 호기가 없어 세금계산서를 저장할 수 없습니다")
+                if _ftype == "date":
+                    _store = val or None
+                    _ph = ",".join("?" * len(_ids))
+                    c.execute(f"UPDATE order_items SET {_col}=? WHERE id IN ({_ph})", [_store] + _ids)
+                else:
+                    _raw = val.replace(",", "").strip()
+                    if _raw == "":
+                        _ph = ",".join("?" * len(_ids))
+                        c.execute(f"UPDATE order_items SET {_col}=NULL WHERE id IN ({_ph})", _ids)
+                    else:
+                        try:
+                            _tot = float(_raw)
+                        except ValueError:
+                            return (False, "숫자만 입력")
+                        _n = len(_ids); _share = round(_tot / _n, 2); _rem = round(_tot - _share * _n, 2)
+                        for _i, _iid in enumerate(_ids):
+                            c.execute(f"UPDATE order_items SET {_col}=? WHERE id=?", (_share + (_rem if _i == 0 else 0), _iid))
+            return (True, "")
+        # 소모품 = consumable_orders (기존 유지)
         if _ftype == "date":
             _store = val or None   # 빈값 = 발행 취소(NULL)
         else:
@@ -11822,37 +11853,30 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
                 _store = float(_raw) if _raw else None
             except ValueError:
                 return (False, "숫자만 입력")
-        _tbl = "orders" if ref_kind == "project" else "consumable_orders"
         with db_session() as c:
-            _tcols = {r[1] for r in c.execute(f"PRAGMA table_info({_tbl})").fetchall()}
+            _tcols = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
             if _col not in _tcols:
-                return (False, f"{_tbl}.{_col} 컬럼 없음")
-            if ref_kind == "project":
-                r = c.execute("SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1",
-                              (int(ref_id),)).fetchone()
-                if not r:
-                    return (False, "이 프로젝트에 수주(SO)가 없어 세금계산서를 저장할 수 없습니다")
-                _tid = int(r[0])
-            else:
-                _tid = int(ref_id)
-            c.execute(f"UPDATE {_tbl} SET {_col}=? WHERE id=?", (_store, _tid))
-            # 1차 발행일 입력/지움 → 발행여부(issued) 동기화 (발행관리 화면 일관)
+                return (False, f"consumable_orders.{_col} 컬럼 없음")
+            _tid = int(ref_id)
+            c.execute(f"UPDATE consumable_orders SET {_col}=? WHERE id=?", (_store, _tid))
             if _col == "tax_invoice_date" and "tax_invoice_issued" in _tcols:
-                c.execute(f"UPDATE {_tbl} SET tax_invoice_issued=? WHERE id=?",
+                c.execute("UPDATE consumable_orders SET tax_invoice_issued=? WHERE id=?",
                           (1 if _store else 0, _tid))
         return (True, "")
-    # v5H226z367 (대표 지시): 거래명세서 발행일자 = 대표 SO(orders 최신)의 날짜.
+    # v5H226z367/z562 (대표 지시): 거래명세서 발행일자 = 프로젝트 호기(order_items) 전체에 동일 적용(단일 진실).
     if ref_kind == "project" and field == "statement_date":
         _v = val or None   # 빈값 = 발행 취소(NULL)
         with db_session() as c:
-            _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
-            if "statement_date" not in _ocols:
-                return (False, "orders.statement_date 컬럼 없음")
-            r = c.execute("SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1",
-                          (int(ref_id),)).fetchone()
-            if not r:
-                return (False, "이 프로젝트에 수주(SO)가 없어 발행일자를 저장할 수 없습니다")
-            c.execute("UPDATE orders SET statement_date=? WHERE id=?", (_v, int(r[0])))
+            _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            if "statement_date" not in _oic:
+                return (False, "order_items.statement_date 컬럼 없음")
+            _ids = [int(x[0]) for x in c.execute(
+                "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (int(ref_id),)).fetchall()]
+            if not _ids:
+                return (False, "이 프로젝트에 수주(SO) 호기가 없어 발행일자를 저장할 수 없습니다")
+            _ph = ",".join("?" * len(_ids))
+            c.execute(f"UPDATE order_items SET statement_date=? WHERE id IN ({_ph})", [_v] + _ids)
         return (True, "")
     col = _SCHED_CELL_MAP[ref_kind].get(field)
     if not col:

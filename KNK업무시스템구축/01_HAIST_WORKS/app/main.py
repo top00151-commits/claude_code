@@ -17754,6 +17754,117 @@ def _board_split_lines_map():
     return out
 
 
+# ─── v5H226z562 (대표 지시): 세금계산서 단일 진실 = 호기(order_items) ──────────────────────
+#   배경: 세금계산서가 ①orders(대표SO 직접발행) ②tax_invoice_lines(묶음) ③order_items(호기별)
+#   세 곳에 흩어져 메인행↔펼침이 어긋남. 진실을 '호기'로 통일 — 메인행은 호기 집계, 펼침은 호기별.
+#   묶음(②)은 칩으로 별도 표시(여전히 차수별로 다르게 묶기 가능). orders(①)는 폐기 안 하고
+#   '읽기 폴백'으로만 남김(기존값 표시 보존·마이그레이션 없이 안전). 편집은 무조건 호기에 씀.
+def _board_tax_oi_map():
+    """호기(order_items)별 거래명세서·세금계산서(1/2/3차) 발행일·금액을 해석.
+    값 우선순위 = order_items 실제값 > (그 호기 SO(orders) 값을 SO 호기수로 균등분배한 폴백).
+    묶음(tax_invoice_lines)은 미포함(호출측에서 칩/펼침으로 처리). 소모품은 대상 아님.
+    반환: (oi_map={iid:{stmt,t1d,t1a,t2d,t2a,t3d,t3a}}, proj_iids={pid:[iid,...]})"""
+    oi_map: dict = {}
+    proj_iids: dict = {}
+    try:
+        with db_session() as c:
+            oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            ordc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+            def _oiC(f):
+                return f"oi.{f}" if f in oic else "NULL"
+            def _oC(f):
+                return f"o.{f}" if f in ordc else "NULL"
+            sql = (
+                "SELECT oi.id AS iid, oi.order_id AS oid, o.project_id AS pid, "
+                f"{_oiC('statement_date')} AS i_st, {_oC('statement_date')} AS o_st, "
+                f"{_oiC('tax_invoice_date')} AS i_d1, {_oiC('tax_invoice_amt1')} AS i_a1, {_oC('tax_invoice_date')} AS o_d1, {_oC('tax_invoice_amt1')} AS o_a1, "
+                f"{_oiC('tax_invoice_date2')} AS i_d2, {_oiC('tax_invoice_amt2')} AS i_a2, {_oC('tax_invoice_date2')} AS o_d2, {_oC('tax_invoice_amt2')} AS o_a2, "
+                f"{_oiC('tax_invoice_date3')} AS i_d3, {_oiC('tax_invoice_amt3')} AS i_a3, {_oC('tax_invoice_date3')} AS o_d3, {_oC('tax_invoice_amt3')} AS o_a3 "
+                "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
+                "ORDER BY oi.id"
+            )
+            _rows = [dict(r) for r in c.execute(sql)]
+            _cnt: dict = {}
+            for r in _rows:
+                _cnt[r["oid"]] = _cnt.get(r["oid"], 0) + 1
+            for r in _rows:
+                n = _cnt.get(r["oid"], 1) or 1
+
+                def _rd(ik, ok, _r=r):
+                    return (str(_r.get(ik) or "").strip() or str(_r.get(ok) or "").strip())[:10]
+
+                def _ra(ik, ok, _r=r, _n=n):
+                    iv = _r.get(ik)
+                    if iv not in (None, ""):
+                        try:
+                            return float(iv)
+                        except Exception:
+                            return ""
+                    ov = _r.get(ok)
+                    if ov not in (None, ""):
+                        try:
+                            return float(ov) / _n
+                        except Exception:
+                            return ""
+                    return ""
+                oi_map[r["iid"]] = {
+                    "stmt": _rd("i_st", "o_st"),
+                    "t1d": _rd("i_d1", "o_d1"), "t1a": _ra("i_a1", "o_a1"),
+                    "t2d": _rd("i_d2", "o_d2"), "t2a": _ra("i_a2", "o_a2"),
+                    "t3d": _rd("i_d3", "o_d3"), "t3a": _ra("i_a3", "o_a3"),
+                }
+                if r.get("pid"):
+                    proj_iids.setdefault(r["pid"], []).append(r["iid"])
+    except Exception:
+        return {}, {}
+    return oi_map, proj_iids
+
+
+def _inject_oi_tax_into_rows(rows, oi_map, proj_iids):
+    """프로젝트 행에 호기 집계 세금계산서 주입(메인행=호기 합계·발행일은 대표 1건).
+    소모품 행은 건드리지 않음(consumable_orders 그대로). canonical + 엑셀(_ti_*) 키 동시 set."""
+    for _row in rows:
+        if _row.get("kind") != "project":
+            continue
+        pid = _row.get("ref_id")
+        try:
+            iids = [int(x) for x in (_row.get("unit_iids") or [])]
+        except Exception:
+            iids = []
+        if not iids:
+            iids = list(proj_iids.get(pid) or [])
+        if not iids:
+            continue   # 호기 정보 없으면(예외) 기존값 유지
+
+        def _agg(dk, ak, _iids=iids):
+            _date, _amt, _any = "", 0.0, False
+            for _iid in _iids:
+                m = oi_map.get(_iid)
+                if not m:
+                    continue
+                if not _date and m.get(dk):
+                    _date = m[dk]
+                _v = m.get(ak)
+                if _v not in (None, ""):
+                    try:
+                        _amt += float(_v)
+                        _any = True
+                    except Exception:
+                        pass
+            return _date, (round(_amt) if _any else "")
+        _sd = ""
+        for _iid in iids:
+            m = oi_map.get(_iid)
+            if m and m.get("stmt"):
+                _sd = m["stmt"]
+                break
+        _row["statement_date"] = _sd
+        _d1, _a1 = _agg("t1d", "t1a"); _row["tax_invoice_date"] = _d1; _row["tax_invoice_amt1"] = _a1; _row["_ti_a1"] = _a1
+        _d2, _a2 = _agg("t2d", "t2a"); _row["tax_invoice_date2"] = _d2; _row["_ti_d2"] = _d2; _row["tax_invoice_amt2"] = _a2; _row["_ti_a2"] = _a2
+        _d3, _a3 = _agg("t3d", "t3a"); _row["tax_invoice_date3"] = _d3; _row["_ti_d3"] = _d3; _row["tax_invoice_amt3"] = _a3; _row["_ti_a3"] = _a3
+
+
 # v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
 #   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
 def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""):
@@ -17986,6 +18097,12 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
             _row["_ti_a1"] = _num(_ti.get("tax_invoice_amt1"))
             _row["_ti_a2"] = _num(_ti.get("tax_invoice_amt2"))
             _row["_ti_a3"] = _num(_ti.get("tax_invoice_amt3"))
+        # v5H226z562 (대표 지시): 엑셀도 화면과 동일 — 프로젝트 행은 호기(order_items) 집계로 덮어씀.
+        try:
+            _oimap, _proj_iids = _board_tax_oi_map()
+            _inject_oi_tax_into_rows(rows, _oimap, _proj_iids)
+        except Exception:
+            pass
     headers = ["관리번호", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량"]
     keys = ["code", "so_no", "name", "model", "equip", "note", "qty"]
     if can_money:
@@ -18789,6 +18906,14 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         _row["tax_invoice_amt1"] = _ti.get("tax_invoice_amt1") or ""
         _row["tax_invoice_amt2"] = _ti.get("tax_invoice_amt2") or ""
         _row["tax_invoice_amt3"] = _ti.get("tax_invoice_amt3") or ""
+    # v5H226z562 (대표 지시): 프로젝트 행은 호기(order_items) 집계로 덮어씀 — 펼침과 단일 진실 일치.
+    #   (orders 직접발행분은 위 _taxmap 폴백으로 보존되며, 호기에 값이 있으면 그게 우선)
+    if _can_money:
+        try:
+            _oimap, _proj_iids = _board_tax_oi_map()
+            _inject_oi_tax_into_rows(rows, _oimap, _proj_iids)
+        except Exception:
+            pass
     # 정렬: 월 보기=납품일(일자) 우선 / 기간 보기=실제 날짜(여러 달이므로 전체 날짜) 순
     if range_mode:
         rows.sort(key=lambda r: (r.get("due_date") or "9999-99-99", r.get("order_date") or "9999-99-99", r["code"]))
@@ -19486,6 +19611,29 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                                     u[_af[_tier]] = round(_a)
                 except Exception:
                     pass
+            # v5H226z562 (대표 지시): 묶음도 호기값도 없는 칸은 그 호기 SO(orders) 직접발행분을 균등분배 폴백.
+            #   (호기값 > 묶음 > orders 폴백 순. 호기에 직접 입력하면 그게 우선이라 양방향 일치)
+            if can_money and units and kind == "project":
+                try:
+                    _oimap2, _ = _board_tax_oi_map()
+                    for u in units:
+                        m = _oimap2.get(u["iid"])
+                        if not m:
+                            continue
+                        if not u.get("statement_date") and m.get("stmt"):
+                            u["statement_date"] = m["stmt"]
+                        for _dk, _ak, _df2, _af2 in (("t1d", "t1a", "tax_invoice_date", "tax_invoice_amt1"),
+                                                     ("t2d", "t2a", "tax_invoice_date2", "tax_invoice_amt2"),
+                                                     ("t3d", "t3a", "tax_invoice_date3", "tax_invoice_amt3")):
+                            if not u.get(_df2) and m.get(_dk):
+                                u[_df2] = m[_dk]
+                            if (u.get(_af2) in (None, "")) and m.get(_ak) not in (None, ""):
+                                try:
+                                    u[_af2] = round(float(m[_ak]))
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True, "units": units, "can_money": can_money,
@@ -19627,6 +19775,80 @@ async def schedule_board_unit_field(request: Request):
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True})
+
+
+@app.post("/sales/schedule/row-tax")
+async def schedule_board_row_tax(request: Request):
+    """v5H226z562 (대표 지시): 메인 행 세금계산서·거래명세서 편집 = 그 줄의 호기(order_items) 전체에 적용.
+    세금계산서 단일 진실=호기. 분할 줄은 uids(그 호기들), 분할 안 된 프로젝트는 그 프로젝트 전체 호기.
+    날짜·거래명세서=호기 전체 동일 적용 / 금액=호기 수로 균등 분배(합계=입력값). 펼침 호기별 편집과 단일 진실 일치.
+    (소모품은 호기 개념이 없어 기존 /sales/schedule/cell 로 처리 — 여기선 프로젝트만)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    ref_id = b.get("ref_id")
+    field = (b.get("field") or "").strip()
+    value = b.get("value") or ""
+    uids = b.get("uids") or ""
+    _DATE_F = ("statement_date", "tax_invoice_date", "tax_invoice_date2", "tax_invoice_date3")
+    _AMT_F = ("tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3")
+    if field not in (_DATE_F + _AMT_F):
+        return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
+    try:
+        _uid_list = [int(x) for x in str(uids).split(",") if str(x).strip().isdigit()]
+    except Exception:
+        _uid_list = []
+    try:
+        with db_session() as c:
+            _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            if field not in _oic:
+                return JSONResponse({"ok": False, "error": f"order_items.{field} 컬럼 없음"}, 400)
+            # 대상 호기 결정: uids(분할 줄) 우선, 없으면 그 프로젝트 전체 호기(취소 SO 제외)
+            if _uid_list:
+                _ph = ",".join("?" * len(_uid_list))
+                tgt = c.execute(
+                    f"SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                    f"WHERE oi.id IN ({_ph}) AND COALESCE(o.status,'')<>'CANCELLED'", _uid_list).fetchall()
+            else:
+                tgt = c.execute(
+                    "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                    "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (int(ref_id),)).fetchall()
+            ids = [int(r[0]) for r in tgt]
+            if not ids:
+                return JSONResponse({"ok": False, "error": "이 줄에 연결된 호기(수주 품목)가 없습니다"}, 400)
+            if field in _DATE_F:
+                dv = (str(value or "").strip() or None)   # 빈값=발행 취소(NULL)
+                _ph = ",".join("?" * len(ids))
+                c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id IN ({_ph})",
+                          [dv] + ids)
+            else:
+                # 금액 = 입력값을 호기 수로 균등 분배(합계 보존). 빈값=NULL(발행 취소)
+                _raw = str(value).replace(",", "").strip()
+                if _raw == "":
+                    _ph = ",".join("?" * len(ids))
+                    c.execute(f"UPDATE order_items SET {field}=NULL, updated_at=datetime('now','localtime') WHERE id IN ({_ph})", ids)
+                else:
+                    try:
+                        total = float(_raw)
+                    except Exception:
+                        return JSONResponse({"ok": False, "error": "금액 형식 오류"}, 400)
+                    n = len(ids)
+                    share = round(total / n, 2)
+                    # 반올림 잔차는 첫 호기에 몰아 정확히 합계 보존
+                    rem = round(total - share * n, 2)
+                    for _i, _iid in enumerate(ids):
+                        _v = share + (rem if _i == 0 else 0)
+                        c.execute("UPDATE order_items SET %s=?, updated_at=datetime('now','localtime') WHERE id=?" % field,
+                                  (_v, _iid))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True, "n": len(ids)})
 
 
 # ─── v5H226z488 (대표 지시): 세금계산서 '묶어 발행' — 여러 출하 건을 한 장으로 합산 발행 + 장부 ───
