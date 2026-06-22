@@ -1073,16 +1073,10 @@ def _mailfetch_run_owner(owner_id):
         else:
             _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
             _mailfetch.set_status(c, owner_id, status="자동 가져오기 %d건" % stored, count=stored)
-        # 과거에 쌓인 중복을 영구삭제(원본 1통·읽음·별표 보존 → 정보손실 0)해 용량 실제 회수.
-        # 신규 중복은 store_inbound 가 이미 안 쌓으므로 여기선 '과거 잔존분'이 대상(보통 도입 직후 1회만 큼).
-        try:
-            _dups = _mailbox.dedup_inbox(c, owner_id, hard=True)
-        except Exception:
-            _dups = 0
-        if _dups:
-            global _mail_dedup_removed_since_vacuum
-            _mail_dedup_removed_since_vacuum += _dups
-            print(f"[MAIL-FETCH-AUTO] owner={owner_id} 과거 중복 {_dups}건 영구삭제(원본 보존)")
+        # [z521 핫픽스] 자동 중복정리 비활성화 — 가져오기 트랜잭션(db_session) 안에서 받은편지함
+        # 전체 백필+대량삭제를 돌리면 긴 쓰기 락이 걸려, 그 사이 로그인(sso_land→upsert_user)이
+        # 'database is locked' 로 실패함. 잠금 안 걸리는 방식(busy_timeout·소량 배치·짧은 전용
+        # 트랜잭션)으로 재설계 후 재도입 예정. 신규 1통저장(store_inbound)·수동 🔁·수동 압축은 유지.
     return (True, stored, "")
 
 
@@ -1109,7 +1103,7 @@ def _mail_fetch_tick():
                 print(f"[MAIL-FETCH-AUTO ERR owner={oid}] {e}")
         if owners:
             print(f"[MAIL-FETCH-AUTO] {len(owners)}계정 점검 / 새 메일 {total}건 적재")
-        _maybe_vacuum_mail_db()   # 하루 1회·새벽 DB 압축(직전에 영구삭제한 중복이 있을 때만)
+        # [z521 핫픽스] 자동 VACUUM 비활성화 — VACUUM 은 DB 전체를 잠가 로그인과 충돌. 압축은 수동 버튼만.
     except Exception as e:
         print(f"[MAIL-FETCH-AUTO tick ERR] {e}")
     finally:
