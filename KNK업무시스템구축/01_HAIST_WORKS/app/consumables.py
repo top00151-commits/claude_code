@@ -648,9 +648,11 @@ def co_create(customer_name: str = "", biz_div: str = "",
     for _attempt in range(6):
         co_no = generate_co_no(biz_div, _co_ref)
         # v5H226z244: 소모품 묶음 생성(업로드) 즉시 C 관리코드 부여 — 프로젝트 C소모품 경로와 동일 체계.
+        # v5H226z564 (대표 지시): 관리번호도 수주번호처럼 '발주일' 기준 연월로 발번(과거 데이터 대량 이관 시
+        #   현재월 2606 으로 몰리던 문제). _co_ref 없으면(발주일 누락) 현재월 폴백.
         try:
             from .database import generate_mgmt_code
-            mgmt_code = generate_mgmt_code("C")
+            mgmt_code = generate_mgmt_code("C", _co_ref)
         except Exception:
             mgmt_code = None
         try:
