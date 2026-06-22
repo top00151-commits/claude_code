@@ -1958,7 +1958,7 @@ function _tiTierChange(tier){
     } else {
       var dv=_tiDefaultAmt(l, tier);
       h+='<tr><td>'+esc(l.code||'—')+'</td><td>'+esc(l.label||'')+'</td><td>'+esc(l.customer||'—')+'</td>'
-        +'<td class="num"><input type="text" class="ti-amt" data-i="'+i+'" value="'+(dv?Number(dv).toLocaleString():'')+'" oninput="_tiRecalc()" /></td></tr>';
+        +'<td class="num"><input type="text" inputmode="numeric" class="ti-amt" data-i="'+i+'" value="'+(dv?Number(dv).toLocaleString():'')+'" oninput="_tiAmtFmt(this)" /></td></tr>';
     }
   });
   tb.innerHTML=h;
@@ -1968,6 +1968,13 @@ function _tiRecalc(){
   var t=0; document.querySelectorAll('#tiModalBack .ti-amt').forEach(function(inp){ t+=parseFloat((inp.value||'').replace(/,/g,''))||0; });
   var el=document.getElementById('tiTotal'); if(el) el.textContent=_tiSym+t.toLocaleString();
 }
+// v5H226z559 (대표 지시): 묶어 발행 금액칸 — 입력 시 천단위 콤마 유지(+합계 갱신)
+function _tiAmtFmt(inp){
+  var raw=(inp.value||'').replace(/[^0-9]/g,'');
+  inp.value = raw ? Number(raw).toLocaleString() : '';
+  _tiRecalc();
+}
+window._tiAmtFmt=_tiAmtFmt;
 function _tiSubmit(force){
   if(!_tiLines){ return; }
   var datev=(document.getElementById('tiIssueDate')||{}).value||_tiToday();

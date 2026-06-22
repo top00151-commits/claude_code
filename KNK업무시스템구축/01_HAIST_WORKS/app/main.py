@@ -19405,6 +19405,7 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                 f"{_stm} {_ti1} {_ti2} {_ti3} "
                 f"oi.amount AS amt, COALESCE(oi.qty,1) AS qty, "
                 f"o.order_no AS so_no, o.due_date AS o_due, o.order_date AS o_ord, o.ship_to AS o_ship, "
+                f"COALESCE(o.statement_date,'') AS o_stmt, "   # v5H226z559: 거래명세서 발행일 대표 SO 폴백
                 f"COALESCE(o.currency,'KRW') AS o_cur, COALESCE(o.status,'') AS sost, "
                 f"COALESCE(p.is_export,0) AS p_iex "
                 f"FROM order_items oi JOIN orders o ON oi.order_id=o.id "
@@ -19436,12 +19437,51 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                     def _amt(v):
                         return (float(v) if v not in (None, "") else "")
                     _ud.update({
-                        "statement_date": str(d.get("stmt") or "")[:10],
+                        # v5H226z559: 거래명세서 발행일 — 호기 자체값 없으면 대표 SO 값으로 폴백
+                        "statement_date": str(d.get("stmt") or d.get("o_stmt") or "")[:10],
                         "tax_invoice_date": str(d.get("t1d") or "")[:10], "tax_invoice_amt1": _amt(d.get("t1a")),
                         "tax_invoice_date2": str(d.get("t2d") or "")[:10], "tax_invoice_amt2": _amt(d.get("t2a")),
                         "tax_invoice_date3": str(d.get("t3d") or "")[:10], "tax_invoice_amt3": _amt(d.get("t3a")),
                     })
                 units.append(_ud)
+            # v5H226z559 (대표 지시): 세금계산서가 '묶음(여러 호기 한 장)'으로 발행된 건 개별 호기칸이 비어 보임 →
+            #   이 프로젝트의 묶음(tax_invoice_lines)에서 호기별로 발행일+금액(균등분배)을 폴백 표시.
+            if can_money and units and kind == "project":
+                try:
+                    _tlc = {x[1] for x in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
+                    if _tlc:
+                        _df = {1: "tax_invoice_date", 2: "tax_invoice_date2", 3: "tax_invoice_date3"}
+                        _af = {1: "tax_invoice_amt1", 2: "tax_invoice_amt2", 3: "tax_invoice_amt3"}
+                        _by_iid = {}        # iid → {tier:(date,amt)}
+                        _proj_lines = []    # 프로젝트 단위 묶음(전체 호기 대상)
+                        _tsel = "l.unit_iids, l.row_sig, COALESCE(l.tier,1), COALESCE(l.amount,0), t.issue_date" if "tier" in _tlc \
+                                else "l.unit_iids, l.row_sig, 1, COALESCE(l.amount,0), t.issue_date"
+                        for _bl in c.execute(
+                            f"SELECT {_tsel} FROM tax_invoice_lines l JOIN tax_invoices t ON t.id=l.ti_id "
+                            "WHERE t.status='발행' AND l.ref_kind='project' AND l.ref_id=?", (int(ref_id),)).fetchall():
+                            _ids = [int(x) for x in str(_bl[0] or "").split(",") if x.strip().isdigit()]
+                            _tier = int(_bl[2] or 1); _amt = float(_bl[3] or 0); _idate = str(_bl[4] or "")[:10]
+                            if not _ids and str(_bl[1] or "").startswith("project:"):
+                                _proj_lines.append((_tier, _idate, _amt)); continue
+                            _n = len(_ids) or 1
+                            for _iid in _ids:
+                                _by_iid.setdefault(_iid, {})[_tier] = (_idate, _amt / _n)
+                        if _proj_lines:
+                            _np = len(units) or 1
+                            for (_tier, _idate, _amt) in _proj_lines:
+                                for u in units:
+                                    _by_iid.setdefault(u["iid"], {}).setdefault(_tier, (_idate, _amt / _np))
+                        for u in units:
+                            mp = _by_iid.get(u["iid"])
+                            if not mp:
+                                continue
+                            for _tier, (_d, _a) in mp.items():
+                                if _df.get(_tier) and not u.get(_df[_tier]):
+                                    u[_df[_tier]] = _d
+                                if _af.get(_tier) and (u.get(_af[_tier]) in (None, "")):
+                                    u[_af[_tier]] = round(_a)
+                except Exception:
+                    pass
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True, "units": units, "can_money": can_money,
