@@ -12996,6 +12996,30 @@ async def customers_recompute_tier(req: Request, cid: int):
     return JSONResponse({"ok": True, **res})
 
 
+@app.post("/customers/{cid:int}/alias")
+async def customers_set_alias(req: Request, cid: int):
+    """v5H226z576 (대표 지시): 고객사 목록에서 '시스템명'(alias) 인라인 입력/수정. 영업·관리 권한만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad_request"}, 400)
+    alias = (str(b.get("alias") or "")).strip()[:100]
+    with db_session() as c:
+        _cols = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
+        if "alias" not in _cols:
+            return JSONResponse({"ok": False, "error": "alias 컬럼 없음"}, 400)
+        r = c.execute("SELECT id FROM customers WHERE id=?", (cid,)).fetchone()
+        if not r:
+            return JSONResponse({"ok": False, "error": "not_found"}, 404)
+        c.execute("UPDATE customers SET alias=? WHERE id=?", (alias or None, cid))
+    return JSONResponse({"ok": True, "alias": alias})
+
+
 @app.post("/admin/recompute-all-tiers")
 async def admin_recompute_all_tiers(req: Request):
     """v5H58: 전체 거래처 등급 강제 재계산 (관리자)."""

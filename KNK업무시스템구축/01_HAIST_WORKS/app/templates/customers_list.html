@@ -24,6 +24,12 @@ body {
 .cu-tab.on .n{ background:rgba(255,255,255,.25); }
 .cu-search{ padding:6px 12px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:#fff; min-width:280px; max-width:42vw; }
 .cu-sysname{ font-size:11px; color:#2563eb; font-weight:700; margin-top:2px; }
+/* v5H226z576 (대표 지시): 시스템명 인라인 편집칸 — 평소엔 칸처럼, 호버/포커스 때 테두리로 편집 가능 표시 */
+.cu-alias{ width:100%; box-sizing:border-box; border:1px solid transparent; background:transparent; border-radius:6px; padding:5px 7px; font:inherit; font-size:13px; color:#2563eb; font-weight:700; }
+.cu-alias::placeholder{ color:#cbd5e1; font-weight:400; }
+.cu-alias:hover{ border-color:#e2e8f0; background:#fff; }
+.cu-alias:focus{ outline:none; border-color:#93c5fd; background:#fff; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.cu-alias.cu-ok{ background:#ecfdf5; border-color:#a7f3d0; }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}
@@ -66,7 +72,7 @@ body {
     <table class="tbl">
       <thead><tr>
         {% if can_sales_del %}<th style="width:36px;text-align:center;"><input type="checkbox" id="cuChkAll" title="전체 선택" style="cursor:pointer;"></th>{% endif %}
-        <th style="width:60px;">ID</th><th>고객사명</th><th>사업자번호</th><th>대표</th><th>담당자</th><th class="center">등급</th><th class="center">상태</th>
+        <th style="width:60px;">ID</th><th>고객사명</th><th style="width:170px;">시스템명</th><th>사업자번호</th><th>대표</th><th>담당자</th><th class="center">등급</th><th class="center">상태</th>
       </tr></thead>
       <tbody>
       {% for c in customers %}
@@ -75,7 +81,13 @@ body {
             data-q="{{ (c.name ~ ' ' ~ (c.alias or '') ~ ' ' ~ (c.biz_no or '') ~ ' ' ~ (c.ceo_name or '') ~ ' ' ~ (c.manager_name or ''))|lower }}">
           {% if can_sales_del %}<td style="text-align:center;" onclick="event.stopPropagation();"><input type="checkbox" class="cuChkRow" value="{{ c.id }}" data-name="{{ c.name }}" style="cursor:pointer;"></td>{% endif %}
           <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ c.id }}</td>
-          <td><b>{{ c.name }}</b>{% if c.alias %}<div class="cu-sysname">시스템명: {{ c.alias }}</div>{% endif %}</td>
+          <td><b>{{ c.name }}</b></td>
+          {# v5H226z576 (대표 지시): 시스템명 별도 컬럼 + 이 페이지에서 직접 입력/수정(영업·관리 권한자만 편집·그 외 읽기전용) #}
+          {% if can_sales %}
+          <td onclick="event.stopPropagation();"><input type="text" class="cu-alias" data-id="{{ c.id }}" value="{{ c.alias|default('') }}" placeholder="시스템명 입력" onchange="cuSaveAlias(this)" onkeydown="if(event.key==='Enter')this.blur();"></td>
+          {% else %}
+          <td>{{ c.alias|default('—') }}</td>
+          {% endif %}
           {# v5H181: 컬럼명 수정 — business_no→biz_no, contact_person→manager_name #}
           <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ c.biz_no|default('—') }}</td>
           <td>{{ c.ceo_name|default('—') }}</td>
@@ -185,6 +197,22 @@ body {
       var cc=document.getElementById('cuCnt'); if(cc) cc.textContent=n+'개 표시';
     };
     window.cuApply();
+    // v5H226z576 (대표 지시): 시스템명 인라인 저장 — 칸 벗어나거나 Enter 시 저장(영업·관리만 input 렌더).
+    window.cuSaveAlias=function(inp){
+      var id=inp.dataset.id, v=(inp.value||'').trim();
+      if(v===(inp.dataset.saved!==undefined?inp.dataset.saved:inp.defaultValue)) return;   // 변경 없으면 스킵
+      inp.disabled=true;
+      fetch('/customers/'+id+'/alias',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({alias:v})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          inp.disabled=false;
+          if(j&&j.ok){
+            inp.dataset.saved=v; inp.classList.add('cu-ok'); setTimeout(function(){inp.classList.remove('cu-ok');},800);
+            var tr=inp.closest('tr');   // 검색용 data-q 갱신(시스템명 즉시 검색 반영)
+            if(tr){ var nm=(tr.querySelector('td b')||{}).textContent||''; tr.dataset.q=((tr.dataset.q||'')+' '+v).toLowerCase(); }
+          } else { alert('저장 실패: '+((j&&j.error)||'오류')); inp.focus(); }
+        }).catch(function(){ inp.disabled=false; alert('통신 오류'); inp.focus(); });
+    };
   })();
   </script>
   {% endif %}
