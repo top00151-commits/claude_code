@@ -82,6 +82,20 @@
       {% endif %}
     {% endif %}
 
+    {# v5H226z567: 소모품 전체 초기화 결과 #}
+    {% if co_done %}
+      {% if co_done.ok %}
+      <div class="rd-done">
+        ✅ <b>소모품 전체 초기화 완료</b><br>
+        {% for label, cnt in co_done.deleted.items() %}· {{ label }} — {{ '{:,}'.format(cnt) }}행 삭제<br>{% endfor %}
+        · 백업 위치: <code>{{ co_done.backup }}</code><br>
+        프로젝트 세금계산서·다른 데이터는 보존됩니다. 이제 통합 일괄등록으로 깨끗이 재등록하세요.
+      </div>
+      {% else %}
+      <div class="rd-err">⚠ 소모품 초기화 실패: {{ co_done.error }}{% if co_done.backup %}<br>백업: {{ co_done.backup }}{% endif %}</div>
+      {% endif %}
+    {% endif %}
+
     {% if error %}<div class="rd-err">⚠ {{ error }}</div>{% endif %}
 
     {# v5H226z192: 항목(그룹)별 선택 초기화 — 데모 기간용 #}
@@ -170,6 +184,33 @@
         if (!confirm('다음 사업부의 매출 데이터를 초기화합니다 (프로젝트+수주+납품+수금+수출, 백업 자동 생성):\n\n· '
           + picked.join('\n· ') + '\n\n계속할까요?')) return false;
         knkResetBusy('사업부별 매출 초기화'); return true;
+      }
+    </script>
+
+    {# v5H226z567 (대표 지시): 소모품 전체 초기화 — 소모품 발주/품목/이력 + 소모품 세금계산서만(프로젝트 보존) #}
+    <div class="rd-card" style="border:2px solid #fca5a5;background:#fff7f7;">
+      <h3>📦 소모품 전체 초기화 <span style="font-weight:600;color:#64748b;font-size:12px;">— 잘못 등록된 소모품·세금계산서 정리 후 깨끗이 재등록용</span></h3>
+      <div style="font-size:12.5px;color:#475569;margin-bottom:12px;line-height:1.6;">
+        소모품 <b>발주 {{ '{:,}'.format(co_preview.consumable_orders) }}건 · 품목 {{ '{:,}'.format(co_preview.consumable_order_items) }}개 · 이력 {{ '{:,}'.format(co_preview.consumable_history) }}건</b>과
+        <b>소모품 세금계산서 {{ '{:,}'.format(co_preview.tax_invoices) }}장(라인 {{ '{:,}'.format(co_preview.tax_invoice_lines) }})</b>을 삭제합니다.<br>
+        <span style="color:#15803d;">· <b>프로젝트(장비) 세금계산서·다른 데이터는 보존</b>됩니다 — 소모품 관련만 정리.</span><br>
+        <span style="color:#b45309;">· 실행 전 <b>자동 백업</b>. 정리 후 통합 일괄등록으로 다시 올리면 관리번호=발주일·고객사별 분리·형태가 모두 정상 적용됩니다.</span>
+      </div>
+      <form method="post" action="/admin/reset-consumables" id="coForm" onsubmit="return knkCoSubmit();">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span style="font-size:13px;font-weight:800;color:#7f1d1d;">실행하려면 <code>소모품초기화</code> 입력:</span>
+          <input type="text" name="confirm" id="coConfirm" placeholder="소모품초기화" autocomplete="off"
+                 oninput="document.getElementById('coBtn').disabled = (this.value.trim() !== '소모품초기화' || {{ co_preview.total }} === 0);"
+                 style="width:180px;padding:8px 11px;border:1px solid #d6cdb6;border-radius:8px;font-size:14px;">
+          <button type="submit" id="coBtn" class="rd-btn danger" disabled>📦 소모품 전체 초기화</button>
+        </div>
+      </form>
+    </div>
+    <script>
+      function knkCoSubmit(){
+        if (document.getElementById('coConfirm').value.trim() !== '소모품초기화') return false;
+        if (!confirm('소모품 발주·품목·이력 + 소모품 세금계산서를 전부 삭제합니다 (백업 자동 생성).\n프로젝트 세금계산서는 보존됩니다.\n\n계속할까요?')) return false;
+        knkResetBusy('소모품 전체 초기화'); return true;
       }
     </script>
 

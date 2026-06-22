@@ -13522,6 +13522,90 @@ def reset_groups_apply(group_keys, actor_name: str = "") -> dict:
         return {"ok": False, "error": str(e), "backup": backup}
 
 
+# v5H226z567 (대표 지시): 소모품 전체 초기화 — 소모품 발주/품목/이력 + '소모품 세금계산서'(ref_kind='consumable')만.
+#   프로젝트 세금계산서(묶음)는 보존(tax_invoices 통째 삭제 금지). 깨끗이 재등록(z564 발주일코드·z566 고객사분리·z563 형태)용.
+def reset_consumables_preview() -> dict:
+    """소모품 초기화로 지워질 행 수 미리보기(변경 없음). 소모품 세금계산서는 ref_kind='consumable' 라인 기준."""
+    out = {"consumable_orders": 0, "consumable_order_items": 0, "consumable_history": 0,
+           "tax_invoices": 0, "tax_invoice_lines": 0}
+    with db_session() as c:
+        existing = set(r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall())
+        for t in ("consumable_orders", "consumable_order_items", "consumable_history"):
+            if t in existing:
+                try:
+                    out[t] = c.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+                except Exception:
+                    out[t] = 0
+        if "tax_invoice_lines" in existing:
+            try:
+                ti_ids = [r[0] for r in c.execute(
+                    "SELECT DISTINCT ti_id FROM tax_invoice_lines WHERE ref_kind='consumable'").fetchall()]
+                if ti_ids:
+                    ph = ",".join("?" * len(ti_ids))
+                    out["tax_invoice_lines"] = c.execute(
+                        f"SELECT COUNT(*) FROM tax_invoice_lines WHERE ti_id IN ({ph})", ti_ids).fetchone()[0]
+                    if "tax_invoices" in existing:
+                        out["tax_invoices"] = c.execute(
+                            f"SELECT COUNT(*) FROM tax_invoices WHERE id IN ({ph})", ti_ids).fetchone()[0]
+            except Exception:
+                pass
+    out["total"] = sum(v for k, v in out.items() if k != "total")
+    return out
+
+
+def reset_consumables_full(actor_name: str = "") -> dict:
+    """소모품 전체 초기화. DB 백업 먼저 → 소모품 세금계산서(라인+장부) 삭제 → 소모품 발주/품목/이력 삭제.
+    프로젝트 세금계산서는 손대지 않음(ref_kind='project'/'unit'). 반환 {ok, backup, deleted:{label:n}}."""
+    import shutil, datetime as _dt
+    backup = ""
+    try:
+        bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+        os.makedirs(bdir, exist_ok=True)
+        ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = os.path.join(bdir, f"knk.db.bak_co_reset_{ts}")
+        shutil.copy2(DB_PATH, backup)
+    except Exception as e:
+        return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
+    try:
+        deleted = {}
+        with db_session() as c:
+            try:
+                c.execute("PRAGMA foreign_keys=OFF")
+            except Exception:
+                pass
+            existing = set(r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall())
+            # 1) 소모품 세금계산서(ref_kind='consumable' 라인이 있는 장부)만 삭제 — 프로젝트 묶음 보존
+            if "tax_invoice_lines" in existing:
+                ti_ids = [r[0] for r in c.execute(
+                    "SELECT DISTINCT ti_id FROM tax_invoice_lines WHERE ref_kind='consumable'").fetchall()]
+                if ti_ids:
+                    ph = ",".join("?" * len(ti_ids))
+                    nlines = c.execute(f"SELECT COUNT(*) FROM tax_invoice_lines WHERE ti_id IN ({ph})", ti_ids).fetchone()[0]
+                    c.execute(f"DELETE FROM tax_invoice_lines WHERE ti_id IN ({ph})", ti_ids)
+                    deleted["소모품 세금계산서 라인"] = nlines
+                    if "tax_invoices" in existing:
+                        nti = c.execute(f"SELECT COUNT(*) FROM tax_invoices WHERE id IN ({ph})", ti_ids).fetchone()[0]
+                        c.execute(f"DELETE FROM tax_invoices WHERE id IN ({ph})", ti_ids)
+                        deleted["소모품 세금계산서"] = nti
+            # 2) 소모품 발주/품목/이력
+            for t in ("consumable_history", "consumable_order_items", "consumable_orders"):
+                if t in existing:
+                    n = c.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+                    c.execute(f'DELETE FROM "{t}"')
+                    c.execute("DELETE FROM sqlite_sequence WHERE name=?", (t,))
+                    deleted[t] = n
+            try:
+                c.execute(
+                    "INSERT INTO app_settings(key, value) VALUES('demo_reset_at', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (f"{_dt.datetime.now().strftime('%Y-%m-%d %H:%M')} by {actor_name} (소모품 전체 초기화)",))
+            except Exception:
+                pass
+        return {"ok": True, "backup": backup, "deleted": deleted}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "backup": backup}
+
+
 # v5H226z193 (대표 지시): 매출·영업 '사업부별' 초기화 (자동화 M만 등).
 #   해당 사업부 프로젝트 + 딸린 수주·납품·수금·송장·생산·수출(CI/PL/BL/통관/FTA) 연쇄삭제.
 #   견적(quotations)은 project 직접연결 컬럼이 없어(현 데이터 orders.quote_id 전부 NULL) 사업부 귀속 불가 → 제외.

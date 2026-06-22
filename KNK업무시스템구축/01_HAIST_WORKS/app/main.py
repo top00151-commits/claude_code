@@ -7106,14 +7106,30 @@ async def admin_reset_demo_page(req: Request):
     return _reset_demo_render(req, u)
 
 
-def _reset_demo_render(req, u, *, done=None, group_done=None, sales_div_done=None, error=None):
-    """데모 초기화 화면 공통 렌더 — 미리보기 3종(전체/그룹/사업부) + 결과/에러."""
+def _reset_demo_render(req, u, *, done=None, group_done=None, sales_div_done=None, co_done=None, error=None):
+    """데모 초기화 화면 공통 렌더 — 미리보기 4종(전체/그룹/사업부/소모품) + 결과/에러."""
     from .database import (reset_demo_preview, reset_groups_preview,
-                           reset_sales_division_preview)
+                           reset_sales_division_preview, reset_consumables_preview)
     return ctx(req, "admin_reset_demo.html", user=u, active="admin",
                preview=reset_demo_preview(), groups_preview=reset_groups_preview(),
                sales_div_preview=reset_sales_division_preview(),
-               done=done, group_done=group_done, sales_div_done=sales_div_done, error=error)
+               co_preview=reset_consumables_preview(),   # v5H226z567: 소모품 전체 초기화
+               done=done, group_done=group_done, sales_div_done=sales_div_done,
+               co_done=co_done, error=error)
+
+
+@app.post("/admin/reset-consumables")
+async def admin_reset_consumables_apply(req: Request, confirm: str = Form("")):
+    """v5H226z567 (대표 지시): 소모품 전체 초기화 — 소모품 발주/품목/이력 + 소모품 세금계산서만 삭제(프로젝트 보존).
+    확인 문구('소모품초기화') 일치 시에만. 자동 백업. (admin/ceo 전용)"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from .database import reset_consumables_full
+    if (confirm or "").strip() != "소모품초기화":
+        return _reset_demo_render(req, u, error="확인 문구가 일치하지 않습니다. '소모품초기화' 를 정확히 입력하세요.")
+    res = reset_consumables_full(actor_name=u.get("name", ""))
+    return _reset_demo_render(req, u, co_done=res)
 
 
 @app.post("/admin/reset-demo")
