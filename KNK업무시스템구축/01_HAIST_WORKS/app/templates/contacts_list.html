@@ -17,7 +17,8 @@
 /* v5H226z582~584: 모든 칸 한 줄로(줄바꿈 금지)·내가 너비 조절(드래그)·항목 보임/숨김 */
 #cxTbl { table-layout:fixed; border-collapse:collapse; width:auto; }
 #cxTbl th, #cxTbl td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-#cxTbl th { position:relative; }
+/* v5H226z587: 머리글 행 고정 — 세로 스크롤해도 안 올라감(sticky 가 resizer 위치 기준도 됨) */
+#cxTbl thead th { position:sticky; top:0; z-index:5; background:#fff; box-shadow: inset 0 -1px 0 var(--line); }
 .cx-chkcol { text-align:center; }
 .cx-resz { position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; user-select:none; }
 .cx-resz:hover { background:var(--knk-red); opacity:.45; }
