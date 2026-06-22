@@ -2604,6 +2604,10 @@ def init_db():
                 if _coladd not in cocols:
                     c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_coladd} TEXT")
                     print(f"[v5H226z287] consumable_orders.{_coladd} 컬럼 추가됨")
+            # v5H226z563 (대표 지시): 소모품도 엑셀 '형태'(제품/상품/기타) 반영 — 기존 '상품 고정' 폐기.
+            if "form_type" not in cocols:
+                c.execute("ALTER TABLE consumable_orders ADD COLUMN form_type TEXT")
+                print("[v5H226z563] consumable_orders.form_type 컬럼 추가됨")
             # v5H226z367 (대표 지시): 소모품도 거래명세서·세금계산서 발행일자 추적 — 작업일정표 컬럼 연동(소모품 포함 결정)
             for _dc in ("statement_date", "tax_invoice_date"):
                 if _dc not in cocols:

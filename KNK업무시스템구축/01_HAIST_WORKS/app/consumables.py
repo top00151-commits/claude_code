@@ -851,6 +851,21 @@ def _co_bulk_detect_header(ws, max_scan: int = 16) -> int:
     return best_row if best >= 4 else 0
 
 
+def _norm_co_form(v) -> str:
+    """v5H226z563 (대표 지시): 엑셀 '형태' 값 → 제품/상품/기타 정규화(끝공백·표기흔들림 흡수).
+    소모품은 완제품(호기) 개념 없음 → 완제품도 제품으로 흡수. 못 알아보면 '' (확정 시 기본 상품)."""
+    t = ("" if v is None else str(v)).strip()
+    if not t:
+        return ""
+    if "상품" in t:
+        return "상품"
+    if "제품" in t:   # 완제품·반제품·제품 모두 제품으로
+        return "제품"
+    if "기타" in t:
+        return "기타"
+    return ""
+
+
 def _co_bulk_colmap(header_cells) -> dict:
     """header_cells: [(ci, text), ...] (1-indexed). → {key: ci}. 한 컬럼은 1키에만.
     더 구체적 라벨 먼저(영업담당자→연락처→담당자 순 등 충돌 방지)."""
@@ -976,6 +991,8 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
                 "ship_to": s(gv(r, "ship_to")), "sales_name": s(gv(r, "sales_name")),
                 "cust_ok": bool(match_customer_by_name(cust)) if cust else False,
                 "biz_div": "", "note": "", "items": [], "_errors": [], "_warn": "",
+                # v5H226z563 (대표 지시): 엑셀 '형태'(제품/상품/기타) 반영 — 비우면 기본 상품(확정 시 적용)
+                "form_type": _norm_co_form(gv(r, "form_type")),
                 # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) — 발주 단위(첫 줄에서 읽음)
                 "statement_date": _date_str(gv(r, "statement_date")),
                 "tax_invoice_amt1": num(gv(r, "ti_amt1")),
@@ -1004,6 +1021,11 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
                     v = _date_str(gv(r, k_src)) if is_date else s(gv(r, k_src))
                     if v:
                         o[k_meta] = v
+            # v5H226z563: 형태(제품/상품/기타) — 첫 줄이 비었으면 이후 줄 값으로 보강
+            if not o.get("form_type"):
+                _ff = _norm_co_form(gv(r, "form_type"))
+                if _ff:
+                    o["form_type"] = _ff
             # v5H226z505 (대표 지시): 같은 발주(구분번호) 여러 줄 — 세금계산서 금액은 '합산'(줄마다 적은 부분금액
             #   누락 방지). 016처럼 한 관리번호에 345,000+370,000 두 줄이면 1세금계산서=715,000. (첫 줄에만 적던
             #   기존 방식은 이후 줄이 0이라 합산해도 그대로 → 회귀 없음.)

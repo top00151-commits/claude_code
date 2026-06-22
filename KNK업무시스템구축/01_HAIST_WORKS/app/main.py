@@ -18005,7 +18005,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
-                "po_type": "소모품", "form_type": "상품",
+                "po_type": "소모품", "form_type": (cr.get("form_type") or "상품"),   # v5H226z563: 엑셀 형태 반영(기본 상품)
                 "customer": cr.get("customer_name") or "—",
                 "cust_ok": bool(cr.get("customer_id")), "cust2": cr.get("secondary_customer") or "",
                 "contact": cr.get("cc_phone") or "", "sales_owner": cr.get("sales_name") or "",
@@ -18857,7 +18857,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
-                "po_type": "소모품", "form_type": "상품",
+                "po_type": "소모품", "form_type": (cr.get("form_type") or "상품"),   # v5H226z563: 엑셀 형태 반영(기본 상품)
                 "customer": cr.get("customer_name") or "—",
                 "customer_disp": (_cust_alias.get(cr.get("customer_id")) or cr.get("customer_name") or "—"),  # v5H226z551: 화면 표시 전용(시스템명 우선)
                 "cust_ok": bool(cr.get("customer_id")),          # v5H226z294: 등록 고객사 연결 여부
@@ -19918,11 +19918,12 @@ async def schedule_tax_invoice_issue(request: Request):
         tier = 1
     if tier not in (1, 2, 3):
         tier = 1
-    # 고객사 일치 검사 — 다르면 경고(force 시 허용)
+    # v5H226z563 (대표 지시): 다른 고객사끼리는 한 장으로 묶을 수 없음 — 강행(force) 폐기·완전 차단.
     custs = sorted({(ln.get("customer") or "").strip() for ln in lines if (ln.get("customer") or "").strip() and (ln.get("customer") or "").strip() != "—"})
-    if len(custs) > 1 and not force:
-        return JSONResponse({"ok": False, "warn": "customer_mismatch",
-                             "error": "고객사가 서로 다릅니다: " + ", ".join(custs)}, 200)
+    if len(custs) > 1:
+        return JSONResponse({"ok": False,
+                             "error": "다른 고객사끼리는 한 장의 세금계산서로 묶어 발행할 수 없습니다: "
+                                      + ", ".join(custs) + " — 고객사별로 따로 발행하세요."}, 400)
     currency = (lines[0].get("currency") or "KRW")
     norm, total = [], 0.0
     for ln in lines:
@@ -20277,7 +20278,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
             info = {
                 "kind": "consumable", "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "", "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
-                "qty": 1, "po_type": "소모품", "form_type": "상품",
+                "qty": 1, "po_type": "소모품", "form_type": (cr.get("form_type") or "상품"),   # v5H226z563: 엑셀 형태 반영(기본 상품)
                 "customer": (_cust_alias.get(cr.get("customer_id")) or cr.get("customer_name") or "—"),   # v5H226z550: 시스템명 우선
                 "cust_ok": bool(cr.get("customer_id")),
                 "owner": cr.get("cc_name") or "",
@@ -31487,6 +31488,7 @@ async def consumables_import_bulk_confirm(request: Request):
                     _put("equip_name", (items_in[0].get("equip") or "").strip())
                 _put("cc_name", o.get("cc_name")); _put("cc_phone", o.get("cc_phone"))
                 _put("ship_to", o.get("ship_to")); _put("sales_name", o.get("sales_name"))
+                _put("form_type", o.get("form_type"))   # v5H226z563: 엑셀 형태(제품/상품/기타) 반영
                 if o.get("is_export") is not None and "is_export" in _cocols:
                     _sets.append("is_export=?"); _vals.append(int(o.get("is_export") or 0))
                 # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일·금액 일괄등록 반영

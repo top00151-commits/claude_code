@@ -1945,14 +1945,14 @@ function _tiOpenModal(lines, force){
   h+='<div class="ti-row-flex"><label>묶을 차수</label>';
   for(var k=1;k<=3;k++){ h+='<label style="font-weight:600;cursor:pointer;"><input type="radio" name="tiTier" value="'+k+'"'+(k===_tiTier?' checked':'')+' onchange="_tiTierChange('+k+')" /> '+tierName[k]+'</label>'; }
   h+='</div>';
-  if(custKeys.length>1){ h+='<div class="ti-warn">⚠ 고객사가 서로 다릅니다: <b>'+custKeys.map(esc).join(', ')+'</b><br>보통 세금계산서 한 장은 한 고객사입니다. 그래도 묶으려면 아래 <b>[고객 달라도 발행]</b>.</div>'; }
+  if(custKeys.length>1){ h+='<div class="ti-warn">⛔ 고객사가 서로 다릅니다: <b>'+custKeys.map(esc).join(', ')+'</b><br>다른 고객사끼리는 한 장으로 묶을 수 없습니다. <b>고객사별로 따로</b> 선택해 발행하세요.</div>'; }
   h+='<div class="ti-row-flex"><label>발행일 <input type="date" id="tiIssueDate" value="'+_tiToday()+'" /></label>';
   h+='<label>고객사 <b>'+(custKeys.length===1?esc(custKeys[0]):(custKeys.length===0?'(미지정)':custKeys.length+'곳'))+'</b></label></div>';
   h+='<table><thead><tr><th>관리번호</th><th>호기</th><th>고객사</th><th class="num">금액('+_tiSym+')</th></tr></thead><tbody id="tiBody"></tbody>';
   h+='<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700;">합계</td><td class="num ti-total" id="tiTotal">'+_tiSym+'0</td></tr></tfoot></table>';
   h+='<div class="ti-row-flex" style="margin-top:10px;"><label style="flex:1;">메모 <input type="text" id="tiMemo" style="width:100%;border:1px solid #cbd5e1;border-radius:5px;padding:4px 7px;font:inherit;" placeholder="(선택) 세금계산서 메모" /></label></div>';
   h+='</div><div class="ti-foot"><button type="button" class="ti-btn" onclick="_tiCloseModal()">취소</button>';
-  h+='<button type="button" class="ti-btn primary" id="tiSubmitBtn" onclick="_tiSubmit('+(custKeys.length>1?'true':'false')+')">'+(custKeys.length>1?'고객 달라도 발행':'발행')+'</button></div>';
+  h+='<button type="button" class="ti-btn primary" id="tiSubmitBtn" onclick="_tiSubmit(false)"'+(custKeys.length>1?' disabled title="다른 고객사끼리는 묶어 발행할 수 없습니다"':'')+'>'+(custKeys.length>1?'⛔ 고객사 분리 필요':'발행')+'</button></div>';
   h+='</div></div>';
   var wrap=document.createElement('div'); wrap.innerHTML=h; document.body.appendChild(wrap.firstChild);
   document.getElementById('tiModalBack').addEventListener('click', _tiCloseModal);
@@ -2002,7 +2002,6 @@ function _tiSubmit(force){
   fetch('/sales/schedule/tax-invoice/issue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){ return r.json(); })
     .then(function(j){
-      if(j&&j.warn==='customer_mismatch'){ if(btn) btn.disabled=false; toast('⚠ '+(j.error||'고객사 불일치')); _tiOpenModal(_tiLines, true); return; }
       if(!j||!j.ok){ if(btn) btn.disabled=false; toast('발행 실패: '+((j&&j.error)||'오류')); return; }
       _tiCloseModal();
       toast(_tiTier+'차 세금계산서 #'+j.ti_no+' 발행 완료 ('+j.n+'건)');
