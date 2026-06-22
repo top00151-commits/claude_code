@@ -3,7 +3,7 @@
    (동적으로 추가된 input 은 KnkCal.attach(el) 호출)
 #}
 <style>
-.knk-cal-pop { position: absolute; z-index: 9999; background: #fff; border: 1px solid #f1e8d4;
+.knk-cal-pop { position: absolute; z-index: 100050; background: #fff; border: 1px solid #f1e8d4;  /* v5H226z558: 팝업(ti-pop z9999) 위로 — 날짜 클릭 가림 방지 */
                border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); padding: 14px;
                width: 340px; font-family: inherit; }
 .knk-cal-pop.hidden { display: none; }
@@ -217,7 +217,9 @@ input.knk-cal { cursor: pointer; }
     p.style.top = '-9999px'; p.style.left = '0px';
     var ph = p.offsetHeight || 360;
     var pw = p.offsetWidth || 340;
-    var r = input.getBoundingClientRect();
+    // v5H226z558: 입력이 팝업(.ti-pop 세금계산서 편집창) 안이면, 팝업 전체를 기준으로 띄워 달력이 팝업과 겹치지 않게.
+    var _anchor = (input.closest && input.closest('.ti-pop')) || input;
+    var r = _anchor.getBoundingClientRect();
     var spaceBelow = window.innerHeight - r.bottom;
     var spaceAbove = r.top;
     var top, left;

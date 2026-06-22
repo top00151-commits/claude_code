@@ -18825,12 +18825,17 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 _tcols = {r[1] for r in _tc.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
                 if _tcols:
                     _has_tier = ("tier" in _tcols)
-                    _sel = ("SELECT l.row_sig, l.tier, t.id, t.ti_no" if _has_tier
-                            else "SELECT l.row_sig, 1 AS tier, t.id, t.ti_no")
+                    # v5H226z558 (대표 지시): 칩에 발행 금액 표기 — 라인 금액 합산 + 통화 포함
+                    _sel = ("SELECT l.row_sig, l.tier, t.id, t.ti_no, COALESCE(l.amount,0), COALESCE(t.currency,'KRW')" if _has_tier
+                            else "SELECT l.row_sig, 1 AS tier, t.id, t.ti_no, COALESCE(l.amount,0), COALESCE(t.currency,'KRW')")
                     for _tr in _tc.execute(
                         _sel + " FROM tax_invoice_lines l JOIN tax_invoices t ON t.id=l.ti_id WHERE t.status='발행'"):
                         if _tr[0]:
-                            _ti_map[f"{_tr[0]}|{_tr[1] or 1}"] = {"id": _tr[2], "no": _tr[3]}
+                            _k = f"{_tr[0]}|{_tr[1] or 1}"
+                            if _k in _ti_map:
+                                _ti_map[_k]["amt"] = (_ti_map[_k].get("amt") or 0) + float(_tr[4] or 0)
+                            else:
+                                _ti_map[_k] = {"id": _tr[2], "no": _tr[3], "amt": float(_tr[4] or 0), "cur": _tr[5] or "KRW"}
         except Exception:
             _ti_map = {}
     return ctx(request, "schedule_board.html", user=u, active="sales_schedule",
