@@ -7,12 +7,13 @@
 @view-transition { navigation: none; }
 /* v5H226z496 (대표 지시): 부서 일정표 — 좌우 꽉 차게(z420 표준) */
 .dsx-wrap{margin:0 var(--content-pad);padding:0 0 15px;}  /* v5H226z573 (대표 지시): 하단 여백 15px */
-/* v5H226z574 (대표 지시): 부서일정표는 페이지(메인) 오른쪽 큰 스크롤바를 숨김 — 스크롤은 시트(.dsx-tablewrap 74vh) 자체에서.
-   ⚠ overflow:hidden 으로 완전 차단하면 월간요약 패널 때문에 내용 길 때 하단이 잘릴 수 있어, 스크롤바만 숨기고
-   스크롤 자체(휠)는 유지(잘림 방지). 데스크톱만(모바일은 styles.html @media max-width:1023px 그대로). */
+/* v5H226z575 (대표 지시): 페이지(메인) 스크롤 자체 제거 — 뷰포트에 고정하고 '데이터 시트'가 남는 높이를
+   자동으로 채워 모니터 배율/해상도에 맞게 보이는 면적이 조정되게(flex 채움). 시트 내부 스크롤만 사용.
+   데스크톱만 적용(모바일은 styles.html @media max-width:1023px 의 .main overflow:visible 그대로). */
 @media (min-width:1024px){
-  .main{ scrollbar-width:none !important; scrollbar-gutter:auto !important; }
-  .main::-webkit-scrollbar{ width:0 !important; height:0 !important; display:none !important; }
+  .main{ overflow:hidden !important; }                                  /* 페이지(휠 포함) 스크롤 제거 */
+  #dsx.dsx-wrap{ display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+  #dsx .dsx-tablewrap{ flex:1 1 auto; min-height:0; max-height:none; }  /* 남는 높이 자동 채움 + 시트 내부 스크롤 */
 }
 .dsx-intro{font-size:12.5px;color:#64748b;margin:2px 0 12px;line-height:1.6;}
 .dsx-intro b{color:#1e293b;}
