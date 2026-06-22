@@ -13333,6 +13333,7 @@ async def contacts_import_vcf_parse(req: Request, file: UploadFile = File(...)):
     if "BEGIN:VCARD" not in text.upper():
         return JSONResponse({"ok": False,
             "message": "vCard(.vcf) 형식이 아닙니다. 휴대폰 연락처 '내보내기'로 만든 .vcf 파일을 올려주세요."}, 400)
+    total_blocks = text.upper().count("BEGIN:VCARD")   # v5H226z585 파일 안 카드 수(누락 진단)
     cards = _contacts.parse_vcards(text)
     items = []
     with db_session() as c:
@@ -13351,10 +13352,15 @@ async def contacts_import_vcf_parse(req: Request, file: UploadFile = File(...)):
                 "dup_name": (dups[0].get("name") if dups else ""),
             })
     dup_n = sum(1 for x in items if x["is_dup"])
+    missed = max(0, total_blocks - len(items))
+    msg = f"파일 {total_blocks}장 중 {len(items)}명을 인식했습니다."
+    if dup_n:
+        msg += f" (이미 있음 {dup_n}명은 체크 해제)"
+    if missed:
+        msg += f" · 인식 못 한 {missed}장은 이름·전화·이메일이 전혀 없는 항목입니다."
     return JSONResponse({"ok": True, "count": len(items), "dup_count": dup_n,
-                         "items": items,
-                         "message": f"{len(items)}명을 읽었습니다." +
-                                    (f" (중복 {dup_n}명은 체크 해제됨)" if dup_n else "")})
+                         "total_blocks": total_blocks, "missed": missed,
+                         "items": items, "message": msg})
 
 
 @app.post("/contacts/import-vcf/confirm")

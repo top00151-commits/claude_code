@@ -77,9 +77,11 @@
       <colgroup>
         <col style="width:36px"><col data-col="name" style="width:200px"><col data-col="position" style="width:90px">
         <col data-col="company" style="width:190px"><col data-col="department" style="width:120px">
-        <col data-col="mobile" style="width:130px"><col data-col="email" style="width:220px">
-        <col data-col="vis" style="width:88px"><col data-col="source" style="width:72px">
-        <col data-col="creator" style="width:110px"><col style="width:56px">
+        <col data-col="mobile" style="width:130px"><col data-col="phone" style="width:130px">
+        <col data-col="fax" style="width:120px"><col data-col="email" style="width:200px">
+        <col data-col="address" style="width:260px"><col data-col="vis" style="width:88px">
+        <col data-col="source" style="width:72px"><col data-col="creator" style="width:110px">
+        <col data-col="note" style="width:200px"><col style="width:56px">
       </colgroup>
       <thead><tr>
         <th class="cx-chkcol"><input type="checkbox" id="cxAll" onclick="cxSelAll(this)" title="전체 선택"></th>
@@ -88,10 +90,14 @@
         <th data-col="company">회사<span class="cx-resz" data-rz="company"></span></th>
         <th data-col="department">부서<span class="cx-resz" data-rz="department"></span></th>
         <th data-col="mobile">휴대폰<span class="cx-resz" data-rz="mobile"></span></th>
+        <th data-col="phone">회사전화<span class="cx-resz" data-rz="phone"></span></th>
+        <th data-col="fax">팩스<span class="cx-resz" data-rz="fax"></span></th>
         <th data-col="email">이메일<span class="cx-resz" data-rz="email"></span></th>
+        <th data-col="address">주소<span class="cx-resz" data-rz="address"></span></th>
         <th data-col="vis" class="center">공유<span class="cx-resz" data-rz="vis"></span></th>
         <th data-col="source" class="center">출처<span class="cx-resz" data-rz="source"></span></th>
         <th data-col="creator">등록자<span class="cx-resz" data-rz="creator"></span></th>
+        <th data-col="note">비고<span class="cx-resz" data-rz="note"></span></th>
         <th class="center">관리</th>
       </tr></thead>
       <tbody>
@@ -103,7 +109,10 @@
           <td data-col="company">{{ c.company|default('—') }}</td>
           <td data-col="department">{{ c.department|default('—') }}</td>
           <td data-col="mobile" style="font-family:monospace;font-size:12.5px;">{{ c.mobile|default('—') }}</td>
+          <td data-col="phone" style="font-family:monospace;font-size:12.5px;">{{ c.phone|default('—') }}</td>
+          <td data-col="fax" style="font-family:monospace;font-size:12.5px;">{{ c.fax|default('—') }}</td>
           <td data-col="email" style="font-size:12.5px;">{{ c.email|default('—') }}</td>
+          <td data-col="address" style="font-size:12.5px;" title="{{ c.address|default('') }}">{{ c.address|default('—') }}</td>
           <td data-col="vis" class="center">
             {% set v = c.visibility|default('private') %}
             {% if v == 'company' %}<span class="src-pill vis-co">🌐 전사</span>
@@ -116,6 +125,7 @@
             {% else %}<span class="src-pill src-man">직접</span>{% endif %}
           </td>
           <td data-col="creator" style="font-size:12px;color:var(--mute);">{{ c.creator_name|default('—') }}</td>
+          <td data-col="note" style="font-size:12px;color:var(--mute);" title="{{ c.note|default('') }}">{{ c.note|default('—') }}</td>
           <td class="center"><button type="button" class="cx-del" title="이 연락처 삭제" onclick="cxDelOne(event, {{ c.id }})">🗑</button></td>
         </tr>
       {% endfor %}
@@ -165,9 +175,11 @@
     if(!TBL) return;   // 빈 목록이면 표 없음
     var COLS = [
       {k:'name',label:'이름'},{k:'position',label:'직책'},{k:'company',label:'회사'},
-      {k:'department',label:'부서'},{k:'mobile',label:'휴대폰'},{k:'email',label:'이메일'},
-      {k:'vis',label:'공유'},{k:'source',label:'출처'},{k:'creator',label:'등록자'}
+      {k:'department',label:'부서'},{k:'mobile',label:'휴대폰'},{k:'phone',label:'회사전화'},
+      {k:'fax',label:'팩스'},{k:'email',label:'이메일'},{k:'address',label:'주소'},
+      {k:'vis',label:'공유'},{k:'source',label:'출처'},{k:'creator',label:'등록자'},{k:'note',label:'비고'}
     ];
+    var DEFAULT_HIDDEN = ['phone','fax','address','note'];   // 기본 숨김(⚙에서 켜기)
     var LS_W='knk.cx.colw', LS_H='knk.cx.hidden';
     function load(key){ try{ return JSON.parse(localStorage.getItem(key)||'null'); }catch(e){ return null; } }
     function save(key,v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch(e){} }
@@ -187,7 +199,8 @@
       TBL.querySelectorAll('[data-col="'+k+'"]').forEach(function(el){ el.style.display = vis ? '' : 'none'; });
     }
     function applyHidden(){
-      var h = load(LS_H) || [];
+      var h = load(LS_H);
+      if(h === null){ h = DEFAULT_HIDDEN.slice(); save(LS_H, h); }   // 첫 방문=기본 숨김 적용
       COLS.forEach(function(c){ setColVisible(c.k, h.indexOf(c.k) < 0); });
     }
 
@@ -218,11 +231,12 @@
     document.addEventListener('click', window._cxDocClose);
 
     window.cxResetCols=function(){
-      save(LS_W,{}); save(LS_H,[]);
-      // 기본 너비 복원
-      var def={name:200,position:90,company:190,department:120,mobile:130,email:220,vis:88,source:72,creator:110};
+      save(LS_W,{}); save(LS_H, DEFAULT_HIDDEN.slice());
+      // 기본 너비·기본 보임/숨김 복원
+      var def={name:200,position:90,company:190,department:120,mobile:130,phone:130,fax:120,
+               email:200,address:260,vis:88,source:72,creator:110,note:200};
       COLS.forEach(function(c){ var col=TBL.querySelector('col[data-col="'+c.k+'"]'); if(col) col.style.width=def[c.k]+'px';
-        setColVisible(c.k, true); });
+        setColVisible(c.k, DEFAULT_HIDDEN.indexOf(c.k) < 0); });
       var pop=document.getElementById('cxColMenu'); if(pop) pop.style.display='none';
     };
 

@@ -824,7 +824,12 @@ def parse_vcards(text: str) -> list[dict]:
                     else:
                         cur["name"] = _join_nonempty([giv, fam])
                 cur.pop("_n", None)
-                if cur.get("name") or cur.get("mobile") or cur.get("phone") or cur.get("email"):
+                # v5H226z585: 회사명/주소/비고/직책/팩스만 있어도 버리지 않음(누락 방지).
+                #   이름 비면 회사명→ '(이름 없음)' 으로 채워 식별 가능하게.
+                if any(cur.get(k) for k in
+                       ("name", "mobile", "phone", "email", "company", "address", "note", "position", "fax")):
+                    if not cur.get("name"):
+                        cur["name"] = cur.get("company") or "(이름 없음)"
                     cards.append({k: cur.get(k, "") for k in FIELD_KEYS})
             cur = None
             continue
