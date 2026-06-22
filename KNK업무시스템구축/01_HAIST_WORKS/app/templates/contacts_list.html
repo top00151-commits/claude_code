@@ -14,8 +14,8 @@
 .vis-dept { background:#dbeafe; color:#1e40af; }
 .vis-me   { background:#f1f5f9; color:#475569; }
 .tbl-wrap.tbl-sticky { margin-top: var(--space-3); max-height: calc(100vh - 220px) !important; overflow:auto; }
-/* v5H226z582: 이름 한 줄로(줄바꿈 금지) — 길면 표 가로 스크롤 */
-.tbl th:first-child, .tbl td:first-child { white-space:nowrap; }
+/* v5H226z582/z583: 모든 칸 한 줄로(줄바꿈 금지) — 길면 표 가로 스크롤 */
+.tbl th, .tbl td { white-space:nowrap; }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
