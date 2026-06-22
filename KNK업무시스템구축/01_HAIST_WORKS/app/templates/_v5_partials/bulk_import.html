@@ -190,6 +190,13 @@ async function confirmImport() {
   if (j.so_skipped_count > 0) {
     msg += '\n\nℹ 발주일 없어 수주번호 미발행 ' + j.so_skipped_count + '건 (헤더만 등록 · 발주일 입력 후 재발행 가능)';
   }
+  // v5H226z557: 세금계산서 묶음 발행 결과
+  if (j.ti_made > 0) {
+    msg += '\n\n📄 세금계산서 ' + j.ti_made + '장 묶어 발행 (' + (j.ti_lines||0) + '개 항목)';
+  }
+  if (j.ti_warns && j.ti_warns.length) {
+    msg += '\n⚠ 세금계산서 일부 실패 ' + j.ti_warns.length + '건';
+  }
   alert(msg);
   closeImportPreview();
   if (j.created_count > 0) {

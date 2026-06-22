@@ -21573,6 +21573,35 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _cForm = _col("형태")   # v5H226z349 (대표 지시): 형태(제품/상품/기타)
         _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품위치", "납품지", "납품처"); _cNt = _col("비고", "기타사항")
         _cSa = _col("영업")   # 영업담당자(우리 회사 영업사원) — sales_name 으로 저장
+        # v5H226z557 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일 + 금액 + '묶음번호' 올리기.
+        #   값 형식 'YYYY-MM-DD-N' = 발행일 + 묶음번호(같은 날짜·같은 N·같은 고객사 = 한 장으로 묶어 발행).
+        #   금액 칸은 각 '세금계산서' 헤더 바로 다음 컬럼(헤더 '금액'이 셋이라 위치로 잡음).
+        _cStmt = _col("거래명세서")
+        _cTi1 = _col("1세금계산서"); _cTi2 = _col("2세금계산서"); _cTi3 = _col("3세금계산서")
+        _cTi1a = (_cTi1 + 1) if _cTi1 is not None else None
+        _cTi2a = (_cTi2 + 1) if _cTi2 is not None else None
+        _cTi3a = (_cTi3 + 1) if _cTi3 is not None else None
+
+        def _parse_ti(v):
+            """세금계산서 칸 → (발행일 YYYY-MM-DD, 묶음번호). datetime/'YYYY-MM-DD'/'YYYY-MM-DD-N' 처리."""
+            import datetime as __dt
+            if v is None or v == "":
+                return ("", "")
+            if isinstance(v, __dt.datetime):
+                return (v.strftime("%Y-%m-%d"), "")
+            s = str(v).strip()
+            m = _re_m.match(r"^(\d{4})\D(\d{1,2})\D(\d{1,2})(?:\D+(.+))?$", s)
+            if m:
+                d = f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+                return (d, (m.group(4) or "").strip())
+            return (_to_date(v) or "", "")
+
+        def _ti_amt(v):
+            try:
+                return float((_to_str(v) or "0").replace(",", "")) or 0.0
+            except Exception:
+                return 0.0
+
         _gseq = {}
         # v5H226z327 (적대검토): 자동발급 충돌 회피 — 수동 입력 관리번호 사전 수집.
         # v5H226z328 (대표 지시): _seen_new = 파일 내에서 '신규(프로젝트 생성)'로 잡힌 코드 — 이후 같은 코드는 추가발주.
@@ -21700,6 +21729,11 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 #   메커니즘: shipment_form=SEMI → confirm 의 _is_part 경로(1줄) 사용(신규·추가발주 공통).
                 "shipment_form": "SEMI",
                 "two_tier_order": 1 if cust2 else 0,
+                # v5H226z557: 거래명세서 발행일 + 세금계산서 1/2/3차 (발행일·묶음번호·금액)
+                "statement_date": (_parse_ti(_g(_cStmt))[0] if _cStmt is not None else ""),
+                "ti1_date": _parse_ti(_g(_cTi1))[0], "ti1_bundle": _parse_ti(_g(_cTi1))[1], "ti1_amt": _ti_amt(_g(_cTi1a)),
+                "ti2_date": _parse_ti(_g(_cTi2))[0], "ti2_bundle": _parse_ti(_g(_cTi2))[1], "ti2_amt": _ti_amt(_g(_cTi2a)),
+                "ti3_date": _parse_ti(_g(_cTi3))[0], "ti3_bundle": _parse_ti(_g(_cTi3))[1], "ti3_amt": _ti_amt(_g(_cTi3a)),
                 "_followup": _followup, "_force_first_so": _force_first_so, "_auto_mgmt": _auto, "_warn": warn,
                 "_errors": errors,
                 "_is_warning_only": (len(errors) == 0 and bool(warn)),
@@ -22253,6 +22287,28 @@ async def projects_import_confirm(request: Request):
     so_warnings = []   # v5H226z262: SO(수주·호기) 생성 실패를 조용히 삼키지 않고 수집 → 응답·로그로 표면화
     so_skipped = []    # v5H226z330/z337: 발주일 없어 SO(수주번호) 미발행한 신규행(소모품 포함, 정보성 안내) — 조용히 넘기지 않고 수집
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
+    # v5H226z557 (대표 지시): 거래명세서·세금계산서(1/2/3차)를 '묶음까지 완전 재현'. 행→pid 수집 후 루프 끝에서 발행.
+    _ti_rows = []
+    def _ti_collect(_pid, _mc, _row, _nm):
+        if not _pid:
+            return
+        _sd = (str(_row.get("statement_date") or ""))[:10]
+        _ti = []
+        for _k in (1, 2, 3):
+            _d = (str(_row.get(f"ti{_k}_date") or ""))[:10]
+            if _d:
+                try:
+                    _a = float(_row.get(f"ti{_k}_amt") or 0)
+                except Exception:
+                    _a = 0.0
+                _ti.append((_k, _d, str(_row.get(f"ti{_k}_bundle") or "").strip(), _a))
+        if not _sd and not _ti:
+            return
+        _ti_rows.append({"pid": int(_pid), "mgmt": _mc or "",
+                         "customer": (_row.get("customer_name") or ""),
+                         "label": (_row.get("model_name") or _nm or ""),
+                         "currency": (str(_row.get("currency") or "KRW")).upper(),
+                         "statement_date": _sd, "ti": _ti})
     for r in rows:
         try:
             # 미등록 고객사 경고만 있는 행도 통과 (텍스트로 저장)
@@ -22342,6 +22398,7 @@ async def projects_import_confirm(request: Request):
                     created.append({"row_no": r.get("row_no"), "name": name,
                                     "mgmt_code": _mc, "followup": True,
                                     "so_no": _res.get("so_no")})
+                    _ti_collect(_ex["id"], _mc, r, name)   # v5H226z557: 세금계산서 수집(추가발주)
                 except Exception as _e:
                     failed.append({"row_no": r.get("row_no"), "name": name,
                                    "error": f"추가발주 오류: {str(_e)[:120]}"})
@@ -22487,6 +22544,7 @@ async def projects_import_confirm(request: Request):
                 _created_pids.add(int(new_pid))
             created.append({"row_no": r.get("row_no"), "id": new_pid,
                             "mgmt_code": new_code, "name": name})
+            _ti_collect(new_pid, new_code, r, name)   # v5H226z557: 세금계산서 수집(신규)
         except Exception as e:
             failed.append({"row_no": r.get("row_no"), "name": r.get("name"),
                            "error": str(e)})
@@ -22514,6 +22572,46 @@ async def projects_import_confirm(request: Request):
                             (pid,))
         except Exception:
             pass
+    # v5H226z557 (대표 지시): 거래명세서 발행일 + 세금계산서 1/2/3차 '묶음 발행' 재현.
+    #   같은 (차수, 발행일, 묶음번호, 고객사) 행들을 한 장(tax_invoices)으로 묶어 발행(작업일정표 묶어발행과 동일 장부).
+    #   재무 데이터라 try/except 로 메인 등록을 절대 깨지 않게 — 실패는 경고로 표면화.
+    ti_made = 0; ti_lines = 0; ti_warns = []
+    if _ti_rows:
+        try:
+            from collections import OrderedDict as _OD
+            _uname = u.get("name") or u.get("login_id") or ""
+            with db_session() as c:
+                _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+                # 거래명세서 발행일 → 그 프로젝트 대표(최신) SO 에 기록
+                if "statement_date" in _ocols:
+                    for tr in _ti_rows:
+                        if tr["statement_date"]:
+                            try:
+                                c.execute("UPDATE orders SET statement_date=? WHERE id=("
+                                          "SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1)",
+                                          (tr["statement_date"], tr["pid"]))
+                            except Exception:
+                                pass
+                # 세금계산서 차수별 묶음: key=(차수, 발행일, 묶음번호, 고객사)
+                _groups = _OD()
+                for tr in _ti_rows:
+                    for (tier, d, bundle, amt) in tr["ti"]:
+                        _groups.setdefault((tier, d, bundle, tr["customer"]), []).append((tr, amt))
+                for (tier, d, bundle, cust), members in _groups.items():
+                    lines = [{"sig": f"project:{tr['pid']}", "ref_kind": "project",
+                              "ref_id": tr["pid"], "mgmt_code": tr["mgmt"],
+                              "label": tr["label"], "customer": cust, "amount": amt}
+                             for (tr, amt) in members]
+                    _cur = (members[0][0].get("currency") or "KRW")
+                    _memo = (f"일괄등록 묶음 {bundle}" if bundle else "일괄등록")
+                    try:
+                        _ti_make_bundle(c, tier, d, _cur, cust, lines,
+                                        u.get("id") or 0, _uname, memo=_memo)
+                        ti_made += 1; ti_lines += len(lines)
+                    except Exception as _be:
+                        ti_warns.append(f"{d} {tier}차 묶음 발행 실패: {str(_be)[:80]}")
+        except Exception as _te:
+            ti_warns.append(f"세금계산서 처리 오류: {str(_te)[:120]}")
     return JSONResponse({
         "ok": True,
         "created_count": len(created),
@@ -22526,6 +22624,8 @@ async def projects_import_confirm(request: Request):
         # v5H226z330: 발주일 없어 수주번호(SO) 미발행한 행(정보성) — 화면에서 안내 노출
         "so_skipped_count": len(so_skipped),
         "so_skipped": so_skipped,
+        # v5H226z557: 세금계산서 묶음 발행 결과
+        "ti_made": ti_made, "ti_lines": ti_lines, "ti_warns": ti_warns,
     })
 
 
