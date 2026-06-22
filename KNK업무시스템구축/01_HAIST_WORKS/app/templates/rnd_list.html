@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>연구개발 과제 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+@view-transition { navigation: none; }
+.rnd-wrap{ margin:0 var(--content-pad) 18px; }
+.rnd-tools{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px; }
+.rnd-chip{ border:1px solid var(--line); background:#fff; color:var(--qv-ink-2); border-radius:18px; padding:5px 13px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.rnd-chip.on{ background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.rnd-chip .n{ opacity:.7; font-weight:600; margin-left:3px; }
+.rnd-search{ flex:1; min-width:200px; max-width:360px; border:1px solid var(--line); border-radius:8px; padding:7px 11px; font:inherit; font-size:13px; }
+.rnd-tablewrap{ border:1px solid var(--line); border-radius:10px; overflow-x:auto; background:#fff; }
+table.rnd{ width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
+.rnd th,.rnd td{ border-bottom:1px solid #eef2f7; padding:8px 10px; text-align:left; vertical-align:middle; white-space:nowrap; }
+.rnd thead th{ background:#f4f1ea; color:#4b5563; font-weight:800; font-size:12px; position:sticky; top:0; z-index:1; }
+.rnd tbody tr{ cursor:pointer; }
+.rnd tbody tr:hover td{ background:#eef6ff; }
+.rnd .c-code{ font-family:Consolas,monospace; font-weight:800; color:var(--knk-red); }
+.rnd .c-title{ font-weight:700; color:var(--qv-ink-1,#1f2937); white-space:normal; min-width:200px; }
+.pill{ display:inline-block; font-size:11px; font-weight:800; padding:2px 9px; border-radius:10px; }
+.st-기획{ background:#f1f0ec; color:#6b7280; } .st-진행{ background:#dbeafe; color:#1e40af; }
+.st-시험검증{ background:#fef3c7; color:#92400e; } .st-완료{ background:#dcfce7; color:#166534; }
+.st-보류{ background:#ffedd5; color:#9a3412; } .st-중단{ background:#fee2e2; color:#991b1b; }
+.pr-긴급{ color:#dc2626; font-weight:800; } .pr-높음{ color:#ea580c; font-weight:700; } .pr-보통{ color:#64748b; } .pr-낮음{ color:#94a3b8; }
+.rnd-empty{ background:#fff; border:1px dashed #e2e8f0; border-radius:12px; padding:36px; text-align:center; color:#94a3b8; }
+/* 등록 모달 */
+.rnd-back{ position:fixed; inset:0; background:rgba(0,0,0,.42); z-index:1200; display:none; align-items:flex-start; justify-content:center; }
+.rnd-back.on{ display:flex; }
+.rnd-modal{ background:#fff; border-radius:14px; width:min(620px,94vw); max-height:90vh; overflow:auto; box-shadow:0 18px 50px rgba(0,0,0,.3); margin-top:5vh; }
+.rnd-modal h3{ margin:0; padding:14px 18px; border-bottom:1px solid var(--line); font-size:15px; font-weight:800; display:flex; align-items:center; }
+.rnd-modal h3 .x{ margin-left:auto; cursor:pointer; color:#94a3b8; font-size:20px; border:0; background:none; }
+.rnd-form{ padding:14px 18px; }
+.rnd-form .row{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.rnd-form .f{ flex:1; min-width:140px; display:flex; flex-direction:column; gap:4px; }
+.rnd-form label{ font-size:12px; font-weight:700; color:#475569; }
+.rnd-form input,.rnd-form select,.rnd-form textarea{ border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; font-size:13px; }
+.rnd-form textarea{ resize:vertical; min-height:80px; }
+.rnd-foot{ display:flex; gap:8px; justify-content:flex-end; padding:0 18px 16px; }
+.rnd-btn{ padding:9px 18px; border-radius:8px; font-size:13.5px; font-weight:800; cursor:pointer; border:1px solid var(--line); background:#fff; }
+.rnd-btn.primary{ background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.req{ color:#dc2626; }
+</style>
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+<div class="rnd-wrap" id="rnd">
+  <div class="page-head" data-dn="page-head">
+    <div><div class="crumbs" data-dn="crumb"><a href="/home">홈</a> · <b>연구개발 과제</b></div>
+      <h1 class="page-title" data-dn="title">🔬 <em>연구개발 과제</em></h1></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="btn btn-primary" onclick="rndOpenNew()">＋ 연구과제 등록</button>
+    </div>
+  </div>
+  <div style="font-size:12.5px;color:#64748b;margin:2px 0 12px;line-height:1.6;">
+    부서가 <b>자체적으로 연구·개발하는 과제</b>를 등록·관리합니다(영업 매출과 별개). 등록 시 <b>R 관리번호</b>(예: 001R2606)가 자동 부여됩니다.
+  </div>
+
+  <div class="rnd-tools">
+    <button type="button" class="rnd-chip on" data-st="" onclick="rndTab(this)">전체 <span class="n" id="rndN_all">0</span></button>
+    {% for s in statuses %}<button type="button" class="rnd-chip" data-st="{{ s }}" onclick="rndTab(this)">{{ s }} <span class="n" id="rndN_{{ loop.index }}">0</span></button>{% endfor %}
+    <input type="search" id="rndSearch" class="rnd-search" placeholder="🔍 과제명·관리번호·부서·담당자·분류 검색" oninput="rndApply()" autocomplete="off">
+    <span id="rndCnt" style="color:var(--mute);font-size:12.5px;"></span>
+  </div>
+
+  {% if items %}
+  <div class="rnd-tablewrap">
+    <table class="rnd">
+      <thead><tr>
+        <th>관리번호</th><th>과제명</th><th>부서</th><th>담당자</th><th>분류</th>
+        <th class="center">상태</th><th class="center">우선순위</th><th>시작일</th><th>목표완료</th>
+      </tr></thead>
+      <tbody>
+      {% for it in items %}
+        <tr onclick="location.href='/rnd/{{ it.id }}';"
+            data-st="{{ it.status }}"
+            data-q="{{ ((it.mgmt_code or '') ~ ' ' ~ it.title ~ ' ' ~ (it.dept or '') ~ ' ' ~ (it.owner_name or '') ~ ' ' ~ (it.category or ''))|lower }}">
+          <td class="c-code">{{ it.mgmt_code or '—' }}</td>
+          <td class="c-title">{{ it.title }}</td>
+          <td>{{ it.dept or '—' }}</td>
+          <td>{{ it.owner_name or '—' }}</td>
+          <td>{{ it.category or '—' }}</td>
+          <td class="center"><span class="pill st-{{ it.status }}">{{ it.status }}</span></td>
+          <td class="center pr-{{ it.priority }}">{{ it.priority }}</td>
+          <td>{{ it.start_date or '—' }}</td>
+          <td>{{ it.target_date or '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="rnd-empty">🔬 등록된 연구과제가 없습니다.<br><br><button type="button" class="rnd-btn primary" onclick="rndOpenNew()">＋ 첫 연구과제 등록</button></div>
+  {% endif %}
+</div>
+
+{# 등록 모달 — SPA 규칙: .main 안 #}
+<div class="rnd-back" id="rndBack">
+  <div class="rnd-modal" role="dialog" aria-modal="true">
+    <h3>🔬 연구과제 등록 <button type="button" class="x" onclick="rndCloseNew()">×</button></h3>
+    <div class="rnd-form">
+      <div class="row"><div class="f" style="flex:1 1 100%;"><label>과제명 <span class="req">*</span></label><input type="text" id="rTitle" placeholder="예: 차세대 비전 검사 알고리즘 개발"></div></div>
+      <div class="row">
+        <div class="f"><label>담당 부서</label><select id="rDept">{% for d in depts %}<option value="{{ d }}"{% if d==my_dept %} selected{% endif %}>{{ d }}</option>{% endfor %}</select></div>
+        <div class="f"><label>담당자</label><input type="text" id="rOwner" value="{{ user.name }}" placeholder="담당자명"></div>
+      </div>
+      <div class="row">
+        <div class="f"><label>분류</label><select id="rCat"><option value="">(선택)</option>{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></div>
+        <div class="f"><label>우선순위</label><select id="rPri">{% for p in priorities %}<option{% if p=='보통' %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="row">
+        <div class="f"><label>시작일</label><input type="date" id="rStart"></div>
+        <div class="f"><label>목표 완료일</label><input type="date" id="rTarget"></div>
+      </div>
+      <div class="row"><div class="f" style="flex:1 1 100%;"><label>배경·목적</label><textarea id="rPurpose" placeholder="왜 하는지·무엇을 만들지 자세히 적어도 됩니다."></textarea></div></div>
+    </div>
+    <div class="rnd-foot">
+      <button type="button" class="rnd-btn" onclick="rndCloseNew()">닫기</button>
+      <button type="button" class="rnd-btn primary" id="rndSaveBtn" onclick="rndSubmit()">＋ 등록(관리번호 자동)</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function init(){
+    var root=document.getElementById('rnd'); if(!root) return;
+    var rows=[].slice.call(document.querySelectorAll('table.rnd tbody tr'));
+    var cur='';
+    // 상태별 카운트
+    var cnt={}; rows.forEach(function(t){ var s=t.dataset.st||''; cnt[s]=(cnt[s]||0)+1; });
+    var na=document.getElementById('rndN_all'); if(na) na.textContent=rows.length;
+    {% for s in statuses %}{ var e=document.getElementById('rndN_{{ loop.index }}'); if(e) e.textContent=(cnt['{{ s }}']||0); }{% endfor %}
+    window.rndTab=function(btn){ cur=btn.dataset.st||''; document.querySelectorAll('.rnd-chip').forEach(function(b){ b.classList.toggle('on', b===btn); }); window.rndApply(); };
+    window.rndApply=function(){
+      var el=document.getElementById('rndSearch'); var q=((el&&el.value)||'').toLowerCase().trim(); var n=0;
+      rows.forEach(function(tr){
+        var okS=(!cur || tr.dataset.st===cur);
+        var okQ=(!q || (tr.dataset.q||'').indexOf(q)>=0);
+        var show=okS&&okQ; tr.style.display=show?'':'none'; if(show)n++;
+      });
+      var cc=document.getElementById('rndCnt'); if(cc) cc.textContent=n+'건 표시';
+    };
+    window.rndApply();
+    // 등록 모달
+    var back=document.getElementById('rndBack');
+    window.rndOpenNew=function(){ if(back) back.classList.add('on'); var t=document.getElementById('rTitle'); if(t) setTimeout(function(){t.focus();},30); };
+    window.rndCloseNew=function(){ if(back) back.classList.remove('on'); };
+    if(back) back.addEventListener('click', function(e){ if(e.target===back) window.rndCloseNew(); });
+    window.rndSubmit=function(){
+      var title=(document.getElementById('rTitle').value||'').trim();
+      if(!title){ alert('과제명을 입력하세요'); return; }
+      var body={ title:title, dept:(document.getElementById('rDept')||{}).value||'', owner_name:(document.getElementById('rOwner')||{}).value||'',
+        category:(document.getElementById('rCat')||{}).value||'', priority:(document.getElementById('rPri')||{}).value||'보통',
+        start_date:(document.getElementById('rStart')||{}).value||'', target_date:(document.getElementById('rTarget')||{}).value||'',
+        purpose:(document.getElementById('rPurpose')||{}).value||'' };
+      var btn=document.getElementById('rndSaveBtn'); if(btn) btn.disabled=true;
+      fetch('/rnd/new',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(function(r){return r.json();})
+        .then(function(j){ if(j&&j.ok){ location.href='/rnd/'+j.id; } else { if(btn) btn.disabled=false; alert('등록 실패: '+((j&&j.error)||'오류')); } })
+        .catch(function(){ if(btn) btn.disabled=false; alert('통신 오류'); });
+    };
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+</main>
+</div>
+</body></html>

@@ -2930,6 +2930,44 @@ def init_db():
         except Exception as _e:
             print(f"[v5H226z496] dept_schedule_log 생성 스킵: {_e}")
 
+        # ───────── v5H226z578 (대표 지시): 부서 자체 연구개발(R&D) 과제 — 매출과 별개·관리번호 R 발번 ─────────
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS rnd_projects (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                mgmt_code       TEXT,                          -- 001R2606 (연구과제 관리번호)
+                title           TEXT NOT NULL,                 -- 과제명
+                dept            TEXT,                          -- 담당 부서(라벨)
+                owner_id        INTEGER,                       -- 담당자 user id
+                owner_name      TEXT,                          -- 담당자명
+                category        TEXT,                          -- 신제품/공정개선/지그·툴/자동화/기타
+                purpose         TEXT,                          -- 배경·목적
+                start_date      TEXT,
+                target_date     TEXT,                          -- 목표 완료일
+                priority        TEXT DEFAULT '보통',            -- 긴급/높음/보통/낮음
+                status          TEXT DEFAULT '기획',            -- 기획/진행/시험검증/완료/보류/중단
+                result_summary  TEXT,                          -- 결과 요약
+                created_by      INTEGER,
+                created_by_name TEXT,
+                created_at      TEXT DEFAULT (datetime('now','localtime')),
+                updated_at      TEXT DEFAULT (datetime('now','localtime'))
+            )""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_rnd_dept ON rnd_projects(dept)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_rnd_status ON rnd_projects(status)")
+            c.execute("""CREATE TABLE IF NOT EXISTS rnd_logs (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                rnd_id          INTEGER NOT NULL,
+                log_date        TEXT,                          -- YYYY-MM-DD
+                log_type        TEXT DEFAULT '진행',            -- 진행/완료/변경/기타
+                content         TEXT,
+                hours           REAL,
+                created_by      INTEGER,
+                created_by_name TEXT,
+                created_at      TEXT DEFAULT (datetime('now','localtime'))
+            )""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_rndlog_rid ON rnd_logs(rnd_id, id)")
+        except Exception as _e:
+            print(f"[v5H226z578] rnd_projects 생성 스킵: {_e}")
+
         # 마이그레이션 (수출입 P11 2차): export_orders.status CHECK 확장
         # — 1차에서 'DRAFT,BOOKED,SHIPPED,CLEARED,CLOSED,CANCELLED' 였던 것을
         #   라이프사이클 'DRAFT → CI_ISSUED → PL_READY → SHIPPED → CLEARED' 반영
@@ -5318,8 +5356,9 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
     v5H216: S(소모품) 추가.
     v5H222: S 도 projects 테이블에서 검색 (CONSUMABLE 신규 등록은 projects 도메인으로 통일).
             consumable_orders 도 함께 스캔(legacy 데이터와 sequence 충돌 방지)."""
-    if biz_div not in ("T", "M", "L", "E", "C"):
-        raise ValueError(f"biz_div must be T, M, L, E, or C (got: {biz_div})")
+    # v5H226z578 (대표 지시): R(연구과제) 추가 — 부서 자체 연구개발 과제도 관리번호 발번(매출과 별개·rnd_projects 도메인).
+    if biz_div not in ("T", "M", "L", "E", "C", "R"):
+        raise ValueError(f"biz_div must be T, M, L, E, C, or R (got: {biz_div})")
     today = today or _date.today()
     yymm = today.strftime("%y%m")
     pat = f"%{biz_div}{yymm}"
@@ -5340,6 +5379,14 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
             try:
                 rows = list(rows) + list(c.execute(
                     "SELECT mgmt_code FROM consumable_orders WHERE mgmt_code LIKE ?", (pat,)
+                ).fetchall())
+            except Exception:
+                pass
+        if biz_div == "R":
+            # v5H226z578: 연구과제는 rnd_projects 도메인 — 거기서 발번 sequence 스캔
+            try:
+                rows = list(rows) + list(c.execute(
+                    "SELECT mgmt_code FROM rnd_projects WHERE mgmt_code LIKE ?", (pat,)
                 ).fetchall())
             except Exception:
                 pass

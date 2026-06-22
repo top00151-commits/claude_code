@@ -20276,6 +20276,230 @@ async def dept_schedule_timeline(request: Request, kind: str = "", ref_id: int =
     return JSONResponse({"ok": True, "code": code, "kind": kind, "ref_id": ref_id, "items": items})
 
 
+# ───────── v5H226z578 (대표 지시): 부서 자체 연구개발(R&D) 과제 — 매출과 별개·관리번호 R 발번 ─────────
+_RND_CATEGORIES = ["신제품", "공정개선", "지그·툴", "자동화", "기타"]
+_RND_STATUSES = ["기획", "진행", "시험검증", "완료", "보류", "중단"]
+_RND_PRIORITIES = ["긴급", "높음", "보통", "낮음"]
+
+
+def _rnd_dept_options():
+    """담당 부서 드롭다운/탭용 — teams 라벨(본사·/베트남·) 목록."""
+    out = []
+    try:
+        with db_session() as c:
+            for r in c.execute("SELECT name, COALESCE(entity,'KOR') FROM teams ORDER BY "
+                               "(CASE WHEN COALESCE(entity,'KOR')='VN' THEN 1 ELSE 0 END), display_order, name"):
+                out.append(_team_label(r[0], r[1]))
+    except Exception:
+        pass
+    return out
+
+
+@app.get("/rnd", response_class=HTMLResponse)
+async def rnd_list(request: Request):
+    """부서 연구개발 과제 목록 — 부서 탭·상태 필터·검색. 전 직원 열람."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    items = []
+    try:
+        with db_session() as c:
+            for r in c.execute(
+                "SELECT id, COALESCE(mgmt_code,''), title, COALESCE(dept,''), COALESCE(owner_name,''), "
+                "COALESCE(category,''), COALESCE(status,'기획'), COALESCE(priority,'보통'), "
+                "COALESCE(start_date,''), COALESCE(target_date,'') "
+                "FROM rnd_projects ORDER BY id DESC"):
+                items.append({"id": r[0], "mgmt_code": r[1], "title": r[2], "dept": r[3], "owner_name": r[4],
+                              "category": r[5], "status": r[6], "priority": r[7],
+                              "start_date": r[8], "target_date": r[9]})
+    except Exception:
+        items = []
+    return ctx(request, "rnd_list.html", user=u, active="rnd", items=items,
+               depts=_rnd_dept_options(), categories=_RND_CATEGORIES,
+               statuses=_RND_STATUSES, priorities=_RND_PRIORITIES,
+               my_dept=_dept_sched_dept_of(u))
+
+
+@app.post("/rnd/new")
+async def rnd_new(request: Request):
+    """연구과제 등록 — R 관리번호 자동 발번. 로그인이면 누구나(부서 자체 과제)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad_request"}, 400)
+    title = (str(b.get("title") or "")).strip()
+    if not title:
+        return JSONResponse({"ok": False, "error": "과제명을 입력하세요"}, 400)
+    dept = (str(b.get("dept") or "")).strip() or _dept_sched_dept_of(u)
+    category = (str(b.get("category") or "")).strip()
+    purpose = (str(b.get("purpose") or "")).strip()
+    start_date = (str(b.get("start_date") or "")).strip()[:10] or None
+    target_date = (str(b.get("target_date") or "")).strip()[:10] or None
+    priority = (str(b.get("priority") or "보통")).strip()
+    if priority not in _RND_PRIORITIES:
+        priority = "보통"
+    owner_name = (str(b.get("owner_name") or "")).strip() or (u.get("name") or "")
+    try:
+        from .database import generate_mgmt_code as _gmc
+        mgmt_code = _gmc("R", _ref_date_from(start_date))
+    except Exception:
+        mgmt_code = None
+    try:
+        with db_session() as c:
+            cur = c.execute(
+                "INSERT INTO rnd_projects(mgmt_code, title, dept, owner_id, owner_name, category, purpose, "
+                "start_date, target_date, priority, status, created_by, created_by_name) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?, '기획', ?, ?)",
+                (mgmt_code, title, dept, u.get("id"), owner_name, category, purpose,
+                 start_date, target_date, priority, u.get("id"), u.get("name") or ""))
+            rid = cur.lastrowid
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True, "id": rid, "mgmt_code": mgmt_code or ""})
+
+
+def _ref_date_from(s):
+    """'YYYY-MM-DD' → datetime(관리번호 연월 기준). 없으면 None(현재월)."""
+    try:
+        from datetime import datetime as _dt
+        return _dt.strptime(str(s)[:10], "%Y-%m-%d") if s else None
+    except Exception:
+        return None
+
+
+@app.get("/rnd/{rid:int}", response_class=HTMLResponse)
+async def rnd_detail(request: Request, rid: int):
+    """연구과제 상세 — 정보 + 진행 타임라인 + 결과."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        r = c.execute("SELECT * FROM rnd_projects WHERE id=?", (rid,)).fetchone()
+        if not r:
+            return HTMLResponse("<h3>없는 과제입니다.</h3>", status_code=404)
+        p = dict(r)
+        logs = [dict(x) for x in c.execute(
+            "SELECT id, COALESCE(log_date,'') AS log_date, COALESCE(log_type,'진행') AS log_type, "
+            "COALESCE(content,'') AS content, hours, COALESCE(created_by_name,'') AS by_name, "
+            "COALESCE(created_by,0) AS uid, COALESCE(created_at,'') AS created_at "
+            "FROM rnd_logs WHERE rnd_id=? ORDER BY id DESC", (rid,)).fetchall()]
+    return ctx(request, "rnd_detail.html", user=u, active="rnd", p=p, logs=logs,
+               depts=_rnd_dept_options(), categories=_RND_CATEGORIES,
+               statuses=_RND_STATUSES, priorities=_RND_PRIORITIES,
+               can_edit=bool(p.get("created_by") == u.get("id") or u.get("role") in ("admin", "ceo")),
+               uid=u.get("id"), is_admin=bool(u.get("role") in ("admin", "ceo")))
+
+
+@app.post("/rnd/{rid:int}/update")
+async def rnd_update(request: Request, rid: int):
+    """연구과제 정보·상태·결과 수정. 작성자/관리자만."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad_request"}, 400)
+    with db_session() as c:
+        row = c.execute("SELECT COALESCE(created_by,0) FROM rnd_projects WHERE id=?", (rid,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "error": "not_found"}, 404)
+        if not (row[0] == u.get("id") or u.get("role") in ("admin", "ceo")):
+            return JSONResponse({"ok": False, "error": "작성자만 수정할 수 있습니다"}, 403)
+        _sets, _vals = [], []
+        _allow = {"title": str, "dept": str, "owner_name": str, "category": str, "purpose": str,
+                  "start_date": "date", "target_date": "date", "priority": str, "status": str,
+                  "result_summary": str}
+        for k, typ in _allow.items():
+            if k not in b:
+                continue
+            v = b.get(k)
+            if k == "status" and (v or "") not in _RND_STATUSES:
+                continue
+            if k == "priority" and (v or "") not in _RND_PRIORITIES:
+                continue
+            if typ == "date":
+                v = (str(v or "").strip()[:10] or None)
+            else:
+                v = (str(v or "").strip() or None)
+            _sets.append(f"{k}=?"); _vals.append(v)
+        if not _sets:
+            return JSONResponse({"ok": True})
+        _vals.append(rid)
+        c.execute(f"UPDATE rnd_projects SET {', '.join(_sets)}, updated_at=datetime('now','localtime') WHERE id=?", _vals)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/rnd/{rid:int}/log")
+async def rnd_log_add(request: Request, rid: int):
+    """연구과제 진행 기록 추가(날짜·유형·내용·소요시간). 로그인이면 누구나(부서 협업)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad_request"}, 400)
+    content = (str(b.get("content") or "")).strip()
+    if not content:
+        return JSONResponse({"ok": False, "error": "내용을 입력하세요"}, 400)
+    log_date = (str(b.get("log_date") or "")).strip()[:10]
+    if not log_date:
+        from datetime import date as _d
+        log_date = _d.today().isoformat()
+    log_type = (str(b.get("log_type") or "진행")).strip()
+    if log_type not in ("진행", "완료", "변경", "기타"):
+        log_type = "진행"
+    try:
+        hours = float(str(b.get("hours") or "").replace(",", "").strip())
+        if hours <= 0 or hours > 999:
+            hours = None
+    except Exception:
+        hours = None
+    with db_session() as c:
+        if not c.execute("SELECT 1 FROM rnd_projects WHERE id=?", (rid,)).fetchone():
+            return JSONResponse({"ok": False, "error": "not_found"}, 404)
+        c.execute("INSERT INTO rnd_logs(rnd_id, log_date, log_type, content, hours, created_by, created_by_name) "
+                  "VALUES(?,?,?,?,?,?,?)",
+                  (rid, log_date, log_type, content, hours, u.get("id"), u.get("name") or ""))
+        c.execute("UPDATE rnd_projects SET updated_at=datetime('now','localtime') WHERE id=?", (rid,))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/rnd/{rid:int}/log/{lid:int}/delete")
+async def rnd_log_delete(request: Request, rid: int, lid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    with db_session() as c:
+        row = c.execute("SELECT COALESCE(created_by,0) FROM rnd_logs WHERE id=? AND rnd_id=?", (lid, rid)).fetchone()
+        if not row:
+            return JSONResponse({"ok": True})
+        if not (row[0] == u.get("id") or u.get("role") in ("admin", "ceo")):
+            return JSONResponse({"ok": False, "error": "작성자만 삭제할 수 있습니다"}, 403)
+        c.execute("DELETE FROM rnd_logs WHERE id=?", (lid,))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/rnd/{rid:int}/delete")
+async def rnd_delete(request: Request, rid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    with db_session() as c:
+        row = c.execute("SELECT COALESCE(created_by,0) FROM rnd_projects WHERE id=?", (rid,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": True})
+        if not (row[0] == u.get("id") or u.get("role") in ("admin", "ceo")):
+            return JSONResponse({"ok": False, "error": "작성자/관리자만 삭제할 수 있습니다"}, 403)
+        c.execute("DELETE FROM rnd_logs WHERE rnd_id=?", (rid,))
+        c.execute("DELETE FROM rnd_projects WHERE id=?", (rid,))
+    return JSONResponse({"ok": True})
+
+
 @app.get("/projects/export.xlsx")
 async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
                                view: str = "", status: str = ""):

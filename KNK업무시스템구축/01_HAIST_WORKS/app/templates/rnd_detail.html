@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ p.title }} · 연구과제 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+@view-transition { navigation: none; }
+.rd-wrap{ margin:0 var(--content-pad) 24px; }
+.rd-grid{ display:grid; grid-template-columns:1.1fr .9fr; gap:16px; align-items:start; }
+@media (max-width:900px){ .rd-grid{ grid-template-columns:1fr; } }
+.rd-card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+.rd-card h3{ margin:0 0 12px; font-size:14px; font-weight:800; color:#1f2937; display:flex; align-items:center; gap:8px; }
+.rd-card h3 .act{ margin-left:auto; display:flex; gap:6px; }
+.rd-field{ display:flex; gap:10px; padding:7px 0; border-bottom:1px dashed #eef2f7; font-size:13px; }
+.rd-field .k{ width:92px; flex:none; color:#64748b; font-weight:700; }
+.rd-field .v{ flex:1; color:#1f2937; }
+.rd-field input,.rd-field select{ width:100%; border:1px solid var(--line); border-radius:7px; padding:6px 9px; font:inherit; font-size:13px; }
+.rd-field input[readonly]{ border-color:transparent; background:transparent; padding-left:0; }
+.pill{ display:inline-block; font-size:11px; font-weight:800; padding:2px 9px; border-radius:10px; }
+.st-기획{ background:#f1f0ec; color:#6b7280; } .st-진행{ background:#dbeafe; color:#1e40af; }
+.st-시험검증{ background:#fef3c7; color:#92400e; } .st-완료{ background:#dcfce7; color:#166534; }
+.st-보류{ background:#ffedd5; color:#9a3412; } .st-중단{ background:#fee2e2; color:#991b1b; }
+.rd-btn{ padding:6px 13px; border-radius:7px; font-size:12.5px; font-weight:700; cursor:pointer; border:1px solid var(--line); background:#fff; }
+.rd-btn.primary{ background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.rd-btn.danger{ background:#fff; color:#b91c1c; border-color:#fca5a5; }
+.rd-ta{ width:100%; box-sizing:border-box; border:1px solid var(--line); border-radius:8px; padding:9px 11px; font:inherit; font-size:13px; resize:vertical; min-height:90px; }
+.rd-ta[readonly]{ background:#f9fafb; }
+.rd-log-form{ display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
+.rd-log-form .f{ display:flex; flex-direction:column; gap:3px; }
+.rd-log-form label{ font-size:11px; color:#64748b; font-weight:700; }
+.rd-log-form input,.rd-log-form select{ border:1px solid var(--line); border-radius:7px; padding:7px 9px; font:inherit; font-size:13px; }
+.rd-log-form textarea{ flex:1 1 100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; font-size:13px; resize:vertical; min-height:60px; }
+.rd-ent{ border:1px solid #eef2f7; border-radius:9px; padding:9px 12px; margin-bottom:8px; }
+.rd-ent .top{ display:flex; gap:8px; align-items:center; font-size:11.5px; color:#64748b; }
+.rd-ent .type{ font-weight:800; padding:1px 7px; border-radius:8px; }
+.t-진행{ background:#dbeafe; color:#1e40af; } .t-완료{ background:#dcfce7; color:#166534; } .t-변경{ background:#fef3c7; color:#92400e; } .t-기타{ background:#f1f5f9; color:#475569; }
+.rd-ent .body{ font-size:13px; color:#1f2937; margin-top:5px; white-space:pre-wrap; word-break:break-word; }
+.rd-ent .hr{ background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:8px; }
+.rd-ent .del{ margin-left:auto; cursor:pointer; color:#b91c1c; border:0; background:none; font-size:11.5px; }
+</style>
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+<div class="rd-wrap" id="rd" data-id="{{ p.id }}" data-canedit="{{ '1' if can_edit else '' }}">
+  <div class="page-head" data-dn="page-head">
+    <div><div class="crumbs" data-dn="crumb"><a href="/rnd">연구개발 과제</a> · <b>{{ p.mgmt_code or '—' }}</b></div>
+      <h1 class="page-title" data-dn="title">🔬 <em>{{ p.title }}</em></h1></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="btn btn-secondary" href="/rnd">← 목록</a>
+      {% if can_edit %}<button type="button" class="btn btn-secondary" id="rdEditBtn" onclick="rdToggleEdit()">✏ 수정</button>
+      <button type="button" class="btn btn-primary" id="rdSaveBtn" onclick="rdSaveInfo()" style="display:none;">💾 저장</button>
+      <button type="button" class="btn btn-secondary" id="rdCancelBtn" onclick="location.reload()" style="display:none;">취소</button>{% endif %}
+    </div>
+  </div>
+
+  <div class="rd-grid">
+    <div class="rd-card">
+      <h3>📋 과제 정보 <span style="margin-left:auto;font-weight:600;color:#94a3b8;font-size:11px;">{{ p.mgmt_code or '' }}</span></h3>
+      <div class="rd-field"><div class="k">과제명</div><div class="v"><input id="fTitle" value="{{ p.title }}" readonly></div></div>
+      <div class="rd-field"><div class="k">담당 부서</div><div class="v"><select id="fDept" disabled>{% for d in depts %}<option value="{{ d }}"{% if d==p.dept %} selected{% endif %}>{{ d }}</option>{% endfor %}{% if p.dept and p.dept not in depts %}<option value="{{ p.dept }}" selected>{{ p.dept }}</option>{% endif %}</select></div></div>
+      <div class="rd-field"><div class="k">담당자</div><div class="v"><input id="fOwner" value="{{ p.owner_name or '' }}" readonly></div></div>
+      <div class="rd-field"><div class="k">분류</div><div class="v"><select id="fCat" disabled><option value="">(선택)</option>{% for c in categories %}<option{% if c==p.category %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></div></div>
+      <div class="rd-field"><div class="k">우선순위</div><div class="v"><select id="fPri" disabled>{% for pr in priorities %}<option{% if pr==p.priority %} selected{% endif %}>{{ pr }}</option>{% endfor %}</select></div></div>
+      <div class="rd-field"><div class="k">상태</div><div class="v"><select id="fStatus" disabled>{% for s in statuses %}<option{% if s==p.status %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></div></div>
+      <div class="rd-field"><div class="k">시작일</div><div class="v"><input type="date" id="fStart" value="{{ (p.start_date or '')[:10] }}" readonly></div></div>
+      <div class="rd-field"><div class="k">목표완료</div><div class="v"><input type="date" id="fTarget" value="{{ (p.target_date or '')[:10] }}" readonly></div></div>
+      <div class="rd-field" style="border-bottom:0;"><div class="k">배경·목적</div><div class="v"><textarea id="fPurpose" class="rd-ta" readonly placeholder="—">{{ p.purpose or '' }}</textarea></div></div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:8px;">등록: {{ p.created_by_name or '—' }} · {{ (p.created_at or '')[:16] }}{% if can_edit %} · <button type="button" class="del rd-ent-del" style="color:#b91c1c;border:0;background:none;cursor:pointer;font-size:11px;" onclick="rdDelete()">과제 삭제</button>{% endif %}</div>
+    </div>
+
+    <div class="rd-card">
+      <h3>🏁 결과 정리</h3>
+      <textarea id="fResult" class="rd-ta" readonly placeholder="연구 결과·성과·산출물·교훈을 정리하세요. (수정 버튼으로 편집)" style="min-height:120px;">{{ p.result_summary or '' }}</textarea>
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px;">※ 산출물 파일 첨부·제품화 연결은 다음 단계 예정</div>
+
+      <h3 style="margin-top:18px;">🗓 진행 기록</h3>
+      <div class="rd-log-form">
+        <div class="f"><label>날짜</label><input type="date" id="lgDate"></div>
+        <div class="f"><label>유형</label><select id="lgType"><option>진행</option><option>완료</option><option>변경</option><option>기타</option></select></div>
+        <div class="f"><label>소요시간(h·선택)</label><input type="number" id="lgHours" min="0" step="0.5" placeholder="예: 2" style="width:120px;"></div>
+        <textarea id="lgContent" placeholder="진행/완료/변경 사항을 적어 주세요."></textarea>
+        <button type="button" class="rd-btn primary" onclick="rdAddLog()" style="margin-left:auto;">＋ 기록 추가</button>
+      </div>
+      <div id="rdLogs">
+        {% for e in logs %}
+        <div class="rd-ent" data-id="{{ e.id }}">
+          <div class="top"><span class="type t-{{ e.log_type }}">{{ e.log_type }}</span><span>{{ e.log_date }}</span><span>· {{ e.by_name }}</span>{% if e.hours %}<span class="hr">⏱ {{ e.hours }}h</span>{% endif %}{% if can_edit or e.uid == uid %}<button type="button" class="del" onclick="rdDelLog({{ e.id }})">삭제</button>{% endif %}</div>
+          <div class="body">{{ e.content }}</div>
+        </div>
+        {% else %}
+        <div style="color:#94a3b8;font-size:13px;padding:10px;">아직 진행 기록이 없습니다.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function init(){
+    var root=document.getElementById('rd'); if(!root) return;
+    var RID=root.dataset.id, CANEDIT=!!root.dataset.canedit;
+    var d=document.getElementById('lgDate'); if(d && !d.value){ d.value=new Date().toISOString().slice(0,10); }
+    var infoFields=['fTitle','fOwner','fStart','fTarget'];   // input
+    var infoSel=['fDept','fCat','fPri','fStatus'];           // select
+    window.rdToggleEdit=function(){
+      infoFields.forEach(function(id){ var e=document.getElementById(id); if(e) e.removeAttribute('readonly'); });
+      infoSel.forEach(function(id){ var e=document.getElementById(id); if(e) e.disabled=false; });
+      var rs=document.getElementById('fResult'); if(rs) rs.removeAttribute('readonly');
+      var pp=document.getElementById('fPurpose'); if(pp) pp.removeAttribute('readonly');
+      ['rdEditBtn'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
+      ['rdSaveBtn','rdCancelBtn'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='';});
+    };
+    window.rdSaveInfo=function(){
+      var body={ title:(document.getElementById('fTitle').value||'').trim(), dept:document.getElementById('fDept').value,
+        owner_name:document.getElementById('fOwner').value, category:document.getElementById('fCat').value,
+        priority:document.getElementById('fPri').value, status:document.getElementById('fStatus').value,
+        start_date:document.getElementById('fStart').value, target_date:document.getElementById('fTarget').value,
+        purpose:document.getElementById('fPurpose').value, result_summary:document.getElementById('fResult').value };
+      if(!body.title){ alert('과제명을 입력하세요'); return; }
+      var b=document.getElementById('rdSaveBtn'); if(b) b.disabled=true;
+      fetch('/rnd/'+RID+'/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(function(r){return r.json();}).then(function(j){ if(j&&j.ok){ location.reload(); } else { if(b)b.disabled=false; alert('저장 실패: '+((j&&j.error)||'오류')); } })
+        .catch(function(){ if(b)b.disabled=false; alert('통신 오류'); });
+    };
+    window.rdAddLog=function(){
+      var content=(document.getElementById('lgContent').value||'').trim();
+      if(!content){ alert('내용을 입력하세요'); return; }
+      var body={ log_date:document.getElementById('lgDate').value, log_type:document.getElementById('lgType').value,
+        hours:document.getElementById('lgHours').value, content:content };
+      fetch('/rnd/'+RID+'/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(function(r){return r.json();}).then(function(j){ if(j&&j.ok){ location.reload(); } else { alert('실패: '+((j&&j.error)||'오류')); } })
+        .catch(function(){ alert('통신 오류'); });
+    };
+    window.rdDelLog=function(lid){ if(!confirm('이 기록을 삭제할까요?')) return;
+      fetch('/rnd/'+RID+'/log/'+lid+'/delete',{method:'POST'}).then(function(r){return r.json();})
+        .then(function(j){ if(j&&j.ok){ location.reload(); } else { alert('삭제 실패'); } }).catch(function(){ alert('통신 오류'); }); };
+    window.rdDelete=function(){ if(!confirm('이 연구과제를 완전히 삭제할까요? (진행 기록도 함께 삭제)')) return;
+      fetch('/rnd/'+RID+'/delete',{method:'POST'}).then(function(r){return r.json();})
+        .then(function(j){ if(j&&j.ok){ location.href='/rnd'; } else { alert('삭제 실패: '+((j&&j.error)||'')); } }).catch(function(){ alert('통신 오류'); }); };
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+</main>
+</div>
+</body></html>
