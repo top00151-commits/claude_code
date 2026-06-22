@@ -31588,10 +31588,12 @@ async def consumables_import_bulk_confirm(request: Request):
         from collections import defaultdict as _dd
         _grp = _dd(list)
         for _br in bundle_rows:
-            _grp[(_br["tier"], _br["date"], _br["bundle"])].append(_br)
+            # v5H226z566 (대표 지시): 다른 고객사는 절대 한 장으로 묶지 않음 — 그룹 키에 고객사 포함
+            #   (같은 날짜·묶음번호여도 고객사가 다르면 따로 발행). cf 프로젝트 일괄등록은 이미 고객사 포함.
+            _grp[(_br["tier"], _br["date"], _br["bundle"], (_br.get("customer") or "").strip())].append(_br)
         try:
             with db_session() as c:
-                for (_t, _d, _b), _mem in _grp.items():
+                for (_t, _d, _b, _cust), _mem in _grp.items():
                     if len(_mem) < 2:
                         ti_singles += 1
                         continue
