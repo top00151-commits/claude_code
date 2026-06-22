@@ -18645,6 +18645,15 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 _cur = _s["label"]
         return _cur, len(_st.get("prog", {}))
 
+    # v5H226z551 (대표 지시): 고객사 시스템명(별칭) — 작업일정표 '표시'는 시스템명, 단 편집·매칭·
+    #   정식 발행 문서(세금계산서·인보이스)는 정식 고객사명(customer)으로. customer_disp = 화면 표시 전용.
+    _cust_alias = {}
+    try:
+        with db_session() as _c:
+            for _ar in _c.execute("SELECT id, alias FROM customers WHERE COALESCE(alias,'')<>''"):
+                _cust_alias[_ar[0]] = _ar[1]
+    except Exception:
+        _cust_alias = {}
     rows = []
     _split_map = _board_split_lines_map()   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할
     for p in (dict(r) for r in _logi.projects_list_logi()):
@@ -18668,7 +18677,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             "po_type": p.get("po_type") or "",
             # v5H226z349/z350: 형태(제품/상품/기타) — 저장값 우선, 없으면 출고형태에서 역산(기존 데이터 표시)
             "form_type": p.get("form_type") or _logi.SHIP_TO_FORM.get((p.get("shipment_form") or "").upper(), ""),
-            "customer": p.get("customer_name") or "—",          # 고객사1(직접 고객)
+            "customer": p.get("customer_name") or "—",          # 고객사1(직접 고객·정식명·편집/매칭/발행 기준)
+            "customer_disp": (_cust_alias.get(p.get("customer_id")) or p.get("customer_name") or "—"),  # v5H226z551: 화면 표시 전용(시스템명 우선)
             "cust_ok": bool(p.get("customer_id")),               # v5H226z294: 등록 고객사 연결 여부(미연결=적색)
             # v5H226z282 (대표 지시): 고객사2(최종)·연락처·영업담당자·발주일·납품일 컬럼
             "cust2": p.get("secondary_customer") or "",          # 고객사2(최종 고객)
@@ -18731,6 +18741,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "form_type": "상품",
                 "customer": cr.get("customer_name") or "—",
+                "customer_disp": (_cust_alias.get(cr.get("customer_id")) or cr.get("customer_name") or "—"),  # v5H226z551: 화면 표시 전용(시스템명 우선)
                 "cust_ok": bool(cr.get("customer_id")),          # v5H226z294: 등록 고객사 연결 여부
                 # v5H226z287: 엑셀 정보란 반영으로 소모품도 고객사2·연락처·영업담당자 표시
                 "cust2": cr.get("secondary_customer") or "", "contact": cr.get("cc_phone") or "",
