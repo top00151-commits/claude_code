@@ -21,6 +21,8 @@
       <h1 class="page-title">📇 전사 <em>연락처</em> <span style="font-size:14px;color:var(--mute);font-weight:500;">— {{ total }}명</span></h1>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      {# v5H226z579 (대표 지시): 휴대폰(갤럭시)에 전체 연락처 한 번에 — vCard 다운로드 + 가져오기 안내 #}
+      <button type="button" class="btn" style="background:#0ea5e9;color:#fff;border:1px solid #0ea5e9;font-weight:800;" onclick="cxPhoneSave()" title="휴대폰에 전체 연락처 한 번에 추가">📱 휴대폰에 전체 저장</button>
       <a class="btn btn-secondary" href="/contacts/vcards.vcf" title="전체 연락처 vCard — 휴대폰·메일·아웃룩 가져오기">📇 전체 vCard</a>
       <a class="btn btn-secondary" href="/contacts/outlook.csv" title="아웃룩 가져오기용 CSV">📨 Outlook CSV</a>
       <a class="btn btn-secondary" href="/contacts/export.csv" title="전체 연락처 CSV 다운로드">📊 CSV</a>
@@ -73,6 +75,31 @@
     </div>
     {% endif %}
   </div>
+
+  {# v5H226z579 (대표 지시): 휴대폰 전체 저장 안내 모달 — vCard 받기 + 갤럭시 가져오기 절차. SPA 규칙: .main 안 #}
+  <div id="cxPhoneModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this) cxPhoneClose()">
+    <div style="background:#fff; border-radius:14px; max-width:440px; width:100%; padding:22px; box-shadow:0 18px 50px rgba(0,0,0,.3);">
+      <div style="font-size:17px; font-weight:800; margin-bottom:6px;">📱 휴대폰에 전사 연락처 한 번에 추가</div>
+      <div style="font-size:13px; color:var(--qv-ink-2,#475569); line-height:1.7;">
+        <b>① 아래 ‘전사연락처.vcf 받기’</b>를 누르세요.<br>
+        <b>② 받은 파일</b>(전사연락처.vcf)을 여세요.<br>
+        <b>③</b> 갤럭시 <b>연락처 앱이 “가져오기”</b>를 제안하면 확인 → 전체가 한 번에 추가됩니다.<br>
+        <span style="color:var(--mute);font-size:12px;">(자동 제안이 안 뜨면: 연락처 앱 → 메뉴 → 설정 → <b>연락처 가져오기</b> → 저장공간의 .vcf 선택)</span>
+      </div>
+      <div style="margin-top:12px; padding:10px 12px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:9px; font-size:12px; color:#0369a1; line-height:1.6;">
+        💡 <b>한 명만</b> 추가하려면 — 그 사람 연락처를 열고 <b>‘📱 휴대폰에 저장(QR)’</b>을 폰 카메라로 찍으면 바로 추가됩니다.<br>
+        ⚠ 이건 ‘그 시점 복사’라, 이후 연락처가 바뀌면 <b>다시 받아야</b> 반영됩니다.
+      </div>
+      <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+        <a class="btn btn-primary" href="/contacts/vcards.vcf" onclick="setTimeout(cxPhoneClose,300);">⬇ 전사연락처.vcf 받기</a>
+        <button type="button" class="btn btn-secondary" onclick="cxPhoneClose()">닫기</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.cxPhoneSave=function(){ var m=document.getElementById('cxPhoneModal'); if(m) m.style.display='flex'; };
+    window.cxPhoneClose=function(){ var m=document.getElementById('cxPhoneModal'); if(m) m.style.display='none'; };
+  </script>
 </main></div>
 {% include "_v5_partials/knk_inputs.html" ignore missing %}
 </body></html>
