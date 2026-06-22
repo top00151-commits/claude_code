@@ -323,8 +323,8 @@ html,body{background:#fff!important;overflow:auto!important;}
         {# v5H226z350(대표 지시): '상세 입력' 접이식 영역 제거 — 출고형태→형태(본문), 2차거래→고객사2(본문)로 흡수 #}
 
         <div class="qf-btns">
-          {% if embed %}<a class="qf-cancel" href="javascript:void(0)" onclick="try{parent.postMessage({knkRegClose:true},'*')}catch(e){}">취소</a>
-          {% else %}<a class="qf-cancel" href="{% if ed %}/project/{{ project.id }}{% else %}/projects{% endif %}">취소</a>{% endif %}
+          {% if embed %}<a class="qf-cancel" href="javascript:void(0)" onclick="try{qfClear()}catch(e){};try{parent.postMessage({knkRegClose:true},'*')}catch(e){}">취소</a>
+          {% else %}<a class="qf-cancel" href="{% if ed %}/project/{{ project.id }}{% else %}/projects{% endif %}" onclick="try{qfClear()}catch(e){}">취소</a>{% endif %}
           <button type="submit" class="qf-save">{% if ed %}💾 수정 저장{% else %}＋ 등록{% endif %}</button>
         </div>
       </form>
@@ -693,6 +693,82 @@ if(window.knkScanMoney) knkScanMoney();
   var sh=document.getElementById('qShip'); if(sh) sh.addEventListener('change', qBuildUnits);
   var cu=document.getElementById('qCurrency'); if(cu) cu.addEventListener('change', qBuildUnits);
   qSyncPoType();   // PO유형 초기 반영(추가발주면 관리번호 검색칸) + qBuildUnits 내부 호출
+})();
+// ───── v5H226z561(대표 지시): 간편 등록 임시저장 — 작성 중 나가거나 새로고침해도 보존, 취소·등록 시에만 삭제 ─────
+//   범위=신규 등록 모드(QF_ED=false)만. 수정 모드는 서버 원본이 있어 임시본으로 덮으면 위험 → 제외.
+//   전체 보존(A안)=일반 필드 + 부품 행(PACKING LIST) + 통보부서 체크 + 호기별 금액/납기.
+var QF_ED = {% if ed %}true{% else %}false{% endif %};
+var QF_BIZ = "{{ (project.biz_div if ed else preset_biz)|default('T') }}";
+var QF_KEY = 'knk.qf.draft.' + QF_BIZ;
+function _qfEsc(n){ try{ return (window.CSS && CSS.escape) ? CSS.escape(n) : n.replace(/([\[\]])/g,'\\$1'); }catch(e){ return n; } }
+function qfClear(){ try{ localStorage.removeItem(QF_KEY); }catch(e){} }
+window.qfClear = qfClear;
+function qfCollect(){
+  var f=document.getElementById('quickForm'); if(!f) return null;
+  var d={ fields:{}, parts:0, units:[] };
+  d.parts = f.querySelectorAll('#qPartsRows .qf-part-row').length;
+  // 호기 행(unit_amount[]/unit_due[])은 정적 hidden과 이름이 겹쳐 별도 배열로 — 손댄(touched) 여부까지 보존
+  f.querySelectorAll('#qUnitRows .qf-unit-row').forEach(function(r){
+    var a=r.querySelector('.qf-unit-amt'), du=r.querySelector('.qf-unit-due');
+    d.units.push({ a:(a?a.value:''), d:(du?du.value:''), t:(a&&a.dataset.touched)?1:0 });
+  });
+  f.querySelectorAll('input,select,textarea').forEach(function(el){
+    if(!el.name || el.type==='file') return;
+    // 제출 시 자동계산되는 호기 배열·multi_unit은 일반 캡처에서 제외(위 units로 보존)
+    if(/^(unit_label|unit_amount|unit_due|unit_ship|unit_currency)\[\]$/.test(el.name) || el.name==='multi_unit') return;
+    var arr = d.fields[el.name] || (d.fields[el.name]=[]);
+    if(el.type==='checkbox' || el.type==='radio') arr.push({ v:el.value, c:el.checked });
+    else arr.push({ v:el.value });
+  });
+  return d;
+}
+function qfRestore(){
+  if(QF_ED) return;
+  var raw; try{ raw=localStorage.getItem(QF_KEY); }catch(e){ return; }
+  if(!raw) return;
+  var d; try{ d=JSON.parse(raw); }catch(e){ return; }
+  if(!d || !d.fields) return;
+  var f=document.getElementById('quickForm'); if(!f) return;
+  // 1) 형태(shipment_form) 먼저 적용 → 부품박스/각인 토글이 맞게 펼쳐지도록
+  if(d.fields['shipment_form'] && d.fields['shipment_form'][0]){
+    var hf=document.getElementById('qFormType'); if(hf) hf.value=d.fields['shipment_form'][0].v;
+  }
+  try{ qFormSyncLabel(); }catch(e){} try{ qSyncShip(); }catch(e){}
+  // 2) 부품 행 수 맞추기(동적 추가분 재생성)
+  var want=d.parts||0, have=f.querySelectorAll('#qPartsRows .qf-part-row').length;
+  while(have<want){ try{ qAddPart(); }catch(e){ break; } have++; }
+  // 3) 이름별 순서대로 값 복원(호기 배열 제외 — 위에서 걸러둠)
+  Object.keys(d.fields).forEach(function(nm){
+    var els=f.querySelectorAll('[name="'+_qfEsc(nm)+'"]'), vals=d.fields[nm];
+    for(var i=0;i<els.length && i<vals.length;i++){
+      var el=els[i], v=vals[i];
+      if(el.type==='checkbox' || el.type==='radio') el.checked=!!v.c; else el.value=(v.v||'');
+    }
+  });
+  // 4) 의존 UI 재계산
+  try{ qToggleFx(); }catch(e){} try{ qCalcParts(); }catch(e){} try{ qFormSyncLabel(); }catch(e){}
+  // 5) 호기(수량≥2) 복원 — unit_qty가 이미 복원됨 → 행 생성 후 금액/납기/touched 채움
+  try{ qBuildUnits(); }catch(e){}
+  if(d.units && d.units.length){
+    var urs=f.querySelectorAll('#qUnitRows .qf-unit-row');
+    for(var k=0;k<urs.length && k<d.units.length;k++){
+      var a=urs[k].querySelector('.qf-unit-amt'), du=urs[k].querySelector('.qf-unit-due'), u=d.units[k];
+      if(a){ a.value=u.a||''; if(u.t) a.dataset.touched=1; }
+      if(du && u.d) du.value=u.d;
+    }
+    try{ qUnitSum(); }catch(e){}
+  }
+  if(window.knkScanMoney) knkScanMoney();
+}
+(function(){
+  if(QF_ED) return;
+  var f=document.getElementById('quickForm'); if(!f) return;
+  var _t=null, deb=function(){ if(_t) clearTimeout(_t); _t=setTimeout(function(){ try{ var d=qfCollect(); if(d) localStorage.setItem(QF_KEY, JSON.stringify(d)); }catch(e){} }, 400); };
+  f.addEventListener('input', deb);
+  f.addEventListener('change', deb);
+  // 등록 제출 시 임시본 삭제 — 단, 클라 검증에서 막힌(preventDefault) 경우엔 보존
+  f.addEventListener('submit', function(e){ if(!e.defaultPrevented) qfClear(); });
+  try{ qfRestore(); }catch(e){ try{ console.warn('[간편폼 임시본 복원 실패]', e); }catch(_){} }
 })();
 </script>
 </body>

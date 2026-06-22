@@ -1842,6 +1842,8 @@ function schedDoSearch(){
     if(hit) shown++;
   }
   var c=document.getElementById('schedFindCount'); if(c) c.textContent = q ? (shown+'건 표시') : '';
+  // v5H226z561(대표 지시): 검색어를 세션에 저장 — 수정 후 새로고침돼도 찾던 조건 유지(비우면 해제)
+  try{ if(q) sessionStorage.setItem('knk.sched.q', inp.value); else sessionStorage.removeItem('knk.sched.q'); }catch(e){}
   syncSelAll();
 }
 function _selRows(){ if(!_tbody) return []; return Array.prototype.filter.call(_tbody.querySelectorAll('tr'), function(tr){ var c=tr.querySelector('.row-sel'); return c && c.checked; }); }
@@ -2124,6 +2126,8 @@ function setCellDisplay(tr, field, val, cust_ok){
 applyCols(); buildColsMenu(); syncDayInputs(); applyOrder(); initColDrag();   // v5H226z517: 저장된 컬럼 순서 적용 + 드래그 그립
 // v5H226z469: 세금계산서 발행상태(합계=수주금액 → 발행완료 / 다르면 미발행) 초기 표기
 try{ document.querySelectorAll('#schedTable tbody tr[data-ref]').forEach(refreshTaxStatus); }catch(e){}
+// v5H226z561(대표 지시): 저장된 검색어 복원 → 수정 후 새로고침돼도 찾던 조건 화면 유지
+try{ var _sq=sessionStorage.getItem('knk.sched.q'); if(_sq){ var _si=document.getElementById('schedSearch'); if(_si){ _si.value=_sq; schedDoSearch(); } } }catch(e){}
 _buildBulkFieldSel(); syncBulkBar();   // z366: 일괄수정 항목 드롭다운 구성 + 바 상태
 var _bulkM=document.getElementById('bulkModal'); if(_bulkM) _on(_bulkM,'click',function(e){ if(e.target.id==='bulkModal') closeBulkModal(); });
 _on(window,'load',()=>setTimeout(updateSticky,80));
