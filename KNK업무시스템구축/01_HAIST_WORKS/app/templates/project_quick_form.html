@@ -694,6 +694,41 @@ if(window.knkScanMoney) knkScanMoney();
   var cu=document.getElementById('qCurrency'); if(cu) cu.addEventListener('change', qBuildUnits);
   qSyncPoType();   // PO유형 초기 반영(추가발주면 관리번호 검색칸) + qBuildUnits 내부 호출
 })();
+// ───── v5H226z589(대표 지시): ① 단가×수량 → 금액 자동 표기  ② 연락처 자동 하이픈 ─────
+// ① 단일 호기일 때만 자동(호기별 모드는 금액 칸이 readOnly·합계 자동이라 건드리지 않음)
+function qCalcAmount(){
+  var amt=document.getElementById('qAmount'); if(!amt||amt.readOnly) return;
+  var v=qUnitVals();   // qty, price(콤마 제거됨)
+  if(v.price>0 && v.qty>0) amt.value=(v.price*v.qty).toLocaleString('en-US');
+}
+// ② 01035401552 → 010-3540-1552 (휴대폰 3-4-4 / 서울 02 / 지역번호 0XX)
+function qFmtPhone(v){
+  var d=(v||'').replace(/[^0-9]/g,'').slice(0,11);
+  if(!d || d.charAt(0)!=='0') return v;   // 국내 전화번호(0으로 시작)만 변환·그 외는 그대로
+  if(d.slice(0,2)==='02'){                // 서울
+    if(d.length<=2) return d;
+    if(d.length<=5) return d.slice(0,2)+'-'+d.slice(2);
+    if(d.length<=9) return d.slice(0,2)+'-'+d.slice(2,5)+'-'+d.slice(5);   // 02-XXX-XXXX
+    return d.slice(0,2)+'-'+d.slice(2,6)+'-'+d.slice(6,10);                // 02-XXXX-XXXX
+  }
+  if(d.length<=3) return d;
+  if(d.length<=7) return d.slice(0,3)+'-'+d.slice(3);
+  if(d.length<=10) return d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6);    // 0XX-XXX-XXXX (10자리)
+  return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7,11);                  // 010-XXXX-XXXX (11자리)
+}
+(function(){
+  var up=document.querySelector('[name=unit_price]'); if(up) up.addEventListener('input', qCalcAmount);
+  var qy=document.querySelector('[name=unit_qty]'); if(qy) qy.addEventListener('input', qCalcAmount);
+  var ph=document.querySelector('[name=cc_phone]');
+  if(ph){
+    if(ph.value) ph.value=qFmtPhone(ph.value);   // 수정모드 기존값도 정규화
+    ph.addEventListener('input', function(){
+      var atEnd=(this.selectionStart>=this.value.length);
+      var f=qFmtPhone(this.value); this.value=f;
+      if(atEnd){ try{ this.setSelectionRange(f.length,f.length); }catch(_){} }
+    });
+  }
+})();
 // ───── v5H226z561(대표 지시): 간편 등록 임시저장 — 작성 중 나가거나 새로고침해도 보존, 취소·등록 시에만 삭제 ─────
 //   범위=신규 등록 모드(QF_ED=false)만. 수정 모드는 서버 원본이 있어 임시본으로 덮으면 위험 → 제외.
 //   전체 보존(A안)=일반 필드 + 부품 행(PACKING LIST) + 통보부서 체크 + 호기별 금액/납기.
