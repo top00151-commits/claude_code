@@ -18652,24 +18652,8 @@ def _build_product_bulk_template_buf():
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True); c.border = border
         ws.column_dimensions[c.column_letter].width = w
     ws.freeze_panes = ws.cell(phr + 1, 1)
-    # 예시 2줄 — 판매단가(I)=매입×(1+마진%) · 인보이스(K)=판매KRW÷환율(자동 수식). 통화 USD면 K가 주문 단가.
-    ex_static = [
-        ["MAT-001", "실린더 CDQ2B", "CDQ2B32-50DZ", "SMC", "대성공압", 2, 85000, 20],
-        ["MAT-002", "근접센서", "E2E-X5ME1", "Omron", "한국오므론", 4, 12000, 30],
-    ]
-    ex_tail = [
-        (1456.51, "2026-07-15", "예시 — 삭제 후 작성 (통화 USD면 인보이스=판매KRW÷환율)"),
-        (1456.51, "", "내수(KRW)면 환율·인보이스 칸은 비워두세요"),
-    ]
-    for ri in range(len(ex_static)):
-        rr = phr + 1 + ri
-        for ci, v in enumerate(ex_static[ri], 1):       # A~H (자재~마진%)
-            ws.cell(rr, ci, v).font = info
-        ws.cell(rr, 9, f"=G{rr}*(1+H{rr}/100)").font = info                 # 판매단가(KRW)
-        ws.cell(rr, 10, ex_tail[ri][0]).font = info                        # 환율
-        ws.cell(rr, 11, f'=IF(J{rr}>0,ROUND(I{rr}/J{rr},2),"")').font = info  # 인보이스단가(USD)
-        ws.cell(rr, 12, ex_tail[ri][1]).font = info                        # 납기
-        ws.cell(rr, 13, ex_tail[ri][2]).font = info                        # 비고
+    # v5H226z599 (대표 지시): 예시 데이터 없는 '빈 양식' — 머리글만. 사용자가 부품 표 3행부터 직접 입력.
+    #   판매단가(KRW)·인보이스단가(USD)는 비워도 업로드 시 자동계산(매입×(1+마진%), 판매KRW÷환율) — z596 파서.
     # 작성안내 시트
     ws2 = wb.create_sheet("작성안내")
     guide = [
@@ -18683,7 +18667,8 @@ def _build_product_bulk_template_buf():
         ["원가(매입) 보관", "통화가 외화면 원가는 환율로 외화 환산해 저장(마진% 그대로 성립). 매입단가(KRW)·환율은 프로젝트에 함께 보관됩니다."],
         ["수량", "부품별 수량. 금액 = 수량 × 판매단가. 합계가 상품(프로젝트) 수주금액."],
         ["납기", "부품별 납기(YYYY-MM-DD). 비우면 위 프로젝트 '납기' 상속."],
-        ["주의", "부품 표의 '예시' 2줄은 삭제 후 작성하세요. 매입단가·마진은 영업·관리 권한자만 보입니다."],
+        ["입력 위치", "부품 표는 머리글(자재번호·자재품명…) 아래 줄부터 입력하세요(예시 데이터 없음). 판매단가(KRW)·인보이스단가(USD)는 비워도 업로드 시 자동계산됩니다."],
+        ["주의", "매입단가·마진은 영업·관리 권한자만 보입니다."],
     ]
     for rr in guide:
         ws2.append(rr)
