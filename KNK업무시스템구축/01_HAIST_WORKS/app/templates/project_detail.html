@@ -898,7 +898,8 @@ table.so-units.parts-excel tbody td:nth-child(3) { box-shadow: 2px 0 4px -2px rg
             {% if so.units %}
             {# v5H134: 템플릿 측에서도 호기 라인 내림차순 강제 (백엔드 정렬 누락 대비 이중 안전망) #}
             {# 백엔드(_sort_n) 키 우선 사용. 누락 시 unit_label 사전순으로 fallback. #}
-            {% set _units_desc = so.units|sort(attribute='_sort_n', reverse=true) %}
+            {# v5H226z605: 부품(PARTS)은 업로드한 엑셀 순서(=id 오름차순) 그대로. 호기는 기존(번호 역순) 유지. #}
+            {% set _units_desc = (so.units|sort(attribute='id')) if _so_is_parts else (so.units|sort(attribute='_sort_n', reverse=true)) %}
             {# v5H177: 호기별 발주일/납기/납품처 컬럼 추가. override 가 있으면 ◆ 표시. #}
             {# v5H186: 호기 일괄 상태 적용 툴바 — v5H197: 잠금 시 숨김 #}
             {% if _editable %}
