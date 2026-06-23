@@ -64,7 +64,7 @@ table.ch tbody tr:hover td{background:#fcfaf3;}
         {% for g in master_dups %}
           <tr>
             <td class="ch-key">{{ g.key }}</td>
-            <td>{% for it in g.items %}<span class="ch-tag">{{ it.name }} <span class="ch-tag id">#{{ it.id }}</span></span>{% endfor %}</td>
+            <td>{% for it in g.members %}<span class="ch-tag">{{ it.name }} <span class="ch-tag id">#{{ it.id }}</span></span>{% endfor %}</td>
           </tr>
         {% endfor %}
         </tbody>

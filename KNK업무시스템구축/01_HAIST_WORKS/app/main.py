@@ -7360,7 +7360,8 @@ async def admin_customer_health(req: Request):
                 gm[k].append(r)
         for k, lst in gm.items():
             if len({r["name"] for r in lst}) > 1:
-                master_dups.append({"key": k, "items": lst})
+                # 키 이름 'items'는 Jinja에서 dict.items() 메서드와 충돌 → 'members' 사용
+                master_dups.append({"key": k, "members": lst})
 
         # B. 프로젝트 고객사 표기 분산 + 미연결(customer_id NULL)
         prows = [dict(r) for r in c.execute(
