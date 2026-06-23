@@ -6484,22 +6484,29 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     _stage_warn = ""
     # ② 통보 — 단가·금액 제외(생산에 필요한 자료경로·모델·품명·수량·납기·요청사항만)
     title = f"📋 제작요청 [{mgmt}] {model}"
-    body = (f"관리코드: {mgmt}\n"
-            f"고객사: {p.get('customer_name') or '—'} · 모델: {model}\n")
-    if eng:
-        body += f"각인: {eng}\n"
-    body += f"품명: {pname} · 수량: {qty} · 납기: {due}\n"
+    cust_disp = p.get("customer_name") or "—"
+    # v5H226z595 (대표 지시): 통보 본문을 '제작요청서' 양식 느낌 텍스트로 — 메신저 카드 미지원 시 폴백 + 인앱 알림 본문 공용.
+    _SEP = "━━━━━━━━━━━━━━━━━"
+    _SUB = "─────────────────"
+    body = f"📋 제작 요청서 · {mgmt}\n{_SEP}\n"
+    body += f"■ 고객사 : {cust_disp}\n"
     if cc_nm:
-        body += f"고객사 담당자: {cc_nm}{(' ' + cc_pos) if cc_pos else ''}\n"
+        body += f"■ 담당자 : {cc_nm}{(' ' + cc_pos) if cc_pos else ''}\n"
+    body += f"■ 작성자 : {by_name}\n"
+    body += f"■ MODEL : {model}\n"
+    if eng:
+        body += f"■ 각인 : {eng}\n"
+    body += f"{_SUB}\n〔품목〕\n"
+    body += f"· 관리코드 : {mgmt}\n· 모델명 : {model}\n· 품명 : {pname}\n· 수량 : {qty}\n· 일정 : {due}\n"
     if so_nos:
-        body += f"수주번호: {', '.join(so_nos)}\n"
+        body += f"· 수주번호 : {', '.join(so_nos)}\n"
     if spath:
-        body += f"자료경로: {spath}\n"
+        body += f"{_SUB}\n📁 자료 경로\n{spath}\n"
     if cust_req:
-        body += f"\n[고객사 요청사항]\n{cust_req}\n"
+        body += f"{_SUB}\n📝 고객사 요청사항\n{cust_req}\n"
     if note:
-        body += f"\n[기타 요청사항]\n{note}\n"
-    body += f"\n요청자: {by_name} · 발행: {now_str}"
+        body += f"{_SUB}\n📝 기타 요청사항\n{note}\n"
+    body += f"{_SEP}\n요청자 {by_name} · {now_str}"
     link = f"/project/{pid}"
     sent_to = 0
     dept_count = 0
@@ -6540,7 +6547,17 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         from . import sso_client
         _pub = os.environ.get("KNK_WORKS_PUBLIC_BASE", "https://works.knknara.co.kr").rstrip("/")
         _full_link = f"{_pub}{link}"
-        _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link)
+        # v5H226z595 (대표 지시): 메신저 '제작요청 카드' 구조화 데이터 — 메신저 지원 시 카드 렌더·미지원 시 body 폴백.
+        _card = {
+            "type": "prod_request", "title": "제작 요청서",
+            "mgmt": mgmt, "customer": cust_disp,
+            "cc_name": cc_nm, "cc_position": cc_pos, "author": by_name,
+            "model": model, "engraving": eng, "part_name": pname,
+            "qty": qty, "due": due, "so_nos": so_nos,
+            "server_path": spath, "cust_req": cust_req, "note": note,
+            "issued_at": now_str, "link": _full_link,
+        }
+        _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=_card)
         if _mres.get("ok"):
             msg_sent = _mres.get("sent", 0)
         else:

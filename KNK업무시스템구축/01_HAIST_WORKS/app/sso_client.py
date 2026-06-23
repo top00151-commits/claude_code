@@ -565,8 +565,10 @@ def sync_directory_from_messenger(c) -> dict:
 #   사번(employee_no) 기준. 공유키(X-SSO-Service-Key) 필수. 실패해도 호출측 등록은 진행하되
 #   침묵 금지(에러 문자열 반환 — 연결성 안전 원칙).
 # =====================================================
-def notify_via_messenger(employee_nos, title, body, link="", timeout=10.0) -> dict:
+def notify_via_messenger(employee_nos, title, body, link="", timeout=10.0, card=None) -> dict:
     """대상 직원(사번 목록)에게 메신저로 1:1 업무 통보.
+    card(선택, v5H226z595): 구조화 카드 데이터(dict). 메신저가 지원하면 '제작요청 카드'로 렌더,
+      미지원이면 body(평문)로 폴백. 하위호환 — body 는 항상 함께 전송.
     반환: {ok, sent, skipped, room_count, skipped_list} 또는 {ok:False, error}."""
     emps = [str(e).strip() for e in (employee_nos or []) if str(e).strip()]
     if not emps:
@@ -575,11 +577,14 @@ def notify_via_messenger(employee_nos, title, body, link="", timeout=10.0) -> di
     if not _key:
         return {"ok": False, "error": "공유키 미설정 — 관리자 페이지(/admin/sso-key) 또는 NAS .env 에 등록"}
     url = f"{MESSENGER_INTERNAL_BASE}/api/works/notify"
+    _payload = {"employee_nos": emps, "title": title, "body": body, "link": link}
+    if card:
+        _payload["card"] = card   # 메신저가 무시해도 무해(평문 body 폴백)
     try:
         r = httpx.post(
             url,
             headers={"X-SSO-Service-Key": _key},
-            json={"employee_nos": emps, "title": title, "body": body, "link": link},
+            json=_payload,
             timeout=timeout,
         )
     except Exception as e:
