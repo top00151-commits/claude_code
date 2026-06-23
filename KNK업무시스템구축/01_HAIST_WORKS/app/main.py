@@ -7327,6 +7327,125 @@ async def admin_test_data_delete_a(req: Request):
     return RedirectResponse(f"/admin/test-data?deleted={n_proj}", 303)
 
 
+@app.get("/admin/customer-health", response_class=HTMLResponse)
+async def admin_customer_health(req: Request):
+    """v5H226z610 (대표 지시): 고객사 연결성 읽기전용 진단.
+    ① 같은 고객사인데 표기가 갈린 그룹(마스터 중복 + 프로젝트/소모품 표기 분산)
+    ② 고객사 미연결(customer_id NULL) 건수  ③ 세금계산서 ↔ 원천(프로젝트/소모품) 고객사명 불일치.
+    데이터는 절대 변경하지 않음(전부 SELECT). 매출/세금계산서가 안 맞는 규모를 먼저 숫자로 파악하기 위한 화면."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    import re as _re
+    from collections import defaultdict
+    # 매칭과 동일한 정규화 규칙(법인격·기호·공백 제거 → 소문자)
+    _lc = _re.compile(r"주식회사|유한책임회사|유한회사|\(주\)|\(유\)|\(有\)|㈜|㈲|株式会社")
+    _sym = _re.compile(r"[\s\(\)\[\]\.,\-_/&'\"·｜|]")
+    def _nc(s):
+        s = (s or "").lower()
+        s = _lc.sub("", s)
+        s = _sym.sub("", s)
+        return s.strip()
+
+    custs = []
+    master_dups, proj_split, co_split, ti_mismatch = [], [], [], []
+    unlinked = {"projects": 0, "consumables": 0, "tax": 0}
+    with db_session() as c:
+        # A. 고객사 마스터 중복 의심 — 정규화 키는 같은데 등록명이 둘 이상
+        custs = [dict(r) for r in c.execute("SELECT id, name FROM customers ORDER BY name").fetchall()]
+        gm = defaultdict(list)
+        for r in custs:
+            k = _nc(r["name"])
+            if k:
+                gm[k].append(r)
+        for k, lst in gm.items():
+            if len({r["name"] for r in lst}) > 1:
+                master_dups.append({"key": k, "items": lst})
+
+        # B. 프로젝트 고객사 표기 분산 + 미연결(customer_id NULL)
+        prows = [dict(r) for r in c.execute(
+            "SELECT customer_name AS nm, customer_id AS cid, COUNT(*) AS cnt, "
+            "COALESCE(SUM(order_amount),0) AS total FROM projects "
+            "WHERE COALESCE(customer_name,'')<>'' GROUP BY customer_name, customer_id").fetchall()]
+        gp = defaultdict(list)
+        for r in prows:
+            gp[_nc(r["nm"])].append(r)
+            if not r["cid"]:
+                unlinked["projects"] += r["cnt"]
+        for k, lst in gp.items():
+            names = sorted({r["nm"] for r in lst})
+            if len(names) > 1:
+                proj_split.append({"key": k, "names": names,
+                                   "cnt": sum(r["cnt"] for r in lst),
+                                   "total": sum(r["total"] for r in lst), "rows": lst})
+
+        # C. 소모품 수주 고객사 표기 분산 + 미연결
+        try:
+            crows = [dict(r) for r in c.execute(
+                "SELECT customer_name AS nm, customer_id AS cid, COUNT(*) AS cnt, "
+                "COALESCE(SUM(total_amount),0) AS total FROM consumable_orders "
+                "WHERE COALESCE(customer_name,'')<>'' GROUP BY customer_name, customer_id").fetchall()]
+        except Exception:
+            crows = []
+        gc = defaultdict(list)
+        for r in crows:
+            gc[_nc(r["nm"])].append(r)
+            if not r["cid"]:
+                unlinked["consumables"] += r["cnt"]
+        for k, lst in gc.items():
+            names = sorted({r["nm"] for r in lst})
+            if len(names) > 1:
+                co_split.append({"key": k, "names": names,
+                                 "cnt": sum(r["cnt"] for r in lst),
+                                 "total": sum(r["total"] for r in lst), "rows": lst})
+
+        # D. 세금계산서 미연결 + 원천 고객사명 불일치
+        try:
+            unlinked["tax"] = c.execute(
+                "SELECT COUNT(*) FROM tax_invoices WHERE customer_id IS NULL "
+                "AND COALESCE(status,'')<>'취소'").fetchone()[0]
+        except Exception:
+            pass
+        try:
+            for r in c.execute(
+                "SELECT ti.ti_no AS ti_no, l.ref_kind AS rk, l.ref_id AS rid, "
+                "       l.customer AS line_cust, l.mgmt_code AS mgmt "
+                "FROM tax_invoices ti JOIN tax_invoice_lines l ON l.ti_id=ti.id "
+                "WHERE COALESCE(ti.status,'')<>'취소'"):
+                rk, rid = r["rk"], r["rid"]
+                src = None
+                try:
+                    if rk == "consumable":
+                        src = c.execute("SELECT customer_name FROM consumable_orders WHERE id=?", (rid,)).fetchone()
+                    else:
+                        src = c.execute("SELECT customer_name FROM projects WHERE id=?", (rid,)).fetchone()
+                except Exception:
+                    src = None
+                src_nm = (src[0] if src else None)
+                lc = r["line_cust"]
+                if src_nm and lc and lc != "—" and _nc(src_nm) != _nc(lc):
+                    ti_mismatch.append({"ti_no": r["ti_no"], "mgmt": r["mgmt"],
+                                        "line": lc, "src": src_nm})
+        except Exception:
+            pass
+
+    proj_split.sort(key=lambda x: -x["total"])
+    co_split.sort(key=lambda x: -x["total"])
+    summary = {
+        "customers": len(custs),
+        "master_dups": len(master_dups),
+        "proj_split": len(proj_split),
+        "co_split": len(co_split),
+        "unlinked_proj": unlinked["projects"],
+        "unlinked_co": unlinked["consumables"],
+        "unlinked_tax": unlinked["tax"],
+        "ti_mismatch": len(ti_mismatch),
+    }
+    return ctx(req, "admin_customer_health.html", user=u, summary=summary,
+               master_dups=master_dups, proj_split=proj_split,
+               co_split=co_split, ti_mismatch=ti_mismatch[:300])
+
+
 @app.post("/admin/sync-directory")
 async def admin_sync_directory(req: Request):
     """메신저 직원 명부 → 전 직원 일괄 동기화 (admin/ceo 전용)."""

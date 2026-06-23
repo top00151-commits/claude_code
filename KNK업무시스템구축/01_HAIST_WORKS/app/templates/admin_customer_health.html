@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>고객사 연결성 점검 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.ch-wrap{margin:0 0 var(--space-6);padding:0 var(--content-pad);}  /* 시트여백 표준: 풀폭 */
+.ch-banner{background:#eef6ff;border:1px solid #cfe3fb;color:#1e3a5f;border-radius:10px;padding:11px 15px;font-size:12.5px;line-height:1.7;margin-bottom:16px;}
+.ch-banner b{color:#1e40af;}
+.ch-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px;}
+.ch-kpi{background:#fff;border:1px solid #f1e8d4;border-radius:10px;padding:13px 15px;}
+.ch-kpi .n{font-size:24px;font-weight:800;color:#1e293b;font-variant-numeric:tabular-nums;}
+.ch-kpi .l{font-size:11.5px;color:#8a7842;font-weight:700;margin-top:2px;}
+.ch-kpi.warn .n{color:#b45309;} .ch-kpi.bad .n{color:#b91c1c;} .ch-kpi.ok .n{color:#15803d;}
+.ch-card{background:#fff;border:1px solid #f1e8d4;border-radius:10px;padding:16px 18px;margin-bottom:16px;}
+.ch-card h3{margin:0 0 4px;font-size:14px;font-weight:800;color:#1e293b;}
+.ch-card .sub{font-size:11.5px;color:#94a3b8;margin-bottom:12px;}
+table.ch{width:100%;border-collapse:collapse;font-size:12.5px;}
+table.ch th,table.ch td{padding:8px 10px;border-bottom:1px solid #f1e8d4;text-align:left;vertical-align:top;}
+table.ch th{font-size:11.5px;color:#8a7842;font-weight:700;background:#faf7ef;}
+table.ch td.num,table.ch th.num{text-align:right;font-variant-numeric:tabular-nums;}
+table.ch tbody tr:hover td{background:#fcfaf3;}
+.ch-tag{display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;margin:1px 3px 1px 0;}
+.ch-tag.id{background:#dcfce7;color:#166534;border-color:#bbf7d0;font-family:monospace;}
+.ch-key{font-family:monospace;color:#64748b;font-size:11px;}
+.ch-empty{padding:20px;text-align:center;color:#15803d;font-size:13px;background:#f0fdf4;border-radius:8px;}
+.ch-bad{color:#b91c1c;font-weight:700;}
+.ch-arrow{color:#94a3b8;}
+@media (max-width:1023px){ .ch-card{overflow-x:auto;-webkit-overflow-scrolling:touch;} table.ch{min-width:680px;} }
+</style></head>
+<body>
+<div class="app">{% set active_tab='home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/admin">관리자</a> · <b>고객사 연결성 점검</b></div>
+    <h1 class="page-title">고객사 연결성 점검 <em>— 매출·세금계산서가 왜 안 맞는지</em></h1>
+  </div></div>
+  <div class="ch-wrap">
+    <div class="ch-banner">
+      🔎 <b>읽기 전용 진단입니다 — 데이터를 바꾸지 않습니다.</b> 일괄 업로드한 예전 데이터에서
+      <b>같은 고객사인데 표기가 갈린 경우</b>·<b>고객사 미연결</b>·<b>세금계산서와 원천 고객사명 불일치</b>를 찾아 보여줍니다.
+      정규화 기준은 매칭과 동일(㈜·(주)·주식회사·공백·기호 제거 후 비교).
+      여기서 나온 숫자로 정리(병합·표준화) 범위를 정한 뒤, 다음 단계로 진행합니다.
+    </div>
+
+    <div class="ch-cards">
+      <div class="ch-kpi"><div class="n">{{ summary.customers }}</div><div class="l">등록 고객사 수</div></div>
+      <div class="ch-kpi {{ 'bad' if summary.master_dups else 'ok' }}"><div class="n">{{ summary.master_dups }}</div><div class="l">마스터 중복 의심 그룹</div></div>
+      <div class="ch-kpi {{ 'warn' if summary.proj_split else 'ok' }}"><div class="n">{{ summary.proj_split }}</div><div class="l">프로젝트 표기 분산 고객사</div></div>
+      <div class="ch-kpi {{ 'warn' if summary.co_split else 'ok' }}"><div class="n">{{ summary.co_split }}</div><div class="l">소모품 표기 분산 고객사</div></div>
+      <div class="ch-kpi {{ 'warn' if summary.unlinked_proj else 'ok' }}"><div class="n">{{ summary.unlinked_proj }}</div><div class="l">고객사 미연결 프로젝트</div></div>
+      <div class="ch-kpi {{ 'warn' if summary.unlinked_co else 'ok' }}"><div class="n">{{ summary.unlinked_co }}</div><div class="l">고객사 미연결 소모품수주</div></div>
+      <div class="ch-kpi {{ 'warn' if summary.unlinked_tax else 'ok' }}"><div class="n">{{ summary.unlinked_tax }}</div><div class="l">고객사 미연결 세금계산서</div></div>
+      <div class="ch-kpi {{ 'bad' if summary.ti_mismatch else 'ok' }}"><div class="n">{{ summary.ti_mismatch }}</div><div class="l">세금계산서↔원천 불일치</div></div>
+    </div>
+
+    {# ① 마스터 중복 #}
+    <div class="ch-card">
+      <h3>① 고객사 마스터 중복 의심 <span class="ch-key">({{ master_dups|length }}건)</span></h3>
+      <div class="sub">정규화하면 같은 회사인데 <b>등록명이 둘 이상</b>으로 따로 등록된 경우. 이게 있으면 매칭이 "여러 건"이라 미연결로 빠집니다 → 하나로 병합 대상.</div>
+      {% if master_dups %}
+      <table class="ch">
+        <thead><tr><th style="width:160px;">정규화 키</th><th>등록된 이름들 (각 ID)</th></tr></thead>
+        <tbody>
+        {% for g in master_dups %}
+          <tr>
+            <td class="ch-key">{{ g.key }}</td>
+            <td>{% for it in g.items %}<span class="ch-tag">{{ it.name }} <span class="ch-tag id">#{{ it.id }}</span></span>{% endfor %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="ch-empty">✓ 마스터 중복 없음</div>{% endif %}
+    </div>
+
+    {# ② 프로젝트 표기 분산 #}
+    <div class="ch-card">
+      <h3>② 프로젝트 고객사 표기 분산 <span class="ch-key">({{ proj_split|length }}건 · 매출 합계 큰 순)</span></h3>
+      <div class="sub">같은 고객사인데 프로젝트마다 <b>이름 표기가 달라</b> 고객사별 매출이 갈라지는 경우. 세금계산서 묶음발행도 "다른 고객사"로 차단됩니다.</div>
+      {% if proj_split %}
+      <table class="ch">
+        <thead><tr><th style="width:140px;">정규화 키</th><th>표기 변형들</th><th class="num" style="width:90px;">프로젝트수</th><th class="num" style="width:130px;">매출 합계</th></tr></thead>
+        <tbody>
+        {% for g in proj_split %}
+          <tr>
+            <td class="ch-key">{{ g.key }}</td>
+            <td>{% for n in g.names %}<span class="ch-tag">{{ n }}</span>{% endfor %}</td>
+            <td class="num">{{ g.cnt }}</td>
+            <td class="num ch-bad">{{ '{:,.0f}'.format(g.total) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="ch-empty">✓ 프로젝트 고객사 표기 분산 없음</div>{% endif %}
+    </div>
+
+    {# ③ 소모품 표기 분산 #}
+    <div class="ch-card">
+      <h3>③ 소모품 수주 고객사 표기 분산 <span class="ch-key">({{ co_split|length }}건)</span></h3>
+      <div class="sub">소모품 수주에서 같은 고객사의 이름 표기가 갈린 경우.</div>
+      {% if co_split %}
+      <table class="ch">
+        <thead><tr><th style="width:140px;">정규화 키</th><th>표기 변형들</th><th class="num" style="width:90px;">건수</th><th class="num" style="width:130px;">금액 합계</th></tr></thead>
+        <tbody>
+        {% for g in co_split %}
+          <tr>
+            <td class="ch-key">{{ g.key }}</td>
+            <td>{% for n in g.names %}<span class="ch-tag">{{ n }}</span>{% endfor %}</td>
+            <td class="num">{{ g.cnt }}</td>
+            <td class="num ch-bad">{{ '{:,.0f}'.format(g.total) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="ch-empty">✓ 소모품 고객사 표기 분산 없음</div>{% endif %}
+    </div>
+
+    {# ④ 세금계산서 불일치 #}
+    <div class="ch-card">
+      <h3>④ 세금계산서 ↔ 원천 고객사명 불일치 <span class="ch-key">(최대 300건 표시)</span></h3>
+      <div class="sub">발행된 세금계산서 라인의 고객사명과, 그 라인이 가리키는 <b>프로젝트/소모품의 현재 고객사명</b>이 정규화해도 다른 경우. 발행 후 원천 이름을 바꿨거나 표기가 갈린 흔적.</div>
+      {% if ti_mismatch %}
+      <table class="ch">
+        <thead><tr><th style="width:130px;">세금계산서</th><th style="width:120px;">관리번호</th><th>세금계산서상 고객사</th><th>원천(현재) 고객사</th></tr></thead>
+        <tbody>
+        {% for m in ti_mismatch %}
+          <tr>
+            <td class="ch-key">{{ m.ti_no or '—' }}</td>
+            <td class="ch-key">{{ m.mgmt or '—' }}</td>
+            <td><span class="ch-tag">{{ m.line }}</span></td>
+            <td><span class="ch-arrow">→</span> <span class="ch-tag">{{ m.src }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="ch-empty">✓ 세금계산서 ↔ 원천 고객사명 불일치 없음</div>{% endif %}
+    </div>
+
+    <div class="ch-banner" style="background:#fff7ed;border-color:#fed7aa;color:#7c2d12;">
+      📌 <b>다음 단계</b> — 위 숫자가 클수록 (1) 고객사 마스터 병합 (2) 기존 이름 표기 표준화 (3) 집계·세금계산서를 고객사 ID 기준으로 전환 이 필요합니다.
+      어느 것부터 진행할지는 이 화면을 보고 정해 주세요. <b>이 화면 자체는 아무것도 바꾸지 않습니다.</b>
+    </div>
+  </div>
+</main></div>
+</body></html>
