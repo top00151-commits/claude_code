@@ -98,7 +98,10 @@ table.so-units.parts-excel .px-x { display: none !important; }
   padding: 2px 4px !important; margin: 0 !important; border-radius: 0 !important;
   pointer-events: auto !important; cursor: text !important; opacity: 1 !important;
   font-weight: 500 !important; color: var(--ink) !important; font-size: 11.5px;
+  text-align: left;   /* v5H226z607: 텍스트 칸은 왼쪽(품명 끝만 보이던 문제). 숫자칸은 inline text-align:right 가 우선 */
 }
+/* v5H226z607: 품명(호기라벨용 .right 상속) 도 부품표에선 왼쪽 정렬 */
+.so-card.editable table.so-units.parts-excel td.right input.unit-edit { text-align: left; }
 .so-card.editable table.so-units.parts-excel input.unit-edit:focus,
 .so-card.editable table.so-units.parts-excel select.unit-edit:focus {
   background: #fffbe6 !important; box-shadow: inset 0 0 0 2px #f59e0b; outline: none;
