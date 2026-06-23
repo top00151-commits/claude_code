@@ -113,6 +113,10 @@ table.so-units.parts-excel td.right input.unit-edit { text-align: left !importan
   background: #fffbe6 !important; box-shadow: inset 0 0 0 2px #f59e0b; outline: none;
 }
 .so-card.editable table.so-units.parts-excel input.unit-edit.amt { color: var(--knk-red) !important; font-weight: 700 !important; }
+/* v5H226z609: 부품표 금액 칸 — 값 옆에 통화 단위 항상 표시(보기·편집 공통). td 직접 flex 는 표 깨짐→내부 래퍼 flex */
+table.so-units.parts-excel td.money-cell .mc-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 2px; min-width: 0; }
+table.so-units.parts-excel td.money-cell .ccy-u { color: var(--mute); font-weight: 600; font-size: 9px; flex: 0 0 auto; white-space: nowrap; }
+.so-card.editable table.so-units.parts-excel td.money-cell input.unit-edit { width: auto !important; flex: 1 1 auto; min-width: 0; }
 
 /* 행 접기 토글 버튼 (행 좌측 3행번호 영역) */
 table.so-units.parts-excel .row-toggle {
@@ -961,6 +965,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
             {# SO 통화가 비어도 부품(호기) 통화로 판정 — 기존 데이터(통화 미저장)도 인식 #}
             {% set _so_ccy = so.currency or (_units_desc[0].currency if (_units_desc and _units_desc[0].currency) else '') or p.currency or 'KRW' %}
             {% set _is_fx_view = (_is_parts and _so_ccy != 'KRW') %}
+            {# v5H226z609: 매입/판매 칸의 통화 단위 — _pfx면 KRW환산값=KRW, fx뷰(환율없음)면 외화, 그외 KRW #}
+            {% set _krw_col_ccy = 'KRW' if _pfx else (_so_ccy if _is_fx_view else 'KRW') %}
             {# v5H226z6/z7: PARTS 일 때 28컬럼이라 가로 스크롤 — SO 카드 안에서만 #}
             {# 부모 grid/flex 가 자식 min-width 에 의해 늘어나는 걸 막기 위해 #}
             {# (1) 가로 스크롤 wrapper 에 width:100%/overflow:hidden 명시 → 자식이 부모를 못 늘림 #}
@@ -1095,21 +1101,27 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   {% if can_money %}
                   {% set _cp = u.get('cost_price') if u.get is defined else u.cost_price %}
                   {% set _mp = u.get('margin_pct') if u.get is defined else u.margin_pct %}
-                  <td class="num" style="font-size:11.5px;background:#fff7ed;">
+                  <td class="num money-cell" style="font-size:11.5px;background:#fff7ed;">
+                    <div class="mc-wrap">
                     <span class="display-val">{{ '{:,.0f}'.format(_cp * _pfx) if (_cp and _pfx) else ('{:,.2f}'.format(_cp) if (_cp and _is_fx_view) else ('{:,.0f}'.format(_cp) if _cp else '—')) }}</span>
                     {% if _editable %}<input type="text" class="unit-edit cost-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(_cp * _pfx) if (_cp and _pfx) else ('%.2f'|format(_cp) if (_cp and _is_fx_view) else ('%.0f'|format(_cp) if _cp else '')) }}" value="{{ '{:,.0f}'.format(_cp * _pfx) if (_cp and _pfx) else ('{:,.2f}'.format(_cp) if (_cp and _is_fx_view) else ('{:,.0f}'.format(_cp) if _cp else '')) }}" placeholder="매입가" style="width:78px;font-size:11.5px;text-align:right;">{% endif %}
+                    <span class="ccy-u">{{ _krw_col_ccy }}</span>
+                    </div>
                   </td>
                   <td class="num" style="font-size:11.5px;background:#fff7ed;text-align:center;">
                     <span class="display-val">{{ ('%g'|format(_mp)) ~ '%' if (_mp is not none) else '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit margin-inp" data-orig="{{ '%g'|format(_mp) if (_mp is not none) else '' }}" value="{{ '%g'|format(_mp) if (_mp is not none) else '' }}" placeholder="%" style="width:48px;font-size:11.5px;text-align:right;">{% endif %}
                   </td>
-                  <td class="num" style="font-size:11.5px;">
+                  <td class="num money-cell" style="font-size:11.5px;">
+                    <div class="mc-wrap">
                     <span class="display-val" style="font-weight:600;">{{ '{:,.0f}'.format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('{:,.2f}'.format(u.unit_price) if (u.unit_price and _is_fx_view) else ('{:,.0f}'.format(u.unit_price) if u.unit_price else '—')) }}</span>
                     {% if _editable %}<input type="text" class="unit-edit price-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('%.2f'|format(u.unit_price) if (u.unit_price and _is_fx_view) else ('%.0f'|format(u.unit_price) if u.unit_price else '')) }}" value="{{ '{:,.0f}'.format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('{:,.2f}'.format(u.unit_price) if (u.unit_price and _is_fx_view) else ('{:,.0f}'.format(u.unit_price) if u.unit_price else '')) }}" placeholder="판매가" style="width:88px;font-size:11.5px;text-align:right;">{% endif %}
+                    <span class="ccy-u">{{ _krw_col_ccy }}</span>
+                    </div>
                   </td>
                   {% if _is_fx_view %}
                   <td class="num" style="font-size:11.5px;color:var(--mute);">{{ '{:,.2f}'.format(_pfx) if _pfx else '—' }}</td>
-                  <td class="num" style="font-size:11.5px;background:#eef6ff;font-weight:600;color:#1d4ed8;">{{ '{:,.2f}'.format(u.unit_price) if u.unit_price else '—' }}</td>
+                  <td class="num money-cell" style="font-size:11.5px;background:#eef6ff;font-weight:600;color:#1d4ed8;"><div class="mc-wrap"><span>{{ '{:,.2f}'.format(u.unit_price) if u.unit_price else '—' }}</span><span class="ccy-u" style="color:#1d4ed8;">{{ _so_ccy }}</span></div></td>
                   {% endif %}
                   {% endif %}
                   {# v5H226z6: 금액 — 수량 × 판매단가. _pfx면 KRW환산·_is_fx_view면 USD 2자리·그외 KRW. #}
@@ -1844,8 +1856,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               <td style="font-family:monospace;color:var(--amber-deep);">{{ r.part_code|default(r.part_no_snapshot|default('—')) }}</td>
               <td><b>{{ r.part_name|default(r.part_name_snapshot|default('—')) }}</b>{% if r.spec_snapshot %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ r.spec_snapshot }}</span>{% endif %}</td>
               <td class="num">{{ (r.effective_qty or 0)|qtyfmt }}{% if r.unit %} {{ r.unit }}{% endif %}{% if r.allocated_qty is not none and r.quantity and r.allocated_qty != r.quantity %}<span style="display:block;font-size:10px;color:var(--mute);">/ {{ '{:,.0f}'.format(r.quantity) }} 분배</span>{% elif r.allocation_pct %}<span style="display:block;font-size:10px;color:var(--mute);">{{ r.allocation_pct }}% 분배</span>{% endif %}</td>
-              <td class="num">{% if can_money %}{{ '{:,.0f}'.format(r.unit_price|default(0)) }}{% if r.currency and r.currency != 'KRW' %} {{ r.currency }}{% endif %}{% else %}🔒{% endif %}</td>
-              <td class="num" style="font-weight:700;">{% if can_money %}{{ '{:,.0f}'.format(r.effective_amount|default(0)) }}{% else %}🔒{% endif %}</td>
+              <td class="num">{% if can_money %}{{ '{:,.0f}'.format(r.unit_price|default(0)) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">{{ r.currency|default('KRW') }}</span>{% else %}🔒{% endif %}</td>
+              <td class="num" style="font-weight:700;">{% if can_money %}{{ '{:,.0f}'.format(r.effective_amount|default(0)) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">{{ r.currency|default('KRW') }}</span>{% else %}🔒{% endif %}</td>
               <td><a href="/po/{{ r.po_id }}" style="font-family:monospace;color:var(--amber-deep);text-decoration:none;">{{ r.po_number|default('PO-' ~ r.po_id) }}</a></td>
               <td>{{ r.supplier_name|default('—') }}</td>
               <td style="color:var(--mute);font-size:11px;">{{ r.link_note|default('') }}</td>
@@ -1855,7 +1867,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               <td colspan="3" style="text-align:right;">합계 ({{ consumables.count }}건)</td>
               <td class="num">{{ (consumables.total_qty or 0)|qtyfmt }}</td>
               <td></td>
-              <td class="num" style="color:var(--amber-deep);">{% if can_money %}{{ '{:,.0f}'.format(consumables.total_amount) }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="color:var(--amber-deep);">{% if can_money %}{{ '{:,.0f}'.format(consumables.total_amount) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">KRW</span>{% else %}🔒{% endif %}</td>
               <td colspan="3"></td>
             </tr>
           </tbody>
@@ -1890,15 +1902,15 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               <td style="padding:6px;">{% if r.image_thumb_path %}<a href="{{ r.image_path or r.image_thumb_path }}" target="_blank"><img src="{{ r.image_thumb_path }}" style="width:40px;height:30px;object-fit:cover;border-radius:3px;" /></a>{% else %}—{% endif %}</td>
               <td style="padding:6px;"><b>{{ r.part_name }}</b>{% if r.model_use %}<div style="font-size:10px;color:var(--mute);">{{ r.model_use }}</div>{% endif %}</td>
               <td class="num" style="text-align:right;padding:6px;">{{ '{:,.0f}'.format(r.qty or 0) }} {{ r.unit }}</td>
-              <td class="num" style="text-align:right;padding:6px;">{% if can_money %}{{ '{:,.0f}'.format(r.unit_price or 0) }}{% else %}🔒{% endif %}</td>
-              <td class="num" style="text-align:right;padding:6px;font-weight:600;">{% if can_money %}{{ '{:,.0f}'.format(r.amount or 0) }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="text-align:right;padding:6px;">{% if can_money %}{{ '{:,.0f}'.format(r.unit_price or 0) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">KRW</span>{% else %}🔒{% endif %}</td>
+              <td class="num" style="text-align:right;padding:6px;font-weight:600;">{% if can_money %}{{ '{:,.0f}'.format(r.amount or 0) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">KRW</span>{% else %}🔒{% endif %}</td>
               <td style="padding:6px;">{{ r.order_date or '—' }}</td>
             </tr>
           {% endfor %}
           </tbody>
           <tfoot><tr style="background:#fafafa;font-weight:700;">
             <td colspan="5" style="text-align:right;padding:6px;">합계</td>
-            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{% if can_money %}{{ '{:,.0f}'.format(consumable_orders.total_amount) }}{% else %}🔒{% endif %}</td>
+            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{% if can_money %}{{ '{:,.0f}'.format(consumable_orders.total_amount) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">KRW</span>{% else %}🔒{% endif %}</td>
             <td></td>
           </tr></tfoot>
         </table></div>
@@ -2035,7 +2047,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               {% for u in all_units_sorted %}
               <div>
                 <span style="color:var(--ink);font-weight:600;">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span>
-                <span style="color:var(--knk-red);font-weight:700;">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }}</span>
+                <span style="color:var(--knk-red);font-weight:700;">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:600;font-size:10px;">{{ p.currency or 'KRW' }}</span></span>
               </div>
               {% endfor %}
             </div>
