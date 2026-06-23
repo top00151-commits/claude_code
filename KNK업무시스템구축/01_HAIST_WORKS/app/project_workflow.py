@@ -918,7 +918,9 @@ def get_project_orders(c, project_id: int) -> list[dict]:
     except Exception:
         cols = set()
     extra = []
-    for cn in ("ship_to", "unit_qty", "unit_label", "unit_note", "currency", "so_type"):
+    # v5H226z600: exchange_rate·is_export 추가 — 상세 PACKING LIST 에서 매입/판매 KRW 환산·인보이스(USD) 표시
+    for cn in ("ship_to", "unit_qty", "unit_label", "unit_note", "currency", "so_type",
+               "exchange_rate", "is_export"):
         if cn in cols:
             extra.append(cn)
     extra_sql = (", " + ", ".join(extra)) if extra else ""

@@ -18901,6 +18901,19 @@ async def projects_import_product_confirm(request: Request):
                     c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
                     inserted += 1
                 c.execute("UPDATE orders SET total_amount=? WHERE id=?", (total, oid))
+                # v5H226z600 (대표 지시): 부품 SO 에 통화·환율 저장 — 상세 PACKING LIST 에서
+                #   매입/판매 KRW 환산(=USD×환율) + 인보이스(USD) 표시에 필요(추가수주 포함).
+                _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+                _oset, _oval = [], []
+                if "currency" in _ocols:
+                    _oset.append("currency=?"); _oval.append(ccy)
+                if "exchange_rate" in _ocols and fx_rate and fx_rate > 0:
+                    _oset.append("exchange_rate=?"); _oval.append(fx_rate)
+                if "is_export" in _ocols:
+                    _oset.append("is_export=?"); _oval.append(1 if is_export == "1" else 0)
+                if _oset:
+                    _oval.append(oid)
+                    c.execute(f"UPDATE orders SET {', '.join(_oset)} WHERE id=?", _oval)
                 if _is_followup:
                     # z598: 기존 프로젝트는 '전체 수주 합계'로 재계산(이번 추가분만으로 덮어쓰지 않음)
                     _sumr = c.execute(
