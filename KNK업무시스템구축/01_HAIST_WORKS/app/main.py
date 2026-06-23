@@ -18767,8 +18767,8 @@ async def projects_import_product_parse(request: Request,
             cust_matched = bool(c.execute("SELECT 1 FROM customers WHERE name=? LIMIT 1", (cust,)).fetchone())
         if mgmt:
             mgmt_dup = bool(c.execute("SELECT 1 FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1", (mgmt,)).fetchone())
-    if mgmt_dup:
-        errors.append(f"관리번호 {mgmt} 이미 존재 — 비우면 자동발급됩니다")
+    # v5H226z598 (대표 지시): 관리번호 존재 = '추가 수주(다른 수주번호)'로 등록 — 오류 아님.
+    #   미리보기에 파란 안내로 표시(아래 응답 is_followup). 빈 관리번호는 신규 자동발급.
     total = round(sum(float(l.get("amount") or 0) for l in lines), 2)
     cost_total = round(sum((float(l.get("cost_price") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
     # z596: 미리보기용 — 매입합계·판매합계는 KRW 원본으로, 환율 1건 표기
@@ -18793,6 +18793,7 @@ async def projects_import_product_parse(request: Request,
                          "cost_total_krw": cost_total_krw, "amount_krw": amount_krw,
                          "fx_rate": fx_rate,
                          "cust_matched": cust_matched, "n_unpriced": npriced,
+                         "is_followup": mgmt_dup, "existing_code": (mgmt if mgmt_dup else ""),
                          "errors": errors, "biz": (biz or "").strip().upper()})
 
 
@@ -18828,38 +18829,53 @@ async def projects_import_product_confirm(request: Request):
     # z596 (대표 지시): 외화(USD 등) — 기준환율 + 원화 환산금액 보관(매입KRW·환율 보존)
     fx_rate = next((float(l["fx_rate"]) for l in lines if l.get("fx_rate")), None)
     amount_krw = round(sum((float(l.get("sell_krw") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
-    try:
-        new_pid, new_code = _logi.projects_create_logi({
-            "_changed_by": u.get("id"),
-            "force_code": True,
-            "mgmt_code": mgmt,
-            "biz_div": biz_div,
-            "project_name": name or "상품",
-            "customer": cust,
-            "model": "", "equip_name": "",
-            "stage": "수주확정",
-            "po_type": po_type,
-            "status": "수주",
-            "customer_po": "",
-            "currency": ccy,
-            "is_export": is_export,
-            "order_amount": total,
-            "fx_rate": (fx_rate if ccy != "KRW" else None),
-            "amount_krw": (amount_krw if (ccy != "KRW" and amount_krw > 0) else None),
-            "unit_qty": 1,
-            "unit_price": None,
-            "order_date": order_date,
-            "due_date": due_date,
-            "shipment_form": "PARTS",
-            "secondary_customer": str(proj.get("secondary_customer") or ""),
-            "sales": str(proj.get("sales") or ""),
-            "note": "[상품 일괄등록]",
-            "project_type": "NEW_EQUIP",
-        })
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": f"프로젝트 생성 실패: {e}"}, 200)
-    if not new_pid:
-        return JSONResponse({"ok": False, "error": "프로젝트 생성 실패"}, 200)
+    # v5H226z598 (대표 지시): 관리번호가 이미 있으면 새 프로젝트를 만들지 않고 그 프로젝트에
+    #   '추가 수주(PARTS SO)'로 등록(같은 관리번호·다른 수주번호 = 정상 추가발주). 없으면 신규 생성.
+    _existing_pid = None
+    _existing_code = None
+    if mgmt:
+        with db_session() as c:
+            _exr = c.execute("SELECT id, mgmt_code FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1",
+                             (mgmt,)).fetchone()
+        if _exr:
+            _existing_pid = (_exr["id"] if isinstance(_exr, dict) else _exr[0])
+            _existing_code = (_exr["mgmt_code"] if isinstance(_exr, dict) else _exr[1])
+    _is_followup = bool(_existing_pid)
+    if _is_followup:
+        new_pid, new_code = _existing_pid, _existing_code
+    else:
+        try:
+            new_pid, new_code = _logi.projects_create_logi({
+                "_changed_by": u.get("id"),
+                "force_code": True,
+                "mgmt_code": mgmt,
+                "biz_div": biz_div,
+                "project_name": name or "상품",
+                "customer": cust,
+                "model": "", "equip_name": "",
+                "stage": "수주확정",
+                "po_type": po_type,
+                "status": "수주",
+                "customer_po": "",
+                "currency": ccy,
+                "is_export": is_export,
+                "order_amount": total,
+                "fx_rate": (fx_rate if ccy != "KRW" else None),
+                "amount_krw": (amount_krw if (ccy != "KRW" and amount_krw > 0) else None),
+                "unit_qty": 1,
+                "unit_price": None,
+                "order_date": order_date,
+                "due_date": due_date,
+                "shipment_form": "PARTS",
+                "secondary_customer": str(proj.get("secondary_customer") or ""),
+                "sales": str(proj.get("sales") or ""),
+                "note": "[상품 일괄등록]",
+                "project_type": "NEW_EQUIP",
+            })
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": f"프로젝트 생성 실패: {e}"}, 200)
+        if not new_pid:
+            return JSONResponse({"ok": False, "error": "프로젝트 생성 실패"}, 200)
     inserted = 0
     try:
         with db_session() as c:
@@ -18900,11 +18916,20 @@ async def projects_import_product_confirm(request: Request):
                     c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
                     inserted += 1
                 c.execute("UPDATE orders SET total_amount=? WHERE id=?", (total, oid))
-                c.execute("UPDATE projects SET order_amount=? WHERE id=?", (total, int(new_pid)))
+                if _is_followup:
+                    # z598: 기존 프로젝트는 '전체 수주 합계'로 재계산(이번 추가분만으로 덮어쓰지 않음)
+                    _sumr = c.execute(
+                        "SELECT COALESCE(SUM(total_amount),0) FROM orders "
+                        "WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'",
+                        (int(new_pid),)).fetchone()
+                    _proj_amt = float((_sumr[0] if not isinstance(_sumr, dict) else list(_sumr.values())[0]) or 0)
+                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (round(_proj_amt, 2), int(new_pid)))
+                else:
+                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (total, int(new_pid)))
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"부품 등록 중 오류: {e}", "pid": int(new_pid), "code": new_code}, 200)
     return JSONResponse({"ok": True, "pid": int(new_pid), "code": new_code,
-                         "inserted": inserted, "total": total})
+                         "inserted": inserted, "total": total, "followup": _is_followup})
 
 
 @app.get("/sales/schedule", response_class=HTMLResponse)
