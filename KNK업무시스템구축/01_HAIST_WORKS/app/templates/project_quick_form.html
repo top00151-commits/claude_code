@@ -404,8 +404,11 @@ function qPartRowHtml(){
     + '<input name="pk_supplier[]" placeholder="공급사" style="width:78px;'+_s+'">'
     + '<input name="pk_qty[]" type="number" min="0" step="1" value="1" placeholder="수량" oninput="qCalcParts()" style="width:52px;text-align:right;'+_s+'">'
     + _cm
-    + '<input name="pk_price[]" type="text" inputmode="numeric" class="knk-money" placeholder="'+(qCanMoney?'판매단가':'단가')+'" oninput="qPartPrice(this)" title="판매단가" style="width:86px;text-align:right;'+_s+'">'
+    + '<input name="pk_price[]" type="text" inputmode="numeric" class="knk-money" placeholder="'+(qCanMoney?'판매단가(KRW)':'단가')+'" oninput="qPartPrice(this);qPartInv(this)" title="판매단가(KRW)" style="width:90px;text-align:right;'+_s+'">'
+    + (qCanMoney ? ('<input name="pk_fx[]" type="text" inputmode="numeric" placeholder="환율" oninput="qPartInv(this)" title="환율(1 USD = ? 원) — 수출 USD 건만" style="width:62px;text-align:right;'+_s+'">'
+       + '<input name="pk_inv[]" type="text" readonly placeholder="인보이스(USD)" title="인보이스단가(USD) = 판매단가(KRW) ÷ 환율 (자동)" style="width:92px;text-align:right;background:#eef6ff;color:#1d4ed8;font-weight:600;'+_s+'">') : '')
     + '<span class="qf-pk-amt" style="width:88px;text-align:right;font-size:12px;color:var(--qv-ink-2);">0</span>'
+    + '<input name="pk_due[]" type="date" title="납기(부품별)" style="width:132px;'+_s+'">'
     + '<input name="pk_note[]" placeholder="비고" style="flex:1;min-width:70px;'+_s+'">'
     + '<button type="button" onclick="this.closest(\'.qf-part-row\').remove();qCalcParts();" title="삭제" style="border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;">×</button>'
     + '</div>';
@@ -432,8 +435,14 @@ function qPartRecalcMargin(row){  // 판매 직접수정 → 마진% 역산 (매
   var p=_qPnum(pEl);
   mEl.value=(Math.round((p/c-1)*1000)/10);   // 소수1자리
 }
-function qPartCost(el){ qPartRecalcPrice(el.closest('.qf-part-row')); qCalcParts(); }
-function qPartMargin(el){ qPartRecalcPrice(el.closest('.qf-part-row')); qCalcParts(); }
+function qPartInv(el){  // v5H226z602: 환율·판매단가(KRW) → 인보이스단가(USD) 자동(판매KRW ÷ 환율)
+  var row=(el && el.closest) ? el.closest('.qf-part-row') : el; if(!row) return;
+  var iEl=row.querySelector('input[name="pk_inv[]"]'); if(!iEl) return;
+  var p=_qPnum(row.querySelector('input[name="pk_price[]"]')), f=_qPnum(row.querySelector('input[name="pk_fx[]"]'));
+  iEl.value = (p>0 && f>0) ? (Math.round((p/f)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+}
+function qPartCost(el){ var row=el.closest('.qf-part-row'); qPartRecalcPrice(row); qPartInv(row); qCalcParts(); }
+function qPartMargin(el){ var row=el.closest('.qf-part-row'); qPartRecalcPrice(row); qPartInv(row); qCalcParts(); }
 function qPartPrice(el){ qPartRecalcMargin(el.closest('.qf-part-row')); qCalcParts(); }
 function qBulkMargin(){  // 마진 일괄적용 — 전 행 마진% 채우고(매입가 있는 행은 판매가 자동). 이후 행별 개별조정.
   var b=document.getElementById('qBulkMarginPct'); if(!b) return;

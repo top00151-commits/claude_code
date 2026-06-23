@@ -21506,6 +21506,7 @@ async def projects_new_submit(request: Request):
         _pk_mat = form.getlist("pk_matno[]"); _pk_mk = form.getlist("pk_maker[]")  # v5H226z441
         _pk_sup = form.getlist("pk_supplier[]"); _pk_nt = form.getlist("pk_note[]")
         _pk_cost = form.getlist("pk_cost[]"); _pk_mrg = form.getlist("pk_margin[]")  # v5H226z460 매입단가·마진%
+        _pk_fx = form.getlist("pk_fx[]"); _pk_due = form.getlist("pk_due[]")  # v5H226z602 환율·부품별 납기
         for _i in range(len(_pk_n)):
             _nm = (_pk_n[_i] or "").strip()
             _md = ((_pk_m[_i] if _i < len(_pk_m) else "") or "").strip()
@@ -21522,9 +21523,14 @@ async def projects_new_submit(request: Request):
             except ValueError:
                 _pp = 0.0
             _cst, _mrg = _parse_cost_margin(_pk_cost, _pk_mrg, _i)  # v5H226z460
+            try:
+                _fxv = float(((_pk_fx[_i] if _i < len(_pk_fx) else "0") or "0").replace(",", ""))
+            except ValueError:
+                _fxv = 0.0
+            _duev = ((_pk_due[_i] if _i < len(_pk_due) else "") or "").strip()
             _pk_parts.append({"name": _nm or _md, "model": _md, "qty": _qy,
                               "price": _pp, "amount": round(_qy * _pp, 2),
-                              "cost": _cst, "margin": _mrg,
+                              "cost": _cst, "margin": _mrg, "fx": _fxv, "due": _duev,
                               "matno": ((_pk_mat[_i] if _i < len(_pk_mat) else "") or "").strip(),
                               "maker": ((_pk_mk[_i] if _i < len(_pk_mk) else "") or "").strip(),
                               "supplier": ((_pk_sup[_i] if _i < len(_pk_sup) else "") or "").strip(),
@@ -21754,10 +21760,27 @@ async def projects_new_submit(request: Request):
                         _po_oid = ((_pres.get("groups") or [{}])[0].get("order_id")) if isinstance(_pres, dict) else None
                         if _po_oid and _pk_parts:
                             _oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+                            # v5H226z602: 외화(USD 등)+환율이면 z596과 동일 — 판매단가=USD 인보이스가,
+                            #   원가=매입KRW÷환율(마진% 유지). 환율은 SO(orders.exchange_rate)에 저장.
+                            _foreign_v = (_ccy_v or "KRW").upper() != "KRW"
+                            _so_fx = 0.0; _psum = 0.0
                             for _pp in _pk_parts:
-                                _row = {"order_id": _po_oid, "qty": _pp["qty"],
-                                        "unit_price": _pp["price"], "amount": _pp["amount"],
-                                        "cost_price": _pp.get("cost"), "margin_pct": _pp.get("margin"),  # v5H226z460
+                                _qy2 = float(_pp.get("qty") or 1) or 1
+                                _price_krw = float(_pp.get("price") or 0)
+                                _cost_krw = _pp.get("cost")
+                                _fxv = float(_pp.get("fx") or 0)
+                                if _foreign_v and _fxv > 0:
+                                    _up = round(_price_krw / _fxv, 2)
+                                    _cs = (round(float(_cost_krw) / _fxv, 4) if _cost_krw not in (None, "") else None)
+                                    if _so_fx <= 0:
+                                        _so_fx = _fxv
+                                else:
+                                    _up = _price_krw
+                                    _cs = (float(_cost_krw) if _cost_krw not in (None, "") else None)
+                                _amt2 = round(_qy2 * _up, 2); _psum += _amt2
+                                _row = {"order_id": _po_oid, "qty": _qy2,
+                                        "unit_price": _up, "amount": _amt2,
+                                        "cost_price": _cs, "margin_pct": _pp.get("margin"),  # v5H226z460
                                         "unit_label": _pp["name"], "spec": _pp["model"],
                                         "material_no": _pp.get("matno") or None,
                                         "maker": _pp.get("maker") or None,
@@ -21765,17 +21788,33 @@ async def projects_new_submit(request: Request):
                                         "line_note": _pp.get("note") or None,
                                         "currency": _ccy_v,
                                         "order_date": form.get("order_date", "") or None,
-                                        "due_date": form.get("due_date", "") or None,
+                                        "due_date": (_pp.get("due") or form.get("due_date", "") or None),
                                         "unit_status": "CONFIRMED",
                                         "is_export": form.get("is_export", "0")}
+                                if (_ccy_v or "").upper() == "USD" and _foreign_v and _fxv > 0:
+                                    _row["invoice_unit_price_usd"] = _up
+                                    _row["invoice_amount_usd"] = _amt2
                                 _row = {k: v for k, v in _row.items() if k in _oicols}
                                 _cols2 = list(_row.keys()); _ph2 = ",".join("?" * len(_cols2))
                                 c.execute(f"INSERT INTO order_items({','.join(_cols2)}) VALUES({_ph2})",
                                           [_row[k] for k in _cols2])
-                            _psum = round(sum(_p["amount"] for _p in _pk_parts), 2)
+                            _psum = round(_psum, 2)
                             try:
-                                c.execute("UPDATE orders SET total_amount=? WHERE id=?", (_psum, _po_oid))
+                                # z602: 부품 SO 에 통화·환율 저장(상세 KRW 환산 표시) + 프로젝트 금액/원화환산
+                                _ocols2 = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+                                _os, _ov = [], []
+                                if "currency" in _ocols2:
+                                    _os.append("currency=?"); _ov.append(_ccy_v)
+                                if "exchange_rate" in _ocols2 and _so_fx > 0:
+                                    _os.append("exchange_rate=?"); _ov.append(_so_fx)
+                                _os.append("total_amount=?"); _ov.append(_psum); _ov.append(_po_oid)
+                                c.execute(f"UPDATE orders SET {', '.join(_os)} WHERE id=?", _ov)
                                 c.execute("UPDATE projects SET order_amount=? WHERE id=?", (_psum, int(new_pid)))
+                                if _foreign_v and _so_fx > 0:
+                                    _akrw = round(sum((float(_p.get("price") or 0)) * (float(_p.get("qty") or 1))
+                                                      for _p in _pk_parts), 2)
+                                    c.execute("UPDATE projects SET fx_rate=?, amount_krw=? WHERE id=?",
+                                              (_so_fx, _akrw, int(new_pid)))
                             except Exception:
                                 pass
                     except Exception as _e:
