@@ -101,7 +101,11 @@ function renderImportPreview(j) {
       + '<div style="font-size:12px;color:#7c4a03;margin-top:4px;line-height:1.6;">'
       + '· 양식의 데이터 시트(예: T_검사기)에 4행 예시를 지우고 <b>5행부터</b> 입력했는지 확인하세요.</div>';
   } else {
-    sum.innerHTML = '총 <b>' + j.total + '</b>건 · 정상 <b style="color:#2a7a2a;">' + j.valid_count + '</b>건 · 오류 <b style="color:#c33;">' + j.error_count + '</b>건';
+    sum.innerHTML = '총 <b>' + j.total + '</b>건 · 정상 <b style="color:#2a7a2a;">' + j.valid_count + '</b>건 · 오류 <b style="color:#c33;">' + j.error_count + '</b>건'
+      + ((j.dup_count > 0) ? ' · <b style="color:#b45309;">이미 등록됨 ' + j.dup_count + '건(건너뜀)</b>' : '');
+  }
+  if (j.dup_count > 0) {
+    sum.innerHTML += '<div style="font-size:12px;color:#9a3412;margin-top:5px;line-height:1.6;">⤫ 이미 등록된 관리번호 ' + j.dup_count + '건은 <b>중복 방지를 위해 등록에서 제외</b>됩니다(같은 엑셀 재업로드 시 금액·호기가 두 벌 쌓이는 것 방지). 세금계산서 등 수정은 작업일정표/상세에서 하세요.</div>';
   }
   var tb = document.querySelector('#importPreviewTable tbody');
   tb.innerHTML = '';
@@ -109,10 +113,12 @@ function renderImportPreview(j) {
   j.rows.forEach(function(r, idx) {
     var tr = document.createElement('tr');
     var hasErr = r._errors && r._errors.length > 0;
-    tr.style.background = hasErr ? '#fff0f0' : (idx % 2 ? '#fafaf5' : '#fff');
+    tr.style.background = hasErr ? '#fff0f0' : (r._mgmt_exists ? '#fff7ed' : (idx % 2 ? '#fafaf5' : '#fff'));
     var errHtml = hasErr
       ? r._errors.map(function(e){ return '<div style="color:#c33;font-size:11px;">⚠ ' + e + '</div>'; }).join('')
-      : (r._promoted_new
+      : (r._mgmt_exists
+          ? '<span style="color:#b45309;font-size:11px;font-weight:700;">⤫ 이미 등록됨 — 건너뜀</span>'
+          : (r._promoted_new
           ? '<span style="color:#b45309;font-size:11px;font-weight:700;">★ 신규 승격</span>'
           : (r._auto_merge
           ? '<span style="color:#7c3aed;font-size:11px;font-weight:700;">↪ 같은 관리번호 합침</span>'
@@ -120,7 +126,7 @@ function renderImportPreview(j) {
               ? '<span style="color:#1d4ed8;font-size:11px;font-weight:700;">↪ 추가발주</span>'
               : (r._warn
                   ? '<span style="color:#b45309;font-size:11px;font-weight:700;">⚠ ' + escapeHtml(r._warn) + '</span>'
-                  : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>'))));
+                  : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>')))));
     // v5H226z330→z337 (대표 확정): 수주번호(SO) 발행 예정 안내 — 확정 로직과 동일 조건
     //   (추가발주/오류 아님 · 소모품 포함 전 사업부 · 발주일 있으면 발행, 없으면 미발행). 발행 기준일 = 발주일.
     var soHint = '';
@@ -152,7 +158,7 @@ function renderImportPreview(j) {
     tb.appendChild(tr);
   });
   var btn = document.getElementById('importConfirmBtn');
-  var okCount = j.rows.filter(function(r){ return !r._errors || r._errors.length === 0 || r._is_warning_only; }).length;
+  var okCount = j.rows.filter(function(r){ return (!r._errors || r._errors.length === 0 || r._is_warning_only) && !r._mgmt_exists; }).length;
   if (okCount > 0) {
     btn.disabled = false; btn.style.opacity = '1.0';
     btn.textContent = '등록 확정 (' + okCount + '건)';
@@ -167,8 +173,8 @@ function closeImportPreview() {
 }
 async function confirmImport() {
   if (!_importRows.length) return;
-  var send = _importRows.filter(function(r){ return !r._errors || r._errors.length === 0 || r._is_warning_only; });
-  if (!send.length) { alert('등록할 정상 행이 없습니다.'); return; }
+  var send = _importRows.filter(function(r){ return (!r._errors || r._errors.length === 0 || r._is_warning_only) && !r._mgmt_exists; });
+  if (!send.length) { alert('등록할 정상 행이 없습니다. (이미 등록된 관리번호는 중복 방지로 제외됩니다)'); return; }
   var btn = document.getElementById('importConfirmBtn');
   btn.disabled = true; btn.textContent = '등록 중...';
   var r;
@@ -185,6 +191,10 @@ async function confirmImport() {
   }
   if (j.so_warning_count > 0) {
     msg += '\n\n⚠ 수주·호기 생성 실패 ' + j.so_warning_count + '건 (프로젝트는 등록됨)';
+  }
+  // v5H226z597: 이미 등록된 관리번호라 건너뛴 행(재업로드 중복 방지)
+  if (j.skipped_dup_count > 0) {
+    msg += '\n\n⤫ 이미 등록된 관리번호 ' + j.skipped_dup_count + '건은 건너뛰었습니다 (재업로드 중복 방지)';
   }
   // v5H226z330: 발주일 없어 수주번호 미발행한 행 안내 (정보성)
   if (j.so_skipped_count > 0) {

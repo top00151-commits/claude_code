@@ -22704,14 +22704,35 @@ async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...),
         rows = _proj_import_parse_xlsx(body, migrate_mode=_migrate, tab_biz=biz)
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"파싱 실패: {e}"}, 400)
+    # v5H226z597 (대표 지시): 재업로드 중복 사전 경고 — 이미 등록된 관리번호 행을 표시(미리보기 기본 제외 유도).
+    #   추가발주(_followup)는 기존 관리번호를 의도적으로 대상으로 하므로 제외.
+    try:
+        _mcs = list({(r.get("mgmt_code_input") or "").strip().upper() for r in rows
+                     if (r.get("mgmt_code_input") or "").strip() and not r.get("_followup")})
+        _existing = set()
+        if _mcs:
+            with db_session() as c:
+                ph = ",".join("?" * len(_mcs))
+                for er in c.execute(
+                        f"SELECT UPPER(mgmt_code) AS m FROM projects WHERE UPPER(mgmt_code) IN ({ph})",
+                        tuple(_mcs)).fetchall():
+                    _existing.add(er["m"] if isinstance(er, dict) else er[0])
+        for r in rows:
+            _mc = (r.get("mgmt_code_input") or "").strip().upper()
+            r["_mgmt_exists"] = bool(_mc and not r.get("_followup") and _mc in _existing)
+    except Exception:
+        for r in rows:
+            r.setdefault("_mgmt_exists", False)
     valid_count = sum(1 for r in rows if not r["_errors"])
     error_count = sum(1 for r in rows if r["_errors"])
+    dup_count = sum(1 for r in rows if r.get("_mgmt_exists"))
     return JSONResponse({
         "ok": True,
         "rows": rows,
         "total": len(rows),
         "valid_count": valid_count,
         "error_count": error_count,
+        "dup_count": dup_count,
     })
 
 
@@ -22739,6 +22760,7 @@ async def projects_import_confirm(request: Request):
     failed = []
     so_warnings = []   # v5H226z262: SO(수주·호기) 생성 실패를 조용히 삼키지 않고 수집 → 응답·로그로 표면화
     so_skipped = []    # v5H226z330/z337: 발주일 없어 SO(수주번호) 미발행한 신규행(소모품 포함, 정보성 안내) — 조용히 넘기지 않고 수집
+    skipped_dup = []   # v5H226z597 (대표 지시): 이미 등록된 관리번호 — 재업로드 중복 방지로 건너뛴 행(경고)
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
     # v5H226z557 (대표 지시): 거래명세서·세금계산서(1/2/3차)를 '묶음까지 완전 재현'. 행→pid 수집 후 루프 끝에서 발행.
     _ti_rows = []
@@ -22859,6 +22881,16 @@ async def projects_import_confirm(request: Request):
             # v5H226z241 (대표 지시): 소모품(C)은 호기/SO를 안 만들어 자동 코드발급 경로가 없음 →
             #   관리코드가 비면 여기서 C 코드를 직접 발급(있으면 입력값 보존). 장비처럼 관리코드 사용.
             _mc_eff = (r.get("mgmt_code_input") or "").strip().upper()
+            # v5H226z597 (대표 지시): 재업로드 중복 방지 — 명시된 관리번호가 이미 등록돼 있으면
+            #   새 프로젝트·수주(SO)·호기를 만들지 않고 건너뜀(경고). 같은 엑셀을 다시 올려 금액·호기가
+            #   두 벌 쌓이던 문제(033T2507) 차단. 추가발주(_followup)는 위에서 별도 처리되므로 영향 없음.
+            if _mc_eff:
+                with db_session() as c:
+                    _dup = c.execute("SELECT id FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1",
+                                     (_mc_eff,)).fetchone()
+                if _dup:
+                    skipped_dup.append({"row_no": r.get("row_no"), "name": name, "mgmt_code": _mc_eff})
+                    continue
             if biz_div == "C" and not _mc_eff:
                 try:
                     _mc_eff = _logi.generate_mgmt_code("C")
@@ -23077,6 +23109,9 @@ async def projects_import_confirm(request: Request):
         # v5H226z330: 발주일 없어 수주번호(SO) 미발행한 행(정보성) — 화면에서 안내 노출
         "so_skipped_count": len(so_skipped),
         "so_skipped": so_skipped,
+        # v5H226z597: 이미 등록된 관리번호라 건너뛴 행(재업로드 중복 방지) — 화면 경고
+        "skipped_dup_count": len(skipped_dup),
+        "skipped_dup": skipped_dup,
         # v5H226z557: 세금계산서 묶음 발행 결과
         "ti_made": ti_made, "ti_lines": ti_lines, "ti_warns": ti_warns,
     })
