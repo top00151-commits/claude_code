@@ -50,7 +50,7 @@ table.ch tbody tr:hover td{background:#fcfaf3;}
       <div class="ch-kpi {{ 'warn' if summary.unlinked_proj else 'ok' }}"><div class="n">{{ summary.unlinked_proj }}</div><div class="l">고객사 미연결 프로젝트</div></div>
       <div class="ch-kpi {{ 'warn' if summary.unlinked_co else 'ok' }}"><div class="n">{{ summary.unlinked_co }}</div><div class="l">고객사 미연결 소모품수주</div></div>
       <div class="ch-kpi {{ 'warn' if summary.unlinked_tax else 'ok' }}"><div class="n">{{ summary.unlinked_tax }}</div><div class="l">고객사 미연결 세금계산서</div></div>
-      <div class="ch-kpi {{ 'bad' if summary.ti_mismatch else 'ok' }}"><div class="n">{{ summary.ti_mismatch }}</div><div class="l">세금계산서↔원천 불일치</div></div>
+      <div class="ch-kpi {{ 'bad' if summary.ti_mismatch else 'ok' }}"><div class="n">{{ summary.ti_mismatch }}</div><div class="l">세금계산서↔원천 불일치<br><span style="font-weight:600;color:#94a3b8;">🔴재배정 {{ summary.ti_repurposed }} · 🟠덮어쓰기 {{ summary.ti_overwritten }}</span></div></div>
     </div>
 
     {# ① 마스터 중복 #}
@@ -117,15 +117,21 @@ table.ch tbody tr:hover td{background:#fcfaf3;}
     {# ④ 세금계산서 불일치 #}
     <div class="ch-card">
       <h3>④ 세금계산서 ↔ 원천 고객사명 불일치 <span class="ch-key">(최대 300건 표시)</span></h3>
-      <div class="sub">발행된 세금계산서 라인의 고객사명과, 그 라인이 가리키는 <b>프로젝트/소모품의 현재 고객사명</b>이 정규화해도 다른 경우. 발행 후 원천 이름을 바꿨거나 표기가 갈린 흔적.</div>
+      <div class="sub">
+        발행된 세금계산서가 가리키는 <b>원천 레코드(ref_id=행번호)의 현재 고객사</b>가 발행 당시와 다른 경우.<br>
+        <b style="color:#b91c1c;">🔴 재배정 {{ summary.ti_repurposed }}건</b> = ref_id가 <b>다른 관리번호</b>를 가리킴(예전 데이터 재업로드로 행 id가 바뀐 흔적 — 세금계산서가 통째로 엉뚱한 건에 붙음).
+        <b style="color:#b45309;">🟠 덮어쓰기 {{ summary.ti_overwritten }}건</b> = 관리번호는 같은데 고객사만 바뀜.
+      </div>
       {% if ti_mismatch %}
       <table class="ch">
-        <thead><tr><th style="width:130px;">세금계산서</th><th style="width:120px;">관리번호</th><th>세금계산서상 고객사</th><th>원천(현재) 고객사</th></tr></thead>
+        <thead><tr><th style="width:78px;">판정</th><th style="width:120px;">세금계산서</th><th style="width:120px;">발행당시 관리번호</th><th style="width:130px;">지금 ref_id 관리번호</th><th>발행당시 고객사</th><th>지금 가리키는 고객사</th></tr></thead>
         <tbody>
         {% for m in ti_mismatch %}
           <tr>
+            <td>{% if m.diag == '재배정' %}<span class="ch-tag" style="background:#fee2e2;color:#b91c1c;border-color:#fecaca;">🔴 재배정</span>{% else %}<span class="ch-tag">🟠 덮어쓰기</span>{% endif %}</td>
             <td class="ch-key">{{ m.ti_no or '—' }}</td>
-            <td class="ch-key">{{ m.mgmt or '—' }}</td>
+            <td class="ch-key">{{ m.snap_mgmt or '—' }}</td>
+            <td class="ch-key {% if m.diag == '재배정' %}ch-bad{% endif %}">{{ m.cur_mgmt or '—' }}</td>
             <td><span class="ch-tag">{{ m.line }}</span></td>
             <td><span class="ch-arrow">→</span> <span class="ch-tag">{{ m.src }}</span></td>
           </tr>

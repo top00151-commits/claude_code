@@ -7350,6 +7350,7 @@ async def admin_customer_health(req: Request):
     custs = []
     master_dups, proj_split, co_split, ti_mismatch = [], [], [], []
     unlinked = {"projects": 0, "consumables": 0, "tax": 0}
+    ti_repurposed = ti_overwritten = 0
     with db_session() as c:
         # A. 고객사 마스터 중복 의심 — 정규화 키는 같은데 등록명이 둘 이상
         custs = [dict(r) for r in c.execute("SELECT id, name FROM customers ORDER BY name").fetchall()]
@@ -7410,28 +7411,41 @@ async def admin_customer_health(req: Request):
         try:
             for r in c.execute(
                 "SELECT ti.ti_no AS ti_no, l.ref_kind AS rk, l.ref_id AS rid, "
-                "       l.customer AS line_cust, l.mgmt_code AS mgmt "
+                "       l.customer AS line_cust, l.mgmt_code AS snap_mgmt "
                 "FROM tax_invoices ti JOIN tax_invoice_lines l ON l.ti_id=ti.id "
                 "WHERE COALESCE(ti.status,'')<>'취소'"):
                 rk, rid = r["rk"], r["rid"]
-                src = None
+                # 지금 ref_id(행번호)가 가리키는 레코드의 '현재' 관리번호 + 고객사
+                cur_mgmt, cur_cust = None, None
                 try:
                     if rk == "consumable":
-                        src = c.execute("SELECT customer_name FROM consumable_orders WHERE id=?", (rid,)).fetchone()
+                        rr = c.execute("SELECT mgmt_code, customer_name FROM consumable_orders WHERE id=?", (rid,)).fetchone()
                     else:
-                        src = c.execute("SELECT customer_name FROM projects WHERE id=?", (rid,)).fetchone()
+                        rr = c.execute("SELECT mgmt_code, customer_name FROM projects WHERE id=?", (rid,)).fetchone()
+                    if rr:
+                        cur_mgmt, cur_cust = rr[0], rr[1]
                 except Exception:
-                    src = None
-                src_nm = (src[0] if src else None)
+                    pass
                 lc = r["line_cust"]
-                if src_nm and lc and lc != "—" and _nc(src_nm) != _nc(lc):
-                    ti_mismatch.append({"ti_no": r["ti_no"], "mgmt": r["mgmt"],
-                                        "line": lc, "src": src_nm})
+                snap = r["snap_mgmt"]
+                if cur_cust and lc and lc != "—" and _nc(cur_cust) != _nc(lc):
+                    # 판정: ref_id 가 다른 관리번호를 가리키면 '행번호 재배정'(재업로드로 id 바뀜),
+                    #       관리번호는 같은데 고객사만 다르면 '고객사 덮어쓰기'.
+                    repurposed = bool(cur_mgmt and snap and _nc(cur_mgmt) != _nc(snap))
+                    if repurposed:
+                        ti_repurposed += 1
+                    else:
+                        ti_overwritten += 1
+                    ti_mismatch.append({"ti_no": r["ti_no"], "snap_mgmt": snap or "—",
+                                        "cur_mgmt": cur_mgmt or "—", "line": lc, "src": cur_cust,
+                                        "diag": "재배정" if repurposed else "덮어쓰기"})
         except Exception:
             pass
 
     proj_split.sort(key=lambda x: -x["total"])
     co_split.sort(key=lambda x: -x["total"])
+    # 재배정(행번호 어긋남)을 위로 — 더 위험
+    ti_mismatch.sort(key=lambda x: 0 if x["diag"] == "재배정" else 1)
     summary = {
         "customers": len(custs),
         "master_dups": len(master_dups),
@@ -7441,6 +7455,8 @@ async def admin_customer_health(req: Request):
         "unlinked_co": unlinked["consumables"],
         "unlinked_tax": unlinked["tax"],
         "ti_mismatch": len(ti_mismatch),
+        "ti_repurposed": ti_repurposed,
+        "ti_overwritten": ti_overwritten,
     }
     return ctx(req, "admin_customer_health.html", user=u, summary=summary,
                master_dups=master_dups, proj_split=proj_split,
