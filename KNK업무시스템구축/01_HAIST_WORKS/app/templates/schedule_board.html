@@ -452,6 +452,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
     {# v5H226z547 (대표 지시): 보조 도구 접이 버튼(⚙ 도구) — 우측 그룹 시작(margin-left:auto). 범례는 도구 패널로 이동. #}
     <button type="button" class="sched-gear" onclick="toggleSchedTools(event)" style="margin-left:auto;" title="보기·표설정·정렬·묶어발행 도구 열기"><span class="ti">⚙</span> 도구 ▾</button>
     <a href="/dept/schedule" data-no-swap title="부서 일정표 — 부서별 진행/완료/변경 기록" style="text-decoration:none;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;"><span class="ti">🗓</span> 부서 일정표</a>
+    {# v5H226z590 (대표 지시): 저장 상태 표시 + 수동 저장(확인용). 자동저장은 그대로 — 사용자가 '저장됐는지' 헷갈리는 문제 해결. #}
+    <span id="sbSaveState" title="작업 일정표의 모든 수정은 입력 즉시 자동 저장됩니다." style="display:inline-flex;align-items:center;gap:5px;background:#edfaf1;color:#15803d;border:1px solid #7fc49b;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:700;white-space:nowrap;"><span class="ti">✅</span><span id="sbSaveStateTxt">자동 저장됨</span></span>
+    <button type="button" id="sbSaveBtn" onclick="sbManualSave()" title="지금 입력 중인 칸을 저장 반영하고 확인합니다. (모든 수정은 평소에도 자동 저장됩니다)" style="background:#1d4ed8;color:#fff;border:1px solid #1d4ed8;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">💾</span> 저장</button>
     {# v5H226z395 (대표 지시): '엑셀로 저장'을 상단 우측 '신규 등록' 왼쪽으로 이동 + 약간 녹색 계열. #}
     <button type="button" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust={{ cust|urlencode }}'" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">📥</span> 엑셀로 저장</button>
     {# v5H226z347→z395 (대표 지시): 신규 등록 — 우측 끝(엑셀 버튼이 margin-left:auto 를 맡으므로 여긴 기본 gap 간격) #}
@@ -1604,7 +1607,24 @@ function saveMemo(){
 }
 
 let _toastT=null;
-function toast(msg){ const t=document.getElementById('schedToast'); if(!t)return; t.textContent=msg; t.classList.add('show'); clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove('show'),1800); }
+function toast(msg){ const t=document.getElementById('schedToast'); if(!t)return; t.textContent=msg; t.classList.add('show'); clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove('show'),1800);
+  // v5H226z590: 저장 성공 토스트('저장됨' 포함·'실패' 제외)면 저장 상태 표시기 시각 갱신 — 모든 저장 경로를 한 곳에서 잡음
+  if(typeof msg==='string' && msg.indexOf('저장됨')>=0 && msg.indexOf('실패')<0){ try{ sbMarkSaved(); }catch(e){} }
+}
+// ===== v5H226z590 (대표 지시): 저장 상태 표시 + 수동 저장 버튼 (자동저장은 그대로·확인용) =====
+function _sbNow(){ var d=new Date(); function p(n){return (n<10?'0':'')+n;} return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds()); }
+function sbMarkSaved(){
+  var s=document.getElementById('sbSaveState'), t=document.getElementById('sbSaveStateTxt'); if(!s||!t) return;
+  t.textContent='저장됨 · '+_sbNow();
+  s.style.background='#dcfce7'; s.style.borderColor='#4ade80';   // 잠깐 진한 초록으로 강조
+  clearTimeout(window._sbSaveFlash); window._sbSaveFlash=setTimeout(function(){ s.style.background='#edfaf1'; s.style.borderColor='#7fc49b'; },1200);
+}
+function sbManualSave(){
+  // 입력 중인 칸(셀/드롭다운)을 커밋 → blur 시 기존 저장 발동. 팝업(단가/메모)은 각자의 '저장' 버튼 사용.
+  try{ var a=document.activeElement; if(a && a.blur && (a.tagName==='INPUT'||a.tagName==='SELECT'||a.tagName==='TEXTAREA')) a.blur(); }catch(e){}
+  setTimeout(function(){ toast('✅ 모두 저장되었습니다 — 수정은 입력 즉시 자동 저장됩니다'); sbMarkSaved(); }, 120);
+}
+window.sbManualSave=sbManualSave;
 
 // ===== z270: 단계 패널 =====
 let _stagePanel=null;
