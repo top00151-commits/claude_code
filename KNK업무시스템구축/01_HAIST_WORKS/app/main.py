@@ -18453,6 +18453,9 @@ _PRODBULK_PARTCOLS = [
     # 매입단가·마진%는 판매단가('단가')보다 먼저 평가 (매입단가에 '단가' substring 포함)
     ("cost_price",  ["매입단가", "매입가", "구매단가", "원가단가", "원가", "COST", "BUYINGPRICE", "PURCHASEPRICE"]),
     ("margin_pct",  ["마진율", "마진%", "마진", "MARGIN", "MARKUP"]),
+    # z596: '인보이스단가(USD)'·'환율'은 '판매단가'(단가 substring 충돌)보다 먼저 평가해야 정확 매칭
+    ("invoice_usd", ["인보이스단가", "인보이스", "INVOICE", "USD단가"]),
+    ("fx_rate",     ["환율", "EXCHANGE", "FX"]),
     ("unit_price",  ["판매단가", "단가", "UNITPRICE", "PRICE"]),
     ("due_date",    ["납기", "납품일", "DUE", "DELIVERY", "ETA"]),
     ("line_note",   ["비고", "REMARK", "NOTE", "메모"]),
@@ -18534,18 +18537,40 @@ def _parse_product_bulk_xlsx(path):
         except Exception:
             return 0.0
 
+    # z596 (대표 지시): 수출·외화 건은 매입→마진→판매를 KRW로 계산한 뒤 '환율'로 외화 인보이스 단가 산출.
+    #   저장 기준=주문 통화(USD 등): 판매단가=인보이스(외화), 원가=매입KRW÷환율(마진% 그대로 성립).
+    #   매입KRW·환율은 별도 필드로 함께 보관(projects.fx_rate/amount_krw + 미리보기 표시).
+    ccy = (str(proj.get("currency") or "KRW").strip().upper() or "KRW")
+    foreign = ccy != "KRW"
     lines = []
     pn_col = colmap["part_name"]
     for r in range(hdr_row + 1, maxr + 1):
         pn = ws.cell(r, pn_col).value
         if pn is None or str(pn).strip() == "":
             continue
-        cost = gnum(r, "cost_price")
-        margin = gnum(r, "margin_pct")
-        sell = gnum(r, "unit_price")
-        if sell <= 0 and cost > 0 and margin != 0:
-            sell = round(cost * (1 + margin / 100.0))
         qty = gnum(r, "qty") or 1
+        cost_krw = gnum(r, "cost_price")     # 매입단가(KRW)
+        margin = gnum(r, "margin_pct")
+        sell_krw = gnum(r, "unit_price")     # 판매단가(KRW)
+        if sell_krw <= 0 and cost_krw > 0 and margin != 0:
+            sell_krw = round(cost_krw * (1 + margin / 100.0))
+        fx = gnum(r, "fx_rate")              # 환율 (1 외화 = ? 원)
+        inv = gnum(r, "invoice_usd")         # 인보이스 단가(외화)
+        if foreign:
+            if fx <= 0 and sell_krw > 0 and inv > 0:   # 환율 비면 판매KRW/인보이스 로 역산
+                try:
+                    fx = round(sell_krw / inv, 4)
+                except Exception:
+                    fx = 0
+            if inv <= 0 and fx > 0 and sell_krw > 0:    # 인보이스 비면 판매KRW/환율 로 산출
+                inv = round(sell_krw / fx, 2)
+            cost_store = (round(cost_krw / fx, 4) if (cost_krw > 0 and fx > 0) else None)
+            unit_final = inv
+            amount = round(qty * inv, 2)
+        else:
+            cost_store = (cost_krw if cost_krw > 0 else None)
+            unit_final = sell_krw
+            amount = round(qty * sell_krw, 2)
         lines.append({
             "part_name": str(pn).strip(),
             "spec": str(gv(r, "spec") or "").strip(),
@@ -18553,10 +18578,16 @@ def _parse_product_bulk_xlsx(path):
             "supplier": str(gv(r, "supplier") or "").strip(),
             "material_no": str(gv(r, "material_no") or "").strip(),
             "qty": qty,
-            "cost_price": (cost if cost > 0 else None),
-            "margin_pct": (margin if cost > 0 else None),
-            "unit_price": sell,
-            "amount": round(qty * sell, 2),
+            # 보관용(KRW 원본 + 환율 + 외화 인보이스)
+            "cost_krw": (cost_krw if cost_krw > 0 else None),
+            "sell_krw": (sell_krw if sell_krw > 0 else None),
+            "fx_rate": (fx if fx > 0 else None),
+            "invoice_usd": (inv if (foreign and inv > 0) else None),
+            # 저장 기준(주문 통화)
+            "cost_price": cost_store,
+            "margin_pct": (margin if cost_krw > 0 else None),
+            "unit_price": unit_final,
+            "amount": amount,
             "due_date": _prodbulk_fmt_date(gv(r, "due_date")),
             "line_note": str(gv(r, "line_note") or "").strip(),
         })
@@ -18611,21 +18642,34 @@ def _build_product_bulk_template_buf():
     dv_ccy.add("B9"); dv_trade.add("B10"); dv_po.add("B11")
     # 부품 표 (한 줄 띄우고)
     phr = r0 + len(hdr_rows) + 1
+    # z596 (대표 지시): 매입→마진→판매(KRW) 계산 후 '환율'로 'USD 인보이스 단가' 산출 칸 추가.
     pheaders = ["자재번호", "자재품명*", "규격(모델)", "제작사", "공급사", "수량",
-                "매입단가", "마진%", "판매단가(자동)", "납기", "비고"]
-    widths = [12, 22, 16, 12, 12, 7, 12, 8, 14, 12, 18]
+                "매입단가\n(KRW)", "마진%", "판매단가(자동)\n(KRW)", "환율",
+                "인보이스단가\n(USD)", "납기", "비고"]
+    widths = [12, 20, 16, 11, 11, 7, 13, 7, 14, 9, 14, 12, 16]
     for ci, (h, w) in enumerate(zip(pheaders, widths), 1):
         c = ws.cell(phr, ci, h); c.font = white; c.fill = knk
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True); c.border = border
         ws.column_dimensions[c.column_letter].width = w
     ws.freeze_panes = ws.cell(phr + 1, 1)
-    ex = [
-        ["MAT-001", "실린더 CDQ2B", "CDQ2B32-50DZ", "SMC", "대성공압", 2, 85000, 20, 102000, "2026-07-15", "예시 — 삭제 후 작성"],
-        ["MAT-002", "근접센서", "E2E-X5ME1", "Omron", "한국오므론", 4, 12000, 30, 15600, "", "희소부품 마진↑ 예시"],
+    # 예시 2줄 — 판매단가(I)=매입×(1+마진%) · 인보이스(K)=판매KRW÷환율(자동 수식). 통화 USD면 K가 주문 단가.
+    ex_static = [
+        ["MAT-001", "실린더 CDQ2B", "CDQ2B32-50DZ", "SMC", "대성공압", 2, 85000, 20],
+        ["MAT-002", "근접센서", "E2E-X5ME1", "Omron", "한국오므론", 4, 12000, 30],
     ]
-    for ri, row in enumerate(ex):
-        for ci, v in enumerate(row, 1):
-            ws.cell(phr + 1 + ri, ci, v).font = info
+    ex_tail = [
+        (1456.51, "2026-07-15", "예시 — 삭제 후 작성 (통화 USD면 인보이스=판매KRW÷환율)"),
+        (1456.51, "", "내수(KRW)면 환율·인보이스 칸은 비워두세요"),
+    ]
+    for ri in range(len(ex_static)):
+        rr = phr + 1 + ri
+        for ci, v in enumerate(ex_static[ri], 1):       # A~H (자재~마진%)
+            ws.cell(rr, ci, v).font = info
+        ws.cell(rr, 9, f"=G{rr}*(1+H{rr}/100)").font = info                 # 판매단가(KRW)
+        ws.cell(rr, 10, ex_tail[ri][0]).font = info                        # 환율
+        ws.cell(rr, 11, f'=IF(J{rr}>0,ROUND(I{rr}/J{rr},2),"")').font = info  # 인보이스단가(USD)
+        ws.cell(rr, 12, ex_tail[ri][1]).font = info                        # 납기
+        ws.cell(rr, 13, ex_tail[ri][2]).font = info                        # 비고
     # 작성안내 시트
     ws2 = wb.create_sheet("작성안내")
     guide = [
@@ -18633,8 +18677,10 @@ def _build_product_bulk_template_buf():
         ["기본 구조", "한 파일 = 상품 1건. 위쪽 '프로젝트 정보'(관리번호·고객사·프로젝트명 등) + 아래 '부품 표' 여러 줄."],
         ["관리번호", "비우면 발주일 기준 자동발급(사업부=업로드한 탭). 있으면 그 코드 사용(중복 시 오류). 4번째 글자=사업부(T/M/L/E)."],
         ["고객사1", "필수. 시스템에 등록된 고객사명과 정확히 일치해야 자동연결(미일치 시 미연결로 표시 — 등록 후 상세에서 연결)."],
-        ["매입단가 / 마진%", "구매팀 PART LIST의 매입단가와 붙일 마진%. 판매단가 = 매입단가 × (1+마진%). 판매단가를 직접 적으면 그 값을 우선."],
-        ["판매단가(자동)", "비워두면 매입단가×마진으로 자동 계산. 마진을 비우면 '판매가 미정'으로 등록되고, 등록 후 상세에서 마진 정리."],
+        ["매입단가 / 마진%", "구매팀 PART LIST의 매입단가(KRW)와 붙일 마진%. 판매단가(KRW) = 매입단가 × (1+마진%). 판매단가를 직접 적으면 그 값을 우선."],
+        ["판매단가(자동)(KRW)", "비워두면 매입단가×마진으로 자동 계산. 마진을 비우면 '판매가 미정'으로 등록되고, 등록 후 상세에서 마진 정리."],
+        ["환율 / 인보이스단가(USD)", "수출(통화=USD 등)일 때만. 환율 = 1 외화가 몇 원인지(예: 1456.51). 인보이스단가(USD) = 판매단가(KRW) ÷ 환율(자동). 통화를 USD로 두면 이 인보이스가가 주문 '판매단가'가 됩니다. 내수(KRW)면 두 칸은 비워두세요."],
+        ["원가(매입) 보관", "통화가 외화면 원가는 환율로 외화 환산해 저장(마진% 그대로 성립). 매입단가(KRW)·환율은 프로젝트에 함께 보관됩니다."],
         ["수량", "부품별 수량. 금액 = 수량 × 판매단가. 합계가 상품(프로젝트) 수주금액."],
         ["납기", "부품별 납기(YYYY-MM-DD). 비우면 위 프로젝트 '납기' 상속."],
         ["주의", "부품 표의 '예시' 2줄은 삭제 후 작성하세요. 매입단가·마진은 영업·관리 권한자만 보입니다."],
@@ -18725,6 +18771,10 @@ async def projects_import_product_parse(request: Request,
         errors.append(f"관리번호 {mgmt} 이미 존재 — 비우면 자동발급됩니다")
     total = round(sum(float(l.get("amount") or 0) for l in lines), 2)
     cost_total = round(sum((float(l.get("cost_price") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
+    # z596: 미리보기용 — 매입합계·판매합계는 KRW 원본으로, 환율 1건 표기
+    cost_total_krw = round(sum((float(l.get("cost_krw") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
+    amount_krw = round(sum((float(l.get("sell_krw") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
+    fx_rate = next((float(l["fx_rate"]) for l in lines if l.get("fx_rate")), None)
     npriced = sum(1 for l in lines if float(l.get("unit_price") or 0) <= 0)
     proj_out = {
         "mgmt_code": mgmt,
@@ -18740,6 +18790,8 @@ async def projects_import_product_parse(request: Request,
     }
     return JSONResponse({"ok": True, "project": proj_out, "lines": lines,
                          "total": total, "cost_total": cost_total,
+                         "cost_total_krw": cost_total_krw, "amount_krw": amount_krw,
+                         "fx_rate": fx_rate,
                          "cust_matched": cust_matched, "n_unpriced": npriced,
                          "errors": errors, "biz": (biz or "").strip().upper()})
 
@@ -18773,6 +18825,9 @@ async def projects_import_product_confirm(request: Request):
     due_date = _prodbulk_fmt_date(proj.get("due_date"))
     po_type = (str(proj.get("po_type") or "신규").strip() or "신규")
     total = round(sum(float(l.get("amount") or 0) for l in lines), 2)
+    # z596 (대표 지시): 외화(USD 등) — 기준환율 + 원화 환산금액 보관(매입KRW·환율 보존)
+    fx_rate = next((float(l["fx_rate"]) for l in lines if l.get("fx_rate")), None)
+    amount_krw = round(sum((float(l.get("sell_krw") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
     try:
         new_pid, new_code = _logi.projects_create_logi({
             "_changed_by": u.get("id"),
@@ -18789,6 +18844,8 @@ async def projects_import_product_confirm(request: Request):
             "currency": ccy,
             "is_export": is_export,
             "order_amount": total,
+            "fx_rate": (fx_rate if ccy != "KRW" else None),
+            "amount_krw": (amount_krw if (ccy != "KRW" and amount_krw > 0) else None),
             "unit_qty": 1,
             "unit_price": None,
             "order_date": order_date,
@@ -18834,6 +18891,10 @@ async def projects_import_product_confirm(request: Request):
                         "unit_status": "CONFIRMED",
                         "is_export": is_export,
                     }
+                    # z596: USD 수출 — 인보이스 단가/금액(USD) 칸도 채움(단가=USD 인보이스가)
+                    if ccy == "USD":
+                        row["invoice_unit_price_usd"] = sell
+                        row["invoice_amount_usd"] = amt
                     row = {k: v for k, v in row.items() if k in oicols}
                     cols = list(row.keys()); ph = ",".join("?" * len(cols))
                     c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])

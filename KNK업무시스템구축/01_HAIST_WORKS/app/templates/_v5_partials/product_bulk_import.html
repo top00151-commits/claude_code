@@ -45,9 +45,11 @@
             <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6ddec;">제작사</th>
             <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6ddec;">공급사</th>
             <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;">수량</th>
-            <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;background:#fff7ed;">매입단가</th>
+            <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;background:#fff7ed;">매입단가(KRW)</th>
             <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;background:#fff7ed;">마진%</th>
-            <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;">판매단가</th>
+            <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;">판매단가(KRW)</th>
+            <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;">환율</th>
+            <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;background:#eef6ff;">인보이스(USD)</th>
             <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;">금액</th>
           </tr>
         </thead>
@@ -119,15 +121,21 @@
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;">' + pbEsc(l.maker||'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;">' + pbEsc(l.supplier||'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;">' + pbFmt(l.qty) + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#fff7ed;">' + (l.cost_price?pbFmt(l.cost_price):'-') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#fff7ed;">' + (l.cost_krw?pbFmt(l.cost_krw):'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#fff7ed;">' + ((l.margin_pct!=null)?(l.margin_pct + '%'):'-') + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;' + (unpriced?'color:#b45309;':'font-weight:600;') + '">' + (unpriced?'미정':pbFmt(l.unit_price)) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;">' + (l.sell_krw?pbFmt(l.sell_krw):(unpriced?'<span style="color:#b45309;">미정</span>':pbFmt(l.unit_price))) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;color:#64748b;">' + (l.fx_rate?Number(l.fx_rate).toLocaleString('en-US'):'-') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#eef6ff;font-weight:600;color:#1d4ed8;">' + (l.invoice_usd?pbFmt(l.invoice_usd):'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;font-weight:600;">' + pbFmt(l.amount) + '</td>';
       tb.appendChild(tr);
     });
     var tot = document.getElementById('pbTotals');
     var unp = j.n_unpriced || 0;
-    tot.innerHTML = '부품 ' + (j.lines||[]).length + '건 · 매입합계 <b style="color:#c2410c;">' + pbFmt(j.cost_total) + '</b> · 판매합계(수주금액) <b style="color:#1d4ed8;font-size:15px;">' + pbFmt(j.total) + '</b> ' + pbEsc(p.currency||'KRW')
+    var _ccy = (p.currency||'KRW');
+    tot.innerHTML = '부품 ' + (j.lines||[]).length + '건 · 매입합계(KRW) <b style="color:#c2410c;">' + pbFmt(j.cost_total_krw!=null?j.cost_total_krw:j.cost_total) + '</b>'
+      + (j.fx_rate ? (' · 환율 <b>' + Number(j.fx_rate).toLocaleString('en-US') + '</b>') : '')
+      + ' · 판매합계(수주금액) <b style="color:#1d4ed8;font-size:15px;">' + pbFmt(j.total) + '</b> ' + pbEsc(_ccy)
+      + ((_ccy!=='KRW' && j.amount_krw) ? (' <span style="color:#64748b;">(≈ ₩' + pbFmt(j.amount_krw) + ')</span>') : '')
       + (unp ? ('<br><span style="color:#b45309;font-weight:600;font-size:12px;">⚠ 판매단가 미정 ' + unp + '건 — 등록 후 상세에서 마진 정리하면 채워집니다</span>') : '');
     var btn = document.getElementById('pbConfirmBtn');
     // 치명 오류(고객사·부품 없음)면 확정 막음. 미연결·미정은 경고만(등록 허용).
