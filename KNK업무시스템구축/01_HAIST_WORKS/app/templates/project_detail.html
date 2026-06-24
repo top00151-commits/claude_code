@@ -179,9 +179,16 @@ body.so-fs-on { overflow: hidden; }
 .def dt { color: #94a3b8; font-weight: 700; font-size: 10.5px; letter-spacing: 0.2px; padding: 11px 8px 9px 0; border-bottom: 1px solid var(--line); }
 .def dd { color: var(--ink); font-weight: 600; margin: 0; padding: 9px 24px 9px 0; border-bottom: 1px solid var(--line); }
 @media (max-width: 1280px) { .def { grid-template-columns: 88px 1fr 88px 1fr; } }
+/* v5H226z648 (대표 지시): 윗줄 4칸(관리번호·고객사·PO유형·수주번호↓) — .def 와 같은 표 스타일, 4쌍/행 */
+.def-top { display: grid; grid-template-columns: 80px 1fr 80px 1fr 80px 1fr 80px 1fr; gap: 0; font-size: 13px; align-items: stretch; }
+.def-top dt { color: #94a3b8; font-weight: 700; font-size: 10.5px; letter-spacing: 0.2px; padding: 11px 8px 9px 0; border-bottom: 1px solid var(--line); }
+.def-top dd { color: var(--ink); font-weight: 600; margin: 0; padding: 9px 18px 9px 0; border-bottom: 1px solid var(--line); }
+.proj-info-left { min-width: 0; }
+@media (max-width: 1280px) { .def-top { grid-template-columns: 80px 1fr 80px 1fr; } }
+@media (max-width: 900px) { .def-top { grid-template-columns: 76px 1fr; } }
 /* v5H226z643 (대표 지시): 수주액(단가×수량·호기별 금액=가변높이)을 오른쪽 세로 칸으로 분리 → 호기 많아도 왼쪽 필드 그리드 높이 영향 없음 */
 .proj-info-2col { display: grid; grid-template-columns: 1fr 300px; gap: 12px 22px; align-items: start; }
-.proj-info-2col > .def { align-self: start; }
+.proj-info-2col > .proj-info-left { align-self: start; }
 .def-amt { background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; align-self: start; }
 .def-amt dt { color: var(--mute); font-weight: 600; font-size: 12px; margin-top: 10px; }
 .def-amt dt:first-child { margin-top: 0; }
@@ -1998,78 +2005,36 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
       <div class="section-card">
         <h3>프로젝트 정보</h3>
         <div class="proj-info-2col">
-        <dl class="def">
-          <dt>관리코드</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
-          <dt>수주번호</dt><dd>
-            {% if project_orders %}
-              {% for so in project_orders %}<span style="font-family:monospace;color:var(--knk-red);font-weight:700;">{{ so.order_no }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
-            {% else %}—{% endif %}
-          </dd>
-          {# v5H185: 우측 패널은 정보 확인만. 수정은 상단 타이틀 옆 ✏️ + SO 영역 툴바에서. #}
-          <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
-          {# v5H226z634 (대표 지시): 모델명·장비명도 공통 정보로 표시 #}
-          <dt>모델명</dt><dd>{{ p.model_name|default('—') }}</dd>
-          <dt>장비명</dt><dd>{{ p.equip_name|default('—') }}</dd>
+        <div class="proj-info-left">
+        {# v5H226z648 (대표 지시): 윗줄 4칸 — 관리번호·고객사·PO유형·수주번호(여러 개면 세로 나열) #}
+        <dl class="def-top">
+          <dt>관리번호</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
           <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}</dd>
-          {% if p.two_tier_order %}
-          <dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer|default('—') }}</dd>
-          {% endif %}
+          <dt>PO유형</dt><dd>{% set _pt2 = p.po_type|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}</dd>
+          <dt>수주번호</dt><dd>{% if project_orders %}{% for so in project_orders %}<div style="font-family:monospace;color:var(--knk-red);font-weight:700;line-height:1.5;">{{ so.order_no }}</div>{% endfor %}{% else %}—{% endif %}</dd>
+        </dl>
+        {# v5H226z648 (대표 지시): 본문 3열 — 프로젝트명/사업부/형태 · 모델명/거래구분/상태 · 장비명/제안서/견적서. (유형·단계·발주일·납기·통화·비고 제거) #}
+        <dl class="def">
+          <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
-          {# v5H138: 프로젝트 유형 pill (사이드 패널) #}
-          {# v5H226z645 (대표 지시): 유형 — 아이콘 칩 대신 텍스트로 확실하게 #}
-          <dt>유형</dt><dd>{% set _pt = (p.project_type or 'NEW_EQUIP')|upper %}{% if _pt == 'NEW_EQUIP' %}신규 장비{% elif _pt == 'CONSUMABLE' %}소모품·부품{% elif _pt == 'SERVICE' %}수리·유지보수{% elif _pt == 'OTHER' %}기타{% else %}{{ p.project_type }}{% endif %}</dd>
-          {# v5H226z448 (대표 지시): 등록폼과 동일하게 '형태'·'PO유형'도 표시 #}
-          {# v5H226z645 (대표 지시): 형태 — 아이콘 칩 대신 텍스트로. 4종 완제품/제품/상품/기타(미설정=완제품) #}
-          <dt>형태</dt><dd>
-            {% set _sf2 = (p.shipment_form or '')|upper %}
-            {% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품
-            {% elif _sf2 == 'PARTS' %}상품
-            {% elif _sf2 == 'ETC' %}기타
-            {% elif _sf2 == 'SEMI' %}제품
-            {% else %}완제품{% endif %}
-          </dd>
-          <dt>PO유형</dt><dd>
-            {% set _pt2 = p.po_type|default('신규') %}
-            {% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>
-            {% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}
-          </dd>
-          {% if parent_project %}
-          <dt>연관 관리번호</dt><dd>
-            <a href="/project/{{ parent_project.id }}"
-               style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">
-              {{ parent_project.mgmt_code|default('#'~parent_project.id) }}
-            </a>
-            <span style="font-size:11px;color:var(--mute);"> · {{ parent_project.name }}</span>
-          </dd>
-          {% endif %}
-          <dt>거래 구분</dt><dd>
-            {% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}
-          </dd>
-          <dt>단계</dt><dd>{{ p.stage|default('—') }}</dd>
-          {# v5H200: 상태는 호기별 상태로부터 자동 집계 (A안). 분포 칩 항상 노출 — 취소/보류 0건도 표시 #}
+          {# v5H226z645: 형태 텍스트(완제품/제품/상품/기타/소모품·미설정=완제품) #}
+          <dt>형태</dt><dd>{% set _sf2 = (p.shipment_form or '')|upper %}{% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품{% elif _sf2 == 'PARTS' %}상품{% elif _sf2 == 'ETC' %}기타{% elif _sf2 == 'SEMI' %}제품{% else %}완제품{% endif %}</dd>
+          <dt>모델명</dt><dd>{{ p.model_name|default('—') }}</dd>
+          <dt>거래 구분</dt><dd>{% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}</dd>
+          {# v5H200/z645: 상태 pill + 1줄 분포(진행/완료/취소/보류) #}
           {% set _pds = project_display_status|default({'label': p.status|default('—'), 'tone':'muted', 'dist': {'진행중':0,'출하':0,'취소':0,'보류':0}, 'total': 0}) %}
-          <dt>상태</dt><dd>
-            <span class="pill {% if _pds.tone == 'done' %}pill-done{% elif _pds.tone == 'danger' %}pill-danger{% elif _pds.tone == 'warn' %}pill-warn{% elif _pds.tone == 'progress' %}pill-progress{% else %}pill-muted{% endif %}"
-                  style="font-size:12px;font-weight:700;">{{ _pds.label }}</span>
-            {# v5H226z645 (대표 지시): 상태 분포를 1줄 컴팩트 텍스트로(줄바꿈 칩 → 한 줄). 0건도 표시 #}
-            {% if _pds.total > 0 %}<span style="margin-left:8px;font-size:11px;color:var(--mute);font-weight:600;white-space:nowrap;">진행 {{ _pds.dist['진행중'] }} · 완료 {{ _pds.dist['출하'] }} · 취소 {{ _pds.dist['취소'] }} · 보류 {{ _pds.dist['보류'] }}</span>{% endif %}
-          </dd>
-          {# v5H201: 제안 단계 일정 (수주확정 전 스케줄용) #}
+          <dt>상태</dt><dd><span class="pill {% if _pds.tone == 'done' %}pill-done{% elif _pds.tone == 'danger' %}pill-danger{% elif _pds.tone == 'warn' %}pill-warn{% elif _pds.tone == 'progress' %}pill-progress{% else %}pill-muted{% endif %}" style="font-size:12px;font-weight:700;">{{ _pds.label }}</span>{% if _pds.total > 0 %}<span style="margin-left:8px;font-size:11px;color:var(--mute);font-weight:600;white-space:nowrap;">진행 {{ _pds.dist['진행중'] }} · 완료 {{ _pds.dist['출하'] }} · 취소 {{ _pds.dist['취소'] }} · 보류 {{ _pds.dist['보류'] }}</span>{% endif %}</dd>
+          <dt>장비명</dt><dd>{{ p.equip_name|default('—') }}</dd>
+          {# v5H201: 제안 단계 일정 #}
           <dt>제안서</dt><dd>{{ p.proposal_date|default('—') }}</dd>
           <dt>견적서</dt><dd>{{ p.quotation_date|default('—') }}</dd>
-          <dt>발주일</dt><dd>{{ p.order_date|default('—') }}</dd>
-          <dt>납기</dt><dd>{{ p.due_date|default('—') }}</dd>
-          <dt>통화 / 환율</dt><dd>
-            <b id="hf_currency_disp">{{ p.currency or 'KRW' }}</b>
-            {% if p.fx_rate and p.fx_rate > 0 %}<span style="color:var(--mute);font-size:11px;"> · 1 {{ p.currency }} = </span><b id="hf_fx_disp" style="color:#1e3a8a;font-size:12px;">{{ '{:,.2f}'.format(p.fx_rate) }}</b><span style="color:var(--mute);font-size:11px;"> KRW</span>{% endif %}
-          </dd>
-          <dt>비고</dt><dd>
-            <span id="hf_note_disp" style="font-size:12.5px;color:var(--ink);">{{ p.note|default('—') }}</span>
-          </dd>
-          {# v5H226z375(대표 지시): 제작요청서 항목 — 각인(마킹) + 자료 경로. 값 있을 때만 표시(가격 아님·게이트 불필요) #}
+          {# 조건부(있을 때만): 최종 고객(2단계)·연관 관리번호·각인·자료 경로 #}
+          {% if p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer|default('—') }}</dd>{% endif %}
+          {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}
           {% if p.engraving %}<dt>각인</dt><dd><span style="font-size:12.5px;color:var(--ink);">{{ p.engraving }}</span></dd>{% endif %}
           {% if p.server_path %}<dt>자료 경로</dt><dd><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path }}</span></dd>{% endif %}
         </dl>
+        </div>
         {# v5H226z643 (대표 지시): 수주액을 오른쪽 세로 칸으로 분리 — 가변높이(호기별 금액) 독립 #}
         <dl class="def-amt">
           <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">{% if can_money %}
