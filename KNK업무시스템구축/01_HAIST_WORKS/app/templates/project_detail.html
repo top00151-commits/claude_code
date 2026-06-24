@@ -2028,16 +2028,17 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           {% endif %}
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           {# v5H138: 프로젝트 유형 pill (사이드 패널) #}
-          <dt>유형</dt><dd>{% with ptype=p.project_type, size='sm' %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</dd>
+          {# v5H226z645 (대표 지시): 유형 — 아이콘 칩 대신 텍스트로 확실하게 #}
+          <dt>유형</dt><dd>{% set _pt = (p.project_type or 'NEW_EQUIP')|upper %}{% if _pt == 'NEW_EQUIP' %}신규 장비{% elif _pt == 'CONSUMABLE' %}소모품·부품{% elif _pt == 'SERVICE' %}수리·유지보수{% elif _pt == 'OTHER' %}기타{% else %}{{ p.project_type }}{% endif %}</dd>
           {# v5H226z448 (대표 지시): 등록폼과 동일하게 '형태'·'PO유형'도 표시 #}
+          {# v5H226z645 (대표 지시): 형태 — 아이콘 칩 대신 텍스트로. 4종 완제품/제품/상품/기타(미설정=완제품) #}
           <dt>형태</dt><dd>
             {% set _sf2 = (p.shipment_form or '')|upper %}
-            {# v5H226z455: 형태 4종 — 완제품(ASSEMBLY)/제품(SEMI)/상품(PARTS)/기타(ETC). 미설정=완제품 #}
-            {% if (p.project_type or '')|upper == 'CONSUMABLE' %}<span class="pill" style="background:#e7f6ec;color:#15803d;font-size:11.5px;">소모품</span>
-            {% elif _sf2 == 'PARTS' %}<span class="pill pill-warn" style="font-size:11.5px;">🧰 상품</span>
-            {% elif _sf2 == 'ETC' %}<span class="pill pill-muted" style="font-size:11.5px;">🗂 기타</span>
-            {% elif _sf2 == 'SEMI' %}<span class="pill" style="background:#e0edff;color:#1d4ed8;font-size:11.5px;">📦 제품</span>
-            {% else %}<span class="pill" style="background:#fde7d2;color:#9a3412;font-size:11.5px;">🏭 완제품</span>{% endif %}
+            {% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품
+            {% elif _sf2 == 'PARTS' %}상품
+            {% elif _sf2 == 'ETC' %}기타
+            {% elif _sf2 == 'SEMI' %}제품
+            {% else %}완제품{% endif %}
           </dd>
           <dt>PO유형</dt><dd>
             {% set _pt2 = p.po_type|default('신규') %}
@@ -2062,23 +2063,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           <dt>상태</dt><dd>
             <span class="pill {% if _pds.tone == 'done' %}pill-done{% elif _pds.tone == 'danger' %}pill-danger{% elif _pds.tone == 'warn' %}pill-warn{% elif _pds.tone == 'progress' %}pill-progress{% else %}pill-muted{% endif %}"
                   style="font-size:12px;font-weight:700;">{{ _pds.label }}</span>
-            {% if _pds.total > 0 %}
-            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;font-size:10.5px;font-weight:700;">
-              {% if _pds.dist['진행중'] > 0 %}
-              <span style="padding:1px 6px;border-radius:3px;background:#fef3c7;color:#7c4a03;">🟡 진행중 {{ _pds.dist['진행중'] }}</span>
-              {% endif %}
-              {% if _pds.dist['출하'] > 0 %}
-              <span style="padding:1px 6px;border-radius:3px;background:#dcfce7;color:#15803d;">🟢 완료 {{ _pds.dist['출하'] }}</span>
-              {% endif %}
-              {# 취소·보류는 0건도 항상 표시 (놓치지 않도록) #}
-              <span style="padding:1px 6px;border-radius:3px;background:{% if _pds.dist['취소'] > 0 %}#fee2e2{% else %}#f5f5f1{% endif %};color:{% if _pds.dist['취소'] > 0 %}#991b1b{% else %}#94a3b8{% endif %};">
-                🔴 취소 {{ _pds.dist['취소'] }}
-              </span>
-              <span style="padding:1px 6px;border-radius:3px;background:{% if _pds.dist['보류'] > 0 %}#e5e7eb{% else %}#f5f5f1{% endif %};color:{% if _pds.dist['보류'] > 0 %}#374151{% else %}#94a3b8{% endif %};">
-                ⚫ 보류 {{ _pds.dist['보류'] }}
-              </span>
-            </div>
-            {% endif %}
+            {# v5H226z645 (대표 지시): 상태 분포를 1줄 컴팩트 텍스트로(줄바꿈 칩 → 한 줄). 0건도 표시 #}
+            {% if _pds.total > 0 %}<span style="margin-left:8px;font-size:11px;color:var(--mute);font-weight:600;white-space:nowrap;">진행 {{ _pds.dist['진행중'] }} · 완료 {{ _pds.dist['출하'] }} · 취소 {{ _pds.dist['취소'] }} · 보류 {{ _pds.dist['보류'] }}</span>{% endif %}
           </dd>
           {# v5H201: 제안 단계 일정 (수주확정 전 스케줄용) #}
           <dt>제안서</dt><dd>{{ p.proposal_date|default('—') }}</dd>
