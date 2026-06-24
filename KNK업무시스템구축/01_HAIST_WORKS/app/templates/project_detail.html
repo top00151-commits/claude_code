@@ -512,19 +512,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
     {# v5H172: 통화 표기는 프로젝트 헤더 우선 (SO 통화가 비었거나 백필 전이어도 정확) #}
     {% set _kpi_ccy = p.currency or primary_so_currency or 'KRW' %}
     <div class="kpi-card"><div class="kpi-label">{% if project_orders %}확정 매출{% else %}수주액{% endif %} <span style="font-size:10px;color:var(--mute);">({{ _kpi_ccy }})</span></div>{% if can_money %}<div class="kpi-num">{% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }}{% else %}—{% endif %}<span class="unit">{{ _kpi_ccy }}</span></div>{% else %}<div class="kpi-num" style="color:var(--mute);font-size:15px;" title="단가·금액은 영업·관리 권한자만">🔒</div>{% endif %}{% if can_money and project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
-    {# v5H226z161 (대표 지시): 예상 매출(수주 전) + 확정 대비 차이 #}
-    {% set _expected = p.expected_amount or 0 %}
-    {% if (_expected or project_orders) and can_money %}
-    <div class="kpi-card"><div class="kpi-label">예상 매출 <span style="font-size:10px;color:var(--mute);">(수주 전)</span></div>
-      <div class="kpi-num">{% if _expected %}{{ '{:,.0f}'.format(_expected) }}{% else %}—{% endif %}<span class="unit">{{ _kpi_ccy }}</span></div>
-      {% if project_orders and _expected %}
-        {% set _diff = _so_total - _expected %}
-        <div style="font-size:10.5px;font-weight:700;margin-top:3px;color:{% if _diff >= 0 %}var(--success){% else %}var(--knk-red){% endif %};" title="확정 {{ '{:,.0f}'.format(_so_total) }} − 예상 {{ '{:,.0f}'.format(_expected) }}">확정 대비 {% if _diff >= 0 %}+{% endif %}{{ '{:,.0f}'.format(_diff) }} ({% if _diff >= 0 %}+{% endif %}{{ '%.1f'|format(_diff * 100 / _expected) }}%)</div>
-      {% elif not project_orders %}
-        <div style="font-size:10px;color:var(--mute);margin-top:3px;">확정 전 — 수주 시 비교</div>
-      {% endif %}
-    </div>
-    {% endif %}
+    {# v5H226z646 (대표 지시): 예상 매출(수주 전) KPI 삭제 — 예상값 미입력 건은 항상 확정과 동일(+0)이라 의미 약함. 확정 매출 KPI만 유지. (expected_amount 데이터는 보존) #}
   </div>
 
   {# v5H124: 통화 혼합 경고 + 통화별 합계 분리 #}
