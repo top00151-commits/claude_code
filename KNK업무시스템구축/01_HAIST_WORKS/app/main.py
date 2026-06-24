@@ -18355,66 +18355,84 @@ def _board_split_lines_map():
             _oi_cols = {r[1] for r in _c.execute("PRAGMA table_info(order_items)").fetchall()}
             _has_extra = ("due_date" in _oi_cols and "ship_to" in _oi_cols
                           and "order_date" in _oi_cols and "currency" in _oi_cols)
-            # v5H226z443 (대표 지시): 호기 분할(단가/납기 상이→호기당 1줄)은 '제품(장비)' 전용.
-            #   상품(PARTS_EXPORT)·소모품(CONSUMABLE) SO 라인은 '소모품 개념' = 작업일정표 1줄 → 분할 제외.
-            #   (부품 PACKING LIST 의 여러 자재를 호기처럼 여러 줄로 쪼개던 버그 수정)
             _ord_cols = {r[1] for r in _c.execute("PRAGMA table_info(orders)").fetchall()}
-            _excl_sotype = (" AND COALESCE(o.so_type,'') NOT IN ('PARTS_EXPORT','CONSUMABLE') "
-                            if "so_type" in _ord_cols else "")
-            if _has_extra:
-                _sql = (
-                    "SELECT o.project_id AS pid, o.order_no AS so_no, "
-                    "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, "
-                    "COALESCE(o.currency,'KRW') AS o_cur, "
-                    "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, "
-                    "oi.order_date AS i_ord, oi.due_date AS i_due, oi.ship_to AS i_ship, oi.currency AS i_cur "
-                    "FROM order_items oi JOIN orders o ON oi.order_id=o.id "
-                    "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
-                    + _excl_sotype +
-                    "ORDER BY o.project_id, oi.id"
-                )
-            else:
-                _sql = (
-                    "SELECT o.project_id AS pid, o.order_no AS so_no, "
-                    "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, "
-                    "'KRW' AS o_cur, "
-                    "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, "
-                    "'' AS i_ord, '' AS i_due, '' AS i_ship, '' AS i_cur "
-                    "FROM order_items oi JOIN orders o ON oi.order_id=o.id "
-                    "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
-                    + _excl_sotype +
-                    "ORDER BY o.project_id, oi.id"
-                )
-            _by: dict = {}
+            _has_sotype = "so_type" in _ord_cols
+            # v5H226z636 (대표 지시): 수주번호(SO)마다 작업일정표 1줄. 한 관리번호에 SO 가 여러 개면 SO별로 행 분리.
+            #   · 소모품·부품(PARTS_EXPORT) so_type SO 는 SO당 1줄(내부 자재 분할 안 함 — z443 취지 유지).
+            #   · 장비 SO 는 그 안에서 호기 단가/납기가 다르면 호기별로 더 분할(z389/z454 유지).
+            #   · 빈 SO(호기 미입력)도 LEFT JOIN 으로 1줄. 취소 SO 제외. SO 가 1개·균일이면 분할 안 함(프로젝트 1줄 유지·편집 가능).
+            _i_extra = ("oi.order_date AS i_ord, oi.due_date AS i_due, oi.ship_to AS i_ship, oi.currency AS i_cur"
+                        if _has_extra else "'' AS i_ord, '' AS i_due, '' AS i_ship, '' AS i_cur")
+            _sotype_col = "COALESCE(o.so_type,'') AS so_type" if _has_sotype else "'' AS so_type"
+            _sql = (
+                "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
+                + _sotype_col + ", "
+                "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
+                "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
+                "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
+                + _i_extra + " "
+                "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
+                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
+                "ORDER BY o.project_id, o.id, oi.id"
+            )
+            # (pid, oid) 별로 SO 메타 + 그 SO 의 호기(order_items) 모음 (LEFT JOIN → 빈 SO 도 1건)
+            _so_acc: dict = {}
             for _r in _c.execute(_sql):
                 d = dict(_r)
-                pid = d.get("pid")
+                pid, oid = d.get("pid"), d.get("oid")
                 if not pid:
                     continue
-                eff_due = (str(d.get("i_due") or "").strip() or str(d.get("o_due") or "").strip())
-                eff_ord = (str(d.get("i_ord") or "").strip() or str(d.get("o_ord") or "").strip())
-                eff_ship = (str(d.get("i_ship") or "").strip() or str(d.get("o_ship") or "").strip())
-                eff_cur = (str(d.get("i_cur") or "").strip() or str(d.get("o_cur") or "").strip() or "KRW")
-                _by.setdefault(pid, []).append({
-                    "iid": d.get("oi_id"),   # v5H226z487: 호기 분할 줄 직접수정(/unit-field) 라우팅용
-                    "label": (d.get("lbl") or "").strip(),
-                    "price": float(d.get("up") or 0),
-                    "amount": float(d.get("amt") or 0),
-                    "currency": eff_cur,
-                    "order_date": eff_ord[:10],
-                    "due_date": eff_due[:10],
-                    "ship_to": eff_ship,
-                    "so_no": d.get("so_no") or "",
-                })
-            for pid, lines in _by.items():
-                if len(lines) < 2:
+                k = (pid, oid)
+                if k not in _so_acc:
+                    _so_acc[k] = {
+                        "pid": pid, "so_no": d.get("so_no") or "",
+                        "so_type": (d.get("so_type") or "").upper(),
+                        "o_total": float(d.get("o_total") or 0), "o_qty": int(d.get("o_qty") or 1),
+                        "o_ord": str(d.get("o_ord") or "")[:10], "o_due": str(d.get("o_due") or "")[:10],
+                        "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
+                        "items": [],
+                    }
+                if d.get("oi_id") is not None:
+                    _so_acc[k]["items"].append(d)
+            # 프로젝트별로 SO 라인 구성 (소모품/부품=SO당 1줄, 장비=호기 분할/묶음)
+            _proj_lines: dict = {}
+            for (pid, oid), so in _so_acc.items():
+                plines = _proj_lines.setdefault(pid, [])
+                if so["so_type"] in ("PARTS_EXPORT", "CONSUMABLE"):
+                    plines.append({
+                        "iids": [it["oi_id"] for it in so["items"]], "label": "",
+                        "price": so["o_total"], "amount": so["o_total"], "currency": so["o_cur"],
+                        "order_date": so["o_ord"], "due_date": so["o_due"], "ship_to": so["o_ship"],
+                        "so_no": so["so_no"], "count": so["o_qty"] if so["o_qty"] else 1,
+                    })
                     continue
-                # 호기 금액(=단가, qty=1) 집합 / 납기 집합 — 둘 중 하나라도 2종 이상이면 분할
-                _amts = {round(float(l["amount"]), 2) for l in lines}
-                _dues = {l["due_date"] for l in lines}
-                if len(_amts) > 1 or len(_dues) > 1:
-                    # z454 (대표 지시): 단가·납기 동일한 호기끼리는 1줄로 묶고, 다른 것만 분할(z389 유지).
-                    out[pid] = _merge_units_same(lines)
+                # 장비 SO — 호기 라인(override 상속) 구성
+                _ulines = []
+                for it in so["items"]:
+                    eff_due = (str(it.get("i_due") or "").strip() or so["o_due"])
+                    eff_ord = (str(it.get("i_ord") or "").strip() or so["o_ord"])
+                    eff_ship = (str(it.get("i_ship") or "").strip() or so["o_ship"])
+                    eff_cur = (str(it.get("i_cur") or "").strip() or so["o_cur"] or "KRW")
+                    _ulines.append({
+                        "iid": it.get("oi_id"), "label": (it.get("lbl") or "").strip(),
+                        "price": float(it.get("up") or 0), "amount": float(it.get("amt") or 0),
+                        "currency": eff_cur, "order_date": eff_ord[:10], "due_date": eff_due[:10],
+                        "ship_to": eff_ship, "so_no": so["so_no"],
+                    })
+                if not _ulines:
+                    # 빈 장비 SO (호기 미입력) → SO당 1줄
+                    plines.append({
+                        "iids": [], "label": "", "price": so["o_total"], "amount": so["o_total"],
+                        "currency": so["o_cur"], "order_date": so["o_ord"], "due_date": so["o_due"],
+                        "ship_to": so["o_ship"], "so_no": so["so_no"], "count": so["o_qty"] if so["o_qty"] else 1,
+                    })
+                    continue
+                # 이 SO 안에서 호기 단가/납기 동일하면 1줄로 묶고, 다르면 따로(z454)
+                plines.extend(_merge_units_same(_ulines))
+            # 라인이 2개 이상(=SO 여러 개 또는 호기 분할)인 프로젝트만 분할. 1줄이면 프로젝트 행 유지.
+            for pid, plines in _proj_lines.items():
+                if len(plines) >= 2:
+                    out[pid] = plines
     except Exception:
         return {}
     return out
