@@ -19603,10 +19603,23 @@ async def schedule_board_cell(request: Request):
                 _new_ts = _row_ts(_lc, _lock_tbl, int(ref_id))
         except Exception:
             pass
+    # v5H226z625 (대표 지시): 작업일정표 고객사 인라인 = 콤보박스에서 고른 customer_id 우선 적용
+    #   (같은 상호 다른 종사업장 구분 — 이름매칭 모호 방지). 유효 id면 그 고객사로 직접 연결.
+    _cust_ok_override = None
+    if field == "cust" and ok and kind == "project":
+        _cid_raw = str(b.get("customer_id") or "").strip()
+        if _cid_raw.isdigit():
+            try:
+                with db_session() as _cc:
+                    if _cc.execute("SELECT 1 FROM customers WHERE id=?", (int(_cid_raw),)).fetchone():
+                        _cc.execute("UPDATE projects SET customer_id=? WHERE id=?", (int(_cid_raw), int(ref_id)))
+                        _cust_ok_override = True
+            except Exception:
+                pass
     # v5H226z366: 고객사1은 '연결 성공/미매칭'을 화면에 표시해야 하므로 cust_ok 동봉(msg=matched/unmatched는 내부신호 → error로 노출 안 함)
     if field == "cust" and ok:
         return JSONResponse({"ok": True, "error": "", "value": (value or "").strip(),
-                             "cust_ok": (msg == "matched"), "updated_at": _new_ts})
+                             "cust_ok": (True if _cust_ok_override else (msg == "matched")), "updated_at": _new_ts})
     return JSONResponse({"ok": ok, "error": msg, "value": (value or "").strip(), "updated_at": _new_ts})
 
 
