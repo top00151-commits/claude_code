@@ -8516,6 +8516,30 @@ def _norm_header_key(s: str) -> str:
     return _pq_re.sub(r'[^a-z0-9가-힣]', '', (s or '').lower())
 
 
+def _normalize_bulk_is_active(val) -> int:
+    """v5H226z646 (2026-06-24) — 엑셀 일괄등록 '활성' 컬럼을 0/1로 정규화.
+    템플릿이 한국어 텍스트('활성'/'비활성')를 쓰는데 _validate_parts_payload는 0/1만 허용해서
+    실제 등록 단계에서 대량 실패하던 회귀를 차단.
+    한국어/영문/숫자 모두 호환, 알 수 없으면 활성(1) 폴백."""
+    if val is None:
+        return 1
+    if isinstance(val, bool):
+        return 1 if val else 0
+    if isinstance(val, (int, float)):
+        try:
+            return 1 if int(val) else 0
+        except (TypeError, ValueError):
+            return 1
+    s = str(val).strip().lower()
+    if not s:
+        return 1
+    if s in ("1", "y", "yes", "true", "t", "활성", "on", "active", "사용", "사용중", "o", "ok"):
+        return 1
+    if s in ("0", "n", "no", "false", "f", "비활성", "휴면", "off", "inactive", "미사용", "정지", "중지", "x"):
+        return 0
+    return 1  # 알 수 없는 값 → 기본 활성
+
+
 def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                              force_similar: bool = False) -> dict:
     """Excel(.xlsx) 자재 일괄 등록.
@@ -8635,6 +8659,11 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                     val = val.strip()
                 if val is not None and val != "":
                     data[fld] = val
+        # v5H226z646 (2026-06-24): 한국어/영문 활성 표기 정규화
+        # 엑셀 활성 컬럼이 "활성"/"비활성"/"Y"/"N" 등 텍스트일 때 _validate_parts_payload(0/1만 허용)에서
+        # 대량 실패가 일어나던 회귀(미리보기 통과 → 실제 등록 0건) 차단.
+        if "is_active" in data:
+            data["is_active"] = _normalize_bulk_is_active(data["is_active"])
         # 필수 검증
         part_no = (data.get("part_no") or "").strip() if isinstance(data.get("part_no"), str) else str(data.get("part_no") or "").strip()
         part_name = (data.get("part_name") or "").strip() if isinstance(data.get("part_name"), str) else str(data.get("part_name") or "").strip()
@@ -8662,6 +8691,14 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                 errors.append(f"코드 중복 — 기존 [{dup['id']}] {dup['part_name']}")
                 status = "dup"
                 dup_cnt += 1
+
+        # v5H226z644: dry_run에서도 _validate_parts_payload 실행 — 모든 검증 오류를 미리보기에 노출.
+        # 통화·단위·매입단가·is_active 등 잠재 이슈를 즉시 표면화. data는 in-place 정규화됨(currency/unit 대문자 등).
+        if not errors and status not in ("dup",):
+            try:
+                _validate_parts_payload(data)
+            except (ValueError, TypeError) as _ve:
+                errors.append(str(_ve))
 
         # 유사 자재 검사 (force_similar=False 일 때만)
         if part_name and not errors and not force_similar:
