@@ -11716,6 +11716,9 @@ async def sales_order_item_edit(req: Request, iid: int):
         ).fetchone()
         if not it:
             return JSONResponse({"ok": False, "message": "라인을 찾을 수 없습니다"}, 404)
+        # v5H226z630(대표 지시): 1줄 완제품은 상세에서 호기 칸을 숨김 → label 입력칸 부재로 미전송.
+        #   label 키가 폼에 없으면 기존 unit_label 유지(빈값 덮어쓰기 방지). 키가 있으면 그대로 반영.
+        _lbl_to_save = (label or None) if ("label" in form) else (it["old_lbl"] or None)
         st = (it["status"] or "").upper()
         if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
             return JSONResponse({
@@ -11750,7 +11753,7 @@ async def sales_order_item_edit(req: Request, iid: int):
             _up_for_save = amt if u_unit_price == "__SKIP__" else u_unit_price
             cols_set = ["unit_label=?", "unit_price=?", "amount=?", "line_note=?",
                         "order_date=?", "due_date=?", "ship_to=?"]
-            vals_set = [label or None, _up_for_save, amt, note or None, ov_o, ov_d, ov_s]
+            vals_set = [_lbl_to_save, _up_for_save, amt, note or None, ov_o, ov_d, ov_s]
             if "currency" in _oicols:
                 cols_set.append("currency=?"); vals_set.append(ov_c)
             if "is_export" in _oicols and u_iex is not None:
@@ -11804,7 +11807,7 @@ async def sales_order_item_edit(req: Request, iid: int):
             # v5H226z460: 판매단가(unit_price) 분리 — PARTS 미전송이면 amt(legacy 호기)
             c.execute(
                 "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, updated_at=datetime('now','localtime') WHERE id=?",
-                (label or None, (amt if u_unit_price == "__SKIP__" else u_unit_price), amt, note or None, iid)
+                (_lbl_to_save, (amt if u_unit_price == "__SKIP__" else u_unit_price), amt, note or None, iid)
             )
         # SO total_amount = SUM(items.amount), unit_label 재구성
         oid = it["order_id"]

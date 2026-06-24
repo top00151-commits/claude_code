@@ -972,6 +972,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
             {# v5H226z603: USD(외화) 부품이면 환율·인보이스 칸 항상 표시(환율 없으면 값=USD·환율칸 —). USD는 소수2자리(셋째 반올림). #}
             {# SO 통화가 비어도 부품(호기) 통화로 판정 — 기존 데이터(통화 미저장)도 인식 #}
             {% set _so_ccy = so.currency or (_units_desc[0].currency if (_units_desc and _units_desc[0].currency) else '') or p.currency or 'KRW' %}
+            {# v5H226z630(대표 지시): 완제품이 1줄(qty=N)이면 호기 칸 제거. 호기별 단가·납기가 달라 여러 줄로 분할된 경우만 호기 컬럼 유지. 부품(품명)·소모품은 영향 없음 #}
+            {% set _hide_hogi = (not _is_parts) and (not _is_co) and ((_units_desc|length) <= 1) %}
             {% set _is_fx_view = (_is_parts and _so_ccy != 'KRW') %}
             {# v5H226z609: 매입/판매 칸의 통화 단위 — _pfx면 KRW환산값=KRW, fx뷰(환율없음)면 외화, 그외 KRW #}
             {% set _krw_col_ccy = 'KRW' if _pfx else (_so_ccy if _is_fx_view else 'KRW') %}
@@ -998,8 +1000,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
                   {% if _is_co or _is_parts %}<th class="px-x" style="width:60px;" data-pgroup="basic">사진</th>{% endif %}
                   {% if _is_parts %}<th style="width:90px;" data-pgroup="basic">자재번호</th>{% endif %}
-                  {# v5H226z93: 호기 컬럼 64→80px (짤림 방지) #}
-                  <th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>
+                  {# v5H226z93: 호기 컬럼 64→80px (짤림 방지) · z630: 1줄 완제품이면 호기 칸 제거 #}
+                  {% if not _hide_hogi %}<th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>{% endif %}
                   {% if _is_parts %}
                   <th style="width:130px;" data-pgroup="basic">규격</th>
                   <th style="width:84px;" data-pgroup="basic">제작사</th>
@@ -1070,12 +1072,14 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                     {% if _editable %}<input type="text" class="unit-edit matno-inp" data-orig="{{ u.material_no or '' }}" value="{{ u.material_no or '' }}" style="width:80px;font-size:11.5px;">{% endif %}
                   </td>
                   {% endif %}
-                  {# v5H226z83: 호기 td 우측 정렬 #}
+                  {# v5H226z83: 호기 td 우측 정렬 · z630: 1줄 완제품이면 호기 칸 제거 #}
+                  {% if not _hide_hogi %}
                   <td class="right" style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
                     <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
                     {# v5H226z92: 호기별 × 삭제 회수 (z89~z91 원복) — 상태 컬럼 "취소"로 대체 #}
                   </td>
+                  {% endif %}
                   {% if _is_parts %}
                   <td style="font-size:11.5px;">
                     <span class="display-val">{{ u.spec or '—' }}</span>
@@ -1442,7 +1446,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               for (const r of dirtyRows) {
                 const body = new URLSearchParams();
                 body.set('base_ts', r.baseTs || '');   // v5H226z408: 동시 편집 감지(호기) — 충돌 시 409→실패목록 표시
-                body.set('label', r.lblInp ? (r.lblInp.value || '') : '');
+                if (r.lblInp) body.set('label', r.lblInp.value || '');  // v5H226z630: 호기 칸 숨김(1줄 완제품) 시 미전송 → 백엔드가 기존 라벨 유지
                 body.set('amount', r.amtInp ? (r.amtInp.value || '0').replace(/,/g,'') : '0');
                 body.set('note', r.noteInp ? (r.noteInp.value || '') : '');
                 if (r.ordInp) body.set('order_date', r.ordInp.value || '');
