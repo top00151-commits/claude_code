@@ -9195,17 +9195,16 @@ async def projects_confirm_order(req: Request, pid: int):
         if _ptype == "CONSUMABLE" or _sf_cn == "PARTS":
             _units = []
         elif _sf_cn == "ASSEMBLY":
-            # 완제품 — 수량만큼 호기 N줄
-            _units = []
-            for i in range(_qty):
-                _units.append({
-                    "label": _logi.project_unit_label(_ptype, i + 1),
-                    "amount": _up,
-                    "due_date": proj["due_date"] or "",
-                    "ship_to": "",
-                    "currency": proj["currency"] or "KRW",
-                    "note": "",
-                })
+            # v5H226z629 (대표 지시): 완제품도 1줄 qty=N 으로 저장(호기 N줄 분할 안 함).
+            _units = [{
+                "label": (proj["model_name"] or proj["name"] or "완제품"),
+                "amount": round(_up * _qty, 2),
+                "qty": _qty,
+                "due_date": proj["due_date"] or "",
+                "ship_to": "",
+                "currency": proj["currency"] or "KRW",
+                "note": "",
+            }]
         else:
             # v5H226z455: 제품(SEMI)·기타(ETC) — 호기 없이 1줄 (수량=N, 라인금액=단가×N)
             _units = [{
@@ -11561,13 +11560,15 @@ async def projects_quick_status(req: Request, pid: int):
                         if _ptype_q == "CONSUMABLE" or _is_parts_q:
                             _units_list = []
                         else:
+                            # v5H226z629 (대표 지시): 완제품도 1줄 qty=N 으로 저장(호기 N줄 분할 안 함).
                             _units_list = [{
-                                "label": _logi.project_unit_label(_ptype_q, i + 1),
-                                "amount": _up0,
+                                "label": (cur["model_name"] or cur["name"] or "완제품"),
+                                "amount": round(_up0 * max(1, _qty0), 2),
+                                "qty": max(1, _qty0),
                                 "due_date": cur["due_date"] or "",
                                 "ship_to": "",
                                 "note": "",
-                            } for i in range(_qty0)]
+                            }]
                         # v5H226z: so_type 결정 (PARTS → PARTS_EXPORT)
                         _so_type_q = "PARTS_EXPORT" if _is_parts_q else None
                         res = _pwf.confirm_order_multi(
@@ -22278,13 +22279,16 @@ async def projects_new_submit(request: Request):
                     if _ptype == "CONSUMABLE" or _is_parts_new:
                         _units_list = []
                     elif _ship_form_new == "ASSEMBLY":
+                        # v5H226z629 (대표 지시): 완제품도 1줄 qty=N 으로 저장(호기 N줄 분할 안 함).
+                        #   (호기별 단가가 다른 경우는 multi_unit 경로에서 별도 처리 — 그쪽은 N줄 유지)
                         _units_list = [{
-                            "label": _logi.project_unit_label(_ptype, i + 1),
-                            "amount": _per_unit,
+                            "label": (form.get("model") or form.get("name") or "완제품"),
+                            "amount": round(_per_unit * max(1, unit_qty), 2),
+                            "qty": max(1, unit_qty),
                             "due_date": form.get("due_date", ""),
                             "ship_to": "",
                             "note": "",
-                        } for i in range(max(1, unit_qty))]
+                        }]
                     else:
                         # 제품(SEMI)·기타(ETC) — 호기 없이 1줄 (수량=N)
                         _units_list = [{
@@ -23446,13 +23450,16 @@ async def projects_import_confirm(request: Request):
                                     "note": r.get("note") or "",   # v5H226z236: 엑셀 비고
                                 }]
                             else:
+                                # v5H226z629 (대표 지시): 완제품도 1줄 qty=N 으로 저장(호기 N줄 분할 안 함).
+                                #   단가=1대 단가(per), 금액=per×N, qty=N → orders.unit_qty·order_items.qty 모두 N으로 일치.
                                 units_list = [{
-                                    "label": _logi.project_unit_label("NEW_EQUIP", i + 1),
-                                    "amount": per,
+                                    "label": (r.get("model_name") or name or "완제품"),
+                                    "amount": per * max(1, unit_qty),
+                                    "qty": max(1, unit_qty),
                                     "due_date": r.get("due_date") or "",
                                     "ship_to": r.get("ship_to") or "",
                                     "note": r.get("note") or "",   # v5H226z236: 엑셀 비고
-                                } for i in range(max(1, unit_qty))]
+                                }]
                             _pwf.confirm_order_multi(
                                 c, int(new_pid),
                                 units=units_list,
@@ -24462,14 +24469,15 @@ async def projects_edit_submit(request: Request, pid: int):
                 ).fetchone()
                 if not exists:
                     _per_unit = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
-                    # v5H137: project_type 기준 라벨
+                    # v5H226z629 (대표 지시): 완제품도 1줄 qty=N 으로 저장(호기 N줄 분할 안 함).
                     _units_list = [{
-                        "label": _logi.project_unit_label(_ptype, i + 1),
-                        "amount": _per_unit,
+                        "label": (form.get("model") or form.get("name") or "완제품"),
+                        "amount": round(_per_unit * max(1, unit_qty), 2),
+                        "qty": max(1, unit_qty),
                         "due_date": form.get("due_date", ""),
                         "ship_to": "",
                         "note": "",
-                    } for i in range(max(1, unit_qty))]
+                    }]
                     _pwf.confirm_order_multi(
                         c, int(pid),
                         units=_units_list,
