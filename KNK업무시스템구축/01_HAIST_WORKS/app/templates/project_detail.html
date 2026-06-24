@@ -874,8 +874,19 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);">관리번호 {{ p.mgmt_code }}</span>{% endif %}
         </h3>
         {% if project_orders %}
+        {# v5H226z637 (대표 지시): 최초(메인) 수주는 그대로, 추가 수주는 '참고'로 접어 표시(같은 관리번호에 딸린 건임을 구분). 최초 = 가장 오래된 SO(목록 마지막). #}
+        {% set _ord = ([project_orders|last] + project_orders[:-1]) if (project_orders|length > 1) else project_orders %}
+        <style>
+          .ref-sos-wrap { border:1px dashed var(--amber); border-radius:10px; margin:10px 0 4px; background:var(--paper-2); }
+          .ref-sos-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:11px 16px; cursor:pointer; font-weight:700; color:var(--amber-deep); font-size:13px; user-select:none; }
+          .ref-sos-head:hover { background:#fff4e0; border-radius:10px; }
+          .ref-sos-body { display:none; padding:2px 8px 8px; }
+          .ref-sos-wrap.open .ref-sos-body { display:block; }
+          .ref-sos-arrow { transition:transform .15s; font-size:12px; }
+          .ref-sos-wrap.open .ref-sos-arrow { transform:rotate(90deg); }
+        </style>
         <div class="list-scroll">
-        {% for so in project_orders %}
+        {% for so in _ord %}
           {% set _editable = can_sales and so.status not in ('INVOICED','PAID','CANCELLED') %}{# v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능) #}
           {# v5H172: SO 통화가 비어있으면 프로젝트 헤더 통화로 fallback (백필 누락 대비) #}
           {% set _cur = so.currency or p.currency or 'KRW' %}
@@ -883,7 +894,15 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           {% set _sym = '' %}
           {# v5H226z627 (대표 지시): 수량 = 실제 호기 라인(order_items) qty 합 — orders.unit_qty 가 어긋나도(1줄 qty=2 등) 정확히 표시 #}
           {% set _qq = (so.units|map(attribute='qty')|select|map('int')|sum) if so.units else (so.unit_qty|default(1)) %}
-          <div class="so-card{% if _editable %} editable{% endif %}" data-soid="{{ so.id }}">
+          {% if not loop.first and loop.index0 == 1 %}{# v5H226z637: 첫 추가 수주 앞에서 '참고' 접기 영역 열기 #}
+          <div class="ref-sos-wrap" data-dn="ref-sos-wrap" data-dn-tone="amber">
+            <div class="ref-sos-head" onclick="this.parentNode.classList.toggle('open')">
+              <span>📎 참고 · 추가 수주 {{ (_ord|length) - 1 }}건 (같은 관리번호에 딸린 건)</span>
+              <span class="ref-sos-arrow">▸</span>
+            </div>
+            <div class="ref-sos-body">
+          {% endif %}
+          <div class="so-card{% if _editable %} editable{% endif %}{% if not loop.first %} ref-so{% endif %}" data-soid="{{ so.id }}">
             <!-- 헤더: 수주번호 + 메타 + 액션 -->
             <div class="so-card-head">
               <div class="so-no"><a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a></div>
@@ -907,7 +926,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음 #}
                 {% if so.so_customer %}<span class="item"><span class="k">🏢 발주처</span><span class="v" style="font-weight:700;color:#1d4ed8;">{{ so.so_customer }}</span></span>{% endif %}
-                <span class="item"><span class="k">{% if loop.last %}🆕 최초 수주{% else %}＋ 추가 #{{ project_orders|length - loop.index0 - 1 }}{% endif %}</span></span>
+                <span class="item"><span class="k">{% if loop.first %}🆕 최초 수주{% else %}📎 참고 (추가 #{{ loop.index0 }}){% endif %}</span></span>
               </div>
               <div class="so-actions">
                 {% set _so_is_parts = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
@@ -1348,6 +1367,10 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               <div class="ago">{{ so.created_at|default('') }}</div>
             </div>
           </div>
+          {% if not loop.first and loop.last %}{# v5H226z637: 마지막 추가 수주 뒤에서 '참고' 접기 영역 닫기 #}
+            </div>
+          </div>
+          {% endif %}
         {% endfor %}
         </div>
 
