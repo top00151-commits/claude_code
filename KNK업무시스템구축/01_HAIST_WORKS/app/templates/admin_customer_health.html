@@ -58,7 +58,7 @@ table.ch tbody tr:hover td{background:#fcfaf3;}
     {# ① 마스터 중복 #}
     <div class="ch-card">
       <h3>① 고객사 마스터 중복 의심 <span class="ch-key">({{ master_dups|length }}건)</span></h3>
-      <div class="sub">정규화하면 같은 회사인데 <b>등록명이 둘 이상</b>으로 따로 등록된 경우. 이게 있으면 매칭이 "여러 건"이라 미연결로 빠집니다 → 하나로 병합 대상.</div>
+      <div class="sub">같은 상호 + <b>같은 종사업장번호</b>인데 표기만 갈려 따로 등록된 경우(진짜 중복 → 병합 대상). <b>종사업장번호가 다르면 별개 사업장</b>(본사/지점)이라 여기 안 나옵니다. 종사업장이 비어 있어 같이 잡히면, 각 사업장의 종사업장번호를 입력하면 사라집니다.</div>
       {% if master_dups %}
       <table class="ch">
         <thead><tr><th style="width:150px;">정규화 키</th><th>등록된 이름들 (각 ID)</th><th style="width:260px;">병합 (남길 이름 선택)</th></tr></thead>

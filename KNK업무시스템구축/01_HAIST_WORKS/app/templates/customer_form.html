@@ -95,8 +95,9 @@ body { overflow: hidden !important; }
   {# v5H226z615: 고객사명 중복 → 친절 안내(500 방지). 이름 변경으로는 병합 불가 — 병합 도구 안내 #}
   {% if request.query_params.get('dup') %}
   <div style="margin:0 var(--content-pad) 8px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#b91c1c;font-size:13px;line-height:1.6;">
-    ⚠ <b>이미 같은 이름의 고객사가 있습니다</b> — 고객사명은 중복될 수 없어 이 이름으로 저장할 수 없습니다.<br>
-    같은 회사가 두 개로 등록돼 있어 <b>하나로 합치려는 것</b>이면, 이름 변경이 아니라 <b>고객사 병합</b>이 필요합니다(연결성 점검 화면 참고).
+    ⚠ <b>같은 상호 + 같은 종사업장번호</b>의 고객사가 이미 있습니다 — 그대로는 저장할 수 없습니다.<br>
+    • <b>다른 사업장(본사/지점 등)</b>이면 <b>종사업장번호를 다르게</b> 입력하면 등록됩니다(예: 본사 0001 / 아산밸리 0005).<br>
+    • 같은 회사가 <b>실수로 두 개</b> 등록된 거면, 이름 변경이 아니라 <b>고객사 병합</b>이 필요합니다(연결성 점검 화면).
   </div>
   {% endif %}
   <form method="POST" action="{% if customer %}/customers/{{ customer.id }}/edit{% else %}/customers/new{% endif %}" autocomplete="off">

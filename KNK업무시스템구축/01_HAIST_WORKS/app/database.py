@@ -2089,6 +2089,62 @@ def make_login_id(name: str, dup_map: dict) -> str:
 
 
 # =====================================================
+# v5H226z619 (대표 지시): 고객사명 UNIQUE 완화 — 같은 상호라도 종사업장번호가 다르면
+#   별개 사업장으로 등록 허용(예: (주)드림텍 본사 0001 / 아산밸리 0005).
+#   DB 의 customers.name UNIQUE 제약을 제거(중복검사는 앱 레벨에서 상호+종사업장으로).
+#   ⚠ 프로덕션 스키마 변경 — 전용 autocommit 연결로 FK OFF 후, 현재 스키마 원문에서
+#     UNIQUE 만 제거해 재구성. DB 파일 백업 + 행수 검증 + 검증 통과 후에만 교체(데이터 보존).
+#   idempotent: name UNIQUE 가 이미 없으면 즉시 반환. init_db() 완료 후 1회 호출.
+# =====================================================
+def migrate_customers_name_unique():
+    import sqlite3 as _sq, re as _re_u
+    conn = _sq.connect(DB_PATH)
+    conn.isolation_level = None   # autocommit — 트랜잭션 밖이라 PRAGMA foreign_keys 적용 가능
+    try:
+        row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='customers'").fetchone()
+        csql = (row[0] if row else "") or ""
+        if not _re_u.search(r'\bname\b\s+TEXT\s+UNIQUE', csql, _re_u.IGNORECASE):
+            return  # 이미 완화됨
+        # 1) DB 파일 백업(되돌림 대비)
+        try:
+            import shutil as _sh, datetime as _dtu
+            bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+            os.makedirs(bdir, exist_ok=True)
+            _sh.copy2(DB_PATH, os.path.join(bdir, f"knk.db.bak_custuniq_{_dtu.datetime.now().strftime('%Y%m%d_%H%M%S')}"))
+        except Exception:
+            pass
+        n_before = conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
+        # 2) 새 스키마 = 현재 원문에서 name 의 UNIQUE 만 제거 + 테이블명 변경
+        newsql = _re_u.sub(r'(\bname\b\s+TEXT\s+)UNIQUE\s+', r'\1', csql, count=1, flags=_re_u.IGNORECASE)
+        newsql = _re_u.sub(r'CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?["\[`]?customers["\]`]?\s*\(',
+                           'CREATE TABLE "customers_new" (', newsql, count=1, flags=_re_u.IGNORECASE)
+        colnames = [r[1] for r in conn.execute("PRAGMA table_info(customers)").fetchall()]
+        csv = ", ".join(f'"{x}"' for x in colnames)
+        conn.execute("PRAGMA foreign_keys=OFF")
+        conn.execute("DROP TABLE IF EXISTS customers_new")
+        conn.execute(newsql)
+        conn.execute(f"INSERT INTO customers_new ({csv}) SELECT {csv} FROM customers")
+        n_after = conn.execute("SELECT COUNT(*) FROM customers_new").fetchone()[0]
+        # 3) 행수 검증 — 다르면 중단(원본 보존)
+        if n_after != n_before:
+            conn.execute("DROP TABLE IF EXISTS customers_new")
+            print(f"[z619] customers UNIQUE 완화 중단 — 행수 불일치 {n_before}->{n_after}(원본 보존)")
+            return
+        conn.execute("DROP TABLE customers")
+        conn.execute("ALTER TABLE customers_new RENAME TO customers")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)")
+        print(f"[z619] customers.name UNIQUE 제거 완료 — 같은 상호 다른 종사업장 등록 허용 ({n_after}건 보존)")
+    except Exception as e:
+        try:
+            conn.execute("DROP TABLE IF EXISTS customers_new")
+        except Exception:
+            pass
+        print(f"[z619] customers UNIQUE 완화 스킵: {e}")
+    finally:
+        conn.close()
+
+
+# =====================================================
 # INIT + SEED
 # =====================================================
 def init_db():

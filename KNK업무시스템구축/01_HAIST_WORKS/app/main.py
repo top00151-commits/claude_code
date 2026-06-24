@@ -507,6 +507,12 @@ async def _v5_global_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 def startup():
     init_db()
+    # v5H226z619 (대표 지시): 고객사명 UNIQUE 완화(같은 상호 다른 종사업장) — init_db 완료 후 전용 연결로(락·FK 회피)
+    try:
+        from .database import migrate_customers_name_unique as _mig_cuniq
+        _mig_cuniq()
+    except Exception as _e:
+        print(f"[z619] 고객사 UNIQUE 완화 호출 실패: {_e}")
     seed_all()
     # v5H226z104 (2026-05-16): 워크플로우 레고 빌더 마이그레이션 (idempotent)
     try:
@@ -7353,13 +7359,16 @@ async def admin_customer_health(req: Request):
     ti_repurposed = ti_overwritten = 0
     with db_session() as c:
         # A. 고객사 마스터 중복 의심 — 정규화 키는 같은데 등록명이 둘 이상
-        custs = [dict(r) for r in c.execute("SELECT id, name FROM customers ORDER BY name").fetchall()]
+        custs = [dict(r) for r in c.execute("SELECT id, name, sub_biz_no FROM customers ORDER BY name").fetchall()]
         gm = defaultdict(list)
         for r in custs:
             k = _nc(r["name"])
             if k:
-                gm[k].append(r)
-        for k, lst in gm.items():
+                # v5H226z619 (대표 지시): 종사업장번호까지 키에 포함 — 같은 상호라도 종사업장이
+                #   다르면 별개 사업장이라 '중복' 아님. 같은 상호+같은 종사업장에서 표기만 갈린 것만 후보.
+                _sbn = (r.get("sub_biz_no") or "").strip()
+                gm[(k, _sbn)].append(r)
+        for (k, _sbn), lst in gm.items():
             if len({r["name"] for r in lst}) > 1:
                 # 키 이름 'items'는 Jinja에서 dict.items() 메서드와 충돌 → 'members' 사용
                 master_dups.append({"key": k, "members": lst})
@@ -15338,7 +15347,11 @@ async def customers_new_submit(req: Request):
     }
     contacts = _customer_contacts_from_form(form)
     with db_session() as c:
-        existing = c.execute("SELECT id FROM customers WHERE name=?", (name,)).fetchone()
+        # v5H226z619 (대표 지시): 같은 상호라도 종사업장번호가 다르면 별개 사업장으로 등록 허용.
+        #   상호 + 종사업장번호가 '모두 같을' 때만 중복으로 차단.
+        existing = c.execute(
+            "SELECT id FROM customers WHERE name=? AND COALESCE(TRIM(sub_biz_no),'')=?",
+            (name, fields["sub_biz_no"])).fetchone()
         if existing:
             return RedirectResponse(
                 f"/customers?error=duplicate&id={existing['id']}", status_code=303)
@@ -15398,11 +15411,14 @@ async def customers_edit_submit(req: Request, cid: int):
         ).fetchone()
         old_data = dict(old_row) if old_row else {}
         old_name = (old_data.get("name") or "")
-        # v5H226z615: 다른 고객사가 이미 그 이름이면 친절 안내(500 방지). 이름 변경≠병합.
-        if name != old_name:
-            _dupc = c.execute("SELECT id FROM customers WHERE name=? AND id<>?", (name, cid)).fetchone()
-            if _dupc:
-                return RedirectResponse(f"/customers/{cid}/edit?dup=1", status_code=303)
+        # v5H226z619 (대표 지시): 같은 상호라도 종사업장번호가 다르면 별개 사업장으로 허용.
+        #   상호 + 종사업장번호가 '모두 같은' 다른 고객사가 있을 때만 중복 차단(500 방지).
+        _new_sbn = (form.get("sub_biz_no") or "").strip()
+        _dupc = c.execute(
+            "SELECT id FROM customers WHERE name=? AND COALESCE(TRIM(sub_biz_no),'')=? AND id<>?",
+            (name, _new_sbn, cid)).fetchone()
+        if _dupc:
+            return RedirectResponse(f"/customers/{cid}/edit?dup=1", status_code=303)
         new_is_active = int(form.get("is_active") or 1)
         new_data = {
             "name": name,
