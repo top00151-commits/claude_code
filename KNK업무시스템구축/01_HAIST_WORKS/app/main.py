@@ -15315,6 +15315,11 @@ async def customers_edit_submit(req: Request, cid: int):
         ).fetchone()
         old_data = dict(old_row) if old_row else {}
         old_name = (old_data.get("name") or "")
+        # v5H226z615: 다른 고객사가 이미 그 이름이면 친절 안내(500 방지). 이름 변경≠병합.
+        if name != old_name:
+            _dupc = c.execute("SELECT id FROM customers WHERE name=? AND id<>?", (name, cid)).fetchone()
+            if _dupc:
+                return RedirectResponse(f"/customers/{cid}/edit?dup=1", status_code=303)
         new_is_active = int(form.get("is_active") or 1)
         new_data = {
             "name": name,

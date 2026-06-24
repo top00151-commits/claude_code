@@ -92,6 +92,13 @@ body { overflow: hidden !important; }
     </div>
   </div>
 
+  {# v5H226z615: 고객사명 중복 → 친절 안내(500 방지). 이름 변경으로는 병합 불가 — 병합 도구 안내 #}
+  {% if request.query_params.get('dup') %}
+  <div style="margin:0 var(--content-pad) 8px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#b91c1c;font-size:13px;line-height:1.6;">
+    ⚠ <b>이미 같은 이름의 고객사가 있습니다</b> — 고객사명은 중복될 수 없어 이 이름으로 저장할 수 없습니다.<br>
+    같은 회사가 두 개로 등록돼 있어 <b>하나로 합치려는 것</b>이면, 이름 변경이 아니라 <b>고객사 병합</b>이 필요합니다(연결성 점검 화면 참고).
+  </div>
+  {% endif %}
   <form method="POST" action="{% if customer %}/customers/{{ customer.id }}/edit{% else %}/customers/new{% endif %}" autocomplete="off">
 
     <!-- v5H57: 사업자등록증 자동 파서 (PDF / 이미지) -->
