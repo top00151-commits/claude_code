@@ -8638,6 +8638,10 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
     err_cnt = 0
     sim_warn = 0
     dup_cnt = 0
+    # v5H226z647 (2026-06-25) — 엑셀 내부 part_no 중복 검출용 누적 셋.
+    # 같은 part_no가 여러 행에 적혀 있으면 첫 등장만 등록 가능(UNIQUE 제약). 두 번째부터는
+    # 미리보기에서 미리 차단 → "정상" 카운트 = 실제 등록 가능 수가 정확히 일치.
+    seen_part_nos: dict = {}  # part_no(소문자/공백제거) → 첫 등장 행 번호
 
     # 헤더 이후 행을 데이터로 처리. 행 번호는 1-indexed (헤더 행 번호 + 1 부터).
     from itertools import chain as _chain
@@ -8684,13 +8688,29 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
         data["biz_div"] = bd or "공통"  # 기본 공통
 
         # part_no UNIQUE 검사
+        # v5H226z647 (2026-06-25) — DB 중복 + 엑셀 내부 중복 모두 검사
+        # 엑셀 내부 중복(같은 part_no가 위 행에 이미 있음)도 미리보기에서 차단 →
+        # "정상" 카운트가 실제 등록 가능 수와 일치 (z647 이전에는 두 번째 행이
+        # OK로 표시됐다가 실제 등록 시 silent fail 됨).
         if part_no and not errors:
-            with db_session() as c:
-                dup = c.execute("SELECT id, part_name FROM parts WHERE part_no=?", (part_no,)).fetchone()
-            if dup:
-                errors.append(f"코드 중복 — 기존 [{dup['id']}] {dup['part_name']}")
+            # ① 엑셀 내부 중복 (같은 파일 안에서 위 행에 이미 등장)
+            #   대소문자·앞뒤 공백 차이 무시 — UNIQUE 제약은 원본 그대로지만 사용자 안내용
+            seen_key = part_no.strip().lower()
+            if seen_key and seen_key in seen_part_nos:
+                first_row = seen_part_nos[seen_key]
+                errors.append(f"엑셀 내부 코드 중복 — 같은 코드가 {first_row}행에 이미 있음(첫 등장만 등록 가능)")
                 status = "dup"
                 dup_cnt += 1
+            else:
+                if seen_key:
+                    seen_part_nos[seen_key] = row_no
+                # ② DB 기존 자재와 중복 검사
+                with db_session() as c:
+                    dup = c.execute("SELECT id, part_name FROM parts WHERE part_no=?", (part_no,)).fetchone()
+                if dup:
+                    errors.append(f"코드 중복 — 기존 [{dup['id']}] {dup['part_name']}")
+                    status = "dup"
+                    dup_cnt += 1
 
         # v5H226z644: dry_run에서도 _validate_parts_payload 실행 — 모든 검증 오류를 미리보기에 노출.
         # 통화·단위·매입단가·is_active 등 잠재 이슈를 즉시 표면화. data는 in-place 정규화됨(currency/unit 대문자 등).
@@ -11932,8 +11952,17 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
         if not val:
             return (False, "고객사명은 비울 수 없습니다")
         with db_session() as c:
-            _m = c.execute("SELECT id FROM customers WHERE name=?", (val,)).fetchall()
-            _cid = _m[0][0] if len(_m) == 1 else None  # 명확한 단일후보만 자동연결(데이터 연결성 안전원칙)
+            _ids = [r[0] for r in c.execute("SELECT id FROM customers WHERE name=?", (val,)).fetchall()]
+            if len(_ids) == 1:
+                _cid = _ids[0]              # 명확한 단일후보만 자동연결(데이터 연결성 안전원칙)
+            elif len(_ids) > 1:
+                # v5H226z647 (대표 지시): 같은 상호 여러 종사업장(드림텍 본사/아산 등) — 모호해도 끊지 말 것.
+                #   기존 연결 customer_id 가 그 후보들 중 하나면 그대로 유지(멀쩡한 연결 파괴 방지). 그 외에만 미매칭.
+                _ex = c.execute("SELECT customer_id FROM projects WHERE id=?", (int(ref_id),)).fetchone()
+                _exid = _ex[0] if _ex else None
+                _cid = _exid if (_exid in _ids) else None
+            else:
+                _cid = None                 # 일치 0곳 → 미매칭
             c.execute("UPDATE projects SET customer_name=?, customer_id=? WHERE id=?",
                       (val, _cid, int(ref_id)))
         return (True, "matched" if _cid else "unmatched")  # 호출측(엔드포인트)이 연결여부 판단에 사용
