@@ -18394,45 +18394,58 @@ def _board_split_lines_map():
                     }
                 if d.get("oi_id") is not None:
                     _so_acc[k]["items"].append(d)
-            # 프로젝트별로 SO 라인 구성 (소모품/부품=SO당 1줄, 장비=호기 분할/묶음)
-            _proj_lines: dict = {}
-            for (pid, oid), so in _so_acc.items():
-                plines = _proj_lines.setdefault(pid, [])
-                if so["so_type"] in ("PARTS_EXPORT", "CONSUMABLE"):
-                    plines.append({
-                        "iids": [it["oi_id"] for it in so["items"]], "label": "",
-                        "price": so["o_total"], "amount": so["o_total"], "currency": so["o_cur"],
-                        "order_date": so["o_ord"], "due_date": so["o_due"], "ship_to": so["o_ship"],
-                        "so_no": so["so_no"], "count": so["o_qty"] if so["o_qty"] else 1,
-                    })
-                    continue
-                # 장비 SO — 호기 라인(override 상속) 구성
-                _ulines = []
-                for it in so["items"]:
-                    eff_due = (str(it.get("i_due") or "").strip() or so["o_due"])
-                    eff_ord = (str(it.get("i_ord") or "").strip() or so["o_ord"])
-                    eff_ship = (str(it.get("i_ship") or "").strip() or so["o_ship"])
-                    eff_cur = (str(it.get("i_cur") or "").strip() or so["o_cur"] or "KRW")
-                    _ulines.append({
+            # v5H226z638 (대표 지시): 한 관리번호에 SO 여러 개면 '메인(최초) SO'만 행으로,
+            #   추가 SO 는 메인 행의 '참고(ref_sos)' 데이터로(별도 행 X). 보드는 메인 일정만 깔끔히.
+            def _collapse_line(_so):
+                # 소모품·부품·빈 SO → SO당 1줄(자재 분할 안 함)
+                return {
+                    "iids": [it["oi_id"] for it in _so["items"] if it.get("oi_id") is not None], "label": "",
+                    "price": _so["o_total"], "amount": _so["o_total"], "currency": _so["o_cur"],
+                    "order_date": _so["o_ord"], "due_date": _so["o_due"], "ship_to": _so["o_ship"],
+                    "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
+                }
+
+            def _so_lines(_so):
+                # 장비 SO → 호기 라인(override 상속) → z454 묶음. 소모품/부품/빈SO 는 1줄.
+                if _so["so_type"] in ("PARTS_EXPORT", "CONSUMABLE"):
+                    return [_collapse_line(_so)]
+                _ul = []
+                for it in _so["items"]:
+                    eff_due = (str(it.get("i_due") or "").strip() or _so["o_due"])
+                    eff_ord = (str(it.get("i_ord") or "").strip() or _so["o_ord"])
+                    eff_ship = (str(it.get("i_ship") or "").strip() or _so["o_ship"])
+                    eff_cur = (str(it.get("i_cur") or "").strip() or _so["o_cur"] or "KRW")
+                    _ul.append({
                         "iid": it.get("oi_id"), "label": (it.get("lbl") or "").strip(),
                         "price": float(it.get("up") or 0), "amount": float(it.get("amt") or 0),
                         "currency": eff_cur, "order_date": eff_ord[:10], "due_date": eff_due[:10],
-                        "ship_to": eff_ship, "so_no": so["so_no"],
+                        "ship_to": eff_ship, "so_no": _so["so_no"],
                     })
-                if not _ulines:
-                    # 빈 장비 SO (호기 미입력) → SO당 1줄
-                    plines.append({
-                        "iids": [], "label": "", "price": so["o_total"], "amount": so["o_total"],
-                        "currency": so["o_cur"], "order_date": so["o_ord"], "due_date": so["o_due"],
-                        "ship_to": so["o_ship"], "so_no": so["so_no"], "count": so["o_qty"] if so["o_qty"] else 1,
-                    })
-                    continue
-                # 이 SO 안에서 호기 단가/납기 동일하면 1줄로 묶고, 다르면 따로(z454)
-                plines.extend(_merge_units_same(_ulines))
-            # 라인이 2개 이상(=SO 여러 개 또는 호기 분할)인 프로젝트만 분할. 1줄이면 프로젝트 행 유지.
-            for pid, plines in _proj_lines.items():
-                if len(plines) >= 2:
-                    out[pid] = plines
+                if not _ul:
+                    return [_collapse_line(_so)]
+                return _merge_units_same(_ul)
+
+            # 프로젝트별로 SO 묶기 (oid 오름차순 = 최초 먼저). 메인=최초 SO, 나머지=추가(참고).
+            _proj_sos: dict = {}
+            for (pid, oid), so in _so_acc.items():
+                _proj_sos.setdefault(pid, []).append((oid, so))
+            for pid, so_list in _proj_sos.items():
+                so_list.sort(key=lambda x: x[0])
+                _main = so_list[0][1]
+                _refs = [s for (_o, s) in so_list[1:]]
+                main_lines = _so_lines(_main)
+                # 참고(추가) SO 정보 — 메인 행의 '참고 칩'으로 표시
+                ref_data = [{
+                    "so_no": s["so_no"], "so_type": s["so_type"], "amount": s["o_total"],
+                    "currency": s["o_cur"], "order_date": s["o_ord"], "due_date": s["o_due"],
+                    "qty": s["o_qty"],
+                } for s in _refs]
+                if main_lines and ref_data:
+                    main_lines[0] = dict(main_lines[0])
+                    main_lines[0]["ref_sos"] = ref_data
+                # 메인이 호기분할(≥2)이거나 참고가 있으면 분할 처리. 단일·균일·참고없음이면 프로젝트 행 유지(편집 가능).
+                if len(main_lines) >= 2 or ref_data:
+                    out[pid] = main_lines
     except Exception:
         return {}
     return out
@@ -18660,6 +18673,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu = dict(info)
                 _iu["is_unit"] = True
                 _iu["unit_iids"] = _ln.get("iids") or []   # v5H226z487: 이 줄이 가리키는 호기(order_items) — 직접수정 라우팅
+                _iu["ref_sos"] = _ln.get("ref_sos") or []   # v5H226z638: 같은 관리번호 추가 SO '참고 칩' 데이터(메인 첫 줄에만 있음)
                 _iu["unit_label"] = _ln["label"]
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
                 _iu["price"] = _ln["price"]
@@ -19607,6 +19621,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 _iu = dict(info)
                 _iu["is_unit"] = True
                 _iu["unit_iids"] = _ln.get("iids") or []   # v5H226z487: 이 줄이 가리키는 호기(order_items) — 직접수정 라우팅
+                _iu["ref_sos"] = _ln.get("ref_sos") or []   # v5H226z638: 같은 관리번호 추가 SO '참고 칩' 데이터(메인 첫 줄에만 있음)
                 _iu["unit_label"] = _ln["label"]
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
                 _iu["price"] = _ln["price"]
