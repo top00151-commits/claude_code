@@ -276,8 +276,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
             {# v5H226z513 (대표 지시): 부서 진행기록 모아보기(📜)를 관리번호 앞쪽으로 + 사업부(M) 배지 삭제 #}
             <span class="tl-btn" title="이 품목의 모든 부서 진행 기록 모아보기" role="button">📜</span>
             {% if r.kind=='consumable' %}<a href="/consumables/{{ r.ref_id }}">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}">{{ r.code }}</a>{% endif %}
-            {# v5H226z512 (대표 지시): 작업일정표와 동일 — 관리번호 뒤 '+'로 호기(프로젝트)·등록품목(소모품) 펼치기 #}
-            {% if r.kind=='consumable' or (r.qty|int) >= 2 %}<span class="dsx-exp" title="{% if r.kind=='consumable' %}등록 품목 펼치기/접기{% else %}호기 펼치기/접기{% endif %}" role="button">＋</span>{% endif %}
+            {# v5H226z632 (대표 지시): 관리번호 옆 '+' 펼치기 제거 — 작업일정표와 동일(장비 호기·소모품 품목보기 모두). 상세는 프로젝트/소모품 상세에서 #}
           </td>
           <td>{{ r.so_no or '—' }}</td>
           <td title="{{ r.model }}">{{ r.model or '—' }}</td>
