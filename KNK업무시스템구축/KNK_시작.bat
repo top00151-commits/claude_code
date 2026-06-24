@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-06-24 v5H226z641[참고 영역 또렷한 연한 회색(대표: 색 변경 안보임) — 헤더 배경 명시(.ref-sos-head bg #e3e6ea)+wrap #e9ebef·border #c4cad3·글자 #475569, 보드 .ref-chip 동일. ⚠캐시면 하드새로고침 필요(sw는 no-op·캐시안함). CSS만]
+REM   LAST UPDATE: 2026-06-24 v5H226z642[프로젝트 상세 프로젝트정보 패널 본문 위 전폭 이동(대표 지시·우측이라 안보임) — CSS만(HTML 이동X): .detail-grid grid-template-areas info/main으로 우측 aside를 맨위 전폭에 배치+main-content min-width:0. .def 라벨·값 3쌍/행 가로펼침(≤1280 2쌍·≤1100 1쌍). 수주내역은 그 아래 전폭]
+REM   - 2026-06-24 v5H226z641[참고 영역 또렷한 연한 회색(대표: 색 변경 안보임) — 헤더 배경 명시(.ref-sos-head bg #e3e6ea)+wrap #e9ebef·border #c4cad3·글자 #475569, 보드 .ref-chip 동일. ⚠캐시면 하드새로고침 필요(sw는 no-op·캐시안함). CSS만]
 REM   - 2026-06-24 v5H226z640[참고(추가 수주) 영역 연한 회색 계열로 통일(대표 지시) — 프로젝트 상세 접기영역(.ref-sos-wrap/head)+작업일정표 참고칩(.ref-chip)·펼침줄(.ref-exp-row/ref-tab) 모두 슬레이트 회색(border #cbd5e1·bg #f1f3f5~#f5f6f8·글자 #5b6675·on #64748b). CSS만]
 REM   - 2026-06-24 v5H226z639[프로젝트 상세 참고(추가 수주) 영역 색상 구분(대표 지시) — 본 카드(호박색)와 헷갈리지 않게 차가운 블루그레이 톤(.ref-sos-wrap/head border #9bb4d4·bg #eef3f9·글자 #34568b·hover #e1e9f4). CSS만 변경]
 REM   - 2026-06-24 v5H226z638[작업일정표 메인(최초) SO만 행+추가는 참고 칩(대표 지시) — 한 관리번호 여러 SO면 최초 SO만 일정 행, 추가 SO는 행의 📎참고N건 칩(클릭 펼침=수주번호·종류·금액, 금액 can_money 게이트). _board_split_lines_map: 메인=최초(oid최소) SO 라인(호기분할 유지)+ref_sos(추가SO). 빌더2곳 ref_sos 복사. schedule_board.html 칩+toggleRefSos+CSS+정렬/접기 정리. ⚠메인 SO 기준 월필터(추가만 활성인 달은 참고칩으로만). 임시DB 4시나리오 검증]

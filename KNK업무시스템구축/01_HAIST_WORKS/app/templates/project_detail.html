@@ -42,7 +42,10 @@ body {
 }
 
 /* v5H226z41: 관리번호 잉크 알약 — 시안1 디자인 시스템 표준 컴포넌트 */
-.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+/* v5H226z642 (대표 지시): 프로젝트 정보 패널을 우측 옆 → 본문 위(전폭)로. grid-template-areas 로 우측 aside 를 맨 위 'info' 영역에 배치(HTML 이동 없음). */
+.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr; grid-template-areas: "info" "main"; gap: var(--space-3); }
+.detail-grid > [data-dn="main-content"] { grid-area: main; min-width: 0; }
+.detail-grid > [data-dn="right-rail"] { grid-area: info; }
 /* v5H226z7: 그리드 아이템이 자식(넓은 PARTS 표) min-width 에 의해 늘어나는 것 방지 */
 .detail-grid > * { min-width: 0; }
 
@@ -171,9 +174,10 @@ body.so-fs-on { overflow: hidden; }
 .section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 .section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--amber); border-radius: 2px; }
-.def { display: grid; grid-template-columns: 100px 1fr; gap: 10px 14px; font-size: 13px; }
-.def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); }
-@media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
+/* v5H226z642: 전폭 배치 → 라벨·값 3쌍/행 가로 펼침(컴팩트). 좁아지면 2쌍→1쌍 */
+.def { display: grid; grid-template-columns: 104px 1fr 104px 1fr 104px 1fr; gap: 8px 20px; font-size: 13px; align-items: start; }
+.def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); margin: 0; }
+@media (max-width: 1280px) { .def { grid-template-columns: 100px 1fr 100px 1fr; } }
 
 /* v5H226z40: 1100px 이하 반응형 — 작은 모니터/노트북 깨짐 방지 */
 @media (max-width: 1100px) {
