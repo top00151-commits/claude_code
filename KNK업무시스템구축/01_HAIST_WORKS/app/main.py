@@ -7463,6 +7463,79 @@ async def admin_customer_health(req: Request):
                co_split=co_split, ti_mismatch=ti_mismatch[:300])
 
 
+@app.post("/admin/customer-merge")
+async def admin_customer_merge(req: Request):
+    """v5H226z616 (대표 지시): 고객사 마스터 병합 — 중복 등록된 고객사를 하나로 통합.
+    drop_ids 가 달고 있는 모든 연결(customer_id 보유 전 테이블 + customer_name 스냅샷)을
+    keep_id 로 옮기고 drop 고객사를 삭제. customers.name UNIQUE 라 이름 변경으로는 못 하는 병합.
+    되돌릴 수 없음(관리자/대표 전용·UI에서 확인 후 실행)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    try:
+        b = await req.json()
+    except Exception:
+        b = {}
+    try:
+        keep_id = int(b.get("keep_id"))
+    except Exception:
+        return JSONResponse({"ok": False, "error": "보존할 고객사(keep_id)가 올바르지 않습니다"}, 400)
+    drop_ids = []
+    for x in (b.get("drop_ids") or []):
+        try:
+            xi = int(x)
+            if xi != keep_id and xi not in drop_ids:
+                drop_ids.append(xi)
+        except Exception:
+            pass
+    if not drop_ids:
+        return JSONResponse({"ok": False, "error": "합칠 대상(drop_ids)이 없습니다"}, 400)
+    moved = {}
+    dropped_names = []
+    with db_session() as c:
+        keep = c.execute("SELECT name FROM customers WHERE id=?", (keep_id,)).fetchone()
+        if not keep:
+            return JSONResponse({"ok": False, "error": "보존할 고객사를 찾을 수 없습니다"}, 404)
+        keep_name = keep[0] if not isinstance(keep, dict) else keep["name"]
+        tabs = [r[0] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()]
+        for did in drop_ids:
+            drow = c.execute("SELECT name FROM customers WHERE id=?", (did,)).fetchone()
+            if not drow:
+                continue
+            dname = drow[0] if not isinstance(drow, dict) else drow["name"]
+            dropped_names.append(f"{dname}(#{did})")
+            for t in tabs:
+                if t == "customers":
+                    continue
+                try:
+                    cols = {r[1] for r in c.execute(f"PRAGMA table_info('{t}')").fetchall()}
+                except Exception:
+                    continue
+                if "customer_id" not in cols:
+                    continue
+                # 옮길 행의 이름 스냅샷을 보존 고객사명으로 먼저 동기화(옮긴 행만)
+                if "customer_name" in cols:
+                    try:
+                        c.execute(f"UPDATE {t} SET customer_name=? WHERE customer_id=?", (keep_name, did))
+                    except Exception:
+                        pass
+                try:
+                    cur = c.execute(f"UPDATE {t} SET customer_id=? WHERE customer_id=?", (keep_id, did))
+                    if cur.rowcount and cur.rowcount > 0:
+                        moved[t] = moved.get(t, 0) + cur.rowcount
+                except Exception:
+                    pass
+            # 세금계산서 라인의 고객사 스냅샷(이름만 보관·customer_id 없음) 동기화
+            try:
+                c.execute("UPDATE tax_invoice_lines SET customer=? WHERE customer=?", (keep_name, dname))
+            except Exception:
+                pass
+            c.execute("DELETE FROM customers WHERE id=?", (did,))
+    return JSONResponse({"ok": True, "keep_id": keep_id, "keep_name": keep_name,
+                         "dropped": dropped_names, "moved": moved})
+
+
 @app.post("/admin/sync-directory")
 async def admin_sync_directory(req: Request):
     """메신저 직원 명부 → 전 직원 일괄 동기화 (admin/ceo 전용)."""

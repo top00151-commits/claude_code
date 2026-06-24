@@ -22,6 +22,8 @@ table.ch tbody tr:hover td{background:#fcfaf3;}
 .ch-tag.id{background:#dcfce7;color:#166534;border-color:#bbf7d0;font-family:monospace;}
 .ch-key{font-family:monospace;color:#64748b;font-size:11px;}
 .ch-empty{padding:20px;text-align:center;color:#15803d;font-size:13px;background:#f0fdf4;border-radius:8px;}
+.ch-mbtn{display:inline-block;margin:2px 4px 2px 0;padding:4px 9px;border:1px solid #b91c1c;border-radius:6px;background:#fff;color:#b91c1c;font-size:11.5px;font-weight:700;cursor:pointer;}
+.ch-mbtn:hover{background:#b91c1c;color:#fff;}
 .ch-bad{color:#b91c1c;font-weight:700;}
 .ch-arrow{color:#94a3b8;}
 @media (max-width:1023px){ .ch-card{overflow-x:auto;-webkit-overflow-scrolling:touch;} table.ch{min-width:680px;} }
@@ -59,12 +61,14 @@ table.ch tbody tr:hover td{background:#fcfaf3;}
       <div class="sub">정규화하면 같은 회사인데 <b>등록명이 둘 이상</b>으로 따로 등록된 경우. 이게 있으면 매칭이 "여러 건"이라 미연결로 빠집니다 → 하나로 병합 대상.</div>
       {% if master_dups %}
       <table class="ch">
-        <thead><tr><th style="width:160px;">정규화 키</th><th>등록된 이름들 (각 ID)</th></tr></thead>
+        <thead><tr><th style="width:150px;">정규화 키</th><th>등록된 이름들 (각 ID)</th><th style="width:260px;">병합 (남길 이름 선택)</th></tr></thead>
         <tbody>
         {% for g in master_dups %}
+          {% set allids = g.members|map(attribute='id')|list %}
           <tr>
             <td class="ch-key">{{ g.key }}</td>
             <td>{% for it in g.members %}<span class="ch-tag">{{ it.name }} <span class="ch-tag id">#{{ it.id }}</span></span>{% endfor %}</td>
+            <td>{% for it in g.members %}<button type="button" class="ch-mbtn" onclick='chMerge({{ it.id }}, {{ allids|tojson }}, {{ it.name|tojson }})'>‹ {{ it.name }} 로 합치기</button>{% endfor %}</td>
           </tr>
         {% endfor %}
         </tbody>
@@ -143,8 +147,30 @@ table.ch tbody tr:hover td{background:#fcfaf3;}
 
     <div class="ch-banner" style="background:#fff7ed;border-color:#fed7aa;color:#7c2d12;">
       📌 <b>다음 단계</b> — 위 숫자가 클수록 (1) 고객사 마스터 병합 (2) 기존 이름 표기 표준화 (3) 집계·세금계산서를 고객사 ID 기준으로 전환 이 필요합니다.
-      어느 것부터 진행할지는 이 화면을 보고 정해 주세요. <b>이 화면 자체는 아무것도 바꾸지 않습니다.</b>
+      이 화면은 <b>조회 전용</b>이지만, ① 표의 <b>‹ 합치기 버튼만</b> 실제 병합을 실행합니다(확인창 거침·되돌릴 수 없음).
     </div>
   </div>
 </main></div>
+<script>
+// v5H226z616 (대표 지시): 고객사 마스터 병합 — keep 로 나머지를 합침(연결 이관 + drop 삭제).
+async function chMerge(keepId, allIds, keepName){
+  var drop = (allIds||[]).filter(function(x){ return x !== keepId; });
+  if(!drop.length){ alert('합칠 대상이 없습니다.'); return; }
+  if(!confirm('고객사 #' + drop.join(', #') + ' 를\n#' + keepId + ' (' + keepName + ') 로 합칩니다.\n\n'
+    + '· 해당 고객사의 모든 프로젝트·수주·소모품·세금계산서 연결이 ' + keepName + ' 로 옮겨집니다.\n'
+    + '· 합쳐진(빈) 고객사는 삭제됩니다.\n· 되돌릴 수 없습니다.\n\n진행할까요?')) return;
+  try{
+    var r = await fetch('/admin/customer-merge', {
+      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin',
+      body: JSON.stringify({keep_id: keepId, drop_ids: drop})
+    });
+    var j = await r.json();
+    if(!j.ok){ alert('병합 실패: ' + (j.error || ('HTTP ' + r.status))); return; }
+    var lines = Object.keys(j.moved||{}).map(function(k){ return '  · ' + k + ': ' + j.moved[k] + '건'; });
+    alert('✅ 병합 완료 — ' + (j.keep_name||'') + ' 로 통합.\n\n옮긴 연결:\n'
+      + (lines.length ? lines.join('\n') : '  (옮긴 연결 없음)') + '\n\n새로고침합니다.');
+    location.reload();
+  }catch(e){ alert('통신 오류: ' + e); }
+}
+</script>
 </body></html>
