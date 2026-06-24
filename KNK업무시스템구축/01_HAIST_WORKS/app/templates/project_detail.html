@@ -881,7 +881,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           {% set _cur = so.currency or p.currency or 'KRW' %}
           {# v5H95: 통화 기호 제거 — 코드만 표시 (KRW/USD/VND) #}
           {% set _sym = '' %}
-          {% set _qq = so.unit_qty|default(1) %}
+          {# v5H226z627 (대표 지시): 수량 = 실제 호기 라인(order_items) qty 합 — orders.unit_qty 가 어긋나도(1줄 qty=2 등) 정확히 표시 #}
+          {% set _qq = (so.units|map(attribute='qty')|select|map('int')|sum) if so.units else (so.unit_qty|default(1)) %}
           <div class="so-card{% if _editable %} editable{% endif %}" data-soid="{{ so.id }}">
             <!-- 헤더: 수주번호 + 메타 + 액션 -->
             <div class="so-card-head">
@@ -1150,7 +1151,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   </td>
                   {% endif %}
                   <td class="num px-x">
-                    <span class="display-val price">{% if can_money %}{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}{% else %}🔒{% endif %} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></span>
+                    {# v5H226z627 (대표 지시): 1줄에 수량 2+면 '합산금액'이 아니라 '단가(1대) ×수량'으로 표시 #}
+                    <span class="display-val price">{% if can_money %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ '{:,.2f}'.format(u.unit_price) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.unit_price) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}{% endif %}{% else %}🔒{% endif %} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></span>
                     {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(u.amount or u.unit_price or 0)) if (_u_ccy != 'KRW') else ('%.0f'|format(u.amount or u.unit_price or 0)) }}" value="{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
                   </td>
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
@@ -1326,7 +1328,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         {% set _gtotal = namespace(t=0, q=0) %}
         {% for _so in project_orders %}
           {% set _gtotal.t = _gtotal.t + (_so.total_amount or 0) %}
-          {% set _gtotal.q = _gtotal.q + (_so.unit_qty or 1) %}
+          {% set _gtotal.q = _gtotal.q + ((_so.units|map(attribute='qty')|select|map('int')|sum) if _so.units else (_so.unit_qty or 1)) %}
         {% endfor %}
         {# v5H176: 합계 통화는 프로젝트 헤더 통화 기준. 외화 + fx_rate 있으면 KRW 환산 병기. #}
         {% set _gt_ccy = p.currency or 'KRW' %}
