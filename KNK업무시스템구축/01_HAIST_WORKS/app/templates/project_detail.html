@@ -974,6 +974,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
             {% set _so_ccy = so.currency or (_units_desc[0].currency if (_units_desc and _units_desc[0].currency) else '') or p.currency or 'KRW' %}
             {# v5H226z630(대표 지시): 완제품이 1줄(qty=N)이면 호기 칸 제거. 호기별 단가·납기가 달라 여러 줄로 분할된 경우만 호기 컬럼 유지. 부품(품명)·소모품은 영향 없음 #}
             {% set _hide_hogi = (not _is_parts) and (not _is_co) and ((_units_desc|length) <= 1) %}
+            {# v5H226z634 (대표 지시): 완제품(장비) SO — 수주 내역을 호기별 종합표(금액·거래명세서·세금계산서1/2/3 추가). 부품/소모품은 기존 컬럼셋 유지 #}
+            {% set _is_equip = (not _is_parts) and (not _is_co) %}
             {% set _is_fx_view = (_is_parts and _so_ccy != 'KRW') %}
             {# v5H226z609: 매입/판매 칸의 통화 단위 — _pfx면 KRW환산값=KRW, fx뷰(환율없음)면 외화, 그외 KRW #}
             {% set _krw_col_ccy = 'KRW' if _pfx else (_so_ccy if _is_fx_view else 'KRW') %}
@@ -990,11 +992,12 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               <button type="button" class="reset" id="partsResetCols-{{ so.id }}" title="컬럼 폭 원복">↻ 폭 리셋</button>
             </div>
             {% endif %}
-            <div{% if _is_parts %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
+            <div{% if _is_parts or _is_equip %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
               {# v5H226z19: 중간 스크롤 제거 — wrapper 자연 높이 + 가로 스크롤만. #}
               {# 가로 스크롤이 viewport 하단에 항상 보이도록 sticky horizontal proxy 추가. #}
-              <div{% if _is_parts %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% endif %}>
-            <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;min-width:1500px;table-layout:fixed;"{% endif %}>
+              {# v5H226z634: 완제품도 칸 늘어 가로 스크롤(부품처럼). 단 table-layout:고정/min-width는 안 줌(자연 폭). #}
+              <div{% if _is_parts %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% elif _is_equip %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;"{% endif %}>
+            <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;min-width:1500px;table-layout:fixed;"{% elif _is_equip %} style="white-space:nowrap;"{% endif %}>
               <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
@@ -1025,7 +1028,9 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   <th class="px-x" style="width:160px;" data-pgroup="basic">상세 내용</th>
                   {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
-                  <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가</th>
+                  <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(1대)</span>{% endif %}</th>
+                  {# v5H226z634 (대표 지시): 완제품 금액 칸(=호기 라인 금액) #}
+                  {% if _is_equip and can_money %}<th class="num px-x" style="width:120px;background:#fef9e6;">금액</th>{% endif %}
                   <th class="px-x" style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
                   {# v5H226z84: 거래방식 컬럼 너비 88→70px #}
                   {% if not _is_parts %}<th style="width:70px;">거래방식</th>{% endif %}
@@ -1039,6 +1044,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
                   {# v5H226z85: width: auto — table-layout:fixed에서 명시안된 컬럼은 남은 공간 차지 #}
                   <th style="width:auto;min-width:220px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
+                  {# v5H226z634 (대표 지시): 완제품 — 호기별 거래명세서·세금계산서1/2/3 (보기 전용 · 발행/편집은 작업일정표 보드) #}
+                  {% if _is_equip and can_money %}
+                  <th class="px-x center" style="width:110px;">거래명세서</th>
+                  <th class="px-x center" style="width:120px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">1차</span></th>
+                  <th class="px-x center" style="width:120px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">2차</span></th>
+                  <th class="px-x center" style="width:120px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">3차</span></th>
+                  {% endif %}
                   {# v5H226z86: 동작 → 수정 (호기별 개별 저장/삭제이지만 사용자 인지 일관성) #}
                   {% if _editable %}<th class="center edit-only" style="width:80px;">수정</th>{% endif %}
                 </tr>
@@ -1159,6 +1171,10 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                     <span class="display-val price">{% if can_money %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ '{:,.2f}'.format(u.unit_price) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.unit_price) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}{% endif %}{% else %}🔒{% endif %} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></span>
                     {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(u.amount or u.unit_price or 0)) if (_u_ccy != 'KRW') else ('%.0f'|format(u.amount or u.unit_price or 0)) }}" value="{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
                   </td>
+                  {# v5H226z634 (대표 지시): 완제품 금액 칸 = 호기 라인 금액(u.amount). 원화 무소수점·외화 2자리 #}
+                  {% if _is_equip and can_money %}
+                  <td class="num px-x" style="background:#fef9e6;font-weight:600;">{{ '{:,.2f}'.format(u.amount or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></td>
+                  {% endif %}
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
                   {# v5H226z83: 통화 td 중앙 정렬 #}
                   <td class="center px-x">
@@ -1231,6 +1247,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                     <span class="display-val note">{{ u.line_note or '' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}
                   </td>
+                  {# v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서1/2/3 (보기 전용 — 발행/편집은 작업일정표 보드) #}
+                  {% if _is_equip and can_money %}
+                  <td class="center px-x" style="font-size:11px;white-space:nowrap;">{{ u.statement_date or '—' }}</td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">₩{{ '{:,.0f}'.format(u.tax_invoice_amt1|float) }}</div>{% endif %}{% else %}—{% endif %}</td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date2 or u.tax_invoice_amt2 %}<div>{{ u.tax_invoice_date2 or '–' }}</div>{% if u.tax_invoice_amt2 %}<div style="color:#1d4ed8;font-weight:700;">₩{{ '{:,.0f}'.format(u.tax_invoice_amt2|float) }}</div>{% endif %}{% else %}—{% endif %}</td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date3 or u.tax_invoice_amt3 %}<div>{{ u.tax_invoice_date3 or '–' }}</div>{% if u.tax_invoice_amt3 %}<div style="color:#1d4ed8;font-weight:700;">₩{{ '{:,.0f}'.format(u.tax_invoice_amt3|float) }}</div>{% endif %}{% else %}—{% endif %}</td>
+                  {% endif %}
                   {% if _editable %}
                   <td class="center edit-only">
                     <button type="button" class="row-save">💾 저장</button>
@@ -1958,6 +1981,9 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           </dd>
           {# v5H185: 우측 패널은 정보 확인만. 수정은 상단 타이틀 옆 ✏️ + SO 영역 툴바에서. #}
           <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
+          {# v5H226z634 (대표 지시): 모델명·장비명도 공통 정보로 표시 #}
+          <dt>모델명</dt><dd>{{ p.model_name|default('—') }}</dd>
+          <dt>장비명</dt><dd>{{ p.equip_name|default('—') }}</dd>
           <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}</dd>
           {% if p.two_tier_order %}
           <dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer|default('—') }}</dd>

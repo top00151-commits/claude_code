@@ -971,6 +971,10 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                        "maker", "origin", "box_no", "spec", "arrival_status",  # v5H226z: 정식 PACKING LIST
                        "supplier", "unit",  # v5H226z4: 업체명/단위 별도
                        "cost_price", "margin_pct",  # v5H226z460: 상품 원가관리(매입단가·마진%)
+                       # v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서(1/2/3) — 수주 내역 표에서 호기마다 보기
+                       "statement_date", "tax_invoice_date", "tax_invoice_amt1",
+                       "tax_invoice_date2", "tax_invoice_amt2",
+                       "tax_invoice_date3", "tax_invoice_amt3",
                        # v5H226z5: 통관 컬럼
                        "hs_code", "duty_rate", "vat_rate",
                        "invoice_unit_price", "invoice_amount",
