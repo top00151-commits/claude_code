@@ -877,10 +877,10 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         {# v5H226z637 (대표 지시): 최초(메인) 수주는 그대로, 추가 수주는 '참고'로 접어 표시(같은 관리번호에 딸린 건임을 구분). 최초 = 가장 오래된 SO(목록 마지막). #}
         {% set _ord = ([project_orders|last] + project_orders[:-1]) if (project_orders|length > 1) else project_orders %}
         <style>
-          /* v5H226z639 (대표 지시): 참고(추가 수주) 영역은 본 카드(호박색)와 구분되게 차가운 블루그레이 톤 */
-          .ref-sos-wrap { border:1px dashed #9bb4d4; border-radius:10px; margin:10px 0 4px; background:#eef3f9; }
-          .ref-sos-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:11px 16px; cursor:pointer; font-weight:700; color:#34568b; font-size:13px; user-select:none; }
-          .ref-sos-head:hover { background:#e1e9f4; border-radius:10px; }
+          /* v5H226z640 (대표 지시): 참고(추가 수주) 영역 — 연한 회색 계열(본 카드 호박색과 구분) */
+          .ref-sos-wrap { border:1px dashed #cbd5e1; border-radius:10px; margin:10px 0 4px; background:#f5f6f8; }
+          .ref-sos-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:11px 16px; cursor:pointer; font-weight:700; color:#5b6675; font-size:13px; user-select:none; }
+          .ref-sos-head:hover { background:#eceef1; border-radius:10px; }
           .ref-sos-body { display:none; padding:2px 8px 8px; }
           .ref-sos-wrap.open .ref-sos-body { display:block; }
           .ref-sos-arrow { transition:transform .15s; font-size:12px; }

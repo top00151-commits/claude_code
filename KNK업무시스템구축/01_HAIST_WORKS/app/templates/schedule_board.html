@@ -196,18 +196,18 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched .row-exp { float:right; cursor:pointer; user-select:none; font-weight:800; color:var(--knk-red); background:#fff; border:1px solid var(--line); border-radius:5px; width:18px; height:18px; line-height:15px; text-align:center; font-size:13px; margin-left:4px; }
 .sched .row-exp:hover { background:#fff0ef; }
 .sched .row-exp.on { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
-/* v5H226z638: 같은 관리번호 추가 수주 '참고' 칩 + 펼침 줄 */
-.sched .ref-chip { display:inline-flex; align-items:center; gap:2px; margin-left:6px; padding:1px 7px; font-size:10.5px; font-weight:700; color:var(--amber-deep); background:#fff7e6; border:1px solid var(--amber); border-radius:9px; cursor:pointer; white-space:nowrap; user-select:none; }
-.sched .ref-chip:hover { background:#ffedcc; }
-.sched .ref-chip.on { background:var(--amber-deep); color:#fff; border-color:var(--amber-deep); }
+/* v5H226z638: 같은 관리번호 추가 수주 '참고' 칩 + 펼침 줄 · v5H226z640: 연한 회색 계열 */
+.sched .ref-chip { display:inline-flex; align-items:center; gap:2px; margin-left:6px; padding:1px 7px; font-size:10.5px; font-weight:700; color:#5b6675; background:#f1f3f5; border:1px solid #cbd5e1; border-radius:9px; cursor:pointer; white-space:nowrap; user-select:none; }
+.sched .ref-chip:hover { background:#e6e9ed; }
+.sched .ref-chip.on { background:#64748b; color:#fff; border-color:#64748b; }
 .sched .ref-arrow { font-size:9px; transition:transform .15s; }
 .sched .ref-chip.on .ref-arrow { transform:rotate(90deg); }
 .sched tr.ref-exp-row:hover > td { background:inherit !important; box-shadow:none !important; background-image:none !important; }
-.sched tr.ref-exp-row > td.ref-cell { background:#fffdf5; padding:7px 12px; border-bottom:2px solid var(--amber); }
-.ref-wrap .ref-title { font-size:11.5px; color:var(--amber-deep); font-weight:700; margin-bottom:6px; }
+.sched tr.ref-exp-row > td.ref-cell { background:#f7f8fa; padding:7px 12px; border-bottom:2px solid #cbd5e1; }
+.ref-wrap .ref-title { font-size:11.5px; color:#5b6675; font-weight:700; margin-bottom:6px; }
 .ref-tab { border-collapse:collapse; font-size:11.5px; }
-.ref-tab th, .ref-tab td { border:1px solid #e7d9b8; padding:3px 12px; }
-.ref-tab th { background:#fbf3e0; color:#7c4a03; }
+.ref-tab th, .ref-tab td { border:1px solid #e2e5ea; padding:3px 12px; }
+.ref-tab th { background:#eef0f3; color:#4b5563; }
 .ref-tab .num { text-align:right; font-variant-numeric:tabular-nums; }
 .sched tr.unit-exp-row > td.ux-cell { background:#f8fafc; padding:0; border-bottom:2px solid var(--knk-red); }
 /* v5H226z565 (대표 지시): 펼침 내용을 수주번호 칸부터 — 관리번호 칸은 빈칸(패널과 동일 배경·하단선) */
