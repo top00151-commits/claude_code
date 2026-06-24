@@ -2329,6 +2329,25 @@ def fetch_customers(c):
     ).fetchall()]
 
 
+@app.get("/api/customers/options")
+async def api_customers_options(req: Request):
+    """v5H226z621 (대표 지시): 고객사 자동완성 콤보박스용 — 활성 고객사 전부.
+    시스템명(alias)·종사업장번호 포함(같은 상호 다른 종사업장 구분). 전 화면 공통 선택기에서 사용."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    with db_session() as c:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
+        _al = "alias" if "alias" in cols else "''"
+        _sb = "sub_biz_no" if "sub_biz_no" in cols else "''"
+        rows = c.execute(
+            f"SELECT id, name, COALESCE({_al},'') AS alias, COALESCE({_sb},'') AS sub_biz_no "
+            "FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY name COLLATE NOCASE").fetchall()
+    out = [{"id": r["id"], "name": r["name"] or "",
+            "alias": (r["alias"] or ""), "sub_biz_no": (r["sub_biz_no"] or "")} for r in rows]
+    return JSONResponse({"ok": True, "customers": out})
+
+
 # =====================================================
 # AUTH
 # v5H226z121 (2026-05-31) 메신저 정문 단일 진입 — WORKS 자체 로그인 폐지
@@ -21870,6 +21889,17 @@ async def projects_new_submit(request: Request):
         "server_path": form.get("server_path", ""),
         "engraving": form.get("engraving", ""),
     })
+    # v5H226z621 (대표 지시): 고객사 콤보박스에서 고른 customer_id 우선 적용 —
+    #   같은 상호 다른 종사업장 구분(이름매칭 LIMIT 1 모호 방지). 빈값/무효면 기존 이름매칭 유지.
+    _picked_cid = (form.get("customer_id") or "").strip()
+    if new_pid and _picked_cid.isdigit():
+        try:
+            with db_session() as _cc_cid:
+                if _cc_cid.execute("SELECT 1 FROM customers WHERE id=?", (int(_picked_cid),)).fetchone():
+                    _cc_cid.execute("UPDATE projects SET customer_id=? WHERE id=?",
+                                    (int(_picked_cid), int(new_pid)))
+        except Exception:
+            pass
     # v5H226z209 (2026-06-04 대표 지시·2단계): 품목(project_items) 저장.
     #   · item1 = 폼 기본 필드(출고형태·모델·수량·단가) — 대표 품목.
     #   · 추가 품목 = 폼 repeater(pi_* 배열) — 출고형태별 칸(장비명/품명·모델명).

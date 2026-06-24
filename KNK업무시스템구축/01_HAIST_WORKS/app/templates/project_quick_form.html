@@ -146,8 +146,9 @@ html,body{background:#fff!important;overflow:auto!important;}
             {% endif %}</div>
           <div class="qf-f c2"><label>수주번호</label>
             {% if ed %}<div class="qf-code" style="color:#7c4a03;background:#fdf3e3;">{{ so_no|default('—') or '—' }}</div>{% else %}<div class="qf-code" style="color:#7c4a03;background:#fdf3e3;" title="저장 시 발주일 기준 자동 발행">자동 발급</div>{% endif %}</div>
-          <div class="qf-f c4"><label>고객사1 <span class="req">*</span></label>
-            <input list="qCustList" name="customer_name" placeholder="고객사명" autocomplete="off" value="{{ project.customer_name|default('') if ed else '' }}">
+          {# v5H226z621 (대표 지시): 고객사1 = 등록 고객사(시스템명) 자동완성 콤보 — 미매칭이면 적색·저장차단. customer_id 바인딩 #}
+          <div class="qf-f c4"><label>고객사1 <span class="req">*</span> <span style="font-weight:400;color:var(--qv-ink-3);font-size:11px;">(등록 목록에서 선택)</span></label>
+            <input type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="1" data-cust-initial="{{ project.customer_name|default('') if ed else '' }}" placeholder="고객사명·시스템명 입력 → 목록 선택" autocomplete="off">
             <datalist id="qCustList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist>
           </div>
           {# v5H226z350: 2차거래 폐지 → 고객사2(최종 고객) 직접 입력칸 #}
@@ -494,7 +495,9 @@ function qEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ re
 function qMgmtPick(rw){
   var inp=document.getElementById('qMgmtInput'); if(inp) inp.value=(rw.mgmt_code||'').toUpperCase();
   qMgmtHide();
-  var cust=document.querySelector('[name=customer_name]'); if(cust && !cust.value && rw.customer_name) cust.value=rw.customer_name;
+  // v5H226z621: 고객사1 콤보박스 prefill — 보이는 picker에 상호 넣고 input 이벤트로 매칭·바인딩
+  var custP=document.querySelector('input[data-cust-picker][data-cust-name=customer_name]');
+  if(custP && !custP.value && rw.customer_name){ custP.value=rw.customer_name; custP.dispatchEvent(new Event('input')); setTimeout(function(){ custP.dispatchEvent(new Event('blur')); },50); }
   // 프로젝트명은 백엔드 필수(추가발주 분기보다 먼저 검증) → 비어 있으면 기존값/모델/관리번호로 채움
   var nm=document.querySelector('[name=name]'); if(nm && !nm.value) nm.value=(rw.name || rw.model_name || ('추가발주 '+(rw.mgmt_code||'')));
   // v5H226z429(대표 지시): 추가발주로 기존 관리번호 연결 시 모델명·장비명도 그 프로젝트값으로 자동 채움.
@@ -629,6 +632,11 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   var g=function(n){ return (this.querySelector('[name='+n+']').value||'').trim(); }.bind(this);
   var name=g('name'), cust=g('customer_name'), model=g('model'), equip=g('equip_name');
   var err=document.getElementById('qfErr');
+  // v5H226z621 (대표 지시): 고객사가 등록 목록에서 선택 안 됐으면(적색) 저장 차단
+  var _custBad = window.KNKCust && KNKCust.validate(this);
+  if(_custBad){ e.preventDefault(); try{ _custBad.focus(); }catch(_e){}
+    err.textContent='고객사를 등록된 목록에서 선택하세요(빨간 칸). 없으면 먼저 고객사를 등록하세요.';
+    err.classList.add('show'); qScrollErr(); return; }
   // v5H226z384: 추가 발주(PO≠신규)는 관리번호+고객사 필수(모델·장비는 기존 프로젝트 상속), 신규는 프로젝트명·고객사·모델·장비 필수
   if(qIsFollowup()){
     var _mc=(document.getElementById('qMgmtInput')||{}).value||'';

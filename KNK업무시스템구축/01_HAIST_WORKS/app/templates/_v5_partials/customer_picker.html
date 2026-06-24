@@ -1,0 +1,93 @@
+{# v5H226z621 (대표 지시): 고객사 자동완성 콤보박스 — 등록 고객사(시스템명)에서만 선택.
+   미매칭이면 적색 + 저장차단. customer_id 바인딩(같은 상호 다른 종사업장 구분).
+   사용법: <input data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id"
+                  data-cust-required="1" data-cust-initial="{{기존 상호}}" autocomplete="off">
+   → 보이는 칸은 검색·표시용(제출 안 함), 콤포넌트가 hidden customer_name(상호)+customer_id 를 만들어 제출.
+   제출 전 KNKCust.validate(form) 가 null 이 아니면(미선택) 막을 것. SPA 자동 초기화(MutationObserver). #}
+<style>
+.knkcust-wrap{position:relative;display:block;}
+input.knkcust-bad{border-color:#dc2626 !important;background:#fef2f2 !important;color:#b91c1c !important;}
+input.knkcust-bad::placeholder{color:#f08a8a;}
+.knkcust-dd{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:9999;max-height:260px;overflow-y:auto;
+  background:#fff;border:1px solid #d6cdb6;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.16);font-size:13px;}
+.knkcust-it{padding:7px 11px;cursor:pointer;border-bottom:1px solid #f3eee0;line-height:1.35;}
+.knkcust-it:hover,.knkcust-it.on{background:#fef3c7;}
+.knkcust-it b{color:#1e293b;font-weight:700;}
+.knkcust-it .ksub{color:#94a3b8;font-size:11.5px;}
+.knkcust-it .ksbn{color:#2563eb;font-size:11px;font-weight:700;}
+.knkcust-empty{padding:10px 12px;color:#b45309;font-size:12px;}
+</style>
+<script>
+window.KNKCust = (function(){
+  var _opts=null, _loading=null;
+  function load(){
+    if(_opts) return Promise.resolve(_opts);
+    if(_loading) return _loading;
+    _loading = fetch('/api/customers/options',{credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ _opts=(j&&j.customers)||[]; return _opts; })
+      .catch(function(){ _opts=[]; return _opts; });
+    return _loading;
+  }
+  function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];}); }
+  function norm(s){ return (s||'').toString().trim().toLowerCase().replace(/\s+/g,''); }
+  function disp(o){ return (o.alias||o.name)+(o.sub_biz_no?(' ['+o.sub_biz_no+']'):''); }
+  function findExact(text){
+    if(!_opts) return null; var t=norm(text); if(!t) return null;
+    var m=_opts.filter(function(o){ return norm(o.name)===t || (o.alias&&norm(o.alias)===t) || norm(disp(o))===t; });
+    return m.length===1 ? m[0] : null;   // 모호(2건+)·불일치면 미확정
+  }
+  function attach(inp){
+    if(inp.__custReady) return; inp.__custReady=true;
+    var nameField=inp.getAttribute('data-cust-name')||'customer_name';
+    var idField=inp.getAttribute('data-cust-id')||'customer_id';
+    var required=inp.getAttribute('data-cust-required')==='1';
+    var initial=inp.getAttribute('data-cust-initial')||'';
+    inp.setAttribute('autocomplete','off');
+    var wrap=document.createElement('span'); wrap.className='knkcust-wrap';
+    inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(inp);
+    function ensureHidden(nm){
+      var sc=inp.form||wrap;
+      var h=sc.querySelector('input[type=hidden][data-cust-h="'+nm+'"]');
+      if(!h){ h=document.createElement('input'); h.type='hidden'; h.name=nm; h.setAttribute('data-cust-h',nm); wrap.appendChild(h); }
+      return h;
+    }
+    var hName=ensureHidden(nameField), hId=ensureHidden(idField);
+    var dd=document.createElement('div'); dd.className='knkcust-dd'; dd.style.display='none'; wrap.appendChild(dd);
+    function mark(ok){ inp.setAttribute('data-cust-ok', ok?'1':'0');
+      inp.classList.toggle('knkcust-bad', required ? !ok : (!!inp.value.trim() && !ok)); }
+    function setSel(o){ hName.value=o.name||''; hId.value=o.id||''; inp.value=disp(o); mark(true); dd.style.display='none'; }
+    function clearSel(){ hName.value=''; hId.value=''; mark(false); }
+    function render(q){
+      var t=norm(q), qq=(q||'').trim();
+      var list=(_opts||[]).filter(function(o){ return !t || norm(o.name).indexOf(t)>=0 || (o.alias&&norm(o.alias).indexOf(t)>=0) || (o.sub_biz_no&&o.sub_biz_no.indexOf(qq)>=0); }).slice(0,80);
+      dd.innerHTML = list.length ? list.map(function(o){ return '<div class="knkcust-it" data-i="'+_opts.indexOf(o)+'">'+
+          '<b>'+esc(o.alias||o.name)+'</b>'+((o.alias&&o.alias!==o.name)?(' <span class="ksub">'+esc(o.name)+'</span>'):'')+
+          (o.sub_biz_no?(' <span class="ksbn">['+esc(o.sub_biz_no)+']</span>'):'')+'</div>'; }).join('')
+        : '<div class="knkcust-empty">일치하는 등록 고객사가 없습니다 — 고객사를 먼저 등록하세요.</div>';
+      dd.style.display='block';
+    }
+    inp.addEventListener('focus', function(){ load().then(function(){ render(inp.value); }); });
+    inp.addEventListener('input', function(){ load().then(function(){ render(inp.value);
+      var o=findExact(inp.value); if(o){ hName.value=o.name; hId.value=o.id; mark(true); } else { clearSel(); } }); });
+    inp.addEventListener('blur', function(){ setTimeout(function(){ dd.style.display='none';
+      var o=findExact(inp.value); if(o){ setSel(o); } else { clearSel(); } }, 180); });
+    dd.addEventListener('mousedown', function(e){ var it=e.target.closest('.knkcust-it'); if(!it) return; e.preventDefault();
+      var o=_opts[parseInt(it.getAttribute('data-i'),10)]; if(o) setSel(o); });
+    load().then(function(){
+      if(initial){ var o=findExact(initial); if(o){ setSel(o); } else { inp.value=initial; clearSel(); } }
+      else { mark(!required && !inp.value.trim() ? true : false); if(!inp.value.trim()) inp.classList.toggle('knkcust-bad', required); }
+    });
+  }
+  function initAll(root){ try{ (root||document).querySelectorAll('input[data-cust-picker]').forEach(attach); }catch(e){} }
+  function validate(scope){ var bad=null;
+    try{ (scope||document).querySelectorAll('input[data-cust-picker]').forEach(function(inp){
+      var required=inp.getAttribute('data-cust-required')==='1';
+      if(required && inp.getAttribute('data-cust-ok')!=='1'){ inp.classList.add('knkcust-bad'); if(!bad) bad=inp; }
+    }); }catch(e){} return bad; }
+  document.addEventListener('DOMContentLoaded', function(){ initAll(); });
+  var _t=null;
+  try{ new MutationObserver(function(){ if(_t) return; _t=setTimeout(function(){ _t=null; initAll(); },120); }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
+  return { attach:attach, initAll:initAll, validate:validate, load:load };
+})();
+</script>

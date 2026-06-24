@@ -309,3 +309,5 @@ button { font-family: inherit; cursor: pointer; }
 {# v5H226z132 (2026-05-31): 빅터 dock 열림 상태를 '그리기 전(head)'에 적용 →
    페이지 전환 시 dock 이 닫혔다 다시 열리는 깜빡임·슬라이드 재생 방지 #}
 <script>try{ if(localStorage.getItem('knk_victor_open')==='1') document.documentElement.classList.add('victor-open'); }catch(e){}</script>
+{# v5H226z621 (대표 지시): 고객사 자동완성 콤보박스(전 화면 공통) — data-cust-picker 입력 자동 업그레이드 #}
+{% include "_v5_partials/customer_picker.html" ignore missing %}
