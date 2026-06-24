@@ -7574,6 +7574,55 @@ async def admin_customer_merge(req: Request):
                          "dropped": dropped_names, "moved": moved})
 
 
+@app.get("/admin/proj-raw", response_class=HTMLResponse)
+async def admin_proj_raw(req: Request, code: str = ""):
+    """v5H226z627 (대표 지시): 관리번호의 '저장된 원시값' 그대로 보기(읽기전용) — 수량/단가 표시 불일치 진단용.
+    projects(unit_qty/unit_price/order_amount) vs orders(unit_qty) vs order_items(qty/unit_price/amount) 비교."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    code = (code or req.query_params.get("code") or "").strip().upper()
+
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+            "<h2>🔬 관리번호 원시 데이터 보기 (읽기전용)</h2>",
+            "<form method='get' style='margin:10px 0;'><input name='code' value='" + _esc(code) +
+            "' placeholder='관리번호 예: 001M2605' style='padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;'>"
+            " <button type='submit' style='padding:7px 14px;'>조회</button></form>"]
+    if not code:
+        body.append("<p style='color:#888;'>관리번호를 입력하세요.</p></div>")
+        return HTMLResponse("".join(body))
+    with db_session() as c:
+        prow = c.execute("SELECT * FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1", (code,)).fetchone()
+        if not prow:
+            body.append(f"<p style='color:#b91c1c;'>'{_esc(code)}' 관리번호 프로젝트 없음.</p></div>")
+            return HTMLResponse("".join(body))
+        p = dict(prow); pid = p["id"]
+        body.append("<h3>① projects (헤더)</h3><table border=1 cellpadding=6 style='border-collapse:collapse;font-size:13px;'>")
+        for k in ("id", "mgmt_code", "name", "project_type", "shipment_form", "unit_qty", "unit_price", "order_amount", "currency", "customer_name", "customer_id"):
+            body.append(f"<tr><th style='text-align:left;background:#f4f1e8;'>{k}</th><td>{_esc(p.get(k))}</td></tr>")
+        body.append("</table>")
+        orows = [dict(r) for r in c.execute(
+            "SELECT id, order_no, unit_qty, unit_label, total_amount, status, COALESCE(currency,'KRW') AS currency, COALESCE(so_type,'') AS so_type FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall()]
+        body.append(f"<h3>② orders (수주/SO) — {len(orows)}건</h3><table border=1 cellpadding=6 style='border-collapse:collapse;font-size:13px;'><tr><th>id</th><th>order_no</th><th>unit_qty</th><th>unit_label</th><th>total_amount</th><th>status</th><th>so_type</th></tr>")
+        for o in orows:
+            body.append(f"<tr><td>{o['id']}</td><td>{_esc(o['order_no'])}</td><td><b>{_esc(o['unit_qty'])}</b></td><td>{_esc(o['unit_label'])}</td><td>{_esc(o['total_amount'])}</td><td>{_esc(o['status'])}</td><td>{_esc(o['so_type'])}</td></tr>")
+        body.append("</table>")
+        oids = [o["id"] for o in orows]
+        items = []
+        if oids:
+            _ph = ",".join("?" * len(oids))
+            items = [dict(r) for r in c.execute(
+                f"SELECT id, order_id, qty, unit_price, amount, unit_label FROM order_items WHERE order_id IN ({_ph}) ORDER BY order_id, id", oids).fetchall()]
+        body.append(f"<h3>③ order_items (호기/라인) — {len(items)}건</h3><table border=1 cellpadding=6 style='border-collapse:collapse;font-size:13px;'><tr><th>id</th><th>order_id</th><th>qty</th><th>unit_price</th><th>amount</th><th>unit_label</th></tr>")
+        for it in items:
+            body.append(f"<tr><td>{it['id']}</td><td>{it['order_id']}</td><td><b>{_esc(it['qty'])}</b></td><td>{_esc(it['unit_price'])}</td><td>{_esc(it['amount'])}</td><td>{_esc(it['unit_label'])}</td></tr>")
+        body.append("</table>")
+    body.append("<p style='color:#888;font-size:12px;margin-top:14px;'>읽기전용 — 데이터 변경 없음. 헤더 unit_qty 와 order_items 의 qty 합/줄수가 맞는지 보면 됩니다.</p></div>")
+    return HTMLResponse("".join(body))
+
+
 @app.post("/admin/sync-directory")
 async def admin_sync_directory(req: Request):
     """메신저 직원 명부 → 전 직원 일괄 동기화 (admin/ceo 전용)."""
