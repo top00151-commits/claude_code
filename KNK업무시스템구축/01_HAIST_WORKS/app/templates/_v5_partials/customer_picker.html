@@ -54,10 +54,16 @@ window.KNKCust = (function(){
     }
     var hName=ensureHidden(nameField), hId=ensureHidden(idField);
     var dd=document.createElement('div'); dd.className='knkcust-dd'; dd.style.display='none'; wrap.appendChild(dd);
-    function mark(ok){ inp.setAttribute('data-cust-ok', ok?'1':'0');
-      inp.classList.toggle('knkcust-bad', required ? !ok : (!!inp.value.trim() && !ok)); }
+    // v5H226z623 (대표 지시): 신규고객(미등록) 모드 — 체크 시 자유 텍스트 허용(적색·차단 없음)
+    function isFree(){ return inp.getAttribute('data-cust-free')==='1'; }
+    function mark(ok){ var k=isFree()||ok; inp.setAttribute('data-cust-ok', k?'1':'0');
+      inp.classList.toggle('knkcust-bad', isFree()?false:(required ? !ok : (!!inp.value.trim() && !ok))); }
     function setSel(o){ hName.value=o.name||''; hId.value=o.id||''; inp.value=disp(o); mark(true); dd.style.display='none'; }
     function clearSel(){ hName.value=''; hId.value=''; mark(false); }
+    // 신규고객 모드 토글 — 체크박스에서 KNKCust.setFree(input, bool) 로 호출
+    inp.__custSetFree=function(free){ inp.setAttribute('data-cust-free', free?'1':'0');
+      if(free){ hName.value=inp.value.trim(); hId.value=''; mark(true); }
+      else { var o=findExact(inp.value); if(o){ setSel(o); } else { clearSel(); } } };
     function render(q){
       var t=norm(q), qq=(q||'').trim();
       var list=(_opts||[]).filter(function(o){ return !t || norm(o.name).indexOf(t)>=0 || (o.alias&&norm(o.alias).indexOf(t)>=0) || (o.sub_biz_no&&o.sub_biz_no.indexOf(qq)>=0); }).slice(0,80);
@@ -68,9 +74,12 @@ window.KNKCust = (function(){
       dd.style.display='block';
     }
     inp.addEventListener('focus', function(){ load().then(function(){ render(inp.value); }); });
-    inp.addEventListener('input', function(){ load().then(function(){ render(inp.value);
+    inp.addEventListener('input', function(){
+      if(isFree()){ hName.value=inp.value.trim(); hId.value=''; mark(true); dd.style.display='none'; return; }
+      load().then(function(){ render(inp.value);
       var o=findExact(inp.value); if(o){ hName.value=o.name; hId.value=o.id; mark(true); } else { clearSel(); } }); });
     inp.addEventListener('blur', function(){ setTimeout(function(){ dd.style.display='none';
+      if(isFree()){ hName.value=inp.value.trim(); hId.value=''; mark(true); return; }
       var o=findExact(inp.value); if(o){ setSel(o); } else { clearSel(); } }, 180); });
     dd.addEventListener('mousedown', function(e){ var it=e.target.closest('.knkcust-it'); if(!it) return; e.preventDefault();
       var o=_opts[parseInt(it.getAttribute('data-i'),10)]; if(o) setSel(o); });
@@ -91,6 +100,7 @@ window.KNKCust = (function(){
   document.addEventListener('DOMContentLoaded', function(){ initAll(); });
   var _t=null;
   try{ new MutationObserver(function(){ if(_t) return; _t=setTimeout(function(){ _t=null; initAll(); },120); }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
-  return { attach:attach, initAll:initAll, validate:validate, load:load };
+  function setFree(inp, free){ try{ if(inp && inp.__custSetFree) inp.__custSetFree(free); }catch(e){} }
+  return { attach:attach, initAll:initAll, validate:validate, load:load, setFree:setFree };
 })();
 </script>

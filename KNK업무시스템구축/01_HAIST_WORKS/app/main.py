@@ -9623,8 +9623,21 @@ async def sales_opportunity_promote(request: Request, oid: int):
     with db_session() as c:
         c.execute("UPDATE sales_opportunities SET promoted_project_id=?, status='won', stage='수주확정', "
                   "updated_at=datetime('now','localtime') WHERE id=?", (new_pid, oid))
+    # v5H226z623 (대표 지시): 제작요청(프로젝트) 승격 시 고객사가 미등록이면 알람 — 빈값도 미연결로 본다.
+    _cust_unreg = 0
+    try:
+        _cn = (o.get("customer_name") or "").strip()
+        if not _cn:
+            _cust_unreg = 1
+        else:
+            with db_session() as c:
+                if not c.execute("SELECT 1 FROM customers WHERE name=? LIMIT 1", (_cn,)).fetchone():
+                    _cust_unreg = 1
+    except Exception:
+        pass
     # 프로젝트 상세에서 '제작요청 발행'(전부서 통보)을 이어서 하도록 안내 플래그와 함께 이동
-    return RedirectResponse(f"/project/{new_pid}?promoted_from_opp={oid}", 303)
+    _ce = ("&cust_unreg=1&cust=" + _q((o.get("customer_name") or "").strip())) if _cust_unreg else ""
+    return RedirectResponse(f"/project/{new_pid}?promoted_from_opp={oid}{_ce}", 303)
 
 
 @app.post("/sales/opportunities/{oid:int}/delete")

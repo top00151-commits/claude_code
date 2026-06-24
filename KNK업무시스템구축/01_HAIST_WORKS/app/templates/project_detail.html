@@ -264,6 +264,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
     </div>
   </div>
 
+  {# v5H226z623 (대표 지시): 제작요청 승격 시 고객사 미등록 알람 — 등록·연결 유도 #}
+  {% if request.query_params.get('cust_unreg') %}
+  <div style="margin:0 0 14px;padding:11px 15px;border-radius:9px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:13px;line-height:1.6;">
+    ⚠ <b>고객사 미등록 알람</b> — 고객사 <b>"{{ request.query_params.get('cust') or '(미지정)' }}"</b> 가 등록된 고객사와 맞지 않습니다(신규고객으로 입력된 건).<br>
+    작업일정표·매출에서 <b>미연결(적색)</b>로 표시됩니다. <a href="/customers/new" style="color:#b91c1c;font-weight:800;text-decoration:underline;">고객사 등록</a> 후, 작업일정표/상세에서 이 고객사를 <b>등록 목록으로 다시 선택</b>해 연결하세요.
+  </div>
+  {% endif %}
   {# v5H226z421 (대표 지시): 출처 '영업 기회(수주 전)'로 가는 역링크 — 수주 전 업무 내용 다시 보기 #}
   {% if origin_opp %}
   <div style="margin:0 0 14px;padding:10px 15px;border-radius:9px;background:#eef6ff;border:1px solid #b9d2ff;color:#1e40af;font-size:13px;line-height:1.55;">

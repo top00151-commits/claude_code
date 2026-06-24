@@ -95,9 +95,13 @@
         <div class="op-grid">
           <div class="op-f full"><label>건명 <span class="req">*</span></label>
             <input type="text" name="title" required value="{{ opp.title|default('') }}" placeholder="예: 삼성 PBA 검사기 신규 문의" {% if not can_edit %}disabled{% endif %}></div>
-          {# v5H226z622 (대표 지시): 고객사 = 등록 고객사(시스템명) 자동완성 콤보 — 입력 시 미매칭이면 적색·저장차단(선택사항이라 빈칸은 허용) #}
-          <div class="op-f"><label>고객사 <span style="font-weight:400;color:#94a3b8;font-size:11px;">(등록 목록에서 선택·선택사항)</span></label>
-            <input type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="0" data-cust-initial="{{ opp.customer_name|default('') }}" placeholder="고객사명·시스템명 → 목록 선택" autocomplete="off" {% if not can_edit %}disabled{% endif %}></div>
+          {# v5H226z622/z623 (대표 지시): 고객사 = 등록 고객사(시스템명) 자동완성 콤보. 신규고객 체크 시 임시 텍스트 허용 #}
+          <div class="op-f"><label>고객사 <span style="font-weight:400;color:#94a3b8;font-size:11px;">(등록 목록에서 선택)</span></label>
+            <input id="oppCustPicker" type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="0" data-cust-initial="{{ opp.customer_name|default('') }}" placeholder="고객사명·시스템명 → 목록 선택" autocomplete="off" {% if not can_edit %}disabled{% endif %}>
+            <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#64748b;margin-top:5px;cursor:pointer;">
+              <input type="checkbox" id="oppNewCust" {% if not can_edit %}disabled{% endif %} onchange="if(window.KNKCust)KNKCust.setFree(document.getElementById('oppCustPicker'), this.checked)"> 🆕 신규고객(미등록) — 임시 텍스트로 입력(제작요청 승격 시 등록 알람)
+            </label>
+          </div>
           <div class="op-f"><label>예상 사업부</label>
             <select name="biz_div" {% if not can_edit %}disabled{% endif %}>
               {% set bd = opp.biz_div if opp else 'T' %}
@@ -292,6 +296,11 @@
 })();
 </script>
 {% endif %}
+{# v5H226z623 (대표 지시): 편집 시 기존 고객사가 미등록이면 '신규고객' 자동 체크(임시 텍스트 모드) #}
+<script>(function(){ setTimeout(function(){
+  var pk=document.getElementById('oppCustPicker'), cb=document.getElementById('oppNewCust');
+  if(pk&&cb&&pk.value.trim()&&pk.getAttribute('data-cust-ok')!=='1'){ cb.checked=true; if(window.KNKCust) KNKCust.setFree(pk,true); }
+}, 550); })();</script>
 {# v5H226z419 (대표 지시): 날짜 입력은 KNK 달력 표준(일요일 시작·일/공휴일 빨강·토 파랑·K/V 배지·오늘 호박테두리) 적용 — 달력 사양 MD 준수 #}
 {% include "_v5_partials/knk_datepicker.html" ignore missing %}
 </main></div></body></html>
