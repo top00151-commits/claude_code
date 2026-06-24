@@ -18676,8 +18676,13 @@ def _parse_product_bulk_xlsx(path):
     # z596 (대표 지시): 수출·외화 건은 매입→마진→판매를 KRW로 계산한 뒤 '환율'로 외화 인보이스 단가 산출.
     #   저장 기준=주문 통화(USD 등): 판매단가=인보이스(외화), 원가=매입KRW÷환율(마진% 그대로 성립).
     #   매입KRW·환율은 별도 필드로 함께 보관(projects.fx_rate/amount_krw + 미리보기 표시).
-    ccy = (str(proj.get("currency") or "KRW").strip().upper() or "KRW")
-    foreign = ccy != "KRW"
+    # v5H226z613 (대표 지시): 통화 헤더 삭제 → '거래구분'으로 주문 통화 판정.
+    #   내수 → KRW(매입·판매 모두 KRW). 수출 → USD(매입 KRW·판매 KRW를 환율로 USD 인보이스 변환).
+    #   구 파일 호환: 통화 헤더가 외화로 남아 있으면 그것도 수출(외화)로 인정.
+    _is_exp = ("수출" in _prodbulk_norm(proj.get("is_export")))
+    _ccy_hdr = str(proj.get("currency") or "").strip().upper()
+    foreign = bool(_is_exp) or (_ccy_hdr not in ("", "KRW"))
+    ccy = "USD" if foreign else "KRW"
     lines = []
     pn_col = colmap["part_name"]
     for r in range(hdr_row + 1, maxr + 1):
@@ -18690,16 +18695,18 @@ def _parse_product_bulk_xlsx(path):
         sell_krw = gnum(r, "unit_price")     # 판매단가(KRW)
         if sell_krw <= 0 and cost_krw > 0 and margin != 0:
             sell_krw = round(cost_krw * (1 + margin / 100.0))
-        fx = gnum(r, "fx_rate")              # 환율 (1 외화 = ? 원)
-        inv = gnum(r, "invoice_usd")         # 인보이스 단가(외화)
+        fx = round(gnum(r, "fx_rate"), 2)    # 환율 (1 USD = ? 원) — 소수점 2자리(매출 영향)
+        inv = gnum(r, "invoice_usd")         # 인보이스 단가(USD)
         if foreign:
-            if fx <= 0 and sell_krw > 0 and inv > 0:   # 환율 비면 판매KRW/인보이스 로 역산
+            if fx <= 0 and sell_krw > 0 and inv > 0:   # 환율 비면 판매KRW/인보이스 로 역산(2자리)
                 try:
-                    fx = round(sell_krw / inv, 4)
+                    fx = round(sell_krw / inv, 2)
                 except Exception:
                     fx = 0
-            if inv <= 0 and fx > 0 and sell_krw > 0:    # 인보이스 비면 판매KRW/환율 로 산출
+            if inv <= 0 and fx > 0 and sell_krw > 0:    # 인보이스 비면 판매KRW/환율 로 산출(USD 2자리)
                 inv = round(sell_krw / fx, 2)
+            else:
+                inv = round(inv, 2)                      # 직접 입력한 인보이스도 2자리 정규화
             cost_store = (round(cost_krw / fx, 4) if (cost_krw > 0 and fx > 0) else None)
             unit_final = inv
             amount = round(qty * inv, 2)
@@ -18756,8 +18763,9 @@ def _build_product_bulk_template_buf():
         ("프로젝트명*", "(필수 · 예: 압착지그 부품 세트)"),
         ("발주일", "(YYYY-MM-DD · 비우면 수주번호 미발행)"),
         ("납기", "(YYYY-MM-DD · 부품별 납기 비면 이 값 상속)"),
-        ("통화", "(KRW·USD·VND·JPY·CNY·EUR)"),
-        ("거래구분", "(내수·수출)"),
+        # v5H226z613 (대표 지시): '통화' 헤더 삭제 — 데이터 컬럼이 KRW(매입·판매)·USD(인보이스) 두 통화라
+        #   단일 통화 헤더는 모순. 주문 통화는 '거래구분'으로 판정(내수=KRW / 수출=매출 KRW→환율→USD).
+        ("거래구분", "(내수·수출) · 수출이면 판매단가(KRW)를 환율로 USD 인보이스 변환"),
         ("PO유형", "(신규·추가·개조·수리·기타)"),
         ("영업담당자", "(우리 회사 KNK 영업담당자)"),
     ]
@@ -18770,12 +18778,11 @@ def _build_product_bulk_template_buf():
     ws.column_dimensions["A"].width = 14
     ws.column_dimensions["B"].width = 22
     ws.column_dimensions["C"].width = 40
-    # 통화/거래구분/PO유형 드롭다운
-    dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
+    # 거래구분/PO유형 드롭다운 (통화 헤더 삭제로 좌표 한 칸씩 위로: 거래구분=B9, PO유형=B10)
     dv_trade = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_po = DataValidation(type="list", formula1='"신규,추가,개조,수리,기타"', allow_blank=True)
-    ws.add_data_validation(dv_ccy); ws.add_data_validation(dv_trade); ws.add_data_validation(dv_po)
-    dv_ccy.add("B9"); dv_trade.add("B10"); dv_po.add("B11")
+    ws.add_data_validation(dv_trade); ws.add_data_validation(dv_po)
+    dv_trade.add("B9"); dv_po.add("B10")
     # 부품 표 (한 줄 띄우고)
     phr = r0 + len(hdr_rows) + 1
     # z596 (대표 지시): 매입→마진→판매(KRW) 계산 후 '환율'로 'USD 인보이스 단가' 산출 칸 추가.
@@ -18799,8 +18806,10 @@ def _build_product_bulk_template_buf():
         ["고객사1", "필수. 시스템에 등록된 고객사명과 정확히 일치해야 자동연결(미일치 시 미연결로 표시 — 등록 후 상세에서 연결)."],
         ["매입단가 / 마진%", "구매팀 PART LIST의 매입단가(KRW)와 붙일 마진%. 판매단가(KRW) = 매입단가 × (1+마진%). 판매단가를 직접 적으면 그 값을 우선."],
         ["판매단가(자동)(KRW)", "비워두면 매입단가×마진으로 자동 계산. 마진을 비우면 '판매가 미정'으로 등록되고, 등록 후 상세에서 마진 정리."],
-        ["환율 / 인보이스단가(USD)", "수출(통화=USD 등)일 때만. 환율 = 1 외화가 몇 원인지(예: 1456.51). 인보이스단가(USD) = 판매단가(KRW) ÷ 환율(자동). 통화를 USD로 두면 이 인보이스가가 주문 '판매단가'가 됩니다. 내수(KRW)면 두 칸은 비워두세요."],
-        ["원가(매입) 보관", "통화가 외화면 원가는 환율로 외화 환산해 저장(마진% 그대로 성립). 매입단가(KRW)·환율은 프로젝트에 함께 보관됩니다."],
+        ["거래구분 = 통화 기준", "내수 → 매입·판매 모두 KRW. 수출 → 매입은 KRW, 판매단가(KRW)를 환율로 USD 인보이스 변환. (통화 헤더 없음 — 거래구분이 통화를 정함)"],
+        ["환율 / 인보이스단가(USD)", "수출일 때만. 환율 = 1 USD가 몇 원인지(소수점 2자리, 예: 1456.51 — 매출 총액에 영향). 인보이스단가(USD) = 판매단가(KRW) ÷ 환율(자동·소수점 2자리, 셋째자리 반올림). 내수면 두 칸은 비워두세요."],
+        ["숫자 자릿수", "KRW(매입·판매·금액) = 소수점 없음(정수). 환율 = 소수점 2자리. USD(인보이스·금액) = 소수점 2자리(셋째자리 반올림)."],
+        ["원가(매입) 보관", "수출이면 원가는 환율로 환산해 함께 보관(마진% 그대로 성립). 매입단가(KRW)·환율은 프로젝트에 함께 보관됩니다."],
         ["수량", "부품별 수량. 금액 = 수량 × 판매단가. 합계가 상품(프로젝트) 수주금액."],
         ["납기", "부품별 납기(YYYY-MM-DD). 비우면 위 프로젝트 '납기' 상속."],
         ["입력 위치", "부품 표는 머리글(자재번호·자재품명…) 아래 줄부터 입력하세요(예시 데이터 없음). 판매단가(KRW)·인보이스단가(USD)는 비워도 업로드 시 자동계산됩니다."],
@@ -18904,8 +18913,10 @@ async def projects_import_product_parse(request: Request,
         "name": name,
         "order_date": _prodbulk_fmt_date(proj.get("order_date")),
         "due_date": _prodbulk_fmt_date(proj.get("due_date")),
-        "currency": (str(proj.get("currency") or "KRW").strip().upper() or "KRW"),
+        # v5H226z613: 통화 헤더 삭제 → 거래구분으로 통화 표시(수출=USD/내수=KRW). 구 파일 호환.
         "is_export": ("1" if str(proj.get("is_export") or "").strip() in ("수출", "1", "EXPORT", "export") else "0"),
+        "currency": (((str(proj.get("currency") or "").strip().upper()) if (str(proj.get("currency") or "").strip().upper() in ("USD", "VND", "JPY", "CNY", "EUR")) else "USD")
+                     if str(proj.get("is_export") or "").strip() in ("수출", "1", "EXPORT", "export") else "KRW"),
         "po_type": (str(proj.get("po_type") or "신규").strip() or "신규"),
         "sales": str(proj.get("sales") or "").strip(),
     }
@@ -18939,10 +18950,14 @@ async def projects_import_product_confirm(request: Request):
         biz_div = mgmt[3]
     else:
         biz_div = biz if biz in ("T", "M", "L", "E") else "T"
-    ccy = (str(proj.get("currency") or "KRW").strip().upper() or "KRW")
-    if ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
-        ccy = "KRW"
+    # v5H226z613 (대표 지시): 통화 헤더 삭제 → '거래구분'으로 통화 판정.
+    #   수출 → USD(매출 KRW를 환율로 USD 변환) / 내수 → KRW. 구 파일 호환: 통화 헤더 외화면 인정.
     is_export = "1" if str(proj.get("is_export") or "0").strip() in ("수출", "1", "EXPORT", "export") else "0"
+    _ccy_hdr = str(proj.get("currency") or "").strip().upper()
+    if is_export == "1":
+        ccy = _ccy_hdr if _ccy_hdr in ("USD", "VND", "JPY", "CNY", "EUR") else "USD"
+    else:
+        ccy = "KRW"
     order_date = _prodbulk_fmt_date(proj.get("order_date"))
     due_date = _prodbulk_fmt_date(proj.get("due_date"))
     po_type = (str(proj.get("po_type") or "신규").strip() or "신규")
@@ -21660,7 +21675,8 @@ async def projects_new_submit(request: Request):
                 _pp = 0.0
             _cst, _mrg = _parse_cost_margin(_pk_cost, _pk_mrg, _i)  # v5H226z460
             try:
-                _fxv = float(((_pk_fx[_i] if _i < len(_pk_fx) else "0") or "0").replace(",", ""))
+                # v5H226z613 (대표 지시): 환율은 소수점 2자리(매출 총액에 영향)
+                _fxv = round(float(((_pk_fx[_i] if _i < len(_pk_fx) else "0") or "0").replace(",", "")), 2)
             except ValueError:
                 _fxv = 0.0
             _duev = ((_pk_due[_i] if _i < len(_pk_due) else "") or "").strip()
