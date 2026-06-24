@@ -64,6 +64,16 @@
           {% endfor %}
         </select>
       </div>
+      {# v5H226z614 (대표 지시): 상위팀 — 설계팀 아래 검사기/자동화 하위팀 구성용 #}
+      <div class="fld full">
+        <label>상위팀 <span style="color:var(--mute);font-weight:400;">(비우면 최상위 · 예: '설계팀' 아래 검사기파트·자동화파트)</span></label>
+        <select name="parent_team_id">
+          <option value="">— 없음(최상위) —</option>
+          {% for t in teams|default([]) %}
+          <option value="{{ t.id }}" {% if team and team.parent_team_id == t.id %}selected{% endif %}>{{ t.name }}{% if t.sector and t.sector != '공통' %} · {{ t.sector }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
     <div class="actions">
       <button type="submit" class="btn btn-primary">💾 {% if team %}수정 저장{% else %}추가{% endif %}</button>

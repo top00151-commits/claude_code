@@ -8861,8 +8861,11 @@ async def admin_teams_new_form(req: Request):
         users = [dict(r) for r in c.execute(
             "SELECT id, name, name_vi, rank FROM users WHERE is_active=1 "
             "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
+        # v5H226z614 (대표 지시): 상위팀 선택 — 설계팀 아래 검사기/자동화 하위팀 구성용
+        teams = [dict(r) for r in c.execute(
+            "SELECT id, name, sector FROM teams ORDER BY display_order, name").fetchall()]
     return ctx(req, "admin_team_form.html", user=u, active="admin",
-               team=None, users=users)
+               team=None, users=users, teams=teams)
 
 
 @app.post("/admin/teams/new")
@@ -8879,13 +8882,17 @@ async def admin_teams_new_submit(req: Request):
         ex = c.execute("SELECT id FROM teams WHERE code=?", (code,)).fetchone()
         if ex:
             return RedirectResponse("/admin/teams/new?error=duplicate", 303)
+        # v5H226z614: 상위팀(parent_team_id) — 빈값=최상위
+        _ptid = (form.get("parent_team_id") or "").strip()
+        _ptid = int(_ptid) if _ptid else None
         c.execute(
-            "INSERT INTO teams(code, name, sector, display_order, is_lab, leader_id) "
-            "VALUES(?,?,?,?,?,?)",
+            "INSERT INTO teams(code, name, sector, display_order, is_lab, leader_id, parent_team_id) "
+            "VALUES(?,?,?,?,?,?,?)",
             (code, name, form.get("sector", "공통"),
              int(form.get("display_order") or 99),
              int(form.get("is_lab") or 0),
-             form.get("leader_id") or None)
+             form.get("leader_id") or None,
+             _ptid)
         )
     return RedirectResponse("/admin", 303)
 
@@ -8902,13 +8909,17 @@ async def admin_teams_edit_form(req: Request, tid: int):
         users = [dict(r) for r in c.execute(
             "SELECT id, name, name_vi, rank FROM users WHERE is_active=1 "
             "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
+        # v5H226z614: 상위팀 후보 — 자기 자신 제외(자기 상위 금지)
+        teams = [dict(r) for r in c.execute(
+            "SELECT id, name, sector FROM teams WHERE id<>? ORDER BY display_order, name",
+            (tid,)).fetchall()]
     # v5H114: 팀 변경 이력 카드
     try:
         team_history = _logi.get_team_history(tid, limit=50)
     except Exception:
         team_history = []
     return ctx(req, "admin_team_form.html", user=u, active="admin",
-               team=dict(row), users=users,
+               team=dict(row), users=users, teams=teams,
                team_history=team_history)
 
 
@@ -8924,10 +8935,15 @@ async def admin_teams_edit_submit(req: Request, tid: int):
     with db_session() as c:
         # v5H113 LOW#19: 변경 전 스냅샷
         old_row = c.execute(
-            "SELECT code, name, sector, display_order, is_lab, leader_id "
+            "SELECT code, name, sector, display_order, is_lab, leader_id, parent_team_id "
             "FROM teams WHERE id=?", (tid,)
         ).fetchone()
         old_data = dict(old_row) if old_row else {}
+        # v5H226z614: 상위팀 — 자기 자신 금지(빈값=최상위)
+        _ptid = (form.get("parent_team_id") or "").strip()
+        _ptid = int(_ptid) if _ptid else None
+        if _ptid == tid:
+            _ptid = None
         new_data = {
             "code": form.get("code", ""),
             "name": name,
@@ -8935,18 +8951,20 @@ async def admin_teams_edit_submit(req: Request, tid: int):
             "display_order": int(form.get("display_order") or 99),
             "is_lab": int(form.get("is_lab") or 0),
             "leader_id": form.get("leader_id") or None,
+            "parent_team_id": _ptid,
         }
         c.execute(
             "UPDATE teams SET code=?, name=?, sector=?, display_order=?, "
-            "is_lab=?, leader_id=? WHERE id=?",
+            "is_lab=?, leader_id=?, parent_team_id=? WHERE id=?",
             (new_data["code"], new_data["name"], new_data["sector"],
              new_data["display_order"], new_data["is_lab"],
-             new_data["leader_id"], tid)
+             new_data["leader_id"], new_data["parent_team_id"], tid)
         )
         # v5H113 LOW#19: team_history diff 기록
         _label_map = {
             "code":"코드","name":"이름","sector":"섹터",
-            "display_order":"표시순","is_lab":"연구소","leader_id":"팀장"
+            "display_order":"표시순","is_lab":"연구소","leader_id":"팀장",
+            "parent_team_id":"상위팀"
         }
         for _k, _label in _label_map.items():
             ov = "" if old_data.get(_k) is None else str(old_data.get(_k))
