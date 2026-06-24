@@ -16004,6 +16004,60 @@ async def parts_import_apply(req: Request,
     return RedirectResponse(f"/parts?{qs}", status_code=303)
 
 
+# v5H226z648 (2026-06-25) — 검증결과 색칠 엑셀 다운로드 (구매팀 원본 정리용)
+@app.post("/parts/import/marked-xlsx")
+async def parts_import_marked_xlsx(req: Request,
+                                    file_b64: str = Form(""),
+                                    filename: str = Form("upload.xlsx")):
+    """업로드한 엑셀에 검증 결과를 색칠해서 다운로드. 미리보기 단계에서 호출.
+    행 색: 빨강=엑셀 내부 중복 / 노랑=DB 중복 / 주황=오류 / 연두=유사자재 / 흰=정상.
+    헤더 끝에 [검증 결과 / 사유] 컬럼 추가."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    import base64, tempfile, os
+    try:
+        raw = base64.b64decode(file_b64 or "")
+    except Exception:
+        return RedirectResponse("/parts/import", 303)
+    if not raw:
+        return RedirectResponse("/parts/import", 303)
+    tmp_dir = tempfile.mkdtemp(prefix="parts_import_mark_")
+    tmp_path = os.path.join(tmp_dir, "upload.xlsx")
+    with open(tmp_path, "wb") as f:
+        f.write(raw)
+    try:
+        from .database import parts_bulk_import_export_xlsx as _exp
+        xlsx_bytes, info = _exp(tmp_path)
+    except Exception as e:
+        xlsx_bytes, info = None, {"error": f"생성 실패: {e}"}
+    finally:
+        try:
+            os.remove(tmp_path)
+            os.rmdir(tmp_dir)
+        except Exception:
+            pass
+    if not xlsx_bytes:
+        return ctx(req, "parts_import.html", user=u, active="parts",
+                   result={"error": (info or {}).get("error", "검증결과 엑셀 생성 실패")},
+                   mode="upload")
+    base_name = (filename or "upload.xlsx").rsplit(".", 1)[0] or "upload"
+    dl_name = f"{base_name}_검증결과.xlsx"
+    from urllib.parse import quote
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": (
+                'attachment; filename="marked.xlsx"; '
+                f"filename*=UTF-8''{quote(dl_name)}"
+            )
+        },
+    )
+
+
 @app.get("/parts/import/template.xlsx")
 async def parts_import_template(req: Request):
     """빈 일괄 등록 템플릿 다운로드 — 헤더 + 예시 2행."""

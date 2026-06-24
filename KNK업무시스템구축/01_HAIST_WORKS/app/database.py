@@ -8541,7 +8541,8 @@ def _normalize_bulk_is_active(val) -> int:
 
 
 def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
-                             force_similar: bool = False) -> dict:
+                             force_similar: bool = False,
+                             full_preview: bool = False) -> dict:
     """Excel(.xlsx) 자재 일괄 등록.
     파싱: 1행 = 헤더, 2행~ = 데이터.
     dry_run=True: 검증·유사 자재 검사만 수행, DB INSERT 안 함 (미리보기 응답).
@@ -8778,7 +8779,8 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
         "skipped_empty": skipped_empty,
         "header_map": {str(k): v for k, v in header_map.items()},
         "unmapped_headers": unmapped,
-        "preview": preview[:200],
+        # v5H226z648: full_preview=True 면 전체 행 반환(검증결과 엑셀 다운로드용). 기본 False는 200건.
+        "preview": preview if full_preview else preview[:200],
         "preview_truncated": len(preview) > 200,
         "summary": {
             "ok": ok_cnt, "error": err_cnt,
@@ -8787,6 +8789,151 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
         },
         "inserted_ids": inserted_ids,
         "dry_run": dry_run,
+    }
+
+
+def parts_bulk_import_export_xlsx(file_path: str) -> tuple:
+    """v5H226z648 (2026-06-25) — 자재 일괄등록 검증결과를 색칠한 엑셀로 다운로드.
+    원본 양식 그대로 유지 + 헤더 끝에 [검증 결과 / 사유] 컬럼 추가 + 상태별 행 색칠.
+    구매팀이 받아 어느 행이 중복/오류인지 한눈에 보고 정리할 수 있도록 제공.
+    반환: (xlsx_bytes or None, info_dict)"""
+    from openpyxl import load_workbook
+    from openpyxl.styles import PatternFill, Font, Alignment
+    from io import BytesIO
+
+    # 1) 전체 행 검증 (full_preview=True 로 모든 행 결과 받음)
+    result = parts_bulk_import_excel(file_path, dry_run=True, force_similar=False, full_preview=True)
+    if result.get("error"):
+        return None, result
+    preview_by_row = {p["row_no"]: p for p in result.get("preview", [])}
+
+    # 2) 원본 엑셀 수정 가능 모드로 다시 로드 (read_only=False)
+    try:
+        wb = load_workbook(file_path)
+    except Exception as e:
+        return None, {"error": f"엑셀 로드 실패: {e}"}
+    ws = wb.active
+
+    # 3) 헤더 행 검출 (z643 자동검출 로직과 동일 — 첫 15행 스캔)
+    SCAN_MAX = 15
+    header_row_idx = None
+    best_len = 0
+    max_scan = min(SCAN_MAX, ws.max_row or 0)
+    for ri in range(1, max_scan + 1):
+        row_vals = []
+        for ci in range(1, (ws.max_column or 0) + 1):
+            row_vals.append(ws.cell(row=ri, column=ci).value)
+        # 인라인 매핑 시도 — 같은 알고리즘
+        hm = {}
+        used = set()
+        for ci, h in enumerate(row_vals):
+            if h is None:
+                continue
+            key = _norm_header_key(str(h))
+            fld = _PARTS_IMPORT_HEADER_MAP.get(key)
+            if not fld:
+                for kw, mapped in _PARTS_IMPORT_PARTIAL_KEYS:
+                    if kw in key:
+                        if mapped not in used:
+                            fld = mapped
+                            break
+            if fld and fld not in used:
+                hm[ci] = fld
+                used.add(fld)
+        vals = set(hm.values())
+        if "part_no" in vals and "part_name" in vals and len(hm) > best_len:
+            best_len = len(hm)
+            header_row_idx = ri
+
+    if header_row_idx is None:
+        wb.close()
+        return None, {"error": "헤더 행을 찾을 수 없습니다"}
+
+    # 4) 헤더 행 끝에 새 컬럼 2개 추가 (검증 결과 / 사유)
+    last_col = ws.max_column or 1
+    col_status = last_col + 1
+    col_reason = last_col + 2
+    hcell_status = ws.cell(row=header_row_idx, column=col_status)
+    hcell_reason = ws.cell(row=header_row_idx, column=col_reason)
+    hcell_status.value = "검증 결과"
+    hcell_reason.value = "사유"
+    bold = Font(bold=True)
+    hcell_status.font = bold
+    hcell_reason.font = bold
+    # 컬럼 폭 (간단 추정)
+    try:
+        from openpyxl.utils import get_column_letter
+        ws.column_dimensions[get_column_letter(col_status)].width = 22
+        ws.column_dimensions[get_column_letter(col_reason)].width = 60
+    except Exception:
+        pass
+
+    # 5) 색 정의 (옅은 톤 — 50대 가독성)
+    FILL_DUP_INTERNAL = PatternFill("solid", fgColor="FECACA")  # 빨강 옅음
+    FILL_DUP_DB       = PatternFill("solid", fgColor="FEF3C7")  # 노랑 옅음
+    FILL_ERROR        = PatternFill("solid", fgColor="FED7AA")  # 주황 옅음
+    FILL_SIMILAR      = PatternFill("solid", fgColor="DCFCE7")  # 연두 옅음
+
+    # 6) 각 데이터 행 색칠 + 새 컬럼 채우기
+    cnt = {"dup_internal": 0, "dup_db": 0, "error": 0, "similar": 0, "ok": 0}
+    for r_no, p in preview_by_row.items():
+        if r_no <= header_row_idx:
+            continue
+        status = p.get("status") or "ok"
+        errors = p.get("errors") or []
+        fill = None
+        label = "✅ 정상"
+        reason = ""
+        if errors and any("엑셀 내부 코드 중복" in e for e in errors):
+            fill = FILL_DUP_INTERNAL
+            label = "❌ 엑셀 내부 중복"
+            reason = next((e for e in errors if "엑셀 내부 코드 중복" in e), errors[0])
+            cnt["dup_internal"] += 1
+        elif errors and any("코드 중복 — 기존" in e for e in errors):
+            fill = FILL_DUP_DB
+            label = "⚠ DB 기존 등록"
+            reason = next((e for e in errors if "코드 중복 — 기존" in e), errors[0])
+            cnt["dup_db"] += 1
+        elif errors:
+            fill = FILL_ERROR
+            label = "❌ 오류"
+            reason = " · ".join(errors[:3])
+            cnt["error"] += 1
+        elif status == "similar":
+            fill = FILL_SIMILAR
+            label = "⚠ 유사자재 경고"
+            sims = p.get("similar") or []
+            reason = " · ".join(
+                f"[{s.get('id')}] {s.get('part_name', '')} ({s.get('score', '')}점)"
+                for s in sims[:2]
+            )
+            cnt["similar"] += 1
+        else:
+            cnt["ok"] += 1
+        # 새 컬럼 값
+        ws.cell(row=r_no, column=col_status).value = label
+        ws.cell(row=r_no, column=col_reason).value = reason
+        # 행 색칠 (헤더 제외, 새 컬럼까지)
+        if fill is not None:
+            for ci in range(1, col_reason + 1):
+                ws.cell(row=r_no, column=ci).fill = fill
+
+    # 7) 시트명에 요약 (한글 31자 제한 — 짧게)
+    total = result.get("total", 0)
+    try:
+        ws.title = f"검증결과({total}건)"[:31]
+    except Exception:
+        pass
+
+    # 8) bytes 반환
+    buf = BytesIO()
+    wb.save(buf)
+    wb.close()
+    return buf.getvalue(), {
+        "summary": result.get("summary", {}),
+        "total": total,
+        "header_row_idx": header_row_idx,
+        "counts": cnt,
     }
 
 
