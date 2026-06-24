@@ -20368,10 +20368,22 @@ async def schedule_tax_invoice_view(request: Request, ti_id: int):
                 pass
             ln["code"] = _code or (ln.get("mgmt_code") or "")   # 폴백=스냅샷
             ln["so_no"] = _so
+        # v5H226z620 (대표 지시): 고객사 종사업장번호 표기(같은 상호 다른 종사업장 구분). customer_id 우선.
+        _ti_sbn = ""
+        try:
+            _cid = t.get("customer_id")
+            _cr = c.execute("SELECT sub_biz_no FROM customers WHERE id=?", (_cid,)).fetchone() if _cid else None
+            if not _cr and t.get("customer_name"):
+                _cr = c.execute("SELECT sub_biz_no FROM customers WHERE name=? LIMIT 1", (t.get("customer_name"),)).fetchone()
+            if _cr:
+                _ti_sbn = (_cr[0] or "")
+        except Exception:
+            pass
     _tier = (ls[0].get("tier") if ls else 1) or 1
     return JSONResponse({"ok": True, "invoice": {
         "id": t["id"], "ti_no": t.get("ti_no"), "issue_date": t.get("issue_date"),
-        "customer_name": t.get("customer_name"), "total_amount": t.get("total_amount"),
+        "customer_name": t.get("customer_name"), "sub_biz_no": _ti_sbn,
+        "total_amount": t.get("total_amount"),
         "currency": t.get("currency"), "memo": t.get("memo"), "status": t.get("status"),
         "tier": _tier, "created_by_name": t.get("created_by_name") or ""}, "lines": ls})
 
