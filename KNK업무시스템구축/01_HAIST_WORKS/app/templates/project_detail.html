@@ -178,6 +178,14 @@ body.so-fs-on { overflow: hidden; }
 .def { display: grid; grid-template-columns: 104px 1fr 104px 1fr 104px 1fr; gap: 8px 20px; font-size: 13px; align-items: start; }
 .def dt { color: var(--mute); font-weight: 600; } .def dd { color: var(--ink); margin: 0; }
 @media (max-width: 1280px) { .def { grid-template-columns: 100px 1fr 100px 1fr; } }
+/* v5H226z643 (대표 지시): 수주액(단가×수량·호기별 금액=가변높이)을 오른쪽 세로 칸으로 분리 → 호기 많아도 왼쪽 필드 그리드 높이 영향 없음 */
+.proj-info-2col { display: grid; grid-template-columns: 1fr 300px; gap: 12px 22px; align-items: start; }
+.proj-info-2col > .def { align-self: start; }
+.def-amt { background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; align-self: start; }
+.def-amt dt { color: var(--mute); font-weight: 600; font-size: 12px; margin-top: 10px; }
+.def-amt dt:first-child { margin-top: 0; }
+.def-amt dd { margin: 3px 0 0; color: var(--ink); }
+@media (max-width: 900px) { .proj-info-2col { grid-template-columns: 1fr; } }
 
 /* v5H226z40: 1100px 이하 반응형 — 작은 모니터/노트북 깨짐 방지 */
 @media (max-width: 1100px) {
@@ -2000,6 +2008,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
     <aside data-dn="right-rail" data-dn-tone="purple">
       <div class="section-card">
         <h3>프로젝트 정보</h3>
+        <div class="proj-info-2col">
         <dl class="def">
           <dt>관리코드</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
           <dt>수주번호</dt><dd>
@@ -2085,6 +2094,9 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           {# v5H226z375(대표 지시): 제작요청서 항목 — 각인(마킹) + 자료 경로. 값 있을 때만 표시(가격 아님·게이트 불필요) #}
           {% if p.engraving %}<dt>각인</dt><dd><span style="font-size:12.5px;color:var(--ink);">{{ p.engraving }}</span></dd>{% endif %}
           {% if p.server_path %}<dt>자료 경로</dt><dd><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path }}</span></dd>{% endif %}
+        </dl>
+        {# v5H226z643 (대표 지시): 수주액을 오른쪽 세로 칸으로 분리 — 가변높이(호기별 금액) 독립 #}
+        <dl class="def-amt">
           <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">{% if can_money %}
             {% if _displayed_amt %}{{ '{:,.0f}'.format(_displayed_amt) }} <span style="font-size:11px;color:var(--mute);font-weight:600;">{{ p.currency or 'KRW' }}</span>{% else %}—{% endif %}
             {% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}
@@ -2136,6 +2148,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           {% else %}🔒{% endif %}</dd>
           {% endif %}
         </dl>
+        </div>{# /proj-info-2col #}
       </div>
 
       {% if by_user %}
