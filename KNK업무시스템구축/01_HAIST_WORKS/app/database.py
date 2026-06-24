@@ -8541,38 +8541,64 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
     ws = wb.active
     rows_iter = ws.iter_rows(values_only=True)
 
-    # 헤더 행 파싱
-    try:
-        header_row = next(rows_iter)
-    except StopIteration:
+    # v5H226z643 (2026-06-24) — 헤더 행 자동 검출 (KNK 발급 양식 호환)
+    # 시스템 발급 템플릿은 1행 제목 · 2행 안내 · 3행 공백 · 4행 헤더 구조.
+    # 첫 SCAN_MAX 행을 스캔, part_no AND part_name 둘 다 매칭되는 행 중 점수 최고를 헤더로 채택.
+    SCAN_MAX = 15
+    scan_rows: list = []
+    for _ridx, _r in enumerate(rows_iter):
+        scan_rows.append(_r)
+        if _ridx + 1 >= SCAN_MAX:
+            break
+
+    if not scan_rows:
         wb.close()
         return {"error": "엑셀이 비어있습니다"}
 
-    header_map: dict = {}   # col_idx → db_field
-    unmapped: list = []
-    used_fields: set = set()  # 우선순위 — 한 필드에는 첫 매칭 컬럼만 사용
-    for i, h in enumerate(header_row):
-        if h is None:
-            continue
-        key = _norm_header_key(str(h))
-        # 1) 정확 매칭
-        fld = _PARTS_IMPORT_HEADER_MAP.get(key)
-        if not fld:
-            # 2) 부분 매칭 fallback — BOM 양식 다국어/복합 헤더 지원
-            #    헤더 정규화 키에 키워드가 포함되면 매핑
-            for kw, mapped in _PARTS_IMPORT_PARTIAL_KEYS:
-                if kw in key:
-                    # 이미 같은 필드에 매핑된 컬럼이 있으면 스킵 (우선순위: 앞 키워드)
-                    if mapped not in used_fields:
-                        fld = mapped
-                        break
-        if fld and fld not in used_fields:
-            header_map[i] = fld
-            used_fields.add(fld)
-        else:
-            unmapped.append({"col_idx": i, "header": str(h)})
+    def _try_map_row(row):
+        """행을 헤더로 가정해 매핑 시도 → (header_map, unmapped_list)."""
+        hm: dict = {}
+        unmapped_local: list = []
+        used: set = set()
+        if row is None:
+            return hm, unmapped_local
+        for ci, h in enumerate(row):
+            if h is None:
+                continue
+            key = _norm_header_key(str(h))
+            # 1) 정확 매칭
+            fld = _PARTS_IMPORT_HEADER_MAP.get(key)
+            if not fld:
+                # 2) 부분 매칭 fallback — BOM 양식 다국어/복합 헤더 지원
+                for kw, mapped in _PARTS_IMPORT_PARTIAL_KEYS:
+                    if kw in key:
+                        if mapped not in used:
+                            fld = mapped
+                            break
+            if fld and fld not in used:
+                hm[ci] = fld
+                used.add(fld)
+            else:
+                unmapped_local.append({"col_idx": ci, "header": str(h)})
+        return hm, unmapped_local
 
-    if "part_no" not in header_map.values() or "part_name" not in header_map.values():
+    header_row_idx = -1
+    header_map: dict = {}
+    unmapped: list = []
+    best_score = 0
+    for _ridx, _r in enumerate(scan_rows):
+        _hm, _unmapped = _try_map_row(_r)
+        # 헤더 후보 — 필수 컬럼 둘 다 매칭 필요. 점수(매핑 수) 최고를 선택.
+        _vals = set(_hm.values())
+        if "part_no" in _vals and "part_name" in _vals and len(_hm) > best_score:
+            best_score = len(_hm)
+            header_row_idx = _ridx
+            header_map = _hm
+            unmapped = _unmapped
+
+    if header_row_idx < 0:
+        # 후보 없음 → 1행 기준 매핑 결과로 기존 에러 메시지 반환 (사용자 진단용)
+        header_map, unmapped = _try_map_row(scan_rows[0])
         wb.close()
         return {
             "error": "필수 컬럼 누락 — 'part_no/자재코드/품번' 과 'part_name/자재명/품명' 필수",
@@ -8589,8 +8615,11 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
     sim_warn = 0
     dup_cnt = 0
 
-    row_no = 1  # 헤더는 1행으로 카운트
-    for row in rows_iter:
+    # 헤더 이후 행을 데이터로 처리. 행 번호는 1-indexed (헤더 행 번호 + 1 부터).
+    from itertools import chain as _chain
+    data_iter = _chain(scan_rows[header_row_idx + 1:], rows_iter)
+    row_no = header_row_idx + 1  # 헤더 행 번호. 루프 내 += 1 로 데이터 행 시작.
+    for row in data_iter:
         row_no += 1
         # 빈 행 스킵
         if all(v is None or (isinstance(v, str) and not v.strip()) for v in row):
