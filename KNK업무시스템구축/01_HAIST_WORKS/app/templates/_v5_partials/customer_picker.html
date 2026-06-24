@@ -83,7 +83,10 @@ window.KNKCust = (function(){
   function validate(scope){ var bad=null;
     try{ (scope||document).querySelectorAll('input[data-cust-picker]').forEach(function(inp){
       var required=inp.getAttribute('data-cust-required')==='1';
-      if(required && inp.getAttribute('data-cust-ok')!=='1'){ inp.classList.add('knkcust-bad'); if(!bad) bad=inp; }
+      var hasText=!!(inp.value||'').trim();
+      var ok=inp.getAttribute('data-cust-ok')==='1';
+      // 필수면 무조건, 선택이라도 글자를 입력했으면 등록 고객사 매칭 필수(빈칸은 통과)
+      if((required || hasText) && !ok){ inp.classList.add('knkcust-bad'); if(!bad) bad=inp; }
     }); }catch(e){} return bad; }
   document.addEventListener('DOMContentLoaded', function(){ initAll(); });
   var _t=null;

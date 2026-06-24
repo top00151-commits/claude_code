@@ -89,15 +89,15 @@
     {% if promoted %}<div class="op-promoted">✅ 이 영업 기회는 프로젝트로 <b>승격 완료</b> → <a href="/project/{{ promoted.id }}">[{{ promoted.mgmt_code }}] {{ promoted.name }}</a> (해당 프로젝트에서 제작요청 발행)</div>{% endif %}
     {% if opp %}<div class="op-meta">기회번호 <b>{{ opp.opp_no }}</b> · 단계 <b>{{ opp.stage }}</b> · 다음 할 일: <b style="color:#A5282C;">{{ opp.next_action }}</b></div>{% endif %}
 
-    <form method="post" action="{{ ('/sales/opportunities/' ~ opp.id ~ '/edit') if opp else '/sales/opportunities' }}">
+    <form method="post" action="{{ ('/sales/opportunities/' ~ opp.id ~ '/edit') if opp else '/sales/opportunities' }}" onsubmit="var _b=window.KNKCust&&KNKCust.validate(this); if(_b){ try{_b.focus();}catch(e){} alert('고객사를 등록된 목록에서 선택하세요(빨간 칸). 비워두려면 칸을 비우세요.'); return false; } return true;">
       <div class="op-card">
         <h3>기본</h3>
         <div class="op-grid">
           <div class="op-f full"><label>건명 <span class="req">*</span></label>
             <input type="text" name="title" required value="{{ opp.title|default('') }}" placeholder="예: 삼성 PBA 검사기 신규 문의" {% if not can_edit %}disabled{% endif %}></div>
-          <div class="op-f"><label>고객사</label>
-            <input type="text" name="customer_name" list="custList" value="{{ opp.customer_name|default('') }}" {% if not can_edit %}disabled{% endif %}>
-            <datalist id="custList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist></div>
+          {# v5H226z622 (대표 지시): 고객사 = 등록 고객사(시스템명) 자동완성 콤보 — 입력 시 미매칭이면 적색·저장차단(선택사항이라 빈칸은 허용) #}
+          <div class="op-f"><label>고객사 <span style="font-weight:400;color:#94a3b8;font-size:11px;">(등록 목록에서 선택·선택사항)</span></label>
+            <input type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="0" data-cust-initial="{{ opp.customer_name|default('') }}" placeholder="고객사명·시스템명 → 목록 선택" autocomplete="off" {% if not can_edit %}disabled{% endif %}></div>
           <div class="op-f"><label>예상 사업부</label>
             <select name="biz_div" {% if not can_edit %}disabled{% endif %}>
               {% set bd = opp.biz_div if opp else 'T' %}
