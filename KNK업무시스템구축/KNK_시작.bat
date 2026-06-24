@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-06-24 v5H226z634[프로젝트 상세 수주내역 완제품 종합표(대표 지시) — 호기별 1줄(z633 N줄 저장)+금액·거래명세서·세금계산서1/2/3 칸 추가(보기전용·발행은 보드)+표 가로스크롤. 우측 패널 모델명·장비명 추가. get_project_orders가 호기 dict에 statement_date·tax_invoice_date/amt1·date2/amt2·date3/amt3 적재. _is_equip 게이트(부품/소모품 무영향)·can_money 게이트(금액·세금 헤더/본문 동시 토글→칸 정합)]
+REM   LAST UPDATE: 2026-06-24 v5H226z635[완제품 호기 일괄 분할 도구(대표 지시) — 기존 1줄(z629 qty=N) 완제품을 호기별 N줄로 분할. /admin/unit-split 미리보기→확인문구 호기분할→실행. 대상=ASSEMBLY·order_items.qty>1만(부품/소모품/제품SEMI/기타ETC 제외). 원본행=1호기 유지(id·세금계산서 보존)+2~N호기 새행·단가=금액/수량·잔액 1호기·SO unit_qty/합계/라벨 재계산. 재업로드 불필요·기존데이터 보존. 임시DB 검증 통과]
+REM   - 2026-06-24 v5H226z634[프로젝트 상세 수주내역 완제품 종합표(대표 지시) — 호기별 1줄(z633 N줄 저장)+금액·거래명세서·세금계산서1/2/3 칸 추가(보기전용·발행은 보드)+표 가로스크롤. 우측 패널 모델명·장비명 추가. get_project_orders가 호기 dict에 statement_date·tax_invoice_date/amt1·date2/amt2·date3/amt3 적재. _is_equip 게이트(부품/소모품 무영향)·can_money 게이트(금액·세금 헤더/본문 동시 토글→칸 정합)]
 REM   - 2026-06-24 v5H226z633[완제품 저장 호기별 N줄 복원(대표 지시·z629 되돌림) — 등록 5경로(직접확정/진행중자동/제작요청서/일괄등록/수정자동) 완제품(ASSEMBLY) 분기를 1줄 qty=N → 호기별 N줄(1호기~N호기·각 1대단가·project_unit_label)로. confirm_order_multi가 유닛마다 order_item 1개 생성→호기별 발주일·납품일·세금계산서 개별 관리 가능. 화면 재설계는 z634. 재업로드 시 호기별 행 생성]
 REM   - 2026-06-24 v5H226z632[작업일정표·부서일정표 관리번호 옆 + 펼치기 토글 제거(대표 지시) — schedule_board.html row-exp·dept_schedule.html dsx-exp 버튼 렌더 삭제(장비 호기·소모품 품목보기 모두·둘 다). 클릭 핸들러/JS는 버튼 없으면 미호출(무해)·CSS 휴면. 편집은 프로젝트/소모품 상세에서]
 REM   - 2026-06-24 v5H226z631[작업일정표 펼치기(+) 패널 호기·품목 칸 무조건 제거(대표 지시) — schedule_board.html toggleRowUnits 헤더 th+셀 td 삭제·ncol 13/8→12/7·줄시작 색띠 .ux-lbl→td:first-child 재지정. 저장은 tr[data-iid] 기준이라 무영향. 줄 수 무관 항상 제거(분할 줄 포함)]

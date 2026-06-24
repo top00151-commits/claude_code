@@ -7619,7 +7619,142 @@ async def admin_proj_raw(req: Request, code: str = ""):
         for it in items:
             body.append(f"<tr><td>{it['id']}</td><td>{it['order_id']}</td><td><b>{_esc(it['qty'])}</b></td><td>{_esc(it['unit_price'])}</td><td>{_esc(it['amount'])}</td><td>{_esc(it['unit_label'])}</td></tr>")
         body.append("</table>")
-    body.append("<p style='color:#888;font-size:12px;margin-top:14px;'>읽기전용 — 데이터 변경 없음. 헤더 unit_qty 와 order_items 의 qty 합/줄수가 맞는지 보면 됩니다.</p></div>")
+    body.append("<p style='color:#888;font-size:12px;margin-top:14px;'>읽기전용 — 데이터 변경 없음. 헤더 unit_qty 와 order_items 의 qty 합/줄수가 맞는지 보면 됩니다. "
+                "<a href='/admin/unit-split'>🧩 완제품 호기 일괄 분할</a></p></div>")
+    return HTMLResponse("".join(body))
+
+
+def _unit_split_find(c):
+    """v5H226z635: 호기 분할 대상 — 완제품(ASSEMBLY) SO 의 order_items 중 qty>1 (z629 시절 1줄 저장).
+    부품(PARTS_EXPORT)·소모품·제품(SEMI)·기타(ETC)는 제외(거긴 1줄=낱개 수량이 정상)."""
+    try:
+        rows = c.execute(
+            "SELECT oi.id, oi.order_id, oi.qty, oi.unit_price, oi.amount, oi.unit_label, "
+            "       o.order_no, COALESCE(o.currency,'KRW') AS o_cur, "
+            "       p.mgmt_code, COALESCE(p.project_type,'NEW_EQUIP') AS ptype, p.name, p.model_name "
+            "FROM order_items oi "
+            "JOIN orders o ON o.id = oi.order_id "
+            "JOIN projects p ON p.id = o.project_id "
+            "WHERE COALESCE(oi.qty,1) > 1 "
+            "  AND COALESCE(p.project_type,'') <> 'CONSUMABLE' "
+            "  AND COALESCE(NULLIF(UPPER(TRIM(p.shipment_form)),''),'ASSEMBLY') = 'ASSEMBLY' "
+            "  AND COALESCE(UPPER(o.so_type),'') NOT IN ('PARTS_EXPORT','CONSUMABLE') "
+            "ORDER BY p.mgmt_code, oi.id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+@app.get("/admin/unit-split", response_class=HTMLResponse)
+async def admin_unit_split_preview(req: Request):
+    """v5H226z635 (대표 지시): 기존 완제품 1줄(수량 N)을 호기별 N줄로 일괄 분할 — 미리보기(읽기전용).
+    z629 시절 1줄(qty=N) 저장된 완제품을 z633 방식(호기별 N줄)으로 정리. 기존 데이터 보존(재업로드 불필요)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+            "<h2>🧩 완제품 호기 일괄 분할 (1줄 → N호기)</h2>",
+            "<p style='color:#555;font-size:13px;line-height:1.7;'>z629 시절 <b>1줄(수량 N)</b>으로 저장된 <b>완제품(장비)</b>을 <b>호기별 N줄</b>로 분할합니다. "
+            "부품·소모품·제품(반제품)·기타는 <b>제외</b>(거긴 1줄이 정상). 기존 데이터는 보존하며(재업로드 불필요), "
+            "단가=금액÷수량으로 호기별 분배하고 세금계산서·거래명세서는 <b>1호기에 보존</b>합니다.</p>",
+            "<p style='font-size:12px;'><a href='/admin/proj-raw'>→ 원시 데이터 보기(proj-raw)</a></p>"]
+    with db_session() as c:
+        targets = _unit_split_find(c)
+    if not targets:
+        body.append("<p style='color:#15803d;font-weight:700;padding:14px;background:#f0fdf4;border-radius:8px;'>✅ 분할할 완제품 1줄이 없습니다 (이미 모두 호기별이거나 해당 없음).</p></div>")
+        return HTMLResponse("".join(body))
+    body.append(f"<h3>분할 대상 — {len(targets)}건</h3>")
+    body.append("<table border=1 cellpadding=6 style='border-collapse:collapse;font-size:13px;'><tr>"
+                "<th>관리번호</th><th>수주번호</th><th>품명/모델</th><th>현재 수량</th><th>1대 단가</th><th>금액(합계)</th><th>→ 분할</th></tr>")
+    _tot_lines = 0
+    for t in targets:
+        n = int(round(float(t["qty"] or 1)))
+        _tot_lines += n
+        per = (float(t["amount"] or 0) / n) if n else 0
+        body.append("<tr><td><b>" + _esc(t["mgmt_code"]) + "</b></td><td>" + _esc(t["order_no"]) + "</td>"
+                    "<td>" + _esc(t["model_name"] or t["name"] or t["unit_label"]) + "</td>"
+                    "<td style='text-align:center;'><b>" + str(n) + "</b></td>"
+                    "<td style='text-align:right;'>" + f"{per:,.0f}" + "</td>"
+                    "<td style='text-align:right;'>" + f"{float(t['amount'] or 0):,.0f}" + "</td>"
+                    "<td style='text-align:center;color:#1d4ed8;font-weight:700;'>" + str(n) + "호기</td></tr>")
+    body.append("</table>")
+    body.append(f"<p style='margin-top:10px;'>총 <b>{len(targets)}건</b> → <b>{_tot_lines}줄</b>(호기)로 분할됩니다.</p>")
+    body.append("<form method='post' action='/admin/unit-split' style='margin-top:16px;padding:14px;background:#fff7ed;border:1px solid #f59e0b;border-radius:10px;'>"
+                "<p style='margin:0 0 8px;color:#9a3412;font-weight:700;'>⚠ 실행 전 확인 — 되돌리기 어렵습니다. 확인 문구 <code>호기분할</code> 입력 후 실행.</p>"
+                "<input name='confirm' placeholder='호기분할' style='padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;'>"
+                " <button type='submit' style='padding:8px 18px;background:#b45309;color:#fff;border:0;border-radius:6px;font-weight:700;cursor:pointer;'>호기별로 분할 실행</button>"
+                "</form></div>")
+    return HTMLResponse("".join(body))
+
+
+@app.post("/admin/unit-split")
+async def admin_unit_split_apply(req: Request, confirm: str = Form("")):
+    """v5H226z635: 호기 분할 실행 — 원본 order_item 을 1호기로 유지(id·세금계산서 보존) + 2~N호기 새 행 추가."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    if (confirm or "").strip() != "호기분할":
+        return HTMLResponse("<meta charset='utf-8'><div style='font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 18px;'>"
+                            "<p style='color:#b91c1c;font-weight:700;'>확인 문구가 일치하지 않습니다. '호기분할' 을 정확히 입력하세요.</p>"
+                            "<p><a href='/admin/unit-split'>← 돌아가기</a></p></div>")
+    split_n = 0; new_lines = 0; errors = []; affected = set()
+    with db_session() as c:
+        _oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        targets = _unit_split_find(c)
+        for t in targets:
+            try:
+                iid = t["id"]; oid = t["order_id"]
+                full = c.execute("SELECT * FROM order_items WHERE id=?", (iid,)).fetchone()
+                if not full:
+                    continue
+                fd = dict(full)
+                n = int(round(float(t["qty"] or 1)))
+                if n < 2:
+                    continue
+                amount = float(t["amount"] or 0)
+                is_krw = (t["o_cur"] or "KRW").upper() == "KRW"
+                base = round(amount / n) if is_krw else round(amount / n, 2)
+                remainder = round(amount - base * n, 2)
+                ptype = t["ptype"] or "NEW_EQUIP"
+                # 1호기 = 원본 행 (id 보존 → 기존 참조 안전, 세금계산서/거래명세서 그대로 보존)
+                first_amt = base + remainder
+                c.execute("UPDATE order_items SET qty=1, unit_price=?, amount=?, unit_label=? WHERE id=?",
+                          (first_amt, first_amt, _logi.project_unit_label(ptype, 1), iid))
+                # 2~N호기 = 새 행 (발주일/납기/납품처/통화/거래구분/비고 복사, 세금계산서는 비움)
+                copy_cols = [col for col in ("line_note", "order_date", "due_date", "ship_to", "currency", "is_export") if col in _oicols]
+                for i in range(2, n + 1):
+                    cols = ["order_id", "qty", "unit_price", "amount", "unit_label"]
+                    vals = [oid, 1, base, base, _logi.project_unit_label(ptype, i)]
+                    for col in copy_cols:
+                        cols.append(col); vals.append(fd.get(col))
+                    c.execute("INSERT INTO order_items(" + ",".join(cols) + ") VALUES(" + ",".join(["?"] * len(cols)) + ")", vals)
+                    new_lines += 1
+                affected.add(oid)
+                split_n += 1
+            except Exception as e:
+                errors.append(f"{t.get('mgmt_code')}: {str(e)[:80]}")
+        # 영향받은 SO 헤더(unit_qty·합계·라벨) 재계산
+        for oid in affected:
+            try:
+                rows = c.execute("SELECT unit_label, amount, qty FROM order_items WHERE order_id=? ORDER BY id", (oid,)).fetchall()
+                nq = sum(int(r["qty"] or 1) for r in rows)
+                nt = sum(float(r["amount"] or 0) for r in rows)
+                nl = " · ".join((r["unit_label"] or "") for r in rows)
+                c.execute("UPDATE orders SET unit_qty=?, total_amount=?, unit_label=? WHERE id=?", (nq, nt, nl, oid))
+            except Exception as e:
+                errors.append(f"SO {oid} 재계산: {str(e)[:80]}")
+    body = ["<meta charset='utf-8'><div style='font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 18px;'>",
+            "<h2>🧩 호기 분할 완료</h2>",
+            f"<p style='font-size:15px;'>✅ <b>{split_n}건</b>의 완제품을 호기별로 분할 — 새 호기 줄 <b>{new_lines}개</b> 생성, SO <b>{len(affected)}건</b> 갱신.</p>"]
+    if errors:
+        body.append("<p style='color:#b91c1c;'>일부 오류:</p><ul>" + "".join("<li>" + _esc(e) + "</li>" for e in errors[:20]) + "</ul>")
+    body.append("<p style='margin-top:14px;'><a href='/admin/unit-split'>← 다시 보기(남은 대상 확인)</a> · "
+                "<a href='/admin/proj-raw?code=006M2602'>proj-raw 로 확인</a></p></div>")
     return HTMLResponse("".join(body))
 
 
