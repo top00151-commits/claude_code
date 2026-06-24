@@ -592,7 +592,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
         {% set _ti2 = (ti_map.get(r.row_sig ~ '|2') if (can_money and ti_map is defined and ti_map and r.row_sig) else None) %}
         {% set _ti3 = (ti_map.get(r.row_sig ~ '|3') if (can_money and ti_map is defined and ti_map and r.row_sig) else None) %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_money %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_money %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}" title="프로젝트 상세">{{ r.code }}</a>{# v5H226z565 (대표 지시): 관리번호 뒤 호기 라벨(N호기) 표시 삭제 — 호기는 '+' 펼침으로 확인 #}{% endif %}{# v5H226z481 (대표 지시): 수량 2개 이상=호기 여러 대 → '+' 펼치기 #}{# v5H226z510 (대표 지시): 소모품도 관리번호 뒤 '+' → 등록된 품목 리스트 펼치기 #}{% if r.kind == 'consumable' or (r.qty|int) >= 2 %}<span class="row-exp" title="{% if r.kind == 'consumable' %}등록 품목 펼치기/접기{% else %}호기 펼치기/접기{% endif %}" role="button">＋</span>{% endif %}</td>
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
           {# v5H226z365 (대표 지시): 프로젝트명 보드 인라인 편집 — 프로젝트만(소모품은 '소모품' 고정 표시·읽기전용) #}
@@ -1241,7 +1241,9 @@ function toggleRowUnits(tr, btn){
   // v5H226z509 (대표 지시): 같은 관리번호라도 수주번호가 다른 호기는 섞지 않음 —
   //   분할(호기) 줄은 자기 호기 id(data-uids)만 펼치게 전달. 일반 줄(uids 없음)은 프로젝트 전체.
   const _uids=(tr.dataset.uids||'').trim();
-  const _uq=_uids?('&uids='+encodeURIComponent(_uids)):'';
+  // v5H226z624 (대표 지시): 분할 줄은 uids, 일반 줄은 그 행의 수주번호(so_no)로 펼침 한정 → 다른 SO 호기 혼입 방지(수량 일치)
+  const _sono=(tr.dataset.sono||'').trim();
+  const _uq=_uids?('&uids='+encodeURIComponent(_uids)):(_sono?('&so_no='+encodeURIComponent(_sono)):'');
   fetch('/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref)+_uq,{credentials:'same-origin'})
     .then(r=>r.json()).then(j=>{
       if(!j||!j.ok){ toast('호기 불러오기 실패'); if(btn) btn.textContent='＋'; return; }

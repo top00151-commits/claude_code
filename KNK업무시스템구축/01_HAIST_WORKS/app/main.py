@@ -19877,8 +19877,10 @@ async def schedule_board_bulk_ship(request: Request):
 
 
 @app.get("/sales/schedule/units")
-async def schedule_board_units(request: Request, ref_id: int, kind: str = "project", uids: str = ""):
+async def schedule_board_units(request: Request, ref_id: int, kind: str = "project", uids: str = "", so_no: str = ""):
     """v5H226z481 (대표 지시): 작업일정표 행 펼치기 — 한 프로젝트의 호기(order_items) 목록(상태·납기·단가) JSON.
+    v5H226z624 (대표 지시): 같은 관리번호에 수주번호(SO)가 여러 개면, 펼침은 '그 행의 수주번호' 호기만 보여야 함
+      (수량과 일치). 분할(uids) 줄은 그대로, 분할 안 된 행은 so_no(order_no)로 그 SO 호기만 조회 → 다른 SO 혼입 방지.
     v5H226z509 (대표 지시): 같은 관리번호라도 수주번호가 다른 호기는 따로 — 분할(호기) 줄을 펼치면
       그 줄의 호기(uids=order_items.id CSV)만 반환해 서로 다른 수주번호가 한 줄 펼침에 섞이지 않게 한다.
       uids 없으면(분할 안 된 일반 프로젝트) 기존대로 프로젝트 전체 호기."""
@@ -19910,6 +19912,16 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
             _ti1 = "oi.tax_invoice_date AS t1d, oi.tax_invoice_amt1 AS t1a," if "tax_invoice_date" in _cols else "'' AS t1d, NULL AS t1a,"
             _ti2 = "oi.tax_invoice_date2 AS t2d, oi.tax_invoice_amt2 AS t2a," if "tax_invoice_date2" in _cols else "'' AS t2d, NULL AS t2a,"
             _ti3 = "oi.tax_invoice_date3 AS t3d, oi.tax_invoice_amt3 AS t3a," if "tax_invoice_date3" in _cols else "'' AS t3d, NULL AS t3a,"
+            # v5H226z624: 펼침 범위 — 분할(uids) 우선, 없으면 그 행의 수주번호(so_no=order_no)로 한정. 둘 다 없으면 프로젝트 전체(기존)
+            _so_filt = (so_no or "").strip()
+            _params = [int(ref_id)]
+            if _uid_list:
+                _wx = f"AND oi.id IN ({','.join(str(_i) for _i in _uid_list)}) "
+            elif _so_filt:
+                _wx = "AND o.order_no=? "
+                _params.append(_so_filt)
+            else:
+                _wx = ""
             rows = c.execute(
                 f"SELECT oi.id AS iid, oi.unit_label AS lbl, {_due} {_ust} {_up} {_od} {_sh} {_ie} {_ln} {_ic} "
                 f"{_stm} {_ti1} {_ti2} {_ti3} "
@@ -19921,10 +19933,11 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                 f"FROM order_items oi JOIN orders o ON oi.order_id=o.id "
                 f"LEFT JOIN projects p ON p.id=o.project_id "
                 f"WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
-                # v5H226z509: 분할 줄이 호기 id 목록을 보냈으면 그 호기만 — 수주번호 혼합 방지
-                + (f"AND oi.id IN ({','.join(str(_i) for _i in _uid_list)}) " if _uid_list else "")
+                # v5H226z509/z624: 분할 줄은 호기 id(uids)로, 분할 안 된 행은 그 행의 수주번호(so_no=order_no)로
+                #   스코프 → 같은 관리번호의 다른 SO 호기가 펼침에 섞이지 않게(수량 일치).
+                + _wx
                 + "ORDER BY oi.id",
-                (int(ref_id),)).fetchall()
+                tuple(_params)).fetchall()
             for r in rows:
                 d = dict(r)
                 eff_due = (str(d.get("i_due") or "").strip() or str(d.get("o_due") or "").strip())[:10]

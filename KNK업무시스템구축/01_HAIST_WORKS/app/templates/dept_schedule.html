@@ -271,7 +271,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         {% for r in rows %}
         {% set key = r.kind ~ ':' ~ r.ref_id %}
         {% set cs = cellsum.get(key) or {} %}
-        <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}" data-multi="{{ '1' if r.multi else '' }}" data-uids="{{ (r.uids or [])|join(',') }}">
+        <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}" data-sono="{{ r.so_no or '' }}" data-multi="{{ '1' if r.multi else '' }}" data-uids="{{ (r.uids or [])|join(',') }}">
           <td class="c-code">
             {# v5H226z513 (대표 지시): 부서 진행기록 모아보기(📜)를 관리번호 앞쪽으로 + 사업부(M) 배지 삭제 #}
             <span class="tl-btn" title="이 품목의 모든 부서 진행 기록 모아보기" role="button">📜</span>
@@ -477,9 +477,11 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     var existing=tr.parentNode.querySelectorAll('tr.dsx-unit-row[data-for="'+rowKey+'"]');
     if(existing.length){ existing.forEach(function(x){x.remove();}); if(btn){ btn.textContent='＋'; btn.classList.remove('on'); } return; }
     if(btn) btn.textContent='…';
+    // v5H226z624 (대표 지시): 분할 줄은 uids, 일반 줄은 그 행의 수주번호(so_no)로 펼침 한정 → 다른 SO 호기 혼입 방지
+    var _sono=(tr.dataset.sono||'').trim();
     var url=(kind==='consumable')
       ? '/sales/schedule/consumable-items?ref_id='+encodeURIComponent(ref)
-      : '/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref)+(uids?('&uids='+encodeURIComponent(uids)):'');
+      : '/sales/schedule/units?kind='+encodeURIComponent(kind)+'&ref_id='+encodeURIComponent(ref)+(uids?('&uids='+encodeURIComponent(uids)):(_sono?('&so_no='+encodeURIComponent(_sono)):''));
     fetch(url,{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(j){
       if(!j||!j.ok){ alert('불러오기 실패'); if(btn) btn.textContent='＋'; return; }
       var newrows=[];
