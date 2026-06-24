@@ -226,10 +226,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .ux-tab tbody tr:nth-child(odd) > td { background:#ffffff; }
 .ux-tab tbody tr:nth-child(even) > td { background:#dde7f3; }
 .ux-tab tbody tr:hover > td { background:#fff1cf; }
-/* 행 첫 칸(호기·품목) 왼쪽 색 띠 — 줄마다 시작점이 또렷하게 (짝수줄 진하게) */
-.ux-tab tbody tr > td.ux-lbl { border-left:4px solid #cbd5e1; padding-left:8px; }
-.ux-tab tbody tr:nth-child(even) > td.ux-lbl { border-left-color:#7c93b3; }
-.ux-tab tbody tr:hover > td.ux-lbl { border-left-color:var(--knk-red); }
+/* 행 첫 칸 왼쪽 색 띠 — 줄마다 시작점이 또렷하게 (짝수줄 진하게). v5H226z631: 호기·품목 칸 제거로 첫 칸 기준으로 변경 */
+.ux-tab tbody tr > td:first-child { border-left:4px solid #cbd5e1; padding-left:8px; }
+.ux-tab tbody tr:nth-child(even) > td:first-child { border-left-color:#7c93b3; }
+.ux-tab tbody tr:hover > td:first-child { border-left-color:var(--knk-red); }
 .sched .day { text-align:center; color:#15803d; font-weight:800; }
 .sched .day.today { box-shadow: inset 2px 0 0 #b91c1c, inset -2px 0 0 #b91c1c; background:#fffbe6; }
 .sched thead .day.today { background:#fde68a; }
@@ -1263,12 +1263,13 @@ function toggleRowUnits(tr, btn){
         return '<td><div class="ux-ti'+(lk?' ux-locked':'')+'" data-iid="'+iid+'" data-datefield="'+df+'" data-amtfield="'+af+'" data-date="'+_uxEsc(dv||'')+'" data-amt="'+(av!=null?av:'')+'" title="'+ttl+'">'
           +(has?('<div class="ti-d">'+_uxEsc(dv||'–')+'</div><div class="ti-a">'+(av!=null&&av!==''?'₩'+Number(av).toLocaleString():'')+'</div>'):'＋')+'</div></td>';
       }
-      let h='<div class="ux-wrap"><table class="ux-tab"><thead><tr><th>호기·품목</th>'+(CM?'<th>단가</th>':'')+'<th>통화</th><th>거래방식</th><th>발주일</th><th>납기</th><th>납품처</th><th>상태</th><th>비고</th>'
+      // v5H226z631(대표 지시): 펼치기 패널 '호기·품목' 칸 무조건 제거(헤더+셀). 줄 수 무관.
+      let h='<div class="ux-wrap"><table class="ux-tab"><thead><tr>'+(CM?'<th>단가</th>':'')+'<th>통화</th><th>거래방식</th><th>발주일</th><th>납기</th><th>납품처</th><th>상태</th><th>비고</th>'
         +(CM?'<th>거래명세서</th><th>1세금계산서</th><th>2세금계산서</th><th>3세금계산서</th>':'')+'</tr></thead><tbody>';
-      const ncol=(CM?13:8);
+      const ncol=(CM?12:7);
       (j.units||[]).forEach(function(u){
         const dis=u.locked?' disabled title="확정 SO 라 수정 불가"':'';
-        h+='<tr data-iid="'+u.iid+'"><td class="ux-lbl">'+_uxEsc(u.label)+(u.so_no?' <span class="ux-so">'+_uxEsc(u.so_no)+'</span>':'')+'</td>';
+        h+='<tr data-iid="'+u.iid+'">';  // v5H226z631: 호기·품목 라벨 셀 제거 (수주번호는 부모 행에 표시)
         if(CM){ h+=_mo('unit_price',u.unit_price,dis); }
         h+='<td><select class="ux-sel" data-field="currency"'+dis+'>'+curs.map(function(c){return '<option'+(c===u.currency?' selected':'')+'>'+c+'</option>';}).join('')+'</select></td>';
         h+='<td><select class="ux-sel" data-field="is_export"'+dis+'><option value="0"'+(u.is_export?'':' selected')+'>내수</option><option value="1"'+(u.is_export?' selected':'')+'>수출</option></select></td>';
