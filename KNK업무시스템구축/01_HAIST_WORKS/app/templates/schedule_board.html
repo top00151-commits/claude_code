@@ -103,6 +103,8 @@
 .sched tbody tr.row-selected td.c-info { background:#fff7e6 !important; }
 .sched tbody tr.row-selected td.c1 { box-shadow: inset 3px 0 0 var(--knk-red,#b0271f); }
 .sched tbody tr.search-hide { display:none; }
+/* v5H226z650 (대표 지시): 프로젝트 상세의 참고 수주 '진행중' 클릭 → 해당 관리번호 행 강조(잠깐 노랑 점멸) */
+.sched tbody tr.row-focus-flash > td { background:#fff3bf !important; transition: background .9s ease; }
 /* v5H226z346 (대표 지시): 아이콘 작고 심플하게 — 작은 크기 + 회색(모노) 톤으로 덜 튀게 */
 .sb-band .ti { font-size:0.78em; opacity:0.62; filter:grayscale(1); margin-right:1px; }
 .tool-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:12px; font-weight:700; }
@@ -2267,6 +2269,22 @@ applyCols(); buildColsMenu(); syncDayInputs(); applyOrder(); initColDrag();   //
 try{ document.querySelectorAll('#schedTable tbody tr[data-ref]').forEach(refreshTaxStatus); }catch(e){}
 // v5H226z561(대표 지시): 저장된 검색어 복원 → 수정 후 새로고침돼도 찾던 조건 화면 유지
 try{ var _sq=sessionStorage.getItem('knk.sched.q'); if(_sq){ var _si=document.getElementById('schedSearch'); if(_si){ _si.value=_sq; schedDoSearch(); } } }catch(e){}
+// v5H226z650(대표 지시): project_detail '참고(진행중) 수주' 클릭 → ?focus=<관리번호> 로 진입 시 해당 관리번호 검색·스크롤·강조
+try{
+  var _focus = {{ (focus_q or '')|tojson }};
+  if(_focus){
+    var _fi=document.getElementById('schedSearch');
+    if(_fi){ _fi.value=_focus; schedDoSearch(); }
+    setTimeout(function(){
+      var _vr=_visRows();
+      if(_vr.length){
+        _vr[0].scrollIntoView({behavior:'smooth', block:'center'});
+        _vr.forEach(function(tr){ tr.classList.add('row-focus-flash'); });
+        setTimeout(function(){ _vr.forEach(function(tr){ tr.classList.remove('row-focus-flash'); }); }, 2600);
+      }
+    }, 140);
+  }
+}catch(e){}
 _buildBulkFieldSel(); syncBulkBar();   // z366: 일괄수정 항목 드롭다운 구성 + 바 상태
 var _bulkM=document.getElementById('bulkModal'); if(_bulkM) _on(_bulkM,'click',function(e){ if(e.target.id==='bulkModal') closeBulkModal(); });
 _on(window,'load',()=>setTimeout(updateSticky,80));

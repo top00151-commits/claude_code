@@ -894,10 +894,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           .ref-sos-wrap.open .ref-sos-body { display:block; }
           .ref-sos-arrow { transition:transform .15s; font-size:12px; }
           .ref-sos-wrap.open .ref-sos-arrow { transform:rotate(90deg); }
+          /* v5H226z650 (대표 지시): 참고 수주번호 옆 이동 힌트 칩(↗ 일정표 / ↗ 이력) */
+          .so-no .ref-go { font-size:10px; font-weight:600; color:#94a3b8; margin-left:4px; vertical-align:middle; }
+          .ref-so .so-no a:hover .ref-go { color:var(--knk-red); }
         </style>
         <div class="list-scroll">
         {% for so in _ord %}
-          {% set _editable = can_sales and so.status not in ('INVOICED','PAID','CANCELLED') %}{# v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능) #}
+          {% set _editable = can_sales and so.status not in ('INVOICED','PAID','CANCELLED') and loop.first %}{# v5H226v: SHIPPED 도 편집 허용(수금 전 정정 가능) / v5H226z650(대표 지시): 참고(추가) 수주는 읽기전용 — 최초(메인) 수주만 이 화면에서 편집, 추가 수주는 수주번호 클릭으로 해당 화면 이동 #}
           {# v5H172: SO 통화가 비어있으면 프로젝트 헤더 통화로 fallback (백필 누락 대비) #}
           {% set _cur = so.currency or p.currency or 'KRW' %}
           {# v5H95: 통화 기호 제거 — 코드만 표시 (KRW/USD/VND) #}
@@ -915,7 +918,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           <div class="so-card{% if _editable %} editable{% endif %}{% if not loop.first %} ref-so{% endif %}" data-soid="{{ so.id }}">
             <!-- 헤더: 수주번호 + 메타 + 액션 -->
             <div class="so-card-head">
-              <div class="so-no"><a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a></div>
+              <div class="so-no">{# v5H226z650(대표 지시): 참고(추가) 수주번호 클릭 시 상태별 이동 — 진행중→작업일정표(해당 관리번호 검색·강조), 완료(출하/송장/수금/취소)→수주 상세(진행 이력) #}
+                {% if loop.first %}<a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a>
+                {% else %}{% set _so_done = ((so.status or '')|upper in ['SHIPPED','INVOICED','PAID','CANCELLED']) %}
+                  {% if _so_done %}<a href="/sales/orders/{{ so.id }}" title="완료된 수주 — 진행 이력 보기">{{ so.order_no }} <span class="ref-go">↗ 이력</span></a>
+                  {% else %}<a href="/sales/schedule?focus={{ (p.mgmt_code or '')|urlencode }}" title="진행중 수주 — 작업일정표에서 보기">{{ so.order_no }} <span class="ref-go">↗ 일정표</span></a>{% endif %}
+                {% endif %}
+              </div>
               {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
               {# v5H142: SO 종류 pill — 장비/소모품/정비/기타 #}
               {% with stype=so.so_type, size='sm' %}{% include '_v5_partials/so_type_pill.html' %}{% endwith %}
@@ -936,7 +945,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음 #}
                 {% if so.so_customer %}<span class="item"><span class="k">🏢 발주처</span><span class="v" style="font-weight:700;color:#1d4ed8;">{{ so.so_customer }}</span></span>{% endif %}
-                <span class="item"><span class="k">{% if loop.first %}🆕 최초 수주{% else %}📎 참고 (추가 #{{ loop.index0 }}){% endif %}</span></span>
+                <span class="item"><span class="k">{% if loop.first %}🆕 최초 수주{% else %}📎 참고 (추가 #{{ loop.index0 }}) · 읽기전용{% endif %}</span></span>
               </div>
               <div class="so-actions">
                 {% set _so_is_parts = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
@@ -961,10 +970,12 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                 {% endif %}
                 <button type="button" class="btn-mini so-meta-save" title="발주일/납기/납품처 저장" style="display:none;">💾 메타 저장</button>
                 {% endif %}
+                {% if loop.first %}{# v5H226z650: 삭제는 최초(메인) 수주에서만 — 참고(추가) 수주는 읽기전용 #}
                 {% if can_sales_del %}
                 <button type="button" class="btn-mini danger" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})'>🗑 삭제</button>
                 {% else %}
                 <span style="color:var(--line);font-size:14px;" title="삭제 권한 없음">🔒</span>
+                {% endif %}
                 {% endif %}
               </div>
             </div>
