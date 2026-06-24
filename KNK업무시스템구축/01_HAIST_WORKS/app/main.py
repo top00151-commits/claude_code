@@ -7492,7 +7492,15 @@ async def admin_customer_merge(req: Request):
         return JSONResponse({"ok": False, "error": "합칠 대상(drop_ids)이 없습니다"}, 400)
     moved = {}
     dropped_names = []
-    with db_session() as c:
+    keep_name = ""
+    try:
+      with db_session() as c:
+        # v5H226z617: get_db 가 FK=ON 이라 customers DELETE 가 잔여 참조에 막혀 500.
+        #   초기화 함수들처럼 병합 동안만 FK OFF(모든 customer_id 는 이미 keep 로 이관함).
+        try:
+            c.execute("PRAGMA foreign_keys=OFF")
+        except Exception:
+            pass
         keep = c.execute("SELECT name FROM customers WHERE id=?", (keep_id,)).fetchone()
         if not keep:
             return JSONResponse({"ok": False, "error": "보존할 고객사를 찾을 수 없습니다"}, 404)
@@ -7532,6 +7540,8 @@ async def admin_customer_merge(req: Request):
             except Exception:
                 pass
             c.execute("DELETE FROM customers WHERE id=?", (did,))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"병합 중 오류: {str(e)[:200]}"}, 200)
     return JSONResponse({"ok": True, "keep_id": keep_id, "keep_name": keep_name,
                          "dropped": dropped_names, "moved": moved})
 
