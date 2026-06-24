@@ -1486,7 +1486,8 @@ function startEdit(td){
 function _custNorm(s){ return (s||'').toString().trim().toLowerCase().replace(/\s+/g,''); }
 function startCustEdit(td, tr){
   if(_editing) return;
-  var cur=(td.dataset.real!=null ? td.dataset.real : td.textContent).trim(); if(cur==='＋') cur='';
+  // v5H226z647 (대표 지시): 표시값(시스템명/별칭) 기준으로 편집. 같은 상호 여러 종사업장이면 정식 상호는 모호(매칭불가)라 별칭으로. data-real(정식 상호)은 저장·세금계산서용.
+  var cur=(td.textContent||'').trim(); if(cur==='＋') cur='';
   _editing={td}; td.textContent='';
   var wrap=document.createElement('div'); wrap.style.cssText='position:relative;';
   var inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
@@ -1534,6 +1535,8 @@ function startCustEdit(td, tr){
   }
   function finish(doSave){ if(done) return; done=true; dd.style.display='none'; _ddRemove();
     if(!doSave){ _restore(); _editing=null; return; }
+    // v5H226z647 (대표 지시): 값 안 바꾸고 닫으면 재저장 안 함 — 같은 상호 여러 종사업장에서 customer_id 연결이 끊기는 사고 방지
+    if(!picked && inp.value.trim()===cur){ _restore(); _editing=null; return; }
     if(picked){ save(picked); } else { exact(inp.value).then(function(o){ save(o); }); } }
   inp.addEventListener('blur', function(){ setTimeout(function(){ finish(true); }, 180); });
   inp.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); inp.blur(); } else if(ev.key==='Escape'){ ev.preventDefault(); finish(false); } });
