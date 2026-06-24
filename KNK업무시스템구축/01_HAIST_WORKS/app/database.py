@@ -13473,13 +13473,16 @@ _RESET_DEMO_USER_WHERE = "(employee_no IS NULL OR TRIM(employee_no)='') AND COAL
 RESET_GROUPS = [
     {"key": "customers", "label": "🤝 고객사", "desc": "고객사·담당자·고객 이력",
      "tables": ["customers", "customer_contacts", "customer_history"]},
-    {"key": "sales", "label": "📊 매출·영업", "desc": "프로젝트·수주·견적·납품·수금·송장·생산·수출(CI/PL/BL/통관/FTA)",
+    {"key": "sales", "label": "📊 매출·영업", "desc": "프로젝트·수주·견적·납품·수금·송장·세금계산서·생산·수출(CI/PL/BL/통관/FTA)",
      "tables": ["projects", "project_history", "project_milestones", "project_phases", "project_retros",
                 "project_forecasts", "project_burndown_snapshots", "project_workflow",
                 "project_workflow_edges", "project_workflow_nodes", "project_workflow_node_checkpoints",
                 "quotations", "quotation_items", "quotation_history",
                 "orders", "order_items", "order_status_history", "production_orders", "ic_invoice_pairs",
                 "invoices", "receipts", "receipts_payment", "shipments",
+                # v5H226z618 (대표 지시): 묶음 세금계산서 장부 — 매출 초기화 시 함께 비워야
+                #   재업로드 후 ref_id 어긋남(세금계산서↔원천 불일치)이 안 남음. 고객사 마스터는 보존(별도 그룹).
+                "tax_invoices", "tax_invoice_lines",
                 "export_orders", "commercial_invoices", "packing_lists", "packing_items",
                 "bills_of_lading", "customs_declarations", "fta_certificates", "fta_certificate_items"]},
     {"key": "suppliers", "label": "🏭 협력사(업체)", "desc": "협력사(공급업체)",
