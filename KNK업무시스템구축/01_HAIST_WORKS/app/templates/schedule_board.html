@@ -1451,9 +1451,12 @@ function startCustEdit(td, tr){
   _editing={td}; td.textContent='';
   var wrap=document.createElement('div'); wrap.style.cssText='position:relative;';
   var inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
-  var dd=document.createElement('div'); dd.className='knkcust-dd'; dd.style.display='none';
-  wrap.appendChild(inp); wrap.appendChild(dd); td.appendChild(wrap); inp.focus(); inp.select();
+  // v5H226z626 (대표 지시): 보드 셀 overflow:hidden 에 잘리던 문제 — 드롭다운을 body에 fixed로 띄움
+  var dd=document.createElement('div'); dd.className='knkcust-dd'; dd.style.position='fixed'; dd.style.zIndex='99999'; dd.style.display='none';
+  wrap.appendChild(inp); td.appendChild(wrap); document.body.appendChild(dd); inp.focus(); inp.select();
   var picked=null, done=false;
+  function _ddRemove(){ try{ if(dd&&dd.parentNode) dd.parentNode.removeChild(dd); }catch(e){} }
+  function _ddPos(){ var rc=inp.getBoundingClientRect(); dd.style.left=rc.left+'px'; dd.style.top=(rc.bottom+2)+'px'; dd.style.minWidth=Math.max(rc.width,240)+'px'; }
   function disp(o){ return (o.alias||o.name); }
   function render(q){
     if(!window.KNKCust){ dd.style.display='none'; return; }
@@ -1464,7 +1467,7 @@ function startCustEdit(td, tr){
           '<b>'+esc(o.alias||o.name)+'</b>'+((o.alias&&o.alias!==o.name)?(' <span class="ksub">'+esc(o.name)+'</span>'):'')+
           (o.sub_biz_no?(' <span class="ksbn">['+esc(o.sub_biz_no)+']</span>'):'')+'</div>'; }).join('')
         : '<div class="knkcust-empty">등록 고객사 없음 — 새 이름은 그대로 저장(미연결·적색)</div>';
-      dd.style.display='block';
+      _ddPos(); dd.style.display='block';
     });
   }
   function exact(text){ return (window.KNKCust?KNKCust.load():Promise.resolve([])).then(function(opts){ var t=_custNorm(text);
@@ -1490,7 +1493,7 @@ function startCustEdit(td, tr){
         else { _restore(); toast('⚠ '+(j.message||j.error||'저장 실패')); } })
       .catch(function(){ _editing=null; _restore(); toast('⚠ 통신 오류'); });
   }
-  function finish(doSave){ if(done) return; done=true; dd.style.display='none';
+  function finish(doSave){ if(done) return; done=true; dd.style.display='none'; _ddRemove();
     if(!doSave){ _restore(); _editing=null; return; }
     if(picked){ save(picked); } else { exact(inp.value).then(function(o){ save(o); }); } }
   inp.addEventListener('blur', function(){ setTimeout(function(){ finish(true); }, 180); });
