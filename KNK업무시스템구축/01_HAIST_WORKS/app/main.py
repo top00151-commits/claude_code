@@ -7352,6 +7352,219 @@ async def admin_test_data_delete_a(req: Request):
     return RedirectResponse(f"/admin/test-data?deleted={n_proj}", 303)
 
 
+@app.get("/admin/ti-from-xlsx", response_class=HTMLResponse)
+async def admin_ti_from_xlsx_form(req: Request):
+    """v5H226z659 (대표 지시): 엑셀 → 거래명세서·세금계산서만 반영(프로젝트/SO/호기 절대 생성 안 함). 재업로드 중복 SO 사고 방지용."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    return HTMLResponse(
+        "<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:760px;margin:32px auto;padding:0 18px;color:#1f2937;'>"
+        "<h2>📄 엑셀 → 세금계산서/거래명세서만 반영</h2>"
+        "<p style='color:#555;line-height:1.7;'>일괄등록과 <b>같은 양식</b> 엑셀을 올리면, <b>이미 등록된 관리번호</b>에 "
+        "거래명세서·세금계산서(발행일·금액)만 반영합니다. <b style='color:#b45309;'>프로젝트·수주(SO)·호기는 절대 만들지 않습니다</b> "
+        "(중복 수주 걱정 없음). 같은 파일을 여러 번 올려도 중복 발행되지 않습니다(멱등).</p>"
+        "<form method='post' action='/admin/ti-from-xlsx' enctype='multipart/form-data'>"
+        "<input type='file' name='xlsx' accept='.xlsx' required style='font-size:14px;'>"
+        "<button type='submit' style='margin-left:10px;padding:8px 16px;background:#15803d;color:#fff;border:0;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;'>세금계산서 반영</button>"
+        "</form></div>")
+
+
+@app.post("/admin/ti-from-xlsx", response_class=HTMLResponse)
+async def admin_ti_from_xlsx_apply(req: Request, xlsx: UploadFile = File(...)):
+    """v5H226z659 (대표 지시): 위 폼 처리 — 기존 프로젝트에 세금계산서/거래명세서만 반영(생성 무·멱등)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    try:
+        body = await xlsx.read()
+        rows = _proj_import_parse_xlsx(body)
+    except Exception as e:
+        return HTMLResponse("<meta charset='utf-8'><p>파싱 실패: " + _esc(str(e)) + "</p>")
+    _ti_rows = []
+    matched = 0
+    unmatched = []
+    with db_session() as c:
+        for r in rows:
+            _mc = (r.get("mgmt_code_input") or "").strip().upper()
+            if not _mc:
+                continue
+            _pr = c.execute("SELECT id, customer_name FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1", (_mc,)).fetchone()
+            if not _pr:
+                unmatched.append(_mc)
+                continue
+            _pid = _pr["id"] if isinstance(_pr, dict) else _pr[0]
+            _pcust = (_pr["customer_name"] if isinstance(_pr, dict) else _pr[1]) or ""
+            _sd = (str(r.get("statement_date") or ""))[:10]
+            _ti = []
+            for _k in (1, 2, 3):
+                _d = (str(r.get("ti%d_date" % _k) or ""))[:10]
+                if _d:
+                    try:
+                        _a = float(r.get("ti%d_amt" % _k) or 0)
+                    except Exception:
+                        _a = 0.0
+                    _ti.append((_k, _d, str(r.get("ti%d_bundle" % _k) or "").strip(), _a))
+            if not _sd and not _ti:
+                continue
+            matched += 1
+            _ti_rows.append({"pid": _pid, "mgmt": _mc, "customer": (r.get("customer_name") or _pcust or ""),
+                             "label": (r.get("model_name") or ""), "currency": (r.get("currency") or "KRW"),
+                             "statement_date": _sd, "ti": _ti})
+        ti_made = ti_lines = stmt_n = 0
+        ti_warns = []
+        try:
+            from collections import OrderedDict as _OD
+            _uname = u.get("name") or u.get("login_id") or ""
+            _ocols = {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
+            if "statement_date" in _ocols:
+                for tr in _ti_rows:
+                    if tr["statement_date"]:
+                        try:
+                            c.execute("UPDATE orders SET statement_date=? WHERE id=("
+                                      "SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1)",
+                                      (tr["statement_date"], tr["pid"]))
+                            stmt_n += 1
+                        except Exception:
+                            pass
+            _existing_ti = set()
+            try:
+                _tlc = {x[1] for x in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
+                _q = ("SELECT row_sig, COALESCE(tier,1) FROM tax_invoice_lines" if "tier" in _tlc
+                      else "SELECT row_sig, 1 FROM tax_invoice_lines")
+                for _er in c.execute(_q):
+                    _existing_ti.add((_er[0], int(_er[1] or 1)))
+            except Exception:
+                pass
+            _groups = _OD()
+            for tr in _ti_rows:
+                for (tier, d, bundle, amt) in tr["ti"]:
+                    _groups.setdefault((tier, d, bundle, tr["customer"]), []).append((tr, amt))
+            for (tier, d, bundle, cust), members in _groups.items():
+                lines = [{"sig": f"project:{tr['pid']}", "ref_kind": "project", "ref_id": tr["pid"],
+                          "mgmt_code": tr["mgmt"], "label": tr["label"], "customer": cust, "amount": amt}
+                         for (tr, amt) in members if (f"project:{tr['pid']}", tier) not in _existing_ti]
+                if not lines:
+                    continue
+                _cur = (members[0][0].get("currency") or "KRW")
+                try:
+                    _ti_make_bundle(c, tier, d, _cur, cust, lines, u.get("id") or 0, _uname,
+                                    memo=(f"엑셀 세금계산서 반영 묶음 {bundle}" if bundle else "엑셀 세금계산서 반영"))
+                    ti_made += 1
+                    ti_lines += len(lines)
+                except Exception as _be:
+                    ti_warns.append(f"{d} {tier}차 실패: {str(_be)[:80]}")
+        except Exception as _te:
+            ti_warns.append(f"오류: {str(_te)[:120]}")
+    _h = ["<meta charset='utf-8'><div style='font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;color:#1f2937;'>",
+          "<h2 style='color:#15803d;'>✅ 세금계산서 반영 완료 (프로젝트/수주는 건드리지 않음)</h2>",
+          f"<p>매칭된 행 <b>{matched}</b> · 세금계산서 묶음 <b>{ti_made}</b>장({ti_lines}건) · 거래명세서 <b>{stmt_n}</b>건</p>"]
+    if unmatched:
+        _h.append(f"<p style='color:#b45309;'>미등록 관리번호 {len(unmatched)}건(반영 안 됨): " + _esc(", ".join(unmatched[:30])) + (" …" if len(unmatched) > 30 else "") + "</p>")
+    if ti_warns:
+        _h.append("<p style='color:#b91c1c;'>경고: " + _esc(" / ".join(ti_warns[:10])) + "</p>")
+    _h.append("<p style='margin-top:16px;'><a href='/sales/schedule' style='color:#1d4ed8;'>작업일정표로</a></p></div>")
+    return HTMLResponse("".join(_h))
+
+
+@app.get("/admin/dup-so", response_class=HTMLResponse)
+async def admin_dup_so(req: Request):
+    """v5H226z659 (대표 지시): 재업로드로 생긴 '중복 수주(SO)' 진단 — 같은 프로젝트에 (발주일·납기·금액)이 같은 SO가 2개 이상이면
+    가장 오래된 1개만 남기고 나머지(나중 생성=중복)를 후보로 표시. 읽기전용. 실행은 아래 버튼."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    from collections import defaultdict as _dd
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT o.id AS oid, o.order_no AS sono, o.project_id AS pid, p.mgmt_code AS mc, p.name AS pname, "
+            "COALESCE(o.order_date,'') AS od, COALESCE(o.due_date,'') AS dd, COALESCE(o.total_amount,0) AS amt, "
+            "COALESCE(o.created_at,'') AS ca, COALESCE(o.status,'') AS st "
+            "FROM orders o JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' ORDER BY o.project_id, o.id").fetchall()]
+    grp = _dd(list)
+    for r in rows:
+        grp[(r["pid"], r["od"], r["dd"], round(float(r["amt"] or 0)))].append(r)
+    dups = []
+    for _k, members in grp.items():
+        if len(members) > 1:
+            members.sort(key=lambda x: x["oid"])
+            for d in members[1:]:
+                dups.append((members[0], d))
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1050px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+            "<h2>🧹 중복 수주(SO) 진단·정리</h2>",
+            "<p style='color:#555;line-height:1.7;'>같은 프로젝트에 <b>발주일·납기·금액이 동일한 수주(SO)가 2개 이상</b>인 경우입니다(재업로드로 중복 생성된 흔적). "
+            "가장 <b>오래된 1개(원본)는 보존</b>하고 나중에 생긴 것만 삭제 후보로 표시합니다. 아래 표를 확인하고 '중복 삭제 실행'을 누르세요.</p>"]
+    if not dups:
+        body.append("<p style='color:#15803d;font-weight:700;padding:14px;background:#f0fdf4;border-radius:8px;'>✅ 중복 수주 없음.</p></div>")
+        return HTMLResponse("".join(body))
+    body.append("<p style='font-size:16px;'>삭제 후보(중복) <b style='color:#b91c1c;'>" + str(len(dups)) + "건</b> · 원본은 보존</p>")
+    body.append("<form method='post' action='/admin/dup-so' onsubmit=\"return confirm('중복 수주 " + str(len(dups)) + "건을 삭제합니다(원본 보존). 되돌릴 수 없습니다. 진행할까요?');\" style='margin:8px 0 18px;'>"
+                "<input type='hidden' name='confirm' value='중복정리'>"
+                "<button type='submit' style='padding:9px 18px;background:#b91c1c;color:#fff;border:0;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;'>🗑 중복 삭제 실행 (" + str(len(dups)) + "건)</button></form>")
+    body.append("<table style='border-collapse:collapse;font-size:12px;width:100%;'><thead><tr>"
+                + "".join("<th style='border-bottom:2px solid #ddd;padding:5px;text-align:left;'>" + h + "</th>"
+                          for h in ("관리번호", "프로젝트", "보존 SO(원본)", "생성일", "삭제 SO(중복)", "생성일", "금액")) + "</tr></thead><tbody>")
+    for keep, d in dups[:600]:
+        body.append("<tr>"
+                    + "<td style='border-bottom:1px solid #eee;padding:4px;font-family:monospace;'>" + _esc(d.get("mc")) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:4px;'>" + _esc(d.get("pname")) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:4px;color:#15803d;'>" + _esc(keep.get("sono")) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:4px;'>" + _esc(str(keep.get("ca"))[:16]) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:4px;color:#b91c1c;font-weight:700;'>" + _esc(d.get("sono")) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:4px;'>" + _esc(str(d.get("ca"))[:16]) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:4px;'>" + _esc("{:,.0f}".format(float(d.get('amt') or 0))) + "</td></tr>")
+    body.append("</tbody></table>")
+    if len(dups) > 600:
+        body.append("<p style='color:#888;'>… 외 " + str(len(dups) - 600) + "건 (실행 시 전체 삭제)</p>")
+    body.append("</div>")
+    return HTMLResponse("".join(body))
+
+
+@app.post("/admin/dup-so")
+async def admin_dup_so_apply(req: Request):
+    """v5H226z659 (대표 지시): 중복 수주(SO) 삭제 실행 — 각 (프로젝트·발주일·납기·금액) 그룹의 최오래된 1개 보존, 나머지 삭제."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    if (form.get("confirm") or "").strip() != "중복정리":
+        return RedirectResponse("/admin/dup-so", 303)
+    from collections import defaultdict as _dd
+    deleted = 0
+    errs = []
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT o.id AS oid, o.project_id AS pid, COALESCE(o.order_date,'') AS od, "
+            "COALESCE(o.due_date,'') AS dd, COALESCE(o.total_amount,0) AS amt "
+            "FROM orders o WHERE COALESCE(o.status,'')<>'CANCELLED' ORDER BY o.project_id, o.id").fetchall()]
+        grp = _dd(list)
+        for r in rows:
+            grp[(r["pid"], r["od"], r["dd"], round(float(r["amt"] or 0)))].append(r["oid"])
+        del_ids = []
+        for _k, ids in grp.items():
+            if len(ids) > 1:
+                ids.sort()
+                del_ids.extend(ids[1:])   # 최오래(최소 id) 보존, 나머지 삭제
+        for _oid in del_ids:
+            try:
+                _pwf.delete_order(c, _oid, restore_project=True)
+                deleted += 1
+            except Exception as _e:
+                errs.append(f"SO#{_oid}: {str(_e)[:60]}")
+    _h = ["<meta charset='utf-8'><div style='font-family:system-ui,sans-serif;max-width:700px;margin:48px auto;text-align:center;color:#1f2937;'>",
+          "<h2 style='color:#15803d;'>✅ 중복 수주 " + str(deleted) + "건 삭제 완료</h2>",
+          "<p>각 프로젝트의 원본(가장 오래된 SO)은 보존했습니다.</p>"]
+    if errs:
+        _h.append("<p style='color:#b91c1c;'>일부 실패: " + str(len(errs)) + "건</p>")
+    _h.append("<p style='margin-top:16px;'><a href='/sales/schedule' style='color:#1d4ed8;'>작업일정표로</a> · <a href='/admin/dup-so' style='color:#1d4ed8;'>다시 보기</a></p></div>")
+    return HTMLResponse("".join(_h))
+
+
 @app.get("/admin/ship-overdue", response_class=HTMLResponse)
 async def admin_ship_overdue(req: Request):
     """v5H226z658 (대표 지시): 납품일이 오늘 이전(지난) 호기/품목을 일괄 '출하' 처리 — 미리보기(읽기전용).
