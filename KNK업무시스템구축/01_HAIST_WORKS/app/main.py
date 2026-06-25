@@ -23649,6 +23649,10 @@ async def projects_import_confirm(request: Request):
                 _so_eff = _sotype if _expand else ("CONSUMABLE" if _sotype == "EQUIPMENT" else _sotype)
                 _line_lbl = _model or (name or "부품")
                 try:
+                    # v5H226z237 (대표 지시): 호기 상태 = 엑셀 상태 반영 (미설정 시 화면 기본값 '진행중'으로 보이던 문제)
+                    _fu_ust = (r.get("status") or "").strip()
+                    if _fu_ust not in ("진행중", "출하", "취소", "보류"):
+                        _fu_ust = "진행중"
                     with db_session() as c:
                         _res = _pwf.add_followup_order(
                             c, int(_ex["id"]), order_date=r.get("order_date") or "",
@@ -23659,22 +23663,14 @@ async def projects_import_confirm(request: Request):
                             ship_to=r.get("ship_to") or "",
                             order_customer_id=_ord_cust_id,
                             expand_units=_expand, line_label=_line_lbl)
+                        # v5H226z656 (대표 지시): 호기 상태 UPDATE 를 같은 트랜잭션에서 처리 — 행당 커밋 2회→1회(대량 등록 가속)
+                        if _res.get("ok", True) and _res.get("order_id"):
+                            c.execute("UPDATE order_items SET unit_status=? WHERE order_id=?",
+                                      (_fu_ust, _res.get("order_id")))
                     if not _res.get("ok", True):
                         failed.append({"row_no": r.get("row_no"), "name": name,
                                        "error": f"추가발주 실패: {_res.get('message','')}"})
                         continue
-                    # v5H226z237 (대표 지시): 호기 상태 = 엑셀 상태 반영 (미설정 시 화면 기본값 '진행중'으로 보이던 문제)
-                    _fu_ust = (r.get("status") or "").strip()
-                    if _fu_ust not in ("진행중", "출하", "취소", "보류"):
-                        _fu_ust = "진행중"
-                    _fu_oid = _res.get("order_id")
-                    if _fu_oid:
-                        try:
-                            with db_session() as c:
-                                c.execute("UPDATE order_items SET unit_status=? WHERE order_id=?",
-                                          (_fu_ust, _fu_oid))
-                        except Exception:
-                            pass
                     created.append({"row_no": r.get("row_no"), "name": name,
                                     "mgmt_code": _mc, "followup": True,
                                     "so_no": _res.get("so_no")})
