@@ -22715,6 +22715,22 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _cust_norm.append((_cand, _cn0))
         _cust_norm_map.setdefault(_cn0, _cand)
 
+    # v5H226z655 (대표 지시): 시스템명(alias)도 매칭 후보 — '드림텍(본사)' 같은 시스템명으로 저장된 고객사가
+    #   '미등록'으로 오표시되던 것 해소. ⚠alias 는 'alias 자신'으로 매핑(상호로 치환하면 같은 상호 여러 종사업장에서
+    #   모호해져 확정 시 미연결됨 → alias 를 유지해야 resolve_customer_id 가 단일 연결).
+    try:
+        with db_session() as _cca:
+            for _ra in _cca.execute("SELECT alias FROM customers WHERE COALESCE(alias,'')<>''"):
+                _al = (_ra[0] or "").strip()
+                if not _al:
+                    continue
+                _aln = _norm_cust(_al)
+                if _aln and _aln not in _cust_norm_map:
+                    _cust_norm.append((_al, _aln))
+                    _cust_norm_map[_aln] = _al
+    except Exception:
+        pass
+
     _match_cache = {}                    # v5H226z344: 같은 고객사명 반복 시 1회만 계산(대량 업로드 가속)
     def _match_customer(name: str):
         """반환: (matched_name|None, score 0~1). 정규화명 사전계산 + 결과 메모이즈(행마다 재계산 안 함)."""

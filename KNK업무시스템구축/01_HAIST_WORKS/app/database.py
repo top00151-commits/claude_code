@@ -3132,6 +3132,11 @@ def init_db():
                     c.execute("ALTER TABLE customers ADD COLUMN alias TEXT")
                 except Exception:
                     pass
+            # v5H226z655 (대표 지시): resolve_customer_id 의 `OR alias=?`(상호/시스템명 매칭) 가속 — alias 인덱스
+            try:
+                c.execute("CREATE INDEX IF NOT EXISTS idx_customers_alias ON customers(alias)")
+            except Exception:
+                pass
         except Exception:
             pass
 
