@@ -20652,7 +20652,8 @@ def _ti_make_bundle(c, tier, issue_date, currency, cust_name, lines, created_by,
     total = sum(float(l.get("amount") or 0) for l in lines)
     cid = None
     if cust_name:
-        _m = c.execute("SELECT id FROM customers WHERE name=?", (cust_name,)).fetchall()
+        # v5H226z657: 상호(name) 또는 시스템명(alias) 단일 매칭 시 세금계산서 고객사 연결(z654 일관)
+        _m = c.execute("SELECT id FROM customers WHERE name=? OR alias=?", (cust_name, cust_name)).fetchall()
         cid = _m[0][0] if len(_m) == 1 else None   # 명확한 단일후보만(연결성 안전원칙)
     cur = c.execute(
         "INSERT INTO tax_invoices(ti_no, issue_date, customer_name, customer_id, total_amount, currency, memo, status, created_by, created_by_name) "
@@ -23690,6 +23691,12 @@ async def projects_import_confirm(request: Request):
                     _dup = c.execute("SELECT id FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1",
                                      (_mc_eff,)).fetchone()
                 if _dup:
+                    # v5H226z657 (대표 지시): 이미 등록된 관리번호도 거래명세서·세금계산서는 반영(재업로드로 일괄 반영).
+                    #   프로젝트/호기는 중복 생성하지 않고(건너뜀), 세금계산서만 _ti_rows 로 수집해 아래에서 발행.
+                    try:
+                        _ti_collect((_dup["id"] if isinstance(_dup, dict) else _dup[0]), _mc_eff, r, name)
+                    except Exception:
+                        pass
                     skipped_dup.append({"row_no": r.get("row_no"), "name": name, "mgmt_code": _mc_eff})
                     continue
             if biz_div == "C" and not _mc_eff:
@@ -23879,6 +23886,16 @@ async def projects_import_confirm(request: Request):
                                           (tr["statement_date"], tr["pid"]))
                             except Exception:
                                 pass
+                # v5H226z657 (대표 지시): 이미 발행된 (row_sig, 차수)는 재발행 안 함 — 재업로드 중복 발행 방지(멱등)
+                _existing_ti = set()
+                try:
+                    _tlc2 = {r[1] for r in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
+                    _q2 = ("SELECT row_sig, COALESCE(tier,1) FROM tax_invoice_lines" if "tier" in _tlc2
+                           else "SELECT row_sig, 1 FROM tax_invoice_lines")
+                    for _er in c.execute(_q2):
+                        _existing_ti.add((_er[0], int(_er[1] or 1)))
+                except Exception:
+                    pass
                 # 세금계산서 차수별 묶음: key=(차수, 발행일, 묶음번호, 고객사)
                 _groups = _OD()
                 for tr in _ti_rows:
@@ -23888,7 +23905,10 @@ async def projects_import_confirm(request: Request):
                     lines = [{"sig": f"project:{tr['pid']}", "ref_kind": "project",
                               "ref_id": tr["pid"], "mgmt_code": tr["mgmt"],
                               "label": tr["label"], "customer": cust, "amount": amt}
-                             for (tr, amt) in members]
+                             for (tr, amt) in members
+                             if (f"project:{tr['pid']}", tier) not in _existing_ti]
+                    if not lines:
+                        continue
                     _cur = (members[0][0].get("currency") or "KRW")
                     _memo = (f"일괄등록 묶음 {bundle}" if bundle else "일괄등록")
                     try:
