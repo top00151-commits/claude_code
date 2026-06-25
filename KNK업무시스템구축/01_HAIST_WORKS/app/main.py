@@ -18867,6 +18867,56 @@ def _board_split_lines_map():
     return out
 
 
+# ─── v5H226z661 (대표 지시): 작업일정표 달력 '납기 마커/지연색'을 상세 수주내역 상태와 동기화 ──
+#   배경: 보드 지연 판정(is_delay)이 '프로젝트 원시 status(projects.status)'를 썼는데, 이 값은
+#   cascade(호기 전체가 동일 상태일 때만 갱신)에 의존해 호기와 어긋날 수 있다(혼합/일괄등록/부분출하).
+#   상세 '수주 내역' 상태는 호기(order_items.unit_status)를 라이브 집계(compute_project_display_status)
+#   하므로, 보드도 같은 단일 소스(호기)를 라이브로 읽어 '출하'면 빨강(지연) 대신 출하색(초록)이 되게 한다.
+def _board_agg_status(statuses):
+    """호기 unit_status 목록 → 보드 종합 상태(출하/취소/보류/진행중). 호기 0건이면 '' (호출측이 원시 status 폴백).
+    분류 규칙은 compute_project_display_status(상세 수주내역과 동일)와 일치시킴."""
+    sts = [s for s in ((x or "진행중") for x in statuses if x is not None) if s]
+    if not sts:
+        return ""
+    n = len(sts)
+    n_cancel = sum(1 for s in sts if s == "취소")
+    n_done = sum(1 for s in sts if s == "출하")
+    n_hold = sum(1 for s in sts if s == "보류")
+    n_prog = n - n_cancel - n_done - n_hold   # 그 외(진행중 등)
+    n_active = n - n_cancel                    # 취소 제외 활성 호기
+    if n == n_cancel and n_cancel > 0:
+        return "취소"
+    if n_prog == 0 and n_done > 0 and n_active == n_done:
+        return "출하"
+    if n_prog == 0 and n_hold > 0 and n_active == n_hold:
+        return "보류"
+    return "진행중"
+
+
+def _board_unit_status_maps():
+    """order_items.unit_status 를 (by_iid, by_proj) 두 맵으로 한 번에 로드.
+    by_iid={oi.id: unit_status}, by_proj={project_id: [unit_status,...]}.
+    취소(CANCELLED) SO 제외 — 보드 표시 범위(_board_split_lines_map)와 동일. cascade 의존 없이
+    작업일정표가 호기 상태를 라이브로 읽기 위함(z660 단일 소스 원칙)."""
+    by_iid: dict = {}
+    by_proj: dict = {}
+    try:
+        with db_session() as c:
+            oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            if "unit_status" not in oic:
+                return by_iid, by_proj
+            for r in c.execute(
+                "SELECT oi.id AS iid, o.project_id AS pid, COALESCE(oi.unit_status,'진행중') AS st "
+                "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"):
+                d = dict(r)
+                by_iid[d["iid"]] = d["st"]
+                by_proj.setdefault(d["pid"], []).append(d["st"])
+    except Exception:
+        return {}, {}
+    return by_iid, by_proj
+
+
 # ─── v5H226z562 (대표 지시): 세금계산서 단일 진실 = 호기(order_items) ──────────────────────
 #   배경: 세금계산서가 ①orders(대표SO 직접발행) ②tax_invoice_lines(묶음) ③order_items(호기별)
 #   세 곳에 흩어져 메인행↔펼침이 어긋남. 진실을 '호기'로 통일 — 메인행은 호기 집계, 펼침은 호기별.
@@ -19052,6 +19102,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
 
     rows = []
     _split_map = _board_split_lines_map()   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할
+    _bus_iid, _bus_proj = _board_unit_status_maps()   # v5H226z661 (대표 지시): 호기 상태 라이브 맵 — 달력 납기 지연색을 '상세 수주내역 상태'와 동기화
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue
@@ -19099,11 +19150,13 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
-                _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), p.get("status"), "project")
+                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
+                _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and not (cust and cust not in (_ru["customer"] or "")):
                     rows.append(_ru)
         else:
-            _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+            _eff_st = _board_agg_status(_bus_proj.get(p.get("id")) or []) or p.get("status")
+            _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
             if _r and not (cust and cust not in (_r["customer"] or "")):
                 rows.append(_r)
     try:
@@ -19987,6 +20040,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         _cust_alias = {}
     rows = []
     _split_map = _board_split_lines_map()   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할
+    _bus_iid, _bus_proj = _board_unit_status_maps()   # v5H226z661 (대표 지시): 호기 상태 라이브 맵 — 달력 납기 지연색을 '상세 수주내역 상태'와 동기화
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue  # 소모품은 아래 co_list 로 (중복 방지)
@@ -20047,11 +20101,13 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
-                _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), p.get("status"), "project")
+                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
+                _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and not (cust and cust not in (_ru["customer"] or "")):
                     rows.append(_ru)
         else:
-            _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+            _eff_st = _board_agg_status(_bus_proj.get(p.get("id")) or []) or p.get("status")
+            _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
             if _r and not (cust and cust not in (_r["customer"] or "")):
                 rows.append(_r)
     # 소모품 일정 (전사 포함)
@@ -21244,6 +21300,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
 
     rows = []
     _split_map = _board_split_lines_map()   # v5H226z549: 작업일정표와 동일 — 호기 단가/납기 상이 시 SO/호기별 분할(펼침이 수량과 일치)
+    _bus_iid, _bus_proj = _board_unit_status_maps()   # v5H226z661 (대표 지시): 부서일정표 납기 지연색도 호기 출하 반영(작업일정표와 동일)
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue
@@ -21276,7 +21333,8 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                     _iu["multi"] = int(_iu.get("qty") or 0) >= 2
                 except Exception:
                     _iu["multi"] = False
-                _ru = _mk(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), p.get("status"), "project")
+                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
+                _ru = _mk(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru:
                     rows.append(_ru)
         else:
@@ -21284,7 +21342,8 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                 info["multi"] = int(p.get("unit_qty") or 0) >= 2   # v5H226z499: 호기 여러 대=완제품 → 호기별 기록 가능
             except Exception:
                 info["multi"] = False
-            _r = _mk(info, _pd(p.get("order_date")), _pd(p.get("due_date")), p.get("status"), "project")
+            _eff_st = _board_agg_status(_bus_proj.get(p.get("id")) or []) or p.get("status")
+            _r = _mk(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
             if _r:
                 rows.append(_r)
     try:
