@@ -507,7 +507,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             function _unlock(id){ var el=document.getElementById(id); if(el){ el.readOnly=false; el.style.background=''; el.style.color=''; } }
             // v5H226z214 (대표 지시): '확인'으로 불러온 기존 정보 리셋 (관리코드 삭제·변경 시 호출)
             function resetFetched(){
-              _unlock('pf_name_input'); _unlock('pf_customer_input');
+              _unlock('pf_name_input'); if(window._pfClearCust){ _pfClearCust(); } else { _unlock('pf_customer_input'); }
               ['pf_name_input','pf_customer_input','pf_cc_name','pf_cc_dept','pf_cc_position','pf_cc_phone','pf_cc_email','pf_cc_note']
                 .forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
               clearV();
@@ -522,7 +522,8 @@ html,body{background:#fff!important;overflow:auto!important;}
                 if (!j.ok || !j.found){ window.__pfMgmtState='notfound'; alert('⚠ 관리번호 ' + code + ' 의 기존 프로젝트를 찾을 수 없습니다.\n번호를 확인하세요. (신규 등록이면 PO유형을 \'신규\'로)'); return; }
                 var p = j.project || {};
                 _lock('pf_name_input', p.name);
-                _lock('pf_customer_input', p.customer_name);
+                {# v5H226z653: 고객사는 picker free 모드로 잠금(이름만·기존 customer_id 상속) #}
+                if(window._pfLockCust){ _pfLockCust(p.customer_name); } else { _lock('pf_customer_input', p.customer_name); }
                 _fill('pf_cc_name', p.cc_name); _fill('pf_cc_dept', p.cc_dept); _fill('pf_cc_position', p.cc_position);
                 _fill('pf_cc_phone', p.cc_phone); _fill('pf_cc_email', p.cc_email); _fill('pf_cc_note', p.cc_note);
                 window.__pfMgmtState = 'ok'; window.__pfMgmtMsg = '';
@@ -598,8 +599,12 @@ html,body{background:#fff!important;overflow:auto!important;}
                 // v5H140: 부모 프로젝트의 고객사/사업부/모델/PO유형/거래구분 자동 채움
                 try {
                   if (row.customer_name) {
-                    var cn = document.querySelector('input[name="customer_name"]');
-                    if (cn && !cn.value.trim()) cn.value = row.customer_name;
+                    {# v5H226z653: 연관 프로젝트 고객사 자동채움도 picker free 모드(이름) — 비어 있을 때만 #}
+                    var _hN = document.querySelector('input[data-cust-h="customer_name"]');
+                    var _ciEl = document.getElementById('pf_customer_input');
+                    if (_ciEl && !(_hN && _hN.value.trim()) && !_ciEl.value.trim() && window._pfSetCustFree) {
+                      _pfSetCustFree(row.customer_name);
+                    }
                   }
                   if (row.biz_div) {
                     var bd = document.querySelector('select[name="biz_div"], input[name="biz_div"]');
@@ -674,11 +679,10 @@ html,body{background:#fff!important;overflow:auto!important;}
         {# v5H226z163 (대표 지시): 전체 미리보기(datalist) 대신 타이핑하면 뜨는 자동완성 #}
         <div class="pf-field" style="position:relative;">
           <label>고객사1 <span class="sub">(등록된 고객사만 선택 가능)</span></label>
-          <input type="text" name="customer_name" id="pf_customer_input" autocomplete="new-password"
-                 role="combobox" aria-autocomplete="list" aria-expanded="false"
-                 value="{{ project.customer_name|default('') }}"
-                 placeholder="고객사명 입력 → 자동완성. 없으면 /customers/new 에서 등록">
-          <div id="pf_customer_ac" class="knk-ac" style="display:none;"></div>
+          {# v5H226z653 (대표 지시): 옛 이름전용 자동완성 → KNKCust 종사업장 picker 로 교체(같은 상호 여러 종사업장 구분·hidden customer_id 제출). 추가발주 잠금/자동채움은 free 모드, 편집은 기존 customer_id 로 복원(아래 스크립트). #}
+          <input type="text" id="pf_customer_input" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id"
+                 data-cust-required="1" data-cust-initial="{{ project.customer_name|default('') }}" autocomplete="off"
+                 placeholder="고객사명·시스템명 입력 → 목록에서 종사업장까지 선택. 없으면 /customers/new 에서 등록">
         </div>
         <div class="pf-field">
           <label>고객사2 <span class="sub">(최종 고객 — 다를 때만, 선택)</span></label>
@@ -687,7 +691,41 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# 최종 고객 매출(참고)은 UI에서 내림 — 기존 값은 hidden 으로 보존(편집 시 미손실) #}
           <input type="hidden" name="final_amount" value="{{ project.final_amount|default('') }}">
         </div>
-        <script>window.__KNK_CUSTOMERS = [{% for cu in (customers or []) %}{{ cu.name|tojson }}{% if not loop.last %},{% endif %}{% endfor %}];</script>
+        <script>
+        // v5H226z653 (대표 지시): 상세폼 고객사 picker 보조 — 추가발주 잠금/자동채움은 free 모드(이름만·기존 customer_id 상속), 편집은 기존 id 로 정확 복원.
+        (function(){
+          function _ci(){ return document.getElementById('pf_customer_input'); }
+          function _hid(nm){ return document.querySelector('input[data-cust-h="'+nm+'"]'); }
+          window._pfSetCustFree=function(val){ var ci=_ci(); if(!ci) return; ci.value=val||'';
+            try{ if(window.KNKCust) KNKCust.setFree(ci, true); }catch(e){}
+            var hN=_hid('customer_name'); if(hN && !hN.value) hN.value=(val||''); };
+          window._pfLockCust=function(val){ window._pfSetCustFree(val); var ci=_ci();
+            if(ci){ ci.readOnly=true; ci.style.background='var(--qv-surface-3)'; ci.style.color='var(--qv-ink-2)'; } };
+          window._pfClearCust=function(){ var ci=_ci(); if(!ci) return;
+            ci.readOnly=false; ci.style.background=''; ci.style.color=''; ci.value='';
+            try{ if(window.KNKCust) KNKCust.setFree(ci, false); }catch(e){}
+            var hN=_hid('customer_name'), hI=_hid('customer_id'); if(hN)hN.value=''; if(hI)hI.value=''; };
+          {% if project and project.customer_id %}
+          // 편집: 기존 customer_id 로 picker 확정(종사업장 모호해도 정확 복원)
+          var _ie_tries=0;
+          function _initEdit(){ var ci=_ci();
+            if(!ci || !window.KNKCust){ if(_ie_tries++<40) setTimeout(_initEdit,80); return; }
+            KNKCust.load().then(function(opts){
+              var tid=String({{ project.customer_id }});
+              var o=(opts||[]).filter(function(x){return String(x.id)===tid;})[0];
+              if(!o) return;
+              var hN=_hid('customer_name'), hI=_hid('customer_id');
+              if(!hN||!hI){ if(_ie_tries++<40) setTimeout(_initEdit,80); return; }
+              ci.value=(o.alias||o.name)+(o.sub_biz_no?(' ['+o.sub_biz_no+']'):'');
+              ci.setAttribute('data-cust-ok','1'); ci.classList.remove('knkcust-bad');
+              hN.value=o.name; hI.value=o.id;
+            });
+          }
+          if(document.readyState!=='loading') setTimeout(_initEdit,80);
+          else document.addEventListener('DOMContentLoaded', function(){ setTimeout(_initEdit,80); });
+          {% endif %}
+        })();
+        </script>
         <style>
         .knk-ac { position:absolute; left:0; right:0; top:100%; z-index:60; background:var(--qv-surface,#fff);
                   border:1px solid var(--qv-line); border-radius:0 0 8px 8px; max-height:240px; overflow-y:auto;
@@ -697,38 +735,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         .knk-ac .ac-item:hover, .knk-ac .ac-item.active { background:rgba(165,40,44,0.08); color:var(--knk-red); }
         .knk-ac .ac-empty { padding:9px 13px; font-size:12px; color:var(--qv-ink-3); }
         </style>
-        <script>
-        (function(){
-          var inp = document.getElementById('pf_customer_input');
-          var box = document.getElementById('pf_customer_ac');
-          if (!inp || !box) return;
-          var items = (window.__KNK_CUSTOMERS || []);
-          var active = -1, shown = [];
-          function hide(){ box.style.display='none'; box.innerHTML=''; active=-1; shown=[]; inp.setAttribute('aria-expanded','false'); }
-          function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-          function render(q){
-            q = (q||'').trim().toLowerCase();
-            if (!q){ hide(); return; }
-            shown = items.filter(function(n){ return n && n.toLowerCase().indexOf(q) >= 0; }).slice(0, 8);
-            if (!shown.length){ box.innerHTML = '<div class="ac-empty">일치하는 고객사 없음 — /customers/new 에서 먼저 등록</div>'; }
-            else { box.innerHTML = shown.map(function(n,i){ return '<div class="ac-item" data-i="'+i+'">'+esc(n)+'</div>'; }).join(''); }
-            box.style.display='block'; active=-1; inp.setAttribute('aria-expanded','true');
-          }
-          function choose(n){ inp.value = n; hide(); inp.dispatchEvent(new Event('input',{bubbles:true})); inp.dispatchEvent(new Event('change',{bubbles:true})); }
-          function upd(){ Array.prototype.forEach.call(box.querySelectorAll('.ac-item'), function(el,i){ el.classList.toggle('active', i===active); }); }
-          inp.addEventListener('input', function(){ render(inp.value); });
-          inp.addEventListener('focus', function(){ if (inp.value.trim()) render(inp.value); });
-          inp.addEventListener('keydown', function(e){
-            if (box.style.display==='none' || !shown.length) return;
-            if (e.key==='ArrowDown'){ active=Math.min(active+1, shown.length-1); upd(); e.preventDefault(); }
-            else if (e.key==='ArrowUp'){ active=Math.max(active-1, 0); upd(); e.preventDefault(); }
-            else if (e.key==='Enter'){ if (active>=0){ choose(shown[active]); e.preventDefault(); } }
-            else if (e.key==='Escape'){ hide(); }
-          });
-          box.addEventListener('mousedown', function(e){ var it=e.target.closest('.ac-item'); if(it){ choose(shown[parseInt(it.getAttribute('data-i'),10)]); e.preventDefault(); } });
-          document.addEventListener('click', function(e){ if (!box.contains(e.target) && e.target!==inp) hide(); });
-        })();
-        </script>
+        {# v5H226z653: 옛 이름전용 자동완성 IIFE 제거 — KNKCust picker(data-cust-picker)로 대체 #}
       </div>
       {# v5H226z350 (대표 지시): 2단계 발주(2차거래) 체크박스·박스 폐지 → 고객사2(위 행)로 직접 입력.
          two_tier_order 는 백엔드에서 고객사2 입력 여부로 자동 판정. 최종 고객 매출(참고)은 hidden 으로 보존. #}
@@ -1390,9 +1397,11 @@ html,body{background:#fff!important;overflow:auto!important;}
         if (c.isMoney) v = v.replace(/,/g, '');
         var empty = !v || (c.isMoney && (parseFloat(v) <= 0));
         if (empty) {
-          el.classList.add('pf-missing');
+          // v5H226z653 (적대리뷰): 고객사는 hidden(포커스 불가)이라 표시·포커스는 visible picker 칸으로
+          var hl = (c.name === 'customer_name') ? (document.getElementById('pf_customer_input') || el) : el;
+          hl.classList.add('pf-missing');
           missing.push(c.label);
-          if (!firstEl) firstEl = el;
+          if (!firstEl) firstEl = hl;
         }
       });
       // 외화 + 기준환율 검증 — strict 단계만

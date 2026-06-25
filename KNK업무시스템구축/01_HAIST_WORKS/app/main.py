@@ -22227,6 +22227,9 @@ async def projects_new_submit(request: Request):
         "force_code": True,
         "mgmt_code": mgmt_code_in,   # 비면 자동 발급 / 있으면 그 코드 사용
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
+        # v5H226z653 (적대리뷰 반영): picker 가 고른 종사업장(customer_id) 을 INSERT 시점에 적용 —
+        #   누락 시 모호 상호는 cust_id=None 으로 INSERT 되어 담당자 주소록 동기화(z166)가 통째로 건너뛰어짐.
+        "customer_id": form.get("customer_id"),
         "model": form.get("model", ""),
         # v5H226z211 (대표 지시): 장비명 — 관리번호=장비 단위
         "equip_name": form.get("equip_name", ""),
