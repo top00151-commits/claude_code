@@ -1573,7 +1573,7 @@ function startUnitEdit(td, tr, uids){
         if(!j.ok){ okAll=false; msg=j.error||'저장 실패'; break; }
       }
       _editing=null;
-      if(okAll){ toast('저장됨 · 호기 반영'); setTimeout(function(){ location.reload(); }, 450); }
+      if(okAll){ toast('저장됨 · 호기 반영'); try{var _s=document.getElementById('schedSearch'); if(_s&&_s.value) sessionStorage.setItem('knk.sched.q.keep','1');}catch(e){} setTimeout(function(){ location.reload(); }, 450); }
       else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ '+msg); }
     }catch(e){ _editing=null; td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ 통신 오류'); }
   };
@@ -2267,8 +2267,16 @@ function setCellDisplay(tr, field, val, cust_ok){
 applyCols(); buildColsMenu(); syncDayInputs(); applyOrder(); initColDrag();   // v5H226z517: 저장된 컬럼 순서 적용 + 드래그 그립
 // v5H226z469: 세금계산서 발행상태(합계=수주금액 → 발행완료 / 다르면 미발행) 초기 표기
 try{ document.querySelectorAll('#schedTable tbody tr[data-ref]').forEach(refreshTaxStatus); }catch(e){}
-// v5H226z561(대표 지시): 저장된 검색어 복원 → 수정 후 새로고침돼도 찾던 조건 화면 유지
-try{ var _sq=sessionStorage.getItem('knk.sched.q'); if(_sq){ var _si=document.getElementById('schedSearch'); if(_si){ _si.value=_sq; schedDoSearch(); } } }catch(e){}
+// v5H226z561(대표 지시)+z650d: 검색어는 '셀 수정 후 자동 새로고침'에서만 복원(keep 플래그). 월/탭/일반 진입에선 잔류 검색을 제거 → '전체 눌러도 1건만 보임' 문제 해결(박힌 검색 자동 해제).
+try{
+  if(sessionStorage.getItem('knk.sched.q.keep')){
+    sessionStorage.removeItem('knk.sched.q.keep');
+    var _sq=sessionStorage.getItem('knk.sched.q');
+    if(_sq){ var _si=document.getElementById('schedSearch'); if(_si){ _si.value=_sq; schedDoSearch(); } }
+  } else {
+    sessionStorage.removeItem('knk.sched.q');
+  }
+}catch(e){}
 // v5H226z650c(대표 지시): project_detail '참고(진행중) 수주' 클릭 → ?focus_ref=<프로젝트id> 로 진입 시
 //   해당 행으로 스크롤+강조만(검색/필터 안 함). 오히려 잔류 검색을 비워 '전체'가 보이게 — z650의 '검색 필터'가
 //   sessionStorage(z561)에 남아 '전체' 탭 눌러도 1건만 보이던 문제 해결.
