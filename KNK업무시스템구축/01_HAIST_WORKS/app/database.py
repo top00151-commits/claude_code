@@ -5657,13 +5657,17 @@ def resolve_customer_id(c, name, picked_id=None, prefer_id=None):
     _name = (name or "").strip()
     if not _name:
         return (None, "empty")
-    _ids = [r[0] for r in c.execute("SELECT id FROM customers WHERE name=?", (_name,)).fetchall()]
+    # v5H226z654 (대표 지시): 등록 상호(name) OR 시스템명(alias) 둘 중 하나라도 정확히 맞으면 매칭
+    #   (예: 프로젝트 고객사칸에 '드림텍(본사)'(시스템명)가 저장돼 있어도 그 고객사로 연결). 후보 1개일 때만 자동연결.
+    _ids = [r[0] for r in c.execute(
+        "SELECT id FROM customers WHERE name=? OR alias=?", (_name, _name)
+    ).fetchall()]
     if len(_ids) == 1:
         return (_ids[0], "matched")
     if len(_ids) > 1:
         if prefer_id and prefer_id in _ids:
             return (prefer_id, "kept")
-        return (None, "ambiguous")   # 같은 상호 여러 종사업장 — 자동연결 금지(수동 유도)
+        return (None, "ambiguous")   # 같은 상호 여러 종사업장 등 후보 다수 — 자동연결 금지(수동 유도)
     return (None, "unmatched")
 
 

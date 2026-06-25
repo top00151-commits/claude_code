@@ -7474,13 +7474,19 @@ async def admin_customer_health(req: Request):
         #    같은 상호 여러 종사업장이라 자동연결이 (안전원칙상) 보류된 건들을 사람이 직접 종사업장을 골라 연결.
         link_targets = []
         try:
-            _cust_by_name = defaultdict(list)
+            # v5H226z654 (대표 지시): 후보 탐색을 상호(name) OR 시스템명(alias) 둘 다로 — 고객사칸에 시스템명이 저장된 건도 잡음
+            _cust_by_key = defaultdict(list)
             for _cu in custs:
-                _cust_by_name[(_cu["name"] or "").strip()].append(_cu)
+                _nm = (_cu["name"] or "").strip()
+                _al = (_cu.get("alias") or "").strip()
+                if _nm:
+                    _cust_by_key[_nm].append(_cu)
+                if _al and _al != _nm:
+                    _cust_by_key[_al].append(_cu)
 
             def _mk_targets(_rows, _kind):
                 for _r in _rows:
-                    _cd = _cust_by_name.get((_r["customer_name"] or "").strip(), [])
+                    _cd = _cust_by_key.get((_r["customer_name"] or "").strip(), [])
                     if not _cd:
                         continue
                     link_targets.append({
@@ -7523,6 +7529,34 @@ async def admin_customer_health(req: Request):
                master_dups=master_dups, proj_split=proj_split,
                co_split=co_split, ti_mismatch=ti_mismatch[:300],
                link_targets=link_targets[:500])
+
+
+@app.post("/admin/customer-autolink")
+async def admin_customer_autolink(req: Request):
+    """v5H226z654 (대표 지시): 미연결(customer_id NULL) 건을 상호(name) 또는 시스템명(alias) '정확히 1곳' 매칭으로 일괄 자동연결.
+    여러 후보(같은 상호 여러 종사업장 등)는 손대지 않음(미연결 유지·수동 선택). 데이터 연결성 안전원칙 준수."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    n_proj = n_co = 0
+    with db_session() as c:
+        for _tbl in ("projects", "consumable_orders"):
+            try:
+                _rows = c.execute(
+                    f"SELECT id, customer_name FROM {_tbl} "
+                    "WHERE customer_id IS NULL AND COALESCE(customer_name,'')<>''"
+                ).fetchall()
+            except Exception:
+                _rows = []
+            for _r in _rows:
+                _cid, _ = _logi.resolve_customer_id(c, _r["customer_name"])
+                if _cid:
+                    c.execute(f"UPDATE {_tbl} SET customer_id=? WHERE id=?", (_cid, _r["id"]))
+                    if _tbl == "projects":
+                        n_proj += 1
+                    else:
+                        n_co += 1
+    return RedirectResponse(f"/admin/customer-health?autolinked={n_proj + n_co}", 303)
 
 
 @app.post("/admin/customer-link")
@@ -21926,7 +21960,7 @@ async def projects_new_submit(request: Request):
     # 고객사 화이트리스트 검증
     with db_session() as _cc:
         _ok = _cc.execute(
-            "SELECT 1 FROM customers WHERE name=? LIMIT 1", (customer,)
+            "SELECT 1 FROM customers WHERE name=? OR alias=? LIMIT 1", (customer, customer)  # v5H226z654: 상호 또는 시스템명 등록이면 통과
         ).fetchone()
     if not _ok:
         from urllib.parse import quote as _q
@@ -24645,7 +24679,7 @@ async def projects_edit_submit(request: Request, pid: int):
     if customer:
         with db_session() as _cc:
             _ok = _cc.execute(
-                "SELECT 1 FROM customers WHERE name=? LIMIT 1", (customer,)
+                "SELECT 1 FROM customers WHERE name=? OR alias=? LIMIT 1", (customer, customer)  # v5H226z654: 상호 또는 시스템명 등록이면 통과
             ).fetchone()
         if not _ok:
             from urllib.parse import quote as _q
