@@ -7378,7 +7378,7 @@ async def admin_customer_health(req: Request):
     ti_repurposed = ti_overwritten = 0
     with db_session() as c:
         # A. 고객사 마스터 중복 의심 — 정규화 키는 같은데 등록명이 둘 이상
-        custs = [dict(r) for r in c.execute("SELECT id, name, sub_biz_no FROM customers ORDER BY name").fetchall()]
+        custs = [dict(r) for r in c.execute("SELECT id, name, COALESCE(alias,'') AS alias, sub_biz_no FROM customers ORDER BY name").fetchall()]
         gm = defaultdict(list)
         for r in custs:
             k = _nc(r["name"])
@@ -7470,6 +7470,38 @@ async def admin_customer_health(req: Request):
         except Exception:
             pass
 
+        # E. v5H226z651 (대표 지시): 미연결(customer_id NULL)인데 이름에 맞는 고객사 후보가 있는 건 → 종사업장 골라 수동 연결.
+        #    같은 상호 여러 종사업장이라 자동연결이 (안전원칙상) 보류된 건들을 사람이 직접 종사업장을 골라 연결.
+        link_targets = []
+        try:
+            _cust_by_name = defaultdict(list)
+            for _cu in custs:
+                _cust_by_name[(_cu["name"] or "").strip()].append(_cu)
+
+            def _mk_targets(_rows, _kind):
+                for _r in _rows:
+                    _cd = _cust_by_name.get((_r["customer_name"] or "").strip(), [])
+                    if not _cd:
+                        continue
+                    link_targets.append({
+                        "kind": _kind, "id": _r["id"], "mgmt_code": _r["mgmt_code"] or "—",
+                        "name": (_r["name"] if "name" in _r.keys() else "") or "",
+                        "customer_name": _r["customer_name"],
+                        "candidates": [{"id": x["id"], "label": (x.get("alias") or x["name"]),
+                                        "sub_biz_no": (x.get("sub_biz_no") or "")} for x in _cd],
+                    })
+            _mk_targets(c.execute("SELECT id, mgmt_code, name, customer_name FROM projects "
+                                  "WHERE customer_id IS NULL AND COALESCE(customer_name,'')<>'' "
+                                  "ORDER BY mgmt_code").fetchall(), "project")
+            try:
+                _mk_targets(c.execute("SELECT id, mgmt_code, customer_name FROM consumable_orders "
+                                      "WHERE customer_id IS NULL AND COALESCE(customer_name,'')<>'' "
+                                      "ORDER BY mgmt_code").fetchall(), "consumable")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     proj_split.sort(key=lambda x: -x["total"])
     co_split.sort(key=lambda x: -x["total"])
     # 재배정(행번호 어긋남)을 위로 — 더 위험
@@ -7485,10 +7517,36 @@ async def admin_customer_health(req: Request):
         "ti_mismatch": len(ti_mismatch),
         "ti_repurposed": ti_repurposed,
         "ti_overwritten": ti_overwritten,
+        "link_targets": len(link_targets),
     }
     return ctx(req, "admin_customer_health.html", user=u, summary=summary,
                master_dups=master_dups, proj_split=proj_split,
-               co_split=co_split, ti_mismatch=ti_mismatch[:300])
+               co_split=co_split, ti_mismatch=ti_mismatch[:300],
+               link_targets=link_targets[:500])
+
+
+@app.post("/admin/customer-link")
+async def admin_customer_link(req: Request):
+    """v5H226z651 (대표 지시): 미연결 프로젝트/소모품을 사용자가 고른 종사업장(customer_id)에 수동 연결.
+    같은 상호 여러 종사업장이라 자동연결이 보류된 건을 사람이 정확한 종사업장으로 직접 연결(데이터 연결성 안전원칙)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    kind = (form.get("kind") or "").strip()
+    try:
+        ref_id = int(form.get("ref_id") or 0)
+        cid = int(form.get("customer_id") or 0)
+    except (TypeError, ValueError):
+        return RedirectResponse("/admin/customer-health?linkerr=1", 303)
+    if kind not in ("project", "consumable") or ref_id <= 0 or cid <= 0:
+        return RedirectResponse("/admin/customer-health?linkerr=1", 303)
+    with db_session() as c:
+        if not c.execute("SELECT 1 FROM customers WHERE id=?", (cid,)).fetchone():
+            return RedirectResponse("/admin/customer-health?linkerr=1", 303)
+        _tbl = "consumable_orders" if kind == "consumable" else "projects"
+        c.execute(f"UPDATE {_tbl} SET customer_id=? WHERE id=?", (cid, ref_id))
+    return RedirectResponse("/admin/customer-health?linked=1", 303)
 
 
 @app.post("/admin/customer-merge")
@@ -23517,9 +23575,9 @@ async def projects_import_confirm(request: Request):
                 _row_cust = (r.get("customer_name") or "").strip()
                 _ord_cust_id = None
                 if _row_cust:
+                    # v5H226z651 (대표 지시): 종사업장 안전연결 — 이름 후보 1개일 때만, 여러 종사업장이면 미연결(임의 선택 금지)
                     with db_session() as c:
-                        _cr = c.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (_row_cust,)).fetchone()
-                    _ord_cust_id = _cr["id"] if _cr else None
+                        _ord_cust_id, _ = _logi.resolve_customer_id(c, _row_cust)
                 _fu_price = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
                 _model = (r.get("model_name") or "").strip()
                 # v5H226z237 (대표 지시): 비고는 엑셀값만 — 자동 '[추가발주] 모델…' 라벨 제거.

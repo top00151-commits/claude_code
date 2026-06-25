@@ -5630,6 +5630,43 @@ def _sync_project_contact_to_customer(c, customer_id, name, dept, position, phon
         print(f"[z166] customer_contact 동기화 실패: {_e}")
 
 
+def resolve_customer_id(c, name, picked_id=None, prefer_id=None):
+    """v5H226z651 (대표 지시): 고객사명 → customer_id 안전 해석 — 데이터 연결성 안전원칙 통일.
+
+    z619 로 같은 상호(name) 여러 종사업장(customers 행 2개 이상)이 가능해진 뒤,
+    기존 'WHERE name=? LIMIT 1' 은 종사업장을 임의로 골라 '엉뚱한 곳에 조용히 연결'하거나
+    매칭이 빗나가 NULL(=작업일정표 빨강) 이 됐다. 이를 모든 등록/수정 경로에서 안전하게 통일.
+
+    우선순위:
+      1) picked_id (콤보박스에서 사용자가 종사업장을 직접 고른 id) — 유효하면 최우선.
+      2) 이름 후보가 '정확히 1개' 일 때만 자동연결.
+      3) 후보가 2개 이상(같은 상호 여러 종사업장)이면 — prefer_id(기존 연결)가 그 후보 중 하나면 유지,
+         아니면 자동연결하지 않음(None=미연결, 수동 종사업장 선택 유도).
+      4) 후보 0개면 None(미연결).
+
+    반환: (customer_id 또는 None, reason)
+      reason: 'picked' | 'matched' | 'kept' | 'ambiguous' | 'unmatched' | 'empty'
+    """
+    if picked_id not in (None, ""):
+        try:
+            _pid = int(picked_id)
+            if c.execute("SELECT 1 FROM customers WHERE id=?", (_pid,)).fetchone():
+                return (_pid, "picked")
+        except (TypeError, ValueError):
+            pass
+    _name = (name or "").strip()
+    if not _name:
+        return (None, "empty")
+    _ids = [r[0] for r in c.execute("SELECT id FROM customers WHERE name=?", (_name,)).fetchall()]
+    if len(_ids) == 1:
+        return (_ids[0], "matched")
+    if len(_ids) > 1:
+        if prefer_id and prefer_id in _ids:
+            return (prefer_id, "kept")
+        return (None, "ambiguous")   # 같은 상호 여러 종사업장 — 자동연결 금지(수동 유도)
+    return (None, "unmatched")
+
+
 def projects_create_logi(data: dict) -> tuple[int, str | None]:
     """OPS-P1-D3 [D-014]: mgmt_code UNIQUE 제약 race 시 최대 5회 재채번 retry.
     schema: line 78 mgmt_code TEXT UNIQUE — 동시 INSERT 방어."""
@@ -5674,14 +5711,9 @@ def projects_create_logi(data: dict) -> tuple[int, str | None]:
         try:
             with db_session() as c:
                 # v5H89b: customer_name → customer_id 자동 매핑 (orders FK 연결용)
-                cust_id = None
-                if vals.get("customer_name"):
-                    row = c.execute(
-                        "SELECT id FROM customers WHERE name=? LIMIT 1",
-                        (vals["customer_name"],)
-                    ).fetchone()
-                    if row:
-                        cust_id = row[0]
+                # v5H226z651 (대표 지시): 종사업장 안전연결 — 이름 후보 1개일 때만 자동연결, 여러 종사업장이면 미연결(수동). 콤보박스 picked(customer_id) 우선.
+                cust_id, _ = resolve_customer_id(c, vals.get("customer_name"),
+                                                 picked_id=(data.get("customer_id") if isinstance(data, dict) else None))
                 cur = c.execute("""
                     INSERT INTO projects
                     (mgmt_code, name, biz_div, customer_id, customer_name, model_name,
@@ -5944,14 +5976,11 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
         new_code = generate_mgmt_code(_code_prefix)
     with db_session() as c:
         # v5H89b: customer_name → customer_id 자동 매핑
-        cust_id = None
-        if vals.get("customer_name"):
-            row = c.execute(
-                "SELECT id FROM customers WHERE name=? LIMIT 1",
-                (vals["customer_name"],)
-            ).fetchone()
-            if row:
-                cust_id = row[0]
+        # v5H226z651 (대표 지시): 종사업장 안전연결 — picked(콤보박스) 우선, 후보 1개만 자동연결, 여러 종사업장이면 기존 연결 유지 또는 미연결.
+        _ex_cid = (c.execute("SELECT customer_id FROM projects WHERE id=?", (pid,)).fetchone() or [None])[0]
+        cust_id, _ = resolve_customer_id(c, vals.get("customer_name"),
+                                         picked_id=(data.get("customer_id") if isinstance(data, dict) else None),
+                                         prefer_id=_ex_cid)
         c.execute("""
             UPDATE projects
             SET mgmt_code=?, name=?, biz_div=?, customer_id=?, customer_name=?, model_name=?,
@@ -12098,18 +12127,10 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
             return (False, "고객사1은 프로젝트만 편집 가능")
         if not val:
             return (False, "고객사명은 비울 수 없습니다")
+        # v5H226z651 (대표 지시): 안전연결 헬퍼로 통일 — 후보 1개만 자동연결, 여러 종사업장이면 기존 연결 유지(z647) 또는 미매칭.
         with db_session() as c:
-            _ids = [r[0] for r in c.execute("SELECT id FROM customers WHERE name=?", (val,)).fetchall()]
-            if len(_ids) == 1:
-                _cid = _ids[0]              # 명확한 단일후보만 자동연결(데이터 연결성 안전원칙)
-            elif len(_ids) > 1:
-                # v5H226z647 (대표 지시): 같은 상호 여러 종사업장(드림텍 본사/아산 등) — 모호해도 끊지 말 것.
-                #   기존 연결 customer_id 가 그 후보들 중 하나면 그대로 유지(멀쩡한 연결 파괴 방지). 그 외에만 미매칭.
-                _ex = c.execute("SELECT customer_id FROM projects WHERE id=?", (int(ref_id),)).fetchone()
-                _exid = _ex[0] if _ex else None
-                _cid = _exid if (_exid in _ids) else None
-            else:
-                _cid = None                 # 일치 0곳 → 미매칭
+            _ex = c.execute("SELECT customer_id FROM projects WHERE id=?", (int(ref_id),)).fetchone()
+            _cid, _ = resolve_customer_id(c, val, prefer_id=(_ex[0] if _ex else None))
             c.execute("UPDATE projects SET customer_name=?, customer_id=? WHERE id=?",
                       (val, _cid, int(ref_id)))
         return (True, "matched" if _cid else "unmatched")  # 호출측(엔드포인트)이 연결여부 판단에 사용
