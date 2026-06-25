@@ -24685,6 +24685,8 @@ async def projects_edit_submit(request: Request, pid: int):
         _parent_id = None
     _logi.projects_update_logi(pid, {
         "_changed_by": _u.get("id"),
+        # v5H226z652 (대표 지시): 콤보박스에서 고른 종사업장(customer_id) 우선 적용 — 간편폼/picker 사용 폼의 수정 경로 반영
+        "customer_id": (int(form.get("customer_id")) if (form.get("customer_id") or "").strip().isdigit() else None),
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         "model": form.get("model", ""),
         # v5H226z211 (대표 지시): 장비명 — 관리번호=장비 단위
