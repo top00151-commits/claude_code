@@ -2269,20 +2269,22 @@ applyCols(); buildColsMenu(); syncDayInputs(); applyOrder(); initColDrag();   //
 try{ document.querySelectorAll('#schedTable tbody tr[data-ref]').forEach(refreshTaxStatus); }catch(e){}
 // v5H226z561(대표 지시): 저장된 검색어 복원 → 수정 후 새로고침돼도 찾던 조건 화면 유지
 try{ var _sq=sessionStorage.getItem('knk.sched.q'); if(_sq){ var _si=document.getElementById('schedSearch'); if(_si){ _si.value=_sq; schedDoSearch(); } } }catch(e){}
-// v5H226z650(대표 지시): project_detail '참고(진행중) 수주' 클릭 → ?focus=<관리번호> 로 진입 시 해당 관리번호 검색·스크롤·강조
+// v5H226z650c(대표 지시): project_detail '참고(진행중) 수주' 클릭 → ?focus_ref=<프로젝트id> 로 진입 시
+//   해당 행으로 스크롤+강조만(검색/필터 안 함). 오히려 잔류 검색을 비워 '전체'가 보이게 — z650의 '검색 필터'가
+//   sessionStorage(z561)에 남아 '전체' 탭 눌러도 1건만 보이던 문제 해결.
 try{
-  var _focus = {{ (focus_q or '')|tojson }};
-  if(_focus){
+  var _fref = {{ (focus_ref or '')|tojson }};
+  if(_fref){
     var _fi=document.getElementById('schedSearch');
-    if(_fi){ _fi.value=_focus; schedDoSearch(); }
+    if(_fi && _fi.value){ _fi.value=''; schedDoSearch(); }   // 잔류 검색 해제(전체 표시)
     setTimeout(function(){
-      var _vr=_visRows();
-      if(_vr.length){
-        _vr[0].scrollIntoView({behavior:'smooth', block:'center'});
-        _vr.forEach(function(tr){ tr.classList.add('row-focus-flash'); });
-        setTimeout(function(){ _vr.forEach(function(tr){ tr.classList.remove('row-focus-flash'); }); }, 2600);
+      var _rows=document.querySelectorAll('#schedTable tbody tr[data-kind="project"][data-ref="'+_fref+'"]');
+      if(_rows.length){
+        _rows[0].scrollIntoView({behavior:'smooth', block:'center'});
+        _rows.forEach(function(tr){ tr.classList.add('row-focus-flash'); });
+        setTimeout(function(){ _rows.forEach(function(tr){ tr.classList.remove('row-focus-flash'); }); }, 2800);
       }
-    }, 140);
+    }, 180);
   }
 }catch(e){}
 _buildBulkFieldSel(); syncBulkBar();   // z366: 일괄수정 항목 드롭다운 구성 + 바 상태

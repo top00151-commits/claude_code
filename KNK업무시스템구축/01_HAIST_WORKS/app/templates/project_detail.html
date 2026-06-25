@@ -923,7 +923,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                 {% if loop.first %}<a href="/sales/orders/{{ so.id }}">{{ so.order_no }}</a>
                 {% else %}{% set _so_done = ((so.status or '')|upper in ['SHIPPED','INVOICED','PAID','CANCELLED']) %}
                   {% if _so_done %}<a href="/sales/orders/{{ so.id }}" title="완료된 수주 — 진행 이력 보기">{{ so.order_no }} <span class="ref-go">↗ 이력</span></a>
-                  {% else %}<a href="/sales/schedule?focus={{ (p.mgmt_code or '')|urlencode }}" title="진행중 수주 — 작업일정표에서 보기">{{ so.order_no }} <span class="ref-go">↗ 일정표</span></a>{% endif %}
+                  {% else %}<a href="/sales/schedule?focus_ref={{ p.id }}" title="진행중 수주 — 작업일정표에서 보기">{{ so.order_no }} <span class="ref-go">↗ 일정표</span></a>{% endif %}
                 {% endif %}
               </div>
               {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}

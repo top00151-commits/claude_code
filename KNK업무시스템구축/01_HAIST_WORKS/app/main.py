@@ -19511,7 +19511,7 @@ async def projects_import_product_confirm(request: Request):
 
 @app.get("/sales/schedule", response_class=HTMLResponse)
 async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
-                         pf: str = "", pt: str = "", focus: str = ""):
+                         pf: str = "", pt: str = "", focus_ref: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -19823,7 +19823,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                col_prefs=_col_prefs, can_money=_can_money,
                biz=_biz, div_counts=div_counts,
                range_mode=range_mode, pf=(pf[:10] if range_mode else ""), pt=(pt[:10] if range_mode else ""),
-               focus_q=((focus or "")[:60]))  # v5H226z650(대표 지시): 참고 수주(진행중) 클릭 시 해당 관리번호 포커스
+               focus_ref=((focus_ref or "")[:20]))  # v5H226z650c(대표 지시): 참고 수주(진행중) 클릭 시 해당 프로젝트 행으로 스크롤·강조(검색 필터 아님)
 
 
 # v5H226z264 (대표 지시): 작업 일정표 보드 — 셀 편집/메모/칸설정 저장 라우트.
