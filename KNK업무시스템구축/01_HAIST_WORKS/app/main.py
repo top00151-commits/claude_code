@@ -7413,54 +7413,19 @@ async def admin_ti_from_xlsx_apply(req: Request, xlsx: UploadFile = File(...)):
             _ti_rows.append({"pid": _pid, "mgmt": _mc, "customer": (r.get("customer_name") or _pcust or ""),
                              "label": (r.get("model_name") or ""), "currency": (r.get("currency") or "KRW"),
                              "statement_date": _sd, "ti": _ti})
+        # v5H226z660 (대표 지시): 묶음(작업일정표만 보임) 대신 호기(order_items)에 직접 기록 → 작업일정표·상세 동기화.
         ti_made = ti_lines = stmt_n = 0
         ti_warns = []
+        removed_bundles = 0
         try:
-            from collections import OrderedDict as _OD
-            _uname = u.get("name") or u.get("login_id") or ""
-            _ocols = {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
-            if "statement_date" in _ocols:
-                for tr in _ti_rows:
-                    if tr["statement_date"]:
-                        try:
-                            c.execute("UPDATE orders SET statement_date=? WHERE id=("
-                                      "SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1)",
-                                      (tr["statement_date"], tr["pid"]))
-                            stmt_n += 1
-                        except Exception:
-                            pass
-            _existing_ti = set()
-            try:
-                _tlc = {x[1] for x in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
-                _q = ("SELECT row_sig, COALESCE(tier,1) FROM tax_invoice_lines" if "tier" in _tlc
-                      else "SELECT row_sig, 1 FROM tax_invoice_lines")
-                for _er in c.execute(_q):
-                    _existing_ti.add((_er[0], int(_er[1] or 1)))
-            except Exception:
-                pass
-            _groups = _OD()
-            for tr in _ti_rows:
-                for (tier, d, bundle, amt) in tr["ti"]:
-                    _groups.setdefault((tier, d, bundle, tr["customer"]), []).append((tr, amt))
-            for (tier, d, bundle, cust), members in _groups.items():
-                lines = [{"sig": f"project:{tr['pid']}", "ref_kind": "project", "ref_id": tr["pid"],
-                          "mgmt_code": tr["mgmt"], "label": tr["label"], "customer": cust, "amount": amt}
-                         for (tr, amt) in members if (f"project:{tr['pid']}", tier) not in _existing_ti]
-                if not lines:
-                    continue
-                _cur = (members[0][0].get("currency") or "KRW")
-                try:
-                    _ti_make_bundle(c, tier, d, _cur, cust, lines, u.get("id") or 0, _uname,
-                                    memo=(f"엑셀 세금계산서 반영 묶음 {bundle}" if bundle else "엑셀 세금계산서 반영"))
-                    ti_made += 1
-                    ti_lines += len(lines)
-                except Exception as _be:
-                    ti_warns.append(f"{d} {tier}차 실패: {str(_be)[:80]}")
+            removed_bundles = _delete_import_ti_bundles(c)   # 기존 import 묶음 제거(보드 우선표시로 상세와 어긋남 방지)
+            ti_made, ti_lines = _apply_import_ti_to_units(c, _ti_rows)
+            stmt_n = sum(1 for tr in _ti_rows if tr.get("statement_date"))
         except Exception as _te:
             ti_warns.append(f"오류: {str(_te)[:120]}")
     _h = ["<meta charset='utf-8'><div style='font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;color:#1f2937;'>",
-          "<h2 style='color:#15803d;'>✅ 세금계산서 반영 완료 (프로젝트/수주는 건드리지 않음)</h2>",
-          f"<p>매칭된 행 <b>{matched}</b> · 세금계산서 묶음 <b>{ti_made}</b>장({ti_lines}건) · 거래명세서 <b>{stmt_n}</b>건</p>"]
+          "<h2 style='color:#15803d;'>✅ 세금계산서 반영 완료 (호기에 기록 — 작업일정표·상세 동기화 / 프로젝트·수주는 안 건드림)</h2>",
+          f"<p>매칭된 행 <b>{matched}</b> · 세금계산서 반영 <b>{ti_made}</b>건(차수 {ti_lines}) · 거래명세서 <b>{stmt_n}</b>건 · 기존 묶음 제거 <b>{removed_bundles}</b>장</p>"]
     if unmatched:
         _h.append(f"<p style='color:#b45309;'>미등록 관리번호 {len(unmatched)}건(반영 안 됨): " + _esc(", ".join(unmatched[:30])) + (" …" if len(unmatched) > 30 else "") + "</p>")
     if ti_warns:
@@ -20946,6 +20911,70 @@ def _ti_row_sig(kind, ref_id, iids):
         return f"{kind}:{ref_id}"
 
 
+def _apply_import_ti_to_units(c, ti_rows):
+    """v5H226z660 (대표 지시): 일괄등록/엑셀의 거래명세서·세금계산서를 '호기(order_items)'에 직접 기록.
+    작업일정표·프로젝트 상세가 모두 호기 칸을 단일 소스로 읽으므로(z562) 두 화면이 항상 일치한다.
+    각 프로젝트의 '최신 SO 의 대표(최소 id) 호기'에 기록. 반환 (적용 프로젝트수, 세금계산서 차수 합)."""
+    try:
+        _oic = {x[1] for x in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    except Exception:
+        _oic = set()
+    _tier_cols = {1: ("tax_invoice_date", "tax_invoice_amt1"),
+                  2: ("tax_invoice_date2", "tax_invoice_amt2"),
+                  3: ("tax_invoice_date3", "tax_invoice_amt3")}
+    proj_n = ti_n = 0
+    for tr in (ti_rows or []):
+        try:
+            _oi = c.execute(
+                "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
+                "ORDER BY o.id DESC, oi.id ASC LIMIT 1", (tr["pid"],)).fetchone()
+        except Exception:
+            _oi = None
+        if not _oi:
+            continue
+        _iid = _oi["id"] if isinstance(_oi, dict) else _oi[0]
+        sets = []
+        vals = []
+        if tr.get("statement_date") and "statement_date" in _oic:
+            sets.append("statement_date=?")
+            vals.append(tr["statement_date"])
+        for (tier, d, bundle, amt) in (tr.get("ti") or []):
+            dc, ac = _tier_cols.get(tier, (None, None))
+            if dc and dc in _oic:
+                sets.append(dc + "=?")
+                vals.append(d)
+                if ac in _oic:
+                    sets.append(ac + "=?")
+                    vals.append(amt)
+                ti_n += 1
+        if sets:
+            try:
+                c.execute("UPDATE order_items SET " + ", ".join(sets) + " WHERE id=?", tuple(vals) + (_iid,))
+                proj_n += 1
+            except Exception:
+                pass
+    return (proj_n, ti_n)
+
+
+def _delete_import_ti_bundles(c):
+    """v5H226z660 (대표 지시): import 가 만든 묶음 세금계산서(메모로 식별) 제거 — 작업일정표가 묶음을
+    우선 표시해 호기 기록(상세)과 어긋나는 것 방지(동기화). 반환 삭제 장수."""
+    try:
+        _ids = [x[0] for x in c.execute(
+            "SELECT id FROM tax_invoices WHERE COALESCE(memo,'') LIKE '일괄등록%' "
+            "OR COALESCE(memo,'') LIKE '엑셀 세금계산서%'").fetchall()]
+        for _tid in _ids:
+            try:
+                c.execute("DELETE FROM tax_invoice_lines WHERE ti_id=?", (_tid,))
+                c.execute("DELETE FROM tax_invoices WHERE id=?", (_tid,))
+            except Exception:
+                pass
+        return len(_ids)
+    except Exception:
+        return 0
+
+
 def _ti_make_bundle(c, tier, issue_date, currency, cust_name, lines, created_by, created_by_name, memo=""):
     """v5H226z491b: 주어진 라인들을 한 장의 묶음 세금계산서(tax_invoices)로 발행(작업일정표 묶어발행과 동일 장부).
     lines=[{sig, ref_kind, ref_id, mgmt_code, label, customer, amount}]. (ti_no, ti_id, total) 반환. 호출자가 트랜잭션 관리."""
@@ -24171,57 +24200,14 @@ async def projects_import_confirm(request: Request):
                             (pid,))
         except Exception:
             pass
-    # v5H226z557 (대표 지시): 거래명세서 발행일 + 세금계산서 1/2/3차 '묶음 발행' 재현.
-    #   같은 (차수, 발행일, 묶음번호, 고객사) 행들을 한 장(tax_invoices)으로 묶어 발행(작업일정표 묶어발행과 동일 장부).
-    #   재무 데이터라 try/except 로 메인 등록을 절대 깨지 않게 — 실패는 경고로 표면화.
+    # v5H226z660 (대표 지시): 거래명세서·세금계산서를 호기(order_items)에 직접 기록 → 작업일정표·상세 항상 동기화.
+    #   (z557 묶음 발행은 작업일정표만 보이고 상세엔 안 떠 불일치 → 호기 단일소스로 전환. 재무라 try/except 로 메인 등록 안 깨짐.)
     ti_made = 0; ti_lines = 0; ti_warns = []
     if _ti_rows:
         try:
-            from collections import OrderedDict as _OD
-            _uname = u.get("name") or u.get("login_id") or ""
             with db_session() as c:
-                _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
-                # 거래명세서 발행일 → 그 프로젝트 대표(최신) SO 에 기록
-                if "statement_date" in _ocols:
-                    for tr in _ti_rows:
-                        if tr["statement_date"]:
-                            try:
-                                c.execute("UPDATE orders SET statement_date=? WHERE id=("
-                                          "SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1)",
-                                          (tr["statement_date"], tr["pid"]))
-                            except Exception:
-                                pass
-                # v5H226z657 (대표 지시): 이미 발행된 (row_sig, 차수)는 재발행 안 함 — 재업로드 중복 발행 방지(멱등)
-                _existing_ti = set()
-                try:
-                    _tlc2 = {r[1] for r in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
-                    _q2 = ("SELECT row_sig, COALESCE(tier,1) FROM tax_invoice_lines" if "tier" in _tlc2
-                           else "SELECT row_sig, 1 FROM tax_invoice_lines")
-                    for _er in c.execute(_q2):
-                        _existing_ti.add((_er[0], int(_er[1] or 1)))
-                except Exception:
-                    pass
-                # 세금계산서 차수별 묶음: key=(차수, 발행일, 묶음번호, 고객사)
-                _groups = _OD()
-                for tr in _ti_rows:
-                    for (tier, d, bundle, amt) in tr["ti"]:
-                        _groups.setdefault((tier, d, bundle, tr["customer"]), []).append((tr, amt))
-                for (tier, d, bundle, cust), members in _groups.items():
-                    lines = [{"sig": f"project:{tr['pid']}", "ref_kind": "project",
-                              "ref_id": tr["pid"], "mgmt_code": tr["mgmt"],
-                              "label": tr["label"], "customer": cust, "amount": amt}
-                             for (tr, amt) in members
-                             if (f"project:{tr['pid']}", tier) not in _existing_ti]
-                    if not lines:
-                        continue
-                    _cur = (members[0][0].get("currency") or "KRW")
-                    _memo = (f"일괄등록 묶음 {bundle}" if bundle else "일괄등록")
-                    try:
-                        _ti_make_bundle(c, tier, d, _cur, cust, lines,
-                                        u.get("id") or 0, _uname, memo=_memo)
-                        ti_made += 1; ti_lines += len(lines)
-                    except Exception as _be:
-                        ti_warns.append(f"{d} {tier}차 묶음 발행 실패: {str(_be)[:80]}")
+                _delete_import_ti_bundles(c)   # 과거 import 묶음 잔재 제거(보드 우선표시로 어긋남 방지)
+                ti_made, ti_lines = _apply_import_ti_to_units(c, _ti_rows)
         except Exception as _te:
             ti_warns.append(f"세금계산서 처리 오류: {str(_te)[:120]}")
     return JSONResponse({
