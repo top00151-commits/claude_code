@@ -901,6 +901,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         <div class="list-scroll">
         {% for so in _ord %}
           {% set _editable = can_sales and so.status not in ('INVOICED','PAID','CANCELLED') and loop.first %}{# v5H226v: SHIPPED 도 편집 허용(수금 전 정정 가능) / v5H226z650(대표 지시): 참고(추가) 수주는 읽기전용 — 최초(메인) 수주만 이 화면에서 편집, 추가 수주는 수주번호 클릭으로 해당 화면 이동 #}
+          {% set _is_main_so = loop.first %}{# v5H226z650b: '호기 상태' 드롭다운도 참고 카드에선 읽기전용화 — units 루프 내부에선 loop.first 가 호기 기준이라 SO-루프 first 를 별도 캡처 #}
           {# v5H172: SO 통화가 비어있으면 프로젝트 헤더 통화로 fallback (백필 누락 대비) #}
           {% set _cur = so.currency or p.currency or 'KRW' %}
           {# v5H95: 통화 기호 제거 — 코드만 표시 (KRW/USD/VND) #}
@@ -1269,7 +1270,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   {# v5H186: 호기 상태 — 항상 select 노출 (편집 모드와 무관, 인라인 즉시 변경) #}
                   {# v5H226z83: 상태 td 중앙 정렬 #}
                   <td class="center px-x">
-                    {% if can_sales %}
+                    {% if can_sales and _is_main_so %}{# v5H226z650b: 참고(추가) 수주는 상태도 읽기전용 — 최초(메인) 수주만 인라인 변경 가능 #}
                     <select class="unit-status-sel" data-uid="{{ u.id }}" data-orig="{{ _ust }}"
                             style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-size:11.5px;font-weight:700;background:
                               {%- if _ust == '출하' %}#dcfce7;color:#15803d{% elif _ust == '취소' %}#fee2e2;color:#991b1b{% elif _ust == '보류' %}#f3f4f6;color:#6b7280{% else %}#fef3c7;color:#7c4a03{% endif %};cursor:pointer;">
