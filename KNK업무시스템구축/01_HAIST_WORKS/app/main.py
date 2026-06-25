@@ -7352,6 +7352,98 @@ async def admin_test_data_delete_a(req: Request):
     return RedirectResponse(f"/admin/test-data?deleted={n_proj}", 303)
 
 
+@app.get("/admin/ship-overdue", response_class=HTMLResponse)
+async def admin_ship_overdue(req: Request):
+    """v5H226z658 (대표 지시): 납품일이 오늘 이전(지난) 호기/품목을 일괄 '출하' 처리 — 미리보기(읽기전용).
+    대상 = 취소 아닌 SO 의 order_items 중 unit_status 가 출하·취소가 아니고, 유효 납품일(호기 override 우선)이 오늘보다 과거인 건."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    from datetime import datetime as _dt
+    today = _dt.now().strftime("%Y-%m-%d")   # 본사 KST(서버 로컬)
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    _DUE = "COALESCE(NULLIF(TRIM(oi.due_date),''), o.due_date)"
+    rows = []
+    with db_session() as c:
+        try:
+            rows = [dict(r) for r in c.execute(
+                "SELECT oi.unit_label AS lbl, COALESCE(oi.unit_status,'') AS ust, " + _DUE + " AS eff_due, "
+                "       p.mgmt_code AS mc, p.name AS pname, p.customer_name AS cust, "
+                "       COALESCE(p.shipment_form,'ASSEMBLY') AS sf "
+                "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
+                "WHERE COALESCE(o.status,'')<>'CANCELLED' "
+                "  AND COALESCE(oi.unit_status,'') NOT IN ('출하','취소') "
+                "  AND COALESCE(" + _DUE + ",'')<>'' AND " + _DUE + " < ? "
+                "ORDER BY eff_due, p.mgmt_code", (today,)
+            ).fetchall()]
+        except Exception as e:
+            return HTMLResponse("<meta charset='utf-8'><p>조회 오류: " + _esc(str(e)) + "</p>")
+    _sfk = {"ASSEMBLY": "완제품", "SEMI": "제품", "PARTS": "상품", "ETC": "기타"}
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1000px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+            "<h2>🚚 납품일 지난 건 일괄 출하 (미리보기)</h2>",
+            "<p style='color:#555;line-height:1.7;'>오늘(<b>" + today + "</b>) 기준 <b>납품일이 지난</b> 호기/품목 중 아직 '출하'·'취소'가 아닌 건입니다. "
+            "'출하 처리 실행'을 누르면 모두 <b>출하</b> 상태로 바꿉니다. (정식 출하전표가 아닌, 작업일정표 상태 변경 — 되돌리려면 해당 행 상태를 다시 변경)</p>"]
+    if not rows:
+        body.append("<p style='color:#15803d;font-weight:700;padding:14px;background:#f0fdf4;border-radius:8px;'>✅ 대상 없음 — 납품일 지난 미출하 건이 없습니다.</p></div>")
+        return HTMLResponse("".join(body))
+    body.append("<p style='font-size:16px;'>대상 <b style='color:#b45309;'>" + str(len(rows)) + "건</b></p>")
+    body.append("<form method='post' action='/admin/ship-overdue' "
+                "onsubmit=\"return confirm('대상 " + str(len(rows)) + "건을 모두 출하 처리합니다. 진행할까요?');\" style='margin:8px 0 18px;'>"
+                "<input type='hidden' name='confirm' value='출하처리'>"
+                "<button type='submit' style='padding:9px 18px;background:#15803d;color:#fff;border:0;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;'>🚚 출하 처리 실행 (" + str(len(rows)) + "건)</button></form>")
+    body.append("<table style='border-collapse:collapse;font-size:12.5px;width:100%;'><thead><tr>"
+                + "".join("<th style='border-bottom:2px solid #ddd;padding:6px;text-align:left;'>" + h + "</th>"
+                          for h in ("관리번호", "프로젝트", "형태", "호기/품목", "현재상태", "납품일", "고객사")) + "</tr></thead><tbody>")
+    for d in rows[:500]:
+        body.append("<tr>"
+                    + "<td style='border-bottom:1px solid #eee;padding:5px;font-family:monospace;'>" + _esc(d.get("mc")) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:5px;'>" + _esc(d.get("pname")) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:5px;'>" + _esc(_sfk.get((d.get("sf") or "").upper(), d.get("sf"))) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:5px;'>" + _esc(d.get("lbl")) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:5px;'>" + _esc(d.get("ust") or "진행중") + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:5px;'>" + _esc(str(d.get("eff_due"))[:10]) + "</td>"
+                    + "<td style='border-bottom:1px solid #eee;padding:5px;'>" + _esc(d.get("cust")) + "</td></tr>")
+    body.append("</tbody></table>")
+    if len(rows) > 500:
+        body.append("<p style='color:#888;'>… 외 " + str(len(rows) - 500) + "건 (실행 시 전체 처리)</p>")
+    body.append("</div>")
+    return HTMLResponse("".join(body))
+
+
+@app.post("/admin/ship-overdue")
+async def admin_ship_overdue_apply(req: Request):
+    """v5H226z658 (대표 지시): 납품일 지난 호기/품목 일괄 출하 실행(unit_status='출하'). confirm 토큰 필요."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    if (form.get("confirm") or "").strip() != "출하처리":
+        return RedirectResponse("/admin/ship-overdue", 303)
+    from datetime import datetime as _dt
+    today = _dt.now().strftime("%Y-%m-%d")
+    _DUE = "COALESCE(NULLIF(TRIM(oi.due_date),''), o.due_date)"
+    n = 0
+    with db_session() as c:
+        _ids = [(r[0] if not isinstance(r, dict) else r["id"]) for r in c.execute(
+            "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' "
+            "  AND COALESCE(oi.unit_status,'') NOT IN ('출하','취소') "
+            "  AND COALESCE(" + _DUE + ",'')<>'' AND " + _DUE + " < ?", (today,)
+        ).fetchall()]
+        for _iid in _ids:
+            try:
+                c.execute("UPDATE order_items SET unit_status='출하' WHERE id=?", (_iid,))
+                n += 1
+            except Exception:
+                pass
+    return HTMLResponse("<meta charset='utf-8'><div style='font-family:system-ui,sans-serif;max-width:680px;margin:48px auto;text-align:center;color:#1f2937;'>"
+                        "<h2 style='color:#15803d;'>✅ " + str(n) + "건 출하 처리 완료</h2>"
+                        "<p>납품일이 " + today + " 이전인 호기/품목을 '출하'로 변경했습니다.</p>"
+                        "<p style='margin-top:18px;'><a href='/sales/schedule' style='color:#1d4ed8;'>작업일정표로</a> &nbsp;·&nbsp; "
+                        "<a href='/admin/ship-overdue' style='color:#1d4ed8;'>다시 보기</a></p></div>")
+
+
 @app.get("/admin/customer-health", response_class=HTMLResponse)
 async def admin_customer_health(req: Request):
     """v5H226z610 (대표 지시): 고객사 연결성 읽기전용 진단.
