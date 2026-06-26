@@ -6304,6 +6304,21 @@ async def project_detail(req: Request, pid: int):
                 pass
 
             project_orders = _pwf.get_project_orders(c2, pid)
+            # v5H226z662 (대표 지시·A안): 수주 내역(상세) 세금계산서/거래명세서 표시를 작업일정표 보드와
+            #   '같은 코드'(_enrich_units_tax)로 통일 — 묶어발행(tax_invoice_lines)+orders 폴백을 호기 빈 칸에
+            #   채워, 상세가 호기 칸만 읽어 묶음 세금계산서를 '—'로 놓치던 불일치 해소(두 화면 항상 일치).
+            try:
+                if can_view_sales(u):
+                    _eu = []
+                    for _o in project_orders:
+                        if (str(_o.get("status") or "").upper() == "CANCELLED"):
+                            continue
+                        for _uu in (_o.get("units") or []):
+                            _eu.append(_uu)
+                    if _eu:
+                        _enrich_units_tax(c2, pid, _eu, True, iid_key="id")
+            except Exception:
+                pass
             if project_orders:
                 _so_sum = sum(float(o.get("total_amount") or 0) for o in project_orders)
                 _curr = float(p.get("order_amount") or 0) if isinstance(p, dict) else float((p["order_amount"] or 0))
@@ -19028,6 +19043,83 @@ def _inject_oi_tax_into_rows(rows, oi_map, proj_iids):
         _d3, _a3 = _agg("t3d", "t3a"); _row["tax_invoice_date3"] = _d3; _row["_ti_d3"] = _d3; _row["tax_invoice_amt3"] = _a3; _row["_ti_a3"] = _a3
 
 
+# ─── v5H226z662 (대표 지시·A안): 작업일정표 ↔ 수주내역 상세 '세금계산서' 표시 단일화 ──────────
+#   배경: 묶어 발행(tax_invoice_lines)한 세금계산서는 호기(order_items) 칸이 비어 있어, 보드는
+#   묶음을 우선 표시하지만 상세(수주 내역)는 호기 칸만 읽어 '—' 로 떠 두 화면이 어긋났다.
+#   해결: 보드 펼침(units 엔드포인트)이 쓰던 '호기값 > 묶음(균등분배) > orders(균등분배) 폴백'
+#   3중 해석을 공유 헬퍼로 추출 → 보드 펼침과 상세가 '같은 코드'로 채워 항상 일치.
+def _enrich_units_tax(c, project_id, units, can_money, iid_key="iid"):
+    """호기 units 리스트(각 dict: {iid_key: order_items.id, statement_date, tax_invoice_date,
+    tax_invoice_amt1, tax_invoice_date2/amt2/date3/amt3})의 '빈 칸만' 채운다.
+    우선순위 = 호기 실제값(이미 채워짐) > 묶음(tax_invoice_lines 균등분배) > orders(대표 SO 균등분배).
+    영업·관리(can_money) 아니면 no-op. units 를 제자리 변형하고 그대로 반환.
+    ⚠ 작업일정표 보드와 수주내역 상세가 이 함수 하나로 표시되게 하는 공유 지점(둘이 어긋날 수 없게)."""
+    if not (can_money and units and project_id):
+        return units
+    # 1) 묶음(tax_invoice_lines) 균등분배 폴백 (z559/z560)
+    try:
+        _tlc = {x[1] for x in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
+        if _tlc:
+            _df = {1: "tax_invoice_date", 2: "tax_invoice_date2", 3: "tax_invoice_date3"}
+            _af = {1: "tax_invoice_amt1", 2: "tax_invoice_amt2", 3: "tax_invoice_amt3"}
+            _by_iid = {}        # iid → {tier:(date,amt)}
+            _proj_lines = []    # 프로젝트 단위 묶음(전체 호기 대상)
+            _tsel = "l.unit_iids, l.row_sig, COALESCE(l.tier,1), COALESCE(l.amount,0), t.issue_date" if "tier" in _tlc \
+                    else "l.unit_iids, l.row_sig, 1, COALESCE(l.amount,0), t.issue_date"
+            for _bl in c.execute(
+                f"SELECT {_tsel} FROM tax_invoice_lines l JOIN tax_invoices t ON t.id=l.ti_id "
+                # 호기 묶음은 ref_kind='unit'(unit_iids=호기 CSV), 프로젝트 묶음은 ref_kind='project'
+                "WHERE t.status='발행' AND l.ref_kind IN ('project','unit') AND l.ref_id=?", (int(project_id),)).fetchall():
+                _sig = str(_bl[1] or "")
+                _ids = [int(x) for x in str(_bl[0] or "").split(",") if x.strip().isdigit()]
+                if not _ids and _sig.startswith("unit:"):   # unit_iids 비었으면 row_sig서 보조 파싱
+                    _ids = [int(x) for x in _sig[5:].split(",") if x.strip().isdigit()]
+                _tier = int(_bl[2] or 1); _amt = float(_bl[3] or 0); _idate = str(_bl[4] or "")[:10]
+                if not _ids and _sig.startswith("project:"):
+                    _proj_lines.append((_tier, _idate, _amt)); continue
+                _n = len(_ids) or 1
+                for _iid in _ids:
+                    _by_iid.setdefault(_iid, {})[_tier] = (_idate, _amt / _n)
+            if _proj_lines:
+                _np = len(units) or 1
+                for (_tier, _idate, _amt) in _proj_lines:
+                    for u in units:
+                        _by_iid.setdefault(u.get(iid_key), {}).setdefault(_tier, (_idate, _amt / _np))
+            for u in units:
+                mp = _by_iid.get(u.get(iid_key))
+                if not mp:
+                    continue
+                for _tier, (_d, _a) in mp.items():
+                    if _df.get(_tier) and not u.get(_df[_tier]):
+                        u[_df[_tier]] = _d
+                    if _af.get(_tier) and (u.get(_af[_tier]) in (None, "")):
+                        u[_af[_tier]] = round(_a)
+    except Exception:
+        pass
+    # 2) orders(대표 SO 직접발행) 균등분배 폴백 (z562) — 묶음도 호기값도 없는 칸만
+    try:
+        _oimap2, _ = _board_tax_oi_map()
+        for u in units:
+            m = _oimap2.get(u.get(iid_key))
+            if not m:
+                continue
+            if not u.get("statement_date") and m.get("stmt"):
+                u["statement_date"] = m["stmt"]
+            for _dk, _ak, _df2, _af2 in (("t1d", "t1a", "tax_invoice_date", "tax_invoice_amt1"),
+                                         ("t2d", "t2a", "tax_invoice_date2", "tax_invoice_amt2"),
+                                         ("t3d", "t3a", "tax_invoice_date3", "tax_invoice_amt3")):
+                if not u.get(_df2) and m.get(_dk):
+                    u[_df2] = m[_dk]
+                if (u.get(_af2) in (None, "")) and m.get(_ak) not in (None, ""):
+                    try:
+                        u[_af2] = round(float(m[_ak]))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return units
+
+
 # v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
 #   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
 def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""):
@@ -20674,71 +20766,10 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                         "tax_invoice_date3": str(d.get("t3d") or "")[:10], "tax_invoice_amt3": _amt(d.get("t3a")),
                     })
                 units.append(_ud)
-            # v5H226z559 (대표 지시): 세금계산서가 '묶음(여러 호기 한 장)'으로 발행된 건 개별 호기칸이 비어 보임 →
-            #   이 프로젝트의 묶음(tax_invoice_lines)에서 호기별로 발행일+금액(균등분배)을 폴백 표시.
-            if can_money and units and kind == "project":
-                try:
-                    _tlc = {x[1] for x in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
-                    if _tlc:
-                        _df = {1: "tax_invoice_date", 2: "tax_invoice_date2", 3: "tax_invoice_date3"}
-                        _af = {1: "tax_invoice_amt1", 2: "tax_invoice_amt2", 3: "tax_invoice_amt3"}
-                        _by_iid = {}        # iid → {tier:(date,amt)}
-                        _proj_lines = []    # 프로젝트 단위 묶음(전체 호기 대상)
-                        _tsel = "l.unit_iids, l.row_sig, COALESCE(l.tier,1), COALESCE(l.amount,0), t.issue_date" if "tier" in _tlc \
-                                else "l.unit_iids, l.row_sig, 1, COALESCE(l.amount,0), t.issue_date"
-                        for _bl in c.execute(
-                            f"SELECT {_tsel} FROM tax_invoice_lines l JOIN tax_invoices t ON t.id=l.ti_id "
-                            # v5H226z560: 호기 묶음은 ref_kind='unit'(unit_iids=호기 CSV) — z559가 'project'만 봐서 놓쳤음
-                            "WHERE t.status='발행' AND l.ref_kind IN ('project','unit') AND l.ref_id=?", (int(ref_id),)).fetchall():
-                            _sig = str(_bl[1] or "")
-                            _ids = [int(x) for x in str(_bl[0] or "").split(",") if x.strip().isdigit()]
-                            if not _ids and _sig.startswith("unit:"):   # unit_iids 비었으면 row_sig서 보조 파싱
-                                _ids = [int(x) for x in _sig[5:].split(",") if x.strip().isdigit()]
-                            _tier = int(_bl[2] or 1); _amt = float(_bl[3] or 0); _idate = str(_bl[4] or "")[:10]
-                            if not _ids and _sig.startswith("project:"):
-                                _proj_lines.append((_tier, _idate, _amt)); continue
-                            _n = len(_ids) or 1
-                            for _iid in _ids:
-                                _by_iid.setdefault(_iid, {})[_tier] = (_idate, _amt / _n)
-                        if _proj_lines:
-                            _np = len(units) or 1
-                            for (_tier, _idate, _amt) in _proj_lines:
-                                for u in units:
-                                    _by_iid.setdefault(u["iid"], {}).setdefault(_tier, (_idate, _amt / _np))
-                        for u in units:
-                            mp = _by_iid.get(u["iid"])
-                            if not mp:
-                                continue
-                            for _tier, (_d, _a) in mp.items():
-                                if _df.get(_tier) and not u.get(_df[_tier]):
-                                    u[_df[_tier]] = _d
-                                if _af.get(_tier) and (u.get(_af[_tier]) in (None, "")):
-                                    u[_af[_tier]] = round(_a)
-                except Exception:
-                    pass
-            # v5H226z562 (대표 지시): 묶음도 호기값도 없는 칸은 그 호기 SO(orders) 직접발행분을 균등분배 폴백.
-            #   (호기값 > 묶음 > orders 폴백 순. 호기에 직접 입력하면 그게 우선이라 양방향 일치)
-            if can_money and units and kind == "project":
-                try:
-                    _oimap2, _ = _board_tax_oi_map()
-                    for u in units:
-                        m = _oimap2.get(u["iid"])
-                        if not m:
-                            continue
-                        if not u.get("statement_date") and m.get("stmt"):
-                            u["statement_date"] = m["stmt"]
-                        for _dk, _ak, _df2, _af2 in (("t1d", "t1a", "tax_invoice_date", "tax_invoice_amt1"),
-                                                     ("t2d", "t2a", "tax_invoice_date2", "tax_invoice_amt2"),
-                                                     ("t3d", "t3a", "tax_invoice_date3", "tax_invoice_amt3")):
-                            if not u.get(_df2) and m.get(_dk):
-                                u[_df2] = m[_dk]
-                            if (u.get(_af2) in (None, "")) and m.get(_ak) not in (None, ""):
-                                try:
-                                    u[_af2] = round(float(m[_ak]))
-                                except Exception:
-                                    pass
-                except Exception:
-                    pass
+            # v5H226z662 (대표 지시·A안): 세금계산서/거래명세서 폴백(묶음 균등분배 + orders 폴백)을
+            #   공유 헬퍼로 — 수주내역 상세(_enrich_units_tax)와 '같은 코드'로 채워 두 화면 항상 일치.
+            if kind == "project":
+                _enrich_units_tax(c, ref_id, units, can_money, iid_key="iid")
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True, "units": units, "can_money": can_money,
