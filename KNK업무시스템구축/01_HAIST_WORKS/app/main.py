@@ -19406,7 +19406,7 @@ def _build_bulk_template_buf():
     from openpyxl.utils import get_column_letter
     headers = ["관리번호*", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량",
                "단가", "금액", "통화", "거래구분", "PO유형", "형태", "고객사1*", "고객사2", "부서",
-               "담당자", "연락처", "납품위치", "발주일", "납품일",
+               "담당자", "연락처", "납품위치", "발주일", "납품일", "상태",
                "거래명세서", "1세금계산서", "금액", "2세금계산서", "금액", "3세금계산서", "금액",
                "단계", "영업담당자"]
     ws.append(headers)
@@ -19424,7 +19424,8 @@ def _build_bulk_template_buf():
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
     dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)
     dv_po = DataValidation(type="list", formula1='"신규,추가,개조,수리,기타"', allow_blank=True)
-    for dv in (dv_trade, dv_ccy, dv_form, dv_po):
+    dv_status = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)   # v5H226z663
+    for dv in (dv_trade, dv_ccy, dv_form, dv_po, dv_status):
         ws.add_data_validation(dv)
 
     def _dvrange(_h):   # 헤더명 → 그 컬럼 'X2:X500' (드롭다운 위치 자동 — 컬럼 이동에 안전)
@@ -19432,10 +19433,11 @@ def _build_bulk_template_buf():
         return f"{_L}2:{_L}500"
     dv_ccy.add(_dvrange("통화")); dv_trade.add(_dvrange("거래구분"))
     dv_form.add(_dvrange("형태")); dv_po.add(_dvrange("PO유형"))
+    dv_status.add(_dvrange("상태"))   # v5H226z663: 상태 드롭다운(진행중/출하/취소/보류)
     # 예시행 — 헤더와 동일 순서(자동/표시 컬럼은 빈칸). 프로젝트명 '예)' + 기타사항 마커로 업로드 시 스킵.
     ws.append(["005T2601", "", "예) PBA 검사기", "MODEL-X", "ICT 검사기", "예시 행 — 삭제 후 작성하세요",
                "1", "0", "", "KRW", "내수", "신규", "완제품", "삼성전자", "", "",
-               "홍길동", "010-0000-0000", "고객사 본사", "2026-01-15", "2026-03-30",
+               "홍길동", "010-0000-0000", "고객사 본사", "2026-01-15", "2026-03-30", "진행중",
                "", "", "", "", "", "", "", "", "김영업(당사)"])
     for ci in range(1, len(headers) + 1):
         ws.cell(2, ci).font = Font(color="999999", italic=True)
@@ -19454,6 +19456,7 @@ def _build_bulk_template_buf():
         ["부서 / 담당자 / 연락처", "고객사측 부서·담당자 이름·연락처."],
         ["납품위치", "납품 장소."],
         ["발주일 / 납품일", "YYYY-MM-DD (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일 — 비우면 수주번호 미발행(헤더만 등록)."],
+        ["상태 ⭐", "호기 진행 상태 — 진행중·출하·취소·보류 중 선택(드롭다운). 비우면 '초기협의'(호기는 진행중). ⭐업로드/재업로드 시 그 관리번호의 호기 상태에 반영 → 작업일정표 색·수주내역 상태가 동기화됩니다. 호기마다 다른 상태는 작업일정표/상세에서 개별 변경."],
         ["거래명세서 / 1·2·3세금계산서(+금액)", "표시·다운로드 전용 — 업로드 시 무시됩니다. 발행일·금액은 등록 후 작업일정표/상세에서 직접 입력."],
         ["단계", "자동·관리 항목 — 업로드 시 무시됩니다."],
         ["영업담당자", "우리 회사(KNK) 영업담당자 이름 — 이 건을 담당하는 당사 영업사원."],
@@ -23079,6 +23082,17 @@ PROJ_IMPORT_STATUSES = {
 }
 
 
+def _import_unit_status(raw, default="초기협의"):
+    """v5H226z663 (대표 지시): 일괄등록 엑셀 '상태' 칸 → 호기 상태 정규화.
+    진행중/출하/취소/보류만 인정('납품완료'는 출하로 흡수). 그 외/빈칸이면 default 반환.
+    · 파서: default='초기협의'(기존 기본·신규 등록 시 호기는 진행중으로 매핑)
+    · 재업로드 갱신: default=''(빈칸이면 기존 호기 상태를 건드리지 않음)."""
+    s = ("" if raw is None else str(raw)).strip()
+    if s == "납품완료":
+        s = "출하"
+    return s if s in ("진행중", "출하", "취소", "보류") else default
+
+
 def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_biz: str = "") -> list[dict]:
     """업로드된 엑셀을 파싱해 row dict 리스트 반환.
     각 dict: {sheet, row_no, biz_div, name, customer_name, ..., _errors: [...]}.
@@ -23254,6 +23268,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _cC = _col("고객사"); _cC2 = _col("고객사2", "2차"); _cOd = _col("발주일"); _cDd = _col("납기", "납품일")
         _cQ = _col("수량"); _cP = _col("단가"); _cCur = _col("통화"); _cTr = _col("거래구분", "거래"); _cPo = _col("PO")
         _cForm = _col("형태")   # v5H226z349 (대표 지시): 형태(제품/상품/기타)
+        _cSt = _col("상태")     # v5H226z663 (대표 지시): 호기 상태(진행중/출하/취소/보류) — 업로드로 지정·재업로드로 갱신
         _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품위치", "납품지", "납품처"); _cNt = _col("비고", "기타사항")
         _cSa = _col("영업")   # 영업담당자(우리 회사 영업사원) — sales_name 으로 저장
         # v5H226z557 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일 + 금액 + '묶음번호' 올리기.
@@ -23406,7 +23421,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 "ship_to": _to_str(_g(_cSh)),
                 "sales_name": _to_str(_g(_cSa)),   # v5H226z341: 영업담당자(우리 회사)
                 "note": note_v,
-                "status": "초기협의",                # 등록 후 사용자가 직접 변경(수주번호 미생성)
+                "status": _import_unit_status(_g(_cSt) if _cSt is not None else ""),   # v5H226z663: '상태' 칸(진행중/출하/취소/보류)→호기·프로젝트 반영. 비우면 '초기협의'(기존 기본)
                 # v5H226z555 (대표 지시): 일괄등록은 '호기 미표현' — 각 행을 한 줄(수량=N)로 등록(자동 1·2호기 매김 안 함).
                 #   실제 호기번호는 기타사항(비고)에 적은 텍스트로만 보존. form_type(완제품 등 화면 형태)은 위에서 별도 저장.
                 #   메커니즘: shipment_form=SEMI → confirm 의 _is_part 경로(1줄) 사용(신규·추가발주 공통).
@@ -24115,13 +24130,27 @@ async def projects_import_confirm(request: Request):
                     _dup = c.execute("SELECT id FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1",
                                      (_mc_eff,)).fetchone()
                 if _dup:
+                    _re_pid = (_dup["id"] if isinstance(_dup, dict) else _dup[0])
                     # v5H226z657 (대표 지시): 이미 등록된 관리번호도 거래명세서·세금계산서는 반영(재업로드로 일괄 반영).
                     #   프로젝트/호기는 중복 생성하지 않고(건너뜀), 세금계산서만 _ti_rows 로 수집해 아래에서 발행.
                     try:
-                        _ti_collect((_dup["id"] if isinstance(_dup, dict) else _dup[0]), _mc_eff, r, name)
+                        _ti_collect(_re_pid, _mc_eff, r, name)
                     except Exception:
                         pass
-                    skipped_dup.append({"row_no": r.get("row_no"), "name": name, "mgmt_code": _mc_eff})
+                    # v5H226z663 (대표 지시): 재업로드로 '상태'도 갱신 — 엑셀 '상태' 칸에 진행중/출하/취소/보류가 있으면
+                    #   그 관리번호 호기 전체 unit_status 를 그 값으로 UPDATE + 프로젝트/SO cascade(빈칸이면 기존 유지).
+                    _re_ust = _import_unit_status(r.get("status"), default="")
+                    if _re_ust:
+                        try:
+                            with db_session() as c:
+                                c.execute("UPDATE order_items SET unit_status=? "
+                                          "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?)",
+                                          (_re_ust, _re_pid))
+                                _pwf.cascade_unit_status_to_project(c, _re_pid)
+                        except Exception:
+                            pass
+                    skipped_dup.append({"row_no": r.get("row_no"), "name": name, "mgmt_code": _mc_eff,
+                                        "status_updated": _re_ust or ""})
                     continue
             if biz_div == "C" and not _mc_eff:
                 try:
