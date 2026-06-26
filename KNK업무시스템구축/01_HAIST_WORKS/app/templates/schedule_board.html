@@ -469,6 +469,14 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
       <span class="pill s-deliver">오늘 납품 {{ summary.deliver_today }}</span>
       <span class="pill s-delay">지연 {{ summary.delay }}</span>
     </div>
+    {# v5H226z664 (대표 지시): '지연' 옆에 달력 점 '상태 색상' 설명(범례) 상시 표시 — 색 기준은 z663(출하 기준 분리). #}
+    <span class="legend sched-status-legend" style="margin-left:16px;" title="작업일정표 달력의 납기일 점 색상 = 호기 상태 기준 (z663)">
+      <b style="font-weight:800;color:var(--qv-ink-2,#475569);">달력 점:</b>
+      <span><i style="background:#16a34a;"></i>출하</span>
+      <span><i style="background:#2563eb;"></i>진행중</span>
+      <span><i style="background:#b91c1c;"></i>지연</span>
+      <span><i style="background:#9ca3af;"></i>취소·보류</span>
+    </span>
     {# v5H226z547 (대표 지시): 보조 도구 접이 버튼(⚙ 도구) — 우측 그룹 시작(margin-left:auto). 범례는 도구 패널로 이동. #}
     <button type="button" class="sched-gear" onclick="toggleSchedTools(event)" style="margin-left:auto;" title="보기·표설정·정렬·묶어발행 도구 열기"><span class="ti">⚙</span> 도구 ▾</button>
     <a href="/dept/schedule" data-no-swap title="부서 일정표 — 부서별 진행/완료/변경 기록" style="text-decoration:none;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;"><span class="ti">🗓</span> 부서 일정표</a>
