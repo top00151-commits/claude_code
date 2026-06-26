@@ -18772,9 +18772,11 @@ def _merge_units_same(lines):
     return merged
 
 
-def _board_split_lines_map():
-    """프로젝트별 호기 라인(order_items)을 읽어, **단가(금액) 또는 납기가 호기마다 다른** 프로젝트만
-    {project_id: [line, ...]} 로 반환. (라인 1건이거나 전부 동일하면 제외 → 그 프로젝트는 기존 1줄 유지)
+def _board_split_lines_map(unfold_sos=True):
+    """프로젝트별 호기 라인(order_items)을 읽어 {project_id: [line, ...]} 로 반환.
+    · unfold_sos=True(작업일정표·엑셀): 한 관리번호에 SO 여러 개면 **각 수주번호를 별도 행**으로(z665). 단가/납기 다른 호기는 분할(z389/z454).
+    · unfold_sos=False(부서일정표): 기존 z638 — 메인(최초) SO만 행·추가 SO는 묶음(ref_sos)으로 한 관리번호=한 줄 유지.
+    · (라인 1건이거나 전부 동일한 단일 SO 는 제외 → 그 프로젝트는 기존 1줄 유지)
 
     line = {label, price, amount, currency, order_date, due_date, ship_to, so_no}
       · 납기/납품지/발주일/통화는 호기 override(order_items) 우선, 없으면 SO(orders) 값 상속.
@@ -18856,27 +18858,37 @@ def _board_split_lines_map():
                     return [_collapse_line(_so)]
                 return _merge_units_same(_ul)
 
-            # 프로젝트별로 SO 묶기 (oid 오름차순 = 최초 먼저). 메인=최초 SO, 나머지=추가(참고).
+            # 프로젝트별로 SO 묶기 (oid 오름차순 = 최초 먼저).
             _proj_sos: dict = {}
             for (pid, oid), so in _so_acc.items():
                 _proj_sos.setdefault(pid, []).append((oid, so))
             for pid, so_list in _proj_sos.items():
                 so_list.sort(key=lambda x: x[0])
-                _main = so_list[0][1]
-                _refs = [s for (_o, s) in so_list[1:]]
-                main_lines = _so_lines(_main)
-                # 참고(추가) SO 정보 — 메인 행의 '참고 칩'으로 표시
-                ref_data = [{
-                    "so_no": s["so_no"], "so_type": s["so_type"], "amount": s["o_total"],
-                    "currency": s["o_cur"], "order_date": s["o_ord"], "due_date": s["o_due"],
-                    "qty": s["o_qty"],
-                } for s in _refs]
-                if main_lines and ref_data:
-                    main_lines[0] = dict(main_lines[0])
-                    main_lines[0]["ref_sos"] = ref_data
-                # 메인이 호기분할(≥2)이거나 참고가 있으면 분할 처리. 단일·균일·참고없음이면 프로젝트 행 유지(편집 가능).
-                if len(main_lines) >= 2 or ref_data:
-                    out[pid] = main_lines
+                if unfold_sos:
+                    # v5H226z665 (대표 지시): 한 관리번호에 SO 여러 개면 '각 수주번호를 별도 행'으로
+                    #   (z638 '메인만 행·추가는 묶음' 폐지). 각 SO 가 자기 호기 라인(z389/z454 분할 유지)으로 행이 됨
+                    #   → 작업일정표에서 수주번호별 납기·상태·색이 보이고, 상세 '참고 수주' 클릭이 그 수주번호 행으로 이동 가능.
+                    all_lines = []
+                    for (_oid, _so) in so_list:
+                        all_lines.extend(_so_lines(_so))
+                    # 단일 SO·균일(1줄)이면 프로젝트 행(else 브랜치) 유지(편집 가능). SO 2개+ 또는 호기분할(≥2)이면 라인별 행.
+                    if len(all_lines) >= 2 or len(so_list) >= 2:
+                        out[pid] = all_lines
+                else:
+                    # 부서일정표 등: 기존 z638 — 메인(최초) SO만 행, 추가 SO는 묶음(ref_sos)으로 한 관리번호=한 줄(부서 기록 중복 방지).
+                    _main = so_list[0][1]
+                    _refs = [s for (_o, s) in so_list[1:]]
+                    main_lines = _so_lines(_main)
+                    ref_data = [{
+                        "so_no": s["so_no"], "so_type": s["so_type"], "amount": s["o_total"],
+                        "currency": s["o_cur"], "order_date": s["o_ord"], "due_date": s["o_due"],
+                        "qty": s["o_qty"],
+                    } for s in _refs]
+                    if main_lines and ref_data:
+                        main_lines[0] = dict(main_lines[0])
+                        main_lines[0]["ref_sos"] = ref_data
+                    if len(main_lines) >= 2 or ref_data:
+                        out[pid] = main_lines
     except Exception:
         return {}
     return out
@@ -20021,7 +20033,7 @@ async def projects_import_product_confirm(request: Request):
 
 @app.get("/sales/schedule", response_class=HTMLResponse)
 async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
-                         pf: str = "", pt: str = "", focus_ref: str = ""):
+                         pf: str = "", pt: str = "", focus_ref: str = "", focus_so: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -20336,7 +20348,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                col_prefs=_col_prefs, can_money=_can_money,
                biz=_biz, div_counts=div_counts,
                range_mode=range_mode, pf=(pf[:10] if range_mode else ""), pt=(pt[:10] if range_mode else ""),
-               focus_ref=((focus_ref or "")[:20]))  # v5H226z650c(대표 지시): 참고 수주(진행중) 클릭 시 해당 프로젝트 행으로 스크롤·강조(검색 필터 아님)
+               focus_ref=((focus_ref or "")[:20]),  # v5H226z650c(대표 지시): 참고 수주(진행중) 클릭 시 해당 프로젝트 행으로 스크롤·강조(검색 필터 아님)
+               focus_so=((focus_so or "")[:40]))  # v5H226z665(대표 지시): 특정 수주번호 행으로 정확히 이동(추가 수주가 별도 행이 됨)
 
 
 # v5H226z264 (대표 지시): 작업 일정표 보드 — 셀 편집/메모/칸설정 저장 라우트.
@@ -21333,7 +21346,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
         return info
 
     rows = []
-    _split_map = _board_split_lines_map()   # v5H226z549: 작업일정표와 동일 — 호기 단가/납기 상이 시 SO/호기별 분할(펼침이 수량과 일치)
+    _split_map = _board_split_lines_map(unfold_sos=False)   # v5H226z665: 부서일정표는 관리번호=한 줄 유지(추가 SO 묶음) — 부서 기록 중복 방지
     _bus_iid, _bus_proj = _board_unit_status_maps()   # v5H226z661 (대표 지시): 부서일정표 납기 지연색도 호기 출하 반영(작업일정표와 동일)
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":

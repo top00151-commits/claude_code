@@ -2295,12 +2295,20 @@ try{
 //   sessionStorage(z561)에 남아 '전체' 탭 눌러도 1건만 보이던 문제 해결.
 try{
   var _fref = {{ (focus_ref or '')|tojson }};
-  if(_fref){
+  var _fso = {{ (focus_so or '')|tojson }};   // v5H226z665: 특정 수주번호로 이동(추가 수주가 별도 행)
+  if(_fref || _fso){
     var _fi=document.getElementById('schedSearch');
     if(_fi && _fi.value){ _fi.value=''; schedDoSearch(); }   // 잔류 검색 해제(전체 표시)
     setTimeout(function(){
-      var _rows=document.querySelectorAll('#schedTable tbody tr[data-kind="project"][data-ref="'+_fref+'"]');
-      if(_rows.length){
+      var _rows=null;
+      // v5H226z665: 수주번호(focus_so) 우선 — 그 수주번호 행으로 정확히 이동. 없으면 관리번호(focus_ref) 행으로.
+      if(_fso){
+        try{ _rows=document.querySelectorAll('#schedTable tbody tr[data-sono="'+((window.CSS&&CSS.escape)?CSS.escape(_fso):_fso)+'"]'); }catch(e){ _rows=null; }
+      }
+      if((!_rows || !_rows.length) && _fref){
+        _rows=document.querySelectorAll('#schedTable tbody tr[data-kind="project"][data-ref="'+_fref+'"]');
+      }
+      if(_rows && _rows.length){
         _rows[0].scrollIntoView({behavior:'smooth', block:'center'});
         _rows.forEach(function(tr){ tr.classList.add('row-focus-flash'); });
         setTimeout(function(){ _rows.forEach(function(tr){ tr.classList.remove('row-focus-flash'); }); }, 2800);
