@@ -18764,6 +18764,7 @@ def _merge_units_same(lines):
         base = dict(grp[0])
         n = len(grp)
         base["count"] = n
+        base["qty"] = sum(int(g.get("qty") or 1) for g in grp)   # v5H226z666: 행 표시 수량 = 호기 qty 합(완제품=호기수, 제품/소모품=실수량)
         base["iids"] = [g.get("iid") for g in grp if g.get("iid")]   # v5H226z487: 묶인 호기 전체 iid(직접수정 대상)
         if n > 1:
             base["label"] = _summarize_unit_labels([g.get("label") for g in grp])
@@ -18836,6 +18837,7 @@ def _board_split_lines_map(unfold_sos=True):
                     "price": _so["o_total"], "amount": _so["o_total"], "currency": _so["o_cur"],
                     "order_date": _so["o_ord"], "due_date": _so["o_due"], "ship_to": _so["o_ship"],
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
+                    "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
                 }
 
             def _so_lines(_so):
@@ -18852,7 +18854,7 @@ def _board_split_lines_map(unfold_sos=True):
                         "iid": it.get("oi_id"), "label": (it.get("lbl") or "").strip(),
                         "price": float(it.get("up") or 0), "amount": float(it.get("amt") or 0),
                         "currency": eff_cur, "order_date": eff_ord[:10], "due_date": eff_due[:10],
-                        "ship_to": eff_ship, "so_no": _so["so_no"],
+                        "ship_to": eff_ship, "so_no": _so["so_no"], "qty": int(it.get("i_qty") or 1),
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -18871,8 +18873,11 @@ def _board_split_lines_map(unfold_sos=True):
                     all_lines = []
                     for (_oid, _so) in so_list:
                         all_lines.extend(_so_lines(_so))
-                    # 단일 SO·균일(1줄)이면 프로젝트 행(else 브랜치) 유지(편집 가능). SO 2개+ 또는 호기분할(≥2)이면 라인별 행.
-                    if len(all_lines) >= 2 or len(so_list) >= 2:
+                    # v5H226z666 (대표 지시·전면 통일): 호기(order_items)가 1건이라도 있으면 분할 경로로 보냄
+                    #   → 그 행이 is_unit(호기 기반)이 되어 읽기·쓰기가 정규 소스(order_items/orders)로 통일됨
+                    #   (단가/금액/납기/발주일/납품처는 /unit-field, projects 미러 의존 제거). 단일 SO·균일도 1줄 그대로 유지(행 수 불변).
+                    #   호기 0건(빈 SO만)인 단일 SO 프로젝트만 else 브랜치(projects 값) 유지 — 편집할 호기가 없음.
+                    if len(all_lines) >= 2 or len(so_list) >= 2 or any(_l.get("iids") for _l in all_lines):
                         out[pid] = all_lines
                 else:
                     # 부서일정표 등: 기존 z638 — 메인(최초) SO만 행, 추가 SO는 묶음(ref_sos)으로 한 관리번호=한 줄(부서 기록 중복 방지).
@@ -19250,7 +19255,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["price"] = _ln["price"]
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
-                _iu["qty"] = _ln.get("count", 1)   # z454: 묶인 동일 호기 수량
+                _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
@@ -20204,7 +20209,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 _iu["price"] = _ln["price"]
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
-                _iu["qty"] = _ln.get("count", 1)   # z454: 묶인 동일 호기 수량
+                _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
@@ -20848,10 +20853,10 @@ async def schedule_board_unit_field(request: Request):
     # v5H226z483/z484 (대표 지시): 발주일·납품처·통화·거래방식·비고 + 호기별 거래명세서·세금계산서(발행일+금액)
     _TAX_FIELDS = ("statement_date", "tax_invoice_date", "tax_invoice_amt1",
                    "tax_invoice_date2", "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3")
-    if field not in (("status", "due_date", "unit_price", "order_date", "ship_to", "currency", "is_export", "note") + _TAX_FIELDS):
+    if field not in (("status", "due_date", "unit_price", "qty", "order_date", "ship_to", "currency", "is_export", "note") + _TAX_FIELDS):
         return JSONResponse({"ok": False, "error": "bad_field"}, 400)
-    # 단가·거래명세서·세금계산서는 청구 성격 → 영업·관리만
-    if (field == "unit_price" or field in _TAX_FIELDS) and not can_view_sales(u):
+    # 단가·수량(금액 변동)·거래명세서·세금계산서는 청구 성격 → 영업·관리만
+    if (field in ("unit_price", "qty") or field in _TAX_FIELDS) and not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
     try:
         with db_session() as c:
@@ -20890,6 +20895,25 @@ async def schedule_board_unit_field(request: Request):
                 qty = float(it.get("qty") or 1) or 1
                 c.execute("UPDATE order_items SET unit_price=?, amount=?, updated_at=datetime('now','localtime') WHERE id=?",
                           (up, up * qty, iid))
+                oid = it.get("order_id")
+                rws = c.execute("SELECT amount FROM order_items WHERE order_id=?", (oid,)).fetchall()
+                new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
+                c.execute("UPDATE orders SET total_amount=?, updated_at=datetime('now','localtime') WHERE id=?", (new_total, oid))
+                if pid:
+                    row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
+                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+            elif field == "qty":
+                # v5H226z666 (대표 지시): 수량 — 호기 qty + 금액(단가×수량) 갱신 + SO·프로젝트 금액 자가치유(단가와 동일 경로).
+                try:
+                    q = float(str(value).replace(",", "")) if value not in (None, "") else 0.0
+                except Exception:
+                    return JSONResponse({"ok": False, "error": "수량 형식 오류"}, 400)
+                if q <= 0:
+                    q = 1.0
+                _uprow = c.execute("SELECT COALESCE(unit_price,0) FROM order_items WHERE id=?", (iid,)).fetchone()
+                _up = float((_uprow[0] if _uprow else 0) or 0)
+                c.execute("UPDATE order_items SET qty=?, amount=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          (q, _up * q, iid))
                 oid = it.get("order_id")
                 rws = c.execute("SELECT amount FROM order_items WHERE order_id=?", (oid,)).fetchall()
                 new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
@@ -21371,7 +21395,7 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
             for _ln in _ulines:
                 _iu = dict(info)
                 _iu["so_no"] = _ln.get("so_no") or info.get("so_no") or ""
-                _iu["qty"] = _ln.get("count", 1)
+                _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z666: 라인 실수량
                 _iu["order_date"] = (_ln.get("order_date") or info.get("order_date") or "")
                 _iu["due_date"] = (_ln.get("due_date") or info.get("due_date") or "")
                 _iu["uids"] = _ln.get("iids") or []
