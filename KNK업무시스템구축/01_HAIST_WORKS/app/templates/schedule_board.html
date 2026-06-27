@@ -1578,7 +1578,7 @@ function startUnitEdit(td, tr, uids){
     if(!save){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
     let ufield, uvalue;
     if(fld==='price'){ ufield='unit_price'; uvalue=val.replace(/,/g,''); }
-    else if(fld==='amount'){ ufield='unit_price'; var n=parseFloat(val.replace(/,/g,''))||0; var _rq=parseFloat(tr.dataset.qty)||uids.length||1; uvalue=String(n/Math.max(1,_rq)); }   // v5H226z666: 금액÷행수량(총수량)으로 단가 역산 — 소모품 qty>1·완제품 묶음 모두 정확
+    else if(fld==='amount'){ ufield='amount'; var n=parseFloat(val.replace(/,/g,''))||0; uvalue=String(n/Math.max(1,uids.length)); }   // v5H226z669: 금액 직접 저장(행 금액÷묶인 호기수로 분배) → 서버가 그 호기 qty로 단가 역산(단가↔금액 역연산·폭주 방지)
     else if(fld==='qty'){ ufield='qty'; uvalue=val.replace(/,/g,''); }   // v5H226z666: 수량 → /unit-field(order_items.qty+금액 재계산)
     else { ufield=fld; uvalue=val; }   // due_date·order_date·ship_to 그대로
     try{

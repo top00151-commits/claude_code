@@ -20887,10 +20887,10 @@ async def schedule_board_unit_field(request: Request):
     # v5H226z483/z484 (대표 지시): 발주일·납품처·통화·거래방식·비고 + 호기별 거래명세서·세금계산서(발행일+금액)
     _TAX_FIELDS = ("statement_date", "tax_invoice_date", "tax_invoice_amt1",
                    "tax_invoice_date2", "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3")
-    if field not in (("status", "due_date", "unit_price", "qty", "order_date", "ship_to", "currency", "is_export", "note") + _TAX_FIELDS):
+    if field not in (("status", "due_date", "unit_price", "qty", "amount", "order_date", "ship_to", "currency", "is_export", "note") + _TAX_FIELDS):
         return JSONResponse({"ok": False, "error": "bad_field"}, 400)
-    # 단가·수량(금액 변동)·거래명세서·세금계산서는 청구 성격 → 영업·관리만
-    if (field in ("unit_price", "qty") or field in _TAX_FIELDS) and not can_view_sales(u):
+    # 단가·수량·금액(청구 성격)·거래명세서·세금계산서는 영업·관리만
+    if (field in ("unit_price", "qty", "amount") or field in _TAX_FIELDS) and not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
     try:
         with db_session() as c:
@@ -20929,6 +20929,24 @@ async def schedule_board_unit_field(request: Request):
                 qty = float(it.get("qty") or 1) or 1
                 c.execute("UPDATE order_items SET unit_price=?, amount=?, updated_at=datetime('now','localtime') WHERE id=?",
                           (up, up * qty, iid))
+                oid = it.get("order_id")
+                rws = c.execute("SELECT amount FROM order_items WHERE order_id=?", (oid,)).fetchall()
+                new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
+                c.execute("UPDATE orders SET total_amount=?, updated_at=datetime('now','localtime') WHERE id=?", (new_total, oid))
+                if pid:
+                    row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
+                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+            elif field == "amount":
+                # v5H226z669 (대표 지시·폭주 버그 수정): 금액 직접 저장 + 단가=금액÷그 호기 qty(서버 권위)로 역산.
+                #   클라는 '행 금액÷묶인 호기수'로 분배해 보냄. 단가↔금액이 서로 역연산이라 반복 클릭에도 값이 안 커짐
+                #   (기존: 금액편집이 클라 data-qty로 나누고 서버가 호기 qty로 곱해, 둘이 어긋나면 클릭마다 배수 폭주).
+                try:
+                    av = float(str(value).replace(",", "")) if value not in (None, "") else 0.0
+                except Exception:
+                    return JSONResponse({"ok": False, "error": "금액 형식 오류"}, 400)
+                qv = float(it.get("qty") or 1) or 1
+                c.execute("UPDATE order_items SET amount=?, unit_price=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          (av, av / qv, iid))
                 oid = it.get("order_id")
                 rws = c.execute("SELECT amount FROM order_items WHERE order_id=?", (oid,)).fetchall()
                 new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
