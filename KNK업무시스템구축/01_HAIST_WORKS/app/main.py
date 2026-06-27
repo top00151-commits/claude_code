@@ -6279,15 +6279,21 @@ async def project_detail(req: Request, pid: int):
                 _ptype_h = (p.get("project_type") if isinstance(p, dict) else (p["project_type"] if "project_type" in p.keys() else "")) or "NEW_EQUIP"
                 if (not _pre_sos and _p_status in _logi.WON_STATUSES and _p_amt > 0
                     and _ptype_h == "NEW_EQUIP"):
+                    # v5H226z667 (대표 지시): 자가치유가 수량(unit_qty)을 무시하고 '총액 1줄'을 만들어
+                    #   order_items 단가=총액으로 깨지던 버그 수정 → 수량만큼 호기별 per-unit 라인 생성.
+                    _pq_h = max(1, int((p.get("unit_qty") if isinstance(p, dict) else (p["unit_qty"] if "unit_qty" in p.keys() else 1)) or 1))
+                    _upp_h = (p.get("unit_price") if isinstance(p, dict) else (p["unit_price"] if "unit_price" in p.keys() else 0)) or 0
+                    _per_h = float(_upp_h) if _upp_h else (_p_amt / _pq_h)   # 호기 1대 단가(미러 우선·없으면 총액÷수량)
+                    _due_h = (p.get("due_date") if isinstance(p, dict) else p["due_date"]) or ""
                     res = _pwf.confirm_order_multi(
                         c2, int(pid),
                         units=[{
-                            "label": _logi.project_unit_label(_ptype_h, 1),
-                            "amount": _p_amt,
-                            "due_date": (p.get("due_date") if isinstance(p, dict) else p["due_date"]) or "",
+                            "label": _logi.project_unit_label(_ptype_h, _i + 1),
+                            "amount": _per_h,
+                            "due_date": _due_h,
                             "ship_to": "",
                             "note": "",
-                        }],
+                        } for _i in range(_pq_h)],
                         order_date=(p.get("order_date") if isinstance(p, dict) else p["order_date"]) or "",
                         created_by=u.get("id") or 0,
                         po_number=(p.get("customer_po") if isinstance(p, dict) else (p["customer_po"] if "customer_po" in p.keys() else "")) or "",
@@ -8008,17 +8014,30 @@ def _unit_split_find(c):
         rows = c.execute(
             "SELECT oi.id, oi.order_id, oi.qty, oi.unit_price, oi.amount, oi.unit_label, "
             "       o.order_no, COALESCE(o.currency,'KRW') AS o_cur, "
-            "       p.mgmt_code, COALESCE(p.project_type,'NEW_EQUIP') AS ptype, p.name, p.model_name "
+            "       p.mgmt_code, COALESCE(p.project_type,'NEW_EQUIP') AS ptype, p.name, p.model_name, "
+            "       COALESCE(p.unit_qty,1) AS p_unit_qty "
             "FROM order_items oi "
             "JOIN orders o ON o.id = oi.order_id "
             "JOIN projects p ON p.id = o.project_id "
-            "WHERE COALESCE(oi.qty,1) > 1 "
+            "WHERE ( COALESCE(oi.qty,1) > 1 "
+            # v5H226z667: 자가치유가 만든 '수량=1·단가=총액 단일줄'(프로젝트 수량 N>1)도 대상 — 금액÷N 으로 호기 분할
+            "        OR ( COALESCE(oi.qty,1) <= 1 AND COALESCE(p.unit_qty,1) > 1 "
+            "             AND COALESCE(oi.amount,0) > 0 "
+            "             AND ROUND(COALESCE(oi.amount,0)) = ROUND(COALESCE(oi.unit_price,0)) "
+            "             AND (SELECT COUNT(*) FROM order_items oi2 WHERE oi2.order_id=oi.order_id) = 1 ) ) "
             "  AND COALESCE(p.project_type,'') <> 'CONSUMABLE' "
             "  AND COALESCE(NULLIF(UPPER(TRIM(p.shipment_form)),''),'ASSEMBLY') = 'ASSEMBLY' "
             "  AND COALESCE(UPPER(o.so_type),'') NOT IN ('PARTS_EXPORT','CONSUMABLE') "
             "ORDER BY p.mgmt_code, oi.id"
         ).fetchall()
-        return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            d = dict(r)
+            _q = int(round(float(d.get("qty") or 1)))
+            # 분할 호기 수 = 라인 qty(>1) 또는 자가치유 단일줄이면 프로젝트 수량(p_unit_qty)
+            d["split_n"] = _q if _q > 1 else int(d.get("p_unit_qty") or 1)
+            out.append(d)
+        return out
     except Exception:
         return []
 
@@ -8036,7 +8055,8 @@ async def admin_unit_split_preview(req: Request):
             "<h2>🧩 완제품 호기 일괄 분할 (1줄 → N호기)</h2>",
             "<p style='color:#555;font-size:13px;line-height:1.7;'>z629 시절 <b>1줄(수량 N)</b>으로 저장된 <b>완제품(장비)</b>을 <b>호기별 N줄</b>로 분할합니다. "
             "부품·소모품·제품(반제품)·기타는 <b>제외</b>(거긴 1줄이 정상). 기존 데이터는 보존하며(재업로드 불필요), "
-            "단가=금액÷수량으로 호기별 분배하고 세금계산서·거래명세서는 <b>1호기에 보존</b>합니다.</p>",
+            "단가=금액÷수량으로 호기별 분배하고 세금계산서·거래명세서는 <b>1호기에 보존</b>합니다. "
+            "v5H226z667: 자가치유로 만들어진 <b>'수량=1·단가=총액' 단일줄</b>(프로젝트 수량 N&gt;1)도 함께 정리합니다.</p>",
             "<p style='font-size:12px;'><a href='/admin/proj-raw'>→ 원시 데이터 보기(proj-raw)</a></p>"]
     with db_session() as c:
         targets = _unit_split_find(c)
@@ -8048,7 +8068,7 @@ async def admin_unit_split_preview(req: Request):
                 "<th>관리번호</th><th>수주번호</th><th>품명/모델</th><th>현재 수량</th><th>1대 단가</th><th>금액(합계)</th><th>→ 분할</th></tr>")
     _tot_lines = 0
     for t in targets:
-        n = int(round(float(t["qty"] or 1)))
+        n = int(t.get("split_n") or round(float(t["qty"] or 1)))   # v5H226z667: 분할 호기 수(라인 qty 또는 프로젝트 수량)
         _tot_lines += n
         per = (float(t["amount"] or 0) / n) if n else 0
         body.append("<tr><td><b>" + _esc(t["mgmt_code"]) + "</b></td><td>" + _esc(t["order_no"]) + "</td>"
@@ -8090,7 +8110,7 @@ async def admin_unit_split_apply(req: Request, confirm: str = Form("")):
                 if not full:
                     continue
                 fd = dict(full)
-                n = int(round(float(t["qty"] or 1)))
+                n = int(t.get("split_n") or round(float(t["qty"] or 1)))   # v5H226z667: 라인 qty 또는 프로젝트 수량
                 if n < 2:
                     continue
                 amount = float(t["amount"] or 0)
