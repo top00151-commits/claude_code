@@ -18817,12 +18817,17 @@ def _board_split_lines_map(unfold_sos=True):
             #   · 빈 SO(호기 미입력)도 LEFT JOIN 으로 1줄. 취소 SO 제외. SO 가 1개·균일이면 분할 안 함(프로젝트 1줄 유지·편집 가능).
             _i_extra = ("oi.order_date AS i_ord, oi.due_date AS i_due, oi.ship_to AS i_ship, oi.currency AS i_cur"
                         if _has_extra else "'' AS i_ord, '' AS i_due, '' AS i_ship, '' AS i_cur")
+            _i_extra += (", oi.is_export AS i_iex" if "is_export" in _oi_cols else ", NULL AS i_iex")   # v5H226z668: 호기 거래방식(수출/내수)
             _sotype_col = "COALESCE(o.so_type,'') AS so_type" if _has_sotype else "'' AS so_type"
+            # v5H226z668 (대표 지시): SO 발주처(구매대행사 등) — orders.customer_id → 고객사명(행에 작게 표기용)
+            _ocust_col = ("o.customer_id AS o_cust_id, (SELECT name FROM customers cu WHERE cu.id=o.customer_id) AS o_cust_name"
+                          if "customer_id" in _ord_cols else "NULL AS o_cust_id, '' AS o_cust_name")
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
                 "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
+                + _ocust_col + ", "
                 "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
                 + _i_extra + " "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
@@ -18844,6 +18849,7 @@ def _board_split_lines_map(unfold_sos=True):
                         "o_total": float(d.get("o_total") or 0), "o_qty": int(d.get("o_qty") or 1),
                         "o_ord": str(d.get("o_ord") or "")[:10], "o_due": str(d.get("o_due") or "")[:10],
                         "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
+                        "o_cust": (d.get("o_cust_name") or ""),   # v5H226z668: SO 발주처
                         "items": [],
                     }
                 if d.get("oi_id") is not None:
@@ -18858,6 +18864,7 @@ def _board_split_lines_map(unfold_sos=True):
                     "order_date": _so["o_ord"], "due_date": _so["o_due"], "ship_to": _so["o_ship"],
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
+                    "so_customer": _so.get("o_cust") or "", "is_export": None,   # v5H226z668: SO 발주처(거래방식은 프로젝트 폴백)
                 }
 
             def _so_lines(_so):
@@ -18875,6 +18882,7 @@ def _board_split_lines_map(unfold_sos=True):
                         "price": float(it.get("up") or 0), "amount": float(it.get("amt") or 0),
                         "currency": eff_cur, "order_date": eff_ord[:10], "due_date": eff_due[:10],
                         "ship_to": eff_ship, "so_no": _so["so_no"], "qty": int(it.get("i_qty") or 1),
+                        "is_export": it.get("i_iex"), "so_customer": _so.get("o_cust") or "",   # v5H226z668: 호기 거래방식·SO 발주처
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -19279,6 +19287,9 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
+                if _ln.get("is_export") is not None:   # v5H226z668: 호기 거래방식(수출/내수) 반영 — 수주내역과 일치
+                    _iu["trade"] = "수출" if int(_ln.get("is_export") or 0) else "내수"
+                _iu["so_customer"] = _ln.get("so_customer") or ""   # v5H226z668: SO 발주처(대표 고객과 다르면 행에 표기)
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and not (cust and cust not in (_ru["customer"] or "")):
@@ -20233,6 +20244,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
+                if _ln.get("is_export") is not None:   # v5H226z668: 호기 거래방식(수출/내수) 반영 — 수주내역과 일치
+                    _iu["trade"] = "수출" if int(_ln.get("is_export") or 0) else "내수"
+                _iu["so_customer"] = _ln.get("so_customer") or ""   # v5H226z668: SO 발주처(대표 고객과 다르면 행에 표기)
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and not (cust and cust not in (_ru["customer"] or "")):

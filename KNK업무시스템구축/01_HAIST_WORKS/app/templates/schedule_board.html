@@ -639,7 +639,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           <td class="c-info cw-po{% if r.kind != 'consumable' %} editable{% if r.po_type %} filled{% endif %}{% endif %}" data-col="po"{% if r.kind != 'consumable' %} data-edit="po_type"{% endif %}>{{ r.po_type or ('＋' if r.kind != 'consumable' else '—') }}</td>
           {# v5H226z349 (대표 지시): 형태(제품/상품/기타) — 프로젝트는 드롭다운 선택 편집, 소모품은 '상품' 고정(읽기전용) #}
           <td class="c-info cw-form{% if r.kind != 'consumable' %} editable{% if r.form_type %} filled{% endif %}{% endif %}" data-col="form"{% if r.kind != 'consumable' %} data-edit="form_type"{% endif %}>{{ r.form_type or ('＋' if r.kind != 'consumable' else '—') }}</td>
-          <td class="c-info cw-cust{% if not r.cust_ok %} cust-unmatched{% endif %}{% if r.kind != 'consumable' %} editable{% if r.customer and r.customer != '—' %} filled{% endif %}{% endif %}" data-col="cust" data-real="{{ r.customer }}"{% if r.kind != 'consumable' %} data-edit="cust"{% endif %} title="정식: {{ r.customer }}{% if r.customer_disp and r.customer_disp != r.customer %} · 시스템명: {{ r.customer_disp }}{% endif %}{% if not r.cust_ok %} — 등록 고객사 미연결(확인 필요){% endif %}">{{ r.customer_disp or r.customer }}</td>
+          <td class="c-info cw-cust{% if not r.cust_ok %} cust-unmatched{% endif %}{% if r.kind != 'consumable' %} editable{% if r.customer and r.customer != '—' %} filled{% endif %}{% endif %}" data-col="cust" data-real="{{ r.customer }}"{% if r.kind != 'consumable' %} data-edit="cust"{% endif %} title="정식: {{ r.customer }}{% if r.customer_disp and r.customer_disp != r.customer %} · 시스템명: {{ r.customer_disp }}{% endif %}{% if not r.cust_ok %} — 등록 고객사 미연결(확인 필요){% endif %}{% if r.so_customer and r.so_customer != r.customer and r.so_customer != r.customer_disp %} · 발주처: {{ r.so_customer }}{% endif %}">{{ r.customer_disp or r.customer }}{% if r.so_customer and r.so_customer != r.customer and r.so_customer != r.customer_disp %}<div style="font-size:9.5px;color:#7c3aed;font-weight:600;white-space:nowrap;">↪ 발주 {{ r.so_customer }}</div>{% endif %}</td>
           <td class="c-info cw-cust2{% if r.kind != 'consumable' %} editable{% if r.cust2 %} filled{% endif %}{% endif %}" data-col="cust2"{% if r.kind != 'consumable' %} data-edit="cust2"{% endif %} title="{{ r.cust2 }}">{{ r.cust2 or ('＋' if r.kind != 'consumable' else '') }}</td>
           <td class="c-info cw-dept editable{% if r.dept %} filled{% endif %}" data-col="dept" data-edit="dept">{{ r.dept or '＋' }}</td>
           <td class="c-info cw-owner editable{% if r.owner %} filled{% endif %}" data-col="owner" data-edit="owner">{{ r.owner or '＋' }}</td>
@@ -1609,6 +1609,17 @@ function startSelectEdit(td, tr, opts){
     if(done) return; done=true;
     const val=sel.value;
     if(!save || val===cur){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
+    // v5H226z668: 거래방식(trade)은 호기(is_unit) 행이면 그 호기(order_items.is_export)에 저장 — 표시(호기값)와 일치
+    var _uidsT=(tr.dataset.uids||'').split(',').filter(Boolean);
+    if(td.dataset.edit==='trade' && _uidsT.length){
+      var _iexV=(val==='수출')?'1':'0';
+      Promise.all(_uidsT.map(function(uid){ return fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:parseInt(uid,10),field:'is_export',value:_iexV})}).then(function(r){return r.json();}); }))
+        .then(function(rs){ _editing=null; var okAll=rs.every(function(j){return j&&j.ok;});
+          if(okAll){ td.textContent=val||'＋'; td.classList.toggle('filled',!!val); td.title=val; toast('저장됨 · 호기 반영'); }
+          else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ 저장 실패'); } })
+        .catch(function(){ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
+      return;
+    }
     fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||''})})
       .then(r=>r.json()).then(j=>{
