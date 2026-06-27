@@ -1575,7 +1575,9 @@ function startUnitEdit(td, tr, uids){
     if(done) return; done=true;
     let val=inp.value.trim();
     if(['order_date','due_date'].indexOf(fld)>=0) val=_normDate(val);
-    if(!save){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
+    // v5H226z671 (대표 지시·폭주 재발 차단): 값이 안 바뀌었으면 저장하지 않음(클릭만 했다 나가도 재저장→금액 재계산이 도는 것 방지).
+    //   화면이 옛 값(폭주 잔재)일 때 클릭만으로 그 값을 다시 써 재손상되던 문제 차단. (startSelectEdit 와 동일 가드)
+    if(!save || val===cur){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
     let ufield, uvalue;
     if(fld==='price'){ ufield='unit_price'; uvalue=val.replace(/,/g,''); }
     else if(fld==='amount'){ ufield='amount'; var n=parseFloat(val.replace(/,/g,''))||0; uvalue=String(n/Math.max(1,uids.length)); }   // v5H226z669: 금액 직접 저장(행 금액÷묶인 호기수로 분배) → 서버가 그 호기 qty로 단가 역산(단가↔금액 역연산·폭주 방지)
