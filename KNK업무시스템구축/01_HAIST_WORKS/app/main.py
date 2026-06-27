@@ -8155,6 +8155,123 @@ async def admin_unit_split_apply(req: Request, confirm: str = Form("")):
     return HTMLResponse("".join(body))
 
 
+def _unit_price_fix_find(c):
+    """v5H226z670 (대표 지시): 클릭 폭주(z666 회귀)로 망가진 단가/금액 복구 대상 — 안 망가진 미러(projects.unit_price)로 복원.
+    대상: 완제품(NEW_EQUIP)·취소 아닌 SO·projects.unit_price>0 이고
+      (금액 != 단가×수량 불일치) 또는 (금액 > 미러총액×3 과대). 복원값: 단가=미러단가·금액=미러단가×그 호기 qty."""
+    try:
+        rows = c.execute(
+            "SELECT oi.id, oi.order_id, COALESCE(oi.unit_price,0) AS up, COALESCE(oi.amount,0) AS amt, "
+            "       COALESCE(oi.qty,1) AS qty, o.order_no, o.project_id AS pid, "
+            "       p.mgmt_code, p.name, p.model_name, COALESCE(o.currency,'KRW') AS o_cur, "
+            "       COALESCE(p.unit_price,0) AS mirror_up, COALESCE(p.unit_qty,1) AS p_uq "
+            "FROM order_items oi "
+            "JOIN orders o ON o.id=oi.order_id "
+            "JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' "
+            "  AND COALESCE(p.project_type,'NEW_EQUIP')='NEW_EQUIP' "
+            "  AND COALESCE(p.unit_price,0) > 0 "
+            "  AND ( ABS(COALESCE(oi.amount,0) - COALESCE(oi.unit_price,0)*COALESCE(oi.qty,1)) > 1 "
+            "        OR COALESCE(oi.amount,0) > COALESCE(p.unit_price,0)*COALESCE(p.unit_qty,1)*3 ) "
+            "ORDER BY p.mgmt_code, oi.id"
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["new_up"] = float(d["mirror_up"])
+            d["new_amt"] = round(float(d["mirror_up"]) * float(d["qty"] or 1))
+            out.append(d)
+        return out
+    except Exception:
+        return []
+
+
+@app.get("/admin/fix-unit-price", response_class=HTMLResponse)
+async def admin_fix_unit_price_preview(req: Request):
+    """v5H226z670 (대표 지시): 폭주로 망가진 단가/금액 복구 — 미러(projects.unit_price)로 복원. 미리보기(읽기전용)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1200px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+            "<h2>🩹 단가/금액 폭주 복구 (미러에서 복원)</h2>",
+            "<p style='color:#555;font-size:13px;line-height:1.7;'>클릭 폭주로 호기 단가/금액이 망가진 건을, <b>안 망가진 미러(projects 등록 단가)</b>로 복원합니다. "
+            "대상 = 완제품 중 <b>금액≠단가×수량</b>(불일치)이거나 <b>금액이 미러 총액의 3배 초과</b>(과대)인 호기. "
+            "복원값 = <b>단가=미러 단가 · 금액=미러 단가×수량</b>. 아래 표에서 '현재 vs 복원'을 확인하고 실행하세요. (실행 전엔 무변경)</p>",
+            "<p style='font-size:12px;'><a href='/admin/proj-raw'>→ 원시 데이터 보기(proj-raw)</a></p>"]
+    with db_session() as c:
+        targets = _unit_price_fix_find(c)
+    if not targets:
+        body.append("<p style='color:#15803d;font-weight:700;padding:14px;background:#f0fdf4;border-radius:8px;'>✅ 복구할 망가진 단가/금액이 없습니다.</p></div>")
+        return HTMLResponse("".join(body))
+    body.append(f"<h3>복구 대상 — {len(targets)}건</h3>")
+    body.append("<table border=1 cellpadding=6 style='border-collapse:collapse;font-size:12.5px;'><tr>"
+                "<th>관리번호</th><th>수주번호</th><th>품명/모델</th><th>수량</th>"
+                "<th>현재 단가</th><th>현재 금액</th><th>미러 단가</th><th>→ 복원 단가</th><th>→ 복원 금액</th></tr>")
+    for t in targets:
+        body.append("<tr><td><b>" + _esc(t["mgmt_code"]) + "</b></td><td>" + _esc(t["order_no"]) + "</td>"
+                    "<td>" + _esc(t["model_name"] or t["name"]) + "</td>"
+                    "<td style='text-align:center;'>" + str(int(t["qty"])) + "</td>"
+                    "<td style='text-align:right;color:#b91c1c;'>" + f"{float(t['up']):,.0f}" + "</td>"
+                    "<td style='text-align:right;color:#b91c1c;'>" + f"{float(t['amt']):,.0f}" + "</td>"
+                    "<td style='text-align:right;'>" + f"{float(t['mirror_up']):,.0f}" + "</td>"
+                    "<td style='text-align:right;color:#15803d;font-weight:700;'>" + f"{float(t['new_up']):,.0f}" + "</td>"
+                    "<td style='text-align:right;color:#15803d;font-weight:700;'>" + f"{float(t['new_amt']):,.0f}" + "</td></tr>")
+    body.append("</table>")
+    body.append("<form method='post' action='/admin/fix-unit-price' style='margin-top:16px;padding:14px;background:#fff7ed;border:1px solid #f59e0b;border-radius:10px;'>"
+                "<p style='margin:0 0 8px;color:#9a3412;font-weight:700;'>⚠ 실행 전 확인 — 위 '복원 단가/금액'으로 덮어씁니다. 확인 문구 <code>단가복구</code> 입력 후 실행.</p>"
+                "<input name='confirm' placeholder='단가복구' style='padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;'>"
+                " <button type='submit' style='padding:8px 18px;background:#b45309;color:#fff;border:0;border-radius:6px;font-weight:700;cursor:pointer;'>단가/금액 복구 실행</button>"
+                "</form></div>")
+    return HTMLResponse("".join(body))
+
+
+@app.post("/admin/fix-unit-price")
+async def admin_fix_unit_price_apply(req: Request, confirm: str = Form("")):
+    """v5H226z670: 폭주 망가진 단가/금액 복구 실행 — order_items.unit_price=미러·amount=미러×qty + SO·프로젝트 금액 재계산."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    if (confirm or "").strip() != "단가복구":
+        return HTMLResponse("<meta charset='utf-8'><div style='font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 18px;'>"
+                            "<p style='color:#b91c1c;font-weight:700;'>확인 문구가 일치하지 않습니다. '단가복구' 를 정확히 입력하세요.</p>"
+                            "<p><a href='/admin/fix-unit-price'>← 돌아가기</a></p></div>")
+    n_fix = 0; errors = []; affected_o = set(); affected_p = set()
+    with db_session() as c:
+        targets = _unit_price_fix_find(c)
+        for t in targets:
+            try:
+                c.execute("UPDATE order_items SET unit_price=?, amount=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          (float(t["new_up"]), float(t["new_amt"]), t["id"]))
+                affected_o.add(t["order_id"]); affected_p.add(t["pid"]); n_fix += 1
+            except Exception as e:
+                errors.append(f"{t.get('mgmt_code')}: {str(e)[:80]}")
+        for oid in affected_o:
+            try:
+                rws = c.execute("SELECT COALESCE(amount,0) FROM order_items WHERE order_id=?", (oid,)).fetchall()
+                tot = sum(float((r[0] if isinstance(r, tuple) else r[0]) or 0) for r in rws)
+                c.execute("UPDATE orders SET total_amount=?, updated_at=datetime('now','localtime') WHERE id=?", (tot, oid))
+            except Exception as e:
+                errors.append(f"SO {oid}: {str(e)[:80]}")
+        for pid in affected_p:
+            try:
+                row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
+                c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+            except Exception as e:
+                errors.append(f"PRJ {pid}: {str(e)[:80]}")
+    body = ["<meta charset='utf-8'><div style='font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 18px;'>",
+            "<h2>🩹 단가/금액 복구 완료</h2>",
+            f"<p style='font-size:15px;'>✅ 호기 <b>{n_fix}건</b> 복원 — SO <b>{len(affected_o)}건</b>·프로젝트 <b>{len(affected_p)}건</b> 금액 재계산.</p>"]
+    if errors:
+        body.append("<p style='color:#b91c1c;'>일부 오류:</p><ul>" + "".join("<li>" + _esc(e) + "</li>" for e in errors[:20]) + "</ul>")
+    body.append("<p style='margin-top:14px;'><a href='/admin/fix-unit-price'>← 다시 보기(남은 대상)</a> · "
+                "<a href='/sales/schedule'>작업일정표로</a></p></div>")
+    return HTMLResponse("".join(body))
+
+
 @app.post("/admin/sync-directory")
 async def admin_sync_directory(req: Request):
     """메신저 직원 명부 → 전 직원 일괄 동기화 (admin/ceo 전용)."""
