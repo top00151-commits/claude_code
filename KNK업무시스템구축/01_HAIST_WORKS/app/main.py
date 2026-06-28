@@ -19247,6 +19247,117 @@ def _enrich_units_tax(c, project_id, units, can_money, iid_key="iid"):
     return units
 
 
+@app.get("/admin/tax-trace")
+async def admin_tax_trace(req: Request, code: str = ""):
+    """v5H226z674 (대표 지시·읽기전용 진단): 한 관리번호의 세금계산서가 어디에 저장돼 있고
+    작업일정표(보드)와 수주내역(상세)이 각각 무엇을 읽는지 추적 → 두 화면 불일치 원인 진단.
+    데이터 변경 없음(전부 SELECT). admin/ceo 전용."""
+    from fastapi.responses import HTMLResponse
+    u = require(req, ["admin", "ceo"])
+    code = (code or "").strip().upper()
+
+    def _e(x):
+        return (str(x if x is not None else "")
+                .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+    def _row_html(cells):
+        return "<tr>" + "".join("<td>" + _e(c2) + "</td>" for c2 in cells) + "</tr>"
+
+    _tc = ["statement_date", "tax_invoice_date", "tax_invoice_amt1",
+           "tax_invoice_date2", "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3"]
+    H = ["<html><head><meta charset='utf-8'><title>세금계산서 추적</title><style>",
+         "body{font-family:system-ui,'Malgun Gothic';font-size:13px;padding:18px;color:#1f2937;}",
+         "table{border-collapse:collapse;margin:6px 0 22px;}th,td{border:1px solid #cbd5e1;padding:4px 8px;white-space:nowrap;}",
+         "th{background:#f1f5f9;}h2{font-size:16px;}h3{font-size:14px;margin:16px 0 4px;color:#334155;}",
+         "code{background:#f1f5f9;padding:1px 5px;border-radius:3px;}</style></head><body>",
+         f"<h2>📄 세금계산서 추적 — 관리번호 <code>{_e(code)}</code></h2>",
+         "<p style='color:#64748b;'>읽기 전용(데이터 변경 없음). ①보드(작업일정표)와 ②상세(수주내역)가 읽는 값을 비교하세요.</p>"]
+    if not code:
+        H.append("<p>관리번호를 <code>?code=006T2603</code> 처럼 붙여 호출하세요.</p></body></html>")
+        return HTMLResponse("".join(H))
+    pid = None
+    with db_session() as c:
+        _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        _ordc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+        prj = c.execute("SELECT id, mgmt_code, order_amount, unit_price, unit_qty, status "
+                        "FROM projects WHERE UPPER(mgmt_code)=?", (code,)).fetchone()
+        if not prj:
+            H.append(f"<p style='color:#b91c1c;'>관리번호 {_e(code)} 프로젝트를 찾지 못했습니다.</p></body></html>")
+            return HTMLResponse("".join(H))
+        prj = dict(prj)
+        pid = prj["id"]
+        H.append("<h3>프로젝트(projects · 미러)</h3><table>"
+                 + _row_html(["id", "관리번호", "order_amount", "unit_price", "unit_qty", "status"])
+                 + _row_html([pid, prj.get("mgmt_code"), prj.get("order_amount"),
+                              prj.get("unit_price"), prj.get("unit_qty"), prj.get("status")]) + "</table>")
+        _osel = ",".join((f"o.{f}" if f in _ordc else f"NULL AS {f}") for f in _tc)
+        sos = [dict(r) for r in c.execute(
+            f"SELECT id, order_no, order_date, COALESCE(status,'') st, COALESCE(total_amount,0) tot, {_osel} "
+            f"FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall()]
+        _sono = {s["id"]: s["order_no"] for s in sos}
+        H.append("<h3>수주(orders=수주번호) + orders 칸의 세금계산서</h3><table>"
+                 + _row_html(["oid", "수주번호", "발주일", "status", "total"] + ["o." + f for f in _tc]))
+        for s in sos:
+            H.append(_row_html([s["id"], s["order_no"], s["order_date"], s["st"], s["tot"]]
+                               + [s.get(f) for f in _tc]))
+        H.append("</table>")
+        _isel = ",".join((f"oi.{f}" if f in _oic else f"NULL AS {f}") for f in _tc)
+        its = [dict(r) for r in c.execute(
+            f"SELECT oi.id iid, oi.order_id oid, oi.unit_label lbl, COALESCE(oi.qty,1) q, "
+            f"oi.unit_price up, oi.amount amt, COALESCE(oi.unit_status,'') us, {_isel} "
+            f"FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.project_id=? "
+            f"ORDER BY oi.order_id, oi.id", (pid,)).fetchall()]
+        H.append("<h3>★호기(order_items) + 호기 칸의 세금계산서 (단일 진실)</h3><table>"
+                 + _row_html(["iid", "수주번호", "호기", "qty", "unit_price", "amount", "status"] + ["oi." + f for f in _tc]))
+        for it in its:
+            H.append(_row_html([it["iid"], _sono.get(it["oid"], it["oid"]), it["lbl"], it["q"],
+                                it["up"], it["amt"], it["us"]] + [it.get(f) for f in _tc]))
+        H.append("</table>")
+        try:
+            tls = [dict(r) for r in c.execute(
+                "SELECT l.id, l.row_sig, l.ref_kind, l.ref_id, l.unit_iids, COALESCE(l.tier,1) tier, "
+                "COALESCE(l.amount,0) amt, t.ti_no, t.status FROM tax_invoice_lines l "
+                "JOIN tax_invoices t ON t.id=l.ti_id WHERE l.ref_id=? ORDER BY l.id", (pid,)).fetchall()]
+            H.append("<h3>묶음 세금계산서(tax_invoice_lines · ref_id=프로젝트)</h3>")
+            if tls:
+                H.append("<table>" + _row_html(["id", "row_sig", "ref_kind", "ref_id", "unit_iids", "tier", "amount", "ti_no", "status"]))
+                for tl in tls:
+                    H.append(_row_html([tl["id"], tl["row_sig"], tl["ref_kind"], tl["ref_id"],
+                                        tl["unit_iids"], tl["tier"], tl["amt"], tl["ti_no"], tl["status"]]))
+                H.append("</table>")
+            else:
+                H.append("<p>없음(이 프로젝트 ref 묶음 라인 없음).</p>")
+        except Exception as _te:
+            H.append(f"<p>tax_invoice_lines 조회 오류: {_e(_te)}</p>")
+    # ① 보드가 만드는 행 + 각 행이 읽는 세금계산서(_inject 결과)
+    _sm = _board_split_lines_map(unfold_sos=True).get(pid) or []
+    _oimap, _proj_iids = _board_tax_oi_map()
+    H.append("<h3>① 작업일정표(보드) — 행별로 읽는 세금계산서 (_inject_oi_tax_into_rows 결과)</h3><table>"
+             + _row_html(["수주번호", "unit_iids", "stmt", "1세금일", "1금액", "2세금일", "2금액", "3세금일", "3금액"]))
+    for ln in _sm:
+        _r = {"kind": "project", "ref_id": pid, "unit_iids": ln.get("iids") or []}
+        _inject_oi_tax_into_rows([_r], _oimap, _proj_iids)
+        H.append(_row_html([ln.get("so_no"), ln.get("iids"), _r.get("statement_date"),
+                            _r.get("tax_invoice_date"), _r.get("tax_invoice_amt1"),
+                            _r.get("tax_invoice_date2"), _r.get("tax_invoice_amt2"),
+                            _r.get("tax_invoice_date3"), _r.get("tax_invoice_amt3")]))
+    H.append("</table>")
+    # ② 상세가 호기별로 읽는 세금계산서(_enrich_units_tax 결과)
+    with db_session() as c:
+        _units = [{"id": dict(r)["iid"]} for r in c.execute(
+            "SELECT oi.id iid FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+            "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (pid,)).fetchall()]
+        _enrich_units_tax(c, pid, _units, True, iid_key="id")
+    H.append("<h3>② 수주내역(상세) — 호기별로 읽는 세금계산서 (_enrich_units_tax 결과)</h3><table>"
+             + _row_html(["iid", "stmt", "1세금일", "1금액", "2세금일", "2금액", "3세금일", "3금액"]))
+    for un in _units:
+        H.append(_row_html([un.get("id"), un.get("statement_date"), un.get("tax_invoice_date"),
+                            un.get("tax_invoice_amt1"), un.get("tax_invoice_date2"), un.get("tax_invoice_amt2"),
+                            un.get("tax_invoice_date3"), un.get("tax_invoice_amt3")]))
+    H.append("</table><p style='color:#64748b;'>①과 ②가 다르면 그 차이가 화면 불일치의 원인입니다.</p></body></html>")
+    return HTMLResponse("".join(H))
+
+
 # v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
 #   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
 def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""):
