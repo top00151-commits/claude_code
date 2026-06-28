@@ -303,7 +303,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched td.taxinv-cell.tax-ok { background:#f0fdf4 !important; }
 /* z469: 미니 편집창 — 가로폭 확대(라벨 가로 고정·달력 겹침 회피 위해 금액 위·발행일 아래) */
 .ti-pop { position:absolute; z-index:9999; background:#fff; border:1px solid #94a3b8; border-radius:9px; box-shadow:0 10px 30px rgba(0,0,0,0.24); padding:12px 14px; width:296px; box-sizing:border-box; font-size:12.5px; }
-.ti-pop-ttl { font-weight:800; color:#0f172a; font-size:12.5px; margin-bottom:9px; white-space:nowrap; }
+.ti-pop-ttl { font-weight:800; color:#0f172a; font-size:12.5px; margin-bottom:9px; white-space:normal; line-height:1.35; }   /* v5H226z704: 긴 제목(인보이스 등) 넘침 방지 — 줄바꿈 허용 */
 .ti-pop-row { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
 .ti-pop-row label { width:46px; flex:none; color:#475569; font-weight:700; font-size:12px; white-space:nowrap; text-align:right; }
 .ti-pop-row input { flex:1; min-width:0; padding:7px 9px; border:1px solid #cbd5e1; border-radius:6px; font:inherit; font-size:13px; }
@@ -1422,15 +1422,23 @@ async function _uxSaveTax(iid, field, value){
   const r=await fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})});
   const j=await r.json(); if(!j||!j.ok) throw new Error((j&&j.error)||'fail'); return j;
 }
+var _CSYM={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'};   // v5H226z704: 세금계산서/인보이스 팝업 통화 기호(보드·펼침 공용)
 function openUnitTaxPop(box){
   if(_editing) return;
   const iid=box.dataset.iid; if(!iid) return;
   const curDate=box.dataset.date||''; let curAmt=box.dataset.amt||'';
+  // v5H226z704 (대표 지시): 팝업 통화·제목 = 그 행 통화·수출여부 — ₩/원 하드코딩 제거, 수출은 인보이스로.
+  const _tr=box.closest('tr');
+  const _ccy=((_tr&&_tr.querySelector('select[data-field="currency"]'))||{}).value||'KRW';
+  const _exp=(((_tr&&_tr.querySelector('select[data-field="is_export"]'))||{}).value==='1');
+  const _sym=(_CSYM[_ccy]||'₩');
+  const _tier=(box.dataset.amtfield||'').slice(-1)||'1';
+  const _ttl=_tier+'차 '+(_exp?'인보이스 (수출)':'세금계산서')+' 발행';
   const pop=document.createElement('div'); pop.className='ti-pop';
-  pop.innerHTML='<div class="ti-pop-ttl">'+(box.title||'세금계산서')+'</div>'
-    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">₩</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">원</span></div>'
+  pop.innerHTML='<div class="ti-pop-ttl">'+_ttl+'</div>'
+    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+_sym+'</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">'+_ccy+'</span></div>'
     +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd knk-cal" value="'+curDate+'"></div>'
-    +'<div class="ti-pop-hint">이 호기의 세금계산서 발행일·금액을 입력하세요.</div>'
+    +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 발행일·금액(세금계산서 아님).':'이 호기의 세금계산서 발행일·금액을 입력하세요.')+'</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
   _editing={box,pop}; document.body.appendChild(pop);
   const rect=box.getBoundingClientRect();
@@ -1452,7 +1460,7 @@ function openUnitTaxPop(box){
       await _uxSaveTax(iid, box.dataset.datefield, dv);
       await _uxSaveTax(iid, box.dataset.amtfield, av);
       box.dataset.date=dv; box.dataset.amt=av;
-      box.innerHTML=(dv||av)?('<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?'₩'+Number(av).toLocaleString():'')+'</div>'):'＋';
+      box.innerHTML=(dv||av)?((_exp?'<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>':'')+'<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?_sym+Number(av).toLocaleString():'')+'</div>'):'＋';
       toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
     }catch(e){ btn.disabled=false; toast('⚠ '+(e.message||'저장 실패')); }
   });
@@ -1680,12 +1688,18 @@ function startTaxInvEdit(td, tr){
   let curAmt=td.dataset.amt||'';
   // v5H226z469 (대표 지시): 1세금계산서 금액 기본값 = 수주금액(총액). 비어 있을 때만 채움(다르게 적으면 2/3차 발행이 있다는 뜻).
   if(!curAmt && td.dataset.edit==='taxinv1'){ const rt=parseFloat(tr.dataset.rowamt||'0')||0; if(rt>0) curAmt=String(Math.round(rt)); }
+  // v5H226z704 (대표 지시): 팝업 통화·제목 = 그 행 통화·수출여부 — ₩/원 하드코딩 제거, 수출은 인보이스로.
+  const _ccy=tr.dataset.cur||'KRW';
+  const _exp=(((tr.querySelector('td[data-col="trade"]'))||{}).textContent||'').trim()==='수출';
+  const _sym=(_CSYM[_ccy]||'₩');
+  const _tier=(td.dataset.edit||'').slice(-1)||'1';
+  const _ttl=_tier+'차 '+(_exp?'인보이스 (수출)':'세금계산서')+' 발행';
   const pop=document.createElement('div'); pop.className='ti-pop';
   // 금액을 위, 발행일을 아래로 — 날짜 달력이 아래로 펼쳐져도 금액칸을 가리지 않게(겹침 해소).
-  pop.innerHTML='<div class="ti-pop-ttl">'+(td.title||'세금계산서')+'</div>'
-    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">₩</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">원</span></div>'
+  pop.innerHTML='<div class="ti-pop-ttl">'+_ttl+'</div>'
+    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+_sym+'</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">'+_ccy+'</span></div>'
     +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd" value="'+curDate+'"></div>'
-    +'<div class="ti-pop-hint">1·2·3차 합계가 수주금액과 같으면 칸이 <b>초록</b>, 다르면 <b>주황</b>으로 표시됩니다.</div>'
+    +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 금액(세금계산서 아님). ':'')+'1·2·3차 합계가 수주금액과 같으면 <b>초록</b>, 다르면 <b>주황</b>.</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
   _editing={td,pop}; document.body.appendChild(pop);
   const rect=td.getBoundingClientRect();
@@ -1708,7 +1722,7 @@ function startTaxInvEdit(td, tr){
       await taxSave(tr, td.dataset.datefield, dv);
       await taxSave(tr, td.dataset.amtfield, av);
       td.dataset.date=dv; td.dataset.amt=av;
-      td.innerHTML=(dv||av)?('<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?'₩'+Number(av).toLocaleString():'')+'</div>'):'＋';
+      td.innerHTML=(dv||av)?((_exp?'<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>':'')+'<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?_sym+Number(av).toLocaleString():'')+'</div>'):'＋';
       td.classList.toggle('filled', !!(dv||av));
       refreshTaxStatus(tr);
       toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
