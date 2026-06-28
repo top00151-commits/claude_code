@@ -1014,7 +1014,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                 </span>
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음 #}
-                {% if so.so_customer %}<span class="item"><span class="k">🏢 발주처</span><span class="v" style="font-weight:700;color:#1d4ed8;">{{ so.so_customer }}</span></span>{% endif %}
+                {% if so.so_customer %}<span class="item"><span class="k">🏢 발주처</span><span class="v" style="font-weight:700;color:#1d4ed8;" title="정식: {{ so.so_customer }}">{{ (cust_alias|default({},true)).get(so.customer_id) or so.so_customer }}</span></span>{% endif %}{# v5H226z706: 발주처도 시스템명 우선 #}
                 <span class="item"><span class="k">{# v5H226z695: 메인=누른 수주(선택)일 수 있음 → '최초 수주' 표식은 실제 가장 오래된 카드에만, 나머지는 정확히 구분 #}{% if loop.first %}{% if so.id == _oldest_id %}🆕 최초 수주{% else %}📌 보던 수주 (선택){% endif %}{% else %}{% if so.id == _oldest_id %}🆕 최초 수주 · 참고{% else %}📎 참고 (추가 #{{ loop.index0 }}) · 읽기전용{% endif %}{% endif %}</span></span>
               </div>
               <div class="so-actions">
@@ -2093,7 +2093,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         <div class="proj-grid-wrap">
         <dl class="def">
           <dt>관리번호</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
-          <dt>고객사</dt><dd>{{ p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}</dd>
+          <dt>고객사</dt><dd title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}</dd>{# v5H226z706: 표시는 시스템명 우선(정식명은 title) #}
           <dt>PO유형</dt><dd>{% set _pt2 = p.po_type|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}</dd>
           <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>

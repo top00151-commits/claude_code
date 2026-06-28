@@ -158,7 +158,7 @@ body {
           {% set _bd_lb = (p.equip_name and p.biz_div == 'L') %}
           <td>{{ p.equip_name|default('—') }}{% if _bd_lb %} <span style="font-size:10px;color:var(--qv-ink-3);">(기기)</span>{% endif %}</td>
           <td style="font-family:Consolas,monospace;font-size:12px;">{{ p.model_name|default('—') }}</td>
-          <td>{{ p.customer_name|default('—') }}</td>
+          <td title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}</td>{# v5H226z706: 시스템명 우선 #}
           {# v5H226z448: PO유형 칸 — 등록폼 동일(신규/추가/개조/수리/기타). 신규=흐린 글자·그 외=강조 알약. 소모품 행은 po_type 없음 → '—' #}
           <td class="center">
             {% if (p.project_type or '')|upper == 'CONSUMABLE' or p._div == 'C' %}<span style="color:var(--qv-ink-3);">—</span>

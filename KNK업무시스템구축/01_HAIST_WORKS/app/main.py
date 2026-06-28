@@ -1470,6 +1470,15 @@ def ctx(request, name, **kwargs):
     except Exception:
         _mail_app = False
     base["mail_app"] = _mail_app
+    # v5H226z706 (대표 지시·정책): 전 화면 고객사 표시는 '시스템명(alias)' 우선 — 공용 맵 주입(customer_id→시스템명).
+    #   템플릿 패턴: {{ (cust_alias|default({},true)).get(x.customer_id) or x.customer_name }} (없으면 정식명 폴백·안전).
+    #   정식명(매칭·세금계산서/인보이스/견적 등 발행문서)은 그대로 customer_name 사용.
+    try:
+        with db_session() as _ca_c:
+            base["cust_alias"] = {r[0]: r[1] for r in _ca_c.execute(
+                "SELECT id, alias FROM customers WHERE COALESCE(alias,'')<>''")}
+    except Exception:
+        base["cust_alias"] = {}
     base.update(kwargs)
     # v5H178b: HTML 페이지는 캐시 금지 — 인라인 편집 후 다른 탭/뒤로가기에서 stale 데이터 방지
     resp = tpl.TemplateResponse(request=request, name=name, context=base)
