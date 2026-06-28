@@ -691,11 +691,13 @@ def startup():
             print("[MAIL-FETCH-AUTO] KNK_RUN_MAIL_FETCH=0 — 이 컨테이너에선 메일 자동수집 비활성(분리 모드)")
     except Exception as _e:
         print(f"[MAIL-FETCH-AUTO start ERR] {_e}")
-    # v5H172 (2026-05-06): 통화 데이터 백필.
-    #   orders.currency 컬럼은 DEFAULT 'KRW' 라 NULL 이 아니라 'KRW' 명시값이 들어있음.
-    #   v5H171 이전 발행 SO 는 실제 프로젝트 통화와 무관하게 'KRW' 가 박혀 있으므로,
-    #   "수금이력 0 건" 인 SO 만 안전하게 프로젝트 헤더 통화로 sync.
-    try:
+    # v5H226z686 (대표 지시·근본수정): ⛔ 통화 '시작 백필' 영구 비활성(if False).
+    #   (구) v5H172/v5H178b 백필은 'SO 통화 = 프로젝트(첫 줄) 통화'로 가정해 앱 시작마다 수금이력 없는
+    #   모든 SO·호기 currency 를 프로젝트 통화로 강제 덮어썼다. z668~z682 이후 '한 관리번호 수주(SO)별 다른 통화'
+    #   (예: 008T2605 = KRW 내수 + USD 수출)가 정상 → 이 백필이 재시작마다 USD를 KRW로 리셋해 행단위 통화를 파괴
+    #   (대표 '수정이 안됐어'·배포 재시작마다 재발). 본 마이그레이션(v5H171 이전 KRW 잔재 정리)은 2026-05 1회 완료 → 영구 제거.
+    #   ⛔ 다시 '프로젝트 통화로 SO/호기 통화 일괄 sync' 하는 로직을 넣지 말 것(행단위 통화 파괴).
+    if False:
         with db_session() as c:
             ord_cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
             if "currency" in ord_cols:
@@ -737,8 +739,7 @@ def startup():
                         print(f"[CCY-BACKFILL] order_items.currency 부모 sync {_r2.rowcount}건")
             except Exception:
                 pass
-    except Exception as _e:
-        print(f"[CCY-BACKFILL ERR] {_e}")
+    # (v5H226z686) 구 except 제거 — 위 백필을 if False 로 비활성화했으므로 try/except 불필요.
     # v5H178b (2026-05-06): 호기 라벨 중복 자동 정리 — 같은 SO 안에 동일 unit_label
     # 이 2개 이상이면 (예: '2호기' × 4) 첫 라벨의 시작 숫자를 추출해 순차 재번호.
     #   '2호기' × 4 → 2호기, 3호기, 4호기, 5호기
@@ -24607,6 +24608,16 @@ async def projects_import_confirm(request: Request):
                         # 호기 상태 + 수주별 담당자 기록(같은 트랜잭션) — 신규/재사용 공통
                         if _fu_oid:
                             c.execute("UPDATE order_items SET unit_status=?, is_export=? WHERE order_id=?", (_fu_ust, _row_iex, _fu_oid))
+                            # v5H226z686 (대표 지시): 이 수주(SO) 통화도 엑셀 행값으로 갱신 — 재사용/재업로드 SO 통화 교정(orders+호기). ⛔z686으로 시작백필 제거됨이라 덮어쓰기 안전.
+                            _fu_ccy = (r.get("currency") or "KRW").strip().upper()
+                            if _fu_ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+                                _fu_ccy = "KRW"
+                            try:
+                                if "currency" in _ocols2:
+                                    c.execute("UPDATE orders SET currency=? WHERE id=?", (_fu_ccy, _fu_oid))
+                                c.execute("UPDATE order_items SET currency=? WHERE order_id=?", (_fu_ccy, _fu_oid))
+                            except Exception:
+                                pass
                             _cc_keys = [_k for _k in ("cc_name", "cc_dept", "cc_phone") if _k in _ocols2]
                             if _cc_keys:
                                 c.execute("UPDATE orders SET " + ",".join(f"{_k}=?" for _k in _cc_keys) + " WHERE id=?",
@@ -24661,6 +24672,15 @@ async def projects_import_confirm(request: Request):
                                     # v5H226z681: 이 수주 호기 거래구분(수출/내수) 저장(행단위)
                                     try:
                                         c.execute("UPDATE order_items SET is_export=? WHERE order_id=?", (_row_iex, _re_oid))
+                                    except Exception:
+                                        pass
+                                    # v5H226z686 (대표 지시): 재업로드도 이 수주 통화 교정(행단위·orders+호기). ⛔z686으로 시작백필 제거됨이라 덮어쓰기 안전.
+                                    try:
+                                        _re_ccy = (r.get("currency") or "KRW").strip().upper()
+                                        if _re_ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+                                            _re_ccy = "KRW"
+                                        c.execute("UPDATE orders SET currency=? WHERE id=?", (_re_ccy, _re_oid))
+                                        c.execute("UPDATE order_items SET currency=? WHERE order_id=?", (_re_ccy, _re_oid))
                                     except Exception:
                                         pass
                     except Exception:
