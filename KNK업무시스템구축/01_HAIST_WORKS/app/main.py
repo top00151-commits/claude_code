@@ -23895,10 +23895,10 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 "sales_name": _to_str(_g(_cSa)),   # v5H226z341: 영업담당자(우리 회사)
                 "note": note_v,
                 "status": _import_unit_status(_g(_cSt) if _cSt is not None else ""),   # v5H226z663: '상태' 칸(진행중/출하/취소/보류)→호기·프로젝트 반영. 비우면 '초기협의'(기존 기본)
-                # v5H226z555 (대표 지시): 일괄등록은 '호기 미표현' — 각 행을 한 줄(수량=N)로 등록(자동 1·2호기 매김 안 함).
-                #   실제 호기번호는 기타사항(비고)에 적은 텍스트로만 보존. form_type(완제품 등 화면 형태)은 위에서 별도 저장.
-                #   메커니즘: shipment_form=SEMI → confirm 의 _is_part 경로(1줄) 사용(신규·추가발주 공통).
-                "shipment_form": "SEMI",
+                # v5H226z693 (대표 지시): 형태=완제품 → ASSEMBLY(일괄등록이 수량만큼 호기별 N줄 분할), 제품/상품/기타 → SEMI(1줄, 구 z555 유지).
+                #   완제품은 호기별 세금계산서·거래명세서·출하가 필요(006T2602: 3대=3호기 각 6,171)라 z555 '전부 1줄'을 완제품에 한해 변경.
+                #   메커니즘: ASSEMBLY → confirm 의 완제품 N호기 분기(24778 ELSE), SEMI → _is_part(1줄) 분기. 기존분은 매출·영업 초기화 후 재업로드로 호기 분할 반영.
+                "shipment_form": ("ASSEMBLY" if _to_str(_g(_cForm)).strip() == "완제품" else "SEMI"),
                 "two_tier_order": 1 if cust2 else 0,
                 # v5H226z672: 거래명세서 발행일 + 세금계산서 1/2/3차 (발행일·금액). 묶음번호(-N) 폐기 — 호기 단일 진실.
                 "statement_date": (_parse_ti(_g(_cStmt))[0] if _cStmt is not None else ""),
