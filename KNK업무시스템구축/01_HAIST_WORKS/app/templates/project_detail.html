@@ -810,10 +810,11 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .so-card .so-meta-edit,
         .so-card .unit-edit { display: none; }
         .so-card .display-val { display: inline; }
-        /* editable = SO 자체가 잠금 해제 가능 (완료/취소 아님). 기본 = 잠금 상태 */
-        .so-card.editable .so-meta-edit,
-        .so-card.editable .unit-edit { display: inline-block; }
-        .so-card.editable .display-val { display: none; }
+        /* v5H226z688 (대표 지시): 잠금(읽기) = 엑셀처럼 깔끔한 텍스트(display-val) · '✏️ 수정'(unlocked)일 때만 입력칸 노출.
+           기존엔 잠금 상태에도 점선 입력칸이 보여 '이중박스'(칸 안에 또 칸)였음 → 읽기는 한 칸, 수정 시 입력칸. */
+        .so-card.editable.unlocked .so-meta-edit,
+        .so-card.editable.unlocked .unit-edit { display: inline-block; }
+        .so-card.editable.unlocked .display-val { display: none; }
         .so-card .add-unit-card { display: none; }
         .so-card.editable.unlocked .add-unit-card.open { display: block; }
         .so-card.editable.unlocked .row-del,
@@ -847,11 +848,15 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           font-weight: 700 !important;
         }
         /* 호기 상태 select 는 잠금 상태에서도 본래 컬러 배지 유지 (가독성) */
+        /* v5H226z688: 잠금 상태 호기상태 = 점선 박스 대신 깔끔한 컬러 배지(화살표 숨김) — 엑셀처럼. 수정(unlocked) 시 드롭다운 복귀. */
         .so-card.editable:not(.unlocked) select.unit-status-sel {
-          cursor: not-allowed !important;
+          cursor: default !important;
           pointer-events: none;
           opacity: 1 !important;
-          border-style: dashed !important;
+          border-style: solid !important;
+          -webkit-appearance: none; -moz-appearance: none; appearance: none;
+          background-image: none !important;
+          padding-right: 10px !important;
         }
         /* unlock 시 정상 입력 스타일 */
         .so-card.editable.unlocked input.unit-edit,
