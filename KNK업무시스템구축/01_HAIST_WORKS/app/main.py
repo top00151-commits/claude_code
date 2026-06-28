@@ -19292,8 +19292,8 @@ async def admin_tax_trace(req: Request, code: str = ""):
                               prj.get("unit_price"), prj.get("unit_qty"), prj.get("status")]) + "</table>")
         _osel = ",".join((f"o.{f}" if f in _ordc else f"NULL AS {f}") for f in _tc)
         sos = [dict(r) for r in c.execute(
-            f"SELECT id, order_no, order_date, COALESCE(status,'') st, COALESCE(total_amount,0) tot, {_osel} "
-            f"FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall()]
+            f"SELECT o.id, o.order_no, o.order_date, COALESCE(o.status,'') st, COALESCE(o.total_amount,0) tot, {_osel} "
+            f"FROM orders o WHERE o.project_id=? ORDER BY o.id", (pid,)).fetchall()]
         _sono = {s["id"]: s["order_no"] for s in sos}
         H.append("<h3>수주(orders=수주번호) + orders 칸의 세금계산서</h3><table>"
                  + _row_html(["oid", "수주번호", "발주일", "status", "total"] + ["o." + f for f in _tc]))
