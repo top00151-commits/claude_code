@@ -2180,6 +2180,18 @@ def init_db():
                 c.execute("CREATE INDEX IF NOT EXISTS idx_orders_project ON orders(project_id)")
             except Exception:
                 pass
+        # v5H226z678 (대표 지시): 수주(SO)별 담당자 — 같은 관리번호에 담당자가 다른 여러 주문(추가제작)을 구분.
+        #   기존엔 담당자가 projects(프로젝트) 단위라 같은 관리번호 여러 수주가 화면에서 똑같아 보였음.
+        for _ocol, _oddl in [
+            ("cc_name",  "ALTER TABLE orders ADD COLUMN cc_name TEXT"),
+            ("cc_dept",  "ALTER TABLE orders ADD COLUMN cc_dept TEXT"),
+            ("cc_phone", "ALTER TABLE orders ADD COLUMN cc_phone TEXT"),
+        ]:
+            if _ocol not in ocols:
+                try:
+                    c.execute(_oddl)
+                except Exception:
+                    pass
 
         # v5H58 (2026-05-03): 등급 자동 산정 — tier_score / tier_computed_at
         cucols = [r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()]

@@ -18939,12 +18939,15 @@ def _board_split_lines_map(unfold_sos=True):
             # v5H226z668 (대표 지시): SO 발주처(구매대행사 등) — orders.customer_id → 고객사명(행에 작게 표기용)
             _ocust_col = ("o.customer_id AS o_cust_id, (SELECT name FROM customers cu WHERE cu.id=o.customer_id) AS o_cust_name"
                           if "customer_id" in _ord_cols else "NULL AS o_cust_id, '' AS o_cust_name")
+            # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문(담당자 다름) 구분용
+            _occ_col = ("o.cc_name AS o_cc_name, o.cc_dept AS o_cc_dept, o.cc_phone AS o_cc_phone"
+                        if "cc_name" in _ord_cols else "'' AS o_cc_name, '' AS o_cc_dept, '' AS o_cc_phone")
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
                 "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
-                + _ocust_col + ", "
+                + _ocust_col + ", " + _occ_col + ", "
                 "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
                 + _i_extra + " "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
@@ -18967,6 +18970,8 @@ def _board_split_lines_map(unfold_sos=True):
                         "o_ord": str(d.get("o_ord") or "")[:10], "o_due": str(d.get("o_due") or "")[:10],
                         "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
                         "o_cust": (d.get("o_cust_name") or ""),   # v5H226z668: SO 발주처
+                        "o_cc_name": (d.get("o_cc_name") or ""), "o_cc_dept": (d.get("o_cc_dept") or ""),
+                        "o_cc_phone": (d.get("o_cc_phone") or ""),   # v5H226z678: SO 담당자/부서/연락처
                         "items": [],
                     }
                 if d.get("oi_id") is not None:
@@ -18982,6 +18987,8 @@ def _board_split_lines_map(unfold_sos=True):
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
                     "so_customer": _so.get("o_cust") or "", "is_export": None,   # v5H226z668: SO 발주처(거래방식은 프로젝트 폴백)
+                    "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
+                    "so_contact": _so.get("o_cc_phone") or "",   # v5H226z678: SO 담당자/부서/연락처
                 }
 
             def _so_lines(_so):
@@ -19000,6 +19007,8 @@ def _board_split_lines_map(unfold_sos=True):
                         "currency": eff_cur, "order_date": eff_ord[:10], "due_date": eff_due[:10],
                         "ship_to": eff_ship, "so_no": _so["so_no"], "qty": int(it.get("i_qty") or 1),
                         "is_export": it.get("i_iex"), "so_customer": _so.get("o_cust") or "",   # v5H226z668: 호기 거래방식·SO 발주처
+                        "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
+                        "so_contact": _so.get("o_cc_phone") or "",   # v5H226z678: SO 담당자/부서/연락처
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -19555,6 +19564,13 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 if _ln.get("is_export") is not None:   # v5H226z668: 호기 거래방식(수출/내수) 반영 — 수주내역과 일치
                     _iu["trade"] = "수출" if int(_ln.get("is_export") or 0) else "내수"
                 _iu["so_customer"] = _ln.get("so_customer") or ""   # v5H226z668: SO 발주처(대표 고객과 다르면 행에 표기)
+                # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문 구분(수주값 있으면 덮어씀)
+                if _ln.get("so_owner"):
+                    _iu["owner"] = _ln["so_owner"]
+                if _ln.get("so_dept"):
+                    _iu["dept"] = _ln["so_dept"]
+                if _ln.get("so_contact"):
+                    _iu["contact"] = _ln["so_contact"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and not (cust and cust not in (_ru["customer"] or "")):
@@ -20512,6 +20528,13 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 if _ln.get("is_export") is not None:   # v5H226z668: 호기 거래방식(수출/내수) 반영 — 수주내역과 일치
                     _iu["trade"] = "수출" if int(_ln.get("is_export") or 0) else "내수"
                 _iu["so_customer"] = _ln.get("so_customer") or ""   # v5H226z668: SO 발주처(대표 고객과 다르면 행에 표기)
+                # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문 구분(수주값 있으면 덮어씀)
+                if _ln.get("so_owner"):
+                    _iu["owner"] = _ln["so_owner"]
+                if _ln.get("so_dept"):
+                    _iu["dept"] = _ln["so_dept"]
+                if _ln.get("so_contact"):
+                    _iu["contact"] = _ln["so_contact"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and not (cust and cust not in (_ru["customer"] or "")):
@@ -24516,33 +24539,59 @@ async def projects_import_confirm(request: Request):
                 _expand = not _row_is_part
                 _so_eff = _sotype if _expand else ("CONSUMABLE" if _sotype == "EQUIPMENT" else _sotype)
                 _line_lbl = _model or (name or "부품")
+                # v5H226z678 (대표 지시): 이 줄의 담당자(거래처 담당)·연락처·부서 — 그 수주(SO)에 기록해 구분.
+                _fu_cc = {"cc_name": (r.get("cc_name") or "").strip(),
+                          "cc_dept": (r.get("cc_dept") or "").strip(),
+                          "cc_phone": (r.get("cc_phone") or "").strip()}
                 try:
                     # v5H226z237 (대표 지시): 호기 상태 = 엑셀 상태 반영 (미설정 시 화면 기본값 '진행중'으로 보이던 문제)
                     _fu_ust = (r.get("status") or "").strip()
                     if _fu_ust not in ("진행중", "출하", "취소", "보류"):
                         _fu_ust = "진행중"
+                    _fu_oid = None; _fu_reused = False; _fu_sono = ""; _res = {"ok": True}
                     with db_session() as c:
-                        _res = _pwf.add_followup_order(
-                            c, int(_ex["id"]), order_date=r.get("order_date") or "",
-                            total_amount=_fu_price, due_date=r.get("due_date") or "",
-                            created_by=u.get("id") or 0, po_number="",
-                            note=_note, qty=unit_qty, so_type=_so_eff,
-                            currency=(r.get("currency") or "KRW").upper(),
-                            ship_to=r.get("ship_to") or "",
-                            order_customer_id=_ord_cust_id,
-                            expand_units=_expand, line_label=_line_lbl)
-                        # v5H226z656 (대표 지시): 호기 상태 UPDATE 를 같은 트랜잭션에서 처리 — 행당 커밋 2회→1회(대량 등록 가속)
-                        if _res.get("ok", True) and _res.get("order_id"):
-                            c.execute("UPDATE order_items SET unit_status=? WHERE order_id=?",
-                                      (_fu_ust, _res.get("order_id")))
+                        _ocols2 = {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
+                        # v5H226z678 (대표 지시): 멱등 — 같은 키(관리번호+발주일+금액+담당자) 수주가 이미 있으면
+                        #   새로 만들지 않고 그 수주를 재사용(재업로드 중복 방지·중단 후 재시도 안전). 담당자가 다르면 별개로 유지.
+                        if "cc_name" in _ocols2:
+                            _exso = c.execute(
+                                "SELECT id FROM orders WHERE project_id=? "
+                                "AND substr(COALESCE(order_date,''),1,10)=? "
+                                "AND ABS(COALESCE(total_amount,0)-?)<1 "
+                                "AND COALESCE(cc_name,'')=? AND COALESCE(status,'')<>'CANCELLED' "
+                                "ORDER BY id LIMIT 1",
+                                (int(_ex["id"]), (str(r.get("order_date") or "")[:10]),
+                                 float(amt or 0), _fu_cc["cc_name"])).fetchone()
+                            if _exso:
+                                _fu_oid = (_exso["id"] if isinstance(_exso, dict) else _exso[0])
+                                _fu_reused = True
+                        if not _fu_oid:
+                            _res = _pwf.add_followup_order(
+                                c, int(_ex["id"]), order_date=r.get("order_date") or "",
+                                total_amount=_fu_price, due_date=r.get("due_date") or "",
+                                created_by=u.get("id") or 0, po_number="",
+                                note=_note, qty=unit_qty, so_type=_so_eff,
+                                currency=(r.get("currency") or "KRW").upper(),
+                                ship_to=r.get("ship_to") or "",
+                                order_customer_id=_ord_cust_id,
+                                expand_units=_expand, line_label=_line_lbl)
+                            if _res.get("ok", True):
+                                _fu_oid = _res.get("order_id"); _fu_sono = _res.get("so_no")
+                        # 호기 상태 + 수주별 담당자 기록(같은 트랜잭션) — 신규/재사용 공통
+                        if _fu_oid:
+                            c.execute("UPDATE order_items SET unit_status=? WHERE order_id=?", (_fu_ust, _fu_oid))
+                            _cc_keys = [_k for _k in ("cc_name", "cc_dept", "cc_phone") if _k in _ocols2]
+                            if _cc_keys:
+                                c.execute("UPDATE orders SET " + ",".join(f"{_k}=?" for _k in _cc_keys) + " WHERE id=?",
+                                          tuple((_fu_cc[_k] or None) for _k in _cc_keys) + (_fu_oid,))
                     if not _res.get("ok", True):
                         failed.append({"row_no": r.get("row_no"), "name": name,
                                        "error": f"추가발주 실패: {_res.get('message','')}"})
                         continue
                     created.append({"row_no": r.get("row_no"), "name": name,
                                     "mgmt_code": _mc, "followup": True,
-                                    "so_no": _res.get("so_no")})
-                    _ti_collect(_ex["id"], _mc, r, name, _res.get("order_id"))   # v5H226z557/z676: 세금계산서를 이 추가발주 SO 호기에 기록
+                                    "so_no": _fu_sono, "reused": _fu_reused})
+                    _ti_collect(_ex["id"], _mc, r, name, _fu_oid)   # v5H226z557/z676: 세금계산서를 이 추가발주 SO 호기에 기록
                 except Exception as _e:
                     failed.append({"row_no": r.get("row_no"), "name": name,
                                    "error": f"추가발주 오류: {str(_e)[:120]}"})
@@ -24573,6 +24622,15 @@ async def projects_import_confirm(request: Request):
                                     "AND COALESCE(status,'')<>'CANCELLED'", (_re_pid, _rod)).fetchall()
                                 if len(_ms) == 1:
                                     _re_oid = (_ms[0]["id"] if isinstance(_ms[0], dict) else _ms[0][0])
+                                    # v5H226z678: 이 수주(SO)에 담당자/연락처/부서 기록(수주별 구분)
+                                    _rcc = {"cc_name": (r.get("cc_name") or "").strip(),
+                                            "cc_dept": (r.get("cc_dept") or "").strip(),
+                                            "cc_phone": (r.get("cc_phone") or "").strip()}
+                                    _rck = [k for k in ("cc_name", "cc_dept", "cc_phone")
+                                            if k in {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}]
+                                    if _rck:
+                                        c.execute("UPDATE orders SET " + ",".join(f"{k}=?" for k in _rck) + " WHERE id=?",
+                                                  tuple((_rcc[k] or None) for k in _rck) + (_re_oid,))
                     except Exception:
                         _re_oid = None
                     try:
@@ -24703,6 +24761,19 @@ async def projects_import_confirm(request: Request):
                                 _new_oid = ((_cres.get("groups") or [{}])[0].get("order_id")) if isinstance(_cres, dict) else None
                             except Exception:
                                 _new_oid = None
+                            # v5H226z678 (대표 지시): 이 신규 수주(SO)에 담당자/연락처/부서 기록(수주별 구분)
+                            try:
+                                if _new_oid:
+                                    _ncc = {"cc_name": (r.get("cc_name") or "").strip(),
+                                            "cc_dept": (r.get("cc_dept") or "").strip(),
+                                            "cc_phone": (r.get("cc_phone") or "").strip()}
+                                    _nck = [k for k in ("cc_name", "cc_dept", "cc_phone")
+                                            if k in {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}]
+                                    if _nck:
+                                        c.execute("UPDATE orders SET " + ",".join(f"{k}=?" for k in _nck) + " WHERE id=?",
+                                                  tuple((_ncc[k] or None) for k in _nck) + (_new_oid,))
+                            except Exception:
+                                pass
                 except Exception as _so_e:
                     # v5H226z262 (대표 지시·연결성 감사): 근본원인 = SO 생성 실패를 'except: pass'로
                     #   조용히 삼켜 → 프로젝트만 생기고 수주·호기·금액이 무음 누락(화면엔 '성공').
