@@ -20396,6 +20396,36 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             raise ValueError
     except Exception:
         _y, _m = today.year, today.month
+    # v5H226z698 (대표 지시): focus_so/focus_ref 로 진입 + ym 미지정 → 그 수주(SO)의 '달'로 자동 전환.
+    #   작업일정표는 월 단위 화면이라, 다른 달 수주(예: 4월 발주 T-260424)는 현재 달(6월) 화면에 안 보여
+    #   '참고 수주번호 클릭→일정표' 가 갈 곳 없이 끝남(z697 강조도 띄울 행이 없음). 그 SO 발주월(없으면 납기월)로 맞춘다.
+    if not ym and (focus_so or focus_ref):
+        try:
+            from datetime import datetime as _dtf
+            def _ym_of(_s):
+                try:
+                    return _dtf.strptime(str(_s)[:10], "%Y-%m-%d").date()
+                except Exception:
+                    return None
+            with db_session() as _cfm:
+                if focus_so:
+                    _fr = _cfm.execute(
+                        "SELECT order_date, due_date FROM orders WHERE order_no=? "
+                        "AND COALESCE(status,'')<>'CANCELLED' ORDER BY id DESC LIMIT 1",
+                        (focus_so,)).fetchone()
+                elif str(focus_ref).isdigit():
+                    _fr = _cfm.execute(
+                        "SELECT order_date, due_date FROM orders WHERE project_id=? "
+                        "AND COALESCE(status,'')<>'CANCELLED' ORDER BY id DESC LIMIT 1",
+                        (int(focus_ref),)).fetchone()
+                else:
+                    _fr = None
+                if _fr:
+                    _fdt = _ym_of(_fr[0]) or _ym_of(_fr[1])
+                    if _fdt:
+                        _y, _m = _fdt.year, _fdt.month
+        except Exception:
+            pass
     last_day = _cal.monthrange(_y, _m)[1]
     mstart, mend = _date(_y, _m, 1), _date(_y, _m, last_day)
     days = list(range(1, last_day + 1))
