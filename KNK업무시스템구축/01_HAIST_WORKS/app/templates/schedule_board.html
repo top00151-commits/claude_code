@@ -697,9 +697,12 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {% set is_del = (r.dday == d) %}
           {# v5H226z711 (대표 지시): 상태(출하/취소/보류) 발생일 표식 — 납기 점(is_del)이 아닌 다른 날일 때만 별도 표식 #}
           {% set is_stat = (r.status_day and r.status_day == d and not is_del and r.status in ('출하','취소','보류')) %}
+          {# v5H226z712 (대표 지시): 날짜별 메모 — 클릭한 그 날짜에만. 레거시 행메모(r.memo)는 납기일 칸에 표시(편집 시 그 날짜 메모로 전환). 진행구간 전체 title(행메모) 제거. #}
+          {% set _ymd = ym ~ '-' ~ ('%02d'|format(d)) %}
+          {% set _dmemo = (day_memos.get((r.kind, r.ref_id, _ymd)) if day_memos else None) or (r.memo if (is_del and r.memo) else '') %}
           {# v5H226z663 (대표 지시): 납기 점 색 = 출하 기준 — 출하(초록 shipped) / 지연(빨강 delay) / 취소·보류(회색 held) / 그외 진행중·예정(파랑 deliver) #}
-          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% elif r.status == '출하' %} shipped{% elif r.status in ('취소','보류') %} held{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if is_stat %} stat-mark stat-{{ 'ship' if r.status == '출하' else ('cancel' if r.status == '취소' else 'hold') }}{% endif %}{% if in_bar and d == r.bar_s and r.memo %} has-memo{% endif %}"
-              data-day="{{ d }}"{% if in_bar %} title="{{ r.memo }}"{% elif is_stat %} title="{{ r.status }} · {{ r.status_date }}"{% endif %}>{% if is_del %}●{% elif is_stat %}<span class="stat-ico">{{ '🚚' if r.status == '출하' else ('✖' if r.status == '취소' else '✋') }}</span>{% endif %}</td>
+          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% elif r.status == '출하' %} shipped{% elif r.status in ('취소','보류') %} held{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if is_stat %} stat-mark stat-{{ 'ship' if r.status == '출하' else ('cancel' if r.status == '취소' else 'hold') }}{% endif %}{% if _dmemo %} has-memo{% endif %}"
+              data-day="{{ d }}" data-daymemo="{{ _dmemo }}"{% if _dmemo %} title="{{ _dmemo }}"{% elif is_stat %} title="{{ r.status }} · {{ r.status_date }}"{% endif %}>{% if is_del %}●{% elif is_stat %}<span class="stat-ico">{{ '🚚' if r.status == '출하' else ('✖' if r.status == '취소' else '✋') }}</span>{% endif %}</td>
           {% endfor %}
           <td class="c-info cw-sales{% if r.kind != 'consumable' %} editable{% if r.sales_owner %} filled{% endif %}{% endif %}" data-col="sales_owner"{% if r.kind != 'consumable' %} data-edit="sales_owner"{% endif %} title="{{ r.sales_owner }}">{{ r.sales_owner or ('＋' if r.kind != 'consumable' else '') }}</td>
         </tr>
@@ -1293,7 +1296,7 @@ if(_tbody){
     const tb=e.target.closest('td.taxinv-bundle'); if(tb){ openTiView(tb.dataset.tiid); return; }   // v5H226z488: 묶음 세금계산서 구성 보기
     const td=e.target.closest('td.editable'); if(td){ startEdit(td); return; }
     // v5H226z711 (대표 지시): 달력 칸(진행구간·납기 점·발생일 표식) 클릭 → 상태/메모 통합 팝업(클릭한 날짜 전달)
-    const dc=e.target.closest('td.day'); if(dc && (dc.classList.contains('bar')||dc.classList.contains('deliver')||dc.classList.contains('stat-mark'))){ openMemo(dc.closest('tr'), parseInt(dc.dataset.day,10)||0); }
+    const dc=e.target.closest('td.day'); if(dc && (dc.classList.contains('bar')||dc.classList.contains('deliver')||dc.classList.contains('stat-mark')||dc.classList.contains('has-memo'))){ openMemo(dc.closest('tr'), parseInt(dc.dataset.day,10)||0, dc); }
   });
   // v5H226z481/z483/z484: 펼친 호기 줄 인라인 수정 — data-field 통합 위임(상태·납기·단가·통화·거래방식·발주일·납품처·비고·거래명세서·세금계산서)
   _tbody.addEventListener('change',(e)=>{
@@ -1792,21 +1795,22 @@ function recalcAmount(tr){
 }
 
 // ---- 진행기간 막대 메모 ----
-let _memoTr=null;
-var _BOARD_YM="{{ ym }}";   // v5H226z711: 현재 보기 연-월(YYYY-MM) — 클릭한 날짜의 발생일 기본값 조립용
+let _memoTr=null, _memoCell=null, _memoDay=0;
+var _BOARD_YM="{{ ym }}";   // v5H226z711: 현재 보기 연-월(YYYY-MM)
 function _pad2(n){ return (n<10?'0':'')+n; }
-function openMemo(tr, day){
-  _memoTr=tr;
-  document.getElementById('memoText').value=tr.dataset.memo||'';
+function _memoYmd(day){ return (day && _BOARD_YM && /^\d{4}-\d{2}$/.test(_BOARD_YM)) ? (_BOARD_YM + '-' + _pad2(day)) : ''; }
+function openMemo(tr, day, cell){
+  _memoTr=tr; _memoCell=cell||null; _memoDay=day||0;
+  // v5H226z712 (대표 지시): 메모는 '클릭한 그 날짜'의 메모만 불러옴(행 전체 아님)
+  document.getElementById('memoText').value=(cell && cell.dataset.daymemo) ? cell.dataset.daymemo : '';
   const code=(tr.querySelector('.c1 a')||{}).textContent||'';
   // v5H226z711: 상태 섹션은 프로젝트(호기) 행만 — 소모품은 숨김(소모품 상세에서 변경)
   const sec=document.getElementById('memoStatSec');
   const isProj=(tr.dataset.kind==='project' && (tr.dataset.uids||'').split(',').filter(Boolean).length>0);
   if(sec) sec.style.display = isProj ? '' : 'none';
-  document.getElementById('memoHead').textContent=(isProj?'상태·메모 — ':'진행 메모 — ')+code.trim();
-  // 발생일 기본값 = 클릭한 날(현재 보기 연-월). 날짜 모르면 비움.
-  const di=document.getElementById('statDate');
-  if(di){ di.value = (day && _BOARD_YM && /^\d{4}-\d{2}$/.test(_BOARD_YM)) ? (_BOARD_YM + '-' + _pad2(day)) : ''; }
+  const dstr=_memoYmd(day);
+  document.getElementById('memoHead').textContent=(isProj?'상태·메모':'메모')+' — '+code.trim()+(dstr?(' · '+dstr):'');
+  const di=document.getElementById('statDate'); if(di){ di.value = dstr; }   // 상태 발생일 기본값=클릭한 날
   const pop=document.getElementById('memoPop'); pop.classList.add('show');
   pop.style.left=Math.max(10,(window.innerWidth-280)/2)+'px'; pop.style.top='120px';
 }
@@ -1828,15 +1832,40 @@ function setRowStatus(st){
     }).catch(()=>{ btns.forEach(b=>b.disabled=false); toast('⚠ 통신 오류'); });
 }
 window.setRowStatus=setRowStatus;
-function closeMemo(){ document.getElementById('memoPop').classList.remove('show'); _memoTr=null; }
+// v5H226z712 (대표 지시): 저장(새로고침) 후 보던 화면 위치 유지 — 보드 가로·세로 + 페이지 스크롤을 새로고침 직전 저장→복원(같은 화면일 때만·8초 내). 모든 location.reload() 저장 경로에 beforeunload 로 일괄 적용.
+function _saveSchedScroll(){
+  try{
+    var w=document.getElementById('schedWrap'), m=document.querySelector('.main');
+    sessionStorage.setItem('knk.sched.scroll', JSON.stringify({
+      u: location.pathname+location.search,
+      wt: w?w.scrollTop:0, wl: w?w.scrollLeft:0,
+      mt: m?m.scrollTop:0, wy: window.scrollY||window.pageYOffset||0, t: Date.now()
+    }));
+  }catch(e){}
+}
+function _restoreSchedScroll(){
+  try{
+    var s=JSON.parse(sessionStorage.getItem('knk.sched.scroll')||'null');
+    if(!s || s.u!==(location.pathname+location.search) || (Date.now()-(s.t||0))>8000) return;
+    var w=document.getElementById('schedWrap'); if(w){ w.scrollTop=s.wt||0; w.scrollLeft=s.wl||0; }
+    var m=document.querySelector('.main'); if(m && s.mt) m.scrollTop=s.mt;
+    if(s.wy) window.scrollTo(0, s.wy);
+  }catch(e){}
+}
+if(!window._schedScrollHooked){ window._schedScrollHooked=true; window.addEventListener('beforeunload', _saveSchedScroll); }
+requestAnimationFrame(function(){ requestAnimationFrame(_restoreSchedScroll); });
+setTimeout(_restoreSchedScroll, 150);
+function closeMemo(){ document.getElementById('memoPop').classList.remove('show'); _memoTr=null; _memoCell=null; _memoDay=0; }
 function saveMemo(){
   if(!_memoTr) return;
   const memo=document.getElementById('memoText').value, tr=_memoTr;
+  const dstr=_memoYmd(_memoDay);   // v5H226z712 (대표 지시): 메모는 클릭한 그 날짜에만 저장
+  const cell=_memoCell;
   fetch('/sales/schedule/memo',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,memo:memo})})
+    body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,date:dstr,memo:memo})})
     .then(r=>r.json()).then(j=>{
-      if(j.ok){ tr.dataset.memo=j.memo||'';
-        tr.querySelectorAll('td.bar').forEach((b,i)=>{ b.title=j.memo||''; b.classList.toggle('has-memo', i===0&&!!j.memo); });
+      if(j.ok){ var mm=j.memo||'';
+        if(cell){ cell.dataset.daymemo=mm; cell.title=mm; cell.classList.toggle('has-memo', !!mm); }
         toast('메모 저장됨'); closeMemo();
       } else { toast('⚠ '+(j.error||'저장 실패')); }
     }).catch(()=>toast('⚠ 통신 오류'));

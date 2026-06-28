@@ -2859,6 +2859,17 @@ def init_db():
                 updated_at TEXT,
                 UNIQUE(ref_kind, ref_id)
             )""")
+            # v5H226z712 (대표 지시): 날짜별 진행 메모 — 클릭한 그 날짜(ymd)에만 메모. (행 단위 schedule_board_memos 와 별개)
+            c.execute("""CREATE TABLE IF NOT EXISTS schedule_board_day_memos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ref_kind   TEXT NOT NULL,          -- 'project' | 'consumable'
+                ref_id     INTEGER NOT NULL,
+                ymd        TEXT NOT NULL,          -- YYYY-MM-DD (클릭한 날짜)
+                memo       TEXT,
+                updated_by INTEGER,
+                updated_at TEXT,
+                UNIQUE(ref_kind, ref_id, ymd)
+            )""")
             c.execute("""CREATE TABLE IF NOT EXISTS user_view_prefs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id   INTEGER NOT NULL,
@@ -12069,6 +12080,46 @@ def schedule_memo_set(ref_kind: str, ref_id: int, memo: str, user_id=None) -> bo
                ON CONFLICT(ref_kind, ref_id) DO UPDATE SET
                  memo=excluded.memo, updated_by=excluded.updated_by, updated_at=excluded.updated_at""",
             (ref_kind, int(ref_id), (memo or "").strip(), user_id, now))
+    return True
+
+
+def schedule_day_memos_map(ym: str = "") -> dict:
+    """v5H226z712 (대표 지시): {(ref_kind, ref_id, ymd): memo} — 날짜별 진행 메모.
+    ym('YYYY-MM') 주면 그 달만(빈 메모 제외). 작업일정표 달력 칸별 표시용."""
+    out = {}
+    try:
+        with db_session() as c:
+            if ym:
+                rows = c.execute("SELECT ref_kind, ref_id, ymd, memo FROM schedule_board_day_memos "
+                                 "WHERE ymd LIKE ? AND COALESCE(memo,'')<>''", (ym + "-%",))
+            else:
+                rows = c.execute("SELECT ref_kind, ref_id, ymd, memo FROM schedule_board_day_memos "
+                                 "WHERE COALESCE(memo,'')<>''")
+            for r in rows:
+                out[(r[0], int(r[1]), r[2])] = r[3] or ""
+    except Exception:
+        pass
+    return out
+
+
+def schedule_day_memo_set(ref_kind: str, ref_id: int, ymd: str, memo: str, user_id=None) -> bool:
+    """날짜별 진행 메모 upsert(빈 메모면 삭제). 원본 데이터 무수정."""
+    if ref_kind not in ("project", "consumable") or not ref_id or not ymd:
+        return False
+    from datetime import datetime as _dt
+    now = _dt.now().isoformat(timespec="seconds")
+    _m = (memo or "").strip()
+    with db_session() as c:
+        if not _m:
+            c.execute("DELETE FROM schedule_board_day_memos WHERE ref_kind=? AND ref_id=? AND ymd=?",
+                      (ref_kind, int(ref_id), ymd))
+        else:
+            c.execute(
+                """INSERT INTO schedule_board_day_memos (ref_kind, ref_id, ymd, memo, updated_by, updated_at)
+                   VALUES (?,?,?,?,?,?)
+                   ON CONFLICT(ref_kind, ref_id, ymd) DO UPDATE SET
+                     memo=excluded.memo, updated_by=excluded.updated_by, updated_at=excluded.updated_at""",
+                (ref_kind, int(ref_id), ymd, _m, user_id, now))
     return True
 
 

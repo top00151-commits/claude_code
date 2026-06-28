@@ -20535,6 +20535,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
 
     # v5H226z264 (대표 지시): 진행기간 막대 '보드 전용 메모' 맵 (원본 무수정)
     _smemos = _logi.schedule_memos_map()
+    _day_memos = _logi.schedule_day_memos_map(ym=("" if range_mode else f"{_y:04d}-{_m:02d}"))   # v5H226z712 (대표 지시): 날짜별 진행 메모(이 달)
     # v5H226z270 (대표 지시): 단계 파이프라인 요약 맵 (보드 '단계 칸')
     _stage_map = {}   # v5H226z571 (대표 지시): 단계 시스템 제거 — 작업일정표는 단계를 더 이상 조회/표시하지 않음
     _empty_st = {"done": set(), "prog": {}, "ship_date": ""}
@@ -20777,6 +20778,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                days=days, today_day=today_day, rows=rows, summary=summary, cust=cust,
+               day_memos=_day_memos,   # v5H226z712 (대표 지시): 날짜별 진행 메모 {(kind,ref_id,ymd):memo}
                col_prefs=_col_prefs, can_money=_can_money,
                biz=_biz, div_counts=div_counts,
                range_mode=range_mode, pf=(pf[:10] if range_mode else ""), pt=(pt[:10] if range_mode else ""),
@@ -20930,11 +20932,15 @@ async def schedule_board_memo(request: Request):
     kind = (b.get("kind") or "").strip()
     ref_id = b.get("ref_id")
     memo = b.get("memo") or ""
+    date = str(b.get("date") or "").strip()   # v5H226z712 (대표 지시): 날짜별 메모(YYYY-MM-DD) — 있으면 그 날짜 칸에만
     try:
-        ok = _logi.schedule_memo_set(kind, int(ref_id), memo, u.get("id"))
+        if len(date) == 10 and date[4] == '-' and date[7] == '-':
+            ok = _logi.schedule_day_memo_set(kind, int(ref_id), date, memo, u.get("id"))
+        else:
+            ok = _logi.schedule_memo_set(kind, int(ref_id), memo, u.get("id"))   # 레거시(날짜 없음)=행 단위
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
-    return JSONResponse({"ok": ok, "memo": (memo or "").strip()})
+    return JSONResponse({"ok": ok, "memo": (memo or "").strip(), "date": date})
 
 
 @app.post("/sales/schedule/cols")
