@@ -878,6 +878,21 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .so-card .toggle-edit:hover { background: var(--paper-2); }
         .so-card.editable.unlocked .toggle-edit { background: var(--amber-deep); border-color: var(--amber-deep); color: #fff; }
         .so-card.editable.unlocked .toggle-edit:hover { filter: brightness(1.05); }
+        /* v5H226z690 (대표 지시): 수주내역 상세 호기별 세금계산서·거래명세서 발행 — '수정'(unlocked) 시 칸 클릭→발행일/금액 팝업. */
+        .ti-cell { display: inline-block; line-height: 1.3; }
+        .so-card.editable.unlocked .ti-cell { cursor: pointer; border: 1px dashed #93c5fd; border-radius: 4px; padding: 1px 6px; background: #fff; min-width: 52px; }
+        .so-card.editable.unlocked .ti-cell:hover { background: #eef6ff; box-shadow: inset 0 0 0 1px #60a5fa; }
+        .ti-pop { position: absolute; z-index: 100060; background: #fff; border: 1px solid #e2d9c4; border-radius: 10px; box-shadow: 0 12px 34px rgba(0,0,0,0.20); padding: 12px 14px; width: 300px; }
+        .ti-pop .ti-pop-ttl { font-weight: 800; font-size: 13px; color: #b91c1c; margin-bottom: 10px; }
+        .ti-pop .ti-pop-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+        .ti-pop .ti-pop-row label { width: 46px; font-size: 12px; color: #475569; font-weight: 700; }
+        .ti-pop .ti-pop-row input { flex: 1; padding: 6px 8px; border: 1px solid #d6cdb6; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+        .ti-pop .ti-cur { color: #64748b; font-weight: 700; font-size: 13px; }
+        .ti-pop .ti-pop-hint { font-size: 11px; color: #94a3b8; margin: 2px 0 10px; line-height: 1.45; }
+        .ti-pop .ti-pop-btns { display: flex; justify-content: flex-end; gap: 6px; align-items: center; }
+        .ti-pop .ti-pop-btns button { padding: 6px 14px; border-radius: 6px; border: 1px solid #d6cdb6; background: #fafaf7; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .ti-pop .ti-pop-btns .ti-save { background: #15803d; color: #fff; border-color: #15803d; }
+        .ti-pop .ti-pop-btns .ti-clear { color: #b91c1c; margin-right: auto; border-color: transparent; background: transparent; }
       </style>
 
       <div class="section-card">
@@ -1295,10 +1310,11 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   </td>
                   {# v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서1/2/3 (보기 전용 — 발행/편집은 작업일정표 보드) #}
                   {% if _is_equip and can_money %}
-                  <td class="center px-x" style="font-size:11px;white-space:nowrap;">{{ u.statement_date or '—' }}</td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt1, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt1, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date2 or u.tax_invoice_amt2 %}<div>{{ u.tax_invoice_date2 or '–' }}</div>{% if u.tax_invoice_amt2 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt2, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt2, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date3 or u.tax_invoice_amt3 %}<div>{{ u.tax_invoice_date3 or '–' }}</div>{% if u.tax_invoice_amt3 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt3, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt3, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</td>
+                  {# v5H226z690 (대표 지시): 호기별 거래명세서·세금계산서 — '수정' 잠금해제 시 칸 클릭→발행일/금액 팝업(/unit-field 호기 저장). 출하 일정 다르면 호기별 분리 발행. #}
+                  <td class="center px-x" style="font-size:11px;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="statement_date" data-date="{{ u.statement_date or '' }}" data-title="거래명세서">{{ u.statement_date or '—' }}</span></td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ u.tax_invoice_date or '' }}" data-amt="{{ u.tax_invoice_amt1 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 1차">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt1, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt1, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</span></td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ u.tax_invoice_date2 or '' }}" data-amt="{{ u.tax_invoice_amt2 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 2차">{% if u.tax_invoice_date2 or u.tax_invoice_amt2 %}<div>{{ u.tax_invoice_date2 or '–' }}</div>{% if u.tax_invoice_amt2 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt2, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt2, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</span></td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ u.tax_invoice_date3 or '' }}" data-amt="{{ u.tax_invoice_amt3 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 3차">{% if u.tax_invoice_date3 or u.tax_invoice_amt3 %}<div>{{ u.tax_invoice_date3 or '–' }}</div>{% if u.tax_invoice_amt3 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt3, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt3, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</span></td>
                   {% endif %}
                   {% if _editable %}
                   <td class="center edit-only">
@@ -2676,6 +2692,94 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
       const btn = card.querySelector('.so-fs-btn');
       if (btn) btn.textContent = '🔍 크게 보기';
     }
+  });
+
+  // === v5H226z690 (대표 지시): 수주내역 상세 — 호기별 세금계산서·거래명세서 '발행' ===
+  //   '✏️ 수정'(unlocked) 상태에서 거래명세서/세금계산서 칸 클릭 → 발행일(+금액) 팝업 → /unit-field 호기 저장.
+  //   출하 일정이 호기마다 달라 같은 관리번호·수주번호라도 호기별로 따로 발행 가능(작업일정표 펼친 호기 줄과 동일 경로).
+  function _tiToast(msg){
+    try{
+      var t=document.createElement('div'); t.textContent=msg;
+      t.style.cssText='position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:#1f2937;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:100070;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .15s;';
+      document.body.appendChild(t); requestAnimationFrame(function(){ t.style.opacity='1'; });
+      setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },220); },1800);
+    }catch(e){}
+  }
+  function _tiNormDate(s){
+    s=(s||'').trim(); if(!s) return s;
+    var m=s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
+    if(m) return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+    var d=s.replace(/[^0-9]/g,'');
+    if(d.length===8) return d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8);
+    if(d.length===6) return '20'+d.slice(0,2)+'-'+d.slice(2,4)+'-'+d.slice(4,6);
+    return s;
+  }
+  function _tiFmtAmt(av, ccy){
+    if(av===''||av==null) return '';
+    var n=Number(av); if(isNaN(n)) return '';
+    if((ccy||'KRW')==='KRW') return '₩'+Math.round(n).toLocaleString();
+    return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' '+ccy;
+  }
+  async function _tiSave(iid, field, value){
+    var r=await fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})});
+    var j=await r.json(); if(!j||!j.ok) throw new Error((j&&j.error)||'저장 실패'); return j;
+  }
+  function _tiRender(cell){
+    var dv=cell.dataset.date||'', av=cell.dataset.amt||'', ccy=cell.dataset.ccy||'KRW', hasAmt=!!cell.dataset.amtfield;
+    if(hasAmt){
+      cell.innerHTML=(dv||av)?('<div>'+(dv||'–')+'</div>'+(av?'<div style="color:#1d4ed8;font-weight:700;">'+_tiFmtAmt(av,ccy)+'</div>':'')):'—';
+    }else{
+      cell.textContent=dv||'—';
+    }
+  }
+  var _tiPopOpen=false;
+  function _openTiPop(cell){
+    if(_tiPopOpen) return;
+    var iid=cell.dataset.iid; if(!iid) return;
+    var datefield=cell.dataset.datefield, amtfield=cell.dataset.amtfield||'', hasAmt=!!amtfield;
+    var ccy=cell.dataset.ccy||'KRW';
+    var curDate=cell.dataset.date||'', curAmt=cell.dataset.amt||'';
+    _tiPopOpen=true;
+    var pop=document.createElement('div'); pop.className='ti-pop';
+    pop.innerHTML='<div class="ti-pop-ttl">'+(cell.dataset.title||'발행')+'</div>'
+      +(hasAmt?('<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+(ccy==='KRW'?'₩':ccy)+'</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"></div>'):'')
+      +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd knk-cal" value="'+curDate+'"></div>'
+      +'<div class="ti-pop-hint">이 호기에 '+(cell.dataset.title||'')+' 발행일'+(hasAmt?'·금액':'')+'을 입력하세요.<br>호기마다 따로 발행할 수 있습니다(출하 일정별).</div>'
+      +'<div class="ti-pop-btns"><button type="button" class="ti-clear">지우기</button><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
+    document.body.appendChild(pop);
+    var rect=cell.getBoundingClientRect();
+    pop.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-320))+'px';
+    pop.style.top=(rect.bottom+window.scrollY+4)+'px';
+    var pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
+    if(pa){ pa.addEventListener('input',function(){ var raw=pa.value.replace(/[^0-9]/g,''); pa.value=raw?Number(raw).toLocaleString():''; }); }
+    setTimeout(function(){ (pa||pd).focus(); if(pa)pa.select(); },0);
+    var done=false;
+    function close(){ if(done)return; done=true; pop.remove(); _tiPopOpen=false; document.removeEventListener('mousedown',onDoc); }
+    function onDoc(ev){ if(!pop.contains(ev.target)&&ev.target!==cell&&!cell.contains(ev.target)&&!(ev.target.closest&&ev.target.closest('.knk-cal-pop'))) close(); }
+    setTimeout(function(){ document.addEventListener('mousedown',onDoc); },0);
+    pop.querySelector('.ti-cancel').addEventListener('click',close);
+    pop.querySelector('.ti-clear').addEventListener('click',async function(){
+      var btn=pop.querySelector('.ti-save'); btn.disabled=true;
+      try{ await _tiSave(iid,datefield,''); if(hasAmt) await _tiSave(iid,amtfield,''); cell.dataset.date=''; cell.dataset.amt=''; _tiRender(cell); _tiToast('지웠습니다'); close(); }
+      catch(e){ btn.disabled=false; _tiToast('⚠ '+(e.message||'실패')); }
+    });
+    pop.querySelector('.ti-save').addEventListener('click',async function(){
+      var dv=_tiNormDate((pd.value||'').trim()), av=pa?(pa.value||'').replace(/[^0-9.]/g,''):'';
+      var btn=pop.querySelector('.ti-save'); btn.disabled=true;
+      try{
+        await _tiSave(iid,datefield,dv);
+        if(hasAmt) await _tiSave(iid,amtfield,av);
+        cell.dataset.date=dv; if(hasAmt) cell.dataset.amt=av; _tiRender(cell);
+        _tiToast('저장됨 · 이 호기에 발행 표시'); close();
+      }catch(e){ btn.disabled=false; _tiToast('⚠ '+(e.message||'저장 실패')); }
+    });
+  }
+  document.addEventListener('click',function(e){
+    var cell=e.target.closest&&e.target.closest('.ti-cell'); if(!cell) return;
+    var card=cell.closest('.so-card');
+    if(!card||!card.classList.contains('editable')) return;   // 참고(추가)·읽기전용 카드는 발행입력 안 함(최초 수주만)
+    if(!card.classList.contains('unlocked')){ _tiToast('✏️ 수정을 먼저 누르면 발행을 입력할 수 있어요'); return; }
+    _openTiPop(cell);
   });
 })();
 </script>
