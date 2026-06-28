@@ -18962,6 +18962,7 @@ def _board_split_lines_map(unfold_sos=True):
             _i_extra = ("oi.order_date AS i_ord, oi.due_date AS i_due, oi.ship_to AS i_ship, oi.currency AS i_cur"
                         if _has_extra else "'' AS i_ord, '' AS i_due, '' AS i_ship, '' AS i_cur")
             _i_extra += (", oi.is_export AS i_iex" if "is_export" in _oi_cols else ", NULL AS i_iex")   # v5H226z668: 호기 거래방식(수출/내수)
+            _i_extra += (", oi.status_date AS i_sdate" if "status_date" in _oi_cols else ", '' AS i_sdate")   # v5H226z711: 상태(출하/취소/보류) 발생일
             _sotype_col = "COALESCE(o.so_type,'') AS so_type" if _has_sotype else "'' AS so_type"
             # v5H226z668 (대표 지시): SO 발주처(구매대행사 등) — orders.customer_id → 고객사명(행에 작게 표기용)
             # v5H226z705 (대표 지시): 화면 표시는 '시스템명(alias)' 우선 — 같은 상호 종사업장 구분(드림텍 본사/아산)·긴 상호/(주) 생략. o_cust_disp = 시스템명 있으면 그것, 없으면 정식명. (정식명 o_cust_name 은 매칭·발행용으로 유지)
@@ -19032,6 +19033,7 @@ def _board_split_lines_map(unfold_sos=True):
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
                     "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                     "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
+                    "status_date": (_eff_c("i_sdate", "") or "")[:10],   # v5H226z711: 상태 발생일(호기)
                 }
 
             def _so_lines(_so):
@@ -19052,6 +19054,7 @@ def _board_split_lines_map(unfold_sos=True):
                         "is_export": it.get("i_iex"), "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "",   # v5H226z668/z705: 호기 거래방식·SO 발주처(정식명+표시명)
                         "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                         "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
+                        "status_date": (str(it.get("i_sdate") or "").strip()[:10]),   # v5H226z711: 상태 발생일(호기)
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -19525,6 +19528,9 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         info["dday"] = dd.day if (dd and mstart <= dd <= mend) else None
         info["is_delay"] = bool(dd and dd < today and status not in ("출하", "취소", "보류"))
         info["status"] = status or ""
+        # v5H226z711 (대표 지시): 상태(출하/취소/보류) 발생일이 이 달 안이면 그 날에 달력 표식 — 납기 점과 별개로 실제 발생일
+        _sd = _pd(info.get("status_date")) if info.get("status_date") else None
+        info["status_day"] = _sd.day if (_sd and mstart <= _sd <= mend) else None
         info["kind"] = kind
         return info
 
@@ -19616,6 +19622,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
+                _iu["status_date"] = _ln.get("status_date") or ""   # v5H226z711: 상태 발생일(호기) → 달력 표식
                 if _ln.get("is_export") is not None:   # v5H226z668: 호기 거래방식(수출/내수) 반영 — 수주내역과 일치
                     _iu["trade"] = "수출" if int(_ln.get("is_export") or 0) else "내수"
                 # v5H226z682 (대표 지시·행단위): 이 줄(수주)의 실제 고객사를 그 행 고객사로 표시(대표 우선·↪발주 폐기).
@@ -20494,6 +20501,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         info["dday"] = dd.day if (dd and mstart <= dd <= mend) else None
         info["is_delay"] = bool(dd and dd < today and status not in ("출하", "취소", "보류"))
         info["status"] = status or ""
+        # v5H226z711 (대표 지시): 상태(출하/취소/보류) 발생일이 이 달 안이면 그 날에 달력 표식 — 납기 점과 별개로 실제 발생일
+        _sd = _pd(info.get("status_date")) if info.get("status_date") else None
+        info["status_day"] = _sd.day if (_sd and mstart <= _sd <= mend) else None
         info["kind"] = kind
         return info
 
@@ -20614,6 +20624,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
+                _iu["status_date"] = _ln.get("status_date") or ""   # v5H226z711: 상태 발생일(호기) → 달력 표식
                 if _ln.get("is_export") is not None:   # v5H226z668: 호기 거래방식(수출/내수) 반영 — 수주내역과 일치
                     _iu["trade"] = "수출" if int(_ln.get("is_export") or 0) else "내수"
                 # v5H226z682 (대표 지시·행단위): 이 줄(수주)의 실제 고객사를 그 행 고객사로 표시(대표 우선·↪발주 폐기).
@@ -21385,6 +21396,71 @@ async def schedule_board_unit_field(request: Request):
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True})
+
+
+@app.post("/sales/schedule/row-status")
+async def schedule_board_row_status(request: Request):
+    """v5H226z711 (대표 지시): 작업일정표 달력에서 날짜 클릭 → 상태(진행중/출하/취소/보류) 선택.
+    그 행(수주)의 호기(order_items) 전체에 unit_status + status_date(발생일) 적용 + cascade(상세·색 동기화).
+    소모품 행은 호기 개념이 없어 이 경로 미지원(소모품 상세에서 변경). 확정(송장/수금/취소) SO 호기는 보호."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad_request"}, 400)
+    kind = (b.get("kind") or "project").strip()
+    status = (b.get("value") or b.get("status") or "").strip()
+    sdate = (str(b.get("date") or "").strip() or None)
+    if status not in UNIT_STATUSES:
+        return JSONResponse({"ok": False, "error": "허용 안 된 상태"}, 400)
+    if status == "진행중":
+        sdate = None   # 되돌리기 = 발생일(이벤트) 해제
+    if kind != "project":
+        return JSONResponse({"ok": False, "error": "소모품 상태는 소모품 상세에서 변경하세요"}, 400)
+    uids = b.get("uids") or []
+    ref_id = b.get("ref_id")
+    try:
+        with db_session() as c:
+            ids = []
+            if uids:
+                ids = [int(x) for x in uids if str(x).strip().isdigit()]
+            elif ref_id:
+                ids = [int(r[0]) for r in c.execute(
+                    "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                    "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED'", (int(ref_id),)).fetchall()]
+            if not ids:
+                return JSONResponse({"ok": False, "error": "대상 호기가 없습니다"}, 404)
+            _ph = ",".join("?" * len(ids))
+            # 확정(송장/수금/취소) SO 호기는 보호 — /unit-field 와 동일 정책
+            _blocked = {int(r[0]) for r in c.execute(
+                f"SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                f"WHERE oi.id IN ({_ph}) AND UPPER(COALESCE(o.status,'')) IN ('INVOICED','PAID','CANCELLED')", ids).fetchall()}
+            _apply = [i for i in ids if i not in _blocked]
+            if not _apply:
+                return JSONResponse({"ok": False, "error": "확정(송장/수금/취소) SO 호기는 상태 변경 불가"}, 400)
+            _ph2 = ",".join("?" * len(_apply))
+            c.execute(f"UPDATE order_items SET unit_status=?, status_date=?, updated_at=datetime('now','localtime') WHERE id IN ({_ph2})",
+                      [status, sdate] + _apply)
+            _pids = {int(r[0]) for r in c.execute(
+                f"SELECT DISTINCT o.project_id FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.id IN ({_ph2})", _apply).fetchall() if r[0]}
+            for _pid in _pids:
+                try:
+                    _pwf.cascade_unit_status_to_project(c, _pid, u.get("id"))
+                except Exception:
+                    pass
+                try:
+                    _logi.log_project_change(c, _pid, u.get("id"), "호기 상태(일정표 달력)",
+                                             "", f"{status}{(' · ' + sdate) if sdate else ''}", note="작업일정표 달력 클릭")
+                except Exception:
+                    pass
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    return JSONResponse({"ok": True, "count": len(_apply), "status": status, "date": sdate or "",
+                         "skipped": len(_blocked)})
 
 
 @app.post("/sales/schedule/row-tax")

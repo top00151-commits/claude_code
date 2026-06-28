@@ -262,6 +262,12 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched .day.deliver.delay { background:#b91c1c; }                /* 빨강 = 지연(진행중·납기 지남) */
 .sched .day.deliver.held { background:#9ca3af; }                 /* 회색 = 취소·보류 */
 .sched .day.has-memo::after { content:"📝"; font-size:9px; }
+/* v5H226z711 (대표 지시): 상태(출하/취소/보류) 발생일 표식 — 납기 점과 별개로 실제 발생일 칸에 컬러 링+아이콘 */
+.sched .day.stat-mark { cursor:pointer; }
+.sched .day.stat-mark .stat-ico { font-size:10px; line-height:1; }
+.sched .day.stat-ship   { background:#dcfce7; box-shadow: inset 0 0 0 2px #16a34a; }
+.sched .day.stat-cancel { background:#fee2e2; box-shadow: inset 0 0 0 2px #dc2626; }
+.sched .day.stat-hold   { background:#f3f4f6; box-shadow: inset 0 0 0 2px #9ca3af; }
 /* v5H226z471 (대표 지시): 작업일정표 가로줄 가독성 — ①진한 가로 구분선(색칠 구간에서도 행 경계 또렷) ②번갈아 줄무늬(반투명 오버레이라 간트 색 유지) ③마우스 올린 행 전체 강조 밴드(색칠 칸 포함·반투명 노란 오버레이 + 위/아래 굵은 선) */
 /* v5H226z491c (대표 지적): 아래 가로줄/호버 규칙을 '자식 선택자'로 좁혀 펼친 호기 표(.ux-tab·.unit-exp-row)엔 안 새게. 자손 선택자라 펼친 블록 전체가 호박색 워시·탄색 테두리·갈색 오버레이로 덮여 z491b 줄무늬가 묻히던 문제 해결. 펼친 줄 구분은 .ux-tab 자체 줄무늬가 담당. */
 .sched > tbody > tr > td { border-bottom:1px solid #cdbd99; }
@@ -386,6 +392,19 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .memo-pop .mp-btns { display:flex; gap:6px; justify-content:flex-end; margin-top:7px; }
 .memo-pop button { padding:5px 12px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:#fff; }
 .memo-pop .mp-save { background:#2563eb; color:#fff; border-color:#2563eb; }
+/* v5H226z711 (대표 지시): 날짜 클릭 팝업의 상태(출하/취소/보류) 선택 섹션 */
+.memo-pop .mp-stat { border-bottom:1px solid var(--line); padding-bottom:9px; margin-bottom:9px; }
+.memo-pop .mp-stat-row { font-size:11px; color:var(--qv-ink-3); margin-bottom:6px; font-weight:700; display:flex; align-items:center; gap:6px; }
+.memo-pop .mp-date { border:1px solid var(--line); border-radius:5px; font:inherit; font-size:12px; padding:3px 6px; }
+.memo-pop .mp-stat-btns { display:flex; flex-wrap:wrap; gap:5px; }
+.memo-pop .sb { flex:1 1 calc(50% - 5px); padding:7px 6px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:#fff; }
+.memo-pop .sb:disabled { opacity:.5; cursor:wait; }
+.memo-pop .sb-ship { color:#15803d; border-color:#86efac; } .memo-pop .sb-ship:hover { background:#dcfce7; }
+.memo-pop .sb-hold { color:#6b7280; border-color:#d1d5db; } .memo-pop .sb-hold:hover { background:#f3f4f6; }
+.memo-pop .sb-cancel { color:#b91c1c; border-color:#fca5a5; } .memo-pop .sb-cancel:hover { background:#fee2e2; }
+.memo-pop .sb-prog { color:#b45309; border-color:#fcd34d; } .memo-pop .sb-prog:hover { background:#fef3c7; }
+.memo-pop .mp-stat-hint { font-size:10.5px; color:var(--mute); margin-top:6px; line-height:1.4; }
+.memo-pop .mp-memo-lbl { font-size:11px; color:var(--qv-ink-3); font-weight:700; margin-bottom:4px; }
 #schedToast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:8px 16px; border-radius:8px; font-size:12.5px; z-index:10001; opacity:0; transition:opacity .2s; pointer-events:none; }
 #schedToast.show { opacity:.95; }
 
@@ -676,9 +695,11 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
           {% for d in days %}
           {% set in_bar = (r.bar_s <= d <= r.bar_e) %}
           {% set is_del = (r.dday == d) %}
+          {# v5H226z711 (대표 지시): 상태(출하/취소/보류) 발생일 표식 — 납기 점(is_del)이 아닌 다른 날일 때만 별도 표식 #}
+          {% set is_stat = (r.status_day and r.status_day == d and not is_del and r.status in ('출하','취소','보류')) %}
           {# v5H226z663 (대표 지시): 납기 점 색 = 출하 기준 — 출하(초록 shipped) / 지연(빨강 delay) / 취소·보류(회색 held) / 그외 진행중·예정(파랑 deliver) #}
-          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% elif r.status == '출하' %} shipped{% elif r.status in ('취소','보류') %} held{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if in_bar and d == r.bar_s and r.memo %} has-memo{% endif %}"
-              data-day="{{ d }}"{% if in_bar %} title="{{ r.memo }}"{% endif %}>{% if is_del %}●{% endif %}</td>
+          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% elif r.status == '출하' %} shipped{% elif r.status in ('취소','보류') %} held{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if is_stat %} stat-mark stat-{{ 'ship' if r.status == '출하' else ('cancel' if r.status == '취소' else 'hold') }}{% endif %}{% if in_bar and d == r.bar_s and r.memo %} has-memo{% endif %}"
+              data-day="{{ d }}"{% if in_bar %} title="{{ r.memo }}"{% elif is_stat %} title="{{ r.status }} · {{ r.status_date }}"{% endif %}>{% if is_del %}●{% elif is_stat %}<span class="stat-ico">{{ '🚚' if r.status == '출하' else ('✖' if r.status == '취소' else '✋') }}</span>{% endif %}</td>
           {% endfor %}
           <td class="c-info cw-sales{% if r.kind != 'consumable' %} editable{% if r.sales_owner %} filled{% endif %}{% endif %}" data-col="sales_owner"{% if r.kind != 'consumable' %} data-edit="sales_owner"{% endif %} title="{{ r.sales_owner }}">{{ r.sales_owner or ('＋' if r.kind != 'consumable' else '') }}</td>
         </tr>
@@ -696,10 +717,22 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
   {# v5H226z271: 모달·토스트를 .main 안으로 — SPA 이동(.main 교체) 시에도 함께 들어오도록 #}
   <div class="memo-pop" id="memoPop">
     <div class="mp-head" id="memoHead">진행 메모</div>
+    {# v5H226z711 (대표 지시): 날짜 클릭 → 상태(출하/취소/보류) 선택 + 발생일 기록. 소모품 행은 숨김(소모품 상세에서). #}
+    <div class="mp-stat" id="memoStatSec">
+      <div class="mp-stat-row">🚦 상태 변경 · 발생일 <input type="date" id="statDate" class="mp-date"></div>
+      <div class="mp-stat-btns">
+        <button type="button" class="sb sb-ship" data-st="출하" onclick="setRowStatus(this.dataset.st)">🚚 출하</button>
+        <button type="button" class="sb sb-hold" data-st="보류" onclick="setRowStatus(this.dataset.st)">✋ 보류</button>
+        <button type="button" class="sb sb-cancel" data-st="취소" onclick="setRowStatus(this.dataset.st)">✖ 취소</button>
+        <button type="button" class="sb sb-prog" data-st="진행중" onclick="setRowStatus(this.dataset.st)">↩ 진행중</button>
+      </div>
+      <div class="mp-stat-hint">선택한 상태를 이 수주의 호기 전체에 위 날짜로 적용합니다 (수주내역·달력 색 동기화).</div>
+    </div>
+    <div class="mp-memo-lbl">📝 진행 메모</div>
     <textarea id="memoText" placeholder="진행 상황 메모 (예: 부품 입고 지연, 고객 승인 대기 …)"></textarea>
     <div class="mp-btns">
-      <button type="button" onclick="closeMemo()">취소</button>
-      <button type="button" class="mp-save" onclick="saveMemo()">저장</button>
+      <button type="button" onclick="closeMemo()">닫기</button>
+      <button type="button" class="mp-save" onclick="saveMemo()">메모 저장</button>
     </div>
   </div>
   <div id="schedToast"></div>
@@ -1259,7 +1292,8 @@ if(_tbody){
     const sc=e.target.closest('td.stage-cell'); if(sc){ openStagePanel(sc.dataset.kind, sc.dataset.ref, sc.closest('tr')); return; }
     const tb=e.target.closest('td.taxinv-bundle'); if(tb){ openTiView(tb.dataset.tiid); return; }   // v5H226z488: 묶음 세금계산서 구성 보기
     const td=e.target.closest('td.editable'); if(td){ startEdit(td); return; }
-    const bar=e.target.closest('td.bar'); if(bar){ openMemo(bar.closest('tr')); }
+    // v5H226z711 (대표 지시): 달력 칸(진행구간·납기 점·발생일 표식) 클릭 → 상태/메모 통합 팝업(클릭한 날짜 전달)
+    const dc=e.target.closest('td.day'); if(dc && (dc.classList.contains('bar')||dc.classList.contains('deliver')||dc.classList.contains('stat-mark'))){ openMemo(dc.closest('tr'), parseInt(dc.dataset.day,10)||0); }
   });
   // v5H226z481/z483/z484: 펼친 호기 줄 인라인 수정 — data-field 통합 위임(상태·납기·단가·통화·거래방식·발주일·납품처·비고·거래명세서·세금계산서)
   _tbody.addEventListener('change',(e)=>{
@@ -1759,15 +1793,41 @@ function recalcAmount(tr){
 
 // ---- 진행기간 막대 메모 ----
 let _memoTr=null;
-function openMemo(tr){
+var _BOARD_YM="{{ ym }}";   // v5H226z711: 현재 보기 연-월(YYYY-MM) — 클릭한 날짜의 발생일 기본값 조립용
+function _pad2(n){ return (n<10?'0':'')+n; }
+function openMemo(tr, day){
   _memoTr=tr;
   document.getElementById('memoText').value=tr.dataset.memo||'';
   const code=(tr.querySelector('.c1 a')||{}).textContent||'';
-  document.getElementById('memoHead').textContent='진행 메모 — '+code.trim();
+  // v5H226z711: 상태 섹션은 프로젝트(호기) 행만 — 소모품은 숨김(소모품 상세에서 변경)
+  const sec=document.getElementById('memoStatSec');
+  const isProj=(tr.dataset.kind==='project' && (tr.dataset.uids||'').split(',').filter(Boolean).length>0);
+  if(sec) sec.style.display = isProj ? '' : 'none';
+  document.getElementById('memoHead').textContent=(isProj?'상태·메모 — ':'진행 메모 — ')+code.trim();
+  // 발생일 기본값 = 클릭한 날(현재 보기 연-월). 날짜 모르면 비움.
+  const di=document.getElementById('statDate');
+  if(di){ di.value = (day && _BOARD_YM && /^\d{4}-\d{2}$/.test(_BOARD_YM)) ? (_BOARD_YM + '-' + _pad2(day)) : ''; }
   const pop=document.getElementById('memoPop'); pop.classList.add('show');
   pop.style.left=Math.max(10,(window.innerWidth-280)/2)+'px'; pop.style.top='120px';
-  document.getElementById('memoText').focus();
 }
+// v5H226z711 (대표 지시): 달력에서 고른 상태(출하/취소/보류/진행중)를 이 수주의 호기 전체에 발생일과 함께 적용
+function setRowStatus(st){
+  if(!_memoTr) return;
+  const tr=_memoTr;
+  if(tr.dataset.kind!=='project'){ toast('소모품 상태는 소모품 상세에서 변경하세요'); return; }
+  const uids=(tr.dataset.uids||'').split(',').filter(Boolean);
+  const date=(document.getElementById('statDate')||{}).value||'';
+  const btns=document.querySelectorAll('#memoStatSec .sb'); btns.forEach(b=>b.disabled=true);
+  fetch('/sales/schedule/row-status',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({kind:'project', ref_id:tr.dataset.ref, uids:uids, value:st, date:date})})
+    .then(r=>r.json()).then(j=>{
+      btns.forEach(b=>b.disabled=false);
+      if(j.ok){ toast('저장됨 · '+st+(j.date?(' '+j.date):'')+' · 호기 '+(j.count||0)+'건'); closeMemo();
+        setTimeout(function(){ location.reload(); }, 450); }
+      else { toast('⚠ '+(j.error||'저장 실패')); }
+    }).catch(()=>{ btns.forEach(b=>b.disabled=false); toast('⚠ 통신 오류'); });
+}
+window.setRowStatus=setRowStatus;
 function closeMemo(){ document.getElementById('memoPop').classList.remove('show'); _memoTr=null; }
 function saveMemo(){
   if(!_memoTr) return;

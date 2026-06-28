@@ -3336,6 +3336,8 @@ def init_db():
                 ("tax_invoice_amt2",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt2 REAL"),
                 ("tax_invoice_date3",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date3 TEXT"),
                 ("tax_invoice_amt3",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt3 REAL"),
+                # v5H226z711 (대표 지시): 작업일정표 달력에서 상태(출하/취소/보류) 선택 시 '발생일' 기록 — 호기별
+                ("status_date",        "ALTER TABLE order_items ADD COLUMN status_date TEXT"),
             ]:
                 if col not in oicols:
                     try:
