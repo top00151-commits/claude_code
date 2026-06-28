@@ -810,11 +810,11 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .so-card .so-meta-edit,
         .so-card .unit-edit { display: none; }
         .so-card .display-val { display: inline; }
-        /* v5H226z688 (대표 지시): 잠금(읽기) = 엑셀처럼 깔끔한 텍스트(display-val) · '✏️ 수정'(unlocked)일 때만 입력칸 노출.
-           기존엔 잠금 상태에도 점선 입력칸이 보여 '이중박스'(칸 안에 또 칸)였음 → 읽기는 한 칸, 수정 시 입력칸. */
-        .so-card.editable.unlocked .so-meta-edit,
-        .so-card.editable.unlocked .unit-edit { display: inline-block; }
-        .so-card.editable.unlocked .display-val { display: none; }
+        /* v5H226z689 (대표 지시): z688의 'display-val 텍스트 전환'은 행 높이가 비정상으로 커지는 부작용이 있어 철회.
+           대신 입력칸을 그대로 두되(행 높이 정상) 잠금 시 점선·배경만 제거해 평평하게(아래 flat 규칙) — 이중박스 제거 + 높이 정상. */
+        .so-card.editable .so-meta-edit,
+        .so-card.editable .unit-edit { display: inline-block; }
+        .so-card.editable .display-val { display: none; }
         .so-card .add-unit-card { display: none; }
         .so-card.editable.unlocked .add-unit-card.open { display: block; }
         .so-card.editable.unlocked .row-del,
@@ -832,31 +832,31 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         /* v5H226z92: 호기별 인라인 삭제 회수 — 상태 컬럼의 "취소"로 대체 */
         /* v5H198: 잠금 상태 — 글씨는 진하게(읽기 쉽게) 유지, 배경만 옅게 + 점선 테두리로
            '비활성' 시각 신호. opacity 제거. unit-status-sel 은 본래 컬러 배지 유지. */
+        /* v5H226z689 (대표 지시): 잠금(읽기) 입력칸 = 엑셀처럼 평평 — 점선 테두리·배경 제거(이중박스 삭제). 입력칸은 유지(행 높이 정상). '✏️수정'(unlocked) 시 테두리 입력칸으로. */
         .so-card.editable:not(.unlocked) input.unit-edit,
         .so-card.editable:not(.unlocked) select.unit-edit {
-          background: #fbfaf6 !important;
+          background: transparent !important;
           color: var(--ink) !important;
           font-weight: 600 !important;
-          cursor: not-allowed !important;
+          cursor: default !important;
           pointer-events: none;
-          border: 1px dashed var(--line) !important;
+          border: 1px solid transparent !important;
           opacity: 1 !important;
         }
+        /* 잠금 날짜칸 브라우저 달력 아이콘 숨김 — 엑셀처럼 값만 */
+        .so-card.editable:not(.unlocked) input.unit-edit::-webkit-calendar-picker-indicator { display: none !important; }
         /* 잠금 상태에서도 단가는 빨강 강조 유지 (수주액 가독성) */
         .so-card.editable:not(.unlocked) input.unit-edit.amt {
           color: var(--knk-red) !important;
           font-weight: 700 !important;
         }
         /* 호기 상태 select 는 잠금 상태에서도 본래 컬러 배지 유지 (가독성) */
-        /* v5H226z688: 잠금 상태 호기상태 = 점선 박스 대신 깔끔한 컬러 배지(화살표 숨김) — 엑셀처럼. 수정(unlocked) 시 드롭다운 복귀. */
+        /* v5H226z689: 잠금 상태 호기상태 = 점선→실선의 깔끔한 컬러 배지. (z688의 appearance:none 은 행 높이 이슈 우려로 철회) */
         .so-card.editable:not(.unlocked) select.unit-status-sel {
           cursor: default !important;
           pointer-events: none;
           opacity: 1 !important;
           border-style: solid !important;
-          -webkit-appearance: none; -moz-appearance: none; appearance: none;
-          background-image: none !important;
-          padding-right: 10px !important;
         }
         /* unlock 시 정상 입력 스타일 */
         .so-card.editable.unlocked input.unit-edit,
