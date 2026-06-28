@@ -13877,7 +13877,10 @@ RESET_GROUPS = [
                 #   재업로드 후 ref_id 어긋남(세금계산서↔원천 불일치)이 안 남음. 고객사 마스터는 보존(별도 그룹).
                 "tax_invoices", "tax_invoice_lines",
                 "export_orders", "commercial_invoices", "packing_lists", "packing_items",
-                "bills_of_lading", "customs_declarations", "fta_certificates", "fta_certificate_items"]},
+                "bills_of_lading", "customs_declarations", "fta_certificates", "fta_certificate_items",
+                # v5H226z713 (대표 지시): 작업일정표 보드 메모(행 단위 + 날짜별) — 매출 초기화 시 함께 비워야
+                #   재업로드 후 프로젝트 id 재부여로 옛 메모가 엉뚱한 건에 붙는 것 방지(z618 세금계산서와 동일 취지).
+                "schedule_board_memos", "schedule_board_day_memos"]},
     {"key": "suppliers", "label": "🏭 협력사(업체)", "desc": "협력사(공급업체)",
      "tables": ["suppliers"]},
     {"key": "materials", "label": "🔩 자재·구매", "desc": "부품·단가·발주·자재요청·재고·실사·원가시뮬",
