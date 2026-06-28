@@ -104,7 +104,11 @@
 .sched tbody tr.row-selected td.c1 { box-shadow: inset 3px 0 0 var(--knk-red,#b0271f); }
 .sched tbody tr.search-hide { display:none; }
 /* v5H226z650 (대표 지시): 프로젝트 상세의 참고 수주 '진행중' 클릭 → 해당 관리번호 행 강조(잠깐 노랑 점멸) */
-.sched tbody tr.row-focus-flash > td { background:#fff3bf !important; transition: background .9s ease; }
+/* v5H226z697 (대표 지시): 포커스 이동 강조 강화 — 진한 앰버 점멸 3회 + 클릭 전까지 옅은 강조 + 좌측 빨강 막대 */
+@keyframes knkRowFocusPulse { 0%{background:#fde68a;} 50%{background:#f59e0b;} 100%{background:#fde68a;} }
+.sched tbody tr.row-focus-flash > td { animation: knkRowFocusPulse .6s ease-in-out 3; }
+.sched tbody tr.row-focus-hold > td { background:#fff7d6 !important; transition: background .9s ease; }
+.sched tbody tr.row-focus-hold > td:first-child { box-shadow: inset 4px 0 0 0 #dc2626; }
 /* v5H226z346 (대표 지시): 아이콘 작고 심플하게 — 작은 크기 + 회색(모노) 톤으로 덜 튀게 */
 .sb-band .ti { font-size:0.78em; opacity:0.62; filter:grayscale(1); margin-right:1px; }
 .tool-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:12px; font-weight:700; }
@@ -2322,6 +2326,17 @@ try{
 //   해당 행으로 스크롤+강조만(검색/필터 안 함). 오히려 잔류 검색을 비워 '전체'가 보이게 — z650의 '검색 필터'가
 //   sessionStorage(z561)에 남아 '전체' 탭 눌러도 1건만 보이던 문제 해결.
 try{
+  // v5H226z697 (대표 지시): 상단 안내 토스트 — 어느 수주로 이동했는지 명시(수주번호)
+  var _knkFocusToast = function(msg){
+    try{
+      var t=document.createElement('div');
+      t.textContent=msg;
+      t.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99999;background:#1e293b;color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.28);opacity:0;transition:opacity .25s;max-width:92vw;';
+      document.body.appendChild(t);
+      requestAnimationFrame(function(){ t.style.opacity='1'; });
+      setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); }, 320); }, 4200);
+    }catch(e){}
+  };
   var _fref = {{ (focus_ref or '')|tojson }};
   var _fso = {{ (focus_so or '')|tojson }};   // v5H226z665: 특정 수주번호로 이동(추가 수주가 별도 행)
   if(_fref || _fso){
@@ -2338,8 +2353,16 @@ try{
       }
       if(_rows && _rows.length){
         _rows[0].scrollIntoView({behavior:'smooth', block:'center'});
-        _rows.forEach(function(tr){ tr.classList.add('row-focus-flash'); });
-        setTimeout(function(){ _rows.forEach(function(tr){ tr.classList.remove('row-focus-flash'); }); }, 2800);
+        // v5H226z697: 진한 점멸(애니 끝나면 제거) + 유지 강조(좌측 막대)는 아무 데나 클릭 전까지
+        _rows.forEach(function(tr){ tr.classList.add('row-focus-flash','row-focus-hold'); });
+        setTimeout(function(){ _rows.forEach(function(tr){ tr.classList.remove('row-focus-flash'); }); }, 2000);
+        var _clearHold=function(){ _rows.forEach(function(tr){ tr.classList.remove('row-focus-hold'); }); document.removeEventListener('click', _clearHold, true); };
+        setTimeout(function(){ document.addEventListener('click', _clearHold, true); }, 120);
+        var _lbl=_fso||''; if(!_lbl){ var _a=_rows[0].querySelector('td[data-col="code"] a'); _lbl=_a?_a.textContent.trim():''; }
+        _knkFocusToast('📍 '+(_lbl?_lbl+' ':'')+'수주 행으로 이동했습니다');
+      } else {
+        // v5H226z697: 현재 화면(기간 필터 등)에 그 수주 행이 없으면 안내
+        _knkFocusToast('⚠ '+(_fso||'해당')+' 수주 행을 현재 화면에서 찾지 못했어요 — 기간 필터를 확인하세요');
       }
     }, 180);
   }
