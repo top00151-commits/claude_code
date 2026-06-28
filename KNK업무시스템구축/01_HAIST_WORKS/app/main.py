@@ -24740,6 +24740,7 @@ async def projects_import_confirm(request: Request):
                                     "due_date": r.get("due_date") or "",
                                     "ship_to": r.get("ship_to") or "",
                                     "note": r.get("note") or "",   # v5H226z236: 엑셀 비고
+                                    "currency": (r.get("currency") or "KRW").strip().upper(),   # v5H226z679: 신규 행도 통화 반영(수출=USD 등, 빠지면 KRW로 박히던 버그)
                                 }]
                             else:
                                 # v5H226z633 (대표 지시): 완제품 수량 N → 호기별 N줄(1호기~N호기·각 1대단가). z629(1줄 qty=N) 되돌림 — 호기별 발주일·납품일·세금계산서 개별 관리.
@@ -24749,6 +24750,7 @@ async def projects_import_confirm(request: Request):
                                     "due_date": r.get("due_date") or "",
                                     "ship_to": r.get("ship_to") or "",
                                     "note": r.get("note") or "",   # v5H226z236: 엑셀 비고
+                                    "currency": (r.get("currency") or "KRW").strip().upper(),   # v5H226z679: 신규 행도 통화 반영(수출=USD 등, 빠지면 KRW로 박히던 버그)
                                 } for i in range(max(1, unit_qty))]
                             _cres = _pwf.confirm_order_multi(
                                 c, int(new_pid),
