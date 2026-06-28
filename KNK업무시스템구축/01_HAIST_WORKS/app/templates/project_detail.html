@@ -927,7 +927,15 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         </h3>
         {% if project_orders %}
         {# v5H226z637 (대표 지시): 최초(메인) 수주는 그대로, 추가 수주는 '참고'로 접어 표시(같은 관리번호에 딸린 건임을 구분). 최초 = 가장 오래된 SO(목록 마지막). #}
-        {% set _ord = ([project_orders|last] + project_orders[:-1]) if (project_orders|length > 1) else project_orders %}
+        {# v5H226z695 (대표 지시): 보드에서 누른 수주번호(focus_so)가 있으면 그 수주를 메인(편집) 카드로 — 나머지(최초 포함)는 참고로. 없으면 기존대로 최초=메인. #}
+        {% set _focus = (focus_so|default(''))|string %}
+        {% set _oldest_id = (project_orders|last).id if project_orders else 0 %}
+        {% set _focus_match = (project_orders|selectattr('order_no','equalto',_focus)|list) if _focus else [] %}
+        {% if _focus_match %}
+          {% set _ord = _focus_match + (project_orders|rejectattr('order_no','equalto',_focus)|list) %}
+        {% else %}
+          {% set _ord = ([project_orders|last] + project_orders[:-1]) if (project_orders|length > 1) else project_orders %}
+        {% endif %}
         <style>
           /* v5H226z641 (대표 지시): 참고(추가 수주) 영역 — 또렷한 연한 회색(헤더 배경 명시·본 카드와 확실히 구분) */
           .ref-sos-wrap { border:1px solid #c4cad3; border-radius:10px; margin:10px 0 4px; background:#e9ebef; }
@@ -989,7 +997,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음 #}
                 {% if so.so_customer %}<span class="item"><span class="k">🏢 발주처</span><span class="v" style="font-weight:700;color:#1d4ed8;">{{ so.so_customer }}</span></span>{% endif %}
-                <span class="item"><span class="k">{% if loop.first %}🆕 최초 수주{% else %}📎 참고 (추가 #{{ loop.index0 }}) · 읽기전용{% endif %}</span></span>
+                <span class="item"><span class="k">{# v5H226z695: 메인=누른 수주(선택)일 수 있음 → '최초 수주' 표식은 실제 가장 오래된 카드에만, 나머지는 정확히 구분 #}{% if loop.first %}{% if so.id == _oldest_id %}🆕 최초 수주{% else %}📌 보던 수주 (선택){% endif %}{% else %}{% if so.id == _oldest_id %}🆕 최초 수주 · 참고{% else %}📎 참고 (추가 #{{ loop.index0 }}) · 읽기전용{% endif %}{% endif %}</span></span>
               </div>
               <div class="so-actions">
                 {% set _so_is_parts = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}

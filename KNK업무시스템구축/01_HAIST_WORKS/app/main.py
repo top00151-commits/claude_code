@@ -6111,6 +6111,9 @@ async def project_detail(req: Request, pid: int):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    # v5H226z695 (대표 지시): 보드에서 누른 수주번호(?so=<수주번호>) — 그 수주를 상세에서 '메인(편집)' 카드로 올림.
+    #   없으면 기존대로 가장 오래된 SO = 메인. (호기/관리번호 클릭 → 그 수주가 곧장 보이도록)
+    focus_so = (req.query_params.get("so") or "").strip()
     with db_session() as c:
         p = c.execute(
             """SELECT p.*, cu.name AS customer_name FROM projects p
@@ -6469,6 +6472,7 @@ async def project_detail(req: Request, pid: int):
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
                project_orders=project_orders,
+               focus_so=focus_so,   # v5H226z695: 보드에서 누른 수주번호 → 메인 카드 지정
                STATUSES=_logi.LOGI_STATUSES,
                project_history=project_history_logs,
                all_units_sorted=all_units_sorted,
