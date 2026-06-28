@@ -15,7 +15,7 @@
   <div class="page-head">
     <div><div class="crumbs"><a href="/progress">진행</a> · <b>{{ project.mgmt_code|default(project.name) }}</b></div>
     <h1 class="page-title">📊 {{ project.name }}</h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">관리코드 <b>{{ project.mgmt_code }}</b> · 고객사 {{ project.customer_name|default('—') }}</div></div>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">관리코드 <b>{{ project.mgmt_code }}</b> · 고객사 {{ (cust_alias|default({},true)).get(project.customer_id) or project.customer_name|default('—') }}</div></div>
     <div style="display:flex;gap:8px;">
       <a class="btn btn-secondary" href="/progress/{{ project.id }}/gantt">📅 Gantt</a>
       <a class="btn btn-secondary" href="/progress/{{ project.id }}/burndown">📉 Burndown</a>

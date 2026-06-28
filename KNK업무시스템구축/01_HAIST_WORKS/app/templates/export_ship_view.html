@@ -21,7 +21,7 @@
     <div>
       <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <a href="/export/prep/{{ p.id }}">{{ p.mgmt_code|default('—') }}</a>{% if sel_box %} · <b>{{ sel_box }}</b>{% endif %}</div>
       <h1 class="page-title" data-dn="title">📦 출고 {% if sel_box %}<em>{{ sel_box }}</em>{% else %}<em>내용</em>{% endif %}</h1>
-      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">{{ p.name }} · 고객사 {{ p.customer_name|default('—') }} · 통화 {{ p.currency|default('KRW') }}</div>
+      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">{{ p.name }} · 고객사 {{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }} · 통화 {{ p.currency|default('KRW') }}</div>
     </div>
     <a class="btn" href="/export/ship/{{ p.id }}/qr/print" target="_blank" style="border:1px solid #0f172a;background:#0f172a;color:#fff;">🏷 QR 라벨 인쇄</a>
   </div>

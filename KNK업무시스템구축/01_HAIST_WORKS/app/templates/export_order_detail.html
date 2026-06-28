@@ -50,7 +50,7 @@ body {
         <h3>수출 수주 정보</h3>
         <dl class="def">
           <dt>수출번호</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ eo.export_no|default('—') }}</dd>
-          <dt>고객사</dt><dd>{{ eo.customer_name|default('—') }}</dd>
+          <dt>고객사</dt><dd>{{ (cust_alias|default({},true)).get(eo.customer_id) or eo.customer_name|default('—') }}</dd>
           <dt>총액</dt><dd style="font-weight:700;color:var(--knk-red);">{{ eo.currency|default('USD') }} {{ '{:,.2f}'.format(eo.total_amount|default(0)) }}</dd>
           <dt>인코텀즈</dt><dd>{{ eo.incoterms|default('—') }}</dd>
           <dt>도착항</dt><dd>{{ eo.destination|default('—') }}</dd>

@@ -123,7 +123,7 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
               {# v5H226z72: 관리코드 빨강 monospace → .mgmt-pill sm 잉크 알약 #}
               <td><span class="mgmt-pill sm">{{ r.mgmt_code or '—' }}</span></td>
               <td>{{ r.co_no or '—' }}</td>
-              <td>{{ r.customer_name or '—' }}</td>
+              <td>{{ (cust_alias|default({},true)).get(r.customer_id) or r.customer_name or '—' }}</td>
               <td><span class="pill pill-{{ r.status|lower }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
               <td class="amount">
                 {% if r.currency and r.currency != 'KRW' %}{{ r.currency }} {% endif %}{{ '{:,.0f}'.format(r.total_amount or 0) }}{% if not r.currency or r.currency=='KRW' %}원{% endif %}

@@ -288,7 +288,7 @@
           <div class="task-meta">
             <span class="pill pill-warn">{{ t.status }}</span>
             {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% elif t.project_label %}<span>📋 <b>{{ t.project_label }}</b></span>{% endif %}
-            {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% elif t.customer_label %}<span>🏢 <b>{{ t.customer_label }}</b></span>{% endif %}
+            {% if t.customer_name %}<span>🏢 <b>{{ (cust_alias|default({},true)).get(t.customer_id) or t.customer_name }}</b></span>{% elif t.customer_label %}<span>🏢 <b>{{ t.customer_label }}</b></span>{% endif %}
           </div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -336,7 +336,7 @@
                   <div class="task-meta">
                     <span class="pill {% if t.status == '완료' %}pill-done{% elif t.status == '진행중' %}pill-progress{% elif t.status == '지연' %}pill-danger{% else %}pill-muted{% endif %}">{{ t.status }}</span>
                     {% if t.project_name %}<span>📋 <b>{{ t.project_name }}</b></span>{% elif t.project_label %}<span>📋 <b>{{ t.project_label }}</b></span>{% endif %}
-                    {% if t.customer_name %}<span>🏢 <b>{{ t.customer_name }}</b></span>{% elif t.customer_label %}<span>🏢 <b>{{ t.customer_label }}</b></span>{% endif %}
+                    {% if t.customer_name %}<span>🏢 <b>{{ (cust_alias|default({},true)).get(t.customer_id) or t.customer_name }}</b></span>{% elif t.customer_label %}<span>🏢 <b>{{ t.customer_label }}</b></span>{% endif %}
                     {% if t.hours %}<span>⏱ <b>{{ t.hours }}h</b></span>{% endif %}
                     {% if t.category %}<span>📁 {{ t.category }}</span>{% endif %}
                     {% if t.comment_count %}<span>💬 {{ t.comment_count }}</span>{% endif %}

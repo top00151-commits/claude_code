@@ -183,7 +183,7 @@ button { font-family: inherit; cursor: pointer; }
           <tr>
             <td style="font-size:11px;color:var(--qv-ink-3);font-family:monospace;">{{ t.work_date }}</td>
             <td><b>{{ t.title }}</b>{% if t.notes %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">{{ t.notes[:60] }}{% if t.notes|length > 60 %}…{% endif %}</div>{% endif %}</td>
-            <td style="font-size:12px;color:var(--qv-ink-3);">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %}{% if t.project_name %} · {% endif %}🏢 {{ t.customer_name }}{% endif %}</td>
+            <td style="font-size:12px;color:var(--qv-ink-3);">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %}{% if t.project_name %} · {% endif %}🏢 {{ (cust_alias|default({},true)).get(t.customer_id) or t.customer_name }}{% endif %}</td>
             <td style="text-align:center;">
               {% set st = t.status %}
               <span class="status-pill {% if st == '완료' %}status-done{% elif st == '진행중' %}status-progress{% elif st == '지연' %}status-delay{% else %}status-wait{% endif %}">{{ st }}</span>

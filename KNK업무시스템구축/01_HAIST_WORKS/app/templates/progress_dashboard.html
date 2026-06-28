@@ -52,7 +52,7 @@
         </div>
         <div class="bar {% if rate < 30 %}danger{% elif rate < 70 %}warn{% endif %}"><div style="width:{{ rate }}%"></div></div>
         <div class="meta">
-          <span>고객사 <b>{{ p.customer_name|default('—') }}</b></span>
+          <span>고객사 <b>{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}</b></span>
           <span>마일스톤 <b>{{ p.done_ms|default(0) }}/{{ p.total_ms|default(0) }}</b></span>
           {% if p.end_date %}<span>완료 예정 <b>{{ p.end_date }}</b></span>{% endif %}
           {% if p.order_amount %}<span>수주액 <b>{{ '{:,.0f}'.format(p.order_amount) }}원</b></span>{% endif %}

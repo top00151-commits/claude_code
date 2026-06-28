@@ -294,7 +294,7 @@ body {
               <div class="up-r1">
                 {% if u.mgmt_code %}<span class="mgmt">{{ u.mgmt_code }}</span>{% endif %}
                 <span class="no" style="font-size:10px;color:#94a3b8;">{{ u.order_no }}</span>
-                <span class="cust">{{ u.customer_name|default('—') }}</span>
+                <span class="cust">{{ (cust_alias|default({},true)).get(u.customer_id) or u.customer_name|default('—') }}</span>
               </div>
               <div class="up-r2">📅 {{ u.due_date|default('') }}{% if u.total_amount %} · <b>{{ '{:,.0f}'.format(u.total_amount) }} {{ u.currency or 'KRW' }}</b>{% endif %}{% if u.project_name %} <span style="color:#94a3b8;">· {{ u.project_name }}</span>{% endif %}</div>
             </div>
@@ -353,7 +353,7 @@ body {
             {% elif o.biz_div == 'M' %}<span class="biz-pill biz-M">M</span>
             {% else %}—{% endif %}
           </td>
-          <td><b>{{ o.customer_name|default('—') }}</b></td>
+          <td><b>{{ (cust_alias|default({},true)).get(o.customer_id) or o.customer_name|default('—') }}</b></td>
           <td class="center"><b>{{ o.unit_qty|default(1) }}</b>대</td>
           <td>{{ o.ship_to|default('—') }}</td>
           <td class="num"><b>{% if o.total_amount %}{{ '{:,.0f}'.format(o.total_amount) }}{% else %}—{% endif %}</b> <span style="color:#94a3b8;font-size:9.5px;">{{ o.currency or 'KRW' }}</span></td>

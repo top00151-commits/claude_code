@@ -432,7 +432,7 @@ button { font-family: inherit; cursor: pointer; }
           <div class="feed-icon">{% if t.status == '완료' %}✅{% elif t.status == '진행중' %}🔄{% elif t.status == '지연' %}⚠{% elif t.status == '대기' %}⏸{% else %}📌{% endif %}</div>
           <div class="feed-text">
             <div class="ttl">{{ t.title }}</div>
-            <div class="body">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %} · 🏢 {{ t.customer_name }}{% endif %}{% if t.hours %} · {{ t.hours }}h{% endif %}</div>
+            <div class="body">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %} · 🏢 {{ (cust_alias|default({},true)).get(t.customer_id) or t.customer_name }}{% endif %}{% if t.hours %} · {{ t.hours }}h{% endif %}</div>
             <div class="meta">{{ t.status }}{% if t.comment_count %} · 💬 {{ t.comment_count }}{% endif %}</div>
           </div>
         </a>
@@ -450,7 +450,7 @@ button { font-family: inherit; cursor: pointer; }
           <div class="feed-icon">↪</div>
           <div class="feed-text">
             <div class="ttl">{{ t.title }}</div>
-            <div class="body">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %} · 🏢 {{ t.customer_name }}{% endif %}</div>
+            <div class="body">{% if t.project_name %}📋 {{ t.project_name }}{% endif %}{% if t.customer_name %} · 🏢 {{ (cust_alias|default({},true)).get(t.customer_id) or t.customer_name }}{% endif %}</div>
             <div class="meta">{{ t.status }}</div>
           </div>
         </a>

@@ -228,7 +228,7 @@ body { overflow: hidden !important; }
           <a class="list-item" href="/customers?q={{ c.customer_name }}">
             <div class="list-num">{{ '%02d'|format(loop.index) }}</div>
             <div class="list-text">
-              <div class="ttl">{{ c.customer_name }}</div>
+              <div class="ttl">{{ (cust_alias|default({},true)).get(c.customer_id) or c.customer_name }}</div>
               <div class="meta">{{ c.cnt }} 건</div>
             </div>
             <div class="list-amount">{{ '{:,.0f}'.format(c.total) }}</div>
@@ -248,7 +248,7 @@ body { overflow: hidden !important; }
             <span class="mgmt-pill sm{% if not p.mgmt_code %} empty{% endif %}">{{ p.mgmt_code|default('—') }}</span>
             <div class="list-text">
               <div class="ttl">{{ p.name }}</div>
-              <div class="meta">{{ p.customer_name|default('—') }}{% if p.stage %} · {{ p.stage }}{% endif %}</div>
+              <div class="meta">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.stage %} · {{ p.stage }}{% endif %}</div>
             </div>
             <div class="list-amount">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</div>
           </a>

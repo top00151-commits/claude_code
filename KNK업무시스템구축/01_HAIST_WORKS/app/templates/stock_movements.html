@@ -193,7 +193,7 @@
               <td>
                 {% if it.mgmt_code %}<span class="mute" style="font-family:var(--pq-mono); font-size:11px;">{{ it.mgmt_code }}</span> {% endif %}
                 {% if it.project_name %}<span>{{ it.project_name }}</span>{% endif %}
-                {% if it.customer_name %}<span class="mute"> · {{ it.customer_name }}</span>{% endif %}
+                {% if it.customer_name %}<span class="mute"> · {{ (cust_alias|default({},true)).get(it.customer_id) or it.customer_name }}</span>{% endif %}
                 {% if it.po_number %}<span class="mute" style="font-family:var(--pq-mono); font-size:11px;"> ({{ it.po_number }})</span>{% endif %}
                 {% if not it.mgmt_code and not it.customer_name and not it.po_number %}<span class="mute">—</span>{% endif %}
               </td>

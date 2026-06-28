@@ -71,7 +71,7 @@
         <div class="ad-card">
           <h3>👤 고객 · 📦 제품</h3>
           <div class="kv">
-            <div class="k">고객명</div><div class="v"><b>{{ t.customer_name or '—' }}</b></div>
+            <div class="k">고객명</div><div class="v"><b>{{ (cust_alias|default({},true)).get(t.customer_id) or t.customer_name or '—' }}</b></div>
             <div class="k">연락처</div><div class="v">{{ t.customer_phone or '—' }}</div>
             <div class="k">주소</div><div class="v">{{ t.customer_address or '—' }}</div>
             <div class="k">제품</div><div class="v">{{ t.product_name or '—' }}{% if t.model_name %} / {{ t.model_name }}{% endif %}</div>

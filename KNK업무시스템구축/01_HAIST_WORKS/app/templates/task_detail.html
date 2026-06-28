@@ -150,7 +150,7 @@
             {% else %}<span style="color:var(--mute);">—</span>{% endif %}
           </span></div>
           <div class="kv"><span class="k">고객사</span><span class="v">
-            {% if task.customer_name %}<a href="/customers/{{ task.customer_id_link }}" style="color:var(--knk-red);">{{ task.customer_name }}</a>
+            {% if task.customer_name %}<a href="/customers/{{ task.customer_id_link }}" style="color:var(--knk-red);">{{ (cust_alias|default({},true)).get(task.customer_id) or task.customer_name }}</a>
             {% elif task.customer_label %}<b>{{ task.customer_label }}</b>
             {% else %}<span style="color:var(--mute);">—</span>{% endif %}
           </span></div>

@@ -28,7 +28,7 @@ body {
         <tr>
           {# v5H226z62: 수주번호 amber 텍스트 → .mgmt-pill sm 잉크 알약 #}
           <td><span class="mgmt-pill sm">{{ o.order_no|default('#' ~ o.id) }}</span></td>
-          <td><b>{{ o.customer_name|default('—') }}</b></td>
+          <td><b>{{ (cust_alias|default({},true)).get(o.customer_id) or o.customer_name|default('—') }}</b></td>
           <td>{{ o.product_name|default('—') }}</td>
           <td class="num">{{ '{:,.0f}'.format(o.qty|default(0)) }}</td>
           <td class="center"><span class="pill {% if o.status == 'IN_PRODUCTION' %}pill-progress{% elif o.status == 'CONFIRMED' %}pill-warn{% else %}pill-muted{% endif %}">{{ o.status|status_kr }}</span></td>

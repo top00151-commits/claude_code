@@ -73,7 +73,7 @@
         <tr class="row" onclick="location.href='/as/{{ t.id }}'">
           <td><span class="as-no">{{ t.as_no }}</span></td>
           <td style="white-space:nowrap;color:var(--qv-ink-3);">{{ t.received_date or '—' }}</td>
-          <td><b>{{ t.customer_name or '—' }}</b></td>
+          <td><b>{{ (cust_alias|default({},true)).get(t.customer_id) or t.customer_name or '—' }}</b></td>
           <td style="white-space:nowrap;color:var(--qv-ink-3);">{{ t.customer_phone or '—' }}</td>
           <td>{{ t.product_name or '—' }}{% if t.model_name %} <span style="color:var(--qv-ink-3);font-size:12px;">/ {{ t.model_name }}</span>{% endif %}</td>
           <td style="max-width:220px;color:var(--qv-ink-2);">{{ (t.symptom or '')[:40] }}{% if (t.symptom or '')|length > 40 %}…{% endif %}</td>

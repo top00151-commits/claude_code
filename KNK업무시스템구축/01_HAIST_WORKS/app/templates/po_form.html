@@ -227,7 +227,7 @@
                     <option value="">(없음 / 일반 구매)</option>
                     {% for p in projects %}
                     <option value="{{ p.id }}" {% if is_edit and po.project_id == p.id %}selected{% endif %}>
-                      {{ p.mgmt_code }} · {{ p.project_name }}{% if p.customer_name %} · {{ p.customer_name }}{% endif %}
+                      {{ p.mgmt_code }} · {{ p.project_name }}{% if p.customer_name %} · {{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name }}{% endif %}
                     </option>
                     {% endfor %}
                   </select>

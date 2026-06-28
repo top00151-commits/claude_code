@@ -31,7 +31,7 @@
       <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <b>{{ p.mgmt_code|default('—') }}</b></div>
       <h1 class="page-title" data-dn="title">🚢 {{ p.name }} <em>통관 입력</em></h1>
       <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
-        고객사 {{ p.customer_name|default('—') }}
+        고객사 {{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}
         {% if p.model_name %} · 모델 {{ p.model_name }}{% endif %}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}
         · 통화 <b>{{ p.currency|default('KRW') }}</b>{% if p.fx_rate %} · 환율 {{ '{:,.2f}'.format(p.fx_rate) }}{% endif %}
         · 납기 {{ p.due_date|default('—') }} · <b style="color:#c2410c;">인보이스 금액은 USD 기준</b>

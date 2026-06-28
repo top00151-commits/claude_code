@@ -59,7 +59,7 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
       <tr onclick="location.href='/sales/opportunities/{{ o.id }}'">
         <td style="font-family:Consolas,monospace;font-size:11px;color:#8a7842;">{{ o.opp_no }}</td>
         <td class="op-name"><a href="/sales/opportunities/{{ o.id }}">{{ o.title }}</a></td>
-        <td class="op-muted">{{ o.customer_name or '—' }}</td>
+        <td class="op-muted">{{ (cust_alias|default({},true)).get(o.customer_id) or o.customer_name or '—' }}</td>
         <td>{{ {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타'}.get(o.biz_div, o.biz_div or '—') }}</td>
         <td><span class="op-stage {{ o.stage }}">{{ o.stage }}</span></td>
         <td class="op-prog">

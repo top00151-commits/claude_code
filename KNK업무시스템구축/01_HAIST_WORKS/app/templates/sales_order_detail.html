@@ -24,7 +24,7 @@ body {
     <div>
       <div class="crumbs" data-dn="crumb"><a href="/sales/orders">수주</a> · <b>{{ order.order_no }}</b></div>
       <div class="page-meta">SALES ORDER DETAIL</div>
-      <h1 class="page-title">{{ order.order_no }} <em>{{ order.customer_name|default('-') }}</em></h1>
+      <h1 class="page-title">{{ order.order_no }} <em>{{ (cust_alias|default({},true)).get(order.customer_id) or order.customer_name|default('-') }}</em></h1>
       <div style="font-size:13px; color:var(--ink); margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
         {% if order.mgmt_code %}
         {# v5H226z47: amber 텍스트 → .mgmt-pill 잉크 알약 #}
