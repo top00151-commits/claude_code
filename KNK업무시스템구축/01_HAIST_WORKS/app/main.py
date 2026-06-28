@@ -19213,51 +19213,16 @@ def _inject_oi_tax_into_rows(rows, oi_map, proj_iids):
 def _enrich_units_tax(c, project_id, units, can_money, iid_key="iid"):
     """호기 units 리스트(각 dict: {iid_key: order_items.id, statement_date, tax_invoice_date,
     tax_invoice_amt1, tax_invoice_date2/amt2/date3/amt3})의 '빈 칸만' 채운다.
-    우선순위 = 호기 실제값(이미 채워짐) > 묶음(tax_invoice_lines 균등분배) > orders(대표 SO 균등분배).
+    우선순위 = 호기 실제값 > orders(대표 SO 균등분배). v5H226z672(대표 지시): 묶음(tax_invoice_lines)
+    추정분배 폐기 — 묶음은 '한 장으로 발행' 표시 라벨로만, 세금계산서 금액은 발행 시 호기에 직접 기록.
     영업·관리(can_money) 아니면 no-op. units 를 제자리 변형하고 그대로 반환.
     ⚠ 작업일정표 보드와 수주내역 상세가 이 함수 하나로 표시되게 하는 공유 지점(둘이 어긋날 수 없게)."""
     if not (can_money and units and project_id):
         return units
-    # 1) 묶음(tax_invoice_lines) 균등분배 폴백 (z559/z560)
-    try:
-        _tlc = {x[1] for x in c.execute("PRAGMA table_info(tax_invoice_lines)").fetchall()}
-        if _tlc:
-            _df = {1: "tax_invoice_date", 2: "tax_invoice_date2", 3: "tax_invoice_date3"}
-            _af = {1: "tax_invoice_amt1", 2: "tax_invoice_amt2", 3: "tax_invoice_amt3"}
-            _by_iid = {}        # iid → {tier:(date,amt)}
-            _proj_lines = []    # 프로젝트 단위 묶음(전체 호기 대상)
-            _tsel = "l.unit_iids, l.row_sig, COALESCE(l.tier,1), COALESCE(l.amount,0), t.issue_date" if "tier" in _tlc \
-                    else "l.unit_iids, l.row_sig, 1, COALESCE(l.amount,0), t.issue_date"
-            for _bl in c.execute(
-                f"SELECT {_tsel} FROM tax_invoice_lines l JOIN tax_invoices t ON t.id=l.ti_id "
-                # 호기 묶음은 ref_kind='unit'(unit_iids=호기 CSV), 프로젝트 묶음은 ref_kind='project'
-                "WHERE t.status='발행' AND l.ref_kind IN ('project','unit') AND l.ref_id=?", (int(project_id),)).fetchall():
-                _sig = str(_bl[1] or "")
-                _ids = [int(x) for x in str(_bl[0] or "").split(",") if x.strip().isdigit()]
-                if not _ids and _sig.startswith("unit:"):   # unit_iids 비었으면 row_sig서 보조 파싱
-                    _ids = [int(x) for x in _sig[5:].split(",") if x.strip().isdigit()]
-                _tier = int(_bl[2] or 1); _amt = float(_bl[3] or 0); _idate = str(_bl[4] or "")[:10]
-                if not _ids and _sig.startswith("project:"):
-                    _proj_lines.append((_tier, _idate, _amt)); continue
-                _n = len(_ids) or 1
-                for _iid in _ids:
-                    _by_iid.setdefault(_iid, {})[_tier] = (_idate, _amt / _n)
-            if _proj_lines:
-                _np = len(units) or 1
-                for (_tier, _idate, _amt) in _proj_lines:
-                    for u in units:
-                        _by_iid.setdefault(u.get(iid_key), {}).setdefault(_tier, (_idate, _amt / _np))
-            for u in units:
-                mp = _by_iid.get(u.get(iid_key))
-                if not mp:
-                    continue
-                for _tier, (_d, _a) in mp.items():
-                    if _df.get(_tier) and not u.get(_df[_tier]):
-                        u[_df[_tier]] = _d
-                    if _af.get(_tier) and (u.get(_af[_tier]) in (None, "")):
-                        u[_af[_tier]] = round(_a)
-    except Exception:
-        pass
+    # 1) 묶음(tax_invoice_lines) 균등분배 — v5H226z672 (대표 지시) 폐기.
+    #   배경: 묶어 발행하면 금액이 묶음 장부에만 남고 호기 칸은 비어, 화면이 호기들에 거꾸로
+    #   '추정 분배'해 보드(📄칩) ↔ 상세(분배금액)가 어긋났음. 이제 세금계산서 단일 진실=호기:
+    #   발행 시 각 호기 칸에 직접 기록(_write_tax_truth)하고, 묶음은 '한 장으로 발행' 표시 라벨로만 쓴다.
     # 2) orders(대표 SO 직접발행) 균등분배 폴백 (z562) — 묶음도 호기값도 없는 칸만
     try:
         _oimap2, _ = _board_tax_oi_map()
@@ -19566,8 +19531,8 @@ def _build_bulk_template_buf():
     # v5H226z341 (대표 지시): 고객사(등록)→고객사1, 2차고객사→고객사2, 납품위치 다음에 영업담당자(우리 회사) 추가
     # v5H226z349 (대표 지시): 거래구분 다음에 '형태'(제품/상품/기타) 추가. PO유형은 A/S→수리 반영.
     # v5H226z476 (대표 지시): 일괄등록 양식 컬럼을 '엑셀로 저장'(작업일정표 export) 결과와 동일하게.
-    #   저장본을 그대로 업로드할 수 있게 같은 헤더·순서. 자동/표시 컬럼(수주번호·금액(수량×단가)·
-    #   거래명세서·세금계산서 1/2/3·금액·단계)은 업로드 시 무시(파서가 안 읽음) — '작성안내' 참고.
+    #   저장본을 그대로 업로드할 수 있게 같은 헤더·순서. 자동/표시 컬럼(수주번호·금액(수량×단가)·단계)은
+    #   업로드 시 무시. 거래명세서·세금계산서(발행일+금액)는 업로드 시 호기에 반영(z557/z660·묶음번호 없이) — '작성안내' 참고.
     from openpyxl.utils import get_column_letter
     headers = ["관리번호*", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량",
                "단가", "금액", "통화", "거래구분", "PO유형", "형태", "고객사1*", "고객사2", "부서",
@@ -19622,7 +19587,7 @@ def _build_bulk_template_buf():
         ["납품위치", "납품 장소."],
         ["발주일 / 납품일", "YYYY-MM-DD (예: 2026-03-30). ※ 발주일은 수주번호 발행 기준일 — 비우면 수주번호 미발행(헤더만 등록)."],
         ["상태 ⭐", "호기 진행 상태 — 진행중·출하·취소·보류 중 선택(드롭다운). 비우면 '초기협의'(호기는 진행중). ⭐업로드/재업로드 시 그 관리번호의 호기 상태에 반영 → 작업일정표 색·수주내역 상태가 동기화됩니다. 호기마다 다른 상태는 작업일정표/상세에서 개별 변경."],
-        ["거래명세서 / 1·2·3세금계산서(+금액)", "표시·다운로드 전용 — 업로드 시 무시됩니다. 발행일·금액은 등록 후 작업일정표/상세에서 직접 입력."],
+        ["거래명세서 / 1·2·3세금계산서(발행일+금액)", "발행일='YYYY-MM-DD'(예: 2026-03-30)·금액=숫자. 업로드 시 그 관리번호의 호기에 반영됩니다(작업일정표·상세 자동 동기화). ※묶음번호(-N) 등 추가 표기는 쓰지 마세요 — '한 장으로 발행'은 작업일정표 '묶어 발행'에서 처리합니다."],
         ["단계", "자동·관리 항목 — 업로드 시 무시됩니다."],
         ["영업담당자", "우리 회사(KNK) 영업담당자 이름 — 이 건을 담당하는 당사 영업사원."],
         ["* 표시", "필수 항목(관리번호·고객사1)."],
@@ -21299,6 +21264,42 @@ def _ti_make_bundle(c, tier, issue_date, currency, cust_name, lines, created_by,
     return ti_no, ti_id, total
 
 
+def _write_tax_truth(c, table, ids, tier, idate, amount):
+    """v5H226z672 (대표 지시): 세금계산서 '단일 진실=호기' — 발행 시 대상(order_items 호기 /
+    consumable_orders 소모품)의 tier(1/2/3) 발행일+금액을 직접 기록한다. 금액은 대상 수로
+    균등분배(합계 보존)·날짜는 동일. (묶음 tax_invoice_lines 는 '한 장으로 발행' 표시 라벨로만
+    두고, 화면 추정분배는 폐기 → 보드·상세가 항상 호기 한 곳을 읽어 일치.) table 은 내부 호출
+    전용 리터럴('order_items'/'consumable_orders')."""
+    try:
+        ids = [int(x) for x in (ids or [])]
+    except Exception:
+        ids = []
+    if not ids:
+        return
+    _t = int(tier or 1)
+    _df = {1: "tax_invoice_date", 2: "tax_invoice_date2", 3: "tax_invoice_date3"}.get(_t)
+    _af = {1: "tax_invoice_amt1", 2: "tax_invoice_amt2", 3: "tax_invoice_amt3"}.get(_t)
+    try:
+        _cols = {r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
+    except Exception:
+        _cols = set()
+    _ua = ", updated_at=datetime('now','localtime')" if "updated_at" in _cols else ""
+    if _df and _df in _cols and idate:
+        _ph = ",".join("?" * len(ids))
+        c.execute(f"UPDATE {table} SET {_df}=?{_ua} WHERE id IN ({_ph})", [str(idate)[:10]] + ids)
+    if _af and _af in _cols and amount is not None:
+        try:
+            total = float(amount)
+        except Exception:
+            return
+        n = len(ids)
+        share = round(total / n, 2)
+        rem = round(total - share * n, 2)   # 반올림 잔차는 첫 칸에 몰아 합계 정확 보존
+        for _i, _iid in enumerate(ids):
+            c.execute(f"UPDATE {table} SET {_af}=?{_ua} WHERE id=?",
+                      (share + (rem if _i == 0 else 0), _iid))
+
+
 @app.post("/sales/schedule/tax-invoice/issue")
 async def schedule_tax_invoice_issue(request: Request):
     """작업일정표에서 체크한 여러 출하 건(여러 관리번호/여러 호기/같은 출하시점)을 '한 장의 세금계산서'로 묶어 발행.
@@ -21385,6 +21386,30 @@ async def schedule_tax_invoice_issue(request: Request):
                     "INSERT INTO tax_invoice_lines(ti_id, row_sig, ref_kind, ref_id, unit_iids, mgmt_code, label, customer, amount, tier) "
                     "VALUES(?,?,?,?,?,?,?,?,?,?)",
                     (ti_id, n["sig"], n["rkind"], n["ref_id"], n["uids"], n["mgmt_code"], n["label"], n["customer"], n["amount"], tier))
+            # v5H226z672 (대표 지시): 세금계산서 단일 진실=호기 — 발행 금액을 각 호기/소모품 칸에 직접 기록.
+            #   (위 tax_invoices/tax_invoice_lines = '한 장으로 발행' 표시 라벨. 화면 추정분배 폐기 → 보드·상세 일치.)
+            for n in norm:
+                try:
+                    if n["rkind"] == "consumable":
+                        _write_tax_truth(c, "consumable_orders",
+                                         ([n["ref_id"]] if n.get("ref_id") else []), tier, issue_date, n["amount"])
+                        continue
+                    if n.get("uids"):
+                        _raw = [int(x) for x in str(n["uids"]).split(",") if str(x).strip().isdigit()]
+                        _ids = []
+                        if _raw:
+                            _ph = ",".join("?" * len(_raw))
+                            _ids = [int(r[0]) for r in c.execute(
+                                f"SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                                f"WHERE oi.id IN ({_ph}) AND COALESCE(o.status,'')<>'CANCELLED'", _raw).fetchall()]
+                    else:
+                        _ids = [int(r[0]) for r in c.execute(
+                            "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                            "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id",
+                            (n["ref_id"],)).fetchall()]
+                    _write_tax_truth(c, "order_items", _ids, tier, issue_date, n["amount"])
+                except Exception:
+                    pass
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True, "ti_no": ti_no, "ti_id": ti_id, "n": len(norm), "total": total, "currency": currency, "tier": tier})
@@ -23477,8 +23502,8 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _cSt = _col("상태")     # v5H226z663 (대표 지시): 호기 상태(진행중/출하/취소/보류) — 업로드로 지정·재업로드로 갱신
         _cCc = _col("담당자"); _cPh = _col("연락처"); _cSh = _col("납품위치", "납품지", "납품처"); _cNt = _col("비고", "기타사항")
         _cSa = _col("영업")   # 영업담당자(우리 회사 영업사원) — sales_name 으로 저장
-        # v5H226z557 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일 + 금액 + '묶음번호' 올리기.
-        #   값 형식 'YYYY-MM-DD-N' = 발행일 + 묶음번호(같은 날짜·같은 N·같은 고객사 = 한 장으로 묶어 발행).
+        # v5H226z672 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일 + 금액 올리기 (호기 단일 진실에 기록).
+        #   값 형식 'YYYY-MM-DD'(발행일만). 묶음번호(-N) 폐기 — '한 장 표기'는 작업일정표 '묶어 발행' 라벨로.
         #   금액 칸은 각 '세금계산서' 헤더 바로 다음 컬럼(헤더 '금액'이 셋이라 위치로 잡음).
         _cStmt = _col("거래명세서")
         _cTi1 = _col("1세금계산서"); _cTi2 = _col("2세금계산서"); _cTi3 = _col("3세금계산서")
@@ -23487,17 +23512,19 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _cTi3a = (_cTi3 + 1) if _cTi3 is not None else None
 
         def _parse_ti(v):
-            """세금계산서 칸 → (발행일 YYYY-MM-DD, 묶음번호). datetime/'YYYY-MM-DD'/'YYYY-MM-DD-N' 처리."""
+            """세금계산서 칸 → (발행일 YYYY-MM-DD, ""). datetime/'YYYY-MM-DD' 처리.
+            v5H226z672 (대표 지시): 묶음번호(-N) 폐기 — 뒤에 '-N'이 붙어 와도 무시하고 발행일만 읽는다
+            (세금계산서 단일 진실=호기. 한 장 표기는 작업일정표 '묶어 발행' 라벨로)."""
             import datetime as __dt
             if v is None or v == "":
                 return ("", "")
             if isinstance(v, __dt.datetime):
                 return (v.strftime("%Y-%m-%d"), "")
             s = str(v).strip()
-            m = _re_m.match(r"^(\d{4})\D(\d{1,2})\D(\d{1,2})(?:\D+(.+))?$", s)
+            m = _re_m.match(r"^(\d{4})\D(\d{1,2})\D(\d{1,2})(?:\D+.*)?$", s)
             if m:
                 d = f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
-                return (d, (m.group(4) or "").strip())
+                return (d, "")
             return (_to_date(v) or "", "")
 
         def _ti_amt(v):
@@ -23633,11 +23660,11 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 #   메커니즘: shipment_form=SEMI → confirm 의 _is_part 경로(1줄) 사용(신규·추가발주 공통).
                 "shipment_form": "SEMI",
                 "two_tier_order": 1 if cust2 else 0,
-                # v5H226z557: 거래명세서 발행일 + 세금계산서 1/2/3차 (발행일·묶음번호·금액)
+                # v5H226z672: 거래명세서 발행일 + 세금계산서 1/2/3차 (발행일·금액). 묶음번호(-N) 폐기 — 호기 단일 진실.
                 "statement_date": (_parse_ti(_g(_cStmt))[0] if _cStmt is not None else ""),
-                "ti1_date": _parse_ti(_g(_cTi1))[0], "ti1_bundle": _parse_ti(_g(_cTi1))[1], "ti1_amt": _ti_amt(_g(_cTi1a)),
-                "ti2_date": _parse_ti(_g(_cTi2))[0], "ti2_bundle": _parse_ti(_g(_cTi2))[1], "ti2_amt": _ti_amt(_g(_cTi2a)),
-                "ti3_date": _parse_ti(_g(_cTi3))[0], "ti3_bundle": _parse_ti(_g(_cTi3))[1], "ti3_amt": _ti_amt(_g(_cTi3a)),
+                "ti1_date": _parse_ti(_g(_cTi1))[0], "ti1_amt": _ti_amt(_g(_cTi1a)),
+                "ti2_date": _parse_ti(_g(_cTi2))[0], "ti2_amt": _ti_amt(_g(_cTi2a)),
+                "ti3_date": _parse_ti(_g(_cTi3))[0], "ti3_amt": _ti_amt(_g(_cTi3a)),
                 "_followup": _followup, "_force_first_so": _force_first_so, "_auto_mgmt": _auto, "_warn": warn,
                 "_errors": errors,
                 "_is_warning_only": (len(errors) == 0 and bool(warn)),
@@ -33098,7 +33125,7 @@ async def consumables_import_bulk_confirm(request: Request):
     _safe_img = _re.compile(r"^l\d+_\d+(_t)?\.jpg$")
     created, failed, link_warnings, unmatched_customers = [], [], [], []
     images_attached = 0; images_failed = 0
-    bundle_rows = []   # v5H226z491b: 세금계산서 '-N' 묶음 표기 수집 → 확정 후 묶음 발행
+    # v5H226z672 (대표 지시): 소모품 '-N' 묶음 자동발행 폐기 — consumable_orders 칸이 단일 진실.
     for o in orders:
         if o.get("_errors"):   # 차단 오류 발주는 스킵(연결성 표면화)
             failed.append({"customer": o.get("customer_name"), "order_date": o.get("order_date"),
@@ -33164,19 +33191,8 @@ async def consumables_import_bulk_confirm(request: Request):
                     c.execute(f"UPDATE consumable_orders SET {', '.join(_sets)} WHERE id=?", _vals)
         except Exception:
             pass
-        # v5H226z491b (대표 지시): 세금계산서 발행일 '-N' 묶음 표기 수집(같은 날짜-N끼리 한 장으로 묶음 발행)
-        _cur_ccy = (o.get("currency") or "KRW").strip().upper()
-        for _tier, _dk, _bk, _ak in [(1, "tax_invoice_date", "ti1_bundle", "tax_invoice_amt1"),
-                                     (2, "tax_invoice_date2", "ti2_bundle", "tax_invoice_amt2"),
-                                     (3, "tax_invoice_date3", "ti3_bundle", "tax_invoice_amt3")]:
-            _bv = str(o.get(_bk) or "").strip(); _dv = str(o.get(_dk) or "").strip()
-            if _bv and _dv:
-                try:
-                    _amt = float(o.get(_ak) or 0)
-                except Exception:
-                    _amt = 0.0
-                bundle_rows.append({"tier": _tier, "date": _dv, "bundle": _bv, "co_id": co_id,
-                                    "co_no": co_no, "customer": cust_name, "currency": _cur_ccy, "amount": _amt})
+        # v5H226z672 (대표 지시): 소모품 세금계산서 = consumable_orders 칸이 단일 진실(위에서 발행일·금액 기록).
+        #   '-N' 묶음번호 자동발행 폐기 — 여러 건을 한 장으로 '표기'하려면 작업일정표 '묶어 발행'(라벨) 사용.
         img_dir = _co.co_image_dir(co_id)
         items_out = []
         for ln, it in enumerate(items_in, 1):
@@ -33237,30 +33253,9 @@ async def consumables_import_bulk_confirm(request: Request):
         created.append({"co_no": co_no, "customer": cust_name,
                         "order_date": o.get("order_date"), "items": len(items_out),
                         "images": sum(1 for _io in items_out if _io.get("image_path") or _io.get("image_loc_path"))})
-    # v5H226z491b (대표 지시): 같은 (차수·날짜·묶음번호 N) 주문 2건 이상 → 한 장의 묶음 세금계산서로 자동 발행
-    #   (작업일정표 '묶어 발행'과 동일 장부 tax_invoices). 단독 -N(1건)은 날짜만 정리하고 묶지 않음.
+    # v5H226z672 (대표 지시): 소모품 자동 묶음 발행 폐기 — consumable_orders 칸이 단일 진실(위에서 기록).
+    #   (여러 건을 한 장으로 '표기'하려면 작업일정표 '묶어 발행' 라벨 사용.)
     ti_bundles, ti_lines_bundled, ti_singles = 0, 0, 0
-    if bundle_rows:
-        from collections import defaultdict as _dd
-        _grp = _dd(list)
-        for _br in bundle_rows:
-            # v5H226z566 (대표 지시): 다른 고객사는 절대 한 장으로 묶지 않음 — 그룹 키에 고객사 포함
-            #   (같은 날짜·묶음번호여도 고객사가 다르면 따로 발행). cf 프로젝트 일괄등록은 이미 고객사 포함.
-            _grp[(_br["tier"], _br["date"], _br["bundle"], (_br.get("customer") or "").strip())].append(_br)
-        try:
-            with db_session() as c:
-                for (_t, _d, _b, _cust), _mem in _grp.items():
-                    if len(_mem) < 2:
-                        ti_singles += 1
-                        continue
-                    _lines = [{"sig": _ti_row_sig("consumable", m["co_id"], []), "ref_kind": "consumable",
-                               "ref_id": m["co_id"], "mgmt_code": m["co_no"], "label": "",
-                               "customer": m["customer"], "amount": m["amount"]} for m in _mem]
-                    _ti_make_bundle(c, _t, _d, _mem[0]["currency"], _mem[0]["customer"], _lines,
-                                    u.get("id"), u.get("name") or "", memo=f"일괄등록 묶음 {_d}-{_b}")
-                    ti_bundles += 1; ti_lines_bundled += len(_mem)
-        except Exception:
-            pass
     if tmp_dir:
         shutil.rmtree(tmp_dir, ignore_errors=True)   # 완료/실패 무관 임시 사진폴더 정리
     return JSONResponse({"ok": True, "created_count": len(created), "failed_count": len(failed),
