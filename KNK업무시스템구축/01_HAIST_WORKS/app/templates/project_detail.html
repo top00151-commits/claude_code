@@ -1084,13 +1084,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   <th class="px-x" style="width:106px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>상태</th>
                   {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
                   {# v5H226z85: width: auto — table-layout:fixed에서 명시안된 컬럼은 남은 공간 차지 #}
-                  <th style="width:auto;min-width:220px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
+                  <th style="width:auto;min-width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
                   {# v5H226z634 (대표 지시): 완제품 — 호기별 거래명세서·세금계산서1/2/3 (보기 전용 · 발행/편집은 작업일정표 보드) #}
                   {% if _is_equip and can_money %}
-                  <th class="px-x center" style="width:110px;">거래명세서</th>
-                  <th class="px-x center" style="width:120px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">1차</span></th>
-                  <th class="px-x center" style="width:120px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">2차</span></th>
-                  <th class="px-x center" style="width:120px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">3차</span></th>
+                  <th class="px-x center" style="width:92px;">거래명세서</th>
+                  <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">1차</span></th>
+                  <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">2차</span></th>
+                  <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">3차</span></th>
                   {% endif %}
                   {# v5H226z86: 동작 → 수정 (호기별 개별 저장/삭제이지만 사용자 인지 일관성) #}
                   {% if _editable %}<th class="center edit-only" style="width:80px;">수정</th>{% endif %}
@@ -1283,7 +1283,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                     <span class="pill {% if _ust == '출하' %}pill-done{% elif _ust == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ _ust }}</span>
                     {% endif %}
                   </td>
-                  <td style="white-space:normal; word-break:break-word; min-width:200px;">
+                  <td style="white-space:normal; word-break:break-word; min-width:120px;">
                     {# v5H226z79: 비고 셀 줄바꿈 허용 — 짤림 해결 #}
                     <span class="display-val note">{{ u.line_note or '' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}
@@ -1291,9 +1291,9 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   {# v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서1/2/3 (보기 전용 — 발행/편집은 작업일정표 보드) #}
                   {% if _is_equip and can_money %}
                   <td class="center px-x" style="font-size:11px;white-space:nowrap;">{{ u.statement_date or '—' }}</td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">₩{{ '{:,.0f}'.format(u.tax_invoice_amt1|float) }}</div>{% endif %}{% else %}—{% endif %}</td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date2 or u.tax_invoice_amt2 %}<div>{{ u.tax_invoice_date2 or '–' }}</div>{% if u.tax_invoice_amt2 %}<div style="color:#1d4ed8;font-weight:700;">₩{{ '{:,.0f}'.format(u.tax_invoice_amt2|float) }}</div>{% endif %}{% else %}—{% endif %}</td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date3 or u.tax_invoice_amt3 %}<div>{{ u.tax_invoice_date3 or '–' }}</div>{% if u.tax_invoice_amt3 %}<div style="color:#1d4ed8;font-weight:700;">₩{{ '{:,.0f}'.format(u.tax_invoice_amt3|float) }}</div>{% endif %}{% else %}—{% endif %}</td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt1, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt1, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date2 or u.tax_invoice_amt2 %}<div>{{ u.tax_invoice_date2 or '–' }}</div>{% if u.tax_invoice_amt2 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt2, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt2, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;">{% if u.tax_invoice_date3 or u.tax_invoice_amt3 %}<div>{{ u.tax_invoice_date3 or '–' }}</div>{% if u.tax_invoice_amt3 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt3, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt3, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</td>
                   {% endif %}
                   {% if _editable %}
                   <td class="center edit-only">
