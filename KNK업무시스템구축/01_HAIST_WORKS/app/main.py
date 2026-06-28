@@ -21286,7 +21286,9 @@ def _ti_row_sig(kind, ref_id, iids):
 def _apply_import_ti_to_units(c, ti_rows):
     """v5H226z660 (대표 지시): 일괄등록/엑셀의 거래명세서·세금계산서를 '호기(order_items)'에 직접 기록.
     작업일정표·프로젝트 상세가 모두 호기 칸을 단일 소스로 읽으므로(z562) 두 화면이 항상 일치한다.
-    각 프로젝트의 '최신 SO 의 대표(최소 id) 호기'에 기록. 반환 (적용 프로젝트수, 세금계산서 차수 합)."""
+    각 줄이 만든 '자기 수주(SO)의 대표(최소 id) 호기'에 기록(tr.order_id) — 없으면 최신 SO 폴백(레거시).
+    v5H226z676 (대표 지시): 이전엔 모두 '최신 SO'에 몰아써 같은 관리번호 여러 SO(추가제작)의 세금계산서가
+    서로 덮어쓰기됐음(006T2603: 4개 수주 세금계산서가 최신 1곳에 몰려 마지막만 생존). 반환 (적용 프로젝트수, 세금계산서 차수 합)."""
     try:
         _oic = {x[1] for x in c.execute("PRAGMA table_info(order_items)").fetchall()}
     except Exception:
@@ -21297,10 +21299,19 @@ def _apply_import_ti_to_units(c, ti_rows):
     proj_n = ti_n = 0
     for tr in (ti_rows or []):
         try:
-            _oi = c.execute(
-                "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
-                "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
-                "ORDER BY o.id DESC, oi.id ASC LIMIT 1", (tr["pid"],)).fetchone()
+            _oid = tr.get("order_id")
+            _oi = None
+            if _oid:
+                # v5H226z676: 이 줄이 만든 '자기 수주(SO)'의 대표(최소 id) 호기에 기록 — 최신 SO 몰아쓰기 폐기
+                _oi = c.execute(
+                    "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                    "WHERE oi.order_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
+                    "ORDER BY oi.id ASC LIMIT 1", (int(_oid),)).fetchone()
+            if not _oi:   # 폴백(order_id 없거나 못 찾을 때만): 최신 SO 대표 호기(레거시)
+                _oi = c.execute(
+                    "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                    "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
+                    "ORDER BY o.id DESC, oi.id ASC LIMIT 1", (tr["pid"],)).fetchone()
         except Exception:
             _oi = None
         if not _oi:
@@ -24353,7 +24364,7 @@ async def projects_import_confirm(request: Request):
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
     # v5H226z557 (대표 지시): 거래명세서·세금계산서(1/2/3차)를 '묶음까지 완전 재현'. 행→pid 수집 후 루프 끝에서 발행.
     _ti_rows = []
-    def _ti_collect(_pid, _mc, _row, _nm):
+    def _ti_collect(_pid, _mc, _row, _nm, _order_id=None):
         if not _pid:
             return
         _sd = (str(_row.get("statement_date") or ""))[:10]
@@ -24369,6 +24380,7 @@ async def projects_import_confirm(request: Request):
         if not _sd and not _ti:
             return
         _ti_rows.append({"pid": int(_pid), "mgmt": _mc or "",
+                         "order_id": (int(_order_id) if _order_id else None),   # v5H226z676: 이 줄이 만든 수주(SO) → 세금계산서를 그 SO 호기에 기록
                          "customer": (_row.get("customer_name") or ""),
                          "label": (_row.get("model_name") or _nm or ""),
                          "currency": (str(_row.get("currency") or "KRW")).upper(),
@@ -24458,7 +24470,7 @@ async def projects_import_confirm(request: Request):
                     created.append({"row_no": r.get("row_no"), "name": name,
                                     "mgmt_code": _mc, "followup": True,
                                     "so_no": _res.get("so_no")})
-                    _ti_collect(_ex["id"], _mc, r, name)   # v5H226z557: 세금계산서 수집(추가발주)
+                    _ti_collect(_ex["id"], _mc, r, name, _res.get("order_id"))   # v5H226z557/z676: 세금계산서를 이 추가발주 SO 호기에 기록
                 except Exception as _e:
                     failed.append({"row_no": r.get("row_no"), "name": name,
                                    "error": f"추가발주 오류: {str(_e)[:120]}"})
@@ -24477,8 +24489,22 @@ async def projects_import_confirm(request: Request):
                     _re_pid = (_dup["id"] if isinstance(_dup, dict) else _dup[0])
                     # v5H226z657 (대표 지시): 이미 등록된 관리번호도 거래명세서·세금계산서는 반영(재업로드로 일괄 반영).
                     #   프로젝트/호기는 중복 생성하지 않고(건너뜀), 세금계산서만 _ti_rows 로 수집해 아래에서 발행.
+                    # v5H226z676: 재업로드 줄을 '발주일이 일치하는 단일 SO'에 매칭(명확한 단일후보만)→그 SO 호기에 기록.
+                    #   애매하면(0개·2개+) 미매칭(None)→_apply_import_ti_to_units 가 최신 SO 폴백(레거시). 연결성 안전원칙.
+                    _re_oid = None
                     try:
-                        _ti_collect(_re_pid, _mc_eff, r, name)
+                        _rod = (str(r.get("order_date") or "")[:10])
+                        if _rod:
+                            with db_session() as c:
+                                _ms = c.execute(
+                                    "SELECT id FROM orders WHERE project_id=? AND substr(COALESCE(order_date,''),1,10)=? "
+                                    "AND COALESCE(status,'')<>'CANCELLED'", (_re_pid, _rod)).fetchall()
+                                if len(_ms) == 1:
+                                    _re_oid = (_ms[0]["id"] if isinstance(_ms[0], dict) else _ms[0][0])
+                    except Exception:
+                        _re_oid = None
+                    try:
+                        _ti_collect(_re_pid, _mc_eff, r, name, _re_oid)
                     except Exception:
                         pass
                     # v5H226z663 (대표 지시): 재업로드로 '상태'도 갱신 — 엑셀 '상태' 칸에 진행중/출하/취소/보류가 있으면
@@ -24555,6 +24581,7 @@ async def projects_import_confirm(request: Request):
             #   발주일이 없으면 SO 번호(SO-YYYYMM-####)의 기준 년월이 없어 미발행(헤더만) + 안내로 표면화.
             #   (기존 WON_STATUSES / _force_first_so 케이스는 모두 '발주일 있음'에 포섭 — 발주일 있는 정상행 회귀 없음)
             _row_has_od = bool((r.get("order_date") or "").strip())
+            _new_oid = None   # v5H226z676: 이 신규 줄이 만든 수주(SO) order_id → 세금계산서를 그 SO 호기에 기록
             if new_pid and not _row_has_od:
                 # 발주일 없어 SO 미발행 — 조용히 넘기지 않고 수집(연결성 표면화 / 대표 결정: 미발행+안내)
                 # v5H226z337: 소모품(C)도 포함 — 비소모품과 동일 규칙
@@ -24593,13 +24620,17 @@ async def projects_import_confirm(request: Request):
                                     "ship_to": r.get("ship_to") or "",
                                     "note": r.get("note") or "",   # v5H226z236: 엑셀 비고
                                 } for i in range(max(1, unit_qty))]
-                            _pwf.confirm_order_multi(
+                            _cres = _pwf.confirm_order_multi(
                                 c, int(new_pid),
                                 units=units_list,
                                 order_date=r.get("order_date") or "",
                                 created_by=u.get("id") or 0,
                                 po_number="",
                             )
+                            try:   # v5H226z676: 이 줄이 만든 SO order_id 확보(세금계산서 기록 대상)
+                                _new_oid = ((_cres.get("groups") or [{}])[0].get("order_id")) if isinstance(_cres, dict) else None
+                            except Exception:
+                                _new_oid = None
                 except Exception as _so_e:
                     # v5H226z262 (대표 지시·연결성 감사): 근본원인 = SO 생성 실패를 'except: pass'로
                     #   조용히 삼켜 → 프로젝트만 생기고 수주·호기·금액이 무음 누락(화면엔 '성공').
@@ -24635,7 +24666,7 @@ async def projects_import_confirm(request: Request):
                 _created_pids.add(int(new_pid))
             created.append({"row_no": r.get("row_no"), "id": new_pid,
                             "mgmt_code": new_code, "name": name})
-            _ti_collect(new_pid, new_code, r, name)   # v5H226z557: 세금계산서 수집(신규)
+            _ti_collect(new_pid, new_code, r, name, _new_oid)   # v5H226z557/z676: 세금계산서를 이 신규 SO 호기에 기록
         except Exception as e:
             failed.append({"row_no": r.get("row_no"), "name": r.get("name"),
                            "error": str(e)})
