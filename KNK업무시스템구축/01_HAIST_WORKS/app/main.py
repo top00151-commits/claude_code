@@ -21413,48 +21413,46 @@ def _apply_import_ti_to_units(c, ti_rows):
         _oic = {x[1] for x in c.execute("PRAGMA table_info(order_items)").fetchall()}
     except Exception:
         _oic = set()
-    _tier_cols = {1: ("tax_invoice_date", "tax_invoice_amt1"),
-                  2: ("tax_invoice_date2", "tax_invoice_amt2"),
-                  3: ("tax_invoice_date3", "tax_invoice_amt3")}
     proj_n = ti_n = 0
     for tr in (ti_rows or []):
+        # v5H226z692 (대표 지시): 그 수주(SO)의 '모든 호기'에 나눠 기록 — 한 호기에 전액 몰지 않음.
+        #   기존 z676 은 대표(최소 id) 호기 1곳에 전액 기록 → 3호기 완제품도 1호기에 합계만 뜨고 2·3호기 빈칸(006T2602).
+        #   출하/발행은 호기 단위이므로 거래명세서·세금계산서를 그 수주 호기수로 균등분배(_write_tax_truth)·날짜는 동일.
+        _iids = []
         try:
             _oid = tr.get("order_id")
-            _oi = None
             if _oid:
-                # v5H226z676: 이 줄이 만든 '자기 수주(SO)'의 대표(최소 id) 호기에 기록 — 최신 SO 몰아쓰기 폐기
-                _oi = c.execute(
+                _rows = c.execute(
                     "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
-                    "WHERE oi.order_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
-                    "ORDER BY oi.id ASC LIMIT 1", (int(_oid),)).fetchone()
-            if not _oi:   # 폴백(order_id 없거나 못 찾을 때만): 최신 SO 대표 호기(레거시)
-                _oi = c.execute(
-                    "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
-                    "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
-                    "ORDER BY o.id DESC, oi.id ASC LIMIT 1", (tr["pid"],)).fetchone()
+                    "WHERE oi.order_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id ASC",
+                    (int(_oid),)).fetchall()
+                _iids = [(r["id"] if isinstance(r, dict) else r[0]) for r in _rows]
+            if not _iids:   # 폴백(order_id 없거나 못 찾을 때): 최신 SO 의 전체 호기(레거시)
+                _so = c.execute(
+                    "SELECT o.id FROM orders o WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
+                    "ORDER BY o.id DESC LIMIT 1", (tr["pid"],)).fetchone()
+                if _so:
+                    _soid = _so["id"] if isinstance(_so, dict) else _so[0]
+                    _rows = c.execute("SELECT id FROM order_items WHERE order_id=? ORDER BY id ASC", (_soid,)).fetchall()
+                    _iids = [(r["id"] if isinstance(r, dict) else r[0]) for r in _rows]
         except Exception:
-            _oi = None
-        if not _oi:
+            _iids = []
+        if not _iids:
             continue
-        _iid = _oi["id"] if isinstance(_oi, dict) else _oi[0]
-        sets = []
-        vals = []
+        # 거래명세서(발행일) — 그 수주 모든 호기에 동일 날짜
         if tr.get("statement_date") and "statement_date" in _oic:
-            sets.append("statement_date=?")
-            vals.append(tr["statement_date"])
-        for (tier, d, bundle, amt) in (tr.get("ti") or []):
-            dc, ac = _tier_cols.get(tier, (None, None))
-            if dc and dc in _oic:
-                sets.append(dc + "=?")
-                vals.append(d)
-                if ac in _oic:
-                    sets.append(ac + "=?")
-                    vals.append(amt)
-                ti_n += 1
-        if sets:
             try:
-                c.execute("UPDATE order_items SET " + ", ".join(sets) + " WHERE id=?", tuple(vals) + (_iid,))
+                _ph = ",".join("?" * len(_iids))
+                c.execute(f"UPDATE order_items SET statement_date=? WHERE id IN ({_ph})",
+                          [tr["statement_date"]] + _iids)
                 proj_n += 1
+            except Exception:
+                pass
+        # 세금계산서 1/2/3차 — 날짜는 모든 호기, 금액은 호기수로 균등분배(합계 보존)
+        for (tier, d, bundle, amt) in (tr.get("ti") or []):
+            try:
+                _write_tax_truth(c, "order_items", _iids, tier, d, amt)
+                ti_n += 1
             except Exception:
                 pass
     return (proj_n, ti_n)
