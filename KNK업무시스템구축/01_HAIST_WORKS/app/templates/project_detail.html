@@ -1326,9 +1326,9 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                     <span class="pill {% if _ust == '출하' %}pill-done{% elif _ust == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ _ust }}</span>
                     {% endif %}
                   </td>
-                  <td style="white-space:normal; word-break:break-word; min-width:120px;">
-                    {# v5H226z79: 비고 셀 줄바꿈 허용 — 짤림 해결 #}
-                    <span class="display-val note">{{ u.line_note or '' }}</span>
+                  <td style="white-space:nowrap; max-width:220px; overflow:hidden;">
+                    {# v5H226z694 (대표 지시): 비고 1줄+말줄임(엑셀 느낌). 긴 비고가 좁은 칸에서 세로로 늘어나 행 높이가 폭증(403px)하던 것 차단 — 전체는 마우스 올리면(title) 표시. #}
+                    <span class="display-val note" title="{{ u.line_note or '' }}">{{ u.line_note or '' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}
                   </td>
                   {# v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서1/2/3 (보기 전용 — 발행/편집은 작업일정표 보드) #}
