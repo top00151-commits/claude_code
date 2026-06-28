@@ -86,6 +86,34 @@ table.so-units.parts-excel th .col-resize-handle {
 table.so-units.parts-excel th .col-resize-handle:hover,
 table.so-units.parts-excel th .col-resize-handle.dragging { background: rgba(176,122,24,0.55); }
 
+/* v5H226z709 (대표 지시): 완제품·일반·소모품 수주표(비-PARTS)에도 ① 가로 스크롤바 표시 ② 칸 폭 드래그 조정.
+   상품(parts-excel)은 이미 동일 기능 → 미변경. 기본 칸 너비 유지(고정폭 전환해도 평소 표시 불변). */
+table.so-units:not(.parts-excel) { table-layout: fixed; min-width: max-content; white-space: nowrap; }
+table.so-units:not(.parts-excel) th { position: relative; }
+/* 편집칸은 칸 폭에 꽉 맞춰 양방향(넓힘/좁힘) 조정이 정확하게 */
+.so-card.editable table.so-units:not(.parts-excel) input.unit-edit,
+.so-card.editable table.so-units:not(.parts-excel) select.unit-edit {
+  width: 100% !important; min-width: 0; box-sizing: border-box;
+}
+/* 읽기전용(참고·잠금) 카드 — 좁히면 말줄임으로 깔끔히 (편집카드는 입력칸이 줄어듦) */
+.so-card:not(.editable) table.so-units:not(.parts-excel) td { overflow: hidden; }
+.so-card:not(.editable) table.so-units:not(.parts-excel) td .display-val {
+  display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom;
+}
+/* 칸 폭 조정 핸들 — 헤더 우측 5px */
+table.so-units:not(.parts-excel) th .col-resize-handle {
+  position: absolute; top: 0; right: -2px; width: 5px; height: 100%;
+  cursor: col-resize; user-select: none; z-index: 6;
+}
+table.so-units:not(.parts-excel) th .col-resize-handle:hover,
+table.so-units:not(.parts-excel) th .col-resize-handle.dragging { background: rgba(176,122,24,0.55); }
+/* 항상 보이는 가는 가로 스크롤바 (PWA 자동숨김을 이 표에 한해 무력화) */
+.so-units-wrapper.so-scroll-visible { scrollbar-width: thin; scrollbar-color: #c9a85a #efe7d2; }
+.so-units-wrapper.so-scroll-visible::-webkit-scrollbar { display: block; height: 11px; width: 11px; }
+.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-track { background: #efe7d2; border-radius: 6px; }
+.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-thumb { background: #c9a85a; border-radius: 6px; border: 2px solid #efe7d2; }
+.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-thumb:hover { background: #b07a18; }
+
 /* 컬럼 그룹 hide 클래스 */
 table.so-units.parts-excel.hide-basic   [data-pgroup~="basic"],
 table.so-units.parts-excel.hide-customs [data-pgroup~="customs"],
@@ -1102,12 +1130,12 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               <button type="button" class="reset" id="partsResetCols-{{ so.id }}" title="컬럼 폭 원복">↻ 폭 리셋</button>
             </div>
             {% endif %}
-            <div{% if _is_parts or _is_equip %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
+            <div{% if _is_parts or _is_equip or _is_co %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
               {# v5H226z19: 중간 스크롤 제거 — wrapper 자연 높이 + 가로 스크롤만. #}
               {# 가로 스크롤이 viewport 하단에 항상 보이도록 sticky horizontal proxy 추가. #}
               {# v5H226z634: 완제품도 칸 늘어 가로 스크롤(부품처럼). 단 table-layout:고정/min-width는 안 줌(자연 폭). #}
-              <div{% if _is_parts %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% elif _is_equip %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;"{% endif %}>
-            <table class="so-units{% if _is_parts %} parts-excel{% endif %}"{% if _is_parts %} style="white-space:nowrap;min-width:1500px;table-layout:fixed;"{% elif _is_equip %} style="white-space:nowrap;"{% endif %}>
+              <div{% if _is_parts %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% elif _is_equip or _is_co %} class="so-units-wrapper so-scroll-visible" style="overflow-x:auto;overflow-y:visible;max-width:100%;"{% endif %}>
+            <table class="so-units{% if _is_parts %} parts-excel{% endif %}" data-soid="{{ so.id }}"{% if _is_parts %} style="white-space:nowrap;min-width:1500px;table-layout:fixed;"{% elif _is_equip %} style="white-space:nowrap;"{% endif %}>
               <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
@@ -2695,6 +2723,51 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
 })();
 </script>
 {% endif %}
+
+{# v5H226z709 (대표 지시): 완제품·일반·소모품 수주표(비-PARTS) 칸 폭 드래그 조정 + 폭 기억(카드별).
+   더블클릭=자동폭 원복. 상품(parts-excel)은 위 PARTS 전용 스크립트가 담당(중복 적용 안 함). #}
+<script>
+(function(){
+  function keyOf(tbl, idx){ return 'knk_sou_w_' + (tbl.dataset.soid || 'x') + '_' + idx; }
+  document.querySelectorAll('table.so-units:not(.parts-excel)').forEach(function(tbl){
+    var ths = Array.prototype.slice.call(tbl.querySelectorAll('thead th'));
+    ths.forEach(function(th, idx){
+      // 저장된 폭 복원
+      try {
+        var sw = localStorage.getItem(keyOf(tbl, idx));
+        if (sw) { th.style.width = sw + 'px'; th.style.minWidth = sw + 'px'; th.style.maxWidth = sw + 'px'; }
+      } catch(_){}
+      if (th.querySelector('.col-resize-handle')) return;
+      var h = document.createElement('div');
+      h.className = 'col-resize-handle';
+      th.appendChild(h);
+      h.addEventListener('mousedown', function(e){
+        e.preventDefault(); e.stopPropagation();
+        var startX = e.pageX, startW = th.offsetWidth;
+        h.classList.add('dragging');
+        function onMove(ev){
+          var w = Math.max(36, startW + (ev.pageX - startX));
+          th.style.width = w + 'px'; th.style.minWidth = w + 'px'; th.style.maxWidth = w + 'px';
+        }
+        function onUp(){
+          h.classList.remove('dragging');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          try { localStorage.setItem(keyOf(tbl, idx), String(th.offsetWidth)); } catch(_){}
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+      h.addEventListener('click', function(e){ e.stopPropagation(); });
+      h.addEventListener('dblclick', function(e){
+        e.stopPropagation();
+        th.style.width = ''; th.style.minWidth = ''; th.style.maxWidth = '';
+        try { localStorage.removeItem(keyOf(tbl, idx)); } catch(_){}
+      });
+    });
+  });
+})();
+</script>
 
 {# v5H226z11: SO 카드 풀스크린 토글 — 모든 SO 에 적용 (PARTS 외에도 유용) #}
 <script>
