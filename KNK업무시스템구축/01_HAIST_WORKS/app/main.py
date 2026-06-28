@@ -6384,6 +6384,7 @@ async def project_detail(req: Request, pid: int):
             _so_ccy = _so.get("currency") or "KRW"   # v5H226z696: 호기 통화 폴백용 SO 통화
             _so_flabel = _so.get("form_label") or ""   # v5H226z701: 수주액 호기/품목 목록 좌측 형태 배지
             _so_fkey = _so.get("form_key") or ""
+            _so_no = _so.get("order_no") or ""          # v5H226z702: 수주액 분해 줄 왼쪽 수주번호
             for _u in (_so.get("units") or []):
                 _ud = dict(_u)
                 # v5H226z696 (대표 지시): 호기별 통화 = 호기 override → SO → KRW.
@@ -6392,6 +6393,8 @@ async def project_detail(req: Request, pid: int):
                 # v5H226z701 (대표 지시): 수주액 박스 호기/품목 줄 왼쪽에 형태 배지 → 각 호기에 그 SO 형태 부여
                 _ud["form_label"] = _so_flabel
                 _ud["form_key"] = _so_fkey
+                # v5H226z702 (대표 지시): 수주번호도 줄 왼쪽에 합쳐 정렬 → 각 호기에 그 SO 수주번호 부여
+                _ud["so_no"] = _so_no
                 _flat.append(_ud)
         def _sort_key(u):
             lbl = (u.get("unit_label") or "")

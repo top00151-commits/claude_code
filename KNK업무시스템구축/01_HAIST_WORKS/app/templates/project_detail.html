@@ -188,7 +188,7 @@ body.so-fs-on { overflow: hidden; }
 .def-sono dd > div { color: var(--knk-red); font-weight: 700; font-family: monospace; line-height: 1.75; font-size: 13px; }
 @media (max-width: 700px) { .proj-grid-wrap { grid-template-columns: 1fr; } }
 /* v5H226z643 (대표 지시): 수주액(단가×수량·호기별 금액=가변높이)을 오른쪽 세로 칸으로 분리 → 호기 많아도 왼쪽 필드 그리드 높이 영향 없음 */
-.proj-info-2col { display: grid; grid-template-columns: 1fr 300px; gap: 12px 22px; align-items: start; }
+.proj-info-2col { display: grid; grid-template-columns: 1fr 340px; gap: 12px 22px; align-items: start; }   /* v5H226z702: 수주번호 합친 4열 분해 공간 확보(300→340) */
 .proj-info-2col > .proj-info-left { align-self: start; }
 .def-amt { background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; align-self: start; }
 .def-amt dt { color: var(--mute); font-weight: 600; font-size: 12px; margin-top: 10px; }
@@ -953,6 +953,12 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           .so-form-badge { display:inline-block; padding:2px 9px; border-radius:11px; font-size:11px; font-weight:700; margin-left:2px; vertical-align:middle; border:1px solid transparent; }
           /* v5H226z701 (대표 지시): 수주액 박스 호기/품목 줄 왼쪽 형태 배지(컴팩트) */
           .amt-form-badge { display:inline-block; padding:0 6px; border-radius:7px; font-size:9.5px; font-weight:700; border:1px solid transparent; flex:none; line-height:1.65; white-space:nowrap; }
+          /* v5H226z702 (대표 지시): 수주액 분해 = [수주번호·형태·호기/모델·금액] 4열 그리드(줄맞춤) */
+          .amt-breakdown { display:grid; grid-template-columns:auto auto 1fr auto; gap:4px 7px; align-items:center; font-size:11px; }
+          .amt-breakdown .ab-sono { font-family:monospace; font-size:10px; font-weight:700; color:var(--knk-red); white-space:nowrap; }
+          .amt-breakdown .ab-lbl { color:var(--ink); font-weight:600; white-space:nowrap; }
+          .amt-breakdown .ab-amt { color:var(--knk-red); font-weight:700; text-align:right; white-space:nowrap; }
+          .amt-breakdown .ab-ccy { color:var(--mute); font-weight:600; font-size:9.5px; }
           .so-form-badge.sf-assembly, .amt-form-badge.sf-assembly { background:#dbeafe; color:#1e40af; border-color:#bfdbfe; }   /* 완제품 */
           .so-form-badge.sf-semi, .amt-form-badge.sf-semi { background:#cffafe; color:#155e75; border-color:#a5f3fc; }        /* 제품 */
           .so-form-badge.sf-parts, .amt-form-badge.sf-parts { background:#fef3c7; color:#92400e; border-color:#fde68a; }       /* 상품 */
@@ -2108,10 +2114,16 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           {% if p.engraving %}<dt>각인</dt><dd><span style="font-size:12.5px;color:var(--ink);">{{ p.engraving }}</span></dd>{% endif %}
           {% if p.server_path %}<dt>자료 경로</dt><dd><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path }}</span></dd>{% endif %}
         </dl>
-        {# v5H226z649 (대표 지시): 수주번호 — 오른쪽 별도 칸, 여러 SO 세로 나열 #}
+        {# v5H226z649→z702 (대표 지시): 수주번호는 수주액 분해 목록 각 줄에 줄맞춰 합쳤으므로 별도 목록은 제거.
+           단, 부품/소모품처럼 분해 목록이 접히는(요약만) 프로젝트·호기 0건일 땐 수주번호가 사라지지 않게 그때만 유지. #}
+        {% set _is_parts_panel0 = (p.shipment_form or '')|upper == 'PARTS' %}
+        {% set _is_co_panel0 = (p.project_type or '')|upper == 'CONSUMABLE' %}
+        {% set _breakdown_shown = (all_units_sorted and not (_is_parts_panel0 or _is_co_panel0)) %}
+        {% if not _breakdown_shown %}
         <dl class="def-sono">
           <dt>수주번호</dt><dd>{% if project_orders %}{% for so in project_orders %}<div>{{ so.order_no }}</div>{% endfor %}{% else %}—{% endif %}</dd>
         </dl>
+        {% endif %}
         </div>{# /proj-grid-wrap #}
         </div>
         {# v5H226z643 (대표 지시): 수주액을 오른쪽 세로 칸으로 분리 — 가변높이(호기별 금액) 독립 #}
@@ -2149,14 +2161,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
             {% set _is_parts_panel = (p.shipment_form or '')|upper == 'PARTS' %}
             {% set _is_co_panel = (p.project_type or '')|upper == 'CONSUMABLE' %}
             {% if all_units_sorted and not (_is_parts_panel or _is_co_panel) %}
-            <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.7;border-top:1px dashed var(--line);padding-top:6px;">
+            <div class="amt-breakdown" style="margin-top:6px;border-top:1px dashed var(--line);padding-top:6px;">
+              {# v5H226z702 (대표 지시): [수주번호 · 형태 · 호기/모델 · 금액] 4열 그리드로 줄맞춤 — 호기마다 그 수주번호가 왼쪽에 정렬. z701 형태 배지·z696 호기 실통화 유지. #}
               {% for u in all_units_sorted %}
-              <div style="display:flex;align-items:center;gap:5px;">
-                {# v5H226z701 (대표 지시): 줄 왼쪽에 형태 배지(완제품/제품/상품/기타/소모품) — 한번에 보기 쉽게 #}
-                {% if u.form_label %}<span class="amt-form-badge sf-{{ u.form_key }}">{{ u.form_label }}</span>{% endif %}
-                <span style="color:var(--ink);font-weight:600;">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span>
-                <span style="color:var(--knk-red);font-weight:700;margin-left:auto;white-space:nowrap;">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:600;font-size:10px;">{{ u.currency or p.currency or 'KRW' }}</span></span>{# v5H226z696: 호기 실통화(u.currency) #}
-              </div>
+                <span class="ab-sono" title="수주번호 {{ u.so_no or '' }}">{{ u.so_no or '' }}</span>
+                {% if u.form_label %}<span class="amt-form-badge sf-{{ u.form_key }}">{{ u.form_label }}</span>{% else %}<span></span>{% endif %}
+                <span class="ab-lbl">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span>
+                <span class="ab-amt">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span class="ab-ccy">{{ u.currency or p.currency or 'KRW' }}</span></span>
               {% endfor %}
             </div>
             {% elif all_units_sorted and (_is_parts_panel or _is_co_panel) %}
