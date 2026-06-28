@@ -951,11 +951,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           .ref-so .so-no a:hover .ref-go { color:var(--knk-red); }
           /* v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — 한 관리번호에 발주마다 형태 달라도 한눈에(완제품/제품/상품/기타/소모품) */
           .so-form-badge { display:inline-block; padding:2px 9px; border-radius:11px; font-size:11px; font-weight:700; margin-left:2px; vertical-align:middle; border:1px solid transparent; }
-          .so-form-badge.sf-assembly { background:#dbeafe; color:#1e40af; border-color:#bfdbfe; }   /* 완제품 */
-          .so-form-badge.sf-semi { background:#cffafe; color:#155e75; border-color:#a5f3fc; }        /* 제품 */
-          .so-form-badge.sf-parts { background:#fef3c7; color:#92400e; border-color:#fde68a; }       /* 상품 */
-          .so-form-badge.sf-etc { background:#f1f5f9; color:#475569; border-color:#e2e8f0; }         /* 기타 */
-          .so-form-badge.sf-consumable { background:#dcfce7; color:#166534; border-color:#bbf7d0; }  /* 소모품 */
+          /* v5H226z701 (대표 지시): 수주액 박스 호기/품목 줄 왼쪽 형태 배지(컴팩트) */
+          .amt-form-badge { display:inline-block; padding:0 6px; border-radius:7px; font-size:9.5px; font-weight:700; border:1px solid transparent; flex:none; line-height:1.65; white-space:nowrap; }
+          .so-form-badge.sf-assembly, .amt-form-badge.sf-assembly { background:#dbeafe; color:#1e40af; border-color:#bfdbfe; }   /* 완제품 */
+          .so-form-badge.sf-semi, .amt-form-badge.sf-semi { background:#cffafe; color:#155e75; border-color:#a5f3fc; }        /* 제품 */
+          .so-form-badge.sf-parts, .amt-form-badge.sf-parts { background:#fef3c7; color:#92400e; border-color:#fde68a; }       /* 상품 */
+          .so-form-badge.sf-etc, .amt-form-badge.sf-etc { background:#f1f5f9; color:#475569; border-color:#e2e8f0; }         /* 기타 */
+          .so-form-badge.sf-consumable, .amt-form-badge.sf-consumable { background:#dcfce7; color:#166534; border-color:#bbf7d0; }  /* 소모품 */
         </style>
         <div class="list-scroll">
         {% for so in _ord %}
@@ -2149,9 +2151,11 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
             {% if all_units_sorted and not (_is_parts_panel or _is_co_panel) %}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.7;border-top:1px dashed var(--line);padding-top:6px;">
               {% for u in all_units_sorted %}
-              <div>
+              <div style="display:flex;align-items:center;gap:5px;">
+                {# v5H226z701 (대표 지시): 줄 왼쪽에 형태 배지(완제품/제품/상품/기타/소모품) — 한번에 보기 쉽게 #}
+                {% if u.form_label %}<span class="amt-form-badge sf-{{ u.form_key }}">{{ u.form_label }}</span>{% endif %}
                 <span style="color:var(--ink);font-weight:600;">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span>
-                <span style="color:var(--knk-red);font-weight:700;">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:600;font-size:10px;">{{ u.currency or p.currency or 'KRW' }}</span></span>{# v5H226z696: 호기 실통화(u.currency) — 통화 혼합 시 USD 호기를 KRW로 잘못 찍던 것 수정 #}
+                <span style="color:var(--knk-red);font-weight:700;margin-left:auto;white-space:nowrap;">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span style="color:var(--mute);font-weight:600;font-size:10px;">{{ u.currency or p.currency or 'KRW' }}</span></span>{# v5H226z696: 호기 실통화(u.currency) #}
               </div>
               {% endfor %}
             </div>
