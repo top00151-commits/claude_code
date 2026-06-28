@@ -6381,8 +6381,13 @@ async def project_detail(req: Request, pid: int):
         import re as _re_n
         _flat = []
         for _so in (project_orders or []):
+            _so_ccy = _so.get("currency") or "KRW"   # v5H226z696: 호기 통화 폴백용 SO 통화
             for _u in (_so.get("units") or []):
-                _flat.append(dict(_u))
+                _ud = dict(_u)
+                # v5H226z696 (대표 지시): 호기별 통화 = 호기 override → SO → KRW.
+                #   수주액 박스가 호기마다 실통화로 표기(통화 혼합: 1호기 KRW + 나머지 USD).
+                _ud["currency"] = _ud.get("currency") or _so_ccy
+                _flat.append(_ud)
         def _sort_key(u):
             lbl = (u.get("unit_label") or "")
             m = _re_n.match(r"^(\d+)", lbl)
