@@ -19300,27 +19300,39 @@ async def admin_tax_trace(req: Request, code: str = ""):
                  + _row_html([pid, prj.get("mgmt_code"), prj.get("order_amount"),
                               prj.get("unit_price"), prj.get("unit_qty"), prj.get("status")]) + "</table>")
         _osel = ",".join((f"o.{f}" if f in _ordc else f"NULL AS {f}") for f in _tc)
+        # v5H226z680 (대표 지시): 수주(SO)별 발주처(고객사)·통화·담당자도 함께 — 한 관리번호 여러 고객사 확인용
+        _o_cust = "(SELECT name FROM customers cu WHERE cu.id=o.customer_id)" if "customer_id" in _ordc else "''"
+        _o_cur = "o.currency" if "currency" in _ordc else "''"
+        _o_cc = "o.cc_name" if "cc_name" in _ordc else "''"
         sos = [dict(r) for r in c.execute(
-            f"SELECT o.id, o.order_no, o.order_date, COALESCE(o.status,'') st, COALESCE(o.total_amount,0) tot, {_osel} "
+            f"SELECT o.id, o.order_no, o.order_date, COALESCE(o.status,'') st, COALESCE(o.total_amount,0) tot, "
+            f"{_o_cust} AS o_cust, {_o_cur} AS o_cur, {_o_cc} AS o_cc, {_osel} "
             f"FROM orders o WHERE o.project_id=? ORDER BY o.id", (pid,)).fetchall()]
         _sono = {s["id"]: s["order_no"] for s in sos}
-        H.append("<h3>수주(orders=수주번호) + orders 칸의 세금계산서</h3><table>"
-                 + _row_html(["oid", "수주번호", "발주일", "status", "total"] + ["o." + f for f in _tc]))
+        H.append("<h3>수주(orders=수주번호) — 발주처(고객사)·통화·담당자 + 세금계산서</h3><table>"
+                 + _row_html(["oid", "수주번호", "발주일", "status", "total", "발주처(고객사)", "통화", "담당자"] + ["o." + f for f in _tc]))
         for s in sos:
-            H.append(_row_html([s["id"], s["order_no"], s["order_date"], s["st"], s["tot"]]
+            H.append(_row_html([s["id"], s["order_no"], s["order_date"], s["st"], s["tot"],
+                                s.get("o_cust"), s.get("o_cur"), s.get("o_cc")]
                                + [s.get(f) for f in _tc]))
         H.append("</table>")
         _isel = ",".join((f"oi.{f}" if f in _oic else f"NULL AS {f}") for f in _tc)
+        # v5H226z680: 호기 통화·거래구분(수출/내수)도 함께 — 통화/거래구분 어긋남 진단
+        _i_cur = "oi.currency" if "currency" in _oic else "''"
+        _i_iex = "oi.is_export" if "is_export" in _oic else "NULL"
         its = [dict(r) for r in c.execute(
             f"SELECT oi.id iid, oi.order_id oid, oi.unit_label lbl, COALESCE(oi.qty,1) q, "
-            f"oi.unit_price up, oi.amount amt, COALESCE(oi.unit_status,'') us, {_isel} "
+            f"oi.unit_price up, oi.amount amt, COALESCE(oi.unit_status,'') us, "
+            f"{_i_cur} AS i_cur, {_i_iex} AS i_iex, {_isel} "
             f"FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.project_id=? "
             f"ORDER BY oi.order_id, oi.id", (pid,)).fetchall()]
-        H.append("<h3>★호기(order_items) + 호기 칸의 세금계산서 (단일 진실)</h3><table>"
-                 + _row_html(["iid", "수주번호", "호기", "qty", "unit_price", "amount", "status"] + ["oi." + f for f in _tc]))
+        H.append("<h3>★호기(order_items) — 통화·거래구분 + 세금계산서 (단일 진실)</h3><table>"
+                 + _row_html(["iid", "수주번호", "호기", "qty", "unit_price", "amount", "status", "통화", "거래구분"] + ["oi." + f for f in _tc]))
         for it in its:
             H.append(_row_html([it["iid"], _sono.get(it["oid"], it["oid"]), it["lbl"], it["q"],
-                                it["up"], it["amt"], it["us"]] + [it.get(f) for f in _tc]))
+                                it["up"], it["amt"], it["us"], it.get("i_cur"),
+                                ("수출" if it.get("i_iex") else ("내수" if it.get("i_iex") is not None else ""))]
+                               + [it.get(f) for f in _tc]))
         H.append("</table>")
         try:
             tls = [dict(r) for r in c.execute(
