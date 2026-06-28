@@ -1034,6 +1034,23 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         d["items_n"] = items_n
         d["items_sum"] = items_sum
 
+        # v5H226z699 (대표 지시): 수주(발주)별 '형태' 라벨 — 화면 표시(호기별 N줄=완제품 / 1줄=제품)와 일치하게.
+        #   소모품/부품은 so_type, 장비는 shipment_form(있으면) 우선 + 호기-라벨(_sort_n<9999) 유무로 완제품/제품 판정.
+        #   (과거 SO 는 shipment_form 이 NULL 인 경우가 많아, 실제 호기 분할 여부로 표시와 어긋나지 않게 함.)
+        _styp = (d.get("so_type") or "").upper()
+        _sf = (d.get("shipment_form") or "").upper()
+        _hogi_n = sum(1 for _u in d["units"] if (_u.get("_sort_n") or 9999) < 9999)
+        if _styp == "CONSUMABLE":
+            d["form_label"], d["form_key"] = "소모품", "consumable"
+        elif _styp == "PARTS_EXPORT" or _sf == "PARTS":
+            d["form_label"], d["form_key"] = "상품", "parts"
+        elif _sf == "ETC":
+            d["form_label"], d["form_key"] = "기타", "etc"
+        elif _hogi_n >= 1 or _sf == "ASSEMBLY":
+            d["form_label"], d["form_key"] = "완제품", "assembly"
+        else:
+            d["form_label"], d["form_key"] = "제품", "semi"
+
         out.append(d)
     return out
 

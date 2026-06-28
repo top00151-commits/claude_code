@@ -988,11 +988,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
               {# v5H142: SO 종류 pill — 장비/소모품/정비/기타 #}
               {% with stype=so.so_type, size='sm' %}{% include '_v5_partials/so_type_pill.html' %}{% endwith %}
-              {# v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — shipment_form 기준(소모품은 so_type). 한 관리번호에 발주마다 형태 다를 수 있어 명확히. #}
-              {% set _sf = (so.shipment_form or '')|upper %}{% set _styp = (so.so_type or '')|upper %}
-              {% if _styp == 'CONSUMABLE' %}{% set _form_label = '소모품' %}{% set _badge_cls = 'sf-consumable' %}
-              {% else %}{% set _form_label = {'ASSEMBLY':'완제품','SEMI':'제품','PARTS':'상품','ETC':'기타'}.get(_sf, '') %}{% set _badge_cls = 'sf-' ~ _sf|lower %}{% endif %}
-              {% if _form_label %}<span class="so-form-badge {{ _badge_cls }}" title="형태: {{ _form_label }} — 이 수주(발주) 기준">{{ _form_label }}</span>{% endif %}
+              {# v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — 서버가 표시(호기별=완제품/1줄=제품)와 일치하게 계산(get_project_orders form_label/form_key). 한 관리번호에 발주마다 형태 다를 수 있어 명확히. #}
+              {% if so.form_label %}<span class="so-form-badge sf-{{ so.form_key }}" title="형태: {{ so.form_label }} — 이 수주(발주) 기준">{{ so.form_label }}</span>{% endif %}
               <div class="so-meta">
                 {# v5H107: 기본 읽기 모드, 편집 시에만 input 노출 #}
                 <span class="item"><span class="k">📅 발주</span>
