@@ -18984,7 +18984,7 @@ def _board_split_lines_map(unfold_sos=True):
                 _ciex = next((it.get("i_iex") for it in _citems if it.get("i_iex") is not None), None)   # v5H226z683: 호기 거래구분(수출/내수) — None이던 버그
                 return {
                     "iids": [it["oi_id"] for it in _so["items"] if it.get("oi_id") is not None], "label": "",
-                    "price": _so["o_total"], "amount": _so["o_total"], "currency": _so["o_cur"],
+                    "price": (float(_so["o_total"] or 0) / max(1, int(_so["o_qty"] or 1))), "amount": _so["o_total"], "currency": _so["o_cur"],   # v5H226z684: 단가=총액÷수량(개당) → 단가×수량=금액 일치(제품 추가행도 개당단가·소모품 qty=1은 총액 그대로)
                     "order_date": _so["o_ord"], "due_date": _so["o_due"], "ship_to": _so["o_ship"],
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
