@@ -18980,13 +18980,15 @@ def _board_split_lines_map(unfold_sos=True):
             #   추가 SO 는 메인 행의 '참고(ref_sos)' 데이터로(별도 행 X). 보드는 메인 일정만 깔끔히.
             def _collapse_line(_so):
                 # 소모품·부품·빈 SO → SO당 1줄(자재 분할 안 함)
+                _citems = _so.get("items") or []
+                _ciex = next((it.get("i_iex") for it in _citems if it.get("i_iex") is not None), None)   # v5H226z683: 호기 거래구분(수출/내수) — None이던 버그
                 return {
                     "iids": [it["oi_id"] for it in _so["items"] if it.get("oi_id") is not None], "label": "",
                     "price": _so["o_total"], "amount": _so["o_total"], "currency": _so["o_cur"],
                     "order_date": _so["o_ord"], "due_date": _so["o_due"], "ship_to": _so["o_ship"],
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
-                    "so_customer": _so.get("o_cust") or "", "is_export": None,   # v5H226z668: SO 발주처(거래방식은 프로젝트 폴백)
+                    "so_customer": _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683: SO 발주처 + 호기 거래구분(제품/부품/소모품 행이 내수로 폴백되던 버그 수정)
                     "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                     "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
                 }
