@@ -18955,8 +18955,12 @@ def _board_split_lines_map(unfold_sos=True):
             _i_extra += (", oi.is_export AS i_iex" if "is_export" in _oi_cols else ", NULL AS i_iex")   # v5H226z668: 호기 거래방식(수출/내수)
             _sotype_col = "COALESCE(o.so_type,'') AS so_type" if _has_sotype else "'' AS so_type"
             # v5H226z668 (대표 지시): SO 발주처(구매대행사 등) — orders.customer_id → 고객사명(행에 작게 표기용)
-            _ocust_col = ("o.customer_id AS o_cust_id, (SELECT name FROM customers cu WHERE cu.id=o.customer_id) AS o_cust_name"
-                          if "customer_id" in _ord_cols else "NULL AS o_cust_id, '' AS o_cust_name")
+            # v5H226z705 (대표 지시): 화면 표시는 '시스템명(alias)' 우선 — 같은 상호 종사업장 구분(드림텍 본사/아산)·긴 상호/(주) 생략. o_cust_disp = 시스템명 있으면 그것, 없으면 정식명. (정식명 o_cust_name 은 매칭·발행용으로 유지)
+            _cust_cols = {r[1] for r in _c.execute("PRAGMA table_info(customers)").fetchall()}
+            _disp_expr = "COALESCE(NULLIF(cu.alias,''), cu.name)" if "alias" in _cust_cols else "cu.name"
+            _ocust_col = (("o.customer_id AS o_cust_id, (SELECT cu.name FROM customers cu WHERE cu.id=o.customer_id) AS o_cust_name, "
+                           "(SELECT " + _disp_expr + " FROM customers cu WHERE cu.id=o.customer_id) AS o_cust_disp")
+                          if "customer_id" in _ord_cols else "NULL AS o_cust_id, '' AS o_cust_name, '' AS o_cust_disp")
             # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문(담당자 다름) 구분용
             _occ_col = ("o.cc_name AS o_cc_name, o.cc_dept AS o_cc_dept, o.cc_phone AS o_cc_phone"
                         if "cc_name" in _ord_cols else "'' AS o_cc_name, '' AS o_cc_dept, '' AS o_cc_phone")
@@ -18988,6 +18992,7 @@ def _board_split_lines_map(unfold_sos=True):
                         "o_ord": str(d.get("o_ord") or "")[:10], "o_due": str(d.get("o_due") or "")[:10],
                         "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
                         "o_cust": (d.get("o_cust_name") or ""), "o_cust_id": d.get("o_cust_id"),   # v5H226z668/z682: SO 고객사(이름·id)
+                        "o_cust_disp": (d.get("o_cust_disp") or ""),   # v5H226z705: SO 고객사 표시명(시스템명 우선)
                         "o_cc_name": (d.get("o_cc_name") or ""), "o_cc_dept": (d.get("o_cc_dept") or ""),
                         "o_cc_phone": (d.get("o_cc_phone") or ""),   # v5H226z678: SO 담당자/부서/연락처
                         "items": [],
@@ -19006,7 +19011,7 @@ def _board_split_lines_map(unfold_sos=True):
                     "order_date": _so["o_ord"], "due_date": _so["o_due"], "ship_to": _so["o_ship"],
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
-                    "so_customer": _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683: SO 발주처 + 호기 거래구분(제품/부품/소모품 행이 내수로 폴백되던 버그 수정)
+                    "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
                     "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                     "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
                 }
@@ -19026,7 +19031,7 @@ def _board_split_lines_map(unfold_sos=True):
                         "price": float(it.get("up") or 0), "amount": float(it.get("amt") or 0),
                         "currency": eff_cur, "order_date": eff_ord[:10], "due_date": eff_due[:10],
                         "ship_to": eff_ship, "so_no": _so["so_no"], "qty": int(it.get("i_qty") or 1),
-                        "is_export": it.get("i_iex"), "so_customer": _so.get("o_cust") or "",   # v5H226z668: 호기 거래방식·SO 발주처
+                        "is_export": it.get("i_iex"), "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "",   # v5H226z668/z705: 호기 거래방식·SO 발주처(정식명+표시명)
                         "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                         "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
                     })
@@ -19598,7 +19603,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 # v5H226z682 (대표 지시·행단위): 이 줄(수주)의 실제 고객사를 그 행 고객사로 표시(대표 우선·↪발주 폐기).
                 if _ln.get("so_cust_id"):
                     _iu["customer"] = _ln.get("so_customer") or info["customer"]
-                    _iu["customer_disp"] = _ln.get("so_customer") or info["customer_disp"]
+                    _iu["customer_disp"] = _ln.get("so_customer_disp") or _ln.get("so_customer") or info.get("customer_disp") or info.get("customer") or "—"   # v5H226z705: 표시는 시스템명 우선(같은 상호 종사업장 구분)
                     _iu["cust_ok"] = True
                 _iu["so_customer"] = ""
                 # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문 구분(수주값 있으면 덮어씀)
@@ -20597,7 +20602,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 # v5H226z682 (대표 지시·행단위): 이 줄(수주)의 실제 고객사를 그 행 고객사로 표시(대표 우선·↪발주 폐기).
                 if _ln.get("so_cust_id"):
                     _iu["customer"] = _ln.get("so_customer") or info["customer"]
-                    _iu["customer_disp"] = _ln.get("so_customer") or info["customer_disp"]
+                    _iu["customer_disp"] = _ln.get("so_customer_disp") or _ln.get("so_customer") or info.get("customer_disp") or info.get("customer") or "—"   # v5H226z705: 표시는 시스템명 우선(같은 상호 종사업장 구분)
                     _iu["cust_ok"] = True
                 _iu["so_customer"] = ""
                 # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문 구분(수주값 있으면 덮어씀)
