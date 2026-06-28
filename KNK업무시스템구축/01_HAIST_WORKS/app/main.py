@@ -19014,10 +19014,19 @@ def _board_split_lines_map(unfold_sos=True):
                 # 소모품·부품·빈 SO → SO당 1줄(자재 분할 안 함)
                 _citems = _so.get("items") or []
                 _ciex = next((it.get("i_iex") for it in _citems if it.get("i_iex") is not None), None)   # v5H226z683: 호기 거래구분(수출/내수) — None이던 버그
+                # v5H226z710 (대표 지시·버그수정): 발주일/납기/납품처도 호기(order_items) override 우선 — 이 합산 줄(iids)은
+                #   /unit-field로 호기에 저장(수주내역과 동일)되므로, 보드도 호기값을 읽어야 저장 후 일치. 안 그러면 보드만 옛 SO값으로
+                #   원복(상품/소모품/혼합·so_type≠형태 SO에서 발생). 호기 모두 비어있으면 기존대로 SO값. (_so_lines 의 eff 규칙과 통일)
+                def _eff_c(_key, _fb):
+                    for _it in _citems:
+                        _v = str(_it.get(_key) or "").strip()
+                        if _v:
+                            return _v
+                    return _fb
                 return {
                     "iids": [it["oi_id"] for it in _so["items"] if it.get("oi_id") is not None], "label": "",
                     "price": (float(_so["o_total"] or 0) / max(1, int(_so["o_qty"] or 1))), "amount": _so["o_total"], "currency": _so["o_cur"],   # v5H226z684: 단가=총액÷수량(개당) → 단가×수량=금액 일치(제품 추가행도 개당단가·소모품 qty=1은 총액 그대로)
-                    "order_date": _so["o_ord"], "due_date": _so["o_due"], "ship_to": _so["o_ship"],
+                    "order_date": (_eff_c("i_ord", _so["o_ord"]) or "")[:10], "due_date": (_eff_c("i_due", _so["o_due"]) or "")[:10], "ship_to": _eff_c("i_ship", _so["o_ship"]),   # v5H226z710: 호기 override 우선(없으면 SO)
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
