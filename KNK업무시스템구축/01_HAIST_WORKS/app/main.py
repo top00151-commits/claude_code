@@ -19358,6 +19358,78 @@ async def admin_tax_trace(req: Request, code: str = ""):
     return HTMLResponse("".join(H))
 
 
+@app.get("/admin/import-health")
+async def admin_import_health(req: Request):
+    """v5H226z677 (대표 지시·읽기전용 진단): 일괄등록 직후 데이터 건강검진 — 총 건수·세금계산서 반영율·
+    의심 중복 수주(같은 관리번호·발주일·금액 2건+). 대량 등록이 중간에 취소/지연됐을 때 상태 확인용.
+    데이터 변경 없음(전부 SELECT). admin/ceo 전용."""
+    from fastapi.responses import HTMLResponse
+    u = require(req, ["admin", "ceo"])
+
+    def _e(x):
+        return (str(x if x is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+    H = ["<html><head><meta charset='utf-8'><title>일괄등록 건강검진</title><style>",
+         "body{font-family:system-ui,'Malgun Gothic';font-size:13px;padding:18px;color:#1f2937;}",
+         "table{border-collapse:collapse;margin:6px 0 20px;}th,td{border:1px solid #cbd5e1;padding:4px 9px;}th{background:#f1f5f9;}",
+         "h2{font-size:16px;}h3{font-size:14px;margin:16px 0 4px;color:#334155;}.big{font-size:16px;font-weight:800;}",
+         ".warn{color:#b91c1c;font-weight:800;}.ok{color:#15803d;font-weight:800;}</style></head><body>",
+         "<h2>🩺 일괄등록 건강검진 (읽기 전용)</h2>"]
+    with db_session() as c:
+        def _one(q, *a):
+            try:
+                r = c.execute(q, *a).fetchone()
+                return (r[0] if r else 0) or 0
+            except Exception:
+                return "?"
+        _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        n_prj = _one("SELECT COUNT(*) FROM projects")
+        n_ord = _one("SELECT COUNT(*) FROM orders WHERE COALESCE(status,'')<>'CANCELLED'")
+        n_oi = _one("SELECT COUNT(*) FROM order_items")
+        _taxf = [f for f in ("tax_invoice_date", "tax_invoice_amt1", "tax_invoice_date2",
+                             "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3") if f in _oic]
+        _taxcond = " OR ".join(f"COALESCE({f},'')<>''" for f in _taxf) if _taxf else "0"
+        n_tax = _one("SELECT COUNT(*) FROM order_items WHERE " + _taxcond)
+        n_stmt = _one("SELECT COUNT(*) FROM order_items WHERE COALESCE(statement_date,'')<>''") if "statement_date" in _oic else "?"
+        H.append("<h3>전체 건수</h3><table><tr><th>프로젝트(관리번호)</th><th>수주(SO·취소제외)</th><th>호기</th>"
+                 "<th>세금계산서 있는 호기</th><th>거래명세서 있는 호기</th></tr>")
+        H.append(f"<tr><td class='big'>{_e(n_prj)}</td><td class='big'>{_e(n_ord)}</td><td class='big'>{_e(n_oi)}</td>"
+                 f"<td class='big'>{_e(n_tax)}</td><td class='big'>{_e(n_stmt)}</td></tr></table>")
+        if n_tax == 0:
+            H.append("<p class='warn'>⚠ 세금계산서가 들어간 호기가 0건 — 일괄등록이 '세금계산서 반영(맨 마지막 단계)' 전에 멈췄거나, 엑셀에 세금계산서 칸이 비어 있었을 수 있습니다.</p>")
+        H.append("<h3>⚠ 의심 중복 수주 (같은 관리번호·발주일·금액이 2건 이상 → 재시도/중복등록 가능성)</h3>")
+        try:
+            dups = [dict(r) for r in c.execute(
+                "SELECT p.mgmt_code mc, o.order_date od, o.total_amount ta, COUNT(*) c "
+                "FROM orders o JOIN projects p ON p.id=o.project_id "
+                "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(o.order_date,'')<>'' "
+                "GROUP BY o.project_id, o.order_date, o.total_amount HAVING COUNT(*)>1 "
+                "ORDER BY c DESC, p.mgmt_code LIMIT 60").fetchall()]
+            if dups:
+                H.append("<table><tr><th>관리번호</th><th>발주일</th><th>금액</th><th>중복 건수</th></tr>")
+                for d in dups:
+                    H.append(f"<tr><td>{_e(d['mc'])}</td><td>{_e(d['od'])}</td><td>{_e(d['ta'])}</td><td class='warn'>{_e(d['c'])}</td></tr>")
+                H.append("</table>")
+                H.append(f"<p class='warn'>의심 중복 그룹 {len(dups)}건 — 재업로드/재시도로 추가발주가 중복됐을 수 있습니다.</p>")
+            else:
+                H.append("<p class='ok'>✓ 의심 중복 수주 없음(같은 관리번호·발주일·금액 중복 0).</p>")
+        except Exception as _de:
+            H.append(f"<p>중복 검사 오류: {_e(_de)}</p>")
+        H.append("<h3>관리번호별 수주(SO) 수 — 상위 20 (추가제작 많은 건/중복 점검)</h3>")
+        try:
+            tops = [dict(r) for r in c.execute(
+                "SELECT p.mgmt_code mc, COUNT(*) c FROM orders o JOIN projects p ON p.id=o.project_id "
+                "WHERE COALESCE(o.status,'')<>'CANCELLED' GROUP BY o.project_id ORDER BY c DESC LIMIT 20").fetchall()]
+            H.append("<table><tr><th>관리번호</th><th>수주(SO) 수</th></tr>")
+            for t in tops:
+                H.append(f"<tr><td>{_e(t['mc'])}</td><td>{_e(t['c'])}</td></tr>")
+            H.append("</table>")
+        except Exception as _te:
+            H.append(f"<p>SO 수 집계 오류: {_e(_te)}</p>")
+    H.append("<p style='color:#64748b;'>읽기 전용 — 데이터 변경 없음.</p></body></html>")
+    return HTMLResponse("".join(H))
+
+
 # v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
 #   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
 def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""):
