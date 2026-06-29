@@ -19935,6 +19935,8 @@ _PRODBULK_HDRCOLS = [
     ("customer",           ["고객사1", "발주처"]),
     ("secondary_customer", ["고객사2", "최종고객", "2차고객"]),
     ("name",               ["프로젝트명", "건명"]),
+    ("model",              ["모델명", "모델"]),   # v5H226z720 (대표 지시): 상품 양식 모델명
+    ("equip",              ["장비명", "장비"]),   # v5H226z720: 상품 양식 장비명
     ("order_date",         ["발주일"]),
     ("due_date",           ["납기", "납품일"]),
     ("currency",           ["통화"]),
@@ -20094,6 +20096,9 @@ def _build_product_bulk_template_buf():
         ("고객사1*", "(필수 · 등록된 고객사명과 정확히 일치해야 자동연결)"),
         ("고객사2", "(2단계 발주 시 최종고객 · 선택)"),
         ("프로젝트명*", "(필수 · 예: 압착지그 부품 세트)"),
+        # v5H226z720 (대표 지시): 모델명·장비명 추가 — 상품도 프로젝트 정보에 모델/장비 기록(사진1)
+        ("모델명", "(선택 · 예: S3908)"),
+        ("장비명", "(선택 · 예: 압착지그)"),
         ("발주일", "(YYYY-MM-DD · 비우면 수주번호 미발행)"),
         ("납기", "(YYYY-MM-DD · 부품별 납기 비면 이 값 상속)"),
         # v5H226z613 (대표 지시): '통화' 헤더 삭제 — 데이터 컬럼이 KRW(매입·판매)·USD(인보이스) 두 통화라
@@ -20111,11 +20116,12 @@ def _build_product_bulk_template_buf():
     ws.column_dimensions["A"].width = 14
     ws.column_dimensions["B"].width = 22
     ws.column_dimensions["C"].width = 40
-    # 거래구분/PO유형 드롭다운 (통화 헤더 삭제로 좌표 한 칸씩 위로: 거래구분=B9, PO유형=B10)
+    # 거래구분/PO유형 드롭다운 — 행 위치는 hdr_rows에서 동적 산출(모델명·장비명 추가로 밀림·v5H226z720)
     dv_trade = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_po = DataValidation(type="list", formula1='"신규,추가,개조,수리,기타"', allow_blank=True)
     ws.add_data_validation(dv_trade); ws.add_data_validation(dv_po)
-    dv_trade.add("B9"); dv_po.add("B10")
+    _labels = [h[0] for h in hdr_rows]
+    dv_trade.add(f"B{r0 + _labels.index('거래구분')}"); dv_po.add(f"B{r0 + _labels.index('PO유형')}")
     # 부품 표 (한 줄 띄우고)
     phr = r0 + len(hdr_rows) + 1
     # z596 (대표 지시): 매입→마진→판매(KRW) 계산 후 '환율'로 'USD 인보이스 단가' 산출 칸 추가.
@@ -20321,7 +20327,7 @@ async def projects_import_product_confirm(request: Request):
                 "biz_div": biz_div,
                 "project_name": name or "상품",
                 "customer": cust,
-                "model": "", "equip_name": "",
+                "model": str(proj.get("model") or ""), "equip_name": str(proj.get("equip") or ""),   # v5H226z720 (대표 지시): 양식 모델명·장비명 반영
                 "stage": "수주확정",
                 "po_type": po_type,
                 "status": "수주",
