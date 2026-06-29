@@ -33707,6 +33707,19 @@ async def consumables_import_bulk_confirm(request: Request):
                         link_warnings.append(f"{co_no} · 연결관리번호 '{_lm}' 미발견 → 미연결 등록")
                 except Exception:
                     pass
+            # v5H226z727 (대표 지시): 자재코드(material_no) → 등록 자재(part_id) 자동 연결(선택·못 찾으면 미연결)
+            _part_id = None
+            _mat = (it.get("material_no") or "").strip()
+            if _mat:
+                try:
+                    with db_session() as c:
+                        _pr = c.execute("SELECT id FROM parts WHERE UPPER(part_no)=? LIMIT 1", (_mat.upper(),)).fetchone()
+                    if _pr:
+                        _part_id = _pr[0]
+                    else:
+                        link_warnings.append(f"{co_no} · 자재코드 '{_mat}' 미발견 → 미연결 등록")
+                except Exception:
+                    pass
             # 품목 사진 이동(임시폴더 → 발주폴더). _imgs 는 파서가 '사진(photo) 우선'으로 정렬.
             #   첫 이미지 = 대표사진(image_path), 둘째 = 보조(image_loc_path). 표준양식(사진+사진위치)·
             #   이 파일(사진을 사진위치 칸에 붙임) 둘 다 대표 썸네일이 채워지도록 — 슬롯 2개까지.
@@ -33737,7 +33750,7 @@ async def consumables_import_bulk_confirm(request: Request):
                 "line_no": ln, "part_name": it.get("part_name"), "spec": it.get("spec"),
                 "model_use": it.get("model_use"), "equip": it.get("equip"),
                 "qty": it.get("qty"), "unit": it.get("unit"), "unit_price": it.get("unit_price"),
-                "linked_project_id": _lpid, "note": it.get("note"),
+                "linked_project_id": _lpid, "part_id": _part_id, "note": it.get("note"),
                 "image_path": (_co.co_image_url(co_id, _photo[0]) if _photo else None),
                 "image_thumb_path": (_co.co_image_url(co_id, _photo[1]) if _photo else None),
                 "image_loc_path": (_co.co_image_url(co_id, _loc[0]) if _loc else None),

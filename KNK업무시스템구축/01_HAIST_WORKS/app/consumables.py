@@ -775,90 +775,95 @@ CO_BULK_HINTS = {1: "있으면 입력(예:012T2601)", 2: "같은 번호=한 발�
 
 
 def build_co_bulk_template_buf():
-    """KNK 표준 소모품 발주 양식(24열) 빈 양식(.xlsx) → BytesIO. (openpyxl 필요)
-    1행=안내, 2행=머리글, 3행~=품목. 통화·거래구분·형태 드롭다운. 사진 칸은 이미지 붙여넣기."""
+    """v5H226z727 (대표 지시): 소모품 일괄등록 양식 — '1장 = 소모품 1발' 블록 형식.
+    위(3~9행)=기본정보 2단 블록(좌 A=라벨/B=값/C=안내, 우 F=라벨/G=값/H=안내), 11행=라인 머리글, 12행~=품목.
+    드롭다운: 통화(G3)·거래구분(G4)·상태(G9)·형태(H열·라인). (openpyxl 필요)"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.worksheet.datavalidation import DataValidation
+    from openpyxl.utils import get_column_letter
     import io as _io
     wb = Workbook(); ws = wb.active; ws.title = "소모품"
-    fill = PatternFill("solid", fgColor="2F6AA8"); white = Font(color="FFFFFF", bold=True, size=10)
+    knk = PatternFill("solid", fgColor="A5282C"); blu = PatternFill("solid", fgColor="2F6AA8")
+    white = Font(color="FFFFFF", bold=True, size=10)
     hintf = Font(color="9AA3AF", italic=True, size=9)
     thin = Side(style="thin", color="DDDDDD"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    widths = [14, 8, 18, 16, 20, 16, 16, 14, 13, 13, 12, 12, 7, 9, 9, 7, 6, 11, 12, 12, 14, 12, 11, 16,
-              13, 13, 12, 13, 12, 13, 12, 11]   # v5H226z490: 거래명세서·세금계산서 7열 / z719: 상태 1열(32=AF)
-    # 1행 = 안내 문구
-    for ci in range(1, len(CO_BULK_HEADERS) + 1):
-        hc = ws.cell(1, ci, CO_BULK_HINTS.get(ci, "")); hc.font = hintf; hc.alignment = center
-    # 2행 = 머리글
-    for ci, h in enumerate(CO_BULK_HEADERS, 1):
-        c = ws.cell(2, ci, h); c.font = white; c.fill = fill; c.alignment = center; c.border = border
-        ws.column_dimensions[c.column_letter].width = widths[ci - 1]
-    ws.row_dimensions[2].height = 30
-    ws.freeze_panes = "A3"
-    # 드롭다운: 통화(M=13)·거래구분(N=14)·형태(O=15)·상태(AF=32·v5H226z719)
+    ws["A1"] = "KNK 소모품 일괄등록 양식 — PART LIST 1장 = 소모품 1 발"
+    ws["A1"].font = Font(bold=True, size=13, color="A5282C"); ws.merge_cells("A1:R1")
+    # 기본정보 2단 블록 (좌: A 라벨/B 값/C 안내, 우: F 라벨/G 값/H 안내)
+    left = [("관리번호", "(비우면 발주일로 자동발급 · 있으면 그 코드 사용)"),
+            ("고객사1*", "(필수 · 등록된 고객사명과 정확히 일치해야 자동연결)"),
+            ("고객사2", "(2단계 발주 시 최종고객 · 선택)"),
+            ("고객담당자", ""), ("고객연락처", ""),
+            ("발주일", "(YYYY-MM-DD)"), ("납기일", "(YYYY-MM-DD)")]
+    right = [("통화", "(KRW/USD/…)"), ("거래구분", "(내수/수출)"), ("모델명", "(소모품)으로 작성"),
+             ("장비명", '(해당월 소모품 - "6월소모품")'), ("납품위치", "(고객사 수령 위치)"),
+             ("영업담당자", "(우리 회사 KNK 영업담당자)"), ("상태", "(진행중/출하/취소/보류)")]
+    for i, (lab, gd) in enumerate(left):
+        r = 3 + i
+        c = ws.cell(r, 1, lab); c.font = white; c.fill = knk; c.border = border
+        ws.cell(r, 2, "").border = border
+        ws.cell(r, 3, gd).font = hintf
+    for i, (lab, gd) in enumerate(right):
+        r = 3 + i
+        c = ws.cell(r, 6, lab); c.font = white; c.fill = knk; c.border = border
+        ws.cell(r, 7, "").border = border
+        ws.cell(r, 8, gd).font = hintf
+    # 라인 머리글(11행)
+    line_hdrs = ["모델명", "장비명", "소모품 품명", "소모품 규격 (SPEC)",
+                 "사진(PICTURE LOCATION)", "사진 (PICTURE)", "납품일", "형태",
+                 "수량", "단위", "단가", "금액", "비고", "자재코드", "연결 관리번호",
+                 "거래명세서 발행일", "세금계산서 발행일", "세금계산서 금액"]
+    HR = 11
+    for ci, h in enumerate(line_hdrs, 1):
+        c = ws.cell(HR, ci, h); c.font = white; c.fill = blu; c.alignment = center; c.border = border
+    ws.row_dimensions[HR].height = 30
+    widths = [16, 16, 22, 18, 16, 16, 13, 10, 7, 6, 12, 12, 16, 14, 15, 14, 14, 13]
+    for ci, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(ci)].width = w
+    ws.column_dimensions["C"].width = 30   # C: 좌 안내(3~9행) + 소모품 품명(11행~) 공유
+    # 드롭다운 — 통화(G3)·거래구분(G4)·상태(G9)·형태(H12~ 라인)
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
     dv_exp = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
-    dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)   # v5H226z726: 완제품 추가
     dv_status = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)
-    for dv in (dv_ccy, dv_exp, dv_form, dv_status):
+    dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)
+    for dv in (dv_ccy, dv_exp, dv_status, dv_form):
         ws.add_data_validation(dv)
-    dv_ccy.add("M3:M2000"); dv_exp.add("N3:N2000"); dv_form.add("O3:O2000"); dv_status.add("AF3:AF2000")
-    # v5H226z588: 예시 3줄(3~5행) — '묶음 작성 방식'을 눈에 보이게 2발주 예(구분 1=2품목 / 구분 2=다른 고객사 1품목).
-    #   업로드 시 품명 '예)' 접두는 자동 스킵되므로 안전.
-    ex_rows = [
-        # 발주 A — 구분 1, 첫 줄(발주 정보는 여기서 읽음)
-        ["", "1", "WATCH9 검사기", "WATCH9 소모품", "예) Grip Pad", "KNK-P-001", "", "",
-         "삼성전자", "", "2026-01-15", "2026-01-30", "KRW", "내수", "상품",
-         "6", "EA", "380000", "2280000", "홍길동", "010-0000-0000", "수원 본사", "김영업", "예시 — 같은 구분번호=한 발주",
-         "2026-02-05", "2026-02-10", "2280000", "", "", "", "", "진행중"],   # 거래명세서·1세금계산서·상태(예시)
-        # 발주 A — 구분 1, 둘째 품목(같은 발주: 발주 정보는 비워도 첫 줄 값을 따름)
-        ["", "1", "", "", "예) O-Ring", "KNK-P-002", "", "",
-         "", "", "", "", "", "", "",
-         "20", "EA", "1500", "30000", "", "", "", "", "예시 — 발주 정보는 첫 줄만 적으면 됨",
-         "", "", "", "", "", "", "", ""],
-        # 발주 B — 구분 2(번호가 다르면 다른 발주: 고객사도 다름)
-        ["", "2", "AOI 장비", "AOI 소모품", "예) Nozzle", "KNK-P-010", "", "",
-         "엘지전자", "", "2026-01-18", "2026-02-02", "KRW", "내수", "상품",
-         "4", "EA", "120000", "480000", "이담당", "010-1111-2222", "파주 공장", "박영업", "예시 — 구분번호 다르면 다른 발주",
-         "", "", "", "", "", "", "", "진행중"],
-    ]
-    for ex in ex_rows:
-        ws.append(ex)
-    for rr in (3, 4, 5):
-        for ci in range(1, len(CO_BULK_HEADERS) + 1):
+    dv_ccy.add("G3"); dv_exp.add("G4"); dv_status.add("G9"); dv_form.add("H12:H2000")
+    ws.freeze_panes = "A12"
+    # 예시 2줄(12~13행) — 품명 '예)' 접두라 업로드 시 자동 스킵
+    ex = [["WATCH9 검사기", "WATCH9 소모품", "예) Grip Pad", "50x50", "", "", "2026-01-30", "상품",
+           "6", "EA", "380000", "2280000", "예시 — 지우고 작성", "KNK-P-001", "012T2601",
+           "2026-02-05", "2026-02-10", "2280000"],
+          ["", "", "예) O-Ring", "Φ20", "", "", "", "",
+           "20", "EA", "1500", "30000", "", "KNK-P-002", "", "", "", ""]]
+    for row in ex:
+        ws.append(row)
+    for rr in (12, 13):
+        for ci in range(1, 19):
             ws.cell(rr, ci).font = Font(color="9AA3AF", italic=True)
     # 안내 시트
     ws2 = wb.create_sheet("작성안내")
     guide = [
-        ["소모품 통합 일괄등록 — 작성 안내", ""],
+        ["소모품 일괄등록 — 작성 안내 (1장 = 소모품 1발)", ""],
         ["", ""],
-        # v5H226z588: '묶음 작성 방식'을 맨 위에 강조 — 예전 단일 양식과 다른 핵심
-        ["★ 묶음 작성 방식 (꼭 읽으세요)", "이 통합 양식은 엑셀 한 장에 '여러 발주'를 함께 적습니다(예전 단일 양식처럼 발주 하나당 파일 하나가 아닙니다)."],
-        ["  ① 한 줄 = 한 품목", "[소모품] 시트 3행부터 한 줄에 품목 하나씩 입력합니다."],
-        ["  ② 같은 구분 번호 = 한 발주", "'구분 번호'가 같은 줄들이 한 발주(여러 품목)로 묶입니다. 발주 정보(고객사·발주일 등)는 그 발주의 '첫 줄'에만 적으면 됩니다."],
-        ["  ③ 번호 다르면 다른 발주", "발주가 다르면 구분 번호를 다르게(1, 2, 3…) 적습니다. 한 파일에 여러 고객사·여러 발주를 한 번에 등록할 수 있습니다."],
-        ["  예) 묶음 예시", "구분 1: 삼성전자 Grip Pad·O-Ring (한 발주·2품목)  /  구분 2: 엘지전자 Nozzle (다른 발주). → 3행~5행 예시 참고(업로드 시 '예)' 줄은 자동 제외)."],
-        ["", ""],
-        ["기본 원리", "[소모품] 시트 3행부터 한 줄에 한 품목씩 입력. '구분 번호'가 같은 줄들이 '한 발주(여러 품목)'로 자동으로 묶입니다."],
-        ["구분 번호 *", "한 발주 = 한 번호. 같은 발주의 품목은 모두 같은 번호. 발주가 다르면 번호를 다르게(1,2,3…)."],
-        ["1차 고객사 *", "등록 고객사명과 (주)/㈜·공백 차이 무시하고 상호로 자동 연결. 못 찾으면 텍스트로만 저장(미리보기에서 표시)."],
-        ["발주일·납품일", "YYYY-MM-DD. 발주일이 발주번호(C-YYMMDD) 기준일."],
+        ["기본 원리", "한 파일 = 한 발주. 위 3~9행에 발주 정보(고객사·발주일·통화 등), 12행부터 품목을 한 줄씩 입력."],
+        ["고객사1 *", "등록 고객사명과 (주)/㈜·공백 차이 무시하고 자동 연결. 못 찾으면 텍스트로만 저장(미리보기 표시)."],
+        ["발주일·납기일", "YYYY-MM-DD. 발주일이 발주번호(C-YYMMDD) 기준일. 비우면 자동."],
         ["품명·수량 *", "필수. 단가/금액은 숫자(콤마 없이). 금액 비우면 수량×단가로 자동."],
-        ["통화·거래구분·형태", "드롭다운(통화 KRW… / 내수·수출 / 제품·상품·기타). 통화 비우면 KRW, 거래구분 비우면 내수."],
-        ["상태", "드롭다운(진행중/출하/취소/보류). 발주(구분번호) 단위 — 첫 줄에 입력. 비우면 '초기협의'. 업로드 시 그 발주 상태로 저장되어 작업일정표 색에 반영됩니다."],
-        ["거래명세서·세금계산서", "발주(구분번호) 단위로 한 줄에 입력 — 거래명세서 발행일 + 1/2/3세금계산서 발행일·금액(계약금/중도금/잔금). 날짜 YYYY-MM-DD·금액 숫자. 비우면 미발행. 업로드 후 작업일정표 세금계산서 칸에 표시됩니다."],
-        ["세금계산서 묶음 발행(-N)", "같은 날짜에 여러 건을 한 장으로 묶어 발행했으면 발행일 뒤에 '-번호'를 붙이세요(예: 2026-03-23-1). 같은 '날짜-번호'를 가진 줄(2건 이상)이 자동으로 한 장의 묶음 세금계산서로 발행됩니다. -번호 없으면 개별."],
-        ["연결 관리번호", "이 품목이 어느 장비(관리번호)의 소모품인지(선택). 예: 012T2601. 못 찾으면 미연결 등록 + 안내."],
-        ["사진 / 사진위치", "'사진(PICTURE)'·'사진위치(PICTURE LOCATION)' 칸에 이미지를 붙여넣으면 품목별로 함께 등록됩니다."],
-        ["주의", "3행 예시는 지우고 작성. 업로드 → 미리보기(발주 N건·품목 M개·사진 K개) → 확정."],
+        ["드롭다운", "통화(G3) / 거래구분 내수·수출(G4) / 상태 진행중·출하·취소·보류(G9) / 형태 완제품·제품·상품·기타(H열)."],
+        ["자재코드", "등록 자재(파트) 코드를 적으면 업로드 시 그 자재로 자동 연결(선택)."],
+        ["연결 관리번호", "이 소모품이 어느 장비(관리번호)의 것인지(선택). 예: 012T2601."],
+        ["거래명세서·세금계산서", "발주 단위 — 발행일/금액(세금계산서 1건). 날짜 YYYY-MM-DD·금액 숫자. 비우면 미발행."],
+        ["사진 / 사진위치", "'사진(PICTURE)'·'사진위치(PICTURE LOCATION)' 칸에 이미지를 붙여넣으면 품목별로 등록."],
+        ["주의", "12~13행 예시는 지우고 작성. 업로드 → 미리보기 → 확정."],
     ]
-    for r in guide:
-        ws2.append(r)
-    ws2.column_dimensions["A"].width = 18; ws2.column_dimensions["B"].width = 82
+    for row in guide:
+        ws2.append(row)
+    ws2.column_dimensions["A"].width = 20; ws2.column_dimensions["B"].width = 80
     for ci in (1, 2):
-        cc = ws2.cell(1, ci); cc.font = white; cc.fill = fill
+        cc = ws2.cell(1, ci); cc.font = white; cc.fill = blu
     buf = _io.BytesIO(); wb.save(buf); buf.seek(0)
     return buf
 
@@ -933,6 +938,7 @@ def _co_bulk_colmap(header_cells) -> dict:
                 return
 
     take("link_mgmt", "연결관리번호", "연결관리")
+    take("material_no", "자재코드", "자재번호", "MATNO", "PARTNO")
     take("group", "구분번호", "구분")
     take("equip", "장비명", "EQUIP")
     take("model_use", "모델명", "MODEL")
@@ -959,8 +965,9 @@ def _co_bulk_colmap(header_cells) -> dict:
     take("note", "비고", "REMARK")
     # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일·금액 — 발주 단위. (amount 보다 뒤라 '금액' 단독은 위에서 선점됨)
     take("statement_date", "거래명세서")
-    take("ti_date1", "1세금계산서발행")
-    take("ti_amt1", "1세금계산서금액")
+    # v5H226z727: 블록 양식=세금계산서 1건('세금계산서 발행일/금액') · flat=‘1세금계산서…’ — 둘 다 인식(무접두 추가)
+    take("ti_date1", "1세금계산서발행", "세금계산서발행")
+    take("ti_amt1", "1세금계산서금액", "세금계산서금액")
     take("ti_date2", "2세금계산서발행")
     take("ti_amt2", "2세금계산서금액")
     take("ti_date3", "3세금계산서발행")
@@ -971,34 +978,56 @@ def _co_bulk_colmap(header_cells) -> dict:
 
 
 def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict:
-    """KNK 표준 소모품 발주 양식(24열) 파서 — '구분 번호'가 같은 줄 = 한 발주.
-    1행=안내, 2행(자동 감지)=머리글, 3행~=품목. 품목 사진/사진위치 임베드 이미지도 추출(image_out_dir).
-    반환: {ok, orders:[{group_label, customer_name, cust_ok, customer2, order_date, due_date,
-            currency, is_export, cc_name, cc_phone, ship_to, sales_name, biz_div, note,
-            items:[{row, line_no, part_name, spec, model_use, equip, qty, unit, unit_price,
-                    amount, link_mgmt, note, _imgs:[{full,thumb,category}], _errors}],
-            item_count, total_amount, image_count, _errors, _warn}],
-           total_orders, total_items, total_images, header_row}."""
+    """v5H226z727 (대표 지시): 소모품 일괄등록 양식 파서 — '1장 = 소모품 1발' 블록 형식.
+    위(3~9행)=기본정보 2단 블록(A/F열 라벨만 스캔 — 값 칸 오인 방지), 11행=라인 머리글(자동 감지), 12행~=품목.
+    품목 사진/사진위치 임베드 이미지도 추출(image_out_dir). 미리보기/확정 재사용 위해 orders:[발주 1건] 형태로 반환.
+    반환: {ok, orders:[{...같은 키...}], total_orders(=1), total_items, total_images, header_row}."""
+    import re as _re_b
     from openpyxl import load_workbook
-    wb = load_workbook(file_path, data_only=True)   # read_only=False → 이미지(_images) 접근 가능
+    wb = load_workbook(file_path, data_only=True)
     ws = None
     for nm in wb.sheetnames:
         if nm != "작성안내":
             ws = wb[nm]; break
     if ws is None:
         ws = wb.worksheets[0]
-    hdr = _co_bulk_detect_header(ws)
+    maxr = min(ws.max_row or 1, 2000); maxc = min(ws.max_column or 1, 30)
+
+    def _nrm(x):
+        return _re_b.sub(r"\s+", "", str(x)).upper() if x is not None else ""
+
+    # 1) 라인 머리글 행 자동 감지 (소모품 품명 + 수량 둘 다 있는 행)
+    hdr = 0; colmap = {}
+    for r in range(1, min(maxr, 20) + 1):
+        cm = _co_bulk_colmap([(c, ws.cell(r, c).value) for c in range(1, maxc + 1)])
+        if "part_name" in cm and "qty" in cm and len(cm) > len(colmap):
+            hdr, colmap = r, cm
     if not hdr:
-        return {"ok": False, "error": "머리글(구분 번호·소모품 품명·수량…)을 찾지 못했습니다",
-                "orders": [], "total_orders": 0, "total_items": 0, "total_images": 0}
-    maxc = min(ws.max_column, 40)   # v5H226z490: 컬럼 31개(거래명세서·세금계산서 추가)까지 커버
-    cm = _co_bulk_colmap([(c, ws.cell(hdr, c).value) for c in range(1, maxc + 1)])
-    if "part_name" not in cm:
-        return {"ok": False, "error": "'소모품 품명' 열을 찾지 못했습니다",
+        return {"ok": False, "error": "라인 머리글(소모품 품명·수량)을 찾지 못했습니다",
                 "orders": [], "total_orders": 0, "total_items": 0, "total_images": 0}
 
+    # 2) 기본정보 블록 — A열/F열 '라벨'만 스캔(z724 교훈: 값 칸을 라벨로 오인 방지). 값 = 바로 오른쪽 칸.
+    LABELS = {"관리번호": "mgmt_code", "고객사1": "customer", "고객사2": "customer2",
+              "고객담당자": "cc_name", "고객연락처": "cc_phone", "발주일": "order_date", "납기일": "due_date",
+              "통화": "currency", "거래구분": "is_export", "모델명": "model_name", "장비명": "equip_name",
+              "납품위치": "ship_to", "영업담당자": "sales_name", "상태": "status"}
+    hb = {}
+    for r in range(1, hdr):
+        for lc, vc in ((1, 2), (6, 7)):   # A->B, F->G
+            lab = _nrm(ws.cell(r, lc).value)
+            if not lab:
+                continue
+            for kw, key in LABELS.items():
+                if key in hb:
+                    continue
+                if _nrm(kw) in lab:
+                    val = ws.cell(r, vc).value
+                    if val not in (None, ""):
+                        hb[key] = val
+                    break
+
     def gv(r, key):
-        ci = cm.get(key)
+        ci = colmap.get(key)
         return ws.cell(r, ci).value if ci else None
 
     def s(v):
@@ -1010,99 +1039,72 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
         except Exception:
             return 0.0
 
-    groups: dict = {}; seq = []; all_lines = []; line_seq = 0
-    for r in range(hdr + 1, ws.max_row + 1):
+    cust = s(hb.get("customer"))
+    _exp = _nrm(hb.get("is_export"))
+    o = {
+        "group_label": "", "customer_name": cust, "customer2": s(hb.get("customer2")),
+        "mgmt_code": s(hb.get("mgmt_code")).upper(),
+        "order_date": _date_str(hb.get("order_date")), "due_date": _date_str(hb.get("due_date")),
+        "currency": _norm_ccy(hb.get("currency")) or "KRW",
+        "is_export": 1 if ("수출" in _exp or "EXPORT" in _exp) else 0,
+        "cc_name": s(hb.get("cc_name")), "cc_phone": s(hb.get("cc_phone")),
+        "ship_to": s(hb.get("ship_to")), "sales_name": s(hb.get("sales_name")),
+        "model_name": s(hb.get("model_name")), "equip_name": s(hb.get("equip_name")),
+        "status": _norm_co_status(hb.get("status")),
+        "cust_ok": bool(match_customer_by_name(cust)) if cust else False,
+        "biz_div": "", "note": "", "form_type": "",
+        "statement_date": "", "tax_invoice_date": "", "ti1_bundle": "",
+        "tax_invoice_amt1": 0, "tax_invoice_amt2": 0, "tax_invoice_amt3": 0,
+        "tax_invoice_date2": "", "tax_invoice_date3": "", "ti2_bundle": "", "ti3_bundle": "",
+        "items": [], "_errors": [], "_warn": "",
+    }
+    if not cust:
+        o["_errors"].append("고객사1 누락")
+    elif not o["cust_ok"]:
+        o["_warn"] = f"미등록 고객사 '{cust}' (텍스트로만 저장 · 미연결)"
+    if not o["order_date"]:
+        o["_errors"].append("발주일 누락")
+
+    # 3) 라인(12행~)
+    all_lines = []; line_seq = 0
+    for r in range(hdr + 1, maxr + 1):
         pn = s(gv(r, "part_name"))
-        if not pn or pn.startswith("예)"):
-            continue   # 빈 행·예시행 스킵
+        if not pn or pn.startswith("예)") or pn.startswith("예 )"):
+            continue
         line_seq += 1
-        grp = s(gv(r, "group")) or f"_auto_{s(gv(r, 'customer'))}_{_date_str(gv(r, 'order_date'))}"
         qty = num(gv(r, "qty")); price = num(gv(r, "price")); amt = num(gv(r, "amount"))
-        if not amt and qty > 0 and price > 0:   # 리뷰반영: 음수/0 가드
+        if not amt and qty > 0 and price > 0:
             amt = round(qty * price, 2)
         it = {
-            "row": r, "line_no": line_seq, "part_name": pn,
-            "spec": s(gv(r, "spec")), "model_use": s(gv(r, "model_use")),
-            "equip": s(gv(r, "equip")), "qty": qty, "unit": s(gv(r, "unit")) or "EA",
-            "unit_price": price, "amount": amt, "link_mgmt": s(gv(r, "link_mgmt")).upper(),
+            "row": r, "line_no": line_seq, "part_name": pn, "spec": s(gv(r, "spec")),
+            "model_use": s(gv(r, "model_use")), "equip": s(gv(r, "equip")),
+            "qty": qty, "unit": s(gv(r, "unit")) or "EA", "unit_price": price, "amount": amt,
+            "link_mgmt": s(gv(r, "link_mgmt")).upper(), "material_no": s(gv(r, "material_no")),
             "note": s(gv(r, "note")), "_imgs": [], "_errors": [],
         }
         if qty <= 0:
             it["_errors"].append("수량 누락/0")
-        if grp not in groups:
-            cust = s(gv(r, "customer"))
-            _exp_raw = s(gv(r, "is_export")).upper()
-            o = {
-                "group_label": s(gv(r, "group")), "customer_name": cust,
-                "customer2": s(gv(r, "customer2")),
-                "order_date": _date_str(gv(r, "order_date")), "due_date": _date_str(gv(r, "due_date")),
-                "currency": _norm_ccy(gv(r, "currency")) or "KRW",
-                "is_export": 1 if ("수출" in _exp_raw or "EXPORT" in _exp_raw) else 0,
-                "cc_name": s(gv(r, "cc_name")), "cc_phone": s(gv(r, "cc_phone")),
-                "ship_to": s(gv(r, "ship_to")), "sales_name": s(gv(r, "sales_name")),
-                "cust_ok": bool(match_customer_by_name(cust)) if cust else False,
-                "biz_div": "", "note": "", "items": [], "_errors": [], "_warn": "",
-                # v5H226z563 (대표 지시): 엑셀 '형태'(제품/상품/기타) 반영 — 비우면 기본 상품(확정 시 적용)
-                "form_type": _norm_co_form(gv(r, "form_type")),
-                # v5H226z719 (대표 지시): 상태(진행중→CONFIRMED·출하→SHIPPED·취소→CANCELLED·보류→HOLD) — 발주 단위
-                "status": _norm_co_status(gv(r, "status")),
-                # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) — 발주 단위(첫 줄에서 읽음)
-                "statement_date": _date_str(gv(r, "statement_date")),
-                "tax_invoice_amt1": num(gv(r, "ti_amt1")),
-                "tax_invoice_amt2": num(gv(r, "ti_amt2")),
-                "tax_invoice_amt3": num(gv(r, "ti_amt3")),
-            }
-            # v5H226z491b (대표 지시): 세금계산서 발행일 'YYYY-MM-DD-N' → 깨끗한 날짜 + 묶음번호(같은 날짜-N끼리 묶음 발행)
-            o["tax_invoice_date"], o["ti1_bundle"] = _split_date_bundle(gv(r, "ti_date1"))
-            o["tax_invoice_date2"], o["ti2_bundle"] = _split_date_bundle(gv(r, "ti_date2"))
-            o["tax_invoice_date3"], o["ti3_bundle"] = _split_date_bundle(gv(r, "ti_date3"))
-            if not cust:
-                o["_errors"].append("1차 고객사 누락")
-            elif not o["cust_ok"]:
-                o["_warn"] = f"미등록 고객사 '{cust}' (텍스트로만 저장 · 미연결)"
-            if not o["order_date"]:
-                o["_errors"].append("발주일 누락")
-            groups[grp] = o; seq.append(grp)
-        else:
-            # 그룹 발주 정보 보강(첫 행이 비었으면 이후 행 값으로 채움)
-            o = groups[grp]
-            for k_meta, k_src, is_date in (("customer_name", "customer", False), ("customer2", "customer2", False),
-                                           ("order_date", "order_date", True), ("due_date", "due_date", True),
-                                           ("cc_name", "cc_name", False), ("cc_phone", "cc_phone", False),
-                                           ("ship_to", "ship_to", False), ("sales_name", "sales_name", False)):
-                if not o.get(k_meta):
-                    v = _date_str(gv(r, k_src)) if is_date else s(gv(r, k_src))
-                    if v:
-                        o[k_meta] = v
-            # v5H226z563: 형태(제품/상품/기타) — 첫 줄이 비었으면 이후 줄 값으로 보강
-            if not o.get("form_type"):
-                _ff = _norm_co_form(gv(r, "form_type"))
-                if _ff:
-                    o["form_type"] = _ff
-            # v5H226z719: 상태도 첫 줄 비었으면 이후 줄에서 보강
-            if not o.get("status"):
-                _ss = _norm_co_status(gv(r, "status"))
-                if _ss:
-                    o["status"] = _ss
-            # v5H226z505 (대표 지시): 같은 발주(구분번호) 여러 줄 — 세금계산서 금액은 '합산'(줄마다 적은 부분금액
-            #   누락 방지). 016처럼 한 관리번호에 345,000+370,000 두 줄이면 1세금계산서=715,000. (첫 줄에만 적던
-            #   기존 방식은 이후 줄이 0이라 합산해도 그대로 → 회귀 없음.)
-            for _ak, _src in (("tax_invoice_amt1", "ti_amt1"), ("tax_invoice_amt2", "ti_amt2"), ("tax_invoice_amt3", "ti_amt3")):
-                _add = num(gv(r, _src))
-                if _add:
-                    o[_ak] = round((o.get(_ak) or 0) + _add, 2)
-            # 발행일·묶음번호(-N): 첫 줄이 비었으면 이후 줄에서 채움
-            for _dk, _bk, _src in (("tax_invoice_date", "ti1_bundle", "ti_date1"),
-                                   ("tax_invoice_date2", "ti2_bundle", "ti_date2"),
-                                   ("tax_invoice_date3", "ti3_bundle", "ti_date3")):
-                if not o.get(_dk):
-                    _dd2, _bb2 = _split_date_bundle(gv(r, _src))
-                    if _dd2:
-                        o[_dk] = _dd2; o[_bk] = _bb2
-        groups[grp]["items"].append(it)
-        all_lines.append(it)
+        # 발주 단위 칸(라인 표에 있으나 발주 공통) — 첫 줄에서 읽음
+        if not o["due_date"]:
+            _dd = _date_str(gv(r, "due_date"))
+            if _dd:
+                o["due_date"] = _dd
+        if not o["form_type"]:
+            _ff = _norm_co_form(gv(r, "form_type"))
+            if _ff:
+                o["form_type"] = _ff
+        if not o["statement_date"]:
+            o["statement_date"] = _date_str(gv(r, "statement_date"))
+        if not o["tax_invoice_date"]:
+            _td, _tb = _split_date_bundle(gv(r, "ti_date1"))
+            if _td:
+                o["tax_invoice_date"] = _td; o["ti1_bundle"] = _tb
+        _ta = num(gv(r, "ti_amt1"))
+        if _ta:
+            o["tax_invoice_amt1"] = round((o.get("tax_invoice_amt1") or 0) + _ta, 2)
+        o["items"].append(it); all_lines.append(it)
 
-    # 이미지 추출 → 데이터 행 기하 매칭(기존 단일 업로드 z284~z286 로직 재사용)
+    # 4) 이미지 추출 → 데이터 행 기하 매칭(기존 단일 업로드 z284~z286 로직 재사용)
     total_images = 0
     if image_out_dir and all_lines:
         try:
@@ -1148,17 +1150,14 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
         except Exception:
             pass
 
-    orders = []
-    for grp in seq:
-        o = groups[grp]
-        o["item_count"] = len(o["items"])
-        o["total_amount"] = round(sum(it["qty"] * it["unit_price"] for it in o["items"]), 2)
-        o["image_count"] = sum(len(it["_imgs"]) for it in o["items"])
-        if o["items"] and all(it["_errors"] for it in o["items"]):
-            o["_errors"].append("유효 품목 없음(모든 품목 행에 오류)")
-        orders.append(o)
-    return {"ok": True, "orders": orders, "total_orders": len(orders),
-            "total_items": sum(o["item_count"] for o in orders),
+    o["item_count"] = len(o["items"])
+    o["total_amount"] = round(sum(i["qty"] * i["unit_price"] for i in o["items"]), 2)
+    o["image_count"] = sum(len(i["_imgs"]) for i in o["items"])
+    if not o["items"]:
+        o["_errors"].append("품목이 없습니다(12행부터 품명·수량 입력)")
+    elif all(i["_errors"] for i in o["items"]):
+        o["_errors"].append("유효 품목 없음(모든 품목 행에 오류)")
+    return {"ok": True, "orders": [o], "total_orders": 1, "total_items": o["item_count"],
             "total_images": total_images, "header_row": hdr}
 
 
