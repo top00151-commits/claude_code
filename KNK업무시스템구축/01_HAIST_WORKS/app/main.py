@@ -19975,26 +19975,28 @@ def _parse_product_bulk_xlsx(path):
         return {"error": "부품 표 헤더(자재품명·수량)를 찾지 못했습니다. 양식의 부품 표 머리글을 확인하세요."}
     # 2) 프로젝트 헤더 — 부품 표 위쪽에서 라벨:값 (값 = 라벨 오른쪽 첫 비어있지 않은 셀)
     proj = {}
+    # v5H226z724(대표 지시): 라벨은 'A열(1열)'에서만 인식 — 값 칸(B 등)에 '납기/모델/발주일' 같은 라벨 단어가
+    #   들어가도 라벨로 오인하지 않게(기존 전 열 substring 스캔 → A열 한정). 양식 구조(A=라벨 / B=값 / C=안내)와 동일.
     for r in range(1, hdr_row):
-        for cc in range(1, maxc + 1):
-            lab = _prodbulk_norm(ws.cell(r, cc).value)
-            if not lab:
+        cc = 1
+        lab = _prodbulk_norm(ws.cell(r, cc).value)
+        if not lab:
+            continue
+        for key, kws in _PRODBULK_HDRCOLS:
+            if key in proj:
                 continue
-            for key, kws in _PRODBULK_HDRCOLS:
-                if key in proj:
-                    continue
-                if any(_prodbulk_norm(kw) in lab for kw in kws):
-                    # 값 = 라벨 '바로 오른쪽' 칸만 (안내문 칸을 값으로 오인하지 않게).
-                    val = ws.cell(r, cc + 1).value if (cc + 1) <= maxc else None
-                    if val in (None, ""):
-                        # 같은 셀에 "라벨: 값" 형태면 ':' 뒤를 사용
-                        raw = ws.cell(r, cc).value
-                        if raw is not None and ":" in str(raw):
-                            after = str(raw).split(":", 1)[1].strip()
-                            val = after or None
-                    if val not in (None, ""):
-                        proj[key] = val
-                    break
+            if any(_prodbulk_norm(kw) in lab for kw in kws):
+                # 값 = 라벨(A) '바로 오른쪽'(B) 칸만.
+                val = ws.cell(r, cc + 1).value if (cc + 1) <= maxc else None
+                if val in (None, ""):
+                    # 같은 셀에 "라벨: 값" 형태면 ':' 뒤를 사용
+                    raw = ws.cell(r, cc).value
+                    if raw is not None and ":" in str(raw):
+                        after = str(raw).split(":", 1)[1].strip()
+                        val = after or None
+                if val not in (None, ""):
+                    proj[key] = val
+                break
     # 3) 부품 라인
     def gv(r, key):
         return ws.cell(r, colmap[key]).value if key in colmap else None
