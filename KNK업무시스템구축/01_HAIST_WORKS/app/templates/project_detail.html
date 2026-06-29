@@ -1110,8 +1110,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
             {# v5H226z603: USD(외화) 부품이면 환율·인보이스 칸 항상 표시(환율 없으면 값=USD·환율칸 —). USD는 소수2자리(셋째 반올림). #}
             {# SO 통화가 비어도 부품(호기) 통화로 판정 — 기존 데이터(통화 미저장)도 인식 #}
             {% set _so_ccy = so.currency or (_units_desc[0].currency if (_units_desc and _units_desc[0].currency) else '') or p.currency or 'KRW' %}
-            {# v5H226z630(대표 지시): 완제품이 1줄(qty=N)이면 호기 칸 제거. 호기별 단가·납기가 달라 여러 줄로 분할된 경우만 호기 컬럼 유지. 부품(품명)·소모품은 영향 없음 #}
-            {% set _hide_hogi = (not _is_parts) and (not _is_co) and ((_units_desc|length) <= 1) %}
+            {# v5H226z714(대표 지시): 1대(단일 호기)여도 '1호기'를 표기 — z630('완제품 1줄이면 호기 칸 제거')을 되돌림. 완제품은 호기 칸 항상 표시. (부품=품명·소모품=품명 칸은 원래 항상 표시라 무영향) #}
+            {% set _hide_hogi = false %}
             {# v5H226z634 (대표 지시): 완제품(장비) SO — 수주 내역을 호기별 종합표(금액·거래명세서·세금계산서1/2/3 추가). 부품/소모품은 기존 컬럼셋 유지 #}
             {% set _is_equip = (not _is_parts) and (not _is_co) %}
             {% set _is_fx_view = (_is_parts and _so_ccy != 'KRW') %}
@@ -1225,8 +1225,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   {# v5H226z83: 호기 td 우측 정렬 · z630: 1줄 완제품이면 호기 칸 제거 #}
                   {% if not _hide_hogi %}
                   <td class="right" style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
-                    <span class="display-val"><b>{{ u.unit_label or ('호기 ' ~ loop.index) }}</b></span>
-                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or ('호기 ' ~ loop.index) }}" value="{{ u.unit_label or ('호기 ' ~ loop.index) }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
+                    <span class="display-val"><b>{{ u.unit_label or (loop.index ~ '호기') }}</b></span>
+                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or (loop.index ~ '호기') }}" value="{{ u.unit_label or (loop.index ~ '호기') }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
                     {# v5H226z92: 호기별 × 삭제 회수 (z89~z91 원복) — 상태 컬럼 "취소"로 대체 #}
                   </td>
                   {% endif %}
@@ -2194,7 +2194,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               {% for u in all_units_sorted %}
                 <span class="ab-sono" title="수주번호 {{ u.so_no or '' }}">{{ u.so_no or '' }}</span>
                 {% if u.form_label %}<span class="amt-form-badge sf-{{ u.form_key }}">{{ u.form_label }}</span>{% else %}<span></span>{% endif %}
-                <span class="ab-lbl">{{ u.unit_label or ('호기 ' ~ loop.index) }}</span>
+                <span class="ab-lbl">{{ u.unit_label or (loop.index ~ '호기') }}</span>
                 <span class="ab-amt">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span class="ab-ccy">{{ u.currency or p.currency or 'KRW' }}</span></span>
               {% endfor %}
             </div>
