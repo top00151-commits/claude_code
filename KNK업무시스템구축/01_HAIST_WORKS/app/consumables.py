@@ -1203,6 +1203,12 @@ _ORDER_FIELD_LABELS = {
     "order_date": "발주일", "due_date": "납기", "cc_name": "고객 담당자", "cc_phone": "연락처",
     "currency": "통화", "is_export": "거래구분", "model_name": "모델명", "equip_name": "장비명",
     "sales_name": "영업담당자", "note": "비고",
+    # v5H226z725 (대표 지시): 상세 화면을 엑셀 양식과 일치 — 상태·형태·거래명세서·세금계산서(발주 단위)도
+    #   save-all(헤더 경로)로 편집 저장. 라인 표에 칸으로 보이지만 값은 발주(consumable_orders)에 저장.
+    "status": "상태", "form_type": "형태", "statement_date": "거래명세서 발행일",
+    "tax_invoice_date": "1세금계산서 발행일", "tax_invoice_amt1": "1세금계산서 금액",
+    "tax_invoice_date2": "2세금계산서 발행일", "tax_invoice_amt2": "2세금계산서 금액",
+    "tax_invoice_date3": "3세금계산서 발행일", "tax_invoice_amt3": "3세금계산서 금액",
 }
 _LINE_FIELD_LABELS = {"model_use": "모델", "equip_name": "장비명", "part_name": "품명",
                       "spec": "규격", "qty": "수량", "unit": "단위", "unit_price": "단가",

@@ -101,6 +101,14 @@ table.items th .col-rz:hover { background:rgba(176,16,16,.25); }   /* board(col-
 table.items tfoot td { background: var(--paper-2); font-weight: 700; }   /* v5H226z304: 합계행 board 베이지 톤 + 스코프 한정 */
 /* v5H226z305(대표 지시): 사진 2칸 — 사진(가로 90px)보다 좁아지지 않게 + 가운데 정렬, 여백 축소 */
 table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-align: center; }
+/* v5H226z725: 라인 표 select(형태 등) — input 과 동일 룩 */
+table.items select { padding: 1px 4px; border: 1px solid transparent; border-radius: 3px; background: transparent; font-size: 12px; width: 100%; box-sizing: border-box; }
+table.items select:hover { border-color: var(--qv-line); background:#fff; }
+table.items select:focus { outline: none; border-color: var(--knk-red); background:#fff; }
+/* v5H226z725: 발주 공통(ord-col) 칸 — 라인 단위가 아닌 발주(주문) 단위(모든 줄 동일) → 옅은 파랑으로 구분 */
+table.items th.ord-col { background:#eef4fb; }
+table.items td.ord-col { background:#f5f9fe; }
+table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
 /* v5H226z309(대표 지시): 라인 직접 추가 버튼 + 사진 첨부 컨트롤 */
 .btn-addline { padding:7px 16px; border:1px solid var(--knk-red); border-radius:8px; background:var(--knk-red); color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
 .btn-addline:hover { filter:brightness(.95); }
@@ -178,10 +186,13 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
         {# ① 기본 (시스템·읽기전용) #}
         <div class="info-sect">
           <div class="sect-label">기본</div>
-          <div class="info-row c3">
+          <div class="info-row c4">
             <div class="h-cell ro"><div class="lbl">관리코드</div><div class="val" style="font-family:monospace;color:var(--knk-red);">{{ co.mgmt_code or '—' }}</div></div>
             <div class="h-cell ro"><div class="lbl">수주번호</div><div class="val">{{ co.co_no }}</div></div>
             <div class="h-cell ro"><div class="lbl">합계</div><div class="val amount" id="totalAmount">{% if co.currency != 'KRW' %}{{ co.currency }} {% endif %}{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency == 'KRW' %}원{% endif %}</div></div>
+            {# v5H226z725(대표 지시): 상태 = 드롭다운(기존 '상태 변경' 알약 대체). 엑셀 양식 '상태'(F9)와 일치 #}
+            <div class="h-cell"><div class="lbl">상태</div>
+              <select class="ef" data-field="status">{% for st in STATUSES %}<option value="{{ st }}"{% if st==co.status %} selected{% endif %}>{{ STATUS_LABELS[st] }}</option>{% endfor %}</select></div>
           </div>
         </div>
         {# ② 고객 정보 — v5H226z298: 업로드 후 수정 가능(작업일정표와 양방향 동기화)+이력 #}
@@ -221,14 +232,7 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
           </div>
         </div>
       </div>
-      <div style="margin-top:14px;">
-        <div class="lbl" style="font-size:11px;color:var(--qv-ink-3);font-weight:600;margin-bottom:4px;">상태 변경</div>
-        <div class="status-pills">
-          {% for st in STATUSES %}
-            <span class="s-pill {% if st==co.status %}active{% endif %}" data-status="{{ st }}">{{ STATUS_LABELS[st] }}</span>
-          {% endfor %}
-        </div>
-      </div>
+      {# v5H226z725(대표 지시): 기존 '상태 변경' 알약 삭제 → 상태는 위 기본정보 드롭다운으로 일원화 #}
       {% if co.note %}
       <div style="margin-top:14px;font-size:13px;color:var(--qv-ink-3);">📝 {{ co.note }}</div>
       {% endif %}
@@ -261,51 +265,56 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
       </div>
       <div id="coItemsWrap" class="co-items-wrap" style="overflow-x:auto;">  {# v5H226z297/z303/z305: 좌우 스크롤 + 칸 너비/표시 조정 + 툴바 #}
       <table class="items">
+        {# v5H226z725(대표 지시): 컬럼 순서·구성을 소모품 일괄등록 엑셀 양식(11행)과 동일하게.
+           ord-col = 발주(주문) 단위 칸(납품일·형태·거래명세서·세금계산서) — 모든 줄 공통(한 줄 고치면 전 줄 동기화·발주에 저장). #}
         <thead><tr>
           <th style="width:40px;">No</th>
-          <th class="photo-cell" style="width:100px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE LOCATION)</span></th>
-          <th class="photo-cell" style="width:100px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE)</span></th>
-          <th style="width:120px;">모델</th>
+          <th style="width:120px;">모델명</th>
           <th style="width:120px;">장비명</th>
-          <th style="width:150px;">품명</th>
-          <th style="width:150px;">규격</th>
-          <th style="width:80px;">수량</th>
-          <th style="width:60px;">단위</th>
+          <th style="width:150px;">소모품 품명</th>
+          <th style="width:140px;">규격</th>
+          <th class="photo-cell" style="width:100px;">사진<br><span style="font-size:9px;font-weight:400;">(LOCATION)</span></th>
+          <th class="photo-cell" style="width:100px;">사진<br><span style="font-size:9px;font-weight:400;">(PICTURE)</span></th>
+          <th class="ord-col" style="width:120px;">납품일<br><span style="font-size:9px;font-weight:400;">(발주 공통)</span></th>
+          <th class="ord-col" style="width:84px;">형태<br><span style="font-size:9px;font-weight:400;">(발주 공통)</span></th>
+          <th style="width:70px;">수량</th>
+          <th style="width:55px;">단위</th>
           <th style="width:110px;">단가</th>
-          <th style="width:130px;" class="amount">합계</th>
-          <th style="width:160px;">비고</th>
-          <th style="width:170px;">자재코드</th>
-          <th style="width:160px;">관리번호</th>
+          <th style="width:120px;" class="amount">금액</th>
+          <th style="width:150px;">비고</th>
+          <th style="width:160px;">자재코드</th>
+          <th style="width:150px;">연결 관리번호</th>
+          <th class="ord-col" style="width:130px;">거래명세서<br><span style="font-size:9px;font-weight:400;">발행일(발주 공통)</span></th>
+          <th class="ord-col" style="width:130px;">세금계산서<br><span style="font-size:9px;font-weight:400;">발행일(발주 공통)</span></th>
+          <th class="ord-col amount" style="width:120px;">세금계산서<br><span style="font-size:9px;font-weight:400;">금액(발주 공통)</span></th>
           <th style="width:50px;"></th>
         </tr></thead>
         <tbody>
         {% for it in items %}
           <tr data-iid="{{ it.id }}">
             <td><b>{{ it.line_no }}</b></td>
+            {# 품목별 칸 (라인 단위) — 모델명·장비명·품명·규격 #}
+            <td><input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델명" /></td>
+            <td><input data-k="equip_name" value="{{ it.equip_name|e }}" placeholder="장비명" /></td>
+            <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="소모품 품명" /></td>
+            <td><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /></td>
             <td class="photo-cell">
               {% if it.image_loc_thumb_path %}
-                <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" target="_blank">
-                  <img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" />
-                </a>
+                <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" target="_blank"><img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" /></a>
               {% else %}<button type="button" class="photo-add" title="사진위치 첨부" onclick="pickLinePhoto(this,{{ it.id }},'loc')">📷</button>{% endif %}
             </td>
             <td class="photo-cell">
               {% if it.image_thumb_path %}
-                <a href="{{ it.image_path or it.image_thumb_path }}" target="_blank">
-                  <img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" />
-                </a>
+                <a href="{{ it.image_path or it.image_thumb_path }}" target="_blank"><img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" /></a>
               {% else %}<button type="button" class="photo-add" title="사진 첨부" onclick="pickLinePhoto(this,{{ it.id }},'photo')">📷</button>{% endif %}
             </td>
-            {# v5H226z297(대표 지시): 모델·장비명·품명·규격 별도 컬럼으로 펼침(전부 편집) #}
-            <td><input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델" /></td>
-            <td><input data-k="equip_name" value="{{ it.equip_name|e }}" placeholder="장비명" /></td>
-            <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="품명" /></td>
-            <td><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /></td>
+            {# v5H226z725: 발주 공통(ord-col) — 납품일·형태. 모든 줄 동일·편집 시 발주에 저장+전 줄 동기화 #}
+            <td class="ord-col"><input type="date" class="ef co-ord" data-field="due_date" value="{{ (co.due_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
+            <td class="ord-col"><select class="ef co-ord" data-field="form_type" title="발주 공통 — 모든 줄 동일"><option value="">—</option>{% for ft in ['제품','상품','기타'] %}<option value="{{ ft }}"{% if (co.form_type or '')==ft %} selected{% endif %}>{{ ft }}</option>{% endfor %}</select></td>
             <td><input data-k="qty" type="number" step="0.01" value="{{ (it.qty or 0)|qtyfmt }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
             <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></td>
             <td class="amount cell-amount">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
-            {# v5H226z370(대표 지시): 비고 — 일괄등록 비고 표시 + 편집(자동저장). 백엔드 note 이미 지원. #}
             <td><input data-k="note" value="{{ it.note|e }}" placeholder="비고" /></td>
             {# v5H226z300(대표 지시): 자재코드 연결 — 등록 자재 자동연결(업로드)+추천+수동검색 #}
             <td>
@@ -320,7 +329,7 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
                 </div>
               {% endif %}
             </td>
-            {# v5H226z301(대표 지시): 관리번호 직접 입력+검증(모델/장비 다르면 알람·강제연결) + 모델 자동매칭 추천 #}
+            {# v5H226z301(대표 지시): 연결 관리번호 직접 입력+검증(모델/장비 다르면 알람·강제연결) + 모델 자동매칭 추천 #}
             <td>
               {% if it.linked_project_id %}
                 <a href="/project/{{ it.linked_project_id }}" target="_blank" style="color:#1e40af;font-weight:700;">{{ it.linked_mgmt_code or ('PID ' ~ it.linked_project_id) }}</a>
@@ -331,6 +340,10 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
                 <input class="mgmt-input" data-iid="{{ it.id }}" placeholder="🔢 관리번호 입력" autocomplete="off" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:11px;border:1px solid var(--qv-line);border-radius:4px;">
               {% endif %}
             </td>
+            {# v5H226z725: 발주 공통(ord-col) — 거래명세서·세금계산서 발행일·금액(1건). 모든 줄 동일 #}
+            <td class="ord-col"><input type="date" class="ef co-ord" data-field="statement_date" value="{{ (co.statement_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
+            <td class="ord-col"><input type="date" class="ef co-ord" data-field="tax_invoice_date" value="{{ (co.tax_invoice_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
+            <td class="ord-col amount"><input class="ef co-ord knk-money" data-field="tax_invoice_amt1" type="text" inputmode="numeric" value="{{ (co.tax_invoice_amt1)|pricefmt(co.currency or 'KRW') if co.tax_invoice_amt1 else '' }}" title="발주 공통 — 모든 줄 동일" style="text-align:right;" /></td>
             <td>
               <button class="btn-danger" type="button" onclick="delLine({{ it.id }})" style="padding:4px 8px;font-size:11px;">삭제</button>
             </td>
@@ -339,9 +352,9 @@ table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-alig
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="10" style="text-align:right;">합계</td>
+            <td colspan="12" style="text-align:right;">합계</td>
             <td class="amount" id="footTotal">{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency=='KRW' %}원{% endif %}</td>
-            <td colspan="4"></td>
+            <td colspan="7"></td>
           </tr>
         </tfoot>
       </table>
@@ -424,15 +437,19 @@ function showTab(name){
   document.querySelectorAll('.co-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
 }
 // v5H226z298: 정보란(헤더) 인라인 편집 — 같은 원본 수정(작업일정표와 양방향 동기화) + 변경 이력 기록
-document.querySelectorAll('.header-grid .ef').forEach(el=>{
+// v5H226z725: .ef 자동저장(발주 필드) — 기본정보 + 라인 표의 '발주 공통(ord-col)' 칸 모두 대상(.ef[data-field]).
+//   저장 후 같은 data-field 칸(전 줄+기본정보)에 값 동기화(발주 단위 = 한 값).
+document.querySelectorAll('.ef[data-field]').forEach(el=>{
   el.addEventListener('change', async ()=>{
-    const field = el.dataset.field, value = el.value;
+    const field = el.dataset.field;
+    const value = el.classList.contains('knk-money') ? (el.value||'').replace(/,/g,'') : el.value;
     try{
       const r = await fetch(`/consumables/${CO_ID}/edit-field`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})});
       const d = await r.json();
       if(d.ok){
         el.style.background='#dcfce7'; setTimeout(()=>{ el.style.background=''; },700);
         if(field==='customer_id' || field==='customer_name'){ el.classList.toggle('cust-bad', d.cust_ok===false); }
+        document.querySelectorAll('.ef[data-field="'+field+'"]').forEach(o=>{ if(o!==el && o.value!==el.value){ o.value=el.value; } });
       } else { el.style.background='#fee2e2'; alert('저장 실패: '+(d.error||'')); }
     }catch(e){ el.style.background='#fee2e2'; }
   });
@@ -446,7 +463,8 @@ async function coSaveAll(){
   if(btn){ btn.disabled=true; btn.textContent='저장 중…'; }
   if(msg){ msg.textContent=''; }
   const header={};
-  document.querySelectorAll('.header-grid .ef').forEach(el=>{ if(el.dataset.field) header[el.dataset.field]=el.value; });
+  // v5H226z725: 기본정보 + 라인 표 발주 공통(ord-col) 칸 모두 수집(.ef[data-field]). 중복(같은 발주값)은 마지막 값.
+  document.querySelectorAll('.ef[data-field]').forEach(el=>{ if(el.dataset.field) header[el.dataset.field]= el.classList.contains('knk-money') ? (el.value||'').replace(/,/g,'') : el.value; });
   const lines=[];
   document.querySelectorAll('table.items tbody tr[data-iid]').forEach(tr=>{
     const iid=parseInt(tr.dataset.iid,10); if(!iid) return;
@@ -463,7 +481,7 @@ async function coSaveAll(){
 }
 window.coSaveAll = coSaveAll;
 
-document.querySelectorAll('table.items input').forEach(inp => {
+document.querySelectorAll('table.items tbody input[data-k]').forEach(inp => {   // v5H226z725: data-k(라인 단위)만 — 발주 공통 .ef 칸은 별도 저장
   inp.addEventListener('change', async () => {
     const tr = inp.closest('tr');
     const iid = tr.dataset.iid;
@@ -576,28 +594,20 @@ async function doNotify() {
   }
 }
 
-document.querySelectorAll('.s-pill').forEach(pill => {
-  pill.addEventListener('click', async () => {
-    const st = pill.dataset.status;
-    const fd = new FormData(); fd.append('status', st);
-    const res = await fetch(`/consumables/${CO_ID}/status`, {method:'POST', body:fd});
-    const data = await res.json();
-    if (data.ok) location.reload();
-  });
-});
+// v5H226z725: 상태 '알약' 제거 → 상태는 기본정보 드롭다운(.ef data-field=status)으로 일원화(자동저장).
 
 // v5H226z303/z305(대표 지시): 라인 표 — 칸 너비조정 + 칸 표시/숨기기 + 전체화면 + 화면인쇄 (작업일정표 메뉴 이식, 날짜 컨트롤 제외)
-const ITEMS_VIEW_KEY = 'co_items_view_v2';
+const ITEMS_VIEW_KEY = 'co_items_view_v3';   // v5H226z725: 컬럼 재구성(엑셀 양식 일치)으로 키 갱신 — 옛 저장폭 무효화
 const ITEMS_COLW_OLDKEY = 'co_items_colw_v1';
-const ITEMS_COLW_DEFAULTS = [40,100,100,120,120,150,150,70,55,100,110,160,170,160,56];
-const ITEMS_COL_LABELS = ['No','사진(LOC)','사진(PIC)','모델','장비명','품명','규격','수량','단위','단가','합계','비고','자재코드','관리번호','삭제'];
+const ITEMS_COLW_DEFAULTS = [40,120,120,150,140,100,100,120,84,70,55,110,120,150,160,150,130,130,120,50];
+const ITEMS_COL_LABELS = ['No','모델명','장비명','품명','규격','사진(LOC)','사진(PIC)','납품일','형태','수량','단위','단가','금액','비고','자재코드','연결관리번호','거래명세서','세금계산서일','세금계산서금액','삭제'];
 const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 않게
 (function(){
   const table = document.querySelector('table.items');
   if(!table) return;
   const ths = table.querySelectorAll('thead th');
   const N = ths.length;
-  function colMin(i){ return (i===1 || i===2) ? ITEMS_PHOTO_MIN : 40; }
+  function colMin(i){ return (i===5 || i===6) ? ITEMS_PHOTO_MIN : 40; }   // v5H226z725: 사진칸 = 6·7번째(인덱스 5·6)
 
   // 상태 로드: 신규키 → 구버전 폭키 → 기본값
   let widths=null, hidden=null;
@@ -606,8 +616,8 @@ const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 
   if(!Array.isArray(widths) || widths.length!==N) widths = ITEMS_COLW_DEFAULTS.slice(0,N);
   while(widths.length<N) widths.push(100);
   if(!Array.isArray(hidden) || hidden.length!==N) hidden = new Array(N).fill(false);
-  if(widths[1]<colMin(1)) widths[1]=colMin(1);   // 사진칸 최소폭 보정(저장된 옛값 대비)
-  if(widths[2]<colMin(2)) widths[2]=colMin(2);
+  if(widths[5]<colMin(5)) widths[5]=colMin(5);   // 사진칸(인덱스 5·6) 최소폭 보정
+  if(widths[6]<colMin(6)) widths[6]=colMin(6);
 
   let cg = table.querySelector('colgroup.itm-cg');
   if(!cg){ cg=document.createElement('colgroup'); cg.className='itm-cg'; for(let i=0;i<N;i++) cg.appendChild(document.createElement('col')); table.insertBefore(cg, table.firstChild); }
