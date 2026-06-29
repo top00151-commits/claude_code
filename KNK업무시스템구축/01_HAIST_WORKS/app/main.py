@@ -18792,7 +18792,7 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
             from . import consumables as _co_mod
             _co_status_map = {"DRAFT": "초기협의", "QUOTED": "견적발행",
                                "CONFIRMED": "진행중", "SHIPPED": "출하",
-                               "PAID": "출하", "CANCELLED": "취소"}
+                               "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
             _co_rows = _co_mod.co_list(status="", q=q, limit=500)
             for cr in _co_rows:
                 _co_biz = (cr.get("biz_div") or "").strip().upper() if cr.get("biz_div") else ""
@@ -19650,7 +19650,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
     try:
         from . import consumables as _co_mod
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
-                   "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소"}
+                   "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
         for cr in _co_mod.co_list(status="", q="", limit=1000):
             info = {
                 "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
@@ -20654,7 +20654,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     try:
         from . import consumables as _co_mod
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
-                   "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소"}
+                   "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
         for cr in _co_mod.co_list(status="", q="", limit=1000):
             info = {
                 "ref_id": cr.get("id"),                    # v5H226z264: 셀 편집/메모용
@@ -22547,7 +22547,7 @@ async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
         try:
             from . import consumables as _co_mod
             _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
-                       "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소"}
+                       "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
             for cr in _co_mod.co_list(status="", q=q, limit=1000):
                 _cb = (cr.get("biz_div") or "").strip().upper() if cr.get("biz_div") else ""
                 if _biz and _cb != _biz:
@@ -33662,6 +33662,7 @@ async def consumables_import_bulk_confirm(request: Request):
                 _put("cc_name", o.get("cc_name")); _put("cc_phone", o.get("cc_phone"))
                 _put("ship_to", o.get("ship_to")); _put("sales_name", o.get("sales_name"))
                 _put("form_type", o.get("form_type"))   # v5H226z563: 엑셀 형태(제품/상품/기타) 반영
+                _put("status", o.get("status"))   # v5H226z719 (대표 지시): 엑셀 상태(진행중→CONFIRMED·출하→SHIPPED·취소→CANCELLED·보류→HOLD). 빈칸이면 _put 스킵→기본 DRAFT
                 if o.get("is_export") is not None and "is_export" in _cocols:
                     _sets.append("is_export=?"); _vals.append(int(o.get("is_export") or 0))
                 # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일·금액 일괄등록 반영

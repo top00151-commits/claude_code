@@ -21,7 +21,7 @@ from .database import db_session
 # ────────────────────────────────────────────────────────────────────
 # 채번 / 상태
 # ────────────────────────────────────────────────────────────────────
-CO_STATUSES = ["DRAFT", "QUOTED", "CONFIRMED", "SHIPPED", "PAID", "CANCELLED"]
+CO_STATUSES = ["DRAFT", "QUOTED", "CONFIRMED", "SHIPPED", "PAID", "CANCELLED", "HOLD"]
 CO_STATUS_LABELS = {
     "DRAFT": "작성중",
     "QUOTED": "견적완료",
@@ -29,6 +29,7 @@ CO_STATUS_LABELS = {
     "SHIPPED": "출하",
     "PAID": "수금완료",
     "CANCELLED": "취소",
+    "HOLD": "보류",   # v5H226z719 (대표 지시): 소모품 '보류' 상태 신설(일괄등록 양식 상태 드롭다운)
 }
 
 
@@ -762,13 +763,15 @@ CO_BULK_HEADERS = ["연결 관리번호", "구분 번호", "모델명", "장비�
                    "납품위치", "영업담당자", "비고",
                    # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) 발행일·금액 — 발주(구분번호) 단위
                    "거래명세서 발행일", "1세금계산서 발행일", "1세금계산서 금액",
-                   "2세금계산서 발행일", "2세금계산서 금액", "3세금계산서 발행일", "3세금계산서 금액"]
+                   "2세금계산서 발행일", "2세금계산서 금액", "3세금계산서 발행일", "3세금계산서 금액",
+                   # v5H226z719 (대표 지시): 상태(발주 단위·진행중/출하/취소/보류 드롭다운)
+                   "상태"]
 # 1행 안내 문구(컬럼 위치 1-indexed별)
 CO_BULK_HINTS = {1: "있으면 입력(예:012T2601)", 2: "같은 번호=한 발주(여러 품목)", 5: "필수",
                  7: "ALT+크기조정", 8: "ALT+크기조정", 9: "필수(등록 고객사명)",
                  11: "YYYY-MM-DD", 13: "KRW/USD/…", 14: "내수/수출", 15: "제품/상품/기타", 16: "필수",
                  25: "YYYY-MM-DD(선택)", 26: "YYYY-MM-DD", 27: "숫자", 28: "YYYY-MM-DD",
-                 29: "숫자", 30: "YYYY-MM-DD", 31: "숫자"}
+                 29: "숫자", 30: "YYYY-MM-DD", 31: "숫자", 32: "진행중/출하/취소/보류(비우면 초기협의)"}
 
 
 def build_co_bulk_template_buf():
@@ -784,7 +787,7 @@ def build_co_bulk_template_buf():
     thin = Side(style="thin", color="DDDDDD"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal="center", vertical="center", wrap_text=True)
     widths = [14, 8, 18, 16, 20, 16, 16, 14, 13, 13, 12, 12, 7, 9, 9, 7, 6, 11, 12, 12, 14, 12, 11, 16,
-              13, 13, 12, 13, 12, 13, 12]   # v5H226z490: 거래명세서·세금계산서 1/2/3 발행일·금액 7열
+              13, 13, 12, 13, 12, 13, 12, 11]   # v5H226z490: 거래명세서·세금계산서 7열 / z719: 상태 1열(32=AF)
     # 1행 = 안내 문구
     for ci in range(1, len(CO_BULK_HEADERS) + 1):
         hc = ws.cell(1, ci, CO_BULK_HINTS.get(ci, "")); hc.font = hintf; hc.alignment = center
@@ -794,13 +797,14 @@ def build_co_bulk_template_buf():
         ws.column_dimensions[c.column_letter].width = widths[ci - 1]
     ws.row_dimensions[2].height = 30
     ws.freeze_panes = "A3"
-    # 드롭다운: 통화(M=13)·거래구분(N=14)·형태(O=15)
+    # 드롭다운: 통화(M=13)·거래구분(N=14)·형태(O=15)·상태(AF=32·v5H226z719)
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
     dv_exp = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_form = DataValidation(type="list", formula1='"제품,상품,기타"', allow_blank=True)
-    for dv in (dv_ccy, dv_exp, dv_form):
+    dv_status = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)
+    for dv in (dv_ccy, dv_exp, dv_form, dv_status):
         ws.add_data_validation(dv)
-    dv_ccy.add("M3:M2000"); dv_exp.add("N3:N2000"); dv_form.add("O3:O2000")
+    dv_ccy.add("M3:M2000"); dv_exp.add("N3:N2000"); dv_form.add("O3:O2000"); dv_status.add("AF3:AF2000")
     # v5H226z588: 예시 3줄(3~5행) — '묶음 작성 방식'을 눈에 보이게 2발주 예(구분 1=2품목 / 구분 2=다른 고객사 1품목).
     #   업로드 시 품명 '예)' 접두는 자동 스킵되므로 안전.
     ex_rows = [
@@ -808,17 +812,17 @@ def build_co_bulk_template_buf():
         ["", "1", "WATCH9 검사기", "WATCH9 소모품", "예) Grip Pad", "KNK-P-001", "", "",
          "삼성전자", "", "2026-01-15", "2026-01-30", "KRW", "내수", "상품",
          "6", "EA", "380000", "2280000", "홍길동", "010-0000-0000", "수원 본사", "김영업", "예시 — 같은 구분번호=한 발주",
-         "2026-02-05", "2026-02-10", "2280000", "", "", "", ""],   # 거래명세서·1세금계산서(예시), 2/3차 비움
+         "2026-02-05", "2026-02-10", "2280000", "", "", "", "", "진행중"],   # 거래명세서·1세금계산서·상태(예시)
         # 발주 A — 구분 1, 둘째 품목(같은 발주: 발주 정보는 비워도 첫 줄 값을 따름)
         ["", "1", "", "", "예) O-Ring", "KNK-P-002", "", "",
          "", "", "", "", "", "", "",
          "20", "EA", "1500", "30000", "", "", "", "", "예시 — 발주 정보는 첫 줄만 적으면 됨",
-         "", "", "", "", "", "", ""],
+         "", "", "", "", "", "", "", ""],
         # 발주 B — 구분 2(번호가 다르면 다른 발주: 고객사도 다름)
         ["", "2", "AOI 장비", "AOI 소모품", "예) Nozzle", "KNK-P-010", "", "",
          "엘지전자", "", "2026-01-18", "2026-02-02", "KRW", "내수", "상품",
          "4", "EA", "120000", "480000", "이담당", "010-1111-2222", "파주 공장", "박영업", "예시 — 구분번호 다르면 다른 발주",
-         "", "", "", "", "", "", ""],
+         "", "", "", "", "", "", "", "진행중"],
     ]
     for ex in ex_rows:
         ws.append(ex)
@@ -843,6 +847,7 @@ def build_co_bulk_template_buf():
         ["발주일·납품일", "YYYY-MM-DD. 발주일이 발주번호(C-YYMMDD) 기준일."],
         ["품명·수량 *", "필수. 단가/금액은 숫자(콤마 없이). 금액 비우면 수량×단가로 자동."],
         ["통화·거래구분·형태", "드롭다운(통화 KRW… / 내수·수출 / 제품·상품·기타). 통화 비우면 KRW, 거래구분 비우면 내수."],
+        ["상태", "드롭다운(진행중/출하/취소/보류). 발주(구분번호) 단위 — 첫 줄에 입력. 비우면 '초기협의'. 업로드 시 그 발주 상태로 저장되어 작업일정표 색에 반영됩니다."],
         ["거래명세서·세금계산서", "발주(구분번호) 단위로 한 줄에 입력 — 거래명세서 발행일 + 1/2/3세금계산서 발행일·금액(계약금/중도금/잔금). 날짜 YYYY-MM-DD·금액 숫자. 비우면 미발행. 업로드 후 작업일정표 세금계산서 칸에 표시됩니다."],
         ["세금계산서 묶음 발행(-N)", "같은 날짜에 여러 건을 한 장으로 묶어 발행했으면 발행일 뒤에 '-번호'를 붙이세요(예: 2026-03-23-1). 같은 '날짜-번호'를 가진 줄(2건 이상)이 자동으로 한 장의 묶음 세금계산서로 발행됩니다. -번호 없으면 개별."],
         ["연결 관리번호", "이 품목이 어느 장비(관리번호)의 소모품인지(선택). 예: 012T2601. 못 찾으면 미연결 등록 + 안내."],
@@ -891,6 +896,23 @@ def _norm_co_form(v) -> str:
     return ""
 
 
+def _norm_co_status(v) -> str:
+    """v5H226z719 (대표 지시): 엑셀 '상태'(진행중/출하/취소/보류) → 소모품 status enum.
+    빈칸/미인식='' (확정 시 미적용 → 기본 DRAFT/초기협의 유지). '납품완료'는 출하로 흡수."""
+    t = ("" if v is None else str(v)).strip()
+    if not t:
+        return ""
+    if "취소" in t:
+        return "CANCELLED"
+    if "보류" in t:
+        return "HOLD"
+    if "출하" in t or "납품완료" in t:
+        return "SHIPPED"
+    if "진행" in t:
+        return "CONFIRMED"
+    return ""
+
+
 def _co_bulk_colmap(header_cells) -> dict:
     """header_cells: [(ci, text), ...] (1-indexed). → {key: ci}. 한 컬럼은 1키에만.
     더 구체적 라벨 먼저(영업담당자→연락처→담당자 순 등 충돌 방지)."""
@@ -922,6 +944,7 @@ def _co_bulk_colmap(header_cells) -> dict:
     take("currency", "통화", "CURRENCY")
     take("is_export", "거래구분")
     take("form_type", "형태")
+    take("status", "상태")   # v5H226z719 (대표 지시): 상태(진행중/출하/취소/보류)
     take("qty", "수량", "QTY", "Q'TY", "QUANTITY")
     take("unit", "단위", "UNIT")
     take("price", "단가", "UNITPRICE")
@@ -1018,6 +1041,8 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
                 "biz_div": "", "note": "", "items": [], "_errors": [], "_warn": "",
                 # v5H226z563 (대표 지시): 엑셀 '형태'(제품/상품/기타) 반영 — 비우면 기본 상품(확정 시 적용)
                 "form_type": _norm_co_form(gv(r, "form_type")),
+                # v5H226z719 (대표 지시): 상태(진행중→CONFIRMED·출하→SHIPPED·취소→CANCELLED·보류→HOLD) — 발주 단위
+                "status": _norm_co_status(gv(r, "status")),
                 # v5H226z490 (대표 지시): 거래명세서·세금계산서(1/2/3차) — 발주 단위(첫 줄에서 읽음)
                 "statement_date": _date_str(gv(r, "statement_date")),
                 "tax_invoice_amt1": num(gv(r, "ti_amt1")),
@@ -1051,6 +1076,11 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
                 _ff = _norm_co_form(gv(r, "form_type"))
                 if _ff:
                     o["form_type"] = _ff
+            # v5H226z719: 상태도 첫 줄 비었으면 이후 줄에서 보강
+            if not o.get("status"):
+                _ss = _norm_co_status(gv(r, "status"))
+                if _ss:
+                    o["status"] = _ss
             # v5H226z505 (대표 지시): 같은 발주(구분번호) 여러 줄 — 세금계산서 금액은 '합산'(줄마다 적은 부분금액
             #   누락 방지). 016처럼 한 관리번호에 345,000+370,000 두 줄이면 1세금계산서=715,000. (첫 줄에만 적던
             #   기존 방식은 이후 줄이 0이라 합산해도 그대로 → 회귀 없음.)
