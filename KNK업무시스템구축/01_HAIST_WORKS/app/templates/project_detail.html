@@ -216,7 +216,8 @@ body.so-fs-on { overflow: hidden; }
 .def-sono dd > div { color: var(--knk-red); font-weight: 700; font-family: monospace; line-height: 1.75; font-size: 13px; }
 @media (max-width: 700px) { .proj-grid-wrap { grid-template-columns: 1fr; } }
 /* v5H226z643 (대표 지시): 수주액(단가×수량·호기별 금액=가변높이)을 오른쪽 세로 칸으로 분리 → 호기 많아도 왼쪽 필드 그리드 높이 영향 없음 */
-.proj-info-2col { display: grid; grid-template-columns: 1fr 340px; gap: 12px 22px; align-items: start; }   /* v5H226z702: 수주번호 합친 4열 분해 공간 확보(300→340) */
+/* v5H226z717 (대표 지시): 수주액 박스 내용이 길면 박스가 박스폭(340px)을 넘어 흘러나오던 것 → 오른쪽 박스를 내용폭(max-content·최소 340px)만큼 '왼쪽으로' 키워 맞춤(왼쪽 1fr 공간 사용). 짧으면 340px 유지. */
+.proj-info-2col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, max-content); gap: 12px 22px; align-items: start; }
 .proj-info-2col > .proj-info-left { align-self: start; }
 .def-amt { background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; align-self: start; }
 .def-amt dt { color: var(--mute); font-weight: 600; font-size: 12px; margin-top: 10px; }
@@ -984,7 +985,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           /* v5H226z702 (대표 지시): 수주액 분해 = [수주번호·형태·호기/모델·금액] 4열 그리드(줄맞춤) */
           .amt-breakdown { display:grid; grid-template-columns:auto auto 1fr auto; gap:4px 7px; align-items:center; font-size:11px; }
           .amt-breakdown .ab-sono { font-family:monospace; font-size:10px; font-weight:700; color:var(--knk-red); white-space:nowrap; }
-          .amt-breakdown .ab-lbl { color:var(--ink); font-weight:600; white-space:nowrap; }
+          .amt-breakdown .ab-lbl { color:var(--ink); font-weight:600; white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }   /* v5H226z717: 평소엔 박스가 커져 전체 표시·컨테이너 한계 넘으면 말줄임(넘침 방지) */
           .amt-breakdown .ab-amt { color:var(--knk-red); font-weight:700; text-align:right; white-space:nowrap; }
           .amt-breakdown .ab-ccy { color:var(--mute); font-weight:600; font-size:9.5px; }
           .so-form-badge.sf-assembly, .amt-form-badge.sf-assembly { background:#dbeafe; color:#1e40af; border-color:#bfdbfe; }   /* 완제품 */
