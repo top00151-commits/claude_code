@@ -92,52 +92,13 @@ html,body{background:#fff!important;overflow:auto!important;}
 
     {# v5H226z322(대표 지시): 신규 등록 유형 탭 — 소모품 #}
     <div style="padding:0 var(--content-pad,32px);">{% set reg_active='CO' %}{% include "_v5_partials/reg_tabs.html" %}</div>
-    {# v5H226z588 (대표 지시): 소모품 업로드 창구 일원화 — 통합 양식 하나로. 단일 발주 업로드(엑셀=한 발주) UI 폐지(라우트는 휴면 보존). 직접 등록은 유지. #}
-    {# ① 메인 = 통합 양식(엑셀 한 장에 여러 발주, '구분 번호'로 묶음) #}
-    <div class="card" style="border:1.5px solid #b9d2ff;background:#fbfdff;">
+    {# v5H226z728 (대표 지시): 직접 등록을 위(주)로 · 엑셀 양식은 '1장=1발' 블록이라 옛 '여러 발주/구분번호' 안내 삭제하고 아래로. #}
+    {# ① 엑셀 없이 직접 등록 — 헤더만 만들고 상세에서 라인·사진을 직접 입력(권장) #}
+    <div class="card" style="border:1.5px solid #fcd9b6;background:#fffdf8;">
       <h2 style="font-size:17px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span>📦 엑셀로 등록 (통합 양식)</span>
-        <span style="font-size:12px;font-weight:600;color:#1d4ed8;background:#e0edff;border:1px solid #b9d2ff;border-radius:99px;padding:2px 10px;">권장 · 한 파일에 여러 발주</span>
+        <span>✏️ 엑셀 없이 직접 등록</span>
+        <span style="font-size:12px;font-weight:600;color:#c2410c;background:#fff1e6;border:1px solid #fcd9b6;border-radius:99px;padding:2px 10px;">간편 · 헤더 만들고 상세에서 입력</span>
       </h2>
-      {# 묶음 작성 방식 안내 — 예전 단일 양식과 다른 점(엑셀 한 장에 발주정보까지·'구분 번호'로 묶음) #}
-      <div style="background:#fff;border:1px solid #d9e6fb;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
-        <div style="font-size:13.5px;font-weight:800;color:#1d4ed8;margin-bottom:8px;">📝 묶음 작성 방식 <span style="font-weight:600;color:var(--qv-ink-3);font-size:12px;">— 예전 단일 양식과 작성법이 다릅니다</span></div>
-        <ul style="margin:0 0 10px 18px;padding:0;font-size:12.8px;color:var(--qv-ink-2);line-height:1.85;">
-          <li><b>한 줄 = 한 품목</b> 입니다.</li>
-          <li>같은 <b style="color:#1d4ed8;">구분 번호</b>를 적은 줄들이 <b>한 발주(여러 품목)</b>로 묶입니다.</li>
-          <li>발주가 다르면 <b>구분 번호를 다르게</b>(1, 2, 3…) 적습니다.</li>
-          <li>고객사·발주일·통화 등 발주 정보를 <b>엑셀 안에</b> 적습니다(예전처럼 화면에 따로 입력하지 않음). <b>한 파일에 여러 고객사·여러 발주</b>를 한 번에 등록할 수 있습니다.</li>
-        </ul>
-        <div style="overflow-x:auto;">
-          <table style="border-collapse:collapse;font-size:12px;min-width:380px;">
-            <thead><tr style="background:#eef4ff;">
-              <th style="border:1px solid #d9e6fb;padding:5px 9px;color:#1d4ed8;">구분 번호</th>
-              <th style="border:1px solid #d9e6fb;padding:5px 9px;">1차 고객사</th>
-              <th style="border:1px solid #d9e6fb;padding:5px 9px;">소모품 품명</th>
-              <th style="border:1px solid #d9e6fb;padding:5px 9px;">수량</th>
-              <th style="border:1px solid #d9e6fb;padding:5px 9px;color:var(--qv-ink-3);font-weight:600;">묶임</th>
-            </tr></thead>
-            <tbody>
-              <tr><td style="border:1px solid #eef0f4;padding:5px 9px;text-align:center;font-weight:700;">1</td><td style="border:1px solid #eef0f4;padding:5px 9px;">삼성전자</td><td style="border:1px solid #eef0f4;padding:5px 9px;">Grip Pad</td><td style="border:1px solid #eef0f4;padding:5px 9px;text-align:right;">6</td><td style="border:1px solid #eef0f4;padding:5px 9px;color:#1d4ed8;" rowspan="2">↑ 발주 A<br>(2품목)</td></tr>
-              <tr><td style="border:1px solid #eef0f4;padding:5px 9px;text-align:center;font-weight:700;">1</td><td style="border:1px solid #eef0f4;padding:5px 9px;color:#aaa;">〃 (같은 발주)</td><td style="border:1px solid #eef0f4;padding:5px 9px;">O-Ring</td><td style="border:1px solid #eef0f4;padding:5px 9px;text-align:right;">20</td></tr>
-              <tr><td style="border:1px solid #eef0f4;padding:5px 9px;text-align:center;font-weight:700;">2</td><td style="border:1px solid #eef0f4;padding:5px 9px;">LG전자</td><td style="border:1px solid #eef0f4;padding:5px 9px;">Nozzle</td><td style="border:1px solid #eef0f4;padding:5px 9px;text-align:right;">4</td><td style="border:1px solid #eef0f4;padding:5px 9px;color:#1d4ed8;">↑ 발주 B</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div style="font-size:11.5px;color:var(--qv-ink-3);margin-top:8px;">위 예처럼 <b>구분 번호 1</b>은 한 발주(2품목), <b>구분 번호 2</b>는 다른 발주로 등록됩니다. 자세한 작성법은 양식 안의 <b>‘작성안내’ 시트</b>를 참고하세요.</div>
-      </div>
-      <div class="btn-row">
-        <a href="/consumables/import-bulk-template" style="padding:11px 18px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;background:#e0edff;border:1px solid #b9d2ff;color:#1d4ed8;">📥 통합 양식 다운로드</a>
-        <button type="button" class="btn-primary" onclick="document.getElementById('coBulkFile').click()">📤 엑셀 업로드 (미리보기)</button>
-        <input type="file" id="coBulkFile" accept=".xlsx" style="display:none;" onchange="if(window.coBulkUpload){coBulkUpload(this.files[0]);}else{alert('업로드 기능 로딩 안 됨 — F5 후 다시 시도');}">
-      </div>
-      <div style="font-size:12px;color:var(--qv-ink-3);margin-top:8px;">고객사별로 파일을 따로 만들 필요가 없습니다. 품목 <b>사진</b>도 함께 등록됩니다.</div>
-      <div id="coBulkMsg" style="margin-top:8px;font-size:12.5px;"></div>
-    </div>
-
-    {# ② 보조 = 엑셀 없이 직접 등록(헤더만 만들고 상세에서 라인 입력). 헤더 필드는 직접 등록 전용으로 유지 #}
-    <div class="card">
-      <h2>✏️ 엑셀 없이 직접 등록 <span style="font-size:12px;font-weight:500;color:var(--qv-ink-3);">(헤더만 만들고 상세에서 라인·사진을 직접 입력)</span></h2>
       <form id="uploadForm" onsubmit="return false;">
         <div class="row">
           <div class="field"><label>진행 사업부 <span style="color:var(--knk-red);">*</span></label>
@@ -157,7 +118,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="field"><label>발주일</label><input type="date" name="order_date" /></div>
           <div class="field"><label>납기</label><input type="date" name="due_date" /></div>
           <div class="field"><label>통화</label>
-            <select name="currency"><option>KRW</option><option>USD</option></select>
+            <select name="currency"><option>KRW</option><option>USD</option><option>VND</option><option>JPY</option><option>CNY</option><option>EUR</option></select>
           </div>
         </div>
         <div class="row" style="margin-top:10px;">
@@ -166,19 +127,36 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
         </div>
         <div class="btn-row">
-          <button type="button" id="directBtn" class="btn-secondary" style="border-color:var(--knk-red);color:var(--knk-red);font-weight:700;">✏️ 직접 등록 (엑셀 없이)</button>
+          <button type="button" id="directBtn" class="btn-primary" style="background:var(--knk-red);">✏️ 직접 등록 (엑셀 없이)</button>
           <a class="btn-secondary" href="/consumables">취소</a>
         </div>
-        <div style="font-size:11px;color:var(--qv-ink-3);margin-top:6px;">헤더만 만들고 상세 화면에서 라인·사진을 직접 입력합니다(엑셀 불필요). 라인이 여러 건이면 위 <b>통합 양식</b> 업로드를 권장합니다.</div>
+        <div style="font-size:11px;color:var(--qv-ink-3);margin-top:6px;">헤더만 만들고 상세 화면에서 라인·사진을 직접 입력합니다. 품목이 많거나 사진·세금계산서까지 한 번에 넣으려면 <b>아래 엑셀 양식</b>을 쓰세요.</div>
       </form>
       <div id="statusMsg"></div>
     </div>
 
-    {# 통합 양식 미리보기 모달 (발주별 묶음 확인 → 확정) #}
+    {# ② 엑셀 양식으로 등록 — '1장 = 한 발주' 블록 양식(위=발주정보 / 아래=품목). 작성법은 양식 '작성안내' 시트 #}
+    <div class="card" style="border:1px solid #d9e6fb;background:#fbfdff;">
+      <h2 style="font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span>📦 엑셀 양식으로 등록</span>
+        <span style="font-size:12px;font-weight:600;color:#1d4ed8;background:#e0edff;border:1px solid #b9d2ff;border-radius:99px;padding:2px 10px;">1장 = 한 발주</span>
+      </h2>
+      <div style="background:#fff;border:1px solid #d9e6fb;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:12.8px;color:var(--qv-ink-2);line-height:1.85;">
+        <b style="color:#1d4ed8;">한 파일 = 한 발주</b> 입니다. 양식 <b>위쪽(기본정보)</b>에 고객사·발주일·통화·상태 등 발주 정보를, <b>아래(품목 표)</b>에 품목을 한 줄씩 적습니다. <b>통화·거래구분·상태·형태</b>는 드롭다운으로 고릅니다. 품목 <b>사진</b>도 함께 등록됩니다. 자세한 작성법은 양식 안 <b>‘작성안내’ 시트</b>를 참고하세요.
+      </div>
+      <div class="btn-row">
+        <a href="/consumables/import-bulk-template" style="padding:11px 18px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;background:#e0edff;border:1px solid #b9d2ff;color:#1d4ed8;">📥 양식 다운로드</a>
+        <button type="button" class="btn-primary" onclick="document.getElementById('coBulkFile').click()">📤 엑셀 업로드 (미리보기)</button>
+        <input type="file" id="coBulkFile" accept=".xlsx" style="display:none;" onchange="if(window.coBulkUpload){coBulkUpload(this.files[0]);}else{alert('업로드 기능 로딩 안 됨 — F5 후 다시 시도');}">
+      </div>
+      <div id="coBulkMsg" style="margin-top:8px;font-size:12.5px;"></div>
+    </div>
+
+    {# 엑셀 양식 미리보기 모달 (1장=1발 확인 → 확정) #}
     <div id="coBulkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10000;overflow-y:auto;padding:30px 20px;">
       <div style="max-width:1100px;margin:0 auto;background:#fff;border-radius:10px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-          <h2 style="margin:0;font-size:18px;font-weight:800;">통합 일괄등록 — 미리보기 (발주별 묶음)</h2>
+          <h2 style="margin:0;font-size:18px;font-weight:800;">엑셀 양식 — 미리보기 (1장 = 한 발주)</h2>
           <button type="button" onclick="coBulkClose()" style="border:none;background:transparent;font-size:22px;cursor:pointer;color:#666;">×</button>
         </div>
         <div id="coBulkSummary" style="padding:10px 14px;background:#eef4ff;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
@@ -458,7 +436,7 @@ function renderCoBulkPreview(j){
   var sum = document.getElementById('coBulkSummary');
   var okOrders = (j.orders||[]).filter(function(o){ return !o._errors || o._errors.length===0; });
   if(!j.total_orders){
-    sum.innerHTML = '<b style="color:#b91c1c;">⚠ 인식된 발주가 없습니다.</b> 2행 머리글 아래(3행~)에 품목을 입력하고 예시행은 지웠는지 확인하세요.';
+    sum.innerHTML = '<b style="color:#b91c1c;">⚠ 인식된 발주가 없습니다.</b> 11행 머리글 아래(12행~)에 품목을 입력하고 예시행(12~13행)은 지웠는지 확인하세요.';
   } else {
     sum.innerHTML = '총 발주 <b>' + j.total_orders + '</b>건 · 품목 <b>' + j.total_items + '</b>개'
       + ((j.total_images) ? ' · 사진 <b>' + j.total_images + '</b>개' : '')
