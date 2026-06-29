@@ -1222,11 +1222,12 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                     {% if _editable %}<input type="text" class="unit-edit matno-inp" data-orig="{{ u.material_no or '' }}" value="{{ u.material_no or '' }}" style="width:80px;font-size:11.5px;">{% endif %}
                   </td>
                   {% endif %}
-                  {# v5H226z83: 호기 td 우측 정렬 · z630: 1줄 완제품이면 호기 칸 제거 #}
+                  {# v5H226z83: 호기 td 우측 정렬 · z714(대표 지시): 1대 완제품은 저장 라벨(모델명 등) 무시하고 '1호기' 고정. 여러대·부품·소모품은 기존(라벨/품명·없으면 N호기) #}
                   {% if not _hide_hogi %}
-                  <td class="right" style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ u.unit_label or '' }}">
-                    <span class="display-val"><b>{{ u.unit_label or (loop.index ~ '호기') }}</b></span>
-                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ u.unit_label or (loop.index ~ '호기') }}" value="{{ u.unit_label or (loop.index ~ '호기') }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
+                  {% set _hogi_label = (loop.index ~ '호기') if ((_units_desc|length == 1) and (not _is_parts) and (not _is_co)) else (u.unit_label or (loop.index ~ '호기')) %}
+                  <td class="right" style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ _hogi_label }}">
+                    <span class="display-val"><b>{{ _hogi_label }}</b></span>
+                    {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ _hogi_label }}" value="{{ _hogi_label }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
                     {# v5H226z92: 호기별 × 삭제 회수 (z89~z91 원복) — 상태 컬럼 "취소"로 대체 #}
                   </td>
                   {% endif %}
@@ -2194,7 +2195,9 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
               {% for u in all_units_sorted %}
                 <span class="ab-sono" title="수주번호 {{ u.so_no or '' }}">{{ u.so_no or '' }}</span>
                 {% if u.form_label %}<span class="amt-form-badge sf-{{ u.form_key }}">{{ u.form_label }}</span>{% else %}<span></span>{% endif %}
-                <span class="ab-lbl">{{ u.unit_label or (loop.index ~ '호기') }}</span>
+                {# v5H226z714 (대표 지시): 1대 완제품은 라벨 무시하고 '1호기' 고정 (그 수주번호의 호기가 1개뿐인 완제품) #}
+                {% set _ab_son = (all_units_sorted | selectattr('so_no','equalto', u.so_no) | list | length) %}
+                <span class="ab-lbl">{{ '1호기' if (u.form_key == 'assembly' and _ab_son == 1 and u.so_no) else (u.unit_label or (loop.index ~ '호기')) }}</span>
                 <span class="ab-amt">{{ '{:,.0f}'.format(u.amount or u.unit_price or 0) }} <span class="ab-ccy">{{ u.currency or p.currency or 'KRW' }}</span></span>
               {% endfor %}
             </div>
