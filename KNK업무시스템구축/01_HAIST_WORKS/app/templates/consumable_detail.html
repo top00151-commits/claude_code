@@ -192,7 +192,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             <div class="h-cell ro"><div class="lbl">합계</div><div class="val amount" id="totalAmount">{% if co.currency != 'KRW' %}{{ co.currency }} {% endif %}{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency == 'KRW' %}원{% endif %}</div></div>
             {# v5H226z725(대표 지시): 상태 = 드롭다운(기존 '상태 변경' 알약 대체). 엑셀 양식 '상태'(F9)와 일치 #}
             <div class="h-cell"><div class="lbl">상태</div>
-              <select class="ef" data-field="status">{% for st in STATUSES %}<option value="{{ st }}"{% if st==co.status %} selected{% endif %}>{{ STATUS_LABELS[st] }}</option>{% endfor %}</select></div>
+              {# v5H226z726(대표 지시): 상태 드롭다운 = 진행중/출하/취소/보류(보드와 동일·값=enum 저장). 레거시(작성중 등)는 폴백 옵션으로 표시 #}
+              <select class="ef" data-field="status">{% if co.status and co.status not in ['CONFIRMED','SHIPPED','CANCELLED','HOLD'] %}<option value="{{ co.status }}" selected>{{ STATUS_LABELS.get(co.status, co.status) }}</option>{% endif %}{% for v,lbl in [('CONFIRMED','진행중'),('SHIPPED','출하'),('CANCELLED','취소'),('HOLD','보류')] %}<option value="{{ v }}"{% if co.status==v %} selected{% endif %}>{{ lbl }}</option>{% endfor %}</select></div>
           </div>
         </div>
         {# ② 고객 정보 — v5H226z298: 업로드 후 수정 가능(작업일정표와 양방향 동기화)+이력 #}
@@ -310,7 +311,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             </td>
             {# v5H226z725: 발주 공통(ord-col) — 납품일·형태. 모든 줄 동일·편집 시 발주에 저장+전 줄 동기화 #}
             <td class="ord-col"><input type="date" class="ef co-ord" data-field="due_date" value="{{ (co.due_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
-            <td class="ord-col"><select class="ef co-ord" data-field="form_type" title="발주 공통 — 모든 줄 동일"><option value="">—</option>{% for ft in ['제품','상품','기타'] %}<option value="{{ ft }}"{% if (co.form_type or '')==ft %} selected{% endif %}>{{ ft }}</option>{% endfor %}</select></td>
+            <td class="ord-col"><select class="ef co-ord" data-field="form_type" title="발주 공통 — 모든 줄 동일"><option value="">—</option>{% for ft in ['완제품','제품','상품','기타'] %}<option value="{{ ft }}"{% if (co.form_type or '')==ft %} selected{% endif %}>{{ ft }}</option>{% endfor %}</select></td>
             <td><input data-k="qty" type="number" step="0.01" value="{{ (it.qty or 0)|qtyfmt }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
             <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></td>

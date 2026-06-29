@@ -89,7 +89,7 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
         <div class="lbl">견적완료</div><div class="num">{{ q_cnt }}</div>
       </a>
       <a class="summary-card {% if status=='CONFIRMED' %}active{% endif %}" href="/consumables?status=CONFIRMED">
-        <div class="lbl">발주확정</div><div class="num">{{ c_cnt }}</div>
+        <div class="lbl">진행중</div><div class="num">{{ c_cnt }}</div>
       </a>
       <a class="summary-card {% if status=='SHIPPED' %}active{% endif %}" href="/consumables?status=SHIPPED">
         <div class="lbl">출하</div><div class="num">{{ s_cnt }}</div>

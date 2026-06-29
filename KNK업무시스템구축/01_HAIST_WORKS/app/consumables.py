@@ -25,7 +25,7 @@ CO_STATUSES = ["DRAFT", "QUOTED", "CONFIRMED", "SHIPPED", "PAID", "CANCELLED", "
 CO_STATUS_LABELS = {
     "DRAFT": "작성중",
     "QUOTED": "견적완료",
-    "CONFIRMED": "발주확정",
+    "CONFIRMED": "진행중",   # v5H226z726(대표 지시): 소모품 상태 용어 통일 — 보드(작업일정표)와 동일 '진행중'
     "SHIPPED": "출하",
     "PAID": "수금완료",
     "CANCELLED": "취소",
@@ -800,7 +800,7 @@ def build_co_bulk_template_buf():
     # 드롭다운: 통화(M=13)·거래구분(N=14)·형태(O=15)·상태(AF=32·v5H226z719)
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
     dv_exp = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
-    dv_form = DataValidation(type="list", formula1='"제품,상품,기타"', allow_blank=True)
+    dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)   # v5H226z726: 완제품 추가
     dv_status = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)
     for dv in (dv_ccy, dv_exp, dv_form, dv_status):
         ws.add_data_validation(dv)
@@ -882,14 +882,17 @@ def _co_bulk_detect_header(ws, max_scan: int = 16) -> int:
 
 
 def _norm_co_form(v) -> str:
-    """v5H226z563 (대표 지시): 엑셀 '형태' 값 → 제품/상품/기타 정규화(끝공백·표기흔들림 흡수).
-    소모품은 완제품(호기) 개념 없음 → 완제품도 제품으로 흡수. 못 알아보면 '' (확정 시 기본 상품)."""
+    """v5H226z563→z726 (대표 지시): 엑셀 '형태' 값 → 완제품/제품/상품/기타 정규화(끝공백·표기흔들림 흡수).
+    z726: 소모품도 '완제품' 형태 허용(별도 보존) — '완제품'이 '제품' substring을 포함하므로 반드시 먼저 검사.
+    못 알아보면 '' (확정 시 기본 상품)."""
     t = ("" if v is None else str(v)).strip()
     if not t:
         return ""
+    if "완제품" in t:
+        return "완제품"
     if "상품" in t:
         return "상품"
-    if "제품" in t:   # 완제품·반제품·제품 모두 제품으로
+    if "제품" in t:   # 반제품·제품
         return "제품"
     if "기타" in t:
         return "기타"
