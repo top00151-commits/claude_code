@@ -50,6 +50,7 @@
             <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;">판매단가(KRW)</th>
             <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;">환율</th>
             <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;background:#eef6ff;">인보이스(USD)</th>
+            <th style="padding:6px 8px;text-align:center;border-bottom:1px solid #d6ddec;">상태</th>
             <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6ddec;">금액</th>
           </tr>
         </thead>
@@ -67,6 +68,8 @@
 (function(){
   var PB_BIZ = '{{ preset_biz|default("") }}';
   var _pbData = null;
+  // v5H226z729: 상태 enum → 한글 라벨(미리보기 표시용)
+  var PB_STAT_KR = {IN_PRODUCTION:'진행중', SHIPPED:'출하', CANCELLED:'취소', CANCELED:'취소', HOLD:'보류', CONFIRMED:'수주확정', DRAFT:'임시', READY_TO_SHIP:'납품대기', INVOICED:'송장발행', PAID:'수금완료'};
   function pbEsc(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
   function pbFmt(n){ return Number(n||0).toLocaleString('en-US'); }   // KRW = 정수
   // v5H226z613 (대표 지시): 환율·USD = 소수점 2자리(셋째자리 반올림). 매출 총액에 영향.
@@ -133,6 +136,7 @@
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;">' + (l.sell_krw?pbFmt(l.sell_krw):(unpriced?'<span style="color:#b45309;">미정</span>':pbFmt(l.unit_price))) + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;color:#64748b;">' + (l.fx_rate?pbFx(l.fx_rate):'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#eef6ff;font-weight:600;color:#1d4ed8;">' + (l.invoice_usd?pbUsd(l.invoice_usd):'-') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:center;">' + pbEsc(PB_STAT_KR[l.status]||l.status||'진행중') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;font-weight:600;">' + (_isUsd?pbUsd(l.amount):pbFmt(l.amount)) + '</td>';
       tb.appendChild(tr);
     });

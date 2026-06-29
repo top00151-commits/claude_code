@@ -244,6 +244,8 @@ html,body{background:#fff!important;overflow:auto!important;}
                     {% else %}
                     <th style="width:106px;">단가</th>
                     {% endif %}
+                    {# v5H226z729(대표 지시): 엑셀 양식과 동일 — 인보이스단가 다음에 '상태' 컬럼(드롭다운) #}
+                    <th style="width:78px;">상태</th>
                     <th style="width:100px;">금액<small>(KRW)</small></th>
                     <th style="width:140px;">납기</th>
                     <th style="width:104px;">비고</th>
@@ -467,6 +469,7 @@ function qPartRowHtml(){
     + '<td><input name="pk_price[]" type="text" inputmode="numeric" class="knk-money" placeholder="'+(qCanMoney?'판매단가':'단가')+'" oninput="qPartPrice(this);qPartInv(this)" title="판매단가(KRW)" style="text-align:right;"></td>'
     + (qCanMoney ? ('<td><input name="pk_fx[]" type="text" inputmode="numeric" placeholder="환율" oninput="qPartInv(this)" title="환율(1 USD = ? 원) — 수출 USD 건만" style="text-align:right;"></td>'
        + '<td><input name="pk_inv[]" type="text" readonly placeholder="USD" title="인보이스단가(USD) = 판매단가(KRW) ÷ 환율 (자동)" style="text-align:right;background:#eef6ff;color:#1d4ed8;font-weight:600;"></td>') : '')
+    + '<td><select name="pk_status[]" title="상태(진행중/출하/취소/보류)" style="width:100%;padding:4px 2px;border:1px solid var(--qv-line);border-radius:5px;font-size:12px;background:#fff;"><option value="진행중">진행중</option><option value="출하">출하</option><option value="취소">취소</option><option value="보류">보류</option></select></td>'
     + '<td><span class="qf-pk-amt">0</span></td>'
     + '<td><input name="pk_due[]" type="date" title="납기(부품별)"></td>'
     + '<td><input name="pk_note[]" placeholder="비고"></td>'

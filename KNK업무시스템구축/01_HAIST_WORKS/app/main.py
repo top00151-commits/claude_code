@@ -252,7 +252,7 @@ _STATUS_KR_MAP = {
     # --- 수주(SO) / 매출 ---
     "DRAFT": "임시", "CONFIRMED": "수주확정", "IN_PRODUCTION": "진행중",
     "READY_TO_SHIP": "납품대기", "SHIPPED": "출하", "INVOICED": "송장발행",
-    "PAID": "수금완료", "CANCELLED": "취소", "CANCELED": "취소",
+    "PAID": "수금완료", "CANCELLED": "취소", "CANCELED": "취소", "HOLD": "보류",
     # --- 수출(export order / CI / PL / BL / 통관) ---
     "CI_ISSUED": "CI발행", "PL_READY": "PL준비", "CLEARED": "통관완료",
     "ISSUED": "발행", "DELIVERED": "출하", "SUBMITTED": "제출",
@@ -19911,6 +19911,33 @@ def _prodbulk_fmt_date(v):
     return str(v).strip()[:10]
 
 
+# v5H226z729 (대표 지시): 상품 양식 '상태' 컬럼 — 드롭다운(진행중/출하/취소/보류) → order_items.unit_status enum.
+#   첨부 엑셀과 동일하게 부품 표에 '상태' 컬럼 추가. 비우면 '진행중' 기본. (소모품 양식 상태값과 동일·z726 통일)
+_PRODBULK_STATUS_MAP = {
+    "진행중": "IN_PRODUCTION", "출하": "SHIPPED", "취소": "CANCELLED", "보류": "HOLD",
+}
+_PRODBULK_STATUS_ENUMS = {"IN_PRODUCTION", "SHIPPED", "CANCELLED", "HOLD",
+                          "CONFIRMED", "DRAFT", "READY_TO_SHIP", "INVOICED", "PAID"}
+
+
+def _prodbulk_norm_status(v):
+    """상태(한글 라벨/영문 enum/빈칸) → order_items unit_status enum. 비면 '진행중'(IN_PRODUCTION)."""
+    s = str(v or "").strip()
+    if not s:
+        return "IN_PRODUCTION"
+    if s in _PRODBULK_STATUS_MAP:          # 한글 라벨 정확 일치 우선
+        return _PRODBULK_STATUS_MAP[s]
+    su = s.upper()
+    if su == "CANCELED":
+        return "CANCELLED"
+    if su in _PRODBULK_STATUS_ENUMS:        # 영문 enum 그대로 들어온 경우(미리보기 라운드트립)
+        return su
+    for k, ev in _PRODBULK_STATUS_MAP.items():   # 부분 일치(예: '진행', '출하 완료')
+        if k in s:
+            return ev
+    return "IN_PRODUCTION"
+
+
 # 부품 표 컬럼 (헤더 키워드 자동 인식)
 _PRODBULK_PARTCOLS = [
     ("material_no", ["자재번호", "MATNO", "MATERIALNO", "품번", "PARTNO"]),
@@ -19926,6 +19953,7 @@ _PRODBULK_PARTCOLS = [
     ("invoice_usd", ["인보이스단가", "인보이스", "INVOICE", "USD단가"]),
     ("fx_rate",     ["환율", "EXCHANGE", "FX"]),
     ("unit_price",  ["판매단가", "단가", "UNITPRICE", "PRICE"]),
+    ("status",      ["상태", "STATUS"]),   # v5H226z729: 부품 상태(진행중/출하/취소/보류)
     ("due_date",    ["납기", "납품일", "DUE", "DELIVERY", "ETA"]),
     ("line_note",   ["비고", "REMARK", "NOTE", "메모"]),
 ]
@@ -20070,6 +20098,7 @@ def _parse_product_bulk_xlsx(path):
             "amount": amount,
             "due_date": _prodbulk_fmt_date(gv(r, "due_date")),
             "line_note": str(gv(r, "line_note") or "").strip(),
+            "status": _prodbulk_norm_status(gv(r, "status")),   # v5H226z729: 상태(→enum)
         })
     return {"project": proj, "lines": lines}
 
@@ -20127,15 +20156,22 @@ def _build_product_bulk_template_buf():
     # 부품 표 (한 줄 띄우고)
     phr = r0 + len(hdr_rows) + 1
     # z596 (대표 지시): 매입→마진→판매(KRW) 계산 후 '환율'로 'USD 인보이스 단가' 산출 칸 추가.
+    # v5H226z729 (대표 지시): 첨부 엑셀과 동일 — 인보이스단가(USD) 와 납기 사이에 '상태' 컬럼 추가.
     pheaders = ["자재번호", "자재품명*", "규격(모델)", "제작사", "공급사", "수량",
                 "매입단가\n(KRW)", "마진%", "판매단가(자동)\n(KRW)", "환율",
-                "인보이스단가\n(USD)", "납기", "비고"]
-    widths = [12, 20, 16, 11, 11, 7, 13, 7, 14, 9, 14, 12, 16]
+                "인보이스단가\n(USD)", "상태", "납기", "비고"]
+    widths = [12, 20, 16, 11, 11, 7, 13, 7, 14, 9, 14, 10, 12, 16]
     for ci, (h, w) in enumerate(zip(pheaders, widths), 1):
         c = ws.cell(phr, ci, h); c.font = white; c.fill = knk
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True); c.border = border
         ws.column_dimensions[c.column_letter].width = w
     ws.freeze_panes = ws.cell(phr + 1, 1)
+    # v5H226z729 (대표 지시): '상태' 컬럼 드롭다운(진행중·출하·취소·보류) — 부품 데이터 행에 적용(첨부 엑셀엔 빠져 있던 부분).
+    from openpyxl.utils import get_column_letter as _gcl
+    _stat_col = _gcl(pheaders.index("상태") + 1)
+    dv_stat = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)
+    ws.add_data_validation(dv_stat)
+    dv_stat.add(f"{_stat_col}{phr + 1}:{_stat_col}{phr + 300}")
     # v5H226z599 (대표 지시): 예시 데이터 없는 '빈 양식' — 머리글만. 사용자가 부품 표 3행부터 직접 입력.
     #   판매단가(KRW)·인보이스단가(USD)는 비워도 업로드 시 자동계산(매입×(1+마진%), 판매KRW÷환율) — z596 파서.
     # 작성안내 시트
@@ -20152,6 +20188,7 @@ def _build_product_bulk_template_buf():
         ["숫자 자릿수", "KRW(매입·판매·금액) = 소수점 없음(정수). 환율 = 소수점 2자리. USD(인보이스·금액) = 소수점 2자리(셋째자리 반올림)."],
         ["원가(매입) 보관", "수출이면 원가는 환율로 환산해 함께 보관(마진% 그대로 성립). 매입단가(KRW)·환율은 프로젝트에 함께 보관됩니다."],
         ["수량", "부품별 수량. 금액 = 수량 × 판매단가. 합계가 상품(프로젝트) 수주금액."],
+        ["상태", "부품 줄 상태(드롭다운) — 진행중·출하·취소·보류 중 선택. 비우면 '진행중'으로 등록. 등록 후 상세·작업일정표에서 변경할 수 있습니다."],
         ["납기", "부품별 납기(YYYY-MM-DD). 비우면 위 프로젝트 '납기' 상속."],
         ["입력 위치", "부품 표는 머리글(자재번호·자재품명…) 아래 줄부터 입력하세요(예시 데이터 없음). 판매단가(KRW)·인보이스단가(USD)는 비워도 업로드 시 자동계산됩니다."],
         ["주의", "매입단가·마진은 영업·관리 권한자만 보입니다."],
@@ -20381,7 +20418,7 @@ async def projects_import_product_confirm(request: Request):
                         "currency": ccy,
                         "order_date": order_date or None,
                         "due_date": (_prodbulk_fmt_date(l.get("due_date")) or due_date or None),
-                        "unit_status": "CONFIRMED",
+                        "unit_status": _prodbulk_norm_status(l.get("status")),   # v5H226z729: 양식 '상태' 반영(비면 진행중)
                         "is_export": is_export,
                     }
                     # z596: USD 수출 — 인보이스 단가/금액(USD) 칸도 채움(단가=USD 인보이스가)
@@ -23154,6 +23191,7 @@ async def projects_new_submit(request: Request):
                 _pmat = form.getlist("pk_matno[]"); _pmk = form.getlist("pk_maker[]")  # v5H226z441
                 _psup = form.getlist("pk_supplier[]"); _pnt = form.getlist("pk_note[]")
                 _pcost = form.getlist("pk_cost[]"); _pmrg = form.getlist("pk_margin[]")  # v5H226z460 매입단가·마진%
+                _pstat = form.getlist("pk_status[]")  # v5H226z729 부품 상태(진행중/출하/취소/보류)
                 for _i in range(len(_pn)):
                     _nm = (_pn[_i] or "").strip()
                     _md = ((_pm[_i] if _i < len(_pm) else "") or "").strip()
@@ -23176,7 +23214,8 @@ async def projects_new_submit(request: Request):
                                       "matno": ((_pmat[_i] if _i < len(_pmat) else "") or "").strip(),
                                       "maker": ((_pmk[_i] if _i < len(_pmk) else "") or "").strip(),
                                       "supplier": ((_psup[_i] if _i < len(_psup) else "") or "").strip(),
-                                      "note": ((_pnt[_i] if _i < len(_pnt) else "") or "").strip()})
+                                      "note": ((_pnt[_i] if _i < len(_pnt) else "") or "").strip(),
+                                      "status": _prodbulk_norm_status(_pstat[_i] if _i < len(_pstat) else "")})
                 with db_session() as _cc3:
                     _pres = _pwf.confirm_order_multi(
                         _cc3, int(_existing["id"]), units=[],
@@ -23197,7 +23236,7 @@ async def projects_new_submit(request: Request):
                                     "currency": _ccy_v,
                                     "order_date": order_date_v or None,
                                     "due_date": due_date_v or None,
-                                    "unit_status": "CONFIRMED",
+                                    "unit_status": (_pp2.get("status") or "IN_PRODUCTION"),  # v5H226z729: 폼 상태 반영
                                     "is_export": form.get("is_export", "0")}
                             _row = {k: v for k, v in _row.items() if k in _oicols}
                             _cols2 = list(_row.keys()); _ph2 = ",".join("?" * len(_cols2))
@@ -23276,6 +23315,7 @@ async def projects_new_submit(request: Request):
         _pk_sup = form.getlist("pk_supplier[]"); _pk_nt = form.getlist("pk_note[]")
         _pk_cost = form.getlist("pk_cost[]"); _pk_mrg = form.getlist("pk_margin[]")  # v5H226z460 매입단가·마진%
         _pk_fx = form.getlist("pk_fx[]"); _pk_due = form.getlist("pk_due[]")  # v5H226z602 환율·부품별 납기
+        _pk_st = form.getlist("pk_status[]")  # v5H226z729 부품 상태(진행중/출하/취소/보류)
         for _i in range(len(_pk_n)):
             _nm = (_pk_n[_i] or "").strip()
             _md = ((_pk_m[_i] if _i < len(_pk_m) else "") or "").strip()
@@ -23304,7 +23344,8 @@ async def projects_new_submit(request: Request):
                               "matno": ((_pk_mat[_i] if _i < len(_pk_mat) else "") or "").strip(),
                               "maker": ((_pk_mk[_i] if _i < len(_pk_mk) else "") or "").strip(),
                               "supplier": ((_pk_sup[_i] if _i < len(_pk_sup) else "") or "").strip(),
-                              "note": ((_pk_nt[_i] if _i < len(_pk_nt) else "") or "").strip()})
+                              "note": ((_pk_nt[_i] if _i < len(_pk_nt) else "") or "").strip(),
+                              "status": _prodbulk_norm_status(_pk_st[_i] if _i < len(_pk_st) else "")})
         if _pk_parts:
             # 대표 지시: 부품은 '수주확정' 체크 시에만 저장(제안 단계는 등록 후 상세 PACKING LIST)
             if not confirm_now:
@@ -23573,7 +23614,7 @@ async def projects_new_submit(request: Request):
                                         "currency": _ccy_v,
                                         "order_date": form.get("order_date", "") or None,
                                         "due_date": (_pp.get("due") or form.get("due_date", "") or None),
-                                        "unit_status": "CONFIRMED",
+                                        "unit_status": (_pp.get("status") or "IN_PRODUCTION"),  # v5H226z729: 폼 상태 반영
                                         "is_export": form.get("is_export", "0")}
                                 if (_ccy_v or "").upper() == "USD" and _foreign_v and _fxv > 0:
                                     _row["invoice_unit_price_usd"] = _up
