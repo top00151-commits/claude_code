@@ -170,6 +170,13 @@ app.add_middleware(
     max_age=None,
 )
 
+# v5H226z741 (대표 지시·성능): 응답 gzip 압축 — HTML/CSS/JS 가 무압축으로 나가 전 페이지가 3~4배 컸음
+#   (상세 231KB→56KB·일정표 209KB→58KB 실측). GZipMiddleware 는 클라가 Accept-Encoding: gzip 보낼 때만
+#   압축(>=600B). nginx /works/ 임베드 경로는 sub_filter 위해 Accept-Encoding 을 비워 upstream 호출하므로
+#   그 경로는 압축이 안 됨(평문 유지) → sub_filter 안전. 루트 도메인(works.knknara.co.kr)은 sub_filter 없어 정상 압축.
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=600)
+
 
 # v5H226z... http→https 강제 전환 (대표 지시 2026-06-04). 메신저와 동일 효과, FastAPI 미들웨어 방식.
 #   DSM 리버스 프록시가 원래 scheme 을 X-Forwarded-Proto 로 정확히 전달함(메신저에서 실측 확인 2026-06-04).
@@ -183,11 +190,29 @@ async def _force_https(request: Request, call_next):
     return await call_next(request)
 
 
-app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="static")
+# v5H226z741 (대표 지시·성능): 정적 자원 캐시 헤더 — StaticFiles 기본은 ETag/Last-Modified(매 요청 304 재검증)뿐.
+#   max-age 를 줘서 만료 전엔 재요청도 안 하게(전송·왕복 절감). 배포로 바뀌는 /static 은 보수적 1일,
+#   업로드 이미지(/uploads)는 서버가 이름을 생성해 불변이라 30일. 엔드포인트가 직접 준 Cache-Control 은 보존(setdefault).
+class _CachedStatic(StaticFiles):
+    def __init__(self, *a, max_age: int = 86400, **kw):
+        self._max_age = max_age
+        super().__init__(*a, **kw)
+
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        try:
+            if resp.status_code == 200:
+                resp.headers.setdefault("Cache-Control", f"public, max-age={self._max_age}")
+        except Exception:
+            pass
+        return resp
+
+
+app.mount("/static", _CachedStatic(directory=os.path.join(BASE, "static"), max_age=86400), name="static")
 # v5H142: 업로드 파일(소모품 발주 이미지 등) 정적 서빙
 _uploads_root = os.path.join(BASE, "uploads")
 os.makedirs(_uploads_root, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=_uploads_root), name="uploads")
+app.mount("/uploads", _CachedStatic(directory=_uploads_root, max_age=2592000), name="uploads")
 tpl = Jinja2Templates(directory=os.path.join(BASE, "app", "templates"))
 
 # v5H5 (2026-05-02) — t() Jinja 전역: 어느 템플릿에서든 {{ t('키', '기본값') }} 호출 가능
