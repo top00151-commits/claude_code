@@ -33704,10 +33704,11 @@ async def consumables_import_bulk_confirm(request: Request):
                 if _match:
                     _put("customer_id", _match["id"])
                 _put("secondary_customer", o.get("customer2"))
-                # 리뷰반영: 발주(헤더) 대표 모델/장비 = 첫 품목(보드 소모품행 모델명 표시용)
-                if items_in:
-                    _put("model_name", (items_in[0].get("model_use") or "").strip())
-                    _put("equip_name", (items_in[0].get("equip") or "").strip())
+                # v5H226z730 (대표 지시): 발주(헤더) 대표 모델/장비 = '기본정보 블록'의 발주 단위 값(전체 대표 이름).
+                #   옛 방식(첫 품목 라인값)은 폐기 — 모델/장비를 라인에서 제거하고 발주 단위로 일원화.
+                #   사진1(엑셀 기본정보 모델명·장비명) ↔ 사진2(상세 '제품' 모델명·장비명) 매칭.
+                _put("model_name", (o.get("model_name") or "").strip())
+                _put("equip_name", (o.get("equip_name") or "").strip())
                 _put("cc_name", o.get("cc_name")); _put("cc_phone", o.get("cc_phone"))
                 _put("ship_to", o.get("ship_to")); _put("sales_name", o.get("sales_name"))
                 _put("form_type", o.get("form_type"))   # v5H226z563: 엑셀 형태(제품/상품/기타) 반영
@@ -33789,7 +33790,7 @@ async def consumables_import_bulk_confirm(request: Request):
             _loc = _chosen[1] if len(_chosen) > 1 else None
             items_out.append({
                 "line_no": ln, "part_name": it.get("part_name"), "spec": it.get("spec"),
-                "model_use": it.get("model_use"), "equip": it.get("equip"),
+                # v5H226z730: 모델/장비는 발주 단위(위 consumable_orders 저장) — 라인에는 저장 안 함.
                 "qty": it.get("qty"), "unit": it.get("unit"), "unit_price": it.get("unit_price"),
                 "linked_project_id": _lpid, "part_id": _part_id, "note": it.get("note"),
                 "image_path": (_co.co_image_url(co_id, _photo[0]) if _photo else None),

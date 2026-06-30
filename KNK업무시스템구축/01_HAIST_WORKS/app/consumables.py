@@ -790,7 +790,7 @@ def build_co_bulk_template_buf():
     thin = Side(style="thin", color="DDDDDD"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws["A1"] = "KNK 소모품 일괄등록 양식 — PART LIST 1장 = 소모품 1 발"
-    ws["A1"].font = Font(bold=True, size=13, color="A5282C"); ws.merge_cells("A1:R1")
+    ws["A1"].font = Font(bold=True, size=13, color="A5282C"); ws.merge_cells("A1:P1")   # v5H226z730: 라인 16열(A~P)
     # 기본정보 2단 블록 (좌: A 라벨/B 값/C 안내, 우: F 라벨/G 값/H 안내)
     left = [("관리번호", "(비우면 발주일로 자동발급 · 있으면 그 코드 사용)"),
             ("고객사1*", "(필수 · 등록된 고객사명과 정확히 일치해야 자동연결)"),
@@ -810,8 +810,9 @@ def build_co_bulk_template_buf():
         c = ws.cell(r, 6, lab); c.font = white; c.fill = knk; c.border = border
         ws.cell(r, 7, "").border = border
         ws.cell(r, 8, gd).font = hintf
-    # 라인 머리글(11행)
-    line_hdrs = ["모델명", "장비명", "소모품 품명", "소모품 규격 (SPEC)",
+    # 라인 머리글(11행) — v5H226z730(대표 지시): 모델명·장비명은 '발주(전체 대표) 단위'(위 기본정보 우측 블록 모델명=G5·장비명=G6)로만.
+    #   각 소모품 부품(라인)에는 모델명·장비명을 입력하지 않음 → 라인 머리글에서 제거(18→16열·소모품 품명이 1열 A로).
+    line_hdrs = ["소모품 품명", "소모품 규격 (SPEC)",
                  "사진(PICTURE LOCATION)", "사진 (PICTURE)", "납품일", "형태",
                  "수량", "단위", "단가", "금액", "비고", "자재코드", "연결 관리번호",
                  "거래명세서 발행일", "세금계산서 발행일", "세금계산서 금액"]
@@ -819,29 +820,31 @@ def build_co_bulk_template_buf():
     for ci, h in enumerate(line_hdrs, 1):
         c = ws.cell(HR, ci, h); c.font = white; c.fill = blu; c.alignment = center; c.border = border
     ws.row_dimensions[HR].height = 30
-    widths = [16, 16, 22, 18, 16, 16, 13, 10, 7, 6, 12, 12, 16, 14, 15, 14, 14, 13]
+    # 너비: 기본정보 블록(좌 A/B/C·우 F/G/H)과 라인표가 컬럼을 공유 → 양쪽 모두 읽히게.
+    #   F=형태/우측라벨(거래구분·영업담당자)·G=수량/우측값(6월소모품)·H=단위/우측안내(넘침). 안내문은 빈 칸으로 넘쳐 보임.
+    widths = [22, 18, 16, 16, 13, 12, 11, 9, 12, 12, 16, 14, 15, 14, 14, 13]
     for ci, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(ci)].width = w
-    ws.column_dimensions["C"].width = 30   # C: 좌 안내(3~9행) + 소모품 품명(11행~) 공유
-    # 드롭다운 — 통화(G3)·거래구분(G4)·상태(G9)·형태(H12~ 라인)
+    ws.column_dimensions["C"].width = 30   # C: 좌 안내(3~9행) + 사진(LOCATION)(11행~) 공유
+    # 드롭다운 — 통화(G3)·거래구분(G4)·상태(G9)·형태(라인). v5H226z730: 모델명·장비명 제거로 형태가 H→F열로 이동.
     dv_ccy = DataValidation(type="list", formula1='"KRW,USD,VND,JPY,CNY,EUR"', allow_blank=True)
     dv_exp = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_status = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)
     dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)
     for dv in (dv_ccy, dv_exp, dv_status, dv_form):
         ws.add_data_validation(dv)
-    dv_ccy.add("G3"); dv_exp.add("G4"); dv_status.add("G9"); dv_form.add("H12:H2000")
+    dv_ccy.add("G3"); dv_exp.add("G4"); dv_status.add("G9"); dv_form.add("F12:F2000")
     ws.freeze_panes = "A12"
-    # 예시 2줄(12~13행) — 품명 '예)' 접두라 업로드 시 자동 스킵
-    ex = [["WATCH9 검사기", "WATCH9 소모품", "예) Grip Pad", "50x50", "", "", "2026-01-30", "상품",
+    # 예시 2줄(12~13행) — 품명 '예)' 접두라 업로드 시 자동 스킵. v5H226z730: 모델명·장비명 열 제거(16열).
+    ex = [["예) Grip Pad", "50x50", "", "", "2026-01-30", "상품",
            "6", "EA", "380000", "2280000", "예시 — 지우고 작성", "KNK-P-001", "012T2601",
            "2026-02-05", "2026-02-10", "2280000"],
-          ["", "", "예) O-Ring", "Φ20", "", "", "", "",
+          ["예) O-Ring", "Φ20", "", "", "", "",
            "20", "EA", "1500", "30000", "", "KNK-P-002", "", "", "", ""]]
     for row in ex:
         ws.append(row)
     for rr in (12, 13):
-        for ci in range(1, 19):
+        for ci in range(1, 17):
             ws.cell(rr, ci).font = Font(color="9AA3AF", italic=True)
     # 안내 시트
     ws2 = wb.create_sheet("작성안내")
@@ -849,10 +852,11 @@ def build_co_bulk_template_buf():
         ["소모품 일괄등록 — 작성 안내 (1장 = 소모품 1발)", ""],
         ["", ""],
         ["기본 원리", "한 파일 = 한 발주. 위 3~9행에 발주 정보(고객사·발주일·통화 등), 12행부터 품목을 한 줄씩 입력."],
+        ["모델명·장비명", "발주 1건의 '전체 대표' 이름. 위 기본정보(우측)에만 입력 — 예: 모델명='소모품', 장비명='6월소모품'. 품목(라인)별로는 적지 않습니다."],
         ["고객사1 *", "등록 고객사명과 (주)/㈜·공백 차이 무시하고 자동 연결. 못 찾으면 텍스트로만 저장(미리보기 표시)."],
         ["발주일·납기일", "YYYY-MM-DD. 발주일이 발주번호(C-YYMMDD) 기준일. 비우면 자동."],
         ["품명·수량 *", "필수. 단가/금액은 숫자(콤마 없이). 금액 비우면 수량×단가로 자동."],
-        ["드롭다운", "통화(G3) / 거래구분 내수·수출(G4) / 상태 진행중·출하·취소·보류(G9) / 형태 완제품·제품·상품·기타(H열)."],
+        ["드롭다운", "통화(G3) / 거래구분 내수·수출(G4) / 상태 진행중·출하·취소·보류(G9) / 형태 완제품·제품·상품·기타(F열·라인)."],
         ["자재코드", "등록 자재(파트) 코드를 적으면 업로드 시 그 자재로 자동 연결(선택)."],
         ["연결 관리번호", "이 소모품이 어느 장비(관리번호)의 것인지(선택). 예: 012T2601."],
         ["거래명세서·세금계산서", "발주 단위 — 발행일/금액(세금계산서 1건). 날짜 YYYY-MM-DD·금액 숫자. 비우면 미발행."],
@@ -940,8 +944,7 @@ def _co_bulk_colmap(header_cells) -> dict:
     take("link_mgmt", "연결관리번호", "연결관리")
     take("material_no", "자재코드", "자재번호", "MATNO", "PARTNO")
     take("group", "구분번호", "구분")
-    take("equip", "장비명", "EQUIP")
-    take("model_use", "모델명", "MODEL")
+    # v5H226z730(대표 지시): 모델명·장비명은 발주(전체 대표) 단위만 → 라인 컬럼 매핑 제거(각 부품에 입력 안 함).
     take("part_name", "소모품품명", "품명", "PARTNAME", "SUPPLIERNAME")
     take("spec", "규격", "SPEC")
     take("loc_photo", "PICTURELOCATION", "사진위치", "위치")
@@ -1077,7 +1080,6 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
             amt = round(qty * price, 2)
         it = {
             "row": r, "line_no": line_seq, "part_name": pn, "spec": s(gv(r, "spec")),
-            "model_use": s(gv(r, "model_use")), "equip": s(gv(r, "equip")),
             "qty": qty, "unit": s(gv(r, "unit")) or "EA", "unit_price": price, "amount": amt,
             "link_mgmt": s(gv(r, "link_mgmt")).upper(), "material_no": s(gv(r, "material_no")),
             "note": s(gv(r, "note")), "_imgs": [], "_errors": [],

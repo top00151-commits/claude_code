@@ -270,8 +270,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
            ord-col = 발주(주문) 단위 칸(납품일·형태·거래명세서·세금계산서) — 모든 줄 공통(한 줄 고치면 전 줄 동기화·발주에 저장). #}
         <thead><tr>
           <th style="width:40px;">No</th>
-          <th style="width:120px;">모델명</th>
-          <th style="width:120px;">장비명</th>
+          {# v5H226z730(대표 지시): 모델명·장비명은 '발주(전체 대표) 단위' → 위 '제품' 섹션에만. 라인(부품)표에서 제거(각 부품에 모델명·장비명 입력 금지). #}
           <th style="width:150px;">소모품 품명</th>
           <th style="width:140px;">규격</th>
           <th class="photo-cell" style="width:100px;">사진<br><span style="font-size:9px;font-weight:400;">(LOCATION)</span></th>
@@ -294,9 +293,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         {% for it in items %}
           <tr data-iid="{{ it.id }}">
             <td><b>{{ it.line_no }}</b></td>
-            {# 품목별 칸 (라인 단위) — 모델명·장비명·품명·규격 #}
-            <td><input data-k="model_use" value="{{ it.model_use|e }}" placeholder="모델명" /></td>
-            <td><input data-k="equip_name" value="{{ it.equip_name|e }}" placeholder="장비명" /></td>
+            {# v5H226z730: 모델명·장비명은 발주 단위(위 '제품' 섹션)로 일원화 → 라인에서 제거. 품목별 칸 = 품명·규격~ #}
             <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="소모품 품명" /></td>
             <td><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /></td>
             <td class="photo-cell">
@@ -598,17 +595,17 @@ async function doNotify() {
 // v5H226z725: 상태 '알약' 제거 → 상태는 기본정보 드롭다운(.ef data-field=status)으로 일원화(자동저장).
 
 // v5H226z303/z305(대표 지시): 라인 표 — 칸 너비조정 + 칸 표시/숨기기 + 전체화면 + 화면인쇄 (작업일정표 메뉴 이식, 날짜 컨트롤 제외)
-const ITEMS_VIEW_KEY = 'co_items_view_v3';   // v5H226z725: 컬럼 재구성(엑셀 양식 일치)으로 키 갱신 — 옛 저장폭 무효화
+const ITEMS_VIEW_KEY = 'co_items_view_v4';   // v5H226z730: 모델명·장비명 라인열 제거(20→18)로 키 갱신 — 옛 저장폭 무효화
 const ITEMS_COLW_OLDKEY = 'co_items_colw_v1';
-const ITEMS_COLW_DEFAULTS = [40,120,120,150,140,100,100,120,84,70,55,110,120,150,160,150,130,130,120,50];
-const ITEMS_COL_LABELS = ['No','모델명','장비명','품명','규격','사진(LOC)','사진(PIC)','납품일','형태','수량','단위','단가','금액','비고','자재코드','연결관리번호','거래명세서','세금계산서일','세금계산서금액','삭제'];
+const ITEMS_COLW_DEFAULTS = [40,150,140,100,100,120,84,70,55,110,120,150,160,150,130,130,120,50];
+const ITEMS_COL_LABELS = ['No','품명','규격','사진(LOC)','사진(PIC)','납품일','형태','수량','단위','단가','금액','비고','자재코드','연결관리번호','거래명세서','세금계산서일','세금계산서금액','삭제'];
 const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 않게
 (function(){
   const table = document.querySelector('table.items');
   if(!table) return;
   const ths = table.querySelectorAll('thead th');
   const N = ths.length;
-  function colMin(i){ return (i===5 || i===6) ? ITEMS_PHOTO_MIN : 40; }   // v5H226z725: 사진칸 = 6·7번째(인덱스 5·6)
+  function colMin(i){ return (i===3 || i===4) ? ITEMS_PHOTO_MIN : 40; }   // v5H226z730: 모델명·장비명 제거로 사진칸 = 4·5번째(인덱스 3·4)
 
   // 상태 로드: 신규키 → 구버전 폭키 → 기본값
   let widths=null, hidden=null;
@@ -617,8 +614,8 @@ const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 
   if(!Array.isArray(widths) || widths.length!==N) widths = ITEMS_COLW_DEFAULTS.slice(0,N);
   while(widths.length<N) widths.push(100);
   if(!Array.isArray(hidden) || hidden.length!==N) hidden = new Array(N).fill(false);
-  if(widths[5]<colMin(5)) widths[5]=colMin(5);   // 사진칸(인덱스 5·6) 최소폭 보정
-  if(widths[6]<colMin(6)) widths[6]=colMin(6);
+  if(widths[3]<colMin(3)) widths[3]=colMin(3);   // v5H226z730: 사진칸(인덱스 3·4) 최소폭 보정
+  if(widths[4]<colMin(4)) widths[4]=colMin(4);
 
   let cg = table.querySelector('colgroup.itm-cg');
   if(!cg){ cg=document.createElement('colgroup'); cg.className='itm-cg'; for(let i=0;i<N;i++) cg.appendChild(document.createElement('col')); table.insertBefore(cg, table.firstChild); }
