@@ -226,8 +226,9 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         <div class="info-sect">
           <div class="sect-label">제품</div>
           <div class="info-row c4">
-            <div class="h-cell"><div class="lbl">모델명</div><input class="ef" data-field="model_name" value="{{ co.model_name|e }}" placeholder="—"></div>
-            <div class="h-cell"><div class="lbl">장비명</div><input class="ef" data-field="equip_name" value="{{ co.equip_name|e }}" placeholder="—"></div>
+            {# v5H226z731(대표 지시): 발주 전체 대표 값임을 명시 — 라벨에 '(대표)' #}
+            <div class="h-cell"><div class="lbl">모델명(대표)</div><input class="ef" data-field="model_name" value="{{ co.model_name|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">장비명(대표)</div><input class="ef" data-field="equip_name" value="{{ co.equip_name|e }}" placeholder="—"></div>
             <div class="h-cell"><div class="lbl">납품위치</div><input class="ef" data-field="ship_to" value="{{ co.ship_to|e }}" placeholder="—"></div>
             <div class="h-cell"><div class="lbl">영업담당자</div><input class="ef" data-field="sales_name" value="{{ co.sales_name|e }}" placeholder="—"></div>
           </div>
