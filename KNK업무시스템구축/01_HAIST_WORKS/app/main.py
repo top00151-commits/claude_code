@@ -20072,7 +20072,7 @@ def _parse_product_bulk_xlsx(path):
                 inv = round(sell_krw / fx, 2)
             else:
                 inv = round(inv, 2)                      # 직접 입력한 인보이스도 2자리 정규화
-            cost_store = (round(cost_krw / fx, 4) if (cost_krw > 0 and fx > 0) else None)
+            cost_store = (round(cost_krw / fx, 2) if (cost_krw > 0 and fx > 0) else None)   # v5H226z735: USD 2자리(셋째 반올림)
             unit_final = inv
             amount = round(qty * inv, 2)
         else:
@@ -20409,6 +20409,9 @@ async def projects_import_product_confirm(request: Request):
                         "order_id": oid, "qty": qty, "unit_price": sell, "amount": amt,
                         "cost_price": (float(cost) if cost not in (None, "") else None),
                         "margin_pct": (float(margin) if margin not in (None, "") else None),
+                        # v5H226z735 (대표 지시): 수출 건 매입/판매 KRW 원본(입력값 그대로·우리 보기용). 인보이스는 USD(unit_price).
+                        "cost_krw": (float(l["cost_krw"]) if l.get("cost_krw") not in (None, "") else None),
+                        "sell_krw": (float(l["sell_krw"]) if l.get("sell_krw") not in (None, "") else None),
                         "unit_label": str(l.get("part_name") or "").strip(),
                         "spec": (str(l.get("spec") or "").strip() or None),
                         "material_no": (str(l.get("material_no") or "").strip() or None),
@@ -20440,6 +20443,11 @@ async def projects_import_product_confirm(request: Request):
                     _oset.append("exchange_rate=?"); _oval.append(fx_rate)
                 if "is_export" in _ocols:
                     _oset.append("is_export=?"); _oval.append(1 if is_export == "1" else 0)
+                # v5H226z735 (대표 지시): SO 납기·발주일도 저장(confirm_order_multi 에 due 미전달이라 SO 납기가 비던 버그).
+                if "due_date" in _ocols and due_date:
+                    _oset.append("due_date=?"); _oval.append(due_date)
+                if "order_date" in _ocols and order_date:
+                    _oset.append("order_date=?"); _oval.append(order_date)
                 if _oset:
                     _oval.append(oid)
                     c.execute(f"UPDATE orders SET {', '.join(_oset)} WHERE id=?", _oval)
@@ -20453,6 +20461,31 @@ async def projects_import_product_confirm(request: Request):
                     c.execute("UPDATE projects SET order_amount=? WHERE id=?", (round(_proj_amt, 2), int(new_pid)))
                 else:
                     c.execute("UPDATE projects SET order_amount=? WHERE id=?", (total, int(new_pid)))
+                # v5H226z735 (대표 지시): 추가발주(기존 관리번호)여도 프로젝트 모델/장비/발주일/납기가
+                #   '비어 있으면' 엑셀값으로 채움(신규는 projects_create_logi가 이미 채움·기존값은 안 덮어씀).
+                try:
+                    _pcols = {r[1] for r in c.execute("PRAGMA table_info(projects)").fetchall()}
+                    _pr = c.execute("SELECT model_name, equip_name, order_date, due_date FROM projects WHERE id=?",
+                                    (int(new_pid),)).fetchone()
+                    if _pr:
+                        def _pg(i, k):
+                            return (_pr[k] if isinstance(_pr, dict) else _pr[i])
+                        _pset, _pval = [], []
+                        _exmodel = str(proj.get("model") or "").strip()
+                        _exequip = str(proj.get("equip") or "").strip()
+                        if _exmodel and "model_name" in _pcols and not _pg(0, "model_name"):
+                            _pset.append("model_name=?"); _pval.append(_exmodel)
+                        if _exequip and "equip_name" in _pcols and not _pg(1, "equip_name"):
+                            _pset.append("equip_name=?"); _pval.append(_exequip)
+                        if order_date and "order_date" in _pcols and not _pg(2, "order_date"):
+                            _pset.append("order_date=?"); _pval.append(order_date)
+                        if due_date and "due_date" in _pcols and not _pg(3, "due_date"):
+                            _pset.append("due_date=?"); _pval.append(due_date)
+                        if _pset:
+                            _pval.append(int(new_pid))
+                            c.execute(f"UPDATE projects SET {', '.join(_pset)} WHERE id=?", _pval)
+                except Exception:
+                    pass
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"부품 등록 중 오류: {e}", "pid": int(new_pid), "code": new_code}, 200)
     return JSONResponse({"ok": True, "pid": int(new_pid), "code": new_code,

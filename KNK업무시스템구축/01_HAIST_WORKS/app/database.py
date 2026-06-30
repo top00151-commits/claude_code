@@ -3325,6 +3325,10 @@ def init_db():
                 #   amount = qty × unit_price(판매) 그대로. 원가는 상세화면 can_money 마스킹.
                 ("cost_price",       "ALTER TABLE order_items ADD COLUMN cost_price REAL"),
                 ("margin_pct",       "ALTER TABLE order_items ADD COLUMN margin_pct REAL"),
+                # v5H226z735 (대표 지시): 수출 건 매입/판매단가의 'KRW 원본'(우리 보기용 참고값). 인보이스(USD)는 별도.
+                #   환율 역산(×fx) 표시는 1~2원 오차가 나므로, 입력한 KRW를 그대로 저장·표시(정확).
+                ("cost_krw",         "ALTER TABLE order_items ADD COLUMN cost_krw REAL"),
+                ("sell_krw",         "ALTER TABLE order_items ADD COLUMN sell_krw REAL"),
                 # v5H226z5: 정식 PACKING LIST 통관 컬럼 — HS CODE/DUTY/VAT/인보이스/관세/최종/상세/PALLET/중량
                 ("hs_code",                "ALTER TABLE order_items ADD COLUMN hs_code TEXT"),
                 ("duty_rate",              "ALTER TABLE order_items ADD COLUMN duty_rate REAL"),

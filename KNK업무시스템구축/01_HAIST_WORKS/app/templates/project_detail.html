@@ -1266,9 +1266,12 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   {% if can_money %}
                   {% set _cp = u.get('cost_price') if u.get is defined else u.cost_price %}
                   {% set _mp = u.get('margin_pct') if u.get is defined else u.margin_pct %}
+                  {# v5H226z735(대표 지시): 수출 건 매입/판매 'KRW 원본'(입력값 그대로·정확). 있으면 ×환율 대신 이걸 표시. #}
+                  {% set _ckrw = (u.get('cost_krw') if u.get is defined else u.cost_krw) %}
+                  {% set _skrw = (u.get('sell_krw') if u.get is defined else u.sell_krw) %}
                   <td class="num money-cell" style="font-size:11.5px;background:#fff7ed;">
                     <div class="mc-wrap">
-                    <span class="display-val">{{ '{:,.0f}'.format(_cp * _pfx) if (_cp and _pfx) else ('{:,.2f}'.format(_cp) if (_cp and _is_fx_view) else ('{:,.0f}'.format(_cp) if _cp else '—')) }}</span>
+                    <span class="display-val">{{ '{:,.0f}'.format(_ckrw) if (_ckrw and _is_fx_view) else ('{:,.0f}'.format(_cp * _pfx) if (_cp and _pfx) else ('{:,.2f}'.format(_cp) if (_cp and _is_fx_view) else ('{:,.0f}'.format(_cp) if _cp else '—'))) }}</span>
                     {% if _editable %}<input type="text" class="unit-edit cost-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(_cp * _pfx) if (_cp and _pfx) else ('%.2f'|format(_cp) if (_cp and _is_fx_view) else ('%.0f'|format(_cp) if _cp else '')) }}" value="{{ '{:,.0f}'.format(_cp * _pfx) if (_cp and _pfx) else ('{:,.2f}'.format(_cp) if (_cp and _is_fx_view) else ('{:,.0f}'.format(_cp) if _cp else '')) }}" placeholder="매입가" style="width:78px;font-size:11.5px;text-align:right;">{% endif %}
                     <span class="ccy-u">{{ _krw_col_ccy }}</span>
                     </div>
@@ -1279,7 +1282,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   </td>
                   <td class="num money-cell" style="font-size:11.5px;">
                     <div class="mc-wrap">
-                    <span class="display-val" style="font-weight:600;">{{ '{:,.0f}'.format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('{:,.2f}'.format(u.unit_price) if (u.unit_price and _is_fx_view) else ('{:,.0f}'.format(u.unit_price) if u.unit_price else '—')) }}</span>
+                    <span class="display-val" style="font-weight:600;">{{ '{:,.0f}'.format(_skrw) if (_skrw and _is_fx_view) else ('{:,.0f}'.format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('{:,.2f}'.format(u.unit_price) if (u.unit_price and _is_fx_view) else ('{:,.0f}'.format(u.unit_price) if u.unit_price else '—'))) }}</span>
                     {% if _editable %}<input type="text" class="unit-edit price-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('%.2f'|format(u.unit_price) if (u.unit_price and _is_fx_view) else ('%.0f'|format(u.unit_price) if u.unit_price else '')) }}" value="{{ '{:,.0f}'.format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('{:,.2f}'.format(u.unit_price) if (u.unit_price and _is_fx_view) else ('{:,.0f}'.format(u.unit_price) if u.unit_price else '')) }}" placeholder="판매가" style="width:88px;font-size:11.5px;text-align:right;">{% endif %}
                     <span class="ccy-u">{{ _krw_col_ccy }}</span>
                     </div>
