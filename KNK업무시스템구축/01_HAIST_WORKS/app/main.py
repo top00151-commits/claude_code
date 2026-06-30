@@ -19919,29 +19919,32 @@ def _prodbulk_fmt_date(v):
 
 # v5H226z729 (대표 지시): 상품 양식 '상태' 컬럼 — 드롭다운(진행중/출하/취소/보류) → order_items.unit_status enum.
 #   첨부 엑셀과 동일하게 부품 표에 '상태' 컬럼 추가. 비우면 '진행중' 기본. (소모품 양식 상태값과 동일·z726 통일)
-_PRODBULK_STATUS_MAP = {
-    "진행중": "IN_PRODUCTION", "출하": "SHIPPED", "취소": "CANCELLED", "보류": "HOLD",
+# v5H226z738 (대표 지시): unit_status 는 시스템 전체가 '한글'(진행중/출하/취소/보류)로 저장·비교한다
+#   (상세 호기 드롭다운 _ust=='출하'·일괄출하 unit_status='출하'·종합상태 dist 한글키·마이그 기본값 '진행중').
+#   상품 양식 상태를 영문 enum('SHIPPED' 등)으로 저장하면 '출하'와 안 맞아 상세/집계가 '진행중'으로
+#   폴백하던 버그 → '한글'로 정규화한다. (영문 enum·구 파일도 한글로 변환해 호환)
+_PRODBULK_STATUS_KR = {
+    "진행중": "진행중", "출하": "출하", "취소": "취소", "보류": "보류",
+    "IN_PRODUCTION": "진행중", "SHIPPED": "출하", "CANCELLED": "취소",
+    "CANCELED": "취소", "HOLD": "보류", "READY_TO_SHIP": "진행중",
+    "CONFIRMED": "진행중", "DRAFT": "진행중", "INVOICED": "출하", "PAID": "출하",
 }
-_PRODBULK_STATUS_ENUMS = {"IN_PRODUCTION", "SHIPPED", "CANCELLED", "HOLD",
-                          "CONFIRMED", "DRAFT", "READY_TO_SHIP", "INVOICED", "PAID"}
 
 
 def _prodbulk_norm_status(v):
-    """상태(한글 라벨/영문 enum/빈칸) → order_items unit_status enum. 비면 '진행중'(IN_PRODUCTION)."""
+    """상태(한글 라벨/영문 enum/빈칸) → order_items unit_status '한글'(진행중/출하/취소/보류). 비면 '진행중'."""
     s = str(v or "").strip()
     if not s:
-        return "IN_PRODUCTION"
-    if s in _PRODBULK_STATUS_MAP:          # 한글 라벨 정확 일치 우선
-        return _PRODBULK_STATUS_MAP[s]
+        return "진행중"
+    if s in _PRODBULK_STATUS_KR:            # 한글 라벨/영문 enum 정확 일치
+        return _PRODBULK_STATUS_KR[s]
     su = s.upper()
-    if su == "CANCELED":
-        return "CANCELLED"
-    if su in _PRODBULK_STATUS_ENUMS:        # 영문 enum 그대로 들어온 경우(미리보기 라운드트립)
-        return su
-    for k, ev in _PRODBULK_STATUS_MAP.items():   # 부분 일치(예: '진행', '출하 완료')
-        if k in s:
-            return ev
-    return "IN_PRODUCTION"
+    if su in _PRODBULK_STATUS_KR:           # 영문 enum (대소문자 무관)
+        return _PRODBULK_STATUS_KR[su]
+    for kr in ("출하", "취소", "보류", "진행중"):   # 한글 부분 일치(예: '출하 완료')
+        if kr in s:
+            return kr
+    return "진행중"
 
 
 # 부품 표 컬럼 (헤더 키워드 자동 인식)
@@ -20295,6 +20298,10 @@ async def projects_import_product_parse(request: Request,
         "customer": cust,
         "secondary_customer": str(proj.get("secondary_customer") or "").strip(),
         "name": name,
+        # v5H226z738 (대표 지시): 모델명·장비명도 미리보기→확정으로 전달. 이게 빠져서 프로젝트 정보의
+        #   모델명/장비명이 'None'으로 비던 버그(파서는 추출했는데 proj_out 재구성 시 누락 → confirm 이 못 받음).
+        "model": str(proj.get("model") or "").strip(),
+        "equip": str(proj.get("equip") or "").strip(),
         "order_date": _prodbulk_fmt_date(proj.get("order_date")),
         "due_date": _prodbulk_fmt_date(proj.get("due_date")),
         # v5H226z613: 통화 헤더 삭제 → 거래구분으로 통화 표시(수출=USD/내수=KRW). 구 파일 호환.
@@ -23275,7 +23282,7 @@ async def projects_new_submit(request: Request):
                                     "currency": _ccy_v,
                                     "order_date": order_date_v or None,
                                     "due_date": due_date_v or None,
-                                    "unit_status": (_pp2.get("status") or "IN_PRODUCTION"),  # v5H226z729: 폼 상태 반영
+                                    "unit_status": (_pp2.get("status") or "진행중"),  # v5H226z729/z738: 폼 상태 반영(한글)
                                     "is_export": form.get("is_export", "0")}
                             _row = {k: v for k, v in _row.items() if k in _oicols}
                             _cols2 = list(_row.keys()); _ph2 = ",".join("?" * len(_cols2))
@@ -23653,7 +23660,7 @@ async def projects_new_submit(request: Request):
                                         "currency": _ccy_v,
                                         "order_date": form.get("order_date", "") or None,
                                         "due_date": (_pp.get("due") or form.get("due_date", "") or None),
-                                        "unit_status": (_pp.get("status") or "IN_PRODUCTION"),  # v5H226z729: 폼 상태 반영
+                                        "unit_status": (_pp.get("status") or "진행중"),  # v5H226z729/z738: 폼 상태 반영(한글)
                                         "is_export": form.get("is_export", "0")}
                                 if (_ccy_v or "").upper() == "USD" and _foreign_v and _fxv > 0:
                                     _row["invoice_unit_price_usd"] = _up

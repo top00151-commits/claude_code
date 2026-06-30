@@ -1117,7 +1117,11 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
             {% set _is_equip = (not _is_parts) and (not _is_co) %}
             {% set _is_fx_view = (_is_parts and _so_ccy != 'KRW') %}
             {# v5H226z609: 매입/판매 칸의 통화 단위 — _pfx면 KRW환산값=KRW, fx뷰(환율없음)면 외화, 그외 KRW #}
-            {% set _krw_col_ccy = 'KRW' if _pfx else (_so_ccy if _is_fx_view else 'KRW') %}
+            {# v5H226z738(대표 지시): z735로 cost_krw/sell_krw(KRW 원본)가 저장된 수출 부품은 매입/판매 값을 'KRW'로 표시한다 →
+               라벨·헤더도 KRW 여야 함. orders.exchange_rate 컬럼이 없어 _pfx=0 이어도(상품 SO는 항상 그렇다)
+               KRW 원본이 있으면 KRW 로 표기 → 값은 122만원인데 라벨만 'USD' 가 붙던 버그 해결. #}
+            {% set _so_has_krworig = ((_units_desc | selectattr('cost_krw') | list | length) > 0) if _units_desc else false %}
+            {% set _krw_col_ccy = 'KRW' if (_pfx or _so_has_krworig) else (_so_ccy if _is_fx_view else 'KRW') %}
             {# v5H226z6/z7: PARTS 일 때 28컬럼이라 가로 스크롤 — SO 카드 안에서만 #}
             {# 부모 grid/flex 가 자식 min-width 에 의해 늘어나는 걸 막기 위해 #}
             {# (1) 가로 스크롤 wrapper 에 width:100%/overflow:hidden 명시 → 자식이 부모를 못 늘림 #}
@@ -1154,9 +1158,9 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
                   <th class="px-x" style="width:50px;"  data-pgroup="basic">단위</th>
                   {# v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%→판매단가. 원가는 영업·관리(can_money)만 #}
                   {% if can_money %}
-                  <th class="num" style="width:86px;background:#fff7ed;" data-pgroup="basic" title="매입단가(협력사가){% if _pfx %} · KRW{% endif %}">매입단가{% if _pfx %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
+                  <th class="num" style="width:86px;background:#fff7ed;" data-pgroup="basic" title="매입단가(협력사가){% if _pfx or _so_has_krworig %} · KRW{% endif %}">매입단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
                   <th class="num" style="width:56px;background:#fff7ed;" data-pgroup="basic" title="마진%(매입가에 가산)">마진%</th>
-                  <th class="num" style="width:96px;" data-pgroup="basic" title="판매단가 = 매입 × (1+마진%) · 직접수정 시 마진 역산">판매단가{% if _pfx %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
+                  <th class="num" style="width:96px;" data-pgroup="basic" title="판매단가 = 매입 × (1+마진%) · 직접수정 시 마진 역산">판매단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
                   {% if _is_fx_view %}
                   <th class="num" style="width:72px;" data-pgroup="basic" title="환율 (1 {{ _so_ccy }} = ? KRW)">환율</th>
                   <th class="num" style="width:96px;background:#eef6ff;" data-pgroup="basic" title="인보이스 단가({{ _so_ccy }})">인보이스<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ _so_ccy }})</span></th>
