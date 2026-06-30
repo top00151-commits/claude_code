@@ -380,7 +380,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 /* z274: 신규 등록 모달(iframe — 기존 등록 폼 그대로) */
 .reg-modal { position:fixed; inset:0; z-index:10060; background:rgba(15,23,42,.42); display:none; }
 .reg-modal.show { display:flex; align-items:center; justify-content:center; }
-.reg-card { background:#fff; border-radius:12px; width:min(1120px,95vw); height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 70px rgba(0,0,0,.32); }
+/* v5H226z733(대표 지시): 모달 폭을 넓혀(1180px 초과) 유형 선택 카드가 프로젝트 등록 화면처럼 '5개 한 줄'로 — 좁으면 카드 반응형이 3+2로 접힘 */
+.reg-card { background:#fff; border-radius:12px; width:min(1280px,96vw); height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 70px rgba(0,0,0,.32); }
 .reg-head { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); font-weight:800; font-size:14px; background:var(--paper-2); }
 .reg-head button { border:none; background:none; font-size:18px; cursor:pointer; color:var(--qv-ink-3); }
 .reg-card iframe { flex:1; border:0; width:100%; background:#fff; }
