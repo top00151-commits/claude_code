@@ -782,48 +782,51 @@ def delete_order(c, order_id: int, restore_project: bool = True) -> dict:
     project_id = o.get("project_id")
     order_no = o.get("order_no")
 
-    # 1) 자식 데이터 정리 (참조 무결성)
+    # 1) 자식 데이터 정리 (참조 무결성) — v5H226z736: order_id 컬럼이 있는 '모든 테이블'에서
+    #   이 수주 행 삭제(동적 스윕). FK ON 환경에서 안 지운 자식(생산지시 production_orders·
+    #   세금계산서묶음 tax_invoice_lines·수출헤더 export_orders 등)이 남아 있으면 orders 삭제가
+    #   FK 위반으로 죽어 500이 나던 것을, 테이블이 추가돼도 안전하게 일괄 처리.
     try:
-        c.execute("DELETE FROM order_status_history WHERE order_id=?", (order_id,))
+        _tbls = [r[0] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
     except Exception:
-        pass
-    try:
-        c.execute("DELETE FROM order_items WHERE order_id=?", (order_id,))
-    except Exception:
-        pass
-    try:
-        c.execute("DELETE FROM invoices WHERE order_id=?", (order_id,))
-    except Exception:
-        pass
-    try:
-        c.execute("DELETE FROM receipts_payment WHERE order_id=?", (order_id,))
-    except Exception:
-        pass
-    try:
-        c.execute("DELETE FROM shipments WHERE order_id=?", (order_id,))
-    except Exception:
-        pass
+        _tbls = []
+    for _t in _tbls:
+        if _t in ("orders", "sqlite_sequence"):
+            continue
+        try:
+            _tc = {r[1] for r in c.execute(f"PRAGMA table_info({_t})").fetchall()}
+        except Exception:
+            continue
+        if "order_id" in _tc:
+            try:
+                c.execute(f"DELETE FROM {_t} WHERE order_id=?", (order_id,))
+            except Exception:
+                pass
 
     # 2) 수주 본체 삭제
     c.execute("DELETE FROM orders WHERE id=?", (order_id,))
 
     mgmt_cleared = False
-    # 3) 프로젝트 상태 복원 (선택)
+    # 3) 프로젝트 상태 복원 (선택) — 실패해도 수주 삭제는 성립(best-effort)
     if restore_project and project_id:
-        # 같은 프로젝트의 다른 수주가 더 있는지 확인
-        n = c.execute(
-            "SELECT COUNT(*) FROM orders WHERE project_id=?",
-            (project_id,)
-        ).fetchone()[0]
-        if n == 0:
-            # 마지막 수주였다면 → 관리번호/상태 되돌림
-            c.execute(
-                "UPDATE projects SET mgmt_code=NULL, code=NULL, "
-                "status='수주예정', stage='제안작성' "
-                "WHERE id=?",
+        try:
+            # 같은 프로젝트의 다른 수주가 더 있는지 확인
+            n = c.execute(
+                "SELECT COUNT(*) FROM orders WHERE project_id=?",
                 (project_id,)
-            )
-            mgmt_cleared = True
+            ).fetchone()[0]
+            if n == 0:
+                # 마지막 수주였다면 → 관리번호/상태 되돌림
+                c.execute(
+                    "UPDATE projects SET mgmt_code=NULL, code=NULL, "
+                    "status='수주예정', stage='제안작성' "
+                    "WHERE id=?",
+                    (project_id,)
+                )
+                mgmt_cleared = True
+        except Exception:
+            pass
 
     return {
         "ok": True,

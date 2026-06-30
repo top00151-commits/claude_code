@@ -13047,8 +13047,14 @@ async def sales_orders_delete(req: Request, oid: int):
             "error": "권한 없음",
             "message": "수주 삭제는 기술영업팀 팀장 또는 위임받은 등록권한자(can_use_sales=1)만 가능합니다.\n영업팀 팀장에게 권한 신청 후 다시 시도하세요."
         }, 403)
-    with db_session() as c:
-        res = _pwf.delete_order(c, oid, restore_project=True)
+    # v5H226z736: delete_order 가 예외로 죽으면 전역 핸들러가 HTML(<!DOCTYPE)을 반환해
+    #   프런트가 'Unexpected token <' 로 깨졌음 → 항상 JSON으로 응답(실패 사유 표면화).
+    try:
+        with db_session() as c:
+            res = _pwf.delete_order(c, oid, restore_project=True)
+    except Exception as e:
+        return JSONResponse({"ok": False,
+                             "message": f"수주 삭제 실패: {str(e)[:200]}"}, 200)
     return JSONResponse(res)
 
 
