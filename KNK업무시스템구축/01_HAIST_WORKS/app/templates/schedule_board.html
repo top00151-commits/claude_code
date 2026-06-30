@@ -2067,7 +2067,7 @@ _on(document,'keydown',(e)=>{ if(e.key==='Escape' && document.getElementById('st
 function openRegModal(){
   const m=document.getElementById('regModal'), f=document.getElementById('regFrame');
   if(!m||!f) return;
-  f.src='/projects/quick?embed=1';   // z276: 엑셀처럼 한 화면 평면 폼
+  f.src='/projects/new?embed=1';   // v5H226z732(대표 지시): 프로젝트 등록과 동일하게 — 유형 선택(5카드) 먼저 → 카드 클릭 시 같은 간편 폼/소모품 업로드
   m.classList.add('show');
   _resetCardPos('.reg-card');   // z334: 다시 열 때는 중앙으로 복귀
 }
