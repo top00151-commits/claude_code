@@ -14178,6 +14178,61 @@ SALES_DIVISIONS = [
 ]
 
 
+# v5H226z739 (대표 지시): '고아 수주' = orders.project_id 가 NULL 이거나, 가리키는 프로젝트가
+#   이미 삭제돼 없는 수주(=관리번호는 사라졌는데 수주번호만 남은 잔재). 사업부별 초기화는 'projects 기준'
+#   (projects WHERE biz_div=? → 그 프로젝트의 수주 삭제)이라 이런 고아 수주를 못 잡아 완전 삭제가 안 됐음.
+def _count_orphan_orders(c) -> int:
+    try:
+        return c.execute(
+            "SELECT COUNT(*) FROM orders WHERE project_id IS NULL "
+            "OR project_id NOT IN (SELECT id FROM projects)").fetchone()[0]
+    except Exception:
+        return 0
+
+
+def _sweep_orphan_orders(c) -> int:
+    """고아 수주 + 그 자식(order_id 참조 테이블 전체)을 동적 스윕으로 일괄 삭제. 반환=삭제된 수주 수.
+    z736 delete_order 와 동일 패턴(테이블이 추가돼도 FK 로 안 죽음). 호출 측에서 PRAGMA foreign_keys=OFF 권장."""
+    try:
+        oids = [r[0] for r in c.execute(
+            "SELECT id FROM orders WHERE project_id IS NULL "
+            "OR project_id NOT IN (SELECT id FROM projects)").fetchall()]
+    except Exception:
+        return 0
+    if not oids:
+        return 0
+    try:
+        tbls = [r[0] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+    except Exception:
+        tbls = []
+    for t in tbls:
+        if t in ("orders", "sqlite_sequence"):
+            continue
+        try:
+            tc = {r[1] for r in c.execute(f"PRAGMA table_info({t})").fetchall()}
+        except Exception:
+            continue
+        if "order_id" in tc:
+            for oid in oids:
+                try:
+                    c.execute(f"DELETE FROM {t} WHERE order_id=?", (oid,))
+                except Exception:
+                    pass
+    for oid in oids:
+        try:
+            c.execute("DELETE FROM orders WHERE id=?", (oid,))
+        except Exception:
+            pass
+    return len(oids)
+
+
+def reset_orphan_orders_count() -> int:
+    """고아 수주 수 (미리보기 표시용)."""
+    with db_session() as c:
+        return _count_orphan_orders(c)
+
+
 def reset_sales_division_preview() -> list:
     """사업부별 프로젝트/수주 수 미리보기 (변경 없음)."""
     out = []
@@ -14268,18 +14323,33 @@ def reset_sales_division_apply(divisions, actor_name: str = "") -> dict:
             except Exception:
                 failed += 1
 
+        # ── phase 3 (v5H226z739·대표 지시): 고아 수주 정리 — 사업부 초기화는 'projects 기준'이라
+        #    프로젝트가 사라진 뒤 남은 수주(관리번호 없이 수주번호만 존재)를 못 잡음. project_id 가
+        #    NULL/끊긴 수주 + 자식을 함께 삭제해야 '완벽 삭제'가 됨. (어느 사업부에도 안 걸리는 잔재)
+        orphan_deleted = 0
+        try:
+            with db_session() as c:
+                try:
+                    c.execute("PRAGMA foreign_keys=OFF")
+                except Exception:
+                    pass
+                orphan_deleted = _sweep_orphan_orders(c)
+        except Exception:
+            orphan_deleted = 0
+
         try:
             with db_session() as c:
                 c.execute(
                     "INSERT INTO app_settings(key, value) VALUES('demo_reset_at', ?) "
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (f"{_dt.datetime.now().strftime('%Y-%m-%d %H:%M')} by {actor_name} "
-                     f"(사업부매출초기화: {','.join(d['key'] for d in sel)})",),
+                     f"(사업부매출초기화: {','.join(d['key'] for d in sel)}, 고아수주 {orphan_deleted})",),
                 )
         except Exception:
             pass
         return {"ok": True, "backup": backup, "deleted_projects": deleted, "export_deleted": exp_deleted,
-                "failed": failed, "divisions": [d["label"] for d in sel]}
+                "failed": failed, "divisions": [d["label"] for d in sel],
+                "orphan_deleted": orphan_deleted}
     except Exception as e:
         return {"ok": False, "error": str(e), "backup": backup}
 

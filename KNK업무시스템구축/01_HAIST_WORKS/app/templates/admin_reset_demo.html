@@ -73,6 +73,7 @@
         ✅ <b>사업부별 매출 초기화 완료</b> — {{ sales_div_done.divisions|join(', ') }}<br>
         · 삭제된 프로젝트: {{ sales_div_done.deleted_projects }}개{% if sales_div_done.failed %} (실패 {{ sales_div_done.failed }}){% endif %}<br>
         · 삭제된 수출 건: {{ sales_div_done.export_deleted }}<br>
+        {% if sales_div_done.orphan_deleted %}· 고아 수주(관리번호 없이 남은 수주번호) 정리: <b>{{ sales_div_done.orphan_deleted }}건</b><br>{% endif %}
         {% if sales_div_done.note %}· {{ sales_div_done.note }}<br>{% endif %}
         · 백업 위치: <code>{{ sales_div_done.backup }}</code><br>
         딸린 수주·납품·수금·생산·수출이 함께 삭제됐고, 고객사·협력사·자재·품질·업무 데이터는 보존(언링크)됩니다.
@@ -150,6 +151,10 @@
         고른 사업부의 <b>프로젝트 + 딸린 수주·납품·수금·송장·생산·수출(CI/PL/BL/통관/FTA)</b> 을 함께 삭제합니다.<br>
         <span style="color:#1d4ed8;">· 고객사·협력사·자재·품질·업무 데이터는 <b>보존</b>(프로젝트 연결만 해제).</span><br>
         <span style="color:#b45309;">· 견적서는 사업부 귀속 정보가 없어 제외됩니다(필요하면 위 ‘매출·영업’ 그룹으로 전체 삭제). 0개 사업부는 비활성.</span>
+        {# v5H226z739 (대표 지시): 고아 수주(관리번호 사라지고 수주번호만 남은 잔재) — 사업부 초기화 시 함께 정리 #}
+        {% if orphan_orders and orphan_orders > 0 %}
+        <br><span style="color:#7f1d1d;font-weight:700;">· ⚠ 고아 수주 <b>{{ orphan_orders }}건</b>(관리번호는 사라졌는데 수주번호만 남은 잔재)도 <b>함께 정리</b>됩니다 — 어느 사업부를 골라도 완전 삭제.</span>
+        {% endif %}
       </div>
       <form method="post" action="/admin/reset-demo-sales-division" id="divForm" onsubmit="return knkDivSubmit();">
         <div style="display:flex;flex-wrap:wrap;gap:10px;">

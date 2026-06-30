@@ -7167,11 +7167,13 @@ async def admin_reset_demo_page(req: Request):
 def _reset_demo_render(req, u, *, done=None, group_done=None, sales_div_done=None, co_done=None, error=None):
     """데모 초기화 화면 공통 렌더 — 미리보기 4종(전체/그룹/사업부/소모품) + 결과/에러."""
     from .database import (reset_demo_preview, reset_groups_preview,
-                           reset_sales_division_preview, reset_consumables_preview)
+                           reset_sales_division_preview, reset_consumables_preview,
+                           reset_orphan_orders_count)
     return ctx(req, "admin_reset_demo.html", user=u, active="admin",
                preview=reset_demo_preview(), groups_preview=reset_groups_preview(),
                sales_div_preview=reset_sales_division_preview(),
                co_preview=reset_consumables_preview(),   # v5H226z567: 소모품 전체 초기화
+               orphan_orders=reset_orphan_orders_count(),  # v5H226z739: 사업부 초기화 시 함께 정리할 고아 수주
                done=done, group_done=group_done, sales_div_done=sales_div_done,
                co_done=co_done, error=error)
 
