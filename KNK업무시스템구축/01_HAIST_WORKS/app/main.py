@@ -13060,6 +13060,150 @@ async def sales_orders_delete(req: Request, oid: int):
     return JSONResponse(res)
 
 
+@app.post("/sales/orders/{oid:int}/overwrite-product")
+async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFile = File(...)):
+    """v5H226z740 (대표 지시): 상품(수출) 수주 '엑셀 덮어쓰기' — 발행된 관리번호·수주번호(order_no)는
+    그대로 두고, 이 수주(SO)의 라인만 업로드한 상품 양식으로 '제자리 교체'.
+    삭제 후 재등록(=새 번호) 대신, 같은 수주번호로 내용만 갈아끼움. z738 처리(매입/판매 KRW·모델/장비·한글 상태) 동일."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    raw = await xlsx.read()
+    if not raw:
+        return JSONResponse({"ok": False, "message": "빈 파일입니다"}, 200)
+    if len(raw) > 10 * 1024 * 1024:
+        return JSONResponse({"ok": False, "message": "파일이 너무 큽니다 (10MB 제한)"}, 200)
+    fname = (xlsx.filename or "u.xlsx")
+    if not fname.lower().endswith((".xlsx", ".xlsm")):
+        return JSONResponse({"ok": False, "message": "Excel 파일(.xlsx)만 지원합니다"}, 200)
+    import tempfile, os
+    td = tempfile.mkdtemp(prefix="owprod_")
+    tp = os.path.join(td, "u.xlsx")
+    with open(tp, "wb") as f:
+        f.write(raw)
+    try:
+        res = _parse_product_bulk_xlsx(tp)
+    except Exception as e:
+        res = {"error": f"파싱 오류: {e}"}
+    try:
+        os.remove(tp); os.rmdir(td)
+    except Exception:
+        pass
+    if res.get("error"):
+        return JSONResponse({"ok": False, "message": res["error"]}, 200)
+    proj = res.get("project") or {}
+    lines = res.get("lines") or []
+    if not lines:
+        return JSONResponse({"ok": False, "message": "부품 줄이 없습니다 (부품 표에 1줄 이상)"}, 200)
+    is_export = "1" if str(proj.get("is_export") or "0").strip() in ("수출", "1", "EXPORT", "export") else "0"
+    _ccy_hdr = str(proj.get("currency") or "").strip().upper()
+    ccy = (_ccy_hdr if _ccy_hdr in ("USD", "VND", "JPY", "CNY", "EUR") else "USD") if is_export == "1" else "KRW"
+    order_date = _prodbulk_fmt_date(proj.get("order_date"))
+    due_date = _prodbulk_fmt_date(proj.get("due_date"))
+    total = round(sum(float(l.get("amount") or 0) for l in lines), 2)
+    fx_rate = next((float(l["fx_rate"]) for l in lines if l.get("fx_rate")), None)
+    amount_krw = round(sum((float(l.get("sell_krw") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
+    ex_mgmt = str(proj.get("mgmt_code") or "").strip().upper()
+    inserted = 0
+    try:
+        with db_session() as c:
+            so = c.execute("SELECT id, order_no, project_id, so_type FROM orders WHERE id=?", (oid,)).fetchone()
+            if not so:
+                return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 200)
+            pid = so["project_id"]
+            order_no = so["order_no"]
+            pr = c.execute("SELECT mgmt_code, shipment_form FROM projects WHERE id=?", (pid,)).fetchone()
+            cur_mgmt = ((pr["mgmt_code"] or "").strip().upper() if pr else "")
+            # 안전 ①: 상품(PARTS) 수주만 — 완제품 호기 수주에 상품 양식 덮어쓰기 방지
+            _is_parts_so = (str(so["so_type"] or "").upper() == "PARTS_EXPORT") or (pr and str(pr["shipment_form"] or "").upper() == "PARTS")
+            if not _is_parts_so:
+                return JSONResponse({"ok": False, "message": "상품(부품) 수주에서만 덮어쓰기할 수 있습니다."}, 200)
+            # 안전 ②: 엑셀 관리번호가 있고 이 수주의 관리번호와 다르면 차단 (다른 프로젝트 데이터로 덮어쓰기 방지)
+            if ex_mgmt and cur_mgmt and ex_mgmt != cur_mgmt:
+                return JSONResponse({"ok": False, "message": f"엑셀 관리번호({ex_mgmt})가 이 수주의 관리번호({cur_mgmt})와 다릅니다. 같은 관리번호 파일만 덮어쓸 수 있습니다."}, 200)
+            # 안전 ③: 세금계산서가 발행된 수주는 차단 (회계 기록 보호)
+            try:
+                _tx = c.execute("SELECT COUNT(*) FROM tax_invoice_lines WHERE order_id=?", (oid,)).fetchone()[0]
+            except Exception:
+                _tx = 0
+            if _tx:
+                return JSONResponse({"ok": False, "message": f"세금계산서가 발행된 수주({order_no})는 덮어쓸 수 없습니다. 먼저 세금계산서를 취소하세요."}, 200)
+            # ── 라인 제자리 교체: 기존 order_items 삭제 → 새로 INSERT (order_no·project 그대로 유지)
+            c.execute("DELETE FROM order_items WHERE order_id=?", (oid,))
+            oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            for l in lines:
+                qty = float(l.get("qty") or 1) or 1
+                sell = float(l.get("unit_price") or 0)
+                amt = float(l.get("amount") or round(qty * sell, 2))
+                cost = l.get("cost_price"); margin = l.get("margin_pct")
+                row = {
+                    "order_id": oid, "qty": qty, "unit_price": sell, "amount": amt,
+                    "cost_price": (float(cost) if cost not in (None, "") else None),
+                    "margin_pct": (float(margin) if margin not in (None, "") else None),
+                    "cost_krw": (float(l["cost_krw"]) if l.get("cost_krw") not in (None, "") else None),
+                    "sell_krw": (float(l["sell_krw"]) if l.get("sell_krw") not in (None, "") else None),
+                    "unit_label": str(l.get("part_name") or "").strip(),
+                    "spec": (str(l.get("spec") or "").strip() or None),
+                    "material_no": (str(l.get("material_no") or "").strip() or None),
+                    "maker": (str(l.get("maker") or "").strip() or None),
+                    "supplier": (str(l.get("supplier") or "").strip() or None),
+                    "line_note": (str(l.get("line_note") or "").strip() or None),
+                    "currency": ccy,
+                    "order_date": order_date or None,
+                    "due_date": (_prodbulk_fmt_date(l.get("due_date")) or due_date or None),
+                    "unit_status": _prodbulk_norm_status(l.get("status")),
+                    "is_export": is_export,
+                }
+                if ccy == "USD":
+                    row["invoice_unit_price_usd"] = sell
+                    row["invoice_amount_usd"] = amt
+                row = {k: v for k, v in row.items() if k in oicols}
+                cols = list(row.keys()); ph = ",".join("?" * len(cols))
+                c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
+                inserted += 1
+            # 주문(SO) 갱신 — order_no(수주번호)는 건드리지 않음
+            _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+            _oset, _oval = ["total_amount=?"], [total]
+            if "currency" in _ocols:
+                _oset.append("currency=?"); _oval.append(ccy)
+            if "exchange_rate" in _ocols and fx_rate and fx_rate > 0:
+                _oset.append("exchange_rate=?"); _oval.append(fx_rate)
+            if "is_export" in _ocols:
+                _oset.append("is_export=?"); _oval.append(1 if is_export == "1" else 0)
+            if "due_date" in _ocols and due_date:
+                _oset.append("due_date=?"); _oval.append(due_date)
+            if "order_date" in _ocols and order_date:
+                _oset.append("order_date=?"); _oval.append(order_date)
+            _oval.append(oid)
+            c.execute(f"UPDATE orders SET {', '.join(_oset)} WHERE id=?", _oval)
+            # 프로젝트 갱신 — 덮어쓰기는 엑셀값으로 모델/장비/발주일/납기/통화/환율 '강제' 갱신(빈칸일 때만 아님)
+            _pcols = {r[1] for r in c.execute("PRAGMA table_info(projects)").fetchall()}
+            _pset, _pval = [], []
+            _exmodel = str(proj.get("model") or "").strip()
+            _exequip = str(proj.get("equip") or "").strip()
+            if _exmodel and "model_name" in _pcols: _pset.append("model_name=?"); _pval.append(_exmodel)
+            if _exequip and "equip_name" in _pcols: _pset.append("equip_name=?"); _pval.append(_exequip)
+            if order_date and "order_date" in _pcols: _pset.append("order_date=?"); _pval.append(order_date)
+            if due_date and "due_date" in _pcols: _pset.append("due_date=?"); _pval.append(due_date)
+            if "is_export" in _pcols: _pset.append("is_export=?"); _pval.append(1 if is_export == "1" else 0)
+            if "currency" in _pcols: _pset.append("currency=?"); _pval.append(ccy)
+            if "fx_rate" in _pcols: _pset.append("fx_rate=?"); _pval.append(fx_rate if (fx_rate and ccy != "KRW") else None)
+            if "amount_krw" in _pcols: _pset.append("amount_krw=?"); _pval.append(amount_krw if (ccy != "KRW" and amount_krw > 0) else None)
+            if _pset:
+                _pval.append(pid)
+                c.execute(f"UPDATE projects SET {', '.join(_pset)} WHERE id=?", _pval)
+            # 프로젝트 총액 = 전체 수주 합(추가발주 보존)
+            _sumr = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders "
+                              "WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'", (pid,)).fetchone()
+            c.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                      (round(float((_sumr[0] if not isinstance(_sumr, dict) else list(_sumr.values())[0]) or 0), 2), pid))
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": f"덮어쓰기 오류: {str(e)[:200]}"}, 200)
+    return JSONResponse({"ok": True, "order_no": order_no, "inserted": inserted, "total": total})
+
+
 @app.post("/projects/{pid:int}/add-followup-order")
 async def projects_add_followup(req: Request, pid: int):
     """추가 발주 — 동일 관리번호 + 신규 수주번호 발행 (KNK 추적 표준)."""
