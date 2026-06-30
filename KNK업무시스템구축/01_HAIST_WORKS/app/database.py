@@ -8603,6 +8603,68 @@ def _normalize_bulk_is_active(val) -> int:
     return 1  # 알 수 없는 값 → 기본 활성
 
 
+def _parts_build_cols_values(data: dict, existing_cols, now: str):
+    """v5H226z734: INSERT INTO parts 용 (cols, values) 빌드 — 대량 일괄등록(한 트랜잭션)용.
+    data 는 _validate_parts_payload 통과 가정. purchase_prices→std_price 동기화·vendor 미러 포함.
+    existing_cols(PRAGMA table_info parts)로 확장 컬럼만 필터(z58 미적용 환경 호환).
+    ⚠ 컬럼 정의는 parts_create() 의 base_cols/ext_pairs 와 동일하게 유지할 것(추가 시 둘 다 갱신)."""
+    _pp_json, _pp_last = _parse_purchase_prices(data.get("purchase_prices"))
+    if _pp_last is not None:
+        data["std_price"] = _pp_last
+    _pp_sync_vendor_columns(data, _pp_json)
+    base_cols = ["part_no", "part_name", "spec", "maker", "origin", "unit",
+                 "currency", "std_price", "biz_div", "category", "note",
+                 "is_active", "safety_stock", "location", "created_at", "updated_at"]
+    base_values = [
+        (data.get("part_no") or "").strip(),
+        (data.get("part_name") or "").strip(),
+        (data.get("spec") or "").strip(),
+        (data.get("maker") or "").strip(),
+        (data.get("origin") or "").strip(),
+        (data.get("unit") or "EA").strip() or "EA",
+        (data.get("currency") or "KRW").strip() or "KRW",
+        float(data.get("std_price") or 0),
+        (data.get("biz_div") or "").strip(),
+        (data.get("category") or "").strip(),
+        (data.get("note") or "").strip(),
+        1 if data.get("is_active", 1) else 0,
+        float(data.get("safety_stock") or 0),
+        (data.get("location") or "").strip() or None,
+        now, now,
+    ]
+    ext_pairs = [
+        ("item_account",       (data.get("item_account") or "").strip() or None),
+        ("procurement_kind",   (data.get("procurement_kind") or "").strip() or None),
+        ("category_main",      (data.get("category_main") or "").strip() or None),
+        ("category_series",    (data.get("category_series") or "").strip() or None),
+        ("reorder_point",      float(data.get("reorder_point") or 0)),
+        ("reorder_qty",        float(data.get("reorder_qty") or 0)),
+        ("conversion_factor",  float(data.get("conversion_factor") or 1)),
+        ("sub_spec1",          (data.get("sub_spec1") or "").strip() or None),
+        ("sub_spec2",          (data.get("sub_spec2") or "").strip() or None),
+        ("sub_spec3",          (data.get("sub_spec3") or "").strip() or None),
+        ("tax_invoice_name",   (data.get("tax_invoice_name") or "").strip() or None),
+        ("trade_invoice_name", (data.get("trade_invoice_name") or "").strip() or None),
+        ("default_warehouse",  (data.get("default_warehouse") or "").strip() or None),
+        ("hs_code",            (data.get("hs_code") or "").strip() or None),
+        ("purchase_prices",    _pp_json),
+        ("purpose",            (data.get("purpose") or "").strip() or None),
+        ("default_supplier",   (data.get("default_supplier") or "").strip() or None),
+        ("maker_contact_name",  (data.get("maker_contact_name") or "").strip() or None),
+        ("maker_contact_phone", (data.get("maker_contact_phone") or "").strip() or None),
+        ("maker_contact_email", (data.get("maker_contact_email") or "").strip() or None),
+        ("vendor1",            _validate_vendor_name(data.get("vendor1"))),
+        ("vendor2",            _validate_vendor_name(data.get("vendor2"))),
+        ("vendor3",            _validate_vendor_name(data.get("vendor3"))),
+    ]
+    ext_cols, ext_vals = [], []
+    for _col, _val in ext_pairs:
+        if _col in existing_cols:
+            ext_cols.append(_col)
+            ext_vals.append(_val)
+    return base_cols + ext_cols, base_values + ext_vals
+
+
 def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                              force_similar: bool = False,
                              full_preview: bool = False) -> dict:
@@ -8709,12 +8771,29 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
 
     # 헤더 이후 행을 데이터로 처리. 행 번호는 1-indexed (헤더 행 번호 + 1 부터).
     from itertools import chain as _chain
-    data_iter = _chain(scan_rows[header_row_idx + 1:], rows_iter)
+    # v5H226z734 (대량 3000+ 대응): ① 데이터행을 먼저 수집해 건수 파악 ② 대량이면 유사검사 생략
+    #   (행마다 자재 테이블 전체 LIKE 스캔이라 O(N×M)·정확 코드중복 검사는 유지) ③ 기존 part_no를
+    #   1회 메모리 맵으로(행마다 DB 조회 제거). 등록 INSERT는 아래에서 한 트랜잭션 일괄.
+    _data_rows = list(_chain(scan_rows[header_row_idx + 1:], rows_iter))
+
+    def _row_empty(_r):
+        return all(v is None or (isinstance(v, str) and not v.strip()) for v in _r)
+
+    _nonempty_cnt = sum(1 for _r in _data_rows if not _row_empty(_r))
+    LARGE_IMPORT_SKIP_SIMILAR = 800
+    _do_similar = (not force_similar) and (_nonempty_cnt <= LARGE_IMPORT_SKIP_SIMILAR)
+    similar_skipped = (not force_similar) and (_nonempty_cnt > LARGE_IMPORT_SKIP_SIMILAR)
+    # 기존 자재 part_no → (id, name) 1회 로드 (행마다 SELECT 제거)
+    with db_session() as _c0:
+        _existing_pno = {}
+        for _er in _c0.execute("SELECT part_no, id, part_name FROM parts").fetchall():
+            if _er[0] is not None:
+                _existing_pno[str(_er[0])] = (_er[1], _er[2])
     row_no = header_row_idx + 1  # 헤더 행 번호. 루프 내 += 1 로 데이터 행 시작.
-    for row in data_iter:
+    for row in _data_rows:
         row_no += 1
         # 빈 행 스킵
-        if all(v is None or (isinstance(v, str) and not v.strip()) for v in row):
+        if _row_empty(row):
             skipped_empty += 1
             continue
         total += 1
@@ -8768,11 +8847,10 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
             else:
                 if seen_key:
                     seen_part_nos[seen_key] = row_no
-                # ② DB 기존 자재와 중복 검사
-                with db_session() as c:
-                    dup = c.execute("SELECT id, part_name FROM parts WHERE part_no=?", (part_no,)).fetchone()
+                # ② DB 기존 자재와 중복 검사 (z734: 메모리 맵 — 행마다 DB 조회 제거)
+                dup = _existing_pno.get(part_no)
                 if dup:
-                    errors.append(f"코드 중복 — 기존 [{dup['id']}] {dup['part_name']}")
+                    errors.append(f"코드 중복 — 기존 [{dup[0]}] {dup[1]}")
                     status = "dup"
                     dup_cnt += 1
 
@@ -8784,8 +8862,8 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
             except (ValueError, TypeError) as _ve:
                 errors.append(str(_ve))
 
-        # 유사 자재 검사 (force_similar=False 일 때만)
-        if part_name and not errors and not force_similar:
+        # 유사 자재 검사 (force_similar=False + 대량 아님일 때만 — z734: 대량은 O(N×M)라 생략)
+        if part_name and not errors and _do_similar:
             try:
                 sims = parts_find_similar(
                     name=part_name,
@@ -8821,20 +8899,30 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
     wb.close()
 
     # 실제 등록 (dry_run=False 일 때만, status='ok' 또는 'similar' 행만)
+    # v5H226z734: 행마다 parts_create(자체 세션·커밋) 대신 '한 트랜잭션 일괄 INSERT'(커밋 1회).
+    #   컬럼 빌드는 공용 헬퍼(_parts_build_cols_values) 재사용. dup·유사검사는 위 미리보기 루프에서
+    #   이미 끝나 INSERT만 수행(코드중복 행은 status=dup 으로 제외됨). 행별 오류는 격리(나머지 진행).
     if not dry_run:
-        for p in preview:
-            if p["status"] in ("ok", "similar") and not p["errors"]:
-                try:
-                    pid = parts_create(p["data"], force=True)
-                    inserted_ids.append({"row_no": p["row_no"], "id": pid,
-                                          "part_no": p["data"].get("part_no")})
-                    p["status"] = "inserted"
-                    p["inserted_id"] = pid
-                except Exception as e:
-                    p["status"] = "error"
-                    p["errors"].append(str(e))
-                    err_cnt += 1
-                    ok_cnt = max(0, ok_cnt - 1)
+        _now2 = _logi_now()
+        with db_session() as c:
+            _existing_cols = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
+            for p in preview:
+                if p["status"] in ("ok", "similar") and not p["errors"]:
+                    try:
+                        _cols, _vals = _parts_build_cols_values(p["data"], _existing_cols, _now2)
+                        _cur = c.execute(
+                            f"INSERT INTO parts ({','.join(_cols)}) VALUES ({','.join(['?'] * len(_cols))})",
+                            _vals,
+                        )
+                        inserted_ids.append({"row_no": p["row_no"], "id": _cur.lastrowid,
+                                              "part_no": p["data"].get("part_no")})
+                        p["status"] = "inserted"
+                        p["inserted_id"] = _cur.lastrowid
+                    except Exception as e:
+                        p["status"] = "error"
+                        p["errors"].append(str(e))
+                        err_cnt += 1
+                        ok_cnt = max(0, ok_cnt - 1)
 
     return {
         "total": total,
@@ -8852,6 +8940,9 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
         },
         "inserted_ids": inserted_ids,
         "dry_run": dry_run,
+        # v5H226z734: 대량 업로드 — 유사 자재 검사 생략 여부(UI 안내용). 정확 코드중복은 항상 검사.
+        "similar_skipped": similar_skipped,
+        "large_import": _nonempty_cnt > LARGE_IMPORT_SKIP_SIMILAR,
     }
 
 
