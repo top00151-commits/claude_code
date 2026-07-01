@@ -996,7 +996,7 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
             ws = wb[nm]; break
     if ws is None:
         ws = wb.worksheets[0]
-    maxr = min(ws.max_row or 1, 2000); maxc = min(ws.max_column or 1, 30)
+    maxr = min(ws.max_row or 1, 10000); maxc = min(ws.max_column or 1, 30)   # v5H226z743: 2000행 상한→10000(초과분 묵살 방지·대량 업로드). 상한은 손상파일 방어로 유지.
 
     def _nrm(x):
         return _re_b.sub(r"\s+", "", str(x)).upper() if x is not None else ""

@@ -171,45 +171,45 @@ function closeImportPreview() {
   document.getElementById('importPreviewModal').style.display = 'none';
   _importRows = [];
 }
+// v5H226z743 (대표 지시): 건수 많으면 한 요청이 오래 걸려 타임아웃 → 앞쪽 행만 저장되고 멈춘 듯 보임.
+//   해결: 행을 N건씩 '분할 전송'(순차·진행률 표시). 백엔드 무수정(각 요청이 받은 rows 만 처리). 신규를 먼저
+//   정렬해 추가발주 행이 같은/이전 청크의 신규 관리번호를 찾게 함. 중간 오류여도 직전 청크까지는 저장됨(안내).
+//   주의: 세금계산서 '묶음 발행'은 청크 경계에서 나뉠 수 있음 — 단, 대량 신규등록엔 세금계산서가 거의 없어 실무 영향 미미.
 async function confirmImport() {
   if (!_importRows.length) return;
   var send = _importRows.filter(function(r){ return (!r._errors || r._errors.length === 0 || r._is_warning_only) && !r._mgmt_exists; });
   if (!send.length) { alert('등록할 정상 행이 없습니다. (이미 등록된 관리번호는 중복 방지로 제외됩니다)'); return; }
+  send = send.slice().sort(function(a,b){ return (a._followup?1:0)-(b._followup?1:0); });  // 신규 먼저
   var btn = document.getElementById('importConfirmBtn');
-  btn.disabled = true; btn.textContent = '등록 중...';
-  var r;
-  try {
-    r = await fetch('/projects/import-confirm', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rows: send})
-    });
-  } catch (e) { alert('등록 실패: ' + e); btn.disabled = false; return; }
-  var j = await r.json();
-  if (!j.ok) { alert('등록 실패: ' + (j.error || '알 수 없음')); btn.disabled = false; return; }
-  var msg = '등록 완료: ' + j.created_count + '건';
-  if (j.failed_count > 0) {
-    msg += '\n실패 ' + j.failed_count + '건';
+  btn.disabled = true;
+  var CHUNK = 25, total = send.length;
+  var acc = {created_count:0, failed_count:0, so_warning_count:0, skipped_dup_count:0, so_skipped_count:0, ti_made:0, ti_lines:0, ti_warns:[]};
+  for (var i = 0; i < total; i += CHUNK) {
+    var chunk = send.slice(i, i + CHUNK);
+    btn.textContent = '등록 중... ' + Math.min(i + chunk.length, total) + '/' + total;
+    var r, j;
+    try {
+      r = await fetch('/projects/import-confirm', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rows: chunk}), credentials:'same-origin'
+      });
+    } catch (e) { alert('등록 중 통신 오류 (직전까지 ' + acc.created_count + '건 저장됨): ' + e + '\n\n다시 [등록 확정]을 누르면 이미 등록된 건은 건너뛰고 이어서 등록됩니다.'); btn.disabled = false; btn.textContent = '이어서 등록'; return; }
+    try { j = await r.json(); } catch (e) { alert('응답 오류(로그인 풀림 가능). 직전까지 ' + acc.created_count + '건 저장. F5 후 다시 시도하면 이어서 등록됩니다.'); btn.disabled = false; return; }
+    if (!j.ok) { alert('등록 실패 (직전까지 ' + acc.created_count + '건 저장): ' + (j.error || '알 수 없음')); btn.disabled = false; return; }
+    acc.created_count += (j.created_count || 0); acc.failed_count += (j.failed_count || 0);
+    acc.so_warning_count += (j.so_warning_count || 0); acc.skipped_dup_count += (j.skipped_dup_count || 0);
+    acc.so_skipped_count += (j.so_skipped_count || 0); acc.ti_made += (j.ti_made || 0); acc.ti_lines += (j.ti_lines || 0);
+    if (j.ti_warns && j.ti_warns.length) acc.ti_warns = acc.ti_warns.concat(j.ti_warns);
   }
-  if (j.so_warning_count > 0) {
-    msg += '\n\n⚠ 수주·호기 생성 실패 ' + j.so_warning_count + '건 (프로젝트는 등록됨)';
-  }
-  // v5H226z597: 이미 등록된 관리번호라 건너뛴 행(재업로드 중복 방지)
-  if (j.skipped_dup_count > 0) {
-    msg += '\n\n⤫ 이미 등록된 관리번호 ' + j.skipped_dup_count + '건은 건너뛰었습니다 (재업로드 중복 방지)';
-  }
-  // v5H226z330: 발주일 없어 수주번호 미발행한 행 안내 (정보성)
-  if (j.so_skipped_count > 0) {
-    msg += '\n\nℹ 발주일 없어 수주번호 미발행 ' + j.so_skipped_count + '건 (헤더만 등록 · 발주일 입력 후 재발행 가능)';
-  }
-  // v5H226z557: 세금계산서 묶음 발행 결과
-  if (j.ti_made > 0) {
-    msg += '\n\n📄 세금계산서 ' + j.ti_made + '장 묶어 발행 (' + (j.ti_lines||0) + '개 항목)';
-  }
-  if (j.ti_warns && j.ti_warns.length) {
-    msg += '\n⚠ 세금계산서 일부 실패 ' + j.ti_warns.length + '건';
-  }
+  var msg = '등록 완료: ' + acc.created_count + '건';
+  if (acc.failed_count > 0) msg += '\n실패 ' + acc.failed_count + '건';
+  if (acc.so_warning_count > 0) msg += '\n\n⚠ 수주·호기 생성 실패 ' + acc.so_warning_count + '건 (프로젝트는 등록됨)';
+  if (acc.skipped_dup_count > 0) msg += '\n\n⤫ 이미 등록된 관리번호 ' + acc.skipped_dup_count + '건은 건너뛰었습니다 (재업로드 중복 방지)';
+  if (acc.so_skipped_count > 0) msg += '\n\nℹ 발주일 없어 수주번호 미발행 ' + acc.so_skipped_count + '건 (헤더만 등록 · 발주일 입력 후 재발행 가능)';
+  if (acc.ti_made > 0) msg += '\n\n📄 세금계산서 ' + acc.ti_made + '장 묶어 발행 (' + acc.ti_lines + '개 항목)';
+  if (acc.ti_warns.length) msg += '\n⚠ 세금계산서 일부 실패 ' + acc.ti_warns.length + '건';
   alert(msg);
   closeImportPreview();
-  if (j.created_count > 0) {
+  if (acc.created_count > 0) {
     try { (window.top || window).location.href = '/projects'; } catch (e) { location.href = '/projects'; }
   } else { btn.disabled = false; }
 }
