@@ -7080,6 +7080,67 @@ async def admin_page(req: Request):
                active="admin", can_work_patterns=can_view_work_patterns(u))
 
 
+@app.get("/admin/user-trace", response_class=HTMLResponse)
+async def admin_user_trace(req: Request, q: str = ""):
+    """z748(대표 지시·읽기전용 진단): 직원의 실제 저장값(사번·로그인ID·한글/베트남이름·법인·팀·부서코드)과
+    화면 표시(vname)를 그대로 보여줘 '한국인인데 베트남 이름' 같은 이상의 원인을 추적.
+    같은 베트남이름(name_vi)을 여러 명이 쓰는 중복도 빨강 표시. 데이터 변경 없음(전부 SELECT). admin/ceo 전용."""
+    from fastapi.responses import HTMLResponse
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    q = (q or "").strip()
+
+    def _e(x):
+        return (str(x if x is not None else "")).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    with db_session() as c:
+        base = ("SELECT u.id, COALESCE(u.employee_no,'') emp, COALESCE(u.login_id,'') lid, "
+                "COALESCE(u.name,'') nm, COALESCE(u.name_vi,'') nvi, COALESCE(u.entity,'') uent, "
+                "u.team_id, COALESCE(t.name,'') tnm, COALESCE(t.entity,'') tent, "
+                "COALESCE(u.dept_code,'') dc, COALESCE(u.is_active,1) act "
+                "FROM users u LEFT JOIN teams t ON t.id=u.team_id ")
+        if q:
+            like = f"%{q}%"
+            rows = c.execute(base + "WHERE u.name LIKE ? OR u.name_vi LIKE ? OR u.employee_no LIKE ? "
+                             "OR u.login_id LIKE ? ORDER BY u.name_vi, u.employee_no", (like, like, like, like)).fetchall()
+        else:
+            rows = c.execute(base + "WHERE COALESCE(u.name_vi,'')<>'' ORDER BY u.name_vi, u.employee_no").fetchall()
+        rows = [dict(r) for r in rows]
+        dup = {}
+        for r in c.execute("SELECT COALESCE(name_vi,'') nvi, COUNT(*) c FROM users "
+                           "WHERE COALESCE(name_vi,'')<>'' AND COALESCE(is_active,1)=1 "
+                           "GROUP BY name_vi HAVING c>1").fetchall():
+            rd = dict(r) if not isinstance(r, dict) else r
+            dup[rd["nvi"]] = rd["c"]
+
+    H = ["<html><head><meta charset='utf-8'><title>직원 저장값 진단</title><style>",
+         "body{font-family:system-ui,'Malgun Gothic';font-size:13px;padding:18px;color:#1f2937;}",
+         "table{border-collapse:collapse;margin:8px 0 20px;}th,td{border:1px solid #cbd5e1;padding:4px 8px;white-space:nowrap;}",
+         "th{background:#f1f5f9;}code{background:#f1f5f9;padding:1px 5px;border-radius:3px;}",
+         ".dup{background:#fef2f2;color:#b91c1c;font-weight:700;}</style></head><body>",
+         "<h2>🔎 직원 저장값 진단 <span style='font-weight:400;color:#64748b;'>(읽기전용 · 데이터 변경 없음)</span></h2>",
+         "<form method='get' style='margin:8px 0;'><input name='q' value='" + _e(q) +
+         "' placeholder='이름·사번·로그인ID·베트남이름' style='padding:5px 8px;width:280px;'> "
+         "<button type='submit'>검색</button> <span style='color:#64748b;'>비우면 베트남이름 있는 직원 전체</span></form>",
+         "<p style='color:#64748b;'>표시(vname)=화면에 뜨는 이름. <b class='dup'>빨강 베트남이름</b>=여러 명이 같은 값(중복·오류 의심).</p>",
+         "<table><tr><th>사번</th><th>로그인ID</th><th>한글이름</th><th>베트남이름(name_vi)</th><th>표시(vname)</th>"
+         "<th>users.entity</th><th>팀</th><th>팀법인</th><th>부서코드</th><th>활성</th></tr>"]
+    for r in rows:
+        _nvi = r["nvi"]
+        _dupcls = " class='dup'" if (_nvi and _nvi in dup) else ""
+        _dupnote = f" ({dup[_nvi]}명 중복)" if (_nvi and _nvi in dup) else ""
+        disp = vname({"name": r["nm"], "name_vi": r["nvi"], "entity": r["uent"]})
+        H.append("<tr><td><code>" + _e(r["emp"]) + "</code></td><td>" + _e(r["lid"]) + "</td><td>" + _e(r["nm"]) +
+                 "</td><td" + _dupcls + ">" + _e(_nvi or "—") + _e(_dupnote) + "</td><td><b>" + _e(disp) +
+                 "</b></td><td>" + _e(r["uent"] or "—") + "</td><td>" + _e(r["tnm"] or "—") + "</td><td>" +
+                 _e(r["tent"] or "—") + "</td><td>" + _e(r["dc"] or "—") + "</td><td>" + ("✓" if r["act"] else "—") + "</td></tr>")
+    H.append("</table>")
+    H.append(f"<p style='color:#64748b;'>총 {len(rows)}명. 베트남이름(name_vi)은 <b>메신저 SSO 동기화</b>(sso_client)로 들어옴 — "
+             "여기 값이 곧 화면 표시의 원천. 한국인인데 name_vi가 차 있으면 메신저 원본/동기화 문제.</p></body></html>")
+    return HTMLResponse("".join(H))
+
+
 @app.post("/api/admin/user")
 async def api_admin_user(req: Request):
     u = require(req, ["admin"])
