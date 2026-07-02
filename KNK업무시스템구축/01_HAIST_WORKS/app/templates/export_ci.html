@@ -41,7 +41,7 @@ body {
       <thead><tr><th>#</th><th>품목명</th><th>HS 코드</th><th class="num" style="text-align:right;">수량</th><th class="num" style="text-align:right;">단가</th><th class="num" style="text-align:right;">금액</th></tr></thead>
       <tbody>
       {% for it in items|default([]) %}
-        <tr><td>{{ loop.index }}</td><td>{{ it.name|default('—') }}</td><td style="font-family:monospace;font-size:11px;">{{ it.hs_code|default('—') }}</td><td style="text-align:right;">{{ (it.qty or 0)|qtyfmt }}</td><td style="text-align:right;">{{ '{:,.2f}'.format(it.unit_price|default(0)) }}</td><td style="text-align:right;font-weight:700;">{{ '{:,.2f}'.format((it.qty|default(0))*(it.unit_price|default(0))) }}</td></tr>
+        <tr><td>{{ loop.index }}</td><td>{{ it.name|default('—') }}</td><td style="font-family:monospace;font-size:11px;">{{ it.hs_code|default('—') }}</td><td style="text-align:right;">{{ (it.qty or 0)|qtyfmt }}</td><td style="text-align:right;">{{ money(it.unit_price|default(0), eo.currency|default('USD')) }}</td><td style="text-align:right;font-weight:700;">{{ money((it.qty|default(0))*(it.unit_price|default(0)), eo.currency|default('USD')) }}</td></tr>
       {% else %}<tr><td colspan="6" style="text-align:center;color:var(--mute);padding:14px;">품목 없음 — 다음 사이클에 라인 입력 UI 추가 예정</td></tr>
       {% endfor %}
       </tbody>

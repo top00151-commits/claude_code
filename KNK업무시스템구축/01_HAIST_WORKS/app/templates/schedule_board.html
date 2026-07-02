@@ -190,7 +190,7 @@
         </tr>
       </thead>
       <tbody>
-        {% set _cursym = {'KRW':'₩','USD':'$','VND':'₫','JPY':'¥','CNY':'¥','EUR':'€'} %}
+        {% set _cursym = {'KRW':'₩','USD':'$','VND':'₫','JPY':'¥','CNY':'元','EUR':'€'} %}
         {% for r in rows %}
         {# v5H226z489 (대표 지시): 세금계산서 묶음은 차수(1/2/3) 단위 — 차수 칸마다 (행서명|차수)로 묶음 조회 #}
         {% set _ti1 = (ti_map.get(r.row_sig ~ '|1') if (can_money and ti_map is defined and ti_map and r.row_sig) else None) %}
@@ -230,10 +230,10 @@
           <td class="c-info cw-stmt editable{% if r.statement_date %} filled{% endif %}" data-col="statement" data-edit="statement_date" title="거래명세서 발행일자{% if r.statement_date %}: {{ r.statement_date }}{% endif %}">{{ r.statement_date or '＋' }}</td>
           {# v5H226z489 (대표 지시): 세금계산서 1/2/3차 — 차수별로 '묶음 발행'이면 📄#번호 칩, 아니면 개별 발행일+금액 편집. 1차=계약금·2차=중도금·3차=잔금. #}
           {# v5H226z703 (대표 지시): 수출은 세금계산서가 아니라 인보이스 발행 → 수출 행은 'INV' 표식+인보이스 툴팁, 금액은 행 통화(_csym)로. #}
-          {% set _is_exp = (r.trade == '수출') %}{% set _csym = _cursym.get(r.currency,'₩') %}
-          <td class="c-info cw-taxinv1{% if _ti1 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date or r.tax_invoice_amt1 %} filled{% endif %}{% endif %}" data-col="tax_inv1"{% if _ti1 %} data-tiid="{{ _ti1.id }}" title="1차 묶음 세금계산서 #{{ _ti1.no }}{% if _ti1.amt %} · {{ _cursym.get(_ti1.cur,'₩') }}{{ '{:,.0f}'.format(_ti1.amt|float) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv1" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ r.tax_invoice_date or '' }}" data-amt="{{ r.tax_invoice_amt1 or '' }}" title="{% if _is_exp %}1차 인보이스 (수출 — 세금계산서 아님){% else %}1세금계산서 (계약금){% endif %} — 발행일·금액"{% endif %}>{% if _ti1 %}<span class="ti-bundle-chip">📄 #{{ _ti1.no }}</span>{% if _ti1.amt %}<div class="ti-a">{{ _cursym.get(_ti1.cur,'₩') }}{{ '{:,.0f}'.format(_ti1.amt|float) }}</div>{% endif %}{% elif r.tax_invoice_date or r.tax_invoice_amt1 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt1 %}{{ _csym }}{{ '{:,.0f}'.format(r.tax_invoice_amt1|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
-          <td class="c-info cw-taxinv2{% if _ti2 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date2 or r.tax_invoice_amt2 %} filled{% endif %}{% endif %}" data-col="tax_inv2"{% if _ti2 %} data-tiid="{{ _ti2.id }}" title="2차 묶음 세금계산서 #{{ _ti2.no }}{% if _ti2.amt %} · {{ _cursym.get(_ti2.cur,'₩') }}{{ '{:,.0f}'.format(_ti2.amt|float) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv2" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ r.tax_invoice_date2 or '' }}" data-amt="{{ r.tax_invoice_amt2 or '' }}" title="{% if _is_exp %}2차 인보이스 (수출 — 세금계산서 아님){% else %}2세금계산서 (중도금){% endif %} — 발행일·금액"{% endif %}>{% if _ti2 %}<span class="ti-bundle-chip">📄 #{{ _ti2.no }}</span>{% if _ti2.amt %}<div class="ti-a">{{ _cursym.get(_ti2.cur,'₩') }}{{ '{:,.0f}'.format(_ti2.amt|float) }}</div>{% endif %}{% elif r.tax_invoice_date2 or r.tax_invoice_amt2 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date2 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt2 %}{{ _csym }}{{ '{:,.0f}'.format(r.tax_invoice_amt2|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
-          <td class="c-info cw-taxinv3{% if _ti3 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date3 or r.tax_invoice_amt3 %} filled{% endif %}{% endif %}" data-col="tax_inv3"{% if _ti3 %} data-tiid="{{ _ti3.id }}" title="3차 묶음 세금계산서 #{{ _ti3.no }}{% if _ti3.amt %} · {{ _cursym.get(_ti3.cur,'₩') }}{{ '{:,.0f}'.format(_ti3.amt|float) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv3" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ r.tax_invoice_date3 or '' }}" data-amt="{{ r.tax_invoice_amt3 or '' }}" title="{% if _is_exp %}3차 인보이스 (수출 — 세금계산서 아님){% else %}3세금계산서 (잔금){% endif %} — 발행일·금액"{% endif %}>{% if _ti3 %}<span class="ti-bundle-chip">📄 #{{ _ti3.no }}</span>{% if _ti3.amt %}<div class="ti-a">{{ _cursym.get(_ti3.cur,'₩') }}{{ '{:,.0f}'.format(_ti3.amt|float) }}</div>{% endif %}{% elif r.tax_invoice_date3 or r.tax_invoice_amt3 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date3 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt3 %}{{ _csym }}{{ '{:,.0f}'.format(r.tax_invoice_amt3|float) }}{% endif %}</div>{% else %}＋{% endif %}</td>
+          {% set _is_exp = (r.trade == '수출') %}{# z759: 금액은 money(값,통화)로 통일 — 통화기호 자동(외화 소수2·KRW 정수) #}
+          <td class="c-info cw-taxinv1{% if _ti1 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date or r.tax_invoice_amt1 %} filled{% endif %}{% endif %}" data-col="tax_inv1"{% if _ti1 %} data-tiid="{{ _ti1.id }}" title="1차 묶음 세금계산서 #{{ _ti1.no }}{% if _ti1.amt %} · {{ money(_ti1.amt, _ti1.cur) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv1" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ r.tax_invoice_date or '' }}" data-amt="{{ r.tax_invoice_amt1 or '' }}" title="{% if _is_exp %}1차 인보이스 (수출 — 세금계산서 아님){% else %}1세금계산서 (계약금){% endif %} — 발행일·금액"{% endif %}>{% if _ti1 %}<span class="ti-bundle-chip">📄 #{{ _ti1.no }}</span>{% if _ti1.amt %}<div class="ti-a">{{ money(_ti1.amt, _ti1.cur) }}</div>{% endif %}{% elif r.tax_invoice_date or r.tax_invoice_amt1 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt1 %}{{ money(r.tax_invoice_amt1, r.currency or 'KRW') }}{% endif %}</div>{% else %}＋{% endif %}</td>
+          <td class="c-info cw-taxinv2{% if _ti2 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date2 or r.tax_invoice_amt2 %} filled{% endif %}{% endif %}" data-col="tax_inv2"{% if _ti2 %} data-tiid="{{ _ti2.id }}" title="2차 묶음 세금계산서 #{{ _ti2.no }}{% if _ti2.amt %} · {{ money(_ti2.amt, _ti2.cur) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv2" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ r.tax_invoice_date2 or '' }}" data-amt="{{ r.tax_invoice_amt2 or '' }}" title="{% if _is_exp %}2차 인보이스 (수출 — 세금계산서 아님){% else %}2세금계산서 (중도금){% endif %} — 발행일·금액"{% endif %}>{% if _ti2 %}<span class="ti-bundle-chip">📄 #{{ _ti2.no }}</span>{% if _ti2.amt %}<div class="ti-a">{{ money(_ti2.amt, _ti2.cur) }}</div>{% endif %}{% elif r.tax_invoice_date2 or r.tax_invoice_amt2 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date2 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt2 %}{{ money(r.tax_invoice_amt2, r.currency or 'KRW') }}{% endif %}</div>{% else %}＋{% endif %}</td>
+          <td class="c-info cw-taxinv3{% if _ti3 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date3 or r.tax_invoice_amt3 %} filled{% endif %}{% endif %}" data-col="tax_inv3"{% if _ti3 %} data-tiid="{{ _ti3.id }}" title="3차 묶음 세금계산서 #{{ _ti3.no }}{% if _ti3.amt %} · {{ money(_ti3.amt, _ti3.cur) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv3" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ r.tax_invoice_date3 or '' }}" data-amt="{{ r.tax_invoice_amt3 or '' }}" title="{% if _is_exp %}3차 인보이스 (수출 — 세금계산서 아님){% else %}3세금계산서 (잔금){% endif %} — 발행일·금액"{% endif %}>{% if _ti3 %}<span class="ti-bundle-chip">📄 #{{ _ti3.no }}</span>{% if _ti3.amt %}<div class="ti-a">{{ money(_ti3.amt, _ti3.cur) }}</div>{% endif %}{% elif r.tax_invoice_date3 or r.tax_invoice_amt3 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date3 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt3 %}{{ money(r.tax_invoice_amt3, r.currency or 'KRW') }}{% endif %}</div>{% else %}＋{% endif %}</td>
           {% endif %}
           {# v5H226z569 (대표 지시): '단계' 칸 정리 — 부서 작업 추적은 부서일정표(/dept/schedule)로 일원화 #}
           {% for d in days %}
@@ -910,7 +910,7 @@ function toggleRowUnits(tr, btn){
       function _dt(field,val,dis){ return '<td><input type="date" class="ux-date" data-field="'+field+'" value="'+_uxEsc(val||'')+'"'+dis+'></td>'; }
       function _mo(field,val,dis){ return '<td><input type="text" inputmode="numeric" class="ux-money" data-field="'+field+'" value="'+(val!=null&&val!==''?Number(val).toLocaleString():'')+'"'+dis+'></td>'; }
       // v5H226z485 (대표 지시): 세금계산서는 보드와 동일하게 한 칸 클릭→발행일+금액 팝업
-      var _CSYM={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'};   // v5H226z703: 펼침 호기 줄 통화 기호
+      var _CSYM={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'};   // v5H226z703→z759: 펼침 호기 줄 통화 기호(CNY 元로 통일)
       function _ti(df,af,dv,av,ttl,iid,lk,cur,isExp){
         var has=!!(dv||(av!=null&&av!==''));
         var sym=(_CSYM[cur]||'₩');
@@ -1003,7 +1003,7 @@ async function _uxSaveTax(iid, field, value){
   const r=await fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})});
   const j=await r.json(); if(!j||!j.ok) throw new Error((j&&j.error)||'fail'); return j;
 }
-var _CSYM={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'};   // v5H226z704: 세금계산서/인보이스 팝업 통화 기호(보드·펼침 공용)
+var _CSYM={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'};   // v5H226z704→z759: 세금계산서/인보이스 팝업 통화 기호(보드·펼침 공용·CNY 元로 통일)
 function openUnitTaxPop(box){
   if(_editing) return;
   const iid=box.dataset.iid; if(!iid) return;
@@ -1772,7 +1772,7 @@ function _tiOpenModal(lines, force){
   var custs={}; lines.forEach(function(l){ var c=(l.customer||'').trim(); if(c&&c!=='—') custs[c]=1; });
   var custKeys=Object.keys(custs);
   var cur=(lines[0]&&lines[0].currency)||'KRW';
-  _tiSym={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'}[cur]||'₩';
+  _tiSym={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'}[cur]||'₩';
   var tierName=['','1차(계약금)','2차(중도금)','3차(잔금)'];
   var h='<div class="ti-modal-back" id="tiModalBack"><div class="ti-modal" onclick="event.stopPropagation()">';
   h+='<h3>📄 세금계산서 묶어 발행</h3><div class="ti-body">';
@@ -1850,7 +1850,7 @@ function openTiView(tiid){
     .then(function(j){
       if(!j||!j.ok){ toast('불러오기 실패'); return; }
       var v=j.invoice, ls=j.lines||[];
-      var sym={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'}[v.currency]||'₩';
+      var sym={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'}[v.currency]||'₩';
       _tiCloseModal();
       var h='<div class="ti-modal-back" id="tiModalBack"><div class="ti-modal" onclick="event.stopPropagation()">';
       var _tn=['','1차(계약금)','2차(중도금)','3차(잔금)'][v.tier||1]||'';

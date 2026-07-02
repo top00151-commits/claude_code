@@ -27,7 +27,7 @@ body {
       <div class="fld"><label>매출 수주 연결 <span class="req">*</span></label>
         <select name="order_id" required>
           <option value="">— 매출 수주 선택 —</option>
-          {% for o in orders %}<option value="{{ o.id }}">{{ o.order_no|default('#' ~ o.id) }} · 고객 {{ o.customer_id }} · {{ '{:,.0f}'.format(o.total_amount|default(0)) }}원 ({{ o.order_date|default('—') }})</option>{% endfor %}
+          {% for o in orders %}<option value="{{ o.id }}">{{ o.order_no|default('#' ~ o.id) }} · 고객 {{ o.customer_id }} · {{ money(o.total_amount|default(0), 'KRW') }} ({{ o.order_date|default('—') }})</option>{% endfor %}
         </select>
       </div>
       <div class="fld"><label>수출번호</label><input type="text" name="export_no" placeholder="자동 생성"></div>

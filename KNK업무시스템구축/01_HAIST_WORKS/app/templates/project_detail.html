@@ -1526,7 +1526,7 @@
               <td colspan="3" style="text-align:right;">합계 ({{ consumables.count }}건)</td>
               <td class="num">{{ (consumables.total_qty or 0)|qtyfmt }}</td>
               <td></td>
-              <td class="num" style="color:var(--amber-deep);">{% if can_money %}{{ '{:,.0f}'.format(consumables.total_amount) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">KRW</span>{% else %}🔒{% endif %}</td>
+              <td class="num" style="color:var(--amber-deep);">{% if can_money %}{{ money(consumables.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
               <td colspan="3"></td>
             </tr>
           </tbody>
@@ -1561,15 +1561,15 @@
               <td style="padding:6px;">{% if r.image_thumb_path %}<a href="{{ r.image_path or r.image_thumb_path }}" target="_blank"><img src="{{ r.image_thumb_path }}" style="width:40px;height:30px;object-fit:cover;border-radius:3px;" /></a>{% else %}—{% endif %}</td>
               <td style="padding:6px;"><b>{{ r.part_name }}</b>{% if r.model_use %}<div style="font-size:10px;color:var(--mute);">{{ r.model_use }}</div>{% endif %}</td>
               <td class="num" style="text-align:right;padding:6px;">{{ '{:,.0f}'.format(r.qty or 0) }} {{ r.unit }}</td>
-              <td class="num" style="text-align:right;padding:6px;">{% if can_money %}{{ '{:,.0f}'.format(r.unit_price or 0) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">KRW</span>{% else %}🔒{% endif %}</td>
-              <td class="num" style="text-align:right;padding:6px;font-weight:600;">{% if can_money %}{{ '{:,.0f}'.format(r.amount or 0) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">KRW</span>{% else %}🔒{% endif %}</td>
+              <td class="num" style="text-align:right;padding:6px;">{% if can_money %}{{ money(r.unit_price or 0, 'KRW') }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="text-align:right;padding:6px;font-weight:600;">{% if can_money %}{{ money(r.amount or 0, 'KRW') }}{% else %}🔒{% endif %}</td>
               <td style="padding:6px;">{{ r.order_date or '—' }}</td>
             </tr>
           {% endfor %}
           </tbody>
           <tfoot><tr style="background:#fafafa;font-weight:700;">
             <td colspan="5" style="text-align:right;padding:6px;">합계</td>
-            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{% if can_money %}{{ '{:,.0f}'.format(consumable_orders.total_amount) }} <span style="font-size:10px;color:var(--mute);font-weight:600;">KRW</span>{% else %}🔒{% endif %}</td>
+            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{% if can_money %}{{ money(consumable_orders.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
             <td></td>
           </tr></tfoot>
         </table></div>
