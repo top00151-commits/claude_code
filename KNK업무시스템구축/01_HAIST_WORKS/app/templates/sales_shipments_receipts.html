@@ -2,64 +2,100 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>납품·수금 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-/* v5H226z57: 시안1 토큰 + .mgmt-pill — sales_shipments_receipts v1+v2 */
-body {
-  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
-  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
-  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
-}
+/* z745 수금 관리 2단계 — 납품·수금 재구축 (수주별·입금예상일·마감이월) */
+.sr-kpis{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px;}
+.sr-kpi{flex:1 1 160px;min-width:150px;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:12px 14px;}
+.sr-kpi .lbl{font-size:12px;color:var(--mute,#64748b);}
+.sr-kpi .val{font-size:19px;font-weight:800;margin-top:4px;color:var(--ink,#0f172a);}
+.sr-kpi.warn .val{color:#dc2626;}
+.sr-kpi.carry .val{color:#b45309;}
+.sr-monthbar{display:flex;align-items:center;gap:8px;margin:0 0 14px;flex-wrap:wrap;}
+.sr-monthbar form{display:inline-flex;gap:6px;align-items:center;margin:0;}
+.sr-sec-h{font-size:14px;font-weight:800;margin:20px 0 8px;display:flex;align-items:center;gap:8px;}
+.sr-sec-h.carry{color:#b45309;}
+.pill-carry{background:#fef3c7;color:#92400e;}
+.pill-expect{background:#dbeafe;color:#1e40af;}
+.pill-done{background:#dcfce7;color:#166534;}
+.sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
+.sr-dday.over{color:#dc2626;}
+.sr-dday.soon{color:#b45309;}
+.sr-noterm{color:#dc2626;font-size:11px;font-weight:600;}
+.sr-recv-form{display:inline-flex;gap:4px;align-items:center;margin-top:6px;}
+.sr-recv-form input{width:96px;padding:4px 6px;border:1px solid var(--ink-200,#cbd5e1);border-radius:6px;font-size:12px;}
+.sr-recv-form button{background:var(--knk-red,#e11d48);color:#fff;border:none;border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;}
 @media (max-width:1100px){ .page-title{font-size:22px;} }
+@media (max-width:768px){ .sr-kpi{flex:1 1 46%;min-width:120px;} }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="main" data-dn-tone="amber">
-  <div class="page-head" data-dn="page-head">
-    <div><div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>납품·수금</b></div><h1 class="page-title" data-dn="title">🚚 납품 &amp; <em>수금</em></h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">납품 등록 + 수금 매칭 (1:N 부분 납품 지원)</div></div>
-    <a class="btn btn-primary" href="/sales/shipments/new">＋ 납품 등록</a>
+  <div class="page-head">
+    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>납품·수금</b></div>
+    <h1 class="page-title">🚚 납품 &amp; <em>수금</em></h1>
+    <div class="page-meta" style="margin-top:6px;font-size:12px;color:var(--mute);">작업일정표 다음 스텝 — 출하·세금계산서 완료 건의 입금예상일·미수·마감이월 정리</div></div>
   </div>
 
-  <div class="tbl-wrap tbl-sticky" data-dn="ship-pay-table" data-dn-tone="purple">
-    {% if items %}
-    <table class="tbl">
-      <thead data-dn="thead-row"><tr><th>수주번호</th><th>고객사</th><th>통화</th><th class="num">수주액</th><th class="num">수금</th><th>납품수량</th><th class="center">상태</th><th class="center">수금</th></tr></thead>
-      <tbody>
-      {% for s in items %}
-        {% set _ccy = s.currency|default('KRW') %}
-        {% set _outstanding = ((s.total_amount or 0) - (s.paid_total or 0)) %}
-        <tr>
-          {# v5H226z57: 수주번호 amber 텍스트 → .mgmt-pill sm 잉크 알약 #}
-          <td><a href="/orders/{{ s.order_id }}" class="mgmt-pill sm">{{ s.order_no|default('#' ~ s.order_id) }}</a></td>
-          <td><b>{{ s.customer_name|default('—') }}</b></td>
-          <td style="font-family:monospace;font-size:11px;">{{ _ccy }}</td>
-          <td class="num" style="font-weight:700;">{{ '{:,.0f}'.format(s.total_amount|default(0)) }}</td>
-          <td class="num">{{ '{:,.0f}'.format(s.paid_total|default(0)) }}</td>
-          <td class="num">{{ '{:,.0f}'.format(s.shipped_qty_sum|default(0)) }}</td>
-          <td class="center"><span class="pill {% if s.status == 'PAID' %}pill-done{% elif s.status in ('SHIPPED','INVOICED') %}pill-progress{% else %}pill-muted{% endif %}">{{ s.status|status_kr }}</span></td>
-          <td class="center">
-            {% if s.status != 'PAID' %}
-            <form method="post" action="/sales/receipts" style="display:inline-flex;gap:4px;align-items:center;"
-                  title="미수금: {{ '{:,.0f}'.format(_outstanding if _outstanding > 0 else 0) }} {{ _ccy }}">
-              <input type="hidden" name="order_id" value="{{ s.order_id }}">
-              <select name="currency" style="padding:4px 6px;border:1px solid var(--ink-200);border-radius:6px;font-size:11px;">
-                <option value="{{ _ccy }}" selected>{{ _ccy }}</option>
-                {% for cc in ['KRW','USD','VND','JPY','CNY','EUR'] %}{% if cc != _ccy %}<option value="{{ cc }}">{{ cc }}</option>{% endif %}{% endfor %}
-              </select>
-              <input name="amount" type="number" step="0.01" required
-                     placeholder="미수: {{ '{:,.0f}'.format(_outstanding if _outstanding > 0 else 0) }}"
-                     style="width:110px;padding:4px 6px;border:1px solid var(--ink-200);border-radius:6px;font-size:12px;">
-              <input name="fx_rate" type="number" step="0.0001" placeholder="환율"
-                     style="width:70px;padding:4px 6px;border:1px solid var(--ink-200);border-radius:6px;font-size:11px;">
-              <button type="submit" style="background:var(--knk-red,#E11D48);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">수금</button>
-            </form>
-            {% else %}<span style="color:var(--ink-400);font-size:12px;">완료</span>{% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}<div class="empty"><div class="ico">🚚</div><div class="ttl">납품 이력 없음</div></div>{% endif %}
+  {# ── KPI ── #}
+  <div class="sr-kpis">
+    <div class="sr-kpi"><div class="lbl">📅 {{ ym }} 입금예상(미수·KRW)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}원{% else %}🔒{% endif %}</div></div>
+    <div class="sr-kpi carry"><div class="lbl">🟠 마감이월(세금계산서 미발행)</div><div class="val">{{ kpi.carry_cnt }}건</div></div>
+    <div class="sr-kpi warn"><div class="lbl">⚠ 연체(예상일 경과·미수)</div><div class="val">{{ kpi.overdue_cnt }}건{% if can_money and kpi.overdue_cnt %} · {{ kpi.overdue_sum }}원{% endif %}</div></div>
+    <div class="sr-kpi"><div class="lbl">총 미수(전체·KRW)</div><div class="val">{% if can_money %}{{ kpi.outstanding_sum }}원{% else %}🔒{% endif %}{% if kpi.fx_cnt %}<span style="font-size:11px;color:var(--mute);"> · 외화 {{ kpi.fx_cnt }}건</span>{% endif %}</div></div>
   </div>
+
+  {# ── 기준월 선택 ── #}
+  <div class="sr-monthbar">
+    <a class="btn btn-ghost" href="?ym={{ prev_ym }}">◀ {{ prev_ym }}</a>
+    <form method="get">
+      <input type="month" name="ym" value="{{ ym }}" onchange="this.form.submit()" style="padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;">
+      <button class="btn btn-primary" type="submit">조회</button>
+    </form>
+    <a class="btn btn-ghost" href="?ym={{ next_ym }}">{{ next_ym }} ▶</a>
+    <span style="font-size:12px;color:var(--mute);">· 마감이월·연체는 월과 무관하게 항상 상단</span>
+  </div>
+
+  {# ── ① 챙길 것 (마감이월·연체·조건미설정) — 상단 고정 ── #}
+  {% if action %}
+  <div class="sr-sec-h carry">🔴 챙길 것 — 마감이월(미발행)·연체·결제조건 미설정 ({{ action|length }}건)</div>
+  <div class="tbl-wrap tbl-sticky">
+    <table class="tbl">
+      <thead><tr><th>고객사</th><th>관리번호</th><th>수주번호</th><th class="center">출하</th><th class="center">세금계산서</th><th class="num">금액</th><th class="center">입금예상일</th><th class="num">수금</th><th class="num">미수</th><th class="center">상태 · 수금</th></tr></thead>
+      <tbody>{% for o in action %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {# ── ② 기준월 입금예상 ── #}
+  <div class="sr-sec-h">📅 {{ ym }} 입금예상 ({{ inmonth|length }}건)</div>
+  <div class="tbl-wrap tbl-sticky">
+    {% if inmonth %}
+    <table class="tbl">
+      <thead><tr><th>고객사</th><th>관리번호</th><th>수주번호</th><th class="center">출하</th><th class="center">세금계산서</th><th class="num">금액</th><th class="center">입금예상일</th><th class="num">수금</th><th class="num">미수</th><th class="center">상태 · 수금</th></tr></thead>
+      <tbody>{% for o in inmonth %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
+    </table>
+    {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">{{ ym }} 입금예상 건 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">다른 달을 선택하거나, 위 ‘챙길 것’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
+  </div>
+
   <div style="height: var(--space-7);"></div>
+
+  {# 수금 입력 — /sales/receipts(JSON API)로 POST 후 새로고침. .main 안이라 spa_nav 재실행 안전(IIFE). #}
+  <script>
+  (function(){
+    document.querySelectorAll('form.sr-recv-form').forEach(function(f){
+      f.addEventListener('submit', function(ev){
+        ev.preventDefault();
+        var btn = f.querySelector('button');
+        if(btn){ btn.disabled = true; btn.textContent = '…'; }
+        fetch('/sales/receipts', {method:'POST', body:new FormData(f), credentials:'same-origin'})
+          .then(function(r){ return r.json().catch(function(){ return {}; }); })
+          .then(function(j){
+            if(j && j.ok){ location.reload(); }
+            else { alert((j && j.error) || '수금 저장에 실패했습니다.'); if(btn){ btn.disabled=false; btn.textContent='수금'; } }
+          })
+          .catch(function(){ alert('네트워크 오류로 수금 저장에 실패했습니다.'); if(btn){ btn.disabled=false; btn.textContent='수금'; } });
+      });
+    });
+  })();
+  </script>
 </main></div></body></html>

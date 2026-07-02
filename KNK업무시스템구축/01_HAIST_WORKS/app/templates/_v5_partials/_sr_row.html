@@ -1,0 +1,31 @@
+{# 납품·수금 한 행 — action/inmonth 공용 (컨텍스트: o, can_money). z745 수금 관리 2단계 #}
+<tr>
+  <td><b>{{ o.customer_name }}</b></td>
+  <td>{% if o.mgmt_code %}<span class="mgmt-pill sm">{{ o.mgmt_code }}</span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</td>
+  <td><a href="/orders/{{ o.order_id }}" class="mgmt-pill sm">{{ o.order_no }}</a></td>
+  <td class="center">{{ o.n_ship }}/{{ o.n_total }}</td>
+  <td class="center">
+    {% if o.issued %}<span style="font-size:12px;">{{ o.issue_date }}</span>
+    {% else %}<span class="pill pill-carry">미발행</span>{% endif %}
+  </td>
+  <td class="num">{% if can_money %}{{ o.total_fmt }} <span style="font-size:10px;color:var(--mute);">{{ o.currency }}</span>{% else %}🔒{% endif %}</td>
+  <td class="center">
+    {% if o.expected_date %}<span style="font-size:12px;">{{ o.expected_date }}</span>
+      {% if o.dday is not none %}<div class="sr-dday {% if o.dday < 0 %}over{% elif o.dday <= 7 %}soon{% endif %}">{% if o.dday < 0 %}D+{{ -o.dday }} 경과{% elif o.dday == 0 %}오늘{% else %}D-{{ o.dday }}{% endif %}</div>{% endif %}
+    {% elif o.attn_msg %}<span class="sr-noterm" title="고객사 결제조건(세금계산서 발행 후 N일)을 등록하면 입금예상일이 자동 계산됩니다">{{ o.attn_msg }}</span>
+    {% else %}<span style="color:var(--mute);">—</span>{% endif %}
+  </td>
+  <td class="num">{% if can_money %}{{ o.paid_fmt }}{% else %}🔒{% endif %}</td>
+  <td class="num" style="font-weight:700;{% if o.outstanding > 0 %}color:#b91c1c;{% endif %}">{% if can_money %}{{ o.out_fmt }}{% else %}🔒{% endif %}</td>
+  <td class="center" style="white-space:nowrap;">
+    <span class="pill {% if o.state == '수금완료' %}pill-done{% elif o.state == '마감이월' %}pill-carry{% else %}pill-expect{% endif %}">{{ o.state }}</span>
+    {% if can_money and o.state != '수금완료' and o.outstanding > 0 %}
+    <form class="sr-recv-form" method="post" action="/sales/receipts">
+      <input type="hidden" name="order_id" value="{{ o.order_id }}">
+      <input type="hidden" name="currency" value="{{ o.currency }}">
+      <input name="amount" type="number" step="0.01" placeholder="미수 {{ o.out_fmt }}" required>
+      <button type="submit">수금</button>
+    </form>
+    {% endif %}
+  </td>
+</tr>

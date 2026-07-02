@@ -29688,51 +29688,160 @@ async def sales_production_start(req: Request):
 
 @app.get("/sales/shipments-receipts", response_class=HTMLResponse)
 async def sales_shipments_receipts_page(req: Request):
-    """출하·수금 탭 (시안 §1 탭4 DO+INV+RC) — shipments + receipts_payment 통합 라인"""
+    """납품·수금 (수금 관리 2단계·z745) — 작업일정표의 '다음 스텝'.
+    한 줄 = 한 수주(SO). 출하=호기 unit_status='출하' 집계, 세금계산서 발행일=_board_tax_oi_map,
+    입금예상일 = 세금계산서 발행일 + 고객사 pay_days, 수금=receipts_payment(동일통화), 미수=금액−수금.
+    마감이월 = 출하했으나 세금계산서 미발행. 기준월(ym) 필터 + 마감이월·연체·결제조건미설정 상단 고정.
+    can_money 마스킹(가격 게이트). 옛 모델(shipments·invoices) → 현 모델로 z745 재구축."""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
-    with db_session() as c:
-        # 수주별 통합 라인: 출하 합계 + 수금 합계 + 세금계산서 발행 여부
-        # v5H124: currency 인지 — 수주 통화와 동일 통화 수금만 합산해 paid_total 산출
+    can_money = bool(can_view_sales(u))
+    today = date.today()
+    ym = (req.query_params.get("ym") or "").strip()
+    if not (len(ym) == 7 and ym[4] == "-" and ym[:4].isdigit() and ym[5:7].isdigit()):
+        ym = today.strftime("%Y-%m")
+
+    oi_map, _proj_iids = _board_tax_oi_map()   # {iid:{stmt,t1d,t1a,...}} 호기별 세금계산서
+
+    def _money(v, ccy):
         try:
-            rows = c.execute(
-                """SELECT o.id AS order_id, o.order_no, o.total_amount, o.status,
-                          COALESCE(cu.name,'-') AS customer_name,
-                          COALESCE(o.currency,'KRW') AS currency,
-                          (SELECT COALESCE(SUM(s.shipped_qty),0)
-                             FROM shipments s WHERE s.order_id = o.id) AS shipped_qty_sum,
-                          (SELECT COALESCE(SUM(r.amount),0)
-                             FROM receipts_payment r
-                             WHERE r.order_id = o.id
-                               AND COALESCE(r.currency,'KRW')=COALESCE(o.currency,'KRW')
-                          ) AS paid_total,
-                          (SELECT COUNT(*) FROM invoices i
-                             WHERE i.order_id = o.id AND i.status='ISSUED') AS invoice_issued
-                   FROM orders o
-                   LEFT JOIN customers cu ON cu.id = o.customer_id
-                   WHERE o.status IN ('IN_PRODUCTION','READY_TO_SHIP','SHIPPED','INVOICED','PAID')
-                   ORDER BY o.id DESC LIMIT 200"""
-            ).fetchall()
+            v = float(v or 0)
         except Exception:
-            rows = c.execute(
-                """SELECT o.id AS order_id, o.order_no, o.total_amount, o.status,
-                          COALESCE(cu.name,'-') AS customer_name,
-                          'KRW' AS currency,
-                          (SELECT COALESCE(SUM(s.shipped_qty),0)
-                             FROM shipments s WHERE s.order_id = o.id) AS shipped_qty_sum,
-                          (SELECT COALESCE(SUM(r.amount),0)
-                             FROM receipts_payment r WHERE r.order_id = o.id) AS paid_total,
-                          (SELECT COUNT(*) FROM invoices i
-                             WHERE i.order_id = o.id AND i.status='ISSUED') AS invoice_issued
-                   FROM orders o
-                   LEFT JOIN customers cu ON cu.id = o.customer_id
-                   WHERE o.status IN ('IN_PRODUCTION','READY_TO_SHIP','SHIPPED','INVOICED','PAID')
-                   ORDER BY o.id DESC LIMIT 200"""
-            ).fetchall()
-        items = [dict(r) for r in rows]
+            v = 0.0
+        return f"{round(v):,}" if ccy == "KRW" else f"{v:,.2f}"
+
+    with db_session() as c:
+        ordc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+        cusc = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
+        _cur = "o.currency" if "currency" in ordc else "'KRW'"
+        _pd = "COALESCE(cu.pay_days,0)" if "pay_days" in cusc else "0"
+        rows = c.execute(
+            f"""SELECT oi.id AS iid, oi.order_id AS oid,
+                       COALESCE(oi.unit_status,'') AS ust,
+                       o.order_no, o.project_id, o.order_date,
+                       COALESCE(o.total_amount,0) AS total_amount,
+                       COALESCE({_cur},'KRW') AS currency,
+                       COALESCE(cu.name,'-') AS customer_name,
+                       {_pd} AS pay_days,
+                       COALESCE(pj.mgmt_code,'') AS mgmt_code
+                  FROM order_items oi
+                  JOIN orders o ON o.id = oi.order_id
+                  LEFT JOIN customers cu ON cu.id = o.customer_id
+                  LEFT JOIN projects pj ON pj.id = o.project_id
+                 WHERE COALESCE(o.status,'') <> 'CANCELLED'
+                 ORDER BY o.id, oi.id"""
+        ).fetchall()
+        pay_rows = c.execute(
+            """SELECT order_id AS oid, COALESCE(currency,'KRW') AS ccy,
+                      COALESCE(SUM(amount),0) AS paid
+                 FROM receipts_payment GROUP BY order_id, COALESCE(currency,'KRW')"""
+        ).fetchall()
+    paid_map = {(r["oid"], r["ccy"]): (r["paid"] or 0) for r in pay_rows}
+
+    # ── 수주(SO)별 집계 ──
+    agg = {}
+    for r in rows:
+        d = dict(r)
+        oid = d["oid"]
+        o = agg.get(oid)
+        if not o:
+            o = {"order_id": oid, "order_no": d["order_no"] or ("#" + str(oid)),
+                 "mgmt_code": d["mgmt_code"], "customer_name": d["customer_name"],
+                 "pay_days": int(d["pay_days"] or 0), "currency": d["currency"] or "KRW",
+                 "total_amount": d["total_amount"] or 0, "order_date": d["order_date"] or "",
+                 "n_total": 0, "n_ship": 0, "issue_date": ""}
+            agg[oid] = o
+        o["n_total"] += 1
+        if d["ust"] == "출하":
+            o["n_ship"] += 1
+        m = oi_map.get(d["iid"])
+        if m and m.get("t1d"):
+            if (not o["issue_date"]) or (m["t1d"] < o["issue_date"]):
+                o["issue_date"] = m["t1d"]   # 대표 발행일 = 가장 이른 호기 세금계산서일
+
+    shipped = [o for o in agg.values() if o["n_ship"] > 0]   # 대상 = 출하 시작된 수주
+    for o in shipped:
+        paid = paid_map.get((o["order_id"], o["currency"]), 0.0)
+        o["paid"] = paid
+        o["outstanding"] = (o["total_amount"] or 0) - paid
+        o["issued"] = bool(o["issue_date"])
+        exp = ""
+        if o["issued"] and o["pay_days"] > 0:
+            try:
+                idt = datetime.strptime(o["issue_date"][:10], "%Y-%m-%d").date()
+                exp = (idt + timedelta(days=o["pay_days"])).isoformat()
+            except Exception:
+                exp = ""
+        o["expected_date"] = exp
+        o["attn_msg"] = ""
+        if o["issued"] and not exp:
+            o["attn_msg"] = "결제조건 미설정" if o["pay_days"] <= 0 else "발행일 확인"
+        if not o["issued"]:
+            o["state"] = "마감이월"
+        elif o["outstanding"] <= 0.0001:
+            o["state"] = "수금완료"
+        else:
+            o["state"] = "수금예정"
+        o["dday"] = None
+        if exp:
+            try:
+                o["dday"] = (datetime.strptime(exp, "%Y-%m-%d").date() - today).days
+            except Exception:
+                o["dday"] = None
+        o["total_fmt"] = _money(o["total_amount"], o["currency"])
+        o["paid_fmt"] = _money(paid, o["currency"])
+        o["out_fmt"] = _money(o["outstanding"] if o["outstanding"] > 0 else 0, o["currency"])
+
+    # ── 분류: '챙길 것'(마감이월·연체·조건미설정) 상단 고정 + 기준월 입금예상 ──
+    carry = [o for o in shipped if o["state"] == "마감이월"]
+    overdue = [o for o in shipped if o["issued"] and o["outstanding"] > 0.0001
+               and o["dday"] is not None and o["dday"] < 0]
+    noterm = [o for o in shipped if o["issued"] and (not o["expected_date"])
+              and o["outstanding"] > 0.0001]
+    carry_ids = {o["order_id"] for o in carry}
+    overdue_ids = {o["order_id"] for o in overdue}
+    action, seen = [], set()
+    for o in carry + overdue + noterm:
+        if o["order_id"] in seen:
+            continue
+        seen.add(o["order_id"])
+        action.append(o)
+
+    def _akey(o):
+        if o["order_id"] in carry_ids:
+            return (0, o.get("order_date") or "", o["order_no"])
+        if o["order_id"] in overdue_ids:
+            return (1, o["dday"] if o["dday"] is not None else 0, o["order_no"])
+        return (2, o.get("order_date") or "", o["order_no"])
+    action.sort(key=_akey)
+
+    inmonth = [o for o in shipped
+               if o["issued"] and o["expected_date"] and o["expected_date"][:7] == ym
+               and o["order_id"] not in seen]
+    inmonth.sort(key=lambda x: (x["expected_date"], x["order_no"]))
+
+    def _ksum(lst):   # KRW 만 합산(외화 혼합 방지) — 표는 행별 통화 표기
+        return sum((o["outstanding"] if o["outstanding"] > 0 else 0)
+                   for o in lst if o["currency"] == "KRW")
+    kpi = {"ym": ym,
+           "expect_sum": f"{round(_ksum(inmonth)):,}",
+           "carry_cnt": len(carry), "carry_sum": f"{round(_ksum(carry)):,}",
+           "overdue_cnt": len(overdue), "overdue_sum": f"{round(_ksum(overdue)):,}",
+           "outstanding_sum": f"{round(_ksum(shipped)):,}",
+           "fx_cnt": sum(1 for o in shipped if o["currency"] != "KRW")}
+
+    try:
+        _y, _m = int(ym[:4]), int(ym[5:7])
+        prev_ym = (date(_y, _m, 1) - timedelta(days=1)).strftime("%Y-%m")
+        _ny, _nm = (_y + 1, 1) if _m == 12 else (_y, _m + 1)
+        next_ym = "%04d-%02d" % (_ny, _nm)
+    except Exception:
+        prev_ym = next_ym = ym
+
     return ctx(req, "sales_shipments_receipts.html", user=u, active="sales_shipments",
-               tab="shipments", items=items)
+               can_money=can_money, ym=ym, prev_ym=prev_ym, next_ym=next_ym,
+               action=action, inmonth=inmonth, kpi=kpi)
 
 
 @app.post("/sales/shipments")
