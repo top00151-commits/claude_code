@@ -67,7 +67,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
       </thead>
       <tbody>
         {% for pr in rows %}
-        <tr style="cursor:pointer;" onclick="location.href='/project/{{ pr.project_id }}'">
+        <tr style="cursor:pointer;" onclick="location.href='/project/{{ pr.project_id }}?prq_edit=1'">
           <td class="center" style="white-space:nowrap;">{{ (pr.created_at or pr.created_date or '—')[:16] }}</td>
           <td class="center" style="white-space:nowrap;"><b style="color:var(--knk-red);">{{ pr.mgmt_code or '—' }}</b></td>
           <td>{{ pr.cust_name or pr.p_customer or '—' }}</td>

@@ -114,10 +114,10 @@
       <form id="prqEditForm" method="post" action="/project/{{ p.id }}/prod-request/{{ _prm.id }}/update" style="display:none;padding:14px 16px;border-top:1px dashed var(--line);background:#fffdfa;">
         <div style="font-size:12.5px;font-weight:800;color:#9a3412;margin-bottom:10px;">✏️ 제작요청서 수정 <span style="font-weight:600;color:var(--mute);font-size:11.5px;">— 저장 시 관련 부서에 [수정] 다시 통보됩니다</span></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-          <div><label style="font-size:11.5px;color:var(--mute);">모델명</label><input type="text" name="model_name" value="{{ p.model_name|default('') }}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box;"></div>
-          <div><label style="font-size:11.5px;color:var(--mute);">각인 (장비 마킹)</label><input type="text" name="engraving" value="{{ p.engraving|default('') }}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box;"></div>
+          <div><label style="font-size:11.5px;color:var(--mute);">모델명</label><input type="text" name="model_name" value="{{ p.model_name or '' }}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box;"></div>
+          <div><label style="font-size:11.5px;color:var(--mute);">각인 (장비 마킹)</label><input type="text" name="engraving" value="{{ p.engraving or '' }}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box;"></div>
         </div>
-        <div style="margin-bottom:10px;"><label style="font-size:11.5px;color:var(--mute);">자료 경로 (제품자료 서버 경로 — 통보에 포함)</label><input type="text" name="server_path" value="{{ p.server_path|default('') }}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box;"></div>
+        <div style="margin-bottom:10px;"><label style="font-size:11.5px;color:var(--mute);">자료 경로 (제품자료 서버 경로 — 통보에 포함)</label><input type="text" name="server_path" value="{{ p.server_path or '' }}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box;"></div>
         <div style="margin-bottom:10px;"><label style="font-size:11.5px;color:var(--mute);">고객사 요청사항</label><textarea name="cust_req" rows="6" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;resize:vertical;box-sizing:border-box;">{{ _prm.cust_req or '' }}</textarea></div>
         <div style="margin-bottom:12px;"><label style="font-size:11.5px;color:var(--mute);">기타 요청사항</label><textarea name="note" rows="3" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;resize:vertical;box-sizing:border-box;">{{ _prm.note or '' }}</textarea></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -151,6 +151,21 @@
       </div>
     {% endif %}
   </div>
+  {# v5H226z764 (대표 지시): 제작요청서 목록에서 줄 클릭(?prq_edit=1) → 상세 진입 즉시 제작요청서 편집 자동 열림+스크롤. '카드 못 찾겠다' 문제 해결. #}
+  <script>
+  (function(){
+    try {
+      if (new URLSearchParams(location.search).get('prq_edit') === '1') {
+        var f = document.getElementById('prqEditForm'), r = document.getElementById('prqRead');
+        if (f) {
+          f.style.display = 'block';
+          if (r) r.style.display = 'none';
+          setTimeout(function(){ try { f.scrollIntoView({block:'center', behavior:'smooth'}); } catch(e){} }, 60);
+        }
+      }
+    } catch(e){}
+  })();
+  </script>
 
   {# v5H196: 수주 확정 모달 폐기. 버튼 클릭 시 등록값 기준 직접 발행 #}
   {# v5H226z149: 모달도 SO 발행 여부 기준 (버튼과 동일) #}
