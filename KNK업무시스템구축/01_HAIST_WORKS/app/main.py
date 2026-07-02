@@ -15248,9 +15248,9 @@ async def works_manifest():
 async def works_sw():
     js = (
         "// KNK Eum WORKS PWA 서비스워커 — 설치 가능 + 네트워크 기본(pass-through) + 활성화 시 옛 캐시 전부 삭제(설치앱 stale 방지·z767)\n"
-        "const KNKWORKS_V='knkworks-v2';\n"
+        "const KNKWORKS_V='knkworks-v3';\n"
         "self.addEventListener('install',function(e){self.skipWaiting();});\n"
-        "self.addEventListener('activate',function(e){e.waitUntil((async function(){try{var ks=await caches.keys();await Promise.all(ks.map(function(k){return caches.delete(k);}));}catch(_e){}try{await self.clients.claim();}catch(_e){}})());});\n"
+        "self.addEventListener('activate',function(e){e.waitUntil((async function(){try{var ks=await caches.keys();await Promise.all(ks.map(function(k){return caches.delete(k);}));}catch(_e){}try{await self.clients.claim();}catch(_e){}try{var cs=await self.clients.matchAll({type:'window'});cs.forEach(function(c){try{c.navigate(c.url);}catch(_e){}});}catch(_e){}})());});\n"
         "self.addEventListener('fetch',function(e){});\n"
     )
     return Response(js, media_type="application/javascript",
