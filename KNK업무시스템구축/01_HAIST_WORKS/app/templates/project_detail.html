@@ -788,12 +788,12 @@
                   {% endif %}
                   <td class="num px-x">
                     {# v5H226z627 (대표 지시): 1줄에 수량 2+면 '합산금액'이 아니라 '단가(1대) ×수량'으로 표시 #}
-                    <span class="display-val price">{% if can_money %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ '{:,.2f}'.format(u.unit_price) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.unit_price) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}{% endif %}{% else %}🔒{% endif %} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></span>
+                    <span class="display-val price">{% if can_money %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ money(u.unit_price, _u_ccy) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ money(u.amount or u.unit_price or 0, _u_ccy) }}{% endif %}{% else %}🔒{% endif %}</span>
                     {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(u.amount or u.unit_price or 0)) if (_u_ccy != 'KRW') else ('%.0f'|format(u.amount or u.unit_price or 0)) }}" value="{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
                   </td>
                   {# v5H226z634 (대표 지시): 완제품 금액 칸 = 호기 라인 금액(u.amount). 원화 무소수점·외화 2자리 #}
                   {% if _is_equip and can_money %}
-                  <td class="num px-x" style="background:#fef9e6;font-weight:600;">{{ '{:,.2f}'.format(u.amount or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or 0) }} <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _u_ccy }}</span></td>
+                  <td class="num px-x" style="background:#fef9e6;font-weight:600;">{{ money(u.amount or 0, _u_ccy) }}</td>
                   {% endif %}
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
                   {# v5H226z83: 통화 td 중앙 정렬 #}
@@ -871,9 +871,9 @@
                   {% if _is_equip and can_money %}
                   {# v5H226z690 (대표 지시): 호기별 거래명세서·세금계산서 — '수정' 잠금해제 시 칸 클릭→발행일/금액 팝업(/unit-field 호기 저장). 출하 일정 다르면 호기별 분리 발행. #}
                   <td class="center px-x" style="font-size:11px;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="statement_date" data-date="{{ u.statement_date or '' }}" data-title="거래명세서">{{ u.statement_date or '—' }}</span></td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ u.tax_invoice_date or '' }}" data-amt="{{ u.tax_invoice_amt1 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 1차">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt1, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt1, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</span></td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ u.tax_invoice_date2 or '' }}" data-amt="{{ u.tax_invoice_amt2 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 2차">{% if u.tax_invoice_date2 or u.tax_invoice_amt2 %}<div>{{ u.tax_invoice_date2 or '–' }}</div>{% if u.tax_invoice_amt2 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt2, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt2, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</span></td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ u.tax_invoice_date3 or '' }}" data-amt="{{ u.tax_invoice_amt3 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 3차">{% if u.tax_invoice_date3 or u.tax_invoice_amt3 %}<div>{{ u.tax_invoice_date3 or '–' }}</div>{% if u.tax_invoice_amt3 %}<div style="color:#1d4ed8;font-weight:700;">{% if _u_ccy == 'KRW' %}₩{{ pricefmt(u.tax_invoice_amt3, 'KRW') }}{% else %}{{ pricefmt(u.tax_invoice_amt3, _u_ccy) }} <span style="font-size:9px;font-weight:600;color:var(--mute);">{{ _u_ccy }}</span>{% endif %}</div>{% endif %}{% else %}—{% endif %}</span></td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ u.tax_invoice_date or '' }}" data-amt="{{ u.tax_invoice_amt1 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 1차">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">{{ money(u.tax_invoice_amt1, _u_ccy) }}</div>{% endif %}{% else %}—{% endif %}</span></td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ u.tax_invoice_date2 or '' }}" data-amt="{{ u.tax_invoice_amt2 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 2차">{% if u.tax_invoice_date2 or u.tax_invoice_amt2 %}<div>{{ u.tax_invoice_date2 or '–' }}</div>{% if u.tax_invoice_amt2 %}<div style="color:#1d4ed8;font-weight:700;">{{ money(u.tax_invoice_amt2, _u_ccy) }}</div>{% endif %}{% else %}—{% endif %}</span></td>
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ u.tax_invoice_date3 or '' }}" data-amt="{{ u.tax_invoice_amt3 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 3차">{% if u.tax_invoice_date3 or u.tax_invoice_amt3 %}<div>{{ u.tax_invoice_date3 or '–' }}</div>{% if u.tax_invoice_amt3 %}<div style="color:#1d4ed8;font-weight:700;">{{ money(u.tax_invoice_amt3, _u_ccy) }}</div>{% endif %}{% else %}—{% endif %}</span></td>
                   {% endif %}
                   {% if _editable %}
                   <td class="center edit-only">
@@ -957,7 +957,7 @@
             <div class="so-card-foot">
               <div class="summary">
                 <span>수량 <b>{{ _qq }}대</b></span>
-                <span style="margin-left:14px;">합계 <b>{% if can_money %}{{ '{:,.0f}'.format(so.total_amount or 0) }}{% else %}🔒{% endif %}</b> <span style="color:var(--mute);font-weight:500;font-size:11px;">{{ _cur }}</span></span>
+                <span style="margin-left:14px;">합계 <b>{% if can_money %}{{ money(so.total_amount or 0, _cur) }}{% else %}🔒{% endif %}</b></span>
                 {% if so.mismatch_qty or so.mismatch_sum %}
                 <span class="warn" style="margin-left:14px;">
                   ⚠
@@ -990,7 +990,7 @@
           </div>
           <div class="value">
             {% if can_money %}
-            {{ '{:,.0f}'.format(_gtotal.t) }} <span style="font-size:13px;color:var(--mute);font-weight:600;">{{ _gt_ccy }}</span>
+            {{ money(_gtotal.t, _gt_ccy) }}
             <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
             {% if _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
             <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">
