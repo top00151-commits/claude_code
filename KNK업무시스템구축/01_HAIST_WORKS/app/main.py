@@ -344,12 +344,19 @@ def _fmt_money(v, ccy="KRW"):
     return sym + ("{:,.0f}".format(d) if c == "KRW" else "{:,.2f}".format(d))
 
 
+def _ccy_sym(ccy):
+    """z758: 통화 기호만 반환(편집 입력칸 앞 표기용). 미지정 통화는 코드 그대로."""
+    return _CCY_SYMBOL.get(str(ccy or "KRW").upper(), str(ccy or ""))
+
+
 tpl.env.filters["qtyfmt"] = _fmt_qty
 tpl.env.filters["pricefmt"] = _fmt_price
 tpl.env.filters["money"] = _fmt_money
+tpl.env.filters["ccysym"] = _ccy_sym
 tpl.env.globals["qtyfmt"] = _fmt_qty
 tpl.env.globals["pricefmt"] = _fmt_price
 tpl.env.globals["money"] = _fmt_money
+tpl.env.globals["ccysym"] = _ccy_sym
 
 
 def _team_label(name, entity=None):

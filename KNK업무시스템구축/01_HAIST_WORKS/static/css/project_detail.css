@@ -401,6 +401,10 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable .so-meta-edit,
         .so-card.editable .unit-edit { display: inline-block; }
         .so-card.editable .display-val { display: none; }
+        /* z758(대표 지시): 편집 카드는 표시칸(money 기호) 대신 입력칸(숫자)을 보여줘 통화기호가 사라져 보임 →
+           편집 카드에서만 입력칸 앞에 통화기호를 표기(입력값은 숫자 유지·편집/저장 무영향). 읽기전용은 display-val(money)이 이미 기호 포함. */
+        .ccy-pre { display: none; }
+        .so-card.editable .ccy-pre { display: inline; color: var(--mute); font-weight: 600; margin-right: 1px; }
         .so-card .add-unit-card { display: none; }
         .so-card.editable.unlocked .add-unit-card.open { display: block; }
         .so-card.editable.unlocked .row-del,

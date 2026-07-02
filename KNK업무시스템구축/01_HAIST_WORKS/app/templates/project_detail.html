@@ -748,7 +748,7 @@
                   <td class="num money-cell" style="font-size:11.5px;background:#fff7ed;">
                     <div class="mc-wrap">
                     <span class="display-val">{% if _ckrw and _is_fx_view %}{{ money(_ckrw, 'KRW') }}{% elif _cp and _pfx %}{{ money(_cp * _pfx, 'KRW') }}{% elif _cp and _is_fx_view %}{{ money(_cp, _so_ccy) }}{% elif _cp %}{{ money(_cp, 'KRW') }}{% else %}—{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit cost-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(_cp * _pfx) if (_cp and _pfx) else ('%.2f'|format(_cp) if (_cp and _is_fx_view) else ('%.0f'|format(_cp) if _cp else '')) }}" value="{{ '{:,.0f}'.format(_cp * _pfx) if (_cp and _pfx) else ('{:,.2f}'.format(_cp) if (_cp and _is_fx_view) else ('{:,.0f}'.format(_cp) if _cp else '')) }}" placeholder="매입가" style="width:78px;font-size:11.5px;text-align:right;">{% endif %}
+                    {% if _editable %}<span class="ccy-pre">{{ _krw_col_ccy|ccysym }}</span><input type="text" class="unit-edit cost-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(_cp * _pfx) if (_cp and _pfx) else ('%.2f'|format(_cp) if (_cp and _is_fx_view) else ('%.0f'|format(_cp) if _cp else '')) }}" value="{{ '{:,.0f}'.format(_cp * _pfx) if (_cp and _pfx) else ('{:,.2f}'.format(_cp) if (_cp and _is_fx_view) else ('{:,.0f}'.format(_cp) if _cp else '')) }}" placeholder="매입가" style="width:78px;font-size:11.5px;text-align:right;">{% endif %}
                     </div>
                   </td>
                   <td class="num" style="font-size:11.5px;background:#fff7ed;text-align:center;">
@@ -758,7 +758,7 @@
                   <td class="num money-cell" style="font-size:11.5px;">
                     <div class="mc-wrap">
                     <span class="display-val" style="font-weight:600;">{% if _skrw and _is_fx_view %}{{ money(_skrw, 'KRW') }}{% elif u.unit_price and _pfx %}{{ money(u.unit_price * _pfx, 'KRW') }}{% elif u.unit_price and _is_fx_view %}{{ money(u.unit_price, _so_ccy) }}{% elif u.unit_price %}{{ money(u.unit_price, 'KRW') }}{% else %}—{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit price-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('%.2f'|format(u.unit_price) if (u.unit_price and _is_fx_view) else ('%.0f'|format(u.unit_price) if u.unit_price else '')) }}" value="{{ '{:,.0f}'.format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('{:,.2f}'.format(u.unit_price) if (u.unit_price and _is_fx_view) else ('{:,.0f}'.format(u.unit_price) if u.unit_price else '')) }}" placeholder="판매가" style="width:88px;font-size:11.5px;text-align:right;">{% endif %}
+                    {% if _editable %}<span class="ccy-pre">{{ _krw_col_ccy|ccysym }}</span><input type="text" class="unit-edit price-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('%.2f'|format(u.unit_price) if (u.unit_price and _is_fx_view) else ('%.0f'|format(u.unit_price) if u.unit_price else '')) }}" value="{{ '{:,.0f}'.format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('{:,.2f}'.format(u.unit_price) if (u.unit_price and _is_fx_view) else ('{:,.0f}'.format(u.unit_price) if u.unit_price else '')) }}" placeholder="판매가" style="width:88px;font-size:11.5px;text-align:right;">{% endif %}
                     </div>
                   </td>
                   {% if _is_fx_view %}
@@ -787,7 +787,7 @@
                   <td class="num px-x">
                     {# v5H226z627 (대표 지시): 1줄에 수량 2+면 '합산금액'이 아니라 '단가(1대) ×수량'으로 표시 #}
                     <span class="display-val price">{% if can_money %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ money(u.unit_price, _u_ccy) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ money(u.amount or u.unit_price or 0, _u_ccy) }}{% endif %}{% else %}🔒{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(u.amount or u.unit_price or 0)) if (_u_ccy != 'KRW') else ('%.0f'|format(u.amount or u.unit_price or 0)) }}" value="{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
+                    {% if _editable %}<span class="ccy-pre">{{ _u_ccy|ccysym }}</span><input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(u.amount or u.unit_price or 0)) if (_u_ccy != 'KRW') else ('%.0f'|format(u.amount or u.unit_price or 0)) }}" value="{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
                   </td>
                   {# v5H226z634 (대표 지시): 완제품 금액 칸 = 호기 라인 금액(u.amount). 원화 무소수점·외화 2자리 #}
                   {% if _is_equip and can_money %}
