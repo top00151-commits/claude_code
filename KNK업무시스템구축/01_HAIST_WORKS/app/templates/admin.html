@@ -153,10 +153,12 @@ tbody tr:hover td { background: var(--amber-glow); }
           <select id="ucfRank" onchange="ucfApply()"><option value="">직급 전체</option></select>
           <input id="ucfQ" oninput="ucfApply()" placeholder="이름·사번·메일 검색">
           <span id="ucfCnt" style="color:var(--mute);font-size:12.5px;"></span>
+          <button id="ucfDelSel" type="button" onclick="delSelected()" disabled title="체크한 사용자 영구 삭제" style="margin-left:auto;background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;opacity:.45;">🗑 선택 삭제 (0)</button>
         </div>
         <table id="usersTbl">
           <thead>
             <tr>
+              <th style="width:34px;text-align:center;"><input type="checkbox" id="ucfChkAll" onclick="ucfToggleAll(this)" title="보이는 행 전체 선택"></th>
               <th style="width:80px;">사번</th>
               <th>이름</th>
               <th>이메일</th>
@@ -177,7 +179,9 @@ tbody tr:hover td { background: var(--amber-glow); }
             {# v5H226z542: 부서명에 법인 접두 — 본사 설계팀 / 베트남 설계팀 구분 #}
             {% if u.team_name %}{% set _dept = ('베트남 · ' if _vn else '본사 · ') ~ u.team_name %}{% elif u.dept_code %}{% set _dept = u.dept_code %}{% else %}{% set _dept = '미지정' %}{% endif %}
             {% set _rank = u.rank or '' %}
+            {% set _prot = (user and u.id == user.id) or (u.role in ['admin','ceo']) %}
             <tr class="urow" data-corp="{{ _corp }}" data-dept="{{ _dept }}" data-rank="{{ _rank }}" data-q="{{ (vname(u) ~ ' ' ~ (u.employee_no or '') ~ ' ' ~ (u.login_id or '') ~ ' ' ~ (u.email or ''))|lower }}">
+              <td style="text-align:center;">{% if not _prot %}<input type="checkbox" class="urow-chk" value="{{ u.id }}" onchange="ucfSelCount()">{% else %}<span title="보호 계정(본인·관리자/대표) — 개별 삭제만" style="color:var(--mute);">🔒</span>{% endif %}</td>
               <td style="font-family:monospace;font-size:12.5px;font-weight:700;color:var(--ink);">{{ u.employee_no or u.login_id or '—' }}</td>
               <td><b>{{ vname(u) }}</b></td>
               <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ u.email or '—' }}</td>
@@ -196,7 +200,7 @@ tbody tr:hover td { background: var(--amber-glow); }
               </td>
             </tr>
           {% else %}
-            <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--mute);">등록된 사용자가 없습니다.</td></tr>
+            <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--mute);">등록된 사용자가 없습니다.</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -214,8 +218,40 @@ tbody tr:hover td { background: var(--amber-glow); }
               var ok=(!corp||r.getAttribute('data-corp')===corp)&&(!dept||r.getAttribute('data-dept')===dept)
                    &&(!rank||r.getAttribute('data-rank')===rank)&&(!q||(r.getAttribute('data-q')||'').indexOf(q)>=0);
               r.style.display=ok?'':'none'; if(ok)n++;
+              if(!ok){ var hc=r.querySelector('.urow-chk'); if(hc) hc.checked=false; }  // 숨은 행 선택 해제(안 보이는 사람 실수 삭제 방지)
             });
             var c=document.getElementById('ucfCnt'); if(c) c.textContent=n+'명 표시';
+            var all=document.getElementById('ucfChkAll'); if(all) all.checked=false;
+            if(window.ucfSelCount) ucfSelCount();
+          };
+          window.ucfSelCount=function(){
+            var chk=document.querySelectorAll('.urow-chk:checked');
+            var btn=document.getElementById('ucfDelSel'); if(!btn) return;
+            btn.textContent='🗑 선택 삭제 ('+chk.length+')';
+            btn.disabled=(chk.length===0); btn.style.opacity=chk.length?'1':'.45';
+          };
+          window.ucfToggleAll=function(cb){
+            rows.forEach(function(r){ if(r.style.display==='none') return; var c=r.querySelector('.urow-chk'); if(c) c.checked=cb.checked; });
+            ucfSelCount();
+          };
+          window.delSelected=function(){
+            var chk=Array.prototype.slice.call(document.querySelectorAll('.urow-chk:checked'));
+            if(!chk.length){ alert('삭제할 사용자를 선택하세요.'); return; }
+            var ids=chk.map(function(c){ return parseInt(c.value,10); });
+            var names=chk.map(function(c){ var tr=c.closest('tr'); var nd=tr?tr.children[2]:null; return nd?nd.textContent.trim():c.value; });
+            var preview=names.slice(0,8).join(', ')+(names.length>8?(' 외 '+(names.length-8)+'명'):'');
+            if(!confirm('선택한 '+ids.length+'명을 영구 삭제합니다.\n\n'+preview+'\n\n· 되돌릴 수 없습니다(재직 직원은 수정→비활성 권장).\n· 본인·관리자/대표 계정은 자동 제외됩니다.\n\n계속할까요?')) return;
+            var btn=document.getElementById('ucfDelSel'); if(btn){ btn.disabled=true; btn.textContent='삭제 중…'; }
+            fetch('/admin/users/bulk-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})})
+              .then(function(r){return r.json();}).then(function(j){
+                if(j&&j.ok){
+                  var msg='삭제 '+j.deleted+'명 완료.';
+                  if(j.skipped&&j.skipped.length){ msg+='\n제외 '+j.skipped.length+'명: '+j.skipped.map(function(s){return s.name+'('+s.reason+')';}).slice(0,10).join(', '); }
+                  if(j.errors&&j.errors.length){ msg+='\n오류 '+j.errors.length+'명: '+j.errors.map(function(e){return e.name;}).slice(0,10).join(', '); }
+                  alert(msg); location.reload();
+                } else { alert('삭제 실패: '+((j&&j.error)||'오류')); if(btn){ btn.disabled=false; ucfSelCount(); } }
+              })
+              .catch(function(){ alert('통신 오류'); if(btn){ btn.disabled=false; ucfSelCount(); } });
           };
           window.delUser=function(id, name){
             if(!confirm("'"+name+"' 계정을 영구 삭제할까요?\n\n· 실제 재직 직원이면 '수정 → 비활성'을 권장합니다(기록 보존).\n· 삭제하면 되돌릴 수 없습니다.")) return;

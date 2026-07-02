@@ -9698,6 +9698,70 @@ async def admin_users_delete(req: Request, uid: int):
     return JSONResponse({"ok": True, "name": row.get("name")})
 
 
+@app.post("/admin/users/bulk-delete")
+async def admin_users_bulk_delete(req: Request):
+    """z749(대표 지시): 사용자 목록에서 선택한 여러 명 한 번에 영구 삭제.
+    안전가드: ①본인 ②관리자/대표(admin·ceo)는 제외(잠금·실수 방지 — 관리자 삭제는 개별로).
+    단건 삭제(z538)와 동일하게 FK 잠깐 끄고 본행만 제거(참조는 고아='—'). 데이터 보존 원하면 '비활성' 권장.
+    Returns: {ok, deleted, deleted_names, skipped:[{name,reason}], errors:[{name,error}]}."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    ids = []
+    for x in (body.get("ids") or []):
+        try:
+            ids.append(int(x))
+        except Exception:
+            pass
+    ids = list(dict.fromkeys(ids))   # 중복 제거·순서 유지
+    if not ids:
+        return JSONResponse({"ok": False, "error": "선택된 사용자가 없습니다."}, 400)
+    me = u.get("id")
+    deleted, deleted_names, skipped, errors = 0, [], [], []
+    with db_session() as c:
+        ph = ",".join("?" * len(ids))
+        rows = {}
+        for r in c.execute(f"SELECT id, name, role FROM users WHERE id IN ({ph})", tuple(ids)).fetchall():
+            rd = dict(r)
+            rows[rd["id"]] = rd
+        to_delete = []
+        for uid in ids:
+            r = rows.get(uid)
+            if not r:
+                skipped.append({"name": f"#{uid}", "reason": "이미 없음"})
+                continue
+            nm = r.get("name") or f"#{uid}"
+            if uid == me:
+                skipped.append({"name": nm, "reason": "본인 계정"})
+                continue
+            if (r.get("role") or "") in ("admin", "ceo"):
+                skipped.append({"name": nm, "reason": "관리자/대표(개별 삭제만)"})
+                continue
+            to_delete.append((uid, nm))
+        if to_delete:
+            try:
+                c.execute("PRAGMA foreign_keys=OFF")
+            except Exception:
+                pass
+            for uid, nm in to_delete:
+                try:
+                    c.execute("DELETE FROM users WHERE id=?", (uid,))
+                    deleted += 1
+                    deleted_names.append(nm)
+                except Exception as e:
+                    errors.append({"name": nm, "error": str(e)[:80]})
+            try:
+                c.execute("PRAGMA foreign_keys=ON")
+            except Exception:
+                pass
+    return JSONResponse({"ok": True, "deleted": deleted, "deleted_names": deleted_names,
+                         "skipped": skipped, "errors": errors})
+
+
 @app.post("/admin/users/{uid:int}/edit")
 async def admin_users_edit_submit(req: Request, uid: int):
     u = require(req, ["admin", "ceo"])
