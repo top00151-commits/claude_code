@@ -471,7 +471,9 @@ CREATE TABLE IF NOT EXISTS prod_requests (
     dept_count INTEGER DEFAULT 0,
     msg_sent INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now','localtime')),
-    created_date TEXT
+    created_date TEXT,
+    updated_at TEXT,
+    updated_by_name TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_prod_requests_project ON prod_requests(project_id);
 CREATE INDEX IF NOT EXISTS idx_prod_requests_date ON prod_requests(created_date);
@@ -2214,6 +2216,21 @@ def init_db():
                     c.execute(_oddl)
                 except Exception:
                     pass
+
+        # v5H226z763 (대표 지시): 제작요청서 수정 — 기존 prod_requests 테이블에 수정 일시·수정자 보강
+        try:
+            prcols = [r[1] for r in c.execute("PRAGMA table_info(prod_requests)").fetchall()]
+            for _prcol, _prddl in [
+                ("updated_at",      "ALTER TABLE prod_requests ADD COLUMN updated_at TEXT"),
+                ("updated_by_name", "ALTER TABLE prod_requests ADD COLUMN updated_by_name TEXT"),
+            ]:
+                if _prcol not in prcols:
+                    try:
+                        c.execute(_prddl)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
         # v5H58 (2026-05-03): 등급 자동 산정 — tier_score / tier_computed_at
         cucols = [r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()]

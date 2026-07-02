@@ -6575,7 +6575,7 @@ async def project_detail(req: Request, pid: int):
                prod_requests=prod_requests)
 
 
-def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None):
+def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False):
     """v5H226z372→z373 (대표 지시): 제작요청 통보 코어.
     제작요청서 = 프로젝트 생성의 출발점으로 일원화 — 신규 등록(발행) 직후 호출:
       ① 작업일정표 '제작요청(prod_request)' 단계 자동 체크(누가·언제·요청사항)
@@ -6621,12 +6621,12 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     # v5H226z571 (대표 지시): 단계 시스템 제거 — 제작요청의 단계 자동기록 폐지(통보 등 실제 동작은 유지).
     _stage_warn = ""
     # ② 통보 — 단가·금액 제외(생산에 필요한 자료경로·모델·품명·수량·납기·요청사항만)
-    title = f"📋 제작요청 [{mgmt}] {model}"
+    title = f"📋 제작요청{' [수정]' if is_update else ''} [{mgmt}] {model}"
     cust_disp = p.get("customer_name") or "—"
     # v5H226z595 (대표 지시): 통보 본문을 '제작요청서' 양식 느낌 텍스트로 — 메신저 카드 미지원 시 폴백 + 인앱 알림 본문 공용.
     _SEP = "━━━━━━━━━━━━━━━━━"
     _SUB = "─────────────────"
-    body = f"📋 제작 요청서 · {mgmt}\n{_SEP}\n"
+    body = f"📋 제작 요청서{' (수정)' if is_update else ''} · {mgmt}\n{_SEP}\n"
     body += f"■ 고객사 : {cust_disp}\n"
     if cc_nm:
         body += f"■ 담당자 : {cc_nm}{(' ' + cc_pos) if cc_pos else ''}\n"
@@ -6732,16 +6732,17 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     # v5H226z762 (대표 지시): 제작요청서 영구 저장 — 발행마다 1행(재발행 이력). 요청사항이 통보로만 흘러가 사라지던 문제 해결.
     #   저장 실패해도 통보는 유효 — 조용히 넘기지 않고 pr_save_err 로 표면화(except:pass 금지).
     _pr_save_err = ""
-    try:
-        with db_session() as c:
-            c.execute(
-                "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, dept_names, "
-                "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), dept_names,
-                 (user.get("id") or None), by_name, sent_to, dept_count, msg_sent, now_str, now_str[:10]))
-    except Exception as _se:
-        _pr_save_err = str(_se)[:150]
+    if record:
+        try:
+            with db_session() as c:
+                c.execute(
+                    "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, dept_names, "
+                    "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), dept_names,
+                     (user.get("id") or None), by_name, sent_to, dept_count, msg_sent, now_str, now_str[:10]))
+        except Exception as _se:
+            _pr_save_err = str(_se)[:150]
     return {"ok": True, "sent_to": sent_to, "dept_count": dept_count,
             "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
             "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err}
@@ -19197,6 +19198,63 @@ async def prod_requests_list_page(request: Request, q: str = ""):
         rows = []
         print(f"[z762] 제작요청서 목록 조회 실패: {_e}")
     return ctx(request, "prod_requests_list.html", user=u, rows=rows, q=_q)
+
+
+# v5H226z763 (대표 지시): 제작요청서 수정 — 발행 후 자료경로·모델·각인·요청사항을 고치고, 항상 부서에 다시 통보.
+#   cust_req/note는 그 제작요청서(prod_requests 행) 제자리 수정(새 이력행 없음)·server_path/model/engraving은 프로젝트 갱신.
+@app.post("/project/{pid}/prod-request/{prid}/update")
+async def prod_request_update(request: Request, pid: int, prid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):   # 프로젝트 필드 수정 + 전 부서 재통보 → 영업·관리 권한자만
+        return RedirectResponse(f"/project/{pid}", 303)
+    form = await request.form()
+    _cust_req = (form.get("cust_req") or "").strip()
+    _note = (form.get("note") or "").strip()
+    _server_path = (form.get("server_path") or "").strip()
+    _model_name = (form.get("model_name") or "").strip()
+    _engraving = (form.get("engraving") or "").strip()
+    _by = u.get("name") or u.get("login_id") or "—"
+    from datetime import datetime as _dtu
+    _now = _dtu.now().strftime("%Y-%m-%d %H:%M")
+    _team_ids = []
+    try:
+        with db_session() as c:
+            pr = c.execute("SELECT id, project_id, team_ids FROM prod_requests WHERE id=? AND project_id=?",
+                           (prid, pid)).fetchone()
+            if not pr:
+                return RedirectResponse(f"/project/{pid}?prod_upderr=1", 303)
+            pr = dict(pr)
+            # 프로젝트 필드(자료경로·모델·각인) 갱신 — 통보 본문·상세 표시에 함께 반영
+            c.execute("UPDATE projects SET server_path=?, model_name=?, engraving=? WHERE id=?",
+                      (_server_path or None, _model_name or None, _engraving or None, pid))
+            # 제작요청서 행(요청사항 2개 + 수정 메타) 제자리 갱신
+            c.execute("UPDATE prod_requests SET cust_req=?, note=?, updated_at=?, updated_by_name=? WHERE id=?",
+                      (_cust_req, _note, _now, _by, prid))
+            # 원래 통보했던 부서(team_ids)로 다시 통보
+            _team_ids = [int(x) for x in str(pr.get("team_ids") or "").replace(";", ",").split(",")
+                         if x.strip().isdigit() and int(x) > 0]
+    except Exception as _e:
+        print(f"[z763] 제작요청서 수정 실패: {_e}")
+        return RedirectResponse(f"/project/{pid}?prod_upderr=1", 303)
+    # 항상 다시 통보(대표 지시) — 새 이력행 없이(record=False)·[수정] 표기(is_update=True). 갱신된 프로젝트 값이 본문에 반영됨.
+    _qs = ["prod_updated=1"]
+    try:
+        _res = _prod_request_notify_core(int(pid), _cust_req, _note, _team_ids, u,
+                                         record=False, is_update=True)
+        if _res.get("ok"):
+            _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
+            _qs.append(f"prod_dept={_res.get('dept_count', 0)}")
+            _qs.append(f"prod_msg={_res.get('msg_sent', 0)}")
+            if _res.get("msg_err"):
+                _qs.append("prod_msgerr=1")
+        else:
+            _qs.append("prod_renotifyerr=1")
+    except Exception as _e:
+        print(f"[z763] 제작요청서 수정 재통보 실패: {_e}")
+        _qs.append("prod_renotifyerr=1")
+    return RedirectResponse(f"/project/{pid}?" + "&".join(_qs), 303)
 
 
 @app.get("/projects", response_class=HTMLResponse)
