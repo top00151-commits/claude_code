@@ -29737,7 +29737,18 @@ async def sales_shipments_receipts_page(req: Request):
                       COALESCE(SUM(amount),0) AS paid
                  FROM receipts_payment GROUP BY order_id, COALESCE(currency,'KRW')"""
         ).fetchall()
+        hist_rows = c.execute(
+            """SELECT order_id AS oid, COALESCE(received_at,'') AS rat,
+                      COALESCE(amount,0) AS amt, COALESCE(method,'') AS method,
+                      COALESCE(note,'') AS note, COALESCE(currency,'KRW') AS ccy
+                 FROM receipts_payment ORDER BY received_at DESC, id DESC"""
+        ).fetchall()
     paid_map = {(r["oid"], r["ccy"]): (r["paid"] or 0) for r in pay_rows}
+    hist_map = {}   # z745b: 수주별 부분수금 이력(표시용)
+    for r in hist_rows:
+        hist_map.setdefault(r["oid"], []).append({
+            "date": (r["rat"] or "")[:10], "amt_fmt": _money(r["amt"], r["ccy"]),
+            "ccy": r["ccy"], "method": r["method"], "note": r["note"]})
 
     # ── 수주(SO)별 집계 ──
     agg = {}
@@ -29792,6 +29803,8 @@ async def sales_shipments_receipts_page(req: Request):
         o["total_fmt"] = _money(o["total_amount"], o["currency"])
         o["paid_fmt"] = _money(paid, o["currency"])
         o["out_fmt"] = _money(o["outstanding"] if o["outstanding"] > 0 else 0, o["currency"])
+        o["receipts"] = hist_map.get(o["order_id"], [])   # z745b 부분수금 이력
+        o["recv_cnt"] = len(o["receipts"])
 
     # ── 분류: '챙길 것'(마감이월·연체·조건미설정) 상단 고정 + 기준월 입금예상 ──
     carry = [o for o in shipped if o["state"] == "마감이월"]
@@ -29841,7 +29854,7 @@ async def sales_shipments_receipts_page(req: Request):
 
     return ctx(req, "sales_shipments_receipts.html", user=u, active="sales_shipments",
                can_money=can_money, ym=ym, prev_ym=prev_ym, next_ym=next_ym,
-               action=action, inmonth=inmonth, kpi=kpi)
+               today_iso=today.isoformat(), action=action, inmonth=inmonth, kpi=kpi)
 
 
 @app.post("/sales/shipments")
@@ -29930,6 +29943,15 @@ async def sales_receipts_create(req: Request):
     amount = float(form.get("amount") or 0)
     method = form.get("method") or None
     note = form.get("note") or None
+    # z745b(대표 지시): 수금 일자 입력(선택). 폼 received_at(YYYY-MM-DD)이면 그 날짜(정오), 없으면 현재시각.
+    _recv_raw = (form.get("received_at") or "").strip()
+    received_at = datetime.now().isoformat(timespec="seconds")
+    if len(_recv_raw) == 10:
+        try:
+            datetime.strptime(_recv_raw, "%Y-%m-%d")
+            received_at = _recv_raw + " 12:00:00"
+        except Exception:
+            pass
     # v5H124: 통화 입력 (화이트리스트, 미입력 시 KRW)
     _ALLOWED_CCY = {"KRW", "USD", "VND", "JPY", "CNY", "EUR"}
     currency = (form.get("currency") or "KRW").strip().upper()
@@ -29996,7 +30018,7 @@ async def sales_receipts_create(req: Request):
                 """INSERT INTO receipts_payment
                    (order_id, received_at, amount, method, received_by, note, currency, fx_rate)
                    VALUES (?,?,?,?,?,?,?,?)""",
-                (order_id, datetime.now().isoformat(timespec="seconds"),
+                (order_id, received_at,
                  amount, method, u.get("id"), note, currency, fx_rate),
             )
         else:
@@ -30004,7 +30026,7 @@ async def sales_receipts_create(req: Request):
                 """INSERT INTO receipts_payment
                    (order_id, received_at, amount, method, received_by, note)
                    VALUES (?,?,?,?,?,?)""",
-                (order_id, datetime.now().isoformat(timespec="seconds"),
+                (order_id, received_at,
                  amount, method, u.get("id"), note),
             )
         # v5H124: doc_audit_log — 수금 등록 + 통화 mismatch 경고 합성
@@ -30413,15 +30435,35 @@ def _parse_terms_days(terms: str) -> int:
 
 def _outstanding_receivables(c, only_overdue: bool = False):
     """미수금 건별 집계 — orders.total_amount - SUM(receipts_payment.amount).
-    연체일 = today - (order_date + payment_terms.terms days).
-    등급: CURRENT(미만기) / D-30 / D-60 / D-90+ (연체일 기준).
-    Returns: list of dicts (overdue desc).
-    """
+    z745b(대표 지시): 만기 = **세금계산서 발행일 + 고객사 pay_days**(납품·수금 화면과 통일).
+      발행일 = 그 수주 호기(order_items.tax_invoice_date) 중 가장 이른 날(없으면 orders 폴백).
+      발행일 없으면(미발행) 발주일 기준으로 폴백(보수적). pay_days 미설정(0)이면 레거시 payment_terms 폴백.
+    등급: CURRENT(미만기) / D-30 / D-60 / D-90+ (연체일 기준). Returns: list of dicts (overdue desc)."""
     today = date.today()
+    oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    ordc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    cusc = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
+    _pd = "COALESCE(cu.pay_days,0)" if "pay_days" in cusc else "0"
+    # 발행일 per order: 호기 tax_invoice_date 우선 → orders 폴백, 가장 이른 날
+    i_td = "oi.tax_invoice_date" if "tax_invoice_date" in oic else "NULL"
+    o_td = "o.tax_invoice_date" if "tax_invoice_date" in ordc else "NULL"
+    issue_map = {}
+    try:
+        for r in c.execute(f"SELECT oi.order_id AS oid, {i_td} AS itd, {o_td} AS otd "
+                           f"FROM order_items oi JOIN orders o ON o.id=oi.order_id"):
+            d = dict(r)
+            dt = (str(d["itd"] or "").strip() or str(d["otd"] or "").strip())[:10]
+            if dt:
+                oid = d["oid"]
+                if oid not in issue_map or dt < issue_map[oid]:
+                    issue_map[oid] = dt
+    except Exception:
+        issue_map = {}
     rows = c.execute(
-        """SELECT o.id AS order_id, o.order_no, o.order_date, o.due_date,
+        f"""SELECT o.id AS order_id, o.order_no, o.order_date, o.due_date,
                   o.total_amount, o.status, o.customer_id,
                   COALESCE(cu.name,'-') AS customer_name,
+                  {_pd} AS pay_days,
                   COALESCE((SELECT SUM(amount) FROM receipts_payment rp
                             WHERE rp.order_id=o.id), 0) AS paid_total,
                   COALESCE((SELECT terms FROM payment_terms pt
@@ -30438,13 +30480,17 @@ def _outstanding_receivables(c, only_overdue: bool = False):
         outstanding = (d["total_amount"] or 0) - (d["paid_total"] or 0)
         if outstanding <= 0:
             continue
-        # 만기일: order_date + terms일
-        days_terms = _parse_terms_days(d["terms"])
+        # 만기 기준일 = 세금계산서 발행일(있으면) → 없으면 발주일 폴백
+        issue_date = issue_map.get(d["order_id"], "")
+        base_iso = issue_date or (d["order_date"] or today.isoformat())
         try:
-            od = datetime.strptime((d["order_date"] or today.isoformat())[:10], "%Y-%m-%d").date()
+            base = datetime.strptime(base_iso[:10], "%Y-%m-%d").date()
         except Exception:
-            od = today
-        due = od + timedelta(days=days_terms)
+            base = today
+        # 결제조건 일수 = 고객사 pay_days(>0) → 없으면 레거시 payment_terms
+        _pdv = int(d.get("pay_days") or 0)
+        days_terms = _pdv if _pdv > 0 else _parse_terms_days(d["terms"])
+        due = base + timedelta(days=days_terms)
         overdue_days = (today - due).days  # 음수 = 만기 이전
         if only_overdue and overdue_days <= 0:
             continue
@@ -30457,6 +30503,8 @@ def _outstanding_receivables(c, only_overdue: bool = False):
         else:
             grade = "D-90+"
         d["outstanding"] = outstanding
+        d["issue_date"] = issue_date
+        d["due_base"] = "발행일" if issue_date else "발주일(미발행)"
         d["due_date_calc"] = due.isoformat()
         d["overdue_days"] = overdue_days
         d["grade"] = grade

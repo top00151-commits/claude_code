@@ -20,9 +20,19 @@
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}
 .sr-noterm{color:#dc2626;font-size:11px;font-weight:600;}
-.sr-recv-form{display:inline-flex;gap:4px;align-items:center;margin-top:6px;}
-.sr-recv-form input{width:96px;padding:4px 6px;border:1px solid var(--ink-200,#cbd5e1);border-radius:6px;font-size:12px;}
+.sr-recv-form{display:inline-flex;gap:4px;align-items:center;margin-top:6px;flex-wrap:wrap;max-width:340px;}
+.sr-recv-form input,.sr-recv-form select{width:96px;padding:4px 6px;border:1px solid var(--ink-200,#cbd5e1);border-radius:6px;font-size:12px;}
+.sr-recv-form select{width:auto;}
+.sr-recv-form input[name=note]{width:110px;}
 .sr-recv-form button{background:var(--knk-red,#e11d48);color:#fff;border:none;border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;}
+.sr-hist-btn{background:none;border:none;color:#1e40af;font-size:11px;cursor:pointer;padding:2px 0;text-decoration:underline;}
+tr.sr-hist-row[hidden]{display:none!important;}
+.sr-hist-box{padding:8px 10px;background:var(--surface-2,#f7f8fa);border-radius:8px;}
+.sr-hist-h{font-size:12px;font-weight:700;margin-bottom:6px;color:var(--ink-2,#334155);}
+.sr-hist-tbl{border-collapse:collapse;width:100%;max-width:560px;}
+.sr-hist-tbl th,.sr-hist-tbl td{border:1px solid var(--line,#e5e7eb);padding:4px 8px;font-size:12px;text-align:left;}
+.sr-hist-tbl th{background:var(--card,#fff);}
+.sr-hist-tbl td.num,.sr-hist-tbl th.num{text-align:right;}
 @media (max-width:1100px){ .page-title{font-size:22px;} }
 @media (max-width:768px){ .sr-kpi{flex:1 1 46%;min-width:120px;} }
 </style>
@@ -94,6 +104,13 @@
             else { alert((j && j.error) || '수금 저장에 실패했습니다.'); if(btn){ btn.disabled=false; btn.textContent='수금'; } }
           })
           .catch(function(){ alert('네트워크 오류로 수금 저장에 실패했습니다.'); if(btn){ btn.disabled=false; btn.textContent='수금'; } });
+      });
+    });
+    // 부분수금 이력 펼치기/접기
+    document.querySelectorAll('.sr-hist-btn').forEach(function(b){
+      b.addEventListener('click', function(){
+        var row = document.getElementById('hist-' + b.getAttribute('data-hist'));
+        if(row){ if(row.hasAttribute('hidden')) row.removeAttribute('hidden'); else row.setAttribute('hidden',''); }
       });
     });
   })();
