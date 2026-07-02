@@ -19236,13 +19236,18 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _by = u.get("name") or u.get("login_id") or "—"
     from datetime import datetime as _dtu
     _now = _dtu.now().strftime("%Y-%m-%d %H:%M")
+    # z769: 저장 후 복귀 경로(독립 편집 페이지 등). 앱(PWA)서 상세 카드가 안 뜨는 문제 우회용. 안전: 같은 사이트 절대경로만.
+    _back = (form.get("_back") or "").strip()
+    def _dest(qs):
+        base = _back if (_back.startswith("/") and not _back.startswith("//")) else f"/project/{pid}"
+        return base + ("&" if "?" in base else "?") + qs
     _team_ids = []
     try:
         with db_session() as c:
             pr = c.execute("SELECT id, project_id, team_ids FROM prod_requests WHERE id=? AND project_id=?",
                            (prid, pid)).fetchone()
             if not pr:
-                return RedirectResponse(f"/project/{pid}?prod_upderr=1", 303)
+                return RedirectResponse(_dest("prod_upderr=1"), 303)
             pr = dict(pr)
             # 프로젝트 필드(자료경로·모델·각인) 갱신 — 통보 본문·상세 표시에 함께 반영
             c.execute("UPDATE projects SET server_path=?, model_name=?, engraving=? WHERE id=?",
@@ -19255,7 +19260,7 @@ async def prod_request_update(request: Request, pid: int, prid: int):
                          if x.strip().isdigit() and int(x) > 0]
     except Exception as _e:
         print(f"[z763] 제작요청서 수정 실패: {_e}")
-        return RedirectResponse(f"/project/{pid}?prod_upderr=1", 303)
+        return RedirectResponse(_dest("prod_upderr=1"), 303)
     # 항상 다시 통보(대표 지시) — 새 이력행 없이(record=False)·[수정] 표기(is_update=True). 갱신된 프로젝트 값이 본문에 반영됨.
     _qs = ["prod_updated=1"]
     try:
@@ -19272,7 +19277,27 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     except Exception as _e:
         print(f"[z763] 제작요청서 수정 재통보 실패: {_e}")
         _qs.append("prod_renotifyerr=1")
-    return RedirectResponse(f"/project/{pid}?" + "&".join(_qs), 303)
+    return RedirectResponse(_dest("&".join(_qs)), 303)
+
+
+# v5H226z769 (대표 지시): 제작요청서 독립 편집 페이지 — 설치앱(PWA)서 프로젝트 상세 '제작요청서 카드'가 안 뜨는 문제 우회.
+#   상세와 무관한 단독 전체 페이지라 앱에서도 확실히 렌더됨. 헤더 '📋 제작요청서' 버튼이 여기로 링크.
+@app.get("/project/{pid}/prod-request/edit", response_class=HTMLResponse)
+async def prod_request_edit_page(request: Request, pid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        p = c.execute("SELECT id, mgmt_code, name, model_name, engraving, server_path, customer_name "
+                      "FROM projects WHERE id=?", (pid,)).fetchone()
+        if not p:
+            return RedirectResponse("/projects", 303)
+        p = dict(p)
+        _pr = c.execute("SELECT id, mgmt_code, cust_req, note, dept_names, issued_by_name, "
+                        "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
+                        "FROM prod_requests WHERE project_id=? ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+        pr = dict(_pr) if _pr else None
+    return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, can_edit=can_view_sales(u))
 
 
 @app.get("/projects", response_class=HTMLResponse)

@@ -42,8 +42,8 @@
       {% endif %}
       {# v5H226z354/z355(대표 지시): 수정도 빠른 폼으로 통일 — NEW_EQUIP(검사기·자동화·라이프) + OTHER(기타)는 빠른 폼 수정,
          소모품(CONSUMABLE)·수리(SERVICE)는 추가품목·복잡 구조라 정식 폼 유지(안전). 복잡 건은 빠른폼의 '고급 편집' 링크로. #}
-      {# v5H226z768 (대표 지시): 제작요청서 바로가기 — 헤더 우측(항상 보임·설치앱에서도). 클릭 시 카드로 스크롤 + 편집폼 열기(앱서 카드 위치 문제 우회). #}
-      {% if prod_requests %}<button type="button" class="btn btn-primary" style="background:#c2410c;" onclick="var c=document.getElementById('prqCard'),f=document.getElementById('prqEditForm'),r=document.getElementById('prqRead');if(f){f.style.display='block';if(r)r.style.display='none';}if(c){c.scrollIntoView({block:'center',behavior:'smooth'});}" title="제작요청서 보기·수정">📋 제작요청서</button>{% endif %}
+      {# v5H226z769 (대표 지시): 제작요청서 바로가기 — 헤더 우측. 상세 카드가 앱서 안 뜨는 문제 우회 위해 독립 편집 페이지로 링크(확실히 렌더). #}
+      {% if prod_requests %}<a class="btn btn-primary" style="background:#c2410c;" href="/project/{{ p.id }}/prod-request/edit" title="제작요청서 보기·수정">📋 제작요청서</a>{% endif %}
       <a class="btn btn-secondary" href="/projects/{{ p.id }}/{% if (p.project_type or 'NEW_EQUIP')|upper in ('NEW_EQUIP','OTHER') %}quick-edit{% else %}edit{% endif %}">📂 수정</a>
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
     </div>
