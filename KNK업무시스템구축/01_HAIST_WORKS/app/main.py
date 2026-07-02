@@ -325,10 +325,26 @@ def _fmt_price(v, ccy="KRW"):
     return "{:,.2f}".format(f)               # 외화: 소수 2자리 유지
 
 
+def _fmt_money(v, ccy="KRW"):
+    """z750(대표 지시) 통화 표시 표준: '통화 숫자'(통화단위 앞) + 자릿수구분 + KRW 정수·외화 소수 2자리
+    (3째 자리 반올림 — ROUND_HALF_UP). 예: money(4390.735,'USD')→'USD 4,390.74' · money(1430000,'KRW')→'KRW 1,430,000'."""
+    from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+    c = str(ccy or "KRW").upper()
+    try:
+        d = Decimal(str(v).replace(",", "").strip()) if v not in (None, "") else Decimal(0)
+    except (InvalidOperation, ValueError, TypeError):
+        return f"{c} {v}"
+    q = Decimal("1") if c == "KRW" else Decimal("0.01")
+    d = d.quantize(q, rounding=ROUND_HALF_UP)
+    return f"{c} " + ("{:,.0f}".format(d) if c == "KRW" else "{:,.2f}".format(d))
+
+
 tpl.env.filters["qtyfmt"] = _fmt_qty
 tpl.env.filters["pricefmt"] = _fmt_price
+tpl.env.filters["money"] = _fmt_money
 tpl.env.globals["qtyfmt"] = _fmt_qty
 tpl.env.globals["pricefmt"] = _fmt_price
+tpl.env.globals["money"] = _fmt_money
 
 
 def _team_label(name, entity=None):
