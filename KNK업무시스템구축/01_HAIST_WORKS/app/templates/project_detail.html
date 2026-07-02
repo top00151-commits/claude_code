@@ -960,7 +960,7 @@
                 <span class="warn" style="margin-left:14px;">
                   ⚠
                   {% if so.mismatch_qty %}호기 라인 {{ so.items_n }}/{{ so.unit_qty }}{% endif %}
-                  {% if so.mismatch_sum %}{% if so.mismatch_qty %} · {% endif %}합계 차액 {% if can_money %}{{ '{:,.0f}'.format(so.total_amount - so.items_sum) }}{% else %}🔒{% endif %} {{ _cur }}{% endif %}
+                  {% if so.mismatch_sum %}{% if so.mismatch_qty %} · {% endif %}합계 차액 {% if can_money %}{{ money(so.total_amount - so.items_sum, _cur) }}{% else %}🔒{% endif %}{% endif %}
                 </span>
                 {% endif %}
               </div>
@@ -992,7 +992,7 @@
             <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
             {% if _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
             <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">
-              ≈ {{ '{:,.0f}'.format(_gtotal.t * p.fx_rate) }} KRW
+              ≈ {{ money(_gtotal.t * p.fx_rate, 'KRW') }}
               <span style="color:#94a3b8;font-weight:500;font-size:11px;">(환율 1 {{ _gt_ccy }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
             </div>
             {% endif %}
