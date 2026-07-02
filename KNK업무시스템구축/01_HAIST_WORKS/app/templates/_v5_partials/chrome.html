@@ -623,6 +623,41 @@ window.setFakeDate = async function(dateStr){
   var LOADED = "{{ APP_VERSION }}";          // 이 화면이 로드된 시점의 버전
   if (!LOADED) return;
   var shown = false;
+  var pending = false;   // 새 버전 감지됨
+  var snoozed = false;   // 사용자가 '나중에'를 눌러 자동 새로고침 보류
+  var lastActivity = Date.now();
+
+  // v5H226z765 (대표 지시): '작업 중'이면 자동 새로고침 금지(데이터 유실 방지).
+  //   미저장 입력값 · 편집 포커스 · 열린 모달 중 하나라도 있으면 true.
+  function isWorking() {
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return true;
+    var els = document.querySelectorAll('input:not([type=hidden]), textarea');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.disabled || el.readOnly) continue;
+      if (el.type === 'checkbox' || el.type === 'radio') { if (el.checked !== el.defaultChecked) return true; }
+      else if (typeof el.value === 'string' && el.value !== el.defaultValue) return true;   // 타이핑한 미저장 값
+    }
+    var mods = document.querySelectorAll('[role="dialog"], [id*="odal"], [id*="Modal"], .modal');
+    for (var j = 0; j < mods.length; j++) {
+      var m = mods[j];
+      if (m.id === 'knkUpdateBar') continue;
+      var cs = getComputedStyle(m);
+      if (cs.position === 'fixed' && cs.display !== 'none' && cs.visibility !== 'hidden' && m.offsetParent !== null && m.getBoundingClientRect().height > 60) return true;
+    }
+    return false;
+  }
+  function safeReload() {
+    if (!pending || snoozed || isWorking()) return;
+    try {   // 루프 가드 — 25초 내 재-자동새로고침 방지(캐시 이상 시 무한 reload 차단)
+      var last = +sessionStorage.getItem('knkAutoReloadTs') || 0;
+      if (Date.now() - last < 25000) return;
+      sessionStorage.setItem('knkAutoReloadTs', String(Date.now()));
+    } catch (e) {}
+    try { location.reload(); } catch (e) {}
+  }
+
   function showBanner() {
     if (shown) return; shown = true;
     var btn = document.getElementById('knkRefreshBtn');
@@ -631,29 +666,51 @@ window.setFakeDate = async function(dateStr){
     var bar = document.createElement('div');
     bar.id = 'knkUpdateBar';
     var msg = document.createElement('span');
-    msg.textContent = '🆕 새 버전이 배포되었습니다. 최신 화면으로 새로고침해주세요.';
+    msg.textContent = '🆕 새 버전이 배포되었습니다. 작업 중이 아니면 곧 자동으로 새로고침됩니다.';
     var reload = document.createElement('button');
     reload.className = 'knk-up-reload';
     reload.textContent = '지금 새로고침 ↻';
-    reload.onclick = function () { location.reload(); };
+    reload.onclick = function () { try { location.reload(); } catch (e) {} };
     var later = document.createElement('button');
     later.className = 'knk-up-later';
     later.textContent = '나중에';
-    later.onclick = function () { var b = document.getElementById('knkUpdateBar'); if (b) b.remove(); };
+    later.onclick = function () { snoozed = true; var b = document.getElementById('knkUpdateBar'); if (b) b.remove(); };
     bar.appendChild(msg); bar.appendChild(reload); bar.appendChild(later);
     document.body.appendChild(bar);
   }
+
+  // 새 버전 감지: 백그라운드면 조용히 갱신 · 보이면 안내 + 유휴 시 자동 갱신
+  function onNewVersion() {
+    pending = true;
+    if (document.hidden) { safeReload(); return; }
+    showBanner();
+    watchIdle();
+  }
+  var idleT = null;
+  function watchIdle() {
+    if (idleT) clearTimeout(idleT);
+    idleT = setTimeout(function () {
+      if (!pending || snoozed) return;
+      if (!isWorking() && (Date.now() - lastActivity) >= 9000) { safeReload(); }  // 9초 무활동 + 작업아님 → 자동
+      else { watchIdle(); }                                                        // 아직 활동/작업 중 → 계속 대기
+    }, 4000);
+  }
+  ['mousemove', 'keydown', 'pointerdown', 'wheel', 'touchstart'].forEach(function (ev) {
+    window.addEventListener(ev, function () { lastActivity = Date.now(); }, { passive: true });
+  });
+
   function check() {
     fetch('/api/version', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { if (d && d.v && String(d.v) !== LOADED) showBanner(); })
+      .then(function (d) { if (d && d.v && String(d.v) !== LOADED) onNewVersion(); })
       .catch(function () { /* 네트워크 일시 오류 무시 */ });
   }
   setTimeout(check, 20000);        // 첫 확인: 20초 후
   setInterval(check, 90000);       // 이후 90초마다
-  // 탭을 다시 활성화할 때도 즉시 확인 (오래 켜둔 탭 대응)
+  // 탭 상태 변화: 보이게 되면(복귀) 즉시 갱신 · 백그라운드로 가면 조용히 갱신 (둘 다 작업 중이 아닐 때만)
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') check();
+    if (document.visibilityState === 'visible') { if (pending) safeReload(); else check(); }
+    else if (pending) { safeReload(); }
   });
 })();
 </script>
