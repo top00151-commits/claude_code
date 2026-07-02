@@ -192,6 +192,15 @@ body { overflow: hidden !important; }
           <label>팩스번호</label>
           <input type="text" name="fax" value="{{ customer.fax|default('') }}" placeholder="031-1234-5679">
         </div>
+        {# v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행일 + N일 = 입금 예상일 자동 예측(납품·수금 화면). 비우면 미설정. #}
+        <div class="fld">
+          <label>결제조건 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 입금 예상일 자동 계산</span></label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12.5px;color:var(--mute);white-space:nowrap;">세금계산서 발행 후</span>
+            <input type="number" name="pay_days" min="0" max="3650" value="{{ customer.pay_days if (customer and customer.pay_days) else '' }}" placeholder="30" style="width:76px;text-align:right;">
+            <span style="font-size:12.5px;color:var(--mute);white-space:nowrap;">일 결제</span>
+          </div>
+        </div>
         <div class="fld">
           <label>대표 이메일</label>
           <input type="email" name="email" value="{{ customer.email|default('') }}" placeholder="contact@example.com">

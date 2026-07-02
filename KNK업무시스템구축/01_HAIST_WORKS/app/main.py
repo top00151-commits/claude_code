@@ -16183,6 +16183,20 @@ async def admin_mail_purge_vacuum(req: Request):
         return JSONResponse({"ok": False, "message": "%s" % (str(e)[:120])})
 
 
+def _pay_days_from_form(form) -> int:
+    """v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행 후 N일. 폼 pay_days 에서 숫자만 추출.
+    빈칸/비정상=0(미설정). 0~3650일로 제한(오입력 방지)."""
+    raw = str(form.get("pay_days") or "").strip()
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return 0
+    try:
+        n = int(digits)
+    except Exception:
+        return 0
+    return max(0, min(n, 3650))
+
+
 def _customer_contacts_from_form(form) -> list[dict]:
     """v5H56/v5H66: 폼에서 contact_*_N 패턴으로 다중 담당자 수집.
     v5H66: 'note' (특징) 필드 추가, 'role' 은 hidden 으로 '기타' 기본."""
@@ -16282,6 +16296,8 @@ async def customers_new_submit(req: Request):
         # v5H226z203: 해외 고객사 구분 + 국가
         "is_overseas": _is_overseas,
         "country": _country,
+        # v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행 후 N일 결제 → 입금 예상일 예측
+        "pay_days": _pay_days_from_form(form),
     }
     contacts = _customer_contacts_from_form(form)
     with db_session() as c:
@@ -16378,20 +16394,22 @@ async def customers_edit_submit(req: Request, cid: int):
             # v5H226z203: 해외 고객사 구분 + 국가
             "is_overseas": 1 if (form.get("is_overseas") or "").strip() in ("1", "on", "true", "yes") else 0,
             "country": (form.get("country") or "").strip(),
+            # v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행 후 N일
+            "pay_days": _pay_days_from_form(form),
         }
         # v5H58: 등급(tier) 은 사용자 입력 받지 않음 — 기존 값 유지, 자동 재계산이 갱신
         c.execute(
             "UPDATE customers SET name=?, alias=?, biz_no=?, ceo_name=?, "
             "phone=?, email=?, address=?, is_active=?, note=?, "
             "business_type=?, business_item=?, zipcode=?, address_detail=?, fax=?, sub_biz_no=?, "
-            "is_overseas=?, country=? "
+            "is_overseas=?, country=?, pay_days=? "
             "WHERE id=?",
             (new_data["name"], new_data["alias"], new_data["biz_no"], new_data["ceo_name"],
              new_data["phone"], new_data["email"], new_data["address"],
              new_data["is_active"], new_data["note"],
              new_data["business_type"], new_data["business_item"], new_data["zipcode"],
              new_data["address_detail"], new_data["fax"], new_data["sub_biz_no"],
-             new_data["is_overseas"], new_data["country"], cid)
+             new_data["is_overseas"], new_data["country"], new_data["pay_days"], cid)
         )
         # v5H226z147: 레거시 거래처(코드 없음)에 코드 보충
         try:

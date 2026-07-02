@@ -2218,6 +2218,8 @@ def init_db():
             # v5H226z203 (2026-06-04 대표 지시): 해외 고객사 — 사업자번호 없는 해외 거래처 지원
             ("is_overseas",     "ALTER TABLE customers ADD COLUMN is_overseas INTEGER DEFAULT 0"),  # 1=해외
             ("country",         "ALTER TABLE customers ADD COLUMN country TEXT"),        # 국가(해외 시)
+            # v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행일 + N일 = 입금 예상일. 0/빈칸=미설정.
+            ("pay_days",        "ALTER TABLE customers ADD COLUMN pay_days INTEGER DEFAULT 0"),  # 세금계산서 발행 후 N일 결제
         ]:
             if col not in cucols:
                 try:
