@@ -325,18 +325,23 @@ def _fmt_price(v, ccy="KRW"):
     return "{:,.2f}".format(f)               # 외화: 소수 2자리 유지
 
 
+_CCY_SYMBOL = {"USD": "$", "KRW": "₩", "VND": "₫", "EUR": "€", "JPY": "¥", "CNY": "元"}
+
+
 def _fmt_money(v, ccy="KRW"):
-    """z750(대표 지시) 통화 표시 표준: '통화 숫자'(통화단위 앞) + 자릿수구분 + KRW 정수·외화 소수 2자리
-    (3째 자리 반올림 — ROUND_HALF_UP). 예: money(4390.735,'USD')→'USD 4,390.74' · money(1430000,'KRW')→'KRW 1,430,000'."""
+    """z750→z751(대표 지시) 통화 표시 표준: '기호+숫자'(통화기호 앞) + 자릿수구분 + KRW 정수·외화 소수 2자리
+    (3째 자리 반올림 — ROUND_HALF_UP). 기호: USD $·KRW ₩·VND ₫·EUR €·JPY ¥·CNY 元(¥ 겹침 회피). 미지정 통화는 '코드 ' 폴백.
+    예: money(4390.735,'USD')→'$4,390.74' · money(1430000,'KRW')→'₩1,430,000'."""
     from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
     c = str(ccy or "KRW").upper()
+    sym = _CCY_SYMBOL.get(c, c + " ")   # 미지정 통화는 코드+공백(명확성 유지)
     try:
         d = Decimal(str(v).replace(",", "").strip()) if v not in (None, "") else Decimal(0)
     except (InvalidOperation, ValueError, TypeError):
-        return f"{c} {v}"
+        return f"{sym}{v}"
     q = Decimal("1") if c == "KRW" else Decimal("0.01")
     d = d.quantize(q, rounding=ROUND_HALF_UP)
-    return f"{c} " + ("{:,.0f}".format(d) if c == "KRW" else "{:,.2f}".format(d))
+    return sym + ("{:,.0f}".format(d) if c == "KRW" else "{:,.2f}".format(d))
 
 
 tpl.env.filters["qtyfmt"] = _fmt_qty
