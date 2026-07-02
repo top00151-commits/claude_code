@@ -210,8 +210,8 @@
           {% set _qty_edit = (r.kind != 'consumable' and (not r.is_unit or (r.unit_iids and r.unit_iids|length == 1))) %}
           <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty"{% if _qty_edit %} data-edit="qty"{% endif %}>{{ r.qty if r.qty else ('＋' if _qty_edit else '') }}</td>
           {% if can_money %}
-          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.price %}{{ _cursym.get(r.currency,'₩') }}{{ "{:,.0f}".format(r.price|float) }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
-          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.amount %}{{ _cursym.get(r.currency,'₩') }}{{ "{:,.0f}".format(r.amount|float) }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
+          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.price %}{{ money(r.price, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
+          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.amount %}{{ money(r.amount, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
           {% endif %}
           <td class="c-info cw-trade{% if r.kind != 'consumable' %} editable{% if r.trade %} filled{% endif %}{% endif %}" data-col="trade"{% if r.kind != 'consumable' %} data-edit="trade"{% endif %}>{{ r.trade }}</td>
           <td class="c-info cw-po{% if r.kind != 'consumable' %} editable{% if r.po_type %} filled{% endif %}{% endif %}" data-col="po"{% if r.kind != 'consumable' %} data-edit="po_type"{% endif %}>{{ r.po_type or ('＋' if r.kind != 'consumable' else '—') }}</td>
@@ -1324,8 +1324,8 @@ function refreshTaxStatus(tr){
   if(first){ const old=first.querySelector('.ti-stat'); if(old) old.remove(); }
 }
 // z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
-function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'¥',EUR:'€'})[c]||'₩'; }
-var _MONEY_STRIP=/[₩$₫¥€,\s＋]/g;
+function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'})[c]||'₩'; }
+var _MONEY_STRIP=/[₩$₫¥€元,\s＋]/g;
 function fmtMoney(v){ var n=parseFloat(String(v).replace(_MONEY_STRIP,'')); return isNaN(n)||n===0?'':n.toLocaleString(); }
 function recalcAmount(tr){
   var qtyTd=tr.querySelector('td[data-edit="qty"]'), priceTd=tr.querySelector('td[data-edit="price"]'), amtTd=tr.querySelector('td[data-edit="amount"]');
