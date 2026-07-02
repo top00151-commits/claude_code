@@ -29876,11 +29876,7 @@ async def sales_shipments_receipts_page(req: Request):
     oi_map, _proj_iids = _board_tax_oi_map()   # {iid:{stmt,t1d,t1a,...}} 호기별 세금계산서
 
     def _money(v, ccy):
-        try:
-            v = float(v or 0)
-        except Exception:
-            v = 0.0
-        return f"{round(v):,}" if ccy == "KRW" else f"{v:,.2f}"
+        return _fmt_money(v, ccy)   # z755: 전역 통화기호 표준('$4,390.73'·'₩1,430,000') 사용
 
     with db_session() as c:
         ordc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
@@ -30009,10 +30005,10 @@ async def sales_shipments_receipts_page(req: Request):
         return sum((o["outstanding"] if o["outstanding"] > 0 else 0)
                    for o in lst if o["currency"] == "KRW")
     kpi = {"ym": ym,
-           "expect_sum": f"{round(_ksum(inmonth)):,}",
-           "carry_cnt": len(carry), "carry_sum": f"{round(_ksum(carry)):,}",
-           "overdue_cnt": len(overdue), "overdue_sum": f"{round(_ksum(overdue)):,}",
-           "outstanding_sum": f"{round(_ksum(shipped)):,}",
+           "expect_sum": _fmt_money(_ksum(inmonth), "KRW"),
+           "carry_cnt": len(carry), "carry_sum": _fmt_money(_ksum(carry), "KRW"),
+           "overdue_cnt": len(overdue), "overdue_sum": _fmt_money(_ksum(overdue), "KRW"),
+           "outstanding_sum": _fmt_money(_ksum(shipped), "KRW"),
            "fx_cnt": sum(1 for o in shipped if o["currency"] != "KRW")}
 
     try:

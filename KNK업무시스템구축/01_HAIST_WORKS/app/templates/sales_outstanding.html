@@ -22,7 +22,7 @@ body {
   </div>
 
   <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">총 미수금</div><div class="kpi-num" style="color:var(--knk-red);">{{ '{:,.0f}'.format(s.total|default(0)) }}<span class="unit">원</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">총 미수금</div><div class="kpi-num" style="color:var(--knk-red);">{{ money(s.total|default(0), 'KRW') }}</div></div>
     <div class="kpi-card"><div class="kpi-label">거래처</div><div class="kpi-num">{{ s.customer_count|default(items|length) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">최장 연체</div><div class="kpi-num" style="color:var(--knk-red);">{{ s.max_overdue_days|default(0) }}<span class="unit">일</span></div></div>
     <div class="kpi-card"><div class="kpi-label">30일 이상</div><div class="kpi-num">{{ s.over_30|default(0) }}</div></div>
@@ -37,7 +37,7 @@ body {
       {% for it in items %}
         <tr>
           <td><b>{{ (cust_alias|default({},true)).get(it.customer_id) or it.customer_name|default('—') }}</b></td>
-          <td class="num" style="font-weight:700;color:var(--knk-red);">{{ '{:,.0f}'.format(it.outstanding|default(0)) }}</td>
+          <td class="num" style="font-weight:700;color:var(--knk-red);">{{ money(it.outstanding|default(0), 'KRW') }}</td>
           <td class="num" style="font-size:12px;color:var(--mute);">{{ it.last_shipment|default('—') }}</td>
           <td class="num" style="font-weight:700;{% if it.overdue_days|default(0) > 30 %}color:var(--knk-red);{% endif %}">{{ it.overdue_days|default(0) }}</td>
           <td class="center"><span class="pill {% if it.overdue_days|default(0) > 60 %}pill-danger{% elif it.overdue_days|default(0) > 30 %}pill-warn{% else %}pill-progress{% endif %}">{% if it.overdue_days|default(0) > 60 %}🔴 위험{% elif it.overdue_days|default(0) > 30 %}🟡 주의{% else %}🟢 정상{% endif %}</span></td>

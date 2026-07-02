@@ -48,10 +48,10 @@ tr.sr-hist-row[hidden]{display:none!important;}
 
   {# ── KPI ── #}
   <div class="sr-kpis">
-    <div class="sr-kpi"><div class="lbl">📅 {{ ym }} 입금예상(미수·KRW)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}원{% else %}🔒{% endif %}</div></div>
+    <div class="sr-kpi"><div class="lbl">📅 {{ ym }} 입금예상(미수·KRW)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}{% else %}🔒{% endif %}</div></div>
     <div class="sr-kpi carry"><div class="lbl">🟠 마감이월(세금계산서 미발행)</div><div class="val">{{ kpi.carry_cnt }}건</div></div>
-    <div class="sr-kpi warn"><div class="lbl">⚠ 연체(예상일 경과·미수)</div><div class="val">{{ kpi.overdue_cnt }}건{% if can_money and kpi.overdue_cnt %} · {{ kpi.overdue_sum }}원{% endif %}</div></div>
-    <div class="sr-kpi"><div class="lbl">총 미수(전체·KRW)</div><div class="val">{% if can_money %}{{ kpi.outstanding_sum }}원{% else %}🔒{% endif %}{% if kpi.fx_cnt %}<span style="font-size:11px;color:var(--mute);"> · 외화 {{ kpi.fx_cnt }}건</span>{% endif %}</div></div>
+    <div class="sr-kpi warn"><div class="lbl">⚠ 연체(예상일 경과·미수)</div><div class="val">{{ kpi.overdue_cnt }}건{% if can_money and kpi.overdue_cnt %} · {{ kpi.overdue_sum }}{% endif %}</div></div>
+    <div class="sr-kpi"><div class="lbl">총 미수(전체·KRW)</div><div class="val">{% if can_money %}{{ kpi.outstanding_sum }}{% else %}🔒{% endif %}{% if kpi.fx_cnt %}<span style="font-size:11px;color:var(--mute);"> · 외화 {{ kpi.fx_cnt }}건</span>{% endif %}</div></div>
   </div>
 
   {# ── 기준월 선택 ── #}

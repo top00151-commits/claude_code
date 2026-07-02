@@ -8,7 +8,7 @@
     {% if o.issued %}<span style="font-size:12px;">{{ o.issue_date }}</span>
     {% else %}<span class="pill pill-carry">미발행</span>{% endif %}
   </td>
-  <td class="num">{% if can_money %}{{ o.total_fmt }} <span style="font-size:10px;color:var(--mute);">{{ o.currency }}</span>{% else %}🔒{% endif %}</td>
+  <td class="num">{% if can_money %}{{ o.total_fmt }}{% else %}🔒{% endif %}</td>
   <td class="center">
     {% if o.expected_date %}<span style="font-size:12px;">{{ o.expected_date }}</span>
       {% if o.dday is not none %}<div class="sr-dday {% if o.dday < 0 %}over{% elif o.dday <= 7 %}soon{% endif %}">{% if o.dday < 0 %}D+{{ -o.dday }} 경과{% elif o.dday == 0 %}오늘{% else %}D-{{ o.dday }}{% endif %}</div>{% endif %}
@@ -51,7 +51,7 @@
         <thead><tr><th>일자</th><th>방법</th><th class="num">금액</th><th>메모</th></tr></thead>
         <tbody>
         {% for h in o.receipts %}
-          <tr><td>{{ h.date or '—' }}</td><td>{{ h.method or '—' }}</td><td class="num">{{ h.amt_fmt }} <span style="font-size:10px;color:var(--mute);">{{ h.ccy }}</span></td><td>{{ h.note or '—' }}</td></tr>
+          <tr><td>{{ h.date or '—' }}</td><td>{{ h.method or '—' }}</td><td class="num">{{ h.amt_fmt }}</td><td>{{ h.note or '—' }}</td></tr>
         {% endfor %}
         </tbody>
       </table>
