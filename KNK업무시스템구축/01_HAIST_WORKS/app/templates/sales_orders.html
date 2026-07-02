@@ -215,16 +215,16 @@ body {
   {% set _k = kpi|default({}) %}
   <div class="kpi-slim" data-dn="kpi-bar" data-dn-tone="green">
     <div class="c k1" data-dn="kpi-week"><div class="top"><span class="lbl">📅 이번주 납기</span><span class="val">{{ _k.get('week_count', 0) }}<span class="u">건</span></span></div>
-      <div class="sub">{% if _k.get('week_amount') %}{{ '{:,.0f}'.format(_k.get('week_amount', 0)) }} 원{% else %}—{% endif %}</div></div>
+      <div class="sub">{% if _k.get('week_amount') %}{{ money(_k.get('week_amount', 0), 'KRW') }}{% else %}—{% endif %}</div></div>
     <div class="c k2" data-dn="kpi-month"><div class="top"><span class="lbl">📅 이번달 납기</span><span class="val">{{ _k.get('month_count', 0) }}<span class="u">건</span></span></div>
-      <div class="sub">{% if _k.get('month_amount') %}{{ '{:,.0f}'.format(_k.get('month_amount', 0)) }} 원{% else %}—{% endif %}</div></div>
+      <div class="sub">{% if _k.get('month_amount') %}{{ money(_k.get('month_amount', 0), 'KRW') }}{% else %}—{% endif %}</div></div>
     <div class="c k3" data-dn="kpi-ship"><div class="top"><span class="lbl">🟡 납품대기</span><span class="val">{{ _k.get('wait_ship', 0) }}<span class="u">건</span></span></div>
       <div class="sub {% if _k.get('overdue_count', 0) > 0 %}danger{% endif %}">{% if _k.get('overdue_count', 0) > 0 %}⚠ 오버듀 {{ _k.get('overdue_count') }}건{% else %}CONFIRMED{% endif %}</div></div>
     <div class="c k4" data-dn="kpi-invoice"><div class="top"><span class="lbl">🔵 송장대기</span><span class="val">{{ _k.get('wait_invoice', 0) }}<span class="u">건</span></span></div>
       <div class="sub">SHIPPED</div></div>
     <div class="c k5" data-dn="kpi-payment"><div class="top"><span class="lbl">🟣 수금대기</span><span class="val">{{ _k.get('wait_payment', 0) }}<span class="u">건</span></span></div>
       <div class="sub">INVOICED</div></div>
-    <div class="c k6" data-dn="kpi-outstanding"><div class="top"><span class="lbl">💰 미수금</span><span class="val" style="font-size:13px;">{% if _k.get('outstanding') %}{{ '{:,.0f}'.format(_k.get('outstanding', 0)) }}<span class="u">원</span>{% else %}—{% endif %}</span></div>
+    <div class="c k6" data-dn="kpi-outstanding"><div class="top"><span class="lbl">💰 미수금</span><span class="val" style="font-size:13px;">{% if _k.get('outstanding') %}{{ money(_k.get('outstanding', 0), 'KRW') }}{% else %}—{% endif %}</span></div>
       <div class="sub">확정+납품+송장 합</div></div>
   </div>
 
@@ -260,7 +260,7 @@ body {
             {% set _is_hol = d.hol_kr or d.hol_vn %}
             <a class="cal-day cls-{{ d.cls }} {% if d.is_today %}today{% endif %} {% if d.is_selected %}selected{% endif %}"
                href="?{% if biz %}biz={{ biz }}&{% endif %}due_date={{ d.date }}"
-               title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %} · {{ d.count }}건{% if d.amount %} · {{ '{:,.0f}'.format(d.amount) }}원{% endif %}">
+               title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %} · {{ d.count }}건{% if d.amount %} · {{ money(d.amount, 'KRW') }}{% endif %}">
               {% if _is_hol %}
               <span class="hol-badge">
                 {% if d.hol_kr %}<span class="b kr {% if '대체' in d.hol_kr %}alt{% endif %}">K</span>{% endif %}
@@ -296,7 +296,7 @@ body {
                 <span class="no" style="font-size:10px;color:#94a3b8;">{{ u.order_no }}</span>
                 <span class="cust">{{ (cust_alias|default({},true)).get(u.customer_id) or u.customer_name|default('—') }}</span>
               </div>
-              <div class="up-r2">📅 {{ u.due_date|default('') }}{% if u.total_amount %} · <b>{{ '{:,.0f}'.format(u.total_amount) }} {{ u.currency or 'KRW' }}</b>{% endif %}{% if u.project_name %} <span style="color:#94a3b8;">· {{ u.project_name }}</span>{% endif %}</div>
+              <div class="up-r2">📅 {{ u.due_date|default('') }}{% if u.total_amount %} · <b>{{ money(u.total_amount, u.currency or 'KRW') }}</b>{% endif %}{% if u.project_name %} <span style="color:#94a3b8;">· {{ u.project_name }}</span>{% endif %}</div>
             </div>
           </a>
           {% endfor %}
@@ -356,7 +356,7 @@ body {
           <td><b>{{ (cust_alias|default({},true)).get(o.customer_id) or o.customer_name|default('—') }}</b></td>
           <td class="center"><b>{{ o.unit_qty|default(1) }}</b>대</td>
           <td>{{ o.ship_to|default('—') }}</td>
-          <td class="num"><b>{% if o.total_amount %}{{ '{:,.0f}'.format(o.total_amount) }}{% else %}—{% endif %}</b> <span style="color:#94a3b8;font-size:9.5px;">{{ o.currency or 'KRW' }}</span></td>
+          <td class="num"><b>{% if o.total_amount %}{{ money(o.total_amount, o.currency or 'KRW') }}{% else %}—{% endif %}</b></td>
           <td class="center">{% with status=o.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}</td>
           <td class="center" style="font-size:10.5px;color:#94a3b8;">{{ o.order_date|default('—') }}</td>
           <td class="center" style="font-size:10.5px;color:#94a3b8;">{{ o.due_date|default('—') }}</td>
