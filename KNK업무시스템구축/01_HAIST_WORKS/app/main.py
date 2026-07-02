@@ -7064,12 +7064,12 @@ async def admin_page(req: Request):
                ORDER BY t.display_order"""
         ).fetchall()]
         users = [dict(r) for r in c.execute(
-            """SELECT u.*, t.name AS team_name FROM users u
+            """SELECT u.*, t.name AS team_name, t.entity AS team_entity FROM users u
                LEFT JOIN teams t ON u.team_id=t.id
-               ORDER BY CASE WHEN (COALESCE(u.entity,'')='VN' OR u.team_id=12) THEN 1 ELSE 0 END,
+               ORDER BY CASE WHEN (COALESCE(t.entity,'')='VN' OR u.team_id=12) THEN 1 ELSE 0 END,
                         CASE WHEN COALESCE(u.employee_no,'')='' THEN 1 ELSE 0 END,
                         CAST(u.employee_no AS INTEGER), u.employee_no, u.id"""
-        ).fetchall()]   # v5H226z534: 본사 먼저 → 베트남법인, 각 그룹 사번순
+        ).fetchall()]   # z747: 법인=팀(teams.entity) 단일소스·본사 먼저→베트남, 각 그룹 사번순 (u.entity SQL 미의존)
         projects = [dict(r) for r in c.execute(
             """SELECT p.*, cu.name AS customer_name FROM projects p
                LEFT JOIN customers cu ON p.customer_id=cu.id ORDER BY p.id DESC"""

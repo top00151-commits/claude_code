@@ -170,7 +170,9 @@ tbody tr:hover td { background: var(--amber-glow); }
           </thead>
           <tbody>
           {% for u in users %}
-            {% set _vn = (u.entity=='VN') or (u.team_id==12) %}
+            {# z747: 법인 = 팀(teams.entity) 단일소스. 팀 없으면 users.entity 폴백. (목록이 u.entity만 봐 VN이 '본사'로 뜨던 버그 수정) #}
+            {% set _ent = u.team_entity or u.entity %}
+            {% set _vn = (_ent=='VN') or (u.team_id==12) %}
             {% set _corp = '베트남법인' if _vn else '본사' %}
             {# v5H226z542: 부서명에 법인 접두 — 본사 설계팀 / 베트남 설계팀 구분 #}
             {% if u.team_name %}{% set _dept = ('베트남 · ' if _vn else '본사 · ') ~ u.team_name %}{% elif u.dept_code %}{% set _dept = u.dept_code %}{% else %}{% set _dept = '미지정' %}{% endif %}
