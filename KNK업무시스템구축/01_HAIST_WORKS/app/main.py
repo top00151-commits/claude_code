@@ -15221,7 +15221,9 @@ async def works_manifest():
         "categories": ["business", "productivity"],
         # v5H226z424 (대표 지시): 메신저 등에서 앱 범위(/) 링크 클릭 시 '브라우저'가 아니라
         #   '설치된 KNK Eum WORKS 앱'으로 열리게(링크 캡처). 이미 열려 있으면 그 창으로.
-        "launch_handler": {"client_mode": ["focus-existing", "auto"]},
+        # ⚠ navigate-existing 필수 (2026-07-03 대표 제보): focus-existing 은 이미 열린 앱을 '앞으로만' 가져오고
+        #   URL 이동을 안 해, 메신저 '📋 회의록' 등 딥링크가 원래 보던 화면 그대로 멈춤. navigate-existing 은 그 창을 대상 주소(/meetings 등)로 이동시킴.
+        "launch_handler": {"client_mode": ["navigate-existing", "auto"]},
         "handle_links": "preferred",
     }, media_type="application/manifest+json")
 
