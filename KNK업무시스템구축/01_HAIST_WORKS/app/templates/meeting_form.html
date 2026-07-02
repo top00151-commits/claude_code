@@ -88,6 +88,7 @@
 </head>
 <body>
 {% set is_new = (meeting is none) %}
+{% set pf = prefill|default({}) %}   {# 메신저 '📋 회의록' 딥링크 프리필 (신규 작성 시에만). 대표 지시 2026-07-03 #}
 <div class="app">
 {% include "_v5_partials/chrome.html" with context %}
 
@@ -112,31 +113,31 @@
           <div class="mf-fld full">
             <label>회의 제목 *</label>
             <input id="mtgTitle" type="text" maxlength="200" placeholder="예: 6월 검사기T 주간회의"
-                   value="{{ meeting.title if not is_new else '' }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+                   value="{{ meeting.title if not is_new else pf.get('title','') }}" {% if not is_new and not can_edit %}disabled{% endif %}>
           </div>
           <div class="mf-fld">
             <label>회의 날짜</label>
-            <input id="mtgDate" type="date" value="{{ meeting.meeting_date if not is_new else today }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+            <input id="mtgDate" type="date" value="{{ meeting.meeting_date if not is_new else (pf.get('meeting_date') or today) }}" {% if not is_new and not can_edit %}disabled{% endif %}>
           </div>
           <div class="mf-fld">
             <label>공개 범위</label>
             <select id="mtgVis" {% if not is_new and not can_edit %}disabled{% endif %}>
-              <option value="team"    {% if not is_new and meeting.visibility=='team' %}selected{% endif %}>팀 공개</option>
-              <option value="private" {% if not is_new and meeting.visibility=='private' %}selected{% endif %}>비공개</option>
-              <option value="all"     {% if not is_new and meeting.visibility=='all' %}selected{% endif %}>전사 공개</option>
+              <option value="team"    {% if (not is_new and meeting.visibility=='team') or (is_new and pf.get('visibility','team')=='team') %}selected{% endif %}>팀 공개</option>
+              <option value="private" {% if (not is_new and meeting.visibility=='private') or (is_new and pf.get('visibility')=='private') %}selected{% endif %}>비공개</option>
+              <option value="all"     {% if (not is_new and meeting.visibility=='all') or (is_new and pf.get('visibility')=='all') %}selected{% endif %}>전사 공개</option>
             </select>
           </div>
           <div class="mf-fld">
             <label>장소 <span class="mf-hint">(선택)</span></label>
-            <input id="mtgLoc" type="text" placeholder="회의실 A / 화상" value="{{ meeting.location if not is_new else '' }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+            <input id="mtgLoc" type="text" placeholder="회의실 A / 화상" value="{{ meeting.location if not is_new else pf.get('location','') }}" {% if not is_new and not can_edit %}disabled{% endif %}>
           </div>
           <div class="mf-fld">
             <label>태그 <span class="mf-hint">(선택)</span></label>
-            <input id="mtgTags" type="text" placeholder="주간,검사기" value="{{ meeting.tags if not is_new else '' }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+            <input id="mtgTags" type="text" placeholder="주간,검사기" value="{{ meeting.tags if not is_new else pf.get('tags','') }}" {% if not is_new and not can_edit %}disabled{% endif %}>
           </div>
           <div class="mf-fld full">
             <label>참석자 <span class="mf-hint">(쉼표 구분 · 직원 이름과 일치 시 일일카드 배정)</span></label>
-            <input id="mtgAttendees" type="text" placeholder="홍길동, 김철수, 응우옌" value="{{ meeting.attendees_text if not is_new else '' }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+            <input id="mtgAttendees" type="text" placeholder="홍길동, 김철수, 응우옌" value="{{ meeting.attendees_text if not is_new else pf.get('attendees','') }}" {% if not is_new and not can_edit %}disabled{% endif %}>
           </div>
         </div>
         <div class="mf-actions">
@@ -151,7 +152,7 @@
       <div class="mf-body">
         <div class="mf-fld full">
           <label>회의 내용 (글로 작성) *</label>
-          <textarea id="mtgBody" placeholder="회의에서 오간 내용을 자유롭게 적으세요. 다 적고 저장한 뒤 「AI로 정리」를 누르면 결정사항·할 일·요약을 자동으로 뽑아줍니다." {% if not is_new and not can_edit %}disabled{% endif %}>{{ meeting.body if not is_new else '' }}</textarea>
+          <textarea id="mtgBody" placeholder="회의에서 오간 내용을 자유롭게 적으세요. 다 적고 저장한 뒤 「AI로 정리」를 누르면 결정사항·할 일·요약을 자동으로 뽑아줍니다." {% if not is_new and not can_edit %}disabled{% endif %}>{{ meeting.body if not is_new else pf.get('body','') }}</textarea>
         </div>
       </div>
     </div>

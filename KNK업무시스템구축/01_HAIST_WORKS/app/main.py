@@ -3433,9 +3433,25 @@ async def meetings_page(req: Request):
 async def meeting_new_page(req: Request):
     u = get_user(req)
     if not u:
-        return RedirectResponse("/login", 303)
+        # 미인증 → 로그인(메신저 SSO) 후 '이 프리필 주소 그대로' 복귀. 메신저 '📋 회의록' 딥링크가
+        #   WORKS 앱이 닫혀 있어도 기본정보가 채워진 새 회의록으로 착지하도록 next 보존. (대표 지시 2026-07-03)
+        from urllib.parse import quote
+        _back = "/meetings/new" + (("?" + req.url.query) if req.url.query else "")
+        return RedirectResponse("/login?next=" + quote(_back, safe=""), 303)
     from . import ai_client
-    return ctx(req, "meeting_form.html", user=u, meeting=None,
+    # 메신저 회의 카드 '📋 회의록' → 여기로 회의 기본정보를 쿼리로 넘겨 새 회의록 폼을 미리 채움. (대표 지시 2026-07-03)
+    _qp = req.query_params
+    _vis = _qp.get("visibility") or "team"
+    prefill = {
+        "title": (_qp.get("title") or "")[:200],
+        "meeting_date": (_qp.get("meeting_date") or "")[:10],
+        "location": (_qp.get("location") or "")[:200],
+        "visibility": _vis if _vis in ("team", "private", "all") else "team",
+        "tags": (_qp.get("tags") or "")[:200],
+        "attendees": (_qp.get("attendees") or "")[:500],
+        "body": (_qp.get("body") or "")[:4000],
+    }
+    return ctx(req, "meeting_form.html", user=u, meeting=None, prefill=prefill,
                decisions=[], actions=[], attendees=[], can_edit=True,
                ai_on=ai_client.ai_available(), transcribe_on=ai_client.transcribe_available())
 
