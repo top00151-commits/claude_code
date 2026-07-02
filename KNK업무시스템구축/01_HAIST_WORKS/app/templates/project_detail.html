@@ -71,6 +71,57 @@
   {% elif request.query_params.get('prod_err') %}
   <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13.5px;font-weight:600;">⚠ 제작요청 통보 중 오류가 발생했습니다 — 관리자에게 문의하세요.</div>
   {% endif %}
+  {% if request.query_params.get('prod_saveerr') %}
+  <div style="margin:0 0 14px;padding:9px 14px;border-radius:9px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px;font-weight:600;">⚠ 통보는 됐지만 <b>제작요청서 저장에 실패</b>했습니다 — 아래 이력에 안 남았을 수 있습니다(관리자 문의).</div>
+  {% endif %}
+
+  {# v5H226z762 (대표 지시): 제작요청서 — 발행 시 저장한 요청사항(고객사·기타)을 프로젝트에서 다시 확인. 최신 먼저 + 이전 이력 접기. #}
+  <div style="margin:0 0 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:#fff7ed;border-bottom:1px solid #fed7aa;">
+      <div style="font-size:14.5px;font-weight:800;color:#9a3412;">📋 제작요청서{% if prod_requests %} <span style="font-weight:600;color:#c2652a;font-size:12.5px;">· 발행 {{ prod_requests|length }}회</span>{% endif %}</div>
+      <a href="/prod-requests?q={{ p.mgmt_code|urlencode }}" style="font-size:12px;font-weight:700;color:#c2410c;text-decoration:none;">전체 제작요청서 →</a>
+    </div>
+    {% if prod_requests %}
+      {% set _prm = prod_requests[0] %}
+      <div style="padding:14px 16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--mute);margin-bottom:10px;">
+          <span>🗓 발행 <b style="color:#334155;">{{ _prm.created_at or _prm.created_date }}</b></span>
+          <span>✍ {{ _prm.issued_by_name or '—' }}</span>
+          <span>📣 통보 {{ _prm.dept_count or 0 }}개 부서 · {{ _prm.sent_to or 0 }}명{% if _prm.msg_sent %} · 📱 {{ _prm.msg_sent }}명 푸시{% endif %}</span>
+          {% if _prm.dept_names %}<span>🏢 {{ _prm.dept_names }}</span>{% endif %}
+        </div>
+        <div style="font-size:12px;font-weight:700;color:#9a3412;margin:0 0 4px;">고객사 요청사항</div>
+        <div style="white-space:pre-wrap;font-size:13px;line-height:1.6;color:#334155;background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;">{{ _prm.cust_req or '(없음)' }}</div>
+        {% if _prm.note %}
+        <div style="font-size:12px;font-weight:700;color:#9a3412;margin:10px 0 4px;">기타 요청사항</div>
+        <div style="white-space:pre-wrap;font-size:13px;line-height:1.6;color:#334155;background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;">{{ _prm.note }}</div>
+        {% endif %}
+      </div>
+      {% if prod_requests|length > 1 %}
+      <details style="border-top:1px dashed var(--line);">
+        <summary style="cursor:pointer;padding:10px 16px;font-size:12.5px;font-weight:700;color:var(--mute);">＋ 이전 발행 이력 {{ prod_requests|length - 1 }}건</summary>
+        <div style="padding:0 16px 12px;">
+          {% for pr in prod_requests[1:] %}
+          <div style="border-top:1px solid var(--line);padding:10px 0;">
+            <div style="display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--mute);margin-bottom:6px;">
+              <span>🗓 <b style="color:#334155;">{{ pr.created_at or pr.created_date }}</b></span>
+              <span>✍ {{ pr.issued_by_name or '—' }}</span>
+              <span>📣 {{ pr.dept_count or 0 }}부서·{{ pr.sent_to or 0 }}명</span>
+              {% if pr.dept_names %}<span>🏢 {{ pr.dept_names }}</span>{% endif %}
+            </div>
+            <div style="white-space:pre-wrap;font-size:12.5px;line-height:1.55;color:#334155;">{{ pr.cust_req or '(없음)' }}{% if pr.note %}
+〔기타〕 {{ pr.note }}{% endif %}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+    {% else %}
+      <div style="padding:14px 16px;font-size:12.5px;color:var(--mute);line-height:1.6;">
+        아직 발행된 제작요청서가 없습니다. — 프로젝트 등록 시 <b style="color:#9a3412;">「📋 제작요청 발행」</b>을 체크하면 고객사 요청사항·기타 요청사항이 여기에 기록되어 다시 확인할 수 있습니다.
+      </div>
+    {% endif %}
+  </div>
 
   {# v5H196: 수주 확정 모달 폐기. 버튼 클릭 시 등록값 기준 직접 발행 #}
   {# v5H226z149: 모달도 SO 발행 여부 기준 (버튼과 동일) #}

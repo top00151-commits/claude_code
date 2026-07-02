@@ -454,6 +454,28 @@ CREATE TABLE IF NOT EXISTS team_summaries (
     UNIQUE(team_id, work_date)
 );
 
+-- v5H226z762 (대표 지시): 제작요청서 저장·조회 — 발행할 때마다 1행 기록(재발행 이력 유지).
+--   요청사항이 통보로만 흘러가 사라지던 문제 해결: 프로젝트 상세 '제작요청서' 섹션 + 목록 화면의 소스.
+--   단가·금액은 제작요청서에 포함하지 않음(통보와 동일). issued_by/project_id는 스냅샷 이름과 함께 저장 → 사용자/프로젝트 삭제에도 표시 안전.
+CREATE TABLE IF NOT EXISTS prod_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    mgmt_code TEXT,
+    cust_req TEXT,
+    note TEXT,
+    team_ids TEXT,
+    dept_names TEXT,
+    issued_by INTEGER,
+    issued_by_name TEXT,
+    sent_to INTEGER DEFAULT 0,
+    dept_count INTEGER DEFAULT 0,
+    msg_sent INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    created_date TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_prod_requests_project ON prod_requests(project_id);
+CREATE INDEX IF NOT EXISTS idx_prod_requests_date ON prod_requests(created_date);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, work_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(work_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

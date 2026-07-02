@@ -6538,6 +6538,17 @@ async def project_detail(req: Request, pid: int):
                                    "dist": {"진행중":0,"출하":0,"취소":0,"보류":0},
                                    "total": 0, "done": 0, "ratio_text": "",
                                    "has_canceled": False, "has_held": False}
+    # v5H226z762 (대표 지시): 이 프로젝트의 제작요청서 발행 이력(최신 먼저) — 상세 '제작요청서' 섹션 소스.
+    #   요청사항(고객사/기타)이 통보로만 흘러가 사라지던 문제 해결 — 여기서 다시 확인.
+    prod_requests = []
+    try:
+        with db_session() as _cpr:
+            prod_requests = [dict(r) for r in _cpr.execute(
+                "SELECT id, mgmt_code, cust_req, note, dept_names, issued_by_name, "
+                "sent_to, dept_count, msg_sent, created_at, created_date "
+                "FROM prod_requests WHERE project_id=? ORDER BY id DESC", (pid,)).fetchall()]
+    except Exception:
+        prod_requests = []   # 표시 전용 조회 — 테이블 미생성/조회 오류 시에도 상세는 정상 렌더(주변 소모품/자식조회와 동일 패턴)
     # v5H226z373 (대표 지시): 제작요청 발행은 '신규 등록(제작요청서)' 흐름으로 일원화 →
     #   상세의 제작요청 모달/버튼 폐기(_prod_teams 불요). 단가·금액 게이트(can_money)는 유지.
     return ctx(req, "project_detail.html",
@@ -6560,7 +6571,8 @@ async def project_detail(req: Request, pid: int):
                PROJECT_TYPE_LABELS=_logi.PROJECT_TYPE_LABELS,
                parent_project=parent_project,
                child_projects=child_projects,
-               origin_opp=origin_opp)
+               origin_opp=origin_opp,
+               prod_requests=prod_requests)
 
 
 def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None):
@@ -6637,6 +6649,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     sent_to = 0
     dept_count = 0
     emp_nos = []
+    dept_names = ""   # z762: 통보 부서 이름 스냅샷(제작요청서 저장·표시용)
     # z746(대표 지시): 자동 라우팅 — 프로젝트 사업부(mgmt_code[3]: T검사기/M자동화/L라이프/E기타)에 맞는
     #   담당자 + '공통'(users.biz_divs 빈값)에게만 통보. 사업부 판별 불가 시 필터 없음(전원). '전부서' 선택에도 적용.
     _mc_raw = str(p.get("mgmt_code") or "")
@@ -6672,6 +6685,13 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                           (_uid, "prod_request", title, body, link))
                 sent_to += 1
             dept_count = len(_dept_ids)
+            # z762: 통보 부서 이름 스냅샷(제작요청서 저장·표시용 — 나중에 join 없이 바로 표시)
+            if _dept_ids:
+                _ph_d = ",".join("?" * len(_dept_ids))
+                _drs = c.execute(f"SELECT name FROM teams WHERE id IN ({_ph_d})", tuple(_dept_ids)).fetchall()
+                dept_names = ", ".join(sorted({
+                    (dr[0] if not isinstance(dr, dict) else dr["name"])
+                    for dr in _drs if (dr[0] if not isinstance(dr, dict) else dr["name"])}))
             # v5H226z391: 메신저(KNK Eum) 통보용 사번 수집 — 컬럼/사번 없으면 건너뜀(인앱 알림은 위에서 이미 완료).
             try:
                 if uids:
@@ -6709,9 +6729,22 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             msg_err = _mres.get("error", "메신저 통보 실패")
     except Exception as _e:
         msg_err = f"메신저 통보 오류: {str(_e)[:100]}"
+    # v5H226z762 (대표 지시): 제작요청서 영구 저장 — 발행마다 1행(재발행 이력). 요청사항이 통보로만 흘러가 사라지던 문제 해결.
+    #   저장 실패해도 통보는 유효 — 조용히 넘기지 않고 pr_save_err 로 표면화(except:pass 금지).
+    _pr_save_err = ""
+    try:
+        with db_session() as c:
+            c.execute(
+                "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, dept_names, "
+                "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), dept_names,
+                 (user.get("id") or None), by_name, sent_to, dept_count, msg_sent, now_str, now_str[:10]))
+    except Exception as _se:
+        _pr_save_err = str(_se)[:150]
     return {"ok": True, "sent_to": sent_to, "dept_count": dept_count,
             "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
-            "msg_sent": msg_sent, "msg_err": msg_err}
+            "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err}
 
 
 # =====================================================
@@ -19132,6 +19165,40 @@ async def parts_delete_submit(request: Request, pid: int):
 
 
 # ── 프로젝트 / 관리코드 발행대장 ─────────────────────────
+# v5H226z762 (대표 지시): 제작요청서 목록 — 발행된 제작요청서를 프로젝트 넘어 한곳에서 모아보기·검색.
+#   요청사항이 통보로만 흘러가 사라지던 문제 해결(저장은 prod_requests). 가격 없음 → 로그인만 게이트(상세 페이지와 동일).
+@app.get("/prod-requests", response_class=HTMLResponse)
+async def prod_requests_list_page(request: Request, q: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    _q = (q or "").strip()
+    rows = []
+    try:
+        with db_session() as c:
+            sql = ("SELECT pr.id, pr.project_id, pr.mgmt_code, pr.cust_req, pr.note, "
+                   "pr.dept_names, pr.issued_by_name, pr.sent_to, pr.dept_count, pr.msg_sent, "
+                   "pr.created_at, pr.created_date, "
+                   "p.name AS project_name, p.model_name AS model_name, "
+                   "p.customer_name AS p_customer, cu.name AS cust_name "
+                   "FROM prod_requests pr "
+                   "JOIN projects p ON p.id = pr.project_id "
+                   "LEFT JOIN customers cu ON cu.id = p.customer_id ")
+            params = []
+            if _q:
+                sql += ("WHERE (pr.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
+                        "OR cu.name LIKE ? OR p.customer_name LIKE ? OR pr.cust_req LIKE ? "
+                        "OR pr.dept_names LIKE ? OR pr.issued_by_name LIKE ?) ")
+                _like = f"%{_q}%"
+                params = [_like] * 8
+            sql += "ORDER BY pr.id DESC LIMIT 300"
+            rows = [dict(r) for r in c.execute(sql, params).fetchall()]
+    except Exception as _e:
+        rows = []
+        print(f"[z762] 제작요청서 목록 조회 실패: {_e}")
+    return ctx(request, "prod_requests_list.html", user=u, rows=rows, q=_q)
+
+
 @app.get("/projects", response_class=HTMLResponse)
 async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                              stage: str = "", status: str = "",
@@ -23941,6 +24008,9 @@ async def projects_new_submit(request: Request):
                         _qs.append("prod_msgerr=1")
                     if _res.get("stage_warn"):
                         _qs.append("prod_stagewarn=1")
+                    # z762: 제작요청서 저장 실패 시 신호(통보는 됐지만 이력 미저장 — 조용히 넘기지 않음)
+                    if _res.get("pr_save_err"):
+                        _qs.append("prod_saveerr=1")
                 else:
                     _qs.append("prod_err=1")
             except Exception:
