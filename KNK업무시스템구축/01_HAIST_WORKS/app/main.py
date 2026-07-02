@@ -6609,22 +6609,41 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     sent_to = 0
     dept_count = 0
     emp_nos = []
+    # z746(대표 지시): 자동 라우팅 — 프로젝트 사업부(mgmt_code[3]: T검사기/M자동화/L라이프/E기타)에 맞는
+    #   담당자 + '공통'(users.biz_divs 빈값)에게만 통보. 사업부 판별 불가 시 필터 없음(전원). '전부서' 선택에도 적용.
+    _mc_raw = str(p.get("mgmt_code") or "")
+    _pbiz = _mc_raw[3].upper() if (len(_mc_raw) >= 4 and _mc_raw[3].isalpha()) else ""
+
+    def _biz_match(bd_csv):
+        if not _pbiz:
+            return True
+        s = str(bd_csv or "").strip().upper()
+        if not s:
+            return True   # 공통(전 사업부)
+        return _pbiz in {x.strip() for x in s.replace(";", ",").split(",") if x.strip()}
+
     try:
         with db_session() as c:
             ph = ",".join("?" * len(tids))
-            rows = c.execute(
-                f"SELECT id FROM users WHERE team_id IN ({ph}) AND COALESCE(is_active,1)=1 AND id != ?",
+            _cand = c.execute(
+                f"SELECT id, team_id, COALESCE(biz_divs,'') AS bd FROM users "
+                f"WHERE team_id IN ({ph}) AND COALESCE(is_active,1)=1 AND id != ?",
                 (*tids, uid_self)).fetchall()
-            dept_count = c.execute(
-                f"SELECT COUNT(DISTINCT team_id) FROM users WHERE team_id IN ({ph}) "
-                f"AND COALESCE(is_active,1)=1 AND id != ?", (*tids, uid_self)).fetchone()[0]
             uids = []
-            for r in rows:
-                uid = r[0] if not isinstance(r, dict) else r["id"]
-                uids.append(uid)
+            _dept_ids = set()
+            for r in _cand:
+                if isinstance(r, dict):
+                    _uid, _tid, _bd = r.get("id"), r.get("team_id"), r.get("bd") or ""
+                else:
+                    _uid, _tid, _bd = r[0], r[1], (r[2] or "")
+                if not _biz_match(_bd):
+                    continue
+                uids.append(_uid)
+                _dept_ids.add(_tid)
                 c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
-                          (uid, "prod_request", title, body, link))
+                          (_uid, "prod_request", title, body, link))
                 sent_to += 1
+            dept_count = len(_dept_ids)
             # v5H226z391: 메신저(KNK Eum) 통보용 사번 수집 — 컬럼/사번 없으면 건너뜀(인앱 알림은 위에서 이미 완료).
             try:
                 if uids:
@@ -9680,6 +9699,12 @@ async def admin_users_edit_submit(req: Request, uid: int):
                           (1 if form.get(_flag) else 0, uid))
             except Exception:
                 pass
+        # z746(대표 지시): 담당 사업부(제작요청 통보 자동 라우팅) — 체크한 코드 CSV, 없으면 ''(공통·전 사업부 통보).
+        try:
+            _bd_sel = [x for x in form.getlist("biz_divs") if x in ("T", "M", "L", "E")]
+            c.execute("UPDATE users SET biz_divs=? WHERE id=?", (",".join(_bd_sel), uid))
+        except Exception:
+            pass
         # v5H113 LOW#18: user_history diff 기록
         new_data = {
             "name": name,

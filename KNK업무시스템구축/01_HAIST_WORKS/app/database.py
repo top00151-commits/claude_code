@@ -2308,6 +2308,8 @@ def init_db():
             ("can_close_tickets", "ALTER TABLE users ADD COLUMN can_close_tickets INTEGER DEFAULT 0"),
             ("can_view_sales",     "ALTER TABLE users ADD COLUMN can_view_sales INTEGER DEFAULT 0"),
             ("can_view_logistics", "ALTER TABLE users ADD COLUMN can_view_logistics INTEGER DEFAULT 0"),
+            # z746(대표 지시): 제작요청 통보 자동 라우팅용 담당 사업부(CSV: T,M,L,E). 비어있으면 '공통'(전 사업부 통보).
+            ("biz_divs",           "ALTER TABLE users ADD COLUMN biz_divs TEXT DEFAULT ''"),
         ]:
             if col not in ucols:
                 try:
