@@ -6277,44 +6277,14 @@ async def project_detail(req: Request, pid: int):
                 so_ids = [r[0] for r in c2.execute(
                     "SELECT id FROM orders WHERE project_id=?", (pid,)
                 ).fetchall()]
-                for _oid in so_ids:
-                    _ic = c2.execute(
-                        "SELECT COUNT(*) FROM order_items WHERE order_id=?", (_oid,)
-                    ).fetchone()[0] or 0
-                    if _ic > 0:
-                        # items 가 있으면 그 개수에 맞추기
-                        c2.execute(
-                            "UPDATE orders SET unit_qty=? WHERE id=? AND COALESCE(unit_qty,1) <> ?",
-                            (_ic, _oid, _ic)
-                        )
-                    # items 가 0 이면 건드리지 않음 (사용자가 추가 발주만 받고
-                    # 아직 호기 라인 안 쪼갠 케이스 보존)
-                # SO total_amount 도 items_sum 과 정합 (items 가 있을 때만)
-                import re as _re
-                _hogi_re = _re.compile(r"^\d+호기$")
-                for _oid in so_ids:
-                    row = c2.execute(
-                        "SELECT COALESCE(SUM(amount),0), COUNT(*) "
-                        "FROM order_items WHERE order_id=?", (_oid,)
-                    ).fetchone()
-                    _isum = float(row[0] or 0)
-                    _icnt = int(row[1] or 0)
-                    if _icnt > 0:
-                        cur_t = c2.execute(
-                            "SELECT total_amount FROM orders WHERE id=?", (_oid,)
-                        ).fetchone()
-                        if cur_t and abs(float(cur_t[0] or 0) - _isum) > 0.5:
-                            c2.execute(
-                                "UPDATE orders SET total_amount=? WHERE id=?",
-                                (_isum, _oid)
-                            )
-
-                # v5H109 / v5H226z776 (대표 지시): 라벨 자동 재번호 — 관리코드(프로젝트) 전체 기준.
-                # 같은 관리코드 안에서 SO 가 달라도 호기는 1·2·3·... 연속 번호.
-                # ⭐z776: 예전엔 '프로젝트 안 모든 라벨이 N호기'일 때만 재번호(all_pat) → 비표준 라벨(범위표시 등)
-                #   하나만 섞여도 통째로 건너뛰어 '1호기 2개' 중복이 방치됐음(대표 지적). → 이제 'N호기' 항목만
-                #   골라 발주일·id 순으로 1·2·3…으로 재번호(비표준 라벨은 그대로·순번서 제외) → 중복 근본 해결.
+                # v5H109 / z776 / ⭐z778 (대표 지시): 호기 라벨 자동 재번호 — 관리코드(프로젝트) 전체 1·2·3… 연속.
+                # ⭐z778: 재번호를 다른 자동보정(단가·총액 sync)보다 '먼저' 실행 + 즉시 커밋.
+                #   529 증상의 진짜 원인 = 재번호가 sync 루프 '뒤'에 있어, 그 루프가 이 프로젝트 상태에서 예외를 내면
+                #   (예: total_amount float 변환 등) 안쪽 except 로 빠져 재번호가 '한 번도' 실행 안 됨(라벨은 전부 N호기라 all_pat 무관).
+                #   → 재번호를 맨 앞으로 옮기고 sync 루프는 개별 try 로 감싸 서로 영향 없게. 'N호기' 항목만 골라 재번호(비표준 라벨 보존·순번 제외).
                 try:
+                    import re as _re
+                    _hogi_re = _re.compile(r"^\d+호기$")
                     all_items = c2.execute(
                         "SELECT oi.id, oi.unit_label, oi.order_id "
                         "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
@@ -6337,15 +6307,45 @@ async def project_detail(req: Request, pid: int):
                         for _oid, _subs in _byord.items():
                             if _subs:
                                 c2.execute("UPDATE orders SET unit_label=? WHERE id=?", (" · ".join(_subs), _oid))
-                        # v5H226z776: 재번호 '즉시 커밋' — 이 뒤에 같은 세션(c2)에서 도는 자동보정/SO 발행(v5H130 등)이
-                        #   특정 프로젝트 상태에서 예외를 내면 db_session 이 통째 롤백(→ 재번호까지 되돌아감·529 증상 원인).
-                        #   호기 정정은 여기서 확정해 뒤 코드와 무관하게 보존.
                         try:
-                            c2.commit()
+                            c2.commit()   # 즉시 확정 — 뒤 sync/발행 롤백과 무관하게 보존
                         except Exception:
                             pass
                 except Exception:
                     pass
+                # 단가(수량) 정합 — items 개수에 맞춤 (개별 SO 예외는 건너뜀)
+                for _oid in so_ids:
+                    try:
+                        _ic = c2.execute(
+                            "SELECT COUNT(*) FROM order_items WHERE order_id=?", (_oid,)
+                        ).fetchone()[0] or 0
+                        if _ic > 0:
+                            c2.execute(
+                                "UPDATE orders SET unit_qty=? WHERE id=? AND COALESCE(unit_qty,1) <> ?",
+                                (_ic, _oid, _ic)
+                            )
+                    except Exception:
+                        continue
+                # SO total_amount 도 items_sum 과 정합 (items 가 있을 때만) — 값 변환 실패해도 그 SO만 건너뜀
+                for _oid in so_ids:
+                    try:
+                        row = c2.execute(
+                            "SELECT COALESCE(SUM(amount),0), COUNT(*) "
+                            "FROM order_items WHERE order_id=?", (_oid,)
+                        ).fetchone()
+                        _isum = float(row[0] or 0)
+                        _icnt = int(row[1] or 0)
+                        if _icnt > 0:
+                            cur_t = c2.execute(
+                                "SELECT total_amount FROM orders WHERE id=?", (_oid,)
+                            ).fetchone()
+                            if cur_t and abs(float(cur_t[0] or 0) - _isum) > 0.5:
+                                c2.execute(
+                                    "UPDATE orders SET total_amount=? WHERE id=?",
+                                    (_isum, _oid)
+                                )
+                    except Exception:
+                        continue
             except Exception:
                 pass
 
