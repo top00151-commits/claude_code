@@ -6309,8 +6309,11 @@ async def project_detail(req: Request, pid: int):
                                 (_isum, _oid)
                             )
 
-                # v5H109: 라벨 자동 재번호 — 관리코드(프로젝트) 전체 기준
-                # 같은 관리코드 안에서 SO 가 달라도 호기는 1·2·3·... 연속 번호
+                # v5H109 / v5H226z776 (대표 지시): 라벨 자동 재번호 — 관리코드(프로젝트) 전체 기준.
+                # 같은 관리코드 안에서 SO 가 달라도 호기는 1·2·3·... 연속 번호.
+                # ⭐z776: 예전엔 '프로젝트 안 모든 라벨이 N호기'일 때만 재번호(all_pat) → 비표준 라벨(범위표시 등)
+                #   하나만 섞여도 통째로 건너뛰어 '1호기 2개' 중복이 방치됐음(대표 지적). → 이제 'N호기' 항목만
+                #   골라 발주일·id 순으로 1·2·3…으로 재번호(비표준 라벨은 그대로·순번서 제외) → 중복 근본 해결.
                 try:
                     all_items = c2.execute(
                         "SELECT oi.id, oi.unit_label, oi.order_id "
@@ -6319,29 +6322,21 @@ async def project_detail(req: Request, pid: int):
                         "ORDER BY o.order_date ASC, o.id ASC, oi.id ASC",
                         (pid,)
                     ).fetchall()
-                    labels = [(r[0], (r[1] or ""), r[2]) for r in all_items]
-                    all_pat = labels and all(_hogi_re.match(lbl) for _, lbl, _ in labels)
-                    need_fix = any(
-                        lbl != f"{i+1}호기"
-                        for i, (_, lbl, _) in enumerate(labels)
-                    )
-                    if all_pat and need_fix:
-                        for i, (iid, _, _) in enumerate(labels):
-                            c2.execute(
-                                "UPDATE order_items SET unit_label=? WHERE id=?",
-                                (f"{i+1}호기", iid)
-                            )
-                        # orders.unit_label 도 SO 별 새 라벨 합쳐 갱신
-                        for _oid in so_ids:
-                            sub = [
-                                f"{i+1}호기"
-                                for i, (_, _, oord) in enumerate(labels) if oord == _oid
-                            ]
-                            if sub:
-                                c2.execute(
-                                    "UPDATE orders SET unit_label=? WHERE id=?",
-                                    (" · ".join(sub), _oid)
-                                )
+                    rows_lbl = [(r[0], (r[1] or ""), r[2]) for r in all_items]
+                    hogi = [(iid, lbl, oid) for (iid, lbl, oid) in rows_lbl if _hogi_re.match(lbl)]
+                    need_fix = any(lbl != f"{i+1}호기" for i, (_, lbl, _) in enumerate(hogi))
+                    if hogi and need_fix:
+                        newmap = {}
+                        for i, (iid, _, _) in enumerate(hogi):
+                            newmap[iid] = f"{i+1}호기"
+                            c2.execute("UPDATE order_items SET unit_label=? WHERE id=?", (newmap[iid], iid))
+                        # orders.unit_label 재구성 — 각 SO 항목 라벨(재번호 반영·비표준은 원본 유지) '·'로 합침
+                        _byord = {}
+                        for (iid, lbl, oid) in rows_lbl:
+                            _byord.setdefault(oid, []).append(newmap.get(iid, lbl))
+                        for _oid, _subs in _byord.items():
+                            if _subs:
+                                c2.execute("UPDATE orders SET unit_label=? WHERE id=?", (" · ".join(_subs), _oid))
                 except Exception:
                     pass
             except Exception:

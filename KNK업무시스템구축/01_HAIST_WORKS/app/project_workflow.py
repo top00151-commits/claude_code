@@ -54,13 +54,13 @@ def generate_mgmt_code(c, biz_div: str, ref_date: date | None = None) -> str:
 
 def generate_so_no(c, biz_div: str = "T",
                     ref_date: date | None = None) -> str:
-    """v5H88: 수주번호 발급 — KNK 표준 [사업부]-[YYMMDD] 형식.
-    같은 날 첫 건은 접미 없음, 두 번째부터 -1, -2, -3 순차.
+    """v5H88 / v5H226z776: 수주번호 발급 — KNK 표준 [사업부]-[YYMMDD]-[N] 형식.
+    z776(대표 지시): 첫 건도 -1 부터 부여해 형식 일관(장비 호기와 1:1 대응 명확화).
     예:
-      첫 건       → T-260505
-      두 번째     → T-260505-1
-      세 번째     → T-260505-2
-    (이전 v5H69 는 두 번째를 -2 로 부여해 -1 이 누락 — 대표 지적 수정)
+      첫 건       → T-260505-1
+      두 번째     → T-260505-2
+      세 번째     → T-260505-3
+    (기존 접미 없는 번호 T-260505 는 그대로 유지 — 신규 발번만 변경·충돌 없음)
     """
     # v5H226z337 (대표 확정): 수주번호 앞글자 = 사업부 5종 — 검사기 T·자동화 M·라이프밸류 L·기타 E·소모품 C.
     #   (기존 T/M/L 만 허용 → E·C 가 T 로 강제되던 것 수정. 소모품 수주번호도 'C-YYMMDD' 로, 기타는 'E-YYMMDD' 로 발행.)
@@ -83,7 +83,8 @@ def generate_so_no(c, biz_div: str = "T",
     except Exception:
         pass
     if not rows:
-        return base  # 첫 건 → 접미 없음
+        # v5H226z776 (대표 지시): 첫 건도 -1 접미 — 수주번호 형식 일관(T-YYMMDD-1 부터 시작).
+        return f"{base}-1"
     # 접미 N 의 최대값. base 단독은 접미 없음(0) 으로 간주 → 다음은 -1
     max_n = 0
     for r in rows:
