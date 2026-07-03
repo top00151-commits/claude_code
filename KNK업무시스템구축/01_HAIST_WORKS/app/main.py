@@ -6337,6 +6337,13 @@ async def project_detail(req: Request, pid: int):
                         for _oid, _subs in _byord.items():
                             if _subs:
                                 c2.execute("UPDATE orders SET unit_label=? WHERE id=?", (" · ".join(_subs), _oid))
+                        # v5H226z776: 재번호 '즉시 커밋' — 이 뒤에 같은 세션(c2)에서 도는 자동보정/SO 발행(v5H130 등)이
+                        #   특정 프로젝트 상태에서 예외를 내면 db_session 이 통째 롤백(→ 재번호까지 되돌아감·529 증상 원인).
+                        #   호기 정정은 여기서 확정해 뒤 코드와 무관하게 보존.
+                        try:
+                            c2.commit()
+                        except Exception:
+                            pass
                 except Exception:
                     pass
             except Exception:
