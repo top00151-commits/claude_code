@@ -43,8 +43,14 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .pc-foot { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-top:11px; padding-top:10px; border-top:1px dashed var(--qv-line); }
 .pc-badge { font-size:11.5px; font-weight:800; color:#9a3412; background:#fff7ed; border:1px solid #fed7aa; border-radius:999px; padding:2px 9px; white-space:nowrap; }
 .pc-by { font-size:11.5px; color:var(--qv-ink-3); white-space:nowrap; }
-.pc-upd { font-size:11px; font-weight:700; color:#2563eb; margin-left:auto; white-space:nowrap; }
-.pc-go { font-size:11.5px; font-weight:700; color:var(--knk-red); margin-left:auto; white-space:nowrap; }
+.pc-upd { font-size:11px; font-weight:700; color:#2563eb; white-space:nowrap; }
+.pc-main { display:block; text-decoration:none; color:inherit; cursor:pointer; }
+/* 카드 하단 액션: 작업일정표 바로가기 · 상세보기(수정·발행) */
+.pc-acts { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; margin-left:auto; }
+.pc-act { font-size:12px; font-weight:800; text-decoration:none; white-space:nowrap; }
+.pc-act:hover { text-decoration:underline; }
+.pc-act.sched { color:#1d4ed8; }
+.pc-act.detail { color:var(--knk-red); }
 
 .prq-empty { margin:40px var(--content-pad); text-align:center; color:var(--qv-ink-3); }
 @media (max-width:768px){
@@ -96,21 +102,27 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   {% if rows %}
   <div class="prq-cards">
     {% for pr in rows %}
-    <a class="prq-card" href="/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.id }}">
-      <div class="pc-top">
-        <span class="pc-mgmt">📋 {{ pr.mgmt_code or '—' }}</span>
-        <span class="pc-date">🗓 {{ (pr.created_at or pr.created_date or '—')[:16] }}</span>
-      </div>
-      <div class="pc-title">{{ pr.model_name or pr.project_name or '(모델·품명 없음)' }}</div>
-      <div class="pc-sub">🏢 {{ pr.cust_name or pr.p_customer or '—' }}{% if pr.project_name and pr.model_name and pr.project_name != pr.model_name %} · {{ pr.project_name }}{% endif %}</div>
-      <div class="pc-req{% if not pr.cust_req %} empty{% endif %}">{{ pr.cust_req or '고객사 요청사항 없음' }}</div>
-      {% if pr.note %}<div class="pc-note">〔기타〕 {{ pr.note }}</div>{% endif %}
+    <div class="prq-card">
+      <a class="pc-main" href="/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.id }}">
+        <div class="pc-top">
+          <span class="pc-mgmt">📋 {{ pr.mgmt_code or '—' }}</span>
+          <span class="pc-date">🗓 {{ (pr.created_at or pr.created_date or '—')[:16] }}</span>
+        </div>
+        <div class="pc-title">{{ pr.model_name or pr.project_name or '(모델·품명 없음)' }}</div>
+        <div class="pc-sub">🏢 {{ pr.cust_name or pr.p_customer or '—' }}{% if pr.project_name and pr.model_name and pr.project_name != pr.model_name %} · {{ pr.project_name }}{% endif %}</div>
+        <div class="pc-req{% if not pr.cust_req %} empty{% endif %}">{{ pr.cust_req or '고객사 요청사항 없음' }}</div>
+        {% if pr.note %}<div class="pc-note">〔기타〕 {{ pr.note }}</div>{% endif %}
+      </a>
       <div class="pc-foot">
         <span class="pc-badge">📣 {{ pr.dept_count or 0 }}부서·{{ pr.sent_to or 0 }}명{% if pr.msg_sent %} · 📱{{ pr.msg_sent }}{% endif %}</span>
         <span class="pc-by">✍ {{ pr.issued_by_name or '—' }}</span>
-        {% if pr.updated_at %}<span class="pc-upd">✏️ 수정 {{ pr.updated_at[:16] }}</span>{% else %}<span class="pc-go">수정·발행 ›</span>{% endif %}
+        {% if pr.updated_at %}<span class="pc-upd">✏️ 수정 {{ pr.updated_at[:16] }}</span>{% endif %}
+        <span class="pc-acts">
+          <a class="pc-act sched" href="/sales/schedule?focus_ref={{ pr.project_id }}" title="작업일정표에서 이 관리번호({{ pr.mgmt_code }}) 위치로 이동">📅 작업일정표 바로가기</a>
+          <a class="pc-act detail" href="/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.id }}">상세보기 (수정·발행) ›</a>
+        </span>
       </div>
-    </a>
+    </div>
     {% endfor %}
   </div>
   {% else %}
