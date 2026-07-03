@@ -6,8 +6,9 @@
 {% include "_v5_partials/styles.html" %}
 <style>
 /* v5H226z769/z773/z774: 제작요청서 단독 편집 페이지 — 컴팩트 카드(대표 지시: ~70% 축소·가운데) + 보기/수정 토글 */
-.prq-wrap { width:100%; max-width:560px; margin:0 auto; align-self:center; }
-.prq-box { background: var(--paper, #fff); border:1px solid var(--line,#eef0f4); border-radius:11px; overflow:hidden; margin:0 auto 14px; }
+.prq-wrap { width:100%; max-width:624px; margin:0; padding:0 32px; box-sizing:border-box; align-self:flex-start; }
+.prq-box { background: var(--paper, #fff); border:1px solid var(--line,#eef0f4); border-radius:11px; overflow:hidden; margin:0 0 14px; }
+@media (max-width:640px){ .prq-wrap { padding:0 16px; } }
 .prq-hd { padding:9px 13px; background:#fff7ed; border-bottom:1px solid #fed7aa; font-size:13.5px; font-weight:800; color:#9a3412; }
 .prq-bd { padding:13px; }
 .prq-meta { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; color:var(--mute,#64748b); margin-bottom:10px; }
