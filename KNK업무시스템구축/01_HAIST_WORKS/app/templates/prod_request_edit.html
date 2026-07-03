@@ -5,32 +5,44 @@
 <title>제작요청서 · {{ p.mgmt_code }} · KNK HAIST WORKS</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-/* v5H226z769: 제작요청서 독립 편집 페이지 — 설치앱서도 확실히 렌더(상세 카드 우회) */
-.prq-wrap { max-width: 920px; margin: 0 auto; }
-.prq-box { background: var(--paper, #fff); border:1px solid var(--line,#eef0f4); border-radius:12px; overflow:hidden; margin:0 var(--content-pad) 16px; }
-.prq-hd { padding:12px 16px; background:#fff7ed; border-bottom:1px solid #fed7aa; font-size:15px; font-weight:800; color:#9a3412; }
-.prq-bd { padding:16px; }
-.prq-meta { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12px; color:var(--mute,#64748b); margin-bottom:12px; }
-.prq-lbl { font-size:12px; font-weight:700; color:#9a3412; margin:12px 0 4px; }
-.prq-in { width:100%; padding:9px 11px; border:1px solid var(--line,#eef0f4); border-radius:7px; font-size:14px; box-sizing:border-box; background:#fff; color:#1f2937; }
+/* v5H226z769/z773/z774: 제작요청서 단독 편집 페이지 — 컴팩트 카드(대표 지시: ~70% 축소·가운데) + 보기/수정 토글 */
+.prq-wrap { width:100%; max-width:560px; margin:0 auto; align-self:center; }
+.prq-box { background: var(--paper, #fff); border:1px solid var(--line,#eef0f4); border-radius:11px; overflow:hidden; margin:0 auto 14px; }
+.prq-hd { padding:9px 13px; background:#fff7ed; border-bottom:1px solid #fed7aa; font-size:13.5px; font-weight:800; color:#9a3412; }
+.prq-bd { padding:13px; }
+.prq-meta { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; color:var(--mute,#64748b); margin-bottom:10px; }
+.prq-lbl { font-size:11.5px; font-weight:700; color:#9a3412; margin:10px 0 3px; }
+.prq-in { width:100%; padding:7px 9px; border:1px solid var(--line,#eef0f4); border-radius:6px; font-size:13px; box-sizing:border-box; background:#fff; color:#1f2937; }
 textarea.prq-in { resize:vertical; }
-.prq-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-@media (max-width:640px){ .prq-grid { grid-template-columns:1fr; } }
-.prq-ro { white-space:pre-wrap; font-size:13.5px; line-height:1.6; color:#334155; background:var(--paper-2,#f7f8fa); border:1px solid var(--line,#eef0f4); border-radius:8px; padding:11px 13px; }
-/* v5H226z772: 참고 이미지 썸네일 갤러리 */
-.prq-imgs { display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 6px; }
-.prq-imgcell { position:relative; width:96px; height:96px; border-radius:8px; overflow:hidden; border:1px solid var(--line,#eef0f4); background:var(--paper-2,#f7f8fa); }
+select.prq-in { appearance:auto; }
+.prq-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+@media (max-width:560px){ .prq-grid { grid-template-columns:1fr; } }
+.prq-ro { white-space:pre-wrap; font-size:12.5px; line-height:1.55; color:#334155; background:var(--paper-2,#f7f8fa); border:1px solid var(--line,#eef0f4); border-radius:7px; padding:9px 11px; }
+/* 참고 이미지 썸네일 */
+.prq-imgs { display:flex; flex-wrap:wrap; gap:7px; margin:2px 0 6px; }
+.prq-imgcell { position:relative; width:74px; height:74px; border-radius:7px; overflow:hidden; border:1px solid var(--line,#eef0f4); background:var(--paper-2,#f7f8fa); }
 .prq-imgcell img { width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in; }
-.prq-imgdel { position:absolute; top:2px; right:2px; width:20px; height:20px; line-height:18px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:14px; cursor:pointer; padding:0; text-align:center; }
+.prq-imgdel { display:none; position:absolute; top:2px; right:2px; width:18px; height:18px; line-height:16px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:13px; cursor:pointer; padding:0; text-align:center; }
+.prq-imgs.editing .prq-imgdel { display:block; }
 .prq-imgdel:hover { background:#dc2626; }
-.prq-imgempty { font-size:12.5px; color:var(--mute,#64748b); font-style:italic; padding:4px 0; }
-/* v5H226z773: 등록 정보 요약(금액 제외) */
-.prq-sec { font-size:13px; font-weight:800; color:#9a3412; margin:18px 0 8px; padding-bottom:5px; border-bottom:1px solid #fde7d3; }
-.prq-info { display:grid; grid-template-columns:1fr 1fr; gap:2px 22px; margin-bottom:4px; }
-@media (max-width:640px){ .prq-info { grid-template-columns:1fr; } }
-.prq-ir { display:flex; gap:10px; font-size:13.5px; padding:6px 2px; border-bottom:1px dashed var(--line,#eef0f4); }
-.prq-ir .k { flex:0 0 92px; color:var(--mute,#64748b); font-weight:700; font-size:12.5px; }
+.prq-imgempty { font-size:11.5px; color:var(--mute,#64748b); font-style:italic; padding:3px 0; }
+/* 등록 정보 요약(금액 제외) */
+.prq-sec { font-size:12px; font-weight:800; color:#9a3412; margin:14px 0 6px; padding-bottom:4px; border-bottom:1px solid #fde7d3; }
+.prq-sec-sub { font-weight:600; font-size:11px; color:var(--mute,#64748b); }
+.prq-info { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; margin-bottom:2px; }
+@media (max-width:560px){ .prq-info { grid-template-columns:1fr; } }
+.prq-ir { display:flex; gap:8px; font-size:12.5px; padding:4px 2px; border-bottom:1px dashed var(--line,#eef0f4); }
+.prq-ir .k { flex:0 0 78px; color:var(--mute,#64748b); font-weight:700; font-size:11.5px; }
 .prq-ir .v { flex:1; color:#1f2937; word-break:break-word; }
+/* 편집 모드 필드(전부 편집) */
+.prq-info-edit { display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-bottom:4px; }
+@media (max-width:560px){ .prq-info-edit { grid-template-columns:1fr; } }
+.pe-f { display:flex; flex-direction:column; gap:3px; }
+.pe-f > label { font-size:11px; font-weight:700; color:#9a3412; }
+.pe-fixed { font-size:13px; font-weight:800; color:#9a3412; padding:6px 0; }
+.pe-fixed span { font-weight:600; font-size:11px; color:var(--mute,#64748b); }
+/* 버튼 줄 */
+.prq-btns { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
@@ -41,7 +53,7 @@ textarea.prq-in { resize:vertical; }
   <div class="page-head">
     <div>
       <div class="crumbs"><a href="/projects">프로젝트</a> · <a href="/project/{{ p.id }}">{{ p.mgmt_code }}</a> · <b>제작요청서</b></div>
-      <h1 class="page-title">📋 제작요청서 <span style="font-size:15px;font-weight:600;color:var(--mute,#64748b);">— {{ p.name }}</span></h1>
+      <h1 class="page-title">📋 제작요청서 <span style="font-size:14px;font-weight:600;color:var(--mute,#64748b);">— {{ p.name }}</span></h1>
     </div>
     <div style="display:flex;gap:8px;">
       <a class="btn btn-secondary" href="/project/{{ p.id }}">↩ 프로젝트로</a>
@@ -50,9 +62,9 @@ textarea.prq-in { resize:vertical; }
 
   <div class="prq-wrap">
     {% if request.query_params.get('prod_updated') %}
-    <div style="margin:0 var(--content-pad) 14px;padding:11px 16px;border-radius:9px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13.5px;font-weight:600;">✏️ 저장 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% endif %}.</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13px;font-weight:600;">✏️ 저장 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% endif %}.</div>
     {% elif request.query_params.get('prod_upderr') %}
-    <div style="margin:0 var(--content-pad) 14px;padding:11px 16px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13px;font-weight:600;">⚠ 저장에 실패했습니다 — 관리자에게 문의하세요.</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 저장에 실패했습니다 — 관리자에게 문의하세요.</div>
     {% endif %}
 
     {% if pr %}
@@ -62,31 +74,78 @@ textarea.prq-in { resize:vertical; }
         <div class="prq-meta">
           <span>🗓 발행 <b style="color:#334155;">{{ pr.created_at or pr.created_date }}</b></span>
           <span>✍ {{ pr.issued_by_name or '—' }}</span>
-          <span>📣 통보 {{ pr.dept_count or 0 }}개 부서 · {{ pr.sent_to or 0 }}명{% if pr.msg_sent %} · 📱 {{ pr.msg_sent }}명 푸시{% endif %}</span>
+          <span>📣 통보 {{ pr.dept_count or 0 }}부서 · {{ pr.sent_to or 0 }}명{% if pr.msg_sent %} · 📱 {{ pr.msg_sent }}{% endif %}</span>
           {% if pr.dept_names %}<span>🏢 {{ pr.dept_names }}</span>{% endif %}
           {% if pr.updated_at %}<span style="color:#2563eb;">✏️ 수정 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</span>{% endif %}
         </div>
-        {# v5H226z773 (대표 지시): 등록 시 작성한 모든 정보(금액 제외)를 한 장 카드로 #}
-        <div class="prq-sec">📄 기본 정보</div>
-        <div class="prq-info">
-          <div class="prq-ir"><span class="k">관리번호</span><span class="v" style="color:#9a3412;font-weight:800;">{{ p.mgmt_code or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">프로젝트명</span><span class="v">{{ p.name or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">고객사</span><span class="v">{{ p.customer_name or '—' }}</span></div>
-          {% if p.cc_name %}<div class="prq-ir"><span class="k">고객 담당자</span><span class="v">{{ p.cc_name }}{% if p.cc_position %} · {{ p.cc_position }}{% endif %}</span></div>{% endif %}
-          <div class="prq-ir"><span class="k">장비명</span><span class="v">{{ p.equip_name or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">수량</span><span class="v">{{ p.unit_qty or 1 }}</span></div>
-          <div class="prq-ir"><span class="k">납기</span><span class="v">{{ (p.due_date or '')[:10] or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">형태</span><span class="v">{{ form_label }}</span></div>
-          <div class="prq-ir"><span class="k">사업부</span><span class="v">{{ biz_label }}</span></div>
-          <div class="prq-ir"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></div>
-          {% if p.customer_po %}<div class="prq-ir"><span class="k">발주(PO)번호</span><span class="v">{{ p.customer_po }}</span></div>{% endif %}
-          {% if p.order_date %}<div class="prq-ir"><span class="k">발주일</span><span class="v">{{ (p.order_date)[:10] }}</span></div>{% endif %}
+
+        {# ===== 보기 모드(기본) — 등록 시 작성한 모든 정보(금액 제외) ===== #}
+        <div id="prqView">
+          <div class="prq-sec">📄 기본 정보</div>
+          <div class="prq-info">
+            <div class="prq-ir"><span class="k">관리번호</span><span class="v" style="color:#9a3412;font-weight:800;">{{ p.mgmt_code or '—' }}</span></div>
+            <div class="prq-ir"><span class="k">프로젝트명</span><span class="v">{{ p.name or '—' }}</span></div>
+            <div class="prq-ir"><span class="k">고객사</span><span class="v">{{ p.customer_name or '—' }}</span></div>
+            {% if p.cc_name %}<div class="prq-ir"><span class="k">고객 담당자</span><span class="v">{{ p.cc_name }}{% if p.cc_position %} · {{ p.cc_position }}{% endif %}</span></div>{% endif %}
+            <div class="prq-ir"><span class="k">장비명</span><span class="v">{{ p.equip_name or '—' }}</span></div>
+            <div class="prq-ir"><span class="k">수량</span><span class="v">{{ p.unit_qty or 1 }}</span></div>
+            <div class="prq-ir"><span class="k">납기</span><span class="v">{{ (p.due_date or '')[:10] or '—' }}</span></div>
+            <div class="prq-ir"><span class="k">형태</span><span class="v">{{ form_label }}</span></div>
+            <div class="prq-ir"><span class="k">사업부</span><span class="v">{{ biz_label }}</span></div>
+            <div class="prq-ir"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></div>
+            {% if p.customer_po %}<div class="prq-ir"><span class="k">발주(PO)</span><span class="v">{{ p.customer_po }}</span></div>{% endif %}
+            {% if p.order_date %}<div class="prq-ir"><span class="k">발주일</span><span class="v">{{ (p.order_date)[:10] }}</span></div>{% endif %}
+          </div>
+          <div class="prq-sec">🛠 제작 사양</div>
+          <div class="prq-info">
+            <div class="prq-ir"><span class="k">모델명</span><span class="v">{{ p.model_name or '—' }}</span></div>
+            <div class="prq-ir"><span class="k">각인</span><span class="v">{{ p.engraving or '—' }}</span></div>
+          </div>
+          {% if p.server_path %}<div class="prq-lbl">자료 경로</div><div class="prq-ro">{{ p.server_path }}</div>{% endif %}
+          <div class="prq-lbl">고객사 요청사항</div>
+          <div class="prq-ro">{{ pr.cust_req or '(없음)' }}</div>
+          {% if pr.note %}<div class="prq-lbl">기타 요청사항</div><div class="prq-ro">{{ pr.note }}</div>{% endif %}
         </div>
 
+        {# ===== 편집 모드(수정하기) — 관리번호만 고정, 나머지 전부 편집 ===== #}
         {% if can_edit %}
-        <div class="prq-sec">🛠 제작 사양 <span style="font-weight:600;font-size:11.5px;color:var(--mute,#64748b);">— 고쳐서 저장하면 수정발행(부서 다시 통보)</span></div>
-        <form method="post" action="/project/{{ p.id }}/prod-request/{{ pr.id }}/update">
+        <form id="prqEditForm" method="post" action="/project/{{ p.id }}/prod-request/{{ pr.id }}/update" hidden onsubmit="return prqValidate(this);">
           <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit?prid={{ pr.id }}">
+          <input type="hidden" name="full_edit" value="1">
+          <div class="prq-sec">📄 기본 정보 <span class="prq-sec-sub">— 관리번호 빼고 전부 편집</span></div>
+          <div class="prq-info-edit">
+            <div class="pe-f"><label>관리번호</label><div class="pe-fixed">{{ p.mgmt_code or '—' }} <span>(고정)</span></div></div>
+            <div class="pe-f"><label>프로젝트명</label><input class="prq-in" type="text" name="name" value="{{ p.name or '' }}"></div>
+            <div class="pe-f"><label>고객사 (등록 목록에서 선택)</label><input class="prq-in" type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="1" data-cust-initial="{{ p.customer_name or '' }}" placeholder="고객사명 → 목록 선택" autocomplete="off"></div>
+            <div class="pe-f"><label>고객 담당자 · 직책</label>
+              <div style="display:flex;gap:6px;"><input class="prq-in" type="text" name="cc_name" value="{{ p.cc_name or '' }}" placeholder="이름" style="flex:2;"><input class="prq-in" type="text" name="cc_position" value="{{ p.cc_position or '' }}" placeholder="직책" style="flex:1;"></div>
+            </div>
+            <div class="pe-f"><label>장비명</label><input class="prq-in" type="text" name="equip_name" value="{{ p.equip_name or '' }}"></div>
+            <div class="pe-f"><label>수량</label><input class="prq-in" type="number" name="unit_qty" value="{{ p.unit_qty or 1 }}" min="1"></div>
+            <div class="pe-f"><label>납기</label><input class="prq-in" type="date" name="due_date" value="{{ (p.due_date or '')[:10] }}"></div>
+            <div class="pe-f"><label>형태</label>
+              <select class="prq-in" name="shipment_form">
+                {% for v, l in [('ASSEMBLY','🏭 완제품'), ('SEMI','📦 제품'), ('PARTS','🧰 상품'), ('ETC','🗂 기타')] %}
+                <option value="{{ v }}"{% if (p.shipment_form or 'ASSEMBLY')|upper == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="pe-f"><label>사업부</label>
+              <select class="prq-in" name="biz_div">
+                {% for v, l in [('T','🔎 검사기'), ('M','⚙️ 자동화'), ('L','💡 라이프밸류'), ('E','🗂 기타'), ('C','🧴 소모품'), ('R','🔬 연구')] %}
+                <option value="{{ v }}"{% if biz_cur == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="pe-f"><label>거래구분</label>
+              <select class="prq-in" name="is_export">
+                <option value="0"{% if not (p.is_export|int) %} selected{% endif %}>🏠 내수</option>
+                <option value="1"{% if (p.is_export|int) %} selected{% endif %}>🚢 수출</option>
+              </select>
+            </div>
+            <div class="pe-f"><label>발주(PO)번호</label><input class="prq-in" type="text" name="customer_po" value="{{ p.customer_po or '' }}"></div>
+            <div class="pe-f"><label>발주일</label><input class="prq-in" type="date" name="order_date" value="{{ (p.order_date or '')[:10] }}"></div>
+          </div>
+
+          <div class="prq-sec">🛠 제작 사양</div>
           <div class="prq-grid">
             <div><div class="prq-lbl">모델명</div><input class="prq-in" type="text" name="model_name" value="{{ p.model_name or '' }}"></div>
             <div><div class="prq-lbl">각인 (장비 마킹)</div><input class="prq-in" type="text" name="engraving" value="{{ p.engraving or '' }}"></div>
@@ -94,66 +153,55 @@ textarea.prq-in { resize:vertical; }
           <div class="prq-lbl">자료 경로 (제품자료 서버 경로 — 통보에 포함)</div>
           <input class="prq-in" type="text" name="server_path" value="{{ p.server_path or '' }}">
           <div class="prq-lbl">고객사 요청사항</div>
-          <textarea class="prq-in" name="cust_req" rows="7">{{ pr.cust_req or '' }}</textarea>
+          <textarea class="prq-in" name="cust_req" rows="6">{{ pr.cust_req or '' }}</textarea>
           <div class="prq-lbl">기타 요청사항</div>
-          <textarea class="prq-in" name="note" rows="4">{{ pr.note or '' }}</textarea>
-
-          {# 참고 이미지 — 기타 요청사항 아래(대표 지시) #}
-          <div class="prq-lbl" style="margin-top:14px;">📷 참고 이미지 <span id="prqImgCount" style="font-weight:400;color:var(--mute,#64748b);">{% if pr_images %}({{ pr_images|length }}장){% endif %}</span></div>
-          <div id="prqImgGrid" class="prq-imgs">
-            {% for im in pr_images %}
-            <div class="prq-imgcell" data-imgid="{{ im.id }}">
-              <a href="{{ im.url }}" target="_blank" rel="noopener"><img src="{{ im.thumb_url or im.url }}" alt="{{ im.orig_name or '이미지' }}" loading="lazy"></a>
-              <button type="button" class="prq-imgdel" title="삭제" onclick="prqImgDelete({{ im.id }}, this)">×</button>
-            </div>
-            {% endfor %}
-            <div id="prqImgEmpty" class="prq-imgempty"{% if pr_images %} style="display:none;"{% endif %}>첨부된 이미지가 없습니다.</div>
-          </div>
-          <div style="margin:2px 0 4px;">
-            <label class="btn btn-secondary" style="cursor:pointer;font-size:13px;padding:6px 12px;">＋ 이미지 추가
-              <input type="file" id="prqImgAdd" accept="image/*" multiple style="display:none;" onchange="prqImgUpload(this.files)">
-            </label>
-            <span id="prqImgMsg" style="font-size:12px;color:var(--mute,#64748b);margin-left:8px;"></span>
-          </div>
-
-          <div style="font-size:12px;color:var(--mute,#64748b);margin-top:10px;">저장하면 관련 부서에 <b style="color:#9a3412;">[수정]</b>으로 다시 통보됩니다.</div>
-          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
-            <a class="btn btn-secondary" href="/prod-requests">취소</a>
-            <button type="submit" class="btn btn-primary" style="background:#c2410c;">🔁 수정발행 · 부서 다시 통보</button>
-          </div>
+          <textarea class="prq-in" name="note" rows="3">{{ pr.note or '' }}</textarea>
         </form>
-        {% else %}
-        <div class="prq-sec">🛠 제작 사양</div>
-        <div class="prq-info">
-          <div class="prq-ir"><span class="k">모델명</span><span class="v">{{ p.model_name or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">각인</span><span class="v">{{ p.engraving or '—' }}</span></div>
-        </div>
-        {% if p.server_path %}<div class="prq-lbl">자료 경로</div><div class="prq-ro">{{ p.server_path }}</div>{% endif %}
-        <div class="prq-lbl">고객사 요청사항</div>
-        <div class="prq-ro">{{ pr.cust_req or '(없음)' }}</div>
-        {% if pr.note %}<div class="prq-lbl">기타 요청사항</div><div class="prq-ro">{{ pr.note }}</div>{% endif %}
+        {% endif %}
 
-        {# 참고 이미지 — 기타 요청사항 아래 #}
+        {# ===== 참고 이미지(기타 요청사항 아래·항상 표시) — 삭제 X는 편집 모드에서만 ===== #}
         <div class="prq-lbl" style="margin-top:14px;">📷 참고 이미지 <span id="prqImgCount" style="font-weight:400;color:var(--mute,#64748b);">{% if pr_images %}({{ pr_images|length }}장){% endif %}</span></div>
         <div id="prqImgGrid" class="prq-imgs">
           {% for im in pr_images %}
           <div class="prq-imgcell" data-imgid="{{ im.id }}">
             <a href="{{ im.url }}" target="_blank" rel="noopener"><img src="{{ im.thumb_url or im.url }}" alt="{{ im.orig_name or '이미지' }}" loading="lazy"></a>
+            {% if can_edit %}<button type="button" class="prq-imgdel" title="삭제" onclick="prqImgDelete({{ im.id }}, this)">×</button>{% endif %}
           </div>
           {% endfor %}
           <div id="prqImgEmpty" class="prq-imgempty"{% if pr_images %} style="display:none;"{% endif %}>첨부된 이미지가 없습니다.</div>
         </div>
+        {% if can_edit %}
+        <div id="prqImgAddWrap" style="margin:2px 0 6px;" hidden>
+          <label class="btn btn-secondary" style="cursor:pointer;font-size:12.5px;padding:5px 11px;">＋ 이미지 추가
+            <input type="file" id="prqImgAdd" accept="image/*" multiple style="display:none;" onchange="prqImgUpload(this.files)">
+          </label>
+          <span id="prqImgMsg" style="font-size:11.5px;color:var(--mute,#64748b);margin-left:8px;"></span>
+        </div>
+        {% endif %}
+
+        {# ===== 버튼 ===== #}
+        <div id="prqViewBtns" class="prq-btns">
+          <a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ p.id }}" title="작업일정표에서 이 관리번호 위치로 이동">📅 작업일정표 바로가기</a>
+          {% if can_edit %}<button type="button" class="btn btn-primary" style="background:#c2410c;" onclick="prqEnterEdit()">✏️ 수정하기</button>{% endif %}
+        </div>
+        {% if can_edit %}
+        <div id="prqEditBtns" class="prq-btns" hidden>
+          <button type="button" class="btn btn-secondary" onclick="prqCancelEdit()">취소</button>
+          <button type="submit" form="prqEditForm" class="btn btn-primary" style="background:#c2410c;">🔁 수정발행 · 부서 다시 통보</button>
+        </div>
+        <div id="prqEditHint" style="font-size:11px;color:var(--mute,#64748b);text-align:right;margin-top:6px;" hidden>저장하면 관련 부서에 [수정]으로 다시 통보됩니다.</div>
         {% endif %}
       </div>
     </div>
     {% else %}
-    <div class="prq-box"><div class="prq-bd" style="color:var(--mute,#64748b);font-size:14px;line-height:1.7;">
+    <div class="prq-box"><div class="prq-bd" style="color:var(--mute,#64748b);font-size:13.5px;line-height:1.7;">
       이 프로젝트에는 발행된 제작요청서가 없습니다.<br>
       프로젝트 등록 시 <b style="color:#9a3412;">「📋 제작요청 발행」</b>을 체크하면 여기서 확인·수정할 수 있습니다.
     </div></div>
     {% endif %}
   </div>
-  {# v5H226z772 (대표 지시): 참고 이미지 추가/삭제 — AJAX(영업·관리 권한자만 버튼 노출). 열람은 썸네일 클릭→원본 새 창. #}
+
+  {# v5H226z772/z774: 참고 이미지 AJAX(추가/삭제) + 보기/수정 토글 #}
   <script>
   (function(){
     var PID={{ p.id }}, PRID={{ pr.id if pr else 0 }};
@@ -193,6 +241,32 @@ textarea.prq-in { resize:vertical; }
       fetch('/project/'+PID+'/prod-request/'+PRID+'/image/'+id+'/delete', {method:'POST', credentials:'include'})
         .then(function(r){ return r.json(); })
         .then(function(j){ if(j&&j.ok){ var cell=btn.closest('.prq-imgcell'); if(cell&&cell.parentNode) cell.parentNode.removeChild(cell); countUpd(); } });
+    };
+    // 보기 ⇄ 수정 토글
+    function ids(){ return {
+      v:document.getElementById('prqView'), f:document.getElementById('prqEditForm'),
+      vb:document.getElementById('prqViewBtns'), eb:document.getElementById('prqEditBtns'),
+      eh:document.getElementById('prqEditHint'), aw:document.getElementById('prqImgAddWrap'), g:grid() }; }
+    window.prqEnterEdit=function(){
+      var e=ids();
+      if(e.v) e.v.hidden=true; if(e.f) e.f.hidden=false;
+      if(e.vb) e.vb.hidden=true; if(e.eb) e.eb.hidden=false;
+      if(e.eh) e.eh.hidden=false; if(e.aw) e.aw.hidden=false;
+      if(e.g) e.g.classList.add('editing');
+      try{ if(window.KNKCust && KNKCust.initAll) KNKCust.initAll(e.f); }catch(_){}
+      try{ (e.f||document).querySelector('input[name=name]').focus(); }catch(_){}
+    };
+    window.prqCancelEdit=function(){
+      var e=ids();
+      if(e.v) e.v.hidden=false; if(e.f) e.f.hidden=true;
+      if(e.vb) e.vb.hidden=false; if(e.eb) e.eb.hidden=true;
+      if(e.eh) e.eh.hidden=true; if(e.aw) e.aw.hidden=true;
+      if(e.g) e.g.classList.remove('editing');
+    };
+    window.prqValidate=function(form){
+      try{ if(window.KNKCust && KNKCust.validate){ var bad=KNKCust.validate(form);
+        if(bad){ alert('고객사를 등록된 목록에서 선택하세요.'); try{ bad.focus(); }catch(_){} return false; } } }catch(_){}
+      return true;
     };
   })();
   </script>

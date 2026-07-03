@@ -19327,6 +19327,21 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _server_path = (form.get("server_path") or "").strip()
     _model_name = (form.get("model_name") or "").strip()
     _engraving = (form.get("engraving") or "").strip()
+    # v5H226z774 (대표 지시): 제작요청서에서 관리번호만 빼고 전부 편집 — full_edit=1 이면 프로젝트 서술필드도 갱신.
+    _full_edit = (form.get("full_edit") or "").strip() == "1"
+    _pname = (form.get("name") or "").strip()
+    _cc_name = (form.get("cc_name") or "").strip()
+    _cc_position = (form.get("cc_position") or "").strip()
+    _equip_name = (form.get("equip_name") or "").strip()
+    _unit_qty_raw = (form.get("unit_qty") or "").strip()
+    _due_date = (form.get("due_date") or "").strip()[:10]
+    _ship_form = (form.get("shipment_form") or "").strip().upper()
+    _biz_div_v = (form.get("biz_div") or "").strip().upper()
+    _is_export_raw = (form.get("is_export") or "").strip()
+    _customer_po = (form.get("customer_po") or "").strip()
+    _order_date = (form.get("order_date") or "").strip()[:10]
+    _cust_id_raw = (form.get("customer_id") or "").strip()
+    _cust_name_v = (form.get("customer_name") or "").strip()
     _by = u.get("name") or u.get("login_id") or "—"
     from datetime import datetime as _dtu
     _now = _dtu.now().strftime("%Y-%m-%d %H:%M")
@@ -19345,8 +19360,33 @@ async def prod_request_update(request: Request, pid: int, prid: int):
                 return RedirectResponse(_dest("prod_upderr=1"), 303)
             pr = dict(pr)
             # 프로젝트 필드(자료경로·모델·각인) 갱신 — 통보 본문·상세 표시에 함께 반영
-            c.execute("UPDATE projects SET server_path=?, model_name=?, engraving=? WHERE id=?",
-                      (_server_path or None, _model_name or None, _engraving or None, pid))
+            _setcols = ["server_path=?", "model_name=?", "engraving=?"]
+            _setvals = [_server_path or None, _model_name or None, _engraving or None]
+            if _full_edit:
+                # v5H226z774: 관리번호 빼고 전부 편집 — 존재하는 값만 안전하게 갱신
+                if _pname:
+                    _setcols.append("name=?"); _setvals.append(_pname)
+                for _col, _val in (("cc_name", _cc_name), ("cc_position", _cc_position),
+                                   ("equip_name", _equip_name), ("customer_po", _customer_po)):
+                    _setcols.append(f"{_col}=?"); _setvals.append(_val or None)
+                if _unit_qty_raw.isdigit() and int(_unit_qty_raw) > 0:
+                    _setcols.append("unit_qty=?"); _setvals.append(int(_unit_qty_raw))
+                if _due_date:
+                    _setcols.append("due_date=?"); _setvals.append(_due_date)
+                if _order_date:
+                    _setcols.append("order_date=?"); _setvals.append(_order_date)
+                if _ship_form in ("ASSEMBLY", "SEMI", "PARTS", "ETC"):
+                    _setcols.append("shipment_form=?"); _setvals.append(_ship_form)
+                if _biz_div_v in ("T", "M", "L", "E", "C", "R"):
+                    _setcols.append("biz_div=?"); _setvals.append(_biz_div_v)
+                if _is_export_raw in ("0", "1"):
+                    _setcols.append("is_export=?"); _setvals.append(int(_is_export_raw))
+                # 고객사: 등록 목록에서 고른 유효 customer_id 일 때만 변경(연결 유지·feedback_data_connectivity)
+                if _cust_id_raw.isdigit() and int(_cust_id_raw) > 0:
+                    _setcols.append("customer_id=?"); _setvals.append(int(_cust_id_raw))
+                    _setcols.append("customer_name=?"); _setvals.append(_cust_name_v or None)
+            _setvals.append(pid)
+            c.execute(f"UPDATE projects SET {', '.join(_setcols)} WHERE id=?", _setvals)
             # 제작요청서 행(요청사항 2개 + 수정 메타) 제자리 갱신
             c.execute("UPDATE prod_requests SET cust_req=?, note=?, updated_at=?, updated_by_name=? WHERE id=?",
                       (_cust_req, _note, _now, _by, prid))
@@ -19426,7 +19466,8 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
     _biz_label = _BIZ_LBL.get(_bd, _bd or "—")
     _export_label = "🚢 수출" if str(p.get("is_export") or "0") in ("1", "True", "true") else "🏠 내수"
     return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, pr_images=pr_images,
-               can_edit=can_view_sales(u), form_label=_form_label, biz_label=_biz_label, export_label=_export_label)
+               can_edit=can_view_sales(u), form_label=_form_label, biz_label=_biz_label,
+               export_label=_export_label, biz_cur=_bd)
 
 
 # v5H226z772 (대표 지시): 제작요청서 참고 이미지 추가/삭제 — 수정발행 화면에서 AJAX 업로드·삭제(영업·관리 권한자만).
