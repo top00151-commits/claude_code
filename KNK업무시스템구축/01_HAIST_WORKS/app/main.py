@@ -6201,6 +6201,33 @@ async def project_detail(req: Request, pid: int):
         if not p:
             return RedirectResponse("/", 303)
         p = dict(p)
+        # v5H226z779 (대표 지시·근본해결): 호기 라벨 자동 재번호 — ⭐메인 연결 c 에서, 표시 읽기 '전'에 실행.
+        #   진짜 원인(z776~z778 오진 끝에 규명): 기존 재번호가 별도 연결 c2(아래 6273)에서 돌아 이 메인 c 의 열린
+        #   트랜잭션과 SQLite 락이 충돌 → write 가 조용히 실패(except:pass)해 어느 프로젝트에서도 사실상 작동 안 함
+        #   (007T2601 '1호기 2개'가 발행 이후 계속 방치된 이유). c 로 쓰면 락 없음·같은 요청에 즉시 반영·c 종료 시 커밋.
+        #   'N호기' 항목만 골라 발주일·id 순 1·2·3…(비표준 라벨은 보존·순번서 제외 → 중복 근본 제거).
+        try:
+            import re as _re0
+            _hgre = _re0.compile(r"^\d+호기$")
+            _aitems = c.execute(
+                "SELECT oi.id, oi.unit_label, oi.order_id FROM order_items oi "
+                "JOIN orders o ON o.id = oi.order_id WHERE o.project_id=? "
+                "ORDER BY o.order_date ASC, o.id ASC, oi.id ASC", (pid,)).fetchall()
+            _rl = [(r[0], (r[1] or ""), r[2]) for r in _aitems]
+            _hg = [(iid, lbl, oid) for (iid, lbl, oid) in _rl if _hgre.match(lbl)]
+            if _hg and any(lbl != f"{i+1}호기" for i, (_, lbl, _) in enumerate(_hg)):
+                _nm = {}
+                for i, (iid, _, _) in enumerate(_hg):
+                    _nm[iid] = f"{i+1}호기"
+                    c.execute("UPDATE order_items SET unit_label=? WHERE id=?", (_nm[iid], iid))
+                _bo = {}
+                for (iid, lbl, oid) in _rl:
+                    _bo.setdefault(oid, []).append(_nm.get(iid, lbl))
+                for _oid, _subs in _bo.items():
+                    if _subs:
+                        c.execute("UPDATE orders SET unit_label=? WHERE id=?", (" · ".join(_subs), _oid))
+        except Exception:
+            pass
         # v5H226z421 (대표 지시): 이 프로젝트의 출처 '영업 기회(수주 전)' 역링크 — 수주 전 업무 내용 다시 보기
         try:
             _oo = c.execute(
@@ -6277,42 +6304,8 @@ async def project_detail(req: Request, pid: int):
                 so_ids = [r[0] for r in c2.execute(
                     "SELECT id FROM orders WHERE project_id=?", (pid,)
                 ).fetchall()]
-                # v5H109 / z776 / ⭐z778 (대표 지시): 호기 라벨 자동 재번호 — 관리코드(프로젝트) 전체 1·2·3… 연속.
-                # ⭐z778: 재번호를 다른 자동보정(단가·총액 sync)보다 '먼저' 실행 + 즉시 커밋.
-                #   529 증상의 진짜 원인 = 재번호가 sync 루프 '뒤'에 있어, 그 루프가 이 프로젝트 상태에서 예외를 내면
-                #   (예: total_amount float 변환 등) 안쪽 except 로 빠져 재번호가 '한 번도' 실행 안 됨(라벨은 전부 N호기라 all_pat 무관).
-                #   → 재번호를 맨 앞으로 옮기고 sync 루프는 개별 try 로 감싸 서로 영향 없게. 'N호기' 항목만 골라 재번호(비표준 라벨 보존·순번 제외).
-                try:
-                    import re as _re
-                    _hogi_re = _re.compile(r"^\d+호기$")
-                    all_items = c2.execute(
-                        "SELECT oi.id, oi.unit_label, oi.order_id "
-                        "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
-                        "WHERE o.project_id=? "
-                        "ORDER BY o.order_date ASC, o.id ASC, oi.id ASC",
-                        (pid,)
-                    ).fetchall()
-                    rows_lbl = [(r[0], (r[1] or ""), r[2]) for r in all_items]
-                    hogi = [(iid, lbl, oid) for (iid, lbl, oid) in rows_lbl if _hogi_re.match(lbl)]
-                    need_fix = any(lbl != f"{i+1}호기" for i, (_, lbl, _) in enumerate(hogi))
-                    if hogi and need_fix:
-                        newmap = {}
-                        for i, (iid, _, _) in enumerate(hogi):
-                            newmap[iid] = f"{i+1}호기"
-                            c2.execute("UPDATE order_items SET unit_label=? WHERE id=?", (newmap[iid], iid))
-                        # orders.unit_label 재구성 — 각 SO 항목 라벨(재번호 반영·비표준은 원본 유지) '·'로 합침
-                        _byord = {}
-                        for (iid, lbl, oid) in rows_lbl:
-                            _byord.setdefault(oid, []).append(newmap.get(iid, lbl))
-                        for _oid, _subs in _byord.items():
-                            if _subs:
-                                c2.execute("UPDATE orders SET unit_label=? WHERE id=?", (" · ".join(_subs), _oid))
-                        try:
-                            c2.commit()   # 즉시 확정 — 뒤 sync/발행 롤백과 무관하게 보존
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+                # v5H226z779: 호기 자동 재번호는 위(메인 연결 c, p 조회 직후)로 이동함 —
+                #   별도 연결 c2 의 write 는 메인 c 의 락과 충돌해 조용히 실패하던 문제(z776~z778 오진 끝에 규명) 해결.
                 # 단가(수량) 정합 — items 개수에 맞춤 (개별 SO 예외는 건너뜀)
                 for _oid in so_ids:
                     try:
