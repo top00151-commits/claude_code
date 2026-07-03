@@ -19187,35 +19187,56 @@ async def parts_delete_submit(request: Request, pid: int):
 # v5H226z762 (대표 지시): 제작요청서 목록 — 발행된 제작요청서를 프로젝트 넘어 한곳에서 모아보기·검색.
 #   요청사항이 통보로만 흘러가 사라지던 문제 해결(저장은 prod_requests). 가격 없음 → 로그인만 게이트(상세 페이지와 동일).
 @app.get("/prod-requests", response_class=HTMLResponse)
-async def prod_requests_list_page(request: Request, q: str = ""):
+async def prod_requests_list_page(request: Request, q: str = "", period: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     _q = (q or "").strip()
+    # v5H226z770 (대표 지시): 기간 분류(일/주/월/년) — 경계는 본사 KST(UTC+9)로 서버 계산.
+    #   브라우저 시간 금지(timezone_standard). 발행일 YYYY-MM-DD 문자열 접두 비교로 필터.
+    _period = (period or "").strip().lower()
+    if _period not in ("day", "week", "month", "year"):
+        _period = ""
+    from datetime import datetime as _dt2, timezone as _tz2, timedelta as _td2
+    _kn = _dt2.now(_tz2(_td2(hours=9)))                        # 본사 KST 기준 '지금'
+    _today = _kn.strftime("%Y-%m-%d")
+    _mon = (_kn - _td2(days=_kn.weekday())).strftime("%Y-%m-%d")   # 이번 주 월요일(월=0)
+    _period_label = {"day": "오늘", "week": "이번 주", "month": "이번 달", "year": "올해"}.get(_period, "전체")
     rows = []
     try:
         with db_session() as c:
             sql = ("SELECT pr.id, pr.project_id, pr.mgmt_code, pr.cust_req, pr.note, "
                    "pr.dept_names, pr.issued_by_name, pr.sent_to, pr.dept_count, pr.msg_sent, "
-                   "pr.created_at, pr.created_date, "
+                   "pr.created_at, pr.created_date, pr.updated_at, pr.updated_by_name, "
                    "p.name AS project_name, p.model_name AS model_name, "
                    "p.customer_name AS p_customer, cu.name AS cust_name "
                    "FROM prod_requests pr "
                    "JOIN projects p ON p.id = pr.project_id "
                    "LEFT JOIN customers cu ON cu.id = p.customer_id ")
-            params = []
+            _dref = "substr(COALESCE(NULLIF(pr.created_at,''), pr.created_date, ''),1,10)"  # 발행일 YYYY-MM-DD
+            conds, params = [], []
             if _q:
-                sql += ("WHERE (pr.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
-                        "OR cu.name LIKE ? OR p.customer_name LIKE ? OR pr.cust_req LIKE ? "
-                        "OR pr.dept_names LIKE ? OR pr.issued_by_name LIKE ?) ")
-                _like = f"%{_q}%"
-                params = [_like] * 8
+                conds.append("(pr.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
+                             "OR cu.name LIKE ? OR p.customer_name LIKE ? OR pr.cust_req LIKE ? "
+                             "OR pr.dept_names LIKE ? OR pr.issued_by_name LIKE ?)")
+                params += [f"%{_q}%"] * 8
+            if _period == "day":
+                conds.append(f"{_dref} = ?"); params.append(_today)
+            elif _period == "week":
+                conds.append(f"{_dref} >= ?"); params.append(_mon)
+            elif _period == "month":
+                conds.append(f"{_dref} LIKE ?"); params.append(_kn.strftime("%Y-%m") + "%")
+            elif _period == "year":
+                conds.append(f"{_dref} LIKE ?"); params.append(_kn.strftime("%Y") + "%")
+            if conds:
+                sql += "WHERE " + " AND ".join(conds) + " "
             sql += "ORDER BY pr.id DESC LIMIT 300"
             rows = [dict(r) for r in c.execute(sql, params).fetchall()]
     except Exception as _e:
         rows = []
         print(f"[z762] 제작요청서 목록 조회 실패: {_e}")
-    return ctx(request, "prod_requests_list.html", user=u, rows=rows, q=_q)
+    return ctx(request, "prod_requests_list.html", user=u, rows=rows, q=_q,
+               period=_period, period_label=_period_label)
 
 
 # v5H226z763 (대표 지시): 제작요청서 수정 — 발행 후 자료경로·모델·각인·요청사항을 고치고, 항상 부서에 다시 통보.
@@ -19283,7 +19304,7 @@ async def prod_request_update(request: Request, pid: int, prid: int):
 # v5H226z769 (대표 지시): 제작요청서 독립 편집 페이지 — 설치앱(PWA)서 프로젝트 상세 '제작요청서 카드'가 안 뜨는 문제 우회.
 #   상세와 무관한 단독 전체 페이지라 앱에서도 확실히 렌더됨. 헤더 '📋 제작요청서' 버튼이 여기로 링크.
 @app.get("/project/{pid}/prod-request/edit", response_class=HTMLResponse)
-async def prod_request_edit_page(request: Request, pid: int):
+async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -19293,9 +19314,15 @@ async def prod_request_edit_page(request: Request, pid: int):
         if not p:
             return RedirectResponse("/projects", 303)
         p = dict(p)
-        _pr = c.execute("SELECT id, mgmt_code, cust_req, note, dept_names, issued_by_name, "
-                        "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
-                        "FROM prod_requests WHERE project_id=? ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+        # v5H226z770: 목록 카드에서 특정 요청서(prid)로 진입 — 없거나 불일치면 최신으로 폴백.
+        _cols = ("SELECT id, mgmt_code, cust_req, note, dept_names, issued_by_name, "
+                 "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
+                 "FROM prod_requests WHERE project_id=? ")
+        _pr = None
+        if prid and prid > 0:
+            _pr = c.execute(_cols + "AND id=? LIMIT 1", (pid, prid)).fetchone()
+        if not _pr:
+            _pr = c.execute(_cols + "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
         pr = dict(_pr) if _pr else None
     return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, can_edit=can_view_sales(u))
 

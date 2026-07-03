@@ -54,8 +54,8 @@ textarea.prq-in { resize:vertical; }
         </div>
         {% if can_edit %}
         <form method="post" action="/project/{{ p.id }}/prod-request/{{ pr.id }}/update">
-          <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit">
-          <div style="font-size:12px;color:var(--mute,#64748b);margin-bottom:10px;">저장 시 관련 부서에 <b style="color:#9a3412;">[수정]</b> 다시 통보됩니다.</div>
+          <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit?prid={{ pr.id }}">
+          <div style="font-size:12px;color:var(--mute,#64748b);margin-bottom:10px;">사양 변경 등으로 내용을 고친 뒤 저장 = <b style="color:#9a3412;">수정발행</b>. 관련 부서에 <b style="color:#9a3412;">[수정]</b>으로 다시 통보됩니다.</div>
           <div class="prq-grid">
             <div><div class="prq-lbl">모델명</div><input class="prq-in" type="text" name="model_name" value="{{ p.model_name or '' }}"></div>
             <div><div class="prq-lbl">각인 (장비 마킹)</div><input class="prq-in" type="text" name="engraving" value="{{ p.engraving or '' }}"></div>
@@ -67,8 +67,8 @@ textarea.prq-in { resize:vertical; }
           <div class="prq-lbl">기타 요청사항</div>
           <textarea class="prq-in" name="note" rows="4">{{ pr.note or '' }}</textarea>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
-            <a class="btn btn-secondary" href="/project/{{ p.id }}">취소</a>
-            <button type="submit" class="btn btn-primary" style="background:#c2410c;">💾 저장 + 다시 통보</button>
+            <a class="btn btn-secondary" href="/prod-requests">취소</a>
+            <button type="submit" class="btn btn-primary" style="background:#c2410c;">🔁 수정발행 · 부서 다시 통보</button>
           </div>
         </form>
         {% else %}

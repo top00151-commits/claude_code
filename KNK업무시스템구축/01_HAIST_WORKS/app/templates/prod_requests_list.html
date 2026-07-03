@@ -6,19 +6,51 @@
 {% include "_v5_partials/styles.html" %}
 <style>
 /* v5H226z762 (대표 지시): 제작요청서 목록 — 발행된 제작요청서 모아보기 */
+/* v5H226z770 (대표 지시): 업무카드 형태 + 기간(일/주/월/년) 분류. 카드 클릭 → 독립 편집(수정발행) 페이지 */
 body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .prq-tabs { display:flex; gap:4px; margin:0 var(--content-pad) var(--space-4); border-bottom:2px solid var(--qv-line); }
 .prq-tabs a, .prq-tabs span { padding:9px 20px; font-size:14px; font-weight:700; text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-2px; }
 .prq-tabs .on { font-weight:800; color:var(--knk-red); border-bottom-color:var(--knk-red); }
 .prq-tabs a { color:var(--qv-ink-3); }
+
+/* 기간 분류 버튼 (일간·주간·월간·연간) */
+.prq-period { display:flex; gap:8px; flex-wrap:wrap; margin:0 var(--content-pad) var(--space-3); }
+.prq-period .pp { padding:7px 16px; font-size:13px; font-weight:700; text-decoration:none; border-radius:999px;
+  border:1px solid var(--qv-line); background:#fff; color:#475569; white-space:nowrap; }
+.prq-period .pp:hover { border-color:#fca5a5; color:var(--knk-red); }
+.prq-period .pp.on { background:var(--knk-red); border-color:var(--knk-red); color:#fff; }
+
 .prq-search { display:flex; gap:8px; margin:0 var(--content-pad) var(--space-3); flex-wrap:wrap; }
 .prq-search input[type=text] { flex:1; min-width:200px; padding:9px 12px; border:1px solid var(--qv-line); border-radius:8px; font-size:14px; }
-.tbl td.req { max-width:360px; }
-.tbl td.req .clip { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:360px; color:#334155; }
+
+/* 업무카드 그리드 */
+.prq-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:14px; margin:0 var(--content-pad) 28px; }
+.prq-card { display:block; text-decoration:none; color:inherit; background:var(--paper,#fff);
+  border:1px solid var(--qv-line); border-left:4px solid var(--knk-red); border-radius:12px; padding:14px 16px;
+  transition:box-shadow .15s ease, transform .15s ease, border-color .15s ease; }
+.prq-card:hover { box-shadow:0 8px 22px rgba(15,23,42,.10); transform:translateY(-2px); border-color:#fca5a5; }
+.pc-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }
+.pc-mgmt { font-size:14.5px; font-weight:800; color:var(--knk-red); letter-spacing:.2px; }
+.pc-date { font-size:11.5px; color:var(--qv-ink-3); white-space:nowrap; }
+.pc-title { font-size:15px; font-weight:800; color:#1f2937; line-height:1.35; margin-bottom:3px; word-break:break-word; }
+.pc-sub { font-size:12.5px; color:var(--qv-ink-3); margin-bottom:9px; word-break:break-word; }
+.pc-req { font-size:13px; color:#334155; line-height:1.55; background:var(--paper-2,#f7f8fa);
+  border-radius:8px; padding:9px 11px; min-height:36px; white-space:pre-wrap; overflow:hidden;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
+.pc-req.empty { color:var(--qv-ink-3); font-style:italic; }
+.pc-note { font-size:12px; color:#64748b; margin-top:6px; overflow:hidden;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.pc-foot { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-top:11px; padding-top:10px; border-top:1px dashed var(--qv-line); }
+.pc-badge { font-size:11.5px; font-weight:800; color:#9a3412; background:#fff7ed; border:1px solid #fed7aa; border-radius:999px; padding:2px 9px; white-space:nowrap; }
+.pc-by { font-size:11.5px; color:var(--qv-ink-3); white-space:nowrap; }
+.pc-upd { font-size:11px; font-weight:700; color:#2563eb; margin-left:auto; white-space:nowrap; }
+.pc-go { font-size:11.5px; font-weight:700; color:var(--knk-red); margin-left:auto; white-space:nowrap; }
+
 .prq-empty { margin:40px var(--content-pad); text-align:center; color:var(--qv-ink-3); }
 @media (max-width:768px){
-  .tbl td.req, .tbl td.req .clip { max-width:180px; }
+  .prq-cards { grid-template-columns:1fr; gap:12px; }
   .prq-tabs a, .prq-tabs span { padding:8px 12px; font-size:13px; }
+  .prq-period .pp { padding:7px 13px; font-size:12.5px; }
 }
 </style>
 </head>
@@ -41,51 +73,54 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
     <span class="on">📋 제작요청서</span>
   </div>
 
+  {# 기간 분류: 일간(오늘)·주간(이번 주)·월간(이번 달)·연간(올해). 텍스트 검색어(q)는 유지 #}
+  <div class="prq-period" data-dn="prq-period">
+    <a class="pp{% if not period %} on{% endif %}" href="/prod-requests{% if q %}?q={{ q|urlencode }}{% endif %}">전체</a>
+    <a class="pp{% if period == 'day' %} on{% endif %}" href="/prod-requests?period=day{% if q %}&amp;q={{ q|urlencode }}{% endif %}">📅 오늘</a>
+    <a class="pp{% if period == 'week' %} on{% endif %}" href="/prod-requests?period=week{% if q %}&amp;q={{ q|urlencode }}{% endif %}">🗓 이번 주</a>
+    <a class="pp{% if period == 'month' %} on{% endif %}" href="/prod-requests?period=month{% if q %}&amp;q={{ q|urlencode }}{% endif %}">📆 이번 달</a>
+    <a class="pp{% if period == 'year' %} on{% endif %}" href="/prod-requests?period=year{% if q %}&amp;q={{ q|urlencode }}{% endif %}">📚 올해</a>
+  </div>
+
   <form class="prq-search" method="get" action="/prod-requests">
+    {% if period %}<input type="hidden" name="period" value="{{ period }}">{% endif %}
     <input type="text" name="q" value="{{ q }}" placeholder="관리번호 · 고객사 · 모델 · 요청사항 · 부서 · 발행자 검색" autocomplete="off">
     <button type="submit" class="btn btn-primary">🔍 검색</button>
-    {% if q %}<a class="btn btn-secondary" href="/prod-requests">전체</a>{% endif %}
+    {% if q %}<a class="btn btn-secondary" href="/prod-requests{% if period %}?period={{ period }}{% endif %}">검색 해제</a>{% endif %}
   </form>
 
   <div style="margin:0 var(--content-pad) var(--space-3); font-size:12.5px; color:var(--qv-ink-3);">
-    발행된 제작요청서 <b>{{ rows|length }}</b>건{% if rows|length >= 300 %} <span style="color:#b45309;">(최근 300건만 표시 — 검색으로 좁혀 보세요)</span>{% endif %} · 행을 누르면 프로젝트 상세의 제작요청서로 이동합니다.
+    <b style="color:#334155;">{{ period_label }}</b> · 제작요청서 <b>{{ rows|length }}</b>건{% if rows|length >= 300 %} <span style="color:#b45309;">(최근 300건만 표시 — 기간·검색으로 좁혀 보세요)</span>{% endif %} · 카드를 누르면 <b style="color:#9a3412;">수정·수정발행</b> 화면으로 이동합니다.
   </div>
 
   {% if rows %}
-  <div class="tbl-wrap" style="margin:0 var(--content-pad);">
-    <table class="tbl">
-      <thead>
-        <tr>
-          <th class="center">발행일</th>
-          <th class="center">관리번호</th>
-          <th>고객사</th>
-          <th>모델 · 품명</th>
-          <th>고객사 요청사항</th>
-          <th class="center">통보</th>
-          <th class="center">발행자</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for pr in rows %}
-        <tr style="cursor:pointer;" onclick="location.href='/project/{{ pr.project_id }}?prq_edit=1'">
-          <td class="center" style="white-space:nowrap;">{{ (pr.created_at or pr.created_date or '—')[:16] }}</td>
-          <td class="center" style="white-space:nowrap;"><b style="color:var(--knk-red);">{{ pr.mgmt_code or '—' }}</b></td>
-          <td>{{ pr.cust_name or pr.p_customer or '—' }}</td>
-          <td style="min-width:140px;">{{ pr.model_name or '—' }}{% if pr.project_name %}<div style="font-size:11.5px;color:var(--qv-ink-3);">{{ pr.project_name }}</div>{% endif %}</td>
-          <td class="req"><div class="clip" title="{{ pr.cust_req }}{% if pr.note %}&#10;〔기타〕 {{ pr.note }}{% endif %}">{{ pr.cust_req or '—' }}</div></td>
-          <td class="center" style="white-space:nowrap;">{{ pr.dept_count or 0 }}부서·{{ pr.sent_to or 0 }}명{% if pr.msg_sent %}<div style="font-size:11px;color:var(--qv-ink-3);">📱 {{ pr.msg_sent }}</div>{% endif %}</td>
-          <td class="center" style="white-space:nowrap;">{{ pr.issued_by_name or '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="prq-cards">
+    {% for pr in rows %}
+    <a class="prq-card" href="/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.id }}">
+      <div class="pc-top">
+        <span class="pc-mgmt">📋 {{ pr.mgmt_code or '—' }}</span>
+        <span class="pc-date">🗓 {{ (pr.created_at or pr.created_date or '—')[:16] }}</span>
+      </div>
+      <div class="pc-title">{{ pr.model_name or pr.project_name or '(모델·품명 없음)' }}</div>
+      <div class="pc-sub">🏢 {{ pr.cust_name or pr.p_customer or '—' }}{% if pr.project_name and pr.model_name and pr.project_name != pr.model_name %} · {{ pr.project_name }}{% endif %}</div>
+      <div class="pc-req{% if not pr.cust_req %} empty{% endif %}">{{ pr.cust_req or '고객사 요청사항 없음' }}</div>
+      {% if pr.note %}<div class="pc-note">〔기타〕 {{ pr.note }}</div>{% endif %}
+      <div class="pc-foot">
+        <span class="pc-badge">📣 {{ pr.dept_count or 0 }}부서·{{ pr.sent_to or 0 }}명{% if pr.msg_sent %} · 📱{{ pr.msg_sent }}{% endif %}</span>
+        <span class="pc-by">✍ {{ pr.issued_by_name or '—' }}</span>
+        {% if pr.updated_at %}<span class="pc-upd">✏️ 수정 {{ pr.updated_at[:16] }}</span>{% else %}<span class="pc-go">수정·발행 ›</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
   </div>
   {% else %}
   <div class="prq-empty">
     <div style="font-size:40px;margin-bottom:10px;">📋</div>
-    <div style="font-size:15px;font-weight:700;color:#334155;">{% if q %}검색 결과가 없습니다{% else %}발행된 제작요청서가 없습니다{% endif %}</div>
-    <div style="margin-top:8px;font-size:13px;">프로젝트 등록 시 <b style="color:#9a3412;">「📋 제작요청 발행」</b>을 체크하면 요청사항이 여기에 기록됩니다.</div>
-    <div style="margin-top:14px;"><a class="btn btn-primary" href="/projects/new">🆕 프로젝트 등록</a></div>
+    <div style="font-size:15px;font-weight:700;color:#334155;">{% if q or period %}조건에 맞는 제작요청서가 없습니다{% else %}발행된 제작요청서가 없습니다{% endif %}</div>
+    {% if q or period %}<div style="margin-top:8px;font-size:13px;">기간을 <b>전체</b>로 바꾸거나 검색어를 지워 보세요.</div>
+    <div style="margin-top:14px;"><a class="btn btn-secondary" href="/prod-requests">전체 보기</a></div>
+    {% else %}<div style="margin-top:8px;font-size:13px;">프로젝트 등록 시 <b style="color:#9a3412;">「📋 제작요청 발행」</b>을 체크하면 요청사항이 여기에 기록됩니다.</div>
+    <div style="margin-top:14px;"><a class="btn btn-primary" href="/projects/new">🆕 프로젝트 등록</a></div>{% endif %}
   </div>
   {% endif %}
 </main>
