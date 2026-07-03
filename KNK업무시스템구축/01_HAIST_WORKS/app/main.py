@@ -6591,7 +6591,7 @@ async def project_detail(req: Request, pid: int):
                prod_requests=prod_requests)
 
 
-def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False):
+def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False, image_count=0):
     """v5H226z372→z373 (대표 지시): 제작요청 통보 코어.
     제작요청서 = 프로젝트 생성의 출발점으로 일원화 — 신규 등록(발행) 직후 호출:
       ① 작업일정표 '제작요청(prod_request)' 단계 자동 체크(누가·언제·요청사항)
@@ -6660,8 +6660,11 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         body += f"{_SUB}\n📝 고객사 요청사항\n{cust_req}\n"
     if note:
         body += f"{_SUB}\n📝 기타 요청사항\n{note}\n"
+    if image_count and image_count > 0:
+        body += f"{_SUB}\n📷 참고 이미지 {image_count}장 첨부 (아래 바로가기에서 확인)\n"
     body += f"{_SEP}\n요청자 {by_name} · {now_str}"
-    link = f"/project/{pid}"
+    # v5H226z772 (대표 지시): 제작요청서 이미지 열람 — 통보 링크를 '제작요청서' 단독 페이지로(설치앱서도 렌더·이미지 갤러리 포함)
+    link = f"/project/{pid}/prod-request/edit"
     sent_to = 0
     dept_count = 0
     emp_nos = []
@@ -6736,7 +6739,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             "model": model, "engraving": eng, "part_name": pname,
             "qty": qty, "due": due, "so_nos": so_nos,
             "server_path": spath, "cust_req": cust_req, "note": note,
-            "issued_at": now_str, "link": _full_link,
+            "issued_at": now_str, "link": _full_link, "image_count": image_count,
         }
         _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=_card)
         if _mres.get("ok"):
@@ -6748,20 +6751,75 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     # v5H226z762 (대표 지시): 제작요청서 영구 저장 — 발행마다 1행(재발행 이력). 요청사항이 통보로만 흘러가 사라지던 문제 해결.
     #   저장 실패해도 통보는 유효 — 조용히 넘기지 않고 pr_save_err 로 표면화(except:pass 금지).
     _pr_save_err = ""
+    _pr_new_id = 0
     if record:
         try:
             with db_session() as c:
-                c.execute(
+                _cur = c.execute(
                     "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, dept_names, "
                     "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date) "
                     "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), dept_names,
                      (user.get("id") or None), by_name, sent_to, dept_count, msg_sent, now_str, now_str[:10]))
+                _pr_new_id = _cur.lastrowid or 0
         except Exception as _se:
             _pr_save_err = str(_se)[:150]
     return {"ok": True, "sent_to": sent_to, "dept_count": dept_count,
             "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
-            "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err}
+            "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err,
+            "pr_id": _pr_new_id}
+
+
+# v5H226z772 (대표 지시): 제작요청서 참고 이미지 저장 — files=[(orig_name, raw_bytes)…] → 압축본+썸네일 디스크 저장 + prod_request_images 기록.
+#   compress_image_bytes(EXIF회전·긴변1920px·썸네일320×160) 재사용. PIL이 못 여는 형식(HEIC 등)은 그 파일만 건너뜀(나머지 저장·조용히 넘기지 않음).
+_PROD_IMG_EXT = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+
+
+def _attach_prod_images(prid, project_id, files, uploaded_by):
+    """반환: {"saved": n, "skipped": [orig…], "errors": [msg…]}. prid=prod_requests.id."""
+    out = {"saved": 0, "skipped": [], "errors": []}
+    if not prid or not files:
+        return out
+    import time as _t, re as _re
+    try:
+        from . import consumables as _co
+    except Exception as _e:
+        out["errors"].append(f"img_lib: {str(_e)[:80]}")
+        return out
+    updir = os.path.join("uploads", "prod_requests", str(int(prid)))
+    try:
+        os.makedirs(updir, exist_ok=True)
+    except Exception as _e:
+        out["errors"].append(f"mkdir: {str(_e)[:80]}")
+        return out
+    for idx, (orig, raw) in enumerate(files):
+        try:
+            ext = os.path.splitext(orig or "")[1].lower()
+            if ext not in _PROD_IMG_EXT or not raw or len(raw) < 50:
+                out["skipped"].append(orig or "(무명)")
+                continue
+            big_b, thumb_b, _info = _co.compress_image_bytes(raw)   # HEIC 등 PIL 미지원이면 예외 → 건너뜀
+            base = _re.sub(r"[^\w.\-]+", "_", os.path.splitext(orig or "img")[0])[:32] or "img"
+            ts = int(_t.time())
+            fn = f"pr_{int(prid)}_{ts}_{idx+1}_{base}.jpg"
+            fn_th = f"pr_{int(prid)}_{ts}_{idx+1}_{base}_thumb.jpg"
+            with open(os.path.join(updir, fn), "wb") as _f:
+                _f.write(big_b)
+            with open(os.path.join(updir, fn_th), "wb") as _f:
+                _f.write(thumb_b)
+            url = f"/uploads/prod_requests/{int(prid)}/{fn}"
+            turl = f"/uploads/prod_requests/{int(prid)}/{fn_th}"
+            with db_session() as c:
+                c.execute(
+                    "INSERT INTO prod_request_images(prod_request_id, project_id, url, thumb_url, orig_name, size, uploaded_by, created_at) "
+                    "VALUES(?,?,?,?,?,?,?,datetime('now','localtime'))",
+                    (int(prid), int(project_id) if project_id else None, url, turl,
+                     (orig or "")[:200], len(big_b), uploaded_by))
+            out["saved"] += 1
+        except Exception as _e:
+            out["skipped"].append(orig or "(무명)")
+            out["errors"].append(str(_e)[:80])
+    return out
 
 
 # =====================================================
@@ -19232,6 +19290,21 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                 sql += "WHERE " + " AND ".join(conds) + " "
             sql += "ORDER BY pr.id DESC LIMIT 300"
             rows = [dict(r) for r in c.execute(sql, params).fetchall()]
+            # v5H226z772: 각 제작요청서의 참고 이미지 장수(카드 📷 뱃지) — 한 번의 집계 쿼리로 N+1 회피
+            if rows:
+                _ids = [r["id"] for r in rows]
+                _iph = ",".join("?" * len(_ids))
+                _imgmap = {}
+                try:
+                    for _ir in c.execute(
+                        f"SELECT prod_request_id, COUNT(*) AS n FROM prod_request_images "
+                        f"WHERE prod_request_id IN ({_iph}) GROUP BY prod_request_id", _ids).fetchall():
+                        _k = _ir[0] if not isinstance(_ir, dict) else _ir["prod_request_id"]
+                        _imgmap[_k] = _ir[1] if not isinstance(_ir, dict) else _ir["n"]
+                except Exception:
+                    _imgmap = {}
+                for r in rows:
+                    r["img_count"] = _imgmap.get(r["id"], 0)
     except Exception as _e:
         rows = []
         print(f"[z762] 제작요청서 목록 조회 실패: {_e}")
@@ -19263,6 +19336,7 @@ async def prod_request_update(request: Request, pid: int, prid: int):
         base = _back if (_back.startswith("/") and not _back.startswith("//")) else f"/project/{pid}"
         return base + ("&" if "?" in base else "?") + qs
     _team_ids = []
+    _img_count = 0
     try:
         with db_session() as c:
             pr = c.execute("SELECT id, project_id, team_ids FROM prod_requests WHERE id=? AND project_id=?",
@@ -19279,6 +19353,11 @@ async def prod_request_update(request: Request, pid: int, prid: int):
             # 원래 통보했던 부서(team_ids)로 다시 통보
             _team_ids = [int(x) for x in str(pr.get("team_ids") or "").replace(";", ",").split(",")
                          if x.strip().isdigit() and int(x) > 0]
+            # z772: 재통보 본문에 현재 첨부 이미지 장수 반영
+            try:
+                _img_count = c.execute("SELECT COUNT(*) FROM prod_request_images WHERE prod_request_id=?", (prid,)).fetchone()[0] or 0
+            except Exception:
+                _img_count = 0
     except Exception as _e:
         print(f"[z763] 제작요청서 수정 실패: {_e}")
         return RedirectResponse(_dest("prod_upderr=1"), 303)
@@ -19286,7 +19365,7 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _qs = ["prod_updated=1"]
     try:
         _res = _prod_request_notify_core(int(pid), _cust_req, _note, _team_ids, u,
-                                         record=False, is_update=True)
+                                         record=False, is_update=True, image_count=_img_count)
         if _res.get("ok"):
             _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
             _qs.append(f"prod_dept={_res.get('dept_count', 0)}")
@@ -19324,7 +19403,70 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         if not _pr:
             _pr = c.execute(_cols + "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
         pr = dict(_pr) if _pr else None
-    return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, can_edit=can_view_sales(u))
+        # v5H226z772: 이 제작요청서의 참고 이미지(썸네일 갤러리 — 로그인자 전원 열람·수정발행 권한자만 추가/삭제)
+        pr_images = []
+        if pr:
+            try:
+                pr_images = [dict(r) for r in c.execute(
+                    "SELECT id, url, thumb_url, orig_name FROM prod_request_images "
+                    "WHERE prod_request_id=? ORDER BY id", (pr["id"],)).fetchall()]
+            except Exception:
+                pr_images = []
+    return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, pr_images=pr_images, can_edit=can_view_sales(u))
+
+
+# v5H226z772 (대표 지시): 제작요청서 참고 이미지 추가/삭제 — 수정발행 화면에서 AJAX 업로드·삭제(영업·관리 권한자만).
+@app.post("/project/{pid}/prod-request/{prid}/image")
+async def prod_request_image_upload(request: Request, pid: int, prid: int,
+                                    file: UploadFile = File(...)):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    with db_session() as c:
+        _r = c.execute("SELECT id, project_id FROM prod_requests WHERE id=? AND project_id=?", (prid, pid)).fetchone()
+    if not _r:
+        return JSONResponse({"ok": False, "error": "notfound"}, 404)
+    orig = file.filename or "image"
+    ext = os.path.splitext(orig)[1].lower()
+    if ext not in _PROD_IMG_EXT:
+        return JSONResponse({"ok": False, "error": f"이미지만 첨부 가능(jpg/png/gif/webp/bmp). 현재: {ext or '없음'}"}, 400)
+    raw = await file.read()
+    if len(raw) > 25 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": f"25MB 이하만 가능(현재 {len(raw)//1024//1024}MB)"}, 400)
+    if len(raw) < 50:
+        return JSONResponse({"ok": False, "error": "빈 파일 또는 손상"}, 400)
+    _res = _attach_prod_images(int(prid), int(pid), [(orig, raw)], u.get("id"))
+    if not _res.get("saved"):
+        return JSONResponse({"ok": False, "error": "이 형식은 처리할 수 없습니다(HEIC 등은 JPG/PNG로 변환 후 첨부)"}, 400)
+    with db_session() as c:
+        _new = c.execute("SELECT id, url, thumb_url, orig_name FROM prod_request_images "
+                         "WHERE prod_request_id=? ORDER BY id DESC LIMIT 1", (prid,)).fetchone()
+    _new = dict(_new) if _new else {}
+    return JSONResponse({"ok": True, "image": _new})
+
+
+@app.post("/project/{pid}/prod-request/{prid}/image/{img_id}/delete")
+async def prod_request_image_delete(request: Request, pid: int, prid: int, img_id: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    with db_session() as c:
+        r = c.execute("SELECT url, thumb_url FROM prod_request_images WHERE id=? AND prod_request_id=?",
+                      (img_id, prid)).fetchone()
+        if r:
+            for _col in (0, 1):
+                try:
+                    _disk = (r[_col] or "").lstrip("/")
+                    if _disk and os.path.exists(_disk):
+                        os.remove(_disk)
+                except Exception:
+                    pass
+            c.execute("DELETE FROM prod_request_images WHERE id=? AND prod_request_id=?", (img_id, prid))
+    return JSONResponse({"ok": True})
 
 
 @app.get("/projects", response_class=HTMLResponse)
@@ -24112,6 +24254,22 @@ async def projects_new_submit(request: Request):
     _pr_cust_req = (form.get("pr_cust_req") or "").strip()
     _pr_note = (form.get("pr_note") or "").strip()
     _pr_team_ids = [int(t) for t in form.getlist("pr_team_ids") if str(t).strip().isdigit() and int(t) > 0]
+    # v5H226z772 (대표 지시): 제작요청 발행 시 참고 이미지 첨부 — 멀티파트로 함께 온 파일 바이트를 먼저 읽어둠(await는 async 본문에서만).
+    #   프로젝트·제작요청서 생성 직후 그 제작요청서(prid)에 귀속 저장. 최대 20장·장당 25MB.
+    _pr_image_files = []
+    if _pr_notify:
+        try:
+            for _imf in form.getlist("pr_images"):
+                _fn = getattr(_imf, "filename", "") or ""
+                if not _fn or not hasattr(_imf, "read"):
+                    continue
+                _raw = await _imf.read()
+                if _raw and len(_raw) <= 25 * 1024 * 1024:
+                    _pr_image_files.append((_fn, _raw))
+                if len(_pr_image_files) >= 20:
+                    break
+        except Exception:
+            _pr_image_files = []
 
     _reg_is_parts = (form.get("shipment_form") or "").strip().upper() == "PARTS"
 
@@ -24126,10 +24284,22 @@ async def projects_new_submit(request: Request):
         # SO 발행 실패(_warn) 시엔 통보하지 않음(미완 상태로 전부서 호출 방지)
         if _pr_notify and _pid and not _warn:
             try:
-                _res = _prod_request_notify_core(int(_pid), _pr_cust_req, _pr_note, _pr_team_ids, _u)
+                _res = _prod_request_notify_core(int(_pid), _pr_cust_req, _pr_note, _pr_team_ids, _u,
+                                                 image_count=len(_pr_image_files))
                 if _res.get("ok"):
                     _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
                     _qs.append(f"prod_dept={_res.get('dept_count', 0)}")
+                    # z772: 제작요청서(prid)에 참고 이미지 저장 — 실패해도 통보/등록은 유효(신호만 남김)
+                    _prid = _res.get("pr_id") or 0
+                    if _prid and _pr_image_files:
+                        try:
+                            _imgres = _attach_prod_images(_prid, _pid, _pr_image_files, (_u.get("id") if _u else None))
+                            if _imgres.get("saved"):
+                                _qs.append(f"prod_img={_imgres['saved']}")
+                            if _imgres.get("skipped"):
+                                _qs.append(f"prod_imgskip={len(_imgres['skipped'])}")
+                        except Exception:
+                            _qs.append("prod_imgerr=1")
                     # v5H226z391: 메신저(KNK Eum) 통보 결과 — 보낸 인원 수 / 실패 시 신호
                     _qs.append(f"prod_msg={_res.get('msg_sent', 0)}")
                     if _res.get("msg_err"):

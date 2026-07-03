@@ -17,6 +17,13 @@ textarea.prq-in { resize:vertical; }
 .prq-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 @media (max-width:640px){ .prq-grid { grid-template-columns:1fr; } }
 .prq-ro { white-space:pre-wrap; font-size:13.5px; line-height:1.6; color:#334155; background:var(--paper-2,#f7f8fa); border:1px solid var(--line,#eef0f4); border-radius:8px; padding:11px 13px; }
+/* v5H226z772: 참고 이미지 썸네일 갤러리 */
+.prq-imgs { display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 6px; }
+.prq-imgcell { position:relative; width:96px; height:96px; border-radius:8px; overflow:hidden; border:1px solid var(--line,#eef0f4); background:var(--paper-2,#f7f8fa); }
+.prq-imgcell img { width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in; }
+.prq-imgdel { position:absolute; top:2px; right:2px; width:20px; height:20px; line-height:18px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:14px; cursor:pointer; padding:0; text-align:center; }
+.prq-imgdel:hover { background:#dc2626; }
+.prq-imgempty { font-size:12.5px; color:var(--mute,#64748b); font-style:italic; padding:4px 0; }
 </style>
 </head>
 <body>
@@ -52,6 +59,25 @@ textarea.prq-in { resize:vertical; }
           {% if pr.dept_names %}<span>🏢 {{ pr.dept_names }}</span>{% endif %}
           {% if pr.updated_at %}<span style="color:#2563eb;">✏️ 수정 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</span>{% endif %}
         </div>
+        {# v5H226z772 (대표 지시): 참고 이미지 — 전원 열람(썸네일 클릭 확대)·수정발행 권한자만 추가/삭제 #}
+        <div class="prq-lbl">📷 참고 이미지 <span id="prqImgCount" style="font-weight:400;color:var(--mute,#64748b);">{% if pr_images %}({{ pr_images|length }}장){% endif %}</span></div>
+        <div id="prqImgGrid" class="prq-imgs">
+          {% for im in pr_images %}
+          <div class="prq-imgcell" data-imgid="{{ im.id }}">
+            <a href="{{ im.url }}" target="_blank" rel="noopener"><img src="{{ im.thumb_url or im.url }}" alt="{{ im.orig_name or '이미지' }}" loading="lazy"></a>
+            {% if can_edit %}<button type="button" class="prq-imgdel" title="삭제" onclick="prqImgDelete({{ im.id }}, this)">×</button>{% endif %}
+          </div>
+          {% endfor %}
+          <div id="prqImgEmpty" class="prq-imgempty"{% if pr_images %} style="display:none;"{% endif %}>첨부된 이미지가 없습니다.</div>
+        </div>
+        {% if can_edit %}
+        <div style="margin:2px 0 6px;">
+          <label class="btn btn-secondary" style="cursor:pointer;font-size:13px;padding:6px 12px;">＋ 이미지 추가
+            <input type="file" id="prqImgAdd" accept="image/*" multiple style="display:none;" onchange="prqImgUpload(this.files)">
+          </label>
+          <span id="prqImgMsg" style="font-size:12px;color:var(--mute,#64748b);margin-left:8px;"></span>
+        </div>
+        {% endif %}
         {% if can_edit %}
         <form method="post" action="/project/{{ p.id }}/prod-request/{{ pr.id }}/update">
           <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit?prid={{ pr.id }}">
@@ -86,6 +112,49 @@ textarea.prq-in { resize:vertical; }
     </div></div>
     {% endif %}
   </div>
+  {# v5H226z772 (대표 지시): 참고 이미지 추가/삭제 — AJAX(영업·관리 권한자만 버튼 노출). 열람은 썸네일 클릭→원본 새 창. #}
+  <script>
+  (function(){
+    var PID={{ p.id }}, PRID={{ pr.id if pr else 0 }};
+    function grid(){ return document.getElementById('prqImgGrid'); }
+    function countUpd(){
+      var g=grid(); var n=g?g.querySelectorAll('.prq-imgcell').length:0;
+      var c=document.getElementById('prqImgCount'); if(c) c.textContent=n?('('+n+'장)'):'';
+      var e=document.getElementById('prqImgEmpty'); if(e) e.style.display=n?'none':'';
+    }
+    function append(im){
+      var g=grid(); if(!g) return; var empty=document.getElementById('prqImgEmpty');
+      var cell=document.createElement('div'); cell.className='prq-imgcell'; cell.setAttribute('data-imgid', im.id);
+      var a=document.createElement('a'); a.href=im.url; a.target='_blank'; a.rel='noopener';
+      var img=document.createElement('img'); img.src=im.thumb_url||im.url; img.loading='lazy'; a.appendChild(img);
+      var del=document.createElement('button'); del.type='button'; del.className='prq-imgdel'; del.textContent='×'; del.title='삭제';
+      del.onclick=function(){ window.prqImgDelete(im.id, del); };
+      cell.appendChild(a); cell.appendChild(del);
+      if(empty) g.insertBefore(cell, empty); else g.appendChild(cell);
+      countUpd();
+    }
+    window.prqImgUpload=function(files){
+      if(!files||!files.length||!PRID) return;
+      var msg=document.getElementById('prqImgMsg'); var arr=[].slice.call(files), done=0, ok=0;
+      if(msg) msg.textContent='업로드 중…';
+      arr.forEach(function(f){
+        var fd=new FormData(); fd.append('file', f);
+        fetch('/project/'+PID+'/prod-request/'+PRID+'/image', {method:'POST', body:fd, credentials:'include'})
+          .then(function(r){ return r.json(); })
+          .then(function(j){ done++; if(j&&j.ok&&j.image){ ok++; append(j.image); } else if(msg){ msg.textContent=(j&&j.error)||'일부 실패'; }
+            if(done===arr.length&&msg){ msg.textContent='완료 — '+ok+'장 추가'; setTimeout(function(){ if(msg)msg.textContent=''; }, 2500); } })
+          .catch(function(){ done++; if(msg) msg.textContent='업로드 오류'; });
+      });
+      var add=document.getElementById('prqImgAdd'); if(add) add.value='';
+    };
+    window.prqImgDelete=function(id, btn){
+      if(!confirm('이 이미지를 삭제할까요?')) return;
+      fetch('/project/'+PID+'/prod-request/'+PRID+'/image/'+id+'/delete', {method:'POST', credentials:'include'})
+        .then(function(r){ return r.json(); })
+        .then(function(j){ if(j&&j.ok){ var cell=btn.closest('.prq-imgcell'); if(cell&&cell.parentNode) cell.parentNode.removeChild(cell); countUpd(); } });
+    };
+  })();
+  </script>
 </main>
 </div>
 </body>

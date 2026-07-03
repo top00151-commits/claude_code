@@ -478,6 +478,21 @@ CREATE TABLE IF NOT EXISTS prod_requests (
 CREATE INDEX IF NOT EXISTS idx_prod_requests_project ON prod_requests(project_id);
 CREATE INDEX IF NOT EXISTS idx_prod_requests_date ON prod_requests(created_date);
 
+-- v5H226z772 (대표 지시): 제작요청서 참고 이미지 첨부 — 등록/수정발행 때 붙인 사진(케이스·도면·IC보드 등).
+--   prod_request 귀속. /uploads/prod_requests/{prod_request_id}/ 에 원본+썸네일 저장. 통보엔 장수만 표기·WORKS 링크로 열람.
+CREATE TABLE IF NOT EXISTS prod_request_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prod_request_id INTEGER NOT NULL,
+    project_id INTEGER,
+    url TEXT,
+    thumb_url TEXT,
+    orig_name TEXT,
+    size INTEGER DEFAULT 0,
+    uploaded_by INTEGER,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_pri_prid ON prod_request_images(prod_request_id);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, work_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(work_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
