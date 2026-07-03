@@ -24,6 +24,13 @@ textarea.prq-in { resize:vertical; }
 .prq-imgdel { position:absolute; top:2px; right:2px; width:20px; height:20px; line-height:18px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:14px; cursor:pointer; padding:0; text-align:center; }
 .prq-imgdel:hover { background:#dc2626; }
 .prq-imgempty { font-size:12.5px; color:var(--mute,#64748b); font-style:italic; padding:4px 0; }
+/* v5H226z773: 등록 정보 요약(금액 제외) */
+.prq-sec { font-size:13px; font-weight:800; color:#9a3412; margin:18px 0 8px; padding-bottom:5px; border-bottom:1px solid #fde7d3; }
+.prq-info { display:grid; grid-template-columns:1fr 1fr; gap:2px 22px; margin-bottom:4px; }
+@media (max-width:640px){ .prq-info { grid-template-columns:1fr; } }
+.prq-ir { display:flex; gap:10px; font-size:13.5px; padding:6px 2px; border-bottom:1px dashed var(--line,#eef0f4); }
+.prq-ir .k { flex:0 0 92px; color:var(--mute,#64748b); font-weight:700; font-size:12.5px; }
+.prq-ir .v { flex:1; color:#1f2937; word-break:break-word; }
 </style>
 </head>
 <body>
@@ -59,29 +66,27 @@ textarea.prq-in { resize:vertical; }
           {% if pr.dept_names %}<span>🏢 {{ pr.dept_names }}</span>{% endif %}
           {% if pr.updated_at %}<span style="color:#2563eb;">✏️ 수정 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</span>{% endif %}
         </div>
-        {# v5H226z772 (대표 지시): 참고 이미지 — 전원 열람(썸네일 클릭 확대)·수정발행 권한자만 추가/삭제 #}
-        <div class="prq-lbl">📷 참고 이미지 <span id="prqImgCount" style="font-weight:400;color:var(--mute,#64748b);">{% if pr_images %}({{ pr_images|length }}장){% endif %}</span></div>
-        <div id="prqImgGrid" class="prq-imgs">
-          {% for im in pr_images %}
-          <div class="prq-imgcell" data-imgid="{{ im.id }}">
-            <a href="{{ im.url }}" target="_blank" rel="noopener"><img src="{{ im.thumb_url or im.url }}" alt="{{ im.orig_name or '이미지' }}" loading="lazy"></a>
-            {% if can_edit %}<button type="button" class="prq-imgdel" title="삭제" onclick="prqImgDelete({{ im.id }}, this)">×</button>{% endif %}
-          </div>
-          {% endfor %}
-          <div id="prqImgEmpty" class="prq-imgempty"{% if pr_images %} style="display:none;"{% endif %}>첨부된 이미지가 없습니다.</div>
+        {# v5H226z773 (대표 지시): 등록 시 작성한 모든 정보(금액 제외)를 한 장 카드로 #}
+        <div class="prq-sec">📄 기본 정보</div>
+        <div class="prq-info">
+          <div class="prq-ir"><span class="k">관리번호</span><span class="v" style="color:#9a3412;font-weight:800;">{{ p.mgmt_code or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">프로젝트명</span><span class="v">{{ p.name or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">고객사</span><span class="v">{{ p.customer_name or '—' }}</span></div>
+          {% if p.cc_name %}<div class="prq-ir"><span class="k">고객 담당자</span><span class="v">{{ p.cc_name }}{% if p.cc_position %} · {{ p.cc_position }}{% endif %}</span></div>{% endif %}
+          <div class="prq-ir"><span class="k">장비명</span><span class="v">{{ p.equip_name or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">수량</span><span class="v">{{ p.unit_qty or 1 }}</span></div>
+          <div class="prq-ir"><span class="k">납기</span><span class="v">{{ (p.due_date or '')[:10] or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">형태</span><span class="v">{{ form_label }}</span></div>
+          <div class="prq-ir"><span class="k">사업부</span><span class="v">{{ biz_label }}</span></div>
+          <div class="prq-ir"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></div>
+          {% if p.customer_po %}<div class="prq-ir"><span class="k">발주(PO)번호</span><span class="v">{{ p.customer_po }}</span></div>{% endif %}
+          {% if p.order_date %}<div class="prq-ir"><span class="k">발주일</span><span class="v">{{ (p.order_date)[:10] }}</span></div>{% endif %}
         </div>
+
         {% if can_edit %}
-        <div style="margin:2px 0 6px;">
-          <label class="btn btn-secondary" style="cursor:pointer;font-size:13px;padding:6px 12px;">＋ 이미지 추가
-            <input type="file" id="prqImgAdd" accept="image/*" multiple style="display:none;" onchange="prqImgUpload(this.files)">
-          </label>
-          <span id="prqImgMsg" style="font-size:12px;color:var(--mute,#64748b);margin-left:8px;"></span>
-        </div>
-        {% endif %}
-        {% if can_edit %}
+        <div class="prq-sec">🛠 제작 사양 <span style="font-weight:600;font-size:11.5px;color:var(--mute,#64748b);">— 고쳐서 저장하면 수정발행(부서 다시 통보)</span></div>
         <form method="post" action="/project/{{ p.id }}/prod-request/{{ pr.id }}/update">
           <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit?prid={{ pr.id }}">
-          <div style="font-size:12px;color:var(--mute,#64748b);margin-bottom:10px;">사양 변경 등으로 내용을 고친 뒤 저장 = <b style="color:#9a3412;">수정발행</b>. 관련 부서에 <b style="color:#9a3412;">[수정]</b>으로 다시 통보됩니다.</div>
           <div class="prq-grid">
             <div><div class="prq-lbl">모델명</div><input class="prq-in" type="text" name="model_name" value="{{ p.model_name or '' }}"></div>
             <div><div class="prq-lbl">각인 (장비 마킹)</div><input class="prq-in" type="text" name="engraving" value="{{ p.engraving or '' }}"></div>
@@ -92,16 +97,52 @@ textarea.prq-in { resize:vertical; }
           <textarea class="prq-in" name="cust_req" rows="7">{{ pr.cust_req or '' }}</textarea>
           <div class="prq-lbl">기타 요청사항</div>
           <textarea class="prq-in" name="note" rows="4">{{ pr.note or '' }}</textarea>
-          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+
+          {# 참고 이미지 — 기타 요청사항 아래(대표 지시) #}
+          <div class="prq-lbl" style="margin-top:14px;">📷 참고 이미지 <span id="prqImgCount" style="font-weight:400;color:var(--mute,#64748b);">{% if pr_images %}({{ pr_images|length }}장){% endif %}</span></div>
+          <div id="prqImgGrid" class="prq-imgs">
+            {% for im in pr_images %}
+            <div class="prq-imgcell" data-imgid="{{ im.id }}">
+              <a href="{{ im.url }}" target="_blank" rel="noopener"><img src="{{ im.thumb_url or im.url }}" alt="{{ im.orig_name or '이미지' }}" loading="lazy"></a>
+              <button type="button" class="prq-imgdel" title="삭제" onclick="prqImgDelete({{ im.id }}, this)">×</button>
+            </div>
+            {% endfor %}
+            <div id="prqImgEmpty" class="prq-imgempty"{% if pr_images %} style="display:none;"{% endif %}>첨부된 이미지가 없습니다.</div>
+          </div>
+          <div style="margin:2px 0 4px;">
+            <label class="btn btn-secondary" style="cursor:pointer;font-size:13px;padding:6px 12px;">＋ 이미지 추가
+              <input type="file" id="prqImgAdd" accept="image/*" multiple style="display:none;" onchange="prqImgUpload(this.files)">
+            </label>
+            <span id="prqImgMsg" style="font-size:12px;color:var(--mute,#64748b);margin-left:8px;"></span>
+          </div>
+
+          <div style="font-size:12px;color:var(--mute,#64748b);margin-top:10px;">저장하면 관련 부서에 <b style="color:#9a3412;">[수정]</b>으로 다시 통보됩니다.</div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
             <a class="btn btn-secondary" href="/prod-requests">취소</a>
             <button type="submit" class="btn btn-primary" style="background:#c2410c;">🔁 수정발행 · 부서 다시 통보</button>
           </div>
         </form>
         {% else %}
+        <div class="prq-sec">🛠 제작 사양</div>
+        <div class="prq-info">
+          <div class="prq-ir"><span class="k">모델명</span><span class="v">{{ p.model_name or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">각인</span><span class="v">{{ p.engraving or '—' }}</span></div>
+        </div>
         {% if p.server_path %}<div class="prq-lbl">자료 경로</div><div class="prq-ro">{{ p.server_path }}</div>{% endif %}
         <div class="prq-lbl">고객사 요청사항</div>
         <div class="prq-ro">{{ pr.cust_req or '(없음)' }}</div>
         {% if pr.note %}<div class="prq-lbl">기타 요청사항</div><div class="prq-ro">{{ pr.note }}</div>{% endif %}
+
+        {# 참고 이미지 — 기타 요청사항 아래 #}
+        <div class="prq-lbl" style="margin-top:14px;">📷 참고 이미지 <span id="prqImgCount" style="font-weight:400;color:var(--mute,#64748b);">{% if pr_images %}({{ pr_images|length }}장){% endif %}</span></div>
+        <div id="prqImgGrid" class="prq-imgs">
+          {% for im in pr_images %}
+          <div class="prq-imgcell" data-imgid="{{ im.id }}">
+            <a href="{{ im.url }}" target="_blank" rel="noopener"><img src="{{ im.thumb_url or im.url }}" alt="{{ im.orig_name or '이미지' }}" loading="lazy"></a>
+          </div>
+          {% endfor %}
+          <div id="prqImgEmpty" class="prq-imgempty"{% if pr_images %} style="display:none;"{% endif %}>첨부된 이미지가 없습니다.</div>
+        </div>
         {% endif %}
       </div>
     </div>

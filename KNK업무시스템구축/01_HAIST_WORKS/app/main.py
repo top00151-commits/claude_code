@@ -19388,11 +19388,14 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
-        p = c.execute("SELECT id, mgmt_code, name, model_name, engraving, server_path, customer_name "
-                      "FROM projects WHERE id=?", (pid,)).fetchone()
+        # v5H226z773 (대표 지시): 제작요청서 카드에 등록 시 작성한 모든 정보(금액 제외) 표시 → 프로젝트 전 필드 + 고객사명 보강
+        p = c.execute("SELECT p.*, cu.name AS _cust_join FROM projects p "
+                      "LEFT JOIN customers cu ON cu.id = p.customer_id WHERE p.id=?", (pid,)).fetchone()
         if not p:
             return RedirectResponse("/projects", 303)
         p = dict(p)
+        if not str(p.get("customer_name") or "").strip() and p.get("_cust_join"):
+            p["customer_name"] = p["_cust_join"]
         # v5H226z770: 목록 카드에서 특정 요청서(prid)로 진입 — 없거나 불일치면 최신으로 폴백.
         _cols = ("SELECT id, mgmt_code, cust_req, note, dept_names, issued_by_name, "
                  "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
@@ -19412,7 +19415,18 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
                     "WHERE prod_request_id=? ORDER BY id", (pr["id"],)).fetchall()]
             except Exception:
                 pr_images = []
-    return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, pr_images=pr_images, can_edit=can_view_sales(u))
+    # v5H226z773: 등록 시 작성한 정보의 사람친화 라벨(형태·사업부·거래구분) — 코드값을 그대로 노출하지 않음
+    _FORM_LBL = {"ASSEMBLY": "🏭 완제품", "SEMI": "📦 제품", "PARTS": "🧰 상품", "ETC": "🗂 기타"}
+    _BIZ_LBL = {"T": "🔎 검사기", "M": "⚙️ 자동화", "L": "💡 라이프밸류", "E": "🗂 기타", "C": "🧴 소모품", "R": "🔬 연구"}
+    _form_label = _FORM_LBL.get(str(p.get("shipment_form") or "").upper(), (p.get("shipment_form") or "—"))
+    _bd = str(p.get("biz_div") or "").upper()
+    if not _bd:
+        _mc = str(p.get("mgmt_code") or "")
+        _bd = _mc[3].upper() if (len(_mc) >= 4 and _mc[3].isalpha()) else ""
+    _biz_label = _BIZ_LBL.get(_bd, _bd or "—")
+    _export_label = "🚢 수출" if str(p.get("is_export") or "0") in ("1", "True", "true") else "🏠 내수"
+    return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, pr_images=pr_images,
+               can_edit=can_view_sales(u), form_label=_form_label, biz_label=_biz_label, export_label=_export_label)
 
 
 # v5H226z772 (대표 지시): 제작요청서 참고 이미지 추가/삭제 — 수정발행 화면에서 AJAX 업로드·삭제(영업·관리 권한자만).
