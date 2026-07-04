@@ -19324,20 +19324,26 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
     rows = []
     try:
         with db_session() as c:
-            sql = ("SELECT pr.id, pr.project_id, pr.mgmt_code, pr.cust_req, pr.note, "
-                   "pr.dept_names, pr.issued_by_name, pr.sent_to, pr.dept_count, pr.msg_sent, "
-                   "pr.created_at, pr.created_date, pr.updated_at, pr.updated_by_name, "
-                   "p.name AS project_name, p.model_name AS model_name, "
-                   "p.customer_name AS p_customer, cu.name AS cust_name "
-                   "FROM prod_requests pr "
-                   "JOIN projects p ON p.id = pr.project_id "
-                   "LEFT JOIN customers cu ON cu.id = p.customer_id ")
+            # v5H226z791 (대표 지시): 제작요청서 목록을 '수주(호기)당 카드 1장'으로 — 핵심 10필드만.
+            #   제작요청서 있는 프로젝트 → 그 프로젝트의 수주(orders)마다 1행(LEFT JOIN: 수주 없으면 1행·수주번호 —).
+            #   프로젝트에 제작요청서 여러 건이면 최신(MAX id)으로 연결. 상태·수량은 호기(order_items)에서 집계.
+            sql = ("SELECT p.id AS project_id, p.mgmt_code, p.model_name, p.equip_name, "
+                   "p.po_type, p.unit_qty AS proj_qty, p.name AS project_name, "
+                   "p.customer_name AS p_customer, cu.name AS cust_name, "
+                   "o.id AS order_id, o.order_no, o.order_date AS o_order_date, "
+                   "o.due_date AS o_due_date, o.status AS o_status, "
+                   "pr.id AS pr_id, pr.created_at, pr.created_date, pr.issued_by_name "
+                   "FROM (SELECT project_id, MAX(id) AS mpr FROM prod_requests GROUP BY project_id) lpr "
+                   "JOIN projects p ON p.id = lpr.project_id "
+                   "JOIN prod_requests pr ON pr.id = lpr.mpr "
+                   "LEFT JOIN customers cu ON cu.id = p.customer_id "
+                   "LEFT JOIN orders o ON o.project_id = p.id ")
             _dref = "substr(COALESCE(NULLIF(pr.created_at,''), pr.created_date, ''),1,10)"  # 발행일 YYYY-MM-DD
             conds, params = [], []
             if _q:
-                conds.append("(pr.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
-                             "OR cu.name LIKE ? OR p.customer_name LIKE ? OR pr.cust_req LIKE ? "
-                             "OR pr.dept_names LIKE ? OR pr.issued_by_name LIKE ?)")
+                conds.append("(p.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
+                             "OR p.equip_name LIKE ? OR cu.name LIKE ? OR p.customer_name LIKE ? "
+                             "OR o.order_no LIKE ? OR pr.issued_by_name LIKE ?)")
                 params += [f"%{_q}%"] * 8
             if _period == "day":
                 conds.append(f"{_dref} = ?"); params.append(_today)
@@ -19349,26 +19355,38 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                 conds.append(f"{_dref} LIKE ?"); params.append(_kn.strftime("%Y") + "%")
             if conds:
                 sql += "WHERE " + " AND ".join(conds) + " "
-            sql += "ORDER BY pr.id DESC LIMIT 300"
+            sql += "ORDER BY pr.id DESC, o.order_no LIMIT 300"
             rows = [dict(r) for r in c.execute(sql, params).fetchall()]
-            # v5H226z772: 각 제작요청서의 참고 이미지 장수(카드 📷 뱃지) — 한 번의 집계 쿼리로 N+1 회피
-            if rows:
-                _ids = [r["id"] for r in rows]
-                _iph = ",".join("?" * len(_ids))
-                _imgmap = {}
+            # 수주(order)별 수량 합 + 상태 롤업 — 호기(order_items.unit_status) 단일소스([[knk_board_detail_sync]])
+            _SO_ST_KO = {"DRAFT": "작성중", "QUOTED": "견적", "CONFIRMED": "진행중",
+                         "IN_PRODUCTION": "진행중", "READY_TO_SHIP": "진행중", "SHIPPED": "출하",
+                         "INVOICED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
+            _oids = [r["order_id"] for r in rows if r.get("order_id")]
+            _qtymap, _stmap = {}, {}
+            if _oids:
+                _iph = ",".join("?" * len(_oids))
                 try:
                     for _ir in c.execute(
-                        f"SELECT prod_request_id, COUNT(*) AS n FROM prod_request_images "
-                        f"WHERE prod_request_id IN ({_iph}) GROUP BY prod_request_id", _ids).fetchall():
-                        _k = _ir[0] if not isinstance(_ir, dict) else _ir["prod_request_id"]
-                        _imgmap[_k] = _ir[1] if not isinstance(_ir, dict) else _ir["n"]
+                        f"SELECT oi.order_id AS oid, COALESCE(oi.unit_status,'진행중') AS st, "
+                        f"COALESCE(oi.qty,0) AS q FROM order_items oi WHERE oi.order_id IN ({_iph})", _oids):
+                        _d = dict(_ir)
+                        _qtymap[_d["oid"]] = _qtymap.get(_d["oid"], 0) + (_d["q"] or 0)
+                        _stmap.setdefault(_d["oid"], []).append(_d["st"])
                 except Exception:
-                    _imgmap = {}
-                for r in rows:
-                    r["img_count"] = _imgmap.get(r["id"], 0)
+                    _qtymap, _stmap = {}, {}
+            for r in rows:
+                _oid = r.get("order_id")
+                if not _oid:
+                    r["qty"] = r.get("proj_qty"); r["status_ko"] = "—"; continue
+                r["qty"] = _qtymap.get(_oid) or r.get("proj_qty")
+                if (r.get("o_status") or "").upper() == "CANCELLED":
+                    r["status_ko"] = "취소"
+                else:
+                    _agg = _board_agg_status(_stmap.get(_oid, []))
+                    r["status_ko"] = _agg or _SO_ST_KO.get((r.get("o_status") or "").upper(), (r.get("o_status") or "—"))
     except Exception as _e:
         rows = []
-        print(f"[z762] 제작요청서 목록 조회 실패: {_e}")
+        print(f"[z791] 제작요청서 목록(수주별) 조회 실패: {_e}")
     return ctx(request, "prod_requests_list.html", user=u, rows=rows, q=_q,
                period=_period, period_label=_period_label)
 
