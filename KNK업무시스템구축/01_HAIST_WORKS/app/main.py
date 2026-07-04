@@ -617,6 +617,14 @@ def startup():
                             "WHERE COALESCE(name,'')='총괄' AND COALESCE(entity,'KOR')='KOR' AND COALESCE(code,'')<>'00'")
     except Exception as _e:
         print(f"[z802] 총괄부서 순서 강제 실패: {_e}")
+    # v5H226z803 (대표 지시): prod_requests.recipients(통보 명단) 컬럼 — 별도 트랜잭션으로 확실히 추가(init_db 롤백 무관).
+    try:
+        with db_session() as _rc803:
+            _prc = [r[1] for r in _rc803.execute("PRAGMA table_info(prod_requests)").fetchall()]
+            if "recipients" not in _prc:
+                _rc803.execute("ALTER TABLE prod_requests ADD COLUMN recipients TEXT")
+    except Exception as _e:
+        print(f"[z803] recipients 컬럼 추가 실패: {_e}")
     # v5H226z104 (2026-05-16): 워크플로우 레고 빌더 마이그레이션 (idempotent)
     try:
         from .migrations.m_z104_workflow_builder import migrate as _wfb_migrate
@@ -6717,6 +6725,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     dept_count = 0
     emp_nos = []
     dept_names = ""   # z762: 통보 부서 이름 스냅샷(제작요청서 저장·표시용)
+    recipients = ""   # z803: 통보 명단(부서 전체=부서명 / 개별=이름 직책 부서)
     # z746(대표 지시): 자동 라우팅 — 프로젝트 사업부(mgmt_code[3]: T검사기/M자동화/L라이프/E기타)에 맞는
     #   담당자 + '공통'(users.biz_divs 빈값)에게만 통보. 사업부 판별 불가 시 필터 없음(전원). '전부서' 선택에도 적용.
     _mc_raw = str(p.get("mgmt_code") or "")
@@ -6734,6 +6743,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         with db_session() as c:
             uids = []
             _dept_ids = set()
+            _wt_dept_ids = set()   # z803: 부서(팀) 전체로 선택돼 통보된 팀 — 명단에 '부서명'으로 표기
+            _indiv_users = []      # z803: 개별 선택돼 통보된 사람 — 명단에 '이름 직책 부서'로 표기
             if tids:   # 팀(부서) 통보 — 사업부 필터
                 ph = ",".join("?" * len(tids))
                 _cand = c.execute(
@@ -6749,6 +6760,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                         continue
                     uids.append(_uid)
                     _dept_ids.add(_tid)
+                    if _tid:
+                        _wt_dept_ids.add(_tid)
                     c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
                               (_uid, "prod_request", title, body, link))
                     sent_to += 1
@@ -6757,7 +6770,9 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                 _seen = set(uids)
                 ph3 = ",".join("?" * len(_uids_explicit))
                 for r in c.execute(
-                        f"SELECT id, team_id FROM users WHERE id IN ({ph3}) AND COALESCE(is_active,1)=1",
+                        f"SELECT u.id, u.team_id, u.name, u.name_vi, COALESCE(u.rank,'') AS rank, "
+                        f"COALESCE(t.name,'') AS team_name FROM users u LEFT JOIN teams t ON u.team_id=t.id "
+                        f"WHERE u.id IN ({ph3}) AND COALESCE(u.is_active,1)=1",
                         tuple(_uids_explicit)).fetchall():
                     _d = dict(r); _u2 = _d.get("id"); _t2 = _d.get("team_id")
                     if _u2 in _seen:
@@ -6765,6 +6780,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                     _seen.add(_u2); uids.append(_u2)
                     if _t2:
                         _dept_ids.add(_t2)
+                    _indiv_users.append(_d)   # z803: 개별 통보 명단(이름 직책 부서)
                     c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
                               (_u2, "prod_request", title, body, link))
                     sent_to += 1
@@ -6776,6 +6792,17 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                 dept_names = ", ".join(sorted({
                     (dr[0] if not isinstance(dr, dict) else dr["name"])
                     for dr in _drs if (dr[0] if not isinstance(dr, dict) else dr["name"])}))
+            # v5H226z803 (대표 지시): 통보 명단 — 부서 전체 선택=🏢부서명 / 개별 선택=👤이름 직책 부서. [[knk_name_display_rule]]
+            _recip_parts = []
+            if _wt_dept_ids:
+                _ph_wt = ",".join("?" * len(_wt_dept_ids))
+                _wtn = [(dr[0] if not isinstance(dr, dict) else dr["name"]) for dr in
+                        c.execute(f"SELECT name FROM teams WHERE id IN ({_ph_wt})", tuple(_wt_dept_ids)).fetchall()]
+                for _tn in sorted({x for x in _wtn if x}):
+                    _recip_parts.append("🏢 " + _tn)
+            for _iu in _indiv_users:
+                _recip_parts.append("👤 " + vname_full(_iu))
+            recipients = " · ".join(_recip_parts)
             # v5H226z391: 메신저(KNK Eum) 통보용 사번 수집 — 컬럼/사번 없으면 건너뜀(인앱 알림은 위에서 이미 완료).
             try:
                 if uids:
@@ -6821,10 +6848,10 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         try:
             with db_session() as c:
                 _cur = c.execute(
-                    "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, dept_names, "
+                    "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, dept_names, recipients, "
                     "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date) "
-                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), dept_names,
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), dept_names, recipients,
                      (user.get("id") or None), by_name, sent_to, dept_count, msg_sent, now_str, now_str[:10]))
                 _pr_new_id = _cur.lastrowid or 0
         except Exception as _se:
@@ -6832,7 +6859,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     return {"ok": True, "sent_to": sent_to, "dept_count": dept_count,
             "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
             "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err,
-            "pr_id": _pr_new_id}
+            "pr_id": _pr_new_id, "recipients": recipients, "dept_names": dept_names}
 
 
 # v5H226z772 (대표 지시): 제작요청서 참고 이미지 저장 — files=[(orig_name, raw_bytes)…] → 압축본+썸네일 디스크 저장 + prod_request_images 기록.
@@ -19788,7 +19815,7 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         if not str(p.get("customer_name") or "").strip() and p.get("_cust_join"):
             p["customer_name"] = p["_cust_join"]
         # v5H226z770: 목록 카드에서 특정 요청서(prid)로 진입 — 없거나 불일치면 최신으로 폴백.
-        _cols = ("SELECT id, mgmt_code, cust_req, note, dept_names, issued_by, issued_by_name, "
+        _cols = ("SELECT id, mgmt_code, cust_req, note, dept_names, recipients, issued_by, issued_by_name, "
                  "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
                  "FROM prod_requests WHERE project_id=? ")
         _pr = None

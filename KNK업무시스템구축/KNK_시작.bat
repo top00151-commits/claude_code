@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z802[총괄부서 첫째 규정 수정(z801 안먹힘) — init_db 대형 단일트랜잭션이 롤백돼 UPDATE 유실. startup()의 seed_all 뒤 별도 트랜잭션으로 총괄 display_order=-1 강제(확실 커밋·매 기동). main.py·database.py]
+REM   LAST UPDATE: 2026-07-04 v5H226z803[제작요청 통보 명단 정확화(대표 지시) — 부서 전체 선택=부서명 / 개별 선택=이름 직책 부서. notify_core가 팀선택(_wt_dept_ids)·개별선택(_indiv_users vname_full) 구분해 recipients 생성·저장. prod_requests.recipients 컬럼(별도 트랜잭션). 제작요청서에 받는 사람 표시(옛 건 부서명 폴백). main.py·prod_request_edit.html]
+REM   - 2026-07-04 v5H226z802[총괄부서 첫째 규정 수정(z801 안먹힘) — init_db 대형 단일트랜잭션이 롤백돼 UPDATE 유실. startup()의 seed_all 뒤 별도 트랜잭션으로 총괄 display_order=-1 강제(확실 커밋·매 기동). main.py·database.py]
 REM   - 2026-07-04 v5H226z801[부서 나열 규정(대표 지시) — 총괄부서 항상 첫째·코드=00. database.py init_db 멱등 UPDATE로 총괄팀 display_order=-1·code=00 강제(본사·베트남 각 총괄). 대부분 목록이 ORDER BY display_order라 자동 첫째. 규정 메모리 등록. database.py]
 REM   - 2026-07-04 v5H226z800[이름표시규칙 전화면적용 시작(대표 다 변경) — 헬퍼 user_disp_by_id(c,uid,fallback)=id로 users+teams join해 이름 직책 부서. 1차 제작요청서 발행자(prod_request_edit) 적용. 나머지 화면은 작업기록 지도(이름표시규칙_전화면적용)대로 배치 진행. main.py·prod_request_edit.html]
 REM   - 2026-07-04 v5H226z799[이름 표시 규칙(대표 지시·규칙설정) — 항상 이름 직책 부서·VN인=베트남어(한국발음) 직책 부서. 헬퍼 vname_full(u,dept)=vname()+직책+부서(Jinja global). 통보 선택/블록 우선적용(멤버라벨 vname·블록 상태문구 data-dispname). 메모리 규칙 등록. main.py·project_quick_form.html]

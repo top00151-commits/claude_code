@@ -147,7 +147,8 @@ select.prq-in { appearance:auto; }
           <span>🗓 발행 <b style="color:#334155;">{{ pr.created_at or pr.created_date }}</b></span>
           <span>✍ {{ pr.issued_by_disp or pr.issued_by_name or '—' }}</span>
           <span>📣 통보 {{ pr.dept_count or 0 }}부서 · {{ pr.sent_to or 0 }}명{% if pr.msg_sent %} · 📱 {{ pr.msg_sent }}{% endif %}</span>
-          {% if pr.dept_names %}<span>🏢 {{ pr.dept_names }}</span>{% endif %}
+          {# v5H226z803 (대표 지시): 통보 명단 — 부서 전체=🏢부서명 / 개별 선택=👤이름 직책 부서. 옛 건은 recipients 없으면 부서명 폴백 #}
+          {% if pr.recipients %}<span style="color:#334155;">📋 받는 사람 {{ pr.recipients }}</span>{% elif pr.dept_names %}<span>🏢 {{ pr.dept_names }}</span>{% endif %}
           {% if pr.updated_at %}<span style="color:#2563eb;">✏️ 수정 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</span>{% endif %}
         </div>
 
