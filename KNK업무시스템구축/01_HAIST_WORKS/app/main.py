@@ -19614,6 +19614,113 @@ async def prod_request_new(request: Request, pid: int):
     return RedirectResponse(_dest("&".join(_qs)), 303)
 
 
+# v5H226z795 (대표 지시): 제작요청 통보 블록(즐겨찾기) — 회사 공용. 생성/수정/삭제 권한=영업·매출 쓰기권한 or 대표/임원.
+def _can_make_notify_block(u):
+    if not u:
+        return False
+    if str(u.get("role") or "").lower() in ("ceo", "admin", "executive"):
+        return True
+    try:
+        return bool(can_use_sales(u))
+    except Exception:
+        return False
+
+
+def _nb_csv_ids(vals):
+    out = []
+    for x in (vals or []):
+        s = str(x).strip()
+        if s.isdigit() and int(s) > 0 and s not in out:
+            out.append(s)
+    return ",".join(out)
+
+
+@app.get("/api/notify-blocks")
+async def api_notify_blocks_list(request: Request):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    rows = []
+    try:
+        with db_session() as c:
+            rows = [dict(r) for r in c.execute(
+                "SELECT id, name, COALESCE(team_ids,'') AS team_ids, COALESCE(user_ids,'') AS user_ids, "
+                "COALESCE(created_by_name,'') AS created_by_name FROM notify_blocks ORDER BY name").fetchall()]
+    except Exception:
+        rows = []
+    return JSONResponse({"ok": True, "blocks": rows, "can_edit": _can_make_notify_block(u)})
+
+
+@app.post("/api/notify-blocks")
+async def api_notify_block_create(request: Request):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not _can_make_notify_block(u):
+        return JSONResponse({"ok": False, "error": "권한 없음 — 영업·대표·임원만 블록을 만들 수 있습니다."}, 403)
+    form = await request.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        return JSONResponse({"ok": False, "error": "블록 이름을 입력하세요."})
+    team_ids = _nb_csv_ids(form.getlist("team_ids"))
+    user_ids = _nb_csv_ids(form.getlist("user_ids"))
+    if not team_ids and not user_ids:
+        return JSONResponse({"ok": False, "error": "팀 또는 인원을 하나 이상 선택하세요."})
+    from datetime import datetime as _dtb
+    _now = _dtb.now().strftime("%Y-%m-%d %H:%M")
+    _by = u.get("name") or u.get("login_id") or "—"
+    try:
+        with db_session() as c:
+            _cur = c.execute(
+                "INSERT INTO notify_blocks(name, team_ids, user_ids, created_by, created_by_name, created_at) "
+                "VALUES(?,?,?,?,?,?)", (name, team_ids, user_ids, u.get("id"), _by, _now))
+            _bid = _cur.lastrowid or 0
+        return JSONResponse({"ok": True, "id": _bid, "name": name, "team_ids": team_ids, "user_ids": user_ids})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:120]})
+
+
+@app.post("/api/notify-blocks/{bid}/update")
+async def api_notify_block_update(request: Request, bid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not _can_make_notify_block(u):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    form = await request.form()
+    name = (form.get("name") or "").strip()
+    team_ids = _nb_csv_ids(form.getlist("team_ids"))
+    user_ids = _nb_csv_ids(form.getlist("user_ids"))
+    if not name:
+        return JSONResponse({"ok": False, "error": "블록 이름을 입력하세요."})
+    if not team_ids and not user_ids:
+        return JSONResponse({"ok": False, "error": "팀 또는 인원을 하나 이상 선택하세요."})
+    from datetime import datetime as _dtb
+    _now = _dtb.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        with db_session() as c:
+            c.execute("UPDATE notify_blocks SET name=?, team_ids=?, user_ids=?, updated_at=? WHERE id=?",
+                      (name, team_ids, user_ids, _now, bid))
+        return JSONResponse({"ok": True, "id": bid, "name": name, "team_ids": team_ids, "user_ids": user_ids})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:120]})
+
+
+@app.post("/api/notify-blocks/{bid}/delete")
+async def api_notify_block_delete(request: Request, bid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if not _can_make_notify_block(u):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    try:
+        with db_session() as c:
+            c.execute("DELETE FROM notify_blocks WHERE id=?", (bid,))
+        return JSONResponse({"ok": True, "id": bid})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:120]})
+
+
 # v5H226z769 (대표 지시): 제작요청서 독립 편집 페이지 — 설치앱(PWA)서 프로젝트 상세 '제작요청서 카드'가 안 뜨는 문제 우회.
 #   상세와 무관한 단독 전체 페이지라 앱에서도 확실히 렌더됨. 헤더 '📋 제작요청서' 버튼이 여기로 링크.
 @app.get("/project/{pid}/prod-request/edit", response_class=HTMLResponse)
@@ -23934,11 +24041,21 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
                 _team_members.setdefault(_d["team_id"], []).append(_d)
     except Exception:
         _team_members = {}
+    # v5H226z795 (대표 지시): 통보 블록(공용 즐겨찾기) — 발행 통보선택창에서 적용/저장
+    _notify_blocks = []
+    try:
+        with db_session() as _nbc:
+            _notify_blocks = [dict(r) for r in _nbc.execute(
+                "SELECT id, name, COALESCE(team_ids,'') AS team_ids, COALESCE(user_ids,'') AS user_ids "
+                "FROM notify_blocks ORDER BY name").fetchall()]
+    except Exception:
+        _notify_blocks = []
     # v5H226z386 (대표 지시): 검증 모드 ON 이면 관리번호가 A 접두로 발급됨 — 화면에 표시(잊지 않게)
     _test_on = (get_setting("test_mode", "") or "").strip().lower() in ("1", "on", "true", "yes")
     return ctx(request, "project_quick_form.html",
                user=u, active="sales_projects", embed=_embed, preset_biz=_bd,
                can_money=bool(can_view_sales(u)), teams=_teams, team_members=_team_members,
+               notify_blocks=_notify_blocks, can_make_block=_can_make_notify_block(u),
                test_on=_test_on, PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
                customers=_logi.customers_for_picker())
 

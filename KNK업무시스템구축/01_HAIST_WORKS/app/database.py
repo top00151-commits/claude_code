@@ -493,6 +493,19 @@ CREATE TABLE IF NOT EXISTS prod_request_images (
 );
 CREATE INDEX IF NOT EXISTS idx_pri_prid ON prod_request_images(prod_request_id);
 
+-- v5H226z795 (대표 지시): 제작요청 통보 블록(즐겨찾기) — 자주 쓰는 통보 대상(팀·개별직원) 묶음을 회사 공용으로 저장.
+--   생성/수정/삭제=영업·매출 쓰기권한자 또는 대표/임원. 발행 통보선택창에서 적용·즉석 저장. team_ids/user_ids=CSV.
+CREATE TABLE IF NOT EXISTS notify_blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    team_ids TEXT DEFAULT '',
+    user_ids TEXT DEFAULT '',
+    created_by INTEGER,
+    created_by_name TEXT,
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    updated_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_user_date ON tasks(user_id, work_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(work_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

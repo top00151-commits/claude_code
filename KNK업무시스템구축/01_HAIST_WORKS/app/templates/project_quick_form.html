@@ -374,6 +374,22 @@ html,body{background:#fff!important;overflow:auto!important;}
                 📡 이 제작요청은 <b>{{ _bizmap.get(preset_biz, preset_biz) }}</b> 사업부 → 선택한 부서에서 <b>{{ _bizmap.get(preset_biz, preset_biz) }}·공통</b> 담당자에게만 통보됩니다.
                 <span style="color:#c2772a;">(담당 사업부는 설정▸사용자 수정에서 지정 · 미지정=공통=항상 통보. 표시된 인원수는 팀 전체)</span>
               </div>
+              {# v5H226z795 (대표 지시): 통보 블록(공용 즐겨찾기) — 적용 드롭다운 + 현재선택 저장(권한자) + 관리(삭제) #}
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 2px 2px;">
+                <select id="prBlockSel" onchange="applyBlock(this)" style="font-size:11.5px;border:1px solid #c7d2fe;border-radius:6px;padding:4px 9px;background:#eef2ff;color:#3730a3;font-weight:700;cursor:pointer;">
+                  <option value="">⭐ 통보 블록 적용…</option>
+                  {% for b in notify_blocks %}<option value="{{ b.id }}" data-teams="{{ b.team_ids }}" data-users="{{ b.user_ids }}">{{ b.name }}</option>{% endfor %}
+                </select>
+                {% if can_make_block %}<button type="button" onclick="saveBlock()" style="font-size:11.5px;font-weight:700;border:1px solid #a5b4fc;background:#fff;color:#4338ca;border-radius:6px;padding:3px 11px;cursor:pointer;">＋ 현재 선택 저장</button>{% endif %}
+                <span style="font-size:11px;color:#94a3b8;">자주 쓰는 통보 대상을 블록으로 저장·재사용</span>
+              </div>
+              {% if can_make_block and notify_blocks %}
+              <details style="margin:2px 2px 0;"><summary style="font-size:11px;color:#6366f1;cursor:pointer;">🔧 블록 관리(삭제)</summary>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;padding:5px 2px;">
+                  {% for b in notify_blocks %}<span id="prBlkChip{{ b.id }}" style="font-size:11px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:2px 4px 2px 8px;color:#3730a3;font-weight:600;">{{ b.name }} <button type="button" title="삭제" onclick="delBlock({{ b.id }},this)" style="border:none;background:none;color:#dc2626;cursor:pointer;font-weight:800;font-size:12px;padding:0 3px;">✕</button></span>{% endfor %}
+                </div>
+              </details>
+              {% endif %}
               {# v5H226z794 (대표 지시): 전체선택/취소 + 법인구분 + 부서원 개별 선택(▸개별 펼치기).
                  팀 체크=그 팀 사업부 담당자 통보 / 개별 체크=그 사람만 정확히 통보(사업부 무시). 배타(팀↔개별) #}
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 2px 2px;">
@@ -412,6 +428,10 @@ html,body{background:#fff!important;overflow:auto!important;}
               window.prExpand=function(tid,btn){var m=document.querySelector('.pr-members[data-team="'+tid+'"]');if(!m)return;var show=(m.style.display==='none'||!m.style.display);m.style.display=show?'flex':'none';if(btn)btn.textContent=show?'▾개별':'▸개별';};
               window.prTeamToggle=function(cb){if(cb.checked){document.querySelectorAll('.pr-user[data-team="'+cb.value+'"]').forEach(function(u){u.checked=false;});}};
               window.prUserToggle=function(u){if(u.checked){var t=document.querySelector('.pr-team[data-team="'+u.getAttribute('data-team')+'"]');if(t)t.checked=false;}};
+              // z795: 통보 블록 — 적용/저장/삭제(공용)
+              window.applyBlock=function(sel){var o=sel.options[sel.selectedIndex];if(!o||!o.value){return;}var tids=(o.getAttribute('data-teams')||'').split(',').filter(Boolean);var uids=(o.getAttribute('data-users')||'').split(',').filter(Boolean);document.querySelectorAll('.pr-team,.pr-user').forEach(function(c){c.checked=false;});tids.forEach(function(id){var c=document.querySelector('.pr-team[data-team="'+id+'"]');if(c)c.checked=true;});uids.forEach(function(id){var c=document.querySelector('.pr-user[value="'+id+'"]');if(c){c.checked=true;var md=document.querySelector('.pr-members[data-team="'+c.getAttribute('data-team')+'"]');if(md)md.style.display='flex';}});sel.selectedIndex=0;};
+              window.saveBlock=function(){var tids=[].slice.call(document.querySelectorAll('.pr-team:checked')).map(function(c){return c.value;});var uids=[].slice.call(document.querySelectorAll('.pr-user:checked')).map(function(c){return c.value;});if(!tids.length&&!uids.length){alert('저장할 팀/인원을 먼저 선택하세요.');return;}var name=prompt('블록 이름 (예: 검사기, 자동화)');if(!name||!name.trim())return;var fd=new FormData();fd.append('name',name.trim());tids.forEach(function(id){fd.append('team_ids',id);});uids.forEach(function(id){fd.append('user_ids',id);});fetch('/api/notify-blocks',{method:'POST',body:fd,credentials:'include'}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok){var sel=document.getElementById('prBlockSel');var o=document.createElement('option');o.value=j.id;o.textContent=j.name;o.setAttribute('data-teams',j.team_ids||'');o.setAttribute('data-users',j.user_ids||'');sel.appendChild(o);alert('블록 저장됨: '+j.name);}else alert('저장 실패: '+((j&&j.error)||''));}).catch(function(){alert('저장 오류');});};
+              window.delBlock=function(bid,btn){if(!confirm('이 블록을 삭제할까요?'))return;fetch('/api/notify-blocks/'+bid+'/delete',{method:'POST',credentials:'include'}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok){var chip=document.getElementById('prBlkChip'+bid);if(chip&&chip.parentNode)chip.parentNode.removeChild(chip);var sel=document.getElementById('prBlockSel');if(sel){var o=sel.querySelector('option[value="'+bid+'"]');if(o)o.remove();}}else alert('삭제 실패');});};
               </script>
               <div style="height:10px;"></div>
             </details>
