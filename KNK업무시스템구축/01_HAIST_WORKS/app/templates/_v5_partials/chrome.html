@@ -742,3 +742,81 @@ window.setFakeDate = async function(dateStr){
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') close(); });
 })();
 </script>
+
+<script>
+/* v5H226z784 (대표 지시): 팝업(모달) 드래그 이동 — 전역·모든 페이지. 제목줄(헤더)만 잡고 이동, 열 때마다 가운데 리셋.
+   구조 가정: 오버레이(position:fixed·화면 덮음) > 박스(첫 요소자식) > 헤더(박스 첫 요소자식). transform:translate로 이동(레이아웃 안 깨짐). */
+(function(){
+  if (window.__knkModalDrag) return; window.__knkModalDrag = 1;
+  function firstEl(p){ if(!p) return null; for(var i=0;i<p.children.length;i++){ var c=p.children[i]; if(c.nodeType===1 && c.tagName!=='SCRIPT' && c.tagName!=='STYLE') return c; } return null; }
+  function boxOf(ov){ return firstEl(ov); }
+  function headerOf(box){ return firstEl(box) || box; }
+  function fixedAncestor(node){
+    while(node && node!==document.body && node.nodeType===1){
+      try{ if(getComputedStyle(node).position==='fixed') return node; }catch(e){}
+      node = node.parentElement;
+    }
+    return null;
+  }
+  function bigVisible(ov){
+    try{ var cs=getComputedStyle(ov);
+      if(cs.position!=='fixed' || cs.display==='none' || cs.visibility==='hidden') return false;
+      var r=ov.getBoundingClientRect();
+      return (r.width >= innerWidth*0.5 && r.height >= innerHeight*0.5 && ov.children.length>0);
+    }catch(e){ return false; }
+  }
+  var drag=null;
+  function start(x,y,target){
+    if(!target || !target.closest) return false;
+    if(target.closest('button,a,input,select,textarea,[contenteditable],[role="button"],.knkcust-dd')) return false;
+    var ov=fixedAncestor(target); if(!ov || !bigVisible(ov)) return false;
+    var box=boxOf(ov); if(!box) return false;
+    var hdr=headerOf(box);
+    if(hdr!==target && !(hdr.contains && hdr.contains(target))) return false;  /* 헤더 영역에서 시작한 것만 */
+    var off=box.__off||{x:0,y:0};
+    drag={box:box, hdr:hdr, sx:x, sy:y, ox:off.x, oy:off.y};
+    hdr.style.cursor='grabbing'; document.body.style.userSelect='none';
+    return true;
+  }
+  function moveTo(x,y){
+    if(!drag) return;
+    var dx=x-drag.sx+drag.ox, dy=y-drag.sy+drag.oy;
+    drag.box.style.transform='translate('+dx+'px,'+dy+'px)';
+    var r=drag.box.getBoundingClientRect(), ax=0, ay=0;  /* 화면 밖 완전 이탈 방지 */
+    if(r.right < 70) ax = 70 - r.right; else if(r.left > innerWidth-70) ax = (innerWidth-70) - r.left;
+    if(r.top < 0) ay = -r.top; else if(r.top > innerHeight-44) ay = (innerHeight-44) - r.top;
+    if(ax||ay){ dx+=ax; dy+=ay; drag.box.style.transform='translate('+dx+'px,'+dy+'px)'; }
+    drag.box.__off={x:dx,y:dy};
+  }
+  function end(){ if(drag){ if(drag.hdr) drag.hdr.style.cursor='move'; document.body.style.userSelect=''; drag=null; } }
+  document.addEventListener('mousedown', function(e){ if(start(e.clientX,e.clientY,e.target)) e.preventDefault(); }, true);
+  document.addEventListener('mousemove', function(e){ moveTo(e.clientX,e.clientY); });
+  document.addEventListener('mouseup', end);
+  document.addEventListener('touchstart', function(e){ if(e.touches.length===1){ var t=e.touches[0]; start(t.clientX,t.clientY,e.target); } }, true);
+  document.addEventListener('touchmove', function(e){ if(drag && e.touches.length===1){ var t=e.touches[0]; moveTo(t.clientX,t.clientY); e.preventDefault(); } }, {passive:false});
+  document.addEventListener('touchend', end); document.addEventListener('touchcancel', end);
+
+  /* 헤더 커서 힌트 + 열릴 때 가운데 리셋 (팝업별 관찰) */
+  var seen = (window.WeakSet ? new WeakSet() : {has:function(){return false;},add:function(){}});
+  function markHeader(box){ var h=headerOf(box); if(h && h.style && h.__grabHint!==1){ h.style.cursor='move'; h.__grabHint=1; } }
+  function register(ov){
+    if(seen.has(ov)) return; seen.add(ov);
+    var box=boxOf(ov); if(!box) return;
+    function refresh(){
+      var cs; try{ cs=getComputedStyle(ov); }catch(e){ return; }
+      var vis=(cs.display!=='none' && cs.visibility!=='hidden');
+      if(vis && box.__wasHidden){ box.style.transform=''; box.__off={x:0,y:0}; }  /* 열릴 때 가운데 리셋 */
+      box.__wasHidden=!vis;
+      if(vis && bigVisible(ov)) markHeader(box);
+    }
+    refresh();
+    try{ new MutationObserver(refresh).observe(ov, {attributes:true, attributeFilter:['style','class']}); }catch(e){}
+  }
+  var SEL = '[style*="position:fixed"],[style*="position: fixed"],.modal,[class*="modal"],[class*="Modal"],[id*="odal"],[id*="Modal"],[role="dialog"]';
+  function scan(){ try{ document.querySelectorAll(SEL).forEach(function(el){ try{ if(getComputedStyle(el).position==='fixed' && el.children.length>0) register(el); }catch(e){} }); }catch(e){} }
+  var _st=null; function scanDeb(){ if(_st) return; _st=setTimeout(function(){ _st=null; scan(); }, 200); }
+  if(document.readyState!=='loading') scan(); else document.addEventListener('DOMContentLoaded', scan);
+  try{ new MutationObserver(function(muts){ for(var i=0;i<muts.length;i++){ if(muts[i].addedNodes && muts[i].addedNodes.length){ scanDeb(); break; } } }).observe(document.documentElement, {childList:true, subtree:true}); }catch(e){}
+  document.addEventListener('knk:navigated', scanDeb);
+})();
+</script>
