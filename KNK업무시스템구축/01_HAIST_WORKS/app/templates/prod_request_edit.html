@@ -229,6 +229,56 @@ select.prq-in { appearance:auto; }
           <textarea class="prq-in" name="cust_req" rows="6">{{ pr.cust_req or '' }}</textarea>
           <div class="prq-lbl">기타 요청사항</div>
           <textarea class="prq-in" name="note" rows="3">{{ pr.note or '' }}</textarea>
+
+          {# v5H226z813 (대표 지시): 수정발행 시 통보 대상 추가 — 원래 대상은 항상 재통보, 여기서 부서/인원 더하기 #}
+          {% if teams %}
+          <style>
+            .pae-wrap { margin-top:14px; border:1px solid #e5e7eb; border-radius:10px; background:#fafbfc; }
+            .pae-sum { cursor:pointer; padding:11px 14px; font-size:13.5px; font-weight:800; color:#9a3412; list-style:none; }
+            .pae-sum::-webkit-details-marker { display:none; }
+            .pae-hint { font-weight:600; font-size:12px; color:#64748b; }
+            .pae-body { padding:2px 14px 14px; }
+            .pae-corp-ttl { font-size:11.5px; font-weight:800; color:#475569; margin:10px 0 4px; }
+            .pae-team { border-top:1px solid #eef0f4; padding:6px 0; }
+            .pae-team-row { display:inline-flex; align-items:center; gap:7px; cursor:pointer; font-size:13px; color:#1f2937; }
+            .pae-tcnt { font-size:11px; color:#94a3b8; }
+            .pae-exp { margin-left:8px; border:1px solid #cbd5e1; background:#fff; color:#475569; border-radius:6px; padding:1px 8px; font-size:11px; cursor:pointer; }
+            .pae-members { display:none; margin:7px 0 2px 22px; flex-wrap:wrap; gap:5px 14px; }
+            .pae-members.open { display:flex; }
+            .pae-mrow { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#334155; cursor:pointer; }
+          </style>
+          <details class="pae-wrap">
+            <summary class="pae-sum">👥 통보 대상 추가 <span class="pae-hint">— 원래 통보 대상엔 항상 다시 통보됩니다. 여기서 부서·인원을 더 추가하세요.</span></summary>
+            <div class="pae-body">
+              {% set _hq = teams|rejectattr('entity','equalto','VN')|list %}
+              {% set _vn = teams|selectattr('entity','equalto','VN')|list %}
+              {% for _grp, _glabel in [(_hq,'🏢 본사'), (_vn,'🌏 베트남')] %}
+                {% if _grp %}
+                <div class="pae-corp">
+                  <div class="pae-corp-ttl">{{ _glabel }}</div>
+                  {% for t in _grp %}
+                  <div class="pae-team">
+                    <label class="pae-team-row">
+                      <input type="checkbox" name="add_team_ids" value="{{ t.id }}"> <b>{{ t.name }}</b>
+                      <span class="pae-tcnt">{{ t.member_count }}명</span>
+                    </label>
+                    {% if team_members.get(t.id) %}
+                    <button type="button" class="pae-exp" onclick="paeExp(this)">▸ 개별</button>
+                    <div class="pae-members">
+                      {% for m in team_members.get(t.id) %}
+                      <label class="pae-mrow"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ m.rank }}{% endif %}</label>
+                      {% endfor %}
+                    </div>
+                    {% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </details>
+          <script>window.paeExp=function(b){var m=b.nextElementSibling;if(m){m.classList.toggle('open');b.textContent=m.classList.contains('open')?'▾ 개별':'▸ 개별';}};</script>
+          {% endif %}
         </form>
         {% endif %}
 

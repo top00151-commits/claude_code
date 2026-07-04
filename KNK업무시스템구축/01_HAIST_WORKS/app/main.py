@@ -19598,6 +19598,9 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _order_date = (form.get("order_date") or "").strip()[:10]
     _cust_id_raw = (form.get("customer_id") or "").strip()
     _cust_name_v = (form.get("customer_name") or "").strip()
+    # v5H226z813 (대표 지시): 수정발행 시 통보 대상 추가(원래 대상 유지 + 여기서 추가) — 다중 체크값
+    _add_team_ids = [int(x) for x in form.getlist("add_team_ids") if str(x).strip().isdigit() and int(x) > 0]
+    _add_user_ids = [int(x) for x in form.getlist("add_user_ids") if str(x).strip().isdigit() and int(x) > 0]
     _by = u.get("name") or u.get("login_id") or "—"
     from datetime import datetime as _dtu
     _now = _dtu.now().strftime("%Y-%m-%d %H:%M")
@@ -19646,9 +19649,12 @@ async def prod_request_update(request: Request, pid: int, prid: int):
             # 제작요청서 행(요청사항 2개 + 수정 메타) 제자리 갱신
             c.execute("UPDATE prod_requests SET cust_req=?, note=?, updated_at=?, updated_by_name=? WHERE id=?",
                       (_cust_req, _note, _now, _by, prid))
-            # 원래 통보했던 부서(team_ids)로 다시 통보
+            # 원래 통보했던 부서(team_ids) + z813: 여기서 추가한 부서 → 다시 통보
             _team_ids = [int(x) for x in str(pr.get("team_ids") or "").replace(";", ",").split(",")
                          if x.strip().isdigit() and int(x) > 0]
+            for _at in _add_team_ids:
+                if _at not in _team_ids:
+                    _team_ids.append(_at)
             # z772: 재통보 본문에 현재 첨부 이미지 장수 반영
             try:
                 _img_count = c.execute("SELECT COUNT(*) FROM prod_request_images WHERE prod_request_id=?", (prid,)).fetchone()[0] or 0
@@ -19661,13 +19667,23 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _qs = ["prod_updated=1"]
     try:
         _res = _prod_request_notify_core(int(pid), _cust_req, _note, _team_ids, u,
-                                         record=False, is_update=True, image_count=_img_count)
+                                         record=False, is_update=True, image_count=_img_count,
+                                         user_ids=_add_user_ids)
         if _res.get("ok"):
             _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
             _qs.append(f"prod_dept={_res.get('dept_count', 0)}")
             _qs.append(f"prod_msg={_res.get('msg_sent', 0)}")
             if _res.get("msg_err"):
                 _qs.append("prod_msgerr=1")
+            # z813: 추가한 통보 대상을 제작요청서에 반영(다음 수정발행에도 유지·카드 받는사람 갱신)
+            if _add_team_ids or _add_user_ids:
+                try:
+                    with db_session() as _c3:
+                        _c3.execute("UPDATE prod_requests SET team_ids=?, recipients=?, dept_names=? WHERE id=?",
+                                    (",".join(str(t) for t in sorted(set(_team_ids))),
+                                     _res.get("recipients", ""), _res.get("dept_names", ""), prid))
+                except Exception:
+                    pass
         else:
             _qs.append("prod_renotifyerr=1")
     except Exception as _e:
@@ -19931,9 +19947,28 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         _bd = _mc[3].upper() if (len(_mc) >= 4 and _mc[3].isalpha()) else ""
     _biz_label = _BIZ_LBL.get(_bd, _bd or "—")
     _export_label = "🚢 수출" if str(p.get("is_export") or "0") in ("1", "True", "true") else "🏠 내수"
+    # v5H226z813 (대표 지시): 수정발행 시 '통보 대상 추가'용 — 활성 인원 있는 부서(팀) + 팀별 인원(본사 먼저·법인 그룹)
+    _teams = []
+    _team_members = {}
+    try:
+        with db_session() as _ptc:
+            _teams = [dict(r) for r in _ptc.execute(
+                "SELECT t.id, t.name, t.entity, COUNT(u.id) AS member_count "
+                "FROM teams t LEFT JOIN users u ON u.team_id=t.id AND COALESCE(u.is_active,1)=1 "
+                "GROUP BY t.id, t.name, t.entity HAVING member_count > 0 "
+                "ORDER BY (CASE WHEN COALESCE(t.entity,'KOR')='VN' THEN 1 ELSE 0 END), t.display_order, t.id"
+            ).fetchall()]
+            for _mr in _ptc.execute(
+                "SELECT u.id, u.team_id, u.name, COALESCE(u.name_vi,'') AS name_vi, "
+                "COALESCE(u.rank,'') AS rank FROM users u "
+                "WHERE COALESCE(u.is_active,1)=1 AND u.team_id IS NOT NULL ORDER BY u.team_id, u.name").fetchall():
+                _d = dict(_mr); _team_members.setdefault(_d["team_id"], []).append(_d)
+    except Exception:
+        _teams = []; _team_members = {}
     return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, pr_images=pr_images,
                can_edit=can_view_sales(u), form_label=_form_label, biz_label=_biz_label,
-               export_label=_export_label, biz_cur=_bd, create_mode=create_mode)
+               export_label=_export_label, biz_cur=_bd, create_mode=create_mode,
+               teams=_teams, team_members=_team_members)
 
 
 # v5H226z772 (대표 지시): 제작요청서 참고 이미지 추가/삭제 — 수정발행 화면에서 AJAX 업로드·삭제(영업·관리 권한자만).
