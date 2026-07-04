@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z811[제작요청서목록 명칭 연결지점 통일(대표 지시) — 전체목록·등록 화면의 탭 "제작요청서"→"제작요청서목록"(연결되는 곳). 프로젝트 상세 "전체 제작요청서→"→"제작요청서목록→". 목록 브라우저탭 제목도 통일. projects.html·project_new_chooser.html·project_detail.html·prod_requests_list.html]
+REM   LAST UPDATE: 2026-07-04 v5H226z812[제작요청 발행자 본인 이음 통보 누락 수정(대표 지시) — 발행자는 WORKS 벨(z804)만 받고 이음 "WORKS 알림" 카드는 못 받던 문제(통보 대상만 emp_nos에 들어감). notify_core가 발행자 사번(_author_emp)도 수집→벨에 더해 이음 카드도 본인에게 1:1 발송("✅ 내가 발행한 제작요청·N명 통보"). 통보 수 미포함·try/except. main.py]
+REM   - 2026-07-04 v5H226z811[제작요청서목록 명칭 연결지점 통일(대표 지시) — 전체목록·등록 화면의 탭 "제작요청서"→"제작요청서목록"(연결되는 곳). 프로젝트 상세 "전체 제작요청서→"→"제작요청서목록→". 목록 브라우저탭 제목도 통일. projects.html·project_new_chooser.html·project_detail.html·prod_requests_list.html]
 REM   - 2026-07-04 v5H226z810[프로젝트 등록폼 입력칸 구분 개선(대표 지시) — 입력칸이 회색 패널과 구분 안됨 → 흰배경 + 또렷한 테두리(#c4ccd8) + 살짝 그림자 + 포커스 파란링. .qf-f input/select/textarea·qfsel-btn·자재표 입력칸. project_quick_form.html CSS만(이 폼 전용)]
 REM   - 2026-07-04 v5H226z809[제작요청서목록 카드 외곽 "카드 느낌"(대표 지시) — 은은한 그림자(입체)·둥근모서리14px·호버 떠오름·카드간격16·내부여백. 표 바깥테두리 제거→내부 구분선만(액자겹침 해소). prod_requests_list.html CSS만]
 REM   - 2026-07-04 v5H226z808[제작요청서 목록 사업부 필터(대표 지시) — 페이지명 "제작요청서목록". 필터 2줄: 사업부(전체·검사기·자동화·라이프밸류·기타·소모품) + 그 안 기간(전체·오늘·이번주·이번달·올해) 조합. 사업부=관리번호 4번째글자(UPPER substr,4,1)·연구(R)는 전체에만. main.py 라우트 biz 파라미터 + prod_requests_list.html 필터 2줄+prqurl 매크로]

@@ -6743,6 +6743,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     sent_to = 0
     dept_count = 0
     emp_nos = []
+    _author_emp = ""   # z812: 발행자 본인 사번(이음 통보용 — 벨+메신저 둘 다)
     dept_names = ""   # z762: 통보 부서 이름 스냅샷(제작요청서 저장·표시용)
     recipients = ""   # z803: 통보 명단(부서 전체=부서명 / 개별=이름 직책 부서)
     # z746(대표 지시): 자동 라우팅 — 프로젝트 사업부(mgmt_code[3]: T검사기/M자동화/L라이프/E기타)에 맞는
@@ -6841,6 +6842,15 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                     emp_nos = [(er[0] if not isinstance(er, dict) else er["employee_no"]) for er in erows]
             except Exception:
                 emp_nos = []
+            # v5H226z812 (대표 지시): 발행자 본인 사번 — 벨(z804)에 더해 이음 'WORKS 알림' 카드도 받게(발행 확인용).
+            try:
+                if uid_self and uid_self > 0:
+                    _ar = c.execute("SELECT employee_no FROM users WHERE id=? AND COALESCE(employee_no,'')<>''",
+                                    (uid_self,)).fetchone()
+                    if _ar:
+                        _author_emp = (_ar[0] if not isinstance(_ar, dict) else _ar["employee_no"])
+            except Exception:
+                _author_emp = ""
     except Exception as e:
         return {"ok": False, "error": f"db_error: {str(e)[:120]}", "stage_warn": _stage_warn}
     # v5H226z391 (대표 지시): ③ 메신저(KNK Eum) 통보 — 'WORKS 알림' 봇이 담당자에게 1:1 푸시.
@@ -6871,6 +6881,14 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             "issued_at": now_str, "link": _full_link, "image_count": image_count,
         }
         _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=_card)
+        # v5H226z812 (대표 지시): 발행자 본인에게도 이음 'WORKS 알림' 카드 — 벨(z804)+메신저 둘 다. 통보 수(msg_sent)엔 미포함.
+        if _author_emp:
+            try:
+                _self_ttl = f"✅ 내가 발행한 제작요청 · {mgmt} — {sent_to}명 통보"
+                _self_bd = f"내가 발행한 제작요청서입니다. {sent_to}명에게 통보되었습니다.\n{_SUB}\n{body}"
+                sso_client.notify_via_messenger([_author_emp], _self_ttl, _self_bd, _full_link, card=_card)
+            except Exception:
+                pass
         if _mres.get("ok"):
             msg_sent = _mres.get("sent", 0)
         else:
