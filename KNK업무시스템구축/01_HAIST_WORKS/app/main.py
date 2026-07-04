@@ -6586,7 +6586,7 @@ async def project_detail(req: Request, pid: int):
                prod_requests=prod_requests)
 
 
-def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False, image_count=0):
+def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False, image_count=0, user_ids=None):
     """v5H226z372→z373 (대표 지시): 제작요청 통보 코어.
     제작요청서 = 프로젝트 생성의 출발점으로 일원화 — 신규 등록(발행) 직후 호출:
       ① 작업일정표 '제작요청(prod_request)' 단계 자동 체크(누가·언제·요청사항)
@@ -6611,11 +6611,14 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             "SELECT order_no FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall() if r[0]]
         # 통보 부서 — 명시 없으면 전부서(활성 인원 있는 팀 전체)
         tids = [int(t) for t in (team_ids or []) if str(t).strip().isdigit() and int(t) > 0]
-        if not tids:
+        # v5H226z794 (대표 지시): 개별 지정 인원 — 사업부 필터 없이 그 사람에게 정확히 통보(팀통보와 합집합).
+        _uids_explicit = [int(x) for x in (user_ids or [])
+                          if str(x).strip().isdigit() and int(x) > 0 and int(x) != uid_self]
+        if not tids and not _uids_explicit:
             tids = [r[0] for r in c.execute(
                 "SELECT DISTINCT t.id FROM teams t JOIN users u ON u.team_id=t.id "
                 "AND COALESCE(u.is_active,1)=1").fetchall()]
-    if not tids:
+    if not tids and not _uids_explicit:
         return {"ok": False, "error": "no_team"}
     today = _dt2.now().strftime("%Y-%m-%d")
     now_str = _dt2.now().strftime("%Y-%m-%d %H:%M")
@@ -6679,25 +6682,42 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
 
     try:
         with db_session() as c:
-            ph = ",".join("?" * len(tids))
-            _cand = c.execute(
-                f"SELECT id, team_id, COALESCE(biz_divs,'') AS bd FROM users "
-                f"WHERE team_id IN ({ph}) AND COALESCE(is_active,1)=1 AND id != ?",
-                (*tids, uid_self)).fetchall()
             uids = []
             _dept_ids = set()
-            for r in _cand:
-                if isinstance(r, dict):
-                    _uid, _tid, _bd = r.get("id"), r.get("team_id"), r.get("bd") or ""
-                else:
-                    _uid, _tid, _bd = r[0], r[1], (r[2] or "")
-                if not _biz_match(_bd):
-                    continue
-                uids.append(_uid)
-                _dept_ids.add(_tid)
-                c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
-                          (_uid, "prod_request", title, body, link))
-                sent_to += 1
+            if tids:   # 팀(부서) 통보 — 사업부 필터
+                ph = ",".join("?" * len(tids))
+                _cand = c.execute(
+                    f"SELECT id, team_id, COALESCE(biz_divs,'') AS bd FROM users "
+                    f"WHERE team_id IN ({ph}) AND COALESCE(is_active,1)=1 AND id != ?",
+                    (*tids, uid_self)).fetchall()
+                for r in _cand:
+                    if isinstance(r, dict):
+                        _uid, _tid, _bd = r.get("id"), r.get("team_id"), r.get("bd") or ""
+                    else:
+                        _uid, _tid, _bd = r[0], r[1], (r[2] or "")
+                    if not _biz_match(_bd):
+                        continue
+                    uids.append(_uid)
+                    _dept_ids.add(_tid)
+                    c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
+                              (_uid, "prod_request", title, body, link))
+                    sent_to += 1
+            # v5H226z794 (대표 지시): 개별 지정 인원 — 사업부 필터 없이 정확히 통보(팀통보와 합집합·중복 제거)
+            if _uids_explicit:
+                _seen = set(uids)
+                ph3 = ",".join("?" * len(_uids_explicit))
+                for r in c.execute(
+                        f"SELECT id, team_id FROM users WHERE id IN ({ph3}) AND COALESCE(is_active,1)=1",
+                        tuple(_uids_explicit)).fetchall():
+                    _d = dict(r); _u2 = _d.get("id"); _t2 = _d.get("team_id")
+                    if _u2 in _seen:
+                        continue
+                    _seen.add(_u2); uids.append(_u2)
+                    if _t2:
+                        _dept_ids.add(_t2)
+                    c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
+                              (_u2, "prod_request", title, body, link))
+                    sent_to += 1
             dept_count = len(_dept_ids)
             # z762: 통보 부서 이름 스냅샷(제작요청서 저장·표시용 — 나중에 join 없이 바로 표시)
             if _dept_ids:
@@ -23901,12 +23921,25 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
             ).fetchall()]   # v5H226z552: 법인(entity)·본사 먼저
     except Exception:
         _teams = []
+    # v5H226z794 (대표 지시): 개별 부서원 선택 — 팀별 활성 인원(이름·직급·사업부). 통보 개별선택/블록용.
+    _team_members = {}
+    try:
+        with db_session() as _pmc:
+            for _mr in _pmc.execute(
+                "SELECT u.id, u.team_id, u.name, COALESCE(u.name_vi,'') AS name_vi, "
+                "COALESCE(u.rank,'') AS rank, COALESCE(u.biz_divs,'') AS biz_divs FROM users u "
+                "WHERE COALESCE(u.is_active,1)=1 AND u.team_id IS NOT NULL "
+                "ORDER BY u.team_id, u.name").fetchall():
+                _d = dict(_mr)
+                _team_members.setdefault(_d["team_id"], []).append(_d)
+    except Exception:
+        _team_members = {}
     # v5H226z386 (대표 지시): 검증 모드 ON 이면 관리번호가 A 접두로 발급됨 — 화면에 표시(잊지 않게)
     _test_on = (get_setting("test_mode", "") or "").strip().lower() in ("1", "on", "true", "yes")
     return ctx(request, "project_quick_form.html",
                user=u, active="sales_projects", embed=_embed, preset_biz=_bd,
-               can_money=bool(can_view_sales(u)), teams=_teams, test_on=_test_on,
-               PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
+               can_money=bool(can_view_sales(u)), teams=_teams, team_members=_team_members,
+               test_on=_test_on, PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
                customers=_logi.customers_for_picker())
 
 
@@ -24264,9 +24297,11 @@ async def projects_new_submit(request: Request):
             if (form.get("prod_notify") or "").strip() in ("1", "on", "true", "yes"):
                 try:
                     _fu_t = [int(t) for t in form.getlist("pr_team_ids") if str(t).strip().isdigit() and int(t) > 0]
+                    _fu_u = [int(x) for x in form.getlist("pr_user_ids") if str(x).strip().isdigit() and int(x) > 0]
                     _fu_res = _prod_request_notify_core(int(_existing["id"]),
                                                         (form.get("pr_cust_req") or "").strip(),
-                                                        (form.get("pr_note") or "").strip(), _fu_t, _u)
+                                                        (form.get("pr_note") or "").strip(), _fu_t, _u,
+                                                        user_ids=_fu_u)
                     if _fu_res.get("ok"):
                         _fu_url += f"&prod_sent={_fu_res.get('sent_to', 0)}&prod_dept={_fu_res.get('dept_count', 0)}"
                         _fu_url += f"&prod_msg={_fu_res.get('msg_sent', 0)}"
@@ -24489,6 +24524,8 @@ async def projects_new_submit(request: Request):
     _pr_cust_req = (form.get("pr_cust_req") or "").strip()
     _pr_note = (form.get("pr_note") or "").strip()
     _pr_team_ids = [int(t) for t in form.getlist("pr_team_ids") if str(t).strip().isdigit() and int(t) > 0]
+    # v5H226z794 (대표 지시): 개별 부서원 선택 — 개별 지정 인원(사업부 필터 없이 정확히 통보)
+    _pr_user_ids = [int(x) for x in form.getlist("pr_user_ids") if str(x).strip().isdigit() and int(x) > 0]
     # v5H226z772 (대표 지시): 제작요청 발행 시 참고 이미지 첨부 — 멀티파트로 함께 온 파일 바이트를 먼저 읽어둠(await는 async 본문에서만).
     #   프로젝트·제작요청서 생성 직후 그 제작요청서(prid)에 귀속 저장. 최대 20장·장당 25MB.
     _pr_image_files = []
@@ -24520,7 +24557,7 @@ async def projects_new_submit(request: Request):
         if _pr_notify and _pid and not _warn:
             try:
                 _res = _prod_request_notify_core(int(_pid), _pr_cust_req, _pr_note, _pr_team_ids, _u,
-                                                 image_count=len(_pr_image_files))
+                                                 image_count=len(_pr_image_files), user_ids=_pr_user_ids)
                 if _res.get("ok"):
                     _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
                     _qs.append(f"prod_dept={_res.get('dept_count', 0)}")

@@ -367,17 +367,19 @@ html,body{background:#fff!important;overflow:auto!important;}
               <div id="prImgPreview" class="pr-imgprev"></div>
             </div>
             <details class="qf-adv" style="margin-top:8px;">
-              <summary>통보 부서 선택 <span>(기본 전부서 — 빼려면 체크 해제)</span></summary>
+              <summary>통보 부서·인원 선택 <span>(기본 전부서 — ▸개별로 사람만 지정 가능)</span></summary>
               {# z746(대표 지시): 자동 라우팅 안내 — 통보는 '이 사업부·공통' 담당자에게만 #}
               {% set _bizmap = {'T':'🔎 검사기','M':'⚙️ 자동화','L':'💡 라이프밸류','E':'🗂 기타'} %}
               <div style="margin:8px 2px 2px;padding:8px 11px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:11.5px;color:#9a3412;line-height:1.6;">
                 📡 이 제작요청은 <b>{{ _bizmap.get(preset_biz, preset_biz) }}</b> 사업부 → 선택한 부서에서 <b>{{ _bizmap.get(preset_biz, preset_biz) }}·공통</b> 담당자에게만 통보됩니다.
                 <span style="color:#c2772a;">(담당 사업부는 설정▸사용자 수정에서 지정 · 미지정=공통=항상 통보. 표시된 인원수는 팀 전체)</span>
               </div>
-              {# v5H226z552 (대표 지시): 전체선택/취소 + 본사/베트남법인 구분 #}
-              <div style="display:flex;gap:8px;align-items:center;padding:6px 2px 2px;">
-                <button type="button" onclick="document.querySelectorAll('.pr-team').forEach(function(c){c.checked=true;});" style="font-size:11.5px;font-weight:700;border:1px solid #fdba74;background:#fff;color:#9a3412;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 선택</button>
-                <button type="button" onclick="document.querySelectorAll('.pr-team').forEach(function(c){c.checked=false;});" style="font-size:11.5px;font-weight:700;border:1px solid #e5e7eb;background:#fff;color:#6b7280;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 취소</button>
+              {# v5H226z794 (대표 지시): 전체선택/취소 + 법인구분 + 부서원 개별 선택(▸개별 펼치기).
+                 팀 체크=그 팀 사업부 담당자 통보 / 개별 체크=그 사람만 정확히 통보(사업부 무시). 배타(팀↔개별) #}
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 2px 2px;">
+                <button type="button" onclick="document.querySelectorAll('.pr-team').forEach(function(c){c.checked=true;});document.querySelectorAll('.pr-user').forEach(function(c){c.checked=false;});" style="font-size:11.5px;font-weight:700;border:1px solid #fdba74;background:#fff;color:#9a3412;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 선택</button>
+                <button type="button" onclick="document.querySelectorAll('.pr-team,.pr-user').forEach(function(c){c.checked=false;});" style="font-size:11.5px;font-weight:700;border:1px solid #e5e7eb;background:#fff;color:#6b7280;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 취소</button>
+                <span style="font-size:11px;color:#94a3b8;">팀 전체=사업부 담당자 · <b style="color:#2563eb;">▸개별</b>=그 사람만</span>
               </div>
               {% set ns = namespace(kor=[], vn=[], etc=[]) %}
               {% for t in teams %}{% if (t.entity or 'KOR')=='VN' %}{% set ns.vn = ns.vn + [t] %}{% elif (t.entity or 'KOR')=='KOR' %}{% set ns.kor = ns.kor + [t] %}{% else %}{% set ns.etc = ns.etc + [t] %}{% endif %}{% endfor %}
@@ -385,14 +387,32 @@ html,body{background:#fff!important;overflow:auto!important;}
                 {% if grp[1] %}
                 <div style="margin-top:8px;padding:0 2px;">
                   <div style="font-size:11px;font-weight:800;color:#9a3412;margin-bottom:4px;">{{ grp[0] }} <span style="color:#c2772a;font-weight:600;">({{ grp[1]|length }})</span></div>
-                  <div style="display:flex;flex-wrap:wrap;gap:6px 14px;">
+                  <div style="display:flex;flex-direction:column;gap:1px;">
                     {% for t in grp[1] %}
-                    <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" checked> {{ t.name }} <span style="color:#999;">{{ t.member_count }}명</span></label>
+                    {% set _mem = team_members.get(t.id, []) %}
+                    <div class="pr-teamblk">
+                      <div style="display:flex;align-items:center;gap:6px;">
+                        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);cursor:pointer;"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" data-team="{{ t.id }}" checked onchange="prTeamToggle(this)"> {{ t.name }} <span style="color:#999;font-weight:400;">{{ t.member_count }}명</span></label>
+                        {% if _mem %}<button type="button" onclick="prExpand({{ t.id }},this)" style="font-size:11px;color:#2563eb;background:none;border:none;cursor:pointer;padding:0 3px;">▸개별</button>{% endif %}
+                      </div>
+                      {% if _mem %}
+                      <div class="pr-members" data-team="{{ t.id }}" style="display:none;flex-wrap:wrap;gap:3px 12px;padding:2px 0 5px 22px;">
+                        {% for m in _mem %}
+                        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:#334155;cursor:pointer;"><input type="checkbox" class="pr-user" name="pr_user_ids" value="{{ m.id }}" data-team="{{ t.id }}" onchange="prUserToggle(this)"> {{ m.name }}{% if m.rank %} <span style="color:#94a3b8;font-size:10.5px;">{{ m.rank }}</span>{% endif %}</label>
+                        {% endfor %}
+                      </div>
+                      {% endif %}
+                    </div>
                     {% endfor %}
                   </div>
                 </div>
                 {% endif %}
               {% endfor %}
+              <script>
+              window.prExpand=function(tid,btn){var m=document.querySelector('.pr-members[data-team="'+tid+'"]');if(!m)return;var show=(m.style.display==='none'||!m.style.display);m.style.display=show?'flex':'none';if(btn)btn.textContent=show?'▾개별':'▸개별';};
+              window.prTeamToggle=function(cb){if(cb.checked){document.querySelectorAll('.pr-user[data-team="'+cb.value+'"]').forEach(function(u){u.checked=false;});}};
+              window.prUserToggle=function(u){if(u.checked){var t=document.querySelector('.pr-team[data-team="'+u.getAttribute('data-team')+'"]');if(t)t.checked=false;}};
+              </script>
               <div style="height:10px;"></div>
             </details>
           </div>

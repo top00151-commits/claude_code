@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z793[관리자 콘솔 팀(부서) 목록에 법인(본사/베트남) 대분류 필터+컬럼 추가(대표 지시) — 사용자 목록과 동일 방식(.ucf/.corp-badge 재사용·클라 필터 tcfApply). 법인=teams.entity(VN=베트남·team12). 사용자 필터 첫옵션 전체->법인 전체 명확화. admin.html]
+REM   LAST UPDATE: 2026-07-04 v5H226z794[제작요청 통보 부서원 개별 선택(대표 지시 1/2) — 통보부서 선택서 팀 펼쳐(개별) 직원 개별 체크. 팀전체=사업부 담당자·개별=그 사람만 정확히(사업부 무시). 배타 토글. notify_core user_ids 파라미터(팀통보와 합집합·중복제거·하위호환). 등록폼 team_members 전달·pr_user_ids 폼전송. 다음 z795=통보 블록. main.py·project_quick_form.html]
+REM   - 2026-07-04 v5H226z793[관리자 콘솔 팀(부서) 목록에 법인(본사/베트남) 대분류 필터+컬럼 추가(대표 지시) — 사용자 목록과 동일 방식(.ucf/.corp-badge 재사용·클라 필터 tcfApply). 법인=teams.entity(VN=베트남·team12). 사용자 필터 첫옵션 전체->법인 전체 명확화. admin.html]
 REM   - 2026-07-04 v5H226z792[제작요청서 카드 높이 축소(대표 지시) — 수량을 수주번호 줄로 이동(우측정렬 .pc-qty)·발주/납기 한 줄(.pc-metarow서 수량 제거). prod_requests_list.html]
 REM   - 2026-07-04 v5H226z791[제작요청서 목록 카드=수주(호기)당 1장·핵심 10필드만(대표 지시 작게·많이보기) — 요청사항/부서/발행자 미리보기 제거. 관리번호·수주번호·상태·PO유형·모델명·장비명·고객사·수량·발주일·납기일. 라우트: 제작요청서 있는 프로젝트->orders LEFT JOIN 수주별 1행(수주없으면 1행·수주번호—)·최신 제작요청서 연결. 상태=order_items.unit_status 롤업(_board_agg_status)·수량=order_items 합·PO유형=projects.po_type. 카드폭 320->280. main.py·prod_requests_list.html]
 REM   - 2026-07-04 v5H226z790[제작요청서 버튼 4개 엉킴 정리(대표 지시 정신없음·구조변경해서라도 정렬) — 근본=hidden-attr CSS트랩(.prq-btns display:flex가 prqEditBtns[hidden] 무력화->보기모드에 편집버튼까지 4개 노출). 푸터 재구조화 좌=작업일정표 바로가기/우=모드별 액션 1행(.prq-footer/.prq-actions/.prq-actgrp)·.prq-actgrp[hidden] display:none!important 확실숨김. prod_request_edit.html]
