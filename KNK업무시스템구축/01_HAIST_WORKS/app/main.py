@@ -19927,7 +19927,13 @@ async def api_notify_block_delete(request: Request, bid: int):
 async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
     u = get_user(request)
     if not u:
-        return RedirectResponse("/login", 303)
+        # v5H226z816 (대표 지시 2026-07-05): 미로그인 딥링크 진입 시 '원래 주소'를 next 로 보존 →
+        #   SSO 로그인 후 곧장 이 제작요청서로 착지. (메신저 카드 '제작요청서 보기' 첫 클릭이 /home(WORKS 메인)
+        #   으로 새고, 두 번째 클릭에야 열리던 문제 — 이 라우트가 bare /login 으로 보내 next 를 잃던 탓.)
+        #   회의록 링크(/login?next=…, 위 sso 흐름)와 동일한 검증된 패턴. _safe_next_path 가 내부경로만 허용.
+        from urllib.parse import quote
+        _nxt = request.url.path + (("?" + request.url.query) if request.url.query else "")
+        return RedirectResponse("/login?next=" + quote(_nxt, safe=""), 303)
     with db_session() as c:
         # v5H226z773 (대표 지시): 제작요청서 카드에 등록 시 작성한 모든 정보(금액 제외) 표시 → 프로젝트 전 필드 + 고객사명 보강
         p = c.execute("SELECT p.*, cu.name AS _cust_join FROM projects p "
