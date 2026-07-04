@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>정보 열람 권한 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>정보 열람 권한</b></div>
+      <h1 class="page-title">🔐 정보 열람 <em>권한</em></h1>
+      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
+        매출금액 · 구매단가 · 구매처 정보 — 부서(팀)별로 볼 수 있는지 정합니다.
+      </div>
+    </div>
+  </div>
+
+  {% if saved %}
+  <div class="section">
+    <div style="margin:0 var(--content-pad);padding:10px 14px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:var(--radius-sm,8px);color:#1b5e20;font-size:13px;">
+      ✅ 저장했습니다. 바뀐 열람 권한이 반영됩니다.
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <div style="margin:0 var(--content-pad) 14px;padding:12px 14px;background:var(--paper-3,#f7f7f8);border:1px solid var(--line);border-radius:var(--radius-sm,8px);font-size:12.5px;line-height:1.7;color:var(--ink);">
+      <b>무엇을 제어하나요?</b><br>
+      아래 3가지 민감 정보를 <b>어느 부서가 볼 수 있는지</b>를 부서(팀)별로 켜고 끕니다.
+      <ul style="margin:8px 0 0;padding-left:18px;color:var(--mute);">
+        <li><b>매출금액</b> — 판매·수주 금액(공급가·매출액 등)</li>
+        <li><b>구매단가</b> — 부품·자재를 <u>얼마에 샀는지</u>(매입 단가)</li>
+        <li><b>구매처 정보</b> — 어느 <u>거래처(협력사)에서 샀는지</u></li>
+      </ul>
+      <div style="margin-top:8px;color:var(--mute);">
+        ※ 대표·관리자(대표이사 / 시스템 관리자)는 이 설정과 상관없이 <b>항상 전체를 볼 수 있습니다</b>(잠금 방지).<br>
+        ※ 체크된 부서에 속한 직원이 해당 정보를 볼 수 있습니다. (이 화면 저장은 정책만 바꿉니다.)
+      </div>
+    </div>
+  </div>
+
+  <form method="post" action="/admin/field-access">
+  <div class="section">
+    <h2>부서별 열람 허용</h2>
+    <div class="tbl-wrap tbl-sticky" style="overflow-x:auto;">
+      {% if teams %}
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th style="min-width:120px;position:sticky;left:0;background:var(--paper);z-index:2;">정보 / 부서</th>
+            {% for t in teams %}
+              <th class="center" style="white-space:nowrap;font-size:12px;">
+                {{ t.name }}{% if t.entity == 'VN' %} <span style="color:var(--mute);font-size:10px;">(베트남)</span>{% endif %}
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in categories %}
+          <tr>
+            <td style="position:sticky;left:0;background:var(--paper);z-index:1;"><b>{{ cat.label }}</b></td>
+            {% for t in teams %}
+              <td class="center">
+                <input type="checkbox" name="fa__{{ cat.code }}__{{ t.id }}" value="1"
+                       {% if t.id in cat.allowed %}checked{% endif %}
+                       aria-label="{{ cat.label }} — {{ t.name }}"
+                       style="width:18px;height:18px;cursor:pointer;">
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty"><div class="ico">🏷️</div><div class="ttl">부서가 없습니다</div></div>
+      {% endif %}
+    </div>
+    <div style="margin:16px var(--content-pad) 0;display:flex;gap:10px;align-items:center;">
+      <button type="submit" class="btn btn-primary">💾 저장</button>
+      <a class="btn btn-secondary" href="/admin">취소</a>
+      <span style="color:var(--mute);font-size:12px;">체크 = 그 부서가 그 정보를 볼 수 있음</span>
+    </div>
+  </div>
+  </form>
+
+  <div style="height: var(--space-7,48px);"></div>
+</main></div></body></html>

@@ -226,6 +226,16 @@ CREATE TABLE IF NOT EXISTS teams (
     display_order INTEGER DEFAULT 0
 );
 
+-- v5H226z822 (대표 지시): 민감 정보 팀별 열람 정책 — 한 행 = 그 팀이 그 분류를 볼 수 있음.
+--   분류(category): sales_amount(매출금액) / purchase_price(구매단가) / supplier_info(구매처 정보).
+--   대표/관리자(ceo·admin)는 정책과 무관하게 항상 전체 열람(헬퍼 can_view_field 에서 처리).
+--   최초 시드는 startup()에서 표가 비었을 때만 1회(이름→team_id 해석). 재배포 재시드 금지(화면 편집값 보존).
+CREATE TABLE IF NOT EXISTS field_access_policy (
+    category TEXT NOT NULL,
+    team_id  INTEGER NOT NULL,
+    PRIMARY KEY (category, team_id)
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -3574,6 +3584,72 @@ def init_db():
                 print(f"[v5H226t] cascade 백필: 프로젝트 {up_promoted}건 상태 자동 승급")
         except Exception as _e:
             print(f"[v5H226t] cascade 백필 실패: {_e}")
+
+
+# =====================================================
+# v5H226z822 (대표 지시): 정보 열람 권한 — 팀별 정책 시드
+# =====================================================
+# 3개 분류 × 초기 허용 팀. 대표/관리자(ceo·admin)는 정책과 무관하게 항상 전체 열람(main.can_view_field).
+#   sales_amount(매출금액)   : 총괄·기술영업·관리
+#   purchase_price(구매단가) : 총괄·기술영업·관리·구매·설계·검사기
+#   supplier_info(구매처 정보): 총괄·관리·구매·기술영업
+# 팀 이름 매칭: 총괄=code '00' 또는 name '총괄'. 나머지는 name 에 키워드 포함('팀' 접미 허용).
+FIELD_ACCESS_SEED = {
+    "sales_amount":   ["총괄", "기술영업", "관리"],
+    "purchase_price": ["총괄", "기술영업", "관리", "구매", "설계", "검사기"],
+    "supplier_info":  ["총괄", "관리", "구매", "기술영업"],
+}
+
+
+def _resolve_team_id_by_keyword(c, keyword: str):
+    """부서명 키워드 → team_id (활성 조직 기준·단일 후보만). 못 찾으면 None.
+    - '총괄'은 code '00' 우선, 없으면 name '총괄'.
+    - 그 외는 name 에 keyword 포함(예 '기술영업'→'기술영업팀'). 여러 팀이 걸리면 display_order 최우선 1개.
+    [[feedback_data_connectivity]] 애매하면(0건) None 반환·크래시 금지."""
+    try:
+        if keyword == "총괄":
+            r = c.execute("SELECT id FROM teams WHERE code='00' ORDER BY display_order LIMIT 1").fetchone()
+            if r:
+                return r[0]
+            r = c.execute("SELECT id FROM teams WHERE name='총괄' ORDER BY display_order LIMIT 1").fetchone()
+            return r[0] if r else None
+        r = c.execute(
+            "SELECT id FROM teams WHERE name LIKE ? ORDER BY display_order, id LIMIT 1",
+            (f"%{keyword}%",),
+        ).fetchone()
+        return r[0] if r else None
+    except Exception:
+        return None
+
+
+def seed_field_access_policy_if_empty(c):
+    """field_access_policy 가 비었을 때만 초기값 시드(이름→team_id 해석). 멱등: 재실행 시 이미 행 있으면 무시.
+    반환: {'seeded': bool, 'inserted': int, 'resolved': {category:[team_id..]}, 'missing': {keyword:[category..]}}.
+    ⛔ except:pass 로 조용히 삼키지 않음 — 예외는 호출부(startup)에서 print 로 표면화."""
+    result = {"seeded": False, "inserted": 0, "resolved": {}, "missing": {}}
+    existing = c.execute("SELECT COUNT(*) FROM field_access_policy").fetchone()[0]
+    if existing > 0:
+        return result  # 이미 정책 있음(화면서 편집된 값 보존) — 재시드 금지
+    inserted = 0
+    for category, keywords in FIELD_ACCESS_SEED.items():
+        tids = []
+        for kw in keywords:
+            tid = _resolve_team_id_by_keyword(c, kw)
+            if tid is None:
+                result["missing"].setdefault(kw, []).append(category)
+                continue
+            if tid not in tids:
+                tids.append(tid)
+        for tid in tids:
+            c.execute(
+                "INSERT OR IGNORE INTO field_access_policy(category, team_id) VALUES(?,?)",
+                (category, tid),
+            )
+            inserted += 1
+        result["resolved"][category] = tids
+    result["seeded"] = True
+    result["inserted"] = inserted
+    return result
 
 
 def seed_all():

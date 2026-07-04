@@ -636,6 +636,19 @@ def startup():
                 _rc815.execute("ALTER TABLE prod_requests ADD COLUMN user_ids TEXT")
     except Exception as _e:
         print(f"[z815] wt_team_ids/user_ids 컬럼 추가 실패: {_e}")
+    # v5H226z822 (대표 지시): 정보 열람 권한 1단계 — field_access_policy 표 초기 시드(표가 비었을 때만 1회).
+    #   표 자체는 SCHEMA(init_db)에서 CREATE IF NOT EXISTS. seed_all() 이후라 teams 존재 보장.
+    #   재배포 재시드 금지(대표가 /admin/field-access 에서 바꾼 값 보존). 이름→team_id 해석 결과·미해결 팀을 로그로 표면화.
+    try:
+        from .database import seed_field_access_policy_if_empty as _seed_fap
+        with db_session() as _rc822:
+            _fr = _seed_fap(_rc822)
+        if _fr.get("seeded"):
+            print(f"[z822] 정보열람권한 초기 시드: 행 {_fr.get('inserted')}개 · 해석={_fr.get('resolved')}")
+            if _fr.get("missing"):
+                print(f"[z822] ⚠ 못 찾은 팀(시드 건너뜀·화면서 체크 가능): {_fr.get('missing')}")
+    except Exception as _e:
+        print(f"[z822] 정보열람권한 시드 실패: {_e}")
     # v5H226z104 (2026-05-16): 워크플로우 레고 빌더 마이그레이션 (idempotent)
     try:
         from .migrations.m_z104_workflow_builder import migrate as _wfb_migrate
@@ -1760,6 +1773,58 @@ def can_delete_sales(user) -> bool:
         return bool(user.get("can_use_sales"))
     except Exception:
         return False
+
+
+# =====================================================
+# v5H226z822 (대표 지시): 정보 열람 권한 — 팀별 정책 헬퍼 (1단계=정의만·화면 미연결)
+# =====================================================
+# 민감 정보 3분류를 팀별로 다르게 열람 제어. 정책은 DB표 field_access_policy(행 1개=그 팀이 그 분류 열람 가능).
+#   대표/관리자(ceo·admin)는 정책과 무관하게 항상 전체 열람(시스템 관리자·잠금 방지).
+# ⚠ 이 헬퍼는 이번 1단계에서 어떤 화면에도 연결하지 않는다(정의만). 2단계에서 화면별로 적용.
+FIELD_ACCESS_LABELS = {
+    "sales_amount":   "매출금액",
+    "purchase_price": "구매단가",
+    "supplier_info":  "구매처 정보",
+}
+
+
+def load_field_access_policy(c) -> dict:
+    """field_access_policy 표 → {category: set(team_id)}. 표가 없으면 빈 dict(안전).
+    2단계에서 요청당 1회 로드해 can_view_field(policy=...) 로 넘겨 재조회를 피할 수 있게 한다."""
+    policy: dict = {}
+    try:
+        for r in c.execute("SELECT category, team_id FROM field_access_policy"):
+            cat = r["category"] if not isinstance(r, tuple) else r[0]
+            tid = r["team_id"] if not isinstance(r, tuple) else r[1]
+            policy.setdefault(cat, set()).add(tid)
+    except Exception:
+        return {}
+    return policy
+
+
+def can_view_field(user, category, policy=None) -> bool:
+    """민감 정보 분류(category) 열람 가능 여부.
+    - user 없으면 False.
+    - role 이 ceo·admin 이면 True(시스템 관리자·잠금 방지·정책 무관).
+    - 그 외: user 의 team_id 가 그 category 허용팀에 있으면 True(정책 기반).
+    - policy(=load_field_access_policy 결과) 를 주면 그것을 사용, 없으면 그때 1회 조회.
+    ⚠ 1단계에서는 어떤 화면에도 연결하지 않음(정의만). 2단계에서 화면별 적용."""
+    if not user:
+        return False
+    role = (user.get("role") if isinstance(user, dict) else user["role"]) or ""
+    if role in ("ceo", "admin"):
+        return True
+    team_id = user.get("team_id") if isinstance(user, dict) else None
+    if team_id is None:
+        return False
+    if policy is None:
+        try:
+            with db_session() as _c:
+                policy = load_field_access_policy(_c)
+        except Exception:
+            return False
+    allowed = policy.get(category) or set()
+    return team_id in allowed
 
 
 def can_view_work_patterns(user) -> bool:
@@ -7376,6 +7441,70 @@ async def admin_page(req: Request):
     return ctx(req, "admin.html",
                user=u, teams=teams, users=users, projects=projects, customers=customers,
                active="admin", can_work_patterns=can_view_work_patterns(u))
+
+
+@app.get("/admin/field-access", response_class=HTMLResponse)
+async def admin_field_access(req: Request, saved: int = 0):
+    """v5H226z822 (대표 지시): 정보 열람 권한 — 매출금액·구매단가·구매처 정보를 팀별로 열람 제어.
+    체크박스 표(세로=3분류·가로=활성 팀 전체·총괄 먼저)로 현재 정책 표시·수정. ceo·admin 전용.
+    1단계는 정책 저장만(화면 적용은 2단계). 대표/관리자는 정책과 무관하게 항상 전체 열람."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        # 활성 팀 전체 — 총괄(display_order=-1) 먼저 [[knk_dept_order_rule]]
+        teams = [dict(r) for r in c.execute(
+            "SELECT id, name, code, COALESCE(entity,'') AS entity FROM teams "
+            "ORDER BY display_order, id"
+        ).fetchall()]
+        policy = load_field_access_policy(c)   # {category: set(team_id)}
+    # 표시용: 분류 목록(고정 순서) + 각 분류별 허용 team_id set(템플릿에서 in 판정)
+    categories = [
+        {"code": code, "label": FIELD_ACCESS_LABELS[code],
+         "allowed": sorted(policy.get(code) or set())}
+        for code in ("sales_amount", "purchase_price", "supplier_info")
+    ]
+    return ctx(req, "admin_field_access.html",
+               user=u, active="admin", teams=teams, categories=categories,
+               saved=bool(saved))
+
+
+@app.post("/admin/field-access")
+async def admin_field_access_save(req: Request):
+    """v5H226z822: 체크값을 읽어 field_access_policy 를 트랜잭션서 전체 재작성(DELETE 후 INSERT).
+    체크박스 name = 'fa__{category}__{team_id}'. ceo·admin 아니면 거부."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    # 유효 분류·유효 팀만 반영(폼 위조 방지)
+    valid_categories = set(FIELD_ACCESS_LABELS.keys())
+    pairs = []
+    with db_session() as c:
+        valid_team_ids = {r[0] for r in c.execute("SELECT id FROM teams").fetchall()}
+        for key in form.keys():
+            if not key.startswith("fa__"):
+                continue
+            parts = key.split("__")
+            if len(parts) != 3:
+                continue
+            _, cat, tid_s = parts
+            if cat not in valid_categories:
+                continue
+            try:
+                tid = int(tid_s)
+            except (TypeError, ValueError):
+                continue
+            if tid in valid_team_ids:
+                pairs.append((cat, tid))
+        # 전체 재작성(트랜잭션): 기존 삭제 후 체크된 것만 삽입
+        c.execute("DELETE FROM field_access_policy")
+        for cat, tid in pairs:
+            c.execute(
+                "INSERT OR IGNORE INTO field_access_policy(category, team_id) VALUES(?,?)",
+                (cat, tid),
+            )
+    return RedirectResponse("/admin/field-access?saved=1", 303)
 
 
 @app.get("/admin/user-trace", response_class=HTMLResponse)
