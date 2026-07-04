@@ -607,6 +607,16 @@ def startup():
     except Exception as _e:
         print(f"[z619] 고객사 UNIQUE 완화 호출 실패: {_e}")
     seed_all()
+    # v5H226z802 (대표 지시·규정): 총괄부서 항상 첫째 — init_db(대형 단일 트랜잭션·롤백 가능) 밖 별도 트랜잭션으로
+    #   확실히 커밋. 대부분 부서목록이 ORDER BY display_order 이므로 총괄을 맨 앞(-1)으로. 매 기동 유지. [[knk_dept_order_rule]]
+    try:
+        with db_session() as _tc_chg:
+            _tc_chg.execute("UPDATE teams SET display_order=-1 "
+                            "WHERE COALESCE(name,'')='총괄' AND COALESCE(display_order,0)<>-1")
+            _tc_chg.execute("UPDATE teams SET code='00' "
+                            "WHERE COALESCE(name,'')='총괄' AND COALESCE(entity,'KOR')='KOR' AND COALESCE(code,'')<>'00'")
+    except Exception as _e:
+        print(f"[z802] 총괄부서 순서 강제 실패: {_e}")
     # v5H226z104 (2026-05-16): 워크플로우 레고 빌더 마이그레이션 (idempotent)
     try:
         from .migrations.m_z104_workflow_builder import migrate as _wfb_migrate

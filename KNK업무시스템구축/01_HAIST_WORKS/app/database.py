@@ -3257,13 +3257,7 @@ def init_db():
                     c.execute("UPDATE teams SET entity='VN' WHERE name=? AND (entity IS NULL OR entity='')", (_nm,))
                 except Exception:
                     pass
-            # v5H226z801 (대표 지시·규정): 총괄부서 = 코드 '00', 부서 나열 시 항상 첫째.
-            #   대부분 목록이 ORDER BY display_order 이므로 총괄을 맨 앞(-1)으로 강제(멱등·매 기동 유지).
-            try:
-                c.execute("UPDATE teams SET code='00' WHERE COALESCE(name,'')='총괄' AND COALESCE(code,'')<>'00'")
-                c.execute("UPDATE teams SET display_order=-1 WHERE COALESCE(name,'')='총괄' AND COALESCE(display_order,0)<>-1")
-            except Exception:
-                pass
+            # z801→z802: 총괄부서 순서 강제는 init_db 밖 별도 트랜잭션에서(이 큰 트랜잭션 롤백 영향 배제).
         except Exception:
             pass
 
