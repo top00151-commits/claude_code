@@ -19236,6 +19236,58 @@ async def parts_delete_submit(request: Request, pid: int):
     return RedirectResponse("/parts", status_code=303)
 
 
+# v5H226z782 (대표 지시): 기존 수주번호 접미 마이그레이션 — 접미 없는 T-YYMMDD → T-YYMMDD-1 (신규는 z776이 이미 -1 발번).
+#   대표 확정: 지금 데이터는 검증용(실운영 시 초기화·재업로드) → 전사 일괄 안전. 충돌(이미 -1 존재)이면 그 건은 건너뜀.
+#   ?do 미지정 = 미리보기(변경 안 함) · ?do=1 = 실제 적용 · ?pid=N = 그 프로젝트만 · 관리자(admin/ceo)만.
+@app.get("/admin/so-suffix-migrate")
+async def admin_so_suffix_migrate(request: Request, do: str = "", pid: int = 0):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    if u.get("role") not in ("admin", "ceo"):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    import re as _re
+    _base_re = _re.compile(r"^[TMLECR]-\d{6}$")
+    _apply = (str(do) == "1")
+    renamed, skipped = [], []
+    try:
+        with db_session() as c:
+            _q = ("SELECT id, order_no, project_id FROM orders "
+                  "WHERE order_no GLOB '[TMLECR]-[0-9][0-9][0-9][0-9][0-9][0-9]'")
+            _params = ()
+            if pid and pid > 0:
+                _q += " AND project_id=?"
+                _params = (int(pid),)
+            _rows = c.execute(_q, _params).fetchall()
+            _existing = set(r[0] for r in c.execute(
+                "SELECT order_no FROM orders WHERE order_no IS NOT NULL").fetchall())
+            try:
+                _existing |= set(r[0] for r in c.execute(
+                    "SELECT co_no FROM consumable_orders WHERE co_no IS NOT NULL").fetchall())
+            except Exception:
+                pass
+            for r in _rows:
+                _oid, _ono, _ppid = r[0], (r[1] or ""), r[2]
+                if not _base_re.match(_ono):
+                    continue
+                _target = _ono + "-1"
+                if _target in _existing:
+                    skipped.append({"from": _ono, "reason": "target_exists"})
+                    continue
+                if _apply:
+                    c.execute("UPDATE orders SET order_no=? WHERE id=?", (_target, _oid))
+                    _existing.discard(_ono)
+                    _existing.add(_target)
+                renamed.append({"from": _ono, "to": _target, "pid": _ppid})
+    except Exception as _e:
+        return JSONResponse({"ok": False, "error": str(_e)[:200]}, 500)
+    return JSONResponse({"ok": True, "applied": _apply, "count": len(renamed),
+                         "skipped_count": len(skipped),
+                         "renamed": renamed[:300], "skipped": skipped[:100],
+                         "hint": ("미리보기입니다 — 실제 변경하려면 URL 끝에 ?do=1 을 붙이세요."
+                                  if not _apply else "적용 완료.")})
+
+
 # ── 프로젝트 / 관리코드 발행대장 ─────────────────────────
 # v5H226z762 (대표 지시): 제작요청서 목록 — 발행된 제작요청서를 프로젝트 넘어 한곳에서 모아보기·검색.
 #   요청사항이 통보로만 흘러가 사라지던 문제 해결(저장은 prod_requests). 가격 없음 → 로그인만 게이트(상세 페이지와 동일).
