@@ -3183,6 +3183,10 @@ async def work_orders_dashboard(request: Request, status: str = "", kind: str = 
                 "LEFT JOIN users tu ON tu.id=w.target_user_id WHERE " + where + " "
                 "ORDER BY CASE w.status WHEN '진행' THEN 0 WHEN '받음' THEN 1 WHEN '완료' THEN 2 ELSE 3 END, "
                 "COALESCE(NULLIF(w.due_date,''),'9999-12-31'), w.id DESC LIMIT 500", tuple(params)).fetchall()]
+            # v5H226z800 (대표 지시·규칙): 지시자·처리자 = 이름 직책 부서(표 셀은 호버 전체) [[knk_name_display_rule]]
+            for w in allrows:
+                w["created_by_disp"] = user_disp_by_id(c, w.get("created_by"), w.get("created_by_name") or "")
+                w["accepted_by_disp"] = user_disp_by_id(c, w.get("accepted_by"), w.get("accepted_by_name") or "")
         for w in allrows:
             st = w.get("status") or "받음"
             _delayed = (st in ("받음", "진행") and (w.get("due_date") or "") and str(w["due_date"])[:10] < today.isoformat())
@@ -34501,6 +34505,14 @@ async def wo_list(req: Request):
         return RedirectResponse("/home", 303)
     status = req.query_params.get("status") or None
     items = get_work_orders(status=status, limit=300)
+    # v5H226z800 (대표 지시·규칙): 작업자·작성자 = 이름 직책 부서(표 셀은 호버 전체) [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            for w in items:
+                w["assigned_full"] = user_disp_by_id(_c, w.get("assigned_to"), w.get("assigned_name") or "")
+                w["created_full"] = user_disp_by_id(_c, w.get("created_by"), w.get("created_by_name") or "")
+    except Exception:
+        pass
     return ctx(req, "wo_list.html", user=u, active="work_orders",
                items=items, WO_STATUS_OPTIONS=WO_STATUS_OPTIONS,
                filter_status=status or "")
@@ -34614,6 +34626,13 @@ async def wo_detail(req: Request, wo_id: int):
     wo = get_work_order(wo_id)
     if not wo:
         return RedirectResponse("/production/work-orders", 303)
+    # v5H226z800 (대표 지시·규칙): 담당자·작성자 = 이름 직책 부서(상세 화면) [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            wo["assigned_full"] = user_disp_by_id(_c, wo.get("assigned_to"), wo.get("assigned_name") or "")
+            wo["created_full"] = user_disp_by_id(_c, wo.get("created_by"), wo.get("created_by_name") or "")
+    except Exception:
+        pass
     return ctx(req, "wo_form.html", user=u, active="work_orders",
                wo=wo, WO_STATUS_OPTIONS=WO_STATUS_OPTIONS,
                WO_STD_STEPS=WO_STD_STEPS)
@@ -34664,6 +34683,13 @@ async def wo_print(req: Request, wo_id: int):
     wo = get_work_order(wo_id)
     if not wo:
         return RedirectResponse("/production/work-orders", 303)
+    # v5H226z800 (대표 지시·규칙): 발행자·담당자 = 이름 직책 부서(상단 메타). 도장란은 서명이라 이름만 유지 [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            wo["assigned_full"] = user_disp_by_id(_c, wo.get("assigned_to"), wo.get("assigned_name") or "")
+            wo["created_full"] = user_disp_by_id(_c, wo.get("created_by"), wo.get("created_by_name") or "")
+    except Exception:
+        pass
     company = _company_info_dict()
     return ctx(req, "wo_print.html", user=u,
                wo=wo, company=company)

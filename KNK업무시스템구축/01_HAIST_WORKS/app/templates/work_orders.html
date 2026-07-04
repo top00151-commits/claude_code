@@ -92,10 +92,10 @@ table.wod tr.delay td{background:#fef5f5;}
           <td><span class="wo-prio {{ w.priority }}">{{ w.priority }}</span></td>
           <td title="{{ w.body }}"><b>{{ w.title }}</b>{% if w.project_code %} <span style="color:#94a3b8;font-size:11px;">{{ w.project_code }}</span>{% endif %}</td>
           <td>{{ w.target_disp }}</td>
-          <td style="color:#64748b;">{{ w.created_by_name }}</td>
+          <td style="color:#64748b;" title="{{ w.created_by_disp or w.created_by_name }}">{{ w.created_by_name }}</td>
           <td style="color:#475569;">{{ w.due_date or '—' }}</td>
           <td>{% if w.dday is not none and w.status in ['받음','진행'] %}<span class="wod-dday {% if w.dday < 0 %}over{% elif w.dday <= 2 %}soon{% endif %}">{% if w.dday < 0 %}지연 {{ -w.dday }}일{% else %}D-{{ w.dday }}{% endif %}</span>{% else %}—{% endif %}</td>
-          <td style="color:#475569;">{{ w.accepted_by_name or '—' }}</td>
+          <td style="color:#475569;" title="{{ w.accepted_by_disp or w.accepted_by_name or '' }}">{{ w.accepted_by_name or '—' }}</td>
           <td><span class="wo-st {{ w.status }}">{{ w.status }}</span></td>
         </tr>
         {% endfor %}

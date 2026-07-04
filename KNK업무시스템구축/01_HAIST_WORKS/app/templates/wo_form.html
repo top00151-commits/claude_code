@@ -265,9 +265,9 @@
                   <b>{{ wo.part_disp|default('—') }}</b>
                   {% if wo.part_no and wo.part_no != '-' %}<div style="font-family:var(--pq-mono);font-size:11px;color:var(--pq-ink-4);">{{ wo.part_no }}</div>{% endif %}</div>
                 <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">담당자</div>
-                  <b>{{ wo.assigned_disp|default('—') }}</b></div>
+                  <b>{{ wo.assigned_full or wo.assigned_disp|default('—') }}</b></div>
                 <div><div style="font-size:10.5px;color:var(--pq-ink-4);text-transform:uppercase;letter-spacing:0.04em;">작성자</div>
-                  <b>{{ wo.created_by_disp|default('—') }}</b></div>
+                  <b>{{ wo.created_full or wo.created_by_disp|default('—') }}</b></div>
               </div>
               {% if wo.specifications %}
               <div style="margin-top:12px;">
