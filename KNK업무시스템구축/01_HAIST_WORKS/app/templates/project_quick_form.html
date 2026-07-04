@@ -20,8 +20,9 @@
 .qf-f.c12 { grid-column: 1 / -1; }
 .qf-f label { font-size:11px; color:var(--qv-ink-3); font-weight:700; margin-bottom:3px; }
 .qf-f label .req { color:var(--knk-red); }
-.qf-f input, .qf-f select, .qf-f textarea { padding:8px 10px; border:1px solid var(--qv-line); border-radius:7px; font:inherit; font-size:13px; background:var(--qv-surface-2,#f7f8fa); box-sizing:border-box; }
-.qf-f input:focus, .qf-f select:focus, .qf-f textarea:focus { outline:none; border-color:#2563eb; background:#fff; }
+/* v5H226z810 (대표 지시): 입력칸이 회색 패널과 구분 안 됨 → 흰 배경 + 또렷한 테두리 + 살짝 그림자 + 포커스 링 */
+.qf-f input, .qf-f select, .qf-f textarea { padding:8px 10px; border:1px solid #c4ccd8; border-radius:7px; font:inherit; font-size:13px; background:#fff; box-sizing:border-box; box-shadow:0 1px 2px rgba(16,24,40,.05); }
+.qf-f input:focus, .qf-f select:focus, .qf-f textarea:focus { outline:none; border-color:#2563eb; background:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.14); }
 /* v5H226z721(대표 지시): 자재 목록 = 표(컬럼 헤더 + 입력 행). 엑셀 일괄등록 양식 컬럼 순서와 동일.
    헤더가 항상 입력칸과 정렬되도록 table 구조. 좁은 화면은 가로 스크롤. */
 .qf-parts-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--qv-line); border-radius:8px; background:#fff; }
@@ -30,14 +31,14 @@
 .qf-parts-tbl thead th .req { color:var(--knk-red); }
 .qf-parts-tbl thead th small { display:block; font-weight:600; color:var(--qv-ink-3); font-size:10px; }
 .qf-parts-tbl tbody td { padding:3px 4px; vertical-align:middle; white-space:nowrap; }
-.qf-parts-tbl tbody td input { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid var(--qv-line); border-radius:6px; font:inherit; font-size:12.5px; background:#fff; }
+.qf-parts-tbl tbody td input { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid #c4ccd8; border-radius:6px; font:inherit; font-size:12.5px; background:#fff; }
 .qf-parts-tbl tbody td input:focus { outline:none; border-color:#2563eb; }
 .qf-parts-tbl .qf-pk-amt { display:block; text-align:right; font-size:12.5px; color:var(--qv-ink-2); font-weight:600; padding-right:4px; white-space:nowrap; }
 .qf-parts-tbl .pk-del { border:1px solid #fca5a5; background:#fff; color:#b91c1c; border-radius:6px; padding:5px 9px; font-size:12px; cursor:pointer; }
 /* v5H226z459(대표 지시): 형태 커스텀 드롭다운 — 기존 select 와 같은 높이/스타일(정렬 복구).
    열면 각 항목에 설명이 함께 보이고(오버레이·다른 칸 안 밀림), 선택하면 라벨만. */
 .qfsel { position:relative; }
-.qfsel-btn { width:100%; display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid var(--qv-line); border-radius:7px; font:inherit; font-size:13px; background:var(--qv-surface-2,#f7f8fa); color:var(--qv-ink); cursor:pointer; text-align:left; box-sizing:border-box; }
+.qfsel-btn { width:100%; display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid #c4ccd8; border-radius:7px; font:inherit; font-size:13px; background:#fff; color:var(--qv-ink); cursor:pointer; text-align:left; box-sizing:border-box; box-shadow:0 1px 2px rgba(16,24,40,.05); }
 .qfsel-btn .qfsel-caret { margin-left:auto; color:var(--qv-ink-3); font-size:11px; transition:transform .15s; }
 .qfsel.open .qfsel-btn { border-color:#2563eb; background:#fff; }
 .qfsel.open .qfsel-caret { transform:rotate(180deg); }
