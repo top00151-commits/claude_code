@@ -417,7 +417,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                       {% if _mem %}
                       <div class="pr-members" data-team="{{ t.id }}" style="display:none;flex-wrap:wrap;gap:3px 12px;padding:2px 0 5px 22px;">
                         {% for m in _mem %}
-                        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:#334155;cursor:pointer;"><input type="checkbox" class="pr-user" name="pr_user_ids" value="{{ m.id }}" data-team="{{ t.id }}" onchange="prUserToggle(this)"> {{ m.name }}{% if m.rank %} <span style="color:#94a3b8;font-size:10.5px;">{{ m.rank }}</span>{% endif %}</label>
+                        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:#334155;cursor:pointer;"><input type="checkbox" class="pr-user" name="pr_user_ids" value="{{ m.id }}" data-team="{{ t.id }}" data-dispname="{{ vname_full(m, t.name) }}" onchange="prUserToggle(this)"> {{ vname(m) }}{% if m.rank %} <span style="color:#94a3b8;font-size:10.5px;">{{ m.rank }}</span>{% endif %}</label>
                         {% endfor %}
                       </div>
                       {% endif %}
@@ -438,7 +438,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                 document.querySelectorAll('.pr-hl').forEach(function(e){e.classList.remove('pr-hl');});
                 var names=[];
                 tids.forEach(function(id){var c=document.querySelector('.pr-team[data-team="'+id+'"]');if(c){c.checked=true;var lb=c.closest('label');if(lb)lb.classList.add('pr-hl');var g=c.closest('details.pr-grp');if(g)g.open=true;names.push('🏢'+((c.nextSibling&&c.nextSibling.textContent||'').trim()));}});
-                uids.forEach(function(id){var c=document.querySelector('.pr-user[value="'+id+'"]');if(c){c.checked=true;var md=c.closest('.pr-members');if(md)md.style.display='flex';var lb=c.closest('label');if(lb)lb.classList.add('pr-hl');var g=c.closest('details.pr-grp');if(g)g.open=true;names.push('👤'+((c.nextSibling&&c.nextSibling.textContent||'').trim()));}});
+                uids.forEach(function(id){var c=document.querySelector('.pr-user[value="'+id+'"]');if(c){c.checked=true;var md=c.closest('.pr-members');if(md)md.style.display='flex';var lb=c.closest('label');if(lb)lb.classList.add('pr-hl');var g=c.closest('details.pr-grp');if(g)g.open=true;names.push('👤'+(c.getAttribute('data-dispname')||(c.nextSibling&&c.nextSibling.textContent||'').trim()));}});
                 var st=document.getElementById('prBlockStatus');
                 if(st){st.innerHTML='✅ <b>'+(o.textContent||'블록')+'</b> 적용 — 통보 대상 팀 <b>'+tids.length+'</b> · 개별 <b>'+uids.length+'</b>명'+(names.length?'<br><span style="color:#047857;">'+names.slice(0,15).join(' · ')+(names.length>15?' 외 '+(names.length-15)+'명':'')+'</span>':' <span style="color:#b45309;">(선택된 대상이 없습니다 — 블록이 비었거나 화면에 없는 인원)</span>');st.style.display='block';}
                 var first=document.querySelector('.pr-hl');if(first){try{first.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}}

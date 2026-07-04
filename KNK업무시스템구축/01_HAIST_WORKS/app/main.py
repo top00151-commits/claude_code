@@ -261,6 +261,28 @@ def vname(u, name_vi=None, entity=None):
         return f"{nv} ({name})" if name else nv
     return name
 tpl.env.globals["vname"] = vname
+
+
+# v5H226z799 (대표 지시·규칙): 이름 표시는 항상 '이름 직책 부서'. 이름=vname()(본사=한국이름 / VN=베트남어(한국발음)).
+#   dept 미지정 시 u의 team_name/dept/team 사용. 신규 이름 표시는 이 헬퍼로 통일.
+def vname_full(u, dept=None):
+    try:
+        nm = vname(u)
+        rank = ""
+        dept_s = (dept or "")
+        if hasattr(u, "get"):
+            rank = (u.get("rank") or "").strip()
+            if not dept_s:
+                dept_s = (u.get("team_name") or u.get("dept") or u.get("team") or "").strip()
+        parts = [nm]
+        if rank:
+            parts.append(rank)
+        if dept_s:
+            parts.append(dept_s)
+        return " ".join([p for p in parts if p])
+    except Exception:
+        return vname(u)
+tpl.env.globals["vname_full"] = vname_full
 tpl.env.filters["vname"] = vname
 
 
