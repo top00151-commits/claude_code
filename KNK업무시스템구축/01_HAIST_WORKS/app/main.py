@@ -11082,6 +11082,9 @@ async def dept_requests_page(request: Request):
                 d["members"] = _oppreq_members(c, d["id"])
                 d["activities"] = _oppreq_activities(c, d["id"])
                 d["total_hours"] = round(sum(float(a.get("hours") or 0) for a in d["activities"]), 1)
+                # v5H226z800 (대표 지시·규칙): PM·요청자 = 이름 직책 부서 [[knk_name_display_rule]]
+                d["pm_disp"] = user_disp_by_id(c, d.get("pm_user_id"), d.get("pm_name") or "")
+                d["requester_disp"] = user_disp_by_id(c, d.get("requested_by"), d.get("requester_name") or "")
                 out.append(d)
             return out
 
