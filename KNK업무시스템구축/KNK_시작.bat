@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z797[제작요청 통보 블록 적용 결과 가시화(대표 지시) — 블록 적용 시 대상 있는 법인그룹/멤버목록 자동 펼침·선택 항목 노랑 강조(.pr-hl)·상태문구(블록명 적용 팀N 개별M명+이름들)·첫 항목 스크롤. project_quick_form.html]
+REM   LAST UPDATE: 2026-07-04 v5H226z798[통보 블록 적용 상태문구 팀이름 중복 다듬기 — 팀명이 이미 팀으로 끝나 기술영업팀 팀 중복→뒤 팀 제거(🏢기술영업팀). project_quick_form.html]
+REM   - 2026-07-04 v5H226z797[제작요청 통보 블록 적용 결과 가시화(대표 지시) — 블록 적용 시 대상 있는 법인그룹/멤버목록 자동 펼침·선택 항목 노랑 강조(.pr-hl)·상태문구(블록명 적용 팀N 개별M명+이름들)·첫 항목 스크롤. project_quick_form.html]
 REM   - 2026-07-04 v5H226z796[제작요청 통보 선택 본사/베트남법인 그룹 각각 접기·펼치기(대표 지시) — 그룹을 details open 네이티브 토글로(헤더=summary·독립·JS불필요). project_quick_form.html]
 REM   - 2026-07-04 v5H226z795[제작요청 통보 블록 즐겨찾기(대표 지시 2/2) — 회사 공용 블록(팀+개별직원 묶음) 저장·적용·삭제. 통보선택창 상단 블록적용 드롭다운+현재선택 저장(권한자)+관리(삭제). notify_blocks 테이블·API /api/notify-blocks CRUD(권한=can_use_sales or ceo/executive). 등록폼 notify_blocks/can_make_block 전달. main.py·database.py·project_quick_form.html]
 REM   - 2026-07-04 v5H226z794[제작요청 통보 부서원 개별 선택(대표 지시 1/2) — 통보부서 선택서 팀 펼쳐(개별) 직원 개별 체크. 팀전체=사업부 담당자·개별=그 사람만 정확히(사업부 무시). 배타 토글. notify_core user_ids 파라미터(팀통보와 합집합·중복제거·하위호환). 등록폼 team_members 전달·pr_user_ids 폼전송. 다음 z795=통보 블록. main.py·project_quick_form.html]

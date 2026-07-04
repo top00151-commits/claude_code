@@ -437,7 +437,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                 document.querySelectorAll('.pr-team,.pr-user').forEach(function(c){c.checked=false;});
                 document.querySelectorAll('.pr-hl').forEach(function(e){e.classList.remove('pr-hl');});
                 var names=[];
-                tids.forEach(function(id){var c=document.querySelector('.pr-team[data-team="'+id+'"]');if(c){c.checked=true;var lb=c.closest('label');if(lb)lb.classList.add('pr-hl');var g=c.closest('details.pr-grp');if(g)g.open=true;names.push('🏢'+((c.nextSibling&&c.nextSibling.textContent||'').trim())+' 팀');}});
+                tids.forEach(function(id){var c=document.querySelector('.pr-team[data-team="'+id+'"]');if(c){c.checked=true;var lb=c.closest('label');if(lb)lb.classList.add('pr-hl');var g=c.closest('details.pr-grp');if(g)g.open=true;names.push('🏢'+((c.nextSibling&&c.nextSibling.textContent||'').trim()));}});
                 uids.forEach(function(id){var c=document.querySelector('.pr-user[value="'+id+'"]');if(c){c.checked=true;var md=c.closest('.pr-members');if(md)md.style.display='flex';var lb=c.closest('label');if(lb)lb.classList.add('pr-hl');var g=c.closest('details.pr-grp');if(g)g.open=true;names.push('👤'+((c.nextSibling&&c.nextSibling.textContent||'').trim()));}});
                 var st=document.getElementById('prBlockStatus');
                 if(st){st.innerHTML='✅ <b>'+(o.textContent||'블록')+'</b> 적용 — 통보 대상 팀 <b>'+tids.length+'</b> · 개별 <b>'+uids.length+'</b>명'+(names.length?'<br><span style="color:#047857;">'+names.slice(0,15).join(' · ')+(names.length>15?' 외 '+(names.length-15)+'명':'')+'</span>':' <span style="color:#b45309;">(선택된 대상이 없습니다 — 블록이 비었거나 화면에 없는 인원)</span>');st.style.display='block';}
