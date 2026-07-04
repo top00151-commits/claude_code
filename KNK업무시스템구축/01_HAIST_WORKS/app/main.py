@@ -6784,6 +6784,15 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                     c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
                               (_u2, "prod_request", title, body, link))
                     sent_to += 1
+            # v5H226z804 (대표 지시): 발행한 사람(본인)에게도 WORKS 알림(벨) — 발행 확인용. 통보 수(sent_to)엔 미포함.
+            if uid_self and uid_self > 0:
+                try:
+                    _self_title = f"✅ 제작요청 발행{' [수정]' if is_update else ''} · {mgmt} — {sent_to}명 통보"
+                    _self_body = f"내가 발행한 제작요청서입니다. {sent_to}명에게 통보되었습니다.\n{_SUB}\n{body}"
+                    c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
+                              (uid_self, "prod_request", _self_title, _self_body, link))
+                except Exception:
+                    pass
             dept_count = len(_dept_ids)
             # z762: 통보 부서 이름 스냅샷(제작요청서 저장·표시용 — 나중에 join 없이 바로 표시)
             if _dept_ids:
