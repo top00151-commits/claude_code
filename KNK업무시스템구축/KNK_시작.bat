@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-05 v5H226z818[프로젝트 정보 "자료 경로"가 3열 중 1칸에 갇혀 긴 서버경로가 좁게 접히던 것 → 라벨은 왼쪽 그대로, 값을 오른쪽 끝(견적서 열)까지 전체 폭으로 펼침. .def dd.fullw{grid-column:2/-1}. project_detail.html·static/css/project_detail.css]
+REM   LAST UPDATE: 2026-07-05 v5H226z819[설치앱(PWA)서 프로젝트 상세 "제작요청서 카드" 본문이 안 펴지던 문제(z769) — 앱에선 크림 머리줄에 "📋 보기·수정 →" 버튼(#prqAppOpen) 노출·본문/수정폼 접음(display-mode standalone 미디어 + html.pwa-app JS폴백). 브라우저 무변경. project_detail.html·project_detail.css]
+REM   - 2026-07-05 v5H226z818[프로젝트 정보 "자료 경로"가 3열 중 1칸에 갇혀 긴 서버경로가 좁게 접히던 것 → 라벨은 왼쪽 그대로, 값을 오른쪽 끝(견적서 열)까지 전체 폭으로 펼침. .def dd.fullw{grid-column:2/-1}. project_detail.html·static/css/project_detail.css]
 REM   - 2026-07-05 v5H226z817[제작요청서 새 작성 시 "통보 대상 선택"(②)+옛 발행분 정밀 전환(①) — 개별 지정 시 부서로 안 퍼지게, 옛 건은 "고른 대상에게만" 체크로 정밀화. main.py·prod_request_edit.html]
 REM   - 2026-07-05 v5H226z816[제작요청서 링크 SSO next 보존(대표 지시) — 메신저 카드 '제작요청서 보기' 첫 클릭이 로그인 후 /home(WORKS 메인)으로 새고 두 번째에야 열리던 문제. 미로그인 딥링크가 bare /login 으로 가 next(원래주소)를 잃던 탓 → /login?next= 로 원래주소 보존(회의록 링크와 동일 검증 패턴·_safe_next_path 내부경로만 허용). main.py]
 REM   - 2026-07-04 v5H226z815[제작요청 수정발행 과통보 버그 수정(대표 지시·규칙 feedback_user_ref_by_id) — 개별선택자를 "부서"로만 저장→수정발행이 부서 전체로 확대(안지연·김빅터 2명→7명). prod_requests에 wt_team_ids(부서전체)·user_ids(개별) 컬럼 분리저장(startup 마이그레이션). notify_core 발행 시 구분 저장·반환, 수정발행은 정밀 재통보(개별=그 사람 id만·부서확대 없음)+z813 추가 합집합·정밀 컬럼 영속. ⚠옛 기록(z815 이전)은 정밀정보 없어 team_ids 폴백(과통보)·새 발행부터 정확. main.py]

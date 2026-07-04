@@ -74,11 +74,15 @@
   {% endif %}
 
   {# v5H226z762 (대표 지시): 제작요청서 — 발행 시 저장한 요청사항(고객사·기타)을 프로젝트에서 다시 확인. 최신 먼저 + 이전 이력 접기. #}
+  {# v5H226z819 (대표 지시): 설치앱(PWA)서 이 카드 본문이 안 펴지는 문제(z769) — 앱이면 <html>에 pwa-app 클래스(CSS가 앱선 크림 머리줄만 '탭해서 열기' 버튼으로·본문/수정폼 접음). 브라우저 무변경. #}
+  <script>(function(){try{if((window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone){document.documentElement.classList.add('pwa-app');}}catch(e){}})();</script>
   <div id="prqCard" style="margin:0 0 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow:hidden;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:#fff7ed;border-bottom:1px solid #fed7aa;">
       <div style="font-size:14.5px;font-weight:800;color:#9a3412;">📋 제작요청서{% if prod_requests %} <span style="font-weight:600;color:#c2652a;font-size:12.5px;">· 발행 {{ prod_requests|length }}회</span>{% endif %}</div>
       <div style="display:flex;align-items:center;gap:12px;">
-        {% if prod_requests and can_money %}<button type="button" onclick="var r=document.getElementById('prqRead'),f=document.getElementById('prqEditForm');if(f){var show=f.style.display==='none';f.style.display=show?'block':'none';if(r)r.style.display=show?'none':'block';}" style="font-size:12px;font-weight:700;color:#c2410c;background:#fff;border:1px solid #fdba74;border-radius:7px;padding:4px 11px;cursor:pointer;">✏️ 수정</button>{% endif %}
+        {# v5H226z819 (대표 지시): 설치앱 전용 — 크림 머리줄에서 바로 여는 버튼(본문이 앱서 안 펴져서). 단독 편집페이지는 앱서도 잘 뜸. 브라우저선 CSS로 숨김. #}
+        {% if prod_requests %}<a id="prqAppOpen" href="/project/{{ p.id }}/prod-request/edit{% if can_sales %}?edit=1{% endif %}" style="font-size:12px;font-weight:800;color:#fff;background:#c2410c;border:1px solid #c2410c;border-radius:7px;padding:4px 12px;text-decoration:none;align-items:center;gap:5px;">📋 보기{% if can_sales %}·수정{% endif %} →</a>{% endif %}
+        {% if prod_requests and can_money %}<button type="button" id="prqEditBtn" onclick="var r=document.getElementById('prqRead'),f=document.getElementById('prqEditForm');if(f){var show=f.style.display==='none';f.style.display=show?'block':'none';if(r)r.style.display=show?'none':'block';}" style="font-size:12px;font-weight:700;color:#c2410c;background:#fff;border:1px solid #fdba74;border-radius:7px;padding:4px 11px;cursor:pointer;">✏️ 수정</button>{% endif %}
         <a href="/prod-requests?q={{ p.mgmt_code|urlencode }}" style="font-size:12px;font-weight:700;color:#c2410c;text-decoration:none;">제작요청서목록 →</a>
       </div>
     </div>

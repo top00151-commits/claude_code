@@ -206,6 +206,14 @@ body.so-fs-on { overflow: hidden; }
 /* v5H226z818 (대표 지시): 자료 경로(긴 서버경로)는 값이 3열 중 1칸이라 좁게 접힘 → 라벨은 왼쪽 그대로, 값은 오른쪽 끝(견적서 열)까지 전체 폭으로 펼침 */
 .def dt.fullw { grid-column: 1 / 2; }
 .def dd.fullw { grid-column: 2 / -1; }
+/* v5H226z819 (대표 지시): 설치앱(PWA)서 제작요청서 카드 본문이 안 펴지는 문제(z769) — 앱에선 크림 머리줄의 '📋 보기·수정 →'(#prqAppOpen)만 노출, 본문(#prqRead)·수정폼(#prqEditForm)·수정버튼(#prqEditBtn) 접음. 브라우저(비-앱)는 무변경(풀카드). display-mode 미디어 + html.pwa-app(JS 폴백·iOS navigator.standalone) 병행. */
+#prqAppOpen { display: none; }
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  #prqCard #prqRead, #prqCard #prqEditForm, #prqCard #prqEditBtn { display: none !important; }
+  #prqAppOpen { display: inline-flex !important; }
+}
+html.pwa-app #prqCard #prqRead, html.pwa-app #prqCard #prqEditForm, html.pwa-app #prqCard #prqEditBtn { display: none !important; }
+html.pwa-app #prqAppOpen { display: inline-flex !important; }
 @media (max-width: 1280px) { .def { grid-template-columns: 88px 1fr 88px 1fr; } }
 /* v5H226z649 (대표 지시): 1·2·3열 줄 맞춤 — 필드는 단일 3열 .def 그리드(완전 정렬), 수주번호는 오른쪽 별도 칸으로 세로 나열(여러 SO). */
 .proj-info-left { min-width: 0; }
