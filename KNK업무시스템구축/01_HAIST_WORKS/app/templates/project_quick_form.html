@@ -401,8 +401,8 @@ html,body{background:#fff!important;overflow:auto!important;}
               {% for t in teams %}{% if (t.entity or 'KOR')=='VN' %}{% set ns.vn = ns.vn + [t] %}{% elif (t.entity or 'KOR')=='KOR' %}{% set ns.kor = ns.kor + [t] %}{% else %}{% set ns.etc = ns.etc + [t] %}{% endif %}{% endfor %}
               {% for grp in [('🏢 본사', ns.kor), ('🌏 베트남법인', ns.vn), ('기타', ns.etc)] %}
                 {% if grp[1] %}
-                <div style="margin-top:8px;padding:0 2px;">
-                  <div style="font-size:11px;font-weight:800;color:#9a3412;margin-bottom:4px;">{{ grp[0] }} <span style="color:#c2772a;font-weight:600;">({{ grp[1]|length }})</span></div>
+                <details class="pr-grp" open style="margin-top:8px;padding:0 2px;">
+                  <summary style="font-size:11px;font-weight:800;color:#9a3412;margin-bottom:4px;cursor:pointer;user-select:none;">{{ grp[0] }} <span style="color:#c2772a;font-weight:600;">({{ grp[1]|length }})</span></summary>
                   <div style="display:flex;flex-direction:column;gap:1px;">
                     {% for t in grp[1] %}
                     {% set _mem = team_members.get(t.id, []) %}
@@ -421,7 +421,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                     </div>
                     {% endfor %}
                   </div>
-                </div>
+                </details>
                 {% endif %}
               {% endfor %}
               <script>
