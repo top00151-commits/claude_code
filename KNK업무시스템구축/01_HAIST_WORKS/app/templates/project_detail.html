@@ -799,7 +799,11 @@
                   {# v5H226z83: 호기 td 우측 정렬 · z714(대표 지시): 1대 완제품은 저장 라벨(모델명 등) 무시하고 '1호기' 고정. 여러대·부품·소모품은 기존(라벨/품명·없으면 N호기) #}
                   {% if not _hide_hogi %}
                   {# v5H226z718 (대표 지시·수정): '1호기' 고정은 완제품(so.form_key=='assembly') 수주만 — z715가 프로젝트단위 _is_co/_is_parts로 좁혀, 제품 프로젝트에 섞인 소모품·제품 수주까지 1호기로 덮던 것 수정(수주단위 form으로). #}
-                  {% set _hogi_label = (loop.index ~ '호기') if ((_units_desc|length == 1) and so.form_key == 'assembly') else (u.unit_label or (loop.index ~ '호기')) %}
+                  {# v5H226z780 (대표 지시·근본): 저장된 라벨이 'N호기' 형식이면 그걸 사용(백엔드 재번호가 매긴 프로젝트 전체 연속번호) —
+                     기존엔 1대 완제품 SO를 loop.index(=항상 1호기)로 덮어써, 1대짜리 SO가 여러 개면 전부 '1호기'로 중복되던 문제(007T2601) 해결.
+                     저장 라벨이 비표준(모델명 등)일 때만 기존 z714 폴백(1대 완제품→loop.index호기). #}
+                  {% set _stored_hogi = (u.unit_label and u.unit_label.endswith('호기') and u.unit_label.replace('호기','').isdigit()) %}
+                  {% set _hogi_label = u.unit_label if _stored_hogi else ((loop.index ~ '호기') if ((_units_desc|length == 1) and so.form_key == 'assembly') else (u.unit_label or (loop.index ~ '호기'))) %}
                   <td class="right" style="white-space:nowrap;{% if _is_co or _is_parts %}max-width:220px;overflow:hidden;text-overflow:ellipsis;{% endif %}" title="{{ _hogi_label }}">
                     <span class="display-val"><b>{{ _hogi_label }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ _hogi_label }}" value="{{ _hogi_label }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
