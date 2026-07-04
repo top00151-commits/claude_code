@@ -1706,11 +1706,10 @@
           {# v5H201: 제안 단계 일정 #}
           <dt>제안서</dt><dd>{{ p.proposal_date|default('—') }}</dd>
           <dt>견적서</dt><dd>{{ p.quotation_date|default('—') }}</dd>
-          {# 조건부(있을 때만): 최종 고객(2단계)·연관 관리번호·각인·자료 경로 #}
+          {# 조건부: 최종 고객(2단계)·연관 관리번호. v5H226z814(대표 지시): 각인 제거 · 자료 경로는 항상 표시(모두 포함) #}
           {% if p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer|default('—') }}</dd>{% endif %}
           {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}
-          {% if p.engraving %}<dt>각인</dt><dd><span style="font-size:12.5px;color:var(--ink);">{{ p.engraving }}</span></dd>{% endif %}
-          {% if p.server_path %}<dt>자료 경로</dt><dd><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path }}</span></dd>{% endif %}
+          <dt>자료 경로</dt><dd><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path or '—' }}</span></dd>
         </dl>
         {# v5H226z649→z702 (대표 지시): 수주번호는 수주액 분해 목록 각 줄에 줄맞춰 합쳤으므로 별도 목록은 제거.
            단, 부품/소모품처럼 분해 목록이 접히는(요약만) 프로젝트·호기 0건일 땐 수주번호가 사라지지 않게 그때만 유지. #}
