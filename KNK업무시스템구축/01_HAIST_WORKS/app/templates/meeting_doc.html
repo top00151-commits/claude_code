@@ -102,7 +102,7 @@
     <div class="k">회의명</div><div style="border-right:1px solid #e5e7eb;">{{ m.title }}</div>
     <div class="k">일시</div><div>{{ date_disp }}{% if m.meeting_date %} {{ '' }}{% endif %}</div>
     <div class="k">장소</div><div style="border-right:1px solid #e5e7eb;">{{ m.location or '—' }}</div>
-    <div class="k">작성자</div><div>{{ owner_name or '—' }}</div>
+    <div class="k">작성자</div><div>{{ owner_disp or owner_name or '—' }}</div>
     <div class="k" style="border-bottom:0;">참석자</div>
     <div style="grid-column:2 / -1; border-bottom:0;">{{ m.attendees_text or '—' }}</div>
   </div>
@@ -130,7 +130,7 @@
     <thead><tr><th>#</th><th>할 일</th><th>담당</th><th>기한</th><th>상태</th></tr></thead>
     <tbody>
       {% for a in actions %}
-      <tr><td>{{ loop.index }}</td><td>{{ a.task }}</td><td>{{ a.assignee_name or '—' }}</td>
+      <tr><td>{{ loop.index }}</td><td>{{ a.task }}</td><td title="{{ a.assignee_disp or a.assignee_name or '' }}">{{ a.assignee_name or '—' }}</td>
           <td>{{ a.due_date or '—' }}</td>
           <td>{% if a.linked_task_id %}일일카드{% else %}예정{% endif %}</td></tr>
       {% else %}

@@ -3584,6 +3584,11 @@ async def meeting_doc_page(req: Request, mid: int):
         actions = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
         orow = c.execute("SELECT name FROM users WHERE id=?", (m.get("owner_id"),)).fetchone()
+        # v5H226z800 (대표 지시·규칙): 작성자·할일 담당 = 이름 직책 부서 [[knk_name_display_rule]].
+        #   할일 담당은 매칭된 사용자(assignee_user_id)일 때만 직책·부서 부착, 아니면 원문 이름 유지.
+        owner_disp = user_disp_by_id(c, m.get("owner_id"), (orow["name"] if orow else "") or "")
+        for _a in actions:
+            _a["assignee_disp"] = user_disp_by_id(c, _a.get("assignee_user_id"), _a.get("assignee_name") or "")
         link_proj = None
         if m.get("project_id"):
             _r = c.execute("SELECT mgmt_code, code, name FROM projects WHERE id=?", (m["project_id"],)).fetchone()
@@ -3604,6 +3609,7 @@ async def meeting_doc_page(req: Request, mid: int):
         pass
     return tpl.TemplateResponse(request=req, name="meeting_doc.html", context={
         "m": m, "decisions": decisions, "actions": actions, "owner_name": owner_name,
+        "owner_disp": owner_disp,
         "sec": sec, "docno": docno, "date_disp": date_disp,
         "link_proj": link_proj, "link_opp": link_opp,
     })
@@ -16932,6 +16938,8 @@ async def sales_quote_detail(req: Request, qid: int):
         if not row:
             return RedirectResponse("/sales/quotations", 303)
         quote = dict(row)
+        # v5H226z800 (대표 지시·규칙): 작성자 = 이름 직책 부서 [[knk_name_display_rule]]
+        quote["created_by_disp"] = user_disp_by_id(c, quote.get("created_by"), quote.get("created_by_name") or "")
         items = [dict(r) for r in c.execute(
             "SELECT * FROM quotation_items WHERE quotation_id=? ORDER BY line_no",
             (qid,)
@@ -17803,6 +17811,12 @@ async def changes_detail(req: Request, cid: int):
     change = change_get(cid)
     if not change:
         return RedirectResponse("/changes", 303)
+    # v5H226z800 (대표 지시·규칙): 작성자 = 이름 직책 부서(VN 병기 포함) [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            change["author_disp"] = user_disp_by_id(_c, change.get("author_id"), change.get("author_name") or "")
+    except Exception:
+        pass
     impacts = change_get_impacts(cid)
     reads = change_get_reads(cid)
     # 자동 read 기록 (영향자인 경우만)
@@ -18390,6 +18404,9 @@ async def issues_detail(req: Request, iid: int):
         teams = [dict(r) for r in c.execute(
             "SELECT id, name FROM teams ORDER BY display_order"
         ).fetchall()]
+        # v5H226z800 (대표 지시·규칙): 발의자·담당자 = 이름 직책 부서(호버 전체·담당팀 중복 회피) [[knk_name_display_rule]]
+        issue["created_by_disp"] = user_disp_by_id(c, issue.get("created_by"), issue.get("created_by_name") or "")
+        issue["owner_user_disp"] = user_disp_by_id(c, issue.get("owner_user_id"), issue.get("owner_user_name") or "")
     is_owner = (issue["owner_user_id"] == u["id"]
                 or (issue["owner_team_id"] and issue["owner_team_id"] == u.get("team_id")))
     can_edit = is_owner or issue["created_by"] == u["id"] or u["role"] in ("admin", "ceo")
@@ -23630,6 +23647,10 @@ async def rnd_detail(request: Request, rid: int):
         if not r:
             return HTMLResponse("<h3>없는 과제입니다.</h3>", status_code=404)
         p = dict(r)
+        # v5H226z800 (대표 지시·규칙): 등록자·담당자 = 이름 직책 부서 [[knk_name_display_rule]].
+        #   담당자 입력칸(owner_name)은 폼 round-trip이라 값은 유지하고 호버로만 전체 표시.
+        p["created_by_disp"] = user_disp_by_id(c, p.get("created_by"), p.get("created_by_name") or "")
+        p["owner_disp"] = user_disp_by_id(c, p.get("owner_id"), p.get("owner_name") or "")
         logs = [dict(x) for x in c.execute(
             "SELECT id, COALESCE(log_date,'') AS log_date, COALESCE(log_type,'진행') AS log_type, "
             "COALESCE(content,'') AS content, hours, COALESCE(created_by_name,'') AS by_name, "
@@ -34445,6 +34466,14 @@ async def qc_report_print(req: Request, report_id: int):
     report = get_qc_inspection_report(report_id)
     if not report:
         return RedirectResponse("/qc/inspection-reports", 303)
+    # v5H226z800 (대표 지시·규칙): 검사자·QA·발급자 = 이름 직책 부서(상단 메타). 도장란은 서명이라 이름만 유지 [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            report["inspector_full"] = user_disp_by_id(_c, report.get("inspector_id"), report.get("inspector_name") or "")
+            report["qa_full"] = user_disp_by_id(_c, report.get("qa_manager_id"), report.get("qa_manager_name") or "")
+            report["issued_full"] = user_disp_by_id(_c, report.get("issued_by"), report.get("issued_by_name") or "")
+    except Exception:
+        pass
     company = _company_info_dict()
     overall_label_map = {code: label for code, label in QC_OVERALL_OPTIONS}
     return ctx(req, "qc_report_print.html", user=u,

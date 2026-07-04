@@ -62,7 +62,7 @@
           <dt>유형</dt><dd>{{ change.change_type|default('—') }}</dd>
           <dt>긴급도</dt><dd>{{ change.urgency|default('—') }}</dd>
           <dt>출처</dt><dd>{{ change.source|default('—') }}</dd>
-          <dt>작성자</dt><dd>{{ change.author_name|default('—') }}</dd>
+          <dt>작성자</dt><dd>{{ change.author_disp or change.author_name|default('—') }}</dd>
           <dt>관련 PJ</dt><dd>{{ change.project_name|default('—') }}</dd>
           <dt>등록일</dt><dd style="font-family:monospace;font-size:12px;">{{ change.created_at }}</dd>
           {% if change.read_count %}<dt>읽음</dt><dd>{{ change.read_count }} 명</dd>{% endif %}
