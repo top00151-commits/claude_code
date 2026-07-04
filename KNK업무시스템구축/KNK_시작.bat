@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z805[이름표시규칙 남은화면 적용(서브에이전트 병합) — HIGH 프로젝트상세 제작요청 발행자·부서요청 PM/요청자·프로젝트 등록자=이름 직책 부서. MEDIUM 작업지시(daily/wo계열)·이슈·변경·연구·성적서·견적·회의록=이름+직책 또는 호버 전체. 스냅샷 id없는 수정자/서명란은 이름 유지. main.py+템플릿14. 헬퍼 vname_full/user_disp_by_id 재사용]
+REM   LAST UPDATE: 2026-07-04 v5H226z806[제작요청 카드 3열x2행 통일(대표 지시) — 이음 대화방 카드(메신저 repo knk-messenger)+WORKS 목록 카드를 가로형 3열2행 격자로 통일. 식별먼저 배치(윗줄 수주번호·고객사·모델각인 / 아랫줄 품명(장비)·수량·납기). 대화방 세로공간 축소=카드 max-width 340→460+grid. WORKS prod_requests_list.html · 메신저 app.js/style.css(v564)]
+REM   - 2026-07-04 v5H226z805[이름표시규칙 남은화면 적용(서브에이전트 병합) — HIGH 프로젝트상세 제작요청 발행자·부서요청 PM/요청자·프로젝트 등록자=이름 직책 부서. MEDIUM 작업지시(daily/wo계열)·이슈·변경·연구·성적서·견적·회의록=이름+직책 또는 호버 전체. 스냅샷 id없는 수정자/서명란은 이름 유지. main.py+템플릿14. 헬퍼 vname_full/user_disp_by_id 재사용]
 REM   - 2026-07-04 v5H226z804[제작요청 발행자 본인에게도 WORKS 알림(대표 지시) — notify_core가 통보 대상(발행자 제외) 통보 후 발행자(uid_self)에게 확인 알림 1건 추가(제작요청 발행·N명 통보·통보수 미포함). main.py]
 REM   - 2026-07-04 v5H226z803[제작요청 통보 명단 정확화(대표 지시) — 부서 전체 선택=부서명 / 개별 선택=이름 직책 부서. notify_core가 팀선택(_wt_dept_ids)·개별선택(_indiv_users vname_full) 구분해 recipients 생성·저장. prod_requests.recipients 컬럼(별도 트랜잭션). 제작요청서에 받는 사람 표시(옛 건 부서명 폴백). main.py·prod_request_edit.html]
 REM   - 2026-07-04 v5H226z802[총괄부서 첫째 규정 수정(z801 안먹힘) — init_db 대형 단일트랜잭션이 롤백돼 UPDATE 유실. startup()의 seed_all 뒤 별도 트랜잭션으로 총괄 display_order=-1 강제(확실 커밋·매 기동). main.py·database.py]
