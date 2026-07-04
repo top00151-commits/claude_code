@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z799[이름 표시 규칙(대표 지시·규칙설정) — 항상 이름 직책 부서·VN인=베트남어(한국발음) 직책 부서. 헬퍼 vname_full(u,dept)=vname()+직책+부서(Jinja global). 통보 선택/블록 우선적용(멤버라벨 vname·블록 상태문구 data-dispname). 메모리 규칙 등록. main.py·project_quick_form.html]
+REM   LAST UPDATE: 2026-07-04 v5H226z800[이름표시규칙 전화면적용 시작(대표 다 변경) — 헬퍼 user_disp_by_id(c,uid,fallback)=id로 users+teams join해 이름 직책 부서. 1차 제작요청서 발행자(prod_request_edit) 적용. 나머지 화면은 작업기록 지도(이름표시규칙_전화면적용)대로 배치 진행. main.py·prod_request_edit.html]
+REM   - 2026-07-04 v5H226z799[이름 표시 규칙(대표 지시·규칙설정) — 항상 이름 직책 부서·VN인=베트남어(한국발음) 직책 부서. 헬퍼 vname_full(u,dept)=vname()+직책+부서(Jinja global). 통보 선택/블록 우선적용(멤버라벨 vname·블록 상태문구 data-dispname). 메모리 규칙 등록. main.py·project_quick_form.html]
 REM   - 2026-07-04 v5H226z798[통보 블록 적용 상태문구 팀이름 중복 다듬기 — 팀명이 이미 팀으로 끝나 기술영업팀 팀 중복→뒤 팀 제거(🏢기술영업팀). project_quick_form.html]
 REM   - 2026-07-04 v5H226z797[제작요청 통보 블록 적용 결과 가시화(대표 지시) — 블록 적용 시 대상 있는 법인그룹/멤버목록 자동 펼침·선택 항목 노랑 강조(.pr-hl)·상태문구(블록명 적용 팀N 개별M명+이름들)·첫 항목 스크롤. project_quick_form.html]
 REM   - 2026-07-04 v5H226z796[제작요청 통보 선택 본사/베트남법인 그룹 각각 접기·펼치기(대표 지시) — 그룹을 details open 네이티브 토글로(헤더=summary·독립·JS불필요). project_quick_form.html]

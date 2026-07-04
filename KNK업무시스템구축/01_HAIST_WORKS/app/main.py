@@ -283,6 +283,24 @@ def vname_full(u, dept=None):
     except Exception:
         return vname(u)
 tpl.env.globals["vname_full"] = vname_full
+
+
+# v5H226z800 (대표 지시·규칙): user id → '이름 직책 부서'(VN=베트남어(한국발음)). 이름만 스냅샷(..._by_name)을
+#   발행자·작성자 표시 시 그 id로 현재 직책·부서를 붙여 규칙 통일. 없으면 fallback(스냅샷 이름). [[knk_name_display_rule]]
+def user_disp_by_id(c, uid, fallback=""):
+    try:
+        if uid:
+            r = c.execute(
+                "SELECT u.name, u.name_vi, COALESCE(u.rank,'') AS rank, "
+                "COALESCE(t.name,'') AS team_name FROM users u "
+                "LEFT JOIN teams t ON u.team_id=t.id WHERE u.id=?", (uid,)).fetchone()
+            if r:
+                s = vname_full(dict(r))
+                if s:
+                    return s
+    except Exception:
+        pass
+    return fallback or ""
 tpl.env.filters["vname"] = vname
 
 
@@ -19760,7 +19778,7 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         if not str(p.get("customer_name") or "").strip() and p.get("_cust_join"):
             p["customer_name"] = p["_cust_join"]
         # v5H226z770: 목록 카드에서 특정 요청서(prid)로 진입 — 없거나 불일치면 최신으로 폴백.
-        _cols = ("SELECT id, mgmt_code, cust_req, note, dept_names, issued_by_name, "
+        _cols = ("SELECT id, mgmt_code, cust_req, note, dept_names, issued_by, issued_by_name, "
                  "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
                  "FROM prod_requests WHERE project_id=? ")
         _pr = None
@@ -19769,6 +19787,8 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         if not _pr:
             _pr = c.execute(_cols + "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
         pr = dict(_pr) if _pr else None
+        if pr:  # v5H226z800 (대표 지시·규칙): 발행자 = 이름 직책 부서 [[knk_name_display_rule]]
+            pr["issued_by_disp"] = user_disp_by_id(c, pr.get("issued_by"), pr.get("issued_by_name") or "")
         # v5H226z787 (대표 지시): 신규 작성 모드 — new=1(이 프로젝트에 추가 발행) 또는 제작요청서 없음 →
         #   프로젝트 정보로 '빈' 작성 폼(요청사항 빈칸). 기존 pr 내용은 프리필하지 않음.
         _force_new = (request.query_params.get("new") == "1")
