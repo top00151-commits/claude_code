@@ -148,7 +148,7 @@ tbody tr:hover td { background: var(--amber-glow); }
         .btn-del-user:hover{background:#fee2e2;}
         </style>
         <div class="ucf">
-          <select id="ucfCorp" onchange="ucfApply()"><option value="">전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
+          <select id="ucfCorp" onchange="ucfApply()"><option value="">법인 전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
           <select id="ucfDept" onchange="ucfApply()"><option value="">부서 전체</option></select>
           <select id="ucfRank" onchange="ucfApply()"><option value="">직급 전체</option></select>
           <input id="ucfQ" oninput="ucfApply()" placeholder="이름·사번·메일 검색">
@@ -272,10 +272,17 @@ tbody tr:hover td { background: var(--amber-glow); }
           <h3>팀 ({{ teams|length }})</h3>
           <div class="actions"><a class="btn btn-primary" href="/admin/teams/new">＋ 팀 추가</a></div>
         </div>
-        <table>
+        <!-- v5H226z793 (대표 지시): 팀(부서)도 법인(본사/베트남) 대분류 필터 — 사용자 목록과 동일 방식. 법인=teams.entity(VN=베트남·team12) -->
+        <div class="ucf">
+          <select id="tcfCorp" onchange="tcfApply()"><option value="">법인 전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
+          <input id="tcfQ" oninput="tcfApply()" placeholder="팀명·코드 검색">
+          <span id="tcfCnt" style="color:var(--mute);font-size:12.5px;"></span>
+        </div>
+        <table id="teamsTbl">
           <thead>
             <tr>
               <th style="width:60px;">ID</th>
+              <th style="width:100px;">법인</th>
               <th>팀명</th>
               <th>코드</th>
               <th>팀장</th>
@@ -285,8 +292,11 @@ tbody tr:hover td { background: var(--amber-glow); }
           </thead>
           <tbody>
           {% for t in teams %}
-            <tr>
+            {% set _tvn = (t.entity == 'VN') or (t.id == 12) %}
+            {% set _tcorp = '베트남법인' if _tvn else '본사' %}
+            <tr class="trow" data-corp="{{ _tcorp }}" data-q="{{ ((t.name or '') ~ ' ' ~ (t.code or ''))|lower }}">
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ t.id }}</td>
+              <td><span class="corp-badge {% if _tvn %}vn{% endif %}">{{ _tcorp }}</span></td>
               <td><b>{{ t.name }}</b></td>
               <td style="font-family:monospace;font-size:12px;color:var(--amber-deep);">{{ t.code|default('—') }}</td>
               <td>{{ t.leader_name|default('—') }}{% if t.leader_rank %} {{ t.leader_rank }}{% endif %}</td>
@@ -294,10 +304,26 @@ tbody tr:hover td { background: var(--amber-glow); }
               <td style="text-align:center;"><a class="btn btn-secondary" href="/admin/teams/{{ t.id }}/edit">수정</a></td>
             </tr>
           {% else %}
-            <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--mute);">등록된 팀이 없습니다.</td></tr>
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--mute);">등록된 팀이 없습니다.</td></tr>
           {% endfor %}
           </tbody>
         </table>
+        <script>
+        (function(){
+          var tbl=document.getElementById('teamsTbl'); if(!tbl) return;
+          var rows=Array.prototype.slice.call(tbl.querySelectorAll('tbody tr.trow'));
+          window.tcfApply=function(){
+            var corp=document.getElementById('tcfCorp').value,
+                q=(document.getElementById('tcfQ').value||'').toLowerCase().trim(), n=0;
+            rows.forEach(function(r){
+              var ok=(!corp||r.getAttribute('data-corp')===corp)&&(!q||(r.getAttribute('data-q')||'').indexOf(q)>=0);
+              r.style.display=ok?'':'none'; if(ok)n++;
+            });
+            var c=document.getElementById('tcfCnt'); if(c) c.textContent=n+'팀 표시';
+          };
+          tcfApply();
+        })();
+        </script>
       </div>
     </div>
 
