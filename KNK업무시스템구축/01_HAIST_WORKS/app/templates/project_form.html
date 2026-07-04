@@ -134,7 +134,7 @@ html,body{background:#fff!important;overflow:auto!important;}
     <div style="text-align:right;font-size:12px;color:var(--qv-ink-3);line-height:1.7;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:8px;padding:10px 14px;min-width:200px;">
       {% if project %}
         <div><span style="color:var(--qv-ink-3);">등록자</span>
-          <b style="color:var(--qv-ink);margin-left:6px;">{{ project.created_by_name|default(project.created_by|default('—')) }}</b></div>
+          <b style="color:var(--qv-ink);margin-left:6px;">{{ project.created_by_disp or project.created_by_name|default(project.created_by|default('—')) }}</b></div>
         <div><span style="color:var(--qv-ink-3);">등록일시</span>
           <b style="color:var(--qv-ink);margin-left:6px;font-family:monospace;">{{ (project.created_at|default(''))[:19] or '—' }}</b></div>
         {% if project.updated_at and project.updated_at != project.created_at %}
@@ -145,7 +145,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         {% endif %}
       {% else %}
         <div><span style="color:var(--qv-ink-3);">등록자</span>
-          <b style="color:var(--qv-ink);margin-left:6px;">{{ user.name|default('—') }}</b></div>
+          <b style="color:var(--qv-ink);margin-left:6px;">{{ vname_full(user) or user.name|default('—') }}</b></div>
         <div><span style="color:var(--qv-ink-3);">등록일시</span>
           <b style="color:var(--qv-ink);margin-left:6px;font-family:monospace;" id="pf_now_ts">—</b></div>
         <script>

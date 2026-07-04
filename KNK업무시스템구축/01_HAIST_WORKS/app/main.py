@@ -27049,6 +27049,7 @@ async def projects_edit_form(request: Request, pid: int):
     if not p:
         return RedirectResponse("/projects", status_code=303)
     # v5H174: 등록자/등록일시 표시용 — created_by → 사용자명 lookup
+    # v5H226z800 (대표 지시·규칙): 등록자 = 이름 직책 부서 [[knk_name_display_rule]]
     p = dict(p)
     try:
         if p.get("created_by"):
@@ -27058,6 +27059,7 @@ async def projects_edit_form(request: Request, pid: int):
                 ).fetchone()
                 if _u_row:
                     p["created_by_name"] = _u_row[0]
+                p["created_by_disp"] = user_disp_by_id(_c, p.get("created_by"), p.get("created_by_name") or "")
     except Exception:
         pass
     # v5H103: SO 존재 여부 → 폼 수주액 readonly 안내용
