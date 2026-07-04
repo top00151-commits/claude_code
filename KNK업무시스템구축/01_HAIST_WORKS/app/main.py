@@ -625,6 +625,17 @@ def startup():
                 _rc803.execute("ALTER TABLE prod_requests ADD COLUMN recipients TEXT")
     except Exception as _e:
         print(f"[z803] recipients 컬럼 추가 실패: {_e}")
+    # v5H226z815 (대표 지시·[[feedback_user_ref_by_id]]): prod_requests 정밀 통보대상 — 개별=user_ids / 부서전체=wt_team_ids 구분 저장.
+    #   기존 team_ids(union)만으론 개별선택자를 수정발행 때 부서 전체로 확대(2→7명) → 별도 컬럼으로 정확히 재통보.
+    try:
+        with db_session() as _rc815:
+            _prc2 = [r[1] for r in _rc815.execute("PRAGMA table_info(prod_requests)").fetchall()]
+            if "wt_team_ids" not in _prc2:
+                _rc815.execute("ALTER TABLE prod_requests ADD COLUMN wt_team_ids TEXT")
+            if "user_ids" not in _prc2:
+                _rc815.execute("ALTER TABLE prod_requests ADD COLUMN user_ids TEXT")
+    except Exception as _e:
+        print(f"[z815] wt_team_ids/user_ids 컬럼 추가 실패: {_e}")
     # v5H226z104 (2026-05-16): 워크플로우 레고 빌더 마이그레이션 (idempotent)
     try:
         from .migrations.m_z104_workflow_builder import migrate as _wfb_migrate
@@ -6899,14 +6910,17 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     #   저장 실패해도 통보는 유효 — 조용히 넘기지 않고 pr_save_err 로 표면화(except:pass 금지).
     _pr_save_err = ""
     _pr_new_id = 0
+    # v5H226z815: 정밀 통보대상 CSV — 부서전체(wt_team_ids)·개별(user_ids) 구분 저장 [[feedback_user_ref_by_id]]
+    _wt_csv = ",".join(str(t) for t in sorted(_wt_dept_ids))
+    _uid_csv = ",".join(str(_iu.get("id")) for _iu in _indiv_users if _iu.get("id"))
     if record:
         try:
             with db_session() as c:
                 _cur = c.execute(
-                    "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, dept_names, recipients, "
+                    "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, wt_team_ids, user_ids, dept_names, recipients, "
                     "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date) "
-                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), dept_names, recipients,
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), _wt_csv, _uid_csv, dept_names, recipients,
                      (user.get("id") or None), by_name, sent_to, dept_count, msg_sent, now_str, now_str[:10]))
                 _pr_new_id = _cur.lastrowid or 0
         except Exception as _se:
@@ -6914,7 +6928,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     return {"ok": True, "sent_to": sent_to, "dept_count": dept_count,
             "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
             "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err,
-            "pr_id": _pr_new_id, "recipients": recipients, "dept_names": dept_names}
+            "pr_id": _pr_new_id, "recipients": recipients, "dept_names": dept_names,
+            "wt_team_ids": _wt_csv, "user_ids": _uid_csv}
 
 
 # v5H226z772 (대표 지시): 제작요청서 참고 이미지 저장 — files=[(orig_name, raw_bytes)…] → 압축본+썸네일 디스크 저장 + prod_request_images 기록.
@@ -19613,7 +19628,7 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _img_count = 0
     try:
         with db_session() as c:
-            pr = c.execute("SELECT id, project_id, team_ids FROM prod_requests WHERE id=? AND project_id=?",
+            pr = c.execute("SELECT id, project_id, team_ids, COALESCE(wt_team_ids,'') AS wt_team_ids, COALESCE(user_ids,'') AS user_ids FROM prod_requests WHERE id=? AND project_id=?",
                            (prid, pid)).fetchone()
             if not pr:
                 return RedirectResponse(_dest("prod_upderr=1"), 303)
@@ -19649,12 +19664,23 @@ async def prod_request_update(request: Request, pid: int, prid: int):
             # 제작요청서 행(요청사항 2개 + 수정 메타) 제자리 갱신
             c.execute("UPDATE prod_requests SET cust_req=?, note=?, updated_at=?, updated_by_name=? WHERE id=?",
                       (_cust_req, _note, _now, _by, prid))
-            # 원래 통보했던 부서(team_ids) + z813: 여기서 추가한 부서 → 다시 통보
-            _team_ids = [int(x) for x in str(pr.get("team_ids") or "").replace(";", ",").split(",")
-                         if x.strip().isdigit() and int(x) > 0]
-            for _at in _add_team_ids:
+            # v5H226z815 (대표 지시·[[feedback_user_ref_by_id]]): 정밀 재통보 — 개별선택자는 그 사람 id로만(부서 확대 금지)
+            _st_wt = [int(x) for x in str(pr.get("wt_team_ids") or "").replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
+            _st_uid = [int(x) for x in str(pr.get("user_ids") or "").replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
+            _precise = bool(_st_wt or _st_uid)   # 정밀 기록(z815 이후)이면 True. 둘 다 없으면 옛 기록.
+            if _precise:
+                _team_ids = list(_st_wt)          # 부서 전체로 선택했던 부서만(개별자 부서 확대 없음)
+                _renotify_uids = list(_st_uid)    # 개별 선택분(정확히 그 사람 id)
+            else:                                 # 옛 기록: 정밀정보 없음 → 저장된 team_ids(부서전체)로 폴백(과통보 가능)
+                _team_ids = [int(x) for x in str(pr.get("team_ids") or "").replace(";", ",").split(",")
+                             if x.strip().isdigit() and int(x) > 0]
+                _renotify_uids = []
+            for _at in _add_team_ids:            # z813: 추가 부서
                 if _at not in _team_ids:
                     _team_ids.append(_at)
+            for _au in _add_user_ids:            # z813: 추가 인원(개별 id)
+                if _au not in _renotify_uids:
+                    _renotify_uids.append(_au)
             # z772: 재통보 본문에 현재 첨부 이미지 장수 반영
             try:
                 _img_count = c.execute("SELECT COUNT(*) FROM prod_request_images WHERE prod_request_id=?", (prid,)).fetchone()[0] or 0
@@ -19668,19 +19694,20 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     try:
         _res = _prod_request_notify_core(int(pid), _cust_req, _note, _team_ids, u,
                                          record=False, is_update=True, image_count=_img_count,
-                                         user_ids=_add_user_ids)
+                                         user_ids=_renotify_uids)
         if _res.get("ok"):
             _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
             _qs.append(f"prod_dept={_res.get('dept_count', 0)}")
             _qs.append(f"prod_msg={_res.get('msg_sent', 0)}")
             if _res.get("msg_err"):
                 _qs.append("prod_msgerr=1")
-            # z813: 추가한 통보 대상을 제작요청서에 반영(다음 수정발행에도 유지·카드 받는사람 갱신)
-            if _add_team_ids or _add_user_ids:
+            # z815+z813: 통보 대상을 제작요청서에 정밀 반영(정밀 컬럼 저장 → 다음 수정발행도 정확·카드 명단 갱신)
+            if _precise or _add_team_ids or _add_user_ids:
                 try:
                     with db_session() as _c3:
-                        _c3.execute("UPDATE prod_requests SET team_ids=?, recipients=?, dept_names=? WHERE id=?",
+                        _c3.execute("UPDATE prod_requests SET team_ids=?, wt_team_ids=?, user_ids=?, recipients=?, dept_names=? WHERE id=?",
                                     (",".join(str(t) for t in sorted(set(_team_ids))),
+                                     _res.get("wt_team_ids", ""), _res.get("user_ids", ""),
                                      _res.get("recipients", ""), _res.get("dept_names", ""), prid))
                 except Exception:
                     pass
