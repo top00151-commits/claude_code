@@ -29,22 +29,11 @@
          z148로 관리코드를 먼저 입력한 진행중 프로젝트도 여기서 수주확정 가능. #}
       {% if not project_orders %}
       <button class="btn btn-primary" onclick="confirmOrderDirect()" style="background:var(--success);">✓ 수주 확정 {% if p.mgmt_code %}(진행중 전환){% else %}(관리번호 발급){% endif %}</button>
-      {% else %}
-      {# v5H142: NEW_EQUIP 부모일 때만 3종 발주 버튼 노출 (장비/소모품/정비).
-         CONSUMABLE/SERVICE/OTHER 부모는 그 유형의 추가 발주 1개만 노출 (기존 동작 유지). #}
-      {% if (p.project_type or 'NEW_EQUIP')|upper == 'NEW_EQUIP' %}
-      <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 검사기 발주</button>
-      <button class="btn btn-primary" onclick="openFollowupOrder('CONSUMABLE')" style="background:#065f46;">＋ 소모품 수주</button>
-      <button class="btn btn-primary" onclick="openFollowupOrder('SERVICE')" style="background:#1e3a8a;">＋ 수리·정비</button>
-      {% else %}
-      <button class="btn btn-primary" onclick="openFollowupOrder('EQUIPMENT')" style="background:var(--amber-deep);">＋ 추가 발주 (수주번호만)</button>
       {% endif %}
-      {% endif %}
-      {# v5H226z354/z355(대표 지시): 수정도 빠른 폼으로 통일 — NEW_EQUIP(검사기·자동화·라이프) + OTHER(기타)는 빠른 폼 수정,
-         소모품(CONSUMABLE)·수리(SERVICE)는 추가품목·복잡 구조라 정식 폼 유지(안전). 복잡 건은 빠른폼의 '고급 편집' 링크로. #}
-      {# v5H226z769 (대표 지시): 제작요청서 바로가기 — 헤더 우측. 상세 카드가 앱서 안 뜨는 문제 우회 위해 독립 편집 페이지로 링크(확실히 렌더). #}
-      {% if prod_requests %}<a class="btn btn-primary" style="background:#c2410c;" href="/project/{{ p.id }}/prod-request/edit" title="제작요청서 보기·수정">📋 제작요청서</a>{% endif %}
-      <a class="btn btn-secondary" href="/projects/{{ p.id }}/{% if (p.project_type or 'NEW_EQUIP')|upper in ('NEW_EQUIP','OTHER') %}quick-edit{% else %}edit{% endif %}">📂 수정</a>
+      {# v5H226z787 (대표 지시): 검사기/소모품/수리 3종 발주 버튼 폐기 → 모든 추가 작업은 '제작요청서 작성'으로 시작.
+         '수정'도 프로젝트 폼이 아니라 제작요청서 편집 페이지로(사진2). openFollowupOrder 모달/JS는 미사용으로 잔존(트리거 없음). #}
+      {% if can_sales %}<a class="btn btn-primary" style="background:#c2410c;" href="/project/{{ p.id }}/prod-request/edit?new=1" title="이 프로젝트(관리번호 유지)에 제작요청서를 새로 작성·발행 — 관련 부서 통보">＋ 제작요청서 작성</a>{% endif %}
+      {% if prod_requests %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit{% if can_sales %}?edit=1{% endif %}" title="제작요청서 보기·수정">📋 제작요청서{% if can_sales %} 수정{% endif %}</a>{% endif %}
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
     </div>
   </div>

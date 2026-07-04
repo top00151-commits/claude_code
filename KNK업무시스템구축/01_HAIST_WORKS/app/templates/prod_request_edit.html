@@ -62,13 +62,79 @@ select.prq-in { appearance:auto; }
   </div>
 
   <div class="prq-wrap">
-    {% if request.query_params.get('prod_updated') %}
+    {% if request.query_params.get('prod_created') %}
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13px;font-weight:700;">📤 제작요청서 발행 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 통보{% endif %}.</div>
+    {% elif request.query_params.get('prod_updated') %}
     <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13px;font-weight:600;">✏️ 저장 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% endif %}.</div>
     {% elif request.query_params.get('prod_upderr') %}
     <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 저장에 실패했습니다 — 관리자에게 문의하세요.</div>
     {% endif %}
 
-    {% if pr %}
+    {% if create_mode %}
+    {# v5H226z787 (대표 지시): 신규 작성 — 이 프로젝트(관리번호 유지)에 제작요청서를 새로 써서 발행. 프로젝트 정보 프리필·요청사항 빈칸. #}
+    <div class="prq-box">
+      <div class="prq-hd">📋 새 제작요청서 작성 · {{ p.mgmt_code or '—' }}</div>
+      <div class="prq-bd">
+        {% if can_edit %}
+        <div class="prq-meta"><span>이 프로젝트(관리번호 <b style="color:#334155;">{{ p.mgmt_code or '—' }}</b>)에 제작요청서를 새로 작성해 발행합니다. 발행하면 관련 부서(사업부)에 통보됩니다.</span></div>
+        <form id="prqNewForm" method="post" action="/project/{{ p.id }}/prod-request/new" onsubmit="return prqValidate(this);">
+          <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit">
+          <input type="hidden" name="full_edit" value="1">
+          <div class="prq-sec">📄 기본 정보 <span class="prq-sec-sub">— 관리번호 빼고 전부 편집</span></div>
+          <div class="prq-info-edit">
+            <div class="pe-f"><label>관리번호</label><div class="pe-fixed">{{ p.mgmt_code or '—' }} <span>(고정)</span></div></div>
+            <div class="pe-f"><label>프로젝트명</label><input class="prq-in" type="text" name="name" value="{{ p.name or '' }}"></div>
+            <div class="pe-f"><label>고객사 (등록 목록에서 선택)</label><input class="prq-in" type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="1" data-cust-initial="{{ p.customer_name or '' }}" placeholder="고객사명 → 목록 선택" autocomplete="off"></div>
+            <div class="pe-f"><label>고객 담당자 · 직책</label>
+              <div style="display:flex;gap:6px;"><input class="prq-in" type="text" name="cc_name" value="{{ p.cc_name or '' }}" placeholder="이름" style="flex:2;"><input class="prq-in" type="text" name="cc_position" value="{{ p.cc_position or '' }}" placeholder="직책" style="flex:1;"></div>
+            </div>
+            <div class="pe-f"><label>장비명</label><input class="prq-in" type="text" name="equip_name" value="{{ p.equip_name or '' }}"></div>
+            <div class="pe-f"><label>수량</label><input class="prq-in" type="number" name="unit_qty" value="{{ p.unit_qty or 1 }}" min="1"></div>
+            <div class="pe-f"><label>납기</label><input class="prq-in" type="date" name="due_date" value="{{ (p.due_date or '')[:10] }}"></div>
+            <div class="pe-f"><label>형태</label>
+              <select class="prq-in" name="shipment_form">
+                {% for v, l in [('ASSEMBLY','🏭 완제품'), ('SEMI','📦 제품'), ('PARTS','🧰 상품'), ('ETC','🗂 기타')] %}
+                <option value="{{ v }}"{% if (p.shipment_form or 'ASSEMBLY')|upper == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="pe-f"><label>사업부</label>
+              <select class="prq-in" name="biz_div">
+                {% for v, l in [('T','🔎 검사기'), ('M','⚙️ 자동화'), ('L','💡 라이프밸류'), ('E','🗂 기타'), ('C','🧴 소모품'), ('R','🔬 연구')] %}
+                <option value="{{ v }}"{% if biz_cur == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="pe-f"><label>거래구분</label>
+              <select class="prq-in" name="is_export">
+                <option value="0"{% if not (p.is_export|int) %} selected{% endif %}>🏠 내수</option>
+                <option value="1"{% if (p.is_export|int) %} selected{% endif %}>🚢 수출</option>
+              </select>
+            </div>
+            <div class="pe-f"><label>발주(PO)번호</label><input class="prq-in" type="text" name="customer_po" value="{{ p.customer_po or '' }}"></div>
+            <div class="pe-f"><label>발주일</label><input class="prq-in" type="date" name="order_date" value="{{ (p.order_date or '')[:10] }}"></div>
+          </div>
+          <div class="prq-sec">🛠 제작 사양</div>
+          <div class="prq-grid">
+            <div><div class="prq-lbl">모델명</div><input class="prq-in" type="text" name="model_name" value="{{ p.model_name or '' }}"></div>
+            <div><div class="prq-lbl">각인 (장비 마킹)</div><input class="prq-in" type="text" name="engraving" value="{{ p.engraving or '' }}"></div>
+          </div>
+          <div class="prq-lbl">자료 경로 (제품자료 서버 경로 — 통보에 포함)</div>
+          <input class="prq-in" type="text" name="server_path" value="{{ p.server_path or '' }}">
+          <div class="prq-lbl">고객사 요청사항</div>
+          <textarea class="prq-in" name="cust_req" rows="6" placeholder="예) 사양·수량·반출일·특이사항 등"></textarea>
+          <div class="prq-lbl">기타 요청사항</div>
+          <textarea class="prq-in" name="note" rows="3"></textarea>
+        </form>
+        <div class="prq-btns">
+          <a class="btn btn-secondary" href="/project/{{ p.id }}">취소</a>
+          <button type="submit" form="prqNewForm" class="btn btn-primary" style="background:#c2410c;">📤 제작요청서 발행 · 부서 통보</button>
+        </div>
+        <div style="font-size:11px;color:var(--mute,#64748b);text-align:right;margin-top:6px;">발행하면 관련 부서에 통보됩니다. 참고 이미지는 발행 후 이 페이지에서 추가할 수 있습니다.</div>
+        {% else %}
+        <div style="color:var(--mute,#64748b);font-size:13.5px;line-height:1.7;">이 프로젝트에는 발행된 제작요청서가 없습니다.<br>제작요청서를 작성·발행할 권한이 없습니다(영업·관리자에게 문의).</div>
+        {% endif %}
+      </div>
+    </div>
+    {% elif pr %}
     <div class="prq-box">
       <div class="prq-hd">📋 제작요청서 · {{ p.mgmt_code }}</div>
       <div class="prq-bd">
@@ -194,11 +260,6 @@ select.prq-in { appearance:auto; }
         {% endif %}
       </div>
     </div>
-    {% else %}
-    <div class="prq-box"><div class="prq-bd" style="color:var(--mute,#64748b);font-size:13.5px;line-height:1.7;">
-      이 프로젝트에는 발행된 제작요청서가 없습니다.<br>
-      프로젝트 등록 시 <b style="color:#9a3412;">「📋 제작요청 발행」</b>을 체크하면 여기서 확인·수정할 수 있습니다.
-    </div></div>
     {% endif %}
   </div>
 
@@ -269,6 +330,12 @@ select.prq-in { appearance:auto; }
         if(bad){ alert('고객사를 등록된 목록에서 선택하세요.'); try{ bad.focus(); }catch(_){} return false; } } }catch(_){}
       return true;
     };
+    // v5H226z787 (대표 지시): 상세 '📋 제작요청서 수정'(?edit=1)으로 진입 시 바로 편집 모드 — 편집 폼이 있을 때만(신규 작성 모드는 이미 폼 노출).
+    try{
+      if(new URLSearchParams(location.search).get('edit')==='1' && document.getElementById('prqEditForm')){
+        window.prqEnterEdit();
+      }
+    }catch(_){}
   })();
   </script>
 </main>

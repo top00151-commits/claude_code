@@ -19481,6 +19481,101 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     return RedirectResponse(_dest("&".join(_qs)), 303)
 
 
+# v5H226z787 (대표 지시): 제작요청서 '신규 작성'(이 프로젝트에 추가 발행) — 상세의 3종 발주 버튼(검사기/소모품/수리) 대체.
+#   프로젝트 서술필드 갱신(full_edit) + 새 제작요청서 1행 발행 + 관련 부서(사업부 자동 라우팅) 통보. 관리번호는 불변.
+#   수정 라우트와 동일 필드 파싱 — 차이는 기존 행 UPDATE 대신 notify_core(record=True, is_update=False)로 신규 1행 INSERT.
+@app.post("/project/{pid}/prod-request/new")
+async def prod_request_new(request: Request, pid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):   # 프로젝트 필드 갱신 + 전 부서 통보 → 영업·관리 권한자만
+        return RedirectResponse(f"/project/{pid}", 303)
+    form = await request.form()
+    _cust_req = (form.get("cust_req") or "").strip()
+    _note = (form.get("note") or "").strip()
+    _server_path = (form.get("server_path") or "").strip()
+    _model_name = (form.get("model_name") or "").strip()
+    _engraving = (form.get("engraving") or "").strip()
+    _full_edit = (form.get("full_edit") or "").strip() == "1"
+    _pname = (form.get("name") or "").strip()
+    _cc_name = (form.get("cc_name") or "").strip()
+    _cc_position = (form.get("cc_position") or "").strip()
+    _equip_name = (form.get("equip_name") or "").strip()
+    _unit_qty_raw = (form.get("unit_qty") or "").strip()
+    _due_date = (form.get("due_date") or "").strip()[:10]
+    _ship_form = (form.get("shipment_form") or "").strip().upper()
+    _biz_div_v = (form.get("biz_div") or "").strip().upper()
+    _is_export_raw = (form.get("is_export") or "").strip()
+    _customer_po = (form.get("customer_po") or "").strip()
+    _order_date = (form.get("order_date") or "").strip()[:10]
+    _cust_id_raw = (form.get("customer_id") or "").strip()
+    _cust_name_v = (form.get("customer_name") or "").strip()
+    _back = (form.get("_back") or "").strip()
+
+    def _dest(qs):
+        base = _back if (_back.startswith("/") and not _back.startswith("//")) else f"/project/{pid}"
+        return base + ("&" if "?" in base else "?") + qs
+    # 1) 프로젝트 서술필드 갱신 — 통보 본문·상세 표시에 새 값 반영(관리번호 불변). 수정 라우트와 동일 로직.
+    try:
+        with db_session() as c:
+            p = c.execute("SELECT id FROM projects WHERE id=?", (pid,)).fetchone()
+            if not p:
+                return RedirectResponse("/projects", 303)
+            _setcols = ["server_path=?", "model_name=?", "engraving=?"]
+            _setvals = [_server_path or None, _model_name or None, _engraving or None]
+            if _full_edit:
+                if _pname:
+                    _setcols.append("name=?"); _setvals.append(_pname)
+                for _col, _val in (("cc_name", _cc_name), ("cc_position", _cc_position),
+                                   ("equip_name", _equip_name), ("customer_po", _customer_po)):
+                    _setcols.append(f"{_col}=?"); _setvals.append(_val or None)
+                if _unit_qty_raw.isdigit() and int(_unit_qty_raw) > 0:
+                    _setcols.append("unit_qty=?"); _setvals.append(int(_unit_qty_raw))
+                if _due_date:
+                    _setcols.append("due_date=?"); _setvals.append(_due_date)
+                if _order_date:
+                    _setcols.append("order_date=?"); _setvals.append(_order_date)
+                if _ship_form in ("ASSEMBLY", "SEMI", "PARTS", "ETC"):
+                    _setcols.append("shipment_form=?"); _setvals.append(_ship_form)
+                if _biz_div_v in ("T", "M", "L", "E", "C", "R"):
+                    _setcols.append("biz_div=?"); _setvals.append(_biz_div_v)
+                if _is_export_raw in ("0", "1"):
+                    _setcols.append("is_export=?"); _setvals.append(int(_is_export_raw))
+                # 고객사: 등록 목록에서 고른 유효 customer_id 일 때만 변경(연결 유지·feedback_data_connectivity)
+                if _cust_id_raw.isdigit() and int(_cust_id_raw) > 0:
+                    _setcols.append("customer_id=?"); _setvals.append(int(_cust_id_raw))
+                    _setcols.append("customer_name=?"); _setvals.append(_cust_name_v or None)
+            _setvals.append(pid)
+            c.execute(f"UPDATE projects SET {', '.join(_setcols)} WHERE id=?", _setvals)
+    except Exception as _e:
+        print(f"[z787] 제작요청서 신규 작성(프로젝트 갱신) 실패: {_e}")
+        return RedirectResponse(_dest("prod_upderr=1"), 303)
+    # 2) 새 제작요청서 발행 + 부서 통보(team_ids=None → 활성 전부서 → 프로젝트 사업부로 자동 라우팅).
+    #    record=True(새 1행 INSERT)·is_update=False(신규 발행 표기). 성공 시 새 요청서 페이지로 이동.
+    _qs = ["prod_created=1"]
+    try:
+        _res = _prod_request_notify_core(int(pid), _cust_req, _note, None, u,
+                                         record=True, is_update=False, image_count=0)
+        if _res.get("ok"):
+            _newid = _res.get("pr_id") or 0
+            _qs = ([f"prid={_newid}"] if _newid else []) + [
+                "prod_created=1",
+                f"prod_sent={_res.get('sent_to', 0)}",
+                f"prod_dept={_res.get('dept_count', 0)}",
+                f"prod_msg={_res.get('msg_sent', 0)}"]
+            if _res.get("msg_err"):
+                _qs.append("prod_msgerr=1")
+            if _res.get("pr_save_err"):
+                _qs.append("prod_saveerr=1")
+        else:
+            _qs.append("prod_renotifyerr=1")
+    except Exception as _e:
+        print(f"[z787] 제작요청서 신규 작성 통보 실패: {_e}")
+        _qs.append("prod_renotifyerr=1")
+    return RedirectResponse(_dest("&".join(_qs)), 303)
+
+
 # v5H226z769 (대표 지시): 제작요청서 독립 편집 페이지 — 설치앱(PWA)서 프로젝트 상세 '제작요청서 카드'가 안 뜨는 문제 우회.
 #   상세와 무관한 단독 전체 페이지라 앱에서도 확실히 렌더됨. 헤더 '📋 제작요청서' 버튼이 여기로 링크.
 @app.get("/project/{pid}/prod-request/edit", response_class=HTMLResponse)
@@ -19507,6 +19602,12 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         if not _pr:
             _pr = c.execute(_cols + "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
         pr = dict(_pr) if _pr else None
+        # v5H226z787 (대표 지시): 신규 작성 모드 — new=1(이 프로젝트에 추가 발행) 또는 제작요청서 없음 →
+        #   프로젝트 정보로 '빈' 작성 폼(요청사항 빈칸). 기존 pr 내용은 프리필하지 않음.
+        _force_new = (request.query_params.get("new") == "1")
+        create_mode = bool(_force_new or (pr is None))
+        if create_mode:
+            pr = None
         # v5H226z772: 이 제작요청서의 참고 이미지(썸네일 갤러리 — 로그인자 전원 열람·수정발행 권한자만 추가/삭제)
         pr_images = []
         if pr:
@@ -19528,7 +19629,7 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
     _export_label = "🚢 수출" if str(p.get("is_export") or "0") in ("1", "True", "true") else "🏠 내수"
     return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, pr_images=pr_images,
                can_edit=can_view_sales(u), form_label=_form_label, biz_label=_biz_label,
-               export_label=_export_label, biz_cur=_bd)
+               export_label=_export_label, biz_cur=_bd, create_mode=create_mode)
 
 
 # v5H226z772 (대표 지시): 제작요청서 참고 이미지 추가/삭제 — 수정발행 화면에서 AJAX 업로드·삭제(영업·관리 권한자만).
