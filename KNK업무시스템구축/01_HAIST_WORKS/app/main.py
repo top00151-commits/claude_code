@@ -19616,6 +19616,8 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     # v5H226z813 (대표 지시): 수정발행 시 통보 대상 추가(원래 대상 유지 + 여기서 추가) — 다중 체크값
     _add_team_ids = [int(x) for x in form.getlist("add_team_ids") if str(x).strip().isdigit() and int(x) > 0]
     _add_user_ids = [int(x) for x in form.getlist("add_user_ids") if str(x).strip().isdigit() and int(x) > 0]
+    # v5H226z817 (대표 지시 ①): 옛 발행분 — 부서 전체 폴백 대신 '고른 대상에게만' 정밀 전환
+    _precise_override = (form.get("precise_override") or "").strip() == "1"
     _by = u.get("name") or u.get("login_id") or "—"
     from datetime import datetime as _dtu
     _now = _dtu.now().strftime("%Y-%m-%d %H:%M")
@@ -19671,6 +19673,11 @@ async def prod_request_update(request: Request, pid: int, prid: int):
             if _precise:
                 _team_ids = list(_st_wt)          # 부서 전체로 선택했던 부서만(개별자 부서 확대 없음)
                 _renotify_uids = list(_st_uid)    # 개별 선택분(정확히 그 사람 id)
+            elif _precise_override and (_add_team_ids or _add_user_ids):
+                # v5H226z817 ①: 옛 기록 정밀 전환 — 부서전체 폴백 버리고, 아래 추가 루프가 채우는 '고른 대상'만 정밀 통보
+                _team_ids = []
+                _renotify_uids = []
+                _precise = True                   # 정밀컬럼 저장 경로 타게(이후부터 정확)
             else:                                 # 옛 기록: 정밀정보 없음 → 저장된 team_ids(부서전체)로 폴백(과통보 가능)
                 _team_ids = [int(x) for x in str(pr.get("team_ids") or "").replace(";", ",").split(",")
                              if x.strip().isdigit() and int(x) > 0]
@@ -19750,6 +19757,9 @@ async def prod_request_new(request: Request, pid: int):
     _cust_id_raw = (form.get("customer_id") or "").strip()
     _cust_name_v = (form.get("customer_name") or "").strip()
     _back = (form.get("_back") or "").strip()
+    # v5H226z817 (대표 지시 ②): 새 작성 시 통보 대상 선택 — 안 고르면 None → 현행(사업부 전 부서). 개별 지정 시 그 사람에게만(z815 정밀저장·부서 확대 없음).
+    _sel_team_ids = [int(x) for x in form.getlist("add_team_ids") if str(x).strip().isdigit() and int(x) > 0]
+    _sel_user_ids = [int(x) for x in form.getlist("add_user_ids") if str(x).strip().isdigit() and int(x) > 0]
 
     def _dest(qs):
         base = _back if (_back.startswith("/") and not _back.startswith("//")) else f"/project/{pid}"
@@ -19793,8 +19803,9 @@ async def prod_request_new(request: Request, pid: int):
     #    record=True(새 1행 INSERT)·is_update=False(신규 발행 표기). 성공 시 새 요청서 페이지로 이동.
     _qs = ["prod_created=1"]
     try:
-        _res = _prod_request_notify_core(int(pid), _cust_req, _note, None, u,
-                                         record=True, is_update=False, image_count=0)
+        _res = _prod_request_notify_core(int(pid), _cust_req, _note, (_sel_team_ids or None), u,
+                                         record=True, is_update=False, image_count=0,
+                                         user_ids=(_sel_user_ids or None))
         if _res.get("ok"):
             _newid = _res.get("pr_id") or 0
             _qs = ([f"prid={_newid}"] if _newid else []) + [
@@ -19945,7 +19956,8 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
             p["customer_name"] = p["_cust_join"]
         # v5H226z770: 목록 카드에서 특정 요청서(prid)로 진입 — 없거나 불일치면 최신으로 폴백.
         _cols = ("SELECT id, mgmt_code, cust_req, note, dept_names, recipients, issued_by, issued_by_name, "
-                 "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
+                 "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name, "
+                 "COALESCE(wt_team_ids,'') AS wt_team_ids, COALESCE(user_ids,'') AS user_ids "
                  "FROM prod_requests WHERE project_id=? ")
         _pr = None
         if prid and prid > 0:
