@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z791[제작요청서 목록 카드=수주(호기)당 1장·핵심 10필드만(대표 지시 작게·많이보기) — 요청사항/부서/발행자 미리보기 제거. 관리번호·수주번호·상태·PO유형·모델명·장비명·고객사·수량·발주일·납기일. 라우트: 제작요청서 있는 프로젝트->orders LEFT JOIN 수주별 1행(수주없으면 1행·수주번호—)·최신 제작요청서 연결. 상태=order_items.unit_status 롤업(_board_agg_status)·수량=order_items 합·PO유형=projects.po_type. 카드폭 320->280. main.py·prod_requests_list.html]
+REM   LAST UPDATE: 2026-07-04 v5H226z792[제작요청서 카드 높이 축소(대표 지시) — 수량을 수주번호 줄로 이동(우측정렬 .pc-qty)·발주/납기 한 줄(.pc-metarow서 수량 제거). prod_requests_list.html]
+REM   - 2026-07-04 v5H226z791[제작요청서 목록 카드=수주(호기)당 1장·핵심 10필드만(대표 지시 작게·많이보기) — 요청사항/부서/발행자 미리보기 제거. 관리번호·수주번호·상태·PO유형·모델명·장비명·고객사·수량·발주일·납기일. 라우트: 제작요청서 있는 프로젝트->orders LEFT JOIN 수주별 1행(수주없으면 1행·수주번호—)·최신 제작요청서 연결. 상태=order_items.unit_status 롤업(_board_agg_status)·수량=order_items 합·PO유형=projects.po_type. 카드폭 320->280. main.py·prod_requests_list.html]
 REM   - 2026-07-04 v5H226z790[제작요청서 버튼 4개 엉킴 정리(대표 지시 정신없음·구조변경해서라도 정렬) — 근본=hidden-attr CSS트랩(.prq-btns display:flex가 prqEditBtns[hidden] 무력화->보기모드에 편집버튼까지 4개 노출). 푸터 재구조화 좌=작업일정표 바로가기/우=모드별 액션 1행(.prq-footer/.prq-actions/.prq-actgrp)·.prq-actgrp[hidden] display:none!important 확실숨김. prod_request_edit.html]
 REM   - 2026-07-04 v5H226z789[제작요청서 열밀도 상향(z788 후속·대표 세로 길다) — 빅터 패널 열어 폭 좁아도 3열 되게 auto-fit 최소폭 축소: .prq-info 230->200px·.prq-info-edit 270->250px. 세로 단축. prod_request_edit.html]
 REM   - 2026-07-04 v5H226z788[제작요청서 페이지 풀폭 전환(대표 지시 비율 안맞음·우측여백 과다·세로 길다) — z774 컴팩트카드(max-width:624px·좌측고정)가 시트여백 표준(풀폭·캡금지·절대준수) 위반. .prq-wrap max-width/align-self 제거->풀폭, .prq-info/.prq-info-edit auto-fit minmax(230/270px) 반응형(넓으면 열 늘어 세로 단축). prod_request_edit.html]
