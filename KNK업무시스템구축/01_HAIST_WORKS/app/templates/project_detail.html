@@ -1770,7 +1770,13 @@
             {% set _is_parts_panel = (p.shipment_form or '')|upper == 'PARTS' %}
             {% set _is_co_panel = (p.project_type or '')|upper == 'CONSUMABLE' %}
             {% if all_units_sorted and not (_is_parts_panel or _is_co_panel) %}
-            <div class="amt-breakdown" style="margin-top:6px;border-top:1px dashed var(--line);padding-top:6px;">
+            {# v5H226z786 (대표 지시): 수주액 목록이 길면 세로로 너무 늘어나고 좌측 여백이 큼 → 기본 앞 5건만 보이고 나머지는 접기/펼치기. #}
+            {% set _abK = 5 %}
+            {% set _abMany = (all_units_sorted|length) > (_abK + 1) %}
+            {% if _abMany %}<style>#abList.ab-collapsed > *:nth-child(n+{{ _abK * 4 + 1 }}){display:none!important;}
+            .ab-toggle{display:block;width:100%;margin-top:7px;padding:5px 8px;font-size:11px;font-weight:800;color:#7c4a03;background:#fff7ed;border:1px solid #fed7aa;border-radius:7px;cursor:pointer;text-align:center;}
+            .ab-toggle:hover{background:#ffedd5;}</style>{% endif %}
+            <div class="amt-breakdown{% if _abMany %} ab-collapsed{% endif %}" id="abList" style="margin-top:6px;border-top:1px dashed var(--line);padding-top:6px;">
               {# v5H226z702 (대표 지시): [수주번호 · 형태 · 호기/모델 · 금액] 4열 그리드로 줄맞춤 — 호기마다 그 수주번호가 왼쪽에 정렬. z701 형태 배지·z696 호기 실통화 유지. #}
               {% for u in all_units_sorted %}
                 <span class="ab-sono" title="수주번호 {{ u.so_no or '' }}">{{ u.so_no or '' }}</span>
@@ -1783,6 +1789,9 @@
                 <span class="ab-amt">{{ money(u.amount or u.unit_price or 0, u.currency or p.currency or 'KRW') }}</span>
               {% endfor %}
             </div>
+            {% if _abMany %}
+            <button type="button" class="ab-toggle" onclick="(function(b){var e=document.getElementById('abList');if(!e)return;var c=e.classList.toggle('ab-collapsed');b.textContent=c?('⋯ 외 {{ (all_units_sorted|length) - _abK }}건 더 보기 ▼'):'▲ 접기';})(this)">⋯ 외 {{ (all_units_sorted|length) - _abK }}건 더 보기 ▼</button>
+            {% endif %}
             {% elif all_units_sorted and (_is_parts_panel or _is_co_panel) %}
             {# v5H226z9: 라인 다수형 — 요약만 표시, 상세는 SO 카드 #}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.5;border-top:1px dashed var(--line);padding-top:6px;">
