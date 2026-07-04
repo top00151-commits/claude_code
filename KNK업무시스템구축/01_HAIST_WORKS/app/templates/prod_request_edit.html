@@ -41,8 +41,14 @@ select.prq-in { appearance:auto; }
 .pe-f > label { font-size:11px; font-weight:700; color:#9a3412; }
 .pe-fixed { font-size:13px; font-weight:800; color:#9a3412; padding:6px 0; }
 .pe-fixed span { font-weight:600; font-size:11px; color:var(--mute,#64748b); }
-/* 버튼 줄 */
+/* 버튼 줄 — 신규 작성 폼(create) 전용(2버튼 우측). */
 .prq-btns { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
+/* z790: 보기/수정 푸터 — 좌 이동링크 / 우 모드별 액션. hidden-attr CSS트랩 해결(액션그룹 [hidden] 확실 숨김) */
+.prq-footer { display:flex; justify-content:space-between; align-items:center; gap:10px 12px; margin-top:16px; flex-wrap:wrap; }
+.prq-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
+.prq-actgrp { display:inline-flex; gap:8px; }
+.prq-actgrp[hidden] { display:none !important; }
+.prq-edithint { font-size:11px; color:var(--mute,#64748b); text-align:right; margin-top:6px; }
 </style>
 </head>
 <body>
@@ -245,17 +251,26 @@ select.prq-in { appearance:auto; }
         </div>
         {% endif %}
 
-        {# ===== 버튼 ===== #}
-        <div id="prqViewBtns" class="prq-btns">
+        {# ===== 버튼 (v5H226z790 대표 지시 '4개 정신없음·구조 변경해서라도 정렬') =====
+             좌=작업일정표 바로가기(항상) · 우=모드별 액션 1행. ⚠hidden-attr CSS트랩: 옛 .prq-btns{display:flex}가
+             #prqEditBtns[hidden]의 display:none을 무력화해 보기 모드에도 편집버튼이 떠 4개가 엉켰음 →
+             액션그룹은 .prq-actgrp[hidden]{display:none!important}로 확실히 숨김. ([[knk_hidden_attr_css_trap]]) #}
+        <div class="prq-footer">
           <a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ p.id }}" title="작업일정표에서 이 관리번호 위치로 이동">📅 작업일정표 바로가기</a>
-          {% if can_edit %}<button type="button" class="btn btn-primary" style="background:#c2410c;" onclick="prqEnterEdit()">✏️ 수정하기</button>{% endif %}
+          <div class="prq-actions">
+            <span id="prqViewBtns" class="prq-actgrp">
+              {% if can_edit %}<button type="button" class="btn btn-primary" style="background:#c2410c;" onclick="prqEnterEdit()">✏️ 수정하기</button>{% endif %}
+            </span>
+            {% if can_edit %}
+            <span id="prqEditBtns" class="prq-actgrp" hidden>
+              <button type="button" class="btn btn-secondary" onclick="prqCancelEdit()">취소</button>
+              <button type="submit" form="prqEditForm" class="btn btn-primary" style="background:#c2410c;">🔁 수정발행 · 부서 다시 통보</button>
+            </span>
+            {% endif %}
+          </div>
         </div>
         {% if can_edit %}
-        <div id="prqEditBtns" class="prq-btns" hidden>
-          <button type="button" class="btn btn-secondary" onclick="prqCancelEdit()">취소</button>
-          <button type="submit" form="prqEditForm" class="btn btn-primary" style="background:#c2410c;">🔁 수정발행 · 부서 다시 통보</button>
-        </div>
-        <div id="prqEditHint" style="font-size:11px;color:var(--mute,#64748b);text-align:right;margin-top:6px;" hidden>저장하면 관련 부서에 [수정]으로 다시 통보됩니다.</div>
+        <div id="prqEditHint" class="prq-edithint" hidden>저장하면 관련 부서에 [수정]으로 다시 통보됩니다.</div>
         {% endif %}
       </div>
     </div>

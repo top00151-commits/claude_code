@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z789[제작요청서 열밀도 상향(z788 후속·대표 세로 길다) — 빅터 패널 열어 폭 좁아도 3열 되게 auto-fit 최소폭 축소: .prq-info 230->200px·.prq-info-edit 270->250px. 세로 단축. prod_request_edit.html]
+REM   LAST UPDATE: 2026-07-04 v5H226z790[제작요청서 버튼 4개 엉킴 정리(대표 지시 정신없음·구조변경해서라도 정렬) — 근본=hidden-attr CSS트랩(.prq-btns display:flex가 prqEditBtns[hidden] 무력화->보기모드에 편집버튼까지 4개 노출). 푸터 재구조화 좌=작업일정표 바로가기/우=모드별 액션 1행(.prq-footer/.prq-actions/.prq-actgrp)·.prq-actgrp[hidden] display:none!important 확실숨김. prod_request_edit.html]
+REM   - 2026-07-04 v5H226z789[제작요청서 열밀도 상향(z788 후속·대표 세로 길다) — 빅터 패널 열어 폭 좁아도 3열 되게 auto-fit 최소폭 축소: .prq-info 230->200px·.prq-info-edit 270->250px. 세로 단축. prod_request_edit.html]
 REM   - 2026-07-04 v5H226z788[제작요청서 페이지 풀폭 전환(대표 지시 비율 안맞음·우측여백 과다·세로 길다) — z774 컴팩트카드(max-width:624px·좌측고정)가 시트여백 표준(풀폭·캡금지·절대준수) 위반. .prq-wrap max-width/align-self 제거->풀폭, .prq-info/.prq-info-edit auto-fit minmax(230/270px) 반응형(넓으면 열 늘어 세로 단축). prod_request_edit.html]
 REM   - 2026-07-04 v5H226z787[제작요청서 시작 일원화(대표 지시) — 프로젝트 상세의 추가검사기발주/소모품수주/수리정비 3버튼 폐기 + 수정=프로젝트폼->제작요청서 편집 페이지로. 새 [+제작요청서 작성](?new=1)은 이 프로젝트에 제작요청서 추가발행(관리번호 유지·부서 통보). 편집 페이지가 신규작성 모드 지원(new=1 또는 요청서 없음->프로젝트 정보 프리필·요청사항 빈칸). POST /project/{id}/prod-request/new. main.py·project_detail.html·prod_request_edit.html]
 REM   - 2026-07-04 v5H226z786[수주액 목록 접기/펼치기(대표 지시) — 상세의 '수주액' 우측 브레이크다운(amt-breakdown)이 호기 많으면 세로로 길어지고 좌측 여백이 큼. 항목 6건 초과면 기본 앞 5건만 보이고 '⋯ 외 N건 더 보기 ▼/접기 ▲' 토글(#abList.ab-collapsed nth-child(n+21) CSS로 숨김·중복 없음). project_detail.html]
