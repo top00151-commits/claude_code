@@ -6605,9 +6605,13 @@ async def project_detail(req: Request, pid: int):
     try:
         with db_session() as _cpr:
             prod_requests = [dict(r) for r in _cpr.execute(
-                "SELECT id, mgmt_code, cust_req, note, dept_names, issued_by_name, "
-                "sent_to, dept_count, msg_sent, created_at, created_date "
+                "SELECT id, mgmt_code, cust_req, note, dept_names, issued_by, issued_by_name, "
+                "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
                 "FROM prod_requests WHERE project_id=? ORDER BY id DESC", (pid,)).fetchall()]
+            # v5H226z800 (대표 지시·규칙): 발행자 = 이름 직책 부서 [[knk_name_display_rule]].
+            #   수정자(updated_by_name)는 id 스냅샷이 없어 이름만 유지(컬럼 부재).
+            for _pr in prod_requests:
+                _pr["issued_by_disp"] = user_disp_by_id(_cpr, _pr.get("issued_by"), _pr.get("issued_by_name") or "")
     except Exception:
         prod_requests = []   # 표시 전용 조회 — 테이블 미생성/조회 오류 시에도 상세는 정상 렌더(주변 소모품/자식조회와 동일 패턴)
     # v5H226z373 (대표 지시): 제작요청 발행은 '신규 등록(제작요청서)' 흐름으로 일원화 →
