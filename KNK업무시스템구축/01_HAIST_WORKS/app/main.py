@@ -2965,10 +2965,14 @@ async def daily_page(req: Request, sel_date: str = ""):
                 "COALESCE(NULLIF(due_date,''),'9999-12-31'), id DESC",
                     (u["id"], _myteam)).fetchall():
                 d = dict(r)
+                # v5H226z800 (대표 지시·규칙): 지시자/요청자 = 이름 직책 부서(호버 전체) [[knk_name_display_rule]]
+                d["created_by_disp"] = user_disp_by_id(c2, d.get("created_by"), d.get("created_by_name") or "")
                 (wo_directed if d.get("kind") == "지시" else wo_requested).append(d)
             wo_created = [dict(r) for r in c2.execute(
                 "SELECT * FROM work_order WHERE created_by=? AND COALESCE(status,'') NOT IN ('완료','반려') "
                 "ORDER BY id DESC LIMIT 60", (u["id"],)).fetchall()]
+            for _wc in wo_created:  # 처리자(수락자) 호버 전체
+                _wc["accepted_by_disp"] = user_disp_by_id(c2, _wc.get("accepted_by"), _wc.get("accepted_by_name") or "")
             wo_users = [dict(r) for r in c2.execute(
                 "SELECT u.id, u.name, COALESCE(t.name,'') AS team, t.entity AS team_entity "
                 "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
