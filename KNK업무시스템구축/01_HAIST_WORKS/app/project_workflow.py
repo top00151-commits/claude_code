@@ -449,6 +449,115 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     }
 
 
+def append_unit_to_order(c, order_id: int, unit_price: float = 0,
+                          note: str = "", line_label: str | None = None,
+                          currency: str = "") -> dict:
+    """v5H226z820 (대표 지시): 기존 수주(SO)에 '호기 1줄'을 추가(append)한다.
+
+    일괄(엑셀) 업로드 전용 헬퍼 — 같은 관리번호+발주일+납기+납품지+통화+담당자 인
+    장비(호기) 행들을 새 수주번호를 만들지 않고 '한 수주번호에 호기별 단가'로 묶기 위함.
+    (엑셀은 단가가 다르면 행을 나눠 적으므로 두 행이 되던 것을 여기서 한 SO 로 합침.)
+
+    confirm_order_multi / add_followup_order 의 '기존 SO 호기 추가' 패턴을 그대로 재사용:
+      - 호기 번호(라벨) = 그 프로젝트 전체 EQUIPMENT 호기 수 + 1 (연속·add_followup_order L291 동일 규칙)
+      - order_items 1줄 INSERT (qty=1, unit_price=단가, amount=단가)
+      - orders.total_amount += 단가, unit_qty += 1, unit_label 에 새 호기 라벨 이어붙임
+      - order_status_history 에 '호기 추가' 이력 1줄
+
+    Args:
+      order_id   : 호기를 추가할 대상 SO(orders.id)
+      unit_price : 이 호기(1대) 단가 = 라인 금액
+      note       : 호기 비고(엑셀 비고)
+      line_label : 호기 라벨 강제 지정(비면 'N호기' 자동)
+      currency   : order_items.currency 저장값(비면 SO/프로젝트 통화 상속)
+
+    Returns: {ok, order_id, item_id, unit_label, unit_price}
+    """
+    _o = c.execute("SELECT id, project_id, order_no, total_amount, unit_qty, "
+                   "unit_label FROM orders WHERE id=?", (order_id,)).fetchone()
+    if not _o:
+        return {"ok": False, "message": "대상 수주(SO)를 찾을 수 없음"}
+    _o = dict(_o)
+    project_id = _o.get("project_id")
+    unit_price = float(unit_price or 0)
+
+    # 호기 번호 — add_followup_order(L291~296)와 동일: 프로젝트 전체 EQUIPMENT 호기 수 + 1.
+    #   (해당 SO 뿐 아니라 프로젝트 내 모든 EQUIPMENT SO 의 order_items 합산 → 호기 번호가 전역 연속)
+    try:
+        _base_no = c.execute(
+            "SELECT COUNT(*) FROM order_items oi "
+            "JOIN orders o ON o.id = oi.order_id "
+            "WHERE o.project_id=? AND COALESCE(o.so_type,'EQUIPMENT')='EQUIPMENT'",
+            (project_id,)
+        ).fetchone()[0] + 1
+    except Exception:
+        try:
+            _base_no = c.execute(
+                "SELECT COUNT(*) FROM order_items oi "
+                "JOIN orders o ON o.id = oi.order_id WHERE o.project_id=?",
+                (project_id,)
+            ).fetchone()[0] + 1
+        except Exception:
+            _base_no = 1
+
+    # 라벨 — 프로젝트 유형 패턴('{n}호기' 등). 호출자 지정(line_label)이 있어도
+    #   호기 라벨은 항상 'N호기'로 통일(작업일정표 호기칸 일관 — 모델명은 line_note 로 별도 보존).
+    try:
+        from .database import project_unit_label as _pul
+        _lbl = _pul("NEW_EQUIP", _base_no)
+    except Exception:
+        _lbl = f"{_base_no}호기"
+
+    # order_items 컬럼 감지 (currency/line_note 유무 방어)
+    try:
+        _oi_cols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    except Exception:
+        _oi_cols = set()
+    eff_currency = (currency or "").strip().upper()
+    if eff_currency and eff_currency not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+        eff_currency = ""
+    _has_cur = "currency" in _oi_cols
+    _has_note = "line_note" in _oi_cols
+    _cols = ["order_id", "qty", "unit_price", "amount", "unit_label"]
+    _vals = [order_id, 1, unit_price, unit_price, _lbl]
+    if _has_note:
+        _cols.append("line_note"); _vals.append(note or None)
+    if _has_cur and eff_currency:
+        _cols.append("currency"); _vals.append(eff_currency)
+    _ph = ",".join("?" * len(_cols))
+    _cur = c.execute(f"INSERT INTO order_items({','.join(_cols)}) VALUES({_ph})", _vals)
+    item_id = _cur.lastrowid
+
+    # orders 헤더 갱신 — 총액 += 단가, 수량 += 1, 라벨 이어붙임
+    _new_total = float(_o.get("total_amount") or 0) + unit_price
+    _new_qty = int(_o.get("unit_qty") or 0) + 1
+    _old_lbl = (_o.get("unit_label") or "").strip()
+    _new_lbl = (_old_lbl + " · " + _lbl) if _old_lbl else _lbl
+    try:
+        c.execute("UPDATE orders SET total_amount=?, unit_qty=?, unit_label=? WHERE id=?",
+                  (_new_total, _new_qty, _new_lbl, order_id))
+    except Exception:
+        # unit_qty/unit_label 컬럼 미생성 환경 폴백 — 총액만 갱신
+        try:
+            c.execute("UPDATE orders SET total_amount=? WHERE id=?", (_new_total, order_id))
+        except Exception:
+            pass
+
+    # 상태 이력 (add_followup_order 와 동일 톤)
+    try:
+        c.execute(
+            "INSERT INTO order_status_history(order_id, from_status, to_status, "
+            "changed_by, note) VALUES(?,?,?,?,?)",
+            (order_id, "CONFIRMED", "CONFIRMED", None,
+             f"호기 추가 (일괄등록 · {_lbl} / {unit_price:,.0f}원 — 같은 수주번호에 호기별 단가)")
+        )
+    except Exception:
+        pass
+
+    return {"ok": True, "order_id": order_id, "item_id": item_id,
+            "unit_label": _lbl, "unit_price": unit_price}
+
+
 def confirm_order_multi(c, project_id: int, units: list[dict],
                          order_date: str | None = None,
                          created_by: int = 0,

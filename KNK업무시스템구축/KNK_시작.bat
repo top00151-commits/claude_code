@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-05 v5H226z819[설치앱(PWA)서 프로젝트 상세 "제작요청서 카드" 본문이 안 펴지던 문제(z769) — 앱에선 크림 머리줄에 "📋 보기·수정 →" 버튼(#prqAppOpen) 노출·본문/수정폼 접음(display-mode standalone 미디어 + html.pwa-app JS폴백). 브라우저 무변경. project_detail.html·project_detail.css]
+REM   LAST UPDATE: 2026-07-05 v5H226z820[일괄(엑셀) 업로드 수주번호 묶기 — 같은 관리번호+발주일+납기+납품지+통화+담당자 장비행은 새 수주번호 대신 한 수주번호에 호기별 단가로 추가(단가 다르면 행 나뉘던 엑셀 특성으로 수주번호 과다발번되던 것 수정). 재업로드는 호기 단위 dedup. 부품/소모품·단건등록 무변경. main.py]
+REM   - 2026-07-05 v5H226z819[설치앱(PWA)서 프로젝트 상세 "제작요청서 카드" 본문이 안 펴지던 문제(z769) — 앱에선 크림 머리줄에 "📋 보기·수정 →" 버튼(#prqAppOpen) 노출·본문/수정폼 접음(display-mode standalone 미디어 + html.pwa-app JS폴백). 브라우저 무변경. project_detail.html·project_detail.css]
 REM   - 2026-07-05 v5H226z818[프로젝트 정보 "자료 경로"가 3열 중 1칸에 갇혀 긴 서버경로가 좁게 접히던 것 → 라벨은 왼쪽 그대로, 값을 오른쪽 끝(견적서 열)까지 전체 폭으로 펼침. .def dd.fullw{grid-column:2/-1}. project_detail.html·static/css/project_detail.css]
 REM   - 2026-07-05 v5H226z817[제작요청서 새 작성 시 "통보 대상 선택"(②)+옛 발행분 정밀 전환(①) — 개별 지정 시 부서로 안 퍼지게, 옛 건은 "고른 대상에게만" 체크로 정밀화. main.py·prod_request_edit.html]
 REM   - 2026-07-05 v5H226z816[제작요청서 링크 SSO next 보존(대표 지시) — 메신저 카드 '제작요청서 보기' 첫 클릭이 로그인 후 /home(WORKS 메인)으로 새고 두 번째에야 열리던 문제. 미로그인 딥링크가 bare /login 으로 가 next(원래주소)를 잃던 탓 → /login?next= 로 원래주소 보존(회의록 링크와 동일 검증 패턴·_safe_next_path 내부경로만 허용). main.py]
