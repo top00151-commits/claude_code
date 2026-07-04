@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z787[제작요청서 시작 일원화(대표 지시) — 프로젝트 상세의 추가검사기발주/소모품수주/수리정비 3버튼 폐기 + 수정=프로젝트폼->제작요청서 편집 페이지로. 새 [+제작요청서 작성](?new=1)은 이 프로젝트에 제작요청서 추가발행(관리번호 유지·부서 통보). 편집 페이지가 신규작성 모드 지원(new=1 또는 요청서 없음->프로젝트 정보 프리필·요청사항 빈칸). POST /project/{id}/prod-request/new. main.py·project_detail.html·prod_request_edit.html]
+REM   LAST UPDATE: 2026-07-04 v5H226z788[제작요청서 페이지 풀폭 전환(대표 지시 비율 안맞음·우측여백 과다·세로 길다) — z774 컴팩트카드(max-width:624px·좌측고정)가 시트여백 표준(풀폭·캡금지·절대준수) 위반. .prq-wrap max-width/align-self 제거->풀폭, .prq-info/.prq-info-edit auto-fit minmax(230/270px) 반응형(넓으면 열 늘어 세로 단축). prod_request_edit.html]
+REM   - 2026-07-04 v5H226z787[제작요청서 시작 일원화(대표 지시) — 프로젝트 상세의 추가검사기발주/소모품수주/수리정비 3버튼 폐기 + 수정=프로젝트폼->제작요청서 편집 페이지로. 새 [+제작요청서 작성](?new=1)은 이 프로젝트에 제작요청서 추가발행(관리번호 유지·부서 통보). 편집 페이지가 신규작성 모드 지원(new=1 또는 요청서 없음->프로젝트 정보 프리필·요청사항 빈칸). POST /project/{id}/prod-request/new. main.py·project_detail.html·prod_request_edit.html]
 REM   - 2026-07-04 v5H226z786[수주액 목록 접기/펼치기(대표 지시) — 상세의 '수주액' 우측 브레이크다운(amt-breakdown)이 호기 많으면 세로로 길어지고 좌측 여백이 큼. 항목 6건 초과면 기본 앞 5건만 보이고 '⋯ 외 N건 더 보기 ▼/접기 ▲' 토글(#abList.ab-collapsed nth-child(n+21) CSS로 숨김·중복 없음). project_detail.html]
 REM   - 2026-07-04 v5H226z785[팝업 드래그 임계값 추가(z784 후속·검증중 발견) — z784가 헤더의 ✕닫기 버튼에서도 드래그를 시작해 클릭을 방해할 수 있었음. 5px 드래그 임계값 도입: 움직임<5px면 드래그 안 하고 클릭 그대로 통과(✕·헤더 내 클릭요소 보존)·5px 넘으면 그때 드래그 시작. mousedown preventDefault 제거. chrome.html]
 REM   - 2026-07-04 v5H226z784[팝업(모달) 드래그 이동 — 전역·모든 페이지(대표 지시) — chrome.html에 전역 IIFE 추가. 오버레이(fixed·화면덮음)>박스(첫자식)>헤더(박스 첫자식) 가정. 제목줄(헤더)만 잡고 transform:translate로 이동(레이아웃 안깨짐)·버튼/입력/링크 제외·화면밖 이탈방지·PC마우스+터치. 열 때마다 가운데 리셋(팝업별 MutationObserver로 display 감지). 큰 팝업만(오버레이 화면 50%+)·드롭다운 제외. chrome.html]

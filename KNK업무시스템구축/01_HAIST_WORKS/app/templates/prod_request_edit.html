@@ -5,8 +5,9 @@
 <title>제작요청서 · {{ p.mgmt_code }} · KNK HAIST WORKS</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-/* v5H226z769/z773/z774: 제작요청서 단독 편집 페이지 — 컴팩트 카드(대표 지시: ~70% 축소·가운데) + 보기/수정 토글 */
-.prq-wrap { width:100%; max-width:624px; margin:0; padding:0 32px; box-sizing:border-box; align-self:flex-start; }
+/* v5H226z769/z773/z774→z788: 제작요청서 단독 편집 페이지. z788(대표 지시 '비율 안 맞음·우측 여백 과다·세로 과다'):
+   시트여백 표준(작업기록/시트여백_표준.md·절대준수)대로 풀폭 전환 — max-width 캡·align-self 제거. 필드는 auto-fit 반응형(넓으면 열 늘어 세로 단축). 보기/수정 토글 유지. */
+.prq-wrap { width:100%; margin:0; padding:0 32px; box-sizing:border-box; }
 .prq-box { background: var(--paper, #fff); border:1px solid var(--line,#eef0f4); border-radius:11px; overflow:hidden; margin:0 0 14px; }
 @media (max-width:640px){ .prq-wrap { padding:0 16px; } }
 .prq-hd { padding:9px 13px; background:#fff7ed; border-bottom:1px solid #fed7aa; font-size:13.5px; font-weight:800; color:#9a3412; }
@@ -30,14 +31,12 @@ select.prq-in { appearance:auto; }
 /* 등록 정보 요약(금액 제외) */
 .prq-sec { font-size:12px; font-weight:800; color:#9a3412; margin:14px 0 6px; padding-bottom:4px; border-bottom:1px solid #fde7d3; }
 .prq-sec-sub { font-weight:600; font-size:11px; color:var(--mute,#64748b); }
-.prq-info { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; margin-bottom:2px; }
-@media (max-width:560px){ .prq-info { grid-template-columns:1fr; } }
+.prq-info { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:0 18px; margin-bottom:2px; }
 .prq-ir { display:flex; gap:8px; font-size:12.5px; padding:4px 2px; border-bottom:1px dashed var(--line,#eef0f4); }
 .prq-ir .k { flex:0 0 78px; color:var(--mute,#64748b); font-weight:700; font-size:11.5px; }
 .prq-ir .v { flex:1; color:#1f2937; word-break:break-word; }
 /* 편집 모드 필드(전부 편집) */
-.prq-info-edit { display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-bottom:4px; }
-@media (max-width:560px){ .prq-info-edit { grid-template-columns:1fr; } }
+.prq-info-edit { display:grid; grid-template-columns:repeat(auto-fit, minmax(270px, 1fr)); gap:8px 14px; margin-bottom:4px; }
 .pe-f { display:flex; flex-direction:column; gap:3px; }
 .pe-f > label { font-size:11px; font-weight:700; color:#9a3412; }
 .pe-fixed { font-size:13px; font-weight:800; color:#9a3412; padding:6px 0; }
