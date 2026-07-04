@@ -5,7 +5,7 @@
 <title>제작요청서 · KNK HAIST WORKS</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-/* v5H226z762 (대표 지시): 제작요청서 목록 — 발행된 제작요청서 모아보기 */
+/* v5H226z762 (대표 지시): 제작요청서목록 — 발행된 제작요청서 모아보기 */
 /* v5H226z770 (대표 지시): 업무카드 형태 + 기간(일/주/월/년) 분류. 카드 클릭 → 독립 편집(수정발행) 페이지 */
 body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .prq-tabs { display:flex; gap:4px; margin:0 var(--content-pad) var(--space-4); border-bottom:2px solid var(--qv-line); }
@@ -13,12 +13,15 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .prq-tabs .on { font-weight:800; color:var(--knk-red); border-bottom-color:var(--knk-red); }
 .prq-tabs a { color:var(--qv-ink-3); }
 
-/* 기간 분류 버튼 (일간·주간·월간·연간) */
-.prq-period { display:flex; gap:8px; flex-wrap:wrap; margin:0 var(--content-pad) var(--space-3); }
-.prq-period .pp { padding:7px 16px; font-size:13px; font-weight:700; text-decoration:none; border-radius:999px;
+/* v5H226z808 (대표 지시): 필터 2줄 — 사업부(전체·검사기·자동화·라이프밸류·기타·소모품) + 그 안 기간(전체·오늘·이번주·이번달·올해) */
+.prq-filter { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:0 var(--content-pad) var(--space-3); }
+.prq-flabel { font-size:11.5px; font-weight:800; color:var(--qv-ink-3); margin-right:2px; }
+.prq-filter .pp, .prq-filter .pf { padding:7px 15px; font-size:13px; font-weight:700; text-decoration:none; border-radius:999px;
   border:1px solid var(--qv-line); background:#fff; color:#475569; white-space:nowrap; }
-.prq-period .pp:hover { border-color:#fca5a5; color:var(--knk-red); }
-.prq-period .pp.on { background:var(--knk-red); border-color:var(--knk-red); color:#fff; }
+.prq-filter .pp:hover { border-color:#fca5a5; color:var(--knk-red); }
+.prq-filter .pf:hover { border-color:#c4b5fd; color:#6d28d9; }
+.prq-filter .pp.on { background:var(--knk-red); border-color:var(--knk-red); color:#fff; }
+.prq-filter .pf.on { background:#6d28d9; border-color:#6d28d9; color:#fff; }
 
 .prq-search { display:flex; gap:8px; margin:0 var(--content-pad) var(--space-3); flex-wrap:wrap; }
 .prq-search input[type=text] { flex:1; min-width:200px; padding:9px 12px; border:1px solid var(--qv-line); border-radius:8px; font-size:14px; }
@@ -56,7 +59,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 @media (max-width:768px){
   .prq-cards { grid-template-columns:1fr; gap:12px; }
   .prq-tabs a, .prq-tabs span { padding:8px 12px; font-size:13px; }
-  .prq-period .pp { padding:7px 13px; font-size:12.5px; }
+  .prq-filter .pp, .prq-filter .pf { padding:7px 12px; font-size:12.5px; }
 }
 </style>
 </head>
@@ -67,8 +70,8 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head" data-dn="page-head">
     <div>
-      <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <a href="/projects">프로젝트</a> · <b>제작요청서</b></div>
-      <h1 class="page-title" data-dn="title"><em>📋 제작요청서</em></h1>
+      <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <a href="/projects">프로젝트</a> · <b>제작요청서목록</b></div>
+      <h1 class="page-title" data-dn="title"><em>📋 제작요청서목록</em></h1>
     </div>
   </div>
 
@@ -76,27 +79,42 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   <div class="prq-tabs" data-dn="prq-tabs">
     <a href="/projects">📋 전체 목록</a>
     <a href="/projects/new">🆕 등록</a>
-    <span class="on">📋 제작요청서</span>
+    <span class="on">📋 제작요청서목록</span>
   </div>
 
-  {# 기간 분류: 일간(오늘)·주간(이번 주)·월간(이번 달)·연간(올해). 텍스트 검색어(q)는 유지 #}
-  <div class="prq-period" data-dn="prq-period">
-    <a class="pp{% if not period %} on{% endif %}" href="/prod-requests{% if q %}?q={{ q|urlencode }}{% endif %}">전체</a>
-    <a class="pp{% if period == 'day' %} on{% endif %}" href="/prod-requests?period=day{% if q %}&amp;q={{ q|urlencode }}{% endif %}">📅 오늘</a>
-    <a class="pp{% if period == 'week' %} on{% endif %}" href="/prod-requests?period=week{% if q %}&amp;q={{ q|urlencode }}{% endif %}">🗓 이번 주</a>
-    <a class="pp{% if period == 'month' %} on{% endif %}" href="/prod-requests?period=month{% if q %}&amp;q={{ q|urlencode }}{% endif %}">📆 이번 달</a>
-    <a class="pp{% if period == 'year' %} on{% endif %}" href="/prod-requests?period=year{% if q %}&amp;q={{ q|urlencode }}{% endif %}">📚 올해</a>
+  {%- macro prqurl(b, p) -%}/prod-requests?biz={{ b }}&amp;period={{ p }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{%- endmacro -%}
+
+  {# v5H226z808 (대표 지시): 사업부 분류 — 선택한 사업부 안에서 아래 기간으로 다시 좁힘 #}
+  <div class="prq-filter" data-dn="prq-biz">
+    <span class="prq-flabel">사업부</span>
+    <a class="pf{% if not biz %} on{% endif %}" href="{{ prqurl('', period) }}">전체</a>
+    <a class="pf{% if biz == 'T' %} on{% endif %}" href="{{ prqurl('T', period) }}">🔎 검사기</a>
+    <a class="pf{% if biz == 'M' %} on{% endif %}" href="{{ prqurl('M', period) }}">⚙️ 자동화</a>
+    <a class="pf{% if biz == 'L' %} on{% endif %}" href="{{ prqurl('L', period) }}">💡 라이프밸류</a>
+    <a class="pf{% if biz == 'E' %} on{% endif %}" href="{{ prqurl('E', period) }}">🗂️ 기타</a>
+    <a class="pf{% if biz == 'C' %} on{% endif %}" href="{{ prqurl('C', period) }}">🧴 소모품</a>
+  </div>
+
+  {# 기간 분류: 선택한 사업부 안에서. 텍스트 검색어(q)는 유지 #}
+  <div class="prq-filter" data-dn="prq-period">
+    <span class="prq-flabel">기간</span>
+    <a class="pp{% if not period %} on{% endif %}" href="{{ prqurl(biz, '') }}">전체</a>
+    <a class="pp{% if period == 'day' %} on{% endif %}" href="{{ prqurl(biz, 'day') }}">📅 오늘</a>
+    <a class="pp{% if period == 'week' %} on{% endif %}" href="{{ prqurl(biz, 'week') }}">🗓 이번 주</a>
+    <a class="pp{% if period == 'month' %} on{% endif %}" href="{{ prqurl(biz, 'month') }}">📆 이번 달</a>
+    <a class="pp{% if period == 'year' %} on{% endif %}" href="{{ prqurl(biz, 'year') }}">📚 올해</a>
   </div>
 
   <form class="prq-search" method="get" action="/prod-requests">
+    {% if biz %}<input type="hidden" name="biz" value="{{ biz }}">{% endif %}
     {% if period %}<input type="hidden" name="period" value="{{ period }}">{% endif %}
     <input type="text" name="q" value="{{ q }}" placeholder="관리번호 · 수주번호 · 고객사 · 모델 · 장비 검색" autocomplete="off">
     <button type="submit" class="btn btn-primary">🔍 검색</button>
-    {% if q %}<a class="btn btn-secondary" href="/prod-requests{% if period %}?period={{ period }}{% endif %}">검색 해제</a>{% endif %}
+    {% if q %}<a class="btn btn-secondary" href="/prod-requests?biz={{ biz }}&amp;period={{ period }}">검색 해제</a>{% endif %}
   </form>
 
   <div style="margin:0 var(--content-pad) var(--space-3); font-size:12.5px; color:var(--qv-ink-3);">
-    <b style="color:#334155;">{{ period_label }}</b> · 수주(호기) <b>{{ rows|length }}</b>건{% if rows|length >= 300 %} <span style="color:#b45309;">(최근 300건만 표시 — 기간·검색으로 좁혀 보세요)</span>{% endif %} · 카드 = 수주 1건 · 누르면 <b style="color:#9a3412;">제작요청서(수정·발행)</b> 화면으로 이동합니다.
+    <b style="color:#6d28d9;">{{ biz_label_cur }}</b> · <b style="color:#334155;">{{ period_label }}</b> · 수주(호기) <b>{{ rows|length }}</b>건{% if rows|length >= 300 %} <span style="color:#b45309;">(최근 300건만 표시 — 사업부·기간·검색으로 좁혀 보세요)</span>{% endif %} · 카드 = 수주 1건 · 누르면 <b style="color:#9a3412;">제작요청서(수정·발행)</b> 화면으로 이동합니다.
   </div>
 
   {% if rows %}

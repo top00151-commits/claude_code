@@ -19454,7 +19454,7 @@ async def admin_so_suffix_migrate(request: Request, do: str = "", pid: int = 0):
 # v5H226z762 (대표 지시): 제작요청서 목록 — 발행된 제작요청서를 프로젝트 넘어 한곳에서 모아보기·검색.
 #   요청사항이 통보로만 흘러가 사라지던 문제 해결(저장은 prod_requests). 가격 없음 → 로그인만 게이트(상세 페이지와 동일).
 @app.get("/prod-requests", response_class=HTMLResponse)
-async def prod_requests_list_page(request: Request, q: str = "", period: str = ""):
+async def prod_requests_list_page(request: Request, q: str = "", period: str = "", biz: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -19469,6 +19469,11 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
     _today = _kn.strftime("%Y-%m-%d")
     _mon = (_kn - _td2(days=_kn.weekday())).strftime("%Y-%m-%d")   # 이번 주 월요일(월=0)
     _period_label = {"day": "오늘", "week": "이번 주", "month": "이번 달", "year": "올해"}.get(_period, "전체")
+    # v5H226z808 (대표 지시): 사업부 분류 필터 — 관리번호 4번째 글자(T/M/L/E/C). 연구(R)는 목록서 제외(전체에만) [[biz_div_code_standard]]
+    _biz = (biz or "").strip().upper()
+    if _biz not in ("T", "M", "L", "E", "C"):
+        _biz = ""
+    _biz_label_cur = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타", "C": "소모품"}.get(_biz, "전체")
     rows = []
     try:
         with db_session() as c:
@@ -19501,6 +19506,8 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                 conds.append(f"{_dref} LIKE ?"); params.append(_kn.strftime("%Y-%m") + "%")
             elif _period == "year":
                 conds.append(f"{_dref} LIKE ?"); params.append(_kn.strftime("%Y") + "%")
+            if _biz:   # z808: 사업부 = 관리번호 4번째 글자
+                conds.append("UPPER(substr(p.mgmt_code,4,1)) = ?"); params.append(_biz)
             if conds:
                 sql += "WHERE " + " AND ".join(conds) + " "
             sql += "ORDER BY pr.id DESC, o.order_no LIMIT 300"
@@ -19540,7 +19547,7 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
         rows = []
         print(f"[z791] 제작요청서 목록(수주별) 조회 실패: {_e}")
     return ctx(request, "prod_requests_list.html", user=u, rows=rows, q=_q,
-               period=_period, period_label=_period_label)
+               period=_period, period_label=_period_label, biz=_biz, biz_label_cur=_biz_label_cur)
 
 
 # v5H226z763 (대표 지시): 제작요청서 수정 — 발행 후 자료경로·모델·각인·요청사항을 고치고, 항상 부서에 다시 통보.
