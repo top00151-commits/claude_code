@@ -24,9 +24,9 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .prq-search input[type=text] { flex:1; min-width:200px; padding:9px 12px; border:1px solid var(--qv-line); border-radius:8px; font-size:14px; }
 
 /* v5H226z791 (대표 지시): 수주(호기)당 1장 · 핵심 10필드만 · 카드 작게(한 화면에 많이) */
-.prq-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; margin:0 var(--content-pad) 28px; }
+.prq-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:12px; margin:0 var(--content-pad) 28px; }
 .prq-card { display:block; text-decoration:none; color:inherit; background:var(--paper,#fff);
-  border:1px solid var(--qv-line); border-left:4px solid var(--knk-red); border-radius:10px; padding:11px 13px;
+  border:1px solid var(--qv-line); border-left:4px solid var(--knk-red); border-radius:10px; padding:0; overflow:hidden;
   transition:box-shadow .15s ease, transform .15s ease, border-color .15s ease; }
 .prq-card:hover { box-shadow:0 6px 18px rgba(15,23,42,.10); transform:translateY(-2px); border-color:#fca5a5; }
 .pc-top { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:5px; }
@@ -37,12 +37,18 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .pc-st-cancel { color:#991b1b; background:#fee2e2; border:1px solid #fca5a5; }
 .pc-st-hold { color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; }
 .pc-st-na { color:#94a3b8; background:#f8fafc; border:1px solid #e2e8f0; }
-/* v5H226z806 (대표 지시): 3열×2행 격자 — 이음 대화방 카드와 형태 통일(가로형·세로 축소). 식별 먼저 배치 */
-.pc-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:7px 10px; margin-bottom:2px; }
-.pc-cell { min-width:0; }
-.pc-cell .pc-k { display:block; font-size:11px; color:var(--qv-ink-3); font-weight:700; margin-bottom:1px; }
-.pc-cell .pc-v { display:block; font-size:13px; color:#1f2937; font-weight:700; word-break:break-word; line-height:1.25; }
-.pc-po { font-size:10.5px; font-weight:800; color:#7c3aed; background:#f3e8ff; border:1px solid #ddd6fe; border-radius:6px; padding:1px 7px; }
+/* v5H226z807 (대표 지시): 제작요청 카드 = 스펙시트 표(배치·항목 통일). 이음 대화방 카드와 동일 항목 */
+.pc-tbl { width:100%; border-collapse:collapse; table-layout:fixed; }
+.pc-tbl col.pc-l { width:58px; }
+.pc-tbl col.pc-r { width:64px; }
+.pc-tbl td { border:1px solid var(--qv-line); padding:5px 8px; font-size:12.5px; word-break:break-word; }
+.pc-tbl td.pc-k { background:#f4f6f8; color:var(--qv-ink-3); font-weight:700; font-size:11px; white-space:nowrap; }
+.pc-tbl td.pc-v { color:#1f2937; font-weight:700; }
+.pc-tbl td.pc-rc { text-align:center; white-space:nowrap; }
+.pc-biz { display:inline-block; font-size:10.5px; font-weight:800; color:#5b21b6; background:#f3e8ff; border:1px solid #ddd6fe; border-radius:6px; padding:1px 6px; }
+.pc-po2 { display:inline-block; font-size:10.5px; font-weight:800; color:#1d4ed8; background:#e0edff; border:1px solid #bfdbfe; border-radius:6px; padding:1px 6px; }
+.pc-st2 { display:inline-block; font-size:10.5px; font-weight:800; border-radius:6px; padding:1px 6px; }
+.pc-qtyv { color:#1f2937; font-weight:800; font-size:11.5px; }
 .pc-metarow { display:flex; flex-wrap:wrap; gap:3px 12px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--qv-line); font-size:11.5px; color:#475569; }
 .pc-metarow b { color:#1f2937; }
 
@@ -98,22 +104,27 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
     {% for pr in rows %}
     {% set _stcls = {'출하':'done','진행중':'prog','취소':'cancel','보류':'hold'}.get(pr.status_ko, 'na') %}
     <a class="prq-card" href="/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.pr_id }}" title="카드를 누르면 제작요청서(수정·발행) 화면으로 이동">
-      <div class="pc-top">
-        <span class="pc-mgmt">📋 {{ pr.mgmt_code or '—' }}</span>
-        <span class="pc-st pc-st-{{ _stcls }}">{{ pr.status_ko or '—' }}</span>
-      </div>
-      <div class="pc-grid">
-        <div class="pc-cell"><span class="pc-k">수주번호</span><span class="pc-v">{{ pr.order_no or '—' }}</span></div>
-        <div class="pc-cell"><span class="pc-k">고객사</span><span class="pc-v">{{ pr.cust_name or pr.p_customer or '—' }}</span></div>
-        <div class="pc-cell"><span class="pc-k">모델</span><span class="pc-v">{{ pr.model_name or '—' }}</span></div>
-        <div class="pc-cell"><span class="pc-k">장비</span><span class="pc-v">{{ pr.equip_name or '—' }}</span></div>
-        <div class="pc-cell"><span class="pc-k">수량</span><span class="pc-v">{{ pr.qty|int if pr.qty is not none else '—' }}</span></div>
-        <div class="pc-cell"><span class="pc-k">납기</span><span class="pc-v">{{ (pr.o_due_date or '—')[:10] }}</span></div>
-      </div>
-      <div class="pc-metarow">
-        <span>🗓 발주 <b>{{ (pr.o_order_date or '—')[:10] }}</b></span>
-        {% if pr.po_type %}<span class="pc-po">{{ pr.po_type }}</span>{% endif %}
-      </div>
+      <table class="pc-tbl">
+        <colgroup><col class="pc-l"><col><col class="pc-l"><col><col class="pc-r"></colgroup>
+        <tr>
+          <td class="pc-k">관리번호</td><td class="pc-v">{{ pr.mgmt_code or '—' }}</td>
+          <td class="pc-k">수주번호</td><td class="pc-v">{{ pr.order_no or '—' }}</td>
+          <td class="pc-rc">{% if pr.biz_label %}<span class="pc-biz">{{ pr.biz_label }}</span>{% else %}—{% endif %}</td>
+        </tr>
+        <tr>
+          <td class="pc-k">모델명</td><td class="pc-v" colspan="3">{{ pr.model_name or '—' }}</td>
+          <td class="pc-rc"><span class="pc-po2">{{ pr.po_type or '신규' }}</span></td>
+        </tr>
+        <tr>
+          <td class="pc-k">장비명</td><td class="pc-v" colspan="3">{{ pr.equip_name or '—' }}</td>
+          <td class="pc-rc"><span class="pc-st2 pc-st-{{ _stcls }}">{{ pr.status_ko or '—' }}</span></td>
+        </tr>
+        <tr>
+          <td class="pc-k">고객사</td><td class="pc-v">{{ pr.cust_name or pr.p_customer or '—' }}</td>
+          <td class="pc-k">납품일</td><td class="pc-v">{{ (pr.o_due_date or '—')[:10] }}</td>
+          <td class="pc-rc pc-qtyv">수량 {{ pr.qty|int if pr.qty is not none else '—' }}</td>
+        </tr>
+      </table>
     </a>
     {% endfor %}
   </div>

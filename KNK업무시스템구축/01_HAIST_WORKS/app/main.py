@@ -6678,7 +6678,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     uid_self = user.get("id") or -1   # None 이면 'id != NULL' 이 전 행 배제 → -1 로 방어
     with db_session() as c:
         p = c.execute("SELECT id, mgmt_code, name, customer_name, model_name, equip_name, "
-                      "unit_qty, due_date, server_path, engraving, cc_name, cc_position "
+                      "unit_qty, due_date, server_path, engraving, cc_name, cc_position, "
+                      "po_type, status "
                       "FROM projects WHERE id=?", (pid,)).fetchone()
         if not p:
             return {"ok": False, "error": "not_found"}
@@ -6850,12 +6851,21 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         from . import sso_client
         _pub = os.environ.get("KNK_WORKS_PUBLIC_BASE", "https://works.knknara.co.kr").rstrip("/")
         _full_link = f"{_pub}{link}"
+        # v5H226z807 (대표 지시): 카드=스펙시트 표 통일 항목 — 사업부·장비명·발주유형·진행상태 추가 [[biz_div_code_standard]]
+        _BIZ_KO_MSG = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타", "C": "소모품", "R": "연구"}
+        _ST_KO_MSG = {"DRAFT": "작성중", "QUOTED": "견적", "CONFIRMED": "진행중", "IN_PRODUCTION": "진행중",
+                      "READY_TO_SHIP": "진행중", "SHIPPED": "출하", "INVOICED": "출하", "PAID": "출하",
+                      "CANCELLED": "취소", "HOLD": "보류"}
+        _st_raw = str(p.get("status") or "").strip()
+        _status_ko = _ST_KO_MSG.get(_st_raw.upper()) or (_st_raw if _st_raw else "진행중")
         # v5H226z595 (대표 지시): 메신저 '제작요청 카드' 구조화 데이터 — 메신저 지원 시 카드 렌더·미지원 시 body 폴백.
         _card = {
             "type": "prod_request", "title": "제작 요청서",
             "mgmt": mgmt, "customer": cust_disp,
             "cc_name": cc_nm, "cc_position": cc_pos, "author": by_name,
             "model": model, "engraving": eng, "part_name": pname,
+            "equip": (p.get("equip_name") or ""), "biz": _BIZ_KO_MSG.get(_pbiz, ""),
+            "po_type": (str(p.get("po_type") or "신규").strip() or "신규"), "status": _status_ko,
             "qty": qty, "due": due, "so_nos": so_nos,
             "server_path": spath, "cust_req": cust_req, "note": note,
             "issued_at": now_str, "link": _full_link, "image_count": image_count,
@@ -19499,6 +19509,8 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
             _SO_ST_KO = {"DRAFT": "작성중", "QUOTED": "견적", "CONFIRMED": "진행중",
                          "IN_PRODUCTION": "진행중", "READY_TO_SHIP": "진행중", "SHIPPED": "출하",
                          "INVOICED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
+            # v5H226z807 (대표 지시): 사업부(검사기 등) — 관리번호 4번째 글자로 판별 [[biz_div_code_standard]]
+            _BIZ_KO = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타", "C": "소모품", "R": "연구"}
             _oids = [r["order_id"] for r in rows if r.get("order_id")]
             _qtymap, _stmap = {}, {}
             if _oids:
@@ -19513,6 +19525,8 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                 except Exception:
                     _qtymap, _stmap = {}, {}
             for r in rows:
+                _mc = str(r.get("mgmt_code") or "")
+                r["biz_label"] = _BIZ_KO.get(_mc[3].upper(), "") if (len(_mc) >= 4 and _mc[3].isalpha()) else ""
                 _oid = r.get("order_id")
                 if not _oid:
                     r["qty"] = r.get("proj_qty"); r["status_ko"] = "—"; continue
