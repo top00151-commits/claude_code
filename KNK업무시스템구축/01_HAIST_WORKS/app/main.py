@@ -19247,43 +19247,57 @@ async def admin_so_suffix_migrate(request: Request, do: str = "", pid: int = 0):
     if u.get("role") not in ("admin", "ceo"):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
     import re as _re
-    _base_re = _re.compile(r"^[TMLECR]-\d{6}$")
+    from collections import defaultdict as _dd
+    _base_re = _re.compile(r"^([TMLECR]-\d{6})$")          # 접미 없음
+    _suf_re = _re.compile(r"^([TMLECR]-\d{6})-(\d+)$")     # 접미 있음
     _apply = (str(do) == "1")
-    renamed, skipped = [], []
+    plan, skipped = [], []
     try:
         with db_session() as c:
-            _q = ("SELECT id, order_no, project_id FROM orders "
-                  "WHERE order_no GLOB '[TMLECR]-[0-9][0-9][0-9][0-9][0-9][0-9]'")
-            _params = ()
-            if pid and pid > 0:
-                _q += " AND project_id=?"
-                _params = (int(pid),)
-            _rows = c.execute(_q, _params).fetchall()
-            _existing = set(r[0] for r in c.execute(
-                "SELECT order_no FROM orders WHERE order_no IS NOT NULL").fetchall())
+            _all = c.execute("SELECT id, order_no, project_id FROM orders WHERE order_no IS NOT NULL").fetchall()
+            # 충돌 검사용 — orders + consumable co_no 전체
+            _existing = set((r[1] or "") for r in _all)
             try:
-                _existing |= set(r[0] for r in c.execute(
+                _existing |= set((x[0] or "") for x in c.execute(
                     "SELECT co_no FROM consumable_orders WHERE co_no IS NOT NULL").fetchall())
             except Exception:
                 pass
-            for r in _rows:
-                _oid, _ono, _ppid = r[0], (r[1] or ""), r[2]
-                if not _base_re.match(_ono):
+            # 날짜(base)별로 접미없음/접미들 그룹핑 (전사 — 수주번호는 날짜별 전사 순번)
+            _by = _dd(lambda: {"bare": None, "suf": {}})
+            for _oid, _ono, _ppid in _all:
+                _ono = _ono or ""
+                _m0 = _base_re.match(_ono)
+                if _m0:
+                    _by[_m0.group(1)]["bare"] = (_oid, _ono, _ppid); continue
+                _m1 = _suf_re.match(_ono)
+                if _m1:
+                    _by[_m1.group(1)]["suf"][int(_m1.group(2))] = (_oid, _ono, _ppid)
+            # 접미없음이 있는 날짜만 캐스케이드: 접미없음→-1, 기존 -k→-(k+1) (충돌 방지 위해 큰 번호부터)
+            for _base, _g in _by.items():
+                if not _g["bare"]:
                     continue
-                _target = _ono + "-1"
-                if _target in _existing:
-                    skipped.append({"from": _ono, "reason": "target_exists"})
-                    continue
-                if _apply:
-                    c.execute("UPDATE orders SET order_no=? WHERE id=?", (_target, _oid))
-                    _existing.discard(_ono)
-                    _existing.add(_target)
-                renamed.append({"from": _ono, "to": _target, "pid": _ppid})
+                _maxn = max(_g["suf"].keys()) if _g["suf"] else 0
+                _top = f"{_base}-{_maxn+1}"
+                # 최상단 목표(-(maxn+1))가 orders 밖(co_no 등)에서 이미 쓰이면 그 날짜는 안전상 건너뜀
+                if _top in _existing and not any(s[1] == _top for s in _g["suf"].values()):
+                    skipped.append({"base": _base, "reason": "top_target_conflict"}); continue
+                _base_plan = []
+                for _k in range(_maxn, 0, -1):
+                    if _k in _g["suf"]:
+                        _oid, _ono, _ppid = _g["suf"][_k]
+                        _base_plan.append((_oid, _ono, f"{_base}-{_k+1}", _ppid))
+                _oid, _ono, _ppid = _g["bare"]
+                _base_plan.append((_oid, _ono, f"{_base}-1", _ppid))
+                plan.extend(_base_plan)
+            if _apply:
+                for _oid, _frm, _to, _ppid in plan:
+                    c.execute("UPDATE orders SET order_no=? WHERE id=?", (_to, _oid))
     except Exception as _e:
         return JSONResponse({"ok": False, "error": str(_e)[:200]}, 500)
-    return JSONResponse({"ok": True, "applied": _apply, "count": len(renamed),
-                         "skipped_count": len(skipped),
-                         "renamed": renamed[:300], "skipped": skipped[:100],
+    _out = [{"from": p[1], "to": p[2], "pid": p[3]} for p in plan]
+    return JSONResponse({"ok": True, "applied": _apply, "mode": "cascade(전사·날짜별 한 칸 밀기)",
+                         "count": len(_out), "skipped_count": len(skipped),
+                         "plan": _out[:400], "skipped": skipped[:50],
                          "hint": ("미리보기입니다 — 실제 변경하려면 URL 끝에 ?do=1 을 붙이세요."
                                   if not _apply else "적용 완료.")})
 
