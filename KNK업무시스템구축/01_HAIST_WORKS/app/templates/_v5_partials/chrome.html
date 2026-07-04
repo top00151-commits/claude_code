@@ -765,21 +765,23 @@ window.setFakeDate = async function(dateStr){
       return (r.width >= innerWidth*0.5 && r.height >= innerHeight*0.5 && ov.children.length>0);
     }catch(e){ return false; }
   }
-  var drag=null;
+  var pend=null, drag=null;
   function start(x,y,target){
-    if(!target || !target.closest) return false;
-    if(target.closest('button,a,input,select,textarea,[contenteditable],[role="button"],.knkcust-dd')) return false;
-    var ov=fixedAncestor(target); if(!ov || !bigVisible(ov)) return false;
-    var box=boxOf(ov); if(!box) return false;
+    if(!target || !target.closest) return;
+    if(target.closest('button,a,input,select,textarea,[contenteditable],[role="button"],.knkcust-dd')) return;
+    var ov=fixedAncestor(target); if(!ov || !bigVisible(ov)) return;
+    var box=boxOf(ov); if(!box) return;
     var hdr=headerOf(box);
-    if(hdr!==target && !(hdr.contains && hdr.contains(target))) return false;  /* 헤더 영역에서 시작한 것만 */
+    if(hdr!==target && !(hdr.contains && hdr.contains(target))) return;  /* 헤더 영역에서 시작한 것만 */
     var off=box.__off||{x:0,y:0};
-    drag={box:box, hdr:hdr, sx:x, sy:y, ox:off.x, oy:off.y};
-    hdr.style.cursor='grabbing'; document.body.style.userSelect='none';
-    return true;
+    pend={box:box, hdr:hdr, sx:x, sy:y, ox:off.x, oy:off.y};  /* 아직 드래그 아님 — 5px 넘어야 시작(✕·버튼 클릭 보존) */
   }
   function moveTo(x,y){
-    if(!drag) return;
+    if(!drag){
+      if(!pend) return;
+      if(Math.abs(x-pend.sx)+Math.abs(y-pend.sy) < 5) return;   /* 드래그 임계값 */
+      drag=pend; pend=null; drag.hdr.style.cursor='grabbing'; document.body.style.userSelect='none';
+    }
     var dx=x-drag.sx+drag.ox, dy=y-drag.sy+drag.oy;
     drag.box.style.transform='translate('+dx+'px,'+dy+'px)';
     var r=drag.box.getBoundingClientRect(), ax=0, ay=0;  /* 화면 밖 완전 이탈 방지 */
@@ -788,12 +790,12 @@ window.setFakeDate = async function(dateStr){
     if(ax||ay){ dx+=ax; dy+=ay; drag.box.style.transform='translate('+dx+'px,'+dy+'px)'; }
     drag.box.__off={x:dx,y:dy};
   }
-  function end(){ if(drag){ if(drag.hdr) drag.hdr.style.cursor='move'; document.body.style.userSelect=''; drag=null; } }
-  document.addEventListener('mousedown', function(e){ if(start(e.clientX,e.clientY,e.target)) e.preventDefault(); }, true);
-  document.addEventListener('mousemove', function(e){ moveTo(e.clientX,e.clientY); });
+  function end(){ pend=null; if(drag){ if(drag.hdr) drag.hdr.style.cursor='move'; document.body.style.userSelect=''; drag=null; } }
+  document.addEventListener('mousedown', function(e){ start(e.clientX,e.clientY,e.target); }, true);
+  document.addEventListener('mousemove', function(e){ if(drag||pend){ moveTo(e.clientX,e.clientY); if(drag) e.preventDefault(); } });
   document.addEventListener('mouseup', end);
   document.addEventListener('touchstart', function(e){ if(e.touches.length===1){ var t=e.touches[0]; start(t.clientX,t.clientY,e.target); } }, true);
-  document.addEventListener('touchmove', function(e){ if(drag && e.touches.length===1){ var t=e.touches[0]; moveTo(t.clientX,t.clientY); e.preventDefault(); } }, {passive:false});
+  document.addEventListener('touchmove', function(e){ if((drag||pend) && e.touches.length===1){ var t=e.touches[0]; moveTo(t.clientX,t.clientY); if(drag) e.preventDefault(); } }, {passive:false});
   document.addEventListener('touchend', end); document.addEventListener('touchcancel', end);
 
   /* 헤더 커서 힌트 + 열릴 때 가운데 리셋 (팝업별 관찰) */
