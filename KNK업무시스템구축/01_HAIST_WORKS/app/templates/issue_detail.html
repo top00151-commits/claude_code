@@ -157,9 +157,9 @@
             {% if issue.sla_breached %}<span class="chip-sev s-crit">⚠ SLA 초과</span>{% endif %}
           </div>
           <div class="is-meta">
-            발의: {{ issue.created_by_name|default('—') }}{% if issue.created_at %} · {{ (issue.created_at)[:16] }}{% endif %}
+            발의: <span title="{{ issue.created_by_disp or issue.created_by_name|default('') }}">{{ issue.created_by_name|default('—') }}</span>{% if issue.created_at %} · {{ (issue.created_at)[:16] }}{% endif %}
             {% if issue.owner_team_name %} · 담당팀 <b style="color:var(--pq-ink);">{{ issue.owner_team_name }}</b>{% endif %}
-            {% if issue.owner_user_name %} · 담당자 <b style="color:var(--pq-ink);">{{ issue.owner_user_name }}</b>{% endif %}
+            {% if issue.owner_user_name %} · 담당자 <b style="color:var(--pq-ink);" title="{{ issue.owner_user_disp or issue.owner_user_name }}">{{ issue.owner_user_name }}</b>{% endif %}
           </div>
         </div>
         <div class="is-actions">

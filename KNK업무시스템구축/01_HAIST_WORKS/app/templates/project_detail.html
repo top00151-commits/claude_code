@@ -87,7 +87,7 @@
       <div id="prqRead" style="padding:14px 16px;">
         <div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--mute);margin-bottom:10px;">
           <span>🗓 발행 <b style="color:#334155;">{{ _prm.created_at or _prm.created_date }}</b></span>
-          <span>✍ {{ _prm.issued_by_name or '—' }}</span>
+          <span>✍ {{ _prm.issued_by_disp or _prm.issued_by_name or '—' }}</span>
           <span>📣 통보 {{ _prm.dept_count or 0 }}개 부서 · {{ _prm.sent_to or 0 }}명{% if _prm.msg_sent %} · 📱 {{ _prm.msg_sent }}명 푸시{% endif %}</span>
           {% if _prm.dept_names %}<span>🏢 {{ _prm.dept_names }}</span>{% endif %}
           {% if _prm.updated_at %}<span style="color:#2563eb;">✏️ 수정 {{ _prm.updated_at }}{% if _prm.updated_by_name %} · {{ _prm.updated_by_name }}{% endif %}</span>{% endif %}
@@ -125,7 +125,7 @@
           <div style="border-top:1px solid var(--line);padding:10px 0;">
             <div style="display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--mute);margin-bottom:6px;">
               <span>🗓 <b style="color:#334155;">{{ pr.created_at or pr.created_date }}</b></span>
-              <span>✍ {{ pr.issued_by_name or '—' }}</span>
+              <span>✍ {{ pr.issued_by_disp or pr.issued_by_name or '—' }}</span>
               <span>📣 {{ pr.dept_count or 0 }}부서·{{ pr.sent_to or 0 }}명</span>
               {% if pr.dept_names %}<span>🏢 {{ pr.dept_names }}</span>{% endif %}
             </div>

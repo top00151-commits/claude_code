@@ -182,8 +182,8 @@
               <td class="center mute">{{ w.planned_start|default('—') }}</td>
               <td class="center mute">{{ w.planned_end|default('—') }}</td>
               <td class="center">{% if w.actual_end %}<b style="color:var(--pq-ok);">{{ w.actual_end }}</b>{% else %}<span class="mute">—</span>{% endif %}</td>
-              <td>{{ w.assigned_name|default('—') }}</td>
-              <td class="mute">{{ w.created_by_name|default('—') }}</td>
+              <td title="{{ w.assigned_full or w.assigned_name|default('') }}">{{ w.assigned_name|default('—') }}</td>
+              <td class="mute" title="{{ w.created_full or w.created_by_name|default('') }}">{{ w.created_by_name|default('—') }}</td>
             </tr>
           {% endfor %}
           </tbody>

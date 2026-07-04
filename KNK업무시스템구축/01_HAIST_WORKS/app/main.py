@@ -2973,10 +2973,14 @@ async def daily_page(req: Request, sel_date: str = ""):
                 "COALESCE(NULLIF(due_date,''),'9999-12-31'), id DESC",
                     (u["id"], _myteam)).fetchall():
                 d = dict(r)
+                # v5H226z800 (대표 지시·규칙): 지시자/요청자 = 이름 직책 부서(호버 전체) [[knk_name_display_rule]]
+                d["created_by_disp"] = user_disp_by_id(c2, d.get("created_by"), d.get("created_by_name") or "")
                 (wo_directed if d.get("kind") == "지시" else wo_requested).append(d)
             wo_created = [dict(r) for r in c2.execute(
                 "SELECT * FROM work_order WHERE created_by=? AND COALESCE(status,'') NOT IN ('완료','반려') "
                 "ORDER BY id DESC LIMIT 60", (u["id"],)).fetchall()]
+            for _wc in wo_created:  # 처리자(수락자) 호버 전체
+                _wc["accepted_by_disp"] = user_disp_by_id(c2, _wc.get("accepted_by"), _wc.get("accepted_by_name") or "")
             wo_users = [dict(r) for r in c2.execute(
                 "SELECT u.id, u.name, COALESCE(t.name,'') AS team, t.entity AS team_entity "
                 "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
@@ -3187,6 +3191,10 @@ async def work_orders_dashboard(request: Request, status: str = "", kind: str = 
                 "LEFT JOIN users tu ON tu.id=w.target_user_id WHERE " + where + " "
                 "ORDER BY CASE w.status WHEN '진행' THEN 0 WHEN '받음' THEN 1 WHEN '완료' THEN 2 ELSE 3 END, "
                 "COALESCE(NULLIF(w.due_date,''),'9999-12-31'), w.id DESC LIMIT 500", tuple(params)).fetchall()]
+            # v5H226z800 (대표 지시·규칙): 지시자·처리자 = 이름 직책 부서(표 셀은 호버 전체) [[knk_name_display_rule]]
+            for w in allrows:
+                w["created_by_disp"] = user_disp_by_id(c, w.get("created_by"), w.get("created_by_name") or "")
+                w["accepted_by_disp"] = user_disp_by_id(c, w.get("accepted_by"), w.get("accepted_by_name") or "")
         for w in allrows:
             st = w.get("status") or "받음"
             _delayed = (st in ("받음", "진행") and (w.get("due_date") or "") and str(w["due_date"])[:10] < today.isoformat())
@@ -3584,6 +3592,11 @@ async def meeting_doc_page(req: Request, mid: int):
         actions = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
         orow = c.execute("SELECT name FROM users WHERE id=?", (m.get("owner_id"),)).fetchone()
+        # v5H226z800 (대표 지시·규칙): 작성자·할일 담당 = 이름 직책 부서 [[knk_name_display_rule]].
+        #   할일 담당은 매칭된 사용자(assignee_user_id)일 때만 직책·부서 부착, 아니면 원문 이름 유지.
+        owner_disp = user_disp_by_id(c, m.get("owner_id"), (orow["name"] if orow else "") or "")
+        for _a in actions:
+            _a["assignee_disp"] = user_disp_by_id(c, _a.get("assignee_user_id"), _a.get("assignee_name") or "")
         link_proj = None
         if m.get("project_id"):
             _r = c.execute("SELECT mgmt_code, code, name FROM projects WHERE id=?", (m["project_id"],)).fetchone()
@@ -3604,6 +3617,7 @@ async def meeting_doc_page(req: Request, mid: int):
         pass
     return tpl.TemplateResponse(request=req, name="meeting_doc.html", context={
         "m": m, "decisions": decisions, "actions": actions, "owner_name": owner_name,
+        "owner_disp": owner_disp,
         "sec": sec, "docno": docno, "date_disp": date_disp,
         "link_proj": link_proj, "link_opp": link_opp,
     })
@@ -6613,9 +6627,13 @@ async def project_detail(req: Request, pid: int):
     try:
         with db_session() as _cpr:
             prod_requests = [dict(r) for r in _cpr.execute(
-                "SELECT id, mgmt_code, cust_req, note, dept_names, issued_by_name, "
-                "sent_to, dept_count, msg_sent, created_at, created_date "
+                "SELECT id, mgmt_code, cust_req, note, dept_names, issued_by, issued_by_name, "
+                "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name "
                 "FROM prod_requests WHERE project_id=? ORDER BY id DESC", (pid,)).fetchall()]
+            # v5H226z800 (대표 지시·규칙): 발행자 = 이름 직책 부서 [[knk_name_display_rule]].
+            #   수정자(updated_by_name)는 id 스냅샷이 없어 이름만 유지(컬럼 부재).
+            for _pr in prod_requests:
+                _pr["issued_by_disp"] = user_disp_by_id(_cpr, _pr.get("issued_by"), _pr.get("issued_by_name") or "")
     except Exception:
         prod_requests = []   # 표시 전용 조회 — 테이블 미생성/조회 오류 시에도 상세는 정상 렌더(주변 소모품/자식조회와 동일 패턴)
     # v5H226z373 (대표 지시): 제작요청 발행은 '신규 등록(제작요청서)' 흐름으로 일원화 →
@@ -11114,6 +11132,9 @@ async def dept_requests_page(request: Request):
                 d["members"] = _oppreq_members(c, d["id"])
                 d["activities"] = _oppreq_activities(c, d["id"])
                 d["total_hours"] = round(sum(float(a.get("hours") or 0) for a in d["activities"]), 1)
+                # v5H226z800 (대표 지시·규칙): PM·요청자 = 이름 직책 부서 [[knk_name_display_rule]]
+                d["pm_disp"] = user_disp_by_id(c, d.get("pm_user_id"), d.get("pm_name") or "")
+                d["requester_disp"] = user_disp_by_id(c, d.get("requested_by"), d.get("requester_name") or "")
                 out.append(d)
             return out
 
@@ -16953,6 +16974,8 @@ async def sales_quote_detail(req: Request, qid: int):
         if not row:
             return RedirectResponse("/sales/quotations", 303)
         quote = dict(row)
+        # v5H226z800 (대표 지시·규칙): 작성자 = 이름 직책 부서 [[knk_name_display_rule]]
+        quote["created_by_disp"] = user_disp_by_id(c, quote.get("created_by"), quote.get("created_by_name") or "")
         items = [dict(r) for r in c.execute(
             "SELECT * FROM quotation_items WHERE quotation_id=? ORDER BY line_no",
             (qid,)
@@ -17824,6 +17847,12 @@ async def changes_detail(req: Request, cid: int):
     change = change_get(cid)
     if not change:
         return RedirectResponse("/changes", 303)
+    # v5H226z800 (대표 지시·규칙): 작성자 = 이름 직책 부서(VN 병기 포함) [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            change["author_disp"] = user_disp_by_id(_c, change.get("author_id"), change.get("author_name") or "")
+    except Exception:
+        pass
     impacts = change_get_impacts(cid)
     reads = change_get_reads(cid)
     # 자동 read 기록 (영향자인 경우만)
@@ -18411,6 +18440,9 @@ async def issues_detail(req: Request, iid: int):
         teams = [dict(r) for r in c.execute(
             "SELECT id, name FROM teams ORDER BY display_order"
         ).fetchall()]
+        # v5H226z800 (대표 지시·규칙): 발의자·담당자 = 이름 직책 부서(호버 전체·담당팀 중복 회피) [[knk_name_display_rule]]
+        issue["created_by_disp"] = user_disp_by_id(c, issue.get("created_by"), issue.get("created_by_name") or "")
+        issue["owner_user_disp"] = user_disp_by_id(c, issue.get("owner_user_id"), issue.get("owner_user_name") or "")
     is_owner = (issue["owner_user_id"] == u["id"]
                 or (issue["owner_team_id"] and issue["owner_team_id"] == u.get("team_id")))
     can_edit = is_owner or issue["created_by"] == u["id"] or u["role"] in ("admin", "ceo")
@@ -23651,6 +23683,10 @@ async def rnd_detail(request: Request, rid: int):
         if not r:
             return HTMLResponse("<h3>없는 과제입니다.</h3>", status_code=404)
         p = dict(r)
+        # v5H226z800 (대표 지시·규칙): 등록자·담당자 = 이름 직책 부서 [[knk_name_display_rule]].
+        #   담당자 입력칸(owner_name)은 폼 round-trip이라 값은 유지하고 호버로만 전체 표시.
+        p["created_by_disp"] = user_disp_by_id(c, p.get("created_by"), p.get("created_by_name") or "")
+        p["owner_disp"] = user_disp_by_id(c, p.get("owner_id"), p.get("owner_name") or "")
         logs = [dict(x) for x in c.execute(
             "SELECT id, COALESCE(log_date,'') AS log_date, COALESCE(log_type,'진행') AS log_type, "
             "COALESCE(content,'') AS content, hours, COALESCE(created_by_name,'') AS by_name, "
@@ -27078,6 +27114,7 @@ async def projects_edit_form(request: Request, pid: int):
     if not p:
         return RedirectResponse("/projects", status_code=303)
     # v5H174: 등록자/등록일시 표시용 — created_by → 사용자명 lookup
+    # v5H226z800 (대표 지시·규칙): 등록자 = 이름 직책 부서 [[knk_name_display_rule]]
     p = dict(p)
     try:
         if p.get("created_by"):
@@ -27087,6 +27124,7 @@ async def projects_edit_form(request: Request, pid: int):
                 ).fetchone()
                 if _u_row:
                     p["created_by_name"] = _u_row[0]
+                p["created_by_disp"] = user_disp_by_id(_c, p.get("created_by"), p.get("created_by_name") or "")
     except Exception:
         pass
     # v5H103: SO 존재 여부 → 폼 수주액 readonly 안내용
@@ -34464,6 +34502,14 @@ async def qc_report_print(req: Request, report_id: int):
     report = get_qc_inspection_report(report_id)
     if not report:
         return RedirectResponse("/qc/inspection-reports", 303)
+    # v5H226z800 (대표 지시·규칙): 검사자·QA·발급자 = 이름 직책 부서(상단 메타). 도장란은 서명이라 이름만 유지 [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            report["inspector_full"] = user_disp_by_id(_c, report.get("inspector_id"), report.get("inspector_name") or "")
+            report["qa_full"] = user_disp_by_id(_c, report.get("qa_manager_id"), report.get("qa_manager_name") or "")
+            report["issued_full"] = user_disp_by_id(_c, report.get("issued_by"), report.get("issued_by_name") or "")
+    except Exception:
+        pass
     company = _company_info_dict()
     overall_label_map = {code: label for code, label in QC_OVERALL_OPTIONS}
     return ctx(req, "qc_report_print.html", user=u,
@@ -34524,6 +34570,14 @@ async def wo_list(req: Request):
         return RedirectResponse("/home", 303)
     status = req.query_params.get("status") or None
     items = get_work_orders(status=status, limit=300)
+    # v5H226z800 (대표 지시·규칙): 작업자·작성자 = 이름 직책 부서(표 셀은 호버 전체) [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            for w in items:
+                w["assigned_full"] = user_disp_by_id(_c, w.get("assigned_to"), w.get("assigned_name") or "")
+                w["created_full"] = user_disp_by_id(_c, w.get("created_by"), w.get("created_by_name") or "")
+    except Exception:
+        pass
     return ctx(req, "wo_list.html", user=u, active="work_orders",
                items=items, WO_STATUS_OPTIONS=WO_STATUS_OPTIONS,
                filter_status=status or "")
@@ -34637,6 +34691,13 @@ async def wo_detail(req: Request, wo_id: int):
     wo = get_work_order(wo_id)
     if not wo:
         return RedirectResponse("/production/work-orders", 303)
+    # v5H226z800 (대표 지시·규칙): 담당자·작성자 = 이름 직책 부서(상세 화면) [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            wo["assigned_full"] = user_disp_by_id(_c, wo.get("assigned_to"), wo.get("assigned_name") or "")
+            wo["created_full"] = user_disp_by_id(_c, wo.get("created_by"), wo.get("created_by_name") or "")
+    except Exception:
+        pass
     return ctx(req, "wo_form.html", user=u, active="work_orders",
                wo=wo, WO_STATUS_OPTIONS=WO_STATUS_OPTIONS,
                WO_STD_STEPS=WO_STD_STEPS)
@@ -34687,6 +34748,13 @@ async def wo_print(req: Request, wo_id: int):
     wo = get_work_order(wo_id)
     if not wo:
         return RedirectResponse("/production/work-orders", 303)
+    # v5H226z800 (대표 지시·규칙): 발행자·담당자 = 이름 직책 부서(상단 메타). 도장란은 서명이라 이름만 유지 [[knk_name_display_rule]]
+    try:
+        with db_session() as _c:
+            wo["assigned_full"] = user_disp_by_id(_c, wo.get("assigned_to"), wo.get("assigned_name") or "")
+            wo["created_full"] = user_disp_by_id(_c, wo.get("created_by"), wo.get("created_by_name") or "")
+    except Exception:
+        pass
     company = _company_info_dict()
     return ctx(req, "wo_print.html", user=u,
                wo=wo, company=company)

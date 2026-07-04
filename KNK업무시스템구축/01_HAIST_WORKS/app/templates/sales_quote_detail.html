@@ -77,7 +77,7 @@ body {
           <tr><th>고객사</th><td>{{ quote.customer_name }}</td></tr>
           <tr><th>버전 / 상태</th><td>Ver {{ quote.version }} · {{ quote.status|status_kr('inline') }}</td></tr>
           <tr><th>유효기한</th><td>{{ quote.valid_until|default('-') }}</td></tr>
-          <tr><th>작성자</th><td>{{ quote.created_by_name|default('-') }}</td></tr>
+          <tr><th>작성자</th><td>{{ quote.created_by_disp or quote.created_by_name|default('-') }}</td></tr>
           <tr><th>작성 일시</th><td style="font-family:monospace;">{{ quote.created_at|default('-') }}</td></tr>
         </tbody>
       </table>

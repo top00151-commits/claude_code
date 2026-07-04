@@ -217,11 +217,11 @@ body {
     </tr>
     <tr>
       <td class="lbl">검사자</td>
-      <td class="val"><b>{{ report.inspector_disp|default(report.inspector_name|default('—')) }}</b></td>
+      <td class="val"><b>{{ report.inspector_full or report.inspector_disp|default(report.inspector_name|default('—')) }}</b></td>
       <td class="lbl">QA 매니저</td>
-      <td class="val"><b>{{ report.qa_manager_disp|default(report.qa_manager_name|default('—')) }}</b></td>
+      <td class="val"><b>{{ report.qa_full or report.qa_manager_disp|default(report.qa_manager_name|default('—')) }}</b></td>
       <td class="lbl">발급자</td>
-      <td class="val">{{ report.issued_by_name|default('—') }}</td>
+      <td class="val">{{ report.issued_full or report.issued_by_name|default('—') }}</td>
     </tr>
   </table>
 

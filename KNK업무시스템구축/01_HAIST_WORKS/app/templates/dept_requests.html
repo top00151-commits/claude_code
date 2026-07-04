@@ -89,7 +89,7 @@
       </div>
       <div class="dr-meta" style="font-weight:700;color:#1e293b;font-size:13px;">{{ r.opp_title or r.title or '—' }}</div>
       {% if r.detail %}<div class="dr-detail">{{ r.detail }}</div>{% endif %}
-      <div class="dr-meta">요청자 {{ r.requester_name or '—' }} · PM <b>{{ r.pm_name or '미지정' }}</b>{% if r.members %} · 구성원 {% for m in r.members %}{{ m.user_name }}{% if m.role_in_req=='pm' %}(PM){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</div>
+      <div class="dr-meta">요청자 {{ r.requester_disp or r.requester_name or '—' }} · PM <b>{{ r.pm_disp or r.pm_name or '미지정' }}</b>{% if r.members %} · 구성원 {% for m in r.members %}{{ m.user_name }}{% if m.role_in_req=='pm' %}(PM){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</div>
     {% endmacro %}
 
     {% macro act_section(r, editable) %}

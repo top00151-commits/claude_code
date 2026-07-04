@@ -168,13 +168,13 @@ body {
       <td class="lbl">프로젝트</td>
       <td class="val">{{ wo.project_disp|default('—') }}</td>
       <td class="lbl">발행자</td>
-      <td class="val">{{ wo.created_by_disp|default('—') }}</td>
+      <td class="val">{{ wo.created_full or wo.created_by_disp|default('—') }}</td>
     </tr>
     <tr>
       <td class="lbl">가공 부품</td>
       <td class="val" colspan="3"><b>{{ wo.part_disp|default('—') }}</b>{% if wo.part_no and wo.part_no != '-' %} <span style="font-family:ui-monospace,Consolas,monospace;color:#64748b;">{{ wo.part_no }}</span>{% endif %}{% if wo.part_spec and wo.part_spec != '-' %} <span style="color:#64748b;">· {{ wo.part_spec }}</span>{% endif %}</td>
       <td class="lbl">담당자</td>
-      <td class="val"><b>{{ wo.assigned_disp|default('—') }}</b></td>
+      <td class="val"><b>{{ wo.assigned_full or wo.assigned_disp|default('—') }}</b></td>
     </tr>
     <tr>
       <td class="lbl">생산 수량</td>

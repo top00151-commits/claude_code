@@ -58,14 +58,14 @@
       <h3>📋 과제 정보 <span style="margin-left:auto;font-weight:600;color:#94a3b8;font-size:11px;">{{ p.mgmt_code or '' }}</span></h3>
       <div class="rd-field"><div class="k">과제명</div><div class="v"><input id="fTitle" value="{{ p.title }}" readonly></div></div>
       <div class="rd-field"><div class="k">담당 부서</div><div class="v"><select id="fDept" disabled>{% for d in depts %}<option value="{{ d }}"{% if d==p.dept %} selected{% endif %}>{{ d }}</option>{% endfor %}{% if p.dept and p.dept not in depts %}<option value="{{ p.dept }}" selected>{{ p.dept }}</option>{% endif %}</select></div></div>
-      <div class="rd-field"><div class="k">담당자</div><div class="v"><input id="fOwner" value="{{ p.owner_name or '' }}" readonly></div></div>
+      <div class="rd-field"><div class="k">담당자</div><div class="v"><input id="fOwner" value="{{ p.owner_name or '' }}" title="{{ p.owner_disp or p.owner_name or '' }}" readonly></div></div>
       <div class="rd-field"><div class="k">분류</div><div class="v"><select id="fCat" disabled><option value="">(선택)</option>{% for c in categories %}<option{% if c==p.category %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></div></div>
       <div class="rd-field"><div class="k">우선순위</div><div class="v"><select id="fPri" disabled>{% for pr in priorities %}<option{% if pr==p.priority %} selected{% endif %}>{{ pr }}</option>{% endfor %}</select></div></div>
       <div class="rd-field"><div class="k">상태</div><div class="v"><select id="fStatus" disabled>{% for s in statuses %}<option{% if s==p.status %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></div></div>
       <div class="rd-field"><div class="k">시작일</div><div class="v"><input type="date" id="fStart" value="{{ (p.start_date or '')[:10] }}" readonly></div></div>
       <div class="rd-field"><div class="k">목표완료</div><div class="v"><input type="date" id="fTarget" value="{{ (p.target_date or '')[:10] }}" readonly></div></div>
       <div class="rd-field" style="border-bottom:0;"><div class="k">배경·목적</div><div class="v"><textarea id="fPurpose" class="rd-ta" readonly placeholder="—">{{ p.purpose or '' }}</textarea></div></div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:8px;">등록: {{ p.created_by_name or '—' }} · {{ (p.created_at or '')[:16] }}{% if can_edit %} · <button type="button" class="del rd-ent-del" style="color:#b91c1c;border:0;background:none;cursor:pointer;font-size:11px;" onclick="rdDelete()">과제 삭제</button>{% endif %}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:8px;">등록: {{ p.created_by_disp or p.created_by_name or '—' }} · {{ (p.created_at or '')[:16] }}{% if can_edit %} · <button type="button" class="del rd-ent-del" style="color:#b91c1c;border:0;background:none;cursor:pointer;font-size:11px;" onclick="rdDelete()">과제 삭제</button>{% endif %}</div>
     </div>
 
     <div class="rd-card">
