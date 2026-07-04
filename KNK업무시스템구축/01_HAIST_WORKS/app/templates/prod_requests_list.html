@@ -92,11 +92,11 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   <div class="prq-filter" data-dn="prq-biz">
     <span class="prq-flabel">사업부</span>
     <a class="pf{% if not biz %} on{% endif %}" href="{{ prqurl('', period) }}">전체</a>
-    <a class="pf{% if biz == 'T' %} on{% endif %}" href="{{ prqurl('T', period) }}">🔎 검사기</a>
-    <a class="pf{% if biz == 'M' %} on{% endif %}" href="{{ prqurl('M', period) }}">⚙️ 자동화</a>
-    <a class="pf{% if biz == 'L' %} on{% endif %}" href="{{ prqurl('L', period) }}">💡 라이프밸류</a>
-    <a class="pf{% if biz == 'E' %} on{% endif %}" href="{{ prqurl('E', period) }}">🗂️ 기타</a>
-    <a class="pf{% if biz == 'C' %} on{% endif %}" href="{{ prqurl('C', period) }}">🧴 소모품</a>
+    <a class="pf{% if biz == 'T' %} on{% endif %}" href="{{ prqurl('T', period) }}">🔬 검사기</a>
+    <a class="pf{% if biz == 'M' %} on{% endif %}" href="{{ prqurl('M', period) }}">🤖 자동화</a>
+    <a class="pf{% if biz == 'L' %} on{% endif %}" href="{{ prqurl('L', period) }}">💄 라이프밸류</a>
+    <a class="pf{% if biz == 'E' %} on{% endif %}" href="{{ prqurl('E', period) }}">🌐 기타</a>
+    <a class="pf{% if biz == 'C' %} on{% endif %}" href="{{ prqurl('C', period) }}">📦 소모품</a>
   </div>
 
   {# 기간 분류: 선택한 사업부 안에서. 텍스트 검색어(q)는 유지 #}
