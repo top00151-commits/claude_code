@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-04 v5H226z810[프로젝트 등록폼 입력칸 구분 개선(대표 지시) — 입력칸이 회색 패널과 구분 안됨 → 흰배경 + 또렷한 테두리(#c4ccd8) + 살짝 그림자 + 포커스 파란링. .qf-f input/select/textarea·qfsel-btn·자재표 입력칸. project_quick_form.html CSS만(이 폼 전용)]
+REM   LAST UPDATE: 2026-07-04 v5H226z811[제작요청서목록 명칭 연결지점 통일(대표 지시) — 전체목록·등록 화면의 탭 "제작요청서"→"제작요청서목록"(연결되는 곳). 프로젝트 상세 "전체 제작요청서→"→"제작요청서목록→". 목록 브라우저탭 제목도 통일. projects.html·project_new_chooser.html·project_detail.html·prod_requests_list.html]
+REM   - 2026-07-04 v5H226z810[프로젝트 등록폼 입력칸 구분 개선(대표 지시) — 입력칸이 회색 패널과 구분 안됨 → 흰배경 + 또렷한 테두리(#c4ccd8) + 살짝 그림자 + 포커스 파란링. .qf-f input/select/textarea·qfsel-btn·자재표 입력칸. project_quick_form.html CSS만(이 폼 전용)]
 REM   - 2026-07-04 v5H226z809[제작요청서목록 카드 외곽 "카드 느낌"(대표 지시) — 은은한 그림자(입체)·둥근모서리14px·호버 떠오름·카드간격16·내부여백. 표 바깥테두리 제거→내부 구분선만(액자겹침 해소). prod_requests_list.html CSS만]
 REM   - 2026-07-04 v5H226z808[제작요청서 목록 사업부 필터(대표 지시) — 페이지명 "제작요청서목록". 필터 2줄: 사업부(전체·검사기·자동화·라이프밸류·기타·소모품) + 그 안 기간(전체·오늘·이번주·이번달·올해) 조합. 사업부=관리번호 4번째글자(UPPER substr,4,1)·연구(R)는 전체에만. main.py 라우트 biz 파라미터 + prod_requests_list.html 필터 2줄+prqurl 매크로]
 REM   - 2026-07-04 v5H226z807[제작요청 카드 스펙시트 표 통일(대표 지시) — 이음 대화방 카드+WORKS 목록 카드를 3열 표로. 관리번호·수주번호·사업부(검사기) / 모델명(넓게) / 장비명(넓게) / 고객사·납품일·수량. 사업부=관리번호 4번째글자 자동. 테두리보다 배치·항목 통일이 핵심. 메신저 통보 payload에 biz/equip/po_type/status 추가. main.py·prod_requests_list.html·메신저 app.js/style.css(v565)]

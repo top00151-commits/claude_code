@@ -79,7 +79,7 @@
       <div style="font-size:14.5px;font-weight:800;color:#9a3412;">📋 제작요청서{% if prod_requests %} <span style="font-weight:600;color:#c2652a;font-size:12.5px;">· 발행 {{ prod_requests|length }}회</span>{% endif %}</div>
       <div style="display:flex;align-items:center;gap:12px;">
         {% if prod_requests and can_money %}<button type="button" onclick="var r=document.getElementById('prqRead'),f=document.getElementById('prqEditForm');if(f){var show=f.style.display==='none';f.style.display=show?'block':'none';if(r)r.style.display=show?'none':'block';}" style="font-size:12px;font-weight:700;color:#c2410c;background:#fff;border:1px solid #fdba74;border-radius:7px;padding:4px 11px;cursor:pointer;">✏️ 수정</button>{% endif %}
-        <a href="/prod-requests?q={{ p.mgmt_code|urlencode }}" style="font-size:12px;font-weight:700;color:#c2410c;text-decoration:none;">전체 제작요청서 →</a>
+        <a href="/prod-requests?q={{ p.mgmt_code|urlencode }}" style="font-size:12px;font-weight:700;color:#c2410c;text-decoration:none;">제작요청서목록 →</a>
       </div>
     </div>
     {% if prod_requests %}
