@@ -192,7 +192,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       <span class="mlabel">{{ month_label }}</span>
       <a href="/dept/schedule?ym={{ next_ym }}{{ _bq }}{{ _dq }}" title="다음 달">→</a>
       <a class="today-go" href="/dept/schedule?ym={{ cur_ym }}{{ _bq }}{{ _dq }}" title="이번 달로">오늘</a>
-      <a class="today-go" href="/sales/schedule" data-no-swap title="영업 작업일정표로" style="margin-left:8px;">📋 작업일정표</a>
+      {# v5H226z844 (대표 지시): 작업일정표 접근권(can_sales_amt=매출열람권·z843) 없으면 '작업일정표' 되돌이 링크를 비활성(회색·클릭불가). #}
+      {% if can_sales_amt %}<a class="today-go" href="/sales/schedule" data-no-swap title="영업 작업일정표로" style="margin-left:8px;">📋 작업일정표</a>{% else %}<span class="today-go" style="margin-left:8px;opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — 이 부서일정표를 이용하세요" aria-disabled="true">📋 작업일정표</span>{% endif %}
     </div>
     <div class="dsx-tabs">
       {% set _tabs = [('','전체',div_counts.all),('T','검사기',div_counts.T),('M','자동화',div_counts.M),('L','라이프밸류',div_counts.L),('E','기타',div_counts.E),('C','소모품',div_counts.C)] %}
