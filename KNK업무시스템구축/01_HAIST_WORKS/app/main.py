@@ -22276,6 +22276,35 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             _inject_oi_tax_into_rows(rows, _oimap, _proj_iids)
         except Exception:
             pass
+    # v5H226z836 (대표 지시): 원 납기 vs 현 납기 — 납기를 뒤로 미뤘으면 원 날짜에 '납품' 유지·바뀐 날짜에 '지연'(제작지연 가시화).
+    #   호기(order_items) due_date_orig 로 판정. 분할줄=그 줄 호기(unit_iids) 최소 원납기 · 비분할 프로젝트=그 프로젝트 호기 최소 원납기.
+    _oi_orig_iid, _proj_orig = {}, {}
+    try:
+        with db_session() as _oc2:
+            if "due_date_orig" in {r[1] for r in _oc2.execute("PRAGMA table_info(order_items)").fetchall()}:
+                for _r in _oc2.execute(
+                        "SELECT oi.id, oi.due_date_orig, o.project_id FROM order_items oi "
+                        "JOIN orders o ON o.id=oi.order_id "
+                        "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(oi.due_date_orig,'')<>''"):
+                    _iid, _do, _pid = _r[0], str(_r[1])[:10], _r[2]
+                    _oi_orig_iid[_iid] = _do
+                    if _pid and (_pid not in _proj_orig or _do < _proj_orig[_pid]):
+                        _proj_orig[_pid] = _do
+    except Exception:
+        pass
+    for _row in rows:
+        _row["dday_orig"] = None
+        _row["delayed_revise"] = False
+        if _row.get("kind") != "project":
+            continue
+        if (_row.get("status") or "") in ("출하", "취소", "보류"):
+            continue   # 종결(출하/취소/보류) 건은 지연 분리 안 함 — 제작지연은 진행중 건만
+        _origs = [_oi_orig_iid[i] for i in (_row.get("unit_iids") or []) if i in _oi_orig_iid]
+        _orig = min(_origs) if _origs else _proj_orig.get(_row.get("ref_id"))
+        _dcur, _dorig = _pd(_row.get("due_date")), _pd(_orig)
+        if _dorig and _dcur and _dorig < _dcur:   # 납기를 뒤로 미룸 = 제작지연
+            _row["delayed_revise"] = True
+            _row["dday_orig"] = _dorig.day if (mstart <= _dorig <= mend) else None
     # 정렬: 월 보기=납품일(일자) 우선 / 기간 보기=실제 날짜(여러 달이므로 전체 날짜) 순
     if range_mode:
         rows.sort(key=lambda r: (r.get("due_date") or "9999-99-99", r.get("order_date") or "9999-99-99", r["code"]))

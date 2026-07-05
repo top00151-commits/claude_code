@@ -3435,12 +3435,33 @@ def init_db():
                 ("tax_invoice_amt3",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt3 REAL"),
                 # v5H226z711 (대표 지시): 작업일정표 달력에서 상태(출하/취소/보류) 선택 시 '발생일' 기록 — 호기별
                 ("status_date",        "ALTER TABLE order_items ADD COLUMN status_date TEXT"),
+                # v5H226z836 (대표 지시): 원 납기(due_date_orig) — 처음 등록 납기 기억. 납기를 뒤로 미루면
+                #   원 날짜엔 '납품' 유지·바뀐 날짜엔 '지연' 표기(제작지연 가시화). 캡처는 아래 트리거로 모든 경로 커버.
+                ("due_date_orig",      "ALTER TABLE order_items ADD COLUMN due_date_orig TEXT"),
             ]:
                 if col not in oicols:
                     try:
                         c.execute(decl)
                     except Exception:
                         pass
+        except Exception:
+            pass
+
+        # v5H226z836 (대표 지시): 원 납기(due_date_orig) 자동 캡처 —
+        #   ①기존행 백필(원납기=현납기·NULL만) ②신규행 트리거(등록 납기=원납기) ③납기변경 트리거(바뀌기 전 값을 원납기로).
+        #   트리거는 due_date_orig 만 갱신(due_date 미변경)이라 재귀 없음. 모든 수정 경로(인라인·상세·일괄) 자동 커버.
+        try:
+            c.execute("UPDATE order_items SET due_date_orig = due_date WHERE due_date_orig IS NULL AND COALESCE(due_date,'') <> ''")
+            c.execute(
+                "CREATE TRIGGER IF NOT EXISTS trg_oi_due_orig_ins AFTER INSERT ON order_items "
+                "WHEN NEW.due_date_orig IS NULL AND COALESCE(NEW.due_date,'') <> '' "
+                "BEGIN UPDATE order_items SET due_date_orig = NEW.due_date WHERE id = NEW.id; END"
+            )
+            c.execute(
+                "CREATE TRIGGER IF NOT EXISTS trg_oi_due_orig_upd AFTER UPDATE OF due_date ON order_items "
+                "WHEN NEW.due_date_orig IS NULL AND COALESCE(NEW.due_date,'') <> '' "
+                "BEGIN UPDATE order_items SET due_date_orig = COALESCE(NULLIF(OLD.due_date,''), NEW.due_date) WHERE id = NEW.id; END"
+            )
         except Exception:
             pass
 
