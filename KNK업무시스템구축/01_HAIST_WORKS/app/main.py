@@ -23493,6 +23493,12 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
         return info
 
     rows = []
+    # v5H226z826 (대표 지시): 부서일정표는 '제작에 꼭 필요한 것만' — 출하완료·취소·보류 건은 제외.
+    #   관련부서원은 '지금 만들 것'만 보면 됨(원본 상세·금액은 작업일정표에만). 부분출하는 남김(미출하 호기 있으면 '진행중').
+    #   상태값: 프로젝트/호기=한글(출하/취소/보류), 소모품=영문(SHIPPED/PAID/CANCELLED/HOLD) — 둘 다 처리.
+    def _dsx_hidden(st):
+        s = str(st or "").strip()
+        return s in ("출하", "취소", "보류") or s.upper() in ("SHIPPED", "PAID", "CANCELLED", "HOLD")
     _split_map = _board_split_lines_map(unfold_sos=False)   # v5H226z665: 부서일정표는 관리번호=한 줄 유지(추가 SO 묶음) — 부서 기록 중복 방지
     _bus_iid, _bus_proj = _board_unit_status_maps()   # v5H226z661 (대표 지시): 부서일정표 납기 지연색도 호기 출하 반영(작업일정표와 동일)
     for p in (dict(r) for r in _logi.projects_list_logi()):
@@ -23528,6 +23534,8 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                 except Exception:
                     _iu["multi"] = False
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
+                if _dsx_hidden(_eff_st):   # v5H226z826: 출하/취소/보류 줄 제외(부분출하는 '진행중'이라 유지됨)
+                    continue
                 _ru = _mk(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru:
                     rows.append(_ru)
@@ -23537,12 +23545,15 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
             except Exception:
                 info["multi"] = False
             _eff_st = _board_agg_status(_bus_proj.get(p.get("id")) or []) or p.get("status")
-            _r = _mk(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
-            if _r:
-                rows.append(_r)
+            if not _dsx_hidden(_eff_st):   # v5H226z826: 출하/취소/보류 제외
+                _r = _mk(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
+                if _r:
+                    rows.append(_r)
     try:
         from . import consumables as _co_mod
         for cr in _co_mod.co_list(status="", q="", limit=1000):
+            if _dsx_hidden(cr.get("status")):   # v5H226z826: 출하완료(SHIPPED/PAID)·취소·보류 소모품 제외
+                continue
             info = {
                 "kind": "consumable", "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "", "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",

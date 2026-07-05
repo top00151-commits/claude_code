@@ -492,6 +492,9 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
         });
       } else {
         (j.units||[]).forEach(function(u){
+          // v5H226z826 (대표 지시): 이미 출하/취소/보류된 호기는 부서일정표 펼침에서 숨김(지금 제작 대상만 보임)
+          var _us=String(u.unit_status||'').trim();
+          if(_us==='출하'||_us==='취소'||_us==='보류') return;
           var label=String(u.label||'').slice(0,40);
           var meta=[u.so_no, u.unit_status, (u.due_date?('납기 '+u.due_date):'')].filter(Boolean).map(esc).join(' · ');
           newrows.push(dsxBuildUnitRow(tr, rowKey, logKey, label, meta));
