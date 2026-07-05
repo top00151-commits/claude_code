@@ -250,24 +250,23 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched .day.bar { background:#cfe0f5; cursor:pointer; }
 .sched .day.bar.delay { background:#fcd9d9; }
 /* v5H226z663 (대표 지시): 납기 점 색을 '출하 기준'으로 분리 — 초록=출하만, 파랑=진행중(예정), 빨강=지연, 회색=취소/보류 */
-.sched .day.deliver { background:#2563eb; color:#fff; }          /* 파랑 = 진행중(예정·납기 안 지남) */
-.sched .day.deliver.shipped { background:#16a34a; }              /* 초록 = 출하 완료 */
-.sched .day.deliver.delay { background:#b91c1c; }                /* 빨강 = 지연(진행중·납기 지남) */
-.sched .day.deliver.held { background:#9ca3af; }                 /* 회색 = 취소·보류 (z834서 is_del 미사용·잔존) */
+/* v5H226z835 (대표 지시): 색칸(강한 채움) 삭제 — 납기칸은 '일정 바(옅은 파랑)'만 유지, 상태는 '글자색'으로만. */
+.sched .day.deliver { background:#cfe0f5; }                       /* 납기칸 = 일정 바(옅은 파랑) 유지 */
+.sched .day.deliver.delay { background:#fcd9d9; }                 /* 지연 = 일정 바 지연색(옅은 빨강) */
 .sched .day.has-memo::after { content:"📝"; font-size:9px; }
-/* v5H226z834 (대표 지시): 달력 '점'(●) → 텍스트 라벨. 글자를 '세로 2열'로 작게(가로로 길게 X). 색칸 위 흰 글씨.
-   취소/보류는 계획 '납품'(파랑) 칸 옆에 회색 세로 라벨을 나란히(=2열) 함께 표시. */
-.sched .day .cal-t { display:inline-block; writing-mode:vertical-rl; text-orientation:upright; font-size:9px; font-weight:800; line-height:.95; letter-spacing:-1px; color:#fff; vertical-align:middle; }
-.sched .day.deliver .cal-sub { display:inline-block; writing-mode:vertical-rl; text-orientation:upright; font-size:8px; font-weight:800; line-height:.95; letter-spacing:-1px; color:#fff; background:rgba(75,85,99,.95); border-radius:3px; vertical-align:middle; margin-left:1px; padding:1px 0; }
-/* v5H226z711/z834 (대표 지시): 상태(출하/취소/보류) 발생일 표식 — 실제 발생일 칸에 컬러 링 + 세로 2열 텍스트 */
+/* v5H226z835 (대표 지시): 달력 상태 = '글자색'만(색칸 삭제). 2글자는 가로("납품"), 라벨 2개(취소/보류)면 가로 두 줄로 쌓기(납품/취소). 옅은 일정 바 위 가독 위해 흰 그림자. */
+.sched td.day { vertical-align:middle; }
+.sched .day .cal-t { display:block; font-size:9px; font-weight:800; line-height:1.1; letter-spacing:-0.5px; text-shadow:0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }
+.sched .day .cal-t.m-deliver { color:#1d4ed8; }   /* 납품 파랑 */
+.sched .day .cal-t.m-ship    { color:#15803d; }   /* 출하 초록 */
+.sched .day .cal-t.m-delay   { color:#b91c1c; }   /* 지연 빨강 */
+.sched .day .cal-sub { display:block; font-size:8px; font-weight:800; line-height:1.1; letter-spacing:-0.5px; color:#4b5563; text-shadow:0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }   /* 취소·보류 회색 — '납품' 아래 줄 */
+/* v5H226z711/z835 (대표 지시): 상태(출하/취소/보류) 발생일 표식 — 색칸 삭제, 글자색만(가로) */
 .sched .day.stat-mark { cursor:pointer; }
-.sched .day.stat-mark .stat-ico { display:inline-block; writing-mode:vertical-rl; text-orientation:upright; font-size:8px; font-weight:800; line-height:.95; letter-spacing:-1px; }
-.sched .day.stat-ship   { background:#dcfce7; box-shadow: inset 0 0 0 2px #16a34a; }
-.sched .day.stat-cancel { background:#fee2e2; box-shadow: inset 0 0 0 2px #dc2626; }
-.sched .day.stat-hold   { background:#f3f4f6; box-shadow: inset 0 0 0 2px #9ca3af; }
+.sched .day.stat-mark .stat-ico { display:block; font-size:8.5px; font-weight:800; line-height:1.1; letter-spacing:-0.5px; text-shadow:0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }
 .sched .day.stat-ship   .stat-ico { color:#15803d; }
 .sched .day.stat-cancel .stat-ico { color:#b91c1c; }
-.sched .day.stat-hold   .stat-ico { color:#6b7280; }
+.sched .day.stat-hold   .stat-ico { color:#4b5563; }
 /* v5H226z471 (대표 지시): 작업일정표 가로줄 가독성 — ①진한 가로 구분선(색칠 구간에서도 행 경계 또렷) ②번갈아 줄무늬(반투명 오버레이라 간트 색 유지) ③마우스 올린 행 전체 강조 밴드(색칠 칸 포함·반투명 노란 오버레이 + 위/아래 굵은 선) */
 /* v5H226z491c (대표 지적): 아래 가로줄/호버 규칙을 '자식 선택자'로 좁혀 펼친 호기 표(.ux-tab·.unit-exp-row)엔 안 새게. 자손 선택자라 펼친 블록 전체가 호박색 워시·탄색 테두리·갈색 오버레이로 덮여 z491b 줄무늬가 묻히던 문제 해결. 펼친 줄 구분은 .ux-tab 자체 줄무늬가 담당. */
 .sched > tbody > tr > td { border-bottom:1px solid #cdbd99; }
