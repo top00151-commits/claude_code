@@ -822,3 +822,191 @@ window.setFakeDate = async function(dateStr){
   document.addEventListener('knk:navigated', scanDeb);
 })();
 </script>
+
+{# ─────────── v5H226z827 (대표 지시): '앱 미설치(브라우저)로 열림' 자동 감지 → 'WORKS 앱 설치' 안내 팝업 ───────────
+   · 표시 조건: 앱모드 아님(display-mode standalone/navigator.standalone) + 모바일(pointer:coarse) + 미해제(영구/7일/세션).
+   · 안드로이드: 모달 '설치' 버튼 → 기존 전역 window.__knkWorksInstall.prompt()(works_pwa_head.html 보관). 없으면 iOS식 수동 안내로 폴백.
+   · iOS 사파리: beforeinstallprompt 미지원 → 공유(⬆️) → '홈 화면에 추가' 수동 안내.
+   · 해제: [닫기]=7일 침묵 / [다시 보지 않기]=영구 / 세션당 1회. 오버레이·ESC=이번 세션만 숨김(도배 방지).
+   · 4언어(ko/vi/en/zh · 그 외 en 폴백) 내장 사전. 순수 프론트 — 서버/매니페스트/기존 📲버튼·worksInstallApp 무변경(추가만).
+   · chrome.html은 SPA 전환에도 1회만 실행되므로 IIFE 중복 바인딩 가드(window.__knkInstallHintBound)로 단 1회 초기화. #}
+<div id="worksInstallHint" role="dialog" aria-modal="true" aria-labelledby="wihTitle" hidden></div>
+<style>
+  /* 안내 팝업 오버레이 — 기존 모달(z-index 최대 95~99999)과 충돌 없게 3000, hidden 우선(display 함정 방지) */
+  #worksInstallHint { position:fixed; inset:0; z-index:3000; display:flex; align-items:flex-end; justify-content:center;
+    background:rgba(15,23,42,0.44); padding:16px; -webkit-backdrop-filter:blur(1px); backdrop-filter:blur(1px);
+    animation:wihFade .2s ease; }
+  #worksInstallHint[hidden] { display:none !important; }
+  .wih-box { background:var(--paper, #fff); color:var(--ink, #0f172a); width:100%; max-width:440px;
+    border-radius:18px 18px 14px 14px; box-shadow:0 -10px 40px rgba(0,0,0,0.30); overflow:hidden;
+    animation:wihUp .28s cubic-bezier(.16,.84,.44,1); }
+  .wih-head { display:flex; align-items:center; gap:11px; padding:17px 18px 12px;
+    background:linear-gradient(135deg, var(--knk-red, #a5282c) 0%, #7A1D20 100%); color:#fff; }
+  .wih-head .wih-ic { font-size:26px; line-height:1; flex:none; }
+  .wih-head #wihTitle { font-size:16px; font-weight:800; line-height:1.35; letter-spacing:.01em; }
+  .wih-body { padding:15px 18px 6px; font-size:14px; line-height:1.7; color:var(--ink, #0f172a); }
+  .wih-steps { margin:11px 0 3px; padding:12px 14px; background:var(--paper-2, #f6f6f4);
+    border:1px solid var(--line, #e5e5e0); border-radius:12px; font-size:13.5px; line-height:1.72; color:var(--ink, #0f172a); }
+  .wih-steps b { color:var(--knk-red, #a5282c); }
+  .wih-kbd { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 5px;
+    margin:0 1px; border-radius:6px; background:#fff; border:1px solid var(--line, #d9d9d4); font-size:15px; line-height:1; vertical-align:-3px; }
+  .wih-acts { display:flex; flex-wrap:wrap; gap:9px; padding:13px 18px 18px; }
+  .wih-btn { flex:1 1 auto; min-width:96px; border:0; border-radius:11px; padding:12px 14px; font-size:14px; font-weight:800;
+    font-family:inherit; cursor:pointer; line-height:1.2; white-space:nowrap; transition:filter .12s, background .12s; }
+  .wih-btn.primary { background:var(--knk-red, #a5282c); color:#fff; flex:2 1 140px; }
+  .wih-btn.primary:hover { filter:brightness(1.08); }
+  .wih-btn.ghost { background:var(--paper-2, #f0f0ee); color:var(--ink, #0f172a); }
+  .wih-btn.ghost:hover { background:var(--paper-3, #e8e8e4); }
+  .wih-btn.text { background:transparent; color:var(--mute, #64748b); font-weight:700; flex:1 1 100%; padding:8px; font-size:12.5px; }
+  .wih-btn.text:hover { color:var(--knk-red, #a5282c); text-decoration:underline; }
+  @keyframes wihFade { from{opacity:0;} to{opacity:1;} }
+  @keyframes wihUp { from{opacity:0;transform:translateY(26px);} to{opacity:1;transform:translateY(0);} }
+  @media (prefers-reduced-motion: reduce) { #worksInstallHint, .wih-box { animation:none; } }
+  @media (min-width:520px) { #worksInstallHint { align-items:center; } .wih-box { border-radius:16px; } }
+</style>
+<script>
+(function(){
+  if (window.__knkInstallHintBound) return; window.__knkInstallHintBound = true;
+
+  var LS_NEVER = 'knk_works_install_hint_never';   // 영구 해제 = '1'
+  var LS_UNTIL = 'knk_works_install_hint_until';    // 7일 침묵 = Date.now()+7d 까지 조용
+  var SS_SHOWN = 'knk_works_install_hint_shown';    // 이번 세션 이미 표시 = '1'
+  var SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+  /* ── 4언어 내장 사전 (ko/vi/en/zh · 그 외 en 폴백) ── */
+  var DICT = {
+    ko: { title:'WORKS 앱을 설치하면 더 편해요', ic:'📲',
+          body:'홈 화면에서 바로 열 수 있어요. 알림도 받을 수 있습니다.',
+          ios:'사파리 아래 <b>공유</b> 버튼<span class="wih-kbd">⬆️</span>을 누르고, <b>‘홈 화면에 추가’</b><span class="wih-kbd">➕</span>를 선택하세요.',
+          install:'설치', ok:'확인', close:'닫기', never:'다시 보지 않기' },
+    vi: { title:'Cài đặt ứng dụng WORKS để tiện hơn', ic:'📲',
+          body:'Mở nhanh ngay từ màn hình chính. Bạn cũng sẽ nhận được thông báo.',
+          ios:'Nhấn nút <b>Chia sẻ</b><span class="wih-kbd">⬆️</span> ở dưới cùng Safari, rồi chọn <b>“Thêm vào MH chính”</b><span class="wih-kbd">➕</span>.',
+          install:'Cài đặt', ok:'Đã hiểu', close:'Đóng', never:'Không hiện lại' },
+    en: { title:'Install the WORKS app for easy access', ic:'📲',
+          body:'Open it right from your home screen. You can also receive notifications.',
+          ios:'Tap the <b>Share</b> button<span class="wih-kbd">⬆️</span> at the bottom of Safari, then choose <b>“Add to Home Screen”</b><span class="wih-kbd">➕</span>.',
+          install:'Install', ok:'Got it', close:'Close', never:'Don’t show again' },
+    zh: { title:'安装 WORKS 应用更方便', ic:'📲',
+          body:'可从主屏幕直接打开，还能接收通知。',
+          ios:'点击 Safari 底部的<b>分享</b>按钮<span class="wih-kbd">⬆️</span>，然后选择<b>“添加到主屏幕”</b><span class="wih-kbd">➕</span>。',
+          install:'安装', ok:'知道了', close:'关闭', never:'不再显示' }
+  };
+  function pickLang(){
+    var l = (navigator.language || 'ko').slice(0,2).toLowerCase();
+    return DICT[l] ? l : 'en';   // ko/vi/en/zh 외 → en 폴백
+  }
+
+  /* ── 환경 판정 ── */
+  function isStandalone(){
+    try { if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true; } catch(e){}
+    return navigator.standalone === true;   // iOS Safari 홈화면앱
+  }
+  function isMobile(){   // ⛔ any-pointer:fine 금지(안드 S펜 오판). 반드시 pointer:coarse.
+    try { return !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches); } catch(e){ return false; }
+  }
+  function isIOS(){
+    var ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod/i.test(ua)) return true;
+    // iPadOS 13+ 는 데스크톱 UA로 위장 → 터치 가능한 Mac 으로 판정
+    return (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+  }
+
+  function suppressed(){
+    try { if (localStorage.getItem(LS_NEVER) === '1') return true; } catch(e){}
+    try { var u = parseInt(localStorage.getItem(LS_UNTIL) || '0', 10); if (u && Date.now() < u) return true; } catch(e){}
+    try { if (sessionStorage.getItem(SS_SHOWN) === '1') return true; } catch(e){}
+    return false;
+  }
+
+  function overlay(){ return document.getElementById('worksInstallHint'); }
+  function hide(){ var o = overlay(); if (o) o.hidden = true; document.removeEventListener('keydown', onKey, true); }
+  function onKey(e){ if (e.key === 'Escape') { e.stopPropagation(); hide(); } }   // ESC = 이번 세션만 숨김
+
+  function dismiss7d(){   // [닫기] = 7일 침묵
+    try { localStorage.setItem(LS_UNTIL, String(Date.now() + SEVEN_DAYS)); } catch(e){}
+    hide();
+  }
+  function dismissForever(){   // [다시 보지 않기] = 영구
+    try { localStorage.setItem(LS_NEVER, '1'); } catch(e){}
+    hide();
+  }
+
+  function doInstall(){
+    var p = window.__knkWorksInstall;   // works_pwa_head.html 가 보관한 전역(재사용)
+    if (p && typeof p.prompt === 'function') {
+      try { p.prompt(); } catch(e){}
+      try {
+        (p.userChoice || Promise.resolve()).finally(function(){
+          window.__knkWorksInstall = null;
+          var b = document.getElementById('worksInstallBtn'); if (b) b.style.display = 'none';
+        });
+      } catch(e){}
+      hide();   // 네이티브 프롬프트로 넘어갔으니 안내 팝업은 닫음(세션 1회 이미 기록됨)
+    } else {
+      // 이벤트 아직 없음/미지원(주로 iOS) → 본문을 수동 안내로 전환
+      showManualSteps();
+    }
+  }
+
+  function showManualSteps(){
+    var t = DICT[pickLang()];
+    var box = overlay() && overlay().querySelector('.wih-box'); if (!box) return;
+    var bodyEl = box.querySelector('.wih-body');
+    if (bodyEl && !box.querySelector('.wih-steps')) {
+      var steps = document.createElement('div');
+      steps.className = 'wih-steps';
+      steps.innerHTML = t.ios;   // 정적 사전 문자열(⬆️/➕ 이모지 힌트). 사용자 입력 없음 → XSS 무관.
+      bodyEl.appendChild(steps);
+    }
+    // 설치 버튼을 '확인'으로 바꾸고(이제 안내만), 눌러도 이번 세션 숨김
+    var pb = box.querySelector('.wih-btn.primary');
+    if (pb) { pb.textContent = t.ok; pb.onclick = hide; }
+  }
+
+  function build(){
+    var o = overlay(); if (!o) return null;
+    var t = DICT[pickLang()];
+    var ios = isIOS();
+    o.innerHTML = ''
+      + '<div class="wih-box">'
+      +   '<div class="wih-head"><span class="wih-ic">' + t.ic + '</span><span id="wihTitle">' + t.title + '</span></div>'
+      +   '<div class="wih-body">' + t.body
+      +     (ios ? '<div class="wih-steps">' + t.ios + '</div>' : '')
+      +   '</div>'
+      +   '<div class="wih-acts">'
+      +     '<button type="button" class="wih-btn primary" data-act="install">' + (ios ? t.ok : t.install) + '</button>'
+      +     '<button type="button" class="wih-btn ghost" data-act="close">' + t.close + '</button>'
+      +     '<button type="button" class="wih-btn text" data-act="never">' + t.never + '</button>'
+      +   '</div>'
+      + '</div>';
+    // 오버레이 배경 클릭 = 이번 세션만 숨김(7일/영구 규칙은 명시 버튼에만)
+    o.addEventListener('click', function(e){ if (e.target === o) hide(); });
+    var box = o.querySelector('.wih-box');
+    box.querySelector('[data-act="install"]').addEventListener('click', function(){ ios ? hide() : doInstall(); });
+    box.querySelector('[data-act="close"]').addEventListener('click', dismiss7d);
+    box.querySelector('[data-act="never"]').addEventListener('click', dismissForever);
+    return o;
+  }
+
+  function maybeShow(){
+    if (isStandalone()) return;        // 이미 앱으로 설치·실행 중
+    if (!isMobile()) return;           // 데스크톱 브라우저 = 안 띄움
+    if (suppressed()) return;          // 영구/7일/세션 해제 상태
+    var o = build(); if (!o) return;
+    try { sessionStorage.setItem(SS_SHOWN, '1'); } catch(e){}   // 세션 1회
+    o.hidden = false;
+    document.addEventListener('keydown', onKey, true);
+  }
+
+  // 첫 렌더 방해 안 하게 지연(약 1.2초) — 유휴 시점 우선
+  function schedule(){
+    var fired = false, go = function(){ if (fired) return; fired = true; maybeShow(); };
+    if ('requestIdleCallback' in window) { try { requestIdleCallback(go, { timeout: 2500 }); } catch(e){ setTimeout(go, 1200); } }
+    else { setTimeout(go, 1200); }
+    setTimeout(go, 1800);   // 유휴가 안 와도 확실히 한 번은
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule);
+  else schedule();
+})();
+</script>
