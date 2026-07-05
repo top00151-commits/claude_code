@@ -1354,7 +1354,9 @@ function openMemo(tr, day, cell){
   const code=(tr.querySelector('.c1 a')||{}).textContent||'';
   // v5H226z711: 상태 섹션은 프로젝트(호기) 행만 — 소모품은 숨김(소모품 상세에서 변경)
   const sec=document.getElementById('memoStatSec');
-  const isProj=(tr.dataset.kind==='project' && (tr.dataset.uids||'').split(',').filter(Boolean).length>0);
+  // v5H226z837 (대표 지시): 상태 섹션을 '모든 프로젝트 행'에 표시(소모품만 숨김). 기존엔 분할 호기줄(data-uids 有)만 떠서
+  //   비분할 행(호기 없음/취소 SO라 호기맵 제외)엔 '메모'만 나오던 불일치. 서버 row-status가 uids 없으면 ref_id(프로젝트 호기)로 처리하므로 표시만 풀면 됨.
+  const isProj=(tr.dataset.kind==='project');
   if(sec) sec.style.display = isProj ? '' : 'none';
   const dstr=_memoYmd(day);
   document.getElementById('memoHead').textContent=(isProj?'상태·메모':'메모')+' — '+code.trim()+(dstr?(' · '+dstr):'');
