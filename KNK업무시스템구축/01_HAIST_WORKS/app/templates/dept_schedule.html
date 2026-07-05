@@ -57,13 +57,13 @@
 table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap;}
 .dsx th,.dsx td{border-bottom:1px solid #e7ecf3;border-right:1px solid #eef2f7;padding:5px 8px;text-align:left;vertical-align:middle;}
 .dsx thead th{position:sticky;top:0;z-index:2;background:#f4f1ea;color:#4b5563;font-weight:800;font-size:11.5px;text-align:center;}
-/* v5H226z516 (대표 지시): 행 마우스오버 강조를 더 또렷하게(연한 파랑+왼쪽 파란 띠) — 호기 줄 포함 */
-.dsx tbody tr:hover td{background:#e6eefb !important;}
-.dsx tbody tr:hover td:first-child{box-shadow:inset 4px 0 0 #2563eb;}
+/* v5H226z516 (대표 지시): 행 마우스오버 강조. v5H226z832 (대표 지시): 강조색을 '일정(발주~납기)' 파랑(#dceaf9)과 확실히 구분 — 라벤더 배경 + 보라 왼쪽 띠(파란 일정칸과 헷갈리지 않게). 일정 파랑은 그대로 유지. */
+.dsx tbody tr:hover td{background:#f0e4fc !important;}
+.dsx tbody tr:hover td:first-child{box-shadow:inset 4px 0 0 #7c3aed;}
 /* 관리번호 칸 고정(가로 스크롤 시 항상 보이게) */
 .dsx .c-code{position:sticky;left:0;z-index:1;background:#fff;font-weight:800;}
 .dsx thead .c-code{z-index:3;background:#efece4;}
-.dsx tbody tr:hover .c-code{background:#dce6f9 !important;}
+.dsx tbody tr:hover .c-code{background:#e6d4fa !important;}   /* v5H226z832: 라벤더 강조와 통일 */
 .dsx .c-code a{color:var(--knk-red);text-decoration:none;}
 .dsx .c-code a:hover{text-decoration:underline;}
 .dsx .tl-btn{cursor:pointer;margin-right:5px;font-size:12px;opacity:.7;}
@@ -82,7 +82,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx .dsx-ux-empty{padding:8px 10px;color:#94a3b8;}
 /* v5H226z514: 펼친 '호기 줄'(날짜칸 클릭→그 호기 기록) */
 .dsx tr.dsx-unit-row td{background:#f7faff;}
-.dsx tr.dsx-unit-row:hover td{background:#d8e6fb !important;}
+.dsx tr.dsx-unit-row:hover td{background:#ead9fb !important;}   /* v5H226z832: 라벤더 강조와 통일 */
 .dsx tr.dsx-unit-row td.dsx-unit-blank{background:#f7faff;}
 .dsx td.dsx-unit-info{font-size:11.5px;color:#475569;font-weight:600;white-space:nowrap;padding-left:6px;}
 .dsx td.dsx-unit-info .u-arrow{color:#94a3b8;margin-right:3px;}
@@ -103,6 +103,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx td.day.today,.dsx th.day.today{box-shadow:inset 2px 0 0 #b91c1c,inset -2px 0 0 #b91c1c;background:#fffbe6;}
 .dsx td.day.bar{background:#dceaf9;}          /* 발주~납기 일정(맥락) */
 .dsx td.day.bar.delay{background:#fcdada;}
+/* v5H226z832 (대표 지시): 납품(출하 예정)일 칸에 작은 적색 '납품' 라벨 — 파랑/빨강 일정칸 위에서도 보이게 흰 그림자 */
+.dsx td.day .dsx-deliver{display:block;font-size:8px;font-weight:800;color:#dc2626;line-height:1.2;letter-spacing:-0.3px;white-space:nowrap;text-shadow:0 0 2px #fff,0 0 2px #fff;margin-top:1px;}
 /* 마커 */
 .mk{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;color:#fff;font-size:10px;font-weight:800;line-height:16px;}
 .mk.prog{background:#2563eb;} .mk.done{background:#16a34a;} .mk.chg{background:#d97706;}
@@ -291,7 +293,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
           {% for d in days %}
             {% set m = cs.get(d|string) %}
             <td class="day{% if d==today_day %} today{% endif %}{% if r.bar_s and r.bar_s<=d<=r.bar_e %} bar{% if r.is_delay %} delay{% endif %}{% endif %}"
-                data-day="{{ d }}" data-date="{{ ym }}-{{ '%02d'|format(d) }}">{% if m %}<span class="mk {{ m.color }}">{{ m.n }}</span>{% endif %}</td>
+                data-day="{{ d }}" data-date="{{ ym }}-{{ '%02d'|format(d) }}">{% if m %}<span class="mk {{ m.color }}">{{ m.n }}</span>{% endif %}{% if r.dday and d==r.dday %}<span class="dsx-deliver" title="납품(예정)일">납품</span>{% endif %}</td>
           {% endfor %}
         </tr>
         {% endfor %}
