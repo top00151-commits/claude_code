@@ -65,6 +65,7 @@
   </div></div>
   <div class="dr-wrap">
 
+    {% if request.query_params.get('demo')=='cleaned' %}<div class="dr-flash ok">✅ 검증용 가상(ZZDEMO) 데이터를 초기화했습니다{% if request.query_params.get('n') %} — 영업기회 {{ request.query_params.get('n') }}건 및 연결 부서요청·활동·첨부 삭제{% endif %} (실제 데이터는 영향 없음).</div>{% endif %}
     {% set ok = request.query_params.get('ok') %}
     {% set err = request.query_params.get('err') %}
     {% if ok %}<div class="dr-flash ok">✅ {% if ok=='pm' %}PM을 지정했습니다 (해당 PM에게 알림 전송).{% elif ok=='member' %}구성원을 추가했습니다 (해당 구성원에게 알림 전송).{% elif ok=='memdel' %}구성원을 제외했습니다.{% elif ok=='status' %}상태를 변경했습니다.{% elif ok=='act' %}활동·시간을 기록했습니다.{% elif ok=='actdel' %}활동 기록을 삭제했습니다.{% else %}처리됐습니다.{% endif %}</div>{% endif %}
@@ -73,6 +74,8 @@
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
       <div class="dr-intro" style="margin:0;">영업이 영업 기회에서 부서로 검토·조사를 요청하면 여기로 옵니다. <b>팀장</b>이 PM 지정 → <b>PM</b>이 구성원 추가 → <b>구성원</b>이 활동·시간(h)을 기록합니다.</div>
       {% if can_boss %}<a class="dr-dashbtn" href="/dept/activity-dashboard">📊 수주 전 활동 대시보드 →</a>{% endif %}
+      {# v5H226z850 (대표 지시): 검증용 가상(ZZDEMO·[가상]) 데이터가 남아있을 때만 초기화 버튼(대표/관리자·확인창). 실데이터 무관. #}
+      {% if can_boss and has_demo %}<form method="post" action="/dept/demo/cleanup" onsubmit="return confirm('검증용 가상(ZZDEMO·[가상]) 데이터를 전부 삭제합니다.\n실제 데이터는 영향이 없습니다. 초기화할까요?');" style="margin:0;"><input type="hidden" name="back" value="requests"><button type="submit" style="padding:6px 12px;border:1px solid #fca5a5;border-radius:8px;background:#fff;color:#b91c1c;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;">🧹 가상 데이터 초기화</button></form>{% endif %}
     </div>
 
     {% set has_any = as_leader or as_pm or as_member %}

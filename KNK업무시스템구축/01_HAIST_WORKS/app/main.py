@@ -11336,11 +11336,12 @@ async def dept_requests_page(request: Request):
         all_users = [dict(r) for r in c.execute(
             "SELECT u.id, u.name, t.name AS team_name FROM users u LEFT JOIN teams t ON t.id=u.team_id "
             "WHERE COALESCE(u.is_active,1)=1 ORDER BY t.name, u.name").fetchall()]
+        has_demo = _demo_dept_requests_count(c) > 0   # v5H226z850 (대표 지시): 남은 검증용 가상(ZZDEMO) 데이터 유무 → 초기화 버튼 노출
     return ctx(request, "dept_requests.html", user=u,
                as_leader=as_leader, as_pm=as_pm, as_member=as_member,
                team_members=team_members, all_users=all_users,
                status_map=OPPREQ_STATUS, is_admin=is_admin,
-               act_types=ACT_TYPES, can_boss=bool(can_view_work_patterns(u)))
+               act_types=ACT_TYPES, can_boss=bool(can_view_work_patterns(u)), has_demo=has_demo)
 
 
 @app.post("/dept/requests/{rid:int}/assign-pm")
@@ -11702,8 +11703,15 @@ async def dept_demo_cleanup(request: Request):
         return RedirectResponse("/login", 303)
     if not can_view_work_patterns(u):
         return RedirectResponse(role_home(u), 303)
+    try:
+        _back = ((await request.form()).get("back") or "").strip()
+    except Exception:
+        _back = ""
     with db_session() as c:
         res = _demo_dept_requests_cleanup(c)
+    # v5H226z850 (대표 지시): 부서 요청함에서 눌렀으면 거기로 복귀(그 외엔 기존대로 대시보드)
+    if _back == "requests":
+        return RedirectResponse(f"/dept/requests?demo=cleaned&n={res['opps']}", 303)
     return RedirectResponse(f"/dept/activity-dashboard?demo=cleaned&n={res['opps']}", 303)
 
 
