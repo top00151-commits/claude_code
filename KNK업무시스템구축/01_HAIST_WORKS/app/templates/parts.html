@@ -294,8 +294,8 @@
                 {% if p.maker %}<span style="font-weight:500;color:var(--pq-ink-2,#222);">{{ p.maker }}</span>{% else %}<span class="mute">—</span>{% endif %}
               </td>
               <td>
-                {# v5H226z84: 대표 구매사 — 가장 최근 날짜 단가의 구매사 (여러 곳이면 "외 N") #}
-                {% if p._rep_vendor %}<span style="font-weight:500;color:var(--pq-ink-2,#222);">{{ p._rep_vendor }}</span>{% if p._vendor_count and p._vendor_count > 1 %}<span class="mute" style="font-size:10.5px;"> 외 {{ p._vendor_count - 1 }}</span>{% endif %}{% else %}<span class="mute">—</span>{% endif %}
+                {# v5H226z84: 대표 구매사 — 가장 최근 날짜 단가의 구매사 (여러 곳이면 "외 N") · z830: 구매처 정보 정책 #}
+                {% if not can_supplier %}<span class="mute" title="구매처 열람 권한 없음">🔒</span>{% elif p._rep_vendor %}<span style="font-weight:500;color:var(--pq-ink-2,#222);">{{ p._rep_vendor }}</span>{% if p._vendor_count and p._vendor_count > 1 %}<span class="mute" style="font-size:10.5px;"> 외 {{ p._vendor_count - 1 }}</span>{% endif %}{% else %}<span class="mute">—</span>{% endif %}
               </td>
               <td class="center">
                 {% if biz_div_v %}<span class="chip-biz {{ biz_cls }}">{{ biz_div_v }}</span>{% else %}<span class="mute">—</span>{% endif %}

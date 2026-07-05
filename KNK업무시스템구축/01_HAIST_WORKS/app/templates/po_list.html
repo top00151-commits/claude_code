@@ -327,7 +327,7 @@
               <td class="center mute">{{ o.order_date|default('—') }}</td>
               <td>
                 <div class="vendor-line">
-                  <b>{{ o.supplier_name|default('(거래처 없음)') }}</b>
+                  <b>{% if can_supplier %}{{ o.supplier_name|default('(거래처 없음)') }}{% else %}<span title="구매처 열람 권한 없음">🔒</span>{% endif %}</b>
                 </div>
               </td>
               <td>

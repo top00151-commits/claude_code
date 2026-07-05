@@ -239,7 +239,7 @@
             </div>
             <div class="card-body">
               <dl class="def">
-                <dt>거래처</dt><dd><b>{{ p.supplier_name|default('—') }}</b></dd>
+                <dt>거래처</dt><dd><b>{% if can_supplier %}{{ p.supplier_name|default('—') }}{% else %}<span title="구매처 열람 권한 없음">🔒</span>{% endif %}</b></dd>
                 <dt>프로젝트</dt><dd>
                   {% if p.mgmt_code %}<span class="num" style="background:var(--pq-ink); color:#fff; padding:1px 6px; border-radius:3px; font-size:11px; font-family:var(--pq-mono); font-weight:700;">{{ p.mgmt_code }}</span>{% endif %}
                   {% if p.project_name %} {{ p.project_name }}{% endif %}

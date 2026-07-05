@@ -41,7 +41,7 @@
     <div class="field"><label>유형</label><select name="price_type">{% for t in PRICE_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
     <div class="field"><label>단가 *</label><input type="number" name="unit_price" step="0.01" min="0" required></div>
     <div class="field"><label>통화</label><select name="currency">{% for c in CURRENCIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
-    <div class="field"><label>협력사</label><select name="supplier_id"><option value="">—</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+    {% if can_supplier %}{# v5H226z830: 협력사 선택=구매처 정보 → 정책 팀만(없으면 미지정 등록·supplier_id 기본 빈값) #}<div class="field"><label>협력사</label><select name="supplier_id"><option value="">—</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>{% endif %}
     <button class="btn btn-primary" type="submit">＋ 등록</button>
   </form>
   {% endif %}
@@ -55,7 +55,7 @@
         <tr>
           <td style="font-family:monospace;">{{ p.applied_date|default('—') }}</td>
           <td class="center"><span class="pill pill-muted">{{ p.price_type|default('—') }}</span></td>
-          <td>{{ p.supplier_name|default('—') }}</td>
+          <td>{% if can_supplier %}{{ p.supplier_name|default('—') }}{% else %}🔒{% endif %}</td>
           <td class="center"><span class="pill pill-progress">{{ p.currency|default('KRW') }}</span></td>
           <td class="num" style="font-weight:700;">{% if can_purchase_price %}{{ '{:,.2f}'.format(p.unit_price|default(0)) }}{% else %}🔒{% endif %}</td>
           <td class="center">{% if p.is_active %}<span class="pill pill-done">✓ 활성</span>{% else %}<span class="pill pill-muted">—</span>{% endif %}</td>

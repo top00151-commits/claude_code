@@ -152,9 +152,11 @@
       <div class="kpi-strip" data-dn="cs:kpi" data-dn-tone="green">
         <div class="kpi-cell {% if active_price.unit_price %}info{% else %}empty{% endif %}">
           <div class="l">활성 단가</div>
-          {% if active_price.unit_price %}
+          {% if not can_purchase_price %}{# v5H226z829: 활성 단가=매입가 → 구매단가 정책 없으면 🔒 #}
+            <div class="v"><span title="구매단가 열람 권한 없음">🔒</span></div>
+          {% elif active_price.unit_price %}
             <div class="v">{{ '{:,.2f}'.format(active_price.unit_price|default(0)|float) }}<span class="u">{{ active_price.currency|default('KRW') }}</span></div>
-            <div class="sub">{{ active_price.supplier_name|default('—') }}</div>
+            <div class="sub">{% if can_supplier %}{{ active_price.supplier_name|default('—') }}{% else %}🔒{% endif %}</div>
           {% else %}
             <div class="v">미설정</div>
             <div class="sub">단가 등록 필요</div>
@@ -300,10 +302,10 @@
                 <td class="code">{{ (s.simulated_at|default(s.created_at|default('—')))[:16] }}</td>
                 <td class="center"><span class="chip-cur base">{{ s.base_currency|default('—') }}</span></td>
                 <td class="center"><span class="chip-cur tgt">{{ s.target_currency|default('KRW') }}</span></td>
-                <td class="num">{{ '{:,.2f}'.format(s.unit_price_base|default(0)|float) }}</td>
+                <td class="num">{% if can_purchase_price %}{{ '{:,.2f}'.format(s.unit_price_base|default(0)|float) }}{% else %}🔒{% endif %}</td>
                 <td class="num">{{ '{:,.4f}'.format(s.exchange_rate|default(0)|float) }}</td>
                 <td class="num">{{ '{:+.1f}'.format(s.margin_pct|default(0)|float) }}%</td>
-                <td class="num target">{{ '{:,.2f}'.format(s.unit_price_target|default(0)|float) }}</td>
+                <td class="num target">{% if can_purchase_price %}{{ '{:,.2f}'.format(s.unit_price_target|default(0)|float) }}{% else %}🔒{% endif %}</td>
                 <td class="mute" style="font-size:11.5px;">{{ (s.note|default('—'))|truncate(40) }}</td>
               </tr>
             {% endfor %}

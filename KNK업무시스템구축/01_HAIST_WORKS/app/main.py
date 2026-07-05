@@ -14180,6 +14180,8 @@ def _xls_str(v):
 async def suppliers_export_xlsx(req: Request):
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    if not can_view_field(u, "supplier_info"):   # v5H226z830: 공급사 명부 전체 덤프 = 구매처 정보 정책 팀만
+        return RedirectResponse("/home", 303)
     with db_session() as c:
         rows = [dict(r) for r in c.execute(
             "SELECT id, name, "
@@ -14417,6 +14419,7 @@ async def parts_export_xlsx(req: Request):
 async def sales_orders_export_xlsx(req: Request):
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    can_sa = bool(can_view_field(u, "sales_amount"))   # v5H226z829: 수주액·단가·금액=매출금액 정책 → 없으면 🔒 (로그인만으로 전량 덤프되던 누출 차단)
     with db_session() as c:
         # 헤더
         head_rows = [dict(r) for r in c.execute(
@@ -14434,10 +14437,10 @@ async def sales_orders_export_xlsx(req: Request):
     sheets = [
         {"name": "수주", "headers": ["ID","수주번호","주문일","납기","상태","수주액(원)","고객사"],
          "rows": [[r["id"], r["order_no"], r["order_date"], r["due_date"],
-                   r["status"], r["total_amount"], r["customer_name"]] for r in head_rows]},
+                   r["status"], (r["total_amount"] if can_sa else "🔒"), r["customer_name"]] for r in head_rows]},
         {"name": "수주라인", "headers": ["수주번호","품번","품명","수량","단가","금액"],
          "rows": [[r["order_no"], r["part_no"], r["part_name"], r["qty"],
-                   r["unit_price"], r["amount"]] for r in line_rows]},
+                   (r["unit_price"] if can_sa else "🔒"), (r["amount"] if can_sa else "🔒")] for r in line_rows]},
     ]
     return _make_xlsx_response(sheets, "수주")
 
@@ -14446,6 +14449,7 @@ async def sales_orders_export_xlsx(req: Request):
 async def sales_quotations_export_xlsx(req: Request):
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    can_sa = bool(can_view_field(u, "sales_amount"))   # v5H226z829: 견적 금액·단가=매출금액 정책 → 없으면 🔒
     with db_session() as c:
         head_rows = [dict(r) for r in c.execute(
             "SELECT q.id, q.quote_no, q.created_at, q.valid_until, q.version, "
@@ -14461,11 +14465,11 @@ async def sales_quotations_export_xlsx(req: Request):
     sheets = [
         {"name": "견적", "headers": ["ID","견적번호","작성일","유효기한","버전","상태","금액(원)","고객사"],
          "rows": [[r["id"], r["quote_no"], r["created_at"], r["valid_until"],
-                   r["version"], r["status"], r["total_amount"], r["customer_name"]]
+                   r["version"], r["status"], (r["total_amount"] if can_sa else "🔒"), r["customer_name"]]
                   for r in head_rows]},
         {"name": "견적라인", "headers": ["견적번호","#","품목명","수량","단위","단가","금액","비고"],
          "rows": [[r["quote_no"], r["line_no"], r["item_name"], r["qty"],
-                   r["unit"], r["unit_price"], r["total_price"], r["note"]]
+                   r["unit"], (r["unit_price"] if can_sa else "🔒"), (r["total_price"] if can_sa else "🔒"), r["note"]]
                   for r in line_rows]},
     ]
     return _make_xlsx_response(sheets, "견적")
@@ -14476,6 +14480,7 @@ async def po_export_xlsx(req: Request):
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
     can_pp = bool(can_view_field(u, "purchase_price"))   # v5H226z828: 발주=구매단가 → 없으면 합계·단가·금액 🔒
+    can_sup = bool(can_view_field(u, "supplier_info"))   # v5H226z830: 공급사명=구매처 정보 → 없으면 🔒
     with db_session() as c:
         head_rows = [dict(r) for r in c.execute(
             "SELECT po.id, po.po_number, po.order_date, po.expected_date, "
@@ -14495,7 +14500,7 @@ async def po_export_xlsx(req: Request):
         {"name": "발주", "headers": ["ID","발주번호","발주일","예상입고","상태","통화","합계","공급사","프로젝트"],
          "rows": [[r["id"], r["po_number"], r["order_date"], r["expected_date"],
                    r["status"], r["currency"], (r["total_amount"] if can_pp else "🔒"),
-                   r["supplier_name"], r["project_name"]] for r in head_rows]},
+                   (r["supplier_name"] if can_sup else "🔒"), r["project_name"]] for r in head_rows]},
         {"name": "발주라인", "headers": ["발주번호","#","품번","품명","단위","수량","단가","금액","입고수량"],
          "rows": [[r["po_number"], r["line_no"], r["part_no_snapshot"],
                    r["part_name_snapshot"], r["unit"], r["quantity"],
@@ -27876,6 +27881,8 @@ async def suppliers_list_page(request: Request, q: str = ""):
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
+    if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처(협력사) 정보 = 정책 팀만(총괄·관리·구매·기술영업)
+        return RedirectResponse("/home", 303)
     rows = _logi.suppliers_list(q=q)
     return ctx(request, "suppliers.html",
                user=u, active="suppliers",
@@ -27888,6 +27895,8 @@ async def suppliers_new_form(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
         return RedirectResponse("/home", 303)
     return ctx(request, "supplier_form.html",
                user=u, active="suppliers", supplier=None,
@@ -27913,6 +27922,8 @@ async def suppliers_new_submit(
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
+    if not can_view_field(_u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
+        return RedirectResponse("/home", 303)
     # v5H113: 검증 실패 친절한 에러
     try:
         _logi.supplier_create({
@@ -27935,6 +27946,8 @@ async def suppliers_edit_form(request: Request, sid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
         return RedirectResponse("/home", 303)
     s = _logi.supplier_get(sid)
     if not s:
@@ -27966,6 +27979,8 @@ async def suppliers_edit_submit(
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
         return RedirectResponse("/home", 303)
+    if not can_view_field(_u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
+        return RedirectResponse("/home", 303)
     # v5H113: 검증 실패 친절한 에러
     try:
         _logi.supplier_update(sid, {
@@ -27988,6 +28003,8 @@ async def suppliers_delete_submit(request: Request, sid: int):
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
+        return RedirectResponse("/home", 303)
+    if not can_view_field(_u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
         return RedirectResponse("/home", 303)
     # v5H112: cascade 안전망 + JSON 에러
     try:
@@ -28014,6 +28031,8 @@ async def suppliers_import_page(req: Request):
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
+    if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
+        return RedirectResponse("/home", 303)
     has_write = can_use_logistics(u)
     return ctx(req, "suppliers_import.html", user=u, active="suppliers",
                result=None, mode="upload", has_write=has_write)
@@ -28026,6 +28045,8 @@ async def suppliers_import_submit(req: Request, file: UploadFile = File(...)):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
         return RedirectResponse("/home", 303)
     raw = await file.read()
     if not raw:
@@ -28068,6 +28089,8 @@ async def suppliers_import_apply(req: Request,
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
         return RedirectResponse("/home", 303)
     import base64, tempfile, os
     try:
@@ -28114,6 +28137,8 @@ async def suppliers_import_template(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
         return RedirectResponse("/home", 303)
     try:
         from openpyxl import Workbook

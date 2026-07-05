@@ -719,10 +719,14 @@
                   <th class="px-x" style="width:60px;"  data-pgroup="basic">BOX</th>
                   <th class="num" style="width:60px;" data-pgroup="basic">수량</th>
                   <th class="px-x" style="width:50px;"  data-pgroup="basic">단위</th>
-                  {# v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%→판매단가. 원가는 영업·관리(can_money)만 #}
-                  {% if can_money %}
+                  {# v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%→판매단가.
+                     v5H226z829(대표 지시·열별 분리): 매입단가·마진%=구매단가 정책(can_purchase_price) / 판매단가·환율·인보이스=매출금액 정책(can_sales_amt).
+                     ⚠헤더 th 와 본문 td 는 반드시 같은 조건·같은 순서(칼럼 정렬). #}
+                  {% if can_purchase_price %}
                   <th class="num" style="width:86px;background:#fff7ed;" data-pgroup="basic" title="매입단가(협력사가){% if _pfx or _so_has_krworig %} · KRW{% endif %}">매입단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
                   <th class="num" style="width:56px;background:#fff7ed;" data-pgroup="basic" title="마진%(매입가에 가산)">마진%</th>
+                  {% endif %}
+                  {% if can_sales_amt %}
                   <th class="num" style="width:96px;" data-pgroup="basic" title="판매단가 = 매입 × (1+마진%) · 직접수정 시 마진 역산">판매단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
                   {% if _is_fx_view %}
                   <th class="num" style="width:72px;" data-pgroup="basic" title="환율 (1 {{ _so_ccy }} = ? KRW)">환율</th>
@@ -736,7 +740,7 @@
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
                   <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(1대)</span>{% endif %}</th>
                   {# v5H226z634 (대표 지시): 완제품 금액 칸(=호기 라인 금액) #}
-                  {% if _is_equip and can_money %}<th class="num px-x" style="width:120px;background:#fef9e6;">금액</th>{% endif %}
+                  {% if _is_equip and can_sales_amt %}<th class="num px-x" style="width:120px;background:#fef9e6;">금액</th>{% endif %}
                   <th class="px-x" style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
                   {# v5H226z84: 거래방식 컬럼 너비 88→70px #}
                   {% if not _is_parts %}<th style="width:70px;">거래방식</th>{% endif %}
@@ -750,8 +754,8 @@
                   {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
                   {# v5H226z85: width: auto — table-layout:fixed에서 명시안된 컬럼은 남은 공간 차지 #}
                   <th style="width:auto;min-width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
-                  {# v5H226z634 (대표 지시): 완제품 — 호기별 거래명세서·세금계산서1/2/3 (보기 전용 · 발행/편집은 작업일정표 보드) #}
-                  {% if _is_equip and can_money %}
+                  {# v5H226z634 (대표 지시): 완제품 — 호기별 거래명세서·세금계산서1/2/3 (보기 전용 · 발행/편집은 작업일정표 보드) · z829: 매출금액 정책(can_sales_amt) #}
+                  {% if _is_equip and can_sales_amt %}
                   <th class="px-x center" style="width:92px;">거래명세서</th>
                   <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">1차</span></th>
                   <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">2차</span></th>
@@ -833,13 +837,14 @@
                     <span class="display-val">{{ u.unit or 'EA' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit unit-inp" data-orig="{{ u.unit or 'EA' }}" value="{{ u.unit or 'EA' }}" style="width:42px;font-size:11.5px;text-align:center;">{% endif %}
                   </td>
-                  {# v5H226z460(대표 지시): 매입단가·마진%·판매단가 — 등록 후 '마진 정리'의 핵심. 원가는 can_money 만. #}
-                  {% if can_money %}
+                  {# v5H226z460(대표 지시): 매입단가·마진%·판매단가 — 등록 후 '마진 정리'의 핵심.
+                     v5H226z829(대표 지시·열별 분리): 매입·마진=can_purchase_price / 판매·환율·인보이스=can_sales_amt (헤더 th 와 동일 조건·순서). #}
                   {% set _cp = u.get('cost_price') if u.get is defined else u.cost_price %}
                   {% set _mp = u.get('margin_pct') if u.get is defined else u.margin_pct %}
                   {# v5H226z735(대표 지시): 수출 건 매입/판매 'KRW 원본'(입력값 그대로·정확). 있으면 ×환율 대신 이걸 표시. #}
                   {% set _ckrw = (u.get('cost_krw') if u.get is defined else u.cost_krw) %}
                   {% set _skrw = (u.get('sell_krw') if u.get is defined else u.sell_krw) %}
+                  {% if can_purchase_price %}
                   <td class="num money-cell" style="font-size:11.5px;background:#fff7ed;">
                     <div class="mc-wrap">
                     <span class="display-val">{% if _ckrw and _is_fx_view %}{{ money(_ckrw, 'KRW') }}{% elif _cp and _pfx %}{{ money(_cp * _pfx, 'KRW') }}{% elif _cp and _is_fx_view %}{{ money(_cp, _so_ccy) }}{% elif _cp %}{{ money(_cp, 'KRW') }}{% else %}—{% endif %}</span>
@@ -850,6 +855,8 @@
                     <span class="display-val">{{ ('%g'|format(_mp)) ~ '%' if (_mp is not none) else '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit margin-inp" data-orig="{{ '%g'|format(_mp) if (_mp is not none) else '' }}" value="{{ '%g'|format(_mp) if (_mp is not none) else '' }}" placeholder="%" style="width:48px;font-size:11.5px;text-align:right;">{% endif %}
                   </td>
+                  {% endif %}
+                  {% if can_sales_amt %}
                   <td class="num money-cell" style="font-size:11.5px;">
                     <div class="mc-wrap">
                     <span class="display-val" style="font-weight:600;">{% if _skrw and _is_fx_view %}{{ money(_skrw, 'KRW') }}{% elif u.unit_price and _pfx %}{{ money(u.unit_price * _pfx, 'KRW') }}{% elif u.unit_price and _is_fx_view %}{{ money(u.unit_price, _so_ccy) }}{% elif u.unit_price %}{{ money(u.unit_price, 'KRW') }}{% else %}—{% endif %}</span>
@@ -863,7 +870,7 @@
                   {% endif %}
                   {# v5H226z6: 금액 — 수량 × 판매단가. _pfx면 KRW환산·_is_fx_view면 USD 2자리·그외 KRW. #}
                   <td class="num px-x" style="font-size:11.5px;background:#fef9e6;">
-                    <span class="display-val pamt-disp" style="font-weight:600;">{% if can_money %}{{ money((u.amount or 0) * _pfx, 'KRW') if _pfx else (money(u.amount or 0, _so_ccy) if _is_fx_view else money(u.amount or 0, 'KRW')) }}{% else %}🔒{% endif %}</span>
+                    <span class="display-val pamt-disp" style="font-weight:600;">{% if can_sales_amt %}{{ money((u.amount or 0) * _pfx, 'KRW') if _pfx else (money(u.amount or 0, _so_ccy) if _is_fx_view else money(u.amount or 0, 'KRW')) }}{% else %}🔒{% endif %}</span>
                   </td>
                   {# v5H226z440(대표 지시): 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD) PACKING LIST 에서 제거 → 수출 문서 모듈에서 입력. DB 컬럼·데이터는 보존(저장 시 미전송→백엔드 보존). #}
                   {# 상세 내용 #}
@@ -881,11 +888,11 @@
                   {% endif %}
                   <td class="num px-x">
                     {# v5H226z627 (대표 지시): 1줄에 수량 2+면 '합산금액'이 아니라 '단가(1대) ×수량'으로 표시 #}
-                    <span class="display-val price">{% if can_money %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ money(u.unit_price, _u_ccy) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ money(u.amount or u.unit_price or 0, _u_ccy) }}{% endif %}{% else %}🔒{% endif %}</span>
+                    <span class="display-val price">{% if can_sales_amt %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ money(u.unit_price, _u_ccy) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ money(u.amount or u.unit_price or 0, _u_ccy) }}{% endif %}{% else %}🔒{% endif %}</span>
                     {% if _editable %}<span class="ccy-pre">{{ _u_ccy|ccysym }}</span><input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(u.amount or u.unit_price or 0)) if (_u_ccy != 'KRW') else ('%.0f'|format(u.amount or u.unit_price or 0)) }}" value="{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
                   </td>
-                  {# v5H226z634 (대표 지시): 완제품 금액 칸 = 호기 라인 금액(u.amount). 원화 무소수점·외화 2자리 #}
-                  {% if _is_equip and can_money %}
+                  {# v5H226z634 (대표 지시): 완제품 금액 칸 = 호기 라인 금액(u.amount). 원화 무소수점·외화 2자리 · z829: can_sales_amt #}
+                  {% if _is_equip and can_sales_amt %}
                   <td class="num px-x" style="background:#fef9e6;font-weight:600;">{{ money(u.amount or 0, _u_ccy) }}</td>
                   {% endif %}
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
@@ -960,8 +967,8 @@
                     <span class="display-val note" title="{{ u.line_note or '' }}">{{ u.line_note or '' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}
                   </td>
-                  {# v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서1/2/3 (보기 전용 — 발행/편집은 작업일정표 보드) #}
-                  {% if _is_equip and can_money %}
+                  {# v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서1/2/3 (보기 전용 — 발행/편집은 작업일정표 보드) · z829: can_sales_amt #}
+                  {% if _is_equip and can_sales_amt %}
                   {# v5H226z690 (대표 지시): 호기별 거래명세서·세금계산서 — '수정' 잠금해제 시 칸 클릭→발행일/금액 팝업(/unit-field 호기 저장). 출하 일정 다르면 호기별 분리 발행. #}
                   <td class="center px-x" style="font-size:11px;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="statement_date" data-date="{{ u.statement_date or '' }}" data-title="거래명세서">{{ u.statement_date or '—' }}</span></td>
                   <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ u.tax_invoice_date or '' }}" data-amt="{{ u.tax_invoice_amt1 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 1차">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">{{ money(u.tax_invoice_amt1, _u_ccy) }}</div>{% endif %}{% else %}—{% endif %}</span></td>
@@ -1016,8 +1023,8 @@
                 <input type="text" name="label" placeholder="품명 (예: CYLINDER)" style="flex:1;min-width:160px;" title="부품 품명">
                 <input type="number" name="qty" min="1" max="9999" value="1" style="width:70px;text-align:center;" title="수량">
                 <span style="color:var(--mute);font-size:12px;">EA ×</span>
-                {# v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%→판매단가. 마진 비우면 판매가 미정으로 등록 가능. 원가는 can_money 만 #}
-                {% if can_money %}
+                {# v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%→판매단가. 마진 비우면 판매가 미정으로 등록 가능. z829: 매입 입력=구매단가 정책 #}
+                {% if can_purchase_price %}
                 <input type="text" name="cost_price" inputmode="numeric" placeholder="매입단가" class="knk-money add-cost" style="width:92px;text-align:right;background:#fff7ed;" title="매입단가(협력사가)">
                 <input type="text" name="margin_pct" inputmode="numeric" placeholder="마진%" class="add-margin" style="width:62px;text-align:right;background:#fff7ed;" title="마진%(매입가에 가산)">
                 {% endif %}
@@ -1050,12 +1057,12 @@
             <div class="so-card-foot">
               <div class="summary">
                 <span>수량 <b>{{ _qq }}대</b></span>
-                <span style="margin-left:14px;">합계 <b>{% if can_money %}{{ money(so.total_amount or 0, _cur) }}{% else %}🔒{% endif %}</b></span>
+                <span style="margin-left:14px;">합계 <b>{% if can_sales_amt %}{{ money(so.total_amount or 0, _cur) }}{% else %}🔒{% endif %}</b></span>
                 {% if so.mismatch_qty or so.mismatch_sum %}
                 <span class="warn" style="margin-left:14px;">
                   ⚠
                   {% if so.mismatch_qty %}호기 라인 {{ so.items_n }}/{{ so.unit_qty }}{% endif %}
-                  {% if so.mismatch_sum %}{% if so.mismatch_qty %} · {% endif %}합계 차액 {% if can_money %}{{ money(so.total_amount - so.items_sum, _cur) }}{% else %}🔒{% endif %}{% endif %}
+                  {% if so.mismatch_sum %}{% if so.mismatch_qty %} · {% endif %}합계 차액 {% if can_sales_amt %}{{ money(so.total_amount - so.items_sum, _cur) }}{% else %}🔒{% endif %}{% endif %}
                 </span>
                 {% endif %}
               </div>
@@ -1082,7 +1089,7 @@
             <div class="label">총 수주번호 {{ project_orders|length }}건 · 총 수량 {{ _gtotal.q }}대</div>
           </div>
           <div class="value">
-            {% if can_money %}
+            {% if can_sales_amt %}
             {{ money(_gtotal.t, _gt_ccy) }}
             <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
             {% if _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
@@ -1610,8 +1617,8 @@
               <td style="font-family:monospace;color:var(--amber-deep);">{{ r.part_code|default(r.part_no_snapshot|default('—')) }}</td>
               <td><b>{{ r.part_name|default(r.part_name_snapshot|default('—')) }}</b>{% if r.spec_snapshot %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ r.spec_snapshot }}</span>{% endif %}</td>
               <td class="num">{{ (r.effective_qty or 0)|qtyfmt }}{% if r.unit %} {{ r.unit }}{% endif %}{% if r.allocated_qty is not none and r.quantity and r.allocated_qty != r.quantity %}<span style="display:block;font-size:10px;color:var(--mute);">/ {{ '{:,.0f}'.format(r.quantity) }} 분배</span>{% elif r.allocation_pct %}<span style="display:block;font-size:10px;color:var(--mute);">{{ r.allocation_pct }}% 분배</span>{% endif %}</td>
-              <td class="num">{% if can_money %}{{ money(r.unit_price|default(0), r.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
-              <td class="num" style="font-weight:700;">{% if can_money %}{{ money(r.effective_amount|default(0), r.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
+              <td class="num">{% if can_sales_amt %}{{ money(r.unit_price|default(0), r.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="font-weight:700;">{% if can_sales_amt %}{{ money(r.effective_amount|default(0), r.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
               <td><a href="/po/{{ r.po_id }}" style="font-family:monospace;color:var(--amber-deep);text-decoration:none;">{{ r.po_number|default('PO-' ~ r.po_id) }}</a></td>
               <td>{{ r.supplier_name|default('—') }}</td>
               <td style="color:var(--mute);font-size:11px;">{{ r.link_note|default('') }}</td>
@@ -1621,7 +1628,7 @@
               <td colspan="3" style="text-align:right;">합계 ({{ consumables.count }}건)</td>
               <td class="num">{{ (consumables.total_qty or 0)|qtyfmt }}</td>
               <td></td>
-              <td class="num" style="color:var(--amber-deep);">{% if can_money %}{{ money(consumables.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="color:var(--amber-deep);">{% if can_sales_amt %}{{ money(consumables.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
               <td colspan="3"></td>
             </tr>
           </tbody>
@@ -1656,15 +1663,15 @@
               <td style="padding:6px;">{% if r.image_thumb_path %}<a href="{{ r.image_path or r.image_thumb_path }}" target="_blank"><img src="{{ r.image_thumb_path }}" style="width:40px;height:30px;object-fit:cover;border-radius:3px;" /></a>{% else %}—{% endif %}</td>
               <td style="padding:6px;"><b>{{ r.part_name }}</b>{% if r.model_use %}<div style="font-size:10px;color:var(--mute);">{{ r.model_use }}</div>{% endif %}</td>
               <td class="num" style="text-align:right;padding:6px;">{{ '{:,.0f}'.format(r.qty or 0) }} {{ r.unit }}</td>
-              <td class="num" style="text-align:right;padding:6px;">{% if can_money %}{{ money(r.unit_price or 0, 'KRW') }}{% else %}🔒{% endif %}</td>
-              <td class="num" style="text-align:right;padding:6px;font-weight:600;">{% if can_money %}{{ money(r.amount or 0, 'KRW') }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="text-align:right;padding:6px;">{% if can_sales_amt %}{{ money(r.unit_price or 0, 'KRW') }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="text-align:right;padding:6px;font-weight:600;">{% if can_sales_amt %}{{ money(r.amount or 0, 'KRW') }}{% else %}🔒{% endif %}</td>
               <td style="padding:6px;">{{ r.order_date or '—' }}</td>
             </tr>
           {% endfor %}
           </tbody>
           <tfoot><tr style="background:#fafafa;font-weight:700;">
             <td colspan="5" style="text-align:right;padding:6px;">합계</td>
-            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{% if can_money %}{{ money(consumable_orders.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
+            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{% if can_sales_amt %}{{ money(consumable_orders.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
             <td></td>
           </tr></tfoot>
         </table></div>
