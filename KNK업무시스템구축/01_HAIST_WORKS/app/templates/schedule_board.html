@@ -40,9 +40,9 @@
     </div>
     {# v5H226z664 (대표 지시): '지연' 옆에 달력 점 '상태 색상' 설명(범례) 상시 표시 — 색 기준은 z663(출하 기준 분리). #}
     <span class="legend sched-status-legend" style="margin-left:16px;" title="작업일정표 달력의 납기일 점 색상 = 호기 상태 기준 (z663)">
-      <b style="font-weight:800;color:var(--qv-ink-2,#475569);">달력 점:</b>
+      <b style="font-weight:800;color:var(--qv-ink-2,#475569);">달력 표시:</b>
+      <span><i style="background:#2563eb;"></i>납품</span>
       <span><i style="background:#16a34a;"></i>출하</span>
-      <span><i style="background:#2563eb;"></i>진행중</span>
       <span><i style="background:#b91c1c;"></i>지연</span>
       <span><i style="background:#9ca3af;"></i>취소·보류</span>
     </span>
@@ -106,8 +106,8 @@
     {% if can_sales_amt %}<button type="button" class="bulk-tax-go" onclick="schedIssueTaxInvoice()" title="체크한 여러 건을 한 장의 세금계산서로 묶어 발행"><span class="ti">📄</span> 묶어 발행</button>{% endif %}
     <span class="legend" style="margin-left:auto;">
       <span><i style="background:#cfe0f5;"></i>일정</span>
+      <span><i style="background:#2563eb;"></i>납품</span>
       <span><i style="background:#16a34a;"></i>출하</span>
-      <span><i style="background:#2563eb;"></i>진행중</span>
       <span><i style="background:#b91c1c;"></i>지연</span>
     </span>
   </div>
@@ -246,8 +246,9 @@
           {% set _ymd = ym ~ '-' ~ ('%02d'|format(d)) %}
           {% set _dmemo = (day_memos.get((r.kind, r.ref_id, _ymd)) if day_memos else None) or (r.memo if (is_del and r.memo) else '') %}
           {# v5H226z663 (대표 지시): 납기 점 색 = 출하 기준 — 출하(초록 shipped) / 지연(빨강 delay) / 취소·보류(회색 held) / 그외 진행중·예정(파랑 deliver) #}
-          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% elif r.status == '출하' %} shipped{% elif r.status in ('취소','보류') %} held{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if is_stat %} stat-mark stat-{{ 'ship' if r.status == '출하' else ('cancel' if r.status == '취소' else 'hold') }}{% endif %}{% if _dmemo %} has-memo{% endif %}"
-              data-day="{{ d }}" data-daymemo="{{ _dmemo }}"{% if _dmemo %} title="{{ _dmemo }}"{% elif is_stat %} title="{{ r.status }} · {{ r.status_date }}"{% endif %}>{% if is_del %}●{% elif is_stat %}<span class="stat-ico">{{ '🚚' if r.status == '출하' else ('✖' if r.status == '취소' else '✋') }}</span>{% endif %}</td>
+          {# v5H226z834 (대표 지시): 납기 점(●) → 세로 2열 텍스트. 지연=지연·출하=출하·그외=납품. 취소/보류는 '납품'(파랑) 유지 + 회색 세로 라벨 나란히(held 미부여). #}
+          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% elif r.status == '출하' %} shipped{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if is_stat %} stat-mark stat-{{ 'ship' if r.status == '출하' else ('cancel' if r.status == '취소' else 'hold') }}{% endif %}{% if _dmemo %} has-memo{% endif %}"
+              data-day="{{ d }}" data-daymemo="{{ _dmemo }}"{% if _dmemo %} title="{{ _dmemo }}"{% elif is_stat %} title="{{ r.status }} · {{ r.status_date }}"{% endif %}>{% if is_del %}<span class="cal-t">{% if r.is_delay %}지연{% elif r.status == '출하' %}출하{% else %}납품{% endif %}</span>{% if r.status in ('취소','보류') %}<span class="cal-sub" title="{{ r.status }}{% if r.status_date %} · {{ r.status_date }}{% endif %}">{{ r.status }}</span>{% endif %}{% elif is_stat %}<span class="stat-ico">{{ '출하' if r.status == '출하' else ('취소' if r.status == '취소' else '보류') }}</span>{% endif %}</td>
           {% endfor %}
           <td class="c-info cw-sales{% if r.kind != 'consumable' %} editable{% if r.sales_owner %} filled{% endif %}{% endif %}" data-col="sales_owner"{% if r.kind != 'consumable' %} data-edit="sales_owner"{% endif %} title="{{ r.sales_owner }}">{{ r.sales_owner or ('＋' if r.kind != 'consumable' else '') }}</td>
         </tr>
