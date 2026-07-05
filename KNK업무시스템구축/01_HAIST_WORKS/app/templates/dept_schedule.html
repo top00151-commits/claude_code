@@ -55,7 +55,7 @@
 /* v5H226z574 (대표 지시): 시트 자체 스크롤 유지(z573 되돌림) — 페이지 메인 스크롤바만 별도 제거(아래 @media) */
 .dsx-tablewrap{border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:74vh;background:#fff;}
 table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap;}
-.dsx th,.dsx td{border-bottom:1px solid #e7ecf3;border-right:1px solid #eef2f7;padding:5px 8px;text-align:left;vertical-align:middle;}
+.dsx th,.dsx td{border-bottom:1px solid #c3ccd9;border-right:1px solid #c3ccd9;padding:5px 8px;text-align:left;vertical-align:middle;}  /* v5H226z838(대표 지시): 격자선 진하게(#e7ecf3/#eef2f7→#c3ccd9) — 화면·인쇄서 표 라인 잘 보이게 */
 .dsx thead th{position:sticky;top:0;z-index:2;background:#f4f1ea;color:#4b5563;font-weight:800;font-size:11.5px;text-align:center;}
 /* v5H226z516 (대표 지시): 행 마우스오버 강조. v5H226z833 (대표 지시): 푸른색 계열로 하되 '일정(발주~납기)' 옅은 파랑(#dceaf9)과 확실히 구분되도록 '진한 파랑'(#93c5fd)+진한 왼쪽 띠. 옅은 일정 파랑은 그대로. (z832 라벤더 되돌림) */
 .dsx tbody tr:hover td{background:#93c5fd !important;}
@@ -103,8 +103,8 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx td.day.today,.dsx th.day.today{box-shadow:inset 2px 0 0 #b91c1c,inset -2px 0 0 #b91c1c;background:#fffbe6;}
 .dsx td.day.bar{background:#dceaf9;}          /* 발주~납기 일정(맥락) */
 .dsx td.day.bar.delay{background:#fcdada;}
-/* v5H226z832 (대표 지시): 납품(출하 예정)일 칸에 작은 적색 '납품' 라벨 — 파랑/빨강 일정칸 위에서도 보이게 흰 그림자 */
-.dsx td.day .dsx-deliver{display:block;font-size:8px;font-weight:800;color:#dc2626;line-height:1.2;letter-spacing:-0.3px;white-space:nowrap;text-shadow:0 0 2px #fff,0 0 2px #fff;margin-top:1px;}
+/* v5H226z832/z838 (대표 지시): 납품(출하 예정)일 칸 적색 '납품' 라벨 — 흰 그림자. z838: 크게·진하게(8→12px·weight 900). 셀 26px 폭 안 2글자 최대치. */
+.dsx td.day .dsx-deliver{display:block;font-size:12px;font-weight:900;color:#dc2626;line-height:1.1;letter-spacing:-0.3px;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 2px #fff,0 0 1px #fff;margin-top:0;}
 /* 마커 */
 .mk{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;color:#fff;font-size:10px;font-weight:800;line-height:16px;}
 .mk.prog{background:#2563eb;} .mk.done{background:#16a34a;} .mk.chg{background:#d97706;}
