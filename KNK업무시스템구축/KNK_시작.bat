@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-05 v5H226z847[작업일정표 달력 상태글자 조금 축소 — 대표 지시: 출하/지연/납품/취소 글자 크기 살짝 작게. cal-t·cal-sub·stat-ico 16→14px, 취소옆 작은 납품(cal-t-sup) 12→11px(반전 대비 유지). schedule_board.css만.]
+REM   LAST UPDATE: 2026-07-05 v5H226z848[작업일정표 달력 상태글자 크기 대표 지정값 — 출하/지연/납품/취소 주라벨 12px(cal-t·cal-sub·stat-ico), 취소옆 작은 납품(cal-t-sup) 9px. schedule_board.css만.]
+REM   - 2026-07-05 v5H226z847[작업일정표 달력 상태글자 조금 축소 — 대표 지시: 출하/지연/납품/취소 글자 크기 살짝 작게. cal-t·cal-sub·stat-ico 16→14px, 취소옆 작은 납품(cal-t-sup) 12→11px(반전 대비 유지). schedule_board.css만.]
 REM   - 2026-07-05 v5H226z846[작업·부서 일정표 날짜 헤더 — 일요일·법정공휴일 빨강 — 대표 지시: 두 달력의 날짜(숫자) 헤더에서 일요일과 한국 공휴일을 빨강으로. 이미 있는 공휴일 자동목록(HOLIDAYS_KR·holidays 라이브러리·음력/대체공휴일 자동)+일요일 계산해 _calendar_red_days(red_days,hol_names) 두 라우트서 전달. 헤더 th에 redday 클래스+공휴일명 title. 작업일정표 평일 숫자는 중립(#475569)로 바꿔 빨강 대비(기존 벽돌색 --knk-red 상속 탈피)·부서는 회색 기본 유지. main.py·schedule_board.html/.css·dept_schedule.html]
 REM   - 2026-07-05 v5H226z845[WORKS 단일 로그아웃 — 메신저(Eum)에서 로그아웃하면 WORKS도 로그아웃 — 대표 지시: 어느 기기서든 메신저 로그아웃 시 1분 내 WORKS 세션 파기. 메신저 users.sso_logout_at(로그아웃 시각) 신설·모든 로그아웃 경로(/logout 폰PC·관리자초기화)서 갱신·/api/sso/pwv 응답에 logout_at 동봉(메신저 배포 필요). WORKS get_user가 로그인시각 유예 저장 후 1분 주기 서비스키 조회→로그아웃시각>로그인시각이면 세션파기. 조회실패=유지(graceful)·유휴/새탭/토큰만료는 유지(z122). main.py·sso_client.py + 메신저 app.py]
 REM   - 2026-07-05 v5H226z844[작업일정표 접근 불가 사용자는 "작업일정표 바로가기" 버튼 비활성화 — 대표 지시: z843로 막힌 사용자(매출열람권 can_sales_amt 없음)에게 그 버튼을 클릭 못 하게 회색 span으로. 2곳: 제작요청서 페이지(prod_request_edit.html "📅 작업일정표 바로가기")·부서일정표(dept_schedule.html "📋 작업일정표" 되돌이 링크). can_sales_amt(=ctx 주입 매출열람권) 있으면 링크·없으면 opacity .45+cursor not-allowed span(툴팁으로 부서일정표 안내). Jinja OK]
