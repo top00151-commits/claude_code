@@ -15617,6 +15617,9 @@ async def works_manifest():
         #   URL 이동을 안 해, 메신저 '📋 회의록' 등 딥링크가 원래 보던 화면 그대로 멈춤. navigate-existing 은 그 창을 대상 주소(/meetings 등)로 이동시킴.
         "launch_handler": {"client_mode": ["navigate-existing", "auto"]},
         "handle_links": "preferred",
+        # v5H226z831 (대표 지시): 자기 앱 등록 — 브라우저로 열렸을 때 navigator.getInstalledRelatedApps()로
+        #   '이미 설치돼 있음'을 감지해(안드로이드 크롬만 지원) 설치안내(z827) 대신 '📲 앱에서 열기'를 안내.
+        "related_applications": [{"platform": "webapp", "url": "https://works.knknara.co.kr/manifest.webmanifest"}],
     }, media_type="application/manifest+json")
 
 

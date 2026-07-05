@@ -878,19 +878,23 @@ window.setFakeDate = async function(dateStr){
     ko: { title:'WORKS 앱을 설치하면 더 편해요', ic:'📲',
           body:'홈 화면에서 바로 열 수 있어요. 알림도 받을 수 있습니다.',
           ios:'사파리 아래 <b>공유</b> 버튼<span class="wih-kbd">⬆️</span>을 누르고, <b>‘홈 화면에 추가’</b><span class="wih-kbd">➕</span>를 선택하세요.',
-          install:'설치', ok:'확인', close:'닫기', never:'다시 보지 않기' },
+          install:'설치', ok:'확인', close:'닫기', never:'다시 보지 않기',
+          iTitle:'WORKS 앱이 이미 설치되어 있어요', iBody:'버튼을 누르면 설치된 앱으로 바로 열려요.', iOpen:'📲 앱에서 열기' },
     vi: { title:'Cài đặt ứng dụng WORKS để tiện hơn', ic:'📲',
           body:'Mở nhanh ngay từ màn hình chính. Bạn cũng sẽ nhận được thông báo.',
           ios:'Nhấn nút <b>Chia sẻ</b><span class="wih-kbd">⬆️</span> ở dưới cùng Safari, rồi chọn <b>“Thêm vào MH chính”</b><span class="wih-kbd">➕</span>.',
-          install:'Cài đặt', ok:'Đã hiểu', close:'Đóng', never:'Không hiện lại' },
+          install:'Cài đặt', ok:'Đã hiểu', close:'Đóng', never:'Không hiện lại',
+          iTitle:'Ứng dụng WORKS đã được cài đặt', iBody:'Nhấn nút để mở ngay trong ứng dụng.', iOpen:'📲 Mở trong ứng dụng' },
     en: { title:'Install the WORKS app for easy access', ic:'📲',
           body:'Open it right from your home screen. You can also receive notifications.',
           ios:'Tap the <b>Share</b> button<span class="wih-kbd">⬆️</span> at the bottom of Safari, then choose <b>“Add to Home Screen”</b><span class="wih-kbd">➕</span>.',
-          install:'Install', ok:'Got it', close:'Close', never:'Don’t show again' },
+          install:'Install', ok:'Got it', close:'Close', never:'Don’t show again',
+          iTitle:'The WORKS app is already installed', iBody:'Tap the button to open it in the app.', iOpen:'📲 Open in app' },
     zh: { title:'安装 WORKS 应用更方便', ic:'📲',
           body:'可从主屏幕直接打开，还能接收通知。',
           ios:'点击 Safari 底部的<b>分享</b>按钮<span class="wih-kbd">⬆️</span>，然后选择<b>“添加到主屏幕”</b><span class="wih-kbd">➕</span>。',
-          install:'安装', ok:'知道了', close:'关闭', never:'不再显示' }
+          install:'安装', ok:'知道了', close:'关闭', never:'不再显示',
+          iTitle:'已安装 WORKS 应用', iBody:'点击按钮即可在应用中打开。', iOpen:'📲 在应用中打开' }
   };
   function pickLang(){
     var l = (navigator.language || 'ko').slice(0,2).toLowerCase();
@@ -964,18 +968,33 @@ window.setFakeDate = async function(dateStr){
     if (pb) { pb.textContent = t.ok; pb.onclick = hide; }
   }
 
-  function build(){
+  /* v5H226z831 (대표 지시): '이미 설치돼 있는데 브라우저로 열린' 경우 — 설치 안내 대신 '📲 앱에서 열기'.
+     intent:// 로 OS에 직접 요청(안드로이드 크롬) → 자산링크 검증된 설치앱(WebAPK)이 현재 주소로 열림
+     (manifest launch_handler navigate-existing → 이미 열린 앱 창 재사용). 실패 시 폴백=같은 https(무해). */
+  function launchInApp(){
+    var fb = location.href;
+    var it = 'intent://' + location.host + location.pathname + location.search
+           + '#Intent;scheme=https;S.browser_fallback_url=' + encodeURIComponent(fb) + ';end';
+    hide();
+    location.href = it;
+  }
+
+  function build(installed){
     var o = overlay(); if (!o) return null;
     var t = DICT[pickLang()];
     var ios = isIOS();
+    // v5H226z831: installed=true(안드 크롬 getInstalledRelatedApps 감지)면 설치 안내 대신 '앱에서 열기' 변형
+    var ttl = installed ? t.iTitle : t.title;
+    var bdy = installed ? t.iBody : t.body;
+    var pri = installed ? t.iOpen : (ios ? t.ok : t.install);
     o.innerHTML = ''
       + '<div class="wih-box">'
-      +   '<div class="wih-head"><span class="wih-ic">' + t.ic + '</span><span id="wihTitle">' + t.title + '</span></div>'
-      +   '<div class="wih-body">' + t.body
-      +     (ios ? '<div class="wih-steps">' + t.ios + '</div>' : '')
+      +   '<div class="wih-head"><span class="wih-ic">' + t.ic + '</span><span id="wihTitle">' + ttl + '</span></div>'
+      +   '<div class="wih-body">' + bdy
+      +     ((ios && !installed) ? '<div class="wih-steps">' + t.ios + '</div>' : '')
       +   '</div>'
       +   '<div class="wih-acts">'
-      +     '<button type="button" class="wih-btn primary" data-act="install">' + (ios ? t.ok : t.install) + '</button>'
+      +     '<button type="button" class="wih-btn primary" data-act="install">' + pri + '</button>'
       +     '<button type="button" class="wih-btn ghost" data-act="close">' + t.close + '</button>'
       +     '<button type="button" class="wih-btn text" data-act="never">' + t.never + '</button>'
       +   '</div>'
@@ -983,7 +1002,10 @@ window.setFakeDate = async function(dateStr){
     // 오버레이 배경 클릭 = 이번 세션만 숨김(7일/영구 규칙은 명시 버튼에만)
     o.addEventListener('click', function(e){ if (e.target === o) hide(); });
     var box = o.querySelector('.wih-box');
-    box.querySelector('[data-act="install"]').addEventListener('click', function(){ ios ? hide() : doInstall(); });
+    box.querySelector('[data-act="install"]').addEventListener('click', function(){
+      if (installed) { launchInApp(); return; }
+      ios ? hide() : doInstall();
+    });
     box.querySelector('[data-act="close"]').addEventListener('click', dismiss7d);
     box.querySelector('[data-act="never"]').addEventListener('click', dismissForever);
     return o;
@@ -993,10 +1015,17 @@ window.setFakeDate = async function(dateStr){
     if (isStandalone()) return;        // 이미 앱으로 설치·실행 중
     if (!isMobile()) return;           // 데스크톱 브라우저 = 안 띄움
     if (suppressed()) return;          // 영구/7일/세션 해제 상태
-    var o = build(); if (!o) return;
-    try { sessionStorage.setItem(SS_SHOWN, '1'); } catch(e){}   // 세션 1회
-    o.hidden = false;
-    document.addEventListener('keydown', onKey, true);
+    // v5H226z831: 설치 여부 감지(안드 크롬만 지원·그 외 빈 배열) → 설치됨=앱에서 열기 / 미설치=설치 안내(z827)
+    var p;
+    try { p = navigator.getInstalledRelatedApps ? navigator.getInstalledRelatedApps() : Promise.resolve([]); }
+    catch(e){ p = Promise.resolve([]); }
+    Promise.resolve(p).catch(function(){ return []; }).then(function(apps){
+      var installed = !!(apps && apps.length);
+      var o = build(installed); if (!o) return;
+      try { sessionStorage.setItem(SS_SHOWN, '1'); } catch(e){}   // 세션 1회
+      o.hidden = false;
+      document.addEventListener('keydown', onKey, true);
+    });
   }
 
   // 첫 렌더 방해 안 하게 지연(약 1.2초) — 유휴 시점 우선
