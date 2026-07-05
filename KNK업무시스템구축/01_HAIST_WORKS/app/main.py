@@ -1649,24 +1649,29 @@ def get_user(req: Request):
         ).fetchone()
         if not row:
             return None
-        # v5H226z122 (2026-05-31): 멀티탭 효율 우선 — 세션 유지 정책.
-        # 토큰 유효(1시간) 동안만 pwv 동기화. 토큰 만료/무효 시에는 WORKS 세션을
-        # 파기하지 않고(14일 쿠키 유지) 죽은 토큰만 제거해 재확인을 멈춘다.
-        #  → 새 탭/새 창을 열어도 로그인으로 튕기지 않음 (대표 지시 2026-05-31).
-        #  ※ 트레이드오프: 메신저 비번변경 '즉시 로그아웃'은 토큰 유효구간(1h)에만 보장.
-        #    그 이후엔 메신저 재진입(토큰 갱신)·쿠키만료·수동 로그아웃 시 반영.
+        # v5H226z122/z845: 세션 유지(멀티탭) + 단일 로그아웃(대표 지시).
+        #  z122(2026-05-31): 새 탭/새 창·토큰 만료·유휴로는 WORKS 로그아웃 안 함(멀티탭 편의).
+        #  z845(2026-07-05): 메신저(Eum)에서 로그아웃하면 WORKS 도 로그아웃 — 어느 기기서든 로그아웃 시
+        #    메신저가 sso_logout_at(로그아웃 시각)을 기록. WORKS 는 1분 주기로 사번 조회해, 그 시각이
+        #    이 세션 로그인 시각보다 뒤면 세션 파기. 조회 실패(메신저 장애)면 유지(graceful).
         try:
-            token = req.session.get("sso_token")
-            if token:
-                from .sso_client import should_check_pwv, mark_pwv_checked, fetch_userinfo
-                if should_check_pwv(uid):
-                    info = fetch_userinfo(token)
-                    if info and info.get("_invalid"):
-                        # 토큰 만료/무효 → 세션은 유지, 죽은 토큰만 제거 (재확인 중단)
-                        req.session.pop("sso_token", None)
-                        req.session.pop("sso_pwv", None)
-                    else:
-                        mark_pwv_checked(uid)
+            import time as _t
+            if not req.session.get("sso_login_ts"):
+                # 이 세션이 시작된(로그인) 시각. 기존 세션은 지금부터 기준(이후 로그아웃만 반영).
+                req.session["sso_login_ts"] = int(_t.time())
+            emp_no = (row["employee_no"] or row["username"] or "")
+            if emp_no:
+                from .sso_client import should_check_status, mark_status_checked, fetch_sso_status
+                if should_check_status(uid):
+                    st = fetch_sso_status(emp_no)
+                    mark_status_checked(uid)   # 성공/실패 무관 60초 쓰로틀(장애 폭주 방지)
+                    if st is not None:
+                        _lo = st.get("logout_at")
+                        _li = int(req.session.get("sso_login_ts") or 0)
+                        if _lo is not None and int(_lo) > _li:
+                            # 메신저에서 (로그인 이후) 로그아웃 발생 → WORKS 세션 파기 = 단일 로그아웃
+                            req.session.clear()
+                            return None
         except Exception:
             # 동기화 실패(메신저 일시 장애 등)해도 기존 세션은 유지 (graceful)
             pass

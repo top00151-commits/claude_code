@@ -197,6 +197,44 @@ def invalidate_pwv_check(user_id: int):
     _PWV_CHECK_CACHE.pop(user_id, None)
 
 
+# ── WORKS 단일 로그아웃 (대표 지시 2026-07-05): 사번으로 로그아웃 시각 조회 (토큰 불필요·1분 주기) ──
+_STATUS_CHECK_CACHE: dict[int, float] = {}   # user_id → epoch sec
+STATUS_CHECK_INTERVAL_SEC = 60
+
+
+def should_check_status(user_id: int) -> bool:
+    """메신저 로그아웃 상태를 다시 확인할 시점인지 (마지막 확인 후 60초)."""
+    return (time.time() - _STATUS_CHECK_CACHE.get(user_id, 0)) >= STATUS_CHECK_INTERVAL_SEC
+
+
+def mark_status_checked(user_id: int):
+    """상태 확인 완료 표시 — 성공/실패 무관(장애 시 폭주 방지 위해 실패도 60초 쓰로틀)."""
+    _STATUS_CHECK_CACHE[user_id] = time.time()
+
+
+def fetch_sso_status(employee_no: str) -> Optional[dict]:
+    """[서비스키] 사번으로 메신저의 pwv + 로그아웃 시각(logout_at) 조회. 토큰 불필요(만료 무관).
+    반환 {pwv, logout_at} 또는 None(오류·미도달·키없음). None 이면 판단 보류(로그아웃 안 함=graceful)."""
+    emp = str(employee_no or "").strip()
+    if not emp:
+        return None
+    key = get_service_key()
+    if not key:
+        return None
+    try:
+        r = httpx.get(
+            f"{MESSENGER_INTERNAL_BASE}/api/sso/pwv",
+            params={"employee_no": emp},
+            headers={"X-SSO-Service-Key": key},
+            timeout=_HTTP_TIMEOUT_SEC,
+        )
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        print(f"[SSO] status 조회 오류: {e}")
+    return None
+
+
 # ── 로그인 URL 빌더 ──────────────────────────────────────────
 def build_login_url(redirect_uri: str, force: bool = False) -> str:
     """메신저 SSO 로그인 화면 URL 생성.
