@@ -260,7 +260,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched .day .cal-t.m-deliver { color:#1d4ed8; }   /* 납품 파랑 */
 .sched .day .cal-t.m-ship    { color:#15803d; }   /* 출하 초록 */
 .sched .day .cal-t.m-delay   { color:#b91c1c; }   /* 지연 빨강 */
-.sched .day .cal-sub { display:block; font-size:12px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; color:#4b5563; text-shadow:0 0 3px #fff, 0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }   /* 취소·보류 회색 — '납품' 아래 줄 */
+.sched .day .cal-sub { display:block; font-size:16px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; color:#4b5563; text-shadow:0 0 3px #fff, 0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }   /* 취소·보류 회색 — '납품' 아래 줄. z839: 현재 상태라 크게(12→16px) */
+/* v5H226z839 (대표 지시): 납품→취소/보류로 바뀐 칸은 크기를 '반대로' — '납품'(옛 계획)은 작게, '취소/보류'(현재 상태)를 크게. cal-t-sup는 취소/보류일 때만 납품 span에 붙음(그 외 단독 납품/출하/지연은 16px 유지). */
+.sched .day .cal-t.cal-t-sup { font-size:12px; }
 /* v5H226z711/z835 (대표 지시): 상태(출하/취소/보류) 발생일 표식 — 색칸 삭제, 글자색만(가로) */
 .sched .day.stat-mark { cursor:pointer; }
 .sched .day.stat-mark .stat-ico { display:block; font-size:16px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; text-shadow:0 0 3px #fff, 0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }
