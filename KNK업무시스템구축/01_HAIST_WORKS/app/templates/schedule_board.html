@@ -46,8 +46,9 @@
       <span><i style="background:#b91c1c;"></i>지연</span>
       <span><i style="background:#9ca3af;"></i>취소·보류</span>
     </span>
-    {# v5H226z673 (대표 지시): 세금계산서 1/2/3차 칸 '색상' 의미 범례 — 영업·관리만(세금계산서 칸 자체가 can_money). 색 기준=refreshTaxStatus(z469): 1·2·3차 발행금액 합계 vs 수주금액. #}
-    {% if can_money %}
+    {# v5H226z673 (대표 지시): 세금계산서 1/2/3차 칸 '색상' 의미 범례 — 영업·관리만(세금계산서 칸 자체가 can_sales_amt). 색 기준=refreshTaxStatus(z469): 1·2·3차 발행금액 합계 vs 수주금액. #}
+    {# v5H226z823: 매출금액 표시 게이트 can_money→can_sales_amt(임원·매출금액 허용팀). #}
+    {% if can_sales_amt %}
     <span class="legend ti-color-legend" style="margin-left:16px;" title="세금계산서 칸 배경색 = 1·2·3차 발행금액 합계와 그 건 수주금액 비교 — 합계=수주액이면 초록(전액 발행), 다르면 주황(일부만 발행했거나 금액 불일치), 미입력은 무색">
       <b style="font-weight:800;color:var(--qv-ink-2,#475569);">세금계산서:</b>
       <span><i style="background:#f0fdf4;box-shadow:inset 0 0 0 1px #86efac;"></i>전액 발행</span>
@@ -102,7 +103,7 @@
       <button type="button" class="tbx-reset" onclick="resetSort()" title="헤더 클릭 정렬을 기본 순서(발주일순)로 되돌림 (칸 너비는 그대로)"><span class="ti">↕</span> 정렬 초기화</button>
     </div>
     {# v5H226z547: 묶어 발행(체크한 여러 출하 건을 한 장으로) — 도구 패널로 이동. 영업·관리만. #}
-    {% if can_money %}<button type="button" class="bulk-tax-go" onclick="schedIssueTaxInvoice()" title="체크한 여러 건을 한 장의 세금계산서로 묶어 발행"><span class="ti">📄</span> 묶어 발행</button>{% endif %}
+    {% if can_sales_amt %}<button type="button" class="bulk-tax-go" onclick="schedIssueTaxInvoice()" title="체크한 여러 건을 한 장의 세금계산서로 묶어 발행"><span class="ti">📄</span> 묶어 발행</button>{% endif %}
     <span class="legend" style="margin-left:auto;">
       <span><i style="background:#cfe0f5;"></i>일정</span>
       <span><i style="background:#16a34a;"></i>출하</span>
@@ -146,8 +147,8 @@
       <colgroup id="schedCols">
         <col data-col="code"><col data-col="so_no"><col data-col="name">
         <col data-col="model"><col data-col="equip"><col data-col="note">
-        <col data-col="qty">{% if can_money %}<col data-col="price"><col data-col="amount">{% endif %}<col data-col="trade"><col data-col="po"><col data-col="form">
-        <col data-col="cust"><col data-col="cust2"><col data-col="dept"><col data-col="owner"><col data-col="contact"><col data-col="ship"><col data-col="order_date"><col data-col="due_date">{% if can_money %}<col data-col="statement"><col data-col="tax_inv1"><col data-col="tax_inv2"><col data-col="tax_inv3">{% endif %}
+        <col data-col="qty">{% if can_sales_amt %}<col data-col="price"><col data-col="amount">{% endif %}<col data-col="trade"><col data-col="po"><col data-col="form">
+        <col data-col="cust"><col data-col="cust2"><col data-col="dept"><col data-col="owner"><col data-col="contact"><col data-col="ship"><col data-col="order_date"><col data-col="due_date">{% if can_sales_amt %}<col data-col="statement"><col data-col="tax_inv1"><col data-col="tax_inv2"><col data-col="tax_inv3">{% endif %}
         {% for d in days %}<col class="cgd" data-day="{{ d }}">{% endfor %}
         <col data-col="sales_owner">
       </colgroup>
@@ -160,7 +161,7 @@
           <th class="c-info cw-equip" data-col="equip"><div class="th-wrap">장비명<span class="col-resizer" data-col="equip"></span></div></th>
           <th class="c-info cw-note" data-col="note"><div class="th-wrap">기타사항<span class="col-resizer" data-col="note"></span></div></th>
           <th class="c-info cw-qty" data-col="qty"><div class="th-wrap">수량<span class="col-resizer" data-col="qty"></span></div></th>
-          {% if can_money %}
+          {% if can_sales_amt %}
           <th class="c-info cw-price" data-col="price"><div class="th-wrap">단가<span class="col-resizer" data-col="price"></span></div></th>
           <th class="c-info cw-amount" data-col="amount"><div class="th-wrap">금액<span class="col-resizer" data-col="amount"></span></div></th>
           {% endif %}
@@ -175,8 +176,8 @@
           <th class="c-info cw-ship" data-col="ship"><div class="th-wrap">납품위치<span class="col-resizer" data-col="ship"></span></div></th>
           <th class="c-info cw-ord" data-col="order_date"><div class="th-wrap">발주일<span class="col-resizer" data-col="order_date"></span></div></th>
           <th class="c-info cw-due" data-col="due_date"><div class="th-wrap">납품일<span class="col-resizer" data-col="due_date"></span></div></th>
-          {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자 — 영업·관리 권한만 #}
-          {% if can_money %}
+          {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자 — 영업·관리 권한만(z823 can_sales_amt) #}
+          {% if can_sales_amt %}
           <th class="c-info cw-stmt" data-col="statement"><div class="th-wrap">거래명세서<span class="col-resizer" data-col="statement"></span></div></th>
           {# v5H226z467 (대표 지시): 세금계산서 1/2/3차(계약금·중도금·잔금) — 각 발행일+금액 #}
           <th class="c-info cw-taxinv1" data-col="tax_inv1" title="1세금계산서 (계약금)"><div class="th-wrap">1세금계산서<span class="col-resizer" data-col="tax_inv1"></span></div></th>
@@ -193,11 +194,11 @@
         {% set _cursym = {'KRW':'₩','USD':'$','VND':'₫','JPY':'¥','CNY':'元','EUR':'€'} %}
         {% for r in rows %}
         {# v5H226z489 (대표 지시): 세금계산서 묶음은 차수(1/2/3) 단위 — 차수 칸마다 (행서명|차수)로 묶음 조회 #}
-        {% set _ti1 = (ti_map.get(r.row_sig ~ '|1') if (can_money and ti_map is defined and ti_map and r.row_sig) else None) %}
-        {% set _ti2 = (ti_map.get(r.row_sig ~ '|2') if (can_money and ti_map is defined and ti_map and r.row_sig) else None) %}
-        {% set _ti3 = (ti_map.get(r.row_sig ~ '|3') if (can_money and ti_map is defined and ti_map and r.row_sig) else None) %}
+        {% set _ti1 = (ti_map.get(r.row_sig ~ '|1') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
+        {% set _ti2 = (ti_map.get(r.row_sig ~ '|2') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
+        {% set _ti3 = (ti_map.get(r.row_sig ~ '|3') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_money %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}{% if r.so_no %}?so={{ r.so_no|urlencode }}{% endif %}" title="프로젝트 상세">{{ r.code }}</a>{# v5H226z695 (대표 지시): 누른 행의 수주번호를 상세로 전달 → 그 수주가 메인 카드로 #}{# v5H226z565 (대표 지시): 관리번호 뒤 호기 라벨(N호기) 표시 삭제 — 호기는 '+' 펼침으로 확인 #}{% endif %}{# v5H226z632 (대표 지시): 관리번호 옆 '+' 펼치기 제거 — 장비 호기·소모품 품목보기 모두. (편집은 프로젝트/소모품 상세에서) #}</td>
           {# v5H226z650e (대표 지시): 수주번호 옆 '참고 N' 칩 제거 — 추가 수주는 프로젝트 상세의 참고 영역에서 확인(z638 칩 폐기). #}
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
@@ -209,7 +210,7 @@
           {# v5H226z666 (대표 지시): 수량 편집 — 단일 호기 행(is_unit·호기 1건)은 /unit-field 로, 비분할 행은 /cell 로. 묶음(호기 여러)·소모품은 비활성. #}
           {% set _qty_edit = (r.kind != 'consumable' and (not r.is_unit or (r.unit_iids and r.unit_iids|length == 1))) %}
           <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty"{% if _qty_edit %} data-edit="qty"{% endif %}>{{ r.qty if r.qty else ('＋' if _qty_edit else '') }}</td>
-          {% if can_money %}
+          {% if can_sales_amt %}
           <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.price %}{{ money(r.price, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
           <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.amount %}{{ money(r.amount, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
           {% endif %}
@@ -225,8 +226,8 @@
           <td class="c-info cw-ship editable{% if r.ship_to %} filled{% endif %}" data-col="ship" data-edit="ship_to" title="{{ r.ship_to }}">{{ r.ship_to or '＋' }}</td>
           <td class="c-info cw-ord editable{% if r.order_date %} filled{% endif %}" data-col="order_date" data-edit="order_date">{{ r.order_date or '＋' }}</td>
           <td class="c-info cw-due editable{% if r.due_date %} filled{% endif %}" data-col="due_date" data-edit="due_date">{{ r.due_date or '＋' }}</td>
-          {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자(YYYY-MM-DD 직접 입력) — 프로젝트=대표 SO 연동·소모품=자체. 영업·관리만. #}
-          {% if can_money %}
+          {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자(YYYY-MM-DD 직접 입력) — 프로젝트=대표 SO 연동·소모품=자체. 영업·관리만(z823 can_sales_amt). #}
+          {% if can_sales_amt %}
           <td class="c-info cw-stmt editable{% if r.statement_date %} filled{% endif %}" data-col="statement" data-edit="statement_date" title="거래명세서 발행일자{% if r.statement_date %}: {{ r.statement_date }}{% endif %}">{{ r.statement_date or '＋' }}</td>
           {# v5H226z489 (대표 지시): 세금계산서 1/2/3차 — 차수별로 '묶음 발행'이면 📄#번호 칩, 아니면 개별 발행일+금액 편집. 1차=계약금·2차=중도금·3차=잔금. #}
           {# v5H226z703 (대표 지시): 수출은 세금계산서가 아니라 인보이스 발행 → 수출 행은 'INV' 표식+인보이스 툴팁, 금액은 행 통화(_csym)로. #}
@@ -425,7 +426,7 @@ window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].remove
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // ===== z265→z279: 작업 일정표 — 고정 px 컬럼 모델(엑셀식 · 좌우 스크롤) =====
 // z282: 고객사2·연락처·발주일·납품일·영업담당자(맨 끝, 날짜 뒤) 추가
-const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_money %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date'{% if can_money %},'statement','tax_inv1','tax_inv2','tax_inv3'{% endif %},'sales_owner'];
+const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_sales_amt %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date'{% if can_sales_amt %},'statement','tax_inv1','tax_inv2','tax_inv3'{% endif %},'sales_owner'];
 const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',statement:'거래명세서',tax_inv1:'1세금계산서',tax_inv2:'2세금계산서',tax_inv3:'3세금계산서',stage:'단계',sales_owner:'영업담당자'};
 // z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
 const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv1:104,tax_inv2:104,tax_inv3:104,stage:150,sales_owner:96};
@@ -1650,7 +1651,7 @@ var BULK_FIELDS = [
   {f:'ship_to', label:'납품위치', type:'text'},
   {f:'order_date', label:'발주일', type:'date'},
   {f:'due_date', label:'납품일', type:'date'},
-  {% if can_money %}{f:'statement_date', label:'거래명세서 발행일', type:'date'},
+  {% if can_sales_amt %}{f:'statement_date', label:'거래명세서 발행일', type:'date'},
   {f:'tax_invoice_date', label:'세금계산서 발행일', type:'date'},{% endif %}
   {f:'sales_owner', label:'영업담당자', type:'text'}
 ];

@@ -1591,6 +1591,18 @@ def ctx(request, name, **kwargs):
     base["can_sales_del"]  = can_delete_sales(user) if user else False  # 삭제 전용 (더 엄격)
     base["can_logi"]       = can_use_logistics(user) if user else False
     base["is_admin"]       = bool(user and user.get("role") in ("admin", "ceo"))
+    # v5H226z823 (대표 결정 2026-07-05): 민감정보 열람권한 2단계 — 3분류 전역(요청당 정책 1회 로드).
+    #   ceo·admin·executive(임원)는 can_view_field 에서 항상 True. leader·일반직원은 팀 정책(field_access_policy).
+    #   정책 로드 실패=빈 dict → 비관리자 False(누출 없음·안전). 이번 2.1 은 can_sales_amt 만 화면에 연결하고,
+    #   can_purchase_price·can_supplier 는 정의만(2.2 구매단가·2.3 구매처에서 연결).
+    try:
+        with db_session() as _facc:
+            _fa_pol = load_field_access_policy(_facc)
+    except Exception:
+        _fa_pol = {}
+    base["can_sales_amt"]      = can_view_field(user, "sales_amount", _fa_pol) if user else False
+    base["can_purchase_price"] = can_view_field(user, "purchase_price", _fa_pol) if user else False
+    base["can_supplier"]       = can_view_field(user, "supplier_info", _fa_pol) if user else False
     # 메일 '앱(독립 창)' 모드 — KNK Eum 등에서 ?app=1 로 별도 창 실행 시 사이드바 없이 메일만.
     # 세션 보존(이후 내부 이동도 유지) · ?app=0 으로 해제(WORKS 전체화면 복귀).
     _mail_app = False
@@ -1805,14 +1817,15 @@ def load_field_access_policy(c) -> dict:
 def can_view_field(user, category, policy=None) -> bool:
     """민감 정보 분류(category) 열람 가능 여부.
     - user 없으면 False.
-    - role 이 ceo·admin 이면 True(시스템 관리자·잠금 방지·정책 무관).
+    - role 이 ceo·admin·executive(임원) 이면 True(시스템 관리자·경영진·잠금 방지·정책 무관).
+      (대표 결정 2026-07-05: 임원은 전 분류 항상 전체 열람. leader·일반직원은 팀 정책.)
     - 그 외: user 의 team_id 가 그 category 허용팀에 있으면 True(정책 기반).
     - policy(=load_field_access_policy 결과) 를 주면 그것을 사용, 없으면 그때 1회 조회.
-    ⚠ 1단계에서는 어떤 화면에도 연결하지 않음(정의만). 2단계에서 화면별 적용."""
+    2단계-2.1(v5H226z823)에서 sales_amount 를 화면(수주상세·작업일정표·프로젝트 매출 KPI)에 연결."""
     if not user:
         return False
     role = (user.get("role") if isinstance(user, dict) else user["role"]) or ""
-    if role in ("ceo", "admin"):
+    if role in ("ceo", "admin", "executive"):
         return True
     team_id = user.get("team_id") if isinstance(user, dict) else None
     if team_id is None:
@@ -20940,7 +20953,7 @@ async def admin_import_health(req: Request):
 # v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
 #   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
 def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""):
-    _can_money = bool(can_view_sales(u))
+    _can_money = bool(can_view_field(u, "sales_amount"))   # v5H226z823: 매출 금액·세금계산서 = 매출금액 열람정책(임원·허용팀). 보드데이터·엑셀 공용.
     import calendar as _cal
     from datetime import date as _date, datetime as _dt
     today = _dt.now().date()
@@ -21947,8 +21960,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         return RedirectResponse("/login", 303)
     # v5H226z270 (대표 지시): 작업 일정표는 '전사 운영 보드' — 관련부서 담당자(생산·검증·출하)도
     #   단계를 직접 클릭해 기록해야 하므로 보드 보기는 로그인한 전 직원 허용.
-    #   단, 매출 금액·세금계산서는 can_view_sales 통과자에게만(아래 _can_money 로 서버 차단).
-    _can_money = bool(can_view_sales(u))
+    #   단, 매출 금액·세금계산서는 매출금액 열람정책(can_view_field sales_amount) 통과자에게만(아래 _can_money 로 서버 차단). v5H226z823
+    _can_money = bool(can_view_field(u, "sales_amount"))
     import calendar as _cal
     from datetime import date as _date, datetime as _dt, timedelta as _td
     today = _dt.now().date()
@@ -22665,7 +22678,7 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
-    can_money = bool(can_view_sales(u))
+    can_money = bool(can_view_field(u, "sales_amount"))   # v5H226z823: 호기 펼침의 단가·금액·세금계산서 = 매출금액 열람정책(정적 표와 동일 게이트)
     # v5H226z509: 분할 줄이 보낸 호기 id 화이트리스트(정수만) — IN (...) 으로 그 줄 호기만 조회
     _uid_list = []
     for _x in (uids or "").split(","):
@@ -22763,7 +22776,7 @@ async def schedule_board_consumable_items(request: Request, ref_id: int):
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
-    can_money = bool(can_view_sales(u))
+    can_money = bool(can_view_field(u, "sales_amount"))   # v5H226z823: 소모품 품목 펼침의 단가·금액 = 매출금액 열람정책
     items = []
     try:
         from . import consumables as _co

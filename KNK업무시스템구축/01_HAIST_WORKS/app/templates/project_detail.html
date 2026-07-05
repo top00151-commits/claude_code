@@ -355,7 +355,8 @@
     {# v5H172: 통화 표기는 프로젝트 헤더 우선 (SO 통화가 비었거나 백필 전이어도 정확) #}
     {% set _kpi_ccy = p.currency or primary_so_currency or 'KRW' %}
     {% set _is_mixed = (currency_mix and currency_mix|length > 1) %}{# v5H226z696: 통화 혼합이면 확정매출 KPI도 통화별 분리(환산 없는 합산 표기 폐기) #}
-    <div class="kpi-card"><div class="kpi-label">{% if project_orders %}확정 매출{% else %}수주액{% endif %} <span style="font-size:10px;color:var(--mute);">({% if _is_mixed %}혼합{% else %}{{ _kpi_ccy }}{% endif %})</span></div>{% if can_money %}{% if _is_mixed %}<div class="kpi-num" style="font-size:17px;line-height:1.35;">{% for r in currency_mix %}<div{% if not loop.first %} style="font-size:13px;color:var(--mute);font-weight:600;"{% endif %}>{{ money(r.total, r.currency) }}</div>{% endfor %}</div>{% else %}<div class="kpi-num">{% if _displayed_amt %}{{ money(_displayed_amt, _kpi_ccy) }}{% else %}—{% endif %}</div>{% endif %}{% else %}<div class="kpi-num" style="color:var(--mute);font-size:15px;" title="단가·금액은 영업·관리 권한자만">🔒</div>{% endif %}{% if can_money and not _is_mixed and project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
+    {# v5H226z823: 확정 매출 KPI — 매출금액 게이트 can_money→can_sales_amt(임원·매출금액 허용팀). #}
+    <div class="kpi-card"><div class="kpi-label">{% if project_orders %}확정 매출{% else %}수주액{% endif %} <span style="font-size:10px;color:var(--mute);">({% if _is_mixed %}혼합{% else %}{{ _kpi_ccy }}{% endif %})</span></div>{% if can_sales_amt %}{% if _is_mixed %}<div class="kpi-num" style="font-size:17px;line-height:1.35;">{% for r in currency_mix %}<div{% if not loop.first %} style="font-size:13px;color:var(--mute);font-weight:600;"{% endif %}>{{ money(r.total, r.currency) }}</div>{% endfor %}</div>{% else %}<div class="kpi-num">{% if _displayed_amt %}{{ money(_displayed_amt, _kpi_ccy) }}{% else %}—{% endif %}</div>{% endif %}{% else %}<div class="kpi-num" style="color:var(--mute);font-size:15px;" title="매출금액은 열람 권한자만">🔒</div>{% endif %}{% if can_sales_amt and not _is_mixed and project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
     {# v5H226z646 (대표 지시): 예상 매출(수주 전) KPI 삭제 — 예상값 미입력 건은 항상 확정과 동일(+0)이라 의미 약함. 확정 매출 KPI만 유지. (expected_amount 데이터는 보존) #}
   </div>
 
@@ -365,7 +366,7 @@
     <b>{{ currency_warning }}</b>
     <div style="margin-top:6px; display:flex; gap:14px; flex-wrap:wrap; font-size:12px;">
     {% for r in currency_mix %}
-      <span style="font-family:monospace;">{% if can_money %}{{ money(r.total, r.currency) }}{% else %}🔒{% endif %} ({{ r.cnt }}건)</span>
+      <span style="font-family:monospace;">{% if can_sales_amt %}{{ money(r.total, r.currency) }}{% else %}🔒{% endif %} ({{ r.cnt }}건)</span>
     {% endfor %}
     </div>
   </div>
@@ -1579,12 +1580,12 @@
               <td><span style="font-size:11px;">{{ cp.status|default('—') }}</span></td>
               <td style="font-family:monospace;font-size:11px;color:var(--amber-deep);">{{ cp.latest_so_no|default('—') }}</td>
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ cp.last_so_date|default('—') }}</td>
-              <td class="num" style="font-weight:700;">{% if can_money %}{{ money(cp.total_so_amount|default(0), cp.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="font-weight:700;">{% if can_sales_amt %}{{ money(cp.total_so_amount|default(0), cp.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
             </tr>
           {% endfor %}
             <tr style="background:#fef3c7;font-weight:700;">
               <td colspan="6" style="text-align:right;">소모품·수리 누적</td>
-              <td class="num" style="color:var(--knk-red);">{% if can_money %}{{ money(child_projects|sum(attribute='total_so_amount'), 'KRW') }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="color:var(--knk-red);">{% if can_sales_amt %}{{ money(child_projects|sum(attribute='total_so_amount'), 'KRW') }}{% else %}🔒{% endif %}</td>
             </tr>
           </tbody>
         </table></div>
@@ -1729,7 +1730,7 @@
         </div>
         {# v5H226z643 (대표 지시): 수주액을 오른쪽 세로 칸으로 분리 — 가변높이(호기별 금액) 독립 #}
         <dl class="def-amt">
-          <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">{% if can_money %}
+          <dt>수주액</dt><dd style="font-weight:700;color:var(--knk-red);">{% if can_sales_amt %}
             {# v5H226z696 (대표 지시): 통화 혼합(KRW SO + USD SO)이면 합계를 통화별로 분리 표시 — KRW+USD를 한 숫자로 더하던 표기 폐기(환산 없이). #}
             {% set _is_mixed = (currency_mix and currency_mix|length > 1) %}
             {% if _is_mixed %}
@@ -1790,11 +1791,11 @@
               📦 총 <b style="color:var(--ink);">{{ all_units_sorted|length }}</b>개 라인 — 상세는 <span style="color:#7c4a03;">[수주 내역]</span> 표 참조
             </div>
             {% endif %}
-          {% else %}<span title="단가·금액은 영업·관리 권한자만">🔒</span>{% endif %}</dd>
+          {% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</dd>
           {# v5H226z195 (대표 지시): 2단계 발주 — 최종 고객 매출(참고·합계제외) + 차액 #}
           {% if p.two_tier_order %}
           <dt>최종 고객 매출<br><span style="font-size:9px;color:#94a3b8;font-weight:400;">(참고 · 합계 제외)</span></dt>
-          <dd style="font-weight:700;color:#1d4ed8;">{% if can_money %}
+          <dd style="font-weight:700;color:#1d4ed8;">{% if can_sales_amt %}
             {% if p.final_amount %}{{ money(p.final_amount, p.currency or 'KRW') }}{% else %}—{% endif %}
             {% if p.final_amount and _displayed_amt %}
             <div style="font-size:10.5px;color:#64748b;font-weight:500;margin-top:3px;">↳ 차액(법인 가공분) <b>{{ '{:,.0f}'.format(p.final_amount - _displayed_amt) }}</b> {{ p.currency or 'KRW' }}</div>

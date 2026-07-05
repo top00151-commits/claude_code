@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-05 v5H226z822[정보 열람 권한 1단계 — 매출금액/구매단가/구매처 3분류를 팀별로 제어하는 정책표(field_access_policy)+헬퍼(can_view_field)+대표/관리자 체크박스 화면(/admin/field-access) 신설. 화면 적용은 2단계·기존 동작 무변경. main.py·database.py·admin_field_access.html]
+REM   LAST UPDATE: 2026-07-05 v5H226z823[정보 열람권한 2단계-2.1(매출금액) — ctx()에 3분류 전역(can_sales_amt/purchase_price/supplier)+can_view_field 임원 반영. 매출금액을 새 팀정책에 연결: 수주상세 매출 노출 구멍 닫기·작업일정표(정적표+호기/소모품 펼침+보드데이터/엑셀 서버게이트)·프로젝트 매출 KPI. 원가/구매처는 2.2/2.3. 정책밖 팀(검사기 등)은 매출금액 비공개. main.py·sales_order_detail·schedule_board·project_detail]
+REM   - 2026-07-05 v5H226z822[정보 열람 권한 1단계 — 매출금액/구매단가/구매처 3분류를 팀별로 제어하는 정책표(field_access_policy)+헬퍼(can_view_field)+대표/관리자 체크박스 화면(/admin/field-access) 신설. 화면 적용은 2단계·기존 동작 무변경. main.py·database.py·admin_field_access.html]
 REM   - 2026-07-05 v5H226z821[제작요청서목록 사업부 필터 아이콘을 프로젝트 등록 유형 카드와 통일 — 검사기 🔎→🔬 · 자동화 ⚙️→🤖 · 라이프밸류 💡→💄 · 기타 🗂️→🌐 · 소모품 🧴→📦. prod_requests_list.html]
 REM   - 2026-07-05 v5H226z820[일괄(엑셀) 업로드 수주번호 묶기 — 같은 관리번호+발주일+납기+납품지+통화+담당자 장비행은 새 수주번호 대신 한 수주번호에 호기별 단가로 추가(단가 다르면 행 나뉘던 엑셀 특성으로 수주번호 과다발번되던 것 수정). 재업로드는 호기 단위 dedup. 부품/소모품·단건등록 무변경. main.py]
 REM   - 2026-07-05 v5H226z819[설치앱(PWA)서 프로젝트 상세 "제작요청서 카드" 본문이 안 펴지던 문제(z769) — 앱에선 크림 머리줄에 "📋 보기·수정 →" 버튼(#prqAppOpen) 노출·본문/수정폼 접음(display-mode standalone 미디어 + html.pwa-app JS폴백). 브라우저 무변경. project_detail.html·project_detail.css]
