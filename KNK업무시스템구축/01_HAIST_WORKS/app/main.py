@@ -21175,6 +21175,9 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    # v5H226z843 (대표 지시): 엑셀도 작업일정표 데이터 → 매출 열람권(can_view_field sales_amount)자만. 그 외 부서일정표로.
+    if not can_view_field(u, "sales_amount"):
+        return RedirectResponse("/dept/schedule", 303)
     from datetime import datetime as _dt
     today = _dt.now().date()
     try:
@@ -21972,10 +21975,13 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    # v5H226z270 (대표 지시): 작업 일정표는 '전사 운영 보드' — 관련부서 담당자(생산·검증·출하)도
-    #   단계를 직접 클릭해 기록해야 하므로 보드 보기는 로그인한 전 직원 허용.
-    #   단, 매출 금액·세금계산서는 매출금액 열람정책(can_view_field sales_amount) 통과자에게만(아래 _can_money 로 서버 차단). v5H226z823
+    # v5H226z843 (대표 지시 2026-07-05): 작업일정표 = 매출·영업 보드 → '매출을 볼 수 있는 권한자'만 진입.
+    #   기준 = 매출금액 열람정책(can_view_field sales_amount: 총괄·기술영업·관리 + 대표·임원·전산). 보드의 매출 열이
+    #   보이는 사람 = 보드에 들어올 수 있는 사람으로 일치. 그 외(생산·가공·구매·설계 등)는 부서일정표(/dept/schedule)로 안내.
+    #   (z270에서 전 직원 허용했던 것을 좁힘 — 부서 작업추적은 부서일정표로 일원화[[knk_dept_schedule_board]].)
     _can_money = bool(can_view_field(u, "sales_amount"))
+    if not _can_money:
+        return RedirectResponse("/dept/schedule", 303)
     import calendar as _cal
     from datetime import date as _date, datetime as _dt, timedelta as _td
     today = _dt.now().date()
