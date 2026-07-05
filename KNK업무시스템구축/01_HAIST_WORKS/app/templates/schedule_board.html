@@ -185,7 +185,7 @@
           <th class="c-info cw-taxinv3" data-col="tax_inv3" title="3세금계산서 (잔금)"><div class="th-wrap">3세금계산서<span class="col-resizer" data-col="tax_inv3"></span></div></th>
           {% endif %}
           {% for d in days %}
-          <th class="day{% if d == today_day %} today{% endif %}" data-day="{{ d }}">{{ d }}</th>
+          <th class="day{% if d == today_day %} today{% endif %}{% if red_days and d in red_days %} redday{% endif %}" data-day="{{ d }}"{% if hol_names and hol_names.get(d) %} title="{{ hol_names.get(d) }}"{% endif %}>{{ d }}</th>
           {% endfor %}
           <th class="c-info cw-sales" data-col="sales_owner"><div class="th-wrap">영업담당자<span class="col-resizer" data-col="sales_owner"></span></div></th>
         </tr>

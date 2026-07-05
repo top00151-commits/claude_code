@@ -247,6 +247,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched .day { text-align:center; color:#15803d; font-weight:800; }
 .sched .day.today { box-shadow: inset 2px 0 0 #b91c1c, inset -2px 0 0 #b91c1c; background:#fffbe6; }
 .sched thead .day.today { background:#fde68a; }
+/* v5H226z846 (대표 지시): 날짜 헤더 — 평일 숫자 중립·일요일/공휴일 빨강(달력 관례). day 헤더만 --knk-red 상속을 덮음(정보열 머리글은 그대로). */
+.sched thead th.day { color:#475569; }
+.sched thead th.day.redday { color:#dc2626; font-weight:800; }
 .sched .day.bar { background:#cfe0f5; cursor:pointer; }
 .sched .day.bar.delay { background:#fcd9d9; }
 /* v5H226z663 (대표 지시): 납기 점 색을 '출하 기준'으로 분리 — 초록=출하만, 파랑=진행중(예정), 빨강=지연, 회색=취소/보류 */

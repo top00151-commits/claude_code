@@ -492,6 +492,24 @@ HOLIDAYS_KR, HOLIDAYS_VN = _build_holidays_auto()
 print(f"[holidays] 자동 생성 완료 — KR {len(HOLIDAYS_KR)}건 / VN {len(HOLIDAYS_VN)}건")
 
 
+def _calendar_red_days(y, m, last_day):
+    """v5H226z846 (대표 지시): 달력 날짜 헤더에서 빨강 표기할 날 = 일요일 ∪ 한국 공휴일(대체공휴일·음력 포함).
+    반환 (red_days:set[int], hol_names:dict[int,str]). HOLIDAYS_KR 키는 'YYYY-MM-DD'."""
+    from datetime import date as _rdate
+    red, names = set(), {}
+    for _dd in range(1, (last_day or 0) + 1):
+        try:
+            _wd = _rdate(y, m, _dd).weekday()   # 6 = 일요일
+        except Exception:
+            continue
+        _hn = HOLIDAYS_KR.get("%04d-%02d-%02d" % (y, m, _dd))
+        if _wd == 6 or _hn:
+            red.add(_dd)
+        if _hn:
+            names[_dd] = _hn
+    return red, names
+
+
 # v5H215 (2026-05-08) — status → stage 자동 매핑 (단순화)
 # 사용자가 선택한 세부 status 를 그대로 stage 로 표시 — 별도 일반화 라벨 없음.
 # (예전 일괄 '제안작성' 라벨은 검사기 '제안서 해당없음' 케이스와 의미 충돌 → 폐기)
@@ -22365,11 +22383,12 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                                 _ti_map[_k] = {"id": _tr[2], "no": _tr[3], "amt": float(_tr[4] or 0), "cur": _tr[5] or "KRW"}
         except Exception:
             _ti_map = {}
+    red_days, hol_names = _calendar_red_days(_y, _m, last_day)   # v5H226z846: 일요일·공휴일 날짜 빨강
     return ctx(request, "schedule_board.html", user=u, active="sales_schedule",
                ti_map=_ti_map,
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
-               days=days, today_day=today_day, rows=rows, summary=summary, cust=cust,
+               days=days, today_day=today_day, red_days=red_days, hol_names=hol_names, rows=rows, summary=summary, cust=cust,
                day_memos=_day_memos,   # v5H226z712 (대표 지시): 날짜별 진행 메모 {(kind,ref_id,ymd):memo}
                col_prefs=_col_prefs, can_money=_can_money,
                biz=_biz, div_counts=div_counts,
@@ -23720,8 +23739,9 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
     except Exception:
         logmap, cellsum = {}, {}
 
+    red_days, hol_names = _calendar_red_days(_y, _m, last_day)   # v5H226z846: 일요일·공휴일 날짜 빨강
     return ctx(request, "dept_schedule.html", user=u, active="dept_schedule",
-               rows=rows, days=days, today_day=today_day,
+               rows=rows, days=days, today_day=today_day, red_days=red_days, hol_names=hol_names,
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                biz=_biz, div_counts=div_counts, cellsum=cellsum, logmap=logmap,
