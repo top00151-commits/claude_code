@@ -147,7 +147,7 @@
       <div class="summary-row" data-dn="pd:summary" data-dn-tone="green">
         <div class="sm-card">
           <div class="l">발주 금액</div>
-          <div class="v">{% if sum_amount >= 100000000 %}{{ '{:.2f}'.format(sum_amount/100000000) }}<span class="u">억</span>{% else %}{{ '{:,.0f}'.format(sum_amount) }}<span class="u">{{ p.currency|default('원') if p.currency != 'KRW' else '원' }}</span>{% endif %}</div>
+          <div class="v">{% if can_purchase_price %}{% if sum_amount >= 100000000 %}{{ '{:.2f}'.format(sum_amount/100000000) }}<span class="u">억</span>{% else %}{{ '{:,.0f}'.format(sum_amount) }}<span class="u">{{ p.currency|default('원') if p.currency != 'KRW' else '원' }}</span>{% endif %}{% else %}<span title="구매단가 열람 권한 없음">🔒</span>{% endif %}</div>
           <div class="sub">{{ p.currency|default('KRW') }} {% if p.exchange_rate and p.exchange_rate != 1 %}× {{ p.exchange_rate }}{% endif %}</div>
         </div>
         <div class="sm-card">
@@ -204,8 +204,8 @@
                 </td>
                 <td class="num">{{ '{:,.0f}'.format(qty) }}</td>
                 <td class="center mute">{{ it.unit|default('EA') }}</td>
-                <td class="num">{{ '{:,.0f}'.format(it.unit_price|default(0)) }}</td>
-                <td class="num"><b>{{ '{:,.0f}'.format(it.amount|default(qty * (it.unit_price|default(0)))) }}</b></td>
+                <td class="num">{% if can_purchase_price %}{{ '{:,.0f}'.format(it.unit_price|default(0)) }}{% else %}🔒{% endif %}</td>
+                <td class="num"><b>{% if can_purchase_price %}{{ '{:,.0f}'.format(it.amount|default(qty * (it.unit_price|default(0)))) }}{% else %}🔒{% endif %}</b></td>
                 <td class="center">
                   <div class="qty-bar">
                     <span class="num" style="font-size:11px;">{{ '{:,.0f}'.format(rcv) }}/{{ '{:,.0f}'.format(qty) }}</span>
@@ -220,7 +220,7 @@
                 <td colspan="2">합계 ({{ items|length }}건)</td>
                 <td class="num">{{ '{:,.0f}'.format(sum_qty) }}</td>
                 <td colspan="2"></td>
-                <td class="num">{{ '{:,.0f}'.format(sum_amount) }}</td>
+                <td class="num">{% if can_purchase_price %}{{ '{:,.0f}'.format(sum_amount) }}{% else %}🔒{% endif %}</td>
                 <td class="center" style="font-weight:500; color:var(--pq-ink-3);">진행 {{ '{:.0f}'.format(fulfill_pct) }}%</td>
               </tr>
             </tfoot>
@@ -258,8 +258,8 @@
                 {% set tc_label = '과세' if tc == 'taxable' else ('영세' if tc == 'zero_rated' else ('면세' if tc == 'exempt' else ('기타' if tc == 'other' else tc))) %}
                 <dt>VAT 모드</dt><dd><b>{{ vm_label }}</b> · {{ tc_label }}</dd>
                 {% if p.supply_total is defined and p.supply_total %}
-                <dt>공급가액</dt><dd class="num" style="font-weight:600;">{{ '{:,.0f}'.format(p.supply_total) }}</dd>
-                <dt>부가세</dt><dd class="num" style="font-weight:600;">{{ '{:,.0f}'.format(p.vat_total|default(0)) }}</dd>
+                <dt>공급가액</dt><dd class="num" style="font-weight:600;">{% if can_purchase_price %}{{ '{:,.0f}'.format(p.supply_total) }}{% else %}🔒{% endif %}</dd>
+                <dt>부가세</dt><dd class="num" style="font-weight:600;">{% if can_purchase_price %}{{ '{:,.0f}'.format(p.vat_total|default(0)) }}{% else %}🔒{% endif %}</dd>
                 {% endif %}
                 <dt>작성자</dt><dd>{{ p.creator_name|default('—') }}</dd>
               </dl>

@@ -249,7 +249,8 @@
         <div class="kpi-cell">
           <div class="l">{% if status %}필터 합계{% else %}총 발주액{% endif %}</div>
           <div class="v">
-            {% if sum_amount >= 100000000 %}
+            {% if not can_purchase_price %}<span title="구매단가 열람 권한 없음">🔒</span>
+            {% elif sum_amount >= 100000000 %}
               {{ '{:.2f}'.format(sum_amount / 100000000) }}<span class="u">억</span>
             {% elif sum_amount >= 10000 %}
               {{ '{:,.0f}'.format(sum_amount / 10000) }}<span class="u">만</span>
@@ -262,7 +263,8 @@
         <div class="kpi-cell">
           <div class="l">평균 발주액</div>
           <div class="v">
-            {% if avg_amount >= 10000 %}
+            {% if not can_purchase_price %}<span title="구매단가 열람 권한 없음">🔒</span>
+            {% elif avg_amount >= 10000 %}
               {{ '{:,.0f}'.format(avg_amount / 10000) }}<span class="u">만</span>
             {% else %}
               {{ '{:,.0f}'.format(avg_amount) }}<span class="u">원</span>
@@ -335,7 +337,7 @@
                 </div>
               </td>
               <td class="num">
-                {% if o.currency and o.currency != 'KRW' %}<span class="mute" style="font-size:11px;">{{ o.currency }}</span> {% endif %}<b>{{ '{:,.0f}'.format(o.total_amount|default(0)) }}</b>{% if not o.currency or o.currency == 'KRW' %}<span class="mute" style="font-size:11px;"> 원</span>{% endif %}
+                {% if can_purchase_price %}{% if o.currency and o.currency != 'KRW' %}<span class="mute" style="font-size:11px;">{{ o.currency }}</span> {% endif %}<b>{{ '{:,.0f}'.format(o.total_amount|default(0)) }}</b>{% if not o.currency or o.currency == 'KRW' %}<span class="mute" style="font-size:11px;"> 원</span>{% endif %}{% else %}🔒{% endif %}
               </td>
               <td class="center mute">{{ o.expected_date|default('—') }}</td>
               <td class="center"><span class="{{ st_cls }}">{{ st }}</span></td>
@@ -347,14 +349,15 @@
             <tr>
               <td colspan="4">합계 ({{ total_cnt }}건{% if status %} · {{ status }}{% endif %})</td>
               <td class="num">
-                {% if sum_amount >= 100000000 %}
+                {% if not can_purchase_price %}🔒
+                {% elif sum_amount >= 100000000 %}
                   {{ '{:.2f}'.format(sum_amount / 100000000) }} 억
                 {% else %}
                   {{ '{:,.0f}'.format(sum_amount) }} 원
                 {% endif %}
               </td>
               <td colspan="3" style="color: var(--pq-ink-3); font-weight: 500;">
-                평균 {{ '{:,.0f}'.format(avg_amount / 10000) if avg_amount >= 10000 else '{:,.0f}'.format(avg_amount) }}{{ '만원' if avg_amount >= 10000 else '원' }}
+                {% if can_purchase_price %}평균 {{ '{:,.0f}'.format(avg_amount / 10000) if avg_amount >= 10000 else '{:,.0f}'.format(avg_amount) }}{{ '만원' if avg_amount >= 10000 else '원' }}{% endif %}
                 {% if partial_cnt %} · 부분입고 {{ partial_cnt }}건{% endif %}
               </td>
             </tr>

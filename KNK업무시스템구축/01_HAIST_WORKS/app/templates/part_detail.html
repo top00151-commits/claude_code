@@ -44,8 +44,8 @@
   <!-- KPI -->
   <div class="bento" style="grid-template-columns:repeat(4,1fr);">
     <div class="kpi-card"><div class="kpi-label">현재 재고</div><div class="kpi-num">{{ '{:,.0f}'.format(p.stock_qty|default(0)) }}<span class="unit">{{ p.unit|default('EA') }}</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">재고 가치</div><div class="kpi-num">{{ '{:,.0f}'.format(stock_value|default(0)) }}<span class="unit">원</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">활성 단가</div><div class="kpi-num">{{ '{:,.0f}'.format((active_price or p.unit_price or p.std_price or 0)) }}<span class="unit">원</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">재고 가치</div><div class="kpi-num">{% if can_purchase_price %}{{ '{:,.0f}'.format(stock_value|default(0)) }}<span class="unit">원</span>{% else %}<span title="구매단가 열람 권한 없음">🔒</span>{% endif %}</div></div>
+    <div class="kpi-card"><div class="kpi-label">활성 단가</div><div class="kpi-num">{% if can_purchase_price %}{{ '{:,.0f}'.format((active_price or p.unit_price or p.std_price or 0)) }}<span class="unit">원</span>{% else %}<span title="구매단가 열람 권한 없음">🔒</span>{% endif %}</div></div>
     <div class="kpi-card"><div class="kpi-label">안전 재고</div><div class="kpi-num" {% if (p.stock_qty|default(0)) <= (p.safety_stock|default(0)) %}style="color:var(--knk-red);"{% endif %}>{{ '{:,.0f}'.format(p.safety_stock|default(0)) }}</div>{% if (p.stock_qty|default(0)) <= (p.safety_stock|default(0)) %}<div class="kpi-trend alert">⚠ 임계 미만</div>{% endif %}</div>
   </div>
 
@@ -124,14 +124,14 @@
           <thead><tr><th>일시</th><th class="center">유형</th><th class="num">수량</th><th class="num">단가</th><th>참조</th></tr></thead>
           <tbody>
           {% for m in recent_moves[:15] %}
-            <tr><td style="font-family:monospace;font-size:11px;color:var(--qv-ink-3);">{{ m.moved_at|default('—') }}</td><td class="center"><span class="pill {% if m.kind == 'IN' %}pill-done{% elif m.kind == 'OUT' %}pill-progress{% else %}pill-muted{% endif %}">{{ m.kind|default('—') }}</span></td><td class="num" style="font-weight:700;{% if m.kind == 'IN' %}color:var(--success);{% elif m.kind == 'OUT' %}color:var(--knk-red);{% endif %}">{% if m.kind == 'IN' %}+{% elif m.kind == 'OUT' %}-{% endif %}{{ '{:,.0f}'.format(m.qty|default(0)) }}</td><td class="num">{% if m.unit_price %}{{ '{:,.0f}'.format(m.unit_price) }}{% else %}—{% endif %}</td><td style="font-size:12px;color:var(--qv-ink-3);">{{ m.ref_type|default('') }} {% if m.ref_id %}#{{ m.ref_id }}{% endif %}</td></tr>
+            <tr><td style="font-family:monospace;font-size:11px;color:var(--qv-ink-3);">{{ m.moved_at|default('—') }}</td><td class="center"><span class="pill {% if m.kind == 'IN' %}pill-done{% elif m.kind == 'OUT' %}pill-progress{% else %}pill-muted{% endif %}">{{ m.kind|default('—') }}</span></td><td class="num" style="font-weight:700;{% if m.kind == 'IN' %}color:var(--success);{% elif m.kind == 'OUT' %}color:var(--knk-red);{% endif %}">{% if m.kind == 'IN' %}+{% elif m.kind == 'OUT' %}-{% endif %}{{ '{:,.0f}'.format(m.qty|default(0)) }}</td><td class="num">{% if can_purchase_price %}{% if m.unit_price %}{{ '{:,.0f}'.format(m.unit_price) }}{% else %}—{% endif %}{% else %}🔒{% endif %}</td><td style="font-size:12px;color:var(--qv-ink-3);">{{ m.ref_type|default('') }} {% if m.ref_id %}#{{ m.ref_id }}{% endif %}</td></tr>
           {% endfor %}
           </tbody>
         </table></div>
       </div>
       {% endif %}
 
-      {% if price_history %}
+      {% if price_history and can_purchase_price %}
       <div class="section-card">
         <h3>단가 이력</h3>
         <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;">
@@ -174,7 +174,7 @@
           {% endif %}
           <dt>사업부</dt><dd>{{ p.biz_div|default('—') }}</dd>
           <dt>단위</dt><dd>{{ p.unit|default('—') }}</dd>
-          <dt>매입단가</dt><dd>{{ '{:,.0f}'.format(p.unit_price|default(p.std_price|default(0))) }} 원</dd>
+          <dt>매입단가</dt><dd>{% if can_purchase_price %}{{ '{:,.0f}'.format(p.unit_price|default(p.std_price|default(0))) }} 원{% else %}<span title="구매단가 열람 권한 없음">🔒</span>{% endif %}</dd>
           <dt>상태</dt><dd>{% if p.is_active %}<span class="pill pill-done">활성</span>{% else %}<span class="pill pill-muted">비활성</span>{% endif %}</dd>
           {# v5H226z109 (2026-05-17) — 용도: 자재 정보 카드 마지막 (대표 지시) #}
           {% if p.purpose %}

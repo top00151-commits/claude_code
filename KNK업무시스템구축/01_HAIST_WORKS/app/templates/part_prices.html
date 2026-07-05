@@ -22,17 +22,20 @@
 
   <div class="bento" style="grid-template-columns:repeat(3,1fr);grid-auto-rows:110px;">
     <div class="kpi-card"><div class="kpi-label">활성 단가</div>
-      {% if active_price %}<div class="kpi-num">{{ '{:,.0f}'.format(active_price.unit_price|default(0)) }}<span class="unit">{{ active_price.currency|default('원') }}</span></div><div class="kpi-trend neutral">{{ active_price.applied_date|default('—') }}</div>
+      {% if not can_purchase_price %}<div class="kpi-num"><span title="구매단가 열람 권한 없음">🔒</span></div>
+      {% elif active_price %}<div class="kpi-num">{{ '{:,.0f}'.format(active_price.unit_price|default(0)) }}<span class="unit">{{ active_price.currency|default('원') }}</span></div><div class="kpi-trend neutral">{{ active_price.applied_date|default('—') }}</div>
       {% else %}<div class="kpi-num" style="color:var(--qv-ink-3);">미설정</div>{% endif %}
     </div>
     <div class="kpi-card"><div class="kpi-label">최근 입고 단가</div>
-      {% if latest_cost %}<div class="kpi-num">{{ '{:,.0f}'.format(latest_cost.unit_price|default(0)) }}</div><div class="kpi-trend neutral">{{ latest_cost.received_at|default('—') }}</div>
+      {% if not can_purchase_price %}<div class="kpi-num"><span title="구매단가 열람 권한 없음">🔒</span></div>
+      {% elif latest_cost %}<div class="kpi-num">{{ '{:,.0f}'.format(latest_cost.unit_price|default(0)) }}</div><div class="kpi-trend neutral">{{ latest_cost.received_at|default('—') }}</div>
       {% else %}<div class="kpi-num" style="color:var(--qv-ink-3);">—</div>{% endif %}
     </div>
     <div class="kpi-card"><div class="kpi-label">등록 이력</div><div class="kpi-num">{{ prices|length }}</div></div>
   </div>
 
   <div style="margin-top: var(--space-4);"></div>
+  {% if can_purchase_price %}
   <form class="add-form" method="post" action="/parts/{{ part.id }}/prices">
     <div class="field"><label>적용일 *</label><input type="date" name="applied_date" required></div>
     <div class="field"><label>유형</label><select name="price_type">{% for t in PRICE_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
@@ -41,6 +44,7 @@
     <div class="field"><label>협력사</label><select name="supplier_id"><option value="">—</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
     <button class="btn btn-primary" type="submit">＋ 등록</button>
   </form>
+  {% endif %}
 
   <div class="tbl-wrap tbl-sticky">
     {% if prices %}
@@ -53,7 +57,7 @@
           <td class="center"><span class="pill pill-muted">{{ p.price_type|default('—') }}</span></td>
           <td>{{ p.supplier_name|default('—') }}</td>
           <td class="center"><span class="pill pill-progress">{{ p.currency|default('KRW') }}</span></td>
-          <td class="num" style="font-weight:700;">{{ '{:,.2f}'.format(p.unit_price|default(0)) }}</td>
+          <td class="num" style="font-weight:700;">{% if can_purchase_price %}{{ '{:,.2f}'.format(p.unit_price|default(0)) }}{% else %}🔒{% endif %}</td>
           <td class="center">{% if p.is_active %}<span class="pill pill-done">✓ 활성</span>{% else %}<span class="pill pill-muted">—</span>{% endif %}</td>
         </tr>
       {% endfor %}

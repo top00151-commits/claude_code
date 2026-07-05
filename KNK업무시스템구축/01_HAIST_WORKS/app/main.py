@@ -14209,6 +14209,7 @@ async def parts_export_xlsx(req: Request):
     표준 구조: [시트1 📖 안내] + [시트2 자재 마스터 (제목·부제·헤더·데이터)]."""
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    can_pp = bool(can_view_field(u, "purchase_price"))   # v5H226z828: 매입단가 열람 정책(없으면 원가 열 🔒)
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -14376,7 +14377,7 @@ async def parts_export_xlsx(req: Request):
     for r_idx, r in enumerate(rows, HEADER_ROW + 1):
         vals = [
             r["id"], r["part_no"], r["part_name"], r["biz_div"],
-            r["spec"], r["maker"], r["origin"], r["unit"], r["currency"], r["std_price"],
+            r["spec"], r["maker"], r["origin"], r["unit"], r["currency"], (r["std_price"] if can_pp else "🔒"),
             r["category"], r.get("category_main"), r.get("category_series"),
             r.get("item_account"), r.get("procurement_kind"),
             r["safety_stock"], r.get("reorder_point"), r.get("reorder_qty"), r.get("conversion_factor"),
@@ -14474,6 +14475,7 @@ async def sales_quotations_export_xlsx(req: Request):
 async def po_export_xlsx(req: Request):
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    can_pp = bool(can_view_field(u, "purchase_price"))   # v5H226z828: 발주=구매단가 → 없으면 합계·단가·금액 🔒
     with db_session() as c:
         head_rows = [dict(r) for r in c.execute(
             "SELECT po.id, po.po_number, po.order_date, po.expected_date, "
@@ -14492,12 +14494,12 @@ async def po_export_xlsx(req: Request):
     sheets = [
         {"name": "발주", "headers": ["ID","발주번호","발주일","예상입고","상태","통화","합계","공급사","프로젝트"],
          "rows": [[r["id"], r["po_number"], r["order_date"], r["expected_date"],
-                   r["status"], r["currency"], r["total_amount"],
+                   r["status"], r["currency"], (r["total_amount"] if can_pp else "🔒"),
                    r["supplier_name"], r["project_name"]] for r in head_rows]},
         {"name": "발주라인", "headers": ["발주번호","#","품번","품명","단위","수량","단가","금액","입고수량"],
          "rows": [[r["po_number"], r["line_no"], r["part_no_snapshot"],
                    r["part_name_snapshot"], r["unit"], r["quantity"],
-                   r["unit_price"], r["amount"], r["received_qty"]] for r in line_rows]},
+                   (r["unit_price"] if can_pp else "🔒"), (r["amount"] if can_pp else "🔒"), r["received_qty"]] for r in line_rows]},
     ]
     return _make_xlsx_response(sheets, "발주")
 
@@ -14506,6 +14508,7 @@ async def po_export_xlsx(req: Request):
 async def stock_movements_export_xlsx(req: Request):
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    can_pp = bool(can_view_field(u, "purchase_price"))   # v5H226z828: 수불 단가·금액=원가 → 없으면 🔒
     with db_session() as c:
         rows = [dict(r) for r in c.execute(
             "SELECT sm.id, sm.movement_no, sm.occurred_at, p.part_no, p.part_name, "
@@ -14519,7 +14522,8 @@ async def stock_movements_export_xlsx(req: Request):
     headers = ["ID","수불번호","일시","품번","품명","유형","수량","단위",
                "단가","금액","로트","발주번호","프로젝트","사유"]
     data = [[r["id"], r["movement_no"], r["occurred_at"], r["part_no"], r["part_name"],
-             r["kind"], r["quantity"], r["unit"], r["unit_price"], r["amount"],
+             r["kind"], r["quantity"], r["unit"],
+             (r["unit_price"] if can_pp else "🔒"), (r["amount"] if can_pp else "🔒"),
              r["lot_no"], r["po_number"], r["project_name"], r["reason"]] for r in rows]
     return _make_xlsx_response(
         [{"name": "수불부", "headers": headers, "rows": data}], "수불부")
@@ -14529,6 +14533,7 @@ async def stock_movements_export_xlsx(req: Request):
 async def stock_balances_export_xlsx(req: Request):
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
+    can_pp = bool(can_view_field(u, "purchase_price"))   # v5H226z828: 매입단가·재고가치=원가 → 없으면 🔒
     with db_session() as c:
         rows = [dict(r) for r in c.execute(
             "SELECT sb.part_id, sb.part_no, sb.part_name, sb.on_hand, sb.unit, "
@@ -14537,7 +14542,8 @@ async def stock_balances_export_xlsx(req: Request):
             "ORDER BY sb.part_no").fetchall()]
     headers = ["품번","품명","규격","재고수량","단위","매입단가","재고가치(원)","최종거래일"]
     data = [[r["part_no"], r["part_name"], r["spec"], r["on_hand"], r["unit"],
-             r["std_price"], (r["on_hand"] or 0) * (r["std_price"] or 0),
+             (r["std_price"] if can_pp else "🔒"),
+             ((r["on_hand"] or 0) * (r["std_price"] or 0) if can_pp else "🔒"),
              r["last_movement_at"]] for r in rows]
     return _make_xlsx_response(
         [{"name": "재고잔고", "headers": headers, "rows": data}], "재고잔고")

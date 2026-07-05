@@ -307,7 +307,7 @@
               </td>
               <td class="center mute" style="font-size:11.5px;">{{ p.category|default('—') }}</td>
               <td class="num">
-                {% if p.std_price %}<b>{{ '{:,.0f}'.format(p.std_price) }}</b>{% else %}<span class="mute">—</span>{% endif %}
+                {% if can_purchase_price %}{% if p.std_price %}<b>{{ '{:,.0f}'.format(p.std_price) }}</b>{% else %}<span class="mute">—</span>{% endif %}{% else %}<span class="mute" title="구매단가 열람 권한 없음">🔒</span>{% endif %}
               </td>
               <td class="center mute">{{ p.unit|default('EA') }}</td>
               <td class="num">{{ '{:,.0f}'.format(sq) }}</td>
