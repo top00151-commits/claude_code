@@ -209,7 +209,7 @@
     <div class="wo-grid">
       {% for w in wo_created %}
       <div class="wo-card k-{{ w.kind }}" data-wid="{{ w.id }}">
-        <div class="wo-top"><span class="wo-badge {{ w.kind }}">{{ w.kind }}</span><span class="wo-prio {{ w.priority }}">{{ w.priority }}</span><span class="wo-title">{{ w.title }}</span></div>
+        <div class="wo-top"><span class="wo-badge {{ w.kind }}">{{ w.kind }}</span><span class="wo-prio {{ w.priority }}">{{ w.priority }}</span><span class="wo-title">{{ w.title }}</span>{# v5H226z851 (대표 지시): 지시자 본인이 이 지시/요청 삭제 #}<form method="post" action="/work-order/{{ w.id }}/delete" onsubmit="return confirm('이 지시/요청을 삭제할까요?\n(받는 사람 화면에서도 사라집니다.)');" style="margin:0 0 0 auto;padding:0;" title="이 지시/요청 삭제"><button type="submit" style="border:0;background:transparent;color:#b91c1c;cursor:pointer;font-size:14px;line-height:1;padding:2px 3px;">🗑</button></form></div>
         <div class="wo-meta">→ {{ w.target_label }}{% if w.accepted_by_name %} · <span title="{{ w.accepted_by_disp or w.accepted_by_name }}">{{ w.accepted_by_name }}</span> 처리{% endif %}{% if w.due_date %} · 기한 {{ w.due_date }}{% endif %} · 상태 {{ w.status }}</div>
       </div>
       {% endfor %}

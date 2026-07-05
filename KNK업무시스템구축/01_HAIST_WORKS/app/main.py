@@ -3262,6 +3262,23 @@ async def work_order_status(req: Request, wid: int):
     return JSONResponse({"ok": True})
 
 
+# v5H226z851 (대표 지시): '내가 시킨 일'(지시/요청) 삭제 — 지시자 본인 또는 admin/ceo 만. 받는 사람 화면서도 사라짐.
+@app.post("/work-order/{wid:int}/delete")
+async def work_order_delete(req: Request, wid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    role = (u.get("role") or "").lower()
+    with db_session() as c:
+        w = c.execute("SELECT created_by FROM work_order WHERE id=?", (wid,)).fetchone()
+        if not w:
+            return RedirectResponse("/daily", 303)
+        if w["created_by"] != u.get("id") and role not in ("ceo", "admin"):
+            return RedirectResponse("/daily?wo_err=forbidden", 303)
+        c.execute("DELETE FROM work_order WHERE id=?", (wid,))
+    return RedirectResponse("/daily?wo_del=1", 303)
+
+
 @app.get("/work-orders", response_class=HTMLResponse)
 async def work_orders_dashboard(request: Request, status: str = "", kind: str = ""):
     """v5H226z521 (대표 지시): 지시자 대시보드 — '내가 시킨 일'(+우리 부서로 보낸 일·관리자=전체)의

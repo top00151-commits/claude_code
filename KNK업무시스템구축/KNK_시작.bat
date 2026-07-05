@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-05 v5H226z850[부서 요청함 가상데이터 초기화 버튼 — 대표 지시: 부서 요청함(/dept/requests)의 검증용 가상(ZZDEMO·[가상]) 데이터를 여기서 바로 초기화. 기존 삭제기능(/dept/demo/cleanup·ZZDEMO 영업기회+부서요청+구성원+활동+첨부 전삭제, 실데이터 무관)을 페이지에 노출. 가상데이터 있을 때만(has_demo) 대표/관리자(can_boss)에게 🧹 버튼·확인창. cleanup은 back=requests면 부서요청함 복귀+완료배너. 가상데이터는 수동시드만이라 삭제=영구. main.py·dept_requests.html]
+REM   LAST UPDATE: 2026-07-05 v5H226z851[내가 시킨 일(지시/요청) 삭제 기능 추가 — 대표 지시: 오늘의 업무 "내가 시킨 일" 카드에 삭제 방법이 없었음. work_order 삭제 라우트(/work-order/{id}/delete·지시자 본인 또는 admin/ceo만) + daily.html 카드에 🗑 버튼(확인창). 삭제 시 받는 사람 화면서도 사라짐. main.py·daily.html]
+REM   - 2026-07-05 v5H226z850[부서 요청함 가상데이터 초기화 버튼 — 대표 지시: 부서 요청함(/dept/requests)의 검증용 가상(ZZDEMO·[가상]) 데이터를 여기서 바로 초기화. 기존 삭제기능(/dept/demo/cleanup·ZZDEMO 영업기회+부서요청+구성원+활동+첨부 전삭제, 실데이터 무관)을 페이지에 노출. 가상데이터 있을 때만(has_demo) 대표/관리자(can_boss)에게 🧹 버튼·확인창. cleanup은 back=requests면 부서요청함 복귀+완료배너. 가상데이터는 수동시드만이라 삭제=영구. main.py·dept_requests.html]
 REM   - 2026-07-05 v5H226z849[테스트 날짜 변경(가짜 오늘) 기능 완전 삭제 — 대표 지시: 더 이상 사용 안 함. 마스트헤드 🧪 버튼·노란 테스트배너·openFakeDateUI/setFakeDate JS(chrome.html)·/dev/fake-date 라우트·ctx fake_date_active 제거. fake_today_iso는 호출부 다수라 함수 유지하되 항상 실제 today 반환. 잔재 참조 0·py_compile·Jinja OK. main.py·chrome.html]
 REM   - 2026-07-05 v5H226z848[작업일정표 달력 상태글자 크기 대표 지정값 — 출하/지연/납품/취소 주라벨 12px(cal-t·cal-sub·stat-ico), 취소옆 작은 납품(cal-t-sup) 9px. schedule_board.css만.]
 REM   - 2026-07-05 v5H226z847[작업일정표 달력 상태글자 조금 축소 — 대표 지시: 출하/지연/납품/취소 글자 크기 살짝 작게. cal-t·cal-sub·stat-ico 16→14px, 취소옆 작은 납품(cal-t-sup) 12→11px(반전 대비 유지). schedule_board.css만.]
