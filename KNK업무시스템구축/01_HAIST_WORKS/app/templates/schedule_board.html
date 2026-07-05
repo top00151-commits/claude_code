@@ -58,7 +58,7 @@
     {% endif %}
     {# v5H226z547 (대표 지시): 보조 도구 접이 버튼(⚙ 도구) — 우측 그룹 시작(margin-left:auto). 범례는 도구 패널로 이동. #}
     <button type="button" class="sched-gear" onclick="toggleSchedTools(event)" style="margin-left:auto;" title="보기·표설정·정렬·묶어발행 도구 열기"><span class="ti">⚙</span> 도구 ▾</button>
-    <a href="/dept/schedule" data-no-swap title="부서 일정표 — 부서별 진행/완료/변경 기록" style="text-decoration:none;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;"><span class="ti">🗓</span> 부서 일정표</a>
+    <a href="/dept/schedule" data-no-swap title="전사 일정표 — 전사 프로젝트 진행/완료/변경 기록" style="text-decoration:none;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:800;"><span class="ti">🗓</span> 전사 일정표</a>
     {# v5H226z590 (대표 지시): 저장 상태 표시 + 수동 저장(확인용). 자동저장은 그대로 — 사용자가 '저장됐는지' 헷갈리는 문제 해결. #}
     <span id="sbSaveState" title="작업 일정표의 모든 수정은 입력 즉시 자동 저장됩니다." style="display:inline-flex;align-items:center;gap:5px;background:#edfaf1;color:#15803d;border:1px solid #7fc49b;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:700;white-space:nowrap;"><span class="ti">✅</span><span id="sbSaveStateTxt">자동 저장됨</span></span>
     <button type="button" id="sbSaveBtn" onclick="sbManualSave()" title="지금 입력 중인 칸을 저장 반영하고 확인합니다. (모든 수정은 평소에도 자동 저장됩니다)" style="background:#1d4ed8;color:#fff;border:1px solid #1d4ed8;border-radius:7px;padding:6px 80px;font-size:13px;font-weight:800;cursor:pointer;"><span class="ti">💾</span> 저장</button>

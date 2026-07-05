@@ -23816,7 +23816,7 @@ async def dept_schedule_add(request: Request):
                 _ids = list(_ids)
                 _tgt_disp = ", ".join(_targets)
                 if _ids:
-                    _title = f"🗓 [부서 일정] {_code} — {dept or '앞 부서'}→{_tgt_disp}"
+                    _title = f"🗓 [전사 일정] {_code} — {dept or '앞 부서'}→{_tgt_disp}"
                     _body = (f"{date} · {log_type}\n{content}\n"
                              f"(기록: {u.get('name') or '—'}{(' / ' + dept) if dept else ''} → {_tgt_disp}(으)로 넘김)")
                     _link = "/dept/schedule?dept=" + quote(_targets[0])

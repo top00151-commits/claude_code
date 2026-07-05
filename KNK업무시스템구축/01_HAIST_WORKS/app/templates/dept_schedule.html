@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>부서 일정표 · KNK</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>전사 일정표 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
 /* v5H226z498 (FIX): 이 페이지만 '교차문서 화면전환' 끄기 — styles.html @view-transition{navigation:auto} 가
@@ -178,10 +178,10 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main">
 <div class="dsx-wrap" id="dsx">
-  <h2 style="margin:0 0 4px;font-size:19px;">🗓 부서 일정표</h2>
+  <h2 style="margin:0 0 4px;font-size:19px;">🗓 전사 일정표</h2>
   <div class="dsx-intro">
-    제작 품목별로 <b>날짜칸을 클릭</b>해 우리 부서의 <b>진행·완료·변경</b> 사항을 적습니다. 적힌 칸을 다시 누르면 내용을 보고 수정할 수 있어요.
-    매일 아침 회의에서 달력에 적던 그대로입니다. {% if my_team %}내 부서: <b>{{ my_team }}</b>{% endif %}
+    제작 품목별로 <b>날짜칸을 클릭</b>해 <b>진행·완료·변경</b> 사항을 적습니다. 적힌 칸을 다시 누르면 내용을 보고 수정할 수 있어요.
+    <b>전사(全社) 프로젝트 일정</b>을 함께 보며 제작 진행 사항을 기록·정리하는 곳입니다(향후 프로젝트 이력으로 정리). {% if my_team %}내 부서: <b>{{ my_team }}</b>{% endif %}
   </div>
 
   {# 필터 유지용 쿼리 조각(부서·사업부) #}
@@ -194,7 +194,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       <a href="/dept/schedule?ym={{ next_ym }}{{ _bq }}{{ _dq }}" title="다음 달">→</a>
       <a class="today-go" href="/dept/schedule?ym={{ cur_ym }}{{ _bq }}{{ _dq }}" title="이번 달로">오늘</a>
       {# v5H226z844 (대표 지시): 작업일정표 접근권(can_sales_amt=매출열람권·z843) 없으면 '작업일정표' 되돌이 링크를 비활성(회색·클릭불가). #}
-      {% if can_sales_amt %}<a class="today-go" href="/sales/schedule" data-no-swap title="영업 작업일정표로" style="margin-left:8px;">📋 작업일정표</a>{% else %}<span class="today-go" style="margin-left:8px;opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — 이 부서일정표를 이용하세요" aria-disabled="true">📋 작업일정표</span>{% endif %}
+      {% if can_sales_amt %}<a class="today-go" href="/sales/schedule" data-no-swap title="영업 작업일정표로" style="margin-left:8px;">📋 작업일정표</a>{% else %}<span class="today-go" style="margin-left:8px;opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — 이 전사일정표를 이용하세요" aria-disabled="true">📋 작업일정표</span>{% endif %}
     </div>
     <div class="dsx-tabs">
       {% set _tabs = [('','전체',div_counts.all),('T','검사기',div_counts.T),('M','자동화',div_counts.M),('L','라이프밸류',div_counts.L),('E','기타',div_counts.E),('C','소모품',div_counts.C)] %}

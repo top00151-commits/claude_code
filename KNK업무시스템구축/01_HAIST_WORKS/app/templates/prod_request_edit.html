@@ -369,9 +369,9 @@ select.prq-in { appearance:auto; }
              액션그룹은 .prq-actgrp[hidden]{display:none!important}로 확실히 숨김. ([[knk_hidden_attr_css_trap]]) #}
         <div class="prq-footer">
           {# v5H226z844 (대표 지시): 작업일정표 접근권(can_sales_amt=매출열람권·z843) 없으면 '작업일정표 바로가기'를 비활성(회색·클릭불가·span). #}
-          {% if can_sales_amt %}<a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ p.id }}" title="작업일정표에서 이 관리번호 위치로 이동">📅 작업일정표 바로가기</a>{% else %}<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — 아래 '부서일정표 바로가기'를 이용하세요" aria-disabled="true">📅 작업일정표 바로가기</span>{% endif %}
+          {% if can_sales_amt %}<a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ p.id }}" title="작업일정표에서 이 관리번호 위치로 이동">📅 작업일정표 바로가기</a>{% else %}<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — 아래 '전사일정표 바로가기'를 이용하세요" aria-disabled="true">📅 작업일정표 바로가기</span>{% endif %}
           {# v5H226z842 (대표 지시): 부서일정표 바로가기 — 작업일정표 접근이 어려운 사용자용(작업일정표 바로 오른쪽). #}
-          <a class="btn btn-secondary" href="/dept/schedule" title="부서 일정표 열기 — 작업일정표 접근이 어려운 분은 여기로">🗓 부서일정표 바로가기</a>
+          <a class="btn btn-secondary" href="/dept/schedule" title="전사 일정표 열기 — 작업일정표 접근이 어려운 분은 여기로">🗓 전사일정표 바로가기</a>
           <div class="prq-actions">
             <span id="prqViewBtns" class="prq-actgrp">
               {% if can_edit %}<button type="button" class="btn btn-primary" style="background:#c2410c;" onclick="prqEnterEdit()">✏️ 수정하기</button>{% endif %}

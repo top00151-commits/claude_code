@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-05 v5H226z851[내가 시킨 일(지시/요청) 삭제 기능 추가 — 대표 지시: 오늘의 업무 "내가 시킨 일" 카드에 삭제 방법이 없었음. work_order 삭제 라우트(/work-order/{id}/delete·지시자 본인 또는 admin/ceo만) + daily.html 카드에 🗑 버튼(확인창). 삭제 시 받는 사람 화면서도 사라짐. main.py·daily.html]
+REM   LAST UPDATE: 2026-07-05 v5H226z852["부서 일정표" -> "전사 일정표" 전면 개명 — 대표 지시: 개별부서가 아니라 전사 프로젝트 일정을 공유·기록하는 곳(향후 프로젝트 이력화). 사용자 노출 전부 변경: menu_catalog(M-00-22 명+별칭+설명)·사이드바(chrome.html)·페이지 제목/h2/설명/툴팁(dept_schedule.html)·작업일정표의 버튼(schedule_board.html)·제작요청서 버튼/툴팁(prod_request_edit.html)·Eum 통보 제목([부서 일정]->[전사 일정] main.py). 라우트(/dept/schedule)·테이블·kind·내부주석은 링크 유지 위해 그대로. main.py·menu_catalog.py·4 템플릿]
+REM   - 2026-07-05 v5H226z851[내가 시킨 일(지시/요청) 삭제 기능 추가 — 대표 지시: 오늘의 업무 "내가 시킨 일" 카드에 삭제 방법이 없었음. work_order 삭제 라우트(/work-order/{id}/delete·지시자 본인 또는 admin/ceo만) + daily.html 카드에 🗑 버튼(확인창). 삭제 시 받는 사람 화면서도 사라짐. main.py·daily.html]
 REM   - 2026-07-05 v5H226z850[부서 요청함 가상데이터 초기화 버튼 — 대표 지시: 부서 요청함(/dept/requests)의 검증용 가상(ZZDEMO·[가상]) 데이터를 여기서 바로 초기화. 기존 삭제기능(/dept/demo/cleanup·ZZDEMO 영업기회+부서요청+구성원+활동+첨부 전삭제, 실데이터 무관)을 페이지에 노출. 가상데이터 있을 때만(has_demo) 대표/관리자(can_boss)에게 🧹 버튼·확인창. cleanup은 back=requests면 부서요청함 복귀+완료배너. 가상데이터는 수동시드만이라 삭제=영구. main.py·dept_requests.html]
 REM   - 2026-07-05 v5H226z849[테스트 날짜 변경(가짜 오늘) 기능 완전 삭제 — 대표 지시: 더 이상 사용 안 함. 마스트헤드 🧪 버튼·노란 테스트배너·openFakeDateUI/setFakeDate JS(chrome.html)·/dev/fake-date 라우트·ctx fake_date_active 제거. fake_today_iso는 호출부 다수라 함수 유지하되 항상 실제 today 반환. 잔재 참조 0·py_compile·Jinja OK. main.py·chrome.html]
 REM   - 2026-07-05 v5H226z848[작업일정표 달력 상태글자 크기 대표 지정값 — 출하/지연/납품/취소 주라벨 12px(cal-t·cal-sub·stat-ico), 취소옆 작은 납품(cal-t-sup) 9px. schedule_board.css만.]
