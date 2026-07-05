@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-05 v5H226z824[수주번호 병합도구(/admin/so-merge) — 일괄업로드로 과다발번된 같은속성(관리번호+발주일+납기+납품지+통화+담당자) 수주번호를 한 수주번호+호기 N개로 병합. 미리보기 먼저(GET 조회만·DB무변경)·실제병합은 POST 선택+확인 시에만·세금계산서/출하(SHIPPED/INVOICED/PAID/READY_TO_SHIP) 걸린 건 자동병합 제외(수동확인)·가장 빠른 번호로 통합·호기 재번호(1·2호기)·이중가드·트랜잭션. ceo/admin 전용. main.py·project_workflow.py·admin_so_merge.html·admin.html]
+REM   LAST UPDATE: 2026-07-05 v5H226z825[수주번호 병합도구(z824) 제거 — 대표 재판단: 과다발번 기존분은 검사기 6월중순까지 이미 다 출하완료라 병합 무의미(미리보기서 병합가능 0·전부 SHIPPED)·자동화는 물량 적어 무관·앞으론 z820(일괄 자동묶기)+직접입력으로 안 생김. 기존 갈라진 수주번호는 그대로 둠. /admin/so-merge 라우트·템플릿·헬퍼·링크 삭제(순수 삭제 683줄). main.py·project_workflow.py·admin_so_merge.html·admin.html]
+REM   - 2026-07-05 v5H226z824[수주번호 병합도구(/admin/so-merge) — 일괄업로드로 과다발번된 같은속성(관리번호+발주일+납기+납품지+통화+담당자) 수주번호를 한 수주번호+호기 N개로 병합. 미리보기 먼저(GET 조회만·DB무변경)·실제병합은 POST 선택+확인 시에만·세금계산서/출하(SHIPPED/INVOICED/PAID/READY_TO_SHIP) 걸린 건 자동병합 제외(수동확인)·가장 빠른 번호로 통합·호기 재번호(1·2호기)·이중가드·트랜잭션. ceo/admin 전용. main.py·project_workflow.py·admin_so_merge.html·admin.html]
 REM   - 2026-07-05 v5H226z823[정보 열람권한 2단계-2.1(매출금액) — ctx()에 3분류 전역(can_sales_amt/purchase_price/supplier)+can_view_field 임원 반영. 매출금액을 새 팀정책에 연결: 수주상세 매출 노출 구멍 닫기·작업일정표(정적표+호기/소모품 펼침+보드데이터/엑셀 서버게이트)·프로젝트 매출 KPI. 원가/구매처는 2.2/2.3. 정책밖 팀(검사기 등)은 매출금액 비공개. main.py·sales_order_detail·schedule_board·project_detail]
 REM   - 2026-07-05 v5H226z822[정보 열람 권한 1단계 — 매출금액/구매단가/구매처 3분류를 팀별로 제어하는 정책표(field_access_policy)+헬퍼(can_view_field)+대표/관리자 체크박스 화면(/admin/field-access) 신설. 화면 적용은 2단계·기존 동작 무변경. main.py·database.py·admin_field_access.html]
 REM   - 2026-07-05 v5H226z821[제작요청서목록 사업부 필터 아이콘을 프로젝트 등록 유형 카드와 통일 — 검사기 🔎→🔬 · 자동화 ⚙️→🤖 · 라이프밸류 💡→💄 · 기타 🗂️→🌐 · 소모품 🧴→📦. prod_requests_list.html]
