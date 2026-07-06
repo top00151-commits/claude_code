@@ -19128,7 +19128,7 @@ async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
         _page = max(1, int(page))
     except Exception:
         _page = 1
-    total_match = _logi.parts_count(q=q, biz_div=biz_div, category=category)
+    total_match = _logi.parts_count_filtered(q=q, biz_div=biz_div, category=category)   # v5H226z865: 기존 parts_count()와 이름 충돌 → 개명
     pages = max(1, -(-total_match // PAGE_SIZE))   # ceil
     _page = min(_page, pages)
     rows = _logi.parts_list(q=q, biz_div=biz_div, category=category,

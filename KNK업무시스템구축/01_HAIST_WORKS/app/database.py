@@ -5018,8 +5018,10 @@ def parts_list(q: str = "", biz_div: str = "", category: str = "",
         return c.execute(sql, params).fetchall()
 
 
-def parts_count(q: str = "", biz_div: str = "", category: str = "") -> int:
-    """v5H226z863: 자재 목록 필터 일치 총 건수(페이지 수 계산용) — parts_list 와 동일 조건."""
+def parts_count_filtered(q: str = "", biz_div: str = "", category: str = "") -> int:
+    """v5H226z863: 자재 목록 필터 일치 총 건수(페이지 수 계산용) — parts_list 와 동일 조건.
+    ⚠v5H226z865: 이름 주의 — 아래(5600대)에 인자 없는 기존 parts_count()(KPI dict)가 이미 있어
+    같은 이름이면 나중 정의가 덮어씀(z864 배포 직후 /parts TypeError 원인). 개명으로 해결."""
     sql = "SELECT COUNT(*) FROM parts WHERE 1=1"
     params: list = []
     if q:
