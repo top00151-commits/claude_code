@@ -21132,12 +21132,12 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                     _iu["contact"] = _ln["so_contact"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
-                if _ru and not (cust and cust not in (_ru["customer"] or "")):
+                if _ru and _sched_cust_hit(_ru, cust):
                     rows.append(_ru)
         else:
             _eff_st = _board_agg_status(_bus_proj.get(p.get("id")) or []) or p.get("status")
             _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
-            if _r and not (cust and cust not in (_r["customer"] or "")):
+            if _r and _sched_cust_hit(_r, cust):
                 rows.append(_r)
     try:
         from . import consumables as _co_mod
@@ -21170,7 +21170,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
             _r = _mk_row(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")),
                          _co_map.get(cr.get("status") or "DRAFT", "초기협의"), "consumable")
-            if _r and not (cust and cust not in (_r["customer"] or "")):
+            if _r and _sched_cust_hit(_r, cust):
                 rows.append(_r)
     except Exception:
         pass
@@ -21994,6 +21994,21 @@ async def projects_import_product_confirm(request: Request):
                          "inserted": inserted, "total": total, "followup": _is_followup})
 
 
+def _sched_cust_hit(row, q):
+    """v5H226z862 (대표 지시): 작업일정표 '찾기' 매칭 — 검색어가 관리번호/프로젝트명/모델/장비/고객사/수주번호
+    중 하나라도 부분매칭(대소문자 무시)이면 통과. 빈 검색어면 전부 통과.
+    (기존엔 고객사만 매칭했고 그 달 행만 필터돼 불편 → 다중 필드 + 전 기간 검색으로 확장)."""
+    if not q:
+        return True
+    ql = str(q).strip().lower()
+    if not ql:
+        return True
+    for _k in ("code", "name", "model", "equip", "customer", "customer_disp", "so_no"):
+        if ql in str(row.get(_k) or "").lower():
+            return True
+    return False
+
+
 @app.get("/sales/schedule", response_class=HTMLResponse)
 async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
                          pf: str = "", pt: str = "", focus_ref: str = "", focus_so: str = ""):
@@ -22066,6 +22081,13 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     range_mode = bool(_pf and _pt and _pf <= _pt)
     if range_mode:
         mstart, mend = _pf, _pt
+        days = []
+        today_day = None
+    # v5H226z862 (대표 지시): 찾기 검색어(cust)가 있으면 기간 지정 없이도 '전 기간(모든 연도)'에서 검색 —
+    #   그 달에 안 갇힘. 달력은 여러 달을 못 담으므로 목록(range_mode)으로 표시. 검색어 지우면 이번 달 복귀.
+    elif (cust or "").strip():
+        range_mode = True
+        mstart, mend = _date(1900, 1, 1), _date(2999, 12, 31)
         days = []
         today_day = None
 
@@ -22226,12 +22248,12 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                     _iu["contact"] = _ln["so_contact"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
-                if _ru and not (cust and cust not in (_ru["customer"] or "")):
+                if _ru and _sched_cust_hit(_ru, cust):
                     rows.append(_ru)
         else:
             _eff_st = _board_agg_status(_bus_proj.get(p.get("id")) or []) or p.get("status")
             _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
-            if _r and not (cust and cust not in (_r["customer"] or "")):
+            if _r and _sched_cust_hit(_r, cust):
                 rows.append(_r)
     # 소모품 일정 (전사 포함)
     try:
@@ -22271,7 +22293,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
             _r = _mk_row(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")),
                          _co_map.get(cr.get("status") or "DRAFT", "초기협의"), "consumable")
-            if _r and not (cust and cust not in (_r["customer"] or "")):
+            if _r and _sched_cust_hit(_r, cust):
                 rows.append(_r)
     except Exception:
         pass

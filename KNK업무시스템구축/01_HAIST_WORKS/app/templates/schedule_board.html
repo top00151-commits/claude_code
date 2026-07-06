@@ -116,7 +116,7 @@
   <div class="sched-tools sb-band band-find" id="schedFindBar">
     <span class="band-tag">찾기·일괄</span>
     <span class="find-grp">
-      <input type="search" id="schedSearch" class="sched-search" placeholder="🔍 관리번호·프로젝트명·모델·장비·고객사 검색" oninput="schedDoSearch()" autocomplete="off" />
+      <input type="search" id="schedSearch" class="sched-search" value="{{ cust }}" placeholder="🔍 관리번호·프로젝트명·모델·장비·고객사 (전체에서 찾기)" oninput="schedDoSearch()" autocomplete="off" />
       <span class="find-count" id="schedFindCount"></span>
     </span>
     {# v5H226z371 (대표 지시): 기간(범위) 찾기 — 여러 달에 걸친 항목을 한 번에 불러와 검색. 기간 모드에선 달력 칸 숨김. #}
@@ -1694,6 +1694,21 @@ function schedDoSearch(){
   // v5H226z561(대표 지시): 검색어를 세션에 저장 — 수정 후 새로고침돼도 찾던 조건 유지(비우면 해제)
   try{ if(q) sessionStorage.setItem('knk.sched.q', inp.value); else sessionStorage.removeItem('knk.sched.q'); }catch(e){}
   syncSelAll();
+  _schedGlobalDebounce();   // v5H226z862: 타이핑 멈추면 '전 기간(모든 달)' 서버 검색으로 전환
+}
+// v5H226z862 (대표 지시): 찾기는 그 달이 아니라 전체에서 — 검색어를 서버로 보내 전 기간 검색, 비우면 이번 달 복귀.
+var _schedGTimer=null;
+function _schedGlobalDebounce(){ clearTimeout(_schedGTimer); _schedGTimer=setTimeout(schedGlobalSearch, 800); }
+function schedGlobalSearch(){
+  var inp=document.getElementById('schedSearch'); if(!inp) return;
+  var q=(inp.value||'').trim();
+  var cur=((typeof _SCHED_CUST!=='undefined' && _SCHED_CUST)||'').trim();
+  if(q===cur) return;   // 이미 그 검색어로 서버가 전 기간 로드한 상태 — 리로드 불필요(무한루프 방지)
+  var u='/sales/schedule', ps=[];
+  if(q) ps.push('cust='+encodeURIComponent(q));
+  if(typeof _SCHED_BIZ!=='undefined' && _SCHED_BIZ) ps.push('biz='+encodeURIComponent(_SCHED_BIZ));
+  if(ps.length) u+='?'+ps.join('&');
+  location.href=u;
 }
 function _selRows(){ if(!_tbody) return []; return Array.prototype.filter.call(_tbody.querySelectorAll('tr'), function(tr){ var c=tr.querySelector('.row-sel'); return c && c.checked; }); }
 function _visRows(){ if(!_tbody) return []; return Array.prototype.slice.call(_tbody.querySelectorAll('tr:not(.search-hide)')); }
