@@ -19088,6 +19088,7 @@ async def sales_dashboard(request: Request):
                       order_date, due_date, biz_div
                FROM projects
                WHERE mgmt_code IS NOT NULL AND mgmt_code != ''
+                 AND COALESCE(is_archived,0)=0
                ORDER BY id DESC LIMIT 10""").fetchall()]
         customers_top = [dict(r) for r in c.execute(
             """SELECT customer_name, COUNT(*) AS cnt,
@@ -20246,16 +20247,18 @@ async def prod_request_image_delete(request: Request, pid: int, prid: int, img_i
 @app.get("/projects", response_class=HTMLResponse)
 async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                              stage: str = "", status: str = "",
-                             project_type: str = "", view: str = ""):
+                             project_type: str = "", view: str = "", archived: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_sales(u):
         return RedirectResponse("/home", 303)
+    # 2026-07-06 (대표 지시): archived=1 이면 폐기함(폐기된 프로젝트만 표시)
+    _only_arch = (str(archived).strip() == "1")
     # v5H218: biz_div(T/M) = 진행 사업부, project_type 으로 유형(검사기/자동화/기타/소모품) 구분
     rows: list = []
     _proj_rows = _logi.projects_list_logi(q=q, biz_div=biz_div, stage=stage, status=status,
-                                           project_type=project_type)
+                                           project_type=project_type, only_archived=_only_arch)
     # v5H217b: sqlite3.Row 는 .get() 미지원 → dict 변환
     rows = [dict(r) for r in _proj_rows]
     try:
@@ -20271,7 +20274,8 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     except Exception:
         pass
     # v5H217+v5H218: 소모품 묶음(consumable_orders) 도 통합. biz_div 필터 시 consumable.biz_div 매칭
-    if project_type in ("", "CONSUMABLE"):
+    #   2026-07-06: 폐기함(archived)에서는 프로젝트만 — 소모품 병합 건너뜀
+    if project_type in ("", "CONSUMABLE") and not _only_arch:
         try:
             from . import consumables as _co_mod
             _co_status_map = {"DRAFT": "초기협의", "QUOTED": "견적발행",
@@ -20354,7 +20358,8 @@ async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     return ctx(request, "projects.html",
                user=u, active="sales_projects",
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,
-               project_type=project_type, view=view, view_counts=view_counts,
+               project_type=project_type, view=view, archived=_only_arch,
+               view_counts=view_counts,
                div_counts=div_counts,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PROJECT_TYPES=_logi.PROJECT_TYPES,
@@ -27755,6 +27760,41 @@ async def projects_edit_submit(request: Request, pid: int):
     except Exception as _csc_err:
         print(f"[v5H226s] edit-submit meta cascade err: {_csc_err}")
     return RedirectResponse(f"/project/{pid}", status_code=303)
+
+
+@app.post("/projects/{pid}/archive")
+async def projects_archive_submit(request: Request, pid: int):
+    """2026-07-06 (대표 지시): 프로젝트 폐기(숨김). 완전삭제(관리코드 건은 정책상 불가) 대신
+    목록·일정표에서 숨김 — 데이터 보존·복구 가능. 권한 = can_use_sales(영업 등록권한자)."""
+    _u = get_user(request)
+    if not _u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(_u):
+        return JSONResponse({"ok": False, "error": "권한 없음",
+                             "message": "폐기는 영업 등록권한자만 가능합니다."}, 403)
+    try:
+        with db_session() as c:
+            c.execute("UPDATE projects SET is_archived=1 WHERE id=?", (pid,))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": "폐기 실패", "message": str(e)}, 500)
+    return JSONResponse({"ok": True, "message": "폐기(숨김) 완료 — 폐기함에서 복구할 수 있습니다."})
+
+
+@app.post("/projects/{pid}/unarchive")
+async def projects_unarchive_submit(request: Request, pid: int):
+    """2026-07-06 (대표 지시): 폐기 복구 — 다시 목록·일정표에 표시."""
+    _u = get_user(request)
+    if not _u:
+        return RedirectResponse("/login", 303)
+    if not can_use_sales(_u):
+        return JSONResponse({"ok": False, "error": "권한 없음",
+                             "message": "복구는 영업 등록권한자만 가능합니다."}, 403)
+    try:
+        with db_session() as c:
+            c.execute("UPDATE projects SET is_archived=0 WHERE id=?", (pid,))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": "복구 실패", "message": str(e)}, 500)
+    return JSONResponse({"ok": True, "message": "복구 완료"})
 
 
 @app.post("/projects/{pid}/delete")

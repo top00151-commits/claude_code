@@ -118,13 +118,22 @@ body {
     {% if q or biz_div or status or project_type %}<a class="btn btn-secondary" href="/projects">초기화</a>{% endif %}
   </form>
 
+  {# 2026-07-06 (대표 지시): 폐기함(archived) 모드면 전용 안내, 아니면 일반 안내 + 폐기함 링크 #}
+  {% if archived %}
+  <div class="proj-intro-note" style="margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #ea7c33;border-radius:6px;font-size:12.5px;line-height:1.65;color:#9a3412;">
+    🗑 <b>폐기함</b> — 폐기(숨김)된 프로젝트만 표시됩니다. 데이터는 보존돼 있으며, 행을 클릭해 상세에서 <b>"♻ 복구"</b>하면 다시 목록에 나타납니다.
+    <a href="/projects" style="color:#9a3412;font-weight:800;text-decoration:underline;margin-left:6px;">↩ 일반 목록으로</a>
+  </div>
+  {% else %}
   {# v5H226o: 페이지 안내 — 모든 단계의 프로젝트가 섞여 있어 수주액/발주일 등은 변경될 수 있음 #}
   <div class="proj-intro-note" style="margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fef9e6;border:1px solid #f0d97a;border-left:4px solid #d4b75a;border-radius:6px;font-size:12.5px;line-height:1.65;color:#5a4a00;">
     ⓘ 이 목록은 <b>초기협의·제안서전달·견적발행·수주예정·수주확정·진행중·출하·취소·보류</b> 모든 단계의 프로젝트를 함께 보여줍니다.
     <span style="color:#7c4a03;">수주확정 전 항목의 <b>수주액·발주일·납기·단가</b>는 견적/제안 단계 임시값으로 추후 변경될 수 있습니다.</span>
     <span style="color:#7c4a03;">이제는 <b>등록 시 관리코드·수주번호(SO)가 항상 자동 발급</b>됩니다 (제안 단계 포함). 관리코드 없이는 등록되지 않습니다.</span>
     행 클릭 시 해당 프로젝트 상세 화면으로 이동합니다.
+    <a href="/projects?archived=1" style="color:#7c4a03;font-weight:700;text-decoration:underline;margin-left:6px;">🗑 폐기함 보기</a>
   </div>
+  {% endif %}
 
   {# v5H226z177: 다건 선택 삭제 툴바 제거 (대표 지시 — 프로젝트 목록 삭제 기능 제거) #}
   <div class="tbl-wrap tbl-sticky">

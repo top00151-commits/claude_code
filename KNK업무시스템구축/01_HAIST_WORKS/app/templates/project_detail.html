@@ -36,9 +36,46 @@
       {% if prod_requests %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit" title="발행된 제작요청서 보기">📋 제작요청서 보기</a>{% endif %}
       {% if can_sales %}<a class="btn btn-primary" style="background:#c2410c;" href="/project/{{ p.id }}/prod-request/edit?new=1" title="이 프로젝트(관리번호 유지)에 제작요청서를 새로 작성·발행 — 관련 부서 통보">＋ 제작요청서 작성</a>{% endif %}
       {% if prod_requests and can_sales %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit?edit=1" title="제작요청서 수정">✏️ 제작요청서 수정</a>{% endif %}
+      {# 2026-07-06 (대표 지시): 프로젝트 정보 수정 진입점 복원 — z787로 '수정'이 제작요청서 편집으로 바뀌며 빠졌던 것. 고객사·모델·사업부·상태 등 프로젝트 자체 정보 수정. #}
+      {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/edit" title="프로젝트 정보(고객사·모델·사업부·상태 등) 수정">✏️ 프로젝트 정보 수정</a>{% endif %}
+      {# 2026-07-06 (대표 지시): 폐기(숨김)/복구 — 완전삭제(관리코드 건은 정책상 불가) 대신 목록·일정표에서 숨김(데이터 보존·복구 가능) #}
+      {% if can_sales and not p.is_archived %}<button type="button" class="btn btn-secondary" style="color:#dc2626;border-color:#f0b4b4;" onclick="archiveProject()" title="이 프로젝트를 목록·일정표에서 숨김(데이터 보존·폐기함에서 복구 가능)">🗑 폐기</button>{% endif %}
+      {% if can_sales and p.is_archived %}<button type="button" class="btn btn-primary" style="background:#15803d;" onclick="unarchiveProject()" title="폐기 복구 — 다시 목록·일정표에 표시">♻ 복구</button>{% endif %}
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
     </div>
   </div>
+  <script>
+  (function(){
+    // 2026-07-06 (대표 지시): 프로젝트 폐기(숨김)/복구 — window 등록(SPA 안전)
+    window.archiveProject = function(){
+      if(!confirm('이 프로젝트를 폐기(숨김) 처리할까요?\n\n· 목록·일정표·최근 프로젝트에서 숨겨집니다\n· 데이터는 보존되며 폐기함에서 복구할 수 있습니다')) return;
+      fetch('/projects/{{ p.id }}/archive',{method:'POST'})
+        .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});})
+        .then(function(o){
+          if(o.s===403){ alert('⚠ '+((o.j&&o.j.message)||'권한 없음')); return; }
+          if(o.j&&o.j.ok){ alert('✓ '+o.j.message); location.href='/projects'; }
+          else alert('폐기 실패: '+((o.j&&(o.j.message||o.j.error))||''));
+        }).catch(function(e){ alert('폐기 실패: '+e); });
+    };
+    window.unarchiveProject = function(){
+      if(!confirm('폐기를 복구할까요? 다시 목록·일정표에 표시됩니다.')) return;
+      fetch('/projects/{{ p.id }}/unarchive',{method:'POST'})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(j.ok){ alert('✓ 복구되었습니다'); location.reload(); }
+          else alert('복구 실패: '+((j.message||j.error)||''));
+        }).catch(function(e){ alert('복구 실패: '+e); });
+    };
+  })();
+  </script>
+
+  {# 2026-07-06 (대표 지시): 폐기(숨김)된 프로젝트 배너 — 복구 유도 #}
+  {% if p.is_archived %}
+  <div style="margin:0 0 14px;padding:11px 15px;border-radius:9px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.6;">
+    🗑 <b>폐기(숨김)된 프로젝트입니다</b> — 목록·일정표·최근 프로젝트에서 숨겨져 있습니다(데이터는 보존됨).
+    {% if can_sales %}상단 <b>"♻ 복구"</b> 버튼으로 다시 표시할 수 있습니다.{% endif %}
+  </div>
+  {% endif %}
 
   {# v5H226z623 (대표 지시): 제작요청 승격 시 고객사 미등록 알람 — 등록·연결 유도 #}
   {% if request.query_params.get('cust_unreg') %}
