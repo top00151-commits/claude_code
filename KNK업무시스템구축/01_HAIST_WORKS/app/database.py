@@ -117,9 +117,20 @@ def is_legacy_hash(stored: str) -> bool:
     return bool(stored) and not stored.startswith("pbkdf2$")
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=5.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # v5H226z863 (대표 지시·성능 원천개선): WAL 모드 — 저장(쓰기)이 화면 열기(읽기)를 안 막게.
+    #   기존 기본(DELETE 저널)은 누가 입력하는 동안 DB 전체가 잠겨 다른 요청이 줄 서서 대기
+    #   ("입력하면서 느려짐"의 직접 원인). journal_mode=WAL 은 DB 파일에 영구 기록되므로
+    #   이미 WAL 이면 즉시 반환(무비용). busy_timeout=5s: 잠금 경합 시 대기(즉시 오류 방지).
+    #   synchronous=NORMAL: WAL 권장 조합(연결마다 설정 필요·내구성은 WAL 이 보장).
+    try:
+        conn.execute("PRAGMA busy_timeout = 5000")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+    except sqlite3.OperationalError:
+        pass   # 전환 실패(순간 경합 등)해도 동작엔 지장 없음 — 다음 연결이 재시도
     return conn
 
 @contextmanager
@@ -4981,7 +4992,10 @@ def _logi_now() -> str:
 
 
 # ── 부품 마스터 (parts) CRUD ─────────────────────────────
-def parts_list(q: str = "", biz_div: str = "", category: str = ""):
+def parts_list(q: str = "", biz_div: str = "", category: str = "",
+               limit=None, offset: int = 0):
+    """v5H226z863 (대표 지시·성능 원천개선): limit/offset 페이지 나눔 지원.
+    limit=None → 전체(기존 호출 호환·엑셀내보내기 등)."""
     sql = "SELECT * FROM parts WHERE 1=1"
     params: list = []
     if q:
@@ -4997,8 +5011,47 @@ def parts_list(q: str = "", biz_div: str = "", category: str = ""):
         sql += " AND category = ?"
         params.append(category)
     sql += " ORDER BY id DESC"
+    if limit is not None:
+        sql += " LIMIT ? OFFSET ?"
+        params += [int(limit), max(0, int(offset))]
     with db_session() as c:
         return c.execute(sql, params).fetchall()
+
+
+def parts_count(q: str = "", biz_div: str = "", category: str = "") -> int:
+    """v5H226z863: 자재 목록 필터 일치 총 건수(페이지 수 계산용) — parts_list 와 동일 조건."""
+    sql = "SELECT COUNT(*) FROM parts WHERE 1=1"
+    params: list = []
+    if q:
+        sql += " AND (part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR maker LIKE ? OR COALESCE(purpose,'') LIKE ?)"
+        like = f"%{q}%"
+        params += [like, like, like, like, like]
+    if biz_div:
+        sql += " AND biz_div = ?"
+        params.append(biz_div)
+    if category:
+        sql += " AND category = ?"
+        params.append(category)
+    with db_session() as c:
+        return int(c.execute(sql, params).fetchone()[0] or 0)
+
+
+def parts_stats() -> dict:
+    """v5H226z863: 자재 마스터 상단 통계(전체/활성/사업부별/공통) — 집계쿼리 1방.
+    기존엔 전 행을 템플릿에서 7번 순회(selectattr)해 계산 — 3천 종에서 지연 원인."""
+    with db_session() as c:
+        r = c.execute(
+            "SELECT COUNT(*) AS total, "
+            "SUM(CASE WHEN is_active=1 THEN 1 ELSE 0 END) AS active_cnt, "
+            "SUM(CASE WHEN biz_div='T' THEN 1 ELSE 0 END) AS t_cnt, "
+            "SUM(CASE WHEN biz_div='M' THEN 1 ELSE 0 END) AS m_cnt, "
+            "SUM(CASE WHEN biz_div='E' THEN 1 ELSE 0 END) AS e_cnt, "
+            "SUM(CASE WHEN biz_div='C' THEN 1 ELSE 0 END) AS c_cnt, "
+            "SUM(CASE WHEN biz_div='공통' THEN 1 ELSE 0 END) AS common_cnt "
+            "FROM parts").fetchone()
+        d = {k: int(r[k] or 0) for k in r.keys()}
+        d["x_cnt"] = d["total"] - d["t_cnt"] - d["m_cnt"] - d["e_cnt"] - d["c_cnt"]
+        return d
 
 
 def parts_get(pid: int):
@@ -5691,13 +5744,21 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
 
 def projects_list_logi(q: str = "", biz_div: str = "", stage: str = "",
                        status: str = "", project_type: str = "",
-                       include_archived: bool = False, only_archived: bool = False):
+                       include_archived: bool = False, only_archived: bool = False,
+                       ids=None):
     """v5H137: project_type 필터 추가 (NEW_EQUIP/CONSUMABLE/SERVICE/OTHER).
     2026-07-06 (대표 지시): 폐기(숨김) 지원. 기본은 폐기건 제외(is_archived=0).
-      only_archived=True → 폐기건만(폐기함) / include_archived=True → 전체."""
+      only_archived=True → 폐기건만(폐기함) / include_archived=True → 전체.
+    v5H226z864 (성능): ids=프로젝트 id 집합 한정(일정표 월 보기 프리필터).
+      None=전체(기존 동작) / 빈 집합=빈 결과."""
+    if ids is not None and not ids:
+        return []
     sql = ("SELECT p.*, p.name AS project_name "
            "FROM projects p WHERE 1=1")
     params: list = []
+    if ids is not None:
+        # 정수만 직접 나열(SQL 변수 개수 한계 회피·주입 불가)
+        sql += " AND p.id IN (%s)" % ",".join(str(int(i)) for i in ids)
     # 2026-07-06 폐기(숨김) 필터 — 기본 폐기건 제외 / 폐기함 / 전체
     if only_archived:
         sql += " AND COALESCE(p.is_archived,0)=1"

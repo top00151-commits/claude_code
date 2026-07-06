@@ -1173,7 +1173,7 @@ def co_get(co_id: int) -> dict | None:
         return dict(r) if r else None
 
 
-def co_list(status: str = "", q: str = "", limit: int = 200) -> list[dict]:
+def co_list(status: str = "", q: str = "", limit: int = 200, overlap=None) -> list[dict]:
     sql = "SELECT * FROM consumable_orders WHERE 1=1"
     params: list = []
     if status and status in CO_STATUSES:
@@ -1181,6 +1181,18 @@ def co_list(status: str = "", q: str = "", limit: int = 200) -> list[dict]:
     if q:
         sql += " AND (co_no LIKE ? OR customer_name LIKE ? OR note LIKE ?)"
         params += [f"%{q}%", f"%{q}%", f"%{q}%"]
+    if overlap:
+        # v5H226z864 (성능): overlap=(시작,끝) — 발주~납품 기간이 겹치는 건만(일정표 월 보기 프리필터).
+        #   일정표 행 판정(_mk_row: s=(발주 or 납품), e=(납품 or 발주), 스왑 후 겹침)과 동일 재현.
+        #   YYYY-MM-DD 형식이 아닌 날짜는 비교 불가 → 무조건 포함(안전측). 두 날짜 다 빈 건은 제외(일정표에 안 뜸).
+        _f, _t = str(overlap[0])[:10], str(overlap[1])[:10]
+        _sd = "COALESCE(NULLIF(substr(order_date,1,10),''), NULLIF(substr(due_date,1,10),''))"
+        _ed = "COALESCE(NULLIF(substr(due_date,1,10),''), NULLIF(substr(order_date,1,10),''))"
+        _g = "'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        sql += (f" AND {_sd} IS NOT NULL"
+                f" AND ({_sd} NOT GLOB {_g} OR {_ed} NOT GLOB {_g}"
+                f" OR (MIN({_sd},{_ed}) <= ? AND MAX({_sd},{_ed}) >= ?))")
+        params += [_t, _f]
     sql += " ORDER BY id DESC LIMIT ?"; params.append(int(limit))
     with db_session() as c:
         return [dict(r) for r in c.execute(sql, params).fetchall()]

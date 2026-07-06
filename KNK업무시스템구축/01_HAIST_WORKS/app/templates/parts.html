@@ -102,6 +102,13 @@
 .stk-mini .fill.is-low { background: var(--pq-warn); }
 .stk-mini .fill.is-critical { background: var(--pq-danger); }
 
+/* v5H226z863: 페이지 나눔 바 (200행/쪽) */
+.pgbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; background: var(--pq-surface); border-top: 1px solid var(--pq-line); flex-wrap: wrap; }
+.pgbar .pg-btn { padding: 6px 14px; border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12.5px; font-weight: 600; color: var(--pq-ink-2); text-decoration: none; background: var(--pq-surface); }
+.pgbar .pg-btn:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+.pgbar .pg-btn.is-off { pointer-events: none; opacity: .35; }
+.pgbar .pg-info { font-size: 12px; color: var(--pq-ink-3); font-family: var(--pq-mono); font-variant-numeric: tabular-nums; padding: 0 6px; }
+
 /* Empty state */
 .po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
 .po-empty .ico { font-size: 40px; margin-bottom: 10px; opacity: 0.6; }
@@ -124,13 +131,15 @@
 </head>
 <body>
 
-{% set total_cnt = parts|length %}
-{% set active_cnt = parts|selectattr('is_active','equalto',1)|list|length %}
-{% set t_cnt = parts|selectattr('biz_div','equalto','T')|list|length %}
-{% set m_cnt = parts|selectattr('biz_div','equalto','M')|list|length %}
-{% set e_cnt = parts|selectattr('biz_div','equalto','E')|list|length %}
-{% set c_cnt = parts|selectattr('biz_div','equalto','C')|list|length %}
-{% set x_cnt = total_cnt - t_cnt - m_cnt - e_cnt - c_cnt %}
+{# v5H226z863 (대표 지시·성능 원천개선): 통계 = 서버 집계쿼리 1방(parts_stats).
+   기존엔 전 행(3천+)을 여기서 7번 순회(selectattr) — 페이지 지연 원인. parts = 현재 쪽 행만(200). #}
+{% set total_cnt = stats.total %}
+{% set active_cnt = stats.active_cnt %}
+{% set t_cnt = stats.t_cnt %}
+{% set m_cnt = stats.m_cnt %}
+{% set e_cnt = stats.e_cnt %}
+{% set c_cnt = stats.c_cnt %}
+{% set x_cnt = stats.x_cnt %}
 
 <div class="app">
   {% set active_tab = "logi" %}
@@ -158,8 +167,9 @@
         </div>
       </div>
 
-      {# v5H226z58 (2026-05-12) — 공통 분류 과다 경고 (실무 기준 10% 초과 시) #}
-      {% set common_cnt = parts|selectattr('biz_div','equalto','공통')|list|length %}
+      {# v5H226z58 (2026-05-12) — 공통 분류 과다 경고 (실무 기준 10% 초과 시)
+         v5H226z863: 서버 집계(stats.common_cnt)로 — 전 행 순회 제거 #}
+      {% set common_cnt = stats.common_cnt %}
       {% set common_pct = (common_cnt * 100 / total_cnt) if total_cnt else 0 %}
       {% if common_cnt >= 20 and common_pct > 15 %}
       <div style="margin:0 0 0 0;padding:10px 24px;background:#fef3c7;border-bottom:1px solid #fbbf24;border-left:4px solid #d97706;display:flex;align-items:center;gap:12px;font-size:12.5px;color:#92400e;">
@@ -248,7 +258,7 @@
         {% if q or biz_div or category %}
           <a class="fb-chip" href="/parts" style="border-style: dashed;">↺ 필터 해제</a>
         {% endif %}
-        <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
+        <span class="fb-result">{{ '{:,}'.format(total_match) }}건 일치 · {{ '{:,}'.format(parts|length) }}건 표시{% if pages > 1 %} · {{ page }}/{{ pages }}쪽{% endif %}</span>
       </form>
 
       {% if parts %}
@@ -328,6 +338,17 @@
           </tbody>
         </table>
       </div>
+      {% if pages > 1 %}
+      {# v5H226z863: 페이지 나눔 — 필터·검색 유지한 채 쪽 이동 #}
+      {% set _qs = ('&q=' ~ (q|urlencode) if q else '') ~ ('&biz_div=' ~ (biz_div|urlencode) if biz_div else '') ~ ('&category=' ~ (category|urlencode) if category else '') %}
+      <div class="pgbar" data-dn="parts:pager">
+        <a class="pg-btn {% if page <= 1 %}is-off{% endif %}" href="/parts?page=1{{ _qs }}">« 처음</a>
+        <a class="pg-btn {% if page <= 1 %}is-off{% endif %}" href="/parts?page={{ page - 1 if page > 1 else 1 }}{{ _qs }}">‹ 이전</a>
+        <span class="pg-info"><b>{{ page }}</b> / {{ pages }}쪽 · 총 {{ '{:,}'.format(total_match) }}건</span>
+        <a class="pg-btn {% if page >= pages %}is-off{% endif %}" href="/parts?page={{ page + 1 if page < pages else pages }}{{ _qs }}">다음 ›</a>
+        <a class="pg-btn {% if page >= pages %}is-off{% endif %}" href="/parts?page={{ pages }}{{ _qs }}">끝 »</a>
+      </div>
+      {% endif %}
       {% else %}
       <div class="po-empty" data-dn="parts:empty">
         <div class="ico">🔧</div>

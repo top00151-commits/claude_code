@@ -19114,13 +19114,26 @@ async def sales_dashboard(request: Request):
 # ── 부품 마스터 (parts) ────────────────────────────────
 @app.get("/parts", response_class=HTMLResponse)
 async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
-                          category: str = ""):
+                          category: str = "", page: str = "1"):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
-    rows = _logi.parts_list(q=q, biz_div=biz_div, category=category)
+    # v5H226z863 (대표 지시·성능 원천개선): 페이지 나눔 — 자재 3천+종 전 행을 매번 읽고
+    #   한 화면에 다 그리던 것(약 4만 DOM·수 MB)이 지연 원인. 서버에서 200행씩만 보내고
+    #   상단 통계는 집계쿼리 1방(parts_stats). 자재가 계속 늘어도 화면 비용 일정.
+    PAGE_SIZE = 200
+    try:
+        _page = max(1, int(page))
+    except Exception:
+        _page = 1
+    total_match = _logi.parts_count(q=q, biz_div=biz_div, category=category)
+    pages = max(1, -(-total_match // PAGE_SIZE))   # ceil
+    _page = min(_page, pages)
+    rows = _logi.parts_list(q=q, biz_div=biz_div, category=category,
+                            limit=PAGE_SIZE, offset=(_page - 1) * PAGE_SIZE)
+    stats = _logi.parts_stats()
     # v5H226z84: 목록에 대표 구매사 표시 — purchase_prices JSON 요약
     parts_view = []
     for r in rows:
@@ -19134,7 +19147,8 @@ async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
         parts_view.append(d)
     return ctx(request, "parts.html",
                user=u, active="parts",
-               parts=parts_view, q=q, biz_div=biz_div, category=category)
+               parts=parts_view, q=q, biz_div=biz_div, category=category,
+               stats=stats, total_match=total_match, page=_page, pages=pages)
 
 
 @app.get("/parts/new", response_class=HTMLResponse)
@@ -20426,7 +20440,62 @@ def _merge_units_same(lines):
     return merged
 
 
-def _board_split_lines_map(unfold_sos=True):
+def _board_in_frag(col, ids):
+    """v5H226z864 (성능): 'AND col IN (...)' SQL 조각.
+    ids=None → ""(무제한·기존 동작) / 빈 집합 → 항상 거짓(IN (-1)) / 정수만 직접 나열(변수 한계 회피)."""
+    if ids is None:
+        return ""
+    s = ",".join(str(int(i)) for i in ids)
+    return f" AND {col} IN ({s or '-1'})"
+
+
+def _board_month_pids(mstart, mend):
+    """v5H226z864 (대표 지시·성능 원천개선): 일정표 '이 달(기간)'과 겹칠 수 있는 프로젝트 id 상위집합.
+    배경: 월 이동마다 전체 프로젝트+전체 수주·호기를 파이썬으로 다 조립한 뒤에야 달 필터 —
+      비용이 '그 달'이 아닌 '누적 전체'에 비례(데이터 쌓일수록 모든 달이 함께 느려짐).
+      SQL에서 먼저 후보 프로젝트만 골라, 이후 로드(목록·수주맵·호기분할·상태맵)를 그 집합으로 한정.
+    · 날짜 판정 = 행 날짜 폴백 체인(호기 order_items → SO orders → 프로젝트)을 COALESCE로 동일 재현
+      → 화면에 보일 행의 프로젝트는 반드시 포함(상위집합). 초과분은 기존대로 _mk_row 가 거름.
+    · YYYY-MM-DD 형식이 아닌 날짜는 비교 불가 → 무조건 포함(안전측).
+    · 실패 시 None 반환 = 호출측 전체 로드 폴백(기존 동작과 동일)."""
+    _D = "'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+    try:
+        ms, me = str(mstart)[:10], str(mend)[:10]
+        pids: set = set()
+        with db_session() as c:
+            _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+
+            def _oi(f):
+                return f"NULLIF(substr(oi.{f},1,10),'')" if f in _oic else "NULL"
+
+            def _cl(*exprs):
+                return "COALESCE(" + ", ".join(exprs) + ")"
+
+            _po, _pd_ = "NULLIF(substr(p.order_date,1,10),'')", "NULLIF(substr(p.due_date,1,10),'')"
+            _oo, _od = "NULLIF(substr(o.order_date,1,10),'')", "NULLIF(substr(o.due_date,1,10),'')"
+            _s2 = _cl(_oi("order_date"), _oo, _po, _oi("due_date"), _od, _pd_)
+            _e2 = _cl(_oi("due_date"), _od, _pd_, _oi("order_date"), _oo, _po)
+            sql = (
+                "SELECT DISTINCT pid FROM ("
+                f" SELECT p.id AS pid, {_cl(_po, _pd_)} AS s, {_cl(_pd_, _po)} AS e FROM projects p"
+                " UNION ALL"
+                f" SELECT o.project_id AS pid, {_s2} AS s, {_e2} AS e"
+                " FROM orders o JOIN projects p ON p.id=o.project_id"
+                " LEFT JOIN order_items oi ON oi.order_id=o.id"
+                " WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"
+                ") WHERE s IS NOT NULL AND ("
+                f" s NOT GLOB {_D} OR e NOT GLOB {_D}"
+                " OR (MIN(s,e) <= ? AND MAX(s,e) >= ?))"
+            )
+            for r in c.execute(sql, (me, ms)):
+                if r[0]:
+                    pids.add(int(r[0]))
+        return pids
+    except Exception:
+        return None   # 폴백 = 전체 로드(기존 동작)
+
+
+def _board_split_lines_map(unfold_sos=True, pids=None):
     """프로젝트별 호기 라인(order_items)을 읽어 {project_id: [line, ...]} 로 반환.
     · unfold_sos=True(작업일정표·엑셀): 한 관리번호에 SO 여러 개면 **각 수주번호를 별도 행**으로(z665). 단가/납기 다른 호기는 분할(z389/z454).
     · unfold_sos=False(부서일정표): 기존 z638 — 메인(최초) SO만 행·추가 SO는 묶음(ref_sos)으로 한 관리번호=한 줄 유지.
@@ -20435,8 +20504,12 @@ def _board_split_lines_map(unfold_sos=True):
     line = {label, price, amount, currency, order_date, due_date, ship_to, so_no}
       · 납기/납품지/발주일/통화는 호기 override(order_items) 우선, 없으면 SO(orders) 값 상속.
       · 취소(CANCELLED) SO 는 제외.
+    · v5H226z864 (성능): pids=프로젝트 한정(월 보기 프리필터). None=전체(기존). 한정 시에도
+      그 프로젝트의 SO 는 전부 로드(날짜 무관) — SO 묶음/분할 판정이 기존과 동일하게 유지됨.
     """
     out: dict = {}
+    if pids is not None and not pids:
+        return out
     try:
         with db_session() as _c:
             _oi_cols = {r[1] for r in _c.execute("PRAGMA table_info(order_items)").fetchall()}
@@ -20472,8 +20545,9 @@ def _board_split_lines_map(unfold_sos=True):
                 "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
                 + _i_extra + " "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
-                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
-                "ORDER BY o.project_id, o.id, oi.id"
+                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"
+                + _board_in_frag("o.project_id", pids) +   # v5H226z864: 월 보기 프리필터
+                " ORDER BY o.project_id, o.id, oi.id"
             )
             # (pid, oid) 별로 SO 메타 + 그 SO 의 호기(order_items) 모음 (LEFT JOIN → 빈 SO 도 1건)
             _so_acc: dict = {}
@@ -20617,13 +20691,16 @@ def _board_agg_status(statuses):
     return "진행중"
 
 
-def _board_unit_status_maps():
+def _board_unit_status_maps(pids=None):
     """order_items.unit_status 를 (by_iid, by_proj) 두 맵으로 한 번에 로드.
     by_iid={oi.id: unit_status}, by_proj={project_id: [unit_status,...]}.
     취소(CANCELLED) SO 제외 — 보드 표시 범위(_board_split_lines_map)와 동일. cascade 의존 없이
-    작업일정표가 호기 상태를 라이브로 읽기 위함(z660 단일 소스 원칙)."""
+    작업일정표가 호기 상태를 라이브로 읽기 위함(z660 단일 소스 원칙).
+    v5H226z864 (성능): pids=프로젝트 한정(월 보기 프리필터). None=전체(기존)."""
     by_iid: dict = {}
     by_proj: dict = {}
+    if pids is not None and not pids:
+        return by_iid, by_proj
     try:
         with db_session() as c:
             oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
@@ -20632,7 +20709,8 @@ def _board_unit_status_maps():
             for r in c.execute(
                 "SELECT oi.id AS iid, o.project_id AS pid, COALESCE(oi.unit_status,'진행중') AS st "
                 "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
-                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"):
+                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"
+                + _board_in_frag("o.project_id", pids)):
                 d = dict(r)
                 by_iid[d["iid"]] = d["st"]
                 by_proj.setdefault(d["pid"], []).append(d["st"])
@@ -20646,13 +20724,17 @@ def _board_unit_status_maps():
 #   세 곳에 흩어져 메인행↔펼침이 어긋남. 진실을 '호기'로 통일 — 메인행은 호기 집계, 펼침은 호기별.
 #   묶음(②)은 칩으로 별도 표시(여전히 차수별로 다르게 묶기 가능). orders(①)는 폐기 안 하고
 #   '읽기 폴백'으로만 남김(기존값 표시 보존·마이그레이션 없이 안전). 편집은 무조건 호기에 씀.
-def _board_tax_oi_map():
+def _board_tax_oi_map(pids=None):
     """호기(order_items)별 거래명세서·세금계산서(1/2/3차) 발행일·금액을 해석.
     값 우선순위 = order_items 실제값 > (그 호기 SO(orders) 값을 SO 호기수로 균등분배한 폴백).
     묶음(tax_invoice_lines)은 미포함(호출측에서 칩/펼침으로 처리). 소모품은 대상 아님.
-    반환: (oi_map={iid:{stmt,t1d,t1a,t2d,t2a,t3d,t3a}}, proj_iids={pid:[iid,...]})"""
+    반환: (oi_map={iid:{stmt,t1d,t1a,t2d,t2a,t3d,t3a}}, proj_iids={pid:[iid,...]})
+    v5H226z864 (성능): pids=프로젝트 한정(월 보기 프리필터). None=전체(기존).
+      균등분배 분모(n=SO 호기수)는 SO 단위 집계라 프로젝트 한정과 무관 — 값 동일."""
     oi_map: dict = {}
     proj_iids: dict = {}
+    if pids is not None and not pids:
+        return oi_map, proj_iids
     try:
         with db_session() as c:
             oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
@@ -20668,8 +20750,9 @@ def _board_tax_oi_map():
                 f"{_oiC('tax_invoice_date2')} AS i_d2, {_oiC('tax_invoice_amt2')} AS i_a2, {_oC('tax_invoice_date2')} AS o_d2, {_oC('tax_invoice_amt2')} AS o_a2, "
                 f"{_oiC('tax_invoice_date3')} AS i_d3, {_oiC('tax_invoice_amt3')} AS i_a3, {_oC('tax_invoice_date3')} AS o_d3, {_oC('tax_invoice_amt3')} AS o_a3 "
                 "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
-                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED' "
-                "ORDER BY oi.id"
+                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"
+                + _board_in_frag("o.project_id", pids) +   # v5H226z864: 월 보기 프리필터
+                " ORDER BY oi.id"
             )
             _rows = [dict(r) for r in c.execute(sql)]
             _cnt: dict = {}
@@ -22091,6 +22174,11 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         days = []
         today_day = None
 
+    # v5H226z864 (대표 지시·성능 원천개선): 월(기간) 보기 프리필터 — 이 달과 겹칠 수 있는 프로젝트만
+    #   이후 로드(수주맵·호기분할·상태맵·목록·소모품)를 한정. 찾기 전체검색(z862·1900~2999)은 전체(None).
+    #   _board_month_pids 실패 시 None = 전체 로드(기존 동작 폴백).
+    _pids = _board_month_pids(mstart, mend) if mstart.year > 1901 else None
+
     def _mk_row(info, od, dd, status, kind):
         """info=표시필드 dict, od/dd=발주·납기, status, kind. 달 겹침·막대 계산 후 dict 반환."""
         s, e = (od or dd), (dd or od)
@@ -22125,7 +22213,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
             _stmt_sql = "statement_date" if "statement_date" in _ocols else "'' AS statement_date"
             _taxd_sql = "tax_invoice_date" if "tax_invoice_date" in _ocols else "'' AS tax_invoice_date"
             for _r2 in _c.execute(
-                f"SELECT project_id, order_no, {_ship_sql}, {_stmt_sql}, {_taxd_sql} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+                f"SELECT project_id, order_no, {_ship_sql}, {_stmt_sql}, {_taxd_sql} FROM orders "
+                f"WHERE project_id IS NOT NULL{_board_in_frag('project_id', _pids)} ORDER BY id DESC"):   # v5H226z864
                 _pid2 = _r2[0]
                 if not _pid2:
                     continue
@@ -22168,9 +22257,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     except Exception:
         _cust_alias = {}
     rows = []
-    _split_map = _board_split_lines_map()   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할
-    _bus_iid, _bus_proj = _board_unit_status_maps()   # v5H226z661 (대표 지시): 호기 상태 라이브 맵 — 달력 납기 지연색을 '상세 수주내역 상태'와 동기화
-    for p in (dict(r) for r in _logi.projects_list_logi()):
+    _split_map = _board_split_lines_map(pids=_pids)   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할 (z864: 월 한정)
+    _bus_iid, _bus_proj = _board_unit_status_maps(pids=_pids)   # v5H226z661 (대표 지시): 호기 상태 라이브 맵 — 달력 납기 지연색을 '상세 수주내역 상태'와 동기화
+    for p in (dict(r) for r in _logi.projects_list_logi(ids=_pids)):   # v5H226z864: 월 보기 후보만
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue  # 소모품은 아래 co_list 로 (중복 방지)
         _sorec = _so_map.get(p.get("id")) or ["", "", "", ""]
@@ -22260,7 +22349,9 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
         from . import consumables as _co_mod
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
                    "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
-        for cr in _co_mod.co_list(status="", q="", limit=1000):
+        # v5H226z864: 월 보기면 그 달과 겹치는 소모품 발주만(SQL) — 프리필터 실패(None) 시 전체(기존)
+        for cr in _co_mod.co_list(status="", q="", limit=1000,
+                                  overlap=((mstart, mend) if _pids is not None else None)):
             info = {
                 "ref_id": cr.get("id"),                    # v5H226z264: 셀 편집/메모용
                 "code": cr.get("mgmt_code") or "—",
@@ -22300,17 +22391,24 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     # v5H226z467 (대표 지시): 세금계산서 1/2/3차(발행일+금액) 주입 — 프로젝트=대표 SO(orders 최신)·소모품=consumable_orders.
     #   _so_map 튜플 손대지 않고 별도 맵으로 후처리(2빌더 공통 안전). 1차 발행일은 _so_map(tax_invoice_date)에서 이미 set.
     _taxmap = {}
+    # v5H226z864 (성능): 발행일자 맵은 '화면에 보이는 행'만 있으면 됨 — 프리필터 시 그 id 로 한정
+    _vis_pids = ({r.get("ref_id") for r in rows if r.get("kind") == "project"}
+                 if _pids is not None else None)
+    _vis_cids = ({r.get("ref_id") for r in rows if r.get("kind") == "consumable"}
+                 if _pids is not None else None)
     try:
         _tf = ["tax_invoice_date2", "tax_invoice_date3", "tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"]
         with db_session() as _tc:
             _oc = {r[1] for r in _tc.execute("PRAGMA table_info(orders)").fetchall()}
             _osel = ",".join(f if f in _oc else f"NULL AS {f}" for f in _tf)
-            for _rr in _tc.execute(f"SELECT project_id,{_osel} FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+            for _rr in _tc.execute(f"SELECT project_id,{_osel} FROM orders WHERE project_id IS NOT NULL"
+                                   f"{_board_in_frag('project_id', _vis_pids)} ORDER BY id DESC"):
                 if _rr[0] and ("project", _rr[0]) not in _taxmap:
                     _taxmap[("project", _rr[0])] = {_tf[i]: _rr[i + 1] for i in range(len(_tf))}
             _cc = {r[1] for r in _tc.execute("PRAGMA table_info(consumable_orders)").fetchall()}
             _csel = ",".join(f if f in _cc else f"NULL AS {f}" for f in _tf)
-            for _rr in _tc.execute(f"SELECT id,{_csel} FROM consumable_orders"):
+            for _rr in _tc.execute(f"SELECT id,{_csel} FROM consumable_orders WHERE 1=1"
+                                   f"{_board_in_frag('id', _vis_cids)}"):
                 _taxmap[("consumable", _rr[0])] = {_tf[i]: _rr[i + 1] for i in range(len(_tf))}
     except Exception:
         pass
@@ -22325,7 +22423,7 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
     #   (orders 직접발행분은 위 _taxmap 폴백으로 보존되며, 호기에 값이 있으면 그게 우선)
     if _can_money:
         try:
-            _oimap, _proj_iids = _board_tax_oi_map()
+            _oimap, _proj_iids = _board_tax_oi_map(pids=_vis_pids)   # v5H226z864: 보이는 행만
             _inject_oi_tax_into_rows(rows, _oimap, _proj_iids)
         except Exception:
             pass
@@ -22338,7 +22436,8 @@ async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: st
                 for _r in _oc2.execute(
                         "SELECT oi.id, oi.due_date_orig, o.project_id FROM order_items oi "
                         "JOIN orders o ON o.id=oi.order_id "
-                        "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(oi.due_date_orig,'')<>''"):
+                        "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(oi.due_date_orig,'')<>''"
+                        + _board_in_frag("o.project_id", _vis_pids)):   # v5H226z864: 보이는 행만
                     _iid, _do, _pid = _r[0], str(_r[1])[:10], _r[2]
                     _oi_orig_iid[_iid] = _do
                     if _pid and (_pid not in _proj_orig or _do < _proj_orig[_pid]):
@@ -23554,11 +23653,16 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
         except Exception:
             return None
 
+    # v5H226z864 (대표 지시·성능 원천개선): 부서일정표도 월 프리필터 — 이 달과 겹칠 수 있는 프로젝트만
+    #   이후 로드(수주맵·호기분할·상태맵·목록·소모품). 실패(None) 시 전체 로드(기존 동작 폴백).
+    _pids = _board_month_pids(mstart, mend)
+
     # 수주번호(SO) 맵 — 프로젝트별 최신 order_no
     _so_map = {}
     try:
         with db_session() as _c:
-            for _r2 in _c.execute("SELECT project_id, order_no FROM orders WHERE project_id IS NOT NULL ORDER BY id DESC"):
+            for _r2 in _c.execute("SELECT project_id, order_no FROM orders WHERE project_id IS NOT NULL"
+                                  f"{_board_in_frag('project_id', _pids)} ORDER BY id DESC"):   # v5H226z864
                 if _r2[0] and _r2[0] not in _so_map:
                     _so_map[_r2[0]] = _r2[1] or ""
     except Exception:
@@ -23596,9 +23700,9 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
     def _dsx_hidden(st):
         s = str(st or "").strip()
         return s in ("출하", "취소", "보류") or s.upper() in ("SHIPPED", "PAID", "CANCELLED", "HOLD")
-    _split_map = _board_split_lines_map(unfold_sos=False)   # v5H226z665: 부서일정표는 관리번호=한 줄 유지(추가 SO 묶음) — 부서 기록 중복 방지
-    _bus_iid, _bus_proj = _board_unit_status_maps()   # v5H226z661 (대표 지시): 부서일정표 납기 지연색도 호기 출하 반영(작업일정표와 동일)
-    for p in (dict(r) for r in _logi.projects_list_logi()):
+    _split_map = _board_split_lines_map(unfold_sos=False, pids=_pids)   # v5H226z665: 부서일정표는 관리번호=한 줄 유지(추가 SO 묶음) — 부서 기록 중복 방지 (z864: 월 한정)
+    _bus_iid, _bus_proj = _board_unit_status_maps(pids=_pids)   # v5H226z661 (대표 지시): 부서일정표 납기 지연색도 호기 출하 반영(작업일정표와 동일)
+    for p in (dict(r) for r in _logi.projects_list_logi(ids=_pids)):   # v5H226z864: 월 보기 후보만
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
             continue
         code = p.get("mgmt_code") or "—"
@@ -23648,7 +23752,9 @@ async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str
                     rows.append(_r)
     try:
         from . import consumables as _co_mod
-        for cr in _co_mod.co_list(status="", q="", limit=1000):
+        # v5H226z864: 이 달과 겹치는 소모품 발주만(SQL) — 프리필터 실패(None) 시 전체(기존)
+        for cr in _co_mod.co_list(status="", q="", limit=1000,
+                                  overlap=((mstart, mend) if _pids is not None else None)):
             if _dsx_hidden(cr.get("status")):   # v5H226z826: 출하완료(SHIPPED/PAID)·취소·보류 소모품 제외
                 continue
             info = {
