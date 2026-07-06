@@ -552,11 +552,18 @@
 })();
 
 // v5H226z96 — 등록 확정 시 진행 중 오버레이 표시 (대량 등록 시 사용자 대기 안내)
+// v5H226z854 (2026-07-06): 검증결과 엑셀 다운로드 버튼(button.dl-marked)은 파일 다운로드라
+// 페이지 이동/재렌더가 없어 오버레이가 사라지지 않는 버그 → submitter가 apply일 때만 오버레이.
 (function(){
   var form = document.getElementById('applyForm');
   var overlay = document.getElementById('applyOverlay');
   if (!form || !overlay) return;
-  form.addEventListener('submit', function(){
+  form.addEventListener('submit', function(ev){
+    // 어떤 버튼이 눌렀는지 확인 — 다운로드 버튼이면 오버레이 표시 안 함
+    var submitter = ev.submitter || form.querySelector('button[type="submit"]:focus');
+    if (submitter && submitter.classList && submitter.classList.contains('dl-marked')) {
+      return;  // 다운로드는 그대로 진행, 오버레이 X
+    }
     overlay.style.display = 'flex';
     var btn = form.querySelector('button.apply');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ 등록 중...'; }
