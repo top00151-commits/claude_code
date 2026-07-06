@@ -20581,7 +20581,10 @@ def _board_split_lines_map(unfold_sos=True):
                     if main_lines and ref_data:
                         main_lines[0] = dict(main_lines[0])
                         main_lines[0]["ref_sos"] = ref_data
-                    if len(main_lines) >= 2 or ref_data:
+                    # v5H226z857 (대표 지시): 전사일정표도 호기 1건이라도 있으면 분할 경로로 → order_items(호기) 날짜/상태를
+                    #   소스로 통일(작업일정표 z666과 동일 조건 any(iids)). 호기 1개 단일 프로젝트가 projects.due_date 옛값으로
+                    #   폴백해 작업일정표=07-18 / 전사일정표=07-06 으로 어긋나던 버그 수정. 행 수는 그대로(1호기=1줄).
+                    if len(main_lines) >= 2 or ref_data or any(_l.get("iids") for _l in main_lines):
                         out[pid] = main_lines
     except Exception:
         return {}
