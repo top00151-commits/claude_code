@@ -1073,13 +1073,13 @@ def _run_directory_autosync():
     if not sso_client.get_service_key():   # env 또는 DB(관리자 페이지 저장) 키
         print("[DIR-SYNC] 공유키 미설정(env·DB 모두) — 자동 명부 동기화 건너뜀(설정되면 자동 동작)")
         return
-    from .database import get_db, DB_PATH
+    from .database import get_db, DB_PATH, backup_db_file
     import shutil as _sh, datetime as _dt, os as _os
     try:
         bdir = _os.path.join(_os.path.dirname(DB_PATH), "backups")
         _os.makedirs(bdir, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        _sh.copy2(DB_PATH, _os.path.join(bdir, f"knk.db.bak_autoempsync_{ts}"))
+        backup_db_file(_os.path.join(bdir, f"knk.db.bak_autoempsync_{ts}"))   # v5H226z866: WAL 안전 백업
         # 자동백업 누적 방지 — 최근 7개만
         _fs = sorted(f for f in _os.listdir(bdir) if f.startswith("knk.db.bak_autoempsync_"))
         for _old in _fs[:-7]:
@@ -8919,7 +8919,7 @@ async def admin_sync_employees_apply(req: Request, confirm: str = Form("")):
         os.makedirs(bdir, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = os.path.join(bdir, f"knk.db.bak_empsync_{ts}")
-        shutil.copy2(DB_PATH, backup)
+        _logi.backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return ctx(req, "admin_sync_employees.html", user=u, active="admin",
                    preview=_preview(), done=None, error=f"백업 실패 — 중단: {e}")
@@ -20456,6 +20456,10 @@ def _board_month_pids(mstart, mend):
       SQL에서 먼저 후보 프로젝트만 골라, 이후 로드(목록·수주맵·호기분할·상태맵)를 그 집합으로 한정.
     · 날짜 판정 = 행 날짜 폴백 체인(호기 order_items → SO orders → 프로젝트)을 COALESCE로 동일 재현
       → 화면에 보일 행의 프로젝트는 반드시 포함(상위집합). 초과분은 기존대로 _mk_row 가 거름.
+    · v5H226z866 (검증 워크플로 발견): 상품/소모품형 SO 합산줄(_collapse_line·z710)은 발주일과 납기를
+      '서로 다른 호기'에서 조합할 수 있어(필드별 첫 비공백 값) (SO,호기) 행 단위 판정만으로는 그 조합
+      기간(다리 구간)이 빠질 수 있음 → SO 단위 포락(envelope: 전 날짜 MIN~MAX) 브랜치를 UNION 추가.
+      어떤 필드 조합이 나와도 포락 안이므로 상위집합 복원(과포함은 _mk_row 가 거름·비용 SO당 1행).
     · YYYY-MM-DD 형식이 아닌 날짜는 비교 불가 → 무조건 포함(안전측).
     · 실패 시 None 반환 = 호출측 전체 로드 폴백(기존 동작과 동일)."""
     _D = "'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
@@ -20483,6 +20487,13 @@ def _board_month_pids(mstart, mend):
                 " FROM orders o JOIN projects p ON p.id=o.project_id"
                 " LEFT JOIN order_items oi ON oi.order_id=o.id"
                 " WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"
+                " UNION ALL"
+                # v5H226z866: SO 단위 포락(전 날짜 MIN~MAX) — 합산줄(_collapse_line)의 호기 교차 조합 기간 커버
+                f" SELECT o.project_id AS pid, MIN(MIN({_s2},{_e2})) AS s, MAX(MAX({_s2},{_e2})) AS e"
+                " FROM orders o JOIN projects p ON p.id=o.project_id"
+                " LEFT JOIN order_items oi ON oi.order_id=o.id"
+                " WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"
+                " GROUP BY o.id"
                 ") WHERE s IS NOT NULL AND ("
                 f" s NOT GLOB {_D} OR e NOT GLOB {_D}"
                 " OR (MIN(s,e) <= ? AND MAX(s,e) >= ?))"
@@ -27042,7 +27053,7 @@ async def projects_so_backfill_run(request: Request):
         os.makedirs(bdir, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = os.path.join(bdir, f"knk.db.bak_sobackfill_{ts}")
-        shutil.copy2(DB_PATH, backup)
+        _logi.backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"백업 실패 — 중단: {str(e)[:160]}"}, 500)
     # 2) 대상 재조회 (실행 시점)

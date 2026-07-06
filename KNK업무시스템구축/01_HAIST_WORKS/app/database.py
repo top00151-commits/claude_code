@@ -133,6 +133,24 @@ def get_db():
         pass   # 전환 실패(순간 경합 등)해도 동작엔 지장 없음 — 다음 연결이 재시도
     return conn
 
+
+def backup_db_file(dst_path: str, src_path: str = None) -> str:
+    """v5H226z866 (검증 워크플로 발견): 앱 내 DB 백업 표준 — sqlite3 backup API(WAL 안전).
+    z863-A WAL 전환 후 단순 파일복사(shutil.copy2)는 아직 체크포인트 안 된 -wal 의 최신 커밋이
+    빠진 '뒤처진 스냅샷'이 됨(그 백업으로 복원 시 최근 입력 소실·초기화 직전 백업이 특히 위험).
+    backup API 는 -wal 포함 현재 시점 일관 스냅샷을 뜬다. ⛔앱 내 DB 백업에 copy2 사용 금지."""
+    src = sqlite3.connect(src_path or DB_PATH, timeout=30.0)
+    try:
+        dst = sqlite3.connect(dst_path)
+        try:
+            with dst:
+                src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
+    return dst_path
+
 @contextmanager
 def db_session():
     conn = get_db()
@@ -2183,7 +2201,7 @@ def migrate_customers_name_unique():
             import shutil as _sh, datetime as _dtu
             bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
             os.makedirs(bdir, exist_ok=True)
-            _sh.copy2(DB_PATH, os.path.join(bdir, f"knk.db.bak_custuniq_{_dtu.datetime.now().strftime('%Y%m%d_%H%M%S')}"))
+            backup_db_file(os.path.join(bdir, f"knk.db.bak_custuniq_{_dtu.datetime.now().strftime('%Y%m%d_%H%M%S')}"))   # v5H226z866: WAL 안전 백업
         except Exception:
             pass
         n_before = conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
@@ -14517,7 +14535,7 @@ def reset_groups_apply(group_keys, actor_name: str = "") -> dict:
         os.makedirs(bdir, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = os.path.join(bdir, f"knk.db.bak_resetgrp_{ts}")
-        shutil.copy2(DB_PATH, backup)
+        backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
     try:
@@ -14601,7 +14619,7 @@ def reset_consumables_full(actor_name: str = "") -> dict:
         os.makedirs(bdir, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = os.path.join(bdir, f"knk.db.bak_co_reset_{ts}")
-        shutil.copy2(DB_PATH, backup)
+        backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
     try:
@@ -14745,7 +14763,7 @@ def reset_sales_division_apply(divisions, actor_name: str = "") -> dict:
         os.makedirs(bdir, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = os.path.join(bdir, f"knk.db.bak_resetdiv_{ts}")
-        shutil.copy2(DB_PATH, backup)
+        backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
 
@@ -14890,7 +14908,7 @@ def reset_demo_apply(actor_name: str = "") -> dict:
         os.makedirs(bdir, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = os.path.join(bdir, f"knk.db.bak_reset_{ts}")
-        shutil.copy2(DB_PATH, backup)
+        backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
 

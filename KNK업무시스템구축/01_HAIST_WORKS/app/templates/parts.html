@@ -182,28 +182,30 @@
       </div>
       {% endif %}
 
+      {# v5H226z866 (검증 워크플로 발견): 카드 숫자 = 전체(무필터) 집계(z863-B parts_stats)인데 링크가
+         검색어(q)를 유지하면 '숫자 ≠ 클릭 결과' 불일치 → 카드 클릭 = 그 사업부 전체 보기(q 제거)로 일치화 #}
       <div class="kpi-strip" data-dn="parts:kpi" data-dn-tone="green">
-        <a class="kpi-cell {% if not biz_div %}active{% endif %}" href="/parts{% if q %}?q={{ q }}{% endif %}">
+        <a class="kpi-cell {% if not biz_div %}active{% endif %}" href="/parts">
           <div class="l">전체</div>
           <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">종</span></div>
           <div class="sub">필터 미적용</div>
         </a>
-        <a class="kpi-cell {% if biz_div=='T' %}active{% endif %}" href="/parts?biz_div=T{% if q %}&q={{ q }}{% endif %}">
+        <a class="kpi-cell {% if biz_div=='T' %}active{% endif %}" href="/parts?biz_div=T">
           <div class="l">🔬 검사기 (T)</div>
           <div class="v">{{ '{:,}'.format(t_cnt) }}<span class="u">종</span></div>
           <div class="sub">정밀 사업부</div>
         </a>
-        <a class="kpi-cell {% if biz_div=='M' %}active{% endif %}" href="/parts?biz_div=M{% if q %}&q={{ q }}{% endif %}">
+        <a class="kpi-cell {% if biz_div=='M' %}active{% endif %}" href="/parts?biz_div=M">
           <div class="l">🤖 자동화 (M)</div>
           <div class="v">{{ '{:,}'.format(m_cnt) }}<span class="u">종</span></div>
           <div class="sub">가공·기계</div>
         </a>
-        <a class="kpi-cell {% if biz_div=='E' %}active{% endif %}" href="/parts?biz_div=E{% if q %}&q={{ q }}{% endif %}">
+        <a class="kpi-cell {% if biz_div=='E' %}active{% endif %}" href="/parts?biz_div=E">
           <div class="l">⚡ 전기 (E)</div>
           <div class="v">{{ '{:,}'.format(e_cnt) }}<span class="u">종</span></div>
           <div class="sub">전장·PCB</div>
         </a>
-        <a class="kpi-cell {% if biz_div=='C' %}active{% endif %}" href="/parts?biz_div=C{% if q %}&q={{ q }}{% endif %}">
+        <a class="kpi-cell {% if biz_div=='C' %}active{% endif %}" href="/parts?biz_div=C">
           <div class="l">🧪 화학 (C)</div>
           <div class="v">{{ '{:,}'.format(c_cnt) }}<span class="u">종</span></div>
           <div class="sub">표면처리·도장</div>

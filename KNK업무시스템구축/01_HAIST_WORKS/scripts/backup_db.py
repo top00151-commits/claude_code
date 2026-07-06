@@ -53,6 +53,12 @@ def do_backup(dest_dir: str, keep_days: int) -> str:
     except Exception as e:
         print(f"[WARN] sqlite backup API 실패, copy 폴백: {e}")
         shutil.copy2(DB_PATH, out_path)
+        # v5H226z866: WAL 모드(z863-A)에선 본파일만 복사하면 미체크포인트 최신 커밋(-wal)이 빠짐
+        #   → 폴백일 땐 -wal/-shm 도 함께 복사(셋이 한 벌이면 SQLite 가 복구 가능한 일관 스냅샷).
+        for _ext in ("-wal", "-shm"):
+            _side = DB_PATH + _ext
+            if os.path.exists(_side):
+                shutil.copy2(_side, out_path + _ext)
 
     size_mb = os.path.getsize(out_path) / 1024 / 1024
     print(f"✓ 백업 완료: {out_path} ({size_mb:.2f} MB)")
