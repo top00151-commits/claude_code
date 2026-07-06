@@ -2652,6 +2652,9 @@ def init_db():
             ("form_type",          "TEXT"),
             # v5H226z375 (대표 지시): 각인 — 장비에 새기는 마킹 문구(제작요청서 항목). 예: 'S3908 ASSY'
             ("engraving",          "TEXT"),
+            # 2026-07-06 (대표 지시): 폐기(숨김) — 잘못 등록 건을 완전삭제(관리코드 건은 정책상 불가)
+            #   대신 목록·일정표에서 숨김. 데이터는 보존되고 폐기함에서 복구 가능.
+            ("is_archived",        "INTEGER DEFAULT 0"),
         ]
         for col, decl in _logi_adds:
             if col not in pcols:
@@ -5687,11 +5690,19 @@ def generate_mgmt_code(biz_div: str, today=None) -> str:
 
 
 def projects_list_logi(q: str = "", biz_div: str = "", stage: str = "",
-                       status: str = "", project_type: str = ""):
-    """v5H137: project_type 필터 추가 (NEW_EQUIP/CONSUMABLE/SERVICE/OTHER)."""
+                       status: str = "", project_type: str = "",
+                       include_archived: bool = False, only_archived: bool = False):
+    """v5H137: project_type 필터 추가 (NEW_EQUIP/CONSUMABLE/SERVICE/OTHER).
+    2026-07-06 (대표 지시): 폐기(숨김) 지원. 기본은 폐기건 제외(is_archived=0).
+      only_archived=True → 폐기건만(폐기함) / include_archived=True → 전체."""
     sql = ("SELECT p.*, p.name AS project_name "
            "FROM projects p WHERE 1=1")
     params: list = []
+    # 2026-07-06 폐기(숨김) 필터 — 기본 폐기건 제외 / 폐기함 / 전체
+    if only_archived:
+        sql += " AND COALESCE(p.is_archived,0)=1"
+    elif not include_archived:
+        sql += " AND COALESCE(p.is_archived,0)=0"
     if q:
         # v5H226z217: 장비명(equip_name)도 검색 대상 추가
         sql += (" AND (p.mgmt_code LIKE ? OR p.name LIKE ? OR p.customer_name LIKE ? "
@@ -8870,10 +8881,12 @@ def _merge_supplier_into_part(part_id: int, new_supplier: str, new_price: float)
             pp = []
 
         # 이미 같은 공급사가 purchase_prices에 있는지 확인
-        _lo = validated.strip().lower()
+        _lo = str(validated).strip().lower()
         for entry in pp:
             if isinstance(entry, dict):
-                _sp = (entry.get("supplier") or "").strip()
+                # v5H226z855: supplier가 int로 들어올 가능성 방어 (str 명시)
+                _sp_raw = entry.get("supplier")
+                _sp = str(_sp_raw).strip() if _sp_raw is not None else ""
                 if _sp and _sp.lower() == _lo:
                     return f"이미 등록된 공급사 — 스킵({validated})"
 
@@ -8898,12 +8911,10 @@ def _merge_supplier_into_part(part_id: int, new_supplier: str, new_price: float)
             })
         pp.append(new_entry)
 
-        # vendor1/2/3 슬롯 처리
-        existing_vs = [
-            (row["vendor1"] or "").strip(),
-            (row["vendor2"] or "").strip(),
-            (row["vendor3"] or "").strip(),
-        ]
+        # vendor1/2/3 슬롯 처리 (v5H226z855: int로 저장된 경우 방어)
+        def _vv(_x):
+            return str(_x).strip() if _x is not None else ""
+        existing_vs = [_vv(row["vendor1"]), _vv(row["vendor2"]), _vv(row["vendor3"])]
         # 이미 vendor 슬롯에 있으면 purchase_prices만 갱신
         for _ev in existing_vs:
             if _ev and _ev.lower() == _lo:
@@ -9048,7 +9059,8 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                 continue
             _supps = []
             for _slot in (_er[1], _er[2], _er[3]):
-                _v = (_slot or "").strip() if _slot else ""
+                # v5H226z855: int로 저장된 경우 방어
+                _v = str(_slot).strip() if _slot is not None else ""
                 if _v:
                     _supps.append(_v)
             try:
@@ -9057,7 +9069,8 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                 if isinstance(_pp_list, list):
                     for _pe in _pp_list:
                         if isinstance(_pe, dict):
-                            _sp = (_pe.get("supplier") or "").strip()
+                            _sp_r = _pe.get("supplier")
+                            _sp = str(_sp_r).strip() if _sp_r is not None else ""
                             if _sp and _sp.lower() not in [x.lower() for x in _supps]:
                                 _supps.append(_sp)
             except Exception:
@@ -9237,7 +9250,24 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
     # 실제 등록 (dry_run=False 일 때만)
     # v5H226z734: 행마다 parts_create 대신 '한 트랜잭션 일괄 INSERT'(커밋 1회).
     # v5H226z649: dual_source 행은 INSERT가 아니라 기존 자재의 vendor 슬롯에 병합(UPDATE).
+    # v5H226z855: 엑셀 자재코드가 순수 숫자면 int로 들어와 .strip() 오류→try 밖에서 catch 못 함.
+    #             모든 부위에 str() 안전 변환 적용.
     merged_cnt = 0
+
+    def _safe_pn_key(_pd):
+        """자재코드를 소문자 str 키로 안전 변환 (int/float도 처리)."""
+        if not _pd:
+            return ""
+        _r = _pd.get("part_no") if isinstance(_pd, dict) else None
+        if _r is None:
+            return ""
+        return str(_r).strip().lower()
+
+    def _safe_str(_v):
+        if _v is None:
+            return ""
+        return str(_v).strip()
+
     if not dry_run:
         _now2 = _logi_now()
         # 이번 배치에서 방금 만든 자재 id 매핑(같은 코드의 이원화 행이 참조)
@@ -9245,7 +9275,10 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
         with db_session() as c:
             _existing_cols = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
             for p in preview:
-                _pn_key = ((p["data"].get("part_no") or "").strip().lower()) if p.get("data") else ""
+                try:
+                    _pn_key = _safe_pn_key(p.get("data"))
+                except Exception:
+                    _pn_key = ""
                 if p["status"] in ("ok", "similar") and not p["errors"]:
                     try:
                         # 임시 필드(_dual_*) 제거 후 컬럼 빌드
@@ -9256,7 +9289,8 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                             _vals,
                         )
                         _new_pid = _cur.lastrowid
-                        _just_created_pid[_pn_key] = _new_pid
+                        if _pn_key:
+                            _just_created_pid[_pn_key] = _new_pid
                         inserted_ids.append({"row_no": p["row_no"], "id": _new_pid,
                                               "part_no": _clean_data.get("part_no")})
                         p["status"] = "inserted"
@@ -9271,22 +9305,24 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
             if p["status"] != "dual_source":
                 continue
             try:
-                _pn_key = (p["data"].get("part_no") or "").strip().lower()
+                _pn_key = _safe_pn_key(p.get("data"))
                 target_pid = _just_created_pid.get(_pn_key)
                 if not target_pid:
                     target_pid = p["data"].get("_dual_target_part_id")
                 if not target_pid:
                     # 최종 폴백: DB 조회
+                    _pn_val = p["data"].get("part_no")
+                    _pn_lookup = str(_pn_val) if _pn_val is not None else ""
                     with db_session() as _cc:
                         _rr = _cc.execute(
                             "SELECT id FROM parts WHERE part_no=?",
-                            (p["data"].get("part_no"),),
+                            (_pn_lookup,),
                         ).fetchone()
                         if _rr:
                             target_pid = _rr["id"]
                 if not target_pid:
                     raise ValueError("병합 대상 자재를 찾을 수 없음")
-                _new_supp = (p["data"].get("default_supplier") or "").strip()
+                _new_supp = _safe_str(p["data"].get("default_supplier"))
                 _new_price = p["data"].get("std_price") or 0
                 _msg = _merge_supplier_into_part(int(target_pid), _new_supp, float(_new_price))
                 p["status"] = "merged"
