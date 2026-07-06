@@ -8838,6 +8838,97 @@ def _parts_build_cols_values(data: dict, existing_cols, now: str):
     return base_cols + ext_cols, base_values + ext_vals
 
 
+def _merge_supplier_into_part(part_id: int, new_supplier: str, new_price: float) -> str:
+    """v5H226z649 (2026-06-25) — 자재 마스터에 공급사 병합 (구매처 이원화).
+    같은 자재코드가 엑셀에 여러 번 나오는데 공급사가 다른 경우, 첫 등장은 신규 등록하고
+    두 번째부터는 이 함수로 기존 자재의 purchase_prices JSON + vendor1/2/3 슬롯에 추가.
+    - 협력사는 suppliers 마스터에 등록돼 있어야 함(_validate_vendor_name 검증).
+    - 이미 같은 공급사가 있으면 no-op.
+    반환: 병합 요약 문자열 (성공/no-op 구분)."""
+    import json as _json
+    if not new_supplier or not str(new_supplier).strip():
+        raise ValueError("공급사 미지정")
+    validated = _validate_vendor_name(new_supplier)
+    if not validated:
+        raise ValueError(f"공급사 '{new_supplier}' 이(가) 협력사 마스터에 없음 (먼저 협력사 등록 필요)")
+
+    with db_session() as c:
+        row = c.execute(
+            "SELECT id, purchase_prices, vendor1, vendor2, vendor3 FROM parts WHERE id=?",
+            (int(part_id),),
+        ).fetchone()
+        if not row:
+            raise ValueError(f"자재 id={part_id} 없음")
+
+        # 기존 purchase_prices JSON 로드
+        try:
+            _raw = row["purchase_prices"]
+            pp = _json.loads(_raw) if _raw else []
+            if not isinstance(pp, list):
+                pp = []
+        except Exception:
+            pp = []
+
+        # 이미 같은 공급사가 purchase_prices에 있는지 확인
+        _lo = validated.strip().lower()
+        for entry in pp:
+            if isinstance(entry, dict):
+                _sp = (entry.get("supplier") or "").strip()
+                if _sp and _sp.lower() == _lo:
+                    return f"이미 등록된 공급사 — 스킵({validated})"
+
+        # 새 공급사 엔트리 추가 (매입단가 있으면 1차로 저장)
+        new_entry = {
+            "supplier": validated,
+            "is_default": False,
+            "contact_name": "",
+            "contact_phone": "",
+            "contact_email": "",
+            "entries": [],
+        }
+        try:
+            _np = float(new_price or 0)
+        except (TypeError, ValueError):
+            _np = 0.0
+        if _np > 0:
+            new_entry["entries"].append({
+                "seq": 1,
+                "date": _logi_now()[:10],
+                "price": _np,
+            })
+        pp.append(new_entry)
+
+        # vendor1/2/3 슬롯 처리
+        existing_vs = [
+            (row["vendor1"] or "").strip(),
+            (row["vendor2"] or "").strip(),
+            (row["vendor3"] or "").strip(),
+        ]
+        # 이미 vendor 슬롯에 있으면 purchase_prices만 갱신
+        for _ev in existing_vs:
+            if _ev and _ev.lower() == _lo:
+                c.execute(
+                    "UPDATE parts SET purchase_prices=?, updated_at=datetime('now','localtime') WHERE id=?",
+                    (_json.dumps(pp, ensure_ascii=False), int(part_id)),
+                )
+                return f"vendor 슬롯 기존 — purchase_prices만 갱신({validated})"
+        # 빈 슬롯 찾기
+        target_slot = None
+        for idx, v in enumerate(existing_vs, start=1):
+            if not v:
+                target_slot = idx
+                break
+        if target_slot is None:
+            raise ValueError("vendor 슬롯(v1/2/3)이 이미 다 차 있음 — 이원화 4개 이상 미지원")
+
+        set_col = f"vendor{target_slot}"
+        c.execute(
+            f"UPDATE parts SET purchase_prices=?, {set_col}=?, updated_at=datetime('now','localtime') WHERE id=?",
+            (_json.dumps(pp, ensure_ascii=False), validated, int(part_id)),
+        )
+        return f"vendor{target_slot} 슬롯에 병합 완료({validated})"
+
+
 def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                              force_similar: bool = False,
                              full_preview: bool = False) -> dict:
@@ -8937,10 +9028,41 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
     err_cnt = 0
     sim_warn = 0
     dup_cnt = 0
-    # v5H226z647 (2026-06-25) — 엑셀 내부 part_no 중복 검출용 누적 셋.
-    # 같은 part_no가 여러 행에 적혀 있으면 첫 등장만 등록 가능(UNIQUE 제약). 두 번째부터는
-    # 미리보기에서 미리 차단 → "정상" 카운트 = 실제 등록 가능 수가 정확히 일치.
-    seen_part_nos: dict = {}  # part_no(소문자/공백제거) → 첫 등장 행 번호
+    dual_cnt = 0  # v5H226z649: 구매처 이원화 카운트 (같은 코드+다른 공급사)
+    # v5H226z649 (2026-06-25) — 엑셀 내부 part_no 등장 상세 정보 (구매처 이원화 판정용).
+    # 같은 자재코드가 여러 행에 나올 때 공급사(default_supplier)를 비교해서:
+    #   · 다른 공급사 → 구매처 이원화 (기존 자재의 vendor2/3 슬롯에 병합)
+    #   · 같은 공급사 → 진짜 중복 (첫 등장만 유지)
+    # DB에 이미 있는 자재(z647에서 "코드 중복"으로 분류)의 vendor1/2/3·purchase_prices도
+    # 함께 로드해서 "지금 다시 업로드하면 기존 자재에 vendor2 이원화 완성" 시나리오 지원.
+    seen_part_nos: dict = {}  # seen_key → {'first_row', 'suppliers': [...], 'existing_part_id'}
+
+    # DB 기존 자재의 공급사 목록 1회 로드 (이원화 판정용)
+    import json as _json_ez
+    _existing_vendors: dict = {}  # part_no → suppliers list
+    with db_session() as _c0v:
+        for _er in _c0v.execute(
+            "SELECT part_no, vendor1, vendor2, vendor3, purchase_prices FROM parts"
+        ).fetchall():
+            if _er[0] is None:
+                continue
+            _supps = []
+            for _slot in (_er[1], _er[2], _er[3]):
+                _v = (_slot or "").strip() if _slot else ""
+                if _v:
+                    _supps.append(_v)
+            try:
+                _pp_raw = _er[4]
+                _pp_list = _json_ez.loads(_pp_raw) if _pp_raw else []
+                if isinstance(_pp_list, list):
+                    for _pe in _pp_list:
+                        if isinstance(_pe, dict):
+                            _sp = (_pe.get("supplier") or "").strip()
+                            if _sp and _sp.lower() not in [x.lower() for x in _supps]:
+                                _supps.append(_sp)
+            except Exception:
+                pass
+            _existing_vendors[str(_er[0])] = _supps
 
     # 헤더 이후 행을 데이터로 처리. 행 번호는 1-indexed (헤더 행 번호 + 1 부터).
     from itertools import chain as _chain
@@ -9003,29 +9125,69 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
             bd = ""
         data["biz_div"] = bd or "공통"  # 기본 공통
 
-        # part_no UNIQUE 검사
-        # v5H226z647 (2026-06-25) — DB 중복 + 엑셀 내부 중복 모두 검사
-        # 엑셀 내부 중복(같은 part_no가 위 행에 이미 있음)도 미리보기에서 차단 →
-        # "정상" 카운트가 실제 등록 가능 수와 일치 (z647 이전에는 두 번째 행이
-        # OK로 표시됐다가 실제 등록 시 silent fail 됨).
+        # part_no UNIQUE 검사 + 구매처 이원화 판정
+        # v5H226z649 (2026-06-25) — 같은 자재코드 여러 행이 나올 때:
+        #   · 다른 공급사 → dual_source (기존 자재의 vendor2/3에 병합 예정)
+        #   · 같은 공급사 → dup (진짜 중복 · 차단)
+        #   · vendor 슬롯 3개 초과 → error
+        # 첫 등장 시 DB 기존 vendor 목록도 로드해서 "지금 다시 업로드하면 이원화 완성" 지원.
         if part_no and not errors:
-            # ① 엑셀 내부 중복 (같은 파일 안에서 위 행에 이미 등장)
-            #   대소문자·앞뒤 공백 차이 무시 — UNIQUE 제약은 원본 그대로지만 사용자 안내용
             seen_key = part_no.strip().lower()
-            if seen_key and seen_key in seen_part_nos:
-                first_row = seen_part_nos[seen_key]
-                errors.append(f"엑셀 내부 코드 중복 — 같은 코드가 {first_row}행에 이미 있음(첫 등장만 등록 가능)")
-                status = "dup"
-                dup_cnt += 1
+            _cur_supp_raw = data.get("default_supplier")
+            cur_supp = (_cur_supp_raw or "").strip() if isinstance(_cur_supp_raw, str) else str(_cur_supp_raw or "").strip()
+
+            def _norm_supp(s):
+                return (s or "").strip().lower()
+
+            if seen_key in seen_part_nos:
+                # 두 번째(+) 등장
+                prev = seen_part_nos[seen_key]
+                prev_supps = prev.get("suppliers") or []
+                prev_norm = [_norm_supp(s) for s in prev_supps]
+
+                if not cur_supp:
+                    errors.append(
+                        f"엑셀 내부 코드 중복 — {prev['first_row']}행에 이미 있음 · 공급사 미지정으로 이원화 판정 불가"
+                    )
+                    status = "dup"
+                    dup_cnt += 1
+                elif _norm_supp(cur_supp) in prev_norm:
+                    errors.append(
+                        f"엑셀 내부 코드 중복 — 같은 공급사({cur_supp})가 {prev['first_row']}행에 이미 있음"
+                    )
+                    status = "dup"
+                    dup_cnt += 1
+                elif len(prev_supps) >= 3:
+                    errors.append(
+                        f"공급사 4개 이상 초과 — vendor 슬롯(3) 부족 · 기존: {', '.join(prev_supps)}"
+                    )
+                    # errors로 처리 → 아래에서 status=error 됨
+                else:
+                    # 이원화 승격 — 기존 자재의 vendor 슬롯에 병합 예정
+                    status = "dual_source"
+                    prev["suppliers"].append(cur_supp)  # 다음 등장에도 반영
+                    dual_cnt += 1
+                    # 표시용 정보 (엑셀 검증결과 다운로드가 활용)
+                    data["_dual_first_row"] = prev["first_row"]
+                    data["_dual_target_part_id"] = prev.get("existing_part_id")
+                    data["_dual_target_supp"] = cur_supp
             else:
-                if seen_key:
-                    seen_part_nos[seen_key] = row_no
-                # ② DB 기존 자재와 중복 검사 (z734: 메모리 맵 — 행마다 DB 조회 제거)
+                # 첫 등장 — 상세 정보 초기화
+                info = {
+                    "first_row": row_no,
+                    "suppliers": list(_existing_vendors.get(part_no, [])),  # DB 기존 vendor 로드
+                    "existing_part_id": None,
+                }
                 dup = _existing_pno.get(part_no)
                 if dup:
+                    info["existing_part_id"] = dup[0]
                     errors.append(f"코드 중복 — 기존 [{dup[0]}] {dup[1]}")
                     status = "dup"
                     dup_cnt += 1
+                # 이 행의 default_supplier도 seen에 추가 (신규 등록 시 vendor1이 됨)
+                if cur_supp and _norm_supp(cur_supp) not in [_norm_supp(s) for s in info["suppliers"]]:
+                    info["suppliers"].append(cur_supp)
+                seen_part_nos[seen_key] = info
 
         # v5H226z644: dry_run에서도 _validate_parts_payload 실행 — 모든 검증 오류를 미리보기에 노출.
         # 통화·단위·매입단가·is_active 등 잠재 이슈를 즉시 표면화. data는 in-place 정규화됨(currency/unit 대문자 등).
@@ -9035,8 +9197,9 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
             except (ValueError, TypeError) as _ve:
                 errors.append(str(_ve))
 
-        # 유사 자재 검사 (force_similar=False + 대량 아님일 때만 — z734: 대량은 O(N×M)라 생략)
-        if part_name and not errors and _do_similar:
+        # 유사 자재 검사 (force_similar=False + 대량 아님 + dual_source 아님일 때만)
+        # v5H226z649: dual_source는 기존 자재에 병합이라 유사자재 검사 불필요
+        if part_name and not errors and _do_similar and status != "dual_source":
             try:
                 sims = parts_find_similar(
                     name=part_name,
@@ -9061,7 +9224,7 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
         preview.append({
             "row_no": row_no,
             "data": data,
-            "status": status,  # ok / error / dup / similar
+            "status": status,  # ok / error / dup / similar / dual_source (z649)
             "errors": errors,
             "similar": [{
                 "id": s["id"], "part_no": s.get("part_no"),
@@ -9071,31 +9234,70 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
 
     wb.close()
 
-    # 실제 등록 (dry_run=False 일 때만, status='ok' 또는 'similar' 행만)
-    # v5H226z734: 행마다 parts_create(자체 세션·커밋) 대신 '한 트랜잭션 일괄 INSERT'(커밋 1회).
-    #   컬럼 빌드는 공용 헬퍼(_parts_build_cols_values) 재사용. dup·유사검사는 위 미리보기 루프에서
-    #   이미 끝나 INSERT만 수행(코드중복 행은 status=dup 으로 제외됨). 행별 오류는 격리(나머지 진행).
+    # 실제 등록 (dry_run=False 일 때만)
+    # v5H226z734: 행마다 parts_create 대신 '한 트랜잭션 일괄 INSERT'(커밋 1회).
+    # v5H226z649: dual_source 행은 INSERT가 아니라 기존 자재의 vendor 슬롯에 병합(UPDATE).
+    merged_cnt = 0
     if not dry_run:
         _now2 = _logi_now()
+        # 이번 배치에서 방금 만든 자재 id 매핑(같은 코드의 이원화 행이 참조)
+        _just_created_pid: dict = {}
         with db_session() as c:
             _existing_cols = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
             for p in preview:
+                _pn_key = ((p["data"].get("part_no") or "").strip().lower()) if p.get("data") else ""
                 if p["status"] in ("ok", "similar") and not p["errors"]:
                     try:
-                        _cols, _vals = _parts_build_cols_values(p["data"], _existing_cols, _now2)
+                        # 임시 필드(_dual_*) 제거 후 컬럼 빌드
+                        _clean_data = {k: v for k, v in p["data"].items() if not k.startswith("_")}
+                        _cols, _vals = _parts_build_cols_values(_clean_data, _existing_cols, _now2)
                         _cur = c.execute(
                             f"INSERT INTO parts ({','.join(_cols)}) VALUES ({','.join(['?'] * len(_cols))})",
                             _vals,
                         )
-                        inserted_ids.append({"row_no": p["row_no"], "id": _cur.lastrowid,
-                                              "part_no": p["data"].get("part_no")})
+                        _new_pid = _cur.lastrowid
+                        _just_created_pid[_pn_key] = _new_pid
+                        inserted_ids.append({"row_no": p["row_no"], "id": _new_pid,
+                                              "part_no": _clean_data.get("part_no")})
                         p["status"] = "inserted"
-                        p["inserted_id"] = _cur.lastrowid
+                        p["inserted_id"] = _new_pid
                     except Exception as e:
                         p["status"] = "error"
                         p["errors"].append(str(e))
                         err_cnt += 1
                         ok_cnt = max(0, ok_cnt - 1)
+        # dual_source 병합은 별도 트랜잭션(_merge_supplier_into_part가 각자 db_session 사용)
+        for p in preview:
+            if p["status"] != "dual_source":
+                continue
+            try:
+                _pn_key = (p["data"].get("part_no") or "").strip().lower()
+                target_pid = _just_created_pid.get(_pn_key)
+                if not target_pid:
+                    target_pid = p["data"].get("_dual_target_part_id")
+                if not target_pid:
+                    # 최종 폴백: DB 조회
+                    with db_session() as _cc:
+                        _rr = _cc.execute(
+                            "SELECT id FROM parts WHERE part_no=?",
+                            (p["data"].get("part_no"),),
+                        ).fetchone()
+                        if _rr:
+                            target_pid = _rr["id"]
+                if not target_pid:
+                    raise ValueError("병합 대상 자재를 찾을 수 없음")
+                _new_supp = (p["data"].get("default_supplier") or "").strip()
+                _new_price = p["data"].get("std_price") or 0
+                _msg = _merge_supplier_into_part(int(target_pid), _new_supp, float(_new_price))
+                p["status"] = "merged"
+                p["merged_into"] = int(target_pid)
+                p["merge_note"] = _msg
+                merged_cnt += 1
+            except Exception as e:
+                p["status"] = "error"
+                p["errors"].append(f"이원화 병합 실패: {e}")
+                err_cnt += 1
+                dual_cnt = max(0, dual_cnt - 1)
 
     return {
         "total": total,
@@ -9103,17 +9305,17 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
         "skipped_empty": skipped_empty,
         "header_map": {str(k): v for k, v in header_map.items()},
         "unmapped_headers": unmapped,
-        # v5H226z648: full_preview=True 면 전체 행 반환(검증결과 엑셀 다운로드용). 기본 False는 200건.
         "preview": preview if full_preview else preview[:200],
         "preview_truncated": len(preview) > 200,
         "summary": {
             "ok": ok_cnt, "error": err_cnt,
             "similar_warn": sim_warn, "dup": dup_cnt,
+            "dual_source": dual_cnt,   # v5H226z649: 이원화 예정(dry_run) 또는 병합됨(apply)
+            "merged": merged_cnt,      # v5H226z649: 실제 병합 성공 수 (dry_run=False 일 때만 > 0)
             "inserted": len(inserted_ids),
         },
         "inserted_ids": inserted_ids,
         "dry_run": dry_run,
-        # v5H226z734: 대량 업로드 — 유사 자재 검사 생략 여부(UI 안내용). 정확 코드중복은 항상 검사.
         "similar_skipped": similar_skipped,
         "large_import": _nonempty_cnt > LARGE_IMPORT_SKIP_SIMILAR,
     }
@@ -9200,9 +9402,10 @@ def parts_bulk_import_export_xlsx(file_path: str) -> tuple:
     FILL_DUP_DB       = PatternFill("solid", fgColor="FEF3C7")  # 노랑 옅음
     FILL_ERROR        = PatternFill("solid", fgColor="FED7AA")  # 주황 옅음
     FILL_SIMILAR      = PatternFill("solid", fgColor="DCFCE7")  # 연두 옅음
+    FILL_DUAL_SOURCE  = PatternFill("solid", fgColor="DBEAFE")  # 파랑 옅음 (v5H226z649 구매처 이원화)
 
     # 6) 각 데이터 행 색칠 + 새 컬럼 채우기
-    cnt = {"dup_internal": 0, "dup_db": 0, "error": 0, "similar": 0, "ok": 0}
+    cnt = {"dup_internal": 0, "dup_db": 0, "error": 0, "similar": 0, "ok": 0, "dual_source": 0}
     for r_no, p in preview_by_row.items():
         if r_no <= header_row_idx:
             continue
@@ -9211,7 +9414,15 @@ def parts_bulk_import_export_xlsx(file_path: str) -> tuple:
         fill = None
         label = "✅ 정상"
         reason = ""
-        if errors and any("엑셀 내부 코드 중복" in e for e in errors):
+        # v5H226z649: 이원화가 최우선 (errors 없고 status=dual_source)
+        if status == "dual_source":
+            fill = FILL_DUAL_SOURCE
+            label = "🔗 구매처 이원화"
+            _first = p.get("data", {}).get("_dual_first_row")
+            _supp = p.get("data", {}).get("_dual_target_supp") or p.get("data", {}).get("default_supplier") or ""
+            reason = f"{_first}행 자재에 공급사 병합 예정 (공급사: {_supp})"
+            cnt["dual_source"] += 1
+        elif errors and any("엑셀 내부 코드 중복" in e for e in errors):
             fill = FILL_DUP_INTERNAL
             label = "❌ 엑셀 내부 중복"
             reason = next((e for e in errors if "엑셀 내부 코드 중복" in e), errors[0])
