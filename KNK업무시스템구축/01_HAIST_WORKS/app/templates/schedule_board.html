@@ -198,7 +198,7 @@
         {% set _ti2 = (ti_map.get(r.row_sig ~ '|2') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         {% set _ti3 = (ti_map.get(r.row_sig ~ '|3') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}" data-status="{{ r.status or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}{% if r.so_no %}?so={{ r.so_no|urlencode }}{% endif %}" title="프로젝트 상세">{{ r.code }}</a>{# v5H226z695 (대표 지시): 누른 행의 수주번호를 상세로 전달 → 그 수주가 메인 카드로 #}{# v5H226z565 (대표 지시): 관리번호 뒤 호기 라벨(N호기) 표시 삭제 — 호기는 '+' 펼침으로 확인 #}{% endif %}{# v5H226z632 (대표 지시): 관리번호 옆 '+' 펼치기 제거 — 장비 호기·소모품 품목보기 모두. (편집은 프로젝트/소모품 상세에서) #}</td>
           {# v5H226z650e (대표 지시): 수주번호 옆 '참고 N' 칩 제거 — 추가 수주는 프로젝트 상세의 참고 영역에서 확인(z638 칩 폐기). #}
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
@@ -283,7 +283,7 @@
     <textarea id="memoText" placeholder="진행 상황 메모 (예: 부품 입고 지연, 고객 승인 대기 …)"></textarea>
     <div class="mp-btns">
       <button type="button" onclick="closeMemo()">닫기</button>
-      <button type="button" class="mp-save" onclick="saveMemo()">메모 저장</button>
+      <button type="button" class="mp-save" onclick="saveMemo()">저장</button>
     </div>
   </div>
   <div id="schedToast"></div>
@@ -1343,7 +1343,7 @@ function recalcAmount(tr){
 }
 
 // ---- 진행기간 막대 메모 ----
-let _memoTr=null, _memoCell=null, _memoDay=0;
+let _memoTr=null, _memoCell=null, _memoDay=0, _memoCurStatus='', _memoOrigDate='';
 var _BOARD_YM="{{ ym }}";   // v5H226z711: 현재 보기 연-월(YYYY-MM)
 function _pad2(n){ return (n<10?'0':'')+n; }
 function _memoYmd(day){ return (day && _BOARD_YM && /^\d{4}-\d{2}$/.test(_BOARD_YM)) ? (_BOARD_YM + '-' + _pad2(day)) : ''; }
@@ -1361,6 +1361,7 @@ function openMemo(tr, day, cell){
   const dstr=_memoYmd(day);
   document.getElementById('memoHead').textContent=(isProj?'상태·메모':'메모')+' — '+code.trim()+(dstr?(' · '+dstr):'');
   const di=document.getElementById('statDate'); if(di){ di.value = dstr; }   // 상태 발생일 기본값=클릭한 날
+  _memoCurStatus=(tr.dataset.status||''); _memoOrigDate=dstr;   // v5H226z860: 현재 상태·원래 발생일 기억 → 발생일만 바꿔도 저장
   const pop=document.getElementById('memoPop'); pop.classList.add('show');
   pop.style.left=Math.max(10,(window.innerWidth-280)/2)+'px'; pop.style.top='120px';
 }
@@ -1411,12 +1412,20 @@ function saveMemo(){
   const memo=document.getElementById('memoText').value, tr=_memoTr;
   const dstr=_memoYmd(_memoDay);   // v5H226z712 (대표 지시): 메모는 클릭한 그 날짜에만 저장
   const cell=_memoCell;
+  // v5H226z860 (대표 지시): 발생일만 바꿔도 저장되게 — 발생일이 바뀌었고 현재 상태가 출하/취소/보류면
+  //   현재 상태를 유지한 채 그 발생일로 status_date 갱신(setRowStatus 재사용·호기 전체·reload).
+  const newDate=(document.getElementById('statDate')||{}).value||'';
+  const dateChanged=(newDate!==_memoOrigDate);
+  const canApplyDate=(dateChanged && ['출하','취소','보류'].indexOf(_memoCurStatus)>=0);
   fetch('/sales/schedule/memo',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,date:dstr,memo:memo})})
     .then(r=>r.json()).then(j=>{
       if(j.ok){ var mm=j.memo||'';
         if(cell){ cell.dataset.daymemo=mm; cell.title=mm; cell.classList.toggle('has-memo', !!mm); }
-        toast('메모 저장됨'); closeMemo();
+        if(canApplyDate){ setRowStatus(_memoCurStatus); return; }   // 발생일도 저장(현재 상태 유지) → reload
+        if(dateChanged && tr.dataset.kind==='project'){ toast('메모 저장됨 (발생일은 출하·취소·보류 상태에서만 반영)'); }
+        else { toast('메모 저장됨'); }
+        closeMemo();
       } else { toast('⚠ '+(j.error||'저장 실패')); }
     }).catch(()=>toast('⚠ 통신 오류'));
 }
