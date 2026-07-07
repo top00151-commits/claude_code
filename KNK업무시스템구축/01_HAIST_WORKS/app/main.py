@@ -7941,6 +7941,31 @@ def _a_prefix_prod_notif_ids(c) -> list:
     return out
 
 
+def _prod_notif_ids_by_code(c, mgmt: str) -> list:
+    """v5H226z879 (대표 지시): 특정 관리번호(mgmt)의 제작요청 WORKS 알림 id 목록 — 테스트 중 잘못 발행된 알림을
+    관리번호로 지정해 전 직원 알림함에서 삭제. 판정 = 알림 link 의 프로젝트 mgmt_code == 그 관리번호 OR 제목에 그 관리번호 포함
+    (프로젝트가 이미 삭제됐어도 제목으로 커버). A접두든 실코드든 정확히 지정한 것만."""
+    import re as _re_c
+    mc = (mgmt or "").strip().upper()
+    if not mc:
+        return []
+    try:
+        _pids = {r[0] for r in c.execute(
+            "SELECT id FROM projects WHERE UPPER(COALESCE(mgmt_code,''))=?", (mc,)).fetchall()}
+    except Exception:
+        _pids = set()
+    out = []
+    try:
+        for r in c.execute("SELECT id, title, link FROM notifications WHERE kind='prod_request'").fetchall():
+            _id, _ttl, _lnk = r[0], (r[1] or ""), (r[2] or "")
+            _m = _re_c.match(r"^/project/(\d+)/", _lnk)
+            if (_m and int(_m.group(1)) in _pids) or (mc in (_ttl or "").upper()):
+                out.append(_id)
+    except Exception:
+        return []
+    return out
+
+
 @app.get("/admin/test-data", response_class=HTMLResponse)
 async def admin_test_data_page(req: Request):
     """v5H226z386 (대표 지시): 검증(테스트) 데이터 관리 — 검증 모드 토글(관리번호 A 접두 발급) + A 관리번호 일괄 삭제(서버 백업 없이 즉시).
@@ -7960,7 +7985,10 @@ async def admin_test_data_page(req: Request):
                test_on=test_on, a_total=a_total, a_by_div=a_by_div, a_notif=a_notif,
                saved=(req.query_params.get("saved") == "1"),
                deleted=req.query_params.get("deleted"),
-               notif_deleted=req.query_params.get("notif_deleted"))
+               notif_deleted=req.query_params.get("notif_deleted"),
+               code_deleted=req.query_params.get("code_deleted"),
+               code=req.query_params.get("code"),
+               code_err=(req.query_params.get("code_err") == "1"))
 
 
 @app.post("/admin/test-data/toggle")
@@ -8043,6 +8071,31 @@ async def admin_test_data_delete_prod_notif(req: Request):
                 pass
         n_del = len(del_ids)
     return RedirectResponse(f"/admin/test-data?notif_deleted={n_del}", 303)
+
+
+@app.post("/admin/test-data/delete-prod-notif-code")
+async def admin_test_data_delete_prod_notif_code(req: Request, mgmt: str = Form("")):
+    """v5H226z879 (대표 지시): 관리번호 지정 — 그 관리번호의 제작요청 알림을 전 직원 WORKS 알림함에서 삭제.
+    테스트 중 잘못 발행된 알림 정리용(A접두·실코드 무관, 정확히 그 번호만). 프로젝트·제작요청서 데이터는 유지."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    mc = (mgmt or "").strip().upper()
+    if not mc:
+        return RedirectResponse("/admin/test-data?code_err=1", 303)
+    n_del = 0
+    with db_session() as c:
+        del_ids = _prod_notif_ids_by_code(c, mc)
+        for i in range(0, len(del_ids), 400):
+            chunk = del_ids[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            try:
+                c.execute(f"DELETE FROM notifications WHERE id IN ({ph})", tuple(chunk))
+            except Exception:
+                pass
+        n_del = len(del_ids)
+    from urllib.parse import quote as _q879
+    return RedirectResponse(f"/admin/test-data?code_deleted={n_del}&code={_q879(mc)}", 303)
 
 
 @app.get("/admin/ti-from-xlsx", response_class=HTMLResponse)
