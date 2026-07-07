@@ -7918,9 +7918,33 @@ async def admin_ai_settings_test(req: Request):
     })
 
 
+def _a_prefix_prod_notif_ids(c) -> list:
+    """v5H226z877 (대표 지시): 테스트(A접두) 제작요청 WORKS 알림(notifications kind='prod_request') id 목록.
+    판정 = 알림 link(/project/{pid}/prod-request/edit)의 프로젝트 mgmt_code 가 A접두 OR 제목에 A접두 관리번호
+    패턴(A+2자리+영문+4자리, 예 A01T2607) — 프로젝트가 이미 삭제됐어도 제목으로 커버."""
+    import re as _re_n
+    _rx = _re_n.compile(r"A\d{2}[A-Z]\d{4}")
+    try:
+        _a_pids = {r[0] for r in c.execute(
+            "SELECT id FROM projects WHERE UPPER(COALESCE(mgmt_code,'')) LIKE 'A%'").fetchall()}
+    except Exception:
+        _a_pids = set()
+    out = []
+    try:
+        for r in c.execute("SELECT id, title, link FROM notifications WHERE kind='prod_request'").fetchall():
+            _id, _ttl, _lnk = r[0], (r[1] or ""), (r[2] or "")
+            _m = _re_n.match(r"^/project/(\d+)/", _lnk)
+            if (_m and int(_m.group(1)) in _a_pids) or _rx.search(_ttl):
+                out.append(_id)
+    except Exception:
+        return []
+    return out
+
+
 @app.get("/admin/test-data", response_class=HTMLResponse)
 async def admin_test_data_page(req: Request):
-    """v5H226z386 (대표 지시): 검증(테스트) 데이터 관리 — 검증 모드 토글(관리번호 A 접두 발급) + A 관리번호 일괄 삭제(서버 백업 없이 즉시)."""
+    """v5H226z386 (대표 지시): 검증(테스트) 데이터 관리 — 검증 모드 토글(관리번호 A 접두 발급) + A 관리번호 일괄 삭제(서버 백업 없이 즉시).
+    v5H226z877: 테스트 제작요청 WORKS 알림만 전 직원 알림함에서 삭제하는 버튼 추가."""
     u = require(req, ["admin", "ceo"])
     if not u:
         _au = get_user(req)
@@ -7931,10 +7955,12 @@ async def admin_test_data_page(req: Request):
         a_by_div = [dict(r) for r in c.execute(
             "SELECT substr(mgmt_code,4,1) AS div, COUNT(*) AS n FROM projects "
             "WHERE mgmt_code LIKE 'A%' GROUP BY substr(mgmt_code,4,1) ORDER BY div").fetchall()]
+        a_notif = len(_a_prefix_prod_notif_ids(c))   # v5H226z877: 전 직원 알림함의 A접두 제작요청 알림 총 건수
     return ctx(req, "admin_test_data.html", user=u, active="admin",
-               test_on=test_on, a_total=a_total, a_by_div=a_by_div,
+               test_on=test_on, a_total=a_total, a_by_div=a_by_div, a_notif=a_notif,
                saved=(req.query_params.get("saved") == "1"),
-               deleted=req.query_params.get("deleted"))
+               deleted=req.query_params.get("deleted"),
+               notif_deleted=req.query_params.get("notif_deleted"))
 
 
 @app.post("/admin/test-data/toggle")
@@ -7982,7 +8008,10 @@ async def admin_test_data_delete_a(req: Request):
             except Exception:
                 pass
             try:
-                c.execute("DELETE FROM notifications WHERE link=?", (f"/project/{pid}",))
+                # v5H226z877 (대표 지시·버그수정): 기존엔 link='/project/{pid}' 만 지워 제작요청 알림
+                #   (link='/project/{pid}/prod-request/edit')이 안 지워졌음 → 하위 경로까지 포함해 정리.
+                c.execute("DELETE FROM notifications WHERE link=? OR link LIKE ?",
+                          (f"/project/{pid}", f"/project/{pid}/%"))
             except Exception:
                 pass
             c.execute("DELETE FROM projects WHERE id=?", (pid,))
@@ -7992,6 +8021,28 @@ async def admin_test_data_delete_a(req: Request):
         except Exception:
             pass
     return RedirectResponse(f"/admin/test-data?deleted={n_proj}", 303)
+
+
+@app.post("/admin/test-data/delete-prod-notif")
+async def admin_test_data_delete_prod_notif(req: Request):
+    """v5H226z877 (대표 지시): 테스트(A접두) 제작요청 알림을 '전 직원 WORKS 알림함'에서 삭제.
+    프로젝트는 그대로 두고 알림(notifications kind='prod_request')만 제거 — 검증 중 스팸 알림 정리용.
+    실 관리번호는 숫자 3자리 시작이라 A접두는 테스트에만 매칭(실 알림 삭제 위험 없음)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    n_del = 0
+    with db_session() as c:
+        del_ids = _a_prefix_prod_notif_ids(c)
+        for i in range(0, len(del_ids), 400):
+            chunk = del_ids[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            try:
+                c.execute(f"DELETE FROM notifications WHERE id IN ({ph})", tuple(chunk))
+            except Exception:
+                pass
+        n_del = len(del_ids)
+    return RedirectResponse(f"/admin/test-data?notif_deleted={n_del}", 303)
 
 
 @app.get("/admin/ti-from-xlsx", response_class=HTMLResponse)

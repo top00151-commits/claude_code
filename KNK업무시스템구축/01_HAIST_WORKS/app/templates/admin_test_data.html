@@ -32,6 +32,7 @@
   <div class="td-wrap">
     {% if saved %}<div class="td-saved">✅ 검증 모드 설정이 저장됐습니다.</div>{% endif %}
     {% if deleted is not none %}<div class="td-saved">🗑 'A' 시작 관리번호 <b>{{ deleted }}개</b> 프로젝트 + 연관 수주·라인·단계·통보를 즉시 삭제했습니다(백업 없음).</div>{% endif %}
+    {% if notif_deleted is not none %}<div class="td-saved">🔔 테스트(A) 제작요청 알림 <b>{{ notif_deleted }}건</b>을 전 직원 알림함에서 삭제했습니다.</div>{% endif %}
 
     <div class="td-note">
       <b>'A' 시작 관리번호 = 임시 테스트</b>입니다. 검증 모드를 켜면 새 관리번호가 <b>A 접두</b>(예: <code>A01T2606</code>)로 발급됩니다.
@@ -75,6 +76,19 @@
       </div>
       <form method="post" action="/admin/test-data/delete-a" onsubmit="return confirm('A 시작 관리번호 {{ a_total }}개 프로젝트와 연관 데이터를 즉시 삭제합니다.\n\n· 서버 백업 없음 · 복구 불가\n\n진행할까요?');">
         <button type="submit" class="td-btn danger" {% if not a_total %}disabled style="opacity:.5;cursor:not-allowed;"{% endif %}>🗑 'A' 관리번호 전체 삭제 (즉시·백업없음)</button>
+      </form>
+    </div>
+
+    {# v5H226z877 (대표 지시): 프로젝트는 두고 '전 직원이 받은 테스트 제작요청 알림'만 삭제 — 검증 중 스팸 알림 정리 #}
+    <div class="td-card">
+      <h3>🔔 테스트(A) 제작요청 알림 삭제 <span style="font-weight:400;color:#64748b;font-size:12px;">(전 직원 알림함)</span></h3>
+      <div class="td-row"><span class="k">현재 A접두 제작요청 알림</span><span class="v" style="color:{% if a_notif %}#dc2626{% else %}#16a34a{% endif %};">{{ a_notif }} 건</span></div>
+      <div class="td-danger-note" style="margin-top:10px;">
+        관리번호가 <b>A</b>로 시작하는 <b>테스트 제작요청 알림</b>을 <b>전 직원의 WORKS 알림함(🔔)</b>에서 모두 삭제합니다.
+        <b>프로젝트·수주 데이터는 그대로 두고</b>, 검증 중 뿌려진 알림만 정리합니다. (실 관리번호는 숫자 시작이라 실 알림은 영향 없음 · 되돌릴 수 없음)
+      </div>
+      <form method="post" action="/admin/test-data/delete-prod-notif" onsubmit="return confirm('전 직원 알림함에서 A접두 테스트 제작요청 알림 {{ a_notif }}건을 삭제합니다.\n(프로젝트 데이터는 유지)\n\n진행할까요?');">
+        <button type="submit" class="td-btn danger" {% if not a_notif %}disabled style="opacity:.5;cursor:not-allowed;"{% endif %}>🔔 테스트(A) 제작요청 알림 전체 삭제</button>
       </form>
     </div>
   </div>
