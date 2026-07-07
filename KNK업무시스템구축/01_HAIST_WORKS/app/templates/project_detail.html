@@ -532,8 +532,9 @@
                 {% endif %}
               </div>
               {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
-              {# v5H142: SO 종류 pill — 장비/소모품/정비/기타 #}
-              {% with stype=so.so_type, size='sm' %}{% include '_v5_partials/so_type_pill.html' %}{% endwith %}
+              {# v5H226z884 (대표 지시): SO 종류 pill(so_type=EQUIPMENT/CONSUMABLE/…) 제거 — 아래 '형태 배지'(form_label)가 단일 진실.
+                 so_type 은 일괄등록이 '제품 1줄'을 호기오염 방지로 CONSUMABLE 로 강제저장한 내부 저장값(사용자 선택 아님·z873)이라,
+                 실제 형태가 '제품'인 수주 옆에 'CONSUMABLE 소모품'이 같이 떠 오해를 유발했음(대표 지적). 데이터(so_type)는 불변·표시만 제거. #}
               {# v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — 서버가 표시(호기별=완제품/1줄=제품)와 일치하게 계산(get_project_orders form_label/form_key). 한 관리번호에 발주마다 형태 다를 수 있어 명확히. #}
               {% if so.form_label %}<span class="so-form-badge sf-{{ so.form_key }}" title="형태: {{ so.form_label }} — 이 수주(발주) 기준">{{ so.form_label }}</span>{% endif %}
               <div class="so-meta">
