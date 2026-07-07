@@ -38,37 +38,22 @@
       {% if prod_requests and can_sales %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit?edit=1" title="제작요청서 수정">✏️ 제작요청서 수정</a>{% endif %}
       {# 2026-07-06 (대표 지시): 프로젝트 정보 수정 진입점 복원 — z787로 '수정'이 제작요청서 편집으로 바뀌며 빠졌던 것. 고객사·모델·사업부·상태 등 프로젝트 자체 정보 수정. #}
       {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/edit" title="프로젝트 정보(고객사·모델·사업부·상태 등) 수정">✏️ 프로젝트 정보 수정</a>{% endif %}
-      {# v5H226z871 (2026-07-08 대표 지시): 폐기 = 완전삭제 + 관리번호 봉인(재사용 금지). 기존 숨김(is_archived) 대체.
-         실거래 기록(세금계산서·출하·수금) 있으면 서버가 재확인 요구. 숨김해제는 옛 폐기(숨김)건 정리용. #}
-      {% if can_sales %}<button type="button" class="btn btn-secondary" style="color:#dc2626;border-color:#f0b4b4;" onclick="retireProject()" title="이 프로젝트를 완전삭제(복구 불가)하고 관리번호를 봉인(재사용 금지)합니다">🗑 폐기(완전삭제)</button>{% endif %}
+      {# v5H226z872 (2026-07-08 대표 지시): 폐기(완전삭제) 버튼은 헤더에서 제거 → 페이지 최하단 '위험 구역'으로 이동(실수 클릭 방지).
+         경고 → 본인 비밀번호 확인 2단계 + 출하·세금계산서·수금 이력 있으면 아예 불가. 숨김해제는 옛 폐기(숨김)건 정리용만 헤더 유지. #}
       {% if can_sales and p.is_archived %}<button type="button" class="btn btn-primary" style="background:#15803d;" onclick="unarchiveProject()" title="옛 숨김(폐기)을 해제 — 다시 목록·일정표에 표시(삭제 아님)">♻ 숨김해제</button>{% endif %}
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
     </div>
   </div>
   <script>
   (function(){
-    // v5H226z871 (2026-07-08 대표 지시): 폐기 = 완전삭제 + 관리번호 봉인 — window 등록(SPA 안전)
-    function _retirePost(confirmFlag){
-      var b = new URLSearchParams(); if(confirmFlag) b.set('confirm','1');
-      return fetch('/projects/{{ p.id }}/retire',{method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:b})
-        .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});});
-    }
+    // v5H226z872 (2026-07-08 대표 지시): 폐기=완전삭제 — 경고 확인 후 '본인 비밀번호' 모달. window 등록(SPA 안전)
     window.retireProject = function(){
-      if(!confirm('이 프로젝트를 완전삭제할까요?\n\n· 프로젝트·수주·제작요청서 등 모든 데이터가 영구 삭제됩니다 (복구 불가){% if p.mgmt_code %}\n· 관리번호 {{ p.mgmt_code }} 는 봉인되어 다시 사용되지 않습니다{% endif %}')) return;
-      _retirePost(false).then(function(o){
-        if(o.s===403){ alert('⚠ '+((o.j&&o.j.message)||'권한 없음')); return; }
-        if(o.j&&o.j.needs_confirm){
-          if(!confirm('⚠ '+o.j.message)) return;
-          _retirePost(true).then(function(o2){
-            if(o2.j&&o2.j.ok){ alert('✓ '+o2.j.message); location.href='/projects'; }
-            else alert('삭제 실패: '+((o2.j&&(o2.j.message||o2.j.error))||''));
-          }).catch(function(e){ alert('삭제 실패: '+e); });
-          return;
-        }
-        if(o.j&&o.j.ok){ alert('✓ '+o.j.message); location.href='/projects'; }
-        else alert('삭제 실패: '+((o.j&&(o.j.message||o.j.error))||''));
-      }).catch(function(e){ alert('삭제 실패: '+e); });
+      if(!confirm('이 프로젝트를 완전삭제할까요?\n\n· 프로젝트·수주·제작요청서 등 모든 데이터가 영구 삭제됩니다 (복구 불가){% if p.mgmt_code %}\n· 관리번호 {{ p.mgmt_code }} 는 봉인되어 다시 사용되지 않습니다{% endif %}\n\n계속하면 본인 로그인 비밀번호 확인이 필요합니다.')) return;
+      var m=document.getElementById('retirePwModal'); if(!m){ alert('삭제 UI 오류'); return; }
+      var e=document.getElementById('retirePwErr'); if(e){ e.style.display='none'; e.textContent=''; }
+      var inp=document.getElementById('retirePwInput'); if(inp){ inp.value=''; }
+      m.style.display='flex';
+      if(inp){ setTimeout(function(){ inp.focus(); }, 50); }
     };
     window.unarchiveProject = function(){
       if(!confirm('폐기를 복구할까요? 다시 목록·일정표에 표시됩니다.')) return;
@@ -2680,4 +2665,64 @@
   }catch(e){}
 })();
 </script>
+{# v5H226z872 (대표 지시): 폐기(완전삭제) = 페이지 최하단 오른쪽 '위험 구역'. 실수 클릭 방지 + 출하·세금계산서·수금 이력이면 비활성. #}
+{% if can_sales %}
+<div style="margin:40px 0 16px;display:flex;justify-content:flex-end;">
+  <div style="max-width:440px;border:1px solid #f0b4b4;border-radius:12px;background:#fff5f5;padding:14px 16px;text-align:right;">
+    <div style="font-size:12px;color:#9a3412;font-weight:800;margin-bottom:8px;letter-spacing:.02em;">⚠ 위험 구역</div>
+    {% if retire_blocked %}
+      <button type="button" class="btn btn-secondary" disabled style="color:#b0b0b0;border-color:#e5e5e5;cursor:not-allowed;background:#f4f4f4;">🗑 폐기 불가</button>
+      <div style="font-size:11.5px;color:#b45309;margin-top:7px;line-height:1.55;">
+        <b>{{ retire_block_reasons|join('·') }}</b> 이력이 있어 완전삭제할 수 없습니다.<br>실거래 기록 보호를 위해 상태를 '취소'로 변경하세요.
+      </div>
+    {% else %}
+      <button type="button" class="btn btn-secondary" onclick="retireProject()" style="color:#dc2626;border-color:#f0b4b4;">🗑 폐기(완전삭제)</button>
+      <div style="font-size:11.5px;color:#9a3412;margin-top:7px;line-height:1.55;">
+        완전삭제(복구 불가) — 경고 확인 + <b>본인 비밀번호 입력</b>이 필요합니다.{% if p.mgmt_code %}<br>관리번호 <b>{{ p.mgmt_code }}</b> 는 봉인되어 다시 사용되지 않습니다.{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if not retire_blocked %}
+<div id="retirePwModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;max-width:390px;width:90%;padding:22px 24px;box-shadow:0 12px 44px rgba(0,0,0,.32);">
+    <div style="font-size:15.5px;font-weight:800;color:#b91c1c;margin-bottom:9px;">🗑 완전삭제 — 본인 확인</div>
+    <div style="font-size:12.5px;color:#444;line-height:1.65;margin-bottom:13px;">
+      이 작업은 <b>되돌릴 수 없습니다.</b> 계속하려면 <b>본인 로그인 비밀번호</b>를 입력하세요.
+    </div>
+    <input id="retirePwInput" type="password" autocomplete="current-password" placeholder="로그인 비밀번호"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ccc;border-radius:9px;font-size:14px;">
+    <div id="retirePwErr" style="display:none;font-size:12px;color:#dc2626;margin-top:7px;"></div>
+    <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:15px;">
+      <button type="button" class="btn btn-secondary" onclick="closeRetirePw()">취소</button>
+      <button type="button" id="retirePwGo" class="btn btn-primary" style="background:#b91c1c;border-color:#b91c1c;" onclick="submitRetirePw()">완전삭제</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  window.closeRetirePw = function(){ var m=document.getElementById('retirePwModal'); if(m) m.style.display='none'; };
+  window.submitRetirePw = function(){
+    var inp=document.getElementById('retirePwInput'), err=document.getElementById('retirePwErr'), go=document.getElementById('retirePwGo');
+    var pw=(inp&&inp.value)||'';
+    if(!pw){ if(err){ err.style.display='block'; err.textContent='비밀번호를 입력하세요.'; } if(inp) inp.focus(); return; }
+    if(go){ go.disabled=true; go.textContent='삭제 중…'; }
+    var b=new URLSearchParams(); b.set('password', pw);
+    fetch('/projects/{{ p.id }}/retire',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b})
+      .then(function(r){ return r.json().then(function(j){ return {s:r.status, j:j}; }); })
+      .then(function(o){
+        if(o.j&&o.j.ok){ alert('✓ '+o.j.message); location.href=(o.j.redirect||'/projects'); return; }
+        if(go){ go.disabled=false; go.textContent='완전삭제'; }
+        var msg=(o.j&&(o.j.message||o.j.error))||'삭제 실패';
+        if(o.j&&(o.j.bad_password||o.j.need_password)){ if(err){ err.style.display='block'; err.textContent=msg; } if(inp){ inp.value=''; inp.focus(); } return; }
+        window.closeRetirePw(); alert('⚠ '+msg);   // blocked/권한 등은 모달 닫고 알림
+      }).catch(function(e){ if(go){ go.disabled=false; go.textContent='완전삭제'; } if(err){ err.style.display='block'; err.textContent='삭제 실패: '+e; } });
+  };
+  var _inp=document.getElementById('retirePwInput');
+  if(_inp && !_inp._knkBound){ _inp._knkBound=true; _inp.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); window.submitRetirePw(); } }); }
+})();
+</script>
+{% endif %}
+{% endif %}
 </main></div></body></html>

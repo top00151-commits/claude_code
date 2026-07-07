@@ -6742,8 +6742,20 @@ async def project_detail(req: Request, pid: int):
         prod_requests = []   # 표시 전용 조회 — 테이블 미생성/조회 오류 시에도 상세는 정상 렌더(주변 소모품/자식조회와 동일 패턴)
     # v5H226z373 (대표 지시): 제작요청 발행은 '신규 등록(제작요청서)' 흐름으로 일원화 →
     #   상세의 제작요청 모달/버튼 폐기(_prod_teams 불요). 단가·금액 게이트(can_money)는 유지.
+    # v5H226z872 (대표 지시): 폐기(완전삭제) 차단 판정 — 출하·세금계산서·수금 이력이 있으면 폐기 불가(버튼 비활성).
+    _retire_fin = {"any": False}
+    try:
+        _retire_fin = _logi.project_financial_flags(pid)
+    except Exception:
+        _retire_fin = {"any": False}
+    _rb_reasons = []
+    if _retire_fin.get("ship"): _rb_reasons.append("출하")
+    if _retire_fin.get("tax"): _rb_reasons.append("세금계산서")
+    if _retire_fin.get("pay"): _rb_reasons.append("수금")
     return ctx(req, "project_detail.html",
                project_display_status=project_display_status,
+               retire_blocked=bool(_retire_fin.get("any")),   # v5H226z872: 실거래 기록 있으면 폐기 불가
+               retire_block_reasons=_rb_reasons,
                can_money=can_view_sales(u),   # 단가·금액은 영업·관리 권한자만(제작요청 통보 받은 부서원에 비공개)
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
@@ -6766,7 +6778,7 @@ async def project_detail(req: Request, pid: int):
                prod_requests=prod_requests)
 
 
-def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False, image_count=0, user_ids=None):
+def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False, image_count=0, user_ids=None, prid=None):
     """v5H226z372→z373 (대표 지시): 제작요청 통보 코어.
     제작요청서 = 프로젝트 생성의 출발점으로 일원화 — 신규 등록(발행) 직후 호출:
       ① 작업일정표 '제작요청(prod_request)' 단계 자동 체크(누가·언제·요청사항)
@@ -6957,6 +6969,30 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                 _author_emp = ""
     except Exception as e:
         return {"ok": False, "error": f"db_error: {str(e)[:120]}", "stage_warn": _stage_warn}
+    # v5H226z868 (대표 지시 2026-07-07): 제작요청서 고유번호(prid)를 메신저 카드에 실어 '수정발행 시 이전 카드 흑백처리'가
+    #   같은 요청서만 정확히 매칭되게 한다(관리번호만으론 같은 프로젝트의 '다른 추가발행' 요청까지 잘못 흑백처리됨).
+    #   신규발행(record=True)은 원래 아래 prod_requests INSERT 가 '통보 뒤'라 카드 전송 시점에 prid 가 없었다 →
+    #   여기서 행을 먼저 만들어 prid 확보(msg_sent 는 통보 후 UPDATE). 수정발행(record=False)은 기존 행 prid 인자를 그대로 사용.
+    # v5H226z815: 정밀 통보대상 CSV — 부서전체(wt_team_ids)·개별(user_ids) 구분 저장 [[feedback_user_ref_by_id]]
+    _wt_csv = ",".join(str(t) for t in sorted(_wt_dept_ids))
+    _uid_csv = ",".join(str(_iu.get("id")) for _iu in _indiv_users if _iu.get("id"))
+    _pr_save_err = ""
+    _pr_new_id = 0
+    if record:
+        try:
+            with db_session() as c:
+                _cur = c.execute(
+                    "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, wt_team_ids, user_ids, dept_names, recipients, "
+                    "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), _wt_csv, _uid_csv, dept_names, recipients,
+                     (user.get("id") or None), by_name, sent_to, dept_count, 0, now_str, now_str[:10]))
+                _pr_new_id = _cur.lastrowid or 0
+        except Exception as _se:
+            _pr_save_err = str(_se)[:150]
+    _eff_prid = _pr_new_id if record else (int(prid) if (prid is not None and str(prid).strip().isdigit()) else 0)
+    # 같은 '한 번의 발행'을 유일 식별(수신자용·발행자 본인용 2번 호출이 같은 _card 를 공유) — 메신저가 '이전 발행분만' 흑백처리하도록.
+    _issue_token = _dt2.now().strftime("%Y%m%d%H%M%S%f")
     # v5H226z391 (대표 지시): ③ 메신저(KNK Eum) 통보 — 'WORKS 알림' 봇이 담당자에게 1:1 푸시.
     #   실패해도 등록·인앱알림은 그대로(침묵 금지 — msg_err 로 표면화). 사번 매칭 안 되면 그 인원은 스킵.
     msg_sent = 0
@@ -6983,6 +7019,9 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             "qty": qty, "due": due, "so_nos": so_nos,
             "server_path": spath, "cust_req": cust_req, "note": note,
             "issued_at": now_str, "link": _full_link, "image_count": image_count,
+            # z868(대표 지시): 제작요청서 고유번호 + 발행토큰 — 메신저가 '수정발행 시 이전 카드 흑백처리'를 같은 요청서만 정확히 매칭.
+            #   is_revision = 수정발행 여부(카드 상단 '수정발행' 뱃지). 발행측이 직접 표기(수신자·발행자 본인 카드 모두 일관).
+            "prid": (_eff_prid or None), "issue_token": _issue_token, "is_revision": bool(is_update),
         }
         _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=_card)
         # v5H226z812 (대표 지시): 발행자 본인에게도 이음 'WORKS 알림' 카드 — 벨(z804)+메신저 둘 다. 통보 수(msg_sent)엔 미포함.
@@ -6999,25 +7038,14 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             msg_err = _mres.get("error", "메신저 통보 실패")
     except Exception as _e:
         msg_err = f"메신저 통보 오류: {str(_e)[:100]}"
-    # v5H226z762 (대표 지시): 제작요청서 영구 저장 — 발행마다 1행(재발행 이력). 요청사항이 통보로만 흘러가 사라지던 문제 해결.
-    #   저장 실패해도 통보는 유효 — 조용히 넘기지 않고 pr_save_err 로 표면화(except:pass 금지).
-    _pr_save_err = ""
-    _pr_new_id = 0
-    # v5H226z815: 정밀 통보대상 CSV — 부서전체(wt_team_ids)·개별(user_ids) 구분 저장 [[feedback_user_ref_by_id]]
-    _wt_csv = ",".join(str(t) for t in sorted(_wt_dept_ids))
-    _uid_csv = ",".join(str(_iu.get("id")) for _iu in _indiv_users if _iu.get("id"))
-    if record:
+    # v5H226z868 (대표 지시 2026-07-07): 신규발행은 위(통보 앞)에서 prod_requests 행을 미리 만들어 prid 를 카드에 실었다.
+    #   통보 수(msg_sent)는 통보 후에야 확정되므로, 확정된 값으로 그 행을 지금 갱신(신규발행만). 저장 자체는 위에서 완료.
+    if record and _pr_new_id and msg_sent:
         try:
             with db_session() as c:
-                _cur = c.execute(
-                    "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, wt_team_ids, user_ids, dept_names, recipients, "
-                    "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date) "
-                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), _wt_csv, _uid_csv, dept_names, recipients,
-                     (user.get("id") or None), by_name, sent_to, dept_count, msg_sent, now_str, now_str[:10]))
-                _pr_new_id = _cur.lastrowid or 0
-        except Exception as _se:
-            _pr_save_err = str(_se)[:150]
+                c.execute("UPDATE prod_requests SET msg_sent=? WHERE id=?", (msg_sent, _pr_new_id))
+        except Exception:
+            pass
     return {"ok": True, "sent_to": sent_to, "dept_count": dept_count,
             "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
             "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err,
@@ -19903,7 +19931,7 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     try:
         _res = _prod_request_notify_core(int(pid), _cust_req, _note, _team_ids, u,
                                          record=False, is_update=True, image_count=_img_count,
-                                         user_ids=_renotify_uids)
+                                         user_ids=_renotify_uids, prid=prid)
         if _res.get("ok"):
             _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
             _qs.append(f"prod_dept={_res.get('dept_count', 0)}")
@@ -27998,7 +28026,6 @@ async def projects_retire_submit(request: Request, pid: int):
         return JSONResponse({"ok": False, "error": "권한 없음",
                              "message": "폐기(완전삭제)는 영업 등록권한자만 가능합니다."}, 403)
     _form = await request.form()
-    _confirm = str(_form.get("confirm") or "").strip().lower() in ("1", "true", "yes")
     try:
         with db_session() as c:
             _row = c.execute("SELECT mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
@@ -28008,20 +28035,34 @@ async def projects_retire_submit(request: Request, pid: int):
         return JSONResponse({"ok": False, "error": "없음", "message": "프로젝트를 찾을 수 없습니다."}, 404)
     _mc = (_row[0] or "").strip()
     _pname = (_row[1] or "").strip()
-    # 안전장치: 실거래 기록(세금계산서·출하·수금) 있으면 재확인 요구(무조건 아님)
+    # v5H226z872 (대표 지시): 출하·세금계산서·수금 등 실거래 기록이 있으면 폐기 완전 차단(비밀번호로도 불가).
     try:
         _fin = _logi.project_financial_flags(pid)
     except Exception:
         _fin = {"any": False}
-    if _fin.get("any") and not _confirm:
+    if _fin.get("any"):
         _kinds = []
-        if _fin.get("tax"): _kinds.append("세금계산서")
         if _fin.get("ship"): _kinds.append("출하")
+        if _fin.get("tax"): _kinds.append("세금계산서")
         if _fin.get("pay"): _kinds.append("수금")
         return JSONResponse({
-            "ok": False, "needs_confirm": True, "financial": _kinds,
-            "message": f"이 프로젝트에는 {'·'.join(_kinds)} 이력이 있습니다.\n완전삭제하면 그 기록도 함께 영구 삭제됩니다. 정말 진행할까요?"
-        })
+            "ok": False, "blocked": True, "financial": _kinds,
+            "message": f"이 프로젝트에는 {'·'.join(_kinds)} 이력이 있어 폐기(완전삭제)할 수 없습니다. (실거래 기록 보호)"
+        }, 409)
+    # v5H226z872 (대표 지시): 본인 로그인 비밀번호 재확인 — 맞아야 삭제. 비밀번호는 대조 즉시 폐기(저장·로그 안 함).
+    _pw = str(_form.get("password") or "")
+    if not _pw:
+        return JSONResponse({"ok": False, "need_password": True,
+                             "message": "본인 로그인 비밀번호를 입력하세요."}, 401)
+    try:
+        with db_session() as c:
+            _prow = c.execute("SELECT password FROM users WHERE id=?", (_u["id"],)).fetchone()
+        if not _prow or not verify_pw(_pw, _prow["password"]):
+            return JSONResponse({"ok": False, "bad_password": True,
+                                 "message": "비밀번호가 일치하지 않습니다."}, 401)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "확인 실패",
+                             "message": "비밀번호 확인 중 오류가 발생했습니다."}, 500)
     # 봉인 먼저(번호 재사용 원천 차단) → 완전삭제. 순서 보장: 삭제 실패해도 번호는 봉인(안전측).
     try:
         with db_session() as c:
