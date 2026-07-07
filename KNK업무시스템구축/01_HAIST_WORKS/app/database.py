@@ -2323,6 +2323,31 @@ def init_db():
         except Exception:
             pass
 
+        # v5H226z882 (대표 지시): WORKS 알림함 '수정발행' 표시를 이음 메신저(z868/z869)와 동일하게.
+        #   제작요청서를 수정해 다시 발행하면 같은 요청서(prod_prid)의 '이전 알림'은 흑백(superseded)·클릭불가로,
+        #   새 알림은 '수정발행'(is_revision) 뱃지 + 하단 '수정 사항'(revision_note=수량 1→3 …)을 표시.
+        #   card_json = 비교용 표시항목 스냅샷(수량·납기·발주유형·모델·각인·장비·고객사·수주번호).
+        try:
+            ntcols = [r[1] for r in c.execute("PRAGMA table_info(notifications)").fetchall()]
+            for _ntcol, _ntddl in [
+                ("prod_prid",     "ALTER TABLE notifications ADD COLUMN prod_prid INTEGER"),
+                ("is_revision",   "ALTER TABLE notifications ADD COLUMN is_revision INTEGER DEFAULT 0"),
+                ("superseded",    "ALTER TABLE notifications ADD COLUMN superseded INTEGER DEFAULT 0"),
+                ("card_json",     "ALTER TABLE notifications ADD COLUMN card_json TEXT"),
+                ("revision_note", "ALTER TABLE notifications ADD COLUMN revision_note TEXT"),
+            ]:
+                if _ntcol not in ntcols:
+                    try:
+                        c.execute(_ntddl)
+                    except Exception:
+                        pass
+            try:
+                c.execute("CREATE INDEX IF NOT EXISTS idx_notif_prod_prid ON notifications(prod_prid) WHERE prod_prid IS NOT NULL")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         # v5H58 (2026-05-03): 등급 자동 산정 — tier_score / tier_computed_at
         cucols = [r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()]
         for col, ddl in [

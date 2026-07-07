@@ -18,6 +18,14 @@
 .notif-ttl { font-size: 13.5px; font-weight: 600; color: var(--qv-ink); }
 .notif-msg { font-size: 12.5px; color: var(--qv-ink-3); margin-top: 4px; line-height: 1.5; }
 .notif-time { font-size: 11px; color: var(--qv-ink-2); margin-top: 6px; font-weight: 600; }
+/* v5H226z882 (대표 지시): 이음 메신저와 동일한 '수정발행' 표시 — 이전 발행분 흑백·클릭불가 / 수정발행 뱃지 / 수정 사항 */
+.notif-item.superseded { opacity: .6; filter: grayscale(1); cursor: default; background: var(--qv-surface-2, #f4f4f5); }
+.notif-item.superseded:hover { background: var(--qv-surface-2, #f4f4f5); border-color: var(--qv-line); }
+.notif-item.superseded .notif-ttl, .notif-item.superseded .notif-msg { color: var(--qv-ink-2); }
+.nf-badge { display:inline-block; margin-left:6px; padding:1px 8px; border-radius:10px; font-size:10.5px; font-weight:800; vertical-align:middle; letter-spacing:.2px; }
+.nf-rev { background: var(--knk-red, #dc2626); color:#fff; }
+.nf-old { background:#9ca3af; color:#fff; }
+.nf-revnote { margin-top:7px; font-size:11.5px; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:7px; padding:5px 10px; line-height:1.45; }
 </style>
 </head>
 <body>
@@ -40,15 +48,18 @@
   <div class="list-scroll" data-dn="notif-list" style="margin: 0;">
     {% if items %}
       {% for n in items %}
-      <a class="notif-item {% if not n.is_read %}unread{% endif %}" href="{{ n.link|default('/home') }}">
-        <div class="notif-icon">{% if n.kind == 'task' %}📝{% elif n.kind == 'comment' %}💬{% elif n.kind == 'ticket' %}🎫{% elif n.kind == 'change' %}📌{% elif n.kind == 'issue' %}🚨{% elif n.kind == 'po' %}📦{% elif n.kind == 'sales' %}💼{% else %}🔔{% endif %}</div>
+      {# v5H226z882(대표 지시): 수정발행으로 대체된 이전 알림(superseded)은 회색·클릭불가(href 생략=링크 아님). #}
+      <a class="notif-item {% if not n.is_read and not n.superseded %}unread{% endif %}{% if n.superseded %} superseded{% endif %}"{% if not n.superseded %} href="{{ n.link|default('/home') }}"{% endif %}>
+        <div class="notif-icon">{% if n.kind == 'task' %}📝{% elif n.kind == 'comment' %}💬{% elif n.kind == 'ticket' %}🎫{% elif n.kind == 'change' %}📌{% elif n.kind == 'issue' %}🚨{% elif n.kind == 'po' %}📦{% elif n.kind == 'sales' %}💼{% elif n.kind == 'prod_request' %}📋{% else %}🔔{% endif %}</div>
         <div class="notif-body">
-          <div class="notif-ttl">{{ n.title }}</div>
+          <div class="notif-ttl">{{ n.title }}{% if n.superseded %}<span class="nf-badge nf-old">이전 발행 · 사용 안 함</span>{% elif n.is_revision %}<span class="nf-badge nf-rev">수정발행</span>{% endif %}</div>
           {# v5H226z372 리뷰반영: 알림 본문 컬럼명은 body — 기존 n.message(미존재 컬럼)라 본문이 안 보이던 버그 수정. 줄바꿈 보존. #}
           {% set _nmsg = n.body or n.message %}{% if _nmsg %}<div class="notif-msg" style="white-space:pre-wrap;">{{ _nmsg }}</div>{% endif %}
+          {# v5H226z882: 수정발행 카드 하단 '수정 사항'(수량 1→3 · 납기 …) — 이음 메신저와 동일. 흑백건엔 미표시. #}
+          {% if n.revision_note and not n.superseded %}<div class="nf-revnote">🔧 수정 사항 · {{ n.revision_note }}</div>{% endif %}
           <div class="notif-time">{{ n.created_at }}{% if n.from_name %} · {{ n.from_name }}{% endif %}</div>
         </div>
-        {% if not n.is_read %}<span class="pill pill-danger">NEW</span>{% endif %}
+        {% if not n.is_read and not n.superseded %}<span class="pill pill-danger">NEW</span>{% endif %}
       </a>
       {% endfor %}
     {% else %}

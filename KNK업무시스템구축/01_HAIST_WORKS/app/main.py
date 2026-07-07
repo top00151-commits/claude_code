@@ -6778,6 +6778,47 @@ async def project_detail(req: Request, pid: int):
                prod_requests=prod_requests)
 
 
+def _works_card_diff(prev, cur):
+    """v5H226z882 (대표 지시): 제작요청 카드 두 장(표시항목 dict)을 비교해 '수정 사항' 요약 생성.
+    이음 메신저 z869 _works_card_diff 이식 — WORKS 알림함 수정발행 카드 하단에
+    "수량 1→3 · 납기 2026-07-17→2026-07-15" 처럼 붙여 보는 사람이 변경점을 바로 알게 함.
+    카드에 없는 항목(요청사항 텍스트 등)만 바뀌면 빈 문자열 → 상위에서 '세부 내용 수정' 폴백."""
+    if not isinstance(prev, dict) or not isinstance(cur, dict):
+        return ""
+
+    def _s(v):
+        return "" if v is None else str(v).strip()
+
+    def _so(v):   # so_nos 배열/스칼라 정규화
+        if isinstance(v, list):
+            return ", ".join(str(x) for x in v if x is not None and str(x).strip())
+        return _s(v)
+
+    def _short(x, n=20):
+        x = str(x)
+        return (x[:n] + "…") if len(x) > n else x
+
+    checks = [
+        ("수량", _s(prev.get("qty")), _s(cur.get("qty")), False),
+        ("납기", _s(prev.get("due")), _s(cur.get("due")), False),
+        ("발주유형", _s(prev.get("po_type")), _s(cur.get("po_type")), False),
+        ("모델", _s(prev.get("model")), _s(cur.get("model")), True),
+        ("각인", _s(prev.get("engraving")), _s(cur.get("engraving")), True),
+        ("장비", _s(prev.get("equip")), _s(cur.get("equip")), True),
+        ("고객사", _s(prev.get("customer")), _s(cur.get("customer")), True),
+        ("수주번호", _so(prev.get("so_nos")), _so(cur.get("so_nos")), True),
+    ]
+    parts = []
+    for label, ov, nv, is_long in checks:
+        if ov == nv:
+            continue
+        if is_long:
+            parts.append(f"{label} {_short(ov) or '—'}→{_short(nv) or '—'}")
+        else:
+            parts.append(f"{label} {ov or '—'}→{nv or '—'}")
+    return " · ".join(parts)[:300]
+
+
 def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False, image_count=0, user_ids=None, prid=None):
     """v5H226z372→z373 (대표 지시): 제작요청 통보 코어.
     제작요청서 = 프로젝트 생성의 출발점으로 일원화 — 신규 등록(발행) 직후 호출:
@@ -6838,6 +6879,18 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     # ② 통보 — 단가·금액 제외(생산에 필요한 자료경로·모델·품명·수량·납기·요청사항만)
     title = f"📋 제작요청{' [수정]' if is_update else ''} [{mgmt}] {model}"
     cust_disp = p.get("customer_name") or "—"
+    # v5H226z882 (대표 지시): 수정발행 흑백처리·수정사항 diff용 표시항목 스냅샷 + 판정값.
+    #   _diff_card = 이음 카드와 동일한 8개 표시항목(수량·납기·발주유형·모델·각인·장비·고객사·수주번호).
+    #   _prid_for_card: 수정발행(record=False)은 prid 인자 = 같은 제작요청서 → 흑백·비교 대상. 신규(record=True)는 통보 뒤 백필.
+    _diff_card = {
+        "qty": (p.get("unit_qty") or 1), "due": due,
+        "po_type": (str(p.get("po_type") or "신규").strip() or "신규"),
+        "model": model, "engraving": eng, "equip": (p.get("equip_name") or ""),
+        "customer": cust_disp, "so_nos": list(so_nos),
+    }
+    _diff_card_json = _json.dumps(_diff_card, ensure_ascii=False)
+    _is_rev = 1 if is_update else 0
+    _prid_for_card = int(prid) if (not record and prid is not None and str(prid).strip().isdigit() and int(prid) > 0) else 0
     # v5H226z595 (대표 지시): 통보 본문을 '제작요청서' 양식 느낌 텍스트로 — 메신저 카드 미지원 시 폴백 + 인앱 알림 본문 공용.
     _SEP = "━━━━━━━━━━━━━━━━━"
     _SUB = "─────────────────"
@@ -6891,6 +6944,21 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             _dept_ids = set()
             _wt_dept_ids = set()   # z803: 부서(팀) 전체로 선택돼 통보된 팀 — 명단에 '부서명'으로 표기
             _indiv_users = []      # z803: 개별 선택돼 통보된 사람 — 명단에 '이름 직책 부서'로 표기
+            # v5H226z882 (대표 지시): 이번 발행으로 넣은 제작요청 알림 id — 신규발행 prod_prid 백필 + 수정발행 흑백처리 제외용.
+            _new_notif_ids = []
+            # v5H226z882: 수정발행이면 같은 요청서(prid)의 '이전 발행 카드'와 비교해 '수정 사항' 요약 생성.
+            _rev_note = ""
+            if is_update and _prid_for_card:
+                try:
+                    _prev_row = c.execute(
+                        "SELECT card_json FROM notifications WHERE kind='prod_request' AND prod_prid=? "
+                        "AND COALESCE(superseded,0)=0 AND card_json IS NOT NULL ORDER BY id DESC LIMIT 1",
+                        (_prid_for_card,)).fetchone()
+                    _prev_cj = (_prev_row[0] if not isinstance(_prev_row, dict) else _prev_row["card_json"]) if _prev_row else None
+                    if _prev_cj:
+                        _rev_note = _works_card_diff(_json.loads(_prev_cj), _diff_card) or "세부 내용 수정"
+                except Exception:
+                    _rev_note = ""
             if tids:   # 팀(부서) 통보 — 사업부 필터
                 ph = ",".join("?" * len(tids))
                 _cand = c.execute(
@@ -6908,8 +6976,9 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                     _dept_ids.add(_tid)
                     if _tid:
                         _wt_dept_ids.add(_tid)
-                    c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
-                              (_uid, "prod_request", title, body, link))
+                    _cn = c.execute("INSERT INTO notifications(user_id, kind, title, body, link, prod_prid, is_revision, card_json, revision_note) VALUES(?,?,?,?,?,?,?,?,?)",
+                              (_uid, "prod_request", title, body, link, (_prid_for_card or None), _is_rev, _diff_card_json, (_rev_note or None)))
+                    _new_notif_ids.append(_cn.lastrowid)
                     sent_to += 1
             # v5H226z794 (대표 지시): 개별 지정 인원 — 사업부 필터 없이 정확히 통보(팀통보와 합집합·중복 제거)
             if _uids_explicit:
@@ -6927,8 +6996,9 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                     if _t2:
                         _dept_ids.add(_t2)
                     _indiv_users.append(_d)   # z803: 개별 통보 명단(이름 직책 부서)
-                    c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
-                              (_u2, "prod_request", title, body, link))
+                    _cn = c.execute("INSERT INTO notifications(user_id, kind, title, body, link, prod_prid, is_revision, card_json, revision_note) VALUES(?,?,?,?,?,?,?,?,?)",
+                              (_u2, "prod_request", title, body, link, (_prid_for_card or None), _is_rev, _diff_card_json, (_rev_note or None)))
+                    _new_notif_ids.append(_cn.lastrowid)
                     sent_to += 1
             # v5H226z881 (대표 지시): 발행자 본인을 통보 대상으로 고른 경우 — 본인도 정식 수신자로 처리(실제 제작요청서 카드 수신·통보 수 포함).
             #   팀루프(id!=uid_self)·개별루프(self-filter)에서 본인은 빠졌으므로 여기서 단독 추가. 아래 receipt(z804/z812)는 생략.
@@ -6942,8 +7012,9 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                     if _sd.get("team_id"):
                         _dept_ids.add(_sd["team_id"])
                     _indiv_users.append(_sd)   # z803 명단: 👤 본인(이름 직책 부서)
-                    c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
-                              (uid_self, "prod_request", title, body, link))
+                    _cn = c.execute("INSERT INTO notifications(user_id, kind, title, body, link, prod_prid, is_revision, card_json, revision_note) VALUES(?,?,?,?,?,?,?,?,?)",
+                              (uid_self, "prod_request", title, body, link, (_prid_for_card or None), _is_rev, _diff_card_json, (_rev_note or None)))
+                    _new_notif_ids.append(_cn.lastrowid)
                     sent_to += 1
             # v5H226z804 (대표 지시): 발행한 사람(본인)에게도 WORKS 알림(벨) — 발행 확인용. 통보 수(sent_to)엔 미포함.
             #   z881: 본인을 통보대상으로 골랐으면(_self_selected) 위에서 이미 카드로 받으므로 receipt 생략(중복 방지).
@@ -6951,8 +7022,22 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                 try:
                     _self_title = f"✅ 제작요청 발행{' [수정]' if is_update else ''} · {mgmt} — {sent_to}명 통보"
                     _self_body = f"내가 발행한 제작요청서입니다. {sent_to}명에게 통보되었습니다.\n{_SUB}\n{body}"
-                    c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
-                              (uid_self, "prod_request", _self_title, _self_body, link))
+                    # z882: 발행확인 receipt 도 같은 요청서 소속 — 수정발행 시 이전 receipt 흑백처리되게 prod_prid·is_revision 태그(카드 아님=card_json 없음).
+                    _cn = c.execute("INSERT INTO notifications(user_id, kind, title, body, link, prod_prid, is_revision) VALUES(?,?,?,?,?,?,?)",
+                              (uid_self, "prod_request", _self_title, _self_body, link, (_prid_for_card or None), _is_rev))
+                    _new_notif_ids.append(_cn.lastrowid)
+                except Exception:
+                    pass
+            # v5H226z882 (대표 지시): 수정발행 — 같은 요청서(prid)의 '이전 발행 알림'을 흑백(superseded)·읽음처리(NEW/미읽음 제외).
+            #   방금 넣은 알림(_new_notif_ids)은 제외. 이음 메신저 z868 흑백처리와 동일 동작. 신규발행은 prid 없어 no-op(백필 뒤에도 매칭 대상 없음).
+            if is_update and _prid_for_card and _new_notif_ids:
+                try:
+                    _ph_ss = ",".join("?" * len(_new_notif_ids))
+                    c.execute(
+                        f"UPDATE notifications SET superseded=1, is_read=1 "
+                        f"WHERE kind='prod_request' AND prod_prid=? AND id NOT IN ({_ph_ss}) "
+                        f"AND COALESCE(superseded,0)=0",
+                        (_prid_for_card, *_new_notif_ids))
                 except Exception:
                     pass
             dept_count = len(_dept_ids)
@@ -7014,6 +7099,15 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                     (pid, mgmt, cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), _wt_csv, _uid_csv, dept_names, recipients,
                      (user.get("id") or None), by_name, sent_to, dept_count, 0, now_str, now_str[:10]))
                 _pr_new_id = _cur.lastrowid or 0
+                # v5H226z882 (대표 지시): 신규발행은 통보 시점에 prid 가 없어 prod_prid=NULL 로 넣었음 → 지금 확정된 prid 로 백필.
+                #   이후 이 요청서를 '수정발행'하면 이 알림들이 흑백처리 대상으로 정확히 매칭됨.
+                if _pr_new_id and _new_notif_ids:
+                    try:
+                        _ph_bf = ",".join("?" * len(_new_notif_ids))
+                        c.execute(f"UPDATE notifications SET prod_prid=? WHERE id IN ({_ph_bf})",
+                                  (_pr_new_id, *_new_notif_ids))
+                    except Exception:
+                        pass
         except Exception as _se:
             _pr_save_err = str(_se)[:150]
     _eff_prid = _pr_new_id if record else (int(prid) if (prid is not None and str(prid).strip().isdigit()) else 0)
