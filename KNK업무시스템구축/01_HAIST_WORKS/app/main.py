@@ -26730,6 +26730,19 @@ async def projects_import_confirm(request: Request):
                         #   v5H226z820: append 로 호기를 '추가'한 경우엔 그 새 호기(_fu_new_item_id)만 상태/통화/is_export 겨냥
                         #   (기존 호기 값 보존 — 같은 SO 의 다른 호기까지 덮어쓰지 않음). 그 외(신규 SO·재업로드 dedup)는 종전대로 SO 전체.
                         if _fu_oid:
+                            # v5H226z873 (대표 지시): 이 수주(SO)의 '진짜 형태'를 orders.so_form 에 기록 —
+                            #   화면 배지가 so_type 추론(제품 1줄→so_type=CONSUMABLE 강제) 대신 이 값을 우선 사용해 '제품→소모품' 오표시 차단.
+                            #   원문 형태 텍스트(form_type: 완제품/제품/상품/기타)→코드 매핑. 소모품 프로젝트면 CONSUMABLE.
+                            #   신규·재사용 SO 모두 갱신 → 같은 엑셀 재업로드 시 기존 건도 교정.
+                            if "so_form" in _ocols2:
+                                _row_form_kr = (r.get("form_type") or "").strip()
+                                _so_form_code = ("CONSUMABLE" if _sotype == "CONSUMABLE"
+                                                 else _logi.FORM_TO_SHIP.get(_row_form_kr, ""))
+                                if _so_form_code:
+                                    try:
+                                        c.execute("UPDATE orders SET so_form=? WHERE id=?", (_so_form_code, _fu_oid))
+                                    except Exception:
+                                        pass
                             _fu_ccy = (r.get("currency") or "KRW").strip().upper()
                             if _fu_ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
                                 _fu_ccy = "KRW"

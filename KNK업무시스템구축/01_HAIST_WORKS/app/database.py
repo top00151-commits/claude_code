@@ -2297,6 +2297,10 @@ def init_db():
             ("cc_name",  "ALTER TABLE orders ADD COLUMN cc_name TEXT"),
             ("cc_dept",  "ALTER TABLE orders ADD COLUMN cc_dept TEXT"),
             ("cc_phone", "ALTER TABLE orders ADD COLUMN cc_phone TEXT"),
+            # v5H226z873 (대표 지시): 수주(SO)별 '진짜 형태'(ASSEMBLY/SEMI/PARTS/ETC/CONSUMABLE) 저장.
+            #   기존엔 형태를 so_type 으로 추론(제품 1줄→so_type=CONSUMABLE 강제)해 '제품'이 '소모품'으로 오표시.
+            #   so_form 이 있으면 그것을 형태 배지의 단일 진실로 사용(없으면 기존 추론). 일괄등록이 기록.
+            ("so_form",  "ALTER TABLE orders ADD COLUMN so_form TEXT"),
         ]:
             if _ocol not in ocols:
                 try:

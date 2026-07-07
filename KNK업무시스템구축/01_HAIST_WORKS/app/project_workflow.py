@@ -1077,7 +1077,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
     extra = []
     # v5H226z600: exchange_rate·is_export 추가 — 상세 PACKING LIST 에서 매입/판매 KRW 환산·인보이스(USD) 표시
     for cn in ("ship_to", "unit_qty", "unit_label", "unit_note", "currency", "so_type",
-               "exchange_rate", "is_export", "shipment_form"):   # v5H226z699: 수주별 형태(완제품/제품/상품/기타) 배지용
+               "exchange_rate", "is_export", "shipment_form",   # v5H226z699: 수주별 형태(완제품/제품/상품/기타) 배지용
+               "so_form"):   # v5H226z873: 수주별 '진짜 형태' 단일 진실(있으면 so_type 추론보다 우선)
         if cn in cols:
             extra.append(cn)
     extra_sql = (", " + ", ".join(extra)) if extra else ""
@@ -1198,7 +1199,16 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         _styp = (d.get("so_type") or "").upper()
         _sf = (d.get("shipment_form") or "").upper()
         _hogi_n = sum(1 for _u in d["units"] if (_u.get("_sort_n") or 9999) < 9999)
-        if _styp == "CONSUMABLE":
+        # v5H226z873 (대표 지시): so_form(수주별 진짜 형태)이 있으면 그것을 단일 진실로 — so_type 추론보다 우선.
+        #   근본원인: 일괄등록이 '제품 1줄'을 so_type=CONSUMABLE 로 저장(호기오염 방지)해 제품이 소모품으로 오표시됐음.
+        #   so_form 값(ASSEMBLY/SEMI/PARTS/ETC/CONSUMABLE) 은 형태를 직접 담아 오표시 원천 차단. 없으면(구 데이터) 기존 추론.
+        _soform = (d.get("so_form") or "").upper()
+        _FORM_LABELKEY = {"ASSEMBLY": ("완제품", "assembly"), "SEMI": ("제품", "semi"),
+                          "PARTS": ("상품", "parts"), "ETC": ("기타", "etc"),
+                          "CONSUMABLE": ("소모품", "consumable")}
+        if _soform in _FORM_LABELKEY:
+            d["form_label"], d["form_key"] = _FORM_LABELKEY[_soform]
+        elif _styp == "CONSUMABLE":
             d["form_label"], d["form_key"] = "소모품", "consumable"
         elif _styp == "PARTS_EXPORT" or _sf == "PARTS":
             d["form_label"], d["form_key"] = "상품", "parts"
