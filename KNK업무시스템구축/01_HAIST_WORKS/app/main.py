@@ -6802,16 +6802,20 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         p = dict(p)
         so_nos = [r[0] for r in c.execute(
             "SELECT order_no FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall() if r[0]]
-        # 통보 부서 — 명시 없으면 전부서(활성 인원 있는 팀 전체)
+        # 통보 부서 — 아무 대상도 안 골랐을 때만 전부서(활성 인원 있는 팀 전체)
         tids = [int(t) for t in (team_ids or []) if str(t).strip().isdigit() and int(t) > 0]
         # v5H226z794 (대표 지시): 개별 지정 인원 — 사업부 필터 없이 그 사람에게 정확히 통보(팀통보와 합집합).
-        _uids_explicit = [int(x) for x in (user_ids or [])
-                          if str(x).strip().isdigit() and int(x) > 0 and int(x) != uid_self]
-        if not tids and not _uids_explicit:
+        #   발행자 본인(uid_self)은 self-notify(6926)로 따로 처리하므로 팀·개별 통보 대상에선 제외.
+        _raw_user_sel = [int(x) for x in (user_ids or []) if str(x).strip().isdigit() and int(x) > 0]
+        _uids_explicit = [x for x in _raw_user_sel if x != uid_self]
+        # v5H226z880 (대표 지시·버그): 전부서 폴백은 '아무 대상도 안 골랐을 때'만.
+        #   ⚠발행자 본인만 골랐으면 self-filter 로 _uids_explicit 가 비지만 '선택은 있음(_raw_user_sel)' → 전부서로 확대 금지.
+        #   (기존 버그: 대표가 '나(발행자)만 선택'→ _uids_explicit 빈값→ 전부서 폴백→ 전 직원 통보. 이제 본인 self-notify 만.)
+        if not tids and not _uids_explicit and not _raw_user_sel:
             tids = [r[0] for r in c.execute(
                 "SELECT DISTINCT t.id FROM teams t JOIN users u ON u.team_id=t.id "
                 "AND COALESCE(u.is_active,1)=1").fetchall()]
-    if not tids and not _uids_explicit:
+    if not tids and not _uids_explicit and not _raw_user_sel:
         return {"ok": False, "error": "no_team"}
     today = _dt2.now().strftime("%Y-%m-%d")
     now_str = _dt2.now().strftime("%Y-%m-%d %H:%M")
