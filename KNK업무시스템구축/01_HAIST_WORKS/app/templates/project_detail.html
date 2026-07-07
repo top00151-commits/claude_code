@@ -38,24 +38,37 @@
       {% if prod_requests and can_sales %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit?edit=1" title="제작요청서 수정">✏️ 제작요청서 수정</a>{% endif %}
       {# 2026-07-06 (대표 지시): 프로젝트 정보 수정 진입점 복원 — z787로 '수정'이 제작요청서 편집으로 바뀌며 빠졌던 것. 고객사·모델·사업부·상태 등 프로젝트 자체 정보 수정. #}
       {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/edit" title="프로젝트 정보(고객사·모델·사업부·상태 등) 수정">✏️ 프로젝트 정보 수정</a>{% endif %}
-      {# 2026-07-06 (대표 지시): 폐기(숨김)/복구 — 완전삭제(관리코드 건은 정책상 불가) 대신 목록·일정표에서 숨김(데이터 보존·복구 가능) #}
-      {% if can_sales and not p.is_archived %}<button type="button" class="btn btn-secondary" style="color:#dc2626;border-color:#f0b4b4;" onclick="archiveProject()" title="이 프로젝트를 목록·일정표에서 숨김(데이터 보존·폐기함에서 복구 가능)">🗑 폐기</button>{% endif %}
-      {% if can_sales and p.is_archived %}<button type="button" class="btn btn-primary" style="background:#15803d;" onclick="unarchiveProject()" title="폐기 복구 — 다시 목록·일정표에 표시">♻ 복구</button>{% endif %}
+      {# v5H226z871 (2026-07-08 대표 지시): 폐기 = 완전삭제 + 관리번호 봉인(재사용 금지). 기존 숨김(is_archived) 대체.
+         실거래 기록(세금계산서·출하·수금) 있으면 서버가 재확인 요구. 숨김해제는 옛 폐기(숨김)건 정리용. #}
+      {% if can_sales %}<button type="button" class="btn btn-secondary" style="color:#dc2626;border-color:#f0b4b4;" onclick="retireProject()" title="이 프로젝트를 완전삭제(복구 불가)하고 관리번호를 봉인(재사용 금지)합니다">🗑 폐기(완전삭제)</button>{% endif %}
+      {% if can_sales and p.is_archived %}<button type="button" class="btn btn-primary" style="background:#15803d;" onclick="unarchiveProject()" title="옛 숨김(폐기)을 해제 — 다시 목록·일정표에 표시(삭제 아님)">♻ 숨김해제</button>{% endif %}
       <a class="btn btn-secondary" href="/projects">↩ 목록</a>
     </div>
   </div>
   <script>
   (function(){
-    // 2026-07-06 (대표 지시): 프로젝트 폐기(숨김)/복구 — window 등록(SPA 안전)
-    window.archiveProject = function(){
-      if(!confirm('이 프로젝트를 폐기(숨김) 처리할까요?\n\n· 목록·일정표·최근 프로젝트에서 숨겨집니다\n· 데이터는 보존되며 폐기함에서 복구할 수 있습니다')) return;
-      fetch('/projects/{{ p.id }}/archive',{method:'POST'})
-        .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});})
-        .then(function(o){
-          if(o.s===403){ alert('⚠ '+((o.j&&o.j.message)||'권한 없음')); return; }
-          if(o.j&&o.j.ok){ alert('✓ '+o.j.message); location.href='/projects'; }
-          else alert('폐기 실패: '+((o.j&&(o.j.message||o.j.error))||''));
-        }).catch(function(e){ alert('폐기 실패: '+e); });
+    // v5H226z871 (2026-07-08 대표 지시): 폐기 = 완전삭제 + 관리번호 봉인 — window 등록(SPA 안전)
+    function _retirePost(confirmFlag){
+      var b = new URLSearchParams(); if(confirmFlag) b.set('confirm','1');
+      return fetch('/projects/{{ p.id }}/retire',{method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:b})
+        .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});});
+    }
+    window.retireProject = function(){
+      if(!confirm('이 프로젝트를 완전삭제할까요?\n\n· 프로젝트·수주·제작요청서 등 모든 데이터가 영구 삭제됩니다 (복구 불가){% if p.mgmt_code %}\n· 관리번호 {{ p.mgmt_code }} 는 봉인되어 다시 사용되지 않습니다{% endif %}')) return;
+      _retirePost(false).then(function(o){
+        if(o.s===403){ alert('⚠ '+((o.j&&o.j.message)||'권한 없음')); return; }
+        if(o.j&&o.j.needs_confirm){
+          if(!confirm('⚠ '+o.j.message)) return;
+          _retirePost(true).then(function(o2){
+            if(o2.j&&o2.j.ok){ alert('✓ '+o2.j.message); location.href='/projects'; }
+            else alert('삭제 실패: '+((o2.j&&(o2.j.message||o2.j.error))||''));
+          }).catch(function(e){ alert('삭제 실패: '+e); });
+          return;
+        }
+        if(o.j&&o.j.ok){ alert('✓ '+o.j.message); location.href='/projects'; }
+        else alert('삭제 실패: '+((o.j&&(o.j.message||o.j.error))||''));
+      }).catch(function(e){ alert('삭제 실패: '+e); });
     };
     window.unarchiveProject = function(){
       if(!confirm('폐기를 복구할까요? 다시 목록·일정표에 표시됩니다.')) return;
@@ -69,11 +82,11 @@
   })();
   </script>
 
-  {# 2026-07-06 (대표 지시): 폐기(숨김)된 프로젝트 배너 — 복구 유도 #}
+  {# v5H226z871: 옛 폐기(숨김)건 배너 — 이제 폐기=완전삭제로 바뀜. 이 건은 숨김만 된 상태라 완전삭제 또는 숨김해제 안내. #}
   {% if p.is_archived %}
   <div style="margin:0 0 14px;padding:11px 15px;border-radius:9px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.6;">
-    🗑 <b>폐기(숨김)된 프로젝트입니다</b> — 목록·일정표·최근 프로젝트에서 숨겨져 있습니다(데이터는 보존됨).
-    {% if can_sales %}상단 <b>"♻ 복구"</b> 버튼으로 다시 표시할 수 있습니다.{% endif %}
+    🗑 <b>숨김(옛 폐기) 처리된 프로젝트입니다</b> — 목록·일정표·최근 프로젝트에서 숨겨져 있습니다(데이터는 아직 보존됨).
+    {% if can_sales %}상단 <b>"🗑 폐기(완전삭제)"</b>로 관리번호를 봉인하며 영구 삭제하거나, <b>"♻ 숨김해제"</b>로 다시 표시할 수 있습니다.{% endif %}
   </div>
   {% endif %}
 

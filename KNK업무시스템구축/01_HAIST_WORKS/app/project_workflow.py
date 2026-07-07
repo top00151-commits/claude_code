@@ -38,6 +38,13 @@ def generate_mgmt_code(c, biz_div: str, ref_date: date | None = None) -> str:
         "SELECT mgmt_code FROM projects WHERE mgmt_code LIKE ?",
         (f"%{suffix}",)
     ).fetchall()
+    # v5H226z871 (대표 지시): 폐기(완전삭제)로 봉인된 관리번호도 스캔 — 삭제로 빈 자리가 돼도 재사용 금지.
+    #   봉인 명부(retired_mgmt_codes)의 같은 접미 번호를 max 계산에 포함(최고번호 삭제 시 재발급 방지).
+    try:
+        rows = list(rows) + list(c.execute(
+            "SELECT mgmt_code FROM retired_mgmt_codes WHERE mgmt_code LIKE ?", (f"%{suffix}",)).fetchall())
+    except Exception:
+        pass   # 명부 미생성(구 DB) 시 기존 동작
     max_seq = 0
     for r in rows:
         mc = r[0] if isinstance(r, tuple) or hasattr(r, "__getitem__") else None

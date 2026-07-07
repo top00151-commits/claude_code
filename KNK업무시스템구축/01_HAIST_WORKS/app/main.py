@@ -19726,6 +19726,8 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                    "LEFT JOIN orders o ON o.project_id = p.id ")
             _dref = "substr(COALESCE(NULLIF(pr.created_at,''), pr.created_date, ''),1,10)"  # 발행일 YYYY-MM-DD
             conds, params = [], []
+            # v5H226z871 (대표 지시): 폐기(숨김)된 프로젝트의 제작요청서는 목록에서 제외 — 폐기했는데 목록/상세로 열리던 누출 차단.
+            conds.append("COALESCE(p.is_archived,0)=0")
             if _q:
                 conds.append("(p.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
                              "OR p.equip_name LIKE ? OR cu.name LIKE ? OR p.customer_name LIKE ? "
@@ -20152,6 +20154,9 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         if not p:
             return RedirectResponse("/projects", 303)
         p = dict(p)
+        # v5H226z871 (대표 지시): 폐기(숨김)된 프로젝트의 제작요청서는 열람·수정 불가 — 폐기했는데 들어가지던 누출 차단.
+        if int(p.get("is_archived") or 0):
+            return RedirectResponse("/projects", 303)
         if not str(p.get("customer_name") or "").strip() and p.get("_cust_join"):
             p["customer_name"] = p["_cust_join"]
         # v5H226z770: 목록 카드에서 특정 요청서(prid)로 진입 — 없거나 불일치면 최신으로 폴백.
@@ -27978,6 +27983,55 @@ async def projects_unarchive_submit(request: Request, pid: int):
     except Exception as e:
         return JSONResponse({"ok": False, "error": "복구 실패", "message": str(e)}, 500)
     return JSONResponse({"ok": True, "message": "복구 완료"})
+
+
+@app.post("/projects/{pid}/retire")
+async def projects_retire_submit(request: Request, pid: int):
+    """v5H226z871 (2026-07-08 대표 지시): 폐기 = 완전삭제 + 관리번호 봉인(재사용 금지).
+    기존 폐기(숨김·is_archived)를 대체. 안전장치: 세금계산서/출하/수금 등 실거래 기록이 있으면
+    confirm=1 재확인 없이는 차단(z176 이 보호하던 범위). 봉인=삭제 전 retired_mgmt_codes 기록 →
+    generate_mgmt_code 가 그 번호 재사용 안 함. 권한=can_use_sales(등록권한자)."""
+    _u = get_user(request)
+    if not _u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(_u):
+        return JSONResponse({"ok": False, "error": "권한 없음",
+                             "message": "폐기(완전삭제)는 영업 등록권한자만 가능합니다."}, 403)
+    _form = await request.form()
+    _confirm = str(_form.get("confirm") or "").strip().lower() in ("1", "true", "yes")
+    try:
+        with db_session() as c:
+            _row = c.execute("SELECT mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+    except Exception:
+        _row = None
+    if not _row:
+        return JSONResponse({"ok": False, "error": "없음", "message": "프로젝트를 찾을 수 없습니다."}, 404)
+    _mc = (_row[0] or "").strip()
+    _pname = (_row[1] or "").strip()
+    # 안전장치: 실거래 기록(세금계산서·출하·수금) 있으면 재확인 요구(무조건 아님)
+    try:
+        _fin = _logi.project_financial_flags(pid)
+    except Exception:
+        _fin = {"any": False}
+    if _fin.get("any") and not _confirm:
+        _kinds = []
+        if _fin.get("tax"): _kinds.append("세금계산서")
+        if _fin.get("ship"): _kinds.append("출하")
+        if _fin.get("pay"): _kinds.append("수금")
+        return JSONResponse({
+            "ok": False, "needs_confirm": True, "financial": _kinds,
+            "message": f"이 프로젝트에는 {'·'.join(_kinds)} 이력이 있습니다.\n완전삭제하면 그 기록도 함께 영구 삭제됩니다. 정말 진행할까요?"
+        })
+    # 봉인 먼저(번호 재사용 원천 차단) → 완전삭제. 순서 보장: 삭제 실패해도 번호는 봉인(안전측).
+    try:
+        with db_session() as c:
+            _logi.retire_mgmt_code(c, _mc, retired_by=(_u.get("name") or _u.get("username") or ""),
+                                   project_name=_pname)
+        _logi.projects_delete_logi(pid, force=True)   # force=True: z176 삭제잠금 우회(대표가 폐기=완전삭제로 결정)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": "삭제 실패", "message": str(e)}, 500)
+    _seal = f" · 관리번호 {_mc} 봉인(재사용 금지)" if _mc else ""
+    return JSONResponse({"ok": True, "message": f"완전삭제 완료{_seal}", "redirect": "/projects"})
 
 
 @app.post("/projects/{pid}/delete")

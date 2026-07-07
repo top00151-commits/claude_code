@@ -2279,6 +2279,18 @@ def init_db():
             c.execute("CREATE INDEX IF NOT EXISTS idx_orders_project ON orders(project_id)")
         except Exception:
             pass
+        # v5H226z871 (2026-07-08 대표 지시): 폐기=완전삭제로 전환하며 '봉인된 관리번호 명부'.
+        #   완전삭제해도 그 관리번호는 재사용 금지 → 삭제 전 여기 기록하고, 발번(generate_mgmt_code)이 이 표도 스캔.
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS retired_mgmt_codes (
+                mgmt_code TEXT PRIMARY KEY,
+                retired_at TEXT,
+                retired_by TEXT,
+                project_name TEXT,
+                reason TEXT
+            )""")
+        except Exception:
+            pass
         # v5H226z678 (대표 지시): 수주(SO)별 담당자 — 같은 관리번호에 담당자가 다른 여러 주문(추가제작)을 구분.
         #   기존엔 담당자가 projects(프로젝트) 단위라 같은 관리번호 여러 수주가 화면에서 똑같아 보였음.
         for _ocol, _oddl in [
@@ -6610,6 +6622,17 @@ def projects_delete_logi(pid: int, force: bool = False) -> None:
         try: c.execute("DELETE FROM project_items WHERE project_id=?", (pid,))
         except Exception: pass
 
+        # v5H226z871 (대표 지시): 제작요청서 + 첨부이미지 완전삭제(기존 동적 스윕은 project_id SET NULL 이라
+        #   고아 행이 남았음 — '완전삭제' 취지에 맞게 명시 DELETE). prod_request_images 는 prod_request_id 로.
+        try:
+            _pr_ids = [r[0] for r in c.execute(
+                "SELECT id FROM prod_requests WHERE project_id=?", (pid,)).fetchall()]
+            for _prid in _pr_ids:
+                try: c.execute("DELETE FROM prod_request_images WHERE prod_request_id=?", (_prid,))
+                except Exception: pass
+            c.execute("DELETE FROM prod_requests WHERE project_id=?", (pid,))
+        except Exception: pass
+
         # 1-b) purchase_orders 자식: po_items
         po_ids = [r[0] for r in c.execute(
             "SELECT id FROM purchase_orders WHERE project_id=?", (pid,)).fetchall()]
@@ -6736,6 +6759,70 @@ def projects_delete_logi(pid: int, force: bool = False) -> None:
 
         # 2. 본체 삭제
         c.execute("DELETE FROM projects WHERE id = ?", (pid,))
+
+
+def retire_mgmt_code(c, mgmt_code: str, retired_by: str = "", project_name: str = "", reason: str = "폐기(완전삭제)") -> None:
+    """v5H226z871 (대표 지시): 관리번호 봉인 — 완전삭제해도 재사용 못 하도록 명부에 남김.
+    INSERT OR IGNORE(이미 있으면 무시·멱등). db_session 커넥션 c 안에서 호출(삭제와 같은 트랜잭션)."""
+    mc = (mgmt_code or "").strip()
+    if not mc:
+        return
+    try:
+        c.execute("INSERT OR IGNORE INTO retired_mgmt_codes(mgmt_code, retired_at, retired_by, project_name, reason) "
+                  "VALUES(?, datetime('now','+9 hours'), ?, ?, ?)",
+                  (mc, retired_by or "", project_name or "", reason or ""))
+    except Exception:
+        pass
+
+
+def project_financial_flags(pid: int) -> dict:
+    """v5H226z871 (대표 지시·완전삭제 안전장치): 프로젝트에 '실거래 기록'이 있는지 판정.
+    반환 {tax: 세금계산서 발행, ship: 출하, pay: 수금, any: 위 중 하나}. 스키마 관대(테이블/컬럼 없으면 False).
+    폐기(완전삭제) 전 경고/차단용 — z176 이 보호하려던 '매출·납품·수금 이력' 범위."""
+    out = {"tax": False, "ship": False, "pay": False}
+    with db_session() as c:
+        _ocols = set()
+        try:
+            _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+        except Exception:
+            pass
+        # 세금계산서 발행: orders.tax_invoice_date 또는 order_items.tax_invoice_date 채워짐
+        try:
+            if "tax_invoice_date" in _ocols:
+                if c.execute("SELECT 1 FROM orders WHERE project_id=? AND COALESCE(tax_invoice_date,'')<>'' LIMIT 1", (pid,)).fetchone():
+                    out["tax"] = True
+        except Exception:
+            pass
+        try:
+            _oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            if not out["tax"] and "tax_invoice_date" in _oicols:
+                if c.execute("SELECT 1 FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                             "WHERE o.project_id=? AND COALESCE(oi.tax_invoice_date,'')<>'' LIMIT 1", (pid,)).fetchone():
+                    out["tax"] = True
+        except Exception:
+            pass
+        # 출하: order_items.unit_status='출하' 또는 shipments 행
+        try:
+            if c.execute("SELECT 1 FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                         "WHERE o.project_id=? AND oi.unit_status='출하' LIMIT 1", (pid,)).fetchone():
+                out["ship"] = True
+        except Exception:
+            pass
+        try:
+            if not out["ship"] and c.execute("SELECT 1 FROM shipments s JOIN orders o ON o.id=s.order_id "
+                                             "WHERE o.project_id=? LIMIT 1", (pid,)).fetchone():
+                out["ship"] = True
+        except Exception:
+            pass
+        # 수금: receipts_payment 행
+        try:
+            if c.execute("SELECT 1 FROM receipts_payment rp JOIN orders o ON o.id=rp.order_id "
+                         "WHERE o.project_id=? LIMIT 1", (pid,)).fetchone():
+                out["pay"] = True
+        except Exception:
+            pass
+    out["any"] = out["tax"] or out["ship"] or out["pay"]
+    return out
 
 
 def projects_count_logi() -> dict:
