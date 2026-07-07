@@ -2609,7 +2609,8 @@ def _safe_next_path(nxt: str) -> str:
 
 
 @app.get("/sso/land")
-async def sso_land(req: Request):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def sso_land(req: Request):
     """메신저가 발급한 JWT 를 받아 입장 — 발주 §3.
     토큰 검증 → works_access 게이트 → 계정 upsert → WORKS 세션 생성 → 역할별 홈.
     next=<내부경로> 가 있으면(메신저 📧메일 아이콘 등) 그 경로로 착지(안전검사 통과 시)."""
@@ -2688,7 +2689,8 @@ async def root(req: Request):
 # =====================================================
 @app.get("/home", response_class=HTMLResponse)
 @app.get("/home/{sel_date}", response_class=HTMLResponse)
-async def home_page(req: Request, sel_date: str = "", tab: str = "",
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def home_page(req: Request, sel_date: str = "", tab: str = "",
                     no_perm: str = ""):  # D01-NEW-BANNER: 권한 없음 안내 파라미터
     u = get_user(req)
     if not u:
@@ -2973,7 +2975,8 @@ async def home_page(req: Request, sel_date: str = "", tab: str = "",
 # =====================================================
 @app.get("/daily", response_class=HTMLResponse)
 @app.get("/daily/{sel_date}", response_class=HTMLResponse)
-async def daily_page(req: Request, sel_date: str = ""):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def daily_page(req: Request, sel_date: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -4502,7 +4505,8 @@ async def api_carry_forward(req: Request):
 # SUMMARY — 통합 요약 (일/주/월 × 개인/부서/전사)
 # =====================================================
 @app.get("/summary", response_class=HTMLResponse)
-async def summary_page(req: Request, period: str = "weekly", scope: str = "me", ref: str = ""):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def summary_page(req: Request, period: str = "weekly", scope: str = "me", ref: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -5646,7 +5650,8 @@ async def ceo_dashboard_alias(req: Request):
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(req: Request):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def dashboard_page(req: Request):
     # ESC-02: 로그인 상태 구분 — 미인증→/login, 권한 부족→role 홈
     u_any = get_user(req)
     if not u_any:
@@ -5971,7 +5976,8 @@ async def weekly_team_alias(req: Request):
 
 @app.get("/weekly", response_class=HTMLResponse)
 @app.get("/weekly/{wk_mon}", response_class=HTMLResponse)
-async def weekly_page(req: Request, wk_mon: str = ""):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def weekly_page(req: Request, wk_mon: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -7291,7 +7297,8 @@ async def calendar_page(req: Request, month: str = "", scope: str = "me"):
 # =====================================================
 @app.get("/feed", response_class=HTMLResponse)
 @app.get("/feed/{sel_date}", response_class=HTMLResponse)
-async def feed_page(req: Request, sel_date: str = ""):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def feed_page(req: Request, sel_date: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -11733,7 +11740,8 @@ async def dept_demo_cleanup(request: Request):
 
 
 @app.get("/projects/{pid:int}/orders/{so_id:int}/export-xlsx")
-async def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
     """v5H226i: 수주(SO) 라인 항목을 엑셀로 다운로드.
     CONSUMABLE 은 품명·연결관리코드·이미지경로 포함, 그 외는 호기 위주."""
     u = get_user(req)
@@ -14223,7 +14231,8 @@ async def suppliers_export_xlsx(req: Request):
 
 
 @app.get("/parts/export.xlsx")
-async def parts_export_xlsx(req: Request):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def parts_export_xlsx(req: Request):
     """v5H226z110 (2026-05-17) — 자재 마스터 엑셀 다운로드.
     표준 구조: [시트1 📖 안내] + [시트2 자재 마스터 (제목·부제·헤더·데이터)]."""
     u = get_user(req)
@@ -17423,7 +17432,8 @@ async def parts_import_marked_xlsx(req: Request,
 
 
 @app.get("/parts/import/template.xlsx")
-async def parts_import_template(req: Request):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def parts_import_template(req: Request):
     """빈 일괄 등록 템플릿 다운로드 — 헤더 + 예시 2행."""
     u = get_user(req)
     if not u:
@@ -18994,7 +19004,8 @@ async def admin_toggle_logistics(request: Request,
 
 # ── 자재·구매 홈 (기존 /logistics — 명칭 통일) ──────────────
 @app.get("/logistics", response_class=HTMLResponse)
-async def logi_dashboard(request: Request):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def logi_dashboard(request: Request):
     """자재·구매 센터 (부품·공급사·발주·입출고·수불·환율)"""
     u = get_user(request)
     if not u:
@@ -19113,7 +19124,8 @@ async def sales_dashboard(request: Request):
 
 # ── 부품 마스터 (parts) ────────────────────────────────
 @app.get("/parts", response_class=HTMLResponse)
-async def parts_list_page(request: Request, q: str = "", biz_div: str = "",
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def parts_list_page(request: Request, q: str = "", biz_div: str = "",
                           category: str = "", page: str = "1"):
     u = get_user(request)
     if not u:
@@ -20259,7 +20271,8 @@ async def prod_request_image_delete(request: Request, pid: int, prid: int, img_i
 
 
 @app.get("/projects", response_class=HTMLResponse)
-async def projects_list_page(request: Request, q: str = "", biz_div: str = "",
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                              stage: str = "", status: str = "",
                              project_type: str = "", view: str = "", archived: str = ""):
     u = get_user(request)
@@ -20502,7 +20515,12 @@ def _board_month_pids(mstart, mend):
                 if r[0]:
                     pids.add(int(r[0]))
         return pids
-    except Exception:
+    except Exception as _e:
+        # v5H226z867 BM-3: 폴백 가시화 — 프리필터가 조용히 죽으면 전 요청이 전체 로드로 퇴행(관측성). 반환값 불변.
+        try:
+            print(f"[board-fallback] _board_month_pids 실패 → 전체 로드 폴백: {_e!r}")
+        except Exception:
+            pass
         return None   # 폴백 = 전체 로드(기존 동작)
 
 
@@ -20671,7 +20689,12 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     #   폴백해 작업일정표=07-18 / 전사일정표=07-06 으로 어긋나던 버그 수정. 행 수는 그대로(1호기=1줄).
                     if len(main_lines) >= 2 or ref_data or any(_l.get("iids") for _l in main_lines):
                         out[pid] = main_lines
-    except Exception:
+    except Exception as _e:
+        # v5H226z867 BM-3: 폴백 가시화(관측성) — 반환값·제어흐름 불변.
+        try:
+            print(f"[board-fallback] _board_split_lines_map 실패 → 전체 로드 폴백: {_e!r}")
+        except Exception:
+            pass
         return {}
     return out
 
@@ -20725,7 +20748,12 @@ def _board_unit_status_maps(pids=None):
                 d = dict(r)
                 by_iid[d["iid"]] = d["st"]
                 by_proj.setdefault(d["pid"], []).append(d["st"])
-    except Exception:
+    except Exception as _e:
+        # v5H226z867 BM-3: 폴백 가시화(관측성) — 반환값·제어흐름 불변.
+        try:
+            print(f"[board-fallback] _board_unit_status_maps 실패 → 전체 로드 폴백: {_e!r}")
+        except Exception:
+            pass
         return {}, {}
     return by_iid, by_proj
 
@@ -20797,7 +20825,12 @@ def _board_tax_oi_map(pids=None):
                 }
                 if r.get("pid"):
                     proj_iids.setdefault(r["pid"], []).append(r["iid"])
-    except Exception:
+    except Exception as _e:
+        # v5H226z867 BM-3: 폴백 가시화(관측성) — 반환값·제어흐름 불변.
+        try:
+            print(f"[board-fallback] _board_tax_oi_map 실패 → 전체 로드 폴백: {_e!r}")
+        except Exception:
+            pass
         return {}, {}
     return oi_map, proj_iids
 
@@ -22104,7 +22137,8 @@ def _sched_cust_hit(row, q):
 
 
 @app.get("/sales/schedule", response_class=HTMLResponse)
-async def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
                          pf: str = "", pt: str = "", focus_ref: str = "", focus_so: str = ""):
     u = get_user(request)
     if not u:
@@ -23638,7 +23672,8 @@ def _dept_sched_dept_of(u):
 
 
 @app.get("/dept/schedule", response_class=HTMLResponse)
-async def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = ""):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -24294,7 +24329,8 @@ async def rnd_delete(request: Request, rid: int):
 
 
 @app.get("/projects/export.xlsx")
-async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def projects_export_xlsx(request: Request, q: str = "", div: str = "",
                                view: str = "", status: str = ""):
     """v5H226z218 (대표 지시): 프로젝트 목록 엑셀 — 보여지는 형태(사업부 책갈피·상태) 그대로.
     상단 제목(사업부·기간·건수) + 상황에 맞는 파일명."""
@@ -24409,7 +24445,8 @@ async def projects_export_xlsx(request: Request, q: str = "", div: str = "",
 
 
 @app.get("/projects/bulk-template.xlsx")
-async def projects_bulk_template_download(request: Request):
+# v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
+def projects_bulk_template_download(request: Request):
     """v5H226z29 (2026-05-08) — 프로젝트 일괄등록 엑셀 양식 다운로드.
     대표 직접 지시: 전체 초기화 후 진행 프로젝트를 엑셀로 일괄 등록.
     """

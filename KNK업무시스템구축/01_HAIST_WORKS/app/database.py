@@ -2271,6 +2271,14 @@ def init_db():
                 c.execute("CREATE INDEX IF NOT EXISTS idx_orders_project ON orders(project_id)")
             except Exception:
                 pass
+        # v5H226z867 BM-2: 인덱스 하드닝 — 위 분기는 'project_id 컬럼이 없을 때'만 타므로,
+        # ALTER 성공 후 인덱스 생성만 실패했거나 인덱스가 유실된 DB에서는 영영 재생성되지 않음.
+        # IF NOT EXISTS라 정상 DB에선 no-op(무비용)·동일 이름·동일 정의 유지 필수.
+        # try/except 필수: project_id 컬럼이 없는 비정상 DB에서 기동 실패(전체 롤백)로 악화되는 것 차단.
+        try:
+            c.execute("CREATE INDEX IF NOT EXISTS idx_orders_project ON orders(project_id)")
+        except Exception:
+            pass
         # v5H226z678 (대표 지시): 수주(SO)별 담당자 — 같은 관리번호에 담당자가 다른 여러 주문(추가제작)을 구분.
         #   기존엔 담당자가 projects(프로젝트) 단위라 같은 관리번호 여러 수주가 화면에서 똑같아 보였음.
         for _ocol, _oddl in [

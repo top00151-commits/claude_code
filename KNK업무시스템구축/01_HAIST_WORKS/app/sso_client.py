@@ -226,7 +226,10 @@ def fetch_sso_status(employee_no: str) -> Optional[dict]:
             f"{MESSENGER_INTERNAL_BASE}/api/sso/pwv",
             params={"employee_no": emp},
             headers={"X-SSO-Service-Key": key},
-            timeout=_HTTP_TIMEOUT_SEC,
+            # v5H226z867 CONC-1: 상태조회만 0.8초로 단축 — 메신저가 느릴 때 요청경로 정지 최소화.
+            # ⛔ _HTTP_TIMEOUT_SEC(전역 5초)는 변경 금지: get_public_key/fetch_userinfo가 공유(줄이면 SSO 로그인 실패 회귀).
+            # 실패 시 기존 graceful(None 반환=로그아웃 판단 보류) 그대로.
+            timeout=0.8,
         )
         if r.status_code == 200:
             return r.json()
