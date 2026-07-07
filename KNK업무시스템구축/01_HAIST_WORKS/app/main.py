@@ -7044,8 +7044,9 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         try:
             with db_session() as c:
                 c.execute("UPDATE prod_requests SET msg_sent=? WHERE id=?", (msg_sent, _pr_new_id))
-        except Exception:
-            pass
+        except Exception as _me:
+            # 침묵 금지 — INSERT(이력)는 이미 성공했고 발행도 유효. msg_sent 표시만 0으로 남을 수 있어 로깅으로 표면화.
+            print(f"[z868] msg_sent 갱신 실패(발행 유효·표시만 영향): prid={_pr_new_id} {str(_me)[:120]}", flush=True)
     return {"ok": True, "sent_to": sent_to, "dept_count": dept_count,
             "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
             "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err,
