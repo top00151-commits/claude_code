@@ -6833,26 +6833,28 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     # v5H226z595 (대표 지시): 통보 본문을 '제작요청서' 양식 느낌 텍스트로 — 메신저 카드 미지원 시 폴백 + 인앱 알림 본문 공용.
     _SEP = "━━━━━━━━━━━━━━━━━"
     _SUB = "─────────────────"
-    body = f"📋 제작 요청서{' (수정)' if is_update else ''} · {mgmt}\n{_SEP}\n"
-    body += f"■ 고객사 : {cust_disp}\n"
+    # v5H226z875 (대표 지시): 알림 카드 중복 제거 + 최대 압축. 기존엔 관리코드·모델·작성자가 제목/헤더/품목/하단에
+    #   2~3번 반복 → 관리코드·모델은 첫 줄에 1번, 품명+수량·일정+수주는 한 줄로 결합, 작성자는 하단 1번만.
+    body = f"📋 제작 요청서{' (수정)' if is_update else ''} · {mgmt} · {model}\n{_SEP}\n"
+    _cust_line = f"■ 고객사 : {cust_disp}"
     if cc_nm:
-        body += f"■ 담당자 : {cc_nm}{(' ' + cc_pos) if cc_pos else ''}\n"
-    body += f"■ 작성자 : {by_name}\n"
-    body += f"■ MODEL : {model}\n"
+        _cust_line += f" · 담당자 {cc_nm}{(' ' + cc_pos) if cc_pos else ''}"
+    body += _cust_line + "\n"
+    body += f"■ 품명 : {pname} · 수량 {qty}\n"
+    _due_line = f"■ 일정 : {due}"
+    if so_nos:
+        _due_line += f" · 수주 {', '.join(so_nos)}"
+    body += _due_line + "\n"
     if eng:
         body += f"■ 각인 : {eng}\n"
-    body += f"{_SUB}\n〔품목〕\n"
-    body += f"· 관리코드 : {mgmt}\n· 모델명 : {model}\n· 품명 : {pname}\n· 수량 : {qty}\n· 일정 : {due}\n"
-    if so_nos:
-        body += f"· 수주번호 : {', '.join(so_nos)}\n"
     if spath:
-        body += f"{_SUB}\n📁 자료 경로\n{spath}\n"
+        body += f"{_SUB}\n📁 {spath}\n"
     if cust_req:
-        body += f"{_SUB}\n📝 고객사 요청사항\n{cust_req}\n"
+        body += f"{_SUB}\n📝 요청사항 : {cust_req}\n"
     if note:
-        body += f"{_SUB}\n📝 기타 요청사항\n{note}\n"
+        body += f"{_SUB}\n📝 기타 : {note}\n"
     if image_count and image_count > 0:
-        body += f"{_SUB}\n📷 참고 이미지 {image_count}장 첨부 (아래 바로가기에서 확인)\n"
+        body += f"{_SUB}\n📷 참고 이미지 {image_count}장\n"
     body += f"{_SEP}\n요청자 {by_name} · {now_str}"
     # v5H226z772 (대표 지시): 제작요청서 이미지 열람 — 통보 링크를 '제작요청서' 단독 페이지로(설치앱서도 렌더·이미지 갤러리 포함)
     link = f"/project/{pid}/prod-request/edit"
