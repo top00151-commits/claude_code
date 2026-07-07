@@ -20290,12 +20290,16 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     rows = [dict(r) for r in _proj_rows]
     try:
         with db_session() as _ds:
+            # v5H226z867 O4-1: 행별 PRAGMA+GROUP BY(프로젝트 수 비례 N+1) → 벌크 GROUP BY 1방으로.
+            #   (이 지점 rows 는 전부 프로젝트 — 소모품 병합은 아래 20321~. 벌크는 단건과 자구 동일 조건)
+            _pids_bulk = [int(r["id"]) for r in rows if r.get("id")]
+            _status_counts = _pwf.compute_project_display_status_bulk(_ds, _pids_bulk)
             for r in rows:
                 r["_kind"] = "project"
                 _pid = r.get("id")
                 if _pid:
-                    r["_disp_status"] = _pwf.compute_project_display_status(
-                        _ds, int(_pid),
+                    r["_disp_status"] = _pwf.project_status_from_counts(
+                        _status_counts.get(int(_pid), {}),
                         fallback_stage=(r.get("status") or r.get("stage") or "")
                     )
     except Exception:

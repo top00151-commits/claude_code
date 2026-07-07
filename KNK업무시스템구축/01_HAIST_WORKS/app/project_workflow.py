@@ -947,11 +947,11 @@ def delete_order(c, order_id: int, restore_project: bool = True) -> dict:
     }
 
 
-def compute_project_display_status(c, project_id: int, fallback_stage: str = "") -> dict:
-    """v5H200: 호기(order_items.unit_status) 들로부터 프로젝트 종합 상태 산출 (A안).
-    반환: {label, tone, dist:{진행중,출하,취소,보류}, total, done, ratio_text}.
-    호기 0건이면 fallback_stage(예: '제안작성') 사용.
-    """
+def project_status_from_counts(raw_counts, fallback_stage: str = "") -> dict:
+    """v5H226z867 O4-1: 호기 상태 분포(raw_counts={상태:개수})로 프로젝트 종합 상태 산출.
+    단건(compute_project_display_status)·벌크(compute_project_display_status_bulk) 공용 — 라벨 로직 단일화(복사 금지).
+    raw_counts = GROUP BY 결과 dict(unknown 상태 포함 가능·빈dict/None=호기0건=fallback). 동작은 기존 로직 그대로.
+    반환: {label, tone, dist:{진행중,출하,취소,보류}, total, done, ratio_text, has_canceled, has_held}."""
     out = {
         "label": fallback_stage or "—",
         "tone": "muted",
@@ -959,25 +959,9 @@ def compute_project_display_status(c, project_id: int, fallback_stage: str = "")
         "total": 0, "done": 0, "ratio_text": "",
         "has_canceled": False, "has_held": False,
     }
-    try:
-        oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
-    except Exception:
-        oicols = set()
-    if "unit_status" not in oicols:
-        return out
-    try:
-        rows = c.execute(
-            "SELECT COALESCE(oi.unit_status,'진행중') AS st, COUNT(*) AS n "
-            "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
-            "WHERE o.project_id = ? "
-            "GROUP BY COALESCE(oi.unit_status,'진행중')",
-            (project_id,)
-        ).fetchall()
-    except Exception:
-        rows = []
-    for r in rows:
-        st = r["st"] or "진행중"
-        n = int(r["n"] or 0)
+    for st, n in (raw_counts or {}).items():
+        st = st or "진행중"
+        n = int(n or 0)
         if st in out["dist"]:
             out["dist"][st] = n
         else:
@@ -1018,6 +1002,59 @@ def compute_project_display_status(c, project_id: int, fallback_stage: str = "")
     else:
         out["label"] = "진행중"
         out["tone"] = "progress"
+    return out
+
+
+def compute_project_display_status(c, project_id: int, fallback_stage: str = "") -> dict:
+    """v5H200: 호기(order_items.unit_status) 들로부터 프로젝트 종합 상태 산출 (A안).
+    반환: {label, tone, dist:{진행중,출하,취소,보류}, total, done, ratio_text}.
+    호기 0건이면 fallback_stage(예: '제안작성') 사용.
+    v5H226z867 O4-1: 라벨 로직을 project_status_from_counts 로 분리(벌크와 공용) — 동작 불변."""
+    try:
+        oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    except Exception:
+        oicols = set()
+    if "unit_status" not in oicols:
+        return project_status_from_counts({}, fallback_stage)
+    try:
+        rows = c.execute(
+            "SELECT COALESCE(oi.unit_status,'진행중') AS st, COUNT(*) AS n "
+            "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
+            "WHERE o.project_id = ? "
+            "GROUP BY COALESCE(oi.unit_status,'진행중')",
+            (project_id,)
+        ).fetchall()
+    except Exception:
+        rows = []
+    return project_status_from_counts({r["st"]: r["n"] for r in rows}, fallback_stage)
+
+
+def compute_project_display_status_bulk(c, project_ids=None) -> dict:
+    """v5H226z867 O4-1: 여러 프로젝트의 호기 상태 분포를 GROUP BY 1방으로 — 목록 화면 N+1(프로젝트당 PRAGMA+쿼리) 제거.
+    반환: {project_id: {상태:개수}} (raw counts). 호출측이 project_status_from_counts(counts, fallback)로 라벨 산출.
+    ⚠단건 함수와 자구 동일 조건(취소 SO 미제외·WHERE 상태필터 없음) — _board_unit_status_maps(취소 제외)와 절대 혼용 금지.
+    project_ids=None → 전체 / 리스트 → 그 프로젝트만(정수 IN·주입불가). 실패 시 {}(호출측이 fallback 처리)."""
+    out: dict = {}
+    try:
+        oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    except Exception:
+        oicols = set()
+    if "unit_status" not in oicols:
+        return out
+    sql = ("SELECT o.project_id AS pid, COALESCE(oi.unit_status,'진행중') AS st, COUNT(*) AS n "
+           "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
+           "WHERE o.project_id IS NOT NULL")
+    if project_ids is not None:
+        _ids = [int(i) for i in project_ids if i is not None]
+        if not _ids:
+            return out
+        sql += " AND o.project_id IN (%s)" % ",".join(str(i) for i in _ids)
+    sql += " GROUP BY o.project_id, COALESCE(oi.unit_status,'진행중')"
+    try:
+        for r in c.execute(sql):
+            out.setdefault(r["pid"], {})[r["st"]] = r["n"]
+    except Exception:
+        return {}
     return out
 
 
