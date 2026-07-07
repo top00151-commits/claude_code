@@ -1091,6 +1091,14 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         f"ORDER BY order_date DESC, id DESC",
         (project_id,)
     ).fetchall()
+    # v5H226z874 (대표 지시): 이 프로젝트의 유형 — so_form 없는 옛 데이터의 형태 배지 폴백 판정용.
+    #   소모품 프로젝트가 아닌데 so_type=CONSUMABLE 인 1줄은 '제품(z466)'을 저장방식으로 표기한 것이라 '소모품' 오표시 → '제품'으로 교정.
+    try:
+        _prow = c.execute("SELECT COALESCE(project_type,'NEW_EQUIP') AS pt FROM projects WHERE id=?",
+                          (project_id,)).fetchone()
+        _proj_ptype = ((_prow["pt"] if _prow else "NEW_EQUIP") or "NEW_EQUIP").upper()
+    except Exception:
+        _proj_ptype = "NEW_EQUIP"
     out = []
     for r in rows:
         d = dict(r)
@@ -1209,7 +1217,13 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         if _soform in _FORM_LABELKEY:
             d["form_label"], d["form_key"] = _FORM_LABELKEY[_soform]
         elif _styp == "CONSUMABLE":
-            d["form_label"], d["form_key"] = "소모품", "consumable"
+            # v5H226z874 (대표 지시): so_form 없는 옛 데이터 교정 —
+            #   소모품 프로젝트면 진짜 소모품, 아니면(장비/기타) '제품 1줄'을 so_type=CONSUMABLE 로 저장한 것(z466)이라 '제품'으로 표시.
+            #   (정확한 상품/기타 구분은 so_form 이 있어야 가능 → 재업로드 시 그 값이 우선.)
+            if _proj_ptype == "CONSUMABLE":
+                d["form_label"], d["form_key"] = "소모품", "consumable"
+            else:
+                d["form_label"], d["form_key"] = "제품", "semi"
         elif _styp == "PARTS_EXPORT" or _sf == "PARTS":
             d["form_label"], d["form_key"] = "상품", "parts"
         elif _sf == "ETC":
