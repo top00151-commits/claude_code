@@ -6808,6 +6808,10 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         #   발행자 본인(uid_self)은 self-notify(6926)로 따로 처리하므로 팀·개별 통보 대상에선 제외.
         _raw_user_sel = [int(x) for x in (user_ids or []) if str(x).strip().isdigit() and int(x) > 0]
         _uids_explicit = [x for x in _raw_user_sel if x != uid_self]
+        # v5H226z881 (대표 지시): 발행자 본인을 '통보 대상'으로도 고르면 → 본인도 정식 수신자(아래 self-recipient 처리).
+        #   본인이름만 선택 → 본인 1명에게만 제작요청서 카드(📋). 본인+타인 → 본인도 그 카드 수신.
+        #   이 경우 발행확인 receipt(z804 벨·z812 Eum)는 생략 = 카드가 곧 수신(중복 방지).
+        _self_selected = bool(uid_self and uid_self > 0 and uid_self in _raw_user_sel)
         # v5H226z880 (대표 지시·버그): 전부서 폴백은 '아무 대상도 안 골랐을 때'만.
         #   ⚠발행자 본인만 골랐으면 self-filter 로 _uids_explicit 가 비지만 '선택은 있음(_raw_user_sel)' → 전부서로 확대 금지.
         #   (기존 버그: 대표가 '나(발행자)만 선택'→ _uids_explicit 빈값→ 전부서 폴백→ 전 직원 통보. 이제 본인 self-notify 만.)
@@ -6926,8 +6930,24 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                     c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
                               (_u2, "prod_request", title, body, link))
                     sent_to += 1
+            # v5H226z881 (대표 지시): 발행자 본인을 통보 대상으로 고른 경우 — 본인도 정식 수신자로 처리(실제 제작요청서 카드 수신·통보 수 포함).
+            #   팀루프(id!=uid_self)·개별루프(self-filter)에서 본인은 빠졌으므로 여기서 단독 추가. 아래 receipt(z804/z812)는 생략.
+            if _self_selected and uid_self not in set(uids):
+                _sr = c.execute(
+                    "SELECT u.id, u.team_id, u.name, u.name_vi, COALESCE(u.rank,'') AS rank, "
+                    "COALESCE(t.name,'') AS team_name FROM users u LEFT JOIN teams t ON u.team_id=t.id "
+                    "WHERE u.id=? AND COALESCE(u.is_active,1)=1", (uid_self,)).fetchone()
+                if _sr:
+                    _sd = dict(_sr); uids.append(uid_self)
+                    if _sd.get("team_id"):
+                        _dept_ids.add(_sd["team_id"])
+                    _indiv_users.append(_sd)   # z803 명단: 👤 본인(이름 직책 부서)
+                    c.execute("INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
+                              (uid_self, "prod_request", title, body, link))
+                    sent_to += 1
             # v5H226z804 (대표 지시): 발행한 사람(본인)에게도 WORKS 알림(벨) — 발행 확인용. 통보 수(sent_to)엔 미포함.
-            if uid_self and uid_self > 0:
+            #   z881: 본인을 통보대상으로 골랐으면(_self_selected) 위에서 이미 카드로 받으므로 receipt 생략(중복 방지).
+            if uid_self and uid_self > 0 and not _self_selected:
                 try:
                     _self_title = f"✅ 제작요청 발행{' [수정]' if is_update else ''} · {mgmt} — {sent_to}명 통보"
                     _self_body = f"내가 발행한 제작요청서입니다. {sent_to}명에게 통보되었습니다.\n{_SUB}\n{body}"
@@ -7031,7 +7051,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         }
         _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=_card)
         # v5H226z812 (대표 지시): 발행자 본인에게도 이음 'WORKS 알림' 카드 — 벨(z804)+메신저 둘 다. 통보 수(msg_sent)엔 미포함.
-        if _author_emp:
+        #   z881: 본인을 통보대상으로 골랐으면(_self_selected) 본인 사번이 emp_nos 에 포함돼 위에서 이미 카드 수신 → receipt 생략.
+        if _author_emp and not _self_selected:
             try:
                 _self_ttl = f"✅ 내가 발행한 제작요청 · {mgmt} — {sent_to}명 통보"
                 _self_bd = f"내가 발행한 제작요청서입니다. {sent_to}명에게 통보되었습니다.\n{_SUB}\n{body}"
