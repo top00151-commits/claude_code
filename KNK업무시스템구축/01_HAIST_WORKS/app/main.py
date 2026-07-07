@@ -25154,10 +25154,12 @@ async def projects_new_submit(request: Request):
                 try:
                     _fu_t = [int(t) for t in form.getlist("pr_team_ids") if str(t).strip().isdigit() and int(t) > 0]
                     _fu_u = [int(x) for x in form.getlist("pr_user_ids") if str(x).strip().isdigit() and int(x) > 0]
-                    _fu_res = _prod_request_notify_core(int(_existing["id"]),
+                    # v5H226z878 (대표 지시): 미선택이면 통보 건너뜀 — 서버 '전부서 폴백'으로 전 직원 스팸 방지(클라 차단의 이중안전).
+                    _fu_res = ({"ok": False} if not (_fu_t or _fu_u)
+                               else _prod_request_notify_core(int(_existing["id"]),
                                                         (form.get("pr_cust_req") or "").strip(),
                                                         (form.get("pr_note") or "").strip(), _fu_t, _u,
-                                                        user_ids=_fu_u)
+                                                        user_ids=_fu_u))
                     if _fu_res.get("ok"):
                         _fu_url += f"&prod_sent={_fu_res.get('sent_to', 0)}&prod_dept={_fu_res.get('dept_count', 0)}"
                         _fu_url += f"&prod_msg={_fu_res.get('msg_sent', 0)}"
@@ -25410,7 +25412,9 @@ async def projects_new_submit(request: Request):
         if _reg_is_parts:
             _qs.append("focus=packing")
         # SO 발행 실패(_warn) 시엔 통보하지 않음(미완 상태로 전부서 호출 방지)
-        if _pr_notify and _pid and not _warn:
+        # v5H226z878 (대표 지시): 통보 대상(부서·개별) 미선택이면 발행 건너뜀 — 서버 '전부서 폴백'으로 전 직원 스팸 방지.
+        #   (기본값을 '전부서 선택'→'미선택'으로 바꿈. 클라가 이미 차단하나 서버도 이중안전.)
+        if _pr_notify and _pid and not _warn and (_pr_team_ids or _pr_user_ids):
             try:
                 _res = _prod_request_notify_core(int(_pid), _pr_cust_req, _pr_note, _pr_team_ids, _u,
                                                  image_count=len(_pr_image_files), user_ids=_pr_user_ids)

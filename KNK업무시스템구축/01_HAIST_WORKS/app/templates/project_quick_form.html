@@ -368,7 +368,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               <div id="prImgPreview" class="pr-imgprev"></div>
             </div>
             <details class="qf-adv" style="margin-top:8px;">
-              <summary>통보 부서·인원 선택 <span>(기본 전부서 — ▸개별로 사람만 지정 가능)</span></summary>
+              <summary>통보 부서·인원 선택 <span>(기본 미선택 — 통보할 부서/사람을 직접 선택 · ▸개별로 사람만도 가능)</span></summary>
               {# z746(대표 지시): 자동 라우팅 안내 — 통보는 '이 사업부·공통' 담당자에게만 #}
               {% set _bizmap = {'T':'🔎 검사기','M':'⚙️ 자동화','L':'💡 라이프밸류','E':'🗂 기타'} %}
               <div style="margin:8px 2px 2px;padding:8px 11px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:11.5px;color:#9a3412;line-height:1.6;">
@@ -412,7 +412,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                     {% set _mem = team_members.get(t.id, []) %}
                     <div class="pr-teamblk">
                       <div style="display:flex;align-items:center;gap:6px;">
-                        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);cursor:pointer;"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" data-team="{{ t.id }}" checked onchange="prTeamToggle(this)"> {{ t.name }} <span style="color:#999;font-weight:400;">{{ t.member_count }}명</span></label>
+                        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);cursor:pointer;"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" data-team="{{ t.id }}" onchange="prTeamToggle(this)"> {{ t.name }} <span style="color:#999;font-weight:400;">{{ t.member_count }}명</span></label>
                         {% if _mem %}<button type="button" onclick="prExpand({{ t.id }},this)" style="font-size:11px;color:#2563eb;background:none;border:none;cursor:pointer;padding:0 3px;">▸개별</button>{% endif %}
                       </div>
                       {% if _mem %}
@@ -787,6 +787,17 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   } else {
     if(!name||!cust||!model||!equip){ e.preventDefault();
       err.textContent='필수 항목을 채워주세요 — 프로젝트명·고객사·모델명·장비명.'; err.classList.add('show'); qScrollErr(); return; }
+  }
+  // v5H226z878 (대표 지시): 제작요청 발행 ON 인데 통보 대상(부서·개별)을 하나도 안 골랐으면 차단.
+  //   기본값을 '전부서 선택'→'미선택'으로 바꿨으므로, 빈 채로 발행하면 서버 '전부서 폴백'으로 전 직원 스팸됨 → 선택 요구.
+  if((document.getElementById('qProdNotify')||{}).checked &&
+     document.querySelectorAll('.pr-team:checked, .pr-user:checked').length===0){
+    e.preventDefault();
+    err.textContent='제작요청을 통보할 부서나 사람을 하나 이상 선택하세요. (기본은 미선택입니다)';
+    err.classList.add('show');
+    try{ document.querySelectorAll('#qProdBox details').forEach(function(d){ d.open=true; }); }catch(_e){}
+    var _pt0=document.querySelector('.pr-team'); if(_pt0){ try{ _pt0.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_e){} }
+    qScrollErr(); return;
   }
   var curSel=document.getElementById('qCurrency'), fx=document.getElementById('qFx');
   if(curSel && curSel.value!=='KRW' && (!fx || !fx.value.trim())){ e.preventDefault();
