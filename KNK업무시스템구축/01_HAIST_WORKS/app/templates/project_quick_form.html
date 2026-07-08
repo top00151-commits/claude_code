@@ -160,6 +160,19 @@ html,body{background:#fff!important;overflow:auto!important;}
             {% if ed %}<div class="qf-code" title="영구 잠금(감사 무결성)">{{ project.mgmt_code|default('—') }}</div>
             {% else %}
             <div class="qf-code" id="qMgmtAuto">{% if test_on %}🧪 A 자동 발급{% else %}자동 발급{% endif %}</div>
+            {# v5H226z885(대표 지시): 관리번호 수동발행 — 지정 3명만. 엑셀 병행기간 번호 맞춤용. 검증 통과 번호만 등록. #}
+            {% if can_manual_mgmt %}
+            <label id="qManualLbl" style="display:flex;align-items:center;gap:5px;margin-top:5px;font-size:11px;color:var(--qv-ink-3);font-weight:700;cursor:pointer;user-select:none;">
+              <input type="checkbox" id="qManualChk" name="manual_issue" value="1" onchange="qManualToggle()" style="margin:0;width:14px;height:14px;flex-shrink:0;"> 🔧 수동발행 <span style="font-weight:400;">(엑셀 번호 맞춤)</span>
+            </label>
+            <div id="qManualWrap" style="display:none;margin-top:5px;">
+              <div style="display:flex;gap:4px;">
+                <input type="text" name="manual_mgmt_code" id="qManualCode" placeholder="예: 001T2607" autocomplete="off" maxlength="12" oninput="qManualReset()" style="flex:1;min-width:0;font-family:Consolas,monospace;font-weight:700;text-transform:uppercase;padding:5px 7px;border:1px solid var(--qv-line);border-radius:6px;">
+                <button type="button" id="qManualCheck" onclick="qManualValidate()" class="btn btn-secondary" style="white-space:nowrap;padding:4px 11px;font-size:12px;">검증</button>
+              </div>
+              <div id="qManualMsg" style="font-size:11px;margin-top:3px;min-height:14px;line-height:1.4;"></div>
+            </div>
+            {% endif %}
             {# v5H226z384(대표 지시): PO유형이 추가/개조/수리/기타면 '기존 관리번호 검색'으로 전환 — 같은 관리번호 + 새 수주번호 자동. #}
             <input type="text" name="mgmt_code" id="qMgmtInput" placeholder="관리번호·고객사·모델로 검색" autocomplete="off" disabled style="display:none;font-family:Consolas,monospace;font-weight:700;" oninput="qMgmtSearch()" onfocus="qMgmtSearch()" onblur="setTimeout(qMgmtHide,180)">
             <div id="qMgmtList" style="display:none;position:absolute;top:100%;left:0;z-index:50;min-width:300px;max-height:240px;overflow:auto;background:#fff;border:1px solid var(--qv-line);border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.12);margin-top:2px;"></div>
@@ -626,13 +639,49 @@ function qIsFinished(){ var s=document.getElementById('qFormType'); return !s ||
 function qSyncPoType(){
   var f=qIsFollowup();
   var auto=document.getElementById('qMgmtAuto'), inp=document.getElementById('qMgmtInput');
+  // v5H226z885: 수동발행은 '신규' 등록만 — 추가발주(PO≠신규)로 바뀌면 자동 해제·숨김.
+  var _mchk=document.getElementById('qManualChk'), _mlbl=document.getElementById('qManualLbl'), _mwrap=document.getElementById('qManualWrap');
+  if(f && _mchk && _mchk.checked){ _mchk.checked=false; window._qManualOK=null; if(_mwrap) _mwrap.style.display='none'; var _mm=document.getElementById('qManualMsg'); if(_mm) _mm.textContent=''; }
+  if(_mlbl) _mlbl.style.display = f ? 'none' : 'flex';
+  var _manOn = !!(_mchk && _mchk.checked);
   if(inp){
     if(f){ if(auto) auto.style.display='none'; inp.style.display=''; inp.disabled=false; }
-    else { if(auto) auto.style.display=''; inp.style.display='none'; inp.disabled=true; inp.value=''; qMgmtHide(); }
+    else { if(auto) auto.style.display = _manOn ? 'none' : ''; inp.style.display='none'; inp.disabled=true; inp.value=''; qMgmtHide(); }
   }
   qBuildUnits();   // 추가면 호기별 숨김 재평가
 }
 function qMgmtHide(){ var l=document.getElementById('qMgmtList'); if(l) l.style.display='none'; }
+// v5H226z885(대표 지시): 관리번호 수동발행(지정 3명) — 체크 토글·검증(사용가능 확인)·변경 시 재검증 요구.
+window._qManualOK = null;   // 마지막으로 '사용 가능' 검증 통과한 코드(현재 입력값과 같아야 제출 허용)
+function qManualToggle(){
+  var c=document.getElementById('qManualChk'), w=document.getElementById('qManualWrap'), a=document.getElementById('qMgmtAuto');
+  if(!c||!w) return;
+  w.style.display = c.checked ? 'block' : 'none';
+  if(a) a.style.display = c.checked ? 'none' : '';   // 수동 켜면 '자동 발급' 숨김
+  window._qManualOK = null;
+  var m=document.getElementById('qManualMsg'); if(m) m.textContent='';
+  if(c.checked){ var i=document.getElementById('qManualCode'); if(i){ try{ i.focus(); }catch(_e){} } }
+}
+function qManualReset(){
+  window._qManualOK = null;
+  var m=document.getElementById('qManualMsg'); if(m){ m.textContent='변경됨 — [검증]을 다시 눌러 주세요.'; m.style.color='#b45309'; }
+}
+function qManualValidate(){
+  var i=document.getElementById('qManualCode'), m=document.getElementById('qManualMsg');
+  if(!i||!m) return;
+  var code=(i.value||'').trim().toUpperCase(); i.value=code;
+  if(!code){ m.textContent='관리번호를 입력하세요.'; m.style.color='#b45309'; window._qManualOK=null; return; }
+  var bd=((document.getElementById('qBizDiv')||{}).value||'T');
+  var pt=((document.getElementById('qPtype')||{}).value||'NEW_EQUIP');
+  m.textContent='검증 중…'; m.style.color='var(--qv-ink-3)';
+  fetch('/api/mgmt-code/check?code='+encodeURIComponent(code)+'&biz_div='+encodeURIComponent(bd)+'&ptype='+encodeURIComponent(pt), {headers:{'Accept':'application/json'}})
+    .then(function(r){ return r.ok ? r.json() : r.json().then(function(j){ throw new Error((j&&j.error)||('HTTP '+r.status)); }); })
+    .then(function(j){
+      if(j && j.available){ m.textContent='✅ 사용 가능 — 이 번호로 등록됩니다.'; m.style.color='#15803d'; window._qManualOK=code; }
+      else { m.textContent='❌ '+((j&&j.reason)||'사용할 수 없는 번호'); m.style.color='#dc2626'; window._qManualOK=null; }
+    })
+    .catch(function(e){ m.textContent='검증 실패: '+((e&&e.message)||'네트워크 오류'); m.style.color='#dc2626'; window._qManualOK=null; });
+}
 function qEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function qMgmtPick(rw){
   var inp=document.getElementById('qMgmtInput'); if(inp) inp.value=(rw.mgmt_code||'').toUpperCase();
@@ -788,6 +837,15 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
     if(!name||!cust||!model||!equip){ e.preventDefault();
       err.textContent='필수 항목을 채워주세요 — 프로젝트명·고객사·모델명·장비명.'; err.classList.add('show'); qScrollErr(); return; }
   }
+  // v5H226z885(대표 지시): 관리번호 수동발행 — 체크 시 [검증] 통과한 번호만 제출(사용가능 확인 강제).
+  var _mchkS=document.getElementById('qManualChk');
+  if(_mchkS && _mchkS.checked){
+    var _mcodeS=((document.getElementById('qManualCode')||{}).value||'').trim().toUpperCase();
+    if(!_mcodeS){ e.preventDefault(); err.textContent='수동발행: 관리번호를 입력하고 [검증]을 눌러 주세요.'; err.classList.add('show');
+      try{ document.getElementById('qManualCode').focus(); }catch(_e){} qScrollErr(); return; }
+    if(window._qManualOK!==_mcodeS){ e.preventDefault(); err.textContent='수동발행: [검증]으로 사용 가능한 번호인지 먼저 확인하세요.'; err.classList.add('show');
+      try{ document.getElementById('qManualCheck').scrollIntoView({behavior:'smooth',block:'center'}); }catch(_e){} return; }
+  }
   // v5H226z878 (대표 지시): 제작요청 발행 ON 인데 통보 대상(부서·개별)을 하나도 안 골랐으면 차단.
   //   기본값을 '전부서 선택'→'미선택'으로 바꿨으므로, 빈 채로 발행하면 서버 '전부서 폴백'으로 전 직원 스팸됨 → 선택 요구.
   if((document.getElementById('qProdNotify')||{}).checked &&
@@ -862,7 +920,9 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
       mgmt_required_followup:'추가 발주는 기존 관리번호를 검색해 선택하세요.',
       mgmt_code_dup:'이미 등록된 관리번호입니다.',
       mgmt_code_format:'관리번호 형식이 올바르지 않습니다.',
+      manual_mgmt_invalid:'수동발행 관리번호를 쓸 수 없습니다 — 다시 [검증]하세요.',
       parts_need_confirm:'부품을 저장하려면 아래 「수주확정」을 체크하고 등록하세요. (제안 단계면 등록 후 상세 → PACKING LIST 에서 입력)'}[er] || ('오류: '+er);
+    if(er==='manual_mgmt_invalid'){ var _mr=p.get('mreason'); if(_mr) msg='수동발행 관리번호를 쓸 수 없습니다 — '+_mr; }
     var e=document.getElementById('qfErr'); e.textContent=msg; e.classList.add('show'); qScrollErr();
     var cu=p.get('cust'); if(cu){ var ci=document.querySelector('[name=customer_name]'); if(ci) ci.value=cu; }
   }

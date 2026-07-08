@@ -24911,6 +24911,67 @@ async def projects_new_form(request: Request,
                customers=_logi.customers_for_picker())
 
 
+# =====================================================
+# v5H226z885 (대표 지시): 관리번호 '수동발행' — 엑셀 병행 기간(WORKS 완전도입 전) 번호 맞춤용.
+#   지정 3명만 등록 시 관리번호를 직접 입력 가능. '수동발행' 체크→검증(형식·사업부문자 일치·중복·봉인)→적용.
+#   자동발급이 쓸 접두(사업부문자)와 반드시 일치해야 함(대표 확정: 사업부 글자 일치 필수).
+# =====================================================
+_MANUAL_MGMT_USERS = {5, 67, 306}   # 5 김정락 · 67 안지연 · 306 이새롬 (대표 지정)
+
+
+def _expected_mgmt_letter(project_type, biz_div):
+    """수동 관리번호의 사업부 글자 = 자동발급이 쓸 접두(projects_create_logi 동일 로직).
+    기타(OTHER)→E · 소모품(CONSUMABLE)→C · 그 외(NEW_EQUIP)→사업부 T/M/L."""
+    pt = (project_type or "NEW_EQUIP").strip().upper()
+    if pt == "OTHER":
+        return "E"
+    if pt == "CONSUMABLE":
+        return "C"
+    bd = (biz_div or "T").strip().upper()
+    return bd if bd in ("T", "M", "L") else "T"
+
+
+def _validate_manual_mgmt_code(raw_code, expect_letter):
+    """수동 관리번호 검증. 반환 (ok: bool, code_또는_사유: str).
+    형식=NNN(1~4자리)+사업부문자+YYMM(월 01~12) · 사업부문자 일치 · 기존 프로젝트 중복 없음 · 폐기(봉인) 아님."""
+    import re as _re
+    code = (raw_code or "").strip().upper()
+    if not code:
+        return (False, "빈 값")
+    m = _re.match(r"^(\d{1,4})([A-Z])(\d{2})(\d{2})$", code)
+    if not m:
+        return (False, "형식 오류 (예: 001T2607)")
+    _letter, _mm = m.group(2), m.group(4)
+    if not (1 <= int(_mm) <= 12):
+        return (False, "형식 오류 (월 01~12)")
+    if expect_letter and _letter != expect_letter:
+        return (False, f"사업부 불일치 — 이 등록은 '{expect_letter}' 로 시작해야 합니다")
+    with db_session() as c:
+        if c.execute("SELECT 1 FROM projects WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (code,)).fetchone():
+            return (False, "이미 사용 중인 번호")
+        try:
+            if c.execute("SELECT 1 FROM retired_mgmt_codes WHERE UPPER(mgmt_code)=? LIMIT 1", (code,)).fetchone():
+                return (False, "폐기(봉인)된 번호")
+        except Exception:
+            pass   # 명부 미생성(구 DB)
+    return (True, code)
+
+
+@app.get("/api/mgmt-code/check")
+async def api_mgmt_code_check(request: Request, code: str = "", biz_div: str = "", ptype: str = ""):
+    """v5H226z885: 수동 관리번호 사용가능 검증(지정 3명 전용). 화면 [검증] 버튼이 호출."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
+    if u.get("id") not in _MANUAL_MGMT_USERS:
+        return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
+    _expect = _expected_mgmt_letter(ptype, biz_div)
+    ok, msg = _validate_manual_mgmt_code(code, _expect)
+    return JSONResponse({"ok": True, "available": bool(ok), "expect": _expect,
+                         "reason": ("" if ok else msg),
+                         "code": (msg if ok else (code or "").strip().upper())})
+
+
 @app.get("/projects/quick", response_class=HTMLResponse)
 async def projects_quick_form(request: Request, embed: str = "", biz_div: str = ""):
     """v5H226z276 (대표 지시): '엑셀처럼' 한 화면 평면 등록 폼 — 보드 칸들을 한 번에 채워 등록.
@@ -24968,6 +25029,7 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
                can_money=bool(can_view_sales(u)), teams=_teams, team_members=_team_members,
                notify_blocks=_notify_blocks, can_make_block=_can_make_notify_block(u),
                test_on=_test_on, PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
+               can_manual_mgmt=(u.get("id") in _MANUAL_MGMT_USERS),
                customers=_logi.customers_for_picker())
 
 
@@ -25404,11 +25466,21 @@ async def projects_new_submit(request: Request):
             amt = round(sum(_p["amount"] for _p in _pk_parts), 2)
             unit_price = None
             unit_qty = 1
+    # v5H226z885 (대표 지시): 관리번호 수동발행 — 지정 3명만·검증 통과 시 그 코드로 등록(자동발급 대체·서버 재확인).
+    #   신규 등록만(추가발주는 기존 코드 사용). 미권한자가 폼 우회로 제출해도 무시(권한 없으면 자동발급으로 진행).
+    if (not _is_followup) and str(form.get("manual_issue") or "").strip().lower() in ("1", "on", "true", "yes"):
+        if _u.get("id") in _MANUAL_MGMT_USERS:
+            _mm_ok, _mm_res = _validate_manual_mgmt_code(
+                form.get("manual_mgmt_code"), _expected_mgmt_letter(_ptype, biz_div))
+            if not _mm_ok:
+                from urllib.parse import quote as _q885
+                return _err_redirect("manual_mgmt_invalid", "mreason=" + _q885(_mm_res))
+            mgmt_code_in = _mm_res
     new_pid, _new_code = _logi.projects_create_logi({
         "_changed_by": _u.get("id"),
         # v5H226z194 (대표 지시): 등록 시 관리번호 항상 자동 발급 (제안 단계 포함). 상태는 사용자 선택 유지.
         "force_code": True,
-        "mgmt_code": mgmt_code_in,   # 비면 자동 발급 / 있으면 그 코드 사용
+        "mgmt_code": mgmt_code_in,   # 비면 자동 발급 / 있으면 그 코드 사용 / z885 수동발행이면 검증된 그 코드
         "biz_div": biz_div, "project_name": project_name, "customer": customer,
         # v5H226z653 (적대리뷰 반영): picker 가 고른 종사업장(customer_id) 을 INSERT 시점에 적용 —
         #   누락 시 모호 상호는 cust_id=None 으로 INSERT 되어 담당자 주소록 동기화(z166)가 통째로 건너뛰어짐.
