@@ -24916,7 +24916,31 @@ async def projects_new_form(request: Request,
 #   지정 3명만 등록 시 관리번호를 직접 입력 가능. '수동발행' 체크→검증(형식·사업부문자 일치·중복·봉인)→적용.
 #   자동발급이 쓸 접두(사업부문자)와 반드시 일치해야 함(대표 확정: 사업부 글자 일치 필수).
 # =====================================================
-_MANUAL_MGMT_USERS = {5, 67, 306}   # 5 김정락 · 67 안지연 · 306 이새롬 (대표 지정)
+# 대표 지정 3명 — (번호, 이름). ⚠대표가 '5 김정락' 처럼 준 번호가 '사번(=로그인ID)' 인지 'users.id' 인지 모호하므로
+#   사번(employee_no)·로그인ID(username)·users.id 어느 쪽이든 번호가 맞고 + 이름까지 맞을 때만 허용(동일번호 타인 오탐 차단).
+_MANUAL_MGMT_PEOPLE = [(5, "김정락"), (67, "안지연"), (306, "이새롬")]
+
+
+def _can_manual_mgmt(u):
+    """관리번호 수동발행 권한(대표 지정 3명). 번호(사번/로그인ID/users.id 중 하나) + 이름이 함께 맞아야 True."""
+    if not isinstance(u, dict):
+        return False
+    _name = str(u.get("name") or "").replace(" ", "").strip()   # 공백 무시(이름 표기 편차 대비)
+    for _num, _nm in _MANUAL_MGMT_PEOPLE:
+        _hit = False
+        for _k in ("employee_no", "username", "id"):
+            _v = u.get(_k)
+            if _v is None or str(_v).strip() == "":
+                continue
+            try:
+                if int(str(_v).strip()) == _num:
+                    _hit = True
+                    break
+            except (ValueError, TypeError):
+                continue
+        if _hit and _name and (_nm in _name):
+            return True
+    return False
 
 
 def _expected_mgmt_letter(project_type, biz_div):
@@ -24963,7 +24987,7 @@ async def api_mgmt_code_check(request: Request, code: str = "", biz_div: str = "
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
-    if u.get("id") not in _MANUAL_MGMT_USERS:
+    if not _can_manual_mgmt(u):
         return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
     _expect = _expected_mgmt_letter(ptype, biz_div)
     ok, msg = _validate_manual_mgmt_code(code, _expect)
@@ -25029,7 +25053,7 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
                can_money=bool(can_view_sales(u)), teams=_teams, team_members=_team_members,
                notify_blocks=_notify_blocks, can_make_block=_can_make_notify_block(u),
                test_on=_test_on, PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
-               can_manual_mgmt=(u.get("id") in _MANUAL_MGMT_USERS),
+               can_manual_mgmt=_can_manual_mgmt(u),
                customers=_logi.customers_for_picker())
 
 
@@ -25469,7 +25493,7 @@ async def projects_new_submit(request: Request):
     # v5H226z885 (대표 지시): 관리번호 수동발행 — 지정 3명만·검증 통과 시 그 코드로 등록(자동발급 대체·서버 재확인).
     #   신규 등록만(추가발주는 기존 코드 사용). 미권한자가 폼 우회로 제출해도 무시(권한 없으면 자동발급으로 진행).
     if (not _is_followup) and str(form.get("manual_issue") or "").strip().lower() in ("1", "on", "true", "yes"):
-        if _u.get("id") in _MANUAL_MGMT_USERS:
+        if _can_manual_mgmt(_u):
             _mm_ok, _mm_res = _validate_manual_mgmt_code(
                 form.get("manual_mgmt_code"), _expected_mgmt_letter(_ptype, biz_div))
             if not _mm_ok:
