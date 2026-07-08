@@ -24922,24 +24922,33 @@ _MANUAL_MGMT_PEOPLE = [(5, "김정락"), (67, "안지연"), (306, "이새롬")]
 
 
 def _can_manual_mgmt(u):
-    """관리번호 수동발행 권한(대표 지정 3명). 번호(사번/로그인ID/users.id 중 하나) + 이름이 함께 맞아야 True."""
+    """관리번호 수동발행 권한(대표 지정 3명).
+    ⚠대표가 준 '5 김정락' 등의 번호가 사번(=로그인ID)인지 users.id 인지 모호 → 둘 다 지원.
+    ① 사번(employee_no)/로그인ID(username) 매칭 = 유일 식별자라 이름 확인 없이 허용(가장 유력·표기편차 안전).
+    ② users.id 매칭 = 이 경우만 이름 일치까지 요구(동일 id 타인 오탐 차단)."""
     if not isinstance(u, dict):
         return False
-    _name = str(u.get("name") or "").replace(" ", "").strip()   # 공백 무시(이름 표기 편차 대비)
-    for _num, _nm in _MANUAL_MGMT_PEOPLE:
-        _hit = False
-        for _k in ("employee_no", "username", "id"):
-            _v = u.get(_k)
-            if _v is None or str(_v).strip() == "":
-                continue
-            try:
-                if int(str(_v).strip()) == _num:
-                    _hit = True
-                    break
-            except (ValueError, TypeError):
-                continue
-        if _hit and _name and (_nm in _name):
-            return True
+    _nums = {n for n, _ in _MANUAL_MGMT_PEOPLE}
+    # ① 사번 / 로그인ID — 유일 식별자
+    for _k in ("employee_no", "username"):
+        _v = u.get(_k)
+        if _v is None or str(_v).strip() == "":
+            continue
+        try:
+            if int(str(_v).strip()) in _nums:
+                return True
+        except (ValueError, TypeError):
+            pass
+    # ② users.id — 이름 일치까지 요구(오탐 차단)
+    _name = str(u.get("name") or "").replace(" ", "")
+    try:
+        _id = int(str(u.get("id")).strip())
+    except (ValueError, TypeError):
+        _id = None
+    if _id is not None:
+        for _num, _nm in _MANUAL_MGMT_PEOPLE:
+            if _id == _num and _name and (_nm in _name):
+                return True
     return False
 
 
