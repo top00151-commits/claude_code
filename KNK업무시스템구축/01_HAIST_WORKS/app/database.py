@@ -6191,8 +6191,68 @@ def log_project_change(c, project_id: int, user_id: int | None,
         pass
 
 
-def get_project_history(project_id: int, limit: int = 50) -> list[dict]:
-    """v5H101: 프로젝트 변경 이력 최근 N건 (사용자명 join)."""
+# =====================================================
+# v5H226z896 (대표 지시): 변경 이력 금액 마스킹.
+#   금액(단가·매출·수주액)은 기술영업팀 권한(can_view_field 'sales_amount')자만 열람.
+#   권한 없는 등록자가 우회해서 프로젝트/수주 상세에 들어와도 변경 이력의 가격이
+#   노출되지 않도록 서버에서 🔒 로 치환한다(이력 자체·납기/상태/라벨 변경은 그대로 유지).
+# =====================================================
+import re as _hist_re
+
+# 값 자체가 순수 금액인 field 명 (원문 숫자만 저장돼 키워드/콤마로 못 잡음 → field 로 확정 마스킹)
+_HIST_MONEY_FIELDS = {
+    "amount_krw", "order_amount", "amount", "unit_price",
+    "cost_price", "purchase_price", "sell_price", "sale_price",
+}
+# 가격을 가리키는 한국어 키워드
+_HIST_MONEY_KW = ("단가", "금액", "수주액", "매출", "매입", "원가", "공급가", "판매가")
+# 1,000 이상 천단위 콤마 숫자 = 금액 신호. 날짜(2026-07-01)·소수 수량엔 콤마 없어 오탐 낮음.
+_HIST_AMOUNT_RE = _hist_re.compile(r"\d{1,3}(?:,\d{3})+")
+
+
+def _hist_seg_is_money(seg: str) -> bool:
+    """단일 세그먼트가 금액을 담는지 판정."""
+    return any(k in seg for k in _HIST_MONEY_KW) or bool(_HIST_AMOUNT_RE.search(seg))
+
+
+def _hist_mask_value(field: str, val) -> str:
+    """old_value/new_value 마스킹. ' / ' 로 묶인 다중 변경(호기 수정)은 가격 세그먼트만 🔒,
+    납기·라벨·상태 등 비가격 세그먼트는 그대로 둔다."""
+    if not val:
+        return val
+    if field in _HIST_MONEY_FIELDS:
+        return "🔒"
+    parts = str(val).split(" / ")
+    return " / ".join("🔒" if _hist_seg_is_money(p) else p for p in parts)
+
+
+def _hist_mask_note(note) -> str:
+    """note 는 자동발행 등에서 금액이 문장 속에 섞이므로, 금액 신호가 있으면 통째로 가린다."""
+    if not note:
+        return note
+    if any(k in note for k in _HIST_MONEY_KW) or _HIST_AMOUNT_RE.search(str(note)):
+        return "금액 비공개 🔒"
+    return note
+
+
+def redact_history_money(rows: list[dict]) -> list[dict]:
+    """변경 이력 리스트에서 가격 관련 old/new/note 를 🔒 로 치환(열람 권한 없는 사용자용)."""
+    out = []
+    for r in rows:
+        d = dict(r)
+        f = str(d.get("field") or "")
+        d["old_value"] = _hist_mask_value(f, d.get("old_value"))
+        d["new_value"] = _hist_mask_value(f, d.get("new_value"))
+        d["note"] = _hist_mask_note(d.get("note"))
+        out.append(d)
+    return out
+
+
+def get_project_history(project_id: int, limit: int = 50,
+                        mask_money: bool = False) -> list[dict]:
+    """v5H101: 프로젝트 변경 이력 최근 N건 (사용자명 join).
+    v5H226z896: mask_money=True 면 가격 항목(단가·매출·수주액)을 🔒 로 가려 반환
+    (기술영업팀 권한 없는 등록자 우회 접근 대비)."""
     with db_session() as c:
         try:
             rows = c.execute(
@@ -6202,7 +6262,10 @@ def get_project_history(project_id: int, limit: int = 50) -> list[dict]:
                 "WHERE ph.project_id=? ORDER BY ph.id DESC LIMIT ?",
                 (project_id, int(limit))
             ).fetchall()
-            return [dict(r) for r in rows]
+            result = [dict(r) for r in rows]
+            if mask_money:
+                result = redact_history_money(result)
+            return result
         except Exception:
             return []
 

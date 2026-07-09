@@ -1485,6 +1485,10 @@
         {% set title = '프로젝트' %}
         {% set empty_hint = '프로젝트를 수정하거나 상태를 변경하면 여기에 자동으로 기록됩니다.' %}
         {% include '_v5_partials/history_card.html' %}
+        {# v5H226z896 (대표 지시): 금액은 기술영업팀 권한자만 → 그 외는 이력에서 🔒 마스킹 안내 #}
+        {% if not can_sales_amt %}
+        <div style="margin-top:8px;font-size:11px;color:var(--mute);">🔒 단가·매출·수주액 등 금액 항목은 열람 권한자만 표시됩니다.</div>
+        {% endif %}
       </div>
 
       {% if tasks %}

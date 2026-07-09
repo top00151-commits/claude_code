@@ -6618,9 +6618,13 @@ async def project_detail(req: Request, pid: int):
     except Exception:
         pass
     # v5H101: 프로젝트 변경 이력 (최근 30건)
+    # v5H226z896 (대표 지시): 금액(단가·매출·수주액)은 기술영업팀 권한자(can_view_field 'sales_amount')만.
+    #   권한 없는 등록자가 우회 접근해도 이력의 가격이 안 보이게 서버에서 🔒 마스킹.
     project_history_logs = []
     try:
-        project_history_logs = _logi.get_project_history(pid, limit=30)
+        _hist_can_money = can_view_field(u, "sales_amount")
+        project_history_logs = _logi.get_project_history(
+            pid, limit=30, mask_money=not _hist_can_money)
     except Exception:
         pass
     # v5H111: 사이드패널 호기 분해용 — 모든 SO 의 units 를 라벨 숫자 순 정렬
@@ -18007,10 +18011,13 @@ async def sales_order_detail(req: Request, oid: int):
     except Exception:
         pass
     # v5H102: 연결 프로젝트의 변경 이력도 함께 노출 (SO 상세에서 확인 편의)
+    # v5H226z896 (대표 지시): 금액은 기술영업팀 권한자만 → 없으면 🔒 마스킹(우회 접근 대비)
     project_history_logs = []
     try:
         if order.get("project_id"):
-            project_history_logs = _logi.get_project_history(order["project_id"], limit=30)
+            _hist_can_money = can_view_field(u, "sales_amount")
+            project_history_logs = _logi.get_project_history(
+                order["project_id"], limit=30, mask_money=not _hist_can_money)
     except Exception:
         pass
     return ctx(req, "sales_order_detail.html", user=u, active="sales",

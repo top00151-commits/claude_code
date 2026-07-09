@@ -205,6 +205,10 @@ body {
         </tbody>
       </table>
     </div>
+    {# v5H226z896 (대표 지시): 금액은 기술영업팀 권한자만 → 그 외는 이력에서 🔒 마스킹 안내 #}
+    {% if not can_sales_amt %}
+    <div style="margin-top:8px;font-size:11.5px;color:var(--mute);">🔒 단가·매출·수주액 등 금액 항목은 열람 권한자만 표시됩니다.</div>
+    {% endif %}
     {% else %}
     <div class="empty" style="padding:30px;color:var(--mute);">
       아직 기록된 프로젝트 변경 이력이 없습니다.<br>
