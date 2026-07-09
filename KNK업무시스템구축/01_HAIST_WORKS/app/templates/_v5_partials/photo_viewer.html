@@ -1,0 +1,259 @@
+{# ============================================================
+   _v5_partials/photo_viewer.html — v5H226z887 (대표 지시 2026-07-09)
+   전역 사진 확대·축소(줌) 뷰어.
+   - 사진 링크에 data-knk-zoom 를 붙이면 새 창(원본 파일) 대신 이 뷰어가 열림.
+     (예: <a href="{{원본}}" data-knk-zoom target="_blank"><img src="{{썸네일}}"></a>
+      → JS 미동작 시엔 target=_blank 로 원본이 열리는 안전 폴백)
+   - 코드로도 열 수 있음: window.KNKPhotoViewer.open(원본URL, 파일명)
+   기능: +/− 버튼·마우스 휠 줌(커서 기준)·드래그 팬·핀치 줌(폰)·맞춤/100%/초기화·
+         더블클릭 토글·선명하게(화질 보정) 토글·원본 저장/새 창·Esc 닫기.
+   전역 1곳(chrome.html 말미)에서만 include → 문서 위임 리스너라 SPA 교체에도 유지.
+   ============================================================ #}
+{% if not _knk_photo_viewer_done %}{% set _knk_photo_viewer_done = true %}
+<div id="knkPv" class="knkpv" hidden aria-hidden="true" role="dialog" aria-label="사진 확대 보기">
+  <div class="knkpv-bar" id="knkPvBar">
+    <span class="knkpv-name" id="knkPvName"></span>
+    <span class="knkpv-spacer"></span>
+    <button type="button" class="knkpv-btn" data-act="out" title="축소 (−)">−</button>
+    <button type="button" class="knkpv-btn knkpv-pct" data-act="pct" title="현재 배율 — 눌러서 100%(원본 크기)">100%</button>
+    <button type="button" class="knkpv-btn" data-act="in" title="확대 (＋)">＋</button>
+    <button type="button" class="knkpv-btn" data-act="fit" title="화면에 맞추기">맞춤</button>
+    <button type="button" class="knkpv-btn" data-act="reset" title="처음 상태로 초기화">↺ 초기화</button>
+    <button type="button" class="knkpv-btn" data-act="sharp" title="선명하게(화질 보정) 켜기/끄기 — 화면 표시만, 원본은 그대로">✨ 선명</button>
+    <button type="button" class="knkpv-btn" data-act="download" title="원본 저장(다운로드)">⤓ 저장</button>
+    <button type="button" class="knkpv-btn" data-act="orig" title="원본을 새 창에서 열기">↗ 원본</button>
+    <button type="button" class="knkpv-btn knkpv-x" data-act="close" title="닫기 (Esc)">✕</button>
+  </div>
+  <div class="knkpv-stage" id="knkPvStage">
+    <img id="knkPvImg" class="knkpv-img" alt="확대 사진" draggable="false">
+  </div>
+  <div class="knkpv-hint">마우스 휠 또는 ＋/− 로 확대 · 끌어서 이동 · 더블클릭 확대/축소 · (폰) 두 손가락으로 벌려서 확대</div>
+  {# 화질 보정용 은은한 샤픈(언샤프 마스크) — 자체 인라인 SVG 필터(외부 리소스 없음·CSP 안전). 커널 합=1.0(밝기 보존) #}
+  <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false">
+    <filter id="knkPvSharpen" x="0" y="0" width="100%" height="100%">
+      <feConvolveMatrix order="3 3" preserveAlpha="true"
+        kernelMatrix="0 -0.35 0  -0.35 2.4 -0.35  0 -0.35 0"/>
+    </filter>
+  </svg>
+</div>
+<style>
+.knkpv{ position:fixed; inset:0; z-index:100000; display:flex; flex-direction:column;
+        background:rgba(15,17,21,.94); -webkit-user-select:none; user-select:none; }
+.knkpv[hidden]{ display:none !important; }
+.knkpv-bar{ display:flex; align-items:center; gap:6px; padding:8px 12px;
+            background:rgba(0,0,0,.4); color:#fff; font-size:13px; flex-wrap:wrap; }
+.knkpv-name{ font-weight:700; max-width:42vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.knkpv-spacer{ flex:1 1 auto; }
+.knkpv-btn{ appearance:none; -webkit-appearance:none; border:1px solid rgba(255,255,255,.28);
+            background:rgba(255,255,255,.08); color:#fff; border-radius:8px; padding:6px 10px;
+            font-size:13px; font-weight:700; cursor:pointer; line-height:1; font-family:inherit; white-space:nowrap; }
+.knkpv-btn:hover{ background:rgba(255,255,255,.22); }
+.knkpv-btn:active{ transform:translateY(1px); }
+.knkpv-btn.on{ background:#fbbf24; color:#111827; border-color:#fbbf24; }
+.knkpv-pct{ min-width:66px; text-align:center; }
+.knkpv-x{ background:rgba(220,38,38,.85); border-color:transparent; }
+.knkpv-x:hover{ background:rgba(220,38,38,1); }
+.knkpv-stage{ flex:1 1 auto; position:relative; overflow:hidden; touch-action:none; cursor:grab; min-height:0; }
+.knkpv-stage.grabbing{ cursor:grabbing; }
+.knkpv-img{ position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform;
+            -webkit-user-drag:none; user-drag:none; image-rendering:auto;
+            max-width:none; max-height:none; }
+.knkpv-img.sharp{ filter:url(#knkPvSharpen) contrast(1.05) saturate(1.03); }
+.knkpv-hint{ flex:0 0 auto; text-align:center; color:rgba(255,255,255,.72); font-size:11px; padding:6px 8px; }
+@media (max-width:640px){
+  .knkpv-name{ max-width:100%; flex-basis:100%; margin-bottom:2px; }
+  .knkpv-btn{ padding:7px 9px; }
+  .knkpv-hint{ font-size:10px; }
+}
+</style>
+<script>
+(function(){
+  if (window.__knkPvInit) return;   // 전역 1회 초기화(중복 include·재실행 방어)
+  var el = document.getElementById('knkPv');
+  if (!el) return;
+  window.__knkPvInit = true;
+  var stage  = document.getElementById('knkPvStage');
+  var img    = document.getElementById('knkPvImg');
+  var nameEl = document.getElementById('knkPvName');
+  var pctBtn = el.querySelector('.knkpv-pct');
+
+  var scale=1, tx=0, ty=0, nw=1, nh=1;
+  var fitScale=1, minScale=1, maxScale=8, ready=false;
+  var pointers = {};       // pointerId -> {x,y}
+  var pcount = 0;
+  var dragging=false, lastX=0, lastY=0, pinchBase=null;
+
+  function vpW(){ return stage.clientWidth || 1; }
+  function vpH(){ return stage.clientHeight || 1; }
+  function clampScale(s){ return Math.max(minScale, Math.min(maxScale, s)); }
+
+  function apply(){
+    var vw=vpW(), vh=vpH(), iw=nw*scale, ih=nh*scale;
+    if (iw <= vw) tx = (vw - iw)/2; else tx = Math.min(0, Math.max(vw - iw, tx));
+    if (ih <= vh) ty = (vh - ih)/2; else ty = Math.min(0, Math.max(vh - ih, ty));
+    img.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+    if (pctBtn) pctBtn.textContent = Math.round(scale*100) + '%';
+  }
+  function computeFit(){
+    var f = Math.min(vpW()/nw, vpH()/nh);
+    if (!isFinite(f) || f <= 0) f = 1;
+    fitScale = f;
+    minScale = Math.min(f, 1) * 0.9;
+    maxScale = Math.max(f*4, 8, 1);       // 작은 사진은 맞춤만 해도 크게, 거기서 ×4 더 · 최소 800%
+    if (maxScale > 32) maxScale = 32;
+  }
+  function doFit(){ computeFit(); scale = fitScale; apply(); }
+  function setScaleAt(newScale, px, py){
+    newScale = clampScale(newScale);
+    var ix = (px - tx)/scale, iy = (py - ty)/scale;
+    scale = newScale;
+    tx = px - ix*scale; ty = py - iy*scale;
+    apply();
+  }
+  function zoomBy(factor, px, py){
+    if (px == null){ px = vpW()/2; py = vpH()/2; }
+    setScaleAt(scale*factor, px, py);
+  }
+
+  function onLoaded(){
+    nw = img.naturalWidth  || img.width  || 1;
+    nh = img.naturalHeight || img.height || 1;
+    img.style.width  = nw + 'px';
+    img.style.height = nh + 'px';
+    ready = true;
+    doFit();
+  }
+  img.addEventListener('load', onLoaded);
+
+  function open(src, name){
+    if (!src) return;
+    ready = false;
+    img.classList.remove('sharp');
+    var sb = el.querySelector('[data-act="sharp"]'); if (sb) sb.classList.remove('on');
+    nameEl.textContent = name || '';
+    img.setAttribute('data-src', src);
+    el.hidden = false; el.setAttribute('aria-hidden','false');
+    try { document.documentElement.style.overflow = 'hidden'; } catch(e){}
+    scale = 1; tx = 0; ty = 0;
+    img.src = src;
+    if (img.complete && img.naturalWidth) onLoaded();   // 캐시된 이미지는 load 안 뜰 수 있음
+  }
+  function close(){
+    el.hidden = true; el.setAttribute('aria-hidden','true');
+    try { document.documentElement.style.overflow = ''; } catch(e){}
+    img.removeAttribute('src');
+    pointers = {}; pcount = 0; dragging = false; pinchBase = null;
+    stage.classList.remove('grabbing');
+  }
+  function download(){
+    var src = img.getAttribute('data-src'); if (!src) return;
+    var a = document.createElement('a');
+    a.href = src;
+    var nm = (nameEl.textContent || 'photo').replace(/[\\/:*?"<>|]+/g,'_').trim() || 'photo';
+    a.download = nm;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // 툴바
+  el.querySelector('.knkpv-bar').addEventListener('click', function(e){
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var act = b.getAttribute('data-act');
+    if (act === 'in')            zoomBy(1.25);
+    else if (act === 'out')      zoomBy(1/1.25);
+    else if (act === 'fit')      doFit();
+    else if (act === 'reset'){   img.classList.remove('sharp'); var sb=el.querySelector('[data-act="sharp"]'); if(sb) sb.classList.remove('on'); doFit(); }
+    else if (act === 'pct')      setScaleAt(1, vpW()/2, vpH()/2);
+    else if (act === 'sharp'){   var on = img.classList.toggle('sharp'); b.classList.toggle('on', on); }
+    else if (act === 'download') download();
+    else if (act === 'orig'){    var s = img.getAttribute('data-src'); if (s) window.open(s, '_blank', 'noopener'); }
+    else if (act === 'close')    close();
+  });
+
+  // 휠 줌(커서 기준)
+  stage.addEventListener('wheel', function(e){
+    if (el.hidden || !ready) return;
+    e.preventDefault();
+    var r = stage.getBoundingClientRect();
+    var f = (e.deltaY < 0) ? 1.15 : (1/1.15);
+    setScaleAt(scale*f, e.clientX - r.left, e.clientY - r.top);
+  }, { passive:false });
+
+  // 더블클릭 토글 줌
+  stage.addEventListener('dblclick', function(e){
+    if (!ready) return;
+    var r = stage.getBoundingClientRect();
+    var target = (scale <= fitScale*1.05) ? Math.max(fitScale*2.5, 2) : fitScale;
+    setScaleAt(target, e.clientX - r.left, e.clientY - r.top);
+  });
+
+  // 드래그 팬 + 핀치 줌 (마우스·터치 통합 Pointer Events)
+  function twoPts(){ var a=[]; for (var k in pointers){ if(pointers.hasOwnProperty(k)) a.push(pointers[k]); } return a; }
+  function startPinch(){
+    var p = twoPts(); if (p.length < 2) return;
+    var dx = p[1].x - p[0].x, dy = p[1].y - p[0].y;
+    pinchBase = { dist: Math.hypot(dx,dy) || 1, scale: scale };
+  }
+  stage.addEventListener('pointerdown', function(e){
+    if (!ready) return;
+    try { stage.setPointerCapture(e.pointerId); } catch(_){}
+    pointers[e.pointerId] = { x:e.clientX, y:e.clientY }; pcount++;
+    if (pcount === 1){ dragging = true; lastX = e.clientX; lastY = e.clientY; stage.classList.add('grabbing'); }
+    else if (pcount === 2){ dragging = false; startPinch(); }
+  });
+  stage.addEventListener('pointermove', function(e){
+    if (!pointers.hasOwnProperty(e.pointerId)) return;
+    pointers[e.pointerId] = { x:e.clientX, y:e.clientY };
+    if (pcount >= 2 && pinchBase){
+      var p = twoPts(); if (p.length < 2) return;
+      var dx = p[1].x - p[0].x, dy = p[1].y - p[0].y;
+      var dist = Math.hypot(dx,dy) || 1;
+      var r = stage.getBoundingClientRect();
+      var mx = (p[0].x + p[1].x)/2 - r.left, my = (p[0].y + p[1].y)/2 - r.top;
+      setScaleAt(pinchBase.scale * (dist/pinchBase.dist), mx, my);
+      return;
+    }
+    if (dragging){
+      tx += (e.clientX - lastX); ty += (e.clientY - lastY);
+      lastX = e.clientX; lastY = e.clientY; apply();
+    }
+  });
+  function endPtr(e){
+    if (pointers.hasOwnProperty(e.pointerId)){ delete pointers[e.pointerId]; pcount = Math.max(0, pcount-1); }
+    if (pcount < 2) pinchBase = null;
+    if (pcount === 0){ dragging = false; stage.classList.remove('grabbing'); }
+    else if (pcount === 1){ var p = twoPts()[0]; if (p){ lastX = p.x; lastY = p.y; dragging = true; } }
+  }
+  stage.addEventListener('pointerup', endPtr);
+  stage.addEventListener('pointercancel', endPtr);
+
+  // 키보드(뷰어 열렸을 때만) — 캡처 단계 + Esc stopPropagation 으로 페이지 Esc 핸들러와 충돌 방지
+  document.addEventListener('keydown', function(e){
+    if (el.hidden) return;
+    if (e.key === 'Escape'){ e.stopPropagation(); e.preventDefault(); close(); }
+    else if (e.key === '+' || e.key === '='){ e.preventDefault(); zoomBy(1.25); }
+    else if (e.key === '-' || e.key === '_'){ e.preventDefault(); zoomBy(1/1.25); }
+    else if (e.key === '0'){ e.preventDefault(); doFit(); }
+  }, true);
+
+  window.addEventListener('resize', function(){ if (!el.hidden && ready){ computeFit(); scale = clampScale(scale); apply(); } });
+
+  // 배경(무대 빈 공간 아님) 클릭으로 닫힘은 두지 않음 — 팬 드래그와 오작동 방지. 닫기는 ✕/Esc 로.
+
+  // 사진 링크 위임: a[data-knk-zoom] 클릭 시 새 창 대신 뷰어. (캡처 단계로 기존 이동 선점)
+  document.addEventListener('click', function(e){
+    var a = e.target.closest ? e.target.closest('a[data-knk-zoom]') : null;
+    if (!a) return;
+    var src = a.getAttribute('href');
+    if (!src || src === '#') return;
+    e.preventDefault(); e.stopPropagation();
+    var name = a.getAttribute('data-knk-name');
+    if (!name){
+      try { name = decodeURIComponent((src.split('?')[0].split('/').pop()) || src); } catch(_){ name = src; }
+    }
+    open(src, name);
+  }, true);
+
+  window.KNKPhotoViewer = { open: open, close: close };
+})();
+</script>
+{% endif %}
