@@ -145,7 +145,8 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
         <tr>
           <td class="pc-k">고객사</td><td class="pc-v">{{ pr.cust_name or pr.p_customer or '—' }}</td>
           <td class="pc-k">납품일</td><td class="pc-v">{{ (pr.o_due_date or '—')[:10] }}</td>
-          <td class="pc-rc pc-qtyv">수량 {{ pr.qty|int if pr.qty is not none else '—' }}</td>
+          {# z896(대표 지시): 소모품은 부품별 수량 — 총 합산은 헷갈려서 '항목별'로(카드 눌러 라인별 수량 확인). 프로젝트는 기존대로 수량 표시. #}
+          <td class="pc-rc pc-qtyv">{% if pr._kind == 'consumable' %}<span title="소모품은 항목별 수량 — 카드를 눌러 라인별 수량 확인">항목별</span>{% else %}수량 {{ pr.qty|int if pr.qty is not none else '—' }}{% endif %}</td>
         </tr>
       </table>
     </a>

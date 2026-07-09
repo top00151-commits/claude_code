@@ -77,7 +77,8 @@
           <div class="prq-ir"><span class="k">고객사</span><span class="v">{{ co.customer_name or '—' }}</span></div>
           {% if co.cc_name %}<div class="prq-ir"><span class="k">고객 담당자</span><span class="v">{{ co.cc_name }}</span></div>{% endif %}
           <div class="prq-ir"><span class="k">장비명</span><span class="v">{{ co.equip_name or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">수량</span><span class="v">{{ qty_total if qty_total not in ('', none) else '—' }}</span></div>
+          {# z896(대표 지시): 소모품은 부품별 수량 — 총 합산은 오히려 헷갈려 표시 안 함(아래 라인 표에 항목별 수량). #}
+          <div class="prq-ir"><span class="k">수량</span><span class="v" style="color:var(--mute,#64748b);">항목별 · 아래 라인 참고</span></div>
           <div class="prq-ir"><span class="k">납기</span><span class="v">{{ (co.due_date or '')[:10] or '—' }}</span></div>
           <div class="prq-ir"><span class="k">형태</span><span class="v">{{ form_label }}</span></div>
           <div class="prq-ir"><span class="k">사업부</span><span class="v">🧴 소모품</span></div>
