@@ -199,6 +199,9 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
           <div class="ntf-actions"><a onclick="ntfAll(true)">전체 선택</a> · <a onclick="ntfAll(false)">전체 해제</a></div>
           {# z886(대표 지시·규정): 본사/베트남 책갈피(탭)+검색+선택칩 — 공용 선택위젯 #}
           <div id="knkpNtf" data-knk-picker data-knkp-ph="🔍 부서명 검색">
+            {# z891(대표 지시): 직전 통보 대상(부서·개별)을 미리 선택 — 누락된 사람만 바로 추가. co.notify_team_ids/user_ids(z890 저장). 옛 '구매팀 자동선택' 하드코딩 폐기. #}
+            {% set _last_teams = (co.notify_team_ids|string).split(',') if co.notify_team_ids else [] %}
+            {% set _last_users = (co.notify_user_ids|string).split(',') if co.notify_user_ids else [] %}
             {% set _hq = teams|rejectattr('entity','equalto','VN')|list %}
             {% set _vn = teams|selectattr('entity','equalto','VN')|list %}
             {% for _grp, _elabel, _ent in [(_hq,'🏢 본사','KOR'), (_vn,'🌏 베트남','VN')] %}
@@ -207,13 +210,13 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
                 {% for t in _grp %}
                 <div class="ntf-teamblk">
                   <div class="ntf-teamrow">
-                    <label class="ntf-row knkp-item" data-kind="dept" data-label="{{ t.name }}"><input type="checkbox" class="ntf-ck" value="{{ t.id }}"{% if t.name == '구매팀' %} checked{% endif %}> {{ t.name }} <span class="ntf-cnt">{{ t.member_count }}명</span></label>
+                    <label class="ntf-row knkp-item" data-kind="dept" data-label="{{ t.name }}"><input type="checkbox" class="ntf-ck" value="{{ t.id }}"{% if (t.id|string) in _last_teams %} checked{% endif %}> {{ t.name }} <span class="ntf-cnt">{{ t.member_count }}명</span></label>
                     {% if team_members.get(t.id) %}<button type="button" class="ntf-exp" onclick="ntfExp({{ t.id }},this)">▸개별</button>{% endif %}
                   </div>
                   {% if team_members.get(t.id) %}
                   <div class="ntf-members knkp-collapse" data-team="{{ t.id }}">
                     {% for m in team_members.get(t.id) %}
-                    <label class="ntf-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" class="ntf-uck" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} <span class="ntf-mrank">{{ m.rank }}</span>{% endif %}</label>
+                    <label class="ntf-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" class="ntf-uck" value="{{ m.id }}"{% if (m.id|string) in _last_users %} checked{% endif %}> {{ vname(m) }}{% if m.rank %} <span class="ntf-mrank">{{ m.rank }}</span>{% endif %}</label>
                     {% endfor %}
                   </div>
                   {% endif %}
@@ -621,6 +624,19 @@ function closeNotify() { document.getElementById('notifyModal').style.display = 
 function ntfAll(on) { document.querySelectorAll('.ntf-ck').forEach(c => c.checked = on); if (window.KNKPicker) KNKPicker.refresh('knkpNtf'); }
 // v5H226z890(대표 지시): 개별 인원 펼치기(제작요청과 동일)
 function ntfExp(tid, btn) { var m = document.querySelector('.ntf-members[data-team="'+tid+'"]'); if(!m) return; var show = !m.classList.contains('open'); m.classList.toggle('open', show); if(btn) btn.textContent = show ? '▾개별' : '▸개별'; }
+// v5H226z891(대표 지시): 직전 통보 대상 미리 선택 상태 — 개별 체크된 팀은 펼쳐서 보이게(누락자 즉시 확인)
+(function(){
+  function ntfExpandChecked(){
+    document.querySelectorAll('.ntf-uck:checked').forEach(function(cb){
+      var blk = cb.closest('.ntf-teamblk'); if(!blk) return;
+      var m = blk.querySelector('.ntf-members'); if(m) m.classList.add('open');
+      var btn = blk.querySelector('.ntf-exp'); if(btn) btn.textContent = '▾개별';
+    });
+    if (window.KNKPicker) KNKPicker.refresh('knkpNtf');
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ntfExpandChecked);
+  else ntfExpandChecked();
+})();
 async function doNotify() {
   const msg = document.getElementById('notifyMsg');
   const sendBtn = document.getElementById('ntfSendBtn');
