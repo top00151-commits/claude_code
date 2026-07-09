@@ -19331,6 +19331,151 @@ def logi_dashboard(request: Request):
                demo_mode=demo_mode)
 
 
+# ── 월 기준환율(다통화 매출 원화 환산) ─────────────────────────
+# v5H226z900 (대표 지시): 매출이 원화만 합산되던 것 → 외화(USD/EUR/JPY/CNY/VND)를
+#   '납품일(due_date) 월'의 기준환율로 원화 환산해 합산(미출하 여부 무관·대표 지시).
+#   저장소는 기존 exchange_rates 재사용(rate_date='YYYY-MM-01', to_currency='KRW',
+#   rate=1 통화당 KRW). 그 달 환율 없으면 직전 달로 대체, 아무 것도 없으면 환산 불가(경고).
+FX_KRW_CURRENCIES = ("USD", "EUR", "JPY", "CNY", "VND")
+
+
+def _fx_load_rates(c):
+    """월 기준환율 로드 → {CCY: {'YYYY-MM': rate}} (to_currency=KRW·rate>0)."""
+    rates = {}
+    try:
+        for r in c.execute(
+            "SELECT UPPER(from_currency) AS ccy, substr(rate_date,1,7) AS ym, rate "
+            "FROM exchange_rates WHERE COALESCE(to_currency,'KRW')='KRW' AND rate>0"
+        ).fetchall():
+            ccy = (r[0] or "").strip().upper()
+            if not ccy or ccy == "KRW" or not r[1]:
+                continue
+            rates.setdefault(ccy, {})[r[1]] = float(r[2])
+    except Exception:
+        pass
+    return rates
+
+
+def _fx_rate_for(rates, ccy, ym):
+    """(CCY, 'YYYY-MM')의 기준환율. 그 달 없으면 직전 달 대체, 그것도 없으면
+    가장 이른 입력월로 폴백(과거 미입력 대비). 통화 자체가 없으면 None."""
+    ccy = (ccy or "").strip().upper()
+    if not ccy or ccy == "KRW":
+        return 1.0
+    m = rates.get(ccy)
+    if not m:
+        return None
+    if ym and ym in m:
+        return m[ym]
+    if ym:
+        prev = [k for k in m.keys() if k <= ym]
+        if prev:
+            return m[max(prev)]
+    return m[min(m.keys())] if m else None
+
+
+def _fx_to_krw(rates, amount, ccy, ref_ym, missing=None):
+    """amount(ccy) → KRW. KRW/0이면 그대로. 환율 없으면 0 반환하고 missing에 (CCY,YM) 기록."""
+    try:
+        amt = float(amount or 0)
+    except (TypeError, ValueError):
+        amt = 0.0
+    ccy = (ccy or "KRW").strip().upper() or "KRW"
+    if ccy == "KRW" or amt == 0:
+        return amt
+    rate = _fx_rate_for(rates, ccy, ref_ym)
+    if not rate:
+        if missing is not None:
+            missing.add((ccy, ref_ym or "?"))
+        return 0.0
+    return amt * rate
+
+
+# 통화별 입력 단위(관리자 화면 편의) — 내부 저장은 항상 '1 통화당 KRW'.
+#   엔·위안·동은 1단위가 작아 100단위로 입력받아 100으로 나눠 저장(대표 지시).
+FX_INPUT_UNIT = {"USD": 1, "EUR": 1, "JPY": 100, "CNY": 100, "VND": 100}
+
+
+@app.get("/admin/fx-rates", response_class=HTMLResponse)
+async def admin_fx_rates_page(req: Request):
+    """v5H226z900 (대표 지시): 월 기준환율 입력·수정 (관리자). 최근 13개월 × 통화 그리드."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    today = date.today()
+    months = []
+    y, m = today.year, today.month
+    for _ in range(13):
+        months.append(f"{y:04d}-{m:02d}")
+        m -= 1
+        if m <= 0:
+            m += 12
+            y -= 1
+    with db_session() as c:
+        rates = _fx_load_rates(c)
+    grid = []
+    for ymk in months:
+        cells = []
+        for ccy in FX_KRW_CURRENCIES:
+            per1 = rates.get(ccy, {}).get(ymk)
+            unit = FX_INPUT_UNIT.get(ccy, 1)
+            cells.append({"ccy": ccy, "unit": unit,
+                          "rate": ("" if per1 is None else round(per1 * unit, 4))})
+        grid.append({"ym": ymk, "cells": cells})
+    return ctx(req, "admin_fx_rates.html", user=u, active="admin",
+               grid=grid,
+               currencies=[{"ccy": ccy, "unit": FX_INPUT_UNIT.get(ccy, 1)} for ccy in FX_KRW_CURRENCIES],
+               saved=req.query_params.get("saved"))
+
+
+@app.post("/admin/fx-rates/save")
+async def admin_fx_rates_save(req: Request):
+    """월 기준환율 저장 — 입력값(단위 반영)을 '1 통화당 KRW'로 환산해 exchange_rates upsert.
+    빈칸 = 그 (월,통화) 환율 삭제. rate_date='YYYY-MM-01', to_currency='KRW'."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    n = 0
+    with db_session() as c:
+        for key in list(form.keys()):
+            if not key.startswith("rate__"):
+                continue
+            parts = key.split("__")
+            if len(parts) != 3:
+                continue
+            _, ymk, ccy = parts
+            ccy = (ccy or "").strip().upper()
+            if ccy not in FX_KRW_CURRENCIES:
+                continue
+            if len(ymk) != 7 or ymk[4] != "-":
+                continue
+            rate_date = f"{ymk}-01"
+            sval = str(form.get(key) or "").strip().replace(",", "")
+            if sval == "":
+                c.execute("DELETE FROM exchange_rates WHERE rate_date=? "
+                          "AND UPPER(from_currency)=? AND COALESCE(to_currency,'KRW')='KRW'",
+                          (rate_date, ccy))
+                continue
+            try:
+                per1 = float(sval) / float(FX_INPUT_UNIT.get(ccy, 1))
+            except (TypeError, ValueError):
+                continue
+            if per1 <= 0:
+                continue
+            ex = c.execute("SELECT id FROM exchange_rates WHERE rate_date=? "
+                           "AND UPPER(from_currency)=? AND COALESCE(to_currency,'KRW')='KRW'",
+                           (rate_date, ccy)).fetchone()
+            if ex:
+                c.execute("UPDATE exchange_rates SET rate=?, source='월기준', created_by=? WHERE id=?",
+                          (per1, u.get("id"), ex[0]))
+            else:
+                c.execute("INSERT INTO exchange_rates(rate_date, from_currency, to_currency, rate, source, created_by) "
+                          "VALUES(?,?,?,?,'월기준',?)", (rate_date, ccy, "KRW", per1, u.get("id")))
+            n += 1
+    return RedirectResponse(f"/admin/fx-rates?saved={n}", 303)
+
+
 # ── 매출·영업 홈 (신규 · 2026-04-21 도메인 분리) ──────────────
 @app.get("/sales", response_class=HTMLResponse)
 async def sales_dashboard(request: Request):
@@ -19347,47 +19492,81 @@ async def sales_dashboard(request: Request):
     ym = today.strftime("%Y-%m")
     year = today.year
     with db_session() as c:
-        month = c.execute(
-            """SELECT COALESCE(SUM(order_amount),0) AS total, COUNT(*) AS cnt
-               FROM projects WHERE order_date LIKE ? AND order_amount > 0""",
-            (f"{ym}%",)).fetchone()
-        ytd = c.execute(
-            """SELECT COALESCE(SUM(order_amount),0) AS total, COUNT(*) AS cnt
-               FROM projects WHERE order_date LIKE ? AND order_amount > 0""",
-            (f"{year}%",)).fetchone()
-        by_biz = [dict(r) for r in c.execute(
-            """SELECT biz_div, COALESCE(SUM(order_amount),0) AS total, COUNT(*) AS cnt
-               FROM projects WHERE order_date LIKE ? AND biz_div IN ('T','M')
-               GROUP BY biz_div""",
-            (f"{year}%",)).fetchall()]
-        by_stage = [dict(r) for r in c.execute(
-            """SELECT stage, COUNT(*) AS cnt,
-                      COALESCE(SUM(order_amount),0) AS amount
-               FROM projects WHERE stage IS NOT NULL AND stage != ''
-               GROUP BY stage ORDER BY cnt DESC"""
-        ).fetchall()]
+        # v5H226z900 (대표 지시): 외화(USD/EUR/JPY/CNY/VND)를 납품월 기준환율로 원화 환산해 합산.
+        rates = _fx_load_rates(c)
+        missing = set()   # 환율 미입력으로 환산 못 한 (통화, 월)
+
+        def _refym(d):
+            s = (d.get("due_date") or d.get("order_date") or "") or ""
+            return s[:7]
+
+        def _sum_krw(sql, params=()):
+            tot = 0.0
+            cnt = 0
+            for r in c.execute(sql, params).fetchall():
+                d = dict(r)
+                tot += _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
+                cnt += 1
+            return tot, cnt
+
+        _F = "order_amount, currency, due_date, order_date"
+        # 이번 달 수주 / YTD 누적 (원화 환산)
+        month_total, month_cnt = _sum_krw(
+            f"SELECT {_F} FROM projects WHERE order_date LIKE ? AND order_amount > 0",
+            (f"{ym}%",))
+        ytd_total, ytd_cnt = _sum_krw(
+            f"SELECT {_F} FROM projects WHERE order_date LIKE ? AND order_amount > 0",
+            (f"{year}%",))
+        # 사업부별 수주 (검사기 T / 자동화 M)
+        by_biz_map = {}
+        for r in c.execute(
+                f"SELECT biz_div, {_F} FROM projects "
+                "WHERE order_date LIKE ? AND biz_div IN ('T','M')", (f"{year}%",)).fetchall():
+            d = dict(r)
+            e = by_biz_map.setdefault(d["biz_div"], {"biz_div": d["biz_div"], "total": 0.0, "cnt": 0})
+            e["total"] += _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
+            e["cnt"] += 1
+        by_biz = list(by_biz_map.values())
+        # 단계별 프로젝트
+        by_stage_map = {}
+        for r in c.execute(
+                f"SELECT stage, {_F} FROM projects "
+                "WHERE stage IS NOT NULL AND stage != ''").fetchall():
+            d = dict(r)
+            e = by_stage_map.setdefault(d["stage"], {"stage": d["stage"], "cnt": 0, "amount": 0.0})
+            e["amount"] += _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
+            e["cnt"] += 1
+        by_stage = sorted(by_stage_map.values(), key=lambda x: -x["cnt"])
+        # 최근 프로젝트 (표시 금액도 원화 환산: amount_krw_disp)
         recent = [dict(r) for r in c.execute(
             """SELECT id, mgmt_code, name, customer_name, stage, order_amount,
-                      order_date, due_date, biz_div
+                      order_date, due_date, biz_div, currency
                FROM projects
                WHERE mgmt_code IS NOT NULL AND mgmt_code != ''
                  AND COALESCE(is_archived,0)=0
                ORDER BY id DESC LIMIT 10""").fetchall()]
-        customers_top = [dict(r) for r in c.execute(
-            """SELECT customer_name, COUNT(*) AS cnt,
-                      COALESCE(SUM(order_amount),0) AS total
-               FROM projects
-               WHERE customer_name IS NOT NULL AND customer_name != ''
-                 AND order_date LIKE ?
-               GROUP BY customer_name
-               ORDER BY total DESC LIMIT 5""",
-            (f"{year}%",)).fetchall()]
+        for d in recent:
+            d["amount_krw_disp"] = _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
+        # TOP 5 고객사 (원화 환산)
+        cust_map = {}
+        for r in c.execute(
+                f"SELECT customer_name, {_F} FROM projects "
+                "WHERE customer_name IS NOT NULL AND customer_name != '' AND order_date LIKE ?",
+                (f"{year}%",)).fetchall():
+            d = dict(r)
+            e = cust_map.setdefault(d["customer_name"],
+                                    {"customer_name": d["customer_name"], "cnt": 0, "total": 0.0})
+            e["total"] += _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
+            e["cnt"] += 1
+        customers_top = sorted(cust_map.values(), key=lambda x: -x["total"])[:5]
+    missing_fx = sorted({ccy for (ccy, _y) in missing})   # 환율 미입력 통화(경고용)
     sales_kpi = {
-        "month_total": month["total"], "month_cnt": month["cnt"],
-        "ytd_total": ytd["total"], "ytd_cnt": ytd["cnt"],
+        "month_total": month_total, "month_cnt": month_cnt,
+        "ytd_total": ytd_total, "ytd_cnt": ytd_cnt,
         "by_biz": by_biz, "by_stage": by_stage,
         "recent": recent, "top_customers": customers_top,
         "ym": ym, "year": year,
+        "missing_fx": missing_fx,
     }
     return ctx(request, "sales_home.html",
                user=u, active="sales",

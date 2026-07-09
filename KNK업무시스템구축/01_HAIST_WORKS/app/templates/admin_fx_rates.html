@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>월 기준환율 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+.fx-wrap { margin:0 0 var(--space-6); padding:0 var(--content-pad); }
+.fx-card { background:#fff; border:1px solid #f1e8d4; border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+.fx-note { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; border-radius:8px; padding:11px 14px; font-size:12.5px; line-height:1.75; margin-bottom:14px; }
+.fx-saved { background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
+.fx-tbl { border-collapse:collapse; width:100%; font-size:13px; }
+.fx-tbl th, .fx-tbl td { border:1px solid var(--qv-line,#e7e2d4); padding:6px 8px; text-align:center; }
+.fx-tbl thead th { background:#f8fafc; color:#334155; font-weight:800; font-size:12px; white-space:nowrap; }
+.fx-tbl thead th .u { display:block; font-size:10.5px; color:#64748b; font-weight:600; }
+.fx-tbl td.ym { font-family:ui-monospace,Consolas,monospace; font-weight:700; color:#1e293b; background:#fcfcf8; white-space:nowrap; }
+.fx-tbl tr:first-child td.ym { color:#9a3412; }
+.fx-tbl input { width:96px; padding:5px 6px; border:1px solid var(--qv-line,#d8d2c2); border-radius:6px;
+  font-size:13px; text-align:right; font-variant-numeric:tabular-nums; }
+.fx-tbl input:focus { outline:2px solid #fbbf24; border-color:#fbbf24; }
+.fx-bar { display:flex; align-items:center; gap:12px; margin-top:14px; }
+.fx-btn { padding:10px 22px; border:0; border-radius:8px; font-size:14px; font-weight:800; cursor:pointer; background:#b45309; color:#fff; }
+.fx-scroll { overflow-x:auto; }
+</style></head>
+<body>
+<div class="app">{% set active_tab = 'home' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>월 기준환율</b></div>
+      <h1 class="page-title">💱 월 기준환율 <em>입력</em></h1>
+    </div>
+    <div><a class="btn btn-secondary" href="/sales">↩ 매출 홈</a></div>
+  </div>
+
+  <div class="fx-wrap">
+    {% if saved is not none %}<div class="fx-saved">✅ 저장했습니다 — {{ saved }}개 항목 반영. 매출 홈 합산에 바로 적용됩니다.</div>{% endif %}
+    <div class="fx-note">
+      <b>1 통화당 원(KRW)</b>을 입력합니다. 매출 홈은 각 건의 <b>납품월</b> 기준환율로 외화를 원화 환산해 합산합니다.<br>
+      · 엔(JPY)·위안(CNY)·동(VND)은 <b>100단위</b> 기준으로 입력합니다 — 예: <b>USD 1 = 1,380</b> · <b>100엔 = 900</b> · <b>100위안 = 19,000</b> · <b>100동 = 5.6</b><br>
+      · 빈칸으로 저장하면 그 (월·통화) 환율이 <b>삭제</b>됩니다. 특정 달 환율이 없으면 <b>직전 달</b> 환율로 대체됩니다.
+    </div>
+
+    <form method="post" action="/admin/fx-rates/save">
+      <div class="fx-card fx-scroll">
+        <table class="fx-tbl">
+          <thead>
+            <tr>
+              <th>연월</th>
+              {% for cc in currencies %}
+              <th>{{ cc.ccy }}<span class="u">{% if cc.unit != 1 %}{{ cc.unit }}단위 = 원{% else %}1 = 원{% endif %}</span></th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in grid %}
+            <tr>
+              <td class="ym">{{ row.ym }}</td>
+              {% for cell in row.cells %}
+              <td><input type="text" inputmode="decimal" autocomplete="off"
+                         name="rate__{{ row.ym }}__{{ cell.ccy }}"
+                         value="{{ cell.rate }}" placeholder="—"></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="fx-bar">
+        <button type="submit" class="fx-btn">💾 저장</button>
+        <span style="font-size:12px;color:var(--qv-ink-3,#64748b);">지원 통화: USD · EUR · JPY · CNY · VND (기준통화 KRW)</span>
+      </div>
+    </form>
+  </div>
+</main>
+</div>
+</body>
+</html>

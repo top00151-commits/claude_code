@@ -263,6 +263,8 @@
   <div class="sb-group">관리</div>
   {{ a('/admin',             '⚙️ 관리자',    'M-04-01') }}
   {{ a('/admin/permissions', '🔐 권한 위임', 'M-04-02') }}
+  {# v5H226z900 (대표 지시): 월 기준환율 입력 — 외화 매출 원화 환산 #}
+  {{ a('/admin/fx-rates', '💱 월 기준환율', 'M-04-11') }}
   {% if _role in ('ceo','admin') %}{{ a('/admin/ai-settings', '🤖 AI 모델 설정', 'M-04-08') }}{% endif %}
   {% if _role in ('ceo','admin') %}{{ a('/admin/reset-demo', '🗑 데모 초기화', 'M-04-09') }}{% endif %}
   {% if _role in ('ceo','admin') %}{{ a('/admin/test-data', '🧪 검증 데이터 관리', 'M-04-10') }}{% endif %}
