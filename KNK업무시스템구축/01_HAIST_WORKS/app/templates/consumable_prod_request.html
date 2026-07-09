@@ -49,7 +49,8 @@
     </div>
     <div style="display:flex;gap:8px;">
       <a class="btn btn-secondary" href="/prod-requests?biz=C" title="제작요청서목록(소모품)">📋 제작요청서목록</a>
-      <a class="btn btn-secondary" href="/consumables/{{ co.id }}">↩ 소모품 상세</a>
+      {# z895(대표 지시): 소모품 상세(편집)는 영업·물류 권한자만 — 일반 직원은 비활성(회색) #}
+      {% if can_open_detail %}<a class="btn btn-secondary" href="/consumables/{{ co.id }}">↩ 소모품 상세</a>{% else %}<span class="btn btn-secondary" style="opacity:.4;cursor:not-allowed;" title="소모품 상세(편집)는 영업·물류 담당자만 열 수 있습니다" aria-disabled="true">↩ 소모품 상세</span>{% endif %}
     </div>
   </div>
 
@@ -119,7 +120,8 @@
           {% if can_sales_amt %}<a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ co.id }}" title="작업일정표에서 이 소모품 위치로 이동">📅 작업일정표 바로가기</a>{% else %}<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — 아래 '전사일정표 바로가기'를 이용하세요" aria-disabled="true">📅 작업일정표 바로가기</span>{% endif %}
           <a class="btn btn-secondary" href="/dept/schedule" title="전사 일정표 열기 — 작업일정표 접근이 어려운 분은 여기로">🗓 전사일정표 바로가기</a>
           <div class="prq-actions">
-            <a class="btn btn-secondary" href="/consumables/{{ co.id }}" title="소모품 상세(라인·사진·정보 편집)로">✏️ 소모품 상세(편집)로</a>
+            {# z895(대표 지시): 소모품 상세(편집)는 영업·물류 권한자만 활성 — 일반 직원은 비활성(회색) #}
+            {% if can_open_detail %}<a class="btn btn-secondary" href="/consumables/{{ co.id }}" title="소모품 상세(라인·사진·정보 편집)로">✏️ 소모품 상세(편집)로</a>{% else %}<span class="btn btn-secondary" style="opacity:.4;cursor:not-allowed;" title="소모품 상세(편집)는 영업·물류 담당자만 열 수 있습니다" aria-disabled="true">✏️ 소모품 상세(편집)로</span>{% endif %}
           </div>
         </div>
       </div>

@@ -36693,9 +36693,13 @@ async def consumable_prod_request_view(request: Request, co_id: int):
     _ft = str(co.get("form_type") or "").strip()
     form_label = _FORM.get(_ft) or _FORM.get(_ft.upper()) or (_ft or "—")
     export_label = "🚢 수출" if co.get("is_export") else "🏠 내수"
+    # v5H226z895 (대표 지시): '소모품 상세(편집)' 버튼은 상세를 실제로 열 수 있는 영업·물류 권한자만 활성화.
+    #   일반 직원(등록자)은 상세 진입 시 홈으로 튕기므로 버튼을 비활성(회색) 표시.
+    _can_open_detail = bool(can_use_logistics(u) or can_use_sales(u))
     return ctx(request, "consumable_prod_request.html", user=u, active="consumables",
                co=co, items=items, qty_total=qty_total,
-               form_label=form_label, export_label=export_label)
+               form_label=form_label, export_label=export_label,
+               can_open_detail=_can_open_detail)
 
 
 @app.post("/consumables/{co_id:int}/items/{iid:int}/edit")
