@@ -86,7 +86,8 @@
     {% if request.query_params.get('req_ok') %}<div class="op-saved">✅ 부서 요청 처리됐습니다{% if request.query_params.get('req_ok')=='1' %} — 해당 부서 팀장에게 메신저 알림을 보냈습니다{% endif %}.</div>{% endif %}
     {% if request.query_params.get('req_warn')=='noleader' %}<div class="op-promoted">⚠ 요청은 등록됐지만 해당 부서에 <b>팀장이 지정돼 있지 않아</b> 메신저 알림은 보내지 못했습니다. (관리자에서 부서 팀장 지정 필요)</div>{% endif %}
     {% if request.query_params.get('req_err') %}<div class="op-err">{% if request.query_params.get('req_err')=='dup' %}이미 그 부서에 진행 중인 요청이 있습니다 (영업 기회당 부서별 1건).{% elif request.query_params.get('req_err')=='team' %}요청할 부서를 선택해 주세요.{% else %}부서 요청 처리에 실패했습니다.{% endif %}</div>{% endif %}
-    {% if promoted %}<div class="op-promoted">✅ 이 영업 기회는 프로젝트로 <b>승격 완료</b> → <a href="/project/{{ promoted.id }}">[{{ promoted.mgmt_code }}] {{ promoted.name }}</a> (해당 프로젝트에서 제작요청 발행)</div>{% endif %}
+    {% if promoted %}<div class="op-promoted">✅ 이 영업 기회는 프로젝트로 <b>승격 완료</b> → <a href="/project/{{ promoted.id }}">[{{ promoted.mgmt_code }}] {{ promoted.name }}</a> (해당 프로젝트에서 제작요청 발행)</div>
+    {% elif opp and opp.promoted_project_id %}<div class="op-promoted" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;">⚠ 승격됐던 프로젝트가 이미 삭제된 상태입니다(연결 끊김). 이 영업 기회는 아래 <b>삭제</b>로 정리할 수 있습니다. {# v5H226z899 #}</div>{% endif %}
     {% if opp %}<div class="op-meta">기회번호 <b>{{ opp.opp_no }}</b> · 단계 <b>{{ opp.stage }}</b> · 다음 할 일: <b style="color:#A5282C;">{{ opp.next_action }}</b></div>{% endif %}
 
     <form method="post" action="{{ ('/sales/opportunities/' ~ opp.id ~ '/edit') if opp else '/sales/opportunities' }}" onsubmit="var _b=window.KNKCust&&KNKCust.validate(this); if(_b){ try{_b.focus();}catch(e){} alert('고객사를 등록된 목록에서 선택하세요(빨간 칸). 비워두려면 칸을 비우세요.'); return false; } return true;">
@@ -252,12 +253,16 @@
     </div>
     {% endif %}
 
-    {% if opp and can_edit and not opp.promoted_project_id %}
+    {# v5H226z899 (대표 지시): 삭제/승격 노출은 '살아있는 프로젝트에 연결 안 된' 건에만.
+       미승격=승격+삭제 / 고아(승격됐던 프로젝트가 삭제됨)=삭제만 / 실승격=둘 다 숨김(실데이터 보호). #}
+    {% if opp and can_edit and not promoted %}
     <div class="op-actions" style="margin-top:16px;">
+      {% if not opp.promoted_project_id %}
       <form method="post" action="/sales/opportunities/{{ opp.id }}/promote" onsubmit="return confirm('이 영업 기회를 수주 확정하고 프로젝트(관리코드)로 승격할까요?\n관리코드가 자동 발번되고, 이후 그 프로젝트에서 제작요청을 발행합니다.');">
         <button type="submit" class="op-btn promote">✅ 수주 확정 → 제작요청(프로젝트) 승격</button>
       </form>
-      <form method="post" action="/sales/opportunities/{{ opp.id }}/delete" onsubmit="return confirm('이 영업 기회를 삭제할까요? (되돌릴 수 없음)');">
+      {% endif %}
+      <form method="post" action="/sales/opportunities/{{ opp.id }}/delete" onsubmit="return confirm('{% if opp.promoted_project_id %}승격됐던 프로젝트가 이미 삭제된 고아 영업 기회입니다.\n{% endif %}이 영업 기회를 삭제할까요? (되돌릴 수 없음)');">
         <button type="submit" class="op-btn danger">삭제</button>
       </form>
     </div>

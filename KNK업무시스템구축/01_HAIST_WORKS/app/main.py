@@ -11264,8 +11264,19 @@ async def sales_opportunity_delete(request: Request, oid: int):
     if not can_use_sales(u):
         return RedirectResponse(role_home(u), 303)
     with db_session() as c:
-        # 승격된(프로젝트 연결) 건은 삭제 금지 — 데이터 연결성 보호
-        c.execute("DELETE FROM sales_opportunities WHERE id=? AND promoted_project_id IS NULL", (oid,))
+        # v5H226z899 (대표 지시): 삭제 보호는 '살아있는 프로젝트에 연결된 승격건'에만 적용.
+        #   승격 후 그 프로젝트가 이미 삭제된 '고아' 영업기회(검증데이터 잔재)는 삭제 허용.
+        row = c.execute("SELECT promoted_project_id FROM sales_opportunities WHERE id=?", (oid,)).fetchone()
+        if row:
+            ppid = row[0]
+            live = bool(ppid) and bool(
+                c.execute("SELECT 1 FROM projects WHERE id=?", (ppid,)).fetchone())
+            if not live:   # 미승격 또는 고아(프로젝트가 이미 삭제됨) → 삭제 허용
+                try:
+                    c.execute("DELETE FROM sales_opportunity_files WHERE opp_id=?", (oid,))
+                except Exception:
+                    pass
+                c.execute("DELETE FROM sales_opportunities WHERE id=?", (oid,))
     return RedirectResponse("/sales/opportunities", 303)
 
 
