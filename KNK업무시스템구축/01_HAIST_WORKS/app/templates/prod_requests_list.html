@@ -125,7 +125,8 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   <div class="prq-cards">
     {% for pr in rows %}
     {% set _stcls = {'출하':'done','진행중':'prog','취소':'cancel','보류':'hold'}.get(pr.status_ko, 'na') %}
-    <a class="prq-card" href="/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.pr_id }}" title="카드를 누르면 제작요청서(수정·발행) 화면으로 이동">
+    {# z890: 소모품 카드는 소모품 상세로, 제작요청서 카드는 편집(수정·발행)으로 이동 #}
+    <a class="prq-card" href="{% if pr._kind == 'consumable' %}/consumables/{{ pr.co_id }}{% else %}/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.pr_id }}{% endif %}" title="카드를 누르면 {% if pr._kind == 'consumable' %}소모품 상세{% else %}제작요청서(수정·발행){% endif %} 화면으로 이동">
       <table class="pc-tbl">
         <colgroup><col class="pc-l"><col><col class="pc-l"><col><col class="pc-r"></colgroup>
         <tr>

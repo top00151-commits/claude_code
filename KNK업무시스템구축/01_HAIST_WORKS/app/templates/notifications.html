@@ -50,7 +50,7 @@
       {% for n in items %}
       {# v5H226z882(대표 지시): 수정발행으로 대체된 이전 알림(superseded)은 회색·클릭불가(href 생략=링크 아님). #}
       <a class="notif-item {% if not n.is_read and not n.superseded %}unread{% endif %}{% if n.superseded %} superseded{% endif %}"{% if not n.superseded %} href="{{ n.link|default('/home') }}"{% endif %}>
-        <div class="notif-icon">{% if n.kind == 'task' %}📝{% elif n.kind == 'comment' %}💬{% elif n.kind == 'ticket' %}🎫{% elif n.kind == 'change' %}📌{% elif n.kind == 'issue' %}🚨{% elif n.kind == 'po' %}📦{% elif n.kind == 'sales' %}💼{% elif n.kind == 'prod_request' %}📋{% else %}🔔{% endif %}</div>
+        <div class="notif-icon">{% if n.kind == 'task' %}📝{% elif n.kind == 'comment' %}💬{% elif n.kind == 'ticket' %}🎫{% elif n.kind == 'change' %}📌{% elif n.kind == 'issue' %}🚨{% elif n.kind == 'po' %}📦{% elif n.kind == 'sales' %}💼{% elif n.kind == 'prod_request' %}📋{% elif n.kind == 'consumable_request' %}📋{% else %}🔔{% endif %}</div>
         <div class="notif-body">
           <div class="notif-ttl">{{ n.title }}{% if n.superseded %}<span class="nf-badge nf-old">이전 발행 · 사용 안 함</span>{% elif n.is_revision %}<span class="nf-badge nf-rev">수정발행</span>{% endif %}</div>
           {# v5H226z372 리뷰반영: 알림 본문 컬럼명은 body — 기존 n.message(미존재 컬럼)라 본문이 안 보이던 버그 수정. 줄바꿈 보존. #}

@@ -20035,6 +20035,55 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
     except Exception as _e:
         rows = []
         print(f"[z791] 제작요청서 목록(수주별) 조회 실패: {_e}")
+    # v5H226z890 (대표 지시): 소모품(consumable_orders)도 '제작요청서와 같은 것' → 소모품(C)·전체 탭에 카드로 노출.
+    #   기존 prod_requests 쿼리/카드는 불변, 소모품 행을 카드 dict 로 매핑해 덧붙임(회귀 0·projects 병합 패턴).
+    if _biz in ("", "C"):
+        try:
+            with db_session() as _cc:
+                _cconds = ["1=1"]
+                _cparams = []
+                if _q:
+                    _cconds.append("(mgmt_code LIKE ? OR co_no LIKE ? OR customer_name LIKE ? "
+                                   "OR model_name LIKE ? OR equip_name LIKE ?)")
+                    _cparams += [f"%{_q}%"] * 5
+                if _period == "day":
+                    _cconds.append("substr(COALESCE(order_date,''),1,10) = ?"); _cparams.append(_today)
+                elif _period == "week":
+                    _cconds.append("substr(COALESCE(order_date,''),1,10) >= ?"); _cparams.append(_mon)
+                elif _period == "month":
+                    _cconds.append("substr(COALESCE(order_date,''),1,7) = ?"); _cparams.append(_kn.strftime("%Y-%m"))
+                elif _period == "year":
+                    _cconds.append("substr(COALESCE(order_date,''),1,4) = ?"); _cparams.append(_kn.strftime("%Y"))
+                _csql = ("SELECT id AS co_id, mgmt_code, co_no, model_name, equip_name, customer_name, "
+                         "due_date, order_date, status FROM consumable_orders WHERE "
+                         + " AND ".join(_cconds) + " ORDER BY id DESC LIMIT 300")
+                _crows = [dict(r) for r in _cc.execute(_csql, _cparams).fetchall()]
+                _coids = [r["co_id"] for r in _crows if r.get("co_id")]
+                _cqty = {}
+                if _coids:
+                    _cph = ",".join("?" * len(_coids))
+                    for _qr in _cc.execute(
+                        f"SELECT co_id, COALESCE(SUM(qty),0) AS q FROM consumable_order_items "
+                        f"WHERE co_id IN ({_cph}) GROUP BY co_id", _coids):
+                        _qd = dict(_qr); _cqty[_qd["co_id"]] = _qd["q"]
+                _CO_ST_KO = {"DRAFT": "작성중", "QUOTED": "견적", "CONFIRMED": "진행중", "SHIPPED": "출하",
+                             "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
+                for r in _crows:
+                    r["_kind"] = "consumable"       # z890: 카드 href 분기(→/consumables/{co_id})
+                    r["order_no"] = r.get("co_no")
+                    r["cust_name"] = r.get("customer_name")
+                    r["o_due_date"] = r.get("due_date")
+                    r["po_type"] = "소모품"
+                    r["biz_label"] = "소모품"
+                    _cq = _cqty.get(r.get("co_id"))
+                    r["qty"] = int(_cq) if _cq else None   # 빈값=None → 카드 '수량 —'
+                    _st = str(r.get("status") or "").upper()
+                    r["status_ko"] = _CO_ST_KO.get(_st, ("진행중" if not _st else _st))
+                    r["project_id"] = None
+                    r["pr_id"] = None
+                rows = rows + _crows
+        except Exception as _ce:
+            print(f"[z890] 소모품 카드 병합 실패: {_ce}")
     return ctx(request, "prod_requests_list.html", user=u, rows=rows, q=_q,
                period=_period, period_label=_period_label, biz=_biz, biz_label_cur=_biz_label_cur)
 
@@ -36590,6 +36639,17 @@ async def consumables_detail(request: Request, co_id: int):
             ).fetchall()]   # z886: 법인(entity) 포함·본사 먼저 → 선택위젯 본사/베트남 탭
     except Exception:
         _teams = []
+    # v5H226z890 (대표 지시): 개별 인원 선택 — 팀별 구성원(제작요청 통보와 동일)
+    _team_members = {}
+    try:
+        with db_session() as _tmc:
+            for _mr in _tmc.execute(
+                "SELECT u.id, u.team_id, u.name, COALESCE(u.name_vi,'') AS name_vi, "
+                "COALESCE(u.rank,'') AS rank FROM users u "
+                "WHERE COALESCE(u.is_active,1)=1 AND u.team_id IS NOT NULL ORDER BY u.team_id, u.name").fetchall():
+                _d = dict(_mr); _team_members.setdefault(_d["team_id"], []).append(_d)
+    except Exception:
+        _team_members = {}
     _history = _co.co_history_list(co_id)   # v5H226z298: 변경 이력 탭
     # v5H226z299 (대표 지시): 1차 고객사는 등록 고객사 중에서만 선택 — 드롭다운 목록
     _customers = []
@@ -36601,7 +36661,8 @@ async def consumables_detail(request: Request, co_id: int):
         _customers = []
     return ctx(request, "consumable_detail.html",
                user=u, active="consumables",
-               co=co, items=items, teams=_teams, history=_history, customers=_customers,
+               co=co, items=items, teams=_teams, team_members=_team_members,
+               history=_history, customers=_customers,
                STATUS_LABELS=_co.CO_STATUS_LABELS,
                STATUSES=_co.CO_STATUSES)
 
@@ -36883,6 +36944,155 @@ async def consumables_set_status(request: Request, co_id: int):
 # v5H145 (2026-05-05) — 관련부서 통보 발송
 # 대표 의도: 영업이 소모품 발주 등록 → 자재구매팀·생산팀이 시스템 알림으로 즉시 인지
 # 대상: can_use_logistics=1 (자재팀) + can_use_production=1 (생산팀이 있다면) + role IN admin/ceo
+def _consumable_notify_send(co, items, team_ids, user_ids, user):
+    """v5H226z890 (대표 지시): 소모품 통보를 제작요청서 체계로 편입.
+    - 부서(team_ids 전체 구성원) + 개별(user_ids) 수신자에게 WORKS 벨 📋 카드 알림(kind=consumable_request)
+      + 이음(KNK Eum) 카드 푸시(type=prod_request 로 제작요청과 동일 카드 렌더).
+    - ⛔가격 제외(제작요청 규약·전직원 가격 게이트). 수신부서/명단 스냅샷을 consumable_orders 에 저장.
+    반환 dict {ok, sent_to, dept_count, msg_sent, recipients, co_no, [error]}"""
+    from datetime import datetime as _dt2
+    co_id = co.get("id")
+    sender_id = user.get("id") or -1
+    by_name = user.get("name") or user.get("username") or "—"
+    now_str = _dt2.now().strftime("%Y-%m-%d %H:%M")
+    mgmt = co.get("mgmt_code") or "—"
+    co_no = co.get("co_no") or f"CO-{co_id}"
+    model = co.get("model_name") or "소모품"
+    equip = co.get("equip_name") or ""
+    cust = co.get("customer_name") or "—"
+    cc_nm = co.get("cc_name") or ""
+    due = (str(co.get("due_date") or "")[:10]) or "—"
+    note = (co.get("note") or "").strip()
+    line_count = len(items or [])
+    try:
+        _qt = sum(float(it.get("qty") or 0) for it in (items or []))
+        qty_total = int(_qt) if abs(_qt - int(_qt)) < 1e-9 else round(_qt, 2)
+    except Exception:
+        qty_total = ""
+    # 본문 = 제작요청 ■-포맷 미러(가격 제외)
+    _SEP = "━━━━━━━━━━━━━━━━━"
+    _SUB = "─────────────────"
+    title = f"📋 소모품 요청 [{mgmt}] {model}"
+    body = f"📋 소모품 요청서 · {mgmt} · {model}\n{_SEP}\n"
+    _cust_line = f"■ 고객사 : {cust}"
+    if cc_nm:
+        _cust_line += f" · 담당자 {cc_nm}"
+    body += _cust_line + "\n"
+    body += f"■ 품목 : 라인 {line_count}건 · 수량 {qty_total}\n"
+    if equip:
+        body += f"■ 장비 : {equip}\n"
+    body += f"■ 일정 : {due} · 수주 {co_no}\n"
+    if note:
+        body += f"{_SUB}\n📝 기타 : {note}\n"
+    body += f"{_SEP}\n요청자 {by_name} · {now_str}"
+    link = f"/consumables/{co_id}"
+    team_ids = [int(t) for t in (team_ids or []) if str(t).strip().lstrip("-").isdigit()]
+    user_ids = [int(x) for x in (user_ids or []) if str(x).strip().lstrip("-").isdigit()]
+    uids = set()
+    _dept_ids = set()
+    recipients_parts = []
+    dept_names = ""
+    emp_nos = []
+    sent_to = 0
+    dept_count = 0
+    msg_sent = 0
+    msg_err = ""
+    try:
+        with db_session() as c:
+            # 부서 전체 → 그 팀 활성 구성원(발신자 제외) + 구성원 있는 팀만 부서 카운트/이름
+            if team_ids:
+                ph = ",".join("?" * len(team_ids))
+                for r in c.execute(
+                    f"SELECT id FROM users WHERE team_id IN ({ph}) "
+                    f"AND COALESCE(is_active,1)=1 AND id != ?", (*team_ids, sender_id)).fetchall():
+                    uids.add(r[0] if not isinstance(r, dict) else r["id"])
+                _drs = c.execute(
+                    f"SELECT DISTINCT t.id, t.name FROM teams t JOIN users u ON u.team_id=t.id "
+                    f"AND COALESCE(u.is_active,1)=1 AND u.id != ? WHERE t.id IN ({ph})",
+                    (sender_id, *team_ids)).fetchall()
+                _dept_ids = {(dr[0] if not isinstance(dr, dict) else dr["id"]) for dr in _drs}
+                _tn = sorted({(dr[1] if not isinstance(dr, dict) else dr["name"]) for dr in _drs
+                              if (dr[1] if not isinstance(dr, dict) else dr["name"])})
+                dept_names = ", ".join(_tn)
+                for _n in _tn:
+                    recipients_parts.append("🏢 " + _n)
+            # 개별 인원(발신자 제외·부서로 이미 포함되면 중복 방지) — 명단은 개별로 표기(이름 직책 부서)
+            if user_ids:
+                ph2 = ",".join("?" * len(user_ids))
+                for r in c.execute(
+                    f"SELECT * FROM users WHERE id IN ({ph2}) AND COALESCE(is_active,1)=1 AND id != ?",
+                    (*user_ids, sender_id)).fetchall():
+                    rd = dict(r)
+                    uids.add(rd["id"])
+                    recipients_parts.append("👤 " + vname_full(rd))
+            recipients = " · ".join(recipients_parts)
+            dept_count = len(_dept_ids)
+            # WORKS 벨 알림 — kind=consumable_request(📋), 본문=제작요청형
+            for uid in uids:
+                c.execute(
+                    "INSERT INTO notifications(user_id, kind, title, body, link) VALUES(?,?,?,?,?)",
+                    (uid, "consumable_request", title, body, link))
+                sent_to += 1
+            # 이음 사번 수집(있는 인원만)
+            if uids:
+                ph3 = ",".join("?" * len(uids))
+                for er in c.execute(
+                    f"SELECT employee_no FROM users WHERE id IN ({ph3}) AND COALESCE(employee_no,'')<>''",
+                    tuple(uids)).fetchall():
+                    emp_nos.append(er[0] if not isinstance(er, dict) else er["employee_no"])
+            # 수신부서·명단 스냅샷 저장(제작요청 상세처럼 표시용)
+            c.execute(
+                "UPDATE consumable_orders SET notify_recipients=?, notify_dept_names=?, notify_sent_to=?, "
+                "notify_dept_count=?, notify_user_ids=?, notify_team_ids=?, notify_at=?, notify_by_name=? WHERE id=?",
+                (recipients, dept_names, sent_to, dept_count,
+                 ",".join(str(x) for x in sorted(user_ids)),
+                 ",".join(str(x) for x in sorted(team_ids)),
+                 now_str, by_name, co_id))
+    except Exception as e:
+        return {"ok": False, "error": f"db_error: {str(e)[:120]}"}
+    # 이음(KNK Eum) 카드 푸시 — 제작요청과 동일 카드 형태(type=prod_request). 실패해도 벨 알림은 유지.
+    try:
+        from . import sso_client
+        _pub = os.environ.get("KNK_WORKS_PUBLIC_BASE", "https://works.knknara.co.kr").rstrip("/")
+        _full = f"{_pub}{link}"
+        _ST_KO = {"DRAFT": "작성중", "QUOTED": "견적", "CONFIRMED": "진행중", "SHIPPED": "출하",
+                  "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
+        _card = {
+            "type": "prod_request", "title": "소모품 요청서",
+            "mgmt": mgmt, "customer": cust, "cc_name": cc_nm, "author": by_name,
+            "model": model, "equip": equip, "biz": "소모품", "po_type": "소모품",
+            "status": _ST_KO.get(str(co.get("status") or "").upper(), "진행중"),
+            "qty": qty_total, "due": due, "so_nos": [co_no],
+            "cust_req": "", "note": note, "issued_at": now_str, "link": _full,
+        }
+        if emp_nos:
+            _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full, card=_card)
+            if _mres.get("ok"):
+                msg_sent = _mres.get("sent", 0)
+            else:
+                msg_err = _mres.get("error", "")
+        # 발행자 본인에게도 이음 카드(발행 확인) — 통보 수 미포함
+        try:
+            with db_session() as c2:
+                _ar = c2.execute("SELECT employee_no FROM users WHERE id=? AND COALESCE(employee_no,'')<>''",
+                                 (sender_id,)).fetchone()
+            if _ar:
+                _self_emp = _ar[0] if not isinstance(_ar, dict) else _ar["employee_no"]
+                _self_ttl = f"✅ 내가 발행한 소모품 요청 · {mgmt} — {sent_to}명 통보"
+                sso_client.notify_via_messenger([_self_emp], _self_ttl, body, _full, card=_card)
+        except Exception:
+            pass
+    except Exception as _e:
+        msg_err = str(_e)[:100]
+    try:
+        with db_session() as c3:
+            c3.execute("UPDATE consumable_orders SET notify_msg_sent=? WHERE id=?", (msg_sent, co_id))
+    except Exception:
+        pass
+    return {"ok": True, "sent_to": sent_to, "dept_count": dept_count, "msg_sent": msg_sent,
+            "recipients": recipients, "co_no": co_no, "msg_err": msg_err}
+
+
 @app.post("/consumables/{co_id:int}/notify")
 async def consumables_notify(request: Request, co_id: int):
     u = get_user(request)
@@ -36894,60 +37104,19 @@ async def consumables_notify(request: Request, co_id: int):
     if not co:
         return JSONResponse({"ok": False, "error": "not_found"}, 404)
     items = _co.coi_list(co_id) or []
-    line_count = len(items)
-    total = co.get("total_amount") or 0
-    curr = co.get("currency") or "KRW"
-    co_no = co.get("co_no") or f"CO-{co_id}"
-    mgmt = co.get("mgmt_code") or "—"   # v5H226z251: 요청 시 관리코드 동반
-    cust = co.get("customer_name") or "—"
-    if curr == "KRW":
-        amt_txt = f"{total:,.0f}원"
-    else:
-        amt_txt = f"{curr} {total:,.2f}"
-    # v5H226z251 (대표 지시): 외부 협력사·타부서 요청 시 관리코드 + 수주번호를 함께 전달
-    title = f"📦 소모품 수주 [{co_no}] 요청"
-    body = (f"관리코드: {mgmt} · 수주번호: {co_no}\n"
-            f"고객사: {cust} · 라인 {line_count}건 · 합계 {amt_txt}\n"
-            f"요청자: {u.get('name') or u.get('username') or '—'}\n"
-            f"검토 부탁드립니다.")
-    link = f"/consumables/{co_id}"
-    sender_id = u.get("id")
-    # v5H226z292 (대표 지시): 통보 대상 = 사용자가 '선택한 부서(팀)'의 활성 구성원. 발신자 제외.
     try:
         _b = await request.json()
     except Exception:
         _b = {}
-    team_ids = [int(t) for t in (_b.get("team_ids") or []) if str(t).strip().lstrip("-").isdigit()]
-    if not team_ids:
-        return JSONResponse({"ok": False, "error": "no_team",
-                             "message": "통보할 부서를 1개 이상 선택하세요"}, 400)
-    sent_to = 0
-    dept_count = 0
-    try:
-        with db_session() as c:
-            ph = ",".join("?" * len(team_ids))
-            rows = c.execute(
-                f"SELECT id FROM users WHERE team_id IN ({ph}) "
-                f"AND COALESCE(is_active,1)=1 AND id != ?",
-                (*team_ids, sender_id)
-            ).fetchall()
-            # 발송한 부서 수(구성원 있는 선택 팀)
-            dept_count = c.execute(
-                f"SELECT COUNT(DISTINCT team_id) FROM users WHERE team_id IN ({ph}) "
-                f"AND COALESCE(is_active,1)=1 AND id != ?",
-                (*team_ids, sender_id)
-            ).fetchone()[0]
-            for r in rows:
-                uid = r[0] if not isinstance(r, dict) else r["id"]
-                c.execute(
-                    "INSERT INTO notifications(user_id, kind, title, body, link) "
-                    "VALUES(?,?,?,?,?)",
-                    (uid, "consumable_order", title, body, link)
-                )
-                sent_to += 1
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": f"db_error: {e}"}, 500)
-    return JSONResponse({"ok": True, "sent_to": sent_to, "dept_count": dept_count, "co_no": co_no})
+    team_ids = _b.get("team_ids") or []
+    user_ids = _b.get("user_ids") or []   # z890: 개별 인원 추가(제작요청과 동일)
+    if not team_ids and not user_ids:
+        return JSONResponse({"ok": False, "error": "no_target",
+                             "message": "통보할 부서 또는 인원을 선택하세요"}, 400)
+    res = _consumable_notify_send(co, items, team_ids, user_ids, u)
+    if not res.get("ok"):
+        return JSONResponse(res, 500)
+    return JSONResponse(res)
 
 
 @app.post("/consumables/{co_id:int}/delete")

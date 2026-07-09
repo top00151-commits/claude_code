@@ -41,6 +41,16 @@ a { text-decoration: none; color: inherit; }
 .ntf-row input { width:16px; height:16px; }
 .ntf-row .ntf-cnt { margin-left:auto; font-size:11px; color:var(--qv-ink-3); }
 .ntf-foot { padding:12px 18px; border-top:1px solid var(--qv-line); display:flex; gap:8px; justify-content:flex-end; }
+/* v5H226z890(대표 지시): 통보 개별 인원 선택(제작요청과 동일) */
+.ntf-teamblk { border-bottom:1px solid #f1f0ec; }
+.ntf-teamrow { display:flex; align-items:center; gap:6px; }
+.ntf-teamrow .ntf-row { flex:1; border-bottom:none; }
+.ntf-exp { flex-shrink:0; border:1px solid #cbd5e1; background:#fff; color:#2563eb; border-radius:6px; padding:1px 8px; font-size:11px; cursor:pointer; }
+.ntf-members { display:none; flex-wrap:wrap; gap:4px 12px; padding:2px 0 8px 26px; }
+.ntf-members.knkp-open, .ntf-members.open { display:flex; }
+.ntf-mrow { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#334155; cursor:pointer; }
+.ntf-mrow input { width:15px; height:15px; }
+.ntf-mrank { color:#94a3b8; font-size:10.5px; }
 .card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 12px; padding: 20px; margin: 0 32px 16px; }
 /* v5H226z306(대표 지시): 정보란 재배치 — 의미 묶음 + 칸 테두리(엑셀형) + 읽기전용 칸 구분 */
 .header-grid { display: block; }
@@ -173,10 +183,18 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
       </div>
     </div>
 
-    {# v5H226z292 (대표 지시): 관련부서 통보 — 부서 선택 모달 #}
+    {# v5H226z890 (대표 지시): 통보받은 부서·인원 표시 — 제작요청서 상세와 동일. co.notify_* 스냅샷. #}
+    {% if co.notify_sent_to %}
+    <div style="margin:0 32px 12px;padding:9px 14px;border-radius:9px;background:#f0f9ff;border:1px solid #bae6fd;font-size:12.5px;color:#075985;line-height:1.6;">
+      📣 <b>통보 완료</b> — {{ co.notify_dept_count or 0 }}부서 · {{ co.notify_sent_to or 0 }}명{% if co.notify_msg_sent %} · 📱 이음 {{ co.notify_msg_sent }}{% endif %}{% if co.notify_at %} <span style="color:#64748b;">({{ co.notify_at }}{% if co.notify_by_name %} · {{ co.notify_by_name }}{% endif %})</span>{% endif %}
+      {% if co.notify_recipients %}<br><span style="color:#0c4a6e;">📋 받는 사람 : {{ co.notify_recipients }}</span>{% endif %}
+    </div>
+    {% endif %}
+
+    {# v5H226z292 (대표 지시): 관련부서 통보 — 부서·인원 선택 모달 #}
     <div id="notifyModal" class="ntf-modal" style="display:none;">
       <div class="ntf-card">
-        <div class="ntf-head">📤 관련부서 통보 — 받을 부서를 선택하세요</div>
+        <div class="ntf-head">📤 관련부서 통보 — 받을 부서·인원을 선택하세요</div>
         <div class="ntf-body">
           <div class="ntf-actions"><a onclick="ntfAll(true)">전체 선택</a> · <a onclick="ntfAll(false)">전체 해제</a></div>
           {# z886(대표 지시·규정): 본사/베트남 책갈피(탭)+검색+선택칩 — 공용 선택위젯 #}
@@ -187,7 +205,19 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
               {% if _grp %}
               <div class="knkp-panel" data-entity="{{ _ent }}" data-knkp-label="{{ _elabel }}">
                 {% for t in _grp %}
-                <label class="ntf-row knkp-item" data-kind="dept" data-label="{{ t.name }}"><input type="checkbox" class="ntf-ck" value="{{ t.id }}"{% if t.name == '구매팀' %} checked{% endif %}> {{ t.name }} <span class="ntf-cnt">{{ t.member_count }}명</span></label>
+                <div class="ntf-teamblk">
+                  <div class="ntf-teamrow">
+                    <label class="ntf-row knkp-item" data-kind="dept" data-label="{{ t.name }}"><input type="checkbox" class="ntf-ck" value="{{ t.id }}"{% if t.name == '구매팀' %} checked{% endif %}> {{ t.name }} <span class="ntf-cnt">{{ t.member_count }}명</span></label>
+                    {% if team_members.get(t.id) %}<button type="button" class="ntf-exp" onclick="ntfExp({{ t.id }},this)">▸개별</button>{% endif %}
+                  </div>
+                  {% if team_members.get(t.id) %}
+                  <div class="ntf-members knkp-collapse" data-team="{{ t.id }}">
+                    {% for m in team_members.get(t.id) %}
+                    <label class="ntf-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" class="ntf-uck" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} <span class="ntf-mrank">{{ m.rank }}</span>{% endif %}</label>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </div>
                 {% endfor %}
               </div>
               {% endif %}
@@ -589,23 +619,27 @@ async function delLine(iid) {
 function sendNotify() { document.getElementById('notifyModal').style.display = 'flex'; }
 function closeNotify() { document.getElementById('notifyModal').style.display = 'none'; }
 function ntfAll(on) { document.querySelectorAll('.ntf-ck').forEach(c => c.checked = on); if (window.KNKPicker) KNKPicker.refresh('knkpNtf'); }
+// v5H226z890(대표 지시): 개별 인원 펼치기(제작요청과 동일)
+function ntfExp(tid, btn) { var m = document.querySelector('.ntf-members[data-team="'+tid+'"]'); if(!m) return; var show = !m.classList.contains('open'); m.classList.toggle('open', show); if(btn) btn.textContent = show ? '▾개별' : '▸개별'; }
 async function doNotify() {
   const msg = document.getElementById('notifyMsg');
   const sendBtn = document.getElementById('ntfSendBtn');
-  const ids = Array.from(document.querySelectorAll('.ntf-ck:checked')).map(c => parseInt(c.value));
-  if (!ids.length) { alert('통보할 부서를 1개 이상 선택하세요.'); return; }
+  const team_ids = Array.from(document.querySelectorAll('.ntf-ck:checked')).map(c => parseInt(c.value));
+  const user_ids = Array.from(document.querySelectorAll('.ntf-uck:checked')).map(c => parseInt(c.value));
+  if (!team_ids.length && !user_ids.length) { alert('통보할 부서 또는 인원을 1개 이상 선택하세요.'); return; }
   sendBtn.disabled = true; sendBtn.textContent = '⏳ 발송 중...';
   try {
     const r = await fetch(`/consumables/${CO_ID}/notify`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({team_ids: ids})
+      body: JSON.stringify({team_ids: team_ids, user_ids: user_ids})
     });
     const d = await r.json();
     if (d.ok) {
       closeNotify();
       msg.className = 'ok';
-      msg.textContent = `✅ ${d.dept_count||ids.length}개 부서 ${d.sent_to||0}명에게 통보 완료`;
+      msg.textContent = `✅ ${d.sent_to||0}명에게 통보 완료` + (d.msg_sent ? ' · 📱'+d.msg_sent : '');
       const nb = document.getElementById('notifyBtn'); nb.textContent = '✓ 통보 완료';
+      setTimeout(function(){ location.reload(); }, 900);   // 수신부서 표시 갱신
     } else {
       msg.className = 'err'; msg.textContent = '⚠ ' + (d.message || d.error || '발송 실패');
     }

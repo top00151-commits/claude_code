@@ -2865,6 +2865,17 @@ def init_db():
                 if _dc not in cocols:
                     c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_dc} {_typ}")
                     print(f"[v5H226z467] consumable_orders.{_dc} 컬럼 추가됨")
+            # v5H226z890 (대표 지시): 소모품 통보를 제작요청서 체계로 편입 — 통보 대상/수신자 스냅샷 기록.
+            #   제작요청(prod_requests)의 recipients/dept_names/user_ids/team_ids/sent_to/dept_count 와 대응. 추가형·무손실.
+            for _nc in ("notify_recipients", "notify_dept_names", "notify_user_ids",
+                        "notify_team_ids", "notify_at", "notify_by_name"):
+                if _nc not in cocols:
+                    c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_nc} TEXT")
+                    print(f"[v5H226z890] consumable_orders.{_nc} 컬럼 추가됨")
+            for _nc in ("notify_sent_to", "notify_dept_count", "notify_msg_sent"):
+                if _nc not in cocols:
+                    c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_nc} INTEGER DEFAULT 0")
+                    print(f"[v5H226z890] consumable_orders.{_nc} 컬럼 추가됨")
             # v5H226z286 (대표 지시): 엑셀의 사진 칸 2개 모두 반영 — 라인에 '사진위치' 이미지 컬럼 추가.
             _coicols = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
             for _lc in ("image_loc_path", "image_loc_thumb_path"):
