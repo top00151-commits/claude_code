@@ -36667,6 +36667,36 @@ async def consumables_detail(request: Request, co_id: int):
                STATUSES=_co.CO_STATUSES)
 
 
+@app.get("/consumables/{co_id:int}/prod-request", response_class=HTMLResponse)
+async def consumable_prod_request_view(request: Request, co_id: int):
+    """v5H226z892 (대표 지시): 소모품 '제작요청서' 보기 페이지 — 제작요청서목록 소모품 카드 클릭 시
+    편집 상세(소모품 상세) 대신 이 읽기 페이지로 이동(제작요청서와 동일 레이아웃·가격 제외).
+    여기서 작업일정표·전사일정표로 이동. 편집은 소모품 상세에서만."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    co = _co.co_get(co_id)
+    if not co:
+        return RedirectResponse("/consumables", 303)
+    items = _co.coi_list(co_id) or []
+    try:
+        _qt = sum(float(it.get("qty") or 0) for it in items)
+        qty_total = int(_qt) if abs(_qt - int(_qt)) < 1e-9 else round(_qt, 2)
+    except Exception:
+        qty_total = ""
+    _imgs = [it for it in items if it.get("image_path") or it.get("image_thumb_path")]
+    _FORM = {"ASSEMBLY": "🏭 완제품", "SEMI": "📦 제품", "PARTS": "🧰 상품", "ETC": "🗂 기타",
+             "제품": "📦 제품", "상품": "🧰 상품", "기타": "🗂 기타"}
+    _ft = str(co.get("form_type") or "").strip()
+    form_label = _FORM.get(_ft) or _FORM.get(_ft.upper()) or (_ft or "—")
+    export_label = "🚢 수출" if co.get("is_export") else "🏠 내수"
+    return ctx(request, "consumable_prod_request.html", user=u, active="consumables",
+               co=co, items=items, qty_total=qty_total, images=_imgs,
+               form_label=form_label, export_label=export_label)
+
+
 @app.post("/consumables/{co_id:int}/items/{iid:int}/edit")
 async def consumables_item_edit(request: Request, co_id: int, iid: int):
     u = get_user(request)

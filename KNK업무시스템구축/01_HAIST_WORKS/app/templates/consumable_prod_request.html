@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>소모품 제작요청서 · {{ co.mgmt_code or co.co_no }} · KNK HAIST WORKS</title>
+{# v5H226z892 (대표 지시): 소모품 '제작요청서' 보기 페이지 — 제작요청서(prod_request_edit 보기)와 동일 레이아웃. 가격 제외·읽기용·편집은 소모품 상세에서. #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.prq-wrap { width:100%; margin:0; padding:0 32px; box-sizing:border-box; }
+.prq-box { background:#fff; border:1px solid var(--line,#eef0f4); border-radius:11px; overflow:hidden; margin:0 0 14px; }
+@media (max-width:640px){ .prq-wrap { padding:0 16px; } }
+.prq-hd { padding:9px 13px; background:#fff7ed; border-bottom:1px solid #fed7aa; font-size:13.5px; font-weight:800; color:#9a3412; }
+.prq-bd { padding:13px; }
+.prq-meta { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; color:var(--mute,#64748b); margin-bottom:10px; }
+.prq-lbl { font-size:11.5px; font-weight:700; color:#9a3412; margin:10px 0 3px; }
+.prq-ro { white-space:pre-wrap; font-size:12.5px; line-height:1.55; color:#334155; background:var(--paper-2,#f7f8fa); border:1px solid var(--line,#eef0f4); border-radius:7px; padding:9px 11px; }
+.prq-sec { font-size:12px; font-weight:800; color:#9a3412; margin:14px 0 6px; padding-bottom:4px; border-bottom:1px solid #fde7d3; }
+.prq-info { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0 16px; margin-bottom:2px; }
+.prq-ir { display:flex; gap:8px; font-size:12.5px; padding:4px 2px; border-bottom:1px dashed var(--line,#eef0f4); }
+.prq-ir .k { flex:0 0 78px; color:var(--mute,#64748b); font-weight:700; font-size:11.5px; }
+.prq-ir .v { flex:1; color:#1f2937; word-break:break-word; }
+.prq-imgs { display:flex; flex-wrap:wrap; gap:7px; margin:2px 0 6px; }
+.prq-imgcell { display:block; width:96px; height:96px; border-radius:7px; overflow:hidden; border:1px solid var(--line,#eef0f4); background:var(--paper-2,#f7f8fa); }
+.prq-imgcell img { width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in; }
+.prq-imgempty { font-size:11.5px; color:var(--mute,#64748b); font-style:italic; padding:3px 0; }
+.prq-footer { display:flex; justify-content:flex-start; align-items:center; gap:10px 12px; margin-top:16px; flex-wrap:wrap; }
+.prq-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = "sales" %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/consumables">소모품 수주</a> · <a href="/consumables/{{ co.id }}">{{ co.mgmt_code or co.co_no }}</a> · <b>제작요청서</b></div>
+      <h1 class="page-title">📋 소모품 제작요청서 <span style="font-size:14px;font-weight:600;color:var(--mute,#64748b);">— {{ co.model_name or '소모품' }}</span></h1>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a class="btn btn-secondary" href="/prod-requests?biz=C" title="제작요청서목록(소모품)">📋 제작요청서목록</a>
+      <a class="btn btn-secondary" href="/consumables/{{ co.id }}">↩ 소모품 상세</a>
+    </div>
+  </div>
+
+  <div class="prq-wrap">
+    <div class="prq-box">
+      <div class="prq-hd">📋 소모품 제작요청서 · {{ co.mgmt_code or co.co_no }}</div>
+      <div class="prq-bd">
+        {# 발행·통보 정보(z890 스냅샷) — 제작요청서와 동일 #}
+        {% if co.notify_sent_to %}
+        <div class="prq-meta">
+          {% if co.notify_at %}<span>🗓 통보 <b style="color:#334155;">{{ co.notify_at }}</b></span>{% endif %}
+          {% if co.notify_by_name %}<span>✍ {{ co.notify_by_name }}</span>{% endif %}
+          <span>📣 통보 {{ co.notify_dept_count or 0 }}부서 · {{ co.notify_sent_to or 0 }}명{% if co.notify_msg_sent %} · 📱 {{ co.notify_msg_sent }}{% endif %}</span>
+          {% if co.notify_recipients %}<span style="color:#334155;">📋 받는 사람 {{ co.notify_recipients }}</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="prq-meta"><span style="color:#b45309;">📣 아직 관련부서에 통보하지 않았습니다 — 소모품 상세의 <b>‘📤 관련부서 통보’</b>로 발행하세요.</span></div>
+        {% endif %}
+
+        <div class="prq-sec">📄 기본 정보</div>
+        <div class="prq-info">
+          <div class="prq-ir"><span class="k">관리번호</span><span class="v" style="color:#9a3412;font-weight:800;">{{ co.mgmt_code or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">수주번호</span><span class="v">{{ co.co_no or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">고객사</span><span class="v">{{ co.customer_name or '—' }}</span></div>
+          {% if co.cc_name %}<div class="prq-ir"><span class="k">고객 담당자</span><span class="v">{{ co.cc_name }}</span></div>{% endif %}
+          <div class="prq-ir"><span class="k">장비명</span><span class="v">{{ co.equip_name or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">수량</span><span class="v">{{ qty_total if qty_total not in ('', none) else '—' }}</span></div>
+          <div class="prq-ir"><span class="k">납기</span><span class="v">{{ (co.due_date or '')[:10] or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">형태</span><span class="v">{{ form_label }}</span></div>
+          <div class="prq-ir"><span class="k">사업부</span><span class="v">🧴 소모품</span></div>
+          <div class="prq-ir"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></div>
+          {% if co.order_date %}<div class="prq-ir"><span class="k">발주일</span><span class="v">{{ (co.order_date)[:10] }}</span></div>{% endif %}
+          {% if co.ship_to %}<div class="prq-ir"><span class="k">납품위치</span><span class="v">{{ co.ship_to }}</span></div>{% endif %}
+        </div>
+
+        <div class="prq-sec">🛠 제작 사양</div>
+        <div class="prq-info">
+          <div class="prq-ir"><span class="k">모델명</span><span class="v">{{ co.model_name or '—' }}</span></div>
+          <div class="prq-ir"><span class="k">라인</span><span class="v">{{ items|length }}건</span></div>
+        </div>
+        {% if co.source_file %}<div class="prq-lbl">원본 파일</div><div class="prq-ro">{{ co.source_file }}</div>{% endif %}
+        {% if co.note %}<div class="prq-lbl">요청 · 기타 사항</div><div class="prq-ro">{{ co.note }}</div>{% endif %}
+
+        <div class="prq-sec">📷 참고 이미지 <span style="font-weight:600;font-size:11px;color:var(--mute,#64748b);">(라인 사진 · 눌러서 확대)</span></div>
+        {% if images %}
+        <div class="prq-imgs">
+          {% for it in images %}
+          <a class="prq-imgcell" href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="라인 {{ it.line_no }} 사진" target="_blank"><img src="{{ it.image_thumb_path or it.image_path }}" alt="라인 {{ it.line_no }} 사진" loading="lazy"></a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="prq-imgempty">첨부된 이미지가 없습니다.</div>
+        {% endif %}
+
+        {# 이동 버튼 — 제작요청서(사진2)와 동일: 작업일정표 · 전사일정표. 편집은 소모품 상세. #}
+        <div class="prq-footer">
+          {% if can_sales_amt %}<a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ co.id }}" title="작업일정표에서 이 소모품 위치로 이동">📅 작업일정표 바로가기</a>{% else %}<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — 아래 '전사일정표 바로가기'를 이용하세요" aria-disabled="true">📅 작업일정표 바로가기</span>{% endif %}
+          <a class="btn btn-secondary" href="/dept/schedule" title="전사 일정표 열기 — 작업일정표 접근이 어려운 분은 여기로">🗓 전사일정표 바로가기</a>
+          <div class="prq-actions">
+            <a class="btn btn-secondary" href="/consumables/{{ co.id }}" title="소모품 상세(라인·사진·정보 편집)로">✏️ 소모품 상세(편집)로</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+</body>
+</html>
