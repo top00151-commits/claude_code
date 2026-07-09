@@ -80,13 +80,16 @@ table.items tbody tr:hover td { background: #fffdf5; }   /* board 크림 hover *
 .header-grid .ef { flex:1 1 0; width:auto; min-width:0; box-sizing:border-box; padding:1px 6px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:12.5px; font-weight:600; color:var(--qv-ink-1,#1f2937); background:transparent; }
 .header-grid .ef:hover { border-color:var(--qv-line); background:#fff; }
 .header-grid .ef:focus { outline:none; border-color:#2563eb; background:#fff; }
-/* v5H226z888(대표 지시): 정보칸에 마우스 올릴 때 화면이 미세하게 흔들리는 문제 해결.
-   원인 = 날짜칸(type=date)의 브라우저 네이티브 스피너·지우기(×) 버튼이 hover/focus 때 나타나며 내부 내용이 밀림.
-   → 스피너·지우기 버튼 숨김(달력 아이콘은 유지·클릭 선택 가능) + .ef hover 테두리는 부드럽게(깜빡임 완화). */
-input[type="date"]::-webkit-inner-spin-button,
-input[type="date"]::-webkit-clear-button { -webkit-appearance:none; appearance:none; display:none; margin:0; }
-input[type="date"]::-webkit-calendar-picker-indicator { margin:0; }
-.header-grid .ef, table.items input[type="date"] { transition:border-color .12s ease, background-color .12s ease; }
+/* v5H226z889(대표 지시): 정보칸에 마우스 올리면 화면이 미세하게 흔들리는 문제 — 실측으로 진짜 원인 확정.
+   측정(실브라우저 CSSOM 열거 + 실제 hover): 흔들림의 원인은 날짜칸이 아니라, 정보칸을 감싼 .card 다.
+   v5_tokens.css 의 `.card:hover{ transform: translateY(-2px) }`(+ `.card{ transition: all .2s }`)가
+   이 페이지 .card 에 그대로 적용되어(다른 시트가 덮지 않음) → hover 시 카드+모든 정보셀이 정확히 2px
+   위로(0.2s 애니메이션) 이동하고, 카드 경계에서는 hover on/off 되먹임으로 진동(측정: transform
+   translateY -2 ↔ 0 왕복). 정보 카드는 클릭 대상이 아니므로 hover 시 이동/전환을 전부 제거해
+   레이아웃을 불변으로 고정(재현 페이지에서 hover 전/후 이동 0px 확인).
+   (z888 의 '날짜칸 스피너·지우기 버튼' 가설은 원인이 아니어서 해당 블록을 revert.) */
+.card { transition: none; }
+.card:hover { transform: none; box-shadow: 0 1px 2px rgba(15,23,42,.04); border-color: var(--qv-line); }
 .header-grid .ef.cust-bad { color:#b91c1c; background:#fef2f2; }
 .co-tabs { display:flex; gap:6px; margin:18px 0 0; }
 .co-tab { padding:8px 16px; border:1px solid var(--qv-line); border-bottom:none; border-radius:8px 8px 0 0; background:#f4f4f5; color:var(--qv-ink-2); font-weight:700; font-size:13px; cursor:pointer; }
