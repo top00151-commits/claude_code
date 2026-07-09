@@ -149,24 +149,25 @@ select.prq-in { appearance:auto; }
           </style>
           <details class="pns-wrap">
             <summary class="pns-sum">👥 통보 대상 선택 <span class="pns-hint">— 선택하지 않으면 이 사업부의 관련 부서 전체에 통보됩니다. 특정 인원만 고르면 그 사람에게만 통보됩니다.</span></summary>
-            <div class="pns-body">
+            {# z886(대표 지시·규정): 본사/베트남 책갈피(탭)+검색+선택칩 — 공용 선택위젯 #}
+            <div class="pns-body" id="knkpPns" data-knk-picker data-knkp-ph="🔍 부서·이름 검색">
               {% set _hq = teams|rejectattr('entity','equalto','VN')|list %}
               {% set _vn = teams|selectattr('entity','equalto','VN')|list %}
-              {% for _grp, _glabel in [(_hq,'🏢 본사'), (_vn,'🌏 베트남')] %}
+              {% for _grp, _glabel, _ent in [(_hq,'🏢 본사','KOR'), (_vn,'🌏 베트남','VN')] %}
                 {% if _grp %}
-                <div class="pns-corp">
-                  <div class="pns-corp-ttl">{{ _glabel }}</div>
+                <div class="pns-corp knkp-panel" data-entity="{{ _ent }}" data-knkp-label="{{ _glabel }}">
+                  <div class="pns-corp-ttl" data-knkp-paneltitle>{{ _glabel }}</div>
                   {% for t in _grp %}
                   <div class="pns-team">
-                    <label class="pns-team-row">
+                    <label class="pns-team-row knkp-item" data-kind="dept" data-label="{{ t.name }}">
                       <input type="checkbox" name="add_team_ids" value="{{ t.id }}"> <b>{{ t.name }}</b>
                       <span class="pns-tcnt">{{ t.member_count }}명</span>
                     </label>
                     {% if team_members.get(t.id) %}
                     <button type="button" class="pns-exp" onclick="pnsExp(this)">▸ 개별</button>
-                    <div class="pns-members">
+                    <div class="pns-members knkp-collapse">
                       {% for m in team_members.get(t.id) %}
-                      <label class="pns-mrow"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ m.rank }}{% endif %}</label>
+                      <label class="pns-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ m.rank }}{% endif %}</label>
                       {% endfor %}
                     </div>
                     {% endif %}
@@ -300,7 +301,8 @@ select.prq-in { appearance:auto; }
           </style>
           <details class="pae-wrap"{% if pr and not pr.wt_team_ids and not pr.user_ids %} open{% endif %}>
             <summary class="pae-sum">👥 통보 대상 추가 <span class="pae-hint">— 원래 통보 대상엔 항상 다시 통보됩니다. 여기서 부서·인원을 더 추가하세요.</span></summary>
-            <div class="pae-body">
+            {# z886(대표 지시·규정): 본사/베트남 책갈피(탭)+검색+선택칩 — 공용 선택위젯 #}
+            <div class="pae-body" id="knkpPae" data-knk-picker data-knkp-ph="🔍 부서·이름 검색">
               {% if pr and not pr.wt_team_ids and not pr.user_ids %}
               {# v5H226z817 (대표 지시 ①): 옛 발행분(정밀정보 없음) — 부서 전체 폴백 대신 '고른 대상에게만' 정밀 전환 안내·체크 #}
               <div style="margin:6px 0 10px;padding:9px 11px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;font-size:12px;color:#9a3412;line-height:1.6;">
@@ -313,21 +315,21 @@ select.prq-in { appearance:auto; }
               {% endif %}
               {% set _hq = teams|rejectattr('entity','equalto','VN')|list %}
               {% set _vn = teams|selectattr('entity','equalto','VN')|list %}
-              {% for _grp, _glabel in [(_hq,'🏢 본사'), (_vn,'🌏 베트남')] %}
+              {% for _grp, _glabel, _ent in [(_hq,'🏢 본사','KOR'), (_vn,'🌏 베트남','VN')] %}
                 {% if _grp %}
-                <div class="pae-corp">
-                  <div class="pae-corp-ttl">{{ _glabel }}</div>
+                <div class="pae-corp knkp-panel" data-entity="{{ _ent }}" data-knkp-label="{{ _glabel }}">
+                  <div class="pae-corp-ttl" data-knkp-paneltitle>{{ _glabel }}</div>
                   {% for t in _grp %}
                   <div class="pae-team">
-                    <label class="pae-team-row">
+                    <label class="pae-team-row knkp-item" data-kind="dept" data-label="{{ t.name }}">
                       <input type="checkbox" name="add_team_ids" value="{{ t.id }}"> <b>{{ t.name }}</b>
                       <span class="pae-tcnt">{{ t.member_count }}명</span>
                     </label>
                     {% if team_members.get(t.id) %}
                     <button type="button" class="pae-exp" onclick="paeExp(this)">▸ 개별</button>
-                    <div class="pae-members">
+                    <div class="pae-members knkp-collapse">
                       {% for m in team_members.get(t.id) %}
-                      <label class="pae-mrow"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ m.rank }}{% endif %}</label>
+                      <label class="pae-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ m.rank }}{% endif %}</label>
                       {% endfor %}
                     </div>
                     {% endif %}
@@ -390,6 +392,8 @@ select.prq-in { appearance:auto; }
       </div>
     </div>
     {% endif %}
+    {# z886(대표 지시·규정): 부서/사용자 선택창 표준 위젯 — 신규(#knkpPns)·수정(#knkpPae) 두 분기 공통 로드 #}
+    {% include "_knk_picker.html" %}
   </div>
 
   {# v5H226z772/z774: 참고 이미지 AJAX(추가/삭제) + 보기/수정 토글 #}

@@ -1,0 +1,232 @@
+{# =========================================================================
+   KNK 공용 선택위젯 (z886 · 대표 지시 규정)
+   부서/사용자 선택창 표준 — 🏢본사 / 🌏베트남 책갈피(탭) + 검색 + 선택칩(항상 확인)
+   ─────────────────────────────────────────────────────────────────────────
+   [사용법 · 규정]
+   1) 이 파티셜을 페이지에 한 번 include:  {% include "_knk_picker.html" %}
+   2) 선택창 루트에 표시:   <div id="..." data-knk-picker> ... </div>
+   3) 법인 패널(본사/베트남/기타):
+        <div class="knkp-panel" data-entity="KOR" data-knkp-label="🏢 본사"> ...행... </div>
+        <div class="knkp-panel" data-entity="VN"  data-knkp-label="🌏 베트남"> ...행... </div>
+      (패널은 루트의 직속 자식 · entity=KOR/VN/ETC)
+   4) 선택 행(부서/사람) 라벨에 표시:
+        <label class="knkp-item" data-kind="dept" data-label="구매팀"><input type=checkbox ...> ...</label>
+        <label class="knkp-item" data-kind="user" data-label="안지연"><input type=checkbox ...> ...</label>
+   5) 개별(멤버) 접이식 컨테이너엔 class="knkp-collapse" 추가(검색 시 자동 펼침).
+   6) 패널 안에 원래 있던 법인 제목은 data-knkp-paneltitle 로 표시하면 탭이 대체(자동 숨김).
+   7) JS로 체크박스를 바꾼 뒤엔  KNKPicker.refresh(rootEl)  호출(선택칩·탭 갱신).
+   ── 기존 체크박스 name/value/class/onchange 는 절대 건드리지 않음(폼·기존 로직 100% 보존) ──
+========================================================================= #}
+<script>
+(function () {
+  "use strict";
+  /* ---- 스타일 1회 주입(중복 방지) ---- */
+  if (!document.getElementById("knkpStyle")) {
+    var st = document.createElement("style");
+    st.id = "knkpStyle";
+    st.textContent = [
+      ".knkp-on{position:relative;}",
+      ".knkp-bar{display:flex;flex-direction:column;gap:7px;padding:4px 0 8px;background:inherit;}",
+      ".knkp-search{width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:7px 11px;font-size:13px;outline:none;}",
+      ".knkp-search:focus{border-color:#f97316;box-shadow:0 0 0 2px #fed7aa;}",
+      ".knkp-tabs{display:flex;gap:6px;}",
+      ".knkp-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#f4f4f5;color:#52525b;font-size:12.5px;font-weight:800;cursor:pointer;line-height:1.15;}",
+      ".knkp-tab.active{background:#fff;color:#9a3412;border-color:#fdba74;box-shadow:0 -2px 0 #f97316 inset;}",
+      ".knkp-cnt{display:inline-flex;gap:4px;align-items:center;}",
+      ".knkp-badge-chk{background:#f97316;color:#fff;border-radius:99px;padding:0 6px;font-size:10.5px;font-weight:800;}",
+      ".knkp-badge-hit{background:#dbeafe;color:#1d4ed8;border-radius:99px;padding:0 6px;font-size:10.5px;font-weight:700;}",
+      ".knkp-chips{display:flex;flex-wrap:wrap;gap:5px;min-height:22px;padding-top:1px;}",
+      ".knkp-chip{display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:99px;padding:2px 4px 2px 9px;font-size:11.5px;font-weight:700;color:#334155;max-width:100%;}",
+      ".knkp-chip-user{background:#eff6ff;border-color:#bfdbfe;color:#1e40af;}",
+      ".knkp-chip-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}",
+      ".knkp-chip-x{border:none;background:none;color:#94a3b8;font-weight:800;cursor:pointer;font-size:12px;line-height:1;padding:0 2px;}",
+      ".knkp-chip-x:hover{color:#dc2626;}",
+      ".knkp-chips-empty{font-size:11.5px;color:#94a3b8;}",
+      ".knkp-scroll{max-height:46vh;overflow:auto;padding:2px 1px 0;}",
+      ".knkp-panel{display:none;}",
+      ".knkp-panel.knkp-active{display:block;}",
+      ".knkp-item.knkp-hide{display:none !important;}",
+      ".knkp-collapse.knkp-open{display:flex !important;}",
+      ".knkp-noresult{display:none;font-size:12px;color:#94a3b8;padding:10px 4px;}",
+      ".knkp-noresult.on{display:block;}"
+    ].join("");
+    document.head.appendChild(st);
+  }
+
+  function norm(s) { return (s == null ? "" : ("" + s)).toLowerCase().replace(/\s+/g, ""); }
+  function esc(s) {
+    return (s == null ? "" : ("" + s)).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function fireChange(cb) {
+    var ev;
+    try { ev = new Event("change", { bubbles: true }); }
+    catch (e) { ev = document.createEvent("HTMLEvents"); ev.initEvent("change", true, false); }
+    cb.dispatchEvent(ev);
+  }
+
+  function enhance(root) {
+    if (!root || root.__knkp) return;
+    var panels = [].slice.call(root.querySelectorAll(".knkp-panel"));
+    if (!panels.length) return;
+    root.__knkp = true;
+    root.classList.add("knkp-on");
+
+    /* ---- 컨트롤(검색·탭·선택칩) 만들기 ---- */
+    var bar = document.createElement("div"); bar.className = "knkp-bar";
+    var search = document.createElement("input");
+    search.type = "text"; search.className = "knkp-search";
+    search.setAttribute("autocomplete", "off");
+    search.placeholder = root.getAttribute("data-knkp-ph") || "🔍 부서·이름 검색";
+    // 폼 안 검색칸 → Enter 로 폼이 제출되지 않게 차단(제작요청서·등록폼 안전)
+    search.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.keyCode === 13) { e.preventDefault(); }
+    });
+    var tabs = document.createElement("div"); tabs.className = "knkp-tabs";
+    var chips = document.createElement("div"); chips.className = "knkp-chips";
+    bar.appendChild(search); bar.appendChild(tabs); bar.appendChild(chips);
+
+    /* ---- 패널을 스크롤 박스로 이동(바+칩은 항상 상단 고정 노출) ---- */
+    var scroll = document.createElement("div"); scroll.className = "knkp-scroll";
+    root.insertBefore(scroll, panels[0]);
+    panels.forEach(function (p) {
+      if (p.tagName === "DETAILS") { p.open = true; }
+      scroll.appendChild(p);
+      // 패널 안 원래 법인 제목은 탭이 대체 → 숨김
+      var t = p.querySelectorAll("[data-knkp-paneltitle]");
+      for (var i = 0; i < t.length; i++) { t[i].style.display = "none"; }
+    });
+    var noRes = document.createElement("div");
+    noRes.className = "knkp-noresult";
+    noRes.textContent = "검색 결과 없음";
+    scroll.appendChild(noRes);
+    root.insertBefore(bar, scroll);
+
+    /* ---- 탭 버튼 ---- */
+    var tabBtns = [];
+    panels.forEach(function (p, i) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "knkp-tab";
+      var lbl = p.getAttribute("data-knkp-label") || p.getAttribute("data-entity") || ("그룹 " + (i + 1));
+      b.innerHTML = '<span class="knkp-tab-l">' + esc(lbl) + '</span><span class="knkp-cnt"></span>';
+      b.addEventListener("click", function () { setActive(i); });
+      tabs.appendChild(b); tabBtns.push(b);
+    });
+
+    var active = 0;
+    function setActive(i) {
+      active = i;
+      panels.forEach(function (p, j) { p.classList.toggle("knkp-active", j === i); });
+      tabBtns.forEach(function (b, j) { b.classList.toggle("active", j === i); });
+      applySearch();
+    }
+
+    function panelItems(p) { return [].slice.call(p.querySelectorAll(".knkp-item")); }
+    function cbOf(it) { return it.querySelector('input[type="checkbox"]'); }
+
+    function applySearch() {
+      var q = norm(search.value);
+      var activePanel = panels[active];
+      var shown = 0;
+      panels.forEach(function (p) {
+        var its = panelItems(p);
+        its.forEach(function (it) {
+          var hit = !q || norm(it.getAttribute("data-label")).indexOf(q) >= 0;
+          it.classList.toggle("knkp-hide", !hit);
+          if (p === activePanel && hit) shown++;
+        });
+        // 검색 중이면 매칭 멤버 접이식 자동 펼침
+        var cols = [].slice.call(p.querySelectorAll(".knkp-collapse"));
+        cols.forEach(function (col) {
+          if (!q) { col.classList.remove("knkp-open"); return; }
+          var has = col.querySelector(".knkp-item:not(.knkp-hide)");
+          col.classList.toggle("knkp-open", !!has);
+        });
+      });
+      noRes.classList.toggle("on", q && shown === 0);
+      updateBadges();
+    }
+
+    function updateBadges() {
+      var q = norm(search.value);
+      panels.forEach(function (p, pi) {
+        var its = panelItems(p);
+        var chk = 0, hit = 0;
+        its.forEach(function (it) {
+          var cb = cbOf(it);
+          if (cb && cb.checked) chk++;
+          if (q && norm(it.getAttribute("data-label")).indexOf(q) >= 0) hit++;
+        });
+        var s = "";
+        if (chk) s += '<span class="knkp-badge-chk">' + chk + '</span>';
+        if (q && pi !== active && hit) s += '<span class="knkp-badge-hit">🔍' + hit + '</span>';
+        var cnt = tabBtns[pi].querySelector(".knkp-cnt");
+        if (cnt) cnt.innerHTML = s;
+      });
+    }
+
+    function rebuildChips() {
+      var checked = [].slice.call(root.querySelectorAll('.knkp-item input[type="checkbox"]:checked'));
+      chips.innerHTML = "";
+      if (!checked.length) {
+        var e = document.createElement("span");
+        e.className = "knkp-chips-empty";
+        e.textContent = "선택된 대상 없음";
+        chips.appendChild(e);
+        updateBadges();
+        return;
+      }
+      checked.forEach(function (cb) {
+        var it = cb.closest ? cb.closest(".knkp-item") : null;
+        var kind = it ? (it.getAttribute("data-kind") || "dept") : "dept";
+        var label = it ? (it.getAttribute("data-label") || cb.value) : cb.value;
+        var chip = document.createElement("span");
+        chip.className = "knkp-chip" + (kind === "user" ? " knkp-chip-user" : "");
+        chip.innerHTML = '<span>' + (kind === "user" ? "👤" : "🏢") + '</span>'
+          + '<span class="knkp-chip-t">' + esc(label) + '</span>'
+          + '<button type="button" class="knkp-chip-x" title="제외">✕</button>';
+        chip.querySelector(".knkp-chip-x").addEventListener("click", function () {
+          cb.checked = false;
+          fireChange(cb);   // 기존 배타/의존 로직 실행
+          rebuildChips();
+          applySearch();
+        });
+        chips.appendChild(chip);
+      });
+      updateBadges();
+    }
+
+    // 체크 변화(사용자 클릭 + 버블되는 프로그램 변경) → 선택칩 갱신
+    root.addEventListener("change", function (e) {
+      if (e.target && e.target.type === "checkbox") { rebuildChips(); }
+    });
+    search.addEventListener("input", applySearch);
+
+    // 외부 JS(블록적용·전체선택 등 dispatch 없는 변경)용 새로고침 훅
+    root.__knkpRefresh = function () { rebuildChips(); applySearch(); };
+
+    setActive(0);
+    rebuildChips();
+  }
+
+  function initAll(ctx) {
+    var list = (ctx || document).querySelectorAll("[data-knk-picker]");
+    for (var i = 0; i < list.length; i++) { enhance(list[i]); }
+  }
+
+  window.KNKPicker = window.KNKPicker || {};
+  window.KNKPicker.init = initAll;
+  window.KNKPicker.enhance = enhance;
+  window.KNKPicker.refresh = function (root) {
+    if (typeof root === "string") root = document.getElementById(root);
+    if (root && root.__knkpRefresh) root.__knkpRefresh();
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () { initAll(); });
+  } else {
+    initAll();
+  }
+})();
+</script>

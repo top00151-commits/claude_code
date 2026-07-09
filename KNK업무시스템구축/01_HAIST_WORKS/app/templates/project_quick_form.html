@@ -410,28 +410,30 @@ html,body{background:#fff!important;overflow:auto!important;}
               {# v5H226z794 (대표 지시): 전체선택/취소 + 법인구분 + 부서원 개별 선택(▸개별 펼치기).
                  팀 체크=그 팀 사업부 담당자 통보 / 개별 체크=그 사람만 정확히 통보(사업부 무시). 배타(팀↔개별) #}
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 2px 2px;">
-                <button type="button" onclick="document.querySelectorAll('.pr-team').forEach(function(c){c.checked=true;});document.querySelectorAll('.pr-user').forEach(function(c){c.checked=false;});" style="font-size:11.5px;font-weight:700;border:1px solid #fdba74;background:#fff;color:#9a3412;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 선택</button>
-                <button type="button" onclick="document.querySelectorAll('.pr-team,.pr-user').forEach(function(c){c.checked=false;});" style="font-size:11.5px;font-weight:700;border:1px solid #e5e7eb;background:#fff;color:#6b7280;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 취소</button>
+                <button type="button" onclick="document.querySelectorAll('.pr-team').forEach(function(c){c.checked=true;});document.querySelectorAll('.pr-user').forEach(function(c){c.checked=false;});if(window.KNKPicker)KNKPicker.refresh('knkpPr');" style="font-size:11.5px;font-weight:700;border:1px solid #fdba74;background:#fff;color:#9a3412;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 선택</button>
+                <button type="button" onclick="document.querySelectorAll('.pr-team,.pr-user').forEach(function(c){c.checked=false;});if(window.KNKPicker)KNKPicker.refresh('knkpPr');" style="font-size:11.5px;font-weight:700;border:1px solid #e5e7eb;background:#fff;color:#6b7280;border-radius:6px;padding:3px 11px;cursor:pointer;">전체 취소</button>
                 <span style="font-size:11px;color:#94a3b8;">팀 전체=사업부 담당자 · <b style="color:#2563eb;">▸개별</b>=그 사람만</span>
               </div>
               {% set ns = namespace(kor=[], vn=[], etc=[]) %}
               {% for t in teams %}{% if (t.entity or 'KOR')=='VN' %}{% set ns.vn = ns.vn + [t] %}{% elif (t.entity or 'KOR')=='KOR' %}{% set ns.kor = ns.kor + [t] %}{% else %}{% set ns.etc = ns.etc + [t] %}{% endif %}{% endfor %}
-              {% for grp in [('🏢 본사', ns.kor), ('🌏 베트남법인', ns.vn), ('기타', ns.etc)] %}
+              {# z886(대표 지시·규정): 본사/베트남 책갈피(탭)+검색+선택칩 — 공용 선택위젯 #}
+              <div id="knkpPr" data-knk-picker data-knkp-ph="🔍 부서·이름 검색">
+              {% for grp in [('🏢 본사', ns.kor, 'KOR'), ('🌏 베트남법인', ns.vn, 'VN'), ('기타', ns.etc, 'ETC')] %}
                 {% if grp[1] %}
-                <details class="pr-grp" open style="margin-top:8px;padding:0 2px;">
-                  <summary style="font-size:11px;font-weight:800;color:#9a3412;margin-bottom:4px;cursor:pointer;user-select:none;">{{ grp[0] }} <span style="color:#c2772a;font-weight:600;">({{ grp[1]|length }})</span></summary>
+                <details class="pr-grp knkp-panel" data-entity="{{ grp[2] }}" data-knkp-label="{{ grp[0] }}" open style="margin-top:8px;padding:0 2px;">
+                  <summary data-knkp-paneltitle style="font-size:11px;font-weight:800;color:#9a3412;margin-bottom:4px;cursor:pointer;user-select:none;">{{ grp[0] }} <span style="color:#c2772a;font-weight:600;">({{ grp[1]|length }})</span></summary>
                   <div style="display:flex;flex-direction:column;gap:1px;">
                     {% for t in grp[1] %}
                     {% set _mem = team_members.get(t.id, []) %}
                     <div class="pr-teamblk">
                       <div style="display:flex;align-items:center;gap:6px;">
-                        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);cursor:pointer;"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" data-team="{{ t.id }}" onchange="prTeamToggle(this)"> {{ t.name }} <span style="color:#999;font-weight:400;">{{ t.member_count }}명</span></label>
+                        <label class="knkp-item" data-kind="dept" data-label="{{ t.name }}" style="display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--qv-ink-1,#1f2937);cursor:pointer;"><input type="checkbox" class="pr-team" name="pr_team_ids" value="{{ t.id }}" data-team="{{ t.id }}" onchange="prTeamToggle(this)"> {{ t.name }} <span style="color:#999;font-weight:400;">{{ t.member_count }}명</span></label>
                         {% if _mem %}<button type="button" onclick="prExpand({{ t.id }},this)" style="font-size:11px;color:#2563eb;background:none;border:none;cursor:pointer;padding:0 3px;">▸개별</button>{% endif %}
                       </div>
                       {% if _mem %}
-                      <div class="pr-members" data-team="{{ t.id }}" style="display:none;flex-wrap:wrap;gap:3px 12px;padding:2px 0 5px 22px;">
+                      <div class="pr-members knkp-collapse" data-team="{{ t.id }}" style="display:none;flex-wrap:wrap;gap:3px 12px;padding:2px 0 5px 22px;">
                         {% for m in _mem %}
-                        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:#334155;cursor:pointer;"><input type="checkbox" class="pr-user" name="pr_user_ids" value="{{ m.id }}" data-team="{{ t.id }}" data-dispname="{{ vname_full(m, t.name) }}" onchange="prUserToggle(this)"> {{ vname(m) }}{% if m.rank %} <span style="color:#94a3b8;font-size:10.5px;">{{ m.rank }}</span>{% endif %}</label>
+                        <label class="knkp-item" data-kind="user" data-label="{{ vname(m) }}" style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:#334155;cursor:pointer;"><input type="checkbox" class="pr-user" name="pr_user_ids" value="{{ m.id }}" data-team="{{ t.id }}" data-dispname="{{ vname_full(m, t.name) }}" onchange="prUserToggle(this)"> {{ vname(m) }}{% if m.rank %} <span style="color:#94a3b8;font-size:10.5px;">{{ m.rank }}</span>{% endif %}</label>
                         {% endfor %}
                       </div>
                       {% endif %}
@@ -441,6 +443,8 @@ html,body{background:#fff!important;overflow:auto!important;}
                 </details>
                 {% endif %}
               {% endfor %}
+              </div>{# /#knkpPr — z886 공용 선택위젯 루트 #}
+              {% include "_knk_picker.html" %}
               <script>
               window.prExpand=function(tid,btn){var m=document.querySelector('.pr-members[data-team="'+tid+'"]');if(!m)return;var show=(m.style.display==='none'||!m.style.display);m.style.display=show?'flex':'none';if(btn)btn.textContent=show?'▾개별':'▸개별';};
               window.prTeamToggle=function(cb){if(cb.checked){document.querySelectorAll('.pr-user[data-team="'+cb.value+'"]').forEach(function(u){u.checked=false;});}};
@@ -456,6 +460,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                 var st=document.getElementById('prBlockStatus');
                 if(st){st.innerHTML='✅ <b>'+(o.textContent||'블록')+'</b> 적용 — 통보 대상 팀 <b>'+tids.length+'</b> · 개별 <b>'+uids.length+'</b>명'+(names.length?'<br><span style="color:#047857;">'+names.slice(0,15).join(' · ')+(names.length>15?' 외 '+(names.length-15)+'명':'')+'</span>':' <span style="color:#b45309;">(선택된 대상이 없습니다 — 블록이 비었거나 화면에 없는 인원)</span>');st.style.display='block';}
                 var first=document.querySelector('.pr-hl');if(first){try{first.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}}
+                if(window.KNKPicker)KNKPicker.refresh('knkpPr');
                 sel.selectedIndex=0;};
               window.saveBlock=function(){var tids=[].slice.call(document.querySelectorAll('.pr-team:checked')).map(function(c){return c.value;});var uids=[].slice.call(document.querySelectorAll('.pr-user:checked')).map(function(c){return c.value;});if(!tids.length&&!uids.length){alert('저장할 팀/인원을 먼저 선택하세요.');return;}var name=prompt('블록 이름 (예: 검사기, 자동화)');if(!name||!name.trim())return;var fd=new FormData();fd.append('name',name.trim());tids.forEach(function(id){fd.append('team_ids',id);});uids.forEach(function(id){fd.append('user_ids',id);});fetch('/api/notify-blocks',{method:'POST',body:fd,credentials:'include'}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok){var sel=document.getElementById('prBlockSel');var o=document.createElement('option');o.value=j.id;o.textContent=j.name;o.setAttribute('data-teams',j.team_ids||'');o.setAttribute('data-users',j.user_ids||'');sel.appendChild(o);alert('블록 저장됨: '+j.name);}else alert('저장 실패: '+((j&&j.error)||''));}).catch(function(){alert('저장 오류');});};
               window.delBlock=function(bid,btn){if(!confirm('이 블록을 삭제할까요?'))return;fetch('/api/notify-blocks/'+bid+'/delete',{method:'POST',credentials:'include'}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok){var chip=document.getElementById('prBlkChip'+bid);if(chip&&chip.parentNode)chip.parentNode.removeChild(chip);var sel=document.getElementById('prBlockSel');if(sel){var o=sel.querySelector('option[value="'+bid+'"]');if(o)o.remove();}}else alert('삭제 실패');});};

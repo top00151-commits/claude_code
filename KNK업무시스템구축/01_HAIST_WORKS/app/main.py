@@ -36583,11 +36583,11 @@ async def consumables_detail(request: Request, co_id: int):
     try:
         with db_session() as _tc:
             _teams = [dict(r) for r in _tc.execute(
-                "SELECT t.id, t.name, COUNT(u.id) AS member_count "
+                "SELECT t.id, t.name, t.entity, COUNT(u.id) AS member_count "
                 "FROM teams t LEFT JOIN users u ON u.team_id=t.id AND COALESCE(u.is_active,1)=1 "
-                "GROUP BY t.id, t.name HAVING member_count > 0 "
-                "ORDER BY t.display_order, t.id"
-            ).fetchall()]
+                "GROUP BY t.id, t.name, t.entity HAVING member_count > 0 "
+                "ORDER BY (CASE WHEN COALESCE(t.entity,'KOR')='VN' THEN 1 ELSE 0 END), t.display_order, t.id"
+            ).fetchall()]   # z886: 법인(entity) 포함·본사 먼저 → 선택위젯 본사/베트남 탭
     except Exception:
         _teams = []
     _history = _co.co_history_list(co_id)   # v5H226z298: 변경 이력 탭
