@@ -147,10 +147,12 @@
   }
   function download(){
     var src = img.getAttribute('data-src'); if (!src) return;
+    var base = '';
+    try { base = decodeURIComponent((src.split('?')[0].split('/').pop()) || ''); } catch(_){ base = ''; }
+    // 원본 파일명(확장자 포함)을 우선 — 없으면 캡션 폴백
+    var nm = base || ((nameEl.textContent || 'photo').replace(/[\\/:*?"<>|]+/g,'_').trim()) || 'photo';
     var a = document.createElement('a');
-    a.href = src;
-    var nm = (nameEl.textContent || 'photo').replace(/[\\/:*?"<>|]+/g,'_').trim() || 'photo';
-    a.download = nm;
+    a.href = src; a.download = nm;
     document.body.appendChild(a); a.click(); a.remove();
   }
 
