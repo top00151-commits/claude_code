@@ -19476,6 +19476,104 @@ async def admin_fx_rates_save(req: Request):
     return RedirectResponse(f"/admin/fx-rates?saved={n}", 303)
 
 
+# ── 매출 종합(수주 → 매출/출하) 집계 · 연도×사업부 · 원화 환산 ─────
+# v5H226z901 (대표 지시): 매출 홈을 '수주금액'+'실제 매출(출하/납품완료)'로 구분,
+#   전 사업부(검사기 T·자동화 M·라이프밸류 L·기타 E·소모품 C) 합산, 연도별·사업부별.
+#   외화는 납품월 기준환율로 원화 환산(z900). 입금(수금)·고객사별(1/2차)은 다음 단계.
+SALES_BIZ = ("T", "M", "L", "E", "C")
+SALES_BIZ_LABEL = {"T": "🔬 검사기", "M": "🤖 자동화", "L": "💗 라이프밸류",
+                   "E": "🗂 기타", "C": "🧴 소모품"}
+
+
+def _sales_overview(c, rates, sel_year):
+    """수주(발주일 연도) + 매출/출하(납품일 연도) 를 연도×사업부로 원화 환산 집계.
+    소모품(C)은 consumable_orders, 나머지는 projects/호기(order_items) 기준.
+    반환: years(년도별 총액), biz_rows(선택연도 사업부별 수주·매출), 총액, 환율 미입력 통화."""
+    order_yb, sales_yb = {}, {}   # {year: {biz: [krw, cnt]}}
+    missing = set()
+
+    def _add(store, year, biz, krw):
+        if not year:
+            return
+        e = store.setdefault(year, {}).setdefault(biz, [0.0, 0])
+        e[0] += krw
+        e[1] += 1
+
+    def _ym(s):
+        return (s or "")[:7]
+
+    def _yr(s):
+        return (s or "")[:4]
+
+    # ── 수주금액 ──
+    # 프로젝트(검사기/자동화/라이프밸류/기타) — order_amount>0
+    for r in c.execute("SELECT biz_div, order_amount, currency, due_date, order_date "
+                       "FROM projects WHERE order_amount>0 AND COALESCE(is_archived,0)=0").fetchall():
+        d = dict(r)
+        biz = (d.get("biz_div") or "").strip().upper()
+        if biz not in SALES_BIZ or biz == "C":
+            continue
+        krw = _fx_to_krw(rates, d.get("order_amount"), d.get("currency"),
+                         _ym(d.get("due_date") or d.get("order_date")), missing)
+        _add(order_yb, _yr(d.get("order_date")), biz, krw)
+    # 소모품 수주 — 취소/작성중 제외
+    for r in c.execute("SELECT total_amount, currency, due_date, order_date "
+                       "FROM consumable_orders WHERE COALESCE(status,'') NOT IN ('CANCELLED','DRAFT')").fetchall():
+        d = dict(r)
+        krw = _fx_to_krw(rates, d.get("total_amount"), d.get("currency"),
+                         _ym(d.get("due_date") or d.get("order_date")), missing)
+        _add(order_yb, _yr(d.get("order_date")), "C", krw)
+
+    # ── 실제 매출(출하/납품완료) ──
+    # 프로젝트 호기(order_items) 중 출하된 것 — 사업부는 소속 프로젝트 기준, 연도=납품일
+    for r in c.execute(
+            "SELECT p.biz_div AS biz, oi.amount AS amount, "
+            "       COALESCE(oi.currency, p.currency) AS currency, "
+            "       COALESCE(oi.due_date, p.due_date, p.order_date) AS dd "
+            "FROM order_items oi "
+            "JOIN orders o ON o.id=oi.order_id "
+            "JOIN projects p ON p.id=o.project_id "
+            "WHERE oi.unit_status='출하' AND COALESCE(p.is_archived,0)=0").fetchall():
+        d = dict(r)
+        biz = (d.get("biz") or "").strip().upper()
+        if biz not in SALES_BIZ or biz == "C":
+            continue
+        krw = _fx_to_krw(rates, d.get("amount"), d.get("currency"), _ym(d.get("dd")), missing)
+        _add(sales_yb, _yr(d.get("dd")), biz, krw)
+    # 소모품 매출 — 출하(SHIPPED)/입금(PAID)
+    for r in c.execute("SELECT total_amount, currency, due_date, order_date "
+                       "FROM consumable_orders WHERE status IN ('SHIPPED','PAID')").fetchall():
+        d = dict(r)
+        dd = d.get("due_date") or d.get("order_date")
+        krw = _fx_to_krw(rates, d.get("total_amount"), d.get("currency"), _ym(dd), missing)
+        _add(sales_yb, _yr(dd), "C", krw)
+
+    years_all = sorted(set(list(order_yb.keys()) + list(sales_yb.keys())), reverse=True)
+    year_rows = []
+    for y in years_all:
+        o = sum(v[0] for v in order_yb.get(y, {}).values())
+        s = sum(v[0] for v in sales_yb.get(y, {}).values())
+        year_rows.append({"year": y, "order": o, "sales": s,
+                          "rate": (s / o * 100.0) if o > 0 else 0.0})
+    sel = str(sel_year)
+    biz_rows = []
+    for b in SALES_BIZ:
+        ob = order_yb.get(sel, {}).get(b, [0.0, 0])
+        sb = sales_yb.get(sel, {}).get(b, [0.0, 0])
+        biz_rows.append({"biz": b, "label": SALES_BIZ_LABEL[b],
+                         "order": ob[0], "order_cnt": ob[1],
+                         "sales": sb[0], "sales_cnt": sb[1]})
+    return {
+        "years": year_rows,
+        "biz_rows": biz_rows,
+        "order_total": sum(r["order"] for r in biz_rows),
+        "sales_total": sum(r["sales"] for r in biz_rows),
+        "sel_year": sel,
+        "year_choices": years_all,
+        "missing_fx": sorted({ccy for (ccy, _y) in missing}),
+    }
+
+
 # ── 매출·영업 홈 (신규 · 2026-04-21 도메인 분리) ──────────────
 @app.get("/sales", response_class=HTMLResponse)
 async def sales_dashboard(request: Request):
@@ -19491,9 +19589,14 @@ async def sales_dashboard(request: Request):
     today = date.today()
     ym = today.strftime("%Y-%m")
     year = today.year
+    # v5H226z901 (대표 지시): 연도 선택(기본=올해) — 매출 종합(수주/매출) 집계용
+    _sy = (request.query_params.get("year") or "").strip()
+    sel_year = _sy if (_sy.isdigit() and len(_sy) == 4) else str(year)
     with db_session() as c:
         # v5H226z900 (대표 지시): 외화(USD/EUR/JPY/CNY/VND)를 납품월 기준환율로 원화 환산해 합산.
         rates = _fx_load_rates(c)
+        # v5H226z901 (대표 지시): 수주 + 매출(출하) 연도×사업부(소모품 포함) 종합 집계
+        overview = _sales_overview(c, rates, sel_year)
         missing = set()   # 환율 미입력으로 환산 못 한 (통화, 월)
 
         def _refym(d):
@@ -19570,7 +19673,8 @@ async def sales_dashboard(request: Request):
     }
     return ctx(request, "sales_home.html",
                user=u, active="sales",
-               proj_stats=proj_stats, sales_kpi=sales_kpi)
+               proj_stats=proj_stats, sales_kpi=sales_kpi,
+               overview=overview)
 
 
 # ── 부품 마스터 (parts) ────────────────────────────────

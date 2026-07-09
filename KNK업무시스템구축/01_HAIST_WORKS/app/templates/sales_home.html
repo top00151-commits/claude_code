@@ -161,6 +161,7 @@ body { overflow: hidden !important; }
       {# v5H74: 페이지헤더 액션 버튼 제거 — 좌측 사이드바와 중복 #}
     </div>
 
+    {# v5H226z901 (대표 지시): 수주 총액 + 실제 매출(출하) 구분 · 선택 연도 기준 · 전 사업부 원화 환산 #}
     <!-- KPI -->
     <div class="kpi-row" data-dn="kpi-bar" data-dn-tone="green">
       <div class="kpi hero">
@@ -169,9 +170,14 @@ body { overflow: hidden !important; }
         <div class="kpi-trend up">↑ {{ kpi.month_cnt or 0 }}건</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">{{ kpi.year|default('') }} YTD 누적</div>
-        <div class="kpi-num">{{ '{:,.0f}'.format(kpi.ytd_total or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
-        <div class="kpi-trend neutral">{{ kpi.ytd_cnt or 0 }} 건</div>
+        <div class="kpi-label">{{ overview.sel_year }} 수주 총액</div>
+        <div class="kpi-num">{{ '{:,.0f}'.format(overview.order_total or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-trend neutral">전 사업부 · 원화 환산</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">{{ overview.sel_year }} 실제 매출(출하)</div>
+        <div class="kpi-num" style="color:#15803d;">{{ '{:,.0f}'.format(overview.sales_total or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-trend neutral">납품완료 기준</div>
       </div>
       <div class="kpi">
         <div class="kpi-label">진행 프로젝트</div>
@@ -183,42 +189,69 @@ body { overflow: hidden !important; }
     {# v5H226z900 (대표 지시): 외화 매출을 납품월 기준환율로 원화 환산 — 안내 + 미입력 경고 #}
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0 0 6px;padding:9px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:9px;font-size:12.5px;color:#92400e;">
       <span>💱 외화(USD·EUR·JPY·CNY·VND) 매출은 <b>납품월 기준환율</b>로 원화 환산해 합산합니다.</span>
-      {% if kpi.missing_fx %}<span style="color:#b91c1c;font-weight:700;">⚠ 환율 미입력: {{ kpi.missing_fx|join(', ') }} (해당 건은 원화 환산 0 처리)</span>{% endif %}
+      {% if overview.missing_fx %}<span style="color:#b91c1c;font-weight:700;">⚠ 환율 미입력: {{ overview.missing_fx|join(', ') }} (해당 건은 원화 환산 0 처리)</span>{% endif %}
       {% if user.role in ('admin','ceo') %}<a href="/admin/fx-rates" style="margin-left:auto;font-weight:800;color:#b45309;text-decoration:none;">💱 월 기준환율 입력 →</a>{% endif %}
     </div>
 
-    <!-- 사업부별 / 단계별 -->
-    <div class="grid-2" data-dn="grid-biz-stage" data-dn-tone="purple">
-      <div class="card" data-dn="biz-bar">
-        <h3>사업부별 수주 ({{ kpi.year|default('') }})</h3>
-        {% if kpi.by_biz %}
-        {% set max_biz = kpi.by_biz|map(attribute='total')|max|default(1) %}
-        <div class="bar-chart list-scroll-sm">
-          {% for b in kpi.by_biz %}
-          <div class="bar-row">
-            <div class="bar-label">{{ '🤖 자동화' if b.biz_div == 'M' else '🔬 검사기' if b.biz_div == 'T' else b.biz_div }}</div>
-            <div class="bar-track"><div class="bar-fill" style="width: {{ ((b.total / max_biz)*100)|round }}%"></div></div>
-            <div class="bar-value">{{ '{:,.0f}'.format(b.total) }} ({{ b.cnt }})</div>
-          </div>
-          {% endfor %}
+    {# v5H226z901 (대표 지시): 연도 선택 — 사업부별 표·상단 KPI 대상 연도 #}
+    {% if overview.year_choices %}
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px;font-size:12.5px;">
+      <span style="color:var(--qv-ink-3);font-weight:700;margin-right:2px;">연도</span>
+      {% for y in overview.year_choices %}
+      <a href="/sales?year={{ y }}" style="padding:4px 13px;border-radius:999px;font-weight:800;text-decoration:none;{% if y == overview.sel_year %}background:var(--qv-ink,#1e293b);color:#fff;{% else %}background:#f1f5f9;color:#475569;{% endif %}">{{ y }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 사업부별 수주·매출 / 년도별 -->
+    <div class="grid-2" data-dn="grid-biz-year" data-dn-tone="purple">
+      <div class="card" data-dn="biz-table">
+        <h3>사업부별 수주 · 매출 ({{ overview.sel_year }})</h3>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr>
+              <th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">사업부</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">수주금액</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">실제 매출(출하)</th>
+            </tr></thead>
+            <tbody>
+              {% for b in overview.biz_rows %}
+              <tr>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);">{{ b.label }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(b.order) }}{% if b.order_cnt %} <small style="color:#94a3b8;">({{ b.order_cnt }})</small>{% endif %}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(b.sales) }}{% if b.sales_cnt %} <small style="color:#86bfa0;">({{ b.sales_cnt }})</small>{% endif %}</td>
+              </tr>
+              {% endfor %}
+              <tr style="font-weight:800;background:#fafaf7;">
+                <td style="padding:8px;">합계</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(overview.order_total) }}</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(overview.sales_total) }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        {% else %}
-        <div style="padding:30px 0;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</div>
-        {% endif %}
       </div>
 
-      <div class="card" data-dn="stage-bar">
-        <h3>단계별 프로젝트</h3>
-        {% if kpi.by_stage %}
-        {% set max_stage = kpi.by_stage|map(attribute='cnt')|max|default(1) %}
-        <div class="bar-chart list-scroll-sm">
-          {% for s in kpi.by_stage[:6] %}
-          <div class="bar-row">
-            <div class="bar-label">{{ s.stage }}</div>
-            <div class="bar-track"><div class="bar-fill" style="width: {{ ((s.cnt / max_stage)*100)|round }}%; background: var(--qv-ink);"></div></div>
-            <div class="bar-value">{{ s.cnt }} 건</div>
-          </div>
-          {% endfor %}
+      <div class="card" data-dn="year-table">
+        <h3>년도별 수주 · 매출</h3>
+        {% if overview.years %}
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr>
+              <th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">연도</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">수주금액</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">실제 매출(출하)</th>
+            </tr></thead>
+            <tbody>
+              {% for y in overview.years %}
+              <tr{% if y.year == overview.sel_year %} style="background:#fffbeb;"{% endif %}>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a href="/sales?year={{ y.year }}" style="font-weight:700;color:#1e293b;text-decoration:none;">{{ y.year }}</a></td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(y.order) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(y.sales) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
         {% else %}
         <div style="padding:30px 0;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</div>
