@@ -36686,14 +36686,13 @@ async def consumable_prod_request_view(request: Request, co_id: int):
         qty_total = int(_qt) if abs(_qt - int(_qt)) < 1e-9 else round(_qt, 2)
     except Exception:
         qty_total = ""
-    _imgs = [it for it in items if it.get("image_path") or it.get("image_thumb_path")]
     _FORM = {"ASSEMBLY": "🏭 완제품", "SEMI": "📦 제품", "PARTS": "🧰 상품", "ETC": "🗂 기타",
              "제품": "📦 제품", "상품": "🧰 상품", "기타": "🗂 기타"}
     _ft = str(co.get("form_type") or "").strip()
     form_label = _FORM.get(_ft) or _FORM.get(_ft.upper()) or (_ft or "—")
     export_label = "🚢 수출" if co.get("is_export") else "🏠 내수"
     return ctx(request, "consumable_prod_request.html", user=u, active="consumables",
-               co=co, items=items, qty_total=qty_total, images=_imgs,
+               co=co, items=items, qty_total=qty_total,
                form_label=form_label, export_label=export_label)
 
 

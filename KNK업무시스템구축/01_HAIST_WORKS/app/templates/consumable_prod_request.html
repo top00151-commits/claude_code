@@ -24,6 +24,15 @@
 .prq-imgcell { display:block; width:96px; height:96px; border-radius:7px; overflow:hidden; border:1px solid var(--line,#eef0f4); background:var(--paper-2,#f7f8fa); }
 .prq-imgcell img { width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in; }
 .prq-imgempty { font-size:11.5px; color:var(--mute,#64748b); font-style:italic; padding:3px 0; }
+/* z893: 라인 항목 표 — 부품마다 그 부품 사진을 같이 표시 */
+.prq-items { width:100%; border-collapse:collapse; font-size:12.5px; }
+.prq-items th { background:var(--paper-2,#f7f8fa); color:#9a3412; font-size:11px; font-weight:800; text-align:left; padding:6px 9px; border-bottom:1px solid #fde7d3; white-space:nowrap; }
+.prq-items td { padding:6px 9px; border-bottom:1px solid var(--line,#eef0f4); vertical-align:middle; color:#1f2937; }
+.prq-items .pi-img { padding:4px 9px; }
+.prq-items .pi-img img { width:56px; height:42px; object-fit:cover; border-radius:5px; border:1px solid var(--line,#eef0f4); cursor:zoom-in; display:block; }
+.prq-items .pi-noimg { color:var(--mute,#94a3b8); }
+.prq-items .pi-spec { color:#475569; }
+.prq-items .pi-qty { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .prq-footer { display:flex; justify-content:flex-start; align-items:center; gap:10px 12px; margin-top:16px; flex-wrap:wrap; }
 .prq-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
 </style>
@@ -79,20 +88,30 @@
         <div class="prq-sec">🛠 제작 사양</div>
         <div class="prq-info">
           <div class="prq-ir"><span class="k">모델명</span><span class="v">{{ co.model_name or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">라인</span><span class="v">{{ items|length }}건</span></div>
         </div>
         {% if co.source_file %}<div class="prq-lbl">원본 파일</div><div class="prq-ro">{{ co.source_file }}</div>{% endif %}
         {% if co.note %}<div class="prq-lbl">요청 · 기타 사항</div><div class="prq-ro">{{ co.note }}</div>{% endif %}
 
-        <div class="prq-sec">📷 참고 이미지 <span style="font-weight:600;font-size:11px;color:var(--mute,#64748b);">(라인 사진 · 눌러서 확대)</span></div>
-        {% if images %}
-        <div class="prq-imgs">
-          {% for it in images %}
-          <a class="prq-imgcell" href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="라인 {{ it.line_no }} 사진" target="_blank"><img src="{{ it.image_thumb_path or it.image_path }}" alt="라인 {{ it.line_no }} 사진" loading="lazy"></a>
-          {% endfor %}
+        {# z893(대표 지시): 부품 사진은 몰아넣지 말고 '해당 부품에 같이' — 라인 항목 표(품명·규격·수량 + 그 줄 사진) #}
+        <div class="prq-sec">📦 라인 항목 <span style="font-weight:600;font-size:11px;color:var(--mute,#64748b);">({{ items|length }}건 · 사진 눌러서 확대)</span></div>
+        {% if items %}
+        <div style="overflow-x:auto;">
+          <table class="prq-items">
+            <thead><tr><th style="width:70px;">사진</th><th>품명</th><th>규격</th><th style="width:70px;text-align:right;">수량</th></tr></thead>
+            <tbody>
+              {% for it in items %}
+              <tr>
+                <td class="pi-img">{% if it.image_thumb_path or it.image_path %}<a href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="{{ it.part_name or ('라인 ' ~ it.line_no) }} 사진" target="_blank"><img src="{{ it.image_thumb_path or it.image_path }}" alt="{{ it.part_name or '라인' }} 사진" loading="lazy"></a>{% else %}<span class="pi-noimg">—</span>{% endif %}</td>
+                <td class="pi-name">{{ it.part_name or '—' }}</td>
+                <td class="pi-spec">{{ it.spec or '—' }}</td>
+                <td class="pi-qty">{{ it.qty|int if it.qty else '—' }}{% if it.unit %} {{ it.unit }}{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
         {% else %}
-        <div class="prq-imgempty">첨부된 이미지가 없습니다.</div>
+        <div class="prq-imgempty">라인 항목이 없습니다.</div>
         {% endif %}
 
         {# 이동 버튼 — 제작요청서(사진2)와 동일: 작업일정표 · 전사일정표. 편집은 소모품 상세. #}
