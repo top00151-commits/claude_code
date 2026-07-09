@@ -36671,12 +36671,14 @@ async def consumables_detail(request: Request, co_id: int):
 async def consumable_prod_request_view(request: Request, co_id: int):
     """v5H226z892 (대표 지시): 소모품 '제작요청서' 보기 페이지 — 제작요청서목록 소모품 카드 클릭 시
     편집 상세(소모품 상세) 대신 이 읽기 페이지로 이동(제작요청서와 동일 레이아웃·가격 제외).
-    여기서 작업일정표·전사일정표로 이동. 편집은 소모품 상세에서만."""
+    여기서 작업일정표·전사일정표로 이동. 편집은 소모품 상세에서만.
+    v5H226z894 (대표 지시): 전사일정표에서 일반 직원이 관리번호를 눌러 이 '제작요청서 보기'로 오므로
+    로그인만 하면 누구나 열람(가격 없음·읽기용). 편집(소모품 상세)은 그대로 물류/영업 게이트."""
     u = get_user(request)
     if not u:
-        return RedirectResponse("/login", 303)
-    if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        from urllib.parse import quote as _quote
+        _nxt = request.url.path + (("?" + request.url.query) if request.url.query else "")
+        return RedirectResponse("/login?next=" + _quote(_nxt, safe=""), 303)
     co = _co.co_get(co_id)
     if not co:
         return RedirectResponse("/consumables", 303)

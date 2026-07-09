@@ -279,7 +279,9 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
           <td class="c-code">
             {# v5H226z513 (대표 지시): 부서 진행기록 모아보기(📜)를 관리번호 앞쪽으로 + 사업부(M) 배지 삭제 #}
             <span class="tl-btn" title="이 품목의 모든 부서 진행 기록 모아보기" role="button">📜</span>
-            {% if r.kind=='consumable' %}<a href="/consumables/{{ r.ref_id }}">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}">{{ r.code }}</a>{% endif %}
+            {# v5H226z894 (대표 지시): 전사일정표(일반 직원용)에서 관리번호 클릭 = '제작요청서 보기'(가격 없음)로.
+               ⛔프로젝트 상세(/project/{id})·소모품 상세(/consumables/{id})는 금액·편집 화면이라 일반 직원 진입 금지. #}
+            {% if r.kind=='consumable' %}<a href="/consumables/{{ r.ref_id }}/prod-request">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}/prod-request/edit">{{ r.code }}</a>{% endif %}
             {# v5H226z632 (대표 지시): 관리번호 옆 '+' 펼치기 제거 — 작업일정표와 동일(장비 호기·소모품 품목보기 모두). 상세는 프로젝트/소모품 상세에서 #}
           </td>
           <td>{{ r.so_no or '—' }}</td>
