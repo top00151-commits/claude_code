@@ -23,6 +23,12 @@ body {
 .cu-tab .n{ font-size:10.5px; background:rgba(0,0,0,.08); border-radius:9px; padding:0 6px; font-weight:700; }
 .cu-tab.on .n{ background:rgba(255,255,255,.25); }
 .cu-search{ padding:6px 12px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:#fff; min-width:280px; max-width:42vw; }
+/* v5H226z903 (대표 지시): 헤더 클릭 정렬(ID·고객사명·시스템명) */
+th.cu-sort{ cursor:pointer; user-select:none; white-space:nowrap; }
+th.cu-sort:hover{ color:var(--brand,#A5282C); }
+th.cu-sort.on{ color:var(--brand,#A5282C); }
+th.cu-sort .cu-arw{ margin-left:4px; font-size:10px; color:var(--mute,#94a3b8); }
+th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
 .cu-sysname{ font-size:11px; color:#2563eb; font-weight:700; margin-top:2px; }
 /* v5H226z576/z577 (대표 지시): 시스템명 칸 — 평소엔 잠금(readonly·평문처럼), '수정' 버튼 누르면 편집 가능 */
 .cu-alias{ width:100%; box-sizing:border-box; border:1px solid transparent; background:transparent; border-radius:6px; padding:5px 7px; font:inherit; font-size:13px; color:#2563eb; font-weight:700; }
@@ -80,12 +86,17 @@ body {
     <table class="tbl">
       <thead><tr>
         {% if can_sales_del %}<th style="width:36px;text-align:center;"><input type="checkbox" id="cuChkAll" title="전체 선택" style="cursor:pointer;"></th>{% endif %}
-        <th style="width:60px;">ID</th><th>고객사명</th><th style="width:170px;">시스템명</th><th>사업자번호</th><th>대표</th><th>담당자</th><th class="center">등급</th><th class="center">상태</th>
+        {# v5H226z903 (대표 지시): ID·고객사명·시스템명 헤더 클릭 → 오름/내림 정렬 토글 #}
+        <th class="cu-sort" data-k="id" title="클릭하면 정렬" style="width:60px;">ID<span class="cu-arw"></span></th>
+        <th class="cu-sort" data-k="name" title="클릭하면 정렬">고객사명<span class="cu-arw"></span></th>
+        <th class="cu-sort" data-k="alias" title="클릭하면 정렬" style="width:170px;">시스템명<span class="cu-arw"></span></th>
+        <th>사업자번호</th><th>대표</th><th>담당자</th><th class="center">등급</th><th class="center">상태</th>
       </tr></thead>
       <tbody>
       {% for c in customers %}
         <tr onclick="if(event.target.tagName !== 'INPUT') location.href='/customer/{{ c.id }}';"
             data-corp="{{ '해외' if c.is_overseas else '국내' }}"
+            data-cid="{{ c.id }}" data-cname="{{ c.name|default('') }}" data-calias="{{ c.alias|default('') }}"
             data-q="{{ (c.name ~ ' ' ~ (c.alias or '') ~ ' ' ~ (c.biz_no or '') ~ ' ' ~ (c.ceo_name or '') ~ ' ' ~ (c.manager_name or ''))|lower }}">
           {% if can_sales_del %}<td style="text-align:center;" onclick="event.stopPropagation();"><input type="checkbox" class="cuChkRow" value="{{ c.id }}" data-name="{{ c.name }}" style="cursor:pointer;"></td>{% endif %}
           <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ c.id }}</td>
@@ -205,6 +216,43 @@ body {
       var cc=document.getElementById('cuCnt'); if(cc) cc.textContent=n+'개 표시';
     };
     window.cuApply();
+    // v5H226z903 (대표 지시): ID·고객사명·시스템명 헤더 클릭 → 오름/내림 정렬 토글.
+    //   기본은 서버 정렬(등급·매출) 유지. 클릭해야 정렬 시작. 빈 값은 방향과 무관하게 항상 뒤로.
+    //   시스템명은 편집 input 이라 '입력창의 현재 값'을 읽는다(저장 전 수정분도 반영).
+    var cuTbody = rows[0] && rows[0].parentNode;
+    var cuK = '', cuDir = 1;
+    function cuKeyOf(tr, k){
+      if(k==='id') return parseFloat(tr.dataset.cid||'0')||0;
+      if(k==='name') return (tr.dataset.cname||'');
+      if(k==='alias'){ var i=tr.querySelector('input.cu-alias'); return i ? (i.value||'') : (tr.dataset.calias||''); }
+      return '';
+    }
+    function cuApplySort(){
+      if(!cuK || !cuTbody) return;
+      rows.slice().sort(function(a,b){
+        var x=cuKeyOf(a,cuK), y=cuKeyOf(b,cuK);
+        if(cuK==='id') return (x-y)*cuDir;
+        var xe=!String(x).trim(), ye=!String(y).trim();
+        if(xe!==ye) return xe?1:-1;                         // 빈 값 항상 뒤로
+        return String(x).localeCompare(String(y),'ko')*cuDir;
+      }).forEach(function(tr){ cuTbody.appendChild(tr); });
+    }
+    function cuPaintArrows(){
+      [].slice.call(document.querySelectorAll('th.cu-sort')).forEach(function(th){
+        var on = (th.dataset.k===cuK);
+        th.classList.toggle('on', on);
+        var s = th.querySelector('.cu-arw');
+        if(s) s.textContent = on ? (cuDir>0 ? '▲' : '▼') : '';
+      });
+    }
+    [].slice.call(document.querySelectorAll('th.cu-sort')).forEach(function(th){
+      th.addEventListener('click', function(){
+        var k = th.dataset.k || '';
+        if(!k) return;
+        if(cuK===k){ cuDir = -cuDir; } else { cuK = k; cuDir = 1; }
+        cuApplySort(); cuPaintArrows();
+      });
+    });
     // v5H226z577 (대표 지시): 시스템명은 '수정' 버튼으로 편집모드 진입 → '저장' 눌러야 적용(실수 방지).
     function cuAliasInputs(){ return [].slice.call(document.querySelectorAll('.cu-alias')); }
     function cuSetEditMode(on){
