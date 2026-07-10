@@ -19476,98 +19476,90 @@ async def admin_fx_rates_save(req: Request):
     return RedirectResponse(f"/admin/fx-rates?saved={n}", 303)
 
 
-# ── 매출 종합(수주 → 매출/출하) 집계 · 연도×사업부 · 원화 환산 ─────
-# v5H226z901 (대표 지시): 매출 홈을 '수주금액'+'실제 매출(출하/납품완료)'로 구분,
-#   전 사업부(검사기 T·자동화 M·라이프밸류 L·기타 E·소모품 C) 합산, 연도별·사업부별.
-#   외화는 납품월 기준환율로 원화 환산(z900). 입금(수금)·고객사별(1/2차)은 다음 단계.
+# ── 매출(납품완료) 집계 · 연도×사업부 · 원화 환산 ──────────────────
+# v5H226z902 (대표 지시): 매출 홈은 **납품완료(출하) 금액만** 집계한다(수주액 제외).
+#   수주는 '발주일', 매출은 '납품일' 기준이라 한 화면에 섞으면 연도가 어긋나 비교가 왜곡됨
+#   (실제로 2026 매출 > 2026 수주 가 나와 대표 지적). 기준을 납품일 하나로 통일.
+#   전 사업부(검사기 T·자동화 M·라이프밸류 L·기타 E·소모품 C) 합산·연도별·사업부별,
+#   외화는 납품월 기준환율로 원화 환산(z900). 입금(수금)은 나중에 별도 통합 페이지.
 SALES_BIZ = ("T", "M", "L", "E", "C")
 SALES_BIZ_LABEL = {"T": "🔬 검사기", "M": "🤖 자동화", "L": "💗 라이프밸류",
                    "E": "🗂 기타", "C": "🧴 소모품"}
 
 
-def _sales_overview(c, rates, sel_year):
-    """수주(발주일 연도) + 매출/출하(납품일 연도) 를 연도×사업부로 원화 환산 집계.
-    소모품(C)은 consumable_orders, 나머지는 projects/호기(order_items) 기준.
-    반환: years(년도별 총액), biz_rows(선택연도 사업부별 수주·매출), 총액, 환율 미입력 통화."""
-    order_yb, sales_yb = {}, {}   # {year: {biz: [krw, cnt]}}
+def _sales_delivered(c, rates, sel_year, cur_ym):
+    """v5H226z902 (대표 지시): 실제 매출 = **납품완료(출하) 금액만**. 수주액은 집계에서 제외.
+    기준 연도 = 납품일 하나로 통일(수주일과 섞이지 않음).
+    · 사업부 = 관리번호 4번째 글자(정식 기준). biz_div 는 소모품 프로젝트에서 T/M/L 로 남아 있어 신뢰 불가.
+    · 취소된 수주(orders.status='CANCELLED')는 제외 — 시스템 정식 호기 조회와 동일.
+    · 소모품 = consumable_orders(SHIPPED/PAID). 외화는 납품월 기준환율로 원화 환산.
+    반환: years/biz_rows/top_customers/total/month_total + 환율 미입력 통화."""
     missing = set()
-
-    def _add(store, year, biz, krw):
-        if not year:
-            return
-        e = store.setdefault(year, {}).setdefault(biz, [0.0, 0])
-        e[0] += krw
-        e[1] += 1
-
-    def _ym(s):
-        return (s or "")[:7]
-
-    def _yr(s):
-        return (s or "")[:4]
-
-    # ── 수주금액 ──
-    # 프로젝트(검사기/자동화/라이프밸류/기타) — order_amount>0
-    for r in c.execute("SELECT biz_div, order_amount, currency, due_date, order_date "
-                       "FROM projects WHERE order_amount>0 AND COALESCE(is_archived,0)=0").fetchall():
-        d = dict(r)
-        biz = (d.get("biz_div") or "").strip().upper()
-        if biz not in SALES_BIZ or biz == "C":
-            continue
-        krw = _fx_to_krw(rates, d.get("order_amount"), d.get("currency"),
-                         _ym(d.get("due_date") or d.get("order_date")), missing)
-        _add(order_yb, _yr(d.get("order_date")), biz, krw)
-    # 소모품 수주 — 취소/작성중 제외
-    for r in c.execute("SELECT total_amount, currency, due_date, order_date "
-                       "FROM consumable_orders WHERE COALESCE(status,'') NOT IN ('CANCELLED','DRAFT')").fetchall():
-        d = dict(r)
-        krw = _fx_to_krw(rates, d.get("total_amount"), d.get("currency"),
-                         _ym(d.get("due_date") or d.get("order_date")), missing)
-        _add(order_yb, _yr(d.get("order_date")), "C", krw)
-
-    # ── 실제 매출(출하/납품완료) ──
-    # 프로젝트 호기(order_items) 중 출하된 것 — 사업부는 소속 프로젝트 기준, 연도=납품일
+    rows = []
+    # 프로젝트 호기(order_items) 중 '출하' — 취소 수주·폐기 프로젝트 제외
     for r in c.execute(
-            "SELECT p.biz_div AS biz, oi.amount AS amount, "
+            "SELECT UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
+            "       COALESCE(p.customer_name,'') AS cust, "
+            "       oi.amount AS amount, "
             "       COALESCE(oi.currency, p.currency) AS currency, "
             "       COALESCE(oi.due_date, p.due_date, p.order_date) AS dd "
             "FROM order_items oi "
             "JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
-            "WHERE oi.unit_status='출하' AND COALESCE(p.is_archived,0)=0").fetchall():
-        d = dict(r)
-        biz = (d.get("biz") or "").strip().upper()
-        if biz not in SALES_BIZ or biz == "C":
-            continue
-        krw = _fx_to_krw(rates, d.get("amount"), d.get("currency"), _ym(d.get("dd")), missing)
-        _add(sales_yb, _yr(d.get("dd")), biz, krw)
-    # 소모품 매출 — 출하(SHIPPED)/입금(PAID)
-    for r in c.execute("SELECT total_amount, currency, due_date, order_date "
-                       "FROM consumable_orders WHERE status IN ('SHIPPED','PAID')").fetchall():
-        d = dict(r)
-        dd = d.get("due_date") or d.get("order_date")
-        krw = _fx_to_krw(rates, d.get("total_amount"), d.get("currency"), _ym(dd), missing)
-        _add(sales_yb, _yr(dd), "C", krw)
+            "WHERE oi.unit_status='출하' "
+            "  AND COALESCE(o.status,'')<>'CANCELLED' "
+            "  AND COALESCE(p.is_archived,0)=0").fetchall():
+        rows.append(dict(r))
+    # 소모품 — 출하(SHIPPED)/입금(PAID)
+    for r in c.execute(
+            "SELECT 'C' AS biz, COALESCE(customer_name,'') AS cust, "
+            "       total_amount AS amount, currency, "
+            "       COALESCE(due_date, order_date) AS dd "
+            "FROM consumable_orders WHERE status IN ('SHIPPED','PAID')").fetchall():
+        rows.append(dict(r))
 
-    years_all = sorted(set(list(order_yb.keys()) + list(sales_yb.keys())), reverse=True)
-    year_rows = []
-    for y in years_all:
-        o = sum(v[0] for v in order_yb.get(y, {}).values())
-        s = sum(v[0] for v in sales_yb.get(y, {}).values())
-        year_rows.append({"year": y, "order": o, "sales": s,
-                          "rate": (s / o * 100.0) if o > 0 else 0.0})
+    by_year, by_biz, by_cust = {}, {}, {}
+    total = 0.0
+    total_cnt = 0
+    month_total = 0.0
+    month_cnt = 0
     sel = str(sel_year)
-    biz_rows = []
-    for b in SALES_BIZ:
-        ob = order_yb.get(sel, {}).get(b, [0.0, 0])
-        sb = sales_yb.get(sel, {}).get(b, [0.0, 0])
-        biz_rows.append({"biz": b, "label": SALES_BIZ_LABEL[b],
-                         "order": ob[0], "order_cnt": ob[1],
-                         "sales": sb[0], "sales_cnt": sb[1]})
+    for d in rows:
+        dd = d.get("dd") or ""
+        yr, ym = dd[:4], dd[:7]
+        if not yr:
+            continue
+        biz = (d.get("biz") or "").strip().upper()
+        if biz not in SALES_BIZ:
+            biz = "E"      # 관리번호 없음/미지정 → 기타
+        krw = _fx_to_krw(rates, d.get("amount"), d.get("currency"), ym, missing)
+        e = by_year.setdefault(yr, [0.0, 0])
+        e[0] += krw
+        e[1] += 1
+        if yr == sel:
+            b = by_biz.setdefault(biz, [0.0, 0])
+            b[0] += krw
+            b[1] += 1
+            cu = by_cust.setdefault(d.get("cust") or "—", [0.0, 0])
+            cu[0] += krw
+            cu[1] += 1
+            total += krw
+            total_cnt += 1
+        if ym and ym == cur_ym:
+            month_total += krw
+            month_cnt += 1
+
+    years_all = sorted(by_year.keys(), reverse=True)
     return {
-        "years": year_rows,
-        "biz_rows": biz_rows,
-        "order_total": sum(r["order"] for r in biz_rows),
-        "sales_total": sum(r["sales"] for r in biz_rows),
+        "years": [{"year": y, "sales": by_year[y][0], "cnt": by_year[y][1]} for y in years_all],
+        "biz_rows": [{"biz": b, "label": SALES_BIZ_LABEL[b],
+                      "sales": by_biz.get(b, [0.0, 0])[0],
+                      "cnt": by_biz.get(b, [0.0, 0])[1]} for b in SALES_BIZ],
+        "top_customers": sorted(
+            [{"customer_name": k, "sales": v[0], "cnt": v[1]} for k, v in by_cust.items()],
+            key=lambda x: -x["sales"])[:5],
+        "total": total, "total_cnt": total_cnt,
+        "month_total": month_total, "month_cnt": month_cnt,
         "sel_year": sel,
         "year_choices": years_all,
         "missing_fx": sorted({ccy for (ccy, _y) in missing}),
@@ -19589,58 +19581,16 @@ async def sales_dashboard(request: Request):
     today = date.today()
     ym = today.strftime("%Y-%m")
     year = today.year
-    # v5H226z901 (대표 지시): 연도 선택(기본=올해) — 매출 종합(수주/매출) 집계용
+    # v5H226z902 (대표 지시): 연도 선택(기본=올해) — 매출(납품완료) 집계 대상 연도
     _sy = (request.query_params.get("year") or "").strip()
     sel_year = _sy if (_sy.isdigit() and len(_sy) == 4) else str(year)
     with db_session() as c:
-        # v5H226z900 (대표 지시): 외화(USD/EUR/JPY/CNY/VND)를 납품월 기준환율로 원화 환산해 합산.
-        rates = _fx_load_rates(c)
-        # v5H226z901 (대표 지시): 수주 + 매출(출하) 연도×사업부(소모품 포함) 종합 집계
-        overview = _sales_overview(c, rates, sel_year)
-        missing = set()   # 환율 미입력으로 환산 못 한 (통화, 월)
-
-        def _refym(d):
-            s = (d.get("due_date") or d.get("order_date") or "") or ""
-            return s[:7]
-
-        def _sum_krw(sql, params=()):
-            tot = 0.0
-            cnt = 0
-            for r in c.execute(sql, params).fetchall():
-                d = dict(r)
-                tot += _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
-                cnt += 1
-            return tot, cnt
-
-        _F = "order_amount, currency, due_date, order_date"
-        # 이번 달 수주 / YTD 누적 (원화 환산)
-        month_total, month_cnt = _sum_krw(
-            f"SELECT {_F} FROM projects WHERE order_date LIKE ? AND order_amount > 0",
-            (f"{ym}%",))
-        ytd_total, ytd_cnt = _sum_krw(
-            f"SELECT {_F} FROM projects WHERE order_date LIKE ? AND order_amount > 0",
-            (f"{year}%",))
-        # 사업부별 수주 (검사기 T / 자동화 M)
-        by_biz_map = {}
-        for r in c.execute(
-                f"SELECT biz_div, {_F} FROM projects "
-                "WHERE order_date LIKE ? AND biz_div IN ('T','M')", (f"{year}%",)).fetchall():
-            d = dict(r)
-            e = by_biz_map.setdefault(d["biz_div"], {"biz_div": d["biz_div"], "total": 0.0, "cnt": 0})
-            e["total"] += _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
-            e["cnt"] += 1
-        by_biz = list(by_biz_map.values())
-        # 단계별 프로젝트
-        by_stage_map = {}
-        for r in c.execute(
-                f"SELECT stage, {_F} FROM projects "
-                "WHERE stage IS NOT NULL AND stage != ''").fetchall():
-            d = dict(r)
-            e = by_stage_map.setdefault(d["stage"], {"stage": d["stage"], "cnt": 0, "amount": 0.0})
-            e["amount"] += _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
-            e["cnt"] += 1
-        by_stage = sorted(by_stage_map.values(), key=lambda x: -x["cnt"])
-        # 최근 프로젝트 (표시 금액도 원화 환산: amount_krw_disp)
+        rates = _fx_load_rates(c)   # z900: 월 기준환율(납품월 기준 원화 환산)
+        # v5H226z902 (대표 지시): 이 화면의 매출 = **납품완료(출하) 금액만**. 수주액은 집계에서 뺌
+        #   (수주는 발주일 기준이라 납품일 기준 매출과 연도가 섞여 비교가 왜곡됨).
+        overview = _sales_delivered(c, rates, sel_year, ym)
+        # 최근 프로젝트 — 참고 목록(그 프로젝트의 계약금액을 원화 환산해 표시)
+        _miss = set()
         recent = [dict(r) for r in c.execute(
             """SELECT id, mgmt_code, name, customer_name, stage, order_amount,
                       order_date, due_date, biz_div, currency
@@ -19649,27 +19599,12 @@ async def sales_dashboard(request: Request):
                  AND COALESCE(is_archived,0)=0
                ORDER BY id DESC LIMIT 10""").fetchall()]
         for d in recent:
-            d["amount_krw_disp"] = _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
-        # TOP 5 고객사 (원화 환산)
-        cust_map = {}
-        for r in c.execute(
-                f"SELECT customer_name, {_F} FROM projects "
-                "WHERE customer_name IS NOT NULL AND customer_name != '' AND order_date LIKE ?",
-                (f"{year}%",)).fetchall():
-            d = dict(r)
-            e = cust_map.setdefault(d["customer_name"],
-                                    {"customer_name": d["customer_name"], "cnt": 0, "total": 0.0})
-            e["total"] += _fx_to_krw(rates, d.get("order_amount"), d.get("currency"), _refym(d), missing)
-            e["cnt"] += 1
-        customers_top = sorted(cust_map.values(), key=lambda x: -x["total"])[:5]
-    missing_fx = sorted({ccy for (ccy, _y) in missing})   # 환율 미입력 통화(경고용)
+            _ref = ((d.get("due_date") or d.get("order_date") or "") or "")[:7]
+            d["amount_krw_disp"] = _fx_to_krw(rates, d.get("order_amount"),
+                                              d.get("currency"), _ref, _miss)
     sales_kpi = {
-        "month_total": month_total, "month_cnt": month_cnt,
-        "ytd_total": ytd_total, "ytd_cnt": ytd_cnt,
-        "by_biz": by_biz, "by_stage": by_stage,
-        "recent": recent, "top_customers": customers_top,
+        "recent": recent,
         "ym": ym, "year": year,
-        "missing_fx": missing_fx,
     }
     return ctx(request, "sales_home.html",
                user=u, active="sales",

@@ -161,23 +161,18 @@ body { overflow: hidden !important; }
       {# v5H74: 페이지헤더 액션 버튼 제거 — 좌측 사이드바와 중복 #}
     </div>
 
-    {# v5H226z901 (대표 지시): 수주 총액 + 실제 매출(출하) 구분 · 선택 연도 기준 · 전 사업부 원화 환산 #}
+    {# v5H226z902 (대표 지시): 이 화면은 '납품완료(출하) 매출'만 집계 — 수주액 제외(연도 기준을 납품일로 통일) #}
     <!-- KPI -->
     <div class="kpi-row" data-dn="kpi-bar" data-dn-tone="green">
       <div class="kpi hero">
-        <div class="kpi-label">{{ kpi.ym|default('') }} 이번 달 수주</div>
-        <div class="kpi-num">{{ '{:,.0f}'.format(kpi.month_total or 0) }}<span style="font-size:14px;opacity:0.85;"> 원</span></div>
-        <div class="kpi-trend up">↑ {{ kpi.month_cnt or 0 }}건</div>
+        <div class="kpi-label">{{ kpi.ym|default('') }} 이번 달 매출 (납품완료)</div>
+        <div class="kpi-num">{{ '{:,.0f}'.format(overview.month_total or 0) }}<span style="font-size:14px;opacity:0.85;"> 원</span></div>
+        <div class="kpi-trend up">↑ {{ overview.month_cnt or 0 }}건 출하</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">{{ overview.sel_year }} 수주 총액</div>
-        <div class="kpi-num">{{ '{:,.0f}'.format(overview.order_total or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
-        <div class="kpi-trend neutral">전 사업부 · 원화 환산</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">{{ overview.sel_year }} 실제 매출(출하)</div>
-        <div class="kpi-num" style="color:#15803d;">{{ '{:,.0f}'.format(overview.sales_total or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
-        <div class="kpi-trend neutral">납품완료 기준</div>
+        <div class="kpi-label">{{ overview.sel_year }} 매출 총액 (납품완료)</div>
+        <div class="kpi-num" style="color:#15803d;">{{ '{:,.0f}'.format(overview.total or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-trend neutral">{{ overview.total_cnt or 0 }}건 · 전 사업부 · 원화 환산</div>
       </div>
       <div class="kpi">
         <div class="kpi-label">진행 프로젝트</div>
@@ -206,26 +201,26 @@ body { overflow: hidden !important; }
     <!-- 사업부별 수주·매출 / 년도별 -->
     <div class="grid-2" data-dn="grid-biz-year" data-dn-tone="purple">
       <div class="card" data-dn="biz-table">
-        <h3>사업부별 수주 · 매출 ({{ overview.sel_year }})</h3>
+        <h3>사업부별 매출 · 납품완료 ({{ overview.sel_year }})</h3>
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
               <th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">사업부</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">수주금액</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">실제 매출(출하)</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">매출(납품완료)</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">건수</th>
             </tr></thead>
             <tbody>
               {% for b in overview.biz_rows %}
               <tr>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);">{{ b.label }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(b.order) }}{% if b.order_cnt %} <small style="color:#94a3b8;">({{ b.order_cnt }})</small>{% endif %}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(b.sales) }}{% if b.sales_cnt %} <small style="color:#86bfa0;">({{ b.sales_cnt }})</small>{% endif %}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(b.sales) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;color:#64748b;">{{ b.cnt }}</td>
               </tr>
               {% endfor %}
               <tr style="font-weight:800;background:#fafaf7;">
                 <td style="padding:8px;">합계</td>
-                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(overview.order_total) }}</td>
-                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(overview.sales_total) }}</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(overview.total) }}</td>
+                <td style="padding:8px;text-align:right;color:#475569;">{{ overview.total_cnt }}</td>
               </tr>
             </tbody>
           </table>
@@ -233,21 +228,21 @@ body { overflow: hidden !important; }
       </div>
 
       <div class="card" data-dn="year-table">
-        <h3>년도별 수주 · 매출</h3>
+        <h3>년도별 매출 (납품완료)</h3>
         {% if overview.years %}
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
               <th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">연도</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">수주금액</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">실제 매출(출하)</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">매출(납품완료)</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">건수</th>
             </tr></thead>
             <tbody>
               {% for y in overview.years %}
               <tr{% if y.year == overview.sel_year %} style="background:#fffbeb;"{% endif %}>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a href="/sales?year={{ y.year }}" style="font-weight:700;color:#1e293b;text-decoration:none;">{{ y.year }}</a></td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(y.order) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(y.sales) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(y.sales) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;color:#64748b;">{{ y.cnt }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -261,20 +256,21 @@ body { overflow: hidden !important; }
 
     <!-- TOP 5 고객사 / 최근 프로젝트 -->
     <div class="grid-2" data-dn="grid-customer-recent" data-dn-tone="blue">
+      {# v5H226z902: TOP5 도 '납품완료 매출' 기준(수주액 아님) #}
       <div class="card" data-dn="top-customers">
-        <h3>TOP 5 고객사 ({{ kpi.year|default('') }})</h3>
+        <h3>TOP 5 고객사 — 매출(납품완료) {{ overview.sel_year }}</h3>
         <div class="list-card list-scroll-sm">
-          {% for c in (kpi.top_customers or []) %}
+          {% for c in (overview.top_customers or []) %}
           <a class="list-item" href="/customers?q={{ c.customer_name }}">
             <div class="list-num">{{ '%02d'|format(loop.index) }}</div>
             <div class="list-text">
-              <div class="ttl">{{ (cust_alias|default({},true)).get(c.customer_id) or c.customer_name }}</div>
-              <div class="meta">{{ c.cnt }} 건</div>
+              <div class="ttl">{{ c.customer_name }}</div>
+              <div class="meta">{{ c.cnt }} 건 출하</div>
             </div>
-            <div class="list-amount">{{ '{:,.0f}'.format(c.total) }}</div>
+            <div class="list-amount" style="color:#15803d;">{{ '{:,.0f}'.format(c.sales) }}</div>
           </a>
           {% else %}
-          <div style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</div>
+          <div style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">납품완료된 건이 없습니다</div>
           {% endfor %}
         </div>
       </div>
