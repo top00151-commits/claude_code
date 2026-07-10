@@ -1442,6 +1442,34 @@ def coi_set_image(item_id: int, category: str, image_path: str,
     return co_id
 
 
+def coi_clear_image(item_id: int, category: str, by_id=None, by_name: str = "") -> int | None:
+    """v5H226z905 (대표 지시): 라인 사진 1장 삭제 — DB 칸을 비운다(NULL). 줄 자체는 남는다.
+    category: 'photo'=사진(PICTURE) / 'loc'=사진위치(LOCATION). 존재하는 컬럼만 갱신.
+    실제 파일 삭제는 호출측(라우트)에서. co_id 반환(없으면 None)."""
+    cat = "loc" if category == "loc" else "photo"
+    full_col, thumb_col = (("image_loc_path", "image_loc_thumb_path") if cat == "loc"
+                           else ("image_path", "image_thumb_path"))
+    co_id = None
+    with db_session() as c:
+        cols_avail = {r2[1] for r2 in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}
+        r = c.execute("SELECT co_id FROM consumable_order_items WHERE id=?", (int(item_id),)).fetchone()
+        if not r:
+            return None
+        co_id = r[0]
+        sets = []
+        if full_col in cols_avail:
+            sets.append(f"{full_col}=NULL")
+        if thumb_col in cols_avail:
+            sets.append(f"{thumb_col}=NULL")
+        if not sets:
+            return None   # 컬럼 미존재 → 미반영이면 성공으로 보고하지 않음(첨부와 동일 규칙)
+        c.execute(f"UPDATE consumable_order_items SET {', '.join(sets)} WHERE id=?", (int(item_id),))
+    co_log_change(co_id, item_id, "line", f"image_{cat}",
+                  ("사진(PICTURE)" if cat == "photo" else "사진위치(LOCATION)"),
+                  "첨부됨", "삭제됨", by_id, by_name)
+    return co_id
+
+
 def coi_delete(item_id: int) -> None:
     with db_session() as c:
         row = c.execute(

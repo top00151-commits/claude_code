@@ -122,9 +122,17 @@ table.items tfoot td { background: var(--paper-2); font-weight: 700; }   /* v5H2
 /* v5H226z305(대표 지시): 사진 2칸 — 사진(가로 90px)보다 좁아지지 않게 + 가운데 정렬, 여백 축소 */
 table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-align: center; }
 /* v5H226z904 (대표 지시): 사진 칸 클릭 선택 → Ctrl+V 로 복사한 사진 붙여넣기(엑셀식) */
-table.items td.photo-cell { cursor: cell; outline: none; }
+table.items td.photo-cell { cursor: cell; outline: none; position: relative; }
 table.items td.photo-cell.pc-sel { box-shadow: inset 0 0 0 2px var(--knk-red,#A5282C); background: #fff7f7; }
 table.items td.photo-cell.pc-busy { opacity: .45; }
+/* v5H226z905 (대표 지시): 사진 칸에 마우스 올리면 우측 상단 ✕ → 확인 후 그 사진만 삭제 */
+table.items td.photo-cell .pc-del {
+  position: absolute; top: 2px; right: 2px; width: 17px; height: 17px; padding: 0; line-height: 15px;
+  border: 1px solid #fca5a5; background: #fff; color: #dc2626; border-radius: 50%;
+  font-size: 11px; font-weight: 800; cursor: pointer; display: none; z-index: 2;
+}
+table.items td.photo-cell:hover .pc-del, table.items td.photo-cell:focus-within .pc-del { display: block; }
+table.items td.photo-cell .pc-del:hover { background: #dc2626; color: #fff; border-color: #dc2626; }
 /* v5H226z725: 라인 표 select(형태 등) — input 과 동일 룩 */
 table.items select { padding: 1px 4px; border: 1px solid transparent; border-radius: 3px; background: transparent; font-size: 12px; width: 100%; box-sizing: border-box; }
 table.items select:hover { border-color: var(--qv-line); background:#fff; }
@@ -360,12 +368,12 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             {# v5H226z904 (대표 지시): 칸 클릭 후 Ctrl+V 로 클립보드 사진 붙여넣기(📷 파일선택도 그대로) #}
             <td class="photo-cell" tabindex="0" data-iid="{{ it.id }}" data-cat="loc" title="클릭 후 Ctrl+V 로 복사한 사진 붙여넣기">
               {% if it.image_loc_thumb_path %}
-                <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" data-knk-zoom data-knk-name="사진위치 {{ it.line_no }}" target="_blank"><img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" /></a>
+                <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" data-knk-zoom data-knk-name="사진위치 {{ it.line_no }}" target="_blank"><img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" /></a><button type="button" class="pc-del" title="사진 삭제">✕</button>
               {% else %}<button type="button" class="photo-add" title="사진위치 첨부" onclick="pickLinePhoto(this,{{ it.id }},'loc')">📷</button>{% endif %}
             </td>
             <td class="photo-cell" tabindex="0" data-iid="{{ it.id }}" data-cat="photo" title="클릭 후 Ctrl+V 로 복사한 사진 붙여넣기">
               {% if it.image_thumb_path %}
-                <a href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="라인 {{ it.line_no }}" target="_blank"><img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" /></a>
+                <a href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="라인 {{ it.line_no }}" target="_blank"><img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" /></a><button type="button" class="pc-del" title="사진 삭제">✕</button>
               {% else %}<button type="button" class="photo-add" title="사진 첨부" onclick="pickLinePhoto(this,{{ it.id }},'photo')">📷</button>{% endif %}
             </td>
             {# v5H226z725: 발주 공통(ord-col) — 납품일·형태. 모든 줄 동일·편집 시 발주에 저장+전 줄 동기화 #}
@@ -481,7 +489,28 @@ function pickLinePhoto(btn, iid, cat){
   function bust(u){ if(!u) return u; return u + (u.indexOf('?')>=0 ? '&' : '?') + 'v=' + Date.now(); }
   function render(cell, full, thumb){
     if(!cell) return;
-    cell.innerHTML = '<a href="'+bust(full)+'" data-knk-zoom target="_blank"><img src="'+bust(thumb)+'" alt="사진"></a>';
+    cell.innerHTML = '<a href="'+bust(full)+'" data-knk-zoom target="_blank"><img src="'+bust(thumb)+'" alt="사진"></a>'
+                   + '<button type="button" class="pc-del" title="사진 삭제">✕</button>';
+  }
+  // v5H226z905 (대표 지시): 사진 1장만 삭제 → 그 칸은 다시 📷(첨부) 버튼으로 되돌린다.
+  function emptyCellHtml(cell){
+    var cat = cell.dataset.cat, iid = cell.dataset.iid;
+    var t = (cat === 'loc') ? '사진위치 첨부' : '사진 첨부';
+    return '<button type="button" class="photo-add" title="'+t+'" onclick="pickLinePhoto(this,'+iid+',\''+cat+'\')">📷</button>';
+  }
+  function delPhoto(cell){
+    var iid = cell.dataset.iid, cat = cell.dataset.cat;
+    if(!iid || !cat) return;
+    var fd = new FormData(); fd.append('category', cat);
+    cell.classList.add('pc-busy');
+    fetch('/consumables/'+CO_ID+'/items/'+iid+'/photo/delete', {method:'POST', body:fd})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        cell.classList.remove('pc-busy');
+        if(j && j.ok){ cell.innerHTML = emptyCellHtml(cell); }
+        else { alert('삭제 실패: ' + ((j && j.error) || '')); }
+      })
+      .catch(function(){ cell.classList.remove('pc-busy'); alert('통신 오류'); });
   }
   function upload(cell, blob, iid, cat, done){
     if(!iid || !cat){ if(done) done(); return; }
@@ -526,8 +555,15 @@ function pickLinePhoto(btn, iid, cat){
     return null;
   }
   [].slice.call(document.querySelectorAll('table.items td.photo-cell[data-iid]')).forEach(function(cell){
-    cell.addEventListener('click', function(){
-      try { cell.focus({preventScroll:true}); } catch(e){ try{ cell.focus(); }catch(e2){} }
+    cell.addEventListener('click', function(e){
+      // v5H226z905: ✕ 클릭 = 그 사진만 삭제(확대보기·칸선택으로 새지 않게 차단)
+      var del = e.target && e.target.closest && e.target.closest('.pc-del');
+      if(del){
+        e.preventDefault(); e.stopPropagation();
+        if(confirm('사진을 삭제할까요?')) delPhoto(cell);
+        return;
+      }
+      try { cell.focus({preventScroll:true}); } catch(e2){ try{ cell.focus(); }catch(e3){} }
     });
     cell.addEventListener('focusin', function(){ cell.classList.add('pc-sel'); });
     cell.addEventListener('focusout', function(e){

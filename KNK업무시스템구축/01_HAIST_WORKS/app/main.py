@@ -37185,6 +37185,35 @@ async def consumables_item_photo(request: Request, co_id: int, iid: int,
                          "thumb_url": thumb_url, "full_url": full_url})
 
 
+@app.post("/consumables/{co_id:int}/items/{iid:int}/photo/delete")
+async def consumables_item_photo_delete(request: Request, co_id: int, iid: int,
+                                        category: str = Form("photo")):
+    """v5H226z905 (대표 지시): 라인 사진 1장 삭제(사진 / 사진위치) — 품목 줄 자체는 남는다.
+    DB(단일 진실)를 먼저 비우고 그 다음 실제 파일을 정리한다. 파일 정리에 실패해도
+    DB·화면은 '사진 없음'으로 일관(반대 순서면 DB가 없는 파일을 가리켜 깨진 이미지가 됨)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "auth"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    item = _co.coi_get(iid)
+    if not item or int(item.get("co_id") or 0) != int(co_id):
+        return JSONResponse({"ok": False, "error": "라인을 찾을 수 없습니다"}, 404)
+    cat = "loc" if (category or "") == "loc" else "photo"
+    cleared = _co.coi_clear_image(iid, cat, by_id=u.get("id"),
+                                  by_name=(u.get("name") or u.get("login_id") or ""))
+    if not cleared:
+        return JSONResponse({"ok": False, "error": "DB 반영 실패"}, 500)
+    img_dir = _co.co_image_dir(co_id)
+    base = f"line{int(iid)}_{cat}"
+    for _n in (f"{base}_full.jpg", f"{base}_thumb.jpg"):
+        try:
+            os.remove(os.path.join(img_dir, _n))
+        except Exception:
+            pass   # 이미 없거나 못 지워도 DB 는 비워졌으니 화면은 일관(고아 파일만 남음)
+    return JSONResponse({"ok": True, "category": cat})
+
+
 @app.post("/consumables/{co_id:int}/items/{iid:int}/delete")
 async def consumables_item_delete(request: Request, co_id: int, iid: int):
     u = get_user(request)
