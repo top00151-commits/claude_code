@@ -37130,6 +37130,40 @@ async def consumables_item_add(request: Request, co_id: int):
     return JSONResponse({"ok": True, "item_id": iid})
 
 
+def _co_img_path(co_id: int, url):
+    """v5H226z906: 저장된 이미지 URL → 그 수주 폴더 안의 실제 파일 경로.
+    basename 만 취해 경로 이탈(../)을 막는다. 값이 없으면 None."""
+    if not url:
+        return None
+    name = os.path.basename(str(url).split("?")[0].strip())
+    if not name or name in (".", ".."):
+        return None
+    return os.path.join(_co.co_image_dir(int(co_id)), name)
+
+
+def _co_remove_item_images(co_id: int, iid: int, item: dict, cat: str, keep=()) -> None:
+    """v5H226z906: 그 라인·그 종류(사진/사진위치)의 '이전' 이미지 파일 정리.
+    ① DB 에 저장돼 있던 경로 ② 구버전 고정 파일명(line{iid}_{cat}_full/thumb.jpg) 둘 다 지운다.
+    keep(방금 저장한 새 파일명)은 건드리지 않는다. 실패해도 조용히 넘어감(고아 파일만 남음)."""
+    cols = (("image_loc_path", "image_loc_thumb_path") if cat == "loc"
+            else ("image_path", "image_thumb_path"))
+    targets = []
+    for col in cols:
+        p = _co_img_path(co_id, (item or {}).get(col))
+        if p:
+            targets.append(p)
+    _dir = _co.co_image_dir(int(co_id))
+    targets.append(os.path.join(_dir, f"line{int(iid)}_{cat}_full.jpg"))
+    targets.append(os.path.join(_dir, f"line{int(iid)}_{cat}_thumb.jpg"))
+    for p in targets:
+        if os.path.basename(p) in keep:
+            continue
+        try:
+            os.remove(p)
+        except Exception:
+            pass
+
+
 @app.post("/consumables/{co_id:int}/items/{iid:int}/photo")
 async def consumables_item_photo(request: Request, co_id: int, iid: int,
                                  file: UploadFile = File(...),
@@ -37158,7 +37192,11 @@ async def consumables_item_photo(request: Request, co_id: int, iid: int,
     except Exception:
         return JSONResponse({"ok": False, "error": "이미지 파일이 아니거나 처리할 수 없습니다"}, 400)
     img_dir = _co.co_image_dir(co_id)
-    base = f"line{int(iid)}_{cat}"
+    # v5H226z906 (대표 지적·버그수정): 파일명을 업로드마다 '고유'하게 만든다.
+    #   기존엔 line{iid}_{cat}_full.jpg 로 고정 → 사진을 바꿔도 URL 이 그대로라, 저장 후 새로고침하면
+    #   브라우저가 옛 썸네일을 캐시에서 꺼내 보여줬다(확대는 캐시에 없어 새 사진이 보임 = 대표 증상).
+    #   이름이 달라지면 상세·제작요청서·카드 등 '모든 화면'에서 한 번에 해결된다.
+    base = f"line{int(iid)}_{cat}_{os.urandom(5).hex()}"
     full_name, thumb_name = f"{base}_full.jpg", f"{base}_thumb.jpg"
     try:
         with open(os.path.join(img_dir, full_name), "wb") as f:
@@ -37179,8 +37217,8 @@ async def consumables_item_photo(request: Request, co_id: int, iid: int,
             except Exception:
                 pass
         return JSONResponse({"ok": False, "error": "DB 반영 실패"}, 500)
-    # 참고(적대검토): 파일명이 결정적(line{iid}_{cat})이라 향후 '사진 교체' 기능 추가 시
-    #   반환 URL에 캐시버스터(?v=)를 붙여 브라우저 캐시를 무효화할 것.
+    # v5H226z906: DB 반영 뒤에만 '이전 사진' 파일 정리(교체). 방금 쓴 새 파일은 보존.
+    _co_remove_item_images(co_id, iid, item, cat, keep=(full_name, thumb_name))
     return JSONResponse({"ok": True, "category": cat,
                          "thumb_url": thumb_url, "full_url": full_url})
 
@@ -37204,13 +37242,8 @@ async def consumables_item_photo_delete(request: Request, co_id: int, iid: int,
                                   by_name=(u.get("name") or u.get("login_id") or ""))
     if not cleared:
         return JSONResponse({"ok": False, "error": "DB 반영 실패"}, 500)
-    img_dir = _co.co_image_dir(co_id)
-    base = f"line{int(iid)}_{cat}"
-    for _n in (f"{base}_full.jpg", f"{base}_thumb.jpg"):
-        try:
-            os.remove(os.path.join(img_dir, _n))
-        except Exception:
-            pass   # 이미 없거나 못 지워도 DB 는 비워졌으니 화면은 일관(고아 파일만 남음)
+    # v5H226z906: 파일명이 고유해졌으므로 '저장돼 있던 경로' 기준으로 지운다(구버전 고정명도 함께).
+    _co_remove_item_images(co_id, iid, item, cat)
     return JSONResponse({"ok": True, "category": cat})
 
 
