@@ -28,6 +28,9 @@
 .sr-l{display:block;font-size:10px;color:var(--mute,#94a3b8);font-weight:600;margin-bottom:1px;white-space:nowrap;line-height:1.2;}
 .sr-v{display:block;font-weight:700;color:var(--ink,#0f172a);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35;}
 .sr-v.wrap{white-space:normal;}
+/* z918 (대표 지시): 관리번호·수주번호 클릭 → 상세 연결(클릭 가능 표시) */
+a.mgmt-pill.sr-link{text-decoration:none;cursor:pointer;}
+a.mgmt-pill.sr-link:hover{outline:2px solid #7dd3fc;outline-offset:1px;}
 /* 레코드 줄무늬 — 한 수주의 모든 줄이 같은 배경(2줄·3줄 혼재해도 블록 구분 명확) */
 .tbl[data-sr-table] tbody tr>td{background:#fff;}
 .tbl[data-sr-table] tbody tr.sr-ev>td{background:#eaf1fb;}

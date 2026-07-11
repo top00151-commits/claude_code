@@ -32215,6 +32215,7 @@ async def sales_shipments_receipts_page(req: Request):
         o = agg.get(oid)
         if not o:
             o = {"order_id": oid, "order_no": d["order_no"] or ("#" + str(oid)),
+                 "project_id": d.get("project_id"),   # z918 관리번호→프로젝트 상세 링크
                  "mgmt_code": d["mgmt_code"], "customer_name": d["customer_name"],
                  "pay_days": int(d["pay_days"] or 0), "currency": d["currency"] or "KRW",
                  "total_amount": d["total_amount"] or 0, "order_date": d["order_date"] or "",
