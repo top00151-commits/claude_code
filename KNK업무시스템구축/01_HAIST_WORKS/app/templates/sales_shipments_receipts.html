@@ -73,7 +73,9 @@ tr.sr-hist-row[hidden]{display:none!important;}
 .tbl-wrap.tbl-sticky.sr-scrollbox{overflow-y:auto;max-height:520px;}
 body[data-sr-th="low"]  .tbl-wrap.sr-scrollbox{max-height:320px;}
 body[data-sr-th="high"] .tbl-wrap.sr-scrollbox{max-height:780px;}
-body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;overflow:visible;}
+/* z923 (대표 지적): '전체'=높이 제한만 해제하고 스크롤 상자 성질(overflow:auto)은 유지.
+   overflow:visible 로 풀면 이 상자가 독립 레이아웃 영역(BFC)을 잃어 표가 길어질 때 좌측 고정 사이드바와 겹침. */
+body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
 @media (max-width:1100px){ .page-title{font-size:22px;} }
 @media (max-width:768px){ .sr-kpi{flex:1 1 46%;min-width:120px;} }
 </style>
