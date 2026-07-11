@@ -80,19 +80,28 @@ tr.sr-hist-row[hidden]{display:none!important;}
   <div class="sr-kpis">
     <div class="sr-kpi warn"><div class="lbl">🔴 발행 대기(출하·미발행 잔액)</div><div class="val">{% if can_money %}{{ kpi.billing_sum }}{% else %}🔒{% endif %} <span style="font-size:12px;color:var(--mute);">· {{ kpi.billing_cnt }}건</span></div></div>
     <div class="sr-kpi carry"><div class="lbl">🟠 마감이월(전부 미발행)</div><div class="val">{{ kpi.carryover_cnt }}건</div></div>
-    <div class="sr-kpi"><div class="lbl">📅 {{ ym }} 입금예정(부가세 포함·KRW)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}{% else %}🔒{% endif %}</div></div>
+    <div class="sr-kpi"><div class="lbl">📅 입금예정(발행완료·부가세 포함)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}{% else %}🔒{% endif %}</div></div>
     <div class="sr-kpi"><div class="lbl">총 미수(부가세 포함·KRW)</div><div class="val">{% if can_money %}{{ kpi.outstanding_sum }}{% else %}🔒{% endif %}{% if kpi.fx_cnt %}<span style="font-size:11px;color:var(--mute);"> · 외화 {{ kpi.fx_cnt }}건</span>{% endif %}</div></div>
   </div>
 
   {# ── 기준월 선택 ── #}
   <div class="sr-monthbar">
-    <a class="btn btn-ghost" href="?ym={{ prev_ym }}">◀ {{ prev_ym }}</a>
-    <form method="get">
-      <input type="month" name="ym" value="{{ ym }}" onchange="this.form.submit()" style="padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;">
-      <button class="btn btn-primary" type="submit">조회</button>
-    </form>
-    <a class="btn btn-ghost" href="?ym={{ next_ym }}">{{ next_ym }} ▶</a>
-    <span style="font-size:12px;color:var(--mute);">· 마감이월·연체는 월과 무관하게 항상 상단</span>
+    <label style="font-size:12px;color:var(--mute);">📅 조회</label>
+    <select id="srDMode" style="padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;font-size:12px;background:#fff;">
+      <option value="all">전체</option>
+      <option value="year">연간</option>
+      <option value="month">월간</option>
+      <option value="range">기간</option>
+    </select>
+    <input type="number" id="srDYear" min="2000" max="2099" step="1" value="{{ ym[:4] }}" style="display:none;width:82px;padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;font-size:12px;">
+    <span id="srDYearL" style="display:none;font-size:12px;color:var(--mute);">년</span>
+    <input type="month" id="srDMonth" value="{{ ym }}" style="display:none;padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;font-size:12px;">
+    <span id="srDRange" style="display:none;align-items:center;gap:4px;">
+      <input type="date" id="srDFrom" style="padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;font-size:12px;">
+      <span style="color:var(--mute);">~</span>
+      <input type="date" id="srDTo" style="padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;font-size:12px;">
+    </span>
+    <span style="font-size:11px;color:var(--mute);">· 세금계산서 발행일 기준 (기본 전체)</span>
     <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center;">
       <label style="font-size:12px;color:var(--mute);">정렬</label>
       <select id="srSortSel" style="padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;font-size:12px;background:#fff;">
@@ -128,14 +137,14 @@ tr.sr-hist-row[hidden]{display:none!important;}
   {% endif %}
 
   {# ── ② 기준월 입금예상 ── #}
-  <div class="sr-sec-h">📅 {{ ym }} 입금예정 ({{ inmonth|length }}건)</div>
+  <div class="sr-sec-h">📅 발행완료 · 수금 관리 ({{ inmonth|length }}건)</div>
   <div class="tbl-wrap tbl-sticky">
     {% if inmonth %}
     <table class="tbl" data-sr-table>
       {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}
       <tbody>{% for o in inmonth %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
-    {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">{{ ym }} 입금예정 건 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">다른 달을 선택하거나, 위 ‘발행 대기’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
+    {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">발행완료·수금 대상 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">위 ‘발행 대기’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
   </div>
 
   <div style="height: var(--space-7);"></div>
@@ -220,11 +229,30 @@ tr.sr-hist-row[hidden]{display:none!important;}
 
   {# z915: 열 너비 드래그·열 숨김(가로표 전용 z912/z914)은 2줄 레이아웃으로 대체되어 제거 #}
 
-  {# z919 (대표 지시): 상태 필터 칩 — 레코드(그룹) 단위 표시/숨김. '미발행'=마감이월+발행 대기 #}
+  {# z919/z920 (대표 지시): 상태 필터 칩 + 날짜(세금계산서 발행일) 필터 결합 — 레코드 그룹 단위 표시/숨김 #}
   <script>
   (function(){
-    var bar = document.getElementById('srFilterBar'); if(!bar) return;
-    var SHOW = { all:null, unissued:{'마감이월':1,'발행 대기':1}, expect:{'수금예정':1}, done:{'수금완료':1} };
+    var bar = document.getElementById('srFilterBar');
+    var dmode = document.getElementById('srDMode');
+    var dYear = document.getElementById('srDYear'), dYearL = document.getElementById('srDYearL');
+    var dMonth = document.getElementById('srDMonth'), dRange = document.getElementById('srDRange');
+    var dFrom = document.getElementById('srDFrom'), dTo = document.getElementById('srDTo');
+    if(!bar && !dmode) return;
+    var STATESHOW = { all:null, unissued:{'마감이월':1,'발행 대기':1}, expect:{'수금예정':1}, done:{'수금완료':1} };
+    var curState = 'all';
+    function stateOk(st){ var a = STATESHOW[curState]; return !a || !!a[st]; }
+    function dateOk(ds){
+      var m = dmode ? dmode.value : 'all';
+      if(m === 'all') return true;
+      var arr = (ds || '').split(',');
+      for(var i=0;i<arr.length;i++){
+        var d = arr[i]; if(!d) continue;
+        if(m==='year'  && dYear  && d.slice(0,4) === dYear.value) return true;
+        if(m==='month' && dMonth && d.slice(0,7) === dMonth.value) return true;
+        if(m==='range' && dFrom && dTo && dFrom.value && dTo.value && d >= dFrom.value && d <= dTo.value) return true;
+      }
+      return false;
+    }
     function groups(tb){
       var out=[], cur=null;
       Array.prototype.forEach.call(tb.children, function(r){
@@ -233,14 +261,14 @@ tr.sr-hist-row[hidden]{display:none!important;}
       });
       return out;
     }
-    function apply(key){
-      var allow = SHOW[key];
+    function apply(){
       document.querySelectorAll('main table[data-sr-table]').forEach(function(t){
         var tb = t.tBodies[0]; if(!tb) return;
         var vis = 0;
         groups(tb).forEach(function(g){
           var st = g[0].getAttribute('data-state') || '';
-          var show = !allow || !!allow[st];
+          var ds = g[0].getAttribute('data-issdates') || '';
+          var show = stateOk(st) && dateOk(ds);
           if(show) vis++;
           g.forEach(function(r){ r.style.display = show ? '' : 'none'; });
         });
@@ -253,13 +281,28 @@ tr.sr-hist-row[hidden]{display:none!important;}
         }
       });
     }
-    bar.querySelectorAll('[data-filter]').forEach(function(ch){
-      ch.addEventListener('click', function(){
-        bar.querySelectorAll('[data-filter]').forEach(function(c){ c.classList.remove('on'); });
-        ch.classList.add('on');
-        apply(ch.getAttribute('data-filter'));
+    if(bar){
+      bar.querySelectorAll('[data-filter]').forEach(function(ch){
+        ch.addEventListener('click', function(){
+          bar.querySelectorAll('[data-filter]').forEach(function(c){ c.classList.remove('on'); });
+          ch.classList.add('on');
+          curState = ch.getAttribute('data-filter');
+          apply();
+        });
       });
-    });
+    }
+    if(dmode){
+      function showInputs(){
+        var m = dmode.value;
+        if(dYear)  dYear.style.display  = m==='year' ? 'inline-block' : 'none';
+        if(dYearL) dYearL.style.display = m==='year' ? 'inline' : 'none';
+        if(dMonth) dMonth.style.display = m==='month' ? 'inline-block' : 'none';
+        if(dRange) dRange.style.display = m==='range' ? 'inline-flex' : 'none';
+      }
+      dmode.addEventListener('change', function(){ showInputs(); apply(); });
+      [dYear, dMonth, dFrom, dTo].forEach(function(el){ if(el) el.addEventListener('change', apply); });
+      showInputs();
+    }
   })();
   </script>
 </main></div></body></html>

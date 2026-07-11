@@ -32348,10 +32348,10 @@ async def sales_shipments_receipts_page(req: Request):
         return (2, o.get("order_date") or "", o["order_no"])
     action.sort(key=_akey)
 
+    # z920 (대표 지시): 월 제한 제거 — 발행완료·수금 대상 전체(날짜 필터는 클라이언트에서 세금계산서 발행일 기준).
     inmonth = [o for o in shipped
-               if o["issued"] and o["expected_date"] and o["expected_date"][:7] == ym
-               and o["order_id"] not in seen]
-    inmonth.sort(key=lambda x: (x["expected_date"], x["order_no"]))
+               if o["issued"] and o["order_id"] not in seen]
+    inmonth.sort(key=lambda x: ((x["expected_date"] or "9999-99"), x["order_no"]))
     for _i, _o in enumerate(action):        # z916 레코드 줄무늬(홀짝 배경)로 구분 강화
         _o["ridx"] = _i
     for _i, _o in enumerate(inmonth):
