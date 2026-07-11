@@ -6,9 +6,11 @@
   <td class="center">{{ o.n_ship }}/{{ o.n_total }}</td>
   <td class="center" style="text-align:left;">
     <div class="sr-ti3">
-      <span class="sr-tok {% if o.t1d %}on{% endif %}">계약 {% if o.t1d %}✓ {{ o.t1d[5:] }}{% else %}미발행{% endif %}</span>
-      <span class="sr-tok {% if o.t2d %}on{% elif o.fully_issued %}na{% endif %}">중도 {% if o.t2d %}✓ {{ o.t2d[5:] }}{% elif o.fully_issued %}—{% else %}미발행{% endif %}</span>
-      <span class="sr-tok {% if o.t3d %}on{% elif o.fully_issued %}na{% endif %}">잔금 {% if o.t3d %}✓ {{ o.t3d[5:] }}{% elif o.fully_issued %}—{% else %}미발행{% endif %}</span>
+      {% if o.tier_chips %}{% for tc in o.tier_chips %}
+      <span class="sr-tok on">{{ tc.label }} ✓{% if tc.date %} {{ tc.date[5:] }}{% endif %}{% if can_money and tc.amt_fmt %} <span style="font-weight:400;color:#64748b;">{{ tc.amt_fmt }}</span>{% endif %}</span>
+      {% endfor %}{% else %}
+      <span class="sr-tok" style="background:#fef3c7;color:#92400e;font-weight:700;">미발행</span>
+      {% endif %}
     </div>
   </td>
   <td class="num">{% if can_money %}{{ o.total_fmt }}{% else %}🔒{% endif %}</td>

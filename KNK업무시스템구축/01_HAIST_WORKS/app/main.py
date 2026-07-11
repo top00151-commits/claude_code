@@ -32283,6 +32283,27 @@ async def sales_shipments_receipts_page(req: Request):
         o["out_fmt"] = _money(o["outstanding"] if o["outstanding"] > 0 else 0, o["currency"])
         o["issued_fmt"] = _money(o["issued_amt"], o["currency"])      # z908 발행합계
         o["unbilled_fmt"] = _money(o["unbilled"], o["currency"])      # z908 미발행 잔액
+        # z910 (대표 지시): 발행된 세금계산서만·금액으로 계약금/중도금/잔금 판정(고정 3줄 폐기).
+        #   1장=전액(완납)/계약금(부분) · 2장↑=계약금·중도금·(완납이면 마지막=잔금). 안 끊은 차수는 숨김.
+        _iss = []
+        for _tk in ("1", "2", "3"):
+            _td = o.get("t" + _tk + "d") or ""
+            _ta = o.get("t" + _tk + "a") or 0
+            if _td or (_ta and _ta > _eps):
+                _iss.append({"date": _td, "amt": _ta})
+        _chips, _ni = [], len(_iss)
+        for _idx, _it in enumerate(_iss):
+            if _ni == 1:
+                _lab = "전액" if o["fully_issued"] else "계약금"
+            elif _idx == 0:
+                _lab = "계약금"
+            elif o["fully_issued"] and _idx == _ni - 1:
+                _lab = "잔금"
+            else:
+                _lab = "중도금"
+            _chips.append({"label": _lab, "date": _it["date"],
+                           "amt_fmt": (_money(_it["amt"], o["currency"]) if _it["amt"] else "")})
+        o["tier_chips"] = _chips   # 빈 리스트 = 미발행
         o["receipts"] = hist_map.get(o["order_id"], [])   # z745b 부분수금 이력
         o["recv_cnt"] = len(o["receipts"])
 
