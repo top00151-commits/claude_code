@@ -31,6 +31,11 @@
 /* z918 (대표 지시): 관리번호·수주번호 클릭 → 상세 연결(클릭 가능 표시) */
 a.mgmt-pill.sr-link{text-decoration:none;cursor:pointer;}
 a.mgmt-pill.sr-link:hover{outline:2px solid #7dd3fc;outline-offset:1px;}
+/* z919 (대표 지시): 상태 필터 칩 */
+.sr-filterbar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;}
+.sr-chip{cursor:pointer;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;border:1px solid var(--line,#e5e7eb);background:#fff;color:var(--ink-2,#334155);user-select:none;}
+.sr-chip:hover{border-color:#94a3b8;}
+.sr-chip.on{background:#0f172a;color:#fff;border-color:#0f172a;}
 /* 레코드 줄무늬 — 한 수주의 모든 줄이 같은 배경(2줄·3줄 혼재해도 블록 구분 명확) */
 .tbl[data-sr-table] tbody tr>td{background:#fff;}
 .tbl[data-sr-table] tbody tr.sr-ev>td{background:#eaf1fb;}
@@ -101,6 +106,14 @@ tr.sr-hist-row[hidden]{display:none!important;}
         <option value="state">상태</option>
       </select>
     </span>
+  </div>
+
+  {# z919 (대표 지시): 상태 필터 칩 — '미발행'(마감이월+발행 대기)을 한번에 #}
+  <div id="srFilterBar" class="sr-filterbar">
+    <span class="sr-chip on" data-filter="all">전체</span>
+    <span class="sr-chip" data-filter="unissued">🟠 미발행 (마감이월+발행 대기)</span>
+    <span class="sr-chip" data-filter="expect">📅 수금예정</span>
+    <span class="sr-chip" data-filter="done">✅ 수금완료</span>
   </div>
 
   {# ── ① 챙길 것 (마감이월·연체·조건미설정) — 상단 고정 ── #}
@@ -206,4 +219,47 @@ tr.sr-hist-row[hidden]{display:none!important;}
   </script>
 
   {# z915: 열 너비 드래그·열 숨김(가로표 전용 z912/z914)은 2줄 레이아웃으로 대체되어 제거 #}
+
+  {# z919 (대표 지시): 상태 필터 칩 — 레코드(그룹) 단위 표시/숨김. '미발행'=마감이월+발행 대기 #}
+  <script>
+  (function(){
+    var bar = document.getElementById('srFilterBar'); if(!bar) return;
+    var SHOW = { all:null, unissued:{'마감이월':1,'발행 대기':1}, expect:{'수금예정':1}, done:{'수금완료':1} };
+    function groups(tb){
+      var out=[], cur=null;
+      Array.prototype.forEach.call(tb.children, function(r){
+        if(r.classList.contains('sr-recA')){ cur=[r]; out.push(cur); }
+        else if(cur){ cur.push(r); }
+      });
+      return out;
+    }
+    function apply(key){
+      var allow = SHOW[key];
+      document.querySelectorAll('main table[data-sr-table]').forEach(function(t){
+        var tb = t.tBodies[0]; if(!tb) return;
+        var vis = 0;
+        groups(tb).forEach(function(g){
+          var st = g[0].getAttribute('data-state') || '';
+          var show = !allow || !!allow[st];
+          if(show) vis++;
+          g.forEach(function(r){ r.style.display = show ? '' : 'none'; });
+        });
+        var wrap = t.closest('.tbl-wrap');
+        if(wrap){
+          wrap.style.display = vis ? '' : 'none';
+          var h = wrap.previousElementSibling;
+          while(h && !h.classList.contains('sr-sec-h')){ h = h.previousElementSibling; }
+          if(h) h.style.display = vis ? '' : 'none';
+        }
+      });
+    }
+    bar.querySelectorAll('[data-filter]').forEach(function(ch){
+      ch.addEventListener('click', function(){
+        bar.querySelectorAll('[data-filter]').forEach(function(c){ c.classList.remove('on'); });
+        ch.classList.add('on');
+        apply(ch.getAttribute('data-filter'));
+      });
+    });
+  })();
+  </script>
 </main></div></body></html>
