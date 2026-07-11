@@ -63,6 +63,17 @@ tr.sr-hist-row[hidden]{display:none!important;}
 .sr-hist-tbl th,.sr-hist-tbl td{border:1px solid var(--line,#e5e7eb);padding:4px 8px;font-size:12px;text-align:left;}
 .sr-hist-tbl th{background:var(--card,#fff);}
 .sr-hist-tbl td.num,.sr-hist-tbl th.num{text-align:right;}
+/* z922 (대표 지시): 표 높이 조절 — 발행대기·발행완료 표를 정해진 높이 스크롤 상자로(선택은 계정에 기억) */
+.sr-heightbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0 10px;}
+.sr-heightbar .sr-hb-label{font-size:12px;color:var(--mute,#64748b);font-weight:700;}
+.sr-hchip{cursor:pointer;font-size:12px;font-weight:700;padding:4px 11px;border-radius:999px;border:1px solid var(--line,#e5e7eb);background:#fff;color:var(--ink-2,#334155);user-select:none;}
+.sr-hchip:hover{border-color:#94a3b8;}
+.sr-hchip.on{background:#0f172a;color:#fff;border-color:#0f172a;}
+/* 스크롤 상자 — 기본=보통(520). body[data-sr-th] 로 전환 (tbl-sticky 의 100vh 기본보다 우선) */
+.tbl-wrap.tbl-sticky.sr-scrollbox{overflow-y:auto;max-height:520px;}
+body[data-sr-th="low"]  .tbl-wrap.sr-scrollbox{max-height:320px;}
+body[data-sr-th="high"] .tbl-wrap.sr-scrollbox{max-height:780px;}
+body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;overflow:visible;}
 @media (max-width:1100px){ .page-title{font-size:22px;} }
 @media (max-width:768px){ .sr-kpi{flex:1 1 46%;min-width:120px;} }
 </style>
@@ -128,7 +139,7 @@ tr.sr-hist-row[hidden]{display:none!important;}
   {# ── ① 챙길 것 (마감이월·연체·조건미설정) — 상단 고정 ── #}
   {% if action %}
   <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서 미발행 잔액이 남은 건 · 연체·결제조건 미설정 ({{ action|length }}건)</div>
-  <div class="tbl-wrap tbl-sticky">
+  <div class="tbl-wrap tbl-sticky sr-scrollbox">
     <table class="tbl" data-sr-table>
       {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}
       <tbody>{% for o in action %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
@@ -137,8 +148,17 @@ tr.sr-hist-row[hidden]{display:none!important;}
   {% endif %}
 
   {# ── ② 기준월 입금예상 ── #}
+  {# z922 (대표 지시): 표 높이 조절 — 발행완료 위, 발행대기·발행완료 두 표에 함께 적용 #}
+  <div class="sr-heightbar" id="srHeightBar">
+    <span class="sr-hb-label">📏 표 높이</span>
+    <span class="sr-hchip" data-h="low">낮게</span>
+    <span class="sr-hchip on" data-h="normal">보통</span>
+    <span class="sr-hchip" data-h="high">높게</span>
+    <span class="sr-hchip" data-h="all">전체</span>
+    <span style="font-size:11px;color:var(--mute);">· 발행대기·발행완료 두 표에 적용 · 상자 안에서 스크롤 · 선택 기억</span>
+  </div>
   <div class="sr-sec-h">📅 발행완료 · 수금 관리 ({{ inmonth|length }}건)</div>
-  <div class="tbl-wrap tbl-sticky">
+  <div class="tbl-wrap tbl-sticky sr-scrollbox">
     {% if inmonth %}
     <table class="tbl" data-sr-table>
       {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}
@@ -303,6 +323,28 @@ tr.sr-hist-row[hidden]{display:none!important;}
       [dYear, dMonth, dFrom, dTo].forEach(function(el){ if(el) el.addEventListener('change', apply); });
       showInputs();
     }
+  })();
+  </script>
+
+  {# z922 (대표 지시): 표 높이 조절 — 스크롤 상자 높이 전환(낮게/보통/높게/전체)·선택 기억(localStorage). .main 안 IIFE #}
+  <script>
+  (function(){
+    var bar = document.getElementById('srHeightBar'); if(!bar) return;
+    var KEY = 'knk_sr_tbl_h', VALID = {low:1,normal:1,high:1,all:1};
+    function apply(h){
+      if(!VALID[h]) h = 'normal';
+      document.body.setAttribute('data-sr-th', h);
+      bar.querySelectorAll('.sr-hchip').forEach(function(c){
+        c.classList.toggle('on', c.getAttribute('data-h') === h);
+      });
+      try{ localStorage.setItem(KEY, h); }catch(e){}
+    }
+    bar.querySelectorAll('.sr-hchip').forEach(function(c){
+      c.addEventListener('click', function(){ apply(c.getAttribute('data-h')); });
+    });
+    var saved = 'normal';
+    try{ saved = localStorage.getItem(KEY) || 'normal'; }catch(e){}
+    apply(saved);
   })();
   </script>
 </main></div></body></html>
