@@ -32215,15 +32215,28 @@ async def sales_shipments_receipts_page(req: Request):
                  "mgmt_code": d["mgmt_code"], "customer_name": d["customer_name"],
                  "pay_days": int(d["pay_days"] or 0), "currency": d["currency"] or "KRW",
                  "total_amount": d["total_amount"] or 0, "order_date": d["order_date"] or "",
-                 "n_total": 0, "n_ship": 0, "issue_date": ""}
+                 "n_total": 0, "n_ship": 0, "issue_date": "",
+                 # v5H226z908 (대표 지시): 차수별(계약금1·중도금2·잔금3) 발행 집계 — 미발행 잔액 산출용
+                 "t1a": 0.0, "t1d": "", "t2a": 0.0, "t2d": "", "t3a": 0.0, "t3d": ""}
             agg[oid] = o
         o["n_total"] += 1
         if d["ust"] == "출하":
             o["n_ship"] += 1
         m = oi_map.get(d["iid"])
-        if m and m.get("t1d"):
-            if (not o["issue_date"]) or (m["t1d"] < o["issue_date"]):
-                o["issue_date"] = m["t1d"]   # 대표 발행일 = 가장 이른 호기 세금계산서일
+        if m:
+            for _tk in ("1", "2", "3"):   # 호기별 차수 발행일·금액 합산(대표 발행일=가장 이른 호기)
+                _dv = (m.get("t" + _tk + "d") or "")
+                if _dv and not o["t" + _tk + "d"]:
+                    o["t" + _tk + "d"] = _dv
+                _av = m.get("t" + _tk + "a")
+                if _av not in (None, ""):
+                    try:
+                        o["t" + _tk + "a"] += float(_av)
+                    except Exception:
+                        pass
+            if m.get("t1d"):
+                if (not o["issue_date"]) or (m["t1d"] < o["issue_date"]):
+                    o["issue_date"] = m["t1d"]   # 대표 발행일 = 가장 이른 호기 세금계산서일
 
     shipped = [o for o in agg.values() if o["n_ship"] > 0]   # 대상 = 출하 시작된 수주
     for o in shipped:
@@ -32231,6 +32244,15 @@ async def sales_shipments_receipts_page(req: Request):
         o["paid"] = paid
         o["outstanding"] = (o["total_amount"] or 0) - paid
         o["issued"] = bool(o["issue_date"])
+        # v5H226z908 (대표 지시): 차수별 발행합계 + 미발행 잔액(수주금액 − 발행합계).
+        #   잔액이 0이 될 때까지 '발행 대기'로 남아 부분 누락(계약금만·중도금 깜빡 등)까지 잡는다.
+        _eps = 0.5 if o["currency"] == "KRW" else 0.005
+        o["issued_amt"] = round((o.get("t1a") or 0) + (o.get("t2a") or 0) + (o.get("t3a") or 0), 2)
+        _unb = (o["total_amount"] or 0) - o["issued_amt"]
+        o["unbilled"] = _unb if _unb > _eps else 0
+        o["billing_due"] = o["unbilled"] > _eps            # 미발행 잔액 남음(출하 시작 건)
+        o["nothing_issued"] = o["issued_amt"] <= _eps      # 완전 미발행(마감이월)
+        o["fully_issued"] = not o["billing_due"]
         exp = ""
         if o["issued"] and o["pay_days"] > 0:
             try:
@@ -32242,8 +32264,10 @@ async def sales_shipments_receipts_page(req: Request):
         o["attn_msg"] = ""
         if o["issued"] and not exp:
             o["attn_msg"] = "결제조건 미설정" if o["pay_days"] <= 0 else "발행일 확인"
-        if not o["issued"]:
+        if o["billing_due"] and o["nothing_issued"]:
             o["state"] = "마감이월"
+        elif o["billing_due"]:
+            o["state"] = "발행 대기"
         elif o["outstanding"] <= 0.0001:
             o["state"] = "수금완료"
         else:
@@ -32257,27 +32281,31 @@ async def sales_shipments_receipts_page(req: Request):
         o["total_fmt"] = _money(o["total_amount"], o["currency"])
         o["paid_fmt"] = _money(paid, o["currency"])
         o["out_fmt"] = _money(o["outstanding"] if o["outstanding"] > 0 else 0, o["currency"])
+        o["issued_fmt"] = _money(o["issued_amt"], o["currency"])      # z908 발행합계
+        o["unbilled_fmt"] = _money(o["unbilled"], o["currency"])      # z908 미발행 잔액
         o["receipts"] = hist_map.get(o["order_id"], [])   # z745b 부분수금 이력
         o["recv_cnt"] = len(o["receipts"])
 
-    # ── 분류: '챙길 것'(마감이월·연체·조건미설정) 상단 고정 + 기준월 입금예상 ──
-    carry = [o for o in shipped if o["state"] == "마감이월"]
+    # ── 분류: '발행 대기'(미발행 잔액>0)·연체·조건미설정 상단 고정 + 기준월 입금예정 ──
+    #   v5H226z908 (대표 지시): '챙길 것' 기준을 '완전 미발행'→'미발행 잔액 남음'으로 확장(부분 누락 포착).
+    billing = [o for o in shipped if o.get("billing_due")]
+    billing_ids = {o["order_id"] for o in billing}
     overdue = [o for o in shipped if o["issued"] and o["outstanding"] > 0.0001
-               and o["dday"] is not None and o["dday"] < 0]
+               and o["dday"] is not None and o["dday"] < 0
+               and o["order_id"] not in billing_ids]
     noterm = [o for o in shipped if o["issued"] and (not o["expected_date"])
-              and o["outstanding"] > 0.0001]
-    carry_ids = {o["order_id"] for o in carry}
+              and o["outstanding"] > 0.0001 and o["order_id"] not in billing_ids]
     overdue_ids = {o["order_id"] for o in overdue}
     action, seen = [], set()
-    for o in carry + overdue + noterm:
+    for o in billing + overdue + noterm:
         if o["order_id"] in seen:
             continue
         seen.add(o["order_id"])
         action.append(o)
 
     def _akey(o):
-        if o["order_id"] in carry_ids:
-            return (0, o.get("order_date") or "", o["order_no"])
+        if o["order_id"] in billing_ids:
+            return (0, -(o.get("unbilled") or 0), o["order_no"])   # 미발행 잔액 큰 순
         if o["order_id"] in overdue_ids:
             return (1, o["dday"] if o["dday"] is not None else 0, o["order_no"])
         return (2, o.get("order_date") or "", o["order_no"])
@@ -32291,9 +32319,12 @@ async def sales_shipments_receipts_page(req: Request):
     def _ksum(lst):   # KRW 만 합산(외화 혼합 방지) — 표는 행별 통화 표기
         return sum((o["outstanding"] if o["outstanding"] > 0 else 0)
                    for o in lst if o["currency"] == "KRW")
+    def _ksum_unb(lst):   # 미발행 잔액 합(KRW)
+        return sum((o.get("unbilled") or 0) for o in lst if o["currency"] == "KRW")
     kpi = {"ym": ym,
+           "billing_cnt": len(billing), "billing_sum": _fmt_money(_ksum_unb(billing), "KRW"),
+           "carryover_cnt": sum(1 for o in shipped if o.get("nothing_issued")),
            "expect_sum": _fmt_money(_ksum(inmonth), "KRW"),
-           "carry_cnt": len(carry), "carry_sum": _fmt_money(_ksum(carry), "KRW"),
            "overdue_cnt": len(overdue), "overdue_sum": _fmt_money(_ksum(overdue), "KRW"),
            "outstanding_sum": _fmt_money(_ksum(shipped), "KRW"),
            "fx_cnt": sum(1 for o in shipped if o["currency"] != "KRW")}

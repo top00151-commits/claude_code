@@ -16,6 +16,11 @@
 .pill-carry{background:#fef3c7;color:#92400e;}
 .pill-expect{background:#dbeafe;color:#1e40af;}
 .pill-done{background:#dcfce7;color:#166534;}
+.pill-billing{background:#fee2e2;color:#b91c1c;}
+.sr-ti3{display:flex;flex-direction:column;gap:2px;align-items:flex-start;}
+.sr-tok{font-size:11px;padding:1px 6px;border-radius:5px;background:#f1f5f9;color:#94a3b8;white-space:nowrap;}
+.sr-tok.on{background:#dcfce7;color:#166534;font-weight:700;}
+.sr-tok.na{opacity:.5;}
 .sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}
@@ -48,9 +53,9 @@ tr.sr-hist-row[hidden]{display:none!important;}
 
   {# ── KPI ── #}
   <div class="sr-kpis">
-    <div class="sr-kpi"><div class="lbl">📅 {{ ym }} 입금예상(미수·KRW)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}{% else %}🔒{% endif %}</div></div>
-    <div class="sr-kpi carry"><div class="lbl">🟠 마감이월(세금계산서 미발행)</div><div class="val">{{ kpi.carry_cnt }}건</div></div>
-    <div class="sr-kpi warn"><div class="lbl">⚠ 연체(예상일 경과·미수)</div><div class="val">{{ kpi.overdue_cnt }}건{% if can_money and kpi.overdue_cnt %} · {{ kpi.overdue_sum }}{% endif %}</div></div>
+    <div class="sr-kpi warn"><div class="lbl">🔴 발행 대기(출하·미발행 잔액)</div><div class="val">{% if can_money %}{{ kpi.billing_sum }}{% else %}🔒{% endif %} <span style="font-size:12px;color:var(--mute);">· {{ kpi.billing_cnt }}건</span></div></div>
+    <div class="sr-kpi carry"><div class="lbl">🟠 마감이월(전부 미발행)</div><div class="val">{{ kpi.carryover_cnt }}건</div></div>
+    <div class="sr-kpi"><div class="lbl">📅 {{ ym }} 입금예정(미수·KRW)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}{% else %}🔒{% endif %}</div></div>
     <div class="sr-kpi"><div class="lbl">총 미수(전체·KRW)</div><div class="val">{% if can_money %}{{ kpi.outstanding_sum }}{% else %}🔒{% endif %}{% if kpi.fx_cnt %}<span style="font-size:11px;color:var(--mute);"> · 외화 {{ kpi.fx_cnt }}건</span>{% endif %}</div></div>
   </div>
 
@@ -67,24 +72,24 @@ tr.sr-hist-row[hidden]{display:none!important;}
 
   {# ── ① 챙길 것 (마감이월·연체·조건미설정) — 상단 고정 ── #}
   {% if action %}
-  <div class="sr-sec-h carry">🔴 챙길 것 — 마감이월(미발행)·연체·결제조건 미설정 ({{ action|length }}건)</div>
+  <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서 미발행 잔액이 남은 건 · 연체·결제조건 미설정 ({{ action|length }}건)</div>
   <div class="tbl-wrap tbl-sticky">
     <table class="tbl">
-      <thead><tr><th>고객사</th><th>관리번호</th><th>수주번호</th><th class="center">출하</th><th class="center">세금계산서</th><th class="num">금액</th><th class="center">입금예상일</th><th class="num">수금</th><th class="num">미수</th><th class="center">상태 · 수금</th></tr></thead>
+      <thead><tr><th>고객사</th><th>관리번호</th><th>수주번호</th><th class="center">출하</th><th class="center">세금계산서 (계약·중도·잔금)</th><th class="num">수주금액</th><th class="num">발행합계</th><th class="num">미발행 잔액</th><th class="center">입금예상일</th><th class="num">수금</th><th class="num">미수</th><th class="center">상태 · 수금</th></tr></thead>
       <tbody>{% for o in action %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
   </div>
   {% endif %}
 
   {# ── ② 기준월 입금예상 ── #}
-  <div class="sr-sec-h">📅 {{ ym }} 입금예상 ({{ inmonth|length }}건)</div>
+  <div class="sr-sec-h">📅 {{ ym }} 입금예정 ({{ inmonth|length }}건)</div>
   <div class="tbl-wrap tbl-sticky">
     {% if inmonth %}
     <table class="tbl">
-      <thead><tr><th>고객사</th><th>관리번호</th><th>수주번호</th><th class="center">출하</th><th class="center">세금계산서</th><th class="num">금액</th><th class="center">입금예상일</th><th class="num">수금</th><th class="num">미수</th><th class="center">상태 · 수금</th></tr></thead>
+      <thead><tr><th>고객사</th><th>관리번호</th><th>수주번호</th><th class="center">출하</th><th class="center">세금계산서 (계약·중도·잔금)</th><th class="num">수주금액</th><th class="num">발행합계</th><th class="num">미발행 잔액</th><th class="center">입금예상일</th><th class="num">수금</th><th class="num">미수</th><th class="center">상태 · 수금</th></tr></thead>
       <tbody>{% for o in inmonth %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
-    {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">{{ ym }} 입금예상 건 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">다른 달을 선택하거나, 위 ‘챙길 것’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
+    {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">{{ ym }} 입금예정 건 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">다른 달을 선택하거나, 위 ‘발행 대기’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
   </div>
 
   <div style="height: var(--space-7);"></div>
