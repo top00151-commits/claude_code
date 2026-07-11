@@ -1,5 +1,5 @@
 {# 납품·수금 한 행 — action/inmonth 공용 (컨텍스트: o, can_money, today_iso). z745/z745b #}
-<tr>
+<tr class="sr-main" data-cust="{{ o.customer_name }}" data-mgmt="{{ o.mgmt_code }}" data-sono="{{ o.order_no }}" data-ship="{{ o.n_ship }}" data-total="{{ o.total_amount }}" data-issued="{{ o.issued_amt }}" data-unbilled="{{ o.unbilled }}" data-exp="{{ o.expected_date or '' }}" data-paid="{{ o.paid }}" data-out="{{ o.outstanding }}" data-state="{{ o.state }}">
   <td><b>{{ o.customer_name }}</b></td>
   <td>{% if o.mgmt_code %}<span class="mgmt-pill sm">{{ o.mgmt_code }}</span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</td>
   <td><a href="/orders/{{ o.order_id }}" class="mgmt-pill sm">{{ o.order_no }}</a></td>

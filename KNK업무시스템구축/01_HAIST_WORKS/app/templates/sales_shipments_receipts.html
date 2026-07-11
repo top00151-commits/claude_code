@@ -24,6 +24,9 @@
 /* z909 (대표 지시): 열이 많아 오른쪽(상태·수금 입력)이 잘림 → 표 가로 스크롤 허용(데스크톱도) + 최소폭으로 눌림 방지 */
 .tbl-wrap.tbl-sticky{overflow-x:auto;}
 .tbl-wrap.tbl-sticky .tbl{min-width:1240px;}
+/* z911 (대표 지시): 헤더 클릭 정렬 */
+.tbl-wrap.tbl-sticky .tbl thead th[data-k]{cursor:pointer;user-select:none;white-space:nowrap;}
+.sr-arw{color:#e11d48;font-weight:700;font-size:11px;}
 .sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}
@@ -77,8 +80,8 @@ tr.sr-hist-row[hidden]{display:none!important;}
   {% if action %}
   <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서 미발행 잔액이 남은 건 · 연체·결제조건 미설정 ({{ action|length }}건)</div>
   <div class="tbl-wrap tbl-sticky">
-    <table class="tbl">
-      <thead><tr><th>고객사</th><th>관리번호</th><th>수주번호</th><th class="center">출하</th><th class="center">세금계산서 (계약·중도·잔금)</th><th class="num">수주금액</th><th class="num">발행합계</th><th class="num">미발행 잔액</th><th class="center">입금예상일</th><th class="num">수금</th><th class="num">미수</th><th class="center">상태 · 수금</th></tr></thead>
+    <table class="tbl" data-sr-table>
+      <thead><tr><th data-k="cust">고객사</th><th data-k="mgmt">관리번호</th><th data-k="sono">수주번호</th><th class="center" data-k="ship">출하</th><th class="center" data-k="tax">세금계산서 (계약·중도·잔금)</th><th class="num" data-k="total">수주금액</th><th class="num" data-k="issued">발행합계</th><th class="num" data-k="unbilled">미발행 잔액</th><th class="center" data-k="exp">입금예상일</th><th class="num" data-k="paid">수금</th><th class="num" data-k="out">미수</th><th class="center" data-k="state">상태 · 수금</th></tr></thead>
       <tbody>{% for o in action %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
   </div>
@@ -88,8 +91,8 @@ tr.sr-hist-row[hidden]{display:none!important;}
   <div class="sr-sec-h">📅 {{ ym }} 입금예정 ({{ inmonth|length }}건)</div>
   <div class="tbl-wrap tbl-sticky">
     {% if inmonth %}
-    <table class="tbl">
-      <thead><tr><th>고객사</th><th>관리번호</th><th>수주번호</th><th class="center">출하</th><th class="center">세금계산서 (계약·중도·잔금)</th><th class="num">수주금액</th><th class="num">발행합계</th><th class="num">미발행 잔액</th><th class="center">입금예상일</th><th class="num">수금</th><th class="num">미수</th><th class="center">상태 · 수금</th></tr></thead>
+    <table class="tbl" data-sr-table>
+      <thead><tr><th data-k="cust">고객사</th><th data-k="mgmt">관리번호</th><th data-k="sono">수주번호</th><th class="center" data-k="ship">출하</th><th class="center" data-k="tax">세금계산서 (계약·중도·잔금)</th><th class="num" data-k="total">수주금액</th><th class="num" data-k="issued">발행합계</th><th class="num" data-k="unbilled">미발행 잔액</th><th class="center" data-k="exp">입금예상일</th><th class="num" data-k="paid">수금</th><th class="num" data-k="out">미수</th><th class="center" data-k="state">상태 · 수금</th></tr></thead>
       <tbody>{% for o in inmonth %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
     {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">{{ ym }} 입금예정 건 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">다른 달을 선택하거나, 위 ‘발행 대기’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
@@ -119,6 +122,67 @@ tr.sr-hist-row[hidden]{display:none!important;}
       b.addEventListener('click', function(){
         var row = document.getElementById('hist-' + b.getAttribute('data-hist'));
         if(row){ if(row.hasAttribute('hidden')) row.removeAttribute('hidden'); else row.setAttribute('hidden',''); }
+      });
+    });
+  })();
+  </script>
+
+  {# z911 (대표 지시): 데이터 열 헤더 클릭 정렬(오름↔내림 토글) — 두 표 각각·수금 이력 하위행은 부모와 함께 이동 #}
+  <script>
+  (function(){
+    var TEXT = {cust:1, mgmt:1, sono:1, state:1, exp:1};
+    function num(v){ var n = parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+    function val(tr, k){
+      var d = tr.dataset || {};
+      if(k==='cust') return (d.cust||'').toLowerCase();
+      if(k==='mgmt') return (d.mgmt||'');
+      if(k==='sono') return (d.sono||'');
+      if(k==='state') return (d.state||'');
+      if(k==='exp') return (d.exp||'');
+      if(k==='ship') return num(d.ship);
+      if(k==='tax' || k==='issued') return num(d.issued);
+      if(k==='total') return num(d.total);
+      if(k==='unbilled') return num(d.unbilled);
+      if(k==='paid') return num(d.paid);
+      if(k==='out') return num(d.out);
+      return '';
+    }
+    function sortTable(table, k, dir){
+      var tb = table.tBodies[0]; if(!tb) return;
+      var groups = [], cur = null;
+      Array.prototype.forEach.call(tb.children, function(r){
+        if(r.classList.contains('sr-hist-row')){ if(cur) cur.push(r); }
+        else { cur = [r]; groups.push(cur); }
+      });
+      var isText = !!TEXT[k];
+      groups.sort(function(a,b){
+        var va = val(a[0],k), vb = val(b[0],k), c;
+        if(isText){
+          if(va===''&&vb!=='') return 1;
+          if(vb===''&&va!=='') return -1;
+          c = String(va).localeCompare(String(vb), 'ko');
+        } else { c = va - vb; }
+        return dir==='desc' ? -c : c;
+      });
+      groups.forEach(function(g){ g.forEach(function(r){ tb.appendChild(r); }); });
+    }
+    function paintArrows(thead, k, dir){
+      thead.querySelectorAll('th[data-k]').forEach(function(th){
+        var a = th.querySelector('.sr-arw'); if(!a) return;
+        a.textContent = (th.getAttribute('data-k')===k) ? (dir==='desc'?' ▼':' ▲') : '';
+      });
+    }
+    document.querySelectorAll('main table[data-sr-table]').forEach(function(table){
+      var thead = table.tHead; if(!thead) return;
+      thead.querySelectorAll('th[data-k]').forEach(function(th){
+        if(!th.querySelector('.sr-arw')){ var s=document.createElement('span'); s.className='sr-arw'; th.appendChild(s); }
+        th.addEventListener('click', function(){
+          var k = th.getAttribute('data-k');
+          var dir = (table._sk===k && table._sd==='asc') ? 'desc' : 'asc';
+          table._sk = k; table._sd = dir;
+          sortTable(table, k, dir);
+          paintArrows(thead, k, dir);
+        });
       });
     });
   })();
