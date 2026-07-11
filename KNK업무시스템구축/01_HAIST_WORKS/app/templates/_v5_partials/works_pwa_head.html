@@ -4,6 +4,16 @@
    누락 시 폰이 ~980px 로 그린 뒤 통째 축소해 글씨가 깨알이 됨(휴대폰에서 보기 어려움의 최대 원인).
    user-scalable 허용(접근성·핀치줌). 노치 안전영역=viewport-fit=cover. 인라인 viewport 가진 페이지와 중복돼도 무해. #}
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{# v5H226z921 (대표 지적): OS 다크모드에서 <select> 드롭다운 목록·날짜선택 팝업이 '검정 박스'로 렌더되던 문제 수정.
+   원인 = WORKS 전체에 color-scheme 선언이 없어, 네이티브 폼 컨트롤 팝업이 OS 다크모드를 그대로 따라감
+   (닫힌 select 는 background:#fff 라 흰색이지만, 펼친 옵션 목록·달력 팝업은 OS가 그리는 레이어라 color-scheme 를 따름).
+   WORKS 는 라이트 전용이므로 폼 컨트롤을 라이트로 고정 → 전 페이지 드롭다운·날짜선택 정상화. #}
+<meta name="color-scheme" content="light">
+<style>
+  html{color-scheme:light;}
+  select,input,textarea,button{color-scheme:light;}
+  option{background-color:#fff;color:#111;}
+</style>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#A5282C">
 <link rel="icon" type="image/svg+xml" href="/icon.svg?v=2">
