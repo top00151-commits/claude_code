@@ -1,59 +1,45 @@
-{# 납품·수금 한 행 — action/inmonth 공용 (컨텍스트: o, can_money, today_iso). z745/z745b #}
-<tr class="sr-main" data-cust="{{ o.customer_name }}" data-mgmt="{{ o.mgmt_code }}" data-sono="{{ o.order_no }}" data-ship="{{ o.n_ship }}" data-total="{{ o.total_amount }}" data-issued="{{ o.issued_amt }}" data-vat="{{ o.vat }}" data-billed="{{ o.billed_incl }}" data-unbilled="{{ o.unbilled }}" data-exp="{{ o.expected_date or '' }}" data-paid="{{ o.paid }}" data-out="{{ o.outstanding_incl }}" data-state="{{ o.state }}">
-  <td class="sr-cust"><b>{{ o.customer_name }}</b></td>
-  <td>{% if o.mgmt_code %}<span class="mgmt-pill sm">{{ o.mgmt_code }}</span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</td>
-  <td><a href="/orders/{{ o.order_id }}" class="mgmt-pill sm">{{ o.order_no }}</a></td>
-  <td class="center">{{ o.n_ship }}/{{ o.n_total }}</td>
-  <td class="center" style="text-align:left;">
-    <div class="sr-ti3">
-      {% if o.tier_chips %}{% for tc in o.tier_chips %}
-      <span class="sr-tok on">{{ tc.label }} ✓{% if tc.date %} {{ tc.date[5:] }}{% endif %}{% if can_money and tc.amt_fmt %} <span style="font-weight:400;color:#64748b;">{{ tc.amt_fmt }}</span>{% endif %}</span>
-      {% endfor %}{% else %}
-      <span class="sr-tok" style="background:#fef3c7;color:#92400e;font-weight:700;">미발행</span>
-      {% endif %}
-    </div>
-  </td>
-  <td class="num">{% if can_money %}{{ o.total_fmt }}{% else %}🔒{% endif %}</td>
-  <td class="num">{% if can_money %}{{ o.issued_fmt }}{% else %}🔒{% endif %}</td>
-  <td class="num" style="color:#7c3aed;">{% if can_money %}{{ o.vat_fmt }}{% else %}🔒{% endif %}</td>
-  <td class="num" style="font-weight:800;background:#f0f9ff;" title="부가세 포함 = 고객사가 실제 입금할 금액">{% if can_money %}{{ o.billed_incl_fmt }}{% else %}🔒{% endif %}</td>
-  <td class="num" style="font-weight:700;{% if o.unbilled > 0 %}color:#b45309;{% endif %}">{% if can_money %}{{ o.unbilled_fmt }}{% else %}🔒{% endif %}</td>
-  <td class="center">
-    {% if o.expected_date %}<span style="font-size:12px;">{{ o.expected_date }}</span>
-      {% if o.dday is not none %}<div class="sr-dday {% if o.dday < 0 %}over{% elif o.dday <= 7 %}soon{% endif %}">{% if o.dday < 0 %}D+{{ -o.dday }} 경과{% elif o.dday == 0 %}오늘{% else %}D-{{ o.dday }}{% endif %}</div>{% endif %}
-    {% elif o.attn_msg %}<span class="sr-noterm" title="고객사 결제조건(세금계산서 발행 후 N일)을 등록하면 입금예상일이 자동 계산됩니다">{{ o.attn_msg }}</span>
-    {% else %}<span style="color:var(--mute);">—</span>{% endif %}
-  </td>
-  <td class="num">
-    {% if can_money %}{{ o.paid_fmt }}
-      {% if o.recv_cnt %}<div><button type="button" class="sr-hist-btn" data-hist="{{ o.order_id }}">📋 이력 {{ o.recv_cnt }}</button></div>{% endif %}
-    {% else %}🔒{% endif %}
-  </td>
-  <td class="num" style="font-weight:700;{% if o.outstanding_incl > 0 %}color:#b91c1c;{% endif %}">{% if can_money %}{{ o.out_incl_fmt }}{% else %}🔒{% endif %}</td>
-  <td class="center" style="white-space:normal;">
-    <span class="pill {% if o.state == '수금완료' %}pill-done{% elif o.state == '마감이월' %}pill-carry{% elif o.state == '발행 대기' %}pill-billing{% else %}pill-expect{% endif %}">{{ o.state }}</span>
-    {% if can_money and o.state != '수금완료' and o.outstanding_incl > 0 %}
-    <form class="sr-recv-form" method="post" action="/sales/receipts">
-      <input type="hidden" name="order_id" value="{{ o.order_id }}">
-      <input type="hidden" name="currency" value="{{ o.currency }}">
-      <input name="amount" type="number" step="0.01" placeholder="미수 {{ o.out_incl_fmt }}" required title="수금액">
-      <input name="received_at" type="date" value="{{ today_iso }}" title="수금일">
-      <select name="method" title="수금 방법">
-        <option value="이체">이체</option>
-        <option value="현금">현금</option>
-        <option value="카드">카드</option>
-        <option value="어음">어음</option>
-        <option value="기타">기타</option>
-      </select>
-      <input name="note" type="text" placeholder="메모(선택)" title="메모" maxlength="120">
-      <button type="submit">수금</button>
-    </form>
-    {% endif %}
-  </td>
+{# 납품·수금 한 건 = 표 위·아래 2줄 (z915·대표 지시). 컨텍스트: o, can_money, today_iso #}
+<tr class="sr-recA" data-cust="{{ o.customer_name }}" data-mgmt="{{ o.mgmt_code }}" data-total="{{ o.total_amount }}" data-issued="{{ o.issued_amt }}" data-unbilled="{{ o.unbilled }}" data-billed="{{ o.billed_incl }}" data-out="{{ o.outstanding_incl }}" data-exp="{{ o.expected_date or '' }}" data-state="{{ o.state }}">
+  <td><span class="sr-l">고객사</span><span class="sr-v" title="{{ o.customer_name }}">{{ o.customer_name }}</span></td>
+  <td><span class="sr-l">관리번호</span><span class="sr-v">{% if o.mgmt_code %}<span class="mgmt-pill sm">{{ o.mgmt_code }}</span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span></td>
+  <td><span class="sr-l">수주번호</span><span class="sr-v"><a href="/orders/{{ o.order_id }}" class="mgmt-pill sm">{{ o.order_no }}</a></span></td>
+  <td class="center"><span class="sr-l">출하</span><span class="sr-v">{{ o.n_ship }}/{{ o.n_total }}</span></td>
+  <td><span class="sr-l">세금계산서</span><span class="sr-v wrap">{% if o.tier_chips %}{% for tc in o.tier_chips %}<span class="sr-tok on">{{ tc.label }} ✓{% if tc.date %} {{ tc.date[5:] }}{% endif %}</span> {% endfor %}{% else %}<span class="sr-tok" style="background:#fef3c7;color:#92400e;font-weight:700;">미발행</span>{% endif %}</span></td>
+  <td class="num"><span class="sr-l">수주금액</span><span class="sr-v">{% if can_money %}{{ o.total_fmt }}{% else %}🔒{% endif %}</span></td>
+  <td class="num"><span class="sr-l">발행합계</span><span class="sr-v">{% if can_money %}{{ o.issued_fmt }}{% else %}🔒{% endif %}</span></td>
 </tr>
+<tr class="sr-recB">
+  <td class="num"><span class="sr-l">부가세</span><span class="sr-v" style="color:#7c3aed;">{% if can_money %}{{ o.vat_fmt }}{% else %}🔒{% endif %}</span></td>
+  <td class="num"><span class="sr-l">청구합계(부가세 포함)</span><span class="sr-v" style="color:#0369a1;">{% if can_money %}{{ o.billed_incl_fmt }}{% else %}🔒{% endif %}</span></td>
+  <td class="num"><span class="sr-l">미발행 잔액</span><span class="sr-v" style="{% if o.unbilled > 0 %}color:#b45309;{% endif %}">{% if can_money %}{{ o.unbilled_fmt }}{% else %}🔒{% endif %}</span></td>
+  <td><span class="sr-l">입금예상일</span><span class="sr-v">{% if o.expected_date %}{{ o.expected_date }}{% if o.dday is not none %} <span class="sr-dday {% if o.dday < 0 %}over{% elif o.dday <= 7 %}soon{% endif %}">{% if o.dday < 0 %}D+{{ -o.dday }}{% elif o.dday == 0 %}오늘{% else %}D-{{ o.dday }}{% endif %}</span>{% endif %}{% elif o.attn_msg %}<span class="sr-noterm" title="고객사 결제조건(세금계산서 발행 후 N일)을 등록하면 입금예상일이 자동 계산됩니다">{{ o.attn_msg }}</span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span></td>
+  <td class="num"><span class="sr-l">수금</span><span class="sr-v">{% if can_money %}{{ o.paid_fmt }}{% if o.recv_cnt %} <button type="button" class="sr-hist-btn" data-hist="{{ o.order_id }}">📋{{ o.recv_cnt }}</button>{% endif %}{% else %}🔒{% endif %}</span></td>
+  <td class="num"><span class="sr-l">미수(부가세 포함)</span><span class="sr-v" style="font-weight:800;{% if o.outstanding_incl > 0 %}color:#b91c1c;{% endif %}">{% if can_money %}{{ o.out_incl_fmt }}{% else %}🔒{% endif %}</span></td>
+  <td><span class="sr-l">상태</span><span class="sr-v"><span class="pill {% if o.state == '수금완료' %}pill-done{% elif o.state == '마감이월' %}pill-carry{% elif o.state == '발행 대기' %}pill-billing{% else %}pill-expect{% endif %}">{{ o.state }}</span></span></td>
+</tr>
+{% if can_money and o.state != '수금완료' and o.outstanding_incl > 0 %}
+<tr class="sr-payrow"><td colspan="7">
+  <form class="sr-recv-form" method="post" action="/sales/receipts">
+    <input type="hidden" name="order_id" value="{{ o.order_id }}">
+    <input type="hidden" name="currency" value="{{ o.currency }}">
+    <span style="font-size:11px;color:var(--mute);font-weight:700;">＋ 수금 입력</span>
+    <input name="amount" type="number" step="0.01" placeholder="미수 {{ o.out_incl_fmt }}" required title="수금액">
+    <input name="received_at" type="date" value="{{ today_iso }}" title="수금일">
+    <select name="method" title="수금 방법">
+      <option value="이체">이체</option>
+      <option value="현금">현금</option>
+      <option value="카드">카드</option>
+      <option value="어음">어음</option>
+      <option value="기타">기타</option>
+    </select>
+    <input name="note" type="text" placeholder="메모(선택)" title="메모" maxlength="120">
+    <button type="submit">수금</button>
+  </form>
+</td></tr>
+{% endif %}
 {% if can_money and o.recv_cnt %}
 <tr class="sr-hist-row" id="hist-{{ o.order_id }}" hidden>
-  <td colspan="14">
+  <td colspan="7">
     <div class="sr-hist-box">
       <div class="sr-hist-h">📋 수금 이력 — {{ o.order_no }} ({{ o.recv_cnt }}건)</div>
       <table class="sr-hist-tbl">

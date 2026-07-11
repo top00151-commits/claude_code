@@ -21,26 +21,25 @@
 .sr-tok{font-size:11px;padding:1px 6px;border-radius:5px;background:#f1f5f9;color:#94a3b8;white-space:nowrap;}
 .sr-tok.on{background:#dcfce7;color:#166534;font-weight:700;}
 .sr-tok.na{opacity:.5;}
-/* z909 (대표 지시): 열이 많아 오른쪽(상태·수금 입력)이 잘림 → 표 가로 스크롤 허용(데스크톱도) + 최소폭으로 눌림 방지 */
-.tbl-wrap.tbl-sticky{overflow-x:auto;}
-/* z911 (대표 지시): 헤더 클릭 정렬 */
-.tbl-wrap.tbl-sticky .tbl thead th[data-k]{cursor:pointer;user-select:none;white-space:nowrap;}
-.sr-arw{color:#e11d48;font-weight:700;font-size:11px;}
-/* z912 (대표 지시): 엑셀처럼 칸 너비 조정(드래그) — 고정 레이아웃 + 열 경계 그립. 너비=JS가 관리 */
-.tbl-wrap.tbl-sticky table[data-sr-table]{table-layout:fixed;}
-.tbl-wrap.tbl-sticky table[data-sr-table] > tbody > tr > td:not([colspan]){overflow:hidden;}
-.tbl-wrap.tbl-sticky table[data-sr-table] td.sr-cust{white-space:nowrap;text-overflow:ellipsis;}
-.tbl-wrap.tbl-sticky table[data-sr-table] thead th{position:relative;}
-.sr-grip{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;z-index:6;}
-.sr-grip:hover{background:rgba(225,29,72,.4);}
+/* z915 (대표 지시): 한 수주 = 표 위·아래 2줄 — 가로 스크롤 없이 한눈에. 각 칸에 라벨 내장 */
+.tbl[data-sr-table]{table-layout:fixed;width:100%;}
+.tbl[data-sr-table] td{padding:5px 8px;vertical-align:top;border:none;}
+.tbl[data-sr-table] td.num{text-align:right;}
+.sr-l{display:block;font-size:10px;color:var(--mute,#94a3b8);font-weight:600;margin-bottom:1px;white-space:nowrap;line-height:1.2;}
+.sr-v{display:block;font-weight:700;color:var(--ink,#0f172a);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35;}
+.sr-v.wrap{white-space:normal;}
+tr.sr-recA>td{border-top:2px solid #d5dbe3;}
+tr.sr-recB>td{border-top:1px dotted #e9edf1;}
+tr.sr-payrow>td{background:#fff8f7;padding:8px;}
 .sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}
 .sr-noterm{color:#dc2626;font-size:11px;font-weight:600;}
-.sr-recv-form{display:inline-flex;gap:4px;align-items:center;margin-top:6px;flex-wrap:wrap;max-width:340px;}
+.sr-recv-form{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .sr-recv-form input,.sr-recv-form select{width:96px;padding:4px 6px;border:1px solid var(--ink-200,#cbd5e1);border-radius:6px;font-size:12px;}
 .sr-recv-form select{width:auto;}
-.sr-recv-form input[name=note]{width:110px;}
+.sr-recv-form input[name=amount]{width:150px;}
+.sr-recv-form input[name=note]{flex:1;min-width:150px;width:auto;}
 .sr-recv-form button{background:var(--knk-red,#e11d48);color:#fff;border:none;border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;}
 .sr-hist-btn{background:none;border:none;color:#1e40af;font-size:11px;cursor:pointer;padding:2px 0;text-decoration:underline;}
 tr.sr-hist-row[hidden]{display:none!important;}
@@ -80,9 +79,18 @@ tr.sr-hist-row[hidden]{display:none!important;}
     </form>
     <a class="btn btn-ghost" href="?ym={{ next_ym }}">{{ next_ym }} ▶</a>
     <span style="font-size:12px;color:var(--mute);">· 마감이월·연체는 월과 무관하게 항상 상단</span>
-    <span class="sr-colwrap" style="position:relative;margin-left:auto;">
-      <button type="button" id="srColBtn" class="btn btn-ghost" title="표시할 데이터 열 선택">⚙ 열 표시</button>
-      <div id="srColMenu" hidden style="position:absolute;right:0;top:112%;z-index:30;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:10px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);min-width:190px;max-height:70vh;overflow:auto;"></div>
+    <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center;">
+      <label style="font-size:12px;color:var(--mute);">정렬</label>
+      <select id="srSortSel" style="padding:5px 8px;border:1px solid var(--ink-200,#cbd5e1);border-radius:8px;font-size:12px;background:#fff;">
+        <option value="">기본 순서</option>
+        <option value="cust">고객사</option>
+        <option value="mgmt">관리번호</option>
+        <option value="unbilled">미발행 잔액 많은 순</option>
+        <option value="billed">청구합계 많은 순</option>
+        <option value="out">미수 많은 순</option>
+        <option value="exp">입금예상일</option>
+        <option value="state">상태</option>
+      </select>
     </span>
   </div>
 
@@ -91,7 +99,7 @@ tr.sr-hist-row[hidden]{display:none!important;}
   <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서 미발행 잔액이 남은 건 · 연체·결제조건 미설정 ({{ action|length }}건)</div>
   <div class="tbl-wrap tbl-sticky">
     <table class="tbl" data-sr-table>
-      <thead><tr><th data-k="cust">고객사</th><th data-k="mgmt">관리번호</th><th data-k="sono">수주번호</th><th class="center" data-k="ship">출하</th><th class="center" data-k="tax">세금계산서 (계약·중도·잔금)</th><th class="num" data-k="total">수주금액</th><th class="num" data-k="issued">발행합계</th><th class="num" data-k="vat">부가세</th><th class="num" data-k="billed">청구합계(포함)</th><th class="num" data-k="unbilled">미발행 잔액</th><th class="center" data-k="exp">입금예상일</th><th class="num" data-k="paid">수금</th><th class="num" data-k="out">미수(포함)</th><th class="center" data-k="state">상태 · 수금</th></tr></thead>
+      {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}
       <tbody>{% for o in action %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
   </div>
@@ -102,7 +110,7 @@ tr.sr-hist-row[hidden]{display:none!important;}
   <div class="tbl-wrap tbl-sticky">
     {% if inmonth %}
     <table class="tbl" data-sr-table>
-      <thead><tr><th data-k="cust">고객사</th><th data-k="mgmt">관리번호</th><th data-k="sono">수주번호</th><th class="center" data-k="ship">출하</th><th class="center" data-k="tax">세금계산서 (계약·중도·잔금)</th><th class="num" data-k="total">수주금액</th><th class="num" data-k="issued">발행합계</th><th class="num" data-k="vat">부가세</th><th class="num" data-k="billed">청구합계(포함)</th><th class="num" data-k="unbilled">미발행 잔액</th><th class="center" data-k="exp">입금예상일</th><th class="num" data-k="paid">수금</th><th class="num" data-k="out">미수(포함)</th><th class="center" data-k="state">상태 · 수금</th></tr></thead>
+      {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}
       <tbody>{% for o in inmonth %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
     {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">{{ ym }} 입금예정 건 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">다른 달을 선택하거나, 위 ‘발행 대기’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
@@ -137,140 +145,56 @@ tr.sr-hist-row[hidden]{display:none!important;}
   })();
   </script>
 
-  {# z911 (대표 지시): 데이터 열 헤더 클릭 정렬(오름↔내림 토글) — 두 표 각각·수금 이력 하위행은 부모와 함께 이동 #}
+  {# z915 (대표 지시): 정렬 기준 드롭다운 — 2줄 레이아웃(한 수주=여러 tr)을 그룹으로 묶어 재정렬 #}
   <script>
   (function(){
-    var TEXT = {cust:1, mgmt:1, sono:1, state:1, exp:1};
+    var sel = document.getElementById('srSortSel'); if(!sel) return;
+    var TEXT = {cust:1, mgmt:1, exp:1, state:1};
+    var DESC = {unbilled:1, billed:1, out:1};   // 금액류는 큰 값 먼저
     function num(v){ var n = parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
     function val(tr, k){
       var d = tr.dataset || {};
       if(k==='cust') return (d.cust||'').toLowerCase();
       if(k==='mgmt') return (d.mgmt||'');
-      if(k==='sono') return (d.sono||'');
       if(k==='state') return (d.state||'');
-      if(k==='exp') return (d.exp||'');
-      if(k==='ship') return num(d.ship);
-      if(k==='tax' || k==='issued') return num(d.issued);
-      if(k==='vat') return num(d.vat);
-      if(k==='billed') return num(d.billed);
-      if(k==='total') return num(d.total);
-      if(k==='unbilled') return num(d.unbilled);
-      if(k==='paid') return num(d.paid);
-      if(k==='out') return num(d.out);
-      return '';
+      if(k==='exp') return (d.exp||'￿');   // 빈 값은 맨 뒤
+      return num(d[k]);
     }
-    function sortTable(table, k, dir){
-      var tb = table.tBodies[0]; if(!tb) return;
-      var groups = [], cur = null;
+    var tables = Array.prototype.slice.call(document.querySelectorAll('main table[data-sr-table]'));
+    tables.forEach(function(t){
+      var tb = t.tBodies[0]; if(!tb) return;
+      var i = 0;
+      Array.prototype.forEach.call(tb.children, function(r){ if(r.classList.contains('sr-recA')){ r.dataset.idx = i++; } });
+    });
+    function groups(tb){
+      var out = [], cur = null;
       Array.prototype.forEach.call(tb.children, function(r){
-        if(r.classList.contains('sr-hist-row')){ if(cur) cur.push(r); }
-        else { cur = [r]; groups.push(cur); }
+        if(r.classList.contains('sr-recA')){ cur = [r]; out.push(cur); }
+        else if(cur){ cur.push(r); }
       });
-      var isText = !!TEXT[k];
-      groups.sort(function(a,b){
-        var va = val(a[0],k), vb = val(b[0],k), c;
-        if(isText){
-          if(va===''&&vb!=='') return 1;
-          if(vb===''&&va!=='') return -1;
-          c = String(va).localeCompare(String(vb), 'ko');
-        } else { c = va - vb; }
-        return dir==='desc' ? -c : c;
-      });
-      groups.forEach(function(g){ g.forEach(function(r){ tb.appendChild(r); }); });
+      return out;
     }
-    function paintArrows(thead, k, dir){
-      thead.querySelectorAll('th[data-k]').forEach(function(th){
-        var a = th.querySelector('.sr-arw'); if(!a) return;
-        a.textContent = (th.getAttribute('data-k')===k) ? (dir==='desc'?' ▼':' ▲') : '';
+    function sortTable(tb, k){
+      if(!tb) return;
+      var gs = groups(tb), isText = !!TEXT[k], desc = !!DESC[k];
+      gs.sort(function(a,b){
+        var c;
+        if(!k){ c = num(a[0].dataset.idx) - num(b[0].dataset.idx); }
+        else {
+          var va = val(a[0],k), vb = val(b[0],k);
+          c = isText ? String(va).localeCompare(String(vb), 'ko') : (va - vb);
+          if(desc) c = -c;
+        }
+        return c;
       });
+      gs.forEach(function(g){ g.forEach(function(r){ tb.appendChild(r); }); });
     }
-    document.querySelectorAll('main table[data-sr-table]').forEach(function(table){
-      var thead = table.tHead; if(!thead) return;
-      thead.querySelectorAll('th[data-k]').forEach(function(th){
-        if(!th.querySelector('.sr-arw')){ var s=document.createElement('span'); s.className='sr-arw'; th.appendChild(s); }
-        th.addEventListener('click', function(){
-          var k = th.getAttribute('data-k');
-          var dir = (table._sk===k && table._sd==='asc') ? 'desc' : 'asc';
-          table._sk = k; table._sd = dir;
-          sortTable(table, k, dir);
-          paintArrows(thead, k, dir);
-        });
-      });
+    sel.addEventListener('change', function(){
+      var k = sel.value;
+      tables.forEach(function(t){ sortTable(t.tBodies[0], k); });
     });
   })();
   </script>
 
-  {# z912/z914 (대표 지시): 열 너비 드래그 조정 + 열 숨김/표시 선택 — 브라우저 저장·두 표 동일·더블클릭=기본폭. 숨김은 CSS(nth-child)로 596행 무순회 #}
-  <script>
-  (function(){
-    var COLS = ['cust','mgmt','sono','ship','tax','total','issued','vat','billed','unbilled','exp','paid','out','state'];
-    var LABELS = {cust:'고객사',mgmt:'관리번호',sono:'수주번호',ship:'출하',tax:'세금계산서',total:'수주금액',issued:'발행합계',vat:'부가세',billed:'청구합계(포함)',unbilled:'미발행 잔액',exp:'입금예상일',paid:'수금',out:'미수(포함)',state:'상태·수금'};
-    var DEFW = {cust:180,mgmt:100,sono:105,ship:56,tax:200,total:115,issued:115,vat:100,billed:130,unbilled:125,exp:108,paid:120,out:125,state:220};
-    var WKEY = 'knk_sr_colw_v1', HKEY = 'knk_sr_colhide_v1';
-    function jload(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
-    function jsave(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
-    var W = {}, _sw = jload(WKEY) || {};
-    COLS.forEach(function(k){ W[k] = _sw[k] || DEFW[k]; });
-    var H = {}; (jload(HKEY) || []).forEach(function(k){ H[k] = 1; });
-    var tables = Array.prototype.slice.call(document.querySelectorAll('main table[data-sr-table]'));
-    if(!tables.length) return;
-    function styleEl(){ var s = document.getElementById('srColStyle'); if(!s){ s = document.createElement('style'); s.id = 'srColStyle'; document.head.appendChild(s); } return s; }
-    function apply(){
-      var css = '';
-      COLS.forEach(function(k, i){
-        if(H[k]){ var n = i + 1; css += 'table[data-sr-table] thead th:nth-child(' + n + '){display:none}table[data-sr-table] tr.sr-main>td:nth-child(' + n + '){display:none}'; }
-      });
-      styleEl().textContent = css;
-      tables.forEach(function(t){
-        var sum = 0;
-        t.querySelectorAll('thead th[data-k]').forEach(function(th){
-          var k = th.getAttribute('data-k'); if(W[k]) th.style.width = W[k] + 'px';
-        });
-        COLS.forEach(function(k){ if(!H[k]) sum += (W[k] || 100); });
-        t.style.width = sum + 'px';
-      });
-    }
-    function saveH(){ jsave(HKEY, COLS.filter(function(k){ return H[k]; })); }
-    apply();
-    tables.forEach(function(t){
-      t.querySelectorAll('thead th[data-k]').forEach(function(th){
-        if(th.querySelector('.sr-grip')) return;
-        var g = document.createElement('div'); g.className = 'sr-grip'; th.appendChild(g);
-        g.addEventListener('click', function(e){ e.stopPropagation(); });
-        g.addEventListener('dblclick', function(e){
-          e.stopPropagation(); var k = th.getAttribute('data-k'); W[k] = DEFW[k]; apply(); jsave(WKEY, W);
-        });
-        g.addEventListener('mousedown', function(e){
-          e.preventDefault(); e.stopPropagation();
-          var k = th.getAttribute('data-k'), x0 = e.clientX, w0 = W[k] || 100;
-          function mm(ev){ W[k] = Math.max(40, w0 + (ev.clientX - x0)); apply(); }
-          function mu(){ document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); document.body.style.userSelect = ''; jsave(WKEY, W); }
-          document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
-          document.body.style.userSelect = 'none';
-        });
-      });
-    });
-    var menu = document.getElementById('srColMenu'), btn = document.getElementById('srColBtn');
-    if(menu && btn && !menu.getAttribute('data-built')){
-      menu.setAttribute('data-built', '1');
-      COLS.forEach(function(k){
-        var row = document.createElement('label');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 6px;font-size:13px;cursor:pointer;white-space:nowrap;';
-        var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !H[k];
-        cb.addEventListener('change', function(){ if(cb.checked){ delete H[k]; } else { H[k] = 1; } apply(); saveH(); });
-        var sp = document.createElement('span'); sp.textContent = LABELS[k] || k;
-        row.appendChild(cb); row.appendChild(sp); menu.appendChild(row);
-      });
-      var rst = document.createElement('button');
-      rst.type = 'button'; rst.textContent = '전체 표시'; rst.className = 'btn btn-ghost';
-      rst.style.cssText = 'margin-top:6px;width:100%;font-size:12px;';
-      rst.addEventListener('click', function(){ H = {}; apply(); saveH(); menu.querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked = true; }); });
-      menu.appendChild(rst);
-      function outside(e){ if(!menu.contains(e.target) && e.target !== btn){ closeMenu(); } }
-      function openMenu(){ menu.removeAttribute('hidden'); setTimeout(function(){ document.addEventListener('click', outside); }, 0); }
-      function closeMenu(){ menu.setAttribute('hidden', ''); document.removeEventListener('click', outside); }
-      btn.addEventListener('click', function(e){ e.stopPropagation(); if(menu.hasAttribute('hidden')){ openMenu(); } else { closeMenu(); } });
-    }
-  })();
-  </script>
+  {# z915: 열 너비 드래그·열 숨김(가로표 전용 z912/z914)은 2줄 레이아웃으로 대체되어 제거 #}
 </main></div></body></html>
