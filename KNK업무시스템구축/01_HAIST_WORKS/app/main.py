@@ -32168,8 +32168,10 @@ async def sales_shipments_receipts_page(req: Request):
     with db_session() as c:
         ordc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
         cusc = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
+        oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
         _cur = "o.currency" if "currency" in ordc else "'KRW'"
         _pd = "COALESCE(cu.pay_days,0)" if "pay_days" in cusc else "0"
+        _isexp = "COALESCE(oi.is_export,0)" if "is_export" in oic else "0"   # z913 부가세율 판정(수출=영세율)
         rows = c.execute(
             f"""SELECT oi.id AS iid, oi.order_id AS oid,
                        COALESCE(oi.unit_status,'') AS ust,
@@ -32178,6 +32180,7 @@ async def sales_shipments_receipts_page(req: Request):
                        COALESCE({_cur},'KRW') AS currency,
                        COALESCE(cu.name,'-') AS customer_name,
                        {_pd} AS pay_days,
+                       {_isexp} AS is_export,
                        COALESCE(pj.mgmt_code,'') AS mgmt_code
                   FROM order_items oi
                   JOIN orders o ON o.id = oi.order_id
@@ -32215,13 +32218,15 @@ async def sales_shipments_receipts_page(req: Request):
                  "mgmt_code": d["mgmt_code"], "customer_name": d["customer_name"],
                  "pay_days": int(d["pay_days"] or 0), "currency": d["currency"] or "KRW",
                  "total_amount": d["total_amount"] or 0, "order_date": d["order_date"] or "",
-                 "n_total": 0, "n_ship": 0, "issue_date": "",
+                 "n_total": 0, "n_ship": 0, "issue_date": "", "is_export": 0,
                  # v5H226z908 (대표 지시): 차수별(계약금1·중도금2·잔금3) 발행 집계 — 미발행 잔액 산출용
                  "t1a": 0.0, "t1d": "", "t2a": 0.0, "t2d": "", "t3a": 0.0, "t3d": ""}
             agg[oid] = o
         o["n_total"] += 1
         if d["ust"] == "출하":
             o["n_ship"] += 1
+        if d.get("is_export"):
+            o["is_export"] = 1
         m = oi_map.get(d["iid"])
         if m:
             for _tk in ("1", "2", "3"):   # 호기별 차수 발행일·금액 합산(대표 발행일=가장 이른 호기)
@@ -32253,6 +32258,13 @@ async def sales_shipments_receipts_page(req: Request):
         o["billing_due"] = o["unbilled"] > _eps            # 미발행 잔액 남음(출하 시작 건)
         o["nothing_issued"] = o["issued_amt"] <= _eps      # 완전 미발행(마감이월)
         o["fully_issued"] = not o["billing_due"]
+        # v5H226z913 (대표 지시): 부가세 포함 = 고객 실입금액. 국내 10%·수출/외화 영세율 0%.
+        #   청구합계(포함)=발행합계×(1+세율)·미수(포함)=청구합계−수금(입금 대조 기준).
+        _vrate = 0.0 if (o["currency"] != "KRW" or o.get("is_export")) else 0.10
+        o["vat_rate"] = _vrate
+        o["vat"] = round(o["issued_amt"] * _vrate)
+        o["billed_incl"] = o["issued_amt"] + o["vat"]
+        o["outstanding_incl"] = o["billed_incl"] - paid
         exp = ""
         if o["issued"] and o["pay_days"] > 0:
             try:
@@ -32268,7 +32280,7 @@ async def sales_shipments_receipts_page(req: Request):
             o["state"] = "마감이월"
         elif o["billing_due"]:
             o["state"] = "발행 대기"
-        elif o["outstanding"] <= 0.0001:
+        elif o["outstanding_incl"] <= _eps:
             o["state"] = "수금완료"
         else:
             o["state"] = "수금예정"
@@ -32283,6 +32295,9 @@ async def sales_shipments_receipts_page(req: Request):
         o["out_fmt"] = _money(o["outstanding"] if o["outstanding"] > 0 else 0, o["currency"])
         o["issued_fmt"] = _money(o["issued_amt"], o["currency"])      # z908 발행합계
         o["unbilled_fmt"] = _money(o["unbilled"], o["currency"])      # z908 미발행 잔액
+        o["vat_fmt"] = _money(o["vat"], o["currency"])                # z913 부가세
+        o["billed_incl_fmt"] = _money(o["billed_incl"], o["currency"])   # z913 청구합계(부가세 포함)
+        o["out_incl_fmt"] = _money(o["outstanding_incl"] if o["outstanding_incl"] > 0 else 0, o["currency"])  # z913 미수(포함)
         # z910 (대표 지시): 발행된 세금계산서만·금액으로 계약금/중도금/잔금 판정(고정 3줄 폐기).
         #   1장=전액(완납)/계약금(부분) · 2장↑=계약금·중도금·(완납이면 마지막=잔금). 안 끊은 차수는 숨김.
         _iss = []
@@ -32311,11 +32326,11 @@ async def sales_shipments_receipts_page(req: Request):
     #   v5H226z908 (대표 지시): '챙길 것' 기준을 '완전 미발행'→'미발행 잔액 남음'으로 확장(부분 누락 포착).
     billing = [o for o in shipped if o.get("billing_due")]
     billing_ids = {o["order_id"] for o in billing}
-    overdue = [o for o in shipped if o["issued"] and o["outstanding"] > 0.0001
+    overdue = [o for o in shipped if o["issued"] and o["outstanding_incl"] > 0.0001
                and o["dday"] is not None and o["dday"] < 0
                and o["order_id"] not in billing_ids]
     noterm = [o for o in shipped if o["issued"] and (not o["expected_date"])
-              and o["outstanding"] > 0.0001 and o["order_id"] not in billing_ids]
+              and o["outstanding_incl"] > 0.0001 and o["order_id"] not in billing_ids]
     overdue_ids = {o["order_id"] for o in overdue}
     action, seen = [], set()
     for o in billing + overdue + noterm:
@@ -32337,8 +32352,8 @@ async def sales_shipments_receipts_page(req: Request):
                and o["order_id"] not in seen]
     inmonth.sort(key=lambda x: (x["expected_date"], x["order_no"]))
 
-    def _ksum(lst):   # KRW 만 합산(외화 혼합 방지) — 표는 행별 통화 표기
-        return sum((o["outstanding"] if o["outstanding"] > 0 else 0)
+    def _ksum(lst):   # KRW 만 합산(외화 혼합 방지) — 미수(부가세 포함) 기준
+        return sum((o["outstanding_incl"] if o["outstanding_incl"] > 0 else 0)
                    for o in lst if o["currency"] == "KRW")
     def _ksum_unb(lst):   # 미발행 잔액 합(KRW)
         return sum((o.get("unbilled") or 0) for o in lst if o["currency"] == "KRW")

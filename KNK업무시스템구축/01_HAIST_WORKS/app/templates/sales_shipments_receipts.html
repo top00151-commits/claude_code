@@ -67,8 +67,8 @@ tr.sr-hist-row[hidden]{display:none!important;}
   <div class="sr-kpis">
     <div class="sr-kpi warn"><div class="lbl">🔴 발행 대기(출하·미발행 잔액)</div><div class="val">{% if can_money %}{{ kpi.billing_sum }}{% else %}🔒{% endif %} <span style="font-size:12px;color:var(--mute);">· {{ kpi.billing_cnt }}건</span></div></div>
     <div class="sr-kpi carry"><div class="lbl">🟠 마감이월(전부 미발행)</div><div class="val">{{ kpi.carryover_cnt }}건</div></div>
-    <div class="sr-kpi"><div class="lbl">📅 {{ ym }} 입금예정(미수·KRW)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}{% else %}🔒{% endif %}</div></div>
-    <div class="sr-kpi"><div class="lbl">총 미수(전체·KRW)</div><div class="val">{% if can_money %}{{ kpi.outstanding_sum }}{% else %}🔒{% endif %}{% if kpi.fx_cnt %}<span style="font-size:11px;color:var(--mute);"> · 외화 {{ kpi.fx_cnt }}건</span>{% endif %}</div></div>
+    <div class="sr-kpi"><div class="lbl">📅 {{ ym }} 입금예정(부가세 포함·KRW)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}{% else %}🔒{% endif %}</div></div>
+    <div class="sr-kpi"><div class="lbl">총 미수(부가세 포함·KRW)</div><div class="val">{% if can_money %}{{ kpi.outstanding_sum }}{% else %}🔒{% endif %}{% if kpi.fx_cnt %}<span style="font-size:11px;color:var(--mute);"> · 외화 {{ kpi.fx_cnt }}건</span>{% endif %}</div></div>
   </div>
 
   {# ── 기준월 선택 ── #}
@@ -87,7 +87,7 @@ tr.sr-hist-row[hidden]{display:none!important;}
   <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서 미발행 잔액이 남은 건 · 연체·결제조건 미설정 ({{ action|length }}건)</div>
   <div class="tbl-wrap tbl-sticky">
     <table class="tbl" data-sr-table>
-      <thead><tr><th data-k="cust">고객사</th><th data-k="mgmt">관리번호</th><th data-k="sono">수주번호</th><th class="center" data-k="ship">출하</th><th class="center" data-k="tax">세금계산서 (계약·중도·잔금)</th><th class="num" data-k="total">수주금액</th><th class="num" data-k="issued">발행합계</th><th class="num" data-k="unbilled">미발행 잔액</th><th class="center" data-k="exp">입금예상일</th><th class="num" data-k="paid">수금</th><th class="num" data-k="out">미수</th><th class="center" data-k="state">상태 · 수금</th></tr></thead>
+      <thead><tr><th data-k="cust">고객사</th><th data-k="mgmt">관리번호</th><th data-k="sono">수주번호</th><th class="center" data-k="ship">출하</th><th class="center" data-k="tax">세금계산서 (계약·중도·잔금)</th><th class="num" data-k="total">수주금액</th><th class="num" data-k="issued">발행합계</th><th class="num" data-k="vat">부가세</th><th class="num" data-k="billed">청구합계(포함)</th><th class="num" data-k="unbilled">미발행 잔액</th><th class="center" data-k="exp">입금예상일</th><th class="num" data-k="paid">수금</th><th class="num" data-k="out">미수(포함)</th><th class="center" data-k="state">상태 · 수금</th></tr></thead>
       <tbody>{% for o in action %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
   </div>
@@ -98,7 +98,7 @@ tr.sr-hist-row[hidden]{display:none!important;}
   <div class="tbl-wrap tbl-sticky">
     {% if inmonth %}
     <table class="tbl" data-sr-table>
-      <thead><tr><th data-k="cust">고객사</th><th data-k="mgmt">관리번호</th><th data-k="sono">수주번호</th><th class="center" data-k="ship">출하</th><th class="center" data-k="tax">세금계산서 (계약·중도·잔금)</th><th class="num" data-k="total">수주금액</th><th class="num" data-k="issued">발행합계</th><th class="num" data-k="unbilled">미발행 잔액</th><th class="center" data-k="exp">입금예상일</th><th class="num" data-k="paid">수금</th><th class="num" data-k="out">미수</th><th class="center" data-k="state">상태 · 수금</th></tr></thead>
+      <thead><tr><th data-k="cust">고객사</th><th data-k="mgmt">관리번호</th><th data-k="sono">수주번호</th><th class="center" data-k="ship">출하</th><th class="center" data-k="tax">세금계산서 (계약·중도·잔금)</th><th class="num" data-k="total">수주금액</th><th class="num" data-k="issued">발행합계</th><th class="num" data-k="vat">부가세</th><th class="num" data-k="billed">청구합계(포함)</th><th class="num" data-k="unbilled">미발행 잔액</th><th class="center" data-k="exp">입금예상일</th><th class="num" data-k="paid">수금</th><th class="num" data-k="out">미수(포함)</th><th class="center" data-k="state">상태 · 수금</th></tr></thead>
       <tbody>{% for o in inmonth %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
     </table>
     {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">{{ ym }} 입금예정 건 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">다른 달을 선택하거나, 위 ‘발행 대기’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
@@ -147,6 +147,8 @@ tr.sr-hist-row[hidden]{display:none!important;}
       if(k==='exp') return (d.exp||'');
       if(k==='ship') return num(d.ship);
       if(k==='tax' || k==='issued') return num(d.issued);
+      if(k==='vat') return num(d.vat);
+      if(k==='billed') return num(d.billed);
       if(k==='total') return num(d.total);
       if(k==='unbilled') return num(d.unbilled);
       if(k==='paid') return num(d.paid);
@@ -197,8 +199,8 @@ tr.sr-hist-row[hidden]{display:none!important;}
   {# z912 (대표 지시): 엑셀처럼 칸 너비 조정 — 헤더 오른쪽 경계를 드래그해 열 폭 변경(브라우저에 저장). 두 표 같은 열 동일 폭·더블클릭=기본폭 #}
   <script>
   (function(){
-    var COLS = ['cust','mgmt','sono','ship','tax','total','issued','unbilled','exp','paid','out','state'];
-    var DEFW = {cust:180,mgmt:100,sono:105,ship:56,tax:200,total:115,issued:115,unbilled:125,exp:108,paid:120,out:115,state:220};
+    var COLS = ['cust','mgmt','sono','ship','tax','total','issued','vat','billed','unbilled','exp','paid','out','state'];
+    var DEFW = {cust:180,mgmt:100,sono:105,ship:56,tax:200,total:115,issued:115,vat:100,billed:130,unbilled:125,exp:108,paid:120,out:125,state:220};
     var KEY = 'knk_sr_colw_v1';
     function loadW(){ try{ return JSON.parse(localStorage.getItem(KEY))||{}; }catch(e){ return {}; } }
     function saveW(){ try{ localStorage.setItem(KEY, JSON.stringify(W)); }catch(e){} }
