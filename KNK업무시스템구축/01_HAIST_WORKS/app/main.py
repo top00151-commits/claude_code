@@ -19567,6 +19567,165 @@ def _sales_delivered(c, rates, sel_year, cur_ym):
     }
 
 
+def _sales_period_ok(mm: int, mode: str, q, m) -> bool:
+    """월(1~12)이 선택한 기간 세분(연간/분기별/월간)에 드는지."""
+    if mode == "quarter":
+        try:
+            qi = int(q)
+        except Exception:
+            qi = 1
+        return (qi - 1) * 3 + 1 <= mm <= qi * 3
+    if mode == "month":
+        try:
+            mi = int(m)
+        except Exception:
+            mi = 1
+        return mm == mi
+    return True  # year(연간)
+
+
+def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
+    """v5H226z925 (대표 지시): 매출 홈 3지표 —
+       ① 수주매출 = 발주일(orders.order_date) 기준, 전 호기 oi.amount + 소모품 발주.
+       ② 진행매출 = 출하일 기준, unit_status='출하'(기존 _sales_delivered 와 동일 로직).
+       ③ 최종매출 = 세금계산서 발행일 기준, 호기 차수 발행액(_board_tax_oi_map 단일소스).
+       공급가(부가세 제외)·외화는 각 기준월 환율로 원화 환산·취소(CANCELLED)/폐기(is_archived) 제외.
+       사업부 = 관리번호 4번째 글자(정식). 기간 세분(연간/분기/월간)은 _sales_period_ok 로 필터.
+       반환: kpi/biz_rows/years/top_customers/period_label/missing_fx 등."""
+    missing = set()
+    sel = str(sel_year)
+    agg = {k: {"years": {}, "biz": {}, "cust": {}, "total": 0.0, "cnt": 0}
+           for k in ("order", "prog", "final")}
+
+    def add(metric, dd, biz, cust, amount, currency):
+        dd = dd or ""
+        yr, mm7 = dd[:4], dd[5:7]
+        if not yr or not mm7:
+            return
+        try:
+            mm = int(mm7)
+        except Exception:
+            return
+        if not _sales_period_ok(mm, mode, sel_q, sel_m):
+            return
+        b = (biz or "").strip().upper()
+        if b not in SALES_BIZ:
+            b = "E"      # 관리번호 없음/미지정 → 기타
+        krw = _fx_to_krw(rates, amount, currency, dd[:7], missing)
+        A = agg[metric]
+        A["years"][yr] = A["years"].get(yr, 0.0) + krw
+        if yr == sel:
+            A["biz"][b] = A["biz"].get(b, 0.0) + krw
+            nm = cust or "—"
+            A["cust"][nm] = A["cust"].get(nm, 0.0) + krw
+            A["total"] += krw
+            A["cnt"] += 1
+
+    # ① 수주매출 — 발주일(orders.order_date) 기준, 전 호기(취소/폐기 제외)
+    for r in c.execute(
+            "SELECT UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
+            "COALESCE(p.customer_name,'') AS cust, oi.amount AS amount, "
+            "COALESCE(oi.currency,p.currency) AS currency, "
+            "COALESCE(o.order_date,p.order_date) AS dd "
+            "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+            "JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
+        d = dict(r)
+        add("order", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
+    for r in c.execute(
+            "SELECT 'C' AS biz, COALESCE(customer_name,'') AS cust, total_amount AS amount, "
+            "currency, order_date AS dd FROM consumable_orders "
+            "WHERE COALESCE(status,'')<>'CANCELLED'").fetchall():
+        d = dict(r)
+        add("order", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
+
+    # ② 진행매출 — 출하일 기준(기존 납품완료 로직과 동일)
+    for r in c.execute(
+            "SELECT UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
+            "COALESCE(p.customer_name,'') AS cust, oi.amount AS amount, "
+            "COALESCE(oi.currency,p.currency) AS currency, "
+            "COALESCE(oi.due_date,p.due_date,p.order_date) AS dd "
+            "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+            "JOIN projects p ON p.id=o.project_id "
+            "WHERE oi.unit_status='출하' AND COALESCE(o.status,'')<>'CANCELLED' "
+            "AND COALESCE(p.is_archived,0)=0").fetchall():
+        d = dict(r)
+        add("prog", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
+    for r in c.execute(
+            "SELECT 'C' AS biz, COALESCE(customer_name,'') AS cust, total_amount AS amount, "
+            "currency, COALESCE(due_date,order_date) AS dd FROM consumable_orders "
+            "WHERE status IN ('SHIPPED','PAID')").fetchall():
+        d = dict(r)
+        add("prog", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
+
+    # ③ 최종매출 — 세금계산서 발행일 기준, 호기 차수 발행액(단일소스)
+    meta = {}
+    for r in c.execute(
+            "SELECT oi.id AS iid, UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
+            "COALESCE(p.customer_name,'') AS cust, COALESCE(oi.currency,p.currency) AS currency "
+            "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+            "JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
+        d = dict(r)
+        meta[d["iid"]] = (d["biz"], d["cust"], d["currency"])
+    for iid, tx in (oi_map or {}).items():
+        mm = meta.get(iid)
+        if not mm:
+            continue
+        biz, cust, currency = mm
+        for dk, ak in (("t1d", "t1a"), ("t2d", "t2a"), ("t3d", "t3a")):
+            dd = tx.get(dk) or ""
+            av = tx.get(ak)
+            if not dd or av in (None, ""):
+                continue
+            try:
+                amt = float(av)
+            except Exception:
+                continue
+            if amt == 0:
+                continue
+            add("final", dd, biz, cust, amt, currency)
+
+    all_years = sorted(set(agg["order"]["years"]) | set(agg["prog"]["years"])
+                       | set(agg["final"]["years"]), reverse=True)
+    years_rows = [{"year": y,
+                   "order": agg["order"]["years"].get(y, 0.0),
+                   "prog": agg["prog"]["years"].get(y, 0.0),
+                   "final": agg["final"]["years"].get(y, 0.0)} for y in all_years]
+    biz_rows = [{"biz": b, "label": SALES_BIZ_LABEL[b],
+                 "order": agg["order"]["biz"].get(b, 0.0),
+                 "prog": agg["prog"]["biz"].get(b, 0.0),
+                 "final": agg["final"]["biz"].get(b, 0.0)} for b in SALES_BIZ]
+    cust_names = set(agg["order"]["cust"]) | set(agg["prog"]["cust"]) | set(agg["final"]["cust"])
+    top = sorted([{"customer_name": nm,
+                   "order": agg["order"]["cust"].get(nm, 0.0),
+                   "prog": agg["prog"]["cust"].get(nm, 0.0),
+                   "final": agg["final"]["cust"].get(nm, 0.0)} for nm in cust_names],
+                 key=lambda x: -x["prog"])[:5]
+    if mode == "quarter":
+        plabel = f"{sel}년 {sel_q}분기"
+    elif mode == "month":
+        try:
+            plabel = f"{sel}년 {int(sel_m)}월"
+        except Exception:
+            plabel = f"{sel}년"
+    else:
+        plabel = f"{sel}년"
+    return {
+        "kpi": {"order": agg["order"]["total"], "prog": agg["prog"]["total"],
+                "final": agg["final"]["total"],
+                "order_cnt": agg["order"]["cnt"], "prog_cnt": agg["prog"]["cnt"],
+                "final_cnt": agg["final"]["cnt"]},
+        "biz_rows": biz_rows,
+        "years": years_rows,
+        "top_customers": top,
+        "sel_year": sel, "mode": mode, "sel_q": str(sel_q), "sel_m": str(sel_m),
+        "period_label": plabel,
+        "year_choices": all_years,
+        "missing_fx": sorted({ccy for (ccy, _y) in missing}),
+    }
+
+
 # ── 매출·영업 홈 (신규 · 2026-04-21 도메인 분리) ──────────────
 @app.get("/sales", response_class=HTMLResponse)
 async def sales_dashboard(request: Request):
@@ -19582,14 +19741,22 @@ async def sales_dashboard(request: Request):
     today = date.today()
     ym = today.strftime("%Y-%m")
     year = today.year
-    # v5H226z902 (대표 지시): 연도 선택(기본=올해) — 매출(납품완료) 집계 대상 연도
-    _sy = (request.query_params.get("year") or "").strip()
+    # v5H226z925 (대표 지시): 매출 3지표(수주매출·진행매출·최종매출) + 기간(연간/분기별/월간)
+    qp = request.query_params
+    _sy = (qp.get("year") or "").strip()
     sel_year = _sy if (_sy.isdigit() and len(_sy) == 4) else str(year)
+    mode = (qp.get("mode") or "year").strip().lower()
+    if mode not in ("year", "quarter", "month"):
+        mode = "year"
+    _q = (qp.get("q") or "").strip()
+    sel_q = _q if _q in ("1", "2", "3", "4") else str((today.month - 1) // 3 + 1)
+    _m = (qp.get("m") or "").strip()
+    sel_m = _m if (_m.isdigit() and 1 <= int(_m) <= 12) else str(today.month)
+    # 세금계산서 차수 발행액(단일소스) — 자체 db_session 열므로 아래 with 밖에서 호출
+    oi_map, _pi = _board_tax_oi_map()
     with db_session() as c:
-        rates = _fx_load_rates(c)   # z900: 월 기준환율(납품월 기준 원화 환산)
-        # v5H226z902 (대표 지시): 이 화면의 매출 = **납품완료(출하) 금액만**. 수주액은 집계에서 뺌
-        #   (수주는 발주일 기준이라 납품일 기준 매출과 연도가 섞여 비교가 왜곡됨).
-        overview = _sales_delivered(c, rates, sel_year, ym)
+        rates = _fx_load_rates(c)   # z900: 월 기준환율(각 기준월 원화 환산)
+        s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m)
         # 최근 프로젝트 — 참고 목록(그 프로젝트의 계약금액을 원화 환산해 표시)
         _miss = set()
         recent = [dict(r) for r in c.execute(
@@ -19607,10 +19774,14 @@ async def sales_dashboard(request: Request):
         "recent": recent,
         "ym": ym, "year": year,
     }
+    # 연도 선택 옵션 — 데이터에 있는 연도 + 최근 3년 + 선택 연도(멱등)
+    year_span = sorted(set(s3.get("year_choices") or [])
+                       | {str(year), str(year - 1), str(year - 2), str(sel_year)},
+                       reverse=True)
     return ctx(request, "sales_home.html",
                user=u, active="sales",
                proj_stats=proj_stats, sales_kpi=sales_kpi,
-               overview=overview)
+               s3=s3, year_span=year_span)
 
 
 # ── 부품 마스터 (parts) ────────────────────────────────

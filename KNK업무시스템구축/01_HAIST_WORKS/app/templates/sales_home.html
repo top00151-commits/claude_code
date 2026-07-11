@@ -161,18 +161,23 @@ body { overflow: hidden !important; }
       {# v5H74: 페이지헤더 액션 버튼 제거 — 좌측 사이드바와 중복 #}
     </div>
 
-    {# v5H226z902 (대표 지시): 이 화면은 '납품완료(출하) 매출'만 집계 — 수주액 제외(연도 기준을 납품일로 통일) #}
+    {# v5H226z925 (대표 지시): 매출 3지표 — 수주매출(발주일)·진행매출(출하일)·최종매출(세금계산서 발행일). 공급가(부가세 제외) #}
     <!-- KPI -->
     <div class="kpi-row" data-dn="kpi-bar" data-dn-tone="green">
-      <div class="kpi hero">
-        <div class="kpi-label">{{ kpi.ym|default('') }} 이번 달 매출 (납품완료)</div>
-        <div class="kpi-num">{{ '{:,.0f}'.format(overview.month_total or 0) }}<span style="font-size:14px;opacity:0.85;"> 원</span></div>
-        <div class="kpi-trend up">↑ {{ overview.month_cnt or 0 }}건 출하</div>
+      <div class="kpi">
+        <div class="kpi-label">수주매출 · {{ s3.period_label }}</div>
+        <div class="kpi-num" style="color:#2563eb;">{{ '{:,.0f}'.format(s3.kpi.order or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-trend neutral">발주일 기준 · {{ s3.kpi.order_cnt or 0 }}건</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">{{ overview.sel_year }} 매출 총액 (납품완료)</div>
-        <div class="kpi-num" style="color:#15803d;">{{ '{:,.0f}'.format(overview.total or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
-        <div class="kpi-trend neutral">{{ overview.total_cnt or 0 }}건 · 전 사업부 · 원화 환산</div>
+        <div class="kpi-label">진행매출 · {{ s3.period_label }}</div>
+        <div class="kpi-num" style="color:#15803d;">{{ '{:,.0f}'.format(s3.kpi.prog or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-trend neutral">출하(납품)일 기준 · {{ s3.kpi.prog_cnt or 0 }}건</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">최종매출 · {{ s3.period_label }}</div>
+        <div class="kpi-num" style="color:#b45309;">{{ '{:,.0f}'.format(s3.kpi.final or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-trend neutral">세금계산서 발행일 기준</div>
       </div>
       <div class="kpi">
         <div class="kpi-label">진행 프로젝트</div>
@@ -184,43 +189,56 @@ body { overflow: hidden !important; }
     {# v5H226z900 (대표 지시): 외화 매출을 납품월 기준환율로 원화 환산 — 안내 + 미입력 경고 #}
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0 0 6px;padding:9px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:9px;font-size:12.5px;color:#92400e;">
       <span>💱 외화(USD·EUR·JPY·CNY·VND) 매출은 <b>납품월 기준환율</b>로 원화 환산해 합산합니다.</span>
-      {% if overview.missing_fx %}<span style="color:#b91c1c;font-weight:700;">⚠ 환율 미입력: {{ overview.missing_fx|join(', ') }} (해당 건은 원화 환산 0 처리)</span>{% endif %}
+      {% if s3.missing_fx %}<span style="color:#b91c1c;font-weight:700;">⚠ 환율 미입력: {{ s3.missing_fx|join(', ') }} (해당 건은 원화 환산 0 처리)</span>{% endif %}
       {% if user.role in ('admin','ceo') %}<a href="/admin/fx-rates" style="margin-left:auto;font-weight:800;color:#b45309;text-decoration:none;">💱 월 기준환율 입력 →</a>{% endif %}
     </div>
 
-    {# v5H226z901 (대표 지시): 연도 선택 — 사업부별 표·상단 KPI 대상 연도 #}
-    {% if overview.year_choices %}
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px;font-size:12.5px;">
-      <span style="color:var(--qv-ink-3);font-weight:700;margin-right:2px;">연도</span>
-      {% for y in overview.year_choices %}
-      <a href="/sales?year={{ y }}" style="padding:4px 13px;border-radius:999px;font-weight:800;text-decoration:none;{% if y == overview.sel_year %}background:var(--qv-ink,#1e293b);color:#fff;{% else %}background:#f1f5f9;color:#475569;{% endif %}">{{ y }}</a>
-      {% endfor %}
+    {# v5H226z925 (대표 지시): 기간 선택 — 연간/분기별/월간 (전 표·KPI 공통) #}
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 8px;font-size:12.5px;">
+      <span style="color:var(--qv-ink-3);font-weight:700;">📅 기간</span>
+      <select id="shMode" style="padding:5px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:#fff;">
+        <option value="year"{% if s3.mode=='year' %} selected{% endif %}>연간</option>
+        <option value="quarter"{% if s3.mode=='quarter' %} selected{% endif %}>분기별</option>
+        <option value="month"{% if s3.mode=='month' %} selected{% endif %}>월간</option>
+      </select>
+      <select id="shYear" style="padding:5px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:#fff;">
+        {% for y in year_span %}<option value="{{ y }}"{% if (y|string)==s3.sel_year %} selected{% endif %}>{{ y }}년</option>{% endfor %}
+      </select>
+      <select id="shQ" style="padding:5px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:#fff;{% if s3.mode!='quarter' %}display:none;{% endif %}">
+        {% for q in [1,2,3,4] %}<option value="{{ q }}"{% if (q|string)==s3.sel_q %} selected{% endif %}>{{ q }}분기</option>{% endfor %}
+      </select>
+      <select id="shM" style="padding:5px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:#fff;{% if s3.mode!='month' %}display:none;{% endif %}">
+        {% for m in range(1,13) %}<option value="{{ m }}"{% if (m|string)==s3.sel_m %} selected{% endif %}>{{ m }}월</option>{% endfor %}
+      </select>
+      <span style="color:var(--qv-ink-3);">· 수주=발주일 · 진행=출하일 · 최종=세금계산서 발행일 기준</span>
     </div>
-    {% endif %}
 
-    <!-- 사업부별 수주·매출 / 년도별 -->
+    <!-- 사업부별 3지표 / 년도별 3지표 -->
     <div class="grid-2" data-dn="grid-biz-year" data-dn-tone="purple">
       <div class="card" data-dn="biz-table">
-        <h3>사업부별 매출 · 납품완료 ({{ overview.sel_year }})</h3>
+        <h3>사업부별 매출 · {{ s3.period_label }}</h3>
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
               <th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">사업부</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">매출(납품완료)</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">건수</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
             </tr></thead>
             <tbody>
-              {% for b in overview.biz_rows %}
+              {% for b in s3.biz_rows %}
               <tr>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);">{{ b.label }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(b.sales) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;color:#64748b;">{{ b.cnt }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;font-weight:600;">{{ '{:,.0f}'.format(b.order) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(b.prog) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;font-weight:600;">{{ '{:,.0f}'.format(b.final) }}</td>
               </tr>
               {% endfor %}
               <tr style="font-weight:800;background:#fafaf7;">
                 <td style="padding:8px;">합계</td>
-                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(overview.total) }}</td>
-                <td style="padding:8px;text-align:right;color:#475569;">{{ overview.total_cnt }}</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(s3.kpi.order) }}</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(s3.kpi.prog) }}</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(s3.kpi.final) }}</td>
               </tr>
             </tbody>
           </table>
@@ -228,21 +246,23 @@ body { overflow: hidden !important; }
       </div>
 
       <div class="card" data-dn="year-table">
-        <h3>년도별 매출 (납품완료)</h3>
-        {% if overview.years %}
+        <h3>년도별 매출{% if s3.mode=='quarter' %} · 각 연도 {{ s3.sel_q }}분기{% elif s3.mode=='month' %} · 각 연도 {{ s3.sel_m }}월{% endif %}</h3>
+        {% if s3.years %}
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
               <th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">연도</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">매출(납품완료)</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">건수</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
+              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
             </tr></thead>
             <tbody>
-              {% for y in overview.years %}
-              <tr{% if y.year == overview.sel_year %} style="background:#fffbeb;"{% endif %}>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a href="/sales?year={{ y.year }}" style="font-weight:700;color:#1e293b;text-decoration:none;">{{ y.year }}</a></td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(y.sales) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;color:#64748b;">{{ y.cnt }}</td>
+              {% for y in s3.years %}
+              <tr{% if y.year == s3.sel_year %} style="background:#fffbeb;"{% endif %}>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a href="/sales?mode={{ s3.mode }}&year={{ y.year }}&q={{ s3.sel_q }}&m={{ s3.sel_m }}" style="font-weight:700;color:#1e293b;text-decoration:none;">{{ y.year }}</a></td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;font-weight:600;">{{ '{:,.0f}'.format(y.order) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(y.prog) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;font-weight:600;">{{ '{:,.0f}'.format(y.final) }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -256,22 +276,30 @@ body { overflow: hidden !important; }
 
     <!-- TOP 5 고객사 / 최근 프로젝트 -->
     <div class="grid-2" data-dn="grid-customer-recent" data-dn-tone="blue">
-      {# v5H226z902: TOP5 도 '납품완료 매출' 기준(수주액 아님) #}
+      {# v5H226z925: TOP5 — 3지표(수주/진행/최종), 진행매출 순 #}
       <div class="card" data-dn="top-customers">
-        <h3>TOP 5 고객사 — 매출(납품완료) {{ overview.sel_year }}</h3>
-        <div class="list-card list-scroll-sm">
-          {% for c in (overview.top_customers or []) %}
-          <a class="list-item" href="/customers?q={{ c.customer_name }}">
-            <div class="list-num">{{ '%02d'|format(loop.index) }}</div>
-            <div class="list-text">
-              <div class="ttl">{{ c.customer_name }}</div>
-              <div class="meta">{{ c.cnt }} 건 출하</div>
-            </div>
-            <div class="list-amount" style="color:#15803d;">{{ '{:,.0f}'.format(c.sales) }}</div>
-          </a>
-          {% else %}
-          <div style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">납품완료된 건이 없습니다</div>
-          {% endfor %}
+        <h3>TOP 5 고객사 · {{ s3.period_label }} <span style="font-size:11px;color:var(--qv-ink-3);font-weight:600;">(진행매출 순)</span></h3>
+        <div class="list-card list-scroll-sm" style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+            <thead><tr>
+              <th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">고객사</th>
+              <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
+              <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
+              <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
+            </tr></thead>
+            <tbody>
+              {% for c in (s3.top_customers or []) %}
+              <tr>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a href="/customers?q={{ c.customer_name }}" style="color:var(--qv-ink);text-decoration:none;font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }}</a></td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(c.order) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(c.prog) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(c.final) }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -296,6 +324,22 @@ body { overflow: hidden !important; }
     </div>
 
     <div style="height: var(--space-7);"></div>
+
+    {# v5H226z925: 기간 선택기 — 변경 시 GET 파라미터로 이동(서버 집계). .main 안 IIFE #}
+    <script>
+    (function(){
+      var md=document.getElementById('shMode'), yr=document.getElementById('shYear'),
+          q=document.getElementById('shQ'), m=document.getElementById('shM');
+      if(!md||!yr) return;
+      function go(){
+        var mode=md.value, u='/sales?mode='+encodeURIComponent(mode)+'&year='+encodeURIComponent(yr.value);
+        if(mode==='quarter' && q) u+='&q='+encodeURIComponent(q.value);
+        if(mode==='month'  && m) u+='&m='+encodeURIComponent(m.value);
+        window.location.href=u;
+      }
+      [md,yr,q,m].forEach(function(el){ if(el) el.addEventListener('change', go); });
+    })();
+    </script>
   </main>
 </div>
 </body>
