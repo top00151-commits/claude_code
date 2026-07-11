@@ -21,16 +21,22 @@
 .sr-tok{font-size:11px;padding:1px 6px;border-radius:5px;background:#f1f5f9;color:#94a3b8;white-space:nowrap;}
 .sr-tok.on{background:#dcfce7;color:#166534;font-weight:700;}
 .sr-tok.na{opacity:.5;}
-/* z915 (대표 지시): 한 수주 = 표 위·아래 2줄 — 가로 스크롤 없이 한눈에. 각 칸에 라벨 내장 */
-.tbl[data-sr-table]{table-layout:fixed;width:100%;}
-.tbl[data-sr-table] td{padding:5px 8px;vertical-align:top;border:none;}
+/* z915/z916 (대표 지시): 한 수주 = 표 위·아래 2줄 + 레코드 구분 강화(줄무늬·굵은선·세로칸선) */
+.tbl[data-sr-table]{table-layout:fixed;width:100%;border-collapse:collapse;}
+.tbl[data-sr-table] td{padding:6px 9px;vertical-align:top;border:none;}
 .tbl[data-sr-table] td.num{text-align:right;}
 .sr-l{display:block;font-size:10px;color:var(--mute,#94a3b8);font-weight:600;margin-bottom:1px;white-space:nowrap;line-height:1.2;}
 .sr-v{display:block;font-weight:700;color:var(--ink,#0f172a);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35;}
 .sr-v.wrap{white-space:normal;}
-tr.sr-recA>td{border-top:2px solid #d5dbe3;}
-tr.sr-recB>td{border-top:1px dotted #e9edf1;}
-tr.sr-payrow>td{background:#fff8f7;padding:8px;}
+/* 레코드 줄무늬 — 한 수주의 모든 줄이 같은 배경(2줄·3줄 혼재해도 블록 구분 명확) */
+.tbl[data-sr-table] tbody tr>td{background:#fff;}
+.tbl[data-sr-table] tbody tr.sr-ev>td{background:#eaf1fb;}
+/* 칸(항목)별 세로 구분선 */
+.tbl[data-sr-table] tbody td + td{border-left:1px solid #e5ebf2;}
+/* 레코드 구분: 윗줄 위에 굵은 선 + 안쪽 줄은 점선 */
+.tbl[data-sr-table] tbody tr.sr-recA>td{border-top:2px solid #a7b6c8;}
+.tbl[data-sr-table] tbody tr.sr-recB>td{border-top:1px dotted #d3dde8;}
+.tbl[data-sr-table] tbody tr.sr-payrow>td{border-top:1px dotted #d3dde8;padding:8px 9px;}
 .sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}

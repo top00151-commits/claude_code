@@ -1,5 +1,6 @@
-{# 납품·수금 한 건 = 표 위·아래 2줄 (z915·대표 지시). 컨텍스트: o, can_money, today_iso #}
-<tr class="sr-recA" data-cust="{{ o.customer_name }}" data-mgmt="{{ o.mgmt_code }}" data-total="{{ o.total_amount }}" data-issued="{{ o.issued_amt }}" data-unbilled="{{ o.unbilled }}" data-billed="{{ o.billed_incl }}" data-out="{{ o.outstanding_incl }}" data-exp="{{ o.expected_date or '' }}" data-state="{{ o.state }}">
+{# 납품·수금 한 건 = 표 위·아래 2줄 (z915/z916·대표 지시). 컨텍스트: o, can_money, today_iso #}
+{% set _zc = 'sr-ev' if (o.ridx|default(0)) % 2 else '' %}
+<tr class="sr-recA {{ _zc }}" data-cust="{{ o.customer_name }}" data-mgmt="{{ o.mgmt_code }}" data-total="{{ o.total_amount }}" data-issued="{{ o.issued_amt }}" data-unbilled="{{ o.unbilled }}" data-billed="{{ o.billed_incl }}" data-out="{{ o.outstanding_incl }}" data-exp="{{ o.expected_date or '' }}" data-state="{{ o.state }}">
   <td><span class="sr-l">고객사</span><span class="sr-v" title="{{ o.customer_name }}">{{ o.customer_name }}</span></td>
   <td><span class="sr-l">관리번호</span><span class="sr-v">{% if o.mgmt_code %}<span class="mgmt-pill sm">{{ o.mgmt_code }}</span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span></td>
   <td><span class="sr-l">수주번호</span><span class="sr-v"><a href="/orders/{{ o.order_id }}" class="mgmt-pill sm">{{ o.order_no }}</a></span></td>
@@ -8,7 +9,7 @@
   <td class="num"><span class="sr-l">수주금액</span><span class="sr-v">{% if can_money %}{{ o.total_fmt }}{% else %}🔒{% endif %}</span></td>
   <td class="num"><span class="sr-l">발행합계</span><span class="sr-v">{% if can_money %}{{ o.issued_fmt }}{% else %}🔒{% endif %}</span></td>
 </tr>
-<tr class="sr-recB">
+<tr class="sr-recB {{ _zc }}">
   <td class="num"><span class="sr-l">부가세</span><span class="sr-v" style="color:#7c3aed;">{% if can_money %}{{ o.vat_fmt }}{% else %}🔒{% endif %}</span></td>
   <td class="num"><span class="sr-l">청구합계(부가세 포함)</span><span class="sr-v" style="color:#0369a1;">{% if can_money %}{{ o.billed_incl_fmt }}{% else %}🔒{% endif %}</span></td>
   <td class="num"><span class="sr-l">미발행 잔액</span><span class="sr-v" style="{% if o.unbilled > 0 %}color:#b45309;{% endif %}">{% if can_money %}{{ o.unbilled_fmt }}{% else %}🔒{% endif %}</span></td>
@@ -18,7 +19,7 @@
   <td><span class="sr-l">상태</span><span class="sr-v"><span class="pill {% if o.state == '수금완료' %}pill-done{% elif o.state == '마감이월' %}pill-carry{% elif o.state == '발행 대기' %}pill-billing{% else %}pill-expect{% endif %}">{{ o.state }}</span></span></td>
 </tr>
 {% if can_money and o.state != '수금완료' and o.outstanding_incl > 0 %}
-<tr class="sr-payrow"><td colspan="7">
+<tr class="sr-payrow {{ _zc }}"><td colspan="7">
   <form class="sr-recv-form" method="post" action="/sales/receipts">
     <input type="hidden" name="order_id" value="{{ o.order_id }}">
     <input type="hidden" name="currency" value="{{ o.currency }}">
@@ -38,7 +39,7 @@
 </td></tr>
 {% endif %}
 {% if can_money and o.recv_cnt %}
-<tr class="sr-hist-row" id="hist-{{ o.order_id }}" hidden>
+<tr class="sr-hist-row {{ _zc }}" id="hist-{{ o.order_id }}" hidden>
   <td colspan="7">
     <div class="sr-hist-box">
       <div class="sr-hist-h">📋 수금 이력 — {{ o.order_no }} ({{ o.recv_cnt }}건)</div>

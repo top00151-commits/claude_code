@@ -32351,6 +32351,10 @@ async def sales_shipments_receipts_page(req: Request):
                if o["issued"] and o["expected_date"] and o["expected_date"][:7] == ym
                and o["order_id"] not in seen]
     inmonth.sort(key=lambda x: (x["expected_date"], x["order_no"]))
+    for _i, _o in enumerate(action):        # z916 레코드 줄무늬(홀짝 배경)로 구분 강화
+        _o["ridx"] = _i
+    for _i, _o in enumerate(inmonth):
+        _o["ridx"] = _i
 
     def _ksum(lst):   # KRW 만 합산(외화 혼합 방지) — 미수(부가세 포함) 기준
         return sum((o["outstanding_incl"] if o["outstanding_incl"] > 0 else 0)
