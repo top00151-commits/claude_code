@@ -54,6 +54,12 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .pc-tbl td.pc-rc { text-align:center; white-space:nowrap; }
 .pc-biz { display:inline-block; font-size:10.5px; font-weight:800; color:#5b21b6; background:#f3e8ff; border:1px solid #ddd6fe; border-radius:6px; padding:1px 6px; }
 .pc-po2 { display:inline-block; font-size:10.5px; font-weight:800; color:#1d4ed8; background:#e0edff; border:1px solid #bfdbfe; border-radius:6px; padding:1px 6px; }
+/* v5H226z907 (대표 지시): 카드 사업부별 색상 — 왼쪽 띠 + 사업부 뱃지 톤 (검사기 파랑·자동화 보라·라이프밸류 로즈·기타 슬레이트·소모품 앰버) */
+.prq-card[data-biz="T"] { border-left-color:#2563eb; } .prq-card[data-biz="T"] .pc-biz { color:#1e40af; background:#dbeafe; border-color:#93c5fd; }
+.prq-card[data-biz="M"] { border-left-color:#7c3aed; } .prq-card[data-biz="M"] .pc-biz { color:#5b21b6; background:#ede9fe; border-color:#c4b5fd; }
+.prq-card[data-biz="L"] { border-left-color:#e11d48; } .prq-card[data-biz="L"] .pc-biz { color:#9f1239; background:#ffe4e6; border-color:#fda4af; }
+.prq-card[data-biz="E"] { border-left-color:#64748b; } .prq-card[data-biz="E"] .pc-biz { color:#334155; background:#f1f5f9; border-color:#cbd5e1; }
+.prq-card[data-biz="C"] { border-left-color:#d97706; } .prq-card[data-biz="C"] .pc-biz { color:#92400e; background:#fef3c7; border-color:#fcd34d; }
 .pc-st2 { display:inline-block; font-size:10.5px; font-weight:800; border-radius:6px; padding:1px 6px; }
 .pc-qtyv { color:#1f2937; font-weight:800; font-size:11.5px; }
 .pc-metarow { display:flex; flex-wrap:wrap; gap:3px 12px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--qv-line); font-size:11.5px; color:#475569; }
@@ -126,7 +132,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
     {% for pr in rows %}
     {% set _stcls = {'출하':'done','진행중':'prog','취소':'cancel','보류':'hold'}.get(pr.status_ko, 'na') %}
     {# z890→z892: 소모품 카드는 '소모품 제작요청서' 보기로(편집 아님), 제작요청서 카드는 편집(수정·발행)으로 이동 #}
-    <a class="prq-card" href="{% if pr._kind == 'consumable' %}/consumables/{{ pr.co_id }}/prod-request{% else %}/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.pr_id }}{% endif %}" title="카드를 누르면 {% if pr._kind == 'consumable' %}소모품 제작요청서{% else %}제작요청서(수정·발행){% endif %} 화면으로 이동">
+    <a class="prq-card" data-biz="{{ pr.biz|default('') }}" href="{% if pr._kind == 'consumable' %}/consumables/{{ pr.co_id }}/prod-request{% else %}/project/{{ pr.project_id }}/prod-request/edit?prid={{ pr.pr_id }}{% endif %}" title="카드를 누르면 {% if pr._kind == 'consumable' %}소모품 제작요청서{% else %}제작요청서(수정·발행){% endif %} 화면으로 이동">
       <table class="pc-tbl">
         <colgroup><col class="pc-l"><col><col class="pc-l"><col><col class="pc-r"></colgroup>
         <tr>

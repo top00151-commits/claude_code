@@ -7139,6 +7139,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             "cc_name": cc_nm, "cc_position": cc_pos, "author": by_name,
             "model": model, "engraving": eng, "part_name": pname,
             "equip": (p.get("equip_name") or ""), "biz": _BIZ_KO_MSG.get(_pbiz, ""),
+            "biz_code": (str(_pbiz or "").strip().upper()),   # v5H226z907: 카드 사업부별 색상(메신저)
             "po_type": (str(p.get("po_type") or "신규").strip() or "신규"), "status": _status_ko,
             "qty": qty, "due": due, "so_nos": so_nos,
             "server_path": spath, "cust_req": cust_req, "note": note,
@@ -20259,6 +20260,8 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
             for r in rows:
                 _mc = str(r.get("mgmt_code") or "")
                 r["biz_label"] = _BIZ_KO.get(_mc[3].upper(), "") if (len(_mc) >= 4 and _mc[3].isalpha()) else ""
+                # v5H226z907 (대표 지시): 카드 사업부별 색상 — 관리번호 4번째 글자(T/M/L/E/C)를 카드에 부여
+                r["biz"] = (_mc[3].upper() if (len(_mc) >= 4 and _mc[3].isalpha()) else "")
                 _oid = r.get("order_id")
                 if not _oid:
                     r["qty"] = r.get("proj_qty"); r["status_ko"] = "—"; continue
@@ -20311,6 +20314,7 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     r["o_due_date"] = r.get("due_date")
                     r["po_type"] = "소모품"
                     r["biz_label"] = "소모품"
+                    r["biz"] = "C"    # v5H226z907: 소모품 카드 색상 코드
                     _cq = _cqty.get(r.get("co_id"))
                     r["qty"] = int(_cq) if _cq else None   # 빈값=None → 카드 '수량 —'
                     _st = str(r.get("status") or "").upper()
@@ -37393,7 +37397,7 @@ def _consumable_notify_send(co, items, team_ids, user_ids, user):
         _card = {
             "type": "prod_request", "title": "소모품 요청서",
             "mgmt": mgmt, "customer": cust, "cc_name": cc_nm, "author": by_name,
-            "model": model, "equip": equip, "biz": "소모품", "po_type": "소모품",
+            "model": model, "equip": equip, "biz": "소모품", "biz_code": "C", "po_type": "소모품",
             "status": _ST_KO.get(str(co.get("status") or "").upper(), "진행중"),
             "qty": qty_total, "due": due, "so_nos": [co_no],
             "cust_req": "", "note": note, "issued_at": now_str, "link": _full,
