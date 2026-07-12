@@ -28875,6 +28875,16 @@ async def projects_retire_submit(request: Request, pid: int):
     except Exception:
         return JSONResponse({"ok": False, "error": "확인 실패",
                              "message": "비밀번호 확인 중 오류가 발생했습니다."}, 500)
+    # v5H226z934 (대표 지시): 삭제 전 DB 자동백업 (필수 — 실패 시 중단). 되돌릴 수 없는 완전삭제라 스냅샷 보존.
+    try:
+        import datetime as _dt2
+        _bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+        os.makedirs(_bdir, exist_ok=True)
+        _bts = _dt2.datetime.now().strftime("%Y%m%d_%H%M%S")
+        _logi.backup_db_file(os.path.join(_bdir, f"knk.db.bak_retire_{(_mc or ('id'+str(pid)))}_{_bts}"))
+    except Exception as _be:
+        return JSONResponse({"ok": False, "error": "백업 실패",
+                             "message": f"삭제 전 DB 백업 실패 — 안전을 위해 중단합니다: {str(_be)[:160]}"}, 500)
     # 봉인 먼저(번호 재사용 원천 차단) → 완전삭제. 순서 보장: 삭제 실패해도 번호는 봉인(안전측).
     try:
         with db_session() as c:
