@@ -194,6 +194,8 @@
        사이드바 '소모품 발주' 메뉴 항목 제거. 목록은 프로젝트 목록 🧴소모품 책갈피에서 조회. #}
     {{ a('/sales/shipments-receipts','🚚 납품·수금', 'M-01-04') }}
     {{ a('/sales/outstanding',     '💰 미수금',      'M-01-05') }}
+    {# v5H226z929 (대표 지시): 은행 입금내역으로 수금 대조(1단계=파일 읽기·미리보기) — 재무 권한만 #}
+    {% if (user.role or '')|lower in ('admin','ceo','executive') %}{{ a('/sales/bank-recon', '🏦 입금 대사', 'M-01-17') }}{% endif %}
     {{ a('/export',                '🌐 수출입',      'M-01-10') }}
     {{ a('/as',                    '🛠 A/S 관리',    'M-01-12') }}
   {% elif _at == 'logi' %}

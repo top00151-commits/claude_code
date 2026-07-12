@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><title>입금 대사 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+ .br-wrap{max-width:1100px;margin:0 auto;padding:0 var(--content-pad,16px);}
+ .br-card{background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:18px;margin:14px 0;box-shadow:var(--shadow-sm);}
+ .br-drop{border:2px dashed #cbd5e1;border-radius:12px;padding:22px;text-align:center;background:#f8fafc;}
+ .br-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+ .br-tbl th{border-bottom:2px solid var(--line,#e7e2d4);padding:7px 9px;text-align:left;color:#475569;font-size:12px;}
+ .br-tbl td{border-bottom:1px solid var(--line,#eef0f4);padding:7px 9px;text-align:left;}
+ .br-tbl td.num,.br-tbl th.num{text-align:right;font-variant-numeric:tabular-nums;}
+ .br-note{font-size:12.5px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:9px;padding:9px 12px;}
+ .br-btn{background:var(--knk-red,#e11d48);color:#fff;border:0;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;}
+ .br-map{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-2,#334155);margin:4px 0;}
+ .br-map b{color:var(--ink,#0f172a);}
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <div class="br-wrap">
+    <div style="padding:16px 0 4px;">
+      <div class="crumbs" style="font-size:12px;color:var(--mute);"><a href="/sales">매출영업센터</a> · <b>입금 대사</b></div>
+      <h1 style="font-size:24px;margin:4px 0;">🏦 입금 대사 <span style="font-size:13px;color:var(--mute);font-weight:600;">— 계좌 입금내역으로 수금 확인 (1단계: 파일 읽기)</span></h1>
+    </div>
+
+    <div class="br-note">🔒 은행 계정·비밀번호는 쓰지 않습니다. 은행에서 <b>내려받은 엑셀만</b> 올리세요. 이 단계는 <b>파일을 제대로 읽는지 확인</b>만 하고 저장하지 않습니다. (다음 단계=미수와 자동 매칭·수금 처리)</div>
+
+    <form class="br-card" method="post" action="/sales/bank-recon" enctype="multipart/form-data">
+      <div class="br-drop">
+        <div style="font-size:32px;">📄</div>
+        <p style="margin:6px 0;font-weight:700;">은행 입금내역 엑셀 (.xls / .xlsx)</p>
+        <input type="file" name="file" accept=".xls,.xlsx" required>
+        <div style="margin-top:12px;"><button class="br-btn" type="submit">📥 파일 읽기</button></div>
+        <p style="font-size:11.5px;color:var(--mute);margin-top:8px;">국민·우리·신한 등 대부분 자동 인식합니다. 잘못 읽히면 알려주세요.</p>
+      </div>
+    </form>
+
+    {% if result %}
+      {% if result.ok %}
+      <div class="br-card">
+        <h3 style="margin:0 0 6px;">✅ 읽음 — {{ result.filename }}</h3>
+        <div class="br-map">
+          <span>자동 감지 컬럼:</span>
+          <span><b>날짜</b>={% if result.col_map.date is not none %}{{ result.headers[result.col_map.date] }}{% else %}—{% endif %}</span>
+          <span><b>입금액</b>={% if result.col_map.dep is not none %}{{ result.headers[result.col_map.dep] }}{% else %}—{% endif %}</span>
+          <span><b>입금자</b>={% if result.col_map.payer is not none %}{{ result.headers[result.col_map.payer] }}{% else %}—{% endif %}</span>
+          <span><b>메모</b>={% if result.col_map.memo is not none %}{{ result.headers[result.col_map.memo] }}{% else %}—{% endif %}</span>
+        </div>
+        {% if result.warning %}<div class="br-note" style="margin-top:8px;">{{ result.warning }}</div>{% endif %}
+        <p style="margin:12px 0 6px;font-weight:800;">입금 {{ result.dep_cnt }}건 · 합계 ₩{{ result.dep_total_fmt }}</p>
+        <div style="overflow-x:auto;">
+          <table class="br-tbl">
+            <thead><tr><th>날짜</th><th>입금자</th><th class="num">입금액</th><th>메모</th></tr></thead>
+            <tbody>
+              {% for d in result.deposits %}
+              <tr><td>{{ d.date }}</td><td>{{ d.payer }}</td><td class="num">₩{{ d.amount_fmt }}</td><td style="color:var(--mute);">{{ d.memo }}</td></tr>
+              {% else %}
+              <tr><td colspan="4" style="text-align:center;color:var(--mute);padding:18px;">입금 건이 없습니다.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12px;color:var(--mute);margin-top:12px;">💡 이대로 잘 읽히면, 다음 단계에서 이 입금들을 <b>미수(부가세 포함)</b>와 자동 매칭해 <b>수금 처리</b>하도록 만들겠습니다. (여러 장 합산 입금도 조합으로 찾아 제안)</p>
+      </div>
+      {% else %}
+      <div class="br-card"><div class="br-note">⚠ {{ result.warning }}</div>
+        <p style="font-size:12px;color:var(--mute);margin-top:8px;">이 은행 양식을 알려주시면(또는 샘플 1개) 컬럼 인식을 맞추겠습니다.</p>
+      </div>
+      {% endif %}
+    {% endif %}
+    <div style="height:40px;"></div>
+  </div>
+</main></div>
+</body></html>

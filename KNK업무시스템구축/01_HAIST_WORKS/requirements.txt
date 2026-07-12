@@ -21,6 +21,10 @@ qrcode
 # 감사팀 allowed_assets 포함(MIT). 미설치 시 "No module named 'openpyxl'" → 필수.
 openpyxl>=3.1
 
+# v5H226z929 (2026-07-12) — 은행 입금내역 대사: 구형 .xls(OLE2) 읽기.
+# ⚠xlrd 2.0+ 는 .xls 지원 제거 → 1.2.0 로 고정(마지막 .xls 지원 버전). openpyxl 은 .xlsx 전용.
+xlrd==1.2.0
+
 # v5H226z117 (2026-05-31) — SSO Phase 2: 메신저 JWT(RS256) 토큰 검증
 # cryptography 는 RS256 디코딩에 필요 (PyJWT extras로 자동 설치)
 PyJWT[crypto]>=2.8.0

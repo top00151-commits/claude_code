@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-12 v5H226z928[납품·수금 표에서 관리번호·수주번호를 검은 잉크 알약(mgmt-pill)→'그냥 텍스트'로(대표 지시). 클릭 시 상세 연결 유지(a.sr-link·hover 밑줄). 이 페이지 행(_sr_row.html)만·다른 화면 관리번호 알약 불변. _sr_row.html·sales_shipments_receipts.html. 검증 Jinja OK]
+REM   LAST UPDATE: 2026-07-12 v5H226z929[은행 입금내역 대사 1단계(대표 지시) — 계좌 엑셀 업로드→파싱→미리보기. 여러 은행(국민·우리·신한) 대응=헤더 자동감지+컬럼 키워드매핑. .xlsx=openpyxl·.xls=xlrd(1.2·requirements 추가→NAS auto_deploy 자동설치). KB 실파일 검증. /sales/bank-recon(재무권한)·미저장(개인정보 보호). 다음=미수 매칭·수금 확정. main.py·bank_recon.html·chrome.html·requirements.txt. 검증 py_compile·Jinja·파서 실파일 OK]
+REM   - 2026-07-12 v5H226z928[납품·수금 표에서 관리번호·수주번호를 검은 잉크 알약(mgmt-pill)→'그냥 텍스트'로(대표 지시). 클릭 시 상세 연결 유지(a.sr-link·hover 밑줄). 이 페이지 행(_sr_row.html)만·다른 화면 관리번호 알약 불변. _sr_row.html·sales_shipments_receipts.html. 검증 Jinja OK]
 REM   - 2026-07-12 v5H226z927[매출 홈 환율 안내문구 정정(대표 지적) — 원화환산은 이미 지표별 기준월(수주=발주월·진행=출하월·최종=발행월) 환율로 적용 중. 화면 안내가 옛 문구('납품월 기준')라 오해 → 지표별 기준월로 정정(로직 변경 없음·_fx_to_krw 그 달 환율). sales_home.html. 검증 Jinja OK]
 REM   - 2026-07-12 v5H226z926[매출 홈 외화안내·기간설정 바 좌우 끝선을 KPI·표들과 정렬(옆여백 --content-pad 추가)+두 바 디자인 통일(같은 둥근 테두리·패딩·높이 40px). 대표 지적. sales_home.html. 검증 Jinja OK]
 REM   - 2026-07-12 v5H226z925[매출영업센터 홈 개편(대표 지시) — 매출 3지표: 수주매출(발주일)·진행매출(출하일)·최종매출(세금계산서 발행일). 공급가(부가세 제외)·외화 원화환산·취소/폐기 제외. KPI 4장+사업부별·년도별·TOP5 전부 3열. 기간 연간/분기별/월간 선택(GET). 진행매출=기존 납품완료 로직과 동일(숫자 일치). 헬퍼 _sales_3way·_sales_period_ok. main.py·sales_home.html. 검증 py_compile·Jinja·esprima·로직 단위테스트 OK]

@@ -33233,6 +33233,175 @@ def _outstanding_summary(items):
     }
 
 
+# =====================================================
+# v5H226z929 (대표 지시): 은행 입금내역 대사 — 계좌 엑셀 업로드→파싱→미리보기 (1단계).
+#   여러 은행(국민·우리·신한 등) 대응 = 헤더 자동감지 + 컬럼 키워드 매핑(+수동보정 여지).
+#   ⛔은행 계정·비번 미사용(대표가 내려받은 파일만). 1단계=미리보기라 저장 안 함(개인정보 보호).
+#   다음(2단계)=이 입금들을 미수(부가세 포함)와 자동 매칭→수금 처리.
+# =====================================================
+_BANK_DATE_KEYS  = ["거래일시", "거래일자", "거래일", "일시", "일자", "날짜", "거래날짜"]
+_BANK_DEP_KEYS   = ["입금액", "맡기신금액", "맡기신", "입금(원)", "입금금액", "입금"]
+_BANK_WD_KEYS    = ["출금액", "찾으신금액", "찾으신", "출금(원)", "출금금액", "출금"]
+_BANK_AMT_KEYS   = ["거래금액", "거래액"]   # 입금/출금 분리 없는 은행의 부호금액 폴백
+_BANK_PAYER_KEYS = ["보낸분", "받는분", "의뢰인", "수취인", "상대방", "거래상대", "내용", "기재내용"]
+_BANK_MEMO_KEYS  = ["송금메모", "메모", "적요", "내용", "기재사항", "통장표시"]
+
+
+def _bank_pick_col(headers, keys):
+    """헤더 목록에서 keys(우선순위 순) 를 정확일치→부분일치로 찾아 열 index."""
+    for k in keys:
+        for j, h in enumerate(headers):
+            if h == k:
+                return j
+    for k in keys:
+        for j, h in enumerate(headers):
+            if k and k in h:
+                return j
+    return None
+
+
+def _bank_amt(s):
+    import re as _re
+    if s is None:
+        return 0.0
+    t = _re.sub(r"[^0-9.\-]", "", str(s))
+    if t in ("", "-", "."):
+        return 0.0
+    try:
+        return float(t)
+    except Exception:
+        return 0.0
+
+
+def _bank_date(s):
+    import re as _re
+    m = _re.search(r"(\d{4})[.\-/년\s]*(\d{1,2})[.\-/월\s]*(\d{1,2})", str(s or ""))
+    if m:
+        return "%04d-%02d-%02d" % (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    return str(s or "")[:10]
+
+
+def _parse_bank_excel(raw, filename, override=None):
+    """은행 거래내역 엑셀(raw bytes) → 입금건 목록. 여러 은행 대응(헤더 자동감지+컬럼 매핑).
+    .xlsx=openpyxl · .xls=xlrd(1.2). ⛔pandas 미사용(NAS 미설치·requirements 는 openpyxl+xlrd).
+    반환 dict: ok / headers / header_idx / col_map / deposits[{date,payer,amount,memo}] / n_rows / warning."""
+    import io as _io
+    ext = (filename or "").lower().rsplit(".", 1)[-1]
+
+    def _grid_openpyxl():
+        from openpyxl import load_workbook
+        wb = load_workbook(_io.BytesIO(raw), data_only=True, read_only=True)
+        ws = wb.active
+        g = [[c.value for c in row] for row in ws.iter_rows()]
+        wb.close()
+        return g
+
+    def _grid_xlrd():
+        import xlrd
+        book = xlrd.open_workbook(file_contents=raw)
+        sh = book.sheet_by_index(0)
+        return [[sh.cell_value(r, cc) for cc in range(sh.ncols)] for r in range(sh.nrows)]
+
+    grid = None
+    rerr = None
+    order = (_grid_xlrd, _grid_openpyxl) if ext == "xls" else (_grid_openpyxl, _grid_xlrd)
+    for fn in order:
+        try:
+            grid = fn()
+            if grid:
+                break
+        except Exception as e:
+            rerr = e
+            grid = None
+    if not grid:
+        if ext == "xls":
+            return {"ok": False, "warning": "이 .xls 파일을 서버에서 읽지 못했습니다. Excel에서 열어 '다른 이름으로 저장 → .xlsx'로 바꿔 다시 올려주시면 됩니다."}
+        return {"ok": False, "warning": "엑셀을 읽지 못했습니다(%s)." % rerr}
+
+    def S(v):
+        return "" if v is None else str(v).strip()
+    hidx = None
+    for i in range(min(25, len(grid))):
+        joined = " ".join(S(x) for x in grid[i])
+        hits = sum(1 for k in ["거래", "입금", "출금", "잔액", "일시", "일자", "금액", "적요", "의뢰", "받는", "보낸", "맡기신", "찾으신"] if k in joined)
+        if hits >= 3:
+            hidx = i
+            break
+    if hidx is None:
+        return {"ok": False, "warning": "입금내역 표의 헤더(거래일·입금·출금 등)를 찾지 못했습니다."}
+    headers = [S(x) for x in grid[hidx]]
+    cm = {
+        "date": _bank_pick_col(headers, _BANK_DATE_KEYS),
+        "dep": _bank_pick_col(headers, _BANK_DEP_KEYS),
+        "wd": _bank_pick_col(headers, _BANK_WD_KEYS),
+        "amt": _bank_pick_col(headers, _BANK_AMT_KEYS),
+        "payer": _bank_pick_col(headers, _BANK_PAYER_KEYS),
+        "memo": _bank_pick_col(headers, _BANK_MEMO_KEYS),
+    }
+    if override:
+        for k in ("date", "dep", "payer", "memo"):
+            v = override.get(k)
+            if v not in (None, ""):
+                try:
+                    cm[k] = int(v)
+                except Exception:
+                    pass
+    deposits = []
+    for r in range(hidx + 1, len(grid)):
+        row = grid[r]
+
+        def _c(role, _row=row):
+            j = cm.get(role)
+            return _row[j] if (j is not None and j < len(_row)) else None
+        dep = _bank_amt(_c("dep")) if cm.get("dep") is not None else 0.0
+        if (cm.get("dep") is None) and (cm.get("amt") is not None):
+            a = _bank_amt(_c("amt"))
+            dep = a if a > 0 else 0.0
+        if dep <= 0:
+            continue
+        deposits.append({
+            "date": _bank_date(_c("date")),
+            "payer": S(_c("payer")),
+            "amount": dep,
+            "memo": S(_c("memo")),
+        })
+    return {"ok": True, "headers": headers, "header_idx": hidx, "col_map": cm,
+            "deposits": deposits, "n_rows": max(0, len(grid) - hidx - 1),
+            "warning": ("" if deposits else "입금(입금액>0) 건이 없습니다. 파일이 전부 출금이거나 컬럼 매핑이 다를 수 있어요.")}
+
+
+@app.get("/sales/bank-recon", response_class=HTMLResponse)
+async def bank_recon_page(req: Request):
+    """은행 입금내역 대사 — 업로드 화면(1단계·미리보기)."""
+    u = require(req, ["admin", "ceo", "executive"])
+    if not u:
+        return RedirectResponse("/home", 303)
+    return ctx(req, "bank_recon.html", user=u, active="sales", result=None)
+
+
+@app.post("/sales/bank-recon")
+async def bank_recon_upload(req: Request):
+    """엑셀 업로드→파싱→미리보기. 저장하지 않음(1단계)."""
+    u = require(req, ["admin", "ceo", "executive"])
+    if not u:
+        return RedirectResponse("/home", 303)
+    form = await req.form()
+    up = form.get("file")
+    if up is None or not getattr(up, "filename", ""):
+        return ctx(req, "bank_recon.html", user=u, active="sales",
+                   result={"ok": False, "warning": "파일을 선택하세요."})
+    raw = await up.read()
+    override = {k: form.get("col_" + k) for k in ("date", "dep", "payer", "memo")}
+    res = _parse_bank_excel(raw, up.filename, override=override)
+    res["filename"] = getattr(up, "filename", "")
+    if res.get("ok"):
+        for d in res["deposits"]:
+            d["amount_fmt"] = "{:,.0f}".format(d["amount"])
+        res["dep_cnt"] = len(res["deposits"])
+        res["dep_total_fmt"] = "{:,.0f}".format(sum(d["amount"] for d in res["deposits"]))
+    return ctx(req, "bank_recon.html", user=u, active="sales", result=res)
+
+
 def check_receivable_alerts():
     """수금 알림 트리거 — 만기 임박(D-7) + 연체(D+1, D+30, D+60).
     notify_user(SALES, ...) 사용 (1시간 중복 방지 내장).
