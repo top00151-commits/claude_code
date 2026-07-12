@@ -255,7 +255,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         <div class="info-sect">
           <div class="sect-label">기본</div>
           <div class="info-row c4">
-            <div class="h-cell ro"><div class="lbl">관리코드</div><div class="val" style="font-family:monospace;color:var(--knk-red);">{{ co.mgmt_code or '—' }}</div></div>
+            <div class="h-cell ro"><div class="lbl">관리코드</div><div class="val" style="font-family:inherit;color:var(--knk-red);">{{ co.mgmt_code or '—' }}</div></div>
             <div class="h-cell ro"><div class="lbl">수주번호</div><div class="val">{{ co.co_no }}</div></div>
             <div class="h-cell ro"><div class="lbl">합계</div><div class="val amount" id="totalAmount">{% if co.currency != 'KRW' %}{{ co.currency }} {% endif %}{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency == 'KRW' %}원{% endif %}</div></div>
             {# v5H226z725(대표 지시): 상태 = 드롭다운(기존 '상태 변경' 알약 대체). 엑셀 양식 '상태'(F9)와 일치 #}

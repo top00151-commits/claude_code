@@ -1538,7 +1538,7 @@
               <td>{% with ptype=cp.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</td>
               <td>{{ cp.name }}{% if cp.customer_name %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ cp.customer_name }}</span>{% endif %}</td>
               <td><span style="font-size:11px;">{{ cp.status|default('—') }}</span></td>
-              <td style="font-family:monospace;font-size:11px;color:var(--amber-deep);">{{ cp.latest_so_no|default('—') }}</td>
+              <td style="font-family:inherit;font-size:11px;color:var(--amber-deep);">{{ cp.latest_so_no|default('—') }}</td>
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ cp.last_so_date|default('—') }}</td>
               <td class="num" style="font-weight:700;">{% if can_sales_amt %}{{ money(cp.total_so_amount|default(0), cp.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
             </tr>
@@ -1655,7 +1655,7 @@
         {# v5H226z649 (대표 지시): 1·2·3열 줄 맞춤 — 필드는 단일 3열 .def 하나로(완전 정렬), 수주번호는 오른쪽 .def-sono 로 분리(세로 나열) #}
         <div class="proj-grid-wrap">
         <dl class="def">
-          <dt>관리번호</dt><dd style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
+          <dt>관리번호</dt><dd style="font-family:inherit;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
           <dt>고객사</dt><dd title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}</dd>{# v5H226z706: 표시는 시스템명 우선(정식명은 title) #}
           <dt>PO유형</dt><dd>{% set _pt2 = p.po_type|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}</dd>
           <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
@@ -1673,7 +1673,7 @@
           <dt>견적서</dt><dd>{{ p.quotation_date|default('—') }}</dd>
           {# 조건부: 최종 고객(2단계)·연관 관리번호. v5H226z814(대표 지시): 각인 제거 · 자료 경로는 항상 표시(모두 포함) #}
           {% if p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer|default('—') }}</dd>{% endif %}
-          {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}
+          {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:inherit;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}
           <dt class="fullw">자료 경로</dt><dd class="fullw"><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path or '—' }}</span></dd>
         </dl>
         {# v5H226z649→z702 (대표 지시): 수주번호는 수주액 분해 목록 각 줄에 줄맞춰 합쳤으므로 별도 목록은 제거.
