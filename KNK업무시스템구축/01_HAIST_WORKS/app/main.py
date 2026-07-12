@@ -21040,13 +21040,17 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                 _st_logi = _co_status_map.get(cr.get("status") or "DRAFT", "초기협의")
                 if status and _st_logi != status:
                     continue
-                _name_disp = (cr.get("customer_name") or "고객사 미정") + " 소모품 수주 (" + (cr.get("co_no") or f"#{cr.get('id')}") + ")"
+                # v5H226z931 (대표 지시): 소모품 행 프로젝트명·모델명·장비명을 작업일정표(schedule_board)와 동일하게 —
+                #   프로젝트명='소모품'(고정) · 모델명/장비명=소모품 발주 대표값(consumable_orders.model_name/equip_name).
+                #   (기존엔 프로젝트명=자동 래퍼명·모델/장비 미설정→'—' 였음. 고객사·번호는 고객사 칸·상세 링크로 유지.)
                 rows.append({
                     "_kind": "consumable",
                     "id": cr.get("id"),
                     "mgmt_code": cr.get("mgmt_code") or "—",
-                    "name": _name_disp,
-                    "project_name": _name_disp,
+                    "name": "소모품",
+                    "project_name": "소모품",
+                    "model_name": cr.get("model_name") or "",
+                    "equip_name": cr.get("equip_name") or "",
                     "customer_name": cr.get("customer_name") or "—",
                     "biz_div": _co_biz or None,  # T/M (미선택 시 None → '미분류' 노출)
                     "project_type": "CONSUMABLE",
