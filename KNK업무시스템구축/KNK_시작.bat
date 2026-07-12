@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-12 v5H226z931[프로젝트 목록 소모품 행의 프로젝트명·모델명·장비명을 작업일정표와 동일하게 수정(대표 지적·사진1이 맞음). 프로젝트명='소모품'(고정)·모델명/장비명=소모품 발주 대표값(consumable_orders.model_name/equip_name). 기존=자동 래퍼명·모델/장비 미설정→'—'. main.py(projects_list_page). 검증 py_compile OK]
+REM   LAST UPDATE: 2026-07-12 v5H226z932[수주 관리 화면 관리번호 검은 알약→'그냥 텍스트'(대표 지적·z930 공용 .mgmt-pill이 이 페이지 로컬스타일엔 안 닿음). 본문 표 .mgmt-tag + 임박납기 .up-r1 .mgmt 다크배경/알약 제거·모노스페이스 텍스트·링크 hover 밑줄. 전역 점검=관리번호 로컬 다크 알약은 이 2곳뿐. sales_orders.html. 검증 Jinja OK]
+REM   - 2026-07-12 v5H226z931[프로젝트 목록 소모품 행의 프로젝트명·모델명·장비명을 작업일정표와 동일하게 수정(대표 지적·사진1이 맞음). 프로젝트명='소모품'(고정)·모델명/장비명=소모품 발주 대표값(consumable_orders.model_name/equip_name). 기존=자동 래퍼명·모델/장비 미설정→'—'. main.py(projects_list_page). 검증 py_compile OK]
 REM   - 2026-07-12 v5H226z930[관리번호 검은 잉크 알약(.mgmt-pill)→'그냥 텍스트'로 전 화면 통일(대표 지시). 공용 _components.html 1곳=17페이지(프로젝트·수주 관리·작업일정표·최근 프로젝트 등) 일괄. 배경/알약/그림자 제거·모노스페이스 텍스트·링크 hover 밑줄. _components.html. 검증 Jinja OK]
 REM   - 2026-07-12 v5H226z929[은행 입금내역 대사 1단계(대표 지시) — 계좌 엑셀 업로드→파싱→미리보기. 여러 은행(국민·우리·신한) 대응=헤더 자동감지+컬럼 키워드매핑. .xlsx=openpyxl·.xls=xlrd(1.2·requirements 추가→NAS auto_deploy 자동설치). KB 실파일 검증. /sales/bank-recon(재무권한)·미저장(개인정보 보호). 다음=미수 매칭·수금 확정. main.py·bank_recon.html·chrome.html·requirements.txt. 검증 py_compile·Jinja·파서 실파일 OK]
 REM   - 2026-07-12 v5H226z928[납품·수금 표에서 관리번호·수주번호를 검은 잉크 알약(mgmt-pill)→'그냥 텍스트'로(대표 지시). 클릭 시 상세 연결 유지(a.sr-link·hover 밑줄). 이 페이지 행(_sr_row.html)만·다른 화면 관리번호 알약 불변. _sr_row.html·sales_shipments_receipts.html. 검증 Jinja OK]

@@ -136,10 +136,9 @@ body {
 .up-r1 { font-size:11.5px; display:flex; gap:6px; align-items:center; }
 /* v5H226z51: so 번호 빨강 → 잉크 (mgmt-pill 일관) */
 .up-r1 .no { font-family:monospace; font-weight:700; color:var(--qv-ink-2); }
-/* v5H226z44: 임박납기 .up-r1 .mgmt → .mgmt-pill sm 잉크 알약 통일 (참고용 보존, 사용처는 .mgmt-pill 로 전환) */
-.up-r1 .mgmt { font-family:monospace; font-weight:700; color:#ffffff !important; background:var(--qv-ink) !important;
-               padding:2px 8px; border-radius:6px; font-size:11.5px; letter-spacing:0.05em;
-               box-shadow:0 1px 2px rgba(0,0,0,0.08); }
+/* z932 (대표 지시): 임박납기 관리번호 = 검은 알약 → 그냥 텍스트 */
+.up-r1 .mgmt { font-family:monospace; font-weight:700; color:var(--qv-ink,#0f172a);
+               font-size:11.5px; letter-spacing:0.03em; }
 .up-r1 .cust { color:#475569; font-weight:600; }
 .up-r2 { font-size:10.5px; color:#64748b; margin-top:2px; }
 .up-r2 b { color:#1e293b; font-weight:700; }
@@ -176,12 +175,10 @@ body {
 .so-list-b tr:hover td { background:#fff8e8; cursor:pointer; }
 /* v5H226z51: SO 리스트 .so-no 빨강 → 잉크 (페이지 일관) */
 .so-list-b .so-no { font-family:monospace; font-weight:700; color:var(--qv-ink-2); white-space:nowrap; }
-/* v5H226z44: SO 리스트 .mgmt-tag → 잉크 알약 (시안1 토큰 마이그레이션, project_detail z41 과 일관) */
-.so-list-b .mgmt-tag { font-family:monospace; font-weight:700; color:#ffffff !important;
-                       background:var(--qv-ink) !important; padding:3px 10px; border-radius:6px;
-                       font-size:12px; white-space:nowrap; letter-spacing:0.04em;
-                       box-shadow:0 1px 2px rgba(0,0,0,0.08); text-decoration:none; display:inline-block; }
-.so-list-b .mgmt-tag:hover { background:var(--qv-ink-2) !important; color:#ffffff !important; }
+/* z932 (대표 지시): SO 리스트 관리번호 = 검은 알약 → 그냥 텍스트(클릭 링크 유지·hover 밑줄) */
+.so-list-b .mgmt-tag { font-family:monospace; font-weight:700; color:var(--qv-ink,#0f172a);
+                       font-size:12px; white-space:nowrap; letter-spacing:0.03em; text-decoration:none; }
+.so-list-b .mgmt-tag:hover { text-decoration:underline; color:#0369a1; }
 .so-list-b .pname { font-weight:600; color:#1e293b; }
 .so-list-b .pname-sub { font-size:10px; color:#94a3b8; margin-top:1px; }
 .so-list-b .biz-pill { display:inline-block; padding:1px 5px; border-radius:3px; font-size:9.5px; font-weight:700; }
