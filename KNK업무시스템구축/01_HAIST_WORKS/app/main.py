@@ -28878,10 +28878,12 @@ async def projects_retire_submit(request: Request, pid: int):
     # v5H226z934 (대표 지시): 삭제 전 DB 자동백업 (필수 — 실패 시 중단). 되돌릴 수 없는 완전삭제라 스냅샷 보존.
     try:
         import datetime as _dt2
-        _bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
+        # z935: DB_PATH·backup_db_file 둘 다 database 모듈 정의 → 지역 import(z934 'DB_PATH not defined' 버그 수정).
+        from .database import DB_PATH as _DB_PATH, backup_db_file as _backup_db_file
+        _bdir = os.path.join(os.path.dirname(_DB_PATH), "backups")
         os.makedirs(_bdir, exist_ok=True)
         _bts = _dt2.datetime.now().strftime("%Y%m%d_%H%M%S")
-        _logi.backup_db_file(os.path.join(_bdir, f"knk.db.bak_retire_{(_mc or ('id'+str(pid)))}_{_bts}"))
+        _backup_db_file(os.path.join(_bdir, f"knk.db.bak_retire_{(_mc or ('id'+str(pid)))}_{_bts}"))
     except Exception as _be:
         return JSONResponse({"ok": False, "error": "백업 실패",
                              "message": f"삭제 전 DB 백업 실패 — 안전을 위해 중단합니다: {str(_be)[:160]}"}, 500)
