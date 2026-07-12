@@ -187,14 +187,14 @@ body { overflow: hidden !important; }
     </div>
 
     {# v5H226z900 (대표 지시): 외화 매출을 납품월 기준환율로 원화 환산 — 안내 + 미입력 경고 #}
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0 0 6px;padding:9px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:9px;font-size:12.5px;color:#92400e;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:8px var(--content-pad) 0;padding:9px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;font-size:12.5px;color:#92400e;min-height:40px;box-sizing:border-box;">
       <span>💱 외화(USD·EUR·JPY·CNY·VND) 매출은 <b>납품월 기준환율</b>로 원화 환산해 합산합니다.</span>
       {% if s3.missing_fx %}<span style="color:#b91c1c;font-weight:700;">⚠ 환율 미입력: {{ s3.missing_fx|join(', ') }} (해당 건은 원화 환산 0 처리)</span>{% endif %}
       {% if user.role in ('admin','ceo') %}<a href="/admin/fx-rates" style="margin-left:auto;font-weight:800;color:#b45309;text-decoration:none;">💱 월 기준환율 입력 →</a>{% endif %}
     </div>
 
-    {# v5H226z925 (대표 지시): 기간 선택 — 연간/분기별/월간 (전 표·KPI 공통) #}
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 8px;font-size:12.5px;">
+    {# v5H226z925 (대표 지시): 기간 선택 — 연간/분기별/월간 (전 표·KPI 공통). z926: FX 안내와 같은 바 모양·좌우정렬 #}
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px var(--content-pad) 0;padding:9px 14px;background:var(--qv-surface-2,#f7f8fa);border:1px solid var(--qv-line,#eef0f4);border-radius:10px;font-size:12.5px;min-height:40px;box-sizing:border-box;">
       <span style="color:var(--qv-ink-3);font-weight:700;">📅 기간</span>
       <select id="shMode" style="padding:5px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;background:#fff;">
         <option value="year"{% if s3.mode=='year' %} selected{% endif %}>연간</option>
