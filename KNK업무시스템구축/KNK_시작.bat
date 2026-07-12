@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-12 v5H226z926[매출 홈 외화안내·기간설정 바 좌우 끝선을 KPI·표들과 정렬(옆여백 --content-pad 추가)+두 바 디자인 통일(같은 둥근 테두리·패딩·높이 40px). 대표 지적. sales_home.html. 검증 Jinja OK]
+REM   LAST UPDATE: 2026-07-12 v5H226z927[매출 홈 환율 안내문구 정정(대표 지적) — 원화환산은 이미 지표별 기준월(수주=발주월·진행=출하월·최종=발행월) 환율로 적용 중. 화면 안내가 옛 문구('납품월 기준')라 오해 → 지표별 기준월로 정정(로직 변경 없음·_fx_to_krw 그 달 환율). sales_home.html. 검증 Jinja OK]
+REM   - 2026-07-12 v5H226z926[매출 홈 외화안내·기간설정 바 좌우 끝선을 KPI·표들과 정렬(옆여백 --content-pad 추가)+두 바 디자인 통일(같은 둥근 테두리·패딩·높이 40px). 대표 지적. sales_home.html. 검증 Jinja OK]
 REM   - 2026-07-12 v5H226z925[매출영업센터 홈 개편(대표 지시) — 매출 3지표: 수주매출(발주일)·진행매출(출하일)·최종매출(세금계산서 발행일). 공급가(부가세 제외)·외화 원화환산·취소/폐기 제외. KPI 4장+사업부별·년도별·TOP5 전부 3열. 기간 연간/분기별/월간 선택(GET). 진행매출=기존 납품완료 로직과 동일(숫자 일치). 헬퍼 _sales_3way·_sales_period_ok. main.py·sales_home.html. 검증 py_compile·Jinja·esprima·로직 단위테스트 OK]
 REM   - 2026-07-12 v5H226z924[납품·수금 조회·정렬 드롭다운이 다크모드에서 검게 보이던 문제 재수정(대표 지적·z921 후 잔존). 공통 head 의 color-scheme 가 브라우저 head 캐시로 늦게 반영될 수 있어, 페이지 자체 스타일에 color-scheme:light + option 색 강제(!important) 직접 명시. sales_shipments_receipts.html. 검증 Jinja OK]
 REM   - 2026-07-12 v5H226z923[납품·수금 표 높이 '전체' 선택 시 표가 좌측 사이드바와 겹치던 문제 수정(대표 지적). 원인=전체 모드만 overflow:visible 이라 스크롤 상자가 독립 레이아웃 영역(BFC)을 잃음(낮게·보통·높게는 overflow:auto 라 정상). 조치=전체=높이 제한만 해제(overflow:auto 유지)→모든 행 표시+겹침 없음(페이지 스크롤). sales_shipments_receipts.html. 검증 Jinja OK]
