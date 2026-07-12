@@ -34,9 +34,9 @@ select option{background-color:#fff !important;color:#111 !important;}
 .sr-l{display:block;font-size:10px;color:var(--mute,#94a3b8);font-weight:600;margin-bottom:1px;white-space:nowrap;line-height:1.2;}
 .sr-v{display:block;font-weight:700;color:var(--ink,#0f172a);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35;}
 .sr-v.wrap{white-space:normal;}
-/* z918 (대표 지시): 관리번호·수주번호 클릭 → 상세 연결(클릭 가능 표시) */
-a.mgmt-pill.sr-link{text-decoration:none;cursor:pointer;}
-a.mgmt-pill.sr-link:hover{outline:2px solid #7dd3fc;outline-offset:1px;}
+/* z918→z928 (대표 지시): 관리번호·수주번호 = 검은 알약 대신 '그냥 텍스트'(클릭 시 상세 연결) */
+a.sr-link{text-decoration:none;cursor:pointer;color:inherit;}
+a.sr-link:hover{text-decoration:underline;color:#0369a1;}
 /* z919 (대표 지시): 상태 필터 칩 */
 .sr-filterbar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;}
 .sr-chip{cursor:pointer;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;border:1px solid var(--line,#e5e7eb);background:#fff;color:var(--ink-2,#334155);user-select:none;}
