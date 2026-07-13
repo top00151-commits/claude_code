@@ -1,6 +1,7 @@
 {# 납품·수금 한 건 = 표 위·아래 2줄 (z915/z916/z917·대표 지시). 세로 한 칸=의미 있는 짝. 컨텍스트: o, can_money, today_iso #}
 {% set _zc = 'sr-ev' if (o.ridx|default(0)) % 2 else '' %}
-<tr class="sr-recA {{ _zc }}" data-cust="{{ o.customer_name }}" data-mgmt="{{ o.mgmt_code }}" data-total="{{ o.total_amount }}" data-issued="{{ o.issued_amt }}" data-unbilled="{{ o.unbilled }}" data-billed="{{ o.billed_incl }}" data-out="{{ o.outstanding_incl }}" data-exp="{{ o.expected_date or '' }}" data-issdates="{{ o.t1d }},{{ o.t2d }},{{ o.t3d }}" data-state="{{ o.state }}">
+{% set _sk = 'done' if o.state == '수금완료' else ('carry' if o.state == '마감이월' else ('bill' if o.state == '발행 대기' else 'expect')) %}
+<tr class="sr-recA sr-st-{{ _sk }} {{ _zc }}" data-rec="{{ o.order_id }}" data-cust="{{ o.customer_name }}" data-mgmt="{{ o.mgmt_code }}" data-total="{{ o.total_amount }}" data-issued="{{ o.issued_amt }}" data-unbilled="{{ o.unbilled }}" data-billed="{{ o.billed_incl }}" data-out="{{ o.outstanding_incl }}" data-exp="{{ o.expected_date or '' }}" data-issdates="{{ o.t1d }},{{ o.t2d }},{{ o.t3d }}" data-state="{{ o.state }}">
   <td><span class="sr-l">관리번호</span><span class="sr-v">{% if o.mgmt_code %}{% if o.project_id %}<a href="/projects/{{ o.project_id }}" class="sr-link" style="font-family:inherit;" title="프로젝트 상세(호기·항목) 보기">{{ o.mgmt_code }}</a>{% else %}<span style="font-family:inherit;">{{ o.mgmt_code }}</span>{% endif %}{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span></td>
   <td><span class="sr-l">수주번호</span><span class="sr-v"><a href="/sales/orders/{{ o.order_id }}" class="sr-link" style="font-family:inherit;" title="수주 상세(라인·송장·수금) 보기">{{ o.order_no }}</a></span></td>
   <td><span class="sr-l">세금계산서</span><span class="sr-v wrap">{% if o.tier_chips %}{% for tc in o.tier_chips %}<span class="sr-tok on">{{ tc.label }} ✓{% if tc.date %} {{ tc.date[5:] }}{% endif %}</span> {% endfor %}{% else %}<span class="sr-tok" style="background:#fef3c7;color:#92400e;font-weight:700;">미발행</span>{% endif %}</span></td>
@@ -9,7 +10,7 @@
   <td class="num"><span class="sr-l">미발행 잔액</span><span class="sr-v" style="{% if o.unbilled > 0 %}color:#b45309;{% endif %}">{% if can_money %}{{ o.unbilled_fmt }}{% else %}🔒{% endif %}</span></td>
   <td><span class="sr-l">상태</span><span class="sr-v"><span class="pill {% if o.state == '수금완료' %}pill-done{% elif o.state == '마감이월' %}pill-carry{% elif o.state == '발행 대기' %}pill-billing{% else %}pill-expect{% endif %}">{{ o.state }}</span></span></td>
 </tr>
-<tr class="sr-recB {{ _zc }}">
+<tr class="sr-recB sr-st-{{ _sk }} {{ _zc }}" data-rec="{{ o.order_id }}">
   <td><span class="sr-l">고객사</span><span class="sr-v" title="{{ o.customer_name }}">{{ o.customer_name }}</span></td>
   <td class="center"><span class="sr-l">출하</span><span class="sr-v">{{ o.n_ship }}/{{ o.n_total }}</span></td>
   <td><span class="sr-l">입금예상일</span><span class="sr-v">{% if o.expected_date %}{{ o.expected_date }}{% if o.dday is not none %} <span class="sr-dday {% if o.dday < 0 %}over{% elif o.dday <= 7 %}soon{% endif %}">{% if o.dday < 0 %}D+{{ -o.dday }}{% elif o.dday == 0 %}오늘{% else %}D-{{ o.dday }}{% endif %}</span>{% endif %}{% elif o.attn_msg %}<span class="sr-noterm" title="고객사 결제조건(세금계산서 발행 후 N일)을 등록하면 입금예상일이 자동 계산됩니다">{{ o.attn_msg }}</span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span></td>
@@ -19,7 +20,7 @@
   <td class="num"><span class="sr-l">수금</span><span class="sr-v">{% if can_money %}{{ o.paid_fmt }}{% if o.recv_cnt %} <button type="button" class="sr-hist-btn" data-hist="{{ o.order_id }}">📋{{ o.recv_cnt }}</button>{% endif %}{% else %}🔒{% endif %}</span></td>
 </tr>
 {% if can_money and o.state != '수금완료' and o.outstanding_incl > 0 %}
-<tr class="sr-payrow {{ _zc }}"><td colspan="7">
+<tr class="sr-payrow sr-st-{{ _sk }} {{ _zc }}" data-rec="{{ o.order_id }}"><td colspan="7">
   <form class="sr-recv-form" method="post" action="/sales/receipts">
     <input type="hidden" name="order_id" value="{{ o.order_id }}">
     <input type="hidden" name="currency" value="{{ o.currency }}">
@@ -39,7 +40,7 @@
 </td></tr>
 {% endif %}
 {% if can_money and o.recv_cnt %}
-<tr class="sr-hist-row {{ _zc }}" id="hist-{{ o.order_id }}" hidden>
+<tr class="sr-hist-row sr-st-{{ _sk }} {{ _zc }}" id="hist-{{ o.order_id }}" data-rec="{{ o.order_id }}" hidden>
   <td colspan="7">
     <div class="sr-hist-box">
       <div class="sr-hist-h">📋 수금 이력 — {{ o.order_no }} ({{ o.recv_cnt }}건)</div>

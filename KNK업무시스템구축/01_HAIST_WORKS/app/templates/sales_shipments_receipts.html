@@ -42,21 +42,35 @@ a.sr-link:hover{text-decoration:underline;color:#0369a1;}
 .sr-chip{cursor:pointer;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;border:1px solid var(--line,#e5e7eb);background:#fff;color:var(--ink-2,#334155);user-select:none;}
 .sr-chip:hover{border-color:#94a3b8;}
 .sr-chip.on{background:#0f172a;color:#fff;border-color:#0f172a;}
-/* 레코드 줄무늬 — 한 수주의 모든 줄이 같은 배경(2줄·3줄 혼재해도 블록 구분 명확) */
+/* z938 (대표 지시): 카드형 — 항목마다 흰 카드 + 카드 사이 회색 간격 + 왼쪽 상태별 색 띠.
+   번갈이(줄무늬) 배경 폐지 → 한 항목 안에서 색이 섞일 일이 없음(흰 입력칸도 항목색 안 깸). */
+.tbl[data-sr-table]{background:#e7ebf0;}
 .tbl[data-sr-table] tbody tr>td{background:#fff;}
-.tbl[data-sr-table] tbody tr.sr-ev>td{background:#dbe7f7;}
+.tbl[data-sr-table] tbody tr.sr-ev>td{background:#fff;}
 /* 칸(항목)별 세로 구분선 */
-.tbl[data-sr-table] tbody td + td{border-left:1px solid #e5ebf2;}
-/* z936 (대표 지시·미리보기 ②): 건과 건 사이만 굵은 선(색 진하게) + 같은 건 안쪽 줄은 선 없이 → 2·3줄이 한 덩어리로 보이게 */
-.tbl[data-sr-table] tbody tr.sr-recA>td{border-top:2px solid #94a3b8;}
+.tbl[data-sr-table] tbody td + td{border-left:1px solid #eef1f5;}
+/* 카드 사이 간격 = 윗줄 위 회색 굵은 띠(다음 카드와 분리) · 같은 카드 안쪽은 선 없음 */
+.tbl[data-sr-table] tbody tr.sr-recA>td{border-top:10px solid #e7ebf0;}
 .tbl[data-sr-table] tbody tr.sr-recB>td{border-top:none;}
 .tbl[data-sr-table] tbody tr.sr-payrow>td{border-top:none;padding:9px 12px;}
+.tbl[data-sr-table] tbody tr.sr-hist-row>td{border-top:none;}
+/* 왼쪽 상태별 색 띠(카드 척추) — 색이 곧 상태(마감이월🟠·발행대기🔴·수금완료🟢·수금예정🔵) */
+.tbl[data-sr-table] tbody tr.sr-recA>td:first-child,
+.tbl[data-sr-table] tbody tr.sr-recB>td:first-child,
+.tbl[data-sr-table] tbody tr.sr-payrow>td:first-child,
+.tbl[data-sr-table] tbody tr.sr-hist-row>td:first-child{border-left:5px solid var(--spine,#94a3b8);}
+.tbl[data-sr-table] tbody tr.sr-st-carry{--spine:#f59e0b;}
+.tbl[data-sr-table] tbody tr.sr-st-bill{--spine:#e11d48;}
+.tbl[data-sr-table] tbody tr.sr-st-done{--spine:#16a34a;}
+.tbl[data-sr-table] tbody tr.sr-st-expect{--spine:#2563eb;}
+/* 마우스 올린 카드(한 관리번호 2~3줄) 전체 강조 */
+.tbl[data-sr-table] tbody tr.sr-hl>td{background:#fff7db;}
 .sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}
 .sr-noterm{color:#dc2626;font-size:11px;font-weight:600;}
-/* z937 (대표 지시): 수금입력 줄도 그 항목과 같은 색 한 덩어리로 — 폼을 가로 전체 늘리지 말고 콤팩트한 입력바(반투명)로 → 항목 색이 이 줄에도 그대로 보임 */
-.sr-recv-form{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;background:rgba(255,255,255,.5);border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 9px;}
+/* z937/z938 (대표 지시): 수금입력 폼 = 콤팩트 반투명 입력바 + 무조건 1줄(nowrap · 2줄로 안 넘침) */
+.sr-recv-form{display:inline-flex;gap:6px;align-items:center;flex-wrap:nowrap;background:rgba(255,255,255,.5);border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 9px;}
 .sr-recv-form input,.sr-recv-form select{width:96px;padding:4px 6px;border:1px solid var(--ink-200,#cbd5e1);border-radius:6px;font-size:12px;background:#fff;}
 .sr-recv-form select{width:auto;}
 .sr-recv-form input[name=amount]{width:150px;}
@@ -252,6 +266,23 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
     sel.addEventListener('change', function(){
       var k = sel.value;
       tables.forEach(function(t){ sortTable(t.tBodies[0], k); });
+    });
+  })();
+  </script>
+
+  {# z938 (대표 지시): 카드형 — 마우스 올린 카드(한 관리번호 2~3줄) 전체 강조 #}
+  <script>
+  (function(){
+    var tables = document.querySelectorAll('main table[data-sr-table]');
+    Array.prototype.forEach.call(tables, function(t){
+      function clear(){ Array.prototype.forEach.call(t.querySelectorAll('tr.sr-hl'), function(x){ x.classList.remove('sr-hl'); }); }
+      t.addEventListener('mouseover', function(e){
+        var tr = e.target.closest('tr[data-rec]'); if(!tr){ return; }
+        var rec = tr.getAttribute('data-rec');
+        clear();
+        Array.prototype.forEach.call(t.querySelectorAll('tr[data-rec="' + rec + '"]'), function(x){ x.classList.add('sr-hl'); });
+      });
+      t.addEventListener('mouseleave', clear);
     });
   })();
   </script>
