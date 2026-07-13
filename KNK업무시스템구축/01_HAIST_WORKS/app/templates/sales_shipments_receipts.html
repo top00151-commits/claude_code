@@ -44,13 +44,13 @@ a.sr-link:hover{text-decoration:underline;color:#0369a1;}
 .sr-chip.on{background:#0f172a;color:#fff;border-color:#0f172a;}
 /* 레코드 줄무늬 — 한 수주의 모든 줄이 같은 배경(2줄·3줄 혼재해도 블록 구분 명확) */
 .tbl[data-sr-table] tbody tr>td{background:#fff;}
-.tbl[data-sr-table] tbody tr.sr-ev>td{background:#eaf1fb;}
+.tbl[data-sr-table] tbody tr.sr-ev>td{background:#dbe7f7;}
 /* 칸(항목)별 세로 구분선 */
 .tbl[data-sr-table] tbody td + td{border-left:1px solid #e5ebf2;}
-/* 레코드 구분: 윗줄 위에 굵은 선 + 안쪽 줄은 점선 */
-.tbl[data-sr-table] tbody tr.sr-recA>td{border-top:2px solid #a7b6c8;}
-.tbl[data-sr-table] tbody tr.sr-recB>td{border-top:1px dotted #d3dde8;}
-.tbl[data-sr-table] tbody tr.sr-payrow>td{border-top:1px dotted #d3dde8;padding:8px 9px;}
+/* z936 (대표 지시·미리보기 ②): 건과 건 사이만 굵은 선(색 진하게) + 같은 건 안쪽 줄은 선 없이 → 2·3줄이 한 덩어리로 보이게 */
+.tbl[data-sr-table] tbody tr.sr-recA>td{border-top:2px solid #94a3b8;}
+.tbl[data-sr-table] tbody tr.sr-recB>td{border-top:none;}
+.tbl[data-sr-table] tbody tr.sr-payrow>td{border-top:none;padding:8px 9px;}
 .sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}
