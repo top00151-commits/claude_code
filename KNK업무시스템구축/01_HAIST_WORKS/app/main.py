@@ -13974,7 +13974,7 @@ async def sales_orders_delete(req: Request, oid: int):
 
 
 @app.post("/sales/orders/{oid:int}/overwrite-product")
-async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFile = File(...)):
+async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFile = File(...), mode: str = Form("replace")):
     """v5H226z740 (대표 지시): 상품(수출) 수주 '엑셀 덮어쓰기' — 발행된 관리번호·수주번호(order_no)는
     그대로 두고, 이 수주(SO)의 라인만 업로드한 상품 양식으로 '제자리 교체'.
     삭제 후 재등록(=새 번호) 대신, 같은 수주번호로 내용만 갈아끼움. z738 처리(매입/판매 KRW·모델/장비·한글 상태) 동일."""
@@ -14010,6 +14010,8 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
     lines = res.get("lines") or []
     if not lines:
         return JSONResponse({"ok": False, "message": "부품 줄이 없습니다 (부품 표에 1줄 이상)"}, 200)
+    # v5H226z943 (대표 지시): 부품 추가 업로드(add) vs 전체 교체(replace). 기본=replace(구 동작 보존).
+    _is_add943 = (str(mode or "replace").strip().lower() == "add")
     is_export = "1" if str(proj.get("is_export") or "0").strip() in ("수출", "1", "EXPORT", "export") else "0"
     _ccy_hdr = str(proj.get("currency") or "").strip().upper()
     ccy = (_ccy_hdr if _ccy_hdr in ("USD", "VND", "JPY", "CNY", "EUR") else "USD") if is_export == "1" else "KRW"
@@ -14043,8 +14045,9 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 _tx = 0
             if _tx:
                 return JSONResponse({"ok": False, "message": f"세금계산서가 발행된 수주({order_no})는 덮어쓸 수 없습니다. 먼저 세금계산서를 취소하세요."}, 200)
-            # ── 라인 제자리 교체: 기존 order_items 삭제 → 새로 INSERT (order_no·project 그대로 유지)
-            c.execute("DELETE FROM order_items WHERE order_id=?", (oid,))
+            # ── 라인 교체(replace): 기존 order_items 삭제 → 새로 INSERT / 추가(add): 삭제 없이 append (order_no·project 유지)
+            if not _is_add943:   # v5H226z943 (대표 지시): 부품 추가 업로드면 기존 부품 유지
+                c.execute("DELETE FROM order_items WHERE order_id=?", (oid,))
             oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
             for l in lines:
                 qty = float(l.get("qty") or 1) or 1
@@ -14076,10 +14079,15 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 cols = list(row.keys()); ph = ",".join("?" * len(cols))
                 c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
                 inserted += 1
+            # v5H226z943 (대표 지시): 부품 추가/교체 후 금액 합계는 '이 수주의 전체 부품' 기준 재계산(add=기존+신규·replace=신규).
+            _sum943 = c.execute("SELECT COALESCE(SUM(amount),0), COALESCE(SUM(COALESCE(sell_krw,0)*COALESCE(qty,0)),0) FROM order_items WHERE order_id=?", (oid,)).fetchone()
+            total = round(float((_sum943[0] if _sum943 else 0) or 0), 2)
+            amount_krw = round(float((_sum943[1] if _sum943 else 0) or 0), 2)
             # v5H226z942 (대표 지시): 발주일이 엑셀로 바뀌면 수주번호(order_no)도 발주일 기준으로 재발번.
             #   빈 수주를 먼저 만들면(발주일 없음) 오늘 날짜로 발번됐다가, 발주일 담긴 상품 양식을 덮어써도
             #   번호가 오늘로 남던 버그(예: 발주일 2025-11-27인데 수주번호 M-260713-1). 번호의 YYMMDD와 발주일이 다르면 재발번.
-            if order_date:
+            #   v5H226z943: 추가 업로드(add)는 기존 수주번호 유지 → 교체(replace)일 때만 재발번.
+            if order_date and not _is_add943:
                 try:
                     import re as _re942, datetime as _dt942
                     from . import project_workflow as _pwf942
@@ -14123,6 +14131,25 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
             if "currency" in _pcols: _pset.append("currency=?"); _pval.append(ccy)
             if "fx_rate" in _pcols: _pset.append("fx_rate=?"); _pval.append(fx_rate if (fx_rate and ccy != "KRW") else None)
             if "amount_krw" in _pcols: _pset.append("amount_krw=?"); _pval.append(amount_krw if (ccy != "KRW" and amount_krw > 0) else None)
+            # v5H226z943 (대표 지시): '엑셀값이 최종' — 고객사·프로젝트명·PO유형·영업담당자도 엑셀대로 갱신(빈값이면 기존 유지).
+            _exname943 = str(proj.get("name") or "").strip()
+            if _exname943 and "name" in _pcols: _pset.append("name=?"); _pval.append(_exname943)
+            _expo943 = str(proj.get("po_type") or "").strip()
+            if _expo943 and "po_type" in _pcols: _pset.append("po_type=?"); _pval.append(_expo943)
+            _exsales943 = str(proj.get("sales") or "").strip()
+            if _exsales943 and "sales" in _pcols: _pset.append("sales=?"); _pval.append(_exsales943)
+            _ex2cust943 = str(proj.get("secondary_customer") or "").strip()
+            if _ex2cust943 and "secondary_customer" in _pcols: _pset.append("secondary_customer=?"); _pval.append(_ex2cust943)
+            _excust943 = str(proj.get("customer") or "").strip()
+            if _excust943 and "customer" in _pcols:
+                _pset.append("customer=?"); _pval.append(_excust943)
+                if "customer_id" in _pcols:
+                    try:
+                        _cid943, _ = _logi.resolve_customer_id(c, _excust943)   # 명확한 단일후보만 연결(모호하면 이름만 갱신)
+                        if _cid943:
+                            _pset.append("customer_id=?"); _pval.append(_cid943)
+                    except Exception:
+                        pass
             if _pset:
                 _pval.append(pid)
                 c.execute(f"UPDATE projects SET {', '.join(_pset)} WHERE id=?", _pval)

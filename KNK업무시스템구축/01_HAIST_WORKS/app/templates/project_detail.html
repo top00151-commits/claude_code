@@ -579,7 +579,9 @@
                 {% elif _so_is_parts %}
                 {# v5H226z941 (대표 지시): 부품 엑셀 = '상품 양식' 하나로 통일. 헷갈리던 PACKING LIST 업로드(openPartsImport)는 숨김.
                    업로드는 상품 양식을 받는 이 버튼 하나로(overwrite-product·상품 파서). 관리번호·수주번호 유지·부품 채움(있으면 교체). #}
-                <button type="button" class="btn-mini" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}')" title="'📥 상품 양식 받기'로 받은 양식을 채워서 올리면 이 수주 부품이 채워집니다 (기존 부품이 있으면 교체) — 관리번호·수주번호는 그대로 유지" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 상품 양식 올리기</button>
+                {# v5H226z943 (대표 지시): 부품은 추가 업로드 가능 → '추가'(기존 유지·append) + '전체 교체'(삭제 후 채움) 두 버튼. 둘 다 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신. #}
+                <button type="button" class="btn-mini" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'add')" title="상품 양식을 올려 이 수주에 부품을 '추가'합니다(기존 부품 유지·여러 번 나눠 올리기 가능). 관리번호·수주번호 유지 / 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 부품 추가 업로드</button>
+                <button type="button" class="btn-mini" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace')" title="상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 전체 교체</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 부품 추가</button>
                 {% else %}
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
@@ -2327,10 +2329,14 @@
    (상품 전용 스크립트 블록 안에 두면 완제품 프로젝트에선 함수가 없어 버튼이 깨짐). #}
 <script>
 (function(){
-  var _owSoId = null, _owSoNo = '';
-  window.knkOwClick = function(soId, soNo){
-    if(!confirm('수주번호 ' + (soNo||'') + ' 에 상품 양식 엑셀을 올립니다.\n· 관리번호·수주번호는 그대로 유지\n· 이 수주의 부품이 엑셀 내용으로 채워집니다(기존 부품이 있으면 교체)\n\n엑셀 파일을 선택할까요?')) return;
-    _owSoId = soId; _owSoNo = soNo || '';
+  var _owSoId = null, _owSoNo = '', _owMode = 'replace';
+  window.knkOwClick = function(soId, soNo, mode){
+    mode = (mode === 'add') ? 'add' : 'replace';
+    var msg = (mode === 'add')
+      ? ('수주번호 ' + (soNo||'') + ' 에 상품 양식으로 부품을 추가합니다.\n· 기존 부품은 그대로 두고 엑셀 부품을 더합니다\n· 관리번호·수주번호 유지 (고객사·프로젝트명·PO유형·영업담당자 등은 엑셀값으로 갱신)\n\n엑셀 파일을 선택할까요?')
+      : ('수주번호 ' + (soNo||'') + ' 의 부품을 상품 양식으로 전부 교체합니다.\n· 기존 부품은 모두 삭제되고 엑셀 내용으로 채워집니다\n· 관리번호·수주번호 유지 (고객사·프로젝트명 등도 엑셀값으로 갱신)\n\n엑셀 파일을 선택할까요?');
+    if(!confirm(msg)) return;
+    _owSoId = soId; _owSoNo = soNo || ''; _owMode = mode;
     var f = document.getElementById('knkOwFile');
     if(f){ f.value = ''; f.click(); }
   };
@@ -2345,14 +2351,14 @@
     f.addEventListener('change', async function(){
       var file = this.files && this.files[0];
       if(!file || !_owSoId){ return; }
-      var fd = new FormData(); fd.append('xlsx', file);
+      var fd = new FormData(); fd.append('xlsx', file); fd.append('mode', _owMode || 'replace');
       var soId = _owSoId; this.value = '';
       try {
         var r = await fetch('/sales/orders/' + soId + '/overwrite-product', { method: 'POST', body: fd, credentials: 'same-origin' });
         var j;
         try { j = await r.json(); } catch(e){ alert('응답 오류(로그인 풀림 가능). F5 후 재시도'); return; }
         if(!j.ok){ alert('덮어쓰기 실패: ' + (j.message || '알 수 없음')); return; }
-        alert('✅ 덮어쓰기 완료 — 수주번호 ' + (j.order_no || '') + ' 유지 · 라인 ' + j.inserted + '건으로 교체');
+        alert('✅ ' + (_owMode==='add'?'부품 추가':'전체 교체') + ' 완료 — 수주번호 ' + (j.order_no || '') + ' · 이번 반영 ' + j.inserted + '건');
         location.reload();
       } catch(e){ alert('덮어쓰기 통신 실패: ' + e); }
     });

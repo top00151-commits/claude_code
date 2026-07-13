@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-13 v5H226z942[상품 양식 올리기 저장 버그 2건 수정(대표 신고). ①수주번호 발주일 재발번(빈수주 오늘발번→발주일 담긴 엑셀 덮어써도 번호 안바뀌던것·generate_so_no). ②SO 환율 저장(orders에 exchange_rate 컬럼 없어 조용히 스킵되던 것·마이그 추가). ③납기는 코드정상 무변경. 기존 잘못건은 재업로드하면 교정. main.py·database.py]
+REM   LAST UPDATE: 2026-07-13 v5H226z943[상품 양식 올리기 개선(대표 지시): 부품 추가 업로드(add)+전체 교체(replace) 두 버튼(overwrite-product mode). add=기존 유지 append·총액 전체 재계산·수주번호 유지. 메타(고객사·프로젝트명·PO유형·영업담당자)=엑셀값 최종 갱신. 검증 py_compile·esprima·임시DB 총액. 남은 #3 작업일정표 헤더납기=z944. main.py·project_detail.html]
+REM   - 2026-07-13 v5H226z942[상품 양식 올리기 저장 버그 2건 수정(대표 신고). ①수주번호 발주일 재발번(빈수주 오늘발번→발주일 담긴 엑셀 덮어써도 번호 안바뀌던것·generate_so_no). ②SO 환율 저장(orders에 exchange_rate 컬럼 없어 조용히 스킵되던 것·마이그 추가). ③납기는 코드정상 무변경. 기존 잘못건은 재업로드하면 교정. main.py·database.py]
 REM   - 2026-07-13 v5H226z941[부품 수주 엑셀 양식을 '상품 양식' 하나로 통일(대표 지시). 상세 수주카드 다운로드=상품 양식 받기(import-product-template)+업로드=상품 양식 올리기(overwrite-product·상품 파서), 헷갈리던 PACKING LIST 업로드 버튼 숨김. 백엔드 무변경·위험0. 후속=현재 부품을 상품 양식으로 채워 내보내는 다운로드. project_detail.html]
 REM   - 2026-07-13 v5H226z940[완전삭제한 관리번호도 겹치지 않으면 재사용 허용(대표 지시). 엑셀 병행입력 중 실수로 만든 번호 삭제하면 봉인돼 못 쓰던 문제. _validate_manual_mgmt_code 봉인차단 제거(살아있는 프로젝트 중복만 차단)+재사용 등록 시 봉인 자동해제+메시지 정정. 자동발번은 봉인회피 유지. main.py·project_detail.html·projects.html]
 REM   - 2026-07-13 v5H226z939[카드형 '줄마다 색 다름·행단위 hover' 수정(대표 지적·샘플과 다름). 원인=공용 design_quiet_v3 .tbl 줄무늬/행hover가 !important+CSS변수라 카드 짝수줄만 회색·hover 행단위로 샘. 이 표서만 --qv-surface-* 흰색으로 덮어 무력화+카드강조(sr-hl.sr-hl !important). 로컬 브라우저 렌더 검증. sales_shipments_receipts.html]
