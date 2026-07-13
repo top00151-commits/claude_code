@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-13 v5H226z936[납품·수금 표 건(관리번호) 줄 구분 강화 — 대표가 미리보기 3안 중 ②'줄무늬·구분선만 강하게' 선택. 줄무늬 배경 진하게(#eaf1fb→#dbe7f7)+건 사이 굵은선 진하게(#a7b6c8→#94a3b8)+같은 건 안쪽 점선 제거(한 덩어리로). 발행대기·발행완료 두 표 동시. 데이터/계산 무변경. sales_shipments_receipts.html]
+REM   LAST UPDATE: 2026-07-13 v5H226z937[납품·수금 '수금 입력' 줄을 그 항목과 같은 색 한 덩어리로(대표 지적: 항목 안에서 색 달라 헷갈림). 원인=메모칸이 가로 전체로 늘어나 흰 띠. 폼을 inline-flex 반투명 콤팩트 입력바로+메모 폭제한(flex:0 1 220px). 항목 배경색이 그 줄에도 보임. recA/recB 무변경·데이터 무변경. sales_shipments_receipts.html]
+REM   - 2026-07-13 v5H226z936[납품·수금 표 건(관리번호) 줄 구분 강화 — 대표가 미리보기 3안 중 ②'줄무늬·구분선만 강하게' 선택. 줄무늬 배경 진하게(#eaf1fb→#dbe7f7)+건 사이 굵은선 진하게(#a7b6c8→#94a3b8)+같은 건 안쪽 점선 제거(한 덩어리로). 발행대기·발행완료 두 표 동시. 데이터/계산 무변경. sales_shipments_receipts.html]
 REM   - 2026-07-12 v5H226z935[완전삭제 DB백업 버그 수정(z934 회귀) — 'name DB_PATH is not defined'로 삭제가 백업단계서 중단되던 것. DB_PATH·backup_db_file 둘 다 database 모듈 정의라 지역 import(from .database import DB_PATH, backup_db_file). 검증 py_compile·import·시그니처 OK. main.py]
 REM   - 2026-07-12 v5H226z934[폐기 관리코드 완전삭제 — 이미 있던 기능(retire·z871/z872: 실거래 이력 차단+비밀번호 확인+관리번호 봉인)에 대표 요구 가드 '삭제 전 DB 자동백업'(필수·실패시 중단) 추가 + 발견성 개선(폐기함 안내·상세 최하단 위험구역 경로 명시). 위치=상세 최하단 위험구역 '폐기(완전삭제)'. main.py·projects.html·project_detail.html. 검증 py_compile·Jinja OK]
 REM   - 2026-07-12 v5H226z933[관리번호·수주번호 폰트를 작업일정표와 동일한 기본 UI 폰트로 통일(대표 지시·모노스페이스 해제). 공용 .mgmt-pill(17페이지)+수주관리(.mgmt-tag/.so-no/.up-r1)+납품수금(_sr_row)+프로젝트상세·소모품상세 관리/수주번호. 사번·부품번호·날짜 등 다른 모노스페이스는 유지. _components/sales_orders/_sr_row/consumable_detail/project_detail. 검증 Jinja OK]
