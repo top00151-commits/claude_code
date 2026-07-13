@@ -121,7 +121,7 @@ body {
   {# 2026-07-06 (대표 지시): 폐기함(archived) 모드면 전용 안내, 아니면 일반 안내 + 폐기함 링크 #}
   {% if archived %}
   <div class="proj-intro-note" style="margin:0 var(--content-pad) var(--space-3);padding:10px 14px;background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #ea7c33;border-radius:6px;font-size:12.5px;line-height:1.65;color:#9a3412;">
-    🗑 <b>폐기함</b> — 폐기(숨김)된 프로젝트만 표시됩니다. 데이터는 보존돼 있으며, 행을 클릭해 상세에서 <b>"♻ 복구"</b>하면 다시 목록에 나타납니다.<br><span style="color:#b91c1c;">🗑 <b>완전삭제</b>하려면 행 클릭 → 상세 <b>최하단 '위험 구역'</b>의 <b>"🗑 폐기(완전삭제)"</b> (실거래 이력 없는 건만 · 본인 비밀번호 확인 · 삭제 전 DB 자동백업 · 관리번호 봉인).</span>
+    🗑 <b>폐기함</b> — 폐기(숨김)된 프로젝트만 표시됩니다. 데이터는 보존돼 있으며, 행을 클릭해 상세에서 <b>"♻ 복구"</b>하면 다시 목록에 나타납니다.<br><span style="color:#b91c1c;">🗑 <b>완전삭제</b>하려면 행 클릭 → 상세 <b>최하단 '위험 구역'</b>의 <b>"🗑 폐기(완전삭제)"</b> (실거래 이력 없는 건만 · 본인 비밀번호 확인 · 삭제 전 DB 자동백업 · 삭제한 관리번호는 겹치는 데이터 없으면 재사용 가능).</span>
     <a href="/projects" style="color:#9a3412;font-weight:800;text-decoration:underline;margin-left:6px;">↩ 일반 목록으로</a>
   </div>
   {% else %}

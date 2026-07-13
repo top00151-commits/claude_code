@@ -25430,7 +25430,8 @@ def _expected_mgmt_letter(project_type, biz_div):
 
 def _validate_manual_mgmt_code(raw_code, expect_letter):
     """수동 관리번호 검증. 반환 (ok: bool, code_또는_사유: str).
-    형식=NNN(1~4자리)+사업부문자+YYMM(월 01~12) · 사업부문자 일치 · 기존 프로젝트 중복 없음 · 폐기(봉인) 아님."""
+    형식=NNN(1~4자리)+사업부문자+YYMM(월 01~12) · 사업부문자 일치 · 살아있는(숨김보관 포함) 프로젝트 중복만 차단.
+    v5H226z940 (대표 지시): 완전삭제(봉인)됐던 번호라도 지금 그 번호를 쓰는 프로젝트가 없으면 재사용 허용(봉인 차단 제거)."""
     import re as _re
     code = (raw_code or "").strip().upper()
     if not code:
@@ -25446,11 +25447,9 @@ def _validate_manual_mgmt_code(raw_code, expect_letter):
     with db_session() as c:
         if c.execute("SELECT 1 FROM projects WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (code,)).fetchone():
             return (False, "이미 사용 중인 번호")
-        try:
-            if c.execute("SELECT 1 FROM retired_mgmt_codes WHERE UPPER(mgmt_code)=? LIMIT 1", (code,)).fetchone():
-                return (False, "폐기(봉인)된 번호")
-        except Exception:
-            pass   # 명부 미생성(구 DB)
+        # v5H226z940 (대표 지시): 완전삭제(봉인)됐던 번호도 '그 번호를 쓰는 살아있는(숨김보관 포함) 프로젝트가 없으면' 재사용 허용.
+        #   (엑셀 병행 입력 중 실수로 만든 번호를 지우면 영영 못 쓰던 문제) — 위 projects 중복검사가 '겹치지 않으면'을 보장.
+        #   → retired_mgmt_codes 봉인 차단 제거. (자동발번은 여전히 봉인 회피 유지 · 재사용 등록 시 봉인 자동 해제=핸들러)
     return (True, code)
 
 
@@ -26017,6 +26016,13 @@ async def projects_new_submit(request: Request):
         "server_path": form.get("server_path", ""),
         "engraving": form.get("engraving", ""),
     })
+    # v5H226z940 (대표 지시): 새로 등록된 관리번호는 봉인 목록에서 자동 해제 — 완전삭제했던 번호를 다시 쓰면 봉인 잔재 제거(자가치유).
+    if new_pid and _new_code:
+        try:
+            with db_session() as _c940:
+                _c940.execute("DELETE FROM retired_mgmt_codes WHERE UPPER(mgmt_code)=?", ((_new_code or "").strip().upper(),))
+        except Exception:
+            pass   # retired_mgmt_codes 미생성(구 DB)면 무시
     # v5H226z621 (대표 지시): 고객사 콤보박스에서 고른 customer_id 우선 적용 —
     #   같은 상호 다른 종사업장 구분(이름매칭 LIMIT 1 모호 방지). 빈값/무효면 기존 이름매칭 유지.
     _picked_cid = (form.get("customer_id") or "").strip()
@@ -28827,7 +28833,8 @@ async def projects_unarchive_submit(request: Request, pid: int):
 
 @app.post("/projects/{pid}/retire")
 async def projects_retire_submit(request: Request, pid: int):
-    """v5H226z871 (2026-07-08 대표 지시): 폐기 = 완전삭제 + 관리번호 봉인(재사용 금지).
+    """v5H226z871 (2026-07-08 대표 지시): 폐기 = 완전삭제 + 관리번호 봉인.
+    v5H226z940 (대표 지시): 봉인=자동발번 회피용 기록만 유지 — 수동 재입력은 그 번호를 쓰는 살아있는 프로젝트가 없으면 재사용 허용(_validate_manual_mgmt_code·재사용 시 봉인 자동 해제).
     기존 폐기(숨김·is_archived)를 대체. 안전장치: 세금계산서/출하/수금 등 실거래 기록이 있으면
     confirm=1 재확인 없이는 차단(z176 이 보호하던 범위). 봉인=삭제 전 retired_mgmt_codes 기록 →
     generate_mgmt_code 가 그 번호 재사용 안 함. 권한=can_use_sales(등록권한자)."""
@@ -28895,7 +28902,7 @@ async def projects_retire_submit(request: Request, pid: int):
         _logi.projects_delete_logi(pid, force=True)   # force=True: z176 삭제잠금 우회(대표가 폐기=완전삭제로 결정)
     except Exception as e:
         return JSONResponse({"ok": False, "error": "삭제 실패", "message": str(e)}, 500)
-    _seal = f" · 관리번호 {_mc} 봉인(재사용 금지)" if _mc else ""
+    _seal = f" · 관리번호 {_mc} (겹치는 데이터 없으면 재사용 가능)" if _mc else ""
     return JSONResponse({"ok": True, "message": f"완전삭제 완료{_seal}", "redirect": "/projects"})
 
 

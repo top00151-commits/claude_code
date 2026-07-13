@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-13 v5H226z939[카드형 '줄마다 색 다름·행단위 hover' 수정(대표 지적·샘플과 다름). 원인=공용 design_quiet_v3 .tbl 줄무늬/행hover가 !important+CSS변수라 카드 짝수줄만 회색·hover 행단위로 샘. 이 표서만 --qv-surface-* 흰색으로 덮어 무력화+카드강조(sr-hl.sr-hl !important). 로컬 브라우저 렌더 검증. sales_shipments_receipts.html]
+REM   LAST UPDATE: 2026-07-13 v5H226z940[완전삭제한 관리번호도 겹치지 않으면 재사용 허용(대표 지시). 엑셀 병행입력 중 실수로 만든 번호 삭제하면 봉인돼 못 쓰던 문제. _validate_manual_mgmt_code 봉인차단 제거(살아있는 프로젝트 중복만 차단)+재사용 등록 시 봉인 자동해제+메시지 정정. 자동발번은 봉인회피 유지. main.py·project_detail.html·projects.html]
+REM   - 2026-07-13 v5H226z939[카드형 '줄마다 색 다름·행단위 hover' 수정(대표 지적·샘플과 다름). 원인=공용 design_quiet_v3 .tbl 줄무늬/행hover가 !important+CSS변수라 카드 짝수줄만 회색·hover 행단위로 샘. 이 표서만 --qv-surface-* 흰색으로 덮어 무력화+카드강조(sr-hl.sr-hl !important). 로컬 브라우저 렌더 검증. sales_shipments_receipts.html]
 REM   - 2026-07-13 v5H226z938[납품·수금 표 '카드형' 전환(대표 지시). 번갈이 줄무늬 폐지→모든 항목 흰 카드+카드 사이 회색 간격+왼쪽 상태별 색띠(마감이월 주황·발행대기 빨강·수금완료 초록·수금예정 파랑)+마우스 올린 카드 전체 강조. 수금입력 폼 무조건 1줄(nowrap). 데이터 무변경. sales_shipments_receipts.html·_sr_row.html]
 REM   - 2026-07-13 v5H226z937[납품·수금 '수금 입력' 줄을 그 항목과 같은 색 한 덩어리로(대표 지적: 항목 안에서 색 달라 헷갈림). 원인=메모칸이 가로 전체로 늘어나 흰 띠. 폼을 inline-flex 반투명 콤팩트 입력바로+메모 폭제한(flex:0 1 220px). 항목 배경색이 그 줄에도 보임. recA/recB 무변경·데이터 무변경. sales_shipments_receipts.html]
 REM   - 2026-07-13 v5H226z936[납품·수금 표 건(관리번호) 줄 구분 강화 — 대표가 미리보기 3안 중 ②'줄무늬·구분선만 강하게' 선택. 줄무늬 배경 진하게(#eaf1fb→#dbe7f7)+건 사이 굵은선 진하게(#a7b6c8→#94a3b8)+같은 건 안쪽 점선 제거(한 덩어리로). 발행대기·발행완료 두 표 동시. 데이터/계산 무변경. sales_shipments_receipts.html]
