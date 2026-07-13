@@ -21389,10 +21389,17 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         if _v:
                             return _v
                     return _fb
+                # v5H226z944 (대표 지시): 부품(PARTS_EXPORT) 수주는 작업일정표 합산줄 '납기'를 헤더 납기(SO)와 모든 부품 납기 중 최댓값으로.
+                #   기존엔 첫 부품 납기(예 2/6)만 잡아 헤더 납기(예 4/1)가 일정표 막대·납품마커에 안 나오던 것(대표 신고). 다른 SO 유형은 기존 _eff_c 유지.
+                if _so.get("so_type") == "PARTS_EXPORT":
+                    _dcands944 = [_x for _x in ([str(_it.get("i_due") or "").strip()[:10] for _it in _citems] + [str(_so.get("o_due") or "").strip()[:10]]) if _x]
+                    _due944 = (max(_dcands944) if _dcands944 else "")
+                else:
+                    _due944 = (_eff_c("i_due", _so["o_due"]) or "")[:10]
                 return {
                     "iids": [it["oi_id"] for it in _so["items"] if it.get("oi_id") is not None], "label": "",
                     "price": (float(_so["o_total"] or 0) / max(1, int(_so["o_qty"] or 1))), "amount": _so["o_total"], "currency": _so["o_cur"],   # v5H226z684: 단가=총액÷수량(개당) → 단가×수량=금액 일치(제품 추가행도 개당단가·소모품 qty=1은 총액 그대로)
-                    "order_date": (_eff_c("i_ord", _so["o_ord"]) or "")[:10], "due_date": (_eff_c("i_due", _so["o_due"]) or "")[:10], "ship_to": _eff_c("i_ship", _so["o_ship"]),   # v5H226z710: 호기 override 우선(없으면 SO)
+                    "order_date": (_eff_c("i_ord", _so["o_ord"]) or "")[:10], "due_date": _due944, "ship_to": _eff_c("i_ship", _so["o_ship"]),   # v5H226z710/z944: 호기 override 우선(없으면 SO) · 부품 SO는 헤더납기까지(max)
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
