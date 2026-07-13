@@ -38,6 +38,8 @@
       {% if prod_requests and can_sales %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit?edit=1" title="제작요청서 수정">✏️ 제작요청서 수정</a>{% endif %}
       {# 2026-07-06 (대표 지시): 프로젝트 정보 수정 진입점 복원 — z787로 '수정'이 제작요청서 편집으로 바뀌며 빠졌던 것. 고객사·모델·사업부·상태 등 프로젝트 자체 정보 수정. #}
       {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/edit" title="프로젝트 정보(고객사·모델·사업부·상태 등) 수정">✏️ 프로젝트 정보 수정</a>{% endif %}
+      {# v5H226z946 (대표 지시): 수출 건 → 수출 서류(통관 입력·패킹리스트·인보이스·출고 QR)로 바로가기. '다음 단계' 연결. #}
+      {% if can_sales and p.is_export %}<a class="btn btn-primary" style="background:#0369a1;" href="/export/prep/{{ p.id }}" title="수출 통관 입력 · 패킹리스트 · 인보이스 · 출고 QR 생성">📦 수출 서류</a>{% endif %}
       {# v5H226z872 (2026-07-08 대표 지시): 폐기(완전삭제) 버튼은 헤더에서 제거 → 페이지 최하단 '위험 구역'으로 이동(실수 클릭 방지).
          경고 → 본인 비밀번호 확인 2단계 + 출하·세금계산서·수금 이력 있으면 아예 불가. 숨김해제는 옛 폐기(숨김)건 정리용만 헤더 유지. #}
       {% if can_sales and p.is_archived %}<button type="button" class="btn btn-primary" style="background:#15803d;" onclick="unarchiveProject()" title="옛 숨김(폐기)을 해제 — 다시 목록·일정표에 표시(삭제 아님)">♻ 숨김해제</button>{% endif %}

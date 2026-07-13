@@ -33661,8 +33661,8 @@ async def export_prep_list(req: Request):
                         WHERE o.project_id=p.id AND oi.origin IS NOT NULL AND TRIM(oi.origin)<>'') AS n_origin
                FROM projects p
                WHERE COALESCE(p.is_export,0)=1
-                 AND COALESCE(p.status,'') NOT IN ('취소','출하')
-               ORDER BY (p.due_date IS NULL), p.due_date ASC, p.id DESC
+                 AND COALESCE(p.status,'') NOT IN ('취소')
+               ORDER BY (COALESCE(p.status,'')='출하'), (p.due_date IS NULL), p.due_date ASC, p.id DESC
                LIMIT 300"""
         ).fetchall()
         items = [dict(r) for r in rows]
@@ -33785,6 +33785,68 @@ def _export_pl_build(c, pid):
     return p, pl, lines
 
 
+def _export_ci_build(c, pid):
+    """프로젝트의 수출 품목(order_items)으로 COMMERCIAL INVOICE(상업송장) 데이터 구성.
+    (project, ci, lines) 또는 (None,None,None). PL과 달리 '금액(단가·금액·통화)' 중심 — 품목명세 포함.
+    v5H226z946 (대표 지시): 기존 CI(총액만) → 품목별 명세(품명·수량·인보이스 단가·금액) 추가.
+    단가/금액은 order_items 의 인보이스(USD) 값 우선 — 없으면 판매(unit_price/amount) 폴백."""
+    prow = c.execute(
+        """SELECT id, mgmt_code, name, customer_name, currency, fx_rate,
+                  order_date, due_date, secondary_customer
+           FROM projects WHERE id=?""", (pid,)).fetchone()
+    if not prow:
+        return None, None, None
+    p = dict(prow)
+    try:
+        sos = _pwf.get_project_orders(c, pid)
+    except Exception:
+        sos = []
+    ccy = (p.get("currency") or "USD") or "USD"
+    lines, so_nos = [], []
+    total_qty = total_amt = 0.0
+    for so in sos:
+        if so.get("order_no"):
+            so_nos.append(so["order_no"])
+        _so_ccy = (so.get("currency") or ccy)
+        for u in (so.get("units") or []):
+            qty = float(u.get("qty") or 0)
+            # 인보이스 단가/금액(USD) 우선 — 없으면 판매단가/금액 폴백
+            up = u.get("invoice_unit_price_usd")
+            if up in (None, ""):
+                up = u.get("unit_price") or 0
+            am = u.get("invoice_amount_usd")
+            up = float(up or 0)
+            am = float(am if am not in (None, "") else round(qty * up, 2))
+            total_qty += qty
+            total_amt += am
+            lines.append({
+                "part_name": u.get("unit_label") or "-",
+                "spec": u.get("spec") or "",
+                "origin": u.get("origin") or "",
+                "hs_code": u.get("hs_code") or "",
+                "material_no": u.get("material_no") or "",
+                "qty": qty,
+                "unit": u.get("unit") or "EA",
+                "unit_price": round(up, 2),
+                "amount": round(am, 2),
+                "currency": _so_ccy,
+            })
+    ci = {
+        "ci_no": f"CI-{p.get('mgmt_code') or pid}",
+        "buyer": p.get("customer_name") or "-",
+        "final_customer": p.get("secondary_customer") or "",
+        "order_no": " · ".join(so_nos) if so_nos else (p.get("mgmt_code") or "-"),
+        "mgmt_code": p.get("mgmt_code") or "-",
+        "order_date": p.get("order_date") or "",
+        "due_date": p.get("due_date") or "",
+        "currency": ccy,
+        "total_qty": round(total_qty, 2),
+        "total_amount": round(total_amt, 2),
+        "n_lines": len(lines),
+    }
+    return p, ci, lines
+
+
 @app.get("/export/prep/{pid:int}/packing-list", response_class=HTMLResponse)
 async def export_prep_packing_print(req: Request, pid: int):
     """PACKING LIST 인쇄(A4) — 1단계 통관 입력 데이터로 생성."""
@@ -33849,6 +33911,76 @@ async def export_prep_packing_xlsx(req: Request, pid: int):
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
     from urllib.parse import quote
     fn = f"PACKING_LIST_{pl['mgmt_code']}.xlsx"
+    return StreamingResponse(
+        buf, media_type=_XLSX_MIME,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
+                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"})
+
+
+@app.get("/export/prep/{pid:int}/invoice", response_class=HTMLResponse)
+async def export_prep_invoice_print(req: Request, pid: int):
+    """COMMERCIAL INVOICE 인쇄(A4) — 통관 입력 + 인보이스(USD) 금액으로 품목명세 생성. (v5H226z946)"""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        p, ci, lines = _export_ci_build(c, pid)
+    if not p:
+        return RedirectResponse("/export/prep", 303)
+    import datetime as _dt
+    today = _dt.date.today().isoformat()
+    return ctx(req, "export_prep_invoice_print.html", user=u,
+               p=p, ci=ci, lines=lines, today=today, pid=pid)
+
+
+@app.get("/export/prep/{pid:int}/invoice.xlsx")
+async def export_prep_invoice_xlsx(req: Request, pid: int):
+    """COMMERCIAL INVOICE 엑셀(품목명세 포함). (v5H226z946)"""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        p, ci, lines = _export_ci_build(c, pid)
+    if not p:
+        return RedirectResponse("/export/prep", 303)
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        import io, datetime as _dt
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    wb = Workbook(); ws = wb.active; ws.title = "COMMERCIAL INVOICE"
+    knk = PatternFill("solid", fgColor="0F172A"); white = Font(color="FFFFFF", bold=True)
+    thin = Side(style="thin", color="CBD5E1"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    ws.append(["KNK HAIST WORKS — COMMERCIAL INVOICE (상업송장)"])
+    ws["A1"].font = Font(bold=True, size=14, color="0F172A")
+    ws.append([f"문서번호: {ci['ci_no']}", "", f"수입자(Buyer): {ci['buyer']}", "",
+               f"관리번호: {ci['mgmt_code']}", "", f"수주번호: {ci['order_no']}"])
+    ws.append([f"발급일: {_dt.date.today().isoformat()}", "", f"발주일: {ci['order_date'] or '-'}",
+               "", f"납기: {ci['due_date'] or '-'}", "", f"통화: {ci['currency']}"])
+    ws.append([])
+    _cy = ci['currency']
+    headers = ["순번", "품명(Description)", "규격(Spec)", "원산지(Origin)", "HS CODE",
+               "수량(Q'ty)", "단위(Unit)", f"단가({_cy})", f"금액({_cy})"]
+    ws.append(headers)
+    hrow = ws.max_row
+    widths = [6, 30, 18, 10, 13, 9, 8, 14, 16]
+    for cix, (h, w) in enumerate(zip(headers, widths), 1):
+        cc = ws.cell(hrow, cix); cc.font = white; cc.fill = knk
+        cc.alignment = Alignment(horizontal="center", vertical="center"); cc.border = border
+        ws.column_dimensions[cc.column_letter].width = w
+    for i, l in enumerate(lines, 1):
+        ws.append([i, l["part_name"], l["spec"], l["origin"], l["hs_code"],
+                   l["qty"], l["unit"], l["unit_price"], l["amount"]])
+    ws.append(["", "합계 / TOTAL", "", "", "", ci["total_qty"], "", "", ci["total_amount"]])
+    trow = ws.max_row
+    for cix in range(1, len(headers) + 1):
+        ws.cell(trow, cix).font = Font(bold=True)
+        ws.cell(trow, cix).fill = PatternFill("solid", fgColor="F1F5F9")
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    from urllib.parse import quote
+    fn = f"COMMERCIAL_INVOICE_{ci['mgmt_code']}.xlsx"
     return StreamingResponse(
         buf, media_type=_XLSX_MIME,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",

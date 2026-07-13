@@ -41,6 +41,8 @@
       <button type="button" class="btn btn-primary" onclick="saveAllCustoms()" id="saveAllBtn">💾 전체 저장</button>
       <a class="btn" href="/export/prep/{{ p.id }}/packing-list" target="_blank" style="border:1px solid #0f172a;background:#0f172a;color:#fff;">📦 패킹리스트</a>
       <a class="btn" href="/export/prep/{{ p.id }}/packing-list.xlsx" style="border:1px solid #047857;background:#047857;color:#fff;">📥 엑셀</a>
+      {# v5H226z946 (대표 지시): 인보이스(품목명세 포함) — 인쇄/엑셀. 통관 입력 저장 후 누르면 최신 금액으로 생성. #}
+      <a class="btn" href="/export/prep/{{ p.id }}/invoice" target="_blank" style="border:1px solid #7c3aed;background:#7c3aed;color:#fff;">🧾 인보이스</a>
       <a class="btn" href="/export/ship/{{ p.id }}/qr/print" target="_blank" style="border:1px solid #1d4ed8;background:#1d4ed8;color:#fff;">🏷 출고 QR</a>
     </div>
   </div>
