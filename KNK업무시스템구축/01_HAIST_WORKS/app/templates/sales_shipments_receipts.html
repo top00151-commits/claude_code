@@ -42,9 +42,11 @@ a.sr-link:hover{text-decoration:underline;color:#0369a1;}
 .sr-chip{cursor:pointer;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;border:1px solid var(--line,#e5e7eb);background:#fff;color:var(--ink-2,#334155);user-select:none;}
 .sr-chip:hover{border-color:#94a3b8;}
 .sr-chip.on{background:#0f172a;color:#fff;border-color:#0f172a;}
-/* z938 (대표 지시): 카드형 — 항목마다 흰 카드 + 카드 사이 회색 간격 + 왼쪽 상태별 색 띠.
-   번갈이(줄무늬) 배경 폐지 → 한 항목 안에서 색이 섞일 일이 없음(흰 입력칸도 항목색 안 깸). */
-.tbl[data-sr-table]{background:#e7ebf0;}
+/* z938/z939 (대표 지시): 카드형 — 항목마다 흰 카드 + 카드 사이 회색 간격 + 왼쪽 상태별 색 띠.
+   번갈이(줄무늬) 배경 폐지 → 한 항목 안에서 색이 섞일 일이 없음(흰 입력칸도 항목색 안 깸).
+   ⚠z939 핵심: 공용 design_quiet_v3 의 .tbl 줄무늬·행hover가 !important+CSS변수(--qv-surface-*)라
+   카드 짝수줄(recB)만 회색·hover가 행단위로 새던 원인 → 이 표에서만 그 변수를 흰색으로 덮어 무력화. 카드 강조는 sr-hl(아래). */
+.tbl[data-sr-table]{background:#e7ebf0;--qv-surface-inset:#fff;--qv-surface-2:#fff;--qv-surface-3:#fff;}
 .tbl[data-sr-table] tbody tr>td{background:#fff;}
 .tbl[data-sr-table] tbody tr.sr-ev>td{background:#fff;}
 /* 칸(항목)별 세로 구분선 */
@@ -63,8 +65,8 @@ a.sr-link:hover{text-decoration:underline;color:#0369a1;}
 .tbl[data-sr-table] tbody tr.sr-st-bill{--spine:#e11d48;}
 .tbl[data-sr-table] tbody tr.sr-st-done{--spine:#16a34a;}
 .tbl[data-sr-table] tbody tr.sr-st-expect{--spine:#2563eb;}
-/* 마우스 올린 카드(한 관리번호 2~3줄) 전체 강조 */
-.tbl[data-sr-table] tbody tr.sr-hl>td{background:#fff7db;}
+/* 마우스 올린 카드(한 관리번호 2~3줄) 전체 강조 — sr-hl 2번 반복=공용 행hover(!important)보다 우선순위 위 */
+.tbl[data-sr-table] tbody tr.sr-hl.sr-hl>td{background:#fff7db !important;}
 .sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}
