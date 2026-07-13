@@ -14076,7 +14076,26 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 cols = list(row.keys()); ph = ",".join("?" * len(cols))
                 c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
                 inserted += 1
-            # 주문(SO) 갱신 — order_no(수주번호)는 건드리지 않음
+            # v5H226z942 (대표 지시): 발주일이 엑셀로 바뀌면 수주번호(order_no)도 발주일 기준으로 재발번.
+            #   빈 수주를 먼저 만들면(발주일 없음) 오늘 날짜로 발번됐다가, 발주일 담긴 상품 양식을 덮어써도
+            #   번호가 오늘로 남던 버그(예: 발주일 2025-11-27인데 수주번호 M-260713-1). 번호의 YYMMDD와 발주일이 다르면 재발번.
+            if order_date:
+                try:
+                    import re as _re942, datetime as _dt942
+                    from . import project_workflow as _pwf942
+                    _ref942 = _dt942.datetime.strptime(order_date, "%Y-%m-%d").date()
+                    _want942 = _ref942.strftime("%y%m%d")
+                    _mm942 = _re942.search(r"-(\d{6})-", order_no or "")
+                    _cur942 = _mm942.group(1) if _mm942 else ""
+                    if _cur942 and _cur942 != _want942:
+                        _biz942 = (cur_mgmt[3] if len(cur_mgmt or "") >= 4 else "M")
+                        _new942 = _pwf942.generate_so_no(c, _biz942, _ref942)
+                        if _new942:
+                            c.execute("UPDATE orders SET order_no=? WHERE id=?", (_new942, oid))
+                            order_no = _new942
+                except Exception:
+                    pass
+            # 주문(SO) 갱신 — 위에서 발주일 바뀌면 order_no 재발번(그 외엔 유지)
             _ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
             _oset, _oval = ["total_amount=?"], [total]
             if "currency" in _ocols:

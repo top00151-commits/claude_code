@@ -3439,6 +3439,9 @@ def init_db():
                 # v5H142 (2026-05-05): SO 종류 — 부모 프로젝트 안에서 SO 단위로 종류 분리
                 # EQUIPMENT/CONSUMABLE/SERVICE/OTHER. NULL → EQUIPMENT 폴백.
                 ("so_type",            "ALTER TABLE orders ADD COLUMN so_type TEXT DEFAULT 'EQUIPMENT'"),
+                # v5H226z942 (대표 지시): 수주(SO) 환율 — 상품 양식 올릴 때 환율(1 USD=원)이 저장 안 되던 버그.
+                #   컬럼이 없어 overwrite-product/import-product-confirm 의 exchange_rate 저장이 조용히 스킵됐음.
+                ("exchange_rate",      "ALTER TABLE orders ADD COLUMN exchange_rate REAL"),
             ]:
                 if col not in ocols:
                     try:
