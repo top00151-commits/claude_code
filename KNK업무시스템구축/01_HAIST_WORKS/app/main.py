@@ -14060,6 +14060,7 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                     "margin_pct": (float(margin) if margin not in (None, "") else None),
                     "cost_krw": (float(l["cost_krw"]) if l.get("cost_krw") not in (None, "") else None),
                     "sell_krw": (float(l["sell_krw"]) if l.get("sell_krw") not in (None, "") else None),
+                    "fx_rate": (float(l["fx_rate"]) if l.get("fx_rate") not in (None, "") else None),  # v5H226z945: 부품 행별 환율
                     "unit_label": str(l.get("part_name") or "").strip(),
                     "spec": (str(l.get("spec") or "").strip() or None),
                     "material_no": (str(l.get("material_no") or "").strip() or None),
@@ -22821,6 +22822,7 @@ async def projects_import_product_confirm(request: Request):
                         # v5H226z735 (대표 지시): 수출 건 매입/판매 KRW 원본(입력값 그대로·우리 보기용). 인보이스는 USD(unit_price).
                         "cost_krw": (float(l["cost_krw"]) if l.get("cost_krw") not in (None, "") else None),
                         "sell_krw": (float(l["sell_krw"]) if l.get("sell_krw") not in (None, "") else None),
+                        "fx_rate": (float(l["fx_rate"]) if l.get("fx_rate") not in (None, "") else None),  # v5H226z945: 부품 행별 환율
                         "unit_label": str(l.get("part_name") or "").strip(),
                         "spec": (str(l.get("spec") or "").strip() or None),
                         "material_no": (str(l.get("material_no") or "").strip() or None),
@@ -26328,7 +26330,8 @@ async def projects_new_submit(request: Request):
                                         "order_date": form.get("order_date", "") or None,
                                         "due_date": (_pp.get("due") or form.get("due_date", "") or None),
                                         "unit_status": (_pp.get("status") or "진행중"),  # v5H226z729/z738: 폼 상태 반영(한글)
-                                        "is_export": form.get("is_export", "0")}
+                                        "is_export": form.get("is_export", "0"),
+                                        "fx_rate": (_fxv if (_foreign_v and _fxv > 0) else None)}  # v5H226z945: 부품 행별 환율
                                 if (_ccy_v or "").upper() == "USD" and _foreign_v and _fxv > 0:
                                     _row["invoice_unit_price_usd"] = _up
                                     _row["invoice_amount_usd"] = _amt2
