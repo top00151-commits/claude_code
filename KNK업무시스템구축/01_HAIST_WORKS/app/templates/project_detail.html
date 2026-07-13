@@ -561,7 +561,12 @@
                 {# v5H226z11: SO 카드 풀스크린 팝업 토글 #}
                 <button type="button" class="so-fs-btn" data-soid="{{ so.id }}" title="SO 카드를 화면 거의 전체로 펼쳐 보기">🔍 크게 보기</button>
                 {# v5H226i: 모든 SO에 라인 엑셀 다운로드 버튼 #}
-                <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드 ({% if _so_is_parts %}정식 PACKING LIST 양식{% else %}KNK 표준 양식{% endif %})" style="text-decoration:none;">📥 엑셀 다운로드</a>
+                {# v5H226z941 (대표 지시): 부품 수주는 '상품 양식' 하나로 통일 — 다운로드도 상품 일괄등록 양식(등록 화면과 동일)을 받게 #}
+                {% if _so_is_parts %}
+                <a class="btn-mini" href="/projects/import-product-template" title="상품 일괄등록 양식(빈 양식) 받기 — 채워서 '📤 상품 양식 올리기'로 업로드하면 이 수주 부품이 채워집니다 (등록 화면 일괄등록과 같은 양식)" style="text-decoration:none;">📥 상품 양식 받기</a>
+                {% else %}
+                <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드 (KNK 표준 양식)" style="text-decoration:none;">📥 엑셀 다운로드</a>
+                {% endif %}
                 {# v5H226z442(대표 지시): 마진 분석(Phase 0 목업) 버튼 제거 #}
                 {% if _editable %}
                 <button type="button" class="toggle-edit" title="수정 / 저장 토글">✏️ 수정</button>
@@ -572,9 +577,9 @@
                 <button type="button" class="btn-mini" onclick="openConsumableImport({{ so.id }})" title="엑셀로 라인 일괄 업로드">📤 엑셀 업로드</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 항목 추가</button>
                 {% elif _so_is_parts %}
-                <button type="button" class="btn-mini" onclick="openPartsImport({{ so.id }})" title="정식 PACKING LIST 엑셀로 부품 일괄 업로드(기존에 추가)">📤 엑셀 업로드</button>
-                {# v5H226z740 (대표 지시): 엑셀 덮어쓰기 — 상품 양식 올려 이 수주(관리번호·수주번호 유지) 내용 전부 교체 #}
-                <button type="button" class="btn-mini" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}')" title="상품 일괄등록 양식을 올려 이 수주의 내용을 전부 교체(덮어쓰기) — 관리번호·수주번호는 그대로 유지" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 엑셀 덮어쓰기</button>
+                {# v5H226z941 (대표 지시): 부품 엑셀 = '상품 양식' 하나로 통일. 헷갈리던 PACKING LIST 업로드(openPartsImport)는 숨김.
+                   업로드는 상품 양식을 받는 이 버튼 하나로(overwrite-product·상품 파서). 관리번호·수주번호 유지·부품 채움(있으면 교체). #}
+                <button type="button" class="btn-mini" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}')" title="'📥 상품 양식 받기'로 받은 양식을 채워서 올리면 이 수주 부품이 채워집니다 (기존 부품이 있으면 교체) — 관리번호·수주번호는 그대로 유지" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 상품 양식 올리기</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 부품 추가</button>
                 {% else %}
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
@@ -952,7 +957,7 @@
             {% set _is_parts_empty = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
             <div style="padding: 18px; text-align: center; color: var(--mute); font-size: 13px;">
               {% if _is_parts_empty %}
-              부품이 없습니다 — '＋ 부품 추가' 또는 '📤 엑셀 업로드' (정식 PACKING LIST) 로 입력하세요.
+              부품이 없습니다 — '＋ 부품 추가' 또는 '📥 상품 양식 받기'로 양식을 받아 채운 뒤 '📤 상품 양식 올리기' 로 입력하세요.
               {% elif _is_co %}
               항목이 없습니다 — '＋ 항목 추가' 또는 '📤 엑셀 업로드' 로 입력하세요.
               {% else %}
@@ -2324,7 +2329,7 @@
 (function(){
   var _owSoId = null, _owSoNo = '';
   window.knkOwClick = function(soId, soNo){
-    if(!confirm('수주번호 ' + (soNo||'') + ' 의 내용을 상품 엑셀로 전부 교체합니다.\n· 관리번호·수주번호는 그대로 유지됩니다\n· 기존 라인은 모두 삭제되고 엑셀 데이터로 덮어쓰기됩니다\n\n엑셀 파일을 선택할까요?')) return;
+    if(!confirm('수주번호 ' + (soNo||'') + ' 에 상품 양식 엑셀을 올립니다.\n· 관리번호·수주번호는 그대로 유지\n· 이 수주의 부품이 엑셀 내용으로 채워집니다(기존 부품이 있으면 교체)\n\n엑셀 파일을 선택할까요?')) return;
     _owSoId = soId; _owSoNo = soNo || '';
     var f = document.getElementById('knkOwFile');
     if(f){ f.value = ''; f.click(); }
