@@ -33689,8 +33689,44 @@ async def export_prep_detail(req: Request, pid: int):
             sos = _pwf.get_project_orders(c, pid)
         except Exception:
             sos = []
+    try:
+        col_prefs = _logi.view_prefs_get(u.get("id"), "export_customs_cols") or "{}"
+    except Exception:
+        col_prefs = "{}"
     return ctx(req, "export_prep_detail.html", user=u, active="export",
-               p=p, sos=sos, can_money=bool(can_view_sales(u)))
+               p=p, sos=sos, can_money=bool(can_view_sales(u)), col_prefs=col_prefs)
+
+
+@app.post("/export/prep/cols")
+async def export_prep_cols_save(req: Request):
+    """v5H226z951 (대표 지시·2단계): 통관 입력 표 컬럼 설정(폭·순서·숨김) 계정별 저장.
+    작업일정표와 동일한 범용 view_prefs 재사용(key='export_customs_cols'). 화이트리스트만 저장."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    import re as _re951
+    def _okk(s):
+        return isinstance(s, str) and bool(_re951.match(r'^[a-z_]{1,24}$', s))   # 컬럼 키는 [a-z_]만 (JSON script 주입 방지)
+    _w = body.get("w") if isinstance(body.get("w"), dict) else {}
+    _order = body.get("order") if isinstance(body.get("order"), list) else []
+    _hidden = body.get("hidden") if isinstance(body.get("hidden"), dict) else {}
+    cfg = {
+        "w": {k: int(v) for k, v in _w.items() if _okk(k) and isinstance(v, (int, float)) and 20 <= v <= 900},
+        "order": [k for k in _order if _okk(k)][:40],
+        "hidden": {k: bool(v) for k, v in _hidden.items() if _okk(k)},
+    }
+    try:
+        import json as _json
+        _logi.view_prefs_set(u.get("id"), "export_customs_cols", _json.dumps(cfg))
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": str(e)}, 200)
+    return JSONResponse({"ok": True})
 
 
 @app.post("/export/item/{iid:int}/customs")

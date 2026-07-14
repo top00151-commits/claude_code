@@ -6,7 +6,7 @@
    기존 엑셀 양식과 조작감을 맞춰 도입 거부감↓ (대표 판단). schedule_board.css 와 동일 방식:
    얇은 격자선(셀 아래+오른쪽)·컴팩트 행·셀을 꽉 채우는 입력칸(포커스 시 파란 셀선택)·헤더=paper-2 배경·KNK적 글자·중앙·sticky.
    값 단위: 판매단가/금액=money()로 통화기호($ ) / 입력칸=셀 안 회색 $·%·kg 표기. cf [[knk_qty_price_format]] money(v,ccy)/qtyfmt(z750·절대준수). */
-.ex-grid { border-collapse:separate; border-spacing:0; white-space:nowrap; font-size:12px; min-width:1280px; background:#fff; }
+.ex-grid { border-collapse:separate; border-spacing:0; white-space:nowrap; font-size:12px; min-width:1280px; background:#fff; table-layout:fixed; }
 .ex-grid th, .ex-grid td { border-bottom:1px solid var(--line,#e7e2d6); border-right:1px solid #eee5d4; padding:0; }
 .ex-grid thead th { position:sticky; top:0; z-index:6; background:var(--paper-2,#f4f1e8); color:var(--knk-red,#b0271f); font-size:10.5px; font-weight:700; text-align:center; height:34px; padding:0 5px; white-space:normal; line-height:1.15; }
 .ex-grid tbody td { padding:4px 8px; vertical-align:middle; color:var(--qv-ink,#0f172a); }
@@ -38,6 +38,24 @@
 .bulk-bar .apply { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
 .bulk-bar .fill { background:#fff; color:#1d4ed8; border-color:#b9d2ff; }
 .pmodel { display:block; font-size:10px; color:#94a3b8; font-weight:500; margin-top:1px; }
+/* v5H226z951 (대표 지시·2단계): 통관 표 컬럼 폭조절·숨김·순서(작업일정표식). table-layout:fixed + colgroup 폭(px)로 한 칸 조정해도 다른 칸 불변. th-wrap 안 그립(순서)·리사이저(폭). */
+.ex-grid thead th { padding:0; }
+.ex-grid .th-wrap { position:relative; display:flex; align-items:center; justify-content:center; gap:2px; height:34px; padding:0 11px 0 5px; box-sizing:border-box; white-space:nowrap; overflow:hidden; }
+.ex-grid .col-grip { cursor:grab; color:#c9b79a; font-size:11px; line-height:1; user-select:none; -webkit-user-drag:element; }
+.ex-grid .col-grip:hover { color:var(--knk-red,#b0271f); }
+.ex-grid .col-grip:active { cursor:grabbing; }
+.ex-grid .col-resizer { position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; z-index:9; user-select:none; }
+.ex-grid .col-resizer:hover { background:rgba(176,16,16,.25); }
+.ex-grid th.col-dragging { opacity:.45; }
+.ex-grid th.col-drop-to .th-wrap { box-shadow:inset 3px 0 0 #2563eb; }
+.ex-grid th.col-collapsed, .ex-grid td.col-collapsed { padding:0 !important; border-right:0 !important; }
+.ex-grid th.col-collapsed .th-wrap { padding:0; }
+.excol-bar { display:flex; align-items:center; gap:8px; margin:2px 0 8px; flex-wrap:wrap; }
+.excol-btn { padding:5px 12px; border:1px solid #d9cfbe; border-radius:7px; background:#fff; font-size:12px; font-weight:700; color:var(--qv-ink-2,#334155); cursor:pointer; }
+.excol-btn:hover { border-color:var(--knk-red,#b0271f); color:var(--knk-red,#b0271f); }
+.excol-panel { border:1px solid #e2ddd0; border-radius:9px; background:#fff; padding:10px 12px; margin:0 0 10px; box-shadow:0 4px 14px rgba(0,0,0,.06); }
+.excol-panel .excol-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:2px 14px; margin-bottom:8px; }
+.excol-hint { font-size:11px; color:var(--mute,#94a3b8); }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}
@@ -76,6 +94,17 @@
   </div>
   <div style="margin:2px 0 12px;font-size:11.5px;color:var(--mute);">💡 통관 입력을 <b>저장</b>한 뒤 <b>패킹리스트</b>를 누르면 입력한 품목·중량·박스로 포장명세서가 만들어집니다.</div>
 
+  {# v5H226z951 (대표 지시·2단계): 컬럼 폭조절·숨김·순서 도구 + 계정별 저장(view_prefs) #}
+  <div class="excol-bar">
+    <button type="button" class="excol-btn" onclick="exColToggle()">⚙ 컬럼 설정</button>
+    <span class="excol-hint">헤더의 ⠿ 를 끌어 <b>순서</b> 변경 · 헤더 오른쪽 경계를 끌어 <b>폭</b> 조절 · 아래에서 <b>숨김</b>. (계정별 자동 저장)</span>
+  </div>
+  <div class="excol-panel" id="exColPanel" hidden>
+    <div style="font-size:12px;font-weight:700;color:var(--qv-ink-2,#334155);margin-bottom:6px;">보이는 컬럼 <span style="font-weight:500;color:var(--mute,#94a3b8);">(체크 해제 = 숨김)</span></div>
+    <div class="excol-list"></div>
+    <button type="button" class="excol-btn" onclick="exColReset()">↺ 기본값으로</button>
+  </div>
+  <script id="exColPrefs" type="application/json">{{ col_prefs|default('{}', true)|safe }}</script>
   {% set _ns = namespace(any=false) %}
   {% for so in sos %}
     {% if so.units %}
@@ -84,14 +113,33 @@
     {# v5H226z947 (대표 지적): 251품목 등 많은 행 → 세로 스크롤이 없어 아래가 안 보임. 가로만 스크롤됐음.
        → 표 자체를 세로+가로 스크롤 박스로(max-height). thead 가 이미 sticky(top:0)라 스크롤해도 제목행 고정. #}
     <div class="tbl-wrap" style="overflow:auto;max-height:calc(100vh - 290px);border:1px solid #e2e8f0;border-radius:7px;">
-      <table class="ex-grid">
+      <table class="ex-grid" id="exGrid">
+        <colgroup>
+          <col data-col="name" width="190"><col data-col="spec" width="150"><col data-col="qty" width="54">
+          {% if can_money %}<col data-col="sale_up" width="96"><col data-col="sale_am" width="104">{% endif %}
+          <col data-col="origin" width="62"><col data-col="hs" width="92"><col data-col="duty_rate" width="66"><col data-col="vat" width="58">
+          <col data-col="inv_up" width="104"><col data-col="inv_am" width="108"><col data-col="duty_usd" width="86"><col data-col="final_usd" width="92">
+          <col data-col="weight" width="74"><col data-col="box" width="66"><col data-col="pallet" width="92">
+        </colgroup>
         <thead><tr>
-          <th>품명</th><th>규격</th><th class="num">수량</th>
-          {% if can_money %}<th class="num">판매단가({{ p.currency|default('KRW') }})</th><th class="num">판매금액({{ p.currency|default('KRW') }})</th>{% endif %}
-          <th>원산지</th><th>HS CODE</th><th class="num">관세율%</th><th class="num">VAT%</th>
-          <th class="num">인보이스단가(USD)</th><th class="num">인보이스금액(USD)</th>
-          <th class="num">관세(USD)</th><th class="num">최종(USD)</th>
-          <th class="num">중량(kg)</th><th>박스</th><th>팔레트</th>
+          <th data-col="name"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>품명<span class="col-resizer" data-col="name"></span></div></th>
+          <th data-col="spec"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>규격<span class="col-resizer" data-col="spec"></span></div></th>
+          <th data-col="qty" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>수량<span class="col-resizer" data-col="qty"></span></div></th>
+          {% if can_money %}
+          <th data-col="sale_up" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>판매단가<span class="col-resizer" data-col="sale_up"></span></div></th>
+          <th data-col="sale_am" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>판매금액<span class="col-resizer" data-col="sale_am"></span></div></th>
+          {% endif %}
+          <th data-col="origin"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>원산지<span class="col-resizer" data-col="origin"></span></div></th>
+          <th data-col="hs"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>HS CODE<span class="col-resizer" data-col="hs"></span></div></th>
+          <th data-col="duty_rate" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>관세율<span class="col-resizer" data-col="duty_rate"></span></div></th>
+          <th data-col="vat" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>VAT<span class="col-resizer" data-col="vat"></span></div></th>
+          <th data-col="inv_up" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>인보이스단가<span class="col-resizer" data-col="inv_up"></span></div></th>
+          <th data-col="inv_am" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>인보이스금액<span class="col-resizer" data-col="inv_am"></span></div></th>
+          <th data-col="duty_usd" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>관세<span class="col-resizer" data-col="duty_usd"></span></div></th>
+          <th data-col="final_usd" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>최종<span class="col-resizer" data-col="final_usd"></span></div></th>
+          <th data-col="weight" class="num"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>중량<span class="col-resizer" data-col="weight"></span></div></th>
+          <th data-col="box"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>박스<span class="col-resizer" data-col="box"></span></div></th>
+          <th data-col="pallet"><div class="th-wrap"><span class="col-grip" draggable="true" title="드래그해 위치 변경">⠿</span>팔레트<span class="col-resizer" data-col="pallet"></span></div></th>
         </tr></thead>
         <tbody>
         {% for u in so.units %}
@@ -111,27 +159,27 @@
           {% set _bx = u.get('box_no') %}
           {% set _pl = u.get('pallet_size') %}
           <tr data-iid="{{ u.id }}" data-qty="{{ _qty }}" data-sale="{{ _up if _up is not none else 0 }}">
-            <td class="read" style="font-weight:600;max-width:220px;" title="{{ u.unit_label or '' }}">
+            <td class="read" data-col="name" style="font-weight:600;" title="{{ u.unit_label or '' }}">
               {{ u.unit_label or ('호기 ' ~ loop.index) }}
               {% if p.model_name or p.equip_name %}<span class="pmodel">{{ p.model_name or '' }}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}</span>{% endif %}
             </td>
-            <td class="read">{{ u.get('spec') or '—' }}</td>
-            <td class="read num">{{ _qty|qtyfmt }}</td>
+            <td class="read" data-col="spec">{{ u.get('spec') or '—' }}</td>
+            <td class="read num" data-col="qty">{{ _qty|qtyfmt }}</td>
             {% if can_money %}
-            <td class="sale">{{ _up|money(_ccy) if _up else '—' }}</td>
-            <td class="sale">{{ _am|money(_ccy) if _am else '—' }}</td>
+            <td class="sale" data-col="sale_up">{{ _up|money(_ccy) if _up else '—' }}</td>
+            <td class="sale" data-col="sale_am">{{ _am|money(_ccy) if _am else '—' }}</td>
             {% endif %}
-            <td class="inp"><input class="exin" name="origin" value="{{ _origin or '' }}" placeholder="KR" maxlength="20"></td>
-            <td class="inp"><input class="exin" name="hs_code" value="{{ _hs or '' }}" placeholder="8471.50" maxlength="20"></td>
-            <td class="inp uc suf"><input class="exin num" name="duty_rate" inputmode="decimal" value="{{ _dr if _dr is not none else '' }}" placeholder="0"><i class="uaf">%</i></td>
-            <td class="inp uc suf"><input class="exin num" name="vat_rate" inputmode="decimal" value="{{ _vr if _vr is not none else '' }}" placeholder="0"><i class="uaf">%</i></td>
-            <td class="inp uc pre"><i class="uaf">$</i><input class="exin num usd" name="invoice_unit_price_usd" inputmode="decimal" value="{{ _iu if _iu is not none else '' }}" placeholder="0.00"></td>
-            <td class="inp uc pre"><i class="uaf">$</i><input class="exin num usd" name="invoice_amount_usd" inputmode="decimal" value="{{ _ia if _ia is not none else '' }}" placeholder="0.00"></td>
-            <td class="inp uc pre"><i class="uaf">$</i><input class="exin num usd" name="duty_usd" inputmode="decimal" value="{{ _du if _du is not none else '' }}" placeholder="0.00"></td>
-            <td class="inp uc pre"><i class="uaf">$</i><input class="exin num usd" name="final_amount_usd" inputmode="decimal" value="{{ _fu if _fu is not none else '' }}" placeholder="0.00"></td>
-            <td class="inp uc suf"><input class="exin num" name="weight_kg" inputmode="decimal" value="{{ _wt if _wt is not none else '' }}" placeholder="0"><i class="uaf">kg</i></td>
-            <td class="inp"><input class="exin" name="box_no" value="{{ _bx or '' }}" placeholder="BOX" maxlength="30"></td>
-            <td class="inp"><input class="exin" name="pallet_size" value="{{ _pl or '' }}" placeholder="W*D*H" maxlength="30"></td>
+            <td class="inp" data-col="origin"><input class="exin" name="origin" value="{{ _origin or '' }}" placeholder="KR" maxlength="20"></td>
+            <td class="inp" data-col="hs"><input class="exin" name="hs_code" value="{{ _hs or '' }}" placeholder="8471.50" maxlength="20"></td>
+            <td class="inp uc suf" data-col="duty_rate"><input class="exin num" name="duty_rate" inputmode="decimal" value="{{ _dr if _dr is not none else '' }}" placeholder="0"><i class="uaf">%</i></td>
+            <td class="inp uc suf" data-col="vat"><input class="exin num" name="vat_rate" inputmode="decimal" value="{{ _vr if _vr is not none else '' }}" placeholder="0"><i class="uaf">%</i></td>
+            <td class="inp uc pre" data-col="inv_up"><i class="uaf">$</i><input class="exin num usd" name="invoice_unit_price_usd" inputmode="decimal" value="{{ _iu if _iu is not none else '' }}" placeholder="0.00"></td>
+            <td class="inp uc pre" data-col="inv_am"><i class="uaf">$</i><input class="exin num usd" name="invoice_amount_usd" inputmode="decimal" value="{{ _ia if _ia is not none else '' }}" placeholder="0.00"></td>
+            <td class="inp uc pre" data-col="duty_usd"><i class="uaf">$</i><input class="exin num usd" name="duty_usd" inputmode="decimal" value="{{ _du if _du is not none else '' }}" placeholder="0.00"></td>
+            <td class="inp uc pre" data-col="final_usd"><i class="uaf">$</i><input class="exin num usd" name="final_amount_usd" inputmode="decimal" value="{{ _fu if _fu is not none else '' }}" placeholder="0.00"></td>
+            <td class="inp uc suf" data-col="weight"><input class="exin num" name="weight_kg" inputmode="decimal" value="{{ _wt if _wt is not none else '' }}" placeholder="0"><i class="uaf">kg</i></td>
+            <td class="inp" data-col="box"><input class="exin" name="box_no" value="{{ _bx or '' }}" placeholder="BOX" maxlength="30"></td>
+            <td class="inp" data-col="pallet"><input class="exin" name="pallet_size" value="{{ _pl or '' }}" placeholder="W*D*H" maxlength="30"></td>
           </tr>
         {% endfor %}
         </tbody>
@@ -232,6 +280,120 @@
   window.saveAllCustoms = saveAllCustoms;
   window.bulkApply = bulkApply;
   window.fillInvoiceFromSale = fillInvoiceFromSale;
+})();
+</script>
+<script>
+/* v5H226z951 (대표 지시·2단계): 통관 표 컬럼 폭조절·숨김·순서 — 계정별 저장(view_prefs, key=export_customs_cols).
+   DOM-주도(thead th[data-col]에서 컬럼 도출) · JS 실패해도 기본 표(colgroup 기본폭)는 정상 렌더. */
+(function(){
+  var grid = document.getElementById('exGrid'); if(!grid) return;
+  var cg = grid.querySelector('colgroup');
+  var thead = grid.querySelector('thead tr');
+  function ths(){ return Array.prototype.slice.call(grid.querySelectorAll('thead th[data-col]')); }
+  function colEl(k){ return cg ? cg.querySelector('col[data-col="'+k+'"]') : null; }
+  function allKeys(){ return ths().map(function(th){ return th.dataset.col; }); }
+  var P = {};
+  try { P = JSON.parse((document.getElementById('exColPrefs')||{}).textContent || '{}') || {}; } catch(e){ P = {}; }
+  if(typeof P!=='object' || !P) P={};
+  P.w = (P.w && typeof P.w==='object') ? P.w : {};
+  P.hidden = (P.hidden && typeof P.hidden==='object') ? P.hidden : {};
+  P.order = Array.isArray(P.order) ? P.order : [];
+  var hadOrder = P.order.length > 0;
+
+  var _saveT=null;
+  function save(){
+    clearTimeout(_saveT);
+    _saveT=setTimeout(function(){
+      try { fetch('/export/prep/cols',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({w:P.w,order:P.order,hidden:P.hidden})}); } catch(e){}
+    }, 450);
+  }
+  function orderList(){
+    var all = allKeys();
+    var ord = (P.order||[]).filter(function(k){ return all.indexOf(k)>=0; });
+    all.forEach(function(k){ if(ord.indexOf(k)<0) ord.push(k); });
+    return ord;
+  }
+  function applyOrder(reorderBody){
+    var ord = orderList(); P.order = ord;
+    if(cg) ord.forEach(function(k){ var c=colEl(k); if(c) cg.appendChild(c); });
+    if(thead) ord.forEach(function(k){ var th=thead.querySelector(':scope>th[data-col="'+k+'"]'); if(th) thead.appendChild(th); });
+    if(reorderBody){
+      grid.querySelectorAll('tbody tr').forEach(function(tr){
+        ord.forEach(function(k){ var td=tr.querySelector(':scope>td[data-col="'+k+'"]'); if(td) tr.appendChild(td); });
+      });
+    }
+  }
+  function applyOne(k){
+    var c=colEl(k), th=grid.querySelector('thead th[data-col="'+k+'"]'), hidden=!!P.hidden[k];
+    var wv = hidden ? '0px' : (P.w[k] ? P.w[k]+'px' : '');
+    if(c) c.style.width = wv;
+    if(th){ th.style.width = wv; th.classList.toggle('col-collapsed', hidden); }
+    grid.querySelectorAll('td[data-col="'+k+'"]').forEach(function(td){ td.classList.toggle('col-collapsed', hidden); });
+  }
+  function applyAll(){ allKeys().forEach(applyOne); }
+
+  // 폭 조절(리사이저 드래그) — 그 칸만 px 지정, 다른 칸 불변(table-layout:fixed)
+  var rz=null;
+  grid.querySelectorAll('.col-resizer').forEach(function(h){
+    h.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var k=h.dataset.col, th=grid.querySelector('thead th[data-col="'+k+'"]');
+      rz={k:k, x:e.clientX, w: th ? Math.round(th.getBoundingClientRect().width) : 80};
+      document.body.style.cursor='col-resize';
+    });
+  });
+  document.addEventListener('mousemove', function(e){
+    if(!rz) return;
+    var w=Math.max(34, Math.min(700, rz.w + (e.clientX - rz.x)));
+    P.w[rz.k]=Math.round(w); P.hidden[rz.k]=false; applyOne(rz.k);
+  });
+  document.addEventListener('mouseup', function(){ if(rz){ rz=null; document.body.style.cursor=''; save(); } });
+
+  // 순서(그립 드래그)
+  var dragK=null;
+  ths().forEach(function(th){
+    var grip=th.querySelector('.col-grip');
+    if(grip){
+      grip.addEventListener('click', function(e){ e.stopPropagation(); });
+      grip.addEventListener('dragstart', function(e){ dragK=th.dataset.col; th.classList.add('col-dragging'); try{ e.dataTransfer.setData('text/plain',dragK); e.dataTransfer.effectAllowed='move'; }catch(_){} });
+      grip.addEventListener('dragend', function(){ dragK=null; ths().forEach(function(x){ x.classList.remove('col-dragging','col-drop-to'); }); });
+    }
+    th.addEventListener('dragover', function(e){ if(dragK && dragK!==th.dataset.col){ e.preventDefault(); try{ e.dataTransfer.dropEffect='move'; }catch(_){} th.classList.add('col-drop-to'); } });
+    th.addEventListener('dragleave', function(){ th.classList.remove('col-drop-to'); });
+    th.addEventListener('drop', function(e){
+      e.preventDefault(); th.classList.remove('col-drop-to');
+      if(!dragK || dragK===th.dataset.col) return;
+      var ord = orderList().filter(function(k){ return k!==dragK; });
+      var ti = ord.indexOf(th.dataset.col); if(ti<0) ti=ord.length;
+      ord.splice(ti, 0, dragK); P.order=ord; applyOrder(true);
+      save(); if(window.toast) toast('컬럼 위치를 바꿨습니다');
+    });
+  });
+
+  // 숨김 체크박스(설정 패널)
+  var panel=document.getElementById('exColPanel');
+  var listEl = panel ? panel.querySelector('.excol-list') : null;
+  if(listEl){
+    var html='';
+    ths().forEach(function(th){
+      var k=th.dataset.col, lbl=((th.textContent||k).replace(/⠿/g,'')).trim();
+      html += '<label style="display:flex;align-items:center;gap:6px;padding:2px 4px;font-size:12px;cursor:pointer;"><input type="checkbox" data-colk="'+k+'"'+(P.hidden[k]?'':' checked')+'> '+lbl+'</label>';
+    });
+    listEl.innerHTML=html;
+    listEl.querySelectorAll('input[data-colk]').forEach(function(cb){
+      cb.addEventListener('change', function(){ P.hidden[cb.dataset.colk]=!cb.checked; applyOne(cb.dataset.colk); save(); });
+    });
+  }
+  window.exColToggle=function(){ var pn=document.getElementById('exColPanel'); if(pn) pn.hidden=!pn.hidden; };
+  window.exColReset=function(){
+    P={w:{},order:[],hidden:{}};
+    if(cg) cg.querySelectorAll('col').forEach(function(c){ c.style.width=''; });
+    ths().forEach(function(th){ th.style.width=''; th.classList.remove('col-collapsed'); });
+    grid.querySelectorAll('td').forEach(function(td){ td.classList.remove('col-collapsed'); });
+    save(); if(window.toast) toast('컬럼 설정을 기본값으로 되돌렸습니다'); setTimeout(function(){ location.reload(); }, 300);
+  };
+
+  try { applyOrder(hadOrder); applyAll(); } catch(e){}
 })();
 </script>
 </body></html>
