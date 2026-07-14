@@ -7,7 +7,7 @@
    얇은 격자선(셀 아래+오른쪽)·컴팩트 행·셀을 꽉 채우는 입력칸(포커스 시 파란 셀선택)·헤더=paper-2 배경·KNK적 글자·중앙·sticky.
    값 단위: 판매단가/금액=money()로 통화기호($ ) / 입력칸=셀 안 회색 $·%·kg 표기. cf [[knk_qty_price_format]] money(v,ccy)/qtyfmt(z750·절대준수). */
 .ex-grid { border-collapse:separate; border-spacing:0; white-space:nowrap; font-size:12px; min-width:1280px; background:#fff; table-layout:fixed; }
-.ex-grid th, .ex-grid td { border-bottom:1px solid var(--line,#e7e2d6); border-right:1px solid #eee5d4; padding:0; }
+.ex-grid th, .ex-grid td { border-bottom:1px solid var(--line,#e7e2d6); border-right:1px solid #eee5d4; padding:0; overflow:hidden; }  /* v5H226z953: overflow:hidden 필수 — 컬럼 숨김(폭 0)/폭 좁힘 시 셀 내용이 삐져나오지 않고 접힘(작업일정표 .sched 와 동일) */
 .ex-grid thead th { position:sticky; top:0; z-index:6; background:var(--paper-2,#f4f1e8); color:var(--knk-red,#b0271f); font-size:10.5px; font-weight:700; text-align:center; height:34px; padding:0 5px; white-space:normal; line-height:1.15; }
 .ex-grid tbody td { padding:4px 8px; vertical-align:middle; color:var(--qv-ink,#0f172a); }
 .ex-grid tbody tr:hover > td { background:#f7fbff; }
