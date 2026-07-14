@@ -257,7 +257,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
           <div class="info-row c4">
             <div class="h-cell ro"><div class="lbl">관리코드</div><div class="val" style="font-family:inherit;color:var(--knk-red);">{{ co.mgmt_code or '—' }}</div></div>
             <div class="h-cell ro"><div class="lbl">수주번호</div><div class="val">{{ co.co_no }}</div></div>
-            <div class="h-cell ro"><div class="lbl">합계</div><div class="val amount" id="totalAmount">{% if co.currency != 'KRW' %}{{ co.currency }} {% endif %}{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency == 'KRW' %}원{% endif %}</div></div>
+            <div class="h-cell ro"><div class="lbl">합계</div><div class="val amount" id="totalAmount">{{ (co.total_amount or 0)|money(co.currency or 'KRW') }}</div></div>
             {# v5H226z725(대표 지시): 상태 = 드롭다운(기존 '상태 변경' 알약 대체). 엑셀 양식 '상태'(F9)와 일치 #}
             <div class="h-cell"><div class="lbl">상태</div>
               {# v5H226z726(대표 지시): 상태 드롭다운 = 진행중/출하/취소/보류(보드와 동일·값=enum 저장). 레거시(작성중 등)는 폴백 옵션으로 표시 #}
@@ -382,7 +382,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             <td><input data-k="qty" type="number" step="0.01" value="{{ (it.qty or 0)|qtyfmt }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
             <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></td>
-            <td class="amount cell-amount">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
+            <td class="amount cell-amount">{{ (it.amount or 0)|money(co.currency or 'KRW') }}</td>
             <td><input data-k="note" value="{{ it.note|e }}" placeholder="비고" /></td>
             {# v5H226z300(대표 지시): 자재코드 연결 — 등록 자재 자동연결(업로드)+추천+수동검색 #}
             <td>
@@ -421,7 +421,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         <tfoot>
           <tr>
             <td colspan="12" style="text-align:right;">합계</td>
-            <td class="amount" id="footTotal">{{ '{:,.0f}'.format(co.total_amount or 0) }}{% if co.currency=='KRW' %}원{% endif %}</td>
+            <td class="amount" id="footTotal">{{ (co.total_amount or 0)|money(co.currency or 'KRW') }}</td>
             <td colspan="7"></td>
           </tr>
         </tfoot>
@@ -465,6 +465,9 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
 <script>
 const CO_ID = {{ co.id }};
 const CURR = "{{ co.currency or 'KRW' }}";
+// v5H226z956 (대표 지시): 단가·통화 표시 규정(z750 money) 준수 — 기호+숫자·USD 2자리·KRW 정수. 서버 money()와 동일 포맷.
+const _CSYM = {USD:'$',KRW:'₩',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'};
+function moneyFmt(n){ n=Number(n)||0; var k=(CURR==='KRW'); return (_CSYM[CURR]||(CURR+' ')) + n.toLocaleString('ko-KR',{minimumFractionDigits:k?0:2, maximumFractionDigits:k?0:2}); }
 
 // v5H226z309 (대표 지시): 라인 직접 추가 — 빈 줄 1개 생성 후 새로고침해 인라인 입력
 function addLine(){
@@ -643,11 +646,11 @@ document.querySelectorAll('table.items tbody input[data-k]').forEach(inp => {   
       // recompute row amount client-side too
       const qty = parseFloat(tr.querySelector('input[data-k=qty]').value)||0;
       const up  = parseFloat((tr.querySelector('input[data-k=unit_price]').value||'').replace(/,/g,''))||0;
-      tr.querySelector('.cell-amount').textContent = (qty*up).toLocaleString('ko-KR',{maximumFractionDigits:0});
+      tr.querySelector('.cell-amount').textContent = moneyFmt(qty*up);
       const tot = data.total_amount || 0;
-      const txt = (CURR!=='KRW'? CURR+' ':'') + tot.toLocaleString('ko-KR',{maximumFractionDigits:0}) + (CURR==='KRW'?'원':'');
+      const txt = moneyFmt(tot);   // v5H226z956: 통화 규정(money) — 기호+숫자·USD 2자리·KRW 정수
       document.getElementById('totalAmount').textContent = txt;
-      document.getElementById('footTotal').textContent = tot.toLocaleString('ko-KR',{maximumFractionDigits:0}) + (CURR==='KRW'?'원':'');
+      document.getElementById('footTotal').textContent = txt;
     }
   });
 });
