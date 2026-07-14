@@ -98,8 +98,9 @@
     <button type="button" class="apply" onclick="bulkApply()">⬇ 전 품목 적용</button>
     {# v5H226z966 (대표 지시): HS 사전 자동 채움 — 과거 통관 실적(741종~)으로 빈 칸 채움 + 신규는 AI 추정(노란 표시·검토 후 저장) #}
     <button type="button" class="apply" style="background:#7c3aed;border-color:#7c3aed;" onclick="hsAutofill()" title="과거 통관 실적 사전으로 HS·베트남어명·원산지·세율 빈 칸을 채웁니다. 사전에 없는 신규 품목은 AI 추정(노란 표시) 선택 가능.">🤖 HS 자동 채움</button>
-    <div class="f"><label>계수% <span style="font-weight:400;">(선택)</span></label><input id="bulkUplift" inputmode="decimal" style="width:64px;text-align:right;" placeholder="예:16" title="판매단가→인보이스단가 변환 시 (1+계수%)를 곱합니다. 비우면 0%"></div>
-    <button type="button" class="fill" onclick="fillInvoiceFromSale()" title="판매단가×(1+계수%)를 인보이스단가(USD)로 — 통화 USD면 그대로, 그 외는 환율 환산">💵 판매단가 → 인보이스단가</button>
+    {# v5H226z969 (대표 지적): '계수%'가 어려움 → '가산율%(신고가 올림)' + 실제 숫자 예시로 안내 #}
+    <div class="f"><label>가산율% <span style="font-weight:400;">(신고가 올림)</span></label><input id="bulkUplift" inputmode="decimal" style="width:64px;text-align:right;" placeholder="예:16" title="인보이스(신고서)에 적을 단가를 판매단가보다 몇 % 올려 만들지 입력합니다.&#10;예: 16 입력 → 단가 4,000원이면 4,640원을 달러로 바꿔 $3.20 기재.&#10;비우면 판매단가를 그대로 달러로 바꿉니다."></div>
+    <button type="button" class="fill" onclick="fillInvoiceFromSale()" title="전 품목의 인보이스단가(USD)를 한 번에 채웁니다 = 판매단가 + 가산율% → 환율로 달러 환산 (통화가 USD면 환산 없이 그대로)">💵 판매단가 → 인보이스단가</button>
     <span style="font-size:11px;color:#64748b;margin-left:auto;align-self:center;">같은 장비 호기는 한 번에 채우고, 다른 것만 행에서 수정하세요.</span>
   </div>
   <div style="margin:2px 0 12px;font-size:11.5px;color:var(--mute);">💡 통관 입력을 <b>저장</b>한 뒤 <b>패킹리스트</b>를 누르면 입력한 품목·중량·박스로 포장명세서가 만들어집니다.</div>
