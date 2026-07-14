@@ -33778,6 +33778,194 @@ async def export_item_customs_save(req: Request, iid: int):
 
 
 # ------------------------------------------------------------
+# v5H226z966 (대표 지시): 베트남 HS코드 사전 + 자동 채움 — 과거 인보이스 확정값(베트남 세관 통과 실적) 재사용.
+#   3겹: ①사전 일치(CONFIRMED)=자동 채움 ②AI 추정(사전 미등록 신규만·화면에서 노란 표시·사람 검토 후 저장)
+#        ③확정될수록 사전 성장. 시드=app/seed/hs_dict_seed.csv(25.11~26.05 최종파일 19개 전수분석 — 741종·충돌 11종=PENDING).
+#   ⚠통관은 법적 신고 — PENDING(충돌)·AI 추정은 자동 확정하지 않음(사람 확인).
+# ------------------------------------------------------------
+def _hs_norm_key(s) -> str:
+    """사전 키 = 규격(모델) 정규화: 공백 제거 + 대문자 (시드 생성 스크립트와 동일 규칙)."""
+    import re as _re
+    return _re.sub(r"\s+", "", str(s or "")).upper()
+
+
+def _hs_dict_ensure(c):
+    """export_hs_dict 테이블 보장 + 비어있으면 번들 시드 CSV 1회 적재. 반환=시드 적재 건수(0=기존재)."""
+    c.execute("""CREATE TABLE IF NOT EXISTS export_hs_dict (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        part_key TEXT NOT NULL UNIQUE,
+        model TEXT, name_en TEXT, vn_name TEXT,
+        hs_code TEXT, origin TEXT, duty TEXT, vat TEXT,
+        status TEXT DEFAULT 'CONFIRMED',
+        seen_count INTEGER DEFAULT 1,
+        first_seen TEXT, last_seen TEXT, source_file TEXT, note TEXT,
+        updated_by INTEGER, updated_at TEXT DEFAULT (datetime('now','localtime')))""")
+    if c.execute("SELECT COUNT(*) FROM export_hs_dict").fetchone()[0]:
+        return 0
+    import csv as _csv
+    from pathlib import Path as _P
+    p = _P(__file__).parent / "seed" / "hs_dict_seed.csv"   # ⚠app/data는 .gitignore(data/)라 배포 미반영 → app/seed 사용
+    if not p.exists():
+        return 0
+    n, bad = 0, 0
+    with open(p, encoding="utf-8-sig", newline="") as f:
+        for row in _csv.DictReader(f):
+            try:
+                c.execute(
+                    "INSERT OR IGNORE INTO export_hs_dict"
+                    "(part_key,model,name_en,vn_name,hs_code,origin,duty,vat,status,seen_count,first_seen,last_seen,source_file) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    ((row.get("part_key") or "").strip(), row.get("model"), row.get("name_en"), row.get("vn_name"),
+                     (row.get("hs_code") or "").strip(), row.get("origin"), row.get("duty"), row.get("vat"),
+                     (row.get("status") or "CONFIRMED").strip(), int(row.get("seen_count") or 1),
+                     row.get("first_seen"), row.get("last_seen"), row.get("source_file")))
+                n += 1
+            except Exception:
+                bad += 1   # 행 단위 결함은 건너뛰되 개수 기록(아래 로그)
+    if bad:
+        print(f"[hs_dict] 시드 적재: {n}건 성공 · {bad}건 건너뜀(형식 결함)")
+    return n
+
+
+def _hs_items_for_project(c, pid: int) -> list[dict]:
+    """프로젝트의 수출 품목(order_items) — 통관 입력 표와 동일 대상. 사전 매칭에 필요한 칸만."""
+    oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    sel = ["oi.id"]
+    for cn in ("spec", "unit_label", "maker", "hs_code", "description", "origin", "duty_rate", "vat_rate"):
+        if cn in oicols:
+            sel.append("oi." + cn)
+    rows = c.execute(
+        f"SELECT {', '.join(sel)} FROM order_items oi JOIN orders o ON o.id = oi.order_id "
+        f"WHERE o.project_id=? ORDER BY oi.id ASC", (pid,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/export/prep/{pid:int}/hs-autofill")
+async def export_hs_autofill(req: Request, pid: int):
+    """사전(CONFIRMED) 기반 자동 채움 — 빈 칸만(HS·베트남어명·원산지·관세율·VAT). 서버 저장 후 채운 값 반환(화면 즉시 반영).
+    PENDING(충돌 확인대기)은 채우지 않고 개수만 보고."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    import re as _re
+    def _rate_num(x):
+        m = _re.search(r"-?\d+(?:\.\d+)?", str(x or ""))
+        return float(m.group(0)) if m else None
+    filled, already, pend = 0, 0, 0
+    misses, applied = [], []
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        dic = {r["part_key"]: dict(r) for r in c.execute(
+            "SELECT part_key, vn_name, hs_code, origin, duty, vat, status FROM export_hs_dict")}
+        items = _hs_items_for_project(c, pid)
+        oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        for it in items:
+            key = _hs_norm_key(it.get("spec")) or _hs_norm_key(it.get("unit_label"))
+            hit = dic.get(key)
+            if not hit:
+                if not str(it.get("hs_code") or "").strip():
+                    misses.append(str(it.get("unit_label") or it.get("spec") or ("#%s" % it["id"])))
+                continue
+            if (hit.get("status") or "") == "PENDING":
+                pend += 1
+                continue
+            sets, vals, out = [], [], {"iid": it["id"]}
+            for col, val in (("hs_code", (hit.get("hs_code") or "").strip()),
+                             ("description", (hit.get("vn_name") or "").strip()),
+                             ("origin", (hit.get("origin") or "").strip())):
+                if col in oicols and val and not str(it.get(col) or "").strip():
+                    sets.append(f"{col}=?"); vals.append(val); out[col] = val
+            for col, src in (("duty_rate", hit.get("duty")), ("vat_rate", hit.get("vat"))):
+                rv = _rate_num(src)
+                if rv is not None and col in oicols and it.get(col) in (None, ""):
+                    sets.append(f"{col}=?"); vals.append(rv); out[col] = rv
+            if sets:
+                vals.append(it["id"])
+                c.execute(f"UPDATE order_items SET {', '.join(sets)} WHERE id=?", vals)
+                filled += 1
+                applied.append(out)
+            else:
+                already += 1
+    return JSONResponse({"ok": True, "filled": filled, "already": already, "pending": pend,
+                         "miss": len(misses), "miss_names": misses[:30], "applied": applied})
+
+
+@app.post("/export/prep/{pid:int}/hs-ai-suggest")
+async def export_hs_ai_suggest(req: Request, pid: int):
+    """사전에 없는 신규 품목만 AI 추정(베트남 AHTN 8자리 + 베트남어 품명) — DB에 쓰지 않고 '제안만' 반환.
+    화면이 노란 표시로 채우고 사람이 검토 후 [전체 저장](법적 신고라 자동 확정 금지). 사전에는 status='AI'로 기록(관리 화면서 확정 가능)."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    from . import ai_client as _ai
+    if not _ai.ai_available():
+        return JSONResponse({"ok": False, "error": "AI 미설정 — 설정에서 AI 키 등록 후 사용할 수 있습니다"})
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        keys = {r["part_key"] for r in c.execute("SELECT part_key FROM export_hs_dict")}
+        items = _hs_items_for_project(c, pid)
+    targets = []
+    for it in items:
+        if str(it.get("hs_code") or "").strip():
+            continue
+        key = _hs_norm_key(it.get("spec")) or _hs_norm_key(it.get("unit_label"))
+        if not key or key in keys:
+            continue
+        targets.append({"iid": it["id"], "key": key,
+                        "name": str(it.get("unit_label") or "").strip(),
+                        "spec": str(it.get("spec") or "").strip(),
+                        "maker": str(it.get("maker") or "").strip()})
+    if not targets:
+        return JSONResponse({"ok": True, "suggestions": [], "message": "AI 추정 대상(사전 미등록·HS 빈 품목)이 없습니다"})
+    targets = targets[:200]   # 1회 상한(비용 가드)
+    import json as _json
+    import re as _re
+    _SYS = ("당신은 한국 산업장비 부품의 베트남 수입통관 HS 분류 보조자입니다. "
+            "각 부품에 대해 베트남 AHTN 8자리 HS코드와 베트남어 품명을 추정하세요. "
+            "베트남어 품명 형식: 'ENGLISH NAME#&Tên tiếng Việt, mã hàng: <규격>, hãng sx: <메이커>. Mới 100%'. "
+            "반드시 JSON 배열만 출력: [{\"i\":0,\"hs\":\"84123100\",\"vn\":\"...\"}] "
+            "확신이 낮으면 가장 가까운 코드를 쓰고 vn 끝에 ' (확인필요)'를 붙이세요.")
+    suggestions = []
+    for s in range(0, len(targets), 40):
+        chunk = targets[s:s + 40]
+        lines = [f"{i} | 품명: {t['name'] or '-'} | 규격: {t['spec'] or '-'} | 메이커: {t['maker'] or '-'}"
+                 for i, t in enumerate(chunk)]
+        ok, resp = _ai.ai_chat("\n".join(lines), system=_SYS, max_tokens=3000, temperature=0.1)
+        if not ok:
+            return JSONResponse({"ok": False, "error": f"AI 호출 실패: {resp}", "suggestions": suggestions})
+        m = _re.search(r"\[.*\]", resp, _re.S)
+        if not m:
+            continue
+        try:
+            arr = _json.loads(m.group(0))
+        except Exception:
+            continue
+        for a in (arr if isinstance(arr, list) else []):
+            try:
+                t = chunk[int(a.get("i"))]
+            except Exception:
+                continue
+            hs = _re.sub(r"[^\d]", "", str(a.get("hs") or ""))
+            if len(hs) != 8:
+                continue
+            suggestions.append({"iid": t["iid"], "hs_code": hs, "description": str(a.get("vn") or "").strip()})
+            t["_hs"] = hs; t["_vn"] = str(a.get("vn") or "").strip()
+    # 사전에 AI 추정으로 기록(확정 아님 — 관리 화면에서 검토·확정)
+    if suggestions:
+        with db_session() as c:
+            _hs_dict_ensure(c)
+            for t in targets:
+                if not t.get("_hs"):
+                    continue
+                c.execute(
+                    "INSERT OR IGNORE INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,status,seen_count,source_file,note,updated_by) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (t["key"], t["spec"] or t["name"], t["name"], t.get("_vn") or "",
+                     t["_hs"], "AI", 0, "AI", "AI 추정 — 검토 필요", u.get("id")))
+    return JSONResponse({"ok": True, "suggestions": suggestions})
+
+
+# ------------------------------------------------------------
 # v5H226z463 (대표 지시·수출 2단계): 패킹리스트(PACKING LIST) — 1단계 통관 입력(order_items)에서 생성.
 #   인쇄(A4 HTML)·엑셀(KNK 표준). 데이터 출처 = order_items(품명·규격·원산지·HS·수량·중량·박스·팔레트).
 # ------------------------------------------------------------
