@@ -75,6 +75,8 @@ table.items { width: 100%; border-collapse: collapse; font-size: 12px; table-lay
 /* 칸 사이 세로 구분선(#eee5d4) + 가로 구분선(var(--line)) = board 격자 핵심 */
 table.items th, table.items td { padding: 0 8px; height: 30px; border-bottom: 1px solid var(--line); border-right: 1px solid #eee5d4; text-align: left; vertical-align: middle; }
 table.items th:last-child, table.items td:last-child { border-right: 0; }   /* 우측 외곽 중복선 제거 */
+/* v5H226z960 (대표 지시·버그수정): 칸 숨김 = col폭0 + 이 클래스(패딩·테두리·overflow 제거)로 완전히 접음. 숨김칸에만 적용(전역 overflow:hidden 금지 — 셀 내 검색 드롭다운 보존). */
+table.items th.itm-hidden, table.items td.itm-hidden { padding: 0 !important; border-right: 0 !important; overflow: hidden !important; }
 /* 헤더: board 톤 — 베이지 배경 · KNK 레드 글자 · 작은 볼드 · 가운데. position:relative = z303 .col-rz 앵커(유지) */
 table.items th { background: var(--paper-2); color: var(--knk-red); font-size: 10.5px; font-weight: 700; text-align: center; height: 34px; position: relative; }
 table.items td.amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -82,6 +84,10 @@ table.items th.amount { text-align: center; }
 /* v5H226z305(대표 지시): 셀 속 입력칸 테두리 제거 → 엑셀처럼 칸 안에 글자만. 클릭/편집 시에만 강조 */
 /* v5H226z308(대표 지시): 라인 입력칸 여백을 작업일정표 셀(.cell-input padding:1px 6px)과 동일하게 — 여백 축소 */
 table.items input { padding: 1px 6px; border: 1px solid transparent; border-radius: 3px; background: transparent; font-size: 12px; width: 100%; box-sizing: border-box; }
+/* v5H226z960 (대표 지시): 단가·금액 편집칸 통화기호 앞표기(규정 z750/z758) — 기호 span + 숫자 입력(우측정렬). money()는 표시셀, 편집셀은 ccysym+pricefmt. */
+table.items .amt-inp { display:flex; align-items:center; gap:1px; width:100%; }
+table.items .amt-inp .ccy-pre { flex:0 0 auto; color:var(--qv-ink-3,#64748b); font-size:11px; font-weight:600; }
+table.items .amt-inp input { width:100%; min-width:0; text-align:right; }
 table.items input:hover { border-color: var(--qv-line); background:#fff; }
 table.items input:focus { outline: none; border-color: var(--knk-red); background:#fff; box-shadow: 0 0 0 1px var(--knk-red) inset; }
 table.items img { width: 90px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* z295 와이드 2:1 — overflow:hidden 미적용(클리핑 방지) */
@@ -389,7 +395,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             <td class="ord-col"><select class="ef co-ord" data-field="form_type" title="발주 공통 — 모든 줄 동일"><option value="">—</option>{% for ft in ['완제품','제품','상품','기타'] %}<option value="{{ ft }}"{% if (co.form_type or '')==ft %} selected{% endif %}>{{ ft }}</option>{% endfor %}</select></td>
             <td><input data-k="qty" type="number" step="0.01" value="{{ (it.qty or 0)|qtyfmt }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
-            <td><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></td>
+            <td><span class="amt-inp"><span class="ccy-pre">{{ (co.currency or 'KRW')|ccysym }}</span><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></span></td>
             <td class="amount cell-amount">{{ (it.amount or 0)|money(co.currency or 'KRW') }}</td>
             <td><input data-k="note" value="{{ it.note|e }}" placeholder="비고" /></td>
             {# v5H226z300(대표 지시): 자재코드 연결 — 등록 자재 자동연결(업로드)+추천+수동검색 #}
@@ -419,7 +425,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             {# v5H226z725: 발주 공통(ord-col) — 거래명세서·세금계산서 발행일·금액(1건). 모든 줄 동일 #}
             <td class="ord-col"><input type="date" class="ef co-ord" data-field="statement_date" value="{{ (co.statement_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
             <td class="ord-col"><input type="date" class="ef co-ord" data-field="tax_invoice_date" value="{{ (co.tax_invoice_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
-            <td class="ord-col amount"><input class="ef co-ord knk-money" data-field="tax_invoice_amt1" type="text" inputmode="numeric" value="{{ (co.tax_invoice_amt1)|pricefmt(co.currency or 'KRW') if co.tax_invoice_amt1 else '' }}" title="발주 공통 — 모든 줄 동일" style="text-align:right;" /></td>
+            <td class="ord-col amount"><span class="amt-inp"><span class="ccy-pre">{{ (co.currency or 'KRW')|ccysym }}</span><input class="ef co-ord knk-money" data-field="tax_invoice_amt1" type="text" inputmode="numeric" value="{{ (co.tax_invoice_amt1)|pricefmt(co.currency or 'KRW') if co.tax_invoice_amt1 else '' }}" title="발주 공통 — 모든 줄 동일" style="text-align:right;" /></span></td>
             <td>
               <button class="btn-danger" type="button" onclick="delLine({{ it.id }})" style="padding:4px 8px;font-size:11px;">삭제</button>
             </td>
@@ -813,6 +819,11 @@ const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 
   if(widths[3]<colMin(3)) widths[3]=colMin(3);   // v5H226z730: 사진칸(인덱스 3·4) 최소폭 보정
   if(widths[4]<colMin(4)) widths[4]=colMin(4);
 
+  // v5H226z960 (대표 지시·버그수정): 이전엔 colgroup col폭(0) + 셀 display:none 을 '혼용'한 게 원인.
+  //   display:none 셀은 컬럼모델에서 빠지는데 colgroup <col> 은 그대로 → 숨긴 칸 뒤부터 셀↔col 매핑이 한 칸씩 밀림
+  //   (→ 사진[LOC] 숨겼는데 옆칸[사진PIC]이 0폭이 되고 그 📷가 납품일 자리로 흘러나옴).
+  //   해결: 셀은 '그대로 두어' 컬럼모델 유지(thead/tbody/tfoot 합계 colspan 정합) + col폭 0 + 숨김칸에만 .itm-hidden(패딩·테두리·overflow 제거)로 접음.
+  //   ⛔전역 overflow:hidden 금지 — 셀 안 자재/관리번호 검색 드롭다운(position:absolute)이 잘림. 그래서 display:none 대신 '숨김칸만' 클래스 토글.
   let cg = table.querySelector('colgroup.itm-cg');
   if(!cg){ cg=document.createElement('colgroup'); cg.className='itm-cg'; for(let i=0;i<N;i++) cg.appendChild(document.createElement('col')); table.insertBefore(cg, table.firstChild); }
   const cols = cg.querySelectorAll('col');
@@ -820,9 +831,9 @@ const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 
   function applyView(){
     let tot=0;
     for(let i=0;i<N;i++){ cols[i].style.width = (hidden[i]?0:widths[i])+'px'; if(!hidden[i]) tot+=widths[i]; }
-    // tfoot(병합셀)은 col 폭만으로 자동 정렬 → thead/tbody 셀만 표시 토글
+    // 셀 display 는 안 건드림(컬럼모델 유지) → 숨김칸 = col폭0 + .itm-hidden 으로 접힘. tfoot(합계 colspan)도 colgroup 폭으로 자동 정렬.
     table.querySelectorAll('thead tr, tbody tr').forEach(tr=>{
-      for(let i=0;i<tr.children.length && i<N;i++){ tr.children[i].style.display = hidden[i]?'none':''; }
+      for(let i=0;i<tr.children.length && i<N;i++){ tr.children[i].classList.toggle('itm-hidden', !!hidden[i]); }
     });
     table.style.width = tot+'px';
   }
