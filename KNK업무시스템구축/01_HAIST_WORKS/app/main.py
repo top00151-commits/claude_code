@@ -33696,12 +33696,13 @@ async def export_prep_detail(req: Request, pid: int):
             sos = _pwf.get_project_orders(c, pid)
         except Exception:
             sos = []
+        dm = _doc_meta_get(c, pid, p)   # v5H226z968: 신고 서류 정보(인보이스 헤더블록)
     try:
         col_prefs = _logi.view_prefs_get(u.get("id"), "export_customs_cols") or "{}"
     except Exception:
         col_prefs = "{}"
     return ctx(req, "export_prep_detail.html", user=u, active="export",
-               p=p, sos=sos, can_money=bool(can_view_sales(u)), col_prefs=col_prefs)
+               p=p, sos=sos, dm=dm, can_money=bool(can_view_sales(u)), col_prefs=col_prefs)
 
 
 @app.post("/export/prep/cols")
@@ -34233,6 +34234,8 @@ def _export_ci_build(c, pid):
                 "unit_price": round(up, 2),
                 "amount": round(am, 2),
                 "currency": _so_ccy,
+                # v5H226z968: 베트남어 품명(Tên hàng·O열) — 실물 신고용 Invoice&PL 에 사용
+                "description": u.get("description") or "",
             })
     ci = {
         "ci_no": f"CI-{p.get('mgmt_code') or pid}",
@@ -34248,6 +34251,253 @@ def _export_ci_build(c, pid):
         "n_lines": len(lines),
     }
     return p, ci, lines
+
+
+# ------------------------------------------------------------
+# v5H226z968 (대표 지시): 신고용 Invoice&PL 실물 양식(시트 2장) + 수출 서류 정보(헤더블록).
+#   안지연 프로가 베트남에 보내는 실제 파일(Invoice&packinglist_VN)과 동일 배치 —
+#   B=관리번호 D=규격 F=수량 H=단가 I=금액(USD) K=원산지 M=CATEGORY N=HS code O=Tên hàng.
+#   헤더블록(Consignee·항구·Carrier·Sailing·Invoice No·L/C·INCOTERMS)=export_doc_meta(프로젝트당 1행).
+# ------------------------------------------------------------
+_Z968_SHIPPER = ("KNK CO.,LTD",
+                 "2, Gisan-ro 87 beon-gil, Hwaseong-si, Gyeonggi-do, Korea.",
+                 "TEL : +82-70-4045-0407   FAX :  +82-31-267-0407",
+                 "ATTN : Ji-Yeon, An (+82-10-2739-2660)")
+
+
+def _doc_meta_ensure(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS export_doc_meta (
+        project_id INTEGER PRIMARY KEY,
+        invoice_no TEXT, invoice_date TEXT,
+        consignee TEXT, notify TEXT,
+        port_loading TEXT, final_dest TEXT,
+        carrier TEXT, sailing_date TEXT,
+        lc_no TEXT, payment TEXT, issuing_bank TEXT,
+        incoterms TEXT, remarks TEXT,
+        updated_by INTEGER, updated_at TEXT)""")
+
+
+def _doc_meta_get(c, pid: int, p: dict | None = None) -> dict:
+    """프로젝트 수출 서류 정보 — 없으면 실물 관행 기본값으로 채운 dict(저장 전 프리필)."""
+    _doc_meta_ensure(c)
+    row = c.execute("SELECT * FROM export_doc_meta WHERE project_id=?", (pid,)).fetchone()
+    d = dict(row) if row else {}
+    if not d.get("invoice_no"):
+        import datetime as _dt
+        d["invoice_no"] = "KNK-" + _dt.date.today().strftime("%y%m%d") + "-1"
+    if not d.get("invoice_date"):
+        import datetime as _dt
+        d["invoice_date"] = _dt.date.today().isoformat()
+    if not d.get("consignee") and p:
+        d["consignee"] = p.get("customer_name") or ""
+    d.setdefault("notify", "SAME AS ABOVE")
+    if not d.get("notify"):
+        d["notify"] = "SAME AS ABOVE"
+    d["port_loading"] = d.get("port_loading") or "Incheon, Korea"
+    d["final_dest"] = d.get("final_dest") or "Hanoi, Vietnam"
+    d["payment"] = d.get("payment") or "T/T"
+    d["incoterms"] = d.get("incoterms") or "C.I.P"
+    for k in ("carrier", "sailing_date", "lc_no", "issuing_bank", "remarks"):
+        d.setdefault(k, "")
+        if d[k] is None:
+            d[k] = ""
+    return d
+
+
+@app.post("/export/prep/{pid:int}/doc-meta")
+async def export_doc_meta_save(req: Request, pid: int):
+    """수출 서류 정보 저장(upsert) — 통관 화면 '신고 서류 정보' 카드."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    form = await req.form()
+    cols = ("invoice_no", "invoice_date", "consignee", "notify", "port_loading", "final_dest",
+            "carrier", "sailing_date", "lc_no", "payment", "issuing_bank", "incoterms", "remarks")
+    vals = [(form.get(k) or "").strip() for k in cols]
+    with db_session() as c:
+        _doc_meta_ensure(c)
+        c.execute(
+            f"INSERT INTO export_doc_meta(project_id,{','.join(cols)},updated_by,updated_at) "
+            f"VALUES(?,{','.join('?' * len(cols))},?,datetime('now','localtime')) "
+            f"ON CONFLICT(project_id) DO UPDATE SET "
+            + ", ".join(f"{k}=excluded.{k}" for k in cols)
+            + ", updated_by=excluded.updated_by, updated_at=excluded.updated_at",
+            [pid] + vals + [u.get("id")])
+    return JSONResponse({"ok": True})
+
+
+def _z968_head_block(ws, title: str, dm: dict, F, thin_border):
+    """실물 헤더블록(1~29행) — INVOICE/PACKING LIST 공용. 반환=품목 헤더 시작행(31)."""
+    from openpyxl.styles import Alignment as _Al
+    ws["A1"] = title
+    ws["A1"].font = F(size=16, bold=True)
+    ws.merge_cells("A1:O1")
+    ws["A1"].alignment = _Al(horizontal="center", vertical="center")
+    lab = F(size=9, bold=True, color="555555")
+    val = F(size=10)
+    def _set(addr, text, fo=None):
+        ws[addr] = text
+        ws[addr].font = fo or val
+    _set("A2", "1) Shipper / Exporter", lab)
+    _set("B4", _Z968_SHIPPER[0], F(size=11, bold=True))
+    _set("B5", _Z968_SHIPPER[1])
+    _set("B6", _Z968_SHIPPER[2])
+    _set("B8", _Z968_SHIPPER[3])
+    _set("F2", "8) No. & Date of Invoice", lab)
+    _set("G4", dm.get("invoice_no") or "", F(size=11, bold=True))
+    _set("H4", "DATE:", lab)
+    _set("I4", dm.get("invoice_date") or "")
+    _set("F7", "9) No. & Date of L/C", lab)
+    _set("G8", dm.get("lc_no") or "")
+    _set("A10", "2) For Account & Risk of Messrs", lab)
+    _set("F10", dm.get("payment") or "T/T")
+    for i, ln in enumerate((dm.get("consignee") or "").splitlines()[:5]):
+        _set(f"B{12+i}", ln, F(size=10, bold=(i == 0)))
+    _set("F13", "10) Issuing Bank", lab)
+    _set("G14", dm.get("issuing_bank") or "")
+    _set("A19", "3) Notify Party", lab)
+    _set("B21", dm.get("notify") or "SAME AS ABOVE")
+    _set("F19", "11) Remarks", lab)
+    _set("G21", "INCOTERMS : " + (dm.get("incoterms") or ""))
+    if (dm.get("remarks") or "").strip():
+        _set("G22", dm.get("remarks"))
+    _set("A24", "4) Port of Loading", lab)
+    _set("D24", "5) Final Destination", lab)
+    _set("A25", dm.get("port_loading") or "")
+    _set("D25", dm.get("final_dest") or "")
+    _set("A28", "6) Carrier", lab)
+    _set("D28", "7) Sailing On or About", lab)
+    _set("A29", dm.get("carrier") or "")
+    _set("D29", dm.get("sailing_date") or "")
+    return 31
+
+
+@app.get("/export/prep/{pid:int}/invoice-pl.xlsx")
+async def export_prep_invoice_pl_xlsx(req: Request, pid: int):
+    """신고용 Invoice&PL 실물 양식(시트 2장) — 베트남 전달·수출/수입신고에 그대로 사용.
+    INVOICE: B관리번호 D규격 F수량 H단가 I금액(USD) K원산지 M CATEGORY N HS code O Tên hàng.
+    PACKING LIST: B관리번호 D규격 F수량 I Gross(kg) + 우측 박스 요약(NO/SIZE/G/W)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        p, ci, lines = _export_ci_build(c, pid)
+        if not p:
+            return RedirectResponse("/export/prep", 303)
+        dm = _doc_meta_get(c, pid, p)
+        _p2, _pl, pl_lines = _export_pl_build(c, pid)
+        _p3, _pl2, _pll, box_list = _export_ship_boxes(c, pid)
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font as _Font, PatternFill, Alignment, Border, Side
+        import io as _io
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    def F(**kw):
+        return _Font(name="Arial", **kw)
+    thin = Side(style="thin", color="B7B0A0")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    head_fill = PatternFill("solid", fgColor="F4F1E8")
+    wb = Workbook()
+
+    # ── 시트1: INVOICE ──
+    ws = wb.active
+    ws.title = "INVOICE"
+    hr = _z968_head_block(ws, "COMMERCIAL  INVOICE", dm, F, border)
+    heads = [("A", "12) Marks and\nNumber of PKGS"), ("D", "13) Description of Goods"),
+             ("F", "14) Q'ty /Unit"), ("H", "15) Unit Price"), ("I", "16) Amount"),
+             ("K", "원산지"), ("M", "CATEGORY"), ("N", "HS code"), ("O", "Tên hàng")]
+    for col, t in heads:
+        cell = ws[f"{col}{hr}"]
+        cell.value = t
+        cell.font = F(size=9, bold=True)
+        cell.fill = head_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = border
+    r = hr + 1
+    mgmt = p.get("mgmt_code") or ""
+    for l in lines:
+        ws[f"B{r}"] = mgmt
+        ws[f"D{r}"] = l["spec"] or l["part_name"]
+        ws[f"F{r}"] = l["qty"]
+        ws[f"G{r}"] = l["unit"]
+        ws[f"H{r}"] = l["unit_price"]
+        ws[f"I{r}"] = l["amount"]
+        ws[f"K{r}"] = l["origin"]
+        desc = l.get("description") or ""
+        ws[f"M{r}"] = (desc.split("#&")[0].strip() if "#&" in desc else "")
+        ws[f"N{r}"] = l["hs_code"]
+        ws[f"O{r}"] = desc
+        for col in ("H", "I"):
+            ws[f"{col}{r}"].number_format = "#,##0.00"
+        r += 1
+    ws[f"D{r}"] = "TOTAL"
+    ws[f"D{r}"].font = F(size=10, bold=True)
+    ws[f"F{r}"] = ci["total_qty"]
+    ws[f"I{r}"] = ci["total_amount"]
+    ws[f"I{r}"].number_format = "#,##0.00"
+    ws[f"I{r}"].font = F(size=10, bold=True)
+    for w_, col in ((6, "A"), (14, "B"), (4, "C"), (26, "D"), (4, "E"), (8, "F"), (6, "G"),
+                    (12, "H"), (13, "I"), (3, "J"), (9, "K"), (9, "L"), (16, "M"), (11, "N"), (52, "O")):
+        ws.column_dimensions[col].width = w_
+
+    # ── 시트2: PACKING LIST ──
+    ws2 = wb.create_sheet("PACKING LIST")
+    hr2 = _z968_head_block(ws2, "PACKING  LIST", dm, F, border)
+    heads2 = [("A", "12) Marks and\nNumber of PKGS"), ("D", "13) Description of Goods"),
+              ("F", "14) Q'ty /Unit"), ("H", "Net-\nWeight"), ("I", "Gross-\nWeight"),
+              ("J", "Measurement"), ("L", "NO."), ("M", "SIZE"), ("N", "G/W")]
+    for col, t in heads2:
+        cell = ws2[f"{col}{hr2}"]
+        cell.value = t
+        cell.font = F(size=9, bold=True)
+        cell.fill = head_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = border
+    r = hr2 + 1
+    br = hr2 + 1   # 우측 박스 요약 행
+    for bx in (box_list or []):
+        ws2[f"L{br}"] = bx.get("box")
+        _sz = ""
+        for it in bx.get("items", []):
+            if (it.get("pallet_size") or "").strip():
+                _sz = it["pallet_size"].strip()
+                break
+        ws2[f"M{br}"] = _sz
+        ws2[f"N{br}"] = round(float(bx.get("weight") or 0), 1)
+        br += 1
+    tq = tw = 0.0
+    for l in (pl_lines or []):
+        ws2[f"B{r}"] = mgmt
+        ws2[f"D{r}"] = l.get("spec") or l.get("part_name") or ""
+        ws2[f"F{r}"] = l.get("qty")
+        ws2[f"G{r}"] = l.get("unit") or "EA"
+        _w = float(l.get("weight_kg") or 0)
+        if _w:
+            ws2[f"I{r}"] = _w
+        tq += float(l.get("qty") or 0)
+        tw += _w
+        r += 1
+    ws2[f"D{r}"] = "TOTAL"
+    ws2[f"D{r}"].font = F(size=10, bold=True)
+    ws2[f"F{r}"] = round(tq, 2)
+    ws2[f"I{r}"] = round(tw, 1)
+    ws2[f"I{r}"].font = F(size=10, bold=True)
+    for w_, col in ((6, "A"), (14, "B"), (4, "C"), (26, "D"), (4, "E"), (8, "F"), (6, "G"),
+                    (9, "H"), (9, "I"), (12, "J"), (3, "K"), (7, "L"), (22, "M"), (9, "N")):
+        ws2.column_dimensions[col].width = w_
+
+    buf = _io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    from urllib.parse import quote
+    import datetime as _dt
+    fn = f"Invoice&packinglist_VN({_dt.date.today().strftime('%y%m%d')})_{mgmt or pid}.xlsx"
+    return StreamingResponse(
+        buf, media_type=_XLSX_MIME,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
+                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma": "no-cache", "Expires": "0"})
 
 
 @app.get("/export/prep/{pid:int}/packing-list", response_class=HTMLResponse)
