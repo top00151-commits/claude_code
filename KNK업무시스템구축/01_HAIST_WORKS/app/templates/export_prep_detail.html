@@ -323,12 +323,21 @@
       });
     }
   }
+  // v5H226z965 (대표 지적·버그수정): 표 폭을 '보이는 컬럼 폭 합'으로 동적 지정.
+  //   CSS min-width:1280px 만 믿으면, 여러 칸 숨겨 '남은 폭 합 < 1280'이 될 때 브라우저가 표를 1280으로 늘리며
+  //   '폭0으로 접은 칸까지 되살림'(=숨김이 무력화·인보이스단가/금액/관세 그대로 보임). → 보이는 합으로 width+minWidth 덮어써 숨긴 칸 진짜 0 유지.
+  function colDefW(k){ var c=colEl(k); return (c && parseInt(c.getAttribute('width'),10)) || 80; }
+  function fitTableWidth(){
+    var tot=0; allKeys().forEach(function(k){ if(!P.hidden[k]) tot += (P.w[k] || colDefW(k)); });
+    grid.style.width = tot+'px'; grid.style.minWidth = tot+'px';
+  }
   function applyOne(k){
     var c=colEl(k), th=grid.querySelector('thead th[data-col="'+k+'"]'), hidden=!!P.hidden[k];
     var wv = hidden ? '0px' : (P.w[k] ? P.w[k]+'px' : '');
     if(c) c.style.width = wv;
     if(th){ th.style.width = wv; th.classList.toggle('col-collapsed', hidden); }
     grid.querySelectorAll('td[data-col="'+k+'"]').forEach(function(td){ td.classList.toggle('col-collapsed', hidden); });
+    fitTableWidth();   // v5H226z965: 숨김/폭 변경 시 표 폭 재계산 → 숨긴 칸 진짜 0 유지(1280 되살림 방지)
   }
   function applyAll(){ allKeys().forEach(applyOne); }
 
