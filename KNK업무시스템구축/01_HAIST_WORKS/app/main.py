@@ -33661,6 +33661,7 @@ async def export_prep_list(req: Request):
                         WHERE o.project_id=p.id AND oi.origin IS NOT NULL AND TRIM(oi.origin)<>'') AS n_origin
                FROM projects p
                WHERE COALESCE(p.is_export,0)=1
+                 AND COALESCE(p.is_archived,0)=0
                  AND COALESCE(p.status,'') NOT IN ('취소')
                ORDER BY (COALESCE(p.status,'')='출하'), (p.due_date IS NULL), p.due_date ASC, p.id DESC
                LIMIT 300"""
