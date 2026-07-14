@@ -25502,6 +25502,12 @@ def _validate_manual_mgmt_code(raw_code, expect_letter):
     with db_session() as c:
         if c.execute("SELECT 1 FROM projects WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (code,)).fetchone():
             return (False, "이미 사용 중인 번호")
+        # v5H226z954 (대표 지시): 소모품(consumable_orders)도 같은 관리번호 체계 → 양쪽 중복 검사(소모품 번호는 거기 저장)
+        try:
+            if c.execute("SELECT 1 FROM consumable_orders WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (code,)).fetchone():
+                return (False, "이미 사용 중인 번호(소모품)")
+        except Exception:
+            pass
         # v5H226z940 (대표 지시): 완전삭제(봉인)됐던 번호도 '그 번호를 쓰는 살아있는(숨김보관 포함) 프로젝트가 없으면' 재사용 허용.
         #   (엑셀 병행 입력 중 실수로 만든 번호를 지우면 영영 못 쓰던 문제) — 위 projects 중복검사가 '겹치지 않으면'을 보장.
         #   → retired_mgmt_codes 봉인 차단 제거. (자동발번은 여전히 봉인 회피 유지 · 재사용 등록 시 봉인 자동 해제=핸들러)
@@ -37012,7 +37018,8 @@ async def consumables_new_form(request: Request, embed: str = ""):
     _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
     return ctx(request, "consumable_form_upload.html",
                user=u, active="consumables", embed=_embed,
-               customers=_logi.customers_for_picker())
+               customers=_logi.customers_for_picker(),
+               can_manual_mgmt=_can_manual_mgmt(u))
 
 
 @app.post("/consumables/create-direct")
@@ -37024,6 +37031,7 @@ async def consumables_create_direct(request: Request,
                                     due_date: str = Form(""),
                                     currency: str = Form("KRW"),
                                     note: str = Form(""),
+                                    manual_mgmt_code: str = Form(""),
                                     mode: str = Form("")):
     """v5H226z309/z312 (대표 지시): 엑셀 없이 시스템에서 직접(수기) 소모품 수주 등록 —
     빈 발주 생성(관리번호·수주번호 자동) 후 상세 화면으로 이동해 정보·라인·사진을 직접 입력.
@@ -37055,10 +37063,23 @@ async def consumables_create_direct(request: Request,
             r = c.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (cust_name,)).fetchone()
         if r:
             cid = r[0]   # 자유입력이 등록 고객사와 정확히 일치하면 연결(아니면 미연결 — 상세에서 선택)
+    # v5H226z954 (대표 지시): 관리번호 수동 지정 — 지정 3명만·검증(형식 C·중복[프로젝트+소모품]·재사용). 비우면 자동발급.
+    _override = None
+    _mm = (manual_mgmt_code or "").strip().upper()
+    if _mm:
+        if not _can_manual_mgmt(u):
+            return (JSONResponse({"ok": False, "error": "관리번호 수동 지정 권한이 없습니다"}, 403) if _json
+                    else RedirectResponse("/consumables?err=manual_perm", 303))
+        _ok, _res = _validate_manual_mgmt_code(_mm, "C")
+        if not _ok:
+            return (JSONResponse({"ok": False, "error": "관리번호 사용 불가 — " + _res}, 400) if _json
+                    else RedirectResponse("/consumables?err=manual_invalid", 303))
+        _override = _res
     co_id, _co_no = _co.co_create(customer_name=cust_name, biz_div=_bd,
                                   order_date=(order_date or ""), due_date=(due_date or ""),
                                   currency=(currency or "KRW"), note=(note or ""),
-                                  source_file="직접등록", created_by=u.get("id"))
+                                  source_file="직접등록", created_by=u.get("id"),
+                                  mgmt_code_override=_override)
     if cid:
         # v5H226z310 (적대검토·연결성 절대준수): 명시 선택/정확매칭된 고객사 직접 set, 실패 표면화(except:pass 금지)
         with db_session() as c:

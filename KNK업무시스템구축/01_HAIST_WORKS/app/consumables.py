@@ -620,7 +620,8 @@ def match_customer_by_name(name: str) -> dict | None:
 def co_create(customer_name: str = "", biz_div: str = "",
               order_date: str = "", due_date: str = "",
               currency: str = "KRW", note: str = "", source_file: str = "",
-              created_by: int | None = None) -> tuple[int, str]:
+              created_by: int | None = None,
+              mgmt_code_override: str | None = None) -> tuple[int, str]:
     """v5H216: 소모품 묶음 생성 시 'S' prefix 관리번호 자동 발급.
     v5H218: biz_div(T/M) 추가 — 진행 사업부 별 매출 집계용."""
     # v5H226z248: 발주번호 = 수주번호 형식 [사업부]-[YYMMDD]. 날짜는 발주일 기준(수주번호 관례).
@@ -653,7 +654,8 @@ def co_create(customer_name: str = "", biz_div: str = "",
         #   현재월 2606 으로 몰리던 문제). _co_ref 없으면(발주일 누락) 현재월 폴백.
         try:
             from .database import generate_mgmt_code
-            mgmt_code = generate_mgmt_code("C", _co_ref)
+            # v5H226z954 (대표 지시): 관리번호 수동 지정(override·라우트에서 검증필) 있으면 그 번호, 없으면 자동발급
+            mgmt_code = (str(mgmt_code_override or "").strip().upper() or generate_mgmt_code("C", _co_ref))
         except Exception:
             mgmt_code = None
         try:
