@@ -420,7 +420,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="12" style="text-align:right;">합계</td>
+            {# v5H226z957 (대표 지시): 합계를 '금액' 컬럼 아래로 정렬 — 18컬럼 중 금액=11번째라 앞 10칸 colspan(기존 12는 20폭이라 어긋났음). #}
+            <td colspan="10" style="text-align:right;">합계</td>
             <td class="amount" id="footTotal">{{ (co.total_amount or 0)|money(co.currency or 'KRW') }}</td>
             <td colspan="7"></td>
           </tr>

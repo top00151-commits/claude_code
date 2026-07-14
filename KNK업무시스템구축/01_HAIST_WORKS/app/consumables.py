@@ -56,11 +56,11 @@ def generate_co_no(biz_div: str = "M", today=None) -> str:
                         nums.append(r[0])
             except Exception:
                 pass
-    if not nums:
-        return base  # 같은 날 첫 건 → 접미 없음
+    # v5H226z957 (대표 지시): 수주번호는 첫 건부터 -1 (프로젝트 수주와 통일). 접미 없는 옛 데이터(base)는 -1 자리로 간주해 충돌 회피.
     max_n = 0
     for on in nums:
         if on == base:
+            max_n = max(max_n, 1)
             continue
         m = re.match(rf"^{re.escape(base)}-(\d+)$", on)
         if m:
