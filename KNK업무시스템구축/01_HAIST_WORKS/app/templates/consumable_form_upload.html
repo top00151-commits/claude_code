@@ -80,6 +80,8 @@ html,body{background:#fff!important;overflow:auto!important;}
 <div class="app">
   {% set active_tab = "sales" %}
   {% if not embed %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+  {# v5H226z962 (대표 지시·사진1↔2 차이): 모달(작업일정표=embed)에선 chrome을 안 불러 전역 드롭존(dragdrop)이 빠져 '드래그&드롭 파일칸'이 안 보였음(전체화면=프로젝트엔 있음). embed일 때만 직접 include해 두 경로 일치(비-embed는 chrome이 이미 로드 → 중복 방지). #}
+  {% if embed %}{% include "_v5_partials/dragdrop.html" ignore missing %}{% endif %}
   {# v5H226z958 (대표 지시): 고객사 = 검사기 등록과 동일한 검색형 선택창(시스템명·별칭 검색). 공용 위젯 로드. #}
   {% include "_v5_partials/customer_picker.html" %}
   <main class="main" data-dn="main" data-dn-tone="amber">
