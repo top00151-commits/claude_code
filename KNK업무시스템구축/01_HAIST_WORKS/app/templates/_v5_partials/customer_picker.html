@@ -58,11 +58,14 @@ window.KNKCust = (function(){
     function isFree(){ return inp.getAttribute('data-cust-free')==='1'; }
     function mark(ok){ var k=isFree()||ok; inp.setAttribute('data-cust-ok', k?'1':'0');
       inp.classList.toggle('knkcust-bad', isFree()?false:(required ? !ok : (!!inp.value.trim() && !ok))); }
-    function setSel(o){ hName.value=o.name||''; hId.value=o.id||''; inp.value=disp(o); mark(true); dd.style.display='none'; }
+    // v5H226z958 (대표 지시): 선택 '확정' 시에만 change 발화 — 소모품 상세의 기존 자동저장(.ef data-field=customer_id)이 hidden 변경을 감지.
+    //   (입력 중 transient clearSel 에는 발화 안 함 → 타이핑 도중 고객사 지워짐/저장 방지). 폼 제출용 기존 사용처는 change 리스너 없어 무해.
+    function fire(){ try{ inp.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){} }
+    function setSel(o){ hName.value=o.name||''; hId.value=o.id||''; inp.value=disp(o); mark(true); dd.style.display='none'; fire(); }
     function clearSel(){ hName.value=''; hId.value=''; mark(false); }
     // 신규고객 모드 토글 — 체크박스에서 KNKCust.setFree(input, bool) 로 호출
     inp.__custSetFree=function(free){ inp.setAttribute('data-cust-free', free?'1':'0');
-      if(free){ hName.value=inp.value.trim(); hId.value=''; mark(true); }
+      if(free){ hName.value=inp.value.trim(); hId.value=''; mark(true); fire(); }
       else { var o=findExact(inp.value); if(o){ setSel(o); } else { clearSel(); } } };
     function render(q){
       var t=norm(q), qq=(q||'').trim();
@@ -84,6 +87,9 @@ window.KNKCust = (function(){
     dd.addEventListener('mousedown', function(e){ var it=e.target.closest('.knkcust-it'); if(!it) return; e.preventDefault();
       var o=_opts[parseInt(it.getAttribute('data-i'),10)]; if(o) setSel(o); });
     load().then(function(){
+      // v5H226z958 (대표 지시): 정확 프리셀렉트 — customer_id 우선(같은 상호·다른 종사업장도 정확히). 없으면 상호명 텍스트로 매칭.
+      var _iid=inp.getAttribute('data-cust-initial-id');
+      if(_iid){ var oi=(_opts||[]).filter(function(x){ return String(x.id)===String(_iid); })[0]; if(oi){ setSel(oi); return; } }
       if(initial){ var o=findExact(initial); if(o){ setSel(o); } else { inp.value=initial; clearSel(); } }
       else { mark(!required && !inp.value.trim() ? true : false); if(!inp.value.trim()) inp.classList.toggle('knkcust-bad', required); }
     });

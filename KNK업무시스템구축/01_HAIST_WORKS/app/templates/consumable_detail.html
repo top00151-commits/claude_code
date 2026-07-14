@@ -101,6 +101,10 @@ table.items tbody tr:hover td { background: #fffdf5; }   /* board 크림 hover *
 .card { transition: none; }
 .card:hover { transform: none; box-shadow: 0 1px 2px rgba(15,23,42,.04); border-color: var(--qv-line); }
 .header-grid .ef.cust-bad { color:#b91c1c; background:#fef2f2; }
+/* v5H226z958 (대표 지시): 고객사 검색형 선택창 — 셀 안에서 다른 .ef 칸과 동일하게 꽉 차게. */
+#coCustWrap .knkcust-wrap { flex:1 1 0; min-width:0; }
+#coCustWrap input[data-cust-picker] { width:100%; }
+#coCustWrap .knkcust-dd { font-size:12px; }
 .co-tabs { display:flex; gap:6px; margin:18px 0 0; }
 .co-tab { padding:8px 16px; border:1px solid var(--qv-line); border-bottom:none; border-radius:8px 8px 0 0; background:#f4f4f5; color:var(--qv-ink-2); font-weight:700; font-size:13px; cursor:pointer; }
 .co-tab.active { background:#fff; color:var(--knk-red); box-shadow:0 -2px 0 var(--knk-red) inset; }
@@ -247,6 +251,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
     </div>
     {# z886(대표 지시·규정): 부서/사용자 선택창 표준 위젯 — 본사/베트남 탭+검색+선택칩 #}
     {% include "_knk_picker.html" %}
+    {# v5H226z958 (대표 지시): 고객사 검색형 선택창(시스템명·별칭 검색) 공용 위젯 로드 — 검사기 등록과 동일. #}
+    {% include "_v5_partials/customer_picker.html" %}
 
     <div class="card">
       {# v5H226z306(대표 지시): 정보란 재배치 — 의미 묶음 4개 + 칸 테두리 + 읽기전용 구분. data-field·#totalAmount 유지(양방향 동기화) #}
@@ -268,11 +274,13 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         <div class="info-sect">
           <div class="sect-label">고객</div>
           <div class="info-row c4">
-            <div class="h-cell"><div class="lbl">고객사</div>
-              <select class="ef{% if not co.customer_id %} cust-bad{% endif %}" data-field="customer_id" title="등록된 고객사 중에서 선택">
-                {% if not co.customer_id %}<option value="" selected>⚠ 미등록: {{ co.customer_name or '(없음)' }} — 선택하세요</option>{% endif %}
-                {% for cu in customers %}<option value="{{ cu.id }}"{% if co.customer_id == cu.id %} selected{% endif %}>{{ cu.name }}</option>{% endfor %}
-              </select></div>
+            {# v5H226z958 (대표 지시): 고객사 = 검사기 등록과 동일한 검색형 선택창(시스템명·별칭 검색·customer_id 정확바인딩).
+               저장은 hidden #coCustIdField(.ef data-field=customer_id)로 기존 자동저장/💾수정반영에 그대로 연결(아래 브리지 스크립트). #}
+            <div class="h-cell" id="coCustWrap"><div class="lbl">고객사</div>
+              <input type="hidden" class="ef" data-field="customer_id" id="coCustIdField" value="{{ co.customer_id or '' }}">
+              <input data-cust-picker data-cust-name="__co_cust_name" data-cust-id="__co_cust_id" data-cust-required="1"
+                     data-cust-initial="{{ (co.customer_name or '')|e }}"{% if co.customer_id %} data-cust-initial-id="{{ co.customer_id }}"{% endif %}
+                     placeholder="고객사명·시스템명 검색" autocomplete="off"></div>
             <div class="h-cell"><div class="lbl">2차 고객사</div><input class="ef" data-field="secondary_customer" value="{{ co.secondary_customer|e }}" placeholder="—"></div>
             <div class="h-cell"><div class="lbl">고객 담당자</div><input class="ef" data-field="cc_name" value="{{ co.cc_name|e }}" placeholder="—"></div>
             <div class="h-cell"><div class="lbl">연락처</div><input class="ef" data-field="cc_phone" value="{{ co.cc_phone|e }}" placeholder="—"></div>
@@ -632,6 +640,23 @@ async function coSaveAll(){
   }catch(e){ if(btn){ btn.disabled=false; btn.textContent=_t; } alert('통신 오류: '+e); }
 }
 window.coSaveAll = coSaveAll;
+
+// v5H226z958 (대표 지시): 고객사 검색형 선택창 → 기존 자동저장 브리지.
+//   KNKCust picker 가 고객사를 '확정'하면 change 발화 → hidden(__co_cust_id) 값을 #coCustIdField(.ef data-field=customer_id)로 복사 후 change 재발화 → 기존 .ef 자동저장이 그대로 처리(💾수정반영·coSaveAll도 동일 hidden 수집).
+(function(){
+  var pick = document.querySelector('#coCustWrap input[data-cust-picker]');
+  var field = document.getElementById('coCustIdField');
+  if(!pick || !field) return;
+  pick.addEventListener('change', function(){
+    var wrap = pick.closest('.knkcust-wrap') || document;
+    var hid = wrap.querySelector('input[data-cust-h="__co_cust_id"]');
+    var v = hid ? (hid.value || '') : '';
+    if(String(field.value||'') !== String(v)){
+      field.value = v;
+      field.dispatchEvent(new Event('change', {bubbles:true}));   // → line 594 자동저장 발화(POST /consumables/{id}/save-field)
+    }
+  });
+})();
 
 document.querySelectorAll('table.items tbody input[data-k]').forEach(inp => {   // v5H226z725: data-k(라인 단위)만 — 발주 공통 .ef 칸은 별도 저장
   inp.addEventListener('change', async () => {

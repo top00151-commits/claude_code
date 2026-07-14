@@ -77,6 +77,8 @@ html,body{background:#fff!important;overflow:auto!important;}
 <div class="app">
   {% set active_tab = "sales" %}
   {% if not embed %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+  {# v5H226z958 (대표 지시): 고객사 = 검사기 등록과 동일한 검색형 선택창(시스템명·별칭 검색). 공용 위젯 로드. #}
+  {% include "_v5_partials/customer_picker.html" %}
   <main class="main" data-dn="main" data-dn-tone="amber">
     <div class="page-head" data-dn="page-head">
       <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 수주</a> · <b>C 소모품 입력</b></div>
@@ -109,11 +111,9 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="L">라이프밸류사업부</option>
             </select>
           </div>
+          {# v5H226z958 (대표 지시): 고객사 = 검사기 등록과 동일한 검색형 선택창(시스템명·별칭 검색·customer_id 정확바인딩). 미선택(빈칸) 허용 — 상세에서 선택 가능. #}
           <div class="field"><label>고객사 <a href="/customers" target="_blank" style="font-size:10px;color:var(--qv-ink-2);">+신규</a></label>
-            <input list="custList" name="customer_name" placeholder="고객사명" />
-            <datalist id="custList">
-              {% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}
-            </datalist>
+            <input data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" placeholder="고객사명·시스템명 검색" autocomplete="off" />
           </div>
           <div class="field"><label>발주일</label><input type="date" name="order_date" /></div>
           <div class="field"><label>납기</label><input type="date" name="due_date" /></div>
@@ -264,7 +264,9 @@ document.getElementById('directBtn').addEventListener('click', async () => {
   const fd = new FormData();
   fd.append('mode', 'json');
   fd.append('biz_div', bd);
-  fd.append('customer_name', form.customer_name.value || '');
+  // v5H226z958 (대표 지시): 검색형 선택창이 만든 hidden(customer_name·customer_id) 전송 — id 우선 정확 연결.
+  fd.append('customer_name', (form.querySelector('input[data-cust-h="customer_name"]') || {}).value || '');
+  fd.append('customer_id', (form.querySelector('input[data-cust-h="customer_id"]') || {}).value || '');
   fd.append('order_date', form.order_date.value || '');
   fd.append('due_date', form.due_date.value || '');
   fd.append('currency', form.currency.value || 'KRW');
