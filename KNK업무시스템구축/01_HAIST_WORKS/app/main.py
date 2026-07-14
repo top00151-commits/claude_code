@@ -37188,6 +37188,29 @@ async def consumables_import_bulk(request: Request, file: UploadFile = File(...)
         shutil.rmtree(tmp_dir, ignore_errors=True)
     else:
         res["token"] = os.path.basename(tmp_dir)   # 확정 때 사진을 이 임시폴더에서 발주별로 이동
+        # v5H226z959 (대표 지시): 소모품 엑셀 '관리번호' 칸 직접 지정 — 미리보기서 검증(채운 것만). 직접등록(Part1·z954)과 동일 규칙.
+        #   채우면(예전 데이터) 검증 통과분만 그 번호로 / 비우면(신규) 자동발급. 확정 때 재검증(정합성). 잘못/중복은 그 발주만 오류로 막음(자동발급 대체 안 함).
+        _can_mm = _can_manual_mgmt(u)
+        _seen_mm = set()
+        for _o in (res.get("orders") or []):
+            _mm = (_o.get("mgmt_code") or "").strip().upper()
+            _o["_mgmt_auto"] = (not _mm)
+            if not _mm:
+                continue
+            _errs = _o.setdefault("_errors", [])
+            if not _can_mm:
+                _errs.append(f"관리번호({_mm}) 직접 지정 권한이 없습니다 — 비우면 자동발급됩니다(지정자만 직접 입력)")
+                continue
+            if _mm in _seen_mm:
+                _errs.append(f"관리번호({_mm}) 같은 파일 내에서 중복")
+                continue
+            _okv, _resv = _validate_manual_mgmt_code(_mm, "C")
+            if not _okv:
+                _errs.append(f"관리번호({_mm}) 사용 불가 — {_resv}")
+                continue
+            _seen_mm.add(_resv)
+            _o["mgmt_code"] = _resv          # 정규화된 코드로 갱신(확정 때 그대로 사용)
+            _o["_mgmt_manual_ok"] = True
     return JSONResponse(res)
 
 
@@ -37221,6 +37244,7 @@ async def consumables_import_bulk_confirm(request: Request):
     _safe_img = _re.compile(r"^l\d+_\d+(_t)?\.jpg$")
     created, failed, link_warnings, unmatched_customers = [], [], [], []
     images_attached = 0; images_failed = 0
+    _batch_used_mgmt = set()   # v5H226z959: 이 확정 요청 안에서 이미 쓴 수동 관리번호(배치 내 중복 차단)
     # v5H226z672 (대표 지시): 소모품 '-N' 묶음 자동발행 폐기 — consumable_orders 칸이 단일 진실.
     for o in orders:
         if o.get("_errors"):   # 차단 오류 발주는 스킵(연결성 표면화)
@@ -37234,6 +37258,22 @@ async def consumables_import_bulk_confirm(request: Request):
         cust_raw = (o.get("customer_name") or "").strip()
         _match = _co.match_customer_by_name(cust_raw) if cust_raw else None
         cust_name = _match["name"] if _match else cust_raw
+        # v5H226z959 (대표 지시): 관리번호 직접 지정 — 채우면 검증(권한·형식 C·중복[프로젝트+소모품]·배치내)한 번호로, 비우면 자동발급.
+        #   잘못/중복이면 그 발주만 막음(자동발급으로 몰래 대체 안 함 — 예전 번호 맞추기 보전). 미리보기서도 검증하나 여기서 재검증(정합성).
+        _mm = (o.get("mgmt_code") or "").strip().upper()
+        _mgmt_override = None
+        if _mm:
+            if not _can_manual_mgmt(u):
+                failed.append({"customer": cust_name, "error": f"관리번호({_mm}) 직접 지정 권한 없음 — 비우면 자동발급"})
+                continue
+            if _mm in _batch_used_mgmt:
+                failed.append({"customer": cust_name, "error": f"관리번호({_mm}) 같은 파일 내 중복"})
+                continue
+            _okv, _resv = _validate_manual_mgmt_code(_mm, "C")
+            if not _okv:
+                failed.append({"customer": cust_name, "error": f"관리번호({_mm}) 사용 불가 — {_resv}"})
+                continue
+            _mgmt_override = _resv
         try:
             co_id, co_no = _co.co_create(
                 customer_name=cust_name, biz_div="",     # 소모품: 관리번호 C 자동·진행사업부 미사용
@@ -37241,10 +37281,22 @@ async def consumables_import_bulk_confirm(request: Request):
                 due_date=(o.get("due_date") or "").strip(),
                 currency=(o.get("currency") or "KRW").strip().upper(),
                 note=(o.get("note") or "").strip(),
-                source_file="통합 일괄등록(표준양식)", created_by=u.get("id"))
+                source_file="통합 일괄등록(표준양식)", created_by=u.get("id"),
+                mgmt_code_override=_mgmt_override)
         except Exception as e:
             failed.append({"customer": cust_name, "error": f"발주 생성 실패: {str(e)[:120]}"})
             continue
+        if _mgmt_override:
+            _batch_used_mgmt.add(_mgmt_override)
+        # v5H226z959: 발급된 관리번호(수동=override / 자동=DB 회수) — 결과 표시(신규 자동발급분 확인용).
+        _issued_mgmt = _mgmt_override or ""
+        if not _issued_mgmt:
+            try:
+                with db_session() as c:
+                    _rr = c.execute("SELECT mgmt_code FROM consumable_orders WHERE id=?", (co_id,)).fetchone()
+                _issued_mgmt = (_rr[0] if _rr and _rr[0] else "") or ""
+            except Exception:
+                _issued_mgmt = ""
         # 리뷰반영: 미등록(미연결) 고객사는 확정 후에도 표면화(텍스트로만 저장됨 — 확인 유도)
         if not _match and cust_raw:
             unmatched_customers.append({"co_no": co_no, "customer": cust_raw})
@@ -37361,7 +37413,8 @@ async def consumables_import_bulk_confirm(request: Request):
             failed.append({"customer": cust_name, "co_no": co_no,
                            "error": f"품목 저장 실패: {str(e)[:120]}"})
             continue
-        created.append({"co_no": co_no, "customer": cust_name,
+        created.append({"co_no": co_no, "mgmt_code": _issued_mgmt, "manual_mgmt": bool(_mgmt_override),
+                        "customer": cust_name,
                         "order_date": o.get("order_date"), "items": len(items_out),
                         "images": sum(1 for _io in items_out if _io.get("image_path") or _io.get("image_loc_path"))})
     # v5H226z672 (대표 지시): 소모품 자동 묶음 발행 폐기 — consumable_orders 칸이 단일 진실(위에서 기록).
