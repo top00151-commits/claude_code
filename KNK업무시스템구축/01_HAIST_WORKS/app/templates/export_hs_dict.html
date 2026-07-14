@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>베트남 HS 사전 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+{# v5H226z967 (대표 지시): 베트남 HS코드 사전 관리 — 과거 통관 실적 사전(자동 채움의 근거) 검색·확정·업로드 성장 #}
+.hsd-stats { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 14px; }
+.hsd-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:99px; border:1px solid var(--qv-line,#e2ddd0); background:#fff; font-size:12.5px; font-weight:700; color:var(--qv-ink-2,#334155); text-decoration:none; }
+.hsd-chip b { font-size:14px; }
+.hsd-chip.on { border-color:var(--knk-red,#b0271f); color:var(--knk-red,#b0271f); background:#fff5f5; }
+.hsd-chip .dot { width:9px; height:9px; border-radius:50%; }
+.hsd-card { background:#fff; border:1px solid var(--qv-line,#e2ddd0); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.hsd-tbl { width:100%; border-collapse:collapse; font-size:12px; background:#fff; }
+.hsd-tbl th { position:sticky; top:0; background:var(--paper-2,#f4f1e8); color:var(--knk-red,#b0271f); font-size:10.5px; font-weight:700; padding:7px 8px; border-bottom:2px solid var(--knk-red,#b0271f); text-align:left; z-index:3; }
+.hsd-tbl td { padding:5px 8px; border-bottom:1px solid #f0ebdd; vertical-align:middle; }
+.hsd-tbl tr:hover td { background:#fffdf5; }
+.hsd-tbl input, .hsd-tbl select { padding:4px 7px; border:1px solid var(--qv-line,#e2ddd0); border-radius:5px; font:inherit; font-size:12px; background:#fff; box-sizing:border-box; }
+.hsd-tbl input.hs { width:92px; font-family:Consolas,monospace; font-weight:700; }
+.hsd-tbl input.vn { width:100%; min-width:220px; }
+.hsd-tbl input.org { width:70px; }
+.st-pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:10.5px; font-weight:800; }
+.st-CONFIRMED { background:#dcfce7; color:#15803d; }
+.st-PENDING { background:#fee2e2; color:#b91c1c; }
+.st-AI { background:#fef9c3; color:#a16207; }
+.hsd-save { padding:5px 12px; border:1px solid #1d4ed8; background:#eff6ff; color:#1d4ed8; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; }
+.hsd-save:hover { background:#1d4ed8; color:#fff; }
+.hsd-wrap { max-height:calc(100vh - 330px); overflow:auto; border:1px solid var(--qv-line,#e2ddd0); border-radius:8px; }
+.hsd-note { font-size:10.5px; color:#b45309; }
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <div class="page-head" data-dn="page-head">
+    <div>
+      <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <b>베트남 HS 사전</b></div>
+      <h1 class="page-title" data-dn="title">📖 베트남 HS코드 사전</h1>
+      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
+        과거 인보이스(베트남 세관 통과 실적)에서 쌓인 부품별 HS코드·베트남어 품명 — 통관 입력 [🤖 HS 자동 채움]의 근거.
+        <b style="color:#b91c1c;">확인 대기(충돌)</b>·<b style="color:#a16207;">AI 추정</b>은 검토 후 <b>확정</b>으로 바꿔야 자동 채움에 쓰입니다.
+      </div>
+    </div>
+  </div>
+
+  <div class="hsd-stats">
+    {% set _all = (st is not defined) or (not st) %}
+    <a class="hsd-chip {{ 'on' if not st }}" href="/export/hs-dict{% if q %}?q={{ q|urlencode }}{% endif %}">전체 <b>{{ total }}</b></a>
+    <a class="hsd-chip {{ 'on' if st=='PENDING' }}" href="/export/hs-dict?status=PENDING{% if q %}&q={{ q|urlencode }}{% endif %}"><span class="dot" style="background:#dc2626;"></span>확인 대기(충돌) <b>{{ stats.get('PENDING', 0) }}</b></a>
+    <a class="hsd-chip {{ 'on' if st=='AI' }}" href="/export/hs-dict?status=AI{% if q %}&q={{ q|urlencode }}{% endif %}"><span class="dot" style="background:#eab308;"></span>AI 추정 <b>{{ stats.get('AI', 0) }}</b></a>
+    <a class="hsd-chip {{ 'on' if st=='CONFIRMED' }}" href="/export/hs-dict?status=CONFIRMED{% if q %}&q={{ q|urlencode }}{% endif %}"><span class="dot" style="background:#16a34a;"></span>확정 <b>{{ stats.get('CONFIRMED', 0) }}</b></a>
+    <form method="get" action="/export/hs-dict" style="display:flex;gap:6px;margin-left:auto;">
+      {% if st %}<input type="hidden" name="status" value="{{ st }}">{% endif %}
+      <input name="q" value="{{ q|e }}" placeholder="🔍 규격·품명·HS 검색" style="padding:6px 10px;border:1px solid var(--qv-line);border-radius:7px;font-size:12.5px;width:220px;">
+      <button class="hsd-save" type="submit">검색</button>
+    </form>
+  </div>
+
+  {# 최종파일 업로드 — 사전 성장 #}
+  <div class="hsd-card">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <b style="font-size:13.5px;">📤 최종파일 업로드로 사전 키우기</b>
+      <span style="font-size:11.5px;color:var(--mute);">베트남에서 회수한 Invoice&PL(.xlsx) 여러 개 선택 가능 — 신규 부품은 추가·같은 부품 재출현은 갱신·<b style="color:#b91c1c;">다른 HS면 '확인 대기'로 전환</b>(자동 채움 제외).</span>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input type="file" id="hsdFiles" accept=".xlsx,.xlsm" multiple data-knk-no-dropzone>
+      <button class="hsd-save" type="button" onclick="hsdUpload()" id="hsdUpBtn">업로드</button>
+      <span id="hsdUpMsg" style="font-size:12px;"></span>
+    </div>
+    <div id="hsdUpResult" style="margin-top:6px;font-size:12px;color:var(--qv-ink-2);"></div>
+  </div>
+
+  <div class="hsd-wrap">
+    <table class="hsd-tbl">
+      <thead><tr>
+        <th style="width:96px;">상태</th><th style="width:170px;">규격(모델)</th><th style="width:150px;">영문 품명</th>
+        <th>베트남어 품명 (Tên hàng)</th><th style="width:100px;">HS코드</th><th style="width:80px;">원산지</th>
+        <th style="width:52px;">횟수</th><th style="width:86px;">최근</th><th style="width:70px;"></th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr data-did="{{ r.id }}">
+          <td>
+            <select name="status" style="font-size:11px;">
+              {% for s in ['CONFIRMED','PENDING','AI'] %}
+              <option value="{{ s }}"{% if r.status==s %} selected{% endif %}>{{ {'CONFIRMED':'✅ 확정','PENDING':'⛔ 확인 대기','AI':'🟡 AI 추정'}[s] }}</option>
+              {% endfor %}
+            </select>
+            {% if r.note %}<div class="hsd-note" title="{{ r.note|e }}">{{ r.note[:34] }}{% if r.note|length > 34 %}…{% endif %}</div>{% endif %}
+          </td>
+          <td style="font-weight:700;">{{ r.model or r.part_key }}</td>
+          <td style="color:var(--qv-ink-3);">{{ r.name_en or '' }}</td>
+          <td><input class="vn" name="vn_name" value="{{ (r.vn_name or '')|e }}" placeholder="Tên hàng"></td>
+          <td><input class="hs" name="hs_code" value="{{ r.hs_code or '' }}" maxlength="8" inputmode="numeric"></td>
+          <td><input class="org" name="origin" value="{{ (r.origin or '')|e }}"></td>
+          <td style="text-align:right;">{{ r.seen_count }}</td>
+          <td style="font-size:11px;color:var(--mute);">{{ (r.last_seen or '')[:10] }}</td>
+          <td><button class="hsd-save" type="button" onclick="hsdSave(this)">저장</button></td>
+        </tr>
+      {% endfor %}
+      {% if not rows %}
+        <tr><td colspan="9" style="padding:26px;text-align:center;color:var(--mute);">검색 결과가 없습니다.</td></tr>
+      {% endif %}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:8px;font-size:11.5px;color:var(--mute);">
+    최대 400건 표시(확인 대기·AI 추정 우선, 사용 많은 순) — 더 보려면 검색을 이용하세요.
+    수정 후 <b>[저장]</b>을 누르면 즉시 반영되고, <b>확정</b> 상태만 통관 입력 [🤖 HS 자동 채움]에 사용됩니다.
+  </div>
+</main>
+</div>
+<script>
+(function(){
+  window.hsdSave = async function(btn){
+    var tr = btn.closest('tr'); if(!tr) return;
+    var fd = new FormData();
+    ['status','vn_name','hs_code','origin'].forEach(function(nm){
+      var el = tr.querySelector('[name="'+nm+'"]'); if(el) fd.append(nm, el.value||'');
+    });
+    btn.disabled = true; var t = btn.textContent; btn.textContent = '…';
+    try {
+      var r = await fetch('/export/hs-dict/' + tr.dataset.did + '/save', {method:'POST', body:fd, credentials:'same-origin'});
+      var j = await r.json();
+      if(j.ok){ btn.textContent = '✓'; setTimeout(function(){ btn.textContent = t; btn.disabled = false; }, 900); }
+      else { alert('저장 실패: ' + (j.error||'')); btn.textContent = t; btn.disabled = false; }
+    } catch(e){ alert('통신 오류: ' + e); btn.textContent = t; btn.disabled = false; }
+  };
+  window.hsdUpload = async function(){
+    var inp = document.getElementById('hsdFiles');
+    var msg = document.getElementById('hsdUpMsg');
+    var res = document.getElementById('hsdUpResult');
+    var btn = document.getElementById('hsdUpBtn');
+    if(!inp.files || !inp.files.length){ alert('파일을 선택하세요 (.xlsx 여러 개 가능)'); return; }
+    var fd = new FormData();
+    for(var i=0;i<inp.files.length;i++) fd.append('files', inp.files[i]);
+    btn.disabled = true; msg.textContent = '⏳ 업로드·분석 중…'; msg.style.color = '#1d4ed8';
+    try {
+      var r = await fetch('/export/hs-dict/upload', {method:'POST', body:fd, credentials:'same-origin'});
+      var j = await r.json();
+      if(!j.ok){ msg.textContent = '❌ ' + (j.error||'실패'); msg.style.color = '#dc2626'; btn.disabled = false; return; }
+      var a=0,u2=0,cf=0,er=0, lines=[];
+      (j.results||[]).forEach(function(x){
+        if(x.error){ er++; lines.push('❌ ' + x.file + ' — ' + x.error); }
+        else { a+=x.added; u2+=x.updated; cf+=x.conflict; lines.push('✅ ' + x.file + ' — ' + x.rows + '행 (추가 ' + x.added + ' · 갱신 ' + x.updated + (x.conflict? ' · ⚠충돌 ' + x.conflict : '') + ')'); }
+      });
+      msg.textContent = '완료: 추가 ' + a + ' · 갱신 ' + u2 + (cf? ' · ⚠충돌 ' + cf + '(확인 대기로 전환)' : '') + (er? ' · 실패 ' + er : '');
+      msg.style.color = cf||er ? '#b45309' : '#15803d';
+      res.innerHTML = lines.map(function(s){ return '<div>' + s.replace(/</g,'&lt;') + '</div>'; }).join('');
+      setTimeout(function(){ location.reload(); }, cf||er ? 3500 : 1800);
+    } catch(e){ msg.textContent = '❌ 통신 오류: ' + e; msg.style.color = '#dc2626'; btn.disabled = false; }
+  };
+})();
+</script>
+</body></html>

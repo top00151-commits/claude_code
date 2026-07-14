@@ -33965,6 +33965,178 @@ async def export_hs_ai_suggest(req: Request, pid: int):
     return JSONResponse({"ok": True, "suggestions": suggestions})
 
 
+# v5H226z967 (대표 지시): HS 사전 관리 화면 + 최종파일(Invoice&PL) 업로드로 사전 성장.
+#   업로드 규칙: 신규 규격=CONFIRMED 추가 / 같은 HS 재출현=횟수·최신정보 갱신(AI였으면 CONFIRMED 승격 — 실적 확인)
+#   / 다른 HS 재출현=PENDING 전환(충돌 — 사람 확인 전 자동 채움 제외·note에 양쪽 기록).
+def _hs_parse_invoice_xlsx(data: bytes, fname: str) -> list[dict]:
+    """베트남 최종 인보이스(xlsx)에서 (규격→HS·베트남어명·원산지) 행 추출 — 19개 전수분석과 동일 헤더탐지.
+    반환 행: {model,key,hs,vn,name_en,origin}. 인식 실패 시 빈 리스트."""
+    import io as _io
+    import re as _re
+    import openpyxl as _px
+    HEAD_HS = _re.compile(r"HS\s*CODE|HS\s*code|^HS$", _re.I)
+    HEAD_VN = _re.compile(r"T[êe]n\s*h[àa]ng", _re.I)
+    HEAD_DESC = _re.compile(r"Description", _re.I)
+    HEAD_ORIGIN = _re.compile(r"원산지|Origin", _re.I)
+    wb = _px.load_workbook(_io.BytesIO(data), data_only=True)
+    ws = None
+    for s in wb.worksheets:
+        if "INVOICE" in s.title.upper() and s.sheet_state == "visible":
+            ws = s
+            break
+    if ws is None:
+        ws = wb.worksheets[0]
+    cols, header_r = {}, None
+    for r in range(1, min(ws.max_row, 45) + 1):
+        for cc in range(1, min(ws.max_column, 30) + 1):
+            v = ws.cell(r, cc).value
+            if v is None:
+                continue
+            t = str(v).strip()
+            if HEAD_HS.search(t) and len(t) < 20:
+                cols.setdefault("hs", cc)
+                header_r = max(header_r or 0, r)
+            if HEAD_VN.search(t):
+                cols.setdefault("vn", cc)
+            if HEAD_DESC.search(t):
+                cols.setdefault("model", cc)
+            if HEAD_ORIGIN.search(t):
+                cols.setdefault("origin", cc)
+    if "model" not in cols or "hs" not in cols:
+        return []
+    if "vn" not in cols:
+        cols["vn"] = cols["hs"] + 1   # 2604xx 양식: Tên hàng 헤더 공란 → HS 옆칸
+    out = []
+    for r in range((header_r or 33) + 1, ws.max_row + 1):
+        model = str(ws.cell(r, cols["model"]).value or "").strip()
+        if not model:
+            continue
+        import re as _re2
+        hs = _re2.sub(r"[^\d]", "", _re2.sub(r"\.0$", "", str(ws.cell(r, cols["hs"]).value or "")))
+        if len(hs) == 7:
+            hs = "0" + hs
+        if len(hs) != 8:
+            continue
+        vn = str(ws.cell(r, cols["vn"]).value or "").strip()
+        origin = str(ws.cell(r, cols["origin"]).value or "").strip() if "origin" in cols else ""
+        out.append({"model": model, "key": _hs_norm_key(model), "hs": hs, "vn": vn,
+                    "name_en": (vn.split("#&")[0].strip() if "#&" in vn else ""), "origin": origin})
+    return out
+
+
+@app.get("/export/hs-dict", response_class=HTMLResponse)
+async def export_hs_dict_page(req: Request):
+    """HS 사전 관리 — 검색·상태 필터·인라인 수정(HS·베트남어명·상태)·최종파일 업로드."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    q = (req.query_params.get("q") or "").strip()
+    st = (req.query_params.get("status") or "").strip().upper()
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        stats = {r["status"]: r["n"] for r in c.execute(
+            "SELECT status, COUNT(*) n FROM export_hs_dict GROUP BY status")}
+        sql = "SELECT * FROM export_hs_dict WHERE 1=1"
+        vals = []
+        if st in ("CONFIRMED", "PENDING", "AI"):
+            sql += " AND status=?"; vals.append(st)
+        if q:
+            sql += " AND (part_key LIKE ? OR model LIKE ? OR name_en LIKE ? OR hs_code LIKE ? OR vn_name LIKE ?)"
+            kk = f"%{q}%"
+            vals += [f"%{_hs_norm_key(q)}%", kk, kk, kk, kk]
+        sql += " ORDER BY CASE status WHEN 'PENDING' THEN 0 WHEN 'AI' THEN 1 ELSE 2 END, seen_count DESC, part_key LIMIT 400"
+        rows = [dict(r) for r in c.execute(sql, vals)]
+    return ctx(req, "export_hs_dict.html", user=u, active="export",
+               rows=rows, stats=stats, q=q, st=st,
+               total=sum(stats.values()))
+
+
+@app.post("/export/hs-dict/{did:int}/save")
+async def export_hs_dict_save(req: Request, did: int):
+    """사전 1건 인라인 수정 — HS·베트남어명·원산지·상태. PENDING/AI를 사람이 확정(CONFIRMED)하는 입구."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    form = await req.form()
+    import re as _re
+    hs = _re.sub(r"[^\d]", "", str(form.get("hs_code") or ""))
+    if hs and len(hs) != 8:
+        return JSONResponse({"ok": False, "error": "HS코드는 8자리 숫자입니다"}, 400)
+    st = (form.get("status") or "").strip().upper()
+    if st not in ("CONFIRMED", "PENDING", "AI"):
+        st = "CONFIRMED"
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        c.execute(
+            "UPDATE export_hs_dict SET hs_code=?, vn_name=?, origin=?, status=?, "
+            "updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
+            (hs, (form.get("vn_name") or "").strip(), (form.get("origin") or "").strip(),
+             st, u.get("id"), did))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/export/hs-dict/upload")
+async def export_hs_dict_upload(req: Request):
+    """최종파일(Invoice&PL xlsx·여러 개) 업로드 → 사전 성장. 파일별 결과(추가/갱신/충돌/실패) 반환."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    form = await req.form()
+    files = form.getlist("files")
+    if not files:
+        return JSONResponse({"ok": False, "error": "파일이 없습니다"}, 400)
+    results = []
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        today = c.execute("SELECT date('now','localtime')").fetchone()[0]
+        for f in files[:30]:
+            fname = getattr(f, "filename", "") or "upload.xlsx"
+            if not fname.lower().endswith((".xlsx", ".xlsm")):
+                results.append({"file": fname, "error": "엑셀(.xlsx)만 가능"})
+                continue
+            try:
+                rows = _hs_parse_invoice_xlsx(await f.read(), fname)
+            except Exception as e:
+                results.append({"file": fname, "error": f"파싱 실패: {str(e)[:100]}"})
+                continue
+            if not rows:
+                results.append({"file": fname, "error": "INVOICE 표(HS CODE 헤더)를 찾지 못함"})
+                continue
+            added = updated = conflict = 0
+            for row in rows:
+                ex = c.execute("SELECT id, hs_code, status FROM export_hs_dict WHERE part_key=?",
+                               (row["key"],)).fetchone()
+                if not ex:
+                    c.execute(
+                        "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,first_seen,last_seen,source_file,updated_by) "
+                        "VALUES(?,?,?,?,?,?, 'CONFIRMED',1,?,?,?,?)",
+                        (row["key"], row["model"], row["name_en"], row["vn"], row["hs"],
+                         row["origin"], today, today, fname, u.get("id")))
+                    added += 1
+                elif (ex["hs_code"] or "") == row["hs"]:
+                    # 같은 HS 재출현 — 실적 확인: AI 추정이었다면 CONFIRMED 승격
+                    c.execute(
+                        "UPDATE export_hs_dict SET seen_count=seen_count+1, last_seen=?, source_file=?, "
+                        "vn_name=CASE WHEN ?<>'' THEN ? ELSE vn_name END, "
+                        "origin=CASE WHEN ?<>'' THEN ? ELSE origin END, "
+                        "status=CASE WHEN status='AI' THEN 'CONFIRMED' ELSE status END, "
+                        "updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
+                        (today, fname, row["vn"], row["vn"], row["origin"], row["origin"],
+                         u.get("id"), ex["id"]))
+                    updated += 1
+                else:
+                    # 다른 HS 재출현 = 충돌 → PENDING(자동 채움 제외) + note 기록. 몰래 교체 금지(사람 확인).
+                    c.execute(
+                        "UPDATE export_hs_dict SET status='PENDING', "
+                        "note=('충돌: 기존 ' || COALESCE(hs_code,'') || ' ↔ 신규 ' || ? || ' (' || ? || ')'), "
+                        "last_seen=?, updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
+                        (row["hs"], fname, today, u.get("id"), ex["id"]))
+                    conflict += 1
+            results.append({"file": fname, "rows": len(rows), "added": added,
+                            "updated": updated, "conflict": conflict})
+    return JSONResponse({"ok": True, "results": results})
+
+
 # ------------------------------------------------------------
 # v5H226z463 (대표 지시·수출 2단계): 패킹리스트(PACKING LIST) — 1단계 통관 입력(order_items)에서 생성.
 #   인쇄(A4 HTML)·엑셀(KNK 표준). 데이터 출처 = order_items(품명·규격·원산지·HS·수량·중량·박스·팔레트).
