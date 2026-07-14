@@ -86,12 +86,15 @@ html,body{background:#fff!important;overflow:auto!important;}
   {% include "_v5_partials/customer_picker.html" %}
   <main class="main" data-dn="main" data-dn-tone="amber">
     <div class="page-head" data-dn="page-head">
-      <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 수주</a> · <b>C 소모품 입력</b></div>
-      <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span style="font-size:30px;">📦</span>
-        <span style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">C 소모품</span>
-        <em>등록</em>
-      </h1>
+      {# v5H226z963 (대표 지시·사진1↔2): .page-head 는 flex(space-between)라 직접 자식이 3개(crumbs·제목·링크)면 제목이 가운데로 퍼짐. 검사기 등록(project_quick_form)처럼 crumbs+제목을 한 div로 묶어 좌측 정렬(링크는 우측 유지). #}
+      <div>
+        <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 수주</a> · <b>C 소모품 입력</b></div>
+        <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:30px;">📦</span>
+          <span style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">C 소모품</span>
+          <em>등록</em>
+        </h1>
+      </div>
       <div style="margin-top:6px;">
         <a href="/projects/new{% if embed %}?embed=1{% endif %}" style="font-size:12px;color:var(--qv-ink-3);text-decoration:none;">← 다른 유형으로 변경</a>
       </div>
