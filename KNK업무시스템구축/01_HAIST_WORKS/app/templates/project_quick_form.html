@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>신규 등록 (간편) · KNK</title>
 {% include "_v5_partials/styles.html" %}
+{# v5H226z961 (대표 지시): 등록 폼 통화·날짜 규정 통일 — 정식 폼(project_form)과 동일하게 실시간 천단위 콤마(knk_inputs)+공휴일 표시 달력(knk_datepicker). 이 폼은 이미 knkScanMoney를 가드 호출하고 계산부가 콤마를 제거하도록 설계됨(=include만 누락됐던 것). 두 partial은 전역 1회 가드·모든 input[type=date] 자동부착·동적행 대응. #}
+{% include "_v5_partials/knk_inputs.html" %}
+{% include "_v5_partials/knk_datepicker.html" %}
 <style>
 /* v5H226z276: '엑셀처럼' 한 화면 평면 등록 폼 */
 /* v5H226z438(대표 지시·시트여백 표준): 좌우 1080px 캡+가운데정렬 제거 → 시트 풀폭 사용.
