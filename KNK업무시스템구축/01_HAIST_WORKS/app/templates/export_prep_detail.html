@@ -129,6 +129,43 @@
     </div>
   </details>
 
+  {# v5H226z970 (대표 지시): 박스별 무게·크기 — 실무는 부품별이 아니라 '박스 단위' 계량. 표의 '박스' 칸 번호를 자동 수집 → 박스마다 무게만 입력. 신고용 패킹리스트가 이 무게를 우선 사용. #}
+  <details style="margin:0 0 14px;border:1px solid #b9d2ff;border-radius:9px;background:#fbfdff;">
+    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:800;color:#1d4ed8;">📦 박스별 무게·크기 — <span id="bxHead">{{ boxes|length }}박스 등록됨</span> <span style="font-weight:500;color:#94a3b8;">(부품별 중량 대신 박스 단위로 — 저장하면 [📄 Invoice&amp;PL] 패킹리스트에 사용)</span></summary>
+    <div style="padding:4px 14px 12px;">
+      <div style="font-size:11.5px;color:#475569;margin-bottom:8px;line-height:1.7;">
+        ① 표의 <b>박스</b> 칸에 품목마다 박스번호(BOX-1, BOX-2…)를 적고 저장 → ② <b>[표에서 박스 불러오기]</b> → ③ 박스마다 <b>무게(kg)</b>·크기만 입력 후 저장.
+        부품별 중량은 몰라도 됩니다 — 안 쓰는 '중량' 칸은 [⚙ 컬럼 설정]에서 숨기세요.
+      </div>
+      <table style="border-collapse:collapse;font-size:12px;" id="bxTbl">
+        <thead><tr>
+          <th style="padding:5px 10px;background:#eef4fb;border:1px solid #d9e6fb;font-size:11px;">박스번호</th>
+          <th style="padding:5px 10px;background:#eef4fb;border:1px solid #d9e6fb;font-size:11px;">담긴 품목</th>
+          <th style="padding:5px 10px;background:#eef4fb;border:1px solid #d9e6fb;font-size:11px;">무게(kg)</th>
+          <th style="padding:5px 10px;background:#eef4fb;border:1px solid #d9e6fb;font-size:11px;">크기(가로*세로*높이)</th>
+          <th style="border:1px solid #d9e6fb;"></th>
+        </tr></thead>
+        <tbody id="bxBody">
+        {% for b in boxes %}
+          <tr>
+            <td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_no" value="{{ (b.box_no or '')|e }}" style="width:110px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>
+            <td class="bx-cnt" style="padding:3px 10px;border:1px solid #e6eefb;text-align:right;color:#64748b;">-</td>
+            <td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_w" inputmode="decimal" value="{{ b.weight_kg if b.weight_kg is not none else '' }}" style="width:80px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;text-align:right;"></td>
+            <td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_sz" value="{{ (b.box_size or '')|e }}" placeholder="1,100*1,100*1,700(H)" style="width:180px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>
+            <td style="padding:3px 6px;border:1px solid #e6eefb;"><button type="button" onclick="this.closest('tr').remove();bxHeadUpd();" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:13px;">✕</button></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="fill" onclick="bxCollect()" style="padding:7px 13px;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid #b9d2ff;background:#fff;color:#1d4ed8;">⬇ 표에서 박스 불러오기</button>
+        <button type="button" onclick="bxAddRow()" style="padding:7px 13px;border-radius:7px;font-size:12.5px;cursor:pointer;border:1px dashed #b9d2ff;background:#fff;color:#1d4ed8;">＋ 박스 추가</button>
+        <button type="button" class="btn btn-primary" onclick="bxSave()" id="bxSaveBtn" style="padding:8px 18px;">💾 박스 저장</button>
+        <span id="bxMsg" style="font-size:12px;"></span>
+      </div>
+    </div>
+  </details>
+
   {# v5H226z951 (대표 지시·2단계): 컬럼 폭조절·숨김·순서 도구 + 계정별 저장(view_prefs) #}
   <div class="excol-bar">
     <button type="button" class="excol-btn" onclick="exColToggle()">⚙ 컬럼 설정</button>
@@ -370,6 +407,62 @@
   window.fillInvoiceFromSale = fillInvoiceFromSale;
   window.hsAutofill = hsAutofill;
   window.hsAiSuggest = hsAiSuggest;
+  // ── v5H226z970 (대표 지시): 박스별 무게·크기 — 표의 '박스' 칸에서 박스번호 자동 수집, 박스 단위로 무게만 입력 ──
+  function bxEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function bxRowHtml(bn, w, sz){
+    return '<tr>'
+      +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_no" value="'+bxEsc(bn)+'" style="width:110px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>'
+      +'<td class="bx-cnt" style="padding:3px 10px;border:1px solid #e6eefb;text-align:right;color:#64748b;">-</td>'
+      +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_w" inputmode="decimal" value="'+bxEsc(w)+'" style="width:80px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;text-align:right;"></td>'
+      +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_sz" value="'+bxEsc(sz)+'" placeholder="1,100*1,100*1,700(H)" style="width:180px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>'
+      +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><button type="button" onclick="this.closest(\'tr\').remove();bxHeadUpd();" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:13px;">✕</button></td></tr>';
+  }
+  function bxCount(){
+    var cnt = {};
+    document.querySelectorAll('.ex-grid tbody input[name="box_no"]').forEach(function(i){
+      var v = (i.value||'').trim().toUpperCase(); if(v) cnt[v] = (cnt[v]||0) + 1;
+    });
+    document.querySelectorAll('#bxBody tr').forEach(function(tr){
+      var el = tr.querySelector('input[name="bx_no"]'); if(!el) return;
+      var c = tr.querySelector('.bx-cnt'); if(c) c.textContent = cnt[(el.value||'').trim().toUpperCase()] || 0;
+    });
+  }
+  function bxHeadUpd(){
+    var h = document.getElementById('bxHead');
+    if(h) h.textContent = document.querySelectorAll('#bxBody tr').length + '박스 등록됨';
+  }
+  function bxCollect(){
+    var body = document.getElementById('bxBody'); if(!body) return;
+    var have = {};
+    body.querySelectorAll('input[name="bx_no"]').forEach(function(i){ var v=(i.value||'').trim().toUpperCase(); if(v) have[v]=1; });
+    var added = 0, seen = {};
+    document.querySelectorAll('.ex-grid tbody input[name="box_no"]').forEach(function(i){
+      var v = (i.value||'').trim(); if(!v) return;
+      var k = v.toUpperCase(); if(seen[k]) return; seen[k] = 1;
+      if(!have[k]){ body.insertAdjacentHTML('beforeend', bxRowHtml(v, '', '')); added++; }
+    });
+    bxCount(); bxHeadUpd();
+    if(!added) alert(Object.keys(seen).length ? '표의 박스번호가 이미 모두 목록에 있습니다.' : "표의 '박스' 칸에 박스번호를 먼저 적어주세요 (예: BOX-1).");
+  }
+  function bxAddRow(){ var b = document.getElementById('bxBody'); if(b){ b.insertAdjacentHTML('beforeend', bxRowHtml('', '', '')); bxHeadUpd(); } }
+  async function bxSave(){
+    var rows = [];
+    document.querySelectorAll('#bxBody tr').forEach(function(tr){
+      function g(nm){ var el = tr.querySelector('input[name="'+nm+'"]'); return el ? (el.value||'').trim() : ''; }
+      if(g('bx_no')) rows.push({box_no: g('bx_no'), weight_kg: g('bx_w'), box_size: g('bx_sz')});
+    });
+    var btn = document.getElementById('bxSaveBtn'), msg = document.getElementById('bxMsg');
+    btn.disabled = true;
+    try {
+      var r = await fetch('/export/prep/{{ p.id }}/boxes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({boxes: rows}), credentials:'same-origin'});
+      var j = await r.json();
+      if(j.ok){ msg.textContent = '✓ ' + j.saved + '박스 저장 — [📄 Invoice&PL] 패킹리스트에 반영됩니다'; msg.style.color = '#15803d'; }
+      else { msg.textContent = '실패: ' + (j.error||''); msg.style.color = '#dc2626'; }
+    } catch(e){ msg.textContent = '통신 오류: ' + e; msg.style.color = '#dc2626'; }
+    btn.disabled = false; bxHeadUpd();
+  }
+  window.bxCollect = bxCollect; window.bxAddRow = bxAddRow; window.bxSave = bxSave; window.bxHeadUpd = bxHeadUpd;
+  document.querySelectorAll('details').forEach(function(d){ d.addEventListener('toggle', function(){ if(d.open) bxCount(); }); });
   // v5H226z968: 신고 서류 정보 저장
   window.dmSave = async function(){
     var box = document.getElementById('dmForm'); if(!box) return;

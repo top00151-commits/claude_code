@@ -33697,12 +33697,16 @@ async def export_prep_detail(req: Request, pid: int):
         except Exception:
             sos = []
         dm = _doc_meta_get(c, pid, p)   # v5H226z968: 신고 서류 정보(인보이스 헤더블록)
+        _export_boxes_ensure(c)         # v5H226z970: 박스별 무게(실무=박스 단위 계량)
+        boxes = [dict(r) for r in c.execute(
+            "SELECT box_no, weight_kg, box_size FROM export_boxes WHERE project_id=? ORDER BY box_no",
+            (pid,))]
     try:
         col_prefs = _logi.view_prefs_get(u.get("id"), "export_customs_cols") or "{}"
     except Exception:
         col_prefs = "{}"
     return ctx(req, "export_prep_detail.html", user=u, active="export",
-               p=p, sos=sos, dm=dm, can_money=bool(can_view_sales(u)), col_prefs=col_prefs)
+               p=p, sos=sos, dm=dm, boxes=boxes, can_money=bool(can_view_sales(u)), col_prefs=col_prefs)
 
 
 @app.post("/export/prep/cols")
@@ -34326,6 +34330,56 @@ async def export_doc_meta_save(req: Request, pid: int):
     return JSONResponse({"ok": True})
 
 
+# v5H226z970 (대표 지시): 박스별 무게·크기 — 실무는 부품별이 아니라 '박스 단위'로 계량
+#   (실물 PACKING LIST: 품목엔 중량 없음·첫 행에 전체 Gross·우측에 박스별 G/W. 구매팀 BOX시트도 박스당 무게 1개).
+#   품목별 중량 칸은 유지(안 쓰면 컬럼 숨김) — 박스 무게가 입력돼 있으면 신고용 파일은 박스 무게 우선.
+def _export_boxes_ensure(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS export_boxes (
+        project_id INTEGER NOT NULL,
+        box_no TEXT NOT NULL,
+        weight_kg REAL, box_size TEXT,
+        updated_by INTEGER, updated_at TEXT,
+        PRIMARY KEY(project_id, box_no))""")
+
+
+@app.post("/export/prep/{pid:int}/boxes")
+async def export_boxes_save(req: Request, pid: int):
+    """박스별 무게·크기 저장(그 프로젝트 전체 교체) — 통관 화면 '박스별 무게' 카드."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    rows = body.get("boxes")
+    if not isinstance(rows, list):
+        return JSONResponse({"ok": False, "error": "boxes 형식 오류"}, 400)
+    clean, seen = [], set()
+    for r in rows[:200]:
+        if not isinstance(r, dict):
+            continue
+        bn = str(r.get("box_no") or "").strip()[:30]
+        if not bn or bn.upper() in seen:
+            continue
+        seen.add(bn.upper())
+        try:
+            _raw = str(r.get("weight_kg") or "").replace(",", "").strip()
+            w = float(_raw) if _raw else None
+        except ValueError:
+            w = None
+        clean.append((bn, w, str(r.get("box_size") or "").strip()[:40]))
+    with db_session() as c:
+        _export_boxes_ensure(c)
+        c.execute("DELETE FROM export_boxes WHERE project_id=?", (pid,))
+        for bn, w, sz in clean:
+            c.execute(
+                "INSERT OR REPLACE INTO export_boxes(project_id, box_no, weight_kg, box_size, updated_by, updated_at) "
+                "VALUES(?,?,?,?,?,datetime('now','localtime'))",
+                (pid, bn, w, sz, u.get("id")))
+    return JSONResponse({"ok": True, "saved": len(clean)})
+
+
 def _z968_head_block(ws, title: str, dm: dict, F, thin_border):
     """실물 헤더블록(1~29행) — INVOICE/PACKING LIST 공용. 반환=품목 헤더 시작행(31)."""
     from openpyxl.styles import Alignment as _Al
@@ -34387,6 +34441,11 @@ async def export_prep_invoice_pl_xlsx(req: Request, pid: int):
         dm = _doc_meta_get(c, pid, p)
         _p2, _pl, pl_lines = _export_pl_build(c, pid)
         _p3, _pl2, _pll, box_list = _export_ship_boxes(c, pid)
+        # v5H226z970: 박스별 무게(사용자 입력) — 있으면 품목별 중량 대신 이걸 사용(실물 관행)
+        _export_boxes_ensure(c)
+        ebx = [dict(r) for r in c.execute(
+            "SELECT box_no, weight_kg, box_size FROM export_boxes WHERE project_id=? ORDER BY box_no",
+            (pid,))]
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font as _Font, PatternFill, Alignment, Border, Side
@@ -34455,17 +34514,28 @@ async def export_prep_invoice_pl_xlsx(req: Request, pid: int):
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.border = border
     r = hr2 + 1
+    first_r = r
     br = hr2 + 1   # 우측 박스 요약 행
-    for bx in (box_list or []):
-        ws2[f"L{br}"] = bx.get("box")
-        _sz = ""
-        for it in bx.get("items", []):
-            if (it.get("pallet_size") or "").strip():
-                _sz = it["pallet_size"].strip()
-                break
-        ws2[f"M{br}"] = _sz
-        ws2[f"N{br}"] = round(float(bx.get("weight") or 0), 1)
-        br += 1
+    # v5H226z970: 박스 요약 = 사용자 입력(export_boxes) 우선 · 없으면 품목별 중량 합산(box_list) 폴백
+    has_bw = any((b.get("weight_kg") or 0) for b in (ebx or []))
+    if ebx:
+        for b in ebx:
+            ws2[f"L{br}"] = b.get("box_no")
+            ws2[f"M{br}"] = b.get("box_size") or ""
+            if b.get("weight_kg"):
+                ws2[f"N{br}"] = round(float(b["weight_kg"]), 1)
+            br += 1
+    else:
+        for bx in (box_list or []):
+            ws2[f"L{br}"] = bx.get("box")
+            _sz = ""
+            for it in bx.get("items", []):
+                if (it.get("pallet_size") or "").strip():
+                    _sz = it["pallet_size"].strip()
+                    break
+            ws2[f"M{br}"] = _sz
+            ws2[f"N{br}"] = round(float(bx.get("weight") or 0), 1)
+            br += 1
     tq = tw = 0.0
     for l in (pl_lines or []):
         ws2[f"B{r}"] = mgmt
@@ -34473,11 +34543,16 @@ async def export_prep_invoice_pl_xlsx(req: Request, pid: int):
         ws2[f"F{r}"] = l.get("qty")
         ws2[f"G{r}"] = l.get("unit") or "EA"
         _w = float(l.get("weight_kg") or 0)
-        if _w:
-            ws2[f"I{r}"] = _w
+        if _w and not has_bw:
+            ws2[f"I{r}"] = _w   # 품목별 중량은 박스 무게가 없을 때만(폴백)
         tq += float(l.get("qty") or 0)
         tw += _w
         r += 1
+    if has_bw:
+        # 실물 관행: 첫 행에 전체 Gross(=박스 무게 합) 한 번
+        tw = sum(float(b.get("weight_kg") or 0) for b in ebx)
+        ws2[f"I{first_r}"] = round(tw, 1)
+        ws2[f"I{first_r}"].font = F(size=10, bold=True)
     ws2[f"D{r}"] = "TOTAL"
     ws2[f"D{r}"].font = F(size=10, bold=True)
     ws2[f"F{r}"] = round(tq, 2)
