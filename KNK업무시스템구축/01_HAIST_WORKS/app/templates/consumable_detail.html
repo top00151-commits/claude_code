@@ -278,7 +278,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
                저장은 hidden #coCustIdField(.ef data-field=customer_id)로 기존 자동저장/💾수정반영에 그대로 연결(아래 브리지 스크립트). #}
             <div class="h-cell" id="coCustWrap"><div class="lbl">고객사</div>
               <input type="hidden" class="ef" data-field="customer_id" id="coCustIdField" value="{{ co.customer_id or '' }}">
-              <input data-cust-picker data-cust-name="__co_cust_name" data-cust-id="__co_cust_id" data-cust-required="1"
+              <input class="ef" data-cust-picker data-cust-name="__co_cust_name" data-cust-id="__co_cust_id" data-cust-required="1"
                      data-cust-initial="{{ (co.customer_name or '')|e }}"{% if co.customer_id %} data-cust-initial-id="{{ co.customer_id }}"{% endif %}
                      placeholder="고객사명·시스템명 검색" autocomplete="off"></div>
             <div class="h-cell"><div class="lbl">2차 고객사</div><input class="ef" data-field="secondary_customer" value="{{ co.secondary_customer|e }}" placeholder="—"></div>
