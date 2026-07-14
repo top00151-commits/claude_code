@@ -631,6 +631,15 @@ def co_create(customer_name: str = "", biz_div: str = "",
             _co_ref = datetime.strptime(str(order_date)[:10], "%Y-%m-%d")
     except Exception:
         _co_ref = None
+    # v5H226z955 (대표 지시): 수주번호는 발주일에 맞게 발번. 수동 관리번호(예전 데이터)인데 발주일이 비었으면
+    #   관리번호의 YYMM(예 006C2607→26·07)으로 수주번호 발번 기준을 맞춤(발주일 채우면 그 값 우선).
+    if _co_ref is None and mgmt_code_override:
+        _m955 = re.match(r"^\d{1,4}[A-Z](\d{2})(\d{2})$", str(mgmt_code_override).strip().upper())
+        if _m955:
+            try:
+                _co_ref = datetime(2000 + int(_m955.group(1)), int(_m955.group(2)), 1)
+            except Exception:
+                _co_ref = None
     # 고객사·사업부는 1회 계산 (재시도와 무관)
     cust_id = None
     if customer_name:

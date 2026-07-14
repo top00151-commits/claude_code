@@ -127,13 +127,17 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
         </div>
         {% if can_manual_mgmt %}
-        {# v5H226z954 (대표 지시): 소모품 관리번호 수동 지정 — 예전 데이터 이관 시 번호 맞춤(지정 3명·검증). 비우면 자동발급. #}
+        {# v5H226z954/z955 (대표 지시): 소모품 관리번호 수동 지정 — 예전 데이터 번호 맞춤(지정 3명). [검증] 통과한 번호만 등록. 비우면 자동발급. #}
         <div class="row" style="margin-top:8px;">
           <div class="field" style="grid-column: 1 / -1;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:700;color:#9a3412;">
               <input type="checkbox" id="cManualChk" onchange="cManualToggle()" style="width:14px;height:14px;flex-shrink:0;"> 🔧 관리번호 직접 지정 <span style="font-weight:400;color:var(--qv-ink-3);">(예전 데이터 번호 맞춤 · 비우면 자동발급)</span>
             </label>
-            <input type="text" name="manual_mgmt_code" id="cManualCode" placeholder="예: 006C2607 (소모품=C)" autocomplete="off" maxlength="12" hidden style="margin-top:5px;width:220px;font-family:Consolas,monospace;font-weight:700;text-transform:uppercase;padding:5px 7px;border:1px solid var(--qv-line);border-radius:6px;">
+            <div id="cManualWrap" hidden style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <input type="text" name="manual_mgmt_code" id="cManualCode" placeholder="예: 006C2607 (소모품=C)" autocomplete="off" maxlength="12" oninput="cManualReset()" style="width:200px;font-family:Consolas,monospace;font-weight:700;text-transform:uppercase;padding:5px 7px;border:1px solid var(--qv-line);border-radius:6px;">
+              <button type="button" onclick="cManualValidate()" style="padding:6px 14px;border:1px solid #1d4ed8;background:#eff6ff;color:#1d4ed8;border-radius:6px;font-weight:700;cursor:pointer;">검증</button>
+              <span id="cManualMsg" style="font-size:12px;"></span>
+            </div>
           </div>
         </div>
         {% endif %}
@@ -224,8 +228,33 @@ html,body{background:#fff!important;overflow:auto!important;}
 
 <script>
 let _co_id = null;
-// v5H226z954 (대표 지시): 소모품 관리번호 수동 지정 토글(체크 시 입력칸 노출)
-window.cManualToggle = function(){ var chk=document.getElementById('cManualChk'), inp=document.getElementById('cManualCode'); if(inp){ inp.hidden=!(chk&&chk.checked); if(chk&&chk.checked){ inp.focus(); } else { inp.value=''; } } };
+// v5H226z954/z955 (대표 지시): 소모품 관리번호 수동 지정 — 토글·[검증](사용가능 확인)·변경 시 재검증 요구.
+window._cManualOK = null;   // 마지막 '사용 가능' 검증 통과 코드(현재 입력값과 같아야 등록 허용)
+window.cManualToggle = function(){
+  var chk=document.getElementById('cManualChk'), w=document.getElementById('cManualWrap');
+  if(w){ w.hidden=!(chk&&chk.checked); }
+  window._cManualOK=null;
+  var m=document.getElementById('cManualMsg'); if(m) m.textContent='';
+  if(chk&&chk.checked){ var i=document.getElementById('cManualCode'); if(i){ try{ i.focus(); }catch(_){} } }
+  else { var i2=document.getElementById('cManualCode'); if(i2) i2.value=''; }
+};
+window.cManualReset = function(){
+  window._cManualOK=null;
+  var m=document.getElementById('cManualMsg'); if(m){ m.textContent='변경됨 — [검증]을 다시 눌러 주세요.'; m.style.color='#b45309'; }
+};
+window.cManualValidate = function(){
+  var i=document.getElementById('cManualCode'), m=document.getElementById('cManualMsg'); if(!i||!m) return;
+  var code=(i.value||'').trim().toUpperCase(); i.value=code;
+  if(!code){ m.textContent='관리번호를 입력하세요.'; m.style.color='#b45309'; window._cManualOK=null; return; }
+  m.textContent='검증 중…'; m.style.color='#64748b';
+  fetch('/api/mgmt-code/check?code='+encodeURIComponent(code)+'&ptype=CONSUMABLE', {headers:{'Accept':'application/json'}})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(j && j.available){ m.textContent='✅ 사용 가능 — 이 번호로 등록됩니다.'; m.style.color='#15803d'; window._cManualOK=code; }
+      else { m.textContent='❌ '+((j&&j.reason)||'사용할 수 없는 번호'); m.style.color='#dc2626'; window._cManualOK=null; }
+    })
+    .catch(function(e){ m.textContent='검증 실패: '+((e&&e.message)||'네트워크 오류'); m.style.color='#dc2626'; window._cManualOK=null; });
+};
 
 // v5H226z312 (대표 지시): 직접 등록(엑셀 없이) — 헤더 필드만으로 발주 생성 후 상세로 이동(업로드 흐름과 동일 네비)
 document.getElementById('directBtn').addEventListener('click', async () => {
@@ -240,9 +269,14 @@ document.getElementById('directBtn').addEventListener('click', async () => {
   fd.append('due_date', form.due_date.value || '');
   fd.append('currency', form.currency.value || 'KRW');
   fd.append('note', form.note.value || '');
-  // v5H226z954: 관리번호 수동 지정(체크+입력 시만 전송) — 서버가 권한·형식·중복 검증
+  // v5H226z955 (대표 지시): 관리번호 수동 지정은 [검증] 통과(사용가능 확인)한 번호만 등록 — 안 하면 차단.
   var _cmk = document.getElementById('cManualChk'), _cmc = document.getElementById('cManualCode');
-  if (_cmk && _cmk.checked && _cmc && (_cmc.value || '').trim()) fd.append('manual_mgmt_code', _cmc.value.trim().toUpperCase());
+  if (_cmk && _cmk.checked) {
+    var _code = (_cmc && (_cmc.value || '').trim().toUpperCase()) || '';
+    if (!_code) { alert('관리번호를 입력하고 [검증]을 눌러 주세요.'); if(_cmc) _cmc.focus(); return; }
+    if (window._cManualOK !== _code) { alert('관리번호 [검증]으로 사용 가능한지 먼저 확인하세요.'); return; }
+    fd.append('manual_mgmt_code', _code);
+  }
   const btn = document.getElementById('directBtn');
   btn.disabled = true; const _orig = btn.textContent; btn.textContent = '⏳ 생성 중…';
   try {
