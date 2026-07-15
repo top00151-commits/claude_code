@@ -1729,7 +1729,8 @@ def role_home(user) -> str:
 def can_use_logistics(user) -> bool:
     """HAIST WORKS 물류 모듈 접근 권한.
     - admin / ceo / executive: 항상 허용
-    - team_id == 7 (제조팀): 읽기 허용 (2026-04-22 대표 결재 D01-02 안B)
+    - team_id == 7 (제조팀): 허용 (2026-04-22 대표 결재 D01-02 안B)
+    - team_id == 10 (구매팀): 허용 (v5H226z980 · 2026-07-15 대표 지시 "구매팀은 사용이 가능해야")
     - 그 외: users.can_use_logistics 플래그가 1일 때만
     """
     if not user:
@@ -1737,9 +1738,12 @@ def can_use_logistics(user) -> bool:
     role = user.get("role") if isinstance(user, dict) else user["role"]
     if role in ("admin", "ceo", "executive"):
         return True
-    # 제조팀(team_id=7) 읽기 허용 — 쓰기·발주·단가수정은 구매팀 권한 그대로 유지
     team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
-    if team_id == 7:
+    # v5H226z980 (2026-07-15, 대표 지시): 구매팀(team_id=10) 팀 단위 자동 허용.
+    #   기존(2026-04-22 D01-NEW-PERM)엔 구매팀장만 개인 플래그로 부여받는 방식이라
+    #   팀원(예: 288 김선미)이 자재 중복정리·등록 등 use 게이트에서 조용히 /home 으로 튕겼음.
+    #   자재구매센터 주무 부서 = 팀 자동 허용이 정합 (개인 플래그는 타 부서 예외자용 유지).
+    if team_id in (7, 10):
         return True
     flag = user.get("can_use_logistics") if isinstance(user, dict) else user["can_use_logistics"]
     return bool(flag)
@@ -20294,6 +20298,11 @@ async def parts_dedup_page(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
+        # v5H226z980: 조용히 /home 으로 튕기지 않고 사유를 보여줌 (조회 권한자는 자재 마스터로)
+        from urllib.parse import quote as _q
+        if can_view_logistics(u):
+            return RedirectResponse(
+                f"/parts?error={_q('자재 중복 정리는 자재관리 사용 권한이 필요합니다 — 관리자(대표)에게 권한을 요청하세요')}", 303)
         return RedirectResponse("/home", 303)
     try:
         scan = _logi.parts_dedup_scan()

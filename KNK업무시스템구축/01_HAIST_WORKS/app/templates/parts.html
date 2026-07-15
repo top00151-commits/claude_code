@@ -224,6 +224,15 @@
         </div>
       </div>
 
+      {# v5H226z980 — 권한 등 안내 배너 (중복정리 use 게이트에서 사유와 함께 돌려보냄) #}
+      {% set _perr = request.query_params.get('error') %}
+      {% if _perr %}
+      <div style="padding:11px 24px;background:var(--pq-danger-soft,#fef2f2);border-bottom:1px solid var(--pq-danger,#b91c1c);color:var(--pq-danger,#b91c1c);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>⚠ {{ _perr }}</span>
+        <a href="/parts" style="margin-left:auto;color:inherit;font-size:11px;font-weight:500;text-decoration:none;border:1px solid currentColor;padding:3px 9px;border-radius:4px;">닫기</a>
+      </div>
+      {% endif %}
+
       {# v5H226z98 — 자재 일괄등록 완료 후 리다이렉트 시 결과 배너 #}
       {% set imp = request.query_params.get('imported') %}
       {% if imp and imp != '0' %}
