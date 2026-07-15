@@ -3873,6 +3873,11 @@ async def api_meeting_extract(req: Request, mid: int):
     ok, result = ai_client.ai_extract_meeting(body, context="\n".join(_ctx_parts))
     if not ok:
         return JSONResponse({"ok": False, "error": result.get("error", "AI 추출 실패")}, 502)
+    # z971: 제목이 비었거나 기본값('제목 없는 회의 …' — 녹음 자동생성)이면 AI 제안 제목으로 교체.
+    #   사용자가 직접 지은 제목은 절대 건드리지 않는다.
+    _cur_title = (m.get("title") or "").strip()
+    _ai_title = (result.get("title") or "").strip()[:200]
+    new_title = _ai_title if (_ai_title and (not _cur_title or _cur_title.startswith("제목 없는 회의"))) else ""
     with db_session() as c:
         # AI 추출분만 교체(수기 추가분·이미 일일카드 연동분은 보존)
         c.execute("DELETE FROM meeting_decisions WHERE meeting_id=? AND source='ai'", (mid,))
@@ -3892,12 +3897,15 @@ async def api_meeting_extract(req: Request, mid: int):
         if result["summary"]:
             c.execute("UPDATE meetings SET summary=?, updated_at=datetime('now','localtime') WHERE id=?",
                       (result["summary"], mid))
+        if new_title:
+            c.execute("UPDATE meetings SET title=?, updated_at=datetime('now','localtime') WHERE id=?",
+                      (new_title, mid))
         new_ts = _row_ts(c, "meetings", mid)
         decisions = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
         actions = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
-    return JSONResponse({"ok": True, "summary": result["summary"],
+    return JSONResponse({"ok": True, "summary": result["summary"], "title": new_title,
                          "decisions": decisions, "actions": actions, "updated_at": new_ts})
 
 

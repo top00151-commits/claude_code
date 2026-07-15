@@ -426,9 +426,11 @@ _MEETING_EXTRACT_SYSTEM = (
     "- decisions: 회의에서 '확정된' 결정만. 각 {who, what, due}. "
     "who=책임자(참석자 이름 우선, 없으면 \"\"), what=무엇을 결정했는지(필수), due=기한 YYYY-MM-DD 또는 표현 그대로(없으면 \"\").\n"
     "- actions: 실행할 일. 각 {assignee, task, due}. assignee=담당자 이름(없으면 \"\"), task=내용(필수), due=기한(없으면 \"\").\n"
+    "- title: 이 회의에 어울리는 짧은 제목(공백 포함 20자 이내, 고객사·안건 중심). "
+    "반드시 원문에 나온 말로만 짓는다(창작 금지). 지을 수 없으면 \"\".\n"
     "- 절대 추측·창작 금지. 원문에 없는 내용을 지어내지 않는다. 결정·할 일 없으면 빈 배열.\n"
     "출력은 오직 아래 JSON 한 개. 마크다운 코드펜스·설명·인사말 금지.\n"
-    '{"summary":"",'
+    '{"title":"","summary":"",'
     '"decisions":[{"who":"","what":"","due":""}],'
     '"actions":[{"assignee":"","task":"","due":""}]}'
 )
@@ -503,6 +505,8 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
         "decisions": _norm_list(data.get("decisions"), ("who", "what", "due")),
         "actions": _norm_list(data.get("actions"), ("assignee", "task", "due")),
         "summary": str(data.get("summary", "") or "").strip(),
+        # 제목 제안 — '제목 없는 회의'를 AI가 내용 기반으로 채우는 데 사용(호출부에서 기본제목일 때만 반영)
+        "title": str(data.get("title", "") or "").strip()[:60],
     }
     return (True, result)
 

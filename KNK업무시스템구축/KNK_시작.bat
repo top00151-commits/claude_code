@@ -1,6 +1,7 @@
 ﻿@echo off
 REM ============================================================
-REM   LAST UPDATE: 2026-07-13 v5H226z944[작업일정표에 부품 수주 헤더 납기까지 표현(대표 신고·z943 #3). 부품(PARTS_EXPORT) SO 합산줄 납기를 _collapse_line(main.py:21395)에서 첫 부품납기만→헤더납기(o_due)+모든 부품납기 중 max로. 막대·납품마커 4/1까지 연장. 작업일정표·엑셀·부서일정표 공통(공유함수). 검증 py_compile·max로직. main.py]
+REM   LAST UPDATE: 2026-07-15 v5H226z971[회의록 사용 흐름 전면 단순화(대표 지시 '순서 헛갈려·폰 우선'). 새 회의=제목(선택)+큰 버튼 3개(녹음하며 회의/파일 올리기/글로 쓰기)·상세정보 접이식. 자동 파이프라인=녹음종료/업로드/저장→음성→글자→AI 정리까지 자동(?auto=1·중단시 이어서 자동 정리·실패 재시도). 제목 비면 AI가 자동 제안(extract가 기본제목만 교체). 폰 상세=정리 결과 먼저(CSS order). 검증 py_compile·Jinja·esprima ALL PASS. main.py·ai_client.py·meeting_form.html]
+REM   - 2026-07-13 v5H226z944[작업일정표에 부품 수주 헤더 납기까지 표현(대표 신고·z943 #3). 부품(PARTS_EXPORT) SO 합산줄 납기를 _collapse_line(main.py:21395)에서 첫 부품납기만→헤더납기(o_due)+모든 부품납기 중 max로. 막대·납품마커 4/1까지 연장. 작업일정표·엑셀·부서일정표 공통(공유함수). 검증 py_compile·max로직. main.py]
 REM   - 2026-07-13 v5H226z943[상품 양식 올리기 개선(대표 지시): 부품 추가 업로드(add)+전체 교체(replace) 두 버튼(overwrite-product mode). add=기존 유지 append·총액 전체 재계산·수주번호 유지. 메타(고객사·프로젝트명·PO유형·영업담당자)=엑셀값 최종 갱신. 검증 py_compile·esprima·임시DB 총액. 남은 #3 작업일정표 헤더납기=z944. main.py·project_detail.html]
 REM   - 2026-07-13 v5H226z942[상품 양식 올리기 저장 버그 2건 수정(대표 신고). ①수주번호 발주일 재발번(빈수주 오늘발번→발주일 담긴 엑셀 덮어써도 번호 안바뀌던것·generate_so_no). ②SO 환율 저장(orders에 exchange_rate 컬럼 없어 조용히 스킵되던 것·마이그 추가). ③납기는 코드정상 무변경. 기존 잘못건은 재업로드하면 교정. main.py·database.py]
 REM   - 2026-07-13 v5H226z941[부품 수주 엑셀 양식을 '상품 양식' 하나로 통일(대표 지시). 상세 수주카드 다운로드=상품 양식 받기(import-product-template)+업로드=상품 양식 올리기(overwrite-product·상품 파서), 헷갈리던 PACKING LIST 업로드 버튼 숨김. 백엔드 무변경·위험0. 후속=현재 부품을 상품 양식으로 채워 내보내는 다운로드. project_detail.html]

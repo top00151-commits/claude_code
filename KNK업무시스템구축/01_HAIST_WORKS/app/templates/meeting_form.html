@@ -5,9 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{% if meeting %}{{ meeting.title }}{% else %}새 회의록{% endif %} · KNK HAIST WORKS</title>
 {# ============================================================
-   meeting_form.html — 회의록 작성/상세 (16_KNK_Meeting Phase 1 · 모드 A)
-   흐름: 회의 내용(글) 입력·저장 → 「AI로 정리」 → 결정사항·할 일·요약 검토
-        → 할 일을 1-클릭으로 일일업무카드에 보냄.
+   meeting_form.html — 회의록 작성/상세 (16_KNK_Meeting)
+   z971 사용 흐름 전면 단순화 (대표 지시 2026-07-15 "사용 순서가 헛갈려·폰에서 편하게"):
+   · 새 회의(폰 기준) = 제목(선택) + 큰 버튼 3개(🎙 녹음하며 회의 / 📁 파일 올리기 / ⌨️ 글로 쓰기).
+     날짜·장소·참석자·공개범위는 「상세 정보」 접이식(나중에 채워도 됨).
+   · 자동 파이프라인: 녹음 종료/파일 올리기/글 저장 → (음성→글자) → (AI 정리) 까지 자동.
+     사람이 누르는 건 「녹음 시작/종료」 또는 「저장하고 AI 정리」 한 번.
+   · 상세 화면 ?auto=1 로 착지하면 남은 단계를 이어서 자동 실행. 중간에 끊겨도
+     「▶ 이어서 자동 정리」 버튼이 남은 단계부터 재개(진행상태 카드 #pipeCard).
+   · 제목을 안 지으면 AI 정리 때 내용 기반 제목 자동 제안(서버 extract가 기본제목만 교체).
+   · 폰(≤768px)에선 상세 화면 순서를 [정리 결과]부터 위로 재배치(CSS order).
    안전: 동적 목록은 |tojson 임베드 후 esc()로 렌더(저장형 XSS 방지),
         스크립트는 IIFE + 이벤트 위임(SPA 재실행 안전).
    ============================================================ #}
@@ -71,8 +78,10 @@
 .rec-banner #recBigTime { font-family:ui-monospace,Consolas,monospace; margin-left:auto; }
 /* v5H226z450 (대표 보고: 녹음 안 하는데도 '본 회의 녹음 중'이 떠서 헷갈림): hidden 속성이
    .rec-banner{display:flex}·.btn{display:inline-flex} 같은 author CSS 에 덮여 무력화됨(녹음 배너·일시정지 버튼이 항상 보임).
-   → hidden 일 땐 반드시 숨김. 녹음 시작 시 JS 가 hidden 을 제거해 표시(부작용 없음). */
-#recBanner[hidden], #recPauseBtn[hidden], #recTime[hidden], #recPlayWrap[hidden] { display:none !important; }
+   → hidden 일 땐 반드시 숨김. 녹음 시작 시 JS 가 hidden 을 제거해 표시(부작용 없음).
+   z971: 새 요소(#writeWrap·#pipeCard·#pipeGo·#pipeRetry)도 같은 함정 방지로 추가. */
+#recBanner[hidden], #recPauseBtn[hidden], #recTime[hidden], #recPlayWrap[hidden],
+#writeWrap[hidden], #pipeCard[hidden], #pipeGo[hidden], #pipeRetry[hidden] { display:none !important; }
 @keyframes recBnPulse { 0%,100%{opacity:1;} 50%{opacity:.88;} }
 @keyframes recBlink { 0%,100%{opacity:1;} 50%{opacity:.2;} }
 .rec-file { cursor:pointer; }
@@ -80,9 +89,38 @@
 .link-chip:hover { border-color: var(--qv-line-3); background: var(--qv-surface-3); }
 .rec-time { font-size:14px; font-weight:800; color: var(--knk-red); font-family:ui-monospace,Consolas,monospace; }
 .rec-status { font-size:12px; color: var(--qv-ink-3); }
+/* ── z971 새 회의 시작 화면(폰 우선 큰 버튼) ── */
+.start-btns { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:620px; }
+.start-big { border:0; border-radius:14px; padding:20px 18px; font-size:19px; font-weight:800; cursor:pointer;
+  background: var(--knk-red); color:#fff; display:flex; align-items:center; justify-content:center; gap:10px;
+  box-shadow:0 2px 10px rgba(160,30,30,.18); }
+.start-big:active { transform: scale(.99); }
+.start-big .start-sub { font-size:12px; font-weight:600; opacity:.85; }
+.start-row { display:flex; gap:10px; }
+.start-mid { flex:1; border:1px solid var(--qv-line-3); background: var(--qv-surface); color: var(--qv-ink);
+  border-radius:12px; padding:13px 12px; font-size:14px; font-weight:700; cursor:pointer; text-align:center;
+  display:flex; align-items:center; justify-content:center; gap:6px; }
+.start-mid:hover { background: var(--qv-surface-2); }
+#mtgMore { margin-top:14px; }
+#mtgMore summary { cursor:pointer; font-size:13px; font-weight:700; color: var(--qv-ink-2); padding:6px 0; }
+#mtgMore summary:hover { color: var(--qv-ink); }
+/* ── z971 자동 정리 진행 카드 ── */
+#pipeCard { border-left:4px solid #7C3AED; }
+#pipeSteps { display:flex; flex-direction:column; gap:7px; font-size:13.5px; line-height:1.55; }
 /* z452 mobile — 2열 입력 그리드를 폰에서 세로로 */
 @media (max-width: 768px) {
   .mf-grid, .mf-grid2 { grid-template-columns: 1fr !important; }
+  /* z971: 폰에선 상세 화면 순서를 '결과 먼저'로 재배치 — 진행카드 → AI버튼 → 정리·결정·할일 → 기본정보(원문) → 녹음 → 연결 */
+  .mf-wrap { display:flex; flex-direction:column; }
+  .mf-wrap > * { order:50; }
+  #pipeCard { order:1; }
+  .ai-bar { order:2; }
+  #secSummary { order:3; }
+  #secDecisions { order:4; }
+  #secActions { order:5; }
+  .mf-top { order:10; }
+  #secRec { order:11; }
+  #secLink { order:12; }
 }
 </style>
 </head>
@@ -106,6 +144,84 @@
   </div>
 
   <div class="mf-wrap">
+
+  {% if is_new %}
+    <!-- ═══ z971 새 회의 시작 화면 — 폰에서 누르는 건 사실상 한 번 ═══ -->
+    <div class="mf-section">
+      <div class="mf-fld">
+        <label>회의 제목 <span class="mf-hint">(비워도 됩니다 — AI가 내용을 보고 지어드려요)</span></label>
+        <input id="mtgTitle" type="text" maxlength="200" placeholder="예: 드림텍 검사장비 미팅" value="{{ pf.get('title','') }}">
+      </div>
+
+      <div class="rec-banner" id="recBanner" hidden><span class="rec-dot"></span><span id="recBannerLbl">🔴 본 회의 녹음 중</span><span id="recBigTime">00:00</span></div>
+
+      <div class="start-btns">
+        <button class="start-big rec-btn" id="recBtn">🎙 녹음하며 회의&nbsp;<span class="start-sub">누르면 바로 녹음</span></button>
+        <div class="start-row">
+          <label class="start-mid rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
+          <button class="start-mid" id="btnWriteMode" type="button">⌨️ 글로 쓰기</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="recPauseBtn" hidden>⏸ 일시정지</button>
+          <span class="rec-time" id="recTime" hidden>● 00:00</span>
+          <span class="rec-status" id="recStatus"></span>
+        </div>
+      </div>
+      <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 녹음을 마치면 <b>음성→글자, AI 정리까지 자동</b>으로 됩니다. 녹음 중 <b>화면을 켜 두세요</b>(자동 꺼짐 방지 작동). <b>전화를 받을 땐 「⏸ 일시정지」</b>(통화 내용 녹음 방지) → 통화 후 「▶ 재개」. 다른 앱을 잠깐 봐도 녹음은 계속됩니다. 길고 중요한 회의는 「📁 음성 파일 올리기」(폰 기본 녹음기로 녹음 후 올리기)가 가장 안정적입니다.</div>
+
+      <div id="writeWrap" {% if not pf.get('body') %}hidden{% endif %} style="margin-top:16px;">
+        <div class="mf-fld">
+          <label>회의 내용</label>
+          <textarea id="mtgBody" placeholder="회의에서 오간 내용을 자유롭게 적으세요. 「저장하고 AI 정리」를 누르면 결정사항·할 일·요약까지 자동으로 정리됩니다.">{{ pf.get('body','') }}</textarea>
+        </div>
+        <div class="mf-actions" style="margin-bottom:0;">
+          <button class="btn btn-primary" id="btnSave">💾 저장하고 AI 정리</button>
+          <span class="save-status" id="saveStatus"></span>
+        </div>
+      </div>
+
+      <details id="mtgMore" {% if pf.get('meeting_date') or pf.get('location') or pf.get('attendees') or pf.get('tags') or pf.get('visibility') in ('private','all') %}open{% endif %}>
+        <summary>상세 정보 (날짜·공개범위·장소·참석자) — 나중에 채워도 됩니다</summary>
+        <div class="mf-grid2" style="margin-top:12px;">
+          <div class="mf-fld">
+            <label>회의 날짜</label>
+            <input id="mtgDate" type="date" value="{{ pf.get('meeting_date') or today }}">
+          </div>
+          <div class="mf-fld">
+            <label>공개 범위</label>
+            <select id="mtgVis">
+              <option value="team"    {% if pf.get('visibility','team')=='team' %}selected{% endif %}>팀 공개</option>
+              <option value="private" {% if pf.get('visibility')=='private' %}selected{% endif %}>비공개</option>
+              <option value="all"     {% if pf.get('visibility')=='all' %}selected{% endif %}>전사 공개</option>
+            </select>
+          </div>
+          <div class="mf-fld">
+            <label>장소 <span class="mf-hint">(선택)</span></label>
+            <input id="mtgLoc" type="text" placeholder="회의실 A / 화상 / 고객사" value="{{ pf.get('location','') }}">
+          </div>
+          <div class="mf-fld">
+            <label>태그 <span class="mf-hint">(선택)</span></label>
+            <input id="mtgTags" type="text" placeholder="주간,검사기" value="{{ pf.get('tags','') }}">
+          </div>
+          <div class="mf-fld full">
+            <label>참석자 <span class="mf-hint">(쉼표 구분 · 직원 이름과 일치 시 일일카드 배정)</span></label>
+            <input id="mtgAttendees" type="text" placeholder="홍길동, 김철수, 응우옌" value="{{ pf.get('attendees','') }}">
+          </div>
+        </div>
+      </details>
+    </div>
+
+  {% else %}
+    <!-- ═══ 자동 정리 진행 카드 (?auto=1 착지·이어서 하기·실패 재시도) ═══ -->
+    <div class="mf-section" id="pipeCard" hidden>
+      <div class="mf-sec-head" style="margin-bottom:9px;"><div class="mf-sec-title">🤖 자동 정리</div></div>
+      <div id="pipeSteps"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="btn btn-primary" id="pipeGo" hidden>▶ 자동 정리 시작</button>
+        <button class="btn btn-secondary" id="pipeRetry" hidden>🔄 다시 시도</button>
+      </div>
+    </div>
+
     <!-- ── 회의 기본 정보 ── -->
     <div class="mf-section mf-top">
       <div class="mf-info">
@@ -113,37 +229,35 @@
           <div class="mf-fld full">
             <label>회의 제목 *</label>
             <input id="mtgTitle" type="text" maxlength="200" placeholder="예: 6월 검사기T 주간회의"
-                   value="{{ meeting.title if not is_new else pf.get('title','') }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+                   value="{{ meeting.title }}" {% if not can_edit %}disabled{% endif %}>
           </div>
           <div class="mf-fld">
             <label>회의 날짜</label>
-            <input id="mtgDate" type="date" value="{{ meeting.meeting_date if not is_new else (pf.get('meeting_date') or today) }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+            <input id="mtgDate" type="date" value="{{ meeting.meeting_date }}" {% if not can_edit %}disabled{% endif %}>
           </div>
           <div class="mf-fld">
             <label>공개 범위</label>
-            <select id="mtgVis" {% if not is_new and not can_edit %}disabled{% endif %}>
-              <option value="team"    {% if (not is_new and meeting.visibility=='team') or (is_new and pf.get('visibility','team')=='team') %}selected{% endif %}>팀 공개</option>
-              <option value="private" {% if (not is_new and meeting.visibility=='private') or (is_new and pf.get('visibility')=='private') %}selected{% endif %}>비공개</option>
-              <option value="all"     {% if (not is_new and meeting.visibility=='all') or (is_new and pf.get('visibility')=='all') %}selected{% endif %}>전사 공개</option>
+            <select id="mtgVis" {% if not can_edit %}disabled{% endif %}>
+              <option value="team"    {% if meeting.visibility=='team' %}selected{% endif %}>팀 공개</option>
+              <option value="private" {% if meeting.visibility=='private' %}selected{% endif %}>비공개</option>
+              <option value="all"     {% if meeting.visibility=='all' %}selected{% endif %}>전사 공개</option>
             </select>
           </div>
           <div class="mf-fld">
             <label>장소 <span class="mf-hint">(선택)</span></label>
-            <input id="mtgLoc" type="text" placeholder="회의실 A / 화상" value="{{ meeting.location if not is_new else pf.get('location','') }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+            <input id="mtgLoc" type="text" placeholder="회의실 A / 화상" value="{{ meeting.location }}" {% if not can_edit %}disabled{% endif %}>
           </div>
           <div class="mf-fld">
             <label>태그 <span class="mf-hint">(선택)</span></label>
-            <input id="mtgTags" type="text" placeholder="주간,검사기" value="{{ meeting.tags if not is_new else pf.get('tags','') }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+            <input id="mtgTags" type="text" placeholder="주간,검사기" value="{{ meeting.tags }}" {% if not can_edit %}disabled{% endif %}>
           </div>
           <div class="mf-fld full">
             <label>참석자 <span class="mf-hint">(쉼표 구분 · 직원 이름과 일치 시 일일카드 배정)</span></label>
-            <input id="mtgAttendees" type="text" placeholder="홍길동, 김철수, 응우옌" value="{{ meeting.attendees_text if not is_new else pf.get('attendees','') }}" {% if not is_new and not can_edit %}disabled{% endif %}>
+            <input id="mtgAttendees" type="text" placeholder="홍길동, 김철수, 응우옌" value="{{ meeting.attendees_text }}" {% if not can_edit %}disabled{% endif %}>
           </div>
         </div>
         <div class="mf-actions">
-          {% if is_new %}
-            <button class="btn btn-primary" id="btnSave">💾 저장하고 정리 시작</button>
-          {% elif can_edit %}
+          {% if can_edit %}
             <button class="btn btn-primary" id="btnSave">💾 저장</button>
           {% endif %}
           <span class="save-status" id="saveStatus"></span>
@@ -151,15 +265,16 @@
       </div>
       <div class="mf-body">
         <div class="mf-fld full">
-          <label>회의 내용 (글로 작성) *</label>
-          <textarea id="mtgBody" placeholder="회의에서 오간 내용을 자유롭게 적으세요. 다 적고 저장한 뒤 「AI로 정리」를 누르면 결정사항·할 일·요약을 자동으로 뽑아줍니다." {% if not is_new and not can_edit %}disabled{% endif %}>{{ meeting.body if not is_new else pf.get('body','') }}</textarea>
+          <label>회의 내용 (원문)</label>
+          <textarea id="mtgBody" placeholder="회의에서 오간 내용. 녹음을 올리면 음성→글자 변환 결과가 여기에 자동으로 들어옵니다." {% if not can_edit %}disabled{% endif %}>{{ meeting.body }}</textarea>
         </div>
       </div>
     </div>
+  {% endif %}
 
-  {% if can_edit %}
-    <!-- ── 🎙 음성 녹음 (모드 B) — 작성·상세 화면 모두 노출 ── -->
-    <div class="mf-section">
+  {% if not is_new and can_edit %}
+    <!-- ── 🎙 음성 녹음 (모드 B) ── -->
+    <div class="mf-section" id="secRec">
       <div class="mf-sec-head"><div class="mf-sec-title">🎙 음성 녹음 <em>(휴대폰에서 바로 · 60분+ 가능)</em></div></div>
       <div class="rec-banner" id="recBanner" hidden><span class="rec-dot"></span><span id="recBannerLbl">🔴 본 회의 녹음 중</span><span id="recBigTime">00:00</span></div>
       <div class="rec-wrap">
@@ -173,7 +288,7 @@
         <audio id="recAudio" controls style="width:100%;max-width:440px;display:block;"{% if meeting.audio_path %} src="/api/meeting/{{ meeting.id }}/audio"{% endif %}></audio>
         <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <button class="btn btn-primary" id="transcribeBtn" {% if not transcribe_on %}disabled title="음성→글자는 OpenAI 키 등록 후 동작합니다(관리자 → AI 설정)"{% endif %}>📝 음성→글자 변환</button>
-          <span class="mf-hint">변환하면 아래 ‘회의 내용’에 자동 추가됩니다 → 그다음 「✨ AI로 정리」</span>
+          <span class="mf-hint">변환하면 위 ‘회의 내용’에 자동으로 들어갑니다 (새 녹음을 올리면 변환·AI 정리까지 자동)</span>
         </div>
       </div>
       {% if not transcribe_on %}<div class="mf-hint" style="margin-top:8px;color:var(--knk-red);">⚠ 음성→글자는 OpenAI 키 등록 후 동작합니다 — 녹음·저장·재생은 지금도 됩니다.</div>{% endif %}
@@ -194,13 +309,13 @@
     </div>
 
     <!-- ── 요약 ── -->
-    <div class="mf-section">
+    <div class="mf-section" id="secSummary">
       <div class="mf-sec-head"><div class="mf-sec-title">📋 회의록 정리 <em>(안건·논의·요점)</em></div></div>
       <div class="sum-box empty" id="mtgSummary">아직 정리 전입니다 — 위 「✨ AI로 정리」를 누르세요.</div>
     </div>
 
     <!-- ── 결정사항 ── -->
-    <div class="mf-section">
+    <div class="mf-section" id="secDecisions">
       <div class="mf-sec-head"><div class="mf-sec-title">결정사항 <em>(누가 · 무엇을 · 언제까지)</em></div></div>
       <div id="decList"></div>
       {% if can_edit %}
@@ -214,7 +329,7 @@
     </div>
 
     <!-- ── 할 일 ── -->
-    <div class="mf-section">
+    <div class="mf-section" id="secActions">
       <div class="mf-sec-head"><div class="mf-sec-title">할 일 <em>(담당 · 내용 · 기한)</em></div>
         <span class="mf-hint" style="margin-left:auto;">「일일카드로」를 누르면 일일업무카드에 등록됩니다</span>
       </div>
@@ -231,7 +346,7 @@
 
     {% if can_link_proj or can_link_sales %}
     <!-- ── 🔗 연결 (프로젝트·영업기회) ── -->
-    <div class="mf-section">
+    <div class="mf-section" id="secLink">
       <div class="mf-sec-head"><div class="mf-sec-title">🔗 연결 <em>(프로젝트·영업기회)</em></div></div>
       <div class="mf-grid2">
         {% if can_link_proj %}
@@ -271,6 +386,8 @@
   </div>
 </main>
 </div>
+{% include "_v5_partials/knk_inputs.html" %}
+{% include "_v5_partials/knk_datepicker.html" %}
 
 <script>
 window.__MTG = {
@@ -279,6 +396,8 @@ window.__MTG = {
   base_ts: {{ (meeting.updated_at or '')|tojson if not is_new else '""' }},
   can_edit: {{ 'true' if (is_new or can_edit) else 'false' }},
   ai_on: {{ 'true' if ai_on else 'false' }},
+  tr_on: {{ 'true' if transcribe_on else 'false' }},
+  has_audio: {{ 'true' if (not is_new and meeting.audio_path) else 'false' }},
   summary: {{ (meeting.summary or '')|tojson if not is_new else '""' }},
   decisions: {{ decisions|tojson if decisions else '[]' }},
   actions: {{ actions|tojson if actions else '[]' }}
@@ -288,6 +407,7 @@ window.__MTG = {
 (function(){
   var M = window.__MTG || {};
   var CAN_EDIT = !!M.can_edit;
+  var AI_ON = !!M.ai_on, TR_ON = !!M.tr_on;
 
   function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function $(id){ return document.getElementById(id); }
@@ -296,9 +416,13 @@ window.__MTG = {
   async function jreq(method, url, body){
     var opt = { method: method, headers: {'Content-Type':'application/json'} };
     if (body !== undefined) opt.body = JSON.stringify(body);
-    var r = await fetch(url, opt);
-    var d = {}; try { d = await r.json(); } catch(e){}
-    return { ok: r.ok, status: r.status, data: d };
+    try {
+      var r = await fetch(url, opt);
+      var d = {}; try { d = await r.json(); } catch(e){}
+      return { ok: r.ok, status: r.status, data: d };
+    } catch(e){
+      return { ok:false, status:0, data:{ error:'연결 오류: '+((e&&e.message)||e) } };
+    }
   }
 
   function collectForm(){
@@ -314,15 +438,20 @@ window.__MTG = {
   }
 
   // ── 저장(신규 생성 / 기존 수정) ──
+  // z971 신규: 제목 없으면 기본 제목으로 만들고, 내용이 있으면 ?auto=1 로 넘어가 AI 정리까지 자동.
   async function save(){
     var f = collectForm();
-    if (!f.title.trim()) { status('회의 제목을 입력하세요.', 'err'); var t=$('mtgTitle'); if(t) t.focus(); return; }
     status('저장 중…', 'busy');
     if (M.is_new) {
+      if (!f.title.trim()) f.title = '제목 없는 회의 ' + (f.meeting_date || '');
       var res = await jreq('POST', '/api/meeting', f);
-      if (res.ok && res.data.ok) { location.href = '/meetings/' + res.data.id; }
+      if (res.ok && res.data.ok) {
+        var go = '/meetings/' + res.data.id + ((f.body.trim() && AI_ON) ? '?auto=1' : '');
+        location.href = go;
+      }
       else { status(res.data.error || '저장 실패', 'err'); }
     } else {
+      if (!f.title.trim()) { status('회의 제목을 입력하세요.', 'err'); var t=$('mtgTitle'); if(t) t.focus(); return; }
       f.base_ts = M.base_ts;
       var res2 = await jreq('PUT', '/api/meeting/' + M.id, f);
       if (res2.ok && res2.data.ok) { M.base_ts = res2.data.updated_at || M.base_ts; status('저장됨 ✓', 'ok'); }
@@ -368,22 +497,96 @@ window.__MTG = {
     }).join('');
   }
 
-  // ── AI 추출 ──
-  async function extract(){
-    var btn = $('btnExtract'); if (btn){ btn.disabled=true; }
-    status('AI가 회의 내용을 정리하는 중…', 'busy');
+  // ── 핵심 실행 단계(버튼·자동 파이프라인 공용) ──
+  // doTranscribe: 녹음 → 글자 (성공 시 회의 내용 칸·잠금시각 갱신)
+  async function doTranscribe(){
+    var res = await jreq('POST', '/api/meeting/'+M.id+'/transcribe', {});
+    if (res.ok && res.data.ok){
+      var ta=$('mtgBody'); if(ta) ta.value=res.data.body;
+      M.base_ts = res.data.updated_at || M.base_ts;
+      return { ok:true };
+    }
+    return { ok:false, error: res.data.error || '음성→글자 변환 실패' };
+  }
+  // doExtract: AI 정리 (성공 시 요약·결정·할일 렌더 + AI 제안 제목 반영)
+  async function doExtract(){
     var res = await jreq('POST', '/api/meeting/'+M.id+'/extract', {});
-    if (btn){ btn.disabled=false; }
     if (res.ok && res.data.ok){
       M.summary = res.data.summary || '';
       M.decisions = res.data.decisions || [];
       M.actions = res.data.actions || [];
       M.base_ts = res.data.updated_at || M.base_ts;
+      if (res.data.title){ var t=$('mtgTitle'); if(t) t.value=res.data.title; }
       renderSummary(); renderDecisions(); renderActions();
-      status('정리 완료 ✓ 내용을 확인하고 할 일을 일일카드로 보내세요.', 'ok');
-    } else {
-      status(res.data.error || 'AI 정리 실패', 'err');
+      return { ok:true };
     }
+    return { ok:false, error: res.data.error || 'AI 정리 실패' };
+  }
+
+  // ── 수동 버튼(다시 돌리기용) ──
+  async function extract(){
+    var btn = $('btnExtract'); if (btn){ btn.disabled=true; }
+    status('AI가 회의 내용을 정리하는 중…', 'busy');
+    var r = await doExtract();
+    if (btn){ btn.disabled=false; }
+    if (r.ok) status('정리 완료 ✓ 내용을 확인하고 할 일을 일일카드로 보내세요.', 'ok');
+    else status(r.error, 'err');
+  }
+  async function transcribe(){
+    var btn=$('transcribeBtn'); if(btn)btn.disabled=true;
+    recSt('음성을 글자로 바꾸는 중… (길면 1~2분 걸려요)');
+    var r = await doTranscribe();
+    if(btn)btn.disabled=false;
+    if (r.ok) recSt('변환 완료 ✓ 회의 내용에 들어갔습니다 — 「✨ AI로 정리」로 마무리', 'ok');
+    else recSt(r.error, 'err');
+  }
+
+  // ── z971 자동 파이프라인 — 업로드/저장 후 (음성→글자)→(AI 정리) 자동 실행 ──
+  var _pipeBusy=false, _pipeLastOpts=null;
+  function bodyHasStt(){ return ((($('mtgBody')||{}).value)||'').indexOf('[음성 변환]') >= 0; }
+  function pipeRender(steps){
+    var card=$('pipeCard'), box=$('pipeSteps'); if(!card||!box) return;
+    card.hidden=false;
+    box.innerHTML = steps.map(function(s){
+      var ic = s.st==='done' ? '✅' : (s.st==='run' ? '⏳' : (s.st==='err' ? '❌' : '○'));
+      var col = s.st==='err' ? 'var(--knk-red)' : (s.st==='done' ? '#15803d' : (s.st==='run' ? 'var(--qv-ink)' : 'var(--qv-ink-3)'));
+      return '<div style="color:'+col+';font-weight:'+((s.st==='run'||s.st==='err')?'800':'600')+';">'+ic+' '+esc(s.label)+'</div>';
+    }).join('');
+  }
+  async function autoPipeline(opts){
+    opts = opts || {};
+    if (_pipeBusy || M.is_new || !CAN_EDIT) return;
+    var body = ((($('mtgBody')||{}).value)||'').trim();
+    var wantStt = M.has_audio && (opts.forceStt || !bodyHasStt());
+    var plan = [];
+    if (wantStt && TR_ON) plan.push('stt');
+    if ((body || (wantStt && TR_ON)) && AI_ON) plan.push('extract');
+    if (!plan.length){
+      if (wantStt && !TR_ON) pipeRender([{label:'음성→글자는 OpenAI 키 등록 후 가능합니다 (관리자 → AI 설정)', st:'err'}]);
+      return;
+    }
+    _pipeLastOpts = opts; _pipeBusy = true;
+    var go=$('pipeGo'), rt=$('pipeRetry'); if(go)go.hidden=true; if(rt)rt.hidden=true;
+    await reqWake();  // 진행 중 화면 꺼짐 방지
+    var steps = plan.map(function(k){
+      return { k:k, st:'wait', label: k==='stt' ? '음성을 글자로 바꾸는 중 (길면 1~2분)' : 'AI가 회의록으로 정리하는 중' };
+    });
+    for (var i=0; i<steps.length; i++){
+      steps[i].st='run'; pipeRender(steps);
+      var r;
+      try { r = (steps[i].k==='stt') ? await doTranscribe() : await doExtract(); }
+      catch(e){ r = { ok:false, error:(e&&e.message)||'오류' }; }
+      if (!r.ok){
+        steps[i].st='err'; steps[i].label += ' — ' + (r.error||'실패'); pipeRender(steps);
+        if (rt) rt.hidden=false;
+        _pipeBusy=false; relWake(); return;
+      }
+      steps[i].st='done';
+      steps[i].label = (steps[i].k==='stt') ? '음성→글자 완료 (회의 내용에 들어감)' : 'AI 정리 완료';
+      pipeRender(steps);
+    }
+    pipeRender(steps.concat([{ st:'done', label:'모두 끝났습니다 — 아래 정리 결과를 확인하세요. 필요하면 고치고, 할 일은 「일일카드로」.' }]));
+    _pipeBusy=false; relWake();
   }
 
   // ── 결정·할일 수기 추가 ──
@@ -441,6 +644,12 @@ window.__MTG = {
   var bDel=$('btnDelete'); if(bDel) bDel.addEventListener('click', delMeeting);
   var bAD=$('btnAddDec'); if(bAD) bAD.addEventListener('click', addDec);
   var bAA=$('btnAddAct'); if(bAA) bAA.addEventListener('click', addAct);
+  var bWr=$('btnWriteMode'); if(bWr) bWr.addEventListener('click', function(){
+    var w=$('writeWrap'); if(w){ w.hidden=false; }
+    var ta=$('mtgBody'); if(ta){ try{ ta.focus(); }catch(_){}}
+  });
+  var bGo=$('pipeGo'); if(bGo) bGo.addEventListener('click', function(){ autoPipeline({}); });
+  var bRt=$('pipeRetry'); if(bRt) bRt.addEventListener('click', function(){ autoPipeline(_pipeLastOpts||{}); });
 
   // 목록 이벤트 위임(삭제·일일카드로)
   function delegate(box){ if(!box) return; box.addEventListener('click', function(e){
@@ -456,10 +665,9 @@ window.__MTG = {
   ['decWhat','decDue','decWho'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); addDec(); } }); });
   ['actTask','actDue','actAssignee'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); addAct(); } }); });
 
-  // ── 🎙 음성 녹음 (모드 B) — 60분+·화면꺼짐방지·통화 자동 일시정지/재개·큰 표시 ──
+  // ── 🎙 음성 녹음 (모드 B) — 60분+·화면꺼짐방지·수동 일시정지·큰 표시 ──
   var _mr=null,_chunks=[],_recBlob=null,_recMime='',_recTimer=null,_recSec=0;
   var _stream=null,_track=null,_wakeLock=null,_userStop=false,_paused=false,_docTitle='';
-  var _ac=null,_analyser=null,_levelTimer=null,_micGone=false,_silMs=0;
   function recFmt(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
   function recExt(mime){mime=mime||'';if(mime.indexOf('mp4')>=0||mime.indexOf('m4a')>=0||mime.indexOf('aac')>=0)return 'm4a';if(mime.indexOf('ogg')>=0)return 'ogg';if(mime.indexOf('wav')>=0)return 'wav';return 'webm';}
   function recSt(msg,kind){var el=$('recStatus');if(el){el.textContent=msg||'';el.style.color=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)');}}
@@ -501,7 +709,7 @@ window.__MTG = {
       _recSec=0;var t=$('recTime');if(t){t.hidden=false;t.textContent='● 00:00';}
       _docTitle=document.title;recBanner(true,false);
       _recTimer=setInterval(recTick,1000);
-      var b=$('recBtn');if(b){b.textContent='⏹ 녹음 정지';b.classList.add('on');b.dataset.on='1';}
+      var b=$('recBtn');if(b){b.textContent='⏹ 녹음 종료 (자동 정리 시작)';b.classList.add('on');b.dataset.on='1';}
       await reqWake();
       var pb=$('recPauseBtn');if(pb){pb.hidden=false;pb.textContent='⏸ 일시정지';}
       recSt('녹음 중… 전화 받을 땐 「⏸ 일시정지」를 누르세요(통화 내용 녹음 방지). 다른 앱을 봐도 녹음은 계속됩니다.');
@@ -509,10 +717,10 @@ window.__MTG = {
   }
   function recStop(){_userStop=true;try{if(_mr&&_mr.state!=='inactive')_mr.stop();else _finishRec();}catch(_){_finishRec();}}
   document.addEventListener('visibilitychange',function(){
-    // 앱 전환·화면 끔은 정지하지 않음(마이크 안 뺏김 → 녹음 유지). 정지/재개는 마이크 무음 감지가 담당.
+    // 앱 전환·화면 끔은 정지하지 않음(마이크 안 뺏김 → 녹음 유지).
     if(document.visibilityState==='visible'&&_mr&&_mr.state!=='inactive'){reqWake();}
   });
-  // 새 회의(미저장)에서 녹음/업로드하면 회의를 자동 생성(제목 비면 기본값).
+  // 새 회의(미저장)에서 녹음/업로드하면 회의를 자동 생성(제목 비면 기본값 — AI 정리 때 자동 제목).
   async function ensureMeetingSaved(){
     if(M.id) return true;
     var f=collectForm();
@@ -531,9 +739,19 @@ window.__MTG = {
       var r=await fetch('/api/meeting/'+M.id+'/audio',{method:'POST',body:fd});
       var j={};try{j=await r.json();}catch(_){}
       if(r.ok&&j.ok){
-        M.base_ts=j.updated_at||M.base_ts;
-        if(wasNew){ recSt('저장됨 ('+j.size_kb+'KB) ✓ 회의록을 엽니다…','ok'); location.href='/meetings/'+M.id; return; }
-        recSt('저장됨 ('+j.size_kb+'KB) ✓ 이제 「📝 음성→글자 변환」','ok');
+        M.base_ts=j.updated_at||M.base_ts; M.has_audio=true;
+        if(wasNew){
+          // 녹음 중 적었을 수 있는 제목·상세정보를 저장에 반영(실패해도 진행) 후 자동 정리로 이동
+          recSt('녹음 저장됨 ✓ 자동 정리를 시작합니다…','ok');
+          try{
+            var f=collectForm(); f.base_ts=M.base_ts;
+            var pr=await jreq('PUT','/api/meeting/'+M.id,f);
+            if(pr.ok&&pr.data.ok) M.base_ts=pr.data.updated_at||M.base_ts;
+          }catch(_){}
+          location.href='/meetings/'+M.id+'?auto=1'; return;
+        }
+        recSt('저장됨 ('+j.size_kb+'KB) ✓','ok');
+        autoPipeline({forceStt:true});  // 상세 화면에서 새 녹음 → 변환·AI 정리 자동
       } else recSt(j.error||'업로드 실패','err');
     }catch(e){recSt('업로드 오류: '+(e.message||e),'err');}
   }
@@ -543,17 +761,6 @@ window.__MTG = {
     var ext=(f.name.split('.').pop()||'m4a').toLowerCase();
     uploadAudioBlob(f,'upload.'+ext);
     e.target.value='';
-  }
-  async function transcribe(){
-    var btn=$('transcribeBtn');if(btn)btn.disabled=true;
-    recSt('음성을 글자로 변환 중… (길면 1~2분 걸려요)');
-    try{
-      var r=await fetch('/api/meeting/'+M.id+'/transcribe',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      var j={};try{j=await r.json();}catch(_){}
-      if(btn)btn.disabled=false;
-      if(r.ok&&j.ok){var ta=$('mtgBody');if(ta)ta.value=j.body;M.base_ts=j.updated_at||M.base_ts;recSt('변환 완료 ✓ 회의 내용에 추가됨 — 「💾 저장」 후 「✨ AI로 정리」','ok');}
-      else recSt(j.error||'변환 실패','err');
-    }catch(e){if(btn)btn.disabled=false;recSt('변환 오류: '+(e.message||e),'err');}
   }
   var _recBtn=$('recBtn');if(_recBtn)_recBtn.addEventListener('click',function(){if(_recBtn.dataset.on)recStop();else recStart();});
   var _recPause=$('recPauseBtn');if(_recPause)_recPause.addEventListener('click',recTogglePause);
@@ -587,8 +794,29 @@ window.__MTG = {
   var _bLink=$('btnLink'); if(_bLink)_bLink.addEventListener('click',saveLink);
   var _bToOpp=$('btnToOpp'); if(_bToOpp&&!_bToOpp.disabled)_bToOpp.addEventListener('click',toOpportunity);
 
-  // 초기 렌더 (상세 모드)
-  if (!M.is_new){ renderSummary(); renderDecisions(); renderActions(); }
+  // ── 초기 렌더 + 자동 정리 진입 (상세 모드) ──
+  if (!M.is_new){
+    renderSummary(); renderDecisions(); renderActions();
+    var _auto=false;
+    try{ _auto = new URLSearchParams(location.search).get('auto')==='1'; }catch(_){}
+    if (_auto){
+      try{ history.replaceState(null,'',location.pathname); }catch(_){}  // 새로고침 시 중복 실행 방지
+      if (CAN_EDIT) autoPipeline({});
+    } else if (CAN_EDIT){
+      // 아직 안 끝난 단계가 있으면 「▶ 자동 정리 시작」 제안 카드만 표시(자동 실행 X)
+      var _b = ((($('mtgBody')||{}).value)||'').trim();
+      var _needStt = M.has_audio && !bodyHasStt() && TR_ON;
+      var _needExt = (_b || _needStt) && AI_ON
+                     && !(M.summary && M.summary.trim()) && !M.decisions.length && !M.actions.length;
+      if (_needStt || _needExt){
+        var _pl=[];
+        if (_needStt) _pl.push({st:'wait', label:'음성을 글자로 바꾸기'});
+        if (_needExt) _pl.push({st:'wait', label:'AI가 회의록으로 정리'});
+        pipeRender(_pl);
+        var _go=$('pipeGo'); if(_go) _go.hidden=false;
+      }
+    }
+  }
 })();
 </script>
 </body>
