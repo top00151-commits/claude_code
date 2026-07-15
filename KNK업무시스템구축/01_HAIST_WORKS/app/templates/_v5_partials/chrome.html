@@ -6,6 +6,9 @@
    사용:  {% include "_v5_partials/chrome.html" with context %}
    ============================================================ #}
 
+{# v5H226z972 (대표 지시·규정): 전역 '처리 중' 표준(상단 진행바+오버레이+토스트) — window.KNKBusy #}
+{% include "_v5_partials/knk_busy.html" %}
+
 {% set _path = (request.url.path if request and request.url else '') %}
 {% set _role = (user.role or 'member')|lower %}
 

@@ -1,0 +1,183 @@
+{# =====================================================================
+   _v5_partials/knk_busy.html — v5H226z972 (대표 지시·규정)
+   "처리 중이니 기다리세요"를 전 시스템에서 정확히 표현하는 공용 표준.
+   chrome.html 에서 1회 include → 모든 페이지에서 window.KNKBusy 사용.
+
+   ⭐규정(전체 제작 시 적용): 시간이 걸릴 수 있는 저장·변경·업로드·삭제는
+     ① 즉시 "처리 중" 표시(사용자가 눌렀다는 걸 알게) ②끝나면 성공/실패를 명확히.
+   제공:
+     KNKBusy.overlay(msg)  → 화면 중앙 '처리 중' 오버레이(클릭 차단). 반환 핸들:
+          .progress(done,total) · .text(msg) · .done(msg) · .fail(msg) · .close()
+     KNKBusy.toast(msg, type, ms)  → 하단 토스트 (type: ok/err/info)
+     KNKBusy.btn(el, label)  → 버튼을 '…중'으로(비활성+스피너). 반환: .done(msg)/.fail(msg)/.restore()
+     KNKBusy.flashOnReload(msg, type) → 새로고침 뒤 뜨는 완료 토스트(저장→reload 패턴용)
+   자동: window.fetch 를 감싸 250ms 이상 걸리는 요청엔 상단 진행바 자동 표시.
+   ===================================================================== #}
+{% if not _knk_busy_loaded %}{% set _knk_busy_loaded = true %}
+<style id="knk-busy-css">
+#knkTopbar{position:fixed;top:0;left:0;height:3px;width:0;z-index:2147483646;
+  background:linear-gradient(90deg,#b0271f,#f59e0b);box-shadow:0 0 8px rgba(176,39,31,.5);
+  opacity:0;transition:width .2s ease,opacity .3s ease;pointer-events:none;}
+#knkTopbar.on{opacity:1;}
+#knkOverlay{position:fixed;inset:0;z-index:2147483645;display:none;align-items:center;justify-content:center;
+  background:rgba(15,23,42,.42);backdrop-filter:blur(1.5px);-webkit-backdrop-filter:blur(1.5px);}
+#knkOverlay.on{display:flex;}
+#knkOverlay .knkbx{background:#fff;border-radius:16px;padding:26px 34px;min-width:260px;max-width:80vw;
+  box-shadow:0 18px 50px rgba(0,0,0,.28);text-align:center;font-family:inherit;}
+#knkOverlay .knksp{width:40px;height:40px;margin:0 auto 14px;border:4px solid #f1e8d4;border-top-color:#b0271f;
+  border-radius:50%;animation:knkspin .8s linear infinite;}
+#knkOverlay.state-done .knksp{border:0;animation:none;color:#16a34a;font-size:40px;line-height:40px;}
+#knkOverlay.state-fail .knksp{border:0;animation:none;color:#dc2626;font-size:40px;line-height:40px;}
+@keyframes knkspin{to{transform:rotate(360deg);}}
+#knkOverlay .knkmsg{font-size:15.5px;font-weight:800;color:#0f172a;line-height:1.5;}
+#knkOverlay .knksub{font-size:12.5px;color:#64748b;margin-top:6px;}
+#knkOverlay .knkbar{height:7px;background:#f1f5f9;border-radius:99px;overflow:hidden;margin-top:14px;display:none;}
+#knkOverlay .knkbar.on{display:block;}
+#knkOverlay .knkbar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,#b0271f,#f59e0b);
+  border-radius:99px;transition:width .25s ease;}
+#knkOverlay .knkpct{font-size:12px;color:#334155;margin-top:7px;font-weight:700;font-variant-numeric:tabular-nums;display:none;}
+#knkOverlay .knkpct.on{display:block;}
+#knkToastWrap{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:2147483647;
+  display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}
+.knk-toast{min-width:180px;max-width:78vw;padding:12px 20px;border-radius:10px;color:#fff;font-size:13.5px;
+  font-weight:700;box-shadow:0 8px 26px rgba(0,0,0,.22);opacity:0;transform:translateY(14px);
+  transition:opacity .25s ease,transform .25s ease;text-align:center;line-height:1.45;}
+.knk-toast.show{opacity:1;transform:translateY(0);}
+.knk-toast.ok{background:#15803d;}
+.knk-toast.err{background:#b91c1c;}
+.knk-toast.info{background:#1e293b;}
+/* 버튼 busy — 스피너 접두 */
+.knk-btn-busy{position:relative;pointer-events:none;opacity:.85;}
+.knk-btn-busy::before{content:"";display:inline-block;width:12px;height:12px;margin-right:7px;vertical-align:-1px;
+  border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:knkspin .7s linear infinite;}
+</style>
+<div id="knkTopbar"></div>
+<div id="knkOverlay" role="alert" aria-live="assertive" aria-busy="true"><div class="knkbx">
+  <div class="knksp" id="knkSp"></div>
+  <div class="knkmsg" id="knkMsg">처리 중입니다…</div>
+  <div class="knksub" id="knkSub">잠시만 기다려 주세요.</div>
+  <div class="knkbar" id="knkBar"><i></i></div>
+  <div class="knkpct" id="knkPct"></div>
+</div></div>
+<div id="knkToastWrap" aria-live="polite"></div>
+<script>
+(function(){
+  if (window.KNKBusy) return;   // 전역 1회 (chrome + 페이지 로컬 중복 include 안전)
+  var ov = document.getElementById('knkOverlay');
+  var elMsg = document.getElementById('knkMsg'), elSub = document.getElementById('knkSub');
+  var elBar = document.getElementById('knkBar'), elBarI = elBar ? elBar.querySelector('i') : null;
+  var elPct = document.getElementById('knkPct'), elSp = document.getElementById('knkSp');
+  var tw = document.getElementById('knkToastWrap');
+
+  function toast(msg, type, ms){
+    if(!tw) return;
+    var t = document.createElement('div');
+    t.className = 'knk-toast ' + (type==='ok'?'ok':type==='err'?'err':'info');
+    t.textContent = (type==='ok'?'✅ ':type==='err'?'⚠ ':'') + msg;
+    tw.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('show'); });
+    setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 300); }, ms || (type==='err'?4200:2400));
+  }
+
+  var _ovDepth = 0;
+  function overlay(msg, sub){
+    _ovDepth++;
+    ov.className = 'on';
+    if(elSp) elSp.textContent = '';
+    elMsg.textContent = msg || '처리 중입니다…';
+    elSub.textContent = (sub != null) ? sub : '잠시만 기다려 주세요.';
+    elBar.classList.remove('on'); if(elBarI) elBarI.style.width = '0';
+    elPct.classList.remove('on'); elPct.textContent = '';
+    var h = {
+      text: function(m, s){ elMsg.textContent = m; if(s!=null) elSub.textContent = s; return h; },
+      progress: function(done, total){
+        if(total > 0){
+          elBar.classList.add('on'); elPct.classList.add('on');
+          var p = Math.max(0, Math.min(100, Math.round(done/total*100)));
+          if(elBarI) elBarI.style.width = p + '%';
+          elPct.textContent = done + ' / ' + total + '  (' + p + '%)';
+          elSub.textContent = '저장 중입니다 — 완료될 때까지 기다려 주세요.';
+        }
+        return h;
+      },
+      done: function(m){
+        ov.classList.add('state-done'); if(elSp) elSp.textContent = '✓';
+        elMsg.textContent = m || '완료되었습니다.'; elSub.textContent = '';
+        elBar.classList.remove('on'); elPct.classList.remove('on');
+        setTimeout(function(){ h.close(); }, 650);
+        return h;
+      },
+      fail: function(m){
+        ov.classList.add('state-fail'); if(elSp) elSp.textContent = '✕';
+        elMsg.textContent = m || '실패했습니다.'; elSub.textContent = '';
+        setTimeout(function(){ h.close(); }, 1200);
+        return h;
+      },
+      close: function(){
+        _ovDepth = Math.max(0, _ovDepth - 1);
+        if(_ovDepth === 0) ov.className = '';
+      }
+    };
+    return h;
+  }
+
+  function btn(el, label){
+    if(!el) return { done:function(){}, fail:function(){}, restore:function(){} };
+    var origHtml = el.innerHTML, origDis = el.disabled;
+    el.classList.add('knk-btn-busy'); el.disabled = true;
+    if(label != null) el.textContent = label;
+    function restore(){ el.classList.remove('knk-btn-busy'); el.disabled = origDis; el.innerHTML = origHtml; }
+    return {
+      restore: restore,
+      done: function(m, silent){ restore(); if(m && !silent) toast(m, 'ok'); },
+      fail: function(m){ restore(); if(m) toast(m, 'err'); }
+    };
+  }
+
+  // 저장→새로고침 패턴: reload 전에 예약 → 새 페이지에서 완료 토스트
+  function flashOnReload(msg, type){
+    try{ sessionStorage.setItem('_knkFlash', JSON.stringify({m: msg, t: type||'ok', ts: Date.now()})); }catch(e){}
+  }
+  try{
+    var raw = sessionStorage.getItem('_knkFlash');
+    if(raw){ sessionStorage.removeItem('_knkFlash'); var f = JSON.parse(raw);
+      if(f && f.m && (Date.now() - (f.ts||0) < 15000)) setTimeout(function(){ toast(f.m, f.t); }, 120); }
+  }catch(e){}
+
+  // ── 전역 상단 진행바: fetch 250ms↑ 요청 감지 (모든 async 동작에 '작동 중' 앰비언트 표시) ──
+  var tb = document.getElementById('knkTopbar');
+  var inflight = 0, tbTimer = null, growTimer = null, curW = 0;
+  function tbStart(){
+    inflight++;
+    if(inflight === 1 && tb){
+      clearTimeout(tbTimer);
+      tbTimer = setTimeout(function(){   // 250ms 넘게 걸리는 것만 표시(빠른 요청은 깜빡임 방지)
+        tb.classList.add('on'); curW = 8; tb.style.width = '8%';
+        clearInterval(growTimer);
+        growTimer = setInterval(function(){ curW += (90 - curW) * 0.12; tb.style.width = curW.toFixed(1) + '%'; }, 300);
+      }, 250);
+    }
+  }
+  function tbStop(){
+    inflight = Math.max(0, inflight - 1);
+    if(inflight === 0 && tb){
+      clearTimeout(tbTimer); clearInterval(growTimer);
+      if(tb.classList.contains('on')){
+        tb.style.width = '100%';
+        setTimeout(function(){ tb.classList.remove('on'); setTimeout(function(){ tb.style.width = '0'; }, 320); }, 180);
+      } else { tb.style.width = '0'; }
+    }
+  }
+  if(window.fetch && !window.fetch.__knkWrapped){
+    var _origFetch = window.fetch.bind(window);
+    var wrapped = function(){ tbStart(); return _origFetch.apply(this, arguments).finally(tbStop); };
+    wrapped.__knkWrapped = true;
+    window.fetch = wrapped;
+  }
+
+  window.KNKBusy = { overlay: overlay, toast: toast, btn: btn, flashOnReload: flashOnReload };
+  // 호환: 페이지가 전역 toast 를 안 만들었으면 공용 토스트로 폴백(기존 로컬 toast 는 각 페이지 스코프라 영향 없음)
+  if(typeof window.toast === 'undefined') window.toast = function(m, t){ toast(m, t); };
+})();
+</script>
+{% endif %}

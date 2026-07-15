@@ -1146,8 +1146,9 @@
               });
               return out;
             }
-            async function saveAllRows(){
+            async function saveAllRows(onProgress){
               const dirtyRows = collectDirtyRows();
+              const _pgTotal = dirtyRows.length; let _pgDone = 0;   // v5H226z972: 진행률 콜백(오버레이 표시용)
               const metaInputs = card.querySelectorAll('.so-meta-edit');
               const metaDirty = Array.from(metaInputs).some(inp =>
                 (inp.value || '') !== (inp.dataset.orig || ''));
@@ -1226,6 +1227,7 @@
                     failed.push({ uid: r.uid, msg: '(상태)' + e.message });
                   }
                 }
+                _pgDone++; if(onProgress){ try{ onProgress(_pgDone, _pgTotal); }catch(_e){} }   // v5H226z972: 진행률
               }
               // SO 헤더 메타 저장 (있을 때)
               if (metaDirty) {
@@ -1256,26 +1258,34 @@
                   return;
                 }
                 // 편집 모드에서 클릭 → 저장
+                var _ov2 = window.KNKBusy ? KNKBusy.overlay('💾 저장 중입니다…', '변경한 내용을 저장하고 있습니다. 잠시 기다려 주세요.') : null;   // v5H226z972
                 toggleBtn.disabled = true;
                 toggleBtn.textContent = '저장 중...';
                 try {
-                  const res = await saveAllRows();
-                  if (res.failed && res.failed.length) {
-                    alert('⚠ 일부 저장 실패:\n' +
+                  const res = await saveAllRows(function(d,t){ if(_ov2) _ov2.progress(d,t); });
+                  const okN = res.changed || 0, failN = (res.failed || []).length;
+                  if (failN) alert('⚠ 일부 저장 실패:\n' +
                           res.failed.map(f => '· ' + (f.uid ? '#'+f.uid : '메타') + ': ' + f.msg).join('\n'));
-                  }
-                  if (res.changed > 0) {
+                  if (okN > 0) {
+                    var _m2 = '✅ ' + okN + '건 저장 완료' + (failN ? (' · ⚠ ' + failN + '건 실패') : '');
+                    if(_ov2) _ov2.done(_m2);
+                    if(window.KNKBusy) KNKBusy.flashOnReload(_m2, failN ? 'err' : 'ok');
                     window.location.href = window.location.pathname + '?_t=' + Date.now();
                     return;
                   }
-                  // 변경 없음 → 잠금 복귀
-                  card.classList.remove('unlocked');
-                  toggleBtn.textContent = '변경사항 없음';
-                  setTimeout(() => {
-                    toggleBtn.textContent = '✏️ 수정';
-                    toggleBtn.title = '수정 / 저장 토글';
-                  }, 1200);
+                  if (failN) { if(_ov2) _ov2.fail('저장 실패 (' + failN + '건)'); }
+                  else {
+                    if(_ov2) _ov2.done('변경사항 없음');
+                    // 변경 없음 → 잠금 복귀
+                    card.classList.remove('unlocked');
+                    toggleBtn.textContent = '변경사항 없음';
+                    setTimeout(() => {
+                      toggleBtn.textContent = '✏️ 수정';
+                      toggleBtn.title = '수정 / 저장 토글';
+                    }, 1200);
+                  }
                 } catch(e) {
+                  if(_ov2) _ov2.fail('저장 중 오류');
                   alert('⚠ ' + e.message);
                 } finally {
                   toggleBtn.disabled = false;
@@ -1286,20 +1296,24 @@
             const saveAllBtn = card.querySelector('.save-all-btn');
             if (saveAllBtn) {
               saveAllBtn.addEventListener('click', async () => {
+                var _ov = window.KNKBusy ? KNKBusy.overlay('💾 저장 중입니다…', '변경한 내용을 저장하고 있습니다. 잠시 기다려 주세요.') : null;   // v5H226z972
                 saveAllBtn.disabled = true;
                 saveAllBtn.textContent = '저장 중...';
                 try {
-                  const res = await saveAllRows();
-                  if (res.failed && res.failed.length) {
-                    alert('⚠ 일부 저장 실패:\n' + res.failed.map(f => '· ' + (f.uid ? '#'+f.uid : '메타') + ': ' + f.msg).join('\n'));
-                  }
-                  if (res.changed > 0) {
+                  const res = await saveAllRows(function(d,t){ if(_ov) _ov.progress(d,t); });
+                  const okN = res.changed || 0, failN = (res.failed || []).length;
+                  if (failN) alert('⚠ 일부 저장 실패:\n' + res.failed.map(f => '· ' + (f.uid ? '#'+f.uid : '메타') + ': ' + f.msg).join('\n'));
+                  if (okN > 0) {
+                    var _m = '✅ ' + okN + '건 저장 완료' + (failN ? (' · ⚠ ' + failN + '건 실패') : '');
+                    if(_ov) _ov.done(_m);
+                    if(window.KNKBusy) KNKBusy.flashOnReload(_m, failN ? 'err' : 'ok');
                     window.location.href = window.location.pathname + '?_t=' + Date.now();
                     return;
                   }
-                  saveAllBtn.textContent = '변경사항 없음';
-                  setTimeout(() => { saveAllBtn.textContent = '💾 모두 저장'; }, 1200);
+                  if (failN) { if(_ov) _ov.fail('저장 실패 (' + failN + '건)'); }
+                  else { if(_ov) _ov.done('변경사항 없음'); saveAllBtn.textContent = '변경사항 없음'; setTimeout(() => { saveAllBtn.textContent = '💾 모두 저장'; }, 1200); }
                 } catch(e) {
+                  if(_ov) _ov.fail('저장 중 오류');
                   alert('⚠ ' + e.message);
                   saveAllBtn.textContent = '💾 모두 저장';
                 } finally {
