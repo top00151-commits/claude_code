@@ -946,6 +946,19 @@ def startup():
                 print(f"[LBL-FIX] 중복 호기 라벨 자동 재번호 {fixed}건 (orders.unit_qty/total_amount 동기화)")
     except Exception as _e:
         print(f"[LBL-FIX ERR] {_e}")
+    # v5H226z977 (대표 승인): 상품(PARTS_EXPORT) SO 납기 백필(멱등) — 과거 빈 SO 생성이 납기를 상속 안 해
+    #   수주카드·제작요청서목록 납품일이 비던 것. 프로젝트 납기가 있는 경우만(명확한 단일 후보) 채움.
+    try:
+        with db_session() as c:
+            _r977 = c.execute(
+                "UPDATE orders SET due_date=(SELECT p.due_date FROM projects p WHERE p.id=orders.project_id) "
+                "WHERE COALESCE(so_type,'')='PARTS_EXPORT' AND COALESCE(due_date,'')='' "
+                "AND COALESCE(status,'')<>'CANCELLED' "
+                "AND COALESCE((SELECT p.due_date FROM projects p WHERE p.id=orders.project_id),'')<>''")
+            if _r977.rowcount:
+                print(f"[z977] 상품 SO 납기 백필 {_r977.rowcount}건 (프로젝트 납기 상속)")
+    except Exception as _e977:
+        print(f"[z977 백필 ERR] {_e977}")
     # v5H181 (2026-05-06): customers.tier='신규' 비표준 → '일반' 으로 정리
     try:
         with db_session() as c:
@@ -7156,6 +7169,27 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         except Exception as _se:
             _pr_save_err = str(_se)[:150]
     _eff_prid = _pr_new_id if record else (int(prid) if (prid is not None and str(prid).strip().isdigit()) else 0)
+    # v5H226z977 (대표 확정): 제작요청서 발행(신규·수정발행) = 제작 시작 신호 → 프로젝트 상태 '수주확정'이면 '진행중' 자동 승격.
+    #   다른 상태(초기협의·출하·취소·보류 등)는 불변(대표 규칙: 수주확정→진행중만). SO·부품 상태는 건드리지 않음
+    #   (SO CONFIRMED 표기가 이미 '진행중'·수정발행 때 부품 개별상태(출하 등) 되돌림 방지). 변경 이력 기록,
+    #   아래 메신저 카드(p.status)에도 승격 반영(p 스냅샷 갱신).
+    try:
+        with db_session() as _c977:
+            _st977 = _c977.execute("SELECT COALESCE(status,'') FROM projects WHERE id=?", (pid,)).fetchone()
+            if _st977 and str(_st977[0]).strip() == "수주확정":
+                _c977.execute("UPDATE projects SET status='진행중' WHERE id=?", (pid,))
+                try:
+                    _logi.log_project_change(_c977, pid, (user or {}).get("id"), "상태",
+                                             "수주확정", "진행중", "제작요청서 발행 → 자동 승격")
+                except Exception:
+                    pass
+                try:
+                    p["status"] = "진행중"
+                except Exception:
+                    pass
+                print(f"[z977] 제작요청서 발행 → 프로젝트 {pid} 상태 수주확정→진행중")
+    except Exception as _pe977:
+        print(f"[z977 상태승격 ERR] {_pe977}")
     # 같은 '한 번의 발행'을 유일 식별(수신자용·발행자 본인용 2번 호출이 같은 _card 를 공유) — 메신저가 '이전 발행분만' 흑백처리하도록.
     _issue_token = _dt2.now().strftime("%Y%m%d%H%M%S%f")
     # v5H226z391 (대표 지시): ③ 메신저(KNK Eum) 통보 — 'WORKS 알림' 봇이 담당자에게 1:1 푸시.
@@ -20509,7 +20543,8 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                    "p.po_type, p.unit_qty AS proj_qty, p.name AS project_name, "
                    "p.customer_name AS p_customer, cu.name AS cust_name, "
                    "o.id AS order_id, o.order_no, o.order_date AS o_order_date, "
-                   "o.due_date AS o_due_date, o.status AS o_status, "
+                   # v5H226z977 (대표 승인): 납품일 폴백 — SO 납기 비면 프로젝트 납기(상품 빈 SO '—' 방지)
+                   "COALESCE(NULLIF(o.due_date,''), NULLIF(p.due_date,'')) AS o_due_date, o.status AS o_status, "
                    "pr.id AS pr_id, pr.created_at, pr.created_date, pr.issued_by_name "
                    "FROM (SELECT project_id, MAX(id) AS mpr FROM prod_requests GROUP BY project_id) lpr "
                    "JOIN projects p ON p.id = lpr.project_id "

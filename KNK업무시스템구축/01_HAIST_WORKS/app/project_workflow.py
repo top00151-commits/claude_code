@@ -688,7 +688,10 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             _cols = ["order_no", "customer_id", "project_id", "order_date",
                      "due_date", "total_amount", "status", "created_by",
                      "unit_label", "unit_note", "ship_to", "unit_qty"]
-            _vals = [so_no, customer_id, project_id, order_date, None,
+            # v5H226z977 (대표 승인): 빈 SO(소모품·상품)도 납기=프로젝트 납기 상속 — 상품 SO 납기가
+            #   태생 NULL(기존 하드코딩 None)이라 수주카드·제작요청서목록 납품일이 비던 원인 수정.
+            _vals = [so_no, customer_id, project_id, order_date,
+                     (str(proj.get("due_date") or "").strip() or None),
                      0, "CONFIRMED", created_by or None,
                      "(라인 미입력)", (po_number or None), None, 0]
             if "currency" in _ord_cols:
