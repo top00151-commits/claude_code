@@ -688,8 +688,10 @@ html,body{background:#fff!important;overflow:auto!important;}
           <label>고객사2 <span class="sub">(최종 고객 — 다를 때만, 선택)</span></label>
           <input type="text" name="secondary_customer" id="pf_secondary_customer" autocomplete="off"
                  value="{{ project.secondary_customer|default('') }}" placeholder="최종 고객사명(선택)">
-          {# 최종 고객 매출(참고)은 UI에서 내림 — 기존 값은 hidden 으로 보존(편집 시 미손실) #}
-          <input type="hidden" name="final_amount" value="{{ project.final_amount|default('') }}">
+          {# 최종 고객 매출(참고)은 UI에서 내림 — 기존 값은 hidden 으로 보존(편집 시 미손실)
+             v5H226z975 (대표 신고 500 수정): |default('')는 None(DB NULL)엔 무력 → value="None" 렌더 → 저장 시 float('None') 500.
+             None이면 빈칸으로. #}
+          <input type="hidden" name="final_amount" value="{{ '' if project.final_amount is none else project.final_amount }}">
         </div>
         <script>
         // v5H226z653 (대표 지시): 상세폼 고객사 picker 보조 — 추가발주 잠금/자동채움은 free 모드(이름만·기존 customer_id 상속), 편집은 기존 id 로 정확 복원.

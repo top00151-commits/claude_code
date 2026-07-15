@@ -5882,6 +5882,19 @@ def projects_get_logi(pid: int):
         ).fetchone()
 
 
+def _form_num975(v, fb=None):
+    """v5H226z975 (대표 신고 500 수정): 폼 숫자 안전 파싱 — None/''/'None'/'null'(템플릿이 DB NULL을
+    문자열로 굳혀 보낸 값)·비숫자 → fb 반환. 배경: 정보수정 폼 hidden(final_amount)이 |default('')로
+    None을 'None'으로 렌더 → float('None') ValueError 500. 콤마 제거 포함."""
+    s = str(v).replace(",", "").strip() if v is not None else ""
+    if s.lower() in ("", "none", "null"):
+        return fb
+    try:
+        return float(s)
+    except ValueError:
+        return fb
+
+
 def _project_insert_or_update_values(data: dict) -> dict:
     """공통 필드 정리"""
     return {
@@ -5899,9 +5912,11 @@ def _project_insert_or_update_values(data: dict) -> dict:
                      if (data.get("currency") or "KRW").strip().upper() in CURRENCY_OPTIONS
                      else "KRW"),
         "is_export": 1 if str(data.get("is_export") or data.get("trade_type") or "").lower() in ("1","true","수출","export") else 0,
-        "order_amount": float(data.get("order_amount") or 0),
-        # v5H226z161: 예상 매출(수주 전) — 명시값 우선, 없으면 헤더 order_amount 와 동일. order_amount(확정)와 분리 보존.
-        "expected_amount": float(str(data.get("expected_amount")).replace(",", "")) if str(data.get("expected_amount") or "").strip() not in ("",) else float(data.get("order_amount") or 0),
+        "order_amount": (_form_num975(data.get("order_amount"), 0.0) or 0.0),   # v5H226z975: 'None' 문자열 안전
+        # v5H226z161: 예상 매출(수주 전) — 명시값 우선, 없으면 헤더 order_amount 와 동일. order_amount(확정)와 분리 보존. (z975: 안전 파싱)
+        "expected_amount": (_form_num975(data.get("expected_amount"))
+                            if _form_num975(data.get("expected_amount")) is not None
+                            else (_form_num975(data.get("order_amount"), 0.0) or 0.0)),
         # v5H226z166: 고객사 담당자
         "cc_name":     (data.get("cc_name") or "").strip() or None,
         "cc_dept":     (data.get("cc_dept") or "").strip() or None,
@@ -5914,11 +5929,10 @@ def _project_insert_or_update_values(data: dict) -> dict:
         "two_tier_order": 1 if (str(data.get("two_tier_order") or "").lower() in ("1", "true", "on", "yes")
                                 or (data.get("secondary_customer") or "").strip()) else 0,
         "secondary_customer": (data.get("secondary_customer") or "").strip() or None,
-        "final_amount": (float(str(data.get("final_amount")).replace(",", ""))
-                         if str(data.get("final_amount") or "").strip() not in ("",) else None),
-        # v5H132: 단가/수량 — 폼에서 받지 않으면 None/1 폴백 (백워드 호환)
-        "unit_qty": max(1, min(100, int(float(data.get("unit_qty") or 1)))) if str(data.get("unit_qty") or "").strip() else 1,
-        "unit_price": (float(data.get("unit_price")) if str(data.get("unit_price") or "").strip() not in ("", "0") else None),
+        "final_amount": _form_num975(data.get("final_amount")),   # v5H226z975: 빈값/'None' → None (500 원인 지점)
+        # v5H132: 단가/수량 — 폼에서 받지 않으면 None/1 폴백 (백워드 호환) (z975: 안전 파싱)
+        "unit_qty": max(1, min(100, int(_form_num975(data.get("unit_qty"), 1) or 1))),
+        "unit_price": (_form_num975(data.get("unit_price")) or None),
         "order_date": (data.get("order_date") or "").strip(),
         "due_date": (data.get("due_date") or "").strip(),
         "pm_name": (data.get("pm_name") or data.get("pm") or "").strip(),
