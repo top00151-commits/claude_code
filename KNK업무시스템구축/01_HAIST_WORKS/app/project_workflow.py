@@ -1197,7 +1197,9 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         items_sum = sum(float(u.get("amount") or u.get("unit_price") or 0)
                         for u in d["units"])
         qty = int(d.get("unit_qty") or 1)
-        d["mismatch_qty"] = (items_n > 0 and items_n != qty)
+        # v5H226z974 (대표 지시): 상품(PARTS_EXPORT)은 unit_qty='완제품 몇 대분'·1줄=부품 1종 — 호기수 불일치 경고 대상 아님
+        _is_parts974 = (str(d.get("so_type") or "").upper() == "PARTS_EXPORT")
+        d["mismatch_qty"] = (items_n > 0 and items_n != qty and not _is_parts974)
         d["mismatch_sum"] = (items_n > 0 and abs(items_sum - float(d.get("total_amount") or 0)) > 0.5)
         d["items_n"] = items_n
         d["items_sum"] = items_sum

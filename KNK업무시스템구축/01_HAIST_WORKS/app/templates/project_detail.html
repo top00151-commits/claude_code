@@ -1020,7 +1020,15 @@
             <!-- 푸터: 수량 + 합계 + 경고 -->
             <div class="so-card-foot">
               <div class="summary">
+                {# v5H226z974 (대표 지시): 상품(PARTS)은 부품 낱개 합계에 '대'를 붙이던 오표기 폐지 —
+                   수량 = '완제품 몇 대분'(orders.unit_qty·1=1식) + 부품 통계(종/개)는 참고로 병기 #}
+                {% if so.form_key == 'parts' %}
+                {% set _ppq974 = ((so.units|map(attribute='qty')|select|map('int')|sum) if so.units else 0) %}
+                <span>수량 <b>{% if (so.unit_qty or 1)|int >= 2 %}완제품 {{ so.unit_qty }}대분{% else %}1식{% endif %}</b>
+                  {%- if so.items_n %} <span style="color:var(--mute);font-weight:500;">· 부품 {{ so.items_n }}종 {{ '{:,}'.format(_ppq974|int) }}개</span>{% endif %}</span>
+                {% else %}
                 <span>수량 <b>{{ _qq }}대</b></span>
+                {% endif %}
                 <span style="margin-left:14px;">합계 <b>{% if can_sales_amt %}{{ money(so.total_amount or 0, _cur) }}{% else %}🔒{% endif %}</b></span>
                 {% if so.mismatch_qty or so.mismatch_sum %}
                 <span class="warn" style="margin-left:14px;">
@@ -1041,16 +1049,24 @@
         </div>
 
         <!-- 전체 합계 -->
-        {% set _gtotal = namespace(t=0, q=0) %}
+        {# v5H226z974 (대표 지시): 상품(PARTS) SO 는 부품 낱개 합('1194대' 오표기)이 아니라
+           '완제품 몇 대분'(pm)·부품 낱개(pp)·1식 건수(ps)로 분리 집계 — 장비 SO(q)는 기존 그대로 #}
+        {% set _gtotal = namespace(t=0, q=0, pm=0, pp=0, ps=0) %}
         {% for _so in project_orders %}
           {% set _gtotal.t = _gtotal.t + (_so.total_amount or 0) %}
-          {% set _gtotal.q = _gtotal.q + ((_so.units|map(attribute='qty')|select|map('int')|sum) if _so.units else (_so.unit_qty or 1)) %}
+          {% if _so.form_key == 'parts' %}
+            {% set _gtotal.ps = _gtotal.ps + 1 %}
+            {% if (_so.unit_qty or 1)|int >= 2 %}{% set _gtotal.pm = _gtotal.pm + (_so.unit_qty|int) %}{% endif %}
+            {% set _gtotal.pp = _gtotal.pp + ((_so.units|map(attribute='qty')|select|map('int')|sum) if _so.units else 0) %}
+          {% else %}
+            {% set _gtotal.q = _gtotal.q + ((_so.units|map(attribute='qty')|select|map('int')|sum) if _so.units else (_so.unit_qty or 1)) %}
+          {% endif %}
         {% endfor %}
         {# v5H176: 합계 통화는 프로젝트 헤더 통화 기준. 외화 + fx_rate 있으면 KRW 환산 병기. #}
         {% set _gt_ccy = p.currency or 'KRW' %}
         <div class="so-grand-total">
           <div>
-            <div class="label">총 수주번호 {{ project_orders|length }}건 · 총 수량 {{ _gtotal.q }}대</div>
+            <div class="label">총 수주번호 {{ project_orders|length }}건{% if _gtotal.q %} · 총 수량 {{ _gtotal.q }}대{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% else %}{{ _gtotal.ps }}식{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
           </div>
           <div class="value">
             {% if can_sales_amt %}

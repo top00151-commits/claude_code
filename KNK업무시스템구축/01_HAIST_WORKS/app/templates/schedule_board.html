@@ -198,7 +198,7 @@
         {% set _ti2 = (ti_map.get(r.row_sig ~ '|2') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         {% set _ti3 = (ti_map.get(r.row_sig ~ '|3') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}>
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}{% if r.is_parts %} data-parts="1"{% endif %}{% if r.so_oid %} data-soid="{{ r.so_oid }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}{% if r.so_no %}?so={{ r.so_no|urlencode }}{% endif %}" title="프로젝트 상세">{{ r.code }}</a>{# v5H226z695 (대표 지시): 누른 행의 수주번호를 상세로 전달 → 그 수주가 메인 카드로 #}{# v5H226z565 (대표 지시): 관리번호 뒤 호기 라벨(N호기) 표시 삭제 — 호기는 '+' 펼침으로 확인 #}{% endif %}{# v5H226z632 (대표 지시): 관리번호 옆 '+' 펼치기 제거 — 장비 호기·소모품 품목보기 모두. (편집은 프로젝트/소모품 상세에서) #}</td>
           {# v5H226z650e (대표 지시): 수주번호 옆 '참고 N' 칩 제거 — 추가 수주는 프로젝트 상세의 참고 영역에서 확인(z638 칩 폐기). #}
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
@@ -207,9 +207,11 @@
           <td class="c-info cw-model{% if r.kind != 'consumable' %} editable{% if r.model %} filled{% endif %}{% endif %}" data-col="model"{% if r.kind != 'consumable' %} data-edit="model"{% endif %} title="{{ r.model }}">{{ r.model or ('＋' if r.kind != 'consumable' else '—') }}</td>
           <td class="c-info cw-equip{% if r.kind != 'consumable' %} editable{% if r.equip %} filled{% endif %}{% endif %}" data-col="equip"{% if r.kind != 'consumable' %} data-edit="equip"{% endif %} title="{{ r.equip }}">{{ r.equip or ('＋' if r.kind != 'consumable' else '—') }}</td>
           <td class="c-info cw-note editable{% if r.note %} filled{% endif %}" data-col="note" data-edit="note" title="{{ r.note }}">{{ r.note or '＋' }}</td>
-          {# v5H226z666 (대표 지시): 수량 편집 — 단일 호기 행(is_unit·호기 1건)은 /unit-field 로, 비분할 행은 /cell 로. 묶음(호기 여러)·소모품은 비활성. #}
-          {% set _qty_edit = (r.kind != 'consumable' and (not r.is_unit or (r.unit_iids and r.unit_iids|length == 1))) %}
-          <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty"{% if _qty_edit %} data-edit="qty"{% endif %}>{{ r.qty if r.qty else ('＋' if _qty_edit else '') }}</td>
+          {# v5H226z666 (대표 지시): 수량 편집 — 단일 호기 행(is_unit·호기 1건)은 /unit-field 로, 비분할 행은 /cell 로. 묶음(호기 여러)·소모품은 비활성.
+             v5H226z974 (대표 지시): 상품(PARTS) 줄 수량 = '완제품 몇 대분'(≥2 → N대분 · 1 → 1식=부품만) — 부품 개수 합계 표시 폐지.
+               상품 줄은 부품이 여러 줄이어도 수량 편집 허용(JS가 orders.unit_qty(quick-edit)로 라우팅 — 부품 qty 오염 없음). #}
+          {% set _qty_edit = (r.kind != 'consumable' and (r.is_parts or not r.is_unit or (r.unit_iids and r.unit_iids|length == 1))) %}
+          <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty"{% if _qty_edit %} data-edit="qty"{% endif %}{% if r.is_parts %} title="상품 수량 = 완제품 몇 대분 (1=1식·부품만 출하)"{% endif %}>{% if r.is_parts and r.qty %}{% if r.qty|int >= 2 %}{{ r.qty }}대분{% else %}1식{% endif %}{% else %}{{ r.qty if r.qty else ('＋' if _qty_edit else '') }}{% endif %}</td>
           {% if can_sales_amt %}
           <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.price %}{{ money(r.price, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
           <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.amount %}{{ money(r.amount, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
@@ -1075,6 +1077,8 @@ function startEdit(td){
   // v5H226z487 (대표 지시): 호기 분할 줄(is_unit)은 그 호기(order_items)를 직접 수정 — 단가/금액/납기/발주일/납품처.
   //   (분할 줄은 프로젝트 대표값이 아니라 호기별 값이므로 /unit-field 로 라우팅. 묶음줄은 묶인 호기 전체에 동일 적용.)
   var _uids = (tr.dataset.uids||'').split(',').filter(Boolean);
+  // v5H226z974 (대표 지시): 상품(PARTS) 줄 수량 = '완제품 몇 대분' — 그 SO(orders.unit_qty)를 직접 수정(부품 qty 오염 금지)
+  if(td.dataset.edit==='qty' && tr.dataset.parts==='1' && tr.dataset.soid){ startPartsQtyEdit(td, tr); return; }
   if(_uids.length===1 && td.dataset.edit==='qty'){ startUnitEdit(td, tr, _uids); return; }   // v5H226z666: 단일 호기 행 수량 → /unit-field(정규 소스)
   if(_uids.length && ['price','amount','due_date','order_date','ship_to'].indexOf(td.dataset.edit)>=0){ startUnitEdit(td, tr, _uids); return; }
   let cur = td.classList.contains('filled') ? td.textContent.trim() : '';
@@ -1105,7 +1109,7 @@ function startEdit(td){
           // v5H226z366 (대표 지시): 고객사1은 등록 고객사 연결여부를 즉시 표시(미매칭=빨강·확인 유도)
           if(f==='cust'){ td.dataset.real=val; td.classList.toggle('cust-unmatched', !j.cust_ok); td.title='정식: '+val+(j.cust_ok?'':' — 등록 고객사 미연결(확인 필요)'); toast(j.cust_ok?'저장됨 · 고객사 연결됨(표시는 시스템명·새로고침 시 반영)':'저장됨 · 미매칭(확인 필요)'); }
           else toast('저장됨');
-          if(f==='qty'||f==='price') recalcAmount(tr);  // z277: 수량·단가 → 금액 자동(수량×단가)
+          if((f==='qty'||f==='price') && tr.dataset.parts!=='1') recalcAmount(tr);  // z277: 수량·단가 → 금액 자동(수량×단가) · z974: 상품은 금액=부품합계라 재계산 금지
         }
         else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ '+(j.message||j.error||'저장 실패')); }
       }).catch(()=>{ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
@@ -1211,6 +1215,32 @@ function startUnitEdit(td, tr, uids){
       _editing=null;
       if(okAll){ toast('저장됨 · 호기 반영'); try{var _s=document.getElementById('schedSearch'); if(_s&&_s.value) sessionStorage.setItem('knk.sched.q.keep','1');}catch(e){} setTimeout(function(){ location.reload(); }, 450); }
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+msg); }
+    }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
+  };
+  inp.addEventListener('blur',()=>finish(true));
+  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+}
+// v5H226z974 (대표 지시): 상품(PARTS) 줄 수량 인라인 편집 = '완제품 몇 대분'.
+//   부품 개수와 무관한 사람 입력값 → 그 줄의 SO(orders.unit_qty)로 저장(/sales/orders/{oid}/quick-edit 재사용).
+//   부품 qty(/unit-field)·프로젝트 미러(/cell)를 건드리지 않아 부품 데이터 오염 없음. 1=1식(부품만), ≥2=N대분.
+function startPartsQtyEdit(td, tr){
+  if(_editing) return;
+  const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';
+  let cur=String(tr.dataset.qty||'').replace(_MONEY_STRIP,'');
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.title='완제품 몇 대분인지 (부품만 출하=1)';
+  _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
+  let done=false;
+  const finish=async(save)=>{
+    if(done) return; done=true;
+    let val=inp.value.trim().replace(/,/g,'');
+    if(!save || val===cur || !val){ td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); _editing=null; return; }
+    try{
+      const fd=new FormData(); fd.append('unit_qty', val);
+      const r=await fetch('/sales/orders/'+tr.dataset.soid+'/quick-edit',{method:'POST',body:fd});
+      const j=await r.json();
+      _editing=null;
+      if(j.ok){ toast('저장됨 · '+(parseInt(val,10)>=2?('완제품 '+val+'대분'):'1식(부품만)')); setTimeout(function(){ location.reload(); }, 450); }
+      else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+(j.message||j.error||'저장 실패')); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
   inp.addEventListener('blur',()=>finish(true));

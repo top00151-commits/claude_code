@@ -13048,6 +13048,19 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
             if _col not in _ncols:
                 return (False, f"{_ntable}.{_col} 컬럼 없음")
             c.execute(f"UPDATE {_ntable} SET {_col}=? WHERE id=?", (_store, int(ref_id)))
+            # v5H226z974 (대표 지시): 상품(PARTS) 프로젝트의 수량='완제품 몇 대분' — 단일 SO(orders.unit_qty)에도 동기화.
+            #   (작업일정표 비분할 행(부품 0개 빈 SO 상품)의 수량 편집 경로. 부품 있는 상품 줄은 quick-edit 로 orders 직접 수정.)
+            if ref_kind == "project" and field == "qty":
+                try:
+                    _sfp = c.execute("SELECT COALESCE(shipment_form,'') FROM projects WHERE id=?",
+                                     (int(ref_id),)).fetchone()
+                    if str((_sfp[0] if _sfp else "") or "").upper() == "PARTS":
+                        _so1 = c.execute("SELECT COUNT(*), MAX(id) FROM orders WHERE project_id=? "
+                                         "AND COALESCE(status,'')<>'CANCELLED'", (int(ref_id),)).fetchone()
+                        if _so1 and _so1[0] == 1 and _so1[1]:
+                            c.execute("UPDATE orders SET unit_qty=? WHERE id=?", (int(_store), int(_so1[1])))
+                except Exception:
+                    pass
         return (True, "")
     # 프로젝트 납품위치 = 대표 SO(orders 최신 id)의 ship_to 수정 (별도 처리)
     if ref_kind == "project" and field == "ship_to":

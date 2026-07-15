@@ -901,12 +901,16 @@ def startup():
     try:
         import re as _re_lbl
         with db_session() as c:
+            # v5H226z974 (대표 지시): 상품(PARTS_EXPORT) SO 제외 — 1줄=부품 1종이라 같은 품명 재번호·
+            #   unit_qty(완제품 대분) 덮어쓰기 금지. (so_type 컬럼 없으면 예외 → 바깥 try가 잡아 LBL-FIX 전체 스킵)
             sos = c.execute("""
-                SELECT order_id, MIN(unit_label) AS lbl, COUNT(*) AS n
-                  FROM order_items
-                 WHERE unit_label IS NOT NULL AND unit_label != ''
-                 GROUP BY order_id
-                HAVING COUNT(DISTINCT unit_label) = 1 AND COUNT(*) > 1
+                SELECT oi.order_id AS order_id, MIN(oi.unit_label) AS lbl, COUNT(*) AS n
+                  FROM order_items oi
+                  JOIN orders o ON o.id = oi.order_id
+                 WHERE oi.unit_label IS NOT NULL AND oi.unit_label != ''
+                   AND COALESCE(o.so_type,'') <> 'PARTS_EXPORT'
+                 GROUP BY oi.order_id
+                HAVING COUNT(DISTINCT oi.unit_label) = 1 AND COUNT(*) > 1
             """).fetchall()
             fixed = 0
             for r in sos:
@@ -6507,13 +6511,20 @@ async def project_detail(req: Request, pid: int):
             # v5H104: 각 SO 의 unit_qty 를 실제 items count 와 일치시킴
             #   (qty=2 인데 items=1 인 모순 데이터 자동 정리)
             try:
-                so_ids = [r[0] for r in c2.execute(
-                    "SELECT id FROM orders WHERE project_id=?", (pid,)
-                ).fetchall()]
+                _so_rows974 = c2.execute(
+                    "SELECT id, COALESCE(so_type,'') AS st FROM orders WHERE project_id=?", (pid,)
+                ).fetchall()
+                so_ids = [r[0] for r in _so_rows974]
+                # v5H226z974 (대표 지시): 상품(PARTS_EXPORT) SO 는 unit_qty='완제품 몇 대분'(사람 입력값).
+                #   1줄=부품 1종이라 'items 개수 맞춤' 자가치유가 대수를 부품 종수(예 251)로 덮어쓰던 원인 → 수량 동기화 제외.
+                #   (total_amount 동기화는 유지 — 상품 금액=부품합계 정합은 그대로 옳음)
+                _parts_ids974 = {r[0] for r in _so_rows974 if str(r[1] or "").upper() == "PARTS_EXPORT"}
                 # v5H226z779: 호기 자동 재번호는 위(메인 연결 c, p 조회 직후)로 이동함 —
                 #   별도 연결 c2 의 write 는 메인 c 의 락과 충돌해 조용히 실패하던 문제(z776~z778 오진 끝에 규명) 해결.
                 # 단가(수량) 정합 — items 개수에 맞춤 (개별 SO 예외는 건너뜀)
                 for _oid in so_ids:
+                    if _oid in _parts_ids974:
+                        continue   # v5H226z974: 상품 SO — unit_qty(완제품 대분) 보존
                     try:
                         _ic = c2.execute(
                             "SELECT COUNT(*) FROM order_items WHERE order_id=?", (_oid,)
@@ -12959,6 +12970,17 @@ async def projects_import_parts_parse(req: Request, pid: int,
     })
 
 
+def _so_is_parts974(c, oid) -> bool:
+    """v5H226z974 (대표 지시): 이 SO가 상품(PARTS_EXPORT)인지 — 상품 수주의 unit_qty 는
+    '완제품 몇 대분'(사람 입력값·1이면 1식)이라, 부품 줄 수(1줄=부품 1종)로 자동 재계산하면 안 됨(보존 게이트).
+    so_type 컬럼이 없거나 조회 실패면 False(=기존 동작 그대로)."""
+    try:
+        r = c.execute("SELECT COALESCE(so_type,'') FROM orders WHERE id=?", (oid,)).fetchone()
+        return str((r[0] if r else "") or "").upper() == "PARTS_EXPORT"
+    except Exception:
+        return False
+
+
 @app.post("/projects/{pid:int}/import-parts-lines/confirm")
 async def projects_import_parts_confirm(req: Request, pid: int):
     """v5H226z: 정식 PACKING LIST 라인 일괄 INSERT.
@@ -13056,10 +13078,15 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                 "SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS n "
                 "FROM order_items WHERE order_id=?", (so_id,)
             ).fetchone()
-            c.execute(
-                "UPDATE orders SET total_amount=?, unit_qty=? WHERE id=?",
-                (float(agg["t"] or 0), int(agg["n"] or 0), so_id)
-            )
+            if _so_is_parts974(c, so_id):
+                # v5H226z974: 상품 SO — unit_qty(완제품 대분)는 보존, 합계만 갱신
+                c.execute("UPDATE orders SET total_amount=? WHERE id=?",
+                          (float(agg["t"] or 0), so_id))
+            else:
+                c.execute(
+                    "UPDATE orders SET total_amount=?, unit_qty=? WHERE id=?",
+                    (float(agg["t"] or 0), int(agg["n"] or 0), so_id)
+                )
             proj_total = c.execute(
                 "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
                 (pid,)
@@ -13676,8 +13703,13 @@ async def sales_order_item_delete(req: Request, iid: int):
         new_total = sum(float(r["amount"] or 0) for r in rows)
         new_qty = max(1, len(rows))
         new_label = " · ".join((r["unit_label"] or f"호기 {i+1}") for i, r in enumerate(rows))
-        c.execute("UPDATE orders SET total_amount=?, unit_qty=?, unit_label=? WHERE id=?",
-                  (new_total, new_qty, new_label, oid))
+        if _so_is_parts974(c, oid):
+            # v5H226z974: 상품 SO — unit_qty(완제품 대분) 보존, 합계·라벨만 재계산
+            c.execute("UPDATE orders SET total_amount=?, unit_label=? WHERE id=?",
+                      (new_total, new_label, oid))
+        else:
+            c.execute("UPDATE orders SET total_amount=?, unit_qty=?, unit_label=? WHERE id=?",
+                      (new_total, new_qty, new_label, oid))
         # 프로젝트 합계 동기화
         try:
             pid = it["project_id"]
@@ -13791,7 +13823,9 @@ async def sales_orders_add_unit(req: Request, oid: int):
         if label and not _re.match(r"^\d+호기$", label):
             labels_bulk[0] = label  # 커스텀 라벨 유지, 나머지는 N호기 형식
 
-        new_qty = items_in_so + bulk_qty
+        # v5H226z974 (대표 지시): 상품(PARTS) SO 는 unit_qty='완제품 몇 대분' 보존 — 부품 추가로 증가시키지 않음
+        _isp974 = _so_is_parts974(c, oid)
+        new_qty = int(cur["unit_qty"] or 1) if _isp974 else (items_in_so + bulk_qty)
         new_total = float(cur["total_amount"] or 0) + amt * bulk_qty
         old_lbl = (cur["unit_label"] or "").strip()
         new_lbl = (old_lbl + " · " + " · ".join(labels_bulk)) if old_lbl else " · ".join(labels_bulk)
@@ -13930,8 +13964,11 @@ async def sales_orders_quick_edit(req: Request, oid: int):
             items_s = float(items["s"] or 0)
         except Exception:
             items_n, items_s = 0, 0.0
+        # v5H226z974 (대표 지시): 상품(PARTS) SO 는 수량='완제품 몇 대분' — 부품 줄 수(1줄=부품 1종)와
+        #   다른 게 정상이므로 호기수 정합 검증에서 제외(작업일정표 상품 줄 수량 편집이 이 엔드포인트를 씀).
+        _isp974q = _so_is_parts974(c, oid)
         if items_n > 0:
-            if raw_q:
+            if raw_q and not _isp974q:
                 new_q = int(float(raw_q))
                 if new_q != items_n:
                     return JSONResponse({
@@ -18097,7 +18134,8 @@ async def sales_order_detail(req: Request, oid: int):
     ship_over_warn = None
     try:
         with db_session() as _c2:
-            _qty_row = _c2.execute(
+            # v5H226z974: 상품 SO 수량='완제품 대분' — 출하수량(부품 낱개)과 비교 무의미 → 경고 제외
+            _qty_row = None if _so_is_parts974(_c2, oid) else _c2.execute(
                 "SELECT COALESCE(o.unit_qty,(SELECT SUM(quantity) FROM order_items WHERE order_id=o.id),0) "
                 "FROM orders o WHERE o.id=?",
                 (oid,),
@@ -21407,7 +21445,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                 k = (pid, oid)
                 if k not in _so_acc:
                     _so_acc[k] = {
-                        "pid": pid, "so_no": d.get("so_no") or "",
+                        "pid": pid, "oid": oid, "so_no": d.get("so_no") or "",
                         "so_type": (d.get("so_type") or "").upper(),
                         "o_total": float(d.get("o_total") or 0), "o_qty": int(d.get("o_qty") or 1),
                         "o_ord": str(d.get("o_ord") or "")[:10], "o_due": str(d.get("o_due") or "")[:10],
@@ -21448,6 +21486,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "order_date": (_eff_c("i_ord", _so["o_ord"]) or "")[:10], "due_date": _due944, "ship_to": _eff_c("i_ship", _so["o_ship"]),   # v5H226z710/z944: 호기 override 우선(없으면 SO) · 부품 SO는 헤더납기까지(max)
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
+                    "oid": _so.get("oid"), "so_type": (_so.get("so_type") or ""),   # v5H226z974: 상품 줄 수량(완제품 대분) 표시·편집 라우팅용
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
                     "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                     "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
@@ -22064,6 +22103,10 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
+                # v5H226z974 (대표 지시): 상품(PARTS_EXPORT) 줄 — 수량='완제품 몇 대분'(orders.unit_qty).
+                #   줄 단위 판정(so_type)이라 '장비 프로젝트+상품 추가발주(z436)' 혼합도 그 줄만 상품으로 처리.
+                _iu["so_oid"] = _ln.get("oid")
+                _iu["is_parts"] = (str(_ln.get("so_type") or "").upper() == "PARTS_EXPORT")
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
@@ -23152,6 +23195,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
             "po_type": p.get("po_type") or "",
             # v5H226z349/z350: 형태(제품/상품/기타) — 저장값 우선, 없으면 출고형태에서 역산(기존 데이터 표시)
             "form_type": p.get("form_type") or _logi.SHIP_TO_FORM.get((p.get("shipment_form") or "").upper(), ""),
+            "is_parts": ((p.get("shipment_form") or "").upper() == "PARTS"),   # v5H226z974: 상품 줄 — 수량='완제품 몇 대분' 표시·편집
             "customer": p.get("customer_name") or "—",          # 고객사1(직접 고객·정식명·편집/매칭/발행 기준)
             "customer_disp": (_cust_alias.get(p.get("customer_id")) or p.get("customer_name") or "—"),  # v5H226z551: 화면 표시 전용(시스템명 우선)
             "cust_ok": bool(p.get("customer_id")),               # v5H226z294: 등록 고객사 연결 여부(미연결=적색)
@@ -23188,6 +23232,10 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
+                # v5H226z974 (대표 지시): 상품(PARTS_EXPORT) 줄 — 수량='완제품 몇 대분'(orders.unit_qty).
+                #   줄 단위 판정(so_type)이라 '장비 프로젝트+상품 추가발주(z436)' 혼합도 그 줄만 상품으로 처리.
+                _iu["so_oid"] = _ln.get("oid")
+                _iu["is_parts"] = (str(_ln.get("so_type") or "").upper() == "PARTS_EXPORT")
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
@@ -25932,6 +25980,14 @@ async def projects_new_submit(request: Request):
                         order_date=order_date_v, created_by=_u.get("id") or 0,
                         po_number=form.get("customer_po", ""), so_type="PARTS_EXPORT")
                     _po_oid = ((_pres.get("groups") or [{}])[0].get("order_id")) if isinstance(_pres, dict) else None
+                    # v5H226z974 (대표 지시): 추가발주 상품 SO 도 수량='완제품 몇 대분'(폼 parts_units·비우면 1=1식)
+                    if _po_oid:
+                        try:
+                            _pu974f = int(float(str(form.get("parts_units") or "").replace(",", "").strip() or "1"))
+                        except (ValueError, TypeError):
+                            _pu974f = 1
+                        _cc3.execute("UPDATE orders SET unit_qty=? WHERE id=?",
+                                     (max(1, min(100, _pu974f)), _po_oid))
                     if _po_oid and _fu_parts:
                         _oicols = {r[1] for r in _cc3.execute("PRAGMA table_info(order_items)").fetchall()}
                         for _pp2 in _fu_parts:
@@ -26068,6 +26124,13 @@ async def projects_new_submit(request: Request):
             amt = round(sum(_p["amount"] for _p in _pk_parts), 2)
             unit_price = None
             unit_qty = 1
+        # v5H226z974 (대표 지시): 형태=상품 — 수량(unit_qty)='완제품 몇 대분'(폼 parts_units).
+        #   부품 개수와 무관한 사람 입력값. 비우면 1(=1식, 부품만 출하). 부품 없이 등록해도 동일 적용.
+        try:
+            _pu974 = int(float(str(form.get("parts_units") or "").replace(",", "").strip() or "1"))
+        except (ValueError, TypeError):
+            _pu974 = 1
+        unit_qty = max(1, min(100, _pu974))
     # v5H226z885 (대표 지시): 관리번호 수동발행 — 지정 3명만·검증 통과 시 그 코드로 등록(자동발급 대체·서버 재확인).
     #   신규 등록만(추가발주는 기존 코드 사용). 미권한자가 폼 우회로 제출해도 무시(권한 없으면 자동발급으로 진행).
     if (not _is_followup) and str(form.get("manual_issue") or "").strip().lower() in ("1", "on", "true", "yes"):
@@ -26345,6 +26408,13 @@ async def projects_new_submit(request: Request):
                         po_number=form.get("customer_po", ""),
                         so_type="PARTS_EXPORT",
                     )
+                    # v5H226z974 (대표 지시): 상품 SO 수량='완제품 몇 대분' — 등록폼 값(unit_qty)을 SO에 기록(빈 SO 기본 0 대체)
+                    try:
+                        _po_oid974 = ((_pres.get("groups") or [{}])[0].get("order_id")) if isinstance(_pres, dict) else None
+                        if _po_oid974:
+                            c.execute("UPDATE orders SET unit_qty=? WHERE id=?", (int(unit_qty or 1), _po_oid974))
+                    except Exception:
+                        pass
                     # v5H226z430 (대표 지시): 폼에서 입력한 부품(pk_*) → 이 PARTS SO 의 order_items 로 저장
                     #   (품명=unit_label · 모델=규격 spec · 수량·단가·금액). → 상세 PACKING LIST 에 그대로 나타남.
                     try:
