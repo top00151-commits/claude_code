@@ -2,7 +2,9 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ p.name }} · 프로젝트</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
-<link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" /></head>
+<link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" />
+{# v5H226z971 (대표 지적): 부품 추가 업로드·전체 교체는 [✏️ 수정](편집 모드) 후에만 — 잠금 상태에선 흐리게(클릭 시 JS 가드가 안내) #}
+<style>.so-card:not(.unlocked) .ow-need-edit{opacity:.4;filter:grayscale(.4);}</style></head>
 <body>
 {% set s = stats or {} %}
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
@@ -582,8 +584,9 @@
                 {# v5H226z941 (대표 지시): 부품 엑셀 = '상품 양식' 하나로 통일. 헷갈리던 PACKING LIST 업로드(openPartsImport)는 숨김.
                    업로드는 상품 양식을 받는 이 버튼 하나로(overwrite-product·상품 파서). 관리번호·수주번호 유지·부품 채움(있으면 교체). #}
                 {# v5H226z943 (대표 지시): 부품은 추가 업로드 가능 → '추가'(기존 유지·append) + '전체 교체'(삭제 후 채움) 두 버튼. 둘 다 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신. #}
-                <button type="button" class="btn-mini" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'add')" title="상품 양식을 올려 이 수주에 부품을 '추가'합니다(기존 부품 유지·여러 번 나눠 올리기 가능). 관리번호·수주번호 유지 / 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 부품 추가 업로드</button>
-                <button type="button" class="btn-mini" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace')" title="상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 전체 교체</button>
+                {# v5H226z971 (대표 지적): 두 버튼은 [✏️ 수정] 후에만(ow-need-edit — 잠금 시 흐림+knkOwClick 가드) #}
+                <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'add')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주에 부품을 '추가'합니다(기존 부품 유지·여러 번 나눠 올리기 가능). 관리번호·수주번호 유지 / 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 부품 추가 업로드</button>
+                <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 전체 교체</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 부품 추가</button>
                 {% else %}
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
@@ -2337,6 +2340,12 @@
   var _owSoId = null, _owSoNo = '', _owMode = 'replace';
   window.knkOwClick = function(soId, soNo, mode){
     mode = (mode === 'add') ? 'add' : 'replace';
+    // v5H226z971 (대표 지적): 업로드/교체는 [✏️ 수정]을 눌러 편집 모드(unlocked)일 때만 — 실수로 눌러 데이터 갈아엎는 것 방지.
+    var _card = document.querySelector('.so-card[data-soid="' + soId + '"]');
+    if(_card && !_card.classList.contains('unlocked')){
+      alert('먼저 이 수주 카드의 [✏️ 수정] 버튼을 눌러 편집 모드로 들어간 뒤 사용할 수 있습니다.\n(부품을 통째로 바꾸는 기능이라 실수 방지를 위해 잠겨 있습니다)');
+      return;
+    }
     var msg = (mode === 'add')
       ? ('수주번호 ' + (soNo||'') + ' 에 상품 양식으로 부품을 추가합니다.\n· 기존 부품은 그대로 두고 엑셀 부품을 더합니다\n· 관리번호·수주번호 유지 (고객사·프로젝트명·PO유형·영업담당자 등은 엑셀값으로 갱신)\n\n엑셀 파일을 선택할까요?')
       : ('수주번호 ' + (soNo||'') + ' 의 부품을 상품 양식으로 전부 교체합니다.\n· 기존 부품은 모두 삭제되고 엑셀 내용으로 채워집니다\n· 관리번호·수주번호 유지 (고객사·프로젝트명 등도 엑셀값으로 갱신)\n\n엑셀 파일을 선택할까요?');

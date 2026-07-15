@@ -14045,6 +14045,8 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 _tx = 0
             if _tx:
                 return JSONResponse({"ok": False, "message": f"세금계산서가 발행된 수주({order_no})는 덮어쓸 수 없습니다. 먼저 세금계산서를 취소하세요."}, 200)
+            # v5H226z971 (대표 지적): 교체/추가가 변경 이력에 안 남던 문제 → 교체 전 개수 캡처(아래서 이력 1줄 기록)
+            _old_cnt971 = c.execute("SELECT COUNT(*) FROM order_items WHERE order_id=?", (oid,)).fetchone()[0]
             # ── 라인 교체(replace): 기존 order_items 삭제 → 새로 INSERT / 추가(add): 삭제 없이 append (order_no·project 유지)
             if not _is_add943:   # v5H226z943 (대표 지시): 부품 추가 업로드면 기존 부품 유지
                 c.execute("DELETE FROM order_items WHERE order_id=?", (oid,))
@@ -14159,6 +14161,19 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                               "WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'", (pid,)).fetchone()
             c.execute("UPDATE projects SET order_amount=? WHERE id=?",
                       (round(float((_sumr[0] if not isinstance(_sumr, dict) else list(_sumr.values())[0]) or 0), 2), pid))
+            # v5H226z971 (대표 지적): 부품 전체 교체/추가 업로드를 '프로젝트 변경 이력'에 기록(그동안 미기록이라 이력에 안 보였음).
+            #   금액은 이력 마스킹 정책과 무관하게 개수 중심으로 기록. 실패해도 업로드 자체는 성공 처리(이력은 부가 기록).
+            try:
+                _new_cnt971 = c.execute("SELECT COUNT(*) FROM order_items WHERE order_id=?", (oid,)).fetchone()[0]
+                _logi.log_project_change(
+                    c, pid, u.get("id"),
+                    ("부품 추가 업로드" if _is_add943 else "부품 전체 교체"),
+                    f"부품 {_old_cnt971}개", f"부품 {_new_cnt971}개",
+                    f"수주 {order_no} · 엑셀 '{fname}' · 이번 반영 {inserted}건"
+                    + ("" if _is_add943 else " · 기존 부품 삭제 후 채움")
+                    + " · 고객사/모델/납기 등 메타는 엑셀값으로 갱신")
+            except Exception as _he971:
+                print(f"[z971 history] 이력 기록 실패(업로드는 성공): {_he971}")
     except Exception as e:
         return JSONResponse({"ok": False, "message": f"덮어쓰기 오류: {str(e)[:200]}"}, 200)
     return JSONResponse({"ok": True, "order_no": order_no, "inserted": inserted, "total": total})
