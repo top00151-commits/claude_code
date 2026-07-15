@@ -339,14 +339,19 @@ html,body{background:#fff!important;overflow:auto!important;}
           <input type="text" name="part_model" id="pf_part_model" autocomplete="off" placeholder="예: KNK-P-0000">
         </div>
         <div class="pf-field">
-          <label>수량</label>
-          <input type="text" value="1식" readonly
-                 style="background:var(--qv-surface-3);color:var(--qv-ink);font-weight:700;text-align:center;cursor:not-allowed;">
+          {# v5H226z976 (대표 지시): 읽기전용 '1식' → '완제품 몇 대분' 편집칸 — 등록 오입력은 [정보 수정]에서 교정하는 게 정석.
+             비우면 1(=1식, 부품만 출하). 저장 시 projects.unit_qty + 단일 상품 SO(orders.unit_qty)에 반영(작업일정표 수량과 동일 소스). #}
+          <label>🏭 완제품 수량 <span class="sub">(몇 대분)</span></label>
+          <input type="number" name="parts_units" min="1" max="100" placeholder="비우면 1식"
+                 value="{{ project.unit_qty if project and (project.unit_qty or 1)|int >= 2 else '' }}"
+                 style="text-align:center;font-weight:700;">
         </div>
         <div class="pf-field full" style="grid-column:1 / -1;margin-top:2px;">
           <div class="sub" style="font-size:11px;color:#7c4a03;line-height:1.55;">
             ⓘ 부품은 <b>1식</b>으로 요약 등록합니다. 실제 수백 줄 상세 명세는 <b>① 아래 '추가 품목'에서 줄 추가</b> 또는
-            <b>② 등록 후 프로젝트 상세 화면의 PACKING LIST 엑셀</b>로 연결합니다.
+            <b>② 등록 후 프로젝트 상세 화면의 PACKING LIST 엑셀</b>로 연결합니다.<br>
+            ⓘ <b>완제품 수량</b> = 이 상품(부품 묶음)으로 만드는 <b>완제품 장비가 몇 대</b>인지(작업일정표 수량 칸과 같은 값).
+            장비 제작용이 아니라 <b>부품만</b> 보내면 비워두세요(1식). 수주(SO)가 여러 건인 프로젝트는 수주별 대수를 작업일정표에서 수정하세요.
           </div>
         </div>
       </div>

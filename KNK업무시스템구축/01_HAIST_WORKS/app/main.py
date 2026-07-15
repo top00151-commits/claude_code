@@ -28859,6 +28859,15 @@ async def projects_edit_submit(request: Request, pid: int):
         amt = unit_price * unit_qty
     elif amt > 0 and unit_qty >= 1:
         unit_price = amt / unit_qty
+    # v5H226z976 (대표 지시): 형태=상품 — [정보 수정]에서도 '완제품 몇 대분'(parts_units→unit_qty) 교정.
+    #   등록 오입력은 이 폼에서 고치는 게 정석. 상품은 수량·금액 섹션이 숨겨져 unit_qty가 1로 밀리던 부작용도 함께 해소.
+    _sf976 = (form.get("shipment_form") or "").strip().upper()
+    if _sf976 == "PARTS":
+        try:
+            _pu976 = int(float(str(form.get("parts_units") or "").replace(",", "").strip() or "1"))
+        except (ValueError, TypeError):
+            _pu976 = 1
+        unit_qty = max(1, min(100, _pu976))
     status_val = form.get("status", "초기협의") or "초기협의"
     # v5H137: 프로젝트 유형 + 부모 프로젝트
     _ptype = (form.get("project_type") or "NEW_EQUIP").strip().upper()
@@ -28909,6 +28918,19 @@ async def projects_edit_submit(request: Request, pid: int):
         "secondary_customer": form.get("secondary_customer", ""),
         "final_amount": form.get("final_amount", ""),
     })
+    # v5H226z976 (대표 지시): 형태=상품 — '완제품 몇 대분'을 단일 상품 SO(orders.unit_qty)에도 동기화.
+    #   작업일정표 상품 줄 수량의 소스가 orders.unit_qty 이므로 여기까지 맞춰야 화면이 일치.
+    #   상품 SO가 여러 건이면 건드리지 않음(수주별 대수는 작업일정표에서). CANCELLED 제외.
+    if _sf976 == "PARTS":
+        try:
+            with db_session() as _sc976:
+                _sos976 = _sc976.execute(
+                    "SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                    "AND COALESCE(so_type,'')='PARTS_EXPORT'", (pid,)).fetchall()
+                if len(_sos976) == 1:
+                    _sc976.execute("UPDATE orders SET unit_qty=? WHERE id=?", (int(unit_qty), _sos976[0][0]))
+        except Exception as _pu_err976:
+            print(f"[v5H226z976] parts_units SO sync err: {_pu_err976}")
     # v5H226z354 (대표 지시): 빠른 폼 수정 모드는 납품위치(ship_to)를 대표 SO(orders 최신)에 반영.
     #   정식 폼은 호기별 unit_ship[] 을 쓰므로 top-level 'ship_to' 를 보내지 않음 → 빠른 폼에만 적용(필드 존재 시).
     if _is_quick_edit and (form.get("ship_to") is not None):
