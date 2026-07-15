@@ -180,7 +180,7 @@
         </div>
       </div>
 
-      <details id="mtgMore" {% if pf.get('meeting_date') or pf.get('location') or pf.get('attendees') or pf.get('tags') or pf.get('visibility') in ('private','all') %}open{% endif %}>
+      <details id="mtgMore" {% if pf.get('meeting_date') or pf.get('location') or pf.get('attendees') or pf.get('tags') or pf.get('visibility') in ('private','all','hq','vn') %}open{% endif %}>
         <summary>상세 정보 (날짜·공개범위·장소·참석자) — 나중에 채워도 됩니다</summary>
         <div class="mf-grid2" style="margin-top:12px;">
           <div class="mf-fld">
@@ -189,10 +189,13 @@
           </div>
           <div class="mf-fld">
             <label>공개 범위</label>
+            {# z972 5단계 — 본사/법인 = 보는 사람 '팀'의 소속 법인 기준 #}
             <select id="mtgVis">
+              <option value="private" {% if pf.get('visibility')=='private' %}selected{% endif %}>비공개 (나+참석자)</option>
               <option value="team"    {% if pf.get('visibility','team')=='team' %}selected{% endif %}>팀 공개</option>
-              <option value="private" {% if pf.get('visibility')=='private' %}selected{% endif %}>비공개</option>
-              <option value="all"     {% if pf.get('visibility')=='all' %}selected{% endif %}>전사 공개</option>
+              <option value="hq"      {% if pf.get('visibility')=='hq' %}selected{% endif %}>본사 공개</option>
+              <option value="vn"      {% if pf.get('visibility')=='vn' %}selected{% endif %}>법인 공개</option>
+              <option value="all"     {% if pf.get('visibility')=='all' %}selected{% endif %}>본사+법인 공개</option>
             </select>
           </div>
           <div class="mf-fld">
@@ -237,10 +240,13 @@
           </div>
           <div class="mf-fld">
             <label>공개 범위</label>
+            {# z972 5단계 — 본사/법인 = 보는 사람 '팀'의 소속 법인 기준 #}
             <select id="mtgVis" {% if not can_edit %}disabled{% endif %}>
+              <option value="private" {% if meeting.visibility=='private' %}selected{% endif %}>비공개 (나+참석자)</option>
               <option value="team"    {% if meeting.visibility=='team' %}selected{% endif %}>팀 공개</option>
-              <option value="private" {% if meeting.visibility=='private' %}selected{% endif %}>비공개</option>
-              <option value="all"     {% if meeting.visibility=='all' %}selected{% endif %}>전사 공개</option>
+              <option value="hq"      {% if meeting.visibility=='hq' %}selected{% endif %}>본사 공개</option>
+              <option value="vn"      {% if meeting.visibility=='vn' %}selected{% endif %}>법인 공개</option>
+              <option value="all"     {% if meeting.visibility=='all' %}selected{% endif %}>본사+법인 공개</option>
             </select>
           </div>
           <div class="mf-fld">

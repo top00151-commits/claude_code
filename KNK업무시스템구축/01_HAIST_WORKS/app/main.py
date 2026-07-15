@@ -3499,7 +3499,22 @@ def _row_ts(c, table, row_id):
 #  · 데이터 연결 안전: AI 추출은 '제안'일 뿐, 일일카드 등록은 사용자 클릭 시에만(자동 X).
 #    담당자 이름→사용자 연결도 '정확히 1명 단일후보'일 때만(애매하면 미연결).
 # ════════════════════════════════════════════════════════════════════════
-_MEETING_VIS = ("team", "private", "all")
+#  z972 공개범위 5단계(대표 지시 2026-07-15): 비공개(private)·팀 공개(team)·본사 공개(hq)·
+#  법인 공개(vn)·본사+법인 공개(all). 본사/법인 판정 = 열람자 '팀'의 소속 법인
+#  (teams.entity 단일소스 — z747 규칙, users.entity 비신뢰).
+_MEETING_VIS = ("team", "private", "all", "hq", "vn")
+
+
+def _meeting_user_entity(c, u) -> str:
+    """열람자 소속 법인 판정: 'VN'(베트남 법인) / 'KOR'(본사).
+    팀 단일소스(teams.entity, COALESCE 'KOR') — 팀 미지정·조회 실패는 본사로 취급."""
+    try:
+        r = c.execute("SELECT COALESCE(entity,'KOR') AS e FROM teams WHERE id=?",
+                      (u.get("team_id"),)).fetchone()
+        e = (r["e"] if r else "KOR") or "KOR"
+        return "VN" if str(e).strip().upper() == "VN" else "KOR"
+    except Exception:
+        return "KOR"
 
 
 def _meeting_match_user_id(c, name):
@@ -3562,6 +3577,9 @@ def _can_view_meeting(c, u, m) -> bool:
         return True
     if vis == "team" and m.get("team_id") and m.get("team_id") == u.get("team_id"):
         return True
+    # z972: 본사 공개(hq)/법인 공개(vn) — 열람자 팀의 소속 법인으로 판정
+    if vis in ("hq", "vn") and _meeting_user_entity(c, u) == ("VN" if vis == "vn" else "KOR"):
+        return True
     return False
 
 
@@ -3601,13 +3619,16 @@ async def meetings_page(req: Request):
                 _sel + "ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300"
             ).fetchall()
         else:
+            # z972: 본사 공개/법인 공개 — 내 팀의 소속 법인에 해당하는 공개분도 목록에 포함
+            _ent_vis = "vn" if _meeting_user_entity(c, u) == "VN" else "hq"
             rows = c.execute(
                 _sel + """WHERE (m.owner_id=?
                                  OR m.visibility='all'
+                                 OR m.visibility=?
                                  OR (m.visibility='team' AND m.team_id=?)
                                  OR m.id IN (SELECT meeting_id FROM meeting_attendees WHERE user_id=?))
                           ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300""",
-                (u["id"], u.get("team_id"), u["id"]),
+                (u["id"], _ent_vis, u.get("team_id"), u["id"]),
             ).fetchall()
         meetings = [dict(r) for r in rows]
     return ctx(req, "meetings.html", user=u, meetings=meetings)
@@ -3630,7 +3651,7 @@ async def meeting_new_page(req: Request):
         "title": (_qp.get("title") or "")[:200],
         "meeting_date": (_qp.get("meeting_date") or "")[:10],
         "location": (_qp.get("location") or "")[:200],
-        "visibility": _vis if _vis in ("team", "private", "all") else "team",
+        "visibility": _vis if _vis in _MEETING_VIS else "team",
         "tags": (_qp.get("tags") or "")[:200],
         "attendees": (_qp.get("attendees") or "")[:500],
         "body": (_qp.get("body") or "")[:4000],
@@ -3724,7 +3745,8 @@ async def meeting_doc_page(req: Request, mid: int):
             _r = c.execute("SELECT opp_no, title FROM sales_opportunities WHERE id=?", (m["opportunity_id"],)).fetchone()
             link_opp = dict(_r) if _r else None
     owner_name = ((orow["name"] if orow else "") or "")
-    sec = {"private": "대외비", "team": "사내한정", "all": "공개"}.get(m.get("visibility"), "사내한정")
+    sec = {"private": "대외비", "team": "사내한정", "hq": "본사한정",
+           "vn": "법인한정", "all": "공개"}.get(m.get("visibility"), "사내한정")
     _md = (m.get("meeting_date") or "")
     docno = "MIN-" + _md.replace("-", "") + f"-{m['id']:04d}"
     date_disp = _md
