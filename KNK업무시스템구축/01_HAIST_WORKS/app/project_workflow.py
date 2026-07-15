@@ -458,7 +458,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
 
 def append_unit_to_order(c, order_id: int, unit_price: float = 0,
                           note: str = "", line_label: str | None = None,
-                          currency: str = "") -> dict:
+                          currency: str = "", qty: int = 1,
+                          due_date: str = "") -> dict:
     """v5H226z820 (대표 지시): 기존 수주(SO)에 '호기 1줄'을 추가(append)한다.
 
     일괄(엑셀) 업로드 전용 헬퍼 — 같은 관리번호+발주일+납기+납품지+통화+담당자 인
@@ -507,13 +508,21 @@ def append_unit_to_order(c, order_id: int, unit_price: float = 0,
         except Exception:
             _base_no = 1
 
+    # v5H226z979 (대표 승인): qty 지원 — 병합(z820) 대상 행의 '수량 N'만큼 호기 N줄을 붙인다.
+    #   기존 1줄 고정이 002M2602(6대 행→1대)·005M2602(3대 행→1대) 수량·금액 증발의 원인.
+    try:
+        qty = int(qty)
+    except Exception:
+        qty = 1
+    qty = max(1, min(100, qty))
     # 라벨 — 프로젝트 유형 패턴('{n}호기' 등). 호출자 지정(line_label)이 있어도
     #   호기 라벨은 항상 'N호기'로 통일(작업일정표 호기칸 일관 — 모델명은 line_note 로 별도 보존).
     try:
         from .database import project_unit_label as _pul
-        _lbl = _pul("NEW_EQUIP", _base_no)
+        _lbls = [_pul("NEW_EQUIP", _base_no + _i) for _i in range(qty)]
     except Exception:
-        _lbl = f"{_base_no}호기"
+        _lbls = [f"{_base_no + _i}호기" for _i in range(qty)]
+    _lbl = _lbls[0]
 
     # order_items 컬럼 감지 (currency/line_note 유무 방어)
     try:
@@ -525,21 +534,29 @@ def append_unit_to_order(c, order_id: int, unit_price: float = 0,
         eff_currency = ""
     _has_cur = "currency" in _oi_cols
     _has_note = "line_note" in _oi_cols
-    _cols = ["order_id", "qty", "unit_price", "amount", "unit_label"]
-    _vals = [order_id, 1, unit_price, unit_price, _lbl]
-    if _has_note:
-        _cols.append("line_note"); _vals.append(note or None)
-    if _has_cur and eff_currency:
-        _cols.append("currency"); _vals.append(eff_currency)
-    _ph = ",".join("?" * len(_cols))
-    _cur = c.execute(f"INSERT INTO order_items({','.join(_cols)}) VALUES({_ph})", _vals)
-    item_id = _cur.lastrowid
+    _has_due = "due_date" in _oi_cols
+    _due_v = (str(due_date or "")).strip()[:10]
+    item_ids = []
+    for _albl in _lbls:
+        _cols = ["order_id", "qty", "unit_price", "amount", "unit_label"]
+        _vals = [order_id, 1, unit_price, unit_price, _albl]
+        if _has_note:
+            _cols.append("line_note"); _vals.append(note or None)
+        if _has_cur and eff_currency:
+            _cols.append("currency"); _vals.append(eff_currency)
+        if _has_due and _due_v:
+            _cols.append("due_date"); _vals.append(_due_v)   # v5H226z979: 호기 납기 = 그 행 납기(비면 SO 상속 표시)
+        _ph = ",".join("?" * len(_cols))
+        _cur = c.execute(f"INSERT INTO order_items({','.join(_cols)}) VALUES({_ph})", _vals)
+        item_ids.append(_cur.lastrowid)
+    item_id = item_ids[0]
 
-    # orders 헤더 갱신 — 총액 += 단가, 수량 += 1, 라벨 이어붙임
-    _new_total = float(_o.get("total_amount") or 0) + unit_price
-    _new_qty = int(_o.get("unit_qty") or 0) + 1
+    # orders 헤더 갱신 — 총액 += 단가×N, 수량 += N, 라벨 이어붙임 (v5H226z979: N줄)
+    _new_total = float(_o.get("total_amount") or 0) + unit_price * qty
+    _new_qty = int(_o.get("unit_qty") or 0) + qty
     _old_lbl = (_o.get("unit_label") or "").strip()
-    _new_lbl = (_old_lbl + " · " + _lbl) if _old_lbl else _lbl
+    _lbl_join = " · ".join(_lbls)
+    _new_lbl = (_old_lbl + " · " + _lbl_join) if _old_lbl else _lbl_join
     try:
         c.execute("UPDATE orders SET total_amount=?, unit_qty=?, unit_label=? WHERE id=?",
                   (_new_total, _new_qty, _new_lbl, order_id))
@@ -556,13 +573,14 @@ def append_unit_to_order(c, order_id: int, unit_price: float = 0,
             "INSERT INTO order_status_history(order_id, from_status, to_status, "
             "changed_by, note) VALUES(?,?,?,?,?)",
             (order_id, "CONFIRMED", "CONFIRMED", None,
-             f"호기 추가 (일괄등록 · {_lbl} / {unit_price:,.0f}원 — 같은 수주번호에 호기별 단가)")
+             f"호기 추가 (일괄등록 · {(_lbls[0] if qty == 1 else _lbls[0] + '~' + _lbls[-1])} · {qty}대 × {unit_price:,.0f}원 — 같은 수주번호에 호기별 단가)")
         )
     except Exception:
         pass
 
-    return {"ok": True, "order_id": order_id, "item_id": item_id,
-            "unit_label": _lbl, "unit_price": unit_price}
+    return {"ok": True, "order_id": order_id, "item_id": item_id, "item_ids": item_ids,
+            "unit_label": (_lbls[0] if qty == 1 else _lbls[0] + "~" + _lbls[-1]),
+            "unit_price": unit_price, "qty": qty}
 
 
 def confirm_order_multi(c, project_id: int, units: list[dict],

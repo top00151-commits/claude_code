@@ -24513,8 +24513,17 @@ def _apply_import_ti_to_units(c, ti_rows):
         #   출하/발행은 호기 단위이므로 거래명세서·세금계산서를 그 수주 호기수로 균등분배(_write_tax_truth)·날짜는 동일.
         _iids = []
         try:
+            # v5H226z979 (대표 승인): 행이 자기 호기들(unit_ids)을 지목하면 그 호기에만 기록 —
+            #   z820 병합 SO(한 SO에 여러 행)에서 'SO 전 호기 균등분배'가 같은 차수를 덮어쓰던 근본 원인 수정.
+            _uids979 = tr.get("unit_ids") or []
+            if _uids979:
+                _ph979 = ",".join("?" * len(_uids979))
+                _rows = c.execute(
+                    f"SELECT id FROM order_items WHERE id IN ({_ph979}) ORDER BY id ASC",
+                    [int(x) for x in _uids979]).fetchall()
+                _iids = [(r["id"] if isinstance(r, dict) else r[0]) for r in _rows]
             _oid = tr.get("order_id")
-            if _oid:
+            if not _iids and _oid:
                 _rows = c.execute(
                     "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
                     "WHERE oi.order_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id ASC",
@@ -27814,7 +27823,7 @@ async def projects_import_confirm(request: Request):
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
     # v5H226z557 (대표 지시): 거래명세서·세금계산서(1/2/3차)를 '묶음까지 완전 재현'. 행→pid 수집 후 루프 끝에서 발행.
     _ti_rows = []
-    def _ti_collect(_pid, _mc, _row, _nm, _order_id=None):
+    def _ti_collect(_pid, _mc, _row, _nm, _order_id=None, _unit_ids=None):
         if not _pid:
             return
         _sd = (str(_row.get("statement_date") or ""))[:10]
@@ -27831,6 +27840,9 @@ async def projects_import_confirm(request: Request):
             return
         _ti_rows.append({"pid": int(_pid), "mgmt": _mc or "",
                          "order_id": (int(_order_id) if _order_id else None),   # v5H226z676: 이 줄이 만든 수주(SO) → 세금계산서를 그 SO 호기에 기록
+                         # v5H226z979 (대표 승인): 이 줄이 만든/식별한 '호기들'만 겨냥 — z820 병합 SO 에서
+                         #   두 행이 같은 차수(1차 등)를 서로 덮어쓰던 문제(002M2602 9,676만 증발) 근본 차단.
+                         "unit_ids": ([int(x) for x in _unit_ids] if _unit_ids else None),
                          "customer": (_row.get("customer_name") or ""),
                          "label": (_row.get("model_name") or _nm or ""),
                          "currency": (str(_row.get("currency") or "KRW")).upper(),
@@ -27908,6 +27920,7 @@ async def projects_import_confirm(request: Request):
                         _fu_ust = "진행중"
                     _fu_oid = None; _fu_reused = False; _fu_sono = ""; _res = {"ok": True}
                     _fu_appended = False; _fu_new_item_id = None   # v5H226z820: 이 행이 append 로 추가한 호기(order_items.id) — 상태/통화/is_export 를 '새 호기만' 겨냥
+                    _fu_new_item_ids = []; _fu_ti_ids = None       # v5H226z979: append N줄 대응(복수) + 세금계산서 '이 행 몫 호기' 겨냥
                     with db_session() as c:
                         _ocols2 = {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
                         # v5H226z820 (대표 지시): 일괄(엑셀) 업로드 수주번호 묶기 — 장비(호기) 행에 한해
@@ -27960,15 +27973,29 @@ async def projects_import_confirm(request: Request):
                                 if _dup_item:
                                     # 재업로드 중복 → 호기 추가 건너뜀(기존처럼 _fu_oid 만 잡아 TI/기록 대상). 담당자/통화 교정만.
                                     _fu_oid = int(_found_oid); _fu_reused = True
+                                    # v5H226z979: 병합 SO 재업로드 — 이 행 몫 호기들(비고+단가 일치)만 세금계산서 대상
+                                    #   (없으면 None → 기존 'SO 전체' 폴백. 병합 SO 에서 다른 행 몫을 덮지 않게.)
+                                    try:
+                                        _fu_ti_ids = [
+                                            (x["id"] if isinstance(x, dict) else x[0]) for x in c.execute(
+                                                "SELECT id FROM order_items WHERE order_id=? "
+                                                "AND ABS(COALESCE(unit_price,0)-?)<1 AND COALESCE(line_note,'')=?",
+                                                (int(_found_oid), float(_fu_price), (_note or ""))).fetchall()] or None
+                                    except Exception:
+                                        _fu_ti_ids = None
                                 else:
-                                    # 호기 1줄 append — confirm_order_multi 의 호기추가 패턴 재사용(헬퍼).
+                                    # 호기 append — v5H226z979: 행 '수량 N' 그대로 N줄 추가.
+                                    #   (기존 1줄 고정이 002M2602 6대 행→1대, 005M2602 3대 행→1대 증발의 원인)
                                     _ares = _pwf.append_unit_to_order(
                                         c, int(_found_oid), unit_price=_fu_price,
-                                        note=_note, line_label=_line_lbl, currency=_rccy)
+                                        note=_note, line_label=_line_lbl, currency=_rccy,
+                                        qty=unit_qty, due_date=_rdue)
                                     if _ares.get("ok"):
                                         _fu_oid = int(_found_oid); _fu_reused = True
                                         _fu_appended = True
                                         _fu_new_item_id = _ares.get("item_id")
+                                        _fu_new_item_ids = list(_ares.get("item_ids") or ([] if _ares.get("item_id") is None else [_ares.get("item_id")]))
+                                        _fu_ti_ids = _fu_new_item_ids or None   # 세금계산서도 이 행이 만든 호기들에만
                                         # SO 번호는 기존 것 표시
                                         _sono_row = c.execute("SELECT order_no FROM orders WHERE id=?", (int(_found_oid),)).fetchone()
                                         _fu_sono = (_sono_row["order_no"] if isinstance(_sono_row, dict) else _sono_row[0]) if _sono_row else ""
@@ -28022,10 +28049,15 @@ async def projects_import_confirm(request: Request):
                             _fu_ccy = (r.get("currency") or "KRW").strip().upper()
                             if _fu_ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
                                 _fu_ccy = "KRW"
-                            if _fu_appended and _fu_new_item_id:
-                                c.execute("UPDATE order_items SET unit_status=?, is_export=? WHERE id=?", (_fu_ust, _row_iex, _fu_new_item_id))
+                            if _fu_appended and (_fu_new_item_ids or _fu_new_item_id):
+                                # v5H226z979: append 가 N줄이 되면서 새 호기 '전부'를 겨냥 (기존 단수 변수 폴백 유지)
+                                _ids979 = _fu_new_item_ids or [_fu_new_item_id]
+                                _ph979 = ",".join("?" * len(_ids979))
+                                c.execute(f"UPDATE order_items SET unit_status=?, is_export=? WHERE id IN ({_ph979})",
+                                          [_fu_ust, _row_iex] + [int(x) for x in _ids979])
                                 try:
-                                    c.execute("UPDATE order_items SET currency=? WHERE id=?", (_fu_ccy, _fu_new_item_id))
+                                    c.execute(f"UPDATE order_items SET currency=? WHERE id IN ({_ph979})",
+                                              [_fu_ccy] + [int(x) for x in _ids979])
                                 except Exception:
                                     pass
                             else:
@@ -28054,7 +28086,7 @@ async def projects_import_confirm(request: Request):
                     created.append({"row_no": r.get("row_no"), "name": name,
                                     "mgmt_code": _mc, "followup": True,
                                     "so_no": _fu_sono, "reused": _fu_reused})
-                    _ti_collect(_ex["id"], _mc, r, name, _fu_oid)   # v5H226z557/z676: 세금계산서를 이 추가발주 SO 호기에 기록
+                    _ti_collect(_ex["id"], _mc, r, name, _fu_oid, _fu_ti_ids)   # v5H226z557/z676/z979: 세금계산서를 이 행 몫 호기(병합 SO 는 새 호기들)에 기록
                 except Exception as _e:
                     failed.append({"row_no": r.get("row_no"), "name": name,
                                    "error": f"추가발주 오류: {str(_e)[:120]}"})
@@ -28076,6 +28108,7 @@ async def projects_import_confirm(request: Request):
                     # v5H226z676: 재업로드 줄을 '발주일이 일치하는 단일 SO'에 매칭(명확한 단일후보만)→그 SO 호기에 기록.
                     #   애매하면(0개·2개+) 미매칭(None)→_apply_import_ti_to_units 가 최신 SO 폴백(레거시). 연결성 안전원칙.
                     _re_oid = None
+                    _re_ti_ids = None   # v5H226z979: 병합 SO 재업로드 시 이 행 몫 호기(비고+단가 일치)만 세금계산서 대상
                     try:
                         _rod = (str(r.get("order_date") or "")[:10])
                         if _rod:
@@ -28085,6 +28118,14 @@ async def projects_import_confirm(request: Request):
                                     "AND COALESCE(status,'')<>'CANCELLED'", (_re_pid, _rod)).fetchall()
                                 if len(_ms) == 1:
                                     _re_oid = (_ms[0]["id"] if isinstance(_ms[0], dict) else _ms[0][0])
+                                    try:
+                                        _re_ti_ids = [
+                                            (x["id"] if isinstance(x, dict) else x[0]) for x in c.execute(
+                                                "SELECT id FROM order_items WHERE order_id=? "
+                                                "AND ABS(COALESCE(unit_price,0)-?)<1 AND COALESCE(line_note,'')=?",
+                                                (_re_oid, float(unit_price or 0), (r.get("note") or "").strip())).fetchall()] or None
+                                    except Exception:
+                                        _re_ti_ids = None
                                     # v5H226z678: 이 수주(SO)에 담당자/연락처/부서 기록(수주별 구분)
                                     _rcc = {"cc_name": (r.get("cc_name") or "").strip(),
                                             "cc_dept": (r.get("cc_dept") or "").strip(),
@@ -28111,7 +28152,7 @@ async def projects_import_confirm(request: Request):
                     except Exception:
                         _re_oid = None
                     try:
-                        _ti_collect(_re_pid, _mc_eff, r, name, _re_oid)
+                        _ti_collect(_re_pid, _mc_eff, r, name, _re_oid, _re_ti_ids)
                     except Exception:
                         pass
                     # v5H226z663 (대표 지시): 재업로드로 '상태'도 갱신 — 엑셀 '상태' 칸에 진행중/출하/취소/보류가 있으면
