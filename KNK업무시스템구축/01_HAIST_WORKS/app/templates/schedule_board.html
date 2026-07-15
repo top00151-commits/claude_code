@@ -1747,15 +1747,18 @@ function schedBulkShip(){
   });
   if(!items.length){ toast('출하 처리할 대상이 없습니다'); return; }
   if(!confirm(items.length+'건을 오늘 날짜로 출하 처리할까요?\n(호기 전체가 납품완료로 처리되고 출하일이 기록됩니다)')) return;
-  var btn=document.querySelector('.bulk-ship-go'); if(btn) btn.disabled=true;
+  var btn=document.querySelector('.bulk-ship-go');
+  var h = window.KNKBusy ? KNKBusy.btn(btn, '출하 처리 중…') : null;
+  if(!h && btn) btn.disabled=true;
   fetch('/sales/schedule/bulk-ship',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})})
     .then(function(r){ return r.json(); })
     .then(function(j){
-      if(!j||!j.ok){ toast('출하 처리 실패: '+((j&&j.error)||'오류')); if(btn) btn.disabled=false; return; }
+      if(!j||!j.ok){ toast('출하 처리 실패: '+((j&&j.error)||'오류')); if(h) h.fail('출하 처리 실패'); else if(btn) btn.disabled=false; return; }
+      if(window.KNKBusy) KNKBusy.flashOnReload(j.n+'건 출하 처리 완료','ok');
       toast(j.n+'건 출하 처리 완료 (출하일 '+(j.on_date||'')+')'+(j.fail? ' · 실패 '+j.fail+'건':''));
       setTimeout(function(){ location.reload(); }, 900);
     })
-    .catch(function(e){ toast('출하 처리 오류: '+e); if(btn) btn.disabled=false; });
+    .catch(function(e){ toast('출하 처리 오류: '+e); if(h) h.fail('출하 처리 오류'); else if(btn) btn.disabled=false; });
 }
 // ───── v5H226z488/z489 (대표 지시): 세금계산서 '묶어 발행' — 체크한 여러 건의 '같은 차수(1/2/3)'를 한 장으로 ─────
 var _tiLines=null, _tiSym='₩', _tiTier=1;
@@ -1853,16 +1856,19 @@ function _tiSubmit(force){
   });
   if(!out.length){ toast('이 차수로 묶을 항목이 없습니다(모두 이미 발행됨)'); return; }
   var body={issue_date:datev, memo:memo, tier:_tiTier, force:!!force, lines:out};
-  var btn=document.getElementById('tiSubmitBtn'); if(btn) btn.disabled=true;
+  var btn=document.getElementById('tiSubmitBtn');
+  var h = window.KNKBusy ? KNKBusy.btn(btn, '발행 중…') : null;
+  if(!h && btn) btn.disabled=true;
   fetch('/sales/schedule/tax-invoice/issue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){ return r.json(); })
     .then(function(j){
-      if(!j||!j.ok){ if(btn) btn.disabled=false; toast('발행 실패: '+((j&&j.error)||'오류')); return; }
+      if(!j||!j.ok){ if(h) h.fail('발행 실패'); else if(btn) btn.disabled=false; toast('발행 실패: '+((j&&j.error)||'오류')); return; }
       _tiCloseModal();
+      if(window.KNKBusy) KNKBusy.flashOnReload(_tiTier+'차 세금계산서 #'+j.ti_no+' 발행 완료','ok');
       toast(_tiTier+'차 세금계산서 #'+j.ti_no+' 발행 완료 ('+j.n+'건)');
       setTimeout(function(){ location.reload(); }, 800);
     })
-    .catch(function(e){ if(btn) btn.disabled=false; toast('발행 오류: '+e); });
+    .catch(function(e){ if(h) h.fail('발행 오류'); else if(btn) btn.disabled=false; toast('발행 오류: '+e); });
 }
 function openTiView(tiid){
   if(!tiid) return;

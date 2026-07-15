@@ -201,14 +201,15 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
       f.addEventListener('submit', function(ev){
         ev.preventDefault();
         var btn = f.querySelector('button');
-        if(btn){ btn.disabled = true; btn.textContent = '…'; }
+        var h = window.KNKBusy ? KNKBusy.btn(btn, '수금 저장 중…') : null;
+        if(!h && btn){ btn.disabled = true; btn.textContent = '…'; }
         fetch('/sales/receipts', {method:'POST', body:new FormData(f), credentials:'same-origin'})
           .then(function(r){ return r.json().catch(function(){ return {}; }); })
           .then(function(j){
-            if(j && j.ok){ location.reload(); }
-            else { alert((j && j.error) || '수금 저장에 실패했습니다.'); if(btn){ btn.disabled=false; btn.textContent='수금'; } }
+            if(j && j.ok){ if(window.KNKBusy) KNKBusy.flashOnReload('✅ 수금이 저장되었습니다','ok'); location.reload(); }
+            else { if(h) h.fail('수금 저장 실패'); else if(btn){ btn.disabled=false; btn.textContent='수금'; } alert((j && j.error) || '수금 저장에 실패했습니다.'); }
           })
-          .catch(function(){ alert('네트워크 오류로 수금 저장에 실패했습니다.'); if(btn){ btn.disabled=false; btn.textContent='수금'; } });
+          .catch(function(){ if(h) h.fail('네트워크 오류'); else if(btn){ btn.disabled=false; btn.textContent='수금'; } alert('네트워크 오류로 수금 저장에 실패했습니다.'); });
       });
     });
     // 부분수금 이력 펼치기/접기

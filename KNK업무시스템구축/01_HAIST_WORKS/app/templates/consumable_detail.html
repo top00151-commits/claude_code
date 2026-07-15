@@ -627,7 +627,8 @@ document.querySelectorAll('.ef[data-field]').forEach(el=>{
 async function coSaveAll(){
   const btn=document.getElementById('coSaveBtn'), msg=document.getElementById('coSaveMsg');
   const _t = btn ? btn.textContent : '';
-  if(btn){ btn.disabled=true; btn.textContent='저장 중…'; }
+  const h = window.KNKBusy ? KNKBusy.btn(btn, '저장 중…') : null;
+  if(!h && btn){ btn.disabled=true; btn.textContent='저장 중…'; }
   if(msg){ msg.textContent=''; }
   const header={};
   // v5H226z725: 기본정보 + 라인 표 발주 공통(ord-col) 칸 모두 수집(.ef[data-field]). 중복(같은 발주값)은 마지막 값.
@@ -642,9 +643,9 @@ async function coSaveAll(){
   try{
     const r=await fetch(`/consumables/${CO_ID}/save-all`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({header:header, lines:lines})});
     const j=await r.json();
-    if(j.ok){ if(msg){ msg.textContent='✓ 저장됨'; } setTimeout(()=>location.reload(), 350); }
-    else { if(btn){ btn.disabled=false; btn.textContent=_t; } alert('저장 실패: '+(j.error||'')); }
-  }catch(e){ if(btn){ btn.disabled=false; btn.textContent=_t; } alert('통신 오류: '+e); }
+    if(j.ok){ if(window.KNKBusy) KNKBusy.flashOnReload('✅ 저장되었습니다','ok'); if(msg){ msg.textContent='✓ 저장됨'; } setTimeout(()=>location.reload(), 350); }
+    else { if(h) h.fail('저장 실패'); else if(btn){ btn.disabled=false; btn.textContent=_t; } alert('저장 실패: '+(j.error||'')); }
+  }catch(e){ if(h) h.fail('통신 오류'); else if(btn){ btn.disabled=false; btn.textContent=_t; } alert('통신 오류: '+e); }
 }
 window.coSaveAll = coSaveAll;
 
@@ -772,7 +773,8 @@ async function doNotify() {
   const team_ids = Array.from(document.querySelectorAll('.ntf-ck:checked')).map(c => parseInt(c.value));
   const user_ids = Array.from(document.querySelectorAll('.ntf-uck:checked')).map(c => parseInt(c.value));
   if (!team_ids.length && !user_ids.length) { alert('통보할 부서 또는 인원을 1개 이상 선택하세요.'); return; }
-  sendBtn.disabled = true; sendBtn.textContent = '⏳ 발송 중...';
+  const h = window.KNKBusy ? KNKBusy.btn(sendBtn, '발송 중…') : null;
+  if(!h){ sendBtn.disabled = true; sendBtn.textContent = '⏳ 발송 중...'; }
   try {
     const r = await fetch(`/consumables/${CO_ID}/notify`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -784,6 +786,7 @@ async function doNotify() {
       msg.className = 'ok';
       msg.textContent = `✅ ${d.sent_to||0}명에게 통보 완료` + (d.msg_sent ? ' · 📱'+d.msg_sent : '');
       const nb = document.getElementById('notifyBtn'); nb.textContent = '✓ 통보 완료';
+      if(window.KNKBusy) KNKBusy.flashOnReload('✅ '+(d.sent_to||0)+'명에게 통보 완료','ok');
       setTimeout(function(){ location.reload(); }, 900);   // 수신부서 표시 갱신
     } else {
       msg.className = 'err'; msg.textContent = '⚠ ' + (d.message || d.error || '발송 실패');
@@ -791,7 +794,7 @@ async function doNotify() {
   } catch (e) {
     msg.className = 'err'; msg.textContent = '⚠ ' + e;
   } finally {
-    sendBtn.disabled = false; sendBtn.textContent = '📤 통보';
+    if(h){ h.restore(); } else { sendBtn.disabled = false; sendBtn.textContent = '📤 통보'; }
   }
 }
 

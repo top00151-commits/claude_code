@@ -118,10 +118,12 @@
         start_date:document.getElementById('fStart').value, target_date:document.getElementById('fTarget').value,
         purpose:document.getElementById('fPurpose').value, result_summary:document.getElementById('fResult').value };
       if(!body.title){ alert('과제명을 입력하세요'); return; }
-      var b=document.getElementById('rdSaveBtn'); if(b) b.disabled=true;
+      var b=document.getElementById('rdSaveBtn');
+      var h = window.KNKBusy ? KNKBusy.btn(b, '저장 중…') : null;
+      if(!h && b) b.disabled=true;
       fetch('/rnd/'+RID+'/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-        .then(function(r){return r.json();}).then(function(j){ if(j&&j.ok){ location.reload(); } else { if(b)b.disabled=false; alert('저장 실패: '+((j&&j.error)||'오류')); } })
-        .catch(function(){ if(b)b.disabled=false; alert('통신 오류'); });
+        .then(function(r){return r.json();}).then(function(j){ if(j&&j.ok){ if(window.KNKBusy) KNKBusy.flashOnReload('✅ 저장되었습니다','ok'); location.reload(); } else { if(h) h.fail('저장 실패'); else if(b)b.disabled=false; alert('저장 실패: '+((j&&j.error)||'오류')); } })
+        .catch(function(){ if(h) h.fail('통신 오류'); else if(b)b.disabled=false; alert('통신 오류'); });
     };
     window.rdAddLog=function(){
       var content=(document.getElementById('lgContent').value||'').trim();

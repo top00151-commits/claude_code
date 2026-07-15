@@ -319,13 +319,15 @@ async function uploadCustomersXlsx(file){
   if(!file) return;
   const fd = new FormData();
   fd.append('xlsx', file);
+  const ov = window.KNKBusy ? KNKBusy.overlay('📤 엑셀 업로드·분석 중입니다…','파일을 읽고 고객사를 인식하고 있어요.') : null;
   try{
     const res = await fetch('/customers/import-xlsx', {method:'POST', body: fd});
     const j = await res.json();
-    if(!j.ok){ alert('파싱 실패: ' + (j.error || 'unknown')); document.getElementById('cuImportXlsx').value=''; return; }
+    if(!j.ok){ if(ov) ov.fail(j.error||'파싱 실패'); alert('파싱 실패: ' + (j.error || 'unknown')); document.getElementById('cuImportXlsx').value=''; return; }
     cuImportRows = j.rows || [];
+    if(ov) ov.close();
     renderCuImportPreview(j);
-  }catch(e){ alert('업로드 오류: ' + e); }
+  }catch(e){ if(ov) ov.fail('업로드 오류'); alert('업로드 오류: ' + e); }
   document.getElementById('cuImportXlsx').value='';
 }
 
@@ -379,6 +381,7 @@ async function confirmCuImport(){
   if(!confirm(`총 ${ok.length}건을 등록/업데이트합니다. 진행할까요?`)) return;
   const btn = document.getElementById('cuImportConfirmBtn');
   btn.disabled = true; btn.textContent = '처리 중…';
+  const ov = window.KNKBusy ? KNKBusy.overlay('💾 고객사 등록 중입니다…','완료될 때까지 기다려 주세요.') : null;
   try{
     const res = await fetch('/customers/import-confirm', {
       method:'POST',
@@ -386,10 +389,12 @@ async function confirmCuImport(){
       body: JSON.stringify({rows: ok})
     });
     const j = await res.json();
-    if(!j.ok){ alert('등록 실패: ' + (j.error || 'unknown')); btn.disabled=false; btn.textContent='등록 확정'; return; }
+    if(!j.ok){ if(ov) ov.fail('등록 실패'); alert('등록 실패: ' + (j.error || 'unknown')); btn.disabled=false; btn.textContent='등록 확정'; return; }
+    if(ov) ov.close();
     alert(`완료 — 신규 ${j.created_count}건 / 업데이트 ${j.updated_count}건` + (j.failed_count?` / 실패 ${j.failed_count}건`:''));
     location.reload();
   }catch(e){
+    if(ov) ov.fail('확정 오류');
     alert('확정 오류: ' + e);
     btn.disabled=false; btn.textContent='등록 확정';
   }

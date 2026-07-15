@@ -478,19 +478,21 @@ async function coBulkUpload(file){
   if(!file){ return; }
   var msg = document.getElementById('coBulkMsg');
   msg.style.color = '#1d4ed8'; msg.textContent = '⏳ 업로드 + 파싱 중...';
+  var ov = window.KNKBusy ? KNKBusy.overlay('📤 엑셀 업로드·분석 중입니다…','파일을 읽고 발주를 인식하고 있어요.') : null;
   var fd = new FormData(); fd.append('file', file);
   var r;
   try { r = await fetch('/consumables/import-bulk', {method:'POST', body: fd, credentials:'same-origin'}); }
-  catch(e){ msg.style.color='#c33'; msg.textContent = '❌ 통신 실패: ' + e; return; }
-  if(!r.ok){ msg.style.color='#c33'; msg.textContent = '❌ 업로드 실패 (HTTP ' + r.status + ')' + ((r.status===401||r.status===403)?' — 로그인/권한 확인 후 F5':''); return; }
-  var j; try { j = await r.json(); } catch(e){ msg.style.color='#c33'; msg.textContent='❌ 응답 오류(로그인 풀림 가능) — F5 후 재시도'; return; }
-  if(!j.ok){ msg.style.color='#c33'; msg.textContent = '❌ ' + (j.error || '파싱 실패'); return; }
+  catch(e){ if(ov) ov.fail('업로드 실패'); msg.style.color='#c33'; msg.textContent = '❌ 통신 실패: ' + e; return; }
+  if(!r.ok){ if(ov) ov.fail('업로드 실패'); msg.style.color='#c33'; msg.textContent = '❌ 업로드 실패 (HTTP ' + r.status + ')' + ((r.status===401||r.status===403)?' — 로그인/권한 확인 후 F5':''); return; }
+  var j; try { j = await r.json(); } catch(e){ if(ov) ov.fail('응답 오류'); msg.style.color='#c33'; msg.textContent='❌ 응답 오류(로그인 풀림 가능) — F5 후 재시도'; return; }
+  if(!j.ok){ if(ov) ov.fail(j.error||'파싱 실패'); msg.style.color='#c33'; msg.textContent = '❌ ' + (j.error || '파싱 실패'); return; }
   _coBulkOrders = j.orders || [];
   window._coBulkToken = j.token || '';   // v5H226z368: 확정 때 사진 임시폴더 식별
   document.getElementById('coBulkFile').value = '';
   renderCoBulkPreview(j);
   document.getElementById('coBulkModal').style.display = 'block';
   msg.textContent = '';
+  if(ov) ov.close();
 }
 function renderCoBulkPreview(j){
   var sum = document.getElementById('coBulkSummary');
@@ -549,20 +551,23 @@ async function coBulkConfirm(){
   if(!send.length){ alert('등록할 발주가 없습니다.'); return; }
   var btn = document.getElementById('coBulkConfirmBtn'); btn.disabled=true; var _o=btn.textContent;
   var CHUNK=20, total=send.length, tok=(window._coBulkToken||'');
+  var ov = window.KNKBusy ? KNKBusy.overlay('💾 발주 등록 중입니다…','완료될 때까지 이 창을 닫지 마세요.') : null;
+  if(ov) ov.progress(0, total);
   var acc={created_count:0, images_attached:0, images_failed:0, failed_count:0, ti_bundles:0, ti_lines_bundled:0, ti_singles:0, unmatched_customers:[], link_warnings:[], issued:[]};   // v5H226z959: issued=발급된 관리번호 목록
   for(var i=0;i<total;i+=CHUNK){
     var chunk=send.slice(i,i+CHUNK);
     btn.textContent='등록 중... '+Math.min(i+chunk.length,total)+'/'+total;
     var r,j;
     try{ r=await fetch('/consumables/import-bulk-confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orders:chunk,token:tok}),credentials:'same-origin'}); }
-    catch(e){ alert('등록 중 통신 오류 (직전까지 '+acc.created_count+'건 저장): '+e+'\n\n다시 [등록 확정] 누르면 이어서 등록됩니다.'); btn.disabled=false; btn.textContent=_o; return; }
-    try{ j=await r.json(); }catch(e){ alert('응답 오류 (직전까지 '+acc.created_count+'건 저장). F5 후 다시 시도하면 이어서 등록됩니다.'); btn.disabled=false; btn.textContent=_o; return; }
-    if(!j.ok){ alert('등록 실패 (직전까지 '+acc.created_count+'건 저장): '+(j.error||'')); btn.disabled=false; btn.textContent=_o; return; }
+    catch(e){ if(ov) ov.fail('통신 오류'); alert('등록 중 통신 오류 (직전까지 '+acc.created_count+'건 저장): '+e+'\n\n다시 [등록 확정] 누르면 이어서 등록됩니다.'); btn.disabled=false; btn.textContent=_o; return; }
+    try{ j=await r.json(); }catch(e){ if(ov) ov.fail('응답 오류'); alert('응답 오류 (직전까지 '+acc.created_count+'건 저장). F5 후 다시 시도하면 이어서 등록됩니다.'); btn.disabled=false; btn.textContent=_o; return; }
+    if(!j.ok){ if(ov) ov.fail('등록 실패'); alert('등록 실패 (직전까지 '+acc.created_count+'건 저장): '+(j.error||'')); btn.disabled=false; btn.textContent=_o; return; }
     acc.created_count+=(j.created_count||0); acc.images_attached+=(j.images_attached||0); acc.images_failed+=(j.images_failed||0);
     acc.failed_count+=(j.failed_count||0); acc.ti_bundles+=(j.ti_bundles||0); acc.ti_lines_bundled+=(j.ti_lines_bundled||0); acc.ti_singles+=(j.ti_singles||0);
     if(j.unmatched_customers&&j.unmatched_customers.length) acc.unmatched_customers=acc.unmatched_customers.concat(j.unmatched_customers);
     if(j.link_warnings&&j.link_warnings.length) acc.link_warnings=acc.link_warnings.concat(j.link_warnings);
     if(j.created&&j.created.length) acc.issued=acc.issued.concat(j.created);   // v5H226z959: 발급된 관리번호 회수
+    if(ov) ov.progress(Math.min(i+CHUNK,total), total);
   }
   var msg = '발주 등록 완료: ' + acc.created_count + '건';
   if(acc.images_attached) msg += '\n사진 ' + acc.images_attached + '개 등록';
@@ -582,6 +587,7 @@ async function coBulkConfirm(){
       msg += '\n(전체 번호는 목록에서 확인 — 최신순 정렬)';
     }
   }
+  if(ov) ov.close();
   alert(msg);
   coBulkClose();
   if(acc.created_count > 0){ try { (window.top||window).location.href='/consumables'; } catch(e){ location.href='/consumables'; } }

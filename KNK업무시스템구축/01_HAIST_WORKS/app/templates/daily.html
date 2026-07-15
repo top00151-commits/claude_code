@@ -473,11 +473,12 @@ function submitAssign(){
     project_id:_woProjId() };
   if(!payload.title){ alert('제목을 입력하세요'); return; }
   if(!payload.target_user_id && !payload.target_team_id){ alert('받을 사람 또는 부서를 선택하세요'); return; }
+  var ov = window.KNKBusy ? KNKBusy.overlay('📨 업무를 보내는 중입니다…','잠시만 기다려 주세요.') : null;
   fetch('/work-orders/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(function(r){return r.json();}).then(function(j){
-      if(j&&j.ok){ alert("'"+(j.kind||'업무')+"'(으)로 보냈습니다."); location.reload(); }
-      else alert('실패: '+((j&&j.error)||'오류')); })
-    .catch(function(){ alert('통신 오류'); });
+      if(j&&j.ok){ if(ov) ov.close(); alert("'"+(j.kind||'업무')+"'(으)로 보냈습니다."); location.reload(); }
+      else { if(ov) ov.fail('보내기 실패'); alert('실패: '+((j&&j.error)||'오류')); } })
+    .catch(function(){ if(ov) ov.fail('통신 오류'); alert('통신 오류'); });
 }
 function woStatus(id, st, report){
   fetch('/work-orders/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},
