@@ -20097,7 +20097,12 @@ async def parts_new_form(request: Request):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
-    return ctx(request, "part_form.html", user=u, active="parts", part=None)
+    # v5H226z979: 제조사 자동완성 — 기존 등록 제조사 표기 통일 유도 (미스미/MISUMI 중복 방지)
+    try:
+        makers = _logi.parts_makers_list()
+    except Exception:
+        makers = []
+    return ctx(request, "part_form.html", user=u, active="parts", part=None, makers=makers)
 
 
 @app.post("/parts/new")
@@ -20238,22 +20243,25 @@ async def parts_reclassify_apply(request: Request):
 @app.get("/parts/check")
 async def parts_check_similar(request: Request,
                               name: str = "", spec: str = "",
-                              maker: str = "", exclude_id: int = 0):
+                              maker: str = "", exclude_id: int = 0,
+                              part_no: str = ""):
     """자재 신규 등록 시 입력하는 동안 유사 자재 실시간 노출.
-    debounce 400ms 권장. score ≥ 60 (정보), ≥ 85 (확정 유사 → 등록 차단)."""
+    debounce 400ms 권장. score ≥ 60 (정보), ≥ 85 (확정 유사 → 등록 차단).
+    v5H226z979: part_no 전달 시 모델명 정규화 완전일치·과거 품번(별칭) 100점 히트 포함."""
     u = get_user(request)
     if not u:
         return JSONResponse({"hits": [], "error": "login"}, status_code=401)
     if not can_use_logistics(u):
         return JSONResponse({"hits": [], "error": "권한 없음"}, status_code=403)
     name = (name or "").strip()
-    if not name or len(name) < 2:
+    part_no = (part_no or "").strip()
+    if (not name or len(name) < 2) and len(part_no) < 3:
         return JSONResponse({"hits": [], "threshold_hard": 85, "threshold_soft": 60})
     try:
         sims = _logi.parts_find_similar(
             name=name, spec=spec, maker=maker,
             exclude_id=int(exclude_id or 0),
-            limit=5, threshold=60,
+            limit=5, threshold=60, part_no=part_no,
         )
     except Exception as e:
         return JSONResponse({"hits": [], "error": str(e)}, status_code=200)
@@ -20265,10 +20273,139 @@ async def parts_check_similar(request: Request,
             "biz_div": s.get("biz_div") or "",
             "category": s.get("category") or "",
             "score": int(s.get("score") or 0),
+            "match": s.get("match") or "",
         } for s in sims],
         "threshold_hard": 85, "threshold_soft": 60,
         "count": len(sims),
     })
+
+
+# =====================================================
+# v5H226z979 (2026-07-14) — 0단계: 자재 중복 정리 (BOM 스프린트 기초공사 · 대표 승인)
+# GET  /parts/dedup                → 중복 의심 그룹 스캔 화면 (A=모델명 표기차이 / B=품명+규격 동일 참고)
+# POST /parts/dedup/merge          → 그룹 병합 (대표 1 + 병합 대상 N · 사람 확인 필수)
+# POST /parts/dedup/dismiss        → '중복 아님' 처리 / undo 로 해제
+# POST /parts/dedup/unmerge/{id}   → 병합 실행취소 (스냅샷 복원)
+# 원칙: 자동 병합 절대 금지 · 전 과정 로그 · 과거 품번은 별칭 보존
+# =====================================================
+@app.get("/parts/dedup", response_class=HTMLResponse)
+async def parts_dedup_page(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    try:
+        scan = _logi.parts_dedup_scan()
+    except Exception as e:
+        scan = {"groups": [], "count_a": 0, "count_b": 0,
+                "total_groups": 0, "truncated": False, "error": str(e)}
+    try:
+        merge_logs = _logi.parts_merge_log_list(limit=30)
+    except Exception:
+        merge_logs = []
+    try:
+        dismissed = _logi.parts_dedup_dismissed_list(limit=100)
+    except Exception:
+        dismissed = []
+    return ctx(request, "parts_dedup.html", user=u, active="parts",
+               scan=scan, merge_logs=merge_logs, dismissed=dismissed)
+
+
+@app.post("/parts/dedup/merge")
+async def parts_dedup_merge_submit(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    try:
+        canonical_id = int(form.get("canonical_id") or 0)
+    except (TypeError, ValueError):
+        canonical_id = 0
+    dup_ids = []
+    for v in form.getlist("dup_ids"):
+        try:
+            iv = int(v)
+            if iv and iv != canonical_id and iv not in dup_ids:
+                dup_ids.append(iv)
+        except (TypeError, ValueError):
+            pass
+    if not canonical_id or not dup_ids:
+        return RedirectResponse(
+            f"/parts/dedup?error={_q('대표 자재 1개와 병합 대상을 선택하세요')}", 303)
+    try:
+        _uid = int(u["id"])
+    except (TypeError, ValueError, KeyError):
+        _uid = 0
+    res = _logi.parts_merge_group(canonical_id, dup_ids, user_id=_uid)
+    ok_n = len(res.get("merged") or [])
+    errs = res.get("errors") or []
+    if errs:
+        _m = f"{ok_n}건 병합 · {len(errs)}건 실패: " + " / ".join(
+            str(e.get("error")) for e in errs[:2])
+        return RedirectResponse(f"/parts/dedup?error={_q(_m)}", 303)
+    return RedirectResponse(
+        f"/parts/dedup?success={_q(str(ok_n) + '건 병합 완료 — 과거 품번은 별칭으로 계속 검색되고, 병합 이력에서 실행취소할 수 있습니다')}",
+        303)
+
+
+@app.post("/parts/dedup/dismiss")
+async def parts_dedup_dismiss_submit(request: Request, group_key: str = Form(...)):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    try:
+        _uid = int(u["id"])
+    except (TypeError, ValueError, KeyError):
+        _uid = 0
+    try:
+        _logi.parts_dedup_dismiss(group_key, user_id=_uid)
+    except Exception as e:
+        return RedirectResponse(f"/parts/dedup?error={_q(str(e))}", 303)
+    return RedirectResponse(
+        f"/parts/dedup?success={_q('중복 아님 처리 — 이 그룹은 다시 표시되지 않습니다 (아래 목록에서 해제 가능)')}", 303)
+
+
+@app.post("/parts/dedup/dismiss/undo")
+async def parts_dedup_dismiss_undo(request: Request, group_key: str = Form(...)):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    try:
+        _logi.parts_dedup_undismiss(group_key)
+    except Exception as e:
+        return RedirectResponse(f"/parts/dedup?error={_q(str(e))}", 303)
+    return RedirectResponse(f"/parts/dedup?success={_q('해제 완료 — 다음 스캔부터 다시 표시됩니다')}", 303)
+
+
+@app.post("/parts/dedup/unmerge/{log_id}")
+async def parts_dedup_unmerge_submit(request: Request, log_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    try:
+        _uid = int(u["id"])
+    except (TypeError, ValueError, KeyError):
+        _uid = 0
+    try:
+        res = _logi.parts_unmerge(int(log_id), user_id=_uid)
+        return RedirectResponse(
+            f"/parts/dedup?success={_q('실행취소 완료 — [' + str(res.get('restored_part_id')) + '] ' + str(res.get('part_no') or '') + ' 복원됨')}",
+            303)
+    except Exception as e:
+        return RedirectResponse(f"/parts/dedup?error={_q(str(e))}", 303)
 
 
 # =====================================================
@@ -20466,10 +20603,16 @@ async def parts_edit_form(request: Request, pid: int):
             ).fetchall()]
     except Exception:
         suppliers = []
+    # v5H226z979: 제조사 자동완성
+    try:
+        makers = _logi.parts_makers_list()
+    except Exception:
+        makers = []
     return ctx(request, "part_form.html", user=u, active="parts",
                part=p, attachments=attachments, del_impact=del_impact,
                managed_prices=managed_prices, price_changes=price_changes,
-               suppliers=suppliers, PRICE_TYPES=PRICE_TYPES, CURRENCIES=CURRENCIES)
+               suppliers=suppliers, PRICE_TYPES=PRICE_TYPES, CURRENCIES=CURRENCIES,
+               makers=makers)
 
 
 @app.post("/parts/{pid}/edit")

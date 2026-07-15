@@ -932,6 +932,7 @@
   var nameEl  = document.getElementById('partName');
   var specEl  = document.getElementById('partSpec');
   var makerEl = document.getElementById('partMaker');
+  var pnoSimEl = document.getElementById('partNo');   // v5H226z979: 품번(모델명)도 유사검사에 포함 — 표기차이·별칭 100점 감지
   var simCard = document.getElementById('simCard');
   var simEmpty = document.getElementById('simEmpty');
   var simLoading = document.getElementById('simLoading');
@@ -973,6 +974,11 @@
       html += '<div class="row1"><span class="pno">' + (h.part_no || ('#' + h.id)) + '</span>';
       html += '<span class="pname">' + (h.part_name || '—') + '</span>';
       html += '<span class="score">' + h.score + '점</span></div>';
+      // v5H226z979: 모델명 표기차이·과거 품번(별칭) 사유 표시 (esc 처리)
+      if (h.match) {
+        var _esc = String(h.match).replace(/[<>&"]/g, function(ch){ return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch]; });
+        html += '<div class="meta" style="color:var(--pq-err,#b91c1c);font-weight:700;">🔁 ' + _esc + '</div>';
+      }
       var meta = [];
       if (h.spec) meta.push(h.spec);
       if (h.maker) meta.push(h.maker);
@@ -1003,7 +1009,8 @@
 
   var fetchSim = debounce(function() {
     var name = (nameEl.value || '').trim();
-    if (name.length < 2) {
+    var pnoSim = ((pnoSimEl && pnoSimEl.value) || '').trim();   // v5H226z979
+    if (name.length < 2 && pnoSim.length < 3) {
       simEmpty.style.display = 'block';
       simList.innerHTML = '';
       simBadge.textContent = '대기';
@@ -1012,7 +1019,7 @@
       hardHit = false;
       submitBtn.className = '';
       submitBtn.textContent = '📤 등록';
-      submitNote.textContent = '💡 자재명 2자 이상 입력 시 검색 시작';
+      submitNote.textContent = '💡 자재명 2자(또는 품번 3자) 이상 입력 시 검색 시작';
       forceFlag.value = '0';
       return;
     }
@@ -1020,7 +1027,8 @@
     simLoading.style.display = 'block';
     var url = '/parts/check?name=' + encodeURIComponent(name)
             + '&spec=' + encodeURIComponent(specEl.value || '')
-            + '&maker=' + encodeURIComponent(makerEl.value || '');
+            + '&maker=' + encodeURIComponent(makerEl.value || '')
+            + '&part_no=' + encodeURIComponent(pnoSim);
     fetch(url, { credentials: 'same-origin' })
       .then(function(r){ return r.json(); })
       .then(renderHits)
@@ -1034,6 +1042,7 @@
     nameEl.addEventListener(ev, fetchSim);
     specEl.addEventListener(ev, fetchSim);
     makerEl.addEventListener(ev, fetchSim);
+    if (pnoSimEl) pnoSimEl.addEventListener(ev, fetchSim);   // v5H226z979
   });
 
   // 등록 버튼 클릭 — hardHit 이면 confirm 후 force=1

@@ -922,6 +922,52 @@ CREATE INDEX IF NOT EXISTS idx_ppr_supplier ON part_prices(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_ppr_effective ON part_prices(effective_from, effective_to);
 CREATE INDEX IF NOT EXISTS idx_ppr_type ON part_prices(price_type);
 
+-- =====================================================
+-- v5H226z979 (2026-07-14) — 0단계 자재 중복 정리 (대표 지시 "신중하게")
+-- part_aliases: 병합으로 사라진 품번을 별칭으로 보존 → 검색·업로드·BOM 매칭이 계속 인식
+-- part_merge_log: 병합 전체 기록(스냅샷·이동 참조 id·충돌 대체 행) → 실행취소 가능
+-- part_dedup_dismissals: '중복 아님' 판정 그룹 — 다시 안 뜸
+-- =====================================================
+CREATE TABLE IF NOT EXISTS part_aliases (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id            INTEGER NOT NULL,           -- 대표(살아남은) 자재 id
+    alias_part_no      TEXT NOT NULL,              -- 과거 품번(모델명)
+    alias_part_no_norm TEXT,                       -- 정규화 키 (영숫자·한글만·소문자)
+    alias_part_name    TEXT,
+    source             TEXT DEFAULT 'merge',
+    merge_log_id       INTEGER,
+    created_at         TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_palias_norm ON part_aliases(alias_part_no_norm);
+CREATE INDEX IF NOT EXISTS idx_palias_part ON part_aliases(part_id);
+
+CREATE TABLE IF NOT EXISTS part_merge_log (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    canonical_id       INTEGER NOT NULL,           -- 대표 자재
+    canonical_part_no  TEXT,
+    merged_part_id     INTEGER NOT NULL,           -- 병합되어 사라진 자재
+    merged_part_no     TEXT,
+    snapshot_json      TEXT,                       -- 사라진 자재 전체 행 (복원용)
+    moved_json         TEXT,                       -- {table: {pk, ids[]}} 이동한 참조
+    dropped_json       TEXT,                       -- {table: [row...]} 유니크 충돌로 대체된 행 (전량 보존)
+    filled_json        TEXT,                       -- {field: {old,new}} 대표에 보완된 필드
+    stock_transferred  REAL DEFAULT 0,             -- 이관된 재고 수량
+    adjust_delta       REAL DEFAULT 0,             -- 이동이력 부족분 실사조정 수량
+    adjust_movement_id INTEGER,                    -- 생성한 ADJUST 이동 id
+    performed_by       INTEGER,
+    performed_at       TEXT DEFAULT (datetime('now','localtime')),
+    undone_by          INTEGER,
+    undone_at          TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pmlog_canon ON part_merge_log(canonical_id);
+
+CREATE TABLE IF NOT EXISTS part_dedup_dismissals (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_key    TEXT NOT NULL UNIQUE,
+    dismissed_by INTEGER,
+    created_at   TEXT DEFAULT (datetime('now','localtime'))
+);
+
 -- ============ 게시판 (HAIST WORKS) ============
 -- 게시판 마스터: 전사 / 부서별
 CREATE TABLE IF NOT EXISTS boards (
@@ -2572,6 +2618,27 @@ def init_db():
                 c.execute("ALTER TABLE parts ADD COLUMN vendor2 TEXT")
             if prcols and "vendor3" not in prcols:
                 c.execute("ALTER TABLE parts ADD COLUMN vendor3 TEXT")
+        except Exception:
+            pass
+        # v5H226z979 (2026-07-14): 0단계 자재 중복 정리 — 정규화 키 컬럼 + 멱등 백필
+        #   part_no_norm/name_norm = 대소문자·공백·하이픈·특수문자 무시 비교 키 (검색·중복스캔·별칭 매칭용)
+        try:
+            if prcols and "part_no_norm" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN part_no_norm TEXT")
+            if prcols and "name_norm" not in prcols:
+                c.execute("ALTER TABLE parts ADD COLUMN name_norm TEXT")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_parts_pno_norm ON parts(part_no_norm)")
+            _norm_backlog = c.execute(
+                "SELECT id, part_no, part_name FROM parts "
+                "WHERE part_no_norm IS NULL OR name_norm IS NULL"
+            ).fetchall()
+            for _nr in _norm_backlog:
+                c.execute(
+                    "UPDATE parts SET part_no_norm=?, name_norm=? WHERE id=?",
+                    (_normalize_part_key(str(_nr[1] or "")),
+                     _normalize_part_key(str(_nr[2] or "")),
+                     _nr[0]),
+                )
         except Exception:
             pass
         # v5H226z89 (2026-05-14): suppliers 에 사업자등록번호·대표자 컬럼 추가
@@ -5086,9 +5153,17 @@ def parts_list(q: str = "", biz_div: str = "", category: str = "",
     if q:
         # v5H226z99 (2026-05-16): purpose(용도) 검색 추가
         # v5H226z110 (2026-05-18): 자재코드 = 모델명 통합 — 별도 모델명 LIKE 제거 (part_no LIKE로 커버)
-        sql += " AND (part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR maker LIKE ? OR COALESCE(purpose,'') LIKE ?)"
+        # v5H226z979: 정규화 검색 — 공백·하이픈·대소문자 표기가 달라도 찾아짐 + 병합된 과거 품번(별칭) 매칭
+        _cond = "part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR maker LIKE ? OR COALESCE(purpose,'') LIKE ?"
         like = f"%{q}%"
         params += [like, like, like, like, like]
+        _nq = _normalize_part_key(q)
+        if _nq:
+            _cond += (" OR COALESCE(part_no_norm,'') LIKE ? OR COALESCE(name_norm,'') LIKE ?"
+                      " OR id IN (SELECT part_id FROM part_aliases WHERE alias_part_no_norm LIKE ?)")
+            _nlike = f"%{_nq}%"
+            params += [_nlike, _nlike, _nlike]
+        sql += f" AND ({_cond})"
     if biz_div:
         sql += " AND biz_div = ?"
         params.append(biz_div)
@@ -5110,9 +5185,17 @@ def parts_count_filtered(q: str = "", biz_div: str = "", category: str = "") -> 
     sql = "SELECT COUNT(*) FROM parts WHERE 1=1"
     params: list = []
     if q:
-        sql += " AND (part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR maker LIKE ? OR COALESCE(purpose,'') LIKE ?)"
+        # v5H226z979: parts_list 와 동일 조건 유지 (정규화·별칭 검색) — 어긋나면 페이지수 틀어짐(z865 교훈)
+        _cond = "part_no LIKE ? OR part_name LIKE ? OR spec LIKE ? OR maker LIKE ? OR COALESCE(purpose,'') LIKE ?"
         like = f"%{q}%"
         params += [like, like, like, like, like]
+        _nq = _normalize_part_key(q)
+        if _nq:
+            _cond += (" OR COALESCE(part_no_norm,'') LIKE ? OR COALESCE(name_norm,'') LIKE ?"
+                      " OR id IN (SELECT part_id FROM part_aliases WHERE alias_part_no_norm LIKE ?)")
+            _nlike = f"%{_nq}%"
+            params += [_nlike, _nlike, _nlike]
+        sql += f" AND ({_cond})"
     if biz_div:
         sql += " AND biz_div = ?"
         params.append(biz_div)
@@ -5278,12 +5361,14 @@ def _similarity_score(a: str, b: str) -> int:
 
 def parts_find_similar(name: str, spec: str = "", maker: str = "",
                        exclude_id: int = 0, limit: int = 5,
-                       threshold: int = 60) -> list[dict]:
+                       threshold: int = 60, part_no: str = "") -> list[dict]:
     """유사 자재 검색. 자재명 위주 + spec/maker 보조 점수 가산.
     반환: [{id, part_no, part_name, spec, maker, score}] 점수 내림차순.
-    threshold(60) 이상만 반환. 정확히 part_no 일치하는 행은 100점."""
+    threshold(60) 이상만 반환.
+    v5H226z979: part_no 전달 시 — 모델명 정규화 완전일치·과거 품번(별칭) 매칭은 100점 확정 히트."""
     name = (name or "").strip()
-    if not name:
+    part_no = (part_no or "").strip()
+    if not name and not part_no:
         return []
     spec = (spec or "").strip()
     maker = (maker or "").strip()
@@ -5317,8 +5402,507 @@ def parts_find_similar(name: str, spec: str = "", maker: str = "",
             d["score_name"] = name_score
             d["score_bonus"] = bonus
             scored.append(d)
+    # v5H226z979: 모델명(part_no) 정규화 완전일치 + 과거 품번(별칭) → 100점 확정 히트
+    _pn_norm = _normalize_part_key(part_no) if part_no else ""
+    if _pn_norm:
+        _hits = []
+        try:
+            with db_session() as c:
+                for r in c.execute(
+                    "SELECT id, part_no, part_name, spec, maker, biz_div, category FROM parts "
+                    "WHERE part_no_norm=? AND id<>? LIMIT 5",
+                    (_pn_norm, int(exclude_id or 0)),
+                ).fetchall():
+                    d = dict(r)
+                    d["score"] = 100
+                    d["match"] = "모델명 동일(표기차이)"
+                    _hits.append(d)
+                for r in c.execute(
+                    "SELECT p.id, p.part_no, p.part_name, p.spec, p.maker, p.biz_div, p.category, "
+                    "       a.alias_part_no AS matched_alias "
+                    "FROM part_aliases a JOIN parts p ON p.id=a.part_id "
+                    "WHERE a.alias_part_no_norm=? AND p.id<>? LIMIT 5",
+                    (_pn_norm, int(exclude_id or 0)),
+                ).fetchall():
+                    d = dict(r)
+                    _alias_no = d.pop("matched_alias", "")
+                    d["score"] = 100
+                    d["match"] = f"과거 품번(별칭: {_alias_no})"
+                    _hits.append(d)
+        except Exception:
+            _hits = []
+        _hit_ids = {h["id"] for h in _hits}
+        scored = _hits + [s for s in scored if s["id"] not in _hit_ids]
     scored.sort(key=lambda x: (-x["score"], x["id"]))
     return scored[:max(1, int(limit))]
+
+
+# =====================================================
+# v5H226z979 (2026-07-14) — 0단계: 자재 마스터 중복 정리 (대표 지시 "신중하게 잘")
+#   parts_dedup_scan   — 중복 의심 그룹 스캔 (A=모델명 정규화 동일 / B=품명+규격 동일·참고용)
+#   parts_merge_one    — 병합 1건: 참조 자동 이동(id 기록)·재고 이관(ADJUST)·빈필드 보완·별칭 보존·전체 스냅샷
+#   parts_unmerge      — 병합 실행취소 (스냅샷 복원 + 참조 원위치 + 별칭 제거)
+#   parts_dedup_dismiss— '중복 아님' 판정 (그룹 다시 안 뜸)
+# 원칙: 자동 병합 절대 금지 — 사람이 확인한 그룹만. 병합 데이터는 전량 로그 보존(복구 가능).
+# =====================================================
+_PART_MERGE_TABLE_EXCLUDE = {"parts", "part_aliases", "part_merge_log", "part_dedup_dismissals"}
+
+
+def _part_id_ref_tables(c) -> list:
+    """part_id 컬럼을 가진 모든 실테이블 [(table, pk컬럼|rowid)] — 런타임 자동 발견.
+    새 테이블(예: 향후 BOM 라인)이 생겨도 병합이 자동으로 함께 이동시킴."""
+    out = []
+    for tr in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
+        t = tr[0]
+        if t in _PART_MERGE_TABLE_EXCLUDE or t.startswith("sqlite_"):
+            continue
+        try:
+            cols = c.execute(f"PRAGMA table_info({t})").fetchall()
+        except Exception:
+            continue
+        names = [x[1] for x in cols]
+        if "part_id" not in names:
+            continue
+        pk_cols = [x for x in cols if int(x[5] or 0) >= 1]
+        if len(pk_cols) == 1 and str(pk_cols[0][2] or "").upper().startswith("INT"):
+            out.append((t, pk_cols[0][1]))
+        else:
+            out.append((t, "rowid"))
+    return out
+
+
+def _gen_movement_no_tx(c) -> str:
+    """gen_movement_no 와 동일 채번 — 병합 트랜잭션 내부용 (중첩 세션 없이 같은 커서 사용)."""
+    yymmdd = _date.today().strftime("%y%m%d")
+    prefix = f"SM-{yymmdd}-"
+    mx = 0
+    for r in c.execute(
+        "SELECT movement_no FROM stock_movements WHERE movement_no LIKE ?", (f"{prefix}%",)
+    ).fetchall():
+        try:
+            mx = max(mx, int(str(r[0]).rsplit("-", 1)[-1]))
+        except (ValueError, IndexError):
+            pass
+    return f"{prefix}{mx + 1:03d}"
+
+
+def parts_dedup_scan(limit_groups: int = 200) -> dict:
+    """중복 의심 그룹 스캔.
+    Tier A: part_no 정규화 키 동일 (표기만 다른 같은 모델명 — 병합 대상)
+    Tier B: 품명+규격 정규화 동일·모델명은 다름 (이원화 대체품일 수 있음 — 참고용·병합 신중)
+    '중복 아님' 처리(part_dedup_dismissals)된 그룹은 제외."""
+    with db_session() as c:
+        parts = [dict(r) for r in c.execute(
+            "SELECT id, part_no, part_name, spec, maker, unit, currency, std_price, stock_qty,"
+            "       is_active, created_at, biz_div, category, vendor1, vendor2, vendor3"
+            "  FROM parts"
+        ).fetchall()]
+        dismissed = {r[0] for r in c.execute("SELECT group_key FROM part_dedup_dismissals").fetchall()}
+    by_a: dict = {}
+    by_b: dict = {}
+    for p in parts:
+        pn = _normalize_part_key(str(p.get("part_no") or ""))
+        nm = _normalize_part_key(str(p.get("part_name") or ""))
+        sp = _normalize_part_key(str(p.get("spec") or ""))
+        if pn:
+            by_a.setdefault(pn, []).append(p)
+        if nm and len(nm) >= 4:
+            by_b.setdefault(f"{nm}|{sp}", []).append(p)
+    groups = []
+    seen_id_sets = set()
+
+    def _mk(tier, key, members):
+        ids = tuple(sorted(m["id"] for m in members))
+        if ids in seen_id_sets:
+            return None
+        gk = f"{tier}:{key}:{','.join(map(str, ids))}"
+        if gk in dismissed:
+            seen_id_sets.add(ids)
+            return None
+        seen_id_sets.add(ids)
+        return {"tier": tier, "key": key, "group_key": gk,
+                "members": sorted(members, key=lambda m: m["id"])}
+
+    for k in sorted(by_a.keys()):
+        ms = by_a[k]
+        if len(ms) > 1:
+            g = _mk("A", k, ms)
+            if g:
+                groups.append(g)
+    for k in sorted(by_b.keys()):
+        ms = by_b[k]
+        if 1 < len(ms) <= 6:   # 지나치게 흔한 품명 그룹은 소음 → 제외
+            g = _mk("B", k, ms)
+            if g:
+                groups.append(g)
+    # 그룹 멤버들의 참조 건수 (발주·입출고·견적 등 part_id 전 테이블 합계)
+    member_ids = sorted({m["id"] for g in groups for m in g["members"]})
+    refs = {mid: 0 for mid in member_ids}
+    if member_ids:
+        with db_session() as c:
+            qmarks = ",".join(["?"] * len(member_ids))
+            for t, _pk in _part_id_ref_tables(c):
+                try:
+                    for pr in c.execute(
+                        f"SELECT part_id, COUNT(*) FROM {t} WHERE part_id IN ({qmarks}) GROUP BY part_id",
+                        member_ids,
+                    ).fetchall():
+                        refs[pr[0]] = refs.get(pr[0], 0) + int(pr[1] or 0)
+                except Exception:
+                    pass
+    for g in groups:
+        for m in g["members"]:
+            m["ref_count"] = refs.get(m["id"], 0)
+        # 대표 추천: 참조 많은 것 → 재고 많은 것 → 먼저 등록된 것
+        _sorted = sorted(g["members"],
+                         key=lambda m: (-m["ref_count"], -(float(m.get("stock_qty") or 0)), m["id"]))
+        g["members"] = _sorted
+        g["suggest_id"] = _sorted[0]["id"]
+    tier_a = [g for g in groups if g["tier"] == "A"]
+    tier_b = [g for g in groups if g["tier"] == "B"]
+    ordered = tier_a + tier_b
+    return {"groups": ordered[:limit_groups], "count_a": len(tier_a), "count_b": len(tier_b),
+            "total_groups": len(ordered), "truncated": len(ordered) > limit_groups}
+
+
+def _merge_part_fill_fields(c, canon: dict, dup: dict) -> dict:
+    """병합 시 대표 자재의 '빈' 필드만 병합 대상 값으로 보완 (+vendor 슬롯·매입단가 JSON 병합).
+    대표의 기존 값은 절대 덮지 않음. 반환: {field: {old, new}} (실행취소용)."""
+    import json as _json
+    filled: dict = {}
+    updates: dict = {}
+    fill_fields = ["spec", "maker", "origin", "location", "purpose", "biz_div", "category",
+                   "default_supplier", "maker_contact_name", "maker_contact_phone", "maker_contact_email",
+                   "item_account", "procurement_kind", "category_main", "category_series",
+                   "sub_spec1", "sub_spec2", "sub_spec3", "tax_invoice_name", "trade_invoice_name",
+                   "default_warehouse", "hs_code"]
+    for f in fill_fields:
+        cv = canon.get(f)
+        dv = dup.get(f)
+        if (cv is None or str(cv).strip() == "") and dv is not None and str(dv).strip() != "":
+            updates[f] = dv
+            filled[f] = {"old": cv, "new": dv}
+    # vendor1/2/3 슬롯: 대표에 없는 공급사만 빈 슬롯에 추가
+    canon_vs = [canon.get("vendor1"), canon.get("vendor2"), canon.get("vendor3")]
+    have = {str(v).strip().lower() for v in canon_vs if v and str(v).strip()}
+    slots = ["vendor1", "vendor2", "vendor3"]
+    for dv in (dup.get("vendor1"), dup.get("vendor2"), dup.get("vendor3")):
+        if not dv or not str(dv).strip() or str(dv).strip().lower() in have:
+            continue
+        for i, s in enumerate(slots):
+            cur = updates.get(s, canon_vs[i])
+            if not cur or not str(cur).strip():
+                updates[s] = dv
+                filled[s] = {"old": canon_vs[i], "new": dv}
+                canon_vs[i] = dv
+                have.add(str(dv).strip().lower())
+                break
+    # purchase_prices JSON: dup 에만 있는 공급사 엔트리 통째 이관 (1~5차 단가 보존 — 이원화 정보 유지)
+    try:
+        cpp = _json.loads(canon.get("purchase_prices") or "[]")
+        if not isinstance(cpp, list):
+            cpp = []
+    except Exception:
+        cpp = []
+    try:
+        dpp = _json.loads(dup.get("purchase_prices") or "[]")
+        if not isinstance(dpp, list):
+            dpp = []
+    except Exception:
+        dpp = []
+    if dpp:
+        have_supp = {str((e or {}).get("supplier") or "").strip().lower() for e in cpp if isinstance(e, dict)}
+        added = False
+        for e in dpp:
+            if not isinstance(e, dict):
+                continue
+            sname = str(e.get("supplier") or "").strip()
+            if not sname or sname.lower() in have_supp:
+                continue
+            e = dict(e)
+            e["is_default"] = False
+            cpp.append(e)
+            have_supp.add(sname.lower())
+            added = True
+        if added:
+            newpp = _json.dumps(cpp, ensure_ascii=False)
+            updates["purchase_prices"] = newpp
+            filled["purchase_prices"] = {"old": canon.get("purchase_prices"), "new": newpp}
+    if updates:
+        cols_now = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
+        sets = [f"{k}=?" for k in updates.keys() if k in cols_now]
+        vals = [v for k, v in updates.items() if k in cols_now]
+        if sets:
+            c.execute(f"UPDATE parts SET {', '.join(sets)}, updated_at=? WHERE id=?",
+                      vals + [_logi_now(), canon["id"]])
+    return filled
+
+
+def parts_merge_one(canonical_id: int, dup_id: int, user_id: int = 0) -> dict:
+    """자재 병합 1건 — 단일 트랜잭션.
+    ① part_id 참조 전 테이블 자동 이동(이동한 id 기록·유니크 충돌 행은 전량 스냅샷 후 대체)
+    ② 재고 이관: 대표 재고 += 병합 재고, 이동이력 부족분은 ADJUST 로 남김(자가치유 정합)
+    ③ 대표의 빈 필드만 보완 + vendor·매입단가 병합
+    ④ 병합 자재 삭제 → 품번은 별칭(part_aliases)으로 보존 (검색·업로드 계속 인식)
+    ⑤ 전체 기록 part_merge_log → parts_unmerge 로 실행취소 가능."""
+    import json as _json
+    canonical_id = int(canonical_id)
+    dup_id = int(dup_id)
+    if canonical_id == dup_id:
+        raise ValueError("대표와 병합 대상이 같습니다")
+    with db_session() as c:
+        canon_r = c.execute("SELECT * FROM parts WHERE id=?", (canonical_id,)).fetchone()
+        dup_r = c.execute("SELECT * FROM parts WHERE id=?", (dup_id,)).fetchone()
+        if not canon_r or not dup_r:
+            raise ValueError("자재를 찾을 수 없습니다 (이미 병합되었을 수 있음)")
+        canon = dict(canon_r)
+        dup = dict(dup_r)
+        snapshot = _json.dumps(dup, ensure_ascii=False, default=str)
+        dup_msum = float(c.execute(
+            "SELECT COALESCE(SUM(quantity),0) FROM stock_movements WHERE part_id=?", (dup_id,)
+        ).fetchone()[0] or 0)
+        dup_stock = float(dup.get("stock_qty") or 0)
+        # ① 참조 이동
+        moved: dict = {}
+        dropped: dict = {}
+        for t, pk in _part_id_ref_tables(c):
+            try:
+                ids = [r[0] for r in c.execute(
+                    f"SELECT {pk} AS _pk_ FROM {t} WHERE part_id=?", (dup_id,)
+                ).fetchall()]
+            except Exception:
+                continue
+            if not ids:
+                continue
+            c.execute(f"UPDATE OR IGNORE {t} SET part_id=? WHERE part_id=?", (canonical_id, dup_id))
+            left = c.execute(f"SELECT {pk} AS _pk_, * FROM {t} WHERE part_id=?", (dup_id,)).fetchall()
+            left_pks = set()
+            if left:
+                rows_d = []
+                for lr in left:
+                    ld = dict(lr)
+                    left_pks.add(ld.get("_pk_"))
+                    rows_d.append(ld)
+                dropped[t] = rows_d
+                c.execute(f"DELETE FROM {t} WHERE part_id=?", (dup_id,))
+            moved[t] = {"pk": pk, "ids": [i for i in ids if i not in left_pks]}
+        # 별칭 체인: dup 이 과거 병합의 대표였다면 그 별칭들도 canonical 로
+        try:
+            al_rows = c.execute("SELECT id FROM part_aliases WHERE part_id=?", (dup_id,)).fetchall()
+            if al_rows:
+                c.execute("UPDATE part_aliases SET part_id=? WHERE part_id=?", (canonical_id, dup_id))
+                moved["part_aliases"] = {"pk": "id", "ids": [r[0] for r in al_rows]}
+        except Exception:
+            pass
+        # ② 재고 이관
+        adj_id = None
+        delta = dup_stock - dup_msum
+        now = _logi_now()
+        # created_by FK 방어 — users 에 없는 id 면 NULL (FOREIGN KEY 위반 방지)
+        _uid_db = None
+        if user_id:
+            try:
+                if c.execute("SELECT id FROM users WHERE id=?", (int(user_id),)).fetchone():
+                    _uid_db = int(user_id)
+            except Exception:
+                _uid_db = None
+        if abs(delta) > 0.0001:
+            mno = _gen_movement_no_tx(c)
+            c.execute(
+                "INSERT INTO stock_movements (movement_no, part_id, kind, quantity, unit, unit_price,"
+                " amount, remaining_qty, reason, occurred_at, note, created_by, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (mno, canonical_id, "ADJUST", float(delta), (dup.get("unit") or "EA"), 0, 0,
+                 float(delta) if delta > 0 else 0,
+                 f"자재 병합 재고 이관 — [{dup_id}] {dup.get('part_no') or ''}",
+                 now, f"병합 전 재고 {dup_stock} · 이동이력 합 {dup_msum}", _uid_db, now),
+            )
+            adj_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        if abs(dup_stock) > 0.0001:
+            c.execute(
+                "UPDATE parts SET stock_qty = COALESCE(stock_qty,0) + ?, updated_at=? WHERE id=?",
+                (dup_stock, now, canonical_id),
+            )
+        # ③ 빈 필드 보완 + vendor·매입단가 병합
+        filled = _merge_part_fill_fields(c, canon, dup)
+        # ④ dup 삭제
+        c.execute("DELETE FROM parts WHERE id=?", (dup_id,))
+        # ⑤ 로그 + 별칭
+        c.execute(
+            "INSERT INTO part_merge_log (canonical_id, canonical_part_no, merged_part_id, merged_part_no,"
+            " snapshot_json, moved_json, dropped_json, filled_json, stock_transferred, adjust_delta,"
+            " adjust_movement_id, performed_by, performed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (canonical_id, canon.get("part_no"), dup_id, dup.get("part_no"),
+             snapshot, _json.dumps(moved, ensure_ascii=False, default=str),
+             _json.dumps(dropped, ensure_ascii=False, default=str),
+             _json.dumps(filled, ensure_ascii=False, default=str),
+             dup_stock, delta if abs(delta) > 0.0001 else 0, adj_id, user_id or None, now),
+        )
+        log_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        if (str(dup.get("part_no") or "")).strip():
+            c.execute(
+                "INSERT INTO part_aliases (part_id, alias_part_no, alias_part_no_norm, alias_part_name,"
+                " source, merge_log_id) VALUES (?,?,?,?,?,?)",
+                (canonical_id, dup.get("part_no"),
+                 _normalize_part_key(str(dup.get("part_no") or "")),
+                 dup.get("part_name"), "merge", log_id),
+            )
+    return {"log_id": log_id, "canonical_id": canonical_id, "merged_part_id": dup_id,
+            "merged_part_no": dup.get("part_no"), "stock_transferred": dup_stock,
+            "moved_counts": {t: len(v.get("ids") or []) for t, v in moved.items()},
+            "dropped_counts": {t: len(v) for t, v in dropped.items()}}
+
+
+def parts_merge_group(canonical_id: int, dup_ids: list, user_id: int = 0) -> dict:
+    """그룹 병합 — 병합 대상 각각 독립 트랜잭션 (하나 실패해도 나머지 결과 유지·보고)."""
+    results = []
+    errors = []
+    for did in dup_ids:
+        try:
+            results.append(parts_merge_one(int(canonical_id), int(did), user_id))
+        except Exception as e:
+            errors.append({"dup_id": did, "error": str(e)})
+    return {"merged": results, "errors": errors}
+
+
+def parts_unmerge(log_id: int, user_id: int = 0) -> dict:
+    """병합 실행취소 — 스냅샷 복원 + 참조 원위치 + 충돌 대체 행 재삽입 + 재고 원복 + 별칭 제거.
+    병합 이후 대표에 새로 쌓인 활동(신규 발주·입출고)은 대표에 그대로 남음(의도)."""
+    import json as _json
+    with db_session() as c:
+        log_r = c.execute("SELECT * FROM part_merge_log WHERE id=?", (int(log_id),)).fetchone()
+        if not log_r:
+            raise ValueError("병합 기록을 찾을 수 없습니다")
+        log = dict(log_r)
+        if log.get("undone_at"):
+            raise ValueError("이미 실행취소된 병합입니다")
+        canon_id = int(log["canonical_id"])
+        if not c.execute("SELECT id FROM parts WHERE id=?", (canon_id,)).fetchone():
+            raise ValueError("대표 자재가 존재하지 않음 — 더 나중의 병합부터 실행취소하세요")
+        snap = _json.loads(log.get("snapshot_json") or "{}")
+        if not snap:
+            raise ValueError("스냅샷 없음 — 수동 복구 필요")
+        pn = snap.get("part_no")
+        if pn and c.execute("SELECT id FROM parts WHERE part_no=?", (pn,)).fetchone():
+            raise ValueError(f"품번 '{pn}' 이 이미 다시 사용 중입니다 — 수동 처리 필요")
+        cols_now = [r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()]
+        ins_cols = [k for k in snap.keys() if k in cols_now]
+        if "id" in ins_cols and c.execute("SELECT id FROM parts WHERE id=?", (snap["id"],)).fetchone():
+            ins_cols = [k for k in ins_cols if k != "id"]
+        c.execute(
+            f"INSERT INTO parts ({','.join(ins_cols)}) VALUES ({','.join(['?'] * len(ins_cols))})",
+            [snap.get(k) for k in ins_cols],
+        )
+        new_dup_id = snap["id"] if "id" in ins_cols else c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        # 참조 원위치 (그때 이동시킨 id 만 · 지금도 대표를 가리키는 것만)
+        moved = _json.loads(log.get("moved_json") or "{}")
+        for t, info in moved.items():
+            pk = info.get("pk") or "rowid"
+            ids = info.get("ids") or []
+            if not ids:
+                continue
+            qm = ",".join(["?"] * len(ids))
+            try:
+                c.execute(
+                    f"UPDATE {t} SET part_id=? WHERE {pk} IN ({qm}) AND part_id=?",
+                    [new_dup_id] + list(ids) + [canon_id],
+                )
+            except Exception:
+                pass
+        # 유니크 충돌로 대체됐던 행 재삽입 (전량 로그 보존분)
+        dropped = _json.loads(log.get("dropped_json") or "{}")
+        for t, rows in dropped.items():
+            for rowd in rows:
+                try:
+                    rowd = dict(rowd)
+                    rowd.pop("_pk_", None)
+                    tcols = [r[1] for r in c.execute(f"PRAGMA table_info({t})").fetchall()]
+                    ks = [k for k in rowd.keys() if k in tcols]
+                    if ks:
+                        c.execute(
+                            f"INSERT OR IGNORE INTO {t} ({','.join(ks)}) VALUES ({','.join(['?'] * len(ks))})",
+                            [rowd.get(k) for k in ks],
+                        )
+                except Exception:
+                    pass
+        # 병합 때 만든 ADJUST 제거 + 대표 재고 원복
+        if log.get("adjust_movement_id"):
+            try:
+                c.execute("DELETE FROM stock_movements WHERE id=? AND part_id=?",
+                          (log["adjust_movement_id"], canon_id))
+            except Exception:
+                pass
+        try:
+            _st = float(log.get("stock_transferred") or 0)
+            if abs(_st) > 0.0001:
+                c.execute(
+                    "UPDATE parts SET stock_qty = COALESCE(stock_qty,0) - ?, updated_at=? WHERE id=?",
+                    (_st, _logi_now(), canon_id),
+                )
+        except Exception:
+            pass
+        # 보완했던 필드 원복 — 현재값이 병합 때 넣은 값 그대로일 때만 (그 후 사람이 바꾼 값은 존중)
+        filled = _json.loads(log.get("filled_json") or "{}")
+        if filled:
+            canon_now = dict(c.execute("SELECT * FROM parts WHERE id=?", (canon_id,)).fetchone())
+            for f, ov in filled.items():
+                try:
+                    if f not in cols_now:
+                        continue
+                    _curv = canon_now.get(f)
+                    _newv = ov.get("new")
+                    if str(_curv if _curv is not None else "") == str(_newv if _newv is not None else ""):
+                        c.execute(f"UPDATE parts SET {f}=? WHERE id=?", (ov.get("old"), canon_id))
+                except Exception:
+                    pass
+        c.execute("DELETE FROM part_aliases WHERE merge_log_id=?", (int(log_id),))
+        c.execute("UPDATE part_merge_log SET undone_by=?, undone_at=? WHERE id=?",
+                  (user_id or None, _logi_now(), int(log_id)))
+    return {"restored_part_id": new_dup_id, "part_no": pn}
+
+
+def parts_dedup_dismiss(group_key: str, user_id: int = 0) -> None:
+    """'중복 아님' 판정 — 이 그룹은 스캔에서 다시 안 뜸 (해제 가능)."""
+    gk = (group_key or "").strip()
+    if not gk:
+        raise ValueError("group_key 없음")
+    with db_session() as c:
+        c.execute(
+            "INSERT OR IGNORE INTO part_dedup_dismissals (group_key, dismissed_by) VALUES (?,?)",
+            (gk, user_id or None),
+        )
+
+
+def parts_dedup_undismiss(group_key: str) -> None:
+    with db_session() as c:
+        c.execute("DELETE FROM part_dedup_dismissals WHERE group_key=?", ((group_key or "").strip(),))
+
+
+def parts_dedup_dismissed_list(limit: int = 100) -> list:
+    """'중복 아님' 처리 목록 — 해제(undo) UI 용."""
+    with db_session() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT id, group_key, dismissed_by, created_at FROM part_dedup_dismissals"
+            " ORDER BY id DESC LIMIT ?", (int(limit),)
+        ).fetchall()]
+
+
+def parts_merge_log_list(limit: int = 50) -> list:
+    with db_session() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT id, canonical_id, canonical_part_no, merged_part_id, merged_part_no,"
+            "       stock_transferred, adjust_delta, performed_by, performed_at, undone_by, undone_at"
+            "  FROM part_merge_log ORDER BY id DESC LIMIT ?", (int(limit),)
+        ).fetchall()]
+
+
+def parts_makers_list(limit: int = 500) -> list:
+    """제조사 자동완성용 — 기존 등록 제조사 목록 (표기 통일 유도)."""
+    with db_session() as c:
+        return [r[0] for r in c.execute(
+            "SELECT maker FROM parts WHERE maker IS NOT NULL AND TRIM(maker)<>''"
+            " GROUP BY maker ORDER BY COUNT(*) DESC, maker LIMIT ?", (int(limit),)
+        ).fetchall()]
 
 
 def _validate_parts_payload(data: dict) -> None:
@@ -5519,6 +6103,37 @@ def parts_create(data: dict, force: bool = False) -> int:
                     f"부품 코드 '{pno}' 는 이미 등록되어 있습니다 "
                     f"(기존: [{dup['id']}] {dup['part_name']}). 다른 코드를 사용하거나 기존 부품을 수정해주세요."
                 )
+            # v5H226z979: 과거 품번(별칭)·표기차이 모델명 가드 — force=True 로만 통과
+            _al = None
+            try:
+                _al = c.execute(
+                    "SELECT a.part_id, p.part_no, p.part_name FROM part_aliases a "
+                    "JOIN parts p ON p.id = a.part_id "
+                    "WHERE lower(a.alias_part_no) = lower(?) LIMIT 1", (pno,)
+                ).fetchone()
+            except Exception:
+                _al = None
+            if _al and not force:
+                raise ValueError(
+                    f"'{pno}' 는 병합으로 통합된 과거 품번(별칭)입니다 — "
+                    f"대표 자재 [{_al[0]}] {_al[1]} ({_al[2]}) 를 사용하세요. "
+                    f"신규가 맞으면 'force=1' 로 재제출하세요."
+                )
+            _ndup = None
+            try:
+                _nn = _normalize_part_key(pno)
+                if _nn:
+                    _ndup = c.execute(
+                        "SELECT id, part_no, part_name FROM parts "
+                        "WHERE part_no_norm = ? AND part_no <> ? LIMIT 1", (_nn, pno)
+                    ).fetchone()
+            except Exception:
+                _ndup = None
+            if _ndup and not force:
+                raise ValueError(
+                    f"표기만 다른 같은 모델명이 이미 있습니다 — [{_ndup[0]}] {_ndup[1]} ({_ndup[2]}). "
+                    f"기존 자재 수정 권장 · 신규가 맞으면 'force=1' 로 재제출하세요."
+                )
     # v5H226z58 (2026-05-12) — 3층 방어: 자재명 유사도 검사 (force=False 일 때만)
     if not force:
         sims = parts_find_similar(
@@ -5564,6 +6179,9 @@ def parts_create(data: dict, force: bool = False) -> int:
     ]
     # z58 확장 컬럼 (존재 시에만 추가)
     ext_pairs = [
+        # v5H226z979: 정규화 키 유지 (검색·중복스캔·별칭 매칭) — _parts_build_cols_values 와 동일 유지
+        ("part_no_norm",       _normalize_part_key(str(data.get("part_no") or ""))),
+        ("name_norm",          _normalize_part_key(str(data.get("part_name") or ""))),
         ("item_account",       (data.get("item_account") or "").strip() or None),
         ("procurement_kind",   (data.get("procurement_kind") or "").strip() or None),
         ("category_main",      (data.get("category_main") or "").strip() or None),
@@ -5635,6 +6253,31 @@ def parts_update(pid: int, data: dict) -> None:
                     f"부품 코드 '{pno}' 는 이미 다른 부품에서 사용 중입니다 "
                     f"(기존: [{dup['id']}] {dup['part_name']})."
                 )
+            # v5H226z979: 별칭·표기차이 모델명으로의 변경 차단 (병합 재분열 방지)
+            try:
+                _al = c.execute(
+                    "SELECT a.part_id, p.part_no FROM part_aliases a JOIN parts p ON p.id=a.part_id "
+                    "WHERE lower(a.alias_part_no)=lower(?) AND a.part_id<>? LIMIT 1", (pno, pid)
+                ).fetchone()
+            except Exception:
+                _al = None
+            if _al:
+                raise ValueError(
+                    f"'{pno}' 는 병합으로 통합된 과거 품번(별칭)입니다 — 대표 자재 [{_al[0]}] {_al[1]} 를 사용하세요. "
+                    f"재분리가 필요하면 자재 중복 정리 화면에서 병합 실행취소를 하세요."
+                )
+            try:
+                _nn = _normalize_part_key(pno)
+                _ndup = c.execute(
+                    "SELECT id, part_no FROM parts WHERE part_no_norm=? AND id<>? LIMIT 1", (_nn, pid)
+                ).fetchone() if _nn else None
+            except Exception:
+                _ndup = None
+            if _ndup:
+                raise ValueError(
+                    f"표기만 다른 같은 모델명이 이미 있습니다 — [{_ndup[0]}] {_ndup[1]}. "
+                    f"같은 자재라면 자재 중복 정리 화면에서 병합하세요."
+                )
     # v5H226z58 (2026-05-11): 자재모듈 표준 v2 — 13 컬럼 확장 (parts_create 와 동일 set)
     base_fields = ["part_no", "part_name", "spec", "maker", "origin", "unit",
                    "currency", "std_price", "biz_div", "category", "note", "is_active",
@@ -5657,6 +6300,9 @@ def parts_update(pid: int, data: dict) -> None:
     ]
     # z58 확장 컬럼 (존재 시에만 SET)
     ext_pairs = [
+        # v5H226z979: 정규화 키 유지 (검색·중복스캔·별칭 매칭)
+        ("part_no_norm",       _normalize_part_key(str(data.get("part_no") or ""))),
+        ("name_norm",          _normalize_part_key(str(data.get("part_name") or ""))),
         ("item_account",       (data.get("item_account") or "").strip() or None),
         ("procurement_kind",   (data.get("procurement_kind") or "").strip() or None),
         ("category_main",      (data.get("category_main") or "").strip() or None),
@@ -9117,6 +9763,9 @@ def _parts_build_cols_values(data: dict, existing_cols, now: str):
         now, now,
     ]
     ext_pairs = [
+        # v5H226z979: 정규화 키 유지 — parts_create() 와 동일 세트 유지 (주석 규약 준수)
+        ("part_no_norm",       _normalize_part_key(str(data.get("part_no") or ""))),
+        ("name_norm",          _normalize_part_key(str(data.get("part_name") or ""))),
         ("item_account",       (data.get("item_account") or "").strip() or None),
         ("procurement_kind",   (data.get("procurement_kind") or "").strip() or None),
         ("category_main",      (data.get("category_main") or "").strip() or None),
@@ -9397,6 +10046,23 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
         for _er in _c0.execute("SELECT part_no, id, part_name FROM parts").fetchall():
             if _er[0] is not None:
                 _existing_pno[str(_er[0])] = (_er[1], _er[2])
+        # v5H226z979: 정규화 키·별칭 맵 — 표기만 다른 모델명·병합된 과거 품번 감지.
+        #   dict 조회라 비용 0에 가까움 → 대량(800+)에서도 항상 켬 (Levenshtein 유사검사와 별개)
+        _existing_pno_norm = {}
+        for _pn_raw, _pv in _existing_pno.items():
+            _k978 = _normalize_part_key(str(_pn_raw))
+            if _k978 and _k978 not in _existing_pno_norm:
+                _existing_pno_norm[_k978] = (_pv[0], _pn_raw, _pv[1])
+        _alias_norm_map = {}
+        try:
+            for _ar in _c0.execute(
+                "SELECT a.alias_part_no_norm, a.alias_part_no, p.id, p.part_no, p.part_name"
+                "  FROM part_aliases a JOIN parts p ON p.id = a.part_id"
+            ).fetchall():
+                if _ar[0] and str(_ar[0]) not in _alias_norm_map:
+                    _alias_norm_map[str(_ar[0])] = (_ar[2], _ar[3], _ar[4], _ar[1])
+        except Exception:
+            _alias_norm_map = {}
     row_no = header_row_idx + 1  # 헤더 행 번호. 루프 내 += 1 로 데이터 행 시작.
     for row in _data_rows:
         row_no += 1
@@ -9497,6 +10163,26 @@ def parts_bulk_import_excel(file_path: str, dry_run: bool = True,
                     errors.append(f"코드 중복 — 기존 [{dup[0]}] {dup[1]}")
                     status = "dup"
                     dup_cnt += 1
+                else:
+                    # v5H226z979: ①병합된 과거 품번(별칭) → 차단 안내 ②표기만 다른 모델명 → 경고(등록 가능)
+                    _nk978 = _normalize_part_key(str(part_no))
+                    _ali978 = _alias_norm_map.get(_nk978) if _nk978 else None
+                    if _ali978:
+                        errors.append(
+                            f"과거 품번(별칭 {_ali978[3]}) — [{_ali978[0]}] {_ali978[1]} ({_ali978[2]}) 로 통합된 코드"
+                        )
+                        status = "dup"
+                        dup_cnt += 1
+                    else:
+                        _nrm978 = _existing_pno_norm.get(_nk978) if _nk978 else None
+                        if _nrm978 and str(_nrm978[1]) != part_no:
+                            sim_hits.append({
+                                "id": _nrm978[0], "part_no": _nrm978[1],
+                                "part_name": _nrm978[2], "score": 100,
+                            })
+                            if status == "ok":
+                                status = "similar"
+                                sim_warn += 1
                 # 이 행의 default_supplier도 seen에 추가 (신규 등록 시 vendor1이 됨)
                 if cur_supp and _norm_supp(cur_supp) not in [_norm_supp(s) for s in info["suppliers"]]:
                     info["suppliers"].append(cur_supp)

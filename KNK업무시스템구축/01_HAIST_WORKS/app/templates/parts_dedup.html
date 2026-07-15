@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>자재 중복 정리 · KNK HAIST WORKS</title>
+
+{# v5H226z979 (2026-07-14) — 0단계: 자재 마스터 중복 정리 (BOM 스프린트 기초공사)
+   - Tier A: 모델명(품번) 정규화 동일 = 표기만 다른 같은 자재 → 병합 대상
+   - Tier B: 품명+규격 동일·모델명 다름 = 이원화 대체품일 수 있음 → 참고용(신중)
+   - 원칙: 자동 병합 금지 · 사람이 그룹별 확인 · 전 과정 로그 · 실행취소 가능
+   - 병합돼도 과거 품번은 별칭으로 남아 검색·업로드가 계속 인식 #}
+
+<link href="/static/css/v5_tokens.css?v=20260714v5H226z979" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root {
+  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
+  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  --pq-mono: ui-monospace, Consolas, monospace;
+}
+.pl-page { display:flex; flex-direction:column; min-height:0; }
+.pl-head { padding:14px 24px 12px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.pl-head .crumb { font-size:12px; color:var(--pq-ink-4); font-weight:500; }
+.pl-head .crumb a { color:var(--pq-ink-2); }
+.pl-head .crumb b { color:var(--pq-ink); }
+.pl-title { font-size:22px; font-weight:700; color:var(--pq-ink); letter-spacing:-0.01em; line-height:1.1; }
+.pl-meta { font-size:12px; color:var(--pq-ink-3); }
+.pl-meta .pm-num { font-family:var(--pq-mono); font-weight:700; color:var(--pq-ink); }
+.pl-actions { margin-left:auto; display:flex; gap:8px; align-items:center; }
+.pl-actions .btn-ghost { height:32px; padding:0 12px; background:transparent; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12.5px; font-weight:500; color:var(--pq-ink-2); display:inline-flex; align-items:center; gap:6px; text-decoration:none; cursor:pointer; }
+.pl-actions .btn-ghost:hover { background:var(--pq-surface-2); }
+
+.dz-wrap { padding:16px 24px 40px; display:flex; flex-direction:column; gap:14px; }
+.dz-banner { padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
+.dz-banner.ok { background:var(--pq-ok-soft); color:var(--pq-ok); border:1px solid #a7f3d0; }
+.dz-banner.err { background:var(--pq-danger-soft); color:var(--pq-danger); border:1px solid #fecaca; white-space:pre-wrap; }
+.dz-guide { padding:12px 14px; background:var(--pq-info-soft); border:1px solid #bfdbfe; border-radius:8px; font-size:12.5px; color:#1e3a8a; line-height:1.6; }
+.dz-guide b { font-weight:700; }
+.dz-sect-title { font-size:15px; font-weight:700; color:var(--pq-ink); margin-top:6px; display:flex; align-items:center; gap:8px; }
+.dz-sect-title .cnt { font-family:var(--pq-mono); font-size:12.5px; color:var(--pq-ink-3); font-weight:600; }
+
+.grp { background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; overflow:hidden; }
+.grp-head { display:flex; align-items:center; gap:10px; padding:9px 14px; background:var(--pq-surface-2); border-bottom:1px solid var(--pq-line); flex-wrap:wrap; }
+.grp-tier { font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; }
+.grp-tier.a { background:var(--pq-danger-soft); color:var(--pq-danger); }
+.grp-tier.b { background:var(--pq-warn-soft); color:var(--pq-warn); }
+.grp-key { font-family:var(--pq-mono); font-size:12px; color:var(--pq-ink-2); font-weight:600; word-break:break-all; }
+.grp-n { font-size:12px; color:var(--pq-ink-3); }
+.grp-scroll { overflow-x:auto; }
+.grp table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:880px; }
+.grp th { text-align:left; padding:6px 10px; background:var(--pq-surface-2); color:var(--pq-ink-3); font-size:11px; font-weight:700; border-bottom:1px solid var(--pq-line); white-space:nowrap; }
+.grp td { padding:7px 10px; border-bottom:1px solid var(--pq-line); vertical-align:middle; }
+.grp tr:last-child td { border-bottom:0; }
+.grp td.mono { font-family:var(--pq-mono); }
+.grp td.num { font-family:var(--pq-mono); text-align:right; font-variant-numeric:tabular-nums; }
+.grp tr.is-canon { background:var(--pq-ok-soft); }
+.grp .pick { text-align:center; white-space:nowrap; }
+.grp .pick label { font-size:10.5px; color:var(--pq-ink-4); display:block; }
+.grp-foot { display:flex; align-items:center; gap:8px; padding:9px 14px; background:var(--pq-surface-2); border-top:1px solid var(--pq-line); flex-wrap:wrap; }
+.grp-foot .hint { font-size:11.5px; color:var(--pq-ink-4); margin-right:auto; }
+.btn-merge { height:32px; padding:0 16px; background:var(--pq-ink); color:#fff; border:0; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.btn-merge:hover { background:#1e293b; }
+.btn-merge:disabled { opacity:.5; cursor:not-allowed; }
+.btn-dismiss { height:32px; padding:0 12px; background:transparent; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12px; color:var(--pq-ink-2); cursor:pointer; }
+.btn-dismiss:hover { background:var(--pq-surface-3); }
+.chip-off { font-size:10.5px; padding:1px 7px; border-radius:999px; background:var(--pq-surface-3); color:var(--pq-ink-3); font-weight:600; }
+.ref-badge { font-family:var(--pq-mono); font-weight:700; }
+.ref-badge.has { color:var(--pq-info); }
+
+.logs { background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; overflow:hidden; }
+.logs table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.logs th { text-align:left; padding:6px 12px; background:var(--pq-surface-2); color:var(--pq-ink-3); font-size:11px; font-weight:700; border-bottom:1px solid var(--pq-line); }
+.logs td { padding:7px 12px; border-bottom:1px solid var(--pq-line); }
+.logs tr:last-child td { border-bottom:0; }
+.btn-undo { height:26px; padding:0 10px; background:transparent; border:1px solid var(--pq-line-2); border-radius:6px; font-size:11.5px; color:var(--pq-danger); cursor:pointer; }
+.btn-undo:hover { background:var(--pq-danger-soft); }
+.empty-box { padding:28px; text-align:center; color:var(--pq-ink-4); font-size:13px; background:var(--pq-surface); border:1px dashed var(--pq-line-2); border-radius:10px; }
+details.dz-fold summary { cursor:pointer; font-size:13.5px; font-weight:700; color:var(--pq-ink-2); padding:4px 0; }
+@media (max-width: 640px) {
+  .dz-wrap { padding:12px 10px 32px; }
+  .pl-head { padding:12px 12px 10px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+
+  <main class="main">
+    <div class="pl-page">
+
+      <div class="pl-head" data-dn="parts_dedup:head">
+        <div>
+          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/parts">자재 마스터</a> · <b>중복 정리</b></div>
+          <div class="pl-title">🧹 자재 중복 정리</div>
+        </div>
+        <div class="pl-meta">
+          <span>모델명 표기차이 <span class="pm-num">{{ scan.count_a }}</span>그룹</span>
+          <span>·</span>
+          <span>품명+규격 동일 <span class="pm-num">{{ scan.count_b }}</span>그룹</span>
+        </div>
+        <div class="pl-actions">
+          <a class="btn-ghost" href="/parts/dedup" title="다시 스캔">↻ 다시 스캔</a>
+          <a class="btn-ghost" href="/parts">← 자재 마스터</a>
+        </div>
+      </div>
+
+      <div class="dz-wrap">
+
+        {% set _succ = request.query_params.get('success') %}
+        {% set _err = request.query_params.get('error') %}
+        {% if _succ %}<div class="dz-banner ok">✅ {{ _succ }}</div>{% endif %}
+        {% if _err %}<div class="dz-banner err">⚠ {{ _err }}</div>{% endif %}
+        {% if scan.error %}<div class="dz-banner err">⚠ 스캔 오류: {{ scan.error }}</div>{% endif %}
+
+        <div class="dz-guide">
+          <b>같은 자재가 표기만 다르게 여러 번 등록된 것</b>(예: <code>KQ2L06-99</code> / <code>kq2l06 99</code>)을 찾아 하나로 합치는 화면입니다.<br>
+          · 그룹에서 <b>남길 대표 자재</b>를 고르고, 합칠 것에 체크 후 <b>병합</b>을 누르세요. 발주·입출고·견적 등 모든 기록이 대표로 자동 이동합니다.<br>
+          · <b>병합돼도 과거 품번은 별칭으로 남아</b> 검색과 엑셀 업로드가 계속 알아봅니다. 재고도 합산되어 보존됩니다.<br>
+          · 모든 병합은 아래 <b>병합 이력에서 실행취소</b>할 수 있습니다. 중복이 아니면 <b>중복 아님</b>을 눌러 다시 안 뜨게 하세요.
+        </div>
+
+        {# ===================== Tier A ===================== #}
+        <div class="dz-sect-title">🔴 모델명이 같은 그룹 (표기만 다름 — 병합 권장) <span class="cnt">{{ scan.count_a }}그룹</span></div>
+
+        {% set tier_a = scan.groups | selectattr('tier', 'equalto', 'A') | list %}
+        {% if not tier_a %}
+          <div class="empty-box">🎉 모델명 표기차이 중복이 없습니다.</div>
+        {% endif %}
+
+        {% for g in tier_a %}
+        <form method="post" action="/parts/dedup/merge" class="grp" data-grp>
+          <input type="hidden" name="group_key" value="{{ g.group_key }}">
+          <div class="grp-head">
+            <span class="grp-tier a">모델명 동일</span>
+            <span class="grp-key">{{ g.key }}</span>
+            <span class="grp-n">{{ g.members | length }}종 · 참조 많은 자재를 대표로 추천</span>
+          </div>
+          <div class="grp-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th class="pick">대표</th><th class="pick">병합</th>
+                <th>품번(모델명)</th><th>품명</th><th>규격</th><th>제조사</th><th>구매처</th>
+                <th style="text-align:right">재고</th><th style="text-align:right" title="발주·입출고·견적 등 이 자재를 참조하는 기록 수">참조</th>
+                <th>등록일</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in g.members %}
+              <tr class="{{ 'is-canon' if m.id == g.suggest_id else '' }}">
+                <td class="pick">
+                  <input type="radio" name="canonical_id" value="{{ m.id }}" {{ 'checked' if m.id == g.suggest_id else '' }}>
+                  <label>남김</label>
+                </td>
+                <td class="pick">
+                  <input type="checkbox" name="dup_ids" value="{{ m.id }}"
+                         {{ 'checked' if m.id != g.suggest_id else '' }}
+                         {{ 'disabled' if m.id == g.suggest_id else '' }}>
+                  <label>합침</label>
+                </td>
+                <td class="mono"><b>{{ m.part_no }}</b></td>
+                <td>{{ m.part_name }}{% if not m.is_active %} <span class="chip-off">비활성</span>{% endif %}</td>
+                <td>{{ m.spec or '' }}</td>
+                <td>{{ m.maker or '' }}</td>
+                <td>{{ [m.vendor1, m.vendor2, m.vendor3] | select | join(' · ') }}</td>
+                <td class="num">{{ '%g' | format(m.stock_qty or 0) }}</td>
+                <td class="num"><span class="ref-badge {{ 'has' if m.ref_count else '' }}">{{ m.ref_count }}</span></td>
+                <td class="mono">{{ (m.created_at or '')[:10] }}</td>
+                <td><a href="/parts/{{ m.id }}" target="_blank" title="자재 상세 새창">↗</a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          <div class="grp-foot">
+            <span class="hint">병합 전 확인창이 한 번 더 뜹니다 · 병합 후에도 실행취소 가능</span>
+            <button type="submit" class="btn-dismiss" formaction="/parts/dedup/dismiss" formnovalidate
+                    data-dismiss title="이 그룹은 서로 다른 자재입니다 — 다시 표시하지 않음">🚫 중복 아님</button>
+            <button type="submit" class="btn-merge" data-merge>🔗 선택 병합</button>
+          </div>
+        </form>
+        {% endfor %}
+
+        {# ===================== Tier B ===================== #}
+        <details class="dz-fold" {{ 'open' if not tier_a and scan.count_b else '' }}>
+          <summary>🟡 품명+규격이 같은 그룹 (모델명은 다름 — 이원화 대체품일 수 있어 신중히) <span class="cnt">{{ scan.count_b }}그룹</span></summary>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:10px;">
+          <div class="dz-guide" style="background:var(--pq-warn-soft);border-color:#fbbf24;color:#78350f;">
+            ⚠ 이 그룹은 <b>서로 다른 제조사의 대체품(이원화)</b>일 수 있습니다. 모델명이 정말 같은 자재인지 확인된 경우에만 병합하세요.
+            이원화 관계라면 <b>중복 아님</b>으로 처리하는 것이 맞습니다.
+          </div>
+          {% set tier_b = scan.groups | selectattr('tier', 'equalto', 'B') | list %}
+          {% if not tier_b %}<div class="empty-box">해당 그룹이 없습니다.</div>{% endif %}
+          {% for g in tier_b %}
+          <form method="post" action="/parts/dedup/merge" class="grp" data-grp>
+            <input type="hidden" name="group_key" value="{{ g.group_key }}">
+            <div class="grp-head">
+              <span class="grp-tier b">품명+규격 동일</span>
+              <span class="grp-key">{{ g.key }}</span>
+              <span class="grp-n">{{ g.members | length }}종</span>
+            </div>
+            <div class="grp-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th class="pick">대표</th><th class="pick">병합</th>
+                  <th>품번(모델명)</th><th>품명</th><th>규격</th><th>제조사</th><th>구매처</th>
+                  <th style="text-align:right">재고</th><th style="text-align:right">참조</th><th>등록일</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in g.members %}
+                <tr class="{{ 'is-canon' if m.id == g.suggest_id else '' }}">
+                  <td class="pick">
+                    <input type="radio" name="canonical_id" value="{{ m.id }}" {{ 'checked' if m.id == g.suggest_id else '' }}>
+                    <label>남김</label>
+                  </td>
+                  <td class="pick">
+                    <input type="checkbox" name="dup_ids" value="{{ m.id }}" {{ 'disabled' if m.id == g.suggest_id else '' }}>
+                    <label>합침</label>
+                  </td>
+                  <td class="mono"><b>{{ m.part_no }}</b></td>
+                  <td>{{ m.part_name }}{% if not m.is_active %} <span class="chip-off">비활성</span>{% endif %}</td>
+                  <td>{{ m.spec or '' }}</td>
+                  <td>{{ m.maker or '' }}</td>
+                  <td>{{ [m.vendor1, m.vendor2, m.vendor3] | select | join(' · ') }}</td>
+                  <td class="num">{{ '%g' | format(m.stock_qty or 0) }}</td>
+                  <td class="num"><span class="ref-badge {{ 'has' if m.ref_count else '' }}">{{ m.ref_count }}</span></td>
+                  <td class="mono">{{ (m.created_at or '')[:10] }}</td>
+                  <td><a href="/parts/{{ m.id }}" target="_blank" title="자재 상세 새창">↗</a></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            </div>
+            <div class="grp-foot">
+              <span class="hint">이원화(대체품)라면 병합하지 말고 '중복 아님'을 누르세요</span>
+              <button type="submit" class="btn-dismiss" formaction="/parts/dedup/dismiss" formnovalidate data-dismiss>🚫 중복 아님</button>
+              <button type="submit" class="btn-merge" data-merge>🔗 선택 병합</button>
+            </div>
+          </form>
+          {% endfor %}
+          </div>
+        </details>
+
+        {# ===================== 병합 이력 ===================== #}
+        <div class="dz-sect-title">📜 병합 이력 <span class="cnt">최근 {{ merge_logs | length }}건</span></div>
+        {% if not merge_logs %}
+          <div class="empty-box">아직 병합 이력이 없습니다.</div>
+        {% else %}
+        <div class="logs">
+          <div class="grp-scroll">
+          <table>
+            <thead>
+              <tr><th>#</th><th>일시</th><th>대표(남음)</th><th>병합됨(사라짐)</th><th style="text-align:right">재고 이관</th><th>상태</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for lg in merge_logs %}
+              <tr>
+                <td class="mono">{{ lg.id }}</td>
+                <td class="mono">{{ (lg.performed_at or '')[:16] }}</td>
+                <td class="mono"><a href="/parts/{{ lg.canonical_id }}" target="_blank"><b>{{ lg.canonical_part_no }}</b></a></td>
+                <td class="mono">{{ lg.merged_part_no }}</td>
+                <td class="num">{{ '%g' | format(lg.stock_transferred or 0) }}</td>
+                <td>{% if lg.undone_at %}<span class="chip-off">↩ 취소됨 {{ (lg.undone_at or '')[:16] }}</span>{% else %}✅ 병합됨{% endif %}</td>
+                <td>
+                  {% if not lg.undone_at %}
+                  <form method="post" action="/parts/dedup/unmerge/{{ lg.id }}" style="display:inline" data-unmerge>
+                    <button type="submit" class="btn-undo">↩ 실행취소</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+        {% endif %}
+
+        {# ===================== 중복 아님 목록 ===================== #}
+        {% if dismissed %}
+        <details class="dz-fold">
+          <summary>🚫 '중복 아님' 처리한 그룹 <span class="cnt">{{ dismissed | length }}건</span> — 해제하면 다시 스캔에 나타남</summary>
+          <div class="logs" style="margin-top:10px;">
+            <table>
+              <thead><tr><th>그룹 키</th><th>처리일</th><th></th></tr></thead>
+              <tbody>
+                {% for d in dismissed %}
+                <tr>
+                  <td class="mono" style="word-break:break-all;font-size:11px;">{{ d.group_key }}</td>
+                  <td class="mono">{{ (d.created_at or '')[:16] }}</td>
+                  <td>
+                    <form method="post" action="/parts/dedup/dismiss/undo" style="display:inline">
+                      <input type="hidden" name="group_key" value="{{ d.group_key }}">
+                      <button type="submit" class="btn-undo">해제</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% endif %}
+
+        {% if scan.truncated %}
+        <div class="dz-banner err">⚠ 그룹이 200개를 넘어 일부만 표시 중입니다 — 위 그룹부터 처리하면 다음 스캔에서 나머지가 나타납니다.</div>
+        {% endif %}
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // 대표(radio) ↔ 병합(checkbox) 동기화: 대표로 고른 행은 합침 체크 불가
+  document.querySelectorAll('[data-grp]').forEach(function(form){
+    var radios = form.querySelectorAll('input[type=radio][name=canonical_id]');
+    function sync(){
+      var canon = form.querySelector('input[type=radio][name=canonical_id]:checked');
+      var cid = canon ? canon.value : null;
+      form.querySelectorAll('input[type=checkbox][name=dup_ids]').forEach(function(cb){
+        var tr = cb.closest('tr');
+        if (cb.value === cid) {
+          cb.checked = false; cb.disabled = true;
+          if (tr) tr.classList.add('is-canon');
+        } else {
+          cb.disabled = false;
+          if (tr) tr.classList.remove('is-canon');
+        }
+      });
+    }
+    radios.forEach(function(r){ r.addEventListener('change', sync); });
+    sync();
+
+    form.addEventListener('submit', function(ev){
+      var submitter = ev.submitter;
+      // '중복 아님'은 확인 없이 통과 (되돌리기 쉬움)
+      if (submitter && submitter.hasAttribute('data-dismiss')) return;
+      var canon = form.querySelector('input[type=radio][name=canonical_id]:checked');
+      var dups = form.querySelectorAll('input[type=checkbox][name=dup_ids]:checked');
+      if (!canon) { ev.preventDefault(); alert('남길 대표 자재를 선택하세요.'); return; }
+      if (!dups.length) { ev.preventDefault(); alert('합칠 자재를 체크하세요.'); return; }
+      var canonRow = canon.closest('tr');
+      var canonNo = canonRow ? (canonRow.querySelector('td.mono b') || {}).textContent : '';
+      var ok = confirm(
+        '자재 ' + dups.length + '개를 [' + (canonNo || '대표') + '] 로 병합합니다.\n\n' +
+        '· 발주·입출고·견적 등 모든 기록이 대표로 이동\n' +
+        '· 재고 합산 보존 · 과거 품번은 별칭으로 계속 검색됨\n' +
+        '· 병합 이력에서 실행취소 가능\n\n진행할까요?');
+      if (!ok) { ev.preventDefault(); return; }
+      try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('병합 처리 중…'); } catch(e) {}
+      var btn = form.querySelector('[data-merge]');
+      if (btn) { btn.disabled = true; btn.textContent = '병합 중…'; }
+    });
+  });
+
+  // 실행취소 확인
+  document.querySelectorAll('[data-unmerge]').forEach(function(f){
+    f.addEventListener('submit', function(ev){
+      if (!confirm('이 병합을 실행취소합니다.\n사라졌던 자재가 복원되고, 옮겼던 기록이 원위치됩니다.\n(병합 이후 대표에 새로 쌓인 기록은 대표에 남습니다)\n\n진행할까요?')) {
+        ev.preventDefault();
+        return;
+      }
+      try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('실행취소 처리 중…'); } catch(e) {}
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
