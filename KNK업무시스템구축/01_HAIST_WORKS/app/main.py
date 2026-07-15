@@ -14280,6 +14280,107 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
     return JSONResponse({"ok": True, "order_no": order_no, "inserted": inserted, "total": total})
 
 
+def _note_sweep_targets978(c, val: str):
+    """v5H226z978: 비고류 칸에서 정확히 val(트림 후) 값인 항목 전수 스캔 — (테이블, 필드, 종류표시, 목록)."""
+    def _cols(t):
+        try:
+            return {r[1] for r in c.execute(f"PRAGMA table_info({t})").fetchall()}
+        except Exception:
+            return set()
+    _specs = []
+    if "line_note" in _cols("order_items"):
+        _specs.append(("order_items", "line_note", "수주 호기/부품 비고",
+            "SELECT oi.id AS id, COALESCE(o.order_no,'') AS ref, COALESCE(p.mgmt_code,'') AS code, COALESCE(oi.unit_label,'') AS lbl "
+            "FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN projects p ON p.id=o.project_id "
+            "WHERE TRIM(COALESCE(oi.line_note,''))=?"))
+    if "logi_note" in _cols("projects"):
+        _specs.append(("projects", "logi_note", "작업일정표 기타사항",
+            "SELECT id, COALESCE(mgmt_code,'') AS ref, COALESCE(name,'') AS code, '' AS lbl FROM projects WHERE TRIM(COALESCE(logi_note,''))=?"))
+    if "note" in _cols("projects"):
+        _specs.append(("projects", "note", "프로젝트 비고",
+            "SELECT id, COALESCE(mgmt_code,'') AS ref, COALESCE(name,'') AS code, '' AS lbl FROM projects WHERE TRIM(COALESCE(note,''))=?"))
+    if "unit_note" in _cols("orders"):
+        _specs.append(("orders", "unit_note", "수주 메모(PO칸 겸용 ⚠)",
+            "SELECT id, COALESCE(order_no,'') AS ref, '' AS code, '' AS lbl FROM orders WHERE TRIM(COALESCE(unit_note,''))=?"))
+    if "note" in _cols("consumable_orders"):
+        _specs.append(("consumable_orders", "note", "소모품 발주 비고",
+            "SELECT id, COALESCE(co_no,'') AS ref, COALESCE(mgmt_code,'') AS code, '' AS lbl FROM consumable_orders WHERE TRIM(COALESCE(note,''))=?"))
+    out = []
+    for _t, _f, _k, _sql in _specs:
+        try:
+            rows = [dict(r) for r in c.execute(_sql, (val,)).fetchall()]
+        except Exception:
+            rows = []
+        out.append((_t, _f, _k, rows))
+    return out
+
+
+@app.get("/admin/note-sweep", response_class=HTMLResponse)
+async def admin_note_sweep(request: Request, v: str = "67", done: str = ""):
+    """v5H226z978 (대표 승인): 비고 오염값 청소 도구(1회성) — 엑셀 열밀림(구 위치폴백)으로 비고류 칸에
+    들어간 값(예: 사번 '67')을 전수 스캔 → 목록 확인 → 일괄 비우기. 대표/관리자 전용."""
+    u = get_user(request)
+    if not u or (u.get("role") or "").lower() not in ("admin", "ceo"):
+        return RedirectResponse("/home", 303)
+    _val = (v or "67").strip()[:10] or "67"
+    import html as _h978
+    with db_session() as c:
+        groups = _note_sweep_targets978(c, _val)
+    total = sum(len(rows) for _, _, _, rows in groups)
+    body = ["<meta charset='utf-8'><div style='font-family:sans-serif;max-width:860px;margin:36px auto;padding:0 16px;'>",
+            "<h2>🧹 비고 오염값 청소 (z978)</h2>",
+            "<p style='font-size:14px;color:#555;'>비고류 칸 값이 <b>정확히 아래 값(공백 제외)</b>인 항목만 찾습니다. "
+            "원인: 예전 엑셀 일괄등록이 헤더를 못 읽으면 열 위치를 추측해 엉뚱한 열(담당 사번 등)을 비고에 저장 — z978에서 폐지됨.</p>",
+            f"<form method='get' style='margin:10px 0;'>찾을 값 <input name='v' value='{_h978.escape(_val)}' maxlength='10' style='width:90px;text-align:center;'> "
+            "<button type='submit'>다시 스캔</button></form>"]
+    if done:
+        body.append(f"<p style='background:#ecfdf5;border:1px solid #6ee7b7;padding:10px 14px;border-radius:8px;font-weight:700;'>✅ {_h978.escape(done)}건 비움 완료</p>")
+    body.append(f"<p style='font-size:15px;'>발견: <b style='color:#b91c1c;'>{total}건</b></p>")
+    for _t, _f, _k, rows in groups:
+        if not rows:
+            continue
+        body.append(f"<h3 style='margin:18px 0 6px;'>{_h978.escape(_k)} <span style='color:#888;font-size:12px;'>({_t}.{_f} · {len(rows)}건)</span></h3>")
+        body.append("<table border='1' cellpadding='6' style='border-collapse:collapse;font-size:13px;width:100%;'><tr><th>관리번호/이름</th><th>수주/발주번호</th><th>항목</th></tr>")
+        for r in rows[:200]:
+            body.append(f"<tr><td>{_h978.escape(str(r.get('code') or '—'))}</td><td>{_h978.escape(str(r.get('ref') or '—'))}</td><td>{_h978.escape(str(r.get('lbl') or '—'))}</td></tr>")
+        if len(rows) > 200:
+            body.append(f"<tr><td colspan='3'>… 외 {len(rows)-200}건</td></tr>")
+        body.append("</table>")
+    if total:
+        body.append("<form method='post' action='/admin/note-sweep/clear' style='margin:22px 0;' "
+                    "onsubmit=\"return confirm('위 목록의 비고를 전부 비웁니다(값이 정확히 일치하는 것만). 진행할까요?');\">"
+                    f"<input type='hidden' name='v' value='{_h978.escape(_val)}'>"
+                    "<button type='submit' style='background:#b91c1c;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:700;font-size:14px;'>🧹 전부 비우기</button>"
+                    " <span style='font-size:12px;color:#888;'>⚠ '수주 메모(PO칸 겸용)'는 PO번호일 수 있으니 목록을 먼저 확인하세요.</span></form>")
+    else:
+        body.append("<p style='color:#059669;font-weight:700;'>깨끗합니다 — 해당 값이 남아있지 않습니다.</p>")
+    body.append("<p><a href='/home'>← 홈</a></p></div>")
+    return HTMLResponse("".join(body))
+
+
+@app.post("/admin/note-sweep/clear")
+async def admin_note_sweep_clear(request: Request):
+    """v5H226z978: 스캔된 비고 오염값 일괄 비우기 — 값이 정확히 일치(트림)하는 것만 NULL 처리."""
+    u = get_user(request)
+    if not u or (u.get("role") or "").lower() not in ("admin", "ceo"):
+        return RedirectResponse("/home", 303)
+    form = await request.form()
+    _val = (form.get("v") or "67").strip()[:10] or "67"
+    cleared = 0
+    with db_session() as c:
+        for _t, _f, _k, rows in _note_sweep_targets978(c, _val):
+            if not rows:
+                continue
+            try:
+                _r = c.execute(f"UPDATE {_t} SET {_f}=NULL WHERE TRIM(COALESCE({_f},''))=?", (_val,))
+                cleared += (_r.rowcount or 0)
+            except Exception as _ce:
+                print(f"[z978 clear] {_t}.{_f} 실패: {_ce}")
+    print(f"[z978] 비고 오염값('{_val}') 일괄 비움 {cleared}건 — by {u.get('id')}")
+    from urllib.parse import quote as _q978
+    return RedirectResponse(f"/admin/note-sweep?v={_q978(_val)}&done={cleared}", 303)
+
+
 @app.post("/projects/{pid:int}/add-followup-order")
 async def projects_add_followup(req: Request, pid: int):
     """추가 발주 — 동일 관리번호 + 신규 수주번호 발행 (KNK 추적 표준)."""
@@ -26985,6 +27086,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
 
     # v5H226z232 (대표 지시): 새 출고형태별 평면 양식 — 사업부=컬럼, 출고형태 고정. (부품은 별도 Step)
     _NEW_FLAT = {"ASSY장비": "ASSEMBLY", "기타": "ETC"}
+    _z978_hdr_fail = []   # v5H226z978: 헤더(3행) 인식 실패 시트 — 침묵 위치추정 대신 실패로 표면화
     for sh_name in wb.sheetnames:
         _is_consumable = False   # v5H226z240: 소모품 시트(사업부 C 고정·품명 식별·관리번호/추가발주 없음)
         if sh_name in sheet_div_map:
@@ -27035,10 +27137,12 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
             _f = _HF.get(_norm_h(_hv))
             if _f and _f not in colmap:
                 colmap[_f] = _ci
-        if "name" not in colmap and not _is_new_flat:   # 헤더 인식 실패 → 구 위치기반 폴백(구 양식만)
-            colmap = {"name": 0, "mgmt_code": 1, "po_type": 2, "customer": 3, "model": 4,
-                      "trade": 5, "order_date": 6, "due_date": 7, "price": 8, "qty": 9,
-                      "currency": 10, "status": 11, "pm": 12, "sales": 13, "ship_to": 14, "note": 15}
+        if "name" not in colmap and not _is_new_flat:
+            # v5H226z978 (대표 승인): 구 '위치 기반 폴백' 폐지 — 헤더를 못 읽으면 열 위치를 추측해
+            #   엉뚱한 열 값(예: 담당 사번 '67')이 비고·담당·납품처에 조용히 저장되던 사고 원인.
+            #   [[feedback_data_connectivity]] 애매하면 중단: 이 시트는 파싱하지 않고 실패로 표면화.
+            _z978_hdr_fail.append(sh_name)
+            continue
         # 데이터 row 5+ (row1=제목, row2=안내, row3=헤더, row4=예제)
         row_no = 0
         for r in ws.iter_rows(min_row=5, values_only=True):
@@ -27549,6 +27653,10 @@ async def projects_import_confirm(request: Request):
     created = []
     failed = []
     so_warnings = []   # v5H226z262: SO(수주·호기) 생성 실패를 조용히 삼키지 않고 수집 → 응답·로그로 표면화
+    # v5H226z978: 헤더 인식 실패 시트를 실패 목록으로 표면화(조용한 '0건 등록' 방지)
+    for _shf978 in _z978_hdr_fail:
+        failed.append({"row_no": "—", "name": f"시트 '{_shf978}' 전체",
+                       "error": "3행 헤더를 인식하지 못해 이 시트는 건너뛰었습니다 — '양식 다운로드'로 최신 양식을 받아 값을 옮긴 뒤 다시 올려주세요. (예전처럼 열 위치를 추측해 저장하지 않습니다)"})
     so_skipped = []    # v5H226z330/z337: 발주일 없어 SO(수주번호) 미발행한 신규행(소모품 포함, 정보성 안내) — 조용히 넘기지 않고 수집
     skipped_dup = []   # v5H226z597 (대표 지시): 이미 등록된 관리번호 — 재업로드 중복 방지로 건너뛴 행(경고)
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
