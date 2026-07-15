@@ -107,19 +107,28 @@
 /* ── z971 자동 정리 진행 카드 ── */
 #pipeCard { border-left:4px solid #7C3AED; }
 #pipeSteps { display:flex; flex-direction:column; gap:7px; font-size:13.5px; line-height:1.55; }
+/* ── z973 '다시 하기' 접이식 폴드 — 평소 닫힘(자동 처리 후 화면 깔끔), 필요할 때만 펼침 ── */
+#redoTools { padding:0; overflow:hidden; }
+#redoTools > summary { cursor:pointer; list-style:none; padding:14px 18px; font-size:13.5px; font-weight:800;
+  color: var(--qv-ink-2); display:flex; align-items:center; gap:8px; }
+#redoTools > summary::-webkit-details-marker { display:none; }
+#redoTools > summary::after { content:'▾ 펼치기'; margin-left:auto; font-size:12px; font-weight:700; color: var(--qv-ink-3); }
+#redoTools[open] > summary::after { content:'▴ 접기'; }
+#redoTools > summary:hover { color: var(--qv-ink); background: var(--qv-surface-2); }
+#redoTools .redo-body { padding:4px 18px 18px; border-top:1px solid var(--qv-line); }
+#redoTools .redo-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:12px 0; }
 /* z452 mobile — 2열 입력 그리드를 폰에서 세로로 */
 @media (max-width: 768px) {
   .mf-grid, .mf-grid2 { grid-template-columns: 1fr !important; }
-  /* z971: 폰에선 상세 화면 순서를 '결과 먼저'로 재배치 — 진행카드 → AI버튼 → 정리·결정·할일 → 기본정보(원문) → 녹음 → 연결 */
+  /* z971/z973: 폰에선 상세 화면 순서를 '결과 먼저'로 재배치 — 진행카드 → 정리·결정·할일 → 기본정보(원문) → 다시하기 → 연결 */
   .mf-wrap { display:flex; flex-direction:column; }
   .mf-wrap > * { order:50; }
   #pipeCard { order:1; }
-  .ai-bar { order:2; }
   #secSummary { order:3; }
   #secDecisions { order:4; }
   #secActions { order:5; }
   .mf-top { order:10; }
-  #secRec { order:11; }
+  #redoTools { order:11; }
   #secLink { order:12; }
 }
 </style>
@@ -278,46 +287,11 @@
     </div>
   {% endif %}
 
-  {% if not is_new and can_edit %}
-    <!-- ── 🎙 음성 녹음 (모드 B) ── -->
-    <div class="mf-section" id="secRec">
-      <div class="mf-sec-head"><div class="mf-sec-title">🎙 음성 녹음 <em>(휴대폰에서 바로 · 60분+ 가능)</em></div></div>
-      <div class="rec-banner" id="recBanner" hidden><span class="rec-dot"></span><span id="recBannerLbl">🔴 본 회의 녹음 중</span><span id="recBigTime">00:00</span></div>
-      <div class="rec-wrap">
-        <button class="btn btn-primary rec-btn" id="recBtn">🎙 녹음 시작</button>
-        <button class="btn btn-secondary" id="recPauseBtn" hidden>⏸ 일시정지</button>
-        <label class="btn btn-secondary rec-file">📁 음성 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
-        <span class="rec-time" id="recTime" hidden>● 00:00</span>
-        <span class="rec-status" id="recStatus"></span>
-      </div>
-      <div id="recPlayWrap" {% if not meeting.audio_path %}hidden{% endif %} style="margin-top:12px;">
-        <audio id="recAudio" controls style="width:100%;max-width:440px;display:block;"{% if meeting.audio_path %} src="/api/meeting/{{ meeting.id }}/audio"{% endif %}></audio>
-        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button class="btn btn-primary" id="transcribeBtn" {% if not transcribe_on %}disabled title="음성→글자는 OpenAI 키 등록 후 동작합니다(관리자 → AI 설정)"{% endif %}>📝 음성→글자 변환</button>
-          <span class="mf-hint">변환하면 위 ‘회의 내용’에 자동으로 들어갑니다 (새 녹음을 올리면 변환·AI 정리까지 자동)</span>
-        </div>
-      </div>
-      {% if not transcribe_on %}<div class="mf-hint" style="margin-top:8px;color:var(--knk-red);">⚠ 음성→글자는 OpenAI 키 등록 후 동작합니다 — 녹음·저장·재생은 지금도 됩니다.</div>{% endif %}
-      <div class="mf-hint" style="margin-top:6px;line-height:1.6;">※ 녹음 중 <b>화면을 켜 두세요</b>(자동 꺼짐 방지 작동). <b>전화를 받을 땐 「⏸ 일시정지」를 직접 누르세요</b>(통화 내용 녹음 방지) → 통화 후 <b>「▶ 재개」</b>. 다른 앱을 잠깐 봐도 <b>녹음은 계속됩니다</b>. <b>길고 중요한 회의는 「📁 음성 파일 올리기」</b>(폰 기본 녹음기로 녹음 후 올리기)가 가장 안정적입니다.</div>
-    </div>
-  {% endif %}
-
   {% if not is_new %}
-    <!-- ── AI 정리 ── -->
-    <div class="ai-bar">
-      <div class="desc">
-        <b>🤖 AI로 정리</b>
-        <div id="aiHint">회의 내용에서 결정사항·할 일·요약을 자동으로 뽑습니다. (추출 결과는 검토 후 일일카드로 보냅니다 — 자동 등록되지 않아요)</div>
-      </div>
-      {% if can_edit %}
-      <button class="btn btn-primary" id="btnExtract" {% if not ai_on %}disabled title="AI 키가 설정되어 있지 않습니다. 관리자 → AI 설정에서 키를 등록하면 자동 정리를 쓸 수 있어요. 그 전에는 아래에서 직접 추가하세요."{% endif %}>✨ AI로 정리</button>
-      {% endif %}
-    </div>
-
     <!-- ── 요약 ── -->
     <div class="mf-section" id="secSummary">
       <div class="mf-sec-head"><div class="mf-sec-title">📋 회의록 정리 <em>(안건·논의·요점)</em></div></div>
-      <div class="sum-box empty" id="mtgSummary">아직 정리 전입니다 — 위 「✨ AI로 정리」를 누르세요.</div>
+      <div class="sum-box empty" id="mtgSummary">아직 정리 전입니다 — 회의 내용을 적거나 녹음하면 자동으로 정리됩니다.</div>
     </div>
 
     <!-- ── 결정사항 ── -->
@@ -349,6 +323,31 @@
       </div>
       {% endif %}
     </div>
+
+    {% if can_edit %}
+    <!-- ── 🔧 다시 하기 (필요할 때만) — z973: 평소 닫힘. 녹음 추가·다시 정리 재실행용 ── -->
+    <details class="mf-section" id="redoTools">
+      <summary>🔧 다시 하기 · 녹음 추가 <span style="font-weight:600;color:var(--qv-ink-3);">(필요할 때만)</span></summary>
+      <div class="redo-body">
+        <div class="mf-hint" style="margin:10px 0 4px;line-height:1.6;">회의가 <b>이어져 더 녹음</b>하거나, 위 ‘회의 내용(원문)’의 <b>오타를 고친 뒤 다시 정리</b>하고 싶을 때 씁니다. 평소엔 위 자동 정리로 충분합니다.</div>
+
+        <div class="rec-banner" id="recBanner" hidden><span class="rec-dot"></span><span id="recBannerLbl">🔴 본 회의 녹음 중</span><span id="recBigTime">00:00</span></div>
+        <div class="redo-row">
+          <button class="btn btn-primary rec-btn" id="recBtn">🎙 녹음 추가</button>
+          <button class="btn btn-secondary" id="recPauseBtn" hidden>⏸ 일시정지</button>
+          <label class="btn btn-secondary rec-file">📁 음성 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
+          <button class="btn btn-secondary" id="btnExtract" {% if not ai_on %}disabled title="AI 키가 설정되어 있지 않습니다(관리자 → AI 설정). 그 전에는 아래에서 직접 추가하세요."{% endif %}>🔄 다시 정리</button>
+          <span class="rec-time" id="recTime" hidden>● 00:00</span>
+          <span class="rec-status" id="recStatus"></span>
+        </div>
+        <div id="recPlayWrap" {% if not meeting.audio_path %}hidden{% endif %} style="margin-top:6px;">
+          <audio id="recAudio" controls style="width:100%;max-width:440px;display:block;"{% if meeting.audio_path %} src="/api/meeting/{{ meeting.id }}/audio"{% endif %}></audio>
+        </div>
+        <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 새 녹음을 올리면 <b>음성→글자·AI 정리까지 자동</b>으로 다시 됩니다. 「🔄 다시 정리」는 원문을 고친 뒤 <b>AI 정리만 다시</b> 돌립니다(직접 추가한 결정·할 일은 보존).<br>녹음 중 <b>화면을 켜 두세요</b>. <b>전화 받을 땐 「⏸ 일시정지」</b> → 통화 후 「▶ 재개」. 다른 앱을 잠깐 봐도 녹음은 계속됩니다.</div>
+        {% if not transcribe_on %}<div class="mf-hint" style="margin-top:6px;color:var(--knk-red);">⚠ 음성→글자는 OpenAI 키 등록 후 동작합니다 — 녹음·저장·재생은 지금도 됩니다.</div>{% endif %}
+      </div>
+    </details>
+    {% endif %}
 
     {% if can_link_proj or can_link_sales %}
     <!-- ── 🔗 연결 (프로젝트·영업기회) ── -->
@@ -414,6 +413,8 @@ window.__MTG = {
   var M = window.__MTG || {};
   var CAN_EDIT = !!M.can_edit;
   var AI_ON = !!M.ai_on, TR_ON = !!M.tr_on;
+  // z973: 녹음 유휴 라벨 — 새 회의='녹음하며 회의', 상세(다시 하기 폴드)='녹음 추가'
+  var REC_IDLE = M.is_new ? '🎙 녹음하며 회의' : '🎙 녹음 추가';
 
   function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function $(id){ return document.getElementById(id); }
@@ -470,7 +471,7 @@ window.__MTG = {
   function renderSummary(){
     var box = $('mtgSummary'); if(!box) return;
     if (M.summary && M.summary.trim()){ box.textContent = M.summary; box.className='sum-box'; }
-    else { box.textContent='아직 정리 전입니다 — 위 「✨ AI로 정리」를 누르세요.'; box.className='sum-box empty'; }
+    else { box.textContent='아직 정리 전입니다 — 회의 내용을 적거나 녹음하면 자동으로 정리됩니다.'; box.className='sum-box empty'; }
   }
   function renderDecisions(){
     var box = $('decList'); if(!box) return;
@@ -529,21 +530,13 @@ window.__MTG = {
     return { ok:false, error: res.data.error || 'AI 정리 실패' };
   }
 
-  // ── 수동 버튼(다시 돌리기용) ──
+  // ── 「🔄 다시 정리」(다시 하기 폴드) — 원문 고친 뒤 AI 정리만 다시. 피드백은 폴드 안 recStatus로 ──
   async function extract(){
     var btn = $('btnExtract'); if (btn){ btn.disabled=true; }
-    status('AI가 회의 내용을 정리하는 중…', 'busy');
+    recSt('AI가 회의 내용을 다시 정리하는 중…');
     var r = await doExtract();
     if (btn){ btn.disabled=false; }
-    if (r.ok) status('정리 완료 ✓ 내용을 확인하고 할 일을 일일카드로 보내세요.', 'ok');
-    else status(r.error, 'err');
-  }
-  async function transcribe(){
-    var btn=$('transcribeBtn'); if(btn)btn.disabled=true;
-    recSt('음성을 글자로 바꾸는 중… (길면 1~2분 걸려요)');
-    var r = await doTranscribe();
-    if(btn)btn.disabled=false;
-    if (r.ok) recSt('변환 완료 ✓ 회의 내용에 들어갔습니다 — 「✨ AI로 정리」로 마무리', 'ok');
+    if (r.ok) recSt('다시 정리 완료 ✓ 위 정리 결과가 갱신됐습니다.', 'ok');
     else recSt(r.error, 'err');
   }
 
@@ -692,7 +685,7 @@ window.__MTG = {
     try{if(_stream)_stream.getTracks().forEach(function(t){t.stop();});}catch(_){}
     relWake();recBanner(false);try{if(_docTitle)document.title=_docTitle;}catch(_){}
     var pb=$('recPauseBtn');if(pb){pb.hidden=true;pb.textContent='⏸ 일시정지';}
-    var b=$('recBtn');if(b){b.textContent='🎙 녹음 시작';b.classList.remove('on');b.dataset.on='';}
+    var b=$('recBtn');if(b){b.textContent=REC_IDLE;b.classList.remove('on');b.dataset.on='';}
     if(_recBlob&&_recBlob.size>200){var a=$('recAudio');if(a)a.src=URL.createObjectURL(_recBlob);var w=$('recPlayWrap');if(w)w.hidden=false;uploadAudioBlob(_recBlob,'rec.'+recExt(_recMime));}
     else recSt('녹음된 소리가 없습니다.','err');
   }
@@ -770,7 +763,6 @@ window.__MTG = {
   }
   var _recBtn=$('recBtn');if(_recBtn)_recBtn.addEventListener('click',function(){if(_recBtn.dataset.on)recStop();else recStart();});
   var _recPause=$('recPauseBtn');if(_recPause)_recPause.addEventListener('click',recTogglePause);
-  var _trBtn=$('transcribeBtn');if(_trBtn&&!_trBtn.disabled)_trBtn.addEventListener('click',transcribe);
   var _recFile=$('recFile');if(_recFile)_recFile.addEventListener('change',onPickFile);
 
   // ── 🔗 연결 (프로젝트·영업기회) ──
