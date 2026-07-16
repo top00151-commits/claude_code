@@ -21178,9 +21178,10 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
             # v5H226z791 (대표 지시): 제작요청서 목록을 '수주(호기)당 카드 1장'으로 — 핵심 10필드만.
             #   제작요청서 있는 프로젝트 → 그 프로젝트의 수주(orders)마다 1행(LEFT JOIN: 수주 없으면 1행·수주번호 —).
             #   프로젝트에 제작요청서 여러 건이면 최신(MAX id)으로 연결. 상태·수량은 호기(order_items)에서 집계.
+            # v5H226z987 (대표 지시): 고객사 = 시스템명(customers.alias·z550) 우선, 없으면 정식 상호
             sql = ("SELECT p.id AS project_id, p.mgmt_code, p.model_name, p.equip_name, "
                    "p.po_type, p.unit_qty AS proj_qty, p.name AS project_name, "
-                   "p.customer_name AS p_customer, cu.name AS cust_name, "
+                   "p.customer_name AS p_customer, COALESCE(NULLIF(cu.alias,''), cu.name) AS cust_name, "
                    "o.id AS order_id, o.order_no, o.order_date AS o_order_date, "
                    # v5H226z977 (대표 승인): 납품일 폴백 — SO 납기 비면 프로젝트 납기(상품 빈 SO '—' 방지)
                    "COALESCE(NULLIF(o.due_date,''), NULLIF(p.due_date,'')) AS o_due_date, o.status AS o_status, "
@@ -21195,10 +21196,11 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
             # v5H226z871 (대표 지시): 폐기(숨김)된 프로젝트의 제작요청서는 목록에서 제외 — 폐기했는데 목록/상세로 열리던 누출 차단.
             conds.append("COALESCE(p.is_archived,0)=0")
             if _q:
+                # z987: 시스템명(alias) 검색 포함 — 화면에 보이는 이름으로 찾아지게
                 conds.append("(p.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
-                             "OR p.equip_name LIKE ? OR cu.name LIKE ? OR p.customer_name LIKE ? "
+                             "OR p.equip_name LIKE ? OR cu.name LIKE ? OR cu.alias LIKE ? OR p.customer_name LIKE ? "
                              "OR o.order_no LIKE ? OR pr.issued_by_name LIKE ?)")
-                params += [f"%{_q}%"] * 8
+                params += [f"%{_q}%"] * 9
             if _period == "day":
                 conds.append(f"{_dref} = ?"); params.append(_today)
             elif _period == "week":
@@ -21257,9 +21259,10 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                 _cconds = ["1=1"]
                 _cparams = []
                 if _q:
-                    _cconds.append("(mgmt_code LIKE ? OR co_no LIKE ? OR customer_name LIKE ? "
-                                   "OR model_name LIKE ? OR equip_name LIKE ?)")
-                    _cparams += [f"%{_q}%"] * 5
+                    # z987: 시스템명(alias) 검색 포함
+                    _cconds.append("(co.mgmt_code LIKE ? OR co.co_no LIKE ? OR co.customer_name LIKE ? "
+                                   "OR cu.alias LIKE ? OR co.model_name LIKE ? OR co.equip_name LIKE ?)")
+                    _cparams += [f"%{_q}%"] * 6
                 if _period == "day":
                     _cconds.append("substr(COALESCE(order_date,''),1,10) = ?"); _cparams.append(_today)
                 elif _period == "week":
@@ -21268,9 +21271,12 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     _cconds.append("substr(COALESCE(order_date,''),1,7) = ?"); _cparams.append(_kn.strftime("%Y-%m"))
                 elif _period == "year":
                     _cconds.append("substr(COALESCE(order_date,''),1,4) = ?"); _cparams.append(_kn.strftime("%Y"))
-                _csql = ("SELECT id AS co_id, mgmt_code, co_no, model_name, equip_name, customer_name, "
-                         "due_date, order_date, status FROM consumable_orders WHERE "
-                         + " AND ".join(_cconds) + " ORDER BY id DESC LIMIT 300")
+                # v5H226z987 (대표 지시): ①고객사=시스템명(alias) 우선 ②진행 사업부(biz_div·v5H218)로 카드 배지 표기
+                _csql = ("SELECT co.id AS co_id, co.mgmt_code, co.co_no, co.model_name, co.equip_name, "
+                         "COALESCE(NULLIF(cu.alias,''), NULLIF(co.customer_name,''), cu.name) AS customer_name, "
+                         "co.due_date, co.order_date, co.status, co.biz_div "
+                         "FROM consumable_orders co LEFT JOIN customers cu ON cu.id = co.customer_id WHERE "
+                         + " AND ".join(_cconds) + " ORDER BY co.id DESC LIMIT 300")
                 _crows = [dict(r) for r in _cc.execute(_csql, _cparams).fetchall()]
                 _coids = [r["co_id"] for r in _crows if r.get("co_id")]
                 _cqty = {}
@@ -21288,8 +21294,11 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     r["cust_name"] = r.get("customer_name")
                     r["o_due_date"] = r.get("due_date")
                     r["po_type"] = "소모품"
-                    r["biz_label"] = "소모품"
-                    r["biz"] = "C"    # v5H226z907: 소모품 카드 색상 코드
+                    # v5H226z987 (대표 지시): 배지='소모품' 고정 → 등록 시 선택한 진행 사업부(biz_div·v5H218)로.
+                    #   빈값(통합 일괄등록분 등)은 기존대로 '소모품'/C — 상세의 '진행 사업부'에서 채우면 반영.
+                    _bd = str(r.get("biz_div") or "").strip().upper()
+                    r["biz_label"] = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}.get(_bd, "소모품")
+                    r["biz"] = _bd if _bd in ("T", "M", "L", "E") else "C"    # v5H226z907: 카드 색상 코드
                     _cq = _cqty.get(r.get("co_id"))
                     r["qty"] = int(_cq) if _cq else None   # 빈값=None → 카드 '수량 —'
                     _st = str(r.get("status") or "").upper()

@@ -303,6 +303,9 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
               <select class="ef" data-field="currency">{% for c in ['KRW','USD','VND','JPY','CNY','EUR'] %}<option value="{{ c }}"{% if (co.currency or 'KRW')==c %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
             <div class="h-cell"><div class="lbl">거래구분</div>
               <select class="ef" data-field="is_export"><option value="내수"{% if not co.is_export %} selected{% endif %}>내수</option><option value="수출"{% if co.is_export %} selected{% endif %}>수출</option></select></div>
+            {# v5H226z987 (대표 지시): 진행 사업부(v5H218·등록 시 선택) — 제작요청서목록 카드 배지에 표기. 통합 일괄등록분(빈값)은 여기서 채움. #}
+            <div class="h-cell"><div class="lbl">진행 사업부</div>
+              <select class="ef" data-field="biz_div"><option value=""{% if not co.biz_div %} selected{% endif %}>미지정(소모품)</option><option value="T"{% if co.biz_div == 'T' %} selected{% endif %}>🔬 검사기</option><option value="M"{% if co.biz_div == 'M' %} selected{% endif %}>🤖 자동화</option></select></div>
           </div>
         </div>
         {# ④ 제품 · 납품 · 영업 #}

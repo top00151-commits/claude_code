@@ -1232,6 +1232,8 @@ _ORDER_FIELD_LABELS = {
     "order_date": "발주일", "due_date": "납기", "cc_name": "고객 담당자", "cc_phone": "연락처",
     "currency": "통화", "is_export": "거래구분", "model_name": "모델명", "equip_name": "장비명",
     "sales_name": "영업담당자", "note": "비고",
+    # v5H226z987 (대표 지시): 진행 사업부(v5H218) — 제작요청서목록 카드 배지 표기용. 통합 일괄등록분은 빈값이라 상세에서 채움.
+    "biz_div": "진행 사업부",
     # v5H226z725 (대표 지시): 상세 화면을 엑셀 양식과 일치 — 상태·형태·거래명세서·세금계산서(발주 단위)도
     #   save-all(헤더 경로)로 편집 저장. 라인 표에 칸으로 보이지만 값은 발주(consumable_orders)에 저장.
     "status": "상태", "form_type": "형태", "statement_date": "거래명세서 발행일",
@@ -1344,6 +1346,11 @@ def co_update_order_field(co_id: int, field: str, value, by_id=None, by_name: st
         new_v = 1 if str(value).strip() in ("수출", "1", "export", "EXPORT") else 0
     elif field == "currency":
         new_v = (str(value).strip().upper() or "KRW")
+    elif field == "biz_div":
+        # v5H226z987: 진행 사업부 = 검사기(T)/자동화(M)/미지정('') 만 — 등록 폼(v5H218 T/M)과 동일 어휘
+        new_v = (str(value).strip().upper() if value is not None else "")
+        if new_v not in ("", "T", "M"):
+            return (False, None, None, None)
     else:
         new_v = (str(value).strip() if value is not None else "")
     cust_id = None
