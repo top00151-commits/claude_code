@@ -694,56 +694,148 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 {% include "_v5_partials/spa_nav.html" ignore missing %}
 
 <script>
-/* v5H226z984 (대표 지시·⭐전사 표준): 화면 위치 복원 — "목록에서 스크롤 내려 찾아 들어갔다 돌아오면
-   그 자리 그대로". 문제: SPA 전환기(spa_nav)가 본문 교체 직후 무조건 맨 위로 리셋 + 저장 후
-   새로고침도 리셋 → 어디까지 봤는지 매번 다시 찾아야 했음(대표 신고: 소모품 발주·작업일정표 등 전 화면).
-   방식: URL(경로+쿼리)별로 창/본문(.main) 스크롤 위치를 sessionStorage(탭 단위)에 수시 저장,
-   같은 URL로 다시 오면(SPA 전환·전체 로드·뒤로가기·저장 후 reload 모두) 그 위치로 복원.
+/* v5H226z984b (대표 지시): 화면 위치 복원(⭐전사 표준) — "목록에서 스크롤 내려 찾아 들어갔다 돌아오면
+   그 자리 그대로". 문제: 1차(z984)는 창+본문(.main) 위치만 저장 → .main 자체가 스크롤되는 화면(소모품
+   목록 등)만 복원되고, 작업일정표(div#schedWrap.sched-wrap)처럼 '내부 컨테이너'가 따로 스크롤되는 화면은
+   복원이 안 됐음(대표 신고). 화면마다 스크롤 컨테이너가 제각각 + 가로 스크롤(작업일정표 폭 2804px)도 있음.
+   방식: ① 스크롤 이벤트(capture)의 e.target 으로 '실제 스크롤된 요소'만 자동 추적(dirty 집합·전수 스캔
+   금지. 창(document) 스크롤은 저장 때마다 항상 직접 읽으므로 별도 표식 불필요) ② 요소 키 = id 있으면
+   '#id', 없으면 '태그.클래스(최대2)@순번' (예: div.sched-wrap@0) — 재방문·재렌더 후 같은 요소 재탐색용
+   ③ URL(경로+쿼리)별 sessionStorage(탭 단위)에 JSON {"w":[x,y],"e":{키:[top,left]}} 저장 — 가로(left)
+   포함, 전부 0인 항목 제외·전체가 비면 삭제·.main 은 존재하면 항상 포함(구버전 호환·가장 흔한 컨테이너)
+   ④ 복원: SPA 전환(knk:navigated 직후)·전체 로드 모두, 창/요소별로 높이·폭이 준비되는 대로 각각 적용
+   (늦게 그려지는 표 대응 최대 2초 재시도·적용 완료된 요소는 재적용 안 함·마지막 회차엔 가능한 만큼 적용),
+   구포맷("창Y,본문top" 문자열·z984 저장분)도 호환 파싱.
    규칙: ① 새 화면은 chrome.html 포함만으로 자동 적용(별도 작업 불필요) ② #앵커·focus_ref/focus_so
-   진입은 명시적 이동이므로 복원 생략 ③ 페이지 코드에서 임의 scrollTo(0,0) 재설정 금지
-   ④ 긴 표가 늦게 그려져도 최대 2초까지 재시도 후 복원. (규정: knk_scroll_restore_standard) */
+   진입은 명시적 이동이므로 복원 생략 ③ 페이지 코드에서 임의 scrollTo(0,0) 재설정 금지 ④ 사이드바 등
+   무관 컨테이너도 사용자가 스크롤했다면 함께 복원(일관성·예외 없음). (규정: knk_scroll_restore_standard) */
 (function(){
   if (window.__knkScrollRestore984) return; window.__knkScrollRestore984 = true;
   var MAXTRY = 20, STEP = 100;
+  var SAFE = /^[A-Za-z0-9_-]+$/;                 // 키에 쓰는 id·클래스 허용 문자(공백·특수문자 배제)
   function key(){ return 'knkpos:' + location.pathname + location.search; }
   function mainEl(){ return document.querySelector('.main'); }
+
+  /* 요소 키: 재방문/재렌더 후 같은 요소를 다시 찾기 위한 문자열 */
+  function elKey(el){
+    try {
+      if (el.id && SAFE.test(el.id)) return '#' + el.id;             // 공백·특수문자 id는 아래 선택자형으로 폴백
+      var tag = (el.tagName || '').toLowerCase(); if (!tag) return null;
+      var cls = el.className;
+      if (cls && typeof cls !== 'string') cls = cls.baseVal || '';   // SVG: className 이 문자열이 아닌 객체
+      var sel = tag, n = 0, parts = String(cls || '').split(/\s+/);
+      for (var i = 0; i < parts.length && n < 2; i++){
+        if (parts[i] && SAFE.test(parts[i])) { sel += '.' + parts[i]; n++; }
+      }
+      var list = document.querySelectorAll(sel);
+      for (var j = 0; j < list.length; j++){ if (list[j] === el) return sel + '@' + j; }
+    } catch(e){}
+    return null;                                  // 문서에서 떨어져 나간(재렌더된) 요소 등 → 저장 제외
+  }
+  function resolveKey(k){
+    try {
+      if (k.charAt(0) === '#') return document.getElementById(k.slice(1)); // id는 getElementById(선택자 이스케이프 문제 원천 차단)
+      var at = k.lastIndexOf('@'); if (at < 0) return null;
+      var list = document.querySelectorAll(k.slice(0, at));
+      return list[parseInt(k.slice(at + 1), 10) || 0] || null;
+    } catch(e){ return null; }
+  }
+
+  /* 어떤 요소가 스크롤됐는지 자동 추적(dirty) — e.target 만 기록, 페이지 전수 스캔 없음 */
+  var dirtyEls = [];
+  function markDirty(tg){
+    if (!tg || tg === window || tg === document || tg.nodeType !== 1) return; // 창(document) 스크롤: save()가 항상 창 위치를 읽음
+    if (tg === document.documentElement || tg === document.body) return;      // 창 스크롤과 동일 취급
+    if (dirtyEls.indexOf(tg) < 0) dirtyEls.push(tg);
+  }
+
   function save(){
     try {
-      var m = mainEl();
-      var w = Math.round(window.scrollY || window.pageYOffset || 0);
-      var mm = m ? Math.round(m.scrollTop || 0) : 0;
-      if (w > 0 || mm > 0) sessionStorage.setItem(key(), w + ',' + mm);
-      else sessionStorage.removeItem(key());
+      var m = mainEl(); if (m) markDirty(m);      // .main 은 존재하면 항상 포함(구버전 호환·가장 흔한 컨테이너)
+      var wx = Math.round(window.scrollX || window.pageXOffset || 0);
+      var wy = Math.round(window.scrollY || window.pageYOffset || 0);
+      var ent = {}, hasE = false;
+      for (var i = 0; i < dirtyEls.length; i++){
+        var el = dirtyEls[i];
+        if (!document.contains(el)) { dirtyEls.splice(i, 1); i--; continue; } // 재렌더로 떨어져 나간 요소 정리
+        var st = Math.round(el.scrollTop || 0), sl = Math.round(el.scrollLeft || 0);
+        if (st <= 0 && sl <= 0) continue;         // 전부 0인 항목은 제외
+        var k = elKey(el); if (!k) continue;
+        ent[k] = [st, sl]; hasE = true;
+      }
+      var payload = {};
+      if (wx > 0 || wy > 0) payload.w = [wx, wy];
+      if (hasE) payload.e = ent;
+      if (payload.w || payload.e) sessionStorage.setItem(key(), JSON.stringify(payload));
+      else sessionStorage.removeItem(key());      // 전체가 비면 삭제
     } catch(e){}
   }
   var t = null;
   function deb(){ if (t) return; t = setTimeout(function(){ t = null; save(); }, 150); }
-  window.addEventListener('scroll', deb, {passive:true});
-  document.addEventListener('scroll', deb, {passive:true, capture:true});      // .main 등 내부 컨테이너 스크롤 포함
+  function onScroll(e){ markDirty(e && e.target); deb(); }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  document.addEventListener('scroll', onScroll, {passive:true, capture:true});  // .main·내부 컨테이너 스크롤 포함
   document.addEventListener('pointerdown', save, {passive:true, capture:true}); // 링크 클릭 '직전' 위치 확정 저장
   window.addEventListener('pagehide', save);
+
+  var rT = null;                                  // 복원 재시도 타이머(화면 전환 시 중단용)
   function restore(){
     if (location.hash) return;                                     // 앵커 진입 존중
     if (/[?&](focus_ref|focus_so)=/.test(location.search)) return; // 보드 강조 이동 존중
     var v = null; try { v = sessionStorage.getItem(key()); } catch(e){}
     if (!v) return;
-    var p = v.split(','), w = parseInt(p[0]||'0',10)||0, mm = parseInt(p[1]||'0',10)||0;
-    if (w <= 0 && mm <= 0) return;
+    var wx = 0, wy = 0, items = [];
+    if (v.charAt(0) === '{'){                     // 신포맷(JSON)
+      var d = null; try { d = JSON.parse(v); } catch(e){}
+      if (!d) return;
+      if (d.w){ wx = parseInt(d.w[0], 10) || 0; wy = parseInt(d.w[1], 10) || 0; }
+      var em = d.e || {};
+      for (var k in em){
+        if (!Object.prototype.hasOwnProperty.call(em, k)) continue;
+        var a = em[k] || [], tp = parseInt(a[0], 10) || 0, lf = parseInt(a[1], 10) || 0;
+        if (tp > 0 || lf > 0) items.push({ k: k, main: false, top: tp, left: lf, done: false });
+      }
+    } else {                                      // 구포맷 "창Y,본문top" 호환(z984 저장분)
+      var p = v.split(',');
+      wy = parseInt(p[0] || '0', 10) || 0;
+      var mm = parseInt(p[1] || '0', 10) || 0;
+      if (mm > 0) items.push({ k: '', main: true, top: mm, left: 0, done: false });
+    }
+    var winDone = (wx <= 0 && wy <= 0);
+    if (winDone && !items.length) return;
     var tries = 0;
     (function attempt(){
       tries++;
-      var m = mainEl();
-      var okW = (w <= 0) || ((document.documentElement.scrollHeight - window.innerHeight) >= w);
-      var okM = (mm <= 0) || (m && (m.scrollHeight - m.clientHeight) >= mm);
-      if ((okW && okM) || tries >= MAXTRY){
-        if (w > 0) { try { window.scrollTo(0, w); } catch(e){} }
-        if (m && mm > 0) { try { m.scrollTop = mm; } catch(e){} }
-      } else setTimeout(attempt, STEP);
+      var last = (tries >= MAXTRY);
+      if (!winDone){                              // 창: 문서가 충분히 자랐을 때 적용(마지막 회차엔 그냥 적용)
+        var okX = (wx <= 0) || ((document.documentElement.scrollWidth - window.innerWidth) >= wx);
+        var okY = (wy <= 0) || ((document.documentElement.scrollHeight - window.innerHeight) >= wy);
+        if ((okX && okY) || last){ try { window.scrollTo(wx, wy); } catch(e){} winDone = true; }
+      }
+      var remain = false;
+      for (var i = 0; i < items.length; i++){
+        var it = items[i]; if (it.done) continue;
+        var el = it.main ? mainEl() : resolveKey(it.k);
+        var ok = false;
+        if (el){
+          var okT = (it.top <= 0)  || ((el.scrollHeight - el.clientHeight) >= it.top);
+          var okL = (it.left <= 0) || ((el.scrollWidth  - el.clientWidth)  >= it.left);
+          ok = okT && okL;
+        }
+        if (ok || (last && el)){                  // 준비된 요소부터 각각 적용 — 완료된 요소는 재적용 안 함
+          try { if (it.top > 0) el.scrollTop = it.top; if (it.left > 0) el.scrollLeft = it.left; } catch(e){}
+          it.done = true;
+        } else { remain = true; }                 // 아직 못 찾았거나 덜 그려짐 → 재시도
+      }
+      if ((!winDone || remain) && !last) rT = setTimeout(attempt, STEP);
+      else rT = null;
     })();
   }
   document.addEventListener('knk:navigated', function(){
-    if (t) { clearTimeout(t); t = null; }   // 이전 화면의 늦은 저장 타이머 취소
-    setTimeout(restore, 0);                 // spa_nav 의 scrollTo(0,0) 이후에 복원
+    if (t)  { clearTimeout(t);  t = null; }  // 이전 화면의 늦은 저장 타이머 취소
+    if (rT) { clearTimeout(rT); rT = null; } // 이전 화면의 복원 재시도 중단(새 화면 오염 방지)
+    dirtyEls.length = 0;                     // dirty 초기화 — 이전 화면 요소는 버림
+    setTimeout(restore, 0);                  // spa_nav 의 scrollTo(0,0) 이후에 복원
   });
   if (document.readyState !== 'loading') setTimeout(restore, 0);
   else document.addEventListener('DOMContentLoaded', function(){ setTimeout(restore, 0); });
