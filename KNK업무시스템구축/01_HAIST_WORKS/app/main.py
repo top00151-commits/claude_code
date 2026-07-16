@@ -20730,6 +20730,33 @@ async def project_bom_buyat(request: Request, pid: int):
     return RedirectResponse(f"/projects/{pid}/bom?success={_q(f'구매처 {lbl} 지정 — {n}건')}", 303)
 
 
+@app.post("/projects/{pid:int}/bom/purge")
+async def project_bom_purge(request: Request, pid: int):
+    """v5H226z986 (대표 지시): 테스트/오등록 정리 — 이 프로젝트의 BOM 데이터 전체 삭제(프로젝트는 유지).
+    안전장치: 관리번호를 타이핑해야 실행 (오조작 방지)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    typed = (form.get("confirm_code") or "").strip()
+    with db_session() as c:
+        pr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (pid,)).fetchone()
+    mgmt = ((pr["mgmt_code"] if pr else "") or "").strip()
+    if not mgmt or typed != mgmt:
+        return RedirectResponse(
+            f"/projects/{pid}/bom?error={_q('관리번호가 일치하지 않아 삭제를 취소했습니다')}", 303)
+    try:
+        res = _bom.bom_purge_project(pid)
+    except Exception as e:
+        return RedirectResponse(f"/projects/{pid}/bom?error={_q('삭제 실패: ' + str(e))}", 303)
+    _m = (f"BOM 데이터 전체 삭제 완료 — 품목 {res['items']}종 · 업로드 기록 {res['uploads']}건 · "
+          f"이력 {res['history']}건 (프로젝트 자체는 유지됨)")
+    return RedirectResponse(f"/projects/{pid}/bom?success={_q(_m)}", 303)
+
+
 @app.get("/projects/{pid:int}/bom/export.xlsx")
 async def project_bom_export(request: Request, pid: int):
     u = get_user(request)

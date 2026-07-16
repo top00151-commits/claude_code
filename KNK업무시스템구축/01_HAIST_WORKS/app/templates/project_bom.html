@@ -102,6 +102,14 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
       <div class="pl-actions">
         <a class="btn-ghost" href="/projects/{{ project.id }}" title="프로젝트 상세">프로젝트 ↗</a>
         <a class="btn-ghost" href="/projects/{{ project.id }}/bom/export.xlsx">⤓ 현재 BOM 엑셀</a>
+        {% if can_edit %}
+        {# v5H226z986 (대표 지시): 테스트/오등록 정리 — 관리번호 타이핑 확인 후 BOM 데이터만 전체 삭제 (프로젝트 유지) #}
+        <button class="btn-ghost" id="bomPurgeBtn" type="button" style="color:#b91c1c;"
+                title="이 프로젝트의 BOM 품목·이력·업로드 기록을 전부 삭제 (프로젝트 자체는 유지 · 테스트 데이터 정리용)">🗑 BOM 전체 삭제</button>
+        <form method="post" action="/projects/{{ project.id }}/bom/purge" id="bomPurgeForm" style="display:none;">
+          <input type="hidden" name="confirm_code" id="bomPurgeCode">
+        </form>
+        {% endif %}
         <a class="btn-dark" href="/bom/upload">📋 새 BOM 업로드</a>
       </div>
     </div>
@@ -435,6 +443,21 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
   var bmf = document.getElementById('bmForm');
   if (bmf) bmf.addEventListener('submit', function(){
     try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('저장 중…'); } catch(e) {}
+  });
+
+  // v5H226z986 — BOM 전체 삭제(테스트 정리): 관리번호 타이핑 2단계 확인
+  var pb = document.getElementById('bomPurgeBtn');
+  if (pb) pb.addEventListener('click', function(){
+    var mgmt = {{ (project.mgmt_code or '') | tojson }};
+    var code = prompt(
+      '이 프로젝트의 BOM 데이터(품목·이력·업로드 기록)를 전부 삭제합니다.\n' +
+      '테스트 데이터 정리용이며 되돌릴 수 없습니다. 프로젝트 자체는 유지됩니다.\n\n' +
+      '확인을 위해 관리번호를 똑같이 입력하세요: ' + mgmt);
+    if (code === null) return;
+    if ((code || '').trim() !== mgmt) { alert('관리번호가 일치하지 않아 취소했습니다.'); return; }
+    document.getElementById('bomPurgeCode').value = (code || '').trim();
+    try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('BOM 삭제 중…'); } catch(e) {}
+    document.getElementById('bomPurgeForm').submit();
   });
 })();
 </script>

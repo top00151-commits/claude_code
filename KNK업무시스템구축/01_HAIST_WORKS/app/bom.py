@@ -647,6 +647,20 @@ def list_uploads(project_id: int, limit: int = 20) -> list:
             (int(project_id), int(limit))).fetchall()]
 
 
+def bom_purge_project(project_id: int) -> dict:
+    """v5H226z986 (대표 지시 '테스트 데이터 나중에 삭제'): 이 프로젝트의 BOM 데이터 전체 삭제.
+    품목·업로드 기록·이력 3테이블을 비움 — 프로젝트 자체는 유지(폐기와 별개).
+    되돌릴 수 없으므로 라우트에서 관리번호 타이핑 확인을 거친 뒤에만 호출."""
+    with db_session() as c:
+        n_i = c.execute("SELECT COUNT(*) FROM bom_items WHERE project_id=?", (int(project_id),)).fetchone()[0]
+        n_u = c.execute("SELECT COUNT(*) FROM bom_uploads WHERE project_id=?", (int(project_id),)).fetchone()[0]
+        n_h = c.execute("SELECT COUNT(*) FROM bom_item_history WHERE project_id=?", (int(project_id),)).fetchone()[0]
+        c.execute("DELETE FROM bom_item_history WHERE project_id=?", (int(project_id),))
+        c.execute("DELETE FROM bom_items WHERE project_id=?", (int(project_id),))
+        c.execute("DELETE FROM bom_uploads WHERE project_id=?", (int(project_id),))
+    return {"items": int(n_i or 0), "uploads": int(n_u or 0), "history": int(n_h or 0)}
+
+
 def export_xlsx(project_id: int) -> bytes:
     """현재 활성 BOM → 엑셀 (실양식 컬럼 순서·협력사 전달/보관용)."""
     from openpyxl import Workbook
