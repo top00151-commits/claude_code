@@ -20581,9 +20581,34 @@ async def bom_upload_apply(request: Request):
             os.rmdir(tmp_dir)
         except Exception:
             pass
+    # v5H226z984 (대표 지시 "등록한 걸 보고 구매팀 업무가 시작"): 반영 즉시 구매팀 자동 통보
+    #   인앱 알림 + 메신저(KNK Eum) 푸시(_notify_users 재사용). 단가·금액 미포함. 실패해도 반영은 유지(표면화만).
+    _ntf_note = ""
+    try:
+        with db_session() as c:
+            _prow = c.execute("SELECT mgmt_code, name FROM projects WHERE id=?", (project_id,)).fetchone()
+            _uids = [r[0] for r in c.execute(
+                "SELECT id FROM users WHERE team_id=10 AND COALESCE(is_active,1)=1 AND id<>?",
+                (_uid or -1,)).fetchall()]
+            if _uids:
+                _mgmt = ((_prow["mgmt_code"] if _prow else "") or "—")
+                _pnm = ((_prow["name"] if _prow else "") or "")
+                _t = f"📋 BOM {'등록' if res['version_no'] == 1 else '변경'} [{_mgmt}] v{res['version_no']}"
+                _warn = f" · 🔴발주후변경 {res['ordered_warn']}건" if res.get("ordered_warn") else ""
+                _b = (f"{_pnm} — {(u.get('name') or '')} 업로드 · "
+                      f"추가 {res['added']} · 변경 {res['changed']} · 삭제 {res['deleted']}{_warn}"
+                      f" · 파일: {fname}")
+                _nres = _notify_users(c, _uids, "bom", _t, _b, f"/projects/{project_id}/bom")
+                if _nres.get("in_app") or _nres.get("msg_sent"):
+                    _ntf_note = f" · 구매팀 {len(_uids)}명 통보"
+                if _nres.get("msg_err"):
+                    _ntf_note += f" (메신저 {_nres['msg_err'][:40]})"
+    except Exception as _e:
+        _ntf_note = f" · 구매팀 통보 실패({str(_e)[:40]})"
     msg = (f"v{res['version_no']} 반영 — 추가 {res['added']} · 변경 {res['changed']} · 삭제 {res['deleted']}"
            + (f" · 파일에 없던 기존 라인 {res['missing']}건 유지" if res.get("missing") else "")
-           + (f" · 🔴 발주 후 변경 {res['ordered_warn']}건 재검토 필요" if res.get("ordered_warn") else ""))
+           + (f" · 🔴 발주 후 변경 {res['ordered_warn']}건 재검토 필요" if res.get("ordered_warn") else "")
+           + _ntf_note)
     return RedirectResponse(f"/projects/{project_id}/bom?success={_q(msg)}", 303)
 
 
