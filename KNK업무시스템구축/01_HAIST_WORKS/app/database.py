@@ -968,6 +968,83 @@ CREATE TABLE IF NOT EXISTS part_dedup_dismissals (
     created_at   TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- =====================================================
+-- v5H226z983 (2026-07-15) — 1단계 BOM 보드 (3개월 스프린트 · 대표 지시 "1단계로 진행")
+-- 설계·전장·SW팀 BOM 엑셀 업로드 → 자동 비교(추가/변경/삭제) → 프로젝트 BOM 보드.
+-- bom_items = 살아있는 현재 BOM (버전 스냅샷이 아니라 라인 단위 최신 상태 + 전체 이력)
+-- 원칙: 실삭제 금지(status='삭제')·모든 변경 이력 기록·부분 목록 업로드는 삭제하지 않음(merge 기본)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS bom_uploads (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      INTEGER NOT NULL REFERENCES projects(id),
+    version_no      INTEGER NOT NULL DEFAULT 1,     -- 프로젝트별 업로드 차수
+    source_filename TEXT,
+    sheet_names     TEXT,                            -- 적용한 시트 (쉼표)
+    mode            TEXT DEFAULT 'merge',            -- merge(기본·삭제 안 함) / replace(파일에 없는 활성 라인 삭제)
+    added           INTEGER DEFAULT 0,
+    changed         INTEGER DEFAULT 0,
+    deleted         INTEGER DEFAULT 0,
+    missing         INTEGER DEFAULT 0,               -- merge 모드에서 파일에 없던 기존 라인 수 (삭제 안 함·보고만)
+    ordered_warn    INTEGER DEFAULT 0,               -- 🔴 발주 후 변경/삭제 경고 건수
+    uploaded_by     INTEGER REFERENCES users(id),
+    note            TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_bomup_proj ON bom_uploads(project_id);
+
+CREATE TABLE IF NOT EXISTS bom_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      INTEGER NOT NULL REFERENCES projects(id),
+    item_type       TEXT DEFAULT '구매품',            -- 구매품 / 가공품 / 공용부 (시트 기준)
+    category        TEXT,                             -- CATEGORY(구분·어셈블리 유닛)
+    unit_code       TEXT,                             -- CODE (AA·AB… 유닛 코드)
+    line_no         INTEGER,                          -- 원본 NO.
+    part_no         TEXT,                             -- PRODUCT CODE(모델명)
+    part_no_norm    TEXT,                             -- 정규화 키 (0단계 엔진 공유)
+    part_name       TEXT,
+    maker           TEXT,
+    vendor          TEXT,                             -- VENDOR(외주사)
+    material        TEXT,                             -- 가공품: 재질
+    finishing       TEXT,                             -- 가공품: 후처리
+    unit_count      REAL DEFAULT 0,                   -- 대당 수량
+    total_qty       REAL DEFAULT 0,                   -- 총 수량
+    unit            TEXT DEFAULT 'EA',
+    unit_price      REAL DEFAULT 0,
+    currency        TEXT DEFAULT 'KRW',
+    amount          REAL DEFAULT 0,
+    delivery_text   TEXT,                             -- 납기 (자유 텍스트: '4~5 DAY' 등)
+    buy_at          TEXT,                             -- 구매처: KOR / VINA / '' (구매팀 지정)
+    part_id         INTEGER REFERENCES parts(id),     -- 자재 마스터 매칭 (명확 단일 후보만·별칭 포함)
+    order_status    TEXT DEFAULT '미발주',             -- 미발주/발주/부분입고/입고 (1차 수동 표시·2차 PO 연동)
+    review_flag     INTEGER DEFAULT 0,                -- 🔴 발주 후 변경 — 재검토 필요
+    status          TEXT DEFAULT '활성',               -- 활성 / 삭제 (실삭제 금지)
+    remarks         TEXT,
+    first_upload_id INTEGER,
+    last_upload_id  INTEGER,
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_bomi_proj ON bom_items(project_id, status);
+CREATE INDEX IF NOT EXISTS idx_bomi_norm ON bom_items(part_no_norm);
+CREATE INDEX IF NOT EXISTS idx_bomi_part ON bom_items(part_id);
+
+CREATE TABLE IF NOT EXISTS bom_item_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id     INTEGER NOT NULL,
+    project_id  INTEGER NOT NULL,
+    upload_id   INTEGER,                              -- NULL = 화면 수동 수정
+    change_type TEXT,                                 -- 추가/변경/삭제/복원/수동/이원화/구매처/발주상태
+    field       TEXT,
+    old_value   TEXT,
+    new_value   TEXT,
+    source      TEXT DEFAULT '업로드',                 -- 업로드 / 엑셀표기(->) / 수동
+    note        TEXT,
+    changed_by  INTEGER,
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_bomh_item ON bom_item_history(item_id);
+CREATE INDEX IF NOT EXISTS idx_bomh_proj ON bom_item_history(project_id, created_at);
+
 -- ============ 게시판 (HAIST WORKS) ============
 -- 게시판 마스터: 전사 / 부서별
 CREATE TABLE IF NOT EXISTS boards (

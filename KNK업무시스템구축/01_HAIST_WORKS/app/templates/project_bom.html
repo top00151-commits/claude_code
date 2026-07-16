@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ project.mgmt_code }} BOM · KNK HAIST WORKS</title>
+
+{# v5H226z983 (2026-07-15) — 1단계 BOM 보드
+   - CATEGORY(유닛) 그룹 · 실재고(자재 마스터 연결분) · 구매처 KOR/VINA 일괄 지정
+   - 행 클릭 → 상세/수정 + 변경 이력 타임라인(전체 기록) · 🔴 발주 후 변경 재검토
+   - 실삭제 없음: 삭제 라인도 '삭제 포함'으로 볼 수 있고 복원 가능 #}
+
+<link href="/static/css/v5_tokens.css?v=20260715v5H226z983" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root {
+  --pq-ok:#0d7c4f; --pq-ok-soft:#ecfdf5; --pq-info:#1e5fbf; --pq-info-soft:#eff6ff;
+  --pq-warn:#b45309; --pq-warn-soft:#fef3c7; --pq-danger:#b91c1c; --pq-danger-soft:#fef2f2;
+  --pq-mono:ui-monospace,Consolas,monospace;
+}
+.pl-head { padding:14px 24px 10px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.pl-head .crumb { font-size:12px; color:var(--pq-ink-4); }
+.pl-head .crumb a { color:var(--pq-ink-2); }
+.pl-title { font-size:20px; font-weight:700; color:var(--pq-ink); }
+.pl-meta { font-size:12px; color:var(--pq-ink-3); }
+.pl-meta b { font-family:var(--pq-mono); color:var(--pq-ink); }
+.pl-actions { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.btn-ghost { height:32px; padding:0 12px; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12.5px; color:var(--pq-ink-2); display:inline-flex; align-items:center; gap:5px; text-decoration:none; background:transparent; cursor:pointer; }
+.btn-ghost:hover { background:var(--pq-surface-2); }
+.btn-dark { height:32px; padding:0 14px; background:var(--pq-ink); border:0; border-radius:8px; font-size:12.5px; font-weight:600; color:#fff; display:inline-flex; align-items:center; gap:5px; text-decoration:none; cursor:pointer; }
+
+.banner { margin:10px 24px 0; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
+.banner.ok { background:var(--pq-ok-soft); color:var(--pq-ok); border:1px solid #a7f3d0; }
+.banner.err { background:var(--pq-danger-soft); color:var(--pq-danger); border:1px solid #fecaca; }
+
+.filterbar { display:flex; gap:8px; align-items:center; padding:10px 24px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); flex-wrap:wrap; font-size:12.5px; }
+.fchip { padding:5px 12px; border:1px solid var(--pq-line-2); border-radius:999px; cursor:pointer; background:transparent; font-size:12px; color:var(--pq-ink-2); }
+.fchip.on { background:var(--pq-ink); color:#fff; border-color:var(--pq-ink); }
+.fsearch { height:30px; border:1px solid var(--pq-line-2); border-radius:8px; padding:0 10px; font-size:12.5px; min-width:220px; }
+
+.bwrap { padding:12px 24px 90px; }
+.cat-head { margin:16px 0 6px; font-size:13.5px; font-weight:800; color:var(--pq-ink); display:flex; gap:8px; align-items:baseline; }
+.cat-head .cnt { font-family:var(--pq-mono); font-size:11px; color:var(--pq-ink-4); font-weight:600; }
+.scroll { overflow-x:auto; background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; }
+table.bom { width:100%; border-collapse:collapse; font-size:12px; min-width:1180px; }
+table.bom th { text-align:left; padding:6px 8px; background:var(--pq-surface-2); color:var(--pq-ink-3); font-size:10.5px; font-weight:700; border-bottom:1px solid var(--pq-line); white-space:nowrap; position:sticky; top:0; }
+table.bom td { padding:6px 8px; border-bottom:1px solid var(--pq-line); white-space:nowrap; }
+table.bom tr:last-child td { border-bottom:0; }
+table.bom tr.rowx { cursor:pointer; }
+table.bom tr.rowx:hover { background:var(--pq-surface-2); }
+table.bom tr.is-del { opacity:.45; }
+table.bom tr.is-del td.nm { text-decoration:line-through; }
+table.bom td.mono { font-family:var(--pq-mono); }
+table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-numeric:tabular-nums; }
+.flag { font-size:10px; padding:1px 7px; border-radius:999px; font-weight:800; }
+.flag.review { background:#fee2e2; color:#b91c1c; }
+.flag.kor { background:var(--pq-info-soft); color:var(--pq-info); }
+.flag.vina { background:var(--pq-warn-soft); color:var(--pq-warn); }
+.flag.stock { background:var(--pq-ok-soft); color:var(--pq-ok); }
+.flag.ost { background:var(--pq-surface-3); color:var(--pq-ink-3); }
+.flag.ost.on { background:#ede9fe; color:#6d28d9; }
+
+.bulkbar { position:fixed; left:0; right:0; bottom:0; background:var(--pq-ink); color:#fff; padding:10px 24px; display:none; align-items:center; gap:10px; z-index:60; font-size:13px; }
+.bulkbar.show { display:flex; }
+.bulkbar button { height:30px; padding:0 13px; border:0; border-radius:7px; font-size:12.5px; font-weight:700; cursor:pointer; }
+
+/* 상세 모달 */
+.bmodal-bg { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; z-index:70; }
+.bmodal-bg.show { display:block; }
+.bmodal { position:fixed; top:4vh; left:50%; transform:translateX(-50%); width:min(860px, 94vw); max-height:90vh; overflow:auto; background:var(--pq-surface); border-radius:12px; box-shadow:0 18px 60px rgba(0,0,0,.28); z-index:71; display:none; }
+.bmodal.show { display:block; }
+.bmodal-head { padding:13px 18px; border-bottom:1px solid var(--pq-line); display:flex; align-items:center; gap:10px; position:sticky; top:0; background:var(--pq-surface); }
+.bmodal-head b { font-family:var(--pq-mono); font-size:15px; }
+.bmodal-close { margin-left:auto; border:0; background:transparent; font-size:19px; cursor:pointer; color:var(--pq-ink-3); }
+.bmodal-body { padding:14px 18px 20px; }
+.fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
+.fgrid label { font-size:10.5px; color:var(--pq-ink-3); font-weight:700; display:block; margin-bottom:2px; }
+.fgrid input, .fgrid select { width:100%; height:30px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 8px; font-size:12.5px; box-sizing:border-box; }
+.hist-item { padding:7px 0; border-bottom:1px dashed var(--pq-line); font-size:12px; line-height:1.5; }
+.hist-item .t { font-family:var(--pq-mono); color:var(--pq-ink-4); font-size:10.5px; }
+@media (max-width:640px){ .bwrap{padding:10px 8px 100px;} .pl-head,.filterbar{padding:10px 12px;} }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+
+    <div class="pl-head">
+      <div>
+        <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/bom/upload">BOM 업로드</a> · <b>BOM 보드</b></div>
+        <div class="pl-title">📋 {{ project.mgmt_code }} <span style="font-weight:500;color:var(--pq-ink-2);">{{ project.name }}</span></div>
+      </div>
+      <div class="pl-meta">
+        {% set act = rows | selectattr('status','equalto','활성') | list %}
+        {% set dels = rows | rejectattr('status','equalto','활성') | list %}
+        {% set reviews = act | selectattr('review_flag') | list %}
+        활성 <b>{{ act|length }}</b>종 · 삭제 <b>{{ dels|length }}</b> · 🔴재검토 <b style="color:#b91c1c;">{{ reviews|length }}</b>
+        {% if uploads %} · 최신 v<b>{{ uploads[0].version_no }}</b> ({{ (uploads[0].created_at or '')[:16] }}, {{ uploads[0].uploaded_by_name or '' }}){% endif %}
+      </div>
+      <div class="pl-actions">
+        <a class="btn-ghost" href="/projects/{{ project.id }}" title="프로젝트 상세">프로젝트 ↗</a>
+        <a class="btn-ghost" href="/projects/{{ project.id }}/bom/export.xlsx">⤓ 현재 BOM 엑셀</a>
+        <a class="btn-dark" href="/bom/upload">📋 새 BOM 업로드</a>
+      </div>
+    </div>
+
+    {% set _succ = request.query_params.get('success') %}
+    {% set _err = request.query_params.get('error') %}
+    {% if _succ %}<div class="banner ok">✅ {{ _succ }}</div>{% endif %}
+    {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
+
+    <div class="filterbar">
+      <button class="fchip on" data-f="all">전체</button>
+      <button class="fchip" data-f="review">🔴 재검토 {{ reviews|length }}</button>
+      <button class="fchip" data-f="nobuy">구매처 미지정</button>
+      <button class="fchip" data-f="del">삭제 포함</button>
+      <input class="fsearch" id="bomSearch" placeholder="모델명·품명·제조사 검색 (표기 달라도 찾음)">
+      <span style="margin-left:auto;font-size:11px;color:var(--pq-ink-4);">행 클릭=상세·이력{% if can_edit %} · 체크 후 아래 막대로 구매처 일괄 지정{% endif %}</span>
+    </div>
+
+    <div class="bwrap">
+      {% for cat, items in rows | groupby('category') %}
+      <div class="cat-head" data-cat-head>{{ cat or '(구분 없음)' }} <span class="cnt">{{ items | selectattr('status','equalto','활성') | list | length }}종</span></div>
+      <div class="scroll">
+      <table class="bom">
+        <thead>
+          <tr>
+            {% if can_edit %}<th><input type="checkbox" data-catall></th>{% endif %}
+            <th>NO</th><th>모델명</th><th>품명</th><th>제조사</th><th>외주/재질</th>
+            <th style="text-align:right">대당</th><th style="text-align:right">총</th><th>단위</th>
+            <th style="text-align:right">단가</th><th style="text-align:right">금액</th>
+            <th>납기</th><th>구매처</th><th style="text-align:right" title="자재 마스터 연결 시 현재 실재고">재고</th>
+            <th>발주</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for it in items %}
+          <tr class="rowx {{ 'is-del' if it.status != '활성' }}"
+              data-status="{{ it.status }}" data-review="{{ 1 if it.review_flag else 0 }}"
+              data-buy="{{ it.buy_at or '' }}"
+              data-search="{{ ((it.part_no or '') ~ ' ' ~ (it.part_name or '') ~ ' ' ~ (it.maker or '')) | lower }}"
+              data-item="{{ it | tojson | e }}">
+            {% if can_edit %}<td onclick="event.stopPropagation()"><input type="checkbox" class="rowck" value="{{ it.id }}" {{ 'disabled' if it.status != '활성' }}></td>{% endif %}
+            <td class="mono">{{ it.line_no or '' }}</td>
+            <td class="mono"><b>{{ it.part_no or '—' }}</b></td>
+            <td class="nm">{{ it.part_name }}</td>
+            <td>{{ it.maker or '' }}</td>
+            <td style="font-size:11px;color:var(--pq-ink-3);">{{ it.vendor or it.material or '' }}{{ ('·' ~ it.finishing) if it.finishing else '' }}</td>
+            <td class="num">{{ '%g' | format(it.unit_count or 0) }}</td>
+            <td class="num">{{ '%g' | format(it.total_qty or 0) }}</td>
+            <td>{{ it.unit }}</td>
+            <td class="num">{{ '{:,.0f}'.format(it.unit_price or 0) }}</td>
+            <td class="num">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
+            <td style="font-size:11px;">{{ it.delivery_text or '' }}</td>
+            <td>{% if it.buy_at == 'KOR' %}<span class="flag kor">KOR</span>
+                {% elif it.buy_at == 'VINA' %}<span class="flag vina">VINA</span>{% endif %}</td>
+            <td class="num">{% if it.part_id %}<span class="flag stock">{{ '%g' | format(it.master_stock or 0) }}</span>{% else %}<span style="color:var(--pq-ink-4);">—</span>{% endif %}</td>
+            <td><span class="flag ost {{ 'on' if (it.order_status or '미발주') != '미발주' }}">{{ it.order_status or '미발주' }}</span></td>
+            <td>{% if it.review_flag %}<span class="flag review">🔴 재검토</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div style="padding:50px;text-align:center;color:var(--pq-ink-4);background:var(--pq-surface);border:1px dashed var(--pq-line-2);border-radius:10px;">
+        아직 BOM이 없습니다 — <a href="/bom/upload">BOM 업로드</a>에서 엑셀을 올리면 여기 나타납니다.
+      </div>
+      {% endfor %}
+
+      {% if uploads %}
+      <details style="margin-top:18px;">
+        <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--pq-ink-2);">📜 업로드 이력 ({{ uploads|length }})</summary>
+        <div class="scroll" style="margin-top:8px;"><table class="bom" style="min-width:760px;">
+          <thead><tr><th>버전</th><th>일시</th><th>파일</th><th>시트</th><th>모드</th><th style="text-align:right">➕</th><th style="text-align:right">✏️</th><th style="text-align:right">➖</th><th style="text-align:right">🔴</th><th>올린 사람</th></tr></thead>
+          <tbody>
+          {% for up in uploads %}
+            <tr>
+              <td class="mono">v{{ up.version_no }}</td>
+              <td class="mono">{{ (up.created_at or '')[:16] }}</td>
+              <td style="font-size:11px;">{{ up.source_filename }}</td>
+              <td style="font-size:11px;">{{ up.sheet_names }}</td>
+              <td>{{ '전체 교체' if up.mode == 'replace' else '안전 반영' }}</td>
+              <td class="num">{{ up.added }}</td><td class="num">{{ up.changed }}</td>
+              <td class="num">{{ up.deleted }}</td>
+              <td class="num" style="color:{{ '#b91c1c' if up.ordered_warn else 'inherit' }}">{{ up.ordered_warn }}</td>
+              <td>{{ up.uploaded_by_name or '' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      </details>
+      {% endif %}
+    </div>
+
+    {# ── 구매처 일괄 지정 바 ── #}
+    {% if can_edit %}
+    <form class="bulkbar" id="bulkBar" method="post" action="/projects/{{ project.id }}/bom/buyat">
+      <span><b id="bulkCnt">0</b>개 선택</span>
+      <input type="hidden" name="buy_at" id="bulkVal">
+      <button type="submit" data-v="KOR" style="background:#dbeafe;color:#1e5fbf;">🇰🇷 KOR 지정</button>
+      <button type="submit" data-v="VINA" style="background:#fef3c7;color:#b45309;">🇻🇳 VINA 지정</button>
+      <button type="submit" data-v="" style="background:#e2e8f0;color:#334155;">지정 해제</button>
+      <button type="button" id="bulkClear" style="background:transparent;color:#cbd5e1;border:1px solid #475569;">선택 취소</button>
+    </form>
+    {% endif %}
+
+    {# ── 상세/수정 모달 ── #}
+    <div class="bmodal-bg" id="bmBg"></div>
+    <div class="bmodal" id="bm">
+      <div class="bmodal-head">
+        <b id="bmTitle"></b>
+        <span id="bmFlags"></span>
+        <button class="bmodal-close" id="bmClose" title="닫기">✕</button>
+      </div>
+      <div class="bmodal-body">
+        {% if can_edit %}
+        <form method="post" id="bmForm">
+          <div class="fgrid">
+            <div><label>모델명 (PRODUCT CODE) — 바꾸면 이원화/변경으로 이력</label><input name="part_no" id="bf_part_no"></div>
+            <div><label>품명</label><input name="part_name" id="bf_part_name"></div>
+            <div><label>제조사</label><input name="maker" id="bf_maker"></div>
+            <div><label>외주사</label><input name="vendor" id="bf_vendor"></div>
+            <div><label>재질(가공품)</label><input name="material" id="bf_material"></div>
+            <div><label>후처리(가공품)</label><input name="finishing" id="bf_finishing"></div>
+            <div><label>구분(CATEGORY)</label><input name="category" id="bf_category"></div>
+            <div><label>대당 수량</label><input name="unit_count" id="bf_unit_count" inputmode="decimal"></div>
+            <div><label>총 수량</label><input name="total_qty" id="bf_total_qty" inputmode="decimal"></div>
+            <div><label>단위</label><input name="unit" id="bf_unit"></div>
+            <div><label>단가 (금액 자동 재계산)</label><input name="unit_price" id="bf_unit_price" inputmode="decimal"></div>
+            <div><label>납기</label><input name="delivery_text" id="bf_delivery_text"></div>
+            <div><label>구매처</label>
+              <select name="buy_at" id="bf_buy_at"><option value="">— 미지정 —</option><option value="KOR">KOR (본사)</option><option value="VINA">VINA (베트남)</option></select></div>
+            <div><label>발주 상태 (2단계에서 발주서와 자동 연동 예정)</label>
+              <select name="order_status" id="bf_order_status">
+                <option>미발주</option><option>발주</option><option>부분입고</option><option>입고</option>
+              </select></div>
+            <div style="grid-column:1/-1;"><label>비고</label><input name="remarks" id="bf_remarks"></div>
+            <div style="grid-column:1/-1;"><label>수정 메모 (이력에 남음·선택)</label><input name="edit_note" id="bf_edit_note" placeholder="예: 설계팀 김OO 확인 후 대체품 적용"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:13px;flex-wrap:wrap;">
+            <button type="submit" class="btn-dark">💾 저장</button>
+            <button type="submit" class="btn-ghost" id="bmClearReview" style="display:none;">✅ 재검토 완료 처리</button>
+            <button type="submit" class="btn-ghost" id="bmDelete" style="color:#b91c1c;">➖ 삭제 처리</button>
+            <button type="submit" class="btn-ghost" id="bmRestore" style="display:none;color:#0d7c4f;">↩ 복원</button>
+          </div>
+        </form>
+        {% endif %}
+        <div style="margin-top:16px;">
+          <div style="font-size:12.5px;font-weight:800;color:var(--pq-ink);">🕒 변경 이력 <span style="font-weight:500;color:var(--pq-ink-4);">(업로드·엑셀 표기·수동 전부)</span></div>
+          <div id="bmHist" style="margin-top:6px;"><div style="color:var(--pq-ink-4);font-size:12px;">불러오는 중…</div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+  var CAN_EDIT = {{ 'true' if can_edit else 'false' }};
+
+  // ── 필터 ──
+  var state = { f:'all', del:false, q:'' };
+  function applyFilter(){
+    document.querySelectorAll('tr.rowx').forEach(function(tr){
+      var show = true;
+      if (!state.del && tr.dataset.status !== '활성') show = false;
+      if (state.f === 'review' && tr.dataset.review !== '1') show = false;
+      if (state.f === 'nobuy' && (tr.dataset.buy || '') !== '') show = false;
+      if (state.q && (tr.dataset.search || '').indexOf(state.q) < 0) show = false;
+      tr.style.display = show ? '' : 'none';
+    });
+    // 빈 그룹 숨김
+    document.querySelectorAll('[data-cat-head]').forEach(function(h){
+      var tblWrap = h.nextElementSibling;
+      if (!tblWrap) return;
+      var any = tblWrap.querySelectorAll('tr.rowx:not([style*="display: none"])').length > 0;
+      h.style.display = any ? '' : 'none';
+      tblWrap.style.display = any ? '' : 'none';
+    });
+  }
+  document.querySelectorAll('.fchip').forEach(function(ch){
+    ch.addEventListener('click', function(){
+      var f = ch.dataset.f;
+      if (f === 'del') { state.del = !state.del; ch.classList.toggle('on', state.del); }
+      else {
+        state.f = (state.f === f && f !== 'all') ? 'all' : f;
+        document.querySelectorAll('.fchip').forEach(function(c){ if (c.dataset.f !== 'del') c.classList.toggle('on', c.dataset.f === state.f); });
+      }
+      applyFilter();
+    });
+  });
+  var srch = document.getElementById('bomSearch');
+  if (srch) srch.addEventListener('input', function(){
+    // 정규화 검색: 공백·하이픈 등 무시 (서버 정규화 키와 동일 철학)
+    state.q = (srch.value || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+    document.querySelectorAll('tr.rowx').forEach(function(tr){
+      if (!tr.dataset.searchNorm) tr.dataset.searchNorm = (tr.dataset.search || '').replace(/[^a-z0-9가-힣]/g, '');
+    });
+    document.querySelectorAll('tr.rowx').forEach(function(tr){ tr.dataset.search2 = tr.dataset.searchNorm; });
+    // applyFilter에서 search 비교를 정규화본으로
+    applyFilterNorm();
+  });
+  function applyFilterNorm(){
+    document.querySelectorAll('tr.rowx').forEach(function(tr){
+      var show = true;
+      if (!state.del && tr.dataset.status !== '활성') show = false;
+      if (state.f === 'review' && tr.dataset.review !== '1') show = false;
+      if (state.f === 'nobuy' && (tr.dataset.buy || '') !== '') show = false;
+      if (state.q && (tr.dataset.searchNorm || '').indexOf(state.q) < 0) show = false;
+      tr.style.display = show ? '' : 'none';
+    });
+    document.querySelectorAll('[data-cat-head]').forEach(function(h){
+      var tblWrap = h.nextElementSibling;
+      if (!tblWrap) return;
+      var any = tblWrap.querySelectorAll('tr.rowx:not([style*="display: none"])').length > 0;
+      h.style.display = any ? '' : 'none';
+      tblWrap.style.display = any ? '' : 'none';
+    });
+  }
+
+  // ── 체크박스 + 일괄 바 ──
+  var bar = document.getElementById('bulkBar');
+  function refreshBar(){
+    if (!bar) return;
+    var cks = document.querySelectorAll('.rowck:checked');
+    document.getElementById('bulkCnt').textContent = cks.length;
+    bar.classList.toggle('show', cks.length > 0);
+    bar.querySelectorAll('input[name=item_ids]').forEach(function(h){ h.remove(); });
+    cks.forEach(function(ck){
+      var h = document.createElement('input');
+      h.type = 'hidden'; h.name = 'item_ids'; h.value = ck.value;
+      bar.appendChild(h);
+    });
+  }
+  document.querySelectorAll('.rowck').forEach(function(ck){ ck.addEventListener('change', refreshBar); });
+  document.querySelectorAll('[data-catall]').forEach(function(all){
+    all.addEventListener('change', function(){
+      var tbl = all.closest('table');
+      tbl.querySelectorAll('.rowck:not(:disabled)').forEach(function(ck){
+        var tr = ck.closest('tr');
+        if (tr.style.display !== 'none') ck.checked = all.checked;
+      });
+      refreshBar();
+    });
+  });
+  if (bar) {
+    bar.querySelectorAll('button[data-v]').forEach(function(b){
+      b.addEventListener('click', function(){ document.getElementById('bulkVal').value = b.dataset.v; });
+    });
+    var bc = document.getElementById('bulkClear');
+    if (bc) bc.addEventListener('click', function(){
+      document.querySelectorAll('.rowck:checked').forEach(function(ck){ ck.checked = false; });
+      refreshBar();
+    });
+    bar.addEventListener('submit', function(){
+      try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('구매처 지정 중…'); } catch(e) {}
+    });
+  }
+
+  // ── 상세 모달 ──
+  var bm = document.getElementById('bm'), bg = document.getElementById('bmBg');
+  function openModal(item){
+    document.getElementById('bmTitle').textContent = (item.part_no || item.part_name || '') ;
+    var flags = '';
+    if (item.review_flag) flags += '<span class="flag review">🔴 재검토 필요</span> ';
+    if (item.status !== '활성') flags += '<span class="flag ost">삭제됨</span> ';
+    if (item.part_id) flags += '<span class="flag stock">자재연결 · 재고 ' + esc(item.master_stock || 0) + '</span>';
+    else flags += '<span class="flag ost" title="자재 마스터에서 같은 모델명을 찾지 못함">자재 미연결</span>';
+    document.getElementById('bmFlags').innerHTML = flags;
+    if (CAN_EDIT) {
+      var f = document.getElementById('bmForm');
+      f.action = '/bom/items/' + item.id + '/edit';
+      ['part_no','part_name','maker','vendor','material','finishing','category',
+       'unit_count','total_qty','unit','unit_price','delivery_text','buy_at','order_status','remarks'
+      ].forEach(function(k){
+        var el = document.getElementById('bf_' + k);
+        if (el) el.value = (item[k] == null ? '' : item[k]);
+      });
+      document.getElementById('bf_edit_note').value = '';
+      var cr = document.getElementById('bmClearReview');
+      cr.style.display = item.review_flag ? '' : 'none';
+      cr.onclick = function(){
+        var h = document.createElement('input'); h.type='hidden'; h.name='clear_review'; h.value='1';
+        document.getElementById('bmForm').appendChild(h);
+      };
+      var del = document.getElementById('bmDelete'), rst = document.getElementById('bmRestore');
+      del.style.display = (item.status === '활성') ? '' : 'none';
+      rst.style.display = (item.status === '활성') ? 'none' : '';
+      del.onclick = function(ev){
+        if (!confirm('이 라인을 삭제 처리합니다 (이력이 남고, 삭제 포함 보기에서 복원 가능).\n계속할까요?')) { ev.preventDefault(); return; }
+        var h = document.createElement('input'); h.type='hidden'; h.name='status'; h.value='삭제';
+        document.getElementById('bmForm').appendChild(h);
+      };
+      rst.onclick = function(){
+        var h = document.createElement('input'); h.type='hidden'; h.name='status'; h.value='활성';
+        document.getElementById('bmForm').appendChild(h);
+      };
+    }
+    var hd = document.getElementById('bmHist');
+    hd.innerHTML = '<div style="color:var(--pq-ink-4);font-size:12px;">불러오는 중…</div>';
+    fetch('/bom/items/' + item.id + '/history', {credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var hs = (d && d.history) || [];
+        if (!hs.length) { hd.innerHTML = '<div style="color:var(--pq-ink-4);font-size:12px;">이력이 없습니다</div>'; return; }
+        var html = '';
+        hs.forEach(function(h){
+          html += '<div class="hist-item"><span class="t">' + esc(h.at) + (h.ver ? ' · v' + esc(h.ver) : '') + ' · ' + esc(h.source) + (h.by ? ' · ' + esc(h.by) : '') + '</span><br>'
+               + '<b>' + esc(h.type) + '</b>' + (h.field ? ' <span style="color:var(--pq-ink-3);">' + esc(h.field) + '</span>' : '')
+               + (h.old != null || h.new != null
+                   ? ' : <span style="color:var(--pq-ink-4);text-decoration:line-through;">' + esc(h.old == null ? '' : h.old) + '</span> → <b style="color:#b91c1c;">' + esc(h.new == null ? '' : h.new) + '</b>'
+                   : '')
+               + (h.note ? '<br><span style="color:var(--pq-warn);font-size:11px;">' + esc(h.note) + '</span>' : '')
+               + '</div>';
+        });
+        hd.innerHTML = html;
+      })
+      .catch(function(){ hd.innerHTML = '<div style="color:#b91c1c;font-size:12px;">이력 조회 실패</div>'; });
+    bm.classList.add('show'); bg.classList.add('show');
+  }
+  function closeModal(){ bm.classList.remove('show'); bg.classList.remove('show'); }
+  document.getElementById('bmClose').addEventListener('click', closeModal);
+  bg.addEventListener('click', closeModal);
+  document.querySelectorAll('tr.rowx').forEach(function(tr){
+    tr.addEventListener('click', function(){
+      try { openModal(JSON.parse(tr.dataset.item)); } catch(e) {}
+    });
+  });
+  var bmf = document.getElementById('bmForm');
+  if (bmf) bmf.addEventListener('submit', function(){
+    try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('저장 중…'); } catch(e) {}
+  });
+})();
+</script>
+</body>
+</html>

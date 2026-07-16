@@ -20439,6 +20439,282 @@ async def parts_dedup_unmerge_submit(request: Request, log_id: int):
 
 
 # =====================================================
+# v5H226z983 (2026-07-15) — 1단계 BOM 보드 (대표 지시 "1단계로 진행")
+# 흐름: 설계·전장·SW·구매팀이 쓰던 BOM 엑셀 그대로 업로드
+#   → 미리보기(직전 보드와 자동 비교: 추가/변경/삭제·🔴발주후변경) → 적용
+#   → /projects/{id}/bom 보드 (CATEGORY 그룹·실재고·구매처 KOR/VINA·이력·엑셀 다운로드)
+# 업로드 권한: 자재관리 사용자(구매팀 등) + 설계(4)·소프트웨어(5)·전장설계(6)팀
+# =====================================================
+from . import bom as _bom
+
+
+def _bom_can_upload(u) -> bool:
+    if can_use_logistics(u):
+        return True
+    try:
+        tid = u.get("team_id") if isinstance(u, dict) else u["team_id"]
+    except (KeyError, IndexError, TypeError):
+        tid = None
+    return tid in (4, 5, 6)   # 설계팀·소프트웨어팀·전장설계팀 (BOM 작성 부서)
+
+
+@app.get("/bom/upload", response_class=HTMLResponse)
+async def bom_upload_form(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _bom_can_upload(u):
+        return RedirectResponse("/home", 303)
+    try:
+        recent = _bom.bom_projects_summary(limit=30)
+    except Exception:
+        recent = []
+    return ctx(request, "bom_upload.html", user=u, active="parts",
+               mode="upload", recent=recent)
+
+
+@app.post("/bom/upload")
+async def bom_upload_submit(request: Request, file: UploadFile = File(...)):
+    """엑셀 업로드 → 파싱 + 프로젝트 자동 연결 + 직전 보드와 비교 미리보기 (DB 반영 없음)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _bom_can_upload(u):
+        return RedirectResponse("/home", 303)
+    raw = await file.read()
+    fname = (file.filename or "bom.xlsx")
+    if not raw:
+        return ctx(request, "bom_upload.html", user=u, active="parts",
+                   mode="upload", error="빈 파일입니다", recent=[])
+    if len(raw) > 15 * 1024 * 1024:
+        return ctx(request, "bom_upload.html", user=u, active="parts",
+                   mode="upload", error="파일이 너무 큽니다 (15MB 제한)", recent=[])
+    if not fname.lower().endswith((".xlsx", ".xlsm")):
+        return ctx(request, "bom_upload.html", user=u, active="parts",
+                   mode="upload", error=f"Excel 파일(.xlsx)만 지원합니다 (현재: {fname})", recent=[])
+    import tempfile, base64
+    tmp_dir = tempfile.mkdtemp(prefix="bom_upload_")
+    tmp_path = os.path.join(tmp_dir, "bom.xlsx")
+    with open(tmp_path, "wb") as f:
+        f.write(raw)
+    err = ""
+    try:
+        parsed = _bom.parse_bom_file(tmp_path, filename=fname)
+    except Exception as e:
+        parsed = None
+        err = f"파싱 오류: {e}"
+    finally:
+        try:
+            os.remove(tmp_path)
+            os.rmdir(tmp_dir)
+        except Exception:
+            pass
+    if parsed is None:
+        return ctx(request, "bom_upload.html", user=u, active="parts",
+                   mode="upload", error=err, recent=[])
+    ok_sheets = [s for s in parsed["sheets"] if s.get("ok")]
+    bad_sheets = [s for s in parsed["sheets"] if not s.get("ok")]
+    if not ok_sheets:
+        return ctx(request, "bom_upload.html", user=u, active="parts", mode="upload",
+                   error="BOM으로 인식된 시트가 없습니다 — 헤더(품명·수량 등)가 있는 최신 양식인지 확인해주세요. "
+                         + " / ".join(f"[{s['sheet']}] {s['reason']}" for s in bad_sheets[:3]),
+                   recent=[])
+    # 프로젝트 자동 연결: 영업관리코드(열·제목·파일명) → projects.mgmt_code
+    proj = _bom.find_project_by_code(parsed.get("mgmt_code"))
+    plan = None
+    if proj:
+        _all_items = [it for s in ok_sheets for it in s["items"]]
+        try:
+            plan = _bom.plan_diff(proj["id"], _all_items)
+        except Exception as e:
+            plan = {"error": str(e)}
+    pick = [] if proj else _bom.projects_pick_list()
+    file_b64 = base64.b64encode(raw).decode("ascii")
+    return ctx(request, "bom_upload.html", user=u, active="parts", mode="preview",
+               parsed=parsed, ok_sheets=ok_sheets, bad_sheets=bad_sheets,
+               project=proj, project_pick=pick, plan=plan,
+               file_b64=file_b64, filename=fname)
+
+
+@app.post("/bom/upload/apply")
+async def bom_upload_apply(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _bom_can_upload(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    import base64, tempfile
+    try:
+        raw = base64.b64decode((form.get("file_b64") or "").encode("ascii"))
+        project_id = int(form.get("project_id") or 0)
+    except Exception:
+        raw = b""
+        project_id = 0
+    fname = form.get("filename") or "bom.xlsx"
+    mode = "replace" if (form.get("mode") == "replace") else "merge"
+    sel_sheets = [s for s in form.getlist("sheets") if s]
+    if not raw or not project_id:
+        return RedirectResponse(f"/bom/upload?error={_q('적용 정보가 유실됐습니다 — 다시 업로드해주세요')}", 303)
+    tmp_dir = tempfile.mkdtemp(prefix="bom_apply_")
+    tmp_path = os.path.join(tmp_dir, "bom.xlsx")
+    with open(tmp_path, "wb") as f:
+        f.write(raw)
+    try:
+        parsed = _bom.parse_bom_file(tmp_path, filename=fname)
+        items = [it for s in parsed["sheets"]
+                 if s.get("ok") and (not sel_sheets or s["sheet"] in sel_sheets)
+                 for it in s["items"]]
+        used_sheets = ",".join(s["sheet"] for s in parsed["sheets"]
+                               if s.get("ok") and (not sel_sheets or s["sheet"] in sel_sheets))
+        try:
+            _uid = int(u["id"])
+        except (KeyError, TypeError, ValueError):
+            _uid = 0
+        res = _bom.apply_upload(project_id, items, mode, _uid, fname, used_sheets)
+    except Exception as e:
+        return RedirectResponse(f"/bom/upload?error={_q('적용 실패: ' + str(e))}", 303)
+    finally:
+        try:
+            os.remove(tmp_path)
+            os.rmdir(tmp_dir)
+        except Exception:
+            pass
+    msg = (f"v{res['version_no']} 반영 — 추가 {res['added']} · 변경 {res['changed']} · 삭제 {res['deleted']}"
+           + (f" · 파일에 없던 기존 라인 {res['missing']}건 유지" if res.get("missing") else "")
+           + (f" · 🔴 발주 후 변경 {res['ordered_warn']}건 재검토 필요" if res.get("ordered_warn") else ""))
+    return RedirectResponse(f"/projects/{project_id}/bom?success={_q(msg)}", 303)
+
+
+@app.get("/projects/{pid:int}/bom", response_class=HTMLResponse)
+async def project_bom_board(request: Request, pid: int, view: str = ""):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_view_logistics(u) or _bom_can_upload(u)):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+    if not pr:
+        return RedirectResponse("/bom/upload", 303)
+    rows = _bom.get_board(pid, include_deleted=True)  # 삭제 포함해 받아 화면에서 필터 (건수 표시용)
+    uploads = _bom.list_uploads(pid, limit=10)
+    can_edit = can_use_logistics(u)
+    return ctx(request, "project_bom.html", user=u, active="parts",
+               project=dict(pr), rows=rows, uploads=uploads,
+               view=view, can_edit=can_edit)
+
+
+@app.post("/bom/items/{iid:int}/edit")
+async def bom_item_edit(request: Request, iid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    it = _bom.get_item(iid)
+    if not it:
+        return RedirectResponse("/bom/upload", 303)
+    fields = {}
+    for f in ("part_no", "part_name", "maker", "vendor", "material", "finishing",
+              "category", "unit_code", "unit_count", "total_qty", "unit",
+              "unit_price", "delivery_text", "buy_at", "remarks", "order_status", "status"):
+        if f in form:
+            fields[f] = form.get(f)
+    if form.get("clear_review") == "1":
+        fields["review_flag"] = 0
+    try:
+        _uid = int(u["id"])
+    except (KeyError, TypeError, ValueError):
+        _uid = 0
+    try:
+        changed = _bom.update_item(iid, fields, _uid, note=(form.get("edit_note") or "").strip())
+    except Exception as e:
+        return RedirectResponse(f"/projects/{it['project_id']}/bom?error={_q(str(e))}", 303)
+    msg = f"라인 저장 — 변경 {len(changed)}건" if changed else "변경 사항 없음"
+    return RedirectResponse(f"/projects/{it['project_id']}/bom?success={_q(msg)}", 303)
+
+
+@app.get("/bom/items/{iid:int}/history")
+async def bom_item_history_json(request: Request, iid: int):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"error": "login"}, status_code=401)
+    if not (can_view_logistics(u) or _bom_can_upload(u)):
+        return JSONResponse({"error": "권한 없음"}, status_code=403)
+    try:
+        hist = _bom.get_item_history(iid)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=200)
+    return JSONResponse({"history": [{
+        "at": (h.get("created_at") or "")[:16],
+        "type": h.get("change_type") or "",
+        "field": h.get("field") or "",
+        "old": h.get("old_value"),
+        "new": h.get("new_value"),
+        "source": h.get("source") or "",
+        "by": h.get("changed_by_name") or "",
+        "ver": h.get("version_no"),
+        "note": h.get("note") or "",
+    } for h in hist]})
+
+
+@app.post("/projects/{pid:int}/bom/buyat")
+async def project_bom_buyat(request: Request, pid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    val = (form.get("buy_at") or "").upper()
+    ids = []
+    for v in form.getlist("item_ids"):
+        try:
+            ids.append(int(v))
+        except (TypeError, ValueError):
+            pass
+    if not ids:
+        return RedirectResponse(f"/projects/{pid}/bom?error={_q('품목을 먼저 체크하세요')}", 303)
+    try:
+        _uid = int(u["id"])
+    except (KeyError, TypeError, ValueError):
+        _uid = 0
+    try:
+        n = _bom.set_buy_at_bulk(pid, ids, val, _uid)
+    except Exception as e:
+        return RedirectResponse(f"/projects/{pid}/bom?error={_q(str(e))}", 303)
+    lbl = val if val else "해제"
+    return RedirectResponse(f"/projects/{pid}/bom?success={_q(f'구매처 {lbl} 지정 — {n}건')}", 303)
+
+
+@app.get("/projects/{pid:int}/bom/export.xlsx")
+async def project_bom_export(request: Request, pid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_view_logistics(u) or _bom_can_upload(u)):
+        return RedirectResponse("/home", 303)
+    try:
+        data = _bom.export_xlsx(pid)
+    except Exception:
+        return RedirectResponse(f"/projects/{pid}/bom", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (pid,)).fetchone()
+    code = (pr["mgmt_code"] if pr else str(pid)) or str(pid)
+    from urllib.parse import quote as _q
+    fname_kr = f"{code}_BOM_현재본.xlsx"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{_q(fname_kr)}"})
+
+
+# =====================================================
 # v5H226z58 (2026-05-12) — QR 코드 발행 (자재 + 발주)
 # 자재 QR 페이로드: "KNK-PART:{part_no}|{id}"  → 입고·재고관리·창고 라벨용
 # 발주 QR 페이로드: "KNK-PO:{po_number}|{id}"  → 입고 처리 시 QR 스캔 자동 매칭
