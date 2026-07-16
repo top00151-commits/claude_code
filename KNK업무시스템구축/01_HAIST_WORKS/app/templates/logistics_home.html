@@ -263,6 +263,15 @@
         </div>
       </div>
 
+      {# v5H226z985: BOM 현황 — 🔴재검토(발주 후 변경)가 구매팀 하루의 시작 신호 #}
+      <a class="card clickable" href="/bom/upload">
+        <div class="card-label">BOM 프로젝트</div>
+        <div class="card-value">{{ bom_stat.projects if bom_stat is defined else 0 }}</div>
+        <div class="card-trend neutral" {% if bom_stat is defined and bom_stat.review %}style="color:#ef4444;font-weight:800;"{% endif %}>
+          {{ ('🔴 재검토 ' ~ bom_stat.review ~ '건') if (bom_stat is defined and bom_stat.review) else '재검토 없음' }}
+        </div>
+      </a>
+
       <a class="card clickable" href="/parts">
         <div class="card-label">자재 마스터</div>
         <div class="card-value">{{ ps.active|default(0) }}</div>
@@ -297,7 +306,13 @@
     <!-- 빠른 액션 (v5H226z58 2026-05-12: 자재 일괄 등록 진입 카드 추가, 5칸 그리드) -->
     <div class="section">
       <h2>자재 작업</h2>
-      <div class="actions" style="grid-template-columns: repeat(5, 1fr);">
+      <div class="actions" style="grid-template-columns: repeat(6, 1fr);">
+        {# v5H226z985 (대표 화면 지적): BOM 인계 시작점 — 설계팀 업로드/구매팀 보드 진입 #}
+        <a class="action-card" href="/bom/upload">
+          <div class="action-icon">📋</div>
+          <div class="action-text"><h4>BOM 업로드</h4><p>설계 BOM 반영 + 자동 비교</p></div>
+          <div class="action-arrow">→</div>
+        </a>
         <a class="action-card" href="/po/new">
           <div class="action-icon">📝</div>
           <div class="action-text"><h4>새 발주서</h4><p>거래처 + 품목 + 단가</p></div>

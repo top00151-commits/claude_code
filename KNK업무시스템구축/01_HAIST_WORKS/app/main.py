@@ -19614,11 +19614,23 @@ def logi_dashboard(request: Request):
                 "in_cnt": p["in_cnt"], "out_cnt": p["out_cnt"],
                 "is_today": (d == 0),
             })
+    # v5H226z985 (대표 화면 지적): 자재 홈에 BOM 현황 — 구매팀 하루의 시작 신호(🔴재검토)
+    bom_stat = {"projects": 0, "review": 0}
+    try:
+        with db_session() as _c:
+            _br = _c.execute(
+                "SELECT COUNT(DISTINCT project_id),"
+                "       COALESCE(SUM(CASE WHEN review_flag=1 THEN 1 ELSE 0 END),0)"
+                "  FROM bom_items WHERE status='활성'").fetchone()
+            bom_stat = {"projects": int(_br[0] or 0), "review": int(_br[1] or 0)}
+    except Exception:
+        pass
     return ctx(request, "logistics_home.html",
                user=u, active="logistics",
                parts_stats=parts_stats,
                stock_kpi=s_kpi,
                trend_7d=trend_7d,
+               bom_stat=bom_stat,
                demo_mode=demo_mode)
 
 
