@@ -693,6 +693,63 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 {# v5H226z134: 부분 전환(SPA식) — 본문만 교체해 전환 깜빡임 제거 (전 페이지 공통) #}
 {% include "_v5_partials/spa_nav.html" ignore missing %}
 
+<script>
+/* v5H226z984 (대표 지시·⭐전사 표준): 화면 위치 복원 — "목록에서 스크롤 내려 찾아 들어갔다 돌아오면
+   그 자리 그대로". 문제: SPA 전환기(spa_nav)가 본문 교체 직후 무조건 맨 위로 리셋 + 저장 후
+   새로고침도 리셋 → 어디까지 봤는지 매번 다시 찾아야 했음(대표 신고: 소모품 발주·작업일정표 등 전 화면).
+   방식: URL(경로+쿼리)별로 창/본문(.main) 스크롤 위치를 sessionStorage(탭 단위)에 수시 저장,
+   같은 URL로 다시 오면(SPA 전환·전체 로드·뒤로가기·저장 후 reload 모두) 그 위치로 복원.
+   규칙: ① 새 화면은 chrome.html 포함만으로 자동 적용(별도 작업 불필요) ② #앵커·focus_ref/focus_so
+   진입은 명시적 이동이므로 복원 생략 ③ 페이지 코드에서 임의 scrollTo(0,0) 재설정 금지
+   ④ 긴 표가 늦게 그려져도 최대 2초까지 재시도 후 복원. (규정: knk_scroll_restore_standard) */
+(function(){
+  if (window.__knkScrollRestore984) return; window.__knkScrollRestore984 = true;
+  var MAXTRY = 20, STEP = 100;
+  function key(){ return 'knkpos:' + location.pathname + location.search; }
+  function mainEl(){ return document.querySelector('.main'); }
+  function save(){
+    try {
+      var m = mainEl();
+      var w = Math.round(window.scrollY || window.pageYOffset || 0);
+      var mm = m ? Math.round(m.scrollTop || 0) : 0;
+      if (w > 0 || mm > 0) sessionStorage.setItem(key(), w + ',' + mm);
+      else sessionStorage.removeItem(key());
+    } catch(e){}
+  }
+  var t = null;
+  function deb(){ if (t) return; t = setTimeout(function(){ t = null; save(); }, 150); }
+  window.addEventListener('scroll', deb, {passive:true});
+  document.addEventListener('scroll', deb, {passive:true, capture:true});      // .main 등 내부 컨테이너 스크롤 포함
+  document.addEventListener('pointerdown', save, {passive:true, capture:true}); // 링크 클릭 '직전' 위치 확정 저장
+  window.addEventListener('pagehide', save);
+  function restore(){
+    if (location.hash) return;                                     // 앵커 진입 존중
+    if (/[?&](focus_ref|focus_so)=/.test(location.search)) return; // 보드 강조 이동 존중
+    var v = null; try { v = sessionStorage.getItem(key()); } catch(e){}
+    if (!v) return;
+    var p = v.split(','), w = parseInt(p[0]||'0',10)||0, mm = parseInt(p[1]||'0',10)||0;
+    if (w <= 0 && mm <= 0) return;
+    var tries = 0;
+    (function attempt(){
+      tries++;
+      var m = mainEl();
+      var okW = (w <= 0) || ((document.documentElement.scrollHeight - window.innerHeight) >= w);
+      var okM = (mm <= 0) || (m && (m.scrollHeight - m.clientHeight) >= mm);
+      if ((okW && okM) || tries >= MAXTRY){
+        if (w > 0) { try { window.scrollTo(0, w); } catch(e){} }
+        if (m && mm > 0) { try { m.scrollTop = mm; } catch(e){} }
+      } else setTimeout(attempt, STEP);
+    })();
+  }
+  document.addEventListener('knk:navigated', function(){
+    if (t) { clearTimeout(t); t = null; }   // 이전 화면의 늦은 저장 타이머 취소
+    setTimeout(restore, 0);                 // spa_nav 의 scrollTo(0,0) 이후에 복원
+  });
+  if (document.readyState !== 'loading') setTimeout(restore, 0);
+  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(restore, 0); });
+})();
+</script>
+
 
 <script>
 /* v5H226z452 (대표 지시·휴대폰): 사이드바 드로어 자동 닫힘.
