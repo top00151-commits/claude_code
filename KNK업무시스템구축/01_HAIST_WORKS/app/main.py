@@ -22444,7 +22444,10 @@ def _inject_oi_tax_into_rows(rows, oi_map, proj_iids):
                         _any = True
                     except Exception:
                         pass
-            return _date, (round(_amt) if _any else "")
+            # v5H226z986 (대표 신고): round() 정수화가 외화 소수점을 잘라(€65,204.50→65,204) 보드·엑셀
+            #   표시와 색상판정(발행합계 vs 수주액)이 어긋났음 → 소수 2자리 보존, 정수로 떨어지면 int(기존 표기 유지).
+            _amt2 = round(_amt, 2)
+            return _date, ((int(_amt2) if float(_amt2).is_integer() else _amt2) if _any else "")
         _sd = ""
         for _iid in iids:
             m = oi_map.get(_iid)

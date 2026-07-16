@@ -856,11 +856,10 @@ if(_tbody){
     if(t.classList.contains('ux-money')) _uxSave(iid,f,(t.value||'').replace(/[^0-9.]/g,''),t);
     else _uxSave(iid,f,t.value,t);
   });
-  // v5H226z483/z484: 금액칸(단가·세금계산서) 입력 시 천단위 콤마 자동
+  // v5H226z483/z484: 금액칸(단가·세금계산서) 입력 시 천단위 콤마 자동 — z986: 소수점 보존(_fmtAmtTyping)
   _tbody.addEventListener('input',(e)=>{
     if(e.target.classList && e.target.classList.contains('ux-money')){
-      var raw=(e.target.value||'').replace(/[^0-9]/g,'');
-      e.target.value = raw ? Number(raw).toLocaleString() : '';
+      e.target.value = _fmtAmtTyping(e.target.value);
     }
   });
 }
@@ -914,7 +913,7 @@ function toggleRowUnits(tr, btn){
       const CM=!!j.can_money;
       // v5H226z483/z484 (대표 지시): 상세(수주 내역)와 동일 정보량 + 호기별 거래명세서·세금계산서(발행일+금액)
       function _dt(field,val,dis){ return '<td><input type="date" class="ux-date" data-field="'+field+'" value="'+_uxEsc(val||'')+'"'+dis+'></td>'; }
-      function _mo(field,val,dis){ return '<td><input type="text" inputmode="numeric" class="ux-money" data-field="'+field+'" value="'+(val!=null&&val!==''?Number(val).toLocaleString():'')+'"'+dis+'></td>'; }
+      function _mo(field,val,dis){ return '<td><input type="text" inputmode="decimal" class="ux-money" data-field="'+field+'" value="'+(val!=null&&val!==''?_fmtAmtTyping(val):'')+'"'+dis+'></td>'; }
       // v5H226z485 (대표 지시): 세금계산서는 보드와 동일하게 한 칸 클릭→발행일+금액 팝업
       var _CSYM={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'};   // v5H226z703→z759: 펼침 호기 줄 통화 기호(CNY 元로 통일)
       function _ti(df,af,dv,av,ttl,iid,lk,cur,isExp){
@@ -1023,7 +1022,7 @@ function openUnitTaxPop(box){
   const _ttl=_tier+'차 '+(_exp?'인보이스 (수출)':'세금계산서')+' 발행';
   const pop=document.createElement('div'); pop.className='ti-pop';
   pop.innerHTML='<div class="ti-pop-ttl">'+_ttl+'</div>'
-    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+_sym+'</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">'+_ccy+'</span></div>'
+    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+_sym+'</span><input type="text" inputmode="decimal" class="ti-pa" value="'+(curAmt?_fmtAmtTyping(curAmt):'')+'" placeholder="0"><span class="ti-unit">'+_ccy+'</span></div>'
     +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd knk-cal" value="'+curDate+'"></div>'
     +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 발행일·금액(세금계산서 아님).':'이 호기의 세금계산서 발행일·금액을 입력하세요.')+'</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
@@ -1032,7 +1031,7 @@ function openUnitTaxPop(box){
   pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px';
   pop.style.top=(rect.bottom+window.scrollY+4)+'px';
   const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
-  pa.addEventListener('input',function(){ var raw=pa.value.replace(/[^0-9]/g,''); pa.value=raw?Number(raw).toLocaleString():''; });
+  pa.addEventListener('input',function(){ pa.value=_fmtAmtTyping(pa.value); });   // z986: 소수점 보존(외화)
   setTimeout(()=>{ pa.focus(); pa.select(); },0);
   let done=false;
   const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
@@ -1047,7 +1046,7 @@ function openUnitTaxPop(box){
       await _uxSaveTax(iid, box.dataset.datefield, dv);
       await _uxSaveTax(iid, box.dataset.amtfield, av);
       box.dataset.date=dv; box.dataset.amt=av;
-      box.innerHTML=(dv||av)?((_exp?'<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>':'')+'<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?_sym+Number(av).toLocaleString():'')+'</div>'):'＋';
+      box.innerHTML=(dv||av)?((_exp?'<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>':'')+'<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?_sym+_fmtAmtShow(av,_ccy):'')+'</div>'):'＋';
       toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
     }catch(e){ btn.disabled=false; toast('⚠ '+(e.message||'저장 실패')); }
   });
@@ -1331,7 +1330,7 @@ function startTaxInvEdit(td, tr){
   const curDate=td.dataset.date||'';
   let curAmt=td.dataset.amt||'';
   // v5H226z469 (대표 지시): 1세금계산서 금액 기본값 = 수주금액(총액). 비어 있을 때만 채움(다르게 적으면 2/3차 발행이 있다는 뜻).
-  if(!curAmt && td.dataset.edit==='taxinv1'){ const rt=parseFloat(tr.dataset.rowamt||'0')||0; if(rt>0) curAmt=String(Math.round(rt)); }
+  if(!curAmt && td.dataset.edit==='taxinv1'){ const rt=parseFloat(tr.dataset.rowamt||'0')||0; if(rt>0) curAmt=String(Math.round(rt*100)/100); }   // z986: 외화 소수 보존(정수 반올림 제거)
   // v5H226z704 (대표 지시): 팝업 통화·제목 = 그 행 통화·수출여부 — ₩/원 하드코딩 제거, 수출은 인보이스로.
   const _ccy=tr.dataset.cur||'KRW';
   const _exp=(((tr.querySelector('td[data-col="trade"]'))||{}).textContent||'').trim()==='수출';
@@ -1341,7 +1340,7 @@ function startTaxInvEdit(td, tr){
   const pop=document.createElement('div'); pop.className='ti-pop';
   // 금액을 위, 발행일을 아래로 — 날짜 달력이 아래로 펼쳐져도 금액칸을 가리지 않게(겹침 해소).
   pop.innerHTML='<div class="ti-pop-ttl">'+_ttl+'</div>'
-    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+_sym+'</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"><span class="ti-unit">'+_ccy+'</span></div>'
+    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+_sym+'</span><input type="text" inputmode="decimal" class="ti-pa" value="'+(curAmt?_fmtAmtTyping(curAmt):'')+'" placeholder="0"><span class="ti-unit">'+_ccy+'</span></div>'
     +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd" value="'+curDate+'"></div>'
     +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 금액(세금계산서 아님). ':'')+'1·2·3차 합계가 수주금액과 같으면 <b>초록</b>, 다르면 <b>주황</b>.</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
@@ -1351,7 +1350,7 @@ function startTaxInvEdit(td, tr){
   pop.style.top=(rect.bottom+window.scrollY+4)+'px';
   const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
   // v5H226z470: 금액 입력 시 천단위 콤마 자동 (저장 시엔 숫자만 추출)
-  pa.addEventListener('input',function(){ var raw=pa.value.replace(/[^0-9]/g,''); pa.value=raw?Number(raw).toLocaleString():''; });
+  pa.addEventListener('input',function(){ pa.value=_fmtAmtTyping(pa.value); });   // z986: 소수점 보존(외화)
   setTimeout(()=>{ pa.focus(); pa.select(); },0);
   let done=false;
   const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
@@ -1366,7 +1365,7 @@ function startTaxInvEdit(td, tr){
       await taxSave(tr, td.dataset.datefield, dv);
       await taxSave(tr, td.dataset.amtfield, av);
       td.dataset.date=dv; td.dataset.amt=av;
-      td.innerHTML=(dv||av)?((_exp?'<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>':'')+'<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?_sym+Number(av).toLocaleString():'')+'</div>'):'＋';
+      td.innerHTML=(dv||av)?((_exp?'<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>':'')+'<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?_sym+_fmtAmtShow(av,_ccy):'')+'</div>'):'＋';
       td.classList.toggle('filled', !!(dv||av));
       refreshTaxStatus(tr);
       toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
@@ -1390,6 +1389,16 @@ function refreshTaxStatus(tr){
 function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'})[c]||'₩'; }
 var _MONEY_STRIP=/[₩$₫¥€元,\s＋]/g;
 function fmtMoney(v){ var n=parseFloat(String(v).replace(_MONEY_STRIP,'')); return isNaN(n)||n===0?'':n.toLocaleString(); }
+// v5H226z986 (대표 신고 '소수점 이하 직접 입력이 아예 안 됨'): 금액 입력 콤마 — 소수점 보존.
+//   기존 재포맷이 [^0-9] 로 '.'을 키 입력 즉시 지워 외화(EUR 등) 소수 입력 자체가 불가능했음(단가·세금계산서/인보이스 공통).
+//   정수부만 콤마, 소수부는 친 그대로(최대 2자리 — 외화 소수2 규칙). 수량 칸은 별도 편집기라 영향 없음(정수 유지).
+function _fmtAmtTyping(v){
+  v=String(v==null?'':v); var m=v.replace(/[^0-9.]/g,'');
+  var i=m.indexOf('.'); var ip=(i<0?m:m.slice(0,i)).slice(0,15); var fp=(i<0?'':'.'+m.slice(i+1).replace(/\./g,'').slice(0,2));
+  return (ip?Number(ip).toLocaleString():(fp?'0':''))+fp;
+}
+// z986: 저장 직후 칸 표시 — 서버 money() 규칙과 동일(KRW 정수·외화 소수 2자리 고정)
+function _fmtAmtShow(v,ccy){ var n=Number(v)||0; return (ccy&&ccy!=='KRW')?n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):n.toLocaleString(); }
 function recalcAmount(tr){
   var qtyTd=tr.querySelector('td[data-edit="qty"]'), priceTd=tr.querySelector('td[data-edit="price"]'), amtTd=tr.querySelector('td[data-edit="amount"]');
   if(!priceTd||!amtTd) return;   // 단가/금액 칸 없으면(권한없음) skip
@@ -1886,7 +1895,7 @@ function _tiTierChange(tier){
     } else {
       var dv=_tiDefaultAmt(l, tier);
       h+='<tr><td>'+esc(l.code||'—')+'</td><td>'+esc(l.label||'')+'</td><td>'+esc(l.customer||'—')+'</td>'
-        +'<td class="num"><input type="text" inputmode="numeric" class="ti-amt" data-i="'+i+'" value="'+(dv?Number(dv).toLocaleString():'')+'" oninput="_tiAmtFmt(this)" /></td></tr>';
+        +'<td class="num"><input type="text" inputmode="decimal" class="ti-amt" data-i="'+i+'" value="'+(dv?_fmtAmtTyping(dv):'')+'" oninput="_tiAmtFmt(this)" /></td></tr>';
     }
   });
   tb.innerHTML=h;
@@ -1894,12 +1903,11 @@ function _tiTierChange(tier){
 }
 function _tiRecalc(){
   var t=0; document.querySelectorAll('#tiModalBack .ti-amt').forEach(function(inp){ t+=parseFloat((inp.value||'').replace(/,/g,''))||0; });
-  var el=document.getElementById('tiTotal'); if(el) el.textContent=_tiSym+t.toLocaleString();
+  var el=document.getElementById('tiTotal'); if(el) el.textContent=_tiSym+t.toLocaleString(undefined,{maximumFractionDigits:2});   // z986: 소수 합계 표시
 }
-// v5H226z559 (대표 지시): 묶어 발행 금액칸 — 입력 시 천단위 콤마 유지(+합계 갱신)
+// v5H226z559 (대표 지시): 묶어 발행 금액칸 — 입력 시 천단위 콤마 유지(+합계 갱신) — z986: 소수점 보존
 function _tiAmtFmt(inp){
-  var raw=(inp.value||'').replace(/[^0-9]/g,'');
-  inp.value = raw ? Number(raw).toLocaleString() : '';
+  inp.value = _fmtAmtTyping(inp.value);
   _tiRecalc();
 }
 window._tiAmtFmt=_tiAmtFmt;
