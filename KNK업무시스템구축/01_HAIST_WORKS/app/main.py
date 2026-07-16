@@ -13980,7 +13980,20 @@ async def sales_orders_quick_edit(req: Request, oid: int):
         sets.append("order_date=?"); vals.append(raw_ord or None)
     if "ship_to" in form:
         sets.append("ship_to=?"); vals.append(raw_ship or None)
-    if not sets:
+    # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명 + 이 수주 호기 비고 — 작업일정표 셀 편집이
+    #   그 발주(SO) 것만 고치도록(프로젝트 전체 덮어쓰기 방지). 컬럼 미생성 DB 는 PRAGMA 로 방어.
+    _note981 = (form.get("line_note") or "").strip() if "line_note" in form else None
+    if ("model_name" in form) or ("equip_name" in form):
+        try:
+            with db_session() as _c981:
+                _oc981 = {x[1] for x in _c981.execute("PRAGMA table_info(orders)").fetchall()}
+        except Exception:
+            _oc981 = set()
+        if "model_name" in form and "model_name" in _oc981:
+            sets.append("model_name=?"); vals.append((form.get("model_name") or "").strip() or None)
+        if "equip_name" in form and "equip_name" in _oc981:
+            sets.append("equip_name=?"); vals.append((form.get("equip_name") or "").strip() or None)
+    if not sets and _note981 is None:
         return JSONResponse({"ok": False, "message": "수정 항목이 없습니다"}, 400)
     with db_session() as c:
         cur = c.execute("SELECT status, project_id FROM orders WHERE id=?", (oid,)).fetchone()
@@ -14024,8 +14037,16 @@ async def sales_orders_quick_edit(req: Request, oid: int):
                                     f"차액 {new_a - items_s:,.0f}원이 발생합니다.\n"
                                     f"호기별 단가를 직접 수정하거나, '➕ 호기' 로 차액만큼의 호기를 추가하세요.")
                     }, 400)
-        vals.append(oid)
-        c.execute(f"UPDATE orders SET {', '.join(sets)} WHERE id=?", vals)
+        if sets:   # v5H226z981: 비고(line_note)만 수정하는 호출은 orders UPDATE 없음
+            vals.append(oid)
+            c.execute(f"UPDATE orders SET {', '.join(sets)} WHERE id=?", vals)
+        # v5H226z981: 이 수주 호기 비고 일괄 수정(작업일정표 기타사항 셀 = 그 SO 호기 전체)
+        if _note981 is not None:
+            try:
+                c.execute("UPDATE order_items SET line_note=? WHERE order_id=?",
+                          (_note981 or None, oid))
+            except Exception:
+                pass
         # 프로젝트 합계 동기화 (project.order_amount = SUM 모든 SO)
         try:
             pid = cur["project_id"]
@@ -21594,8 +21615,23 @@ def _merge_units_same(lines):
         if n > 1:
             base["label"] = _summarize_unit_labels([g.get("label") for g in grp])
             base["amount"] = round(float(grp[0].get("amount") or 0) * n, 2)  # 그룹 소계(=단가×묶음수량)
+            # v5H226z981: 묶인 호기들의 비고(중복 제거 합침) — 병합 수주(PO 두 개 섞임)도 다 보이게
+            base["so_note"] = _join_notes981([g.get("so_note") for g in grp])
         merged.append(base)
     return merged
+
+
+def _join_notes981(vals, cap=3):
+    """v5H226z981: 비고(호기 line_note) 여러 개 → 중복 제거해 ' · ' 로 합침(최대 cap개+'외').
+    병합 수주(한 SO에 PO 두 개 호기)도 두 비고가 다 보이게 — 첫 값만 남기는 손실 방지."""
+    _ns = []
+    for _v in (vals or []):
+        _v = str(_v or "").strip()
+        if _v and _v not in _ns:
+            _ns.append(_v)
+    if not _ns:
+        return ""
+    return " · ".join(_ns[:cap]) + (f" 외{len(_ns) - cap}" if len(_ns) > cap else "")
 
 
 def _board_in_frag(col, ids):
@@ -21710,12 +21746,17 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문(담당자 다름) 구분용
             _occ_col = ("o.cc_name AS o_cc_name, o.cc_dept AS o_cc_dept, o.cc_phone AS o_cc_phone"
                         if "cc_name" in _ord_cols else "'' AS o_cc_name, '' AS o_cc_dept, '' AS o_cc_phone")
+            # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명 + 호기 비고 — 한 관리번호 여러 발주가
+            #   전부 첫 행(프로젝트) 값으로 보이던 문제. SO값 있으면 그 행 표시를 덮음(없으면 기존 프로젝트값).
+            _omeq_col = ("o.model_name AS o_model, o.equip_name AS o_equip"
+                         if "model_name" in _ord_cols else "'' AS o_model, '' AS o_equip")
+            _i_extra += (", oi.line_note AS i_note" if "line_note" in _oi_cols else ", '' AS i_note")
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
                 "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
-                + _ocust_col + ", " + _occ_col + ", "
+                + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", "
                 "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
                 + _i_extra + " "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
@@ -21742,6 +21783,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "o_cust_disp": (d.get("o_cust_disp") or ""),   # v5H226z705: SO 고객사 표시명(시스템명 우선)
                         "o_cc_name": (d.get("o_cc_name") or ""), "o_cc_dept": (d.get("o_cc_dept") or ""),
                         "o_cc_phone": (d.get("o_cc_phone") or ""),   # v5H226z678: SO 담당자/부서/연락처
+                        "o_model": (d.get("o_model") or ""), "o_equip": (d.get("o_equip") or ""),   # v5H226z981: SO 모델명·장비명
                         "items": [],
                     }
                 if d.get("oi_id") is not None:
@@ -21779,6 +21821,10 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                     "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
                     "status_date": (_eff_c("i_sdate", "") or "")[:10],   # v5H226z711: 상태 발생일(호기)
+                    # v5H226z981: SO별 모델명·장비명 + 이 SO 호기 비고(부품 SO는 부품별 비고라 제외 — 기타사항 아님)
+                    "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
+                    "so_note": ("" if _so.get("so_type") == "PARTS_EXPORT"
+                                else _join_notes981([_it.get("i_note") for _it in _citems])),
                 }
 
             def _so_lines(_so):
@@ -21800,6 +21846,10 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                         "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
                         "status_date": (str(it.get("i_sdate") or "").strip()[:10]),   # v5H226z711: 상태 발생일(호기)
+                        # v5H226z981: SO별 모델명·장비명 + 이 호기 비고 / oid·so_type = 셀 편집 SO 라우팅(data-soid)용
+                        "oid": _so.get("oid"), "so_type": (_so.get("so_type") or ""),
+                        "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
+                        "so_note": (str(it.get("i_note") or "").strip()),
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -22414,6 +22464,14 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                     _iu["dept"] = _ln["so_dept"]
                 if _ln.get("so_contact"):
                     _iu["contact"] = _ln["so_contact"]
+                # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명·비고 — 있으면 그 행 표시를 덮음
+                #   (한 관리번호 여러 발주가 전부 첫 행 값으로 보이던 문제. 없으면 기존 프로젝트값 유지)
+                if _ln.get("so_model"):
+                    _iu["model"] = _ln["so_model"]
+                if _ln.get("so_equip"):
+                    _iu["equip"] = _ln["so_equip"]
+                if _ln.get("so_note"):
+                    _iu["note"] = _ln["so_note"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and _sched_cust_hit(_ru, cust):
@@ -23543,6 +23601,14 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                     _iu["dept"] = _ln["so_dept"]
                 if _ln.get("so_contact"):
                     _iu["contact"] = _ln["so_contact"]
+                # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명·비고 — 있으면 그 행 표시를 덮음
+                #   (한 관리번호 여러 발주가 전부 첫 행 값으로 보이던 문제. 없으면 기존 프로젝트값 유지)
+                if _ln.get("so_model"):
+                    _iu["model"] = _ln["so_model"]
+                if _ln.get("so_equip"):
+                    _iu["equip"] = _ln["so_equip"]
+                if _ln.get("so_note"):
+                    _iu["note"] = _ln["so_note"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and _sched_cust_hit(_ru, cust):
@@ -28046,6 +28112,16 @@ async def projects_import_confirm(request: Request):
                                         c.execute("UPDATE orders SET so_form=? WHERE id=?", (_so_form_code, _fu_oid))
                                     except Exception:
                                         pass
+                            # v5H226z981 (대표 지시): 이 행의 모델명·장비명을 그 수주(SO)에 저장 — 빈 곳만 채움
+                            #   (병합 SO 첫 값 보존 · 화면에서 고친 값 존중 · 재업로드=백필로 기존 어긋남 자동 교정)
+                            if "model_name" in _ocols2:
+                                try:
+                                    c.execute("UPDATE orders SET model_name=COALESCE(NULLIF(model_name,''),?), "
+                                              "equip_name=COALESCE(NULLIF(equip_name,''),?) WHERE id=?",
+                                              ((r.get("model_name") or "").strip() or None,
+                                               (r.get("equip_name") or "").strip() or None, _fu_oid))
+                                except Exception:
+                                    pass
                             _fu_ccy = (r.get("currency") or "KRW").strip().upper()
                             if _fu_ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
                                 _fu_ccy = "KRW"
@@ -28147,6 +28223,16 @@ async def projects_import_confirm(request: Request):
                                             _re_ccy = "KRW"
                                         c.execute("UPDATE orders SET currency=? WHERE id=?", (_re_ccy, _re_oid))
                                         c.execute("UPDATE order_items SET currency=? WHERE order_id=?", (_re_ccy, _re_oid))
+                                    except Exception:
+                                        pass
+                                    # v5H226z981: 재업로드 백필 — 이 수주 모델명·장비명 빈 곳만 채움
+                                    try:
+                                        _rc981 = {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
+                                        if "model_name" in _rc981:
+                                            c.execute("UPDATE orders SET model_name=COALESCE(NULLIF(model_name,''),?), "
+                                                      "equip_name=COALESCE(NULLIF(equip_name,''),?) WHERE id=?",
+                                                      ((r.get("model_name") or "").strip() or None,
+                                                       (r.get("equip_name") or "").strip() or None, _re_oid))
                                     except Exception:
                                         pass
                     except Exception:
@@ -28294,6 +28380,16 @@ async def projects_import_confirm(request: Request):
                                                   tuple((_ncc[k] or None) for k in _nck) + (_new_oid,))
                                     # v5H226z681: 이 신규 수주 호기들 거래구분(수출/내수) 저장(행단위)
                                     c.execute("UPDATE order_items SET is_export=? WHERE order_id=?", (_row_iex, _new_oid))
+                            except Exception:
+                                pass
+                            # v5H226z981 (대표 지시): 신규 수주에도 행 모델명·장비명 저장 — SO별 표시·엑셀 왕복 일치
+                            try:
+                                if _new_oid:
+                                    _nmeq981 = {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
+                                    if "model_name" in _nmeq981:
+                                        c.execute("UPDATE orders SET model_name=?, equip_name=? WHERE id=?",
+                                                  ((r.get("model_name") or "").strip() or None,
+                                                   (r.get("equip_name") or "").strip() or None, _new_oid))
                             except Exception:
                                 pass
                 except Exception as _so_e:

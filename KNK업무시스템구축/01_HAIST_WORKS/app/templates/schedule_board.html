@@ -1081,6 +1081,8 @@ function startEdit(td){
   if(td.dataset.edit==='qty' && tr.dataset.parts==='1' && tr.dataset.soid){ startPartsQtyEdit(td, tr); return; }
   if(_uids.length===1 && td.dataset.edit==='qty'){ startUnitEdit(td, tr, _uids); return; }   // v5H226z666: 단일 호기 행 수량 → /unit-field(정규 소스)
   if(_uids.length && ['price','amount','due_date','order_date','ship_to'].indexOf(td.dataset.edit)>=0){ startUnitEdit(td, tr, _uids); return; }
+  // v5H226z981 (대표 지시): 수주(SO) 분할 행의 모델명·장비명·기타사항 — 그 수주 것만 수정(프로젝트 전체 덮어쓰기 방지)
+  if(tr.dataset.soid && ['model','equip','note'].indexOf(td.dataset.edit)>=0){ startSoTextEdit(td, tr); return; }
   let cur = td.classList.contains('filled') ? td.textContent.trim() : '';
   // v5H226z551: 고객사 칸은 화면에 시스템명(별칭)이 보일 수 있으나 편집은 '정식 고객사명'(data-real)으로
   if(td.dataset.edit==='cust' && td.dataset.real!=null) cur = td.dataset.real.trim();
@@ -1240,6 +1242,33 @@ function startPartsQtyEdit(td, tr){
       const j=await r.json();
       _editing=null;
       if(j.ok){ toast('저장됨 · '+(parseInt(val,10)>=2?('완제품 '+val+'대분'):'1식(부품만)')); setTimeout(function(){ location.reload(); }, 450); }
+      else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+(j.message||j.error||'저장 실패')); }
+    }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
+  };
+  inp.addEventListener('blur',()=>finish(true));
+  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+}
+// v5H226z981 (대표 지시): SO 분할 행의 모델명/장비명/기타사항 편집 → 그 수주(quick-edit)에만 저장.
+//   모델명/장비명=orders.model_name/equip_name · 기타사항=그 수주 호기 비고(line_note) 전체 교체.
+//   저장 후 새로고침(표시 소스가 SO/호기라 재조립 필요). 프로젝트 값은 건드리지 않음.
+function startSoTextEdit(td, tr){
+  if(_editing) return;
+  const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';
+  const fmap={model:'model_name', equip:'equip_name', note:'line_note'};
+  const cur=origDisp;
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.title='이 수주(발주)에만 저장됩니다';
+  _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
+  let done=false;
+  const finish=async(save)=>{
+    if(done) return; done=true;
+    const val=inp.value.trim();
+    if(!save || val===cur){ td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); _editing=null; return; }
+    try{
+      const fd=new FormData(); fd.append(fmap[td.dataset.edit]||td.dataset.edit, val);
+      const r=await fetch('/sales/orders/'+tr.dataset.soid+'/quick-edit',{method:'POST',body:fd});
+      const j=await r.json();
+      _editing=null;
+      if(j.ok){ toast('저장됨 · 이 수주에만 반영'); setTimeout(function(){ location.reload(); }, 450); }
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+(j.message||j.error||'저장 실패')); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };

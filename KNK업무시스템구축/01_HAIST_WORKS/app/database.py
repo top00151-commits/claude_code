@@ -2347,6 +2347,11 @@ def init_db():
             #   기존엔 형태를 so_type 으로 추론(제품 1줄→so_type=CONSUMABLE 강제)해 '제품'이 '소모품'으로 오표시.
             #   so_form 이 있으면 그것을 형태 배지의 단일 진실로 사용(없으면 기존 추론). 일괄등록이 기록.
             ("so_form",  "ALTER TABLE orders ADD COLUMN so_form TEXT"),
+            # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명 — 한 관리번호 아래 성격이 다른 발주
+            #   (999M2603: 케이블 교체→비전 수정→설비 수리→컨트롤러 작업)가 전부 첫 행 값으로 보이던 문제.
+            #   일괄등록이 행 값을 그 수주에 저장(빈 곳만)·작업일정표/엑셀저장/상세가 SO값 우선 표시.
+            ("model_name", "ALTER TABLE orders ADD COLUMN model_name TEXT"),
+            ("equip_name", "ALTER TABLE orders ADD COLUMN equip_name TEXT"),
         ]:
             if _ocol not in ocols:
                 try:

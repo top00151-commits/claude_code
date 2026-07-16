@@ -1099,7 +1099,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
     # v5H226z600: exchange_rate·is_export 추가 — 상세 PACKING LIST 에서 매입/판매 KRW 환산·인보이스(USD) 표시
     for cn in ("ship_to", "unit_qty", "unit_label", "unit_note", "currency", "so_type",
                "exchange_rate", "is_export", "shipment_form",   # v5H226z699: 수주별 형태(완제품/제품/상품/기타) 배지용
-               "so_form"):   # v5H226z873: 수주별 '진짜 형태' 단일 진실(있으면 so_type 추론보다 우선)
+               "so_form",   # v5H226z873: 수주별 '진짜 형태' 단일 진실(있으면 so_type 추론보다 우선)
+               "model_name", "equip_name"):   # v5H226z981: 수주별 모델명·장비명(SO 카드 표시)
         if cn in cols:
             extra.append(cn)
     extra_sql = (", " + ", ".join(extra)) if extra else ""
