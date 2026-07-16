@@ -27972,6 +27972,22 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                     " (과거 데이터 일괄이관이면 '📦 일괄이관 모드' 체크 후 업로드)")
             _row["_is_warning_only"] = (
                 len(_row["_errors"]) == 1 and bool(_cw) and _row["_errors"][0] == _cw)
+    # v5H226z982b (버그수정): 헤더(3행) 인식 실패 시트 — 파서가 '오류 행'으로 실어 보내 미리보기에서
+    #   즉시 보이게 한다. (z978은 이 목록을 확정(import-confirm)에서 참조했는데 파서 지역변수라
+    #   NameError → 확정 전체 500. 확정 쪽 참조는 제거하고 여기서 표면화 — z978 취지 유지·더 이른 시점)
+    for _shf978 in _z978_hdr_fail:
+        out.append({
+            "sheet": _shf978, "row_no": "—", "mgmt_code_input": "", "biz_div": "",
+            "name": f"시트 '{_shf978}' 전체", "model_name": "", "equip_name": "",
+            "customer_name": "", "secondary_customer": "", "order_date": "", "due_date": "",
+            "unit_qty": 1, "unit_price": 0, "amount": 0, "currency": "KRW", "is_export": 0,
+            "po_type": "", "form_type": "", "shipment_form": "", "ship_to": "", "note": "",
+            "status": "", "cc_name": "", "cc_phone": "", "sales_name": "",
+            "statement_date": "", "ti1_date": "", "ti1_amt": 0, "ti2_date": "", "ti2_amt": 0,
+            "ti3_date": "", "ti3_amt": 0, "_followup": False, "_auto_mgmt": False, "_warn": "",
+            "_errors": ["3행 헤더를 인식하지 못해 이 시트는 건너뛰었습니다 — '양식 다운로드'로 최신 양식을 받아 값을 옮긴 뒤 다시 올려주세요. (예전처럼 열 위치를 추측해 저장하지 않습니다)"],
+            "_is_warning_only": False,
+        })
     return out
 
 
@@ -28193,10 +28209,9 @@ async def projects_import_confirm(request: Request):
     created = []
     failed = []
     so_warnings = []   # v5H226z262: SO(수주·호기) 생성 실패를 조용히 삼키지 않고 수집 → 응답·로그로 표면화
-    # v5H226z978: 헤더 인식 실패 시트를 실패 목록으로 표면화(조용한 '0건 등록' 방지)
-    for _shf978 in _z978_hdr_fail:
-        failed.append({"row_no": "—", "name": f"시트 '{_shf978}' 전체",
-                       "error": "3행 헤더를 인식하지 못해 이 시트는 건너뛰었습니다 — '양식 다운로드'로 최신 양식을 받아 값을 옮긴 뒤 다시 올려주세요. (예전처럼 열 위치를 추측해 저장하지 않습니다)"})
+    # v5H226z982b (버그수정): z978이 여기서 파서 지역변수(_z978_hdr_fail)를 참조 → 확정 전체가
+    #   NameError 500으로 죽던 잠복 버그(어제 배포 후 첫 실전 확정에서 발견). 헤더 실패 시트는
+    #   이제 파서가 '_errors 오류 행'으로 실어 보내고, 아래 행 루프 첫머리가 건너뛰며 표면화한다.
     so_skipped = []    # v5H226z330/z337: 발주일 없어 SO(수주번호) 미발행한 신규행(소모품 포함, 정보성 안내) — 조용히 넘기지 않고 수집
     skipped_dup = []   # v5H226z597 (대표 지시): 이미 등록된 관리번호 — 재업로드 중복 방지로 건너뛴 행(경고)
     _created_pids = set()   # v5H226z239: 이번 일괄등록으로 '생성된' 프로젝트 id (예상=확정 보정용)
@@ -28227,6 +28242,12 @@ async def projects_import_confirm(request: Request):
                          "currency": (str(_row.get("currency") or "KRW")).upper(),
                          "statement_date": _sd, "ti": _ti})
     for r in rows:
+        # v5H226z982b: 파싱 오류 행(헤더 인식 실패 시트 포함)은 확정하지 않고 실패로 표면화
+        #   (UI도 오류 행은 안 보내지만(필터), 서버에서 한 번 더 차단 — 데이터연결성 안전망)
+        if r.get("_errors") and not r.get("_is_warning_only"):
+            failed.append({"row_no": r.get("row_no"), "name": r.get("name") or "",
+                           "error": " / ".join(str(_e982) for _e982 in (r.get("_errors") or [])) or "파싱 오류 행"})
+            continue
         try:
             # 미등록 고객사 경고만 있는 행도 통과 (텍스트로 저장)
             biz_div = (r.get("biz_div") or "").strip().upper()
