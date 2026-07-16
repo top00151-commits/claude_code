@@ -48,7 +48,8 @@
       <h1 class="page-title">📋 소모품 제작요청서 <span style="font-size:14px;font-weight:600;color:var(--mute,#64748b);">— {{ co.model_name or '소모품' }}</span></h1>
     </div>
     <div style="display:flex;gap:8px;">
-      <a class="btn btn-secondary" href="/prod-requests?biz=C" title="제작요청서목록(소모품)">📋 제작요청서목록</a>
+      {# z984c(대표 신고): data-knk-back — 직전 화면이 제작요청서목록이면 그 주소(필터·기간 포함) 그대로 복귀(위치 복원 연동). 아니면 소모품 필터 기본. #}
+      <a class="btn btn-secondary" href="/prod-requests?biz=C" data-knk-back title="제작요청서목록(소모품)">📋 제작요청서목록</a>
       {# z895(대표 지시): 소모품 상세(편집)는 영업·물류 권한자만 — 일반 직원은 비활성(회색) #}
       {% if can_open_detail %}<a class="btn btn-secondary" href="/consumables/{{ co.id }}">↩ 소모품 상세</a>{% else %}<span class="btn btn-secondary" style="opacity:.4;cursor:not-allowed;" title="소모품 상세(편집)는 영업·물류 담당자만 열 수 있습니다" aria-disabled="true">↩ 소모품 상세</span>{% endif %}
     </div>

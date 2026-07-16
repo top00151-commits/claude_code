@@ -708,12 +708,34 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
    구포맷("창Y,본문top" 문자열·z984 저장분)도 호환 파싱.
    규칙: ① 새 화면은 chrome.html 포함만으로 자동 적용(별도 작업 불필요) ② #앵커·focus_ref/focus_so
    진입은 명시적 이동이므로 복원 생략 ③ 페이지 코드에서 임의 scrollTo(0,0) 재설정 금지 ④ 사이드바 등
-   무관 컨테이너도 사용자가 스크롤했다면 함께 복원(일관성·예외 없음). (규정: knk_scroll_restore_standard) */
+   무관 컨테이너도 사용자가 스크롤했다면 함께 복원(일관성·예외 없음). (규정: knk_scroll_restore_standard)
+   v5H226z984c (대표 신고 '제작요청서목록은 아직 안 됨'): 같은 화면이 주소 표기만 다르게 불려 키가
+   어긋나던 것 수정 — 제작요청서목록은 필터 칩이 ?biz=C&period= (빈 값 포함), 상세의 '목록' 버튼은
+   ?biz=C 로 돌아와 저장 키와 복원 키가 불일치했음. ① 저장 키 정규화: 값이 빈 파라미터 제외+이름순
+   정렬(?biz=C&period= ↔ ?period=&biz=C ↔ ?biz=C = 같은 키) ② 목록 복귀 버튼(a[data-knk-back])은
+   직전 화면이 같은 목록(경로 일치)이면 직전 주소(필터·검색 포함) 그대로 복귀하도록 href 갱신 —
+   직전 화면이 다르거나(딥링크·새로고침 직후) 경로가 다르면 서버 기본 주소 유지. */
 (function(){
   if (window.__knkScrollRestore984) return; window.__knkScrollRestore984 = true;
   var MAXTRY = 20, STEP = 100;
   var SAFE = /^[A-Za-z0-9_-]+$/;                 // 키에 쓰는 id·클래스 허용 문자(공백·특수문자 배제)
-  function key(){ return 'knkpos:' + location.pathname + location.search; }
+  /* z984c: 같은 화면·다른 주소 표기 통일 — 값이 빈 파라미터(?period= 등)는 '없음'과 동일 취급해
+     제외하고 이름순 정렬. 저장·복원이 같은 함수를 쓰므로 키만 일치하면 됨(원본 주소는 건드리지 않음) */
+  function normSearch(s){
+    s = String(s || ''); if (s.charAt(0) === '?') s = s.slice(1);
+    if (!s) return '';
+    var parts = s.split('&'), keep = [];
+    for (var i = 0; i < parts.length; i++){
+      var p = parts[i]; if (!p) continue;
+      var eq = p.indexOf('=');
+      if ((eq < 0 ? '' : p.slice(eq + 1)) === '') continue;
+      keep.push(p);
+    }
+    if (!keep.length) return '';
+    keep.sort();
+    return '?' + keep.join('&');
+  }
+  function key(){ return 'knkpos:' + location.pathname + normSearch(location.search); }
   function mainEl(){ return document.querySelector('.main'); }
 
   /* 요소 키: 재방문/재렌더 후 같은 요소를 다시 찾기 위한 문자열 */
@@ -831,11 +853,30 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
       else rT = null;
     })();
   }
+  /* z984c: 목록 복귀 버튼(a[data-knk-back]) — 직전 화면이 이 버튼과 같은 목록(경로 일치)이면
+     직전 주소(필터·검색·기간 포함)로 href 를 바꿔 '보던 목록 그대로' 복귀. 경로가 다르면 그대로 둠. */
+  var curU = location.pathname + location.search, prevU = '';
+  function backLinks(){
+    if (!prevU) return;
+    try {
+      var pp = prevU.split('?')[0];
+      var as = document.querySelectorAll('a[data-knk-back]');
+      for (var i = 0; i < as.length; i++){
+        var h = as[i].getAttribute('href') || '';
+        if (h.split('?')[0] === pp && h !== prevU) as[i].setAttribute('href', prevU);
+      }
+    } catch(e){}
+  }
   document.addEventListener('knk:navigated', function(){
     if (t)  { clearTimeout(t);  t = null; }  // 이전 화면의 늦은 저장 타이머 취소
     if (rT) { clearTimeout(rT); rT = null; } // 이전 화면의 복원 재시도 중단(새 화면 오염 방지)
     dirtyEls.length = 0;                     // dirty 초기화 — 이전 화면 요소는 버림
-    setTimeout(restore, 0);                  // spa_nav 의 scrollTo(0,0) 이후에 복원
+    setTimeout(function(){                   // spa_nav 의 주소 갱신·scrollTo(0,0) '이후' 틱에서 실행
+      var u = location.pathname + location.search;
+      if (u !== curU){ prevU = curU; curU = u; } // 직전 화면 주소 기록(z984c)
+      backLinks();
+      restore();
+    }, 0);
   });
   if (document.readyState !== 'loading') setTimeout(restore, 0);
   else document.addEventListener('DOMContentLoaded', function(){ setTimeout(restore, 0); });

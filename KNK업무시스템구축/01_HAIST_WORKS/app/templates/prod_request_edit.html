@@ -62,8 +62,8 @@ select.prq-in { appearance:auto; }
       <h1 class="page-title">📋 제작요청서 <span style="font-size:14px;font-weight:600;color:var(--mute,#64748b);">— {{ p.name }}</span></h1>
     </div>
     <div style="display:flex;gap:8px;">
-      {# v5H226z842 (대표 지시): 제작요청서 목록 바로가기 — '프로젝트로' 왼쪽. #}
-      <a class="btn btn-secondary" href="/prod-requests" title="제작요청서 목록 열기">📋 제작요청서목록</a>
+      {# v5H226z842 (대표 지시): 제작요청서 목록 바로가기 — '프로젝트로' 왼쪽. z984c: data-knk-back — 직전 화면이 목록이면 그 주소(필터·기간 포함) 그대로 복귀. #}
+      <a class="btn btn-secondary" href="/prod-requests" data-knk-back title="제작요청서 목록 열기">📋 제작요청서목록</a>
       <a class="btn btn-secondary" href="/project/{{ p.id }}">↩ 프로젝트로</a>
     </div>
   </div>
