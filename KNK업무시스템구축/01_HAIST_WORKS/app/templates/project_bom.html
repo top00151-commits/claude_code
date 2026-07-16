@@ -59,6 +59,8 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
 .flag.stock { background:var(--pq-ok-soft); color:var(--pq-ok); }
 .flag.ost { background:var(--pq-surface-3); color:var(--pq-ink-3); }
 .flag.ost.on { background:#ede9fe; color:#6d28d9; }
+.flag.chg { background:var(--pq-warn-soft); color:var(--pq-warn); }
+.oldv { font-size:10px; color:#94a3b8; text-decoration:line-through; font-weight:400; white-space:nowrap; line-height:1.2; }
 
 .bulkbar { position:fixed; left:0; right:0; bottom:0; background:var(--pq-ink); color:#fff; padding:10px 24px; display:none; align-items:center; gap:10px; z-index:60; font-size:13px; }
 .bulkbar.show { display:flex; }
@@ -119,9 +121,17 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
     {% if _succ %}<div class="banner ok">✅ {{ _succ }}</div>{% endif %}
     {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
 
+    {# v5H226z987 — 바뀐 칸에 옛값 병기용 매크로 (기존값 취소선 ← 표시) #}
+    {% macro oldv(rc, f) -%}
+      {%- if rc and f in rc.fields and rc.fields[f].old is not none and (rc.fields[f].old | string | trim) != '' -%}
+        <div class="oldv">← {{ rc.fields[f].old }}</div>
+      {%- endif -%}
+    {%- endmacro %}
+
     <div class="filterbar">
       <button class="fchip on" data-f="all">전체</button>
       <button class="fchip" data-f="review">🔴 재검토 {{ reviews|length }}</button>
+      <button class="fchip" data-f="recent" title="가장 최근 업로드(v{{ latest_upload.version_no if latest_upload else '-' }})에서 추가·변경·삭제된 라인만">✏️ 최근 변경 {{ recent_map|length }}</button>
       <button class="fchip" data-f="nobuy">구매처 미지정</button>
       <button class="fchip" data-f="del">삭제 포함</button>
       <input class="fsearch" id="bomSearch" placeholder="모델명·품명·제조사 검색 (표기 달라도 찾음)">
@@ -145,28 +155,31 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
         </thead>
         <tbody>
         {% for it in items %}
+          {% set rc = recent_map.get(it.id) if recent_map is defined else none %}
           <tr class="rowx {{ 'is-del' if it.status != '활성' }}"
               data-status="{{ it.status }}" data-review="{{ 1 if it.review_flag else 0 }}"
+              data-recent="{{ 1 if rc else 0 }}"
               data-buy="{{ it.buy_at or '' }}"
               data-search="{{ ((it.part_no or '') ~ ' ' ~ (it.part_name or '') ~ ' ' ~ (it.maker or '')) | lower }}"
               data-item="{{ it | tojson | e }}">
             {% if can_edit %}<td onclick="event.stopPropagation()"><input type="checkbox" class="rowck" value="{{ it.id }}" {{ 'disabled' if it.status != '활성' }}></td>{% endif %}
             <td class="mono">{{ it.line_no or '' }}</td>
-            <td class="mono"><b>{{ it.part_no or '—' }}</b></td>
-            <td class="nm">{{ it.part_name }}</td>
-            <td>{{ it.maker or '' }}</td>
+            <td class="mono"><b>{{ it.part_no or '—' }}</b>{{ oldv(rc, 'part_no') }}</td>
+            <td class="nm">{{ it.part_name }}{{ oldv(rc, 'part_name') }}</td>
+            <td>{{ it.maker or '' }}{{ oldv(rc, 'maker') }}</td>
             <td style="font-size:11px;color:var(--pq-ink-3);">{{ it.vendor or it.material or '' }}{{ ('·' ~ it.finishing) if it.finishing else '' }}</td>
-            <td class="num">{{ '%g' | format(it.unit_count or 0) }}</td>
-            <td class="num">{{ '%g' | format(it.total_qty or 0) }}</td>
+            <td class="num">{{ '%g' | format(it.unit_count or 0) }}{{ oldv(rc, 'unit_count') }}</td>
+            <td class="num">{{ '%g' | format(it.total_qty or 0) }}{{ oldv(rc, 'total_qty') }}</td>
             <td>{{ it.unit }}</td>
-            <td class="num">{{ '{:,.0f}'.format(it.unit_price or 0) }}</td>
+            <td class="num">{{ '{:,.0f}'.format(it.unit_price or 0) }}{{ oldv(rc, 'unit_price') }}</td>
             <td class="num">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
-            <td style="font-size:11px;">{{ it.delivery_text or '' }}</td>
+            <td style="font-size:11px;">{{ it.delivery_text or '' }}{{ oldv(rc, 'delivery_text') }}</td>
             <td>{% if it.buy_at == 'KOR' %}<span class="flag kor">KOR</span>
                 {% elif it.buy_at == 'VINA' %}<span class="flag vina">VINA</span>{% endif %}</td>
             <td class="num">{% if it.part_id %}<span class="flag stock">{{ '%g' | format(it.master_stock or 0) }}</span>{% else %}<span style="color:var(--pq-ink-4);">—</span>{% endif %}</td>
             <td><span class="flag ost {{ 'on' if (it.order_status or '미발주') != '미발주' }}">{{ it.order_status or '미발주' }}</span></td>
-            <td>{% if it.review_flag %}<span class="flag review">🔴 재검토</span>{% endif %}</td>
+            <td>{% if it.review_flag %}<span class="flag review">🔴 재검토</span>{% endif %}
+                {% if rc %}<span class="flag chg" title="최근 업로드에서 {{ rc.types | join('·') }}">{{ '➕' if '추가' in rc.types else ('➖' if '삭제' in rc.types else '✏️') }} v{{ latest_upload.version_no if latest_upload else '' }}</span>{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>
@@ -186,7 +199,7 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
           <tbody>
           {% for up in uploads %}
             <tr>
-              <td class="mono">v{{ up.version_no }}</td>
+              <td class="mono"><a href="/bom/uploads/{{ up.id }}/report" title="이 버전에서 바뀐 내용 전체 보기 (기존→새값)">v{{ up.version_no }} 📄</a></td>
               <td class="mono">{{ (up.created_at or '')[:16] }}</td>
               <td style="font-size:11px;">{{ up.source_filename }}</td>
               <td style="font-size:11px;">{{ up.sheet_names }}</td>
@@ -277,8 +290,11 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
   function applyFilter(){
     document.querySelectorAll('tr.rowx').forEach(function(tr){
       var show = true;
-      if (!state.del && tr.dataset.status !== '활성') show = false;
+      // v5H226z987: '최근 변경' 필터는 최근 삭제된 라인도 보여줌 (기존 내용 확인 목적)
+      if (!state.del && tr.dataset.status !== '활성'
+          && !(state.f === 'recent' && tr.dataset.recent === '1')) show = false;
       if (state.f === 'review' && tr.dataset.review !== '1') show = false;
+      if (state.f === 'recent' && tr.dataset.recent !== '1') show = false;
       if (state.f === 'nobuy' && (tr.dataset.buy || '') !== '') show = false;
       if (state.q && (tr.dataset.search || '').indexOf(state.q) < 0) show = false;
       tr.style.display = show ? '' : 'none';
@@ -317,8 +333,10 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
   function applyFilterNorm(){
     document.querySelectorAll('tr.rowx').forEach(function(tr){
       var show = true;
-      if (!state.del && tr.dataset.status !== '활성') show = false;
+      if (!state.del && tr.dataset.status !== '활성'
+          && !(state.f === 'recent' && tr.dataset.recent === '1')) show = false;
       if (state.f === 'review' && tr.dataset.review !== '1') show = false;
+      if (state.f === 'recent' && tr.dataset.recent !== '1') show = false;
       if (state.f === 'nobuy' && (tr.dataset.buy || '') !== '') show = false;
       if (state.q && (tr.dataset.searchNorm || '').indexOf(state.q) < 0) show = false;
       tr.style.display = show ? '' : 'none';

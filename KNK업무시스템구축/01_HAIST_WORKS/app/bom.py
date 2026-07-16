@@ -647,6 +647,62 @@ def list_uploads(project_id: int, limit: int = 20) -> list:
             (int(project_id), int(limit))).fetchall()]
 
 
+def get_recent_changes(project_id: int):
+    """v5H226z987 (대표 요구 '기존 내용도 같이 확인'): 최신 업로드에서 바뀐 라인 하이라이트용.
+    반환: (latest_upload dict|None, {item_id: {"types": [변경/추가/삭제...], "fields": {field: {old,new}}}})"""
+    with db_session() as c:
+        up = c.execute(
+            "SELECT * FROM bom_uploads WHERE project_id=? ORDER BY id DESC LIMIT 1",
+            (int(project_id),)).fetchone()
+        if not up:
+            return None, {}
+        rows = c.execute(
+            "SELECT item_id, change_type, field, old_value, new_value"
+            "  FROM bom_item_history WHERE upload_id=?", (up["id"],)).fetchall()
+    m: dict = {}
+    for r in rows:
+        e = m.setdefault(r["item_id"], {"types": [], "fields": {}})
+        ct = r["change_type"] or ""
+        if ct and ct not in e["types"]:
+            e["types"].append(ct)
+        if r["field"]:
+            e["fields"][r["field"]] = {"old": r["old_value"], "new": r["new_value"]}
+    return dict(up), m
+
+
+def get_upload_report(upload_id: int):
+    """v5H226z987: 특정 업로드(버전)의 변경 리포트 — 과거 어느 버전이든 '그때 뭐가 바뀌었나' 전체 확인.
+    반환: (upload dict|None, [{item_id, part_no, part_name, category, status, entries:[{type,field,old,new,note}]}])"""
+    with db_session() as c:
+        up = c.execute(
+            "SELECT up.*, u.name AS uploaded_by_name, pr.mgmt_code, pr.name AS project_name, pr.id AS pid"
+            "  FROM bom_uploads up"
+            "  LEFT JOIN users u ON u.id = up.uploaded_by"
+            "  LEFT JOIN projects pr ON pr.id = up.project_id"
+            " WHERE up.id=?", (int(upload_id),)).fetchone()
+        if not up:
+            return None, []
+        hist = c.execute(
+            "SELECT h.item_id, h.change_type, h.field, h.old_value, h.new_value, h.source, h.note,"
+            "       bi.part_no, bi.part_name, bi.category, bi.status"
+            "  FROM bom_item_history h"
+            "  LEFT JOIN bom_items bi ON bi.id = h.item_id"
+            " WHERE h.upload_id=? ORDER BY h.item_id, h.id", (int(upload_id),)).fetchall()
+    items: dict = {}
+    order: list = []
+    for r in hist:
+        iid = r["item_id"]
+        if iid not in items:
+            items[iid] = {"item_id": iid, "part_no": r["part_no"], "part_name": r["part_name"],
+                          "category": r["category"] or "", "status": r["status"] or "", "entries": []}
+            order.append(iid)
+        items[iid]["entries"].append({
+            "type": r["change_type"] or "", "field": r["field"] or "",
+            "old": r["old_value"], "new": r["new_value"],
+            "source": r["source"] or "", "note": r["note"] or ""})
+    return dict(up), [items[i] for i in order]
+
+
 def bom_purge_project(project_id: int) -> dict:
     """v5H226z986 (대표 지시 '테스트 데이터 나중에 삭제'): 이 프로젝트의 BOM 데이터 전체 삭제.
     품목·업로드 기록·이력 3테이블을 비움 — 프로젝트 자체는 유지(폐기와 별개).

@@ -20639,9 +20639,33 @@ async def project_bom_board(request: Request, pid: int, view: str = ""):
     rows = _bom.get_board(pid, include_deleted=True)  # 삭제 포함해 받아 화면에서 필터 (건수 표시용)
     uploads = _bom.list_uploads(pid, limit=10)
     can_edit = can_use_logistics(u)
+    # v5H226z987 (대표 요구 '기존 내용도 같이'): 최신 업로드에서 바뀐 라인 — 보드에 옛값 병기·배지·필터
+    try:
+        latest_upload, recent_map = _bom.get_recent_changes(pid)
+    except Exception:
+        latest_upload, recent_map = None, {}
     return ctx(request, "project_bom.html", user=u, active="parts",
                project=dict(pr), rows=rows, uploads=uploads,
+               latest_upload=latest_upload, recent_map=recent_map,
                view=view, can_edit=can_edit)
+
+
+@app.get("/bom/uploads/{uid:int}/report", response_class=HTMLResponse)
+async def bom_upload_report(request: Request, uid: int):
+    """v5H226z987: 업로드(버전) 1건의 변경 리포트 — 과거 어떤 버전이든 '그때 뭐가 바뀌었나' 전체."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_view_logistics(u) or _bom_can_upload(u)):
+        return RedirectResponse("/home", 303)
+    try:
+        up, items = _bom.get_upload_report(uid)
+    except Exception:
+        up, items = None, []
+    if not up:
+        return RedirectResponse("/bom/upload", 303)
+    return ctx(request, "bom_upload_report.html", user=u, active="parts",
+               up=up, items=items)
 
 
 @app.post("/bom/items/{iid:int}/edit")

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BOM v{{ up.version_no }} 변경 리포트 · {{ up.mgmt_code }} · KNK HAIST WORKS</title>
+
+{# v5H226z987 (대표 요구 '기존 내용도 같이 확인') — 업로드(버전) 1건의 변경 리포트.
+   과거 어느 버전이든 '그때 뭐가 어떻게 바뀌었나'를 기존값→새값으로 전부 보여준다. #}
+
+<link href="/static/css/v5_tokens.css?v=20260716v5H226z987" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root { --pq-warn:#b45309; --pq-warn-soft:#fef3c7; --pq-danger:#b91c1c; --pq-danger-soft:#fef2f2;
+        --pq-ok:#0d7c4f; --pq-ok-soft:#ecfdf5; --pq-mono:ui-monospace,Consolas,monospace; }
+.pl-head { padding:14px 24px 12px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.pl-head .crumb { font-size:12px; color:var(--pq-ink-4); }
+.pl-head .crumb a { color:var(--pq-ink-2); }
+.pl-title { font-size:20px; font-weight:700; color:var(--pq-ink); }
+.pl-meta { font-size:12.5px; color:var(--pq-ink-3); }
+.pl-actions { margin-left:auto; }
+.btn-ghost { height:32px; padding:0 12px; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12.5px; color:var(--pq-ink-2); display:inline-flex; align-items:center; text-decoration:none; }
+.rw { padding:16px 24px 60px; max-width:1100px; }
+.sum { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.sum .s { border:1px solid var(--pq-line-2); border-radius:8px; padding:8px 14px; font-size:12px; color:var(--pq-ink-3); }
+.sum .s b { font-family:var(--pq-mono); font-size:16px; color:var(--pq-ink); display:block; }
+.sum .s.warn b { color:var(--pq-danger); }
+.itm { background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; margin-bottom:10px; overflow:hidden; }
+.itm-h { padding:9px 14px; background:var(--pq-surface-2); border-bottom:1px solid var(--pq-line); display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+.itm-h .no { font-family:var(--pq-mono); font-weight:800; }
+.itm-h .cat { font-size:11px; color:var(--pq-ink-4); }
+.tag { font-size:10px; padding:1px 8px; border-radius:999px; font-weight:800; }
+.tag.add { background:var(--pq-ok-soft); color:var(--pq-ok); }
+.tag.chg { background:var(--pq-warn-soft); color:var(--pq-warn); }
+.tag.del { background:var(--pq-danger-soft); color:var(--pq-danger); }
+.ent { padding:7px 14px; border-bottom:1px dashed var(--pq-line); font-size:12.5px; display:flex; gap:10px; flex-wrap:wrap; align-items:baseline; }
+.ent:last-child { border-bottom:0; }
+.ent .f { min-width:110px; color:var(--pq-ink-3); font-size:11px; font-weight:700; }
+.ent .old { color:var(--pq-ink-4); text-decoration:line-through; }
+.ent .new { color:var(--pq-danger); font-weight:800; }
+.ent .src { margin-left:auto; font-size:10.5px; color:var(--pq-ink-4); }
+.ent .note { width:100%; font-size:11px; color:var(--pq-warn); }
+@media (max-width:640px){ .rw{padding:12px 10px 50px;} .pl-head{padding:12px;} }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+    <div class="pl-head">
+      <div>
+        <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/projects/{{ up.pid }}/bom">{{ up.mgmt_code }} BOM 보드</a> · <b>v{{ up.version_no }} 변경 리포트</b></div>
+        <div class="pl-title">📄 {{ up.mgmt_code }} · v{{ up.version_no }} 에서 바뀐 내용</div>
+      </div>
+      <div class="pl-meta">
+        {{ (up.created_at or '')[:16] }} · {{ up.uploaded_by_name or '' }} 업로드 · {{ up.source_filename }} ·
+        {{ '전체 교체' if up.mode == 'replace' else '안전 반영' }}
+      </div>
+      <div class="pl-actions"><a class="btn-ghost" href="/projects/{{ up.pid }}/bom">← 보드로</a></div>
+    </div>
+
+    <div class="rw">
+      <div class="sum">
+        <div class="s">➕ 추가<b>{{ up.added }}</b></div>
+        <div class="s">✏️ 변경<b>{{ up.changed }}</b></div>
+        <div class="s">➖ 삭제<b>{{ up.deleted }}</b></div>
+        <div class="s">파일에 없던 기존 유지<b>{{ up.missing }}</b></div>
+        <div class="s {{ 'warn' if up.ordered_warn }}">🔴 발주 후 변경<b>{{ up.ordered_warn }}</b></div>
+      </div>
+
+      {% if not items %}
+        <div style="padding:40px;text-align:center;color:var(--pq-ink-4);background:var(--pq-surface);border:1px dashed var(--pq-line-2);border-radius:10px;">
+          이 버전에서 기록된 변경이 없습니다 (전부 동일).
+        </div>
+      {% endif %}
+
+      {% for it in items %}
+      <div class="itm">
+        <div class="itm-h">
+          {% set _types = it.entries | map(attribute='type') | list %}
+          {% if '추가' in _types %}<span class="tag add">➕ 추가</span>
+          {% elif '삭제' in _types %}<span class="tag del">➖ 삭제</span>
+          {% else %}<span class="tag chg">✏️ 변경</span>{% endif %}
+          <span class="no">{{ it.part_no or '(모델명 없음)' }}</span>
+          <span>{{ it.part_name or '' }}</span>
+          <span class="cat">{{ it.category }}{% if it.status == '삭제' %} · 현재 삭제 상태{% endif %}</span>
+          <a href="/projects/{{ up.pid }}/bom" style="margin-left:auto;font-size:11px;">보드에서 보기 ↗</a>
+        </div>
+        {% for e in it.entries %}
+        <div class="ent">
+          <span class="f">{{ e.field or e.type }}</span>
+          {% if e.old is not none or e.new is not none %}
+            <span class="old">{{ e.old if e.old is not none else '(없음)' }}</span>
+            <span>→</span>
+            <span class="new">{{ e.new if e.new is not none else '(삭제)' }}</span>
+          {% else %}
+            <span>{{ e.type }}</span>
+          {% endif %}
+          <span class="src">{{ e.source }}</span>
+          {% if e.note %}<div class="note">{{ e.note }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </main>
+</div>
+</body>
+</html>
