@@ -1088,7 +1088,7 @@ function startEdit(td){
   if(td.dataset.edit==='cust' && td.dataset.real!=null) cur = td.dataset.real.trim();
   // 숫자/금액 칸은 통화기호·콤마 빼고 순수 숫자만 편집
   if(['qty','price','amount'].indexOf(td.dataset.edit)>=0) cur=cur.replace(_MONEY_STRIP,'');
-  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur;
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
   const finish=(save)=>{
@@ -1190,7 +1190,7 @@ function startUnitEdit(td, tr, uids){
   const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';   // v5H226z687: 통화기호 포함 원본 표시(무변경·취소·오류 복원용 — 숫자칸 복원 시 ₩/$ 유지)
   let cur = origDisp;
   if(isNum) cur=cur.replace(_MONEY_STRIP,'');
-  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur;
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
   const finish=async(save)=>{
@@ -1229,7 +1229,7 @@ function startPartsQtyEdit(td, tr){
   if(_editing) return;
   const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';
   let cur=String(tr.dataset.qty||'').replace(_MONEY_STRIP,'');
-  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.title='완제품 몇 대분인지 (부품만 출하=1)';
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off'; inp.title='완제품 몇 대분인지 (부품만 출하=1)';
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
   const finish=async(save)=>{
@@ -1256,7 +1256,7 @@ function startSoTextEdit(td, tr){
   const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';
   const fmap={model:'model_name', equip:'equip_name', note:'line_note'};
   const cur=origDisp;
-  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.title='이 수주(발주)에만 저장됩니다';
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off'; inp.title='이 수주(발주)에만 저장됩니다';
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
   const finish=async(save)=>{

@@ -932,7 +932,7 @@
                   <td style="white-space:nowrap; max-width:220px; overflow:hidden;">
                     {# v5H226z694 (대표 지시): 비고 1줄+말줄임(엑셀 느낌). 긴 비고가 좁은 칸에서 세로로 늘어나 행 높이가 폭증(403px)하던 것 차단 — 전체는 마우스 올리면(title) 표시. #}
                     <span class="display-val note" title="{{ u.line_note or '' }}">{{ u.line_note or '' }}</span>
-                    {% if _editable %}<input type="text" class="unit-edit note-inp" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}
+                    {% if _editable %}<input type="text" class="unit-edit note-inp" autocomplete="off" data-orig="{{ u.line_note or '' }}" value="{{ u.line_note or '' }}" placeholder="(선택)">{% endif %}{# v5H226z983: 자동완성 차단 — 크롬이 기억한 과거값(사번 '67' 등)이 저절로 채워지는 오염 재발 방지 #}
                   </td>
                   {# v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서1/2/3 (보기 전용 — 발행/편집은 작업일정표 보드) · z829: can_sales_amt #}
                   {% if _is_equip and can_sales_amt %}
@@ -1013,7 +1013,7 @@
                   <option value="EUR" {% if _cur == 'EUR' %}selected{% endif %}>EUR</option>
                 </select>
                 <input type="text" name="amount" inputmode="numeric" placeholder="단가 (1대당)" class="amt knk-money">
-                <input type="text" name="note" placeholder="비고 (선택)" class="note">
+                <input type="text" name="note" placeholder="비고 (선택)" class="note" autocomplete="off">
                 <button type="button" class="save-btn">저장</button>
                 <button type="button" class="cancel-btn">취소</button>
               </div>
@@ -1067,6 +1067,11 @@
         {% endfor %}
         {# v5H176: 합계 통화는 프로젝트 헤더 통화 기준. 외화 + fx_rate 있으면 KRW 환산 병기. #}
         {% set _gt_ccy = p.currency or 'KRW' %}
+        <script>
+        // v5H226z983 (대표 승인): 수주/호기 편집 입력 전체 브라우저 자동완성 차단(IIFE·SPA 안전) —
+        //   크롬이 기억한 과거 입력값(예: 사번 '67')이 비고 등 입력칸에 저절로 채워졌다 저장되는 오염 재발 경로 차단.
+        (function(){ try{ document.querySelectorAll('.so-card input[type="text"], input[id^="fup_"]').forEach(function(i){ i.setAttribute('autocomplete','off'); }); }catch(e){} })();
+        </script>
         <div class="so-grand-total">
           <div>
             <div class="label">총 수주번호 {{ project_orders|length }}건{% if _gtotal.q %} · 총 수량 {{ _gtotal.q }}대{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% else %}{{ _gtotal.ps }}식{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>

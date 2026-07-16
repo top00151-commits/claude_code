@@ -14041,10 +14041,11 @@ async def sales_orders_quick_edit(req: Request, oid: int):
             vals.append(oid)
             c.execute(f"UPDATE orders SET {', '.join(sets)} WHERE id=?", vals)
         # v5H226z981: 이 수주 호기 비고 일괄 수정(작업일정표 기타사항 셀 = 그 SO 호기 전체)
+        # v5H226z983: 지움='' 저장(NULL 아님) — 보드가 프로젝트 메모로 되살리지 않게('지우면 진짜 지워짐')
         if _note981 is not None:
             try:
                 c.execute("UPDATE order_items SET line_note=? WHERE order_id=?",
-                          (_note981 or None, oid))
+                          (_note981, oid))
             except Exception:
                 pass
         # 프로젝트 합계 동기화 (project.order_amount = SUM 모든 SO)
@@ -21936,12 +21937,20 @@ def _merge_units_same(lines):
 
 def _join_notes981(vals, cap=3):
     """v5H226z981: 비고(호기 line_note) 여러 개 → 중복 제거해 ' · ' 로 합침(최대 cap개+'외').
-    병합 수주(한 SO에 PO 두 개 호기)도 두 비고가 다 보이게 — 첫 값만 남기는 손실 방지."""
-    _ns = []
+    병합 수주(한 SO에 PO 두 개 호기)도 두 비고가 다 보이게 — 첫 값만 남기는 손실 방지.
+    v5H226z983 (대표 승인): 3상태 — 전부 None(한 번도 안 적음)=None → 프로젝트 메모 폴백 유지 /
+    하나라도 기록됐는데 전부 빈 문자열(의도적으로 지움)='' → 폴백 안 함(빈칸 표시·'지우면 진짜 지워짐') /
+    내용 있으면 합친 문자열. (지운 비고를 프로젝트 메모가 되살려 일정표에서 지울 수 없던 문제 해결)"""
+    _ns, _seen_any = [], False
     for _v in (vals or []):
-        _v = str(_v or "").strip()
-        if _v and _v not in _ns:
-            _ns.append(_v)
+        if _v is None:
+            continue
+        _seen_any = True
+        _s = str(_v).strip()
+        if _s and _s not in _ns:
+            _ns.append(_s)
+    if not _seen_any:
+        return None
     if not _ns:
         return ""
     return " · ".join(_ns[:cap]) + (f" 외{len(_ns) - cap}" if len(_ns) > cap else "")
@@ -22135,8 +22144,9 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
                     "status_date": (_eff_c("i_sdate", "") or "")[:10],   # v5H226z711: 상태 발생일(호기)
                     # v5H226z981: SO별 모델명·장비명 + 이 SO 호기 비고(부품 SO는 부품별 비고라 제외 — 기타사항 아님)
+                    # v5H226z983: None=안 적음(프로젝트 메모 폴백) / ''=지움(폴백 안 함) / 문자열=비고
                     "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
-                    "so_note": ("" if _so.get("so_type") == "PARTS_EXPORT"
+                    "so_note": (None if _so.get("so_type") == "PARTS_EXPORT"
                                 else _join_notes981([_it.get("i_note") for _it in _citems])),
                 }
 
@@ -22160,9 +22170,10 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
                         "status_date": (str(it.get("i_sdate") or "").strip()[:10]),   # v5H226z711: 상태 발생일(호기)
                         # v5H226z981: SO별 모델명·장비명 + 이 호기 비고 / oid·so_type = 셀 편집 SO 라우팅(data-soid)용
+                        # v5H226z983: 비고 3상태 — None=안 적음(폴백) / ''=지움(폴백 안 함) / 문자열
                         "oid": _so.get("oid"), "so_type": (_so.get("so_type") or ""),
                         "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
-                        "so_note": (str(it.get("i_note") or "").strip()),
+                        "so_note": (None if it.get("i_note") is None else str(it.get("i_note")).strip()),
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -22783,7 +22794,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                     _iu["model"] = _ln["so_model"]
                 if _ln.get("so_equip"):
                     _iu["equip"] = _ln["so_equip"]
-                if _ln.get("so_note"):
+                if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
@@ -23920,7 +23931,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                     _iu["model"] = _ln["so_model"]
                 if _ln.get("so_equip"):
                     _iu["equip"] = _ln["so_equip"]
-                if _ln.get("so_note"):
+                if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
@@ -24700,8 +24711,9 @@ async def schedule_board_unit_field(request: Request):
                 c.execute("UPDATE order_items SET ship_to=?, updated_at=datetime('now','localtime') WHERE id=?",
                           (str(value or "").strip() or None, iid))
             elif field == "note":
+                # v5H226z983: 지움='' 저장(NULL 아님) — ''=의도적 비움 마커 → 보드가 프로젝트 메모로 폴백하지 않음
                 c.execute("UPDATE order_items SET line_note=?, updated_at=datetime('now','localtime') WHERE id=?",
-                          (str(value or "").strip() or None, iid))
+                          (str(value or "").strip(), iid))
             elif field == "currency":
                 cv = str(value or "").strip().upper()
                 if cv not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
