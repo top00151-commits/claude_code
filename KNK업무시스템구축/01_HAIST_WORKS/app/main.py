@@ -28263,6 +28263,7 @@ async def projects_import_confirm(request: Request):
                     _fu_oid = None; _fu_reused = False; _fu_sono = ""; _res = {"ok": True}
                     _fu_appended = False; _fu_new_item_id = None   # v5H226z820: 이 행이 append 로 추가한 호기(order_items.id) — 상태/통화/is_export 를 '새 호기만' 겨냥
                     _fu_new_item_ids = []; _fu_ti_ids = None       # v5H226z979: append N줄 대응(복수) + 세금계산서 '이 행 몫 호기' 겨냥
+                    _fu_shipped982 = False   # v5H226z982: 출하(비활성) 수주의 재업로드 중복 — 백필·TI만, 상태/통화/담당자 미변경
                     with db_session() as c:
                         _ocols2 = {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
                         # v5H226z820 (대표 지시): 일괄(엑셀) 업로드 수주번호 묶기 — 장비(호기) 행에 한해
@@ -28297,6 +28298,7 @@ async def projects_import_confirm(request: Request):
                             # so_type 이 있으면 장비(EQUIPMENT/NULL) SO 만 대상 — 소모품 SO 에 장비 호기가 섞이지 않게.
                             if "so_type" in _ocols2:
                                 _wh.append("COALESCE(so_type,'EQUIPMENT')='EQUIPMENT'")
+                            _wh_base982, _pa_base982 = list(_wh), list(_pa)   # v5H226z982: 상태 무관 2차 탐색용(취소만 제외)
                             _wh.append("COALESCE(status,'') IN (" + ",".join("?" * len(_REUSE_ST)) + ")")
                             _pa.extend(_REUSE_ST)
                             _exso = c.execute(
@@ -28343,6 +28345,41 @@ async def projects_import_confirm(request: Request):
                                         _fu_sono = (_sono_row["order_no"] if isinstance(_sono_row, dict) else _sono_row[0]) if _sono_row else ""
                                     else:
                                         _res = _ares
+                            # v5H226z982 (대표 승인): 재업로드 완전 중복차단 — 출하(SHIPPED)·송장·수금 수주는 위
+                            #   재사용 후보(_REUSE_ST)에 없어 '새 발주'로 오인 → add_followup_order 로 중복 SO 가 생기던 구멍.
+                            #   상태 무관(취소만 제외) 2차 탐색: ①같은 호기(단가+비고/라벨) 있으면 = 같은 파일 재업로드 → 행 건너뜀
+                            #   (세금계산서 z979 겨냥·so_form·모델장비 z981 백필만 — 상태/통화/담당자는 출하 기록 보존 위해 미변경)
+                            #   ②같은 호기 없으면 = 출하 끝난 수주에 호기 추가 시도 → 차단 + 경고 표면화(소리 없는 변경 방지).
+                            if not _fu_oid and _res.get("ok", True) and not _exso:
+                                _wh_base982.append("COALESCE(status,'')<>'CANCELLED'")
+                                _exso982 = c.execute(
+                                    "SELECT id, order_no FROM orders WHERE " + " AND ".join(_wh_base982)
+                                    + " ORDER BY id DESC LIMIT 1", tuple(_pa_base982)).fetchone()
+                                if _exso982:
+                                    _oid982 = int(_exso982["id"] if isinstance(_exso982, dict) else _exso982[0])
+                                    _sono982 = (_exso982["order_no"] if isinstance(_exso982, dict) else _exso982[1]) or ""
+                                    _dup982 = c.execute(
+                                        "SELECT id FROM order_items WHERE order_id=? "
+                                        "AND ABS(COALESCE(unit_price,0)-?)<1 "
+                                        "AND (COALESCE(line_note,'')=? OR COALESCE(unit_label,'')=?) "
+                                        "LIMIT 1",
+                                        (_oid982, float(_fu_price), (_note or ""), _line_lbl)).fetchone()
+                                    if _dup982:
+                                        _fu_oid = _oid982; _fu_reused = True; _fu_shipped982 = True
+                                        _fu_sono = _sono982
+                                        try:   # v5H226z979 와 동일: 세금계산서는 '이 행 몫 호기(비고+단가 일치)'만 겨냥
+                                            _fu_ti_ids = [
+                                                (x["id"] if isinstance(x, dict) else x[0]) for x in c.execute(
+                                                    "SELECT id FROM order_items WHERE order_id=? "
+                                                    "AND ABS(COALESCE(unit_price,0)-?)<1 AND COALESCE(line_note,'')=?",
+                                                    (_oid982, float(_fu_price), (_note or ""))).fetchall()] or None
+                                        except Exception:
+                                            _fu_ti_ids = None
+                                    else:
+                                        _res = {"ok": False, "message":
+                                                (f"출하 완료된 수주({_sono982})와 발주 조건(발주일·납기·납품지)이 같은 행 — "
+                                                 "중복 방지로 건너뜀(출하 수주엔 호기 추가 차단·z982). 실제 새 발주라면 "
+                                                 "발주일/납기를 실제 값으로 올리거나 화면 '➕ 호기'로 추가하세요.")}
                         if not _fu_oid and _res.get("ok", True):
                             # (c) SO 없음(또는 부품/소모품) → 기존 add_followup_order(새 SO) — 변경 없음.
                             #     ⛔부품/소모품(_expand=False)은 위 z820 경로를 안 타므로, 재업로드 중복은
@@ -28398,39 +28435,42 @@ async def projects_import_confirm(request: Request):
                                                (r.get("equip_name") or "").strip() or None, _fu_oid))
                                 except Exception:
                                     pass
-                            _fu_ccy = (r.get("currency") or "KRW").strip().upper()
-                            if _fu_ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
-                                _fu_ccy = "KRW"
-                            if _fu_appended and (_fu_new_item_ids or _fu_new_item_id):
-                                # v5H226z979: append 가 N줄이 되면서 새 호기 '전부'를 겨냥 (기존 단수 변수 폴백 유지)
-                                _ids979 = _fu_new_item_ids or [_fu_new_item_id]
-                                _ph979 = ",".join("?" * len(_ids979))
-                                c.execute(f"UPDATE order_items SET unit_status=?, is_export=? WHERE id IN ({_ph979})",
-                                          [_fu_ust, _row_iex] + [int(x) for x in _ids979])
-                                try:
-                                    c.execute(f"UPDATE order_items SET currency=? WHERE id IN ({_ph979})",
-                                              [_fu_ccy] + [int(x) for x in _ids979])
-                                except Exception:
-                                    pass
-                            else:
-                                c.execute("UPDATE order_items SET unit_status=?, is_export=? WHERE order_id=?", (_fu_ust, _row_iex, _fu_oid))
-                                # v5H226z686 (대표 지시): 이 수주(SO) 통화도 엑셀 행값으로 갱신 — 재사용/재업로드 SO 통화 교정(orders+호기). ⛔z686으로 시작백필 제거됨이라 덮어쓰기 안전.
-                                try:
-                                    if "currency" in _ocols2:
+                            # v5H226z982: 출하(비활성) 수주의 재업로드 중복(_fu_shipped982)은 아래 상태/통화/담당자
+                            #   갱신을 전부 생략 — 출하 완료 기록(호기 상태·통화·담당자) 보존. 백필·세금계산서는 위/아래서 수행.
+                            if not _fu_shipped982:
+                                _fu_ccy = (r.get("currency") or "KRW").strip().upper()
+                                if _fu_ccy not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
+                                    _fu_ccy = "KRW"
+                                if _fu_appended and (_fu_new_item_ids or _fu_new_item_id):
+                                    # v5H226z979: append 가 N줄이 되면서 새 호기 '전부'를 겨냥 (기존 단수 변수 폴백 유지)
+                                    _ids979 = _fu_new_item_ids or [_fu_new_item_id]
+                                    _ph979 = ",".join("?" * len(_ids979))
+                                    c.execute(f"UPDATE order_items SET unit_status=?, is_export=? WHERE id IN ({_ph979})",
+                                              [_fu_ust, _row_iex] + [int(x) for x in _ids979])
+                                    try:
+                                        c.execute(f"UPDATE order_items SET currency=? WHERE id IN ({_ph979})",
+                                                  [_fu_ccy] + [int(x) for x in _ids979])
+                                    except Exception:
+                                        pass
+                                else:
+                                    c.execute("UPDATE order_items SET unit_status=?, is_export=? WHERE order_id=?", (_fu_ust, _row_iex, _fu_oid))
+                                    # v5H226z686 (대표 지시): 이 수주(SO) 통화도 엑셀 행값으로 갱신 — 재사용/재업로드 SO 통화 교정(orders+호기). ⛔z686으로 시작백필 제거됨이라 덮어쓰기 안전.
+                                    try:
+                                        if "currency" in _ocols2:
+                                            c.execute("UPDATE orders SET currency=? WHERE id=?", (_fu_ccy, _fu_oid))
+                                        c.execute("UPDATE order_items SET currency=? WHERE order_id=?", (_fu_ccy, _fu_oid))
+                                    except Exception:
+                                        pass
+                                # v5H226z820: append 시에도 orders 헤더 통화는 그 SO 값으로 맞춤(호기 통화는 위에서 새 호기만).
+                                if _fu_appended and "currency" in _ocols2:
+                                    try:
                                         c.execute("UPDATE orders SET currency=? WHERE id=?", (_fu_ccy, _fu_oid))
-                                    c.execute("UPDATE order_items SET currency=? WHERE order_id=?", (_fu_ccy, _fu_oid))
-                                except Exception:
-                                    pass
-                            # v5H226z820: append 시에도 orders 헤더 통화는 그 SO 값으로 맞춤(호기 통화는 위에서 새 호기만).
-                            if _fu_appended and "currency" in _ocols2:
-                                try:
-                                    c.execute("UPDATE orders SET currency=? WHERE id=?", (_fu_ccy, _fu_oid))
-                                except Exception:
-                                    pass
-                            _cc_keys = [_k for _k in ("cc_name", "cc_dept", "cc_phone") if _k in _ocols2]
-                            if _cc_keys:
-                                c.execute("UPDATE orders SET " + ",".join(f"{_k}=?" for _k in _cc_keys) + " WHERE id=?",
-                                          tuple((_fu_cc[_k] or None) for _k in _cc_keys) + (_fu_oid,))
+                                    except Exception:
+                                        pass
+                                _cc_keys = [_k for _k in ("cc_name", "cc_dept", "cc_phone") if _k in _ocols2]
+                                if _cc_keys:
+                                    c.execute("UPDATE orders SET " + ",".join(f"{_k}=?" for _k in _cc_keys) + " WHERE id=?",
+                                              tuple((_fu_cc[_k] or None) for _k in _cc_keys) + (_fu_oid,))
                     if not _res.get("ok", True):
                         failed.append({"row_no": r.get("row_no"), "name": name,
                                        "error": f"추가발주 실패: {_res.get('message','')}"})
