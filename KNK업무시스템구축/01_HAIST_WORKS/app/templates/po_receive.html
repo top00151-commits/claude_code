@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>입고 처리 {{ po.po_number }} · KNK HAIST WORKS</title>
 
+{# v5H226z1003c (2026-07-18) — 잠복 버그 2겹째: 품목 필드명 오류 → 발주 상세와 동일하게 교정.
+   qty→quantity(po_items 저장 컬럼·po_create 확인)·part_name→part_name_snapshot·part_no_snapshot. 저장(POST) 로직 불변.
 {# v5H226z1003b (2026-07-18) — 잠복 버그 수정: po(dict)의 items 를 점 접근하면 Jinja가 dict의
    items() 메서드로 잡아 입고 페이지가 렌더 오류였음(입고 가능 발주가 없어 미노출) → 대괄호 첨자 접근으로 교정(5곳).
 {# v5H226z1003 (2026-07-18) — 디자인 통일 Phase 4 ③: knk 전환(머리글·필드·제출 바·버튼).
@@ -116,7 +118,7 @@
 </style>
 </head>
 <body>
-{% set total_order = po['items']|sum(attribute='qty')|default(0) %}
+{% set total_order = po['items']|sum(attribute='quantity')|default(0) %}
 {% set total_prev = po['items']|sum(attribute='received_qty')|default(0) %}
 {% set total_rest = total_order - total_prev %}
 
@@ -262,19 +264,19 @@
                 <div class="col-note">비고</div>
               </div>
               {% for it in po['items'] %}
-              {% set rest = (it.qty|default(0)) - (it.received_qty|default(0)) %}
+              {% set rest = (it.quantity|default(0)) - (it.received_qty|default(0)) %}
               <div class="line-row">
                 <div class="num-cell">{{ '%02d'|format(loop.index) }}</div>
                 <div class="part-cell">
-                  <b>{{ it.part_name|default(it.name|default('—')) }}</b>
-                  {% if it.part_code or it.part_no %}<span class="code">{{ it.part_code|default(it.part_no) }}</span>{% endif %}
+                  <b>{{ it.part_name_snapshot|default(it.part_name|default(it.name|default('—'))) }}</b>
+                  {% if it.part_no_snapshot or it.part_code or it.part_no %}<span class="code">{{ it.part_no_snapshot|default(it.part_code|default(it.part_no)) }}</span>{% endif %}
                 </div>
-                <div class="qty-num">{{ '{:,.0f}'.format(it.qty|default(0)) }}</div>
+                <div class="qty-num">{{ '{:,.0f}'.format(it.quantity|default(0)) }}</div>
                 <div class="qty-num prev">{{ '{:,.0f}'.format(it.received_qty|default(0)) }}</div>
                 <div>
                   <input type="hidden" name="po_item_id" value="{{ it.id }}" />
                   <input class="line-input rcv" type="number" name="receive_qty" min="0" step="0.01"
-                         data-rest="{{ rest }}" data-order="{{ it.qty|default(0) }}" data-prev="{{ it.received_qty|default(0) }}"
+                         data-rest="{{ rest }}" data-order="{{ it.quantity|default(0) }}" data-prev="{{ it.received_qty|default(0) }}"
                          value="{{ rest }}" oninput="recalc()" />
                 </div>
                 <div class="qty-num rest" data-rest-cell>{{ '{:,.0f}'.format(rest) }}</div>
