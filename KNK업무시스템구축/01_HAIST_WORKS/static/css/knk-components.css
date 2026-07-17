@@ -30,7 +30,7 @@
 }
 .knk-btn:hover { background: var(--knk-bg-subtle); color: var(--knk-text-primary); }
 .knk-btn:active { background: var(--knk-border-subtle); }
-.knk-btn:focus-visible { outline: 2px solid var(--knk-info); outline-offset: 1px; }
+.knk-btn:focus-visible { outline: 2px solid var(--knk-focus); outline-offset: 1px; }
 .knk-btn:disabled, .knk-btn.is-disabled {
   background: var(--knk-bg-subtle); border-color: var(--knk-border-subtle);
   color: var(--knk-text-disabled); cursor: not-allowed; pointer-events: none;
@@ -76,8 +76,8 @@
 }
 .knk-textarea { height: auto; min-height: 90px; padding: var(--knk-sp-2) var(--knk-sp-3); resize: vertical; }
 .knk-input:hover, .knk-select:hover, .knk-textarea:hover { border-color: var(--knk-border-strong); }
-.knk-input:focus, .knk-select:focus, .knk-textarea:focus { outline: none; border-color: var(--knk-text-primary); }
-.knk-input:focus-visible, .knk-select:focus-visible, .knk-textarea:focus-visible { outline: 2px solid var(--knk-info); outline-offset: 1px; }
+.knk-input:focus, .knk-select:focus, .knk-textarea:focus { outline: none; border-color: var(--knk-focus); }
+.knk-input:focus-visible, .knk-select:focus-visible, .knk-textarea:focus-visible { outline: 2px solid var(--knk-focus); outline-offset: 1px; }
 .knk-input::placeholder, .knk-textarea::placeholder { color: var(--knk-text-disabled); }
 .knk-input[readonly], .knk-textarea[readonly] { background: var(--knk-bg-inset); color: var(--knk-text-secondary); }
 .knk-input:disabled, .knk-select:disabled, .knk-textarea:disabled {
@@ -143,7 +143,8 @@
 .knk-table--dense tbody td { height: var(--knk-h-row-dense); padding: 6px var(--knk-sp-3); }
 .knk-table tbody tr:last-child td { border-bottom: none; }
 .knk-table tbody tr:nth-child(even) td { background: var(--knk-bg-inset); }
-.knk-table tbody tr:hover td { background: var(--knk-bg-subtle); }
+.knk-table tbody tr:hover td { background: var(--knk-bg-hover); }
+.knk-table tbody tr.is-selected td { background: var(--knk-bg-selected); }
 .knk-table th.knk-td-num, .knk-table td.knk-td-num { text-align: right; font-variant-numeric: tabular-nums; }
 .knk-table th.knk-td-center, .knk-table td.knk-td-center { text-align: center; }
 
