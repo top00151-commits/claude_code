@@ -21,9 +21,9 @@
                 style="border:0;background:transparent;color:var(--mute);cursor:pointer;font-size:18px;padding:2px 6px;border-radius:4px;"
                 onmouseover="this.style.background='var(--paper-2)'"
                 onmouseout="this.style.background='transparent'">✏️</button>{% endif %}
-        {% if p.stage %}<span class="pill pill-progress" style="font-size:13px;">{{ p.stage }}</span>{% endif %}
-        {# v5H138: 프로젝트 유형 pill — 영문 enum + 한글 의미 2줄 (so-pill 패턴 통일) #}
-        {% with ptype=p.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}
+        {# v5H226z994 (대표 지시·2026-07-18): 제목 옆 알약 2개 제거 —
+           ①p.stage('수주') = z571에서 폐기한 단계 시스템의 잔재 표시 ②유형 알약(NEW_EQUIP 영문 코드 노출)
+           = 아래 정보 카드와 중복 + 가이드 §5.4 위반 → 유형은 '프로젝트 정보' 카드의 한글 한 줄로 이동. #}
       </h1>
     </div>
     <div style="display:flex;gap:8px;">
@@ -1721,6 +1721,8 @@
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           {# v5H226z645: 형태 텍스트(완제품/제품/상품/기타/소모품·미설정=완제품) #}
           <dt>형태</dt><dd>{% set _sf2 = (p.shipment_form or '')|upper %}{% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품{% elif _sf2 == 'PARTS' %}상품{% elif _sf2 == 'ETC' %}기타{% elif _sf2 == 'SEMI' %}제품{% else %}완제품{% endif %}</dd>
+          {# v5H226z994: 유형(제목 옆 알약에서 이동) — 한글만, 시스템 코드 비노출 #}
+          <dt>유형</dt><dd>{% set _pty994 = (p.project_type or 'NEW_EQUIP')|upper %}{% if _pty994 == 'CONSUMABLE' %}소모품·부품{% elif _pty994 == 'SERVICE' %}수리·유지보수{% elif _pty994 == 'OTHER' %}기타{% else %}신규 장비{% endif %}</dd>
           <dt>모델명</dt><dd>{{ p.model_name|default('—') }}</dd>
           <dt>거래 구분</dt><dd>{% if p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}</dd>
           {# v5H200/z645: 상태 pill + 1줄 분포(진행/완료/취소/보류) #}
