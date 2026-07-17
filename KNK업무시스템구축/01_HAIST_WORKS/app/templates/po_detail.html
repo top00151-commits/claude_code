@@ -5,45 +5,40 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>발주 상세 · KNK HAIST WORKS</title>
 
-{# v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 분리 표시) — 실무팀3 발주 상세 #}
+{# v5H226z1002 (2026-07-18) — 디자인 통일 Phase 4 ②: knk 전환(머리글·경고 배너·표). 요약 카드·발주정보 def·
+   입고 진행바·메모·상태 칩·권한 🔒 = 업무 특화 유지(Sage 브리지).
+   v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 분리 표시) — 실무팀3 발주 상세 #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-line-3: #cbd5e1;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
-  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;
+  /* z1002 — pq 토큰을 knk(Sage) 토큰으로 브리지(z999 표준). 새 코드는 --knk-*만. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;   /* 보라 계열은 knk 무대응 — 원값 유지 */
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .pd-page { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; background: var(--pq-surface-2); }
-.pd-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.pd-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.pd-head .crumb a { color: var(--pq-ink-2); }
-.pd-head .crumb b { color: var(--pq-ink); }
-.pd-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.pd-title .code { font-family: var(--pq-mono); color: var(--pq-ink); }
-.pd-actions { margin-left: auto; display: flex; gap: 8px; }
-.pd-actions a, .pd-actions button { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; }
-.pd-actions .btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
-.pd-actions .btn-ghost:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
-.pd-actions .btn-dark { background: var(--pq-ink); border: 0; color: #fff; padding: 0 14px; font-weight: 600; }
-.pd-actions .btn-dark:hover { background: #1e293b; }
-
-.alert-bar { background: var(--pq-warn-soft); color: var(--pq-warn); border: 1px solid #fcd34d; border-radius: 8px; padding: 8px 12px; margin: 12px 24px 0; font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
+/* z1002 — 머리글·경고 배너 = knk 공통. 페이지엔 배치 보정만. */
+.pd-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
+.pd-page .knk-page-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pd-page .knk-page-title .code { font-family: var(--pq-mono); }
+.pd-page > .knk-alert { margin: 12px 24px 0; }
 
 .summary-row {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
@@ -70,18 +65,11 @@
 .def dd { color: var(--pq-ink); }
 .def dd .num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
 
-.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; }
-.tbl-erp thead th { height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
-.tbl-erp thead th.num { text-align: right; }
-.tbl-erp thead th.center { text-align: center; }
-.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
-.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
-.tbl-erp tbody td.center { text-align: center; }
-.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
-.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
-.tbl-erp tfoot td { background: var(--pq-surface-3); border-top: 2px solid var(--pq-ink); padding: 8px 12px; font-weight: 700; font-size: 12.5px; }
-.tbl-erp tfoot td.num { font-family: var(--pq-mono); text-align: right; }
-.tbl-erp .mute { color: var(--pq-ink-4); }
+/* z1002 — 라인 표 = knk-table--dense. 바닥 합계줄·코드만 페이지 보정 */
+.knk-table td.code { font-family: var(--pq-mono); font-weight: 700; }
+.knk-table .mute { color: var(--knk-text-muted, #657169); }
+.knk-table tfoot td { background: var(--knk-bg-subtle, #EAEEE9); border-top: 2px solid var(--knk-text-primary, #27302B); padding: 8px 12px; font-weight: 700; font-size: 12.5px; }
+.knk-table tfoot td.knk-td-num { text-align: right; }
 
 .qty-bar { display: inline-flex; align-items: center; gap: 6px; }
 .qty-bar .bar { width: 60px; height: 6px; background: var(--pq-surface-3); border-radius: 3px; overflow: hidden; }
@@ -120,26 +108,26 @@
   <main class="main">
     <div class="pd-page">
 
-      <div class="pd-head" data-dn="pd:head">
+      <header class="knk-page-head" data-dn="pd:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주 목록</a> · <b>{{ p.po_number|default('—') }}</b></div>
-          <div class="pd-title">
-            <span class="code">{{ p.po_number|default('—') }}</span>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주 목록</a> · <b>{{ p.po_number|default('—') }}</b></nav>
+          <h1 class="knk-page-title">
+            <span class="code knk-num">{{ p.po_number|default('—') }}</span>
             <span class="{{ st_cls }}">{{ st }}</span>
-          </div>
+          </h1>
         </div>
-        <div class="pd-actions">
-          <a class="btn-ghost" href="/po">↩ 목록</a>
-          <a class="btn-ghost" href="/po/{{ p.id }}/edit">📝 수정</a>
-          <a class="btn-ghost" href="/po/{{ p.id }}/qr.svg?scale=10" target="_blank" title="발주서 QR — 입고 시 스캔용">📱 QR</a>
+        <div class="knk-page-actions">
+          <a class="knk-btn knk-btn--ghost" href="/po"><i class="ti ti-arrow-left"></i> 목록</a>
+          <a class="knk-btn knk-btn--ghost" href="/po/{{ p.id }}/edit"><i class="ti ti-edit"></i> 수정</a>
+          <a class="knk-btn knk-btn--ghost" href="/po/{{ p.id }}/qr.svg?scale=10" target="_blank" title="발주서 QR — 입고 시 스캔용"><i class="ti ti-qrcode"></i> QR</a>
           {% if st in ('발주완료', '부분입고') %}
-          <a class="btn-dark" href="/po/{{ p.id }}/receive">📥 입고 처리</a>
+          <a class="knk-btn knk-btn--primary" href="/po/{{ p.id }}/receive"><i class="ti ti-package"></i> 입고 처리</a>
           {% endif %}
         </div>
-      </div>
+      </header>
 
       {% if po_mismatch %}
-      <div class="alert-bar" data-dn="pd:mismatch" data-dn-tone="amber">
+      <div class="knk-alert knk-alert--warning" data-dn="pd:mismatch" data-dn-tone="amber">
         ⚠ 헤더 합계와 라인 합계가 달라 자동 동기화 했습니다 (정합성 자가치유).
       </div>
       {% endif %}
@@ -177,16 +165,16 @@
             </div>
           </div>
           {% if items %}
-          <table class="tbl-erp">
+          <table class="knk-table knk-table--dense">
             <thead>
               <tr>
-                <th class="center" style="width:36px;">#</th>
+                <th class="knk-td-center" style="width:36px;">#</th>
                 <th>품목 / 규격</th>
-                <th class="num" style="width:80px;">수량</th>
-                <th class="center" style="width:50px;">단위</th>
-                <th class="num" style="width:90px;">단가</th>
-                <th class="num" style="width:110px;">금액</th>
-                <th class="center" style="width:120px;">입고/잔량</th>
+                <th class="knk-td-num" style="width:80px;">수량</th>
+                <th class="knk-td-center" style="width:50px;">단위</th>
+                <th class="knk-td-num" style="width:90px;">단가</th>
+                <th class="knk-td-num" style="width:110px;">금액</th>
+                <th class="knk-td-center" style="width:120px;">입고/잔량</th>
               </tr>
             </thead>
             <tbody>
@@ -196,17 +184,17 @@
               {% set rcv_pct = (rcv / qty * 100) if qty else 0 %}
               {% set rcv_cls = '' if rcv_pct >= 100 else 'partial' %}
               <tr>
-                <td class="center mute">{{ loop.index }}</td>
+                <td class="knk-td-center mute">{{ loop.index }}</td>
                 <td>
                   <b>{{ it.part_name_snapshot|default(it.part_no_snapshot|default('—')) }}</b>
                   {% if it.spec_snapshot %}<div class="mute" style="font-size:11px;">{{ it.spec_snapshot }}</div>{% endif %}
                   {% if it.part_no_snapshot %}<div class="mute" style="font-family:var(--pq-mono); font-size:11px;">{{ it.part_no_snapshot }}</div>{% endif %}
                 </td>
-                <td class="num">{{ '{:,.0f}'.format(qty) }}</td>
-                <td class="center mute">{{ it.unit|default('EA') }}</td>
-                <td class="num">{% if can_purchase_price %}{{ '{:,.0f}'.format(it.unit_price|default(0)) }}{% else %}🔒{% endif %}</td>
-                <td class="num"><b>{% if can_purchase_price %}{{ '{:,.0f}'.format(it.amount|default(qty * (it.unit_price|default(0)))) }}{% else %}🔒{% endif %}</b></td>
-                <td class="center">
+                <td class="knk-td-num">{{ '{:,.0f}'.format(qty) }}</td>
+                <td class="knk-td-center mute">{{ it.unit|default('EA') }}</td>
+                <td class="knk-td-num">{% if can_purchase_price %}{{ '{:,.0f}'.format(it.unit_price|default(0)) }}{% else %}🔒{% endif %}</td>
+                <td class="knk-td-num"><b>{% if can_purchase_price %}{{ '{:,.0f}'.format(it.amount|default(qty * (it.unit_price|default(0)))) }}{% else %}🔒{% endif %}</b></td>
+                <td class="knk-td-center">
                   <div class="qty-bar">
                     <span class="num" style="font-size:11px;">{{ '{:,.0f}'.format(rcv) }}/{{ '{:,.0f}'.format(qty) }}</span>
                     <div class="bar"><div class="fill {{ rcv_cls }}" style="width:{{ rcv_pct if rcv_pct < 100 else 100 }}%;"></div></div>
@@ -218,10 +206,10 @@
             <tfoot>
               <tr>
                 <td colspan="2">합계 ({{ items|length }}건)</td>
-                <td class="num">{{ '{:,.0f}'.format(sum_qty) }}</td>
+                <td class="knk-td-num">{{ '{:,.0f}'.format(sum_qty) }}</td>
                 <td colspan="2"></td>
-                <td class="num">{% if can_purchase_price %}{{ '{:,.0f}'.format(sum_amount) }}{% else %}🔒{% endif %}</td>
-                <td class="center" style="font-weight:500; color:var(--pq-ink-3);">진행 {{ '{:.0f}'.format(fulfill_pct) }}%</td>
+                <td class="knk-td-num">{% if can_purchase_price %}{{ '{:,.0f}'.format(sum_amount) }}{% else %}🔒{% endif %}</td>
+                <td class="knk-td-center" style="font-weight:500; color:var(--pq-ink-3);">진행 {{ '{:.0f}'.format(fulfill_pct) }}%</td>
               </tr>
             </tfoot>
           </table>

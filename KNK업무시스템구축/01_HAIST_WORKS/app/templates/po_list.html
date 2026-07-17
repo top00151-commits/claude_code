@@ -6,6 +6,8 @@
 <title>발주 목록 · KNK HAIST WORKS</title>
 
 {# ============================================================
+   po_list.html — v5H226z1002 (2026-07-18) 디자인 통일 Phase 4 ②: knk 전환
+   (머리글·KPI 8칸(클릭 필터 유지)·조회·표=knk-table--dense·빈상태 / 상태 칩·권한 🔒·행 클릭 유지)
    po_list.html — v5H226z54 (2026-05-10) 시안1 ERP 적용
    실무팀3 (자재구매센터) 1순위 페이지.
    - chip-po (PO_STATUSES 5종 매핑)
@@ -17,156 +19,63 @@
 
 <link href="/static/css/v5_tokens.css?v=20260510v5H226z54" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
-/* ── 자재구매 ERP 토큰 (시안1 / tokens.css) ──────────────────── */
 :root {
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
-  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;
+  /* z1002 — pq 토큰을 knk(Sage) 토큰으로 브리지(z999 표준). 새 코드는 --knk-*만. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;   /* 보라 계열은 knk 무대응 — 원값 유지 */
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 
-/* ── PageHead 스트립 ────────────────────────────────────────── */
+/* z1002 — 머리글·KPI·조회·빈상태 = knk 공통 컴포넌트. 페이지엔 배치 보정만. */
 .po-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.po-head {
-  padding: 14px 24px 12px; background: var(--pq-surface);
-  border-bottom: 1px solid var(--pq-line);
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-}
-.po-head .crumb { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; }
-.po-head .crumb a { color: var(--pq-ink-2); }
-.po-head .crumb b { color: var(--pq-ink); }
-.po-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; line-height: 1.1; }
-.po-meta {
-  font-size: 12px; color: var(--pq-ink-3); display: inline-flex; gap: 8px; align-items: center;
-}
-.po-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.po-meta .pm-warn { color: var(--pq-danger); font-weight: 700; }
-.po-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-.po-actions .btn-ghost {
-  height: 32px; padding: 0 12px; background: transparent; border: 1px solid var(--pq-line-2);
-  border-radius: 8px; font-size: 12.5px; font-weight: 500; color: var(--pq-ink-2);
-  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer;
-}
-.po-actions .btn-ghost:hover { background: var(--pq-surface-2); border-color: var(--pq-line-3); color: var(--pq-ink); }
-.po-actions .btn-dark {
-  height: 32px; padding: 0 14px; background: var(--pq-ink); border: 0; border-radius: 8px;
-  font-size: 12.5px; font-weight: 600; color: #fff; display: inline-flex; align-items: center; gap: 6px;
-  text-decoration: none; cursor: pointer;
-}
-.po-actions .btn-dark:hover { background: #1e293b; }
-
-/* ── KPI Strip (8칸: 전체/4 상태/금액/평균/지연) ─────────────── */
-.kpi-strip {
-  display: grid; grid-template-columns: repeat(8, 1fr); gap: 0;
-  background: var(--pq-surface); border-bottom: 1px solid var(--pq-line);
-}
-.kpi-cell {
-  padding: 10px 14px; border-right: 1px solid var(--pq-line);
-  text-decoration: none; color: inherit; transition: background .12s;
-  position: relative;
-}
-.kpi-cell:last-child { border-right: 0; }
-.kpi-cell:hover { background: var(--pq-surface-2); }
-.kpi-cell.active { background: var(--pq-surface-inset); box-shadow: inset 0 -2px 0 var(--pq-ink); }
-.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
-.kpi-cell .v {
-  font-family: var(--pq-mono); font-variant-numeric: tabular-nums;
-  font-size: 18px; font-weight: 700; color: var(--pq-ink); line-height: 1.2; margin-top: 2px;
-  display: flex; align-items: baseline; gap: 3px;
-}
-.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
-.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
-.kpi-cell.warn .v { color: var(--pq-danger); }
-.kpi-cell.ok .v { color: var(--pq-ok); }
-
-/* ── FilterBar ─────────────────────────────────────────────── */
+.po-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
+.po-page > .knk-kpi-strip { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding: 4px 16px; }
 .fb-chip .fb-x { opacity: 0.7; font-size: 11px; }
-.fb-go {
-  height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2);
-  border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer;
-}
-.fb-go:hover { background: var(--pq-surface-3); }
 .fb-result {
-  margin-left: auto; font-size: 11px; color: var(--pq-ink-3);
-  font-family: var(--pq-mono); font-variant-numeric: tabular-nums;
+  margin-left: auto; font-size: 11px; color: var(--knk-text-muted, #657169);
+  font-variant-numeric: tabular-nums;
 }
 
-/* ── Dense table (시안1) ────────────────────────────────────── */
-.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
-.tbl-erp {
-  width: 100%; border-collapse: separate; border-spacing: 0;
-  background: var(--pq-surface); min-width: 1100px;
-}
-.tbl-erp thead th {
-  position: sticky; top: 0; z-index: 3;
-  height: 32px; padding: 6px 12px;
-  background: var(--pq-surface); color: var(--pq-ink-3);
-  font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
-  text-align: left; border-bottom: 1px solid var(--pq-line-2);
-}
-.tbl-erp thead th.num { text-align: right; }
-.tbl-erp thead th.center { text-align: center; }
-.tbl-erp tbody td {
-  height: 32px; padding: 4px 12px;
-  border-bottom: 1px solid var(--pq-line); color: var(--pq-ink);
-  vertical-align: middle; font-size: 12.5px;
-}
-.tbl-erp tbody td.num {
-  font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right;
-}
-.tbl-erp tbody td.center { text-align: center; }
-.tbl-erp tbody td.code {
-  font-family: var(--pq-mono); font-weight: 700;
-}
-.tbl-erp tbody tr { transition: background-color .1s ease; cursor: pointer; }
-.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
-.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); }
-.tbl-erp tbody tr:hover:nth-child(even) > td { background: var(--pq-surface-3); }
-.tbl-erp .vendor-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.tbl-erp .vendor-line b { font-weight: 600; color: var(--pq-ink); }
-.tbl-erp .proj-line { display: flex; align-items: center; gap: 6px; }
-.tbl-erp .mgmt-no {
+/* z1002 — 표 = knk-table--dense. ERP 특화(코드·관리번호 칩·행 클릭·바닥 합계줄)만 페이지 보정 */
+.tbl-zone { flex: 1; overflow: auto; background: var(--knk-bg-surface, #FAFBF9); min-height: 0; }
+.tbl-zone .knk-table { min-width: 1100px; }
+.tbl-zone .knk-table tbody tr { cursor: pointer; }
+.knk-table td.code { font-family: var(--pq-mono); font-weight: 700; }
+.knk-table .mute { color: var(--knk-text-muted, #657169); }
+.vendor-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.vendor-line b { font-weight: 600; }
+.proj-line { display: flex; align-items: center; gap: 6px; }
+.mgmt-no {
   display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
   font-family: var(--pq-mono); font-variant-numeric: tabular-nums;
   font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
-  background: var(--pq-ink); color: #fff; border-radius: 4px;
+  background: var(--knk-text-primary, #27302B); color: #fff; border-radius: 4px;
 }
-.tbl-erp .mute { color: var(--pq-ink-4); }
-
-/* tfoot 합계 */
-.tbl-erp tfoot td {
+.knk-table tfoot td {
   height: 34px; padding: 6px 12px;
-  background: var(--pq-surface-3); border-top: 2px solid var(--pq-ink);
-  color: var(--pq-ink); font-weight: 700; font-size: 12px;
+  background: var(--knk-bg-subtle, #EAEEE9); border-top: 2px solid var(--knk-text-primary, #27302B);
+  color: var(--knk-text-primary, #27302B); font-weight: 700; font-size: 12px;
   position: sticky; bottom: 0; z-index: 2;
 }
-.tbl-erp tfoot td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
 
-/* ── Empty state ────────────────────────────────────────────── */
-.po-empty {
-  padding: 64px 20px; text-align: center; color: var(--pq-ink-3);
-  background: var(--pq-surface);
-}
-.po-empty .ico { font-size: 40px; margin-bottom: 10px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin-bottom: 4px; }
-.po-empty .sub { font-size: 12.5px; color: var(--pq-ink-3); }
-.po-empty .cta { margin-top: 16px; }
-
-/* ── 반응형 ─────────────────────────────────────────────────── */
-@media (max-width: 1280px) {
-  .kpi-strip { grid-template-columns: repeat(4, 1fr); }
-  .kpi-cell:nth-child(4n) { border-right: 0; }
-  .kpi-cell:nth-child(-n+4) { border-bottom: 1px solid var(--pq-line); }
-}
 @media (max-width: 1023px) {
-  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
-  .kpi-cell { border-right: none; border-bottom: 1px solid var(--pq-line); }
-  .kpi-cell:nth-child(2n) { border-right: 0; }
-  .po-head { padding: 12px 16px; gap: 10px; }
-  .tbl-erp { min-width: 720px; }
+  .tbl-zone .knk-table { min-width: 720px; }
 }
 </style>
 </head>
@@ -191,86 +100,76 @@
     <div class="po-page">
 
       {# ── PageHead ─────────────────────────────────────────── #}
-      <div class="po-head" data-dn="po:head">
+      <header class="knk-page-head" data-dn="po:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>발주 목록</b></div>
-          <div class="po-title">발주 관리</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <b>발주 목록</b></nav>
+          <h1 class="knk-page-title">발주 관리</h1>
+          <p class="knk-page-meta">전체 <span class="knk-num">{{ total_cnt }}</span>건 · 진행 <span class="knk-num">{{ in_progress_cnt }}</span> · 완료 <span class="knk-num">{{ received_cnt }}</span>{% if cancelled_cnt %} · 취소 {{ cancelled_cnt }}{% endif %}</p>
         </div>
-        <div class="po-meta">
-          <span>전체 <span class="pm-num">{{ total_cnt }}</span>건</span>
-          <span>·</span>
-          <span>진행 <span class="pm-num">{{ in_progress_cnt }}</span></span>
-          <span>·</span>
-          <span>완료 <span class="pm-num">{{ received_cnt }}</span></span>
-          {% if cancelled_cnt %}
-          <span>·</span>
-          <span class="mute">취소 {{ cancelled_cnt }}</span>
-          {% endif %}
+        <div class="knk-page-actions">
+          <a class="knk-btn knk-btn--ghost" href="/po/export.xlsx" title="현재 목록을 엑셀로 받기"><i class="ti ti-download"></i> 엑셀 내보내기</a>
+          <a class="knk-btn knk-btn--ghost" href="/po"><i class="ti ti-refresh"></i> 새로고침</a>
+          <a class="knk-btn knk-btn--primary" href="/po/new"><i class="ti ti-plus"></i> 신규 발주</a>
         </div>
-        <div class="po-actions">
-          <a class="btn-ghost" href="/po/export.xlsx" title="엑셀 다운로드">⤓ Excel</a>
-          <a class="btn-ghost" href="/po">↻ 새로고침</a>
-          <a class="btn-dark" href="/po/new">＋ 신규 발주</a>
-        </div>
-      </div>
+      </header>
 
       {# ── KPI Strip ────────────────────────────────────────── #}
-      <div class="kpi-strip" data-dn="po:kpi" data-dn-tone="green">
-        <a class="kpi-cell {% if not status %}active{% endif %}" href="/po{% if q %}?q={{ q }}{% endif %}">
-          <div class="l">전체</div>
-          <div class="v">{{ total_cnt }}<span class="u">건</span></div>
-          <div class="sub">필터 미적용</div>
+      <div class="knk-kpi-strip" data-dn="po:kpi" data-dn-tone="green">
+        <a class="knk-kpi {% if not status %}is-active{% endif %}" href="/po{% if q %}?q={{ q }}{% endif %}">
+          <span class="knk-kpi__label">전체</span>
+          <span class="knk-kpi__value">{{ total_cnt }}<span class="knk-kpi__unit">건</span></span>
+          <span class="knk-kpi__sub">필터 미적용</span>
         </a>
-        <a class="kpi-cell {% if status=='작성중' %}active{% endif %}" href="/po?status=작성중{% if q %}&q={{ q }}{% endif %}">
-          <div class="l">작성중</div>
-          <div class="v">{{ draft_cnt }}<span class="u">건</span></div>
-          <div class="sub">초안 / 발주 전</div>
+        <a class="knk-kpi {% if status=='작성중' %}is-active{% endif %}" href="/po?status=작성중{% if q %}&q={{ q }}{% endif %}">
+          <span class="knk-kpi__label">작성중</span>
+          <span class="knk-kpi__value">{{ draft_cnt }}<span class="knk-kpi__unit">건</span></span>
+          <span class="knk-kpi__sub">초안 / 발주 전</span>
         </a>
-        <a class="kpi-cell {% if status=='발주완료' %}active{% endif %}" href="/po?status=발주완료{% if q %}&q={{ q }}{% endif %}">
-          <div class="l">발주완료</div>
-          <div class="v">{{ issued_cnt }}<span class="u">건</span></div>
-          <div class="sub">협력사 통보</div>
+        <a class="knk-kpi {% if status=='발주완료' %}is-active{% endif %}" href="/po?status=발주완료{% if q %}&q={{ q }}{% endif %}">
+          <span class="knk-kpi__label">발주완료</span>
+          <span class="knk-kpi__value">{{ issued_cnt }}<span class="knk-kpi__unit">건</span></span>
+          <span class="knk-kpi__sub">협력사 통보</span>
         </a>
-        <a class="kpi-cell {% if status=='부분입고' %}active{% endif %}" href="/po?status=부분입고{% if q %}&q={{ q }}{% endif %}">
-          <div class="l">부분입고</div>
-          <div class="v">{{ partial_cnt }}<span class="u">건</span></div>
-          <div class="sub">잔량 추적 중</div>
+        <a class="knk-kpi {% if status=='부분입고' %}is-active{% endif %}" href="/po?status=부분입고{% if q %}&q={{ q }}{% endif %}">
+          <span class="knk-kpi__label">부분입고</span>
+          <span class="knk-kpi__value">{{ partial_cnt }}<span class="knk-kpi__unit">건</span></span>
+          <span class="knk-kpi__sub">잔량 추적 중</span>
         </a>
-        <a class="kpi-cell ok {% if status=='입고완료' %}active{% endif %}" href="/po?status=입고완료{% if q %}&q={{ q }}{% endif %}">
-          <div class="l">입고완료</div>
-          <div class="v">{{ received_cnt }}<span class="u">건</span></div>
-          <div class="sub">검수 종결</div>
+        <a class="knk-kpi {% if status=='입고완료' %}is-active{% endif %}" href="/po?status=입고완료{% if q %}&q={{ q }}{% endif %}">
+          <span class="knk-kpi__label">입고완료</span>
+          <span class="knk-kpi__value">{{ received_cnt }}<span class="knk-kpi__unit">건</span></span>
+          <span class="knk-kpi__sub">검수 종결</span>
         </a>
-        <a class="kpi-cell {% if status=='취소' %}active{% endif %}" href="/po?status=취소{% if q %}&q={{ q }}{% endif %}">
-          <div class="l">취소</div>
-          <div class="v">{{ cancelled_cnt }}<span class="u">건</span></div>
-          <div class="sub">반려 / 폐기</div>
+        <a class="knk-kpi {% if status=='취소' %}is-active{% endif %}" href="/po?status=취소{% if q %}&q={{ q }}{% endif %}">
+          <span class="knk-kpi__label">취소</span>
+          <span class="knk-kpi__value">{{ cancelled_cnt }}<span class="knk-kpi__unit">건</span></span>
+          <span class="knk-kpi__sub">반려 / 폐기</span>
         </a>
-        <div class="kpi-cell">
-          <div class="l">{% if status %}필터 합계{% else %}총 발주액{% endif %}</div>
-          <div class="v">
+        <div class="knk-kpi">
+          <span class="knk-kpi__label">{% if status %}필터 합계{% else %}총 발주액{% endif %}</span>
+          <span class="knk-kpi__value">
             {% if not can_purchase_price %}<span title="구매단가 열람 권한 없음">🔒</span>
             {% elif sum_amount >= 100000000 %}
-              {{ '{:.2f}'.format(sum_amount / 100000000) }}<span class="u">억</span>
+              {{ '{:.2f}'.format(sum_amount / 100000000) }}<span class="knk-kpi__unit">억</span>
             {% elif sum_amount >= 10000 %}
-              {{ '{:,.0f}'.format(sum_amount / 10000) }}<span class="u">만</span>
+              {{ '{:,.0f}'.format(sum_amount / 10000) }}<span class="knk-kpi__unit">만</span>
             {% else %}
-              {{ '{:,.0f}'.format(sum_amount) }}<span class="u">원</span>
+              {{ '{:,.0f}'.format(sum_amount) }}<span class="knk-kpi__unit">원</span>
             {% endif %}
-          </div>
-          <div class="sub">현재 보기 기준</div>
+          </span>
+          <span class="knk-kpi__sub">현재 보기 기준</span>
         </div>
-        <div class="kpi-cell">
-          <div class="l">평균 발주액</div>
-          <div class="v">
+        <div class="knk-kpi">
+          <span class="knk-kpi__label">평균 발주액</span>
+          <span class="knk-kpi__value">
             {% if not can_purchase_price %}<span title="구매단가 열람 권한 없음">🔒</span>
             {% elif avg_amount >= 10000 %}
-              {{ '{:,.0f}'.format(avg_amount / 10000) }}<span class="u">만</span>
+              {{ '{:,.0f}'.format(avg_amount / 10000) }}<span class="knk-kpi__unit">만</span>
             {% else %}
-              {{ '{:,.0f}'.format(avg_amount) }}<span class="u">원</span>
+              {{ '{:,.0f}'.format(avg_amount) }}<span class="knk-kpi__unit">원</span>
             {% endif %}
-          </div>
-          <div class="sub">건당</div>
+          </span>
+          <span class="knk-kpi__sub">건당</span>
         </div>
       </div>
 
@@ -289,7 +188,7 @@
           <span class="fb-ic">⌕</span>
           <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="발주번호 · 거래처 · 프로젝트 검색" />
         </div>
-        <button type="submit" class="fb-go">검색</button>
+        <button type="submit" class="knk-btn knk-btn--sm">조회</button>
         {% if q or status %}
           <a class="fb-chip" href="/po" style="border-style: dashed;">↺ 필터 해제</a>
         {% endif %}
@@ -299,16 +198,16 @@
       {# ── 발주 표 ────────────────────────────────────────── #}
       {% if orders %}
       <div class="tbl-zone" data-dn="po:table" data-dn-tone="purple">
-        <table class="tbl-erp">
+        <table class="knk-table knk-table--dense">
           <thead>
             <tr>
               <th style="width:130px;">발주번호</th>
-              <th class="center" style="width:80px;">발주일</th>
+              <th class="knk-td-center" style="width:80px;">발주일</th>
               <th style="width:180px;">협력사</th>
               <th>프로젝트 · 관리코드</th>
-              <th class="num" style="width:130px;">금액</th>
-              <th class="center" style="width:90px;">예상 입고</th>
-              <th class="center" style="width:104px;">상태</th>
+              <th class="knk-td-num" style="width:130px;">금액</th>
+              <th class="knk-td-center" style="width:90px;">예상 입고</th>
+              <th class="knk-td-center" style="width:104px;">상태</th>
               <th style="width:80px;">담당</th>
             </tr>
           </thead>
@@ -324,7 +223,7 @@
                 'chip-po s-draft' %}
             <tr onclick="location.href='/po/{{ o.id }}'">
               <td class="code">{{ o.po_number|default('—') }}</td>
-              <td class="center mute">{{ o.order_date|default('—') }}</td>
+              <td class="knk-td-center mute">{{ o.order_date|default('—') }}</td>
               <td>
                 <div class="vendor-line">
                   <b>{% if can_supplier %}{{ o.supplier_name|default('(거래처 없음)') }}{% else %}<span title="구매처 열람 권한 없음">🔒</span>{% endif %}</b>
@@ -336,11 +235,11 @@
                   {% if o.project_name %}<span>{{ o.project_name }}</span>{% else %}<span class="mute">—</span>{% endif %}
                 </div>
               </td>
-              <td class="num">
+              <td class="knk-td-num">
                 {% if can_purchase_price %}{% if o.currency and o.currency != 'KRW' %}<span class="mute" style="font-size:11px;">{{ o.currency }}</span> {% endif %}<b>{{ '{:,.0f}'.format(o.total_amount|default(0)) }}</b>{% if not o.currency or o.currency == 'KRW' %}<span class="mute" style="font-size:11px;"> 원</span>{% endif %}{% else %}🔒{% endif %}
               </td>
-              <td class="center mute">{{ o.expected_date|default('—') }}</td>
-              <td class="center"><span class="{{ st_cls }}">{{ st }}</span></td>
+              <td class="knk-td-center mute">{{ o.expected_date|default('—') }}</td>
+              <td class="knk-td-center"><span class="{{ st_cls }}">{{ st }}</span></td>
               <td>{{ o.creator_name|default('—') }}</td>
             </tr>
           {% endfor %}
@@ -348,7 +247,7 @@
           <tfoot>
             <tr>
               <td colspan="4">합계 ({{ total_cnt }}건{% if status %} · {{ status }}{% endif %})</td>
-              <td class="num">
+              <td class="knk-td-num">
                 {% if not can_purchase_price %}🔒
                 {% elif sum_amount >= 100000000 %}
                   {{ '{:.2f}'.format(sum_amount / 100000000) }} 억
@@ -365,13 +264,11 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty" data-dn="po:empty">
-        <div class="ico">📋</div>
-        <div class="ttl">{% if q or status %}검색 결과 없음{% else %}등록된 발주서가 없습니다{% endif %}</div>
-        <div class="sub">
-          {% if q or status %}필터를 해제하거나 다른 조건으로 검색해보세요.{% else %}우상단 <b>＋ 신규 발주</b> 버튼으로 첫 발주서를 만들어보세요.{% endif %}
-        </div>
-        <div class="cta"><a class="btn-dark" href="/po/new">＋ 신규 발주</a></div>
+      <div class="knk-empty" data-dn="po:empty">
+        <i class="ti ti-clipboard-list"></i>
+        <p class="knk-empty__title">{% if q or status %}검색 결과가 없습니다{% else %}등록된 발주서가 없습니다{% endif %}</p>
+        <p class="knk-empty__desc">{% if q or status %}필터를 해제하거나 다른 조건으로 검색해 보세요.{% else %}첫 발주서를 만들어 보세요.{% endif %}</p>
+        <a class="knk-btn knk-btn--primary" href="/po/new"><i class="ti ti-plus"></i> 신규 발주</a>
       </div>
       {% endif %}
 
