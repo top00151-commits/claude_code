@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{% if part %}자재 수정{% else %}자재 등록{% endif %} · KNK HAIST WORKS</title>
 
-{# v5H226z58 (2026-05-12) — 시안1 + 룰 v4 — 자재 등록·수정 (A안 중복 방지 통합)
+{# v5H226z999 (2026-07-18) — 디자인 통일 Phase 3: knk 공통 컴포넌트 전환
+   (머리글·배너·폼 섹션/그리드/필드·제출 바 = knk-components.css · 색 = Sage 브리지)
+   업무 로직·Form name·저장 흐름 불변(가이드 §18). 유사검사 submitBtn 은 classList 로 force 만 토글.
+   v5H226z58 (2026-05-12) — 시안1 + 룰 v4 — 자재 등록·수정 (A안 중복 방지 통합)
    라우터:
      GET  /parts/new  · GET /parts/{pid}/edit
      POST /parts/new  (Form: part_no*, part_name*, spec, maker, origin, unit(EA),
@@ -25,64 +28,40 @@
 
 <link href="/static/css/v5_tokens.css?v=20260512v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  /* z999 — pq 토큰을 knk(Sage) 토큰으로 브리지: 유지 컴포넌트(유사검사·첨부·QR·구매사 카드)까지 색 자동 통일.
+     새 코드는 --knk-* 만 사용. pq 참조 자체 제거는 Phase 6. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-err: var(--knk-danger, #A33A3E);       --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .pf-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.pf-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.pf-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.pf-head .crumb a { color: var(--pq-ink-3); }
-.pf-head .crumb b { color: var(--pq-ink); }
-.pf-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.pf-title em { font-style: normal; color: var(--pq-info); font-weight: 800; }
-.pf-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
-.pf-actions { margin-left: auto; display: flex; gap: 8px; }
-.pf-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
-.pf-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
-
-.banner { padding: 9px 24px; font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--pq-line); }
-.banner.ok  { background: var(--pq-ok-soft); color: var(--pq-ok); }
-.banner.err { background: var(--pq-err-soft); color: var(--pq-err); white-space: pre-wrap; line-height: 1.5; }
+/* z999 — 머리글·배너·폼 골격은 knk 공통 컴포넌트(knk-components.css)가 담당. 페이지엔 배치 보정만. */
+.pf-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
+.knk-page-title em { font-style: normal; color: var(--knk-info, #2E5F8A); font-weight: 800; }
+.pf-page > .knk-alert { margin: 12px 20px 0; }
 
 .pf-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
 .pf-grid { display: grid; grid-template-columns: 1fr 320px; gap: 14px; }
 @media (max-width: 1180px) { .pf-grid { grid-template-columns: 1fr; } }
 
-.qsec { background: var(--pq-surface); border: 1px solid var(--pq-line); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
-.qsec-h { padding: 11px 14px; border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 10px; background: var(--pq-surface-2); }
-.qsec-h .ttl { font-size: 13px; font-weight: 700; color: var(--pq-ink); }
-.qsec-h .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background: var(--pq-info-soft); color: var(--pq-info); font-size: 11px; font-weight: 600; border-radius: 10px; font-family: var(--pq-mono); }
-
-.f-body { padding: 14px 16px; }
-.f-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field.col-2 { grid-column: span 2; }
-.field.col-3 { grid-column: span 3; }
-.field.col-4 { grid-column: span 4; }
-.field label { font-size: 11px; color: var(--pq-ink-3); font-weight: 600; }
-.field label .req { color: var(--pq-err); }
-.field input, .field select, .field textarea {
-  padding: 7px 10px; font-size: 13px; border: 1px solid var(--pq-line-2); border-radius: 6px;
-  background: var(--pq-surface); color: var(--pq-ink); font-family: inherit;
-  font-variant-numeric: tabular-nums;
-}
-.field textarea { min-height: 60px; resize: vertical; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--pq-info); outline-offset: -1px; border-color: var(--pq-info); }
+/* z999 — 섹션(.qsec→knk-form-section)·그리드(.f-grid→knk-form-grid)·필드(.field→knk-field) 규칙은 공통 컴포넌트로 이전.
+   색 입힌 섹션 머리(위험 구역·일괄 안내)가 둥근 카드 모서리를 넘지 않게 머리 위쪽만 둥글게. */
+.knk-form-section__head { border-radius: var(--knk-radius-card, 8px) var(--knk-radius-card, 8px) 0 0; }
 
 /* 유사 자재 실시간 패널 */
 .sim-panel { padding: 12px 14px; }
@@ -141,17 +120,12 @@
 .qr-card .actions a { padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 4px; text-decoration: none; background: var(--pq-surface-2); color: var(--pq-ink-2); border: 1px solid var(--pq-line-2); }
 .qr-card .actions a:hover { background: var(--pq-surface-3); }
 
-.submit-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
-.submit-bar .note { margin-right: auto; font-size: 11.5px; color: var(--pq-ink-3); }
-.submit-bar a { height: 34px; padding: 0 14px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; background: var(--pq-surface-2); color: var(--pq-ink-2); border: 1px solid var(--pq-line-2); }
-.submit-bar button { height: 34px; padding: 0 20px; border-radius: 6px; font-size: 13px; font-weight: 700; background: var(--pq-ink); color: #fff; border: 0; cursor: pointer; font-family: inherit; }
-.submit-bar button:hover { background: #1e293b; }
-.submit-bar button.force { background: var(--pq-err); }
-.submit-bar button.force:hover { background: #991b1b; }
-/* z452 mobile — 폰: 4열 폼 그리드/구매사 3열/업로드 3열을 세로로 쌓기 (데스크톱 규칙은 위 그대로) */
+/* z999 — 제출 바 = knk-submit-bar. 강제 등록 모드(유사 ≥85점)만 페이지 규칙: 위험색 + 문구 병행('⚠ 그래도 등록') */
+.knk-submit-bar .knk-btn--primary.force { background: var(--knk-danger, #A33A3E); border-color: var(--knk-danger, #A33A3E); }
+.knk-submit-bar .knk-btn--primary.force:hover { background: #8F3236; border-color: #8F3236; }
+/* z452 mobile → z999: 폼 그리드 접기는 knk-form-grid 공통 반응형(≤767px 1열)이 담당.
+   구매사·업로드는 인라인 그리드라 페이지에서 계속 쌓기(!important = 인라인 style 이김 — 기존 유지분). */
 @media (max-width: 768px) {
-  .f-grid { grid-template-columns: 1fr !important; }
-  .field.col-2, .field.col-3, .field.col-4 { grid-column: span 1 !important; }
   #purchaseVendors { grid-template-columns: 1fr !important; }
   .upload-row { grid-template-columns: 1fr !important; }
 }
@@ -171,42 +145,42 @@
 
       <div class="pf-page">
 
-        <div class="pf-head" data-dn="pf:head" data-dn-tone="purple">
+        <header class="knk-page-head" data-dn="pf:head" data-dn-tone="purple">
           <div>
-            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/parts">자재</a> · <b>{% if is_edit %}수정{% else %}등록{% endif %}</b></div>
-            <div class="pf-title">{% if is_edit %}✏ <em>{{ part.part_name|default(part.name|default('자재')) }}</em> 수정{% else %}＋ 신규 자재 등록{% endif %}</div>
-            <div class="pf-meta">
+            <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/parts">자재</a> · <b>{% if is_edit %}수정{% else %}등록{% endif %}</b></nav>
+            <h1 class="knk-page-title">{% if is_edit %}<em>{{ part.part_name|default(part.name|default('자재')) }}</em> 수정{% else %}신규 자재 등록{% endif %}</h1>
+            <p class="knk-page-meta">
               {% if is_edit %}
-                자재 코드 <code style="font-family:var(--pq-mono);background:var(--pq-surface-3);padding:1px 6px;border-radius:3px;">{{ part.part_no|default(part.code|default('—')) }}</code> · 마스터 데이터 수정
+                자재 코드 <code class="knk-num" style="font-family:var(--pq-mono);background:var(--pq-surface-3);padding:1px 6px;border-radius:3px;">{{ part.part_no|default(part.code|default('—')) }}</code> · 마스터 데이터 수정
               {% else %}
                 중복·유사 자재 실시간 검사 (A안 3층 방어) · 등록 후 사진/도면 첨부 가능
               {% endif %}
-            </div>
+            </p>
           </div>
-          <div class="pf-actions">
-            <a href="/parts">↩ 목록</a>
-            {% if is_edit %}<a href="/parts/{{ part.id }}">📋 상세</a>{% endif %}
+          <div class="knk-page-actions">
+            <a class="knk-btn knk-btn--ghost" href="/parts"><i class="ti ti-arrow-left"></i> 목록</a>
+            {% if is_edit %}<a class="knk-btn knk-btn--ghost" href="/parts/{{ part.id }}"><i class="ti ti-clipboard-list"></i> 상세</a>{% endif %}
             {% if not is_edit %}
-            <a href="/parts/import" style="background:var(--pq-info);color:#fff;border-color:var(--pq-info);font-weight:700;" title="엑셀 파일로 자재 여러 건을 한 번에 등록합니다">📥 엑셀 일괄 등록</a>
+            <a class="knk-btn knk-btn--secondary" href="/parts/import" title="엑셀 파일로 자재 여러 건을 한 번에 등록합니다"><i class="ti ti-file-spreadsheet"></i> 엑셀 일괄 등록</a>
             {% endif %}
           </div>
-        </div>
+        </header>
 
-        {% if request.query_params.get('success') %}<div class="banner ok">✓ {{ request.query_params.get('success') }}</div>{% endif %}
-        {% if request.query_params.get('error') %}<div class="banner err">⚠ {{ request.query_params.get('error') }}</div>{% endif %}
+        {% if request.query_params.get('success') %}<div class="knk-alert knk-alert--success">✓ {{ request.query_params.get('success') }}</div>{% endif %}
+        {% if request.query_params.get('error') %}<div class="knk-alert knk-alert--danger" style="white-space:pre-wrap;">⚠ {{ request.query_params.get('error') }}</div>{% endif %}
 
         <div class="pf-body" data-dn="pf:body">
           <div class="pf-grid">
 
             <div>
-              <div class="qsec" data-dn="pf:basic">
-                <div class="qsec-h">
-                  <span class="ttl">📋 기본 정보</span>
-                  <span class="badge">필수 *</span>
+              <div class="knk-form-section" data-dn="pf:basic">
+                <div class="knk-form-section__head">
+                  <span class="knk-form-section__title">📋 기본 정보</span>
+                  <span class="knk-badge knk-badge--info">필수 *</span>
                 </div>
-                <div class="f-body">
-                  <div class="f-grid">
-                    <div class="field col-2">
+                <div class="knk-form-section__body">
+                  <div class="knk-form-grid">
+                    <div class="knk-field knk-col-2">
                       <label>자재 코드 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">= 제조사 모델명 (part_no)</span> <span class="req">*</span>{% if is_edit %} <span style="color:var(--pq-warn);font-weight:700;">⚠ 변경 주의</span>{% endif %}</label>
                       <input type="text" name="part_no" id="partNo" required value="{{ part.part_no|default(part.code|default('')) }}" placeholder="예: MR-J4-200A · S7I15GD · KQ2L10-03NS"{% if is_edit %} data-original="{{ part.part_no|default(part.code|default('')) }}"{% endif %}>
                       {% if is_edit %}
@@ -215,7 +189,7 @@
                       </div>
                       {% endif %}
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>사업부 <span class="req">*</span></label>
                       <select name="biz_div" id="bizDivSel" required>
                         <option value="" disabled {% if not part or not part.biz_div %}selected{% endif %}>— 선택 (필수) —</option>
@@ -228,16 +202,16 @@
                       </div>
                     </div>
 
-                    <div class="field col-4">
+                    <div class="knk-field knk-col-4">
                       <label>자재명 (part_name) <span class="req">*</span></label>
                       <input type="text" name="part_name" id="partName" required value="{{ part.part_name|default(part.name|default('')) }}" placeholder="예: AC서보모터 200W">
                     </div>
 
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>규격 (spec)</label>
                       <input type="text" name="spec" id="partSpec" value="{{ part.spec|default('') }}" placeholder="예: 200W·24V·3000rpm">
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>제조사 (maker)</label>
                       <input type="text" name="maker" id="partMaker"
                         value="{{ part.maker|default('') }}"
@@ -252,7 +226,7 @@
 
                     {# v5H226z111 (2026-05-19) — 기본 협력사 입력은 [분류·재고 관리] 박스의 구매사1·2·3으로 이전됨 #}
 
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>원산지 (origin)</label>
                       <input type="text" name="origin"
                         value="{{ part.origin|default('') }}"
@@ -267,25 +241,25 @@
 
                     {# v5H226z110c (2026-05-19) — 제조사 담당자 풀세트
                        제조사는 마스터 테이블이 없어 자재 단위로 직접 입력 #}
-                    <div class="field">
+                    <div class="knk-field">
                       <label>제조사 담당자 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">— 이름</span></label>
                       <input type="text" name="maker_contact_name"
                         value="{{ part.maker_contact_name or '' }}"
                         placeholder="예: 田中 太郎">
                     </div>
-                    <div class="field">
+                    <div class="knk-field">
                       <label>제조사 담당자 전화</label>
                       <input type="text" name="maker_contact_phone"
                         value="{{ part.maker_contact_phone or '' }}"
                         placeholder="예: +81-3-1234-5678">
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>제조사 담당자 이메일</label>
                       <input type="email" name="maker_contact_email"
                         value="{{ part.maker_contact_email or '' }}"
                         placeholder="예: tanaka@mitsubishi.co.jp">
                     </div>
-                    <div class="field">
+                    <div class="knk-field">
                       <label>단위 (unit)</label>
                       <input type="text" name="unit"
                         value="{{ part.unit|default('EA') }}"
@@ -297,7 +271,7 @@
                       </datalist>
                       {% endif %}
                     </div>
-                    <div class="field">
+                    <div class="knk-field">
                       <label>통화</label>
                       <select name="currency">
                         <option value="KRW" {% if not part or part.currency == 'KRW' %}selected{% endif %}>KRW</option>
@@ -310,7 +284,7 @@
 
                     {# v5H226z102 (2026-05-16) — 용도: 기본 정보 박스 마지막 (대표 지시)
                        v5H226z103 (2026-05-16) — col-12(미정의)→col-4(풀폭) + None 버그 수정 + 높이 ↑ #}
-                    <div class="field col-4">
+                    <div class="knk-field knk-col-4">
                       <label>용도 <span style="color:var(--pq-ink-4);font-weight:400;font-size:11px;">— 어디에 쓰이는 자재인지 간략히 기록 (카탈로그 검색에 활용)</span></label>
                       <textarea name="purpose" rows="4"
                         placeholder="예: PCB 조립 시 나사 고정용. 5kg 이하 제품에 사용. 자동화 라인 #2·#3 전용. 단종 시 ○○○으로 대체 가능."
@@ -320,13 +294,13 @@
                 </div>
               </div>
 
-              <div class="qsec" data-dn="pf:classify">
-                <div class="qsec-h">
-                  <span class="ttl">🏷 분류 · 재고 관리</span>
+              <div class="knk-form-section" data-dn="pf:classify">
+                <div class="knk-form-section__head">
+                  <span class="knk-form-section__title">🏷 분류 · 재고 관리</span>
                 </div>
-                <div class="f-body">
-                  <div class="f-grid">
-                    <div class="field col-2">
+                <div class="knk-form-section__body">
+                  <div class="knk-form-grid">
+                    <div class="knk-field knk-col-2">
                       <label>분류 (category)</label>
                       <input type="text" name="category"
                         value="{{ part.category|default('') }}"
@@ -338,7 +312,7 @@
                       </datalist>
                       {% endif %}
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>품목 계정 (item_account)</label>
                       <select name="item_account">
                         <option value="">— 선택 —</option>
@@ -350,7 +324,7 @@
                       </select>
                     </div>
 
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>조달 구분</label>
                       <select name="procurement_kind">
                         <option value="">— 선택 —</option>
@@ -359,12 +333,12 @@
                         <option value="자체생산" {% if part and part.procurement_kind == '자체생산' %}selected{% endif %}>자체생산</option>
                       </select>
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>기본 창고</label>
                       <input type="text" name="default_warehouse" value="{{ part.default_warehouse|default('') }}" placeholder="WH-01">
                     </div>
 
-                    <div class="field col-4">
+                    <div class="knk-field knk-col-4">
                       {# v5H226z84 — 매입단가: 구매사 3곳 × 각 1~5차 + 입력 날짜. 대표단가(std_price) = 가장 최근 날짜의 단가 #}
                       <label>매입단가 (협력사 3곳 × 1~5차)</label>
                       <div style="font-size:10.5px;color:var(--pq-info);margin:2px 0 8px;line-height:1.6;">
@@ -425,24 +399,24 @@
                       </div>
                       <script id="ppInitData" type="application/json">{{ (part.purchase_prices if part else None)|default('[]', true) }}</script>
                     </div>
-                    <div class="field">
+                    <div class="knk-field">
                       <label>안전 재고</label>
                       <input type="number" name="safety_stock" step="0.01" min="0" value="{{ part.safety_stock|default(0) }}">
                     </div>
-                    <div class="field">
+                    <div class="knk-field">
                       <label>재주문점 (ROP)</label>
                       <input type="number" name="reorder_point" step="0.01" min="0" value="{{ part.reorder_point|default(0) }}">
                     </div>
-                    <div class="field">
+                    <div class="knk-field">
                       <label>재주문량 (ROQ)</label>
                       <input type="number" name="reorder_qty" step="0.01" min="0" value="{{ part.reorder_qty|default(0) }}">
                     </div>
 
-                    <div class="field">
+                    <div class="knk-field">
                       <label>환산 계수</label>
                       <input type="number" name="conversion_factor" step="0.0001" min="0" value="{{ part.conversion_factor|default(1) }}">
                     </div>
-                    <div class="field col-3">
+                    <div class="knk-field knk-col-3">
                       <label>위치 (location)</label>
                       <input type="text" name="location"
                         value="{{ part.location|default('') }}"
@@ -459,47 +433,49 @@
                   </div>
                 </div>
               </div>
-                <div class="qsec-h">
-                  <span class="ttl">📐 추가 규격 · 문서 출력명</span>
+              {# z999 — 이 섹션은 여는 <div class="knk-form-section">가 누락된 채 잉여 </div>로 균형 맞던 고아 구조 → wrapper 부여로 정식 수복 #}
+              <div class="knk-form-section" data-dn="pf:extra">
+                <div class="knk-form-section__head">
+                  <span class="knk-form-section__title">📐 추가 규격 · 문서 출력명</span>
                 </div>
-                <div class="f-body">
-                  <div class="f-grid">
-                    <div class="field col-2">
+                <div class="knk-form-section__body">
+                  <div class="knk-form-grid">
+                    <div class="knk-field knk-col-2">
                       <label>추가 규격 1</label>
                       <input type="text" name="sub_spec1" value="{{ part.sub_spec1|default('') }}">
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>추가 규격 2</label>
                       <input type="text" name="sub_spec2" value="{{ part.sub_spec2|default('') }}">
                     </div>
-                    <div class="field col-4">
+                    <div class="knk-field knk-col-4">
                       <label>추가 규격 3</label>
                       <input type="text" name="sub_spec3" value="{{ part.sub_spec3|default('') }}">
                     </div>
 
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>세금계산서 출력명</label>
                       <input type="text" name="tax_invoice_name" value="{{ part.tax_invoice_name|default('') }}">
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>거래명세서 출력명</label>
                       <input type="text" name="trade_invoice_name" value="{{ part.trade_invoice_name|default('') }}">
                     </div>
 
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>HS 코드</label>
                       <input type="text" name="hs_code" value="{{ part.hs_code|default('') }}" placeholder="예: 8501.31">
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>대분류</label>
                       <input type="text" name="category_main" value="{{ part.category_main|default('') }}">
                     </div>
 
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label>시리즈/계열</label>
                       <input type="text" name="category_series" value="{{ part.category_series|default('') }}">
                     </div>
-                    <div class="field col-2">
+                    <div class="knk-field knk-col-2">
                       <label style="font-size:11px;">활성</label>
                       <select name="is_active">
                         <option value="1" {% if not part or part.is_active %}selected{% endif %}>✓ 활성</option>
@@ -507,7 +483,7 @@
                       </select>
                     </div>
 
-                    <div class="field col-4">
+                    <div class="knk-field knk-col-4">
                       <label>비고</label>
                       <textarea name="note" placeholder="비고 (선택)">{{ part.note|default('') }}</textarea>
                     </div>
@@ -520,10 +496,10 @@
                  코드는 보존 — 복구하려면 아래 {% if false %} 를 {% if is_edit %} 로 변경. #}
               {% if false %}
               {# v5H226z82 — 구매사(협력사)별 매입 단가: 제조사≠구매사, 다중 구매사·수량구간·시기별 단가 #}
-              <div class="qsec" data-dn="pf:prices">
-                <div class="qsec-h">
-                  <span class="ttl">💰 구매사별 매입 단가</span>
-                  <span class="badge">v5H226z82</span>
+              <div class="knk-form-section" data-dn="pf:prices">
+                <div class="knk-form-section__head">
+                  <span class="knk-form-section__title">💰 구매사별 매입 단가</span>
+                  <span class="knk-badge knk-badge--info">v5H226z82</span>
                 </div>
                 <div style="padding:12px 16px;">
                   <div style="font-size:11.5px;color:var(--pq-ink-2);line-height:1.6;margin-bottom:10px;padding:8px 10px;background:var(--pq-info-soft);border-left:3px solid var(--pq-info);border-radius:4px;">
@@ -593,50 +569,50 @@
                   <div style="border:1px solid var(--pq-line-2);border-radius:6px;padding:12px;background:var(--pq-surface-inset);">
                     <div style="font-size:12px;font-weight:700;color:var(--pq-ink);margin-bottom:8px;">＋ 구매사 단가 추가</div>
                     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
-                      <div class="field">
+                      <div class="knk-field">
                         <label>구매사</label>
                         <select id="pa_supplier">
                           <option value="">— 선택 —</option>
                           {% for s in suppliers|default([]) %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
                         </select>
                       </div>
-                      <div class="field">
+                      <div class="knk-field">
                         <label>단가 유형</label>
                         <select id="pa_price_type">
                           {% for pt in PRICE_TYPES|default(['확정','가','견적']) %}<option value="{{ pt }}"{% if pt == '견적' %} selected{% endif %}>{{ pt }}</option>{% endfor %}
                         </select>
                       </div>
-                      <div class="field">
+                      <div class="knk-field">
                         <label>단가 <span class="req">*</span></label>
                         <input type="number" id="pa_unit_price" step="0.01" min="0" placeholder="0">
                       </div>
-                      <div class="field">
+                      <div class="knk-field">
                         <label>통화</label>
                         <select id="pa_currency">
                           {% for cu in CURRENCIES|default(['KRW','USD','JPY','CNY','EUR']) %}<option value="{{ cu }}">{{ cu }}</option>{% endfor %}
                         </select>
                       </div>
-                      <div class="field">
+                      <div class="knk-field">
                         <label>적용 시작일 <span class="req">*</span></label>
                         <input type="date" id="pa_effective_from">
                       </div>
-                      <div class="field">
+                      <div class="knk-field">
                         <label>적용 종료일 (선택)</label>
                         <input type="date" id="pa_effective_to">
                       </div>
-                      <div class="field">
+                      <div class="knk-field">
                         <label>협상일 (선택)</label>
                         <input type="date" id="pa_negotiated_at">
                       </div>
-                      <div class="field">
+                      <div class="knk-field">
                         <label>최소 수량</label>
                         <input type="number" id="pa_min_qty" step="0.01" min="0" value="0">
                       </div>
-                      <div class="field">
+                      <div class="knk-field">
                         <label>최대 수량 (선택)</label>
                         <input type="number" id="pa_max_qty" step="0.01" min="0" placeholder="무제한">
                       </div>
-                      <div class="field col-3">
+                      <div class="knk-field knk-col-3">
                         <label>비고</label>
                         <input type="text" id="pa_note" placeholder="예: 100개 이상 단가 / 연간계약가">
                       </div>
@@ -696,10 +672,10 @@
 
               {# v5H226z99 (2026-05-16) — 사진·도면·데이터시트·기타 첨부 (편집 모드 노출) #}
               {% if is_edit %}
-              <div class="qsec" data-dn="pf:attach">
-                <div class="qsec-h">
-                  <span class="ttl">📷 사진 · 📐 도면 · 📄 데이터시트 첨부</span>
-                  <span class="badge">v5H226z99</span>
+              <div class="knk-form-section" data-dn="pf:attach">
+                <div class="knk-form-section__head">
+                  <span class="knk-form-section__title">📷 사진 · 📐 도면 · 📄 데이터시트 첨부</span>
+                  <span class="knk-badge knk-badge--info">v5H226z99</span>
                 </div>
                 <div class="attach-zone">
                   <div class="attach-help">
@@ -764,9 +740,9 @@
 
               {% if is_edit %}
               {# v5H226z81 — 위험 구역: 자재 완전 삭제 (2단계 확인 + 이력 경고) #}
-              <div class="qsec" data-dn="pf:danger" style="border:1.5px solid var(--pq-err);">
-                <div class="qsec-h" style="background:var(--pq-err-soft);border-bottom:1px solid var(--pq-err);">
-                  <span class="ttl" style="color:var(--pq-err);">🗑 위험 구역 — 자재 완전 삭제</span>
+              <div class="knk-form-section" data-dn="pf:danger" style="border:1.5px solid var(--pq-err);">
+                <div class="knk-form-section__head" style="background:var(--pq-err-soft);border-bottom:1px solid var(--pq-err);">
+                  <span class="knk-form-section__title" style="color:var(--pq-err);">🗑 위험 구역 — 자재 완전 삭제</span>
                 </div>
                 <div style="padding:14px 16px;">
                   {% set di = del_impact|default({}) %}
@@ -803,10 +779,10 @@
             <aside>
               {% if not is_edit %}
               {# v5H226z58 (2026-05-12) — 신규 등록 페이지에서 일괄 등록 안내 #}
-              <div class="qsec" data-dn="pf:bulk-cta" style="border: 1.5px solid var(--pq-info); background: var(--pq-info-soft);">
-                <div class="qsec-h" style="background: var(--pq-info-soft); border-bottom: 1px solid var(--pq-info);">
-                  <span class="ttl" style="color: var(--pq-info);">📥 여러 건 등록하시나요?</span>
-                  <span class="badge">신규</span>
+              <div class="knk-form-section" data-dn="pf:bulk-cta" style="border: 1.5px solid var(--pq-info); background: var(--pq-info-soft);">
+                <div class="knk-form-section__head" style="background: var(--pq-info-soft); border-bottom: 1px solid var(--pq-info);">
+                  <span class="knk-form-section__title" style="color: var(--pq-info);">📥 여러 건 등록하시나요?</span>
+                  <span class="knk-badge knk-badge--info">신규</span>
                 </div>
                 <div style="padding: 14px;">
                   <div style="font-size: 12.5px; color: var(--pq-ink-2); line-height: 1.6; margin-bottom: 10px;">
@@ -823,10 +799,10 @@
               </div>
               {% endif %}
 
-              <div class="qsec" data-dn="pf:sim" id="simCard" {% if is_edit %}style="display:none;"{% endif %}>
-                <div class="qsec-h">
-                  <span class="ttl">🔍 유사 자재 검사</span>
-                  <span class="badge" id="simBadge">대기</span>
+              <div class="knk-form-section" data-dn="pf:sim" id="simCard" {% if is_edit %}style="display:none;"{% endif %}>
+                <div class="knk-form-section__head">
+                  <span class="knk-form-section__title">🔍 유사 자재 검사</span>
+                  <span class="knk-badge knk-badge--info" id="simBadge">대기</span>
                 </div>
                 <div class="sim-panel">
                   <div id="simEmpty" class="empty">
@@ -841,10 +817,10 @@
               </div>
 
               {% if is_edit and part %}
-              <div class="qsec" data-dn="pf:qr">
-                <div class="qsec-h">
-                  <span class="ttl">📱 자재 QR 코드</span>
-                  <span class="badge">신규</span>
+              <div class="knk-form-section" data-dn="pf:qr">
+                <div class="knk-form-section__head">
+                  <span class="knk-form-section__title">📱 자재 QR 코드</span>
+                  <span class="knk-badge knk-badge--info">신규</span>
                 </div>
                 <div class="qr-card">
                   <div class="qr-img"><img src="/parts/{{ part.id }}/qr.svg" alt="QR" loading="lazy"></div>
@@ -860,9 +836,9 @@
               </div>
               {% endif %}
 
-              <div class="qsec" data-dn="pf:guide">
-                <div class="qsec-h">
-                  <span class="ttl">💡 가이드</span>
+              <div class="knk-form-section" data-dn="pf:guide">
+                <div class="knk-form-section__head">
+                  <span class="knk-form-section__title">💡 가이드</span>
                 </div>
                 <div class="side-guide">
                   <b>자재 코드 규칙</b>
@@ -895,10 +871,12 @@
           </div>
         </div>
 
-        <div class="submit-bar">
-          <span class="note" id="submitNote">💡 자재명을 충분히 구체적으로 입력하면 중복 방지 정확도가 높아집니다</span>
-          <a href="/parts">취소</a>
-          <button type="submit" id="submitBtn">📤 {% if is_edit %}저장{% else %}등록{% endif %}</button>
+        <div class="knk-submit-bar">
+          <span class="knk-submit-bar__note" id="submitNote">💡 자재명을 충분히 구체적으로 입력하면 중복 방지 정확도가 높아집니다</span>
+          <div class="knk-submit-bar__actions">
+            <a class="knk-btn knk-btn--ghost" href="/parts">취소</a>
+            <button type="submit" class="knk-btn knk-btn--primary" id="submitBtn">📤 {% if is_edit %}저장{% else %}등록{% endif %}</button>
+          </div>
         </div>
 
       </div>
@@ -960,7 +938,7 @@
       simBadge.style.background = 'var(--pq-ok-soft)';
       simBadge.style.color = 'var(--pq-ok)';
       submitBtn.textContent = '📤 등록';
-      submitBtn.className = '';
+      submitBtn.classList.remove('force');
       submitNote.textContent = '✓ 유사 자재 없음 — 안전하게 등록 가능';
       forceFlag.value = '0';
       return;
@@ -995,13 +973,13 @@
       simBadge.style.background = 'var(--pq-err-soft)';
       simBadge.style.color = 'var(--pq-err)';
       submitBtn.textContent = '⚠ 그래도 등록 (강제)';
-      submitBtn.className = 'force';
+      submitBtn.classList.add('force');
       submitNote.textContent = '⚠ ≥85점 유사 자재 있음 — 정말 신규일 때만 강제 등록';
     } else {
       simBadge.style.background = 'var(--pq-warn-soft)';
       simBadge.style.color = 'var(--pq-warn)';
       submitBtn.textContent = '📤 등록';
-      submitBtn.className = '';
+      submitBtn.classList.remove('force');
       submitNote.textContent = '⚠ 유사 자재 있음 (참고) — 위 목록 확인 후 진행';
     }
     forceFlag.value = '0';  // 자동으로 force 켜지 않음
@@ -1017,7 +995,7 @@
       simBadge.style.background = 'var(--pq-info-soft)';
       simBadge.style.color = 'var(--pq-info)';
       hardHit = false;
-      submitBtn.className = '';
+      submitBtn.classList.remove('force');
       submitBtn.textContent = '📤 등록';
       submitNote.textContent = '💡 자재명 2자(또는 품번 3자) 이상 입력 시 검색 시작';
       forceFlag.value = '0';

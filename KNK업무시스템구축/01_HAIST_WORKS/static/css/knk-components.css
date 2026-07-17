@@ -62,11 +62,12 @@
 
 /* ── Field / Input / Select / Textarea (§9.2) ───────────────────────────── */
 .knk-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.knk-field__label { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--knk-text-secondary); }
-.knk-field__label .required { color: var(--knk-danger); }
+.knk-field__label, .knk-field > label { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--knk-text-secondary); }
+.knk-field__label .required, .knk-field > label .req { color: var(--knk-danger); }
 .knk-field__help { font-size: 12px; line-height: 18px; color: var(--knk-text-muted); margin: 0; }
 .knk-field__error { font-size: 12px; line-height: 18px; color: var(--knk-danger); margin: 0; }
-.knk-input, .knk-select, .knk-textarea {
+.knk-input, .knk-select, .knk-textarea,
+.knk-field > input, .knk-field > select, .knk-field > textarea {
   box-sizing: border-box;
   height: var(--knk-h-control); padding: 0 var(--knk-sp-3);
   border: 1px solid var(--knk-border-default); border-radius: var(--knk-radius-control);
@@ -74,13 +75,19 @@
   font-size: 13px; line-height: 20px; font-family: inherit; min-width: 0; width: 100%;
   transition: border-color .12s, background .12s;
 }
-.knk-textarea { height: auto; min-height: 90px; padding: var(--knk-sp-2) var(--knk-sp-3); resize: vertical; }
-.knk-input:hover, .knk-select:hover, .knk-textarea:hover { border-color: var(--knk-border-strong); }
-.knk-input:focus, .knk-select:focus, .knk-textarea:focus { outline: none; border-color: var(--knk-focus); }
-.knk-input:focus-visible, .knk-select:focus-visible, .knk-textarea:focus-visible { outline: 2px solid var(--knk-focus); outline-offset: 1px; }
-.knk-input::placeholder, .knk-textarea::placeholder { color: var(--knk-text-disabled); }
-.knk-input[readonly], .knk-textarea[readonly] { background: var(--knk-bg-inset); color: var(--knk-text-secondary); }
-.knk-input:disabled, .knk-select:disabled, .knk-textarea:disabled {
+.knk-textarea, .knk-field > textarea { height: auto; min-height: 90px; padding: var(--knk-sp-2) var(--knk-sp-3); resize: vertical; }
+.knk-input:hover, .knk-select:hover, .knk-textarea:hover,
+.knk-field > input:hover, .knk-field > select:hover, .knk-field > textarea:hover { border-color: var(--knk-border-strong); }
+.knk-input:focus, .knk-select:focus, .knk-textarea:focus,
+.knk-field > input:focus, .knk-field > select:focus, .knk-field > textarea:focus { outline: none; border-color: var(--knk-focus); }
+.knk-input:focus-visible, .knk-select:focus-visible, .knk-textarea:focus-visible,
+.knk-field > input:focus-visible, .knk-field > select:focus-visible, .knk-field > textarea:focus-visible { outline: 2px solid var(--knk-focus); outline-offset: 1px; }
+.knk-input::placeholder, .knk-textarea::placeholder,
+.knk-field > input::placeholder, .knk-field > textarea::placeholder { color: var(--knk-text-disabled); }
+.knk-input[readonly], .knk-textarea[readonly],
+.knk-field > input[readonly], .knk-field > textarea[readonly] { background: var(--knk-bg-inset); color: var(--knk-text-secondary); }
+.knk-input:disabled, .knk-select:disabled, .knk-textarea:disabled,
+.knk-field > input:disabled, .knk-field > select:disabled, .knk-field > textarea:disabled {
   background: var(--knk-bg-subtle); color: var(--knk-text-disabled); cursor: not-allowed;
 }
 .knk-field.is-error .knk-input, .knk-field.is-error .knk-select, .knk-field.is-error .knk-textarea { border-color: var(--knk-danger); }
@@ -102,14 +109,15 @@
 .knk-form-section__body { padding: var(--knk-sp-5); }
 .knk-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--knk-sp-4) var(--knk-sp-5); }
 .knk-col-2 { grid-column: span 2; }
+.knk-col-3 { grid-column: span 3; }   /* 실무 폼(자재 등록 등) 3칸 폭 */
 .knk-col-4 { grid-column: span 4; }
 @media (max-width: 1023px) {
   .knk-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .knk-col-4 { grid-column: span 2; }
+  .knk-col-3, .knk-col-4 { grid-column: span 2; }
 }
 @media (max-width: 767px) {
   .knk-form-grid { grid-template-columns: 1fr; }
-  .knk-col-2, .knk-col-4 { grid-column: span 1; }
+  .knk-col-2, .knk-col-3, .knk-col-4 { grid-column: span 1; }
 }
 
 /* ── KPI Strip (§9.5) ───────────────────────────────────────────────────── */
