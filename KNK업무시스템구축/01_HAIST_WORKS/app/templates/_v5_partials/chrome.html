@@ -112,7 +112,10 @@
    헤더는 [로고 — KNK Eum WORKS 중앙 — 아이콘]만 남아 좁은 창에서 겹침 원천 제거. 폰(≤1023)은 기존 그대로. */
 @media (min-width: 1024px){
   .top > .top-tabs { display: none; }
-  .tb-headline { flex: 1 1 auto !important; text-align: center !important; min-width: 0 !important; overflow: hidden !important; }
+  /* z990b: 제목(KNK Eum WORKS)은 v5_main.css의 '화면 정중앙 절대배치' 유지.
+     v5H44(1499px↓ 숨김)는 헤더에 탭이 있어 겹치던 시절의 규칙 — 탭이 책갈피 줄로 내려가 원인이 사라졌으므로
+     PC(≥1024)에선 항상 표시로 해제(.app min-width 1280 기준 로고·우측 아이콘과 안 겹침 계산 확인). */
+  .tb-headline { display: block !important; }
 }
 .knk-ptabs { display:flex; align-items:center; gap:6px; min-width:0; background:var(--surface);
   position:relative; z-index:40; border-bottom:1px solid var(--line); padding:5px 10px; }
