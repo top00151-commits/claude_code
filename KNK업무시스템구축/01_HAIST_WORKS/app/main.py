@@ -34838,6 +34838,56 @@ async def export_prep_cols_save(req: Request):
     return JSONResponse({"ok": True})
 
 
+# ── v5H226z989 (대표 지시·2026-07-17): '열어본 화면 책갈피 탭' 📌 고정 목록 ──
+#    고정 탭만 계정별 서버 저장(범용 view_prefs 재사용·key='page_tabs_pinned') → 다른 PC·재로그인에도 유지.
+#    최근 탭은 기기(localStorage) 저장이라 서버 왕복 없음. 저장값은 내부 경로('/'로 시작)만 화이트리스트.
+@app.get("/api/page-tabs/pinned")
+async def page_tabs_pinned_get(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    import json as _json989
+    try:
+        raw = _logi.view_prefs_get(u.get("id"), "page_tabs_pinned") or "[]"
+        arr = _json989.loads(raw)
+    except Exception:
+        arr = []
+    if not isinstance(arr, list):
+        arr = []
+    return JSONResponse({"ok": True, "pinned": arr})
+
+
+@app.post("/api/page-tabs/pinned")
+async def page_tabs_pinned_set(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    items = body.get("pinned") if isinstance(body, dict) else None
+    out = []
+    if isinstance(items, list):
+        for it in items[:10]:                      # 고정은 최대 10개
+            if not isinstance(it, dict):
+                continue
+            _u = str(it.get("u") or "")
+            _t = str(it.get("t") or "").strip()
+            # 내부 경로만: '/' 시작·'//'(스킴 생략 외부주소) 금지·제어문자/괄호 금지·길이 제한
+            if not _u.startswith("/") or _u.startswith("//") or len(_u) > 300:
+                continue
+            if any(ch in _u for ch in ("\n", "\r", "\t", "<", ">", '"')):
+                continue
+            out.append({"u": _u, "t": _t[:80]})
+    import json as _json989
+    try:
+        _logi.view_prefs_set(u.get("id"), "page_tabs_pinned", _json989.dumps(out, ensure_ascii=False))
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": str(e)}, 200)
+    return JSONResponse({"ok": True, "n": len(out)})
+
+
 @app.post("/export/item/{iid:int}/customs")
 async def export_item_customs_save(req: Request, iid: int):
     """수출 통관 칸만 저장(order_items) — 판매단가/금액/라벨은 절대 건드리지 않음(별도 흐름)."""

@@ -81,6 +81,252 @@
   </div>
 </header>
 
+{# v5H226z989 (대표 지시·2026-07-17): '열어본 화면 책갈피 탭'(ERP식 페이지 탭줄).
+   ① 화면을 열면 상단 탭줄에 자동 추가 — 경로(pathname)당 탭 1개, 재방문하면 그 탭을 마지막 주소(검색조건 포함)로 갱신.
+      최근 탭은 최대 12개(가장 오래 안 본 것부터 자동 정리)·이 기기(localStorage)에 유지 = 브라우저 껐다 켜도 남음.
+   ② 탭 클릭 = 그 화면으로 복귀(스크롤 위치는 z984 화면위치복원이 이어받아 '보던 위치 그대로'). × = 탭 닫기.
+      현재 화면 탭을 닫으면 가장 최근에 본 다른 탭으로 이동(없으면 홈). 🕘 = 전체 목록(탭줄에 다 안 보일 때 포함).
+   ③ 📌 고정 = 계정별 서버 저장(view_prefs 'page_tabs_pinned', /api/page-tabs/pinned) → 다른 PC·재로그인에도 유지.
+      고정 탭은 × 없이 📌 클릭으로 해제. 고정은 최대 10개.
+   ④ PC 전용(대표 선택): ≤1023px에선 탭줄 숨김 + .app 격자도 원래 2행 유지(≥1024px에서만 3행으로 확장).
+   ⑤ 허브(/home·/sales·/logistics)·로그인 등은 탭 제외(상단 워크스페이스 탭이 이미 담당).
+   안전: 제목은 textContent로만 주입(XSS 불가)·저장 URL은 내부 경로만(서버 화이트리스트). #}
+<div id="knkPtabs" class="knk-ptabs" data-dn="page-tabs" data-dn-tone="amber">
+  <div class="knk-ptabs-list" id="knkPtabsList"></div>
+  <button type="button" class="knk-ptabs-recent" id="knkPtabsRecent" title="최근 연 화면 전체 목록">🕘</button>
+  <div class="knk-ptabs-menu" id="knkPtabsMenu"></div>
+</div>
+<style>
+/* z989 페이지 탭줄 — PC 전용. ≥1024px에서만 .app 격자를 3행(상단바/탭줄/본문)으로 확장 */
+@media (min-width: 1024px){
+  .app { grid-template-rows: var(--topbar-h) auto 1fr; }
+  .knk-ptabs { grid-column: 1 / 3; grid-row: 2; }
+}
+@media (max-width: 1023px){ .knk-ptabs { display: none !important; } }
+.knk-ptabs { display:flex; align-items:center; gap:6px; min-width:0; background:var(--surface); position:relative; z-index:40; }
+.knk-ptabs.on { border-bottom:1px solid var(--line); padding:5px 10px; }
+.knk-ptabs:not(.on) > * { display:none; }   /* 탭 없으면 높이 0으로 접힘 */
+.knk-ptabs-list { display:flex; align-items:center; gap:6px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
+.knk-ptabs-list::-webkit-scrollbar { display:none; }
+.knk-ptab { display:inline-flex; align-items:center; gap:5px; flex:0 1 auto; min-width:56px; max-width:190px;
+  padding:4px 7px 4px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface);
+  color:var(--ink-2); font-size:12.5px; font-weight:600; line-height:1.3; text-decoration:none; white-space:nowrap; }
+.knk-ptab:hover { background:var(--surface-2); color:var(--ink); }
+.knk-ptab.active { background:var(--ink); border-color:var(--ink); color:#fff; }
+.knk-ptab .tt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.knk-ptab .pp { display:none; font-size:10.5px; line-height:1; cursor:pointer; opacity:.5; flex:none; }
+.knk-ptab:hover .pp { display:inline; }
+.knk-ptab.pinned .pp { display:inline; opacity:1; }
+.knk-ptab .pp:hover { opacity:1; transform:scale(1.15); }
+.knk-ptab .xx { border:0; background:transparent; color:inherit; opacity:.45; cursor:pointer;
+  font-size:14px; line-height:1; padding:0 3px; border-radius:4px; flex:none; }
+.knk-ptab .xx:hover { opacity:1; background:rgba(0,0,0,.10); }
+.knk-ptab.active .xx:hover { background:rgba(255,255,255,.22); }
+.knk-ptabs-recent { border:1px solid var(--line); background:var(--surface); border-radius:8px;
+  padding:3px 9px; cursor:pointer; font-size:13px; line-height:1.3; flex:none; color:var(--ink-2); }
+.knk-ptabs-recent:hover { background:var(--surface-2); }
+.knk-ptabs-menu { display:none; position:absolute; top:100%; right:8px; z-index:1000; margin-top:4px;
+  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 10px 28px rgba(0,0,0,.16); min-width:280px; max-width:440px; max-height:62vh; overflow-y:auto; padding:6px; }
+.knk-ptabs.menu-open .knk-ptabs-menu { display:block; }
+.knk-ptabs-mh { padding:5px 10px 4px; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:var(--ink-4); }
+.knk-ptabs-mi { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px;
+  color:var(--ink-2); text-decoration:none; font-size:12.5px; font-weight:500; }
+.knk-ptabs-mi:hover { background:var(--surface-2); color:var(--ink); }
+.knk-ptabs-mi.active { font-weight:700; color:var(--ink); }
+.knk-ptabs-mi .tt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.knk-ptabs-mi .pp { font-size:11px; cursor:pointer; opacity:.35; flex:none; }
+.knk-ptabs-mi .pp.pinned, .knk-ptabs-mi .pp:hover { opacity:1; }
+.knk-ptabs-mi .xx { border:0; background:transparent; color:inherit; opacity:.45; cursor:pointer;
+  font-size:14px; line-height:1; padding:0 3px; border-radius:4px; flex:none; }
+.knk-ptabs-mi .xx:hover { opacity:1; background:rgba(0,0,0,.10); }
+</style>
+<script>
+(function(){
+  if (window.__knkPtabs989) return; window.__knkPtabs989 = true;
+  var LKEY = 'knkPtabs989', MAXR = 12, MAXP = 10;
+  var EXCL = {'/':1, '/home':1, '/sales':1, '/logistics':1, '/login':1, '/logout':1, '/guide':1};
+  var recent = [], pinned = [];
+  try { recent = JSON.parse(localStorage.getItem(LKEY) || '[]') || []; } catch(e){ recent = []; }
+  if (!Array.isArray(recent)) recent = [];
+  recent = recent.filter(function(e){ return e && typeof e.u === 'string' && e.u.charAt(0) === '/'; });
+
+  function saveR(){ try { localStorage.setItem(LKEY, JSON.stringify(recent)); } catch(e){} }
+  function pathOf(u){ return String(u || '').split('?')[0].split('#')[0]; }
+  function findR(p){ for (var i = 0; i < recent.length; i++) if (pathOf(recent[i].u) === p) return i; return -1; }
+  function findP(p){ for (var i = 0; i < pinned.length; i++) if (pathOf(pinned[i].u) === p) return i; return -1; }
+  function evictR(){
+    while (recent.length > MAXR){
+      var mi = 0;
+      for (var k = 1; k < recent.length; k++) if ((recent[k].ts || 0) < (recent[mi].ts || 0)) mi = k;
+      recent.splice(mi, 1);
+    }
+  }
+  // 화면 제목 = <title>에서 브랜드 접미(· KNK HAIST WORKS 등) 제거
+  function cleanTitle(t){
+    t = String(t || '').trim();
+    var parts = t.split(/\s+[·—|]\s+/);
+    while (parts.length > 1){
+      var tail = parts[parts.length - 1].replace(/KNK|HAIST|WORKS|Eum/gi, '').replace(/[\s·.]/g, '');
+      if (tail === '') parts.pop(); else break;
+    }
+    t = parts.join(' · ').trim();
+    return t || pathOf(location.pathname);
+  }
+
+  // === 방문 기록(탭 추가/갱신) ===
+  function record(){
+    var p = location.pathname;
+    if (EXCL[p]) { render(); return; }
+    var u = p + location.search;
+    var t = cleanTitle(document.title);
+    var pi = findP(p);
+    if (pi >= 0){ pinned[pi].u = u; if (t) pinned[pi].t = t; }   // 고정 탭은 최신 주소·제목만 갱신(서버 저장은 📌 조작 때만)
+    var ri = findR(p);
+    var e = { u: u, t: t, ts: Date.now() };
+    if (ri >= 0) recent[ri] = e;
+    else if (pi < 0) { recent.push(e); evictR(); }               // 고정된 경로는 최근 목록에 중복으로 안 넣음
+    saveR(); render();
+  }
+
+  // === 이동(가짜 앵커 클릭 → spa_nav가 받아 본문만 교체) ===
+  function go(u){
+    var a = document.createElement('a');
+    a.href = u; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ try { a.remove(); } catch(e){} }, 0);
+  }
+
+  function pickNext(){
+    var best = null;
+    for (var i = 0; i < recent.length; i++) if (!best || (recent[i].ts || 0) > (best.ts || 0)) best = recent[i];
+    if (best) return best.u;
+    if (pinned.length) return pinned[0].u;
+    return '/home';
+  }
+  function closeTab(p){
+    var wasActive = (p === location.pathname);
+    var ri = findR(p); if (ri >= 0) recent.splice(ri, 1);
+    saveR(); render();
+    if (wasActive) go(pickNext());
+  }
+  function togglePin(p){
+    var pi = findP(p);
+    if (pi >= 0){
+      var e0 = pinned.splice(pi, 1)[0];                          // 해제 → 최근 목록으로 복귀(탭이 사라지지 않게)
+      if (findR(p) < 0){ recent.push({ u: e0.u, t: e0.t, ts: Date.now() }); evictR(); saveR(); }
+    } else {
+      if (pinned.length >= MAXP){ alert('📌 고정 탭은 최대 ' + MAXP + '개까지입니다. 다른 고정을 해제한 뒤 다시 시도해 주세요.'); return; }
+      var ri = findR(p);
+      var e = (ri >= 0) ? recent[ri]
+            : (p === location.pathname ? { u: p + location.search, t: cleanTitle(document.title) } : null);
+      if (!e) return;
+      pinned.push({ u: e.u, t: e.t });
+      if (ri >= 0){ recent.splice(ri, 1); saveR(); }             // 고정으로 승격 → 최근에서 제거(중복 방지)
+    }
+    savePins(); render();
+  }
+  function savePins(){
+    var body = { pinned: pinned.map(function(e){ return { u: String(e.u).slice(0, 300), t: String(e.t || '').slice(0, 80) }; }) };
+    try {
+      fetch('/api/page-tabs/pinned', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin', body: JSON.stringify(body) }).catch(function(){});
+    } catch(e){}
+  }
+
+  // === 그리기 ===
+  function el(tag, cls, txt){ var n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; }
+  function items(){
+    var seen = {}, out = [];
+    pinned.forEach(function(e){ var p = pathOf(e.u); if (seen[p]) return; seen[p] = 1; out.push({ e: e, pin: true }); });
+    recent.forEach(function(e){ var p = pathOf(e.u); if (seen[p]) return; seen[p] = 1; out.push({ e: e, pin: false }); });
+    return out;
+  }
+  function mkTab(it){
+    var e = it.e, p = pathOf(e.u);
+    var a = el('a', 'knk-ptab' + (it.pin ? ' pinned' : '') + (p === location.pathname ? ' active' : ''));
+    a.href = e.u; a.title = (e.t || p) + (it.pin ? ' · 고정됨' : '');
+    var pin = el('span', 'pp', '📌');
+    pin.title = it.pin ? '고정 해제' : '이 화면 고정 — 계정에 저장되어 다른 PC에서도 유지';
+    pin.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); togglePin(p); });
+    a.appendChild(pin);
+    a.appendChild(el('span', 'tt', e.t || p));
+    if (!it.pin){
+      var x = el('button', 'xx', '×'); x.type = 'button'; x.title = '탭 닫기';
+      x.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); closeTab(p); });
+      a.appendChild(x);
+    }
+    return a;
+  }
+  function mkMenuRow(it){
+    var e = it.e, p = pathOf(e.u);
+    var a = el('a', 'knk-ptabs-mi' + (p === location.pathname ? ' active' : ''));
+    a.href = e.u; a.title = e.t || p;
+    var pin = el('span', 'pp' + (it.pin ? ' pinned' : ''), '📌');
+    pin.title = it.pin ? '고정 해제' : '이 화면 고정 — 계정에 저장되어 다른 PC에서도 유지';
+    pin.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); togglePin(p); });
+    a.appendChild(pin);
+    a.appendChild(el('span', 'tt', e.t || p));
+    if (!it.pin){
+      var x = el('button', 'xx', '×'); x.type = 'button'; x.title = '목록에서 지우기';
+      x.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); closeTab(p); });
+      a.appendChild(x);
+    }
+    return a;
+  }
+  function render(){
+    var wrap = document.getElementById('knkPtabs'), box = document.getElementById('knkPtabsList'), menu = document.getElementById('knkPtabsMenu');
+    if (!wrap || !box || !menu) return;
+    var its = items();
+    wrap.classList.toggle('on', its.length > 0);
+    box.innerHTML = ''; menu.innerHTML = '';
+    if (!its.length) return;
+    its.forEach(function(it){ box.appendChild(mkTab(it)); });
+    menu.appendChild(el('div', 'knk-ptabs-mh', '최근 연 화면 · ' + its.length + '개 (📌 고정은 다른 PC에서도 유지)'));
+    its.forEach(function(it){ menu.appendChild(mkMenuRow(it)); });
+    // 현재 화면 탭이 탭줄 밖에 있으면 보이게 가로 이동(페이지 스크롤 부작용 없는 수동 계산)
+    var act = box.querySelector('.knk-ptab.active');
+    if (act){
+      var L = act.offsetLeft, R = L + act.offsetWidth;
+      if (L < box.scrollLeft) box.scrollLeft = Math.max(0, L - 8);
+      else if (R > box.scrollLeft + box.clientWidth) box.scrollLeft = R - box.clientWidth + 8;
+    }
+  }
+
+  // === 배선 ===
+  var listEl = document.getElementById('knkPtabsList');
+  if (listEl) listEl.addEventListener('wheel', function(ev){    // 마우스 휠로 탭줄 가로 이동
+    if (!ev.deltaY || listEl.scrollWidth <= listEl.clientWidth) return;
+    listEl.scrollLeft += ev.deltaY; ev.preventDefault();
+  }, { passive: false });
+  var rBtn = document.getElementById('knkPtabsRecent');
+  if (rBtn) rBtn.addEventListener('click', function(ev){
+    ev.stopPropagation();
+    var w = document.getElementById('knkPtabs'); if (w) w.classList.toggle('menu-open');
+  });
+  document.addEventListener('click', function(ev){
+    var w = document.getElementById('knkPtabs');
+    if (w && w.classList.contains('menu-open') && !(ev.target && w.contains(ev.target))) w.classList.remove('menu-open');
+  });
+  document.addEventListener('knk:navigated', function(){
+    var w = document.getElementById('knkPtabs'); if (w) w.classList.remove('menu-open');
+    setTimeout(record, 0);
+  });
+  // 고정 탭 불러오기(전체 로드 1회) — SPA 전환에선 셸이 유지되므로 재요청 없음
+  try {
+    fetch('/api/page-tabs/pinned', { credentials: 'same-origin' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){
+        if (j && j.ok && Array.isArray(j.pinned)){
+          pinned = j.pinned.filter(function(e){ return e && typeof e.u === 'string' && e.u.charAt(0) === '/'; });
+          render();
+        }
+      }).catch(function(){});
+  } catch(e){}
+  record();
+})();
+</script>
+
 {# v5H226z189 (대표 지시): '이전 페이지' 버튼 — SPA 대응 전면 재작성.
    ① 위치(z190): 오른쪽 상단 top bar 우측 클러스터(#knkTopRight)에 배치 (JS 생성·삽입).
    ② 동작: 경로(pathname) 기반 방문 스택 → '정말 직전에 들어왔던 다른 페이지' 로 이동.
