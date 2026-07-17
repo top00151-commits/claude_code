@@ -26,6 +26,47 @@
 
   <div class="dk-wrap">
 
+    {# v5H226z997 (대표 지시·2026-07-18): 팔레트 비교 장치 — 현행 ↔ Soft Neutral Sage 후보.
+       근거: KNK_ERP_EYE_COMFORT_COLOR_REVIEW.md(장시간 눈 편함·대비 수치 10건 빅터 재검산 일치).
+       이 페이지의 :root 변수만 덮음(저장 안 됨·다른 화면 영향 0). 채택 시 knk-foundation.css 값 교체. #}
+    <div class="dk-sec">
+      <h2 class="dk-h">🎛 팔레트 비교 — 현행 ↔ 눈 편한 후보(Soft Neutral Sage)</h2>
+      <p class="dk-d">버튼을 눌러 아래 모든 예제를 두 팔레트로 비교하세요(같은 데이터·즉시 전환·저장 안 됨).
+      후보 = 채도 낮은 회녹빛 중립(장시간 사용 눈부심·색 피로 감소, 보조 글자 대비 3.72→4.91:1로 개선). 셸(헤더·사이드바)은 4단계 별도라 그대로입니다.</p>
+      <div class="dk-row">
+        <button type="button" class="knk-btn knk-btn--secondary" id="dkPalCur">현행 팔레트</button>
+        <button type="button" class="knk-btn" id="dkPalSage">Sage 후보</button>
+        <span class="dk-d" id="dkPalState" style="margin:0;">현행 표시 중</span>
+      </div>
+    </div>
+    <style id="dkSageVars" media="not all">
+    :root{
+      --knk-bg-page:#F3F5F2; --knk-bg-surface:#FAFBF9; --knk-bg-subtle:#EAEEE9; --knk-bg-inset:#F6F7F4;
+      --knk-text-primary:#27302B; --knk-text-secondary:#46524B; --knk-text-muted:#657169; --knk-text-disabled:#8B958E;
+      --knk-border-subtle:#E2E6E1; --knk-border-default:#D4DAD4; --knk-border-strong:#B9C2BB;
+      --knk-brand:#A5282C; --knk-brand-hover:#8B1F23; --knk-brand-subtle:#F6ECEC;
+      --knk-success:#2F6B4F; --knk-success-subtle:#EDF5F0;
+      --knk-info:#2E5F8A; --knk-info-subtle:#EEF3F7;
+      --knk-warning:#875A1B; --knk-warning-subtle:#F7F2E8;
+      --knk-danger:#A33A3E; --knk-danger-subtle:#F7ECEC;
+    }
+    </style>
+    <script>
+    (function(){
+      var st = document.getElementById('dkSageVars');
+      var bC = document.getElementById('dkPalCur'), bS = document.getElementById('dkPalSage'), lb = document.getElementById('dkPalState');
+      if (!st || !bC || !bS) return;
+      function set(sage){
+        st.media = sage ? 'all' : 'not all';
+        lb.textContent = sage ? 'Sage 후보 표시 중 — 표·입력·배지를 15분쯤 보며 눈 피로를 비교해 보세요' : '현행 표시 중';
+        bC.className = 'knk-btn' + (sage ? '' : ' knk-btn--secondary');
+        bS.className = 'knk-btn' + (sage ? ' knk-btn--secondary' : '');
+      }
+      bC.addEventListener('click', function(){ set(false); });
+      bS.addEventListener('click', function(){ set(true); });
+    })();
+    </script>
+
     <div class="dk-sec">
       <h2 class="dk-h">0. 시맨틱 토큰</h2>
       <p class="dk-d">신규 코드는 --knk-* 토큰만 사용(하드코딩·원시 토큰 금지). 전부 폴백 병기라 어느 화면에서도 무효화되지 않음.</p>
