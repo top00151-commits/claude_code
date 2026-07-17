@@ -788,7 +788,7 @@ CO_BULK_HINTS = {1: "있으면 입력(예:012T2601)", 2: "같은 번호=한 발�
 def build_co_bulk_template_buf():
     """v5H226z727 (대표 지시): 소모품 일괄등록 양식 — '1장 = 소모품 1발' 블록 형식.
     위(3~9행)=기본정보 2단 블록(좌 A=라벨/B=값/C=안내, 우 F=라벨/G=값/H=안내), 11행=라인 머리글, 12행~=품목.
-    드롭다운: 통화(G3)·거래구분(G4)·상태(G9)·형태(H열·라인). (openpyxl 필요)"""
+    드롭다운: 통화(G3)·거래구분(G4)·상태(G9)·형태(H열·라인)·진행사업부(K3·z987b). (openpyxl 필요)"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.worksheet.datavalidation import DataValidation
@@ -823,6 +823,11 @@ def build_co_bulk_template_buf():
         c = ws.cell(r, 6, lab); c.font = white; c.fill = knk; c.border = border
         ws.cell(r, 7, "").border = border
         ws.cell(r, 8, gd).font = hintf
+    # v5H226z987b (대표 지시): 진행 사업부 — J3 라벨 + K3 값(드롭다운 검사기/자동화).
+    #   제작요청서목록 카드 오른쪽 위 사업부 배지(z987)로 표기. 비우면 '소모품' 표기.
+    c = ws.cell(3, 10, "진행사업부"); c.font = white; c.fill = knk; c.border = border
+    ws.cell(3, 11, "").border = border
+    ws.cell(3, 12, "(검사기/자동화 — 카드 사업부 표기 · 비우면 '소모품')").font = hintf
     # 라인 머리글(11행) — v5H226z730(대표 지시): 모델명·장비명은 '발주(전체 대표) 단위'(위 기본정보 우측 블록 모델명=G5·장비명=G6)로만.
     #   각 소모품 부품(라인)에는 모델명·장비명을 입력하지 않음 → 라인 머리글에서 제거(18→16열·소모품 품명이 1열 A로).
     line_hdrs = ["소모품 품명", "소모품 규격 (SPEC)",
@@ -844,9 +849,10 @@ def build_co_bulk_template_buf():
     dv_exp = DataValidation(type="list", formula1='"내수,수출"', allow_blank=True)
     dv_status = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)
     dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)
-    for dv in (dv_ccy, dv_exp, dv_status, dv_form):
+    dv_biz = DataValidation(type="list", formula1='"검사기,자동화"', allow_blank=True)   # z987b: 진행 사업부(K3)
+    for dv in (dv_ccy, dv_exp, dv_status, dv_form, dv_biz):
         ws.add_data_validation(dv)
-    dv_ccy.add("G3"); dv_exp.add("G4"); dv_status.add("G9"); dv_form.add("F12:F2000")
+    dv_ccy.add("G3"); dv_exp.add("G4"); dv_status.add("G9"); dv_form.add("F12:F2000"); dv_biz.add("K3")
     ws.freeze_panes = "A12"
     # 예시 2줄(12~13행) — 품명 '예)' 접두라 업로드 시 자동 스킵. v5H226z730: 모델명·장비명 열 제거(16열).
     ex = [["예) Grip Pad", "50x50", "", "", "2026-01-30", "상품",
@@ -869,7 +875,8 @@ def build_co_bulk_template_buf():
         ["고객사1 *", "등록 고객사명과 (주)/㈜·공백 차이 무시하고 자동 연결. 못 찾으면 텍스트로만 저장(미리보기 표시)."],
         ["발주일·납기일", "YYYY-MM-DD. 발주일이 발주번호(C-YYMMDD) 기준일. 비우면 자동."],
         ["품명·수량 *", "필수. 단가/금액은 숫자(콤마 없이). 금액 비우면 수량×단가로 자동."],
-        ["드롭다운", "통화(G3) / 거래구분 내수·수출(G4) / 상태 진행중·출하·취소·보류(G9) / 형태 완제품·제품·상품·기타(F열·라인)."],
+        ["드롭다운", "통화(G3) / 거래구분 내수·수출(G4) / 상태 진행중·출하·취소·보류(G9) / 형태 완제품·제품·상품·기타(F열·라인) / 진행사업부 검사기·자동화(K3)."],
+        ["진행사업부 (K3)", "검사기/자동화 중 선택 — 제작요청서목록 카드 오른쪽 위 사업부 배지·색으로 표기. 비우면 '소모품'으로 표기(등록 후 소모품 상세에서 변경 가능)."],
         ["자재코드", "등록 자재(파트) 코드를 적으면 업로드 시 그 자재로 자동 연결(선택)."],
         ["연결 관리번호", "이 소모품이 어느 장비(관리번호)의 것인지(선택). 예: 012T2601."],
         ["거래명세서·세금계산서", "발주 단위 — 발행일/금액(세금계산서 1건). 날짜 YYYY-MM-DD·금액 숫자. 비우면 미발행."],
@@ -1022,14 +1029,15 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
         return {"ok": False, "error": "라인 머리글(소모품 품명·수량)을 찾지 못했습니다",
                 "orders": [], "total_orders": 0, "total_items": 0, "total_images": 0}
 
-    # 2) 기본정보 블록 — A열/F열 '라벨'만 스캔(z724 교훈: 값 칸을 라벨로 오인 방지). 값 = 바로 오른쪽 칸.
+    # 2) 기본정보 블록 — A열/F열/J열 '라벨'만 스캔(z724 교훈: 값 칸을 라벨로 오인 방지). 값 = 바로 오른쪽 칸.
     LABELS = {"관리번호": "mgmt_code", "고객사1": "customer", "고객사2": "customer2",
               "고객담당자": "cc_name", "고객연락처": "cc_phone", "발주일": "order_date", "납기일": "due_date",
               "통화": "currency", "거래구분": "is_export", "모델명": "model_name", "장비명": "equip_name",
-              "납품위치": "ship_to", "영업담당자": "sales_name", "상태": "status"}
+              "납품위치": "ship_to", "영업담당자": "sales_name", "상태": "status",
+              "진행사업부": "biz_div_raw"}   # v5H226z987b: J3 라벨·K3 값(검사기/자동화)
     hb = {}
     for r in range(1, hdr):
-        for lc, vc in ((1, 2), (6, 7)):   # A->B, F->G
+        for lc, vc in ((1, 2), (6, 7), (10, 11)):   # A->B, F->G, J->K(z987b 진행사업부)
             lab = _nrm(ws.cell(r, lc).value)
             if not lab:
                 continue
@@ -1057,6 +1065,14 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
 
     cust = s(hb.get("customer"))
     _exp = _nrm(hb.get("is_export"))
+    # v5H226z987b: 진행 사업부(K3) — 검사기/T·자동화/M 만 인정. 그 외 값은 미지정('')+경고(아래 _warn).
+    _bdv987 = _nrm(hb.get("biz_div_raw"))
+    if _bdv987 in ("검사기", "T") or "검사" in _bdv987:
+        _bd987 = "T"
+    elif _bdv987 in ("자동화", "M") or "자동" in _bdv987:
+        _bd987 = "M"
+    else:
+        _bd987 = ""
     o = {
         "group_label": "", "customer_name": cust, "customer2": s(hb.get("customer2")),
         "mgmt_code": s(hb.get("mgmt_code")).upper(),
@@ -1068,7 +1084,7 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
         "model_name": s(hb.get("model_name")), "equip_name": s(hb.get("equip_name")),
         "status": _norm_co_status(hb.get("status")),
         "cust_ok": bool(match_customer_by_name(cust)) if cust else False,
-        "biz_div": "", "note": "", "form_type": "",
+        "biz_div": _bd987, "note": "", "form_type": "",   # z987b: 카드 사업부 배지(z987) 연동
         "statement_date": "", "tax_invoice_date": "", "ti1_bundle": "",
         "tax_invoice_amt1": 0, "tax_invoice_amt2": 0, "tax_invoice_amt3": 0,
         "tax_invoice_date2": "", "tax_invoice_date3": "", "ti2_bundle": "", "ti3_bundle": "",
@@ -1080,6 +1096,9 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
         o["_warn"] = f"미등록 고객사 '{cust}' (텍스트로만 저장 · 미연결)"
     if not o["order_date"]:
         o["_errors"].append("발주일 누락")
+    if _bdv987 and not _bd987:   # z987b: K3에 값은 있는데 검사기/자동화가 아님 → 미지정 처리 + 경고 표기
+        _w987 = f"진행사업부 '{s(hb.get('biz_div_raw'))}' 인식 불가 — 검사기/자동화만 인정(미지정으로 등록)"
+        o["_warn"] = (o["_warn"] + " · " + _w987) if o["_warn"] else _w987
 
     # 3) 라인(12행~)
     all_lines = []; line_seq = 0

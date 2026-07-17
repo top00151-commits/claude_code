@@ -38977,9 +38977,14 @@ async def consumables_import_bulk_confirm(request: Request):
                 failed.append({"customer": cust_name, "error": f"관리번호({_mm}) 사용 불가 — {_resv}"})
                 continue
             _mgmt_override = _resv
+        # v5H226z987b (대표 지시): 양식 K3 '진행사업부'(검사기/자동화) → biz_div 저장(카드 사업부 배지 z987 연동).
+        #   미리보기 JSON 왕복값이라 재검증(T/M 외 미지정) — 파서(_bd987)와 동일 규칙.
+        _bd987 = str(o.get("biz_div") or "").strip().upper()
+        if _bd987 not in ("T", "M"):
+            _bd987 = ""
         try:
             co_id, co_no = _co.co_create(
-                customer_name=cust_name, biz_div="",     # 소모품: 관리번호 C 자동·진행사업부 미사용
+                customer_name=cust_name, biz_div=_bd987,
                 order_date=(o.get("order_date") or "").strip(),
                 due_date=(o.get("due_date") or "").strip(),
                 currency=(o.get("currency") or "KRW").strip().upper(),

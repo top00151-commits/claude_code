@@ -518,6 +518,8 @@ function renderCoBulkPreview(j){
               : '<span style="font-size:11px;color:#c33;font-weight:700;">관리번호 ' + _escH(o.mgmt_code||'') + ' ✗</span>'))
       + (o.group_label ? '<span style="color:#666;">구분 ' + _escH(o.group_label) + '</span>' : '')
       + '<span style="color:#666;">' + (o.is_export ? '수출' : '내수') + ' · ' + _escH(o.currency||'KRW') + '</span>'
+      /* v5H226z987b: 진행 사업부(K3) — 카드 사업부 배지 연동 표시 */
+      + (o.biz_div==='T' ? '<span style="color:#1e40af;font-weight:700;">🔬 검사기</span>' : (o.biz_div==='M' ? '<span style="color:#5b21b6;font-weight:700;">🤖 자동화</span>' : ''))
       + (o.cc_name ? '<span style="color:#666;">담당 ' + _escH(o.cc_name) + '</span>' : '')
       + '<span style="margin-left:auto;font-weight:700;">품목 ' + o.item_count + '개' + (o.image_count ? ' · <span style="color:#0a7;">📷' + o.image_count + '</span>' : '') + ' · 합계 ' + _nfmt(o.total_amount) + '</span>'
       + (err ? '<div style="flex-basis:100%;color:#c33;font-size:12px;margin-top:3px;">⚠ ' + o._errors.map(_escH).join(' · ') + '</div>' : '')
