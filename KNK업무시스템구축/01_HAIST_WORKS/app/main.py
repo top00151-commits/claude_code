@@ -23330,8 +23330,12 @@ def _parse_product_bulk_xlsx(path):
     return {"project": proj, "lines": lines}
 
 
-def _build_product_bulk_template_buf():
-    """상품 일괄등록 빈 양식(.xlsx) 동적 생성 → BytesIO. (openpyxl 미설치 시 ImportError 전파)"""
+def _build_product_bulk_template_buf(header=None, rows=None):
+    """상품 일괄등록 양식(.xlsx) 동적 생성 → BytesIO. (openpyxl 미설치 시 ImportError 전파)
+    v5H226z988 (대표 승인·z941 후속): header/rows 를 주면 '채워진 양식'(현재 저장분 내보내기) —
+    받기→고치기→'📤 상품 양식 올리기' 왕복 편집용. 둘 다 None(기본)=기존 빈 양식(호환 불변).
+    header={라벨:값} (관리번호·고객사1*·프로젝트명* 등 hdr_rows 라벨 그대로) /
+    rows=[{material_no,part_name,spec,maker,supplier,qty,cost_krw,margin_pct,sell_krw,fx_rate,invoice_usd,status_ko,due_date,note}]"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.worksheet.datavalidation import DataValidation
@@ -23366,10 +23370,11 @@ def _build_product_bulk_template_buf():
         ("영업담당자", "(우리 회사 KNK 영업담당자)"),
     ]
     r0 = 3
+    _hv = header or {}   # z988: 라벨→값 채움(없으면 빈 양식 그대로)
     for i, (lab, gd) in enumerate(hdr_rows):
         r = r0 + i
         cA = ws.cell(r, 1, lab); cA.font = white; cA.fill = knk; cA.border = border
-        ws.cell(r, 2, "").border = border           # 값 입력칸
+        ws.cell(r, 2, _hv.get(lab, "") or "").border = border   # 값 입력칸(z988: 채움 지원)
         ws.cell(r, 3, gd).font = hint
     ws.column_dimensions["A"].width = 14
     ws.column_dimensions["B"].width = 22
@@ -23399,6 +23404,24 @@ def _build_product_bulk_template_buf():
     dv_stat = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)
     ws.add_data_validation(dv_stat)
     dv_stat.add(f"{_stat_col}{phr + 1}:{_stat_col}{phr + 300}")
+    # v5H226z988: 채워진 양식 — 현재 저장 부품을 부품 표에 기입(rows=None이면 기존 빈 양식 그대로).
+    #   숫자 규칙=작성안내와 동일(수량/KRW=정수면 정수·환율/USD=소수 2자리). 파서와 왕복 일치 검증.
+    def _z988n(v, nd=None):
+        try:
+            f = float(v)
+        except Exception:
+            return None
+        if nd is not None:
+            f = round(f, nd)
+        return int(f) if float(f).is_integer() else f
+    for _ri, _ln in enumerate(rows or [], phr + 1):
+        _vals = [_ln.get("material_no") or "", _ln.get("part_name") or "", _ln.get("spec") or "",
+                 _ln.get("maker") or "", _ln.get("supplier") or "", _z988n(_ln.get("qty")),
+                 _z988n(_ln.get("cost_krw")), _z988n(_ln.get("margin_pct")), _z988n(_ln.get("sell_krw")),
+                 _z988n(_ln.get("fx_rate"), 2), _z988n(_ln.get("invoice_usd"), 2), _ln.get("status_ko") or "",
+                 (str(_ln.get("due_date") or "")[:10]), _ln.get("note") or ""]
+        for _ci, _v in enumerate(_vals, 1):
+            ws.cell(_ri, _ci, _v).border = border
     # v5H226z599 (대표 지시): 예시 데이터 없는 '빈 양식' — 머리글만. 사용자가 부품 표 3행부터 직접 입력.
     #   판매단가(KRW)·인보이스단가(USD)는 비워도 업로드 시 자동계산(매입×(1+마진%), 판매KRW÷환율) — z596 파서.
     # 작성안내 시트
@@ -23431,19 +23454,75 @@ def _build_product_bulk_template_buf():
 
 
 @app.get("/projects/import-product-template")
-async def projects_import_product_template(request: Request):
-    """상품 일괄등록 빈 양식(.xlsx) 다운로드."""
+async def projects_import_product_template(request: Request, so_id: int = 0):
+    """상품 일괄등록 양식(.xlsx) 다운로드 — 기본=빈 양식(기존 그대로).
+    v5H226z988 (대표 승인·z941 후속): ?so_id=<상품 수주>면 그 수주의 현재 부품+프로젝트 정보가
+    '채워진 양식' — 받기→고치기→'📤 상품 양식 올리기'(overwrite-product) 왕복 편집용.
+    필드 권한: 매입단가·마진=purchase_price, 판매/환율/인보이스=sales_amount 열람권 없으면 빈칸(z829 정책)."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
         return RedirectResponse("/home", 303)
+    _hdr988, _rows988, _tag988 = None, None, ""
+    if so_id:
+        try:
+            with db_session() as c:
+                _so = c.execute("SELECT * FROM orders WHERE id=?", (int(so_id),)).fetchone()
+                _pr = c.execute("SELECT * FROM projects WHERE id=?", (_so["project_id"],)).fetchone() if _so else None
+                if _so and _pr:
+                    so_d, p_d = dict(_so), dict(_pr)
+                    _is_parts988 = (str(so_d.get("so_type") or "").upper() == "PARTS_EXPORT") \
+                        or (str(p_d.get("shipment_form") or "").upper() == "PARTS")
+                    if _is_parts988:   # 상품(부품) 수주만 채움 — 완제품 호기 수주는 빈 양식 유지
+                        _items988 = [dict(r) for r in c.execute(
+                            "SELECT * FROM order_items WHERE order_id=? ORDER BY id", (int(so_id),))]
+                        _can_pp = can_view_field(u, "purchase_price")
+                        _can_sa = can_view_field(u, "sales_amount")
+                        _exp988 = bool(so_d.get("is_export")) or bool(p_d.get("is_export")) or any(
+                            str(it.get("currency") or "").upper() not in ("", "KRW") for it in _items988)
+                        _hdr988 = {
+                            "관리번호": p_d.get("mgmt_code") or "",
+                            "고객사1*": p_d.get("customer_name") or p_d.get("customer") or "",
+                            "고객사2": p_d.get("secondary_customer") or "",
+                            "프로젝트명*": p_d.get("name") or "",
+                            "모델명": p_d.get("model_name") or "",
+                            "장비명": p_d.get("equip_name") or "",
+                            "발주일": str(so_d.get("order_date") or p_d.get("order_date") or "")[:10],
+                            "납기": str(so_d.get("due_date") or p_d.get("due_date") or "")[:10],
+                            "거래구분": ("수출" if _exp988 else "내수"),
+                            "PO유형": p_d.get("po_type") or "",
+                            "영업담당자": p_d.get("sales") or "",
+                        }
+                        _rows988 = []
+                        for it in _items988:
+                            _foreign = str(it.get("currency") or "").upper() not in ("", "KRW")
+                            _rows988.append({
+                                "material_no": it.get("material_no") or "",
+                                "part_name": it.get("unit_label") or "",
+                                "spec": it.get("spec") or "",
+                                "maker": it.get("maker") or "",
+                                "supplier": it.get("supplier") or "",
+                                "qty": it.get("qty"),
+                                "cost_krw": ((it.get("cost_krw") or (None if _foreign else it.get("cost_price"))) if _can_pp else None),
+                                "margin_pct": (it.get("margin_pct") if _can_pp else None),
+                                "sell_krw": ((it.get("sell_krw") or (None if _foreign else it.get("unit_price"))) if _can_sa else None),
+                                "fx_rate": (it.get("fx_rate") if _can_sa else None),
+                                "invoice_usd": (((it.get("invoice_unit_price_usd") or it.get("unit_price")) if _foreign else None) if _can_sa else None),
+                                "status_ko": it.get("unit_status") or "진행중",
+                                "due_date": it.get("due_date") or "",
+                                "note": it.get("line_note") or "",
+                            })
+                        _tag988 = f"{(p_d.get('mgmt_code') or 'SO')}_{(so_d.get('order_no') or so_id)}"
+        except Exception as _e988:
+            print(f"[z988] 채워진 상품양식 실패 → 빈 양식 폴백: {_e988!r}")
+            _hdr988, _rows988, _tag988 = None, None, ""
     try:
-        buf = _build_product_bulk_template_buf()
+        buf = _build_product_bulk_template_buf(header=_hdr988, rows=_rows988)
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치"}, 500)
     from urllib.parse import quote
-    fn = "상품_일괄등록_양식.xlsx"
+    fn = (f"상품양식_{_tag988}.xlsx" if _tag988 else "상품_일괄등록_양식.xlsx")
     return StreamingResponse(
         buf, media_type=_XLSX_MIME,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",

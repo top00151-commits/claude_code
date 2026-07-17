@@ -575,7 +575,8 @@
                 {# v5H226i: 모든 SO에 라인 엑셀 다운로드 버튼 #}
                 {# v5H226z941 (대표 지시): 부품 수주는 '상품 양식' 하나로 통일 — 다운로드도 상품 일괄등록 양식(등록 화면과 동일)을 받게 #}
                 {% if _so_is_parts %}
-                <a class="btn-mini" href="/projects/import-product-template" title="상품 일괄등록 양식(빈 양식) 받기 — 채워서 '📤 상품 양식 올리기'로 업로드하면 이 수주 부품이 채워집니다 (등록 화면 일괄등록과 같은 양식)" style="text-decoration:none;">📥 상품 양식 받기</a>
+                {# v5H226z988 (대표 승인·z941 후속): 빈 양식 → '현재 부품이 채워진 양식'(?so_id) — 받아서 고쳐 '올리기'로 왕복 편집 #}
+                <a class="btn-mini" href="/projects/import-product-template?so_id={{ so.id }}" title="현재 저장된 부품·단가·납기가 채워진 상품 양식 받기 — 고쳐서 '📤 상품 양식 올리기'로 업로드하면 이 수주에 반영됩니다 (부품이 없으면 빈 양식)" style="text-decoration:none;">📥 상품 양식 받기</a>
                 {% else %}
                 <a class="btn-mini" href="/projects/{{ p.id }}/orders/{{ so.id }}/export-xlsx" title="현재 라인 항목 엑셀로 다운로드 (KNK 표준 양식)" style="text-decoration:none;">📥 엑셀 다운로드</a>
                 {% endif %}
