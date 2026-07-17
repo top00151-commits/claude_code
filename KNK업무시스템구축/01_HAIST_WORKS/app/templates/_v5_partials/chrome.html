@@ -124,8 +124,10 @@
     overflow: hidden !important; text-overflow: ellipsis !important;
   }
 }
-.knk-ptabs { display:flex; align-items:center; gap:6px; min-width:0; background:var(--surface);
-  position:relative; z-index:40; border-bottom:1px solid var(--line); padding:5px 10px; }
+/* z993(대표 지적): 🕘 목록 배경이 투명해 아래 글씨와 겹침 — 원인=미정의 design_v2 토큰(--surface·--ink-2 등)
+   사용으로 해당 선언이 통째로 무효화([[knk_works_css_palette]] 함정). 이 블록 전체를 실팔레트+폴백으로 교체. */
+.knk-ptabs { display:flex; align-items:center; gap:6px; min-width:0; background:var(--paper-3, #ffffff);
+  position:relative; z-index:40; border-bottom:1px solid var(--line, #e2e8f0); padding:5px 10px; }
 .knk-ptabs-ws { display:flex; align-items:center; gap:5px; flex:none; padding-right:10px; margin-right:4px; border-right:1px solid var(--line, #e2e8f0); }
 /* z990d(대표 선택 B안): 워크스페이스 탭 시인성 — 안 고른 탭이 '맨 글자'라 옆 책갈피 칩(흰 카드+테두리)과
    종류 구분이 흐릿하던 문제. 알약(999px)+옅은 채움으로 '항상 버튼임'을 보이게, 고른 탭=KNK 빨강.
@@ -142,10 +144,10 @@
 .knk-ptabs-list { display:flex; align-items:center; gap:6px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
 .knk-ptabs-list::-webkit-scrollbar { display:none; }
 .knk-ptab { display:inline-flex; align-items:center; gap:5px; flex:0 1 auto; min-width:56px; max-width:190px;
-  padding:4px 7px 4px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface);
-  color:var(--ink-2); font-size:12.5px; font-weight:600; line-height:1.3; text-decoration:none; white-space:nowrap; }
-.knk-ptab:hover { background:var(--surface-2); color:var(--ink); }
-.knk-ptab.active { background:var(--ink); border-color:var(--ink); color:#fff; }
+  padding:4px 7px 4px 10px; border:1px solid var(--line, #e2e8f0); border-radius:8px; background:var(--paper-3, #ffffff);
+  color:var(--ink, #2D2520); font-size:12.5px; font-weight:600; line-height:1.3; text-decoration:none; white-space:nowrap; }
+.knk-ptab:hover { background:var(--paper-2, #f5ebd9); color:var(--ink, #2D2520); }
+.knk-ptab.active { background:var(--ink, #2D2520); border-color:var(--ink, #2D2520); color:#fff; }
 .knk-ptab .tt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 /* z989b(대표 지시): 📌 항상 표시 — hover 때만 나타나면 탭 폭이 출렁여 정신없음(흐림=미고정·진함=고정) */
 .knk-ptab .pp { display:inline; font-size:10.5px; line-height:1; cursor:pointer; opacity:.35; flex:none; }
@@ -155,18 +157,18 @@
   font-size:14px; line-height:1; padding:0 3px; border-radius:4px; flex:none; }
 .knk-ptab .xx:hover { opacity:1; background:rgba(0,0,0,.10); }
 .knk-ptab.active .xx:hover { background:rgba(255,255,255,.22); }
-.knk-ptabs-recent { border:1px solid var(--line); background:var(--surface); border-radius:8px;
-  padding:3px 9px; cursor:pointer; font-size:13px; line-height:1.3; flex:none; color:var(--ink-2); }
-.knk-ptabs-recent:hover { background:var(--surface-2); }
+.knk-ptabs-recent { border:1px solid var(--line, #e2e8f0); background:var(--paper-3, #ffffff); border-radius:8px;
+  padding:3px 9px; cursor:pointer; font-size:13px; line-height:1.3; flex:none; color:var(--mute, #64748b); }
+.knk-ptabs-recent:hover { background:var(--paper-2, #f5ebd9); }
 .knk-ptabs-menu { display:none; position:absolute; top:100%; right:8px; z-index:1000; margin-top:4px;
-  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  background:var(--paper-3, #ffffff); border:1px solid var(--line, #e2e8f0); border-radius:10px;
   box-shadow:0 10px 28px rgba(0,0,0,.16); min-width:280px; max-width:440px; max-height:62vh; overflow-y:auto; padding:6px; }
 .knk-ptabs.menu-open .knk-ptabs-menu { display:block; }
-.knk-ptabs-mh { padding:5px 10px 4px; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:var(--ink-4); }
+.knk-ptabs-mh { padding:5px 10px 4px; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:var(--mute, #8B7C6E); }
 .knk-ptabs-mi { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px;
-  color:var(--ink-2); text-decoration:none; font-size:12.5px; font-weight:500; }
-.knk-ptabs-mi:hover { background:var(--surface-2); color:var(--ink); }
-.knk-ptabs-mi.active { font-weight:700; color:var(--ink); }
+  color:var(--ink, #2D2520); text-decoration:none; font-size:12.5px; font-weight:500; }
+.knk-ptabs-mi:hover { background:var(--paper-2, #f5ebd9); color:var(--ink, #2D2520); }
+.knk-ptabs-mi.active { font-weight:700; color:var(--ink, #2D2520); }
 .knk-ptabs-mi .tt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .knk-ptabs-mi .pp { font-size:11px; cursor:pointer; opacity:.35; flex:none; }
 .knk-ptabs-mi .pp.pinned, .knk-ptabs-mi .pp:hover { opacity:1; }
@@ -177,23 +179,22 @@
 <script>
 (function(){
   if (window.__knkPtabs989) return; window.__knkPtabs989 = true;
-  var LKEY = 'knkPtabs989', MAXR = 12, MAXP = 10;
+  var LKEY = 'knkPtabs989', MAXR = 8, MAXP = 10;   // z993(대표 지시): 책갈피 최대 8개
   var EXCL = {'/':1, '/home':1, '/sales':1, '/logistics':1, '/login':1, '/logout':1, '/guide':1};
   var recent = [], pinned = [];
   try { recent = JSON.parse(localStorage.getItem(LKEY) || '[]') || []; } catch(e){ recent = []; }
   if (!Array.isArray(recent)) recent = [];
   recent = recent.filter(function(e){ return e && typeof e.u === 'string' && e.u.charAt(0) === '/'; });
+  evictR();   // z993: 기존 저장분(최대 12개 시절)도 로드 즉시 8개로 정리(함수 선언은 호이스팅되어 안전)
 
   function saveR(){ try { localStorage.setItem(LKEY, JSON.stringify(recent)); } catch(e){} }
   function pathOf(u){ return String(u || '').split('?')[0].split('#')[0]; }
   function findR(p){ for (var i = 0; i < recent.length; i++) if (pathOf(recent[i].u) === p) return i; return -1; }
   function findP(p){ for (var i = 0; i < pinned.length; i++) if (pathOf(pinned[i].u) === p) return i; return -1; }
   function evictR(){
-    while (recent.length > MAXR){
-      var mi = 0;
-      for (var k = 1; k < recent.length; k++) if ((recent[k].ts || 0) < (recent[mi].ts || 0)) mi = k;
-      recent.splice(mi, 1);
-    }
+    // z993(대표 지시): 8개 초과 시 '가장 먼저 연 페이지'부터 제거(FIFO).
+    // recent 배열=연 순서(재방문은 제자리 갱신)라 맨 앞이 곧 가장 먼저 연 탭.
+    while (recent.length > MAXR) recent.shift();
   }
   // 화면 제목 = <title>에서 브랜드 접미(· KNK HAIST WORKS 등) 제거
   function cleanTitle(t){
