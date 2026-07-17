@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>입고 처리 {{ po.po_number }} · KNK HAIST WORKS</title>
 
+{# v5H226z1003b (2026-07-18) — 잠복 버그 수정: po(dict)의 items 를 점 접근하면 Jinja가 dict의
+   items() 메서드로 잡아 입고 페이지가 렌더 오류였음(입고 가능 발주가 없어 미노출) → 대괄호 첨자 접근으로 교정(5곳).
 {# v5H226z1003 (2026-07-18) — 디자인 통일 Phase 4 ③: knk 전환(머리글·필드·제출 바·버튼).
    입고 KPI(발주량/기입고/금일입고/잔량 — 색 의미+JS innerHTML)·라인 표(recalc/qfill/QR JS 의존)·
    QR 스캔·발주정보 카드=업무 특화 유지(Sage 브리지). JS 무수정.
@@ -114,8 +116,8 @@
 </style>
 </head>
 <body>
-{% set total_order = po.items|sum(attribute='qty')|default(0) %}
-{% set total_prev = po.items|sum(attribute='received_qty')|default(0) %}
+{% set total_order = po['items']|sum(attribute='qty')|default(0) %}
+{% set total_prev = po['items']|sum(attribute='received_qty')|default(0) %}
 {% set total_rest = total_order - total_prev %}
 
 <div class="app">
@@ -130,7 +132,7 @@
           <div>
             <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주</a> · <a href="/po/{{ po.id }}">{{ po.po_number }}</a> · <b>입고 처리</b></nav>
             <h1 class="knk-page-title">입고 (GR · Goods Receipt)</h1>
-            <p class="knk-page-meta">발주 <span class="knk-num">{{ po.po_number }}</span> · 품목 <span class="knk-num">{{ po.items|length }}</span>종</p>
+            <p class="knk-page-meta">발주 <span class="knk-num">{{ po.po_number }}</span> · 품목 <span class="knk-num">{{ po['items']|length }}</span>종</p>
           </div>
           <div class="knk-page-actions">
             <a class="knk-btn knk-btn--ghost" href="/po/{{ po.id }}"><i class="ti ti-arrow-left"></i> 발주서</a>
@@ -153,7 +155,7 @@
           <div class="kpi-cell">
             <div class="l">발주량 합계</div>
             <div class="v">{{ '{:,.0f}'.format(total_order) }}<span class="u">개</span></div>
-            <div class="sub">{{ po.items|length }}개 라인</div>
+            <div class="sub">{{ po['items']|length }}개 라인</div>
           </div>
           <div class="kpi-cell prev">
             <div class="l">기 입고</div>
@@ -259,7 +261,7 @@
                 <div class="col-exp">유효기한</div>
                 <div class="col-note">비고</div>
               </div>
-              {% for it in po.items %}
+              {% for it in po['items'] %}
               {% set rest = (it.qty|default(0)) - (it.received_qty|default(0)) %}
               <div class="line-row">
                 <div class="num-cell">{{ '%02d'|format(loop.index) }}</div>
