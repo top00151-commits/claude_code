@@ -55,6 +55,10 @@
   border-color: rgba(255,255,255,.4); border-top-color: #fff;
 }
 @keyframes knk-spin { to { transform: rotate(360deg); } }
+/* Tabler 아이콘(§10 — Phase 0 확정) 크기 규격: 버튼 15px·KPI 라벨 12px */
+.knk-btn .ti { font-size: 15px; line-height: 1; }
+.knk-kpi__label .ti { font-size: 12px; line-height: 1; }
+.knk-empty .ti { font-size: 26px; line-height: 1; color: var(--knk-text-disabled); }
 
 /* ── Field / Input / Select / Textarea (§9.2) ───────────────────────────── */
 .knk-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -117,8 +121,10 @@
 }
 .knk-kpi[href], .knk-kpi.is-clickable { cursor: pointer; border-radius: var(--knk-radius-control) var(--knk-radius-control) 0 0; }
 .knk-kpi[href]:hover, .knk-kpi.is-clickable:hover { background: var(--knk-bg-subtle); }
-.knk-kpi__label { font-size: 11px; line-height: 16px; font-weight: 600; color: var(--knk-text-muted); }
+.knk-kpi__label { font-size: 11px; line-height: 16px; font-weight: 600; color: var(--knk-text-muted); display: inline-flex; align-items: center; gap: 4px; }
 .knk-kpi__value { font-size: 20px; line-height: 28px; font-weight: 700; color: var(--knk-text-primary); font-variant-numeric: tabular-nums; }
+.knk-kpi__unit { font-size: 11px; font-weight: 500; color: var(--knk-text-disabled); margin-left: 2px; }
+.knk-kpi__sub { font-size: 10.5px; line-height: 14px; color: var(--knk-text-disabled); }
 .knk-kpi.is-active { border-bottom-color: var(--knk-text-primary); }
 .knk-kpi.is-warning .knk-kpi__value { color: var(--knk-warning); }
 .knk-kpi.is-danger .knk-kpi__value { color: var(--knk-danger); }

@@ -5,16 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>자재 마스터 · KNK HAIST WORKS</title>
 
-{# v5H226z57 (2026-05-11) — 시안1 ERP + 룰 v4 적용
-   실무팀3 (자재구매센터) — 부품 마스터 목록
-   - chip-biz (T/M/E/C 색 토큰)
-   - tbl-dense 32px + zebra + sticky thead
-   - filterbar (사업부 + 카테고리 + 검색 + 활성여부)
-   - chip 상태 (활성/비활성/안전재고미달)
-   - data-dn + debug_overlay #}
+{# v5H226z57 (2026-05-11) — 시안1 ERP + 룰 v4 / v5H226z863 — 서버 집계·페이지 나눔
+   v5H226z992 (대표 승인·2026-07-17) — 디자인 통일 Phase 2 '기준 화면' 전환:
+   - 공통 knk- 컴포넌트로 교체(헤더·버튼·KPI·표·배지·알림·빈상태) — KNK_ERP_UNIFIED_DESIGN_GUIDE.md §8·§9
+   - Tabler 아이콘(자체 호스팅) 적용 — emoji 대체(§10)
+   - 사업부 잔재 정리(대표 확정): 등록 폼=T/M/공통뿐 → KPI·필터=전체/T/M/공통/미지정(+활성비율),
+     E(전기)·C(화학)는 실데이터 있을 때만 자동 표시(레거시 행 유실 0·저장 로직 불변)
+   - 업무 특화 컴포넌트 유지: chip-biz(레거시 b-e/b-c 포함)·chip-acc·stk-mini·pgbar·공통 filterbar
+   - 아래 :root 토큰은 '페이지 전용 정의'(공통에 없음 — chip/stk가 사용) → 유지 #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
   --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
@@ -28,53 +30,22 @@
   --biz-c: #047857;       --biz-c-soft: #ecfdf5;
 }
 
+/* 페이지 배치(진열대) — 컴포넌트 생김새는 전부 knk-components.css */
 .pl-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.pl-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.pl-head .crumb { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; }
-.pl-head .crumb a { color: var(--pq-ink-2); }
-.pl-head .crumb b { color: var(--pq-ink); }
-.pl-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; line-height: 1.1; }
-.pl-meta { font-size: 12px; color: var(--pq-ink-3); }
-.pl-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.pl-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-.pl-actions .btn-ghost { height: 32px; padding: 0 12px; background: transparent; border: 1px solid var(--pq-line-2); border-radius: 8px; font-size: 12.5px; font-weight: 500; color: var(--pq-ink-2); display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; }
-.pl-actions .btn-ghost:hover { background: var(--pq-surface-2); border-color: var(--pq-line-3); color: var(--pq-ink); }
-.pl-actions .btn-dark { height: 32px; padding: 0 14px; background: var(--pq-ink); border: 0; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: #fff; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; }
-.pl-actions .btn-dark:hover { background: #1e293b; }
+.pl-page > .knk-page-head { background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
+.pl-kpi { background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); padding: 4px 16px; }
+.pl-alerts { padding: 10px 24px 0; display: grid; gap: 8px; background: var(--pq-surface); }
+.pl-alerts .knk-alert { align-items: center; }
+.pl-alerts .pl-alert-act { margin-left: auto; flex: none; }
 
-/* KPI strip */
-.kpi-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
-.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); text-decoration: none; color: inherit; transition: background .12s; }
-.kpi-cell:last-child { border-right: 0; }
-.kpi-cell:hover { background: var(--pq-surface-2); }
-.kpi-cell.active { background: var(--pq-surface-inset); box-shadow: inset 0 -2px 0 var(--pq-ink); }
-.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; letter-spacing: 0.02em; }
-.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); line-height: 1.2; margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
-.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
-.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
-
-/* FilterBar */
-.fb-go { height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer; }
-.fb-go:hover { background: var(--pq-surface-3); }
-.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
-
-/* Dense table */
+/* 표 영역: 독립 스크롤 + 페이지 전용 셀 표기 */
 .tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
-.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--pq-surface); min-width: 1100px; }
-.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
-.tbl-erp thead th.num { text-align: right; }
-.tbl-erp thead th.center { text-align: center; }
-.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); vertical-align: middle; font-size: 12.5px; }
-.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
-.tbl-erp tbody td.center { text-align: center; }
-.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
-.tbl-erp tbody tr { transition: background-color .1s ease; cursor: pointer; }
-.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
-.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); }
-.tbl-erp tbody tr:hover:nth-child(even) > td { background: var(--pq-surface-3); }
-.tbl-erp .mute { color: var(--pq-ink-4); }
+.tbl-zone .knk-table { min-width: 1100px; border: 0; }
+.tbl-zone .knk-table tbody tr { cursor: pointer; }
+.tbl-zone .knk-table td.code { font-family: var(--pq-mono); font-weight: 700; }
+.tbl-zone .knk-table .mute { color: var(--pq-ink-4); }
 
-/* chip-biz (사업부 dot + 라벨) */
+/* chip-biz (사업부 dot + 라벨) — 업무 특화 유지(레거시 E/C 행 표시 포함) */
 .chip-biz { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; background: var(--pq-surface-3); color: var(--pq-ink); }
 .chip-biz::before { content: ""; width: 7px; height: 7px; border-radius: 2px; }
 .chip-biz.b-t::before { background: var(--biz-t); }
@@ -83,11 +54,7 @@
 .chip-biz.b-c::before { background: var(--biz-c); }
 .chip-biz.b-x::before { background: var(--pq-ink-4); }
 
-/* status pill */
-.pill-active { display: inline-block; padding: 1px 7px; font-size: 11px; font-weight: 600; border-radius: 3px; background: var(--pq-ok-soft); color: var(--pq-ok); }
-.pill-inactive { display: inline-block; padding: 1px 7px; font-size: 11px; font-weight: 600; border-radius: 3px; background: var(--pq-surface-3); color: var(--pq-ink-4); }
-
-/* v5H226z58: 품목계정 chip (KNK 5종 — RAW/SUB/SEMI/FIN/CONS) */
+/* v5H226z58: 품목계정 chip (KNK 5종 — RAW/SUB/SEMI/FIN/CONS) — 업무 특화 유지 */
 .chip-acc { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; font-size: 10.5px; font-weight: 700; border-radius: 3px; font-family: var(--pq-mono); }
 .chip-acc.a-raw  { background: #fff7ed; color: #c2410c; }
 .chip-acc.a-sub  { background: #fef3c7; color: #92400e; }
@@ -96,36 +63,23 @@
 .chip-acc.a-cons { background: #f1f5f9; color: #475569; }
 .chip-acc.a-x    { background: var(--pq-surface-3); color: var(--pq-ink-4); font-weight: 500; }
 
-/* Stock bar (재고 시각화) */
+/* Stock bar (재고 시각화) — 업무 특화 유지 */
 .stk-mini { position: relative; width: 80px; height: 12px; background: var(--pq-surface-3); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; }
 .stk-mini .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--pq-ok); }
 .stk-mini .fill.is-low { background: var(--pq-warn); }
 .stk-mini .fill.is-critical { background: var(--pq-danger); }
 
-/* v5H226z863: 페이지 나눔 바 (200행/쪽) */
+/* v5H226z863: 페이지 나눔 바 (200행/쪽) — 유지(공통 승격은 Phase 5) */
 .pgbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; background: var(--pq-surface); border-top: 1px solid var(--pq-line); flex-wrap: wrap; }
 .pgbar .pg-btn { padding: 6px 14px; border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12.5px; font-weight: 600; color: var(--pq-ink-2); text-decoration: none; background: var(--pq-surface); }
 .pgbar .pg-btn:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
 .pgbar .pg-btn.is-off { pointer-events: none; opacity: .35; }
 .pgbar .pg-info { font-size: 12px; color: var(--pq-ink-3); font-family: var(--pq-mono); font-variant-numeric: tabular-nums; padding: 0 6px; }
 
-/* Empty state */
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; margin-bottom: 10px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin-bottom: 4px; }
-.po-empty .sub { font-size: 12.5px; }
-.po-empty .cta { margin-top: 16px; }
-.po-empty .cta a { display: inline-block; padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); font-variant-numeric: tabular-nums; }
 
-@media (max-width: 1280px) {
-  .kpi-strip { grid-template-columns: repeat(4, 1fr); }
-  .kpi-cell:nth-child(4n) { border-right: 0; }
-  .kpi-cell:nth-child(-n+4) { border-bottom: 1px solid var(--pq-line); }
-}
 @media (max-width: 1023px) {
-  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
-  .pl-head { padding: 12px 16px; }
-  .tbl-erp { min-width: 720px; }
+  .tbl-zone .knk-table { min-width: 720px; }
 }
 </style>
 </head>
@@ -139,7 +93,9 @@
 {% set m_cnt = stats.m_cnt %}
 {% set e_cnt = stats.e_cnt %}
 {% set c_cnt = stats.c_cnt %}
-{% set x_cnt = stats.x_cnt %}
+{# v5H226z992: stats.x_cnt(=total-T-M-E-C)는 '공통'을 포함 — 공통을 별도 KPI로 분리했으므로
+   미지정 = x_cnt - common_cnt (진짜 미배정만). DB 함수는 불변(다른 사용처 영향 0). #}
+{% set x_cnt = stats.x_cnt - stats.common_cnt if stats.x_cnt >= stats.common_cnt else 0 %}
 
 <div class="app">
   {% set active_tab = "logi" %}
@@ -148,114 +104,116 @@
   <main class="main">
     <div class="pl-page">
 
-      <div class="pl-head" data-dn="parts:head">
+      <header class="knk-page-head" data-dn="parts:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>자재 마스터</b></div>
-          <div class="pl-title">자재 마스터</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <b>자재 마스터</b></nav>
+          <h1 class="knk-page-title">자재 마스터</h1>
+          <p class="knk-page-meta">전체 <span class="knk-num">{{ '{:,}'.format(total_cnt) }}</span>종 · 활성 <span class="knk-num">{{ '{:,}'.format(active_cnt) }}</span></p>
         </div>
-        <div class="pl-meta">
-          <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>종</span>
-          <span>·</span>
-          <span>활성 <span class="pm-num">{{ '{:,}'.format(active_cnt) }}</span></span>
+        <div class="knk-page-actions">
+          {# v5H226z58 — 마스터 페이지는 "조회 중심" / z110 — 일괄등록 양식 / z983 — BOM 보드 / z979 — 중복 정리 #}
+          <a class="knk-btn knk-btn--ghost" href="/bom/upload" title="설계·전장·SW팀 BOM 엑셀 업로드 → 자동 비교(추가/변경/삭제) → 프로젝트 BOM 보드"><i class="ti ti-clipboard-list"></i> BOM 보드</a>
+          <a class="knk-btn knk-btn--ghost" href="/parts/dedup" title="같은 자재가 표기만 다르게 여러 번 등록된 것을 찾아 하나로 합치기 (병합·실행취소 가능)"><i class="ti ti-copy-off"></i> 중복 정리</a>
+          <a class="knk-btn knk-btn--ghost" href="/parts/export.xlsx" title="현재 등록된 모든 자재를 엑셀로 받기"><i class="ti ti-download"></i> 엑셀 내보내기</a>
+          <a class="knk-btn knk-btn--ghost" href="/parts/import/template.xlsx" title="일괄등록용 빈 엑셀 양식 (예시 3행 + 작성 가이드 포함)"><i class="ti ti-file-spreadsheet"></i> 양식 받기</a>
+          <a class="knk-btn knk-btn--primary" href="/parts/new"><i class="ti ti-plus"></i> 자재 등록</a>
         </div>
-        <div class="pl-actions">
-          {# v5H226z58 (2026-05-12) — 마스터 페이지는 "조회 중심"으로 정리
-             v5H226z110 (2026-05-19) — 일괄등록 양식 다운로드 진입점 추가 (대표 지시) #}
-          {# v5H226z983 (2026-07-15) — 1단계 BOM 보드 진입점 #}
-          <a class="btn-ghost" href="/bom/upload" title="설계·전장·SW팀 BOM 엑셀 업로드 → 자동 비교(추가/변경/삭제) → 프로젝트 BOM 보드">📋 BOM 보드</a>
-          {# v5H226z979 (2026-07-14) — 0단계 자재 중복 정리 진입점 #}
-          <a class="btn-ghost" href="/parts/dedup" title="같은 자재가 표기만 다르게 여러 번 등록된 것을 찾아 하나로 합치기 (병합·실행취소 가능)">🧹 중복 정리</a>
-          <a class="btn-ghost" href="/parts/export.xlsx" title="현재 등록된 모든 자재를 엑셀로 받기">⤓ 엑셀내보내기</a>
-          <a class="btn-ghost" href="/parts/import/template.xlsx" title="일괄등록용 빈 엑셀 양식 (예시 3행 + 작성 가이드 포함)">📋 양식받기</a>
-          <a class="btn-dark" href="/parts/new">＋ 자재 등록</a>
-        </div>
-      </div>
+      </header>
 
-      {# v5H226z58 (2026-05-12) — 공통 분류 과다 경고 (실무 기준 10% 초과 시)
-         v5H226z863: 서버 집계(stats.common_cnt)로 — 전 행 순회 제거 #}
+      {# v5H226z58 — 공통 분류 과다 경고(10% 초과) / z980 — 오류 배너 / z98 — 일괄등록 결과 배너
+         v5H226z992: 인라인 스타일 배너 3종 → knk-alert 공통 컴포넌트 #}
       {% set common_cnt = stats.common_cnt %}
       {% set common_pct = (common_cnt * 100 / total_cnt) if total_cnt else 0 %}
-      {% if common_cnt >= 20 and common_pct > 15 %}
-      <div style="margin:0 0 0 0;padding:10px 24px;background:#fef3c7;border-bottom:1px solid #fbbf24;border-left:4px solid #d97706;display:flex;align-items:center;gap:12px;font-size:12.5px;color:#92400e;">
-        <span style="font-size:18px;">⚠</span>
-        <div style="flex:1;line-height:1.5;">
-          <b>공통 분류 자재가 과다합니다</b> — 현재 <b>{{ common_cnt }}종 ({{ '%.1f'|format(common_pct) }}%)</b>이 "공통"으로 분류되어 있습니다.
-          실무 기준 공통은 <b>10% 미만</b>이 정상입니다. 출고 이력 기반으로 자동 재분류할 수 있습니다.
-        </div>
-        <a href="/parts/reclassify?focus=공통&days=365" style="padding:6px 14px;font-size:12px;font-weight:700;text-decoration:none;background:#0f172a;color:#fff;border-radius:6px;">🔀 재분류 도구 열기</a>
-      </div>
-      {% endif %}
-
-      {# v5H226z866 (검증 워크플로 발견): 카드 숫자 = 전체(무필터) 집계(z863-B parts_stats)인데 링크가
-         검색어(q)를 유지하면 '숫자 ≠ 클릭 결과' 불일치 → 카드 클릭 = 그 사업부 전체 보기(q 제거)로 일치화 #}
-      <div class="kpi-strip" data-dn="parts:kpi" data-dn-tone="green">
-        <a class="kpi-cell {% if not biz_div %}active{% endif %}" href="/parts">
-          <div class="l">전체</div>
-          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">종</span></div>
-          <div class="sub">필터 미적용</div>
-        </a>
-        <a class="kpi-cell {% if biz_div=='T' %}active{% endif %}" href="/parts?biz_div=T">
-          <div class="l">🔬 검사기 (T)</div>
-          <div class="v">{{ '{:,}'.format(t_cnt) }}<span class="u">종</span></div>
-          <div class="sub">정밀 사업부</div>
-        </a>
-        <a class="kpi-cell {% if biz_div=='M' %}active{% endif %}" href="/parts?biz_div=M">
-          <div class="l">🤖 자동화 (M)</div>
-          <div class="v">{{ '{:,}'.format(m_cnt) }}<span class="u">종</span></div>
-          <div class="sub">가공·기계</div>
-        </a>
-        <a class="kpi-cell {% if biz_div=='E' %}active{% endif %}" href="/parts?biz_div=E">
-          <div class="l">⚡ 전기 (E)</div>
-          <div class="v">{{ '{:,}'.format(e_cnt) }}<span class="u">종</span></div>
-          <div class="sub">전장·PCB</div>
-        </a>
-        <a class="kpi-cell {% if biz_div=='C' %}active{% endif %}" href="/parts?biz_div=C">
-          <div class="l">🧪 화학 (C)</div>
-          <div class="v">{{ '{:,}'.format(c_cnt) }}<span class="u">종</span></div>
-          <div class="sub">표면처리·도장</div>
-        </a>
-        <div class="kpi-cell">
-          <div class="l">미지정</div>
-          <div class="v">{{ '{:,}'.format(x_cnt) }}<span class="u">종</span></div>
-          <div class="sub">사업부 미배정</div>
-        </div>
-        <div class="kpi-cell">
-          <div class="l">활성 비율</div>
-          <div class="v">{{ '{:.1f}'.format(active_cnt / total_cnt * 100) if total_cnt else '0' }}<span class="u">%</span></div>
-          <div class="sub">활성 / 전체</div>
-        </div>
-      </div>
-
-      {# v5H226z980 — 권한 등 안내 배너 (중복정리 use 게이트에서 사유와 함께 돌려보냄) #}
       {% set _perr = request.query_params.get('error') %}
-      {% if _perr %}
-      <div style="padding:11px 24px;background:var(--pq-danger-soft,#fef2f2);border-bottom:1px solid var(--pq-danger,#b91c1c);color:var(--pq-danger,#b91c1c);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span>⚠ {{ _perr }}</span>
-        <a href="/parts" style="margin-left:auto;color:inherit;font-size:11px;font-weight:500;text-decoration:none;border:1px solid currentColor;padding:3px 9px;border-radius:4px;">닫기</a>
+      {% set imp = request.query_params.get('imported') %}
+      {% if (common_cnt >= 20 and common_pct > 15) or _perr or (imp and imp != '0') %}
+      <div class="pl-alerts">
+        {% if common_cnt >= 20 and common_pct > 15 %}
+        <div class="knk-alert knk-alert--warning">
+          <div><p class="knk-alert__title">공통 분류 자재가 과다합니다</p>
+          현재 <b>{{ common_cnt }}종 ({{ '%.1f'|format(common_pct) }}%)</b>이 "공통"으로 분류되어 있습니다. 실무 기준 공통은 <b>10% 미만</b>이 정상입니다. 출고 이력 기반으로 자동 재분류할 수 있습니다.</div>
+          <a class="knk-btn knk-btn--sm knk-btn--secondary pl-alert-act" href="/parts/reclassify?focus=공통&days=365">재분류 도구 열기</a>
+        </div>
+        {% endif %}
+        {% if _perr %}
+        <div class="knk-alert knk-alert--danger">
+          <div>{{ _perr }}</div>
+          <a class="knk-btn knk-btn--sm knk-btn--ghost pl-alert-act" href="/parts">닫기</a>
+        </div>
+        {% endif %}
+        {% if imp and imp != '0' %}
+        <div class="knk-alert knk-alert--success">
+          <div><b>{{ imp }}건</b> 자재 신규 등록 완료
+            {% set dp = request.query_params.get('dup') %}{% if dp and dp != '0' %} · 중복 스킵 {{ dp }}건{% endif %}
+            {% set sm = request.query_params.get('sim') %}{% if sm and sm != '0' %} · 유사 경고 {{ sm }}건{% endif %}
+            {% set er = request.query_params.get('err') %}{% if er and er != '0' %} · 오류 {{ er }}건{% endif %}
+            {% set tt = request.query_params.get('total') %}{% if tt %} (총 {{ tt }}행 처리){% endif %}
+          </div>
+          <a class="knk-btn knk-btn--sm knk-btn--ghost pl-alert-act" href="/parts">닫기</a>
+        </div>
+        {% endif %}
       </div>
       {% endif %}
 
-      {# v5H226z98 — 자재 일괄등록 완료 후 리다이렉트 시 결과 배너 #}
-      {% set imp = request.query_params.get('imported') %}
-      {% if imp and imp != '0' %}
-      <div style="padding:11px 24px;background:var(--pq-ok-soft);border-bottom:1px solid var(--pq-ok);color:var(--pq-ok);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span>✅ <b>{{ imp }}건</b> 자재 신규 등록 완료
-          {% set dp = request.query_params.get('dup') %}{% if dp and dp != '0' %} · 중복 스킵 {{ dp }}건{% endif %}
-          {% set sm = request.query_params.get('sim') %}{% if sm and sm != '0' %} · 유사 경고 {{ sm }}건{% endif %}
-          {% set er = request.query_params.get('err') %}{% if er and er != '0' %} · 오류 {{ er }}건{% endif %}
-          {% set tt = request.query_params.get('total') %}{% if tt %} (총 {{ tt }}행 처리){% endif %}
-        </span>
-        <a href="/parts" style="margin-left:auto;color:var(--pq-ok);font-size:11px;font-weight:500;text-decoration:none;border:1px solid var(--pq-ok);padding:3px 9px;border-radius:4px;">닫기</a>
+      {# v5H226z866: 카드 숫자=전체(무필터) 집계 → 카드 클릭=그 사업부 전체 보기(q 제거)로 일치화
+         v5H226z992(대표 확정): 등록 폼=T/M/공통뿐 → 전체/T/M/공통/미지정/활성비율. E·C=실데이터 있을 때만 #}
+      <div class="pl-kpi" data-dn="parts:kpi" data-dn-tone="green">
+        <div class="knk-kpi-strip">
+          <a class="knk-kpi is-clickable {% if not biz_div %}is-active{% endif %}" href="/parts">
+            <span class="knk-kpi__label">전체</span>
+            <span class="knk-kpi__value">{{ '{:,}'.format(total_cnt) }}<span class="knk-kpi__unit">종</span></span>
+            <span class="knk-kpi__sub">필터 미적용</span>
+          </a>
+          <a class="knk-kpi is-clickable {% if biz_div=='T' %}is-active{% endif %}" href="/parts?biz_div=T">
+            <span class="knk-kpi__label"><i class="ti ti-microscope"></i> 검사기 (T)</span>
+            <span class="knk-kpi__value">{{ '{:,}'.format(t_cnt) }}<span class="knk-kpi__unit">종</span></span>
+            <span class="knk-kpi__sub">검사기 전용</span>
+          </a>
+          <a class="knk-kpi is-clickable {% if biz_div=='M' %}is-active{% endif %}" href="/parts?biz_div=M">
+            <span class="knk-kpi__label"><i class="ti ti-robot"></i> 자동화 (M)</span>
+            <span class="knk-kpi__value">{{ '{:,}'.format(m_cnt) }}<span class="knk-kpi__unit">종</span></span>
+            <span class="knk-kpi__sub">자동화 전용</span>
+          </a>
+          <a class="knk-kpi is-clickable {% if biz_div=='공통' %}is-active{% endif %}" href="/parts?biz_div=공통">
+            <span class="knk-kpi__label">공통</span>
+            <span class="knk-kpi__value">{{ '{:,}'.format(common_cnt) }}<span class="knk-kpi__unit">종</span></span>
+            <span class="knk-kpi__sub">양 사업부 공용</span>
+          </a>
+          {% if e_cnt %}
+          <a class="knk-kpi is-clickable {% if biz_div=='E' %}is-active{% endif %}" href="/parts?biz_div=E">
+            <span class="knk-kpi__label">E (레거시)</span>
+            <span class="knk-kpi__value">{{ '{:,}'.format(e_cnt) }}<span class="knk-kpi__unit">종</span></span>
+            <span class="knk-kpi__sub">과거 분류 — 정리 대상</span>
+          </a>
+          {% endif %}
+          {% if c_cnt %}
+          <a class="knk-kpi is-clickable {% if biz_div=='C' %}is-active{% endif %}" href="/parts?biz_div=C">
+            <span class="knk-kpi__label">C (레거시)</span>
+            <span class="knk-kpi__value">{{ '{:,}'.format(c_cnt) }}<span class="knk-kpi__unit">종</span></span>
+            <span class="knk-kpi__sub">과거 분류 — 정리 대상</span>
+          </a>
+          {% endif %}
+          <div class="knk-kpi">
+            <span class="knk-kpi__label">미지정</span>
+            <span class="knk-kpi__value">{{ '{:,}'.format(x_cnt) }}<span class="knk-kpi__unit">종</span></span>
+            <span class="knk-kpi__sub">사업부 미배정</span>
+          </div>
+          <div class="knk-kpi">
+            <span class="knk-kpi__label">활성 비율</span>
+            <span class="knk-kpi__value">{{ '{:.1f}'.format(active_cnt / total_cnt * 100) if total_cnt else '0' }}<span class="knk-kpi__unit">%</span></span>
+            <span class="knk-kpi__sub">활성 / 전체</span>
+          </div>
+        </div>
       </div>
-      {% endif %}
 
       <form class="filterbar" method="get" action="/parts" data-dn="parts:filter" data-dn-tone="blue">
         <span class="fb-label">사업부</span>
         <a class="fb-chip {% if not biz_div %}is-active{% endif %}" href="/parts{% if q %}?q={{ q }}{% endif %}">전체</a>
         <a class="fb-chip {% if biz_div=='T' %}is-active{% endif %}" href="/parts?biz_div=T{% if q %}&q={{ q }}{% endif %}">T</a>
         <a class="fb-chip {% if biz_div=='M' %}is-active{% endif %}" href="/parts?biz_div=M{% if q %}&q={{ q }}{% endif %}">M</a>
-        <a class="fb-chip {% if biz_div=='E' %}is-active{% endif %}" href="/parts?biz_div=E{% if q %}&q={{ q }}{% endif %}">E</a>
-        <a class="fb-chip {% if biz_div=='C' %}is-active{% endif %}" href="/parts?biz_div=C{% if q %}&q={{ q }}{% endif %}">C</a>
+        <a class="fb-chip {% if biz_div=='공통' %}is-active{% endif %}" href="/parts?biz_div=공통{% if q %}&q={{ q }}{% endif %}">공통</a>
+        {% if e_cnt %}<a class="fb-chip {% if biz_div=='E' %}is-active{% endif %}" href="/parts?biz_div=E{% if q %}&q={{ q }}{% endif %}">E</a>{% endif %}
+        {% if c_cnt %}<a class="fb-chip {% if biz_div=='C' %}is-active{% endif %}" href="/parts?biz_div=C{% if q %}&q={{ q }}{% endif %}">C</a>{% endif %}
         <span class="fb-divider"></span>
         <span class="fb-label">분류</span>
         <a class="fb-chip {% if not category %}is-active{% endif %}" href="/parts{% if biz_div %}?biz_div={{ biz_div }}{% endif %}{% if q %}{% if biz_div %}&{% else %}?{% endif %}q={{ q }}{% endif %}">전체</a>
@@ -269,7 +227,8 @@
           <span class="fb-ic">⌕</span>
           <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="자재명 · 코드 · 사양 · 제조사 · 용도 검색" />
         </div>
-        <button type="submit" class="fb-go">검색</button>
+        {# v5H226z992: 조회 버튼 문구 전 화면 통일(가이드 §9.4 '조회') + knk 버튼 #}
+        <button type="submit" class="knk-btn knk-btn--sm">조회</button>
         {% if q or biz_div or category %}
           <a class="fb-chip" href="/parts" style="border-style: dashed;">↺ 필터 해제</a>
         {% endif %}
@@ -278,22 +237,22 @@
 
       {% if parts %}
       <div class="tbl-zone" data-dn="parts:table" data-dn-tone="purple">
-        <table class="tbl-erp">
+        <table class="knk-table knk-table--dense">
           <thead>
             <tr>
               <th style="width:160px;">코드</th>
               <th>자재명</th>
               <th>제조사</th>
               <th>구매사</th>
-              <th class="center" style="width:80px;">사업부</th>
-              <th class="center" style="width:80px;">품목계정</th>
-              <th class="center" style="width:80px;">분류</th>
-              {# v5H226z861 (2026-07-06): 통화 기호(₩) 표기로 옆 '단위'(수량 단위 EA)와 구분 명확화 #}
-              <th class="num" style="width:110px;">매입단가 (₩)</th>
-              <th class="center" style="width:60px;" title="수량 단위 (EA/개 등)">단위</th>
-              <th class="num" style="width:100px;">재고</th>
-              <th class="center" style="width:120px;">안전재고</th>
-              <th class="center" style="width:70px;">상태</th>
+              <th class="knk-td-center" style="width:80px;">사업부</th>
+              <th class="knk-td-center" style="width:80px;">품목계정</th>
+              <th class="knk-td-center" style="width:80px;">분류</th>
+              {# v5H226z861: 통화 기호(₩) 표기로 옆 '단위'(수량 단위 EA)와 구분 명확화 #}
+              <th class="knk-td-num" style="width:110px;">매입단가 (₩)</th>
+              <th class="knk-td-center" style="width:60px;" title="수량 단위 (EA/개 등)">단위</th>
+              <th class="knk-td-num" style="width:100px;">재고</th>
+              <th class="knk-td-center" style="width:120px;">안전재고</th>
+              <th class="knk-td-center" style="width:70px;">상태</th>
             </tr>
           </thead>
           <tbody>
@@ -309,10 +268,10 @@
               <td class="code">{{ p.part_no|default('—') }}</td>
               <td>
                 <b>{{ p.part_name|default('—') }}</b>
-                {# v5H226z99 (2026-05-16) — 용도 보조 표시 (한 줄 자르고 풀 텍스트는 툴팁) #}
+                {# v5H226z99 — 용도 보조 표시 (한 줄 자르고 풀 텍스트는 툴팁) #}
                 {% if p.purpose %}
                   {% set _purp = p.purpose|trim %}
-                  <div title="{{ _purp }}" style="font-size:10.5px;color:var(--pq-ink-4);line-height:1.4;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;">📝 {{ _purp[:48] }}{% if _purp|length > 48 %}…{% endif %}</div>
+                  <div title="{{ _purp }}" style="font-size:10.5px;color:var(--pq-ink-4);line-height:1.4;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;">{{ _purp[:48] }}{% if _purp|length > 48 %}…{% endif %}</div>
                 {% endif %}
               </td>
               <td>
@@ -323,30 +282,30 @@
                 {# v5H226z84: 대표 구매사 — 가장 최근 날짜 단가의 구매사 (여러 곳이면 "외 N") · z830: 구매처 정보 정책 #}
                 {% if not can_supplier %}<span class="mute" title="구매처 열람 권한 없음">🔒</span>{% elif p._rep_vendor %}<span style="font-weight:500;color:var(--pq-ink-2,#222);">{{ p._rep_vendor }}</span>{% if p._vendor_count and p._vendor_count > 1 %}<span class="mute" style="font-size:10.5px;"> 외 {{ p._vendor_count - 1 }}</span>{% endif %}{% else %}<span class="mute">—</span>{% endif %}
               </td>
-              <td class="center">
+              <td class="knk-td-center">
                 {% if biz_div_v %}<span class="chip-biz {{ biz_cls }}">{{ biz_div_v }}</span>{% else %}<span class="mute">—</span>{% endif %}
               </td>
-              <td class="center">
+              <td class="knk-td-center">
                 {% set acc = p.item_account|default('') %}
                 {% set acc_cls = 'a-raw' if acc=='RAW' else ('a-sub' if acc=='SUB' else ('a-semi' if acc=='SEMI' else ('a-fin' if acc=='FIN' else ('a-cons' if acc=='CONS' else 'a-x')))) %}
                 {% if acc %}<span class="chip-acc {{ acc_cls }}">{{ acc }}</span>{% else %}<span class="chip-acc a-x">—</span>{% endif %}
               </td>
-              <td class="center mute" style="font-size:11.5px;">{{ p.category|default('—') }}</td>
-              <td class="num">
-                {# v5H226z861 (2026-07-06): 헤더가 (₩)이라 KRW 외 통화는 셀에 통화 기호 병기 #}
+              <td class="knk-td-center mute" style="font-size:11.5px;">{{ p.category|default('—') }}</td>
+              <td class="knk-td-num">
+                {# v5H226z861: 헤더가 (₩)이라 KRW 외 통화는 셀에 통화 기호 병기 #}
                 {% if can_purchase_price %}{% if p.std_price %}<b>{{ '{:,.0f}'.format(p.std_price) }}</b>{% if p.currency and p.currency|upper != 'KRW' %}{% set _ccy = p.currency|upper %} <span class="mute" style="font-size:10.5px;" title="{{ _ccy }}">{% if _ccy=='USD' %}${% elif _ccy=='EUR' %}€{% elif _ccy=='JPY' %}¥{% elif _ccy=='CNY' %}元{% elif _ccy=='VND' %}₫{% else %}{{ _ccy }}{% endif %}</span>{% endif %}{% else %}<span class="mute">—</span>{% endif %}{% else %}<span class="mute" title="구매단가 열람 권한 없음">🔒</span>{% endif %}
               </td>
-              <td class="center mute">{{ p.unit|default('EA') }}</td>
-              <td class="num">{{ '{:,.0f}'.format(sq) }}</td>
-              <td class="center">
+              <td class="knk-td-center mute">{{ p.unit|default('EA') }}</td>
+              <td class="knk-td-num">{{ '{:,.0f}'.format(sq) }}</td>
+              <td class="knk-td-center">
                 {% if ss > 0 %}
                 <div class="stk-mini" title="현재 {{ '{:,.0f}'.format(sq) }} / 안전 {{ '{:,.0f}'.format(ss) }}">
                   <div class="fill {{ stk_cls }}" style="width: {{ stk_pct if stk_pct < 100 else 100 }}%;"></div>
                 </div>
                 {% else %}<span class="mute">—</span>{% endif %}
               </td>
-              <td class="center">
-                {% if p.is_active %}<span class="pill-active">활성</span>{% else %}<span class="pill-inactive">중지</span>{% endif %}
+              <td class="knk-td-center">
+                {% if p.is_active %}<span class="knk-badge knk-badge--success">활성</span>{% else %}<span class="knk-badge">중지</span>{% endif %}
               </td>
             </tr>
           {% endfor %}
@@ -365,11 +324,11 @@
       </div>
       {% endif %}
       {% else %}
-      <div class="po-empty" data-dn="parts:empty">
-        <div class="ico">🔧</div>
-        <div class="ttl">{% if q or biz_div or category %}검색 결과 없음{% else %}등록된 자재가 없습니다{% endif %}</div>
-        <div class="sub">{% if q or biz_div or category %}필터를 해제하거나 다른 조건으로 검색해보세요.{% else %}＋ 자재 등록 또는 일괄 등록(CSV)으로 마스터를 만드세요.{% endif %}</div>
-        <div class="cta"><a href="/parts/new">＋ 자재 등록</a></div>
+      <div class="knk-empty" data-dn="parts:empty">
+        <i class="ti {% if q or biz_div or category %}ti-search-off{% else %}ti-package{% endif %}"></i>
+        <p class="knk-empty__title">{% if q or biz_div or category %}검색 결과가 없습니다{% else %}등록된 자재가 없습니다{% endif %}</p>
+        <p class="knk-empty__desc">{% if q or biz_div or category %}필터를 해제하거나 다른 조건으로 검색해 보세요.{% else %}첫 자재를 등록하거나 일괄 등록(엑셀 업로드)으로 마스터를 만들 수 있습니다.{% endif %}</p>
+        <a class="knk-btn knk-btn--primary" href="/parts/new"><i class="ti ti-plus"></i> 자재 등록</a>
       </div>
       {% endif %}
 

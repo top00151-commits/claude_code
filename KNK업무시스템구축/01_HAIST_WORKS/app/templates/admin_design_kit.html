@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>디자인 기준 예제 · KNK</title>
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 /* 이 페이지 전용 배치(데모 진열용) — 실제 화면에서는 복사하지 않음 */
 .dk-wrap { padding: 0 24px 48px; max-width: none; }
@@ -52,8 +53,8 @@
           </div>
           <div class="knk-page-actions">
             <button type="button" class="knk-btn knk-btn--ghost">초기화</button>
-            <button type="button" class="knk-btn knk-btn--secondary">엑셀 내보내기</button>
-            <button type="button" class="knk-btn knk-btn--primary">자재 등록</button>
+            <button type="button" class="knk-btn knk-btn--secondary"><i class="ti ti-download"></i> 엑셀 내보내기</button>
+            <button type="button" class="knk-btn knk-btn--primary"><i class="ti ti-plus"></i> 자재 등록</button>
           </div>
         </header>
       </div>
@@ -61,7 +62,7 @@
 
     <div class="dk-sec">
       <h2 class="dk-h">2. 버튼 (.knk-btn)</h2>
-      <p class="dk-d">높이 36px(작은 버튼 32px). 한 영역의 Primary는 1개. 동작을 명확한 동사로(§9.1·§25장).</p>
+      <p class="dk-d">높이 36px(작은 버튼 32px). 한 영역의 Primary는 1개. 동작을 명확한 동사로(§9.1·§25장). 아이콘=Tabler 자체 호스팅(&lt;i class="ti ti-이름"&gt;·버튼 안 15px — §10).</p>
       <div class="dk-row">
         <button type="button" class="knk-btn knk-btn--primary">저장</button>
         <button type="button" class="knk-btn knk-btn--secondary">엑셀 내보내기</button>
@@ -183,6 +184,7 @@
       <p class="dk-d">빈 상태=이유+다음 행동 1개(§9.9). 제출 바=취소 왼쪽·저장 오른쪽 끝, 767px↓ 세로(§9.11).</p>
       <div style="border:1px dashed var(--knk-border-strong);border-radius:8px;margin-bottom:12px;">
         <div class="knk-empty">
+          <i class="ti ti-package" aria-hidden="true"></i>
           <p class="knk-empty__title">등록된 자재가 없습니다.</p>
           <p class="knk-empty__desc">첫 자재를 등록하거나 엑셀로 일괄 등록(엑셀 업로드)할 수 있습니다.</p>
           <button type="button" class="knk-btn knk-btn--primary">자재 등록</button>
