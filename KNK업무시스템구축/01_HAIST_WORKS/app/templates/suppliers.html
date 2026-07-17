@@ -5,43 +5,39 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>협력사 마스터 · KNK HAIST WORKS</title>
 
-{# v5H226z57 시안1 + 룰 v4 — 실무팀3 협력사 목록 #}
+{# v5H226z1001 (2026-07-18) — 디자인 통일 Phase 4 ①: knk 공통 컴포넌트 전환(머리글·배너·KPI·조회·빈상태)+Sage 브리지.
+   협력사 카드 그리드(sp-grid/sp-card)는 업무 특화로 유지 — 색만 브리지로 통일.
+   v5H226z57 시안1 + 룰 v4 — 실무팀3 협력사 목록 #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  /* z1001 — pq 토큰을 knk(Sage) 토큰으로 브리지(z999 표준): 유지 컴포넌트까지 색 자동 통일. 새 코드는 --knk-*만. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-err: var(--knk-danger, #A33A3E);       --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .sp-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.sp-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.sp-head .crumb { font-size: 12px; color: var(--pq-ink-4); font-weight: 500; }
-.sp-head .crumb a { color: var(--pq-ink-2); }
-.sp-head .crumb b { color: var(--pq-ink); }
-.sp-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; line-height: 1.1; }
-.sp-meta { font-size: 12px; color: var(--pq-ink-3); }
-.sp-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.sp-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-.sp-actions .btn-ghost, .sp-actions .btn-dark { height: 32px; padding: 0 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; }
-.sp-actions .btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
-.sp-actions .btn-ghost:hover { background: var(--pq-surface-2); border-color: var(--pq-line-3); color: var(--pq-ink); }
-.sp-actions .btn-dark { background: var(--pq-ink); border: 0; color: #fff; }
-.sp-actions .btn-dark:hover { background: #1e293b; }
-
-.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
-.kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
-.kpi-cell:last-child { border-right: 0; }
-.kpi-cell .l { font-size: 10.5px; color: var(--pq-ink-3); font-weight: 500; }
-.kpi-cell .v { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; color: var(--pq-ink); line-height: 1.2; margin-top: 2px; display: flex; align-items: baseline; gap: 3px; }
-.kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
-.kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
-
-.fb-go { height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer; }
-.fb-go:hover { background: var(--pq-surface-3); }
-.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); }
+/* z1001 — 머리글·KPI·조회 버튼·빈상태 = knk 공통 컴포넌트(knk-components.css). 페이지엔 배치 보정만. */
+.sp-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
+.sp-page > .knk-alert { margin: 12px 24px 0; }
+.sp-page > .knk-kpi-strip { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding: 4px 16px; }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--knk-text-muted, #657169); font-family: var(--pq-mono); }
 
 .sp-zone { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 16px 24px; min-height: 0; }
 .sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; align-items: stretch; }
@@ -65,15 +61,8 @@
 .sp-card .country { background: var(--pq-warn-soft); color: var(--pq-warn); }
 .sp-card .currency { background: var(--pq-surface-3); color: var(--pq-ink-3); font-family: var(--pq-mono); }
 
-.sp-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.sp-empty .ico { font-size: 40px; opacity: 0.6; }
-.sp-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
-.sp-empty .cta { margin-top: 16px; }
-.sp-empty .cta a { display: inline-block; padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
-
 @media (max-width: 1023px) {
-  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
-  .sp-head, .filterbar, .sp-zone { padding: 10px 16px; }
+  .filterbar, .sp-zone { padding: 10px 16px; }
 }
 </style>
 </head>
@@ -91,58 +80,54 @@
   <main class="main">
     <div class="sp-page">
 
-      <div class="sp-head" data-dn="suppliers:head">
+      <header class="knk-page-head" data-dn="suppliers:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>협력사 마스터</b></div>
-          <div class="sp-title">협력사 마스터</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <b>협력사 마스터</b></nav>
+          <h1 class="knk-page-title">협력사 마스터</h1>
+          <p class="knk-page-meta">전체 <span class="knk-num">{{ '{:,}'.format(total_cnt) }}</span>사 · 활성 <span class="knk-num">{{ '{:,}'.format(active_cnt) }}</span></p>
         </div>
-        <div class="sp-meta">
-          <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>사</span>
-          <span>·</span>
-          <span>활성 <span class="pm-num">{{ '{:,}'.format(active_cnt) }}</span></span>
+        <div class="knk-page-actions">
+          {# v5H226z115 — 자재 마스터와 동일 패턴 · z1001 knk-btn+Tabler #}
+          <a class="knk-btn knk-btn--ghost" href="/suppliers/export.xlsx" title="현재 등록된 모든 협력사를 엑셀로 받기"><i class="ti ti-download"></i> 엑셀 내보내기</a>
+          <a class="knk-btn knk-btn--ghost" href="/suppliers/import/template.xlsx" title="일괄등록용 빈 엑셀 양식 (예시 + 가이드 시트)"><i class="ti ti-file-spreadsheet"></i> 양식 받기</a>
+          <a class="knk-btn knk-btn--ghost" href="/suppliers/import"><i class="ti ti-upload"></i> 일괄 등록</a>
+          <a class="knk-btn knk-btn--primary" href="/suppliers/new"><i class="ti ti-plus"></i> 협력사 등록</a>
         </div>
-        <div class="sp-actions">
-          {# v5H226z115 (2026-05-19) — 자재 마스터와 동일 패턴 (엑셀내보내기·양식받기·일괄 등록) #}
-          <a class="btn-ghost" href="/suppliers/export.xlsx" title="현재 등록된 모든 협력사를 엑셀로 받기">⤓ 엑셀내보내기</a>
-          <a class="btn-ghost" href="/suppliers/import/template.xlsx" title="일괄등록용 빈 엑셀 양식 (예시 + 가이드 시트)">📋 양식받기</a>
-          <a class="btn-ghost" href="/suppliers/import">📥 일괄 등록</a>
-          <a class="btn-dark" href="/suppliers/new">＋ 협력사 등록</a>
-        </div>
-      </div>
+      </header>
 
       {# v5H226z97 — 일괄등록 완료 후 리다이렉트 시 결과 배너 #}
       {% set imp = request.query_params.get('imported') %}
       {% if imp and imp != '0' %}
-      <div style="padding:11px 24px;background:var(--pq-ok-soft);border-bottom:1px solid var(--pq-ok);color:var(--pq-ok);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span>✅ <b>{{ imp }}건</b> 협력사 신규 등록 완료
+      <div class="knk-alert knk-alert--success" style="align-items:center;">
+        <span style="flex:1;">✓ <b>{{ imp }}건</b> 협력사 신규 등록 완료
           {% set dp = request.query_params.get('dup') %}{% if dp and dp != '0' %} · 중복 스킵 {{ dp }}건{% endif %}
           {% set er = request.query_params.get('err') %}{% if er and er != '0' %} · 오류 {{ er }}건{% endif %}
           {% set tt = request.query_params.get('total') %}{% if tt %} (총 {{ tt }}행 처리){% endif %}
         </span>
-        <a href="/suppliers" style="margin-left:auto;color:var(--pq-ok);font-size:11px;font-weight:500;text-decoration:none;border:1px solid var(--pq-ok);padding:3px 9px;border-radius:4px;">닫기</a>
+        <a class="knk-btn knk-btn--sm knk-btn--ghost" href="/suppliers">닫기</a>
       </div>
       {% endif %}
 
-      <div class="kpi-strip" data-dn="suppliers:kpi" data-dn-tone="green">
-        <div class="kpi-cell">
-          <div class="l">전체 협력사</div>
-          <div class="v">{{ '{:,}'.format(total_cnt) }}<span class="u">사</span></div>
-          <div class="sub">필터 미적용</div>
+      <div class="knk-kpi-strip" data-dn="suppliers:kpi" data-dn-tone="green">
+        <div class="knk-kpi">
+          <span class="knk-kpi__label">전체 협력사</span>
+          <span class="knk-kpi__value">{{ '{:,}'.format(total_cnt) }}<span class="knk-kpi__unit">사</span></span>
+          <span class="knk-kpi__sub">필터 미적용</span>
         </div>
-        <div class="kpi-cell">
-          <div class="l">활성 협력사</div>
-          <div class="v">{{ '{:,}'.format(active_cnt) }}<span class="u">사</span></div>
-          <div class="sub">사용중 거래처</div>
+        <div class="knk-kpi">
+          <span class="knk-kpi__label">활성 협력사</span>
+          <span class="knk-kpi__value">{{ '{:,}'.format(active_cnt) }}<span class="knk-kpi__unit">사</span></span>
+          <span class="knk-kpi__sub">사용중 거래처</span>
         </div>
-        <div class="kpi-cell">
-          <div class="l">국내</div>
-          <div class="v">{{ '{:,}'.format(domestic_cnt) }}<span class="u">사</span></div>
-          <div class="sub">한국 · 미지정</div>
+        <div class="knk-kpi">
+          <span class="knk-kpi__label">국내</span>
+          <span class="knk-kpi__value">{{ '{:,}'.format(domestic_cnt) }}<span class="knk-kpi__unit">사</span></span>
+          <span class="knk-kpi__sub">한국 · 미지정</span>
         </div>
-        <div class="kpi-cell">
-          <div class="l">해외</div>
-          <div class="v">{{ '{:,}'.format(foreign_cnt) }}<span class="u">사</span></div>
-          <div class="sub">수입 거래처</div>
+        <div class="knk-kpi">
+          <span class="knk-kpi__label">해외</span>
+          <span class="knk-kpi__value">{{ '{:,}'.format(foreign_cnt) }}<span class="knk-kpi__unit">사</span></span>
+          <span class="knk-kpi__sub">수입 거래처</span>
         </div>
       </div>
 
@@ -152,8 +137,8 @@
           <span class="fb-ic">⌕</span>
           <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="회사명 · 코드 · 담당자 · 국가" />
         </div>
-        <button type="submit" class="fb-go">검색</button>
-        {% if q %}<a class="fb-go" href="/suppliers" style="text-decoration: none; display: inline-flex; align-items: center;">↺ 해제</a>{% endif %}
+        <button type="submit" class="knk-btn knk-btn--sm">조회</button>
+        {% if q %}<a class="knk-btn knk-btn--sm knk-btn--ghost" href="/suppliers">↺ 해제</a>{% endif %}
         <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
       </form>
 
@@ -185,10 +170,11 @@
           {% endfor %}
         </div>
         {% else %}
-        <div class="sp-empty" data-dn="suppliers:empty">
-          <div class="ico">🏢</div>
-          <div class="ttl">{% if q %}검색 결과 없음{% else %}등록된 협력사가 없습니다{% endif %}</div>
-          <div class="cta"><a href="/suppliers/new">＋ 협력사 등록</a></div>
+        <div class="knk-empty" data-dn="suppliers:empty">
+          <i class="ti ti-building"></i>
+          <p class="knk-empty__title">{% if q %}검색 결과가 없습니다{% else %}등록된 협력사가 없습니다{% endif %}</p>
+          <p class="knk-empty__desc">{% if q %}다른 조건으로 검색하거나 해제해 보세요.{% else %}첫 협력사를 등록하거나 엑셀 일괄 등록을 쓸 수 있습니다.{% endif %}</p>
+          <a class="knk-btn knk-btn--primary" href="/suppliers/new"><i class="ti ti-plus"></i> 협력사 등록</a>
         </div>
         {% endif %}
       </div>
