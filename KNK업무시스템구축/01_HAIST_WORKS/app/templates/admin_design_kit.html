@@ -58,6 +58,11 @@
       if (!st || !bC || !bS) return;
       function set(sage){
         st.media = sage ? 'all' : 'not all';
+        // z997b(LIVE 실측): Chromium이 <style media> 토글 시 '기존 input류'의 계산 스타일을 고착시킴 —
+        // 변수 갱신·명시 규칙·인라인 지정까지 전부 무시(신규 요소는 정상). display 토글로 재계산 강제(동기·깜빡임 없음).
+        document.querySelectorAll('.knk-input, .knk-select, .knk-textarea').forEach(function(el){
+          el.style.display = 'none'; void getComputedStyle(el).display; el.style.display = '';
+        });
         lb.textContent = sage ? 'Sage 후보 표시 중 — 표·입력·배지를 15분쯤 보며 눈 피로를 비교해 보세요' : '현행 표시 중';
         bC.className = 'knk-btn' + (sage ? '' : ' knk-btn--secondary');
         bS.className = 'knk-btn' + (sage ? ' knk-btn--secondary' : '');
