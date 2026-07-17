@@ -97,10 +97,14 @@
   <div class="knk-ptabs-menu" id="knkPtabsMenu"></div>
 </div>
 <style>
-/* z989 페이지 탭줄 — PC 전용. ≥1024px에서만 .app 격자를 3행(상단바/탭줄/본문)으로 확장 */
+/* z989 페이지 탭줄 — PC 전용. ≥1024px에서만 .app 격자를 3행(상단바/탭줄/본문)으로 확장.
+   ⚠ design_v2가 .sidebar/.main을 grid-row:2로 '명시 고정'하므로(auto 배치 아님) 함께 3행으로 내려야 함
+   — 안 내리면 탭줄과 같은 행에 겹침(배포 직후 LIVE에서 발견·즉시 수정). */
 @media (min-width: 1024px){
   .app { grid-template-rows: var(--topbar-h) auto 1fr; }
   .knk-ptabs { grid-column: 1 / 3; grid-row: 2; }
+  .app > .sidebar { grid-row: 3; }
+  .app > .main { grid-row: 3; }
 }
 @media (max-width: 1023px){ .knk-ptabs { display: none !important; } }
 .knk-ptabs { display:flex; align-items:center; gap:6px; min-width:0; background:var(--surface); position:relative; z-index:40; }
