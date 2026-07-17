@@ -2541,9 +2541,9 @@
       +'<div class="ti-pop-hint">이 호기에 '+(cell.dataset.title||'')+' 발행일'+(hasAmt?'·금액':'')+'을 입력하세요.<br>호기마다 따로 발행할 수 있습니다(출하 일정별).</div>'
       +'<div class="ti-pop-btns"><button type="button" class="ti-clear">지우기</button><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
     document.body.appendChild(pop);
-    var rect=cell.getBoundingClientRect();
-    pop.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-320))+'px';
-    pop.style.top=(rect.bottom+window.scrollY+4)+'px';
+    // v5H226z995 (대표 지시): 셀 아래 붙이기(하단 행=화면 밖) → 화면 중앙 + 제목줄 드래그 이동
+    if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
+    else { var rect=cell.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-320))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
     var pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
     if(pa){ pa.addEventListener('input',function(){ var raw=pa.value.replace(/[^0-9]/g,''); pa.value=raw?Number(raw).toLocaleString():''; }); }
     setTimeout(function(){ (pa||pd).focus(); if(pa)pa.select(); },0);

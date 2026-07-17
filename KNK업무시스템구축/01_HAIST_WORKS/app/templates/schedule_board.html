@@ -1027,9 +1027,9 @@ function openUnitTaxPop(box){
     +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 발행일·금액(세금계산서 아님).':'이 호기의 세금계산서 발행일·금액을 입력하세요.')+'</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
   _editing={box,pop}; document.body.appendChild(pop);
-  const rect=box.getBoundingClientRect();
-  pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px';
-  pop.style.top=(rect.bottom+window.scrollY+4)+'px';
+  // v5H226z995 (대표 지시): 셀 아래 붙이기(하단 행=화면 밖) → 화면 중앙 + 제목줄 드래그 이동
+  if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
+  else { const rect=box.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
   const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
   pa.addEventListener('input',function(){ pa.value=_fmtAmtTyping(pa.value); });   // z986: 소수점 보존(외화)
   setTimeout(()=>{ pa.focus(); pa.select(); },0);
@@ -1345,9 +1345,9 @@ function startTaxInvEdit(td, tr){
     +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 금액(세금계산서 아님). ':'')+'1·2·3차 합계가 수주금액과 같으면 <b>초록</b>, 다르면 <b>주황</b>.</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
   _editing={td,pop}; document.body.appendChild(pop);
-  const rect=td.getBoundingClientRect();
-  pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px';
-  pop.style.top=(rect.bottom+window.scrollY+4)+'px';
+  // v5H226z995 (대표 지시): 셀 아래 붙이기(하단 행=화면 밖) → 화면 중앙 + 제목줄 드래그 이동
+  if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
+  else { const rect=td.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
   const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
   // v5H226z470: 금액 입력 시 천단위 콤마 자동 (저장 시엔 숫자만 추출)
   pa.addEventListener('input',function(){ pa.value=_fmtAmtTyping(pa.value); });   // z986: 소수점 보존(외화)

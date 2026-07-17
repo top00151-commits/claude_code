@@ -368,6 +368,54 @@
 })();
 </script>
 
+{# v5H226z995 (대표 지시·2026-07-18): 소형 입력 팝업 — 화면 중앙 열기 + 제목줄 드래그 이동 (전역 헬퍼·옵트인).
+   문제: 셀 클릭 지점 '아래'에 붙는 팝업(.ti-pop 등)이 하단 행에서는 화면 밖으로 밀려 입력 불가.
+   기존 전역 모달 드래그(z784)는 '전체화면 오버레이'만 대상이라 소형 절대배치 팝업은 미커버 → 전용 헬퍼.
+   사용(옵트인): 팝업을 body에 붙인 뒤 window.KNK_popCenterDrag(pop, '.ti-pop-ttl') 호출.
+   동작: position:fixed로 화면 중앙(위로 살짝 치우침) 배치 + 지정 핸들(제목줄)만 잡고 이동(마우스·터치),
+   화면 밖 완전 이탈 방지. 미호출 팝업은 기존 그대로(영향 0). #}
+<script>
+(function(){
+  if (window.KNK_popCenterDrag) return;
+  window.KNK_popCenterDrag = function(pop, handleSel){
+    try{
+      pop.style.position = 'fixed';
+      var w = pop.offsetWidth || 300, h = pop.offsetHeight || 200;
+      pop.style.left = Math.max(8, (window.innerWidth - w) / 2) + 'px';
+      pop.style.top = Math.max(56, (window.innerHeight - h) / 2 - 30) + 'px';
+      var hdr = handleSel ? pop.querySelector(handleSel) : null;
+      if (!hdr) return;
+      hdr.style.cursor = 'move'; hdr.style.userSelect = 'none';
+      hdr.title = (hdr.title ? hdr.title + ' · ' : '') + '끌어서 위치 이동';
+      var sx = 0, sy = 0, ox = 0, oy = 0, on = false;
+      function mv(x, y){
+        if (!on) return;
+        var nl = ox + (x - sx), nt = oy + (y - sy);
+        nl = Math.max(60 - w, Math.min(nl, window.innerWidth - 60));   // 최소 60px는 화면에 남김
+        nt = Math.max(0, Math.min(nt, window.innerHeight - 40));
+        pop.style.left = nl + 'px'; pop.style.top = nt + 'px';
+      }
+      function up(){
+        if (!on) return; on = false; document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', up);
+        document.removeEventListener('touchmove', tm); document.removeEventListener('touchend', up);
+      }
+      function mm(e){ mv(e.clientX, e.clientY); e.preventDefault(); }
+      function tm(e){ if (e.touches.length === 1){ mv(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); } }
+      function dn(x, y){
+        on = true; sx = x; sy = y;
+        ox = parseFloat(pop.style.left) || 0; oy = parseFloat(pop.style.top) || 0;
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', mm); document.addEventListener('mouseup', up);
+        document.addEventListener('touchmove', tm, { passive: false }); document.addEventListener('touchend', up);
+      }
+      hdr.addEventListener('mousedown', function(e){ dn(e.clientX, e.clientY); e.preventDefault(); });
+      hdr.addEventListener('touchstart', function(e){ if (e.touches.length === 1){ dn(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: true });
+    }catch(e){}
+  };
+})();
+</script>
+
 {# v5H226z189 (대표 지시): '이전 페이지' 버튼 — SPA 대응 전면 재작성.
    ① 위치(z190): 오른쪽 상단 top bar 우측 클러스터(#knkTopRight)에 배치 (JS 생성·삽입).
    ② 동작: 경로(pathname) 기반 방문 스택 → '정말 직전에 들어왔던 다른 페이지' 로 이동.
