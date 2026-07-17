@@ -118,9 +118,9 @@
 .knk-ptab:hover { background:var(--surface-2); color:var(--ink); }
 .knk-ptab.active { background:var(--ink); border-color:var(--ink); color:#fff; }
 .knk-ptab .tt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-.knk-ptab .pp { display:none; font-size:10.5px; line-height:1; cursor:pointer; opacity:.5; flex:none; }
-.knk-ptab:hover .pp { display:inline; }
-.knk-ptab.pinned .pp { display:inline; opacity:1; }
+/* z989b(대표 지시): 📌 항상 표시 — hover 때만 나타나면 탭 폭이 출렁여 정신없음(흐림=미고정·진함=고정) */
+.knk-ptab .pp { display:inline; font-size:10.5px; line-height:1; cursor:pointer; opacity:.35; flex:none; }
+.knk-ptab.pinned .pp { opacity:1; }
 .knk-ptab .pp:hover { opacity:1; transform:scale(1.15); }
 .knk-ptab .xx { border:0; background:transparent; color:inherit; opacity:.45; cursor:pointer;
   font-size:14px; line-height:1; padding:0 3px; border-radius:4px; flex:none; }
