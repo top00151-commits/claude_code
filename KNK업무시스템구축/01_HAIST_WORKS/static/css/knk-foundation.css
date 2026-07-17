@@ -1,0 +1,67 @@
+/* ============================================================================
+   KNK Quiet Operations UI — Foundation (Phase 1 · z991 · 2026-07-17)
+   기준 문서: KNK_ERP_UNIFIED_DESIGN_GUIDE.md §4(토큰)·§5(타이포)·§6(간격)·§7(모서리)
+   원칙:
+   ① 신규 코드는 시맨틱 토큰(--knk-*)만 사용한다 (원시 토큰·하드코딩 금지)
+   ② 모든 토큰은 폴백 병기 — 원시 토큰(--qv-*)이 없는 화면에서도 무효화되지 않음
+   ③ !important 금지
+   ④ 이 파일은 :root 변수 선언 + .knk-num 뿐 — 기존 화면 시각 영향 0
+   ============================================================================ */
+:root {
+  /* Background */
+  --knk-bg-page:        var(--qv-surface-2, #f7f8fa);
+  --knk-bg-surface:     var(--qv-surface, #ffffff);
+  --knk-bg-subtle:      var(--qv-surface-3, #eef0f4);
+  --knk-bg-inset:       var(--qv-surface-inset, #fafbfc);
+
+  /* Text */
+  --knk-text-primary:   var(--qv-ink, #0f172a);
+  --knk-text-secondary: var(--qv-ink-2, #334155);
+  --knk-text-muted:     var(--qv-ink-3, #64748b);
+  --knk-text-disabled:  var(--qv-ink-4, #94a3b8);
+  --knk-text-inverse:   #ffffff;
+
+  /* Border */
+  --knk-border-subtle:  var(--qv-line, #eef0f4);
+  --knk-border-default: var(--qv-line-2, #e2e8f0);
+  --knk-border-strong:  var(--qv-line-3, #cbd5e1);
+
+  /* Brand */
+  --knk-brand:          #A5282C;
+  --knk-brand-hover:    #8B1F23;
+  --knk-brand-subtle:   #FEF2F2;
+
+  /* State */
+  --knk-success:        #15803D;
+  --knk-success-subtle: #F0FDF4;
+  --knk-info:           #1D4ED8;
+  --knk-info-subtle:    #EFF6FF;
+  --knk-warning:        #B45309;
+  --knk-warning-subtle: #FFFBEB;
+  --knk-danger:         #B91C1C;
+  --knk-danger-subtle:  #FEF2F2;
+
+  /* Radius (§7.1) */
+  --knk-radius-control: 6px;    /* 입력·버튼·필터 칩 */
+  --knk-radius-card:    8px;    /* 카드·폼 섹션·팝오버 */
+  --knk-radius-modal:   10px;
+  --knk-radius-pill:    999px;  /* 상태 배지 */
+
+  /* Shadow (§7.3) — 기본 카드는 그림자 없음 */
+  --knk-shadow-popover: 0 8px 24px rgba(15,23,42,.12);
+  --knk-shadow-modal:   0 20px 48px rgba(15,23,42,.18);
+  --knk-shadow-toast:   0 8px 24px rgba(15,23,42,.16);
+
+  /* Space (§6.1) — 4px 배수만 */
+  --knk-sp-1: 4px;  --knk-sp-2: 8px;   --knk-sp-3: 12px; --knk-sp-4: 16px;
+  --knk-sp-5: 20px; --knk-sp-6: 24px;  --knk-sp-8: 32px; --knk-sp-10: 40px; --knk-sp-12: 48px;
+
+  /* Control 크기 (§6.3) */
+  --knk-h-control:     36px;
+  --knk-h-control-sm:  32px;
+  --knk-h-row:         40px;
+  --knk-h-row-dense:   36px;
+}
+
+/* 숫자 표기(§5.3·22.4장) — 금액·수량·백분율·날짜 열에 부여 */
+.knk-num { font-variant-numeric: tabular-nums; }

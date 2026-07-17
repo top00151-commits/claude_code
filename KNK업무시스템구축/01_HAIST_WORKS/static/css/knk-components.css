@@ -1,0 +1,189 @@
+/* ============================================================================
+   KNK Quiet Operations UI — Components (Phase 1 · z991 · 2026-07-17)
+   기준 문서: KNK_ERP_UNIFIED_DESIGN_GUIDE.md §8(레이아웃)·§9(컴포넌트)·§22~25(표기·위젯·동작·용어)
+   원칙: 모든 선택자는 .knk- 접두사(기존 화면 영향 0) · !important 금지 · 시맨틱 토큰만 사용
+   살아있는 예제: /admin/design-kit
+   ============================================================================ */
+
+/* ── Page Header (§8.2) ─────────────────────────────────────────────────── */
+.knk-page-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--knk-sp-4); padding: var(--knk-sp-4) var(--knk-sp-6);
+}
+.knk-breadcrumb { font-size: 12px; color: var(--knk-text-muted); margin: 0 0 var(--knk-sp-1); }
+.knk-breadcrumb a { color: var(--knk-text-muted); text-decoration: none; }
+.knk-breadcrumb a:hover { color: var(--knk-text-secondary); text-decoration: underline; }
+.knk-page-title { font-size: 22px; line-height: 30px; font-weight: 700; color: var(--knk-text-primary); margin: 0; }
+.knk-page-meta { font-size: 12px; line-height: 18px; color: var(--knk-text-muted); margin: var(--knk-sp-1) 0 0; }
+.knk-page-actions { display: flex; align-items: center; gap: var(--knk-sp-2); flex: none; }
+
+/* ── Button (§9.1) — 한 영역의 Primary는 1개 ────────────────────────────── */
+.knk-btn {
+  box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--knk-sp-2);
+  height: var(--knk-h-control); padding: 0 var(--knk-sp-4);
+  border: 1px solid var(--knk-border-default); border-radius: var(--knk-radius-control);
+  background: var(--knk-bg-surface); color: var(--knk-text-secondary);
+  font-size: 13px; line-height: 20px; font-weight: 600; font-family: inherit;
+  cursor: pointer; text-decoration: none; white-space: nowrap; user-select: none;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.knk-btn:hover { background: var(--knk-bg-subtle); color: var(--knk-text-primary); }
+.knk-btn:active { background: var(--knk-border-subtle); }
+.knk-btn:focus-visible { outline: 2px solid var(--knk-info); outline-offset: 1px; }
+.knk-btn:disabled, .knk-btn.is-disabled {
+  background: var(--knk-bg-subtle); border-color: var(--knk-border-subtle);
+  color: var(--knk-text-disabled); cursor: not-allowed; pointer-events: none;
+}
+.knk-btn--primary { background: var(--knk-brand); border-color: var(--knk-brand); color: var(--knk-text-inverse); }
+.knk-btn--primary:hover { background: var(--knk-brand-hover); border-color: var(--knk-brand-hover); color: var(--knk-text-inverse); }
+.knk-btn--primary:active { background: var(--knk-brand-hover); }
+.knk-btn--secondary { background: var(--knk-bg-surface); border-color: var(--knk-border-strong); color: var(--knk-text-primary); }
+.knk-btn--ghost { background: transparent; border-color: transparent; color: var(--knk-text-secondary); }
+.knk-btn--ghost:hover { background: var(--knk-bg-subtle); }
+.knk-btn--danger { background: var(--knk-danger); border-color: var(--knk-danger); color: var(--knk-text-inverse); }
+.knk-btn--danger:hover { background: #991B1B; border-color: #991B1B; color: var(--knk-text-inverse); }
+.knk-btn--sm { height: var(--knk-h-control-sm); padding: 0 var(--knk-sp-3); font-size: 12.5px; }
+/* Loading(§9.1): 너비 유지 + 중복 제출 차단 */
+.knk-btn.is-loading { position: relative; color: transparent; pointer-events: none; }
+.knk-btn.is-loading::after {
+  content: ""; position: absolute; width: 14px; height: 14px;
+  border: 2px solid var(--knk-border-strong); border-top-color: var(--knk-text-secondary);
+  border-radius: 50%; animation: knk-spin .7s linear infinite;
+}
+.knk-btn--primary.is-loading::after, .knk-btn--danger.is-loading::after {
+  border-color: rgba(255,255,255,.4); border-top-color: #fff;
+}
+@keyframes knk-spin { to { transform: rotate(360deg); } }
+
+/* ── Field / Input / Select / Textarea (§9.2) ───────────────────────────── */
+.knk-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.knk-field__label { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--knk-text-secondary); }
+.knk-field__label .required { color: var(--knk-danger); }
+.knk-field__help { font-size: 12px; line-height: 18px; color: var(--knk-text-muted); margin: 0; }
+.knk-field__error { font-size: 12px; line-height: 18px; color: var(--knk-danger); margin: 0; }
+.knk-input, .knk-select, .knk-textarea {
+  box-sizing: border-box;
+  height: var(--knk-h-control); padding: 0 var(--knk-sp-3);
+  border: 1px solid var(--knk-border-default); border-radius: var(--knk-radius-control);
+  background: var(--knk-bg-surface); color: var(--knk-text-primary);
+  font-size: 13px; line-height: 20px; font-family: inherit; min-width: 0; width: 100%;
+  transition: border-color .12s, background .12s;
+}
+.knk-textarea { height: auto; min-height: 90px; padding: var(--knk-sp-2) var(--knk-sp-3); resize: vertical; }
+.knk-input:hover, .knk-select:hover, .knk-textarea:hover { border-color: var(--knk-border-strong); }
+.knk-input:focus, .knk-select:focus, .knk-textarea:focus { outline: none; border-color: var(--knk-text-primary); }
+.knk-input:focus-visible, .knk-select:focus-visible, .knk-textarea:focus-visible { outline: 2px solid var(--knk-info); outline-offset: 1px; }
+.knk-input::placeholder, .knk-textarea::placeholder { color: var(--knk-text-disabled); }
+.knk-input[readonly], .knk-textarea[readonly] { background: var(--knk-bg-inset); color: var(--knk-text-secondary); }
+.knk-input:disabled, .knk-select:disabled, .knk-textarea:disabled {
+  background: var(--knk-bg-subtle); color: var(--knk-text-disabled); cursor: not-allowed;
+}
+.knk-field.is-error .knk-input, .knk-field.is-error .knk-select, .knk-field.is-error .knk-textarea { border-color: var(--knk-danger); }
+.knk-field.is-success .knk-input { border-color: var(--knk-success); }
+/* 금액·수량 입력(22.4장): 우측 정렬 + 소수점 허용(inputmode="decimal"은 마크업에서) */
+.knk-input--num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Form Section + Grid (§9.3) ─────────────────────────────────────────── */
+.knk-form-section {
+  background: var(--knk-bg-surface); border: 1px solid var(--knk-border-subtle);
+  border-radius: var(--knk-radius-card); margin: 0 0 var(--knk-sp-5);
+}
+.knk-form-section__head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--knk-sp-3);
+  padding: var(--knk-sp-4) var(--knk-sp-5); border-bottom: 1px solid var(--knk-border-subtle);
+}
+.knk-form-section__title { font-size: 16px; line-height: 24px; font-weight: 700; color: var(--knk-text-primary); margin: 0; }
+.knk-form-section__desc { font-size: 12px; color: var(--knk-text-muted); margin: 0; }
+.knk-form-section__body { padding: var(--knk-sp-5); }
+.knk-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--knk-sp-4) var(--knk-sp-5); }
+.knk-col-2 { grid-column: span 2; }
+.knk-col-4 { grid-column: span 4; }
+@media (max-width: 1023px) {
+  .knk-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .knk-col-4 { grid-column: span 2; }
+}
+@media (max-width: 767px) {
+  .knk-form-grid { grid-template-columns: 1fr; }
+  .knk-col-2, .knk-col-4 { grid-column: span 1; }
+}
+
+/* ── KPI Strip (§9.5) ───────────────────────────────────────────────────── */
+.knk-kpi-strip { display: flex; align-items: stretch; gap: var(--knk-sp-2); flex-wrap: wrap; }
+.knk-kpi {
+  display: flex; flex-direction: column; gap: 2px; min-width: 96px;
+  padding: var(--knk-sp-2) var(--knk-sp-3); border-bottom: 2px solid transparent;
+  color: inherit; text-decoration: none; cursor: default;
+}
+.knk-kpi[href], .knk-kpi.is-clickable { cursor: pointer; border-radius: var(--knk-radius-control) var(--knk-radius-control) 0 0; }
+.knk-kpi[href]:hover, .knk-kpi.is-clickable:hover { background: var(--knk-bg-subtle); }
+.knk-kpi__label { font-size: 11px; line-height: 16px; font-weight: 600; color: var(--knk-text-muted); }
+.knk-kpi__value { font-size: 20px; line-height: 28px; font-weight: 700; color: var(--knk-text-primary); font-variant-numeric: tabular-nums; }
+.knk-kpi.is-active { border-bottom-color: var(--knk-text-primary); }
+.knk-kpi.is-warning .knk-kpi__value { color: var(--knk-warning); }
+.knk-kpi.is-danger .knk-kpi__value { color: var(--knk-danger); }
+
+/* ── Data Table (§9.6) — 헤더 고정은 .knk-table-wrap 안에서 ────────────── */
+.knk-table-wrap { overflow: auto; border: 1px solid var(--knk-border-subtle); border-radius: var(--knk-radius-card); background: var(--knk-bg-surface); }
+.knk-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; line-height: 18px; color: var(--knk-text-primary); }
+.knk-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  height: 36px; padding: 0 var(--knk-sp-3);
+  background: var(--knk-bg-subtle); color: var(--knk-text-secondary);
+  font-size: 11.5px; line-height: 16px; font-weight: 600; text-align: left; white-space: nowrap;
+  border-bottom: 1px solid var(--knk-border-default);
+}
+.knk-table tbody td { height: var(--knk-h-row); padding: var(--knk-sp-2) var(--knk-sp-3); border-bottom: 1px solid var(--knk-border-subtle); vertical-align: middle; }
+.knk-table--dense tbody td { height: var(--knk-h-row-dense); padding: 6px var(--knk-sp-3); }
+.knk-table tbody tr:last-child td { border-bottom: none; }
+.knk-table tbody tr:nth-child(even) td { background: var(--knk-bg-inset); }
+.knk-table tbody tr:hover td { background: var(--knk-bg-subtle); }
+.knk-table th.knk-td-num, .knk-table td.knk-td-num { text-align: right; font-variant-numeric: tabular-nums; }
+.knk-table th.knk-td-center, .knk-table td.knk-td-center { text-align: center; }
+
+/* ── Badge / Status (§9.7·22.7장) — 색+문구 병행, 높이 22px ─────────────── */
+.knk-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 22px; padding: 0 var(--knk-sp-2); border-radius: var(--knk-radius-pill);
+  font-size: 11px; line-height: 16px; font-weight: 600; white-space: nowrap;
+  background: var(--knk-bg-subtle); color: var(--knk-text-secondary);
+}
+.knk-badge--info    { background: var(--knk-info-subtle);    color: var(--knk-info); }
+.knk-badge--success { background: var(--knk-success-subtle); color: var(--knk-success); }
+.knk-badge--warning { background: var(--knk-warning-subtle); color: var(--knk-warning); }
+.knk-badge--danger  { background: var(--knk-danger-subtle);  color: var(--knk-danger); }
+.knk-badge--brand   { background: var(--knk-brand-subtle);   color: var(--knk-brand); }
+
+/* ── Alert / Banner (§9.8) ──────────────────────────────────────────────── */
+.knk-alert {
+  display: flex; gap: var(--knk-sp-2); align-items: flex-start;
+  padding: var(--knk-sp-3) var(--knk-sp-4);
+  border: 1px solid var(--knk-border-default); border-radius: var(--knk-radius-card);
+  background: var(--knk-bg-inset); color: var(--knk-text-secondary);
+  font-size: 12.5px; line-height: 18px;
+}
+.knk-alert__title { font-weight: 700; margin: 0 0 2px; font-size: 12.5px; }
+.knk-alert--info    { background: var(--knk-info-subtle);    border-color: rgba(29,78,216,.25);  color: var(--knk-info); }
+.knk-alert--success { background: var(--knk-success-subtle); border-color: rgba(21,128,61,.25);  color: var(--knk-success); }
+.knk-alert--warning { background: var(--knk-warning-subtle); border-color: rgba(180,83,9,.25);   color: var(--knk-warning); }
+.knk-alert--danger  { background: var(--knk-danger-subtle);  border-color: rgba(185,28,28,.25);  color: var(--knk-danger); }
+
+/* ── Empty (§9.9) — 이유 + 다음 행동 1개 ────────────────────────────────── */
+.knk-empty { padding: var(--knk-sp-10) var(--knk-sp-6); text-align: center; }
+.knk-empty__title { font-size: 14px; font-weight: 600; color: var(--knk-text-secondary); margin: 0 0 var(--knk-sp-1); }
+.knk-empty__desc { font-size: 12px; color: var(--knk-text-muted); margin: 0 0 var(--knk-sp-4); }
+
+/* ── Submit Bar (§9.11) — 취소 왼쪽 그룹, 저장은 항상 오른쪽 끝 ─────────── */
+.knk-submit-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--knk-sp-3);
+  min-height: 60px; padding: var(--knk-sp-2) var(--knk-sp-6);
+  background: var(--knk-bg-surface); border-top: 1px solid var(--knk-border-default);
+}
+.knk-submit-bar__note { font-size: 12px; color: var(--knk-text-muted); }
+.knk-submit-bar__actions { display: flex; align-items: center; gap: var(--knk-sp-2); }
+.knk-submit-bar.is-sticky { position: sticky; bottom: 0; z-index: 30; }
+@media (max-width: 767px) {
+  .knk-submit-bar { flex-direction: column; align-items: stretch; }
+  .knk-submit-bar__actions { flex-direction: column-reverse; }
+  .knk-submit-bar__actions .knk-btn { width: 100%; }
+}

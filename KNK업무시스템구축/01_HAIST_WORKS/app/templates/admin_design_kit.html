@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>디자인 기준 예제 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* 이 페이지 전용 배치(데모 진열용) — 실제 화면에서는 복사하지 않음 */
+.dk-wrap { padding: 0 24px 48px; max-width: none; }
+.dk-sec { margin: 0 0 28px; }
+.dk-h { font-size: 16px; font-weight: 700; color: var(--knk-text-primary); margin: 0 0 4px; }
+.dk-d { font-size: 12px; color: var(--knk-text-muted); margin: 0 0 12px; }
+.dk-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+.dk-swatch { display: inline-flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--knk-text-muted); }
+.dk-swatch i { display: block; width: 84px; height: 34px; border-radius: 6px; border: 1px solid var(--knk-border-default); }
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>디자인 기준 예제</b></div>
+      <h1 class="page-title">🎨 디자인 <em>기준 예제</em></h1>
+      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
+        KNK Quiet Operations UI — 새 화면은 이 페이지의 knk- 컴포넌트를 복사해 만듭니다 (가이드 §8·§9·§22~25)
+      </div>
+    </div>
+  </div>
+
+  <div class="dk-wrap">
+
+    <div class="dk-sec">
+      <h2 class="dk-h">0. 시맨틱 토큰</h2>
+      <p class="dk-d">신규 코드는 --knk-* 토큰만 사용(하드코딩·원시 토큰 금지). 전부 폴백 병기라 어느 화면에서도 무효화되지 않음.</p>
+      <div class="dk-row">
+        <span class="dk-swatch"><i style="background:var(--knk-bg-page)"></i>bg-page</span>
+        <span class="dk-swatch"><i style="background:var(--knk-bg-surface)"></i>bg-surface</span>
+        <span class="dk-swatch"><i style="background:var(--knk-bg-subtle)"></i>bg-subtle</span>
+        <span class="dk-swatch"><i style="background:var(--knk-brand)"></i>brand</span>
+        <span class="dk-swatch"><i style="background:var(--knk-success-subtle)"></i>success-subtle</span>
+        <span class="dk-swatch"><i style="background:var(--knk-warning-subtle)"></i>warning-subtle</span>
+        <span class="dk-swatch"><i style="background:var(--knk-danger-subtle)"></i>danger-subtle</span>
+        <span class="dk-swatch"><i style="background:var(--knk-info-subtle)"></i>info-subtle</span>
+      </div>
+    </div>
+
+    <div class="dk-sec">
+      <h2 class="dk-h">1. 페이지 헤더 (.knk-page-head)</h2>
+      <p class="dk-d">Breadcrumb → 제목+메타(왼쪽) / 주요 작업(오른쪽·Primary 1개). 제목에 emoji 금지(§8.2).</p>
+      <div style="border:1px dashed var(--knk-border-strong);border-radius:8px;">
+        <header class="knk-page-head">
+          <div>
+            <nav class="knk-breadcrumb"><a href="#">자재구매센터</a> · 자재</nav>
+            <h1 class="knk-page-title">자재 마스터</h1>
+            <p class="knk-page-meta">활성 자재 2,140건 · 안전재고 미달 12건</p>
+          </div>
+          <div class="knk-page-actions">
+            <button type="button" class="knk-btn knk-btn--ghost">초기화</button>
+            <button type="button" class="knk-btn knk-btn--secondary">엑셀 내보내기</button>
+            <button type="button" class="knk-btn knk-btn--primary">자재 등록</button>
+          </div>
+        </header>
+      </div>
+    </div>
+
+    <div class="dk-sec">
+      <h2 class="dk-h">2. 버튼 (.knk-btn)</h2>
+      <p class="dk-d">높이 36px(작은 버튼 32px). 한 영역의 Primary는 1개. 동작을 명확한 동사로(§9.1·§25장).</p>
+      <div class="dk-row">
+        <button type="button" class="knk-btn knk-btn--primary">저장</button>
+        <button type="button" class="knk-btn knk-btn--secondary">엑셀 내보내기</button>
+        <button type="button" class="knk-btn">복제</button>
+        <button type="button" class="knk-btn knk-btn--ghost">목록</button>
+        <button type="button" class="knk-btn knk-btn--danger">삭제</button>
+        <button type="button" class="knk-btn knk-btn--primary knk-btn--sm">작은 버튼</button>
+        <button type="button" class="knk-btn" disabled>비활성</button>
+        <button type="button" class="knk-btn knk-btn--primary is-loading">저장</button>
+      </div>
+    </div>
+
+    <div class="dk-sec">
+      <h2 class="dk-h">3. 입력 (.knk-field / .knk-input) + 폼 섹션·그리드</h2>
+      <p class="dk-d">라벨은 위·placeholder는 라벨 대신 금지·도움말은 아래(§9.2). 그리드 4열, 1023px↓ 2열, 767px↓ 1열. 금액은 우측 정렬+소수점 허용(§22.4).</p>
+      <section class="knk-form-section">
+        <div class="knk-form-section__head">
+          <h3 class="knk-form-section__title">기본 정보</h3>
+          <p class="knk-form-section__desc">필수 항목 포함</p>
+        </div>
+        <div class="knk-form-section__body">
+          <div class="knk-form-grid">
+            <div class="knk-field">
+              <label class="knk-field__label">자재 코드 <span class="required">*</span></label>
+              <input class="knk-input" value="KNK-P-0001" readonly>
+              <p class="knk-field__help">읽기 전용(readonly) 상태</p>
+            </div>
+            <div class="knk-field knk-col-2">
+              <label class="knk-field__label">자재명 <span class="required">*</span></label>
+              <input class="knk-input" placeholder="도면과 동일한 명칭">
+              <p class="knk-field__help">도면과 동일한 명칭을 입력합니다.</p>
+            </div>
+            <div class="knk-field">
+              <label class="knk-field__label">단위</label>
+              <select class="knk-select"><option>EA</option><option>SET</option><option>M</option></select>
+            </div>
+            <div class="knk-field">
+              <label class="knk-field__label">매입 단가(원)</label>
+              <input class="knk-input knk-input--num" inputmode="decimal" value="1,234,000">
+            </div>
+            <div class="knk-field is-error">
+              <label class="knk-field__label">안전 재고 <span class="required">*</span></label>
+              <input class="knk-input knk-input--num" value="">
+              <p class="knk-field__error">안전 재고를 입력해 주세요.</p>
+            </div>
+            <div class="knk-field">
+              <label class="knk-field__label">비활성 예</label>
+              <input class="knk-input" value="수정 불가" disabled>
+            </div>
+            <div class="knk-field knk-col-4">
+              <label class="knk-field__label">비고</label>
+              <textarea class="knk-textarea" placeholder="특이사항"></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="dk-sec">
+      <h2 class="dk-h">4. KPI 스트립 (.knk-kpi-strip)</h2>
+      <p class="dk-d">클릭형은 밑줄 2px+굵기로 선택 표시. 위험 수치만 경고색(§9.5).</p>
+      <div class="knk-kpi-strip">
+        <a href="#" class="knk-kpi is-active"><span class="knk-kpi__label">전체</span><span class="knk-kpi__value">2,140</span></a>
+        <a href="#" class="knk-kpi"><span class="knk-kpi__label">활성</span><span class="knk-kpi__value">1,982</span></a>
+        <a href="#" class="knk-kpi is-warning"><span class="knk-kpi__label">안전재고 미달</span><span class="knk-kpi__value">12</span></a>
+        <a href="#" class="knk-kpi is-danger"><span class="knk-kpi__label">단가 미입력</span><span class="knk-kpi__value">3</span></a>
+      </div>
+    </div>
+
+    <div class="dk-sec">
+      <h2 class="dk-h">5. 표 (.knk-table) + 배지 (.knk-badge) + 데이터 표기(§22장)</h2>
+      <p class="dk-d">헤더 고정·짝수행 옅은 zebra·hover 행 배경. 이름='이름 직책 부서'·금액 원화 정수/외화 2자리·권한 없으면 🔒·사업부는 코드 병기.</p>
+      <div class="knk-table-wrap" style="max-height:280px;">
+        <table class="knk-table knk-table--dense">
+          <thead><tr>
+            <th>사업부</th><th>자재 코드</th><th>자재명</th><th class="knk-td-num">수량</th>
+            <th class="knk-td-num">단가</th><th class="knk-td-center">상태</th><th>담당</th><th class="knk-td-num">납기</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="knk-badge knk-badge--info">T 검사기</span></td>
+              <td class="knk-num">KNK-P-0001</td><td>ACTUATOR ROBOT</td>
+              <td class="knk-td-num">2</td><td class="knk-td-num">₩2,542,800</td>
+              <td class="knk-td-center"><span class="knk-badge knk-badge--success">출하</span></td>
+              <td>김정락 대표이사 총괄</td><td class="knk-td-num">2026-09-07</td>
+            </tr>
+            <tr>
+              <td><span class="knk-badge knk-badge--brand">M 자동화</span></td>
+              <td class="knk-num">KNK-P-0002</td><td>GRIP PAD 50×50</td>
+              <td class="knk-td-num">20</td><td class="knk-td-num">$111.90</td>
+              <td class="knk-td-center"><span class="knk-badge knk-badge--warning">보류</span></td>
+              <td>안지연 프로 구매팀</td><td class="knk-td-num">2026-03-17</td>
+            </tr>
+            <tr>
+              <td><span class="knk-badge">C 소모품</span></td>
+              <td class="knk-num">KNK-P-0003</td><td>O-RING Φ20 <span class="knk-badge">3대분</span></td>
+              <td class="knk-td-num">60</td><td class="knk-td-num">🔒</td>
+              <td class="knk-td-center"><span class="knk-badge knk-badge--danger">지연</span></td>
+              <td>-</td><td class="knk-td-num">-</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="dk-sec">
+      <h2 class="dk-h">6. 알림 (.knk-alert)</h2>
+      <p class="dk-d">실패 문구는 원인+다음 행동까지(§9.8·§11).</p>
+      <div style="display:grid;gap:8px;">
+        <div class="knk-alert knk-alert--info"><div><p class="knk-alert__title">참고</p>같은 규격의 자재가 이미 3건 등록되어 있습니다.</div></div>
+        <div class="knk-alert knk-alert--success"><div><p class="knk-alert__title">저장 완료</p>자재 KNK-P-0001을 저장했습니다.</div></div>
+        <div class="knk-alert knk-alert--warning"><div><p class="knk-alert__title">확인 필요</p>자재 코드를 변경하면 기존 QR 라벨을 다시 발행해야 합니다.</div></div>
+        <div class="knk-alert knk-alert--danger"><div><p class="knk-alert__title">저장하지 못했습니다</p>필수 입력값(안전 재고)을 확인한 뒤 다시 저장해 주세요.</div></div>
+      </div>
+    </div>
+
+    <div class="dk-sec">
+      <h2 class="dk-h">7. 빈 상태 (.knk-empty) + 제출 바 (.knk-submit-bar)</h2>
+      <p class="dk-d">빈 상태=이유+다음 행동 1개(§9.9). 제출 바=취소 왼쪽·저장 오른쪽 끝, 767px↓ 세로(§9.11).</p>
+      <div style="border:1px dashed var(--knk-border-strong);border-radius:8px;margin-bottom:12px;">
+        <div class="knk-empty">
+          <p class="knk-empty__title">등록된 자재가 없습니다.</p>
+          <p class="knk-empty__desc">첫 자재를 등록하거나 엑셀로 일괄 등록(엑셀 업로드)할 수 있습니다.</p>
+          <button type="button" class="knk-btn knk-btn--primary">자재 등록</button>
+        </div>
+      </div>
+      <div style="border:1px dashed var(--knk-border-strong);border-radius:8px;overflow:hidden;">
+        <div class="knk-submit-bar">
+          <span class="knk-submit-bar__note">저장하면 자재 마스터와 재고에 즉시 반영됩니다.</span>
+          <div class="knk-submit-bar__actions">
+            <button type="button" class="knk-btn knk-btn--ghost">취소</button>
+            <button type="button" class="knk-btn knk-btn--primary">저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dk-sec">
+      <h2 class="dk-h">8. 새 화면 체크리스트 (가이드 26장 — 12항목)</h2>
+      <p class="dk-d">공통 Page Header/Button/Form·Table · 시맨틱 토큰 · Loading/Empty/Error · 인라인 고정 스타일 없음 · 기준 화면과 시각 비교 ·
+      데이터 표기(22장) · 공통 입력 위젯(23장) · 동작 표준(24장: KNKBusy·낙관적 잠금·title 형식·data-knk-back·esc()) · 용어(25장) · 권한 게이트(can_money/can_view_field)</p>
+    </div>
+
+  </div>
+</main>
+</div>
+</body></html>

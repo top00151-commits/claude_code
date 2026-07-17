@@ -9970,6 +9970,17 @@ async def admin_external_assets_decision(req: Request):
 # 출처: 04 _TO_09팀장_2026-04-27_사이클58_UX재검증.md S2 U6
 # 저장: app_settings 테이블 (key = "company_*")
 # =====================================================
+# ── v5H226z991 (대표 지시·2026-07-17): 디자인 통일 Phase 1 — 기준 예제(Design Kit) ──
+#    KNK_ERP_UNIFIED_DESIGN_GUIDE.md의 knk- 공통 컴포넌트·표기 표준의 '살아있는 예제'.
+#    새 화면은 이 페이지에서 복사해 만든다. 신규 CSS는 전부 .knk- 스코프 → 기존 화면 영향 0.
+@app.get("/admin/design-kit", response_class=HTMLResponse)
+async def admin_design_kit_page(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "admin_design_kit.html", user=u, active="admin")
+
+
 @app.get("/admin/company-info", response_class=HTMLResponse)
 async def admin_company_info_page(req: Request):
     """회사 식별 정보 입력 페이지 — 견적서 헤더용 (대표 직접 입력)."""

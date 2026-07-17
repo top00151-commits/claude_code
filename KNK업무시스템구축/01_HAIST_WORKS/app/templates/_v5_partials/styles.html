@@ -10,6 +10,11 @@
 {# v5H226z113 (2026-05-31): 페이지 고유 컴포넌트 표준 (mgmt-pill / filterbar / --pq-* alias) #}
 {% include "_v5_partials/_components.html" ignore missing %}
 
+{# v5H226z991 (대표 지시·2026-07-17): 디자인 통일 Phase 1 — knk 시맨틱 토큰+공통 컴포넌트.
+   전부 :root 변수와 .knk- 스코프 → 기존 화면 시각 영향 0. 기준=KNK_ERP_UNIFIED_DESIGN_GUIDE.md·예제=/admin/design-kit #}
+<link rel="stylesheet" href="/static/css/knk-foundation.css?v={{ APP_VERSION }}" />
+<link rel="stylesheet" href="/static/css/knk-components.css?v={{ APP_VERSION }}" />
+
 {# v5H226z132 (2026-05-31): 빅터 dock 열림 상태를 '그리기 전(head)'에 적용 →
    페이지 전환 시 dock 이 닫혔다 다시 열리는 깜빡임·슬라이드 재생 방지 #}
 <script>try{ if(localStorage.getItem('knk_victor_open')==='1') document.documentElement.classList.add('victor-open'); }catch(e){}</script>
