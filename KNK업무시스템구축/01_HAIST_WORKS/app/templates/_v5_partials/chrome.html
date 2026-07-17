@@ -112,10 +112,17 @@
    헤더는 [로고 — KNK Eum WORKS 중앙 — 아이콘]만 남아 좁은 창에서 겹침 원천 제거. 폰(≤1023)은 기존 그대로. */
 @media (min-width: 1024px){
   .top > .top-tabs { display: none; }
-  /* z990b: 제목(KNK Eum WORKS)은 v5_main.css의 '화면 정중앙 절대배치' 유지.
-     v5H44(1499px↓ 숨김)는 헤더에 탭이 있어 겹치던 시절의 규칙 — 탭이 책갈피 줄로 내려가 원인이 사라졌으므로
-     PC(≥1024)에선 항상 표시로 해제(.app min-width 1280 기준 로고·우측 아이콘과 안 겹침 계산 확인). */
-  .tb-headline { display: block !important; }
+  /* z990c: 제목(KNK Eum WORKS) — v5_main.css의 '화면 정중앙 절대배치'(position:absolute)가 겹침의 진짜 원인.
+     탭을 내려도 우측 아이콘 묶음(실측 509px)과 계속 겹쳐 v5H44가 1499px↓를 통째로 숨기고 있었음(실측 -29px).
+     → 절대배치를 걷어내 헤더 flex 흐름 안에 배치: 로고와 아이콘 '사이 남는 공간'만 차지하므로 물리적으로
+     겹칠 수 없고, 그 안에서 중앙 정렬. 공간이 모자라면 숨김이 아니라 말줄임(…)으로 안전 축소. */
+  .tb-headline {
+    display: block !important;
+    position: static !important; transform: none !important;
+    flex: 1 1 auto !important; min-width: 0 !important;
+    text-align: center !important;
+    overflow: hidden !important; text-overflow: ellipsis !important;
+  }
 }
 .knk-ptabs { display:flex; align-items:center; gap:6px; min-width:0; background:var(--surface);
   position:relative; z-index:40; border-bottom:1px solid var(--line); padding:5px 10px; }
