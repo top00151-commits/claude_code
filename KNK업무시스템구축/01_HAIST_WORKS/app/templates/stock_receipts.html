@@ -5,37 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>입고 이력 · KNK HAIST WORKS</title>
 
+{# v5H226z1004 (2026-07-18) — Phase 4 ④(1차): 입고 이력 knk 전환(머리글·표·빈상태).
+   KPI(의미색)·입고상태 칩(chip-rs)·행클릭=업무 특화 유지+Sage 브리지.
 {# v5H226z57 시안1 + 룰 v4 — 실무팀3 입고 이력 #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  /* z1004 — pq→knk(Sage) 브리지(z999 표준). 새 코드는 --knk-*만. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .gr-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.gr-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.gr-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.gr-head .crumb a { color: var(--pq-ink-3); }
-.gr-head .crumb b { color: var(--pq-ink); }
-.gr-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.gr-meta { font-size: 12px; color: var(--pq-ink-3); }
-.gr-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.gr-actions { margin-left: auto; display: flex; gap: 8px; }
-.gr-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
-.gr-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+/* z1004 — 머리글 = knk-page-head. KPI(의미색)는 페이지 유지 */
+.gr-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
 .kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
@@ -48,18 +47,12 @@
 .kpi-cell.qc .v { color: var(--pq-info); }
 .kpi-cell.done .v { color: var(--pq-ok); }
 
-.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
-.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1000px; }
-.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
-.tbl-erp thead th.num { text-align: right; }
-.tbl-erp thead th.center { text-align: center; }
-.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
-.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
-.tbl-erp tbody td.center { text-align: center; }
-.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
-.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
-.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
-.tbl-erp .mute { color: var(--pq-ink-4); }
+/* z1004 — 표 = knk-table--dense. 코드·mute·행클릭만 페이지 보정 */
+.tbl-zone { flex: 1; overflow: auto; background: var(--knk-bg-surface, #FAFBF9); min-height: 0; }
+.tbl-zone .knk-table { min-width: 1000px; }
+.knk-table td.code { font-family: var(--pq-mono); font-weight: 700; }
+.knk-table .mute { color: var(--knk-text-muted, #657169); }
+.knk-table tbody tr[onclick] { cursor: pointer; }
 
 .chip-rs { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; }
 .chip-rs::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -69,10 +62,7 @@
 .chip-rs.RECEIVED { background: var(--pq-ink); color: #fff; }
 .chip-rs.CONFIRMED { background: var(--pq-ok-soft); color: var(--pq-ok); }
 
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
-.po-empty .sub { font-size: 12.5px; }
+/* z1004 — 빈상태 = knk-empty */
 
 @media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .gr-head { padding: 10px 16px; } }
 </style>
@@ -91,19 +81,17 @@
   <main class="main">
     <div class="gr-page">
 
-      <div class="gr-head" data-dn="gr:head">
+      <header class="knk-page-head" data-dn="gr:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>입고 이력</b></div>
-          <div class="gr-title">입고 (GR · Goods Receipt)</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>입고 이력</b></nav>
+          <h1 class="knk-page-title">입고 (GR · Goods Receipt)</h1>
+          <p class="knk-page-meta">최근 <span class="knk-num">{{ '{:,}'.format(total_cnt) }}</span>건</p>
         </div>
-        <div class="gr-meta">
-          <span>최근 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>건</span>
+        <div class="knk-page-actions">
+          <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
+          <a class="knk-btn knk-btn--ghost" href="/po"><i class="ti ti-clipboard-list"></i> 발주 목록</a>
         </div>
-        <div class="gr-actions">
-          <a href="/stock/balances">📦 재고 현황</a>
-          <a href="/po">📋 발주 목록</a>
-        </div>
-      </div>
+      </header>
 
       <div class="kpi-strip" data-dn="gr:kpi" data-dn-tone="green">
         <div class="kpi-cell">
@@ -130,15 +118,15 @@
 
       {% if receipts %}
       <div class="tbl-zone" data-dn="gr:table" data-dn-tone="purple">
-        <table class="tbl-erp">
+        <table class="knk-table knk-table--dense">
           <thead>
             <tr>
-              <th class="center" style="width:60px;">#</th>
-              <th class="center" style="width:120px;">상태</th>
-              <th class="num" style="width:100px;">발주 ID</th>
-              <th class="num" style="width:120px;">총 수량</th>
-              <th class="center" style="width:120px;">QC ID</th>
-              <th class="center" style="width:160px;">접수 시각</th>
+              <th class="knk-td-center" style="width:60px;">#</th>
+              <th class="knk-td-center" style="width:120px;">상태</th>
+              <th class="knk-td-num" style="width:100px;">발주 ID</th>
+              <th class="knk-td-num" style="width:120px;">총 수량</th>
+              <th class="knk-td-center" style="width:120px;">QC ID</th>
+              <th class="knk-td-center" style="width:160px;">접수 시각</th>
               <th>비고</th>
             </tr>
           </thead>
@@ -146,14 +134,14 @@
           {% for r in receipts %}
             {% set st = r.status|default('PENDING') %}
             <tr {% if r.po_id %}onclick="location.href='/po/{{ r.po_id }}'"{% endif %}>
-              <td class="center mute">{{ r.id }}</td>
-              <td class="center"><span class="chip-rs {{ st }}">{{ st }}</span></td>
-              <td class="num">
+              <td class="knk-td-center mute">{{ r.id }}</td>
+              <td class="knk-td-center"><span class="chip-rs {{ st }}">{{ st }}</span></td>
+              <td class="knk-td-num">
                 {% if r.po_id %}<span class="code">PO#{{ r.po_id }}</span>{% else %}<span class="mute">—</span>{% endif %}
               </td>
-              <td class="num"><b>{{ '{:,.0f}'.format(r.total_qty|default(0)) }}</b></td>
-              <td class="center mute">{% if r.qc_inspection_id %}#{{ r.qc_inspection_id }}{% else %}<span class="mute">—</span>{% endif %}</td>
-              <td class="center mute" style="font-size:11px;">{{ (r.received_at or '—')[:16] }}</td>
+              <td class="knk-td-num"><b>{{ '{:,.0f}'.format(r.total_qty|default(0)) }}</b></td>
+              <td class="knk-td-center mute">{% if r.qc_inspection_id %}#{{ r.qc_inspection_id }}{% else %}<span class="mute">—</span>{% endif %}</td>
+              <td class="knk-td-center mute" style="font-size:11px;">{{ (r.received_at or '—')[:16] }}</td>
               <td class="mute">{{ r.note|default('—') }}</td>
             </tr>
           {% endfor %}
@@ -161,10 +149,10 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty" data-dn="gr:empty">
-        <div class="ico">📥</div>
-        <div class="ttl">입고 이력 없음</div>
-        <div class="sub">발주서 입고 처리 시 자동 기록됩니다.</div>
+      <div class="knk-empty" data-dn="gr:empty">
+        <i class="ti ti-package-import"></i>
+        <p class="knk-empty__title">입고 이력이 없습니다</p>
+        <p class="knk-empty__desc">발주서 입고 처리 시 자동 기록됩니다.</p>
       </div>
       {% endif %}
 

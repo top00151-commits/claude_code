@@ -5,30 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>재고 이동 이력 · KNK HAIST WORKS</title>
 
+{# v5H226z1004 (2026-07-18) — Phase 4 ④(1차): 재고 이동 이력 knk 전환(머리글·표·필터 버튼·빈상태).
+   KPI(의미색)·이동유형 칩(chip-mv)·증감 색(qty-pos/neg)=업무 특화 유지+Sage 브리지.
 {# v5H226z57 시안1 + 룰 v4 — 실무팀3 수불부 #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
-  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;
+  /* z1004 — pq→knk(Sage) 브리지(z999 표준). 새 코드는 --knk-*만. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-purple: #6d28d9;   --pq-purple-soft: #ede9fe;   /* 이동 칩 — knk 무대응, 원값 유지 */
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .sm-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.sm-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.sm-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.sm-head .crumb a { color: var(--pq-ink-2); }
-.sm-head .crumb b { color: var(--pq-ink); }
-.sm-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.sm-meta { font-size: 12px; color: var(--pq-ink-3); }
-.sm-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.sm-actions { margin-left: auto; display: flex; gap: 8px; }
-.sm-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
-.sm-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+/* z1004 — 머리글 = knk-page-head. KPI(의미색)는 페이지 유지 */
+.sm-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .kpi-strip { display: grid; grid-template-columns: repeat(6, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
 .kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); text-decoration: none; color: inherit; }
@@ -38,21 +45,13 @@
 .kpi-cell .u { font-size: 11px; color: var(--pq-ink-4); font-weight: 500; font-family: inherit; }
 .kpi-cell .sub { font-size: 10px; color: var(--pq-ink-4); margin-top: 1px; }
 
-.fb-go { height: 28px; padding: 0 12px; background: var(--pq-surface-2); border: 1px solid var(--pq-line-2); border-radius: 6px; font-size: 12px; color: var(--pq-ink-2); font-weight: 500; cursor: pointer; }
-.fb-result { margin-left: auto; font-size: 11px; color: var(--pq-ink-3); font-family: var(--pq-mono); }
+.fb-result { margin-left: auto; font-size: 11px; color: var(--knk-text-muted, #657169); font-family: var(--pq-mono); }
 
-.tbl-zone { flex: 1; overflow: auto; background: var(--pq-surface); min-height: 0; }
-.tbl-erp { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1300px; }
-.tbl-erp thead th { position: sticky; top: 0; z-index: 3; height: 32px; padding: 6px 12px; background: var(--pq-surface); color: var(--pq-ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--pq-line-2); }
-.tbl-erp thead th.num { text-align: right; }
-.tbl-erp thead th.center { text-align: center; }
-.tbl-erp tbody td { height: 32px; padding: 4px 12px; border-bottom: 1px solid var(--pq-line); color: var(--pq-ink); font-size: 12.5px; }
-.tbl-erp tbody td.num { font-family: var(--pq-mono); font-variant-numeric: tabular-nums; text-align: right; }
-.tbl-erp tbody td.center { text-align: center; }
-.tbl-erp tbody td.code { font-family: var(--pq-mono); font-weight: 700; }
-.tbl-erp tbody tr:nth-child(even) > td { background: var(--pq-surface-inset); }
-.tbl-erp tbody tr:hover > td { background: var(--pq-surface-2); cursor: pointer; }
-.tbl-erp .mute { color: var(--pq-ink-4); }
+/* z1004 — 표 = knk-table--dense. 코드·mute만 페이지 보정(이동은 행클릭 없음) */
+.tbl-zone { flex: 1; overflow: auto; background: var(--knk-bg-surface, #FAFBF9); min-height: 0; }
+.tbl-zone .knk-table { min-width: 1300px; }
+.knk-table td.code { font-family: var(--pq-mono); font-weight: 700; }
+.knk-table .mute { color: var(--knk-text-muted, #657169); }
 
 .chip-mv { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 4px; }
 .chip-mv::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -64,9 +63,7 @@
 .qty-pos { color: var(--pq-ok); font-weight: 700; }
 .qty-neg { color: var(--pq-danger); font-weight: 700; }
 
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+/* z1004 — 빈상태 = knk-empty */
 
 @media (max-width: 1280px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .sm-head { padding: 10px 16px; } }
@@ -84,23 +81,17 @@
   <main class="main">
     <div class="sm-page">
 
-      <div class="sm-head" data-dn="sm:head">
+      <header class="knk-page-head" data-dn="sm:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>이동 이력 (수불부)</b></div>
-          <div class="sm-title">재고 이동 이력</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>이동 이력 (수불부)</b></nav>
+          <h1 class="knk-page-title">재고 이동 이력</h1>
+          <p class="knk-page-meta">최근 <span class="knk-num">{{ '{:,}'.format(total_cnt) }}</span>건{% if part_filter %} · 품목 필터: <span class="knk-num">{{ part_filter.part_no }}</span> {{ part_filter.part_name }}{% endif %}</p>
         </div>
-        <div class="sm-meta">
-          <span>최근 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>건</span>
-          {% if part_filter %}
-          <span>·</span>
-          <span>품목 필터: <span class="pm-num">{{ part_filter.part_no }}</span> {{ part_filter.part_name }}</span>
-          {% endif %}
+        <div class="knk-page-actions">
+          <a class="knk-btn knk-btn--ghost" href="/stock/movements/export.xlsx"><i class="ti ti-download"></i> 엑셀 내보내기</a>
+          <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
         </div>
-        <div class="sm-actions">
-          <a href="/stock/movements/export.xlsx">⤓ Excel</a>
-          <a href="/stock/balances">📦 재고 현황</a>
-        </div>
-      </div>
+      </header>
 
       <div class="kpi-strip" data-dn="sm:kpi" data-dn-tone="green">
         <div class="kpi-cell">
@@ -153,25 +144,25 @@
         <input type="date" name="since" value="{{ filter_since|default('') }}" class="fb-search" style="min-width:130px;">
         <input type="date" name="until" value="{{ filter_until|default('') }}" class="fb-search" style="min-width:130px;">
         <input class="fb-search" type="search" name="q" value="{{ q|default('') }}" placeholder="자재명 · 코드 · PO 검색" />
-        <button type="submit" class="fb-go">적용</button>
+        <button type="submit" class="knk-btn knk-btn--sm">적용</button>
         {% if q or filter_kind or filter_since or filter_until %}<a class="fb-chip" href="/stock/movements" style="border-style:dashed;">↺ 해제</a>{% endif %}
         <span class="fb-result">{{ '{:,}'.format(total_cnt) }}건 표시</span>
       </form>
 
       {% if items %}
       <div class="tbl-zone" data-dn="sm:table" data-dn-tone="purple">
-        <table class="tbl-erp">
+        <table class="knk-table knk-table--dense">
           <thead>
             <tr>
               <th style="width:130px;">번호</th>
-              <th class="center" style="width:100px;">시각</th>
-              <th class="center" style="width:90px;">유형</th>
+              <th class="knk-td-center" style="width:100px;">시각</th>
+              <th class="knk-td-center" style="width:90px;">유형</th>
               <th style="width:160px;">자재 코드</th>
               <th>자재명</th>
-              <th class="num" style="width:100px;">수량</th>
-              <th class="center" style="width:60px;">단위</th>
-              <th class="num" style="width:100px;">단가</th>
-              <th class="num" style="width:120px;">금액</th>
+              <th class="knk-td-num" style="width:100px;">수량</th>
+              <th class="knk-td-center" style="width:60px;">단위</th>
+              <th class="knk-td-num" style="width:100px;">단가</th>
+              <th class="knk-td-num" style="width:120px;">금액</th>
               <th>관리코드 / 거래처</th>
               <th class="mute" style="width:100px;">담당</th>
             </tr>
@@ -182,14 +173,14 @@
             {% set qty = it.quantity|default(0)|float %}
             <tr>
               <td class="code">{{ it.movement_no|default('—') }}</td>
-              <td class="center mute" style="font-size:11px;">{{ (it.occurred_at or '—')[:16] }}</td>
-              <td class="center"><span class="chip-mv k-{{ kind }}">{{ MOVEMENT_KIND_LABEL.get(kind, kind) if MOVEMENT_KIND_LABEL else kind }}</span></td>
+              <td class="knk-td-center mute" style="font-size:11px;">{{ (it.occurred_at or '—')[:16] }}</td>
+              <td class="knk-td-center"><span class="chip-mv k-{{ kind }}">{{ MOVEMENT_KIND_LABEL.get(kind, kind) if MOVEMENT_KIND_LABEL else kind }}</span></td>
               <td class="code">{{ it.part_no|default('—') }}</td>
               <td><b>{{ it.part_name|default('—') }}</b></td>
-              <td class="num"><span class="{% if qty > 0 %}qty-pos{% elif qty < 0 %}qty-neg{% endif %}">{{ '{:+,.0f}'.format(qty) if qty != 0 else '0' }}</span></td>
-              <td class="center mute">{{ it.part_unit|default('EA') }}</td>
-              <td class="num">{% if it.unit_price %}{{ '{:,.0f}'.format(it.unit_price) }}{% else %}<span class="mute">—</span>{% endif %}</td>
-              <td class="num">{% if it.amount %}{{ '{:,.0f}'.format(it.amount) }}{% else %}<span class="mute">—</span>{% endif %}</td>
+              <td class="knk-td-num"><span class="{% if qty > 0 %}qty-pos{% elif qty < 0 %}qty-neg{% endif %}">{{ '{:+,.0f}'.format(qty) if qty != 0 else '0' }}</span></td>
+              <td class="knk-td-center mute">{{ it.part_unit|default('EA') }}</td>
+              <td class="knk-td-num">{% if it.unit_price %}{{ '{:,.0f}'.format(it.unit_price) }}{% else %}<span class="mute">—</span>{% endif %}</td>
+              <td class="knk-td-num">{% if it.amount %}{{ '{:,.0f}'.format(it.amount) }}{% else %}<span class="mute">—</span>{% endif %}</td>
               <td>
                 {% if it.mgmt_code %}<span class="mute" style="font-family:var(--pq-mono); font-size:11px;">{{ it.mgmt_code }}</span> {% endif %}
                 {% if it.project_name %}<span>{{ it.project_name }}</span>{% endif %}
@@ -204,9 +195,10 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty" data-dn="sm:empty">
-        <div class="ico">📊</div>
-        <div class="ttl">이동 이력 없음</div>
+      <div class="knk-empty" data-dn="sm:empty">
+        <i class="ti ti-history"></i>
+        <p class="knk-empty__title">이동 이력이 없습니다</p>
+        <p class="knk-empty__desc">입고·출고·조정 시 자동 기록됩니다.</p>
       </div>
       {% endif %}
 
