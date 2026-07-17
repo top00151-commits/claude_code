@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>재고 조정 · KNK HAIST WORKS</title>
 
-{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 재고 조정 (Stock Adjustment)
+{# v5H226z1005 (2026-07-18) — 디자인 통일 Phase 4 ④(2차): knk 전환(머리글·제출 바·버튼)+Sage 브리지.
+   폼 본문(자재선택·part-info .u innerHTML·미리보기·부호토글)=JS 생명선 유지. JS 무수정.
+   v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — 재고 조정 (Stock Adjustment)
    라우터 호환 form name (필수=*):
      part_id* / quantity* (양수 = 입고조정, 음수 = 출고조정) / reason* / note
    라우터: POST /stock/adjust
@@ -13,36 +15,31 @@
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  /* z1005 — pq 토큰을 knk(Sage) 토큰으로 브리지(z999/z1003 표준). 새 코드는 --knk-*만. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-err: var(--knk-danger, #A33A3E);       --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 * { box-sizing: border-box; }
 
 .adj-page { display: flex; flex-direction: column; min-height: 100%; background: var(--pq-surface-2); }
-.adj-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.adj-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.adj-head .crumb a { color: var(--pq-ink-3); }
-.adj-head .crumb b { color: var(--pq-ink); }
-.adj-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.adj-meta { font-size: 12px; color: var(--pq-ink-3); }
-.adj-actions { margin-left: auto; display: flex; gap: 8px; }
-.adj-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
-.adj-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+/* z1005 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.adj-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .alert-bar { background: var(--pq-err-soft); color: var(--pq-err); border: 1px solid #fecaca; border-radius: 8px; padding: 10px 14px; margin: 12px 24px 0; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }
 
@@ -67,7 +64,7 @@
 .field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
 .field label .info { font-size: 10.5px; color: var(--pq-ink-4); margin-left: auto; font-weight: 500; }
 .field input, .field select, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; transition: border-color .12s, box-shadow .12s; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--knk-focus, #3E6F89); box-shadow: 0 0 0 3px rgba(62,111,137,0.15); }
 .field input.mono { font-family: var(--pq-mono); }
 .field input.big { font-size: 18px; font-weight: 700; padding: 12px 14px; font-family: var(--pq-mono); text-align: right; }
 .field input.big.pos { color: var(--pq-ok); }
@@ -114,16 +111,8 @@
 .warn-tip { background: var(--pq-warn-soft); border-left: 3px solid var(--pq-warn); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
 .warn-tip b { color: var(--pq-warn); }
 
-/* 액션 바 */
-.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
-.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
-.action-bar .info b { color: var(--pq-ink); }
-.action-bar .btns { display: flex; gap: 8px; }
-.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--pq-ink); color: #fff; }
-.btn-primary:hover { background: var(--pq-ink-2); }
-.btn-cancel { background: transparent; color: var(--pq-ink-4); }
-.btn-cancel:hover { color: var(--pq-err); }
+/* z1005 — 하단 액션 = knk-submit-bar(sticky). 버튼 = knk-btn. */
+.knk-submit-bar__note b { color: var(--knk-text-primary, #27302B); }
 
 @media (max-width: 1280px) {
   .adj-body { grid-template-columns: 1fr; }
@@ -145,17 +134,17 @@
       <div class="adj-page">
 
         <!-- 헤더 -->
-        <div class="adj-head" data-dn="adj:head">
+        <header class="knk-page-head" data-dn="adj:head">
           <div>
-            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>재고 조정</b></div>
-            <div class="adj-title">⚙️ 재고 조정</div>
-            <div class="adj-meta" style="margin-top:4px;">실사 차이·손망실·시제품 등 입출고 외 재고 변동 보정 — 부호 ± 가능</div>
+            <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>재고 조정</b></nav>
+            <h1 class="knk-page-title">재고 조정</h1>
+            <p class="knk-page-meta">실사 차이·손망실·시제품 등 입출고 외 재고 변동 보정 — 부호 ± 가능</p>
           </div>
-          <div class="adj-actions">
-            <a href="/stock/movements?kind=ADJUST">📋 조정 이력</a>
-            <a href="/stock/balances">📦 재고 현황</a>
+          <div class="knk-page-actions">
+            <a class="knk-btn knk-btn--ghost" href="/stock/movements?kind=ADJUST"><i class="ti ti-history"></i> 조정 이력</a>
+            <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
           </div>
-        </div>
+        </header>
 
         <!-- 에러 alert -->
         {% if request.query_params.get('error') %}
@@ -323,11 +312,11 @@
         </div>
 
         <!-- 하단 액션 -->
-        <div class="action-bar" data-dn="adj:action" data-dn-tone="amber">
-          <div class="info">⚙️ <b>재고 조정 등록</b> — stock_movements (kind=ADJUST) 기록 + 재고 즉시 반영</div>
-          <div class="btns">
-            <a href="/stock/balances" class="btn btn-cancel">취소</a>
-            <button type="submit" class="btn btn-primary" id="submitBtn">조정 등록 →</button>
+        <div class="knk-submit-bar is-sticky" data-dn="adj:action" data-dn-tone="amber">
+          <span class="knk-submit-bar__note">⚙️ <b>재고 조정 등록</b> — stock_movements (kind=ADJUST) 기록 + 재고 즉시 반영</span>
+          <div class="knk-submit-bar__actions">
+            <a href="/stock/balances" class="knk-btn knk-btn--ghost">취소</a>
+            <button type="submit" class="knk-btn knk-btn--primary" id="submitBtn">조정 등록 →</button>
           </div>
         </div>
 
