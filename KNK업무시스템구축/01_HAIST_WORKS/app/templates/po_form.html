@@ -5,40 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{% if po %}발주 수정 {{ po.po_number }}{% else %}새 발주서 작성{% endif %} · KNK HAIST WORKS</title>
 
-{# v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 모드 도입) — 실무팀3 발주 작성·수정 폼 #}
+{# v5H226z1003 (2026-07-18) — 디자인 통일 Phase 4 ③: knk 전환(머리글·필드·제출 바·버튼).
+   라인 표(recalcLine/addLine/onPartNameInput/delLine JS 의존)·스텝퍼·합계·사이드=업무 특화 유지(Sage 브리지). JS 무수정.
+   v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 모드 도입) — 실무팀3 발주 작성·수정 폼 #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  /* z1003 — pq 토큰을 knk(Sage) 토큰으로 브리지(z999 표준). 새 코드는 --knk-*만. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-err: var(--knk-danger, #A33A3E);       --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 * { box-sizing: border-box; }
 .pf-page { display: flex; flex-direction: column; min-height: 100%; }
-.pf-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.pf-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.pf-head .crumb a { color: var(--pq-ink-3); }
-.pf-head .crumb b { color: var(--pq-ink); }
-.pf-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.pf-meta { font-size: 12px; color: var(--pq-ink-3); }
-.pf-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.pf-actions { margin-left: auto; display: flex; gap: 8px; }
-.pf-actions a, .pf-actions button { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); cursor: pointer; font-family: inherit; }
-.pf-actions a:hover, .pf-actions button:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+/* z1003 — 머리글 = knk-page-head. 페이지엔 배치 보정만. */
+.pf-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .stepper { display: flex; background: var(--pq-surface-2); padding: 10px 24px; border-bottom: 1px solid var(--pq-line); gap: 0; }
 .step { flex: 1; display: flex; align-items: center; gap: 10px; padding: 6px 0; position: relative; }
@@ -61,21 +57,17 @@
 .pf-section h3::before { content: ""; width: 3px; height: 12px; background: var(--pq-ink); border-radius: 2px; }
 .pf-section h3 .req { color: var(--pq-err); font-size: 11px; font-weight: 700; }
 
+/* z1003 — .field → knk-field(입력 공통 규격·Sage 포커스). 행 그리드·라벨 부가·힌트만 페이지 유지 */
 .field-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 12px; }
 .field-row:last-child { margin-bottom: 0; }
-.field { display: flex; flex-direction: column; gap: 5px; }
 .field-full { grid-column: 1 / -1; }
-.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); display: flex; align-items: center; gap: 4px; }
-.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; }
-.field label .info { font-size: 10.5px; color: var(--pq-ink-4); margin-left: auto; font-weight: 500; font-family: var(--pq-mono); }
-.field input, .field select, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; transition: border-color .12s, box-shadow .12s; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
-.field input[readonly] { background: var(--pq-surface-inset); color: var(--pq-ink-3); cursor: default; }
-.field textarea { min-height: 76px; resize: vertical; }
-.field-hint { font-size: 11px; color: var(--pq-ink-4); margin-top: -2px; }
-.field-hint b { color: var(--pq-ink-2); }
-.field-hint.warn { color: var(--pq-err); }
-.field-hint.warn a { color: var(--pq-err); font-weight: 700; }
+.knk-field > label { display: flex; align-items: center; gap: 4px; }
+.knk-field > label .req { font-size: 10px; font-weight: 700; }
+.knk-field > label .info { font-size: 10.5px; color: var(--knk-text-muted, #657169); margin-left: auto; font-weight: 500; font-family: var(--pq-mono); }
+.field-hint { font-size: 11px; color: var(--knk-text-muted, #657169); margin-top: -2px; }
+.field-hint b { color: var(--knk-text-secondary, #46524B); }
+.field-hint.warn { color: var(--knk-danger, #A33A3E); }
+.field-hint.warn a { color: var(--knk-danger, #A33A3E); font-weight: 700; }
 
 /* 라인 표 */
 .lines { background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; overflow: hidden; margin-top: 4px; }
@@ -114,18 +106,8 @@
 .help-tip { background: var(--pq-info-soft); border-left: 3px solid var(--pq-info); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: var(--pq-ink-2); }
 .help-tip b { color: var(--pq-info); }
 
-/* 액션 바 */
-.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
-.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
-.action-bar .info b { color: var(--pq-ink); }
-.action-bar .btns { display: flex; gap: 8px; }
-.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; transition: background-color .12s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--pq-ink); color: #fff; }
-.btn-primary:hover { background: var(--pq-ink-2); }
-.btn-secondary { background: var(--pq-surface); border-color: var(--pq-line-2); color: var(--pq-ink); }
-.btn-secondary:hover { background: var(--pq-surface-2); }
-.btn-cancel { background: transparent; color: var(--pq-ink-4); }
-.btn-cancel:hover { color: var(--pq-err); }
+/* z1003 — 하단 액션 = knk-submit-bar(sticky). 버튼 = knk-btn. */
+.knk-submit-bar__note b { color: var(--knk-text-primary, #27302B); }
 
 @media (max-width: 1280px) {
   .pf-body { grid-template-columns: 1fr; }
@@ -149,23 +131,17 @@
     <form method="post" action="{% if is_edit %}/po/{{ po.id }}/edit{% else %}/po/new{% endif %}" id="poForm">
       <div class="pf-page">
 
-        <div class="pf-head" data-dn="pf:head">
+        <header class="knk-page-head" data-dn="pf:head">
           <div>
-            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주</a> · <b>{% if is_edit %}{{ po.po_number }} 수정{% else %}새 발주서 작성{% endif %}</b></div>
-            <div class="pf-title">{% if is_edit %}{{ po.po_number }} 수정{% else %}새 발주서 작성{% endif %}</div>
+            <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주</a> · <b>{% if is_edit %}{{ po.po_number }} 수정{% else %}새 발주서 작성{% endif %}</b></nav>
+            <h1 class="knk-page-title">{% if is_edit %}{{ po.po_number }} 수정{% else %}새 발주서 작성{% endif %}</h1>
+            <p class="knk-page-meta">발주 번호 <span class="knk-num">{{ po.po_number if is_edit else '자동 발급' }}</span>{% if is_edit %} · <span class="chip-po {% if status_now == '작성중' %}s-draft{% elif status_now == '발주완료' %}s-issued{% elif status_now == '부분입고' %}s-partial{% elif status_now == '입고완료' %}s-received{% elif status_now == '취소' %}s-cancel{% else %}s-draft{% endif %}">{{ status_now }}</span>{% endif %}</p>
           </div>
-          <div class="pf-meta">
-            <span>발주 번호 <span class="pm-num">{{ po.po_number if is_edit else '자동 발급' }}</span></span>
-            {% if is_edit %}
-              <span>·</span>
-              <span class="chip-po {% if status_now == '작성중' %}s-draft{% elif status_now == '발주완료' %}s-issued{% elif status_now == '부분입고' %}s-partial{% elif status_now == '입고완료' %}s-received{% elif status_now == '취소' %}s-cancel{% else %}s-draft{% endif %}">{{ status_now }}</span>
-            {% endif %}
+          <div class="knk-page-actions">
+            <a class="knk-btn knk-btn--ghost" href="/po"><i class="ti ti-arrow-left"></i> 목록</a>
+            {% if is_edit %}<a class="knk-btn knk-btn--ghost" href="/po/{{ po.id }}"><i class="ti ti-clipboard-list"></i> 상세</a>{% endif %}
           </div>
-          <div class="pf-actions">
-            <a href="/po">↩ 목록</a>
-            {% if is_edit %}<a href="/po/{{ po.id }}">📋 상세</a>{% endif %}
-          </div>
-        </div>
+        </header>
 
         <div class="stepper" data-dn="pf:stepper" data-dn-tone="blue">
           <div class="step active">
@@ -194,18 +170,18 @@
             <div class="pf-section" data-dn="pf:basic" data-dn-tone="green">
               <h3>기본 정보 <span class="req">*</span></h3>
               <div class="field-row">
-                <div class="field">
+                <div class="knk-field">
                   <label>발주 번호 <span class="info">{{ po.po_number if is_edit else 'PO-YYMMDD-NNN 자동' }}</span></label>
                   <input type="text" value="{{ po.po_number|default('자동 생성') }}" readonly />
                 </div>
-                <div class="field">
+                <div class="knk-field">
                   <label>발주 일자 <span class="req">*</span></label>
                   <input type="date" name="order_date" required value="{{ po.order_date if is_edit else (today|default('')) }}" />
                 </div>
               </div>
 
               <div class="field-row">
-                <div class="field">
+                <div class="knk-field">
                   <label>거래처 (협력사) <span class="req">*</span></label>
                   <select name="supplier_id" required>
                     <option value="">— 협력사 선택 —</option>
@@ -221,7 +197,7 @@
                   <div class="field-hint">선택 시 단가 이력·결제조건이 <b>자동 불러오기</b>됩니다</div>
                   {% endif %}
                 </div>
-                <div class="field">
+                <div class="knk-field">
                   <label>관리코드 (프로젝트)</label>
                   <select name="project_id">
                     <option value="">(없음 / 일반 구매)</option>
@@ -235,11 +211,11 @@
               </div>
 
               <div class="field-row">
-                <div class="field">
+                <div class="knk-field">
                   <label>예상 입고일</label>
                   <input type="date" name="expected_date" value="{{ po.expected_date|default('') }}" />
                 </div>
-                <div class="field">
+                <div class="knk-field">
                   <label>PO 유형</label>
                   <select name="po_type">
                     {% for t in PO_TYPES_KIND %}
@@ -250,7 +226,7 @@
               </div>
 
               <div class="field-row">
-                <div class="field">
+                <div class="knk-field">
                   <label>통화</label>
                   <select name="currency" id="hdrCurrency">
                     {% set cur = (po.currency if is_edit else 'KRW') %}
@@ -261,7 +237,7 @@
                     <option value="EUR" {% if cur == 'EUR' %}selected{% endif %}>EUR (€)</option>
                   </select>
                 </div>
-                <div class="field">
+                <div class="knk-field">
                   <label>환율 (KRW 기준)</label>
                   <input type="number" name="exchange_rate" step="0.0001" min="0" value="{{ po.exchange_rate|default(1) }}" />
                 </div>
@@ -269,7 +245,7 @@
 
               <!-- v5H226z58: VAT 모드 + 과세구분 -->
               <div class="field-row">
-                <div class="field">
+                <div class="knk-field">
                   <label>VAT 모드 <span class="info">수량×단가 → 공급가액·부가세 자동 계산</span></label>
                   <select name="vat_mode" id="hdrVatMode" onchange="recalcTotals()">
                     {% set vm = (po.vat_mode if is_edit else 'vat_excluded') %}
@@ -278,7 +254,7 @@
                     <option value="vat_none"     {% if vm == 'vat_none' %}selected{% endif %}>VAT 없음 (영세·면세)</option>
                   </select>
                 </div>
-                <div class="field">
+                <div class="knk-field">
                   <label>과세구분</label>
                   <select name="tax_classification">
                     {% set tc = (po.tax_classification if is_edit else 'taxable') %}
@@ -291,7 +267,7 @@
               </div>
 
               <div class="field-row">
-                <div class="field field-full">
+                <div class="knk-field field-full">
                   <label>비고</label>
                   <textarea name="note" placeholder="특이사항·요구사항·검수 기준 등을 기재">{{ po.note|default('') }}</textarea>
                 </div>
@@ -355,7 +331,7 @@
             <div class="pf-section" data-dn="pf:terms" data-dn-tone="blue">
               <h3>결제·배송 조건</h3>
               <div class="field-row">
-                <div class="field">
+                <div class="knk-field">
                   <label>결제 조건</label>
                   <select name="payment_terms">
                     <option value="">— 선택 —</option>
@@ -364,7 +340,7 @@
                     {% endfor %}
                   </select>
                 </div>
-                <div class="field">
+                <div class="knk-field">
                   <label>인도 조건</label>
                   <select name="shipping_terms">
                     <option value="">— 선택 —</option>
@@ -375,7 +351,7 @@
                 </div>
               </div>
               <div class="field-row">
-                <div class="field field-full">
+                <div class="knk-field field-full">
                   <label>상태</label>
                   <select name="status">
                     {% for s in PO_STATUSES %}
@@ -425,13 +401,11 @@
         </div>
 
         <!-- 하단 액션 -->
-        <div class="action-bar" data-dn="pf:action" data-dn-tone="amber">
-          <div class="info">
-            {% if is_edit %}🟡 <b>편집 모드</b> — 변경사항 저장 시 이력 기록{% else %}💾 <b>새 발주서</b> — 저장 시 PO 번호 자동 발급{% endif %}
-          </div>
-          <div class="btns">
-            <a href="{% if is_edit %}/po/{{ po.id }}{% else %}/po{% endif %}" class="btn btn-cancel">취소</a>
-            <button type="submit" class="btn btn-primary">{% if is_edit %}저장{% else %}발주 발행 →{% endif %}</button>
+        <div class="knk-submit-bar is-sticky" data-dn="pf:action" data-dn-tone="amber">
+          <span class="knk-submit-bar__note">{% if is_edit %}🟡 <b>편집 모드</b> — 변경사항 저장 시 이력 기록{% else %}💾 <b>새 발주서</b> — 저장 시 PO 번호 자동 발급{% endif %}</span>
+          <div class="knk-submit-bar__actions">
+            <a href="{% if is_edit %}/po/{{ po.id }}{% else %}/po{% endif %}" class="knk-btn knk-btn--ghost">취소</a>
+            <button type="submit" class="knk-btn knk-btn--primary">{% if is_edit %}저장{% else %}발주 발행 →{% endif %}</button>
           </div>
         </div>
 

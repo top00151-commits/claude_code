@@ -5,41 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>입고 처리 {{ po.po_number }} · KNK HAIST WORKS</title>
 
-{# v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 모드 표시) — 실무팀3 입고 처리 #}
+{# v5H226z1003 (2026-07-18) — 디자인 통일 Phase 4 ③: knk 전환(머리글·필드·제출 바·버튼).
+   입고 KPI(발주량/기입고/금일입고/잔량 — 색 의미+JS innerHTML)·라인 표(recalc/qfill/QR JS 의존)·
+   QR 스캔·발주정보 카드=업무 특화 유지(Sage 브리지). JS 무수정.
+   v5H226z58 시안1 + 룰 v4 + 자재모듈 표준 v2 (VAT 모드 표시) — 실무팀3 입고 처리 #}
 {# 라우터 호환: form name = po_item_id / receive_qty / item_note / lot_no / expiry_date / occurred_at — getlist 형식 #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  /* z1003 — pq 토큰을 knk(Sage) 토큰으로 브리지(z999 표준). 새 코드는 --knk-*만. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-err: var(--knk-danger, #A33A3E);       --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 * { box-sizing: border-box; }
 .gr-page { display: flex; flex-direction: column; min-height: 100%; }
-.gr-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.gr-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.gr-head .crumb a { color: var(--pq-ink-3); }
-.gr-head .crumb b { color: var(--pq-ink); }
-.gr-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.gr-meta { font-size: 12px; color: var(--pq-ink-3); }
-.gr-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.gr-actions { margin-left: auto; display: flex; gap: 8px; }
-.gr-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
-.gr-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+/* z1003 — 머리글 = knk-page-head. 페이지엔 배치 보정만. 입고 KPI(색 의미·JS innerHTML)는 유지 */
+.gr-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
 .kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
@@ -63,11 +60,8 @@
 .po-info b { font-size: 13px; color: var(--pq-ink); display: block; margin-top: 3px; }
 .po-info .mono { font-family: var(--pq-mono); }
 
-.field { display: flex; flex-direction: column; gap: 5px; }
-.field label { font-size: 11.5px; font-weight: 600; color: var(--pq-ink-2); }
-.field label .req { color: var(--pq-err); font-size: 10px; font-weight: 700; margin-left: 3px; }
-.field input, .field textarea { padding: 8px 11px; font-family: inherit; font-size: 12.5px; color: var(--pq-ink); background: var(--pq-surface); border: 1px solid var(--pq-line-2); border-radius: 6px; }
-.field input:focus, .field textarea:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 3px rgba(15,23,42,0.06); }
+/* z1003 — .field → knk-field(공통 규격·Sage 포커스). 라벨 req 부가만 페이지 유지 */
+.knk-field > label .req { font-size: 10px; font-weight: 700; margin-left: 3px; }
 
 .qfill { display: flex; gap: 6px; }
 .qfill button { padding: 5px 10px; font-size: 11px; border: 1px solid var(--pq-line-2); background: var(--pq-surface); border-radius: 4px; cursor: pointer; color: var(--pq-ink-3); font-family: inherit; }
@@ -103,17 +97,8 @@
 
 .field-row { display: grid; grid-template-columns: 200px 1fr; gap: 14px; }
 
-.action-bar { background: var(--pq-surface); border-top: 1px solid var(--pq-line); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; bottom: 0; z-index: 10; }
-.action-bar .info { font-size: 12px; color: var(--pq-ink-3); }
-.action-bar .info b { color: var(--pq-ink); }
-.action-bar .btns { display: flex; gap: 8px; }
-.btn { font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--pq-ink); color: #fff; }
-.btn-primary:hover { background: var(--pq-ink-2); }
-.btn-secondary { background: var(--pq-surface); border-color: var(--pq-line-2); color: var(--pq-ink); }
-.btn-secondary:hover { background: var(--pq-surface-2); }
-.btn-cancel { background: transparent; color: var(--pq-ink-4); }
-.btn-cancel:hover { color: var(--pq-err); }
+/* 액션 (z1003) — 하단 = knk-submit-bar(sticky). 버튼 = knk-btn. */
+.knk-submit-bar__note b { color: var(--knk-text-primary, #27302B); }
 
 @media (max-width: 1280px) {
   .line-head, .line-row, .line-foot { grid-template-columns: 36px 1.6fr 80px 80px 110px 70px 100px 120px; gap: 7px; }
@@ -141,21 +126,17 @@
     <form method="post" action="/po/{{ po.id }}/receive" id="recvForm">
       <div class="gr-page">
 
-        <div class="gr-head" data-dn="gr:head">
+        <header class="knk-page-head" data-dn="gr:head">
           <div>
-            <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주</a> · <a href="/po/{{ po.id }}">{{ po.po_number }}</a> · <b>입고 처리</b></div>
-            <div class="gr-title">입고 (GR · Goods Receipt)</div>
+            <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/po">발주</a> · <a href="/po/{{ po.id }}">{{ po.po_number }}</a> · <b>입고 처리</b></nav>
+            <h1 class="knk-page-title">입고 (GR · Goods Receipt)</h1>
+            <p class="knk-page-meta">발주 <span class="knk-num">{{ po.po_number }}</span> · 품목 <span class="knk-num">{{ po.items|length }}</span>종</p>
           </div>
-          <div class="gr-meta">
-            <span>발주 <span class="pm-num">{{ po.po_number }}</span></span>
-            <span>·</span>
-            <span>품목 <span class="pm-num">{{ po.items|length }}</span>종</span>
+          <div class="knk-page-actions">
+            <a class="knk-btn knk-btn--ghost" href="/po/{{ po.id }}"><i class="ti ti-arrow-left"></i> 발주서</a>
+            <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
           </div>
-          <div class="gr-actions">
-            <a href="/po/{{ po.id }}">↩ 발주서</a>
-            <a href="/stock/balances">📦 재고 현황</a>
-          </div>
-        </div>
+        </header>
 
         {# v5H226z58 (2026-05-12) — QR 스캐너 카드: PO QR 검증 + 자재 QR 라벨 → 라인 자동 매칭 #}
         <div class="qr-scan-bar" data-dn="gr:scan" data-dn-tone="purple" style="padding:10px 24px;background:var(--pq-info-soft);border-bottom:1px solid var(--pq-line);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -245,11 +226,11 @@
             <h3>입고 일자</h3>
             <div class="body">
               <div class="field-row">
-                <div class="field">
+                <div class="knk-field">
                   <label>입고일자<span class="req">*</span></label>
                   <input type="date" name="occurred_at" required value="{{ today|default('') }}" />
                 </div>
-                <div class="field" style="justify-content:center;">
+                <div class="knk-field" style="justify-content:center;">
                   <div style="font-size:11.5px;color:var(--pq-ink-3);line-height:1.5;">
                     💡 라인별 LOT 번호·유효기한·비고는 아래 표에서 입력합니다.
                   </div>
@@ -321,11 +302,11 @@
         </div>
 
         <!-- 액션 -->
-        <div class="action-bar" data-dn="gr:action" data-dn-tone="amber">
-          <div class="info">📥 <b>입고 등록</b> — 등록 시 재고 자동 가산 + 발주 상태 갱신</div>
-          <div class="btns">
-            <a href="/po/{{ po.id }}" class="btn btn-cancel">취소</a>
-            <button type="submit" class="btn btn-primary">📦 입고 등록</button>
+        <div class="knk-submit-bar is-sticky" data-dn="gr:action" data-dn-tone="amber">
+          <span class="knk-submit-bar__note">📥 <b>입고 등록</b> — 등록 시 재고 자동 가산 + 발주 상태 갱신</span>
+          <div class="knk-submit-bar__actions">
+            <a href="/po/{{ po.id }}" class="knk-btn knk-btn--ghost">취소</a>
+            <button type="submit" class="knk-btn knk-btn--primary">📦 입고 등록</button>
           </div>
         </div>
 
