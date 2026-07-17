@@ -1,4 +1,7 @@
-{# v5H226z48 (2026-05-09): 차분한 톤 (Quiet) — chrome + 표 zebra · 빨강 ≤5% #}
+{# v5H226z48 (2026-05-09): 차분한 톤 (Quiet) — chrome + 표 zebra · 빨강 ≤5%
+   v5H226z1000 (2026-07-18 대표 승인): 셸(§1 Chrome)만 Sage 전환 — 검토안 §6.1(상단바·사이드바 Surface·
+   본문 Page·선택 메뉴=Brand Subtle+Primary+왼쪽 3px 빨강 선·워크스페이스 탭=빨강 유지).
+   ⚠§2 표·카드·qv 토큰은 불변 — 검토안 §389 '기존 화면 색상 코드 전역 일괄 치환 금지'(인쇄·그래프 보호). #}
 {# 적용: styles.html 끝에서 include (head 내부) — 기존 빨강 위주 톤 override #}
 <style>
 /* === Quiet Tone 토큰 추가 (KNK 빨강은 액센트로만 보존) === */
@@ -62,84 +65,85 @@ body[data-accent="default"]   { --qv-ink: #0f172a; }
    1. Chrome — 사이드바 / 상단 / 본문 배경 차분화
    ───────────────────────────────────────────────────────────── */
 
-body { background: var(--qv-surface-2) !important; }
+body { background: var(--knk-bg-page, #F3F5F2) !important; }
 
 /* 사이드바: 빨강 우측 보더 → 옅은 회색 */
 .sidebar {
-  background: var(--qv-surface) !important;
-  border-right: 1px solid var(--qv-line) !important;
+  background: var(--knk-bg-surface, #FAFBF9) !important;
+  border-right: 1px solid var(--knk-border-subtle, #E2E6E1) !important;
   padding: 12px 0 !important;
 }
-/* 활성 메뉴: 빨강 그라데이션 → 잉크 검정 + 흰 글씨 */
+/* z1000: 활성 메뉴 = Brand Subtle 배경 + Primary 글자 + 왼쪽 3px 빨강 선(검토안 §6.1) */
 .sb-item {
-  color: var(--qv-ink-2) !important;
+  color: var(--knk-text-secondary, #46524B) !important;
   border-radius: 6px !important;
   padding: 8px 16px !important;
   margin: 1px 8px !important;
   font-weight: 500 !important;
 }
 .sb-item:hover {
-  background: var(--qv-surface-2) !important;
-  color: var(--qv-ink) !important;
+  background: var(--knk-bg-hover, #E8EFEA) !important;
+  color: var(--knk-text-primary, #27302B) !important;
 }
 .sb-item.active {
-  background: var(--qv-ink) !important;
-  color: #fff !important;
-  font-weight: 600 !important;
+  background: var(--knk-brand-subtle, #F6ECEC) !important;
+  color: var(--knk-text-primary, #27302B) !important;
+  font-weight: 700 !important;
 }
-.sb-item.active::before { display: none !important; }
+.sb-item.active::before { display: block !important; width: 3px !important; }  /* v5_main 빨강 선 復 — 3px */
 .sb-item.active .menu-code,
 .sb-item.active .sb-badge {
-  background: rgba(255,255,255,0.18) !important;
-  color: #fff !important;
+  background: var(--knk-bg-subtle, #EAEEE9) !important;
+  color: var(--knk-text-secondary, #46524B) !important;
 }
 .sb-group {
-  color: var(--qv-ink-4) !important;
+  color: var(--knk-text-muted, #657169) !important;
   letter-spacing: 0.06em !important;
   font-size: 11px !important;
   text-transform: uppercase !important;
   padding: 12px 16px 4px !important;
 }
 .sb-badge {
-  background: var(--qv-surface-3) !important;
-  color: var(--qv-ink-3) !important;
+  background: var(--knk-bg-subtle, #EAEEE9) !important;
+  color: var(--knk-text-muted, #657169) !important;
   font-weight: 600 !important;
 }
 .menu-code {
-  background: var(--qv-surface-3) !important;
-  color: var(--qv-ink-3) !important;
+  background: var(--knk-bg-subtle, #EAEEE9) !important;
+  color: var(--knk-text-muted, #657169) !important;
 }
 
 /* 상단: 빨강 보더 → 회색, 빨강 그림자 → 미세 그림자 */
 .top {
-  background: var(--qv-surface) !important;
-  border-bottom: 1px solid var(--qv-line) !important;
+  background: var(--knk-bg-surface, #FAFBF9) !important;
+  border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1) !important;
   box-shadow: 0 1px 0 rgba(15,23,42,0.04) !important;
 }
 .top-tab {
-  color: var(--qv-ink-3) !important;
+  color: var(--knk-text-muted, #657169) !important;
   font-weight: 500 !important;
   background: transparent !important;
   border-radius: 6px !important;
   box-shadow: none !important;
 }
 .top-tab:hover {
-  background: var(--qv-surface-2) !important;
-  color: var(--qv-ink) !important;
+  background: var(--knk-bg-hover, #E8EFEA) !important;
+  color: var(--knk-text-primary, #27302B) !important;
 }
 .top-tab.active {
-  background: var(--qv-ink) !important;
+  /* z1000: 워크스페이스 선택 탭 = KNK 빨강 유지(대표 확정 예외 — 검토안 §6.1·z990d). ≤1023px 헤더 탭 동일 */
+  background: var(--knk-brand, #A5282C) !important;
   color: #fff !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   box-shadow: none !important;
 }
 .top-icon {
-  color: var(--qv-ink-3) !important;
+  color: var(--knk-text-muted, #657169) !important;
   border-radius: 6px !important;
 }
 .top-icon:hover {
-  background: var(--qv-surface-2) !important;
-  color: var(--qv-ink) !important;
+  background: var(--knk-bg-hover, #E8EFEA) !important;
+  color: var(--knk-text-primary, #27302B) !important;
 }
 /* v5H226z401(대표 지시): 빅터 AI = 연결 표시등(흰 원 + 녹/빨 테두리·글씨 교차깜빡, chrome.html .ai-avatar 사양).
    상단바에선 ① 배경 흰색 ② 다른 top-icon(36px)에 맞춰 크기 축소. 색·깜빡은 .ai-avatar.on/off 가 담당하므로
@@ -155,34 +159,34 @@ body { background: var(--qv-surface-2) !important; }
   box-shadow: none !important;
 }
 .top-user {
-  color: var(--qv-ink) !important;
-  background: var(--qv-surface-2) !important;
+  color: var(--knk-text-primary, #27302B) !important;
+  background: var(--knk-bg-subtle, #EAEEE9) !important;
 }
-.top-user:hover { background: var(--qv-surface-3) !important; }
+.top-user:hover { background: var(--knk-bg-hover, #E8EFEA) !important; }
 .top-user .avatar {
-  background: var(--qv-ink) !important;
+  background: var(--knk-text-primary, #27302B) !important;
   color: #fff !important;
 }
 
-/* 본문 영역 */
-.main { background: var(--qv-surface-2) !important; }
+/* 본문 영역 — Page(검토안 §6.1) */
+.main { background: var(--knk-bg-page, #F3F5F2) !important; }
 
 /* 페이지 헤드 — 흰 배경 + 회색 보더 */
 .page-head {
-  background: var(--qv-surface) !important;
-  border-bottom: 1px solid var(--qv-line) !important;
+  background: var(--knk-bg-surface, #FAFBF9) !important;
+  border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1) !important;
 }
-.crumbs, .crumb { color: var(--qv-ink-4) !important; }
-.crumbs a { color: var(--qv-ink-2) !important; }
-.crumbs b { color: var(--qv-ink) !important; }
-.page-meta { color: var(--qv-ink-3) !important; }
-.page-title { color: var(--qv-ink) !important; }
+.crumbs, .crumb { color: var(--knk-text-muted, #657169) !important; }
+.crumbs a { color: var(--knk-text-secondary, #46524B) !important; }
+.crumbs b { color: var(--knk-text-primary, #27302B) !important; }
+.page-meta { color: var(--knk-text-muted, #657169) !important; }
+.page-title { color: var(--knk-text-primary, #27302B) !important; }
 /* 페이지 제목 em 강조 — 빨강 그라데이션 → 잉크 단색 */
 .page-title em {
   background: none !important;
   -webkit-background-clip: initial !important;
-  -webkit-text-fill-color: var(--qv-ink) !important;
-  color: var(--qv-ink) !important;
+  -webkit-text-fill-color: var(--knk-text-primary, #27302B) !important;
+  color: var(--knk-text-primary, #27302B) !important;
   font-style: normal !important;
 }
 
