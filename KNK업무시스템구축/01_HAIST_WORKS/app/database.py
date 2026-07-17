@@ -6581,10 +6581,14 @@ def projects_list_logi(q: str = "", biz_div: str = "", stage: str = "",
         sql += " AND COALESCE(p.is_archived,0)=0"
     if q:
         # v5H226z217: 장비명(equip_name)도 검색 대상 추가
+        # v5H226z996 (대표 지시): 고객사 검색 = 정식명+시스템명(별칭) 모두 —
+        #   저장된 customer_name이 정식명이든 시스템명이든, customers.name/alias 어느 쪽 검색어로도
+        #   customer_id 경유로 매칭(연결 안 된 프로젝트는 기존 customer_name LIKE 그대로).
         sql += (" AND (p.mgmt_code LIKE ? OR p.name LIKE ? OR p.customer_name LIKE ? "
-                "OR p.model_name LIKE ? OR p.equip_name LIKE ? OR p.pm_name LIKE ? OR p.sales_name LIKE ?)")
+                "OR p.model_name LIKE ? OR p.equip_name LIKE ? OR p.pm_name LIKE ? OR p.sales_name LIKE ? "
+                "OR p.customer_id IN (SELECT c.id FROM customers c WHERE c.name LIKE ? OR COALESCE(c.alias,'') LIKE ?))")
         like = f"%{q}%"
-        params += [like] * 7
+        params += [like] * 9
     if biz_div:
         sql += " AND p.biz_div = ?"
         params.append(biz_div)

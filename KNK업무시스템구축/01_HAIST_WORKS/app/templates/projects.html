@@ -108,7 +108,7 @@ body {
 
   <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/projects">
     <input type="hidden" name="view" value="{{ view }}">
-    <input type="search" name="q" value="{{ q }}" placeholder="프로젝트명 / 관리코드 / 고객사 / 장비·모델 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
+    <input type="search" name="q" value="{{ q }}" placeholder="프로젝트명 / 관리코드 / 고객사(정식명·시스템명) / 장비·모델 검색…" style="flex:1;min-width:200px;border:1px solid var(--qv-line);border-radius:6px;padding:8px 12px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);outline:none;">
     {# v5H226z217 (대표 지시): 사업부·유형 드롭다운 제거 → 위 사업부 책갈피로 대체. 상태만 유지. #}
     <select name="status" style="border:1px solid var(--qv-line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--qv-surface-2);font-family:inherit;color:var(--qv-ink);">
       <option value="">상태 전체</option>
