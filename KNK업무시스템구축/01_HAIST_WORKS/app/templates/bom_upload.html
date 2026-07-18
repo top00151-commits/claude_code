@@ -5,27 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BOM 업로드 · KNK HAIST WORKS</title>
 
-{# v5H226z983 (2026-07-15) — 1단계 BOM 보드: 업로드 + 자동 비교 미리보기
+{# v5H226z1006 (2026-07-18) — 디자인 통일 Phase 4 ⑤: knk 전환(머리글·버튼)+Sage 브리지.
+   BOM 비교 로직·업로드 JS(KNKBusy)·비교 표/요약 스트립 = 업무 특화 유지. JS 무수정.
+   v5H226z983 (2026-07-15) — 1단계 BOM 보드: 업로드 + 자동 비교 미리보기
    - 설계·전장·SW팀 엑셀 양식 그대로 (헤더 자동 인식 · 실패 시 중단+안내 · 위치 추측 금지)
    - 변경 어휘 3종 자동 인식: '기존->변경' / 노랑=신규 / 취소선=삭제
    - merge(기본)=부분 목록 안전(기존 라인 삭제 안 함) / replace=전체 교체 #}
 
 <link href="/static/css/v5_tokens.css?v=20260715v5H226z983" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-ok: #0d7c4f;   --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf; --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309; --pq-warn-soft: #fef3c7;
-  --pq-danger: #b91c1c; --pq-danger-soft: #fef2f2;
-  --pq-mono: ui-monospace, Consolas, monospace;
+  /* z1006 — pq 토큰을 knk(Sage)로 브리지(z999/z1003/z1005 표준). base(surface/line/ink)까지 명시 Sage. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
-.pl-head { padding:14px 24px 12px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-.pl-head .crumb { font-size:12px; color:var(--pq-ink-4); }
-.pl-head .crumb a { color:var(--pq-ink-2); }
-.pl-title { font-size:22px; font-weight:700; color:var(--pq-ink); }
-.pl-actions { margin-left:auto; display:flex; gap:8px; }
-.pl-actions .btn-ghost { height:32px; padding:0 12px; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12.5px; color:var(--pq-ink-2); display:inline-flex; align-items:center; text-decoration:none; }
+/* z1006 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 .bw { padding:18px 24px 48px; display:flex; flex-direction:column; gap:14px; max-width:1100px; }
 .banner { padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
 .banner.err { background:var(--pq-danger-soft); color:var(--pq-danger); border:1px solid #fecaca; white-space:pre-wrap; }
@@ -34,8 +43,7 @@
 .card h3 { font-size:14.5px; font-weight:700; margin:0 0 10px; color:var(--pq-ink); }
 .file-drop { border:2px dashed var(--pq-line-3); border-radius:10px; padding:26px; text-align:center; }
 .file-drop input { font-size:13px; }
-.btn-main { height:38px; padding:0 22px; background:var(--pq-ink); color:#fff; border:0; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; }
-.btn-main:hover { background:#1e293b; }
+/* z1006 — 주요 버튼 = knk-btn(primary/ghost). btn-main/btn-ghost 페이지 정의 제거 */
 .mode-row { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; }
 .mode-row label { display:flex; gap:6px; align-items:flex-start; padding:9px 11px; border:1px solid var(--pq-line-2); border-radius:8px; cursor:pointer; flex:1; min-width:250px; line-height:1.5; }
 .sum-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; }
@@ -57,7 +65,7 @@
 .tag.del { background:var(--pq-danger-soft); color:var(--pq-danger); }
 .tag.ord { background:#fee2e2; color:#b91c1c; }
 details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:var(--pq-ink-2); padding:4px 0; }
-@media (max-width:640px){ .bw{padding:12px 10px 40px;} .pl-head{padding:12px;} }
+@media (max-width:640px){ .bw{padding:12px 10px 40px;} }
 </style>
 </head>
 <body>
@@ -65,15 +73,15 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
   {% set active_tab = "logi" %}
   {% include "_v5_partials/chrome.html" with context %}
   <main class="main">
-    <div class="pl-head">
+    <header class="knk-page-head">
       <div>
-        <div class="crumb"><a href="/logistics">자재구매센터</a> · <b>BOM 업로드</b></div>
-        <div class="pl-title">📋 BOM 업로드 (자동 비교)</div>
+        <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <b>BOM 업로드</b></nav>
+        <h1 class="knk-page-title">BOM 업로드 (자동 비교)</h1>
       </div>
-      <div class="pl-actions">
-        <a class="btn-ghost" href="/parts">자재 마스터</a>
+      <div class="knk-page-actions">
+        <a class="knk-btn knk-btn--ghost" href="/parts"><i class="ti ti-packages"></i> 자재 마스터</a>
       </div>
-    </div>
+    </header>
 
     <div class="bw">
       {% set _err = error | default('') or request.query_params.get('error') %}
@@ -95,7 +103,7 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
           <div style="font-size:11.5px;color:var(--pq-ink-4);margin-top:8px;">.xlsx · 최대 15MB · 여러 시트 자동 인식</div>
         </div>
         <div style="margin-top:14px;text-align:right;">
-          <button type="submit" class="btn-main" id="upBtn">🔍 분석·미리보기</button>
+          <button type="submit" class="knk-btn knk-btn--primary" id="upBtn">🔍 분석·미리보기</button>
         </div>
       </form>
 
@@ -261,8 +269,8 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
             <span style="color:var(--pq-ink-3);">이 파일이 완전한 최신 BOM일 때만 — 파일에 없는 기존 라인 {{ plan.missing | length if plan else 0 }}건을 삭제 처리(이력 남음·복원 가능)</span></span></label>
         </div>
         <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
-          <a class="btn-ghost" href="/bom/upload" style="height:38px;display:inline-flex;align-items:center;padding:0 16px;border:1px solid var(--pq-line-2);border-radius:8px;text-decoration:none;color:var(--pq-ink-2);">다시 선택</a>
-          <button type="submit" class="btn-main" id="applyBtn">✅ 보드에 반영</button>
+          <a class="knk-btn knk-btn--ghost" href="/bom/upload">다시 선택</a>
+          <button type="submit" class="knk-btn knk-btn--primary" id="applyBtn">✅ 보드에 반영</button>
         </div>
       </form>
       {% endif %}

@@ -5,21 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BOM v{{ up.version_no }} 변경 리포트 · {{ up.mgmt_code }} · KNK HAIST WORKS</title>
 
-{# v5H226z987 (대표 요구 '기존 내용도 같이 확인') — 업로드(버전) 1건의 변경 리포트.
+{# v5H226z1006 (2026-07-18) — 디자인 통일 Phase 4 ⑤: knk 전환(머리글·버튼)+Sage 브리지. 비교 표시=업무 특화 유지.
+   v5H226z987 (대표 요구 '기존 내용도 같이 확인') — 업로드(버전) 1건의 변경 리포트.
    과거 어느 버전이든 '그때 뭐가 어떻게 바뀌었나'를 기존값→새값으로 전부 보여준다. #}
 
 <link href="/static/css/v5_tokens.css?v=20260716v5H226z987" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
-:root { --pq-warn:#b45309; --pq-warn-soft:#fef3c7; --pq-danger:#b91c1c; --pq-danger-soft:#fef2f2;
-        --pq-ok:#0d7c4f; --pq-ok-soft:#ecfdf5; --pq-mono:ui-monospace,Consolas,monospace; }
-.pl-head { padding:14px 24px 12px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
-.pl-head .crumb { font-size:12px; color:var(--pq-ink-4); }
-.pl-head .crumb a { color:var(--pq-ink-2); }
-.pl-title { font-size:20px; font-weight:700; color:var(--pq-ink); }
-.pl-meta { font-size:12.5px; color:var(--pq-ink-3); }
-.pl-actions { margin-left:auto; }
-.btn-ghost { height:32px; padding:0 12px; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12.5px; color:var(--pq-ink-2); display:inline-flex; align-items:center; text-decoration:none; }
+:root {
+  /* z1006 — pq 토큰을 knk(Sage)로 브리지(z999/z1003/z1005 표준). base(surface/line/ink)까지 명시 Sage. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+/* z1006 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 .rw { padding:16px 24px 60px; max-width:1100px; }
 .sum { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
 .sum .s { border:1px solid var(--pq-line-2); border-radius:8px; padding:8px 14px; font-size:12px; color:var(--pq-ink-3); }
@@ -40,7 +52,7 @@
 .ent .new { color:var(--pq-danger); font-weight:800; }
 .ent .src { margin-left:auto; font-size:10.5px; color:var(--pq-ink-4); }
 .ent .note { width:100%; font-size:11px; color:var(--pq-warn); }
-@media (max-width:640px){ .rw{padding:12px 10px 50px;} .pl-head{padding:12px;} }
+@media (max-width:640px){ .rw{padding:12px 10px 50px;} }
 </style>
 </head>
 <body>
@@ -48,17 +60,14 @@
   {% set active_tab = "logi" %}
   {% include "_v5_partials/chrome.html" with context %}
   <main class="main">
-    <div class="pl-head">
+    <header class="knk-page-head">
       <div>
-        <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/projects/{{ up.pid }}/bom">{{ up.mgmt_code }} BOM 보드</a> · <b>v{{ up.version_no }} 변경 리포트</b></div>
-        <div class="pl-title">📄 {{ up.mgmt_code }} · v{{ up.version_no }} 에서 바뀐 내용</div>
+        <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/projects/{{ up.pid }}/bom">{{ up.mgmt_code }} BOM 보드</a> · <b>v{{ up.version_no }} 변경 리포트</b></nav>
+        <h1 class="knk-page-title">{{ up.mgmt_code }} · v{{ up.version_no }} 에서 바뀐 내용</h1>
+        <p class="knk-page-meta">{{ (up.created_at or '')[:16] }} · {{ up.uploaded_by_name or '' }} 업로드 · {{ up.source_filename }} · {{ '전체 교체' if up.mode == 'replace' else '안전 반영' }}</p>
       </div>
-      <div class="pl-meta">
-        {{ (up.created_at or '')[:16] }} · {{ up.uploaded_by_name or '' }} 업로드 · {{ up.source_filename }} ·
-        {{ '전체 교체' if up.mode == 'replace' else '안전 반영' }}
-      </div>
-      <div class="pl-actions"><a class="btn-ghost" href="/projects/{{ up.pid }}/bom">← 보드로</a></div>
-    </div>
+      <div class="knk-page-actions"><a class="knk-btn knk-btn--ghost" href="/projects/{{ up.pid }}/bom"><i class="ti ti-arrow-left"></i> 보드로</a></div>
+    </header>
 
     <div class="rw">
       <div class="sum">
