@@ -5,39 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>FIFO 레이어 · KNK HAIST WORKS</title>
 
-{# v5H226z58 (2026-05-11) — 시안1 + 룰 v4 — FIFO 재고 레이어 조회
-   라우터: GET /stock/balances/fifo/{part_id}
-   전달: summary (layer_count / total_qty / total_value / layers / part_name / part_no 등) #}
+{# v5H226z1007 (2026-07-18) — 디자인 통일 Phase 4: knk 전환(머리글·빈상태·버튼)+Sage 브리지. 표·KPI·tfoot 유지.
+   라우터: GET /stock/balances/fifo/{part_id} · 전달: summary(layer_count/total_qty/total_value/layers 등) #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  /* z1007 — pq 토큰 → knk(Sage) 브리지(z1004~z1006 표준). */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .fifo-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.fifo-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.fifo-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.fifo-head .crumb a { color: var(--pq-ink-3); }
-.fifo-head .crumb b { color: var(--pq-ink); }
-.fifo-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); }
-.fifo-meta { font-size: 12px; color: var(--pq-ink-3); }
-.fifo-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.fifo-actions { margin-left: auto; display: flex; gap: 8px; }
-.fifo-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
-.fifo-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+/* z1007 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.fifo-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .kpi-strip { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
 .kpi-cell { padding: 12px 16px; border-right: 1px solid var(--pq-line); }
@@ -63,9 +59,7 @@
 .layer-bar .bar { width: 80px; height: 6px; background: var(--pq-surface-3); border-radius: 3px; overflow: hidden; }
 .layer-bar .fill { height: 100%; background: var(--pq-info); }
 
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+/* z1007 — 빈상태 = knk-empty */
 </style>
 </head>
 <body>
@@ -77,17 +71,17 @@
   <main class="main">
     <div class="fifo-page">
 
-      <div class="fifo-head" data-dn="fifo:head">
+      <header class="knk-page-head" data-dn="fifo:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>FIFO 레이어</b></div>
-          <div class="fifo-title">📚 FIFO 재고 레이어</div>
-          <div class="fifo-meta" style="margin-top:4px;">선입선출 — 입고 시점별 잔량 추적</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>FIFO 레이어</b></nav>
+          <h1 class="knk-page-title">FIFO 재고 레이어</h1>
+          <p class="knk-page-meta">선입선출 — 입고 시점별 잔량 추적</p>
         </div>
-        <div class="fifo-actions">
-          <a href="/stock/balances">📦 재고 현황</a>
-          {% if summary and summary.part_id %}<a href="/parts/{{ summary.part_id }}">📋 자재 상세</a>{% endif %}
+        <div class="knk-page-actions">
+          <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
+          {% if summary and summary.part_id %}<a class="knk-btn knk-btn--ghost" href="/parts/{{ summary.part_id }}"><i class="ti ti-clipboard-list"></i> 자재 상세</a>{% endif %}
         </div>
-      </div>
+      </header>
 
       {% if summary %}
       <div class="kpi-strip" data-dn="fifo:kpi" data-dn-tone="green">
@@ -160,11 +154,11 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty"><div class="ico">📚</div><div class="ttl">FIFO 레이어 없음</div><div style="font-size:12px;">입고 이력이 없거나 모든 레이어가 소진됨</div></div>
+      <div class="knk-empty"><i class="ti ti-stack-2"></i><p class="knk-empty__title">FIFO 레이어 없음</p><p class="knk-empty__desc">입고 이력이 없거나 모든 레이어가 소진됨</p></div>
       {% endif %}
 
       {% else %}
-      <div class="po-empty" data-dn="fifo:empty"><div class="ico">📚</div><div class="ttl">FIFO 데이터 없음</div></div>
+      <div class="knk-empty" data-dn="fifo:empty"><i class="ti ti-stack-2"></i><p class="knk-empty__title">FIFO 데이터 없음</p></div>
       {% endif %}
 
     </div>

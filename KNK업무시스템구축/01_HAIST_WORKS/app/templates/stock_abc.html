@@ -5,34 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ABC 분류 · KNK HAIST WORKS</title>
 
-{# v5H226z57 시안1 + 룰 v4 — 실무팀3 ABC 분류 #}
+{# v5H226z1007 (2026-07-18) — 디자인 통일 Phase 4: knk 전환(머리글·빈상태)+Sage 브리지. 표·KPI·칩 유지. #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
+  /* z1007 — pq 토큰 → knk(Sage) 브리지(z1004~z1006 표준). */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .ab-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.ab-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.ab-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.ab-head .crumb a { color: var(--pq-ink-3); }
-.ab-head .crumb b { color: var(--pq-ink); }
-.ab-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.ab-meta { font-size: 12px; color: var(--pq-ink-3); }
-.ab-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
+/* z1007 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.ab-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
 .kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
@@ -66,9 +66,7 @@
 .cum-bar { display: inline-block; width: 100px; height: 8px; background: var(--pq-surface-3); border-radius: 4px; vertical-align: middle; overflow: hidden; }
 .cum-fill { height: 100%; background: var(--pq-ink); }
 
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+/* z1007 — 빈상태 = knk-empty */
 
 @media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
 </style>
@@ -82,17 +80,13 @@
   <main class="main">
     <div class="ab-page">
 
-      <div class="ab-head" data-dn="abc:head">
+      <header class="knk-page-head" data-dn="abc:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>ABC 분류</b></div>
-          <div class="ab-title">ABC 분류 분석</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>ABC 분류</b></nav>
+          <h1 class="knk-page-title">ABC 분류 분석</h1>
+          <p class="knk-page-meta">최근 <span class="knk-num">{{ days|default(90) }}</span>일 출고 누적 매출 기준 · 분류 자재 <span class="knk-num">{{ '{:,}'.format(total) }}</span>종</p>
         </div>
-        <div class="ab-meta">
-          <span>최근 <span class="pm-num">{{ days|default(90) }}</span>일 출고 누적 매출 기준</span>
-          <span>·</span>
-          <span>분류 자재 <span class="pm-num">{{ '{:,}'.format(total) }}</span>종</span>
-        </div>
-      </div>
+      </header>
 
       <div class="kpi-strip" data-dn="abc:kpi" data-dn-tone="green">
         <div class="kpi-cell">
@@ -152,10 +146,10 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty" data-dn="abc:empty">
-        <div class="ico">📊</div>
-        <div class="ttl">분류 데이터 없음</div>
-        <div style="font-size:12.5px;">최근 {{ days|default(90) }}일 출고 이력이 없습니다.</div>
+      <div class="knk-empty" data-dn="abc:empty">
+        <i class="ti ti-chart-bar"></i>
+        <p class="knk-empty__title">분류 데이터 없음</p>
+        <p class="knk-empty__desc">최근 {{ days|default(90) }}일 출고 이력이 없습니다.</p>
       </div>
       {% endif %}
 

@@ -5,43 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>재발주 권고 · KNK HAIST WORKS</title>
 
-{# v5H226z57 시안1 + 룰 v4 — 실무팀3 재발주 권고 #}
+{# v5H226z1007 (2026-07-18) — 디자인 통일 Phase 4: knk 전환(머리글·빈상태·버튼)+Sage 브리지. 표·KPI·칩 유지. #}
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-line-3: #cbd5e1;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
+  /* z1007 — pq 토큰 → knk(Sage) 브리지(z1004~z1006 표준). */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .sr-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.sr-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.sr-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.sr-head .crumb a { color: var(--pq-ink-2); }
-.sr-head .crumb b { color: var(--pq-ink); }
-.sr-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.sr-meta { font-size: 12px; color: var(--pq-ink-3); }
-.sr-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.sr-actions { margin-left: auto; display: flex; gap: 8px; }
-.sr-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.sr-actions a.btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
-.sr-actions a.btn-ghost:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
-.sr-actions a.btn-dark { background: var(--pq-ink); color: #fff; padding: 0 14px; font-weight: 600; }
-.sr-actions a.btn-dark:hover { background: #1e293b; }
+/* z1007 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.sr-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
 .kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
@@ -81,13 +72,10 @@
 }
 .btn-po-line:hover { background: #1e293b; }
 
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+/* z1007 — 빈상태 = knk-empty */
 
 @media (max-width: 1023px) {
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
-  .sr-head { padding: 10px 16px; }
 }
 </style>
 </head>
@@ -102,22 +90,18 @@
   <main class="main">
     <div class="sr-page">
 
-      <div class="sr-head" data-dn="sr:head">
+      <header class="knk-page-head" data-dn="sr:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>재발주 권고</b></div>
-          <div class="sr-title">재발주 권고</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>재발주 권고</b></nav>
+          <h1 class="knk-page-title">재발주 권고</h1>
+          <p class="knk-page-meta">대상 <span class="knk-num">{{ '{:,}'.format(total_cnt) }}</span>종 · <span style="color:var(--knk-danger,#A33A3E);">긴급 {{ high_cnt }}</span></p>
         </div>
-        <div class="sr-meta">
-          <span>대상 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>종</span>
-          <span>·</span>
-          <span style="color: var(--pq-danger);">긴급 {{ high_cnt }}</span>
+        <div class="knk-page-actions">
+          <a class="knk-btn knk-btn--ghost" href="/stock/safety"><i class="ti ti-target"></i> 안전재고 설정</a>
+          <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
+          <a class="knk-btn knk-btn--primary" href="/po/new"><i class="ti ti-plus"></i> 신규 발주</a>
         </div>
-        <div class="sr-actions">
-          <a class="btn-ghost" href="/stock/safety">🎯 안전재고 설정</a>
-          <a class="btn-ghost" href="/stock/balances">📦 재고 현황</a>
-          <a class="btn-dark" href="/po/new">＋ 신규 발주</a>
-        </div>
-      </div>
+      </header>
 
       <div class="kpi-strip" data-dn="sr:kpi" data-dn-tone="green">
         <div class="kpi-cell">
@@ -187,10 +171,10 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty" data-dn="sr:empty">
-        <div class="ico">✓</div>
-        <div class="ttl">재발주 권고 없음</div>
-        <div style="font-size:12.5px; color:var(--pq-ink-3);">모든 자재가 재발주점 이상 보유 상태</div>
+      <div class="knk-empty" data-dn="sr:empty">
+        <i class="ti ti-circle-check"></i>
+        <p class="knk-empty__title">재발주 권고 없음</p>
+        <p class="knk-empty__desc">모든 자재가 재발주점 이상 보유 상태</p>
       </div>
       {% endif %}
 
