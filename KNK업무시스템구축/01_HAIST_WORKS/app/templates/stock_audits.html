@@ -12,35 +12,32 @@
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
+{# v5H226z1008 (2026-07-19) — 디자인 통일 Phase 4: knk 전환(머리글·발의버튼·빈상태)+Sage 브리지. 표·KPI·칩 유지. #}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  /* z1008 — pq 토큰 → knk(Sage) 브리지(z1004~z1007 표준). */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-err: var(--knk-danger, #A33A3E);       --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .au-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.au-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.au-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.au-head .crumb a { color: var(--pq-ink-3); }
-.au-head .crumb b { color: var(--pq-ink); }
-.au-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.au-meta { font-size: 12px; color: var(--pq-ink-3); }
-.au-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.au-actions { margin-left: auto; display: flex; gap: 8px; }
-.au-actions form, .au-actions a { display: inline-flex; }
-.au-actions button, .au-actions a { height: 32px; padding: 0 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; cursor: pointer; font-family: inherit; background: var(--pq-ink); color: #fff; border: 1px solid var(--pq-ink); }
-.au-actions button:hover, .au-actions a:hover { background: #1e293b; }
+/* z1008 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.au-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .kpi-strip { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
 .kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
@@ -70,11 +67,7 @@
 .chip-au.s-closed { background: var(--pq-ok-soft); color: var(--pq-ok); }
 .chip-au.s-other  { background: var(--pq-surface-3); color: var(--pq-ink-4); }
 
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
-.po-empty .cta { margin-top: 16px; }
-.po-empty .cta button { padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; border: 0; cursor: pointer; font-family: inherit; }
+/* z1008 — 빈상태 = knk-empty(공통) */
 </style>
 </head>
 <body>
@@ -90,19 +83,19 @@
   <main class="main">
     <div class="au-page">
 
-      <div class="au-head" data-dn="au:head">
+      <header class="knk-page-head" data-dn="au:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>실사</b></div>
-          <div class="au-title">📋 재고 실사 (Stock Audit)</div>
-          <div class="au-meta" style="margin-top:4px;">정기/임시 실사 + 차이 보정 자동화. 분기 1회 권장.</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>실사</b></nav>
+          <h1 class="knk-page-title">재고 실사 (Stock Audit)</h1>
+          <p class="knk-page-meta">정기/임시 실사 + 차이 보정 자동화. 분기 1회 권장.</p>
         </div>
-        <div class="au-actions">
+        <div class="knk-page-actions">
           <form method="post" action="/stock/audits/new" style="margin:0;">
             <input type="hidden" name="note" value="" />
-            <button type="submit" onclick="return confirm('새 실사를 발의하시겠습니까?\\n실사 시작 후 자재별 실측 수량을 입력합니다.');">＋ 실사 발의</button>
+            <button type="submit" class="knk-btn knk-btn--primary" onclick="return confirm('새 실사를 발의하시겠습니까?\\n실사 시작 후 자재별 실측 수량을 입력합니다.');"><i class="ti ti-plus"></i> 실사 발의</button>
           </form>
         </div>
-      </div>
+      </header>
 
       <div class="kpi-strip" data-dn="au:kpi" data-dn-tone="green">
         <div class="kpi-cell">
@@ -157,16 +150,14 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty" data-dn="au:empty">
-        <div class="ico">📋</div>
-        <div class="ttl">실사 이력 없음</div>
-        <div style="font-size:12.5px;margin-top:4px;">실사를 발의하여 자재별 실측 수량을 기록하세요.</div>
-        <div class="cta">
-          <form method="post" action="/stock/audits/new" style="display:inline;">
-            <input type="hidden" name="note" value="" />
-            <button type="submit">＋ 첫 실사 발의</button>
-          </form>
-        </div>
+      <div class="knk-empty" data-dn="au:empty">
+        <i class="ti ti-clipboard-list"></i>
+        <p class="knk-empty__title">실사 이력 없음</p>
+        <p class="knk-empty__desc">실사를 발의하여 자재별 실측 수량을 기록하세요.</p>
+        <form method="post" action="/stock/audits/new" style="display:inline; margin-top:14px;">
+          <input type="hidden" name="note" value="" />
+          <button type="submit" class="knk-btn knk-btn--primary"><i class="ti ti-plus"></i> 첫 실사 발의</button>
+        </form>
       </div>
       {% endif %}
 

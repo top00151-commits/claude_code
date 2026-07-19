@@ -9,24 +9,32 @@
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z57" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
+{# v5H226z1008 (2026-07-19) — 디자인 통일 Phase 4: knk 전환(머리글·버튼·빈상태·포커스)+Sage 브리지. 인라인 저장폼·필터·토스트·표·KPI 유지. #}
 <style>
 :root {
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-danger: #b91c1c;   --pq-danger-soft: #fef2f2;
+  /* z1008 — pq 토큰 → knk(Sage) 브리지(z1004~z1007 표준). 안전재고는 전역 pq 상속이라 풀 브리지. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-err: var(--knk-danger, #A33A3E);       --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .ss-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.ss-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.ss-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.ss-head .crumb a { color: var(--pq-ink-2); }
-.ss-head .crumb b { color: var(--pq-ink); }
-.ss-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.ss-meta { font-size: 12px; color: var(--pq-ink-3); }
-.ss-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.ss-actions { margin-left: auto; display: flex; gap: 8px; }
-.ss-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-2); }
-.ss-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
+/* z1008 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.ss-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); }
 .kpi-cell { padding: 10px 14px; border-right: 1px solid var(--pq-line); }
@@ -66,20 +74,17 @@
   background: var(--pq-surface); color: var(--pq-ink);
   font-family: var(--pq-mono); font-size: 12px; text-align: right;
 }
-.inline-input:focus { outline: none; border-color: var(--pq-ink); box-shadow: 0 0 0 2px rgba(15,23,42,0.08); }
+.inline-input:focus { outline: none; border-color: var(--knk-focus, #3E6F89); box-shadow: 0 0 0 2px rgba(62,111,137,0.15); }
 .btn-save {
   height: 26px; padding: 0 10px; background: var(--pq-ink); color: #fff;
   border: 0; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;
 }
 .btn-save:hover { background: #1e293b; }
 
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
+/* z1008 — 빈상태 = knk-empty(공통) */
 
 @media (max-width: 1023px) {
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
-  .ss-head { padding: 10px 16px; }
 }
 </style>
 </head>
@@ -104,21 +109,17 @@
   <main class="main">
     <div class="ss-page">
 
-      <div class="ss-head" data-dn="ss:head">
+      <header class="knk-page-head" data-dn="ss:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>안전재고 설정</b></div>
-          <div class="ss-title">안전재고 / 재발주점 설정</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>안전재고 설정</b></nav>
+          <h1 class="knk-page-title">안전재고 / 재발주점 설정</h1>
+          <p class="knk-page-meta">전체 <span class="knk-num">{{ '{:,}'.format(total_cnt) }}</span>종 · 설정됨 <span class="knk-num">{{ '{:,}'.format(ns.set_count) }}</span></p>
         </div>
-        <div class="ss-meta">
-          <span>전체 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>종</span>
-          <span>·</span>
-          <span>설정됨 <span class="pm-num">{{ '{:,}'.format(ns.set_count) }}</span></span>
+        <div class="knk-page-actions">
+          <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
+          <a class="knk-btn knk-btn--ghost" href="/stock/reorder-recommendations"><i class="ti ti-refresh"></i> 재주문 권고</a>
         </div>
-        <div class="ss-actions">
-          <a href="/stock/balances">📦 재고 현황</a>
-          <a href="/stock/reorder-recommendations">🔄 재주문 권고</a>
-        </div>
-      </div>
+      </header>
 
       <div class="kpi-strip" data-dn="ss:kpi" data-dn-tone="green">
         <div class="kpi-cell">
@@ -201,9 +202,9 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty" data-dn="ss:empty">
-        <div class="ico">🎯</div>
-        <div class="ttl">{% if q %}검색 결과 없음{% else %}활성 자재 없음{% endif %}</div>
+      <div class="knk-empty" data-dn="ss:empty">
+        <i class="ti ti-target"></i>
+        <p class="knk-empty__title">{% if q %}검색 결과 없음{% else %}활성 자재 없음{% endif %}</p>
       </div>
       {% endif %}
 

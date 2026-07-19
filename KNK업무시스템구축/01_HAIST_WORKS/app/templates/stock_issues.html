@@ -13,37 +13,32 @@
 
 <link href="/static/css/v5_tokens.css?v=20260511v5H226z58" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
+{# v5H226z1008 (2026-07-19) — 디자인 통일 Phase 4: knk 전환(머리글·버튼·빈상태)+Sage 브리지. 표·KPI·칩·배너 유지. #}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  /* z1008 — pq 토큰 → knk(Sage) 브리지(z1004~z1007 표준). */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-line-3: var(--knk-border-strong, #B9C2BB);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F6B4F);       --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);        --pq-info-soft: var(--knk-info-subtle, #EEF3F7);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-err: var(--knk-danger, #A33A3E);       --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .gi-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.gi-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.gi-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.gi-head .crumb a { color: var(--pq-ink-3); }
-.gi-head .crumb b { color: var(--pq-ink); }
-.gi-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.gi-meta { font-size: 12px; color: var(--pq-ink-3); }
-.gi-meta .pm-num { font-family: var(--pq-mono); font-weight: 700; color: var(--pq-ink); }
-.gi-actions { margin-left: auto; display: flex; gap: 8px; }
-.gi-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.gi-actions a.btn-ghost { background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
-.gi-actions a.btn-ghost:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
-.gi-actions a.btn-dark { background: var(--pq-ink); border: 1px solid var(--pq-ink); color: #fff; font-weight: 600; }
-.gi-actions a.btn-dark:hover { background: #1e293b; }
+/* z1008 — 머리글 = knk-page-head. 페이지엔 배경 보정만. */
+.gi-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
 
 /* Success / Error 배너 */
 .banner { padding: 10px 14px; margin: 12px 24px 0; border-radius: 8px; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }
@@ -81,14 +76,9 @@
 .chip-iss.CANCELLED { background: var(--pq-surface-3);    color: var(--pq-ink-4); text-decoration: line-through; }
 .chip-iss.UNKNOWN   { background: var(--pq-surface-3);    color: var(--pq-ink-4); }
 
-.po-empty { padding: 64px 20px; text-align: center; color: var(--pq-ink-3); background: var(--pq-surface); }
-.po-empty .ico { font-size: 40px; opacity: 0.6; }
-.po-empty .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
-.po-empty .sub { font-size: 12.5px; }
-.po-empty .cta { margin-top: 16px; }
-.po-empty .cta a { display: inline-block; padding: 8px 14px; background: var(--pq-ink); color: #fff; text-decoration: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; }
+/* z1008 — 빈상태 = knk-empty(공통) */
 
-@media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } .gi-head { padding: 10px 16px; } }
+@media (max-width: 1023px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
 <body>
@@ -107,22 +97,18 @@
     <div class="gi-page">
 
       <!-- 헤더 -->
-      <div class="gi-head" data-dn="gi:head">
+      <header class="knk-page-head" data-dn="gi:head">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>출고 이력</b></div>
-          <div class="gi-title">출고 (GI · Goods Issue)</div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/stock">재고</a> · <b>출고 이력</b></nav>
+          <h1 class="knk-page-title">출고 (GI · Goods Issue)</h1>
+          <p class="knk-page-meta">최근 <span class="knk-num">{{ '{:,}'.format(total_cnt) }}</span>건 · 총 출고량 <span class="knk-num">{{ '{:,.0f}'.format(total_qty) }}</span></p>
         </div>
-        <div class="gi-meta">
-          <span>최근 <span class="pm-num">{{ '{:,}'.format(total_cnt) }}</span>건</span>
-          <span>·</span>
-          <span>총 출고량 <span class="pm-num">{{ '{:,.0f}'.format(total_qty) }}</span></span>
+        <div class="knk-page-actions">
+          <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
+          <a class="knk-btn knk-btn--ghost" href="/stock/receipts"><i class="ti ti-download"></i> 입고 이력</a>
+          <a class="knk-btn knk-btn--primary" href="/stock/issue"><i class="ti ti-plus"></i> 출고 등록</a>
         </div>
-        <div class="gi-actions">
-          <a class="btn-ghost" href="/stock/balances">📦 재고 현황</a>
-          <a class="btn-ghost" href="/stock/receipts">📥 입고 이력</a>
-          <a class="btn-dark" href="/stock/issue">＋ 출고 등록</a>
-        </div>
-      </div>
+      </header>
 
       <!-- ?success= / ?error= 배너 -->
       {% if request.query_params.get('success') %}
@@ -197,11 +183,11 @@
         </table>
       </div>
       {% else %}
-      <div class="po-empty" data-dn="gi:empty">
-        <div class="ico">📤</div>
-        <div class="ttl">출고 이력 없음</div>
-        <div class="sub">＋ 출고 등록으로 첫 출고를 기록하세요.</div>
-        <div class="cta"><a href="/stock/issue">＋ 출고 등록</a></div>
+      <div class="knk-empty" data-dn="gi:empty">
+        <i class="ti ti-file-export"></i>
+        <p class="knk-empty__title">출고 이력 없음</p>
+        <p class="knk-empty__desc">＋ 출고 등록으로 첫 출고를 기록하세요.</p>
+        <a class="knk-btn knk-btn--primary" href="/stock/issue" style="margin-top:14px;"><i class="ti ti-plus"></i> 출고 등록</a>
       </div>
       {% endif %}
 
