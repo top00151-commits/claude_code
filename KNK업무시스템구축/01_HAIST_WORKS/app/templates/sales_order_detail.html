@@ -4,13 +4,15 @@
 <style>
 /* v5H226z47: 시안1 토큰 + .mgmt-pill — sales_order_detail v1 차수 */
 body {
-  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
-  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
+  /* z1016: --qv → knk Sage 브리지 */
+  --qv-surface:var(--knk-bg-surface,#FAFBF9); --qv-surface-2:var(--knk-bg-inset,#F6F7F4); --qv-line:var(--knk-border-subtle,#E2E6E1);
+  --qv-ink:var(--knk-text-primary,#27302B); --qv-ink-2:var(--knk-text-secondary,#46524B); --qv-ink-3:var(--knk-text-muted,#657169);
   --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
 }
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding-left: var(--content-pad); padding-right: var(--content-pad); }
 @media (max-width: 1100px) {
   .bento { grid-template-columns: repeat(2, 1fr) !important; }
-  .page-title { font-size: 22px; }
+  .knk-page-title { font-size: 22px; }
 }
 /* z452 mobile: 송장+수금 2단 그리드가 폰에서 좌우로 쪼개져 표가 너무 좁아짐 → 세로로 쌓기 */
 @media (max-width: 768px) {
@@ -20,26 +22,25 @@ body {
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}{% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="main" data-dn-tone="amber">
-  <div class="page-head" data-dn="page-head">
+  <header class="knk-page-head" data-dn="page-head">
     <div>
-      <div class="crumbs" data-dn="crumb"><a href="/sales/orders">수주</a> · <b>{{ order.order_no }}</b></div>
-      <div class="page-meta">SALES ORDER DETAIL</div>
-      <h1 class="page-title">{{ order.order_no }} <em>{{ (cust_alias|default({},true)).get(order.customer_id) or order.customer_name|default('-') }}</em></h1>
-      <div style="font-size:13px; color:var(--ink); margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+      <nav class="knk-breadcrumb"><a href="/sales/orders">수주</a> · <b>{{ order.order_no }}</b></nav>
+      <h1 class="knk-page-title">{{ order.order_no }} {{ (cust_alias|default({},true)).get(order.customer_id) or order.customer_name|default('-') }}</h1>
+      <div class="knk-page-meta" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:13px;margin-top:6px;">
         {% if order.mgmt_code %}
         {# v5H226z47: amber 텍스트 → .mgmt-pill 잉크 알약 #}
         <span><a href="/project/{{ order.project_id }}" class="mgmt-pill">{{ order.mgmt_code }}</a></span>
         {% endif %}
-        {% if order.project_name %}<span style="color:var(--mute);">📂 {{ order.project_name }}</span>{% endif %}
-        {% if order.biz_div %}<span style="color:var(--mute);">{{ 'T·검사기' if order.biz_div == 'T' else 'M·자동화' if order.biz_div == 'M' else order.biz_div }}</span>{% endif %}
-        {% if order.model_name %}<span style="color:var(--mute);">모델 {{ order.model_name }}</span>{% endif %}
-        <span style="color:var(--mute);">📅 {{ order.order_date }} → {{ order.due_date|default('-') }}</span>
-        {% if order.ship_to %}<span style="color:var(--mute);">📍 {{ order.ship_to }}</span>{% endif %}
-        <span style="color:var(--mute);">💱 {{ order.currency or 'KRW' }}</span>
+        {% if order.project_name %}<span>📂 {{ order.project_name }}</span>{% endif %}
+        {% if order.biz_div %}<span>{{ 'T·검사기' if order.biz_div == 'T' else 'M·자동화' if order.biz_div == 'M' else order.biz_div }}</span>{% endif %}
+        {% if order.model_name %}<span>모델 {{ order.model_name }}</span>{% endif %}
+        <span>📅 {{ order.order_date }} → {{ order.due_date|default('-') }}</span>
+        {% if order.ship_to %}<span>📍 {{ order.ship_to }}</span>{% endif %}
+        <span>💱 {{ order.currency or 'KRW' }}</span>
         {% with status=order.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
       </div>
     </div>
-  </div>
+  </header>
 
   <!-- KPI -->
   <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
@@ -191,7 +192,7 @@ body {
         <tr>
           <td style="font-size:12px;font-family:monospace;color:var(--mute);">{{ h.changed_at|default('-') }}</td>
           <td style="font-weight:600;">{{ h.changed_by_name or '시스템' }}</td>
-          <td><span style="background:var(--paper-2);padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:700;color:var(--amber-deep);">{{ h.field|default('-') }}</span></td>
+          <td><span style="background:var(--knk-bg-inset,#F6F7F4);padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:700;color:var(--amber-deep);">{{ h.field|default('-') }}</span></td>
           <td>
             {% if h.old_value or h.new_value %}
               <span style="color:var(--mute);text-decoration:line-through;">{{ h.old_value|default('—') }}</span>
