@@ -16,12 +16,15 @@
 /* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z45: 시안1 디자인 토큰 — sales_home v1 차수 (project_detail.html z41 / sales_orders z44 와 동일) */
 body {
-  --qv-surface:   #ffffff;
-  --qv-surface-2: #f7f8fa;
-  --qv-line:      #eef0f4;
-  --qv-ink:       #0f172a;
-  --qv-ink-2:     #334155;
-  --qv-ink-3:     #64748b;
+  /* z1011: --qv → knk Sage 브리지 (흰/슬레이트 → Soft Neutral Sage). 3지표·사업부·경고색은 인라인 유지 */
+  --qv-surface:   var(--knk-bg-surface, #FAFBF9);
+  --qv-surface-2: var(--knk-bg-inset, #F6F7F4);
+  --qv-surface-3: var(--knk-bg-inset, #F6F7F4);
+  --qv-line:      var(--knk-border-subtle, #E2E6E1);
+  --qv-line-3:    var(--knk-border-default, #D4DAD4);
+  --qv-ink:       var(--knk-text-primary, #27302B);
+  --qv-ink-2:     var(--knk-text-secondary, #46524B);
+  --qv-ink-3:     var(--knk-text-muted, #657169);
   --biz-t: #c2410c;
   --biz-m: #1e40af;
   --biz-e: #6d28d9;
@@ -40,7 +43,7 @@ body { overflow: hidden !important; }
 }
 .main::-webkit-scrollbar { display: none; }
 /* 고정 영역 (page-head, KPI, 차트 grid-2) — flex-shrink: 0 */
-.main > .page-head,
+.main > .knk-page-head,
 .main > .kpi-row,
 .main > .grid-2[data-dn="grid-biz-stage"] { flex-shrink: 0; }
 /* 마지막 grid-2 (TOP5 + 최근 프로젝트) — 남은 공간 차지 + 자체 overflow 차단 */
@@ -71,15 +74,8 @@ body { overflow: hidden !important; }
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 /* chrome (.app/.top/.sidebar/.main/.sb-*/.top-*/.menu-code) — _v5_partials/styles.html 사용 */
 
-.page-head { padding: var(--space-6) var(--content-pad) var(--space-3); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.page-meta { font-size: 11px; color: var(--qv-ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
-.page-title { font-size: 28px; font-weight: 700; color: var(--qv-ink); letter-spacing: -0.02em; margin-top: 4px; }
-.page-title em { font-style: normal; background: var(--qv-ink); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: var(--knk-red); }
-.page-actions { display: flex; gap: 8px; }
-.btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-md); border: 0; cursor: pointer; transition: all .18s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--qv-ink); color: white; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
-.btn-secondary { background: var(--qv-surface); border: 1px solid var(--qv-line); color: var(--qv-ink); }
-.btn-secondary:hover { background: var(--qv-surface-2); }
+/* z1011: 머리글 = knk-page-head (고정뷰포트 flex 첫 자식) — Sage 배경밴드 + KPI행과 좌우 정렬(content-pad) */
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding-left: var(--content-pad); padding-right: var(--content-pad); }
 
 .kpi-row { margin: var(--space-4) var(--content-pad) 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
 .kpi { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); position: relative; overflow: hidden; transition: all .18s; }
@@ -130,8 +126,8 @@ body { overflow: hidden !important; }
 @media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } .kpi.hero { grid-column: span 2; } .grid-2 { grid-template-columns: 1fr; } }
 /* v5H226z45: 1100px 이하 반응형 — 작은 노트북/모니터 깨짐 방지 */
 @media (max-width: 1100px) {
-  .page-head { padding: var(--space-4) var(--content-pad) var(--space-2); }
-  .page-title { font-size: 22px; }
+  .main > .knk-page-head { padding-top: var(--space-4); padding-bottom: var(--space-2); }
+  .knk-page-title { font-size: 22px; }
   .kpi-row { grid-template-columns: 1fr; gap: var(--space-2); margin-top: var(--space-3); }
   .kpi.hero { grid-column: span 1; }
   .kpi.hero .kpi-num { font-size: 28px; }
@@ -153,13 +149,13 @@ body { overflow: hidden !important; }
   {% set active_tab = 'sales' %}
   {% include "_v5_partials/chrome.html" with context %}
   <main class="main" data-dn="main" data-dn-tone="amber">
-    <div class="page-head" data-dn="page-head">
+    <header class="knk-page-head" data-dn="page-head">
       <div>
-        <div class="page-meta" data-dn="crumb">{{ today }} · 영업현황</div>
-        <h1 class="page-title" data-dn="title">매출영업<em>센터</em></h1>
+        <nav class="knk-breadcrumb"><b>매출영업센터</b></nav>
+        <h1 class="knk-page-title">매출영업센터</h1>
+        <p class="knk-page-meta">{{ today }} · 영업현황</p>
       </div>
-      {# v5H74: 페이지헤더 액션 버튼 제거 — 좌측 사이드바와 중복 #}
-    </div>
+    </header>
 
     {# v5H226z925 (대표 지시): 매출 3지표 — 수주매출(발주일)·진행매출(출하일)·최종매출(세금계산서 발행일). 공급가(부가세 제외) #}
     <!-- KPI -->
