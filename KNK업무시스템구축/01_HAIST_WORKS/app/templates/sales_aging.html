@@ -4,11 +4,13 @@
 <style>
 /* v5H226z59: 시안1 토큰 — sales_aging v1+v2 */
 body {
-  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
-  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
+  /* z1012: --qv → knk Sage 브리지 */
+  --qv-surface:var(--knk-bg-surface,#FAFBF9); --qv-surface-2:var(--knk-bg-inset,#F6F7F4); --qv-line:var(--knk-border-subtle,#E2E6E1);
+  --qv-ink:var(--knk-text-primary,#27302B); --qv-ink-2:var(--knk-text-secondary,#46524B); --qv-ink-3:var(--knk-text-muted,#657169);
   --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
 }
-@media (max-width:1100px){ .page-title{font-size:22px;} .bento{grid-template-columns:repeat(3,1fr) !important;} }
+@media (max-width:1100px){ .knk-page-title{font-size:22px;} .bento{grid-template-columns:repeat(3,1fr) !important;} }
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding-left: var(--content-pad); padding-right: var(--content-pad); }
 /* z452 mobile */
 @media (max-width:768px){ .bento{grid-template-columns:repeat(2,1fr) !important;} }
 .heat-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -26,10 +28,13 @@ body {
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="main" data-dn-tone="amber">
-  <div class="page-head" data-dn="page-head">
-    <div><div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>연체 분석</b></div><h1 class="page-title" data-dn="title">📊 <em>연체</em> 분석 (Aging)</h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">연체일 구간별 매트릭스 · 0-30 / 31-60 / 61-90 / 90+ 일</div></div>
-  </div>
+  <header class="knk-page-head" data-dn="page-head">
+    <div>
+      <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · <b>연체 분석</b></nav>
+      <h1 class="knk-page-title">📊 연체 분석 (Aging)</h1>
+      <p class="knk-page-meta">연체일 구간별 매트릭스 · 0-30 / 31-60 / 61-90 / 90+ 일</p>
+    </div>
+  </header>
 
   <div class="bento" data-dn="kpi-buckets" data-dn-tone="green" style="grid-template-columns:repeat(5,1fr);grid-auto-rows:110px;">
     <div class="kpi-card"><div class="kpi-label">총 미수</div><div class="kpi-num">{{ '{:,.0f}'.format(s.total|default(0)) }}<span class="unit">원</span></div></div>
