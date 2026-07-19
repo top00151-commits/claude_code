@@ -17,34 +17,27 @@
 {% include "_v5_partials/styles.html" %}
 <style>
 :root {
-  --pq-surface: #ffffff;
-  --pq-surface-2: #f7f8fa;
-  --pq-surface-3: #eef0f4;
-  --pq-surface-inset: #fafbfc;
-  --pq-line: #eef0f4;
-  --pq-line-2: #e2e8f0;
-  --pq-ink: #0f172a;
-  --pq-ink-2: #334155;
-  --pq-ink-3: #64748b;
-  --pq-ink-4: #94a3b8;
-  --pq-ok: #0d7c4f;       --pq-ok-soft: #ecfdf5;
-  --pq-info: #1e5fbf;     --pq-info-soft: #eff6ff;
-  --pq-warn: #b45309;     --pq-warn-soft: #fef3c7;
-  --pq-err: #b91c1c;      --pq-err-soft: #fef2f2;
+  /* z1010 (대표 지시·Phase4 마무리): pq→knk Sage 브리지 — 흰색 토큰을 knk Sage 시맨틱 토큰으로(폴백 병기).
+     유지 위젯(단계바·qsec·KPI·tbl-erp·칩·업로드존·submit-bar)까지 색만 자동 통일. */
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-surface-3: var(--knk-bg-subtle, #EAEEE9);
+  --pq-surface-inset: var(--knk-bg-inset, #F6F7F4);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-ok: var(--knk-success, #2F855A);    --pq-ok-soft: var(--knk-success-subtle, #EDF5F0);
+  --pq-info: var(--knk-info, #2E5F8A);     --pq-info-soft: var(--knk-info-subtle, #E7EFF3);
+  --pq-warn: var(--knk-warning, #B45309);  --pq-warn-soft: var(--knk-warning-subtle, #FBEED9);
+  --pq-err: var(--knk-danger, #A5282C);    --pq-err-soft: var(--knk-danger-subtle, #F7ECEC);
   --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 .pi-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.pi-head { padding: 14px 24px 12px; background: var(--pq-surface); border-bottom: 1px solid var(--pq-line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.pi-head .crumb { font-size: 12px; color: var(--pq-ink-4); }
-.pi-head .crumb a { color: var(--pq-ink-3); }
-.pi-head .crumb b { color: var(--pq-ink); }
-.pi-title { font-size: 22px; font-weight: 700; color: var(--pq-ink); letter-spacing: -0.01em; }
-.pi-meta { font-size: 12px; color: var(--pq-ink-3); margin-top: 4px; }
-.pi-actions { margin-left: auto; display: flex; gap: 8px; }
-.pi-actions a { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: transparent; border: 1px solid var(--pq-line-2); color: var(--pq-ink-3); }
-.pi-actions a:hover { background: var(--pq-surface-2); color: var(--pq-ink); }
-.pi-actions a.cta { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
-.pi-actions a.cta:hover { background: #1e293b; }
+/* z1010: 머리글=공용 knk-page-head. .pi-page(고정 뷰포트 flex) 안에서 배경·경계만 페이지 스코프로 지정. */
+.pi-page > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); flex: none; }
 
 .pi-body { flex: 1; overflow: auto; background: var(--pq-surface-2); padding: 14px 20px; }
 
@@ -76,6 +69,7 @@
 .upload-zone .drop .ttl { font-size: 15px; font-weight: 700; color: var(--pq-ink); margin: 8px 0 4px; }
 .upload-zone .drop .sub { font-size: 12px; color: var(--pq-ink-3); margin-bottom: 14px; }
 .upload-zone input[type=file] { font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--pq-line-2); border-radius: 6px; background: var(--pq-surface); margin-bottom: 10px; }
+.upload-zone input[type=file]:focus { outline: none; border-color: var(--knk-focus, #3E6F89); box-shadow: 0 0 0 3px rgba(62,111,137,0.15); }
 .upload-zone .btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
 .upload-zone button, .upload-zone a.btn-dl { height: 36px; padding: 0 18px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; border: 1px solid; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; }
 .upload-zone button.submit { background: var(--pq-ink); color: #fff; border-color: var(--pq-ink); }
@@ -143,19 +137,17 @@
   <main class="main">
     <div class="pi-page">
 
-      <div class="pi-head" data-dn="si:head" data-dn-tone="green">
+      <header class="knk-page-head" data-dn="si:head" data-dn-tone="green">
         <div>
-          <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/suppliers">협력사</a> · <b>일괄 등록</b></div>
-          <div class="pi-title">📥 협력사 일괄 등록 (Excel)</div>
-          <div class="pi-meta">
-            엑셀 업로드 → 검증 미리보기 → 등록 확정 (3단계) · 협력사명 중복, 통화 오류 자동 검사
-          </div>
+          <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/suppliers">협력사</a> · <span>일괄 등록</span></nav>
+          <h1 class="knk-page-title">📥 협력사 일괄 등록 (Excel)</h1>
+          <p class="knk-page-meta">엑셀 업로드 → 검증 미리보기 → 등록 확정 (3단계) · 협력사명 중복·통화 오류 자동 검사</p>
         </div>
-        <div class="pi-actions">
-          <a href="/suppliers">↩ 목록</a>
-          <a href="/suppliers/import/template.xlsx" class="cta">⤓ 빈 템플릿</a>
+        <div class="knk-page-actions">
+          <a href="/suppliers" class="knk-btn knk-btn--ghost">↩ 목록</a>
+          <a href="/suppliers/import/template.xlsx" class="knk-btn knk-btn--primary">⤓ 빈 템플릿</a>
         </div>
-      </div>
+      </header>
 
       <div class="step-bar">
         <div class="step {% if m == 'upload' %}on{% elif m in ('preview','result') %}done{% endif %}">
