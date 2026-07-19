@@ -246,6 +246,13 @@ button { font-family: inherit; cursor: pointer; }
   .top { gap: var(--space-3); }
   .top-tab { padding: 9px 12px; font-size: 12px; }
   .tb-brand div div:last-child { display: none; }  /* 서브타이틀 숨김 */
+  /* z1014(대표 지시·2026-07-19): z990에서 워크스페이스 탭을 .top 밖(책갈피 줄)으로 옮긴 뒤에도
+     옛 최소폭(.top/.app min-width:1280px — 탭 포함 시절 계산·v5H40)이 남아, 1024~1279px 창(노트북·
+     창 반쪽쓰기)에서 .app{overflow:hidden}으로 우측(머리글 액션 버튼·표 우측 컬럼)이 잘렸다.
+     탭이 빠져 .top이 좁아졌으므로 이 구간에서 최소폭 해제 → 화면 폭에 자동으로 맞춤(z1009 소형화면 연장).
+     넘치는 책갈피 탭은 그 줄 안에서 가로 스크롤(🕘 전체목록은 그대로). */
+  .app, .top { min-width: 0; }
+  .knk-ptabs-list { overflow-x: auto; min-width: 0; }
 }
 @media (max-width: 1023px) {
   /* v5H38: 모바일에선 min-width 해제 — 가로 스크롤 없이 단일 컬럼 */
