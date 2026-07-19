@@ -1,0 +1,70 @@
+{# v5H226z1009 (대표 지시): 데이터 표/스크롤 영역 = 화면 남은 높이 자동 채움 — 모니터 크기(노트북 13"~데스크탑 30")에 자동 적응.
+   페이지마다 제각각이던 'max-height: calc(100vh - N px)' 매직넘버(140~330 추측값)를 폐지하고,
+   요소의 실제 시작위치(getBoundingClientRect().top)를 재서 화면 아래까지 채운다.
+   ────────────────────────────────────────────────────────────────────────
+   · opt-in 전용: [data-knk-fill] 을 붙인 요소만 대상(안전 — 잘 되는 기존 표는 그대로).
+   · 기본(max-height) 모드: 내용이 적으면 줄어듦(빈 공간 없음). 데이터 표/목록에 권장.
+   · 강제 높이 모드: [data-knk-fill="grow"] = 지정 높이 + flex:none (flex 눌림 화면용, 통관 입력식).
+   · grow 모드는 넘칠 때 페이지가 스크롤되도록 그 페이지에서 스크롤 컨테이너에 overflow-y:auto 필요.
+   최초 적용=통관 입력(export_prep_detail, grow) → HS사전·연락처·고객사 목록(기본). 표준=디자인통일_현황판 §자동높이. #}
+<style>
+/* JS 미동작(구형/에러) 시 폴백: 최소 높이 보장으로 flex 눌림 방지. 실제 채움은 아래 스크립트가 담당. */
+[data-knk-fill]{ min-height: 340px; }
+</style>
+<script>
+/* z1009 공용 자동높이 헬퍼 — ES5. JS 실패해도(try/catch) 폴백 CSS로 안전. */
+(function(){
+  var GUTTER_MH = 20;   /* max-height 모드: 표 아래 숨쉴 여백 */
+  var GUTTER_GR = 16;   /* grow 모드: 아래 여백 */
+  var FLOOR = 340;      /* 최소 높이(px) — 작은 노트북에서도 이 이상 */
+  function targets(){ return document.querySelectorAll('[data-knk-fill]'); }  /* opt-in 전용 */
+  /* grow 모드: 뒤따르는 형제(안내문·합계 등, 단 다른 fill 영역 제외) 높이만큼 아래 자리 확보 */
+  function trailingReserve(el){
+    var r = 0, s = el.nextElementSibling;
+    while (s){
+      var isFill = (s.hasAttribute && s.hasAttribute('data-knk-fill')) ||
+                   (s.classList && s.classList.contains('tbl-sticky'));
+      if (!isFill) r += (s.offsetHeight || 0);
+      s = s.nextElementSibling;
+    }
+    return r;
+  }
+  function relayout(){
+    try {
+      var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      var els = targets(), i;
+      for (i=0;i<els.length;i++){
+        var el = els[i];
+        var grow = (el.getAttribute && el.getAttribute('data-knk-fill') === 'grow');
+        if (grow){
+          el.style.height = '';                             /* 측정 전 초기화(자기 top 은 위 형제로 결정) */
+          var topG = el.getBoundingClientRect().top;
+          var hG = Math.round(vh - topG - GUTTER_GR - trailingReserve(el));
+          if (hG < FLOOR) hG = FLOOR;
+          el.style.flex = 'none';
+          el.style.maxHeight = 'none';
+          el.style.height = hG + 'px';
+        } else {
+          var topM = el.getBoundingClientRect().top;
+          var hM = Math.round(vh - topM - GUTTER_MH);
+          if (hM < FLOOR) hM = FLOOR;
+          el.style.maxHeight = hM + 'px';                   /* height 아님 → 내용 적으면 줄어듦(빈 공간 없음) */
+        }
+      }
+    } catch(e){ /* 폴백 CSS로 안전 */ }
+  }
+  var raf = null;
+  function schedule(){ if (raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(relayout); }
+  window.knkFill = relayout;                                /* 동적 변경 후 수동 호출용 */
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+  window.addEventListener('load', schedule);
+  document.addEventListener('fullscreenchange', schedule);
+  document.addEventListener('webkitfullscreenchange', schedule);
+  /* 접이식 도구모음(신고서류·박스 등) 펼침/접힘 → 표 시작위치 변화 → 재계산 */
+  document.addEventListener('toggle', function(e){ if (e.target && e.target.tagName === 'DETAILS') schedule(); }, true);
+  if (document.readyState !== 'loading') schedule();
+  else document.addEventListener('DOMContentLoaded', schedule);
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(schedule).catch(function(){}); }
+})();
+</script>

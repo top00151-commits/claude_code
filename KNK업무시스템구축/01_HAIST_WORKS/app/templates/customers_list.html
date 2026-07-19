@@ -13,7 +13,8 @@ body {
 .page-head .btn { padding:6px 12px; font-size:12.5px; line-height:1.3; gap:4px; }
 .page-head .btn.btn-primary { padding:6px 14px; font-weight:700; }
 /* v5H226z76: thead 상하 균형 + 리스트 영역 확대 */
-.tbl-wrap.tbl-sticky { margin-top: var(--space-4); max-height: calc(100vh - 250px) !important; }
+/* z1009: 매직넘버·!important 제거 → 공용 자동높이 헬퍼(knk_autofill·측정값)가 제어. 아래는 JS 미동작 폴백. */
+.tbl-wrap.tbl-sticky { margin-top: var(--space-4); max-height: calc(100vh - 250px); }
 .page-bottom-spacer { height: var(--space-3) !important; }
 /* v5H226z550: 국내/해외 책갈피 탭 + 검색 */
 .cu-tools{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 var(--content-pad); }
@@ -81,7 +82,7 @@ th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
     <span style="margin-left:auto;font-size:11.5px;color:var(--mute);">⚠ 프로젝트/수주가 연결된 고객사는 삭제 차단됩니다</span>
   </div>
   {% endif %}
-  <div class="tbl-wrap tbl-sticky">
+  <div class="tbl-wrap tbl-sticky" data-knk-fill>
     {% if customers %}
     <table class="tbl">
       <thead><tr>

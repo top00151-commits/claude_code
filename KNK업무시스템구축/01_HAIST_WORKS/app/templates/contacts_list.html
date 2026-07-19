@@ -13,7 +13,8 @@
 .vis-co   { background:#dcfce7; color:#166534; }
 .vis-dept { background:#dbeafe; color:#1e40af; }
 .vis-me   { background:#f1f5f9; color:#475569; }
-.tbl-wrap.tbl-sticky { margin-top: var(--space-3); max-height: calc(100vh - 250px) !important; overflow:auto; }
+/* z1009: 매직넘버·!important 제거 → 공용 자동높이 헬퍼(knk_autofill·측정값)가 제어. 아래는 JS 미동작 폴백. */
+.tbl-wrap.tbl-sticky { margin-top: var(--space-3); max-height: calc(100vh - 250px); overflow:auto; }
 /* v5H226z582~584: 모든 칸 한 줄로(줄바꿈 금지)·내가 너비 조절(드래그)·항목 보임/숨김 */
 #cxTbl { table-layout:fixed; border-collapse:collapse; width:auto; }
 #cxTbl th, #cxTbl td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -72,7 +73,7 @@
   </div>
   {% endif %}
 
-  <div class="tbl-wrap tbl-sticky">
+  <div class="tbl-wrap tbl-sticky" data-knk-fill>
     {% if contacts %}
     <table class="tbl" id="cxTbl">
       <colgroup>
