@@ -82,7 +82,7 @@
           <div class="prq-ir"><span class="k">수량</span><span class="v" style="color:var(--mute,#64748b);">항목별 · 아래 라인 참고</span></div>
           <div class="prq-ir"><span class="k">납기</span><span class="v">{{ (co.due_date or '')[:10] or '—' }}</span></div>
           <div class="prq-ir"><span class="k">형태</span><span class="v">{{ form_label }}</span></div>
-          <div class="prq-ir"><span class="k">사업부</span><span class="v">🧴 소모품</span></div>
+          <div class="prq-ir"><span class="k">사업부</span><span class="v">🧴 {{ biz_label or '소모품' }}</span></div>
           <div class="prq-ir"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></div>
           {% if co.order_date %}<div class="prq-ir"><span class="k">발주일</span><span class="v">{{ (co.order_date)[:10] }}</span></div>{% endif %}
           {% if co.ship_to %}<div class="prq-ir"><span class="k">납품위치</span><span class="v">{{ co.ship_to }}</span></div>{% endif %}

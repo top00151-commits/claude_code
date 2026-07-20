@@ -21504,11 +21504,10 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     r["cust_name"] = r.get("customer_name")
                     r["o_due_date"] = r.get("due_date")
                     r["po_type"] = "소모품"
-                    # v5H226z987 (대표 지시): 배지='소모품' 고정 → 등록 시 선택한 진행 사업부(biz_div·v5H218)로.
-                    #   빈값(통합 일괄등록분 등)은 기존대로 '소모품'/C — 상세의 '진행 사업부'에서 채우면 반영.
-                    _bd = str(r.get("biz_div") or "").strip().upper()
-                    r["biz_label"] = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}.get(_bd, "소모품")
-                    r["biz"] = _bd if _bd in ("T", "M", "L", "E") else "C"    # v5H226z907: 카드 색상 코드
+                    # v5H226z1019 (대표 지시): 배지=소모품 유지 + 진행사업부 부기('소모품·검사기'). 색은 소모품(C)으로 통일.
+                    #   (z987은 진행사업부만 표시해 '소모품'이 사라져 헷갈림 → 소모품임을 항상 보이게.)
+                    r["biz_label"] = _consumable_biz_label(r.get("biz_div"))
+                    r["biz"] = "C"    # 소모품 색 통일(진행사업부와 무관)
                     _cq = _cqty.get(r.get("co_id"))
                     r["qty"] = int(_cq) if _cq else None   # 빈값=None → 카드 '수량 —'
                     _st = str(r.get("status") or "").upper()
@@ -39720,6 +39719,7 @@ async def consumable_prod_request_view(request: Request, co_id: int):
     return ctx(request, "consumable_prod_request.html", user=u, active="consumables",
                co=co, items=items, qty_total=qty_total,
                form_label=form_label, export_label=export_label,
+               biz_label=_consumable_biz_label(co.get("biz_div")),   # z1019: 소모품·(진행사업부)
                can_open_detail=_can_open_detail)
 
 
@@ -40062,6 +40062,14 @@ async def consumables_set_status(request: Request, co_id: int):
 # v5H145 (2026-05-05) — 관련부서 통보 발송
 # 대표 의도: 영업이 소모품 발주 등록 → 자재구매팀·생산팀이 시스템 알림으로 즉시 인지
 # 대상: can_use_logistics=1 (자재팀) + can_use_production=1 (생산팀이 있다면) + role IN admin/ceo
+# v5H226z1019 (대표 지시): 소모품 사업부 배지 = '소모품' 유지 + 진행사업부(biz_div) 부기('소모품·검사기').
+#   빈값/미지정은 '소모품'만. 목록 카드·소모품 상세·이음 카드 공용(표기 통일).
+_CONS_BIZ_SUB = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}
+def _consumable_biz_label(biz_div):
+    _sub = _CONS_BIZ_SUB.get(str(biz_div or "").strip().upper())
+    return "소모품·" + _sub if _sub else "소모품"
+
+
 def _consumable_notify_send(co, items, team_ids, user_ids, user):
     """v5H226z890 (대표 지시): 소모품 통보를 제작요청서 체계로 편입.
     - 부서(team_ids 전체 구성원) + 개별(user_ids) 수신자에게 WORKS 벨 📋 카드 알림(kind=consumable_request)
@@ -40082,11 +40090,8 @@ def _consumable_notify_send(co, items, team_ids, user_ids, user):
     due = (str(co.get("due_date") or "")[:10]) or "—"
     note = (co.get("note") or "").strip()
     line_count = len(items or [])
-    try:
-        _qt = sum(float(it.get("qty") or 0) for it in (items or []))
-        qty_total = int(_qt) if abs(_qt - int(_qt)) < 1e-9 else round(_qt, 2)
-    except Exception:
-        qty_total = ""
+    # v5H226z1019 (대표 지시): 소모품 수량은 '항목별'(합산 표기 폐지 — 제작요청서 화면 z896과 통일)
+    qty_disp = "항목별"
     # 본문 = 제작요청 ■-포맷 미러(가격 제외)
     _SEP = "━━━━━━━━━━━━━━━━━"
     _SUB = "─────────────────"
@@ -40096,7 +40101,7 @@ def _consumable_notify_send(co, items, team_ids, user_ids, user):
     if cc_nm:
         _cust_line += f" · 담당자 {cc_nm}"
     body += _cust_line + "\n"
-    body += f"■ 품목 : 라인 {line_count}건 · 수량 {qty_total}\n"
+    body += f"■ 품목 : 라인 {line_count}건 · 항목별\n"
     if equip:
         body += f"■ 장비 : {equip}\n"
     body += f"■ 일정 : {due} · 수주 {co_no}\n"
@@ -40178,9 +40183,10 @@ def _consumable_notify_send(co, items, team_ids, user_ids, user):
         _card = {
             "type": "prod_request", "title": "소모품 요청서",
             "mgmt": mgmt, "customer": cust, "cc_name": cc_nm, "author": by_name,
-            "model": model, "equip": equip, "biz": "소모품", "biz_code": "C", "po_type": "소모품",
+            "model": model, "equip": equip,
+            "biz": _consumable_biz_label(co.get("biz_div")), "biz_code": "C", "po_type": "소모품",
             "status": _ST_KO.get(str(co.get("status") or "").upper(), "진행중"),
-            "qty": qty_total, "due": due, "so_nos": [co_no],
+            "qty": qty_disp, "due": due, "so_nos": [co_no],
             "cust_req": "", "note": note, "issued_at": now_str, "link": _full,
         }
         if emp_nos:
