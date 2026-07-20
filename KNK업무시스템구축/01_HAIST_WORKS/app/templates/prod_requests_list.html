@@ -52,7 +52,8 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .pc-tbl td.pc-k { background:#f6f8fb; color:var(--qv-ink-3); font-weight:700; font-size:11px; white-space:nowrap; }
 .pc-tbl td.pc-v { color:#1f2937; font-weight:700; }
 .pc-tbl td.pc-rc { text-align:center; white-space:nowrap; }
-.pc-biz { display:inline-block; font-size:10.5px; font-weight:800; color:#5b21b6; background:#f3e8ff; border:1px solid #ddd6fe; border-radius:6px; padding:1px 6px; }
+/* v5H226z1019: 소모품 배지가 '소모품·검사기'로 길어져 고정폭(64px) 칸에서 잘리던 문제 — 칸 안에서 줄바꿈 허용(어절 유지). */
+.pc-biz { display:inline-block; max-width:100%; font-size:10.5px; font-weight:800; color:#5b21b6; background:#f3e8ff; border:1px solid #ddd6fe; border-radius:6px; padding:1px 6px; white-space:normal; word-break:keep-all; line-height:1.18; }
 .pc-po2 { display:inline-block; font-size:10.5px; font-weight:800; color:#1d4ed8; background:#e0edff; border:1px solid #bfdbfe; border-radius:6px; padding:1px 6px; }
 /* v5H226z907 (대표 지시): 카드 사업부별 색상 — 왼쪽 띠 + 사업부 뱃지 톤 (검사기 파랑·자동화 보라·라이프밸류 로즈·기타 슬레이트·소모품 앰버) */
 .prq-card[data-biz="T"] { border-left-color:#2563eb; } .prq-card[data-biz="T"] .pc-biz { color:#1e40af; background:#dbeafe; border-color:#93c5fd; }
