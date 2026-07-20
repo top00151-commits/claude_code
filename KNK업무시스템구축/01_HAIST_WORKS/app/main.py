@@ -8571,6 +8571,180 @@ async def admin_ship_overdue_apply(req: Request):
                         "<a href='/admin/ship-overdue' style='color:#1d4ed8;'>다시 보기</a></p></div>")
 
 
+def _so_no_to_date(so_no):
+    """z1017: 수주번호에서 YYMMDD를 뽑아 ISO 날짜(YYYY-MM-DD). 표준 [사업부]-YYMMDD-N(예: M-260707-1).
+    유효 날짜만 반환(2/30 등 무효는 date()가 걸러 ''). 못 뽑으면 ''."""
+    if not so_no:
+        return ""
+    import re as _re
+    from datetime import date as _date
+    s = str(so_no).strip()
+    m = _re.search(r"-(\d{6})-", s) or _re.search(r"(?<!\d)(\d{6})(?!\d)", s)
+    if not m:
+        return ""
+    g = m.group(1)
+    try:
+        return _date(2000 + int(g[:2]), int(g[2:4]), int(g[4:6])).isoformat()
+    except Exception:
+        return ""
+
+
+@app.get("/admin/order-dates-audit", response_class=HTMLResponse)
+async def admin_order_dates_audit(req: Request):
+    """z1017 (대표 지시): 발주일(order_date) 누락 진단·백필 미리보기(읽기전용).
+    작업일정표는 발주일·납기가 둘 다 없으면 그 행을 숨김 → 발주일 없는 건이 '갑자기 사라짐'.
+    이 화면은 ① 발주일 빈 주문(orders) ② 발주일 빈 프로젝트(projects)를 수주번호(YYMMDD)에서 날짜를 뽑아
+    채울 목록으로 보여주고(적용은 아래 버튼), ③ 납기일 빈 건은 자동으로 안 채우고 대표 수동입력용 목록으로만 표시."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def _thead(headers):
+        return ("<table style='border-collapse:collapse;font-size:12.5px;width:100%;margin:6px 0 18px;'><thead><tr>"
+                + "".join("<th style='border-bottom:2px solid #ddd;padding:6px;text-align:left;'>" + h + "</th>" for h in headers)
+                + "</tr></thead><tbody>")
+
+    def _tr(cells):
+        return "<tr>" + "".join("<td style='border-bottom:1px solid #eee;padding:5px;'>" + x + "</td>" for x in cells) + "</tr>"
+
+    def _mono(x):
+        return "<span style='font-family:monospace;'>" + _esc(x) + "</span>"
+
+    orders_fill, orders_noparse, projs_fill, projs_noparse = [], [], [], []
+    with db_session() as c:
+        _orows = [dict(r) for r in c.execute(
+            "SELECT o.id AS oid, COALESCE(o.order_no,'') AS sono, o.project_id AS pid, "
+            "COALESCE(p.mgmt_code,'') AS mc, COALESCE(p.name,'') AS pname, COALESCE(p.customer_name,'') AS cust "
+            "FROM orders o LEFT JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' "
+            "  AND (o.order_date IS NULL OR TRIM(o.order_date)='') "
+            "ORDER BY o.project_id, o.id").fetchall()]
+        for r in _orows:
+            d = _so_no_to_date(r["sono"])
+            (orders_fill if d else orders_noparse).append((r, d))
+        # 프로젝트별 최소 SO 날짜 맵(한 번에) — 발주일 빈 프로젝트에 '최초 수주' 날짜를 채우기 위함
+        proj_min = {}
+        for r in [dict(x) for x in c.execute(
+            "SELECT project_id AS pid, COALESCE(order_no,'') AS sono FROM orders "
+            "WHERE project_id IS NOT NULL AND COALESCE(status,'')<>'CANCELLED'").fetchall()]:
+            d = _so_no_to_date(r["sono"])
+            if d and (r["pid"] not in proj_min or d < proj_min[r["pid"]]):
+                proj_min[r["pid"]] = d
+        _prows = [dict(r) for r in c.execute(
+            "SELECT id AS pid, COALESCE(mgmt_code,'') AS mc, COALESCE(name,'') AS pname, COALESCE(customer_name,'') AS cust "
+            "FROM projects WHERE (order_date IS NULL OR TRIM(order_date)='') ORDER BY id").fetchall()]
+        for r in _prows:
+            d = proj_min.get(r["pid"], "")
+            (projs_fill if d else projs_noparse).append((r, d))
+        due_empty = [dict(r) for r in c.execute(
+            "SELECT o.id AS oid, COALESCE(o.order_no,'') AS sono, COALESCE(p.mgmt_code,'') AS mc, "
+            "COALESCE(p.name,'') AS pname, COALESCE(p.customer_name,'') AS cust, COALESCE(o.status,'') AS st, "
+            "COALESCE(o.order_date,'') AS od "
+            "FROM orders o LEFT JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND (o.due_date IS NULL OR TRIM(o.due_date)='') "
+            "ORDER BY o.project_id, o.id").fetchall()]
+
+    n_of, n_onp, n_pf, n_pnp, n_due = len(orders_fill), len(orders_noparse), len(projs_fill), len(projs_noparse), len(due_empty)
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1080px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+            "<h2>📅 발주일 누락 진단·백필 (미리보기)</h2>",
+            "<p style='color:#555;line-height:1.7;'>작업일정표는 <b>발주일·납기가 둘 다 없으면</b> 그 항목을 숨깁니다(그래서 '있던 게 갑자기 안 보임'). "
+            "아래 <b>발주일이 빈 건</b>을 <b>수주번호에서 날짜를 뽑아</b>(예: <code>M-260707-1 → 2026-07-07</code>) 채웁니다. "
+            "<b>납기일은 자동으로 채우지 않고</b> 목록으로만 알려드립니다(대표님이 직접 입력). 소모품(별도 표)은 이 화면 대상 아님.</p>",
+            "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin:10px 0 6px;line-height:2;'>"
+            "<b>발주일 채울 주문</b> : <b style='color:#15803d;'>" + str(n_of) + "건</b>"
+            + ("  <span style='color:#b45309;'>(수주번호로 날짜 못 뽑음 " + str(n_onp) + "건)</span>" if n_onp else "") + "<br>"
+            "<b>발주일 채울 프로젝트</b> : <b style='color:#15803d;'>" + str(n_pf) + "건</b>"
+            + ("  <span style='color:#b45309;'>(못 뽑음 " + str(n_pnp) + "건)</span>" if n_pnp else "") + "<br>"
+            "<b>납기일 없음</b>(대표 입력용·자동 안 채움) : <b style='color:#b91c1c;'>" + str(n_due) + "건</b></div>"]
+    if not (n_of or n_pf):
+        body.append("<p style='color:#15803d;font-weight:700;padding:14px;background:#f0fdf4;border-radius:8px;'>✅ 발주일 백필 대상 없음.</p>")
+    else:
+        body.append("<form method='post' action='/admin/order-dates-audit' "
+                    "onsubmit=\"return confirm('발주일을 주문 " + str(n_of) + "건, 프로젝트 " + str(n_pf) + "건에 채웁니다(수주번호 날짜). 납기일은 손대지 않습니다. 진행할까요?');\" style='margin:10px 0 20px;'>"
+                    "<input type='hidden' name='confirm' value='발주일백필'>"
+                    "<button type='submit' style='padding:10px 20px;background:#15803d;color:#fff;border:0;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;'>📅 발주일 백필 실행 (주문 " + str(n_of) + " · 프로젝트 " + str(n_pf) + "건)</button></form>")
+    if orders_fill:
+        body.append("<h3 style='margin:18px 0 4px;'>발주일 채울 주문 (" + str(n_of) + ")</h3>")
+        body.append(_thead(("관리번호", "프로젝트", "고객사", "수주번호", "→ 채울 발주일")))
+        for (r, d) in orders_fill[:600]:
+            body.append(_tr([_mono(r["mc"]), _esc(r["pname"]), _esc(r["cust"]), _mono(r["sono"]), "<b style='color:#15803d;'>" + _esc(d) + "</b>"]))
+        body.append("</tbody></table>")
+        if n_of > 600:
+            body.append("<p style='color:#888;'>… 외 " + str(n_of - 600) + "건 (실행 시 전체 처리)</p>")
+    if projs_fill:
+        body.append("<h3 style='margin:18px 0 4px;'>발주일 채울 프로젝트 (" + str(n_pf) + ") — 최초 수주번호 기준</h3>")
+        body.append(_thead(("관리번호", "프로젝트", "고객사", "→ 채울 발주일")))
+        for (r, d) in projs_fill[:600]:
+            body.append(_tr([_mono(r["mc"]), _esc(r["pname"]), _esc(r["cust"]), "<b style='color:#15803d;'>" + _esc(d) + "</b>"]))
+        body.append("</tbody></table>")
+        if n_pf > 600:
+            body.append("<p style='color:#888;'>… 외 " + str(n_pf - 600) + "건</p>")
+    if orders_noparse or projs_noparse:
+        body.append("<h3 style='margin:18px 0 4px;color:#b45309;'>⚠ 수주번호로 날짜 못 뽑음 (수동 확인 필요)</h3>")
+        body.append(_thead(("종류", "관리번호", "프로젝트", "수주번호")))
+        for (r, d) in orders_noparse[:200]:
+            body.append(_tr(["주문", _mono(r["mc"]), _esc(r["pname"]), _mono(r["sono"])]))
+        for (r, d) in projs_noparse[:200]:
+            body.append(_tr(["프로젝트", _mono(r["mc"]), _esc(r["pname"]), "(연결 수주 없음/파싱불가)"]))
+        body.append("</tbody></table>")
+    if due_empty:
+        body.append("<h3 style='margin:22px 0 4px;color:#b91c1c;'>납기일(due_date) 없는 건 — 대표님 직접 입력용 (" + str(n_due) + ")</h3>")
+        body.append("<p style='color:#777;margin:0 0 6px;'>이 목록은 <b>자동으로 채우지 않습니다.</b> 각 건의 납기를 확인해 작업일정표/수주에서 입력해 주세요.</p>")
+        body.append(_thead(("관리번호", "프로젝트", "고객사", "수주번호", "상태", "발주일")))
+        for r in due_empty[:800]:
+            body.append(_tr([_mono(r["mc"]), _esc(r["pname"]), _esc(r["cust"]), _mono(r["sono"]), _esc(r["st"] or "진행중"), _esc(r["od"])]))
+        body.append("</tbody></table>")
+        if n_due > 800:
+            body.append("<p style='color:#888;'>… 외 " + str(n_due - 800) + "건</p>")
+    body.append("<p style='margin-top:20px;'><a href='/sales/schedule' style='color:#1d4ed8;'>작업일정표로</a></p></div>")
+    return HTMLResponse("".join(body))
+
+
+@app.post("/admin/order-dates-audit")
+async def admin_order_dates_audit_apply(req: Request):
+    """z1017 (대표 지시): 발주일 백필 실행 — 발주일 빈 주문/프로젝트에 수주번호(YYMMDD) 날짜 채움.
+    납기일(due_date)은 절대 손대지 않음. confirm 토큰 '발주일백필' 필요."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    if (form.get("confirm") or "").strip() != "발주일백필":
+        return RedirectResponse("/admin/order-dates-audit", 303)
+    n_ord, n_proj = 0, 0
+    with db_session() as c:
+        _o = [dict(r) for r in c.execute(
+            "SELECT id, COALESCE(order_no,'') AS sono FROM orders "
+            "WHERE COALESCE(status,'')<>'CANCELLED' AND (order_date IS NULL OR TRIM(order_date)='')").fetchall()]
+        proj_min = {}
+        for r in [dict(x) for x in c.execute(
+            "SELECT project_id AS pid, COALESCE(order_no,'') AS sono FROM orders "
+            "WHERE project_id IS NOT NULL AND COALESCE(status,'')<>'CANCELLED'").fetchall()]:
+            d = _so_no_to_date(r["sono"])
+            if d and (r["pid"] not in proj_min or d < proj_min[r["pid"]]):
+                proj_min[r["pid"]] = d
+        _p = [dict(r) for r in c.execute(
+            "SELECT id FROM projects WHERE (order_date IS NULL OR TRIM(order_date)='')").fetchall()]
+        for r in _o:
+            d = _so_no_to_date(r["sono"])
+            if d:
+                c.execute("UPDATE orders SET order_date=? WHERE id=?", (d, r["id"]))
+                n_ord += 1
+        for r in _p:
+            d = proj_min.get(r["id"], "")
+            if d:
+                c.execute("UPDATE projects SET order_date=? WHERE id=?", (d, r["id"]))
+                n_proj += 1
+    return HTMLResponse("<meta charset='utf-8'><div style='font-family:system-ui,sans-serif;max-width:700px;margin:48px auto;text-align:center;color:#1f2937;'>"
+                        "<h2 style='color:#15803d;'>✅ 발주일 백필 완료</h2>"
+                        "<p>주문 <b>" + str(n_ord) + "건</b>, 프로젝트 <b>" + str(n_proj) + "건</b>의 발주일을 수주번호 날짜로 채웠습니다.</p>"
+                        "<p style='color:#777;'>납기일은 변경하지 않았습니다(없는 건은 미리보기 목록 참조·직접 입력).</p>"
+                        "<p style='margin-top:18px;'><a href='/sales/schedule' style='color:#1d4ed8;'>작업일정표로</a> &nbsp;·&nbsp; "
+                        "<a href='/admin/order-dates-audit' style='color:#1d4ed8;'>다시 보기</a></p></div>")
+
+
 @app.get("/admin/customer-health", response_class=HTMLResponse)
 async def admin_customer_health(req: Request):
     """v5H226z610 (대표 지시): 고객사 연결성 읽기전용 진단.
