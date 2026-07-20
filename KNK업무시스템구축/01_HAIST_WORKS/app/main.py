@@ -13985,8 +13985,9 @@ async def sales_orders_add_unit(req: Request, oid: int):
         bulk_qty = 1
     if bulk_qty < 1:
         bulk_qty = 1
-    if bulk_qty > 100:
-        return JSONResponse({"ok": False, "message": "한 번에 100대 초과 불가"}, 400)
+    # v5H226z1018: 절대 상한만 여기서 — 장비(호기 100대) 상한은 SO 종류 확인 후 아래에서(상품=낱개 수량이라 9999까지)
+    if bulk_qty > 9999:
+        return JSONResponse({"ok": False, "message": "한 번에 9,999개 초과 불가"}, 400)
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -14031,6 +14032,11 @@ async def sales_orders_add_unit(req: Request, oid: int):
         except Exception:
             items_in_so = 0
             items_in_project = 0
+        # v5H226z974 (대표 지시): 상품(PARTS) SO 는 unit_qty='완제품 몇 대분' 보존 — 부품 추가로 증가시키지 않음
+        _isp974 = _so_is_parts974(c, oid)
+        # v5H226z1018: 장비(호기) 상한 100대는 그대로 — 상품은 낱개 수량이라 위 9999 상한만 적용
+        if not _isp974 and bulk_qty > 100:
+            return JSONResponse({"ok": False, "message": "한 번에 100대 초과 불가"}, 400)
         # v5H110: 시작 라벨에서 숫자 추출 → bulk 시 N개 자동 증가
         import re as _re
         base_no = None
@@ -14040,14 +14046,18 @@ async def sales_orders_add_unit(req: Request, oid: int):
                 base_no = int(m.group(1))
         if base_no is None:
             base_no = items_in_project + 1
-        # bulk_qty 만큼 라벨 생성: ['5호기', '6호기', ...]
-        labels_bulk = [f"{base_no + i}호기" for i in range(bulk_qty)]
-        # bulk 0번째가 사용자 입력 커스텀 라벨이면 그대로 첫 라벨 사용
-        if label and not _re.match(r"^\d+호기$", label):
-            labels_bulk[0] = label  # 커스텀 라벨 유지, 나머지는 N호기 형식
-
-        # v5H226z974 (대표 지시): 상품(PARTS) SO 는 unit_qty='완제품 몇 대분' 보존 — 부품 추가로 증가시키지 않음
-        _isp974 = _so_is_parts974(c, oid)
+        # v5H226z1018 (대표 지시): 상품(PARTS) SO 의 '부품 추가' = 품명 1줄 + 낱개 수량 N (호기 분할 ⛔).
+        #   기존엔 장비 호기 로직(수량 N=호기 N줄)이 상품에도 적용돼 'CYLINDER 12개'가 12줄(CYLINDER·2호기~12호기)로
+        #   쪼개짐(2026-07-16 M-260707-1 실사례·대표 신고). 상품 줄=부품 1종(qty=낱개 수량) —
+        #   등록폼(z430)·상품 양식 업로드(import-parts-lines)와 동일 규칙. 장비·소모품=기존 그대로(대표 승인: 상품만).
+        if _isp974:
+            labels_bulk = [label or "(품명 미입력)"]
+        else:
+            # bulk_qty 만큼 라벨 생성: ['5호기', '6호기', ...]
+            labels_bulk = [f"{base_no + i}호기" for i in range(bulk_qty)]
+            # bulk 0번째가 사용자 입력 커스텀 라벨이면 그대로 첫 라벨 사용
+            if label and not _re.match(r"^\d+호기$", label):
+                labels_bulk[0] = label  # 커스텀 라벨 유지, 나머지는 N호기 형식
         new_qty = int(cur["unit_qty"] or 1) if _isp974 else (items_in_so + bulk_qty)
         new_total = float(cur["total_amount"] or 0) + amt * bulk_qty
         old_lbl = (cur["unit_label"] or "").strip()
@@ -14060,19 +14070,22 @@ async def sales_orders_add_unit(req: Request, oid: int):
         except Exception:
             _oicols_au = set()
         _has_cm = ("cost_price" in _oicols_au) and ("margin_pct" in _oicols_au)
+        # v5H226z1018: 장비=호기 N줄(각 qty=1·금액=단가) / 상품=품명 1줄(qty=낱개 N·금액=단가×N)
+        _row_qty = bulk_qty if _isp974 else 1
+        _row_amt = round(amt * bulk_qty, 2) if _isp974 else amt
         for _lbl in labels_bulk:
             try:
                 if _has_cm and (_cost_v is not None):
                     c.execute(
                         "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                        "unit_label, line_note, cost_price, margin_pct) VALUES(?,1,?,?,?,?,?,?)",
-                        (oid, amt, amt, _lbl, note, _cost_v, (_margin_v if _cost_v else None))
+                        "unit_label, line_note, cost_price, margin_pct) VALUES(?,?,?,?,?,?,?,?)",
+                        (oid, _row_qty, amt, _row_amt, _lbl, note, _cost_v, (_margin_v if _cost_v else None))
                     )
                 else:
                     c.execute(
                         "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                        "unit_label, line_note) VALUES(?,1,?,?,?,?)",
-                        (oid, amt, amt, _lbl, note)
+                        "unit_label, line_note) VALUES(?,?,?,?,?,?)",
+                        (oid, _row_qty, amt, _row_amt, _lbl, note)
                     )
             except Exception:
                 pass
@@ -14105,9 +14118,13 @@ async def sales_orders_add_unit(req: Request, oid: int):
             old_qty = int(cur["unit_qty"] or 1)
             range_str = (labels_bulk[0] if len(labels_bulk) == 1
                          else f"{labels_bulk[0]}~{labels_bulk[-1]}")
-            note_msg = (f"호기 추가 [{range_str}] · {bulk_qty}대 × 단가 {amt:,.0f} {cur_v} · "
-                        f"수량 {old_qty} → {new_qty}대 · "
-                        f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
+            if _isp974:   # v5H226z1018: 상품 = 부품 1줄(낱개 N개) — '호기/대' 표현 안 씀
+                note_msg = (f"부품 추가 [{labels_bulk[0]}] · {bulk_qty}개 × 단가 {amt:,.0f} {cur_v} · "
+                            f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
+            else:
+                note_msg = (f"호기 추가 [{range_str}] · {bulk_qty}대 × 단가 {amt:,.0f} {cur_v} · "
+                            f"수량 {old_qty} → {new_qty}대 · "
+                            f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
             if note:
                 note_msg += f" ({note})"
             c.execute(
@@ -14117,8 +14134,11 @@ async def sales_orders_add_unit(req: Request, oid: int):
             )
         except Exception:
             pass
-    msg = (f"호기 '{labels_bulk[0]}' 추가 완료" if bulk_qty == 1
-           else f"호기 {labels_bulk[0]}~{labels_bulk[-1]} ({bulk_qty}대) 추가 완료")
+    if _isp974:   # v5H226z1018: 상품 — 품명 1줄 + 낱개 수량
+        msg = f"부품 '{labels_bulk[0]}' {bulk_qty}개 추가 완료"
+    else:
+        msg = (f"호기 '{labels_bulk[0]}' 추가 완료" if bulk_qty == 1
+               else f"호기 {labels_bulk[0]}~{labels_bulk[-1]} ({bulk_qty}대) 추가 완료")
     return JSONResponse({"ok": True, "message": msg})
 
 
