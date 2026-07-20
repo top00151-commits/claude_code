@@ -1,0 +1,43 @@
+{# ─────────────────────────────────────────────────────────────
+   v5H226z1021 (대표 지시) — 화면 '찾아가는 길' 공통 부품
+   경로줄(센터 › 메뉴 › 대상) + 📋 찾아가는 길 복사(직원 안내문 클립보드).
+   목적: 링크만 보내면 권한 없는 직원은 못 여니, '어느 메뉴로 찾아가는지' 경로를 알려줌.
+
+   사용법 — include 전에 set:
+     {% set pg_menu_label = '수주' %}{% set pg_menu_url = '/sales/orders' %}{% set pg_target = o.order_no %}
+     {% include '_v5_partials/page_path_guide.html' with context %}
+   파라미터: pg_menu_label·pg_menu_url·pg_target (필수) / pg_extra·pg_search_hint (선택).
+   센터(매출영업/자재구매/통합)는 _at 으로 자동.
+   ───────────────────────────────────────────────────────────── #}
+{% set _pgc = {'sales': ('매출영업센터','/sales'), 'logi': ('자재구매센터','/logistics')}.get(_at, ('통합 플랫폼','/home')) %}
+<div class="crumbs" data-dn="crumb">
+  <a href="{{ _pgc[1] }}">{{ _pgc[0] }}</a> › <a href="{{ pg_menu_url }}">{{ pg_menu_label }}</a> › <b>{{ pg_target|default('—') }}</b>{% if pg_extra %} <span style="color:var(--ink,#1f2937);font-weight:600;">{{ pg_extra }}</span>{% endif %}
+  <button type="button" class="knk-path-copy"
+          data-center="{{ _pgc[0] }}" data-menu="{{ pg_menu_label }}"
+          data-target="{{ pg_target|default('') }}" data-extra="{{ pg_extra|default('') }}"
+          data-hint="{{ pg_search_hint|default('') }}"
+          title="이 화면 '찾아가는 길'을 복사해서 직원에게 이음 메신저로 보낼 수 있습니다"
+          style="margin-left:8px;border:1px solid var(--qv-line,#d9d2c4);background:var(--paper-2,#f4f1e8);color:var(--mute,#64748b);cursor:pointer;font-size:11px;font-weight:700;padding:1px 8px;border-radius:5px;vertical-align:middle;white-space:nowrap;">📋 찾아가는 길 복사</button>
+</div>
+<script>
+(function(){
+  // 이벤트 위임 + 전역 1회 바인딩 — 여러 페이지·SPA 재삽입에도 안전(document 는 안 바뀜).
+  if (window.__knkPathCopyBound) { return; } window.__knkPathCopyBound = true;
+  document.addEventListener('click', function(ev){
+    var btn = ev.target && ev.target.closest ? ev.target.closest('.knk-path-copy') : null;
+    if (!btn) return;
+    var center = btn.dataset.center || '', menu = btn.dataset.menu || '';
+    var target = (btn.dataset.target || '').trim(), extra = (btn.dataset.extra || '').trim();
+    var hint = (btn.dataset.hint || '').trim();
+    if (!hint) { hint = target ? ("검색창에 '" + target + "' 입력") : "검색"; }
+    var tgtLine = target ? ("\n(대상: " + target + (extra ? (" " + extra) : "") + ")") : "";
+    var txt = "[WORKS 찾아가는 길]\n"
+            + "① 상단 '" + center + "' → ② 왼쪽 메뉴 '" + menu + "' → ③ " + hint + " → ④ 나온 항목 클릭\n"
+            + "※ 열람 권한이 있어야 보입니다." + tgtLine;
+    var orig = btn.textContent;
+    function ok(){ btn.textContent = '✓ 복사됨 — 메신저에 붙여넣기'; setTimeout(function(){ btn.textContent = orig; }, 1800); }
+    function fb(){ try { var ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ok(); } catch(e){ window.prompt('아래 내용을 복사해 직원에게 보내세요:', txt); } }
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(ok, fb); } else { fb(); }
+  });
+})();
+</script>

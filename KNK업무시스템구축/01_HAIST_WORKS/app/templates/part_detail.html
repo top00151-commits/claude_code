@@ -29,7 +29,8 @@
 <main class="main">
   <div class="page-head">
     <div>
-      <div class="crumbs"><a href="/parts">자재 마스터</a> · <b>{{ p.code|default('—') }}</b></div>
+      {% set pg_menu_label = '부품 마스터' %}{% set pg_menu_url = '/parts' %}{% set pg_target = p.code|default('—') %}
+      {% include '_v5_partials/page_path_guide.html' with context %}
       <h1 class="page-title" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <span style="font-family:monospace;color:var(--qv-ink-2);">{{ p.code|default('—') }}</span>
         <span>{{ p.name|default(p.part_name|default('—')) }}</span>

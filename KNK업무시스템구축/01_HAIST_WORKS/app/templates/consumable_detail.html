@@ -188,7 +188,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
   <main class="main" data-dn="main" data-dn-tone="amber">
     <div class="page-head" data-dn="page-head">
       <div>
-        <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 수주</a> · <b>{{ co.mgmt_code or co.co_no }}</b></div>
+        {% set pg_menu_label = '프로젝트' %}{% set pg_menu_url = '/projects' %}{% set pg_target = co.mgmt_code or co.co_no %}{% set pg_search_hint = "검색창에 관리번호 '" ~ (co.mgmt_code or co.co_no) ~ "' 입력 → 🧴 소모품 책갈피 확인" %}
+        {% include '_v5_partials/page_path_guide.html' with context %}
         {# v5H226z73: 헤더 mgmt_code 빨강 monospace → .mgmt-pill lg 잉크 알약 #}
         <h1 class="page-title" data-dn="title">{% if co.mgmt_code %}<span class="mgmt-pill lg">{{ co.mgmt_code }}</span> {% endif %}{{ co.co_no }} <em>{{ STATUS_LABELS.get(co.status, co.status) }}</em></h1>
       </div>
