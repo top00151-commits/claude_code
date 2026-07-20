@@ -9,7 +9,8 @@
    파라미터: pg_menu_label·pg_menu_url·pg_target (필수) / pg_extra·pg_search_hint (선택).
    센터(매출영업/자재구매/통합)는 _at 으로 자동.
    ───────────────────────────────────────────────────────────── #}
-{% set _pgc = {'sales': ('매출영업센터','/sales'), 'logi': ('자재구매센터','/logistics')}.get(_at, ('통합 플랫폼','/home')) %}
+{# 센터 = pg_center('sales'|'logi'|'home') 명시 우선, 없으면 _at 폴백(라우트가 _at 을 안 넘기는 화면 대비). #}
+{% set _pgc = {'sales': ('매출영업센터','/sales'), 'logi': ('자재구매센터','/logistics')}.get(pg_center|default(_at), ('통합 플랫폼','/home')) %}
 <div class="crumbs" data-dn="crumb">
   <a href="{{ _pgc[1] }}">{{ _pgc[0] }}</a> › <a href="{{ pg_menu_url }}">{{ pg_menu_label }}</a> › <b>{{ pg_target|default('—') }}</b>{% if pg_extra %} <span style="color:var(--ink,#1f2937);font-weight:600;">{{ pg_extra }}</span>{% endif %}
   <button type="button" class="knk-path-copy"

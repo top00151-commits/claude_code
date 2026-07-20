@@ -29,7 +29,7 @@ body {
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head" data-dn="page-head">
     <div>
-      {% set pg_menu_label = '고객사' %}{% set pg_menu_url = '/customers' %}{% set pg_target = cu.name %}
+      {% set pg_center = 'sales' %}{% set pg_menu_label = '고객사' %}{% set pg_menu_url = '/customers' %}{% set pg_target = cu.name %}
       {% include '_v5_partials/page_path_guide.html' with context %}
       <h1 class="page-title">{{ cu.name }}{% if cu.tier %} <span class="pill {% if cu.tier == 'A' %}pill-danger{% elif cu.tier == 'B' %}pill-warn{% else %}pill-muted{% endif %}" style="font-size:13px;">등급 {{ cu.tier }}</span>{% endif %}</h1>
     </div>

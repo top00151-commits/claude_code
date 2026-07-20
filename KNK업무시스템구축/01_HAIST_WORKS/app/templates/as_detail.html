@@ -41,7 +41,7 @@
 <main class="main">
   <div class="page-head">
     <div>
-      {% set pg_menu_label = 'A/S 관리' %}{% set pg_menu_url = '/as' %}{% set pg_target = t.as_no %}
+      {% set pg_center = 'sales' %}{% set pg_menu_label = 'A/S 관리' %}{% set pg_menu_url = '/as' %}{% set pg_target = t.as_no %}
       {% include '_v5_partials/page_path_guide.html' with context %}
       <h1 class="page-title">🛠 <em>{{ t.as_no }}</em> <span class="badge b-{{ t.status }}" style="vertical-align:middle;margin-left:6px;">{{ t.status }}</span></h1>
     </div>
