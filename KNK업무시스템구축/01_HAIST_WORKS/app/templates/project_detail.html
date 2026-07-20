@@ -11,7 +11,32 @@
 <main class="main">
   <div class="page-head">
     <div>
-      <div class="crumbs"><a href="/projects">프로젝트</a> · <b>{{ p.mgmt_code|default(p.id) }}</b></div>
+      {# v5H226z1020 (대표 지시): 이 화면 '찾아가는 길'을 경로줄로 온전히 표현 + 직원에게 보낼 안내문 복사.
+         링크만 보내면 권한 없는 직원은 못 여니, 경로를 알려주면 본인 권한 내에서 찾아갈 수 있음. #}
+      <div class="crumbs">
+        <a href="/sales">매출영업센터</a> › <a href="/projects">프로젝트</a> › <b>{{ p.mgmt_code|default(p.id) }}</b>{% if p.name %} <span style="color:var(--ink,#1f2937);font-weight:600;">{{ p.name }}</span>{% endif %}
+        <button type="button" id="prjPathCopy" data-mgmt="{{ p.mgmt_code|default('') }}" data-name="{{ p.name|default('') }}"
+                title="이 화면 '찾아가는 길'을 복사해서 직원에게 이음 메신저로 보낼 수 있습니다"
+                style="margin-left:8px;border:1px solid var(--qv-line,#d9d2c4);background:var(--paper-2,#f4f1e8);color:var(--mute,#64748b);cursor:pointer;font-size:11px;font-weight:700;padding:1px 8px;border-radius:5px;vertical-align:middle;">📋 찾아가는 길 복사</button>
+        <script>
+        (function(){
+          var btn = document.getElementById('prjPathCopy');
+          if (!btn || btn._knkBound) return; btn._knkBound = true;
+          btn.addEventListener('click', function(){
+            var mgmt = (btn.dataset.mgmt || '').trim(), name = (btn.dataset.name || '').trim();
+            var find = mgmt ? ("관리번호 '" + mgmt + "'") : (name ? ("프로젝트명 '" + name + "'") : "관리번호");
+            var tgt = (mgmt && name) ? ("\n(대상: " + mgmt + " " + name + ")") : "";
+            var txt = "[WORKS 찾아가는 길]\n"
+                    + "① 상단 '매출영업센터' → ② 왼쪽 메뉴 '프로젝트' → ③ 검색창에 " + find + " 입력 → ④ 나온 카드 클릭\n"
+                    + "※ 열람 권한(영업/기술)이 있어야 보입니다." + tgt;
+            var orig = btn.textContent;
+            function ok(){ btn.textContent = '✓ 복사됨 — 메신저에 붙여넣기'; setTimeout(function(){ btn.textContent = orig; }, 1800); }
+            function fb(){ try { var ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ok(); } catch(e){ window.prompt('아래 내용을 복사해 직원에게 보내세요:', txt); } }
+            if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(ok, fb); } else { fb(); }
+          });
+        })();
+        </script>
+      </div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         {# v5H226z41: amber-deep 텍스트 → 잉크 알약 (시안1 표준 컴포넌트) #}
         <span class="mgmt-pill lg{% if not p.mgmt_code %} empty{% endif %}" title="관리번호">{{ p.mgmt_code|default('—') }}</span>
