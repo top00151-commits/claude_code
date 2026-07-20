@@ -417,6 +417,11 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         /* v5H226z88: 행별 "수정" 컬럼 영구 숨김 (카드 상단 "💾 모두 저장"으로 대체) */
         .so-card .edit-only,
         .so-card.editable .edit-only { display: none !important; }
+        /* v5H226z1018b (대표 지시): 상품(PARTS) 부품 그리드만 행 삭제(×) 컬럼 복원 — 잘못 등록된 부품 행 정리용.
+           장비 호기는 z92(상태 '취소'로 대체) 그대로 숨김. ✏️ 수정(unlocked) 시에만 노출,
+           row-save(💾 저장)는 위 규칙으로 계속 숨김(저장은 카드 상단 '💾 모두 저장'). */
+        .so-card.editable.unlocked .parts-excel th.edit-only,
+        .so-card.editable.unlocked .parts-excel td.edit-only { display: table-cell !important; }
         /* v5H226z88: 카드 상단 "💾 모두 저장" — 편집 모드 시만 노출 */
         .so-card .save-all-btn { display: none; }
         .so-card.editable .save-all-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; background: #15803d; color: #fff; border: 0; border-radius: 5px; font-size: 12.5px; font-weight: 700; cursor: pointer; }

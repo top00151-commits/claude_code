@@ -732,7 +732,8 @@
                   <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">3차</span></th>
                   {% endif %}
                   {# v5H226z86: 동작 → 수정 (호기별 개별 저장/삭제이지만 사용자 인지 일관성) #}
-                  {% if _editable %}<th class="center edit-only" style="width:80px;">수정</th>{% endif %}
+                  {# v5H226z1018b: 상품(PARTS)은 이 컬럼이 행 삭제(×) 전용으로 복원(CSS) — 헤더도 '삭제'로 #}
+                  {% if _editable %}<th class="center edit-only" style="width:80px;">{% if _is_parts %}삭제{% else %}수정{% endif %}</th>{% endif %}
                 </tr>
               </thead>
               <tbody>
@@ -1490,7 +1491,9 @@
               }
               if (delBtn) {
                 delBtn.addEventListener('click', async () => {
-                  if (!confirm('이 호기 라인을 삭제하시겠습니까?\n\n' + (lblInp ? lblInp.value : '') + ' / ' + (amtInp ? amtInp.value : ''))) return;
+                  // v5H226z1018b: 상품(PARTS) 그리드는 '부품 행' 표현 (호기 아님)
+                  const _isPartsRow = !!row.closest('table.parts-excel');
+                  if (!confirm((_isPartsRow ? '이 부품 행을 삭제하시겠습니까?' : '이 호기 라인을 삭제하시겠습니까?') + '\n\n' + (lblInp ? lblInp.value : '') + ' / ' + (amtInp ? amtInp.value : ''))) return;
                   try {
                     const r = await fetch('/sales/orders/items/' + uid + '/delete', { method: 'POST' });
                     const j = await r.json();

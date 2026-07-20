@@ -13917,6 +13917,7 @@ async def sales_order_item_delete(req: Request, iid: int):
         del_lbl = it["lbl"] or "—"
         del_amt = float(it["amt"] or 0)
         old_total = float(it["old_total"] or 0)
+        _isp974 = _so_is_parts974(c, oid)  # v5H226z1018b: 상품 여부 (unit_qty 보존 + 이력 표현 공용)
         c.execute("DELETE FROM order_items WHERE id=?", (iid,))
         # SO 재계산
         rows = c.execute(
@@ -13926,7 +13927,7 @@ async def sales_order_item_delete(req: Request, iid: int):
         new_total = sum(float(r["amount"] or 0) for r in rows)
         new_qty = max(1, len(rows))
         new_label = " · ".join((r["unit_label"] or f"호기 {i+1}") for i, r in enumerate(rows))
-        if _so_is_parts974(c, oid):
+        if _isp974:
             # v5H226z974: 상품 SO — unit_qty(완제품 대분) 보존, 합계·라벨만 재계산
             c.execute("UPDATE orders SET total_amount=?, unit_label=? WHERE id=?",
                       (new_total, new_label, oid))
@@ -13945,10 +13946,14 @@ async def sales_order_item_delete(req: Request, iid: int):
                           (float(row[0] or 0), pid))
         except Exception:
             pass
-        # v5H100: 삭제 이력
+        # v5H100: 삭제 이력  (v5H226z1018b: 상품은 '부품 행' 표현)
         try:
-            note_msg = (f"호기 라인 삭제 [{del_lbl}] · 단가 {del_amt:,.0f} 제거 · "
-                        f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
+            if _isp974:
+                note_msg = (f"부품 행 삭제 [{del_lbl}] · 금액 {del_amt:,.0f} 제거 · "
+                            f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
+            else:
+                note_msg = (f"호기 라인 삭제 [{del_lbl}] · 단가 {del_amt:,.0f} 제거 · "
+                            f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
             c.execute(
                 "INSERT INTO order_status_history(order_id, from_status, to_status, "
                 "changed_by, note) VALUES(?,?,?,?,?)",
