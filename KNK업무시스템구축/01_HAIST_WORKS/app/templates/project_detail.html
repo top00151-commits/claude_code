@@ -1443,6 +1443,34 @@
               });
             }
 
+            // v5H226z1018b-2: 행 삭제 확인 = 앱 내 모달 (네이티브 confirm 은 브라우저 종속 UI·앱 UX 불일치)
+            if (!window._knkRowDelConfirm) {
+              window._knkRowDelConfirm = function(message, onOk) {
+                const ov = document.createElement('div');
+                ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:99990;display:flex;align-items:center;justify-content:center;';
+                const box = document.createElement('div');
+                box.style.cssText = 'background:#fff;border:1px solid #d5cfc0;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.25);padding:18px 20px;max-width:420px;min-width:280px;';
+                const msg = document.createElement('div');
+                msg.style.cssText = 'font-size:13.5px;color:#333;white-space:pre-line;line-height:1.5;margin-bottom:14px;';
+                msg.textContent = message;
+                const btns = document.createElement('div');
+                btns.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+                const bCancel = document.createElement('button');
+                bCancel.type = 'button'; bCancel.textContent = '취소';
+                bCancel.style.cssText = 'padding:6px 14px;border:1px solid #ccc;background:#f5f5f5;border-radius:5px;font-size:12.5px;cursor:pointer;';
+                const bOk = document.createElement('button');
+                bOk.type = 'button'; bOk.className = 'knk-rowdel-ok'; bOk.textContent = '🗑 삭제';
+                bOk.style.cssText = 'padding:6px 14px;border:0;background:#b91c1c;color:#fff;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer;';
+                const close = () => { try { document.body.removeChild(ov); } catch(_){} };
+                bCancel.addEventListener('click', close);
+                ov.addEventListener('click', e => { if (e.target === ov) close(); });
+                bOk.addEventListener('click', () => { close(); onOk(); });
+                btns.appendChild(bCancel); btns.appendChild(bOk);
+                box.appendChild(msg); box.appendChild(btns);
+                ov.appendChild(box);
+                document.body.appendChild(ov);
+              };
+            }
             // 호기 라인 인라인 편집/삭제
             card.querySelectorAll('tr[data-uid]').forEach(row => {
               const uid = row.dataset.uid;
@@ -1490,16 +1518,18 @@
                 if (qtyInpR) qtyInpR.addEventListener('input', _recalcAmt);
               }
               if (delBtn) {
-                delBtn.addEventListener('click', async () => {
+                delBtn.addEventListener('click', () => {
                   // v5H226z1018b: 상품(PARTS) 그리드는 '부품 행' 표현 (호기 아님)
                   const _isPartsRow = !!row.closest('table.parts-excel');
-                  if (!confirm((_isPartsRow ? '이 부품 행을 삭제하시겠습니까?' : '이 호기 라인을 삭제하시겠습니까?') + '\n\n' + (lblInp ? lblInp.value : '') + ' / ' + (amtInp ? amtInp.value : ''))) return;
-                  try {
-                    const r = await fetch('/sales/orders/items/' + uid + '/delete', { method: 'POST' });
-                    const j = await r.json();
-                    if (j.ok) { window.location.href = window.location.pathname + '?_t=' + Date.now(); }
-                    else { alert('⚠ ' + (j.message || j.error || '실패')); }
-                  } catch(e) { alert('⚠ ' + e.message); }
+                  const _delMsg = (_isPartsRow ? '이 부품 행을 삭제하시겠습니까?' : '이 호기 라인을 삭제하시겠습니까?') + '\n\n' + (lblInp ? lblInp.value : '') + ' / ' + (amtInp ? amtInp.value : '');
+                  window._knkRowDelConfirm(_delMsg, async () => {
+                    try {
+                      const r = await fetch('/sales/orders/items/' + uid + '/delete', { method: 'POST' });
+                      const j = await r.json();
+                      if (j.ok) { window.location.href = window.location.pathname + '?_t=' + Date.now(); }
+                      else { alert('⚠ ' + (j.message || j.error || '실패')); }
+                    } catch(e) { alert('⚠ ' + e.message); }
+                  });
                 });
               }
             });
