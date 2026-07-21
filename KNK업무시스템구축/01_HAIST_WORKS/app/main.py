@@ -12939,7 +12939,11 @@ def _parse_packing_list_xlsx(file_path: str) -> dict:
     HEADER_KEYS = [
         ("no",          ["순번", "NO", "번호", "ITEMNO", "SEQ"]),
         ("mgmt_code",   ["관리코드", "관리번호", "MGMTCODE", "MGMT", "MNGCODE"]),
-        ("order_no",    ["수주번호", "수주No", "ORDERNO", "SO번호", "PO번호", "PONO"]),
+        # v5H226z1027 (안지연 프로 요청 조사 중 발견): 'PO번호'·'PONO' 를 **우리 수주번호**로 읽던 위험 제거.
+        #   고객이 준 발주(PO)번호를 그 열에 적어 올리면 우리 수주번호 자리에 들어가 버린다.
+        #   → order_no 별칭에서 빼고, 고객 PO 전용 키(po_no)로 분리한다.
+        ("order_no",    ["수주번호", "수주No", "ORDERNO", "SO번호"]),
+        ("po_no",       ["고객PO", "발주번호", "PO번호", "PONO", "고객발주번호", "CUSTOMERPO"]),
         ("box_no",      ["BOX번호", "BOXNO", "BOX", "포장번호", "PALLET"]),
         ("part_name",   ["품명", "PARTNAME", "ITEMNAME", "SUPPLIERNAME", "DESCRIPTION", "PRODUCT"]),
         ("spec",        ["규격", "SPEC", "MODEL", "SPECIFICATION", "SIZE"]),
@@ -13559,6 +13563,7 @@ async def sales_order_item_edit(req: Request, iid: int):
     u_pallet = form.get("pallet_size")
     u_weight, _ = _opt_float("weight_kg")
     u_material_no = form.get("material_no")   # v5H226z441: 자재번호(자유입력)
+    u_po_no = form.get("po_no")               # v5H226z1027: 고객 발주(PO)번호 — 칸 없으면 None(미전송=안 건드림)
     # v5H226z460(대표 지시): 상품 원가관리 — 판매단가(unit_price)·매입단가(cost_price)·마진%(margin_pct).
     #   미전송(__SKIP__)이면 기존 호기 로직(unit_price=금액) 유지. PARTS 편집 시에만 전송됨.
     u_unit_price, _ = _opt_float("unit_price")
@@ -13644,6 +13649,8 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("spec=?"); vals_set.append((u_spec or "").strip() or None)
             if u_material_no is not None and "material_no" in _oicols:   # v5H226z441: 자재번호
                 cols_set.append("material_no=?"); vals_set.append((u_material_no or "").strip() or None)
+            if u_po_no is not None and "po_no" in _oicols:   # v5H226z1027: 고객 PO번호(빈칸 저장 허용 = 지움)
+                cols_set.append("po_no=?"); vals_set.append((u_po_no or "").strip() or None)
             if u_arrival is not None and "arrival_status" in _oicols:
                 cols_set.append("arrival_status=?"); vals_set.append((u_arrival or "").strip() or None)
             if u_supplier is not None and "supplier" in _oicols:
@@ -22357,12 +22364,16 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             _omeq_col = ("o.model_name AS o_model, o.equip_name AS o_equip"
                          if "model_name" in _ord_cols else "'' AS o_model, '' AS o_equip")
             _i_extra += (", oi.line_note AS i_note" if "line_note" in _oi_cols else ", '' AS i_note")
+            # v5H226z1027 (안지연 프로 요청·대표 확정): 고객 발주(PO)번호 — 호기값 우선, 없으면 SO 공통값.
+            #   PO 가 다르면 수주번호가 갈리므로 이 줄이 왜 별도 수주번호인지 보드에서 바로 보인다.
+            _i_extra += (", oi.po_no AS i_po" if "po_no" in _oi_cols else ", '' AS i_po")
+            _opo_col = ("COALESCE(o.customer_po,'') AS o_po" if "customer_po" in _ord_cols else "'' AS o_po")
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
                 "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
-                + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", "
+                + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", " + _opo_col + ", "
                 "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
                 + _i_extra + " "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
@@ -22390,6 +22401,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "o_cc_name": (d.get("o_cc_name") or ""), "o_cc_dept": (d.get("o_cc_dept") or ""),
                         "o_cc_phone": (d.get("o_cc_phone") or ""),   # v5H226z678: SO 담당자/부서/연락처
                         "o_model": (d.get("o_model") or ""), "o_equip": (d.get("o_equip") or ""),   # v5H226z981: SO 모델명·장비명
+                        "o_po": (d.get("o_po") or ""),   # v5H226z1027: SO 고객 발주(PO)번호
                         "items": [],
                     }
                 if d.get("oi_id") is not None:
@@ -22421,6 +22433,8 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "price": (float(_so["o_total"] or 0) / max(1, int(_so["o_qty"] or 1))), "amount": _so["o_total"], "currency": _so["o_cur"],   # v5H226z684: 단가=총액÷수량(개당) → 단가×수량=금액 일치(제품 추가행도 개당단가·소모품 qty=1은 총액 그대로)
                     "order_date": (_eff_c("i_ord", _so["o_ord"]) or "")[:10], "due_date": _due944, "ship_to": _eff_c("i_ship", _so["o_ship"]),   # v5H226z710/z944: 호기 override 우선(없으면 SO) · 부품 SO는 헤더납기까지(max)
                     "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
+                    "po_no": (_eff_c("i_po", "") or _so.get("o_po") or ""),   # v5H226z1027: 호기 PO 우선·없으면 SO 공통
+
                     "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
                     "oid": _so.get("oid"), "so_type": (_so.get("so_type") or ""),   # v5H226z974: 상품 줄 수량(완제품 대분) 표시·편집 라우팅용
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
@@ -22449,6 +22463,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "price": float(it.get("up") or 0), "amount": float(it.get("amt") or 0),
                         "currency": eff_cur, "order_date": eff_ord[:10], "due_date": eff_due[:10],
                         "ship_to": eff_ship, "so_no": _so["so_no"], "qty": int(it.get("i_qty") or 1),
+                        "po_no": (str(it.get("i_po") or "").strip() or _so.get("o_po") or ""),   # v5H226z1027: 호기 PO 우선·없으면 SO 공통
                         "is_export": it.get("i_iex"), "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "",   # v5H226z668/z705: 호기 거래방식·SO 발주처(정식명+표시명)
                         "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                         "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
@@ -23048,6 +23063,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["ref_sos"] = _ln.get("ref_sos") or []   # v5H226z638: 같은 관리번호 추가 SO '참고 칩' 데이터(메인 첫 줄에만 있음)
                 _iu["unit_label"] = _ln["label"]
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
+                _iu["po_no"] = _ln.get("po_no") or ""   # v5H226z1027: 이 줄(수주번호)의 고객 PO — 줄마다 다를 수 있어 info 폴백 안 함
                 _iu["price"] = _ln["price"]
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
@@ -24329,16 +24345,19 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
             # v5H226z367: 거래명세서/세금계산서 발행일자도 대표 SO에서 — 컬럼 없으면 빈값(마이그레이션 전 방어)
             _stmt_sql = "statement_date" if "statement_date" in _ocols else "'' AS statement_date"
             _taxd_sql = "tax_invoice_date" if "tax_invoice_date" in _ocols else "'' AS tax_invoice_date"
+            # v5H226z1027: 고객 발주(PO)번호 — 이 수주번호가 갈린 근거를 보드에서도 볼 수 있게(기본 꺼짐 컬럼)
+            _cpo_sql = "customer_po" if "customer_po" in _ocols else "'' AS customer_po"
             for _r2 in _c.execute(
-                f"SELECT project_id, order_no, {_ship_sql}, {_stmt_sql}, {_taxd_sql} FROM orders "
+                f"SELECT project_id, order_no, {_ship_sql}, {_stmt_sql}, {_taxd_sql}, {_cpo_sql} FROM orders "
                 f"WHERE project_id IS NOT NULL{_board_in_frag('project_id', _pids)} ORDER BY id DESC"):   # v5H226z864
                 _pid2 = _r2[0]
                 if not _pid2:
                     continue
                 _ono2, _sto2 = (_r2[1] or ""), (_r2[2] or "")
                 _stmt2, _taxd2 = (_r2[3] or ""), (_r2[4] or "")
+                _cpo2 = (_r2[5] or "")
                 if _pid2 not in _so_map:
-                    _so_map[_pid2] = [_ono2, _sto2, _stmt2, _taxd2]   # 최신 SO 기준(번호·납품처·발행일자)
+                    _so_map[_pid2] = [_ono2, _sto2, _stmt2, _taxd2, _cpo2]   # 최신 SO 기준(번호·납품처·발행일자·고객PO)
                 elif not _so_map[_pid2][1] and _sto2:
                     _so_map[_pid2][1] = _sto2             # 최신에 납품처 없으면 다음 최신값으로 보강
     except Exception:
@@ -24381,10 +24400,12 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
             continue  # 소모품은 아래 co_list 로 (중복 방지)
         _sorec = _so_map.get(p.get("id")) or ["", "", "", ""]
         _so, _ship, _stmt, _taxd = _sorec[0], _sorec[1], _sorec[2], _sorec[3]
+        _cpo = _sorec[4] if len(_sorec) > 4 else ""   # v5H226z1027: 고객 PO(SO 없는 프로젝트 대비 안전 접근)
         info = {
             "ref_id": p.get("id"),                         # v5H226z264: 셀 편집/메모용
             "code": p.get("mgmt_code") or "—",
             "so_no": _so,
+            "po_no": _cpo,                                 # v5H226z1027: 고객 발주(PO)번호
             "name": p.get("name") or "",
             "model": p.get("model_name") or "",
             "equip": p.get("equip_name") or "",
@@ -24430,6 +24451,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 _iu["ref_sos"] = _ln.get("ref_sos") or []   # v5H226z638: 같은 관리번호 추가 SO '참고 칩' 데이터(메인 첫 줄에만 있음)
                 _iu["unit_label"] = _ln["label"]
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
+                _iu["po_no"] = _ln.get("po_no") or ""   # v5H226z1027: 이 줄(수주번호)의 고객 PO — 줄마다 다를 수 있어 info 폴백 안 함
                 _iu["price"] = _ln["price"]
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
@@ -27593,6 +27615,7 @@ async def projects_new_submit(request: Request):
         ships = form.getlist("unit_ship[]")
         notes_u = form.getlist("unit_note[]")
         currs = form.getlist("unit_currency[]")
+        pos_u = form.getlist("unit_po[]")   # v5H226z1027: 호기별 고객 PO번호(그룹키)
         units = []
         for i in range(max(len(labels), len(amounts))):
             # v5H137: 폼에서 라벨 비어 있으면 project_type 기준 자동 라벨
@@ -27613,9 +27636,13 @@ async def projects_new_submit(request: Request):
                 u_cur = _hdr_cur if _hdr_cur in ("KRW","USD","VND","JPY","CNY","EUR") else "KRW"
             if not (labels[i] if i < len(labels) else "") and u_amt == 0:
                 continue
+            # v5H226z1027 (안지연 프로 요청·대표 확정): 호기별 고객 PO — 비면 폼 공통 PO,
+            #   그것도 없으면 빈칸(=PO 안 주는 고객사, 기존과 동일 동작).
+            u_po = (pos_u[i] if i < len(pos_u) else "").strip() or (form.get("customer_po", "") or "").strip()
             units.append({"label": lbl, "amount": u_amt,
                           "due_date": u_due, "ship_to": u_ship,
-                          "note": u_note, "currency": u_cur})
+                          "note": u_note, "currency": u_cur,
+                          "po_no": u_po})
         # v5H226z: PARTS 형태는 호기 라인 없이 빈 SO + so_type=PARTS_EXPORT
         _ship_form_cn = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
         try:
