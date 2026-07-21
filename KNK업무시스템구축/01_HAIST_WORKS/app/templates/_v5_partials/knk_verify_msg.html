@@ -8,12 +8,13 @@
 <script>
 window.knkVerifyMsg1024 = function(v){
   if (!v) { return ''; }
-  if (v.error) { return '\n\n⚠ 자동 대조를 못 했습니다: ' + v.error + '\n(저장은 됐습니다 — 화면에서 값을 확인해 주세요)'; }
-  if (v.ok)    { return '\n\n✅ 엑셀 대조 ' + (v.checked || 0) + '행 — 품명·수량·매입단가·판매단가·마진 전부 일치'; }
+  if (v.error)   { return '\n\n⚠ 자동 대조를 못 했습니다: ' + v.error + '\n(저장은 됐습니다 — 화면에서 값을 확인해 주세요)'; }
+  if (v.skipped) { return '\n\n⚠ 원본 대조를 건너뛰었습니다\n' + v.skipped; }
+  if (v.ok)      { return '\n\n✅ 올린 엑셀 원본과 대조 ' + (v.checked || 0) + '행 — 적어 넣은 값 전부 일치\n(품명·자재번호·규격·제작사·공급사·수량·매입단가·마진·판매단가·환율·인보이스·납기·상태·비고)'; }
   var d = v.diff || [];
-  var s = '\n\n⚠ 엑셀과 다른 값 ' + d.length + '건 (대조 ' + (v.checked || 0) + '행)';
+  var s = '\n\n⚠ 올린 엑셀과 다른 값 ' + d.length + '건 (대조 ' + (v.checked || 0) + '행)';
   d.slice(0, 8).forEach(function(x){
-    s += '\n  · ' + x.row + '행 ' + (x.name || '') + ' [' + x.field + '] 엑셀 ' + x.excel + ' → 저장 ' + x.saved;
+    s += '\n  · ' + (x.row ? (x.row + '행 ' + (x.name || '') + ' ') : '') + '[' + x.field + '] 엑셀 ' + x.excel + ' → 저장 ' + x.saved;
   });
   if (d.length > 8) { s += '\n  … 외 ' + (d.length - 8) + '건'; }
   return s;

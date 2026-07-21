@@ -14431,8 +14431,8 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 _icur = c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
                 _new_ids1024.append(_icur.lastrowid)   # v5H226z1024: 업로드 직후 자동 대조용
                 inserted += 1
-            # v5H226z1024 (대표 지시): 저장 직후 엑셀↔저장값 자동 대조 — 대표가 눈으로 검산하지 않게.
-            _verify1024 = _prodbulk_verify_saved(c, _new_ids1024, lines)
+            # v5H226z1024/z1025 (대표 지시): 저장 직후 '올린 엑셀 파일'을 직접 다시 읽어 저장값과 대조.
+            _verify1024 = _prodbulk_verify_saved(c, _new_ids1024, _prodbulk_raw_rows(io.BytesIO(raw)))
             # v5H226z943 (대표 지시): 부품 추가/교체 후 금액 합계는 '이 수주의 전체 부품' 기준 재계산(add=기존+신규·replace=신규).
             _sum943 = c.execute("SELECT COALESCE(SUM(amount),0), COALESCE(SUM(COALESCE(sell_krw,0)*COALESCE(qty,0)),0) FROM order_items WHERE order_id=?", (oid,)).fetchone()
             total = round(float((_sum943[0] if _sum943 else 0) or 0), 2)
@@ -23554,45 +23554,118 @@ def _parse_product_bulk_xlsx(path):
     return {"project": proj, "lines": lines}
 
 
-def _prodbulk_verify_saved(c, item_ids, lines):
-    """v5H226z1024 (대표 지시): 상품 양식 업로드 직후 '엑셀 ↔ 저장값' 자동 대조.
-    대표가 매번 눈으로 검산하지 않아도 되도록, 저장 직후 DB를 다시 읽어 엑셀 파싱값과 1:1 비교한다.
-    비교 항목: 품명·수량·매입단가(KRW)·판매단가(KRW)·마진%. 반환 {"checked":n,"ok":bool,"diff":[...최대 20건]}
-    ⛔ 조회 전용 — 값을 고치지 않는다(불일치는 '보고'만 하고 판단은 사람이 한다)."""
+# v5H226z1025 (대표 지시): '내가 올린 엑셀 파일'과 저장 결과를 직접 대조하기 위한 표준 양식 머리글.
+#   _build_product_bulk_template_buf 의 pheaders 와 같아야 한다(공백·줄바꿈·별표는 비교 시 무시).
+_PRODBULK_TPL_HDR = ["자재번호", "자재품명*", "규격(모델)", "제작사", "공급사", "수량",
+                     "매입단가\n(KRW)", "마진%", "판매단가(자동)\n(KRW)", "환율",
+                     "인보이스단가\n(USD)", "상태", "납기", "비고"]
+_PRODBULK_RAW_KEYS = ["material_no", "part_name", "spec", "maker", "supplier", "qty",
+                      "cost", "margin", "sell", "fx", "inv", "status", "due", "note"]
+
+
+def _prodbulk_hdr_norm(v):
+    """머리글 비교용 정규화 — 공백·줄바꿈·별표 제거 후 대문자."""
+    import re as _re
+    return _re.sub(r"[\s\*]+", "", str(v or "")).upper()
+
+
+def _prodbulk_raw_rows(src):
+    """v5H226z1025 (대표 지시): 업로드한 엑셀을 '한 번 더' 열어 셀 값을 그대로 읽는다.
+    파서(_parse_product_bulk_xlsx)의 해석을 믿지 않고 독립적으로 읽어야
+    '열을 잘못 인식해 엉뚱한 칸을 매입단가로 읽은' 경우까지 잡을 수 있다(z978 '67' 부류).
+    → 표준 양식 머리글과 **정확히 일치**할 때만 열 위치를 확정한다. 다르면 대조를 생략하고 사유를 보고한다
+      (추측으로 열을 맞추면 대조 자체가 틀려지므로 '모른다'고 말하는 편이 정직하다).
+    반환 {"ok":bool, "reason":str, "rows":[{키:셀값}]}"""
+    from openpyxl import load_workbook
+    try:
+        ws = load_workbook(src, data_only=True).worksheets[0]
+    except Exception as _e:
+        return {"ok": False, "reason": f"엑셀을 다시 열지 못했습니다({str(_e)[:60]})", "rows": []}
+    _want = [_prodbulk_hdr_norm(h) for h in _PRODBULK_TPL_HDR]
+    _maxr = min(ws.max_row or 1, 400)
+    _hdr_row = 0
+    for _r in range(1, min(_maxr, 60) + 1):
+        if [_prodbulk_hdr_norm(ws.cell(_r, _ci).value) for _ci in range(1, 15)] == _want:
+            _hdr_row = _r
+            break
+    if not _hdr_row:
+        return {"ok": False, "rows": [],
+                "reason": "부품 표 머리글이 표준 양식과 달라 원본 대조를 생략했습니다 "
+                          "('📥 상품 양식 받기'로 받은 양식 그대로 올리면 대조합니다)"}
+    _rows = []
+    for _r in range(_hdr_row + 1, _maxr + 1):
+        _pn = ws.cell(_r, 2).value
+        if _pn is None or str(_pn).strip() == "":
+            continue
+        _rows.append({_k: ws.cell(_r, _ci).value for _ci, _k in enumerate(_PRODBULK_RAW_KEYS, 1)})
+    return {"ok": True, "reason": "", "rows": _rows}
+
+
+def _prodbulk_verify_saved(c, item_ids, raw):
+    """v5H226z1024/z1025 (대표 지시): '내가 올린 엑셀 파일' ↔ '저장된 내용' 자동 대조.
+    대표가 매번 눈으로 검산하지 않아도 되도록, 저장 직후 엑셀 셀을 직접 다시 읽어 DB와 1:1 비교한다.
+    · 대조 대상 = **엑셀에 적어 넣은 칸만**. 빈 칸(판매단가·인보이스 등)은 시스템이 계산하는 값이라 제외.
+    · 행 개수도 대조한다(엑셀 139행인데 130행만 저장된 경우를 잡기 위해).
+    ⛔ 조회 전용 — 불일치는 '보고'만 하고 자동으로 고치지 않는다(판단은 사람이 한다).
+    반환 {"checked":n,"ok":bool,"diff":[...최대 20건],"skipped":사유}"""
     out = {"checked": 0, "ok": True, "diff": []}
     try:
+        if not (raw or {}).get("ok"):
+            out["skipped"] = (raw or {}).get("reason") or "원본 대조를 하지 못했습니다"
+            return out
+        _rows = raw.get("rows") or []
         _cols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+
+        def _add(idx, name, field, ex, sv):
+            out["ok"] = False
+            if len(out["diff"]) < 20:
+                out["diff"].append({"row": idx, "name": str(name or "")[:24], "field": field,
+                                    "excel": ("" if ex is None else ex), "saved": ("" if sv is None else sv)})
+
+        if len(_rows) != len(item_ids):
+            _add(0, "", "행 개수", f"{len(_rows)}행", f"{len(item_ids)}행")
 
         def _n(v):
             try:
-                return round(float(v), 2)
+                return round(float(str(v).replace(",", "").strip()), 2)
             except Exception:
                 return None
 
-        for _idx, (_iid, _ln) in enumerate(zip(item_ids, lines), 1):
-            _nm = str(_ln.get("part_name") or "").strip()
+        def _s(v):
+            return str(v).strip() if v not in (None, "") else ""
+
+        for _idx, (_iid, _ex) in enumerate(zip(item_ids, _rows), 1):
+            _nm = _s(_ex.get("part_name"))
             _row = c.execute("SELECT * FROM order_items WHERE id=?", (_iid,)).fetchone()
             if not _row:
-                out["ok"] = False
-                if len(out["diff"]) < 20:
-                    out["diff"].append({"row": _idx, "name": _nm[:24], "field": "행", "excel": "있음", "saved": "저장 안 됨"})
+                _add(_idx, _nm, "행", "있음", "저장 안 됨")
                 continue
             _d = dict(_row)
             out["checked"] += 1
-            _chk = [("품명", _nm, str(_d.get("unit_label") or "").strip()),
-                    ("수량", _n(_ln.get("qty")), _n(_d.get("qty")))]
-            for _f, _lk, _dk in (("매입단가", "cost_krw", "cost_krw"),
-                                 ("판매단가", "sell_krw", "sell_krw"),
-                                 ("마진%", "margin_pct", "margin_pct")):
-                if _dk in _cols:
-                    _chk.append((_f, _n(_ln.get(_lk)), _n(_d.get(_dk))))
-            for _f, _ex, _sv in _chk:
-                if _ex != _sv:
-                    out["ok"] = False
-                    if len(out["diff"]) < 20:
-                        out["diff"].append({"row": _idx, "name": _nm[:24], "field": _f,
-                                            "excel": ("" if _ex is None else _ex),
-                                            "saved": ("" if _sv is None else _sv)})
+            # 저장값 — 외화 건은 KRW 원본(cost_krw/sell_krw), 내수는 cost_price/unit_price 가 곧 KRW
+            _sv_cost = _d.get("cost_krw") if _d.get("cost_krw") is not None else _d.get("cost_price")
+            _sv_sell = _d.get("sell_krw") if _d.get("sell_krw") is not None else _d.get("unit_price")
+            _sv_inv = _d.get("invoice_unit_price_usd") if _d.get("invoice_unit_price_usd") is not None else _d.get("unit_price")
+            _txt = [("품명", "part_name", _d.get("unit_label")), ("자재번호", "material_no", _d.get("material_no")),
+                    ("규격", "spec", _d.get("spec")), ("제작사", "maker", _d.get("maker")),
+                    ("공급사", "supplier", _d.get("supplier")), ("비고", "note", _d.get("line_note"))]
+            _num = [("수량", "qty", _d.get("qty")), ("매입단가", "cost", _sv_cost), ("마진%", "margin", _d.get("margin_pct")),
+                    ("판매단가", "sell", _sv_sell), ("환율", "fx", _d.get("fx_rate")), ("인보이스단가", "inv", _sv_inv)]
+            for _f, _k, _sv in _txt:
+                if _s(_ex.get(_k)) and _s(_ex.get(_k)) != _s(_sv):
+                    _add(_idx, _nm, _f, _s(_ex.get(_k)), _s(_sv))
+            for _f, _k, _sv in _num:
+                _e = _n(_ex.get(_k))
+                if _e is not None and _e != _n(_sv):
+                    _add(_idx, _nm, _f, _e, _n(_sv))
+            if _s(_ex.get("due")):   # 납기 — 빈 칸이면 프로젝트 납기 상속이라 대조 제외
+                _ed, _sd = _prodbulk_fmt_date(_ex.get("due")), _prodbulk_fmt_date(_d.get("due_date"))
+                if _ed and _ed != _sd:
+                    _add(_idx, _nm, "납기", _ed, _sd or "")
+            if _s(_ex.get("status")):   # 상태 — 빈 칸이면 '진행중' 자동
+                _es = _prodbulk_norm_status(_ex.get("status"))
+                if _es != _prodbulk_norm_status(_d.get("unit_status")):
+                    _add(_idx, _nm, "상태", _es, _s(_d.get("unit_status")))
     except Exception as _e:
         out["error"] = str(_e)[:120]
     return out
@@ -23719,6 +23792,36 @@ def _build_product_bulk_template_buf(header=None, rows=None):
         cc = ws2.cell(1, ci); cc.font = white; cc.fill = knk
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
     return buf
+
+
+@app.post("/projects/verify-upload")
+async def projects_verify_upload(request: Request, xlsx: UploadFile = File(...), so_id: int = Form(0)):
+    """v5H226z1025 (대표 지시): '내가 올린 엑셀 파일'과 '실제로 저장된 내용'이 같은지 대조.
+    신규 등록(미리보기→확정)은 확정 요청에 파일이 없으므로, 화면이 같은 파일로 이 엔드포인트를 한 번 더 호출한다.
+    (부품 추가·전체 교체는 업로드 요청에 파일이 있어 그 자리에서 대조한다.)
+    ⛔ 조회 전용 — 아무것도 고치지 않는다. 언제든 다시 눌러 확인할 수 있다."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    _raw = await xlsx.read()
+    if not _raw:
+        return JSONResponse({"ok": False, "error": "빈 파일입니다"}, 200)
+    if len(_raw) > 10 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "파일이 너무 큽니다 (10MB 제한)"}, 200)
+    if not (xlsx.filename or "").lower().endswith((".xlsx", ".xlsm")):
+        return JSONResponse({"ok": False, "error": "Excel 파일(.xlsx)만 지원합니다"}, 200)
+    try:
+        with db_session() as c:
+            _ids = [r[0] for r in c.execute(
+                "SELECT id FROM order_items WHERE order_id=? ORDER BY id ASC", (int(so_id),)).fetchall()]
+            if not _ids:
+                return JSONResponse({"ok": False, "error": "대조할 부품이 없습니다"}, 200)
+            _v = _prodbulk_verify_saved(c, _ids, _prodbulk_raw_rows(io.BytesIO(_raw)))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"대조 오류: {str(e)[:150]}"}, 200)
+    return JSONResponse({"ok": True, "verify": _v})
 
 
 @app.get("/projects/import-product-template")
@@ -23969,7 +24072,7 @@ async def projects_import_product_confirm(request: Request):
         if not new_pid:
             return JSONResponse({"ok": False, "error": "프로젝트 생성 실패"}, 200)
     inserted = 0
-    _verify1024 = None   # v5H226z1024: 엑셀↔저장값 자동 대조 결과(응답에 실어 화면에 바로 보고)
+    _verify_so1024 = None   # v5H226z1025: 화면이 '원본 대조'를 요청할 대상 SO
     try:
         with db_session() as c:
             pres = _pwf.confirm_order_multi(
@@ -24014,8 +24117,9 @@ async def projects_import_product_confirm(request: Request):
                     _icur = c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
                     _new_ids1024.append(_icur.lastrowid)   # v5H226z1024: 업로드 직후 자동 대조용
                     inserted += 1
-                # v5H226z1024 (대표 지시): 저장 직후 엑셀↔저장값 자동 대조 — 대표가 눈으로 검산하지 않게.
-                _verify1024 = _prodbulk_verify_saved(c, _new_ids1024, lines)
+                # v5H226z1025: 확정 요청엔 엑셀 파일이 없다(미리보기 때 올렸다) → 화면이 같은 파일로
+                #   /projects/verify-upload 를 한 번 더 호출해 '원본 ↔ 저장값'을 대조한다. 그 대상 SO 를 알려준다.
+                _verify_so1024 = oid
                 c.execute("UPDATE orders SET total_amount=? WHERE id=?", (total, oid))
                 # v5H226z600 (대표 지시): 부품 SO 에 통화·환율 저장 — 상세 PACKING LIST 에서
                 #   매입/판매 KRW 환산(=USD×환율) + 인보이스(USD) 표시에 필요(추가수주 포함).
@@ -24074,7 +24178,7 @@ async def projects_import_product_confirm(request: Request):
         return JSONResponse({"ok": False, "error": f"부품 등록 중 오류: {e}", "pid": int(new_pid), "code": new_code}, 200)
     return JSONResponse({"ok": True, "pid": int(new_pid), "code": new_code,
                          "inserted": inserted, "total": total, "followup": _is_followup,
-                         "verify": _verify1024})   # v5H226z1024: 엑셀↔저장값 대조 결과
+                         "verify_so": _verify_so1024})   # v5H226z1025: 이 SO 를 올린 엑셀 원본과 대조하라
 
 
 def _sched_cust_hit(row, q):

@@ -68,6 +68,7 @@
 (function(){
   var PB_BIZ = '{{ preset_biz|default("") }}';
   var _pbData = null;
+  var _pbFile = null;   // v5H226z1025: 확정 후 '엑셀 원본 ↔ 저장값' 대조에 다시 쓸 업로드 파일
   // v5H226z729: 상태 enum → 한글 라벨(미리보기 표시용)
   var PB_STAT_KR = {IN_PRODUCTION:'진행중', SHIPPED:'출하', CANCELLED:'취소', CANCELED:'취소', HOLD:'보류', CONFIRMED:'수주확정', DRAFT:'임시', READY_TO_SHIP:'납품대기', INVOICED:'송장발행', PAID:'수금완료'};
   function pbEsc(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
@@ -77,6 +78,8 @@
   function pbUsd(n){ return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   async function pbUpload(file){
     if(!file){ alert('파일이 선택되지 않았습니다.'); return; }
+    // v5H226z1025 (대표 지시): 확정 뒤 '올린 엑셀 원본 ↔ 저장값' 대조에 같은 파일을 다시 쓴다.
+    _pbFile = file;
     var fd = new FormData();
     fd.append('xlsx', file);
     fd.append('biz', PB_BIZ);
@@ -170,8 +173,19 @@
     var j;
     try { j = await r.json(); } catch(e){ alert('응답 오류(로그인 풀림 가능). F5 후 재시도'); btn.disabled=false; return; }
     if(!j.ok){ alert('등록 실패: ' + (j.error||'알 수 없음')); btn.disabled=false; return; }
-    alert('✅ 상품 등록 완료' + (j.followup ? ' (기존 관리번호에 추가 수주)' : '') + '\n관리번호 ' + (j.code||'-') + ' · 부품 ' + j.inserted + '건 · 이번 등록 금액 ' + Number(j.total||0).toLocaleString('en-US')
-          + (window.knkVerifyMsg1024 ? window.knkVerifyMsg1024(j.verify) : ''));
+    // v5H226z1025 (대표 지시): 확정 요청엔 파일이 없으므로, 같은 엑셀을 한 번 더 보내 '원본 ↔ 저장값'을 대조.
+    //   대조가 안 돼도 등록 자체는 이미 성공 — 실패 사유만 알리고 진행한다.
+    var _vmsg = '';
+    if (j.verify_so && _pbFile) {
+      try {
+        var vfd = new FormData(); vfd.append('xlsx', _pbFile); vfd.append('so_id', j.verify_so);
+        var vr = await fetch('/projects/verify-upload', {method:'POST', body:vfd, credentials:'same-origin'});
+        var vj = await vr.json();
+        _vmsg = vj.ok ? (window.knkVerifyMsg1024 ? window.knkVerifyMsg1024(vj.verify) : '')
+                      : ('\n\n⚠ 원본 대조 실패: ' + (vj.error || '알 수 없음'));
+      } catch(e){ _vmsg = '\n\n⚠ 원본 대조 통신 실패: ' + e; }
+    }
+    alert('✅ 상품 등록 완료' + (j.followup ? ' (기존 관리번호에 추가 수주)' : '') + '\n관리번호 ' + (j.code||'-') + ' · 부품 ' + j.inserted + '건 · 이번 등록 금액 ' + Number(j.total||0).toLocaleString('en-US') + _vmsg);
     pbClose();
     var dest = '/project/' + j.pid;
     try { (window.top||window).location.href = dest; } catch(e){ location.href = dest; }
