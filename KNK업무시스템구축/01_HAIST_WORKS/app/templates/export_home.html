@@ -19,6 +19,10 @@ body {
     <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">CI · P/L · B/L · 통관 신고 워크플로우</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a class="btn btn-primary" href="/export/prep" style="background:#1d4ed8;border-color:#1d4ed8;">🚢 출하 전 통관 정리</a>
+      {# v5H226z1022 (대표 지시): HS 사전 진입점이 '통관 입력 상세' 버튼 1곳뿐이라 프로젝트를 골라야만 들어갈 수 있었음(4단계).
+         공용 사전이므로 수출 관리에서 바로 열 수 있게 — 색은 통관 입력의 같은 버튼과 통일(보라). #}
+      <a class="btn" href="/export/hs-dict" title="과거 통관 실적으로 쌓인 부품별 HS코드·베트남어 품명 사전 — 통관 입력 'HS 자동 채움'의 근거"
+         style="border:1px solid #7c3aed;color:#7c3aed;background:#fff;">📖 베트남 HS코드 사전</a>
       <a class="btn" href="/export/orders/new" style="border:1px solid var(--qv-line,#e5e7eb);">＋ 수출 수주</a>
     </div>
   </div>
