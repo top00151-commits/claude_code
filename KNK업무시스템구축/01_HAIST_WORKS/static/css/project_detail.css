@@ -543,3 +543,15 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           .so-form-badge.sf-parts, .amt-form-badge.sf-parts { background:#fef3c7; color:#92400e; border-color:#fde68a; }       /* 상품 */
           .so-form-badge.sf-etc, .amt-form-badge.sf-etc { background:#f1f5f9; color:#475569; border-color:#e2e8f0; }         /* 기타 */
           .so-form-badge.sf-consumable, .amt-form-badge.sf-consumable { background:#dcfce7; color:#166534; border-color:#bbf7d0; }  /* 소모품 */
+
+          /* v5H226z1026 (안지연 프로 요청·대표 승인): 같은 규격이 여러 줄에 있으면 눈에 띄게.
+             ⚠오류가 아니다 — 납기가 달라 일부러 나눈 경우가 많다. '확인해 보세요' 수준의 연한 표시.
+             inset box-shadow 로 덧칠해서 매입·마진 칸의 기존 인라인 배경(#fff7ed)을 지우지 않는다
+             (background !important 로 덮으면 원가 열 구분이 사라진다). */
+          table.so-units.parts-excel tr.dup-spec > td { box-shadow: inset 0 0 0 9999px rgba(251, 191, 36, .13); }
+          table.so-units.parts-excel tr.dup-spec > td:first-child { border-left: 3px solid #f59e0b; }
+          .dup-spec-badge {
+            display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 4px;
+            background: #fde68a; color: #92400e; border: 1px solid #fcd34d;
+            font-size: 9.5px; font-weight: 700; line-height: 15px; vertical-align: middle; white-space: nowrap;
+          }

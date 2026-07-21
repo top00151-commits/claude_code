@@ -13242,7 +13242,7 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                 except (ValueError, TypeError):
                     _margin = 0.0
                 if up <= 0 and _cost > 0 and _margin != 0:
-                    up = round(_cost * (1 + _margin / 100.0))
+                    up = _sell_from_cost(_cost, _margin)   # v5H226z1026: 소수점 버림(대표 확정)
                 if amt <= 0 and qty > 0 and up > 0:
                     amt = round(qty * up, 2)
                 cols = ["order_id", "unit_label", "qty",
@@ -23389,6 +23389,18 @@ def _prodbulk_norm_status(v):
     return "진행중"
 
 
+def _sell_from_cost(cost, margin):
+    """v5H226z1026 (안지연 프로 확인 요청·대표 확정): 판매단가 = 매입단가 × (1+마진%) — **소수점 이하 버림**.
+    기존에는 반올림이었다(예: 49,440×1.12=55,372.8 → 55,373). 대표 확정으로 버림(→55,372)으로 통일한다.
+    ⚠부동소수 오차 방어: 5,800×1.12 가 6,495.999… 로 떨어져 1원이 깎이는 일이 없도록
+      6자리에서 한 번 정리한 뒤 버린다. 계산 지점이 4곳(서버 2·화면 2)이라 서버는 이 함수 하나로 통일."""
+    import math
+    try:
+        return int(math.floor(round(float(cost) * (1 + float(margin) / 100.0), 6)))
+    except Exception:
+        return 0
+
+
 # 부품 표 컬럼 (헤더 키워드 자동 인식)
 _PRODBULK_PARTCOLS = [
     ("material_no", ["자재번호", "MATNO", "MATERIALNO", "품번", "PARTNO"]),
@@ -23510,7 +23522,7 @@ def _parse_product_bulk_xlsx(path):
         margin = gnum(r, "margin_pct")
         sell_krw = gnum(r, "unit_price")     # 판매단가(KRW)
         if sell_krw <= 0 and cost_krw > 0 and margin != 0:
-            sell_krw = round(cost_krw * (1 + margin / 100.0))
+            sell_krw = _sell_from_cost(cost_krw, margin)   # v5H226z1026: 소수점 버림(대표 확정)
         fx = round(gnum(r, "fx_rate"), 2)    # 환율 (1 USD = ? 원) — 소수점 2자리(매출 영향)
         inv = gnum(r, "invoice_usd")         # 인보이스 단가(USD)
         if foreign:
@@ -23772,11 +23784,11 @@ def _build_product_bulk_template_buf(header=None, rows=None):
         ["기본 구조", "한 파일 = 상품 1건. 위쪽 '프로젝트 정보'(관리번호·고객사·프로젝트명 등) + 아래 '부품 표' 여러 줄."],
         ["관리번호", "비우면 발주일 기준 자동발급(사업부=업로드한 탭). 있으면 그 코드 사용(중복 시 오류). 4번째 글자=사업부(T/M/L/E)."],
         ["고객사1", "필수. 시스템에 등록된 고객사명과 정확히 일치해야 자동연결(미일치 시 미연결로 표시 — 등록 후 상세에서 연결)."],
-        ["매입단가 / 마진%", "구매팀 PART LIST의 매입단가(KRW)와 붙일 마진%. 판매단가(KRW) = 매입단가 × (1+마진%). 판매단가를 직접 적으면 그 값을 우선."],
+        ["매입단가 / 마진%", "구매팀 PART LIST의 매입단가(KRW)와 붙일 마진%. 판매단가(KRW) = 매입단가 × (1+마진%) — 소수점 이하 버림. 판매단가를 직접 적으면 그 값을 우선."],
         ["판매단가(자동)(KRW)", "비워두면 매입단가×마진으로 자동 계산. 마진을 비우면 '판매가 미정'으로 등록되고, 등록 후 상세에서 마진 정리."],
         ["거래구분 = 통화 기준", "내수 → 매입·판매 모두 KRW. 수출 → 매입은 KRW, 판매단가(KRW)를 환율로 USD 인보이스 변환. (통화 헤더 없음 — 거래구분이 통화를 정함)"],
         ["환율 / 인보이스단가(USD)", "수출일 때만. 환율 = 1 USD가 몇 원인지(소수점 2자리, 예: 1456.51 — 매출 총액에 영향). 인보이스단가(USD) = 판매단가(KRW) ÷ 환율(자동·소수점 2자리, 셋째자리 반올림). 내수면 두 칸은 비워두세요."],
-        ["숫자 자릿수", "KRW(매입·판매·금액) = 소수점 없음(정수). 환율 = 소수점 2자리. USD(인보이스·금액) = 소수점 2자리(셋째자리 반올림)."],
+        ["숫자 자릿수", "KRW(매입·판매·금액) = 소수점 없음(정수) — 판매단가는 소수점 이하 버림. 환율 = 소수점 2자리. USD(인보이스·금액) = 소수점 2자리(셋째자리 반올림)."],
         ["원가(매입) 보관", "수출이면 원가는 환율로 환산해 함께 보관(마진% 그대로 성립). 매입단가(KRW)·환율은 프로젝트에 함께 보관됩니다."],
         ["수량", "부품별 수량. 금액 = 수량 × 판매단가. 합계가 상품(프로젝트) 수주금액."],
         ["상태", "부품 줄 상태(드롭다운) — 진행중·출하·취소·보류 중 선택. 비우면 '진행중'으로 등록. 등록 후 상세·작업일정표에서 변경할 수 있습니다."],

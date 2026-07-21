@@ -679,6 +679,11 @@
                라벨·헤더도 KRW 여야 함. orders.exchange_rate 컬럼이 없어 _pfx=0 이어도(상품 SO는 항상 그렇다)
                KRW 원본이 있으면 KRW 로 표기 → 값은 122만원인데 라벨만 'USD' 가 붙던 버그 해결. #}
             {% set _so_has_krworig = ((_units_desc | selectattr('cost_krw') | list | length) > 0) if _units_desc else false %}
+            {# v5H226z1026 (안지연 프로 요청·대표 승인): 같은 규격이 여러 줄에 있으면 표시.
+               ⚠오류가 아니다 — 납기가 달라 일부러 나눠 적은 경우가 많다(예: 같은 SHAFT 를 7/30·8/6 로 분리).
+               그래서 빨간 경고가 아니라 '확인해 보세요' 수준(연한 색 + 규격칸 표식)으로만 알린다. #}
+            {% set _spec_cnt = {} %}
+            {% if _is_parts and _units_desc %}{% for _su in _units_desc %}{% set _sp = (_su.spec or '')|trim %}{% if _sp %}{% if _spec_cnt.update({_sp: (_spec_cnt.get(_sp, 0) + 1)}) %}{% endif %}{% endif %}{% endfor %}{% endif %}
             {% set _krw_col_ccy = 'KRW' if (_pfx or _so_has_krworig) else (_so_ccy if _is_fx_view else 'KRW') %}
             {# v5H226z6/z7: PARTS 일 때 28컬럼이라 가로 스크롤 — SO 카드 안에서만 #}
             {# 부모 grid/flex 가 자식 min-width 에 의해 늘어나는 걸 막기 위해 #}
@@ -770,7 +775,8 @@
                 {% set _ust = u.unit_status or '진행중' %}
                 {% set _u_ccy = u.currency or u.eff_currency or _cur or 'KRW' %}
                 {% set _ov_c = (u.currency and u.currency != (so.currency or _cur)) %}
-                <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}">
+                {% set _spec_dup = (_spec_cnt.get((u.spec or '')|trim, 0) > 1) if _is_parts else false %}
+                <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}"{% if _spec_dup %} class="dup-spec" title="같은 규격이 이 수주에 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 있습니다 — 납기가 달라 나눠 적은 것이면 정상입니다"{% endif %}>
                   {% if _is_parts %}
                   <td style="text-align:center;color:#888;font-size:10.5px;font-family:monospace;background:#f4f1e8;cursor:pointer;" class="row-num-cell" title="행 번호 — 클릭하면 이 행 접기/펴기">
                     <button type="button" class="row-toggle" title="행 접기/펴기">{{ loop.index }}</button>
@@ -809,6 +815,7 @@
                   <td style="font-size:11.5px;">
                     <span class="display-val">{{ u.spec or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit spec-inp" data-orig="{{ u.spec or '' }}" value="{{ u.spec or '' }}" style="width:120px;font-size:11.5px;">{% endif %}
+                    {% if _spec_dup %}<span class="dup-spec-badge" title="같은 규격 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄">중복 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}</span>{% endif %}
                   </td>
                   <td style="font-size:11.5px;">{# v5H226z604: 제작사 #}
                     <span class="display-val">{{ u.maker or '—' }}</span>
@@ -1546,9 +1553,11 @@
                   if (pamtDispR) pamtDispR.textContent = s;
                 };
                 const _fromCostMargin = () => {   // 매입·마진 → 판매(가산). 마진 빈칸이면 판매 그대로(미정 유지)
+                  // v5H226z1026 (안지연 프로 확인·대표 확정): 판매단가는 소수점 이하 **버림**(기존 반올림).
+                  //   서버 _sell_from_cost 와 같은 규칙 — 부동소수 오차는 6자리에서 정리 후 버림.
                   const c = _pn(costInpR), mRaw = marginInpR ? (marginInpR.value||'').trim() : '';
                   if (priceInpR && c > 0 && mRaw !== '')
-                    priceInpR.value = Math.round(c*(1+(parseFloat(mRaw.replace(/,/g,''))||0)/100)).toLocaleString('en-US');
+                    priceInpR.value = Math.floor(Math.round(c*(1+(parseFloat(mRaw.replace(/,/g,''))||0)/100)*1e6)/1e6).toLocaleString('en-US');
                   _recalcAmt();
                 };
                 const _fromPrice = () => {        // 판매 직접수정 → 마진% 역산(매입가 있을 때만)

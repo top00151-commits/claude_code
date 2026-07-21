@@ -597,7 +597,8 @@ function qPartRecalcPrice(row){  // 매입·마진 → 판매(가산). 마진 �
   var mRaw=(mEl.value||'').trim();
   if(c>0 && mRaw!==''){
     var m=parseFloat(mRaw.replace(/,/g,''))||0;
-    pEl.value=Math.round(c*(1+m/100)).toLocaleString('en-US');
+    // v5H226z1026 (안지연 프로 확인·대표 확정): 판매단가는 소수점 이하 버림(서버 _sell_from_cost 와 동일 규칙)
+    pEl.value=Math.floor(Math.round(c*(1+m/100)*1e6)/1e6).toLocaleString('en-US');
   }
 }
 function qPartRecalcMargin(row){  // 판매 직접수정 → 마진% 역산 (매입가 있을 때만)
