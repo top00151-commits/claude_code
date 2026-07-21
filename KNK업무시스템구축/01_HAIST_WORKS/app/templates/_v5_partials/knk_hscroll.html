@@ -1,0 +1,89 @@
+{# v5H226z1023 (대표 지시): 넓은 표의 '좌우 스크롤바'를 화면 하단에 항상 보이게 — 표준 규정.
+   ────────────────────────────────────────────────────────────────────────
+   문제: 가로로 넓은 표(부품 28컬럼 등)는 스크롤바가 표 '맨 아래'에 있어,
+         세로로 끝까지 내려야만 좌우 이동이 가능했다(139행짜리 표 = 사실상 못 씀).
+   기존 시도(z19 sticky bottom:0 프록시)는 조상에 overflow:hidden 이 있으면 sticky 가
+         무력화되어 동작하지 않았다. → 조상 영향을 받지 않는 position:fixed 공용 바로 대체.
+   ────────────────────────────────────────────────────────────────────────
+   · opt-in 전용: 가로 스크롤 래퍼(overflow-x:auto 인 요소)에 [data-knk-hscroll] 한 줄.
+   · 화면에 보이고 실제로 가로 스크롤이 필요한 래퍼에만 바가 뜬다(없으면 자동 숨김).
+   · 래퍼↔바 양방향 동기화. 래퍼 자체 스크롤바는 그대로(둘 다 사용 가능).
+   ⛔ 매직넘버 위치 지정 금지 — 바 위치·폭은 래퍼 실제 위치에서 계산.
+   cf. 세로=[[knk_autofill_height_standard]](data-knk-fill) 와 한 세트. #}
+<script>
+/* z1023 공용 가로 스크롤바 헬퍼 — ES5. 전 화면 include, 대상 없으면 아무 것도 안 함. */
+(function(){
+  if (window.__knkHScrollInit) { return; }      /* SPA 재삽입 시 중복 생성 방지 */
+  window.__knkHScrollInit = 1;
+  var BAR_H = 14, bar = null, inner = null, cur = null, lock = 0, raf = null;
+
+  function build(){
+    if (bar) { return; }
+    bar = document.querySelector('[data-knk-hbar]');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.setAttribute('data-knk-hbar', '1');
+      bar.style.cssText = 'position:fixed;bottom:0;height:' + BAR_H + 'px;overflow-x:auto;overflow-y:hidden;' +
+                          'z-index:400;background:rgba(247,245,238,.97);border-top:1px solid rgba(0,0,0,.16);display:none;';
+      inner = document.createElement('div');
+      inner.style.cssText = 'height:1px;';
+      bar.appendChild(inner);
+      document.body.appendChild(bar);
+    } else {
+      inner = bar.firstChild;
+    }
+    bar.addEventListener('scroll', function(){
+      if (!cur || lock) { return; }
+      lock = 1; cur.scrollLeft = bar.scrollLeft; lock = 0;
+    });
+  }
+
+  /* 화면에 보이면서 실제로 가로 스크롤이 필요한 래퍼 1개 선택 */
+  function pick(){
+    var els = document.querySelectorAll('[data-knk-hscroll]'), i, el, r, vh = window.innerHeight || 0;
+    for (i = 0; i < els.length; i++){
+      el = els[i];
+      if ((el.scrollWidth - el.clientWidth) < 4) { continue; }        /* 좌우로 넘치지 않음 */
+      r = el.getBoundingClientRect();
+      if (r.bottom < 60 || r.top > (vh - 40)) { continue; }           /* 화면 밖 */
+      return el;
+    }
+    return null;
+  }
+
+  function relayout(){
+    try {
+      build();
+      var el = pick();
+      cur = el;
+      if (!el) { bar.style.display = 'none'; return; }
+      var r = el.getBoundingClientRect();
+      var left = Math.max(0, Math.round(r.left));
+      bar.style.display = 'block';
+      bar.style.left = left + 'px';
+      bar.style.width = Math.round(Math.min(r.width, (window.innerWidth || r.width) - left)) + 'px';
+      inner.style.width = el.scrollWidth + 'px';
+      if (!lock) { lock = 1; bar.scrollLeft = el.scrollLeft; lock = 0; }
+    } catch(e){ /* 실패해도 표 자체 스크롤바는 그대로라 안전 */ }
+  }
+
+  function schedule(){ if (raf) { cancelAnimationFrame(raf); } raf = requestAnimationFrame(relayout); }
+  window.knkHScroll = relayout;                 /* 동적 변경 후 수동 호출용 */
+
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+  window.addEventListener('load', schedule);
+  document.addEventListener('toggle', function(e){ if (e.target && e.target.tagName === 'DETAILS') { schedule(); } }, true);
+  /* 세로 스크롤(창·내부 컨테이너 모두) → 바 위치/표시 갱신, 대상 래퍼 가로 스크롤 → 바 동기화 */
+  document.addEventListener('scroll', function(e){
+    var t = e.target;
+    if (t && t.hasAttribute && t.hasAttribute('data-knk-hscroll')) {
+      if (t === cur && !lock && bar) { lock = 1; bar.scrollLeft = t.scrollLeft; lock = 0; }
+      return;
+    }
+    schedule();
+  }, true);
+  if (document.readyState !== 'loading') { schedule(); }
+  else { document.addEventListener('DOMContentLoaded', schedule); }
+})();
+</script>

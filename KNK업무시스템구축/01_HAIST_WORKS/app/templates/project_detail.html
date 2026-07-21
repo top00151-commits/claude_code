@@ -697,7 +697,8 @@
               {# v5H226z19: 중간 스크롤 제거 — wrapper 자연 높이 + 가로 스크롤만. #}
               {# 가로 스크롤이 viewport 하단에 항상 보이도록 sticky horizontal proxy 추가. #}
               {# v5H226z634: 완제품도 칸 늘어 가로 스크롤(부품처럼). 단 table-layout:고정/min-width는 안 줌(자연 폭). #}
-              <div{% if _is_parts %} class="so-units-wrapper" style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% elif _is_equip or _is_co %} class="so-units-wrapper so-scroll-visible" style="overflow-x:auto;overflow-y:visible;max-width:100%;"{% endif %}>
+              {# v5H226z1023 (대표 지시): 좌우 스크롤바를 화면 하단에 항상 — 공용 표준 data-knk-hscroll(조상 overflow:hidden 무관) #}
+              <div{% if _is_parts %} class="so-units-wrapper" data-knk-hscroll style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% elif _is_equip or _is_co %} class="so-units-wrapper so-scroll-visible" data-knk-hscroll style="overflow-x:auto;overflow-y:visible;max-width:100%;"{% endif %}>
             <table class="so-units{% if _is_parts %} parts-excel{% endif %}" data-soid="{{ so.id }}"{% if _is_parts %} style="white-space:nowrap;min-width:1500px;table-layout:fixed;"{% elif _is_equip %} style="white-space:nowrap;"{% endif %}>
               <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
                 <tr>

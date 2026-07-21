@@ -15,12 +15,14 @@ body { overflow: hidden !important; }
   -ms-overflow-style: none;
 }
 .main::-webkit-scrollbar { display: none; width: 0; height: 0; }
+/* v5H226z1023 (대표 지시): 머리글 고정 해제 — 다른 화면(고객사·자재 상세 등)과 통일.
+   ⚠원인: 이 화면만 z104 로 'sticky; top:0' 을 썼는데, 화면 최상단 121px 는 이미 셸이 차지한다
+     (상단바 .top sticky 80px + 책갈피 탭줄 41px). top:0 이면 머리글이 상단바 뒤로 파고들며
+     탭줄 높이만큼 틈이 생겨 그 사이로 표 행이 지나가 보였다(대표 지적 ②).
+   → 표준: 페이지 머리글은 고정하지 않는다(전 화면 static). 고정이 꼭 필요하면 top 은
+     셸 고정영역 높이를 변수로 참조할 것 — 매직넘버 0/임의값 금지. */
 .main > .page-head {
-  position: sticky;
-  top: 0;
-  z-index: 100;
   background: var(--paper-3, #fff);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   padding: 14px 0 6px var(--content-pad, 24px) !important;
 }
 /* v5H226z41: 시안1 디자인 토큰 — 본 페이지 한정 도입 (다른 partial 미접촉, body 스코프) */
