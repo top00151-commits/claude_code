@@ -841,11 +841,25 @@
                   {# v5H226z735(대표 지시): 수출 건 매입/판매 'KRW 원본'(입력값 그대로·정확). 있으면 ×환율 대신 이걸 표시. #}
                   {% set _ckrw = (u.get('cost_krw') if u.get is defined else u.cost_krw) %}
                   {% set _skrw = (u.get('sell_krw') if u.get is defined else u.sell_krw) %}
+                  {# v5H226z1024 (대표 지시): 편집칸도 '보기 값'과 똑같은 KRW 원본을 쓴다.
+                     그동안 보기(display-val)만 KRW 원본(5,800)이고 편집칸은 (USD×환율) 역산값(5,804)이었다.
+                     .so-card.editable 은 보기값을 숨기므로(css 407~408) 등록권한자 화면엔 늘 역산값만 보였고
+                     — 엑셀 매입단가와 안 맞는다는 대표 지적의 원인 — 그 상태로 '모두 저장'하면
+                     역산값이 실제로 저장돼 KRW 원본이 오염된다. 표시·편집·저장을 원본 하나로 통일. #}
+                  {% set _rfx = (u.fx_rate or _pfx) %}
+                  {% set _cost_ed = _ckrw if (_ckrw and _is_fx_view and _rfx) else none %}
+                  {% set _sell_ed = _skrw if (_skrw and _is_fx_view and _rfx) else none %}
+                  {% set _cost_fx = _rfx if _cost_ed else _pfx %}
+                  {% set _sell_fx = _rfx if _sell_ed else _pfx %}
+                  {% set _cost_orig = ('%.0f'|format(_cost_ed)) if _cost_ed else (('%.0f'|format(_cp * _pfx)) if (_cp and _pfx) else (('%.2f'|format(_cp)) if (_cp and _is_fx_view) else (('%.0f'|format(_cp)) if _cp else ''))) %}
+                  {% set _cost_val = ('{:,.0f}'.format(_cost_ed)) if _cost_ed else (('{:,.0f}'.format(_cp * _pfx)) if (_cp and _pfx) else (('{:,.2f}'.format(_cp)) if (_cp and _is_fx_view) else (('{:,.0f}'.format(_cp)) if _cp else ''))) %}
+                  {% set _sell_orig = ('%.0f'|format(_sell_ed)) if _sell_ed else (('%.0f'|format(u.unit_price * _pfx)) if (u.unit_price and _pfx) else (('%.2f'|format(u.unit_price)) if (u.unit_price and _is_fx_view) else (('%.0f'|format(u.unit_price)) if u.unit_price else ''))) %}
+                  {% set _sell_val = ('{:,.0f}'.format(_sell_ed)) if _sell_ed else (('{:,.0f}'.format(u.unit_price * _pfx)) if (u.unit_price and _pfx) else (('{:,.2f}'.format(u.unit_price)) if (u.unit_price and _is_fx_view) else (('{:,.0f}'.format(u.unit_price)) if u.unit_price else ''))) %}
                   {% if can_purchase_price %}
                   <td class="num money-cell" style="font-size:11.5px;background:#fff7ed;">
                     <div class="mc-wrap">
                     <span class="display-val">{% if _ckrw and _is_fx_view %}{{ money(_ckrw, 'KRW') }}{% elif _cp and _pfx %}{{ money(_cp * _pfx, 'KRW') }}{% elif _cp and _is_fx_view %}{{ money(_cp, _so_ccy) }}{% elif _cp %}{{ money(_cp, 'KRW') }}{% else %}—{% endif %}</span>
-                    {% if _editable %}<span class="ccy-pre">{{ _krw_col_ccy|ccysym }}</span><input type="text" class="unit-edit cost-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(_cp * _pfx) if (_cp and _pfx) else ('%.2f'|format(_cp) if (_cp and _is_fx_view) else ('%.0f'|format(_cp) if _cp else '')) }}" value="{{ '{:,.0f}'.format(_cp * _pfx) if (_cp and _pfx) else ('{:,.2f}'.format(_cp) if (_cp and _is_fx_view) else ('{:,.0f}'.format(_cp) if _cp else '')) }}" placeholder="매입가" style="width:78px;font-size:11.5px;text-align:right;">{% endif %}
+                    {% if _editable %}<span class="ccy-pre">{{ _krw_col_ccy|ccysym }}</span><input type="text" class="unit-edit cost-inp knk-money"{% if _cost_fx %} data-fx="{{ _cost_fx }}"{% endif %} data-orig="{{ _cost_orig }}" value="{{ _cost_val }}" placeholder="매입가" style="width:78px;font-size:11.5px;text-align:right;">{% endif %}
                     </div>
                   </td>
                   <td class="num" style="font-size:11.5px;background:#fff7ed;text-align:center;">
@@ -857,7 +871,7 @@
                   <td class="num money-cell" style="font-size:11.5px;">
                     <div class="mc-wrap">
                     <span class="display-val" style="font-weight:600;">{% if _skrw and _is_fx_view %}{{ money(_skrw, 'KRW') }}{% elif u.unit_price and _pfx %}{{ money(u.unit_price * _pfx, 'KRW') }}{% elif u.unit_price and _is_fx_view %}{{ money(u.unit_price, _so_ccy) }}{% elif u.unit_price %}{{ money(u.unit_price, 'KRW') }}{% else %}—{% endif %}</span>
-                    {% if _editable %}<span class="ccy-pre">{{ _krw_col_ccy|ccysym }}</span><input type="text" class="unit-edit price-inp knk-money"{% if _pfx %} data-fx="{{ _pfx }}"{% endif %} data-orig="{{ '%.0f'|format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('%.2f'|format(u.unit_price) if (u.unit_price and _is_fx_view) else ('%.0f'|format(u.unit_price) if u.unit_price else '')) }}" value="{{ '{:,.0f}'.format(u.unit_price * _pfx) if (u.unit_price and _pfx) else ('{:,.2f}'.format(u.unit_price) if (u.unit_price and _is_fx_view) else ('{:,.0f}'.format(u.unit_price) if u.unit_price else '')) }}" placeholder="판매가" style="width:88px;font-size:11.5px;text-align:right;">{% endif %}
+                    {% if _editable %}<span class="ccy-pre">{{ _krw_col_ccy|ccysym }}</span><input type="text" class="unit-edit price-inp knk-money"{% if _sell_fx %} data-fx="{{ _sell_fx }}"{% endif %} data-orig="{{ _sell_orig }}" value="{{ _sell_val }}" placeholder="판매가" style="width:88px;font-size:11.5px;text-align:right;">{% endif %}
                     </div>
                   </td>
                   {% if _is_fx_view %}
@@ -1237,17 +1251,21 @@
                 if (r.arrivalInp)  body.set('arrival_status', r.arrivalInp.value || '');
                 // v5H226z460: 상품 원가관리 — 매입단가·마진%·판매단가 (input 존재 시에만 전송)
                 // v5H226z601: 매입/판매를 KRW로 입력받는 외화 부품(data-fx)은 저장 시 환율로 USD 환산(÷fx).
+                // v5H226z1024: 외화 건 입력칸은 'KRW 원본' → USD 로 환산해 저장하되, KRW 원본도 함께 보존.
+                //   (원본을 안 남기면 다음 화면이 USD×환율 로 역산해 몇 원씩 어긋난다 — 대표 지적 건)
                 if (r.costInp) {
-                  var _cv = (r.costInp.value || '').replace(/,/g,'');
+                  var _cvKrw = (r.costInp.value || '').replace(/,/g,'');
+                  var _cv = _cvKrw;
                   var _cfx = parseFloat(r.costInp.dataset.fx || '0');
-                  if (_cfx > 0 && _cv !== '') _cv = (parseFloat(_cv) / _cfx).toFixed(4);
+                  if (_cfx > 0 && _cv !== '') { _cv = (parseFloat(_cv) / _cfx).toFixed(4); body.set('cost_krw', _cvKrw); }
                   body.set('cost_price', _cv);
                 }
                 if (r.marginInp)   body.set('margin_pct',     (r.marginInp.value || '').replace(/,/g,''));
                 if (r.priceInp) {
-                  var _pv = (r.priceInp.value || '').replace(/,/g,'');
+                  var _pvKrw = (r.priceInp.value || '').replace(/,/g,'');
+                  var _pv = _pvKrw;
                   var _pfx2 = parseFloat(r.priceInp.dataset.fx || '0');
-                  if (_pfx2 > 0 && _pv !== '') _pv = (parseFloat(_pv) / _pfx2).toFixed(4);
+                  if (_pfx2 > 0 && _pv !== '') { _pv = (parseFloat(_pv) / _pfx2).toFixed(4); body.set('sell_krw', _pvKrw); }
                   body.set('unit_price', _pv);
                 }
                 if (r.hsInp)       body.set('hs_code',        r.hsInp.value || '');
@@ -2477,7 +2495,8 @@
         var j;
         try { j = await r.json(); } catch(e){ alert('응답 오류(로그인 풀림 가능). F5 후 재시도'); return; }
         if(!j.ok){ alert('덮어쓰기 실패: ' + (j.message || '알 수 없음')); return; }
-        alert('✅ ' + (_owMode==='add'?'부품 추가':'전체 교체') + ' 완료 — 수주번호 ' + (j.order_no || '') + ' · 이번 반영 ' + j.inserted + '건');
+        alert('✅ ' + (_owMode==='add'?'부품 추가':'전체 교체') + ' 완료 — 수주번호 ' + (j.order_no || '') + ' · 이번 반영 ' + j.inserted + '건'
+              + (window.knkVerifyMsg1024 ? window.knkVerifyMsg1024(j.verify) : ''));
         location.reload();
       } catch(e){ alert('덮어쓰기 통신 실패: ' + e); }
     });

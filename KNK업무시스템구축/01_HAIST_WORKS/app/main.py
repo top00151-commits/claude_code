@@ -13564,6 +13564,10 @@ async def sales_order_item_edit(req: Request, iid: int):
     u_unit_price, _ = _opt_float("unit_price")
     u_cost_price, _ = _opt_float("cost_price")
     u_margin_pct, _ = _opt_float("margin_pct")
+    # v5H226z1024 (대표 지시): 수출 부품 편집 시 'KRW 원본'도 함께 갱신.
+    #   이게 없으면 cost_price(USD)만 바뀌고 cost_krw 는 옛 값으로 남아, 화면(원본)과 인보이스(USD)가 영구히 어긋난다.
+    u_cost_krw, _ = _opt_float("cost_krw")
+    u_sell_krw, _ = _opt_float("sell_krw")
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -13653,6 +13657,11 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("cost_price=?"); vals_set.append(u_cost_price)
             if u_margin_pct != "__SKIP__" and "margin_pct" in _oicols:
                 cols_set.append("margin_pct=?"); vals_set.append(u_margin_pct)
+            # v5H226z1024: 매입/판매 KRW 원본(수출 건) — 전송됐을 때만 갱신(내수·완제품은 미전송=불변)
+            if u_cost_krw != "__SKIP__" and "cost_krw" in _oicols:
+                cols_set.append("cost_krw=?"); vals_set.append(u_cost_krw)
+            if u_sell_krw != "__SKIP__" and "sell_krw" in _oicols:
+                cols_set.append("sell_krw=?"); vals_set.append(u_sell_krw)
             # v5H226z6: 통관 메타 인라인 편집
             if u_hs_code is not None and "hs_code" in _oicols:
                 cols_set.append("hs_code=?"); vals_set.append((u_hs_code or "").strip() or None)
@@ -14359,6 +14368,7 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
     amount_krw = round(sum((float(l.get("sell_krw") or 0)) * float(l.get("qty") or 0) for l in lines), 2)
     ex_mgmt = str(proj.get("mgmt_code") or "").strip().upper()
     inserted = 0
+    _verify1024 = None   # v5H226z1024: 엑셀↔저장값 자동 대조 결과(응답에 실어 화면에 바로 보고)
     try:
         with db_session() as c:
             so = c.execute("SELECT id, order_no, project_id, so_type FROM orders WHERE id=?", (oid,)).fetchone()
@@ -14388,6 +14398,7 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
             if not _is_add943:   # v5H226z943 (대표 지시): 부품 추가 업로드면 기존 부품 유지
                 c.execute("DELETE FROM order_items WHERE order_id=?", (oid,))
             oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            _new_ids1024 = []   # v5H226z1024: 이번에 넣은 행 id(엑셀↔저장값 자동 대조 대상)
             for l in lines:
                 qty = float(l.get("qty") or 1) or 1
                 sell = float(l.get("unit_price") or 0)
@@ -14417,8 +14428,11 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                     row["invoice_amount_usd"] = amt
                 row = {k: v for k, v in row.items() if k in oicols}
                 cols = list(row.keys()); ph = ",".join("?" * len(cols))
-                c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
+                _icur = c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
+                _new_ids1024.append(_icur.lastrowid)   # v5H226z1024: 업로드 직후 자동 대조용
                 inserted += 1
+            # v5H226z1024 (대표 지시): 저장 직후 엑셀↔저장값 자동 대조 — 대표가 눈으로 검산하지 않게.
+            _verify1024 = _prodbulk_verify_saved(c, _new_ids1024, lines)
             # v5H226z943 (대표 지시): 부품 추가/교체 후 금액 합계는 '이 수주의 전체 부품' 기준 재계산(add=기존+신규·replace=신규).
             _sum943 = c.execute("SELECT COALESCE(SUM(amount),0), COALESCE(SUM(COALESCE(sell_krw,0)*COALESCE(qty,0)),0) FROM order_items WHERE order_id=?", (oid,)).fetchone()
             total = round(float((_sum943[0] if _sum943 else 0) or 0), 2)
@@ -14513,7 +14527,8 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 print(f"[z971 history] 이력 기록 실패(업로드는 성공): {_he971}")
     except Exception as e:
         return JSONResponse({"ok": False, "message": f"덮어쓰기 오류: {str(e)[:200]}"}, 200)
-    return JSONResponse({"ok": True, "order_no": order_no, "inserted": inserted, "total": total})
+    return JSONResponse({"ok": True, "order_no": order_no, "inserted": inserted, "total": total,
+                         "verify": _verify1024})   # v5H226z1024: 엑셀↔저장값 대조 결과
 
 
 def _note_sweep_targets978(c, val: str):
@@ -23539,6 +23554,50 @@ def _parse_product_bulk_xlsx(path):
     return {"project": proj, "lines": lines}
 
 
+def _prodbulk_verify_saved(c, item_ids, lines):
+    """v5H226z1024 (대표 지시): 상품 양식 업로드 직후 '엑셀 ↔ 저장값' 자동 대조.
+    대표가 매번 눈으로 검산하지 않아도 되도록, 저장 직후 DB를 다시 읽어 엑셀 파싱값과 1:1 비교한다.
+    비교 항목: 품명·수량·매입단가(KRW)·판매단가(KRW)·마진%. 반환 {"checked":n,"ok":bool,"diff":[...최대 20건]}
+    ⛔ 조회 전용 — 값을 고치지 않는다(불일치는 '보고'만 하고 판단은 사람이 한다)."""
+    out = {"checked": 0, "ok": True, "diff": []}
+    try:
+        _cols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+
+        def _n(v):
+            try:
+                return round(float(v), 2)
+            except Exception:
+                return None
+
+        for _idx, (_iid, _ln) in enumerate(zip(item_ids, lines), 1):
+            _nm = str(_ln.get("part_name") or "").strip()
+            _row = c.execute("SELECT * FROM order_items WHERE id=?", (_iid,)).fetchone()
+            if not _row:
+                out["ok"] = False
+                if len(out["diff"]) < 20:
+                    out["diff"].append({"row": _idx, "name": _nm[:24], "field": "행", "excel": "있음", "saved": "저장 안 됨"})
+                continue
+            _d = dict(_row)
+            out["checked"] += 1
+            _chk = [("품명", _nm, str(_d.get("unit_label") or "").strip()),
+                    ("수량", _n(_ln.get("qty")), _n(_d.get("qty")))]
+            for _f, _lk, _dk in (("매입단가", "cost_krw", "cost_krw"),
+                                 ("판매단가", "sell_krw", "sell_krw"),
+                                 ("마진%", "margin_pct", "margin_pct")):
+                if _dk in _cols:
+                    _chk.append((_f, _n(_ln.get(_lk)), _n(_d.get(_dk))))
+            for _f, _ex, _sv in _chk:
+                if _ex != _sv:
+                    out["ok"] = False
+                    if len(out["diff"]) < 20:
+                        out["diff"].append({"row": _idx, "name": _nm[:24], "field": _f,
+                                            "excel": ("" if _ex is None else _ex),
+                                            "saved": ("" if _sv is None else _sv)})
+    except Exception as _e:
+        out["error"] = str(_e)[:120]
+    return out
+
+
 def _build_product_bulk_template_buf(header=None, rows=None):
     """상품 일괄등록 양식(.xlsx) 동적 생성 → BytesIO. (openpyxl 미설치 시 ImportError 전파)
     v5H226z988 (대표 승인·z941 후속): header/rows 를 주면 '채워진 양식'(현재 저장분 내보내기) —
@@ -23910,6 +23969,7 @@ async def projects_import_product_confirm(request: Request):
         if not new_pid:
             return JSONResponse({"ok": False, "error": "프로젝트 생성 실패"}, 200)
     inserted = 0
+    _verify1024 = None   # v5H226z1024: 엑셀↔저장값 자동 대조 결과(응답에 실어 화면에 바로 보고)
     try:
         with db_session() as c:
             pres = _pwf.confirm_order_multi(
@@ -23918,6 +23978,7 @@ async def projects_import_product_confirm(request: Request):
             oid = ((pres.get("groups") or [{}])[0].get("order_id")) if isinstance(pres, dict) else None
             if oid:
                 oicols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+                _new_ids1024 = []   # v5H226z1024: 이번에 넣은 행 id(엑셀↔저장값 자동 대조 대상)
                 for l in lines:
                     qty = float(l.get("qty") or 1) or 1
                     sell = float(l.get("unit_price") or 0)
@@ -23950,8 +24011,11 @@ async def projects_import_product_confirm(request: Request):
                         row["invoice_amount_usd"] = amt
                     row = {k: v for k, v in row.items() if k in oicols}
                     cols = list(row.keys()); ph = ",".join("?" * len(cols))
-                    c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
+                    _icur = c.execute(f"INSERT INTO order_items({','.join(cols)}) VALUES({ph})", [row[k] for k in cols])
+                    _new_ids1024.append(_icur.lastrowid)   # v5H226z1024: 업로드 직후 자동 대조용
                     inserted += 1
+                # v5H226z1024 (대표 지시): 저장 직후 엑셀↔저장값 자동 대조 — 대표가 눈으로 검산하지 않게.
+                _verify1024 = _prodbulk_verify_saved(c, _new_ids1024, lines)
                 c.execute("UPDATE orders SET total_amount=? WHERE id=?", (total, oid))
                 # v5H226z600 (대표 지시): 부품 SO 에 통화·환율 저장 — 상세 PACKING LIST 에서
                 #   매입/판매 KRW 환산(=USD×환율) + 인보이스(USD) 표시에 필요(추가수주 포함).
@@ -24009,7 +24073,8 @@ async def projects_import_product_confirm(request: Request):
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"부품 등록 중 오류: {e}", "pid": int(new_pid), "code": new_code}, 200)
     return JSONResponse({"ok": True, "pid": int(new_pid), "code": new_code,
-                         "inserted": inserted, "total": total, "followup": _is_followup})
+                         "inserted": inserted, "total": total, "followup": _is_followup,
+                         "verify": _verify1024})   # v5H226z1024: 엑셀↔저장값 대조 결과
 
 
 def _sched_cust_hit(row, q):
