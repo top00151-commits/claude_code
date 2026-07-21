@@ -55,6 +55,7 @@
     try {
       build();
       var el = pick();
+      var changed = (cur !== el);          /* 대상이 바뀔 때만 스크롤 위치 동기화(사용자가 바를 잡고 있을 때 되돌리지 않도록) */
       cur = el;
       if (!el) { bar.style.display = 'none'; return; }
       var r = el.getBoundingClientRect();
@@ -63,7 +64,7 @@
       bar.style.left = left + 'px';
       bar.style.width = Math.round(Math.min(r.width, (window.innerWidth || r.width) - left)) + 'px';
       inner.style.width = el.scrollWidth + 'px';
-      if (!lock) { lock = 1; bar.scrollLeft = el.scrollLeft; lock = 0; }
+      if (changed && !lock) { lock = 1; bar.scrollLeft = el.scrollLeft; lock = 0; }
     } catch(e){ /* 실패해도 표 자체 스크롤바는 그대로라 안전 */ }
   }
 
@@ -77,6 +78,7 @@
   /* 세로 스크롤(창·내부 컨테이너 모두) → 바 위치/표시 갱신, 대상 래퍼 가로 스크롤 → 바 동기화 */
   document.addEventListener('scroll', function(e){
     var t = e.target;
+    if (bar && t === bar) { return; }     /* 바 자신의 스크롤은 아래 bar.onscroll 이 처리 — 여기서 재계산하면 되돌아감 */
     if (t && t.hasAttribute && t.hasAttribute('data-knk-hscroll')) {
       if (t === cur && !lock && bar) { lock = 1; bar.scrollLeft = t.scrollLeft; lock = 0; }
       return;
