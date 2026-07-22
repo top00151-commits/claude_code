@@ -178,7 +178,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div style="flex:1;font-size:13px;line-height:1.65;color:var(--qv-ink);">
         <b style="color:var(--qv-ink-2);">기본 등록 정보는 보존 모드</b>
         — 변경하려면 잠금을 해제하세요.
-        <br><span style="font-size:11.5px;color:var(--qv-ink-3);">관리코드·사업부·유형·PO유형·등록자/등록일시 는 영구 잠금 (감사 무결성)</span>
+        <br><span style="font-size:11.5px;color:var(--qv-ink-3);">관리코드·사업부·유형·등록자/등록일시 는 영구 잠금 (감사 무결성) · PO유형은 수정 가능(변경 이력에 남음)</span>
       </div>
       <button type="button" id="pfUnlockBtn"
               style="padding:8px 16px;background:var(--knk-red);color:#fff;border:0;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
@@ -186,7 +186,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       </button>
     </div>
     <div id="pfUnlockedBanner" style="display:none;margin: 0 0 var(--space-4); padding: 12px 18px; background: #d1fae5; border: 1px solid #10b981; border-radius: var(--radius-md); align-items: center; gap: 12px; color: #065f46; font-weight: 700; font-size: 13px;">
-      ✓ 잠금 해제됨 — 변경 후 [💾 저장] 클릭. 일부 필드(관리코드/사업부/유형/PO유형)는 여전히 영구 잠금입니다.
+      ✓ 잠금 해제됨 — 변경 후 [💾 저장] 클릭. 일부 필드(관리코드/사업부/유형)는 여전히 영구 잠금입니다.
     </div>
     {# v5H195: password_confirm 모달은 폼 밖으로 이동 (form 안에 두면 setLocked 가 모달 input 까지 잠금) #}
     {% else %}
@@ -1483,7 +1483,9 @@ html,body{background:#fff!important;overflow:auto!important;}
     var lockBanner = document.getElementById('pfLockBanner');
     var unlockedBanner = document.getElementById('pfUnlockedBanner');
     // Tier 1 영구 잠금 필드 (이름 기반) — 잠금 해제 후에도 비활성
-    var TIER1_LOCKED = new Set(['mgmt_code','biz_div','po_type','project_type']);
+    // v5H226z1031: po_type 제거 — HTML 만 풀고 여기를 안 고치면 **화면이 다시 잠긴다**(🚫 커서).
+    //   PO유형은 분류값이라 금액·번호에 영향 없고 변경 이력이 남는다. 나머지 3개는 관리번호를 결정하므로 유지.
+    var TIER1_LOCKED = new Set(['mgmt_code','biz_div','project_type']);
     function setLocked(locked){
       form.querySelectorAll('input, select, textarea').forEach(function(el){
         if (el.type === 'hidden') return;
@@ -1538,7 +1540,7 @@ html,body{background:#fff!important;overflow:auto!important;}
     if (unlockBtn) {
       unlockBtn.addEventListener('click', function(){
         if (!confirm('이 프로젝트의 등록 정보를 수정합니다.\n\n'
-                   + '· 관리코드 · 사업부 · 유형 · PO유형 은 수정해도 영구 잠금(변경 불가)\n'
+                   + '· 관리코드 · 사업부 · 유형 은 수정해도 영구 잠금(변경 불가)\n'
                    + '· 변경 내역은 이력에 기록됩니다\n\n'
                    + '수정 잠금을 해제할까요?')) return;
         unlocked = true;
