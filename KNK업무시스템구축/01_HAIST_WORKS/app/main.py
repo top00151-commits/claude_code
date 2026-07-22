@@ -6824,6 +6824,7 @@ async def project_detail(req: Request, pid: int):
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
                project_orders=project_orders,
                focus_so=focus_so,   # v5H226z695: 보드에서 누른 수주번호 → 메인 카드 지정
+               PO_TYPES=_logi.PO_TYPES,   # v5H226z1034: SO 카드에서 그 수주만 PO유형 수정
                STATUSES=_logi.LOGI_STATUSES,
                project_history=project_history_logs,
                all_units_sorted=all_units_sorted,
@@ -30139,6 +30140,7 @@ async def projects_edit_form(request: Request, pid: int):
         return RedirectResponse("/home", 303)
     # v5H101: 편집 폼 진입 시 SO 기준으로 자가치유
     #   납기/발주일/수주액 = SO 합계·MAX·MIN 으로 정정 후 폼 노출
+    sos = []   # v5H226z1034: 아래 확정 수량 계산이 참조 — 조회가 실패해도 NameError 안 나게
     try:
         with db_session() as c2:
             sos = _pwf.get_project_orders(c2, pid)
@@ -30185,9 +30187,28 @@ async def projects_edit_form(request: Request, pid: int):
             has_orders = (row[0] or 0) > 0
     except Exception:
         pass
+    # v5H226z1034 (안지연 프로 신고·대표 지시): 폼 ③의 '수량'은 **등록할 때 적은 예상 수량**이라
+    #   추가발주가 붙어도 늘지 않는다. 002M2602 는 실제 13대인데 폼이 6대를 보여줘
+    #   "6대도 13대도 아닌" 혼란이 났다(상세의 '단가 × 6대 = 31억'도 산수가 안 맞았다).
+    #   → 수주가 있으면 **확정 수량·금액**을 넘겨 폼이 사실을 보여주게 한다.
+    #   ⚠부품(PARTS)·소모품은 '대' 단위가 아니라 라인 수 개념이라 계산에서 제외(0 = 기존 표시 유지).
+    so_qty, so_amount, so_count = 0, 0.0, 0
+    try:
+        _parts_or_co = ((p.get("shipment_form") or "").upper() == "PARTS"
+                        or (p.get("project_type") or "").upper() == "CONSUMABLE")
+        if sos and not _parts_or_co:
+            so_count = len(sos)
+            so_amount = sum(float(o.get("total_amount") or 0) for o in sos)
+            for _o in sos:
+                _us = _o.get("units") or []
+                so_qty += (sum(int(x.get("qty") or 0) for x in _us) if _us
+                           else int(_o.get("unit_qty") or 1))
+    except Exception:
+        so_qty, so_amount, so_count = 0, 0.0, 0
     return ctx(request, "project_form.html",
                user=u, active="sales_projects",
                project=p,
+               so_qty=so_qty, so_amount=so_amount, so_count=so_count,
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES,
                PROJECT_TYPES=_logi.PROJECT_TYPES,

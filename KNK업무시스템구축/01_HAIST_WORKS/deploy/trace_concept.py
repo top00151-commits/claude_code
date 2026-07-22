@@ -29,6 +29,13 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKIP = ("__pycache__", "_legacy_base", "_v4_backup", "backup", ".git")
 
+# v5H226z1034: 윈도우 콘솔(cp949)은 '—' 같은 글자에서 죽는다 → 출력은 항상 UTF-8.
+#   ③층에서 추적기가 통째로 멈춰 ④⑤⑥(내가 실제로 놓쳤던 층)을 못 보던 것을 막는다.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except AttributeError:  # 파이썬 3.6 이하
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
 
 def _files(exts):
     for base in (os.path.join(ROOT, "app"), os.path.join(ROOT, "static")):
@@ -56,6 +63,72 @@ def _hits(paths, pat, line_filter=None):
                 continue
             out.append((os.path.relpath(p, ROOT).replace("\\", "/"), i, line.strip()[:130]))
     return out
+
+
+ROUTE_RX = re.compile(r'@(?:app|router)\.(get|post|put|delete)\(\s*["\']([^"\']+)')
+URL_RX = re.compile(r'''(?:fetch\(|action=)\s*["'`]([^"'`]{2,80})''')
+
+
+def _entry_points(py_paths, tpl_paths, key):
+    """⑥ 진입 경로 — **줄이 아니라 파일 단위**로 찾는다.
+
+    z1034 사고: 라우트 선언(`@app.post(...)`)은 개념이 나오는 줄보다 **위**에 있고,
+    fetch 주소도 그 줄에 없다. '같은 줄' 검색으로는 ⑥층이 영영 0건이라
+    "보여주기만 하고 고칠 자리가 없는 화면"을 못 잡았다.
+    """
+    rx = re.compile(re.escape(key), re.I)
+    apis, screens = [], []
+
+    for p in py_paths:
+        try:
+            lines = io.open(p, encoding="utf-8").read().splitlines()
+        except OSError:
+            continue
+        routes = []
+        for i, line in enumerate(lines, 1):
+            m = ROUTE_RX.search(line)
+            if m:
+                routes.append((i, m.group(1).upper(), m.group(2)))
+        if not routes:
+            continue
+        rel = os.path.relpath(p, ROOT).replace("\\", "/")
+        for i, line in enumerate(lines, 1):
+            if not rx.search(line):
+                continue
+            before = [r for r in routes if r[0] <= i]
+            if before:
+                ln, meth, path = before[-1]
+                apis.append((rel, ln, f"{meth:4s} {path}"))
+
+    for p in tpl_paths:
+        try:
+            lines = io.open(p, encoding="utf-8").read().splitlines()
+        except OSError:
+            continue
+        marks = [i for i, line in enumerate(lines, 1) if rx.search(line)]
+        if not marks:
+            continue
+        rel = os.path.relpath(p, ROOT).replace("\\", "/")
+        # 개념이 나온 줄 **근처(±40줄)** 의 저장 주소만 — 파일 전체를 뽑으면 소음이 된다.
+        urls = set()
+        for i, line in enumerate(lines, 1):
+            if not any(abs(i - m) <= 40 for m in marks):
+                continue
+            for u in URL_RX.findall(line):
+                if u.startswith(("/", "`/", "http")) or "{{" in u:
+                    urls.add(u[:60])
+        screens.append((rel, marks[0], ", ".join(sorted(urls)[:3]) or "(저장 주소 없음 — 보기 전용?)"))
+
+    def _dedupe(rows):
+        seen, out = set(), []
+        for r in rows:
+            if r[2] in seen:
+                continue
+            seen.add(r[2])
+            out.append(r)
+        return out
+
+    return _dedupe(apis), screens
 
 
 def show(title, hits, hint=""):
@@ -116,8 +189,11 @@ def main():
         show("⑤-b 그 밖에 이 말이 쓰인 곳 (라벨·머리글 등)",
              _hits(tpl, re.escape(ko)))
 
-    show("⑥ 진입 경로 (이 개념을 건드리는 화면·API)",
-         _hits(tpl + py, key, r"@app\.(get|post)|<form|fetch\(|action="))
+    _apis, _screens = _entry_points(py, tpl, key)
+    show("⑥-a 진입 경로 — 서버 API", _apis)
+    show("⑥-b ⚠ 진입 경로 — 이 개념이 나오는 화면", _screens,
+         "각 화면에서 **사용자가 고칠 수 있나?** 보여주기만 하고 고칠 자리가 없으면\n"
+         "   직원은 엉뚱한 진입점(전체 수정)으로 가서 딴 데까지 바꾼다 (z1034 실제 사고)")
 
     print()
     print("=" * 78)

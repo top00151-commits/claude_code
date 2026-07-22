@@ -1109,7 +1109,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
     for cn in ("ship_to", "unit_qty", "unit_label", "unit_note", "currency", "so_type",
                "exchange_rate", "is_export", "shipment_form",   # v5H226z699: 수주별 형태(완제품/제품/상품/기타) 배지용
                "so_form",   # v5H226z873: 수주별 '진짜 형태' 단일 진실(있으면 so_type 추론보다 우선)
-               "model_name", "equip_name"):   # v5H226z981: 수주별 모델명·장비명(SO 카드 표시)
+               "model_name", "equip_name",   # v5H226z981: 수주별 모델명·장비명(SO 카드 표시)
+               "po_type"):   # v5H226z1034: 수주별 PO유형 — SO 카드에서 그 수주만 고치게(z1033 저장분 표시)
         if cn in cols:
             extra.append(cn)
     extra_sql = (", " + ", ".join(extra)) if extra else ""

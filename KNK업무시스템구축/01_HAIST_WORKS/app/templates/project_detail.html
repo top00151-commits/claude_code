@@ -68,7 +68,10 @@
       {% if can_sales %}<a class="btn btn-primary" style="background:#c2410c;" href="/project/{{ p.id }}/prod-request/edit?new=1" title="이 프로젝트(관리번호 유지)에 제작요청서를 새로 작성·발행 — 관련 부서 통보">＋ 제작요청서 작성</a>{% endif %}
       {% if prod_requests and can_sales %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit?edit=1" title="제작요청서 수정">✏️ 제작요청서 수정</a>{% endif %}
       {# 2026-07-06 (대표 지시): 프로젝트 정보 수정 진입점 복원 — z787로 '수정'이 제작요청서 편집으로 바뀌며 빠졌던 것. 고객사·모델·사업부·상태 등 프로젝트 자체 정보 수정. #}
-      {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/edit" title="프로젝트 정보(고객사·모델·사업부·상태 등) 수정">✏️ 프로젝트 정보 수정</a>{% endif %}
+      {# v5H226z1034 (안지연 프로 신고·대표 지시): 이 버튼은 **관리번호 전체**를 고친다. 수주 하나만 고치려는 사람이
+         여기로 들어와 4건을 통째로 바꾸는 사고가 났다 → 버튼에서 미리 알린다(수주별 수정은 아래 수주 내역에서). #}
+      {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/edit" title="관리번호 {{ p.mgmt_code }} 전체의 공통 정보(고객사·모델·사업부·상태 등)를 고칩니다{% if project_orders and project_orders|length > 1 %} — 수주번호 {{ project_orders|length }}건 모두에 영향.
+특정 수주 하나만 고치려면 아래 [수주 내역]의 그 카드에서 고치세요.{% endif %}">✏️ 프로젝트 정보 수정{% if project_orders and project_orders|length > 1 %} <span style="font-size:10px;opacity:.75;">(전체 {{ project_orders|length }}건)</span>{% endif %}</a>{% endif %}
       {# v5H226z946 (대표 지시): 수출 건 → 수출 서류(통관 입력·패킹리스트·인보이스·출고 QR)로 바로가기. '다음 단계' 연결. #}
       {% if can_sales and p.is_export %}<a class="btn btn-primary" style="background:#0369a1;" href="/export/prep/{{ p.id }}" title="수출 통관 입력 · 패킹리스트 · 인보이스 · 출고 QR 생성">📦 수출 서류</a>{% endif %}
       {# v5H226z872 (2026-07-08 대표 지시): 폐기(완전삭제) 버튼은 헤더에서 제거 → 페이지 최하단 '위험 구역'으로 이동(실수 클릭 방지).
@@ -572,6 +575,27 @@
               {# v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — 서버가 표시(호기별=완제품/1줄=제품)와 일치하게 계산(get_project_orders form_label/form_key). 한 관리번호에 발주마다 형태 다를 수 있어 명확히. #}
               {% if so.form_label %}<span class="so-form-badge sf-{{ so.form_key }}" title="형태: {{ so.form_label }} — 이 수주(발주) 기준">{{ so.form_label }}</span>{% endif %}
               <div class="so-meta">
+                {# v5H226z1034 (안지연 프로 신고·대표 지시): **수주(SO)별 PO유형** — 이 화면은 PO유형을
+                   프로젝트 한 줄로만 보여주고 **고칠 자리가 없었다**. 그래서 직원이 [프로젝트 정보 수정]으로
+                   갈 수밖에 없었고, 거기서 고치면 자기 값이 없는 수주가 **통째로** 바뀌었다(002M2602 4건).
+                   ⭐보여주는 곳에는 고치는 자리도 같이 있어야 한다 → 여기서 그 수주만 바꾼다.
+                   저장 = /sales/schedule/cell + so_oid (z1033 서버 경로 재사용 · 변경 이력 자동 기록). #}
+                {% set _so_pt = (so.po_type or '')|trim %}
+                {% set _so_pt_eff = _so_pt or (p.po_type or '신규') %}
+                <span class="item">
+                  <span class="k">🏷 PO유형</span>
+                  {% if _editable %}
+                  <select class="so-potype" data-soid="{{ so.id }}" data-orig="{{ _so_pt_eff }}"
+                          title="이 수주번호({{ so.order_no }})만 바뀝니다 — 프로젝트 전체가 아닙니다"
+                          style="padding:2px 5px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);font-weight:700;">
+                    {% for t in PO_TYPES %}<option value="{{ t }}"{% if _so_pt_eff == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+                  </select>
+                  {% else %}
+                  <span class="v" style="font-weight:700;" title="이 수주의 PO유형 — 고치려면 위 수주번호를 눌러 작업일정표로 가세요">{{ _so_pt_eff }}</span>
+                  {% endif %}
+                  {% if not _so_pt %}<span class="so-potype-inherit" style="font-size:10px;color:var(--mute);cursor:help"
+                        title="이 수주에 따로 지정한 값이 없어 프로젝트 기본값({{ p.po_type|default('신규') }})을 따르고 있습니다. 여기서 고르면 이 수주만의 값이 됩니다.">(기본값)</span>{% endif %}
+                </span>
                 {# v5H107: 기본 읽기 모드, 편집 시에만 input 노출 #}
                 <span class="item"><span class="k">📅 발주</span>
                   <span class="v display-val">{{ so.order_date|default('-') }}</span>
@@ -919,7 +943,7 @@
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
                   {# v5H226z83: 통화 td 중앙 정렬 #}
                   <td class="center px-x">
-                    <span class="display-val" {% if _ov_c %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_c %}◆ {% endif %}{{ _u_ccy }}</span>
+                    <span class="display-val" {% if _ov_c %}style="color:#1e3a8a;font-weight:700;" title="◆ 이 호기만 따로 지정한 통화입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_c %}◆ {% endif %}{{ _u_ccy }}</span>
                     {% if _editable %}
                     <select class="unit-edit cur-sel" data-orig="{{ _u_ccy }}" style="font-size:12px;padding:5px 6px;width:74px;">
                       <option value="KRW" {% if _u_ccy == 'KRW' %}selected{% endif %}>KRW</option>
@@ -938,7 +962,7 @@
                   {% if not _is_parts %}
                   {# v5H226z83: 거래방식 td 중앙 정렬 #}
                   <td class="center">
-                    <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="호기별 override"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}수출{% else %}내수{% endif %}</span>
+                    <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="◆ 이 호기만 따로 지정한 거래방식입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}수출{% else %}내수{% endif %}</span>
                     {% if _editable %}
                     <select class="unit-edit iex-sel" data-orig="{{ _u_iex_eff }}" style="font-size:11.5px;padding:5px 4px;width:60px;">
                       <option value="0" {% if not _u_iex_eff %}selected{% endif %}>내수</option>
@@ -949,11 +973,11 @@
                   {% endif %}
                   {# v5H226z83: 발주일/납기일 td 중앙 정렬 #}
                   <td class="center px-x">
-                    <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
+                    <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="◆ 이 호기만 따로 지정한 발주일입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
                     {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:11.5px;padding:4px 4px;width:118px;box-sizing:border-box;">{% endif %}
                   </td>
                   <td class="center">
-                    <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
+                    <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="◆ 이 호기만 따로 지정한 납기일입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
                     {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:11.5px;padding:4px 4px;width:118px;box-sizing:border-box;">{% endif %}
                   </td>
                   {% if _is_parts %}
@@ -963,7 +987,7 @@
                   </td>
                   {% else %}
                   <td>
-                    <span class="display-val" {% if _ov_s %}style="color:#1e3a8a;font-weight:600;" title="호기 override"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
+                    <span class="display-val" {% if _ov_s %}style="color:#1e3a8a;font-weight:600;" title="◆ 이 호기만 따로 지정한 납품처입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit ship-inp" data-orig="{{ u.eff_ship_to or '' }}" value="{{ u.eff_ship_to or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
                   </td>
                   {% endif %}
@@ -1802,7 +1826,11 @@
         <dl class="def">
           <dt>관리번호</dt><dd style="font-family:inherit;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
           <dt>고객사</dt><dd title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}</dd>{# v5H226z706: 표시는 시스템명 우선(정식명은 title) #}
-          <dt>PO유형</dt><dd>{% set _pt2 = p.po_type|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}</dd>
+          {# v5H226z1034 (안지연 프로 신고·대표 지시): 이 값은 **프로젝트 기본값**이다 — 수주마다 자기 값이 있으면 그게 우선.
+             이걸 '이 관리번호의 PO유형' 하나로 읽고 [프로젝트 정보 수정]에서 고쳐, 수주 4건이 통째로 바뀐 사고가 났다.
+             → 수주가 2건 이상이면 '기본값'임을 밝히고 수주별로 고치라고 안내한다. #}
+          <dt>PO유형{% if project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;">(기본값)</span>{% endif %}</dt>
+          <dd>{% set _pt2 = p.po_type|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}{% if project_orders and project_orders|length > 1 %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;">수주번호마다 다르면 <b>수주 내역</b>의 <b>🏷 PO유형</b>에서 그 수주만 고치세요</span>{% endif %}</dd>
           <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           {# v5H226z645: 형태 텍스트(완제품/제품/상품/기타/소모품·미설정=완제품) #}
@@ -1855,12 +1883,26 @@
                 <span style="color:#94a3b8;font-weight:500;">(환율 1 {{ p.currency }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
               </div>
             {% endif %}
-            {# v5H132: 단가 × 수량 = 금액 분해 표시 (등록폼 unit_qty/unit_price 폴백 포함) — 단일 통화일 때만(혼합은 위 통화별 합계) #}
-            {% set _pq = p.unit_qty if p.unit_qty else 1 %}
-            {% set _pp = p.unit_price if p.unit_price else (_displayed_amt / _pq if _pq else _displayed_amt) %}
-            {% if _displayed_amt and _pq and _pp %}
+            {# v5H132: 단가 × 수량 = 금액 분해 표시 (등록폼 unit_qty/unit_price 폴백 포함) — 단일 통화일 때만(혼합은 위 통화별 합계)
+               v5H226z1034 (안지연 프로 신고·대표 지시): **산수가 안 맞는 문장이 떴다.**
+                 수량은 '등록할 때 적은 예상 수량'(추가발주가 붙어도 안 늘어남)인데
+                 금액은 '실제 수주 합계'라, 002M2602 는 실제 13대인데
+                 '241,900,000 × 6대 = 3,144,700,000' (6 × 2.4억 = 14억 ≠ 31억) 으로 표시됐다.
+               → 수주가 발행된 뒤에는 **실제 호기 수**를 쓰고 단가도 그 수로 나눠, 문장이 **항상 맞게** 한다.
+                 호기 단가가 서로 다르면 '(평균)'이라고 정직하게 밝힌다.
+                 ⚠부품·소모품 패널은 '대' 단위가 아니므로 기존 폴백 유지. #}
+            {% set _units_n = (all_units_sorted|length) if (all_units_sorted and not (_is_parts_panel0 or _is_co_panel0)) else 0 %}
+            {% set _pq = _units_n if _units_n else (p.unit_qty if p.unit_qty else 1) %}
+            {% set _pp = (_displayed_amt / _pq) if (_units_n and _pq) else (p.unit_price if p.unit_price else (_displayed_amt / _pq if _pq else _displayed_amt)) %}
+            {% set _amts = all_units_sorted|map(attribute='amount')|select|map('float')|list if _units_n else [] %}
+            {% set _uneven = _amts and (_amts|max) != (_amts|min) %}
+            {# ⭐거짓 문장은 아예 쓰지 않는다 — 산수가 맞을 때만 이 줄을 보여준다.
+               (부품·소모품처럼 '대' 단위가 아닌 프로젝트는 곱셈이 성립하지 않아 숨는다.
+                금액 자체는 바로 위 '수주액'에 이미 정확히 나와 있다.) #}
+            {% set _sum_ok = _pq and _pp and (((_pp * _pq) - _displayed_amt)|abs) < 1 %}
+            {% if _displayed_amt and _sum_ok %}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:4px;line-height:1.5;">
-              단가 <b style="color:var(--ink);">{{ money(_pp, p.currency or 'KRW') }}</b> × <b style="color:var(--ink);">{{ _pq }}대</b> = <b style="color:var(--knk-red);">{{ money(_displayed_amt, p.currency or 'KRW') }}</b>
+              단가 <b style="color:var(--ink);">{{ money(_pp, p.currency or 'KRW') }}</b>{% if _uneven %}<span style="font-size:10px;" title="호기마다 단가가 달라 평균으로 보여줍니다 — 호기별 금액은 아래 목록 참조">(평균)</span>{% endif %} × <b style="color:var(--ink);" {% if _units_n %}title="실제 등록된 호기 수 (수주 {{ project_orders|length }}건 합계)"{% endif %}>{{ _pq }}대</b> = <b style="color:var(--knk-red);">{{ money(_displayed_amt, p.currency or 'KRW') }}</b>
             </div>
             {% endif %}
             {% endif %}{# /_is_mixed #}
@@ -2016,6 +2058,52 @@
       const [bg, fg] = _statusBg(newSt);
       sel.style.background = bg;
       sel.style.color = fg;
+    });
+  });
+  // v5H226z1034 (안지연 프로 신고·대표 지시): 수주(SO)별 PO유형 — 고른 즉시 **그 수주만** 저장.
+  //   ⚠so_oid 를 반드시 함께 보낸다. 안 보내면 서버가 프로젝트를 고쳐 **같은 관리번호의 수주가 통째로**
+  //   바뀐다(002M2602 4건이 전부 '추가'가 된 실제 사고). 서버 검증·변경 이력은 z1033 경로 그대로.
+  document.querySelectorAll('select.so-potype').forEach(function(sel){
+    sel.addEventListener('change', async function(){
+      var prev = sel.dataset.orig || '';
+      var next = sel.value;
+      if (next === prev) return;
+      var box = sel.parentElement;
+      var note = box.querySelector('.so-potype-msg');
+      if (!note) {
+        note = document.createElement('span');
+        note.className = 'so-potype-msg';
+        note.style.cssText = 'font-size:10.5px;font-weight:700;margin-left:5px;';
+        box.appendChild(note);
+      }
+      sel.disabled = true;
+      note.style.color = 'var(--mute)';
+      note.textContent = '저장 중…';
+      try {
+        var r = await fetch('/sales/schedule/cell', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({kind: 'project', ref_id: {{ p.id }}, field: 'po_type',
+                                value: next, so_oid: sel.dataset.soid || ''})
+        });
+        var j = await r.json();
+        if (j && j.ok) {
+          sel.dataset.orig = next;
+          note.style.color = 'var(--success)';
+          note.textContent = '✅ 이 수주만 저장됨';
+          var inh = box.querySelector('.so-potype-inherit');
+          if (inh) inh.remove();   // 이제 이 수주만의 값 — 더 이상 '기본값'이 아니다
+          setTimeout(function(){ if (note) note.textContent = ''; }, 4000);
+        } else {
+          sel.value = prev;
+          note.style.color = '#b91c1c';
+          note.textContent = '⚠ ' + ((j && j.error) || '저장 실패');
+        }
+      } catch (e) {
+        sel.value = prev;
+        note.style.color = '#b91c1c';
+        note.textContent = '⚠ 통신 오류';
+      }
+      sel.disabled = false;
     });
   });
   // v5H199: 호기 상태 일괄 적용 — 클라이언트사이드만 (DOM 갱신 + dirty 표시).

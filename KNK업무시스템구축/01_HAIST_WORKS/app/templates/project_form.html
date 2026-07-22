@@ -871,30 +871,36 @@ html,body{background:#fff!important;overflow:auto!important;}
     {% set _is_parts_form = (_ship_form == 'PARTS') %}
     {% if not _is_consumable and not _is_parts_form %}
     <div class="pf-section">
-      <h3>💰 ③ 예상 금액 <span class="sub" style="font-size:11px;color:var(--qv-ink-3);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">수주 전 예상 매출 — 1대 예상단가 × 수량 (자동). 확정 금액은 아래 호기별로 입력</span></h3>
+      {# v5H226z1034 (안지연 프로 신고·대표 지시): 수주가 발행된 뒤에는 '예상'이 아니라 **확정**을 보여준다.
+         사고: 이 폼이 '등록할 때 적은 예상 수량'(6대)을 계속 보여줬는데 실제는 13대여서
+               "1대짜리 고치러 들어왔는데 6대가 나온다"는 혼란이 났다(안지연 프로).
+         ⚠부품·소모품은 '대' 단위가 아니라 서버가 so_qty=0 을 준다 → 그때는 기존 예상값 그대로. #}
+      {% set _confirmed = (so_qty|default(0))|int > 0 %}
+      <h3>💰 ③ {% if _confirmed %}확정 금액{% else %}예상 금액{% endif %} <span class="sub" style="font-size:11px;color:var(--qv-ink-3);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">{% if _confirmed %}수주 {{ so_count }}건 · 호기 {{ so_qty }}대 합계 (실제 등록된 값) — 고치려면 [프로젝트 상세]의 호기별 편집{% else %}수주 전 예상 매출 — 1대 예상단가 × 수량 (자동). 확정 금액은 아래 호기별로 입력{% endif %}</span></h3>
       {# v5H226z180 (대표 지시): 예상 금액은 수주 확정 전에도 입력 가능 → 모순 안내문 제거, 입력칸 항상 표시 #}
       <div id="pfMoneyHint" style="display:none;"></div>
-      {% set _p_qty = project.unit_qty if (project and project.unit_qty) else 1 %}
+      {% set _p_qty = so_qty|int if _confirmed else (project.unit_qty if (project and project.unit_qty) else 1) %}
       {# v5H226z161: ③ = '예상 금액' — 편집 시 expected_amount 우선(없으면 order_amount 폴백) #}
-      {% set _p_amt = (project.expected_amount if (project and project.expected_amount) else (project.order_amount if project else 0)) or 0 %}
-      {% set _p_price = project.unit_price if (project and project.unit_price) else (_p_amt / _p_qty if _p_qty else _p_amt) %}
+      {% set _p_amt = (so_amount|default(0)) if _confirmed else ((project.expected_amount if (project and project.expected_amount) else (project.order_amount if project else 0)) or 0) %}
+      {% set _p_price = (_p_amt / _p_qty if _p_qty else _p_amt) if _confirmed else (project.unit_price if (project and project.unit_price) else (_p_amt / _p_qty if _p_qty else _p_amt)) %}
       <div id="pfMoneyRows">
       <div class="pf-row three">
         <div class="pf-field">
-          <label>1대 예상 단가 <span class="req">*</span>
+          <label>{% if _confirmed %}1대 단가{% else %}1대 예상 단가{% endif %} <span class="req">*</span>
             {% if has_orders %}<span class="sub" style="color:var(--knk-red);font-size:11px;font-weight:600;" title="이미 수주번호가 발행된 프로젝트. 단가는 호기별로 다를 수 있으므로 [프로젝트 상세] → 호기 편집 으로 수정하세요. 여기서 변경하면 다음 화면 진입 시 호기 합계 기준으로 되돌려집니다.">(이미 수주 발행됨 — 호기별 단가는 [상세 화면]에서 편집)</span>{% endif %}</label>
           <input type="text" id="pf_unit_price" name="unit_price" inputmode="numeric"
                  value="{{ '{:,.0f}'.format(_p_price) if _p_price else '' }}" placeholder="0"
                  {% if has_orders %}readonly style="background:var(--qv-surface-3);color:var(--qv-ink-3);cursor:not-allowed;"{% endif %}>
         </div>
         <div class="pf-field">
-          <label>수량 <span class="sub">(1~100)</span></label>
+          <label>수량 <span class="sub">{% if _confirmed %}(수주 {{ so_count }}건에 실제 등록된 호기 수){% else %}(1~100){% endif %}</span></label>
           <input type="number" id="pf_unit_qty" name="unit_qty" min="1" max="100"
                  value="{{ _p_qty }}"
+                 {% if _confirmed %}title="이 관리번호에 실제로 등록된 호기 수입니다 (추가발주 포함 · 수주 {{ so_count }}건 합계). 처음 등록할 때 적은 예상 수량이 아닙니다."{% endif %}
                  {% if has_orders %}readonly style="background:var(--qv-surface-3);color:var(--qv-ink-3);cursor:not-allowed;"{% endif %}>
         </div>
         <div class="pf-field">
-          <label>예상 금액 <span class="sub">(자동 계산)</span></label>
+          <label>{% if _confirmed %}확정 금액{% else %}예상 금액{% endif %} <span class="sub">(자동 계산)</span></label>
           <input type="text" id="pf_amount_display" inputmode="numeric"
                  value="{{ '{:,.0f}'.format(_p_amt) }}" readonly
                  style="background:var(--qv-surface-3);color:var(--knk-red);font-weight:700;cursor:not-allowed;text-align:right;">
@@ -938,7 +944,8 @@ html,body{background:#fff!important;overflow:auto!important;}
             외화 선택 시 <b>기준환율</b> 입력하면 향후 원화 매출 확인 시 환산값이 보존됩니다.<br>
             저장 시 <b>수량 N대</b> 면 <b>호기 N개</b>가 자동으로 만들어집니다 (상태 = 진행중/출하 또는 '수주확정 동시발급' 체크).
             <br><span style="font-size:11px;color:var(--qv-ink-3);">※ <b>SO</b> = Sales Order (수주번호). 호기 1대당 또는 같은 납기·납품처 그룹별로 1개씩 발행됩니다 (예: T-260507-1).</span>
-            {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 수주가 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.</span>{% endif %}
+            {# v5H226z1034: 위 숫자가 '예상'인지 '확정'인지 분명히 — 예상 6대가 떠서 생긴 혼란(안지연 프로) #}
+            {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 수주가 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.{% if _confirmed %}<br>위 수량·금액은 <b>실제 등록된 수주 {{ so_count }}건({{ so_qty }}대) 합계</b>입니다 — 처음 적었던 예상값이 아닙니다.{% endif %}</span>{% endif %}
           </div>
         </div>
       </div>
