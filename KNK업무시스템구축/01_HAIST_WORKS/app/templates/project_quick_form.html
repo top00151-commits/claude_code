@@ -192,7 +192,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             <input list="qCustList" name="secondary_customer" placeholder="최종 고객사명(선택)" autocomplete="off" value="{{ project.secondary_customer|default('') if ed else '' }}"></div>
 
           {# 2행(대표 지시 z435 배치 변경) — PO유형 · 형태 · 거래구분 · 프로젝트명(넓게) #}
-          <div class="qf-f c2"><label>PO유형{% if ed %} <span style="font-weight:400;color:var(--qv-ink-3);">(잠금)</span>{% endif %}</label>
+          <div class="qf-f c2"><label>PO유형{% if ed %} <span style="font-weight:400;color:var(--qv-ink-3);">(바꾸면 이력에 남음)</span>{% endif %}</label>
             {% if ed %}
             {# v5H226z354 의 '영구잠금'을 v5H226z1031(안지연 프로 신고·대표 지시)에서 **해제**.
                잠가둔 탓에 잘못 넣으면 고칠 방법이 없어 **삭제하고 다시 등록** → 수주번호가 새로 발번되어
