@@ -72,8 +72,32 @@
       if (e.dataTransfer.files && e.dataTransfer.files.length) setFiles(e.dataTransfer.files);
     });
   }
+  /* v5H226z1030 (안지연 프로 신고·대표 지시): **숨겨둔 파일칸은 상자로 감싸지 않는다.**
+     ─────────────────────────────────────────────────────────────────────
+     왜: `style="display:none"` 인 파일칸은 버튼 뒤에 숨겨둔 **프로그램용 방아쇠**다
+         (예: project_detail 의 knkOwFile — `document.body.appendChild(f)` 로 붙는다).
+         그걸 감싸면 **화면 틀(.app) 바깥, body 맨 아래에 130px 짜리 보이는 상자**가 생겨:
+           ① 정체불명 상자가 화면에 뜨고(직원이 "이게 뭐냐"고 물음)
+           ② **페이지가 창보다 길어져(666→812px) 화면이 밀려 헤더·사이드바가 잘린다.**
+              `overflow:hidden` 은 일반 스크롤만 막을 뿐, 브라우저가 화면 밖 요소를
+              보여주려고 끌어올리는 동작(scroll-into-view)은 못 막는다 → 138px 밀림 실측.
+     잃는 것 없음: 안 보이는 칸은 원래 끌어다 놓을 수 없었다. 버튼 동작은 그대로.
+     ⚠숨긴 칸에도 드롭 UI 가 필요하면 그 칸을 **보이게** 만들고 감싸라(숨긴 채로는 무의미). */
+  function isHiddenTrigger(inp){
+    try {
+      var st = (inp.getAttribute('style') || '');
+      if (/display\s*:\s*none/i.test(st)) { return true; }
+      if (inp.hidden) { return true; }
+      /* ⚠visibility 는 상속되므로 검사하지 않는다 — 탭·접이식 안의 '정상' 칸까지 오탐한다.
+         display 는 상속되지 않아, 여기서 'none' 이면 그 칸 자체가 숨겨진 것이 확실하다. */
+      var cs = window.getComputedStyle(inp);
+      if (cs && cs.display === 'none') { return true; }
+    } catch(e) {}
+    return false;
+  }
   function autoWrap(inp){
     if (inp.closest('.knk-dropzone')) return;
+    if (isHiddenTrigger(inp)) return;   /* z1030: 숨긴 방아쇠는 감싸지 않음 */
     var zone = document.createElement('label');
     zone.className = 'knk-dropzone';
     zone.style.cssText = 'display:flex;margin:8px 0;';
