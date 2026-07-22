@@ -27996,6 +27996,58 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
         _match_cache[n] = (best_name, best_score)
         return _match_cache[n]
 
+    # v5H226z1036 (이새롬 프로 신고·대표 지시): **이름이 꼭 같을 때만 자동연결**한다.
+    #   사고: 80% 유사도 자동연결이 '비슷하기만 한 남의 회사'를 조용히 붙였다.
+    #         실측 충돌 15쌍 — XUGUANG(CN)↔XUGUANG(VN) 0.889(중국↔베트남),
+    #         TOP ENGINEERING↔TOP ENGINEERING VINA 0.978(국내↔베트남),
+    #         (주)에스제이아이↔에스제이아이티 0.986(아예 다른 회사) 등.
+    #   → 0.8~0.99 는 **연결하지 않고** 사람이 고치게 한다(이름은 텍스트로 보존).
+    #   종사업장 판정용 지도: 정규화명 → {customer id}. 같은 상호가 2곳 이상이면 자동연결 불가
+    #   ('(주) 드림텍' = 본사 74 · 아산 75) → 시스템명으로 적어야 한다는 것을 알려준다.
+    _norm_to_ids: dict[str, set] = {}
+    _alias_of: dict[int, str] = {}
+    try:
+        with db_session() as _ccn:
+            for _rid, _rn, _ra in _ccn.execute(
+                    "SELECT id, name, COALESCE(alias,'') FROM customers"):
+                _alias_of[_rid] = (_ra or "").strip()
+                for _v in (_rn, _ra):
+                    _k = _norm_cust(_v or "")
+                    if _k:
+                        _norm_to_ids.setdefault(_k, set()).add(_rid)
+    except Exception as _e_cn:
+        log.warning("고객사 종사업장 지도 생성 실패 — 자동연결은 정확일치만 유지: %s", _e_cn)
+
+    def _cust_link(raw: str):
+        """업로드 고객사명 → (연결할 등록명|None, 안내문, 확인필요?)
+
+        연결하는 경우는 **딱 하나** — 괄호·(주)·띄어쓰기만 무시했을 때 이름이 같고,
+        그 이름을 쓰는 고객사가 **정확히 1곳**일 때. 그 외에는 연결하지 않는다.
+        """
+        raw = (raw or "").strip()
+        if not raw:
+            return (None, "", False)
+        _n = _norm_cust(raw)
+        _mc, _sc = _match_customer(raw)
+        if _mc and _norm_cust(_mc) == _n:          # 사실상 같은 이름
+            _ids = _norm_to_ids.get(_n) or set()
+            if len(_ids) > 1:                      # 같은 상호 여러 종사업장 → 어느 곳인지 알 수 없다
+                _als = sorted(a for a in (_alias_of.get(i) for i in _ids) if a)
+                _pick = " / ".join(_als) if _als else "고객사 화면에서 확인"
+                return (None,
+                        f"고객사 '{raw}' 은 종사업장이 {len(_ids)}곳입니다 — 시스템명({_pick}) 중"
+                        " 하나로 정확히 적어주세요 · 지금은 고객사 연결 없이 등록됩니다", True)
+            return (_mc, "", False)
+        if _mc and _sc >= 0.8:                     # 비슷하지만 다른 이름 — ⛔자동연결 금지
+            return (None,
+                    f"⚠ 고객사 이름이 정확하지 않습니다: '{raw}' — 가장 비슷한 곳은"
+                    f" '{_mc}'({int(round(_sc * 100))}%) 입니다. 다른 회사일 수 있어 연결하지 않았습니다."
+                    " 엑셀의 이름을 정확히(또는 시스템명으로) 고쳐 다시 올려주세요", True)
+        _best = f" · 가장 가까운 곳: '{_mc}'({int(round(_sc * 100))}%)" if _mc else ""
+        return (None,
+                f"미등록 고객사: '{raw}'{_best} — 고객사를 먼저 등록하거나 이름을 정확히"
+                " 입력하세요 (텍스트로만 저장 · 미연결)", True)
+
     def _to_str(v) -> str:
         if v is None:
             return ""
@@ -28173,16 +28225,11 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 if mgmt:
                     _seen_new.add(mgmt)
                 _auto = True
-            _mc_name, _mc_score = _match_customer(cust) if cust else (None, 0.0)
-            if cust and _mc_score >= 0.8:
-                customer_name = _mc_name
-                # v5H226z327 (적대검토·연결성 표면화): 정확일치가 아닌 퍼지 매칭은 미리보기에 노출(조용한 치환 방지)
-                if _mc_score < 1.0 and _norm_cust(cust) != _norm_cust(_mc_name):
-                    warn = f"고객사 자동매칭: '{cust}' → '{_mc_name}' ({int(round(_mc_score * 100))}%)"
-            else:
-                customer_name = cust
-                if cust:
-                    warn = "미등록 고객사 (텍스트로만 저장 · 미연결)"
+            # v5H226z1036: 이름이 꼭 같을 때만 연결(위 _cust_link). 비슷하기만 하면 이름 그대로 두고 미연결.
+            _c_link, _c_warn, _c_need = _cust_link(cust)
+            customer_name = _c_link or cust
+            if _c_warn:
+                warn = _c_warn
             if not cust:
                 errors.append("고객사 누락")
             if not name and not equip:
@@ -28226,6 +28273,8 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 "_followup": _followup, "_force_first_so": _force_first_so, "_auto_mgmt": _auto, "_warn": warn,
                 "_errors": errors,
                 "_is_warning_only": (len(errors) == 0 and bool(warn)),
+                # v5H226z1036: 고객사가 연결 안 된 행 — 미리보기 줄 강조 + 확정 전 확인창
+                "_cust_need": bool(_c_need),
             })
         return _rows
 
@@ -28394,26 +28443,19 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
             if status not in PROJ_IMPORT_STATUSES:
                 errors.append(f"상태 화이트리스트 위반: '{status}'")
                 status = "초기협의"
-            # 고객사 — v5H226z238 (대표 지시): 80% 유사도 자동 매칭.
-            #   · 정확/≥80% : 등록 고객사로 연결(등록 고객사명으로 치환 → customer_id 매핑)
-            #   · <80%      : 에러(행 차단)  · 빈칸: 통과(고객사 없음)
+            # 고객사 — v5H226z1036 (이새롬 프로 신고·대표 지시): z238 의 '80% 유사도 자동 매칭' 폐지.
+            #   · 이름이 꼭 같고 그 이름의 고객사가 1곳 : 연결
+            #   · 비슷하기만 함(80~99%)               : ⛔연결 안 함 — 이름 그대로 두고 경고(등록은 가능)
+            #   · 같은 상호 여러 종사업장             : ⛔연결 안 함 — 시스템명으로 적으라고 안내
+            #   · 빈칸                                : 통과(고객사 없음)
             cust_warn = ""
             if customer:
-                if customer in customer_set:
-                    pass  # 정확 일치 — 그대로
-                else:
-                    _mc_name, _mc_score = _match_customer(customer)
-                    if _mc_name and _mc_score >= 0.8:
-                        cust_warn = (f"고객사 자동매칭: '{customer}' → '{_mc_name}'"
-                                     f" ({int(round(_mc_score * 100))}%)")
-                        customer = _mc_name   # 등록 고객사명으로 치환 → 연결
-                        errors.append(cust_warn)  # 경고만(등록 가능) — 미리보기에 매칭결과 노출
-                    else:
-                        _best = (f" (가장 가까운: '{_mc_name}' {int(round(_mc_score*100))}%)"
-                                 if _mc_name else "")
-                        errors.append(
-                            f"고객사 매칭 실패(80% 미만): '{customer}'{_best}"
-                            " — 고객사를 먼저 등록하거나 이름을 정확히 입력하세요")
+                _c_link2, _c_warn2, _c_need2 = _cust_link(customer)
+                if _c_link2:
+                    customer = _c_link2   # 등록 고객사명으로 치환 → 연결
+                if _c_warn2:
+                    cust_warn = _c_warn2
+                    errors.append(cust_warn)  # 경고만(등록 가능) — 미리보기에 노출
             # 날짜 파싱 검증 (YYYY-MM-DD 패턴)
             for dn, dv in (("발주일", order_date), ("납기일", due_date)):
                 if dv:
@@ -28530,6 +28572,7 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 "_cust_warn": cust_warn,
                 "_errors": errors,
                 # v5H226z241: 경고(고객사매칭·연결코드 미발견)만 있으면 등록 가능
+                "_cust_need": bool(_c_need2) if customer else False,
                 "_is_warning_only": (len(errors) > 0 and all(
                     e in (cust_warn, link_warn) for e in errors)),
             })

@@ -114,8 +114,11 @@ function renderImportPreview(j) {
     var tr = document.createElement('tr');
     var hasErr = r._errors && r._errors.length > 0;
     tr.style.background = hasErr ? '#fff0f0' : (r._mgmt_exists ? '#fff7ed' : (idx % 2 ? '#fafaf5' : '#fff'));
+    /* v5H226z1036 (이새롬 프로 신고·대표 지시): 고객사가 연결 안 된 줄은 눈에 띄게 덧칠(공용 knk-row-flag).
+       비슷한 이름으로 조용히 남의 회사에 붙던 것을 막았으므로, 그 대신 '여기 확인하세요'가 보여야 한다. */
+    if (r._cust_need) { tr.className = 'knk-row-flag'; }   /* 기본 amber = '확인해 보세요' */
     var errHtml = hasErr
-      ? r._errors.map(function(e){ return '<div style="color:#c33;font-size:11px;">⚠ ' + e + '</div>'; }).join('')
+      ? r._errors.map(function(e){ return '<div style="color:#c33;font-size:11px;">⚠ ' + escapeHtml(String(e)) + '</div>'; }).join('')
       : (r._mgmt_exists
           ? '<span style="color:#b45309;font-size:11px;font-weight:700;">⤫ 이미 등록됨 — 건너뜀</span>'
           : (r._promoted_new
@@ -179,6 +182,30 @@ async function confirmImport() {
   if (!_importRows.length) return;
   var send = _importRows.filter(function(r){ return (!r._errors || r._errors.length === 0 || r._is_warning_only) && !r._mgmt_exists; });
   if (!send.length) { alert('등록할 정상 행이 없습니다. (이미 등록된 관리번호는 중복 방지로 제외됩니다)'); return; }
+  /* v5H226z1036 (이새롬 프로 신고·대표 지시): 고객사가 연결 안 된 채로 올라가는 걸 **묻지 않고 넘기지 않는다.**
+     예전엔 비슷한 이름을 조용히 남의 회사로 붙여 금액이 엉뚱한 곳에 잡혔다(XUGUANG CN↔VN, TOP ENGINEERING↔VINA 등).
+     이제는 붙이지 않는 대신, 올리기 전에 **몇 건인지·어느 이름인지** 반드시 보여준다. */
+  var _needCust = send.filter(function(r){ return r._cust_need; });
+  if (_needCust.length) {
+    var _seen = {}, _list = [];
+    _needCust.forEach(function(r){
+      var nm = String(r.customer_name || r.customer || '(빈칸)').trim();
+      if (!_seen[nm]) { _seen[nm] = 0; _list.push(nm); }
+      _seen[nm]++;
+    });
+    var _lines = _list.slice(0, 12).map(function(nm){ return '   · ' + nm + '  (' + _seen[nm] + '줄)'; }).join('\n');
+    if (_list.length > 12) { _lines += '\n   · … 외 ' + (_list.length - 12) + '개 이름'; }
+    if (!confirm(
+        '⚠ 고객사가 연결되지 않는 줄이 ' + _needCust.length + '건 있습니다.\n\n' + _lines +
+        '\n\n이대로 등록하면 이 줄들은 **고객사 없이(이름만 글자로)** 저장됩니다.\n' +
+        '· 매출·미수금 집계에 그 고객사로 잡히지 않습니다\n' +
+        '· 작업일정표에서 고객사 칸이 비어 보입니다\n\n' +
+        '엑셀의 고객사 이름을 정확히 고쳐 다시 올리는 것을 권합니다.\n' +
+        '(같은 상호가 여러 종사업장이면 시스템명 — 예: 드림텍(본사) — 으로 적으세요)\n\n' +
+        '그래도 지금 등록할까요?')) {
+      return;
+    }
+  }
   send = send.slice().sort(function(a,b){ return (a._followup?1:0)-(b._followup?1:0); });  // 신규 먼저
   var btn = document.getElementById('importConfirmBtn');
   btn.disabled = true;
