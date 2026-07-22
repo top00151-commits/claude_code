@@ -28036,17 +28036,17 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 _pick = " / ".join(_als) if _als else "고객사 화면에서 확인"
                 return (None,
                         f"고객사 '{raw}' 은 종사업장이 {len(_ids)}곳입니다 — 시스템명({_pick}) 중"
-                        " 하나로 정확히 적어주세요 · 지금은 고객사 연결 없이 등록됩니다", True)
+                        " 하나로 정확히 적어주세요 · ⛔이 줄은 등록되지 않습니다", True)
             return (_mc, "", False)
         if _mc and _sc >= 0.8:                     # 비슷하지만 다른 이름 — ⛔자동연결 금지
             return (None,
                     f"⚠ 고객사 이름이 정확하지 않습니다: '{raw}' — 가장 비슷한 곳은"
                     f" '{_mc}'({int(round(_sc * 100))}%) 입니다. 다른 회사일 수 있어 연결하지 않았습니다."
-                    " 엑셀의 이름을 정확히(또는 시스템명으로) 고쳐 다시 올려주세요", True)
+                    " 엑셀의 이름을 정확히(또는 시스템명으로) 고쳐 다시 올려주세요 · ⛔이 줄은 등록되지 않습니다", True)
         _best = f" · 가장 가까운 곳: '{_mc}'({int(round(_sc * 100))}%)" if _mc else ""
         return (None,
-                f"미등록 고객사: '{raw}'{_best} — 고객사를 먼저 등록하거나 이름을 정확히"
-                " 입력하세요 (텍스트로만 저장 · 미연결)", True)
+                f"미등록 고객사: '{raw}'{_best} — 고객사를 먼저 등록한 뒤 다시 올려주세요"
+                " · ⛔이 줄은 등록되지 않습니다", True)
 
     def _to_str(v) -> str:
         if v is None:
@@ -28228,7 +28228,11 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
             # v5H226z1036: 이름이 꼭 같을 때만 연결(위 _cust_link). 비슷하기만 하면 이름 그대로 두고 미연결.
             _c_link, _c_warn, _c_need = _cust_link(cust)
             customer_name = _c_link or cust
-            if _c_warn:
+            if _c_need:
+                # v5H226z1037 (대표 지시 "못올라가게 막어 · 고객사 등록이 우선"):
+                #   고객사가 연결되지 않으면 **등록 차단**. 경고로 통과시키면 결국 들어간다.
+                errors.append(_c_warn)
+            elif _c_warn:
                 warn = _c_warn
             if not cust:
                 errors.append("고객사 누락")
@@ -28454,8 +28458,9 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                 if _c_link2:
                     customer = _c_link2   # 등록 고객사명으로 치환 → 연결
                 if _c_warn2:
-                    cust_warn = _c_warn2
-                    errors.append(cust_warn)  # 경고만(등록 가능) — 미리보기에 노출
+                    # v5H226z1037: ⚠cust_warn 에 넣으면 아래 _is_warning_only 가 '경고전용(등록 가능)'
+                    #   으로 분류해 그대로 통과한다. 차단하려면 **일반 오류로만** 올려야 한다.
+                    errors.append(_c_warn2)
             # 날짜 파싱 검증 (YYYY-MM-DD 패턴)
             for dn, dv in (("발주일", order_date), ("납기일", due_date)):
                 if dv:
