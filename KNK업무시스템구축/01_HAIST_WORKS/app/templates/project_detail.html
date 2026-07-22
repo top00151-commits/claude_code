@@ -776,7 +776,7 @@
                 {% set _u_ccy = u.currency or u.eff_currency or _cur or 'KRW' %}
                 {% set _ov_c = (u.currency and u.currency != (so.currency or _cur)) %}
                 {% set _spec_dup = (_spec_cnt.get((u.spec or '')|trim, 0) > 1) if _is_parts else false %}
-                <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}"{% if _spec_dup %} class="dup-spec" title="같은 규격이 이 수주에 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 있습니다 — 납기가 달라 나눠 적은 것이면 정상입니다"{% endif %}>
+                <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}"{% if _spec_dup %} class="knk-row-flag" title="같은 규격이 이 수주에 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 있습니다 — 납기가 달라 나눠 적은 것이면 정상입니다"{% endif %}>{# v5H226z1029: 공용 강조 클래스로 통일(덧칠 방식) #}
                   {% if _is_parts %}
                   <td style="text-align:center;color:#888;font-size:10.5px;font-family:monospace;background:#f4f1e8;cursor:pointer;" class="row-num-cell" title="행 번호 — 클릭하면 이 행 접기/펴기">
                     <button type="button" class="row-toggle" title="행 접기/펴기">{{ loop.index }}</button>
@@ -815,7 +815,7 @@
                   <td style="font-size:11.5px;">
                     <span class="display-val">{{ u.spec or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit spec-inp" data-orig="{{ u.spec or '' }}" value="{{ u.spec or '' }}" style="width:120px;font-size:11.5px;">{% endif %}
-                    {% if _spec_dup %}<span class="dup-spec-badge" title="같은 규격 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄">중복 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}</span>{% endif %}
+                    {% if _spec_dup %}<span class="knk-flag-badge" title="같은 규격 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄">중복 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}</span>{% endif %}
                   </td>
                   <td style="font-size:11.5px;">{# v5H226z604: 제작사 #}
                     <span class="display-val">{{ u.maker or '—' }}</span>

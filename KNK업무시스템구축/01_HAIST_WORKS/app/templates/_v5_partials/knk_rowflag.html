@@ -1,0 +1,41 @@
+{# v5H226z1029 (대표 지시 · 표준규정화): 표의 특정 줄/셀을 '눈에 띄게' 표시하는 공용 방식.
+   ────────────────────────────────────────────────────────────────────────
+   ⛔왜 background !important 를 쓰면 안 되나 (z1026 실제 사고)
+     부품표의 매입·마진 칸은 인라인 style 로 원가색(#fff7ed)을 갖는다.
+     줄 강조를 background:...!important 로 주면 그 색까지 덮어써
+     **어디까지가 원가 열인지 구분이 사라진다.**
+   ✅해결 = '덧칠(overlay)'
+     box-shadow: inset 0 0 0 9999px rgba(...) 는 배경을 **지우지 않고 위에 얹는다.**
+     기존 색(줄무늬·원가열·상태색)이 그대로 비쳐 보이면서 톤만 바뀐다.
+   ────────────────────────────────────────────────────────────────────────
+   쓰는 법: 강조할 <tr> 에 class="knk-row-flag" (톤을 바꾸려면 knk-row-flag--warn/--info/--danger)
+            표식이 필요하면 셀 안에 <span class="knk-flag-badge">중복 2</span>
+   ⚠'중복'은 오류가 아니다 — 납기가 달라 일부러 나눈 경우가 대부분이다.
+      빨강(--danger)은 **정말 잘못된 것**에만. 확인 요청 수준이면 기본(amber)을 쓴다. #}
+<style>
+/* 기본 = amber(확인해 보세요). 배경을 덮지 않고 덧칠하므로 어떤 표에서도 안전하다. */
+.knk-row-flag > td,
+td.knk-row-flag,
+.knk-row-flag > th { box-shadow: inset 0 0 0 9999px rgba(251, 191, 36, .13); }
+tr.knk-row-flag > td:first-child { border-left: 3px solid #f59e0b; }
+
+.knk-row-flag--info > td { box-shadow: inset 0 0 0 9999px rgba(59, 130, 246, .11); }
+tr.knk-row-flag--info > td:first-child { border-left-color: #3b82f6; }
+
+.knk-row-flag--ok > td { box-shadow: inset 0 0 0 9999px rgba(16, 185, 129, .11); }
+tr.knk-row-flag--ok > td:first-child { border-left-color: #10b981; }
+
+/* ⚠정말 잘못된 값에만. '확인 요청' 수준에 쓰지 말 것(직원이 오류로 오해한다). */
+.knk-row-flag--danger > td { box-shadow: inset 0 0 0 9999px rgba(239, 68, 68, .10); }
+tr.knk-row-flag--danger > td:first-child { border-left-color: #ef4444; }
+
+/* 칸 안에 붙이는 작은 표식 — 왜 표시됐는지 한눈에 */
+.knk-flag-badge {
+  display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 4px;
+  background: #fde68a; color: #92400e; border: 1px solid #fcd34d;
+  font-size: 9.5px; font-weight: 700; line-height: 15px; vertical-align: middle; white-space: nowrap;
+}
+.knk-row-flag--info .knk-flag-badge { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+.knk-row-flag--ok .knk-flag-badge { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+.knk-row-flag--danger .knk-flag-badge { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+</style>
