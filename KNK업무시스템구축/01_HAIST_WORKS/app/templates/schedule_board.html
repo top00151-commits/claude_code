@@ -1096,8 +1096,10 @@ function startEdit(td){
     // v5H226z486 (대표 지시): 직접 입력 날짜칸은 일정 서식으로 — 260618·20260618·2026.06.18·2026/6/8 등 → YYYY-MM-DD
     if(['order_date','due_date','statement_date'].indexOf(td.dataset.edit)>=0) val=_normDate(val);
     if(!save){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
+    // v5H226z1033: 이 줄의 수주번호(so_oid)도 함께 보낸다 — PO유형은 **그 수주에** 저장(줄마다 다를 수 있음).
+    //   안 보내면 프로젝트가 고쳐지는데 화면은 수주값을 보여줘 '고쳐도 안 바뀌는' 상태가 된다.
     fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||''})})
+      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||'',so_oid:tr.dataset.soid||''})})
       .then(r=>r.json()).then(j=>{
         _editing=null;
         if(j.updated_at) tr.dataset.ts=j.updated_at;   // v5H226z409: 다음 편집 기준 갱신
@@ -1297,8 +1299,10 @@ function startSelectEdit(td, tr, opts){
         .catch(function(){ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
       return;
     }
+    // v5H226z1033: 이 줄의 수주번호(so_oid)도 함께 보낸다 — PO유형은 **그 수주에** 저장(줄마다 다를 수 있음).
+    //   안 보내면 프로젝트가 고쳐지는데 화면은 수주값을 보여줘 '고쳐도 안 바뀌는' 상태가 된다.
     fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||''})})
+      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||'',so_oid:tr.dataset.soid||''})})
       .then(r=>r.json()).then(j=>{
         _editing=null;
         if(j.updated_at) tr.dataset.ts=j.updated_at;   // v5H226z409: 다음 편집 기준 갱신

@@ -211,7 +211,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         ship_to: str = "",
                         order_customer_id: int | None = None,
                         expand_units: bool = True,
-                        line_label: str | None = None) -> dict:
+                        line_label: str | None = None,
+                        po_type: str = "") -> dict:   # v5H226z1033: 이 수주의 PO유형(비우면 '추가')
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
@@ -361,6 +362,12 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
             "total_amount","status","created_by","unit_label","unit_qty"]
     vals = [so_no, customer_id, project_id, order_date, due_date or None,
             so_total, "CONFIRMED", created_by or None, auto_label, qty]
+    # v5H226z1033 (안지연 프로 신고·대표 지시): 이 함수는 **정의상 '추가 발주'** 다(동일 관리번호·신규 SO).
+    #   그런데 PO유형이 projects 에만 있어 작업일정표가 프로젝트 값('신규')을 모든 줄에 복사해 보여줬다.
+    #   → 이 수주 자체의 유형을 '추가'로 남긴다. 호출자가 po_type 을 명시하면 그 값(개조·수리 등).
+    if "po_type" in _ord_cols:
+        cols.append("po_type")
+        vals.append((str(po_type or "").strip() or "추가"))
     if _has_sotype:
         cols.append("so_type"); vals.append(_st)
     if _has_currency:
@@ -794,14 +801,16 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             # 신규 SO 발행 (v5H92: currency 포함)
             so_no = generate_so_no(c, biz_div, ref_d)
             try:
+                # v5H226z1033: 이 수주의 PO유형 = 프로젝트 유형(신규 등록 경로). 컬럼 없으면 아래 폴백.
                 cur = c.execute(
                     "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
                     "due_date, total_amount, status, created_by, unit_label, unit_note, "
-                    "ship_to, unit_qty, currency) "
-                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?,?)",
+                    "ship_to, unit_qty, currency, po_type) "
+                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?,?,?)",
                     (so_no, customer_id, project_id, order_date, (g_due or None),
                      g_total, created_by or None, labels_concat,
-                     (po_number or None), (g_ship or None), g_qty, g_cur)
+                     (po_number or None), (g_ship or None), g_qty, g_cur,
+                     (str(proj.get("po_type") or "").strip() or None))
                 )
             except Exception:
                 # currency 컬럼 미생성 환경 폴백

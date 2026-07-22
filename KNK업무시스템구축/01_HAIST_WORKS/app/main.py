@@ -22369,13 +22369,15 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             #   전부 첫 행(프로젝트) 값으로 보이던 문제. SO값 있으면 그 행 표시를 덮음(없으면 기존 프로젝트값).
             _omeq_col = ("o.model_name AS o_model, o.equip_name AS o_equip"
                          if "model_name" in _ord_cols else "'' AS o_model, '' AS o_equip")
+            # v5H226z1033: 수주별 PO유형 — 없으면 빈값 → 화면에서 프로젝트 값으로 폴백(기존 데이터 무영향)
+            _optype_col = ("COALESCE(o.po_type,'') AS o_ptype" if "po_type" in _ord_cols else "'' AS o_ptype")
             _i_extra += (", oi.line_note AS i_note" if "line_note" in _oi_cols else ", '' AS i_note")
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
                 "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
-                + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", "
+                + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", " + _optype_col + ", "
                 "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
                 + _i_extra + " "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
@@ -22403,6 +22405,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "o_cc_name": (d.get("o_cc_name") or ""), "o_cc_dept": (d.get("o_cc_dept") or ""),
                         "o_cc_phone": (d.get("o_cc_phone") or ""),   # v5H226z678: SO 담당자/부서/연락처
                         "o_model": (d.get("o_model") or ""), "o_equip": (d.get("o_equip") or ""),   # v5H226z981: SO 모델명·장비명
+                        "o_ptype": (d.get("o_ptype") or ""),   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
                         "items": [],
                     }
                 if d.get("oi_id") is not None:
@@ -22443,6 +22446,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     # v5H226z981: SO별 모델명·장비명 + 이 SO 호기 비고(부품 SO는 부품별 비고라 제외 — 기타사항 아님)
                     # v5H226z983: None=안 적음(프로젝트 메모 폴백) / ''=지움(폴백 안 함) / 문자열=비고
                     "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
+                    "so_ptype": _so.get("o_ptype") or "",   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
                     "so_note": (None if _so.get("so_type") == "PARTS_EXPORT"
                                 else _join_notes981([_it.get("i_note") for _it in _citems])),
                 }
@@ -22470,6 +22474,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         # v5H226z983: 비고 3상태 — None=안 적음(폴백) / ''=지움(폴백 안 함) / 문자열
                         "oid": _so.get("oid"), "so_type": (_so.get("so_type") or ""),
                         "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
+                    "so_ptype": _so.get("o_ptype") or "",   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
                         "so_note": (None if it.get("i_note") is None else str(it.get("i_note")).strip()),
                     })
                 if not _ul:
@@ -23094,6 +23099,10 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                     _iu["model"] = _ln["so_model"]
                 if _ln.get("so_equip"):
                     _iu["equip"] = _ln["so_equip"]
+                # v5H226z1033: PO유형도 같은 규칙 — 이 수주에 값이 있으면 그 값(추가발주=추가),
+                #   없으면 프로젝트 값 유지(기존 데이터는 지금까지와 똑같이 보인다).
+                if _ln.get("so_ptype"):
+                    _iu["po_type"] = _ln["so_ptype"]
                 if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
@@ -24476,6 +24485,10 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                     _iu["model"] = _ln["so_model"]
                 if _ln.get("so_equip"):
                     _iu["equip"] = _ln["so_equip"]
+                # v5H226z1033: PO유형도 같은 규칙 — 이 수주에 값이 있으면 그 값(추가발주=추가),
+                #   없으면 프로젝트 값 유지(기존 데이터는 지금까지와 똑같이 보인다).
+                if _ln.get("so_ptype"):
+                    _iu["po_type"] = _ln["so_ptype"]
                 if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
@@ -24704,6 +24717,37 @@ async def schedule_board_cell(request: Request):
                 return _conflict_resp(_cur)
         except Exception:
             pass
+    # v5H226z1033 (안지연 프로 신고·대표 지시): PO유형은 **그 줄의 수주(SO)** 에 저장한다.
+    #   ⚠이걸 안 하면: 화면은 SO값을 우선 표시하는데 편집은 프로젝트를 고쳐서
+    #     **고쳐도 화면이 안 바뀌는(헛도는)** 상태가 된다. 표시·편집 대상은 반드시 같아야 한다.
+    #   so_oid 가 없는 줄(수주 없는 프로젝트)은 기존대로 프로젝트를 고친다.
+    _so_oid = str(b.get("so_oid") or "").strip()
+    if field == "po_type" and kind == "project" and _so_oid.isdigit():
+        _pv = (str(value or "").strip() or "신규")
+        if _pv not in _logi.PO_TYPES:
+            return JSONResponse({"ok": False,
+                                 "error": "PO유형은 " + "/".join(_logi.PO_TYPES) + " 중 하나여야 합니다"}, 400)
+        try:
+            with db_session() as _pc:
+                _oc = {r[1] for r in _pc.execute("PRAGMA table_info(orders)").fetchall()}
+                if "po_type" not in _oc:
+                    return JSONResponse({"ok": False, "error": "수주별 PO유형 컬럼 없음(마이그레이션 필요)"}, 500)
+                _r = _pc.execute("SELECT project_id, po_type FROM orders WHERE id=?", (int(_so_oid),)).fetchone()
+                if not _r or int(_r[0] or 0) != int(ref_id):
+                    return JSONResponse({"ok": False, "error": "이 수주는 해당 관리번호의 것이 아닙니다"}, 400)
+                _old = _r[1] or ""
+                _pc.execute("UPDATE orders SET po_type=?, updated_at=datetime('now','localtime') WHERE id=?",
+                            (_pv, int(_so_oid)))
+                try:   # 변경 이력 — 잠금을 푼 대신 추적성은 남긴다
+                    _pc.execute("INSERT INTO order_status_history(order_id, from_status, to_status, changed_by, note) "
+                                "VALUES(?,?,?,?,?)",
+                                (int(_so_oid), "", "", (u.get("id") or None),
+                                 f"PO유형 변경: {_old or '(미지정)'} → {_pv} (작업일정표)"))
+                except Exception:
+                    pass
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+        return JSONResponse({"ok": True, "value": _pv, "scope": "so"})
     try:
         ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
     except Exception as e:
@@ -27270,7 +27314,10 @@ async def projects_new_submit(request: Request):
                         created_by=_u.get("id"), po_number=form.get("customer_po", ""),
                         note=form.get("note", ""), qty=_fu_qty,
                         so_type=_fu_sotype, currency=_ccy_v, ship_to="",
-                        order_customer_id=_fu_cust_id)
+                        order_customer_id=_fu_cust_id,
+                        # v5H226z1033: 사용자가 고른 PO유형을 **그 수주에** 남긴다.
+                        #   '추가'뿐 아니라 개조·수리·기타도 있으므로 폼값을 그대로 쓴다(비면 '추가').
+                        po_type=(form.get("po_type") or "").strip())
             # v5H226z384 (대표 지시): 추가 발주도 제작요청 발행(전부서 통보) — 신규처럼. 같은 관리번호의 기존 프로젝트로 통보.
             _fu_url = f"/project/{_existing['id']}?followup=1"
             if _fu_sf == "PARTS":   # v5H226z436: 상품 추가발주는 상세 PACKING LIST 로 유도

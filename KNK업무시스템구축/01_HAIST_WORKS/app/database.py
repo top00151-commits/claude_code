@@ -2429,6 +2429,12 @@ def init_db():
             #   일괄등록이 행 값을 그 수주에 저장(빈 곳만)·작업일정표/엑셀저장/상세가 SO값 우선 표시.
             ("model_name", "ALTER TABLE orders ADD COLUMN model_name TEXT"),
             ("equip_name", "ALTER TABLE orders ADD COLUMN equip_name TEXT"),
+            # v5H226z1033 (안지연 프로 신고·대표 지시): 수주(SO)별 PO유형 — **z981 과 완전히 같은 문제**.
+            #   PO유형이 projects 에만 있어, 작업일정표가 수주번호별로 줄을 펼치면서
+            #   **프로젝트 값 하나를 모든 줄에 복사**해 보여줬다 → 추가발주로 등록해도 전부 '신규'.
+            #   안지연 프로: "추가로 관리번호 직접 입력해서 등록했는데 왜 다 신규라고 나오는거예요?"
+            #   NULL = 미지정(프로젝트 값 상속). 값이 있으면 그 수주의 실제 유형.
+            ("po_type",    "ALTER TABLE orders ADD COLUMN po_type TEXT"),
         ]:
             if _ocol not in ocols:
                 try:
