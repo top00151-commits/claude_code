@@ -583,7 +583,8 @@
                 {% set _so_pt = (so.po_type or '')|trim %}
                 {% set _so_pt_eff = _so_pt or (p.po_type or '신규') %}
                 <span class="item">
-                  <span class="k">🏷 PO유형</span>
+                  {# z1034b: 🏷 는 이 글꼴에 없어 빈 네모(두부)로 보였다 — 글자만 쓴다 #}
+                  <span class="k">PO유형</span>
                   {% if _editable %}
                   <select class="so-potype" data-soid="{{ so.id }}" data-orig="{{ _so_pt_eff }}"
                           title="이 수주번호({{ so.order_no }})만 바뀝니다 — 프로젝트 전체가 아닙니다"
@@ -1830,7 +1831,7 @@
              이걸 '이 관리번호의 PO유형' 하나로 읽고 [프로젝트 정보 수정]에서 고쳐, 수주 4건이 통째로 바뀐 사고가 났다.
              → 수주가 2건 이상이면 '기본값'임을 밝히고 수주별로 고치라고 안내한다. #}
           <dt>PO유형{% if project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;">(기본값)</span>{% endif %}</dt>
-          <dd>{% set _pt2 = p.po_type|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}{% if project_orders and project_orders|length > 1 %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;">수주번호마다 다르면 <b>수주 내역</b>의 <b>🏷 PO유형</b>에서 그 수주만 고치세요</span>{% endif %}</dd>
+          <dd>{% set _pt2 = p.po_type|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}{% if project_orders and project_orders|length > 1 %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;" title="이 값은 자기 값이 없는 수주에만 적용되는 기본값입니다. 수주마다 다르면 아래 [수주 내역]의 각 카드에서 'PO유형'을 고르면 그 수주만 바뀝니다.">수주마다 다르면 <b>아래 수주 내역</b>에서</span>{% endif %}</dd>
           <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           {# v5H226z645: 형태 텍스트(완제품/제품/상품/기타/소모품·미설정=완제품) #}
