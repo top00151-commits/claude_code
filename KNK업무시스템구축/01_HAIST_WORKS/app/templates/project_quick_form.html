@@ -763,13 +763,23 @@ function qUnitSum(){
   var v=qUnitVals();
   var s=document.getElementById('qUnitSum'); if(s) s.textContent=sum.toLocaleString('en-US');
   var sc=document.getElementById('qUnitSumCur'); if(sc) sc.textContent=v.cur;
-  if(v.qty>=2){
+  // v5H226z1028 (안지연 프로 신고·대표 지시): '호기별 모드일 때만' 헤더 단가·금액을 자동으로 덮는다.
+  //   ⚠기존엔 v.qty>=2 만 봐서 **추가발주(호기줄 없음)에서도 실행**됐다. 호기줄이 비어 있으니
+  //     _a=[] → _eq=false → 단가를 '' 로 지우고 안내문을 '(호기별)' 로 바꿔버렸고,
+  //     수량·PO유형을 건드릴 때마다 입력한 단가가 조용히 사라져
+  //     "단가 칸 클릭은 되는데 숫자가 안 써진다"(=쓰면 지워진다)로 나타났다.
+  //   → 실제로 호기줄이 그려져 있을 때만 손댄다. 아니면 사용자가 직접 쓰는 칸이므로 건드리지 않는다.
+  var _urows = document.querySelectorAll('#qUnitRows .qf-unit-row');
+  var _isMulti = (v.qty >= 2) && !qIsFollowup() && _urows.length > 0;
+  var up=document.getElementById('qUnitPrice');
+  if(_isMulti){
     // z389(대표 지시): 헤더 금액=합계. 단가는 '평균 금지' — 호기 전부 동일하면 공통단가, 다르면 비움+'(호기별)' 표시.
     var amt=document.getElementById('qAmount'); if(amt) amt.value=sum.toLocaleString('en-US');
     var _a=[]; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(x){ _a.push(parseFloat((x.value||'0').replace(/,/g,''))||0); });
     var _eq=_a.length>0 && _a.every(function(x){ return x===_a[0]; });
-    var up=document.getElementById('qUnitPrice');
     if(up){ up.value=_eq?_a[0].toLocaleString('en-US'):''; up.placeholder=_eq?'0':'(호기별)'; }
+  } else if(up && up.placeholder !== '0'){
+    up.placeholder='0';   // 호기별 모드 해제 → 안내문 원복(못 쓰는 칸으로 오해하던 것 제거)
   }
 }
 // v5H226z383(대표 지시): 호기별이면 헤더 단가·금액 칸 잠금 — 입력은 호기별 금액 칸으로만.
@@ -1047,6 +1057,17 @@ function qfRestore(){
   });
   // 4) 의존 UI 재계산
   try{ qToggleFx(); }catch(e){} try{ qCalcParts(); }catch(e){} try{ qFormSyncLabel(); }catch(e){}
+  // v5H226z1028 (대표 지시): ⚠값만 복원되고 '그 값에 딸린 화면 상태'는 안 맞던 문제.
+  //   대표적으로 PO유형이 '추가'로 복원되는데 qSyncPoType 이 안 불려서
+  //   관리번호 입력칸이 disabled+display:none 인 채로 남아 **입력 자체가 불가**했다("페이지에 갇힌 느낌").
+  //   값을 되돌렸으면 그 값에 딸린 화면도 반드시 같이 되돌린다.
+  try{ qManualToggle(); }catch(e){}   // 수동발행 체크 → 입력칸 열기/닫기
+  try{
+    // 수동발행 코드가 남아 있으면 검증 기록(_qManualOK)은 복원되지 않으므로 다시 누르라고 알린다
+    var _mc=document.getElementById('qManualCode');
+    if(_mc && (_mc.value||'').trim()) qManualReset();
+  }catch(e){}
+  try{ qSyncPoType(); }catch(e){}     // PO유형 → 관리번호 칸 잠금/해제 (내부에서 qBuildUnits 재평가)
   // 5) 호기(수량≥2) 복원 — unit_qty가 이미 복원됨 → 행 생성 후 금액/납기/touched 채움
   try{ qBuildUnits(); }catch(e){}
   if(d.units && d.units.length){
@@ -1058,7 +1079,48 @@ function qfRestore(){
     }
     try{ qUnitSum(); }catch(e){}
   }
+  // v5H226z1028: 납기 일괄적용 체크 상태 → 호기 납기 칸 잠금 반영(호기줄이 만들어진 뒤라야 의미 있음)
+  try{ qUnitDueSync(); }catch(e){}
   if(window.knkScanMoney) knkScanMoney();
+  try{ qfShowRestoredBar(d); }catch(e){}   // v5H226z1028: 복원됐다는 사실을 눈에 보이게
+}
+
+// v5H226z1028 (대표 지시): '이전에 쓰다 만 내용'이 되살아난 걸 사용자가 모르니 화면이 이상하게 느껴졌다.
+//   → 되살렸으면 그렇다고 알려주고, 한 번에 비우고 새로 시작할 수 있게 한다.
+//   빈 껍데기(클릭만 하다 나간 경우)까지 띄우면 잔소리가 되므로 '실제로 뭔가 적힌 경우'에만 표시.
+function qfShowRestoredBar(d){
+  if(document.getElementById('qfRestoredBar')) return;
+  var _keys = ['name','model_name','equip_name','mgmt_code','manual_mgmt_code','customer_name',
+               'secondary_customer','unit_price','order_amount','order_date','due_date','note'];
+  var _has = false;
+  try{
+    for(var i=0;i<_keys.length;i++){
+      var arr=(d.fields||{})[_keys[i]];
+      if(arr && arr.length && String(arr[0].v||'').trim()){ _has=true; break; }
+    }
+    if(!_has && d.units && d.units.length){
+      _has = d.units.some(function(u){ return String(u.a||'').trim() || String(u.d||'').trim(); });
+    }
+  }catch(e){ return; }
+  if(!_has) return;
+  var host=document.getElementById('qfErr'); if(!host||!host.parentNode) return;
+  var bar=document.createElement('div');
+  bar.id='qfRestoredBar';
+  bar.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;'
+    + 'padding:9px 14px;border-radius:8px;background:#eff6ff;border:1px solid #93c5fd;'
+    + 'color:#1e3a8a;font-size:12.5px;font-weight:600;line-height:1.5;';
+  var msg=document.createElement('span');
+  msg.innerHTML='✏️ <b>이전에 쓰다 만 내용</b>을 불러왔습니다. 새로 작성하시려면 오른쪽 버튼을 누르세요.';
+  var btn=document.createElement('button');
+  btn.type='button'; btn.id='qfRestoredClear'; btn.textContent='🗑 지우고 새로 시작';
+  btn.style.cssText='margin-left:auto;padding:5px 13px;border:1px solid #93c5fd;background:#fff;'
+    + 'color:#1d4ed8;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;';
+  btn.addEventListener('click', function(){
+    try{ qfClear(); }catch(e){}
+    try{ location.reload(); }catch(e){}
+  });
+  bar.appendChild(msg); bar.appendChild(btn);
+  host.parentNode.insertBefore(bar, host);
 }
 (function(){
   if(QF_ED) return;
