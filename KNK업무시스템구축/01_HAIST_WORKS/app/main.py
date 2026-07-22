@@ -11106,10 +11106,17 @@ async def projects_header_edit(req: Request, pid: int):
     form = await req.form()
     field = (form.get("field") or "").strip()
     raw_value = form.get("value", "")
-    LOCKED = {"mgmt_code", "biz_div", "project_type", "po_type",
+    # v5H226z1031 (안지연 프로 신고·대표 지시): **po_type 을 잠금에서 뺀다.**
+    #   왜: PO유형은 '신규/추가/개조/수리/기타' 분류값일 뿐 금액·번호·회계에 영향이 없다.
+    #       그런데 잠가둔 탓에 **잘못 넣으면 고칠 방법이 없어 삭제하고 다시 등록**하게 됐고,
+    #       그러면 수주번호가 새로 발번돼(M-260305-9 → -12) **현장은 옛 번호로 일하는데
+    #       시스템만 바뀌는** 훨씬 위험한 어긋남이 생겼다(과거 데이터 입력 기간에 특히 잦음).
+    #       잠금의 대가가 '삭제·재등록'이라는 우회로였던 셈. 변경 이력이 남으므로 추적성은 유지된다.
+    #   ⛔mgmt_code·biz_div·project_type 은 관리번호 자체를 결정하고 여러 곳에서 참조하므로 잠금 유지.
+    LOCKED = {"mgmt_code", "biz_div", "project_type",
               "created_at", "created_by", "id", "code"}
     EDITABLE = {"name", "customer_id", "currency", "fx_rate", "amount_krw",
-                "is_export", "note", "order_date", "due_date", "model"}
+                "is_export", "note", "order_date", "due_date", "model", "po_type"}
     if field in LOCKED:
         return JSONResponse({"ok": False, "message": f"'{field}' 은 영구 잠금 필드"}, 400)
     if field not in EDITABLE:
@@ -11138,6 +11145,12 @@ async def projects_header_edit(req: Request, pid: int):
             return JSONResponse({"ok": False, "message": "고객 ID 형식 오류"}, 400)
     elif field == "is_export":
         val = "1" if str(val).strip() in ("1", "true", "True", "on", "yes") else "0"
+    elif field == "po_type":
+        # v5H226z1031: 잠금은 풀되 값은 5종으로 제한 — 오타로 엉뚱한 분류가 들어가는 것 차단
+        val = (str(val or "").strip() or "신규")
+        if val not in _logi.PO_TYPES:
+            return JSONResponse({"ok": False,
+                                 "message": "PO유형은 " + "/".join(_logi.PO_TYPES) + " 중 하나여야 합니다"}, 400)
     # DB 업데이트 + 이력 기록
     with db_session() as c:
         old_row = c.execute(f"SELECT {field} FROM projects WHERE id=?", (pid,)).fetchone()

@@ -194,9 +194,16 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# 2행(대표 지시 z435 배치 변경) — PO유형 · 형태 · 거래구분 · 프로젝트명(넓게) #}
           <div class="qf-f c2"><label>PO유형{% if ed %} <span style="font-weight:400;color:var(--qv-ink-3);">(잠금)</span>{% endif %}</label>
             {% if ed %}
-            {# v5H226z354: 수정 시 PO유형은 영구잠금(감사) — 읽기전용 표시 + hidden 으로 전송 #}
-            <input type="text" value="{{ project.po_type|default('신규') }}" readonly style="background:var(--qv-surface-3,#eef0f3);color:var(--qv-ink-2);cursor:not-allowed;font-weight:700;">
-            <input type="hidden" name="po_type" value="{{ project.po_type|default('신규') }}">
+            {# v5H226z354 의 '영구잠금'을 v5H226z1031(안지연 프로 신고·대표 지시)에서 **해제**.
+               잠가둔 탓에 잘못 넣으면 고칠 방법이 없어 **삭제하고 다시 등록** → 수주번호가 새로 발번되어
+               현장은 옛 번호로 일하는데 시스템만 바뀌는 어긋남이 생겼다(과거 데이터 입력 기간에 특히 잦음).
+               PO유형은 분류값이라 금액·번호에 영향이 없고, 변경 이력이 남으므로 추적성은 유지된다. #}
+            {# ⚠id 는 'qPoType' 을 쓰지 않는다 — 그 id 는 **신규 등록 흐름**의 방아쇠라
+               (qIsFollowup → qSyncPoType/qBuildUnits/제출분기) 수정모드에서 값이 '추가'면
+               기존 호기별 입력 영역이 숨겨지는 등 엉뚱한 동작이 난다. 수정모드는 '값만 바꿔 저장'이면 충분. #}
+            <select name="po_type" id="qPoTypeEd" title="바꾸면 프로젝트 변경 이력에 남습니다">
+              {% for t in PO_TYPES %}<option value="{{ t }}"{% if (project.po_type|default('신규')) == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+            </select>
             {% else %}
             {# v5H226z350: 하드코딩(신규/추가) → PO_TYPES(신규/추가/개조/수리/기타) #}
             <select name="po_type" id="qPoType" onchange="qSyncPoType()">{% for t in PO_TYPES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
