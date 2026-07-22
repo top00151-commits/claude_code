@@ -3655,11 +3655,6 @@ def init_db():
                 #   환율 역산(×fx) 표시는 1~2원 오차가 나므로, 입력한 KRW를 그대로 저장·표시(정확).
                 ("cost_krw",         "ALTER TABLE order_items ADD COLUMN cost_krw REAL"),
                 ("sell_krw",         "ALTER TABLE order_items ADD COLUMN sell_krw REAL"),
-                # v5H226z1027 (안지연 프로 요청·대표 승인): 호기별 '고객 PO번호'.
-                #   그동안 PO 넣을 정식 칸이 없어 비고(line_note)에 손으로 적었고, 그래서
-                #   '같은 날·같은 장비인데 PO가 다른' 건이 한 수주번호로 묶여 세금계산서 대조가 어려웠다.
-                #   이 칸이 수주번호 분리 기준(납기·납품처·통화 + PO)의 소스가 된다. 빈칸 허용(PO 안 주는 고객사).
-                ("po_no",            "ALTER TABLE order_items ADD COLUMN po_no TEXT"),
                 # v5H226z945 (대표 지시): 부품 '행별 환율' — 한 수주에 발주시점 다른 부품(환율 다름)이 섞일 때
                 #   화면 '환율' 칸을 부품별 실제 환율로 표시(SO 대표값 1개로 통일 표시하던 혼동 해소).
                 #   저장값(인보이스 USD·매입/판매 KRW)엔 영향 없음 — 표시 정확성만 개선.

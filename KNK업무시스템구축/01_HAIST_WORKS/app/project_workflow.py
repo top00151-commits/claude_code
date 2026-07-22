@@ -595,12 +595,6 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
       동일 관리번호라도 (납기 또는 납품지가 다르면) SO 분리.
       반대로 동일 납기 + 동일 납품지면 호기 N개라도 SO 1개.
 
-      v5H226z1027 (안지연 프로 요청·대표 확정 2026-07-21) — **고객 PO번호도 분리 기준에 추가**.
-      같은 날 같은 장비라도 고객 PO가 다르면 별도 발주 = 별도 진행 단위이므로 SO 를 나눈다.
-      (사례: 002M2602 M-260305-1 — 7대가 PO#4505977712 6대 + PO#4505977715 1대인데 한 SO 로 묶여
-       세금계산서 대조가 어려웠음.)
-      ⭐PO 를 안 주는 고객사는 po_no 가 빈칸 → 빈칸끼리 한 그룹 = 기존 동작과 100% 동일(무영향).
-
     Args:
       project_id: 대상 프로젝트
       units: 호기 라인 [{label, amount, due_date, ship_to, note}, ...]
@@ -608,10 +602,9 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
              amount   : 호기 수주액
              due_date : 납기 (그룹화 키)
              ship_to  : 납품지 (그룹화 키)
-             po_no    : 고객 PO번호 (그룹화 키 · z1027) — 비우면 빈칸끼리 한 그룹
              note     : 호기 비고
       order_date: 공통 발주일 (그룹화 키 — 같은 호출은 같은 일자)
-      po_number : 고객 PO 번호 (호기별 po_no 가 없을 때 쓰는 전체 공통 기본값)
+      po_number : 고객 PO 번호 (전체 공통)
 
     Returns: {ok, mgmt_code, groups: [{so_no, order_id, due_date, ship_to,
               total_amount, units: [...]}], total_amount, message}
@@ -722,11 +715,6 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             if "currency" in _ord_cols:
                 _cols.append("currency")
                 _vals.append(proj.get("currency") or "KRW")
-            # v5H226z1027: 빈 SO(소모품·상품)도 고객 PO 기록 — 나중에 같은 프로젝트에
-            #   'PO 다른 추가 발주'가 들어와도 재사용 조건에서 정확히 갈린다.
-            if "customer_po" in _ord_cols:
-                _cols.append("customer_po")
-                _vals.append((po_number or "").strip() or None)
             if "so_type" in _ord_cols:
                 _cols.append("so_type")
                 _vals.append((so_type or _so_type_for_empty).upper())
@@ -746,15 +734,13 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
         else:
             return {"ok": False, "message": "호기 정보가 없습니다"}
 
-    # 2. (납기, 납품지, 통화, 고객PO) 그룹화 — v5H92: 통화도 그룹키 / v5H226z1027: 고객 PO번호도 그룹키
-    #    PO 를 안 주는 고객사는 전부 빈칸 → 빈칸끼리 한 그룹 = z1027 이전과 동일하게 동작한다.
+    # 2. (납기, 납품지, 통화) 그룹화 — v5H92: 통화도 그룹키
     groups: dict[tuple, list[dict]] = {}
     for u in units:
         key = (
             (u.get("due_date") or "").strip(),
             (u.get("ship_to") or "").strip(),
             (u.get("currency") or "KRW").strip().upper(),
-            (u.get("po_no") or po_number or "").strip(),   # v5H226z1027: 호기 PO > 전체 공통 PO > 빈칸
         )
         groups.setdefault(key, []).append(u)
 
@@ -765,7 +751,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
     REUSABLE_STATUSES = ("DRAFT", "QUOTED", "CONFIRMED",
                          "IN_PRODUCTION", "READY_TO_SHIP")
     issued_groups = []
-    for (g_due, g_ship, g_cur, g_po), g_units in groups.items():
+    for (g_due, g_ship, g_cur), g_units in groups.items():
         g_total = sum(float(u.get("amount") or 0) for u in g_units)
         # v5H226z204: unit 에 qty(>1) 가 있으면 낱개 수량(부품/소모품) — 호기수가 아닌 piece 합산.
         #   장비(qty 키 없음) 는 1 로 처리 → 기존 동작과 100% 동일.
@@ -775,9 +761,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             for i, u in enumerate(g_units)
         )
 
-        # 동일 (project_id, order_date, due_date, ship_to, currency, 고객PO) + 진행 가능 상태
-        # v5H226z1027: 고객 PO 도 조건에 포함 — 안 그러면 PO 가 다른 추가 발주가
-        #   기존 수주번호에 그대로 붙어(append) 그룹화 키를 넣은 의미가 사라진다.
+        # 동일 (project_id, order_date, due_date, ship_to, currency) + 진행 가능 상태
         existing = None
         try:
             existing = c.execute(
@@ -785,10 +769,9 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
                 "FROM orders WHERE project_id=? AND order_date=? "
                 "AND COALESCE(due_date,'')=? AND COALESCE(ship_to,'')=? "
                 "AND COALESCE(currency,'KRW')=? "
-                "AND COALESCE(customer_po,'')=? "
                 "AND status IN (" + ",".join("?" * len(REUSABLE_STATUSES)) + ") "
                 "ORDER BY id DESC LIMIT 1",
-                (project_id, order_date, (g_due or ""), (g_ship or ""), g_cur, (g_po or ""),
+                (project_id, order_date, (g_due or ""), (g_ship or ""), g_cur,
                  *REUSABLE_STATUSES)
             ).fetchone()
         except Exception:
@@ -811,16 +794,14 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             # 신규 SO 발행 (v5H92: currency 포함)
             so_no = generate_so_no(c, biz_div, ref_d)
             try:
-                # v5H226z1027: customer_po = 이 그룹의 고객 PO(그룹키라 그룹당 1개로 확정).
-                #   재사용 조회 조건(COALESCE(customer_po,'')=?)과 짝을 이룬다.
                 cur = c.execute(
                     "INSERT INTO orders(order_no, customer_id, project_id, order_date, "
                     "due_date, total_amount, status, created_by, unit_label, unit_note, "
-                    "ship_to, unit_qty, currency, customer_po) "
-                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?,?,?)",
+                    "ship_to, unit_qty, currency) "
+                    "VALUES(?,?,?,?,?,?,'CONFIRMED',?,?,?,?,?,?)",
                     (so_no, customer_id, project_id, order_date, (g_due or None),
                      g_total, created_by or None, labels_concat,
-                     (po_number or None), (g_ship or None), g_qty, g_cur, (g_po or None))
+                     (po_number or None), (g_ship or None), g_qty, g_cur)
                 )
             except Exception:
                 # currency 컬럼 미생성 환경 폴백
@@ -861,17 +842,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             ov_ord = u_ord if (u_ord and u_ord != order_date) else None
             ov_cur = u_cur if (u_cur and u_cur != g_cur) else None
             try:
-                if _has_extra and "po_no" in _oi_cols:
-                    # v5H226z1027: 호기별 고객 PO번호도 함께 저장(그룹키라 그룹 안에서는 모두 같은 값).
-                    #   화면에서 호기줄마다 보이고 고칠 수 있어야 해서 order_items 에도 남긴다.
-                    c.execute(
-                        "INSERT INTO order_items(order_id, qty, unit_price, amount, "
-                        "unit_label, line_note, order_date, due_date, ship_to, currency, po_no) "
-                        "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                        (oid, _u_qty, _u_unit_price, amt, lbl, note_u,
-                         ov_ord, ov_due, ov_ship, ov_cur, (g_po or None))
-                    )
-                elif _has_extra:
+                if _has_extra:
                     c.execute(
                         "INSERT INTO order_items(order_id, qty, unit_price, amount, "
                         "unit_label, line_note, order_date, due_date, ship_to, currency) "
@@ -894,7 +865,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             note_msg = (
                 f"{action_word} (관리번호 {mgmt_code} · 납기 {g_due or '미지정'} · "
                 f"납품지 {g_ship or '미지정'} · 호기 +{g_qty}대 — {labels_concat})"
-                + (f" / 고객 PO {g_po or po_number}" if (g_po or po_number) else "")   # v5H226z1027: 그룹 PO 우선
+                + (f" / 고객 PO {po_number}" if po_number else "")
             )
             c.execute(
                 "INSERT INTO order_status_history(order_id, from_status, to_status, "
@@ -908,7 +879,6 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
         issued_groups.append({
             "so_no": so_no, "order_id": oid, "reused": reused,
             "due_date": g_due, "ship_to": g_ship, "currency": g_cur,
-            "po_no": g_po,   # v5H226z1027: 이 수주번호의 고객 PO(호출자 확인·안내문구용)
             "qty": g_qty, "total_amount": g_total,
             "units": [{"label": (u.get("label") or "").strip() or f"{i+1}호기",
                        "amount": float(u.get("amount") or 0),
@@ -1190,7 +1160,6 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                        "supplier", "unit",  # v5H226z4: 업체명/단위 별도
                        "cost_price", "margin_pct",  # v5H226z460: 상품 원가관리(매입단가·마진%)
                        "cost_krw", "sell_krw",  # v5H226z737: 수출 건 매입/판매 KRW 원본(상세 표시·없으면 화면이 USD로 폴백하던 버그)
-                       "po_no",  # v5H226z1027: 호기별 고객 PO번호(수주 내역 표시·편집)
                        "fx_rate",  # v5H226z945: 부품 행별 환율(환율 칸을 부품별 실제 환율로 표시)
                        # v5H226z634 (대표 지시): 호기별 거래명세서·세금계산서(1/2/3) — 수주 내역 표에서 호기마다 보기
                        "statement_date", "tax_invoice_date", "tax_invoice_amt1",

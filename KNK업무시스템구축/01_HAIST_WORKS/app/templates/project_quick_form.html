@@ -127,7 +127,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         <input type="hidden" name="status" value="{{ project.status|default('초기협의') }}">
         <input type="hidden" name="unlock_verified" value="1">
         {# v5H226z354(데이터 안전): 빠른 폼에 칸이 없는 항목은 기존값을 hidden 으로 전송 → 수정 시 삭제 방지 #}
-        {# v5H226z1027: customer_po 는 본문에 정식 입력칸이 생겨 hidden 중복 제거(같은 name 2개면 값이 2개 전송됨) #}
+        <input type="hidden" name="customer_po" value="{{ project.customer_po|default('') }}">
         <input type="hidden" name="amount_krw" value="{{ project.amount_krw if project.amount_krw else '' }}">
         <input type="hidden" name="final_amount" value="{{ project.final_amount if project.final_amount else '' }}">
         <input type="hidden" name="proposal_date" value="{{ (project.proposal_date|string)[:10] if project.proposal_date else '' }}">
@@ -335,13 +335,6 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# 5행 — 발주일 · 납품일 #}
           <div class="qf-f c6"><label>발주일 <span style="font-weight:400;color:var(--qv-ink-3);">(비우면 오늘 날짜로 자동 등록)</span></label><input type="date" name="order_date" id="qOrderDate" value="{{ (project.order_date|string)[:10] if (ed and project.order_date) else '' }}"></div>
           <div class="qf-f c6"><label>납품일</label><input type="date" name="due_date" id="qDueDate" value="{{ (project.due_date|string)[:10] if (ed and project.due_date) else '' }}"></div>
-          {# v5H226z1027 (안지연 프로 요청·대표 확정): 고객 발주(PO)번호 — 그동안 넣을 칸이 없어 비고에 손으로 적었다.
-             PO 주는 고객사가 몇 곳뿐이라 **선택 입력**(비우면 지금까지와 동일). 여러 대인데 PO가 섞이면
-             아래 호기별 칸에서 대별로 따로 적는다 → PO가 다르면 수주번호가 자동으로 갈린다. #}
-          <div class="qf-f c6"><label>고객 발주(PO)번호 <span style="font-weight:400;color:var(--qv-ink-3);">(고객사가 준 번호 · 없으면 비워두세요)</span></label>
-            <input type="text" name="customer_po" id="qCustomerPo" autocomplete="off" placeholder="예: 4505977712"
-                   value="{{ project.customer_po|default('') if ed else '' }}" oninput="try{qUnitPoSync()}catch(e){}"
-                   title="고객사가 발행한 발주(PO)번호입니다. 우리 수주번호와는 다릅니다. PO를 주지 않는 고객사는 비워두세요."></div>
           </div></div>
           <div class="qf-group"><div class="qf-group-ttl">고객사 담당자</div><div class="qf-grid">
           {# 6행 — 고객사 부서 · 담당자 · 담당자 연락처 · 납품위치 (각 3칸) #}
@@ -743,15 +736,11 @@ function qMgmtSearch(){
   }).catch(function(){ qMgmtHide(); });
 }
 // v5H226z380(대표 지시): 호기별 금액·납기 — 수량(호기)≥2 면 펼침. 기본 단가·납품일로 채우고 호기마다 수정 가능. 합계=호기 금액 합.
-function qUnitRowHTML(i, amt, due, ship, cur, po){   /* v5H226z1027: po=호기별 고객 PO번호(선택) */
+function qUnitRowHTML(i, amt, due, ship, cur){
   return '<div class="qf-unit-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
     + '<span style="width:52px;flex:none;font-size:12.5px;font-weight:700;color:var(--qv-ink-2);">'+i+'호기</span>'
     + '<input type="text" inputmode="numeric" name="unit_amount[]" class="qf-unit-amt knk-money" value="'+(amt||'')+'" placeholder="금액" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12.5px;text-align:right;background:#fff;">'
     + '<input type="date" name="unit_due[]" class="qf-unit-due" value="'+(due||'')+'" title="이 호기 납기(출하일)" style="flex:none;width:158px;padding:6px 8px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12px;background:#fff;">'
-    /* v5H226z1027 (안지연 프로 요청·대표 승인): 호기별 고객 PO번호.
-       PO 주는 고객사가 몇 곳뿐이라 비워도 됨(빈칸=지금까지와 완전히 동일하게 동작).
-       PO 가 다르면 등록 시 수주번호가 자동으로 갈린다. */
-    + '<input type="text" name="unit_po[]" class="qf-unit-po" value="'+(po||'')+'" placeholder="고객 PO번호(선택)" autocomplete="off" title="고객사가 준 발주(PO)번호 — 비워도 됩니다. PO가 다르면 수주번호가 따로 발행됩니다." style="flex:none;width:150px;padding:6px 8px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12px;background:#fff;">'
     + '<input type="hidden" name="unit_label[]" value="'+i+'호기">'
     + '<input type="hidden" name="unit_ship[]" class="qf-unit-ship" value="'+(ship||'')+'">'
     + '<input type="hidden" name="unit_currency[]" class="qf-unit-cur" value="'+(cur||'KRW')+'">'
@@ -763,7 +752,6 @@ function qUnitVals(){
            price: parseFloat((g('unit_price')||'0').replace(/,/g,''))||0,
            due: (document.getElementById('qDueDate')||{}).value||'',
            ship: (document.getElementById('qShip')||{}).value||'',
-           po: (document.getElementById('qCustomerPo')||{}).value||'',   /* v5H226z1027: 호기별 PO 기본값 */
            cur: (document.getElementById('qCurrency')||{}).value||'KRW' };
 }
 function qSyncUnitStatic(disable){
@@ -805,14 +793,6 @@ function qUnitDueSync(){
     else { d.readOnly=false; d.style.background='#fff'; d.style.color=''; d.title='이 호기 납기(출하일)'; }
   });
 }
-// v5H226z1027 (안지연 프로 요청): 위 '고객 발주(PO)번호'를 고치면 호기별 PO 빈칸에만 내려 채운다.
-//   대별로 이미 다르게 적어둔 값은 절대 덮지 않는다(PO가 섞인 건이 이 기능의 목적이라).
-function qUnitPoSync(){
-  var hdr=(document.getElementById('qCustomerPo')||{}).value||'';
-  document.querySelectorAll('#qUnitRows .qf-unit-po').forEach(function(p){
-    if(!(p.value||'').trim()) p.value=hdr;
-  });
-}
 function qBuildUnits(){
   var wrap=document.getElementById('qUnitWrap'), rows=document.getElementById('qUnitRows');
   if(!wrap||!rows) return;   // 금액 권한 없으면 섹션 없음 → 단일 호기
@@ -821,13 +801,12 @@ function qBuildUnits(){
   wrap.style.display='';
   var existing=rows.querySelectorAll('.qf-unit-row');
   if(existing.length!==v.qty){
-    var pA=[],pD=[],pT=[],pP=[];   /* v5H226z1027: pP = 이미 입력한 호기별 PO — 대수 바꿔도 안 날아가게 보존 */
-    existing.forEach(function(r){ var a=r.querySelector('.qf-unit-amt'); pA.push(a.value); pD.push(r.querySelector('.qf-unit-due').value); pT.push(a.dataset.touched||''); var p=r.querySelector('.qf-unit-po'); pP.push(p?p.value:''); });
+    var pA=[],pD=[],pT=[];
+    existing.forEach(function(r){ var a=r.querySelector('.qf-unit-amt'); pA.push(a.value); pD.push(r.querySelector('.qf-unit-due').value); pT.push(a.dataset.touched||''); });
     var html=''; for(var i=1;i<=v.qty;i++){
       var amt=(pA[i-1]!==undefined&&pA[i-1]!=='')?pA[i-1]:(v.price>0?String(v.price):'');
       var due=(pD[i-1]!==undefined&&pD[i-1]!=='')?pD[i-1]:v.due;
-      var po=(pP[i-1]!==undefined&&pP[i-1]!=='')?pP[i-1]:(v.po||'');   /* 이미 적은 값 우선 · 없으면 위 공통 PO */
-      html+=qUnitRowHTML(i, amt, due, v.ship, v.cur, po);
+      html+=qUnitRowHTML(i, amt, due, v.ship, v.cur);
     }
     rows.innerHTML=html;
     rows.querySelectorAll('.qf-unit-amt').forEach(function(a,idx){

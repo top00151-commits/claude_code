@@ -754,9 +754,6 @@
                   <th class="px-x" style="width:106px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>상태</th>
                   {# v5H226z79: 비고 컬럼 min-width + 줄바꿈 허용 — 짤림 해결 #}
                   {# v5H226z85: width: auto — table-layout:fixed에서 명시안된 컬럼은 남은 공간 차지 #}
-                  {# v5H226z1027 (안지연 프로 요청·대표 확정): 고객 발주(PO)번호 — 비고에 손으로 적던 것을 정식 칸으로.
-                     PO가 다르면 수주번호가 갈리므로 이 칸은 '이 수주번호의 근거'다. 우리 수주번호와 헷갈리지 않게 라벨 명확히. #}
-                  <th style="width:118px;" {% if _is_parts %}data-pgroup="somet"{% endif %} title="고객사가 발행한 발주(PO)번호 — 우리 수주번호와 다릅니다. PO가 다르면 수주번호가 따로 발행됩니다.">고객 PO</th>
                   <th style="width:auto;min-width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>비고</th>
                   {# v5H226z634 (대표 지시): 완제품 — 호기별 거래명세서·세금계산서1/2/3 (보기 전용 · 발행/편집은 작업일정표 보드) · z829: 매출금액 정책(can_sales_amt) #}
                   {% if _is_equip and can_sales_amt %}
@@ -986,12 +983,6 @@
                     <span class="pill {% if _ust == '출하' %}pill-done{% elif _ust == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ _ust }}</span>
                     {% endif %}
                   </td>
-                  {# v5H226z1027: 고객 PO번호(호기별). 값 없으면 SO 공통값(so.customer_po)으로 폴백 표시 — 예전 등록분도 보이게. #}
-                  {% set _po_v = (u.po_no if (u.po_no is defined and u.po_no) else (so.customer_po or '')) %}
-                  <td style="white-space:nowrap;font-size:11.5px;">
-                    <span class="display-val" title="{{ _po_v }}">{% if _po_v %}{{ _po_v }}{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span>
-                    {% if _editable %}<input type="text" class="unit-edit po-inp" autocomplete="off" data-orig="{{ u.po_no or '' }}" value="{{ u.po_no or '' }}" placeholder="고객 PO" style="width:104px;font-size:11.5px;">{% endif %}
-                  </td>
                   <td style="white-space:nowrap; max-width:220px; overflow:hidden;">
                     {# v5H226z694 (대표 지시): 비고 1줄+말줄임(엑셀 느낌). 긴 비고가 좁은 칸에서 세로로 늘어나 행 높이가 폭증(403px)하던 것 차단 — 전체는 마우스 올리면(title) 표시. #}
                     <span class="display-val note" title="{{ u.line_note or '' }}">{{ u.line_note or '' }}</span>
@@ -1169,7 +1160,6 @@
                 const lblInp = row.querySelector('.lbl-inp');
                 const amtInp = row.querySelector('.amt');
                 const noteInp = row.querySelector('.note-inp');
-                const poInp = row.querySelector('.po-inp');   // v5H226z1027: 고객 PO번호
                 const ordInp = row.querySelector('.ord-inp');
                 const dueInp = row.querySelector('.due-inp');
                 const shipInp = row.querySelector('.ship-inp');
@@ -1217,7 +1207,6 @@
                      (lblInp && lblInp.value !== lblInp.dataset.orig)
                   || (amtInp && parseFloat(aRaw) !== parseFloat(aOrig))
                   || (noteInp && noteInp.value !== noteInp.dataset.orig)
-                  || (poInp && poInp.value !== poInp.dataset.orig)
                   || (ordInp && ordInp.value !== ordInp.dataset.orig)
                   || (dueInp && dueInp.value !== dueInp.dataset.orig)
                   || (shipInp && shipInp.value !== shipInp.dataset.orig)
@@ -1226,7 +1215,7 @@
                   || (statusSel && statusSel.value !== statusSel.dataset.orig)
                   || partsDirty;
                 if (dirty) out.push({
-                  uid, baseTs, lblInp, amtInp, noteInp, poInp, ordInp, dueInp, shipInp, curSel, iexSel, statusSel,
+                  uid, baseTs, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel, iexSel, statusSel,
                   specInp, makerInp, supplierInp, originInp, boxInp, qtyInp, unitInp, arrivalInp,
                   costInp, marginInp, priceInp,
                   hsInp, dutyRateInp, vatRateInp, invUpUsdInp, invAmtUsdInp,
@@ -1251,7 +1240,6 @@
                 if (r.lblInp) body.set('label', r.lblInp.value || '');  // v5H226z630: 호기 칸 숨김(1줄 완제품) 시 미전송 → 백엔드가 기존 라벨 유지
                 body.set('amount', r.amtInp ? (r.amtInp.value || '0').replace(/,/g,'') : '0');
                 body.set('note', r.noteInp ? (r.noteInp.value || '') : '');
-                if (r.poInp) body.set('po_no', r.poInp.value || '');   // v5H226z1027: 고객 PO번호(칸 있을 때만 전송)
                 if (r.ordInp) body.set('order_date', r.ordInp.value || '');
                 if (r.dueInp) body.set('due_date', r.dueInp.value || '');
                 if (r.shipInp) body.set('ship_to', r.shipInp.value || '');
