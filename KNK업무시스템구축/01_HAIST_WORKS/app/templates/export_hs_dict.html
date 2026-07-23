@@ -58,11 +58,33 @@
     </form>
   </div>
 
-  {# 최종파일 업로드 — 사전 성장 #}
+  {# v5H226z1044 (대표 지시): 검토표 왕복 — 내려받기 → 한국·베트남 담당자 확정 → 같은 버튼으로 되올리기 #}
   <div class="hsd-card">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <b style="font-size:13.5px;">📤 최종파일 업로드로 사전 키우기</b>
-      <span style="font-size:11.5px;color:var(--mute);">베트남에서 회수한 Invoice&PL(.xlsx) 여러 개 선택 가능 — 신규 부품은 추가·같은 부품 재출현은 갱신·<b style="color:#b91c1c;">다른 HS면 '확인 대기'로 전환</b>(자동 채움 제외).</span>
+      <b style="font-size:13.5px;">📥 검토표 내려받기 → 담당자 확정 → 되올리기</b>
+      <span style="font-size:11.5px;color:var(--mute);">
+        전체 <b>{{ total }}</b>건을 엑셀 한 장으로 받아 한국·베트남 담당자에게 보내세요.
+        <b style="color:#1d4ed8;">파란 칸(확정 HS코드·확정 원산지·확정 베트남어 품명·검토 의견)</b>에 적어 온 파일을
+        <b>그대로 아래 [파일 올리기]에 올리면</b> 반영됩니다.
+      </span>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <a class="hsd-save" href="/export/hs-dict/review.xlsx" style="text-decoration:none;display:inline-block;">📥 검토표 내려받기 (전체 {{ total }}건)</a>
+      <span style="font-size:11.5px;color:var(--mute);">
+        · 지금 값 칸은 <b>잠겨 있어</b> 실수로 덮이지 않습니다 · <b>안 적은 줄은 손도 대지 않습니다</b>
+        · 두 담당자가 <b style="color:#b91c1c;">서로 다르게 적으면 '확인 대기(충돌)'</b>로 남겨 사람이 고릅니다
+      </span>
+    </div>
+  </div>
+
+  {# 파일 올리기 — 검토표 되받기 · 최종 인보이스로 사전 성장 (머리글로 자동 구분) #}
+  <div class="hsd-card">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <b style="font-size:13.5px;">📤 파일 올리기</b>
+      <span style="font-size:11.5px;color:var(--mute);">
+        <b>검토표</b>(위에서 받은 것) 또는 <b>최종 인보이스</b>(베트남에서 회수한 Invoice&amp;PL) — 여러 개 선택 가능, <b>화면이 알아서 구분</b>합니다.
+        인보이스는 신규 부품 추가·재출현 갱신·<b style="color:#b91c1c;">다른 HS면 '확인 대기'로 전환</b>(자동 채움 제외).
+      </span>
     </div>
     <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input type="file" id="hsdFiles" accept=".xlsx,.xlsm" multiple data-knk-no-dropzone>
@@ -175,6 +197,14 @@
         if (!j.ok) { er++; lines.push('❌ ' + f.name + ' — ' + (j.error||'실패')); draw(); continue; }
         (j.results||[]).forEach(function(x){
           if(x.error){ er++; lines.push('❌ ' + x.file + ' — ' + x.error); }
+          /* z1044: 검토표는 세는 것이 다르다(반영/충돌/변경없음/형식오류) — 인보이스와 섞어 쓰지 않는다 */
+          else if(x.mode==='review'){
+            u2+=x.applied; cf+=x.conflict;
+            lines.push('📋 ' + x.file + ' — 검토표(' + (x.reviewer||'') + '): 반영 ' + x.applied
+              + (x.conflict? ' · ⚠충돌 ' + x.conflict : '')
+              + (x.skipped? ' · 변경없음 ' + x.skipped : '')
+              + (x.bad? ' · ⛔HS 형식오류 ' + x.bad : ''));
+          }
           else { a+=x.added; u2+=x.updated; cf+=x.conflict; lines.push('✅ ' + x.file + ' — ' + x.rows + '행 (추가 ' + x.added + ' · 갱신 ' + x.updated + (x.conflict? ' · ⚠충돌 ' + x.conflict : '') + ')'); }
         });
         draw();

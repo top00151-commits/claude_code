@@ -35600,6 +35600,12 @@ def _hs_dict_ensure(c):
         seen_count INTEGER DEFAULT 1,
         first_seen TEXT, last_seen TEXT, source_file TEXT, note TEXT,
         updated_by INTEGER, updated_at TEXT DEFAULT (datetime('now','localtime')))""")
+    # v5H226z1044: 검토표 왕복 추적 — '누가(어느 검토표가) 이 값을 확정했나'.
+    #   두 담당자(한국·베트남)가 같은 부품을 다르게 적어 왔을 때 충돌을 알아보려면 이 두 칸이 필요하다.
+    _hcols = {r[1] for r in c.execute("PRAGMA table_info(export_hs_dict)").fetchall()}
+    for _cn in ("review_file", "review_at"):
+        if _cn not in _hcols:
+            c.execute(f"ALTER TABLE export_hs_dict ADD COLUMN {_cn} TEXT")
     if c.execute("SELECT COUNT(*) FROM export_hs_dict").fetchone()[0]:
         return 0
     import csv as _csv
@@ -35839,6 +35845,268 @@ def _hs_parse_invoice_xlsx(data: bytes, fname: str) -> list[dict]:
     return out
 
 
+# ------------------------------------------------------------
+# v5H226z1044 (대표 지시): HS 사전 '검토표' 왕복 — 내려받기 → 한국(안지연)·베트남 담당자 확정 → 되올리기.
+#   대표 결정 4가지:
+#     ①현재 값은 잠그고 **[확정] 칸을 따로** 둔다 → 적힌 칸만 반영(안 적은 줄은 손도 안 댐 — 928행 통째 덮어쓰기 사고 방지)
+#     ②되받기는 **같은 [파일 올리기] 버튼**이 머리글로 알아서 구분(검토표 vs 인보이스)
+#     ③두 담당자가 서로 다르게 적으면 **'확인 대기(충돌)'** — 값은 그대로 두고 보류(몰래 교체 금지)
+#     ④전체 한 장 — 검토 필요한 것(충돌·AI)이 맨 위, 줄 색으로 구분
+#   ⚠통관은 법적 신고 — 자동 확정하지 않는다.
+# ------------------------------------------------------------
+#   (헤더, 폭, 담당자 입력칸?)  ⚠헤더 글자는 되받기 대조 키 — 바꾸면 파서도 같이 바꿀 것
+_HS_REVIEW_COLS = [
+    ("#", 6, False), ("규격(모델)", 22, False), ("영문 품명", 20, False),
+    ("상태", 12, False), ("확인 사유", 30, False),
+    ("현재 HS코드", 12, False), ("확정 HS코드", 12, True),
+    ("현재 원산지", 12, False), ("확정 원산지", 12, True),
+    ("현재 베트남어 품명", 30, False), ("확정 베트남어 품명", 30, True),
+    ("검토 의견", 26, True),
+    ("횟수", 6, False), ("최근 출현", 11, False),
+]
+_HS_REVIEW_HDR_ROW = 4      # 1=제목 2=검토자 3=쓰는 법 4=머리글 5~=데이터
+
+
+def _hs_review_xlsx_build(rows: list) -> bytes:
+    """HS 사전 → 검토표(.xlsx) 한 장. (openpyxl 미설치 시 ImportError 전파)"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, Protection
+    from openpyxl.utils import get_column_letter as _gcl
+    from openpyxl.worksheet.datavalidation import DataValidation
+    import io as _io
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "HS검토표"
+    knk = PatternFill("solid", fgColor="A5282C")        # 잠금 머리글 = KNK 빨강
+    blue = PatternFill("solid", fgColor="1D4ED8")       # 입력 머리글 = 파랑("여기 적으세요")
+    f_in = PatternFill("solid", fgColor="EFF6FF")       # 입력칸 = 연한 파랑
+    f_pend = PatternFill("solid", fgColor="FDECEC")     # 확인 대기(충돌) 줄
+    f_ai = PatternFill("solid", fgColor="FEF9C3")       # AI 추정 줄
+    white = Font(color="FFFFFF", bold=True, size=10)
+    lockfont = Font(color="6B7280", size=10)            # 잠금 값 = 회색(만지지 말라는 신호)
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    unlock = Protection(locked=False)
+    ncol = len(_HS_REVIEW_COLS)
+    last_col = _gcl(ncol)
+
+    ws["A1"] = "KNK 베트남 HS코드 검토표 — 파란 칸에만 적어 주세요 (회색 칸은 지금 저장된 값 · 잠겨 있습니다)"
+    ws["A1"].font = Font(bold=True, size=13, color="A5282C")
+    ws.merge_cells(f"A1:{last_col}1")
+    ws["A2"] = "검토자"
+    ws["A2"].font = white; ws["A2"].fill = knk; ws["A2"].border = border
+    ws["B2"] = ""
+    ws["B2"].fill = f_in; ws["B2"].border = border; ws["B2"].protection = unlock
+    ws["C2"] = "← 이름을 적어 주세요 (예: 안지연 프로 / 베트남 통관담당). 비우면 파일 이름으로 구분합니다."
+    ws["C2"].font = Font(color="9A8A5A", italic=True, size=9)
+    ws.merge_cells(f"C2:{last_col}2")
+    ws["A3"] = ("① 고칠 것만 파란 칸에 적으세요 — 빈 칸은 손대지 않습니다.  "
+                "② 지금 값이 맞으면 '확정' 칸에 같은 값을 그대로 적어 주시면 '확정'으로 바뀝니다.  "
+                "③ HS코드는 숫자 8자리.  ④ 다 적었으면 이 파일 그대로 화면의 [파일 올리기]에 올리면 됩니다.")
+    ws["A3"].font = Font(color="1D4ED8", size=9.5, bold=True)
+    ws.merge_cells(f"A3:{last_col}3")
+
+    hr = _HS_REVIEW_HDR_ROW
+    for ci, (h, w, is_in) in enumerate(_HS_REVIEW_COLS, 1):
+        cel = ws.cell(hr, ci, h)
+        cel.font = white; cel.fill = blue if is_in else knk
+        cel.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cel.border = border
+        ws.column_dimensions[_gcl(ci)].width = w
+    ws.freeze_panes = ws.cell(hr + 1, 3)     # 머리글 + 번호·규격 고정
+    _ST_KO = {"CONFIRMED": "✅ 확정", "PENDING": "⛔ 확인 대기", "AI": "🟡 AI 추정"}
+    _wrap = Alignment(vertical="top", wrap_text=True)
+    for ri, r in enumerate(rows, hr + 1):
+        vals = [r.get("id"), r.get("model") or r.get("part_key") or "", r.get("name_en") or "",
+                _ST_KO.get(r.get("status") or "", r.get("status") or ""), r.get("note") or "",
+                r.get("hs_code") or "", "", r.get("origin") or "", "",
+                r.get("vn_name") or "", "", "",
+                r.get("seen_count") or 0, (r.get("last_seen") or "")[:10]]
+        rowfill = f_pend if r.get("status") == "PENDING" else (f_ai if r.get("status") == "AI" else None)
+        for ci, v in enumerate(vals, 1):
+            _h, _w, is_in = _HS_REVIEW_COLS[ci - 1]
+            cel = ws.cell(ri, ci, v)
+            cel.border = border
+            cel.alignment = _wrap
+            if is_in:
+                cel.fill = f_in
+                cel.protection = unlock
+            else:
+                cel.font = Font(bold=True, size=10) if ci == 2 else lockfont
+                if rowfill:
+                    cel.fill = rowfill
+            if "HS코드" in _h:
+                cel.number_format = "@"      # ⚠앞자리 0 이 잘리면 안 된다(04059990)
+    lastr = hr + len(rows)
+    ws.auto_filter.ref = f"A{hr}:{last_col}{max(lastr, hr)}"
+    if rows:
+        _hs_col = _gcl([h for h, _w, _i in _HS_REVIEW_COLS].index("확정 HS코드") + 1)
+        dv = DataValidation(type="textLength", operator="equal", formula1="8",
+                            allow_blank=True, errorStyle="warning",
+                            error="HS코드는 숫자 8자리입니다.", errorTitle="HS코드 확인")
+        ws.add_data_validation(dv)
+        dv.add(f"{_hs_col}{hr + 1}:{_hs_col}{lastr}")
+    # 현재 값 칸 잠금(실수로 덮어쓰는 사고 방지). 비밀번호 없음 — 필터·정렬·열너비는 그대로 쓸 수 있게 열어 둔다.
+    ws.protection.sheet = True
+    for _allow in ("autoFilter", "sort", "formatColumns", "formatRows",
+                   "selectLockedCells", "selectUnlockedCells"):
+        setattr(ws.protection, _allow, False)
+    buf = _io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _hs_parse_review_xlsx(data: bytes, fname: str):
+    """올린 파일이 '검토표'인지 판별 → (행목록, 검토자). 검토표가 아니면 None(→인보이스 파서로 넘어간다).
+    ⚠머리글 엄격 대조 — 위치 폴백 없음(z978 규정). 판별 키 = '규격(모델)' + '확정 HS코드' 두 머리글."""
+    import io as _io
+    import re as _re
+    import openpyxl as _px
+
+    def _n(v):
+        return _re.sub(r"\s+", "", str(v if v is not None else ""))
+
+    need = (_n("규격(모델)"), _n("확정 HS코드"))
+    wb = _px.load_workbook(_io.BytesIO(data), data_only=True)
+    for ws in wb.worksheets:
+        if ws.sheet_state != "visible":
+            continue
+        hdr_r, cols = None, {}
+        for r in range(1, min(ws.max_row, 12) + 1):
+            found = {}
+            for cc in range(1, min(ws.max_column, 40) + 1):
+                t = _n(ws.cell(r, cc).value)
+                if t:
+                    found.setdefault(t, cc)
+            if all(k in found for k in need):
+                hdr_r, cols = r, found
+                break
+        if not hdr_r:
+            continue          # 이 시트는 검토표가 아니다
+        def _col(label):
+            return cols.get(_n(label))
+        c_id, c_key = _col("#"), _col("규격(모델)")
+        c_hs, c_or = _col("확정 HS코드"), _col("확정 원산지")
+        c_vn, c_memo = _col("확정 베트남어 품명"), _col("검토 의견")
+        reviewer = ""
+        for r in range(1, hdr_r):     # 머리글 위쪽에서 '검토자' 라벨 오른쪽 칸
+            for cc in range(1, min(ws.max_column, 10) + 1):
+                if _n(ws.cell(r, cc).value) == "검토자":
+                    reviewer = str(ws.cell(r, cc + 1).value or "").strip()
+                    break
+            if reviewer:
+                break
+        out = []
+        for r in range(hdr_r + 1, ws.max_row + 1):
+            key_raw = str(ws.cell(r, c_key).value or "").strip()
+            hs_raw = ws.cell(r, c_hs).value if c_hs else None
+            org = str(ws.cell(r, c_or).value or "").strip() if c_or else ""
+            vn = str(ws.cell(r, c_vn).value or "").strip() if c_vn else ""
+            memo = str(ws.cell(r, c_memo).value or "").strip() if c_memo else ""
+            hs_txt = "" if hs_raw is None else _re.sub(r"\.0$", "", str(hs_raw)).strip()
+            if not (hs_txt or org or vn or memo):
+                continue      # 안 적은 줄 = 건드리지 않는다
+            if not key_raw:
+                continue
+            hs = _re.sub(r"[^\d]", "", hs_txt)
+            if len(hs) == 7:
+                hs = "0" + hs          # 엑셀이 앞자리 0 을 먹은 경우
+            bad = bool(hs_txt) and len(hs) != 8
+            rid = None
+            if c_id:
+                try:
+                    rid = int(float(str(ws.cell(r, c_id).value or "").strip() or 0)) or None
+                except Exception:
+                    rid = None
+            out.append({"row": r, "id": rid, "key": _hs_norm_key(key_raw), "model": key_raw,
+                        "hs": "" if bad else hs, "origin": org, "vn": vn, "memo": memo, "bad": bad})
+        return out, reviewer
+    return None
+
+
+def _hs_apply_review(c, rows: list, who: str, fname: str, today: str, u) -> dict:
+    """검토표 반영 — **적힌 칸만**. 다른 검토자가 이미 채워 둔 값과 다르면 값은 그대로 두고 '확인 대기(충돌)'.
+    ⚠통관은 법적 신고 — 충돌한 줄은 아무 것도 바꾸지 않는다(사람이 화면에서 최종 선택)."""
+    applied = conflict = skipped = bad = 0
+    for row in rows:
+        if row["bad"]:
+            bad += 1
+            continue
+        ex = None
+        if row["id"]:
+            ex = c.execute("SELECT * FROM export_hs_dict WHERE id=?", (row["id"],)).fetchone()
+            if ex and _hs_norm_key(ex["part_key"]) != row["key"]:
+                ex = None       # 번호와 규격이 어긋나면 번호를 믿지 않는다(줄 밀림 사고 방지)
+        if ex is None:
+            ex = c.execute("SELECT * FROM export_hs_dict WHERE part_key=?", (row["key"],)).fetchone()
+        if ex is None:
+            skipped += 1        # 사전에 없는 규격 — 검토표로는 새로 만들지 않는다(사전 성장은 인보이스로)
+            continue
+        wrote = bool(row["hs"] or row["origin"] or row["vn"])
+        if not wrote and not row["memo"]:
+            skipped += 1
+            continue
+        diffs = []
+        for fld, lab, newv in (("hs_code", "HS코드", row["hs"]),
+                               ("origin", "원산지", row["origin"]),
+                               ("vn_name", "베트남어 품명", row["vn"])):
+            cur = (ex[fld] or "").strip()
+            if newv and newv != cur:
+                diffs.append((fld, lab, cur, newv))
+        prev = ((ex["review_file"] or "").strip() if "review_file" in ex.keys() else "")
+        # 충돌 = 다른 검토자가 **이미 채워 놓은 값**을 이번 검토자가 다르게 적은 것.
+        #   빈 칸을 채운 것은 충돌이 아니다(서로 나눠 적은 것). 인보이스에서 온 값도 검토자가 고치는 게 맞다.
+        clash = [d for d in diffs if d[2]] if (prev and prev != who) else []
+        if clash:
+            txt = " · ".join(f"{lab} {cur} ↔ {new}" for _f, lab, cur, new in clash)
+            c.execute("UPDATE export_hs_dict SET status='PENDING', note=?, review_file=?, review_at=?, "
+                      "updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
+                      (f"검토 충돌: {txt} ({prev} ↔ {who})", who, today, u.get("id"), ex["id"]))
+            conflict += 1
+            continue
+        sets, vals = [], []
+        for fld, _lab, _cur, newv in diffs:
+            sets.append(f"{fld}=?")
+            vals.append(newv)
+        note = f"검토 확정: {who} ({today})" + (f" — {row['memo'][:200]}" if row["memo"] else "")
+        if wrote:
+            sets.append("status='CONFIRMED'")   # 값을 적었으면 확정. 의견만 적었으면 상태는 그대로.
+        sets += ["note=?", "review_file=?", "review_at=?", "updated_by=?",
+                 "updated_at=datetime('now','localtime')"]
+        vals += [note, who, today, u.get("id"), ex["id"]]
+        c.execute(f"UPDATE export_hs_dict SET {','.join(sets)} WHERE id=?", vals)
+        applied += 1
+    return {"file": fname, "mode": "review", "reviewer": who, "rows": len(rows),
+            "applied": applied, "conflict": conflict, "skipped": skipped, "bad": bad}
+
+
+@app.get("/export/hs-dict/review.xlsx")
+async def export_hs_dict_review_xlsx(req: Request):
+    """HS 사전 전체 → 검토표(.xlsx) 내려받기. 한국·베트남 담당자에게 보내 확정칸만 적어 되받는 왕복 양식."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        rows = [dict(r) for r in c.execute(
+            "SELECT * FROM export_hs_dict ORDER BY "
+            "CASE status WHEN 'PENDING' THEN 0 WHEN 'AI' THEN 1 ELSE 2 END, "
+            "seen_count DESC, part_key")]
+        today = c.execute("SELECT strftime('%Y%m%d','now','localtime')").fetchone()[0]
+    try:
+        buf = _hs_review_xlsx_build(rows)
+    except ImportError:
+        return JSONResponse({"error": "openpyxl 미설치"}, 500)
+    from urllib.parse import quote as _q
+    return Response(
+        content=buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": (
+            f'attachment; filename="KNK_HS_review_{today}.xlsx"; '
+            f"filename*=UTF-8''{_q(f'KNK_HS검토표_{today}.xlsx')}")},
+    )
+
+
 @app.get("/export/hs-dict", response_class=HTMLResponse)
 async def export_hs_dict_page(req: Request):
     """HS 사전 관리 — 검색·상태 필터·인라인 수정(HS·베트남어명·상태)·최종파일 업로드."""
@@ -35892,7 +36160,9 @@ async def export_hs_dict_save(req: Request, did: int):
 
 @app.post("/export/hs-dict/upload")
 async def export_hs_dict_upload(req: Request):
-    """최종파일(Invoice&PL xlsx·여러 개) 업로드 → 사전 성장. 파일별 결과(추가/갱신/충돌/실패) 반환."""
+    """파일 올리기(xlsx·여러 개) → 사전 성장. 두 가지를 머리글로 구분해 받는다(z1044):
+    ①검토표(내려받은 양식) = 담당자가 적은 확정칸만 반영 ②최종 인보이스 = 기존 사전 성장.
+    파일별 결과(추가/갱신/충돌/실패 · 검토표는 반영/충돌/변경없음) 반환."""
     u = _export_guard(req)
     if not u:
         return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
@@ -35910,12 +36180,26 @@ async def export_hs_dict_upload(req: Request):
                 results.append({"file": fname, "error": "엑셀(.xlsx)만 가능"})
                 continue
             try:
-                rows = _hs_parse_invoice_xlsx(await f.read(), fname)
+                raw = await f.read()
+            except Exception as e:
+                results.append({"file": fname, "error": f"읽기 실패: {str(e)[:100]}"})
+                continue
+            # v5H226z1044: ①검토표(내보낸 양식)인가? — 머리글 엄격 대조. 아니면 ②기존 인보이스 파서.
+            #   대표 결정: 버튼은 하나 · 화면이 알아서 구분(둘 다 아니면 아래에서 오류로 알림).
+            try:
+                _rv = _hs_parse_review_xlsx(raw, fname)
+            except Exception:
+                _rv = None
+            if _rv is not None:
+                results.append(_hs_apply_review(c, _rv[0], (_rv[1] or fname), fname, today, u))
+                continue
+            try:
+                rows = _hs_parse_invoice_xlsx(raw, fname)
             except Exception as e:
                 results.append({"file": fname, "error": f"파싱 실패: {str(e)[:100]}"})
                 continue
             if not rows:
-                results.append({"file": fname, "error": "INVOICE 표(HS CODE 헤더)를 찾지 못함"})
+                results.append({"file": fname, "error": "INVOICE 표(HS CODE 헤더)도, 검토표 머리글도 찾지 못함"})
                 continue
             added = updated = conflict = 0
             for row in rows:

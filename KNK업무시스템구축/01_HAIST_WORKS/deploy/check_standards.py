@@ -23,6 +23,13 @@ import re
 import subprocess
 import sys
 
+# z1044: 윈도 콘솔 기본 코드페이지(cp949)에서 '—' 같은 글자에 UnicodeEncodeError 로 **검사기 자체가 죽었다**
+#   (trace_concept.py 와 같은 결함 — 검사기가 죽으면 검사를 안 한 것과 같다).
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except AttributeError:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TPL = os.path.join(ROOT, "app", "templates")
 CSS = os.path.join(ROOT, "static", "css")
