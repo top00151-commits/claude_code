@@ -24,7 +24,8 @@
 .hsd-save { padding:5px 12px; border:1px solid #1d4ed8; background:#eff6ff; color:#1d4ed8; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; }
 .hsd-save:hover { background:#1d4ed8; color:#fff; }
 .hsd-wrap { max-height:calc(100vh - 330px); overflow:auto; border:1px solid var(--qv-line,#e2ddd0); border-radius:8px; }
-.hsd-note { font-size:10.5px; color:#b45309; }
+.hsd-note { font-size:10.5px; color:#b45309; line-height:1.45; margin-top:3px;
+  white-space:normal; word-break:break-all; }   /* z1043: 자르지 말고 줄바꿈해서 다 보이게 */
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}
@@ -71,7 +72,7 @@
   <div class="hsd-wrap" data-knk-fill>
     <table class="hsd-tbl">
       <thead><tr>
-        <th style="width:96px;">상태</th><th style="width:170px;">규격(모델)</th><th style="width:150px;">영문 품명</th>
+        <th style="width:168px;">상태</th>   {# z1043: 충돌 사유(기존HS↔신규HS·파일)가 들어갈 폭 #}<th style="width:170px;">규격(모델)</th><th style="width:150px;">영문 품명</th>
         <th>베트남어 품명 (Tên hàng)</th><th style="width:100px;">HS코드</th><th style="width:80px;">원산지</th>
         <th style="width:52px;">횟수</th><th style="width:86px;">최근</th><th style="width:70px;"></th>
       </tr></thead>
@@ -84,7 +85,13 @@
               <option value="{{ s }}"{% if r.status==s %} selected{% endif %}>{{ {'CONFIRMED':'✅ 확정','PENDING':'⛔ 확인 대기','AI':'🟡 AI 추정'}[s] }}</option>
               {% endfor %}
             </select>
-            {% if r.note %}<div class="hsd-note" title="{{ r.note|e }}">{{ r.note[:34] }}{% if r.note|length > 34 %}…{% endif %}</div>{% endif %}
+            {# v5H226z1043 (대표 신고 "상태 칸 너비 조정이 안 되니 내용 확인을 할 수가 없어"):
+               충돌 사유를 34글자에서 잘라 `(Inv…` 로 끝나 **정작 중요한 어느 파일인지가 안 보였다**.
+               → 자르지 않고 **줄바꿈**해서 다 보여준다. 파일명은 공통 앞뒤(Invoice&packinglist_VN( … ).xlsx)를
+                 걷어내고 **날짜만**(260311) 남겨 짧게. 원문은 마우스오버로 그대로 볼 수 있다. #}
+            {% if r.note %}<div class="hsd-note" title="{{ r.note|e }}">{{
+              r.note | replace('Invoice&packinglist_VN(', '') | replace(').xlsx', '') | replace('.xlsx', '')
+            }}</div>{% endif %}
           </td>
           <td style="font-weight:700;">{{ r.model or r.part_key }}</td>
           <td style="color:var(--qv-ink-3);">{{ r.name_en or '' }}</td>
