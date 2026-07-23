@@ -15,13 +15,13 @@
         {% if d.count > 0 %}
         <a class="so-cal-day {{ d.cls }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %} {% if filter_due_date == d.date %}sel{% endif %}"
            href="?tab={{ tab }}&due_date={{ d.date }}" title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %} · {{ d.count }}건 · {{ '{:,.0f}'.format(d.amount) }}원">
-          {% if _hol %}<span class="hol-b">{% if d.hol_kr %}<span class="b{% if '대체' in d.hol_kr %} alt{% endif %}">K</span>{% endif %}{% if d.hol_vn %}<span class="b vn{% if 'Nghỉ bù' in d.hol_vn %} alt{% endif %}">V</span>{% endif %}</span>{% endif %}
+          {% if _hol %}<span class="hol-b">{% if d.hol_kr %}<span class="b{% if hol_is_alt(d.hol_kr) %} alt{% endif %}">K</span>{% endif %}{% if d.hol_vn %}<span class="b vn{% if hol_is_alt(d.hol_vn) %} alt{% endif %}">V</span>{% endif %}</span>{% endif %}
           <span class="d-num {% if d.is_sun or _hol %}sun{% elif d.is_sat %}sat{% endif %}">{{ d.day }}</span>
           <span class="d-cnt">{{ d.count }}</span>
         </a>
         {% else %}
         <div class="so-cal-day {{ d.cls }} {% if not d.in_month %}out{% endif %} {% if d.is_today %}today{% endif %}">
-          {% if _hol %}<span class="hol-b">{% if d.hol_kr %}<span class="b{% if '대체' in d.hol_kr %} alt{% endif %}">K</span>{% endif %}{% if d.hol_vn %}<span class="b vn{% if 'Nghỉ bù' in d.hol_vn %} alt{% endif %}">V</span>{% endif %}</span>{% endif %}
+          {% if _hol %}<span class="hol-b">{% if d.hol_kr %}<span class="b{% if hol_is_alt(d.hol_kr) %} alt{% endif %}">K</span>{% endif %}{% if d.hol_vn %}<span class="b vn{% if hol_is_alt(d.hol_vn) %} alt{% endif %}">V</span>{% endif %}</span>{% endif %}
           <span class="d-num {% if d.is_sun or _hol %}sun{% elif d.is_sat %}sat{% endif %}">{{ d.day }}</span>
         </div>
         {% endif %}

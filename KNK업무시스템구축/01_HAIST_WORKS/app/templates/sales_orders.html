@@ -260,8 +260,9 @@ body {
                title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %} · {{ d.count }}건{% if d.amount %} · {{ money(d.amount, 'KRW') }}{% endif %}">
               {% if _is_hol %}
               <span class="hol-badge">
-                {% if d.hol_kr %}<span class="b kr {% if '대체' in d.hol_kr %}alt{% endif %}">K</span>{% endif %}
-                {% if d.hol_vn %}<span class="b vn {% if 'Nghỉ bù' in d.hol_vn %}alt{% endif %}">V</span>{% endif %}
+                {# v5H226z1041: 대체공휴일 판정은 공용 hol_is_alt() 로 (언어 바뀌어도 안 깨지게) #}
+                {% if d.hol_kr %}<span class="b kr {% if hol_is_alt(d.hol_kr) %}alt{% endif %}">K</span>{% endif %}
+                {% if d.hol_vn %}<span class="b vn {% if hol_is_alt(d.hol_vn) %}alt{% endif %}">V</span>{% endif %}
               </span>
               {% endif %}
               <span class="d {% if d.is_sun or _is_hol %}sun{% elif d.is_sat %}sat{% endif %}">{{ d.day }}</span>

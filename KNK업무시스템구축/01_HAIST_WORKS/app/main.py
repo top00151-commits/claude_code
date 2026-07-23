@@ -455,10 +455,50 @@ tpl.env.globals["APP_VERSION"] = APP_VERSION
 # 매년 수동 갱신 불필요 — 라이브러리 업데이트(`pip install -U holidays`)만으로 최신화.
 # 범위: 현재 연도 ± (이전 1년 ~ 이후 5년) = 7년 슬라이딩 윈도우.
 # =====================================================
+# v5H226z1041 (대표 지시 · 달력 규정 §5) — 공휴일 '이름의 언어'를 코드로 못박는다.
+#   ⚠실제 사고(LIVE 실측 2026-07): 컨테이너 로케일이 한국어가 아니라서 라이브러리가
+#     영어 이름("Constitution Day")을 돌려줬다. 그 결과 ①툴팁이 영어로 나오고
+#     ②"제헌절" 이라는 **한글 이름으로 거르던 제외 규칙이 안 먹어 7/17 이 빨간 공휴일로 표시**됐다.
+#   → holidays 라이브러리는 language= 를 안 주면 OS 로케일(LANG/LANGUAGE)을 따른다.
+#     서버 환경에 맡기지 말고 **항상 명시**한다. (KR=ko / VN=vi — VN 은 ko 번역이 없음)
+_KR_HOL_DROP = ("제헌절", "constitution day")     # 2008년부터 공휴일 아님 — 한글·영문 모두 대비
+# 베트남 공휴일명 한국어 표기 (라이브러리는 베트남어만 제공 — 화면은 한국어 시스템이므로 번역해 보여준다)
+_VN_HOL_KO = {
+    "Tết Dương lịch": "신정",
+    "Giao thừa Tết Nguyên Đán": "뗏(설) 전날",
+    "29 Tết": "뗏(설) 전날",
+    "Tết Nguyên Đán": "뗏(설날)",
+    "Mùng hai Tết Nguyên Đán": "뗏 연휴 2일째",
+    "Mùng ba Tết Nguyên Đán": "뗏 연휴 3일째",
+    "Mùng bốn Tết Nguyên Đán": "뗏 연휴 4일째",
+    "Mùng năm Tết Nguyên Đán": "뗏 연휴 5일째",
+    "Ngày Giỗ Tổ Hùng Vương": "훙브엉 기일(건국시조)",
+    "Ngày Chiến thắng": "통일절(남부 해방일)",
+    "Ngày Quốc tế Lao động": "노동절",
+    "Quốc khánh": "국경절",
+}
+
+
+def _vn_hol_ko(name: str) -> str:
+    """베트남 공휴일명 → 한국어. 대체휴일 '(nghỉ bù)' 은 '대체휴일' 로 (달력 점선 배지 판정어 '대체' 포함).
+    매핑에 없으면 원문 유지 — 이름을 잃어버리지 않는다."""
+    s = (name or "").strip()
+    if not s:
+        return s
+    alt = "nghỉ bù" in s.lower()
+    if alt:                                       # "... (nghỉ bù)" 꼬리 제거
+        base = s[:s.lower().rfind("(nghỉ bù")].strip().rstrip("(").strip()
+    else:
+        base = s
+    ko = _VN_HOL_KO.get(base) or base             # 매핑 없으면 베트남어 원문 그대로
+    return (ko + " 대체휴일") if alt else ko
+
+
 def _build_holidays_auto():
     """holidays 라이브러리로 한국·베트남 공휴일 자동 생성.
     근로자의 날(5/1)은 한국 근로기준법상 휴일이지만 공휴일이 아니어서 라이브러리에 없음 → 수동 추가.
     제헌절(7/17)은 2008년부터 공휴일 아님 → 라이브러리가 포함시키면 제외.
+    이름 언어는 language= 로 고정(위 주석 참고) — 서버 로케일에 좌우되지 않게.
     """
     try:
         import holidays as _hol_lib
@@ -469,11 +509,19 @@ def _build_holidays_auto():
     cy = _d.today().year
     years = list(range(cy - 1, cy + 6))  # 7년치 (작년 ~ 5년 후)
     kr_dict, vn_dict = {}, {}
+
+    def _mk(country, lang):
+        """language= 를 지원하지 않는 구버전이면 인자 없이 재시도(이름 언어는 보장 못 하지만 날짜는 살린다)."""
+        try:
+            return getattr(_hol_lib, country)(years=years, language=lang)
+        except TypeError:
+            print(f"[holidays] {country}: language= 미지원 라이브러리 — 로케일 기본 이름 사용")
+            return getattr(_hol_lib, country)(years=years)
+
     try:
-        kr_lib = _hol_lib.KR(years=years)
-        for d, name in kr_lib.items():
-            if "제헌절" in name:  # 2008년부터 공휴일 아님 — 제외
-                continue
+        for d, name in _mk("KR", "ko").items():
+            if any(k in (name or "").lower() for k in _KR_HOL_DROP):
+                continue                          # 제헌절 — 2008년부터 공휴일 아님(한글·영문 이름 모두 차단)
             kr_dict[d.isoformat()] = name
         # 근로자의 날 (근로기준법) — 라이브러리에 없음
         for y in years:
@@ -481,9 +529,8 @@ def _build_holidays_auto():
     except Exception as _e:
         print(f"[holidays] KR 생성 실패: {_e}")
     try:
-        vn_lib = _hol_lib.VN(years=years)
-        for d, name in vn_lib.items():
-            vn_dict[d.isoformat()] = name
+        for d, name in _mk("VN", "vi").items():
+            vn_dict[d.isoformat()] = _vn_hol_ko(name)
     except Exception as _e:
         print(f"[holidays] VN 생성 실패: {_e}")
     return kr_dict, vn_dict
@@ -492,22 +539,51 @@ HOLIDAYS_KR, HOLIDAYS_VN = _build_holidays_auto()
 print(f"[holidays] 자동 생성 완료 — KR {len(HOLIDAYS_KR)}건 / VN {len(HOLIDAYS_VN)}건")
 
 
-def _calendar_red_days(y, m, last_day):
-    """v5H226z846 (대표 지시): 달력 날짜 헤더에서 빨강 표기할 날 = 일요일 ∪ 한국 공휴일(대체공휴일·음력 포함).
-    반환 (red_days:set[int], hol_names:dict[int,str]). HOLIDAYS_KR 키는 'YYYY-MM-DD'."""
+def _hol_is_alt(name) -> bool:
+    """대체공휴일(휴일이 겹쳐 다른 날로 옮긴 날) 여부 — 배지를 흰 바탕+점선(.alt)으로 그린다.
+    엔진이 한국어로 이름을 고정하지만(z1041), 혹시 다른 언어가 섞여도 잡히게 세 표기를 함께 본다."""
+    s = (name or "").lower()
+    return ("대체" in s) or ("nghỉ bù" in s) or ("alternative" in s) or ("substitute" in s)
+
+
+def _calendar_day_marks(y, m, last_day):
+    """v5H226z1041 (대표 지시 · 달력 규정 §7) — 일정표 날짜 머리글 한 칸의 '달력 표기' 정보.
+    z846 은 일요일 + 한국 공휴일만 봤다. 규정은 **토요일 파랑**과 **베트남 공휴일 V 배지**까지 요구한다.
+
+    반환: dict[int, dict] — 날짜(1~말일) → {
+        sun/sat  : 일·토요일 여부
+        kr / vn  : 한국·베트남 공휴일명(없으면 None) — 이름은 한국어(z1041 엔진이 보장)
+        kr_alt/vn_alt : 대체공휴일이면 True (배지를 점선으로)
+        red      : 빨강 #dc2626 (일요일 ∪ 공휴일) — 규정 §4-1
+        blue     : 파랑 #2563eb (토요일이면서 공휴일 아님) — 규정 §4-1
+        label    : 마우스오버 안내문(공휴일 없으면 "")
+    }
+    ⚠공휴일 목록은 전역 HOLIDAYS_KR/VN 만 쓴다(규정 §7-3 하드코딩 금지). 키는 'YYYY-MM-DD'."""
     from datetime import date as _rdate
-    red, names = set(), {}
+    marks = {}
     for _dd in range(1, (last_day or 0) + 1):
         try:
-            _wd = _rdate(y, m, _dd).weekday()   # 6 = 일요일
+            _wd = _rdate(y, m, _dd).weekday()   # 0=월 … 5=토, 6=일
         except Exception:
             continue
-        _hn = HOLIDAYS_KR.get("%04d-%02d-%02d" % (y, m, _dd))
-        if _wd == 6 or _hn:
-            red.add(_dd)
-        if _hn:
-            names[_dd] = _hn
-    return red, names
+        _ds = "%04d-%02d-%02d" % (y, m, _dd)
+        _kr = HOLIDAYS_KR.get(_ds)
+        _vn = HOLIDAYS_VN.get(_ds)
+        _sun, _sat = (_wd == 6), (_wd == 5)
+        _red = bool(_sun or _kr or _vn)
+        _lbl = []
+        if _kr:
+            _lbl.append("한국 공휴일: " + _kr)
+        if _vn:
+            _lbl.append("베트남 공휴일: " + _vn)
+        marks[_dd] = {
+            "sun": _sun, "sat": _sat,
+            "kr": _kr, "vn": _vn,
+            "kr_alt": _hol_is_alt(_kr), "vn_alt": _hol_is_alt(_vn),
+            "red": _red, "blue": bool(_sat and not _red),
+            "label": " · ".join(_lbl),
+        }
+    return marks
 
 
 # v5H215 (2026-05-08) — status → stage 자동 매핑 (단순화)
@@ -520,6 +596,9 @@ def stage_from_status(status: str) -> str:
 # v5H203: 공휴일 dict 을 Jinja 전역으로 노출 (knk_datepicker partial 에서 사용)
 tpl.env.globals["KNK_HOLIDAYS_KR"] = HOLIDAYS_KR
 tpl.env.globals["KNK_HOLIDAYS_VN"] = HOLIDAYS_VN
+# v5H226z1041 (달력 규정 §4-2): 대체공휴일 판정을 화면마다 문자열로 적지 말 것 — 이 함수 하나로.
+#   (전엔 한국은 '대체', 베트남은 'Nghỉ bù' 를 각 템플릿이 직접 검사해 언어가 바뀌면 조용히 깨졌다.)
+tpl.env.globals["hol_is_alt"] = _hol_is_alt
 
 # v5H210: 공휴일 데이터 진단 엔드포인트 — 자동 계산 결과 확인용
 # v5H226f: 로그인 가드 추가 (외부 노출 시 데이터 누설 방지)
@@ -24667,12 +24746,13 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                                 _ti_map[_k] = {"id": _tr[2], "no": _tr[3], "amt": float(_tr[4] or 0), "cur": _tr[5] or "KRW"}
         except Exception:
             _ti_map = {}
-    red_days, hol_names = _calendar_red_days(_y, _m, last_day)   # v5H226z846: 일요일·공휴일 날짜 빨강
+    # v5H226z1041 (대표 지시·달력 규정 §7): 일 빨강 + 토 파랑 + 한국(K)·베트남(V) 공휴일 배지
+    day_marks = _calendar_day_marks(_y, _m, last_day)
     return ctx(request, "schedule_board.html", user=u, active="sales_schedule",
                ti_map=_ti_map,
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
-               days=days, today_day=today_day, red_days=red_days, hol_names=hol_names, rows=rows, summary=summary, cust=cust,
+               days=days, today_day=today_day, day_marks=day_marks, rows=rows, summary=summary, cust=cust,
                day_memos=_day_memos,   # v5H226z712 (대표 지시): 날짜별 진행 메모 {(kind,ref_id,ymd):memo}
                col_prefs=_col_prefs, can_money=_can_money,
                biz=_biz, div_counts=div_counts,
@@ -26116,9 +26196,10 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
     except Exception:
         logmap, cellsum = {}, {}
 
-    red_days, hol_names = _calendar_red_days(_y, _m, last_day)   # v5H226z846: 일요일·공휴일 날짜 빨강
+    # v5H226z1041 (대표 지시·달력 규정 §7): 일 빨강 + 토 파랑 + 한국(K)·베트남(V) 공휴일 배지
+    day_marks = _calendar_day_marks(_y, _m, last_day)
     return ctx(request, "dept_schedule.html", user=u, active="dept_schedule",
-               rows=rows, days=days, today_day=today_day, red_days=red_days, hol_names=hol_names,
+               rows=rows, days=days, today_day=today_day, day_marks=day_marks,
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                biz=_biz, div_counts=div_counts, cellsum=cellsum, logmap=logmap,
@@ -35697,49 +35778,64 @@ def _hs_parse_invoice_xlsx(data: bytes, fname: str) -> list[dict]:
     HEAD_VN = _re.compile(r"T[êe]n\s*h[àa]ng", _re.I)
     HEAD_DESC = _re.compile(r"Description", _re.I)
     HEAD_ORIGIN = _re.compile(r"원산지|Origin", _re.I)
-    wb = _px.load_workbook(_io.BytesIO(data), data_only=True)
-    ws = None
-    for s in wb.worksheets:
-        if "INVOICE" in s.title.upper() and s.sheet_state == "visible":
-            ws = s
-            break
-    if ws is None:
-        ws = wb.worksheets[0]
-    cols, header_r = {}, None
-    for r in range(1, min(ws.max_row, 45) + 1):
-        for cc in range(1, min(ws.max_column, 30) + 1):
-            v = ws.cell(r, cc).value
-            if v is None:
+    # v5H226z1041 (대표 지시 · 원본 엑셀 전수 대조로 발견): 아래 두 가지를 고쳤다.
+    #   ⛔① 시트 하나만 읽던 것 — 파일에 인보이스 시트가 **2개**인 경우가 있다(시트명이 'INVOICE' 가 아니라
+    #      관리번호: 251224=002M2509/003M2509 · 260121=001M2509/002M2509). 첫 시트만 읽어 **427행을 통째로 버렸다**
+    #      (부품 22종 누락 + 원산지 'MISUMI' 14건 중 11건이 그 시트에 CHINA/KOREA 로 있어 교정될 값이었다).
+    #   ⛔② 베트남어 품명 폴백이 'HS 옆칸' 고정이라 그 칸이 **SIZE(치수)** 인 파일에서 치수를 품명으로 읽었다
+    #      (260401·260507 — 'Ф7.5 * 29.8' 같은 값이 세관 신고 품명에 들어갔다. 통관은 법적 신고라 치명적).
+    _WS_SKIP = _re.compile(r"PACKING|P/L|CONTENT|COVER|양식|SAMPLE", _re.I)
+    _SIZE_HEAD = _re.compile(r"^\s*(SIZE|치수|규격\s*\(?\s*mm\s*\)?|DIMENSION)\s*$", _re.I)
+
+    def _scan_sheet(ws):
+        """시트 1장 → 행 목록. 헤더를 못 찾으면 빈 리스트(그 시트는 인보이스가 아님)."""
+        cols, header_r = {}, None
+        for r in range(1, min(ws.max_row, 45) + 1):
+            for cc in range(1, min(ws.max_column, 30) + 1):
+                v = ws.cell(r, cc).value
+                if v is None:
+                    continue
+                t = str(v).strip()
+                if HEAD_HS.search(t) and len(t) < 20:
+                    cols.setdefault("hs", cc)
+                    header_r = max(header_r or 0, r)
+                if HEAD_VN.search(t):
+                    cols.setdefault("vn", cc)
+                if HEAD_DESC.search(t):
+                    cols.setdefault("model", cc)
+                if HEAD_ORIGIN.search(t):
+                    cols.setdefault("origin", cc)
+        if "model" not in cols or "hs" not in cols:
+            return []
+        if "vn" not in cols:
+            # 2604xx 양식: 'Tên hàng' 헤더가 비어 HS 옆칸을 쓴다. ⚠단 그 칸 머리글이 SIZE(치수)면 품명이 아니다
+            #   → 잘못된 값을 세관 신고에 넣느니 **비워 둔다**(사람이 채우게).
+            _cand = cols["hs"] + 1
+            _head = str(ws.cell(header_r or 33, _cand).value or "").strip()
+            cols["vn"] = None if _SIZE_HEAD.match(_head) else _cand
+        out = []
+        for r in range((header_r or 33) + 1, ws.max_row + 1):
+            model = str(ws.cell(r, cols["model"]).value or "").strip()
+            if not model:
                 continue
-            t = str(v).strip()
-            if HEAD_HS.search(t) and len(t) < 20:
-                cols.setdefault("hs", cc)
-                header_r = max(header_r or 0, r)
-            if HEAD_VN.search(t):
-                cols.setdefault("vn", cc)
-            if HEAD_DESC.search(t):
-                cols.setdefault("model", cc)
-            if HEAD_ORIGIN.search(t):
-                cols.setdefault("origin", cc)
-    if "model" not in cols or "hs" not in cols:
-        return []
-    if "vn" not in cols:
-        cols["vn"] = cols["hs"] + 1   # 2604xx 양식: Tên hàng 헤더 공란 → HS 옆칸
+            hs = _re.sub(r"[^\d]", "", _re.sub(r"\.0$", "", str(ws.cell(r, cols["hs"]).value or "")))
+            if len(hs) == 7:
+                hs = "0" + hs
+            if len(hs) != 8:
+                continue
+            vn = str(ws.cell(r, cols["vn"]).value or "").strip() if cols.get("vn") else ""
+            origin = str(ws.cell(r, cols["origin"]).value or "").strip() if "origin" in cols else ""
+            out.append({"model": model, "key": _hs_norm_key(model), "hs": hs, "vn": vn,
+                        "name_en": (vn.split("#&")[0].strip() if "#&" in vn else ""), "origin": origin,
+                        "sheet": ws.title})
+        return out
+
+    wb = _px.load_workbook(_io.BytesIO(data), data_only=True)
     out = []
-    for r in range((header_r or 33) + 1, ws.max_row + 1):
-        model = str(ws.cell(r, cols["model"]).value or "").strip()
-        if not model:
-            continue
-        import re as _re2
-        hs = _re2.sub(r"[^\d]", "", _re2.sub(r"\.0$", "", str(ws.cell(r, cols["hs"]).value or "")))
-        if len(hs) == 7:
-            hs = "0" + hs
-        if len(hs) != 8:
-            continue
-        vn = str(ws.cell(r, cols["vn"]).value or "").strip()
-        origin = str(ws.cell(r, cols["origin"]).value or "").strip() if "origin" in cols else ""
-        out.append({"model": model, "key": _hs_norm_key(model), "hs": hs, "vn": vn,
-                    "name_en": (vn.split("#&")[0].strip() if "#&" in vn else ""), "origin": origin})
+    for s in wb.worksheets:
+        if s.sheet_state != "visible" or _WS_SKIP.search(s.title or ""):
+            continue   # 패킹리스트·표지 등은 인보이스가 아니다
+        out.extend(_scan_sheet(s))   # 헤더 없는 시트는 알아서 빈 리스트
     return out
 
 

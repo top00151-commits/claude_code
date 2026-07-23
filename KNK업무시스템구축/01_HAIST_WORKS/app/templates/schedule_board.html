@@ -184,8 +184,10 @@
           <th class="c-info cw-taxinv2" data-col="tax_inv2" title="2세금계산서 (중도금)"><div class="th-wrap">2세금계산서<span class="col-resizer" data-col="tax_inv2"></span></div></th>
           <th class="c-info cw-taxinv3" data-col="tax_inv3" title="3세금계산서 (잔금)"><div class="th-wrap">3세금계산서<span class="col-resizer" data-col="tax_inv3"></span></div></th>
           {% endif %}
-          {% for d in days %}
-          <th class="day{% if d == today_day %} today{% endif %}{% if red_days and d in red_days %} redday{% endif %}" data-day="{{ d }}"{% if hol_names and hol_names.get(d) %} title="{{ hol_names.get(d) }}"{% endif %}>{{ d }}</th>
+          {# v5H226z1041 (대표 지시·달력 규정 §4·§7): 일요일·공휴일 빨강 / 토요일 파랑 / 한국 K(빨강)·베트남 V(주황) 배지(대체공휴일=점선).
+             칸이 좁아 공휴일 '이름'은 마우스오버 안내문(title)으로. #}
+          {% for d in days %}{% set _mk = (day_marks.get(d) if day_marks else None) %}
+          <th class="day{% if d == today_day %} today{% endif %}{% if _mk and _mk.red %} redday{% elif _mk and _mk.blue %} satday{% endif %}" data-day="{{ d }}"{% if _mk and _mk.label %} title="{{ _mk.label }}"{% endif %}><span class="dnum">{{ d }}</span>{% if _mk and (_mk.kr or _mk.vn) %}<span class="hb">{% if _mk.kr %}<i class="{% if _mk.kr_alt %}alt{% endif %}">K</i>{% endif %}{% if _mk.vn %}<i class="v{% if _mk.vn_alt %} alt{% endif %}">V</i>{% endif %}</span>{% endif %}</th>
           {% endfor %}
           <th class="c-info cw-sales" data-col="sales_owner"><div class="th-wrap">영업담당자<span class="col-resizer" data-col="sales_owner"></span></div></th>
         </tr>

@@ -70,6 +70,12 @@ input.knk-cal { cursor: pointer; }
     }
   } catch(e){}
 
+  // v5H226z1041 (달력 규정 §4-2): 대체공휴일 = 흰 바탕 + 점선 배지. 서버 _hol_is_alt 와 같은 규칙.
+  function isAltHol(name){
+    var s = String(name || '').toLowerCase();
+    return s.indexOf('대체') >= 0 || s.indexOf('nghỉ bù') >= 0
+        || s.indexOf('alternative') >= 0 || s.indexOf('substitute') >= 0;
+  }
   function pad2(n){ return (n<10?'0':'') + n; }
   function isoOf(d){ return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
   function parseISO(s){
@@ -174,9 +180,10 @@ input.knk-cal { cursor: pointer; }
       cell.setAttribute('data-iso', iso);
       var inner = '<span class="' + dCls.join(' ') + '">' + dnum + '</span>';
       if (inMonth && isHol) {
+        // v5H226z1041: 대체공휴일 판정 = 공용 isAltHol() (서버 _hol_is_alt 와 같은 규칙 — 언어가 바뀌어도 안 깨지게)
         inner = '<span class="badge">'
-          + (holKr ? '<span class="b' + (/대체/.test(holKr) ? ' alt' : '') + '" title="' + holKr + '">K</span>' : '')
-          + (holVn ? '<span class="b vn' + (/Nghỉ bù/.test(holVn) ? ' alt' : '') + '" title="' + holVn + '">V</span>' : '')
+          + (holKr ? '<span class="b' + (isAltHol(holKr) ? ' alt' : '') + '" title="' + holKr + '">K</span>' : '')
+          + (holVn ? '<span class="b vn' + (isAltHol(holVn) ? ' alt' : '') + '" title="' + holVn + '">V</span>' : '')
           + '</span>' + inner;
         if (holKr) holNamesShown.push(holKr);
       }

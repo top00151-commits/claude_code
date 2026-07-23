@@ -265,6 +265,18 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 /* v5H226z846 (대표 지시): 날짜 헤더 — 평일 숫자 중립·일요일/공휴일 빨강(달력 관례). day 헤더만 --knk-red 상속을 덮음(정보열 머리글은 그대로). */
 .sched thead th.day { color:#475569; }
 .sched thead th.day.redday { color:#dc2626; font-weight:800; }
+/* v5H226z1041 (대표 지시 · 달력 규정 §4-1/§4-2 `달력_캘린더_빌드_조건_사양_2026-06-13.md`)
+   ─ 토요일 파랑(#2563eb)과 한국(K)·베트남(V) 공휴일 배지는 규정에 있었는데 일정표에만 빠져 있었다.
+   ─ 날짜칸이 좁아 배지는 아주 작게(숫자 아래 한 줄), 공휴일 '이름'은 마우스오버 안내문(title)으로. */
+.sched thead th.day.satday { color:#2563eb; font-weight:800; }
+.sched thead th.day .dnum { display:block; line-height:1.05; }
+.sched thead th.day .hb { display:flex; gap:1px; justify-content:center; margin-top:1px; line-height:1; }
+.sched thead th.day .hb i { font-style:normal; display:inline-block; min-width:9px; height:9px; line-height:9px;
+  padding:0 1px; text-align:center; border-radius:2px; font-size:7px; font-weight:800;
+  background:#dc2626; color:#fff; }            /* K = 한국 공휴일(빨강) */
+.sched thead th.day .hb i.v { background:#fb923c; }                                    /* V = 베트남 공휴일(주황) */
+.sched thead th.day .hb i.alt { background:#fff; color:#dc2626; border:1px dashed #dc2626; line-height:7px; }  /* 대체공휴일 = 흰 바탕+점선 */
+.sched thead th.day .hb i.v.alt { color:#fb923c; border-color:#fb923c; }
 .sched .day.bar { background:#cfe0f5; cursor:pointer; }
 .sched .day.bar.delay { background:#fcd9d9; }
 /* v5H226z663 (대표 지시): 납기 점 색을 '출하 기준'으로 분리 — 초록=출하만, 파랑=진행중(예정), 빨강=지연, 회색=취소/보류 */
