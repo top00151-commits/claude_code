@@ -118,7 +118,12 @@
 .cols-pop .cols-allbtn:hover { filter:brightness(.94); }
 /* v5H226z1040: 칸 설정의 📌 고정 단추 — 체크박스(보이기)와 나란히, 이름은 가운데서 늘어난다 */
 .cols-pop label .cols-nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
-.cols-pop .cols-pin { flex-shrink:0; margin-left:6px; padding:1px 5px; font-size:11px; line-height:16px;
+/* z1040b: ↔ 너비 되돌리기 — 📌 과 같은 모양, 기본값과 다를 때만 진하게 */
+.cols-pop .cols-w { flex-shrink:0; margin-left:6px; padding:1px 5px; font-size:11px; line-height:16px;
+  border:1px solid var(--line); border-radius:5px; background:#fff; cursor:pointer; color:#94a3b8; }
+.cols-pop .cols-w:hover { background:#fdf3f3; color:var(--knk-red); }
+.cols-pop .cols-w.on { color:var(--knk-red); border-color:#f0c9c9; background:#fff8f8; font-weight:800; }
+.cols-pop .cols-pin { flex-shrink:0; margin-left:4px; padding:1px 5px; font-size:11px; line-height:16px;
   border:1px solid var(--line); border-radius:5px; background:#fff; cursor:pointer; filter:grayscale(1); opacity:.45; }
 .cols-pop .cols-pin:hover:not(:disabled) { opacity:.85; background:#fdf3f3; }
 .cols-pop .cols-pin.on { filter:none; opacity:1; border-color:var(--knk-red); background:#fff5f5; }
@@ -185,6 +190,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched .c-info { background:var(--paper-3); padding:0 8px; text-align:left; font-weight:600;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sched thead .c-info { background:var(--paper-2); padding:0; }
+/* ⛔z1040b: 이 표의 `<col data-col=..>`(colgroup)에 position 을 걸지 말 것 — 칸 너비 지정 기능을 잃어
+   폭이 줄어든 채 다시 안 커진다(안지연 프로 실제 신고). 고정 규칙은 반드시 th/td 로 좁힌다. */
 /* v5H226z1040 (안지연 프로 요청·대표 지시): 왼쪽 고정 칸을 **사용자가 고를 수 있게** 바뀌었다.
    c2·c3 의 고정 규칙은 JS(updateSticky)가 `#schedPinCss` 로 만들어 넣는다 — 여기서 박아두면 해제가 안 된다.
    .c1(관리번호)만 남긴다: 행 펼침의 빈 칸(td.c-info.c1, data-col 없음)이 이 규칙에 기댄다. */
@@ -455,7 +462,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .pp-page .sched .c1, .pp-page .sched .c2, .pp-page .sched .c3, .pp-page .sched thead th { position:static; }
 /* v5H226z1040: 사용자가 고정한 칸(JS 가 #schedPinCss 로 만든 `#schedTable [data-col=..]`)도 인쇄 땐 풀어야 한다.
    ⚠그 규칙은 id 를 써서 위 `.pp-page .sched .cN` 보다 세다 → **id 를 하나 더** 얹어 이긴다(!important 불필요). */
-.pp-page #schedTable [data-col] { position:static; }
+.pp-page #schedTable th[data-col], .pp-page #schedTable td[data-col] { position:static; }
 #printArea { display:none; }
 @media print {
   @page { size: landscape; margin: 7mm; }
@@ -472,7 +479,8 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
   #printArea .pp-print-page:last-child { page-break-after:auto; break-after:auto; }
   #printArea table.sched { width:100% !important; table-layout:fixed; border-collapse:separate; border-spacing:0; font-size:12px; }
   #printArea .sched .c1, #printArea .sched .c2, #printArea .sched .c3, #printArea .sched thead th { position:static; }
-  #printArea #schedTable [data-col], #printArea .sched [data-col] { position:static; }   /* z1040: 사용자 고정 칸 해제 */
+  #printArea #schedTable th[data-col], #printArea #schedTable td[data-col],
+  #printArea .sched th[data-col], #printArea .sched td[data-col] { position:static; }   /* z1040: 사용자 고정 칸 해제 */
   #printArea .col-resizer, #printArea .sort-ind { display:none; }
   /* 공통: 배경색·구분선 인쇄 보장 + 행 잘림 방지 + '오늘' 칸 강조(box-shadow는 인쇄 누락되므로 border로) */
   .sched th, .sched td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

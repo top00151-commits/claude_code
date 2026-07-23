@@ -440,7 +440,15 @@ const LAST_DAY = {{ days|length }};
 let COLS = {};
 try { COLS = JSON.parse('{{ col_prefs|safe }}') || {}; } catch(e){ COLS = {}; }
 
-function colState(k){ const c=COLS[k]||{}; return {w: (c.w||COL_DEFAULTS[k]), hidden: !!c.hidden}; }
+// v5H226z1040b (안지연 프로 신고 "작아졌는데 커지지를 않음"): 칸을 너무 좁히면 오른쪽 끝 손잡이가
+//   글자·여백에 묻혀 **다시 잡기 어려워진다** → 최소 폭을 손잡이가 남는 크기로 올린다.
+//   ⭐읽을 때도 올린다(자가치유) — 이미 잘게 저장된 계정이 열자마자 회복된다.
+const COL_MIN_W = 48;   // = 가장 좁은 기본값(수량 48)과 동일 → **기존 사용자 화면은 그대로**,
+                        //   28px 같은 극단만 회복시킨다
+function colState(k){ const c=COLS[k]||{};
+  let w = c.w || COL_DEFAULTS[k];
+  if (!c.hidden && w < COL_MIN_W) w = COL_MIN_W;   // 숨김(0폭)은 예외 — 숨기기와 좁히기는 다른 것
+  return {w: w, hidden: !!c.hidden}; }
 function dateW(){ return COLS._dateW || DATE_W_DEFAULT; }
 function dayFrom(){ let v=parseInt(COLS._dayFrom); return (v>=1&&v<=LAST_DAY)?v:1; }
 function dayTo(){ let v=parseInt(COLS._dayTo); return (v>=1&&v<=LAST_DAY)?v:LAST_DAY; }
@@ -522,10 +530,15 @@ function updateSticky(){
   const pins=pinnedCols();
   let css='', off=0;
   pins.forEach((k,i)=>{
-    css+='#schedTable [data-col="'+k+'"]{position:sticky;left:'+off+'px;z-index:4;}'
+    // ⛔`[data-col=..]` 만 쓰면 **colgroup 의 <col data-col=..> 까지 잡힌다.**
+    //   <col> 에 position:sticky 가 걸리면 그 요소가 '칸 너비를 정하는 역할'을 잃어
+    //   applyWidths 의 col.style.width 가 안 먹는다 → **폭이 줄어든 채 다시 안 커진다**(z1040b 실제 신고).
+    //   그래서 반드시 th/td 로 좁힌다.
+    const S='#schedTable th[data-col="'+k+'"],#schedTable td[data-col="'+k+'"]';
+    css+=S+'{position:sticky;left:'+off+'px;z-index:4;}'
        + '#schedTable thead th[data-col="'+k+'"]{z-index:7;}';   // 머리글은 세로 고정(6)보다 위
     if(i===pins.length-1){   // 고정 구간의 끝을 빨간 선으로 — 여기까지가 붙어 있는 칸
-      css+='#schedTable [data-col="'+k+'"]{border-right:2px solid var(--knk-red);}';
+      css+=S+'{border-right:2px solid var(--knk-red);}';
     }
     off+=colState(k).w;      // 실제 적용 폭(applyWidths 와 같은 소스) — 측정 타이밍에 안 흔들린다
   });
@@ -542,6 +555,14 @@ function togglePin(k){
   toast(COL_LABELS[k]+(now?' 칸 고정을 풀었습니다':' 칸을 왼쪽에 고정했습니다'));
 }
 window.togglePin=togglePin;
+// v5H226z1040b: 마우스 손잡이가 안 잡혀도 여기서 너비를 되돌린다 (안지연 프로 "작아졌는데 커지지를 않음")
+function resetColW(k){
+  if(!COL_DEFAULTS[k]) return;
+  COLS[k]=COLS[k]||{}; COLS[k].w=COL_DEFAULTS[k]; COLS[k].hidden=false;
+  applyCols(); buildColsMenu(); saveCols();
+  toast(COL_LABELS[k]+' 너비를 기본('+COL_DEFAULTS[k]+'px)으로 되돌렸습니다');
+}
+window.resetColW=resetColW;
 
 let _saveTimer=null;
 function saveCols(){
@@ -563,11 +584,16 @@ function buildColsMenu(){
   const pop=document.getElementById('colsPop'); if(!pop) return;
   // v5H226z1040: 체크=보이기 / 📌=왼쪽에 붙들기 (두 가지는 별개 — 보이면서 안 붙는 칸이 대부분)
   pop.innerHTML = '<button type="button" class="cols-allbtn" id="colsAllBtn">✓ 전체보기 (모두 표시)</button>'
-    + '<div class="cols-hint">📌 = 오른쪽 날짜칸으로 밀어도 <b>왼쪽에 계속 보이는 칸</b> (최대 '+PIN_MAX+'개)</div>'
+    + '<div class="cols-hint">📌 = 오른쪽 날짜칸으로 밀어도 <b>왼쪽에 계속 보이는 칸</b> (최대 '+PIN_MAX+'개)'
+    + '<br>↔ = 그 칸 <b>너비를 기본으로</b> (좁혀놔서 손잡이를 못 잡을 때)</div>'
     + COL_KEYS.map(k=>{
         const pinned=isPinned(k), always=(k===PIN_ALWAYS);
+        const w=colState(k).w, narrowed=(w!==COL_DEFAULTS[k]);
         return '<label><input type="checkbox" data-ck="'+k+'" '+(colState(k).hidden?'':'checked')+'>'
           + '<span class="cols-nm">'+COL_LABELS[k]+'</span>'
+          // v5H226z1040b: 마우스로 손잡이를 못 잡아도 여기서 되돌릴 수 있게 (안지연 프로 "커지지를 않음")
+          + '<button type="button" class="cols-w'+(narrowed?' on':'')+'" data-w="'+k+'"'
+          + ' title="너비를 기본('+COL_DEFAULTS[k]+'px)으로 되돌리기 — 지금 '+w+'px">↔</button>'
           + '<button type="button" class="cols-pin'+(pinned?' on':'')+'" data-pin="'+k+'"'
           + (always ? ' disabled title="관리번호는 항상 고정입니다"'
                     : ' title="'+(pinned?'왼쪽 고정 풀기':'왼쪽에 고정하기')+'"')
@@ -580,9 +606,12 @@ function buildColsMenu(){
       applyCols(); saveCols();
     });
   });
-  // ⚠📌 는 <label> 안에 있다 — 막지 않으면 체크박스(보이기)까지 같이 바뀐다
+  // ⚠📌·↔ 는 <label> 안에 있다 — 막지 않으면 체크박스(보이기)까지 같이 바뀐다
   pop.querySelectorAll('.cols-pin').forEach(btn=>{
     btn.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); togglePin(btn.dataset.pin); });
+  });
+  pop.querySelectorAll('.cols-w').forEach(btn=>{
+    btn.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); resetColW(btn.dataset.w); });
   });
 }
 function toggleColsMenu(e){ e.stopPropagation(); document.getElementById('colsPop').classList.toggle('show'); }
@@ -684,7 +713,7 @@ _on(document,'mousemove',(e)=>{
   _rzMoved=true;                 // z331: 드래그 발생 → 직후 click 정렬 억제
   // 시작 폭 + 마우스 이동량 = 새 폭(px). 최소 28px.
   let neww = _rz.w + (e.clientX - _rz.x);
-  neww = Math.max(28, Math.min(900, neww));
+  neww = Math.max(COL_MIN_W, Math.min(900, neww));   // z1040b: 손잡이를 못 잡을 만큼 좁아지지 않게
   COLS[_rz.k]=COLS[_rz.k]||{}; COLS[_rz.k].w=neww; COLS[_rz.k].hidden=false;
   applyWidths();
 });
