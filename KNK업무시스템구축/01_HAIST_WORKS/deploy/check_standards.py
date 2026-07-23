@@ -60,6 +60,10 @@ BASELINE = {
     "contacts_list.html": {"vh": 1},
     "customers_list.html": {"vh": 1},
     "export_prep_detail.html": {"vh": 1},
+    #    z1045 에서 정규식을 `-wrap` 까지 넓히자 새로 드러난 1건.
+    #    `.so-card.so-fullscreen .so-units-wrapper` = **전체화면(풀스크린) 전용** 규칙이라
+    #    100vh 가 맞는 값이다(화면 전체를 쓰는 상태). z1009 예외 '사용자 높이조절'에 해당 → 면제.
+    "project_detail.css": {"vh": 1},
 }
 
 
@@ -168,7 +172,10 @@ def check_vh(files):
     """
     bad = []
     pat = re.compile(r"max-height\s*:\s*calc\([^)]*100vh", re.I)
-    scroll_sel = re.compile(r"tbl-wrap|list-scroll|-scroll|scrollbox|tbody|table|\.wrap", re.I)
+    # z1045: `\.wrap` 는 **`.hsd-wrap` 을 못 잡았다**(마침표 바로 뒤 wrap 만 매칭) —
+    #   HS 사전의 `max-height:calc(100vh - 330px)` 가 이 구멍으로 규정 시행 후에도 그대로 남아 있었다.
+    #   → `-wrap` 도 잡도록 넓힘. 검사기가 못 잡으면 규정은 문서에만 있는 것과 같다.
+    scroll_sel = re.compile(r"tbl-wrap|list-scroll|-scroll|scrollbox|tbody|table|[.\-]wrap", re.I)
     for p in files:
         name = os.path.basename(p)
         if BASELINE.get(name, {}).get("vh", 0) is None:

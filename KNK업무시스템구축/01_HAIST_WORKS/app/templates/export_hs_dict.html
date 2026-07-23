@@ -9,21 +9,37 @@
 .hsd-chip.on { border-color:var(--knk-red,#b0271f); color:var(--knk-red,#b0271f); background:#fff5f5; }
 .hsd-chip .dot { width:9px; height:9px; border-radius:50%; }
 .hsd-card { background:#fff; border:1px solid var(--qv-line,#e2ddd0); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
-.hsd-tbl { width:100%; border-collapse:collapse; font-size:12px; background:#fff; }
+/* v5H226z1045 (대표 지시·표준 반영): 데이터 입력표 = 엑셀식 격자 — 칸 너비를 사용자가 끌어서 조절
+   (가이드 §23 '데이터 입력표=엑셀식 격자·셀 채움·열 폭 조절'·통관 입력표 z951 과 같은 방식).
+   table-layout:fixed + colgroup 폭(px) → 한 칸만 넓혀도 다른 칸이 안 흔들린다. */
+/* min-width = 지정 폭 합(876) + 베트남어 품명 최소치(220). JS 가 안 떠도 칸이 안 눌리게 하는 폴백 —
+   기존에도 `input.vn{min-width:220px}` 이 같은 하한을 만들고 있었다(동작 동일). */
+.hsd-tbl { width:100%; min-width:1096px; border-collapse:collapse; font-size:12px; background:#fff; table-layout:fixed; }
 .hsd-tbl th { position:sticky; top:0; background:var(--paper-2,#f4f1e8); color:var(--knk-red,#b0271f); font-size:10.5px; font-weight:700; padding:7px 8px; border-bottom:2px solid var(--knk-red,#b0271f); text-align:left; z-index:3; }
-.hsd-tbl td { padding:5px 8px; border-bottom:1px solid #f0ebdd; vertical-align:middle; }
+.hsd-tbl td { padding:5px 8px; border-bottom:1px solid #f0ebdd; vertical-align:middle; overflow:hidden; }
 .hsd-tbl tr:hover td { background:#fffdf5; }
 .hsd-tbl input, .hsd-tbl select { padding:4px 7px; border:1px solid var(--qv-line,#e2ddd0); border-radius:5px; font:inherit; font-size:12px; background:#fff; box-sizing:border-box; }
-.hsd-tbl input.hs { width:92px; font-family:Consolas,monospace; font-weight:700; }
-.hsd-tbl input.vn { width:100%; min-width:220px; }
-.hsd-tbl input.org { width:70px; }
+/* 칸 폭을 사용자가 조절하므로 입력칸은 '칸에 맞춰' 늘어난다(고정 px 금지 — 넓혀도 안 커지면 조절이 무의미) */
+.hsd-tbl input.hs { width:100%; font-family:Consolas,monospace; font-weight:700; }
+.hsd-tbl input.vn { width:100%; }
+.hsd-tbl input.org { width:100%; }
+.hsd-tbl select[name="status"] { width:100%; max-width:100%; }
+.hsd-tbl td.num { text-align:right; font-variant-numeric:tabular-nums; }   /* 가이드 §5.3 숫자 열 */
+.hsd-tbl td.dt { font-size:11px; color:var(--mute); font-variant-numeric:tabular-nums; }
+/* 폭 조절 손잡이 — 통관 입력표(z951)와 같은 모양. ⚠규칙 23: 조작 요소는 '잡을 수 있게' 보여야 한다(커서+hover 표시) */
+.hsd-tbl th .th-wrap { position:relative; display:block; padding-right:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hsd-tbl th .col-resizer { position:absolute; top:-7px; right:-8px; width:8px; height:calc(100% + 14px); cursor:col-resize; z-index:9; user-select:none; }
+.hsd-tbl th .col-resizer:hover { background:rgba(176,39,31,.28); }
 .st-pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:10.5px; font-weight:800; }
 .st-CONFIRMED { background:#dcfce7; color:#15803d; }
 .st-PENDING { background:#fee2e2; color:#b91c1c; }
 .st-AI { background:#fef9c3; color:#a16207; }
 .hsd-save { padding:5px 12px; border:1px solid #1d4ed8; background:#eff6ff; color:#1d4ed8; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; }
 .hsd-save:hover { background:#1d4ed8; color:#fff; }
-.hsd-wrap { max-height:calc(100vh - 330px); overflow:auto; border:1px solid var(--qv-line,#e2ddd0); border-radius:8px; }
+{# v5H226z1045: 표 높이는 공용 data-knk-fill 이 실제 시작위치를 재서 정한다(현황판 §4 규칙 5).
+   여기 있던 `max-height:calc(100vh - 330px)` 매직넘버는 **삭제** — 규정이 금지한 값이고,
+   위 안내 카드가 늘면(z1044 검토표 카드 추가) 바로 틀려지는 추측값이었다. #}
+.hsd-wrap { overflow:auto; border:1px solid var(--qv-line,#e2ddd0); border-radius:8px; }
 /* z1043: 자르지 말고 줄바꿈해서 다 보이게.
    ⚠word-break:break-all 금지 — HS코드가 `신규 9` / `4054990` 처럼 **숫자 중간에서 끊겨** 오독 위험
      (통관은 법적 신고). 띄어쓰기에서만 넘긴다. */
@@ -36,7 +52,8 @@
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head" data-dn="page-head">
     <div>
-      <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <b>베트남 HS 사전</b></div>
+      {# v5H226z1045: data-knk-back — 직전 화면이 '출하 전 수출 정리' 목록이면 그 주소(검색·필터 포함) 그대로 복귀(가이드 §24) #}
+      <div class="crumbs" data-dn="crumb"><a href="/export/prep" data-knk-back>출하 전 수출 정리</a> · <b>베트남 HS 사전</b></div>
       <h1 class="page-title" data-dn="title">📖 베트남 HS코드 사전</h1>
       <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
         과거 인보이스(베트남 세관 통과 실적)에서 쌓인 부품별 HS코드·베트남어 품명 — 통관 입력 [🤖 HS 자동 채움]의 근거.
@@ -86,25 +103,48 @@
         인보이스는 신규 부품 추가·재출현 갱신·<b style="color:#b91c1c;">다른 HS면 '확인 대기'로 전환</b>(자동 채움 제외).
       </span>
     </div>
+    {# v5H226z1045 (표준 반영·가이드 §23 '파일 첨부 = 전역 드롭존 자동 래핑'):
+       여기 있던 `data-knk-no-dropzone` 을 **뗀다**. 이 화면은 자체 드롭 UI 가 없어서
+       (parts_import·suppliers_import 는 자기 `.drop` 상자가 있어 제외가 맞다) 제외할 근거가 없었고,
+       그 결과 파일을 **끌어다 놓을 수 없어** 19개짜리 업로드를 매번 탐색창으로 골라야 했다.
+       전역 드롭존이 파일칸을 상자로 감싸므로 **줄(flex) 밖 자기 자리**로 뺀다(상자가 눌리지 않게).
+       ⚠id·multiple·accept 는 그대로 — hsdUpload() 가 getElementById('hsdFiles').files 를 읽는다. #}
+    <div style="margin-top:8px;">
+      <input type="file" id="hsdFiles" accept=".xlsx,.xlsm" multiple>
+    </div>
     <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <input type="file" id="hsdFiles" accept=".xlsx,.xlsm" multiple data-knk-no-dropzone>
       <button class="hsd-save" type="button" onclick="hsdUpload()" id="hsdUpBtn">업로드</button>
       <span id="hsdUpMsg" style="font-size:12px;"></span>
     </div>
     <div id="hsdUpResult" style="margin-top:6px;font-size:12px;color:var(--qv-ink-2);"></div>
   </div>
 
+  {# v5H226z1045: 계정별 칸 너비(view_prefs, key=export_hs_dict_cols) — 서버에서 내려준 값 #}
+  <script id="hsdColPrefs" type="application/json">{{ col_prefs|default('{}', true)|safe }}</script>
   <div class="hsd-wrap" data-knk-fill>
-    <table class="hsd-tbl">
+    <table class="hsd-tbl" id="hsdTable">
+      {# z1045: colgroup = 칸 너비의 단일 소스(리사이저가 여기를 바꾼다). 베트남어 품명은 폭 미지정=남는 폭 차지 #}
+      <colgroup>
+        <col data-col="status" width="168"><col data-col="model" width="170"><col data-col="name_en" width="150">
+        <col data-col="vn_name"><col data-col="hs_code" width="100"><col data-col="origin" width="80">
+        <col data-col="seen" width="52"><col data-col="last" width="86"><col data-col="act" width="70">
+      </colgroup>
       <thead><tr>
-        <th style="width:168px;">상태</th>   {# z1043: 충돌 사유(기존HS↔신규HS·파일)가 들어갈 폭 #}<th style="width:170px;">규격(모델)</th><th style="width:150px;">영문 품명</th>
-        <th>베트남어 품명 (Tên hàng)</th><th style="width:100px;">HS코드</th><th style="width:80px;">원산지</th>
-        <th style="width:52px;">횟수</th><th style="width:86px;">최근</th><th style="width:70px;"></th>
+        {# z1043: 상태칸엔 충돌 사유(기존HS↔신규HS·파일)가 들어간다 · z1045: 칸 경계를 끌어 넓힐 수 있다 #}
+        <th data-col="status"><div class="th-wrap" title="칸 경계를 좌우로 끌면 너비가 바뀝니다">상태<span class="col-resizer" data-col="status"></span></div></th>
+        <th data-col="model"><div class="th-wrap" title="칸 경계를 좌우로 끌면 너비가 바뀝니다">규격(모델)<span class="col-resizer" data-col="model"></span></div></th>
+        <th data-col="name_en"><div class="th-wrap" title="칸 경계를 좌우로 끌면 너비가 바뀝니다">영문 품명<span class="col-resizer" data-col="name_en"></span></div></th>
+        <th data-col="vn_name"><div class="th-wrap" title="칸 경계를 좌우로 끌면 너비가 바뀝니다">베트남어 품명 (Tên hàng)<span class="col-resizer" data-col="vn_name"></span></div></th>
+        <th data-col="hs_code"><div class="th-wrap" title="칸 경계를 좌우로 끌면 너비가 바뀝니다">HS코드<span class="col-resizer" data-col="hs_code"></span></div></th>
+        <th data-col="origin"><div class="th-wrap" title="칸 경계를 좌우로 끌면 너비가 바뀝니다">원산지<span class="col-resizer" data-col="origin"></span></div></th>
+        <th data-col="seen"><div class="th-wrap" title="칸 경계를 좌우로 끌면 너비가 바뀝니다">횟수<span class="col-resizer" data-col="seen"></span></div></th>
+        <th data-col="last"><div class="th-wrap" title="칸 경계를 좌우로 끌면 너비가 바뀝니다">최근<span class="col-resizer" data-col="last"></span></div></th>
+        <th data-col="act"><div class="th-wrap"></div></th>
       </tr></thead>
       <tbody>
       {% for r in rows %}
         <tr data-did="{{ r.id }}">
-          <td>
+          <td data-col="status">
             <select name="status" style="font-size:11px;">
               {% for s in ['CONFIRMED','PENDING','AI'] %}
               <option value="{{ s }}"{% if r.status==s %} selected{% endif %}>{{ {'CONFIRMED':'✅ 확정','PENDING':'⛔ 확인 대기','AI':'🟡 AI 추정'}[s] }}</option>
@@ -122,14 +162,15 @@
 ') }}</div>
             {% endif %}
           </td>
-          <td style="font-weight:700;">{{ r.model or r.part_key }}</td>
-          <td style="color:var(--qv-ink-3);">{{ r.name_en or '' }}</td>
-          <td><input class="vn" name="vn_name" value="{{ (r.vn_name or '')|e }}" placeholder="Tên hàng"></td>
-          <td><input class="hs" name="hs_code" value="{{ r.hs_code or '' }}" maxlength="8" inputmode="numeric"></td>
-          <td><input class="org" name="origin" value="{{ (r.origin or '')|e }}"></td>
-          <td style="text-align:right;">{{ r.seen_count }}</td>
-          <td style="font-size:11px;color:var(--mute);">{{ (r.last_seen or '')[:10] }}</td>
-          <td><button class="hsd-save" type="button" onclick="hsdSave(this)">저장</button></td>
+          {# z1045: 값 없음 = '—' (가이드 §5.3·§22.8 — 빈칸은 '안 적힌 것'인지 '못 읽은 것'인지 구분이 안 된다) #}
+          <td data-col="model" style="font-weight:700;" title="{{ (r.model or r.part_key)|e }}">{{ r.model or r.part_key }}</td>
+          <td data-col="name_en" style="color:var(--qv-ink-3);" title="{{ (r.name_en or '')|e }}">{{ r.name_en or '—' }}</td>
+          <td data-col="vn_name"><input class="vn" name="vn_name" value="{{ (r.vn_name or '')|e }}" placeholder="Tên hàng"></td>
+          <td data-col="hs_code"><input class="hs" name="hs_code" value="{{ r.hs_code or '' }}" maxlength="8" inputmode="numeric"></td>
+          <td data-col="origin"><input class="org" name="origin" value="{{ (r.origin or '')|e }}"></td>
+          <td data-col="seen" class="num">{{ r.seen_count }}</td>
+          <td data-col="last" class="dt">{{ (r.last_seen or '')[:10] or '—' }}</td>
+          <td data-col="act"><button class="hsd-save" type="button" onclick="hsdSave(this)">저장</button></td>
         </tr>
       {% endfor %}
       {% if not rows %}
@@ -138,14 +179,27 @@
       </tbody>
     </table>
   </div>
-  <div style="margin-top:8px;font-size:11.5px;color:var(--mute);">
-    최대 400건 표시(확인 대기·AI 추정 우선, 사용 많은 순) — 더 보려면 검색을 이용하세요.
-    수정 후 <b>[저장]</b>을 누르면 즉시 반영되고, <b>확정</b> 상태만 통관 입력 [🤖 HS 자동 채움]에 사용됩니다.
+  <div style="margin-top:8px;font-size:11.5px;color:var(--mute);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <span>
+      최대 400건 표시(확인 대기·AI 추정 우선, 사용 많은 순) — 더 보려면 검색을 이용하세요.
+      수정 후 <b>[저장]</b>을 누르면 즉시 반영되고, <b>확정</b> 상태만 통관 입력 [🤖 HS 자동 채움]에 사용됩니다.
+    </span>
+    {# z1045 (현황판 §4 규칙 23 '되돌릴 길을 같이 준다'): 폭을 잘못 줄여도 한 번에 원래대로 #}
+    <button class="hsd-save" type="button" onclick="hsdColsReset()" id="hsdColReset"
+            title="칸 너비를 처음 상태로 되돌립니다 (내 계정에만 적용)">↔ 칸 너비 되돌리기</button>
   </div>
 </main>
 </div>
 <script>
 (function(){
+  /* v5H226z1045 (표준 반영·가이드 §24 '처리 중 피드백'): 저장 결과를 공용 KNKBusy 로 알린다.
+     · 기존엔 실패를 `alert()` 로 띄웠다 — 전 시스템 표준(토스트)과 어긋나고 브라우저 창을 막는다.
+     · 성공은 버튼 ✓(자리 그대로) + 하단 토스트. 실패/통신오류는 빨간 토스트.
+     ⚠KNKBusy 가 없어도(구형·부분 로드) 동작이 끊기지 않게 폴백을 둔다. */
+  function hsdToast(msg, type){
+    try { if(window.KNKBusy && KNKBusy.toast){ KNKBusy.toast(msg, type); return; } } catch(e){}
+    alert(msg);
+  }
   window.hsdSave = async function(btn){
     var tr = btn.closest('tr'); if(!tr) return;
     var fd = new FormData();
@@ -155,17 +209,30 @@
     btn.disabled = true; var t = btn.textContent; btn.textContent = '…';
     try {
       var r = await fetch('/export/hs-dict/' + tr.dataset.did + '/save', {method:'POST', body:fd, credentials:'same-origin'});
-      var j = await r.json();
-      if(j.ok){ btn.textContent = '✓'; setTimeout(function(){ btn.textContent = t; btn.disabled = false; }, 900); }
-      else { alert('저장 실패: ' + (j.error||'')); btn.textContent = t; btn.disabled = false; }
-    } catch(e){ alert('통신 오류: ' + e); btn.textContent = t; btn.disabled = false; }
+      /* z1042 규칙: 응답이 JSON 이 아닐 수 있다(시간초과 HTML·로그인 페이지) → text 로 받아 감싸서 파싱 */
+      var raw = await r.text(), j = null;
+      try { j = JSON.parse(raw); } catch(_){}
+      if(!j){
+        hsdToast((r.status===502||r.status===504) ? '서버 응답 시간 초과 — 잠시 후 다시 저장해 주세요'
+               : (/login|로그인/i.test(raw.slice(0,600))) ? '로그인이 풀렸습니다 — 새로고침 후 다시 로그인하세요'
+               : ('서버 오류 (HTTP ' + r.status + ') — 저장하지 못했습니다'), 'err');
+        btn.textContent = t; btn.disabled = false; return;
+      }
+      if(j.ok){
+        btn.textContent = '✓'; hsdToast('저장했습니다', 'ok');
+        setTimeout(function(){ btn.textContent = t; btn.disabled = false; }, 900);
+      } else {
+        hsdToast('저장하지 못했습니다 — ' + (j.error||'입력값을 확인해 주세요'), 'err');
+        btn.textContent = t; btn.disabled = false;
+      }
+    } catch(e){ hsdToast('통신이 끊겼습니다 — ' + e, 'err'); btn.textContent = t; btn.disabled = false; }
   };
   window.hsdUpload = async function(){
     var inp = document.getElementById('hsdFiles');
     var msg = document.getElementById('hsdUpMsg');
     var res = document.getElementById('hsdUpResult');
     var btn = document.getElementById('hsdUpBtn');
-    if(!inp.files || !inp.files.length){ alert('파일을 선택하세요 (.xlsx 여러 개 가능)'); return; }
+    if(!inp.files || !inp.files.length){ hsdToast('파일을 먼저 고르세요 (.xlsx 여러 개 가능 · 끌어다 놓아도 됩니다)', 'err'); return; }
     /* v5H226z1042 (대표 신고 "❌ 통신 오류: SyntaxError: Unexpected token '<'"):
        여러 개를 **한 요청에 몰아 보내던 것**을 파일 하나씩 순서대로 보내도록 바꾼다.
        · 19개 = 서버 분석만 약 28초 + 12MB 전송 → 게이트웨이 시간 초과에 걸리면
@@ -175,11 +242,17 @@
     var files = Array.prototype.slice.call(inp.files);
     btn.disabled = true; res.innerHTML = '';
     var a=0,u2=0,cf=0,er=0, lines=[];
+    /* v5H226z1045 (표준 반영·가이드 §24 '처리 중 피드백'): 파일 분석은 개당 1~2초 — 공용 KNKBusy
+       오버레이로 '처리 중'을 확실히 보여준다(진행률 n/N 포함). ⚠성공·실패·예외 **모든 경로**에서 닫는다. */
+    var ov = null;
+    try { if(window.KNKBusy && KNKBusy.overlay) ov = KNKBusy.overlay('파일을 읽는 중입니다…', '창을 닫지 말고 기다려 주세요.'); } catch(e){}
     function draw(){ res.innerHTML = lines.map(function(s){ return '<div>' + s.replace(/</g,'&lt;') + '</div>'; }).join(''); }
+    try {
     for (var i=0; i<files.length; i++){
       var f = files[i];
       msg.textContent = '⏳ ' + (i+1) + '/' + files.length + ' 분석 중 — ' + f.name;
       msg.style.color = '#1d4ed8';
+      try { if(ov){ ov.text((i+1) + ' / ' + files.length + ' 분석 중', f.name); ov.progress(i, files.length); } } catch(e){}
       var fd = new FormData(); fd.append('files', f);
       try {
         var r = await fetch('/export/hs-dict/upload', {method:'POST', body:fd, credentials:'same-origin'});
@@ -210,11 +283,108 @@
         draw();
       } catch(e){ er++; lines.push('❌ ' + f.name + ' — 통신 끊김: ' + e); draw(); }
     }
-    msg.textContent = '완료: 추가 ' + a + ' · 갱신 ' + u2 + (cf? ' · ⚠충돌 ' + cf + '(확인 대기로 전환)' : '') + (er? ' · 실패 ' + er : '');
+    var summary = '완료: 추가 ' + a + ' · 갱신 ' + u2 + (cf? ' · ⚠충돌 ' + cf + '(확인 대기로 전환)' : '') + (er? ' · 실패 ' + er : '');
+    msg.textContent = summary;
     msg.style.color = cf||er ? '#b45309' : '#15803d';
-    btn.disabled = false;
+    /* 저장→새로고침 패턴: reload 뒤에 완료 토스트가 뜨도록 예약(공용 표준) */
+    try { if(window.KNKBusy && KNKBusy.flashOnReload) KNKBusy.flashOnReload(summary, (cf||er) ? 'info' : 'ok'); } catch(e){}
+    /* done()/fail() 은 스스로 닫는다 → 여기서 ov 를 비워 finally 가 겹쳐 닫지 않게(✓ 표시가 안 보이던 함정) */
+    try { if(ov){ if(er) ov.fail('일부 파일을 읽지 못했습니다 — 아래 목록을 확인하세요'); else ov.done(summary); ov = null; } } catch(e){}
     setTimeout(function(){ location.reload(); }, cf||er ? 4500 : 1800);
+    } catch(e){
+      /* 예상 못 한 예외라도 오버레이·버튼은 반드시 되돌린다(가이드 §24) */
+      hsdToast('업로드 중 문제가 생겼습니다 — ' + e, 'err');
+    } finally {
+      try { if(ov) ov.close(); } catch(_){}
+      btn.disabled = false;
+    }
   };
+})();
+</script>
+<script>
+/* ─────────────────────────────────────────────────────────────────────────────
+   v5H226z1045 (대표 지시 "표준안 규정과 좀 틀려" · 표준 반영):
+   데이터 입력표는 **엑셀식 격자 — 칸 너비를 사용자가 조절**할 수 있어야 한다
+   (통합 디자인 가이드 §23 '데이터 입력표 = 엑셀식 격자(셀 채움·열 폭 조절·작업일정표식)').
+   이 화면은 상태칸이 168px 로 **박혀 있어** 충돌 사유를 넓혀 볼 수 없었다
+   (z1043 에서 '자르지 말고 줄바꿈'은 고쳤지만 **넓힐 수는 없는** 상태 그대로였다).
+
+   방식 = 통관 입력표(z951)와 같게:
+     · colgroup 의 px 폭이 단일 소스 · table-layout:fixed → 한 칸만 바꿔도 다른 칸 안 흔들림
+     · 계정별 서버 저장(view_prefs, key=export_hs_dict_cols) → 다른 PC·재로그인에도 유지
+     · JS 가 실패해도 colgroup 기본 폭으로 정상 렌더(안전)
+   ⚠규칙 23(z1040c): 되돌릴 길을 같이 준다 → [↔ 칸 너비 되돌리기] + 최소폭 하한(46px)
+   ───────────────────────────────────────────────────────────────────────────── */
+(function(){
+  var tbl = document.getElementById('hsdTable'); if(!tbl) return;
+  var cg = tbl.querySelector('colgroup'); if(!cg) return;
+  var MINW = 46, MAXW = 640;
+  var P = {};
+  try { P = JSON.parse((document.getElementById('hsdColPrefs')||{}).textContent || '{}') || {}; } catch(e){ P = {}; }
+  if(typeof P !== 'object' || !P) P = {};
+  P.w = (P.w && typeof P.w === 'object') ? P.w : {};
+
+  function colEl(k){ return cg.querySelector('col[data-col="'+k+'"]'); }
+  /* z1045 ⚠table-layout:fixed 에서 '지정 폭 합'이 표 폭보다 크면 칸이 도로 눌린다
+     (z965 통관표에서 같은 함정 — 넓혔는데 안 넓어짐). → 지정 폭 합 + 자동칸 최소치를
+     표의 min-width 로 박아, 넓힌 만큼 실제로 넓어지고 모자라면 가로 스크롤이 생기게 한다. */
+  var VN_FLOOR = 220;                       /* 베트남어 품명 = 유일한 자동 폭 칸의 최소치 */
+  function fitTableWidth(){
+    var tot = 0;
+    cg.querySelectorAll('col').forEach(function(c){
+      var k = c.dataset.col;
+      if(k === 'vn_name'){ tot += (P.w[k] || VN_FLOOR); return; }
+      tot += (P.w[k] || parseInt(c.getAttribute('width'), 10) || 80);
+    });
+    tbl.style.minWidth = tot + 'px';
+  }
+  function apply(k){
+    var c = colEl(k), th = tbl.querySelector('thead th[data-col="'+k+'"]');
+    var wv = P.w[k] ? (P.w[k] + 'px') : '';
+    if(c){ c.style.width = wv; if(wv) c.setAttribute('width', P.w[k]); }
+    if(th) th.style.width = wv;
+    fitTableWidth();
+  }
+  function applyAll(){ Object.keys(P.w).forEach(apply); fitTableWidth(); }
+
+  var _t = null;
+  function save(){
+    clearTimeout(_t);
+    _t = setTimeout(function(){
+      try { fetch('/export/hs-dict/cols', {method:'POST', headers:{'Content-Type':'application/json'},
+                                           credentials:'same-origin', body:JSON.stringify({w:P.w})}); } catch(e){}
+    }, 450);
+  }
+
+  var rz = null;
+  tbl.querySelectorAll('.col-resizer').forEach(function(h){
+    h.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var k = h.dataset.col, th = tbl.querySelector('thead th[data-col="'+k+'"]');
+      rz = {k:k, x:e.clientX, w: th ? Math.round(th.getBoundingClientRect().width) : 120};
+      document.body.style.cursor = 'col-resize';
+    });
+  });
+  document.addEventListener('mousemove', function(e){
+    if(!rz) return;
+    var w = Math.max(MINW, Math.min(MAXW, rz.w + (e.clientX - rz.x)));
+    P.w[rz.k] = Math.round(w); apply(rz.k);
+  });
+  document.addEventListener('mouseup', function(){
+    if(rz){ rz = null; document.body.style.cursor = ''; save(); }
+  });
+
+  window.hsdColsReset = function(){
+    P.w = {};
+    cg.querySelectorAll('col').forEach(function(c){ c.style.width = ''; });
+    tbl.querySelectorAll('thead th').forEach(function(th){ th.style.width = ''; });
+    tbl.style.minWidth = '';
+    save();
+    try { if(window.KNKBusy && KNKBusy.toast) KNKBusy.toast('칸 너비를 처음 상태로 되돌렸습니다', 'ok'); } catch(e){}
+    setTimeout(function(){ location.reload(); }, 400);
+  };
+
+  try { applyAll(); } catch(e){}
 })();
 </script>
 </body></html>

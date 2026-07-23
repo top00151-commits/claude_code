@@ -36185,9 +36185,45 @@ async def export_hs_dict_page(req: Request):
             vals += [f"%{_hs_norm_key(q)}%", kk, kk, kk, kk]
         sql += " ORDER BY CASE status WHEN 'PENDING' THEN 0 WHEN 'AI' THEN 1 ELSE 2 END, seen_count DESC, part_key LIMIT 400"
         rows = [dict(r) for r in c.execute(sql, vals)]
+    # v5H226z1045 (표준 반영·가이드 §23 '데이터 입력표=엑셀식 격자·열 폭 조절'):
+    #   칸 너비를 계정별로 기억한다. 통관 입력표(z951)와 같은 범용 view_prefs 재사용.
+    try:
+        col_prefs = _logi.view_prefs_get(u.get("id"), "export_hs_dict_cols") or "{}"
+    except Exception:
+        col_prefs = "{}"
     return ctx(req, "export_hs_dict.html", user=u, active="export",
-               rows=rows, stats=stats, q=q, st=st,
+               rows=rows, stats=stats, q=q, st=st, col_prefs=col_prefs,
                total=sum(stats.values()))
+
+
+@app.post("/export/hs-dict/cols")
+async def export_hs_dict_cols_save(req: Request):
+    """v5H226z1045 (대표 지시·표준 반영): HS 사전 표 칸 너비 계정별 저장.
+    통관 입력표(z951 `/export/prep/cols`)와 같은 범용 view_prefs 재사용(key='export_hs_dict_cols').
+    ⚠컬럼 키·폭은 화이트리스트만 저장(JSON 을 화면 <script> 로 되돌려 주므로 주입 차단)."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    import re as _re1045
+
+    def _okk(s):
+        return isinstance(s, str) and bool(_re1045.match(r"^[a-z_]{1,24}$", s))
+
+    _w = body.get("w") if isinstance(body.get("w"), dict) else {}
+    cfg = {"w": {k: int(v) for k, v in _w.items()
+                 if _okk(k) and isinstance(v, (int, float)) and 30 <= v <= 900}}
+    try:
+        import json as _json1045
+        _logi.view_prefs_set(u.get("id"), "export_hs_dict_cols", _json1045.dumps(cfg))
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": str(e)}, 200)
+    return JSONResponse({"ok": True})
 
 
 @app.post("/export/hs-dict/{did:int}/save")
