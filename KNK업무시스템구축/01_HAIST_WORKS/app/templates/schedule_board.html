@@ -537,12 +537,27 @@ function updateSticky(){
     const S='#schedTable th[data-col="'+k+'"],#schedTable td[data-col="'+k+'"]';
     css+=S+'{position:sticky;left:'+off+'px;z-index:4;}'
        + '#schedTable thead th[data-col="'+k+'"]{z-index:7;}';   // 머리글은 세로 고정(6)보다 위
-    if(i===pins.length-1){   // 고정 구간의 끝을 빨간 선으로 — 여기까지가 붙어 있는 칸
-      css+=S+'{border-right:2px solid var(--knk-red);}';
+    if(i===pins.length-1){
+      // v5H226z1040c (안지연 프로 신고): 처음엔 굵은 **빨간 선**을 그었더니
+      //   *"뭔가 빨간선 하나가 더 있길래 **그걸로 고정하는건가?** 하면서 막 난리치다가"* —
+      //   칸 경계의 굵은 세로선은 누구나 **잡아 끄는 손잡이**로 읽는다(실제 손잡이가 바로 거기 있어 더 헷갈림).
+      //   → 엑셀의 '틀 고정'처럼 **옆으로 번지는 그림자**로 바꾼다. 경계는 보이되 '잡는 것'처럼 보이지 않는다.
+      css+=S+'{box-shadow:4px 0 5px -3px rgba(0,0,0,.28);}';
     }
     off+=colState(k).w;      // 실제 적용 폭(applyWidths 와 같은 소스) — 측정 타이밍에 안 흔들린다
   });
   st.textContent=css;
+  // v5H226z1040c: '왜 이 칸만 안 밀리지?'를 화면이 스스로 답하게 — 고정된 머리글에 설명을 붙인다.
+  //   (안지연 프로가 빨간선을 보고 "그걸로 고정하는건가?" 하며 추측해야 했던 게 문제였다)
+  t.querySelectorAll('thead th[data-col]').forEach(th=>{
+    const k=th.dataset.col;
+    if(!COL_LABELS[k]) return;
+    if(pins.indexOf(k)>=0){
+      th.setAttribute('title', '📌 왼쪽 고정된 칸 — 옆으로 밀어도 계속 보입니다.\n'
+        + '바꾸려면 [⚙ 도구] → [칸 설정] 의 📌\n'
+        + '※ 칸 경계를 끌면 너비가 바뀝니다 (되돌리기: 칸 설정의 ↔)');
+    } else { th.removeAttribute('title'); }
+  });
 }
 function togglePin(k){
   if(k===PIN_ALWAYS){ toast('관리번호는 항상 고정입니다'); return; }
