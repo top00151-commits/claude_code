@@ -35720,7 +35720,11 @@ async def export_hs_ai_suggest(req: Request, pid: int):
         targets.append({"iid": it["id"], "key": key,
                         "name": str(it.get("unit_label") or "").strip(),
                         "spec": str(it.get("spec") or "").strip(),
-                        "maker": str(it.get("maker") or "").strip()})
+                        "maker": str(it.get("maker") or "").strip(),
+                        # v5H226z1046: 통관 입력표에 **사람이 이미 적어 둔 원산지**를 그대로 들고 간다.
+                        #   지금까지 이 값을 버려서 AI 행은 원산지가 통째로 비어 있었다(사전 화면의 '공란').
+                        #   ⛔AI 에게 원산지를 추정시키지는 않는다 — 원산지는 세관 신고 항목이다(z1041b: 틀린 값보다 빈 값).
+                        "origin": str(it.get("origin") or "").strip()})
     if not targets:
         return JSONResponse({"ok": True, "suggestions": [], "message": "AI 추정 대상(사전 미등록·HS 빈 품목)이 없습니다"})
     targets = targets[:200]   # 1회 상한(비용 가드)
@@ -35764,10 +35768,14 @@ async def export_hs_ai_suggest(req: Request, pid: int):
                 if not t.get("_hs"):
                     continue
                 c.execute(
-                    "INSERT OR IGNORE INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,status,seen_count,source_file,note,updated_by) "
-                    "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    # v5H226z1046: origin 칸 추가 — 지금까지 이 INSERT 에 원산지 컬럼 자체가 없어
+                    #   AI 행은 통관 입력표에 값이 있어도 **무조건 공란**이었다.
+                    "INSERT OR IGNORE INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,source_file,note,updated_by) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                     (t["key"], t["spec"] or t["name"], t["name"], t.get("_vn") or "",
-                     t["_hs"], "AI", 0, "AI", "AI 추정 — 검토 필요", u.get("id")))
+                     t["_hs"], t.get("origin") or "", "AI", 0, "AI",
+                     "AI 추정 — 검토 필요" + ("" if t.get("origin") else " (원산지 미기재)"),
+                     u.get("id")))
     return JSONResponse({"ok": True, "suggestions": suggestions})
 
 
@@ -36293,9 +36301,9 @@ async def export_hs_dict_upload(req: Request):
             if not rows:
                 results.append({"file": fname, "error": "INVOICE 표(HS CODE 헤더)도, 검토표 머리글도 찾지 못함"})
                 continue
-            added = updated = conflict = 0
+            added = updated = conflict = or_clash = 0
             for row in rows:
-                ex = c.execute("SELECT id, hs_code, status FROM export_hs_dict WHERE part_key=?",
+                ex = c.execute("SELECT id, hs_code, status, origin FROM export_hs_dict WHERE part_key=?",
                                (row["key"],)).fetchone()
                 if not ex:
                     c.execute(
@@ -36306,14 +36314,29 @@ async def export_hs_dict_upload(req: Request):
                     added += 1
                 elif (ex["hs_code"] or "") == row["hs"]:
                     # 같은 HS 재출현 — 실적 확인: AI 추정이었다면 CONFIRMED 승격
-                    c.execute(
-                        "UPDATE export_hs_dict SET seen_count=seen_count+1, last_seen=?, source_file=?, "
-                        "vn_name=CASE WHEN ?<>'' THEN ? ELSE vn_name END, "
-                        "origin=CASE WHEN ?<>'' THEN ? ELSE origin END, "
-                        "status=CASE WHEN status='AI' THEN 'CONFIRMED' ELSE status END, "
-                        "updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
-                        (today, fname, row["vn"], row["vn"], row["origin"], row["origin"],
-                         u.get("id"), ex["id"]))
+                    # v5H226z1046 (대표 지시): ⛔**원산지를 말없이 덮지 않는다**.
+                    #   HS 는 다르면 '확인 대기'로 세우면서 원산지만 조용히 마지막 파일 값으로 바꾸고 있었다
+                    #   (실측 103종). 원산지도 세관 신고 항목이라 같은 원칙이 맞다 —
+                    #   빈 칸이면 채우고, 같으면 그대로, **다르면 덮지 않고 사유로 알린다**.
+                    #   ⚠상태는 건드리지 않는다(HS 는 맞으므로 자동 채움은 계속 쓸 수 있어야 한다).
+                    #   cf [[feedback_data_connectivity]] 자동연결=명확한 단일후보만
+                    _cur_or = (ex["origin"] or "").strip()
+                    _new_or = (row["origin"] or "").strip()
+                    _clash = bool(_cur_or and _new_or and _cur_or != _new_or)
+                    _sets = ["seen_count=seen_count+1", "last_seen=?", "source_file=?",
+                             "vn_name=CASE WHEN ?<>'' THEN ? ELSE vn_name END",
+                             "status=CASE WHEN status='AI' THEN 'CONFIRMED' ELSE status END"]
+                    _vals = [today, fname, row["vn"], row["vn"]]
+                    if _clash:
+                        _sets.append("note=?")
+                        _vals.append(f"⚠원산지 이견: 기존 {_cur_or} ↔ 신규 {_new_or} ({fname})")
+                        or_clash += 1
+                    elif _new_or:
+                        _sets.append("origin=?")      # 비었으면 채우고, 같으면 그대로(무해)
+                        _vals.append(_new_or)
+                    _sets += ["updated_by=?", "updated_at=datetime('now','localtime')"]
+                    _vals += [u.get("id"), ex["id"]]
+                    c.execute(f"UPDATE export_hs_dict SET {','.join(_sets)} WHERE id=?", _vals)
                     updated += 1
                 else:
                     # 다른 HS 재출현 = 충돌 → PENDING(자동 채움 제외) + note 기록. 몰래 교체 금지(사람 확인).
@@ -36324,7 +36347,7 @@ async def export_hs_dict_upload(req: Request):
                         (row["hs"], fname, today, u.get("id"), ex["id"]))
                     conflict += 1
             results.append({"file": fname, "rows": len(rows), "added": added,
-                            "updated": updated, "conflict": conflict})
+                            "updated": updated, "conflict": conflict, "or_clash": or_clash})
     return JSONResponse({"ok": True, "results": results})
 
 

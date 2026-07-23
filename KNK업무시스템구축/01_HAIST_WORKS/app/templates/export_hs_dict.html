@@ -241,7 +241,7 @@
        ⚠서버는 그대로(여러 개도 계속 받는다) — 화면만 나눠 보낸다. */
     var files = Array.prototype.slice.call(inp.files);
     btn.disabled = true; res.innerHTML = '';
-    var a=0,u2=0,cf=0,er=0, lines=[];
+    var a=0,u2=0,cf=0,er=0,oc=0, lines=[];   /* oc = z1046 원산지 이견(값은 안 바꾸고 알리기만) */
     /* v5H226z1045 (표준 반영·가이드 §24 '처리 중 피드백'): 파일 분석은 개당 1~2초 — 공용 KNKBusy
        오버레이로 '처리 중'을 확실히 보여준다(진행률 n/N 포함). ⚠성공·실패·예외 **모든 경로**에서 닫는다. */
     var ov = null;
@@ -278,19 +278,24 @@
               + (x.skipped? ' · 변경없음 ' + x.skipped : '')
               + (x.bad? ' · ⛔HS 형식오류 ' + x.bad : ''));
           }
-          else { a+=x.added; u2+=x.updated; cf+=x.conflict; lines.push('✅ ' + x.file + ' — ' + x.rows + '행 (추가 ' + x.added + ' · 갱신 ' + x.updated + (x.conflict? ' · ⚠충돌 ' + x.conflict : '') + ')'); }
+          /* z1046: 원산지 이견은 충돌(상태 전환)과 다르다 — 값은 그대로 두고 사유로만 알린다. 따로 센다. */
+          else { a+=x.added; u2+=x.updated; cf+=x.conflict; oc+=(x.or_clash||0);
+            lines.push('✅ ' + x.file + ' — ' + x.rows + '행 (추가 ' + x.added + ' · 갱신 ' + x.updated
+              + (x.conflict? ' · ⚠충돌 ' + x.conflict : '')
+              + (x.or_clash? ' · ⚠원산지 이견 ' + x.or_clash : '') + ')'); }
         });
         draw();
       } catch(e){ er++; lines.push('❌ ' + f.name + ' — 통신 끊김: ' + e); draw(); }
     }
-    var summary = '완료: 추가 ' + a + ' · 갱신 ' + u2 + (cf? ' · ⚠충돌 ' + cf + '(확인 대기로 전환)' : '') + (er? ' · 실패 ' + er : '');
+    var summary = '완료: 추가 ' + a + ' · 갱신 ' + u2 + (cf? ' · ⚠충돌 ' + cf + '(확인 대기로 전환)' : '')
+      + (oc? ' · ⚠원산지 이견 ' + oc + '(기존 값 유지 · 사유 표시)' : '') + (er? ' · 실패 ' + er : '');
     msg.textContent = summary;
-    msg.style.color = cf||er ? '#b45309' : '#15803d';
+    msg.style.color = cf||er||oc ? '#b45309' : '#15803d';
     /* 저장→새로고침 패턴: reload 뒤에 완료 토스트가 뜨도록 예약(공용 표준) */
-    try { if(window.KNKBusy && KNKBusy.flashOnReload) KNKBusy.flashOnReload(summary, (cf||er) ? 'info' : 'ok'); } catch(e){}
+    try { if(window.KNKBusy && KNKBusy.flashOnReload) KNKBusy.flashOnReload(summary, (cf||er||oc) ? 'info' : 'ok'); } catch(e){}
     /* done()/fail() 은 스스로 닫는다 → 여기서 ov 를 비워 finally 가 겹쳐 닫지 않게(✓ 표시가 안 보이던 함정) */
     try { if(ov){ if(er) ov.fail('일부 파일을 읽지 못했습니다 — 아래 목록을 확인하세요'); else ov.done(summary); ov = null; } } catch(e){}
-    setTimeout(function(){ location.reload(); }, cf||er ? 4500 : 1800);
+    setTimeout(function(){ location.reload(); }, cf||er||oc ? 4500 : 1800);   /* 읽을 게 있으면 더 오래 보여준다 */
     } catch(e){
       /* 예상 못 한 예외라도 오버레이·버튼은 반드시 되돌린다(가이드 §24) */
       hsdToast('업로드 중 문제가 생겼습니다 — ' + e, 'err');
