@@ -130,23 +130,46 @@
     var res = document.getElementById('hsdUpResult');
     var btn = document.getElementById('hsdUpBtn');
     if(!inp.files || !inp.files.length){ alert('파일을 선택하세요 (.xlsx 여러 개 가능)'); return; }
-    var fd = new FormData();
-    for(var i=0;i<inp.files.length;i++) fd.append('files', inp.files[i]);
-    btn.disabled = true; msg.textContent = '⏳ 업로드·분석 중…'; msg.style.color = '#1d4ed8';
-    try {
-      var r = await fetch('/export/hs-dict/upload', {method:'POST', body:fd, credentials:'same-origin'});
-      var j = await r.json();
-      if(!j.ok){ msg.textContent = '❌ ' + (j.error||'실패'); msg.style.color = '#dc2626'; btn.disabled = false; return; }
-      var a=0,u2=0,cf=0,er=0, lines=[];
-      (j.results||[]).forEach(function(x){
-        if(x.error){ er++; lines.push('❌ ' + x.file + ' — ' + x.error); }
-        else { a+=x.added; u2+=x.updated; cf+=x.conflict; lines.push('✅ ' + x.file + ' — ' + x.rows + '행 (추가 ' + x.added + ' · 갱신 ' + x.updated + (x.conflict? ' · ⚠충돌 ' + x.conflict : '') + ')'); }
-      });
-      msg.textContent = '완료: 추가 ' + a + ' · 갱신 ' + u2 + (cf? ' · ⚠충돌 ' + cf + '(확인 대기로 전환)' : '') + (er? ' · 실패 ' + er : '');
-      msg.style.color = cf||er ? '#b45309' : '#15803d';
-      res.innerHTML = lines.map(function(s){ return '<div>' + s.replace(/</g,'&lt;') + '</div>'; }).join('');
-      setTimeout(function(){ location.reload(); }, cf||er ? 3500 : 1800);
-    } catch(e){ msg.textContent = '❌ 통신 오류: ' + e; msg.style.color = '#dc2626'; btn.disabled = false; }
+    /* v5H226z1042 (대표 신고 "❌ 통신 오류: SyntaxError: Unexpected token '<'"):
+       여러 개를 **한 요청에 몰아 보내던 것**을 파일 하나씩 순서대로 보내도록 바꾼다.
+       · 19개 = 서버 분석만 약 28초 + 12MB 전송 → 게이트웨이 시간 초과에 걸리면
+         JSON 대신 **오류 HTML** 이 와서 `<!DOCTYPE …` 파싱 실패로 보였다.
+       · 하나씩이면 1~2초짜리 요청이라 안 걸리고, **어느 파일에서 막혔는지도 바로 보인다**.
+       ⚠서버는 그대로(여러 개도 계속 받는다) — 화면만 나눠 보낸다. */
+    var files = Array.prototype.slice.call(inp.files);
+    btn.disabled = true; res.innerHTML = '';
+    var a=0,u2=0,cf=0,er=0, lines=[];
+    function draw(){ res.innerHTML = lines.map(function(s){ return '<div>' + s.replace(/</g,'&lt;') + '</div>'; }).join(''); }
+    for (var i=0; i<files.length; i++){
+      var f = files[i];
+      msg.textContent = '⏳ ' + (i+1) + '/' + files.length + ' 분석 중 — ' + f.name;
+      msg.style.color = '#1d4ed8';
+      var fd = new FormData(); fd.append('files', f);
+      try {
+        var r = await fetch('/export/hs-dict/upload', {method:'POST', body:fd, credentials:'same-origin'});
+        var raw = await r.text();
+        var j = null;
+        try { j = JSON.parse(raw); } catch(_){}
+        if (!j) {
+          /* JSON 이 아니면 = 서버가 오류/로그인 페이지를 준 것. 무슨 일인지 사람 말로. */
+          var why = (r.status===502||r.status===504) ? '서버 응답 시간 초과(파일이 크거나 서버가 바쁨)'
+                  : (/login|로그인/i.test(raw.slice(0,600))) ? '로그인이 풀렸습니다 — 새로고침 후 다시 로그인하세요'
+                  : ('서버 오류 (HTTP ' + r.status + ')');
+          er++; lines.push('❌ ' + f.name + ' — ' + why); draw();
+          continue;                       /* 다음 파일은 계속 시도 */
+        }
+        if (!j.ok) { er++; lines.push('❌ ' + f.name + ' — ' + (j.error||'실패')); draw(); continue; }
+        (j.results||[]).forEach(function(x){
+          if(x.error){ er++; lines.push('❌ ' + x.file + ' — ' + x.error); }
+          else { a+=x.added; u2+=x.updated; cf+=x.conflict; lines.push('✅ ' + x.file + ' — ' + x.rows + '행 (추가 ' + x.added + ' · 갱신 ' + x.updated + (x.conflict? ' · ⚠충돌 ' + x.conflict : '') + ')'); }
+        });
+        draw();
+      } catch(e){ er++; lines.push('❌ ' + f.name + ' — 통신 끊김: ' + e); draw(); }
+    }
+    msg.textContent = '완료: 추가 ' + a + ' · 갱신 ' + u2 + (cf? ' · ⚠충돌 ' + cf + '(확인 대기로 전환)' : '') + (er? ' · 실패 ' + er : '');
+    msg.style.color = cf||er ? '#b45309' : '#15803d';
+    btn.disabled = false;
+    setTimeout(function(){ location.reload(); }, cf||er ? 4500 : 1800);
   };
 })();
 </script>
