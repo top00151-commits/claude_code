@@ -21082,11 +21082,19 @@ async def project_bom_purge(request: Request, pid: int):
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     from urllib.parse import quote as _q
+    # WP-01(P0-05·게이트 F-03): 운영 BOM 폐기 차단 — admin/ceo 전용 + 테스트 관리번호(999/A 접두)만
+    _role = ((u.get("role") if isinstance(u, dict) else u["role"]) or "")
+    if _role not in ("admin", "ceo"):
+        return RedirectResponse(
+            f"/projects/{pid}/bom?error={_q('BOM 폐기는 관리자(admin/ceo) 전용입니다')}", 303)
     form = await request.form()
     typed = (form.get("confirm_code") or "").strip()
     with db_session() as c:
         pr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (pid,)).fetchone()
     mgmt = ((pr["mgmt_code"] if pr else "") or "").strip()
+    if not (mgmt.startswith("999") or mgmt.upper().startswith("A")):
+        return RedirectResponse(
+            f"/projects/{pid}/bom?error={_q('운영 BOM은 폐기할 수 없습니다(이력 보존) — 테스트 관리번호(999/A 접두)만 가능합니다')}", 303)
     if not mgmt or typed != mgmt:
         return RedirectResponse(
             f"/projects/{pid}/bom?error={_q('관리번호가 일치하지 않아 삭제를 취소했습니다')}", 303)

@@ -298,8 +298,8 @@
         <div class="card-trend {% if sk.low_stock|default(0) > 0 %}alert{% else %}up{% endif %}">{% if sk.low_stock|default(0) > 0 %}임계 미만{% else %}안전{% endif %}</div>
       </a>
 
-      {# WP-01(P0-01): 옛 링크는 미등록 주소 — 실제 입고 화면으로 정정 #}
-      <a class="card clickable" href="/stock/receipts">
+      {# WP-01(게이트 F-05): 쓰기 경로 대신 조회(수불부 원장)로 연결 #}
+      <a class="card clickable" href="/stock/movements">
         <div class="card-label">최근 입고 (7일)</div>
         <div class="card-value">{{ sk.recent_receipts|default(0) }}</div>
         <div class="card-trend neutral">건</div>
@@ -321,15 +321,17 @@
           <div class="action-text"><h4>새 발주서</h4><p>거래처 + 품목 + 단가</p></div>
           <div class="action-arrow">→</div>
         </a>
-        {# WP-01(P0-01): 빠른 액션 링크 정정 — 입고=실제 입고 화면, 출고=출고 화면(기존 링크는 품질 이슈 모듈로 잘못 연결) #}
-        <a class="action-card" href="/stock/receipts">
+        {# WP-01(게이트 F-04/F-05): 쓰기 위험 경로를 홈에서 노출하지 않는다 —
+           입고는 발주 목록에서 진행(분리 Transaction 경로 비노출), 출고는 요청·승인
+           흐름으로만 진입(확정 ISSUED 시에만 재고 차감). 기존 링크는 품질 이슈 오연결이었음. #}
+        <a class="action-card" href="/po">
           <div class="action-icon">📦</div>
-          <div class="action-text"><h4>입고 처리</h4><p>배송 도착 자재 등록</p></div>
+          <div class="action-text"><h4>입고 처리</h4><p>발주 목록에서 입고 진행</p></div>
           <div class="action-arrow">→</div>
         </a>
-        <a class="action-card" href="/stock/issue">
+        <a class="action-card" href="/stock/issues">
           <div class="action-icon">📤</div>
-          <div class="action-text"><h4>출고 등록</h4><p>현장 자재 인계</p></div>
+          <div class="action-text"><h4>출고 요청</h4><p>요청 → 승인 → 확정 시 차감</p></div>
           <div class="action-arrow">→</div>
         </a>
         <a class="action-card" href="/parts/new">

@@ -6443,63 +6443,42 @@ def parts_update(pid: int, data: dict) -> None:
 
 
 def parts_delete(pid: int) -> None:
-    """v5H119: 공통 헬퍼 _safe_delete_with_cascade 사용. 폴백: v5H112 인라인 로직.
-    WP-01(P0-05): 거래 이력(재고 원장·발주·견적 참조)이 있으면 삭제 차단 — 원장 파괴 방지.
-    이력이 전혀 없는 자재(오등록 등)만 기존대로 삭제 허용."""
-    imp = parts_delete_impact(pid)
-    _refs = (int(imp.get("movement_refs") or 0) + int(imp.get("po_refs") or 0)
-             + int(imp.get("quote_refs") or 0))
-    if _refs > 0:
-        raise ValueError(
-            f"거래 이력이 있어 삭제할 수 없습니다 — 재고 원장 {imp.get('movement_refs', 0)}건 · "
-            f"발주 {imp.get('po_refs', 0)}건 · 견적 {imp.get('quote_refs', 0)}건. "
-            "이력 보존을 위해 삭제 대신 수정 화면의 '비활성'을 사용하세요.")
+    """WP-01(P0-05·게이트 F-01 재작성): 자재 실삭제는 '업무 참조 0'일 때만 허용.
+    part_id 컬럼을 가진 모든 실테이블을 같은 트랜잭션에서 스캔해 참조를 세고,
+    하나라도 있으면 ValueError로 차단한다 — 자식 행을 NULL 처리하거나 삭제하는
+    정리는 금지(BOM·출고요청·수주·품질·수출 이력 보호). 정상 업무의 자재 제외는
+    is_active=0 비활성을 사용한다. 별칭(part_aliases)은 이 자재의 다른 표기일 뿐이라
+    본행과 함께 삭제한다. (구 _safe_delete_with_cascade 경로 폐지 — 이력 파괴 원인)"""
     with db_session() as c:
-        try:
-            res = _safe_delete_with_cascade(
-                c, "parts", pid, fk_column="part_id",
-                explicit_children=[
-                    ("UPDATE po_items SET part_id=NULL WHERE part_id=?", (pid,)),
-                    ("UPDATE quotation_items SET part_id=NULL WHERE part_id=?", (pid,)),
-                    ("DELETE FROM stock_movements WHERE part_id=?", (pid,)),
-                    ("DELETE FROM part_prices WHERE part_id=?", (pid,)),
-                    ("DELETE FROM parts_safety WHERE part_id=?", (pid,)),
-                ],
-            )
-            if res.get("ok"):
-                return
-        except Exception:
-            pass
-        # 폴백 (v5H112 원본 인라인) — 헬퍼 실패/예외 시 안전망
-        for sql in [
-            "UPDATE po_items SET part_id=NULL WHERE part_id=?",
-            "UPDATE quotation_items SET part_id=NULL WHERE part_id=?",
-            "DELETE FROM stock_movements WHERE part_id=?",
-            "DELETE FROM part_prices WHERE part_id=?",
-            "DELETE FROM parts_safety WHERE part_id=?",
-        ]:
-            try: c.execute(sql, (pid,))
-            except Exception: pass
-        try:
-            all_tables = [r[0] for r in c.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name NOT LIKE 'sqlite_%' AND name <> 'parts'"
-            ).fetchall()]
-            for tname in all_tables:
-                try:
-                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tname})").fetchall()]
-                except Exception:
-                    continue
-                if "part_id" not in cols:
-                    continue
-                try:
-                    c.execute(f"UPDATE {tname} SET part_id=NULL WHERE part_id=?", (pid,))
-                except Exception:
-                    try: c.execute(f"DELETE FROM {tname} WHERE part_id=?", (pid,))
-                    except Exception: pass
-        except Exception:
-            pass
+        refs = _part_delete_ref_counts(c, pid)
+        if refs:
+            top = " · ".join(f"{t} {n}건" for t, n in refs[:4])
+            more = f" 외 {len(refs) - 4}개 표" if len(refs) > 4 else ""
+            raise ValueError(
+                f"업무 참조가 있어 삭제할 수 없습니다 — {top}{more}. "
+                "이력 보존을 위해 삭제 대신 수정 화면의 '비활성'을 사용하세요.")
+        c.execute("DELETE FROM part_aliases WHERE part_id=?", (pid,))
         c.execute("DELETE FROM parts WHERE id = ?", (pid,))
+
+
+def _part_delete_ref_counts(c, pid: int) -> list:
+    """WP-01(P0-05): part_id 컬럼을 가진 모든 실테이블의 참조 건수 [(표, 건수), ...].
+    제외는 parts 본체와 part_aliases뿐 — 병합로그·첨부·단가이력·안전재고까지 전부
+    '참조'로 세어 보수적으로 차단한다. 스캔 실패는 삼키지 않는다(막는 방향이 안전)."""
+    out = []
+    for tr in c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall():
+        t = tr[0]
+        if t in ("parts", "part_aliases"):
+            continue
+        cols = [x[1] for x in c.execute(f"PRAGMA table_info({t})").fetchall()]
+        if "part_id" not in cols:
+            continue
+        n = c.execute(f"SELECT COUNT(*) FROM {t} WHERE part_id=?", (pid,)).fetchone()[0]
+        if n:
+            out.append((t, int(n)))
+    return out
 
 
 def parts_count() -> dict:
@@ -8476,8 +8455,17 @@ def po_update(po_id: int, data: dict, items: list[dict]) -> None:
 def po_delete(po_id: int) -> None:
     """v5H119: 공통 헬퍼 사용. 폴백: v5H112 인라인.
     헬퍼 호출 시 본행 'purchase_orders' / 자식 FK 'po_id'.
-    WP-01(P0-05): 입고 이력(입고수량·재고 원장·입고문서)이 있으면 삭제 차단 — 이력 파괴 방지."""
+    WP-01(P0-05·게이트 F-02): '작성중'이 아닌 발주는 발행된 외부 업무문서라 실삭제를
+    차단하고 '취소' 상태 처리를 안내한다. 작성중이라도 입고 흔적이 있으면 차단(2겹)."""
     with db_session() as c:
+        _row = c.execute("SELECT status FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
+        if not _row:
+            return
+        _st = ((_row["status"] or "")).strip()
+        if _st != "작성중":
+            raise ValueError(
+                f"'{_st}' 상태의 발주서는 삭제할 수 없습니다 — 발행된 업무문서는 이력 보존 대상입니다. "
+                "삭제 대신 발주 수정에서 '취소' 상태로 처리하세요.")
         _rcv = c.execute(
             "SELECT COALESCE(SUM(received_qty),0) FROM po_items WHERE po_id=?", (po_id,)
         ).fetchone()[0] or 0
@@ -9554,12 +9542,13 @@ def stock_kpi() -> dict:
                WHERE kind='OUT' AND occurred_at >= ?""",
             (since_30,),
         ).fetchone()[0] or 0
-        # WP-01(P0-01): logistics_home 카드 계약 보강 — 총 재고 수량 + 최근 7일 입고 '건수'.
-        #   기존 키는 불변(다른 사용처 무영향), 새 키만 추가.
+        # WP-01(P0-01·게이트 F-07): logistics_home 카드 계약 — 새 키만 추가(기존 키 불변).
+        #   recent_receipts = '오늘 포함 달력 7일'(today-6일 이후) 입고 '품목행' 건수
+        #   (stock_movements kind='IN' 행 수 기준 — 입고문서 건수가 아님).
         total_qty = c.execute(
             "SELECT COALESCE(SUM(stock_qty),0) FROM parts WHERE is_active=1"
         ).fetchone()[0] or 0
-        since_7 = (_date.today() - _td(days=7)).isoformat()
+        since_7 = (_date.today() - _td(days=6)).isoformat()
         recent_receipts = c.execute(
             """SELECT COUNT(*) FROM stock_movements
                WHERE kind='IN' AND occurred_at >= ?""",
