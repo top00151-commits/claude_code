@@ -35854,17 +35854,49 @@ def _hs_parse_invoice_xlsx(data: bytes, fname: str) -> list[dict]:
 #     ④전체 한 장 — 검토 필요한 것(충돌·AI)이 맨 위, 줄 색으로 구분
 #   ⚠통관은 법적 신고 — 자동 확정하지 않는다.
 # ------------------------------------------------------------
-#   (헤더, 폭, 담당자 입력칸?)  ⚠헤더 글자는 되받기 대조 키 — 바꾸면 파서도 같이 바꿀 것
+# v5H226z1044b (대표 지적 "이 엑셀파일은 베트남 직원도 사용하는거라 한국어·베트남어 둘 다 있어야"):
+#   머리글·안내·상태·사유를 전부 2개 국어로. 머리글은 **한국어 줄 + 베트남어 줄**(같은 칸 두 줄).
+#   ⚠되받기 판별은 머리글 글자 대조다 — 베트남어를 붙였으므로 파서를 '같음'에서 **'한국어로 시작'** 으로 바꿨다.
+#     (한국어 라벨은 그대로 필수 — 아무 표나 통과하지 않는다. 예전에 받아간 한국어 전용 파일도 계속 인식.)
+#   (한국어 머리글, 베트남어, 폭, 담당자 입력칸?)
 _HS_REVIEW_COLS = [
-    ("#", 6, False), ("규격(모델)", 22, False), ("영문 품명", 20, False),
-    ("상태", 12, False), ("확인 사유", 30, False),
-    ("현재 HS코드", 12, False), ("확정 HS코드", 12, True),
-    ("현재 원산지", 12, False), ("확정 원산지", 12, True),
-    ("현재 베트남어 품명", 30, False), ("확정 베트남어 품명", 30, True),
-    ("검토 의견", 26, True),
-    ("횟수", 6, False), ("최근 출현", 11, False),
+    ("#", "", 6, False),
+    ("규격(모델)", "Quy cách (Model)", 22, False),
+    ("영문 품명", "Tên hàng (EN)", 20, False),
+    ("상태", "Trạng thái", 18, False),
+    ("확인 사유", "Lý do cần kiểm tra", 32, False),
+    ("현재 HS코드", "Mã HS hiện tại", 13, False),
+    ("확정 HS코드", "Mã HS xác nhận", 14, True),
+    ("현재 원산지", "Xuất xứ hiện tại", 13, False),
+    ("확정 원산지", "Xuất xứ xác nhận", 14, True),
+    ("현재 베트남어 품명", "Tên hàng (VN) hiện tại", 30, False),
+    ("확정 베트남어 품명", "Tên hàng (VN) xác nhận", 30, True),
+    ("검토 의견", "Ý kiến rà soát", 26, True),
+    ("횟수", "Số lần", 7, False),
+    ("최근 출현", "Lần gần nhất", 12, False),
 ]
 _HS_REVIEW_HDR_ROW = 4      # 1=제목 2=검토자 3=쓰는 법 4=머리글 5~=데이터
+#   상태·사유도 베트남 담당자가 읽어야 한다(무엇을 왜 봐야 하는지가 여기 있다)
+_HS_REVIEW_ST = {"CONFIRMED": "✅ 확정 / Đã xác nhận",
+                 "PENDING": "⛔ 확인 대기 / Chờ kiểm tra",
+                 "AI": "🟡 AI 추정 / AI dự đoán"}
+#   사유(note)는 저장된 한국어 문장이다 — 낱말만 베트남어를 덧붙인다(값·숫자는 건드리지 않는다).
+#   ⚠순서 중요: '검토 충돌:' 을 '충돌:' 보다 먼저.
+_HS_NOTE_BI = [("검토 충돌:", "검토 충돌 / Xung đột rà soát:"),
+               ("검토 확정:", "검토 확정 / Đã xác nhận:"),
+               ("충돌:", "충돌 / Xung đột:"),
+               ("HS코드", "HS코드(Mã HS)"),
+               ("베트남어 품명", "베트남어 품명(Tên hàng VN)"),
+               ("원산지", "원산지(Xuất xứ)"),
+               ("기존", "기존(cũ)"), ("신규", "신규(mới)")]
+
+
+def _hs_note_bi(s: str) -> str:
+    """확인 사유를 한국어+베트남어로. 값·숫자·사람 이름은 그대로 둔다."""
+    out = str(s or "")
+    for ko, bi in _HS_NOTE_BI:
+        out = out.replace(ko, bi)
+    return out
 
 
 def _hs_review_xlsx_build(rows: list) -> bytes:
@@ -35890,41 +35922,56 @@ def _hs_review_xlsx_build(rows: list) -> bytes:
     ncol = len(_HS_REVIEW_COLS)
     last_col = _gcl(ncol)
 
-    ws["A1"] = "KNK 베트남 HS코드 검토표 — 파란 칸에만 적어 주세요 (회색 칸은 지금 저장된 값 · 잠겨 있습니다)"
-    ws["A1"].font = Font(bold=True, size=13, color="A5282C")
+    ws["A1"] = ("KNK 베트남 HS코드 검토표 — 파란 칸에만 적어 주세요 (회색 칸은 지금 저장된 값 · 잠겨 있습니다)\n"
+                "Bảng rà soát mã HS Việt Nam – KNK | Chỉ điền vào ô màu xanh "
+                "(ô màu xám là giá trị đang lưu, đã khóa)")
+    ws["A1"].font = Font(bold=True, size=12, color="A5282C")
+    ws["A1"].alignment = Alignment(vertical="center", wrap_text=True)
     ws.merge_cells(f"A1:{last_col}1")
-    ws["A2"] = "검토자"
+    ws.row_dimensions[1].height = 32
+    ws["A2"] = "검토자\nNgười rà soát"
     ws["A2"].font = white; ws["A2"].fill = knk; ws["A2"].border = border
+    ws["A2"].alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws["B2"] = ""
     ws["B2"].fill = f_in; ws["B2"].border = border; ws["B2"].protection = unlock
-    ws["C2"] = "← 이름을 적어 주세요 (예: 안지연 프로 / 베트남 통관담당). 비우면 파일 이름으로 구분합니다."
+    ws["C2"] = ("← 이름을 적어 주세요 (예: 안지연 프로 / 베트남 통관담당). 비우면 파일 이름으로 구분합니다.  |  "
+                "Vui lòng ghi tên người rà soát. Nếu để trống sẽ phân biệt bằng tên tệp.")
     ws["C2"].font = Font(color="9A8A5A", italic=True, size=9)
+    ws["C2"].alignment = Alignment(vertical="center", wrap_text=True)
     ws.merge_cells(f"C2:{last_col}2")
+    ws.row_dimensions[2].height = 28
     ws["A3"] = ("① 고칠 것만 파란 칸에 적으세요 — 빈 칸은 손대지 않습니다.  "
                 "② 지금 값이 맞으면 '확정' 칸에 같은 값을 그대로 적어 주시면 '확정'으로 바뀝니다.  "
-                "③ HS코드는 숫자 8자리.  ④ 다 적었으면 이 파일 그대로 화면의 [파일 올리기]에 올리면 됩니다.")
+                "③ HS코드는 숫자 8자리.  ④ 다 적었으면 이 파일 그대로 화면의 [파일 올리기]에 올리면 됩니다.\n"
+                "① Chỉ điền vào ô màu xanh những mục cần sửa — ô để trống sẽ không bị thay đổi.  "
+                "② Nếu giá trị hiện tại đã đúng, hãy điền lại chính giá trị đó vào ô 'xác nhận' "
+                "để chuyển sang trạng thái Đã xác nhận.  "
+                "③ Mã HS gồm 8 chữ số.  ④ Điền xong, tải chính tệp này lên bằng nút [Tải tệp lên] trên màn hình.")
     ws["A3"].font = Font(color="1D4ED8", size=9.5, bold=True)
+    ws["A3"].alignment = Alignment(vertical="center", wrap_text=True)
     ws.merge_cells(f"A3:{last_col}3")
+    ws.row_dimensions[3].height = 34
 
     hr = _HS_REVIEW_HDR_ROW
-    for ci, (h, w, is_in) in enumerate(_HS_REVIEW_COLS, 1):
-        cel = ws.cell(hr, ci, h)
+    for ci, (h, vn, w, is_in) in enumerate(_HS_REVIEW_COLS, 1):
+        cel = ws.cell(hr, ci, (h + "\n" + vn) if vn else h)   # 한국어 줄 + 베트남어 줄
         cel.font = white; cel.fill = blue if is_in else knk
         cel.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cel.border = border
         ws.column_dimensions[_gcl(ci)].width = w
+    ws.row_dimensions[hr].height = 30
     ws.freeze_panes = ws.cell(hr + 1, 3)     # 머리글 + 번호·규격 고정
-    _ST_KO = {"CONFIRMED": "✅ 확정", "PENDING": "⛔ 확인 대기", "AI": "🟡 AI 추정"}
     _wrap = Alignment(vertical="top", wrap_text=True)
     for ri, r in enumerate(rows, hr + 1):
         vals = [r.get("id"), r.get("model") or r.get("part_key") or "", r.get("name_en") or "",
-                _ST_KO.get(r.get("status") or "", r.get("status") or ""), r.get("note") or "",
+                _HS_REVIEW_ST.get(r.get("status") or "", r.get("status") or ""),
+                _hs_note_bi(r.get("note") or ""),
                 r.get("hs_code") or "", "", r.get("origin") or "", "",
                 r.get("vn_name") or "", "", "",
                 r.get("seen_count") or 0, (r.get("last_seen") or "")[:10]]
         rowfill = f_pend if r.get("status") == "PENDING" else (f_ai if r.get("status") == "AI" else None)
         for ci, v in enumerate(vals, 1):
-            _h, _w, is_in = _HS_REVIEW_COLS[ci - 1]
+            _h, _vn, _w, is_in = _HS_REVIEW_COLS[ci - 1]
             cel = ws.cell(ri, ci, v)
             cel.border = border
             cel.alignment = _wrap
@@ -35940,10 +35987,11 @@ def _hs_review_xlsx_build(rows: list) -> bytes:
     lastr = hr + len(rows)
     ws.auto_filter.ref = f"A{hr}:{last_col}{max(lastr, hr)}"
     if rows:
-        _hs_col = _gcl([h for h, _w, _i in _HS_REVIEW_COLS].index("확정 HS코드") + 1)
+        _hs_col = _gcl([h for h, _v, _w, _i in _HS_REVIEW_COLS].index("확정 HS코드") + 1)
         dv = DataValidation(type="textLength", operator="equal", formula1="8",
                             allow_blank=True, errorStyle="warning",
-                            error="HS코드는 숫자 8자리입니다.", errorTitle="HS코드 확인")
+                            error="HS코드는 숫자 8자리입니다. / Mã HS gồm 8 chữ số.",
+                            errorTitle="HS코드 확인 / Kiểm tra mã HS")
         ws.add_data_validation(dv)
         dv.add(f"{_hs_col}{hr + 1}:{_hs_col}{lastr}")
     # 현재 값 칸 잠금(실수로 덮어쓰는 사고 방지). 비밀번호 없음 — 필터·정렬·열너비는 그대로 쓸 수 있게 열어 둔다.
@@ -35958,7 +36006,9 @@ def _hs_review_xlsx_build(rows: list) -> bytes:
 
 def _hs_parse_review_xlsx(data: bytes, fname: str):
     """올린 파일이 '검토표'인지 판별 → (행목록, 검토자). 검토표가 아니면 None(→인보이스 파서로 넘어간다).
-    ⚠머리글 엄격 대조 — 위치 폴백 없음(z978 규정). 판별 키 = '규격(모델)' + '확정 HS코드' 두 머리글."""
+    ⚠머리글 엄격 대조 — 위치 폴백 없음(z978 규정). 판별 키 = '규격(모델)' + '확정 HS코드' 두 머리글.
+    ⚠z1044b: 머리글이 '한국어 줄 + 베트남어 줄' 두 줄이 되었으므로 **'한국어 라벨로 시작하는가'** 로 찾는다
+      (한국어 라벨 자체는 여전히 필수 — 아무 표나 통과하지 않는다. 한국어 전용 구파일도 그대로 인식)."""
     import io as _io
     import re as _re
     import openpyxl as _px
@@ -35966,7 +36016,13 @@ def _hs_parse_review_xlsx(data: bytes, fname: str):
     def _n(v):
         return _re.sub(r"\s+", "", str(v if v is not None else ""))
 
-    need = (_n("규격(모델)"), _n("확정 HS코드"))
+    def _find(cols: dict, label: str):
+        lab = _n(label)
+        for t, cc in cols.items():           # 열 순서대로(파이썬 dict는 넣은 순서 유지)
+            if t.startswith(lab):
+                return cc
+        return None
+
     wb = _px.load_workbook(_io.BytesIO(data), data_only=True)
     for ws in wb.worksheets:
         if ws.sheet_state != "visible":
@@ -35978,20 +36034,20 @@ def _hs_parse_review_xlsx(data: bytes, fname: str):
                 t = _n(ws.cell(r, cc).value)
                 if t:
                     found.setdefault(t, cc)
-            if all(k in found for k in need):
+            if _find(found, "규격(모델)") and _find(found, "확정 HS코드"):
                 hdr_r, cols = r, found
                 break
         if not hdr_r:
             continue          # 이 시트는 검토표가 아니다
         def _col(label):
-            return cols.get(_n(label))
+            return _find(cols, label)
         c_id, c_key = _col("#"), _col("규격(모델)")
         c_hs, c_or = _col("확정 HS코드"), _col("확정 원산지")
         c_vn, c_memo = _col("확정 베트남어 품명"), _col("검토 의견")
         reviewer = ""
-        for r in range(1, hdr_r):     # 머리글 위쪽에서 '검토자' 라벨 오른쪽 칸
+        for r in range(1, hdr_r):     # 머리글 위쪽에서 '검토자' 라벨 오른쪽 칸(라벨도 2개 국어라 startswith)
             for cc in range(1, min(ws.max_column, 10) + 1):
-                if _n(ws.cell(r, cc).value) == "검토자":
+                if _n(ws.cell(r, cc).value).startswith("검토자"):
                     reviewer = str(ws.cell(r, cc + 1).value or "").strip()
                     break
             if reviewer:
