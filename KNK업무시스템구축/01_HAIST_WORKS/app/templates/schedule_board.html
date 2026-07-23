@@ -493,15 +493,55 @@ function applyVisibility(){
 }
 function applyCols(){ applyVisibility(); applyWidths(); }
 
+// ===== v5H226z1040 (안지연 프로 요청 · 대표 지시): 왼쪽 고정 칸을 사용자가 고른다 =====
+//   신고: "우측에서 출하처리 할 때 좌측에 기재되어있는 모델명/품명/업체명 등 다 숨겨지다보니 헷갈려서요.
+//          열은 사용자가 고정할 수 있게 해주시면 좋을 것 같아요."
+//   (행 재정렬은 그대로 둔다 — 안지연 프로 "행은 변경없이 기존처럼 유지(납품일 오름차순)")
+const PIN_DEFAULT=['code','so_no','name'];   // 기본값 = 지금까지의 c1·c2·c3 (설정 안 건드리면 화면 그대로)
+const PIN_ALWAYS='code';                     // 관리번호는 항상 — 행 펼침 빈 칸(.c1)이 left:0 에 기댄다
+const PIN_MAX=6;                             // 너무 많이 고정하면 날짜칸이 안 보인다
+function isPinned(k){
+  if(k===PIN_ALWAYS) return true;
+  const c=COLS[k]||{};
+  return (c.pin===undefined) ? (PIN_DEFAULT.indexOf(k)>=0) : !!c.pin;
+}
+/* 고정 칸을 **화면에 놓인 순서대로** — 순서 바꾸기(⠿)·숨기기와 어긋나지 않게 DOM 에서 읽는다 */
+function pinnedCols(){
+  const t=document.getElementById('schedTable'); if(!t) return [];
+  const out=[];
+  t.querySelectorAll('thead th[data-col]').forEach(th=>{
+    const k=th.dataset.col;
+    if(COL_LABELS[k] && isPinned(k) && !colState(k).hidden) out.push(k);
+  });
+  return out;
+}
 function updateSticky(){
   const t=document.getElementById('schedTable'); if(!t) return;
-  const th1=t.querySelector('thead th[data-col="code"]');
-  const th2=t.querySelector('thead th[data-col="so_no"]');
-  const w0=colState('code').hidden?0:(th1?th1.getBoundingClientRect().width:0);
-  const w1=colState('so_no').hidden?0:(th2?th2.getBoundingClientRect().width:0);
-  t.style.setProperty('--l2', w0+'px');
-  t.style.setProperty('--l3', (w0+w1)+'px');
+  let st=document.getElementById('schedPinCss');
+  if(!st){ st=document.createElement('style'); st.id='schedPinCss'; document.head.appendChild(st); }
+  const pins=pinnedCols();
+  let css='', off=0;
+  pins.forEach((k,i)=>{
+    css+='#schedTable [data-col="'+k+'"]{position:sticky;left:'+off+'px;z-index:4;}'
+       + '#schedTable thead th[data-col="'+k+'"]{z-index:7;}';   // 머리글은 세로 고정(6)보다 위
+    if(i===pins.length-1){   // 고정 구간의 끝을 빨간 선으로 — 여기까지가 붙어 있는 칸
+      css+='#schedTable [data-col="'+k+'"]{border-right:2px solid var(--knk-red);}';
+    }
+    off+=colState(k).w;      // 실제 적용 폭(applyWidths 와 같은 소스) — 측정 타이밍에 안 흔들린다
+  });
+  st.textContent=css;
 }
+function togglePin(k){
+  if(k===PIN_ALWAYS){ toast('관리번호는 항상 고정입니다'); return; }
+  const now=isPinned(k);
+  if(!now && pinnedCols().length>=PIN_MAX){
+    toast('고정은 최대 '+PIN_MAX+'칸까지 — 다른 칸을 먼저 풀어주세요'); return;
+  }
+  COLS[k]=COLS[k]||{}; COLS[k].pin=!now;
+  applyCols(); buildColsMenu(); saveCols();
+  toast(COL_LABELS[k]+(now?' 칸 고정을 풀었습니다':' 칸을 왼쪽에 고정했습니다'));
+}
+window.togglePin=togglePin;
 
 let _saveTimer=null;
 function saveCols(){
@@ -521,16 +561,28 @@ function showAllCols(){
 }
 function buildColsMenu(){
   const pop=document.getElementById('colsPop'); if(!pop) return;
+  // v5H226z1040: 체크=보이기 / 📌=왼쪽에 붙들기 (두 가지는 별개 — 보이면서 안 붙는 칸이 대부분)
   pop.innerHTML = '<button type="button" class="cols-allbtn" id="colsAllBtn">✓ 전체보기 (모두 표시)</button>'
-    + COL_KEYS.map(k=>
-    '<label><input type="checkbox" data-ck="'+k+'" '+(colState(k).hidden?'':'checked')+'> '+COL_LABELS[k]+'</label>'
-  ).join('');
+    + '<div class="cols-hint">📌 = 오른쪽 날짜칸으로 밀어도 <b>왼쪽에 계속 보이는 칸</b> (최대 '+PIN_MAX+'개)</div>'
+    + COL_KEYS.map(k=>{
+        const pinned=isPinned(k), always=(k===PIN_ALWAYS);
+        return '<label><input type="checkbox" data-ck="'+k+'" '+(colState(k).hidden?'':'checked')+'>'
+          + '<span class="cols-nm">'+COL_LABELS[k]+'</span>'
+          + '<button type="button" class="cols-pin'+(pinned?' on':'')+'" data-pin="'+k+'"'
+          + (always ? ' disabled title="관리번호는 항상 고정입니다"'
+                    : ' title="'+(pinned?'왼쪽 고정 풀기':'왼쪽에 고정하기')+'"')
+          + '>📌</button></label>';
+      }).join('');
   const ab=pop.querySelector('#colsAllBtn'); if(ab) ab.addEventListener('click', showAllCols);
-  pop.querySelectorAll('input').forEach(inp=>{
+  pop.querySelectorAll('input[data-ck]').forEach(inp=>{
     inp.addEventListener('change',()=>{
       const k=inp.dataset.ck; COLS[k]=COLS[k]||{}; COLS[k].hidden=!inp.checked;
       applyCols(); saveCols();
     });
+  });
+  // ⚠📌 는 <label> 안에 있다 — 막지 않으면 체크박스(보이기)까지 같이 바뀐다
+  pop.querySelectorAll('.cols-pin').forEach(btn=>{
+    btn.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); togglePin(btn.dataset.pin); });
   });
 }
 function toggleColsMenu(e){ e.stopPropagation(); document.getElementById('colsPop').classList.toggle('show'); }
@@ -559,7 +611,7 @@ function setDayRange(){
   COLS._dayFrom=f; COLS._dayTo=t; syncDayInputs(); applyCols(); saveCols();
 }
 
-function resetCols(){ schedCollapseUnits(); COLS={}; applyCols(); applyOrder(); buildColsMenu(); syncDayInputs(); saveCols(); toast('너비·숨김·날짜·위치를 초기화했습니다'); }
+function resetCols(){ schedCollapseUnits(); COLS={}; applyCols(); applyOrder(); buildColsMenu(); syncDayInputs(); saveCols(); toast('너비·숨김·날짜·위치·고정(📌)을 초기화했습니다'); }
 
 // ===== v5H226z517 (대표 지시): '데이터 컬럼' 위치(순서) 변경 — 머리글 ⠿ 그립 드래그.
 //   관리번호·수주번호 앞쪽 고정 · 날짜칸/영업담당자 위치 고정 · 계정별 서버 저장(기존 COLS→/sales/schedule/cols 재사용·_order 키).

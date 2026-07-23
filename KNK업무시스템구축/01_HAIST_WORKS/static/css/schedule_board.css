@@ -116,6 +116,14 @@
 .cols-pop label:hover { background:#fdf3f3; }
 .cols-pop .cols-allbtn { display:block; width:100%; box-sizing:border-box; margin:0 0 6px; padding:6px 8px; border:1px solid var(--knk-red); border-radius:6px; background:var(--knk-red); color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
 .cols-pop .cols-allbtn:hover { filter:brightness(.94); }
+/* v5H226z1040: 칸 설정의 📌 고정 단추 — 체크박스(보이기)와 나란히, 이름은 가운데서 늘어난다 */
+.cols-pop label .cols-nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.cols-pop .cols-pin { flex-shrink:0; margin-left:6px; padding:1px 5px; font-size:11px; line-height:16px;
+  border:1px solid var(--line); border-radius:5px; background:#fff; cursor:pointer; filter:grayscale(1); opacity:.45; }
+.cols-pop .cols-pin:hover:not(:disabled) { opacity:.85; background:#fdf3f3; }
+.cols-pop .cols-pin.on { filter:none; opacity:1; border-color:var(--knk-red); background:#fff5f5; }
+.cols-pop .cols-pin:disabled { cursor:default; opacity:.75; filter:none; border-style:dashed; }
+.cols-pop .cols-hint { font-size:10.5px; color:var(--qv-ink-3); line-height:1.45; padding:0 8px 6px; white-space:normal; max-width:230px; }
 .sched-hint { font-size:10px; color:var(--qv-ink-3); line-height:1.2; }
 /* v5H226z397 (대표 지시): AI 빅터 dock 열면 본문이 320px 좁아져 '작업·보기' 도구 띠가 한 줄 더 줄바꿈되는 문제 —
    dock 열린 동안(.victor-open)만 도구 띠를 촘촘히(간격·여백·글자 축소)해 한 줄 덜 내려오게. 닫힘(평소) 모양은 그대로. */
@@ -174,13 +182,13 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .sched th.col-collapsed, .sched td.col-collapsed { padding:0 !important; border-right:0 !important; }
 .sched thead th { position:sticky; top:0; z-index:6; background:var(--paper-2); color:var(--knk-red);
   font-size:10.5px; font-weight:700; text-align:center; height:34px; }
-.sched { --l2:86px; --l3:176px; }
 .sched .c-info { background:var(--paper-3); padding:0 8px; text-align:left; font-weight:600;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sched thead .c-info { background:var(--paper-2); padding:0; }
+/* v5H226z1040 (안지연 프로 요청·대표 지시): 왼쪽 고정 칸을 **사용자가 고를 수 있게** 바뀌었다.
+   c2·c3 의 고정 규칙은 JS(updateSticky)가 `#schedPinCss` 로 만들어 넣는다 — 여기서 박아두면 해제가 안 된다.
+   .c1(관리번호)만 남긴다: 행 펼침의 빈 칸(td.c-info.c1, data-col 없음)이 이 규칙에 기댄다. */
 .sched .c1{ position:sticky; left:0;          z-index:4; }
-.sched .c2{ position:sticky; left:var(--l2);  z-index:4; }
-.sched .c3{ position:sticky; left:var(--l3);  z-index:4; border-right:2px solid var(--knk-red); }
 .sched thead .c1, .sched thead .c2, .sched thead .c3 { z-index:8; }
 /* z280: 모델명 칸 글꼴을 나머지와 동일하게(기본 글꼴·12px) — 별도 Consolas/11px 제거(대표 지시) */
 .sched .cw-note { color:var(--qv-ink-3); }
@@ -445,6 +453,9 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 .pp-empty { padding:24px; color:#888; font-size:12.5px; text-align:center; }
 .pp-page .col-resizer, .pp-page .sort-ind { display:none; }
 .pp-page .sched .c1, .pp-page .sched .c2, .pp-page .sched .c3, .pp-page .sched thead th { position:static; }
+/* v5H226z1040: 사용자가 고정한 칸(JS 가 #schedPinCss 로 만든 `#schedTable [data-col=..]`)도 인쇄 땐 풀어야 한다.
+   ⚠그 규칙은 id 를 써서 위 `.pp-page .sched .cN` 보다 세다 → **id 를 하나 더** 얹어 이긴다(!important 불필요). */
+.pp-page #schedTable [data-col] { position:static; }
 #printArea { display:none; }
 @media print {
   @page { size: landscape; margin: 7mm; }
@@ -461,6 +472,7 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
   #printArea .pp-print-page:last-child { page-break-after:auto; break-after:auto; }
   #printArea table.sched { width:100% !important; table-layout:fixed; border-collapse:separate; border-spacing:0; font-size:12px; }
   #printArea .sched .c1, #printArea .sched .c2, #printArea .sched .c3, #printArea .sched thead th { position:static; }
+  #printArea #schedTable [data-col], #printArea .sched [data-col] { position:static; }   /* z1040: 사용자 고정 칸 해제 */
   #printArea .col-resizer, #printArea .sort-ind { display:none; }
   /* 공통: 배경색·구분선 인쇄 보장 + 행 잘림 방지 + '오늘' 칸 강조(box-shadow는 인쇄 누락되므로 border로) */
   .sched th, .sched td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
