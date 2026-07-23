@@ -1258,6 +1258,9 @@ _ORDER_FIELD_LABELS = {
     # v5H226z725 (대표 지시): 상세 화면을 엑셀 양식과 일치 — 상태·형태·거래명세서·세금계산서(발주 단위)도
     #   save-all(헤더 경로)로 편집 저장. 라인 표에 칸으로 보이지만 값은 발주(consumable_orders)에 저장.
     "status": "상태", "form_type": "형태", "statement_date": "거래명세서 발행일",
+    # v5H226z1039 (z1038 후속): 상태 발생일 — 작업일정표 달력에서는 상태를 바꿀 때 날짜를 함께 받는데
+    #   상세에는 그 칸이 없어 **여기서 바꾸면 발생일이 안 들어가던** 불일치. 같은 값을 두 화면에서 똑같이 다룬다.
+    "status_date": "상태 발생일",
     "tax_invoice_date": "1세금계산서 발행일", "tax_invoice_amt1": "1세금계산서 금액",
     "tax_invoice_date2": "2세금계산서 발행일", "tax_invoice_amt2": "2세금계산서 금액",
     "tax_invoice_date3": "3세금계산서 발행일", "tax_invoice_amt3": "3세금계산서 금액",
