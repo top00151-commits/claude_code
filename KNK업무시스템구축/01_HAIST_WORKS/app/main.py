@@ -23139,6 +23139,8 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 # v5H226z367 (대표 지시): 소모품도 거래명세서·세금계산서 발행일자(consumable_orders 컬럼)
                 "statement_date": str(cr.get("statement_date") or "")[:10],
                 "tax_invoice_date": str(cr.get("tax_invoice_date") or "")[:10],
+                # v5H226z1038: 소모품 상태 발생일 → 달력 표식(프로젝트 호기와 동일)
+                "status_date": str(cr.get("status_date") or "")[:10],
                 "memo": _smemos.get(("consumable", cr.get("id")), ""),
                 "updated_at": cr.get("updated_at") or "",   # v5H226z409: 셀 편집 동시성 base_ts
                 "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
@@ -24534,6 +24536,8 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 # v5H226z367 (대표 지시): 소모품도 거래명세서·세금계산서 발행일자(consumable_orders 컬럼)
                 "statement_date": str(cr.get("statement_date") or "")[:10],
                 "tax_invoice_date": str(cr.get("tax_invoice_date") or "")[:10],
+                # v5H226z1038: 소모품 상태 발생일 → 달력 표식(프로젝트 호기와 동일)
+                "status_date": str(cr.get("status_date") or "")[:10],
                 "memo": _smemos.get(("consumable", cr.get("id")), ""),
                 "updated_at": cr.get("updated_at") or "",   # v5H226z409: 셀 편집 동시성 base_ts
                 "st": _stage_map.get(("consumable", cr.get("id")), _empty_st),
@@ -25348,10 +25352,54 @@ async def schedule_board_row_status(request: Request):
         return JSONResponse({"ok": False, "error": "허용 안 된 상태"}, 400)
     if status == "진행중":
         sdate = None   # 되돌리기 = 발생일(이벤트) 해제
-    if kind != "project":
-        return JSONResponse({"ok": False, "error": "소모품 상태는 소모품 상세에서 변경하세요"}, 400)
     uids = b.get("uids") or []
     ref_id = b.get("ref_id")
+    # v5H226z1038 (안지연 프로 신고·대표 지시): 소모품도 달력에서 상태 변경.
+    #   z711 이 막았던 이유는 "소모품은 **호기**가 없어서" — 맞는 말이지만, 소모품은 자기 줄에
+    #   **같은 4가지 상태를 이미 갖고 있다**(CONFIRMED/SHIPPED/CANCELLED/HOLD). 저장 위치만 다를 뿐이다.
+    #   ⚠보여주는 곳엔 고치는 자리도 있어야 한다 — 달력이 소모품 상태(출하/납품)를 이미 그리고 있었다.
+    if kind == "consumable":
+        _co_st = {"진행중": "CONFIRMED", "출하": "SHIPPED",
+                  "취소": "CANCELLED", "보류": "HOLD"}.get(status)
+        if not _co_st:
+            return JSONResponse({"ok": False, "error": "허용 안 된 상태"}, 400)
+        try:
+            _cid = int(ref_id or 0)
+        except (TypeError, ValueError):
+            _cid = 0
+        if _cid <= 0:
+            return JSONResponse({"ok": False, "error": "대상 소모품이 없습니다"}, 404)
+        try:
+            with db_session() as c:
+                _cc = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+                _row = c.execute("SELECT status FROM consumable_orders WHERE id=?", (_cid,)).fetchone()
+                if not _row:
+                    return JSONResponse({"ok": False, "error": "대상 소모품이 없습니다"}, 404)
+                _old = _row[0] or ""
+                if "status_date" in _cc:
+                    c.execute("UPDATE consumable_orders SET status=?, status_date=?, "
+                              "updated_at=datetime('now','localtime') WHERE id=?", (_co_st, sdate, _cid))
+                else:   # 마이그레이션 전 방어 — 상태만이라도 반영
+                    c.execute("UPDATE consumable_orders SET status=?, "
+                              "updated_at=datetime('now','localtime') WHERE id=?", (_co_st, _cid))
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+        # 추적성 — 프로젝트와 동일하게 변경 이력을 남긴다.
+        # ⚠co_log_change 는 **자기 db_session 을 연다** → 위 with 블록 **밖에서** 호출(중첩 잠금 방지·기존 호출부와 동일 패턴)
+        # ⚠`_co_mod` 는 **모듈 전역이 아니다**(다른 함수 안에서 지역 import) → 여기서 직접 import.
+        #   안 하면 NameError 가 나는데 아래 except 가 삼켜 **이력만 조용히 안 남는다**(실측으로 잡음).
+        try:
+            from . import consumables as _co_mod2
+            _co_mod2.co_log_change(
+                _cid, None, "order", "status", "상태(작업일정표 달력)",
+                _old, _co_st + (f" · 발생일 {sdate}" if sdate else " · 발생일 해제"),
+                u.get("id"), (u.get("name") or ""))
+        except Exception as _e_log:
+            log.warning("소모품 상태 변경 이력 기록 실패 co_id=%s: %s", _cid, _e_log)
+        return JSONResponse({"ok": True, "count": 1, "status": status,
+                             "date": sdate or "", "skipped": 0, "scope": "consumable"})
+    if kind != "project":
+        return JSONResponse({"ok": False, "error": "지원하지 않는 행 종류"}, 400)
     try:
         with db_session() as c:
             ids = []

@@ -3020,6 +3020,12 @@ def init_db():
                 if _dc not in cocols:
                     c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_dc} {_typ}")
                     print(f"[v5H226z467] consumable_orders.{_dc} 컬럼 추가됨")
+            # v5H226z1038 (안지연 프로 신고·대표 지시): 소모품도 작업일정표 달력에서 상태(출하/보류/취소/진행중)를
+            #   바꿀 수 있게 — 프로젝트 호기(order_items.status_date)와 짝이 되는 '상태 발생일'.
+            #   NULL=미지정(기존 데이터 무영향). 프로젝트와 똑같이 기록한다(대표 확정).
+            if "status_date" not in cocols:
+                c.execute("ALTER TABLE consumable_orders ADD COLUMN status_date TEXT")
+                print("[v5H226z1038] consumable_orders.status_date 컬럼 추가됨")
             # v5H226z890 (대표 지시): 소모품 통보를 제작요청서 체계로 편입 — 통보 대상/수신자 스냅샷 기록.
             #   제작요청(prod_requests)의 recipients/dept_names/user_ids/team_ids/sent_to/dept_count 와 대응. 추가형·무손실.
             for _nc in ("notify_recipients", "notify_dept_names", "notify_user_ids",

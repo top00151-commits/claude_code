@@ -279,7 +279,7 @@
         <button type="button" class="sb sb-cancel" data-st="취소" onclick="setRowStatus(this.dataset.st)">✖ 취소</button>
         <button type="button" class="sb sb-prog" data-st="진행중" onclick="setRowStatus(this.dataset.st)">↩ 진행중</button>
       </div>
-      <div class="mp-stat-hint">선택한 상태를 이 수주의 호기 전체에 위 날짜로 적용합니다 (수주내역·달력 색 동기화).</div>
+      <div class="mp-stat-hint" id="memoStatHint">선택한 상태를 이 수주의 호기 전체에 위 날짜로 적용합니다 (수주내역·달력 색 동기화).</div>
     </div>
     <div class="mp-memo-lbl">📝 진행 메모</div>
     <textarea id="memoText" placeholder="진행 상황 메모 (예: 부품 입고 지연, 고객 승인 대기 …)"></textarea>
@@ -1428,10 +1428,19 @@ function openMemo(tr, day, cell){
   const sec=document.getElementById('memoStatSec');
   // v5H226z837 (대표 지시): 상태 섹션을 '모든 프로젝트 행'에 표시(소모품만 숨김). 기존엔 분할 호기줄(data-uids 有)만 떠서
   //   비분할 행(호기 없음/취소 SO라 호기맵 제외)엔 '메모'만 나오던 불일치. 서버 row-status가 uids 없으면 ref_id(프로젝트 호기)로 처리하므로 표시만 풀면 됨.
-  const isProj=(tr.dataset.kind==='project');
-  if(sec) sec.style.display = isProj ? '' : 'none';
+  // v5H226z1038 (안지연 프로 신고·대표 지시): 소모품도 달력에서 상태 변경 — 프로젝트와 동일.
+  //   z711 이 숨긴 이유는 "소모품은 호기가 없어서"였지만, 소모품은 자기 줄에 같은 4가지 상태를 이미 갖고 있다.
+  //   ⚠달력이 소모품 상태(출하/납품)를 **이미 그리고 있었다** — 보여주면서 고칠 자리가 없던 상태.
+  const kind=(tr.dataset.kind||'');
+  const canStat=(kind==='project'||kind==='consumable');
+  if(sec) sec.style.display = canStat ? '' : 'none';
+  // 안내문도 행 종류에 맞게 — 소모품은 '호기'가 없다(글이 사실과 달라선 안 된다)
+  const hint=document.getElementById('memoStatHint');
+  if(hint) hint.textContent = (kind==='consumable')
+    ? '선택한 상태를 이 소모품 발주에 위 날짜로 적용합니다 (소모품 상세·달력 색 동기화).'
+    : '선택한 상태를 이 수주의 호기 전체에 위 날짜로 적용합니다 (수주내역·달력 색 동기화).';
   const dstr=_memoYmd(day);
-  document.getElementById('memoHead').textContent=(isProj?'상태·메모':'메모')+' — '+code.trim()+(dstr?(' · '+dstr):'');
+  document.getElementById('memoHead').textContent=(canStat?'상태·메모':'메모')+' — '+code.trim()+(dstr?(' · '+dstr):'');
   const di=document.getElementById('statDate'); if(di){ di.value = dstr; }   // 상태 발생일 기본값=클릭한 날
   const pop=document.getElementById('memoPop'); pop.classList.add('show');
   pop.style.left=Math.max(10,(window.innerWidth-280)/2)+'px'; pop.style.top='120px';
@@ -1440,15 +1449,18 @@ function openMemo(tr, day, cell){
 function setRowStatus(st){
   if(!_memoTr) return;
   const tr=_memoTr;
-  if(tr.dataset.kind!=='project'){ toast('소모품 상태는 소모품 상세에서 변경하세요'); return; }
+  // v5H226z1038: 소모품도 허용(프로젝트=호기 전체 / 소모품=그 발주 1건). ⚠여기를 안 풀면 화면만 열리고 저장이 막힌다.
+  const kind=(tr.dataset.kind||'');
+  if(kind!=='project' && kind!=='consumable'){ toast('이 행은 상태를 바꿀 수 없습니다'); return; }
+  const isCo=(kind==='consumable');
   const uids=(tr.dataset.uids||'').split(',').filter(Boolean);
   const date=(document.getElementById('statDate')||{}).value||'';
   const btns=document.querySelectorAll('#memoStatSec .sb'); btns.forEach(b=>b.disabled=true);
   fetch('/sales/schedule/row-status',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({kind:'project', ref_id:tr.dataset.ref, uids:uids, value:st, date:date})})
+    body:JSON.stringify({kind:kind, ref_id:tr.dataset.ref, uids:(isCo?[]:uids), value:st, date:date})})
     .then(r=>r.json()).then(j=>{
       btns.forEach(b=>b.disabled=false);
-      if(j.ok){ toast('저장됨 · '+st+(j.date?(' '+j.date):'')+' · 호기 '+(j.count||0)+'건'); closeMemo();
+      if(j.ok){ toast('저장됨 · '+st+(j.date?(' '+j.date):'')+(isCo?'':(' · 호기 '+(j.count||0)+'건'))); closeMemo();
         setTimeout(function(){ location.reload(); }, 450); }
       else { toast('⚠ '+(j.error||'저장 실패')); }
     }).catch(()=>{ btns.forEach(b=>b.disabled=false); toast('⚠ 통신 오류'); });
