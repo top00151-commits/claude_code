@@ -280,14 +280,16 @@
 
       <a class="card clickable" href="/stock">
         <div class="card-label">총 재고가치</div>
-        <div class="card-value">{% if sk.total_value %}{{ '{:,.0f}'.format(sk.total_value) }}<span class="unit">원</span>{% else %}—{% endif %}</div>
+        {# WP-01(P0-01): 서버 계약(stock_kpi)의 실제 키 이름으로 정렬 — total_value→stock_value #}
+        <div class="card-value">{% if sk.stock_value %}{{ '{:,.0f}'.format(sk.stock_value) }}<span class="unit">원</span>{% else %}—{% endif %}</div>
         <div class="card-trend neutral">{{ sk.total_qty|default(0) }} 단위</div>
       </a>
 
-      <a class="card clickable" href="/po?status=발행">
+      {# WP-01(P0-01): po_open→po_pending(서버 키). 기존 링크는 존재하지 않는 상태값 필터(빈 목록)라 전체 목록으로 #}
+      <a class="card clickable" href="/po">
         <div class="card-label">진행 발주</div>
-        <div class="card-value">{{ sk.po_open|default(0) }}</div>
-        <div class="card-trend {% if sk.po_open|default(0) > 0 %}up{% else %}neutral{% endif %}">{% if sk.po_open|default(0) > 0 %}처리 중{% else %}대기 없음{% endif %}</div>
+        <div class="card-value">{{ sk.po_pending|default(0) }}</div>
+        <div class="card-trend {% if sk.po_pending|default(0) > 0 %}up{% else %}neutral{% endif %}">{% if sk.po_pending|default(0) > 0 %}처리 중{% else %}대기 없음{% endif %}</div>
       </a>
 
       <a class="card clickable" href="/parts?low_stock=1">
@@ -296,7 +298,8 @@
         <div class="card-trend {% if sk.low_stock|default(0) > 0 %}alert{% else %}up{% endif %}">{% if sk.low_stock|default(0) > 0 %}임계 미만{% else %}안전{% endif %}</div>
       </a>
 
-      <a class="card clickable" href="/receipts">
+      {# WP-01(P0-01): 옛 링크는 미등록 주소 — 실제 입고 화면으로 정정 #}
+      <a class="card clickable" href="/stock/receipts">
         <div class="card-label">최근 입고 (7일)</div>
         <div class="card-value">{{ sk.recent_receipts|default(0) }}</div>
         <div class="card-trend neutral">건</div>
@@ -318,12 +321,13 @@
           <div class="action-text"><h4>새 발주서</h4><p>거래처 + 품목 + 단가</p></div>
           <div class="action-arrow">→</div>
         </a>
-        <a class="action-card" href="/receipts">
+        {# WP-01(P0-01): 빠른 액션 링크 정정 — 입고=실제 입고 화면, 출고=출고 화면(기존 링크는 품질 이슈 모듈로 잘못 연결) #}
+        <a class="action-card" href="/stock/receipts">
           <div class="action-icon">📦</div>
           <div class="action-text"><h4>입고 처리</h4><p>배송 도착 자재 등록</p></div>
           <div class="action-arrow">→</div>
         </a>
-        <a class="action-card" href="/issues">
+        <a class="action-card" href="/stock/issue">
           <div class="action-icon">📤</div>
           <div class="action-text"><h4>출고 등록</h4><p>현장 자재 인계</p></div>
           <div class="action-arrow">→</div>

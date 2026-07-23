@@ -6443,7 +6443,17 @@ def parts_update(pid: int, data: dict) -> None:
 
 
 def parts_delete(pid: int) -> None:
-    """v5H119: 공통 헬퍼 _safe_delete_with_cascade 사용. 폴백: v5H112 인라인 로직."""
+    """v5H119: 공통 헬퍼 _safe_delete_with_cascade 사용. 폴백: v5H112 인라인 로직.
+    WP-01(P0-05): 거래 이력(재고 원장·발주·견적 참조)이 있으면 삭제 차단 — 원장 파괴 방지.
+    이력이 전혀 없는 자재(오등록 등)만 기존대로 삭제 허용."""
+    imp = parts_delete_impact(pid)
+    _refs = (int(imp.get("movement_refs") or 0) + int(imp.get("po_refs") or 0)
+             + int(imp.get("quote_refs") or 0))
+    if _refs > 0:
+        raise ValueError(
+            f"거래 이력이 있어 삭제할 수 없습니다 — 재고 원장 {imp.get('movement_refs', 0)}건 · "
+            f"발주 {imp.get('po_refs', 0)}건 · 견적 {imp.get('quote_refs', 0)}건. "
+            "이력 보존을 위해 삭제 대신 수정 화면의 '비활성'을 사용하세요.")
     with db_session() as c:
         try:
             res = _safe_delete_with_cascade(
@@ -8465,8 +8475,22 @@ def po_update(po_id: int, data: dict, items: list[dict]) -> None:
 
 def po_delete(po_id: int) -> None:
     """v5H119: 공통 헬퍼 사용. 폴백: v5H112 인라인.
-    헬퍼 호출 시 본행 'purchase_orders' / 자식 FK 'po_id'."""
+    헬퍼 호출 시 본행 'purchase_orders' / 자식 FK 'po_id'.
+    WP-01(P0-05): 입고 이력(입고수량·재고 원장·입고문서)이 있으면 삭제 차단 — 이력 파괴 방지."""
     with db_session() as c:
+        _rcv = c.execute(
+            "SELECT COALESCE(SUM(received_qty),0) FROM po_items WHERE po_id=?", (po_id,)
+        ).fetchone()[0] or 0
+        _mv = c.execute(
+            "SELECT COUNT(*) FROM stock_movements WHERE po_id=?", (po_id,)
+        ).fetchone()[0]
+        _rc = c.execute(
+            "SELECT COUNT(*) FROM receipts WHERE po_id=?", (po_id,)
+        ).fetchone()[0]
+        if _rcv > 0 or _mv > 0 or _rc > 0:
+            raise ValueError(
+                f"입고 이력이 있어 삭제할 수 없습니다 — 입고수량 {_rcv:g} · 재고 원장 {_mv}건 · "
+                f"입고문서 {_rc}건. 이력 보존을 위해 삭제 대신 '취소' 상태를 사용하세요.")
         try:
             res = _safe_delete_with_cascade(
                 c, "purchase_orders", po_id, fk_column="po_id",
@@ -9530,11 +9554,24 @@ def stock_kpi() -> dict:
                WHERE kind='OUT' AND occurred_at >= ?""",
             (since_30,),
         ).fetchone()[0] or 0
+        # WP-01(P0-01): logistics_home 카드 계약 보강 — 총 재고 수량 + 최근 7일 입고 '건수'.
+        #   기존 키는 불변(다른 사용처 무영향), 새 키만 추가.
+        total_qty = c.execute(
+            "SELECT COALESCE(SUM(stock_qty),0) FROM parts WHERE is_active=1"
+        ).fetchone()[0] or 0
+        since_7 = (_date.today() - _td(days=7)).isoformat()
+        recent_receipts = c.execute(
+            """SELECT COUNT(*) FROM stock_movements
+               WHERE kind='IN' AND occurred_at >= ?""",
+            (since_7,),
+        ).fetchone()[0]
     return {
         "parts_total": parts_total,
         "stock_value": stock_value,
+        "total_qty": total_qty,
         "low_stock": low_stock,
         "po_pending": po_pending,
+        "recent_receipts": recent_receipts,
         "in_30d": in_30,
         "out_30d": abs(out_30),  # 음수 저장 → 절대값 표시
     }

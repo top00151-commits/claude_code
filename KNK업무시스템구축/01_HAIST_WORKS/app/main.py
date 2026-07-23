@@ -31810,7 +31810,8 @@ async def stock_issue_form(request: Request, part_id: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    # WP-01(P0-04): 출고=재고를 바꾸는 화면 — 조회 권한(can_view) 차단, 쓰기 권한 필수
+    if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         parts = c.execute(
@@ -31848,7 +31849,8 @@ async def stock_issue_submit(
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    # WP-01(P0-04): 출고 실행=재고 차감 — 조회 권한(can_view)으로 실행되던 구멍 차단
+    if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     try:
         pid = int(part_id)
@@ -31880,7 +31882,8 @@ async def stock_adjust_form(request: Request, part_id: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    # WP-01(P0-04): 재고 조정 화면 — 쓰기 권한 필수
+    if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         parts = c.execute(
@@ -31903,7 +31906,8 @@ async def stock_adjust_submit(
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    # WP-01(P0-04): 재고 조정 실행 — 조회 권한(can_view)으로 실행되던 구멍 차단
+    if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     try:
         pid = int(part_id)
