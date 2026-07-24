@@ -35892,10 +35892,17 @@ _HS_REVIEW_ST = {"CONFIRMED": "✅ 확정 / Đã xác nhận",
 #   ⚠순서 중요: '검토 충돌:' 을 '충돌:' 보다 먼저.
 _HS_NOTE_BI = [("검토 충돌:", "검토 충돌 / Xung đột rà soát:"),
                ("검토 확정:", "검토 확정 / Đã xác nhận:"),
+               # z1047 세관 — ⚠뒤쪽 낱말 규칙에 **다시 걸리지 않는** 문구로 적을 것
+               #   (예: 여기 결과에 '세관 ' 이 남으면 아래 '↔ 세관 ' 규칙이 또 바꿔 이중 표기가 된다)
+               ("⭐세관 실적 다름:", "⭐세관 실적 다름 / Khác với tờ khai hải quan:"),
+               ("⚠세관 기록도 갈림:", "⚠세관 기록도 갈림 / Tờ khai hải quan không thống nhất:"),
+               ("세관 실적 반입:", "세관 실적 반입 / Đã nhập khẩu thực tế:"),
                ("충돌:", "충돌 / Xung đột:"),
                ("HS코드", "HS코드(Mã HS)"),
                ("베트남어 품명", "베트남어 품명(Tên hàng VN)"),
                ("원산지", "원산지(Xuất xứ)"),
+               ("사전 ", "사전(từ điển) "), ("↔ 세관 ", "↔ 세관(hải quan) "),
+               ("최근 ", "최근(gần nhất) "),
                ("기존", "기존(cũ)"), ("신규", "신규(mới)")]
 
 
@@ -36144,6 +36151,156 @@ def _hs_apply_review(c, rows: list, who: str, fname: str, today: str, u) -> dict
             "applied": applied, "conflict": conflict, "skipped": skipped, "bad": bad}
 
 
+# ------------------------------------------------------------
+# v5H226z1047 (대표 지시): 베트남 세관 신고 상세 보고서(BÁO CÁO CHI TIẾT HÀNG HÓA) 반영.
+#   ⭐**인보이스보다 강한 근거** — 인보이스는 우리가 적어 보낸 것이고, 이건 **세관이 실제로 통과시킨 기록**이다.
+#   대표 결정: ①사전에 있는 규격의 HS 가 다르면 → **'확인 대기'로 세우고 세관 실적을 사유에** (값은 안 바꾼다)
+#              ②사전에 없는 규격 추가는 **별도 선택**(기본 꺼짐 — 1,167종이 한꺼번에 들어오면 확인이 불가능)
+#   ⛔원산지는 이번 판에서 건드리지 않는다 — 세관은 `R.KOREA`, 우리는 `KOREA` 라 **표기 차이가 실제 이견처럼**
+#      보인다(cf z1046 SWISS↔SWITZERLAND). 표기 표준화를 정하기 전엔 손대지 않는 것이 안전하다.
+#   ⛔세율(관세·부가세)은 저장하지 않는다 — 실측 결과 **같은 HS+원산지인데도 관세율이 26% 쌍에서 갈린다**
+#      (0% = 한-베 FTA 특혜세율 = C/O 서류 제출 여부로 갈림). 부가세도 2024년부터 0%/8%/10% 혼재(시점 의존).
+#      '물건'이 아니라 '서류·시점'이 정하는 값이라 사전에 박으면 틀린 값을 보여준다.
+# ------------------------------------------------------------
+def _hs_parse_customs_xls(data: bytes, fname: str):
+    """세관 신고 상세 보고서(.xls/.xlsx)인지 판별 → 규격별 집계 또는 None(아니면 다른 파서로).
+    반환: {규격키: {hs, hs_all, n, last_date, vn, org, model}}
+    ⚠머리글 엄격 대조(z978) — 위치 폴백 없음. 판별 키 = 'Mã HS' + 'Tên hàng' 두 머리글."""
+    import io as _io
+    import re as _re
+
+    def _grid_xlrd():
+        import xlrd
+        bk = xlrd.open_workbook(file_contents=data)
+        sh = bk.sheet_by_index(0)
+        return [[sh.cell_value(r, cc) for cc in range(sh.ncols)] for r in range(sh.nrows)]
+
+    def _grid_openpyxl():
+        from openpyxl import load_workbook
+        wb = load_workbook(_io.BytesIO(data), data_only=True, read_only=True)
+        ws = wb.active
+        g = [[c.value for c in row] for row in ws.iter_rows()]
+        wb.close()
+        return g
+
+    ext = (fname or "").lower().rsplit(".", 1)[-1]
+    order = (_grid_xlrd, _grid_openpyxl) if ext == "xls" else (_grid_openpyxl, _grid_xlrd)
+    grid = None
+    for fn in order:                      # 은행 대사(z929)와 같은 방식 — 확장자가 틀려도 반대쪽으로 한 번 더
+        try:
+            grid = fn()
+            if grid:
+                break
+        except Exception:
+            grid = None
+    if not grid:
+        return None
+
+    def _n(v):
+        return _re.sub(r"\s+", "", str(v if v is not None else ""))
+
+    hdr_r, cols = None, {}
+    for r in range(min(len(grid), 30)):
+        found = {}
+        for cc, v in enumerate(grid[r]):
+            t = _n(v)
+            if t:
+                found.setdefault(t, cc)
+        if _n("Mã HS") in found and _n("Tên hàng") in found:
+            hdr_r, cols = r, found
+            break
+    if hdr_r is None:
+        return None                        # 세관 보고서가 아니다
+    c_hs, c_vn = cols[_n("Mã HS")], cols[_n("Tên hàng")]
+    c_org, c_dt = cols.get(_n("Xuất xứ")), cols.get(_n("Ngày ĐK"))
+    c_mat = cols.get(_n("Mã NPL/SP"))
+    # 세관 품명은 우리 인보이스와 같은 형식: 'ENGLISH#&Tên tiếng Việt, mã hàng: <규격>, hsx: ...'
+    MH = _re.compile(r"m[ãa]\s*h[àa]ng\s*[:：]\s*([^,;]+)", _re.I)
+    DT = _re.compile(r"^\s*(\d{2})/(\d{2})/(\d{4})")
+    out = {}
+    for r in range(hdr_r + 1, len(grid)):
+        row = grid[r]
+        hs = _re.sub(r"[^\d]", "", _re.sub(r"\.0$", "", str(row[c_hs] if c_hs < len(row) else "")))
+        if len(hs) == 7:
+            hs = "0" + hs
+        if len(hs) != 8:
+            continue
+        vn = str(row[c_vn] if c_vn < len(row) else "").strip()
+        m = MH.search(vn)
+        if not m:
+            continue                       # 규격(mã hàng)이 없으면 우리 사전 키를 만들 수 없다
+        key = _hs_norm_key(m.group(1))
+        if not key or len(key) < 3:
+            continue                       # 너무 짧은 키는 오매칭 위험(실측 'P15' 류)
+        d = out.setdefault(key, {"hs": {}, "n": 0, "last": "", "vn": vn, "org": "",
+                                 "model": m.group(1).strip()})
+        d["n"] += 1
+        d["hs"][hs] = d["hs"].get(hs, 0) + 1
+        if c_org is not None and c_org < len(row) and not d["org"]:
+            d["org"] = str(row[c_org]).strip()
+        if c_dt is not None and c_dt < len(row):
+            g = DT.match(str(row[c_dt]).strip())
+            if g:
+                iso = f"{g.group(3)}-{g.group(2)}-{g.group(1)}"
+                if iso > d["last"]:
+                    d["last"] = iso
+                    d["vn"] = vn           # 품명은 가장 최근 신고분을 대표로
+        if c_mat is not None and c_mat < len(row):
+            d.setdefault("mat", str(row[c_mat]).strip())
+    for k, d in out.items():
+        d["hs_top"] = max(d["hs"].items(), key=lambda x: (x[1], x[0]))[0]
+        d["hs_split"] = len(d["hs"]) > 1   # 세관 자체가 갈리는 건 = 사람이 봐야 한다
+    return out
+
+
+def _hs_apply_customs(c, agg: dict, fname: str, today: str, u, add_new: bool) -> dict:
+    """세관 기록 반영 — ①있는 규격의 HS 가 다르면 '확인 대기'+실적 기록 ②없는 규격은 add_new 일 때만 추가.
+    ⛔값은 덮지 않는다(z1046 규칙) · ⛔원산지·세율은 손대지 않는다(위 주석 근거)."""
+    flagged = matched = added = skipped = split = 0
+    for key, d in agg.items():
+        ex = c.execute("SELECT id, hs_code, status FROM export_hs_dict WHERE part_key=?",
+                       (key,)).fetchone()
+        hs_c = d["hs_top"]
+        _when = f"{d['n']}회" + (f" · 최근 {d['last']}" if d["last"] else "")
+        if d["hs_split"] and (ex is not None or add_new):
+            split += 1     # 세관 자체가 한 규격을 두 코드로 신고한 것 — 신규·기존 가리지 않고 센다
+        if ex is None:
+            if not add_new:
+                skipped += 1
+                continue
+            _note = f"세관 실적 반입: {_when} ({fname})"
+            if d["hs_split"]:
+                _note = ("⚠세관 기록도 갈림: " + " / ".join(f"{h} {n}회" for h, n in
+                                                        sorted(d["hs"].items(), key=lambda x: -x[1]))
+                         + f" ({fname})")
+            c.execute(
+                "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,status,seen_count,"
+                "first_seen,last_seen,source_file,note,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                (key, d.get("model") or key,
+                 (d["vn"].split("#&")[0].strip() if "#&" in d["vn"] else ""), d["vn"], hs_c,
+                 # 세관 자체가 갈리면 자동 채움에 쓰면 안 된다 → 확인 대기
+                 "PENDING" if d["hs_split"] else "CONFIRMED",
+                 d["n"], d["last"] or today, d["last"] or today, fname, _note, u.get("id")))
+            added += 1
+            continue
+        if (ex["hs_code"] or "").strip() == hs_c:
+            matched += 1                   # 세관이 우리 값을 확인해 줌 — 바꿀 것이 없다(기존 사유도 보존)
+            continue
+        # 다름 → 값은 그대로 두고 '확인 대기' + 세관 실적을 사유에. 통관은 법적 신고 = 사람이 고른다.
+        #   세관 자체가 갈리면(한 규격을 두 코드로 신고) 그 내역을 그대로 보여 준다 — 사람이 판단할 근거다.
+        _detail = (" / ".join(f"{h} {n}회" for h, n in sorted(d["hs"].items(), key=lambda x: -x[1]))
+                   if d["hs_split"] else _when)
+        c.execute(
+            "UPDATE export_hs_dict SET status='PENDING', note=?, last_seen=?, "
+            "updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
+            (f"⭐세관 실적 다름: 사전 {(ex['hs_code'] or '').strip() or '(공란)'} ↔ 세관 {hs_c} "
+             f"({_detail}" + (f" · 최근 {d['last']}" if d["hs_split"] and d["last"] else "") + ")",
+             d["last"] or today, u.get("id"), ex["id"]))
+        flagged += 1
+    return {"file": fname, "mode": "customs", "rows": len(agg), "flagged": flagged,
+            "matched": matched, "added": added, "skipped": skipped, "split": split}
+
+
 @app.get("/export/hs-dict/review.xlsx")
 async def export_hs_dict_review_xlsx(req: Request):
     """HS 사전 전체 → 검토표(.xlsx) 내려받기. 한국·베트남 담당자에게 보내 확정칸만 적어 되받는 왕복 양식."""
@@ -36260,9 +36417,11 @@ async def export_hs_dict_save(req: Request, did: int):
 
 @app.post("/export/hs-dict/upload")
 async def export_hs_dict_upload(req: Request):
-    """파일 올리기(xlsx·여러 개) → 사전 성장. 두 가지를 머리글로 구분해 받는다(z1044):
-    ①검토표(내려받은 양식) = 담당자가 적은 확정칸만 반영 ②최종 인보이스 = 기존 사전 성장.
-    파일별 결과(추가/갱신/충돌/실패 · 검토표는 반영/충돌/변경없음) 반환."""
+    """파일 올리기(여러 개) → 사전 성장. **세 가지**를 머리글로 구분해 받는다:
+    ①검토표(내려받은 양식·z1044) = 담당자가 적은 확정칸만 반영
+    ②세관 신고 상세 보고서(z1047·.xls 가능) = 실제 통관 실적으로 대조 → 다르면 '확인 대기'
+    ③최종 인보이스(z967) = 기존 사전 성장.
+    파일별 결과 반환(모드마다 세는 것이 다르다)."""
     u = _export_guard(req)
     if not u:
         return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
@@ -36270,14 +36429,16 @@ async def export_hs_dict_upload(req: Request):
     files = form.getlist("files")
     if not files:
         return JSONResponse({"ok": False, "error": "파일이 없습니다"}, 400)
+    # z1047: 세관 자료의 '사전에 없는 규격'까지 새로 넣을지 — 기본 꺼짐(대표 지시: 확인 후 따로).
+    add_new = str(form.get("customs_add_new") or "").strip().lower() in ("1", "true", "on", "y")
     results = []
     with db_session() as c:
         _hs_dict_ensure(c)
         today = c.execute("SELECT date('now','localtime')").fetchone()[0]
         for f in files[:30]:
             fname = getattr(f, "filename", "") or "upload.xlsx"
-            if not fname.lower().endswith((".xlsx", ".xlsm")):
-                results.append({"file": fname, "error": "엑셀(.xlsx)만 가능"})
+            if not fname.lower().endswith((".xlsx", ".xlsm", ".xls")):
+                results.append({"file": fname, "error": "엑셀(.xlsx·.xls)만 가능"})
                 continue
             try:
                 raw = await f.read()
@@ -36293,13 +36454,23 @@ async def export_hs_dict_upload(req: Request):
             if _rv is not None:
                 results.append(_hs_apply_review(c, _rv[0], (_rv[1] or fname), fname, today, u))
                 continue
+            # z1047: ②세관 신고 상세 보고서인가? (.xls 구형식 포함)
+            try:
+                _cs = _hs_parse_customs_xls(raw, fname)
+            except Exception as e:
+                log.warning("hs customs parse fail %s: %s", fname, e)
+                _cs = None
+            if _cs:
+                results.append(_hs_apply_customs(c, _cs, fname, today, u, add_new))
+                continue
             try:
                 rows = _hs_parse_invoice_xlsx(raw, fname)
             except Exception as e:
                 results.append({"file": fname, "error": f"파싱 실패: {str(e)[:100]}"})
                 continue
             if not rows:
-                results.append({"file": fname, "error": "INVOICE 표(HS CODE 헤더)도, 검토표 머리글도 찾지 못함"})
+                results.append({"file": fname,
+                                "error": "인보이스(HS CODE 헤더)·검토표·세관 보고서(Mã HS) 어느 것도 아닙니다"})
                 continue
             added = updated = conflict = or_clash = 0
             for row in rows:
