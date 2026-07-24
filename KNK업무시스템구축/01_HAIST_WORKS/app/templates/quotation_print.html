@@ -173,7 +173,8 @@ body { font-family: 'Pretendard', -apple-system, sans-serif; background: white; 
         {% if lines and lines|length > 0 %}
           {% for ln in lines %}
           <tr>
-            <td class="qp-c">{{ ln.line_no }}</td>
+            {# z1048: 보이는 번호는 화면 순번 — 저장된 line_no 를 찍으면 중간 줄 삭제 시 번호가 건너뛴다(안지연 프로 신고). DB 는 안 건드린다. #}
+            <td class="qp-c">{{ loop.index }}</td>
             <td>
               {{ ln.item_name }}
               {% if ln.part_no %}<br><span style="color:var(--mute);font-size:var(--text-xs);">{{ ln.part_no }}</span>{% endif %}

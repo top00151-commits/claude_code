@@ -308,7 +308,8 @@
                   {% set pg = it.progress|default(0)|int %}
                   {% set pg_cls = 'done' if pg >= 100 else '' %}
                   <tr>
-                    <td class="center mute">{{ it.line_no|default(loop.index) }}</td>
+                    {# z1048: 보이는 번호는 화면 순번 — 저장된 line_no 를 찍으면 중간 줄 삭제 시 번호가 건너뛴다(안지연 프로 신고). DB 는 안 건드린다. #}
+            <td class="center mute">{{ loop.index }}</td>
                     <td><b>{{ it.step_name|default('—') }}</b></td>
                     <td class="num">{{ it.duration_min|default(0) }}</td>
                     <td class="center">
@@ -411,7 +412,7 @@
                   </div>
                   <div class="field">
                     <label>가공 수량 <span class="req">*</span></label>
-                    <input type="number" name="qty" min="0.01" step="0.01" required value="1" class="mono" />
+                    <input type="number" name="qty" min="1" step="1" required value="1" class="mono" />
                   </div>
                 </div>
               </div>

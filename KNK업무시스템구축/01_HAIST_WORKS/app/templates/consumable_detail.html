@@ -389,25 +389,31 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         <tbody>
         {% for it in items %}
           <tr data-iid="{{ it.id }}">
-            <td><b>{{ it.line_no }}</b></td>
+            {# v5H226z1048 (안지연 프로 신고 "중간에 취소 등으로 삭제했더니 번호는 이빨빠짐"):
+               저장된 line_no 를 그대로 보여주면 중간 줄을 지웠을 때 1,2,…,10,12,14 처럼 건너뛴다.
+               → **보이는 번호는 화면 순번**(loop.index). 정렬이 ORDER BY line_no 라 순서는 그대로다.
+               ⛔DB 의 line_no 는 다시 매기지 않는다 — **사진 파일 이름에 박혀 있다**
+                 (`line_003_4.jpg` 의 003 = line_no). 다시 매기면 사진이 엉뚱한 줄에 붙는다.
+               원래 저장 번호는 마우스를 올리면 보인다. #}
+            <td><b title="저장된 줄 번호 {{ it.line_no }}">{{ loop.index }}</b></td>
             {# v5H226z730: 모델명·장비명은 발주 단위(위 '제품' 섹션)로 일원화 → 라인에서 제거. 품목별 칸 = 품명·규격~ #}
             <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="소모품 품명" /></td>
             <td><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /></td>
             {# v5H226z904 (대표 지시): 칸 클릭 후 Ctrl+V 로 클립보드 사진 붙여넣기(📷 파일선택도 그대로) #}
             <td class="photo-cell" tabindex="0" data-iid="{{ it.id }}" data-cat="loc" title="클릭 후 Ctrl+V 로 복사한 사진 붙여넣기">
               {% if it.image_loc_thumb_path %}
-                <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" data-knk-zoom data-knk-name="사진위치 {{ it.line_no }}" target="_blank"><img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" /></a><button type="button" class="pc-del" title="사진 삭제">✕</button>
+                <a href="{{ it.image_loc_path or it.image_loc_thumb_path }}" data-knk-zoom data-knk-name="사진위치 {{ loop.index }}" target="_blank"><img src="{{ it.image_loc_thumb_path }}" alt="사진위치 {{ it.line_no }}" /></a><button type="button" class="pc-del" title="사진 삭제">✕</button>
               {% else %}<button type="button" class="photo-add" title="사진위치 첨부" onclick="pickLinePhoto(this,{{ it.id }},'loc')">📷</button>{% endif %}
             </td>
             <td class="photo-cell" tabindex="0" data-iid="{{ it.id }}" data-cat="photo" title="클릭 후 Ctrl+V 로 복사한 사진 붙여넣기">
               {% if it.image_thumb_path %}
-                <a href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="라인 {{ it.line_no }}" target="_blank"><img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" /></a><button type="button" class="pc-del" title="사진 삭제">✕</button>
+                <a href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="라인 {{ loop.index }}" target="_blank"><img src="{{ it.image_thumb_path }}" alt="라인 {{ it.line_no }}" /></a><button type="button" class="pc-del" title="사진 삭제">✕</button>
               {% else %}<button type="button" class="photo-add" title="사진 첨부" onclick="pickLinePhoto(this,{{ it.id }},'photo')">📷</button>{% endif %}
             </td>
             {# v5H226z725: 발주 공통(ord-col) — 납품일·형태. 모든 줄 동일·편집 시 발주에 저장+전 줄 동기화 #}
             <td class="ord-col"><input type="date" class="ef co-ord" data-field="due_date" value="{{ (co.due_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
             <td class="ord-col"><select class="ef co-ord" data-field="form_type" title="발주 공통 — 모든 줄 동일"><option value="">—</option>{% for ft in ['완제품','제품','상품','기타'] %}<option value="{{ ft }}"{% if (co.form_type or '')==ft %} selected{% endif %}>{{ ft }}</option>{% endfor %}</select></td>
-            <td><input data-k="qty" type="number" step="0.01" value="{{ (it.qty or 0)|qtyfmt }}" /></td>
+            <td><input data-k="qty" type="number" step="1" value="{{ (it.qty or 0)|qtyfmt }}" /></td>
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
             <td><span class="amt-inp"><span class="ccy-pre">{{ (co.currency or 'KRW')|ccysym }}</span><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></span></td>
             <td class="amount cell-amount">{{ (it.amount or 0)|money(co.currency or 'KRW') }}</td>

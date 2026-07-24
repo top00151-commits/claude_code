@@ -210,7 +210,7 @@
                   </div>
                   <div class="field">
                     <label>조정 수량 (절대값) <span class="req">*</span></label>
-                    <input type="number" id="qtyInput" step="0.01" min="0.01" required class="big mono pos"
+                    <input type="number" id="qtyInput" step="1" min="1" required class="big mono pos"
                            placeholder="0" oninput="onQtyChange()" />
                     <!-- 실제 라우터 제출용 hidden (부호 적용) -->
                     <input type="hidden" name="quantity" id="qtyHidden" value="" />

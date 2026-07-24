@@ -194,7 +194,7 @@
                   <input type="hidden" name="q" value="{{ q|default('') }}">
                   <input class="inline-input" type="number" min="0" step="any" name="safety_stock" value="{{ '{:.0f}'.format(ss) }}">
                   <input class="inline-input" type="number" min="0" step="any" name="reorder_point" value="{{ '{:.0f}'.format(rop) }}">
-                  <input class="inline-input" type="number" min="0" step="any" name="reorder_qty" value="{{ '{:.0f}'.format(roq) }}">
+                  <input class="inline-input" type="number" min="0" step="1" name="reorder_qty" value="{{ '{:.0f}'.format(roq) }}">
                   <button type="submit" class="btn-save">저장</button>
                 </form>
               </td>

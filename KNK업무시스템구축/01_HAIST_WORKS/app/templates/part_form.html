@@ -409,7 +409,7 @@
                     </div>
                     <div class="knk-field">
                       <label>재주문량 (ROQ)</label>
-                      <input type="number" name="reorder_qty" step="0.01" min="0" value="{{ part.reorder_qty|default(0) }}">
+                      <input type="number" name="reorder_qty" step="1" min="0" value="{{ part.reorder_qty|default(0) }}">
                     </div>
 
                     <div class="knk-field">
@@ -606,11 +606,11 @@
                       </div>
                       <div class="knk-field">
                         <label>최소 수량</label>
-                        <input type="number" id="pa_min_qty" step="0.01" min="0" value="0">
+                        <input type="number" id="pa_min_qty" step="1" min="0" value="0">
                       </div>
                       <div class="knk-field">
                         <label>최대 수량 (선택)</label>
-                        <input type="number" id="pa_max_qty" step="0.01" min="0" placeholder="무제한">
+                        <input type="number" id="pa_max_qty" step="1" min="0" placeholder="무제한">
                       </div>
                       <div class="knk-field knk-col-3">
                         <label>비고</label>

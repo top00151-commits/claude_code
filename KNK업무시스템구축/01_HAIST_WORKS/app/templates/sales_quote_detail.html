@@ -44,7 +44,8 @@ body {
         <tbody>
         {% for it in items %}
           <tr>
-            <td style="font-family:monospace;color:var(--mute);">{{ '%02d'|format(it.line_no|default(loop.index)) }}</td>
+            {# z1048: 보이는 번호는 화면 순번 — 저장된 line_no 를 찍으면 중간 줄 삭제 시 번호가 건너뛴다(안지연 프로 신고). DB 는 안 건드린다. #}
+            <td style="font-family:monospace;color:var(--mute);">{{ '%02d'|format(loop.index) }}</td>
             <td><b>{{ it.item_name|default('-') }}</b>{% if it.note %}<div style="font-size:12px;color:var(--mute);">{{ it.note }}</div>{% endif %}</td>
             <td class="num">{{ '{:,.0f}'.format(it.qty or 0) }}</td>
             <td>{{ it.unit|default('EA') }}</td>

@@ -296,7 +296,7 @@
                     <input type="hidden" name="line_part_id_{{ loop.index0 }}" value="{{ it.part_id|default('') }}" class="line-part-id" />
                     <input class="line-input line-name" list="partsList" name="line_name_{{ loop.index0 }}" value="{{ it.part_name_snapshot|default(it.part_name|default('')) }}" placeholder="자재명 (선택 시 코드·단가 자동)" oninput="onPartNameInput(this)" />
                     <input class="line-input code" name="line_code_{{ loop.index0 }}" value="{{ it.part_no_snapshot|default(it.part_code|default('')) }}" placeholder="코드" />
-                    <input class="line-input qty" name="line_qty_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.qty|default(1) }}" oninput="recalcLine(this)" />
+                    <input class="line-input qty" name="line_qty_{{ loop.index0 }}" type="number" step="1" value="{{ it.qty|default(1) }}" oninput="recalcLine(this)" />
                     <input class="line-input price" name="line_price_{{ loop.index0 }}" type="number" step="1" value="{{ it.unit_price|default(0) }}" oninput="recalcLine(this)" />
                     <input class="line-input amount" value="₩{{ '{:,.0f}'.format((it.qty or 0)*(it.unit_price or 0)) }}" readonly />
                     <button type="button" class="line-del" onclick="delLine(this)">×</button>
@@ -308,7 +308,7 @@
                     <input type="hidden" name="line_part_id_0" value="" class="line-part-id" />
                     <input class="line-input line-name" list="partsList" name="line_name_0" placeholder="자재명 입력 (등록 자재 선택 시 자동)" oninput="onPartNameInput(this)" />
                     <input class="line-input code" name="line_code_0" placeholder="코드" />
-                    <input class="line-input qty" name="line_qty_0" type="number" step="0.01" value="1" oninput="recalcLine(this)" />
+                    <input class="line-input qty" name="line_qty_0" type="number" step="1" value="1" oninput="recalcLine(this)" />
                     <input class="line-input price" name="line_price_0" type="number" step="1" value="0" oninput="recalcLine(this)" />
                     <input class="line-input amount" value="₩0" readonly />
                     <button type="button" class="line-del" onclick="delLine(this)">×</button>
@@ -477,7 +477,7 @@ function addLine() {
     <input type="hidden" name="line_part_id_${idx}" value="" class="line-part-id" />
     <input class="line-input line-name" list="partsList" name="line_name_${idx}" placeholder="자재명 입력 (등록 자재 선택 시 자동)" oninput="onPartNameInput(this)" />
     <input class="line-input code" name="line_code_${idx}" placeholder="코드" />
-    <input class="line-input qty" name="line_qty_${idx}" type="number" step="0.01" value="1" oninput="recalcLine(this)" />
+    <input class="line-input qty" name="line_qty_${idx}" type="number" step="1" value="1" oninput="recalcLine(this)" />
     <input class="line-input price" name="line_price_${idx}" type="number" step="1" value="0" oninput="recalcLine(this)" />
     <input class="line-input amount" value="₩0" readonly />
     <button type="button" class="line-del" onclick="delLine(this)">×</button>
