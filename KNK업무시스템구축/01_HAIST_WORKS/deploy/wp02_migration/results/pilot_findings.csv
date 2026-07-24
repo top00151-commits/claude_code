@@ -1,0 +1,9 @@
+﻿경계,유형,내용
+①조회·검색,규칙차이,q='smc' biz='' limit=None — SQLite 490건 / PG 0건  ← LIKE 대소문자 (직원이 소문자로 치면 결과 없음)
+①조회·검색,해결책,q='smc' biz='' limit=None — ILIKE 로 바꾸면 490건으로 SQLite 와 일치
+①조회·검색,규칙차이,q='vhk' biz='' limit=10 — SQLite 2건 / PG 0건  ← LIKE 대소문자 (직원이 소문자로 치면 결과 없음)
+①조회·검색,해결책,q='vhk' biz='' limit=10 — ILIKE 로 바꾸면 2건으로 SQLite 와 일치
+②CRUD·금액,결함,금액 집계 — 결과 다름 (다른 줄 1개)
+②CRUD·금액,상세,"SQLite=('USD', 610, Decimal('1163813.22')) / PG=('USD', 610, Decimal('1163813.2200000000016'))"
+③복합Tx·채번,사람판단,★last_insert_rowid→RETURNING 으로 구조 변경 필요  ← SELECT last_insert_rowid()
+④스키마점검,사람판단,PRAGMA 207곳은 자동 번역 불가 — information_schema 로 **함수를 새로 써야** 함
