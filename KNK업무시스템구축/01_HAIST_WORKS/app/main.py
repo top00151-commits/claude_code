@@ -31795,6 +31795,12 @@ async def po_receive_form(request: Request, po_id: int):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
+    # WP-01(게이트 v4 F-02 · 대표 결정 2026-07-24): 입고문서·검수(QC)·격리재고가 없어
+    #   검수 전 자재가 곧바로 가용재고로 잡히던 경로 — 정식 입고(WP-07)까지 잠금.
+    if not _wp01_unlocked("KNK_ENABLE_PO_RECEIVE"):
+        from urllib.parse import quote as _q0
+        return RedirectResponse(f"/po/{po_id}?error=" + _q0(
+            "입고 처리는 준비 중입니다 — 입고문서·검수·격리재고가 갖춰지는 정식 입고에서 열립니다"), 303)
     header, items = _logi.po_get(po_id)
     if not header:
         return RedirectResponse("/po", 303)
@@ -31810,6 +31816,13 @@ async def po_receive_submit(request: Request, po_id: int):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
+    # WP-01(게이트 v4 F-02): 화면 버튼을 막는 것만으론 부족 — 서버에서도 직접 POST 차단.
+    #   PO 수량·입고문서·검수·원장·재고 전부 불변이어야 한다.
+    if not _wp01_unlocked("KNK_ENABLE_PO_RECEIVE"):
+        return JSONResponse({
+            "error": "입고 처리 준비 중",
+            "message": "입고 처리는 준비 중입니다 — 입고문서·검수·격리재고가 갖춰지는 정식 입고(WP-07)에서 열립니다.",
+        }, 403)
     form = await request.form()
     occurred = form.get("occurred_at", "") or ""
     item_ids = form.getlist("po_item_id")

@@ -149,6 +149,21 @@ with db.db_session() as c:
     # 참조 0건 프로젝트(관리번호 없음) — 오등록 정리는 계속 가능해야 함
     c.execute("INSERT INTO projects (name, status) VALUES ('오등록(무이력)','진행중')")
     PJ_EMPTY = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    # ── v5 시드 (게이트 v4 F-01): 이름이 다른 별칭 FK·프로젝트 자기참조 ──
+    c.execute("INSERT INTO projects (name, status) VALUES ('소모품 연결만 있는 건','진행중')")
+    PJ_LINK = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    c.execute("INSERT INTO consumable_orders (co_no, customer_name, status) VALUES ('CO-WP01','시험고객','진행중')")
+    CO_1 = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    c.execute("INSERT INTO consumable_order_items (co_id, line_no, part_name, qty, linked_project_id)"
+              " VALUES (?,1,'소모품 품목',1,?)", (CO_1, PJ_LINK))
+    COI_1 = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    c.execute("INSERT INTO projects (name, status) VALUES ('부모 장비(관리번호 없음)','진행중')")
+    PJ_PARENT = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    c.execute("INSERT INTO projects (name, status, parent_project_id) VALUES ('자식 수리건','진행중',?)", (PJ_PARENT,))
+    PJ_CHILD = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    # 혼합(직접 project_id + 간접 + 별칭 FK) — 한 프로젝트에 섞인 경우
+    c.execute("INSERT INTO consumable_order_items (co_id, line_no, part_name, qty, linked_project_id)"
+              " VALUES (?,2,'혼합 시험 품목',1,?)", (CO_1, PJ_HIST))
     # 자재 병합 대체컬럼 2번째 — merged_part_id 명시 시험 (게이트 v3 §5-2)
     P_MERGED = _part("WPR-MGD", "병합된(흡수) 자재")
     c.execute("INSERT INTO part_merge_log (canonical_id, merged_part_id, canonical_part_no, merged_part_no) VALUES (?,?,?,?)",
@@ -258,6 +273,12 @@ def po_state():
 
 
 _rcv_before = po_state()
+# ⓪ 운영 잠금 — 스위치 없으면 입고 자체가 막힌다 (검수·격리재고 없는 가용재고 증가 차단)
+os.environ.pop("KNK_ENABLE_PO_RECEIVE", None)
+res = db.po_receive(PO_RECV, [{"po_item_id": POI_A, "receive_qty": 3}], 502)
+chk("잠금 상태 발주 입고 차단(ok=False)", (not res.get("ok")) and "준비 중" in res.get("error", ""), res)
+chk(f"  PO 수량·상태·원장·재고 불변 {_rcv_before}", po_state() == _rcv_before)
+os.environ["KNK_ENABLE_PO_RECEIVE"] = "1"
 _orig_tx = db.stock_movement_create_tx
 
 
@@ -279,8 +300,9 @@ res = db.po_receive(PO_RECV, [{"po_item_id": POI_A, "receive_qty": 3},
 chk("한 라인이 발주 수량 초과면 전부 Rollback(앞 라인도 커밋 안 됨)",
     (not res.get("ok")) and po_state() == _rcv_before, f"{res} / {po_state()}")
 res = db.po_receive(PO_RECV, [{"po_item_id": POI_A, "receive_qty": 3}], 502)
-chk("정상 입고 — 수량 3·상태 부분입고·원장 +1행·재고 3",
+chk("잠금 해제 시 정상 입고 — 수량 3·상태 부분입고·원장 +1행·재고 3",
     res.get("ok") and po_state() == (3, "부분입고", _rcv_before[2] + 1, 3), po_state())
+os.environ.pop("KNK_ENABLE_PO_RECEIVE", None)
 
 print("[A7] projects_delete_logi — 완전삭제 운영 잠금 + 전참조 (게이트 v3 F-02 · 대표 결정)")
 
@@ -304,6 +326,49 @@ try:
     chk("운영 관리번호 프로젝트 완전폐기 차단", False, "예외 없이 삭제됨!")
 except PermissionError as e:
     chk("운영 관리번호(002M2599) 완전폐기 차단", "관리번호" in str(e), str(e)[:70])
+# 게이트 v4 F-01: 이름이 다른 별칭 FK(consumable_order_items.linked_project_id)
+
+
+def link_state(coi, pj):
+    with db.db_session() as c:
+        lp = c.execute("SELECT linked_project_id FROM consumable_order_items WHERE id=?", (coi,)).fetchone()[0]
+    return (cnt("projects", "id=?", (pj,)), cnt("consumable_order_items", "id=?", (coi,)), lp)
+
+
+_l0 = link_state(COI_1, PJ_LINK)
+try:
+    db.projects_delete_logi(PJ_LINK, force=True)
+    chk("소모품 연결(linked_project_id)만 있는 프로젝트 삭제 차단", False, "예외 없이 삭제됨!")
+except PermissionError as e:
+    chk("소모품 연결(linked_project_id) 프로젝트 삭제 차단(PermissionError)",
+        "linked_project_id" in str(e), str(e)[:80])
+chk(f"  프로젝트·소모품 품목·연결값 불변 {_l0}", link_state(COI_1, PJ_LINK) == _l0 and _l0[2] == PJ_LINK)
+# 게이트 v4 F-01: 프로젝트 자기참조(projects.parent_project_id)
+
+
+def parent_state():
+    with db.db_session() as c:
+        pp = c.execute("SELECT parent_project_id FROM projects WHERE id=?", (PJ_CHILD,)).fetchone()[0]
+    return (cnt("projects", "id=?", (PJ_PARENT,)), cnt("projects", "id=?", (PJ_CHILD,)), pp)
+
+
+_p0 = parent_state()
+try:
+    db.projects_delete_logi(PJ_PARENT, force=True)
+    chk("자식(parent_project_id)이 있는 부모 프로젝트 삭제 차단", False, "예외 없이 삭제됨!")
+except PermissionError as e:
+    chk("자식(parent_project_id) 있는 부모 프로젝트 삭제 차단(PermissionError)",
+        "parent_project_id" in str(e), str(e)[:80])
+chk(f"  부모·자식·연결값 불변 {_p0}", parent_state() == _p0 and _p0[2] == PJ_PARENT)
+# 혼합(직접 project_id + 간접 자식 + 별칭 FK)이 한 프로젝트에 섞인 경우 — 전부 열거하며 차단
+try:
+    db.projects_delete_logi(PJ_HIST, force=True)
+    chk("혼합 참조 프로젝트 삭제 차단", False, "예외 없이 삭제됨!")
+except PermissionError as e:
+    _msg = str(e)
+    chk("혼합 참조 — 직접·간접·별칭을 모두 열거하며 차단",
+        "changes.project_id" in _msg and "linked_project_id" in _msg
+        and ("change_reads" in _msg or "issue_logs" in _msg or "issues.project_id" in _msg), _msg[:140])
 db.projects_delete_logi(PJ_EMPTY)
 chk("참조 0건 오등록 프로젝트는 정상 삭제(기존 정리 기능 유지)", cnt("projects", "id=?", (PJ_EMPTY,)) == 0)
 
@@ -353,12 +418,32 @@ chk(f"  원장·재고·입고문서 불변 ({mvA}건·{stA}·{rcA}건)",
 r = client.post("/stock/receipts", data={"part_id": str(P_STOCK), "qty": "5"})
 chk("POST /stock/receipts(골격 입고) → 403 잠금 (F-05)", r.status_code == 403, r.status_code)
 chk("  입고문서·원장 불변", cnt("receipts") == rcA and cnt("stock_movements") == mvA)
+
+# ── 게이트 v4 F-02 필수 증빙: 발주서 입고도 화면·서버 2겹 차단 ──
+_po_before = po_state()
+r = client.get(f"/po/{PO_RECV}/receive")
+chk("GET /po/{id}/receive → 발주 상세로 '준비 중' 안내(303)", r.status_code == 303 and "error" in loc(r))
+r = client.post(f"/po/{PO_RECV}/receive", data={"po_item_id": str(POI_A), "receive_qty": "3"})
+chk("POST /po/{id}/receive → 403 차단", r.status_code == 403, r.status_code)
+chk(f"  PO 수량·상태·원장·재고 불변 {_po_before} · 입고문서 {rcA}건 불변",
+    po_state() == _po_before and cnt("receipts") == rcA)
 # 화면 링크 자체가 남아 있지 않은지 (버튼 숨김이 아니라 제거 — F-01)
 for _tpl in ("app/templates/stock_issues.html", "app/templates/_v5_partials/chrome.html",
              "app/templates/logistics_home.html"):
     _txt = open(_tpl, encoding="utf-8").read()
     chk(f"  {os.path.basename(_tpl)} 에 /stock/issue 링크 없음",
         '"/stock/issue"' not in _txt and "'/stock/issue'" not in _txt)
+# 게이트 v4 F-03: 잠긴 기능은 '준비 중'을 진입 전에 알린다 + 사실과 다른 문구 제거
+_t_po = open("app/templates/po_detail.html", encoding="utf-8").read()
+chk("po_detail.html — 입고 처리 링크 제거 + '준비 중' 표시", "/receive\"" not in _t_po and "준비 중" in _t_po)
+_t_pol = open("app/templates/po_list.html", encoding="utf-8").read()
+chk("po_list.html — 없는 절차('검수 종결')를 화면에 표시하지 않음(주석 제외)",
+    ">검수 종결<" not in _t_pol and ">발주 수량 충족<" in _t_pol)
+chk("chrome.html — 사이드바 '출고 요청 (준비 중)'",
+    "출고 요청 (준비 중)" in open("app/templates/_v5_partials/chrome.html", encoding="utf-8").read())
+_t_home = open("app/templates/logistics_home.html", encoding="utf-8").read()
+chk("logistics_home.html — 빠른 실행 입고·출고 '(준비 중)'",
+    "입고 처리 (준비 중)" in _t_home and "출고 요청 (준비 중)" in _t_home)
 
 print("[B2] 출고 확정 = 운영 잠금·승인권한 분리·자기승인 차단·단일 Transaction (게이트 v3 F-03 + v2 F-02/F-03)")
 CURRENT["u"] = USE

@@ -175,6 +175,7 @@ WP01_LOCK_SWITCHES = (
     "KNK_ENABLE_STOCK_DIRECT_ISSUE",    # 승인 없는 직접 출고(재고 즉시 차감)
     "KNK_ENABLE_STOCK_ISSUE_APPROVE",   # 출고 요청 승인·확정
     "KNK_ENABLE_STOCK_RECEIPT_POST",    # /stock/receipts 입고 등록(골격 · PO 수량 미연동)
+    "KNK_ENABLE_PO_RECEIVE",            # 발주서 입고 처리(검수·격리재고 없이 가용재고 증가)
     "KNK_ENABLE_PROJECT_HARD_DELETE",   # 프로젝트 완전삭제(이력까지 삭제)
     "KNK_ENABLE_BOM_PURGE",             # BOM 폐기
 )
@@ -7492,20 +7493,46 @@ PROJECT_REF_INDIRECT = (
 )
 
 
+def _project_ref_columns(c) -> list:
+    """`projects(id)`를 가리키는 모든 (표, 컬럼) — **실제 FK 메타데이터 + 이름 규칙**의 합집합.
+
+    WP-01(게이트 v4 F-01): 컬럼명이 정확히 `project_id`인 것만 찾으면
+      · 소모품 수주 품목의 별칭 FK `consumable_order_items.linked_project_id`
+      · 프로젝트 계층 자기참조 `projects.parent_project_id` (projects 표를 통째로 건너뛰어 누락)
+    를 놓쳐, 프로젝트를 지우면 연결이 이력 없이 조용히 끊겼다. 이제 스키마가 선언한 FK를
+    1순위로 쓰고(이름 무관), 이름 규칙(`project_id` / `*_project_id`)을 보강으로 더한다.
+    """
+    out, seen = [], set()
+    tables = [r[0] for r in c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()]
+    for t in sorted(tables):
+        cols = [x[1] for x in c.execute(f"PRAGMA table_info({t})").fetchall()]
+        picked = set()
+        try:  # PRAGMA foreign_key_list: (id, seq, table, from, to, on_update, on_delete, match)
+            for fk in c.execute(f"PRAGMA foreign_key_list({t})").fetchall():
+                if str(fk[2] or "").lower() == "projects" and fk[3]:
+                    picked.add(fk[3])
+        except Exception:
+            pass
+        for col in cols:
+            if col == "project_id" or col.endswith("_project_id"):
+                picked.add(col)
+        for col in sorted(picked):
+            if col in cols and (t, col) not in seen:
+                seen.add((t, col))
+                out.append((t, col))
+    return out
+
+
 def _project_delete_ref_counts(c, pid: int) -> list:
     """이 프로젝트에 매달린 업무·이력 행 수 — [(표.컬럼, 건수), ...] (0건이면 빈 목록)."""
     out = []
     names = {r[0] for r in c.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()}
-    for t in sorted(names):
-        if t == "projects":
-            continue
-        cols = [x[1] for x in c.execute(f"PRAGMA table_info({t})").fetchall()]
-        if "project_id" not in cols:
-            continue
-        n = c.execute(f"SELECT COUNT(*) FROM {t} WHERE project_id=?", (pid,)).fetchone()[0]
+    for t, col in _project_ref_columns(c):
+        n = c.execute(f"SELECT COUNT(*) FROM {t} WHERE {col}=?", (pid,)).fetchone()[0]
         if n:
-            out.append((f"{t}.project_id", int(n)))
+            out.append((f"{t}.{col}", int(n)))
     for child, parent, fk in PROJECT_REF_INDIRECT:
         if child not in names or parent not in names:
             continue
@@ -9092,7 +9119,15 @@ def po_receive(po_id: int, receive_lines: list[dict], user_id: int,
     이전 구조는 바깥 db_session 안에서 stock_movement_create()가 별도 연결(=별도 Transaction)을
     열어 중간 commit이 생겼고, 수량 초과 시 return 이 앞 라인의 갱신을 그대로 커밋했다.
     이제 어느 라인에서 실패하든 전부 원상복구된다(부분 입고 잔존 금지).
+
+    WP-01(게이트 v4 F-02 · 대표 결정 2026-07-24) 운영 잠금: 이 경로는 Transaction 원자성은
+    갖췄지만 **입고문서·검수(QC)·격리재고(QUARANTINE)가 없어** 검수 전 자재가 곧바로
+    가용재고(parts.stock_qty)로 잡힌다. 생산에 미검수 자재가 투입될 수 있으므로 정식 입고
+    엔진(WP-07)까지 잠근다.
     """
+    if not wp01_unlocked("KNK_ENABLE_PO_RECEIVE"):
+        return {"ok": False, "error": (
+            "입고 처리는 준비 중입니다 — 입고문서·검수·격리재고가 갖춰지는 정식 입고(WP-07)에서 열립니다.")}
     created = []
     low_infos = []
     try:

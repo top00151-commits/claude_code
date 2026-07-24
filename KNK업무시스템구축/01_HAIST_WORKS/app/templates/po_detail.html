@@ -121,7 +121,11 @@
           <a class="knk-btn knk-btn--ghost" href="/po/{{ p.id }}/edit"><i class="ti ti-edit"></i> 수정</a>
           <a class="knk-btn knk-btn--ghost" href="/po/{{ p.id }}/qr.svg?scale=10" target="_blank" title="발주서 QR — 입고 시 스캔용"><i class="ti ti-qrcode"></i> QR</a>
           {% if st in ('발주완료', '부분입고') %}
-          <a class="knk-btn knk-btn--primary" href="/po/{{ p.id }}/receive"><i class="ti ti-package"></i> 입고 처리</a>
+          {# WP-01(게이트 v4 F-02 · 대표 결정 2026-07-24): 입고문서·검수·격리재고 없이 가용재고가
+             늘던 경로 — 정식 입고(WP-07)까지 잠금. 누르기 전에 사용 불가임을 알 수 있게 표시. #}
+          <span class="knk-btn knk-btn--ghost" style="opacity:.55;cursor:not-allowed;"
+                title="입고문서·검수·격리재고가 갖춰지는 정식 입고에서 열립니다">
+            <i class="ti ti-package"></i> 입고 처리 (준비 중)</span>
           {% endif %}
         </div>
       </header>
