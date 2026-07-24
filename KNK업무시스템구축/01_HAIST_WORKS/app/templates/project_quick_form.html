@@ -306,7 +306,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c12" id="qEngraveBox"><label>각인 <span style="font-weight:400;color:var(--qv-ink-3);">(장비 마킹)</span></label><input name="engraving" placeholder="예: S3908 ASSY"></div>
           {% endif %}
           </div></div>
-          {# v5H226z1049 (대표 지시 · 안지연 프로 질문 "수주번호 1개에 2개의 품목을 같이 등록은 안되는 거죠?"):
+          {# v5H226z1050 (대표 지시 · 안지연 프로 질문 "수주번호 1개에 2개의 품목을 같이 등록은 안되는 거죠?"):
    📦 **제품**은 견적서 한 줄('AMS THES123모델 소켓') 아래에 항목이 여러 개 붙는다
    ('소켓 2개 / 소켓PCB 3개' — 단가도 각각). 지금까지는 품목마다 수주번호가 갈려 견적서 한 장과 어긋났다.
    → **형태가 '제품'일 때만** 이 블록을 펴서 항목을 여러 줄 적게 하고, 한 수주번호 안에 그대로 넣는다.
@@ -556,11 +556,11 @@ function qSyncShip(){
   var _isParts=(v==='PARTS');
   ['qTopQtyCell','qTopPriceCell','qTopAmtCell'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=_isParts?'none':''; });
   qCalcParts();
-  qItemsToggle();  // v5H226z1049: 제품(SEMI)일 때만 '📋 항목' 블록
+  qItemsToggle();  // v5H226z1050: 제품(SEMI)일 때만 '📋 항목' 블록
   qBuildUnits();   // v5H226z455: 형태 바뀌면 호기별 섹션 재평가 — 호기는 완제품만
 }
 
-/* v5H226z1049 (대표 지시): 제품 = 견적서 한 줄 아래 구성품 여러 개(소켓 2개·소켓PCB 3개 · 단가 각각).
+/* v5H226z1050 (대표 지시): 제품 = 견적서 한 줄 아래 구성품 여러 개(소켓 2개·소켓PCB 3개 · 단가 각각).
    ⛔완제품 호기·상품·소모품 경로는 건드리지 않는다. 항목 0줄이면 기존과 동일 동작. */
 function qItemsToggle(){
   var g=document.getElementById('qItemsGroup'); if(!g) return;
@@ -633,7 +633,7 @@ function qItemClearAll(){
 }
 (function(){
   var b=document.getElementById('qItemAdd');
-  if(b && !b.__z1049){ b.__z1049=1; b.addEventListener('click', qItemAdd); }
+  if(b && !b.__z1050){ b.__z1050=1; b.addEventListener('click', qItemAdd); }
 })();
 // v5H226z459(대표 지시): 형태 커스텀 드롭다운 — 열면 각 항목에 설명 동반(오버레이), 선택하면 라벨만.
 var _qFormLbl={'ASSEMBLY':'🏭 완제품','SEMI':'📦 제품','PARTS':'🧰 상품','ETC':'🗂 기타'};

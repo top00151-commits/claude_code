@@ -27280,11 +27280,11 @@ async def projects_new_submit(request: Request):
     #   헤더 '단가·발주일·납품일' 강제 면제(금액=부품 합계, 날짜는 후속/상세). 신규·추가발주 공통.
     #   부품 자체는 아래에서 '수주확정' 체크 시 저장(parts_need_confirm 가드).
     _is_parts_reg = (form.get("shipment_form") or "").strip().upper() == "PARTS"
-    # v5H226z1049 (대표 지시): 📦제품(SEMI)의 '항목' — 한 수주번호에 서로 다른 품목 N줄.
+    # v5H226z1050 (대표 지시): 📦제품(SEMI)의 '항목' — 한 수주번호에 서로 다른 품목 N줄.
     #   'AMS THES123모델 소켓' 견적서 한 장 아래 '소켓 2개 / 소켓PCB 3개'(단가 각각).
     #   ⚠**검증보다 먼저** 읽어야 한다 — 항목만 적고 위 단가를 비우면 '단가 필수'에 막힌다(실측으로 잡음).
     #   ⚠제품일 때만 읽는다. 다른 형태에서 값이 섞여 와도 무시(화면도 형태가 바뀌면 지운다).
-    _z1049_items = []
+    _z1050_items = []
     if (form.get("shipment_form") or "").strip().upper() == "SEMI":
         _itn = form.getlist("it_name[]")
         _its = form.getlist("it_spec[]")
@@ -27303,10 +27303,10 @@ async def projects_new_submit(request: Request):
                 _pr = float(((_itp[_i] if _i < len(_itp) else "0") or "0").replace(",", ""))
             except (ValueError, TypeError):
                 _pr = 0.0
-            _z1049_items.append({"name": _nm or _sp, "spec": _sp,
+            _z1050_items.append({"name": _nm or _sp, "spec": _sp,
                                  "qty": max(1, _q), "price": _pr})
-        _z1049_items = _z1049_items[:50]      # 상한(그 이상은 상품/소모품 경로가 맞다)
-    _z1049_total = sum(x["qty"] * x["price"] for x in _z1049_items)
+        _z1050_items = _z1050_items[:50]      # 상한(그 이상은 상품/소모품 경로가 맞다)
+    _z1050_total = sum(x["qty"] * x["price"] for x in _z1050_items)
     _strict = (_status_v in ("진행중", "출하") or _confirm_now_v) and not _is_consumable and not _is_parts_reg
     # PO유형은 항상 필수 (관리코드 산출 키)
     if not po_type_v:
@@ -27316,10 +27316,10 @@ async def projects_new_submit(request: Request):
             return _err_redirect("order_date_required")
         if not due_date_v:
             return _err_redirect("due_date_required")
-        if _z1049_items:
-            # z1049: 제품 항목 — 단가가 항목마다 다르다. 위 단가칸이 아니라 **항목 합계**로 검증한다
+        if _z1050_items:
+            # z1050: 제품 항목 — 단가가 항목마다 다르다. 위 단가칸이 아니라 **항목 합계**로 검증한다
             #   (호기별 단가와 같은 원리). 항목을 적었는데 금액이 0이면 그건 진짜로 덜 적은 것이다.
-            if _z1049_total <= 0:
+            if _z1050_total <= 0:
                 return _err_redirect("unit_price_required")
         elif _multi_v:
             # 호기별 단가 — 단가칸은 비어 있음. 대신 호기 합계(폼 order_amount)로 검증.
@@ -27874,7 +27874,7 @@ async def projects_new_submit(request: Request):
                           "note": u_note, "currency": u_cur})
         # v5H226z: PARTS 형태는 호기 라인 없이 빈 SO + so_type=PARTS_EXPORT
         _ship_form_cn = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
-        # z1049 항목(_z1049_items)은 **검증 앞**에서 이미 읽어 두었다(위 _strict 블록 참고)
+        # z1050 항목(_z1050_items)은 **검증 앞**에서 이미 읽어 두었다(위 _strict 블록 참고)
         try:
             with db_session() as c:
                 if _ship_form_cn == "PARTS":
@@ -27958,8 +27958,8 @@ async def projects_new_submit(request: Request):
                                 pass
                     except Exception as _e:
                         print(f"[z430 parts insert] {_e}")
-                elif _z1049_items:
-                    # v5H226z1049 (대표 지시 · 안지연 프로 질문): 📦제품 = 견적서 한 줄 아래 구성품 여러 개.
+                elif _z1050_items:
+                    # v5H226z1050 (대표 지시 · 안지연 프로 질문): 📦제품 = 견적서 한 줄 아래 구성품 여러 개.
                     #   'AMS THES123모델 소켓' 한 장에 '소켓 2개 / 소켓PCB 3개'(단가 각각) → **한 수주번호**에 줄로.
                     #   상품(PARTS·z430)이 이미 쓰는 길과 같다: 빈 SO 1건 + order_items 를 직접 넣는다.
                     #   ⛔호기로 펼치지 않는다(제품=호기 없음 · 대표 결정).
@@ -27974,7 +27974,7 @@ async def projects_new_submit(request: Request):
                     if _s_oid:
                         _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
                         _tot = 0.0
-                        for _x in _z1049_items:
+                        for _x in _z1050_items:
                             _amt1 = round(_x["qty"] * _x["price"], 2)
                             _tot += _amt1
                             _row = {"order_id": _s_oid, "qty": _x["qty"], "unit_price": _x["price"],
@@ -27987,13 +27987,13 @@ async def projects_new_submit(request: Request):
                                           list(_row.values()))
                             except Exception as _e:
                                 # ⛔조용히 넘기지 않는다 — 줄이 빠지면 금액이 안 맞는다
-                                log.warning("z1049 제품 항목 저장 실패 %s: %s", _x.get("name"), _e)
+                                log.warning("z1050 제품 항목 저장 실패 %s: %s", _x.get("name"), _e)
                         # SO 헤더 합계·수량도 항목 합으로 맞춘다(따로 적어 어긋나지 않게)
                         try:
                             c.execute("UPDATE orders SET total_amount=?, unit_qty=? WHERE id=?",
-                                      (_tot, sum(x["qty"] for x in _z1049_items), _s_oid))
+                                      (_tot, sum(x["qty"] for x in _z1050_items), _s_oid))
                         except Exception as _e:
-                            log.warning("z1049 SO 합계 갱신 실패: %s", _e)
+                            log.warning("z1050 SO 합계 갱신 실패: %s", _e)
                 elif units:
                     _pwf.confirm_order_multi(
                         c, int(new_pid), units=units,
