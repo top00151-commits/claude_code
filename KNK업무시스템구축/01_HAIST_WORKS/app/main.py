@@ -8875,7 +8875,7 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
         rates = _fx_load_rates(c)
         # ① 프로젝트 쪽 — 매출 홈 ①과 동일 조건 + 관리번호 4번째 글자 C 만
         for r in c.execute(
-                "SELECT COALESCE(p.mgmt_code,'') AS mc, COALESCE(o.order_no,'') AS no, "
+                "SELECT COALESCE(p.mgmt_code,'') AS mc, COALESCE(o.order_no,'') AS no, p.id AS oid, "
                 "COALESCE(p.customer_name,'') AS cust, oi.amount AS amount, "
                 "COALESCE(oi.currency,p.currency) AS ccy, "
                 "COALESCE(o.order_date,p.order_date) AS dd, COALESCE(oi.unit_label,'') AS lbl "
@@ -8886,14 +8886,14 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
             d = dict(r); d["src"] = SRC_P; rows.append(d)
         # ② 소모품 쪽 — 매출 홈 ②와 동일 조건
         for r in c.execute(
-                "SELECT COALESCE(mgmt_code,'') AS mc, COALESCE(co_no,'') AS no, "
+                "SELECT COALESCE(mgmt_code,'') AS mc, COALESCE(co_no,'') AS no, id AS oid, "
                 "COALESCE(customer_name,'') AS cust, total_amount AS amount, "
                 "currency AS ccy, order_date AS dd, '' AS lbl "
                 "FROM consumable_orders WHERE COALESCE(status,'')<>'CANCELLED'").fetchall():
             d = dict(r); d["src"] = SRC_C; rows.append(d)
         # ⑤ 저장된 합계(total_amount) vs 라인 합계 — recompute_co_total 이 안 돈 건 표면화
         mism_all = [dict(r) for r in c.execute(
-            "SELECT COALESCE(co.mgmt_code,'') AS mc, COALESCE(co.co_no,'') AS no, "
+            "SELECT COALESCE(co.mgmt_code,'') AS mc, COALESCE(co.co_no,'') AS no, co.id AS oid, "
             "COALESCE(co.customer_name,'') AS cust, COALESCE(co.currency,'KRW') AS ccy, "
             "COALESCE(co.order_date,'') AS dd, COALESCE(co.total_amount,0) AS saved, "
             "(SELECT COALESCE(SUM(COALESCE(i.amount,0)),0) FROM consumable_order_items i "
@@ -8943,6 +8943,14 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
     def _tr(cs):
         return "<tr>" + "".join("<td style='border-bottom:1px solid #eee;padding:5px;'>" + x + "</td>"
                                 for x in cs) + "</tr>"
+
+    def _lnk(d, src=None):
+        """관리번호 → 그 건 상세(고치러 가는 길). §4 규칙 34: 보여주는 곳엔 고치는 자리도."""
+        s = src or d.get("src") or SRC_C
+        href = ("/consumables/" if s == SRC_C else "/projects/") + str(d.get("oid") or 0)
+        return ("<a href='" + href + "' target='_blank' title='이 건 상세로 (새 창에서 열림)' "
+                "style='font-family:monospace;color:#1d4ed8;font-weight:700;'>"
+                + _esc(d.get("mc") or "—") + "</a>")
 
     B = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1180px;"
          "margin:24px auto;padding:0 18px;color:#1f2937;'>",
@@ -9010,13 +9018,13 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
     B.append("<h3 style='margin:20px 0 4px;'>④ 원화환산 큰 순 " + str(len(top)) + "건</h3>")
     B.append("<p style='color:#666;font-size:13px;margin:2px 0 6px;'>"
              "<b style='color:#b91c1c;'>⚠ 통화 확인</b> = 외화로 적혀 있는데 금액이 원화급인 건"
-             "(외화 5만 이상). 원화를 외화로 잘못 고른 것으로 의심됩니다.</p>")
+             "(외화 5만 이상). 원화를 외화로 잘못 고른 것으로 의심됩니다. · "
+             "<b>관리번호를 누르면</b> 그 건 상세가 새 창으로 열립니다 — 거기서 통화를 고칠 수 있습니다.</p>")
     B.append(_thead(("", "출처", "관리번호", "수주번호", "고객사", "통화", "환산 전", "환율", "원화환산", "발주일")))
     for d in top:
         flag = ("<b style='color:#b91c1c;' title='외화 표기인데 금액이 원화급 — 확인 필요'>⚠</b>"
                 if _susp(d) else "")
-        B.append(_tr((flag, d["src"],
-                      "<span style='font-family:monospace;'>" + _esc(d["mc"]) + "</span>",
+        B.append(_tr((flag, d["src"], _lnk(d),
                       "<span style='font-family:monospace;'>" + _esc(d["no"]) + "</span>",
                       _esc(d["cust"])[:24], _esc(d["ccy"]), _n(d["raw"]),
                       (_n(d["rate"]) if d["ccy"] != "KRW" else "—"),
@@ -9036,7 +9044,7 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
         B.append(_thead(("관리번호", "수주번호", "고객사", "통화", "저장된 합계", "라인 합계", "차이", "발주일")))
         for d in sorted(mism, key=lambda x: -abs(float(x["saved"] or 0) - float(x["lsum"] or 0)))[:60]:
             diff = float(d["saved"] or 0) - float(d["lsum"] or 0)
-            B.append(_tr(("<span style='font-family:monospace;'>" + _esc(d["mc"]) + "</span>",
+            B.append(_tr((_lnk(d, SRC_C),
                           "<span style='font-family:monospace;'>" + _esc(d["no"]) + "</span>",
                           _esc(d["cust"])[:24], _esc(d["ccy"]), _n(d["saved"]), _n(d["lsum"]),
                           "<b style='color:#b91c1c;'>" + _n(diff) + "</b>", _esc(d["dd"])[:10])))
@@ -40671,6 +40679,21 @@ async def consumables_import_bulk(request: Request, file: UploadFile = File(...)
             _seen_mm.add(_resv)
             _o["mgmt_code"] = _resv          # 정규화된 코드로 갱신(확정 때 그대로 사용)
             _o["_mgmt_manual_ok"] = True
+        # v5H226z1052 (대표 지시): 통화 오등록을 확정 전에 표면화 — 외화인데 합계가 원화급이면 경고.
+        #   실제 사고: 원화 2,090,000 을 USD 로 둬 매출이 31억으로 잡혔다. 이런 2건이 소모품 매출의 96.8%였다.
+        #   ⛔막지는 않는다(_errors 아님·_warn) — 진짜 외화 발주도 있으므로 사람이 판단한다.
+        for _o in (res.get("orders") or []):
+            try:
+                _c52 = str(_o.get("currency") or "KRW").strip().upper()
+                _t52 = float(_o.get("total_amount") or 0)
+            except (TypeError, ValueError):
+                continue
+            if _c52 != "KRW" and _t52 >= 50000:
+                # ⚠_warn 은 이미 다른 경고(미등록 고객사 등)가 쓰는 자리 — 덮지 말고 **덧붙인다**.
+                _prev52 = (_o.get("_warn") or "").strip()
+                _o["_warn"] = ((_prev52 + " · ") if _prev52 else "") + (
+                    "통화가 " + _c52 + " 인데 합계가 " + f"{_t52:,.0f}" + " 입니다 — "
+                    "원화 금액을 " + _c52 + " 로 두면 매출이 1,000배 이상으로 잡힙니다. 통화를 확인하세요.")
     return JSONResponse(res)
 
 

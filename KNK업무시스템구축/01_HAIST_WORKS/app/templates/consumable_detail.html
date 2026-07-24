@@ -500,6 +500,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
 <script>
 const CO_ID = {{ co.id }};
 const CURR = "{{ co.currency or 'KRW' }}";
+const CO_TOTAL = {{ (co.total_amount or 0)|float }};   {# z1052: 통화 오등록 되묻기용 합계 #}
 // v5H226z956 (대표 지시): 단가·통화 표시 규정(z750 money) 준수 — 기호+숫자·USD 2자리·KRW 정수. 서버 money()와 동일 포맷.
 const _CSYM = {USD:'$',KRW:'₩',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'};
 function moneyFmt(n){ n=Number(n)||0; var k=(CURR==='KRW'); return (_CSYM[CURR]||(CURR+' ')) + n.toLocaleString('ko-KR',{minimumFractionDigits:k?0:2, maximumFractionDigits:k?0:2}); }
@@ -640,6 +641,31 @@ document.querySelectorAll('.ef[data-field]').forEach(el=>{
     }catch(e){ el.style.background='#fee2e2'; }
   });
 });
+
+// v5H226z1052 (대표 지시): 통화를 외화로 두는데 금액이 원화급이면 되묻는다.
+//   실제 사고 — 원화 2,090,000 을 USD 로 두어 매출이 31억으로 잡혔다. 이런 2건이 소모품 매출의 96.8%였다.
+//   ⚠ document 캡처로 잡아야 한다: 같은 칸의 자동저장(.ef change)보다 **먼저** 돌아야 취소가 먹는다.
+//      같은 요소에 건 capture 리스너는 AT_TARGET 에서 등록순으로 도므로 먼저 돈다는 보장이 없다.
+(function(){
+  var prev = CURR || 'KRW';
+  document.addEventListener('change', function(ev){
+    var el = ev.target;
+    if(!el || !el.dataset || el.dataset.field !== 'currency') return;
+    var ccy = (el.value || 'KRW').toUpperCase();
+    var amt = Number(CO_TOTAL) || 0;
+    if(ccy !== 'KRW' && amt >= 50000){
+      if(!confirm('합계가 ' + amt.toLocaleString('ko-KR') + ' 입니다.\n\n'
+                  + '통화를 ' + ccy + ' 로 두면 이 금액이 ' + ccy + ' 로 읽혀\n'
+                  + '원화 매출이 1,000배 이상으로 잡힙니다.\n\n'
+                  + '정말 ' + ccy + ' 가 맞습니까?')){
+        el.value = prev;
+        ev.stopImmediatePropagation();   // 자동저장 막기 — 되돌린 값이 서버로 안 가게
+        return;
+      }
+    }
+    prev = el.value;
+  }, true);
+})();
 
 // v5H226z1039 (z1038 후속): 상태 ↔ 상태 발생일을 **작업일정표 달력과 같은 규칙**으로 맞춘다.
 //   · 진행중으로 되돌리면 → 발생일 해제(달력의 setRowStatus 와 동일 · 서버도 sdate=None 처리)
