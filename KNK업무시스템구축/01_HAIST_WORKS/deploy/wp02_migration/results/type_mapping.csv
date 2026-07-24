@@ -1,0 +1,1801 @@
+﻿표,컬럼,SQLite선언,PostgreSQL,분류,근거규정
+activities,id,INTEGER,bigint identity,기본키(자동증가),-
+activities,actor_id,INTEGER,bigint,정수,-
+activities,kind,TEXT,text,글자,-
+activities,task_id,INTEGER,bigint,정수,-
+activities,project_id,INTEGER,bigint,정수,-
+activities,team_id,INTEGER,bigint,정수,-
+activities,title,TEXT,text,글자,-
+activities,body,TEXT,text,글자,-
+activities,meta,TEXT,text,글자,-
+activities,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+app_settings,key,TEXT,text,글자,-
+app_settings,value,TEXT,text,글자,-
+app_settings,description,TEXT,text,글자,-
+app_settings,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+app_settings,updated_by,INTEGER,bigint,정수,-
+as_status_history,id,INTEGER,bigint identity,기본키(자동증가),-
+as_status_history,as_id,INTEGER,bigint,정수,-
+as_status_history,from_status,TEXT,text,글자,-
+as_status_history,to_status,TEXT,text,글자,-
+as_status_history,changed_by,INTEGER,bigint,정수,-
+as_status_history,note,TEXT,text,글자,-
+as_status_history,changed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+as_tickets,id,INTEGER,bigint identity,기본키(자동증가),-
+as_tickets,as_no,TEXT,text,글자,-
+as_tickets,received_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+as_tickets,biz_div,TEXT,text,글자,-
+as_tickets,customer_id,INTEGER,bigint,정수,-
+as_tickets,customer_name,TEXT,text,글자,-
+as_tickets,customer_phone,TEXT,text,글자,-
+as_tickets,customer_address,TEXT,text,글자,-
+as_tickets,product_id,INTEGER,bigint,정수,-
+as_tickets,product_name,TEXT,text,글자,-
+as_tickets,model_name,TEXT,text,글자,-
+as_tickets,purchase_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+as_tickets,symptom,TEXT,text,글자,-
+as_tickets,inbound_tracking,TEXT,text,글자,-
+as_tickets,outbound_tracking,TEXT,text,글자,-
+as_tickets,shipped_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+as_tickets,is_paid,INTEGER,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+as_tickets,repair_fee,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+as_tickets,repair_note,TEXT,text,글자,-
+as_tickets,status,TEXT,text,글자,-
+as_tickets,assignee_id,INTEGER,bigint,정수,-
+as_tickets,note,TEXT,text,글자,-
+as_tickets,created_by,INTEGER,bigint,정수,-
+as_tickets,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+as_tickets,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+audit_attachments,id,INTEGER,bigint identity,기본키(자동증가),-
+audit_attachments,adjustment_id,INTEGER,bigint,정수,-
+audit_attachments,file_path,TEXT,text,글자,-
+audit_attachments,file_name,TEXT,text,글자,-
+audit_attachments,uploaded_by,INTEGER,bigint,정수,-
+audit_attachments,uploaded_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+bills_of_lading,id,INTEGER,bigint identity,기본키(자동증가),-
+bills_of_lading,bl_no,TEXT,text,글자,-
+bills_of_lading,export_order_id,INTEGER,bigint,정수,-
+bills_of_lading,shipping_company,TEXT,text,글자,-
+bills_of_lading,vessel,TEXT,text,글자,-
+bills_of_lading,departure_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+bills_of_lading,arrival_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+bills_of_lading,tracking_no,TEXT,text,글자,-
+bills_of_lading,status,TEXT,text,글자,-
+bills_of_lading,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+board_comments,id,INTEGER,bigint identity,기본키(자동증가),-
+board_comments,post_id,INTEGER,bigint,정수,-
+board_comments,author_id,INTEGER,bigint,정수,-
+board_comments,body,TEXT,text,글자,-
+board_comments,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+board_posts,id,INTEGER,bigint identity,기본키(자동증가),-
+board_posts,board_id,INTEGER,bigint,정수,-
+board_posts,author_id,INTEGER,bigint,정수,-
+board_posts,title,TEXT,text,글자,-
+board_posts,body,TEXT,text,글자,-
+board_posts,category,TEXT,text,글자,-
+board_posts,is_pinned,INTEGER,bigint,정수,-
+board_posts,view_count,INTEGER,bigint,수량,z1048 수량=정수
+board_posts,approval_status,TEXT,text,글자,-
+board_posts,approved_by,INTEGER,bigint,정수,-
+board_posts,approved_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+board_posts,reject_reason,TEXT,text,글자,-
+board_posts,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+board_posts,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+boards,id,INTEGER,bigint identity,기본키(자동증가),-
+boards,name,TEXT,text,글자,-
+boards,type,TEXT,text,글자,-
+boards,team_id,INTEGER,bigint,정수,-
+boards,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+bom_item_history,id,INTEGER,bigint identity,기본키(자동증가),-
+bom_item_history,item_id,INTEGER,bigint,정수,-
+bom_item_history,project_id,INTEGER,bigint,정수,-
+bom_item_history,upload_id,INTEGER,bigint,정수,-
+bom_item_history,change_type,TEXT,text,글자,-
+bom_item_history,field,TEXT,text,글자,-
+bom_item_history,old_value,TEXT,text,글자,-
+bom_item_history,new_value,TEXT,text,글자,-
+bom_item_history,source,TEXT,text,글자,-
+bom_item_history,note,TEXT,text,글자,-
+bom_item_history,changed_by,INTEGER,bigint,정수,-
+bom_item_history,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+bom_items,id,INTEGER,bigint identity,기본키(자동증가),-
+bom_items,project_id,INTEGER,bigint,정수,-
+bom_items,item_type,TEXT,text,글자,-
+bom_items,category,TEXT,text,글자,-
+bom_items,unit_code,TEXT,text,글자,-
+bom_items,line_no,INTEGER,bigint,정수,-
+bom_items,part_no,TEXT,text,글자,-
+bom_items,part_no_norm,TEXT,text,글자,-
+bom_items,part_name,TEXT,text,글자,-
+bom_items,maker,TEXT,text,글자,-
+bom_items,vendor,TEXT,text,글자,-
+bom_items,material,TEXT,text,글자,-
+bom_items,finishing,TEXT,text,글자,-
+bom_items,unit_count,REAL,bigint,수량,z1048 수량=정수
+bom_items,total_qty,REAL,bigint,수량,z1048 수량=정수
+bom_items,unit,TEXT,text,글자,-
+bom_items,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+bom_items,currency,TEXT,text,글자,-
+bom_items,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+bom_items,delivery_text,TEXT,text,글자,-
+bom_items,buy_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+bom_items,part_id,INTEGER,bigint,정수,-
+bom_items,order_status,TEXT,text,글자,-
+bom_items,review_flag,INTEGER,bigint,정수,-
+bom_items,status,TEXT,text,글자,-
+bom_items,remarks,TEXT,text,글자,-
+bom_items,first_upload_id,INTEGER,bigint,정수,-
+bom_items,last_upload_id,INTEGER,bigint,정수,-
+bom_items,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+bom_items,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+bom_uploads,id,INTEGER,bigint identity,기본키(자동증가),-
+bom_uploads,project_id,INTEGER,bigint,정수,-
+bom_uploads,version_no,INTEGER,bigint,정수,-
+bom_uploads,source_filename,TEXT,text,글자,-
+bom_uploads,sheet_names,TEXT,text,글자,-
+bom_uploads,mode,TEXT,text,글자,-
+bom_uploads,added,INTEGER,bigint,정수,-
+bom_uploads,changed,INTEGER,bigint,정수,-
+bom_uploads,deleted,INTEGER,bigint,정수,-
+bom_uploads,missing,INTEGER,bigint,정수,-
+bom_uploads,ordered_warn,INTEGER,bigint,정수,-
+bom_uploads,uploaded_by,INTEGER,bigint,정수,-
+bom_uploads,note,TEXT,text,글자,-
+bom_uploads,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+catalog_favorites,user_id,INTEGER,bigint,정수,-
+catalog_favorites,part_id,INTEGER,bigint,정수,-
+catalog_favorites,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+change_impacts,id,INTEGER,bigint identity,기본키(자동증가),-
+change_impacts,change_id,INTEGER,bigint,정수,-
+change_impacts,impact_kind,TEXT,text,글자,-
+change_impacts,impact_team_id,INTEGER,bigint,정수,-
+change_impacts,impact_user_id,INTEGER,bigint,정수,-
+change_impacts,auto_detected,INTEGER,bigint,정수,-
+change_impacts,impact_reason,TEXT,text,글자,-
+change_reads,id,INTEGER,bigint identity,기본키(자동증가),-
+change_reads,change_id,INTEGER,bigint,정수,-
+change_reads,user_id,INTEGER,bigint,정수,-
+change_reads,read_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+change_reads,ack_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+change_reads,ack_note,TEXT,text,글자,-
+changes,id,INTEGER,bigint identity,기본키(자동증가),-
+changes,change_no,TEXT,text,글자,-
+changes,change_type,TEXT,text,글자,-
+changes,biz_div,TEXT,text,글자,-
+changes,target_kind,TEXT,text,글자,-
+changes,target_id,INTEGER,bigint,정수,-
+changes,target_label,TEXT,text,글자,-
+changes,project_id,INTEGER,bigint,정수,-
+changes,title,TEXT,text,글자,-
+changes,description,TEXT,text,글자,-
+changes,before_value,TEXT,text,글자,-
+changes,after_value,TEXT,text,글자,-
+changes,attached_files,TEXT,text,글자,-
+changes,urgency,TEXT,text,글자,-
+changes,author_id,INTEGER,bigint,정수,-
+changes,status,TEXT,text,글자,-
+changes,notified_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+changes,completed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+changes,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+changes,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+changes,source,TEXT,text,글자,-
+changes,source_ref,TEXT,text,글자,-
+changes,approval_url,TEXT,text,글자,-
+comment_mentions,id,INTEGER,bigint identity,기본키(자동증가),-
+comment_mentions,comment_id,INTEGER,bigint,정수,-
+comment_mentions,user_id,INTEGER,bigint,정수,-
+commercial_invoices,id,INTEGER,bigint identity,기본키(자동증가),-
+commercial_invoices,invoice_no,TEXT,text,글자,-
+commercial_invoices,export_order_id,INTEGER,bigint,정수,-
+commercial_invoices,issue_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+commercial_invoices,total_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+commercial_invoices,currency,TEXT,text,글자,-
+commercial_invoices,signed_by,INTEGER,bigint,정수,-
+commercial_invoices,status,TEXT,text,글자,-
+commercial_invoices,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_history,id,INTEGER,bigint identity,기본키(자동증가),-
+consumable_history,co_id,INTEGER,bigint,정수,-
+consumable_history,item_id,INTEGER,bigint,정수,-
+consumable_history,scope,TEXT,text,글자,-
+consumable_history,field,TEXT,text,글자,-
+consumable_history,label,TEXT,text,글자,-
+consumable_history,old_value,TEXT,text,글자,-
+consumable_history,new_value,TEXT,text,글자,-
+consumable_history,changed_by,INTEGER,bigint,정수,-
+consumable_history,changed_by_name,TEXT,text,글자,-
+consumable_history,changed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_order_items,id,INTEGER,bigint identity,기본키(자동증가),-
+consumable_order_items,co_id,INTEGER,bigint,정수,-
+consumable_order_items,line_no,INTEGER,bigint,정수,-
+consumable_order_items,model_use,TEXT,text,글자,-
+consumable_order_items,part_id,INTEGER,bigint,정수,-
+consumable_order_items,part_name,TEXT,text,글자,-
+consumable_order_items,spec,TEXT,text,글자,-
+consumable_order_items,qty,REAL,bigint,수량,z1048 수량=정수
+consumable_order_items,unit,TEXT,text,글자,-
+consumable_order_items,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+consumable_order_items,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+consumable_order_items,linked_project_id,INTEGER,bigint,정수,-
+consumable_order_items,note,TEXT,text,글자,-
+consumable_order_items,image_path,TEXT,text,글자,-
+consumable_order_items,image_thumb_path,TEXT,text,글자,-
+consumable_order_items,image_loc_path,TEXT,text,글자,-
+consumable_order_items,image_loc_thumb_path,TEXT,text,글자,-
+consumable_order_items,equip_name,TEXT,text,글자,-
+consumable_orders,id,INTEGER,bigint identity,기본키(자동증가),-
+consumable_orders,co_no,TEXT,text,글자,-
+consumable_orders,customer_id,INTEGER,bigint,정수,-
+consumable_orders,customer_name,TEXT,text,글자,-
+consumable_orders,order_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_orders,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_orders,currency,TEXT,text,글자,-
+consumable_orders,total_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+consumable_orders,status,TEXT,text,글자,-
+consumable_orders,note,TEXT,text,글자,-
+consumable_orders,source_file,TEXT,text,글자,-
+consumable_orders,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_orders,created_by,INTEGER,bigint,정수,-
+consumable_orders,mgmt_code,TEXT,text,글자,-
+consumable_orders,biz_div,TEXT,text,글자,-
+consumable_orders,cc_dept,TEXT,text,글자,-
+consumable_orders,cc_name,TEXT,text,글자,-
+consumable_orders,ship_to,TEXT,text,글자,-
+consumable_orders,is_export,INTEGER,bigint,정수,-
+consumable_orders,secondary_customer,TEXT,text,글자,-
+consumable_orders,cc_phone,TEXT,text,글자,-
+consumable_orders,model_name,TEXT,text,글자,-
+consumable_orders,equip_name,TEXT,text,글자,-
+consumable_orders,sales_name,TEXT,text,글자,-
+consumable_orders,statement_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_orders,tax_invoice_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_orders,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_orders,tax_invoice_amt1,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+consumable_orders,tax_invoice_date2,TEXT,text,글자,-
+consumable_orders,tax_invoice_amt2,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+consumable_orders,tax_invoice_date3,TEXT,text,글자,-
+consumable_orders,tax_invoice_amt3,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+consumable_orders,form_type,TEXT,text,글자,-
+consumable_orders,notify_recipients,TEXT,text,글자,-
+consumable_orders,notify_dept_names,TEXT,text,글자,-
+consumable_orders,notify_user_ids,TEXT,text,글자,-
+consumable_orders,notify_team_ids,TEXT,text,글자,-
+consumable_orders,notify_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+consumable_orders,notify_by_name,TEXT,text,글자,-
+consumable_orders,notify_sent_to,INTEGER,bigint,정수,-
+consumable_orders,notify_dept_count,INTEGER,bigint,수량,z1048 수량=정수
+consumable_orders,notify_msg_sent,INTEGER,bigint,정수,-
+consumable_orders,status_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+corrective_actions,id,INTEGER,bigint identity,기본키(자동증가),-
+corrective_actions,issue_id,INTEGER,bigint,정수,-
+corrective_actions,action,TEXT,text,글자,-
+corrective_actions,responsible,INTEGER,bigint,정수,-
+corrective_actions,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+corrective_actions,completed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+corrective_actions,status,TEXT,text,글자,-
+corrective_actions,created_by,INTEGER,bigint,정수,-
+corrective_actions,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+corrective_actions,lifecycle_status,TEXT,text,글자,-
+corrective_actions,approved_by,INTEGER,bigint,정수,-
+corrective_actions,approved_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+corrective_actions,verified_by,INTEGER,bigint,정수,-
+corrective_actions,verified_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+corrective_actions,effectiveness_note,TEXT,text,글자,-
+cost_simulations,id,INTEGER,bigint identity,기본키(자동증가),-
+cost_simulations,part_id,INTEGER,bigint,정수,-
+cost_simulations,simulated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+cost_simulations,base_currency,TEXT,text,글자,-
+cost_simulations,target_currency,TEXT,text,글자,-
+cost_simulations,exchange_rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+cost_simulations,unit_price_base,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+cost_simulations,unit_price_target,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+cost_simulations,margin_pct,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+cost_simulations,note,TEXT,text,글자,-
+cost_simulations,created_by,INTEGER,bigint,정수,-
+cost_simulations,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+countries_master,code,TEXT,text,글자,-
+countries_master,name_ko,TEXT,text,글자,-
+countries_master,name_en,TEXT,text,글자,-
+countries_master,region,TEXT,text,글자,-
+countries_master,is_active,INTEGER,bigint,정수,-
+countries_master,display_order,INTEGER,bigint,정수,-
+countries_master,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+customer_contacts,id,INTEGER,bigint identity,기본키(자동증가),-
+customer_contacts,customer_id,INTEGER,bigint,정수,-
+customer_contacts,role,TEXT,text,글자,-
+customer_contacts,department,TEXT,text,글자,-
+customer_contacts,name,TEXT,text,글자,-
+customer_contacts,position,TEXT,text,글자,-
+customer_contacts,phone,TEXT,text,글자,-
+customer_contacts,mobile,TEXT,text,글자,-
+customer_contacts,email,TEXT,text,글자,-
+customer_contacts,is_primary,INTEGER,bigint,정수,-
+customer_contacts,note,TEXT,text,글자,-
+customer_contacts,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+customer_history,id,INTEGER,bigint identity,기본키(자동증가),-
+customer_history,customer_id,INTEGER,bigint,정수,-
+customer_history,changed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+customer_history,changed_by,INTEGER,bigint,정수,-
+customer_history,field,TEXT,text,글자,-
+customer_history,old_value,TEXT,text,글자,-
+customer_history,new_value,TEXT,text,글자,-
+customer_history,note,TEXT,text,글자,-
+customers,id,INTEGER,bigint identity,기본키(자동증가),-
+customers,name,TEXT,text,글자,-
+customers,tier,TEXT,text,글자,-
+customers,note,TEXT,text,글자,-
+customers,biz_no,TEXT,text,글자,-
+customers,ceo_name,TEXT,text,글자,-
+customers,manager_name,TEXT,text,글자,-
+customers,phone,TEXT,text,글자,-
+customers,email,TEXT,text,글자,-
+customers,address,TEXT,text,글자,-
+customers,is_active,INTEGER,bigint,정수,-
+customers,tier_score,INTEGER,numeric,비율·환율·중량,z1048 예외(소수 정당)
+customers,tier_computed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+customers,tier_breakdown,TEXT,text,글자,-
+customers,code,TEXT,text,글자,-
+customers,business_type,TEXT,text,글자,-
+customers,business_item,TEXT,text,글자,-
+customers,zipcode,TEXT,text,글자,-
+customers,address_detail,TEXT,text,글자,-
+customers,fax,TEXT,text,글자,-
+customers,sub_biz_no,TEXT,text,글자,-
+customers,is_overseas,INTEGER,bigint,정수,-
+customers,country,TEXT,text,글자,-
+customers,alias,TEXT,text,글자,-
+customers,pay_days,INTEGER,bigint,정수,-
+customs_declarations,id,INTEGER,bigint identity,기본키(자동증가),-
+customs_declarations,declaration_no,TEXT,text,글자,-
+customs_declarations,export_order_id,INTEGER,bigint,정수,-
+customs_declarations,hs_code,TEXT,text,글자,-
+customs_declarations,fta_origin,TEXT,text,글자,-
+customs_declarations,declared_value,REAL,double precision,실수(비금액),-
+customs_declarations,cleared_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+customs_declarations,status,TEXT,text,글자,-
+customs_declarations,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+delegation_audit,id,INTEGER,bigint identity,기본키(자동증가),-
+delegation_audit,token_id,INTEGER,bigint,정수,-
+delegation_audit,action,TEXT,text,글자,-
+delegation_audit,actor,INTEGER,bigint,정수,-
+delegation_audit,timestamp,TEXT,text,글자,-
+delegation_audit,details,TEXT,text,글자,-
+delegation_tokens,id,INTEGER,bigint identity,기본키(자동증가),-
+delegation_tokens,from_user,INTEGER,bigint,정수,-
+delegation_tokens,to_user,INTEGER,bigint,정수,-
+delegation_tokens,permission_id,INTEGER,bigint,정수,-
+delegation_tokens,expires_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+delegation_tokens,can_redelegate,INTEGER,bigint,정수,-
+delegation_tokens,status,TEXT,text,글자,-
+delegation_tokens,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+dept_schedule_log,id,INTEGER,bigint identity,기본키(자동증가),-
+dept_schedule_log,ref_kind,TEXT,text,글자,-
+dept_schedule_log,ref_id,INTEGER,bigint,정수,-
+dept_schedule_log,log_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+dept_schedule_log,dept,TEXT,text,글자,-
+dept_schedule_log,log_type,TEXT,text,글자,-
+dept_schedule_log,content,TEXT,text,글자,-
+dept_schedule_log,created_by,INTEGER,bigint,정수,-
+dept_schedule_log,created_by_name,TEXT,text,글자,-
+dept_schedule_log,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+dept_schedule_log,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+dept_schedule_log,handoff_to,TEXT,text,글자,-
+dept_schedule_log,unit_label,TEXT,text,글자,-
+dept_schedule_log,hours,REAL,double precision,실수(비금액),-
+exchange_rates,id,INTEGER,bigint identity,기본키(자동증가),-
+exchange_rates,rate_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+exchange_rates,from_currency,TEXT,text,글자,-
+exchange_rates,to_currency,TEXT,text,글자,-
+exchange_rates,rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+exchange_rates,source,TEXT,text,글자,-
+exchange_rates,note,TEXT,text,글자,-
+exchange_rates,created_by,INTEGER,bigint,정수,-
+exchange_rates,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+export_boxes,project_id,INTEGER,bigint,정수,-
+export_boxes,box_no,TEXT,text,글자,-
+export_boxes,weight_kg,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+export_boxes,box_size,TEXT,text,글자,-
+export_boxes,updated_by,INTEGER,bigint,정수,-
+export_boxes,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+export_doc_meta,project_id,INTEGER,bigint identity,기본키(자동증가),-
+export_doc_meta,invoice_no,TEXT,text,글자,-
+export_doc_meta,invoice_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+export_doc_meta,consignee,TEXT,text,글자,-
+export_doc_meta,notify,TEXT,text,글자,-
+export_doc_meta,port_loading,TEXT,text,글자,-
+export_doc_meta,final_dest,TEXT,text,글자,-
+export_doc_meta,carrier,TEXT,text,글자,-
+export_doc_meta,sailing_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+export_doc_meta,lc_no,TEXT,text,글자,-
+export_doc_meta,payment,TEXT,text,글자,-
+export_doc_meta,issuing_bank,TEXT,text,글자,-
+export_doc_meta,incoterms,TEXT,text,글자,-
+export_doc_meta,remarks,TEXT,text,글자,-
+export_doc_meta,updated_by,INTEGER,bigint,정수,-
+export_doc_meta,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+export_hs_dict,id,INTEGER,bigint identity,기본키(자동증가),-
+export_hs_dict,part_key,TEXT,text,글자,-
+export_hs_dict,model,TEXT,text,글자,-
+export_hs_dict,name_en,TEXT,text,글자,-
+export_hs_dict,vn_name,TEXT,text,글자,-
+export_hs_dict,hs_code,TEXT,text,글자,-
+export_hs_dict,origin,TEXT,text,글자,-
+export_hs_dict,duty,TEXT,text,글자,-
+export_hs_dict,vat,TEXT,text,글자,-
+export_hs_dict,status,TEXT,text,글자,-
+export_hs_dict,seen_count,INTEGER,bigint,수량,z1048 수량=정수
+export_hs_dict,first_seen,TEXT,text,글자,-
+export_hs_dict,last_seen,TEXT,text,글자,-
+export_hs_dict,source_file,TEXT,text,글자,-
+export_hs_dict,note,TEXT,text,글자,-
+export_hs_dict,updated_by,INTEGER,bigint,정수,-
+export_hs_dict,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+export_hs_dict,review_file,TEXT,text,글자,-
+export_hs_dict,review_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+export_orders,id,INTEGER,bigint identity,기본키(자동증가),-
+export_orders,order_id,INTEGER,bigint,정수,-
+export_orders,buyer,TEXT,text,글자,-
+export_orders,shipping_terms,TEXT,text,글자,-
+export_orders,payment_terms,TEXT,text,글자,-
+export_orders,port_of_loading,TEXT,text,글자,-
+export_orders,port_of_discharge,TEXT,text,글자,-
+export_orders,status,TEXT,text,글자,-
+export_orders,created_by,INTEGER,bigint,정수,-
+export_orders,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+field_access_policy,category,TEXT,text,글자,-
+field_access_policy,team_id,INTEGER,bigint,정수,-
+fta_certificate_items,id,INTEGER,bigint identity,기본키(자동증가),-
+fta_certificate_items,cert_id,INTEGER,bigint,정수,-
+fta_certificate_items,line_no,INTEGER,bigint,정수,-
+fta_certificate_items,part_id,INTEGER,bigint,정수,-
+fta_certificate_items,part_name,TEXT,text,글자,-
+fta_certificate_items,hs_code,TEXT,text,글자,-
+fta_certificate_items,qty,REAL,bigint,수량,z1048 수량=정수
+fta_certificate_items,unit,TEXT,text,글자,-
+fta_certificate_items,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+fta_certificate_items,origin_country,TEXT,text,글자,-
+fta_certificate_items,total,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+fta_certificates,id,INTEGER,bigint identity,기본키(자동증가),-
+fta_certificates,cert_no,TEXT,text,글자,-
+fta_certificates,fta_type,TEXT,text,글자,-
+fta_certificates,customer_id,INTEGER,bigint,정수,-
+fta_certificates,customer_name,TEXT,text,글자,-
+fta_certificates,customer_address,TEXT,text,글자,-
+fta_certificates,customer_country,TEXT,text,글자,-
+fta_certificates,export_order_id,INTEGER,bigint,정수,-
+fta_certificates,export_invoice_no,TEXT,text,글자,-
+fta_certificates,export_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+fta_certificates,origin_country,TEXT,text,글자,-
+fta_certificates,total_value,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+fta_certificates,currency,TEXT,text,글자,-
+fta_certificates,issuer_id,INTEGER,bigint,정수,-
+fta_certificates,issuer_name,TEXT,text,글자,-
+fta_certificates,issued_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+fta_certificates,status,TEXT,text,글자,-
+fta_certificates,remarks,TEXT,text,글자,-
+fta_certificates,created_by,INTEGER,bigint,정수,-
+fta_certificates,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+group_permissions,group_id,INTEGER,bigint,정수,-
+group_permissions,permission_id,INTEGER,bigint,정수,-
+ic_invoice_pairs,id,INTEGER,bigint identity,기본키(자동증가),-
+ic_invoice_pairs,pair_code,TEXT,text,글자,-
+ic_invoice_pairs,workflow_id,INTEGER,bigint,정수,-
+ic_invoice_pairs,project_id,INTEGER,bigint,정수,-
+ic_invoice_pairs,sell_entity,TEXT,text,글자,-
+ic_invoice_pairs,buy_entity,TEXT,text,글자,-
+ic_invoice_pairs,sell_node_id,INTEGER,bigint,정수,-
+ic_invoice_pairs,buy_node_id,INTEGER,bigint,정수,-
+ic_invoice_pairs,sell_invoice_id,INTEGER,bigint,정수,-
+ic_invoice_pairs,buy_invoice_id,INTEGER,bigint,정수,-
+ic_invoice_pairs,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+ic_invoice_pairs,currency,TEXT,text,글자,-
+ic_invoice_pairs,status,TEXT,text,글자,-
+ic_invoice_pairs,matched_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+ic_invoice_pairs,note,TEXT,text,글자,-
+ic_invoice_pairs,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+invoices,id,INTEGER,bigint identity,기본키(자동증가),-
+invoices,invoice_no,TEXT,text,글자,-
+invoices,order_id,INTEGER,bigint,정수,-
+invoices,customer_id,INTEGER,bigint,정수,-
+invoices,issue_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+invoices,amount_excl_vat,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+invoices,vat,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+invoices,total_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+invoices,status,TEXT,text,글자,-
+invoices,created_by,INTEGER,bigint,정수,-
+invoices,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issue_logs,id,INTEGER,bigint identity,기본키(자동증가),-
+issue_logs,issue_id,INTEGER,bigint,정수,-
+issue_logs,user_id,INTEGER,bigint,정수,-
+issue_logs,action,TEXT,text,글자,-
+issue_logs,content,TEXT,text,글자,-
+issue_logs,old_status,TEXT,text,글자,-
+issue_logs,new_status,TEXT,text,글자,-
+issue_logs,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues,id,INTEGER,bigint identity,기본키(자동증가),-
+issues,issue_no,TEXT,text,글자,-
+issues,title,TEXT,text,글자,-
+issues,severity,TEXT,text,글자,-
+issues,issue_type,TEXT,text,글자,-
+issues,status,TEXT,text,글자,-
+issues,customer_id,INTEGER,bigint,정수,-
+issues,customer_name,TEXT,text,글자,-
+issues,project_id,INTEGER,bigint,정수,-
+issues,mgmt_code,TEXT,text,글자,-
+issues,biz_div,TEXT,text,글자,-
+issues,occurred_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues,detected_by,TEXT,text,글자,-
+issues,description,TEXT,text,글자,-
+issues,root_cause,TEXT,text,글자,-
+issues,action_taken,TEXT,text,글자,-
+issues,prevention,TEXT,text,글자,-
+issues,owner_team_id,INTEGER,bigint,정수,-
+issues,owner_user_id,INTEGER,bigint,정수,-
+issues,resolved_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues,cost_estimate,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+issues,related_change_id,INTEGER,numeric,비율·환율·중량,z1048 예외(소수 정당)
+issues,created_by,INTEGER,bigint,정수,-
+issues,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues,sla_hours,INTEGER,bigint,정수,-
+issues,detected_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues,responded_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues,recurrence_id,TEXT,text,글자,-
+issues,sla_breached,INTEGER,bigint,정수,-
+issues_out,id,INTEGER,bigint identity,기본키(자동증가),-
+issues_out,part_id,INTEGER,bigint,정수,-
+issues_out,requester_id,INTEGER,bigint,정수,-
+issues_out,approver_id,INTEGER,bigint,정수,-
+issues_out,requested_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues_out,issued_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+issues_out,qty,REAL,bigint,수량,z1048 수량=정수
+issues_out,purpose,TEXT,text,글자,-
+issues_out,status,TEXT,text,글자,-
+mail_aliases,address,TEXT,text,글자,-
+mail_aliases,user_id,INTEGER,bigint,정수,-
+mail_aliases,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_attachments,id,INTEGER,bigint identity,기본키(자동증가),-
+mail_attachments,mail_id,INTEGER,bigint,정수,-
+mail_attachments,filename,TEXT,text,글자,-
+mail_attachments,mime,TEXT,text,글자,-
+mail_attachments,size,INTEGER,bigint,정수,-
+mail_attachments,path,TEXT,text,글자,-
+mail_attachments,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_attachments,content_id,TEXT,text,글자,-
+mail_attachments,is_inline,INTEGER,bigint,정수,-
+mail_attachments,data,BLOB,bytea,이진,-
+mail_blocklist,id,INTEGER,bigint identity,기본키(자동증가),-
+mail_blocklist,pattern,TEXT,text,글자,-
+mail_blocklist,kind,TEXT,text,글자,-
+mail_blocklist,note,TEXT,text,글자,-
+mail_blocklist,created_by,INTEGER,bigint,정수,-
+mail_blocklist,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_fetch_accounts,id,INTEGER,bigint identity,기본키(자동증가),-
+mail_fetch_accounts,owner_user_id,INTEGER,bigint,정수,-
+mail_fetch_accounts,label,TEXT,text,글자,-
+mail_fetch_accounts,protocol,TEXT,text,글자,-
+mail_fetch_accounts,host,TEXT,text,글자,-
+mail_fetch_accounts,port,INTEGER,bigint,정수,-
+mail_fetch_accounts,use_ssl,INTEGER,bigint,정수,-
+mail_fetch_accounts,username,TEXT,text,글자,-
+mail_fetch_accounts,password_enc,TEXT,text,글자,-
+mail_fetch_accounts,last_uid,INTEGER,bigint,정수,-
+mail_fetch_accounts,enabled,INTEGER,bigint,정수,-
+mail_fetch_accounts,last_run,TEXT,text,글자,-
+mail_fetch_accounts,last_status,TEXT,text,글자,-
+mail_fetch_accounts,last_count,INTEGER,bigint,수량,z1048 수량=정수
+mail_fetch_accounts,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_fetch_seen,account_id,INTEGER,bigint,수량,z1048 수량=정수
+mail_fetch_seen,uidl,TEXT,text,글자,-
+mail_fetch_seen,fetched_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_large_files,id,INTEGER,bigint identity,기본키(자동증가),-
+mail_large_files,token,TEXT,text,글자,-
+mail_large_files,filename,TEXT,text,글자,-
+mail_large_files,mime,TEXT,text,글자,-
+mail_large_files,size,INTEGER,bigint,정수,-
+mail_large_files,path,TEXT,text,글자,-
+mail_large_files,uploaded_by,INTEGER,bigint,정수,-
+mail_large_files,download_count,INTEGER,bigint,수량,z1048 수량=정수
+mail_large_files,expires_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_large_files,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_messages,id,INTEGER,bigint identity,기본키(자동증가),-
+mail_messages,user_id,INTEGER,bigint,정수,-
+mail_messages,direction,TEXT,text,글자,-
+mail_messages,from_email,TEXT,text,글자,-
+mail_messages,from_name,TEXT,text,글자,-
+mail_messages,to_email,TEXT,text,글자,-
+mail_messages,cc,TEXT,text,글자,-
+mail_messages,subject,TEXT,text,글자,-
+mail_messages,body_text,TEXT,text,글자,-
+mail_messages,body_html,TEXT,text,글자,-
+mail_messages,category,TEXT,text,글자,-
+mail_messages,lang,TEXT,text,글자,-
+mail_messages,summary,TEXT,text,글자,-
+mail_messages,is_read,INTEGER,bigint,정수,-
+mail_messages,is_starred,INTEGER,bigint,정수,-
+mail_messages,is_deleted,INTEGER,bigint,정수,-
+mail_messages,raw_size,INTEGER,bigint,정수,-
+mail_messages,received_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_messages,read_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_messages,deleted_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_messages,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_messages,bcc,TEXT,text,글자,-
+mail_messages,dedup_hash,TEXT,text,글자,-
+mail_messages,dup_count,INTEGER,bigint,수량,z1048 수량=정수
+mail_messages,is_blocked,INTEGER,bigint,정수,-
+mail_messages,risk_level,INTEGER,bigint,정수,-
+mail_messages,risk_note,TEXT,text,글자,-
+mail_rules,id,INTEGER,bigint identity,기본키(자동증가),-
+mail_rules,user_id,INTEGER,bigint,정수,-
+mail_rules,match_type,TEXT,text,글자,-
+mail_rules,pattern,TEXT,text,글자,-
+mail_rules,category,TEXT,text,글자,-
+mail_rules,enabled,INTEGER,bigint,정수,-
+mail_rules,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+mail_signatures,user_id,INTEGER,bigint identity,기본키(자동증가),-
+mail_signatures,body,TEXT,text,글자,-
+mail_signatures,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+material_request_items,id,INTEGER,bigint identity,기본키(자동증가),-
+material_request_items,request_id,INTEGER,bigint,정수,-
+material_request_items,line_no,INTEGER,bigint,정수,-
+material_request_items,part_id,INTEGER,bigint,정수,-
+material_request_items,quantity,REAL,bigint,수량,z1048 수량=정수
+material_request_items,unit,TEXT,text,글자,-
+material_request_items,is_new_review,INTEGER,bigint,정수,-
+material_request_items,review_status,TEXT,text,글자,-
+material_request_items,requested_part_no,TEXT,text,글자,-
+material_request_items,requested_part_name,TEXT,text,글자,-
+material_request_items,requested_spec,TEXT,text,글자,-
+material_request_items,requested_maker,TEXT,text,글자,-
+material_request_items,request_reason,TEXT,text,글자,-
+material_request_items,registered_part_id,INTEGER,bigint,정수,-
+material_request_items,review_note,TEXT,text,글자,-
+material_request_items,quote_supplier_id,INTEGER,bigint,정수,-
+material_request_items,quoted_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+material_request_items,quoted_lead_days,INTEGER,bigint,정수,-
+material_request_items,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+material_request_items,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+material_requests,id,INTEGER,bigint identity,기본키(자동증가),-
+material_requests,request_no,TEXT,text,글자,-
+material_requests,request_type,TEXT,text,글자,-
+material_requests,title,TEXT,text,글자,-
+material_requests,project_id,INTEGER,bigint,정수,-
+material_requests,requester_id,INTEGER,bigint,정수,-
+material_requests,requester_team_id,INTEGER,bigint,정수,-
+material_requests,status,TEXT,text,글자,-
+material_requests,total_items,INTEGER,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+material_requests,new_item_count,INTEGER,bigint,수량,z1048 수량=정수
+material_requests,note,TEXT,text,글자,-
+material_requests,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+material_requests,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+meeting_actions,id,INTEGER,bigint identity,기본키(자동증가),-
+meeting_actions,meeting_id,INTEGER,bigint,정수,-
+meeting_actions,assignee_name,TEXT,text,글자,-
+meeting_actions,assignee_user_id,INTEGER,bigint,정수,-
+meeting_actions,task,TEXT,text,글자,-
+meeting_actions,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+meeting_actions,source,TEXT,text,글자,-
+meeting_actions,linked_task_id,INTEGER,bigint,정수,-
+meeting_actions,status,TEXT,text,글자,-
+meeting_actions,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+meeting_attendees,id,INTEGER,bigint identity,기본키(자동증가),-
+meeting_attendees,meeting_id,INTEGER,bigint,정수,-
+meeting_attendees,user_id,INTEGER,bigint,정수,-
+meeting_attendees,name,TEXT,text,글자,-
+meeting_attendees,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+meeting_decisions,id,INTEGER,bigint identity,기본키(자동증가),-
+meeting_decisions,meeting_id,INTEGER,bigint,정수,-
+meeting_decisions,who,TEXT,text,글자,-
+meeting_decisions,what,TEXT,text,글자,-
+meeting_decisions,due,TEXT,text,글자,-
+meeting_decisions,source,TEXT,text,글자,-
+meeting_decisions,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+meetings,id,INTEGER,bigint identity,기본키(자동증가),-
+meetings,title,TEXT,text,글자,-
+meetings,meeting_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+meetings,mode,TEXT,text,글자,-
+meetings,team_id,INTEGER,bigint,정수,-
+meetings,owner_id,INTEGER,bigint,정수,-
+meetings,location,TEXT,text,글자,-
+meetings,tags,TEXT,text,글자,-
+meetings,attendees_text,TEXT,text,글자,-
+meetings,body,TEXT,text,글자,-
+meetings,summary,TEXT,text,글자,-
+meetings,audio_path,TEXT,text,글자,-
+meetings,visibility,TEXT,text,글자,-
+meetings,status,TEXT,text,글자,-
+meetings,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+meetings,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+meetings,project_id,INTEGER,bigint,정수,-
+meetings,opportunity_id,INTEGER,bigint,정수,-
+notifications,id,INTEGER,bigint identity,기본키(자동증가),-
+notifications,user_id,INTEGER,bigint,정수,-
+notifications,kind,TEXT,text,글자,-
+notifications,title,TEXT,text,글자,-
+notifications,body,TEXT,text,글자,-
+notifications,link,TEXT,text,글자,-
+notifications,task_id,INTEGER,bigint,정수,-
+notifications,comment_id,INTEGER,bigint,정수,-
+notifications,is_read,INTEGER,bigint,정수,-
+notifications,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+notifications,prod_prid,INTEGER,bigint,정수,-
+notifications,is_revision,INTEGER,bigint,정수,-
+notifications,superseded,INTEGER,bigint,정수,-
+notifications,card_json,TEXT,text,글자,-
+notifications,revision_note,TEXT,text,글자,-
+notify_blocks,id,INTEGER,bigint identity,기본키(자동증가),-
+notify_blocks,name,TEXT,text,글자,-
+notify_blocks,team_ids,TEXT,text,글자,-
+notify_blocks,user_ids,TEXT,text,글자,-
+notify_blocks,created_by,INTEGER,bigint,정수,-
+notify_blocks,created_by_name,TEXT,text,글자,-
+notify_blocks,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+notify_blocks,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+opp_dept_requests,id,INTEGER,bigint identity,기본키(자동증가),-
+opp_dept_requests,opp_id,INTEGER,bigint,정수,-
+opp_dept_requests,team_id,INTEGER,bigint,정수,-
+opp_dept_requests,title,TEXT,text,글자,-
+opp_dept_requests,detail,TEXT,text,글자,-
+opp_dept_requests,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+opp_dept_requests,status,TEXT,text,글자,-
+opp_dept_requests,pm_user_id,INTEGER,bigint,정수,-
+opp_dept_requests,requested_by,INTEGER,bigint,정수,-
+opp_dept_requests,assigned_by,INTEGER,bigint,정수,-
+opp_dept_requests,assigned_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+opp_dept_requests,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+opp_dept_requests,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+opp_request_activities,id,INTEGER,bigint identity,기본키(자동증가),-
+opp_request_activities,request_id,INTEGER,bigint,정수,-
+opp_request_activities,user_id,INTEGER,bigint,정수,-
+opp_request_activities,activity_type,TEXT,text,글자,-
+opp_request_activities,hours,REAL,double precision,실수(비금액),-
+opp_request_activities,act_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+opp_request_activities,memo,TEXT,text,글자,-
+opp_request_activities,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+opp_request_members,id,INTEGER,bigint identity,기본키(자동증가),-
+opp_request_members,request_id,INTEGER,bigint,정수,-
+opp_request_members,user_id,INTEGER,bigint,정수,-
+opp_request_members,role_in_req,TEXT,text,글자,-
+opp_request_members,added_by,INTEGER,bigint,정수,-
+opp_request_members,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+order_items,id,INTEGER,bigint identity,기본키(자동증가),-
+order_items,order_id,INTEGER,bigint,정수,-
+order_items,part_id,INTEGER,bigint,정수,-
+order_items,qty,REAL,bigint,수량,z1048 수량=정수
+order_items,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,allocated_qty,REAL,bigint,수량,z1048 수량=정수
+order_items,unit_label,TEXT,text,글자,-
+order_items,line_note,TEXT,text,글자,-
+order_items,order_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+order_items,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+order_items,ship_to,TEXT,text,글자,-
+order_items,currency,TEXT,text,글자,-
+order_items,unit_status,TEXT,text,글자,-
+order_items,is_export,INTEGER,bigint,정수,-
+order_items,image_path,TEXT,text,글자,-
+order_items,image_thumb_path,TEXT,text,글자,-
+order_items,maker,TEXT,text,글자,-
+order_items,origin,TEXT,text,글자,-
+order_items,box_no,TEXT,text,글자,-
+order_items,spec,TEXT,text,글자,-
+order_items,arrival_status,TEXT,text,글자,-
+order_items,supplier,TEXT,text,글자,-
+order_items,unit,TEXT,text,글자,-
+order_items,hs_code,TEXT,text,글자,-
+order_items,duty_rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+order_items,vat_rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+order_items,invoice_unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,invoice_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,invoice_unit_price_usd,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,invoice_amount_usd,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,duty_krw,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,duty_usd,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,final_amount_usd,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,description,TEXT,text,글자,-
+order_items,pallet_size,TEXT,text,글자,-
+order_items,weight_kg,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+order_items,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+order_items,material_no,TEXT,text,글자,-
+order_items,cost_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,margin_pct,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+order_items,statement_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+order_items,tax_invoice_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+order_items,tax_invoice_amt1,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,tax_invoice_date2,TEXT,text,글자,-
+order_items,tax_invoice_amt2,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,tax_invoice_date3,TEXT,text,글자,-
+order_items,tax_invoice_amt3,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,status_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+order_items,cost_krw,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,sell_krw,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+order_items,due_date_orig,TEXT,text,글자,-
+order_items,fx_rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+order_items,po_no,TEXT,text,글자,-
+order_status_history,id,INTEGER,bigint identity,기본키(자동증가),-
+order_status_history,order_id,INTEGER,bigint,정수,-
+order_status_history,from_status,TEXT,text,글자,-
+order_status_history,to_status,TEXT,text,글자,-
+order_status_history,changed_by,INTEGER,bigint,정수,-
+order_status_history,changed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+order_status_history,note,TEXT,text,글자,-
+orders,id,INTEGER,bigint identity,기본키(자동증가),-
+orders,order_no,TEXT,text,글자,-
+orders,quote_id,INTEGER,bigint,정수,-
+orders,customer_id,INTEGER,bigint,정수,-
+orders,order_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+orders,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+orders,total_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+orders,status,TEXT,text,글자,-
+orders,created_by,INTEGER,bigint,정수,-
+orders,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+orders,project_id,INTEGER,bigint,정수,-
+orders,tax_invoice_issued,INTEGER,bigint,정수,-
+orders,tax_invoice_no,TEXT,text,글자,-
+orders,tax_invoice_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+orders,tax_invoice_note,TEXT,text,글자,-
+orders,unit_label,TEXT,text,글자,-
+orders,unit_note,TEXT,text,글자,-
+orders,ship_to,TEXT,text,글자,-
+orders,unit_qty,INTEGER,bigint,수량,z1048 수량=정수
+orders,currency,TEXT,text,글자,-
+orders,so_type,TEXT,text,글자,-
+orders,statement_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+orders,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+orders,tax_invoice_amt1,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+orders,tax_invoice_date2,TEXT,text,글자,-
+orders,tax_invoice_amt2,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+orders,tax_invoice_date3,TEXT,text,글자,-
+orders,tax_invoice_amt3,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+orders,cc_name,TEXT,text,글자,-
+orders,cc_dept,TEXT,text,글자,-
+orders,cc_phone,TEXT,text,글자,-
+orders,so_form,TEXT,text,글자,-
+orders,exchange_rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+orders,model_name,TEXT,text,글자,-
+orders,equip_name,TEXT,text,글자,-
+orders,po_type,TEXT,text,글자,-
+packing_items,id,INTEGER,bigint identity,기본키(자동증가),-
+packing_items,pl_id,INTEGER,bigint,정수,-
+packing_items,part_id,INTEGER,bigint,정수,-
+packing_items,qty,REAL,bigint,수량,z1048 수량=정수
+packing_items,package_type,TEXT,text,글자,-
+packing_items,weight,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+packing_items,volume,REAL,double precision,실수(비금액),-
+packing_lists,id,INTEGER,bigint identity,기본키(자동증가),-
+packing_lists,pl_no,TEXT,text,글자,-
+packing_lists,export_order_id,INTEGER,bigint,정수,-
+packing_lists,total_packages,INTEGER,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+packing_lists,total_weight,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+packing_lists,total_volume,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+packing_lists,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+part_aliases,id,INTEGER,bigint identity,기본키(자동증가),-
+part_aliases,part_id,INTEGER,bigint,정수,-
+part_aliases,alias_part_no,TEXT,text,글자,-
+part_aliases,alias_part_no_norm,TEXT,text,글자,-
+part_aliases,alias_part_name,TEXT,text,글자,-
+part_aliases,source,TEXT,text,글자,-
+part_aliases,merge_log_id,INTEGER,bigint,정수,-
+part_aliases,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+part_attachments,id,INTEGER,bigint identity,기본키(자동증가),-
+part_attachments,part_id,INTEGER,bigint,정수,-
+part_attachments,file_path,TEXT,text,글자,-
+part_attachments,file_name,TEXT,text,글자,-
+part_attachments,file_size,INTEGER,bigint,정수,-
+part_attachments,mime_type,TEXT,text,글자,-
+part_attachments,kind,TEXT,text,글자,-
+part_attachments,uploaded_by,INTEGER,bigint,정수,-
+part_attachments,uploaded_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+part_dedup_dismissals,id,INTEGER,bigint identity,기본키(자동증가),-
+part_dedup_dismissals,group_key,TEXT,text,글자,-
+part_dedup_dismissals,dismissed_by,INTEGER,bigint,정수,-
+part_dedup_dismissals,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+part_merge_log,id,INTEGER,bigint identity,기본키(자동증가),-
+part_merge_log,canonical_id,INTEGER,bigint,정수,-
+part_merge_log,canonical_part_no,TEXT,text,글자,-
+part_merge_log,merged_part_id,INTEGER,bigint,정수,-
+part_merge_log,merged_part_no,TEXT,text,글자,-
+part_merge_log,snapshot_json,TEXT,text,글자,-
+part_merge_log,moved_json,TEXT,text,글자,-
+part_merge_log,dropped_json,TEXT,text,글자,-
+part_merge_log,filled_json,TEXT,text,글자,-
+part_merge_log,stock_transferred,REAL,double precision,실수(비금액),-
+part_merge_log,adjust_delta,REAL,double precision,실수(비금액),-
+part_merge_log,adjust_movement_id,INTEGER,bigint,정수,-
+part_merge_log,performed_by,INTEGER,bigint,정수,-
+part_merge_log,performed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+part_merge_log,undone_by,INTEGER,bigint,정수,-
+part_merge_log,undone_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+part_prices,id,INTEGER,bigint identity,기본키(자동증가),-
+part_prices,part_id,INTEGER,bigint,정수,-
+part_prices,supplier_id,INTEGER,bigint,정수,-
+part_prices,price_type,TEXT,text,글자,-
+part_prices,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+part_prices,currency,TEXT,text,글자,-
+part_prices,effective_from,TEXT,text,글자,-
+part_prices,effective_to,TEXT,text,글자,-
+part_prices,negotiated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+part_prices,min_qty,REAL,bigint,수량,z1048 수량=정수
+part_prices,max_qty,REAL,bigint,수량,z1048 수량=정수
+part_prices,note,TEXT,text,글자,-
+part_prices,approved_by,INTEGER,bigint,정수,-
+part_prices,approved_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+part_prices,created_by,INTEGER,bigint,정수,-
+part_prices,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+parts,id,INTEGER,bigint identity,기본키(자동증가),-
+parts,part_no,TEXT,text,글자,-
+parts,part_name,TEXT,text,글자,-
+parts,spec,TEXT,text,글자,-
+parts,maker,TEXT,text,글자,-
+parts,origin,TEXT,text,글자,-
+parts,unit,TEXT,text,글자,-
+parts,currency,TEXT,text,글자,-
+parts,std_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+parts,biz_div,TEXT,text,글자,-
+parts,category,TEXT,text,글자,-
+parts,note,TEXT,text,글자,-
+parts,is_active,INTEGER,bigint,정수,-
+parts,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+parts,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+parts,stock_qty,REAL,bigint,수량,z1048 수량=정수
+parts,safety_stock,REAL,double precision,실수(비금액),-
+parts,location,TEXT,text,글자,-
+parts,reorder_point,REAL,double precision,실수(비금액),-
+parts,reorder_qty,REAL,bigint,수량,z1048 수량=정수
+parts,purchase_prices,TEXT,text,글자,-
+parts,purpose,TEXT,text,글자,-
+parts,model_name,TEXT,text,글자,-
+parts,default_supplier,TEXT,text,글자,-
+parts,maker_contact_name,TEXT,text,글자,-
+parts,maker_contact_phone,TEXT,text,글자,-
+parts,maker_contact_email,TEXT,text,글자,-
+parts,vendor1,TEXT,text,글자,-
+parts,vendor2,TEXT,text,글자,-
+parts,vendor3,TEXT,text,글자,-
+parts,part_no_norm,TEXT,text,글자,-
+parts,name_norm,TEXT,text,글자,-
+payment_terms,id,INTEGER,bigint identity,기본키(자동증가),-
+payment_terms,customer_id,INTEGER,bigint,정수,-
+payment_terms,terms,TEXT,text,글자,-
+payment_terms,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+permission_groups,id,INTEGER,bigint identity,기본키(자동증가),-
+permission_groups,name,TEXT,text,글자,-
+permission_groups,description,TEXT,text,글자,-
+permission_groups,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+permissions,id,INTEGER,bigint identity,기본키(자동증가),-
+permissions,name,TEXT,text,글자,-
+permissions,scope,TEXT,text,글자,-
+permissions,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+permissions,resource,TEXT,text,글자,-
+permissions,action,TEXT,text,글자,-
+permissions,description,TEXT,text,글자,-
+po_item_project_links,id,INTEGER,bigint identity,기본키(자동증가),-
+po_item_project_links,po_item_id,INTEGER,bigint,정수,-
+po_item_project_links,project_id,INTEGER,bigint,정수,-
+po_item_project_links,allocated_qty,REAL,bigint,수량,z1048 수량=정수
+po_item_project_links,allocation_pct,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+po_item_project_links,note,TEXT,text,글자,-
+po_item_project_links,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+po_item_project_links,created_by,INTEGER,bigint,정수,-
+po_items,id,INTEGER,bigint identity,기본키(자동증가),-
+po_items,po_id,INTEGER,bigint,정수,-
+po_items,line_no,INTEGER,bigint,정수,-
+po_items,part_id,INTEGER,bigint,정수,-
+po_items,part_no_snapshot,TEXT,text,글자,-
+po_items,part_name_snapshot,TEXT,text,글자,-
+po_items,spec_snapshot,TEXT,text,글자,-
+po_items,unit,TEXT,text,글자,-
+po_items,quantity,REAL,bigint,수량,z1048 수량=정수
+po_items,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+po_items,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+po_items,received_qty,REAL,bigint,수량,z1048 수량=정수
+po_items,delivery_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+po_items,note,TEXT,text,글자,-
+preventive_actions,id,INTEGER,bigint identity,기본키(자동증가),-
+preventive_actions,corrective_id,INTEGER,bigint,정수,-
+preventive_actions,action,TEXT,text,글자,-
+preventive_actions,completed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+preventive_actions,created_by,INTEGER,bigint,정수,-
+preventive_actions,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+preventive_actions,lifecycle_status,TEXT,text,글자,-
+preventive_actions,approved_by,INTEGER,bigint,정수,-
+preventive_actions,approved_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+preventive_actions,verified_by,INTEGER,bigint,정수,-
+preventive_actions,verified_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+preventive_actions,effectiveness_note,TEXT,text,글자,-
+price_change_history,id,INTEGER,bigint identity,기본키(자동증가),-
+price_change_history,part_id,INTEGER,bigint,정수,-
+price_change_history,supplier_id,INTEGER,bigint,정수,-
+price_change_history,old_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+price_change_history,new_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+price_change_history,change_pct,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+price_change_history,effective_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+price_change_history,note,TEXT,text,글자,-
+price_change_history,changed_by,INTEGER,bigint,정수,-
+price_change_history,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+prod_request_images,id,INTEGER,bigint identity,기본키(자동증가),-
+prod_request_images,prod_request_id,INTEGER,bigint,정수,-
+prod_request_images,project_id,INTEGER,bigint,정수,-
+prod_request_images,url,TEXT,text,글자,-
+prod_request_images,thumb_url,TEXT,text,글자,-
+prod_request_images,orig_name,TEXT,text,글자,-
+prod_request_images,size,INTEGER,bigint,정수,-
+prod_request_images,uploaded_by,INTEGER,bigint,정수,-
+prod_request_images,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+prod_requests,id,INTEGER,bigint identity,기본키(자동증가),-
+prod_requests,project_id,INTEGER,bigint,정수,-
+prod_requests,mgmt_code,TEXT,text,글자,-
+prod_requests,cust_req,TEXT,text,글자,-
+prod_requests,note,TEXT,text,글자,-
+prod_requests,team_ids,TEXT,text,글자,-
+prod_requests,dept_names,TEXT,text,글자,-
+prod_requests,issued_by,INTEGER,bigint,정수,-
+prod_requests,issued_by_name,TEXT,text,글자,-
+prod_requests,sent_to,INTEGER,bigint,정수,-
+prod_requests,dept_count,INTEGER,bigint,수량,z1048 수량=정수
+prod_requests,msg_sent,INTEGER,bigint,정수,-
+prod_requests,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+prod_requests,created_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+prod_requests,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+prod_requests,updated_by_name,TEXT,text,글자,-
+prod_requests,recipients,TEXT,text,글자,-
+prod_requests,wt_team_ids,TEXT,text,글자,-
+prod_requests,user_ids,TEXT,text,글자,-
+production_orders,id,INTEGER,bigint identity,기본키(자동증가),-
+production_orders,order_id,INTEGER,bigint,정수,-
+production_orders,planned_start,TEXT,text,글자,-
+production_orders,planned_end,TEXT,text,글자,-
+production_orders,actual_start,TEXT,text,글자,-
+production_orders,actual_end,TEXT,text,글자,-
+production_orders,status,TEXT,text,글자,-
+production_orders,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_burndown_snapshots,id,INTEGER,bigint identity,기본키(자동증가),-
+project_burndown_snapshots,project_id,INTEGER,bigint,정수,-
+project_burndown_snapshots,snap_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_burndown_snapshots,total_tasks,INTEGER,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+project_burndown_snapshots,completed_tasks,INTEGER,bigint,정수,-
+project_burndown_snapshots,remaining_hours,REAL,double precision,실수(비금액),-
+project_burndown_snapshots,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_forecasts,id,INTEGER,bigint identity,기본키(자동증가),-
+project_forecasts,project_id,INTEGER,bigint,정수,-
+project_forecasts,computed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_forecasts,sample_n,INTEGER,bigint,정수,-
+project_forecasts,slope,REAL,double precision,실수(비금액),-
+project_forecasts,intercept,REAL,double precision,실수(비금액),-
+project_forecasts,r_squared,REAL,double precision,실수(비금액),-
+project_forecasts,forecast_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_forecasts,planned_end,TEXT,text,글자,-
+project_history,id,INTEGER,bigint identity,기본키(자동증가),-
+project_history,project_id,INTEGER,bigint,정수,-
+project_history,changed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_history,changed_by,INTEGER,bigint,정수,-
+project_history,field,TEXT,text,글자,-
+project_history,old_value,TEXT,text,글자,-
+project_history,new_value,TEXT,text,글자,-
+project_history,note,TEXT,text,글자,-
+project_items,id,INTEGER,bigint identity,기본키(자동증가),-
+project_items,project_id,INTEGER,bigint,정수,-
+project_items,seq,INTEGER,bigint,정수,-
+project_items,shipment_form,TEXT,text,글자,-
+project_items,item_name,TEXT,text,글자,-
+project_items,model_name,TEXT,text,글자,-
+project_items,qty,INTEGER,bigint,수량,z1048 수량=정수
+project_items,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+project_items,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+project_items,currency,TEXT,text,글자,-
+project_items,is_export,INTEGER,bigint,정수,-
+project_items,order_customer_id,INTEGER,bigint,정수,-
+project_items,secondary_customer,TEXT,text,글자,-
+project_items,final_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+project_items,order_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_items,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_items,ship_to,TEXT,text,글자,-
+project_items,note,TEXT,text,글자,-
+project_items,order_id,INTEGER,bigint,정수,-
+project_items,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_items,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_milestones,id,INTEGER,bigint identity,기본키(자동증가),-
+project_milestones,project_id,INTEGER,bigint,정수,-
+project_milestones,name,TEXT,text,글자,-
+project_milestones,target_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_milestones,completed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_milestones,status,TEXT,text,글자,-
+project_milestones,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_phases,id,INTEGER,bigint identity,기본키(자동증가),-
+project_phases,project_id,INTEGER,bigint,정수,-
+project_phases,phase_code,TEXT,text,글자,-
+project_phases,phase_order,INTEGER,bigint,정수,-
+project_phases,status,TEXT,text,글자,-
+project_phases,progress_pct,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+project_phases,assignee_id,INTEGER,bigint,정수,-
+project_phases,assignee_team_id,INTEGER,bigint,정수,-
+project_phases,planned_start,TEXT,text,글자,-
+project_phases,planned_end,TEXT,text,글자,-
+project_phases,actual_start,TEXT,text,글자,-
+project_phases,actual_end,TEXT,text,글자,-
+project_phases,note,TEXT,text,글자,-
+project_phases,updated_by,INTEGER,bigint,정수,-
+project_phases,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_retros,id,INTEGER,bigint identity,기본키(자동증가),-
+project_retros,project_id,INTEGER,bigint,정수,-
+project_retros,author_id,INTEGER,bigint,정수,-
+project_retros,went_well,TEXT,text,글자,-
+project_retros,went_bad,TEXT,text,글자,-
+project_retros,next_action,TEXT,text,글자,-
+project_retros,risk_note,TEXT,text,글자,-
+project_retros,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_retros,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_stage_log,id,INTEGER,bigint identity,기본키(자동증가),-
+project_stage_log,ref_kind,TEXT,text,글자,-
+project_stage_log,ref_id,INTEGER,bigint,정수,-
+project_stage_log,stage_key,TEXT,text,글자,-
+project_stage_log,sub_key,TEXT,text,글자,-
+project_stage_log,done,INTEGER,bigint,정수,-
+project_stage_log,on_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_stage_log,by_user,INTEGER,bigint,정수,-
+project_stage_log,by_name,TEXT,text,글자,-
+project_stage_log,memo,TEXT,text,글자,-
+project_stage_log,extra,TEXT,text,글자,-
+project_stage_log,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_stage_log,started_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_stage_log,started_by,INTEGER,bigint,정수,-
+project_stage_log,started_by_name,TEXT,text,글자,-
+project_stage_log,hours,REAL,double precision,실수(비금액),-
+project_workflow,id,INTEGER,bigint identity,기본키(자동증가),-
+project_workflow,project_id,INTEGER,bigint,정수,-
+project_workflow,template_id,INTEGER,numeric,비율·환율·중량,z1048 예외(소수 정당)
+project_workflow,customer_country,TEXT,text,글자,-
+project_workflow,po_entity,TEXT,text,글자,-
+project_workflow,mech_design_split,TEXT,text,글자,-
+project_workflow,elec_design_split,TEXT,text,글자,-
+project_workflow,sw_design_split,TEXT,text,글자,-
+project_workflow,processing_loc,TEXT,text,글자,-
+project_workflow,ship_entity,TEXT,text,글자,-
+project_workflow,setup_loc,TEXT,text,글자,-
+project_workflow,status,TEXT,text,글자,-
+project_workflow,created_by,INTEGER,bigint,정수,-
+project_workflow,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_workflow,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_workflow,mfg_machining,TEXT,text,글자,-
+project_workflow,mfg_assembly,TEXT,text,글자,-
+project_workflow,mfg_electrical,TEXT,text,글자,-
+project_workflow,mfg_verification,TEXT,text,글자,-
+project_workflow,ship_split,TEXT,text,글자,-
+project_workflow,setup_split,TEXT,text,글자,-
+project_workflow,is_mass_revision,INTEGER,bigint,정수,-
+project_workflow,machined_po_dept,TEXT,text,글자,-
+project_workflow_edges,id,INTEGER,bigint identity,기본키(자동증가),-
+project_workflow_edges,workflow_id,INTEGER,bigint,정수,-
+project_workflow_edges,from_node_id,INTEGER,bigint,정수,-
+project_workflow_edges,to_node_id,INTEGER,bigint,정수,-
+project_workflow_edges,edge_type,TEXT,text,글자,-
+project_workflow_node_checkpoints,id,INTEGER,bigint identity,기본키(자동증가),-
+project_workflow_node_checkpoints,pwfn_id,INTEGER,bigint,정수,-
+project_workflow_node_checkpoints,label,TEXT,text,글자,-
+project_workflow_node_checkpoints,is_done,INTEGER,bigint,정수,-
+project_workflow_node_checkpoints,done_by,INTEGER,bigint,정수,-
+project_workflow_node_checkpoints,done_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_workflow_node_checkpoints,seq,INTEGER,bigint,정수,-
+project_workflow_nodes,id,INTEGER,bigint identity,기본키(자동증가),-
+project_workflow_nodes,workflow_id,INTEGER,bigint,정수,-
+project_workflow_nodes,node_code,TEXT,text,글자,-
+project_workflow_nodes,seq,INTEGER,bigint,정수,-
+project_workflow_nodes,assigned_entity,TEXT,text,글자,-
+project_workflow_nodes,assigned_user_id,INTEGER,bigint,정수,-
+project_workflow_nodes,status,TEXT,text,글자,-
+project_workflow_nodes,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_workflow_nodes,done_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+project_workflow_nodes,note,TEXT,text,글자,-
+project_workflow_nodes,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,id,INTEGER,bigint identity,기본키(자동증가),-
+projects,code,TEXT,text,글자,-
+projects,name,TEXT,text,글자,-
+projects,customer_id,INTEGER,bigint,정수,-
+projects,type,TEXT,text,글자,-
+projects,status,TEXT,text,글자,-
+projects,pm_id,INTEGER,bigint,정수,-
+projects,start_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,end_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,mgmt_code,TEXT,text,글자,-
+projects,equip_type,TEXT,text,글자,-
+projects,year_month,TEXT,text,글자,-
+projects,model_name,TEXT,text,글자,-
+projects,server_path,TEXT,text,글자,-
+projects,lead_user_id,INTEGER,bigint,정수,-
+projects,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,biz_div,TEXT,text,글자,-
+projects,stage,TEXT,text,글자,-
+projects,po_type,TEXT,text,글자,-
+projects,customer_name,TEXT,text,글자,-
+projects,customer_po,TEXT,text,글자,-
+projects,currency,TEXT,text,글자,-
+projects,order_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+projects,order_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,pm_name,TEXT,text,글자,-
+projects,sales_name,TEXT,text,글자,-
+projects,logi_note,TEXT,text,글자,-
+projects,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,is_export,INTEGER,bigint,정수,-
+projects,unit_qty,INTEGER,bigint,수량,z1048 수량=정수
+projects,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+projects,project_type,TEXT,text,글자,-
+projects,parent_project_id,INTEGER,bigint,정수,-
+projects,fx_rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+projects,amount_krw,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+projects,proposal_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,quotation_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+projects,proposal_submitted,INTEGER,bigint,정수,-
+projects,proposal_memo,TEXT,text,글자,-
+projects,quotation_submitted,INTEGER,bigint,정수,-
+projects,quotation_memo,TEXT,text,글자,-
+projects,shipment_form,TEXT,text,글자,-
+projects,customer_country,TEXT,text,글자,-
+projects,po_entity,TEXT,text,글자,-
+projects,ship_entity,TEXT,text,글자,-
+projects,expected_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+projects,cc_name,TEXT,text,글자,-
+projects,cc_dept,TEXT,text,글자,-
+projects,cc_position,TEXT,text,글자,-
+projects,cc_phone,TEXT,text,글자,-
+projects,cc_email,TEXT,text,글자,-
+projects,cc_note,TEXT,text,글자,-
+projects,two_tier_order,INTEGER,bigint,정수,-
+projects,secondary_customer,TEXT,text,글자,-
+projects,final_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+projects,equip_name,TEXT,text,글자,-
+projects,form_type,TEXT,text,글자,-
+projects,engraving,TEXT,text,글자,-
+projects,is_archived,INTEGER,bigint,정수,-
+purchase_orders,id,INTEGER,bigint identity,기본키(자동증가),-
+purchase_orders,po_number,TEXT,text,글자,-
+purchase_orders,project_id,INTEGER,bigint,정수,-
+purchase_orders,supplier_id,INTEGER,bigint,정수,-
+purchase_orders,order_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+purchase_orders,expected_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+purchase_orders,currency,TEXT,text,글자,-
+purchase_orders,exchange_rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+purchase_orders,total_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+purchase_orders,status,TEXT,text,글자,-
+purchase_orders,shipping_terms,TEXT,text,글자,-
+purchase_orders,payment_terms,TEXT,text,글자,-
+purchase_orders,po_type,TEXT,text,글자,-
+purchase_orders,created_by,INTEGER,bigint,정수,-
+purchase_orders,note,TEXT,text,글자,-
+purchase_orders,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+purchase_orders,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+qc_disposition,id,INTEGER,bigint identity,기본키(자동증가),-
+qc_disposition,qc_inspection_id,INTEGER,bigint,정수,-
+qc_disposition,action,TEXT,text,글자,-
+qc_disposition,decided_by,INTEGER,bigint,정수,-
+qc_disposition,decided_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+qc_disposition,note,TEXT,text,글자,-
+qc_inspection_items,id,INTEGER,bigint identity,기본키(자동증가),-
+qc_inspection_items,report_id,INTEGER,bigint,정수,-
+qc_inspection_items,line_no,INTEGER,bigint,정수,-
+qc_inspection_items,item_name,TEXT,text,글자,-
+qc_inspection_items,spec_value,TEXT,text,글자,-
+qc_inspection_items,measured_value,TEXT,text,글자,-
+qc_inspection_items,judgment,TEXT,text,글자,-
+qc_inspection_items,remarks,TEXT,text,글자,-
+qc_inspection_reports,id,INTEGER,bigint identity,기본키(자동증가),-
+qc_inspection_reports,report_no,TEXT,text,글자,-
+qc_inspection_reports,customer_id,INTEGER,bigint,정수,-
+qc_inspection_reports,customer_name,TEXT,text,글자,-
+qc_inspection_reports,order_id,INTEGER,bigint,정수,-
+qc_inspection_reports,order_no,TEXT,text,글자,-
+qc_inspection_reports,part_id,INTEGER,bigint,정수,-
+qc_inspection_reports,machine_model,TEXT,text,글자,-
+qc_inspection_reports,machine_serial,TEXT,text,글자,-
+qc_inspection_reports,inspection_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+qc_inspection_reports,inspector_id,INTEGER,bigint,정수,-
+qc_inspection_reports,inspector_name,TEXT,text,글자,-
+qc_inspection_reports,qa_manager_id,INTEGER,bigint,정수,-
+qc_inspection_reports,qa_manager_name,TEXT,text,글자,-
+qc_inspection_reports,overall,TEXT,text,글자,-
+qc_inspection_reports,issued_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+qc_inspection_reports,sent_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+qc_inspection_reports,status,TEXT,text,글자,-
+qc_inspection_reports,remarks,TEXT,text,글자,-
+qc_inspection_reports,created_by,INTEGER,bigint,정수,-
+qc_inspection_reports,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+qc_inspections,id,INTEGER,bigint identity,기본키(자동증가),-
+qc_inspections,po_item_id,INTEGER,bigint,정수,-
+qc_inspections,receipt_id,INTEGER,bigint,정수,-
+qc_inspections,inspector_id,INTEGER,bigint,정수,-
+qc_inspections,inspected_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+qc_inspections,pass_qty,REAL,bigint,수량,z1048 수량=정수
+qc_inspections,fail_qty,REAL,bigint,수량,z1048 수량=정수
+qc_inspections,fail_reason,TEXT,text,글자,-
+qc_inspections,status,TEXT,text,글자,-
+qms_audit_log,id,INTEGER,bigint identity,기본키(자동증가),-
+qms_audit_log,issue_id,INTEGER,bigint,정수,-
+qms_audit_log,action,TEXT,text,글자,-
+qms_audit_log,actor,INTEGER,bigint,정수,-
+qms_audit_log,note,TEXT,text,글자,-
+qms_audit_log,timestamp,TEXT,text,글자,-
+quotation_history,id,INTEGER,bigint identity,기본키(자동증가),-
+quotation_history,quotation_id,INTEGER,bigint,정수,-
+quotation_history,changed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+quotation_history,changed_by,INTEGER,bigint,정수,-
+quotation_history,field,TEXT,text,글자,-
+quotation_history,old_value,TEXT,text,글자,-
+quotation_history,new_value,TEXT,text,글자,-
+quotation_history,note,TEXT,text,글자,-
+quotation_items,id,INTEGER,bigint identity,기본키(자동증가),-
+quotation_items,quotation_id,INTEGER,bigint,정수,-
+quotation_items,line_no,INTEGER,bigint,정수,-
+quotation_items,part_id,INTEGER,bigint,정수,-
+quotation_items,item_name,TEXT,text,글자,-
+quotation_items,qty,REAL,bigint,수량,z1048 수량=정수
+quotation_items,unit,TEXT,text,글자,-
+quotation_items,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+quotation_items,total_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+quotation_items,note,TEXT,text,글자,-
+quotation_items,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+quotations,id,INTEGER,bigint identity,기본키(자동증가),-
+quotations,quote_no,TEXT,text,글자,-
+quotations,customer_id,INTEGER,bigint,정수,-
+quotations,total_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+quotations,valid_until,TEXT,text,글자,-
+quotations,version,INTEGER,bigint,정수,-
+quotations,status,TEXT,text,글자,-
+quotations,created_by,INTEGER,bigint,정수,-
+quotations,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+rate_alerts,id,INTEGER,bigint identity,기본키(자동증가),-
+rate_alerts,target_currency,TEXT,text,글자,-
+rate_alerts,threshold,REAL,double precision,실수(비금액),-
+rate_alerts,direction,TEXT,text,글자,-
+rate_alerts,is_active,INTEGER,bigint,정수,-
+rate_alerts,triggered_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+rate_alerts,created_by,INTEGER,bigint,정수,-
+rate_alerts,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+receipts,id,INTEGER,bigint identity,기본키(자동증가),-
+receipts,po_id,INTEGER,bigint,정수,-
+receipts,received_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+receipts,received_by,INTEGER,bigint,정수,-
+receipts,total_qty,REAL,bigint,수량,z1048 수량=정수
+receipts,qc_inspection_id,INTEGER,bigint,정수,-
+receipts,status,TEXT,text,글자,-
+receipts,note,TEXT,text,글자,-
+receipts_payment,id,INTEGER,bigint identity,기본키(자동증가),-
+receipts_payment,order_id,INTEGER,bigint,정수,-
+receipts_payment,received_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+receipts_payment,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+receipts_payment,method,TEXT,text,글자,-
+receipts_payment,received_by,INTEGER,bigint,정수,-
+receipts_payment,note,TEXT,text,글자,-
+receipts_payment,currency,TEXT,text,글자,-
+receipts_payment,fx_rate,REAL,numeric,비율·환율·중량,z1048 예외(소수 정당)
+retired_mgmt_codes,mgmt_code,TEXT,text,글자,-
+retired_mgmt_codes,retired_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+retired_mgmt_codes,retired_by,TEXT,text,글자,-
+retired_mgmt_codes,project_name,TEXT,text,글자,-
+retired_mgmt_codes,reason,TEXT,text,글자,-
+rnd_logs,id,INTEGER,bigint identity,기본키(자동증가),-
+rnd_logs,rnd_id,INTEGER,bigint,정수,-
+rnd_logs,log_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+rnd_logs,log_type,TEXT,text,글자,-
+rnd_logs,content,TEXT,text,글자,-
+rnd_logs,hours,REAL,double precision,실수(비금액),-
+rnd_logs,created_by,INTEGER,bigint,정수,-
+rnd_logs,created_by_name,TEXT,text,글자,-
+rnd_logs,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+rnd_projects,id,INTEGER,bigint identity,기본키(자동증가),-
+rnd_projects,mgmt_code,TEXT,text,글자,-
+rnd_projects,title,TEXT,text,글자,-
+rnd_projects,dept,TEXT,text,글자,-
+rnd_projects,owner_id,INTEGER,bigint,정수,-
+rnd_projects,owner_name,TEXT,text,글자,-
+rnd_projects,category,TEXT,text,글자,-
+rnd_projects,purpose,TEXT,text,글자,-
+rnd_projects,start_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+rnd_projects,target_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+rnd_projects,priority,TEXT,text,글자,-
+rnd_projects,status,TEXT,text,글자,-
+rnd_projects,result_summary,TEXT,text,글자,-
+rnd_projects,created_by,INTEGER,bigint,정수,-
+rnd_projects,created_by_name,TEXT,text,글자,-
+rnd_projects,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+rnd_projects,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+sales_opportunities,id,INTEGER,bigint identity,기본키(자동증가),-
+sales_opportunities,opp_no,TEXT,text,글자,-
+sales_opportunities,title,TEXT,text,글자,-
+sales_opportunities,customer_id,INTEGER,bigint,정수,-
+sales_opportunities,customer_name,TEXT,text,글자,-
+sales_opportunities,biz_div,TEXT,text,글자,-
+sales_opportunities,model_name,TEXT,text,글자,-
+sales_opportunities,owner_user_id,INTEGER,bigint,정수,-
+sales_opportunities,expected_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+sales_opportunities,currency,TEXT,text,글자,-
+sales_opportunities,expected_order_ym,TEXT,text,글자,-
+sales_opportunities,stage,TEXT,text,글자,-
+sales_opportunities,status,TEXT,text,글자,-
+sales_opportunities,meeting_done,INTEGER,bigint,정수,-
+sales_opportunities,meeting_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+sales_opportunities,meeting_memo,TEXT,text,글자,-
+sales_opportunities,proposal_done,INTEGER,bigint,정수,-
+sales_opportunities,proposal_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+sales_opportunities,proposal_memo,TEXT,text,글자,-
+sales_opportunities,quotation_done,INTEGER,bigint,정수,-
+sales_opportunities,quotation_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+sales_opportunities,quotation_memo,TEXT,text,글자,-
+sales_opportunities,note,TEXT,text,글자,-
+sales_opportunities,promoted_project_id,INTEGER,bigint,정수,-
+sales_opportunities,created_by,INTEGER,bigint,정수,-
+sales_opportunities,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+sales_opportunities,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+sales_opportunities,quotation_id,INTEGER,bigint,정수,-
+sales_opportunities,meeting_id,INTEGER,bigint,정수,-
+sales_opportunity_files,id,INTEGER,bigint identity,기본키(자동증가),-
+sales_opportunity_files,opp_id,INTEGER,bigint,정수,-
+sales_opportunity_files,kind,TEXT,text,글자,-
+sales_opportunity_files,orig_name,TEXT,text,글자,-
+sales_opportunity_files,url,TEXT,text,글자,-
+sales_opportunity_files,size,INTEGER,bigint,정수,-
+sales_opportunity_files,uploaded_by,INTEGER,bigint,정수,-
+sales_opportunity_files,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+schedule_board_day_memos,id,INTEGER,bigint identity,기본키(자동증가),-
+schedule_board_day_memos,ref_kind,TEXT,text,글자,-
+schedule_board_day_memos,ref_id,INTEGER,bigint,정수,-
+schedule_board_day_memos,ymd,TEXT,text,글자,-
+schedule_board_day_memos,memo,TEXT,text,글자,-
+schedule_board_day_memos,updated_by,INTEGER,bigint,정수,-
+schedule_board_day_memos,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+schedule_board_memos,id,INTEGER,bigint identity,기본키(자동증가),-
+schedule_board_memos,ref_kind,TEXT,text,글자,-
+schedule_board_memos,ref_id,INTEGER,bigint,정수,-
+schedule_board_memos,memo,TEXT,text,글자,-
+schedule_board_memos,updated_by,INTEGER,bigint,정수,-
+schedule_board_memos,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+shared_contacts,id,INTEGER,bigint identity,기본키(자동증가),-
+shared_contacts,name,TEXT,text,글자,-
+shared_contacts,position,TEXT,text,글자,-
+shared_contacts,company,TEXT,text,글자,-
+shared_contacts,department,TEXT,text,글자,-
+shared_contacts,mobile,TEXT,text,글자,-
+shared_contacts,phone,TEXT,text,글자,-
+shared_contacts,fax,TEXT,text,글자,-
+shared_contacts,email,TEXT,text,글자,-
+shared_contacts,address,TEXT,text,글자,-
+shared_contacts,note,TEXT,text,글자,-
+shared_contacts,card_image,TEXT,text,글자,-
+shared_contacts,source,TEXT,text,글자,-
+shared_contacts,customer_id,INTEGER,bigint,정수,-
+shared_contacts,created_by,INTEGER,bigint,정수,-
+shared_contacts,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+shared_contacts,updated_by,INTEGER,bigint,정수,-
+shared_contacts,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+shared_contacts,visibility,TEXT,text,글자,-
+shared_contacts,share_team_id,INTEGER,bigint,정수,-
+shipments,id,INTEGER,bigint identity,기본키(자동증가),-
+shipments,order_id,INTEGER,bigint,정수,-
+shipments,shipped_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+shipments,shipped_qty,REAL,bigint,수량,z1048 수량=정수
+shipments,shipped_by,INTEGER,bigint,정수,-
+shipments,tracking,TEXT,text,글자,-
+stage_notify_log,ref_kind,TEXT,text,글자,-
+stage_notify_log,ref_id,INTEGER,bigint,정수,-
+stage_notify_log,stage_key,TEXT,text,글자,-
+stage_notify_log,sub_key,TEXT,text,글자,-
+stage_notify_log,notified_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_adjustments,id,INTEGER,bigint identity,기본키(자동증가),-
+stock_adjustments,audit_item_id,INTEGER,bigint,정수,-
+stock_adjustments,adjusted_qty,REAL,bigint,수량,z1048 수량=정수
+stock_adjustments,reason,TEXT,text,글자,-
+stock_adjustments,status,TEXT,text,글자,-
+stock_adjustments,approved_by,INTEGER,bigint,정수,-
+stock_adjustments,approved_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_adjustments,movement_id,INTEGER,bigint,정수,-
+stock_adjustments,note,TEXT,text,글자,-
+stock_adjustments,created_by,INTEGER,bigint,정수,-
+stock_adjustments,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_audit_items,id,INTEGER,bigint identity,기본키(자동증가),-
+stock_audit_items,audit_id,INTEGER,bigint,정수,-
+stock_audit_items,part_id,INTEGER,bigint,정수,-
+stock_audit_items,system_qty,REAL,bigint,수량,z1048 수량=정수
+stock_audit_items,counted_qty,REAL,bigint,수량,z1048 수량=정수
+stock_audit_items,variance,REAL,double precision,실수(비금액),-
+stock_audit_items,variance_reason,TEXT,text,글자,-
+stock_audit_items,status,TEXT,text,글자,-
+stock_audit_items,counted_by,INTEGER,bigint,수량,z1048 수량=정수
+stock_audit_items,counted_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_audit_items,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_audits,id,INTEGER,bigint identity,기본키(자동증가),-
+stock_audits,audit_no,TEXT,text,글자,-
+stock_audits,start_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_audits,end_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_audits,status,TEXT,text,글자,-
+stock_audits,led_by,INTEGER,bigint,정수,-
+stock_audits,note,TEXT,text,글자,-
+stock_audits,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_movements,id,INTEGER,bigint identity,기본키(자동증가),-
+stock_movements,movement_no,TEXT,text,글자,-
+stock_movements,part_id,INTEGER,bigint,정수,-
+stock_movements,kind,TEXT,text,글자,-
+stock_movements,quantity,REAL,bigint,수량,z1048 수량=정수
+stock_movements,unit,TEXT,text,글자,-
+stock_movements,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+stock_movements,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+stock_movements,remaining_qty,REAL,bigint,수량,z1048 수량=정수
+stock_movements,lot_no,TEXT,text,글자,-
+stock_movements,expiry_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_movements,po_id,INTEGER,bigint,정수,-
+stock_movements,po_item_id,INTEGER,bigint,정수,-
+stock_movements,project_id,INTEGER,bigint,정수,-
+stock_movements,customer_id,INTEGER,bigint,정수,-
+stock_movements,reason,TEXT,text,글자,-
+stock_movements,location,TEXT,text,글자,-
+stock_movements,occurred_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+stock_movements,note,TEXT,text,글자,-
+stock_movements,created_by,INTEGER,bigint,정수,-
+stock_movements,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+suppliers,id,INTEGER,bigint identity,기본키(자동증가),-
+suppliers,name,TEXT,text,글자,-
+suppliers,code,TEXT,text,글자,-
+suppliers,contact,TEXT,text,글자,-
+suppliers,email,TEXT,text,글자,-
+suppliers,phone,TEXT,text,글자,-
+suppliers,country,TEXT,text,글자,-
+suppliers,currency,TEXT,text,글자,-
+suppliers,payment_terms,TEXT,text,글자,-
+suppliers,note,TEXT,text,글자,-
+suppliers,is_active,INTEGER,bigint,정수,-
+suppliers,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+suppliers,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+suppliers,biz_no,TEXT,text,글자,-
+suppliers,ceo_name,TEXT,text,글자,-
+suppliers,manage_dept,TEXT,text,글자,-
+suppliers,contact2,TEXT,text,글자,-
+suppliers,phone2,TEXT,text,글자,-
+suppliers,email2,TEXT,text,글자,-
+suppliers,address,TEXT,text,글자,-
+task_comments,id,INTEGER,bigint identity,기본키(자동증가),-
+task_comments,task_id,INTEGER,bigint,정수,-
+task_comments,author_id,INTEGER,bigint,정수,-
+task_comments,body,TEXT,text,글자,-
+task_comments,is_ceo_request,INTEGER,bigint,정수,-
+task_comments,parent_id,INTEGER,bigint,정수,-
+task_comments,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+task_delegations,id,INTEGER,bigint identity,기본키(자동증가),-
+task_delegations,task_id,INTEGER,bigint,정수,-
+task_delegations,from_user_id,INTEGER,bigint,정수,-
+task_delegations,to_user_id,INTEGER,bigint,정수,-
+task_delegations,message,TEXT,text,글자,-
+task_delegations,status,TEXT,text,글자,-
+task_delegations,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+task_delegations,resolved_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+task_reactions,id,INTEGER,bigint identity,기본키(자동증가),-
+task_reactions,task_id,INTEGER,bigint,정수,-
+task_reactions,user_id,INTEGER,bigint,정수,-
+task_reactions,kind,TEXT,text,글자,-
+task_reactions,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tasks,id,INTEGER,bigint identity,기본키(자동증가),-
+tasks,user_id,INTEGER,bigint,정수,-
+tasks,work_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tasks,title,TEXT,text,글자,-
+tasks,category,TEXT,text,글자,-
+tasks,project_id,INTEGER,bigint,정수,-
+tasks,customer_id,INTEGER,bigint,정수,-
+tasks,status,TEXT,text,글자,-
+tasks,hours,REAL,double precision,실수(비금액),-
+tasks,notes,TEXT,text,글자,-
+tasks,next_plan,TEXT,text,글자,-
+tasks,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tasks,carry_from_id,INTEGER,bigint,정수,-
+tasks,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tasks,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tasks,project_label,TEXT,text,글자,-
+tasks,customer_label,TEXT,text,글자,-
+tasks,workflow_node_id,INTEGER,bigint,정수,-
+tasks,photo_path,TEXT,text,글자,-
+tax_invoice_lines,id,INTEGER,bigint identity,기본키(자동증가),-
+tax_invoice_lines,ti_id,INTEGER,bigint,정수,-
+tax_invoice_lines,row_sig,TEXT,text,글자,-
+tax_invoice_lines,ref_kind,TEXT,text,글자,-
+tax_invoice_lines,ref_id,INTEGER,bigint,정수,-
+tax_invoice_lines,unit_iids,TEXT,text,글자,-
+tax_invoice_lines,mgmt_code,TEXT,text,글자,-
+tax_invoice_lines,label,TEXT,text,글자,-
+tax_invoice_lines,customer,TEXT,text,글자,-
+tax_invoice_lines,amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+tax_invoice_lines,tier,INTEGER,bigint,정수,-
+tax_invoices,id,INTEGER,bigint identity,기본키(자동증가),-
+tax_invoices,ti_no,TEXT,text,글자,-
+tax_invoices,issue_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tax_invoices,customer_name,TEXT,text,글자,-
+tax_invoices,customer_id,INTEGER,bigint,정수,-
+tax_invoices,total_amount,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
+tax_invoices,currency,TEXT,text,글자,-
+tax_invoices,memo,TEXT,text,글자,-
+tax_invoices,status,TEXT,text,글자,-
+tax_invoices,created_by,INTEGER,bigint,정수,-
+tax_invoices,created_by_name,TEXT,text,글자,-
+tax_invoices,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tax_invoices,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+team_history,id,INTEGER,bigint identity,기본키(자동증가),-
+team_history,team_id,INTEGER,bigint,정수,-
+team_history,changed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+team_history,changed_by,INTEGER,bigint,정수,-
+team_history,field,TEXT,text,글자,-
+team_history,old_value,TEXT,text,글자,-
+team_history,new_value,TEXT,text,글자,-
+team_history,note,TEXT,text,글자,-
+team_summaries,id,INTEGER,bigint identity,기본키(자동증가),-
+team_summaries,team_id,INTEGER,bigint,정수,-
+team_summaries,work_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+team_summaries,author_id,INTEGER,bigint,정수,-
+team_summaries,headline,TEXT,text,글자,-
+team_summaries,notes,TEXT,text,글자,-
+team_summaries,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+team_summaries,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+teams,id,INTEGER,bigint identity,기본키(자동증가),-
+teams,code,TEXT,text,글자,-
+teams,name,TEXT,text,글자,-
+teams,leader_id,INTEGER,bigint,정수,-
+teams,is_lab,INTEGER,bigint,정수,-
+teams,sector,TEXT,text,글자,-
+teams,parent_team_id,INTEGER,bigint,정수,-
+teams,display_order,INTEGER,bigint,정수,-
+teams,entity,TEXT,text,글자,-
+ticket_comments,id,INTEGER,bigint identity,기본키(자동증가),-
+ticket_comments,ticket_id,INTEGER,bigint,정수,-
+ticket_comments,author_id,INTEGER,bigint,정수,-
+ticket_comments,body,TEXT,text,글자,-
+ticket_comments,is_status_change,INTEGER,bigint,정수,-
+ticket_comments,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tickets,id,INTEGER,bigint identity,기본키(자동증가),-
+tickets,ticket_no,TEXT,text,글자,-
+tickets,category,TEXT,text,글자,-
+tickets,title,TEXT,text,글자,-
+tickets,description,TEXT,text,글자,-
+tickets,requester_id,INTEGER,bigint,정수,-
+tickets,recipient_team_id,INTEGER,bigint,정수,-
+tickets,recipient_user_id,INTEGER,bigint,정수,-
+tickets,project_id,INTEGER,bigint,정수,-
+tickets,target_label,TEXT,text,글자,-
+tickets,urgency,TEXT,text,글자,-
+tickets,status,TEXT,text,글자,-
+tickets,source,TEXT,text,글자,-
+tickets,source_chat_id,TEXT,text,글자,-
+tickets,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tickets,completed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tickets,hours_estimated,REAL,double precision,실수(비금액),-
+tickets,hours_actual,REAL,double precision,실수(비금액),-
+tickets,accept_note,TEXT,text,글자,-
+tickets,complete_note,TEXT,text,글자,-
+tickets,reject_reason,TEXT,text,글자,-
+tickets,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tickets,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+tickets,approval_url,TEXT,text,글자,-
+user_groups,user_id,INTEGER,bigint,정수,-
+user_groups,group_id,INTEGER,bigint,정수,-
+user_history,id,INTEGER,bigint identity,기본키(자동증가),-
+user_history,user_id,INTEGER,bigint,정수,-
+user_history,changed_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+user_history,changed_by,INTEGER,bigint,정수,-
+user_history,field,TEXT,text,글자,-
+user_history,old_value,TEXT,text,글자,-
+user_history,new_value,TEXT,text,글자,-
+user_history,note,TEXT,text,글자,-
+user_mail_creds,user_id,INTEGER,bigint identity,기본키(자동증가),-
+user_mail_creds,smtp_email,TEXT,text,글자,-
+user_mail_creds,smtp_password_enc,TEXT,text,글자,-
+user_mail_creds,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+user_view_prefs,id,INTEGER,bigint identity,기본키(자동증가),-
+user_view_prefs,user_id,INTEGER,bigint,정수,-
+user_view_prefs,view_key,TEXT,text,글자,-
+user_view_prefs,config,TEXT,text,글자,-
+user_view_prefs,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+users,id,INTEGER,bigint identity,기본키(자동증가),-
+users,name,TEXT,text,글자,-
+users,login_id,TEXT,text,글자,-
+users,password,TEXT,text,글자,-
+users,email,TEXT,text,글자,-
+users,team_id,INTEGER,bigint,정수,-
+users,rank,TEXT,text,글자,-
+users,role,TEXT,text,글자,-
+users,is_active,INTEGER,bigint,정수,-
+users,lang,TEXT,text,글자,-
+users,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+users,can_use_logistics,INTEGER,bigint,정수,-
+users,is_admin,INTEGER,bigint,정수,-
+users,can_use_sales,INTEGER,bigint,정수,-
+users,can_edit_changes,INTEGER,bigint,정수,-
+users,can_close_tickets,INTEGER,bigint,정수,-
+users,can_view_sales,INTEGER,bigint,정수,-
+users,can_view_logistics,INTEGER,bigint,정수,-
+users,can_use_quality,INTEGER,bigint,정수,-
+users,employee_no,TEXT,text,글자,-
+users,entity,TEXT,text,글자,-
+users,password_version,INTEGER,bigint,정수,-
+users,name_en,TEXT,text,글자,-
+users,name_vi,TEXT,text,글자,-
+users,phone,TEXT,text,글자,-
+users,dept_code,TEXT,text,글자,-
+users,must_change_pw,INTEGER,bigint,정수,-
+users,biz_divs,TEXT,text,글자,-
+work_order,id,INTEGER,bigint identity,기본키(자동증가),-
+work_order,kind,TEXT,text,글자,-
+work_order,title,TEXT,text,글자,-
+work_order,body,TEXT,text,글자,-
+work_order,created_by,INTEGER,bigint,정수,-
+work_order,created_by_name,TEXT,text,글자,-
+work_order,target_user_id,INTEGER,bigint,정수,-
+work_order,target_team_id,INTEGER,bigint,정수,-
+work_order,target_label,TEXT,text,글자,-
+work_order,project_id,INTEGER,bigint,정수,-
+work_order,project_code,TEXT,text,글자,-
+work_order,due_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+work_order,priority,TEXT,text,글자,-
+work_order,status,TEXT,text,글자,-
+work_order,report,TEXT,text,글자,-
+work_order,hours,REAL,double precision,실수(비금액),-
+work_order,done_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+work_order,accepted_by,INTEGER,bigint,정수,-
+work_order,accepted_by_name,TEXT,text,글자,-
+work_order,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+work_order,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+work_order_items,id,INTEGER,bigint identity,기본키(자동증가),-
+work_order_items,wo_id,INTEGER,bigint,정수,-
+work_order_items,line_no,INTEGER,bigint,정수,-
+work_order_items,step_name,TEXT,text,글자,-
+work_order_items,duration_min,INTEGER,numeric,비율·환율·중량,z1048 예외(소수 정당)
+work_order_items,progress,INTEGER,bigint,정수,-
+work_order_items,worker_id,INTEGER,bigint,정수,-
+work_order_items,worker_name,TEXT,text,글자,-
+work_order_items,remarks,TEXT,text,글자,-
+work_orders,id,INTEGER,bigint identity,기본키(자동증가),-
+work_orders,wo_no,TEXT,text,글자,-
+work_orders,order_id,INTEGER,bigint,정수,-
+work_orders,project_id,INTEGER,bigint,정수,-
+work_orders,part_id,INTEGER,bigint,정수,-
+work_orders,qty,REAL,bigint,수량,z1048 수량=정수
+work_orders,assigned_to,INTEGER,bigint,정수,-
+work_orders,assigned_name,TEXT,text,글자,-
+work_orders,created_by,INTEGER,bigint,정수,-
+work_orders,created_by_name,TEXT,text,글자,-
+work_orders,planned_start,TEXT,text,글자,-
+work_orders,planned_end,TEXT,text,글자,-
+work_orders,actual_end,TEXT,text,글자,-
+work_orders,specifications,TEXT,text,글자,-
+work_orders,status,TEXT,text,글자,-
+work_orders,remarks,TEXT,text,글자,-
+work_orders,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+workflow_handoffs,id,INTEGER,bigint identity,기본키(자동증가),-
+workflow_handoffs,workflow_id,INTEGER,bigint,정수,-
+workflow_handoffs,from_node_id,INTEGER,bigint,정수,-
+workflow_handoffs,to_node_id,INTEGER,bigint,정수,-
+workflow_handoffs,triggered_by,INTEGER,bigint,정수,-
+workflow_handoffs,notified_users,TEXT,text,글자,-
+workflow_handoffs,message,TEXT,text,글자,-
+workflow_handoffs,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+workflow_nodes_master,node_code,TEXT,text,글자,-
+workflow_nodes_master,category,TEXT,text,글자,-
+workflow_nodes_master,title_ko,TEXT,text,글자,-
+workflow_nodes_master,title_en,TEXT,text,글자,-
+workflow_nodes_master,description,TEXT,text,글자,-
+workflow_nodes_master,default_dept,TEXT,text,글자,-
+workflow_nodes_master,est_hours,INTEGER,bigint,정수,-
+workflow_nodes_master,is_ic,INTEGER,bigint,정수,-
+workflow_nodes_master,ic_direction,TEXT,text,글자,-
+workflow_nodes_master,display_order,INTEGER,bigint,정수,-
+workflow_nodes_master,is_active,INTEGER,bigint,정수,-
+workflow_nodes_master,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
+workflow_nodes_master,sop_guide,TEXT,text,글자,-
+workflow_nodes_master,deliverables_json,TEXT,text,글자,-
+workflow_nodes_master,system_link_template,TEXT,text,글자,-
+workflow_template_nodes,id,INTEGER,bigint identity,기본키(자동증가),-
+workflow_template_nodes,template_id,INTEGER,numeric,비율·환율·중량,z1048 예외(소수 정당)
+workflow_template_nodes,node_code,TEXT,text,글자,-
+workflow_template_nodes,seq,INTEGER,bigint,정수,-
+workflow_template_nodes,is_optional,INTEGER,bigint,정수,-
+workflow_templates,id,INTEGER,bigint identity,기본키(자동증가),-
+workflow_templates,code,TEXT,text,글자,-
+workflow_templates,title_ko,TEXT,text,글자,-
+workflow_templates,description,TEXT,text,글자,-
+workflow_templates,customer_country_hint,TEXT,text,글자,-
+workflow_templates,po_entity_hint,TEXT,text,글자,-
+workflow_templates,ship_entity_hint,TEXT,text,글자,-
+workflow_templates,display_order,INTEGER,bigint,정수,-
+workflow_templates,is_active,INTEGER,bigint,정수,-
+workflow_templates,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
