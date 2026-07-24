@@ -8847,6 +8847,207 @@ async def admin_order_dates_audit_apply(req: Request):
                         "<a href='/admin/order-dates-audit' style='color:#1d4ed8;'>다시 보기</a></p></div>")
 
 
+@app.get("/admin/consumable-sales-audit", response_class=HTMLResponse)
+async def admin_consumable_sales_audit(req: Request, year: str = ""):
+    """z1051 (대표 지시): 소모품 매출이 비정상으로 큰 원인 진단 — 읽기전용(전부 SELECT·아무것도 안 바꿈).
+    매출 홈의 '수주매출' 계산(_sales_3way ①)을 그대로 재현해 소모품 금액을
+      ① 프로젝트 쪽(관리번호 4번째 글자 = C)   ② 소모품 쪽(소모품 발주)
+    두 출처로 쪼개고 ▸ 통화별 분해 ▸ 같은 관리번호가 양쪽에 있는 건(이중 계상 의심)
+    ▸ 원화환산 큰 순 목록을 보여준다. 어느 쪽이 금액을 부풀리는지 눈으로 판별하기 위한 화면."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+
+    def _esc(s):
+        return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def _n(x):
+        try:
+            return f"{float(x or 0):,.0f}"
+        except Exception:
+            return "0"
+
+    SRC_P, SRC_C = "프로젝트 쪽", "소모품 쪽"
+    sel = (year or "").strip() or str(date.today().year)
+    missing = set()
+    rows = []
+    with db_session() as c:
+        rates = _fx_load_rates(c)
+        # ① 프로젝트 쪽 — 매출 홈 ①과 동일 조건 + 관리번호 4번째 글자 C 만
+        for r in c.execute(
+                "SELECT COALESCE(p.mgmt_code,'') AS mc, COALESCE(o.order_no,'') AS no, "
+                "COALESCE(p.customer_name,'') AS cust, oi.amount AS amount, "
+                "COALESCE(oi.currency,p.currency) AS ccy, "
+                "COALESCE(o.order_date,p.order_date) AS dd, COALESCE(oi.unit_label,'') AS lbl "
+                "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                "JOIN projects p ON p.id=o.project_id "
+                "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
+                "  AND UPPER(substr(COALESCE(p.mgmt_code,''),4,1))='C'").fetchall():
+            d = dict(r); d["src"] = SRC_P; rows.append(d)
+        # ② 소모품 쪽 — 매출 홈 ②와 동일 조건
+        for r in c.execute(
+                "SELECT COALESCE(mgmt_code,'') AS mc, COALESCE(co_no,'') AS no, "
+                "COALESCE(customer_name,'') AS cust, total_amount AS amount, "
+                "currency AS ccy, order_date AS dd, '' AS lbl "
+                "FROM consumable_orders WHERE COALESCE(status,'')<>'CANCELLED'").fetchall():
+            d = dict(r); d["src"] = SRC_C; rows.append(d)
+        # ⑤ 저장된 합계(total_amount) vs 라인 합계 — recompute_co_total 이 안 돈 건 표면화
+        mism_all = [dict(r) for r in c.execute(
+            "SELECT COALESCE(co.mgmt_code,'') AS mc, COALESCE(co.co_no,'') AS no, "
+            "COALESCE(co.customer_name,'') AS cust, COALESCE(co.currency,'KRW') AS ccy, "
+            "COALESCE(co.order_date,'') AS dd, COALESCE(co.total_amount,0) AS saved, "
+            "(SELECT COALESCE(SUM(COALESCE(i.amount,0)),0) FROM consumable_order_items i "
+            " WHERE i.co_id=co.id) AS lsum "
+            "FROM consumable_orders co WHERE COALESCE(co.status,'')<>'CANCELLED'").fetchall()]
+
+    years = sorted({(d.get("dd") or "")[:4] for d in rows if (d.get("dd") or "")[:4].isdigit()}, reverse=True)
+    kept = []
+    for d in rows:
+        dd = (d.get("dd") or "")
+        if dd[:4] != sel:
+            continue
+        ccy = (d.get("ccy") or "KRW").strip().upper() or "KRW"
+        raw = float(d.get("amount") or 0)
+        d["ccy"] = ccy
+        d["raw"] = raw
+        d["krw"] = _fx_to_krw(rates, raw, ccy, dd[:7], missing)
+        d["rate"] = _fx_rate_for(rates, ccy, dd[:7]) or 0
+        kept.append(d)
+
+    # 통화 확인 필요 = 외화 표기인데 금액이 원화급(소모품 발주 하나가 5만 달러 이상은 실무상 드묾)
+    def _susp(d):
+        return d["ccy"] != "KRW" and d["raw"] >= 50000
+
+    src_agg, ccy_agg = {}, {}
+    for d in kept:
+        a = src_agg.setdefault(d["src"], {"cnt": 0, "krw": 0.0})
+        a["cnt"] += 1
+        a["krw"] += d["krw"]
+        b = ccy_agg.setdefault((d["src"], d["ccy"]), {"cnt": 0, "raw": 0.0, "krw": 0.0})
+        b["cnt"] += 1
+        b["raw"] += d["raw"]
+        b["krw"] += d["krw"]
+    total_krw = sum(x["krw"] for x in src_agg.values())
+    susp = [d for d in kept if _susp(d)]
+    susp_krw = sum(d["krw"] for d in susp)
+    mc_p = {d["mc"] for d in kept if d["src"] == SRC_P and d["mc"]}
+    mc_c = {d["mc"] for d in kept if d["src"] == SRC_C and d["mc"]}
+    dup_mc = sorted(mc_p & mc_c)
+    dup_krw = sum(d["krw"] for d in kept if d["mc"] in mc_p and d["mc"] in mc_c)
+
+    def _thead(hs):
+        return ("<table style='border-collapse:collapse;font-size:12.5px;width:100%;margin:6px 0 20px;'><thead><tr>"
+                + "".join("<th style='border-bottom:2px solid #ddd;padding:6px;text-align:left;white-space:nowrap;'>"
+                          + h + "</th>" for h in hs) + "</tr></thead><tbody>")
+
+    def _tr(cs):
+        return "<tr>" + "".join("<td style='border-bottom:1px solid #eee;padding:5px;'>" + x + "</td>"
+                                for x in cs) + "</tr>"
+
+    B = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1180px;"
+         "margin:24px auto;padding:0 18px;color:#1f2937;'>",
+         "<h2>🧾 소모품 매출 진단 — " + _esc(sel) + "년 <span style='font-size:14px;color:#15803d;'>(읽기전용)</span></h2>",
+         "<p style='color:#555;line-height:1.75;'>매출 홈의 <b>수주매출</b> 계산을 <b>그대로 재현</b>해, 소모품 금액이 "
+         "어디서 오는지 쪼개 봅니다. <b>이 화면은 아무것도 바꾸지 않습니다</b>(전부 조회).</p>"]
+    if years:
+        B.append("<p style='margin:6px 0 14px;'>연도 : " + " · ".join(
+            ("<b>" + _esc(y) + "</b>" if y == sel else
+             "<a href='/admin/consumable-sales-audit?year=" + _esc(y) + "' style='color:#1d4ed8;'>" + _esc(y) + "</a>")
+            for y in years) + "</p>")
+    B.append("<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;"
+             "margin:10px 0 18px;line-height:2;'>"
+             "<b>소모품 수주매출 합계</b> : <b style='font-size:16px;'>" + _n(total_krw) + " 원</b>"
+             " <span style='color:#777;'>(매출 홈 소모품 '수주매출'과 같아야 정상)</span><br>"
+             "<b>통화 확인 필요</b> : <b style='color:#b91c1c;'>" + str(len(susp)) + "건 · " + _n(susp_krw) + " 원</b>"
+             + (" <span style='color:#b91c1c;'>= 전체의 " + f"{(susp_krw / total_krw * 100):.1f}" + "%</span>"
+                if total_krw else "") + "<br>"
+             "<b>같은 관리번호가 양쪽에</b>(이중 계상 의심) : <b style='color:#b45309;'>" + str(len(dup_mc))
+             + "개 · " + _n(dup_krw) + " 원</b></div>")
+
+    B.append("<h3 style='margin:20px 0 4px;'>① 금액이 어디서 오나 — 출처별</h3>")
+    B.append("<p style='color:#666;font-size:13px;margin:2px 0 6px;'>소모품은 <b>두 곳</b>에 저장될 수 있고, "
+             "매출은 <b>두 곳을 더합니다</b>. 같은 건이 양쪽에 있으면 <b>2배</b>로 잡힙니다.</p>")
+    B.append(_thead(("출처", "건수", "원화환산 합계", "비중")))
+    for s in (SRC_P, SRC_C):
+        a = src_agg.get(s) or {"cnt": 0, "krw": 0.0}
+        pct = (a["krw"] / total_krw * 100) if total_krw else 0
+        B.append(_tr((("<b>" + s + "</b>" + ("  <span style='color:#777;'>(관리번호 4번째 글자 = C 인 프로젝트)</span>"
+                                             if s == SRC_P else "  <span style='color:#777;'>(소모품 발주)</span>")),
+                      _n(a["cnt"]), "<b>" + _n(a["krw"]) + "</b>", f"{pct:.1f}%")))
+    B.append("</tbody></table>")
+
+    B.append("<h3 style='margin:20px 0 4px;'>② 통화별 분해</h3>")
+    B.append("<p style='color:#666;font-size:13px;margin:2px 0 6px;'>'환산 전'은 적힌 그대로의 금액, "
+             "'원화환산'은 그 달 기준환율로 바꾼 금액입니다. 원화 금액이 <b>외화로 잘못 적혀</b> 있으면 "
+             "환산에서 <b>1,000배 이상</b> 부풀 수 있습니다.</p>")
+    B.append(_thead(("출처", "통화", "건수", "환산 전 금액", "원화환산", "비중")))
+    for (s, ccy) in sorted(ccy_agg, key=lambda k: -ccy_agg[k]["krw"]):
+        v = ccy_agg[(s, ccy)]
+        pct = (v["krw"] / total_krw * 100) if total_krw else 0
+        warn = " <span style='color:#b91c1c;font-weight:800;'>⚠</span>" if ccy != "KRW" else ""
+        B.append(_tr((s, "<b>" + _esc(ccy) + "</b>" + warn, _n(v["cnt"]), _n(v["raw"]),
+                      "<b>" + _n(v["krw"]) + "</b>", f"{pct:.1f}%")))
+    B.append("</tbody></table>")
+
+    if dup_mc:
+        B.append("<h3 style='margin:20px 0 4px;'>③ 같은 관리번호가 양쪽에 (" + str(len(dup_mc)) + "개) — 이중 계상 의심</h3>")
+        B.append(_thead(("관리번호", "프로젝트 쪽", "소모품 쪽", "고객사")))
+        for mc in dup_mc[:60]:
+            pk = sum(d["krw"] for d in kept if d["src"] == SRC_P and d["mc"] == mc)
+            ck = sum(d["krw"] for d in kept if d["src"] == SRC_C and d["mc"] == mc)
+            cu = next((d["cust"] for d in kept if d["mc"] == mc and d["cust"]), "")
+            B.append(_tr(("<span style='font-family:monospace;'>" + _esc(mc) + "</span>",
+                          _n(pk), _n(ck), _esc(cu))))
+        B.append("</tbody></table>")
+        if len(dup_mc) > 60:
+            B.append("<p style='color:#777;'>… 외 " + str(len(dup_mc) - 60) + "개</p>")
+    else:
+        B.append("<h3 style='margin:20px 0 4px;'>③ 이중 계상 의심</h3>"
+                 "<p style='color:#15803d;font-weight:700;padding:12px;background:#f0fdf4;border-radius:8px;'>"
+                 "✅ 같은 관리번호가 양쪽에 있는 건 없음 — 이중 계상 아님.</p>")
+
+    top = sorted(kept, key=lambda d: -d["krw"])[:40]
+    B.append("<h3 style='margin:20px 0 4px;'>④ 원화환산 큰 순 " + str(len(top)) + "건</h3>")
+    B.append("<p style='color:#666;font-size:13px;margin:2px 0 6px;'>"
+             "<b style='color:#b91c1c;'>⚠ 통화 확인</b> = 외화로 적혀 있는데 금액이 원화급인 건"
+             "(외화 5만 이상). 원화를 외화로 잘못 고른 것으로 의심됩니다.</p>")
+    B.append(_thead(("", "출처", "관리번호", "수주번호", "고객사", "통화", "환산 전", "환율", "원화환산", "발주일")))
+    for d in top:
+        flag = ("<b style='color:#b91c1c;' title='외화 표기인데 금액이 원화급 — 확인 필요'>⚠</b>"
+                if _susp(d) else "")
+        B.append(_tr((flag, d["src"],
+                      "<span style='font-family:monospace;'>" + _esc(d["mc"]) + "</span>",
+                      "<span style='font-family:monospace;'>" + _esc(d["no"]) + "</span>",
+                      _esc(d["cust"])[:24], _esc(d["ccy"]), _n(d["raw"]),
+                      (_n(d["rate"]) if d["ccy"] != "KRW" else "—"),
+                      "<b>" + _n(d["krw"]) + "</b>", _esc(d["dd"])[:10])))
+    B.append("</tbody></table>")
+    if missing:
+        B.append("<p style='color:#b45309;'>⚠ 기준환율이 없어 <b>0원</b>으로 처리된 통화·월 : "
+                 + _esc(", ".join(sorted(f"{a}/{b}" for (a, b) in missing)))
+                 + " — <a href='/admin/fx-rates' style='color:#1d4ed8;'>환율 입력</a></p>")
+    mism = [d for d in mism_all
+            if (d["dd"] or "")[:4] == sel and abs(float(d["saved"] or 0) - float(d["lsum"] or 0)) >= 1]
+    B.append("<h3 style='margin:20px 0 4px;'>⑤ 소모품 발주 — 저장된 합계와 라인 합계가 다른 건 ("
+             + str(len(mism)) + ")</h3>")
+    B.append("<p style='color:#666;font-size:13px;margin:2px 0 6px;'>매출은 <b>저장된 합계</b>를 씁니다. "
+             "라인을 고친 뒤 합계가 다시 계산되지 않았다면 <b>매출만 옛 금액</b>으로 남습니다.</p>")
+    if mism:
+        B.append(_thead(("관리번호", "수주번호", "고객사", "통화", "저장된 합계", "라인 합계", "차이", "발주일")))
+        for d in sorted(mism, key=lambda x: -abs(float(x["saved"] or 0) - float(x["lsum"] or 0)))[:60]:
+            diff = float(d["saved"] or 0) - float(d["lsum"] or 0)
+            B.append(_tr(("<span style='font-family:monospace;'>" + _esc(d["mc"]) + "</span>",
+                          "<span style='font-family:monospace;'>" + _esc(d["no"]) + "</span>",
+                          _esc(d["cust"])[:24], _esc(d["ccy"]), _n(d["saved"]), _n(d["lsum"]),
+                          "<b style='color:#b91c1c;'>" + _n(diff) + "</b>", _esc(d["dd"])[:10])))
+        B.append("</tbody></table>")
+    else:
+        B.append("<p style='color:#15803d;font-weight:700;padding:12px;background:#f0fdf4;border-radius:8px;'>"
+                 "✅ 저장된 합계와 라인 합계가 모두 일치.</p>")
+    B.append("<p style='margin:24px 0;color:#777;'>이 화면은 조회만 합니다. 고칠 대상이 확인되면 알려주세요.</p></div>")
+    return HTMLResponse("".join(B))
+
+
 @app.get("/admin/customer-health", response_class=HTMLResponse)
 async def admin_customer_health(req: Request):
     """v5H226z610 (대표 지시): 고객사 연결성 읽기전용 진단.
