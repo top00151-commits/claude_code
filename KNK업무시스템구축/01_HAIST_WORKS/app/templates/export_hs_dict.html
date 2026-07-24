@@ -290,6 +290,7 @@
             lines.push('🛃 ' + x.file + ' — 세관 기록 ' + x.rows + '종 대조: 일치 ' + x.matched
               + (x.flagged? ' · ⭐다름 ' + x.flagged + '(확인 대기로)' : '')
               + (x.added? ' · 신규 추가 ' + x.added : '')
+              + (x.filled? ' · 빈 원산지 채움 ' + x.filled : '')
               + (x.split? ' · ⚠세관도 갈림 ' + x.split : '')
               + (x.skipped? ' · 사전에 없어 건너뜀 ' + x.skipped : ''));
           }

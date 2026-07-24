@@ -36256,9 +36256,9 @@ def _hs_parse_customs_xls(data: bytes, fname: str):
 def _hs_apply_customs(c, agg: dict, fname: str, today: str, u, add_new: bool) -> dict:
     """세관 기록 반영 — ①있는 규격의 HS 가 다르면 '확인 대기'+실적 기록 ②없는 규격은 add_new 일 때만 추가.
     ⛔값은 덮지 않는다(z1046 규칙) · ⛔원산지·세율은 손대지 않는다(위 주석 근거)."""
-    flagged = matched = added = skipped = split = 0
+    flagged = matched = added = skipped = split = filled = 0
     for key, d in agg.items():
-        ex = c.execute("SELECT id, hs_code, status FROM export_hs_dict WHERE part_key=?",
+        ex = c.execute("SELECT id, hs_code, status, origin FROM export_hs_dict WHERE part_key=?",
                        (key,)).fetchone()
         hs_c = d["hs_top"]
         _when = f"{d['n']}회" + (f" · 최근 {d['last']}" if d["last"] else "")
@@ -36273,11 +36273,15 @@ def _hs_apply_customs(c, agg: dict, fname: str, today: str, u, add_new: bool) ->
                 _note = ("⚠세관 기록도 갈림: " + " / ".join(f"{h} {n}회" for h, n in
                                                         sorted(d["hs"].items(), key=lambda x: -x[1]))
                          + f" ({fname})")
+            # v5H226z1047b: ⚠origin 칸을 빠뜨려 **새 행 1,167종의 원산지가 전부 공란**이었다
+            #   (z1046 에서 AI 저장문에 고친 것과 **같은 실수**를 반복했다 — 파서가 읽어 둔 값을 안 썼다).
+            #   ⛔'원산지 안 건드림' 은 **남의 값을 덮지 않는다**는 뜻이지, 빈 칸을 비워 두라는 뜻이 아니다.
             c.execute(
-                "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,status,seen_count,"
-                "first_seen,last_seen,source_file,note,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,"
+                "first_seen,last_seen,source_file,note,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (key, d.get("model") or key,
                  (d["vn"].split("#&")[0].strip() if "#&" in d["vn"] else ""), d["vn"], hs_c,
+                 d.get("org") or "",
                  # 세관 자체가 갈리면 자동 채움에 쓰면 안 된다 → 확인 대기
                  "PENDING" if d["hs_split"] else "CONFIRMED",
                  d["n"], d["last"] or today, d["last"] or today, fname, _note, u.get("id")))
@@ -36285,6 +36289,13 @@ def _hs_apply_customs(c, agg: dict, fname: str, today: str, u, add_new: bool) ->
             continue
         if (ex["hs_code"] or "").strip() == hs_c:
             matched += 1                   # 세관이 우리 값을 확인해 줌 — 바꿀 것이 없다(기존 사유도 보존)
+            # ⭐빈 원산지만 채운다(z1046 규칙: 채움은 안전 · 다른 값 덮기는 금지).
+            #   이미 올린 공란 행을 **다시 올리면 고쳐지는** 경로이기도 하다.
+            if not (ex["origin"] or "").strip() and (d.get("org") or "").strip():
+                c.execute("UPDATE export_hs_dict SET origin=?, updated_by=?, "
+                          "updated_at=datetime('now','localtime') WHERE id=?",
+                          (d["org"].strip(), u.get("id"), ex["id"]))
+                filled += 1
             continue
         # 다름 → 값은 그대로 두고 '확인 대기' + 세관 실적을 사유에. 통관은 법적 신고 = 사람이 고른다.
         #   세관 자체가 갈리면(한 규격을 두 코드로 신고) 그 내역을 그대로 보여 준다 — 사람이 판단할 근거다.
@@ -36298,7 +36309,8 @@ def _hs_apply_customs(c, agg: dict, fname: str, today: str, u, add_new: bool) ->
              d["last"] or today, u.get("id"), ex["id"]))
         flagged += 1
     return {"file": fname, "mode": "customs", "rows": len(agg), "flagged": flagged,
-            "matched": matched, "added": added, "skipped": skipped, "split": split}
+            "matched": matched, "added": added, "skipped": skipped, "split": split,
+            "filled": filled}
 
 
 @app.get("/export/hs-dict/review.xlsx")
