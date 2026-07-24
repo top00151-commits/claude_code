@@ -21087,6 +21087,10 @@ async def project_bom_purge(request: Request, pid: int):
     if _role not in ("admin", "ceo"):
         return RedirectResponse(
             f"/projects/{pid}/bom?error={_q('BOM 폐기는 관리자(admin/ceo) 전용입니다')}", 303)
+    # WP-01(게이트 v2 F-05 · 대표 승인 2026-07-24): 운영 배포본 잠금 — 환경 스위치 없으면 폐기 불가
+    if os.environ.get("KNK_ENABLE_BOM_PURGE") != "1":
+        return RedirectResponse(
+            f"/projects/{pid}/bom?error={_q('운영 서버에서는 BOM 폐기가 잠겨 있습니다(이력 보존) — 테스트 정리가 필요하면 대표 지시로 임시 활성화 후 진행합니다')}", 303)
     form = await request.form()
     typed = (form.get("confirm_code") or "").strip()
     with db_session() as c:
@@ -33366,36 +33370,57 @@ async def stock_issues_submit(req: Request):
 
 @app.post("/stock/issues/{issue_id}/approve")
 async def stock_issues_approve(req: Request, issue_id: int):
-    """출고 승인·실행 (Top3-S2-2차) — UPDATE issues_out.status=ISSUED + INSERT stock_movements{kind=OUT, qty -}.
-    트랜잭션 무결성: stock_movement_create 가 자체 db_session 으로 balance VIEW 즉시 반영.
-    """
+    """출고 승인·확정(ISSUED) — WP-01(게이트 v2 F-02/F-03 재작성).
+    승인 점유(CAS)·재고 기준 대조·가용성 확인·OUT 원장·재고 갱신을 **하나의
+    Transaction**으로 처리한다(§18). 어느 단계든 실패하면 전부 원상복구(ISSUED 잔존 금지).
+    - 동시 승인 방지: UPDATE ... WHERE status='PENDING' 의 rowcount 로 원자 점유
+    - F-03: parts.stock_qty ≠ 원장 합계면 확정 차단(기존 재고를 원장 합계로 덮어쓰지 않음)
+    - 음수 재고 금지: 원장 가용량 < 요청 수량이면 차단
+    - 상태이력: issues_out.approver_id·issued_at + 원장 행(reason=GI-번호)이 전이 기록"""
     u = _s2_guard(req)
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
-    # 1) issues_out 조회 + 승인
-    with db_session() as c:
-        row = c.execute(
-            "SELECT id, part_id, qty, status FROM issues_out WHERE id=?", (issue_id,)
-        ).fetchone()
-        if not row:
-            return RedirectResponse("/stock/issues?error=notfound", 303)
-        if row["status"] != "PENDING":
-            return RedirectResponse(f"/stock/issues?error=already-{row['status']}", 303)
-        c.execute(
-            "UPDATE issues_out SET status='ISSUED', approver_id=?, issued_at=datetime('now','localtime') WHERE id=?",
-            (u.get("id"), issue_id)
-        )
-        part_id = row["part_id"]
-        qty = float(row["qty"] or 0)
-    # 2) stock_movements INSERT (kind=OUT, qty -) — balance VIEW 자동 반영 (FIFO)
+    from urllib.parse import quote as _q
     try:
-        from .database import stock_movement_create
-        stock_movement_create({
-            "part_id": part_id, "kind": "OUT", "quantity": qty,
-            "reason": f"GI-{issue_id}", "note": "Top3-S2-2차 출고 승인"
-        }, u.get("id") or 0)
+        with db_session() as c:
+            row = c.execute(
+                "SELECT id, part_id, qty, status FROM issues_out WHERE id=?", (issue_id,)
+            ).fetchone()
+            if not row:
+                return RedirectResponse("/stock/issues?error=notfound", 303)
+            # 원자 점유(CAS): PENDING일 때만 ISSUED로 — 동시·중복 승인 이중 방지
+            cur = c.execute(
+                "UPDATE issues_out SET status='ISSUED', approver_id=?, issued_at=datetime('now','localtime') "
+                "WHERE id=? AND status='PENDING'",
+                (u.get("id"), issue_id)
+            )
+            if cur.rowcount == 0:
+                return RedirectResponse(f"/stock/issues?error=already-{row['status']}", 303)
+            part_id = row["part_id"]
+            qty = float(row["qty"] or 0)
+            # F-03: 재고 기준수량 ↔ 원장 합계 대조 (불일치면 덮어쓰기 방지 위해 차단)
+            _sq = c.execute("SELECT stock_qty FROM parts WHERE id=?", (part_id,)).fetchone()
+            _stock = float((_sq["stock_qty"] if _sq else 0) or 0)
+            _ledger = float(c.execute(
+                "SELECT COALESCE(SUM(quantity),0) FROM stock_movements WHERE part_id=?", (part_id,)
+            ).fetchone()[0] or 0)
+            if abs(_stock - _ledger) > 1e-6:
+                raise ValueError(
+                    f"재고 기준수량({_stock:g})과 원장 합계({_ledger:g})가 달라 출고 확정을 차단했습니다 "
+                    "— 실사/이관으로 기준을 맞춘 뒤 진행하세요")
+            if _ledger < qty:
+                raise ValueError(f"재고 부족 — 가용 {_ledger:g}, 요청 {qty:g} (음수 재고 금지)")
+            # OUT 원장 + 재고 갱신 — 같은 Transaction 참여(_tx)
+            from . import database as _dbm
+            _dbm.stock_movement_create_tx(c, {
+                "part_id": part_id, "kind": "OUT", "quantity": qty,
+                "reason": f"GI-{issue_id}",
+                "note": "출고 확정(ISSUED) — 승인·원장·재고 단일 Transaction"
+            }, u.get("id") or 0)
+    except ValueError as ve:
+        return RedirectResponse(f"/stock/issues?error={_q(str(ve))}", 303)
     except Exception as e:
-        return RedirectResponse(f"/stock/issues?error=mv:{e}", 303)
+        return RedirectResponse(f"/stock/issues?error=mv:{_q(str(e))}", 303)
     return RedirectResponse(f"/stock/issues?success=GI-{issue_id}-ISSUED", 303)
 
 

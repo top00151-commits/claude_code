@@ -106,6 +106,24 @@ with db.db_session() as c:
     PO_RCPT = _po("WP-R", "입고완료", rcv=0, receipt=True)
     PO_CANCEL = _po("WP-C", "취소", rcv=0)
 
+    # ── v3 시드 (게이트 v2 F-01/F-02/F-03/F-04 검증용) ──
+    P_REG = _part("WPR-REG", "구매요청 대체컬럼 참조 자재")
+    c.execute("INSERT INTO material_requests (request_no, request_type, title, status) VALUES ('WPRQ-1','general','참조 시험','제출')")
+    MRQ = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    c.execute("INSERT INTO material_request_items (request_id, registered_part_id) VALUES (?,?)", (MRQ, P_REG))
+    P_MERGE = _part("WPR-MG", "병합 대표 자재")
+    c.execute("INSERT INTO part_aliases (part_id, alias_part_no, alias_part_no_norm) VALUES (?,?,?)", (P_MERGE, "WPR-OLD", "wprold"))
+    c.execute("INSERT INTO part_merge_log (canonical_id, merged_part_id, canonical_part_no, merged_part_no) VALUES (?,?,?,?)", (P_MERGE, 999999, "WPR-MG", "WPR-OLD"))
+    # 원장으로 완전히 뒷받침되는 자재 (stock 4 = 원장 합계 4) — 확정 수량 대조용
+    P_LEDGER = _part("WPR-LG", "원장 기반 재고 자재")
+    for _i, _q in enumerate((1, 1, 2)):
+        c.execute("INSERT INTO stock_movements (movement_no, part_id, kind, quantity, unit_price, remaining_qty, occurred_at) VALUES (?,?,'IN',?,100,?,?)", (f"WPL-{_i}", P_LEDGER, _q, _q, D(2)))
+    c.execute("UPDATE parts SET stock_qty=4 WHERE id=?", (P_LEDGER,))
+    # 테스트 접두 프로젝트 2호(폐기 예외 확인용)
+    c.execute("INSERT INTO projects (mgmt_code, name, status) VALUES ('999T002','테스트2','진행중')")
+    PJ_TEST2 = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    c.execute("INSERT INTO bom_items (project_id, part_no, part_name, status) VALUES (?,?,?, '활성')", (PJ_TEST2, "B-T2", "BOM행-T2"))
+
     # KPI 시드: 오늘-6(경계 포함)·오늘-7(경계 밖)·오늘-2 입고 3행
     for i, (d_, q) in enumerate(((D(6), 1), (D(7), 1), (D(2), 2))):
         c.execute(
@@ -115,21 +133,28 @@ with db.db_session() as c:
 print("═══ A부: 함수 수준 ═══")
 print("[A1] stock_kpi 계약 (P0-01·F-07 경계)")
 k = db.stock_kpi()
-chk("recent_receipts=달력 7일(오늘-6 포함·오늘-7 제외) 품목행 2건", k.get("recent_receipts") == 2, k.get("recent_receipts"))
-chk("total_qty=활성 수량 합(100)", k.get("total_qty") == 100, k.get("total_qty"))
+chk("recent_receipts=달력 7일(오늘-6 포함·오늘-7 제외) 품목행 5건", k.get("recent_receipts") == 5, k.get("recent_receipts"))
+chk("total_qty=활성 수량 합(100+4=104)", k.get("total_qty") == 104, k.get("total_qty"))
 chk("po_pending=작성중2+발주완료1+부분입고1=4", k.get("po_pending") == 4, k.get("po_pending"))
 chk("기존 키 불변", all(x in k for x in ("stock_value", "low_stock", "in_30d", "out_30d", "parts_total")))
 
-print("[A2] parts_delete — 전참조 차단 (F-01)")
-for pid, ref_t, nm in ((P_ISSUE, "issues_out", "출고요청 참조"), (P_BOM, "bom_items", "BOM 참조")):
-    before = (cnt("parts", "id=?", (pid,)), cnt(ref_t, "part_id=?", (pid,)))
+print("[A2] parts_delete — 전참조 차단 (F-01: part_id·*_part_id·명시 컬럼)")
+for pid, ref_t, ref_col, nm in (
+    (P_ISSUE, "issues_out", "part_id", "출고요청 참조"),
+    (P_BOM, "bom_items", "part_id", "BOM 참조"),
+    (P_REG, "material_request_items", "registered_part_id", "구매요청 대체컬럼 참조"),
+    (P_MERGE, "part_merge_log", "canonical_id", "병합 Audit 참조"),
+):
+    before = (cnt("parts", "id=?", (pid,)), cnt(ref_t, f"{ref_col}=?", (pid,)))
     try:
         db.parts_delete(pid)
         chk(f"{nm} 자재 삭제 차단", False, "예외 없이 삭제됨!")
     except ValueError as e:
-        chk(f"{nm} 자재 삭제 차단(ValueError)", "업무 참조" in str(e), str(e)[:50])
-    after = (cnt("parts", "id=?", (pid,)), cnt(ref_t, "part_id=?", (pid,)))
+        chk(f"{nm} 자재 삭제 차단(ValueError)", "업무 참조" in str(e), str(e)[:60])
+    after = (cnt("parts", "id=?", (pid,)), cnt(ref_t, f"{ref_col}=?", (pid,)))
     chk(f"  행 수 불변 {before}→{after}", before == after and before[0] == 1 and before[1] >= 1)
+chk("병합 대표 자재의 별칭도 보존(자재 1+참조 1, 판정서 §7 증빙표)",
+    cnt("part_aliases", "part_id=?", (P_MERGE,)) == 1)
 db.parts_delete(P_CLEAN)
 chk("무참조 자재는 정상 삭제(기존 기능 유지)", cnt("parts", "id=?", (P_CLEAN,)) == 0)
 
@@ -146,15 +171,22 @@ for po_id, st in ((PO_ISSUED, "발주완료"), (PO_PART, "부분입고"), (PO_RC
 db.po_delete(PO_DRAFT)
 chk("작성중(무입고) PO는 정상 삭제 + 품목 정리", cnt("purchase_orders", "id=?", (PO_DRAFT,)) == 0 and cnt("po_items", "po_id=?", (PO_DRAFT,)) == 0)
 
-print("[A4] bom_purge_project — 운영 차단 (F-03 함수층)")
+print("[A4] bom_purge_project — 환경 잠금+운영 차단 (F-03·v2 F-05 함수층)")
 before = (cnt("bom_items", "project_id=?", (PJ_REAL,)), cnt("bom_uploads", "project_id=?", (PJ_REAL,)), cnt("bom_item_history", "project_id=?", (PJ_REAL,)))
+from app import bom as bom_mod
+os.environ.pop("KNK_ENABLE_BOM_PURGE", None)
 try:
-    sys.path.insert(0, ROOT)
-    from app import bom as bom_mod
+    bom_mod.bom_purge_project(PJ_REAL)
+    chk("환경 잠금(스위치 없음) 차단", False, "예외 없이 삭제됨!")
+except ValueError as e:
+    chk("환경 잠금(스위치 없음) 차단(ValueError)", "잠겨" in str(e))
+os.environ["KNK_ENABLE_BOM_PURGE"] = "1"
+try:
     bom_mod.bom_purge_project(PJ_REAL)
     chk("운영 관리번호 폐기 차단", False, "예외 없이 삭제됨!")
 except ValueError as e:
     chk("운영 관리번호 폐기 차단(ValueError)", "테스트 관리번호" in str(e))
+os.environ.pop("KNK_ENABLE_BOM_PURGE", None)
 after = (cnt("bom_items", "project_id=?", (PJ_REAL,)), cnt("bom_uploads", "project_id=?", (PJ_REAL,)), cnt("bom_item_history", "project_id=?", (PJ_REAL,)))
 chk(f"  BOM 3표 불변 {before}→{after}", before == after and all(before))
 
@@ -189,27 +221,49 @@ chk(f"  원장 불변({mv0}건)·재고 불변({st0})", cnt("stock_movements") =
 r = client.post("/stock/adjust", data={"part_id": str(P_STOCK), "quantity": "3", "reason": "t"})
 chk("조회 POST /stock/adjust → /home 차단 + 불변", r.status_code == 303 and loc(r) == "/home" and cnt("stock_movements") == mv0)
 
-print("[B2] 출고 요청≠차감 → ISSUED 확정 1회 차감 (F-04 해석 고정)")
+print("[B2] 출고 확정 = 단일 Transaction·정확 수량·실패 Rollback (게이트 v2 F-02/F-03)")
 CURRENT["u"] = USE
-mv0, st0 = cnt("stock_movements"), stock_of(P_STOCK)
-r = client.post("/stock/issues", data={"part_id": str(P_STOCK), "qty": "3"})
+# ① 기준 일치 자재(P_LEDGER: 재고 4 = 원장 합계 4) — 요청≠차감 → 확정 시 정확 수량
+mv0 = cnt("stock_movements")
+r = client.post("/stock/issues", data={"part_id": str(P_LEDGER), "qty": "3"})
 chk("요청 생성 성공(303)", r.status_code == 303 and "success" in loc(r))
 with db.db_session() as c:
-    gi = c.execute("SELECT id FROM issues_out WHERE part_id=? ORDER BY id DESC", (P_STOCK,)).fetchone()[0]
-chk(f"  요청만으로 재고·원장 불변(재고 {st0}·원장 {mv0}건)", cnt("stock_movements") == mv0 and stock_of(P_STOCK) == st0)
-# 주의: 요청·승인(S2) 경로의 차감 = 원장(stock_movements) OUT 기록 기준.
-#   parts.stock_qty 열은 이 경로에서 갱신되지 않음(직접출고/조정 경로와의 이중 표현 —
-#   P0-02/03의 알려진 분리 문제로 WP-07/08 단일 엔진에서 해소. WP-01은 홈 노출 제거로 축소).
+    gi = c.execute("SELECT id FROM issues_out WHERE part_id=? ORDER BY id DESC", (P_LEDGER,)).fetchone()[0]
+chk(f"  요청만으로 원장·재고 불변(원장 {mv0}건·재고 4)", cnt("stock_movements") == mv0 and stock_of(P_LEDGER) == 4)
 r = client.post(f"/stock/issues/{gi}/approve")
 with db.db_session() as c:
-    _out = c.execute(
-        "SELECT COUNT(*) FROM stock_movements WHERE kind='OUT' AND part_id=? AND ABS(quantity)=3", (P_STOCK,)
-    ).fetchone()[0]
     _st = c.execute("SELECT status FROM issues_out WHERE id=?", (gi,)).fetchone()[0]
-chk("승인·확정(ISSUED) → 원장 OUT 1회 기록 + 상태 ISSUED",
-    cnt("stock_movements") == mv0 + 1 and _out == 1 and _st == "ISSUED")
+    _led = c.execute("SELECT COALESCE(SUM(quantity),0) FROM stock_movements WHERE part_id=?", (P_LEDGER,)).fetchone()[0]
+chk("확정(ISSUED): 재고 4→1 · 원장 합계 4→1 · OUT 1행 (정확 수량 대조)",
+    stock_of(P_LEDGER) == 1 and _led == 1 and _st == "ISSUED" and cnt("stock_movements") == mv0 + 1)
 r = client.post(f"/stock/issues/{gi}/approve")
-chk("중복 승인 차단(원장 재기록 없음)", "already" in loc(r) and cnt("stock_movements") == mv0 + 1)
+chk("중복 승인 차단(CAS 원자 점유·재기록 없음)", "already" in loc(r) and cnt("stock_movements") == mv0 + 1 and stock_of(P_LEDGER) == 1)
+# ② 기준 불일치 자재(P_STOCK: 재고 100 ≠ 원장 4) — 확정 차단 = '100→1 덮어쓰기' 원천 방지
+r = client.post("/stock/issues", data={"part_id": str(P_STOCK), "qty": "3"})
+with db.db_session() as c:
+    gi2 = c.execute("SELECT id FROM issues_out WHERE part_id=? ORDER BY id DESC", (P_STOCK,)).fetchone()[0]
+mv1 = cnt("stock_movements")
+r = client.post(f"/stock/issues/{gi2}/approve")
+with db.db_session() as c:
+    _st2 = c.execute("SELECT status FROM issues_out WHERE id=?", (gi2,)).fetchone()[0]
+chk("기준 불일치(100 vs 4) 확정 차단 — PENDING 유지·원장 불변·재고 100 유지",
+    r.status_code == 303 and _st2 == "PENDING" and cnt("stock_movements") == mv1 and stock_of(P_STOCK) == 100)
+# ③ 중간 실패 주입 — 원장 저장 실패 시 ISSUED까지 전부 Rollback (판정서 §7 증빙표)
+r = client.post("/stock/issues", data={"part_id": str(P_LEDGER), "qty": "1"})
+with db.db_session() as c:
+    gi3 = c.execute("SELECT id FROM issues_out WHERE part_id=? ORDER BY id DESC", (P_LEDGER,)).fetchone()[0]
+_orig_tx = db.stock_movement_create_tx
+def _boom(*a, **k):
+    raise RuntimeError("주입: 원장 저장 실패")
+db.stock_movement_create_tx = _boom
+r = client.post(f"/stock/issues/{gi3}/approve")
+db.stock_movement_create_tx = _orig_tx
+with db.db_session() as c:
+    _st3 = c.execute("SELECT status FROM issues_out WHERE id=?", (gi3,)).fetchone()[0]
+chk("실패 주입 Rollback — PENDING 유지·OUT 0건 증가·재고 1 유지",
+    r.status_code == 303 and _st3 == "PENDING" and cnt("stock_movements") == mv1 and stock_of(P_LEDGER) == 1)
+r = client.post(f"/stock/issues/{gi3}/approve")
+chk("주입 해제 후 정상 확정(재고 1→0·원장 합계 0)", stock_of(P_LEDGER) == 0)
 
 print("[B3] 삭제 라우트 차단 (F-01·F-02)")
 b = (cnt("parts", "id=?", (P_ISSUE,)), cnt("issues_out", "part_id=?", (P_ISSUE,)))
@@ -223,8 +277,14 @@ chk("발주완료 PO 삭제 라우트 400 + 불변", r.status_code == 400 and cn
 r = client.post(f"/po/{PO_DRAFT2}/delete")
 chk("작성중 PO 삭제 라우트 303", r.status_code == 303 and cnt("purchase_orders", "id=?", (PO_DRAFT2,)) == 0)
 
-print("[B4] BOM 폐기 라우트 매트릭스 (F-03)")
+print("[B4] BOM 폐기 라우트 — 환경 잠금 + 매트릭스 (F-03·v2 F-05)")
 b = (cnt("bom_items", "project_id=?", (PJ_TEST,)), cnt("bom_uploads", "project_id=?", (PJ_TEST,)), cnt("bom_item_history", "project_id=?", (PJ_TEST,)))
+os.environ.pop("KNK_ENABLE_BOM_PURGE", None)
+CURRENT["u"] = CEO
+r = client.post(f"/projects/{PJ_TEST}/bom/purge", data={"confirm_code": "999T001"})
+chk("환경 잠금: 스위치 없으면 관리자+테스트 접두라도 차단", r.status_code == 303 and "error" in loc(r))
+chk(f"  BOM 3표 불변 {b}", (cnt("bom_items", "project_id=?", (PJ_TEST,)), cnt("bom_uploads", "project_id=?", (PJ_TEST,)), cnt("bom_item_history", "project_id=?", (PJ_TEST,))) == b)
+os.environ["KNK_ENABLE_BOM_PURGE"] = "1"
 CURRENT["u"] = USE  # 관리자 아님
 r = client.post(f"/projects/{PJ_TEST}/bom/purge", data={"confirm_code": "999T001"})
 chk("비관리자 폐기 차단(관리자 전용)", r.status_code == 303 and "error" in loc(r))
@@ -233,7 +293,25 @@ CURRENT["u"] = CEO
 r = client.post(f"/projects/{PJ_REAL}/bom/purge", data={"confirm_code": "002M2599"})
 chk("운영 관리번호 폐기 차단(라우트층)", r.status_code == 303 and "error" in loc(r) and cnt("bom_items", "project_id=?", (PJ_REAL,)) >= 1)
 r = client.post(f"/projects/{PJ_TEST}/bom/purge", data={"confirm_code": "999T001"})
-chk("테스트(999 접두)+관리자+타이핑 일치 → 폐기 허용", r.status_code == 303 and "success" in loc(r) and cnt("bom_items", "project_id=?", (PJ_TEST,)) == 0)
+chk("스위치+테스트(999 접두)+관리자+타이핑 일치 → 폐기 허용", r.status_code == 303 and "success" in loc(r) and cnt("bom_items", "project_id=?", (PJ_TEST,)) == 0)
+
+print("[B5] 프로젝트 삭제·완전폐기의 BOM 보존 (게이트 v2 F-04 · 대표 승인)")
+b = (cnt("bom_items", "project_id=?", (PJ_REAL,)), cnt("bom_uploads", "project_id=?", (PJ_REAL,)), cnt("bom_item_history", "project_id=?", (PJ_REAL,)))
+try:
+    db.projects_delete_logi(PJ_REAL, force=True)
+    chk("완전폐기(force) 차단", False, "예외 없이 삭제됨!")
+except PermissionError as e:
+    chk("완전폐기(force)도 자재·구매 이력에 차단(PermissionError)", "자재·구매 이력" in str(e), str(e)[:60])
+after = (cnt("bom_items", "project_id=?", (PJ_REAL,)), cnt("bom_uploads", "project_id=?", (PJ_REAL,)), cnt("bom_item_history", "project_id=?", (PJ_REAL,)))
+chk(f"  BOM 3표 불변 {b}→{after} (판정서 §7 증빙표)", b == after and all(b))
+CURRENT["u"] = CEO
+r = client.post(f"/projects/{PJ_REAL}/delete", data={})
+chk("일반 삭제 라우트 차단 + 프로젝트 보존", r.status_code in (403, 500) and cnt("projects", "id=?", (PJ_REAL,)) == 1)
+r = client.post("/projects/bulk-delete", data={"ids": str(PJ_REAL)})
+chk("일괄 삭제도 차단(실패 집계) + BOM 보존",
+    cnt("projects", "id=?", (PJ_REAL,)) == 1 and cnt("bom_items", "project_id=?", (PJ_REAL,)) == b[0])
+db.projects_delete_logi(PJ_TEST2, force=True)
+chk("테스트(999 접두) 프로젝트는 완전삭제 허용(예외 동작 확인)", cnt("projects", "id=?", (PJ_TEST2,)) == 0)
 
 print(f"\n==== 결과: PASS {ok} / FAIL {fail} ====")
 sys.exit(1 if fail else 0)

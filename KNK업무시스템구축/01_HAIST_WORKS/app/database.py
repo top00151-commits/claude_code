@@ -6461,10 +6461,22 @@ def parts_delete(pid: int) -> None:
         c.execute("DELETE FROM parts WHERE id = ?", (pid,))
 
 
+# WP-01(게이트 v2 F-01): 자재를 가리키지만 이름이 'part_id' 계열이 아닌 참조 컬럼의 명시 목록.
+#   컬럼명 규칙(part_id / *_part_id 접미) + 이 목록이 함께 '자재 참조 관계의 중앙 정의'다.
+#   새 테이블이 다른 이름으로 자재를 참조하게 되면 반드시 여기에 추가한다.
+PART_REF_EXTRA_COLUMNS = (
+    ("part_merge_log", "canonical_id"),   # 병합 Audit — 대표(남는) 자재
+)
+
+
 def _part_delete_ref_counts(c, pid: int) -> list:
-    """WP-01(P0-05): part_id 컬럼을 가진 모든 실테이블의 참조 건수 [(표, 건수), ...].
-    제외는 parts 본체와 part_aliases뿐 — 병합로그·첨부·단가이력·안전재고까지 전부
-    '참조'로 세어 보수적으로 차단한다. 스캔 실패는 삼키지 않는다(막는 방향이 안전)."""
+    """자재 삭제 가드용 참조 집계 [("표.컬럼", 건수), ...] — WP-01(게이트 v2 F-01 재작성).
+    ① 모든 실테이블에서 컬럼명이 'part_id'이거나 '_part_id'로 끝나는 컬럼 전부
+       (material_request_items.registered_part_id·part_merge_log.merged_part_id 등 포함)
+    ② PART_REF_EXTRA_COLUMNS 명시 목록(part_merge_log.canonical_id 등).
+    제외는 parts 본체와 part_aliases(자재 자신의 다른 표기)뿐 — 병합 Audit·첨부·
+    단가이력·안전재고까지 전부 '참조'로 세어 보수적으로 차단한다.
+    스캔 실패는 삼키지 않는다(막는 방향이 안전)."""
     out = []
     for tr in c.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -6473,11 +6485,14 @@ def _part_delete_ref_counts(c, pid: int) -> list:
         if t in ("parts", "part_aliases"):
             continue
         cols = [x[1] for x in c.execute(f"PRAGMA table_info({t})").fetchall()]
-        if "part_id" not in cols:
-            continue
-        n = c.execute(f"SELECT COUNT(*) FROM {t} WHERE part_id=?", (pid,)).fetchone()[0]
-        if n:
-            out.append((t, int(n)))
+        ref_cols = [col for col in cols if col == "part_id" or col.endswith("_part_id")]
+        for t2, col2 in PART_REF_EXTRA_COLUMNS:
+            if t == t2 and col2 in cols and col2 not in ref_cols:
+                ref_cols.append(col2)
+        for col in ref_cols:
+            n = c.execute(f"SELECT COUNT(*) FROM {t} WHERE {col}=?", (pid,)).fetchone()[0]
+            if n:
+                out.append((f"{t}.{col}", int(n)))
     return out
 
 
@@ -7452,6 +7467,22 @@ def projects_delete_logi(pid: int, force: bool = False) -> None:
         except Exception:
             _mrow = None
         _mc = (_mrow[0] if _mrow else None)
+        # WP-01(ERP 게이트 v2 F-04 · 대표 승인 2026-07-24): 자재·구매 이력 보존 —
+        #   BOM·발주·재고원장·구매요청 이력이 있는 프로젝트는 완전폐기(force)로도 삭제 불가.
+        #   테스트 관리번호(999/A 접두)만 예외(테스트 정리 목적). 이력 없는 프로젝트는 현행 유지.
+        _mcs = (str(_mc).strip() if _mc else "")
+        _is_test_mc = _mcs.startswith("999") or _mcs.upper().startswith("A")
+        if not _is_test_mc:
+            _hist = []
+            for _t in ("bom_items", "bom_uploads", "bom_item_history",
+                       "purchase_orders", "stock_movements", "material_requests"):
+                _n = c.execute(f"SELECT COUNT(*) FROM {_t} WHERE project_id=?", (pid,)).fetchone()[0]
+                if _n:
+                    _hist.append(f"{_t} {_n}건")
+            if _hist:
+                raise PermissionError(
+                    "자재·구매 이력이 있어 완전삭제할 수 없습니다 — " + " · ".join(_hist)
+                    + ". 이력 보존을 위해 프로젝트 상태를 '취소/보류'로 처리하세요.")
         if _mc and str(_mc).strip() and not force:
             raise PermissionError(
                 f"수주확정 건(관리코드 {str(_mc).strip()})은 삭제할 수 없습니다. "
@@ -8877,6 +8908,78 @@ def _consume_fifo(c, part_id: int, qty: float) -> tuple[float, list[dict]]:
     return avg_price, consumed_layers
 
 
+def stock_movement_create_tx(c, data: dict, user_id: int) -> tuple[int, str, dict]:
+    """stock_movement_create 본체 — 호출자의 트랜잭션(c)에 참여 (WP-01 게이트 v2 F-02).
+    출고 승인처럼 '상태 변경 + 원장 + 재고 갱신'을 하나의 Transaction으로 묶어야 하는
+    경로가 사용한다. 채번도 같은 커서(_gen_movement_no_tx)로 해 동시 생성 중복이 없다.
+    반환: (movement_id, movement_no, stock_info)"""
+    kind = (data.get("kind") or "IN").upper()
+    if kind not in MOVEMENT_KINDS:
+        raise ValueError(f"Invalid movement kind: {kind}")
+    part_id = int(data["part_id"])
+    qty = float(data.get("quantity") or 0)
+    if kind == "OUT" and qty > 0:
+        qty = -qty
+    elif kind == "IN" and qty < 0:
+        qty = -qty
+    unit_price = float(data.get("unit_price") or 0)
+    movement_no = _gen_movement_no_tx(c)
+    occurred_at = data.get("occurred_at") or _logi_now()
+
+    # FIFO: 소비가 필요한 경우 먼저 계산
+    fifo_avg_price = None
+    fifo_layers_info = None
+    if qty < 0:  # OUT or ADJUST 음수
+        fifo_avg_price, consumed = _consume_fifo(c, part_id, abs(qty))
+        if consumed:
+            # unit_price가 명시적으로 주어지지 않은 경우 FIFO 단가 사용
+            if unit_price == 0 and fifo_avg_price > 0:
+                unit_price = fifo_avg_price
+            # 소비 레이어 정보를 note에 간단 기록 (감사 추적)
+            lot_summary = ", ".join(
+                f"lot={l['lot_no'] or '#' + str(l['layer_id'])}×{l['taken']:g}@{l['unit_price']:,.0f}"
+                for l in consumed[:5]
+            )
+            fifo_layers_info = f"FIFO: {lot_summary}" + ("..." if len(consumed) > 5 else "")
+
+    amount = abs(qty) * unit_price
+
+    # IN 이거나 ADJUST 양수면 remaining_qty = |qty|, 아니면 0
+    remaining = abs(qty) if qty > 0 else 0
+
+    # note에 FIFO 소비 정보 자동 추가 (기존 note 유지)
+    final_note = (data.get("note") or "").strip() or None
+    if fifo_layers_info:
+        final_note = (final_note + " | " if final_note else "") + fifo_layers_info
+
+    c.execute(
+        """INSERT INTO stock_movements
+           (movement_no, part_id, kind, quantity, unit, unit_price, amount,
+            remaining_qty, lot_no, expiry_date,
+            po_id, po_item_id, project_id, customer_id,
+            reason, location, occurred_at, note, created_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            movement_no, part_id, kind, qty,
+            data.get("unit") or "EA",
+            unit_price, amount,
+            remaining,
+            (data.get("lot_no") or "").strip() or None,
+            (data.get("expiry_date") or "").strip() or None,
+            data.get("po_id"), data.get("po_item_id"),
+            data.get("project_id"), data.get("customer_id"),
+            (data.get("reason") or "").strip() or None,
+            (data.get("location") or "").strip() or None,
+            occurred_at,
+            final_note,
+            user_id,
+        ),
+    )
+    mid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    stock_info = _recalc_part_stock(part_id, c)
+    return mid, movement_no, stock_info
+
+
 def stock_movement_create(data: dict, user_id: int) -> tuple[int, str]:
     """재고 이동 1건 생성 + parts.stock_qty 자동 갱신 + FIFO 원가 계산
 
@@ -8891,72 +8994,11 @@ def stock_movement_create(data: dict, user_id: int) -> tuple[int, str]:
       - OUT: _consume_fifo() 로 IN 레이어 소비, 출고 단가 = 가중평균
       - ADJUST(-): 레이어 소비 (동일)
       - ADJUST(+): 새 IN 레이어로 등록 (조정 사유를 단가 0으로 보존)
-    """
-    kind = (data.get("kind") or "IN").upper()
-    if kind not in MOVEMENT_KINDS:
-        raise ValueError(f"Invalid movement kind: {kind}")
-    part_id = int(data["part_id"])
-    qty = float(data.get("quantity") or 0)
-    if kind == "OUT" and qty > 0:
-        qty = -qty
-    elif kind == "IN" and qty < 0:
-        qty = -qty
-    unit_price = float(data.get("unit_price") or 0)
-    movement_no = gen_movement_no()
-    occurred_at = data.get("occurred_at") or _logi_now()
 
+    WP-01(게이트 v2 F-02): 본체는 stock_movement_create_tx 로 분리 — 단독 호출은
+    이 래퍼가 자체 Transaction을 열고, 승인 같은 복합 경로는 _tx 를 직접 사용한다."""
     with db_session() as c:
-        # FIFO: 소비가 필요한 경우 먼저 계산
-        fifo_avg_price = None
-        fifo_layers_info = None
-        if qty < 0:  # OUT or ADJUST 음수
-            fifo_avg_price, consumed = _consume_fifo(c, part_id, abs(qty))
-            if consumed:
-                # unit_price가 명시적으로 주어지지 않은 경우 FIFO 단가 사용
-                if unit_price == 0 and fifo_avg_price > 0:
-                    unit_price = fifo_avg_price
-                # 소비 레이어 정보를 note에 간단 기록 (감사 추적)
-                lot_summary = ", ".join(
-                    f"lot={l['lot_no'] or '#' + str(l['layer_id'])}×{l['taken']:g}@{l['unit_price']:,.0f}"
-                    for l in consumed[:5]
-                )
-                fifo_layers_info = f"FIFO: {lot_summary}" + ("..." if len(consumed) > 5 else "")
-
-        amount = abs(qty) * unit_price
-
-        # IN 이거나 ADJUST 양수면 remaining_qty = |qty|, 아니면 0
-        remaining = abs(qty) if qty > 0 else 0
-
-        # note에 FIFO 소비 정보 자동 추가 (기존 note 유지)
-        final_note = (data.get("note") or "").strip() or None
-        if fifo_layers_info:
-            final_note = (final_note + " | " if final_note else "") + fifo_layers_info
-
-        c.execute(
-            """INSERT INTO stock_movements
-               (movement_no, part_id, kind, quantity, unit, unit_price, amount,
-                remaining_qty, lot_no, expiry_date,
-                po_id, po_item_id, project_id, customer_id,
-                reason, location, occurred_at, note, created_by)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                movement_no, part_id, kind, qty,
-                data.get("unit") or "EA",
-                unit_price, amount,
-                remaining,
-                (data.get("lot_no") or "").strip() or None,
-                (data.get("expiry_date") or "").strip() or None,
-                data.get("po_id"), data.get("po_item_id"),
-                data.get("project_id"), data.get("customer_id"),
-                (data.get("reason") or "").strip() or None,
-                (data.get("location") or "").strip() or None,
-                occurred_at,
-                final_note,
-                user_id,
-            ),
-        )
-        mid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
-        stock_info = _recalc_part_stock(part_id, c)
+        mid, movement_no, stock_info = stock_movement_create_tx(c, data, user_id)
 
     # 정상 → 미달 전환 시 구매팀에 자동 티켓
     if stock_info.get("crossed_low"):

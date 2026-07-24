@@ -708,7 +708,12 @@ def bom_purge_project(project_id: int) -> dict:
     품목·업로드 기록·이력 3테이블을 비움 — 프로젝트 자체는 유지(폐기와 별개).
     되돌릴 수 없으므로 라우트에서 관리번호 타이핑 확인을 거친 뒤에만 호출.
     WP-01(P0-05·게이트 F-03): 운영 BOM 보호 — 테스트 관리번호(999/A 접두)가 아니면
-    함수 차원에서도 차단(라우트의 admin/ceo·접두 검사와 2겹)."""
+    함수 차원에서도 차단(라우트의 admin/ceo·접두 검사와 2겹).
+    WP-01(게이트 v2 F-05·대표 승인): 환경 스위치(KNK_ENABLE_BOM_PURGE=1) 없는
+    운영 배포본에서는 폐기 자체가 잠긴다."""
+    import os as _os
+    if _os.environ.get("KNK_ENABLE_BOM_PURGE") != "1":
+        raise ValueError("BOM 폐기가 잠겨 있습니다(운영 이력 보존) — 대표 지시로 임시 활성화(KNK_ENABLE_BOM_PURGE=1)한 환경에서만 가능합니다")
     with db_session() as c:
         _pr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (int(project_id),)).fetchone()
         _code = (((_pr["mgmt_code"] if _pr else "") or "")).strip()
