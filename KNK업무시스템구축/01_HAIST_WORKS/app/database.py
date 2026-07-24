@@ -165,6 +165,29 @@ def db_session():
 
 
 # =====================================================
+# WP-01 (ERP 게이트 v3 · 대표 결정 2026-07-24) — 위험 경로 운영 잠금 스위치
+#   정식 엔진(WP-07 입고 · WP-08 출고 State) 전까지, 이력을 훼손할 수 있는 경로는
+#   운영 배포본에서 기본으로 잠근다. 운영 NAS엔 아래 환경변수가 없으므로 항상 잠김 상태이고,
+#   테스트·이관 등으로 꼭 필요할 때만 대표 지시로 임시 활성화한다(작업 후 재잠금).
+#   잠금 대상: 직접차감 출고 / 출고 승인 / 입고 등록(골격) / 프로젝트 완전삭제 / BOM 폐기
+# =====================================================
+WP01_LOCK_SWITCHES = (
+    "KNK_ENABLE_STOCK_DIRECT_ISSUE",    # 승인 없는 직접 출고(재고 즉시 차감)
+    "KNK_ENABLE_STOCK_ISSUE_APPROVE",   # 출고 요청 승인·확정
+    "KNK_ENABLE_STOCK_RECEIPT_POST",    # /stock/receipts 입고 등록(골격 · PO 수량 미연동)
+    "KNK_ENABLE_PO_RECEIVE",            # 발주서 입고 처리(검수·격리재고 없이 가용재고 증가)
+    "KNK_ENABLE_PROJECT_HARD_DELETE",   # 프로젝트 완전삭제(이력까지 삭제)
+    "KNK_ENABLE_BOM_PURGE",             # BOM 폐기
+)
+
+
+def wp01_unlocked(switch: str) -> bool:
+    """WP-01 잠금 해제 여부 — 환경변수가 정확히 '1'일 때만 True(기본=잠김)."""
+    import os as _os
+    return _os.environ.get(switch) == "1"
+
+
+# =====================================================
 # v5H119: 공통 cascade 안전망 헬퍼
 # =====================================================
 def _safe_delete_with_cascade(conn, table_name: str, row_id,
@@ -6443,53 +6466,57 @@ def parts_update(pid: int, data: dict) -> None:
 
 
 def parts_delete(pid: int) -> None:
-    """v5H119: 공통 헬퍼 _safe_delete_with_cascade 사용. 폴백: v5H112 인라인 로직."""
+    """WP-01(P0-05·게이트 F-01 재작성): 자재 실삭제는 '업무 참조 0'일 때만 허용.
+    part_id 컬럼을 가진 모든 실테이블을 같은 트랜잭션에서 스캔해 참조를 세고,
+    하나라도 있으면 ValueError로 차단한다 — 자식 행을 NULL 처리하거나 삭제하는
+    정리는 금지(BOM·출고요청·수주·품질·수출 이력 보호). 정상 업무의 자재 제외는
+    is_active=0 비활성을 사용한다. 별칭(part_aliases)은 이 자재의 다른 표기일 뿐이라
+    본행과 함께 삭제한다. (구 _safe_delete_with_cascade 경로 폐지 — 이력 파괴 원인)"""
     with db_session() as c:
-        try:
-            res = _safe_delete_with_cascade(
-                c, "parts", pid, fk_column="part_id",
-                explicit_children=[
-                    ("UPDATE po_items SET part_id=NULL WHERE part_id=?", (pid,)),
-                    ("UPDATE quotation_items SET part_id=NULL WHERE part_id=?", (pid,)),
-                    ("DELETE FROM stock_movements WHERE part_id=?", (pid,)),
-                    ("DELETE FROM part_prices WHERE part_id=?", (pid,)),
-                    ("DELETE FROM parts_safety WHERE part_id=?", (pid,)),
-                ],
-            )
-            if res.get("ok"):
-                return
-        except Exception:
-            pass
-        # 폴백 (v5H112 원본 인라인) — 헬퍼 실패/예외 시 안전망
-        for sql in [
-            "UPDATE po_items SET part_id=NULL WHERE part_id=?",
-            "UPDATE quotation_items SET part_id=NULL WHERE part_id=?",
-            "DELETE FROM stock_movements WHERE part_id=?",
-            "DELETE FROM part_prices WHERE part_id=?",
-            "DELETE FROM parts_safety WHERE part_id=?",
-        ]:
-            try: c.execute(sql, (pid,))
-            except Exception: pass
-        try:
-            all_tables = [r[0] for r in c.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name NOT LIKE 'sqlite_%' AND name <> 'parts'"
-            ).fetchall()]
-            for tname in all_tables:
-                try:
-                    cols = [r[1] for r in c.execute(f"PRAGMA table_info({tname})").fetchall()]
-                except Exception:
-                    continue
-                if "part_id" not in cols:
-                    continue
-                try:
-                    c.execute(f"UPDATE {tname} SET part_id=NULL WHERE part_id=?", (pid,))
-                except Exception:
-                    try: c.execute(f"DELETE FROM {tname} WHERE part_id=?", (pid,))
-                    except Exception: pass
-        except Exception:
-            pass
+        refs = _part_delete_ref_counts(c, pid)
+        if refs:
+            top = " · ".join(f"{t} {n}건" for t, n in refs[:4])
+            more = f" 외 {len(refs) - 4}개 표" if len(refs) > 4 else ""
+            raise ValueError(
+                f"업무 참조가 있어 삭제할 수 없습니다 — {top}{more}. "
+                "이력 보존을 위해 삭제 대신 수정 화면의 '비활성'을 사용하세요.")
+        c.execute("DELETE FROM part_aliases WHERE part_id=?", (pid,))
         c.execute("DELETE FROM parts WHERE id = ?", (pid,))
+
+
+# WP-01(게이트 v2 F-01): 자재를 가리키지만 이름이 'part_id' 계열이 아닌 참조 컬럼의 명시 목록.
+#   컬럼명 규칙(part_id / *_part_id 접미) + 이 목록이 함께 '자재 참조 관계의 중앙 정의'다.
+#   새 테이블이 다른 이름으로 자재를 참조하게 되면 반드시 여기에 추가한다.
+PART_REF_EXTRA_COLUMNS = (
+    ("part_merge_log", "canonical_id"),   # 병합 Audit — 대표(남는) 자재
+)
+
+
+def _part_delete_ref_counts(c, pid: int) -> list:
+    """자재 삭제 가드용 참조 집계 [("표.컬럼", 건수), ...] — WP-01(게이트 v2 F-01 재작성).
+    ① 모든 실테이블에서 컬럼명이 'part_id'이거나 '_part_id'로 끝나는 컬럼 전부
+       (material_request_items.registered_part_id·part_merge_log.merged_part_id 등 포함)
+    ② PART_REF_EXTRA_COLUMNS 명시 목록(part_merge_log.canonical_id 등).
+    제외는 parts 본체와 part_aliases(자재 자신의 다른 표기)뿐 — 병합 Audit·첨부·
+    단가이력·안전재고까지 전부 '참조'로 세어 보수적으로 차단한다.
+    스캔 실패는 삼키지 않는다(막는 방향이 안전)."""
+    out = []
+    for tr in c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall():
+        t = tr[0]
+        if t in ("parts", "part_aliases"):
+            continue
+        cols = [x[1] for x in c.execute(f"PRAGMA table_info({t})").fetchall()]
+        ref_cols = [col for col in cols if col == "part_id" or col.endswith("_part_id")]
+        for t2, col2 in PART_REF_EXTRA_COLUMNS:
+            if t == t2 and col2 in cols and col2 not in ref_cols:
+                ref_cols.append(col2)
+        for col in ref_cols:
+            n = c.execute(f"SELECT COUNT(*) FROM {t} WHERE {col}=?", (pid,)).fetchone()[0]
+            if n:
+                out.append((f"{t}.{col}", int(n)))
+    return out
 
 
 def parts_count() -> dict:
@@ -7444,6 +7471,79 @@ def as_status_change(c, as_id, to_status: str, changed_by=None, note: str = "") 
     return {"ok": True, "status": to_status, "from": from_status}
 
 
+# ── 프로젝트 참조 관계의 중앙 정의 (WP-01 게이트 v3 F-02) ──────────────────
+#   삭제 가드가 '표 이름 몇 개'를 손으로 적는 방식이면 새 표가 생길 때마다 구멍이 난다.
+#   ① 직접 참조 = project_id 컬럼을 가진 모든 표(스키마에서 자동 수집)
+#   ② 간접 참조 = 부모(수주·이슈·변경·작업지시·발주·제작요청)를 거쳐 매달린 이력
+#   새 이력 표가 부모를 거쳐 붙으면 아래 목록에만 추가하면 된다.
+PROJECT_REF_INDIRECT = (
+    # (자식표, 부모표, 자식이 가진 부모FK)
+    ("order_items", "orders", "order_id"),
+    ("invoices", "orders", "order_id"),
+    ("receipts_payment", "orders", "order_id"),
+    ("shipments", "orders", "order_id"),
+    ("order_status_history", "orders", "order_id"),
+    ("production_orders", "orders", "order_id"),
+    ("issue_logs", "issues", "issue_id"),
+    ("change_impacts", "changes", "change_id"),
+    ("change_reads", "changes", "change_id"),
+    ("work_order_items", "work_orders", "wo_id"),
+    ("po_items", "purchase_orders", "po_id"),
+    ("prod_request_images", "prod_requests", "prod_request_id"),
+)
+
+
+def _project_ref_columns(c) -> list:
+    """`projects(id)`를 가리키는 모든 (표, 컬럼) — **실제 FK 메타데이터 + 이름 규칙**의 합집합.
+
+    WP-01(게이트 v4 F-01): 컬럼명이 정확히 `project_id`인 것만 찾으면
+      · 소모품 수주 품목의 별칭 FK `consumable_order_items.linked_project_id`
+      · 프로젝트 계층 자기참조 `projects.parent_project_id` (projects 표를 통째로 건너뛰어 누락)
+    를 놓쳐, 프로젝트를 지우면 연결이 이력 없이 조용히 끊겼다. 이제 스키마가 선언한 FK를
+    1순위로 쓰고(이름 무관), 이름 규칙(`project_id` / `*_project_id`)을 보강으로 더한다.
+    """
+    out, seen = [], set()
+    tables = [r[0] for r in c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()]
+    for t in sorted(tables):
+        cols = [x[1] for x in c.execute(f"PRAGMA table_info({t})").fetchall()]
+        picked = set()
+        try:  # PRAGMA foreign_key_list: (id, seq, table, from, to, on_update, on_delete, match)
+            for fk in c.execute(f"PRAGMA foreign_key_list({t})").fetchall():
+                if str(fk[2] or "").lower() == "projects" and fk[3]:
+                    picked.add(fk[3])
+        except Exception:
+            pass
+        for col in cols:
+            if col == "project_id" or col.endswith("_project_id"):
+                picked.add(col)
+        for col in sorted(picked):
+            if col in cols and (t, col) not in seen:
+                seen.add((t, col))
+                out.append((t, col))
+    return out
+
+
+def _project_delete_ref_counts(c, pid: int) -> list:
+    """이 프로젝트에 매달린 업무·이력 행 수 — [(표.컬럼, 건수), ...] (0건이면 빈 목록)."""
+    out = []
+    names = {r[0] for r in c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()}
+    for t, col in _project_ref_columns(c):
+        n = c.execute(f"SELECT COUNT(*) FROM {t} WHERE {col}=?", (pid,)).fetchone()[0]
+        if n:
+            out.append((f"{t}.{col}", int(n)))
+    for child, parent, fk in PROJECT_REF_INDIRECT:
+        if child not in names or parent not in names:
+            continue
+        n = c.execute(
+            f"SELECT COUNT(*) FROM {child} WHERE {fk} IN (SELECT id FROM {parent} WHERE project_id=?)",
+            (pid,)).fetchone()[0]
+        if n:
+            out.append((f"{child}({parent})", int(n)))
+    return out
+
+
 def projects_delete_logi(pid: int, force: bool = False) -> None:
     """v5H73b: FK 자식 row 일괄 정리 후 프로젝트 삭제 (FOREIGN KEY 충돌 방지).
     v5H226z193: force=True 면 관리코드(z176) 삭제 잠금을 우회 — '데모 사업부별 초기화' 전용.
@@ -7463,6 +7563,26 @@ def projects_delete_logi(pid: int, force: bool = False) -> None:
         except Exception:
             _mrow = None
         _mc = (_mrow[0] if _mrow else None)
+        # WP-01(ERP 게이트 v3 F-02 · 대표 결정 2026-07-24): 프로젝트 완전삭제 운영 잠금.
+        #   v2에서는 자재·구매 6개 표만 검사해, 변경(changes)·품질이슈(issues)·수주(orders)만
+        #   있는 운영 프로젝트가 이력째 삭제됐다. 이제 두 겹으로 막는다.
+        #     ① 관리번호(정식 발번)가 있으면 = 운영 프로젝트 → 완전삭제 자체를 잠근다(force 무시).
+        #     ② 관리번호가 없어도(오등록·영업 단계) 업무·이력 참조가 1건이라도 있으면 차단.
+        #   테스트 정리·데모 초기화처럼 정말 지워야 할 때만 대표 지시로 환경 스위치를 임시 해제한다.
+        #   (접두 999/A 판별은 게이트 지적대로 격리 수단이 못 되므로 폐지 — 스위치로 일원화)
+        _mcs = (str(_mc).strip() if _mc else "")
+        if not wp01_unlocked("KNK_ENABLE_PROJECT_HARD_DELETE"):
+            if _mcs:
+                raise PermissionError(
+                    f"운영 프로젝트(관리번호 {_mcs})는 완전삭제할 수 없습니다 — 수주·변경·품질·자재 이력 "
+                    "보존을 위해 상세화면에서 상태를 '취소/보류'로 처리하세요.")
+            _refs = _project_delete_ref_counts(c, pid)
+            if _refs:
+                _top = " · ".join(f"{t} {n}건" for t, n in _refs[:5])
+                _more = f" 외 {len(_refs) - 5}개 표" if len(_refs) > 5 else ""
+                raise PermissionError(
+                    f"업무 이력이 있어 삭제할 수 없습니다 — {_top}{_more}. "
+                    "이력 보존을 위해 프로젝트 상태를 '취소/보류'로 처리하세요.")
         if _mc and str(_mc).strip() and not force:
             raise PermissionError(
                 f"수주확정 건(관리코드 {str(_mc).strip()})은 삭제할 수 없습니다. "
@@ -8465,8 +8585,31 @@ def po_update(po_id: int, data: dict, items: list[dict]) -> None:
 
 def po_delete(po_id: int) -> None:
     """v5H119: 공통 헬퍼 사용. 폴백: v5H112 인라인.
-    헬퍼 호출 시 본행 'purchase_orders' / 자식 FK 'po_id'."""
+    헬퍼 호출 시 본행 'purchase_orders' / 자식 FK 'po_id'.
+    WP-01(P0-05·게이트 F-02): '작성중'이 아닌 발주는 발행된 외부 업무문서라 실삭제를
+    차단하고 '취소' 상태 처리를 안내한다. 작성중이라도 입고 흔적이 있으면 차단(2겹)."""
     with db_session() as c:
+        _row = c.execute("SELECT status FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
+        if not _row:
+            return
+        _st = ((_row["status"] or "")).strip()
+        if _st != "작성중":
+            raise ValueError(
+                f"'{_st}' 상태의 발주서는 삭제할 수 없습니다 — 발행된 업무문서는 이력 보존 대상입니다. "
+                "삭제 대신 발주 수정에서 '취소' 상태로 처리하세요.")
+        _rcv = c.execute(
+            "SELECT COALESCE(SUM(received_qty),0) FROM po_items WHERE po_id=?", (po_id,)
+        ).fetchone()[0] or 0
+        _mv = c.execute(
+            "SELECT COUNT(*) FROM stock_movements WHERE po_id=?", (po_id,)
+        ).fetchone()[0]
+        _rc = c.execute(
+            "SELECT COUNT(*) FROM receipts WHERE po_id=?", (po_id,)
+        ).fetchone()[0]
+        if _rcv > 0 or _mv > 0 or _rc > 0:
+            raise ValueError(
+                f"입고 이력이 있어 삭제할 수 없습니다 — 입고수량 {_rcv:g} · 재고 원장 {_mv}건 · "
+                f"입고문서 {_rc}건. 이력 보존을 위해 삭제 대신 '취소' 상태를 사용하세요.")
         try:
             res = _safe_delete_with_cascade(
                 c, "purchase_orders", po_id, fk_column="po_id",
@@ -8865,6 +9008,78 @@ def _consume_fifo(c, part_id: int, qty: float) -> tuple[float, list[dict]]:
     return avg_price, consumed_layers
 
 
+def stock_movement_create_tx(c, data: dict, user_id: int) -> tuple[int, str, dict]:
+    """stock_movement_create 본체 — 호출자의 트랜잭션(c)에 참여 (WP-01 게이트 v2 F-02).
+    출고 승인처럼 '상태 변경 + 원장 + 재고 갱신'을 하나의 Transaction으로 묶어야 하는
+    경로가 사용한다. 채번도 같은 커서(_gen_movement_no_tx)로 해 동시 생성 중복이 없다.
+    반환: (movement_id, movement_no, stock_info)"""
+    kind = (data.get("kind") or "IN").upper()
+    if kind not in MOVEMENT_KINDS:
+        raise ValueError(f"Invalid movement kind: {kind}")
+    part_id = int(data["part_id"])
+    qty = float(data.get("quantity") or 0)
+    if kind == "OUT" and qty > 0:
+        qty = -qty
+    elif kind == "IN" and qty < 0:
+        qty = -qty
+    unit_price = float(data.get("unit_price") or 0)
+    movement_no = _gen_movement_no_tx(c)
+    occurred_at = data.get("occurred_at") or _logi_now()
+
+    # FIFO: 소비가 필요한 경우 먼저 계산
+    fifo_avg_price = None
+    fifo_layers_info = None
+    if qty < 0:  # OUT or ADJUST 음수
+        fifo_avg_price, consumed = _consume_fifo(c, part_id, abs(qty))
+        if consumed:
+            # unit_price가 명시적으로 주어지지 않은 경우 FIFO 단가 사용
+            if unit_price == 0 and fifo_avg_price > 0:
+                unit_price = fifo_avg_price
+            # 소비 레이어 정보를 note에 간단 기록 (감사 추적)
+            lot_summary = ", ".join(
+                f"lot={l['lot_no'] or '#' + str(l['layer_id'])}×{l['taken']:g}@{l['unit_price']:,.0f}"
+                for l in consumed[:5]
+            )
+            fifo_layers_info = f"FIFO: {lot_summary}" + ("..." if len(consumed) > 5 else "")
+
+    amount = abs(qty) * unit_price
+
+    # IN 이거나 ADJUST 양수면 remaining_qty = |qty|, 아니면 0
+    remaining = abs(qty) if qty > 0 else 0
+
+    # note에 FIFO 소비 정보 자동 추가 (기존 note 유지)
+    final_note = (data.get("note") or "").strip() or None
+    if fifo_layers_info:
+        final_note = (final_note + " | " if final_note else "") + fifo_layers_info
+
+    c.execute(
+        """INSERT INTO stock_movements
+           (movement_no, part_id, kind, quantity, unit, unit_price, amount,
+            remaining_qty, lot_no, expiry_date,
+            po_id, po_item_id, project_id, customer_id,
+            reason, location, occurred_at, note, created_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            movement_no, part_id, kind, qty,
+            data.get("unit") or "EA",
+            unit_price, amount,
+            remaining,
+            (data.get("lot_no") or "").strip() or None,
+            (data.get("expiry_date") or "").strip() or None,
+            data.get("po_id"), data.get("po_item_id"),
+            data.get("project_id"), data.get("customer_id"),
+            (data.get("reason") or "").strip() or None,
+            (data.get("location") or "").strip() or None,
+            occurred_at,
+            final_note,
+            user_id,
+        ),
+    )
+    mid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    stock_info = _recalc_part_stock(part_id, c)
+    return mid, movement_no, stock_info
+
+
 def stock_movement_create(data: dict, user_id: int) -> tuple[int, str]:
     """재고 이동 1건 생성 + parts.stock_qty 자동 갱신 + FIFO 원가 계산
 
@@ -8879,72 +9094,11 @@ def stock_movement_create(data: dict, user_id: int) -> tuple[int, str]:
       - OUT: _consume_fifo() 로 IN 레이어 소비, 출고 단가 = 가중평균
       - ADJUST(-): 레이어 소비 (동일)
       - ADJUST(+): 새 IN 레이어로 등록 (조정 사유를 단가 0으로 보존)
-    """
-    kind = (data.get("kind") or "IN").upper()
-    if kind not in MOVEMENT_KINDS:
-        raise ValueError(f"Invalid movement kind: {kind}")
-    part_id = int(data["part_id"])
-    qty = float(data.get("quantity") or 0)
-    if kind == "OUT" and qty > 0:
-        qty = -qty
-    elif kind == "IN" and qty < 0:
-        qty = -qty
-    unit_price = float(data.get("unit_price") or 0)
-    movement_no = gen_movement_no()
-    occurred_at = data.get("occurred_at") or _logi_now()
 
+    WP-01(게이트 v2 F-02): 본체는 stock_movement_create_tx 로 분리 — 단독 호출은
+    이 래퍼가 자체 Transaction을 열고, 승인 같은 복합 경로는 _tx 를 직접 사용한다."""
     with db_session() as c:
-        # FIFO: 소비가 필요한 경우 먼저 계산
-        fifo_avg_price = None
-        fifo_layers_info = None
-        if qty < 0:  # OUT or ADJUST 음수
-            fifo_avg_price, consumed = _consume_fifo(c, part_id, abs(qty))
-            if consumed:
-                # unit_price가 명시적으로 주어지지 않은 경우 FIFO 단가 사용
-                if unit_price == 0 and fifo_avg_price > 0:
-                    unit_price = fifo_avg_price
-                # 소비 레이어 정보를 note에 간단 기록 (감사 추적)
-                lot_summary = ", ".join(
-                    f"lot={l['lot_no'] or '#' + str(l['layer_id'])}×{l['taken']:g}@{l['unit_price']:,.0f}"
-                    for l in consumed[:5]
-                )
-                fifo_layers_info = f"FIFO: {lot_summary}" + ("..." if len(consumed) > 5 else "")
-
-        amount = abs(qty) * unit_price
-
-        # IN 이거나 ADJUST 양수면 remaining_qty = |qty|, 아니면 0
-        remaining = abs(qty) if qty > 0 else 0
-
-        # note에 FIFO 소비 정보 자동 추가 (기존 note 유지)
-        final_note = (data.get("note") or "").strip() or None
-        if fifo_layers_info:
-            final_note = (final_note + " | " if final_note else "") + fifo_layers_info
-
-        c.execute(
-            """INSERT INTO stock_movements
-               (movement_no, part_id, kind, quantity, unit, unit_price, amount,
-                remaining_qty, lot_no, expiry_date,
-                po_id, po_item_id, project_id, customer_id,
-                reason, location, occurred_at, note, created_by)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                movement_no, part_id, kind, qty,
-                data.get("unit") or "EA",
-                unit_price, amount,
-                remaining,
-                (data.get("lot_no") or "").strip() or None,
-                (data.get("expiry_date") or "").strip() or None,
-                data.get("po_id"), data.get("po_item_id"),
-                data.get("project_id"), data.get("customer_id"),
-                (data.get("reason") or "").strip() or None,
-                (data.get("location") or "").strip() or None,
-                occurred_at,
-                final_note,
-                user_id,
-            ),
-        )
-        mid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
-        stock_info = _recalc_part_stock(part_id, c)
+        mid, movement_no, stock_info = stock_movement_create_tx(c, data, user_id)
 
     # 정상 → 미달 전환 시 구매팀에 자동 티켓
     if stock_info.get("crossed_low"):
@@ -8960,77 +9114,96 @@ def po_receive(po_id: int, receive_lines: list[dict], user_id: int,
     - stock_movements에 IN 생성
     - po_items.received_qty 누적
     - purchase_orders.status 자동 갱신 (부분입고/입고완료)
-    """
-    created = []
-    with db_session() as c:
-        po = c.execute(
-            "SELECT * FROM purchase_orders WHERE id=?", (po_id,)
-        ).fetchone()
-        if not po:
-            return {"ok": False, "error": "발주서를 찾을 수 없습니다."}
 
-        for line in receive_lines:
-            item_id = int(line.get("po_item_id"))
-            qty = float(line.get("receive_qty") or 0)
-            if qty <= 0:
-                continue
-            item = c.execute(
-                "SELECT * FROM po_items WHERE id=? AND po_id=?",
-                (item_id, po_id),
+    WP-01(게이트 v3 F-05): 입고 수량·원장·재고·PO 상태를 **하나의 Transaction**으로 처리한다(§18).
+    이전 구조는 바깥 db_session 안에서 stock_movement_create()가 별도 연결(=별도 Transaction)을
+    열어 중간 commit이 생겼고, 수량 초과 시 return 이 앞 라인의 갱신을 그대로 커밋했다.
+    이제 어느 라인에서 실패하든 전부 원상복구된다(부분 입고 잔존 금지).
+
+    WP-01(게이트 v4 F-02 · 대표 결정 2026-07-24) 운영 잠금: 이 경로는 Transaction 원자성은
+    갖췄지만 **입고문서·검수(QC)·격리재고(QUARANTINE)가 없어** 검수 전 자재가 곧바로
+    가용재고(parts.stock_qty)로 잡힌다. 생산에 미검수 자재가 투입될 수 있으므로 정식 입고
+    엔진(WP-07)까지 잠근다.
+    """
+    if not wp01_unlocked("KNK_ENABLE_PO_RECEIVE"):
+        return {"ok": False, "error": (
+            "입고 처리는 준비 중입니다 — 입고문서·검수·격리재고가 갖춰지는 정식 입고(WP-07)에서 열립니다.")}
+    created = []
+    low_infos = []
+    try:
+        with db_session() as c:
+            po = c.execute(
+                "SELECT * FROM purchase_orders WHERE id=?", (po_id,)
             ).fetchone()
-            if not item or not item["part_id"]:
-                continue
-            # v5H112: 입고 OVER 차단 — 누적 입고 > 발주 수량 거부
-            new_recv = (item["received_qty"] or 0) + qty
-            ord_qty = item["quantity"] or 0
-            if ord_qty > 0 and new_recv > ord_qty + 0.0001:
-                return {
-                    "ok": False,
-                    "error": (
+            if not po:
+                raise ValueError("발주서를 찾을 수 없습니다.")
+
+            for line in receive_lines:
+                item_id = int(line.get("po_item_id"))
+                qty = float(line.get("receive_qty") or 0)
+                if qty <= 0:
+                    continue
+                item = c.execute(
+                    "SELECT * FROM po_items WHERE id=? AND po_id=?",
+                    (item_id, po_id),
+                ).fetchone()
+                if not item or not item["part_id"]:
+                    continue
+                # v5H112: 입고 OVER 차단 — 누적 입고 > 발주 수량 거부
+                new_recv = (item["received_qty"] or 0) + qty
+                ord_qty = item["quantity"] or 0
+                if ord_qty > 0 and new_recv > ord_qty + 0.0001:
+                    raise ValueError(
                         f"입고 수량 초과 — 발주 {ord_qty} / 기존 입고 {item['received_qty'] or 0} / "
                         f"이번 입고 {qty} = 누적 {new_recv}. 발주 수량 내로 입력해주세요."
-                    ),
-                }
-            c.execute(
-                "UPDATE po_items SET received_qty=? WHERE id=?",
-                (new_recv, item_id),
-            )
-            # stock_movement 생성 + stock_qty 재계산 (lot_no는 라인에서)
-            mid, mno = stock_movement_create({
-                "part_id": item["part_id"],
-                "kind": "IN",
-                "quantity": qty,
-                "unit": item["unit"] or "EA",
-                "unit_price": item["unit_price"] or 0,
-                "po_id": po_id,
-                "po_item_id": item_id,
-                "project_id": po["project_id"],
-                "reason": f"발주 {po['po_number']} 입고",
-                "occurred_at": occurred_at or _logi_now(),
-                "note": (line.get("note") or "").strip() or None,
-                "lot_no": (line.get("lot_no") or "").strip() or None,
-                "expiry_date": (line.get("expiry_date") or "").strip() or None,
-            }, user_id)
-            created.append({"movement_id": mid, "movement_no": mno,
-                            "po_item_id": item_id, "qty": qty})
+                    )
+                c.execute(
+                    "UPDATE po_items SET received_qty=? WHERE id=?",
+                    (new_recv, item_id),
+                )
+                # stock_movement 생성 + stock_qty 재계산 (lot_no는 라인에서) — 같은 Transaction 참여
+                mid, mno, _sinfo = stock_movement_create_tx(c, {
+                    "part_id": item["part_id"],
+                    "kind": "IN",
+                    "quantity": qty,
+                    "unit": item["unit"] or "EA",
+                    "unit_price": item["unit_price"] or 0,
+                    "po_id": po_id,
+                    "po_item_id": item_id,
+                    "project_id": po["project_id"],
+                    "reason": f"발주 {po['po_number']} 입고",
+                    "occurred_at": occurred_at or _logi_now(),
+                    "note": (line.get("note") or "").strip() or None,
+                    "lot_no": (line.get("lot_no") or "").strip() or None,
+                    "expiry_date": (line.get("expiry_date") or "").strip() or None,
+                }, user_id)
+                if _sinfo.get("crossed_low"):
+                    low_infos.append(_sinfo)
+                created.append({"movement_id": mid, "movement_no": mno,
+                                "po_item_id": item_id, "qty": qty})
 
-        # PO 상태 자동 갱신
-        items_all = c.execute(
-            "SELECT quantity, received_qty FROM po_items WHERE po_id=?",
-            (po_id,),
-        ).fetchall()
-        total_ord = sum(r["quantity"] or 0 for r in items_all)
-        total_rcv = sum(r["received_qty"] or 0 for r in items_all)
-        if total_rcv <= 0:
-            new_status = po["status"]
-        elif total_rcv >= total_ord:
-            new_status = "입고완료"
-        else:
-            new_status = "부분입고"
-        c.execute(
-            "UPDATE purchase_orders SET status=?, updated_at=? WHERE id=?",
-            (new_status, _logi_now(), po_id),
-        )
+            # PO 상태 자동 갱신
+            items_all = c.execute(
+                "SELECT quantity, received_qty FROM po_items WHERE po_id=?",
+                (po_id,),
+            ).fetchall()
+            total_ord = sum(r["quantity"] or 0 for r in items_all)
+            total_rcv = sum(r["received_qty"] or 0 for r in items_all)
+            if total_rcv <= 0:
+                new_status = po["status"]
+            elif total_rcv >= total_ord:
+                new_status = "입고완료"
+            else:
+                new_status = "부분입고"
+            c.execute(
+                "UPDATE purchase_orders SET status=?, updated_at=? WHERE id=?",
+                (new_status, _logi_now(), po_id),
+            )
+    except ValueError as _e:
+        # 업무 규칙 위반(발주 없음·수량 초과) — 전부 Rollback 된 상태로 사유 반환
+        return {"ok": False, "error": str(_e)}
+    for _si in low_infos:
+        _auto_ticket_low_stock(_si, user_id)
     return {"ok": True, "created": created, "count": len(created)}
 
 
@@ -9039,41 +9212,58 @@ def stock_issue(data: dict, user_id: int) -> tuple[int, str] | None:
 
     data 필수:
       - part_id, quantity (양수로 입력 — 내부에서 음수화)
+
+    WP-01(게이트 v3 F-01 · 대표 결정 2026-07-24): 승인 없이 즉시 차감하는 '직접 출고'는
+    운영에서 잠근다(정식 출고 요청→승인→확정은 WP-08). 잠금을 임시 해제한 환경에서도
+    아래 2겹 보호를 통과해야 한다 — 예전에는 재고를 ①먼저 조회하고 ②별도 트랜잭션에서
+    원장 합계로 다시 써서, 기준수량 100·원장 4인 자재가 3개 출고 후 1로 덮어써졌다.
+      ① 기준 대조: parts.stock_qty ≠ 원장 합계면 차단 (덮어쓰기 원천 차단)
+      ② 가용성: 원장 합계 < 요청 수량이면 차단 (음수 재고 금지)
+      ③ 조회·검사·원장·재고 갱신을 하나의 Transaction으로 처리 (§18)
     """
+    if not wp01_unlocked("KNK_ENABLE_STOCK_DIRECT_ISSUE"):
+        raise ValueError(
+            "직접 출고(승인 없이 즉시 차감)는 잠겨 있습니다 — 출고는 요청→승인→확정 흐름으로만 "
+            "처리합니다. (정식 출고 화면은 WP-08에서 열립니다)")
     qty = float(data.get("quantity") or 0)
     if qty <= 0:
         raise ValueError("출고 수량은 양수여야 합니다.")
-    # v5H112: 재고 음수 차단 — 현재고 < 출고 수량 시 거부
-    try:
-        with db_session() as _c:
-            cur = _c.execute(
-                "SELECT stock_qty, part_name FROM parts WHERE id=?",
-                (int(data["part_id"]),),
-            ).fetchone()
-            if cur:
-                stock = cur["stock_qty"] or 0
-                if stock < qty:
-                    raise ValueError(
-                        f"재고 부족 — '{cur['part_name'] or ''}' 현재고 {stock} < 출고 요청 {qty}. "
-                        "재고를 확인하거나 입고 후 다시 시도해주세요."
-                    )
-    except ValueError:
-        raise
-    except Exception:
-        pass  # 사전조회 실패는 무시 (기존 동작 유지)
-    return stock_movement_create({
-        "part_id": data["part_id"],
-        "kind": "OUT",
-        "quantity": qty,  # 내부에서 음수화됨
-        "unit_price": data.get("unit_price") or 0,
-        "unit": data.get("unit") or "EA",
-        "project_id": data.get("project_id"),
-        "customer_id": data.get("customer_id"),
-        "reason": (data.get("reason") or "현장 출고").strip(),
-        "location": data.get("location"),
-        "occurred_at": data.get("occurred_at"),
-        "note": data.get("note"),
-    }, user_id)
+    pid = int(data["part_id"])
+    with db_session() as c:
+        cur = c.execute(
+            "SELECT stock_qty, part_name FROM parts WHERE id=?", (pid,)
+        ).fetchone()
+        if not cur:
+            raise ValueError("자재를 찾을 수 없습니다.")
+        stock = float(cur["stock_qty"] or 0)
+        ledger = float(c.execute(
+            "SELECT COALESCE(SUM(quantity),0) FROM stock_movements WHERE part_id=?", (pid,)
+        ).fetchone()[0] or 0)
+        if abs(stock - ledger) > 1e-6:
+            raise ValueError(
+                f"재고 기준수량({stock:g})과 원장 합계({ledger:g})가 달라 출고를 차단했습니다 "
+                f"— '{cur['part_name'] or ''}' 실사/이관으로 기준을 맞춘 뒤 진행하세요")
+        if ledger < qty:
+            raise ValueError(
+                f"재고 부족 — '{cur['part_name'] or ''}' 가용 {ledger:g} < 출고 요청 {qty:g}. "
+                "재고를 확인하거나 입고 후 다시 시도해주세요."
+            )
+        mid, movement_no, stock_info = stock_movement_create_tx(c, {
+            "part_id": pid,
+            "kind": "OUT",
+            "quantity": qty,  # 내부에서 음수화됨
+            "unit_price": data.get("unit_price") or 0,
+            "unit": data.get("unit") or "EA",
+            "project_id": data.get("project_id"),
+            "customer_id": data.get("customer_id"),
+            "reason": (data.get("reason") or "현장 출고").strip(),
+            "location": data.get("location"),
+            "occurred_at": data.get("occurred_at"),
+            "note": data.get("note"),
+        }, user_id)
+    if stock_info.get("crossed_low"):
+        _auto_ticket_low_stock(stock_info, user_id)
+    return mid, movement_no
 
 
 def stock_adjust(data: dict, user_id: int) -> tuple[int, str]:
@@ -9530,11 +9720,25 @@ def stock_kpi() -> dict:
                WHERE kind='OUT' AND occurred_at >= ?""",
             (since_30,),
         ).fetchone()[0] or 0
+        # WP-01(P0-01·게이트 F-07): logistics_home 카드 계약 — 새 키만 추가(기존 키 불변).
+        #   recent_receipts = '오늘 포함 달력 7일'(today-6일 이후) 입고 '품목행' 건수
+        #   (stock_movements kind='IN' 행 수 기준 — 입고문서 건수가 아님).
+        total_qty = c.execute(
+            "SELECT COALESCE(SUM(stock_qty),0) FROM parts WHERE is_active=1"
+        ).fetchone()[0] or 0
+        since_7 = (_date.today() - _td(days=6)).isoformat()
+        recent_receipts = c.execute(
+            """SELECT COUNT(*) FROM stock_movements
+               WHERE kind='IN' AND occurred_at >= ?""",
+            (since_7,),
+        ).fetchone()[0]
     return {
         "parts_total": parts_total,
         "stock_value": stock_value,
+        "total_qty": total_qty,
         "low_stock": low_stock,
         "po_pending": po_pending,
+        "recent_receipts": recent_receipts,
         "in_30d": in_30,
         "out_30d": abs(out_30),  # 음수 저장 → 절대값 표시
     }

@@ -138,7 +138,9 @@
         <a class="knk-kpi {% if status=='입고완료' %}is-active{% endif %}" href="/po?status=입고완료{% if q %}&q={{ q }}{% endif %}">
           <span class="knk-kpi__label">입고완료</span>
           <span class="knk-kpi__value">{{ received_cnt }}<span class="knk-kpi__unit">건</span></span>
-          <span class="knk-kpi__sub">검수 종결</span>
+          {# WP-01(게이트 v4 F-02): '검수 종결'은 사실이 아니었다 — 검수(QC) 절차 자체가 아직 없다.
+             발주 수량이 다 들어온 상태를 뜻하므로 문구를 실제 동작에 맞춘다. #}
+          <span class="knk-kpi__sub">발주 수량 충족</span>
         </a>
         <a class="knk-kpi {% if status=='취소' %}is-active{% endif %}" href="/po?status=취소{% if q %}&q={{ q }}{% endif %}">
           <span class="knk-kpi__label">취소</span>

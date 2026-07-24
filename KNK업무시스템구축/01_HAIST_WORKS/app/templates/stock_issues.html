@@ -106,7 +106,9 @@
         <div class="knk-page-actions">
           <a class="knk-btn knk-btn--ghost" href="/stock/balances"><i class="ti ti-packages"></i> 재고 현황</a>
           <a class="knk-btn knk-btn--ghost" href="/stock/receipts"><i class="ti ti-download"></i> 입고 이력</a>
-          <a class="knk-btn knk-btn--primary" href="/stock/issue"><i class="ti ti-plus"></i> 출고 등록</a>
+          {# WP-01(게이트 v3 F-01 · 대표 결정 2026-07-24): '출고 등록'이 승인 없이 즉시 차감하는
+             /stock/issue 로 연결돼 있었다. 링크 제거 + 서버 잠금(2겹). 정식 출고는 WP-08. #}
+          <span class="knk-page-meta" style="align-self:center;">📌 <b>출고 등록 준비 중</b> — 정식 출고(요청 → 승인 → 확정) 적용 예정입니다. 현재 화면은 이력 조회만 가능합니다.</span>
         </div>
       </header>
 
@@ -186,8 +188,7 @@
       <div class="knk-empty" data-dn="gi:empty">
         <i class="ti ti-file-export"></i>
         <p class="knk-empty__title">출고 이력 없음</p>
-        <p class="knk-empty__desc">＋ 출고 등록으로 첫 출고를 기록하세요.</p>
-        <a class="knk-btn knk-btn--primary" href="/stock/issue" style="margin-top:14px;"><i class="ti ti-plus"></i> 출고 등록</a>
+        <p class="knk-empty__desc">출고는 <b>요청 → 승인 → 확정</b> 순서로 기록됩니다. 확정된 출고만 재고에서 빠집니다.</p>
       </div>
       {% endif %}
 

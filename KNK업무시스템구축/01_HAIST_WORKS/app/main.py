@@ -1828,6 +1828,28 @@ def can_use_logistics(user) -> bool:
     return bool(flag)
 
 
+def _wp01_unlocked(switch: str) -> bool:
+    """WP-01(게이트 v3) 위험 경로 잠금 해제 여부 — 정의는 database.WP01_LOCK_SWITCHES 단일 출처.
+    운영 배포본엔 스위치가 없어 항상 잠김. 대표 지시로만 임시 해제한다."""
+    from .database import wp01_unlocked as _u
+    return _u(switch)
+
+
+def _stock_approve_guard(req: Request):
+    """출고 승인 전용 권한 (게이트 v3 F-03) — '등록 권한'과 '승인 권한'을 분리한다.
+    · 시스템 관리 역할(admin)만으로는 업무 승인 불가 — §20 규칙.
+    · 자재 담당 부서(구매팀 10·제조팀 7) 또는 대표가 개인에게 부여한 물류 권한이 있어야 한다.
+    · 요청자 본인 승인 차단은 라우트에서 건별로 처리한다(요청 행을 봐야 판별 가능)."""
+    u = get_user(req)
+    if not u:
+        return None
+    if u.get("team_id") in (7, 10):
+        return u
+    if u.get("can_use_logistics"):
+        return u
+    return None
+
+
 def can_view_sales(user) -> bool:
     """매출·영업 **읽기 전용** 권한 (2026-04-28 대표 결재 — R/W 분리).
     - admin / ceo / executive / leader: 항상 허용 (전사 매출 현황 조회)
@@ -21082,11 +21104,23 @@ async def project_bom_purge(request: Request, pid: int):
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     from urllib.parse import quote as _q
+    # WP-01(P0-05·게이트 F-03): 운영 BOM 폐기 차단 — admin/ceo 전용 + 테스트 관리번호(999/A 접두)만
+    _role = ((u.get("role") if isinstance(u, dict) else u["role"]) or "")
+    if _role not in ("admin", "ceo"):
+        return RedirectResponse(
+            f"/projects/{pid}/bom?error={_q('BOM 폐기는 관리자(admin/ceo) 전용입니다')}", 303)
+    # WP-01(게이트 v2 F-05 · 대표 승인 2026-07-24): 운영 배포본 잠금 — 환경 스위치 없으면 폐기 불가
+    if os.environ.get("KNK_ENABLE_BOM_PURGE") != "1":
+        return RedirectResponse(
+            f"/projects/{pid}/bom?error={_q('운영 서버에서는 BOM 폐기가 잠겨 있습니다(이력 보존) — 테스트 정리가 필요하면 대표 지시로 임시 활성화 후 진행합니다')}", 303)
     form = await request.form()
     typed = (form.get("confirm_code") or "").strip()
     with db_session() as c:
         pr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (pid,)).fetchone()
     mgmt = ((pr["mgmt_code"] if pr else "") or "").strip()
+    if not (mgmt.startswith("999") or mgmt.upper().startswith("A")):
+        return RedirectResponse(
+            f"/projects/{pid}/bom?error={_q('운영 BOM은 폐기할 수 없습니다(이력 보존) — 테스트 관리번호(999/A 접두)만 가능합니다')}", 303)
     if not mgmt or typed != mgmt:
         return RedirectResponse(
             f"/projects/{pid}/bom?error={_q('관리번호가 일치하지 않아 삭제를 취소했습니다')}", 303)
@@ -31830,6 +31864,12 @@ async def po_receive_form(request: Request, po_id: int):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
+    # WP-01(게이트 v4 F-02 · 대표 결정 2026-07-24): 입고문서·검수(QC)·격리재고가 없어
+    #   검수 전 자재가 곧바로 가용재고로 잡히던 경로 — 정식 입고(WP-07)까지 잠금.
+    if not _wp01_unlocked("KNK_ENABLE_PO_RECEIVE"):
+        from urllib.parse import quote as _q0
+        return RedirectResponse(f"/po/{po_id}?error=" + _q0(
+            "입고 처리는 준비 중입니다 — 입고문서·검수·격리재고가 갖춰지는 정식 입고에서 열립니다"), 303)
     header, items = _logi.po_get(po_id)
     if not header:
         return RedirectResponse("/po", 303)
@@ -31845,6 +31885,13 @@ async def po_receive_submit(request: Request, po_id: int):
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
+    # WP-01(게이트 v4 F-02): 화면 버튼을 막는 것만으론 부족 — 서버에서도 직접 POST 차단.
+    #   PO 수량·입고문서·검수·원장·재고 전부 불변이어야 한다.
+    if not _wp01_unlocked("KNK_ENABLE_PO_RECEIVE"):
+        return JSONResponse({
+            "error": "입고 처리 준비 중",
+            "message": "입고 처리는 준비 중입니다 — 입고문서·검수·격리재고가 갖춰지는 정식 입고(WP-07)에서 열립니다.",
+        }, 403)
     form = await request.form()
     occurred = form.get("occurred_at", "") or ""
     item_ids = form.getlist("po_item_id")
@@ -31879,8 +31926,16 @@ async def stock_issue_form(request: Request, part_id: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    # WP-01(P0-04): 출고=재고를 바꾸는 화면 — 조회 권한(can_view) 차단, 쓰기 권한 필수
+    if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
+    # WP-01(게이트 v3 F-01 · 대표 결정 2026-07-24): 승인 없이 즉시 차감하는 '직접 출고' 화면 운영 잠금.
+    #   출고는 요청 → 승인 → 확정(단일 Transaction) 흐름으로만 처리한다. 정식 출고 State는 WP-08.
+    if not _wp01_unlocked("KNK_ENABLE_STOCK_DIRECT_ISSUE"):
+        from urllib.parse import quote as _q0
+        return RedirectResponse(
+            "/stock/issues?error=" + _q0(
+                "직접 출고 화면은 잠겨 있습니다 — 출고는 '요청 → 승인 → 확정' 흐름으로만 처리합니다"), 303)
     with db_session() as c:
         parts = c.execute(
             """SELECT id, part_no, part_name, unit, stock_qty, std_price, safety_stock
@@ -31917,8 +31972,16 @@ async def stock_issue_submit(
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    # WP-01(P0-04): 출고 실행=재고 차감 — 조회 권한(can_view)으로 실행되던 구멍 차단
+    if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
+    # WP-01(게이트 v3 F-01): 화면 링크를 지우는 것만으론 부족 — 서버에서도 직접 POST 차단.
+    #   쓰기 권한이 있어도 잠금이 우선한다(재고·원장·문서 전부 불변).
+    if not _wp01_unlocked("KNK_ENABLE_STOCK_DIRECT_ISSUE"):
+        return JSONResponse({
+            "error": "직접 출고 잠김",
+            "message": "직접 출고(승인 없이 즉시 차감)는 잠겨 있습니다 — 출고는 '요청 → 승인 → 확정' 흐름으로만 처리합니다.",
+        }, 403)
     try:
         pid = int(part_id)
         qty = float(quantity)
@@ -31949,7 +32012,8 @@ async def stock_adjust_form(request: Request, part_id: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    # WP-01(P0-04): 재고 조정 화면 — 쓰기 권한 필수
+    if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         parts = c.execute(
@@ -31972,7 +32036,8 @@ async def stock_adjust_submit(
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_view_logistics(u):
+    # WP-01(P0-04): 재고 조정 실행 — 조회 권한(can_view)으로 실행되던 구멍 차단
+    if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     try:
         pid = int(part_id)
@@ -33255,12 +33320,24 @@ async def stock_receipts_page(req: Request):
 
 @app.post("/stock/receipts")
 async def stock_receipts_submit(req: Request):
-    """입고 등록 (Top3-S2-2차) — INSERT receipts + INSERT stock_movements{kind=IN, qty +}.
-    receipts.status=PENDING (검수 대기). 트랜잭션 무결성: 두 INSERT 동일 db_session.
+    """입고 등록 (Top3-S2-2차 골격) — INSERT receipts + INSERT stock_movements{kind=IN, qty +}.
+
+    WP-01(게이트 v3 F-05 · 2026-07-24) 설명 정정 + 운영 잠금:
+      이전 설명문은 "두 INSERT 동일 db_session"이라고 적혀 있었으나 **사실이 아니었다** —
+      입고문서를 먼저 커밋한 뒤 stock_movement_create()가 별도 연결로 원장을 썼기 때문에,
+      2단계가 실패하면 '입고문서만 있고 재고원장은 없는' 상태가 남았다.
+      이 화면은 작성 Form도 없고 PO 수량·QUARANTINE 연동도 없는 골격이므로, 정식 입고 엔진
+      (WP-07)까지 **운영에서 잠근다**. 실제 입고는 발주서 입고(po_receive)를 쓰며, 그쪽은
+      수량·원장·재고·PO 상태를 하나의 Transaction으로 처리하도록 이번에 재작성했다.
     """
     u = _s2_guard(req)
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
+    if not _wp01_unlocked("KNK_ENABLE_STOCK_RECEIPT_POST"):
+        return JSONResponse({
+            "error": "입고 등록 잠김",
+            "message": "이 입고 등록(골격)은 잠겨 있습니다 — 입고는 발주서 화면의 입고 처리를 사용하세요. (정식 입고 엔진은 WP-07)",
+        }, 403)
     form = await req.form()
     try:
         po_id = int(form.get("po_id") or 0) or None
@@ -33423,36 +33500,72 @@ async def stock_issues_submit(req: Request):
 
 @app.post("/stock/issues/{issue_id}/approve")
 async def stock_issues_approve(req: Request, issue_id: int):
-    """출고 승인·실행 (Top3-S2-2차) — UPDATE issues_out.status=ISSUED + INSERT stock_movements{kind=OUT, qty -}.
-    트랜잭션 무결성: stock_movement_create 가 자체 db_session 으로 balance VIEW 즉시 반영.
-    """
-    u = _s2_guard(req)
+    """출고 승인·확정(ISSUED) — WP-01(게이트 v2 F-02/F-03 재작성).
+    승인 점유(CAS)·재고 기준 대조·가용성 확인·OUT 원장·재고 갱신을 **하나의
+    Transaction**으로 처리한다(§18). 어느 단계든 실패하면 전부 원상복구(ISSUED 잔존 금지).
+    - 동시 승인 방지: UPDATE ... WHERE status='PENDING' 의 rowcount 로 원자 점유
+    - F-03: parts.stock_qty ≠ 원장 합계면 확정 차단(기존 재고를 원장 합계로 덮어쓰지 않음)
+    - 음수 재고 금지: 원장 가용량 < 요청 수량이면 차단
+
+    WP-01(게이트 v3 · 대표 결정 2026-07-24) 운영 잠금:
+      이 경로는 정식 출고 State(REQUESTED→APPROVED→PICKED→ISSUED)와 상태전이 이력 표가
+      아직 없는 임시 구조다(PENDING→ISSUED 직행). 따라서 **운영에서는 잠근다** — 승인자 지정
+      체계와 상태전이 이력은 WP-08에서 정식 구현한다. 잠금을 임시 해제해도
+      ①요청자 본인 승인 금지 ②시스템 관리 역할만으로는 승인 불가(승인 권한 분리)를 지킨다."""
+    from urllib.parse import quote as _q
+    if not _wp01_unlocked("KNK_ENABLE_STOCK_ISSUE_APPROVE"):
+        return RedirectResponse("/stock/issues?error=" + _q(
+            "출고 승인은 아직 잠겨 있습니다 — 승인자 지정과 상태이력이 갖춰지는 WP-08에서 열립니다"), 303)
+    u = _stock_approve_guard(req)
     if not u:
-        return JSONResponse({"error": "권한 없음"}, 401)
-    # 1) issues_out 조회 + 승인
-    with db_session() as c:
-        row = c.execute(
-            "SELECT id, part_id, qty, status FROM issues_out WHERE id=?", (issue_id,)
-        ).fetchone()
-        if not row:
-            return RedirectResponse("/stock/issues?error=notfound", 303)
-        if row["status"] != "PENDING":
-            return RedirectResponse(f"/stock/issues?error=already-{row['status']}", 303)
-        c.execute(
-            "UPDATE issues_out SET status='ISSUED', approver_id=?, issued_at=datetime('now','localtime') WHERE id=?",
-            (u.get("id"), issue_id)
-        )
-        part_id = row["part_id"]
-        qty = float(row["qty"] or 0)
-    # 2) stock_movements INSERT (kind=OUT, qty -) — balance VIEW 자동 반영 (FIFO)
+        return JSONResponse({
+            "error": "승인 권한 없음",
+            "message": "출고 승인은 자재 담당(구매팀·제조팀) 또는 대표가 승인 권한을 부여한 담당자만 가능합니다.",
+        }, 403)
     try:
-        from .database import stock_movement_create
-        stock_movement_create({
-            "part_id": part_id, "kind": "OUT", "quantity": qty,
-            "reason": f"GI-{issue_id}", "note": "Top3-S2-2차 출고 승인"
-        }, u.get("id") or 0)
+        with db_session() as c:
+            row = c.execute(
+                "SELECT id, part_id, qty, status, requester_id FROM issues_out WHERE id=?", (issue_id,)
+            ).fetchone()
+            if not row:
+                return RedirectResponse("/stock/issues?error=notfound", 303)
+            # F-03: 요청자 본인 승인 차단 — 데이터는 하나도 바뀌지 않은 상태에서 되돌린다
+            if row["requester_id"] and int(row["requester_id"]) == int(u.get("id") or 0):
+                return RedirectResponse("/stock/issues?error=" + _q(
+                    "요청자 본인은 승인할 수 없습니다 — 다른 승인자가 처리해야 합니다"), 303)
+            # 원자 점유(CAS): PENDING일 때만 ISSUED로 — 동시·중복 승인 이중 방지
+            cur = c.execute(
+                "UPDATE issues_out SET status='ISSUED', approver_id=?, issued_at=datetime('now','localtime') "
+                "WHERE id=? AND status='PENDING'",
+                (u.get("id"), issue_id)
+            )
+            if cur.rowcount == 0:
+                return RedirectResponse(f"/stock/issues?error=already-{row['status']}", 303)
+            part_id = row["part_id"]
+            qty = float(row["qty"] or 0)
+            # F-03: 재고 기준수량 ↔ 원장 합계 대조 (불일치면 덮어쓰기 방지 위해 차단)
+            _sq = c.execute("SELECT stock_qty FROM parts WHERE id=?", (part_id,)).fetchone()
+            _stock = float((_sq["stock_qty"] if _sq else 0) or 0)
+            _ledger = float(c.execute(
+                "SELECT COALESCE(SUM(quantity),0) FROM stock_movements WHERE part_id=?", (part_id,)
+            ).fetchone()[0] or 0)
+            if abs(_stock - _ledger) > 1e-6:
+                raise ValueError(
+                    f"재고 기준수량({_stock:g})과 원장 합계({_ledger:g})가 달라 출고 확정을 차단했습니다 "
+                    "— 실사/이관으로 기준을 맞춘 뒤 진행하세요")
+            if _ledger < qty:
+                raise ValueError(f"재고 부족 — 가용 {_ledger:g}, 요청 {qty:g} (음수 재고 금지)")
+            # OUT 원장 + 재고 갱신 — 같은 Transaction 참여(_tx)
+            from . import database as _dbm
+            _dbm.stock_movement_create_tx(c, {
+                "part_id": part_id, "kind": "OUT", "quantity": qty,
+                "reason": f"GI-{issue_id}",
+                "note": "출고 확정(ISSUED) — 승인·원장·재고 단일 Transaction"
+            }, u.get("id") or 0)
+    except ValueError as ve:
+        return RedirectResponse(f"/stock/issues?error={_q(str(ve))}", 303)
     except Exception as e:
-        return RedirectResponse(f"/stock/issues?error=mv:{e}", 303)
+        return RedirectResponse(f"/stock/issues?error=mv:{_q(str(e))}", 303)
     return RedirectResponse(f"/stock/issues?success=GI-{issue_id}-ISSUED", 303)
 
 

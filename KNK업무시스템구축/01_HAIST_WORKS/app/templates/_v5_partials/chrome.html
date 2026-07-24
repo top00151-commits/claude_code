@@ -27,7 +27,7 @@
 {# 허브별 path 목록 — longest-prefix 계산용 #}
 {% set _paths_home = ['/home','/daily','/now','/team','/weekly','/dashboard','/board/company'] %}
 {% set _paths_sales = ['/sales','/sales/opportunities','/projects','/projects/new','/sales/schedule','/customers','/sales/quotations','/sales/orders','/consumables','/sales/shipments-receipts','/sales/outstanding','/export','/as'] %}
-{% set _paths_logi = ['/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issue','/rates'] %}
+{% set _paths_logi = ['/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issues','/rates'] %}
 {% set _paths_common = ['/notifications','/calendar','/tickets','/changes','/issues','/search','/meetings','/admin','/admin/permissions'] %}
 {% set _all_paths = _paths_home + _paths_sales + _paths_logi + _paths_common %}
 
@@ -546,7 +546,9 @@
     {{ a('/po',                '📋 발주 목록',   'M-02-05') }}
     {{ a('/po/new',            '📝 발주 작성',   'M-02-04') }}
     {{ a('/stock/movements',   '📚 수불부',      'M-02-07') }}
-    {{ a('/stock/issue',       '📤 출고 등록',   'M-02-08') }}
+    {# WP-01(게이트 v3 F-01 · 2026-07-24): 메뉴가 승인 없이 즉시 차감하는 /stock/issue 로 가던 것을
+       출고 요청 목록(/stock/issues)으로 교체. 직접 차감 화면은 서버에서도 잠김. #}
+    {{ a('/stock/issues',      '📤 출고 요청 (준비 중)', 'M-02-08') }}
     {{ a('/rates',             '💱 환율',        'M-02-13') }}
     {{ a('/materials/new-review', '🆕 신규 검토 자재', 'M-02-16') }}
   {% else %}
