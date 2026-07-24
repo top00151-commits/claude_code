@@ -176,7 +176,8 @@ body {
       {% if cert.items %}
         {% for it in cert.items %}
           <tr>
-            <td class="center">{{ it.line_no|default(loop.index) }}</td>
+            {# z1048: 보이는 번호는 화면 순번 — 저장된 line_no 를 찍으면 중간 줄 삭제 시 번호가 건너뛴다(안지연 프로 신고). DB 는 안 건드린다. #}
+            <td class="center">{{ loop.index }}</td>
             <td>{{ it.part_disp|default(it.part_name|default('—')) }}</td>
             <td class="center" style="font-family:ui-monospace, Consolas, monospace;">{{ it.hs_code|default('—') }}</td>
             <td class="num">{{ (it.qty or 0)|qtyfmt }}</td>

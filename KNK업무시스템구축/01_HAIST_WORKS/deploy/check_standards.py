@@ -60,6 +60,11 @@ BASELINE = {
     "contacts_list.html": {"vh": 1},
     "customers_list.html": {"vh": 1},
     "export_prep_detail.html": {"vh": 1},
+    # ── 수량칸 소수 허용(z1048) ──
+    #    _legacy_po_form_v4.html = **안 쓰이는 옛 발주 폼**(살아있는 po_form.html 이 따로 있고,
+    #    서버 어디서도 이 이름으로 렌더하지 않음 — 실측 확인). 파일명이 `_legacy_` 로 시작할 뿐
+    #    디렉터리가 아니라 SKIP_DIRS 에 안 걸린다. 지우는 건 별건이라 면제만.
+    "_legacy_po_form_v4.html": {"qty": 2, "important": None, "vh": None},
     #    z1045 에서 정규식을 `-wrap` 까지 넓히자 새로 드러난 1건.
     #    `.so-card.so-fullscreen .so-units-wrapper` = **전체화면(풀스크린) 전용** 규칙이라
     #    100vh 가 맞는 값이다(화면 전체를 쓰는 상태). z1009 예외 '사용자 높이조절'에 해당 → 면제.
@@ -217,6 +222,43 @@ def collect(changed_only):
     return files
 
 
+def check_qty(files):
+    """§수량 = 정수(z1048 · 대표 지시). 수량 입력칸이 소수를 허용하면 잡는다.
+
+    안지연 프로가 **두 번** 신고했다(*"또 0.01 단위로 변하네요"*) — 한 곳씩 고치니
+    새 화면으로 계속 번졌다(전수 조사에서 26곳). 공용 처리기(`_v5_partials/knk_qty.html`)가
+    런타임에 고쳐 주지만, **소스에 남아 있으면 다음 사람이 그대로 복사한다** → 여기서 막는다.
+
+    ⚠판별 정규식에 단어경계(`[^a-z]`)를 쓰지 말 것 — `re.I` 때문에 대문자가 경계에서 빠져
+      **`qtyInput` 같은 camelCase 를 놓친다**(실제로 재고 조정 화면이 뚫렸다).
+    ⛔`min` 이 소수면 step=1 이어도 허용값이 0.01·1.01·2.01 이 된다 → 같이 잡는다.
+    """
+    bad = []
+    namey = re.compile(r"qty|quantity|수량", re.I)
+    not_qty = re.compile(
+        r"price|amount|cost|rate|pct|percent|margin|weight|kg|cbm|fx|단가|금액|환율|중량|비율", re.I)
+    tag_re = re.compile(r"<input\b[^>]*>", re.I)
+    frac = re.compile(r'step\s*=\s*["\'](0?\.\d+|any)["\']|(?:\bmin|\bmax)\s*=\s*["\']\d*\.\d+["\']', re.I)
+    for p in files:
+        if not p.endswith(".html"):
+            continue
+        src = _read(p)
+        for m in tag_re.finditer(src):
+            tag = m.group(0)
+            low = tag.lower()
+            if 'type="number"' not in low and "type='number'" not in low:
+                continue
+            if "data-knk-decimal" in low:      # 소수가 정당하다고 표시한 칸은 면제
+                continue
+            attrs = " ".join(re.findall(r'(?:name|id|class|data-k)\s*=\s*["\']([^"\']*)', tag))
+            if not namey.search(attrs) or not_qty.search(attrs):
+                continue
+            if frac.search(tag):
+                ln = src[: m.start()].count("\n") + 1
+                bad.append((_rel(p), ln, tag.strip()[:100]))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -268,6 +310,15 @@ def main():
             print("       %s:%s  %s" % (f, l, m))
     else:
         print("  ✅ 스크롤표 100vh 매직넘버 : 새 위반 없음 (기존 면제 %d건)" % vh_old)
+
+    qty_new, qty_old = split_baseline(check_qty(files), "qty")
+    if qty_new:
+        fail += len(qty_new)
+        print("  ❌ 수량칸 소수 허용 : 새로 %d건 → step=\"1\" (min/max 도 정수) · 소수가 맞으면 data-knk-decimal" % len(qty_new))
+        for f, l, m in qty_new[:20]:
+            print("       %s:%s  %s" % (f, l, m))
+    else:
+        print("  ✅ 수량칸 소수 허용 : 새 위반 없음 (기존 면제 %d건)" % qty_old)
 
     print("=" * 72)
     if fail:

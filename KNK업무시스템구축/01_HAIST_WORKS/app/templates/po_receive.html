@@ -275,7 +275,7 @@
                 <div class="qty-num prev">{{ '{:,.0f}'.format(it.received_qty|default(0)) }}</div>
                 <div>
                   <input type="hidden" name="po_item_id" value="{{ it.id }}" />
-                  <input class="line-input rcv" type="number" name="receive_qty" min="0" step="0.01"
+                  <input class="line-input rcv" type="number" name="receive_qty" min="0" step="1"
                          data-rest="{{ rest }}" data-order="{{ it.quantity|default(0) }}" data-prev="{{ it.received_qty|default(0) }}"
                          value="{{ rest }}" oninput="recalc()" />
                 </div>

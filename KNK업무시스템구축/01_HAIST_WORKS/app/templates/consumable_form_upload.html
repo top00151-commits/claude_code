@@ -364,7 +364,7 @@ function renderPreview() {
       <td><input data-idx="${idx}" data-k="spec" value="${esc(ln.spec)}" /></td>
       <td>${locCell}</td>
       <td>${photoCell}</td>
-      <td><input data-idx="${idx}" data-k="qty" type="number" step="0.01" value="${ln.qty||0}" /></td>
+      <td><input data-idx="${idx}" data-k="qty" type="number" step="1" value="${ln.qty||0}" /></td>
       <td><input data-idx="${idx}" data-k="unit" value="${esc(ln.unit||'EA')}" /></td>
       <td><input data-idx="${idx}" data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="${ln.unit_price||0}" /></td>
       <td class="amt-cell" data-idx="${idx}" style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;">${fmtAmt((Number(ln.qty)||0)*(Number(ln.unit_price)||0))}</td>

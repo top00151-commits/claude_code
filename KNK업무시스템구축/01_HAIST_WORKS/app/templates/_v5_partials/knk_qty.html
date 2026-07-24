@@ -1,0 +1,113 @@
+{# v5H226z1048 (대표 지시): 수량 입력칸 = **정수 전용** 공용 규정.
+   ────────────────────────────────────────────────────────────────────────
+   왜 만들었나 — 안지연 프로 신고(2026-07-24)
+     *"수량 +1 단위로 올라갔으면 좋겠는데 또 0.01 단위로 변하네요 ^^ 왜 안바꿔주시죠?"*
+     *"이전에도 다른 페이지에서 수정을 한것 같은데... 또 이러네"* → 대표: **"수량 규정으로 입력해서 모두 적용해줘"**
+     전수 조사 결과 `step="0.01"` 이 **26곳**. 한 곳씩 고치면 새 화면에서 계속 재발한다
+     (실제로 복사되어 퍼졌다) → **공용 규정으로 건다**(현황판 §4 3겹 원칙 ②공용 코드로 강제).
+
+   무엇을 하나
+     · 수량 성격의 `input[type=number]` 를 찾아 **step=1** 로 바꾸고 소수 입력을 막는다.
+     · 🔴**min 도 같이 정수로 올린다** — HTML 숫자칸의 유효값은 **min 을 기준으로 step 씩** 증가한다.
+       `min=0.01 · step=1` 이면 허용값이 0.01 → 1.01 → 2.01 이 되어 **고치나 마나**가 된다(실제 함정).
+     · 이미 소수가 들어 있는 값은 **건드리지 않는다** — 사람이 보고 고치게 둔다(말없이 바꾸지 않는다 · cf §4 규칙 32).
+
+   대상 판별(이름으로)
+     name / id / class / data-k 에 qty · quantity · 수량 이 들어간 것.
+   ⛔예외
+     `data-knk-decimal` 을 붙이면 건너뛴다(소수가 정당한 칸 — 중량·환율 등).
+     단가·금액·환율·비율은 애초에 대상이 아니다(price/amount/rate/pct 이름).
+
+   ⚠새 화면은 아무 것도 안 해도 된다 — styles.html 이 이 파일을 include 하므로 자동 적용된다.
+   ⚠배포 전 `deploy/check_standards.py` 가 새로 들어온 소수 수량칸을 잡는다. #}
+<script>
+/* z1048 공용 수량 정수화 — ES5. 실패해도(try/catch) 화면은 그대로 동작한다. */
+(function(){
+  /* ⚠단어경계(`[^a-z]`)를 쓰면 안 된다 — `i` 플래그 때문에 대문자가 경계에서 빠져
+     **`qtyInput` 같은 camelCase 이름을 못 잡는다**(재고 조정 화면이 실제로 뚫렸다).
+     그냥 '들어 있으면' 으로 보고, 수량이 아닌 것은 아래 NOT_QTY 로 걸러낸다. */
+  var NAMEY = /qty|quantity|수량/i;
+  /* 수량이 아닌데 이름이 스치는 것들 — 단가·금액·비율·환율·중량은 소수가 정당하다 */
+  var NOT_QTY = /price|amount|cost|rate|pct|percent|margin|weight|kg|cbm|fx|단가|금액|환율|중량|비율/i;
+
+  function isQty(el){
+    if (!el || el.type !== 'number') return false;
+    if (el.hasAttribute('data-knk-decimal')) return false;          /* 명시 예외 */
+    var s = [el.name, el.id, el.className, el.getAttribute('data-k')].join(' ');
+    if (!NAMEY.test(s)) return false;
+    if (NOT_QTY.test(s)) return false;
+    return true;
+  }
+
+  function fix(el){
+    try {
+      if (el.getAttribute('data-knk-qty') === '1') return;           /* 이미 처리 */
+      if (!isQty(el)) return;
+      el.setAttribute('step', '1');
+      el.setAttribute('inputmode', 'numeric');
+      /* 🔴min 이 정수가 아니면 step 이 min 기준으로 어긋난다 → 위로 올린다(0.01 → 1) */
+      var mn = el.getAttribute('min');
+      if (mn !== null && mn !== '') {
+        var m = parseFloat(mn);
+        if (!isNaN(m) && m !== Math.floor(m)) el.setAttribute('min', String(Math.ceil(m)));
+      }
+      var mx = el.getAttribute('max');
+      if (mx !== null && mx !== '') {
+        var x = parseFloat(mx);
+        if (!isNaN(x) && x !== Math.floor(x)) el.setAttribute('max', String(Math.floor(x)));
+      }
+      el.setAttribute('data-knk-qty', '1');
+      /* 붙여넣기·직접 타이핑으로 들어온 소수는 **떠날 때** 정수로 (타이핑 도중에는 건드리지 않는다) */
+      el.addEventListener('blur', function(){
+        var v = el.value;
+        if (v === '' || v === null) return;
+        var f = parseFloat(v);
+        if (isNaN(f) || f === Math.floor(f)) return;
+        var r = Math.round(f);
+        var lo = parseFloat(el.getAttribute('min'));
+        if (!isNaN(lo) && r < lo) r = Math.ceil(lo);
+        el.value = String(r);
+        /* 금액 자동계산 등 이 칸을 듣고 있는 코드에 알린다 */
+        try {
+          el.dispatchEvent(new Event('input', {bubbles:true}));
+          el.dispatchEvent(new Event('change', {bubbles:true}));
+        } catch(e){
+          var ev = document.createEvent('Event');
+          ev.initEvent('input', true, true); el.dispatchEvent(ev);
+          ev = document.createEvent('Event');
+          ev.initEvent('change', true, true); el.dispatchEvent(ev);
+        }
+      });
+    } catch(e){}
+  }
+
+  function sweep(root){
+    try {
+      var els = (root || document).querySelectorAll('input[type="number"]');
+      for (var i = 0; i < els.length; i++) fix(els[i]);
+    } catch(e){}
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ sweep(); });
+  } else { sweep(); }
+
+  /* ⭐줄을 나중에 추가하는 화면(라인 추가·SPA 화면 교체)에도 적용 — 이게 없으면 '새 줄만 0.01' 이 된다 */
+  try {
+    if (window.MutationObserver) {
+      new MutationObserver(function(muts){
+        for (var i = 0; i < muts.length; i++) {
+          var ns = muts[i].addedNodes;
+          for (var j = 0; j < ns.length; j++) {
+            var n = ns[j];
+            if (n.nodeType !== 1) continue;
+            if (n.tagName === 'INPUT') fix(n); else sweep(n);
+          }
+        }
+      }).observe(document.documentElement, {childList:true, subtree:true});
+    }
+  } catch(e){}
+
+  window.KNKQty = { sweep: sweep, isQty: isQty };   /* 화면에서 직접 부를 수도 있게 */
+})();
+</script>
