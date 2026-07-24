@@ -698,6 +698,12 @@
             {% set _hide_hogi = false %}
             {# v5H226z634 (대표 지시): 완제품(장비) SO — 수주 내역을 호기별 종합표(금액·거래명세서·세금계산서1/2/3 추가). 부품/소모품은 기존 컬럼셋 유지 #}
             {% set _is_equip = (not _is_parts) and (not _is_co) %}
+            {# v5H226z1050 (대표 지시 후속): 📦제품(SEMI) 항목 — 한 수주에 서로 다른 품목이 줄로 들어온다
+               (견적서 'AMS THES123모델 소켓' 아래 소켓 2개·소켓PCB 3개). 그런데 이 표는 완제품(호기)용이라
+               **규격 칸이 아예 없어 저장한 규격이 사라진 것처럼 보였다**(실측: THES123-SK 안 보임).
+               → 제품이면 '호기' 대신 **품명**으로 부르고 **규격·수량 칸을 연다**(§4 규칙 14: 보여주는 곳엔 고치는 자리도).
+               ⛔완제품·상품·소모품 판정은 건드리지 않는다 — 제품일 때만 칸 2개가 늘어난다. #}
+            {% set _is_semi = _is_equip and ((p.shipment_form or '')|upper == 'SEMI') %}
             {% set _is_fx_view = (_is_parts and _so_ccy != 'KRW') %}
             {# v5H226z609: 매입/판매 칸의 통화 단위 — _pfx면 KRW환산값=KRW, fx뷰(환율없음)면 외화, 그외 KRW #}
             {# v5H226z738(대표 지시): z735로 cost_krw/sell_krw(KRW 원본)가 저장된 수출 부품은 매입/판매 값을 'KRW'로 표시한다 →
@@ -736,7 +742,12 @@
                   {% if _is_co or _is_parts %}<th class="px-x" style="width:60px;" data-pgroup="basic">사진</th>{% endif %}
                   {% if _is_parts %}<th style="width:90px;" data-pgroup="basic">자재번호</th>{% endif %}
                   {# v5H226z93: 호기 컬럼 64→80px (짤림 방지) · z630: 1줄 완제품이면 호기 칸 제거 #}
-                  {% if not _hide_hogi %}<th style="width:{% if _is_co or _is_parts %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts %}품명{% elif _is_co %}품명{% else %}호기{% endif %}</th>{% endif %}
+                  {% if not _hide_hogi %}<th style="width:{% if _is_co or _is_parts or _is_semi %}200px{% else %}80px{% endif %};" {% if _is_parts %}data-pgroup="basic"{% endif %}>{% if _is_parts or _is_co or _is_semi %}품명{% else %}호기{% endif %}</th>{% endif %}
+                  {# z1050: 제품 항목 — 규격·수량만 추가로 연다(상품의 제작사·공급사·원산지·BOX 등은 제품에 불필요) #}
+                  {% if _is_semi %}
+                  <th style="width:150px;">규격</th>
+                  <th class="num" style="width:60px;">수량</th>
+                  {% endif %}
                   {% if _is_parts %}
                   <th style="width:130px;" data-pgroup="basic">규격</th>
                   <th style="width:84px;" data-pgroup="basic">제작사</th>
@@ -834,6 +845,17 @@
                     <span class="display-val"><b>{{ _hogi_label }}</b></span>
                     {% if _editable %}<input type="text" class="unit-edit lbl-inp" data-orig="{{ _hogi_label }}" value="{{ _hogi_label }}"{% if _is_co or _is_parts %} style="width:180px;"{% endif %}>{% endif %}
                     {# v5H226z92: 호기별 × 삭제 회수 (z89~z91 원복) — 상태 컬럼 "취소"로 대체 #}
+                  </td>
+                  {% endif %}
+                  {# z1050: 제품 항목의 규격·수량 — 저장은 상품과 같은 unit-edit 방식(spec-inp·qty-inp) #}
+                  {% if _is_semi %}
+                  <td style="font-size:11.5px;">
+                    <span class="display-val">{{ u.spec or '—' }}</span>
+                    {% if _editable %}<input type="text" class="unit-edit spec-inp" data-orig="{{ u.spec or '' }}" value="{{ u.spec or '' }}" style="width:140px;font-size:11.5px;">{% endif %}
+                  </td>
+                  <td class="num" style="font-size:11.5px;">
+                    <span class="display-val">{{ (u.qty or 0)|qtyfmt }}</span>
+                    {% if _editable %}<input type="number" class="unit-edit qty-inp" data-orig="{{ (u.qty or 0)|qtyfmt }}" value="{{ (u.qty or 0)|qtyfmt }}" min="1" style="width:56px;font-size:11.5px;text-align:right;">{% endif %}
                   </td>
                   {% endif %}
                   {% if _is_parts %}
