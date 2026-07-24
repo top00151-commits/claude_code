@@ -74,7 +74,7 @@ board_posts,title,TEXT,text,글자,-
 board_posts,body,TEXT,text,글자,-
 board_posts,category,TEXT,text,글자,-
 board_posts,is_pinned,INTEGER,bigint,정수,-
-board_posts,view_count,INTEGER,bigint,수량,z1048 수량=정수
+board_posts,view_count,INTEGER,bigint,정수,-
 board_posts,approval_status,TEXT,text,글자,-
 board_posts,approved_by,INTEGER,bigint,정수,-
 board_posts,approved_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
@@ -111,7 +111,7 @@ bom_items,maker,TEXT,text,글자,-
 bom_items,vendor,TEXT,text,글자,-
 bom_items,material,TEXT,text,글자,-
 bom_items,finishing,TEXT,text,글자,-
-bom_items,unit_count,REAL,bigint,수량,z1048 수량=정수
+bom_items,unit_count,REAL,double precision,실수(비금액),-
 bom_items,total_qty,REAL,bigint,수량,z1048 수량=정수
 bom_items,unit,TEXT,text,글자,-
 bom_items,unit_price,REAL,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
@@ -262,7 +262,7 @@ consumable_orders,notify_team_ids,TEXT,text,글자,-
 consumable_orders,notify_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 consumable_orders,notify_by_name,TEXT,text,글자,-
 consumable_orders,notify_sent_to,INTEGER,bigint,정수,-
-consumable_orders,notify_dept_count,INTEGER,bigint,수량,z1048 수량=정수
+consumable_orders,notify_dept_count,INTEGER,bigint,정수,-
 consumable_orders,notify_msg_sent,INTEGER,bigint,정수,-
 consumable_orders,status_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 corrective_actions,id,INTEGER,bigint identity,기본키(자동증가),-
@@ -422,7 +422,7 @@ export_hs_dict,origin,TEXT,text,글자,-
 export_hs_dict,duty,TEXT,text,글자,-
 export_hs_dict,vat,TEXT,text,글자,-
 export_hs_dict,status,TEXT,text,글자,-
-export_hs_dict,seen_count,INTEGER,bigint,수량,z1048 수량=정수
+export_hs_dict,seen_count,INTEGER,bigint,정수,-
 export_hs_dict,first_seen,TEXT,text,글자,-
 export_hs_dict,last_seen,TEXT,text,글자,-
 export_hs_dict,source_file,TEXT,text,글자,-
@@ -582,9 +582,9 @@ mail_fetch_accounts,last_uid,INTEGER,bigint,정수,-
 mail_fetch_accounts,enabled,INTEGER,bigint,정수,-
 mail_fetch_accounts,last_run,TEXT,text,글자,-
 mail_fetch_accounts,last_status,TEXT,text,글자,-
-mail_fetch_accounts,last_count,INTEGER,bigint,수량,z1048 수량=정수
+mail_fetch_accounts,last_count,INTEGER,bigint,정수,-
 mail_fetch_accounts,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
-mail_fetch_seen,account_id,INTEGER,bigint,수량,z1048 수량=정수
+mail_fetch_seen,account_id,INTEGER,bigint,정수,-
 mail_fetch_seen,uidl,TEXT,text,글자,-
 mail_fetch_seen,fetched_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 mail_large_files,id,INTEGER,bigint identity,기본키(자동증가),-
@@ -594,7 +594,7 @@ mail_large_files,mime,TEXT,text,글자,-
 mail_large_files,size,INTEGER,bigint,정수,-
 mail_large_files,path,TEXT,text,글자,-
 mail_large_files,uploaded_by,INTEGER,bigint,정수,-
-mail_large_files,download_count,INTEGER,bigint,수량,z1048 수량=정수
+mail_large_files,download_count,INTEGER,bigint,정수,-
 mail_large_files,expires_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 mail_large_files,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 mail_messages,id,INTEGER,bigint identity,기본키(자동증가),-
@@ -620,7 +620,7 @@ mail_messages,deleted_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자
 mail_messages,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 mail_messages,bcc,TEXT,text,글자,-
 mail_messages,dedup_hash,TEXT,text,글자,-
-mail_messages,dup_count,INTEGER,bigint,수량,z1048 수량=정수
+mail_messages,dup_count,INTEGER,bigint,정수,-
 mail_messages,is_blocked,INTEGER,bigint,정수,-
 mail_messages,risk_level,INTEGER,bigint,정수,-
 mail_messages,risk_note,TEXT,text,글자,-
@@ -663,7 +663,7 @@ material_requests,requester_id,INTEGER,bigint,정수,-
 material_requests,requester_team_id,INTEGER,bigint,정수,-
 material_requests,status,TEXT,text,글자,-
 material_requests,total_items,INTEGER,numeric,금액,z1026 원화=정수·외화 2자리 / 부동소수점 금지
-material_requests,new_item_count,INTEGER,bigint,수량,z1048 수량=정수
+material_requests,new_item_count,INTEGER,bigint,정수,-
 material_requests,note,TEXT,text,글자,-
 material_requests,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 material_requests,updated_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
@@ -1031,7 +1031,7 @@ prod_requests,dept_names,TEXT,text,글자,-
 prod_requests,issued_by,INTEGER,bigint,정수,-
 prod_requests,issued_by_name,TEXT,text,글자,-
 prod_requests,sent_to,INTEGER,bigint,정수,-
-prod_requests,dept_count,INTEGER,bigint,수량,z1048 수량=정수
+prod_requests,dept_count,INTEGER,bigint,정수,-
 prod_requests,msg_sent,INTEGER,bigint,정수,-
 prod_requests,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 prod_requests,created_date,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
@@ -1497,7 +1497,7 @@ stock_audit_items,counted_qty,REAL,bigint,수량,z1048 수량=정수
 stock_audit_items,variance,REAL,double precision,실수(비금액),-
 stock_audit_items,variance_reason,TEXT,text,글자,-
 stock_audit_items,status,TEXT,text,글자,-
-stock_audit_items,counted_by,INTEGER,bigint,수량,z1048 수량=정수
+stock_audit_items,counted_by,INTEGER,bigint,정수,-
 stock_audit_items,counted_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 stock_audit_items,created_at,TEXT,text,날짜·시각,WP-02 대표결정(1차 글자 유지)+시간대표준 v1
 stock_audits,id,INTEGER,bigint identity,기본키(자동증가),-

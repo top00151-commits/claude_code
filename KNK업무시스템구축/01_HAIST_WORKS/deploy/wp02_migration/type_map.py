@@ -17,9 +17,16 @@
 """
 import re
 
-# ── 이름으로 성격을 판별한다. 판별 규칙은 z1048 검사기와 같은 원칙을 쓴다
-#    (단어경계 `[^a-z]` 금지 — camelCase 를 놓친다. z1048 교훈)
-RE_QTY = re.compile(r"(qty|quantity|수량|count|cnt)", re.I)
+# ── 이름으로 성격을 판별한다.
+#    🔴 z1048 교훈을 두 번 어겼다: 처음엔 단어경계 `[^a-z]` 로 **너무 좁아** camelCase 를 놓쳤고,
+#       WP-02 초판은 `count` 를 넣어 **너무 넓어** 오분류했다 —
+#       `account_id`(ac**count**_id) · `counted_by` · `view_count` 가 수량으로 잡혔다(게이트 P1-02 지적).
+#    → 업무 수량은 `qty|quantity|수량` 만 본다. 카운터(`*_count`)는 수량이 아니라 정수다.
+RE_QTY = re.compile(r"(qty|quantity|수량)", re.I)
+# 위 규칙에 걸리지만 업무 수량이 아닌 것(제외 목록) — 근거를 남기고 등재한다
+QTY_NOT_BUSINESS = {
+    # (표, 컬럼): 사유
+}
 RE_MONEY = re.compile(r"(amount|amt|price|cost|total|balance|paid|budget|fee|krw|usd|vat|tax_invoice_amt)", re.I)
 RE_DECIMAL_OK = re.compile(r"(rate|ratio|pct|percent|margin|weight|kg|cbm|fx|score|lat|lng|temp)", re.I)
 RE_DATETIME = re.compile(r"(_at$|_date$|^date_|_datetime$|_time$)", re.I)

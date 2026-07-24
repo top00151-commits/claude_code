@@ -142,7 +142,7 @@ CREATE TABLE "bom_items" (
   "vendor" text,
   "material" text,
   "finishing" text,
-  "unit_count" bigint,
+  "unit_count" double precision,
   "total_qty" bigint,
   "unit" text,
   "unit_price" numeric,

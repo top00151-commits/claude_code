@@ -4,8 +4,6 @@ consumable_order_items,unit_price,금액,120640408.1199999999999691,120640408.11
 consumable_order_items,amount,금액,285213502.71,285213502.71,0.00,일치
 consumable_orders,total_amount,금액,285213502.7099999999992,285213502.7099999999992,0E-13,일치
 consumable_orders,tax_invoice_amt1,금액,256098781.82,256098781.82,0.00,일치
-consumable_orders,notify_dept_count,수량,21,21,0,일치
-export_hs_dict,seen_count,수량,12149,12149,0,일치
 order_items,qty,수량,11092.0,11092,0.0,일치
 order_items,unit_price,금액,25079294061.9355,25079294061.9355,0.0000,일치
 order_items,amount,금액,25211413297.1300000000016,25211413297.1300000000016,0E-13,일치
@@ -27,7 +25,6 @@ po_items,quantity,수량,2.0,2,0.0,일치
 po_items,unit_price,금액,0.0,0.0,0.0,일치
 po_items,amount,금액,0.0,0.0,0.0,일치
 po_items,received_qty,수량,0.0,0,0.0,일치
-prod_requests,dept_count,수량,63,63,0,일치
 project_items,qty,수량,1461,1461,0,일치
 project_items,unit_price,금액,18956291621250540087.44000000,18956291621250540087.4400000000008,8E-13,원본정밀도한계(1건 · 2^53 초과)
 project_items,amount,금액,18956293217602184539.87000000,18956293217602184539.8699999990066,-9.934E-10,원본정밀도한계(1건 · 2^53 초과)

@@ -22,6 +22,7 @@ import argparse
 import csv
 import hashlib
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -65,6 +66,30 @@ def dec(v):
     return Decimal(repr(float(v)))
 
 
+def guard_target(host: str, dbname: str):
+    """P0-02: 도구 자체가 오작동을 거부한다 — 문구가 아니라 코드로 막는다.
+    · 로컬 시험 호스트만 허용
+    · 데이터베이스 이름은 시험 접두어 강제
+    · 알려진 운영 호스트·운영 DB 이름은 실행 거부
+    """
+    LOCAL = {"127.0.0.1", "localhost", "::1"}
+    PREFIX = "knk_rehearsal"          # 시험 DB 접두어(뒤에 _seq, _pilot 등 붙일 수 있음)
+    FORBIDDEN_HOST_HINT = ("knknara", "haist", "nas", "prod")
+    FORBIDDEN_DB = {"knk", "knk_haist", "haist", "works", "postgres", "template0", "template1"}
+
+    if host not in LOCAL:
+        raise SystemExit(f"⛔ 중단: 이 도구는 로컬 시험 서버에서만 씁니다 (받은 값: {host})")
+    if any(h in host.lower() for h in FORBIDDEN_HOST_HINT):
+        raise SystemExit(f"⛔ 중단: 운영으로 보이는 주소입니다 ({host})")
+    if dbname.lower() in FORBIDDEN_DB:
+        raise SystemExit(f"⛔ 중단: 운영 데이터베이스 이름입니다 ({dbname})")
+    if not dbname.startswith(PREFIX):
+        raise SystemExit(f"⛔ 중단: 시험 데이터베이스 이름은 '{PREFIX}' 로 시작해야 합니다 (받은 값: {dbname})")
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", dbname):
+        raise SystemExit(f"⛔ 중단: 데이터베이스 이름에 쓸 수 없는 글자가 있습니다 ({dbname})")
+    print(f"[안전확인] 대상 서버 {host} · 데이터베이스 {dbname} — 시험 전용으로 확인됨")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
@@ -73,8 +98,11 @@ def main():
     ap.add_argument("--pg-user", default="postgres")
     ap.add_argument("--dbname", default="knk_rehearsal")
     ap.add_argument("--keep", action="store_true", help="끝나고 데이터베이스를 지우지 않는다")
+    ap.add_argument("--allow-clean", action="store_true",
+                    help="P0-03: 값 정제(빈칸→NULL 등)를 허용한다. 기본은 **정제 대상이 있으면 중단**")
     a = ap.parse_args()
 
+    guard_target(a.pg_host, a.dbname)      # ← P0-02 안전장치
     os.makedirs(RESULTS, exist_ok=True)
     t_all = time.time()
     log(f"원본 사본: {a.src}")
@@ -181,8 +209,62 @@ def main():
             failed_data.append((t, len(data), str(e)[:140]))
     t_data = time.time() - t0
     log(f"데이터 이관 {moved}/{len(tables)} · {rows_total:,}행 · 실패 {len(failed_data)} · {t_data:.2f}s")
+
+    # ── P0-03: 값이 조용히 바뀌면 안 된다. 정제 대상이 있으면 **기본은 중단**한다.
     if cleaned:
-        log(f"정제한 값 {len(cleaned)}건")
+        log(f"⚠ 원본과 다르게 담은 값 {len(cleaned)}건 — cleaned.csv 참조")
+        if not a.allow_clean:
+            with open(os.path.join(RESULTS, "cleaned.csv"), "w", newline="", encoding="utf-8-sig") as f:
+                wr = csv.writer(f)
+                wr.writerow(["표", "컬럼", "처리", "원본값"])
+                wr.writerows(cleaned)
+            log("⛔ 중단: 원본 보존 원칙에 따라 값 변경이 있으면 진행하지 않습니다.")
+            log("   업무 담당자 확인·승인 후 --allow-clean 으로 다시 실행하세요.")
+            con.close()
+            return 2
+
+    # ── P0-01: 기존 ID 를 그대로 넣었으므로 자동번호(sequence)를 최대값 다음으로 맞춘다.
+    #    이 처리가 없으면 **이관 직후 첫 등록이 PK 충돌로 실패**한다(실증: parts id=1 중복).
+    t0 = time.time()
+    seq_rows, seq_fixed, seq_fail = [], 0, []
+    for t in tables:
+        if any(f[0] == t for f in failed_schema) or any(f[0] == t for f in failed_data):
+            continue
+        cur.execute("""SELECT c.column_name FROM information_schema.columns c
+                       WHERE c.table_schema='public' AND c.table_name=%s
+                         AND c.is_identity='YES'""", (t,))
+        for (col,) in cur.fetchall():
+            cur.execute("SELECT pg_get_serial_sequence(%s,%s)", (t, col))
+            seq = cur.fetchone()[0]
+            if not seq:
+                continue
+            cur.execute(f'SELECT COALESCE(MAX("{col}"),0) FROM "{t}"')
+            mx = cur.fetchone()[0]
+            # 빈 표면 1부터, 값이 있으면 MAX+1 부터 나오게 한다
+            cur.execute("SELECT setval(%s, %s, %s)", (seq, mx if mx > 0 else 1, bool(mx > 0)))
+            con.commit()
+            # 시험 등록 → 생성된 번호 확인 → 되돌리기
+            test_ok, test_id, test_err = False, None, ""
+            try:
+                cur.execute(f'INSERT INTO "{t}" DEFAULT VALUES RETURNING "{col}"')
+                test_id = cur.fetchone()[0]
+                test_ok = test_id > mx
+                con.rollback()
+            except Exception as e:
+                con.rollback()
+                # NOT NULL 등으로 빈 행 등록이 안 되는 표는 번호만 확인한다
+                cur.execute(f"SELECT last_value, is_called FROM {seq}")
+                lv, called = cur.fetchone()
+                test_id = lv + 1 if called else lv
+                test_ok = test_id > mx
+                test_err = str(e).split("\n")[0][:60]
+            seq_rows.append((t, col, mx, test_id, "정상" if test_ok else "★확인필요", test_err))
+            if test_ok:
+                seq_fixed += 1
+            else:
+                seq_fail.append((t, col, mx, test_id))
+    t_seq = time.time() - t0
+    log(f"자동번호 조정 {seq_fixed}개 · 확인필요 {len(seq_fail)} · {t_seq:.2f}s")
 
     # ── 3) 검증: 행 수 + 금액/수량 합계(Decimal)
     t0 = time.time()
@@ -260,14 +342,18 @@ def main():
     w("rowcount.csv", ["표", "SQLite", "PostgreSQL", "판정"], rowcounts)
     w("sums.csv", ["표", "컬럼", "분류", "SQLite합계", "PG합계", "차이", "판정"], sums)
     w("cleaned.csv", ["표", "컬럼", "처리", "원본값"], cleaned)
+    w("identity_sequence.csv", ["표", "컬럼", "현재MAX", "다음발급번호", "판정", "비고"], seq_rows)
 
     summary = [
         ("원본", a.src), ("원본SHA256", sha256_file(a.src)), ("PostgreSQL", pgver.split(",")[0]),
-        ("표", len(tables)), ("스키마성공", made), ("스키마실패", len(failed_schema)),
+        ("표", len(tables)), ("테이블·PK생성", made), ("테이블생성실패", len(failed_schema)),
         ("데이터성공", moved), ("데이터실패", len(failed_data)), ("이관행수", rows_total),
         ("행수불일치", mismatch), ("합계대조", len(sums)), ("합계불일치", len(bad_sums)),
         ("정제건수", len(cleaned)),
+        ("자동번호조정", seq_fixed), ("자동번호확인필요", len(seq_fail)),
+        ("미이전객체", "FK·인덱스·뷰·트리거·UNIQUE/CHECK/NOT NULL/DEFAULT (2차 범위)"),
         ("DB생성초", f"{t_create:.2f}"), ("스키마초", f"{t_schema:.2f}"), ("데이터초", f"{t_data:.2f}"),
+        ("자동번호초", f"{t_seq:.2f}"),
         ("검증초", f"{t_verify:.2f}"), ("Rollback초", f"{t_rollback:.2f}"),
         ("전체초", f"{time.time() - t_all:.2f}"),
     ]

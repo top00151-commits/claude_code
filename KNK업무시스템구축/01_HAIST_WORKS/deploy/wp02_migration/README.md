@@ -60,8 +60,10 @@ print('MAIL_ROWS_REMOVED',n,'FINAL_BYTES',os.path.getsize(D)); print('SRC_BYTES_
 가져올 때는 `scp`·`sftp` 가 서버 로그인 메시지 때문에 실패하므로, 압축+텍스트 변환으로 받고 지문을 대조합니다:
 
 ```bash
-ssh -p 32201 root@o.knknara.co.kr "sha256sum /tmp/wp02_rehearsal.db; echo BEGIN64; gzip -c /tmp/wp02_rehearsal.db | base64 -w0; echo; echo END64" | Out-File -Encoding ascii "받을경로.b64"
+ssh -p <SSH_PORT> <SSH_USER>@<OPERATIONS_HOST> "sha256sum /tmp/wp02_rehearsal.db; echo BEGIN64; gzip -c /tmp/wp02_rehearsal.db | base64 -w0; echo; echo END64" | Out-File -Encoding ascii "받을경로.b64"
 ```
+
+> 접속 정보(`<SSH_USER>`·`<OPERATIONS_HOST>`·`<SSH_PORT>`)는 **저장소에 적지 않습니다.** 승인된 운영 비밀·환경 관리 문서에서만 확인하세요.
 
 ## 타입 매핑의 근거 — 기존 KNK 규정 그대로
 
