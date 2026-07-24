@@ -306,7 +306,30 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c12" id="qEngraveBox"><label>각인 <span style="font-weight:400;color:var(--qv-ink-3);">(장비 마킹)</span></label><input name="engraving" placeholder="예: S3908 ASSY"></div>
           {% endif %}
           </div></div>
-          <div class="qf-group"><div class="qf-group-ttl">수량 · 금액</div><div class="qf-grid">
+          {# v5H226z1049 (대표 지시 · 안지연 프로 질문 "수주번호 1개에 2개의 품목을 같이 등록은 안되는 거죠?"):
+   📦 **제품**은 견적서 한 줄('AMS THES123모델 소켓') 아래에 항목이 여러 개 붙는다
+   ('소켓 2개 / 소켓PCB 3개' — 단가도 각각). 지금까지는 품목마다 수주번호가 갈려 견적서 한 장과 어긋났다.
+   → **형태가 '제품'일 때만** 이 블록을 펴서 항목을 여러 줄 적게 하고, 한 수주번호 안에 그대로 넣는다.
+   ⛔완제품(호기)·상품·소모품은 손대지 않는다. 항목을 하나도 안 적으면 기존과 똑같이 동작한다. #}
+{% if not ed and can_money %}
+<div class="qf-group" id="qItemsGroup" style="display:none;">
+  <div class="qf-group-ttl">📋 항목 <span style="font-weight:400;font-size:11px;color:var(--qv-ink-3);text-transform:none;letter-spacing:0;">— 제품 하나에 들어가는 구성품(견적서 하부 항목). 적으면 <b>한 수주번호</b>에 줄로 들어갑니다</span></div>
+  <div style="padding:2px 2px 6px;">
+    <div id="qItemHead" style="display:grid;grid-template-columns:28px 1fr 1fr 62px 110px 118px 30px;gap:6px;padding:0 2px 5px;font-size:11px;color:var(--qv-ink-3);font-weight:700;">
+      <div style="text-align:center;">No.</div><div>품명</div><div>규격(모델)</div>
+      <div style="text-align:center;">수량</div><div style="text-align:right;">단가</div><div style="text-align:right;">금액</div><div></div>
+    </div>
+    <div id="qItemRows" style="max-height:300px;overflow-y:auto;padding-right:2px;"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+      <button type="button" id="qItemAdd" style="padding:7px 15px;background:var(--qv-ink-2);color:#fff;border:0;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 항목 추가</button>
+      <span style="font-size:11.5px;color:var(--qv-ink-3);">
+        위 <b>수량·단가·금액</b> 은 항목 합계로 <b>자동</b> 채워집니다 · 항목을 안 적으면 지금처럼 <b>1품목</b>으로 등록됩니다
+      </span>
+    </div>
+  </div>
+</div>
+{% endif %}
+<div class="qf-group"><div class="qf-group-ttl">수량 · 금액</div><div class="qf-grid">
 
           {# 4행 — 수량(0000·좁게) · 통화 · 단가 · 금액(단가보다 크게). 수량은 항상 표시, 금액류는 영업·관리만 #}
           <div class="qf-f c2" id="qTopQtyCell"><label>수량</label><input type="number" name="unit_qty" min="1" placeholder="0000" value="{{ project.unit_qty|default(1) if ed else 1 }}"></div>
@@ -533,8 +556,85 @@ function qSyncShip(){
   var _isParts=(v==='PARTS');
   ['qTopQtyCell','qTopPriceCell','qTopAmtCell'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=_isParts?'none':''; });
   qCalcParts();
+  qItemsToggle();  // v5H226z1049: 제품(SEMI)일 때만 '📋 항목' 블록
   qBuildUnits();   // v5H226z455: 형태 바뀌면 호기별 섹션 재평가 — 호기는 완제품만
 }
+
+/* v5H226z1049 (대표 지시): 제품 = 견적서 한 줄 아래 구성품 여러 개(소켓 2개·소켓PCB 3개 · 단가 각각).
+   ⛔완제품 호기·상품·소모품 경로는 건드리지 않는다. 항목 0줄이면 기존과 동일 동작. */
+function qItemsToggle(){
+  var g=document.getElementById('qItemsGroup'); if(!g) return;
+  var v=((document.getElementById('qFormType')||{}).value)||'ASSEMBLY';
+  var on=(v==='SEMI');
+  g.style.display=on?'':'none';
+  if(!on) qItemClearAll();          /* 다른 형태로 바꾸면 적어둔 항목을 남기지 않는다(엉뚱한 저장 방지) */
+  qItemCalc();
+}
+function qItemRowHtml(){
+  return '<div class="qi-row" style="display:grid;grid-template-columns:28px 1fr 1fr 62px 110px 118px 30px;gap:6px;align-items:center;margin-bottom:5px;">'
+    + '<div class="qi-no" style="text-align:center;font-weight:700;color:var(--qv-ink-3);font-size:12px;">0</div>'
+    + '<input type="text" name="it_name[]" class="qi-name" placeholder="예: 소켓" style="width:100%;padding:6px;">'
+    + '<input type="text" name="it_spec[]" class="qi-spec" placeholder="예: THES123-SK" style="width:100%;padding:6px;">'
+    + '<input type="number" name="it_qty[]" class="qi-qty" value="1" min="1" style="width:100%;padding:6px;text-align:center;">'
+    + '<input type="text" name="it_price[]" class="qi-price knk-money" inputmode="numeric" placeholder="0" style="width:100%;padding:6px;text-align:right;">'
+    + '<input type="text" class="qi-amt" readonly value="0" style="width:100%;padding:6px;text-align:right;background:var(--qv-surface-3);color:var(--qv-ink-2);font-weight:700;">'
+    + '<button type="button" class="qi-del" title="이 항목 삭제" style="width:26px;height:32px;border:1px solid var(--qv-line);background:#fff;border-radius:6px;cursor:pointer;color:var(--knk-red);font-weight:700;">×</button>'
+    + '</div>';
+}
+function qItemNum(v){ return Number(String(v==null?'':v).replace(/[^0-9.-]/g,''))||0; }
+function qItemCalc(){
+  var box=document.getElementById('qItemRows');
+  var rows=box?box.querySelectorAll('.qi-row'):[];
+  var tq=0, ta=0, i;
+  for(i=0;i<rows.length;i++){
+    var no=rows[i].querySelector('.qi-no'); if(no) no.textContent=(i+1);
+    var q=qItemNum((rows[i].querySelector('.qi-qty')||{}).value);
+    var p=qItemNum((rows[i].querySelector('.qi-price')||{}).value);
+    var a=q*p;
+    var ae=rows[i].querySelector('.qi-amt'); if(ae) ae.value=a.toLocaleString();
+    tq+=q; ta+=a;
+  }
+  /* 항목이 있으면 위 수량·단가·금액은 **합계로 자동** — 두 곳에 따로 적어 어긋나는 사고를 막는다 */
+  var qy=document.querySelector('[name="unit_qty"]'),
+      up=document.getElementById('qUnitPrice'),
+      am=document.getElementById('qAmount');
+  var on=(rows.length>0);
+  [qy,up,am].forEach(function(e){
+    if(!e) return;
+    e.readOnly=on;
+    e.style.background=on?'var(--qv-surface-3)':'';
+    e.title=on?'항목 합계로 자동 계산됩니다 — 항목 줄에서 고쳐 주세요':'';
+  });
+  if(on){
+    if(qy) qy.value=tq;
+    if(up) up.value=(tq?Math.floor(ta/tq):0).toLocaleString();   /* 표시용 평균(줄별 단가는 그대로 저장) */
+    if(am) am.value=ta.toLocaleString();
+  }
+}
+function qItemAttach(row){
+  var del=row.querySelector('.qi-del');
+  if(del) del.addEventListener('click', function(){ row.parentNode.removeChild(row); qItemCalc(); });
+  ['.qi-qty','.qi-price'].forEach(function(sel){
+    var e=row.querySelector(sel); if(e) e.addEventListener('input', qItemCalc);
+  });
+}
+function qItemAdd(){
+  var box=document.getElementById('qItemRows'); if(!box) return;
+  var d=document.createElement('div'); d.innerHTML=qItemRowHtml();
+  var row=d.firstChild; box.appendChild(row); qItemAttach(row); qItemCalc();
+}
+function qItemClearAll(){
+  var box=document.getElementById('qItemRows'); if(box) box.innerHTML='';
+  /* 자동채움으로 잠갔던 칸을 되돌린다(안 풀면 '못 쓰는 칸'이 된다 — z1028 교훈) */
+  [document.querySelector('[name="unit_qty"]'), document.getElementById('qUnitPrice'),
+   document.getElementById('qAmount')].forEach(function(e){
+    if(!e) return; e.readOnly=false; e.style.background=''; e.title='';
+  });
+}
+(function(){
+  var b=document.getElementById('qItemAdd');
+  if(b && !b.__z1049){ b.__z1049=1; b.addEventListener('click', qItemAdd); }
+})();
 // v5H226z459(대표 지시): 형태 커스텀 드롭다운 — 열면 각 항목에 설명 동반(오버레이), 선택하면 라벨만.
 var _qFormLbl={'ASSEMBLY':'🏭 완제품','SEMI':'📦 제품','PARTS':'🧰 상품','ETC':'🗂 기타'};
 function qFormSyncLabel(){

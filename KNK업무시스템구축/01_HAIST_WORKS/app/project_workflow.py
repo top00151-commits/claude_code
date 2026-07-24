@@ -212,7 +212,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         order_customer_id: int | None = None,
                         expand_units: bool = True,
                         line_label: str | None = None,
-                        po_type: str = "") -> dict:   # v5H226z1033: 이 수주의 PO유형(비우면 '추가')
+                        po_type: str = "",   # v5H226z1033: 이 수주의 PO유형(비우면 '추가')
+                        items: list | None = None) -> dict:   # v5H226z1049: 한 수주에 서로 다른 품목 N줄
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
@@ -227,8 +228,38 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
       - False : 부품/소모품 — 동일단가 × 수량 을 **1줄**(order_items.qty=N)로 저장.
                 282칸 안 만들고 한 줄. 상한 9,999. line_label 로 품목명 라벨 지정 가능.
 
+    v5H226z1049 (대표 지시): items 파라미터 — **한 수주번호에 서로 다른 품목 N줄**.
+      배경: 견적서에 'AMS THES123모델 소켓' 한 줄로 내고 하부에 '소켓 2개 / 소켓PCB 3개'(단가 각각)를
+        적는 실무가 있는데, 지금은 품목마다 수주번호가 갈려 견적서 한 장과 어긋났다.
+        안지연 프로 확인: "[수주번호 1개는 무조건 1개의 품목만 존재한다] 라는 기준" 이 실제로 있었다.
+      items=[{name, spec, qty, price}] 를 주면 **expand_units 무시**하고 그 줄들을 그대로 넣는다.
+        · unit_label=품명 · spec=규격 · qty · unit_price · amount=qty*price
+        · SO 총액 = Σ(qty×price) — total_amount 인자는 무시한다(합계가 진짜 값)
+        · 상한 50줄(그 이상은 상품/소모품 경로가 맞다)
+      ⛔미전달(None) 이면 **기존 동작 그대로** — 완제품 호기·부품 1줄 경로는 한 줄도 안 바뀐다.
+
     Returns: {ok, mgmt_code (기존), so_no (신규), order_id, qty, ...}
     """
+    # z1049: items 정규화 — 품명/규격이 둘 다 빈 줄은 버린다(빈 행 스킵)
+    _items = []
+    for _it in (items or []):
+        try:
+            _nm = str(_it.get("name") or "").strip()
+            _sp = str(_it.get("spec") or "").strip()
+            if not _nm and not _sp:
+                continue
+            _q = int(float(str(_it.get("qty") or 1).replace(",", "") or 1))
+            _pr = float(str(_it.get("price") or 0).replace(",", "") or 0)
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if _q < 1:
+            _q = 1
+        _items.append({"name": _nm or _sp, "spec": _sp, "qty": _q, "price": _pr})
+    if _items:
+        if len(_items) > 50:
+            return {"ok": False, "message": "한 수주의 항목은 50개까지입니다 — 그 이상은 상품/소모품으로 등록하세요."}
+        expand_units = False          # 항목 방식은 호기로 펼치지 않는다(제품=호기 없음 · 대표 결정)
+        qty = sum(x["qty"] for x in _items)
     # qty 검증
     try:
         qty = int(qty)
@@ -273,6 +304,10 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     # v5H131: qty 대 일괄 (각 라인 단가 = total_amount, SO 총액 = total_amount × qty)
     unit_price = float(total_amount or 0)
     so_total = unit_price * qty
+    if _items:
+        # z1049: 항목마다 단가가 다르다 → SO 총액은 **줄 합계**가 진짜 값(인자 total_amount 는 무시)
+        so_total = sum(x["qty"] * x["price"] for x in _items)
+        unit_price = (so_total / qty) if qty else 0.0   # 표시용 평균(줄별 단가는 order_items 에 그대로)
     so_no = generate_so_no(c, biz_div, ref_d)
     # v5H142: so_type 정규화. 미지원/미전달 → EQUIPMENT.
     try:
@@ -387,7 +422,29 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     except Exception:
         _oi_cols = set()
     _oi_has_extra = ("due_date" in _oi_cols and "ship_to" in _oi_cols and "currency" in _oi_cols)
-    if not expand_units:
+    if _items:
+        # v5H226z1049 (대표 지시): 제품 항목 — **서로 다른 품목 N줄**을 한 수주에.
+        #   견적서 'AMS THES123모델 소켓' 한 장 아래 '소켓 2개 / 소켓PCB 3개'(단가 각각).
+        #   ⛔호기로 펼치지 않는다(제품=호기 없음). 규격 칸이 있으면 넣는다(없는 옛 DB 도 안전하게).
+        _has_spec = "spec" in _oi_cols
+        for _x in _items:
+            _amt = _x["qty"] * _x["price"]
+            _cols = ["order_id", "qty", "unit_price", "amount", "unit_label"]
+            _vals = [order_id, _x["qty"], _x["price"], _amt, _x["name"]]
+            if _has_spec:
+                _cols.append("spec"); _vals.append(_x["spec"] or None)
+            if _oi_has_extra:
+                _cols.append("currency"); _vals.append(eff_currency)
+            if "line_note" in _oi_cols:
+                _cols.append("line_note"); _vals.append(note or None)
+            try:
+                c.execute("INSERT INTO order_items(%s) VALUES(%s)"
+                          % (",".join(_cols), ",".join("?" * len(_cols))), _vals)
+            except Exception as _e:
+                # ⛔조용히 삼키지 않는다 — 줄이 빠지면 금액이 안 맞는다(cf 규정: except:pass 금지)
+                import logging as _lg
+                _lg.getLogger("knk").warning("z1049 항목 줄 INSERT 실패 %s: %s", _x.get("name"), _e)
+    elif not expand_units:
         # 부품/소모품 — 1줄 (qty=N, 라인금액 = 단가 × N = so_total)
         try:
             if _oi_has_extra:
@@ -594,7 +651,9 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
                          order_date: str | None = None,
                          created_by: int = 0,
                          po_number: str = "",
-                         so_type: str | None = None) -> dict:
+                         so_type: str | None = None,
+                         # v5H226z1049: 호기 없이 빈 SO 1건 허용(제품 항목용 — 호출자가 바로 줄을 넣는다)
+                         allow_empty: bool = False) -> dict:
     """v5H81: 호기별 발주를 (납기, 납품지) 그룹화하여 SO 발행.
 
     KNK 표준 (대표 정의):
@@ -706,6 +765,13 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
     if (so_type or "").upper() == "PARTS_EXPORT":
         _empty_so_allowed = True
         _so_type_for_empty = "PARTS_EXPORT"
+    # v5H226z1049 (대표 지시): 📦제품(SEMI) 항목 — 호출자가 **명시할 때만** 빈 SO 1건 허용.
+    #   제품은 호기가 없어 units 가 비는 것이 정상인데, 이 갈래가 없으면 "호기 정보가 없습니다" 로
+    #   **수주가 아예 발행되지 않는다**(실측으로 잡음). 호출 직후 호출자가 항목 줄을 바로 넣는다.
+    #   ⚠`shipment_form=='SEMI'` 만 보고 열지 않는다 — 다른 경로가 실수로 빈 SO 를 만들 수 있다.
+    #     PARTS 가 so_type 명시로 여는 것과 같은 방식(부작용 0).
+    if allow_empty:
+        _empty_so_allowed = True
     if not units:
         if _empty_so_allowed:
             so_no = generate_so_no(c, biz_div, ref_d)
