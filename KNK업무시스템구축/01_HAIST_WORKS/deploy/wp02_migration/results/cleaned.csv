@@ -1,37 +1,37 @@
-﻿표,컬럼,처리,원본값
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-consumable_orders,tax_invoice_amt1,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
-project_items,final_amount,빈칸→NULL,
+﻿표,PK값,컬럼,처리,원본값,변환값,승인여부,사유,승인자,승인일시
+consumable_orders,4,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,53,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,54,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,59,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,65,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,68,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,74,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,76,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,81,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,86,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,89,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,92,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,97,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,118,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,119,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,127,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,159,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,162,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,180,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,181,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,183,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+consumable_orders,192,tax_invoice_amt1,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7880,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7881,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7888,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7889,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7890,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7932,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7935,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7936,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7938,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7939,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7940,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7941,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7942,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25
+project_items,7943,final_amount,빈칸→NULL,,NULL,승인,빈칸 미입력→NULL 정합,(시험),2026-07-25

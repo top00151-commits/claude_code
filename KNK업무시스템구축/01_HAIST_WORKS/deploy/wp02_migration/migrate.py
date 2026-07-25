@@ -67,41 +67,58 @@ def dec(v):
 
 
 def _load_approved(path):
-    """승인된 변환 목록 로드 → {(표, 컬럼, 원본값)} 집합. 없으면 빈 집합."""
-    out = set()
+    """승인된 변환 목록 로드 → {(표, PK값, 컬럼, 원본값): (사유,승인자,승인일시)} (게이트 §3: 행별 승인).
+    사유·승인자·승인일시는 **필수값**으로 검증한다."""
+    out, bad = {}, []
     if not path or not os.path.exists(path):
-        return out
+        return out, bad
     with open(path, encoding="utf-8-sig") as f:
-        for row in csv.DictReader(f):
-            out.add((row["표"].strip(), row["컬럼"].strip(), (row.get("원본값") or "").strip()))
-    return out
+        for i, row in enumerate(csv.DictReader(f), 2):
+            for req in ("사유", "승인자", "승인일시"):
+                if not (row.get(req) or "").strip():
+                    bad.append(f"{i}행: '{req}' 비어 있음")
+            out[(row["표"].strip(), (row.get("PK값") or "").strip(),
+                 row["컬럼"].strip(), (row.get("원본값") or "").strip())] = (
+                (row.get("사유") or "").strip(), (row.get("승인자") or "").strip(),
+                (row.get("승인일시") or "").strip())
+    return out, bad
+
+
+def _pk_col(src, table, info):
+    """행을 가리킬 PK 컬럼명 — 단일 정수 PK 우선, 없으면 rowid."""
+    pk = [c[1] for c in info if c[5]]
+    if len(pk) == 1:
+        return pk[0]
+    return "rowid"          # 복합키·PK 없음 → SQLite rowid 로 행 식별
 
 
 def _prescan(src, tables):
     """SQLite 원본에서 '그대로 담으면 PG가 거부하거나 값이 바뀌는' 지점을 **적재 전에** 찾는다.
-    반환: [(표, 컬럼, 종류, 원본값), ...]  (P0-03 · 게이트 3.2)"""
+    반환: [(표, PK값, 컬럼, 종류, 원본값), ...]  (P0-03 · 게이트 3.2·§3 — 행별 PK 포함)"""
     from type_map import RE_QTY, RE_DECIMAL_OK
     hits = []
     for t in tables:
         info = src.execute(f"PRAGMA table_info([{t}])").fetchall()
         numeric = {c[1] for c in info if (c[2] or "").upper().split("(")[0] in ("INTEGER", "REAL")}
         qty = {c for c in numeric if RE_QTY.search(c) and not RE_DECIMAL_OK.search(c)}
+        pkc = _pk_col(src, t, info)
         for c in info:
             col = c[1]
             if col not in numeric:
                 continue
-            # ① 숫자 칸에 든 문자열(빈칸·숫자아님)
-            for (v,) in src.execute(
-                    f"SELECT [{col}] FROM [{t}] WHERE [{col}] IS NOT NULL AND typeof([{col}])='text'").fetchall():
+            # ① 숫자 칸에 든 문자열(빈칸·숫자아님) — **행 PK 와 함께** 수집
+            for pk, v in src.execute(
+                    f"SELECT {pkc}, [{col}] FROM [{t}] "
+                    f"WHERE [{col}] IS NOT NULL AND typeof([{col}])='text'").fetchall():
                 s = str(v).strip()
                 kind = "빈칸→NULL" if s == "" else "숫자아님→NULL"
-                hits.append((t, col, kind, s))
+                hits.append((t, str(pk), col, kind, s))
             # ② 정수여야 하는 수량인데 소수값(z1048)
             if col in qty:
-                for (v,) in src.execute(
-                        f"SELECT [{col}] FROM [{t}] WHERE [{col}] IS NOT NULL "
+                for pk, v in src.execute(
+                        f"SELECT {pkc}, [{col}] FROM [{t}] WHERE [{col}] IS NOT NULL "
                         f"AND typeof([{col}])='real' AND [{col}] <> CAST([{col}] AS INTEGER)").fetchall():
-                    hits.append((t, col, "수량 소수(z1048 위반)", str(v)))
+                    hits.append((t, str(pk), col, "수량 소수(z1048 위반)", str(v)))
     return hits
 
 
@@ -110,13 +127,37 @@ def _pg_type_for_default(decl):
     return d in ("INTEGER", "REAL")
 
 
+def _extract_checks(create_sql: str) -> list:
+    """CREATE TABLE 문에서 CHECK(...) 절을 괄호 균형으로 추출한다."""
+    out, s = [], create_sql or ""
+    for m in re.finditer(r"\bCHECK\s*\(", s, re.I):
+        i = m.end() - 1  # 여는 괄호 위치
+        depth, j = 0, i
+        while j < len(s):
+            if s[j] == "(":
+                depth += 1
+            elif s[j] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        out.append(s[i:j + 1])  # (…) 포함
+    return out
+
+
 def _migrate_objects(src, cur, con, tables, failed_schema, failed_data, log):
     """스키마 객체 2차 이관 (게이트 P0-04). SQLite 원본 정의를 읽어 PostgreSQL 에 건다.
     각 객체는 개별 try — 실패해도 나머지는 계속하고 '미이전 목록'에 남긴다(누락을 숨기지 않음).
     반환: 통계 dict (object_matrix.csv 갱신에 사용)."""
     skip = {t for t, *_ in failed_schema} | {t for t, *_ in failed_data}
-    stat = {"notnull": 0, "default": 0, "unique": 0, "check": 0, "fk": 0, "index": 0, "view": 0}
+    stat = {"notnull": 0, "default": 0, "unique": 0, "check": 0, "fk": 0, "index": 0, "view": 0,
+            "trigger_deferred": 0}
     failed = []
+    # 인덱스·CHECK 원본 정의(sqlite_master.sql) — WHERE 부분 인덱스·표현식 보존을 위해 원문 재사용
+    idx_sql = {r[0]: r[1] for r in src.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL").fetchall()}
+    tbl_sql = {r[0]: r[1] for r in src.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='table'").fetchall()}
 
     def run(sql, tag):
         try:
@@ -156,24 +197,45 @@ def _migrate_objects(src, cur, con, tables, failed_schema, failed_data, log):
                         f"{t}.{name} DEFAULT"):
                     stat["default"] += 1
 
-    # UNIQUE·CHECK·FK 는 원본 CREATE TABLE 문에서 추출 (PRAGMA 로는 CHECK 식을 못 얻음)
+    # 인덱스 — **원본 CREATE INDEX 문을 그대로 재사용**해 WHERE 부분 인덱스·표현식을 보존한다
+    #   (PRAGMA 로는 WHERE·표현식을 못 얻어 조건이 소실됨 — 게이트 5.3 지적).
     for t in tables:
         if t in skip:
             continue
-        # 인덱스 (UNIQUE 포함) — PRAGMA index_list + index_info
         for idx in src.execute(f"PRAGMA index_list([{t}])").fetchall():
             iname, uniq, origin = idx[1], idx[2], idx[3]
-            if origin == "pk":
-                continue                               # 기본키 인덱스는 PK 로 이미 존재
-            cols = [r[2] for r in src.execute(f"PRAGMA index_info([{iname}])").fetchall()]
-            if not cols or any(c is None for c in cols):
-                continue                               # 식 기반 인덱스는 2차 대상(별도)
-            collist = ", ".join(f'"{c}"' for c in cols)
-            kw = "UNIQUE INDEX" if uniq else "INDEX"
-            safe = iname.replace('"', "")
-            if run(f'CREATE {kw} "{safe}" ON "{t}" ({collist})', f"index {iname}"):
-                stat["unique" if uniq else "index"] += 1
-        # FK — PRAGMA foreign_key_list
+            if origin == "pk" or origin == "u" and iname.startswith("sqlite_"):
+                continue                               # PK·자동 UNIQUE 인덱스는 PK/UNIQUE 로 이미 존재
+            osql = idx_sql.get(iname)
+            if osql:
+                # SQLite CREATE INDEX 문은 PG 와 대체로 호환(WHERE·표현식 포함). datetime 등만 변환.
+                sys.path.insert(0, os.path.join(HERE, "pilot"))
+                from adapter import to_pg
+                pg_sql, _ = to_pg(osql)
+                if run(pg_sql, f"index {iname}"):
+                    stat["unique" if uniq else "index"] += 1
+            else:
+                # 원문이 없으면(자동 생성 UNIQUE 등) 컬럼만으로 재생성
+                cols = [r[2] for r in src.execute(f"PRAGMA index_info([{iname}])").fetchall()]
+                if not cols or any(c is None for c in cols):
+                    continue
+                collist = ", ".join(f'"{c}"' for c in cols)
+                kw = "UNIQUE INDEX" if uniq else "INDEX"
+                if run(f'CREATE {kw} "{iname}" ON "{t}" ({collist})', f"index {iname}"):
+                    stat["unique" if uniq else "index"] += 1
+
+    # CHECK — 원본 CREATE TABLE 에서 추출해 ALTER TABLE ADD CHECK (게이트 5.2)
+    for t in tables:
+        if t in skip:
+            continue
+        for k, chk in enumerate(_extract_checks(tbl_sql.get(t, ""))):
+            if run(f'ALTER TABLE "{t}" ADD CONSTRAINT "{t}_chk_{k}" CHECK {chk}', f"CHECK {t}#{k}"):
+                stat["check"] += 1
+
+    # FK — PRAGMA foreign_key_list
+    for t in tables:
+        if t in skip:
+            continue
         for fk in src.execute(f"PRAGMA foreign_key_list([{t}])").fetchall():
             _id, _seq, reftab, frm, to, on_upd, on_del, match = fk[0], fk[1], fk[2], fk[3], fk[4], fk[5], fk[6], fk[7]
             if reftab in skip or not to:
@@ -195,6 +257,15 @@ def _migrate_objects(src, cur, con, tables, failed_schema, failed_data, log):
         if run(pg_vsql, f"view {vname}"):
             stat["view"] += 1
 
+    # TRIGGER — SQLite 트리거는 PG(트리거 함수+트리거)와 문법이 완전히 다르다.
+    #   자동 변환하지 않고 **결정 대기 목록**으로 남긴다(그대로 옮길지 앱 이력으로 대체할지는 결정사항·게이트 5.1).
+    for tname, tsql in src.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='trigger'").fetchall():
+        stat["trigger_deferred"] += 1
+        failed.append((f"trigger {tname}",
+                       "SQLite 트리거 — PG는 트리거함수+트리거로 재작성 필요",
+                       "결정 대기 — PG 트리거로 이관 vs 애플리케이션 변경이력(WP-08)으로 대체"))
+
     # 미이전 사유를 분류한다 (게이트 P0-04: '누락 0 또는 승인된 차이와 사유').
     def _why(msg):
         m = msg.lower()
@@ -208,10 +279,19 @@ def _migrate_objects(src, cur, con, tables, failed_schema, failed_data, log):
             return "SQLite 전용 날짜 산술(DATE(x,'-N day')·%w) — PG 문법으로 재작성 필요(사람 판단)"
         return "기타 — 원인 확인 필요"
 
-    stat["failed"] = [(tag, msg, _why(msg)) for tag, msg in failed]
+    # failed 항목이 2-튜플(자동분류)인지 3-튜플(이미 사유 있음)인지 구분
+    norm_failed = []
+    for item in failed:
+        if len(item) == 3:
+            norm_failed.append(item)
+        else:
+            tag, msg = item
+            norm_failed.append((tag, msg, _why(msg)))
+    stat["failed"] = norm_failed
     stat["summary"] = (f"NOT NULL {stat['notnull']}·DEFAULT {stat['default']}·"
-                       f"UNIQUE {stat['unique']}·INDEX {stat['index']}·FK {stat['fk']}·"
-                       f"VIEW {stat['view']} · 미이전 {len(failed)}")
+                       f"UNIQUE {stat['unique']}·INDEX {stat['index']}·CHECK {stat['check']}·"
+                       f"FK {stat['fk']}·VIEW {stat['view']}·TRIGGER 결정대기 {stat['trigger_deferred']}"
+                       f" · 미이전/대기 {len(norm_failed)}")
     return stat
 
 
@@ -266,21 +346,31 @@ def main():
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite%' ORDER BY name")]
     log(f"대상 표 {len(tables)}개")
 
-    # ── P0-03(게이트 재지적 3.2): **적재 전에** 원본을 사전검사한다.
-    #    승인되지 않은 변환 대상이 1건이라도 있으면 PostgreSQL DB 생성·적재 전에 중단(fail-closed).
-    approved = _load_approved(a.approved)
+    # ── P0-03(게이트 3.2·§3): **적재 전에** 원본을 **행 PK 단위로** 사전검사한다.
+    #    승인 키 = (표, PK값, 컬럼, 원본값). 사유·승인자·승인일시 필수. 승인목록 SHA 보존.
+    #    미승인 변환이 1건이라도 있으면 PostgreSQL DB 생성·적재 전에 중단(fail-closed).
+    approved, approve_bad = _load_approved(a.approved)
+    approve_sha = sha256_file(a.approved) if a.approved and os.path.exists(a.approved) else "(없음)"
     presan = _prescan(src, tables)
-    unapproved = [c for c in presan if (c[0], c[1], c[3]) not in approved]
+    unapproved = [c for c in presan if (c[0], c[1], c[2], c[4]) not in approved]
     if presan:
         with open(os.path.join(RESULTS, "cleaned.csv"), "w", newline="", encoding="utf-8-sig") as f:
             wr = csv.writer(f)
-            wr.writerow(["표", "컬럼", "처리", "원본값", "승인여부"])
-            for t_, col_, kind_, val_ in presan:
-                wr.writerow([t_, col_, kind_, val_, "승인" if (t_, col_, val_) in approved else "미승인"])
-        log(f"사전검사: 원본과 다르게 담아야 하는 값 {len(presan)}건 · 미승인 {len(unapproved)}건 — cleaned.csv")
+            wr.writerow(["표", "PK값", "컬럼", "처리", "원본값", "변환값", "승인여부", "사유", "승인자", "승인일시"])
+            for t_, pk_, col_, kind_, val_ in presan:
+                meta = approved.get((t_, pk_, col_, val_))
+                cvt = "NULL"  # 빈칸·숫자아님은 NULL, 수량소수는 정수화
+                if "소수" in kind_:
+                    cvt = "정수화"
+                wr.writerow([t_, pk_, col_, kind_, val_, cvt, "승인" if meta else "미승인",
+                             meta[0] if meta else "", meta[1] if meta else "", meta[2] if meta else ""])
+        log(f"사전검사: 변환 대상 {len(presan)}건(행 PK 단위) · 미승인 {len(unapproved)}건 · 승인목록 SHA {approve_sha[:12]}")
+    if approve_bad:
+        log(f"⛔ 중단: 승인목록에 필수값 누락 — {approve_bad[:3]}")
+        return 2
     if unapproved:
         log("⛔ 중단: 승인되지 않은 원본 변환이 있어 DB 생성·적재 전에 멈춥니다(원본 보존 원칙).")
-        log(f"   승인 목록(--approved <csv>: 표,컬럼,원본값,사유,승인자,승인일시)을 채운 뒤 다시 실행하세요.")
+        log("   --approved <csv>: 표,PK값,컬럼,원본값,사유,승인자,승인일시 (행별 승인·필수값)")
         log(f"   결과: results/cleaned.csv (미승인 {len(unapproved)}건)")
         with open(os.path.join(RESULTS, "run.log"), "a", encoding="utf-8") as f:
             f.write("\n".join(LOG_LINES) + "\n" + "-" * 60 + "\n")
@@ -313,14 +403,15 @@ def main():
         ddl, mapping = build_table(t, [tuple(c) for c in cols], pk_cols)
         ddl_all.append(ddl + ";")
         mapping_all.extend(mapping)
+        checks = len(_extract_checks(dict(src.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='table'").fetchall()).get(t, "")))
         objmatrix.append({
             "table": t, "columns": len(cols),
             "pk": ",".join(pk_cols) or "-",
             "pk_kind": "복합" if len(pk_cols) > 1 else ("단일" if pk_cols else "없음"),
-            "fk_count": len(fks),
-            "index_count": len(idxs),
-            "unique_index": sum(1 for i in idxs if i[2]),
-            "fk_moved": "미이전(2차)", "index_moved": "미이전(2차)",
+            "fk_src": len(fks), "index_src": len([i for i in idxs if i[3] != "pk"]),
+            "check_src": checks,
+            "fk_pg": "-", "index_pg": "-", "check_pg": "-",  # 2차 이관 후 실제값으로 채움
         })
         try:
             cur.execute(ddl)
@@ -393,6 +484,19 @@ def main():
         obj_stats = _migrate_objects(src, cur, con, tables, failed_schema, failed_data, log)
         t_obj = time.time() - t0
         log(f"스키마 객체 2차: {obj_stats['summary']} · {t_obj:.2f}s")
+        # object_matrix 를 **실제 PG 생성 결과와 동기화**한다 (게이트 4.3)
+        for o in objmatrix:
+            tn = o["table"]
+            cur.execute("""SELECT COUNT(*) FROM information_schema.table_constraints
+                           WHERE table_schema='public' AND table_name=%s AND constraint_type='FOREIGN KEY'""", (tn,))
+            o["fk_pg"] = cur.fetchone()[0]
+            cur.execute("""SELECT COUNT(*) FROM information_schema.table_constraints
+                           WHERE table_schema='public' AND table_name=%s AND constraint_type='CHECK'
+                             AND constraint_name NOT LIKE '%%_not_null'""", (tn,))
+            o["check_pg"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM pg_indexes WHERE schemaname='public' AND tablename=%s", (tn,))
+            # PK 인덱스 제외 위해 pg_indexes 전체에서 1(PK) 차감은 부정확 → 그대로 두고 참고값
+            o["index_pg"] = cur.fetchone()[0]
 
     # ── P0-01: 기존 ID 를 그대로 넣었으므로 자동번호(sequence)를 최대값 다음으로 맞춘다.
     #    이 처리가 없으면 **이관 직후 첫 등록이 PK 충돌로 실패**한다(실증: parts id=1 중복).
@@ -500,12 +604,14 @@ def main():
         f.write("\n\n".join(ddl_all))
     w("type_mapping.csv", ["표", "컬럼", "SQLite선언", "PostgreSQL", "분류", "근거규정"], mapping_all)
     w("object_matrix.csv",
-      ["표", "컬럼수", "기본키", "기본키종류", "FK수", "인덱스수", "UNIQUE인덱스", "FK이전", "인덱스이전"],
-      [[o["table"], o["columns"], o["pk"], o["pk_kind"], o["fk_count"], o["index_count"],
-        o["unique_index"], o["fk_moved"], o["index_moved"]] for o in objmatrix])
+      ["표", "컬럼수", "기본키", "기본키종류",
+       "FK(원본)", "FK(PG실제)", "CHECK(원본)", "CHECK(PG실제)", "인덱스(원본)", "인덱스(PG실제)"],
+      [[o["table"], o["columns"], o["pk"], o["pk_kind"],
+        o["fk_src"], o["fk_pg"], o["check_src"], o["check_pg"], o["index_src"], o["index_pg"]]
+       for o in objmatrix])
     w("rowcount.csv", ["표", "SQLite", "PostgreSQL", "판정"], rowcounts)
     w("sums.csv", ["표", "컬럼", "분류", "SQLite합계", "PG합계", "차이", "판정"], sums)
-    w("cleaned.csv", ["표", "컬럼", "처리", "원본값"], cleaned)
+    # cleaned.csv 는 §사전검사 블록에서 PK·승인정보 포함으로 이미 기록했다(여기서 덮어쓰지 않음).
     w("identity_sequence.csv", ["표", "컬럼", "현재MAX", "기대다음번호", "실제다음번호(복원후)", "판정"], seq_rows)
 
     summary = [
