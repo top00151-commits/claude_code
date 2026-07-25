@@ -583,6 +583,147 @@ try:
     chk("v5 P1-02''''' 일반 기술영업 업무는 비상복구 감사와 구분(기록 안 함)",
         len(pu.get_audit()) == _n3)
 
+    # ══════════ F. 게이트 v6 최종 승인 테스트 §8-1~10 ══════════
+    #   핵심: "화면엔 오류인데 DB 는 바뀐" 부분 성공 금지 · 관리자 우회는 **모든** 쓰기 경로에서
+    #         요청자·사유 필수 · 업무 변경과 감사는 한 트랜잭션 · 적용시점 형식 서버 검증
+    print("\n── F. 게이트 v6 §8 최종 승인 테스트 (부분 성공·우회 필수·원자성·날짜형식) ──")
+    PF = mkproject("999F001")
+    OF = mkorder(PF, "SO-F-1")
+    _OV_OK = {"override_requester": "기술영업팀 홍길동", "override_reason": "담당자 부재 · 대표 지시"}
+
+    def _newunit(no, name=None):
+        return pu.create_unit(PF, working_name=(name or f"개발{no}"), unit_no=no, actor_id=13)
+
+    def _state(uid):
+        return pu.get_unit(uid)["unit_state"]
+
+    def _loc(rr):
+        return rr.headers.get("location", "")
+
+    # ① 기술영업팀장 확정 성공 → 성공 응답 + 상태 CONFIRMED (부분 성공이 사라졌는지)
+    UF1 = _newunit("1호기")
+    rf1 = _as(SALES_LEAD, f"/units/{UF1}/confirm", {})
+    chk("§8-1 기술영업팀장 확정 → **성공** 응답", "success=" in _loc(rf1), _loc(rf1))
+    chk("§8-1' 확정 결과 상태 CONFIRMED", _state(UF1) == "CONFIRMED")
+
+    # ② 확정 처리 중 오류 → 상태 PROVISIONAL 유지 (화면 오류 = DB 무변화)
+    UF2 = pu.create_unit(PF, working_name="번호없는개발", actor_id=13)
+    rf2 = _as(SALES_LEAD, f"/units/{UF2}/confirm", {})
+    chk("§8-2 확정 중 오류 → 오류 응답", "error=" in _loc(rf2))
+    chk("§8-2' 확정 중 오류 → 상태 PROVISIONAL 유지", _state(UF2) == "PROVISIONAL")
+
+    # ③ 관리자 번호변경 · 우회 사유 없음 → 변경 전 상태 유지
+    #   ⚠ 적용시점을 비우면 '같은 적용시점 중복'이라는 **다른 이유**로 막혀 시험이 무의미해진다.
+    #     지난 날짜를 명시해 "우회 검사가 없으면 반드시 성공하는 요청"으로 만든다.
+    UF3 = _newunit("3호기")
+    _req3 = {"new_unit_no": "33호기", "reason": "관리자 임의변경", "effective_from": "2026-07-01"}
+    rf3 = _as(ADMIN, f"/units/{UF3}/unit-no", dict(_req3))
+    chk("§8-3 관리자 번호변경 · 사유 없음 → 거부", "error=" in _loc(rf3), _loc(rf3))
+    chk("§8-3' 호기번호 변경 전 값 유지", pu.get_unit(UF3)["current_unit_no"] == "3호기")
+    chk("§8-3'' 번호 이력 추가 없음",
+        cnt("project_unit_identifier_history", "project_unit_id=?", (UF3,)) == 1)
+    chk("§8-3''' 같은 요청에 요청자+사유를 넣으면 수행됨(막힌 이유가 '우회 검사'임을 확인)",
+        "success=" in _loc(_as(ADMIN, f"/units/{UF3}/unit-no", dict(_req3, **_OV_OK)))
+        and cnt("project_unit_identifier_history", "project_unit_id=?", (UF3,)) == 2)
+
+    # ④ 관리자 확정 · 사유 없음 → PROVISIONAL 유지
+    rf4 = _as(ADMIN, f"/units/{UF3}/confirm", {})
+    chk("§8-4 관리자 확정 · 사유 없음 → 거부", "error=" in _loc(rf4))
+    chk("§8-4' 상태 PROVISIONAL 유지", _state(UF3) == "PROVISIONAL")
+
+    # ⑤ 관리자 취소 · 사유 없음 → 기존 상태 유지
+    rf5 = _as(ADMIN, f"/units/{UF3}/cancel", {"reason": "관리자 취소"})
+    chk("§8-5 관리자 취소 · 사유 없음 → 거부", "error=" in _loc(rf5))
+    chk("§8-5' 취소되지 않고 상태 그대로", _state(UF3) == "PROVISIONAL")
+
+    # ⑥ 관리자 수주연결 · 사유 없음 → 링크 수 불변
+    _lk0 = len(pu.get_unit(UF3)["orders"])
+    rf6 = _as(ADMIN, f"/units/{UF3}/order-link", {"order_id": str(OF), "relation_type": "ORIGIN"})
+    chk("§8-6 관리자 수주연결 · 사유 없음 → 거부", "error=" in _loc(rf6))
+    chk("§8-6' 연결 수 불변", len(pu.get_unit(UF3)["orders"]) == _lk0)
+
+    # ⑦ 관리자 후보 일괄반영 · 사유 없음 → Unit·링크·Audit 모두 불변
+    PF7 = mkproject("999F007")
+    LF7 = mkline(mkorder(PF7, "SO-F-7"), "1호기")
+    _u0, _l0, _a0 = cnt("project_units"), cnt("project_unit_order_links"), len(pu.get_audit())
+    rf7 = _as(ADMIN, f"/project/{PF7}/units/candidates/apply",
+              {"pick": [str(LF7)], f"action_{LF7}": "new", "reason": "관리자 반영"})
+    chk("§8-7 관리자 후보반영 · 사유 없음 → 거부", "error=" in _loc(rf7))
+    chk("§8-7' Unit·링크·감사 **모두 불변**",
+        cnt("project_units") == _u0 and cnt("project_unit_order_links") == _l0
+        and len(pu.get_audit()) == _a0)
+
+    # ⑧ 관리자 요청자 없음 → 업무 변경 **전** 거부 (완료보고 계약 = 요청자+사유 둘 다 필수)
+    PF8 = mkproject("999F008")
+    rf8 = _as(ADMIN, f"/project/{PF8}/units/create",
+              {"working_name": "요청자없음", "override_reason": "사유만 입력"})
+    chk("§8-8 관리자 우회 · **요청자 없음** → 거부", "error=" in _loc(rf8))
+    chk("§8-8' 업무 변경 전 거부(생성 0)", cnt("project_units", "project_id=?", (PF8,)) == 0)
+    rf8b = _as(ADMIN, f"/project/{PF8}/units/create",
+               {"working_name": "사유없음", "override_requester": "기술영업팀 홍길동"})
+    chk("§8-8'' 관리자 우회 · **사유 없음** → 거부", "error=" in _loc(rf8b))
+    rf8c = _as(ADMIN, f"/project/{PF8}/units/create", dict(_OV_OK, working_name="정상복구"))
+    chk("§8-8''' 요청자+사유 모두 있으면 수행 + 감사에 둘 다 기록",
+        "success=" in _loc(rf8c) and cnt("project_units", "project_id=?", (PF8,)) == 1
+        and "홍길동" in (pu.get_audit()[0]["note"] or "")
+        and "담당자 부재" in (pu.get_audit()[0]["note"] or ""), str(pu.get_audit()[:1]))
+
+    # ⑨ Audit INSERT 실패 주입 → 업무 변경 Rollback (업무+감사 = 단일 트랜잭션)
+    with db.db_session() as _c:
+        _c.execute("CREATE TRIGGER IF NOT EXISTS t_audit_fail BEFORE INSERT ON project_unit_audit "
+                   "BEGIN SELECT RAISE(ABORT, '감사 기록 실패(시험 주입)'); END")
+    PF9 = mkproject("999F009")
+    rf9 = _as(ADMIN, f"/project/{PF9}/units/create", dict(_OV_OK, working_name="원자성"))
+    chk("§8-9 감사 실패 주입 → **생성 Rollback**",
+        cnt("project_units", "project_id=?", (PF9,)) == 0 and "error=" in _loc(rf9))
+    UF9 = _newunit("9호기")
+    _as(ADMIN, f"/units/{UF9}/unit-no", dict(_OV_OK, new_unit_no="99호기", reason="원자성 시험"))
+    chk("§8-9' 감사 실패 주입 → **번호변경 Rollback**",
+        pu.get_unit(UF9)["current_unit_no"] == "9호기"
+        and cnt("project_unit_identifier_history", "project_unit_id=?", (UF9,)) == 1)
+    _as(ADMIN, f"/units/{UF9}/confirm", dict(_OV_OK))
+    chk("§8-9'' 감사 실패 주입 → **확정 Rollback**", _state(UF9) == "PROVISIONAL")
+    _as(ADMIN, f"/units/{UF9}/order-link", dict(_OV_OK, order_id=str(OF), relation_type="ORIGIN"))
+    chk("§8-9''' 감사 실패 주입 → **수주연결 Rollback**", len(pu.get_unit(UF9)["orders"]) == 0)
+    _as(ADMIN, f"/units/{UF9}/cancel", dict(_OV_OK, reason="원자성 취소"))
+    chk("§8-9'''' 감사 실패 주입 → **취소 Rollback**", _state(UF9) == "PROVISIONAL")
+    PF9B = mkproject("999F09B")
+    LF9B = mkline(mkorder(PF9B, "SO-F-9B"), "1호기")
+    _as(ADMIN, f"/project/{PF9B}/units/candidates/apply",
+        dict(_OV_OK, pick=[str(LF9B)], reason="원자성 일괄반영", **{f"action_{LF9B}": "new"}))
+    chk("§8-9''''' 감사 실패 주입 → **후보 일괄반영 Rollback**",
+        cnt("project_units", "project_id=?", (PF9B,)) == 0
+        and cnt("project_unit_order_links", "order_id=?",
+                (mkorder(PF9B, "SO-F-9B-x"),)) == 0)
+    with db.db_session() as _c:
+        _c.execute("DROP TRIGGER IF EXISTS t_audit_fail")
+    _a9 = len(pu.get_audit())
+    _as(ADMIN, f"/units/{UF9}/confirm", dict(_OV_OK))
+    chk("§8-9'''''' 주입 해제 후 정상 수행 + 감사 1건(무조건 막기가 아님)",
+        _state(UF9) == "CONFIRMED" and len(pu.get_audit()) == _a9 + 1)
+
+    # ⑩ 잘못된 Effectivity 날짜 → 이력·현재값 불변 (화면을 거치지 않는 직접 요청 방어)
+    UF10 = _newunit("10호기")
+    _h0 = cnt("project_unit_identifier_history", "project_unit_id=?", (UF10,))
+    for _bad, _why in (("20260501", "구분자 없음"), ("2026/05/01", "슬래시"),
+                       ("0001-01-01", "업무상 불가능한 과거"), ("내일", "글자"),
+                       ("2026-13-45", "없는 날짜")):
+        _rb = _as(SALES_LEAD, f"/units/{UF10}/unit-no",
+                  {"new_unit_no": "77호기", "reason": "형식 시험", "effective_from": _bad})
+        chk(f"§8-10 잘못된 적용시점 거부 · {_why}({_bad})", "error=" in _loc(_rb), _loc(_rb))
+    chk("§8-10' 이력·현재값 불변",
+        cnt("project_unit_identifier_history", "project_unit_id=?", (UF10,)) == _h0
+        and pu.get_unit(UF10)["current_unit_no"] == "10호기")
+    _reff = _as(SALES_LEAD, f"/units/{UF10}/unit-no",
+                {"new_unit_no": "77호기", "reason": "정상 소급 정정", "effective_from": "2026-06-01"})
+    chk("§8-10'' 올바른 지난 날짜는 정상 반영(그 시점 조회로 확인)",
+        "success=" in _loc(_reff) and pu.unit_no_at(UF10, "2026-06-15") == "77호기", _loc(_reff))
+    chk("§8-10''' 지난 구간 정정이 **현재값을 바꾸지 않음**",
+        pu.get_unit(UF10)["current_unit_no"] == "10호기")
+    _rfut = _as(SALES_LEAD, f"/units/{UF10}/unit-no",
+                {"new_unit_no": "78호기", "reason": "미래 예약", "effective_from": "2099-01-01"})
+    chk("§8-10'''' 미래 예약은 V1 에서 거부(문구 유지)", "error=" in _loc(_rfut))
+
     chk("분할·통합 실행 경로 없음(404)",
         client.post(f"/units/{uid_r}/split", data={}, follow_redirects=False).status_code == 404)
 except ImportError as e:

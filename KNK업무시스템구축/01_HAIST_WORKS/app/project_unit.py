@@ -27,6 +27,7 @@
 # ============================================================
 import re
 import sqlite3
+from datetime import datetime
 
 from .database import db_session, _logi_now
 
@@ -66,6 +67,54 @@ def _norm_unit_no(s) -> str:
     s = re.sub(r"\s+", "", (s or "")).strip()
     m = _HOGI_NUM_RE.match(s)
     return f"{int(m.group(1))}호기" if m else s
+
+
+# ── 적용시점(Effectivity) 입력 검증 ─────────────────────────────
+# [게이트 v6 P1-02] 화면은 날짜칸을 쓰지만 HTTP 요청은 화면을 통하지 않고 직접 보낼 수 있다.
+#   문자열 비교만 하면 '0001-01-01' 같은 값이 '과거'로 통과해 이력에 들어가고,
+#   '20260501'·'2026/05/01' 은 엉뚱하게 "미래 예약" 이라며 거부돼 사용자가 이유를 오해한다.
+#   → 서버에서 **명시적으로 해석·정규화**하고, 형식 위반은 이력 변경 전에 거부한다.
+_EFF_DATE_FMT = "%Y-%m-%d"
+_EFF_DT_FMTS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M")
+_EFF_MIN_YEAR = 2000            # 업무상 있을 수 없는 과거(오타·기본값 유입) 차단
+
+
+def norm_effective_from(s) -> str:
+    """적용시점 문자열을 해석·정규화한다. 빈값이면 '' (호출부가 '지금'으로 처리).
+    허용: `YYYY-MM-DD` / `YYYY-MM-DD HH:MM[:SS]`(T 구분자 포함). 그 외·없는 날짜는 거부."""
+    s = re.sub(r"\s+", " ", (s or "")).strip()
+    if not s:
+        return ""
+    out = None
+    try:
+        out = datetime.strptime(s, _EFF_DATE_FMT).strftime(_EFF_DATE_FMT)
+    except ValueError:
+        for f in _EFF_DT_FMTS:
+            try:
+                out = datetime.strptime(s, f).strftime("%Y-%m-%d %H:%M:%S")
+                break
+            except ValueError:
+                continue
+    if not out:
+        raise ValueError("적용시점 형식이 올바르지 않습니다. 날짜로 입력하세요(예: 2026-05-01).")
+    if int(out[:4]) < _EFF_MIN_YEAR:
+        raise ValueError(f"적용시점이 너무 이릅니다({out[:10]}). {_EFF_MIN_YEAR}년 이후로 입력하세요.")
+    return out
+
+
+# ── 감사 기록(업무 변경과 **같은 트랜잭션**) ─────────────────────
+# [게이트 v6 P0-03] 업무 변경이 먼저 커밋되고 감사 기록이 다른 연결에서 실패하면
+#   "업무는 바뀌었는데 누가·왜 바꿨는지는 없는" 상태가 남는다.
+#   관리자 비상복구 감사를 필수로 정한 이상 **둘 다 성공하거나 둘 다 실패**해야 한다.
+def _audit_tx(c, audit):
+    """열린 트랜잭션 안에서 감사 1건 기록. audit=None(일반 업무)이면 아무것도 하지 않는다."""
+    if not audit:
+        return
+    c.execute(
+        "INSERT INTO project_unit_audit(actor_id, actor_name, action, target, note, created_at) "
+        "VALUES(?,?,?,?,?,?)",
+        (audit.get("actor_id") or 0, audit.get("actor_name") or "", audit.get("action") or "",
+         audit.get("target") or "", audit.get("note") or "", _logi_now()))
 
 
 def _table_ready(c) -> bool:
@@ -230,7 +279,7 @@ def scan_candidates(pid) -> dict:
     return {"ready": True, "candidates": cands, "summary": s, "units": units}
 
 
-def apply_candidate_decisions(pid, decisions, reason, actor_id=0) -> dict:
+def apply_candidate_decisions(pid, decisions, reason, actor_id=0, audit=None) -> dict:
     """사용자가 **후보마다 내린 판정**을 반영한다(F-01/F-02/F-03).
 
     decisions = [{order_item_id, action, unit_id?, relation_type?}, ...]
@@ -286,6 +335,12 @@ def apply_candidate_decisions(pid, decisions, reason, actor_id=0) -> dict:
                     linked.append((uid, cd["order_no"], rel))
                 except ValueError as e:
                     rejected.append((oid, str(e)))
+        # [게이트 v6 P0-03] 감사도 **같은 트랜잭션** — 감사가 실패하면 이 반영 전체가 취소된다.
+        if audit:
+            _a = dict(audit)
+            _a["note"] = (f"{_a.get('note') or ''} — 신규 {len(created)} · 연결 {len(linked)} · "
+                          f"거부 {len(rejected)}").strip()
+            _audit_tx(c, _a)
     return {"created": len(created), "created_ids": created,
             "linked": len(linked), "linked_detail": linked, "rejected": rejected}
 
@@ -337,9 +392,11 @@ def _link_order_tx(c, unit_id, order_id, relation_type, reason, actor_id,
 
 
 def link_order(unit_id, order_id, relation_type="ADDITIONAL", reason=None,
-               actor_id=0, change_id=None) -> int:
+               actor_id=0, change_id=None, audit=None) -> int:
     with db_session() as c:
-        return _link_order_tx(c, unit_id, order_id, relation_type, reason, actor_id, change_id)
+        rid = _link_order_tx(c, unit_id, order_id, relation_type, reason, actor_id, change_id)
+        _audit_tx(c, audit)          # [v6 P0-03] 연결과 감사는 함께 남거나 함께 취소
+        return rid
 
 
 # ══════════════════ 조회 ══════════════════
@@ -434,7 +491,7 @@ def project_unit_summary(pid) -> dict:
 # ══════════════════ 생성·번호지정/변경·확정·취소 ══════════════════
 
 def create_unit(pid, working_name=None, unit_no=None, equipment_type=None,
-                actor_id=0, note=None) -> int:
+                actor_id=0, note=None, audit=None) -> int:
     """개발호기 생성 — 호기번호 없이 개발호기명만으로 생성 가능."""
     working_name = (working_name or "").strip() or None
     unit_no = _norm_unit_no(unit_no) or None
@@ -459,11 +516,15 @@ def create_unit(pid, working_name=None, unit_no=None, equipment_type=None,
                 "new_unit_no, change_reason, changed_by, changed_at, effective_from) "
                 "VALUES(?,NULL,?,?,?,?,?)",
                 (uid, unit_no, "최초 지정", actor_id, _logi_now(), _logi_now()))
+        if audit:                    # [v6 P0-03] 생성과 감사는 함께 남거나 함께 취소
+            _a = dict(audit)
+            _a["target"] = (_a.get("target") or "").replace("{unit_id}", str(uid))
+            _audit_tx(c, _a)
         return uid
 
 
 def change_unit_no(unit_id, new_unit_no, reason, actor_id=0, change_id=None,
-                   effective_from=None) -> bool:
+                   effective_from=None, audit=None) -> bool:
     """호기번호 지정·변경 — **Unit id 는 유지**되고 이력이 남는다(적용시점 포함).
     확정(CONFIRMED) 호기는 영향 확인이 필요(V1 미연동이라 차단)."""
     new_no = _norm_unit_no(new_unit_no)
@@ -471,6 +532,8 @@ def change_unit_no(unit_id, new_unit_no, reason, actor_id=0, change_id=None,
         raise ValueError("새 호기번호를 입력하세요.")
     if not (reason or "").strip():
         raise ValueError("호기번호를 정하거나 바꾸려면 사유를 입력하세요.")
+    # [게이트 v6 P1-02] 적용시점 형식은 **DB 를 건드리기 전에** 해석·정규화하고 위반이면 거부한다.
+    eff_in = norm_effective_from(effective_from)
     with db_session() as c:
         u = c.execute("SELECT * FROM project_units WHERE id=?", (unit_id,)).fetchone()
         if not u:
@@ -478,7 +541,7 @@ def change_unit_no(unit_id, new_unit_no, reason, actor_id=0, change_id=None,
         if u["unit_state"] == "CANCELLED":
             raise ValueError("취소된 호기는 변경할 수 없습니다.")
         now = _logi_now()
-        eff = (effective_from or "").strip() or now
+        eff = eff_in or now
         # ── [게이트 v5 P0-02] V1 은 **미래 적용 예약을 지원하지 않는다** ──────────
         #   예약일이 도래해도 current_unit_no 를 자동으로 바꿔주는 배치·스케줄러가 없어
         #   화면과 다른 모듈이 옛 번호를 계속 보게 된다(불완전 기능을 운영에 노출하지 않는다).
@@ -520,10 +583,11 @@ def change_unit_no(unit_id, new_unit_no, reason, actor_id=0, change_id=None,
         # ⑥ current_unit_no = **지금 이 시각에 유효한 값**(입력 순서의 마지막 값이 아님)
         c.execute("UPDATE project_units SET current_unit_no=?, updated_by=?, updated_at=? "
                   "WHERE id=?", (_unit_no_at_tx(c, unit_id, now), actor_id, now, unit_id))
+        _audit_tx(c, audit)          # [v6 P0-03] 번호변경과 감사는 함께 남거나 함께 취소
     return True
 
 
-def confirm_unit(unit_id, actor_id=0) -> bool:
+def confirm_unit(unit_id, actor_id=0, audit=None) -> bool:
     """개발·미확정 → 확정. 현재 호기번호 필수."""
     with db_session() as c:
         u = c.execute("SELECT * FROM project_units WHERE id=?", (unit_id,)).fetchone()
@@ -536,10 +600,11 @@ def confirm_unit(unit_id, actor_id=0) -> bool:
         c.execute("UPDATE project_units SET unit_state='CONFIRMED', confirmed_by=?, "
                   "confirmed_at=?, updated_by=?, updated_at=? WHERE id=?",
                   (actor_id, _logi_now(), actor_id, _logi_now(), unit_id))
+        _audit_tx(c, audit)          # [v6 P0-03] 확정과 감사는 함께 남거나 함께 취소
     return True
 
 
-def cancel_unit(unit_id, reason, actor_id=0) -> bool:
+def cancel_unit(unit_id, reason, actor_id=0, audit=None) -> bool:
     """호기 취소 — 물리삭제 금지. CANCELLED 전환 + 사유. 수주 연결은 이력으로 보존."""
     if not (reason or "").strip():
         raise ValueError("취소 사유를 입력하세요.")
@@ -557,17 +622,18 @@ def cancel_unit(unit_id, reason, actor_id=0) -> bool:
                   (actor_id, now, reason.strip(), actor_id, now, unit_id))
         c.execute("UPDATE project_unit_order_links SET active=0, unlinked_by=?, unlinked_at=? "
                   "WHERE project_unit_id=? AND active=1", (actor_id, now, unit_id))
+        _audit_tx(c, audit)          # [v6 P0-03] 취소와 감사는 함께 남거나 함께 취소
     return True
 
 
 def audit_override(actor_id, actor_name, action, target, note):
     """권한 우회(시스템 관리자 복구) 감사 기록 — 사용자·시각·사유 (대표 확정 §3).
-    ⛔ 조용히 삼키지 않는다: 표가 없으면 만들지 않고 예외를 올려 호출부가 알게 한다."""
+    ⛔ 조용히 삼키지 않는다: 표가 없으면 만들지 않고 예외를 올려 호출부가 알게 한다.
+    ⚠ 업무 변경과 **같은 트랜잭션**이 필요한 경로는 이 함수를 쓰지 말고
+       각 함수의 `audit=` 인자로 넘긴다(감사 실패 시 업무 변경도 취소돼야 하므로)."""
     with db_session() as c:
-        c.execute(
-            "INSERT INTO project_unit_audit(actor_id, actor_name, action, target, note, created_at) "
-            "VALUES(?,?,?,?,?,?)",
-            (actor_id, actor_name, action, target, note, _logi_now()))
+        _audit_tx(c, {"actor_id": actor_id, "actor_name": actor_name,
+                      "action": action, "target": target, "note": note})
 
 
 def get_audit(limit=50) -> list:
