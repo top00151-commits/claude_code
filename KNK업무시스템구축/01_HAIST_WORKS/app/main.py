@@ -21230,13 +21230,14 @@ def _punit_actor(u) -> int:
         return 0
 
 
-# ── 호기 업무 역할 권한 (게이트 F-09) ────────────────────────────────
-#   호기는 자재 기능의 하위 입력값이 아니라 프로젝트·설계·BOM·생산·품질·출하가 함께 쓰는 기준정보다.
-#   ⚠ 실제 사용자·부서 테이블의 역할 코드 매핑은 **대표 확정 대기** — 아래는 현 시스템에서
-#      확인 가능한 역할(role)·팀(team_id)로 구성한 잠정안이며, 확정 시 이 함수들만 교체한다.
-_PUNIT_TEAM_PM = (1, 2)        # 영업·검사기(프로젝트 주관) — PM 성격
-_PUNIT_TEAM_DESIGN = (4, 5, 6)  # 설계·전장·SW (설계책임)
-_PUNIT_TEAM_SALES = (1,)        # 영업담당
+# ── 호기 업무 권한 (대표 확정 DEC-PUNIT-OWNER-01 · 2026-07-25) ──────────────
+#   ⭐ 개발호기 생성·수주 후보 판정·기존 Unit 연결·호기번호 지정/변경은 **기술영업팀** 담당 업무.
+#      설계·구매·제조·품질·출하는 호기를 업무에 쓰지만 **기준정보를 만들거나 바꾸지 않는다**(조회만).
+#   ⛔ 기존 can_use_sales() 는 팀 1·2·3 + 자재권한 폴백까지 포함해 범위가 넓다 → 그대로 쓰지 않고
+#      아래 호기 전용 함수에서 기술영업팀·명시 위임자만 판정한다(게이트 §3 주의).
+PUNIT_OWNER_TEAM_ID = 1        # 기술영업팀 (teams.id=1 · code '01')
+_PUNIT_EXEC_ROLES = ("ceo", "executive")   # 대표·임원 — 항상 가능
+_PUNIT_ADMIN_ROLE = "admin"                # 시스템 관리자 — 복구 목적(감사 기록)
 
 
 def _punit_role(u):
@@ -21244,31 +21245,72 @@ def _punit_role(u):
 
 
 def _punit_team(u):
-    return (u or {}).get("team_id")
+    try:
+        return int((u or {}).get("team_id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _punit_is_owner_team(u) -> bool:
+    return _punit_team(u) == PUNIT_OWNER_TEAM_ID
+
+
+def _punit_owner_delegated(u) -> bool:
+    """기술영업팀 **위임 사용자** — 기존 영업 등록권한 플래그(can_use_sales)를 받은 사람."""
+    if not _punit_is_owner_team(u):
+        return False
+    try:
+        return bool((u or {}).get("can_use_sales"))
+    except AttributeError:
+        return False
+
+
+def _punit_owner_leader(u) -> bool:
+    """기술영업팀장 — 자동으로 수정·승인 가능."""
+    return _punit_is_owner_team(u) and _punit_role(u) == "leader"
 
 
 def can_view_units(u) -> bool:
-    """조회 — 영업·PM·설계·구매·생산·품질·출하·관리자(넓게)."""
-    return bool(u) and (can_view_logistics(u) or can_use_logistics(u)
-                        or _punit_role(u) in ("leader", "executive", "ceo", "admin")
-                        or _punit_team(u) in _PUNIT_TEAM_PM + _PUNIT_TEAM_DESIGN)
+    """호기 조회 — 전 부서 허용(설계·구매·제조·품질·출하가 후속 업무에 사용)."""
+    if not u:
+        return False
+    if _punit_role(u) in _PUNIT_EXEC_ROLES + (_PUNIT_ADMIN_ROLE, "leader"):
+        return True
+    return bool(_punit_team(u)) or can_view_logistics(u) or can_view_sales(u)
 
 
 def can_create_unit(u) -> bool:
-    """개발호기 생성·호기번호 지정/변경 — PM·설계책임자·관리자."""
-    return bool(u) and (_punit_role(u) in ("leader", "executive", "ceo", "admin")
-                        or _punit_team(u) in _PUNIT_TEAM_PM + _PUNIT_TEAM_DESIGN)
+    """개발호기 생성·후보 판정·호기번호 지정/변경 — **기술영업팀**(위임자·팀장) · 대표·임원 · 관리자(복구)."""
+    if not u:
+        return False
+    if _punit_role(u) in _PUNIT_EXEC_ROLES + (_PUNIT_ADMIN_ROLE,):
+        return True
+    return _punit_owner_leader(u) or _punit_owner_delegated(u)
 
 
 def can_link_unit_order(u) -> bool:
-    """수주번호 연결 — 영업담당·PM·관리자."""
-    return bool(u) and (_punit_role(u) in ("leader", "executive", "ceo", "admin")
-                        or _punit_team(u) in _PUNIT_TEAM_SALES + _PUNIT_TEAM_PM)
+    """수주번호 연결 — 호기 생성과 같은 소유부서(기술영업팀) 기준."""
+    return can_create_unit(u)
 
 
 def can_approve_unit(u) -> bool:
-    """호기 확정·취소 — 프로젝트 책임자/지정 승인자(팀장 이상)."""
-    return bool(u) and _punit_role(u) in ("leader", "executive", "ceo", "admin")
+    """호기 확정·취소 — **기술영업팀장**·대표·임원·관리자(비상 복구).
+    ⛔ 다른 부서의 leader 라는 이유만으로는 허용하지 않는다(대표 확정)."""
+    if not u:
+        return False
+    if _punit_role(u) in _PUNIT_EXEC_ROLES + (_PUNIT_ADMIN_ROLE,):
+        return True
+    return _punit_owner_leader(u)
+
+
+def _punit_audit(u, action: str, target: str, note: str = ""):
+    """권한 우회(시스템 관리자 복구) 작업의 감사 기록 — 사용자·시각·사유(대표 확정 §3).
+    호기 소유부서가 아닌 관리자 권한으로 기준정보를 바꾼 경우만 남긴다."""
+    if _punit_role(u) != _PUNIT_ADMIN_ROLE:
+        return
+    _punit.audit_override(actor_id=_punit_actor(u), actor_name=((u or {}).get("name") or ""),
+                          action=action, target=target,
+                          note=(note or "시스템 관리자 권한으로 호기 기준정보 변경(복구 목적)"))
 
 
 @app.get("/project/{pid:int}/units", response_class=HTMLResponse)
@@ -21357,10 +21399,11 @@ async def project_units_create(request: Request, pid: int):
     from urllib.parse import quote as _q
     form = await request.form()
     try:
-        _punit.create_unit(pid, working_name=form.get("working_name"),
-                           unit_no=form.get("unit_no"),
-                           equipment_type=form.get("equipment_type"),
-                           actor_id=_punit_actor(u))
+        _uid_new = _punit.create_unit(pid, working_name=form.get("working_name"),
+                                      unit_no=form.get("unit_no"),
+                                      equipment_type=form.get("equipment_type"),
+                                      actor_id=_punit_actor(u))
+        _punit_audit(u, "create", f"unit#{_uid_new}", "호기 생성")
         return RedirectResponse(f"/project/{pid}/units?success={_q('개발호기 추가됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21384,6 +21427,7 @@ async def project_unit_change_no(request: Request, unit_id: int):
         _punit.change_unit_no(unit_id, form.get("new_unit_no"), form.get("reason"),
                               actor_id=_punit_actor(u), change_id=(form.get("change_id") or None),
                               effective_from=(form.get("effective_from") or None))
+        _punit_audit(u, "unit_no", f"unit#{unit_id}", form.get("reason") or "")
         return RedirectResponse(f"/project/{pid}/units?success={_q('호기번호 반영됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21404,6 +21448,7 @@ async def project_unit_confirm(request: Request, unit_id: int):
     pid = unit["project_id"]
     try:
         _punit.confirm_unit(unit_id, actor_id=_punit_actor(u))
+        _punit_audit(u, "confirm", f"unit#{unit_id}", "호기 확정")
         return RedirectResponse(f"/project/{pid}/units?success={_q('호기 확정됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21425,6 +21470,7 @@ async def project_unit_cancel(request: Request, unit_id: int):
     pid = unit["project_id"]
     try:
         _punit.cancel_unit(unit_id, form.get("reason"), actor_id=_punit_actor(u))
+        _punit_audit(u, "cancel", f"unit#{unit_id}", form.get("reason") or "")
         return RedirectResponse(f"/project/{pid}/units?success={_q('호기 취소됨(이력 유지)')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21448,6 +21494,7 @@ async def project_unit_order_link(request: Request, unit_id: int):
         _punit.link_order(unit_id, int(form.get("order_id") or 0),
                           relation_type=(form.get("relation_type") or "ADDITIONAL"),
                           reason=(form.get("reason") or None), actor_id=_punit_actor(u))
+        _punit_audit(u, "order_link", f"unit#{unit_id}", form.get("reason") or "")
         return RedirectResponse(f"/project/{pid}/units?success={_q('수주 연결됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)

@@ -394,23 +394,21 @@ def get_unit(unit_id):
     return u
 
 
+def _unit_no_at_tx(c, unit_id, when: str):
+    """열린 연결에서 '그 시점에 유효한 호기번호' 계산 — 적용구간(effective_from/to) 기준."""
+    r = c.execute(
+        "SELECT new_unit_no FROM project_unit_identifier_history "
+        "WHERE project_unit_id=? AND COALESCE(effective_from,'') <= ? "
+        "AND (effective_to IS NULL OR effective_to > ?) "
+        "ORDER BY COALESCE(effective_from,''), id DESC LIMIT 1", (unit_id, when, when)).fetchone()
+    return r["new_unit_no"] if r else None
+
+
 def unit_no_at(unit_id, when: str):
     """[F-07] **업무 적용시점(effective_from/to)** 기준으로 그 시점의 호기번호를 재현한다.
     changed_at(기록시각)은 누가 언제 입력했는지를 나타내는 audit 값이며 조회 기준이 아니다."""
     with db_session() as c:
-        rows = [dict(r) for r in c.execute(
-            "SELECT new_unit_no, effective_from, effective_to "
-            "FROM project_unit_identifier_history WHERE project_unit_id=? "
-            "ORDER BY COALESCE(effective_from,''), id", (unit_id,)).fetchall()]
-    val = None
-    for r in rows:
-        ef, et = (r["effective_from"] or ""), r["effective_to"]
-        if ef and ef > when:
-            continue                      # 아직 적용 전(미래 예약 포함)
-        if et and et <= when:
-            continue                      # 이미 종료된 구간
-        val = r["new_unit_no"]
-    return val
+        return _unit_no_at_tx(c, unit_id, when)
 
 
 def project_unit_summary(pid) -> dict:
@@ -488,16 +486,28 @@ def change_unit_no(unit_id, new_unit_no, reason, actor_id=0, change_id=None,
             raise ValueError(f"이 관리번호에서 이미 사용된 호기번호입니다(취소분 포함): {new_no}")
         now = _logi_now()
         eff = (effective_from or "").strip() or now
-        # 적용기간 겹침 방지 — 직전 유효구간을 새 적용시점에서 종료
+        # ── [게이트 v4 P0-03] 적용기간(Effectivity) 규칙 ──────────────────────
+        #   ① 적용시점 T 를 포함하는 기존 구간을 찾아 ② T 에서 종료하고
+        #   ③ 새 구간은 T 에서 시작해 **다음 예정 변경시점**에서 끝난다(소급 입력이 미래 계획을 덮지 않음).
+        #   ④ 같은 적용시점 중복 금지 ⑤ effective_to > effective_from 항상 보장.
+        if c.execute("SELECT 1 FROM project_unit_identifier_history "
+                     "WHERE project_unit_id=? AND effective_from=?", (unit_id, eff)).fetchone():
+            raise ValueError(f"같은 적용시점({eff})의 변경이 이미 있습니다.")
+        # ① T 를 포함하는 구간(시작<=T 이고 종료가 없거나 T 보다 뒤) → ② T 에서 종료
         c.execute("UPDATE project_unit_identifier_history SET effective_to=? "
-                  "WHERE project_unit_id=? AND effective_to IS NULL", (eff, unit_id))
-        c.execute("UPDATE project_units SET current_unit_no=?, updated_by=?, updated_at=? "
-                  "WHERE id=?", (new_no, actor_id, now, unit_id))
+                  "WHERE project_unit_id=? AND COALESCE(effective_from,'') <= ? "
+                  "AND (effective_to IS NULL OR effective_to > ?)", (eff, unit_id, eff, eff))
+        # ③ 새 구간의 종료 = T 이후 가장 이른 기존 적용시점(있으면). 없으면 열린 구간.
+        nxt = c.execute("SELECT MIN(effective_from) FROM project_unit_identifier_history "
+                        "WHERE project_unit_id=? AND effective_from > ?", (unit_id, eff)).fetchone()[0]
         c.execute(
             "INSERT INTO project_unit_identifier_history(project_unit_id, old_unit_no, new_unit_no, "
-            "change_reason, changed_by, changed_at, change_id, effective_from) "
-            "VALUES(?,?,?,?,?,?,?,?)",
-            (unit_id, old_no, new_no, reason.strip(), actor_id, now, change_id, eff))
+            "change_reason, changed_by, changed_at, change_id, effective_from, effective_to) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (unit_id, old_no, new_no, reason.strip(), actor_id, now, change_id, eff, nxt))
+        # ⑥ current_unit_no = **지금 이 시각에 유효한 값**(입력 순서의 마지막 값이 아님)
+        c.execute("UPDATE project_units SET current_unit_no=?, updated_by=?, updated_at=? "
+                  "WHERE id=?", (_unit_no_at_tx(c, unit_id, now), actor_id, now, unit_id))
     return True
 
 
@@ -536,6 +546,25 @@ def cancel_unit(unit_id, reason, actor_id=0) -> bool:
         c.execute("UPDATE project_unit_order_links SET active=0, unlinked_by=?, unlinked_at=? "
                   "WHERE project_unit_id=? AND active=1", (actor_id, now, unit_id))
     return True
+
+
+def audit_override(actor_id, actor_name, action, target, note):
+    """권한 우회(시스템 관리자 복구) 감사 기록 — 사용자·시각·사유 (대표 확정 §3).
+    ⛔ 조용히 삼키지 않는다: 표가 없으면 만들지 않고 예외를 올려 호출부가 알게 한다."""
+    with db_session() as c:
+        c.execute(
+            "INSERT INTO project_unit_audit(actor_id, actor_name, action, target, note, created_at) "
+            "VALUES(?,?,?,?,?,?)",
+            (actor_id, actor_name, action, target, note, _logi_now()))
+
+
+def get_audit(limit=50) -> list:
+    with db_session() as c:
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                         "AND name='project_unit_audit'").fetchone():
+            return []
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM project_unit_audit ORDER BY id DESC LIMIT ?", (limit,)).fetchall()]
 
 
 def get_unit_relations(unit_id) -> list:
