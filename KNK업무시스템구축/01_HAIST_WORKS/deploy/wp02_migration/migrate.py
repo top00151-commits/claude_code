@@ -66,6 +66,45 @@ def dec(v):
     return Decimal(repr(float(v)))
 
 
+def _load_approved(path):
+    """승인된 변환 목록 로드 → {(표, 컬럼, 원본값)} 집합. 없으면 빈 집합."""
+    out = set()
+    if not path or not os.path.exists(path):
+        return out
+    with open(path, encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            out.add((row["표"].strip(), row["컬럼"].strip(), (row.get("원본값") or "").strip()))
+    return out
+
+
+def _prescan(src, tables):
+    """SQLite 원본에서 '그대로 담으면 PG가 거부하거나 값이 바뀌는' 지점을 **적재 전에** 찾는다.
+    반환: [(표, 컬럼, 종류, 원본값), ...]  (P0-03 · 게이트 3.2)"""
+    from type_map import RE_QTY, RE_DECIMAL_OK
+    hits = []
+    for t in tables:
+        info = src.execute(f"PRAGMA table_info([{t}])").fetchall()
+        numeric = {c[1] for c in info if (c[2] or "").upper().split("(")[0] in ("INTEGER", "REAL")}
+        qty = {c for c in numeric if RE_QTY.search(c) and not RE_DECIMAL_OK.search(c)}
+        for c in info:
+            col = c[1]
+            if col not in numeric:
+                continue
+            # ① 숫자 칸에 든 문자열(빈칸·숫자아님)
+            for (v,) in src.execute(
+                    f"SELECT [{col}] FROM [{t}] WHERE [{col}] IS NOT NULL AND typeof([{col}])='text'").fetchall():
+                s = str(v).strip()
+                kind = "빈칸→NULL" if s == "" else "숫자아님→NULL"
+                hits.append((t, col, kind, s))
+            # ② 정수여야 하는 수량인데 소수값(z1048)
+            if col in qty:
+                for (v,) in src.execute(
+                        f"SELECT [{col}] FROM [{t}] WHERE [{col}] IS NOT NULL "
+                        f"AND typeof([{col}])='real' AND [{col}] <> CAST([{col}] AS INTEGER)").fetchall():
+                    hits.append((t, col, "수량 소수(z1048 위반)", str(v)))
+    return hits
+
+
 def guard_target(host: str, dbname: str):
     """P0-02: 도구 자체가 오작동을 거부한다 — 문구가 아니라 코드로 막는다.
     · 로컬 시험 호스트만 허용
@@ -98,8 +137,9 @@ def main():
     ap.add_argument("--pg-user", default="postgres")
     ap.add_argument("--dbname", default="knk_rehearsal")
     ap.add_argument("--keep", action="store_true", help="끝나고 데이터베이스를 지우지 않는다")
-    ap.add_argument("--allow-clean", action="store_true",
-                    help="P0-03: 값 정제(빈칸→NULL 등)를 허용한다. 기본은 **정제 대상이 있으면 중단**")
+    ap.add_argument("--approved", default="",
+                    help="P0-03: 승인된 변환 목록 CSV(표,컬럼,원본값,사유,승인자,승인일시). "
+                         "여기 없는 변환 대상이 있으면 **적재 전에 중단**한다")
     a = ap.parse_args()
 
     guard_target(a.pg_host, a.dbname)      # ← P0-02 안전장치
@@ -113,6 +153,26 @@ def main():
     tables = [r[0] for r in src.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite%' ORDER BY name")]
     log(f"대상 표 {len(tables)}개")
+
+    # ── P0-03(게이트 재지적 3.2): **적재 전에** 원본을 사전검사한다.
+    #    승인되지 않은 변환 대상이 1건이라도 있으면 PostgreSQL DB 생성·적재 전에 중단(fail-closed).
+    approved = _load_approved(a.approved)
+    presan = _prescan(src, tables)
+    unapproved = [c for c in presan if (c[0], c[1], c[3]) not in approved]
+    if presan:
+        with open(os.path.join(RESULTS, "cleaned.csv"), "w", newline="", encoding="utf-8-sig") as f:
+            wr = csv.writer(f)
+            wr.writerow(["표", "컬럼", "처리", "원본값", "승인여부"])
+            for t_, col_, kind_, val_ in presan:
+                wr.writerow([t_, col_, kind_, val_, "승인" if (t_, col_, val_) in approved else "미승인"])
+        log(f"사전검사: 원본과 다르게 담아야 하는 값 {len(presan)}건 · 미승인 {len(unapproved)}건 — cleaned.csv")
+    if unapproved:
+        log("⛔ 중단: 승인되지 않은 원본 변환이 있어 DB 생성·적재 전에 멈춥니다(원본 보존 원칙).")
+        log(f"   승인 목록(--approved <csv>: 표,컬럼,원본값,사유,승인자,승인일시)을 채운 뒤 다시 실행하세요.")
+        log(f"   결과: results/cleaned.csv (미승인 {len(unapproved)}건)")
+        with open(os.path.join(RESULTS, "run.log"), "a", encoding="utf-8") as f:
+            f.write("\n".join(LOG_LINES) + "\n" + "-" * 60 + "\n")
+        return 2
 
     admin = psycopg2.connect(host=a.pg_host, port=a.pg_port, user=a.pg_user, dbname="postgres")
     admin.autocommit = True
@@ -209,19 +269,9 @@ def main():
             failed_data.append((t, len(data), str(e)[:140]))
     t_data = time.time() - t0
     log(f"데이터 이관 {moved}/{len(tables)} · {rows_total:,}행 · 실패 {len(failed_data)} · {t_data:.2f}s")
-
-    # ── P0-03: 값이 조용히 바뀌면 안 된다. 정제 대상이 있으면 **기본은 중단**한다.
+    # 여기 도달했다는 것은 §사전검사에서 모든 변환이 승인됐다는 뜻(미승인이면 적재 전에 이미 중단됨).
     if cleaned:
-        log(f"⚠ 원본과 다르게 담은 값 {len(cleaned)}건 — cleaned.csv 참조")
-        if not a.allow_clean:
-            with open(os.path.join(RESULTS, "cleaned.csv"), "w", newline="", encoding="utf-8-sig") as f:
-                wr = csv.writer(f)
-                wr.writerow(["표", "컬럼", "처리", "원본값"])
-                wr.writerows(cleaned)
-            log("⛔ 중단: 원본 보존 원칙에 따라 값 변경이 있으면 진행하지 않습니다.")
-            log("   업무 담당자 확인·승인 후 --allow-clean 으로 다시 실행하세요.")
-            con.close()
-            return 2
+        log(f"승인된 변환 {len(cleaned)}건 적용(사전검사 통과분) — cleaned.csv 에 기록됨")
 
     # ── P0-01: 기존 ID 를 그대로 넣었으므로 자동번호(sequence)를 최대값 다음으로 맞춘다.
     #    이 처리가 없으면 **이관 직후 첫 등록이 PK 충돌로 실패**한다(실증: parts id=1 중복).
@@ -242,27 +292,20 @@ def main():
             mx = cur.fetchone()[0]
             # 빈 표면 1부터, 값이 있으면 MAX+1 부터 나오게 한다
             cur.execute("SELECT setval(%s, %s, %s)", (seq, mx if mx > 0 else 1, bool(mx > 0)))
+            # 검증: 다음 발급값이 정확히 MAX+1 인가 — **nextval 로 확인하되 곧바로 복원**한다.
+            #   ⚠ PostgreSQL sequence 는 Rollback 으로 되돌아가지 않는다(게이트 3.1 지적).
+            #   그래서 시험 INSERT 를 하지 않고, nextval 로 값만 확인한 뒤 setval 로 원위치시킨다.
+            cur.execute("SELECT nextval(%s)", (seq,))
+            nextv = cur.fetchone()[0]
+            expected = (mx + 1) if mx > 0 else 1
+            cur.execute("SELECT setval(%s, %s, %s)", (seq, mx if mx > 0 else 1, bool(mx > 0)))  # 원위치 복원
             con.commit()
-            # 시험 등록 → 생성된 번호 확인 → 되돌리기
-            test_ok, test_id, test_err = False, None, ""
-            try:
-                cur.execute(f'INSERT INTO "{t}" DEFAULT VALUES RETURNING "{col}"')
-                test_id = cur.fetchone()[0]
-                test_ok = test_id > mx
-                con.rollback()
-            except Exception as e:
-                con.rollback()
-                # NOT NULL 등으로 빈 행 등록이 안 되는 표는 번호만 확인한다
-                cur.execute(f"SELECT last_value, is_called FROM {seq}")
-                lv, called = cur.fetchone()
-                test_id = lv + 1 if called else lv
-                test_ok = test_id > mx
-                test_err = str(e).split("\n")[0][:60]
-            seq_rows.append((t, col, mx, test_id, "정상" if test_ok else "★확인필요", test_err))
-            if test_ok:
+            ok = (nextv == expected)
+            seq_rows.append((t, col, mx, expected, nextv, "정상" if ok else "★확인필요"))
+            if ok:
                 seq_fixed += 1
             else:
-                seq_fail.append((t, col, mx, test_id))
+                seq_fail.append((t, col, mx, nextv))
     t_seq = time.time() - t0
     log(f"자동번호 조정 {seq_fixed}개 · 확인필요 {len(seq_fail)} · {t_seq:.2f}s")
 
@@ -342,7 +385,7 @@ def main():
     w("rowcount.csv", ["표", "SQLite", "PostgreSQL", "판정"], rowcounts)
     w("sums.csv", ["표", "컬럼", "분류", "SQLite합계", "PG합계", "차이", "판정"], sums)
     w("cleaned.csv", ["표", "컬럼", "처리", "원본값"], cleaned)
-    w("identity_sequence.csv", ["표", "컬럼", "현재MAX", "다음발급번호", "판정", "비고"], seq_rows)
+    w("identity_sequence.csv", ["표", "컬럼", "현재MAX", "기대다음번호", "실제다음번호(복원후)", "판정"], seq_rows)
 
     summary = [
         ("원본", a.src), ("원본SHA256", sha256_file(a.src)), ("PostgreSQL", pgver.split(",")[0]),
