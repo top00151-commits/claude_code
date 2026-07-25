@@ -298,9 +298,12 @@ except ValueError as e:
 print("\n── B'. P0-02 법인 DB 기본값 · P1 DB 중복 제약 ──")
 import sqlite3 as _sq3  # noqa: E402
 with db.db_session() as c:
-    _ddl = c.execute("SELECT sql FROM sqlite_master WHERE type='table' "
-                     "AND name='project_units'").fetchone()[0]
-chk("P0-02 DDL 에 DEFAULT 'KOR' 없음", "DEFAULT 'KOR'" not in _ddl)
+    # ⚠ SQL 원문 글자 검색으로 판정하지 않는다 — sqlite_master 는 **주석까지** 보관하므로
+    #   "기본값(DEFAULT 'KOR')을 두면 …" 이라는 설명문에 걸려 **틀린 판정**이 난다.
+    #   (실제로 이 검사가 마이그레이션 결함을 못 잡고 오히려 그 결함 덕에 통과하고 있었다.)
+    _ent_dflt = [r[4] for r in c.execute("PRAGMA table_info(project_units)").fetchall()
+                 if r[1] == "entity"]
+chk("P0-02 entity 컬럼에 기본값 없음(스키마 메타로 판정)", _ent_dflt == [None], str(_ent_dflt))
 try:
     with db.db_session() as c:
         c.execute("INSERT INTO project_units(project_id, working_name) VALUES(?,?)", (PS, "배치입력"))
@@ -328,6 +331,28 @@ _c = _sq3.connect(_old)
 _ddl2 = _c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='project_units'").fetchone()[0]
 _kept = _c.execute("SELECT working_name, entity FROM project_units").fetchall()
 chk("P0-02 기존 DB 보정: DEFAULT 제거됨", "DEFAULT 'KOR'" not in _ddl2, str(_res.get("fixed")))
+chk("P0-02a 진짜 구버전 DB 에서는 보정이 **실행됨**", bool(_res.get("fixed")), str(_res))
+# ⚠[리허설 발견] 새 DB 인데 '기존 DB 보정'이 돌면 안 된다 —
+#   sqlite_master 는 CREATE TABLE 의 **주석까지** 보관하므로 SQL 원문을 글자로 뒤지면
+#   설명문 "기본값(DEFAULT 'KOR')을 두면 …" 에 스스로 걸려 방금 만든 표를 재작성한다.
+_fresh = os.path.join(tempfile.mkdtemp(prefix="wp03_fresh_"), "fresh.db")
+_c2 = _sq3.connect(_fresh)
+_c2.execute("CREATE TABLE projects (id INTEGER PRIMARY KEY, mgmt_code TEXT, name TEXT, status TEXT)")
+_c2.execute("CREATE TABLE order_items (id INTEGER PRIMARY KEY)")
+_c2.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY)")
+_c2.commit(); _c2.close()
+_res_f1 = _mig(_fresh)
+_res_f2 = _mig(_fresh)
+chk("P0-02b 새 DB: 표 5개 생성", len(_res_f1.get("created") or []) == 5, str(_res_f1))
+chk("P0-02c 새 DB: **'기존 DB 보정'이 돌지 않음**(자기 주석에 안 걸림)",
+    not _res_f1.get("fixed"), str(_res_f1.get("fixed")))
+chk("P0-02d 새 DB 재실행: 아무것도 바뀌지 않음(멱등)",
+    not _res_f2.get("created") and not _res_f2.get("fixed"), str(_res_f2))
+_c2 = _sq3.connect(_fresh)
+chk("P0-02e 새 DB 에도 entity 기본값 없음(스키마 메타로 확인)",
+    [r[4] for r in _c2.execute("PRAGMA table_info(project_units)").fetchall()
+     if r[1] == "entity"] == [None])
+_c2.close()
 chk("P0-02' 보정 시 기존 데이터 보존", _kept == [("기존호기", "VN")], str(_kept))
 try:
     _c.execute("INSERT INTO project_units(project_id, working_name) VALUES(1,'보정후')")

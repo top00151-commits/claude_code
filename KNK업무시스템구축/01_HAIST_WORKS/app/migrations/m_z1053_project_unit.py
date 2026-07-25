@@ -180,9 +180,18 @@ def migrate(db_path: str) -> dict:
         #   v3/v4 마이그레이션이 이미 돌아간 DB 는 project_units.entity 에 DEFAULT 'KOR' 이 남아 있다.
         #   SQLite 는 컬럼 기본값만 떼어낼 수 없으므로 표를 재작성한다(데이터 보존).
         fixed = []
-        row = cur.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='project_units'").fetchone()
-        if row and row[0] and "DEFAULT 'KOR'" in row[0]:
+        # ⚠ **SQL 원문 글자 검색 금지**(리허설에서 발견한 결함):
+        #   sqlite_master 는 CREATE TABLE 을 **주석까지 그대로** 보관한다. 위 ① 의 설명문
+        #   "기본값(DEFAULT 'KOR')을 두면 …" 에 스스로 걸려, 방금 만든 새 표를 즉시 재작성하고
+        #   '기존 DB 를 고쳤다'고 사실과 다르게 보고했다(빈 표라 데이터 피해는 없었음).
+        #   → 판정은 **스키마 메타데이터**(PRAGMA table_info 의 dflt_value)로 한다.
+        #     기본값이 없으면 None, `DEFAULT 'KOR'` 이면 "'KOR'" 이 온다.
+        ent_default = None
+        for col in cur.execute("PRAGMA table_info(project_units)").fetchall():
+            if col[1] == "entity":
+                ent_default = col[4]
+                break
+        if ent_default is not None:
             cur.execute("PRAGMA foreign_keys=OFF")
             # ⚠ 기본 동작은 RENAME 시 **다른 표의 FK 참조까지 새 이름으로 따라 고친다**
             #   (identifier_history 등이 project_units_old_z1053 을 가리키게 되어 깨짐).
@@ -232,7 +241,7 @@ def migrate(db_path: str) -> dict:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_project_unit_proj "
                         "ON project_units(project_id, unit_state)")
             cur.execute("PRAGMA foreign_keys=ON")
-            fixed.append("project_units.entity DEFAULT 'KOR' 제거")
+            fixed.append(f"project_units.entity DEFAULT {ent_default} 제거")
         # 기존 DB 에 링크 중복 제약이 없으면 추가(P1)
         if "project_unit_order_links" in have:
             idx = {r[0] for r in cur.execute(
