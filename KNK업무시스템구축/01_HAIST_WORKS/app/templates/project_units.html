@@ -74,7 +74,7 @@ table.u td.mono { font-family:var(--pq-mono); }
         <div class="pl-meta">호기 <b>{{ summary.units }}</b>대 (개발·미확정 <b>{{ summary.provisional }}</b> · 확정 <b>{{ summary.confirmed }}</b> · 취소 <b>{{ summary.cancelled }}</b>) · 수주내역 호기 후보 <b>{{ summary.candidates }}</b></div>
       </div>
       <div class="pl-actions">
-        {% if can_edit and summary.ready %}<a class="btn-dark" href="/project/{{ project.id }}/units/candidates">🔍 수주내역에서 호기 후보 확인</a>{% endif %}
+        {% if (can_create or can_link) and summary.ready %}<a class="btn-dark" href="/project/{{ project.id }}/units/candidates">🔍 수주내역에서 호기 후보 확인</a>{% endif %}
         <a class="btn-ghost" href="/project/{{ project.id }}" data-knk-back>프로젝트 상세 ↗</a>
       </div>
     </div>
@@ -93,7 +93,7 @@ table.u td.mono { font-family:var(--pq-mono); }
       <div class="banner err">호기 기능이 아직 준비되지 않았습니다(테이블 미생성). 관리자에게 문의하세요.</div>
       {% endif %}
 
-      {% if can_edit and summary.ready %}
+      {% if can_create and summary.ready %}
       <div class="card">
         <h3>호기 직접 추가</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -114,7 +114,7 @@ table.u td.mono { font-family:var(--pq-mono); }
           <thead>
             <tr>
               <th>개발호기명</th><th>현재 호기번호</th><th>상태</th><th>연결된 수주</th>
-              <th>장비 구분</th>{% if can_edit %}<th>작업</th>{% endif %}
+              <th>장비 구분</th>{% if can_create or can_link or can_approve %}<th>작업</th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -130,16 +130,35 @@ table.u td.mono { font-family:var(--pq-mono); }
                 {% for o in u.orders %}<span class="rt {{ o.relation_type }} {{ '' if o.active else 'off' }}">{{ {'ORIGIN':'최초','ADDITIONAL':'추가','CHANGE':'변경','CANCEL':'취소'}.get(o.relation_type, o.relation_type) }} {{ o.order_no or '-' }}</span>{% else %}<span style="color:var(--pq-ink-4);">—</span>{% endfor %}
               </td>
               <td style="color:var(--pq-ink-3);">{{ u.equipment_type or '—' }}</td>
-              {% if can_edit %}
+              {% if can_create or can_link or can_approve %}
               <td>
                 {% if u.unit_state != 'CANCELLED' %}
                 <div class="inl">
+                  {% if can_create %}
+                  {# 호기번호 지정·변경 — PM·설계책임자. 적용시점(선택)까지 함께 기록 #}
                   <form class="inl" method="post" action="/units/{{ u.id }}/unit-no">
-                    <input name="new_unit_no" placeholder="새 호기번호" size="8">
-                    <input name="reason" placeholder="변경 사유(필수)" size="10">
-                    <button class="mini" type="submit">번호 변경</button>
+                    <input name="new_unit_no" placeholder="{{ '호기번호 지정' if not u.current_unit_no else '새 호기번호' }}" size="8">
+                    <input name="reason" placeholder="사유(필수)" size="9">
+                    <input name="effective_from" type="date" title="업무 적용시점(비우면 오늘)">
+                    <button class="mini" type="submit">{{ '번호 지정' if not u.current_unit_no else '번호 변경' }}</button>
                   </form>
-                  {% if u.unit_state == 'PROVISIONAL' %}
+                  {% endif %}
+                  {% if can_link and project_orders_min %}
+                  {# F-04: 기존 호기에 수주번호 연결 — 화면에서 업무를 끝낼 수 있어야 한다 #}
+                  <form class="inl" method="post" action="/units/{{ u.id }}/order-link">
+                    <select name="order_id">
+                      {% for o in project_orders_min %}<option value="{{ o.id }}">{{ o.order_no or ('수주 #' ~ o.id) }}</option>{% endfor %}
+                    </select>
+                    <select name="relation_type">
+                      <option value="ADDITIONAL">추가 수주</option>
+                      <option value="CHANGE">변경 수주</option>
+                      <option value="ORIGIN">최초 수주</option>
+                    </select>
+                    <input name="reason" placeholder="사유" size="7">
+                    <button class="mini" type="submit">수주 연결</button>
+                  </form>
+                  {% endif %}
+                  {% if can_approve and u.unit_state == 'PROVISIONAL' %}
                   <form method="post" action="/units/{{ u.id }}/confirm" onsubmit="return confirm('이 호기를 확정할까요? (현재 호기번호 필요)');">
                     <button class="mini" type="submit" {% if not u.current_unit_no %}disabled title="호기번호를 먼저 정하세요"{% endif %}>확정</button>
                   </form>
@@ -158,14 +177,16 @@ table.u td.mono { font-family:var(--pq-mono); }
               {% endif %}
             </tr>
             {% else %}
-            <tr><td colspan="{{ 6 if can_edit else 5 }}"><div class="empty">아직 호기가 없습니다.{% if can_edit and summary.candidates > 0 %} 위 '수주내역에서 호기 후보 확인'으로 시작하세요.{% endif %}</div></td></tr>
+            <tr><td colspan="{{ 6 if (can_create or can_link or can_approve) else 5 }}"><div class="empty">아직 호기가 없습니다.{% if (can_create or can_link) and summary.candidates > 0 %} 위 '수주내역에서 호기 후보 확인'으로 시작하세요.{% endif %}</div></td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
       <p class="note">
-        · 호기(장비 단위)는 앞으로 BOM·자재출고·실제 투입·출하가 붙는 <b>영구 기준</b>입니다. 시스템 내부 ID로 관리하므로 <b>호기번호가 바뀌어도 지금까지 쌓인 기록은 그대로 따라갑니다.</b><br>
+        · {{ identity_contract }} 따라서 <b>호기번호가 바뀌어도 지금까지 쌓인 기록(BOM·자재출고·실제 투입·출하)은 그대로 따라갑니다.</b><br>
+        · <b>한 관리번호에 수주번호가 여러 개</b> 붙을 수 있고, <b>한 호기에 최초·추가·변경 수주를 함께</b> 연결할 수 있습니다.<br>
+        · 한 번 쓴 호기번호는 <b>취소된 것이라도 다시 쓰지 않습니다</b>(현장 대화·서류 혼동 방지).<br>
         · 호기번호·수주 연결은 <b>바뀔 수 있는 값</b>이며 바꾸면 이전 값·사유·변경자가 이력으로 남습니다. 취소한 호기는 <b>지우지 않고</b> 취소 이력으로 보관합니다.<br>
         · 호기 분할·통합은 <b>아직 실행할 수 없습니다</b>(자료 구조만 준비 · BOM·발주·생산 영향 분석이 연결되는 다음 단계에서 제공).
       </p>
