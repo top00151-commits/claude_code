@@ -105,6 +105,116 @@ def _prescan(src, tables):
     return hits
 
 
+def _pg_type_for_default(decl):
+    d = (decl or "").upper().split("(")[0]
+    return d in ("INTEGER", "REAL")
+
+
+def _migrate_objects(src, cur, con, tables, failed_schema, failed_data, log):
+    """스키마 객체 2차 이관 (게이트 P0-04). SQLite 원본 정의를 읽어 PostgreSQL 에 건다.
+    각 객체는 개별 try — 실패해도 나머지는 계속하고 '미이전 목록'에 남긴다(누락을 숨기지 않음).
+    반환: 통계 dict (object_matrix.csv 갱신에 사용)."""
+    skip = {t for t, *_ in failed_schema} | {t for t, *_ in failed_data}
+    stat = {"notnull": 0, "default": 0, "unique": 0, "check": 0, "fk": 0, "index": 0, "view": 0}
+    failed = []
+
+    def run(sql, tag):
+        try:
+            cur.execute(sql)
+            con.commit()
+            return True
+        except Exception as e:
+            con.rollback()
+            failed.append((tag, str(e).split(chr(10))[0][:140]))
+            return False
+
+    for t in tables:
+        if t in skip:
+            continue
+        info = src.execute(f"PRAGMA table_info([{t}])").fetchall()
+        pk = [c[1] for c in info if c[5]]
+        for c in info:
+            cid, name, decl, notnull, dflt, ispk = c
+            # NOT NULL (기본키는 이미 NOT NULL)
+            if notnull and name not in pk:
+                if run(f'ALTER TABLE "{t}" ALTER COLUMN "{name}" SET NOT NULL', f"{t}.{name} NOT NULL"):
+                    stat["notnull"] += 1
+            # DEFAULT — SQLite 의 datetime('now',...) 계열은 PG 문법으로 옮기고, 상수는 그대로
+            if dflt is not None and str(dflt).strip() != "":
+                dv = str(dflt).strip()
+                pg_default = None
+                if "datetime(" in dv.lower() or "date(" in dv.lower():
+                    sys.path.insert(0, os.path.join(HERE, "pilot"))
+                    from adapter import to_pg
+                    pg_default, _ = to_pg(dv)          # to_char(now() AT TIME ZONE ...) 로 변환
+                elif dv.upper() == "CURRENT_TIMESTAMP":
+                    pg_default = "CURRENT_TIMESTAMP"
+                else:
+                    pg_default = dv                    # 숫자·문자열 리터럴은 그대로
+                if pg_default and run(
+                        f'ALTER TABLE "{t}" ALTER COLUMN "{name}" SET DEFAULT {pg_default}',
+                        f"{t}.{name} DEFAULT"):
+                    stat["default"] += 1
+
+    # UNIQUE·CHECK·FK 는 원본 CREATE TABLE 문에서 추출 (PRAGMA 로는 CHECK 식을 못 얻음)
+    for t in tables:
+        if t in skip:
+            continue
+        # 인덱스 (UNIQUE 포함) — PRAGMA index_list + index_info
+        for idx in src.execute(f"PRAGMA index_list([{t}])").fetchall():
+            iname, uniq, origin = idx[1], idx[2], idx[3]
+            if origin == "pk":
+                continue                               # 기본키 인덱스는 PK 로 이미 존재
+            cols = [r[2] for r in src.execute(f"PRAGMA index_info([{iname}])").fetchall()]
+            if not cols or any(c is None for c in cols):
+                continue                               # 식 기반 인덱스는 2차 대상(별도)
+            collist = ", ".join(f'"{c}"' for c in cols)
+            kw = "UNIQUE INDEX" if uniq else "INDEX"
+            safe = iname.replace('"', "")
+            if run(f'CREATE {kw} "{safe}" ON "{t}" ({collist})', f"index {iname}"):
+                stat["unique" if uniq else "index"] += 1
+        # FK — PRAGMA foreign_key_list
+        for fk in src.execute(f"PRAGMA foreign_key_list([{t}])").fetchall():
+            _id, _seq, reftab, frm, to, on_upd, on_del, match = fk[0], fk[1], fk[2], fk[3], fk[4], fk[5], fk[6], fk[7]
+            if reftab in skip or not to:
+                continue
+            od = f" ON DELETE {on_del}" if on_del and on_del.upper() != "NO ACTION" else ""
+            ou = f" ON UPDATE {on_upd}" if on_upd and on_upd.upper() != "NO ACTION" else ""
+            if run(f'ALTER TABLE "{t}" ADD FOREIGN KEY ("{frm}") REFERENCES "{reftab}" ("{to}"){od}{ou}',
+                   f"FK {t}.{frm}->{reftab}"):
+                stat["fk"] += 1
+
+    # VIEW — SQLite 함수(strftime·datetime)를 PG 문법으로 변환한 뒤 생성한다.
+    sys.path.insert(0, os.path.join(HERE, "pilot"))
+    from adapter import to_pg
+    for vname, vsql in src.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='view'").fetchall():
+        if not vsql:
+            continue
+        pg_vsql, _ = to_pg(vsql)          # strftime→to_char, datetime('now')→시간대 명시
+        if run(pg_vsql, f"view {vname}"):
+            stat["view"] += 1
+
+    # 미이전 사유를 분류한다 (게이트 P0-04: '누락 0 또는 승인된 차이와 사유').
+    def _why(msg):
+        m = msg.lower()
+        if "violates foreign key" in m:
+            return "데이터 무결성 — 유령행이 없는 부모를 참조(§9 정제 후 성립)"
+        if "no unique constraint matching" in m:
+            return "참조 대상 컬럼에 UNIQUE 없음 — 원본 스키마 설계 확인 필요"
+        if "cannot be implemented" in m:
+            return "참조 양쪽 타입 불일치 — 컬럼 타입 정렬 필요"
+        if "does not exist" in m or "syntax error" in m:
+            return "SQLite 전용 날짜 산술(DATE(x,'-N day')·%w) — PG 문법으로 재작성 필요(사람 판단)"
+        return "기타 — 원인 확인 필요"
+
+    stat["failed"] = [(tag, msg, _why(msg)) for tag, msg in failed]
+    stat["summary"] = (f"NOT NULL {stat['notnull']}·DEFAULT {stat['default']}·"
+                       f"UNIQUE {stat['unique']}·INDEX {stat['index']}·FK {stat['fk']}·"
+                       f"VIEW {stat['view']} · 미이전 {len(failed)}")
+    return stat
+
+
 def guard_target(host: str, dbname: str):
     """P0-02: 도구 자체가 오작동을 거부한다 — 문구가 아니라 코드로 막는다.
     · 로컬 시험 호스트만 허용
@@ -140,6 +250,8 @@ def main():
     ap.add_argument("--approved", default="",
                     help="P0-03: 승인된 변환 목록 CSV(표,컬럼,원본값,사유,승인자,승인일시). "
                          "여기 없는 변환 대상이 있으면 **적재 전에 중단**한다")
+    ap.add_argument("--with-constraints", action="store_true",
+                    help="P0-04: 데이터 적재 후 UNIQUE·CHECK·NOT NULL·DEFAULT·FK·INDEX·VIEW 를 이관한다")
     a = ap.parse_args()
 
     guard_target(a.pg_host, a.dbname)      # ← P0-02 안전장치
@@ -273,6 +385,15 @@ def main():
     if cleaned:
         log(f"승인된 변환 {len(cleaned)}건 적용(사전검사 통과분) — cleaned.csv 에 기록됨")
 
+    # ── 1.5) 스키마 객체 2차 이관 (게이트 P0-04): UNIQUE·CHECK·NOT NULL·DEFAULT·FK·INDEX·VIEW
+    #    데이터 적재 후에 건다(적재 중 제약 위반·인덱스 재계산 비용 회피). --with-constraints 로 켠다.
+    t_obj, obj_stats = 0.0, {}
+    if a.with_constraints:
+        t0 = time.time()
+        obj_stats = _migrate_objects(src, cur, con, tables, failed_schema, failed_data, log)
+        t_obj = time.time() - t0
+        log(f"스키마 객체 2차: {obj_stats['summary']} · {t_obj:.2f}s")
+
     # ── P0-01: 기존 ID 를 그대로 넣었으므로 자동번호(sequence)를 최대값 다음으로 맞춘다.
     #    이 처리가 없으면 **이관 직후 첫 등록이 PK 충돌로 실패**한다(실증: parts id=1 중복).
     t0 = time.time()
@@ -394,12 +515,16 @@ def main():
         ("행수불일치", mismatch), ("합계대조", len(sums)), ("합계불일치", len(bad_sums)),
         ("정제건수", len(cleaned)),
         ("자동번호조정", seq_fixed), ("자동번호확인필요", len(seq_fail)),
-        ("미이전객체", "FK·인덱스·뷰·트리거·UNIQUE/CHECK/NOT NULL/DEFAULT (2차 범위)"),
+        ("스키마객체2차", obj_stats.get("summary", "미실행(--with-constraints 로 켬)")),
+        ("객체이관실패", len(obj_stats.get("failed", []))),
         ("DB생성초", f"{t_create:.2f}"), ("스키마초", f"{t_schema:.2f}"), ("데이터초", f"{t_data:.2f}"),
         ("자동번호초", f"{t_seq:.2f}"),
+        ("객체이관초", f"{t_obj:.2f}"),
         ("검증초", f"{t_verify:.2f}"), ("Rollback초", f"{t_rollback:.2f}"),
         ("전체초", f"{time.time() - t_all:.2f}"),
     ]
+    if obj_stats.get("failed"):
+        w("object_failed.csv", ["객체", "오류", "분류·사유"], obj_stats["failed"])
     w("summary.csv", ["항목", "값"], summary)
     with open(os.path.join(RESULTS, "run.log"), "a", encoding="utf-8") as f:
         f.write("\n".join(LOG_LINES) + "\n" + "-" * 60 + "\n")
