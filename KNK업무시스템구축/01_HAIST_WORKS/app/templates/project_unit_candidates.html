@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ project.mgmt_code }} 호기 후보 확인 · KNK HAIST WORKS</title>
+
+{# v5H226z1053 (2026-07-25) — ERP V1 WP-03 호기 후보 확인
+   ⭐ 수주내역의 호기 라인은 **확정된 사실이 아니라 후보**다(대표 업무교정).
+      자동으로 만들지 않고, 사람이 비교·선택·확인한 것만 '개발·미확정' 호기로 반영한다.
+   자동적용 금지: 수량≠1 · 현재 호기번호 충돌 · 같은 번호가 여러 수주에 존재 #}
+
+<link href="/static/css/v5_tokens.css?v=20260725v5H226z1053" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root { --pq-mono:ui-monospace,Consolas,monospace; }
+.pl-head { padding:14px 24px 10px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+.pl-head .crumb { font-size:12px; color:var(--pq-ink-4); }
+.pl-head .crumb a { color:var(--pq-ink-2); }
+.pl-title { font-size:20px; font-weight:700; color:var(--pq-ink); margin-top:2px; }
+.pl-actions { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.btn-ghost { height:32px; padding:0 12px; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12.5px; color:var(--pq-ink-2); display:inline-flex; align-items:center; gap:5px; text-decoration:none; background:transparent; cursor:pointer; }
+.btn-dark { height:34px; padding:0 16px; background:var(--pq-ink); border:0; border-radius:8px; font-size:13px; font-weight:700; color:#fff; display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+.btn-dark[disabled] { opacity:.4; cursor:not-allowed; }
+.banner { margin:10px 24px 0; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
+.banner.err { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+.lead { margin:14px 24px 0; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; font-size:13.5px; color:#1e3a8a; line-height:1.7; }
+.lead b { font-weight:800; }
+.wrap { padding:14px 24px 110px; }
+.scroll { overflow-x:auto; background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; }
+table.c { width:100%; border-collapse:collapse; font-size:12.5px; min-width:820px; }
+table.c th { text-align:left; padding:8px 10px; background:var(--pq-surface-2); color:var(--pq-ink-3); font-size:11px; font-weight:700; border-bottom:1px solid var(--pq-line); white-space:nowrap; }
+table.c td { padding:8px 10px; border-bottom:1px solid var(--pq-line); vertical-align:middle; }
+table.c tr:last-child td { border-bottom:0; }
+table.c td.mono { font-family:var(--pq-mono); white-space:nowrap; }
+tr.blocked { background:#fffbeb; }
+tr.linked { opacity:.6; }
+.sg { font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:800; white-space:nowrap; }
+.sg.new { background:#ecfdf5; color:#0d7c4f; }
+.sg.already_linked { background:var(--pq-surface-3); color:var(--pq-ink-3); }
+.sg.blocked { background:#fef3c7; color:#92400e; }
+.why { font-size:11.5px; color:#92400e; line-height:1.5; }
+.foot { position:fixed; left:0; right:0; bottom:0; background:var(--pq-ink); color:#fff; padding:11px 24px; display:flex; align-items:center; gap:14px; z-index:60; font-size:13px; flex-wrap:wrap; }
+.foot input[name=reason] { height:30px; border:0; border-radius:7px; padding:0 10px; font-size:12.5px; min-width:220px; }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+
+    <div class="pl-head">
+      <div>
+        <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/project/{{ project.id }}">{{ project.mgmt_code }}</a> · <a href="/project/{{ project.id }}/units">호기</a> · <b>후보 확인</b></div>
+        <div class="pl-title">🔍 {{ project.mgmt_code }} 호기 후보 확인</div>
+      </div>
+      <div class="pl-actions">
+        <a class="btn-ghost" href="/project/{{ project.id }}/units" data-knk-back>← 호기 목록</a>
+      </div>
+    </div>
+
+    {% set _err = request.query_params.get('error') %}
+    {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
+
+    <div class="lead">
+      수주내역에서 <b>호기 후보 {{ scan.summary.total }}개</b>를 찾았습니다. 기존 호기와 비교한 뒤 <b>반영할 것만 선택</b>하세요.<br>
+      새로 만들 수 있는 후보 <b>{{ scan.summary.new }}</b> · 이미 반영됨 <b>{{ scan.summary.already_linked }}</b> · <b>확인 필요 {{ scan.summary.blocked }}</b>
+      <span style="font-size:12px;">(반영하면 <b>개발·미확정</b> 상태로 만들어집니다. 확정은 따로 승인합니다.)</span>
+    </div>
+
+    <form method="post" action="/project/{{ project.id }}/units/candidates/apply" id="applyForm">
+    <div class="wrap">
+      <div class="scroll">
+        <table class="c">
+          <thead>
+            <tr>
+              <th style="width:34px;"><input type="checkbox" id="allChk"></th>
+              <th>수주번호</th><th>수주내역 표기</th><th>호기번호(안)</th><th>수량</th>
+              <th>판정</th><th>확인이 필요한 이유</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in scan.candidates %}
+            <tr class="{{ c.suggestion }}">
+              <td>
+                {% if c.suggestion == 'new' %}
+                <input type="checkbox" name="order_item_ids" value="{{ c.order_item_id }}" class="pick" checked>
+                {% elif c.suggestion == 'blocked' %}
+                <input type="checkbox" disabled title="확인이 필요해 선택할 수 없습니다">
+                {% endif %}
+              </td>
+              <td class="mono">{{ c.order_no or '—' }}</td>
+              <td>{{ c.label }}</td>
+              <td class="mono"><b>{{ c.unit_no }}</b></td>
+              <td class="mono">{{ c.qty|int if c.qty is not none else '—' }}</td>
+              <td><span class="sg {{ c.suggestion }}">{{ {'new':'새 호기 후보','already_linked':'이미 반영됨','blocked':'확인 필요'}.get(c.suggestion) }}</span></td>
+              <td class="why">{% for b in c.blockers %}· {{ b }}<br>{% endfor %}{% if c.existing_unit_id %}<span style="color:var(--pq-ink-4);">기존 호기와 연결됨</span>{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="padding:28px;text-align:center;color:var(--pq-ink-4);">수주내역에 호기 형식(1호기·2호기…) 라인이 없습니다.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p style="margin:12px 4px;font-size:11.5px;color:var(--pq-ink-4);line-height:1.7;">
+        · <b>확인 필요</b>로 표시된 후보는 자동으로 반영하지 않습니다 — 수량이 1이 아니거나, 호기번호가 겹치거나, 같은 번호가 여러 수주에 있는 경우입니다. 수주내역을 정리한 뒤 다시 확인하세요.<br>
+        · 부속·부품 라인(‘1호기’ 형식이 아닌 표기)은 장비가 아니므로 후보에서 제외됩니다.
+      </p>
+    </div>
+
+    {% if scan.summary.new > 0 %}
+    <div class="foot">
+      <span>선택한 후보를 <b>개발·미확정 호기</b>로 반영합니다</span>
+      <input name="reason" placeholder="반영 사유 (선택)">
+      <button class="btn-dark" type="submit" style="margin-left:auto;">✔ 선택한 후보 반영</button>
+    </div>
+    {% endif %}
+    </form>
+
+  </main>
+</div>
+<script>
+(function(){
+  var all = document.getElementById('allChk');
+  if (!all) return;
+  all.checked = true;
+  all.addEventListener('change', function(){
+    document.querySelectorAll('.pick').forEach(function(x){ x.checked = all.checked; });
+  });
+})();
+</script>
+</body>
+</html>

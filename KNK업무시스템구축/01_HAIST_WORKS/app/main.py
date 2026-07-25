@@ -21210,9 +21210,12 @@ async def project_bom_board(request: Request, pid: int, view: str = ""):
 
 
 # ============================================================
-# v5H226z1053 (2026-07-25, ERP V1 전환 WP-03) — 프로젝트 호기·일련번호 (Project Unit·Serial)
-#   ADR-001 3단계(프로젝트→[수주]→호기→일련번호) · 순수 추가(기존 order_items·작업일정표 무변경)
-#   RS-01: 관리번호에서 호기 N대·일련번호 조회 / 차단: 제작번호 중복·일련번호 중복(법인)·프로젝트 없는 호기
+# v5H226z1053 (2026-07-25, ERP V1 전환 WP-03) — 프로젝트 호기 (Project Unit)
+#   ⭐ 대표 업무교정(2026-07-25): KNK는 일련번호(S/N) 미사용 · 개발호기로 시작해 호기번호·구성이 바뀐다.
+#      → 영구 식별자는 project_units.id 하나. 호기번호는 '현재값'이며 변경이력으로 관리.
+#      → 수주내역 호기 라인은 자동확정이 아니라 **후보**: 사용자가 확인·선택해야 반영.
+#   ⛔ 영향분석(BOM·발주·입고·생산투입·출하) 미연동 — 이력 확인이 필요한 변경은 승인 처리 불가.
+#   ⛔ 분할·통합은 V1 구조만(실행·승인 API 없음 · WP-04 이후).
 # ============================================================
 from . import project_unit as _punit
 
@@ -21224,8 +21227,16 @@ def _punit_actor(u) -> int:
         return 0
 
 
+def _punit_can_approve(u) -> bool:
+    """호기 취소 등 승인 성격 작업 — 상위 승인권(대표·임원·팀장·관리자).
+    ⚠ 문서 §9 의 PM·설계 세분화는 대표 확정 후 정밀 매핑 예정(현재는 근사 기본안)."""
+    role = (u or {}).get("role")
+    return role in ("admin", "ceo", "executive", "leader")
+
+
 @app.get("/project/{pid:int}/units", response_class=HTMLResponse)
 async def project_units_page(request: Request, pid: int):
+    """호기 화면 — 상태별 구분·현재/이전 호기번호·수주 다중연결·영향분석 미연동 안내."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -21238,34 +21249,54 @@ async def project_units_page(request: Request, pid: int):
     return ctx(request, "project_units.html", user=u, active="parts",
                project=dict(pr), units=_punit.get_units(pid),
                summary=_punit.project_unit_summary(pid),
-               can_edit=can_use_logistics(u))
+               impact_msg=_punit.IMPACT_NOT_WIRED_MSG,
+               can_edit=can_use_logistics(u), can_approve=_punit_can_approve(u))
 
 
-@app.post("/project/{pid:int}/units/seed")
-async def project_units_seed(request: Request, pid: int):
+@app.get("/project/{pid:int}/units/candidates", response_class=HTMLResponse)
+async def project_units_candidates(request: Request, pid: int):
+    """수주내역에서 **호기 후보**를 찾아 비교 표시(생성하지 않음). 사용자가 선택·확인해야 반영."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+    if not pr:
+        return RedirectResponse("/", 303)
+    scan = _punit.scan_candidates(pid)
+    return ctx(request, "project_unit_candidates.html", user=u, active="parts",
+               project=dict(pr), scan=scan, units=_punit.get_units(pid))
+
+
+@app.post("/project/{pid:int}/units/candidates/apply")
+async def project_units_candidates_apply(request: Request, pid: int):
+    """사용자가 고른 후보만 PROVISIONAL 호기로 생성(+ 최초 수주 링크)."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
     from urllib.parse import quote as _q
+    form = await request.form()
+    picks = form.getlist("order_item_ids")
     try:
-        r = _punit.seed_units_from_orders(pid, actor_id=_punit_actor(u))
-        _extra = []
-        if r["already_seeded"]:
-            _extra.append(f"이미 있어 건너뜀 {r['already_seeded']}")
-        if r["unit_no_conflicts"]:
-            _extra.append(f"제작번호 충돌 {len(r['unit_no_conflicts'])}"
-                          f"({', '.join(r['unit_no_conflicts'][:5])})")
-        msg = (f"호기 {r['created']}대 생성 (대상 {r['target_lines']}"
-               + ((" · " + " · ".join(_extra)) if _extra else "") + ")")
+        r = _punit.apply_candidates(pid, picks, actor_id=_punit_actor(u),
+                                    reason=(form.get("reason") or None))
+        msg = f"호기 {r['created']}대 생성(개발·미확정)"
+        if r["already_linked"]:
+            msg += f" · 이미 반영됨 {r['already_linked']}"
+        if r["rejected"]:
+            msg += f" · 확인 필요 {len(r['rejected'])}건"
         return RedirectResponse(f"/project/{pid}/units?success={_q(msg)}", 303)
     except Exception as e:
-        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+        return RedirectResponse(f"/project/{pid}/units/candidates?error={_q(str(e))}", 303)
 
 
 @app.post("/project/{pid:int}/units/create")
 async def project_units_create(request: Request, pid: int):
+    """호기 직접 생성 — 개발 단계에서는 호기번호 없이 개발호기명만으로도 생성."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -21274,15 +21305,18 @@ async def project_units_create(request: Request, pid: int):
     from urllib.parse import quote as _q
     form = await request.form()
     try:
-        _punit.create_unit(pid, form.get("unit_no"), form.get("equipment_type"),
+        _punit.create_unit(pid, working_name=form.get("working_name"),
+                           unit_no=form.get("unit_no"),
+                           equipment_type=form.get("equipment_type"),
                            actor_id=_punit_actor(u))
-        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 추가됨')}", 303)
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 추가됨(개발·미확정)')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
 
 
-@app.post("/units/{unit_id:int}/serial")
-async def project_unit_serial(request: Request, unit_id: int):
+@app.post("/units/{unit_id:int}/unit-no")
+async def project_unit_change_no(request: Request, unit_id: int):
+    """호기번호 변경 — Unit id 는 유지되고 이력이 남는다. 업무 이력이 있으면 영향분석 없이는 차단."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -21295,15 +21329,16 @@ async def project_unit_serial(request: Request, unit_id: int):
         return RedirectResponse("/", 303)
     pid = unit["project_id"]
     try:
-        _punit.link_serial(unit_id, form.get("serial_no"), actor_id=_punit_actor(u),
-                           reason=form.get("reason"))
-        return RedirectResponse(f"/project/{pid}/units?success={_q('일련번호 연결됨')}", 303)
+        _punit.change_unit_no(unit_id, form.get("new_unit_no"), form.get("reason"),
+                              actor_id=_punit_actor(u), change_id=(form.get("change_id") or None))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기번호 변경됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
 
 
-@app.post("/units/{unit_id:int}/delete")
-async def project_unit_delete(request: Request, unit_id: int):
+@app.post("/units/{unit_id:int}/confirm")
+async def project_unit_confirm(request: Request, unit_id: int):
+    """개발·미확정 → 확정. 현재 호기번호가 있어야 한다."""
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -21315,10 +21350,84 @@ async def project_unit_delete(request: Request, unit_id: int):
         return RedirectResponse("/", 303)
     pid = unit["project_id"]
     try:
-        _punit.delete_unit(unit_id, actor_id=_punit_actor(u))
-        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 삭제됨')}", 303)
+        _punit.confirm_unit(unit_id, actor_id=_punit_actor(u))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 확정됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/units/{unit_id:int}/cancel")
+async def project_unit_cancel(request: Request, unit_id: int):
+    """호기 취소 — 물리삭제 금지(CANCELLED 전환·사유 필수). 승인권자만."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) and _punit_can_approve(u)):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return RedirectResponse("/", 303)
+    pid = unit["project_id"]
+    try:
+        _punit.cancel_unit(unit_id, form.get("reason"), actor_id=_punit_actor(u))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 취소됨(이력 유지)')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/units/{unit_id:int}/order-link")
+async def project_unit_order_link(request: Request, unit_id: int):
+    """호기에 수주번호 연결 — 기존 연결을 덮어쓰지 않고 새 관계 행으로 추가."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return RedirectResponse("/", 303)
+    pid = unit["project_id"]
+    try:
+        _punit.link_order(unit_id, int(form.get("order_id") or 0),
+                          relation_type=(form.get("relation_type") or "ADDITIONAL"),
+                          reason=(form.get("reason") or None), actor_id=_punit_actor(u))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('수주 연결됨')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.get("/units/{unit_id:int}/history")
+async def project_unit_history_json(request: Request, unit_id: int):
+    """호기 변경이력(호기번호·수주연결·분할통합 관계) 조회 — 과거 표시값 재현용."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"error": "login"}, status_code=401)
+    if not (can_view_logistics(u) or can_use_logistics(u)):
+        return JSONResponse({"error": "권한 없음"}, status_code=403)
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return JSONResponse({"error": "호기 없음"}, status_code=404)
+    return JSONResponse({
+        "unit_id": unit["id"],
+        "current_unit_no": unit["current_unit_no"],
+        "working_name": unit["working_name"],
+        "state": unit["unit_state"],
+        "identifier_history": [{
+            "at": (h.get("changed_at") or "")[:16], "old": h.get("old_unit_no"),
+            "new": h.get("new_unit_no"), "reason": h.get("change_reason"),
+            "by": h.get("changed_by_name") or "", "change_id": h.get("change_id"),
+        } for h in unit["identifier_history"]],
+        "orders": [{
+            "order_no": o.get("order_no"), "type": o.get("relation_type"),
+            "active": bool(o.get("active")), "at": (o.get("linked_at") or "")[:16],
+        } for o in unit["orders"]],
+        "relations": unit["relations"],
+        "impact": unit["impact"],
+    })
 
 
 @app.get("/bom/uploads/{uid:int}/report", response_class=HTMLResponse)

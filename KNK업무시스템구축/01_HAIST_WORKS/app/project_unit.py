@@ -1,51 +1,70 @@
 # -*- coding: utf-8 -*-
 # ============================================================
-# v5H226z1053 (2026-07-25, ERP V1 전환 WP-03) — 프로젝트 호기·일련번호 (Project Unit·Serial)
-# 게이트 검토판정(2026-07-25) P0/P1 반영본.
+# v5H226z1053 (2026-07-25, ERP V1 전환 WP-03) — 프로젝트 호기 (Project Unit)
+# ⭐ 대표 업무교정(2026-07-25) 반영본 — 일련번호 폐기 · 호기번호는 변경 가능
 # ------------------------------------------------------------
-# ADR-001: 프로젝트 → [수주] → 호기(Project Unit·필수) → 일련번호(Serial·후발급)
-#   · project_unit.id = 앞으로 BOM·출고·투입·변경·출하가 붙는 영구 축
-#   · equipment_serial = 표시 식별값(PK 아님)·법인 내 영구 유일·출하 전 필수
+# KNK 현실:
+#   · 일련번호(S/N) 안 씀. 식별 = 관리번호(프로젝트) + 수주번호(발주차수) + 호기번호.
+#   · **개발호기로 시작**하고 개발·수주 변경에 따라 호기번호·구성이 바뀐다
+#     (대수 변경·번호 변경·추가·취소·분할·통합·수주 후행 발행).
+#   → 호기번호는 영구 식별자가 아니다. **영구 식별자는 project_units.id 하나**.
+#     BOM·설계변경·자재·생산·검사·출하는 전부 이 id 에 연결한다.
 #
-# ⭐ 순수 추가(additive): 기존 order_items·작업일정표 무변경(교량 조건).
-#    씨앗 대상 = 정식 호기 라벨 '^\d+호기$'(z779 규약)만. 부속/부품(비표준 라벨) 제외.
+# V1 범위(대표 확정 2026-07-25):
+#   · 영구 id · 개발호기명 · 호기번호 변경이력 · 수주 다중연결 · 분할/통합 **수용 구조까지**
+#   · 분할·통합 **실행·승인은 미구현**(WP-04 영향분석 연결 후) — 앱에 쓰기 경로 없음
+#   · ⛔ **영향분석 미연동**: BOM·발주·입고·생산투입·출하 이력이 하나라도 있으면
+#        영향 분석·승인 없이는 호기번호 변경·취소를 **차단**한다(거짓 '영향 없음' 표시 금지).
 #
-# 게이트 반영:
-#   [P0-01] 일련번호 법인 내 영구 유일(과거 포함·대소문자 무시)·호기당 활성 1건·교체 메타/연결
-#   [P0-02] 씨앗 전 정식 호기 라인 수량=1 검사 → 아니면 전체 중단(부분 씨앗 금지)
-#   [P0-03] 일련번호 교체 = 사유 필수 + 종료 메타 + 이력 조회 API
-#   [P0-04] 법인 KOR/VN — 충돌 시 중단(entity CHECK 는 DB)
-#   [P1-7.1] 삭제 가드 = FK 메타데이터 동적 전참조 스캔(고정 목록 아님)
-#   [P1-7.2] 씨앗 원본(수주번호·라벨) 스냅샷 보존
-#   [P1-8.1/8.2] 미씨앗 카운트·결과 분리(created/already/conflicts)
-#   [P1-9.1/9.2/9.3] unit_no 정규화·일련번호 대소문자·동일 재입력 무동작
+# 상태: PROVISIONAL(개발·미확정) / CONFIRMED(확정) / CANCELLED(취소·물리삭제 금지)
+# 씨앗: 수주내역 호기 라인 = 확정 사실이 아니라 **Unit 후보** → 사용자 확인·승인 후 반영.
 # ============================================================
 import re
 import sqlite3
 
 from .database import db_session, _logi_now
 
-# 정식 호기 라벨(기존 시스템 규약·z779). 부속/부품(비표준 라벨)은 매칭 안 됨 → 씨앗 제외.
+# 정식 호기 라벨(기존 시스템 규약·z779). 부속/부품(비표준 라벨)은 후보에서 제외.
 HOGI_RE = re.compile(r"^\d+호기$")
 _HOGI_NUM_RE = re.compile(r"^0*(\d+)호기$")
 _VN_SIG = ("VN", "VNM", "VINA", "VIETNAM", "베트남")
 _KOR_SIG = ("KR", "KOR", "KOREA", "한국", "본사", "HQ")
 
+# ── 영향 분석 대상(WP-04 이후 연동) ─────────────────────────────
+#   호기에 붙게 될 업무 이력. **아직 연동되지 않았다**는 사실을 숨기지 않고 그대로 알린다.
+#   각 항목: (표 이름, 호기 참조 컬럼, 사람이 읽는 이름)
+#   ⚠ WP-04~08 에서 표가 생기면 여기에 등록 + 실제 조회로 전환한다(완료 조건은 문서 참조).
+IMPACT_SOURCES = (
+    ("bom_unit_baselines", "project_unit_id", "BOM 기준"),
+    ("po_items", "project_unit_id", "발주"),
+    ("receipts", "project_unit_id", "입고"),
+    ("issues_out", "project_unit_id", "생산 투입"),
+    ("shipments", "project_unit_id", "출하"),
+)
+IMPACT_NOT_WIRED_MSG = (
+    "BOM·발주·생산 영향 분석은 아직 연동되지 않았습니다. "
+    "영향 확인이 필요한 호기 변경은 승인 처리할 수 없습니다.")
+
 
 def _norm_unit_no(s) -> str:
-    """제작번호 정규화(P1-9.1): 공백 제거 + 'N호기'는 앞자리 0 제거('01호기'·'1 호기'→'1호기')."""
+    """호기번호 표기 정규화: 공백 제거 + 'N호기' 앞자리 0 제거('01호기'·'1 호기'→'1호기')."""
     s = re.sub(r"\s+", "", (s or "")).strip()
     m = _HOGI_NUM_RE.match(s)
     return f"{int(m.group(1))}호기" if m else s
 
 
+def _table_ready(c) -> bool:
+    """마이그레이션 전이면 False — 런타임 오류 대신 '준비 중' 안내."""
+    return bool(c.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_units'").fetchone())
+
+
 def _project_entity(c, pid) -> str:
-    """프로젝트 법인(일련번호 유일성 스코프) — KOR/VN. 충돌(둘 다 명시·불일치)이면 중단(P0-04).
-    빈값은 KOR(본사) — ⚠국내 시범 한정. 전체 확산 전 단일 기준을 대표가 확정해야 함."""
+    """프로젝트 법인(KOR/VN). 둘 다 명시됐는데 다르면 중단. 빈값=KOR(⚠국내 시범 한정)."""
     try:
         r = c.execute("SELECT po_entity, ship_entity FROM projects WHERE id=?", (pid,)).fetchone()
     except sqlite3.OperationalError:
-        return "KOR"   # 법인 컬럼이 없는 스키마(구버전) — 국내 기본
+        return "KOR"
     sigs = set()
     if r:
         for v in (r["po_entity"], r["ship_entity"]):
@@ -61,13 +80,62 @@ def _project_entity(c, pid) -> str:
     return sigs.pop() if sigs else "KOR"
 
 
+# ══════════════════ 영향 분석 (V1: 미연동 — 사실대로 알림) ══════════════════
+
+def impact_status(c, unit_id) -> dict:
+    """이 호기에 걸린 업무 이력(BOM·발주·입고·생산투입·출하) 현황.
+
+    ⛔ V1 계약: 표가 아직 없으면 **'영향 없음'이라고 말하지 않는다.** 'wired=False'(미연동)로 알린다.
+    표가 생기면(WP-04+) 실제 건수를 세고 wired=True 가 된다.
+    """
+    have = {r[0] for r in c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    wired, counts, missing = [], {}, []
+    for tbl, col, label in IMPACT_SOURCES:
+        if tbl not in have:
+            missing.append(label)
+            continue
+        cols = {r[1] for r in c.execute(f"PRAGMA table_info([{tbl}])").fetchall()}
+        if col not in cols:
+            missing.append(label)
+            continue
+        wired.append(label)
+        counts[label] = c.execute(
+            f"SELECT COUNT(*) FROM [{tbl}] WHERE [{col}]=?", (unit_id,)).fetchone()[0]
+    return {
+        "wired": (not missing),                 # 전부 연동됐을 때만 True
+        "wired_sources": wired,
+        "not_wired_sources": missing,
+        "counts": counts,
+        "has_impact": any(v > 0 for v in counts.values()),
+        "message": None if not missing else IMPACT_NOT_WIRED_MSG,
+    }
+
+
+def _require_impact_cleared(c, unit_id, action: str):
+    """영향 확인이 필요한 변경(확정된 호기의 번호 변경·취소)의 공통 가드.
+
+    적용 대상 = **CONFIRMED 호기**(BOM·발주·생산이 붙을 수 있는 단계).
+      · 개발·미확정(PROVISIONAL)은 업무 이력이 아직 붙지 않으므로 자유롭게 정리 가능
+        (문서 §4: "BOM Release·발주·생산투입 이후 변경은 Change 승인 필요").
+      · 연동 전(V1): 확정 호기는 **차단**. 거짓 통과 금지 —
+        대표 확정: "영향 확인이 필요한 호기 변경은 승인 처리할 수 없습니다."
+      · 연동 후(WP-04+): 이력이 하나라도 있으면 영향분석·승인 없이는 차단.
+    """
+    st = impact_status(c, unit_id)
+    if not st["wired"]:
+        raise ValueError(f"{IMPACT_NOT_WIRED_MSG} (요청: {action})")
+    if st["has_impact"]:
+        detail = ", ".join(f"{k} {v}건" for k, v in st["counts"].items() if v)
+        raise ValueError(f"이 호기에 업무 이력이 있어 영향 분석·승인 없이 {action}할 수 없습니다: {detail}")
+
+
 def _unit_ref_counts(c, unit_id) -> dict:
-    """이 호기를 참조하는 **모든 표**를 FK 메타데이터로 동적 스캔(전참조 스캔·WP-01 방식·P1-7.1).
-    WP-04+ 에서 project_units 를 FK 로 참조하는 표가 생기면 자동 포함(목록 등록 누락 위험 없음)."""
+    """이 호기를 참조하는 **모든 표**를 FK 메타데이터로 동적 스캔(전참조 스캔).
+    WP-04+ 새 표가 FK 를 걸면 자동 포함(목록 등록 누락 위험 없음)."""
     out = {}
-    tables = [r[0] for r in c.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
-    for tbl in tables:
+    for (tbl,) in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'").fetchall():
         if tbl == "project_units":
             continue
         try:
@@ -75,234 +143,363 @@ def _unit_ref_counts(c, unit_id) -> dict:
         except sqlite3.Error:
             continue
         for fk in fks:
-            # fk 컬럼: (id, seq, table, from, to, on_update, on_delete, match)
             if fk[2] == "project_units":
                 col = fk[3]
-                n = c.execute(
-                    f"SELECT COUNT(*) FROM [{tbl}] WHERE [{col}]=?", (unit_id,)).fetchone()[0]
+                n = c.execute(f"SELECT COUNT(*) FROM [{tbl}] WHERE [{col}]=?",
+                              (unit_id,)).fetchone()[0]
                 if n:
                     out[f"{tbl}.{col}"] = out.get(f"{tbl}.{col}", 0) + n
     return out
 
 
-def _hogi_target_rows(c, pid):
-    """이 프로젝트의 정식 호기 라인(order_items) — 씨앗 대상. (id, label, order_id, qty, order_no)."""
+# ══════════════════ 후보 탐색 (씨앗 = 자동확정 아님) ══════════════════
+
+def _hogi_candidate_rows(c, pid):
+    """수주내역에서 호기 후보 라인(정식 호기 라벨)만 추림."""
     rows = c.execute(
-        "SELECT oi.id AS oid, oi.unit_label AS lbl, oi.order_id AS ord, "
-        "oi.qty AS qty, o.order_no AS ono "
+        "SELECT oi.id AS oid, oi.unit_label AS lbl, oi.order_id AS ord, oi.qty AS qty, "
+        "o.order_no AS ono "
         "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
         "WHERE o.project_id=? "
         "ORDER BY o.order_date ASC, o.id ASC, oi.id ASC", (pid,)).fetchall()
     return [r for r in rows if HOGI_RE.match((r["lbl"] or ""))]
 
 
-def count_hogi_lines(pid) -> int:
-    """씨앗 대상(정식 호기 라인) 총수 — 호기 수 대조용."""
+def scan_candidates(pid) -> dict:
+    """수주내역 호기 라인을 **Unit 후보**로 제시(생성하지 않음).
+
+    각 후보의 판정 제안(suggestion)과 **자동적용 금지 사유(blockers)** 를 함께 낸다.
+      · already_linked  : 이미 이 라인으로 만든 호기가 있음
+      · new             : 새 PROVISIONAL 호기 후보
+      · blocked         : 사용자 확인 없이는 적용 불가(아래 사유)
+    자동적용 금지(대표 확정 §6): 수량≠1 · 현재 호기번호 충돌 · 같은 번호가 여러 수주에 존재
+    """
     with db_session() as c:
-        return len(_hogi_target_rows(c, pid))
+        if not _table_ready(c):
+            return {"ready": False, "candidates": [], "summary": {}}
+        rows = _hogi_candidate_rows(c, pid)
+        seeded = {r["seed_order_item_id"]: dict(r) for r in c.execute(
+            "SELECT * FROM project_units WHERE project_id=? AND seed_order_item_id IS NOT NULL",
+            (pid,)).fetchall()}
+        cur_nos = {r[0]: r[1] for r in c.execute(
+            "SELECT current_unit_no, id FROM project_units "
+            "WHERE project_id=? AND current_unit_no IS NOT NULL AND unit_state<>'CANCELLED'",
+            (pid,)).fetchall()}
+        label_seen = {}
+        for r in rows:
+            label_seen.setdefault(_norm_unit_no(r["lbl"]), []).append(r["ono"] or "")
+
+        cands = []
+        for r in rows:
+            lbl = r["lbl"] or ""
+            no = _norm_unit_no(lbl)
+            blockers = []
+            if r["qty"] is None or float(r["qty"]) != 1.0:
+                blockers.append(f"수량이 1이 아님(수량 {r['qty']})")
+            if len(label_seen.get(no, [])) > 1:
+                blockers.append(f"같은 호기번호가 여러 수주에 있음({', '.join(label_seen[no][:3])})")
+            exist = seeded.get(r["oid"])
+            if not exist and no in cur_nos:
+                blockers.append(f"현재 호기번호 충돌({no})")
+            cands.append({
+                "order_item_id": r["oid"], "order_id": r["ord"], "order_no": r["ono"],
+                "label": lbl, "unit_no": no, "qty": r["qty"],
+                "existing_unit_id": (exist or {}).get("id"),
+                "existing_state": (exist or {}).get("unit_state"),
+                "suggestion": ("already_linked" if exist else ("blocked" if blockers else "new")),
+                "blockers": blockers,
+            })
+    s = {
+        "total": len(cands),
+        "already_linked": sum(1 for x in cands if x["suggestion"] == "already_linked"),
+        "new": sum(1 for x in cands if x["suggestion"] == "new"),
+        "blocked": sum(1 for x in cands if x["suggestion"] == "blocked"),
+    }
+    return {"ready": True, "candidates": cands, "summary": s}
 
 
-def count_unseeded_hogi_lines(pid) -> int:
-    """아직 호기로 안 만든 정식 호기 라인 수(P1-8.1 · 씨앗 버튼 정확 계산)."""
+def apply_candidates(pid, order_item_ids, actor_id=0, reason=None) -> dict:
+    """사용자가 **확인·선택한 후보만** PROVISIONAL 호기로 생성 + 수주 링크(ORIGIN).
+
+    · 자동확정 아님: 화면에서 고른 라인 목록만 처리.
+    · 자동적용 금지 조건에 걸린 후보는 **거부**(사유 반환) — 조용히 건너뛰지 않는다.
+    · 생성 상태는 PROVISIONAL(확정은 사람이 별도 승인).
+    """
+    ids = {int(x) for x in (order_item_ids or [])}
+    if not ids:
+        raise ValueError("선택한 후보가 없습니다.")
+    scan = scan_candidates(pid)
+    if not scan["ready"]:
+        raise ValueError("호기 기능이 아직 준비되지 않았습니다.")
+    by_id = {c0["order_item_id"]: c0 for c0 in scan["candidates"]}
+    created, skipped, rejected = 0, 0, []
     with db_session() as c:
-        target = _hogi_target_rows(c, pid)
-        seeded = {r[0] for r in c.execute(
-            "SELECT seed_order_item_id FROM project_units "
-            "WHERE project_id=? AND seed_order_item_id IS NOT NULL", (pid,)).fetchall()}
-    return sum(1 for r in target if r["oid"] not in seeded)
-
-
-def seed_units_from_orders(pid, actor_id=0) -> dict:
-    """order_items(정식 호기 라인) → project_units 씨앗. **멱등**.
-    [P0-02] 정식 호기 라인 수량이 1이 아니면(0/NULL/소수/≥2) **전체 중단**(부분 씨앗 금지).
-    반환(P1-8.2 분리): target_lines/created/already_seeded/unit_no_conflicts/unit_ids."""
-    with db_session() as c:
-        pr = c.execute("SELECT id FROM projects WHERE id=?", (pid,)).fetchone()
-        if not pr:
-            raise ValueError("프로젝트가 없습니다.")           # RS-01: Project 없는 호기 금지
-        entity = _project_entity(c, pid)                       # 충돌이면 여기서 중단
-        target = _hogi_target_rows(c, pid)
-        # [P0-02] 수량=1 강제 — 위반 라인이 하나라도 있으면 아무것도 만들지 않음
-        bad = [(r["oid"], r["ono"], r["lbl"], r["qty"]) for r in target
-               if r["qty"] is None or float(r["qty"]) != 1.0]
-        if bad:
-            head = "; ".join(f"{(o or '')} {l}(수량 {q})" for _, o, l, q in bad[:5])
-            more = " 외" if len(bad) > 5 else ""
-            raise ValueError(
-                f"정식 호기 라인은 수량이 1이어야 합니다. 위반 {len(bad)}건: {head}{more}. "
-                "데이터를 고친 뒤 다시 실행하세요(부분 생성 안 함).")
-        created, already, conflicts, unit_ids = 0, 0, [], []
-        for r in target:
-            oi_id, lbl, oid, ono = r["oid"], (r["lbl"] or ""), r["ord"], r["ono"]
-            if c.execute("SELECT id FROM project_units WHERE seed_order_item_id=?",
-                         (oi_id,)).fetchone():
-                already += 1
+        entity = _project_entity(c, pid)
+        for oid in sorted(ids):
+            cd = by_id.get(oid)
+            if not cd:
+                rejected.append((oid, "후보 목록에 없음"))
                 continue
-            unit_no = _norm_unit_no(lbl)
-            if c.execute("SELECT id FROM project_units WHERE project_id=? AND unit_no=?",
-                         (pid, unit_no)).fetchone():
-                conflicts.append(unit_no)
+            if cd["suggestion"] == "already_linked":
+                skipped += 1
+                continue
+            if cd["blockers"]:
+                rejected.append((oid, " / ".join(cd["blockers"])))
                 continue
             cur = c.execute(
-                "INSERT INTO project_units(project_id, order_id, seed_order_item_id, seed_order_no, "
-                "seed_unit_label, unit_no, entity, status, created_by, created_at, updated_at) "
-                "VALUES(?,?,?,?,?,?,?, 'draft', ?, ?, ?)",
-                (pid, oid, oi_id, ono, lbl, unit_no, entity, actor_id, _logi_now(), _logi_now()))
-            unit_ids.append(cur.lastrowid)
+                "INSERT INTO project_units(project_id, working_name, current_unit_no, unit_state, "
+                "entity, seed_order_item_id, seed_order_no, seed_unit_label, "
+                "created_by, created_at, updated_by, updated_at) "
+                "VALUES(?,?,?, 'PROVISIONAL', ?,?,?,?,?,?,?,?)",
+                (pid, cd["label"], cd["unit_no"], entity, oid, cd["order_no"], cd["label"],
+                 actor_id, _logi_now(), actor_id, _logi_now()))
+            uid = cur.lastrowid
+            c.execute(
+                "INSERT INTO project_unit_identifier_history(project_unit_id, old_unit_no, "
+                "new_unit_no, change_reason, changed_by, changed_at, effective_from) "
+                "VALUES(?,?,?,?,?,?,?)",
+                (uid, None, cd["unit_no"], (reason or "수주내역 호기 후보 반영"),
+                 actor_id, _logi_now(), _logi_now()))
+            if cd["order_id"]:
+                c.execute(
+                    "INSERT INTO project_unit_order_links(project_unit_id, order_id, order_no, "
+                    "relation_type, active, reason, linked_by, linked_at) "
+                    "VALUES(?,?,?, 'ORIGIN', 1, ?, ?, ?)",
+                    (uid, cd["order_id"], cd["order_no"], (reason or "후보 반영"),
+                     actor_id, _logi_now()))
             created += 1
-    return {"target_lines": len(target), "created": created, "already_seeded": already,
-            "unit_no_conflicts": conflicts, "unit_ids": unit_ids}
+    return {"created": created, "already_linked": skipped, "rejected": rejected}
 
+
+# ══════════════════ 호기 조회 ══════════════════
 
 def _unit_sort_key(u):
-    m = re.match(r"^(\d+)", u.get("unit_no") or "")
-    return (int(m.group(1)) if m else 999999, u.get("id") or 0)
+    m = re.match(r"^(\d+)", u.get("current_unit_no") or "")
+    return (0 if u.get("unit_state") != "CANCELLED" else 1,
+            int(m.group(1)) if m else 999999, u.get("id") or 0)
 
 
-def get_units(pid) -> list:
-    """프로젝트 호기 목록 + 각 호기의 활성 일련번호·일련번호 이력 수 (RS-01 조회·화면)."""
+def get_units(pid, include_cancelled=True) -> list:
+    """프로젝트 호기 목록 — 현재 호기번호·이전 호기번호·수주 연결·상태."""
     with db_session() as c:
         if not _table_ready(c):
             return []
-        units = [dict(r) for r in c.execute(
-            "SELECT * FROM project_units WHERE project_id=?", (pid,)).fetchall()]
+        q = "SELECT * FROM project_units WHERE project_id=?"
+        if not include_cancelled:
+            q += " AND unit_state<>'CANCELLED'"
+        units = [dict(r) for r in c.execute(q, (pid,)).fetchall()]
         for u in units:
-            sn = c.execute(
-                "SELECT serial_no FROM equipment_serials "
-                "WHERE project_unit_id=? AND active=1 ORDER BY id DESC LIMIT 1",
-                (u["id"],)).fetchone()
-            u["serial_no"] = sn["serial_no"] if sn else None
-            u["serial_count"] = c.execute(
-                "SELECT COUNT(*) FROM equipment_serials WHERE project_unit_id=?",
-                (u["id"],)).fetchone()[0]
+            prev = c.execute(
+                "SELECT old_unit_no FROM project_unit_identifier_history "
+                "WHERE project_unit_id=? AND old_unit_no IS NOT NULL "
+                "ORDER BY id DESC LIMIT 1", (u["id"],)).fetchone()
+            u["previous_unit_no"] = prev["old_unit_no"] if prev else None
+            u["orders"] = [dict(r) for r in c.execute(
+                "SELECT order_id, order_no, relation_type, active FROM project_unit_order_links "
+                "WHERE project_unit_id=? ORDER BY id", (u["id"],)).fetchall()]
+            u["active_orders"] = [o for o in u["orders"] if o["active"]]
+            u["impact"] = impact_status(c, u["id"])
     units.sort(key=_unit_sort_key)
     return units
 
 
 def get_unit(unit_id):
     with db_session() as c:
-        u = c.execute("SELECT * FROM project_units WHERE id=?", (unit_id,)).fetchone()
-        if not u:
+        r = c.execute("SELECT * FROM project_units WHERE id=?", (unit_id,)).fetchone()
+        if not r:
             return None
-        u = dict(u)
-        u["serials"] = get_serial_history(unit_id, _conn=c)
+        u = dict(r)
+        u["identifier_history"] = [dict(x) for x in c.execute(
+            "SELECT h.*, us.name AS changed_by_name FROM project_unit_identifier_history h "
+            "LEFT JOIN users us ON us.id=h.changed_by "
+            "WHERE h.project_unit_id=? ORDER BY h.id DESC", (unit_id,)).fetchall()]
+        u["orders"] = [dict(x) for x in c.execute(
+            "SELECT * FROM project_unit_order_links WHERE project_unit_id=? ORDER BY id",
+            (unit_id,)).fetchall()]
+        u["relations"] = [dict(x) for x in c.execute(
+            "SELECT * FROM project_unit_relations "
+            "WHERE source_unit_id=? OR result_unit_id=? ORDER BY id", (unit_id, unit_id)).fetchall()]
+        u["impact"] = impact_status(c, unit_id)
     return u
 
 
-def get_serial_history(unit_id, _conn=None) -> list:
-    """호기의 일련번호 이력 전체(P0-03 조회 계약) — 활성/비활성·교체 메타 포함."""
-    def _q(c):
-        return [dict(r) for r in c.execute(
-            "SELECT es.*, iu.name AS issued_by_name, du.name AS deactivated_by_name "
-            "FROM equipment_serials es "
-            "LEFT JOIN users iu ON iu.id=es.issued_by "
-            "LEFT JOIN users du ON du.id=es.deactivated_by "
-            "WHERE es.project_unit_id=? ORDER BY es.id DESC", (unit_id,)).fetchall()]
-    if _conn is not None:
-        return _q(_conn)
+def unit_no_at(unit_id, when: str):
+    """특정 시점의 호기번호 재현(과거 조회 · 문서 §3)."""
     with db_session() as c:
-        return _q(c)
+        rows = [dict(r) for r in c.execute(
+            "SELECT new_unit_no, old_unit_no, changed_at FROM project_unit_identifier_history "
+            "WHERE project_unit_id=? ORDER BY id", (unit_id,)).fetchall()]
+        cur = c.execute("SELECT current_unit_no FROM project_units WHERE id=?",
+                        (unit_id,)).fetchone()
+    val = None
+    for r in rows:
+        if (r["changed_at"] or "") <= when:
+            val = r["new_unit_no"]
+        else:
+            return val if val is not None else r["old_unit_no"]
+    return val if val is not None else (cur["current_unit_no"] if cur else None)
 
 
 def project_unit_summary(pid) -> dict:
-    """상세 페이지 카드용: 호기 수·일련번호 부여 수·씨앗 대상·미씨앗 수."""
     with db_session() as c:
         ready = _table_ready(c)
-        n_units = c.execute("SELECT COUNT(*) FROM project_units WHERE project_id=?",
-                            (pid,)).fetchone()[0] if ready else 0
-        n_serial = c.execute(
-            "SELECT COUNT(*) FROM project_units pu JOIN equipment_serials es "
-            "ON es.project_unit_id=pu.id AND es.active=1 WHERE pu.project_id=?",
-            (pid,)).fetchone()[0] if ready else 0
-        target = _hogi_target_rows(c, pid)
-        seeded = {r[0] for r in c.execute(
-            "SELECT seed_order_item_id FROM project_units "
-            "WHERE project_id=? AND seed_order_item_id IS NOT NULL", (pid,)).fetchall()} if ready else set()
-    n_unseeded = sum(1 for r in target if r["oid"] not in seeded)
-    return {"ready": ready, "units": n_units, "serials": n_serial,
-            "hogi_lines": len(target), "unseeded": n_unseeded}
+        if not ready:
+            return {"ready": False, "units": 0, "provisional": 0, "confirmed": 0,
+                    "cancelled": 0, "candidates": 0, "impact_wired": False}
+        rows = c.execute(
+            "SELECT unit_state, COUNT(*) FROM project_units WHERE project_id=? "
+            "GROUP BY unit_state", (pid,)).fetchall()
+        st = {r[0]: r[1] for r in rows}
+        cands = len(_hogi_candidate_rows(c, pid))
+        wired = impact_status(c, 0)["wired"]
+    return {"ready": True, "units": sum(st.values()),
+            "provisional": st.get("PROVISIONAL", 0), "confirmed": st.get("CONFIRMED", 0),
+            "cancelled": st.get("CANCELLED", 0), "candidates": cands, "impact_wired": wired}
 
 
-def _table_ready(c) -> bool:
-    """마이그레이션이 아직 안 돌아 표가 없으면 False(P1-9.4 · 런타임 오류 대신 안내)."""
-    return bool(c.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_units'").fetchone())
+# ══════════════════ 호기 생성·변경·확정·취소 ══════════════════
 
-
-def create_unit(pid, unit_no, equipment_type=None, actor_id=0, note=None) -> int:
-    """호기 수동 생성. RS-01 차단: 프로젝트 없음·제작번호 중복(정규화 후)."""
-    unit_no = _norm_unit_no(unit_no)
-    if not unit_no:
-        raise ValueError("제작번호(호기)를 입력하세요.")
+def create_unit(pid, working_name=None, unit_no=None, equipment_type=None,
+                actor_id=0, note=None) -> int:
+    """호기 직접 생성 — 개발 단계에서는 **호기번호 없이도** 생성(PROVISIONAL)."""
+    working_name = (working_name or "").strip() or None
+    unit_no = _norm_unit_no(unit_no) or None
+    if not working_name and not unit_no:
+        raise ValueError("개발호기명 또는 호기번호 중 하나는 입력하세요.")
     with db_session() as c:
         if not c.execute("SELECT id FROM projects WHERE id=?", (pid,)).fetchone():
             raise ValueError("프로젝트가 없습니다.")
-        if c.execute("SELECT id FROM project_units WHERE project_id=? AND unit_no=?",
-                     (pid, unit_no)).fetchone():
-            raise ValueError(f"이미 있는 제작번호입니다: {unit_no}")
+        if unit_no and c.execute(
+                "SELECT id FROM project_units WHERE project_id=? AND current_unit_no=? "
+                "AND unit_state<>'CANCELLED'", (pid, unit_no)).fetchone():
+            raise ValueError(f"현재 쓰이는 호기번호입니다: {unit_no}")
         entity = _project_entity(c, pid)
         cur = c.execute(
-            "INSERT INTO project_units(project_id, unit_no, equipment_type, entity, "
-            "status, note, created_by, created_at, updated_at) "
-            "VALUES(?,?,?,?, 'draft', ?, ?, ?, ?)",
-            (pid, unit_no, (equipment_type or None), entity, (note or None),
-             actor_id, _logi_now(), _logi_now()))
-        return cur.lastrowid
-
-
-def link_serial(unit_id, serial_no, actor_id=0, reason=None, note=None) -> int:
-    """호기에 일련번호 연결/교체.
-    [P0-01] 법인 내 영구 유일(과거 포함·대소문자 무시)·호기당 활성 1건.
-    [P0-03] 교체 시 사유 필수 + 이전행 종료 메타 + supersedes 연결.
-    [P1-9.3] 동일 호기에 동일 일련번호 재입력 = 무동작(중복 이력 방지)."""
-    serial_no = (serial_no or "").strip()
-    if not serial_no:
-        raise ValueError("일련번호를 입력하세요.")
-    with db_session() as c:
-        u = c.execute("SELECT id, entity FROM project_units WHERE id=?", (unit_id,)).fetchone()
-        if not u:
-            raise ValueError("호기가 없습니다.")
-        entity = u["entity"] or "KOR"
-        cur_active = c.execute(
-            "SELECT id, serial_no FROM equipment_serials WHERE project_unit_id=? AND active=1",
-            (unit_id,)).fetchone()
-        # [9.3] 같은 일련번호를 같은 호기에 재입력 → 무동작
-        if cur_active and (cur_active["serial_no"] or "").upper() == serial_no.upper():
-            return cur_active["id"]
-        # [P0-01] 법인 내 영구 유일(과거 포함·대소문자 무시)
-        if c.execute("SELECT id FROM equipment_serials WHERE entity=? AND serial_no=? COLLATE NOCASE",
-                     (entity, serial_no)).fetchone():
-            raise ValueError(f"이미 쓰인 일련번호입니다({entity}·과거 포함): {serial_no}")
-        # [P0-03] 교체(기존 활성 존재)면 사유 필수
-        if cur_active and not (reason or "").strip():
-            raise ValueError("일련번호를 교체하려면 사유를 입력하세요.")
-        if cur_active:
+            "INSERT INTO project_units(project_id, working_name, current_unit_no, unit_state, "
+            "entity, equipment_type, note, created_by, created_at, updated_by, updated_at) "
+            "VALUES(?,?,?, 'PROVISIONAL', ?,?,?,?,?,?,?)",
+            (pid, working_name, unit_no, entity, (equipment_type or None), (note or None),
+             actor_id, _logi_now(), actor_id, _logi_now()))
+        uid = cur.lastrowid
+        if unit_no:
             c.execute(
-                "UPDATE equipment_serials SET active=0, deactivated_at=?, deactivated_by=?, "
-                "deactivation_reason=? WHERE id=?",
-                (_logi_now(), actor_id, (reason or "").strip(), cur_active["id"]))
-        cur = c.execute(
-            "INSERT INTO equipment_serials(project_unit_id, serial_no, entity, active, note, "
-            "issued_by, issued_at, supersedes_serial_id) VALUES(?,?,?,1,?,?,?,?)",
-            (unit_id, serial_no, entity, (note or None), actor_id, _logi_now(),
-             cur_active["id"] if cur_active else None))
+                "INSERT INTO project_unit_identifier_history(project_unit_id, old_unit_no, "
+                "new_unit_no, change_reason, changed_by, changed_at, effective_from) "
+                "VALUES(?,NULL,?,?,?,?,?)",
+                (uid, unit_no, "최초 지정", actor_id, _logi_now(), _logi_now()))
+        return uid
+
+
+def change_unit_no(unit_id, new_unit_no, reason, actor_id=0, change_id=None) -> bool:
+    """호기번호 변경 — **Unit id 는 유지**하고 이력을 남긴다.
+    ⛔ 업무 이력(BOM·발주·입고·생산투입·출하)이 있으면 영향분석·승인 없이 불가(V1=미연동이라 차단)."""
+    new_no = _norm_unit_no(new_unit_no)
+    if not new_no:
+        raise ValueError("새 호기번호를 입력하세요.")
+    if not (reason or "").strip():
+        raise ValueError("호기번호를 변경하려면 사유를 입력하세요.")
+    with db_session() as c:
+        u = c.execute("SELECT * FROM project_units WHERE id=?", (unit_id,)).fetchone()
+        if not u:
+            raise ValueError("호기가 없습니다.")
+        if u["unit_state"] == "CANCELLED":
+            raise ValueError("취소된 호기는 변경할 수 없습니다.")
+        old_no = u["current_unit_no"]
+        if old_no == new_no:
+            return False
+        # 확정(CONFIRMED) 호기 = BOM·발주·생산이 붙는 단계 → 영향 확인 필요(V1 은 미연동이라 차단).
+        # 개발·미확정 호기는 아직 업무가 붙지 않으므로 번호를 자유롭게 정리할 수 있다.
+        if u["unit_state"] == "CONFIRMED":
+            _require_impact_cleared(c, unit_id, "호기번호를 변경")
+        if c.execute("SELECT id FROM project_units WHERE project_id=? AND current_unit_no=? "
+                     "AND unit_state<>'CANCELLED' AND id<>?",
+                     (u["project_id"], new_no, unit_id)).fetchone():
+            raise ValueError(f"현재 쓰이는 호기번호입니다: {new_no}")
+        now = _logi_now()
+        c.execute("UPDATE project_units SET current_unit_no=?, updated_by=?, updated_at=? "
+                  "WHERE id=?", (new_no, actor_id, now, unit_id))
+        c.execute("UPDATE project_unit_identifier_history SET effective_to=? "
+                  "WHERE project_unit_id=? AND effective_to IS NULL", (now, unit_id))
         c.execute(
-            "UPDATE project_units SET status=CASE WHEN status='draft' THEN 'active' ELSE status END, "
-            "updated_at=? WHERE id=?", (_logi_now(), unit_id))
+            "INSERT INTO project_unit_identifier_history(project_unit_id, old_unit_no, new_unit_no, "
+            "change_reason, changed_by, changed_at, change_id, effective_from) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (unit_id, old_no, new_no, reason.strip(), actor_id, now, change_id, now))
+    return True
+
+
+def confirm_unit(unit_id, actor_id=0) -> bool:
+    """PROVISIONAL → CONFIRMED. **현재 호기번호 필수**(문서 §4)."""
+    with db_session() as c:
+        u = c.execute("SELECT * FROM project_units WHERE id=?", (unit_id,)).fetchone()
+        if not u:
+            raise ValueError("호기가 없습니다.")
+        if u["unit_state"] == "CANCELLED":
+            raise ValueError("취소된 호기는 확정할 수 없습니다.")
+        if not (u["current_unit_no"] or "").strip():
+            raise ValueError("확정하려면 현재 호기번호가 있어야 합니다.")
+        c.execute("UPDATE project_units SET unit_state='CONFIRMED', confirmed_by=?, "
+                  "confirmed_at=?, updated_by=?, updated_at=? WHERE id=?",
+                  (actor_id, _logi_now(), actor_id, _logi_now(), unit_id))
+    return True
+
+
+def cancel_unit(unit_id, reason, actor_id=0) -> bool:
+    """호기 취소 — **물리삭제 금지**. CANCELLED 전환 + 사유 기록.
+    ⛔ 업무 이력이 있으면 영향분석·승인 없이 불가(V1=미연동이라 차단)."""
+    if not (reason or "").strip():
+        raise ValueError("취소 사유를 입력하세요.")
+    with db_session() as c:
+        u = c.execute("SELECT * FROM project_units WHERE id=?", (unit_id,)).fetchone()
+        if not u:
+            raise ValueError("호기가 없습니다.")
+        if u["unit_state"] == "CANCELLED":
+            return False
+        if u["unit_state"] == "CONFIRMED":
+            _require_impact_cleared(c, unit_id, "호기를 취소")
+        now = _logi_now()
+        c.execute("UPDATE project_units SET unit_state='CANCELLED', cancelled_by=?, "
+                  "cancelled_at=?, cancellation_reason=?, updated_by=?, updated_at=? WHERE id=?",
+                  (actor_id, now, reason.strip(), actor_id, now, unit_id))
+        # 수주 연결은 지우지 않고 비활성 이력으로 남긴다(덮어쓰기·삭제 금지)
+        c.execute("UPDATE project_unit_order_links SET active=0, unlinked_by=?, unlinked_at=? "
+                  "WHERE project_unit_id=? AND active=1", (actor_id, now, unit_id))
+    return True
+
+
+# ══════════════════ 수주 연결(관계) ══════════════════
+
+def link_order(unit_id, order_id, relation_type="ADDITIONAL", reason=None,
+               actor_id=0, change_id=None) -> int:
+    """호기에 수주번호 연결 — 기존 링크를 **덮어쓰거나 지우지 않고** 새 행으로 추가."""
+    if relation_type not in ("ORIGIN", "ADDITIONAL", "CHANGE", "CANCEL"):
+        raise ValueError("연결 유형이 올바르지 않습니다.")
+    with db_session() as c:
+        u = c.execute("SELECT id, project_id FROM project_units WHERE id=?", (unit_id,)).fetchone()
+        if not u:
+            raise ValueError("호기가 없습니다.")
+        o = c.execute("SELECT id, order_no, project_id FROM orders WHERE id=?", (order_id,)).fetchone()
+        if not o:
+            raise ValueError("수주가 없습니다.")
+        if o["project_id"] and o["project_id"] != u["project_id"]:
+            raise ValueError("다른 프로젝트의 수주는 연결할 수 없습니다.")
+        if relation_type == "ORIGIN" and c.execute(
+                "SELECT id FROM project_unit_order_links WHERE project_unit_id=? "
+                "AND relation_type='ORIGIN'", (unit_id,)).fetchone():
+            raise ValueError("최초 수주(ORIGIN)는 이미 연결돼 있습니다. 추가·변경으로 연결하세요.")
+        cur = c.execute(
+            "INSERT INTO project_unit_order_links(project_unit_id, order_id, order_no, "
+            "relation_type, active, reason, change_id, linked_by, linked_at) "
+            "VALUES(?,?,?,?,1,?,?,?,?)",
+            (unit_id, order_id, o["order_no"], relation_type, (reason or None), change_id,
+             actor_id, _logi_now()))
         return cur.lastrowid
 
 
-def delete_unit(unit_id, actor_id=0) -> bool:
-    """호기 삭제 — ADR: 초안 상태 + 이력(일련번호·하위 참조) 없을 때만. 전참조 스캔(P1-7.1)."""
+def get_unit_relations(unit_id) -> list:
+    """분할·통합 관계 이력 조회(읽기 전용).
+    ⛔ V1: 생성·실행·승인 기능 없음 — WP-04 영향분석 연결 후 구현."""
     with db_session() as c:
-        u = c.execute("SELECT id, status FROM project_units WHERE id=?", (unit_id,)).fetchone()
-        if not u:
-            raise ValueError("호기가 없습니다.")
-        if (u["status"] or "draft") != "draft":
-            raise ValueError("초안 상태의 호기만 삭제할 수 있습니다.")
-        blocking = {k: v for k, v in _unit_ref_counts(c, unit_id).items() if v > 0}
-        if blocking:
-            desc = ", ".join(f"{k} {v}건" for k, v in blocking.items())
-            raise ValueError(f"이력이 있어 삭제할 수 없습니다: {desc}")
-        c.execute("DELETE FROM project_units WHERE id=?", (unit_id,))
-    return True
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM project_unit_relations WHERE source_unit_id=? OR result_unit_id=? "
+            "ORDER BY id", (unit_id, unit_id)).fetchall()]

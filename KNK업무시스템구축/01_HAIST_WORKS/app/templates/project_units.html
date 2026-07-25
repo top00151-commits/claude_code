@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>{{ project.mgmt_code }} 호기·일련번호 · KNK HAIST WORKS</title>
+<title>{{ project.mgmt_code }} 호기 · KNK HAIST WORKS</title>
 
-{# v5H226z1053 (2026-07-25) — ERP V1 전환 WP-03 프로젝트 호기·일련번호 (Project Unit·Serial)
-   ADR-001: 프로젝트 → [수주] → 호기(제작 단위·영구 축) → 일련번호(표시·후발급).
-   순수 추가(기존 order_items·작업일정표 무변경). 호기는 수주내역 호기 라인에서 씨앗.
-   RS-01: 관리번호에서 호기 N대·일련번호 조회 / 차단: 제작번호 중복·일련번호 중복(법인 내)·프로젝트 없는 호기 #}
+{# v5H226z1053 (2026-07-25) — ERP V1 WP-03 프로젝트 호기(Project Unit)
+   ⭐ 대표 업무교정: 일련번호(S/N) 미사용 · 개발호기로 시작해 호기번호·구성이 바뀐다.
+      영구 식별자는 시스템 내부 ID 하나. 호기번호는 '현재값'이며 바뀌면 이력이 남는다.
+   ⛔ BOM·발주·생산 영향 분석 미연동 — 영향 확인이 필요한 변경은 승인 처리 불가(사실대로 표시). #}
 
 <link href="/static/css/v5_tokens.css?v=20260725v5H226z1053" rel="stylesheet" />
 {% include "_v5_partials/styles.html" %}
@@ -27,32 +27,37 @@
 .banner { margin:10px 24px 0; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
 .banner.ok { background:#ecfdf5; color:#0d7c4f; border:1px solid #a7f3d0; }
 .banner.err { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+.banner.warn { background:#fffbeb; color:#92400e; border:1px solid #fde68a; font-weight:600; }
 .wrap { padding:14px 24px 90px; }
 .card { background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; padding:13px 16px; margin-bottom:14px; }
 .card h3 { margin:0 0 9px; font-size:13px; color:var(--pq-ink); }
 .scroll { overflow-x:auto; background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; }
-table.u { width:100%; border-collapse:collapse; font-size:12.5px; min-width:720px; }
+table.u { width:100%; border-collapse:collapse; font-size:12.5px; min-width:900px; }
 table.u th { text-align:left; padding:8px 10px; background:var(--pq-surface-2); color:var(--pq-ink-3); font-size:11px; font-weight:700; border-bottom:1px solid var(--pq-line); white-space:nowrap; }
 table.u td { padding:8px 10px; border-bottom:1px solid var(--pq-line); white-space:nowrap; vertical-align:middle; }
 table.u tr:last-child td { border-bottom:0; }
+table.u tr.is-cancelled { opacity:.55; }
+table.u tr.is-cancelled td.no { text-decoration:line-through; }
 table.u td.mono { font-family:var(--pq-mono); }
-.st { font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:800; }
-.st.draft { background:var(--pq-surface-3); color:var(--pq-ink-3); }
-.st.active { background:#eff6ff; color:#1e5fbf; }
-.st.shipped { background:#ecfdf5; color:#0d7c4f; }
-.st.cancelled { background:#fef2f2; color:#b91c1c; }
-.sn { font-family:var(--pq-mono); font-weight:700; color:var(--pq-ink); }
-.sn.none { color:var(--pq-ink-4); font-weight:400; }
-.inl { display:inline-flex; gap:6px; align-items:center; }
-.inl input { height:28px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 8px; font-size:12px; }
-.mini { height:28px; padding:0 11px; border:1px solid var(--pq-line-2); border-radius:7px; font-size:12px; background:var(--pq-surface); cursor:pointer; color:var(--pq-ink-2); }
+.st { font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:800; white-space:nowrap; }
+.st.PROVISIONAL { background:#fef3c7; color:#92400e; }
+.st.CONFIRMED { background:#eff6ff; color:#1e5fbf; }
+.st.CANCELLED { background:#fef2f2; color:#b91c1c; }
+.rt { font-size:10px; padding:1px 6px; border-radius:999px; font-weight:700; background:var(--pq-surface-3); color:var(--pq-ink-3); margin-right:3px; }
+.rt.ORIGIN { background:#ecfdf5; color:#0d7c4f; }
+.rt.off { opacity:.5; text-decoration:line-through; }
+.prev { font-size:10.5px; color:#94a3b8; text-decoration:line-through; }
+.inl { display:inline-flex; gap:5px; align-items:center; flex-wrap:wrap; }
+.inl input, .inl select { height:27px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 7px; font-size:11.5px; }
+.mini { height:27px; padding:0 10px; border:1px solid var(--pq-line-2); border-radius:7px; font-size:11.5px; background:var(--pq-surface); cursor:pointer; color:var(--pq-ink-2); }
 .mini.dark { background:var(--pq-ink); color:#fff; border:0; font-weight:600; }
 .mini.danger { color:#b91c1c; border-color:#fecaca; }
+.mini[disabled] { opacity:.45; cursor:not-allowed; }
 .addform { display:none; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px dashed var(--pq-line); }
 .addform.show { display:flex; }
 .addform input { height:30px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 10px; font-size:12.5px; }
 .empty { padding:28px; text-align:center; color:var(--pq-ink-4); font-size:13px; }
-.note { margin:12px 4px; font-size:11.5px; color:var(--pq-ink-4); line-height:1.65; }
+.note { margin:12px 4px; font-size:11.5px; color:var(--pq-ink-4); line-height:1.7; }
 .note b { color:var(--pq-ink-3); }
 </style>
 </head>
@@ -64,11 +69,12 @@ table.u td.mono { font-family:var(--pq-mono); }
 
     <div class="pl-head">
       <div>
-        <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/project/{{ project.id }}">{{ project.mgmt_code }}</a> · <b>호기·일련번호</b></div>
+        <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/project/{{ project.id }}">{{ project.mgmt_code }}</a> · <b>호기</b></div>
         <div class="pl-title">🔧 {{ project.mgmt_code }} <span style="font-weight:500;color:var(--pq-ink-2);">{{ project.name }}</span></div>
-        <div class="pl-meta">호기 <b>{{ summary.units }}</b>대 · 일련번호 부여 <b>{{ summary.serials }}</b>대 · 수주내역 호기 라인 <b>{{ summary.hogi_lines }}</b></div>
+        <div class="pl-meta">호기 <b>{{ summary.units }}</b>대 (개발·미확정 <b>{{ summary.provisional }}</b> · 확정 <b>{{ summary.confirmed }}</b> · 취소 <b>{{ summary.cancelled }}</b>) · 수주내역 호기 후보 <b>{{ summary.candidates }}</b></div>
       </div>
       <div class="pl-actions">
+        {% if can_edit and summary.ready %}<a class="btn-dark" href="/project/{{ project.id }}/units/candidates">🔍 수주내역에서 호기 후보 확인</a>{% endif %}
         <a class="btn-ghost" href="/project/{{ project.id }}" data-knk-back>프로젝트 상세 ↗</a>
       </div>
     </div>
@@ -77,27 +83,27 @@ table.u td.mono { font-family:var(--pq-mono); }
     {% set _err = request.query_params.get('error') %}
     {% if _succ %}<div class="banner ok">✅ {{ _succ }}</div>{% endif %}
     {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
+    {% if not summary.impact_wired %}
+    {# ⛔ 거짓으로 '영향 없음'이라고 하지 않는다 — 미연동 사실을 그대로 알린다(대표 확정) #}
+    <div class="banner warn">⚠ {{ impact_msg }}</div>
+    {% endif %}
 
     <div class="wrap">
       {% if not summary.ready %}
       <div class="banner err">호기 기능이 아직 준비되지 않았습니다(테이블 미생성). 관리자에게 문의하세요.</div>
       {% endif %}
+
       {% if can_edit and summary.ready %}
       <div class="card">
-        <h3>호기 만들기</h3>
+        <h3>호기 직접 추가</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          {% if summary.unseeded > 0 %}
-          <form method="post" action="/project/{{ project.id }}/units/seed"
-                onsubmit="return confirm('수주내역의 미반영 호기 라인 {{ summary.unseeded }}개를 호기로 불러옵니다. 진행할까요?');">
-            <button class="{{ 'btn-dark' if summary.units == 0 else 'btn-ghost' }}" type="submit">⤵ 수주내역에서 호기 {{ summary.unseeded }}대 불러오기</button>
-          </form>
-          <span style="font-size:12px;color:var(--pq-ink-4);">정식 호기 라인(1호기·2호기…)에서만 만듭니다. 부속·부품 라인 제외 · 수량이 1이 아닌 호기 라인이 있으면 중단하고 알려줍니다.</span>
-          {% endif %}
-          <button class="btn-ghost" type="button" onclick="document.getElementById('addForm').classList.toggle('show')">+ 호기 직접 추가</button>
+          <button class="btn-ghost" type="button" onclick="document.getElementById('addForm').classList.toggle('show')">+ 개발호기 만들기</button>
+          <span style="font-size:12px;color:var(--pq-ink-4);">개발 단계에서는 <b>호기번호 없이 개발호기명만으로도</b> 만들 수 있습니다. 번호는 나중에 정하고 바꿔도 이력이 남습니다.</span>
         </div>
         <form class="addform" id="addForm" method="post" action="/project/{{ project.id }}/units/create">
-          <input name="unit_no" placeholder="제작번호 (예: 24호기)" required>
-          <input name="equipment_type" placeholder="장비 종류 (선택)">
+          <input name="working_name" placeholder="개발호기명 (예: 개발1호기)">
+          <input name="unit_no" placeholder="호기번호 (선택 · 예: 1호기)">
+          <input name="equipment_type" placeholder="장비 구분 (선택)">
           <button class="mini dark" type="submit">추가</button>
         </form>
       </div>
@@ -107,45 +113,61 @@ table.u td.mono { font-family:var(--pq-mono); }
         <table class="u">
           <thead>
             <tr>
-              <th>제작번호(호기)</th><th>상태</th><th>일련번호</th><th style="text-align:center">이력</th>
-              <th>수주</th>{% if can_edit %}<th>작업</th>{% endif %}
+              <th>개발호기명</th><th>현재 호기번호</th><th>상태</th><th>연결된 수주</th>
+              <th>장비 구분</th>{% if can_edit %}<th>작업</th>{% endif %}
             </tr>
           </thead>
           <tbody>
             {% for u in units %}
-            <tr>
-              <td class="mono"><b>{{ u.unit_no }}</b>{% if u.equipment_type %} <span style="color:var(--pq-ink-4);font-size:11px;">{{ u.equipment_type }}</span>{% endif %}</td>
-              <td><span class="st {{ u.status }}">{{ {'draft':'초안','active':'진행','shipped':'출하','cancelled':'취소'}.get(u.status, u.status) }}</span></td>
-              <td>{% if u.serial_no %}<span class="sn">{{ u.serial_no }}</span>{% else %}<span class="sn none">— 미부여</span>{% endif %}</td>
-              <td style="text-align:center;color:var(--pq-ink-3);">{{ u.serial_count }}</td>
-              <td style="color:var(--pq-ink-3);font-size:11.5px;">{% if u.order_id %}<a href="/sales/orders/{{ u.order_id }}" style="color:var(--pq-ink-2);">수주 ↗</a>{% else %}-{% endif %}</td>
+            <tr class="{{ 'is-cancelled' if u.unit_state == 'CANCELLED' }}">
+              <td>{{ u.working_name or '—' }}</td>
+              <td class="mono no">
+                {% if u.current_unit_no %}<b>{{ u.current_unit_no }}</b>{% else %}<span style="color:var(--pq-ink-4);">미정</span>{% endif %}
+                {% if u.previous_unit_no %}<div class="prev">← {{ u.previous_unit_no }}</div>{% endif %}
+              </td>
+              <td><span class="st {{ u.unit_state }}">{{ {'PROVISIONAL':'개발·미확정','CONFIRMED':'확정','CANCELLED':'취소'}.get(u.unit_state, u.unit_state) }}</span></td>
+              <td>
+                {% for o in u.orders %}<span class="rt {{ o.relation_type }} {{ '' if o.active else 'off' }}">{{ {'ORIGIN':'최초','ADDITIONAL':'추가','CHANGE':'변경','CANCEL':'취소'}.get(o.relation_type, o.relation_type) }} {{ o.order_no or '-' }}</span>{% else %}<span style="color:var(--pq-ink-4);">—</span>{% endfor %}
+              </td>
+              <td style="color:var(--pq-ink-3);">{{ u.equipment_type or '—' }}</td>
               {% if can_edit %}
               <td>
+                {% if u.unit_state != 'CANCELLED' %}
                 <div class="inl">
-                  <form class="inl" method="post" action="/units/{{ u.id }}/serial">
-                    <input name="serial_no" placeholder="일련번호" size="12">
-                    {% if u.serial_no %}<input name="reason" placeholder="교체 사유(필수)" size="10">{% endif %}
-                    <button class="mini" type="submit">{{ '연결' if not u.serial_no else '교체' }}</button>
+                  <form class="inl" method="post" action="/units/{{ u.id }}/unit-no">
+                    <input name="new_unit_no" placeholder="새 호기번호" size="8">
+                    <input name="reason" placeholder="변경 사유(필수)" size="10">
+                    <button class="mini" type="submit">번호 변경</button>
                   </form>
-                  {% if u.status == 'draft' and u.serial_count == 0 %}
-                  <form method="post" action="/units/{{ u.id }}/delete" onsubmit="return confirm('{{ u.unit_no }} 호기를 삭제할까요? (초안·이력 없음)');">
-                    <button class="mini danger" type="submit">삭제</button>
+                  {% if u.unit_state == 'PROVISIONAL' %}
+                  <form method="post" action="/units/{{ u.id }}/confirm" onsubmit="return confirm('이 호기를 확정할까요? (현재 호기번호 필요)');">
+                    <button class="mini" type="submit" {% if not u.current_unit_no %}disabled title="호기번호를 먼저 정하세요"{% endif %}>확정</button>
+                  </form>
+                  {% endif %}
+                  {% if can_approve %}
+                  <form class="inl" method="post" action="/units/{{ u.id }}/cancel" onsubmit="return confirm('이 호기를 취소할까요? (삭제가 아니라 취소 이력으로 남습니다)');">
+                    <input name="reason" placeholder="취소 사유(필수)" size="9">
+                    <button class="mini danger" type="submit">취소</button>
                   </form>
                   {% endif %}
                 </div>
+                {% else %}
+                <span style="font-size:11.5px;color:var(--pq-ink-4);">{{ u.cancellation_reason or '취소됨' }}</span>
+                {% endif %}
               </td>
               {% endif %}
             </tr>
             {% else %}
-            <tr><td colspan="{{ 6 if can_edit else 5 }}"><div class="empty">아직 호기가 없습니다.{% if can_edit and summary.unseeded > 0 %} 위에서 '수주내역에서 호기 불러오기'를 눌러 시작하세요.{% endif %}</div></td></tr>
+            <tr><td colspan="{{ 6 if can_edit else 5 }}"><div class="empty">아직 호기가 없습니다.{% if can_edit and summary.candidates > 0 %} 위 '수주내역에서 호기 후보 확인'으로 시작하세요.{% endif %}</div></td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
       <p class="note">
-        · 호기(제작 단위)는 앞으로 BOM·자재출고·실제 투입·변경·출하가 붙는 <b>영구 기준</b>입니다. 일련번호는 표시·조회용이며 출하 전까지 비어 있을 수 있습니다.<br>
-        · 같은 프로젝트에서 <b>제작번호 중복</b>, 같은 법인에서 <b>일련번호 중복</b>은 저장되지 않습니다. 이력(일련번호 등)이 생긴 호기는 삭제되지 않습니다.
+        · 호기(장비 단위)는 앞으로 BOM·자재출고·실제 투입·출하가 붙는 <b>영구 기준</b>입니다. 시스템 내부 ID로 관리하므로 <b>호기번호가 바뀌어도 지금까지 쌓인 기록은 그대로 따라갑니다.</b><br>
+        · 호기번호·수주 연결은 <b>바뀔 수 있는 값</b>이며 바꾸면 이전 값·사유·변경자가 이력으로 남습니다. 취소한 호기는 <b>지우지 않고</b> 취소 이력으로 보관합니다.<br>
+        · 호기 분할·통합은 <b>아직 실행할 수 없습니다</b>(자료 구조만 준비 · BOM·발주·생산 영향 분석이 연결되는 다음 단계에서 제공).
       </p>
     </div>
 
