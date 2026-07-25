@@ -79,20 +79,19 @@ table.u td.mono { font-family:var(--pq-mono); }
     {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
 
     <div class="wrap">
-      {% if can_edit %}
+      {% if not summary.ready %}
+      <div class="banner err">호기 기능이 아직 준비되지 않았습니다(테이블 미생성). 관리자에게 문의하세요.</div>
+      {% endif %}
+      {% if can_edit and summary.ready %}
       <div class="card">
         <h3>호기 만들기</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          {% if summary.units == 0 and summary.hogi_lines > 0 %}
+          {% if summary.unseeded > 0 %}
           <form method="post" action="/project/{{ project.id }}/units/seed"
-                onsubmit="return confirm('수주내역의 호기 라인 {{ summary.hogi_lines }}개를 호기로 불러옵니다. 진행할까요?');">
-            <button class="btn-dark" type="submit">⤵ 수주내역에서 호기 {{ summary.hogi_lines }}대 불러오기</button>
+                onsubmit="return confirm('수주내역의 미반영 호기 라인 {{ summary.unseeded }}개를 호기로 불러옵니다. 진행할까요?');">
+            <button class="{{ 'btn-dark' if summary.units == 0 else 'btn-ghost' }}" type="submit">⤵ 수주내역에서 호기 {{ summary.unseeded }}대 불러오기</button>
           </form>
-          <span style="font-size:12px;color:var(--pq-ink-4);">기존 '1호기·2호기' 형식 라인에서 호기를 한 번에 만듭니다 (부속·부품 라인 제외).</span>
-          {% elif summary.hogi_lines > summary.units %}
-          <form method="post" action="/project/{{ project.id }}/units/seed">
-            <button class="btn-ghost" type="submit">⤵ 새 호기 라인 반영 ({{ summary.hogi_lines - summary.units }})</button>
-          </form>
+          <span style="font-size:12px;color:var(--pq-ink-4);">정식 호기 라인(1호기·2호기…)에서만 만듭니다. 부속·부품 라인 제외 · 수량이 1이 아닌 호기 라인이 있으면 중단하고 알려줍니다.</span>
           {% endif %}
           <button class="btn-ghost" type="button" onclick="document.getElementById('addForm').classList.toggle('show')">+ 호기 직접 추가</button>
         </div>
@@ -125,6 +124,7 @@ table.u td.mono { font-family:var(--pq-mono); }
                 <div class="inl">
                   <form class="inl" method="post" action="/units/{{ u.id }}/serial">
                     <input name="serial_no" placeholder="일련번호" size="12">
+                    {% if u.serial_no %}<input name="reason" placeholder="교체 사유(필수)" size="10">{% endif %}
                     <button class="mini" type="submit">{{ '연결' if not u.serial_no else '교체' }}</button>
                   </form>
                   {% if u.status == 'draft' and u.serial_count == 0 %}
@@ -137,7 +137,7 @@ table.u td.mono { font-family:var(--pq-mono); }
               {% endif %}
             </tr>
             {% else %}
-            <tr><td colspan="{{ 6 if can_edit else 5 }}"><div class="empty">아직 호기가 없습니다.{% if can_edit and summary.hogi_lines > 0 %} 위에서 '수주내역에서 호기 불러오기'를 눌러 시작하세요.{% endif %}</div></td></tr>
+            <tr><td colspan="{{ 6 if can_edit else 5 }}"><div class="empty">아직 호기가 없습니다.{% if can_edit and summary.unseeded > 0 %} 위에서 '수주내역에서 호기 불러오기'를 눌러 시작하세요.{% endif %}</div></td></tr>
             {% endfor %}
           </tbody>
         </table>

@@ -6929,6 +6929,7 @@ async def project_detail(req: Request, pid: int):
                retire_blocked=bool(_retire_fin.get("any")),   # v5H226z872: 실거래 기록 있으면 폐기 불가
                retire_block_reasons=_rb_reasons,
                can_money=can_view_sales(u),   # 단가·금액은 영업·관리 권한자만(제작요청 통보 받은 부서원에 비공개)
+               can_view_units=(can_view_logistics(u) or can_use_logistics(u)),   # v5H226z1053 WP-03: 호기·일련번호 링크 노출 게이트(게이트 8.3)
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
@@ -21250,7 +21251,14 @@ async def project_units_seed(request: Request, pid: int):
     from urllib.parse import quote as _q
     try:
         r = _punit.seed_units_from_orders(pid, actor_id=_punit_actor(u))
-        msg = f"호기 {r['created']}대 생성 (대상 호기 라인 {r['target_lines']} · 이미 있어 건너뜀 {r['skipped']})"
+        _extra = []
+        if r["already_seeded"]:
+            _extra.append(f"이미 있어 건너뜀 {r['already_seeded']}")
+        if r["unit_no_conflicts"]:
+            _extra.append(f"제작번호 충돌 {len(r['unit_no_conflicts'])}"
+                          f"({', '.join(r['unit_no_conflicts'][:5])})")
+        msg = (f"호기 {r['created']}대 생성 (대상 {r['target_lines']}"
+               + ((" · " + " · ".join(_extra)) if _extra else "") + ")")
         return RedirectResponse(f"/project/{pid}/units?success={_q(msg)}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21287,7 +21295,8 @@ async def project_unit_serial(request: Request, unit_id: int):
         return RedirectResponse("/", 303)
     pid = unit["project_id"]
     try:
-        _punit.link_serial(unit_id, form.get("serial_no"), actor_id=_punit_actor(u))
+        _punit.link_serial(unit_id, form.get("serial_no"), actor_id=_punit_actor(u),
+                           reason=form.get("reason"))
         return RedirectResponse(f"/project/{pid}/units?success={_q('일련번호 연결됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
