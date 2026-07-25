@@ -88,6 +88,16 @@ table.u td.mono { font-family:var(--pq-mono); }
     <div class="banner warn">⚠ {{ impact_msg }}</div>
     {% endif %}
 
+    {% if is_admin_override %}
+    {# 관리자 비상복구 — 기술영업팀 업무를 대신 수행할 때는 '왜 대신 했는지'를 반드시 남긴다 #}
+    <div class="banner warn" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <b>🛠 시스템 관리자 비상복구</b>
+      <span style="font-weight:500;">호기 업무는 기술영업팀 담당입니다. 대신 수행하려면 아래를 입력하세요(감사 기록에 남습니다).</span>
+      <input id="ovRequester" placeholder="요청 부서·요청자" style="height:28px;border:1px solid #fde68a;border-radius:7px;padding:0 8px;font-size:12px;">
+      <input id="ovReason" placeholder="우회 사유(필수)" style="height:28px;border:1px solid #fde68a;border-radius:7px;padding:0 8px;font-size:12px;min-width:220px;">
+    </div>
+    {% endif %}
+
     <div class="wrap">
       {% if not summary.ready %}
       <div class="banner err">호기 기능이 아직 준비되지 않았습니다(테이블 미생성). 관리자에게 문의하세요.</div>
@@ -139,7 +149,9 @@ table.u td.mono { font-family:var(--pq-mono); }
                   <form class="inl" method="post" action="/units/{{ u.id }}/unit-no">
                     <input name="new_unit_no" placeholder="{{ '호기번호 지정' if not u.current_unit_no else '새 호기번호' }}" size="8">
                     <input name="reason" placeholder="사유(필수)" size="9">
-                    <input name="effective_from" type="date" title="업무 적용시점(비우면 오늘)">
+                    {# V1: 즉시 적용 + 지난 날짜 정정만. 미래 예약은 다음 단계(WP-04)에서 제공 #}
+                    <input name="effective_from" type="date" max="{{ today_ymd }}"
+                           title="적용 시점 — 비우면 지금 적용. 지난 날짜로 정정할 수 있고, 미래 날짜는 넣을 수 없습니다.">
                     <button class="mini" type="submit">{{ '번호 지정' if not u.current_unit_no else '번호 변경' }}</button>
                   </form>
                   {% endif %}
@@ -191,6 +203,28 @@ table.u td.mono { font-family:var(--pq-mono); }
         · 호기 분할·통합은 <b>아직 실행할 수 없습니다</b>(자료 구조만 준비 · BOM·발주·생산 영향 분석이 연결되는 다음 단계에서 제공).
       </p>
     </div>
+
+    {% if is_admin_override %}
+    <script>
+    /* 관리자 비상복구: 상단에 입력한 요청자·우회 사유를 이 화면의 모든 저장 요청에 함께 보낸다.
+       (폼마다 칸을 넣지 않고 한 곳에서 입력 — 감사 기록 누락 방지) */
+    (function(){
+      document.addEventListener('submit', function(ev){
+        var f = ev.target;
+        if (!f || f.method.toLowerCase() !== 'post') return;
+        var rq = document.getElementById('ovRequester');
+        var rs = document.getElementById('ovReason');
+        if (!rs) return;
+        if (!rs.value.trim()) { ev.preventDefault(); alert('시스템 관리자 비상복구: 우회 사유를 입력하세요.'); rs.focus(); return; }
+        [['override_requester', rq ? rq.value : ''], ['override_reason', rs.value]].forEach(function(kv){
+          var el = f.querySelector('input[name="' + kv[0] + '"]');
+          if (!el) { el = document.createElement('input'); el.type = 'hidden'; el.name = kv[0]; f.appendChild(el); }
+          el.value = kv[1];
+        });
+      }, true);
+    })();
+    </script>
+    {% endif %}
 
   </main>
 </div>

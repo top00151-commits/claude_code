@@ -477,15 +477,27 @@ def change_unit_no(unit_id, new_unit_no, reason, actor_id=0, change_id=None,
             raise ValueError("호기가 없습니다.")
         if u["unit_state"] == "CANCELLED":
             raise ValueError("취소된 호기는 변경할 수 없습니다.")
-        old_no = u["current_unit_no"]
+        now = _logi_now()
+        eff = (effective_from or "").strip() or now
+        # ── [게이트 v5 P0-02] V1 은 **미래 적용 예약을 지원하지 않는다** ──────────
+        #   예약일이 도래해도 current_unit_no 를 자동으로 바꿔주는 배치·스케줄러가 없어
+        #   화면과 다른 모듈이 옛 번호를 계속 보게 된다(불완전 기능을 운영에 노출하지 않는다).
+        #   → **즉시 변경 + 승인된 소급 정정만** 허용. 미래 Effectivity 는 WP-04 Change 승인·
+        #     자동 활성화 구조와 함께 구현한다.
+        if eff > now:
+            raise ValueError(
+                "미래 날짜로 호기번호를 예약할 수 없습니다. "
+                "지금 적용하거나 지난 날짜로 정정하세요(미래 적용 예약은 다음 단계에서 제공).")
+        # ── [게이트 v5 P0-01] 변경 '전' 값 = **적용시점 직전에 유효하던 번호** ────
+        #   현재값(current_unit_no)을 쓰면 소급 정정이 '3호기→4호기'로 잘못 기록돼
+        #   ECR/ECO 변경 근거가 왜곡된다. 5월 직전 실제 값은 2호기 → '2호기→4호기'가 맞다.
+        old_no = _unit_no_at_tx(c, unit_id, eff)
         if old_no == new_no:
             return False
         if u["unit_state"] == "CONFIRMED":
             _require_impact_cleared(c, unit_id, "호기번호를 변경")
         if _unit_no_ever_used(c, u["project_id"], new_no, exclude_unit_id=unit_id):
             raise ValueError(f"이 관리번호에서 이미 사용된 호기번호입니다(취소분 포함): {new_no}")
-        now = _logi_now()
-        eff = (effective_from or "").strip() or now
         # ── [게이트 v4 P0-03] 적용기간(Effectivity) 규칙 ──────────────────────
         #   ① 적용시점 T 를 포함하는 기존 구간을 찾아 ② T 에서 종료하고
         #   ③ 새 구간은 T 에서 시작해 **다음 예정 변경시점**에서 끝난다(소급 입력이 미래 계획을 덮지 않음).

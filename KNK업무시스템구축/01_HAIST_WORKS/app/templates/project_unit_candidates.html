@@ -148,6 +148,11 @@ select, .dec input { height:27px; border:1px solid var(--pq-line-2); border-radi
 
     <div class="foot">
       <span class="sumbox" id="sumBox">선택 <b>0</b>건 · 새 개발호기 <b>0</b> · 기존 호기 연결 <b>0</b></span>
+      {% if is_admin_override %}
+      {# 관리자 비상복구 — 기술영업팀 업무를 대신 수행하는 사유를 감사에 남긴다 #}
+      <input name="override_requester" placeholder="요청 부서·요청자" style="height:32px;border:0;border-radius:7px;padding:0 10px;font-size:12.5px;">
+      <input name="override_reason" placeholder="관리자 우회 사유(필수)" required style="height:32px;border:0;border-radius:7px;padding:0 10px;font-size:12.5px;min-width:200px;">
+      {% endif %}
       <input name="reason" id="reasonInput" placeholder="반영 사유 (필수)" required>
       <button class="btn-dark" type="submit" id="submitBtn" style="margin-left:auto;" disabled>✔ 선택한 후보 반영</button>
     </div>

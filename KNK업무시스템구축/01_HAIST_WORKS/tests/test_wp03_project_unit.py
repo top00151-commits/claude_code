@@ -213,13 +213,31 @@ try:
     chk("P0-03 ⑥ 동일 적용시점 중복 차단", False)
 except ValueError:
     chk("P0-03 ⑥ 동일 적용시점 중복 차단", True)
-# 미래 적용 예약이 현재값을 조기에 바꾸지 않음
-UB2 = pu.create_unit(PS, working_name="개발미래")
-pu.change_unit_no(UB2, "20호기", reason="지금부터")
-pu.change_unit_no(UB2, "21호기", reason="미래 예약", effective_from="2099-01-01")
-chk("P0-03 ⑦ 미래 예약이 현재 호기번호를 조기 변경하지 않음",
-    pu.get_unit(UB2)["current_unit_no"] == "20호기", str(pu.get_unit(UB2)["current_unit_no"]))
-chk("P0-03 ⑦' 미래 시점 조회는 예약값", pu.unit_no_at(UB2, "2099-06-01") == "21호기")
+
+# ── [게이트 v5 P0-01] 소급 정정의 '변경 전 값'은 적용시점 직전 유효값이어야 한다 ──
+with db.db_session() as c:
+    _h5 = c.execute("SELECT old_unit_no, new_unit_no FROM project_unit_identifier_history "
+                    "WHERE project_unit_id=? AND effective_from='2026-05-01'", (UB,)).fetchone()
+chk("v5 P0-01 소급 정정 old_unit_no = 2호기(적용시점 직전 값)",
+    _h5["old_unit_no"] == "2호기", f"old={_h5['old_unit_no']} (현재값 3호기를 쓰면 안 됨)")
+chk("v5 P0-01' 소급 정정 new_unit_no = 4호기", _h5["new_unit_no"] == "4호기")
+
+# ── [게이트 v5 P0-02] V1 은 미래 적용 예약을 지원하지 않는다 ──
+UB2 = pu.create_unit(PS, working_name="개발즉시")
+chk("v5 P0-02 즉시 변경은 정상 처리",
+    pu.change_unit_no(UB2, "20호기", reason="지금 적용") is True)
+chk("v5 P0-02' 즉시 변경 후 현재값 반영", pu.get_unit(UB2)["current_unit_no"] == "20호기")
+try:
+    pu.change_unit_no(UB2, "21호기", reason="미래 예약", effective_from="2099-01-01")
+    chk("v5 P0-02'' 미래 적용일 입력 차단", False)
+except ValueError as e:
+    chk("v5 P0-02'' 미래 적용일 입력 차단", "미래" in str(e), str(e))
+chk("v5 P0-02''' 차단 후 현재값 그대로", pu.get_unit(UB2)["current_unit_no"] == "20호기")
+# 소급 정정 후에도 4월·5월·7월 조회가 유지되는지 재확인(§9-4)
+chk("v5 §9-4 소급 후 조회 유지: 4월 2호기 · 5/15 4호기 · 7월 3호기",
+    (pu.unit_no_at(UB, "2026-04-01") == "2호기"
+     and pu.unit_no_at(UB, "2026-05-15") == "4호기"
+     and pu.unit_no_at(UB, "2026-07-01") == "3호기"))
 
 # 시나리오 C: 취소된 호기번호 재사용 차단 (F-06)
 UC = pu.create_unit(PS, working_name="개발9호기")
@@ -316,6 +334,74 @@ try:
     chk("P0-02'' 보정 후에도 법인 생략 실패", False)
 except _sq3.IntegrityError:
     chk("P0-02'' 보정 후에도 법인 생략 실패", True)
+_c.close()
+
+# ── [게이트 v5 P1-03] **자식 이력이 있는** 구버전 DB 보정 후 FK 무결성 ──
+#   표 재작성(RENAME) 시 자식 표의 FK 가 임시 이름을 가리키면 이력이 끊긴다.
+_old2 = os.path.join(tempfile.mkdtemp(prefix="wp03_old2_"), "old2.db")
+_c = _sq3.connect(_old2)
+_c.execute("CREATE TABLE projects (id INTEGER PRIMARY KEY, mgmt_code TEXT, name TEXT, status TEXT)")
+_c.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY, order_no TEXT)")
+_c.execute("CREATE TABLE order_items (id INTEGER PRIMARY KEY)")
+_c.execute("""CREATE TABLE project_units (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, working_name TEXT,
+    current_unit_no TEXT, unit_state TEXT NOT NULL DEFAULT 'PROVISIONAL', equipment_type TEXT,
+    entity TEXT NOT NULL DEFAULT 'KOR', seed_order_item_id INTEGER, seed_order_no TEXT,
+    seed_unit_label TEXT, note TEXT, created_by INTEGER, created_at TEXT, updated_by INTEGER,
+    updated_at TEXT, confirmed_by INTEGER, confirmed_at TEXT, cancelled_by INTEGER,
+    cancelled_at TEXT, cancellation_reason TEXT,
+    FOREIGN KEY(project_id) REFERENCES projects(id))""")
+_c.execute("""CREATE TABLE project_unit_identifier_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, project_unit_id INTEGER NOT NULL, old_unit_no TEXT,
+    new_unit_no TEXT, change_reason TEXT, changed_by INTEGER, changed_at TEXT, change_id TEXT,
+    effective_from TEXT, effective_to TEXT,
+    FOREIGN KEY(project_unit_id) REFERENCES project_units(id))""")
+_c.execute("""CREATE TABLE project_unit_order_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, project_unit_id INTEGER NOT NULL, order_id INTEGER,
+    order_no TEXT, relation_type TEXT NOT NULL DEFAULT 'ORIGIN', active INTEGER NOT NULL DEFAULT 1,
+    reason TEXT, change_id TEXT, linked_by INTEGER, linked_at TEXT, unlinked_by INTEGER,
+    unlinked_at TEXT, FOREIGN KEY(project_unit_id) REFERENCES project_units(id))""")
+_c.execute("""CREATE TABLE project_unit_relations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, source_unit_id INTEGER NOT NULL,
+    result_unit_id INTEGER NOT NULL, relation_type TEXT NOT NULL, change_reason TEXT,
+    change_id TEXT, effective_at TEXT, processed_by INTEGER, approved_by INTEGER, created_at TEXT,
+    FOREIGN KEY(source_unit_id) REFERENCES project_units(id),
+    FOREIGN KEY(result_unit_id) REFERENCES project_units(id))""")
+_c.execute("INSERT INTO projects (id, mgmt_code, name, status) VALUES (1,'999OLD2','기존2','진행중')")
+_c.execute("INSERT INTO orders (id, order_no) VALUES (7,'SO-OLD-7')")
+_c.execute("INSERT INTO project_units (id, project_id, working_name, current_unit_no, entity) "
+           "VALUES (5,1,'구형호기','1호기','VN')")
+_c.execute("INSERT INTO project_units (id, project_id, working_name, entity) VALUES (6,1,'구형B','KOR')")
+_c.execute("INSERT INTO project_unit_identifier_history (project_unit_id, old_unit_no, new_unit_no, "
+           "change_reason, effective_from) VALUES (5,NULL,'1호기','최초','2026-01-01')")
+_c.execute("INSERT INTO project_unit_order_links (project_unit_id, order_id, order_no, relation_type, active) "
+           "VALUES (5,7,'SO-OLD-7','ORIGIN',1)")
+_c.execute("INSERT INTO project_unit_relations (source_unit_id, result_unit_id, relation_type) "
+           "VALUES (5,6,'SPLIT')")
+_c.commit(); _c.close()
+_res2 = _mig(_old2)
+_c = _sq3.connect(_old2)
+_hist_n = _c.execute("SELECT COUNT(*) FROM project_unit_identifier_history").fetchone()[0]
+_link_n = _c.execute("SELECT COUNT(*) FROM project_unit_order_links").fetchone()[0]
+_rel_n = _c.execute("SELECT COUNT(*) FROM project_unit_relations").fetchone()[0]
+_unit_n = _c.execute("SELECT COUNT(*) FROM project_units").fetchone()[0]
+chk("P1-03 자식 이력 보존(이력1·연결1·분할1·호기2)",
+    (_hist_n, _link_n, _rel_n, _unit_n) == (1, 1, 1, 2),
+    str((_hist_n, _link_n, _rel_n, _unit_n)))
+_fk_targets = set()
+for _t in ("project_unit_identifier_history", "project_unit_order_links", "project_unit_relations"):
+    for _fk in _c.execute(f"PRAGMA foreign_key_list({_t})").fetchall():
+        if "project_unit" in str(_fk[2]):
+            _fk_targets.add(_fk[2])
+chk("P1-03' 자식 FK 대상이 project_units 그대로(임시표 아님)",
+    _fk_targets == {"project_units"}, str(_fk_targets))
+_c.execute("PRAGMA foreign_keys=ON")
+_fkc = _c.execute("PRAGMA foreign_key_check").fetchall()
+chk("P1-03'' foreign_key_check 위반 0건", len(_fkc) == 0, str(_fkc[:3]))
+chk("P1-03''' 보정 후에도 법인 생략 INSERT 실패",
+    _mig(_old2) is not None
+    and "DEFAULT 'KOR'" not in _c.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='project_units'").fetchone()[0])
 _c.close()
 # P1 — DB 수준 중복 제약
 _u_dup = pu.get_units(PS)[0]["id"]
@@ -449,11 +535,53 @@ try:
         and ("/cancel" not in _html_design))
     chk("화면 · 기술영업팀장에겐 노출", "/unit-no" in _html_lead and "/cancel" in _html_lead)
 
-    # 관리자 우회 감사 기록
+    # ── 관리자 비상복구 감사 (게이트 v5 P1-01·P1-02) ──
+    ADMIN = {"id": 20, "role": "admin", "team_id": 11, "name": "시스템관리자"}
     _before = len(pu.get_audit())
-    _as({"id": 20, "role": "admin", "team_id": 11, "name": "시스템관리자"},
-        f"/project/{PR}/units/create", {"working_name": "관리자복구"})
-    chk("관리자 우회 작업이 감사에 기록됨", len(pu.get_audit()) > _before, str(pu.get_audit()[:1]))
+    # P1-02: 우회 사유 없이 요청하면 거부
+    _r_no = _as(ADMIN, f"/project/{PR}/units/create", {"working_name": "사유없음"})
+    chk("v5 P1-02 관리자 우회 사유 없으면 거부",
+        "error=" in _r_no.headers.get("location", ""), _r_no.headers.get("location", ""))
+    chk("v5 P1-02' 사유 없는 요청은 감사에도 남지 않음(작업 자체가 거부)",
+        len(pu.get_audit()) == _before)
+    # 사유를 넣으면 수행 + 감사 기록
+    _as(ADMIN, f"/project/{PR}/units/create",
+        {"working_name": "관리자복구", "override_requester": "기술영업팀 홍길동",
+         "override_reason": "담당자 부재로 대신 등록"})
+    _aud = pu.get_audit()
+    chk("v5 P1-02'' 사유 입력 시 수행 + 감사 기록", len(_aud) > _before)
+    chk("v5 P1-02''' 감사에 요청자·우회사유·비상복구 구분 기록",
+        _aud and "기술영업팀 홍길동" in (_aud[0]["note"] or "")
+        and "담당자 부재" in (_aud[0]["note"] or "")
+        and "관리자 비상복구" in (_aud[0]["note"] or ""), str(_aud[:1]))
+    # P1-01: 후보 일괄반영 경로도 감사에 남는다
+    PJ_ADM = mkproject("999ADM1")
+    OJ = mkorder(PJ_ADM, "SO-ADM-1")
+    LJ = mkline(OJ, "1호기")
+    _cnt_before = len(pu.get_audit())
+    _r_ap = _as(ADMIN, f"/project/{PJ_ADM}/units/candidates/apply",
+                {"pick": [str(LJ)], f"action_{LJ}": "new", "reason": "관리자 일괄반영",
+                 "override_requester": "기술영업팀", "override_reason": "긴급 복구"})
+    _aud2 = pu.get_audit()
+    chk("v5 P1-01 관리자 후보 일괄반영도 감사 기록", len(_aud2) > _cnt_before)
+    chk("v5 P1-01' 감사에 신규·연결·거부 건수 기록",
+        _aud2 and "신규" in (_aud2[0]["note"] or "") and "연결" in (_aud2[0]["note"] or "")
+        and "거부" in (_aud2[0]["note"] or ""), str(_aud2[:1]))
+    chk("v5 P1-01'' 감사에 대상 관리번호(project) 기록",
+        _aud2 and f"project#{PJ_ADM}" in (_aud2[0]["target"] or ""), str(_aud2[:1]))
+    # 후보 일괄반영도 사유 없으면 거부
+    PJ_ADM2 = mkproject("999ADM2")
+    OJ2 = mkorder(PJ_ADM2, "SO-ADM-2")
+    LJ2 = mkline(OJ2, "1호기")
+    _r_ap2 = _as(ADMIN, f"/project/{PJ_ADM2}/units/candidates/apply",
+                 {"pick": [str(LJ2)], f"action_{LJ2}": "new", "reason": "사유없이"})
+    chk("v5 P1-02'''' 후보 일괄반영도 우회 사유 필수",
+        cnt("project_units", "project_id=?", (PJ_ADM2,)) == 0)
+    # 기술영업팀 정상 업무는 비상복구 감사에 남지 않는다(구분)
+    _n3 = len(pu.get_audit())
+    _as(SALES_LEAD, f"/project/{PR}/units/create", {"working_name": "정상업무"})
+    chk("v5 P1-02''''' 일반 기술영업 업무는 비상복구 감사와 구분(기록 안 함)",
+        len(pu.get_audit()) == _n3)
 
     chk("분할·통합 실행 경로 없음(404)",
         client.post(f"/units/{uid_r}/split", data={}, follow_redirects=False).status_code == 404)

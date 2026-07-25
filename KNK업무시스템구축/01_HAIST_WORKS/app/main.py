@@ -21303,14 +21303,43 @@ def can_approve_unit(u) -> bool:
     return _punit_owner_leader(u)
 
 
-def _punit_audit(u, action: str, target: str, note: str = ""):
-    """권한 우회(시스템 관리자 복구) 작업의 감사 기록 — 사용자·시각·사유(대표 확정 §3).
-    호기 소유부서가 아닌 관리자 권한으로 기준정보를 바꾼 경우만 남긴다."""
+PUNIT_OVERRIDE_REASON_FIELD = "override_reason"   # 관리자 우회 사유 입력칸 이름
+
+
+def _punit_override_ctx(form) -> dict:
+    """관리자 우회 시 함께 받는 정보 — 요청 부서·요청자, 우회 사유(게이트 v5 P1-02)."""
+    try:
+        return {"requester": (form.get("override_requester") or "").strip(),
+                "reason": (form.get(PUNIT_OVERRIDE_REASON_FIELD) or "").strip()}
+    except AttributeError:
+        return {"requester": "", "reason": ""}
+
+
+def _punit_require_override_reason(u, form):
+    """시스템 관리자가 기술영업팀 권한을 대신 사용할 때는 **우회 사유가 필수**(P1-02).
+    호기 소유부서(기술영업)·대표·임원의 정상 업무에는 요구하지 않는다."""
+    if _punit_role(u) != _PUNIT_ADMIN_ROLE:
+        return {"requester": "", "reason": ""}
+    ctx0 = _punit_override_ctx(form)
+    if not ctx0["reason"]:
+        raise ValueError("시스템 관리자 권한으로 호기 업무를 대신 수행하려면 "
+                         "'우회 사유'를 입력하세요(요청 부서·요청자도 함께 남겨주세요).")
+    return ctx0
+
+
+def _punit_audit(u, action: str, target: str, note: str = "", override: dict = None):
+    """감사 기록 — **관리자 비상복구 우회**만 남긴다(일반 기술영업 업무와 구분).
+    기록 내용: 요청 부서/요청자 · 우회 사유 · 대상 관리번호/Unit · 처리자 · 처리시각."""
     if _punit_role(u) != _PUNIT_ADMIN_ROLE:
         return
+    ov = override or {}
+    detail = f"[관리자 비상복구] {note}".strip()
+    if ov.get("requester"):
+        detail += f" · 요청: {ov['requester']}"
+    if ov.get("reason"):
+        detail += f" · 우회 사유: {ov['reason']}"
     _punit.audit_override(actor_id=_punit_actor(u), actor_name=((u or {}).get("name") or ""),
-                          action=action, target=target,
-                          note=(note or "시스템 관리자 권한으로 호기 기준정보 변경(복구 목적)"))
+                          action=action, target=target, note=detail)
 
 
 @app.get("/project/{pid:int}/units", response_class=HTMLResponse)
@@ -21332,7 +21361,9 @@ async def project_units_page(request: Request, pid: int):
                summary=_punit.project_unit_summary(pid), project_orders_min=orders,
                impact_msg=_punit.IMPACT_NOT_WIRED_MSG, identity_contract=_punit.IDENTITY_CONTRACT,
                can_create=can_create_unit(u), can_link=can_link_unit_order(u),
-               can_approve=can_approve_unit(u))
+               can_approve=can_approve_unit(u),
+               today_ymd=date.today().isoformat(),          # V1: 미래 적용 예약 차단(입력칸 max)
+               is_admin_override=(_punit_role(u) == _PUNIT_ADMIN_ROLE))
 
 
 @app.get("/project/{pid:int}/units/candidates", response_class=HTMLResponse)
@@ -21350,7 +21381,8 @@ async def project_units_candidates(request: Request, pid: int):
     return ctx(request, "project_unit_candidates.html", user=u, active="parts",
                project=dict(pr), scan=_punit.scan_candidates(pid),
                identity_contract=_punit.IDENTITY_CONTRACT,
-               can_create=can_create_unit(u), can_link=can_link_unit_order(u))
+               can_create=can_create_unit(u), can_link=can_link_unit_order(u),
+               is_admin_override=(_punit_role(u) == _PUNIT_ADMIN_ROLE))
 
 
 @app.post("/project/{pid:int}/units/candidates/apply")
@@ -21378,11 +21410,17 @@ async def project_units_candidates_apply(request: Request, pid: int):
             d["relation_type"] = form.get(f"rel_{oid}") or "ADDITIONAL"
         decisions.append(d)
     try:
+        _ov = _punit_require_override_reason(u, form)
         r = _punit.apply_candidate_decisions(pid, decisions, form.get("reason"),
                                              actor_id=_punit_actor(u))
         msg = f"신규 개발호기 {r['created']}대 · 기존 호기에 수주 연결 {r['linked']}건"
         if r["rejected"]:
             msg += f" · 반영 못 함 {len(r['rejected'])}건"
+        # [게이트 v5 P1-01] 관리자 우회 시 후보 일괄반영도 감사에 남긴다(신규/연결/거부 건수 포함)
+        _punit_audit(u, "candidates_apply", f"project#{pid}",
+                     f"후보 일괄반영 — 신규 {r['created']} · 연결 {r['linked']} · "
+                     f"거부 {len(r['rejected'])} · 입력 사유: {(form.get('reason') or '').strip()}",
+                     override=_ov)
         return RedirectResponse(f"/project/{pid}/units?success={_q(msg)}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units/candidates?error={_q(str(e))}", 303)
@@ -21399,11 +21437,12 @@ async def project_units_create(request: Request, pid: int):
     from urllib.parse import quote as _q
     form = await request.form()
     try:
+        _ov = _punit_require_override_reason(u, form)
         _uid_new = _punit.create_unit(pid, working_name=form.get("working_name"),
                                       unit_no=form.get("unit_no"),
                                       equipment_type=form.get("equipment_type"),
                                       actor_id=_punit_actor(u))
-        _punit_audit(u, "create", f"unit#{_uid_new}", "호기 생성")
+        _punit_audit(u, "create", f"project#{pid}/unit#{_uid_new}", "개발호기 생성", override=_ov)
         return RedirectResponse(f"/project/{pid}/units?success={_q('개발호기 추가됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21427,7 +21466,9 @@ async def project_unit_change_no(request: Request, unit_id: int):
         _punit.change_unit_no(unit_id, form.get("new_unit_no"), form.get("reason"),
                               actor_id=_punit_actor(u), change_id=(form.get("change_id") or None),
                               effective_from=(form.get("effective_from") or None))
-        _punit_audit(u, "unit_no", f"unit#{unit_id}", form.get("reason") or "")
+        _punit_audit(u, "unit_no", f"project#{pid}/unit#{unit_id}",
+                     f"호기번호 변경 — 업무 사유: {(form.get('reason') or '').strip()}",
+                     override=_punit_override_ctx(form))
         return RedirectResponse(f"/project/{pid}/units?success={_q('호기번호 반영됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21448,7 +21489,8 @@ async def project_unit_confirm(request: Request, unit_id: int):
     pid = unit["project_id"]
     try:
         _punit.confirm_unit(unit_id, actor_id=_punit_actor(u))
-        _punit_audit(u, "confirm", f"unit#{unit_id}", "호기 확정")
+        _punit_audit(u, "confirm", f"project#{pid}/unit#{unit_id}", "호기 확정",
+                     override=_punit_override_ctx(form))
         return RedirectResponse(f"/project/{pid}/units?success={_q('호기 확정됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21470,7 +21512,9 @@ async def project_unit_cancel(request: Request, unit_id: int):
     pid = unit["project_id"]
     try:
         _punit.cancel_unit(unit_id, form.get("reason"), actor_id=_punit_actor(u))
-        _punit_audit(u, "cancel", f"unit#{unit_id}", form.get("reason") or "")
+        _punit_audit(u, "cancel", f"project#{pid}/unit#{unit_id}",
+                     f"호기 취소 — 업무 사유: {(form.get('reason') or '').strip()}",
+                     override=_punit_override_ctx(form))
         return RedirectResponse(f"/project/{pid}/units?success={_q('호기 취소됨(이력 유지)')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
@@ -21494,7 +21538,9 @@ async def project_unit_order_link(request: Request, unit_id: int):
         _punit.link_order(unit_id, int(form.get("order_id") or 0),
                           relation_type=(form.get("relation_type") or "ADDITIONAL"),
                           reason=(form.get("reason") or None), actor_id=_punit_actor(u))
-        _punit_audit(u, "order_link", f"unit#{unit_id}", form.get("reason") or "")
+        _punit_audit(u, "order_link", f"project#{pid}/unit#{unit_id}",
+                     f"수주 연결 — 업무 사유: {(form.get('reason') or '').strip()}",
+                     override=_punit_override_ctx(form))
         return RedirectResponse(f"/project/{pid}/units?success={_q('수주 연결됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
