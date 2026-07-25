@@ -527,6 +527,8 @@
         <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span>📋 수주 내역 ({{ project_orders|default([])|length }}건)</span>
           {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);">관리번호 {{ p.mgmt_code }}</span>{% endif %}
+          {# v5H226z1053 (ERP V1 WP-03): 호기·일련번호(제작 단위) 관리 — 수주내역 호기 라인에서 씨앗 #}
+          <a href="/project/{{ p.id }}/units" style="margin-left:auto;font-size:12px;font-weight:600;color:#1e5fbf;text-decoration:none;border:1px solid #bfdbfe;background:#eff6ff;padding:4px 10px;border-radius:7px;">🔧 호기·일련번호 관리 ↗</a>
         </h3>
         {% if project_orders %}
         {# v5H226z637 (대표 지시): 최초(메인) 수주는 그대로, 추가 수주는 '참고'로 접어 표시(같은 관리번호에 딸린 건임을 구분). 최초 = 가장 오래된 SO(목록 마지막). #}

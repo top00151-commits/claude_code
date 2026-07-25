@@ -881,6 +881,15 @@ def startup():
             print(f"[FORM-TYPE-MIG-Z455] resynced {_rft}")
     except Exception as _e:
         print(f"[FORM-TYPE-MIG-Z455 ERR] {_e}")
+    # v5H226z1053 (2026-07-25, ERP V1 WP-03): 프로젝트 호기·일련번호 테이블 (idempotent·순수 추가)
+    try:
+        from .migrations.m_z1053_project_unit import migrate as _punit_migrate
+        from .database import DB_PATH as _DB_PATH_PUNIT
+        _rpunit = _punit_migrate(_DB_PATH_PUNIT)
+        if _rpunit.get('created'):
+            print(f"[PROJECT-UNIT-MIG-Z1053] {_rpunit}")
+    except Exception as _e:
+        print(f"[PROJECT-UNIT-MIG-Z1053 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -21197,6 +21206,110 @@ async def project_bom_board(request: Request, pid: int, view: str = ""):
                project=dict(pr), rows=rows, uploads=uploads,
                latest_upload=latest_upload, recent_map=recent_map,
                view=view, can_edit=can_edit)
+
+
+# ============================================================
+# v5H226z1053 (2026-07-25, ERP V1 전환 WP-03) — 프로젝트 호기·일련번호 (Project Unit·Serial)
+#   ADR-001 3단계(프로젝트→[수주]→호기→일련번호) · 순수 추가(기존 order_items·작업일정표 무변경)
+#   RS-01: 관리번호에서 호기 N대·일련번호 조회 / 차단: 제작번호 중복·일련번호 중복(법인)·프로젝트 없는 호기
+# ============================================================
+from . import project_unit as _punit
+
+
+def _punit_actor(u) -> int:
+    try:
+        return int(u.get("id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+@app.get("/project/{pid:int}/units", response_class=HTMLResponse)
+async def project_units_page(request: Request, pid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_view_logistics(u) or can_use_logistics(u)):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+    if not pr:
+        return RedirectResponse("/", 303)
+    return ctx(request, "project_units.html", user=u, active="parts",
+               project=dict(pr), units=_punit.get_units(pid),
+               summary=_punit.project_unit_summary(pid),
+               can_edit=can_use_logistics(u))
+
+
+@app.post("/project/{pid:int}/units/seed")
+async def project_units_seed(request: Request, pid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    try:
+        r = _punit.seed_units_from_orders(pid, actor_id=_punit_actor(u))
+        msg = f"호기 {r['created']}대 생성 (대상 호기 라인 {r['target_lines']} · 이미 있어 건너뜀 {r['skipped']})"
+        return RedirectResponse(f"/project/{pid}/units?success={_q(msg)}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/project/{pid:int}/units/create")
+async def project_units_create(request: Request, pid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    try:
+        _punit.create_unit(pid, form.get("unit_no"), form.get("equipment_type"),
+                           actor_id=_punit_actor(u))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 추가됨')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/units/{unit_id:int}/serial")
+async def project_unit_serial(request: Request, unit_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return RedirectResponse("/", 303)
+    pid = unit["project_id"]
+    try:
+        _punit.link_serial(unit_id, form.get("serial_no"), actor_id=_punit_actor(u))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('일련번호 연결됨')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/units/{unit_id:int}/delete")
+async def project_unit_delete(request: Request, unit_id: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_use_logistics(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return RedirectResponse("/", 303)
+    pid = unit["project_id"]
+    try:
+        _punit.delete_unit(unit_id, actor_id=_punit_actor(u))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 삭제됨')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
 
 
 @app.get("/bom/uploads/{uid:int}/report", response_class=HTMLResponse)
