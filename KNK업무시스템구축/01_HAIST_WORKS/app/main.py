@@ -21411,9 +21411,10 @@ async def project_units_candidates_apply(request: Request, pid: int):
     decisions = []
     for oid in form.getlist("pick"):
         act = (form.get(f"action_{oid}") or "").strip()
-        if act not in ("new", "link"):
+        # new_no = 새 개발호기 + **수주내역 표기를 호기번호로 그대로**(대표 지시 07-25 · 사용자 명시 선택)
+        if act not in ("new", "new_no", "link"):
             continue
-        if act == "new" and not can_create_unit(u):
+        if act in ("new", "new_no") and not can_create_unit(u):
             continue
         if act == "link" and not can_link_unit_order(u):
             continue
@@ -21431,7 +21432,10 @@ async def project_units_candidates_apply(request: Request, pid: int):
             audit=_punit_audit_payload(
                 u, "candidates_apply", f"project#{pid}",
                 f"후보 일괄반영 · 입력 사유: {(form.get('reason') or '').strip()}", override=_ov))
-        msg = f"신규 개발호기 {r['created']}대 · 기존 호기에 수주 연결 {r['linked']}건"
+        msg = f"신규 개발호기 {r['created']}대"
+        if r.get("numbered"):
+            msg += f"(호기번호까지 지정 {r['numbered']}대)"
+        msg += f" · 기존 호기에 수주 연결 {r['linked']}건"
         if r["rejected"]:
             msg += f" · 반영 못 함 {len(r['rejected'])}건"
         return RedirectResponse(f"/project/{pid}/units?success={_q(msg)}", 303)

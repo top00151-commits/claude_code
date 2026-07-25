@@ -749,6 +749,61 @@ try:
                 {"new_unit_no": "78호기", "reason": "미래 예약", "effective_from": "2099-01-01"})
     chk("§8-10'''' 미래 예약은 V1 에서 거부(문구 유지)", "error=" in _loc(_rfut))
 
+    # ══════════ G. 대표 지시(07-25) — 수주서 표기를 호기번호로 그대로 쓰기 ══════════
+    #   F-01 이 막는 것은 '자동 승격'. 사용자가 화면에서 이 선택지를 고르는 것은 '명시 지정'.
+    print("\n── G. 수주서 표기를 호기번호로 (대표 지시 · 사용자 명시 선택) ──")
+    PG = mkproject("999G001")
+    OG = mkorder(PG, "SO-G-1")
+    LG1, LG2, LG3 = mkline(OG, "1호기"), mkline(OG, "2호기"), mkline(OG, "3호기")
+
+    _sc = pu.scan_candidates(PG)
+    chk("G-0 후보에 '번호 쓸 수 있음' 정보 제공(no_taken=False)",
+        all(x["no_taken"] is False for x in _sc["candidates"]), str(_sc["candidates"][:1]))
+    _rg = client.post(f"/project/{PG}/units/candidates/apply",
+                      data={"pick": [str(LG1), str(LG2)],
+                            f"action_{LG1}": "new_no", f"action_{LG2}": "new",
+                            "reason": "수주서 번호 그대로 시험"}, follow_redirects=False)
+    chk("G-1 반영 303", _rg.status_code == 303)
+    _ug = {(_u["seed_order_item_id"]): _u for _u in pu.get_units(PG)}
+    chk("G-2 'new_no' → 호기번호가 수주서 표기로 지정됨",
+        _ug[LG1]["current_unit_no"] == "1호기", str(_ug[LG1]["current_unit_no"]))
+    chk("G-3 'new' → 호기번호는 여전히 비어 있음(기존 동작 유지)",
+        _ug[LG2]["current_unit_no"] is None, str(_ug[LG2]["current_unit_no"]))
+    chk("G-4 둘 다 개발·미확정 상태",
+        _ug[LG1]["unit_state"] == "PROVISIONAL" and _ug[LG2]["unit_state"] == "PROVISIONAL")
+    chk("G-5 번호 지정 건은 **변경이력 첫 줄**이 남음",
+        cnt("project_unit_identifier_history", "project_unit_id=?", (_ug[LG1]["id"],)) == 1
+        and cnt("project_unit_identifier_history", "project_unit_id=?", (_ug[LG2]["id"],)) == 0)
+    chk("G-6 최초 수주(ORIGIN) 연결은 그대로",
+        len(pu.get_unit(_ug[LG1]["id"])["orders"]) == 1)
+    # [F-06] 같은 번호 재사용 금지 — 이미 쓴 번호는 후보 화면에서 선택지가 사라진다
+    _sc2 = pu.scan_candidates(PG)
+    _c1 = [x for x in _sc2["candidates"] if x["order_item_id"] == LG3][0]
+    chk("G-7 아직 안 쓴 번호(3호기)는 선택 가능", _c1["no_taken"] is False)
+    OG2 = mkorder(PG, "SO-G-2")
+    LG4 = mkline(OG2, "1호기")                       # 이미 쓴 번호가 다른 수주에 또 나옴(정상 업무)
+    _sc3 = pu.scan_candidates(PG)
+    _c2 = [x for x in _sc3["candidates"] if x["order_item_id"] == LG4][0]
+    chk("G-8 이미 쓴 번호(1호기)는 '번호 그대로' 선택 불가로 표시(no_taken=True)",
+        _c2["no_taken"] is True)
+    # 서버도 막는다(화면을 거치지 않고 보내도)
+    _before_g = cnt("project_units", "project_id=?", (PG,))
+    _rg2 = client.post(f"/project/{PG}/units/candidates/apply",
+                       data={"pick": [str(LG4)], f"action_{LG4}": "new_no",
+                             "reason": "이미 쓴 번호 강제 시도"}, follow_redirects=False)
+    chk("G-9 서버가 이미 쓴 번호를 거부(직접 요청도 차단)",
+        cnt("project_units", "project_id=?", (PG,)) == _before_g, _rg2.headers.get("location", ""))
+    chk("G-10 화면에 '수주서 번호 그대로' 선택지와 일괄 버튼이 있다",
+        "new_no" in client.get(f"/project/{PG}/units/candidates").text
+        and "수주서 번호 그대로" in client.get(f"/project/{PG}/units/candidates").text)
+    _html_g = client.get(f"/project/{PG}/units/candidates").text
+    chk("G-11 안내문에 개발 용어(project_units.id)가 **접혀** 있다(현장 말 우선)",
+        "규정 원문" in _html_g and "<details" in _html_g)
+    chk("G-12 권한 없는 부서는 '번호 그대로'도 못 씀",
+        _blocked(_as(DESIGN, f"/project/{PG}/units/candidates/apply",
+                     {"pick": [str(LG3)], f"action_{LG3}": "new_no", "reason": "설계팀 시도"})))
+    m.get_user = lambda req: CEO
+
     chk("분할·통합 실행 경로 없음(404)",
         client.post(f"/units/{uid_r}/split", data={}, follow_redirects=False).status_code == 404)
 except ImportError as e:

@@ -264,6 +264,10 @@ def scan_candidates(pid) -> dict:
                 "label": lbl, "unit_no_hint": no, "qty": r["qty"],
                 "existing_unit_id": (exist or {}).get("id"),
                 "existing_state": (exist or {}).get("unit_state"),
+                # [대표 지시 07-25] '수주내역 표기를 호기번호로 그대로 쓰기' 를 고를 수 있는지.
+                #   [F-06] 한 관리번호에서 한 번 쓴 번호는 취소분·과거이력 포함 재사용 금지 →
+                #   이미 쓴 번호면 화면에서 그 선택지를 아예 못 고르게 한다(눌러보고 거부당하지 않게).
+                "no_taken": bool(no) and _unit_no_ever_used(c, pid, no),
                 "match_units": [{
                     "id": u["id"], "working_name": u["working_name"],
                     "current_unit_no": u["current_unit_no"], "state": u["unit_state"],
@@ -283,22 +287,26 @@ def apply_candidate_decisions(pid, decisions, reason, actor_id=0, audit=None) ->
     """사용자가 **후보마다 내린 판정**을 반영한다(F-01/F-02/F-03).
 
     decisions = [{order_item_id, action, unit_id?, relation_type?}, ...]
-      · action='new'   → 신규 **개발호기**(PROVISIONAL) 생성.
-                         ⭐ current_unit_no 는 **NULL**(후보 라벨은 working_name·seed 에만 보존).
-      · action='link'  → 기존 Unit 에 이 수주를 관계로 연결(ORIGIN/ADDITIONAL/CHANGE).
+      · action='new'    → 신규 **개발호기**(PROVISIONAL) 생성.
+                          ⭐ current_unit_no 는 **NULL**(후보 라벨은 working_name·seed 에만 보존).
+      · action='new_no' → 신규 개발호기 + **수주내역 표기를 호기번호로 그대로 사용**.
+                          [대표 지시 2026-07-25] F-01 이 금지한 것은 **자동 승격**이고,
+                          사용자가 화면에서 보고 이 선택지를 고르는 것은 **명시 지정**이다.
+                          (표기와 최종 호기번호가 딱 맞는 프로젝트에서 23번을 다시 입력하게 만들지 않는다.)
+      · action='link'   → 기존 Unit 에 이 수주를 관계로 연결(ORIGIN/ADDITIONAL/CHANGE).
       · action='hold'/'exclude' → 아무것도 하지 않음(보류·제외).
     반영 사유(reason)는 **필수**.
     """
     if not (reason or "").strip():
         raise ValueError("반영 사유를 입력하세요.")
-    decisions = [d for d in (decisions or []) if (d or {}).get("action") in ("new", "link")]
+    decisions = [d for d in (decisions or []) if (d or {}).get("action") in ("new", "new_no", "link")]
     if not decisions:
         raise ValueError("반영할 후보를 선택하세요.")
     scan = scan_candidates(pid)
     if not scan["ready"]:
         raise ValueError("호기 기능이 아직 준비되지 않았습니다.")
     by_id = {c0["order_item_id"]: c0 for c0 in scan["candidates"]}
-    created, linked, rejected = [], [], []
+    created, linked, rejected, numbered = [], [], [], []
     with db_session() as c:
         entity = _project_entity(c, pid)          # [F-08] 빈값·충돌이면 여기서 중단
         for d in decisions:
@@ -313,15 +321,31 @@ def apply_candidate_decisions(pid, decisions, reason, actor_id=0, audit=None) ->
             if cd["blockers"]:
                 rejected.append((oid, " / ".join(cd["blockers"])))
                 continue
-            if d["action"] == "new":
+            if d["action"] in ("new", "new_no"):
+                # 'new_no' 만 표기를 호기번호로 승격한다(사용자가 명시 선택한 경우).
+                unit_no = _norm_unit_no(cd["label"]) if d["action"] == "new_no" else None
+                if unit_no and _unit_no_ever_used(c, pid, unit_no):
+                    # [F-06] 취소분·과거 이력 포함 재사용 금지 — 조용히 넘기지 않고 사유를 알린다.
+                    rejected.append((oid, f"이 관리번호에서 이미 쓴 호기번호입니다(취소분 포함): {unit_no}"))
+                    continue
                 cur = c.execute(
                     "INSERT INTO project_units(project_id, working_name, current_unit_no, "
                     "unit_state, entity, seed_order_item_id, seed_order_no, seed_unit_label, "
                     "note, created_by, created_at, updated_by, updated_at) "
-                    "VALUES(?,?, NULL, 'PROVISIONAL', ?,?,?,?,?,?,?,?,?)",
-                    (pid, cd["label"], entity, oid, cd["order_no"], cd["label"],
+                    "VALUES(?,?,?, 'PROVISIONAL', ?,?,?,?,?,?,?,?,?)",
+                    (pid, cd["label"], unit_no, entity, oid, cd["order_no"], cd["label"],
                      reason.strip(), actor_id, _logi_now(), actor_id, _logi_now()))
                 uid = cur.lastrowid
+                if unit_no:
+                    # 번호를 정했으면 **변경이력 첫 줄**을 남긴다(나중에 바꿔도 처음 값을 안다).
+                    _n0 = _logi_now()
+                    c.execute(
+                        "INSERT INTO project_unit_identifier_history(project_unit_id, old_unit_no, "
+                        "new_unit_no, change_reason, changed_by, changed_at, effective_from) "
+                        "VALUES(?,NULL,?,?,?,?,?)",
+                        (uid, unit_no, f"수주내역 표기로 최초 지정 — {reason.strip()}",
+                         actor_id, _n0, _n0))
+                    numbered.append(uid)
                 if cd["order_id"]:
                     _insert_order_link(c, uid, cd["order_id"], cd["order_no"], "ORIGIN",
                                        reason.strip(), actor_id)
@@ -338,10 +362,10 @@ def apply_candidate_decisions(pid, decisions, reason, actor_id=0, audit=None) ->
         # [게이트 v6 P0-03] 감사도 **같은 트랜잭션** — 감사가 실패하면 이 반영 전체가 취소된다.
         if audit:
             _a = dict(audit)
-            _a["note"] = (f"{_a.get('note') or ''} — 신규 {len(created)} · 연결 {len(linked)} · "
-                          f"거부 {len(rejected)}").strip()
+            _a["note"] = (f"{_a.get('note') or ''} — 신규 {len(created)}(번호지정 {len(numbered)}) · "
+                          f"연결 {len(linked)} · 거부 {len(rejected)}").strip()
             _audit_tx(c, _a)
-    return {"created": len(created), "created_ids": created,
+    return {"created": len(created), "created_ids": created, "numbered": len(numbered),
             "linked": len(linked), "linked_detail": linked, "rejected": rejected}
 
 
