@@ -510,11 +510,19 @@ def project_unit_summary(pid) -> dict:
         no_num = c.execute("SELECT COUNT(*) FROM project_units WHERE project_id=? "
                            "AND current_unit_no IS NULL AND unit_state<>'CANCELLED'",
                            (pid,)).fetchone()[0]
-        cands = len(_hogi_candidate_rows(c, pid))
+        # ⚠[대표 지적 07-26] 후보 수는 **아직 반영 안 한 것만** 센다.
+        #   전체 호기 라인 수를 그대로 보이면, 23대를 다 등록한 뒤에도 '후보 23'이 남아
+        #   "아직 23개 할 일이 있나?" 로 읽힌다(이미 반영된 것은 후보가 아니다).
+        _rows = _hogi_candidate_rows(c, pid)
+        _seeded = {r[0] for r in c.execute(
+            "SELECT seed_order_item_id FROM project_units "
+            "WHERE project_id=? AND seed_order_item_id IS NOT NULL", (pid,)).fetchall()}
+        cands = sum(1 for r in _rows if r["oid"] not in _seeded)
         wired = impact_status(c, 0)["wired"]
     return {"ready": True, "units": sum(st.values()),
             "provisional": st.get("PROVISIONAL", 0), "confirmed": st.get("CONFIRMED", 0),
             "cancelled": st.get("CANCELLED", 0), "candidates": cands,
+            "candidates_total": len(_rows), "candidates_done": len(_rows) - cands,
             "impact_wired": wired, "no_unit_no": no_num}
 
 

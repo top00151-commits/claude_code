@@ -71,10 +71,17 @@ table.u td.mono { font-family:var(--pq-mono); }
       <div>
         <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/project/{{ project.id }}">{{ project.mgmt_code }}</a> · <b>호기</b></div>
         <div class="pl-title">🔧 {{ project.mgmt_code }} <span style="font-weight:500;color:var(--pq-ink-2);">{{ project.name }}</span></div>
-        <div class="pl-meta">호기 <b>{{ summary.units }}</b>대 (개발·미확정 <b>{{ summary.provisional }}</b> · 확정 <b>{{ summary.confirmed }}</b> · 취소 <b>{{ summary.cancelled }}</b>) · 수주내역 호기 후보 <b>{{ summary.candidates }}</b></div>
+        {# 후보 = **아직 반영 안 한 것만**. 다 끝났으면 '남은 후보 없음'으로 말한다(대표 지적 07-26) #}
+        <div class="pl-meta">호기 <b>{{ summary.units }}</b>대 (개발·미확정 <b>{{ summary.provisional }}</b> · 확정 <b>{{ summary.confirmed }}</b> · 취소 <b>{{ summary.cancelled }}</b>)
+          {%- if summary.candidates %} · 수주내역에 <b>아직 반영 안 한 후보 {{ summary.candidates }}</b>
+          {%- elif summary.candidates_total %} · 수주내역 호기 <b>{{ summary.candidates_total }}</b>줄 <b>전부 반영됨</b>
+          {%- endif %}</div>
       </div>
       <div class="pl-actions">
-        {% if (can_create or can_link) and summary.ready %}<a class="btn-dark" href="/project/{{ project.id }}/units/candidates">🔍 수주내역에서 호기 후보 확인</a>{% endif %}
+        {% if (can_create or can_link) and summary.ready %}
+          {% if summary.candidates %}<a class="btn-dark" href="/project/{{ project.id }}/units/candidates">🔍 수주내역에서 호기 후보 확인 ({{ summary.candidates }})</a>
+          {% else %}<a class="btn-ghost" href="/project/{{ project.id }}/units/candidates">🔍 수주내역 다시 확인</a>{% endif %}
+        {% endif %}
         <a class="btn-ghost" href="/project/{{ project.id }}" data-knk-back>프로젝트 상세 ↗</a>
       </div>
     </div>

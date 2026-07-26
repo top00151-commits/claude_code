@@ -827,6 +827,29 @@ try:
                      {"pick": [str(LG3)], f"action_{LG3}": "new_no", "reason": "설계팀 시도"})))
     m.get_user = lambda req: CEO
 
+    # ── 후보 수 = **아직 반영 안 한 것만** (대표 지적 07-26) ──
+    #   전체 줄 수를 그대로 보이면 다 끝낸 뒤에도 '후보 23'이 남아 할 일이 있는 것처럼 읽힌다.
+    PH = mkproject("후보수")
+    OH = mkorder(PH, "SO-H-1")
+    LH1, LH2, LH3 = mkline(OH, "1호기"), mkline(OH, "2호기"), mkline(OH, "3호기")
+    _s0 = pu.project_unit_summary(PH)
+    chk("H-1 반영 전: 남은 후보 3 · 전체 3 · 반영됨 0",
+        (_s0["candidates"], _s0["candidates_total"], _s0["candidates_done"]) == (3, 3, 0), str(_s0))
+    pu.apply_candidate_decisions(PH, [dec(LH1, "new_no"), dec(LH2, "new")], reason="일부 반영")
+    _s1 = pu.project_unit_summary(PH)
+    chk("H-2 2건 반영 후: 남은 후보 1 · 반영됨 2",
+        (_s1["candidates"], _s1["candidates_done"]) == (1, 2), str(_s1))
+    pu.apply_candidate_decisions(PH, [dec(LH3, "new")], reason="나머지 반영")
+    _s2 = pu.project_unit_summary(PH)
+    chk("H-3 전부 반영 후: **남은 후보 0**(전체 3은 그대로 보관)",
+        (_s2["candidates"], _s2["candidates_total"], _s2["candidates_done"]) == (0, 3, 3), str(_s2))
+    _html_h = _as(SALES_LEAD, f"/project/{PH}/units").text
+    chk("H-4 화면이 '전부 반영됨'으로 말한다(‘후보 3’ 이라고 하지 않음)",
+        "전부 반영됨" in _html_h and "아직 반영 안 한 후보" not in _html_h)
+    chk("H-5 남은 후보 있을 땐 개수를 붙여 보여준다",
+        "아직 반영 안 한 후보" in _as(SALES_LEAD, f"/project/{PG}/units").text)
+    m.get_user = lambda req: CEO
+
     chk("분할·통합 실행 경로 없음(404)",
         client.post(f"/units/{uid_r}/split", data={}, follow_redirects=False).status_code == 404)
 except ImportError as e:
