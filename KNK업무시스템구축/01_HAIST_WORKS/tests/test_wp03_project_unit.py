@@ -53,10 +53,18 @@ def cnt(t, where="1=1", args=()):
         return c.execute(f"SELECT COUNT(*) FROM {t} WHERE {where}", args).fetchone()[0]
 
 
-def mkproject(code, entity="KOR"):
+_MK_SEQ = [0]
+
+
+def mkproject(tag="", entity="KOR", code=None):
+    """[규정 V1] 시작 법인은 **관리번호**로 정해진다 → 시험 데이터도 정식 형식으로 만든다.
+    본사 `[순번3][업무구분][YYMM]` · 베트남 `[순번3][V][업무구분][YYMM]`."""
+    if code is None:
+        _MK_SEQ[0] += 1
+        code = f"{_MK_SEQ[0]:03d}{'V' if entity == 'VN' else ''}T2601"
     with db.db_session() as c:
-        c.execute("INSERT INTO projects (mgmt_code, name, status, po_entity, ship_entity) "
-                  "VALUES (?,?,?,?,?)", (code, f"P-{code}", "진행중", entity, entity))
+        c.execute("INSERT INTO projects (mgmt_code, name, status) VALUES (?,?,?)",
+                  (code, f"P-{tag or code}", "진행중"))
         return c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
 
@@ -252,23 +260,38 @@ try:
 except ValueError:
     chk("C' 번호 변경으로도 재사용 불가", True)
 
-# 시나리오 D: 법인 미확정 → 중단 (F-08)
-PD = mkproject("999D001", entity=None)
-with db.db_session() as c:
-    c.execute("UPDATE projects SET po_entity=NULL, ship_entity=NULL WHERE id=?", (PD,))
+# ── 시나리오 D: 시작 법인 = **관리번호가 단일 근거** (F-08 · 대표 규정 V1 2026-07-26) ──
+#   §3 본사 8자리 / 베트남 9자리(V) · §4 시작한 법인 기준(출하처 아님) · §7 임의 KOR 금지
+for _code, _want in (("005T2601", "KOR"), ("016C2607", "KOR"), ("001VT2701", "VN"),
+                     ("016VC2607", "VN"), ("A01T2606", "KOR")):
+    chk(f"D 관리번호 {_code} → 시작 법인 {_want}", pu.mgmt_code_entity(_code) == _want,
+        pu.mgmt_code_entity(_code))
+for _bad in ("", "ZZZ2512", "005T260", "005X2601", "5T2601", "005VV T2601"):
+    try:
+        pu.mgmt_code_entity(_bad)
+        chk(f"D 읽을 수 없는 관리번호 거부 · {_bad!r}", False)
+    except ValueError:
+        chk(f"D 읽을 수 없는 관리번호 거부 · {_bad!r}", True)
+PD_VN = mkproject("베트남시작", entity="VN")
+chk("D' 베트남 시작 프로젝트 → 호기 법인 VN", (lambda u: (
+    pu.get_unit(u)["entity"] == "VN"))(pu.create_unit(PD_VN, working_name="VN개발")))
+PD_KR = mkproject("본사시작")
+chk("D'' 본사 시작 프로젝트 → 호기 법인 KOR", (lambda u: (
+    pu.get_unit(u)["entity"] == "KOR"))(pu.create_unit(PD_KR, working_name="본사개발")))
+PD_BAD = mkproject(code="ZZZ2512")          # 규격을 벗어난 옛 관리번호
 try:
-    pu.create_unit(PD, working_name="개발X"); chk("시나리오 D · 법인 미확정이면 중단(KOR 자동부여 없음)", False)
+    pu.create_unit(PD_BAD, working_name="개발X")
+    chk("D''' 관리번호를 못 읽으면 중단(임의 KOR 부여 없음)", False)
 except ValueError as e:
-    chk("시나리오 D · 법인 미확정이면 중단(KOR 자동부여 없음)", "법인" in str(e), str(e))
+    chk("D''' 관리번호를 못 읽으면 중단(임의 KOR 부여 없음)", "관리번호" in str(e), str(e))
+# ⛔ [규정 V1 §4] 주문 법인·출하 법인이 달라도 **충돌이 아니다**(한국 수주 → 베트남 출하 = 정상)
 with db.db_session() as c:
-    c.execute("UPDATE projects SET po_entity='KOR', ship_entity='KOR' WHERE id=?", (PD,))
-chk("D' 법인 확정 후 정상 생성", pu.create_unit(PD, working_name="개발X") > 0)
-with db.db_session() as c:
-    c.execute("UPDATE projects SET po_entity='KOR', ship_entity='VN' WHERE id=?", (PD,))
-try:
-    pu.create_unit(PD, working_name="개발Y"); chk("D'' 법인 충돌 → 중단", False)
-except ValueError:
-    chk("D'' 법인 충돌 → 중단", True)
+    try:
+        c.execute("UPDATE projects SET po_entity='KR', ship_entity='VN' WHERE id=?", (PD_KR,))
+    except Exception:
+        pass
+chk("D'''' 주문=한국·출하=베트남 이어도 정상 생성(더 이상 '충돌' 아님)",
+    pu.create_unit(PD_KR, working_name="한국수주-베트남출하") > 0)
 
 # 분할·통합 구조(V1) — 실행 API 없음
 with db.db_session() as c:

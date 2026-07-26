@@ -26,7 +26,6 @@
 #   ⛔ 분할·통합은 구조만(실행·승인 없음) · 영향분석 미연동 사실대로 표시.
 # ============================================================
 import re
-import sqlite3
 from datetime import datetime
 
 from .database import db_session, _logi_now
@@ -34,8 +33,17 @@ from .database import db_session, _logi_now
 # 정식 호기 라벨(기존 시스템 규약·z779). 부속/부품(비표준 라벨)은 후보에서 제외.
 HOGI_RE = re.compile(r"^\d+호기$")
 _HOGI_NUM_RE = re.compile(r"^0*(\d+)호기$")
-_VN_SIG = ("VN", "VNM", "VINA", "VIETNAM", "베트남")
-_KOR_SIG = ("KR", "KOR", "KOREA", "한국", "본사", "HQ")
+# ── 시작 법인(KOR/VN) = **관리번호가 단일 근거** ────────────────────────────────
+# [대표 규정 V1 2026-07-26 `KNK_WORKS_ERP_베트남법인_배포및관리번호적용규정_V1`]
+#   §3  본사 `[순번3][업무구분][YYMM]`(8자리) · 베트남 `[순번3][V][업무구분][YYMM]`(9자리)
+#   §4  법인 구분 = **최초로 시작한 법인**. 담당자·생산 장소·최종 출하처가 아니다.
+#       ⛔ 그래서 po_entity/ship_entity(주문 법인·출하 법인)를 근거로 쓰지 않는다.
+#         '한국에서 수주 → 베트남으로 출하'는 **정상 업무**이지 충돌이 아니다(실데이터 존재).
+#   §1·§6 현재 WORKS 데이터는 전부 본사 진행분 → V 없는 번호 = KOR.
+#   §7  읽을 수 없으면 **임의로 KOR 를 넣지 않고 중단**한다.
+#   §8  V 발번 도입 자체는 WP-03 범위 밖(별도 전사 작업).
+#   ※ A 접두(A01T2606)는 검증(테스트) 모드 관리번호 — 본사 발급분이라 KOR.
+MGMT_RE = re.compile(r"^(?:A\d{2}|\d{3})(V?)([TMLECR])(\d{4})$")
 
 IDENTITY_CONTRACT = (
     "장비 Unit 의 시스템 영구 식별자는 project_units.id 이다. "
@@ -122,29 +130,27 @@ def _table_ready(c) -> bool:
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_units'").fetchone())
 
 
+def mgmt_code_entity(code) -> str:
+    """관리번호 → 시작 법인('KOR'/'VN'). 읽을 수 없으면 ValueError(임의 부여 금지)."""
+    s = (code or "").strip().upper()
+    if not s:
+        raise ValueError("프로젝트에 관리번호가 없습니다. 관리번호를 먼저 발급하세요"
+                         "(시작 법인은 관리번호로 정해집니다).")
+    m = MGMT_RE.match(s)
+    if not m:
+        raise ValueError(f"관리번호 형식을 읽을 수 없어 시작 법인을 정할 수 없습니다({s}). "
+                         "정상 발급된 관리번호가 필요합니다"
+                         "(임의로 본사로 처리하지 않습니다 · 규정 V1 §7).")
+    return "VN" if m.group(1) else "KOR"
+
+
 def _project_entity(c, pid) -> str:
-    """[F-08] 프로젝트 법인(KOR/VN) — **확정값만 사용**. 비었거나 충돌하면 중단.
-    ⛔ KOR 자동부여 폐지: 국내 프로젝트도 데이터에 법인을 명시해야 한다."""
-    try:
-        r = c.execute("SELECT po_entity, ship_entity FROM projects WHERE id=?", (pid,)).fetchone()
-    except sqlite3.OperationalError:
-        raise ValueError("프로젝트에 법인(KOR/VN) 칸이 없습니다. 법인 정보를 먼저 갖춘 뒤 진행하세요.")
-    sigs = set()
-    if r:
-        for v in (r["po_entity"], r["ship_entity"]):
-            s = (v or "").strip().upper()
-            if not s:
-                continue
-            if any(k in s for k in _VN_SIG):
-                sigs.add("VN")
-            elif any(k in s for k in _KOR_SIG):
-                sigs.add("KOR")
-    if not sigs:
-        raise ValueError("프로젝트 법인(KOR/VN)이 정해져 있지 않습니다. "
-                         "프로젝트에 법인을 먼저 지정하세요(임의로 본사로 처리하지 않습니다).")
-    if len(sigs) > 1:
-        raise ValueError("프로젝트 법인(KOR/VN)이 충돌합니다. 법인을 확정한 뒤 호기를 생성하세요.")
-    return sigs.pop()
+    """[F-08 · 규정 V1] 프로젝트 **시작 법인** — 관리번호에서 읽는다.
+    ⛔ 임의 KOR 부여 금지: 관리번호가 없거나 형식을 못 읽으면 중단한다."""
+    r = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (pid,)).fetchone()
+    if not r:
+        raise ValueError("프로젝트가 없습니다.")
+    return mgmt_code_entity(r["mgmt_code"])
 
 
 # ══════════════════ 영향 분석 (V1: 미연동 — 사실대로 알림) ══════════════════
