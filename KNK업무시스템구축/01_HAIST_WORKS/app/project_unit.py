@@ -26,6 +26,7 @@
 #   ⛔ 분할·통합은 구조만(실행·승인 없음) · 영향분석 미연동 사실대로 표시.
 # ============================================================
 import re
+import sqlite3
 from datetime import datetime
 
 from .database import db_session, _logi_now
@@ -68,6 +69,33 @@ CAND_LINK = "link"               # 기존 Unit 에 수주 연결(관계 유형 �
 CAND_ALREADY = "already_linked"  # 이미 이 라인으로 만든 Unit 이 있음
 CAND_BLOCKED = "blocked"         # 확인 필요(수량 등) — 자동 적용 금지
 REL_TYPES = ("ORIGIN", "ADDITIONAL", "CHANGE", "CANCEL")
+
+# ══ 작업일정표 상태 → 호기 상태 (게이트 판정 2026-07-26 §3 · **과거 데이터 보정 규칙**) ══
+#   ⭐§4 두 상태는 의미가 다르므로 **따로** 보존한다. 하나로 합쳐 저장하지 않는다.
+#      · 신원(unit_state)  = 이 장비가 몇 호기인지 확정됐는가
+#      · 진행(work_status) = 장비가 지금 어느 단계인가
+#   ⚠§5.2 이건 **이미 벌어진 일을 ERP 로 복원**하는 규칙이다. 정상 운영에서는 출하가
+#         호기 신원을 자동 확정하지 않는다(생성→기술영업 지정·검토→승인권자 확정→생산·검사→출하).
+#   ⛔§2.1 납품일이 지났다는 이유만으로 완료·확정 처리하지 않는다(지연·검사대기·보류·부분출하).
+SCHEDULE_MAP = {
+    "출하":   ("CONFIRMED",   "SHIPPED"),
+    "진행중": ("PROVISIONAL", "IN_PROGRESS"),
+    "보류":   ("PROVISIONAL", "ON_HOLD"),
+    "취소":   ("CANCELLED",   "CANCELLED"),
+}
+SCHEDULE_UNSET = "(미지정)"      # 작업일정표에 상태가 비어 있음 — 확정하지 않고 진행중으로 둔다
+WORK_LABEL = {"IN_PROGRESS": "진행중", "ON_HOLD": "보류", "SHIPPED": "출하", "CANCELLED": "취소"}
+STATE_LABEL = {"PROVISIONAL": "개발·미확정", "CONFIRMED": "확정", "CANCELLED": "취소"}
+
+
+def schedule_target(label):
+    """작업일정표 표기 → (호기 신원, 업무 진행상태). 빈값·모르는 값은 **확정하지 않는다**."""
+    return SCHEDULE_MAP.get((label or "").strip(), ("PROVISIONAL", "IN_PROGRESS"))
+
+
+def schedule_label(label) -> str:
+    """화면에 보여줄 작업일정표 표기 — 빈값도 색이 아니라 **글자로** 알린다(§8)."""
+    return (label or "").strip() or SCHEDULE_UNSET
 
 
 def _norm_unit_no(s) -> str:
@@ -209,11 +237,25 @@ def _unit_no_ever_used(c, pid, unit_no, exclude_unit_id=None) -> bool:
 def _hogi_candidate_rows(c, pid):
     rows = c.execute(
         "SELECT oi.id AS oid, oi.unit_label AS lbl, oi.order_id AS ord, oi.qty AS qty, "
-        "o.order_no AS ono "
+        "o.order_no AS ono, oi.unit_status AS ust, "
+        # 발주일·납기·납품처 빈 칸은 수주번호 부모값을 상속한다(수주 화면 규칙과 동일)
+        "COALESCE(NULLIF(oi.due_date,''), o.due_date) AS due "
         "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
         "WHERE o.project_id=? "
         "ORDER BY o.order_date ASC, o.id ASC, oi.id ASC", (pid,)).fetchall()
     return [r for r in rows if HOGI_RE.match((r["lbl"] or ""))]
+
+
+def _cancelled_nonhogi_rows(c, pid):
+    """[§3.4 둘째 갈래] **취소**인데 호기로 식별되지 않는 줄(단순 계획행).
+    → 새 호기를 만들지 않되, **아무 기록 없이 사라지게 두지 않는다**(제외 사유를 남긴다)."""
+    rows = c.execute(
+        "SELECT oi.id AS oid, oi.unit_label AS lbl, oi.order_id AS ord, "
+        "o.order_no AS ono, oi.unit_status AS ust "
+        "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+        "WHERE o.project_id=? AND TRIM(COALESCE(oi.unit_status,''))='취소' "
+        "ORDER BY o.id, oi.id", (pid,)).fetchall()
+    return [r for r in rows if not HOGI_RE.match((r["lbl"] or ""))]
 
 
 def scan_candidates(pid) -> dict:
@@ -265,9 +307,16 @@ def scan_candidates(pid) -> dict:
                 sug = CAND_LINK      # 같은 번호의 기존 Unit 있음 → 연결/신규를 사용자가 선택
             else:
                 sug = CAND_NEW
+            # [§8] 담당자가 판단할 수 있게 **작업일정표 상태·납품예정일·반영 예정 결과**를 함께 준다.
+            _sched = schedule_label(r["ust"])
+            _st, _wk = schedule_target(r["ust"])
             cands.append({
                 "order_item_id": r["oid"], "order_id": r["ord"], "order_no": r["ono"],
                 "label": lbl, "unit_no_hint": no, "qty": r["qty"],
+                "schedule_label": _sched, "due_date": r["due"],
+                "planned_state": _st, "planned_work": _wk,
+                "planned_state_label": STATE_LABEL.get(_st, _st),
+                "planned_work_label": WORK_LABEL.get(_wk, _wk),
                 "existing_unit_id": (exist or {}).get("id"),
                 "existing_state": (exist or {}).get("unit_state"),
                 # [대표 지시 07-25] '수주내역 표기를 호기번호로 그대로 쓰기' 를 고를 수 있는지.
@@ -281,15 +330,22 @@ def scan_candidates(pid) -> dict:
                 } for u in match_units],
                 "suggestion": sug, "blockers": blockers,
             })
-    s = {"total": len(cands),
+        # [§3.4] 취소인데 호기로 식별되지 않는 줄 — 만들지 않되 **사유와 함께 보여준다**
+        excluded = [{"order_item_id": r["oid"], "order_no": r["ono"], "label": r["lbl"],
+                     "schedule_label": schedule_label(r["ust"]),
+                     "skip_reason": "작업일정표 취소 · 호기로 식별되지 않는 줄"}
+                    for r in _cancelled_nonhogi_rows(c, pid)]
+    s = {"total": len(cands), "excluded": len(excluded),
          "new": sum(1 for x in cands if x["suggestion"] == CAND_NEW),
          "link": sum(1 for x in cands if x["suggestion"] == CAND_LINK),
          "already_linked": sum(1 for x in cands if x["suggestion"] == CAND_ALREADY),
          "blocked": sum(1 for x in cands if x["suggestion"] == CAND_BLOCKED)}
-    return {"ready": True, "candidates": cands, "summary": s, "units": units}
+    return {"ready": True, "candidates": cands, "summary": s, "units": units,
+            "excluded": excluded}
 
 
-def apply_candidate_decisions(pid, decisions, reason, actor_id=0, audit=None) -> dict:
+def apply_candidate_decisions(pid, decisions, reason, actor_id=0, audit=None,
+                              allow_confirm=False) -> dict:
     """사용자가 **후보마다 내린 판정**을 반영한다(F-01/F-02/F-03).
 
     decisions = [{order_item_id, action, unit_id?, relation_type?}, ...]
@@ -327,6 +383,13 @@ def apply_candidate_decisions(pid, decisions, reason, actor_id=0, audit=None) ->
             if cd["blockers"]:
                 rejected.append((oid, " / ".join(cd["blockers"])))
                 continue
+            # 작업일정표가 '출하'·'취소'인 줄은 결과가 **확정·취소**다 → 승인권자만 반영할 수 있다.
+            #   (권한 없는 사람이 후보 반영으로 확정을 우회하지 못하게)
+            if (not allow_confirm) and cd.get("planned_state") in ("CONFIRMED", "CANCELLED"):
+                rejected.append((oid, f"작업일정표 '{cd.get('schedule_label')}' 은 "
+                                      f"{STATE_LABEL.get(cd.get('planned_state'))} 처리라 "
+                                      "승인권자(기술영업팀장·대표·임원)만 반영할 수 있습니다."))
+                continue
             if d["action"] in ("new", "new_no"):
                 # 'new_no' 만 표기를 호기번호로 승격한다(사용자가 명시 선택한 경우).
                 unit_no = _norm_unit_no(cd["label"]) if d["action"] == "new_no" else None
@@ -334,14 +397,28 @@ def apply_candidate_decisions(pid, decisions, reason, actor_id=0, audit=None) ->
                     # [F-06] 취소분·과거 이력 포함 재사용 금지 — 조용히 넘기지 않고 사유를 알린다.
                     rejected.append((oid, f"이 관리번호에서 이미 쓴 호기번호입니다(취소분 포함): {unit_no}"))
                     continue
+                # [게이트 §3] 작업일정표 상태를 **신원·진행 두 칸에 나눠** 반영한다.
+                #   출하 → 확정 + SHIPPED / 진행중 → 개발·미확정 + IN_PROGRESS
+                #   보류 → 개발·미확정 + ON_HOLD / 취소 → 취소 + CANCELLED
+                _st, _wk = schedule_target(cd.get("schedule_label"))
+                _now0 = _logi_now()
                 cur = c.execute(
                     "INSERT INTO project_units(project_id, working_name, current_unit_no, "
                     "unit_state, entity, seed_order_item_id, seed_order_no, seed_unit_label, "
-                    "note, created_by, created_at, updated_by, updated_at) "
-                    "VALUES(?,?,?, 'PROVISIONAL', ?,?,?,?,?,?,?,?,?)",
-                    (pid, cd["label"], unit_no, entity, oid, cd["order_no"], cd["label"],
-                     reason.strip(), actor_id, _logi_now(), actor_id, _logi_now()))
+                    "note, created_by, created_at, updated_by, updated_at, "
+                    "work_status, work_status_src, work_status_label, work_status_at) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (pid, cd["label"], unit_no, _st, entity, oid, cd["order_no"], cd["label"],
+                     reason.strip(), actor_id, _now0, actor_id, _now0,
+                     _wk, "작업일정표", cd.get("schedule_label"), _now0))
                 uid = cur.lastrowid
+                if _st == "CONFIRMED":
+                    c.execute("UPDATE project_units SET confirmed_by=?, confirmed_at=? WHERE id=?",
+                              (actor_id, _now0, uid))
+                elif _st == "CANCELLED":
+                    c.execute("UPDATE project_units SET cancelled_by=?, cancelled_at=?, "
+                              "cancellation_reason=? WHERE id=?",
+                              (actor_id, _now0, f"작업일정표 취소 — {reason.strip()}", uid))
                 if unit_no:
                     # 번호를 정했으면 **변경이력 첫 줄**을 남긴다(나중에 바꿔도 처음 값을 안다).
                     _n0 = _logi_now()
@@ -437,6 +514,15 @@ def _unit_sort_key(u):
             int(m.group(1)) if m else 999999, u.get("id") or 0)
 
 
+def _decorate_status(u: dict):
+    """[§8] 화면에 색만이 아니라 **상태 문구**를 함께 보여주기 위한 라벨."""
+    _wk = u.get("work_status") or "IN_PROGRESS"
+    u["work_status"] = _wk
+    u["work_status_text"] = WORK_LABEL.get(_wk, _wk)
+    u["unit_state_text"] = STATE_LABEL.get(u.get("unit_state"), u.get("unit_state"))
+    return u
+
+
 def get_units(pid, include_cancelled=True) -> list:
     with db_session() as c:
         if not _table_ready(c):
@@ -456,6 +542,7 @@ def get_units(pid, include_cancelled=True) -> list:
                 "WHERE project_unit_id=? ORDER BY id", (u["id"],)).fetchall()]
             u["active_orders"] = [o for o in u["orders"] if o["active"]]
             u["impact"] = impact_status(c, u["id"])
+            _decorate_status(u)          # [§8] 신원·진행상태를 **글자로** 함께 내려준다
     units.sort(key=_unit_sort_key)
     return units
 
@@ -478,6 +565,7 @@ def get_unit(unit_id):
             "WHERE source_unit_id=? OR result_unit_id=? ORDER BY id",
             (unit_id, unit_id)).fetchall()]
         u["impact"] = impact_status(c, unit_id)
+        _decorate_status(u)
     return u
 
 
@@ -519,10 +607,19 @@ def project_unit_summary(pid) -> dict:
             "WHERE project_id=? AND seed_order_item_id IS NOT NULL", (pid,)).fetchall()}
         cands = sum(1 for r in _rows if r["oid"] not in _seeded)
         wired = impact_status(c, 0)["wired"]
+        # [§3.1] 출하된 호기는 진행중 호기와 **구분해서** 보여준다(신원 상태와 별개)
+        try:
+            wk = {r[0]: r[1] for r in c.execute(
+                "SELECT COALESCE(work_status,'IN_PROGRESS'), COUNT(*) FROM project_units "
+                "WHERE project_id=? GROUP BY 1", (pid,)).fetchall()}
+        except sqlite3.OperationalError:
+            wk = {}                       # z1054 마이그레이션 전이면 표시만 생략(기능 영향 없음)
     return {"ready": True, "units": sum(st.values()),
             "provisional": st.get("PROVISIONAL", 0), "confirmed": st.get("CONFIRMED", 0),
             "cancelled": st.get("CANCELLED", 0), "candidates": cands,
             "candidates_total": len(_rows), "candidates_done": len(_rows) - cands,
+            "shipped": wk.get("SHIPPED", 0), "on_hold": wk.get("ON_HOLD", 0),
+            "in_progress": wk.get("IN_PROGRESS", 0), "work_cancelled": wk.get("CANCELLED", 0),
             "impact_wired": wired, "no_unit_no": no_num}
 
 
@@ -662,6 +759,137 @@ def cancel_unit(unit_id, reason, actor_id=0, audit=None) -> bool:
                   "WHERE project_unit_id=? AND active=1", (actor_id, now, unit_id))
         _audit_tx(c, audit)          # [v6 P0-03] 취소와 감사는 함께 남거나 함께 취소
     return True
+
+
+# ══════════ 과거 데이터 보정 — 작업일정표 상태 대조 (게이트 판정 §9) ══════════
+
+def _backfill_rows(c, pid):
+    """이미 만든 호기를 **원본 작업일정표 상태와 호기별로 다시 대조**한다(읽기 전용).
+    [§10-9] 원본과 기존 ERP 상태가 **충돌**하면 덮어쓰지 않고 예외로 표시한다."""
+    pr = c.execute("SELECT mgmt_code FROM projects WHERE id=?", (pid,)).fetchone()
+    mgmt = (pr["mgmt_code"] if pr else "") or ""
+    src = {r["oid"]: r for r in _hogi_candidate_rows(c, pid)}
+    out = []
+    for u in c.execute("SELECT * FROM project_units WHERE project_id=? ORDER BY id",
+                       (pid,)).fetchall():
+        u = dict(u)
+        r = src.get(u.get("seed_order_item_id"))
+        sched = schedule_label(r["ust"]) if r else None
+        cur_state = u.get("unit_state")
+        cur_work = u.get("work_status") or "IN_PROGRESS"
+        row = {
+            "unit_id": u["id"], "mgmt_code": mgmt, "entity": u.get("entity"),
+            "order_no": u.get("seed_order_no"), "unit_no": u.get("current_unit_no"),
+            "working_name": u.get("working_name"),
+            "due_date": (r["due"] if r else None),
+            "source": ("작업일정표" if r else "직접 생성(수주내역 연결 없음)"),
+            "schedule_label": sched,
+            "before_state": cur_state, "before_work": cur_work,
+            "before_state_label": STATE_LABEL.get(cur_state, cur_state),
+            "before_work_label": WORK_LABEL.get(cur_work, cur_work),
+            "after_state": cur_state, "after_work": cur_work,
+            "change": False, "conflict": None,
+        }
+        if not r:
+            # 수주내역에 근거가 없는 호기(직접 만든 개발호기) — 보정 대상이 아니다.
+            row["conflict"] = "수주내역 근거 없음 — 보정하지 않음"
+        else:
+            t_state, t_work = schedule_target(r["ust"])
+            # ⛔ 되돌리는 보정은 하지 않는다: 확정→미확정, 취소→부활은 사람이 판단할 일.
+            if cur_state == "CANCELLED" and t_state != "CANCELLED":
+                row["conflict"] = f"이미 취소된 호기인데 작업일정표는 '{sched}' — 덮어쓰지 않음"
+            elif cur_state == "CONFIRMED" and t_state == "PROVISIONAL":
+                row["conflict"] = f"이미 확정된 호기인데 작업일정표는 '{sched}' — 되돌리지 않음"
+            elif t_state == "CONFIRMED" and not (u.get("current_unit_no") or "").strip():
+                row["conflict"] = "호기번호가 없어 확정할 수 없음 — 번호를 먼저 정하세요"
+            else:
+                row["after_state"], row["after_work"] = t_state, t_work
+                row["change"] = (t_state != cur_state) or (t_work != cur_work)
+        row["after_state_label"] = STATE_LABEL.get(row["after_state"], row["after_state"])
+        row["after_work_label"] = WORK_LABEL.get(row["after_work"], row["after_work"])
+        out.append(row)
+    return out
+
+
+def status_backfill_preview(pid) -> dict:
+    """[§9-2] 반영 **전 상태와 반영 예정 상태**를 표로 제출한다(실행하지 않음)."""
+    with db_session() as c:
+        if not _table_ready(c):
+            return {"ready": False, "rows": [], "summary": {}}
+        rows = _backfill_rows(c, pid)
+    s = {"total": len(rows),
+         "change": sum(1 for x in rows if x["change"]),
+         "conflict": sum(1 for x in rows if x["conflict"]),
+         "to_confirmed": sum(1 for x in rows if x["change"] and x["after_state"] == "CONFIRMED"),
+         "to_cancelled": sum(1 for x in rows if x["change"] and x["after_state"] == "CANCELLED"),
+         "keep": sum(1 for x in rows if not x["change"] and not x["conflict"])}
+    return {"ready": True, "rows": rows, "summary": s}
+
+
+def status_backfill_apply(pid, reason, actor_id=0, audit=None) -> dict:
+    """[§9] 대조 결과대로 보정한다. **바뀌는 것만** 손대고 원본 상태·근거를 이력에 남긴다.
+    [§9-8] 같은 보정을 다시 실행해도 중복 생성·이력 중복이 생기지 않는다(바뀐 게 없으면 무동작).
+    [§10-8] 감사기록이 실패하면 보정 전체가 함께 취소된다(단일 트랜잭션)."""
+    if not (reason or "").strip():
+        raise ValueError("보정 사유를 입력하세요.")
+    changed, skipped = [], []
+    with db_session() as c:
+        if not _table_ready(c):
+            raise ValueError("호기 기능이 아직 준비되지 않았습니다.")
+        now = _logi_now()
+        for row in _backfill_rows(c, pid):
+            if row["conflict"]:
+                skipped.append((row["unit_id"], row["conflict"]))
+                continue
+            if not row["change"]:
+                continue
+            uid = row["unit_id"]
+            c.execute("UPDATE project_units SET unit_state=?, work_status=?, "
+                      "work_status_src='작업일정표', work_status_label=?, work_status_at=?, "
+                      "updated_by=?, updated_at=? WHERE id=?",
+                      (row["after_state"], row["after_work"], row["schedule_label"], now,
+                       actor_id, now, uid))
+            if row["after_state"] == "CONFIRMED":
+                c.execute("UPDATE project_units SET confirmed_by=?, confirmed_at=? WHERE id=?",
+                          (actor_id, now, uid))
+            elif row["after_state"] == "CANCELLED":
+                c.execute("UPDATE project_units SET cancelled_by=?, cancelled_at=?, "
+                          "cancellation_reason=? WHERE id=?",
+                          (actor_id, now, f"작업일정표 취소 — {reason.strip()}", uid))
+                c.execute("UPDATE project_unit_order_links SET active=0, unlinked_by=?, "
+                          "unlinked_at=? WHERE project_unit_id=? AND active=1", (actor_id, now, uid))
+            c.execute(
+                "INSERT INTO project_unit_status_backfill(project_unit_id, project_id, "
+                "order_item_id, source_label, old_unit_state, new_unit_state, old_work_status, "
+                "new_work_status, reason, actor_id, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (uid, pid, None, row["schedule_label"], row["before_state"], row["after_state"],
+                 row["before_work"], row["after_work"], reason.strip(), actor_id, now))
+            changed.append(uid)
+        # [§3.4] 취소인데 호기로 식별 안 되는 줄 — 제외 사유를 남긴다(중복 기록 안 함)
+        for r in _cancelled_nonhogi_rows(c, pid):
+            c.execute(
+                "INSERT OR IGNORE INTO project_unit_candidate_skips(project_id, order_item_id, "
+                "order_no, unit_label, source_label, skip_reason, actor_id, created_at) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                (pid, r["oid"], r["ono"], r["lbl"], schedule_label(r["ust"]),
+                 "작업일정표 취소 · 호기로 식별되지 않는 줄", actor_id, now))
+        if audit:
+            _a = dict(audit)
+            _a["note"] = (f"{_a.get('note') or ''} — 보정 {len(changed)}대 · "
+                          f"예외 {len(skipped)}건").strip()
+            _audit_tx(c, _a)
+    return {"changed": len(changed), "changed_ids": changed,
+            "skipped": len(skipped), "skipped_detail": skipped}
+
+
+def get_status_backfill_log(pid, limit=200) -> list:
+    with db_session() as c:
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                         "AND name='project_unit_status_backfill'").fetchone():
+            return []
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM project_unit_status_backfill WHERE project_id=? "
+            "ORDER BY id DESC LIMIT ?", (pid, limit)).fetchall()]
 
 
 def audit_override(actor_id, actor_name, action, target, note):

@@ -25,7 +25,9 @@ from app import database as db  # noqa: E402
 db.DB_PATH = os.path.join(tempfile.mkdtemp(prefix="wp03_"), "test.db")
 db.init_db()
 from app.migrations.m_z1053_project_unit import migrate as _mig  # noqa: E402
+from app.migrations.m_z1054_unit_work_status import migrate as _mig54  # noqa: E402
 print("마이그레이션:", _mig(db.DB_PATH))
+print("마이그레이션(z1054):", _mig54(db.DB_PATH))
 with db.db_session() as _c0:
     for _col in ("po_entity", "ship_entity"):
         try:
@@ -75,10 +77,11 @@ def mkorder(pid, no):
         return c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
 
-def mkline(oid, label, qty=1):
+def mkline(oid, label, qty=1, status=None, due=None):
+    """status = 작업일정표 상태(출하/진행중/보류/취소) · due = 납품 예정일"""
     with db.db_session() as c:
-        c.execute("INSERT INTO order_items (order_id, qty, unit_price, amount, unit_label) "
-                  "VALUES (?,?,0,0,?)", (oid, qty, label))
+        c.execute("INSERT INTO order_items (order_id, qty, unit_price, amount, unit_label, "
+                  "unit_status, due_date) VALUES (?,?,0,0,?,?,?)", (oid, qty, label, status, due))
         return c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
 
@@ -848,6 +851,148 @@ try:
         "전부 반영됨" in _html_h and "아직 반영 안 한 후보" not in _html_h)
     chk("H-5 남은 후보 있을 땐 개수를 붙여 보여준다",
         "아직 반영 안 한 후보" in _as(SALES_LEAD, f"/project/{PG}/units").text)
+    m.get_user = lambda req: CEO
+
+    # ═══════ I. 작업일정표 상태 반영 — 게이트 §10 확산 전 필수 테스트 10종 ═══════
+    #   ⭐§4 신원(unit_state)과 진행(work_status)은 **다른 값** — 하나로 합쳐 저장하지 않는다.
+    #   ⛔§2.1 납품일이 지났다는 것만으로 완료·확정 처리하지 않는다.
+    print("\n── I. 작업일정표 상태 반영 (게이트 §10 필수 10종) ──")
+    _PAST = "2026-01-15"                      # 이미 지난 납품 예정일
+    PI = mkproject("상태반영")
+    OI1 = mkorder(PI, "SO-I-1")
+    LI_run = mkline(OI1, "1호기", status="진행중", due=_PAST)
+    LI_hold = mkline(OI1, "2호기", status="보류", due=_PAST)
+    LI_ship = mkline(OI1, "3호기", status="출하", due=_PAST)
+    LI_cxl = mkline(OI1, "4호기", status="취소", due=_PAST)
+    LI_none = mkline(OI1, "5호기", status=None, due=_PAST)
+    mkline(OI1, "예비품 세트", qty=2, status="취소")     # 호기로 식별 안 되는 취소 줄
+
+    _sc = pu.scan_candidates(PI)
+    _by = {x["order_item_id"]: x for x in _sc["candidates"]}
+    # ① 납품일 경과 + 진행중 → 확정되지 않음
+    chk("§10-1 납품일 지난 '진행중' → 확정 아님(개발·미확정)",
+        (_by[LI_run]["planned_state"], _by[LI_run]["planned_work"]) == ("PROVISIONAL", "IN_PROGRESS"))
+    # ② 납품일 경과 + 보류 → 보류 유지
+    chk("§10-2 납품일 지난 '보류' → 개발·미확정 + 보류 유지",
+        (_by[LI_hold]["planned_state"], _by[LI_hold]["planned_work"]) == ("PROVISIONAL", "ON_HOLD"))
+    # ③ 출하 + 유효한 호기 → 확정 및 출하 보존
+    chk("§10-3 '출하' → 확정 + 출하 상태 보존",
+        (_by[LI_ship]["planned_state"], _by[LI_ship]["planned_work"]) == ("CONFIRMED", "SHIPPED"))
+    chk("§10-3' 상태 없는 줄은 **확정하지 않는다**(빈값을 함부로 승격 금지)",
+        (_by[LI_none]["planned_state"], _by[LI_none]["planned_work"]) == ("PROVISIONAL", "IN_PROGRESS")
+        and _by[LI_none]["schedule_label"] == pu.SCHEDULE_UNSET)
+    chk("§10-3'' 납품 예정일을 화면에 낼 수 있게 내려준다(§8)", _by[LI_ship]["due_date"] == _PAST)
+    # ⑤⑥ 취소 두 갈래
+    chk("§10-5 취소 + 호기 식별 있음 → 취소 호기로 보존",
+        (_by[LI_cxl]["planned_state"], _by[LI_cxl]["planned_work"]) == ("CANCELLED", "CANCELLED"))
+    chk("§10-6 취소 + 호기 식별 없음 → 후보 제외 + **사유 보존**",
+        len(_sc["excluded"]) == 1 and "취소" in _sc["excluded"][0]["skip_reason"],
+        str(_sc["excluded"]))
+    # 권한: 확정·취소로 가는 줄은 승인권자만
+    m.get_user = lambda req: SALES_DELEG        # 기술영업 위임자(팀원) — 확정 권한 없음
+    _r_np = client.post(f"/project/{PI}/units/candidates/apply",
+                        data={"pick": [str(LI_ship)], f"action_{LI_ship}": "new_no",
+                              "reason": "위임자 시험"}, follow_redirects=False)
+    chk("§10-권한 위임자(팀원)는 '출하→확정' 줄을 반영할 수 없다",
+        cnt("project_units", "project_id=? AND seed_order_item_id=?", (PI, LI_ship)) == 0)
+    m.get_user = lambda req: SALES_LEAD         # 기술영업팀장 = 승인권자
+    client.post(f"/project/{PI}/units/candidates/apply",
+                data={"pick": [str(LI_run), str(LI_hold), str(LI_ship), str(LI_cxl), str(LI_none)],
+                      f"action_{LI_run}": "new_no", f"action_{LI_hold}": "new_no",
+                      f"action_{LI_ship}": "new_no", f"action_{LI_cxl}": "new_no",
+                      f"action_{LI_none}": "new_no", "reason": "과거 데이터 반영"},
+                follow_redirects=False)
+    _u = {u["seed_order_item_id"]: u for u in pu.get_units(PI)}
+    chk("§10-3''' 반영 결과: 출하 호기 = 확정 + SHIPPED",
+        (_u[LI_ship]["unit_state"], _u[LI_ship]["work_status"]) == ("CONFIRMED", "SHIPPED"))
+    chk("§10-1' 반영 결과: 진행중 호기 = 개발·미확정 + IN_PROGRESS",
+        (_u[LI_run]["unit_state"], _u[LI_run]["work_status"]) == ("PROVISIONAL", "IN_PROGRESS"))
+    chk("§10-2' 반영 결과: 보류 호기 = 개발·미확정 + ON_HOLD",
+        (_u[LI_hold]["unit_state"], _u[LI_hold]["work_status"]) == ("PROVISIONAL", "ON_HOLD"))
+    chk("§10-5' 반영 결과: 취소 호기 = 취소 + CANCELLED(물리삭제 없음)",
+        (_u[LI_cxl]["unit_state"], _u[LI_cxl]["work_status"]) == ("CANCELLED", "CANCELLED")
+        and cnt("project_units", "id=?", (_u[LI_cxl]["id"],)) == 1)
+    chk("§10-4 같은 수주에 출하·진행중이 섞여 있어도 **호기별로** 다르게 유지(부분출하)",
+        _u[LI_ship]["unit_state"] == "CONFIRMED" and _u[LI_run]["unit_state"] == "PROVISIONAL")
+    chk("§10-4' 신원과 진행을 **따로** 보존(한 칸으로 합치지 않음)",
+        all(("unit_state" in x and "work_status" in x) for x in _u.values()))
+    # ④ 수주번호 전체 완료로 넘겨짚지 않는다
+    _sm = pu.project_unit_summary(PI)
+    chk("§10-4'' 출하 호기 수를 진행중과 구분해 센다",
+        (_sm["shipped"], _sm["on_hold"]) == (1, 1), str(_sm))
+
+    # ⑦ 반복 실행 → 중복 없음  ⑨ 상태 충돌 → 덮어쓰지 않음
+    _pv = pu.status_backfill_preview(PI)
+    chk("§10-7 이미 맞춰진 뒤 대조하면 **바뀔 것 0**(재실행해도 무동작)",
+        _pv["summary"]["change"] == 0, str(_pv["summary"]))
+    _n_units0 = cnt("project_units", "project_id=?", (PI,))
+    _r1 = pu.status_backfill_apply(PI, reason="1차 보정")
+    _r2 = pu.status_backfill_apply(PI, reason="2차 보정(같은 조건)")
+    chk("§10-7' 두 번 실행해도 호기 수 불변 · 보정 0건",
+        cnt("project_units", "project_id=?", (PI,)) == _n_units0
+        and _r1["changed"] == 0 and _r2["changed"] == 0)
+    chk("§10-7'' 바뀐 게 없으면 보정 이력도 늘지 않음",
+        cnt("project_unit_status_backfill", "project_id=?", (PI,)) == 0)
+    chk("§10-6' 제외한 줄은 보정 실행 때 **기록으로 남는다**",
+        cnt("project_unit_candidate_skips", "project_id=?", (PI,)) == 1)
+
+    # 보정이 실제로 일하는 경우 — 나중에 작업일정표가 '출하'로 바뀐 호기
+    with db.db_session() as c:
+        c.execute("UPDATE order_items SET unit_status='출하' WHERE id=?", (LI_run,))
+    _pv2 = pu.status_backfill_preview(PI)
+    chk("§10-3'''' 작업일정표가 출하로 바뀌면 대조표에 '확정 예정'으로 뜬다",
+        _pv2["summary"]["change"] == 1 and _pv2["summary"]["to_confirmed"] == 1, str(_pv2["summary"]))
+    _r3 = pu.status_backfill_apply(PI, reason="출하 반영")
+    _u2 = {u["seed_order_item_id"]: u for u in pu.get_units(PI)}
+    chk("§10-3''''' 보정 실행 → 확정 + SHIPPED · 이력 1건",
+        (_u2[LI_run]["unit_state"], _u2[LI_run]["work_status"]) == ("CONFIRMED", "SHIPPED")
+        and _r3["changed"] == 1
+        and cnt("project_unit_status_backfill", "project_id=?", (PI,)) == 1)
+    # ⑨ 충돌: 이미 확정인데 작업일정표가 '진행중'으로 되돌아감 → 덮어쓰지 않음
+    with db.db_session() as c:
+        c.execute("UPDATE order_items SET unit_status='진행중' WHERE id=?", (LI_run,))
+    _pv3 = pu.status_backfill_preview(PI)
+    _row = [x for x in _pv3["rows"] if x["unit_id"] == _u2[LI_run]["id"]][0]
+    chk("§10-9 확정된 호기를 되돌리는 방향은 **덮어쓰지 않고 예외로 표시**",
+        (not _row["change"]) and "되돌리지 않음" in (_row["conflict"] or ""), str(_row["conflict"]))
+    _r4 = pu.status_backfill_apply(PI, reason="충돌 확인")
+    chk("§10-9' 예외 건은 실행해도 그대로",
+        pu.get_unit(_u2[LI_run]["id"])["unit_state"] == "CONFIRMED" and _r4["skipped"] >= 1)
+    # ⑩ 보정 전후 총수량·상태별 수량 일치
+    _sm2 = pu.project_unit_summary(PI)
+    chk("§10-10 총수량 보존(5대) · 상태별 합이 총수와 일치",
+        _sm2["units"] == 5
+        and (_sm2["provisional"] + _sm2["confirmed"] + _sm2["cancelled"]) == _sm2["units"]
+        and (_sm2["shipped"] + _sm2["on_hold"] + _sm2["in_progress"]
+             + _sm2["work_cancelled"]) == _sm2["units"], str(_sm2))
+    # ⑧ 감사기록 실패 주입 → 보정 전체 롤백
+    with db.db_session() as c:
+        c.execute("UPDATE order_items SET unit_status='출하' WHERE id=?", (LI_hold,))
+        c.execute("CREATE TRIGGER IF NOT EXISTS t_bf_fail BEFORE INSERT ON project_unit_audit "
+                  "BEGIN SELECT RAISE(ABORT, '감사 실패(주입)'); END")
+    _before_bf = cnt("project_unit_status_backfill", "project_id=?", (PI,))
+    try:
+        pu.status_backfill_apply(PI, reason="감사 실패 시험",
+                                 audit={"actor_id": 1, "action": "x", "target": "y", "note": "z"})
+    except Exception:
+        pass
+    with db.db_session() as c:
+        c.execute("DROP TRIGGER IF EXISTS t_bf_fail")
+    chk("§10-8 감사기록 실패 → 보정 **전체 롤백**(상태·이력 모두 그대로)",
+        pu.get_unit(_u2[LI_hold]["id"])["unit_state"] == "PROVISIONAL"
+        and cnt("project_unit_status_backfill", "project_id=?", (PI,)) == _before_bf)
+    chk("§10-8' 주입 해제 후에는 정상 보정됨",
+        pu.status_backfill_apply(PI, reason="정상 재실행")["changed"] == 1
+        and pu.get_unit(_u2[LI_hold]["id"])["unit_state"] == "CONFIRMED")
+    # 화면 §8 필수 표시
+    _html_i = _as(SALES_LEAD, f"/project/{PI}/units/status-sync").text
+    for _need in ("관리번호", "수주번호", "호기번호", "납품 예정일", "작업일정표 상태",
+                  "원본 출처", "법인", "반영 예정", "그대로 둠"):
+        chk(f"§8 대조 화면에 '{_need}' 표시", _need in _html_i)
+    chk("§8' 상태를 **글자로** 표시(색만 쓰지 않음)",
+        "출하" in _html_i and "보류" in _html_i)
+    chk("§9 대조 화면은 읽기 전용 — 조회만으로 아무것도 안 바뀜",
+        pu.status_backfill_preview(PI)["summary"]["change"] == 0)
     m.get_user = lambda req: CEO
 
     chk("분할·통합 실행 경로 없음(404)",

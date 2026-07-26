@@ -890,6 +890,15 @@ def startup():
             print(f"[PROJECT-UNIT-MIG-Z1053] {_rpunit}")
     except Exception as _e:
         print(f"[PROJECT-UNIT-MIG-Z1053 ERR] {_e}")
+    # v5H226z1054 (2026-07-26): 호기 **업무 진행상태**를 신원 상태와 분리 보존(순수 추가)
+    try:
+        from .migrations.m_z1054_unit_work_status import migrate as _pwork_migrate
+        from .database import DB_PATH as _DB_PATH_PWORK
+        _rpwork = _pwork_migrate(_DB_PATH_PWORK)
+        if _rpwork.get('added'):
+            print(f"[PROJECT-UNIT-MIG-Z1054] {_rpwork}")
+    except Exception as _e:
+        print(f"[PROJECT-UNIT-MIG-Z1054 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -21427,8 +21436,10 @@ async def project_units_candidates_apply(request: Request, pid: int):
         _ov = _punit_require_override(u, form)          # ② 업무 변경 **전** 검증
         # [게이트 v5 P1-01 · v6 P0-03] 관리자 우회 시 후보 일괄반영도 감사에 남기되
         #   반영과 **같은 트랜잭션**에서 기록한다(신규/연결/거부 건수는 반영 결과에서 채워짐).
+        # allow_confirm: 작업일정표가 '출하'·'취소'인 줄은 결과가 확정·취소라 **승인권자만** 반영
         r = _punit.apply_candidate_decisions(
             pid, decisions, form.get("reason"), actor_id=_punit_actor(u),
+            allow_confirm=can_approve_unit(u),
             audit=_punit_audit_payload(
                 u, "candidates_apply", f"project#{pid}",
                 f"후보 일괄반영 · 입력 사유: {(form.get('reason') or '').strip()}", override=_ov))
@@ -21576,6 +21587,53 @@ async def project_unit_order_link(request: Request, unit_id: int):
         return RedirectResponse(f"/project/{pid}/units?success={_q('수주 연결됨')}", 303)
     except Exception as e:
         return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.get("/project/{pid:int}/units/status-sync", response_class=HTMLResponse)
+async def project_units_status_sync(request: Request, pid: int):
+    """[게이트 판정 2026-07-26 §9] 과거 데이터 보정 — **작업일정표 상태 전/후 대조표**(읽기 전용).
+    ⛔ 이 화면은 아무것도 바꾸지 않는다. 표를 먼저 보고 확인한 뒤 아래 버튼으로 보정한다."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_units(u):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+    if not pr:
+        return RedirectResponse("/", 303)
+    return ctx(request, "project_unit_status_sync.html", user=u, active="parts",
+               project=dict(pr), preview=_punit.status_backfill_preview(pid),
+               scan_excluded=_punit.scan_candidates(pid).get("excluded", []),
+               log=_punit.get_status_backfill_log(pid, 50),
+               can_apply=can_approve_unit(u),
+               is_admin_override=(_punit_role(u) == _PUNIT_ADMIN_ROLE))
+
+
+@app.post("/project/{pid:int}/units/status-sync/apply")
+async def project_units_status_sync_apply(request: Request, pid: int):
+    """[§9] 대조 결과대로 보정 — **바뀌는 것만**, 원본 상태·근거를 이력에 남기고, 재실행해도 무동작."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    # 출하→확정 / 취소→취소 로 **신원이 바뀌는** 보정이라 승인권자만 실행한다.
+    if not can_approve_unit(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    try:
+        _ov = _punit_require_override(u, form)
+        r = _punit.status_backfill_apply(
+            pid, form.get("reason"), actor_id=_punit_actor(u),
+            audit=_punit_audit_payload(u, "status_backfill", f"project#{pid}",
+                                       f"작업일정표 상태 보정 · 입력 사유: "
+                                       f"{(form.get('reason') or '').strip()}", override=_ov))
+        msg = f"보정 {r['changed']}대"
+        if r["skipped"]:
+            msg += f" · 예외 {r['skipped']}건(덮어쓰지 않음)"
+        return RedirectResponse(f"/project/{pid}/units/status-sync?success={_q(msg)}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units/status-sync?error={_q(str(e))}", 303)
 
 
 @app.get("/units/{unit_id:int}/history")

@@ -82,6 +82,8 @@ table.u td.mono { font-family:var(--pq-mono); }
           {% if summary.candidates %}<a class="btn-dark" href="/project/{{ project.id }}/units/candidates">🔍 수주내역에서 호기 후보 확인 ({{ summary.candidates }})</a>
           {% else %}<a class="btn-ghost" href="/project/{{ project.id }}/units/candidates">🔍 수주내역 다시 확인</a>{% endif %}
         {% endif %}
+        {# 보여주는 곳엔 고치러 갈 길도 — 작업일정표 상태와 호기 상태가 어긋났는지 확인·보정 #}
+        {% if summary.ready and summary.units %}<a class="btn-ghost" href="/project/{{ project.id }}/units/status-sync">🔄 작업일정표 상태 맞추기</a>{% endif %}
         <a class="btn-ghost" href="/project/{{ project.id }}" data-knk-back>프로젝트 상세 ↗</a>
       </div>
     </div>
