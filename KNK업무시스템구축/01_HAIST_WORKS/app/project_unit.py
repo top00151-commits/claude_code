@@ -777,18 +777,31 @@ def _backfill_rows(c, pid):
         sched = schedule_label(r["ust"]) if r else None
         cur_state = u.get("unit_state")
         cur_work = u.get("work_status") or "IN_PROGRESS"
+        # [게이트 §3 제출표] 연결된 수주번호는 **여럿이면 전부** 보인다
+        links = [dict(x) for x in c.execute(
+            "SELECT order_no, relation_type, active FROM project_unit_order_links "
+            "WHERE project_unit_id=? ORDER BY id", (u["id"],)).fetchall()]
         row = {
             "unit_id": u["id"], "mgmt_code": mgmt, "entity": u.get("entity"),
             "order_no": u.get("seed_order_no"), "unit_no": u.get("current_unit_no"),
+            "order_nos": ", ".join(x["order_no"] or "?" for x in links if x["active"]) or "—",
             "working_name": u.get("working_name"),
             "due_date": (r["due"] if r else None),
+            # [§1.2] 실제 출하일 — 모르면 **미확인**. 납품 예정일·보정일로 지어내지 않는다.
+            "shipped_on": u.get("shipped_on"),
+            "confirmed_by": u.get("confirmed_by"), "confirmed_at": u.get("confirmed_at"),
+            # [§4] 이미 확정된 호기의 **확정 근거**. 감사기록이 없으면 추정하지 않고 그렇다고 적는다.
+            "confirm_audit": [dict(x) for x in c.execute(
+                "SELECT actor_id, actor_name, action, note, created_at FROM project_unit_audit "
+                "WHERE target LIKE ? ORDER BY id", (f"%unit#{u['id']}",)).fetchall()]
+            if u.get("unit_state") == "CONFIRMED" else [],
             "source": ("작업일정표" if r else "직접 생성(수주내역 연결 없음)"),
             "schedule_label": sched,
             "before_state": cur_state, "before_work": cur_work,
             "before_state_label": STATE_LABEL.get(cur_state, cur_state),
             "before_work_label": WORK_LABEL.get(cur_work, cur_work),
             "after_state": cur_state, "after_work": cur_work,
-            "change": False, "conflict": None,
+            "change": False, "conflict": None, "fields": [],
         }
         if not r:
             # 수주내역에 근거가 없는 호기(직접 만든 개발호기) — 보정 대상이 아니다.
@@ -805,8 +818,23 @@ def _backfill_rows(c, pid):
             else:
                 row["after_state"], row["after_work"] = t_state, t_work
                 row["change"] = (t_state != cur_state) or (t_work != cur_work)
+                # [§3 제출표] 이번 작업에서 **실제로 바뀌는 필드**만 열거한다.
+                f = []
+                if t_state != cur_state:
+                    f.append("unit_state")
+                    # ⭐[§1.1] 이미 확정인 호기는 **다시 확정하지 않는다** —
+                    #   확정자·확정시각·확정사유를 덮어쓰지 않고 그대로 둔다.
+                    if t_state == "CONFIRMED":
+                        f += ["confirmed_by", "confirmed_at"]
+                    elif t_state == "CANCELLED":
+                        f += ["cancelled_by", "cancelled_at", "cancellation_reason"]
+                if t_work != cur_work:
+                    f += ["work_status", "work_status_src", "work_status_label", "work_status_at"]
+                f += ["updated_by", "updated_at"]
+                row["fields"] = f
         row["after_state_label"] = STATE_LABEL.get(row["after_state"], row["after_state"])
         row["after_work_label"] = WORK_LABEL.get(row["after_work"], row["after_work"])
+        row["action"] = ("변경" if row["change"] else ("예외" if row["conflict"] else "유지"))
         out.append(row)
     return out
 
@@ -849,10 +877,13 @@ def status_backfill_apply(pid, reason, actor_id=0, audit=None) -> dict:
                       "updated_by=?, updated_at=? WHERE id=?",
                       (row["after_state"], row["after_work"], row["schedule_label"], now,
                        actor_id, now, uid))
-            if row["after_state"] == "CONFIRMED":
+            # ⭐[§1.1] **이미 확정인 호기는 다시 확정하지 않는다** — 기존 확정자·확정시각·확정사유를
+            #   덮어쓰면 "누가 언제 확정했나"가 이번 보정으로 바뀌어 버린다(중복 확정·이력 훼손 금지).
+            #   신원이 실제로 바뀔 때만 확정/취소 정보를 채운다.
+            if row["after_state"] == "CONFIRMED" and row["before_state"] != "CONFIRMED":
                 c.execute("UPDATE project_units SET confirmed_by=?, confirmed_at=? WHERE id=?",
                           (actor_id, now, uid))
-            elif row["after_state"] == "CANCELLED":
+            elif row["after_state"] == "CANCELLED" and row["before_state"] != "CANCELLED":
                 c.execute("UPDATE project_units SET cancelled_by=?, cancelled_at=?, "
                           "cancellation_reason=? WHERE id=?",
                           (actor_id, now, f"작업일정표 취소 — {reason.strip()}", uid))

@@ -993,6 +993,42 @@ try:
         "출하" in _html_i and "보류" in _html_i)
     chk("§9 대조 화면은 읽기 전용 — 조회만으로 아무것도 안 바뀜",
         pu.status_backfill_preview(PI)["summary"]["change"] == 0)
+
+    # ── 실행 전 게이트(2026-07-26) §1.1 — **이미 확정인 호기를 다시 확정하지 않는다** ──
+    #   기존 확정자·확정시각을 보정이 덮어쓰면 "누가 언제 확정했나"가 이번 작업으로 바뀐다.
+    PJ = mkproject("기존확정")
+    OJ1 = mkorder(PJ, "SO-J-1")
+    LJ1 = mkline(OJ1, "1호기", status="진행중")
+    pu.apply_candidate_decisions(PJ, [dec(LJ1, "new_no")], reason="먼저 진행중으로 등록")
+    _uj = pu.get_units(PJ)[0]["id"]
+    pu.confirm_unit(_uj, actor_id=777)                       # 원래 확정자 = 777
+    _orig = pu.get_unit(_uj)
+    with db.db_session() as c:                               # 나중에 작업일정표가 출하로 바뀜
+        c.execute("UPDATE order_items SET unit_status='출하' WHERE id=?", (LJ1,))
+    _pvj = pu.status_backfill_preview(PJ)
+    _rj = [x for x in _pvj["rows"] if x["unit_id"] == _uj][0]
+    chk("§1.1 이미 확정 + 출하 → 신원은 그대로, **진행상태만** 바뀜",
+        _rj["change"] and _rj["after_state"] == "CONFIRMED"
+        and _rj["before_state"] == "CONFIRMED" and _rj["after_work"] == "SHIPPED")
+    chk("§1.1' 변경 필드 목록에 확정자·확정시각이 **없다**",
+        "confirmed_by" not in _rj["fields"] and "confirmed_at" not in _rj["fields"]
+        and "unit_state" not in _rj["fields"], str(_rj["fields"]))
+    pu.status_backfill_apply(PJ, reason="진행상태만 보정", actor_id=999)
+    _after = pu.get_unit(_uj)
+    chk("§1.1'' 보정 후에도 **원래 확정자·확정시각 그대로**(999로 덮어쓰지 않음)",
+        _after["confirmed_by"] == _orig["confirmed_by"] == 777
+        and _after["confirmed_at"] == _orig["confirmed_at"],
+        f"{_orig['confirmed_by']}→{_after['confirmed_by']}")
+    chk("§1.1''' 진행상태만 SHIPPED 로 반영됨", _after["work_status"] == "SHIPPED")
+    # [§1.2] 실제 출하일을 지어내지 않는다
+    chk("§1.2 실제 출하일은 **미확인(빈값)** — 납품 예정일·보정일을 복사하지 않음",
+        not (_after.get("shipped_on") or "").strip(), str(_after.get("shipped_on")))
+    # [§3 제출표] 행별 필수 항목이 모두 내려온다
+    for _k in ("unit_id", "order_nos", "unit_no", "due_date", "shipped_on", "schedule_label",
+               "before_state", "before_work", "after_state", "after_work", "fields", "action"):
+        chk(f"§3 제출표 항목 '{_k}' 제공", _k in _rj)
+    chk("§3' 처리 구분은 변경/유지/예외 셋 중 하나",
+        all(x["action"] in ("변경", "유지", "예외") for x in _pvj["rows"]))
     m.get_user = lambda req: CEO
 
     chk("분할·통합 실행 경로 없음(404)",

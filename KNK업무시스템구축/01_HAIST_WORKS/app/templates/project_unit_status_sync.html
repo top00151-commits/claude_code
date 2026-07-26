@@ -94,36 +94,73 @@ table.s td { border-bottom:1px solid var(--pq-line-2); padding:7px 6px; vertical
         <table class="s">
           <thead>
             <tr>
-              <th>관리번호</th><th>수주번호</th><th>호기번호</th><th>납품 예정일</th>
+              <th>내부 ID</th><th>관리번호</th><th>연결 수주번호</th><th>호기번호</th>
+              <th>납품 예정일</th><th>실제 출하일</th>
               <th>작업일정표 상태</th><th>원본 출처</th><th>법인</th>
-              <th>지금 (신원 / 진행)</th><th>반영 예정 (신원 / 진행)</th><th>메모</th>
+              <th>지금 (신원 / 진행)</th><th>반영 예정 (신원 / 진행)</th>
+              <th>실제 변경 필드</th><th>처리</th><th>메모</th>
             </tr>
           </thead>
           <tbody>
             {% for r in preview.rows %}
             <tr>
+              <td class="mono">#{{ r.unit_id }}</td>
               <td class="mono">{{ r.mgmt_code }}</td>
-              <td class="mono">{{ r.order_no or '—' }}</td>
+              <td class="mono">{{ r.order_nos }}</td>
               <td class="mono">{{ r.unit_no or (r.working_name or '—') }}</td>
-              <td class="mono">{{ r.due_date or '—' }}</td>
+              <td class="mono">{{ r.due_date or '없음' }}</td>
+              {# [§1.2] 모르는 출하일을 지어내지 않는다 — 미확인은 미확인이라고 쓴다 #}
+              <td class="mono">{{ r.shipped_on or '미확인' }}</td>
               <td><span class="tag {{ _sc.get(r.schedule_label, 't-none') }}">{{ r.schedule_label or '연결 없음' }}</span></td>
               <td class="muted" style="font-size:11.5px;">{{ r.source }}</td>
               <td class="mono">{{ r.entity or '—' }}</td>
               <td>{{ r.before_state_label }} / {{ r.before_work_label }}</td>
               <td>
                 {% if r.change %}<b>{{ r.after_state_label }} / {{ r.after_work_label }}</b>
-                {% elif r.conflict %}<span class="muted">그대로 둠</span>
-                {% else %}<span class="muted">변화 없음</span>{% endif %}
+                {% else %}<span class="muted">{{ r.before_state_label }} / {{ r.before_work_label }}</span>{% endif %}
               </td>
+              <td class="mono" style="font-size:11px;">{{ r.fields|join(', ') if r.fields else '—' }}</td>
+              <td><b>{{ r.action }}</b></td>
               <td>{% if r.conflict %}<span class="why">{{ r.conflict }}</span>{% endif %}</td>
             </tr>
             {% else %}
-            <tr><td colspan="10" style="padding:24px;text-align:center;" class="muted">아직 호기가 없습니다.</td></tr>
+            <tr><td colspan="14" style="padding:24px;text-align:center;" class="muted">아직 호기가 없습니다.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     </div>
+
+    {% set _already = preview.rows|selectattr('before_state','equalto','CONFIRMED')|list %}
+    {% if _already %}
+    <div class="wrap">
+      <h3>이미 확정돼 있던 호기 {{ _already|length }}대 — 확정 근거 <span>— 이 호기는 <b>다시 확정하지 않습니다</b>. 기존 확정자·확정시각을 그대로 두고 <b>진행상태만</b> 바꿉니다.</span></h3>
+      <div class="scroll">
+        <table class="s">
+          <thead><tr><th>내부 ID</th><th>호기번호</th><th>확정 처리자</th><th>확정 시각</th><th>감사기록</th><th>판정</th></tr></thead>
+          <tbody>
+            {% for r in _already %}
+            <tr>
+              <td class="mono">#{{ r.unit_id }}</td>
+              <td class="mono">{{ r.unit_no or '—' }}</td>
+              <td class="mono">{{ ('사용자 #' ~ r.confirmed_by) if r.confirmed_by else '기록 없음' }}</td>
+              <td class="mono">{{ r.confirmed_at or '기록 없음' }}</td>
+              <td>
+                {% if r.confirm_audit %}{% for a in r.confirm_audit %}<div style="font-size:11px;">{{ a.created_at }} · {{ a.actor_name }} · {{ a.note }}</div>{% endfor %}
+                {% else %}<span class="why">감사기록 없음</span>{% endif %}
+              </td>
+              <td>{% if not r.confirm_audit %}<b>기존 확정 상태 발견</b> <span class="muted" style="font-size:11px;">— 누가 확정했는지 추정하지 않습니다</span>{% else %}근거 있음{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p style="margin:8px 2px 0;font-size:11.5px;" class="muted">
+        ※ 감사기록(<span class="mono">project_unit_audit</span>)은 <b>시스템 관리자 비상복구</b>만 남기도록 만들어져 있습니다.
+        기술영업팀·대표·임원의 정상 확정은 여기 쌓이지 않고 호기 행의 <span class="mono">confirmed_by / confirmed_at</span> 에만 남습니다.
+      </p>
+    </div>
+    {% endif %}
 
     {% if scan_excluded %}
     <div class="wrap">
