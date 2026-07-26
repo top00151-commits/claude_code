@@ -1213,6 +1213,15 @@ try:
     chk("§5.2 연결 전 **무엇을 하는지 사람 말로** 보여준다",
         "linkecho-" in _hl and "로 연결합니다" in _hl)
 
+    # [게이트 UI 판정 §7-5 · 기술영업팀 확인 지적] 잘못된 걸 봤을 때 어디에 요청하는지 화면이 답해야 한다
+    chk("§7-5 고칠 수 있는 사람에겐 '작업 열기에서 직접 고치라'고 알려준다",
+        'class="fixnote"' in _hl and "작업 열기" in _hl.split('class="fixnote"')[1][:400])
+    chk("§7-5' 조회만 하는 사람에겐 **기술영업팀에 요청**하라고 알려준다",
+        'class="fixnote"' in _hd and "기술영업팀" in _hd.split('class="fixnote"')[1][:400], "안내 없음")
+    chk("§7-5'' 요청할 때 무엇을 알려야 하는지까지(관리번호·호기번호)",
+        "관리번호" in _hd.split('class="fixnote"')[1][:600]
+        and "호기번호" in _hd.split('class="fixnote"')[1][:600])
+
     chk("분할·통합 실행 경로 없음(404)",
         client.post(f"/units/{uid_r}/split", data={}, follow_redirects=False).status_code == 404)
 except ImportError as e:
