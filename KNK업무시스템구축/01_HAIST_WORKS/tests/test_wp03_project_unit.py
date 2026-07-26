@@ -1033,6 +1033,10 @@ try:
         and _after["confirmed_at"] == _orig["confirmed_at"],
         f"{_orig['confirmed_by']}→{_after['confirmed_by']}")
     chk("§1.1''' 진행상태만 SHIPPED 로 반영됨", _after["work_status"] == "SHIPPED")
+    # [승인서 §3.3 수량 계약] 화면 숫자도 '새로 확정'과 '이미 확정'을 뭉치면 안 된다
+    chk("§3.3 요약이 '새로 확정 0 · 이미 확정이라 진행상태만 1' 로 갈라져 보인다",
+        _pvj["summary"]["to_confirmed"] == 0 and _pvj["summary"]["already_confirmed"] == 1,
+        str(_pvj["summary"]))
     # [§1.2] 실제 출하일을 지어내지 않는다
     chk("§1.2 실제 출하일은 **미확인(빈값)** — 납품 예정일·보정일을 복사하지 않음",
         not (_after.get("shipped_on") or "").strip(), str(_after.get("shipped_on")))

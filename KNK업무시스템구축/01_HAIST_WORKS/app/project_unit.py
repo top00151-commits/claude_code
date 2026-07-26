@@ -864,11 +864,19 @@ def status_backfill_preview(pid) -> dict:
         if not _table_ready(c):
             return {"ready": False, "rows": [], "summary": {}}
         rows = _backfill_rows(c, pid)
+    # ⭐ '확정'을 한 숫자로 뭉치면 화면이 사실과 달라진다 — **새로 확정되는 것**과
+    #    **이미 확정이라 진행상태만 바뀌는 것**은 위험도가 전혀 다르다(승인서 §3.3 수량 계약).
+    #    후자는 confirmed_by·confirmed_at 를 건드리지 않는다(§1.1).
     s = {"total": len(rows),
          "change": sum(1 for x in rows if x["change"]),
          "conflict": sum(1 for x in rows if x["conflict"]),
-         "to_confirmed": sum(1 for x in rows if x["change"] and x["after_state"] == "CONFIRMED"),
-         "to_cancelled": sum(1 for x in rows if x["change"] and x["after_state"] == "CANCELLED"),
+         "to_confirmed": sum(1 for x in rows if x["change"] and x["after_state"] == "CONFIRMED"
+                             and x["before_state"] != "CONFIRMED"),
+         "already_confirmed": sum(1 for x in rows if x["change"]
+                                  and x["after_state"] == "CONFIRMED"
+                                  and x["before_state"] == "CONFIRMED"),
+         "to_cancelled": sum(1 for x in rows if x["change"] and x["after_state"] == "CANCELLED"
+                             and x["before_state"] != "CANCELLED"),
          "keep": sum(1 for x in rows if not x["change"] and not x["conflict"])}
     return {"ready": True, "rows": rows, "summary": s}
 

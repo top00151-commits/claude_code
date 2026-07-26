@@ -89,7 +89,8 @@ table.s td { border-bottom:1px solid var(--pq-line-2); padding:7px 6px; vertical
     {% else %}
     {% set s = preview.summary %}
     <div class="wrap">
-      <h3>전/후 대조 <span>— 전체 {{ s.total }}대 · <b>바뀜 {{ s.change }}</b>(확정 {{ s.to_confirmed }} · 취소 {{ s.to_cancelled }}) · 변화 없음 {{ s.keep }} · <b>그대로 둠 {{ s.conflict }}</b></span></h3>
+      {# ⭐ '확정'을 한 숫자로 뭉치지 않는다 — 새로 확정 / 이미 확정(진행상태만)은 위험도가 다르다 #}
+      <h3>전/후 대조 <span>— 전체 {{ s.total }}대 · <b>바뀜 {{ s.change }}</b>(<b>새로 확정 {{ s.to_confirmed }}</b>{% if s.already_confirmed %} · 이미 확정이라 진행상태만 {{ s.already_confirmed }}{% endif %} · 취소 {{ s.to_cancelled }}) · 변화 없음 {{ s.keep }} · <b>그대로 둠 {{ s.conflict }}</b></span></h3>
       <div class="scroll">
         <table class="s">
           <thead>
