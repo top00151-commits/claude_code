@@ -62,6 +62,32 @@ table.u td.mono { font-family:var(--pq-mono); }
 .addform { display:none; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px dashed var(--pq-line); }
 .addform.show { display:flex; }
 .addform input { height:30px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 10px; font-size:12.5px; }
+/* ── 작업 패널 (게이트 UI 판정 §4) — 평소엔 접혀 있고, 한 번에 한 작업만 ────────── */
+table.u tr.ops-row > td { background:var(--pq-surface-2); padding:0; }
+.ops { padding:12px 14px; border-left:3px solid var(--pq-ink); }
+.ops-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12.5px; color:var(--pq-ink-2); margin-bottom:10px; }
+.ops-tabs { display:inline-flex; gap:6px; flex-wrap:wrap; }
+.ops-tabs .mini[aria-pressed="true"] { background:var(--pq-ink); color:#fff; border-color:var(--pq-ink); font-weight:600; }
+.ops-tabs .mini.danger[aria-pressed="true"] { background:#b91c1c; border-color:#b91c1c; color:#fff; }
+.ops-form { display:none; flex-direction:column; gap:7px; padding:11px 12px; background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:9px; }
+.ops-form.show { display:flex; }
+/* ⚠ hidden 속성이 다른 규칙에 덮이지 않게 못박는다(같은 함정 재발 방지) */
+table.u tr.ops-row[hidden] { display:none !important; }
+.ops-form[hidden] { display:none !important; }
+.ops-form.ops-danger { border-color:#fecaca; background:#fffbfb; }
+.ops-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
+.ops-lbl { min-width:120px; color:var(--pq-ink-3); font-size:11.5px; }
+.ops-form input, .ops-form select { height:29px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 8px; font-size:12px; background:var(--pq-surface); }
+.ops-hint { font-size:11px; color:var(--pq-ink-4); }
+.ops-warn { font-size:11.5px; color:#b91c1c; font-weight:600; }
+.ops-confirm { font-size:12px; color:var(--pq-ink-2); font-weight:600; }
+.ops-btns { margin-top:3px; gap:6px; }
+/* 좁은 화면(폰)에서는 라벨을 값 위로 — 가로 스크롤 없이 읽히게 */
+@media (max-width:640px) {
+  .ops-line { flex-direction:column; align-items:flex-start; gap:3px; }
+  .ops-lbl { min-width:0; }
+  .ops-btns { flex-direction:row; }
+}
 .empty { padding:28px; text-align:center; color:var(--pq-ink-4); font-size:13px; }
 .note { margin:12px 4px; font-size:11.5px; color:var(--pq-ink-4); line-height:1.7; }
 .note b { color:var(--pq-ink-3); }
@@ -164,56 +190,19 @@ table.u td.mono { font-family:var(--pq-mono); }
               </td>
               <td style="color:var(--pq-ink-3);">{{ u.equipment_type or '—' }}</td>
               {% if can_create or can_link or can_approve %}
-              <td>
+              {# ⭐[게이트 UI 판정 §4] 입력칸을 줄마다 펼쳐 두지 않는다 — 평소엔 확인해야 할 정보만 보이고
+                 고칠 일이 있을 때만 '작업 열기'로 편다. 한 번에 **한 가지 작업만** 보여준다. #}
+              <td class="ops-cell">
                 {% if u.unit_state != 'CANCELLED' %}
                 <div class="inl">
-                  {% if can_create %}
-                  {# 호기번호 지정·변경 — PM·설계책임자. 적용시점(선택)까지 함께 기록 #}
-                  <form class="inl js-punit-strict" method="post" action="/units/{{ u.id }}/unit-no">
-                    <input name="new_unit_no" placeholder="{{ '호기번호 지정' if not u.current_unit_no else '새 호기번호' }}" size="8">
-                    <input name="reason" placeholder="사유(필수)" size="9">
-                    {# V1: 즉시 적용 + 지난 날짜 정정만. 미래 예약은 다음 단계(WP-04)에서 제공 #}
-                    <input name="effective_from" type="date" max="{{ today_ymd }}"
-                           title="적용 시점 — 비우면 지금 적용. 지난 날짜로 정정할 수 있고, 미래 날짜는 넣을 수 없습니다.">
-                    {# [승인서 §4.2] 확정된 호기의 번호 정정·지난 날짜 소급은 **누가 요청했는지**까지 남긴다 #}
-                    <input name="requester" size="10"
-                           placeholder="{{ '요청 부서·요청자(필수)' if u.unit_state == 'CONFIRMED' else '요청자(지난 날짜로 정정할 때 필수)' }}"
-                           {% if u.unit_state == 'CONFIRMED' %}required{% endif %}
-                           title="확정된 호기의 번호를 고치거나 지난 날짜로 소급 적용할 때는 요청한 부서·사람을 함께 남깁니다.">
-                    <button class="mini" type="submit">{{ '번호 지정' if not u.current_unit_no else '번호 변경' }}</button>
-                  </form>
-                  {% endif %}
-                  {% if can_link and project_orders_min %}
-                  {# F-04: 기존 호기에 수주번호 연결 — 화면에서 업무를 끝낼 수 있어야 한다 #}
-                  <form class="inl" method="post" action="/units/{{ u.id }}/order-link">
-                    <select name="order_id">
-                      {% for o in project_orders_min %}<option value="{{ o.id }}">{{ o.order_no or ('수주 #' ~ o.id) }}</option>{% endfor %}
-                    </select>
-                    <select name="relation_type">
-                      <option value="ADDITIONAL">추가 수주</option>
-                      <option value="CHANGE">변경 수주</option>
-                      <option value="ORIGIN">최초 수주</option>
-                    </select>
-                    <input name="reason" placeholder="사유" size="7">
-                    <button class="mini" type="submit">수주 연결</button>
-                  </form>
-                  {% endif %}
                   {% if can_approve and u.unit_state == 'PROVISIONAL' %}
+                  {# 자주 쓰는 확정만 짧게 밖에 둔다 #}
                   <form method="post" action="/units/{{ u.id }}/confirm" onsubmit="return confirm('이 호기를 확정할까요? (현재 호기번호 필요)');">
                     <button class="mini" type="submit" {% if not u.current_unit_no %}disabled title="호기번호를 먼저 정하세요"{% endif %}>확정</button>
                   </form>
                   {% endif %}
-                  {% if can_approve %}
-                  <form class="inl" method="post" action="/units/{{ u.id }}/cancel" onsubmit="return confirm('이 호기를 취소할까요? (삭제가 아니라 취소 이력으로 남습니다)');">
-                    <input name="reason" placeholder="취소 사유(필수)" size="9">
-                    {# [승인서 §4.2] **확정 후 취소**는 요청 부서·요청자까지 필수 #}
-                    {% if u.unit_state == 'CONFIRMED' %}
-                    <input name="requester" placeholder="요청 부서·요청자(필수)" size="10" required
-                           title="확정된 호기를 취소할 때는 누가 요청했는지 함께 남깁니다.">
-                    {% endif %}
-                    <button class="mini danger" type="submit">취소</button>
-                  </form>
-                  {% endif %}
+                  <button type="button" class="mini js-ops-open" data-unit="{{ u.id }}"
+                          aria-expanded="false" aria-controls="ops-{{ u.id }}">작업 열기 ▾</button>
                 </div>
                 {% else %}
                 <span style="font-size:11.5px;color:var(--pq-ink-4);">{{ u.cancellation_reason or '취소됨' }}</span>
@@ -221,6 +210,102 @@ table.u td.mono { font-family:var(--pq-mono); }
               </td>
               {% endif %}
             </tr>
+
+            {# ── 작업 패널 — 그 호기 **바로 아래 줄**. 열기 전에는 화면에 나오지 않는다 ────── #}
+            {% if (can_create or can_link or can_approve) and u.unit_state != 'CANCELLED' %}
+            <tr class="ops-row" id="ops-{{ u.id }}" data-unit="{{ u.id }}" hidden>
+              <td colspan="7">
+                <div class="ops">
+                  <div class="ops-head">
+                    <b>{{ u.current_unit_no or u.working_name or ('호기 #' ~ u.id) }}</b> 작업
+                    <span class="ops-tabs">
+                      {% if can_create %}<button type="button" class="mini js-ops-tab" data-unit="{{ u.id }}" data-op="no">호기번호 지정·변경</button>{% endif %}
+                      {% if can_link %}<button type="button" class="mini js-ops-tab" data-unit="{{ u.id }}" data-op="link">수주 추가 연결</button>{% endif %}
+                      {% if can_approve %}<button type="button" class="mini danger js-ops-tab" data-unit="{{ u.id }}" data-op="cancel">호기 취소</button>{% endif %}
+                    </span>
+                    <button type="button" class="mini js-ops-close" data-unit="{{ u.id }}" style="margin-left:auto;">닫기 ✕</button>
+                  </div>
+
+                  {% if can_create %}
+                  {# ① 호기번호 지정·변경 — ⛔ 이 자리에 수주번호를 보이거나 고르게 하지 않는다(게이트 §5.1) #}
+                  <form class="ops-form js-punit-strict" data-unit="{{ u.id }}" data-op="no" hidden
+                        method="post" action="/units/{{ u.id }}/unit-no">
+                    <div class="ops-line"><span class="ops-lbl">현재 호기번호</span>
+                      <b class="mono">{{ u.current_unit_no or '아직 없음' }}</b></div>
+                    <div class="ops-line"><span class="ops-lbl">새 호기번호</span>
+                      <input name="new_unit_no" placeholder="예: 3호기" size="12"></div>
+                    <div class="ops-line"><span class="ops-lbl">적용일</span>
+                      <input name="effective_from" type="date" max="{{ today_ymd }}">
+                      <span class="ops-hint">비우면 지금 적용. 지난 날짜로 정정할 수 있고 미래 날짜는 넣을 수 없습니다.</span></div>
+                    <div class="ops-line"><span class="ops-lbl">변경 사유</span>
+                      <input name="reason" placeholder="필수" size="34"></div>
+                    <div class="ops-line"><span class="ops-lbl">요청 부서·요청자</span>
+                      <input name="requester" size="24"
+                             placeholder="{{ '필수' if u.unit_state == 'CONFIRMED' else '지난 날짜로 정정할 때 필수' }}"
+                             {% if u.unit_state == 'CONFIRMED' %}required{% endif %}>
+                      <span class="ops-hint">{% if u.unit_state == 'CONFIRMED' %}확정된 호기라 반드시 적어야 합니다.{% else %}지난 날짜로 소급 정정할 때만 필요합니다.{% endif %}</span></div>
+                    <div class="ops-line ops-btns">
+                      <button type="button" class="mini js-ops-close" data-unit="{{ u.id }}">그만두기</button>
+                      <button class="mini dark" type="submit">{{ '번호 지정' if not u.current_unit_no else '호기번호 변경' }}</button></div>
+                  </form>
+                  {% endif %}
+
+                  {% if can_link %}
+                  {# ② 수주 추가 연결 — ⭐고르기 전에는 **아무 수주번호도 보이지 않는다**(저장값으로 오해 금지) #}
+                  <form class="ops-form js-ops-link" data-unit="{{ u.id }}" data-op="link" hidden
+                        method="post" action="/units/{{ u.id }}/order-link">
+                    <div class="ops-line"><span class="ops-lbl">지금 연결된 수주</span>
+                      <span>{% for o in u.orders if o.active %}<span class="rt {{ o.relation_type }}">{{ {'ORIGIN':'최초','ADDITIONAL':'추가','CHANGE':'변경','CANCEL':'취소'}.get(o.relation_type, o.relation_type) }} {{ o.order_no or '-' }}</span>{% else %}<span style="color:var(--pq-ink-4);">없음</span>{% endfor %}</span></div>
+                    <div class="ops-line"><span class="ops-lbl">연결할 수주</span>
+                      {% if u.linkable_orders %}
+                      <select name="order_id" class="js-ops-order" data-unit="{{ u.id }}">
+                        <option value="" selected>— 연결할 수주 선택 —</option>
+                        {% for o in u.linkable_orders %}<option value="{{ o.id }}">{{ o.order_no or ('수주 #' ~ o.id) }}</option>{% endfor %}
+                      </select>
+                      {% else %}
+                      <span style="color:var(--pq-ink-4);">연결 가능한 수주 없음</span>
+                      {% endif %}
+                    </div>
+                    <div class="ops-line"><span class="ops-lbl">연결 관계</span>
+                      <select name="relation_type" class="js-ops-rel" data-unit="{{ u.id }}">
+                        <option value="ADDITIONAL">추가 수주</option>
+                        <option value="CHANGE">변경 수주</option>
+                        <option value="ORIGIN">최초 수주</option>
+                      </select></div>
+                    <div class="ops-line"><span class="ops-lbl">연결 사유</span>
+                      <input name="reason" placeholder="선택" size="34"></div>
+                    {# 저장 직전에 무엇을 하는지 사람 말로 한 번 더 보여준다(게이트 §5.2) #}
+                    <div class="ops-line"><span class="ops-lbl"></span>
+                      <span class="ops-confirm" id="linkecho-{{ u.id }}" data-unit="{{ u.id }}"
+                            data-unitname="{{ u.current_unit_no or u.working_name or ('호기 #' ~ u.id) }}">연결할 수주를 먼저 고르세요.</span></div>
+                    <div class="ops-line ops-btns">
+                      <button type="button" class="mini js-ops-close" data-unit="{{ u.id }}">그만두기</button>
+                      <button class="mini dark js-ops-linkbtn" data-unit="{{ u.id }}" type="submit" disabled>수주 연결</button></div>
+                  </form>
+                  {% endif %}
+
+                  {% if can_approve %}
+                  {# ③ 호기 취소 — 일상 작업과 **떨어뜨리고** 위험하다고 말한다(게이트 §5.3) #}
+                  <form class="ops-form ops-danger" data-unit="{{ u.id }}" data-op="cancel" hidden
+                        method="post" action="/units/{{ u.id }}/cancel"
+                        onsubmit="return confirm('이 호기를 취소할까요? (삭제가 아니라 취소 이력으로 남습니다)');">
+                    <div class="ops-line"><span class="ops-warn">⚠ 되돌리기 어려운 작업입니다. 취소한 호기의 호기번호는 <b>다시 쓸 수 없습니다.</b> 기록은 지워지지 않고 취소 이력으로 남습니다.</span></div>
+                    <div class="ops-line"><span class="ops-lbl">취소 사유</span>
+                      <input name="reason" placeholder="필수" size="34" required></div>
+                    <div class="ops-line"><span class="ops-lbl">요청 부서·요청자</span>
+                      <input name="requester" size="24"
+                             placeholder="{{ '필수' if u.unit_state == 'CONFIRMED' else '선택' }}"
+                             {% if u.unit_state == 'CONFIRMED' %}required{% endif %}>
+                      {% if u.unit_state == 'CONFIRMED' %}<span class="ops-hint">확정된 호기라 반드시 적어야 합니다.</span>{% endif %}</div>
+                    <div class="ops-line ops-btns">
+                      <button type="button" class="mini js-ops-close" data-unit="{{ u.id }}">돌아가기</button>
+                      <button class="mini danger" type="submit">호기 취소</button></div>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endif %}
             {% else %}
             <tr><td colspan="{{ 7 if (can_create or can_link or can_approve) else 6 }}"><div class="empty">아직 호기가 없습니다.{% if (can_create or can_link) and summary.candidates > 0 %} 위 '수주내역에서 호기 후보 확인'으로 시작하세요.{% endif %}</div></td></tr>
             {% endfor %}
@@ -266,6 +351,114 @@ table.u td.mono { font-family:var(--pq-mono); }
       }, true);
     })();
     </script>
+
+    {% if can_create or can_link or can_approve %}
+    <script>
+    /* [게이트 UI 판정 §4·§5] 작업 패널 — 평소엔 접혀 있고, 한 번에 **한 가지 작업만** 보인다.
+       ⭐ 닫으면 입력하던 값을 **지운다**(게이트 §8-9): 남은 값이 다음에 잘못 저장되는 것을 막는다.
+       ⭐ 수주 연결은 **고르기 전까지 버튼이 눌리지 않는다**. 진짜 차단은 서버가 한다. */
+    (function(){
+      if (window.__knkUnitOps) return;      /* 화면(.main)만 갈아끼우는 구조라 중복 등록 방지 */
+      window.__knkUnitOps = 1;
+
+      function panel(uid) { return document.getElementById('ops-' + uid); }
+      function forms(uid) {
+        return Array.prototype.slice.call(
+          document.querySelectorAll('.ops-form[data-unit="' + uid + '"]'));
+      }
+      function tabs(uid) {
+        return Array.prototype.slice.call(
+          document.querySelectorAll('.js-ops-tab[data-unit="' + uid + '"]'));
+      }
+      function hideForms(uid, wipe) {
+        forms(uid).forEach(function(f){
+          f.hidden = true; f.classList.remove('show');
+          if (wipe) {
+            f.querySelectorAll('input[type="text"], input:not([type]), input[type="date"]')
+             .forEach(function(i){ i.value = ''; });
+            f.querySelectorAll('select').forEach(function(s){ s.selectedIndex = 0; });
+            syncLink(uid);
+          }
+        });
+        tabs(uid).forEach(function(t){ t.setAttribute('aria-pressed', 'false'); });
+      }
+      function closePanel(uid) {
+        var p = panel(uid);
+        if (!p) return;
+        hideForms(uid, true);
+        p.hidden = true;
+        var op = document.querySelector('.js-ops-open[data-unit="' + uid + '"]');
+        if (op) { op.setAttribute('aria-expanded', 'false'); op.textContent = '작업 열기 ▾'; }
+      }
+      function closeAll(except) {
+        document.querySelectorAll('.ops-row').forEach(function(r){
+          if (String(r.getAttribute('data-unit')) !== String(except)) closePanel(r.getAttribute('data-unit'));
+        });
+      }
+      /* 연결할 수주를 고르기 전에는 버튼을 못 누르고, 무엇을 하려는지 사람 말로 보여준다 */
+      function syncLink(uid) {
+        var sel = document.querySelector('.js-ops-order[data-unit="' + uid + '"]');
+        var btn = document.querySelector('.js-ops-linkbtn[data-unit="' + uid + '"]');
+        var rel = document.querySelector('.js-ops-rel[data-unit="' + uid + '"]');
+        var echo = document.getElementById('linkecho-' + uid);
+        if (!btn) return;
+        var val = sel ? (sel.value || '') : '';
+        btn.disabled = !val;
+        if (!echo) return;
+        if (!val) { echo.textContent = sel ? '연결할 수주를 먼저 고르세요.' : '연결할 수 있는 수주가 없습니다.'; return; }
+        var ono = sel.options[sel.selectedIndex].text;
+        var rl = rel ? rel.options[rel.selectedIndex].text : '';
+        echo.textContent = echo.getAttribute('data-unitname') + '에 ' + ono + '를 ' + rl + '로 연결합니다.';
+      }
+
+      document.addEventListener('click', function(ev){
+        var t = ev.target.closest ? ev.target.closest('button') : null;
+        if (!t) return;
+        var uid = t.getAttribute('data-unit');
+        if (!uid) return;
+        if (t.classList.contains('js-ops-open')) {
+          ev.preventDefault();
+          var p = panel(uid);
+          if (!p) return;
+          if (p.hidden) { closeAll(uid); p.hidden = false;
+                          t.setAttribute('aria-expanded', 'true'); t.textContent = '작업 닫기 ▴'; }
+          else { closePanel(uid); }
+        } else if (t.classList.contains('js-ops-close')) {
+          ev.preventDefault(); closePanel(uid);
+        } else if (t.classList.contains('js-ops-tab')) {
+          ev.preventDefault();
+          var op = t.getAttribute('data-op');
+          var already = t.getAttribute('aria-pressed') === 'true';
+          hideForms(uid, true);                    /* 다른 작업 폼은 접고 값도 비운다 */
+          if (already) return;                     /* 같은 걸 다시 누르면 닫기 */
+          var f = document.querySelector('.ops-form[data-unit="' + uid + '"][data-op="' + op + '"]');
+          if (f) { f.hidden = false; f.classList.add('show'); }
+          t.setAttribute('aria-pressed', 'true');
+          if (op === 'link') syncLink(uid);
+        }
+      }, false);
+
+      document.addEventListener('change', function(ev){
+        var el = ev.target;
+        if (!el || !el.classList) return;
+        if (el.classList.contains('js-ops-order') || el.classList.contains('js-ops-rel'))
+          syncLink(el.getAttribute('data-unit'));
+      }, false);
+
+      /* 화면 검사를 우회해 직접 보내도 서버가 막지만, 여기서도 먼저 알려준다 */
+      document.addEventListener('submit', function(ev){
+        var f = ev.target;
+        if (!f || !f.classList || !f.classList.contains('js-ops-link')) return;
+        var sel = f.querySelector('select[name="order_id"]');
+        if (!sel || !sel.value) {
+          ev.preventDefault();
+          alert('연결할 수주를 먼저 고르세요.');
+          if (sel) sel.focus();
+        }
+      }, true);
+    })();
+    </script>
+    {% endif %}
 
     {% if is_admin_override %}
     <script>

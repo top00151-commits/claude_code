@@ -21452,8 +21452,15 @@ async def project_units_page(request: Request, pid: int):
             "SELECT id, order_no FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall()]
     if not pr:
         return RedirectResponse("/", 303)
+    # [게이트 UI 판정 §3.2] 호기마다 **연결할 수 있는 수주만** 고르게 한다.
+    #   · 이미 그 호기에 **활성 연결된 수주는 그 호기 목록에서 제외**(눌러보고 거부당하지 않게).
+    #   · ⛔ 다른 호기에 연결됐다는 이유로는 빼지 않는다 — 한 수주에 여러 호기는 KNK 정상 업무(F-02).
+    _units = _punit.get_units(pid)
+    for _u in _units:
+        _linked = {o.get("order_id") for o in (_u.get("orders") or []) if o.get("active")}
+        _u["linkable_orders"] = [o for o in orders if o["id"] not in _linked]
     return ctx(request, "project_units.html", user=u, active="parts",
-               project=dict(pr), units=_punit.get_units(pid),
+               project=dict(pr), units=_units,
                summary=_punit.project_unit_summary(pid), project_orders_min=orders,
                impact_msg=_punit.IMPACT_NOT_WIRED_MSG, identity_contract=_punit.IDENTITY_CONTRACT,
                can_create=can_create_unit(u), can_link=can_link_unit_order(u),
@@ -21654,8 +21661,13 @@ async def project_unit_order_link(request: Request, unit_id: int):
     pid = unit["project_id"]
     try:
         _ov = _punit_require_ctx(u, form, "order_link", unit=unit)   # ② 업무 변경 **전** 검증
+        # [게이트 UI 판정 §3.1-4] 아무것도 고르지 않은 요청은 **업무를 바꾸기 전에** 거부하고,
+        #   무엇을 해야 하는지 알려준다(화면 JS 를 거치지 않고 직접 보내도 막힌다).
+        _oid = (form.get("order_id") or "").strip()
+        if not _oid or not _oid.isdigit() or int(_oid) <= 0:
+            raise ValueError("연결할 수주를 고르지 않았습니다. 목록에서 수주번호를 먼저 고르세요.")
         _punit.link_order(
-            unit_id, int(form.get("order_id") or 0),
+            unit_id, int(_oid),
             relation_type=(form.get("relation_type") or "ADDITIONAL"),
             reason=(form.get("reason") or None), actor_id=_punit_actor(u),
             audit=_punit_audit_payload(

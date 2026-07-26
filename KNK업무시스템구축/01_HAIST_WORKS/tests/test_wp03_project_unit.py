@@ -1115,6 +1115,104 @@ try:
     chk("§4.2-13 관리자 대행 · 요청자·사유 없음 → 거부(유형 무관)",
         "error=" in _loc(_as(ADMIN, f"/units/{_uk3}/confirm", {})))
 
+    # ══════════ L. 게이트 UI 판정(2026-07-26) §8 — 작업영역 접기·수주 선택 14항 ══════════
+    #   대표 지적: 작업 칸의 수주 선택창에 첫 수주번호가 저절로 떠서 **저장된 연결값으로 오해**된다.
+    #   판정: 빈 기본값 + 고르기 전 버튼 비활성 + 작업폼은 '작업 열기' 아래로 접고 한 번에 하나만.
+    print("\n── L. 호기 목록 작업영역 UI (게이트 §8 14항) ──")
+    import re as _re
+    PL = mkproject("999L001")
+    OL1, OL2 = mkorder(PL, "SO-L-1"), mkorder(PL, "SO-L-2")
+    PLX = mkproject("999L002")                       # 다른 관리번호(연결 불가여야 함)
+    OLX = mkorder(PLX, "SO-LX-1")
+    UL1 = pu.create_unit(PL, working_name="개발1호기", unit_no="1호기", actor_id=13)
+    UL2 = pu.create_unit(PL, working_name="개발2호기", unit_no="2호기", actor_id=13)
+    pu.link_order(UL1, OL1, relation_type="ORIGIN", actor_id=13)
+
+    _hl = _as(SALES_LEAD, f"/project/{PL}/units").text
+    _seg1 = _hl.split(f'id="ops-{UL1}"')[1].split("</tr>")[0]
+    _sel1 = _seg1.split('name="order_id"')[1].split("</select>")[0] \
+        if 'name="order_id"' in _seg1 else ""
+
+    chk("§8-1 수주 선택 첫 항목이 **빈값** — 고르기 전 수주번호를 보여주지 않음",
+        '<option value="" selected>— 연결할 수주 선택 —</option>' in _hl)
+    _btn = _re.search(r"<button[^>]*js-ops-linkbtn[^>]*>", _hl)
+    chk("§8-2 고르기 전 **연결 버튼 비활성**", bool(_btn) and "disabled" in _btn.group(0),
+        _btn.group(0) if _btn else "버튼 없음")
+
+    _l0, _a0 = cnt("project_unit_order_links"), len(pu.get_audit())
+    _r3 = _as(SALES_LEAD, f"/units/{UL1}/order-link", {"order_id": "", "relation_type": "ADDITIONAL"})
+    chk("§8-3 빈 수주 ID 를 직접 보내도 **서버가 거부**", "error=" in _loc(_r3), _loc(_r3))
+    chk("§8-3' 거부 시 연결·감사 모두 불변",
+        cnt("project_unit_order_links") == _l0 and len(pu.get_audit()) == _a0)
+    chk("§8-3'' 무엇을 해야 하는지 안내", "고르지" in _loc(_r3) or "%EA%B3%A0%EB%A5%B4" in _loc(_r3))
+
+    _r4 = _as(SALES_LEAD, f"/units/{UL1}/order-link",
+              {"order_id": str(OLX), "relation_type": "ADDITIONAL"})
+    chk("§8-4 **다른 관리번호의 수주** 는 거부", "error=" in _loc(_r4))
+    chk("§8-4' 거부 시 연결 불변", cnt("project_unit_order_links") == _l0)
+
+    chk("§8-5 이미 연결된 수주는 **그 호기 목록에서 빠짐**",
+        "SO-L-2" in _sel1 and "SO-L-1" not in _sel1, _sel1[:160])
+    _r5 = _as(SALES_LEAD, f"/units/{UL1}/order-link",
+              {"order_id": str(OL1), "relation_type": "ORIGIN"})
+    chk("§8-5' 그래도 직접 보내면 서버가 거부(중복 연결)", "error=" in _loc(_r5))
+
+    _r6 = _as(SALES_LEAD, f"/units/{UL2}/order-link",
+              {"order_id": str(OL1), "relation_type": "ORIGIN"})
+    chk("§8-6 **한 수주번호를 여러 호기에** 연결 가능(KNK 정상 업무)",
+        "success=" in _loc(_r6), _loc(_r6))
+
+    _trm = _re.search(r'<tr[^>]*id="ops-%d"[^>]*>' % UL1, _hl)
+    chk("§8-7 작업 패널은 **열기 전 화면에 안 나온다**(hidden)",
+        bool(_trm) and " hidden" in _trm.group(0), _trm.group(0) if _trm else "패널 없음")
+    chk("§8-7' 입력폼도 전부 접힌 상태로 내려온다",
+        _seg1.count('class="ops-form') == _seg1.count("hidden") - 1
+        or all(x in _seg1 for x in ('data-op="no"', 'data-op="link"', 'data-op="cancel"')))
+    for _op in ("no", "link", "cancel"):
+        _fm = _re.search(r'<form[^>]*data-op="%s"[^>]*>' % _op, _seg1)
+        chk(f"§8-8 '{_op}' 작업폼이 따로 있고 처음엔 접혀 있다",
+            bool(_fm) and "hidden" in _fm.group(0), _fm.group(0)[:120] if _fm else "없음")
+    chk("§8-8' 작업 열기 버튼은 호기마다 하나", _hl.count("js-ops-open") >= 2)
+    chk("§8-9 작업을 닫으면 입력하던 값을 **지운다**(다음에 잘못 저장되지 않게)",
+        "hideForms(uid, true)" in _hl and "i.value = ''" in _hl)
+    chk("§8-9' 취소 폼은 일상 작업과 분리·위험 표시",
+        "ops-danger" in _hl and "되돌리기 어려운 작업" in _hl)
+
+    _hd = _as(DESIGN, f"/project/{PL}/units").text
+    chk("§8-10 권한 없는 사용자에겐 작업 버튼·작업폼 자체가 안 나온다",
+        '<tr class="ops-row"' not in _hd and 'class="ops-form' not in _hd
+        and "js-ops-open" not in _hd)
+
+    chk("§8-11 확정 호기 정정·취소는 요청자 필수 유지(화면 표시)",
+        'name="requester"' in _seg1)
+
+    _a12 = len(pu.get_audit())
+    _r12 = _as(SALES_LEAD, f"/units/{UL1}/order-link",
+               {"order_id": str(OL2), "relation_type": "ADDITIONAL", "reason": "추가 발주"})
+    _h12 = _as(SALES_LEAD, f"/project/{PL}/units").text
+    chk("§8-12 연결 성공 → **연결된 수주 칸**에 반영 + 감사 기록",
+        "success=" in _loc(_r12) and "SO-L-2" in _h12.split('id="ops-')[0]
+        and len(pu.get_audit()) == _a12 + 1, _loc(_r12))
+    _seg1b = _h12.split(f'id="ops-{UL1}"')[1].split("</tr>")[0]
+    _sel1b = _seg1b.split('name="order_id"')[1].split("</select>")[0] \
+        if 'name="order_id"' in _seg1b else "연결 가능한 수주 없음"
+    chk("§8-12' 연결한 수주는 그 호기 목록에서 즉시 빠짐",
+        "SO-L-2" not in _sel1b, _sel1b[:160])
+
+    _l13, _a13 = cnt("project_unit_order_links"), len(pu.get_audit())
+    _r13 = _as(SALES_LEAD, f"/units/{UL1}/order-link",
+               {"order_id": str(OL2), "relation_type": "ADDITIONAL"})
+    chk("§8-13 오류(중복) 시 업무 데이터·감사 **모두 불변**",
+        "error=" in _loc(_r13) and cnt("project_unit_order_links") == _l13
+        and len(pu.get_audit()) == _a13)
+
+    chk("§8-14 좁은 화면(폰)에서 라벨이 값 위로 — 가로 스크롤 없이 읽힘",
+        "@media (max-width:640px)" in _hl and "flex-direction:column" in _hl)
+    chk("§8-14' 표는 자기 영역 안에서만 가로 스크롤", 'class="scroll"' in _hl
+        and "overflow-x:auto" in _hl)
+    chk("§5.2 연결 전 **무엇을 하는지 사람 말로** 보여준다",
+        "linkecho-" in _hl and "로 연결합니다" in _hl)
+
     chk("분할·통합 실행 경로 없음(404)",
         client.post(f"/units/{uid_r}/split", data={}, follow_redirects=False).status_code == 404)
 except ImportError as e:
