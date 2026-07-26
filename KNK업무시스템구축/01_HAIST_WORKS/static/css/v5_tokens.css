@@ -8,15 +8,22 @@
 /* ============================================================
    Pretendard 폰트 — 사내 호스팅 (2026-04-30 빅터(05) 결재 ⑤)
    외부자산 0건 정책 부합 / SIL OFL 1.1 자유 라이선스
-   순서: local() 시스템 설치 → 사내 woff2 → 시스템 폰트 폴백
-   설치: static/fonts/pretendard/README.txt 참조
+   순서: local() 시스템 설치 → 시스템 폰트 폴백
+   ------------------------------------------------------------
+   ⚠ 2026-07-26 실측 — **woff2 파일이 배치된 적이 없다**
+     (static/fonts/pretendard/ 에 README.txt 만 있음. 로컬·운영 NAS 모두 동일.)
+     그래서 모든 화면이 없는 파일 2개를 요청해 404 를 받고 있었고,
+     브라우저가 그 응답을 오래 기다리면서 화면이 한참 '읽는 중'으로 남았다
+     (실측 18.7초·91.0초 · 앱 자체는 1.8ms 로 404 응답 → 지연은 앱 밖).
+     글꼴은 어차피 없어 대체 글꼴로 그려지고 있었으므로 **화면 모양은 그대로**다.
+   ⛔ 그래서 url() 두 줄을 뺀다 — 없는 파일을 요청하지 않는다.
+   ⭐ 나중에 실제 woff2 를 배치하기로 하면 README.txt 대로 파일을 넣고
+      아래에 url() 줄을 **다시 넣어야** 적용된다(파일만 넣으면 안 쓰인다).
    ============================================================ */
 @font-face {
   font-family: 'Pretendard';
   src: local('Pretendard Variable'),
-       local('Pretendard'),
-       url('/static/fonts/pretendard/PretendardVariable.woff2') format('woff2-variations'),
-       url('/static/fonts/pretendard/Pretendard-Regular.woff2') format('woff2');
+       local('Pretendard');
   font-weight: 100 900;
   font-display: swap;
   font-style: normal;

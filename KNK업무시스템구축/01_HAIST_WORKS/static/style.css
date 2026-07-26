@@ -15,12 +15,15 @@
   white-space:nowrap !important; border:0 !important;
 }
 
+/* ⚠ 2026-07-26 — 이 파일도 **없는 woff2** 를 가리키고 있었다(위 머리글 주석의 경로에 파일 없음).
+   없는 파일을 요청하면 화면이 오래 '읽는 중'으로 남으므로 local() 만 둔다.
+   설치된 사람에겐 그대로 적용되고, 없으면 시스템 글꼴로 그려진다(지금과 동일). */
 @font-face {
   font-family: "Pretendard Variable";
   font-weight: 45 920;
   font-style: normal;
   font-display: swap;
-  src: url("/static/fonts/PretendardVariable.woff2") format("woff2-variations");
+  src: local("Pretendard Variable"), local("Pretendard");
 }
 
 /* ============================================================
