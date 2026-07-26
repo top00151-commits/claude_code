@@ -21314,6 +21314,30 @@ def can_approve_unit(u) -> bool:
 
 PUNIT_OVERRIDE_REASON_FIELD = "override_reason"        # 관리자 우회 사유 입력칸 이름
 PUNIT_OVERRIDE_REQUESTER_FIELD = "override_requester"  # 요청 부서·요청자 입력칸 이름
+PUNIT_REQUESTER_FIELD = "requester"                    # 일반 요청자·승인 근거 입력칸 이름
+
+# ── [최종 실행 승인서 2026-07-26 §4.2] 처리 유형별 요청자·사유 요구 ──────────
+#   승인서의 표를 그대로 코드로 옮긴 것. 원칙은 두 가지다.
+#     ① **모든 호기 업무는 감사기록을 남긴다** — 누가·언제·어떤 상태에서 어떤 상태로.
+#        ⛔ 예전에는 '관리자 우회'만 기록해서 **정상 확정은 아무 기록도 남지 않았다.**
+#           운영 DB 실측 결과 project_unit_audit 0건 — 대표님이 직접 확정한 1·2호기조차
+#           "화면에서 눌렀다"를 증명할 기록이 없었다. 그것을 고친 것이다.
+#     ② 자유입력 요청자·사유는 **위험한 처리 유형에만** 요구한다.
+#        "일반적인 최초 확정마다 사유를 강제하면 의미 없는 반복 문구만 쌓이고
+#         사용자 부담만 증가한다"(승인서 §4.2) — 그래서 일상 업무는 자동 기록으로 끝낸다.
+PUNIT_ACTION_LABEL = {
+    "create": "개발호기 생성",
+    "candidates_apply": "수주내역 후보 반영",
+    "order_link": "수주 연결",
+    "unit_no": "호기번호 지정·변경",
+    "confirm": "호기 최초 확정",
+    "cancel": "호기 취소",
+    "status_backfill": "과거 데이터 보정",
+}
+# 처리 유형 자체가 요청자·사유를 요구하는 것
+PUNIT_STRICT_ACTIONS = {"status_backfill": "과거 데이터 보정"}
+# **확정된 호기**를 대상으로 할 때만 요구하는 것(= 승인서 §4.2 '확정 후 정정·취소')
+PUNIT_STRICT_IF_CONFIRMED = {"unit_no": "확정 후 호기번호 정정", "cancel": "확정 후 취소"}
 
 # ⭐ 호기 쓰기 경로 공통 순서 (게이트 v6 §4 지시 — 모든 POST 라우트가 이 순서를 지킨다)
 #      권한 확인 → 입력폼 읽기 → 관리자 우회 요청자·사유 검증
@@ -21330,36 +21354,86 @@ def _punit_override_ctx(form) -> dict:
         return {"requester": "", "reason": ""}
 
 
-def _punit_require_override(u, form):
-    """시스템 관리자가 기술영업팀 권한을 대신 사용할 때 **요청 부서·요청자와 우회 사유가 모두 필수**.
-    [게이트 v6 P1-01] 완료보고 계약은 둘 다 필수인데 서버는 사유만 보고 있었다 → 계약대로 교정.
+def _punit_is_backdated(effective_from) -> bool:
+    """소급 효력일(지난 날짜로 정정)인가? — 승인서 §4.2 '소급 효력일 변경'은 요청자·사유 필수.
+    형식이 이상한 값은 여기서 판정하지 않는다(형식 검증은 업무 함수가 담당)."""
+    s = (effective_from or "").strip()[:10]
+    if len(s) != 10:
+        return False
+    return s < datetime.now().strftime("%Y-%m-%d")
+
+
+def _punit_strict_kinds(u, action, unit=None, effective_from=None) -> list:
+    """[승인서 §4.2] 이 요청이 **요청자·사유를 반드시 받아야 하는 처리 유형**인지 판정."""
+    kinds = []
+    if _punit_role(u) == _PUNIT_ADMIN_ROLE:
+        kinds.append("관리자 대행")
+    if action in PUNIT_STRICT_ACTIONS:
+        kinds.append(PUNIT_STRICT_ACTIONS[action])
+    if action in PUNIT_STRICT_IF_CONFIRMED and (unit or {}).get("unit_state") == "CONFIRMED":
+        kinds.append(PUNIT_STRICT_IF_CONFIRMED[action])
+    if action == "unit_no" and _punit_is_backdated(effective_from):
+        kinds.append("소급 효력일 변경")
+    return kinds
+
+
+def _punit_require_ctx(u, form, action, unit=None, effective_from=None):
+    """[승인서 §4.2] 처리 유형에 따라 **요청 부서·요청자와 사유**를 요구한다.
+
+      · 본인이 정상 권한으로 하는 일상 업무(생성·연결·최초 확정) → 아무것도 요구하지 않는다.
+        대신 처리자·시각·상태변경은 **자동으로** 감사기록에 남는다(§4.2 마지막 문단).
+      · 시스템 관리자 대행 → 요청 부서·요청자 + 우회 사유 항상 필수(게이트 v6/v7 계약 유지).
+      · 과거 데이터 보정 · 확정 후 정정·취소 · 소급 효력일 변경 → 요청자 + 사유 필수.
+
     ⭐ 검사는 **업무를 바꾸기 전에** 끝난다(하나라도 없으면 아무것도 바뀌지 않는다).
-    화면 JS 를 거치지 않고 HTTP 요청을 직접 보내도 서버에서 막힌다(게이트 v6 P0-02).
-    호기 소유부서(기술영업)·대표·임원의 정상 업무에는 요구하지 않는다."""
-    if _punit_role(u) != _PUNIT_ADMIN_ROLE:
-        return {"requester": "", "reason": ""}
+       화면 JS 를 거치지 않고 HTTP 요청을 직접 보내도 서버에서 막힌다(게이트 v6 P0-02)."""
+    is_admin = _punit_role(u) == _PUNIT_ADMIN_ROLE
     ctx0 = _punit_override_ctx(form)
-    miss = [nm for nm, v in (("요청 부서·요청자", ctx0["requester"]),
-                             ("우회 사유", ctx0["reason"])) if not v]
+    try:
+        if not ctx0["requester"]:
+            ctx0["requester"] = (form.get(PUNIT_REQUESTER_FIELD) or "").strip()
+        biz_reason = (form.get("reason") or "").strip()
+    except AttributeError:
+        biz_reason = ""
+    kinds = _punit_strict_kinds(u, action, unit, effective_from)
+    ctx0["kinds"] = kinds
+    ctx0["is_admin"] = is_admin
+    if not kinds:
+        return ctx0
+    miss = []
+    if not ctx0["requester"]:
+        miss.append("요청 부서·요청자")
+    if is_admin and not ctx0["reason"]:
+        miss.append("우회 사유")
+    if not is_admin and not biz_reason:
+        miss.append("사유")
     if miss:
-        raise ValueError("시스템 관리자 권한으로 호기 업무를 대신 수행하려면 다음을 입력하세요 — "
-                         + ", ".join(miss) + " (감사 기록에 남습니다).")
+        head = ("시스템 관리자 권한으로 호기 업무를 대신 수행하려면" if is_admin
+                else f"‘{' · '.join(kinds)}’ 처리이므로")
+        raise ValueError(f"{head} 다음을 입력하세요 — " + ", ".join(miss) + " (감사 기록에 남습니다).")
     return ctx0
 
 
 def _punit_audit_payload(u, action: str, target: str, note: str = "", override: dict = None):
-    """감사 payload — **관리자 비상복구 우회**만 만든다(일반 기술영업 업무와 구분).
+    """[승인서 §4.2] **모든 호기 업무의 감사 기록** — 예전에는 관리자 우회만 남겨서
+       정상 확정이 아무 기록도 남기지 않았다(운영 실측 project_unit_audit 0건).
     ⭐ 업무 변경 함수의 `audit=` 로 넘겨 **같은 트랜잭션**에 기록한다(게이트 v6 P0-03):
        감사 기록이 실패하면 업무 변경도 함께 취소된다.
-    기록 내용: 요청 부서/요청자 · 우회 사유 · 대상 관리번호/Unit · 처리자 · 처리시각."""
-    if _punit_role(u) != _PUNIT_ADMIN_ROLE:
-        return None
+    기록 내용: 처리 유형 · 대상 관리번호/Unit · **처리자(실행자)** · 처리시각
+               · (해당되면) 요청·승인자와 사유 · 상태 전/후(업무 함수가 덧붙임)."""
     ov = override or {}
-    detail = f"[관리자 비상복구] {note}".strip()
+    is_admin = ov.get("is_admin")
+    if is_admin is None:
+        is_admin = _punit_role(u) == _PUNIT_ADMIN_ROLE
+    kinds = [k for k in (ov.get("kinds") or []) if k != "관리자 대행"]
+    kind_txt = " · ".join(kinds) or PUNIT_ACTION_LABEL.get(action, action)
+    detail = (("[관리자 비상복구] " if is_admin else "") + f"[{kind_txt}] {note}").strip()
+    # [승인서 §4.1] 승인자와 실행자를 **구분해서** 남긴다(실행자는 언제나 기록).
+    detail += f" · 실행: {((u or {}).get('name') or '')}(id {_punit_actor(u)})"
     if ov.get("requester"):
-        detail += f" · 요청: {ov['requester']}"
+        detail += f" · 요청·승인: {ov['requester']}"
     if ov.get("reason"):
-        detail += f" · 우회 사유: {ov['reason']}"
+        detail += (" · 우회 사유: " if is_admin else " · 사유: ") + ov["reason"]
     return {"actor_id": _punit_actor(u), "actor_name": ((u or {}).get("name") or ""),
             "action": action, "target": target, "note": detail}
 
@@ -21433,8 +21507,8 @@ async def project_units_candidates_apply(request: Request, pid: int):
             d["relation_type"] = form.get(f"rel_{oid}") or "ADDITIONAL"
         decisions.append(d)
     try:
-        _ov = _punit_require_override(u, form)          # ② 업무 변경 **전** 검증
-        # [게이트 v5 P1-01 · v6 P0-03] 관리자 우회 시 후보 일괄반영도 감사에 남기되
+        _ov = _punit_require_ctx(u, form, "candidates_apply")   # ② 업무 변경 **전** 검증
+        # [게이트 v5 P1-01 · v6 P0-03] 후보 일괄반영도 감사에 남기되
         #   반영과 **같은 트랜잭션**에서 기록한다(신규/연결/거부 건수는 반영 결과에서 채워짐).
         # allow_confirm: 작업일정표가 '출하'·'취소'인 줄은 결과가 확정·취소라 **승인권자만** 반영
         r = _punit.apply_candidate_decisions(
@@ -21465,7 +21539,7 @@ async def project_units_create(request: Request, pid: int):
     from urllib.parse import quote as _q
     form = await request.form()
     try:
-        _ov = _punit_require_override(u, form)          # ② 업무 변경 **전** 검증
+        _ov = _punit_require_ctx(u, form, "create")      # ② 업무 변경 **전** 검증
         # target 의 {unit_id} 는 생성된 Unit id 로 채워진다(같은 트랜잭션 안에서 기록)
         _punit.create_unit(pid, working_name=form.get("working_name"),
                            unit_no=form.get("unit_no"),
@@ -21494,7 +21568,9 @@ async def project_unit_change_no(request: Request, unit_id: int):
         return RedirectResponse("/", 303)
     pid = unit["project_id"]
     try:
-        _ov = _punit_require_override(u, form)          # ② 업무 변경 **전** 검증(v6 P0-02)
+        # [승인서 §4.2] 확정된 호기의 번호 정정·소급 적용은 요청자·사유 필수(업무 변경 전 검증)
+        _ov = _punit_require_ctx(u, form, "unit_no", unit=unit,
+                                 effective_from=form.get("effective_from"))
         _punit.change_unit_no(
             unit_id, form.get("new_unit_no"), form.get("reason"),
             actor_id=_punit_actor(u), change_id=(form.get("change_id") or None),
@@ -21525,7 +21601,7 @@ async def project_unit_confirm(request: Request, unit_id: int):
         return RedirectResponse("/", 303)
     pid = unit["project_id"]
     try:
-        _ov = _punit_require_override(u, form)          # ② 업무 변경 **전** 검증(v6 P0-02)
+        _ov = _punit_require_ctx(u, form, "confirm", unit=unit)  # ② 업무 변경 **전** 검증
         _punit.confirm_unit(unit_id, actor_id=_punit_actor(u),
                             audit=_punit_audit_payload(u, "confirm",
                                                        f"project#{pid}/unit#{unit_id}",
@@ -21550,7 +21626,8 @@ async def project_unit_cancel(request: Request, unit_id: int):
         return RedirectResponse("/", 303)
     pid = unit["project_id"]
     try:
-        _ov = _punit_require_override(u, form)          # ② 업무 변경 **전** 검증(v6 P0-02)
+        # [승인서 §4.2] **확정 후 취소**는 요청자·사유 필수(업무 변경 전 검증)
+        _ov = _punit_require_ctx(u, form, "cancel", unit=unit)
         _punit.cancel_unit(
             unit_id, form.get("reason"), actor_id=_punit_actor(u),
             audit=_punit_audit_payload(
@@ -21576,7 +21653,7 @@ async def project_unit_order_link(request: Request, unit_id: int):
         return RedirectResponse("/", 303)
     pid = unit["project_id"]
     try:
-        _ov = _punit_require_override(u, form)          # ② 업무 변경 **전** 검증(v6 P0-02)
+        _ov = _punit_require_ctx(u, form, "order_link", unit=unit)   # ② 업무 변경 **전** 검증
         _punit.link_order(
             unit_id, int(form.get("order_id") or 0),
             relation_type=(form.get("relation_type") or "ADDITIONAL"),
@@ -21622,7 +21699,9 @@ async def project_units_status_sync_apply(request: Request, pid: int):
     from urllib.parse import quote as _q
     form = await request.form()
     try:
-        _ov = _punit_require_override(u, form)
+        # [승인서 §4.1] 과거 데이터 보정 — **승인 근거와 실행자를 반드시 구분해서** 남긴다.
+        #   요청·승인 칸이 비어 있으면 업무를 바꾸기 전에 거부한다.
+        _ov = _punit_require_ctx(u, form, "status_backfill")
         r = _punit.status_backfill_apply(
             pid, form.get("reason"), actor_id=_punit_actor(u),
             audit=_punit_audit_payload(u, "status_backfill", f"project#{pid}",

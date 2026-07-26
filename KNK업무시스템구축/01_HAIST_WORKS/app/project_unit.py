@@ -142,15 +142,31 @@ def norm_effective_from(s) -> str:
 # [게이트 v6 P0-03] 업무 변경이 먼저 커밋되고 감사 기록이 다른 연결에서 실패하면
 #   "업무는 바뀌었는데 누가·왜 바꿨는지는 없는" 상태가 남는다.
 #   관리자 비상복구 감사를 필수로 정한 이상 **둘 다 성공하거나 둘 다 실패**해야 한다.
-def _audit_tx(c, audit):
-    """열린 트랜잭션 안에서 감사 1건 기록. audit=None(일반 업무)이면 아무것도 하지 않는다."""
+def _audit_tx(c, audit, change=None, change_label="상태"):
+    """열린 트랜잭션 안에서 감사 1건 기록. audit=None 이면 아무것도 하지 않는다.
+
+    [최종 실행 승인서 2026-07-26 §4.2] 감사기록의 **최소 요건**은
+      "누가, 언제, 어떤 상태에서 어떤 상태로 변경했는지" 다.
+      → `change=(전, 후)` 를 주면 그 변화를 note 에 함께 남긴다.
+    ⛔ 호출부에서 change 를 빼먹으면 '무엇이 바뀌었는지 모르는 기록'이 된다."""
     if not audit:
         return
+    note = audit.get("note") or ""
+    if change:
+        note = (note + " · %s %s → %s" % (change_label, change[0] or "(없음)",
+                                          change[1] or "(없음)")).strip(" ·").strip()
     c.execute(
         "INSERT INTO project_unit_audit(actor_id, actor_name, action, target, note, created_at) "
         "VALUES(?,?,?,?,?,?)",
         (audit.get("actor_id") or 0, audit.get("actor_name") or "", audit.get("action") or "",
-         audit.get("target") or "", audit.get("note") or "", _logi_now()))
+         audit.get("target") or "", note, _logi_now()))
+
+
+def _state_ko(code):
+    """감사기록도 사람이 읽는다 — '확정(CONFIRMED)' 처럼 쉬운 말과 코드를 함께 남긴다."""
+    if not code:
+        return ""
+    return "%s(%s)" % (STATE_LABEL.get(code, code), code)
 
 
 def _table_ready(c) -> bool:
@@ -654,7 +670,7 @@ def create_unit(pid, working_name=None, unit_no=None, equipment_type=None,
         if audit:                    # [v6 P0-03] 생성과 감사는 함께 남거나 함께 취소
             _a = dict(audit)
             _a["target"] = (_a.get("target") or "").replace("{unit_id}", str(uid))
-            _audit_tx(c, _a)
+            _audit_tx(c, _a, change=("", _state_ko("PROVISIONAL")))
         return uid
 
 
@@ -718,7 +734,9 @@ def change_unit_no(unit_id, new_unit_no, reason, actor_id=0, change_id=None,
         # ⑥ current_unit_no = **지금 이 시각에 유효한 값**(입력 순서의 마지막 값이 아님)
         c.execute("UPDATE project_units SET current_unit_no=?, updated_by=?, updated_at=? "
                   "WHERE id=?", (_unit_no_at_tx(c, unit_id, now), actor_id, now, unit_id))
-        _audit_tx(c, audit)          # [v6 P0-03] 번호변경과 감사는 함께 남거나 함께 취소
+        # [승인서 §4.2] 무엇이 무엇으로 바뀌었는지 — 적용시점까지 함께 남긴다
+        _audit_tx(c, audit, change=(old_no, "%s (적용 %s)" % (new_no, eff)),
+                  change_label="호기번호")   # [v6 P0-03] 번호변경과 감사는 함께 남거나 함께 취소
     return True
 
 
@@ -735,8 +753,9 @@ def confirm_unit(unit_id, actor_id=0, audit=None) -> bool:
         c.execute("UPDATE project_units SET unit_state='CONFIRMED', confirmed_by=?, "
                   "confirmed_at=?, updated_by=?, updated_at=? WHERE id=?",
                   (actor_id, _logi_now(), actor_id, _logi_now(), unit_id))
-        _audit_tx(c, audit)          # [v6 P0-03] 확정과 감사는 함께 남거나 함께 취소
-    return True
+        # [승인서 §4.2] **정상 확정도** 어떤 상태에서 어떤 상태로 바뀌었는지 남긴다
+        _audit_tx(c, audit, change=(_state_ko(u["unit_state"]), _state_ko("CONFIRMED")))
+    return True                      # [v6 P0-03] 확정과 감사는 함께 남거나 함께 취소
 
 
 def cancel_unit(unit_id, reason, actor_id=0, audit=None) -> bool:
@@ -757,8 +776,8 @@ def cancel_unit(unit_id, reason, actor_id=0, audit=None) -> bool:
                   (actor_id, now, reason.strip(), actor_id, now, unit_id))
         c.execute("UPDATE project_unit_order_links SET active=0, unlinked_by=?, unlinked_at=? "
                   "WHERE project_unit_id=? AND active=1", (actor_id, now, unit_id))
-        _audit_tx(c, audit)          # [v6 P0-03] 취소와 감사는 함께 남거나 함께 취소
-    return True
+        _audit_tx(c, audit, change=(_state_ko(u["unit_state"]), _state_ko("CANCELLED")))
+    return True                      # [v6 P0-03] 취소와 감사는 함께 남거나 함께 취소
 
 
 # ══════════ 과거 데이터 보정 — 작업일정표 상태 대조 (게이트 판정 §9) ══════════
@@ -905,9 +924,12 @@ def status_backfill_apply(pid, reason, actor_id=0, audit=None) -> dict:
                 (pid, r["oid"], r["ono"], r["lbl"], schedule_label(r["ust"]),
                  "작업일정표 취소 · 호기로 식별되지 않는 줄", actor_id, now))
         if audit:
+            # [승인서 §4.1] 과거 데이터 보정의 감사 근거 — 근거·대상·실제 출하일까지 사실대로.
+            #   ⛔ 실제 출하일은 이 함수가 **아무것도 쓰지 않는다**(모르면 미확인으로 둔다).
             _a = dict(audit)
-            _a["note"] = (f"{_a.get('note') or ''} — 보정 {len(changed)}대 · "
-                          f"예외 {len(skipped)}건").strip()
+            _a["note"] = (f"{_a.get('note') or ''} — 근거: 작업일정표 원본 상태 · "
+                          f"보정 {len(changed)}대 · 예외 {len(skipped)}건 · "
+                          f"실제 출하일 미확인(저장하지 않음)").strip()
             _audit_tx(c, _a)
     return {"changed": len(changed), "changed_ids": changed,
             "skipped": len(skipped), "skipped_detail": skipped}

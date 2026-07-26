@@ -155,12 +155,17 @@ table.u td.mono { font-family:var(--pq-mono); }
                 <div class="inl">
                   {% if can_create %}
                   {# 호기번호 지정·변경 — PM·설계책임자. 적용시점(선택)까지 함께 기록 #}
-                  <form class="inl" method="post" action="/units/{{ u.id }}/unit-no">
+                  <form class="inl js-punit-strict" method="post" action="/units/{{ u.id }}/unit-no">
                     <input name="new_unit_no" placeholder="{{ '호기번호 지정' if not u.current_unit_no else '새 호기번호' }}" size="8">
                     <input name="reason" placeholder="사유(필수)" size="9">
                     {# V1: 즉시 적용 + 지난 날짜 정정만. 미래 예약은 다음 단계(WP-04)에서 제공 #}
                     <input name="effective_from" type="date" max="{{ today_ymd }}"
                            title="적용 시점 — 비우면 지금 적용. 지난 날짜로 정정할 수 있고, 미래 날짜는 넣을 수 없습니다.">
+                    {# [승인서 §4.2] 확정된 호기의 번호 정정·지난 날짜 소급은 **누가 요청했는지**까지 남긴다 #}
+                    <input name="requester" size="10"
+                           placeholder="{{ '요청 부서·요청자(필수)' if u.unit_state == 'CONFIRMED' else '요청자(지난 날짜로 정정할 때 필수)' }}"
+                           {% if u.unit_state == 'CONFIRMED' %}required{% endif %}
+                           title="확정된 호기의 번호를 고치거나 지난 날짜로 소급 적용할 때는 요청한 부서·사람을 함께 남깁니다.">
                     <button class="mini" type="submit">{{ '번호 지정' if not u.current_unit_no else '번호 변경' }}</button>
                   </form>
                   {% endif %}
@@ -187,6 +192,11 @@ table.u td.mono { font-family:var(--pq-mono); }
                   {% if can_approve %}
                   <form class="inl" method="post" action="/units/{{ u.id }}/cancel" onsubmit="return confirm('이 호기를 취소할까요? (삭제가 아니라 취소 이력으로 남습니다)');">
                     <input name="reason" placeholder="취소 사유(필수)" size="9">
+                    {# [승인서 §4.2] **확정 후 취소**는 요청 부서·요청자까지 필수 #}
+                    {% if u.unit_state == 'CONFIRMED' %}
+                    <input name="requester" placeholder="요청 부서·요청자(필수)" size="10" required
+                           title="확정된 호기를 취소할 때는 누가 요청했는지 함께 남깁니다.">
+                    {% endif %}
                     <button class="mini danger" type="submit">취소</button>
                   </form>
                   {% endif %}
@@ -213,9 +223,35 @@ table.u td.mono { font-family:var(--pq-mono); }
         · <b>한 관리번호에 수주번호가 여러 개</b> 붙을 수 있고, <b>한 호기에 최초·추가·변경 수주를 함께</b> 연결할 수 있습니다.<br>
         · 한 번 쓴 호기번호는 <b>취소된 것이라도 다시 쓰지 않습니다</b>(현장 대화·서류 혼동 방지).<br>
         · 호기번호·수주 연결은 <b>바뀔 수 있는 값</b>이며 바꾸면 이전 값·사유·변경자가 이력으로 남습니다. 취소한 호기는 <b>지우지 않고</b> 취소 이력으로 보관합니다.<br>
-        · 호기 분할·통합은 <b>아직 실행할 수 없습니다</b>(자료 구조만 준비 · BOM·발주·생산 영향 분석이 연결되는 다음 단계에서 제공).
+        · 호기 분할·통합은 <b>아직 실행할 수 없습니다</b>(자료 구조만 준비 · BOM·발주·생산 영향 분석이 연결되는 다음 단계에서 제공).<br>
+        {# [승인서 §4.2] 화면에도 "언제 요청자를 적어야 하는지"를 현장 말로 적어 둔다 #}
+        · 호기 업무는 <b>누가 언제 무엇을 어떻게 바꿨는지 모두 기록</b>됩니다. 평소 업무는 따로 적을 것이 없습니다.<br>
+        · 다만 <b>이미 확정한 호기를 고치거나 취소할 때</b>, 그리고 <b>지난 날짜로 소급해 정정할 때</b>는
+          <b>요청한 부서·사람</b>을 함께 적어야 저장됩니다(나중에 "왜 바뀌었나"를 찾을 수 있어야 하므로).
       </p>
     </div>
+
+    <script>
+    /* [승인서 §4.2] 지난 날짜로 **소급 정정**할 때는 요청자가 필수다.
+       날짜를 고른 뒤에야 알 수 있으므로 화면에서 미리 알려준다.
+       ⭐ 진짜 차단은 **서버**가 한다(화면을 거치지 않고 요청을 직접 보내도 막힌다). */
+    (function(){
+      var today = "{{ today_ymd }}";
+      document.addEventListener('submit', function(ev){
+        var f = ev.target;
+        if (!f || !f.classList || !f.classList.contains('js-punit-strict')) return;
+        var eff = f.querySelector('input[name="effective_from"]');
+        var rq  = f.querySelector('input[name="requester"]');
+        if (!eff || !rq) return;
+        var back = eff.value && eff.value < today;
+        if (back && !rq.value.trim()) {
+          ev.preventDefault();
+          alert('지난 날짜로 소급해 정정할 때는 요청한 부서·사람을 적어야 합니다.');
+          rq.focus();
+        }
+      }, true);
+    })();
+    </script>
 
     {% if is_admin_override %}
     <script>

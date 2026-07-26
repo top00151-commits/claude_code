@@ -213,6 +213,11 @@ table.s td { border-bottom:1px solid var(--pq-line-2); padding:7px 6px; vertical
         {% if is_admin_override %}
         <input name="override_requester" placeholder="요청 부서·요청자(필수)" required>
         <input name="override_reason" placeholder="관리자 우회 사유(필수)" required>
+        {% else %}
+        {# [승인서 §4.1] 과거 데이터 보정은 **승인한 사람**과 **실행한 사람**을 구분해 남긴다.
+           실행자는 로그인 계정으로 자동 기록되고, 승인 근거는 여기에 적는다. #}
+        <input name="requester" id="syncApprover" placeholder="승인 근거 — 누가 승인했는지(필수)" required
+               title="예: 대표 승인 2026-07-26 · 과거 출하 사실 복원. 실행자는 로그인 계정으로 자동 기록됩니다.">
         {% endif %}
         <input name="reason" id="syncReason" placeholder="보정 사유 (필수)" required>
         <button class="btn-dark" type="submit" style="margin-left:auto;" {% if not s.change %}disabled{% endif %}>✔ 위 표대로 보정</button>
@@ -230,6 +235,9 @@ table.s td { border-bottom:1px solid var(--pq-line-2); padding:7px 6px; vertical
   f.addEventListener('submit', function(e){
     var r = document.getElementById('syncReason');
     if (!r.value.trim()) { e.preventDefault(); alert('보정 사유를 입력하세요.'); r.focus(); return; }
+    /* [승인서 §4.1] 승인 근거는 실행자와 구분해 남겨야 한다 — 서버도 같은 검사를 한다 */
+    var ap = document.getElementById('syncApprover');
+    if (ap && !ap.value.trim()) { e.preventDefault(); alert('누가 승인한 보정인지 적어 주세요 (감사 기록에 남습니다).'); ap.focus(); return; }
     if (!confirm('위 표에서 굵게 표시된 것만 바뀝니다.\n\n· 바뀔 것: {{ s.change if preview.ready else 0 }}대\n· 그대로 둘 것(예외): {{ s.conflict if preview.ready else 0 }}건\n\n진행할까요?')) e.preventDefault();
   });
 })();

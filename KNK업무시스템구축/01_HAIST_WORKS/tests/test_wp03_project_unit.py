@@ -528,6 +528,9 @@ try:
 
     def _blocked(rr):
         return rr.status_code == 303 and "/home" in rr.headers.get("location", "")
+
+    def _loc(rr):
+        return rr.headers.get("location", "")
     uid_r = ru[0]["id"]
     SALES_DELEG = {"id": 11, "role": "member", "team_id": 1, "can_use_sales": 1}   # 기술영업팀 위임자
     SALES_PLAIN = {"id": 12, "role": "member", "team_id": 1}                       # 기술영업팀 미위임
@@ -575,6 +578,8 @@ try:
     chk("확정 · 기술영업팀장 허용", not _blocked(_as(SALES_LEAD, f"/units/{uid_r}/confirm", {})))
     chk("취소 · 다른 부서 팀장 차단",
         _blocked(_as(MFG_LEAD, f"/units/{uid_r}/cancel", {"reason": "x"})))
+    # (확정 후 취소에 요청자를 요구하는 승인서 §4.2 규칙은 아래 K부에서 확정 호기로 검증한다.
+    #  여기 uid_r 은 호기번호가 없어 아직 확정되지 않은 상태다.)
     chk("취소 · 기술영업팀장 허용",
         not _blocked(_as(SALES_LEAD, f"/units/{uid_r}/cancel", {"reason": "취소 시험"})))
 
@@ -628,11 +633,14 @@ try:
                  {"pick": [str(LJ2)], f"action_{LJ2}": "new", "reason": "사유없이"})
     chk("v5 P1-02'''' 후보 일괄반영도 우회 사유 필수",
         cnt("project_units", "project_id=?", (PJ_ADM2,)) == 0)
-    # 기술영업팀 정상 업무는 비상복구 감사에 남지 않는다(구분)
+    # [승인서 §4.2 개정] 일반 기술영업 업무도 **감사기록은 남긴다**(예전엔 아예 안 남겼다).
+    #   다만 '관리자 비상복구'와는 분명히 구분된다.
     _n3 = len(pu.get_audit())
     _as(SALES_LEAD, f"/project/{PR}/units/create", {"working_name": "정상업무"})
-    chk("v5 P1-02''''' 일반 기술영업 업무는 비상복구 감사와 구분(기록 안 함)",
-        len(pu.get_audit()) == _n3)
+    _aud3 = pu.get_audit()
+    chk("§4.2 일반 기술영업 업무도 감사 기록(예전엔 0건이었다)", len(_aud3) == _n3 + 1)
+    chk("§4.2' 일반 업무는 '관리자 비상복구'와 구분",
+        _aud3 and "관리자 비상복구" not in (_aud3[0]["note"] or ""), str(_aud3[:1]))
 
     # ══════════ F. 게이트 v6 최종 승인 테스트 §8-1~10 ══════════
     #   핵심: "화면엔 오류인데 DB 는 바뀐" 부분 성공 금지 · 관리자 우회는 **모든** 쓰기 경로에서
@@ -647,9 +655,6 @@ try:
 
     def _state(uid):
         return pu.get_unit(uid)["unit_state"]
-
-    def _loc(rr):
-        return rr.headers.get("location", "")
 
     # ① 기술영업팀장 확정 성공 → 성공 응답 + 상태 CONFIRMED (부분 성공이 사라졌는지)
     UF1 = _newunit("1호기")
@@ -765,8 +770,16 @@ try:
     chk("§8-10' 이력·현재값 불변",
         cnt("project_unit_identifier_history", "project_unit_id=?", (UF10,)) == _h0
         and pu.get_unit(UF10)["current_unit_no"] == "10호기")
+    # [승인서 §4.2] 소급 효력일 변경은 요청자 필수 — 없으면 업무 변경 전에 거부
+    _rnoreq = _as(SALES_LEAD, f"/units/{UF10}/unit-no",
+                  {"new_unit_no": "77호기", "reason": "소급인데 요청자 없음",
+                   "effective_from": "2026-06-01"})
+    chk("§8-10'a 소급 효력일인데 요청자 없음 → 거부(승인서 §4.2)",
+        "error=" in _loc(_rnoreq)
+        and cnt("project_unit_identifier_history", "project_unit_id=?", (UF10,)) == _h0, _loc(_rnoreq))
     _reff = _as(SALES_LEAD, f"/units/{UF10}/unit-no",
-                {"new_unit_no": "77호기", "reason": "정상 소급 정정", "effective_from": "2026-06-01"})
+                {"new_unit_no": "77호기", "reason": "정상 소급 정정",
+                 "effective_from": "2026-06-01", "requester": "기술영업팀 김프로"})
     chk("§8-10'' 올바른 지난 날짜는 정상 반영(그 시점 조회로 확인)",
         "success=" in _loc(_reff) and pu.unit_no_at(UF10, "2026-06-15") == "77호기", _loc(_reff))
     chk("§8-10''' 지난 구간 정정이 **현재값을 바꾸지 않음**",
@@ -1030,6 +1043,67 @@ try:
     chk("§3' 처리 구분은 변경/유지/예외 셋 중 하나",
         all(x["action"] in ("변경", "유지", "예외") for x in _pvj["rows"]))
     m.get_user = lambda req: CEO
+
+    # ══════════ K. 최종 실행 승인서(2026-07-26) §4.2 — 감사기록·요청자·사유 정책 ══════════
+    #   "285개 확산 전에는 **정상 호기 확정도** 처리자·시각·상태변경 감사기록이 반드시
+    #    생성되는지 검증하라. 관리자 대행, 과거 데이터 보정, 확정 후 정정·취소에는
+    #    요청자와 사유를 필수로 한다." (대표 지시)
+    print("\n── K. 승인서 §4.2 감사기록·요청자·사유 정책 ──")
+    PK = mkproject("999K001")
+    OK1 = mkorder(PK, "SO-K-1")
+    _uk = pu.create_unit(PK, working_name="개발1호기", unit_no="1호기", actor_id=13)
+
+    # ① 본인이 정상 권한으로 하는 **최초 확정** — 요청자·사유 없이 되고, 감사는 반드시 남는다
+    _ak0 = len(pu.get_audit())
+    _rk1 = _as(SALES_LEAD, f"/units/{_uk}/confirm", {})
+    _ak1 = pu.get_audit()
+    chk("§4.2-1 정상 최초 확정은 요청자·사유 없이 수행", "success=" in _loc(_rk1), _loc(_rk1))
+    chk("§4.2-2 **정상 확정도 감사기록 1건 생성**(예전엔 0건)", len(_ak1) == _ak0 + 1)
+    chk("§4.2-3 감사에 처리자(실행자) 기록",
+        _ak1 and "실행:" in (_ak1[0]["note"] or "") and _ak1[0]["actor_id"] == 13, str(_ak1[:1]))
+    chk("§4.2-4 감사에 처리시각 기록", _ak1 and (_ak1[0]["created_at"] or "").strip())
+    chk("§4.2-5 감사에 **어떤 상태에서 어떤 상태로** 기록",
+        _ak1 and "PROVISIONAL" in (_ak1[0]["note"] or "")
+        and "CONFIRMED" in (_ak1[0]["note"] or ""), str(_ak1[:1]))
+    chk("§4.2-6 감사에 대상 Unit 기록",
+        _ak1 and f"unit#{_uk}" in (_ak1[0]["target"] or ""), str(_ak1[:1]))
+
+    # ② 확정 후 **호기번호 정정** — 요청자 없으면 업무 변경 전 거부
+    _no0 = pu.get_unit(_uk)["current_unit_no"]
+    _rk2 = _as(SALES_LEAD, f"/units/{_uk}/unit-no", {"new_unit_no": "5호기", "reason": "정정"})
+    chk("§4.2-7 확정 후 번호 정정 · 요청자 없음 → 거부", "error=" in _loc(_rk2), _loc(_rk2))
+    chk("§4.2-7' 거부 시 현재 호기번호 불변", pu.get_unit(_uk)["current_unit_no"] == _no0)
+
+    # ③ **과거 데이터 보정** — 승인 근거(요청자) 없으면 거부, DB 불변
+    PK2 = mkproject("999K002")
+    LK2 = mkline(mkorder(PK2, "SO-K-2"), "1호기", status="진행중", due="2026-05-01")
+    pu.apply_candidate_decisions(PK2, [dec(LK2, "new_no")], reason="먼저 등록")
+    _uk2 = pu.get_units(PK2)[0]["id"]
+    with db.db_session() as c:      # 나중에 작업일정표가 '출하'로 바뀐 상황(=과거 데이터 보정 대상)
+        c.execute("UPDATE order_items SET unit_status='출하' WHERE id=?", (LK2,))
+    _st0, _abf = pu.get_unit(_uk2)["unit_state"], len(pu.get_audit())
+    _rk3 = _as(SALES_LEAD, f"/project/{PK2}/units/status-sync/apply", {"reason": "보정 사유만"})
+    chk("§4.2-8 과거 데이터 보정 · 승인 근거 없음 → 거부", "error=" in _loc(_rk3), _loc(_rk3))
+    chk("§4.2-8' 거부 시 신원·감사 **모두 불변**",
+        pu.get_unit(_uk2)["unit_state"] == _st0 and len(pu.get_audit()) == _abf)
+    _rk4 = _as(SALES_LEAD, f"/project/{PK2}/units/status-sync/apply",
+               {"reason": "과거 출하 사실 복원", "requester": "대표 승인 2026-07-26"})
+    _ak4 = pu.get_audit()
+    chk("§4.2-9 승인 근거+사유 있으면 보정 수행", "success=" in _loc(_rk4), _loc(_rk4))
+    chk("§4.2-10 감사에 **승인자와 실행자를 구분**해 기록",
+        _ak4 and "요청·승인: 대표 승인 2026-07-26" in (_ak4[0]["note"] or "")
+        and "실행:" in (_ak4[0]["note"] or ""), str(_ak4[:1]))
+    chk("§4.2-11 감사에 처리 유형·근거·실제 출하일 미확인 기록",
+        _ak4 and "과거 데이터 보정" in (_ak4[0]["note"] or "")
+        and "근거: 작업일정표 원본 상태" in (_ak4[0]["note"] or "")
+        and "실제 출하일 미확인" in (_ak4[0]["note"] or ""), str(_ak4[:1]))
+    chk("§4.2-12 보정으로 실제 출하일을 지어내지 않음",
+        not (pu.get_unit(_uk2).get("shipped_on") or "").strip())
+
+    # ④ 관리자 대행은 유형과 관계없이 여전히 둘 다 필수(기존 계약 유지)
+    _uk3 = pu.create_unit(PK, working_name="개발2호기", unit_no="2호기", actor_id=13)
+    chk("§4.2-13 관리자 대행 · 요청자·사유 없음 → 거부(유형 무관)",
+        "error=" in _loc(_as(ADMIN, f"/units/{_uk3}/confirm", {})))
 
     chk("분할·통합 실행 경로 없음(404)",
         client.post(f"/units/{uid_r}/split", data={}, follow_redirects=False).status_code == 404)
