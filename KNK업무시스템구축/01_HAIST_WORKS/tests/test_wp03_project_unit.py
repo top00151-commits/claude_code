@@ -1004,6 +1004,12 @@ try:
         chk(f"§8 대조 화면에 '{_need}' 표시", _need in _html_i)
     chk("§8' 상태를 **글자로** 표시(색만 쓰지 않음)",
         "출하" in _html_i and "보류" in _html_i)
+    # [게이트 §4·§11] 호기 목록에서도 신원과 진행을 **따로** 보여준다(한 칸으로 뭉치지 않음)
+    _html_list = _as(SALES_LEAD, f"/project/{PI}/units").text
+    chk("§4 호기 목록에 '진행' 칸이 신원과 따로 있다",
+        "<th>진행</th>" in _html_list and 'class="wk ' in _html_list, "진행 칸 없음")
+    chk("§4' 호기 목록 머리글에 진행 상태별 수량 표시",
+        "진행중" in _html_list and "보류" in _html_list and "출하" in _html_list)
     chk("§9 대조 화면은 읽기 전용 — 조회만으로 아무것도 안 바뀜",
         pu.status_backfill_preview(PI)["summary"]["change"] == 0)
 
