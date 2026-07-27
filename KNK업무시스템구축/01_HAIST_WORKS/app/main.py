@@ -8886,7 +8886,7 @@ async def admin_order_dates_audit_apply(req: Request):
 
 
 @app.get("/admin/so-audit-dump")
-async def admin_so_audit_dump(req: Request, like: str = "T"):
+async def admin_so_audit_dump(req: Request, like: str = "T", dl: str = ""):
     """z1061 (대표 지시): 일괄등록 엑셀 원본 ↔ 저장값 전수 대조용 **읽기전용** 덤프.
     프로젝트 SO별로 저장된 모델명·장비명(SO값 없으면 프로젝트 대표 폴백=화면 표시값)·형태·수량·단가·금액을 JSON.
     (엑셀 export 는 현재 월만 뽑아 전수 대조 불가 → 전체를 한 번에.) 전부 SELECT·아무것도 안 바꿈."""
@@ -8912,7 +8912,10 @@ async def admin_so_audit_dump(req: Request, like: str = "T"):
             "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.mgmt_code,'') LIKE ? "
             "ORDER BY p.mgmt_code, o.id", (_like,)).fetchall():
             out.append(dict(r))
-    return JSONResponse({"ok": True, "count": len(out), "rows": out})
+    _resp = JSONResponse({"ok": True, "count": len(out), "rows": out})
+    if (dl or "").strip():   # dl=1 → 브라우저가 파일로 저장(전수 대조용·get_page_text 5만자 잘림 회피)
+        _resp.headers["Content-Disposition"] = 'attachment; filename="so_audit_dump.json"'
+    return _resp
 
 
 @app.get("/admin/consumable-sales-audit", response_class=HTMLResponse)
