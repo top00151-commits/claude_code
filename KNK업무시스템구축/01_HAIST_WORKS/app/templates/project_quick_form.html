@@ -803,7 +803,20 @@ function qManualValidate(){
     .then(function(r){ return r.ok ? r.json() : r.json().then(function(j){ throw new Error((j&&j.error)||('HTTP '+r.status)); }); })
     .then(function(j){
       if(j && j.available){ m.textContent='✅ 사용 가능 — 이 번호로 등록됩니다.'; m.style.color='#15803d'; window._qManualOK=code; }
-      else { m.textContent='❌ '+((j&&j.reason)||'사용할 수 없는 번호'); m.style.color='#dc2626'; window._qManualOK=null; }
+      else {
+        // v5H226z1059(대표 지시): '어디서 쓰는지' + 그 프로젝트/소모품으로 가는 링크(XSS안전=textContent+DOM)
+        m.textContent='❌ '+((j&&j.reason)||'사용할 수 없는 번호');
+        var ub=j&&j.used_by;
+        if(ub&&ub.id){
+          var a=document.createElement('a');
+          a.href=(ub.type==='consumable'?'/consumables/':'/project/')+ub.id;
+          a.target='_blank'; a.rel='noopener';
+          a.textContent=' → 그 '+(ub.type==='consumable'?'소모품 발주':'프로젝트')+' 열기';
+          a.style.color='#1d4ed8'; a.style.textDecoration='underline'; a.style.marginLeft='4px';
+          m.appendChild(a);
+        }
+        m.style.color='#dc2626'; window._qManualOK=null;
+      }
     })
     .catch(function(e){ m.textContent='검증 실패: '+((e&&e.message)||'네트워크 오류'); m.style.color='#dc2626'; window._qManualOK=null; });
 }

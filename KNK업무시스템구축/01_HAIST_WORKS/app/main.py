@@ -27865,12 +27865,22 @@ def _validate_manual_mgmt_code(raw_code, expect_letter):
     if expect_letter and _letter != expect_letter:
         return (False, f"사업부 불일치 — 이 등록은 '{expect_letter}' 로 시작해야 합니다")
     with db_session() as c:
-        if c.execute("SELECT 1 FROM projects WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (code,)).fetchone():
-            return (False, "이미 사용 중인 번호")
+        # v5H226z1059 (대표 지시): '이미 사용 중'이라고만 하지 말고 **어디서 쓰는지** 알려준다.
+        #   숨김보관(폐기)된 프로젝트는 목록·검색엔 안 뜨는데 여기선 막혀서 "안 나오는데 못 쓴다"고 헷갈렸다(001T2607=#1002).
+        _pr = c.execute("SELECT id, COALESCE(name,'') AS name, COALESCE(is_archived,0) AS arch "
+                        "FROM projects WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (code,)).fetchone()
+        if _pr:
+            _nm = ((_pr["name"] or "").strip() or "(이름 없음)")
+            if int(_pr["arch"] or 0):
+                return (False, f"숨김보관(폐기)된 프로젝트 '{_nm}' (#{_pr['id']}) 가 쓰는 번호 — 목록엔 안 보이지만 살아 있습니다. "
+                               f"그 프로젝트를 완전삭제하면 이 번호를 쓸 수 있습니다.")
+            return (False, f"이미 사용 중 — 프로젝트 '{_nm}' (#{_pr['id']}) 가 쓰는 번호입니다.")
         # v5H226z954 (대표 지시): 소모품(consumable_orders)도 같은 관리번호 체계 → 양쪽 중복 검사(소모품 번호는 거기 저장)
         try:
-            if c.execute("SELECT 1 FROM consumable_orders WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (code,)).fetchone():
-                return (False, "이미 사용 중인 번호(소모품)")
+            _co = c.execute("SELECT id, COALESCE(co_no,'') AS co_no FROM consumable_orders "
+                            "WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (code,)).fetchone()
+            if _co:
+                return (False, f"이미 사용 중 — 소모품 발주 {(_co['co_no'] or ('#' + str(_co['id'])))} 가 쓰는 번호입니다.")
         except Exception:
             pass
         # v5H226z940 (대표 지시): 완전삭제(봉인)됐던 번호도 '그 번호를 쓰는 살아있는(숨김보관 포함) 프로젝트가 없으면' 재사용 허용.
@@ -27889,8 +27899,26 @@ async def api_mgmt_code_check(request: Request, code: str = "", biz_div: str = "
         return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
     _expect = _expected_mgmt_letter(ptype, biz_div)
     ok, msg = _validate_manual_mgmt_code(code, _expect)
+    # v5H226z1059 (대표 지시): 막힌 번호가 '어디서 쓰이는지' 링크용 정보 — 화면에서 그 프로젝트/소모품으로 바로 가게.
+    _used_by = None
+    if not ok:
+        _cc = (code or "").strip().upper()
+        try:
+            with db_session() as c:
+                _pr = c.execute("SELECT id, COALESCE(name,'') AS name, COALESCE(is_archived,0) AS arch "
+                                "FROM projects WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (_cc,)).fetchone()
+                if _pr:
+                    _used_by = {"type": "project", "id": _pr["id"],
+                                "name": (_pr["name"] or ""), "archived": bool(int(_pr["arch"] or 0))}
+                else:
+                    _co = c.execute("SELECT id, COALESCE(co_no,'') AS co_no FROM consumable_orders "
+                                    "WHERE UPPER(COALESCE(mgmt_code,''))=? LIMIT 1", (_cc,)).fetchone()
+                    if _co:
+                        _used_by = {"type": "consumable", "id": _co["id"], "name": (_co["co_no"] or "")}
+        except Exception:
+            _used_by = None
     return JSONResponse({"ok": True, "available": bool(ok), "expect": _expect,
-                         "reason": ("" if ok else msg),
+                         "reason": ("" if ok else msg), "used_by": _used_by,
                          "code": (msg if ok else (code or "").strip().upper())})
 
 
