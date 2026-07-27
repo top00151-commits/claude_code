@@ -8885,6 +8885,37 @@ async def admin_order_dates_audit_apply(req: Request):
                         "<a href='/admin/order-dates-audit' style='color:#1d4ed8;'>다시 보기</a></p></div>")
 
 
+@app.get("/admin/so-audit-dump")
+async def admin_so_audit_dump(req: Request, like: str = "T"):
+    """z1061 (대표 지시): 일괄등록 엑셀 원본 ↔ 저장값 전수 대조용 **읽기전용** 덤프.
+    프로젝트 SO별로 저장된 모델명·장비명(SO값 없으면 프로젝트 대표 폴백=화면 표시값)·형태·수량·단가·금액을 JSON.
+    (엑셀 export 는 현재 월만 뽑아 전수 대조 불가 → 전체를 한 번에.) 전부 SELECT·아무것도 안 바꿈."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    _like = f"%{(like or '').strip()}%" if (like or "").strip() else "%"
+    out = []
+    with db_session() as c:
+        for r in c.execute(
+            "SELECT p.mgmt_code AS mc, COALESCE(o.order_no,'') AS sono, "
+            "substr(COALESCE(o.order_date,p.order_date,''),1,10) AS od, "
+            "COALESCE(NULLIF(o.model_name,''), p.model_name, '') AS model, "        # 화면 표시 모델(SO값 우선, 없으면 대표)
+            "COALESCE(NULLIF(o.equip_name,''), p.equip_name, '') AS equip, "        # 화면 표시 장비(SO값 우선, 없으면 대표)
+            "COALESCE(o.model_name,'') AS so_model, COALESCE(o.equip_name,'') AS so_equip, "  # SO 자체값(빈값 여부 판별)
+            "COALESCE(o.so_form,'') AS sf, COALESCE(o.total_amount,0) AS total, "
+            "COALESCE(o.currency, p.currency, 'KRW') AS ccy, "
+            "COALESCE(o.is_export,0) AS iex, COALESCE(o.po_type,'') AS po, "
+            "(SELECT COALESCE(SUM(COALESCE(oi.qty,1)),0) FROM order_items oi WHERE oi.order_id=o.id) AS qty, "
+            "(SELECT COUNT(*) FROM order_items oi WHERE oi.order_id=o.id) AS oi_n, "
+            "(SELECT GROUP_CONCAT(COALESCE(NULLIF(oi.line_note,''), oi.unit_label), ' | ') "
+            " FROM order_items oi WHERE oi.order_id=o.id) AS notes "
+            "FROM orders o JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.mgmt_code,'') LIKE ? "
+            "ORDER BY p.mgmt_code, o.id", (_like,)).fetchall():
+            out.append(dict(r))
+    return JSONResponse({"ok": True, "count": len(out), "rows": out})
+
+
 @app.get("/admin/consumable-sales-audit", response_class=HTMLResponse)
 async def admin_consumable_sales_audit(req: Request, year: str = ""):
     """z1051 (대표 지시): 소모품 매출이 비정상으로 큰 원인 진단 — 읽기전용(전부 SELECT·아무것도 안 바꿈).
