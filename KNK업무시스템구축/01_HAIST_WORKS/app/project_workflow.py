@@ -23,7 +23,7 @@ import re
 from datetime import date
 
 
-# v5H226z1055 (대표 지시): 수주(SO)별 '형태' 라벨·키 = 단일 진실.
+# v5H226z1058 (대표 지시): 수주(SO)별 '형태' 라벨·키 = 단일 진실.
 #   so_form(수주별 진짜 형태)이 있으면 그것을 우선, 없으면(구 데이터) so_type·shipment_form·호기수로 추론.
 #   ⭐get_project_orders(상세 수주내역 배지)와 작업일정표(_board_split_lines_map)가 **같은 함수**를 써서
 #     화면마다 형태 표기가 어긋나지 않게 한다(작업일정표가 프로젝트 형태를 전 행에 물려 '완제품'만 뜨던 문제).
@@ -1333,7 +1333,7 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         d["items_n"] = items_n
         d["items_sum"] = items_sum
 
-        # v5H226z699/z873/z1055 (대표 지시): 수주(발주)별 '형태' 라벨 — 공용 so_form_label_key() 단일 로직.
+        # v5H226z699/z873/z1058 (대표 지시): 수주(발주)별 '형태' 라벨 — 공용 so_form_label_key() 단일 로직.
         #   so_form(수주별 진짜 형태) 우선, 없으면 so_type·shipment_form·호기수 추론. ⭐작업일정표와 같은 함수를 써
         #   화면마다 표기가 어긋나지 않게 한다(전엔 여기서만 계산 → 작업일정표는 프로젝트 형태를 전 행에 물려 오표시).
         _hogi_n = sum(1 for _u in d["units"] if (_u.get("_sort_n") or 9999) < 9999)
