@@ -23429,12 +23429,21 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     _due944 = (max(_dcands944) if _dcands944 else "")
                 else:
                     _due944 = (_eff_c("i_due", _so["o_due"]) or "")[:10]
+                # v5H226z1063 (대표 지시): 합산줄 표시 수량 = 이 SO 호기(order_items) 수량합.
+                #   소모품(CONSUMABLE) SO를 일괄등록(z981 前)한 건은 orders.unit_qty=1 로 굳어, 화면이 실수량(order_items.qty)보다
+                #   적게(대개 1) 보였다(작업일정표 27줄 실측). 데이터(order_items·금액)는 정상 → 표시만 실수량 합으로 바로잡음.
+                #   ⚠부품(PARTS_EXPORT)은 z974 규정상 수량='완제품 몇 대분'(orders.unit_qty)이라 건드리지 않음. 빈 SO도 o_qty 유지.
+                _oq = int(_so.get("o_qty") or 1)
+                _dqty = (sum(int(_it.get("i_qty") or 1) for _it in _citems)
+                         if (_so.get("so_type") == "CONSUMABLE" and _citems) else _oq)
+                if _dqty < 1:
+                    _dqty = 1
                 return {
                     "iids": [it["oi_id"] for it in _so["items"] if it.get("oi_id") is not None], "label": "",
-                    "price": (float(_so["o_total"] or 0) / max(1, int(_so["o_qty"] or 1))), "amount": _so["o_total"], "currency": _so["o_cur"],   # v5H226z684: 단가=총액÷수량(개당) → 단가×수량=금액 일치(제품 추가행도 개당단가·소모품 qty=1은 총액 그대로)
+                    "price": (float(_so["o_total"] or 0) / max(1, _dqty)), "amount": _so["o_total"], "currency": _so["o_cur"],   # v5H226z684/z1063: 단가=총액÷표시수량(개당) → 단가×수량=금액 일치(소모품=실수량 합)
                     "order_date": (_eff_c("i_ord", _so["o_ord"]) or "")[:10], "due_date": _due944, "ship_to": _eff_c("i_ship", _so["o_ship"]),   # v5H226z710/z944: 호기 override 우선(없으면 SO) · 부품 SO는 헤더납기까지(max)
-                    "so_no": _so["so_no"], "count": _so["o_qty"] if _so["o_qty"] else 1,
-                    "qty": _so["o_qty"] if _so["o_qty"] else 1,   # v5H226z666: 표시 수량(소모품/부품=SO 수량)
+                    "so_no": _so["so_no"], "count": _dqty,
+                    "qty": _dqty,   # v5H226z666/z1063: 표시 수량(소모품=호기 수량합·부품=대분 o_qty·빈SO=o_qty)
                     "oid": _so.get("oid"), "so_type": (_so.get("so_type") or ""),   # v5H226z974: 상품 줄 수량(완제품 대분) 표시·편집 라우팅용
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
                     "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
