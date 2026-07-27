@@ -7581,17 +7581,43 @@ def projects_delete_logi(pid: int, force: bool = False) -> None:
         #   (접두 999/A 판별은 게이트 지적대로 격리 수단이 못 되므로 폐지 — 스위치로 일원화)
         _mcs = (str(_mc).strip() if _mc else "")
         if not wp01_unlocked("KNK_ENABLE_PROJECT_HARD_DELETE"):
-            if _mcs:
-                raise PermissionError(
-                    f"운영 프로젝트(관리번호 {_mcs})는 완전삭제할 수 없습니다 — 수주·변경·품질·자재 이력 "
-                    "보존을 위해 상세화면에서 상태를 '취소/보류'로 처리하세요.")
-            _refs = _project_delete_ref_counts(c, pid)
-            if _refs:
-                _top = " · ".join(f"{t} {n}건" for t, n in _refs[:5])
-                _more = f" 외 {len(_refs) - 5}개 표" if len(_refs) > 5 else ""
-                raise PermissionError(
-                    f"업무 이력이 있어 삭제할 수 없습니다 — {_top}{_more}. "
-                    "이력 보존을 위해 프로젝트 상태를 '취소/보류'로 처리하세요.")
+            # v5H226z1060 (대표 지시 2026-07-27): WP-01 운영 잠금을 **좁힌다** —
+            #   '숨김보관(폐기·is_archived=1) + 실거래 0(출하·세금계산서·수금 없음)' 인 건은 완전삭제 허용.
+            #   근본: 관리번호만으로 잠그면 **잘못 등록된 빈 껍데기**(예 #1002 DWMT4400: 자동화인데 T코드·금액0·이미 폐기)를
+            #   영영 못 지워 그 관리번호가 묶인다(수동발행 재사용 불가). 진짜 운영 프로젝트(미보관 또는 실거래 있음)는 그대로 보호.
+            #   ⚠ 반드시 '이미 폐기(숨김보관)한 것'만 — 살아있는 프로젝트는 실수 삭제 방지 위해 여전히 잠금(2단계: 폐기→삭제).
+            #   실거래 판정 = project_financial_flags 와 동일 기준(세금계산서/출하/수금), 단 같은 커넥션 인라인(중첩 세션 회피).
+            _arow = c.execute("SELECT COALESCE(is_archived,0) FROM projects WHERE id=?", (pid,)).fetchone()
+            _is_archived = bool(_arow and int(_arow[0] or 0))
+            _has_fin = False
+            for _fsql in (
+                "SELECT 1 FROM orders WHERE project_id=? AND COALESCE(tax_invoice_date,'')<>'' LIMIT 1",
+                "SELECT 1 FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                "WHERE o.project_id=? AND (COALESCE(oi.tax_invoice_date,'')<>'' OR oi.unit_status='출하') LIMIT 1",
+                "SELECT 1 FROM shipments s JOIN orders o ON o.id=s.order_id WHERE o.project_id=? LIMIT 1",
+                "SELECT 1 FROM receipts_payment rp JOIN orders o ON o.id=rp.order_id WHERE o.project_id=? LIMIT 1",
+            ):
+                try:
+                    if c.execute(_fsql, (pid,)).fetchone():
+                        _has_fin = True
+                        break
+                except Exception:
+                    pass   # 스키마 관대(project_financial_flags 와 동일) — 없는 표/컬럼은 '기록 없음'
+            _cleanup_ok = (_is_archived and not _has_fin)   # 폐기된 빈 껍데기만 삭제 허용
+            if not _cleanup_ok:
+                if _mcs:
+                    raise PermissionError(
+                        f"운영 프로젝트(관리번호 {_mcs})는 완전삭제할 수 없습니다 — 수주·변경·품질·자재 이력 "
+                        "보존을 위해 상세화면에서 상태를 '취소/보류'로 처리하세요. "
+                        + ("(실거래 기록[출하·세금계산서·수금]이 있어 삭제할 수 없습니다.)" if _is_archived
+                           else "(잘못 등록된 빈 건이면 먼저 '폐기(숨김보관)'한 뒤 삭제하세요.)"))
+                _refs = _project_delete_ref_counts(c, pid)
+                if _refs:
+                    _top = " · ".join(f"{t} {n}건" for t, n in _refs[:5])
+                    _more = f" 외 {len(_refs) - 5}개 표" if len(_refs) > 5 else ""
+                    raise PermissionError(
+                        f"업무 이력이 있어 삭제할 수 없습니다 — {_top}{_more}. "
+                        "이력 보존을 위해 프로젝트 상태를 '취소/보류'로 처리하세요.")
         if _mc and str(_mc).strip() and not force:
             raise PermissionError(
                 f"수주확정 건(관리코드 {str(_mc).strip()})은 삭제할 수 없습니다. "
