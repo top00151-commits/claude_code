@@ -8904,7 +8904,6 @@ async def admin_so_audit_dump(req: Request, like: str = "T"):
             "COALESCE(o.model_name,'') AS so_model, COALESCE(o.equip_name,'') AS so_equip, "  # SO 자체값(빈값 여부 판별)
             "COALESCE(o.so_form,'') AS sf, COALESCE(o.total_amount,0) AS total, "
             "COALESCE(o.currency, p.currency, 'KRW') AS ccy, "
-            "COALESCE(o.is_export,0) AS iex, COALESCE(o.po_type,'') AS po, "
             "(SELECT COALESCE(SUM(COALESCE(oi.qty,1)),0) FROM order_items oi WHERE oi.order_id=o.id) AS qty, "
             "(SELECT COUNT(*) FROM order_items oi WHERE oi.order_id=o.id) AS oi_n, "
             "(SELECT GROUP_CONCAT(COALESCE(NULLIF(oi.line_note,''), oi.unit_label), ' | ') "
