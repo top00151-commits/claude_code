@@ -9003,6 +9003,43 @@ async def admin_so_fill_model_equip(req: Request):
                          "skipped": skipped, "sample": changed[:8]})
 
 
+@app.get("/admin/model-equip-fix", response_class=HTMLResponse)
+async def admin_model_equip_fix_page(req: Request):
+    """v5H226z1064 (대표 지시·부분수정): 로컬에서 만든 pairs JSON(oid·model·equip)을 올려
+    수주별 모델·장비 '빈칸만' 채우는 작은 화면. 미리보기(dry)로 바뀔 건수 확인 후 적용.
+    ⛔상태·통화·세금계산서·고객사 무변경. 서버는 매칭 안 함(매칭·검토는 로컬 대조에서 끝냄)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    return HTMLResponse(
+        "<meta charset='utf-8'><title>모델·장비 빈칸 채움</title>"
+        "<div style='font-family:system-ui,sans-serif;max-width:820px;margin:30px auto;padding:0 16px;color:#1f2937;'>"
+        "<h2>🔧 수주별 모델·장비 빈칸 채움 <span style='font-size:14px;color:#64748b;'>(부분수정·z1064)</span></h2>"
+        "<p style='color:#555;line-height:1.7;'>로컬에서 만든 <b>pairs JSON</b>(oid·model·equip 목록)을 올려 "
+        "수주(SO)의 <b>모델·장비 빈칸만</b> 채웁니다. 상태·통화·세금계산서·고객사는 <b>건드리지 않습니다</b>. "
+        "먼저 <b>미리보기</b>로 바뀔 건수를 확인하세요. 이미 값이 있으면 덮어쓰지 않습니다.</p>"
+        "<input type='file' id='f' accept='.json,application/json'>"
+        "<div style='margin:14px 0;'>"
+        "<button id='dry' style='padding:8px 16px;font-weight:700;cursor:pointer;'>미리보기(dry)</button> "
+        "<button id='apply' style='padding:8px 16px;font-weight:700;background:#b91c1c;color:#fff;border:0;border-radius:6px;cursor:pointer;'>적용</button>"
+        "</div>"
+        "<pre id='out' style='background:#0b1020;color:#d6e2ff;padding:14px;border-radius:8px;white-space:pre-wrap;font-size:13px;min-height:60px;'></pre>"
+        "</div>"
+        "<script>"
+        "var PAIRS=null;"
+        "function $(i){return document.getElementById(i);}"
+        "$('f').addEventListener('change',function(e){var file=e.target.files[0];if(!file){return;}"
+        "var rd=new FileReader();rd.onload=function(){try{PAIRS=JSON.parse(rd.result);$('out').textContent='읽음: '+PAIRS.length+'건 (미리보기부터 눌러 확인하세요)';}catch(err){PAIRS=null;$('out').textContent='JSON 파싱 실패: '+err;}};rd.readAsText(file);});"
+        "function send(dry){if(!PAIRS){$('out').textContent='먼저 파일을 고르세요.';return;}"
+        "if(!dry && !confirm('실제로 '+PAIRS.length+'건의 빈 모델·장비를 채웁니다. 진행할까요?')){return;}"
+        "$('out').textContent=(dry?'미리보기':'적용')+' 중...';"
+        "fetch('/admin/so-fill-model-equip',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({dry:dry,pairs:PAIRS})})"
+        ".then(function(r){return r.json();}).then(function(j){$('out').textContent=JSON.stringify(j,null,2);})"
+        ".catch(function(err){$('out').textContent='요청 실패: '+err;});}"
+        "$('dry').onclick=function(){send(true);};$('apply').onclick=function(){send(false);};"
+        "</script>")
+
+
 @app.get("/admin/consumable-sales-audit", response_class=HTMLResponse)
 async def admin_consumable_sales_audit(req: Request, year: str = ""):
     """z1051 (대표 지시): 소모품 매출이 비정상으로 큰 원인 진단 — 읽기전용(전부 SELECT·아무것도 안 바꿈).
