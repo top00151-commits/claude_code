@@ -36,6 +36,13 @@ with db.db_session() as _c0:
             pass
 from app import project_unit as pu  # noqa: E402
 
+# ── 과거 데이터 보정 잠금과 시험의 관계 (2026-07-26 대표 지시) ──────────────────
+#   운영에는 이 환경변수가 없어 **항상 잠김**이다. 다만 지시서 §4.3 이
+#   "이미 구현·배포된 WP-03 기능은 삭제하거나 되돌리지 않는다"고 했으므로,
+#   보정 **로직**(멱등·예외·감사·단일 트랜잭션)은 시험에서 계속 검증한다.
+#   ⭐ **잠금 자체는 §M 에서 이 변수를 도로 지우고** 검증한다(운영과 같은 상태로).
+os.environ["KNK_ENABLE_UNIT_STATUS_SYNC"] = "1"
+
 ok = 0
 fail = 0
 
@@ -1224,6 +1231,104 @@ try:
 
     chk("분할·통합 실행 경로 없음(404)",
         client.post(f"/units/{uid_r}/split", data={}, follow_redirects=False).status_code == 404)
+
+    # ══════════ M. 과거 데이터 보정 실행 잠금 (대표 지시 2026-07-26 · 확산 승인 철회) ══════════
+    #   허용 범위는 딱 넷: ①실행 차단 ②차단 안내문 ③기존 데이터 불변 ④후보 반영 회귀.
+    #   ⭐ 여기서는 환경변수를 **도로 지워** 운영과 똑같은 잠김 상태로 만들고 검증한다.
+    print("\n── M. 과거 데이터 보정 실행 잠금 (대표 지시 §잠금 2항) ──")
+    os.environ.pop("KNK_ENABLE_UNIT_STATUS_SYNC", None)
+
+    PM = mkproject("999M001")
+    OM = mkorder(PM, "SO-M-1")
+    LM1 = mkline(OM, "1호기", status="진행중")
+    pu.apply_candidate_decisions(PM, [dec(LM1, "new_no")], reason="잠금 시험용 등록", actor_id=13)
+    # 등록 뒤에 작업일정표를 '출하'로 바꿔 둔다 → 보정할 거리가 **실제로 있는** 상태에서 잠금을 시험한다
+    with db.db_session() as _c:
+        _c.execute("UPDATE order_items SET unit_status='출하' WHERE id=?", (LM1,))
+    chk("§M-0 보정할 거리가 실제로 있는 상태에서 시험한다(잠금이 '할 일 없음'에 가려지지 않게)",
+        pu.status_backfill_preview(PM)["summary"]["change"] == 1,
+        str(pu.status_backfill_preview(PM)["summary"]))
+    _um = pu.get_units(PM)[0]
+    _before = (_um["unit_state"], _um["work_status"])
+    _n_units, _n_log, _n_audit = cnt("project_units"), cnt("project_unit_status_backfill"), len(pu.get_audit())
+
+    # ── ① 실행 차단 ──────────────────────────────────────────────────────────
+    chk("§M-1 잠금 판정 함수가 '잠김'이라고 답한다", pu.status_sync_locked() is True)
+    try:
+        pu.status_backfill_apply(PM, reason="화면을 거치지 않고 함수 직접 호출")
+        _m2 = False
+    except PermissionError:
+        _m2 = True
+    except Exception as _e:
+        _m2 = False
+    chk("§M-2 **화면을 거치지 않고 함수를 직접 불러도** 거부된다(가장 깊은 자리)", _m2)
+
+    _rm3 = _as(SALES_LEAD, f"/project/{PM}/units/status-sync/apply",
+               {"reason": "보정", "requester": "대표 승인"})
+    chk("§M-3 승인권자(기술영업팀장)가 보내도 서버가 **403 으로 거부**",
+        _rm3.status_code == 403, f"status={_rm3.status_code}")
+    _rm4 = _as(CEO, f"/project/{PM}/units/status-sync/apply",
+               {"reason": "보정", "requester": "대표 승인"})
+    chk("§M-4 **대표 계정이어도** 잠금이 우선한다(403)", _rm4.status_code == 403,
+        f"status={_rm4.status_code}")
+
+    # ── ③ 기존 데이터 변경 없음 ───────────────────────────────────────────────
+    _um2 = pu.get_units(PM)[0]
+    chk("§M-5 거부된 뒤 호기의 신원·진행상태가 **그대로**",
+        (_um2["unit_state"], _um2["work_status"]) == _before, f"{_before} → {(_um2['unit_state'], _um2['work_status'])}")
+    chk("§M-6 호기 수·보정이력·감사기록 **셋 다 불변**",
+        cnt("project_units") == _n_units
+        and cnt("project_unit_status_backfill") == _n_log
+        and len(pu.get_audit()) == _n_audit)
+    chk("§M-7 아무것도 안 바뀐 실행조차 **감사기록을 남기지 않는다**(거부는 업무가 아님)",
+        len(pu.get_audit()) == _n_audit)
+
+    # ── ② 실행 차단 안내문 ────────────────────────────────────────────────────
+    _hm = _as(SALES_LEAD, f"/project/{PM}/units/status-sync").text
+    chk("§M-8 화면에 **잠김 안내**가 보인다", "🔒" in _hm and "잠겨" in _hm)
+    chk("§M-9 안내 문구는 **서버 한 곳**에서 온다(화면과 서버가 다른 말을 하지 않게)",
+        pu.STATUS_SYNC_LOCK_MSG.split(".")[0] in _hm, "문구 불일치")
+    chk("§M-10 실행 폼(syncForm) **자체가 그려지지 않는다**",
+        'id="syncForm"' not in _hm and "status-sync/apply" not in _hm)
+    chk("§M-11 **못 하는 일을 시키지 않는다** — '맨 아래에서 반영하세요' 안내가 사라짐",
+        "맨 아래에서 반영하세요" not in _hm)
+    chk("§M-12 그래도 **대조표·이력은 그대로 보인다**(보기는 막지 않음)",
+        "1호기" in _hm and "작업 일정표" in _hm)
+    _hm2 = _as(SALES_LEAD, f"/project/{PM}/units").text
+    chk("§M-13 **들어가는 버튼 글도** 잠김을 그대로 말한다(눌렀다 잠긴 화면 만나지 않게)",
+        "🔒 작업일정표 상태 대조 (보기만)" in _hm2 and "🔄 작업일정표 상태 맞추기" not in _hm2)
+
+    # ── ④ 수주내역 후보 반영 회귀 — 대표가 유지하라고 한 6개 조건 ───────────────
+    PM2 = mkproject("999M002")
+    OM2 = mkorder(PM2, "SO-M2-1")
+    LM2, LM3 = mkline(OM2, "1호기", status="진행중"), mkline(OM2, "2호기", status="진행중")
+    _a_before = len(pu.get_audit())
+    _rm14 = _as(SALES_LEAD, f"/project/{PM2}/units/candidates/apply",
+                {"reason": "신규 프로젝트 호기 등록", "pick": [str(LM2), str(LM3)],
+                 f"action_{LM2}": "new_no", f"action_{LM3}": "new_no"})
+    _um3 = pu.get_units(PM2)
+    chk("§M-14 [회귀] 잠금과 무관하게 **수주내역 후보 반영은 정상 동작**한다",
+        "success=" in _loc(_rm14) and len(_um3) == 2, _loc(_rm14))
+    chk("§M-15 [조건] 기술영업팀 권한만 — 설계팀은 여전히 차단",
+        _blocked(_as(DESIGN, f"/project/{PM2}/units/candidates/apply",
+                     {"reason": "권한 없는 시도", "pick": [str(LM2)], f"action_{LM2}": "new_no"})))
+    chk("§M-16 [조건] **개발·미확정 상태 허용** — 반영해도 확정되지 않는다",
+        all(x["unit_state"] == "PROVISIONAL" for x in _um3),
+        str([x["unit_state"] for x in _um3]))
+    chk("§M-17 [조건] **과거 프로젝트 자동확정 금지** — 후보 반영이 확정을 만들지 않음",
+        cnt("project_units", "project_id=? AND unit_state='CONFIRMED'", (PM2,)) == 0)
+    chk("§M-18 [조건] **작업자·시각·변경이력**이 남는다",
+        len(pu.get_audit()) > _a_before
+        and cnt("project_unit_identifier_history", "project_unit_id IN (?,?)",
+                (_um3[0]["id"], _um3[1]["id"])) == 2)
+    chk("§M-19 [조건] **관리번호 한 건씩** — 여러 관리번호를 한 번에 받는 경로가 없다",
+        client.post("/project/units/candidates/apply", data={}, follow_redirects=False).status_code == 404)
+
+    # ── 잠금 스위치가 배포 전 검사기에 편입됐는가 ────────────────────────────────
+    chk("§M-20 새 잠금이 **배포 전 검사기 목록**에 들어가 자동 점검된다",
+        "KNK_ENABLE_UNIT_STATUS_SYNC" in db.WP01_LOCK_SWITCHES)
+
+    os.environ["KNK_ENABLE_UNIT_STATUS_SYNC"] = "1"   # 뒤에 다른 시험이 붙어도 로직 검증은 계속되게
 except ImportError as e:
     print(f"  SKIP 라우트 테스트 (패키지 없음: {e})")
 

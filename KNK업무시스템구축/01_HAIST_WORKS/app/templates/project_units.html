@@ -122,7 +122,12 @@ table.u tr.ops-row[hidden] { display:none !important; }
           {% else %}<a class="btn-ghost" href="/project/{{ project.id }}/units/candidates">🔍 수주내역 다시 확인</a>{% endif %}
         {% endif %}
         {# 보여주는 곳엔 고치러 갈 길도 — 작업일정표 상태와 호기 상태가 어긋났는지 확인·보정 #}
-        {% if summary.ready and summary.units %}<a class="btn-ghost" href="/project/{{ project.id }}/units/status-sync">🔄 작업일정표 상태 맞추기</a>{% endif %}
+        {# [대표 지시 2026-07-26] 보정 실행이 잠겼으면 **버튼 글도 그대로 말한다**(눌렀다가 잠긴 화면을 만나지 않게). #}
+        {% if summary.ready and summary.units %}
+          {% if sync_locked %}<a class="btn-ghost" href="/project/{{ project.id }}/units/status-sync"
+             title="과거 데이터 보정은 대표 지시로 잠겨 있습니다. 표는 보실 수 있습니다.">🔒 작업일정표 상태 대조 (보기만)</a>
+          {% else %}<a class="btn-ghost" href="/project/{{ project.id }}/units/status-sync">🔄 작업일정표 상태 맞추기</a>{% endif %}
+        {% endif %}
         <a class="btn-ghost" href="/project/{{ project.id }}" data-knk-back>프로젝트 상세 ↗</a>
       </div>
     </div>

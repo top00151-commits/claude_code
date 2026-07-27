@@ -29,7 +29,26 @@ import re
 import sqlite3
 from datetime import datetime
 
-from .database import db_session, _logi_now
+from .database import db_session, _logi_now, wp01_unlocked
+
+# ── 과거 데이터 보정 실행 잠금 ────────────────────────────────────────────────
+# [대표 지시 2026-07-26 · 확산 승인 철회 지시서 §4.2 / 잠금 처리 2항]
+#   호기 확산 승인이 철회되어, **과거 데이터 보정 전용** 화면의 실행을 잠근다.
+#   ⭐ 잠기는 것은 이 하나뿐 — 기술영업팀이 신규 프로젝트 호기를 등록하는
+#      '수주내역 후보 반영'(apply_candidate_decisions)은 **정상 업무라 잠그지 않는다**.
+#   ⭐ 안내 문구를 여기 한 곳에만 둔다(화면과 서버가 다른 말을 하지 않도록).
+STATUS_SYNC_LOCK_MSG = (
+    "과거 데이터 보정은 현재 잠겨 있습니다. "
+    "호기 확산 작업이 대표 지시로 중단되어(2026-07-26), 이 화면의 보정 실행을 막아 두었습니다. "
+    "아래 대조표는 그대로 보실 수 있고, 저장된 내용은 아무것도 바뀌지 않습니다. "
+    "다시 필요하시면 대표 승인을 받아 주세요."
+)
+
+
+def status_sync_locked() -> bool:
+    """과거 데이터 보정이 잠겨 있는지 — 운영엔 환경변수가 없으므로 **항상 잠김**."""
+    return not wp01_unlocked("KNK_ENABLE_UNIT_STATUS_SYNC")
+
 
 # 정식 호기 라벨(기존 시스템 규약·z779). 부속/부품(비표준 라벨)은 후보에서 제외.
 HOGI_RE = re.compile(r"^\d+호기$")
@@ -884,7 +903,11 @@ def status_backfill_preview(pid) -> dict:
 def status_backfill_apply(pid, reason, actor_id=0, audit=None) -> dict:
     """[§9] 대조 결과대로 보정한다. **바뀌는 것만** 손대고 원본 상태·근거를 이력에 남긴다.
     [§9-8] 같은 보정을 다시 실행해도 중복 생성·이력 중복이 생기지 않는다(바뀐 게 없으면 무동작).
-    [§10-8] 감사기록이 실패하면 보정 전체가 함께 취소된다(단일 트랜잭션)."""
+    [§10-8] 감사기록이 실패하면 보정 전체가 함께 취소된다(단일 트랜잭션).
+    [잠김 2026-07-26] ⛔ 대표 지시로 **실행이 잠겨 있다**. 아래 검사가 가장 깊은 자리 —
+        화면을 거치지 않고 이 함수를 직접 불러도 아무것도 바뀌지 않는다."""
+    if status_sync_locked():
+        raise PermissionError(STATUS_SYNC_LOCK_MSG)
     if not (reason or "").strip():
         raise ValueError("보정 사유를 입력하세요.")
     changed, skipped = [], []

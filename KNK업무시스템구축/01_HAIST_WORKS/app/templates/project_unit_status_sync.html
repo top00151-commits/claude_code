@@ -71,11 +71,17 @@ table.s td { border-bottom:1px solid var(--pq-line-2); padding:7px 6px; vertical
     {% set _err = request.query_params.get('error') %}
     {% if _ok %}<div class="banner ok">✅ {{ _ok }}</div>{% endif %}
     {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
+    {# [대표 지시 2026-07-26 · 확산 승인 철회] 실행 차단 안내 — 문구는 project_unit.py 한 곳에서 온다 #}
+    {% if sync_locked %}<div class="banner err">🔒 {{ sync_lock_msg }}</div>{% endif %}
 
     {% set _sc = {'출하':'t-ship','진행중':'t-run','보류':'t-hold','취소':'t-cancel'} %}
 
     <div class="lead">
+      {% if sync_locked %}
+      과거에 이미 끝난 일을 시스템에 맞추던 화면입니다. <b>지금은 보기만 됩니다</b> — 아래 표는 “이렇게 될 뻔했다”는 대조표일 뿐, <b>눌러서 반영하는 기능은 잠겨 있습니다</b>.
+      {% else %}
       과거에 이미 끝난 일을 시스템에 맞추는 화면입니다. <b>먼저 아래 표로 무엇이 어떻게 바뀌는지 확인</b>하신 뒤 맨 아래에서 반영하세요.
+      {% endif %}
       <br><span class="sub">
         · 근거는 <b>작업 일정표에 사람이 정해 놓은 상태</b>입니다. <b>납품일이 지났다는 것만으로는 끝난 것으로 보지 않습니다</b>(지연·검사 대기·보류·부분출하가 있으므로).<br>
         · <b>‘몇 호기인지 정해졌나’(신원)</b> 와 <b>‘지금 어느 단계인가’(진행)</b> 는 <b>다른 값</b>이라 따로 보관합니다. 출하됐다고 한 칸으로 뭉뚱그리지 않습니다.<br>
@@ -202,12 +208,16 @@ table.s td { border-bottom:1px solid var(--pq-line-2); padding:7px 6px; vertical
     </div>
     {% endif %}
 
-    {% if not can_apply %}
+    {% if sync_locked %}
+    {# 잠금이 권한보다 앞선다 — 승인권자에게도 실행 자리를 내주지 않는다(폼 자체를 안 그린다). #}
+    <div class="banner err">🔒 <b>보정 실행이 잠겨 있습니다.</b> 여기 있던 ‘위 표대로 보정’ 버튼은 지금 없습니다.
+      대표 승인 없이는 실행되지 않으며, 혹시 예전 화면이 열려 있어 눌러 보시더라도 <b>서버가 거부합니다</b>.</div>
+    {% elif not can_apply %}
     <div class="banner warn">⚠ 보정 실행은 <b>기술영업팀장·대표·임원</b>만 할 수 있습니다(호기 신원이 바뀌는 작업이라서). 위 표는 누구나 확인하실 수 있습니다.</div>
     {% endif %}
     <div class="pad-bottom"></div>
 
-    {% if can_apply %}
+    {% if can_apply and not sync_locked %}
     <form method="post" action="/project/{{ project.id }}/units/status-sync/apply" id="syncForm">
       <div class="foot">
         <span class="sumbox">바뀔 것 <b>{{ s.change }}</b>대 · 그대로 둘 것 <b>{{ s.conflict }}</b>건</span>

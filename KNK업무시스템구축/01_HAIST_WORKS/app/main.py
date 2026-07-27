@@ -21465,6 +21465,8 @@ async def project_units_page(request: Request, pid: int):
                impact_msg=_punit.IMPACT_NOT_WIRED_MSG, identity_contract=_punit.IDENTITY_CONTRACT,
                can_create=can_create_unit(u), can_link=can_link_unit_order(u),
                can_approve=can_approve_unit(u),
+               # [대표 지시 2026-07-26] 잠긴 화면으로 가는 버튼이 멀쩡해 보이면 안 된다(WP-01 F-03 판정과 같은 이유).
+               sync_locked=_punit.status_sync_locked(),
                today_ymd=date.today().isoformat(),          # V1: 미래 적용 예약 차단(입력칸 max)
                is_admin_override=(_punit_role(u) == _PUNIT_ADMIN_ROLE))
 
@@ -21696,6 +21698,9 @@ async def project_units_status_sync(request: Request, pid: int):
                scan_excluded=_punit.scan_candidates(pid).get("excluded", []),
                log=_punit.get_status_backfill_log(pid, 50),
                can_apply=can_approve_unit(u),
+               # [대표 지시 2026-07-26] 보정 실행 잠금 — 대조표·이력은 그대로 보이고 실행만 막는다.
+               sync_locked=_punit.status_sync_locked(),
+               sync_lock_msg=_punit.STATUS_SYNC_LOCK_MSG,
                is_admin_override=(_punit_role(u) == _PUNIT_ADMIN_ROLE))
 
 
@@ -21708,6 +21713,11 @@ async def project_units_status_sync_apply(request: Request, pid: int):
     # 출하→확정 / 취소→취소 로 **신원이 바뀌는** 보정이라 승인권자만 실행한다.
     if not can_approve_unit(u):
         return RedirectResponse("/home", 303)
+    # [대표 지시 2026-07-26 · 확산 승인 철회] 화면에서 버튼을 감추는 것만으론 부족하다 —
+    #   서버가 실제 실행 요청을 거부한다. **승인권자여도 잠금이 우선**한다(데이터 전부 불변).
+    if _punit.status_sync_locked():
+        return JSONResponse({"error": "과거 데이터 보정 잠김",
+                             "message": _punit.STATUS_SYNC_LOCK_MSG}, 403)
     from urllib.parse import quote as _q
     form = await request.form()
     try:
