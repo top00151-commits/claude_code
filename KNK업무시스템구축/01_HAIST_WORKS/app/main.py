@@ -9040,6 +9040,62 @@ async def admin_model_equip_fix_page(req: Request):
         "</script>")
 
 
+@app.get("/admin/so-fill-model-equip-run")
+async def admin_so_fill_model_equip_run(req: Request, apply: str = "", dl: str = ""):
+    """v5H226z1064c (대표 지시·부분수정 적용): 리포지토리에 번들된 pairs(model_equip_backfill_z1064.json)로
+    수주(SO)별 모델·장비 '빈칸만' 채움. (fetch/업로드가 WORKS 서비스워커에 막혀 GET=navigate 트리거로 실행.)
+    기본 = dry(미리보기·아무것도 안 바꿈). apply=RUN-z1064 일 때만 실제 반영.
+    ⛔상태·통화·세금계산서·고객사 무변경 — z981 과 동일한 COALESCE(NULLIF()) '빈칸만' UPDATE 만 수행."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    import json as _j
+    _do = ((apply or "").strip() == "RUN-z1064")
+    _path = os.path.join(os.path.dirname(__file__), "model_equip_backfill_z1064.json")
+    try:
+        with open(_path, encoding="utf-8") as _f:
+            pairs = _j.load(_f)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"pairs 파일 읽기 실패: {e}"}, 500)
+    applied = 0
+    changed = []
+    skipped = 0
+    with db_session() as c:
+        for p in pairs:
+            try:
+                oid = int(p.get("oid"))
+            except Exception:
+                skipped += 1
+                continue
+            _m = (str(p.get("model") or "").strip() or None)
+            _e = (str(p.get("equip") or "").strip() or None)
+            if not _m and not _e:
+                skipped += 1
+                continue
+            row = c.execute("SELECT COALESCE(model_name,'') AS m, COALESCE(equip_name,'') AS e, "
+                            "COALESCE(order_no,'') AS sono FROM orders WHERE id=?", (oid,)).fetchone()
+            if not row:
+                skipped += 1
+                continue
+            _wm = (_m if (not row["m"] and _m) else None)   # 빈 곳만
+            _we = (_e if (not row["e"] and _e) else None)
+            if not _wm and not _we:
+                skipped += 1
+                continue
+            changed.append({"oid": oid, "sono": row["sono"], "model": _wm, "equip": _we})
+            if _do:
+                c.execute("UPDATE orders SET model_name=COALESCE(NULLIF(model_name,''),?), "
+                          "equip_name=COALESCE(NULLIF(equip_name,''),?) WHERE id=?",
+                          (_wm, _we, oid))
+                applied += 1
+    _resp = JSONResponse({"ok": True, "applied_mode": _do, "input": len(pairs),
+                          "applied": applied, "would_change": len(changed),
+                          "skipped": skipped, "sample": changed[:10]})
+    if (dl or "").strip():
+        _resp.headers["Content-Disposition"] = 'attachment; filename="model_equip_fill_result.json"'
+    return _resp
+
+
 @app.get("/admin/consumable-sales-audit", response_class=HTMLResponse)
 async def admin_consumable_sales_audit(req: Request, year: str = ""):
     """z1051 (대표 지시): 소모품 매출이 비정상으로 큰 원인 진단 — 읽기전용(전부 SELECT·아무것도 안 바꿈).
