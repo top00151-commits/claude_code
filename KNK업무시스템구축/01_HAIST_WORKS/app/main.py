@@ -8886,14 +8886,44 @@ async def admin_order_dates_audit_apply(req: Request):
 
 
 @app.get("/admin/so-audit-dump")
-async def admin_so_audit_dump(req: Request, like: str = "T", dl: str = ""):
+async def admin_so_audit_dump(req: Request, like: str = "T", dl: str = "", mode: str = ""):
     """z1061 (대표 지시): 일괄등록 엑셀 원본 ↔ 저장값 전수 대조용 **읽기전용** 덤프.
     프로젝트 SO별로 저장된 모델명·장비명(SO값 없으면 프로젝트 대표 폴백=화면 표시값)·형태·수량·단가·금액을 JSON.
-    (엑셀 export 는 현재 월만 뽑아 전수 대조 불가 → 전체를 한 번에.) 전부 SELECT·아무것도 안 바꿈."""
+    (엑셀 export 는 현재 월만 뽑아 전수 대조 불가 → 전체를 한 번에.) 전부 SELECT·아무것도 안 바꿈.
+    v5H226z1062: mode=board — 실제 작업일정표 조립함수(_board_split_lines_map)가 뽑는 **줄 그대로** 노출
+      + 그 줄의 order_items(iids) 수량합(correct_qty) 계산. 화면에 보이는 수량(board_qty) vs 실제 수량(correct_qty)을
+      대조해 '수량 표시버그' 영향 줄을 지상검증(추정 배제). 역시 전부 SELECT + 순수 표시함수 호출(무변경)."""
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
     _like = f"%{(like or '').strip()}%" if (like or "").strip() else "%"
+    if (mode or "").strip() == "board":
+        # v5H226z1062: 작업일정표 실제 줄 노출(읽기전용) — board_qty(화면 수량) vs correct_qty(order_items 수량합) 대조.
+        with db_session() as c:
+            _pmap = {r["id"]: (r["mc"] or "") for r in c.execute(
+                "SELECT id, COALESCE(mgmt_code,'') AS mc FROM projects WHERE COALESCE(mgmt_code,'') LIKE ?", (_like,)).fetchall()}
+            _qmap = {r["id"]: int(r["q"] or 1) for r in c.execute(
+                "SELECT id, COALESCE(qty,1) AS q FROM order_items").fetchall()}
+        _brows = []
+        _bmap = _board_split_lines_map(unfold_sos=True, pids=list(_pmap.keys()))   # 순수 조립(자체 커넥션·무변경)
+        for _pid, _lines in _bmap.items():
+            _mc = _pmap.get(_pid, "")
+            for _ln in _lines:
+                _iids = _ln.get("iids") or ([_ln.get("iid")] if _ln.get("iid") else [])
+                _correct = (sum(_qmap.get(i, 1) for i in _iids) if _iids else None)
+                _bq = _ln.get("qty")
+                _brows.append({
+                    "mc": _mc, "sono": _ln.get("so_no") or "", "so_type": _ln.get("so_type") or "",
+                    "form_label": _ln.get("form_label") or "", "board_qty": _bq, "correct_qty": _correct,
+                    "n_iids": len(_iids), "mismatch": (_correct is not None and int(_bq or 0) != int(_correct or 0)),
+                    "price": _ln.get("price"), "amount": _ln.get("amount"), "ccy": _ln.get("currency") or "",
+                    "label": _ln.get("label") or "",
+                })
+        _mism = sum(1 for _b in _brows if _b["mismatch"])
+        _resp = JSONResponse({"ok": True, "mode": "board", "count": len(_brows), "mismatch_n": _mism, "rows": _brows})
+        if (dl or "").strip():
+            _resp.headers["Content-Disposition"] = 'attachment; filename="so_board_lines.json"'
+        return _resp
     out = []
     with db_session() as c:
         for r in c.execute(
