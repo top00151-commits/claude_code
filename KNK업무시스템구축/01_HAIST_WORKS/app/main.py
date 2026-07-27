@@ -8927,7 +8927,7 @@ async def admin_so_audit_dump(req: Request, like: str = "T", dl: str = "", mode:
     out = []
     with db_session() as c:
         for r in c.execute(
-            "SELECT p.mgmt_code AS mc, COALESCE(o.order_no,'') AS sono, "
+            "SELECT o.id AS oid, p.mgmt_code AS mc, COALESCE(o.order_no,'') AS sono, "   # v5H226z1064: order id(백필 대상 정확 지정용)
             "substr(COALESCE(o.order_date,p.order_date,''),1,10) AS od, "
             "COALESCE(NULLIF(o.model_name,''), p.model_name, '') AS model, "        # 화면 표시 모델(SO값 우선, 없으면 대표)
             "COALESCE(NULLIF(o.equip_name,''), p.equip_name, '') AS equip, "        # 화면 표시 장비(SO값 우선, 없으면 대표)
@@ -8946,6 +8946,61 @@ async def admin_so_audit_dump(req: Request, like: str = "T", dl: str = "", mode:
     if (dl or "").strip():   # dl=1 → 브라우저가 파일로 저장(전수 대조용·get_page_text 5만자 잘림 회피)
         _resp.headers["Content-Disposition"] = 'attachment; filename="so_audit_dump.json"'
     return _resp
+
+
+@app.post("/admin/so-fill-model-equip")
+async def admin_so_fill_model_equip(req: Request):
+    """v5H226z1064 (대표 지시·부분수정): 수주(SO)별 모델명·장비명 '빈칸만' 채움.
+    ⭐서버는 매칭을 하지 않는다 — 어느 SO를 어떤 값으로 채울지는 로컬(원본 엑셀↔덤프)에서 전수 검토해
+      정확한 order id(oid) 목록으로 넘긴다. 여기선 그 oid 에 대해서만 COALESCE(NULLIF(...))로 빈 곳을 채운다.
+    ⛔상태·통화·세금계산서·거래명세서·고객사는 절대 건드리지 않음(원본 재업로드의 부작용 회피).
+    dry=true → 아무것도 안 바꾸고 '바뀔 것'만 계산해 돌려줌(미리보기). 이미 값 있으면 안 덮음(빈칸만)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    pairs = body.get("pairs") or []
+    dry = bool(body.get("dry"))
+    if not isinstance(pairs, list) or not pairs:
+        return JSONResponse({"ok": False, "error": "no_pairs"}, 400)
+    applied = 0
+    changed = []       # 실제(또는 예정) 변경 — oid·수주번호·채울 값
+    skipped = 0        # 대상 없음/이미 채워짐
+    with db_session() as c:
+        for p in pairs:
+            try:
+                oid = int(p.get("oid"))
+            except Exception:
+                skipped += 1
+                continue
+            _m = (str(p.get("model") or "").strip() or None)
+            _e = (str(p.get("equip") or "").strip() or None)
+            if not _m and not _e:
+                skipped += 1
+                continue
+            row = c.execute("SELECT COALESCE(model_name,'') AS m, COALESCE(equip_name,'') AS e, "
+                            "COALESCE(order_no,'') AS sono FROM orders WHERE id=?", (oid,)).fetchone()
+            if not row:
+                skipped += 1
+                continue
+            _will_m = (_m if (not row["m"] and _m) else None)   # 빈 곳만
+            _will_e = (_e if (not row["e"] and _e) else None)
+            if not _will_m and not _will_e:
+                skipped += 1
+                continue
+            changed.append({"oid": oid, "sono": row["sono"], "model": _will_m, "equip": _will_e})
+            if not dry:
+                # v5H226z981 과 동일한 '빈칸만 채움' UPDATE — 이미 값 있으면 보존.
+                c.execute("UPDATE orders SET model_name=COALESCE(NULLIF(model_name,''),?), "
+                          "equip_name=COALESCE(NULLIF(equip_name,''),?) WHERE id=?",
+                          (_will_m, _will_e, oid))
+                applied += 1
+    return JSONResponse({"ok": True, "dry": dry, "input": len(pairs),
+                         "applied": applied, "would_change": len(changed),
+                         "skipped": skipped, "sample": changed[:8]})
 
 
 @app.get("/admin/consumable-sales-audit", response_class=HTMLResponse)
