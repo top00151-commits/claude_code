@@ -6915,7 +6915,26 @@ async def project_detail(req: Request, pid: int):
     if _retire_fin.get("ship"): _rb_reasons.append("출하")
     if _retire_fin.get("tax"): _rb_reasons.append("세금계산서")
     if _retire_fin.get("pay"): _rb_reasons.append("수금")
+    # v5H226z1053 (대표 지시): 헤더 '형태' — 수주별 형태(so_form) 분포. 한 관리번호에 형태가 섞이면
+    #   '혼합 · 완제품 N · 제품 M' + '수주마다 다르면 아래 수주 내역에서'(PO유형과 같은 손길). 수주 없으면 프로젝트값 폴백.
+    _form_counts = {}
+    for _so in (project_orders or []):
+        _fl = _so.get("form_label") or ""
+        if _fl:
+            _form_counts[_fl] = _form_counts.get(_fl, 0) + 1
+    _FORM_ORDER = ["완제품", "제품", "상품", "기타", "소모품"]
+    _form_breakdown = [(_k, _form_counts[_k]) for _k in _FORM_ORDER if _form_counts.get(_k)]
+    for _k in _form_counts:   # 표준 순서에 없는 라벨도 뒤에(안전)
+        if _k not in _FORM_ORDER:
+            _form_breakdown.append((_k, _form_counts[_k]))
+    form_summary = {
+        "has_orders": bool(_form_breakdown),
+        "mixed": len(_form_breakdown) > 1,
+        "label": (_form_breakdown[0][0] if len(_form_breakdown) == 1 else ""),
+        "breakdown": _form_breakdown,
+    }
     return ctx(req, "project_detail.html",
+               form_summary=form_summary,   # v5H226z1053: 헤더 형태(혼합+구성)
                project_display_status=project_display_status,
                retire_blocked=bool(_retire_fin.get("any")),   # v5H226z872: 실거래 기록 있으면 폐기 불가
                retire_block_reasons=_rb_reasons,
@@ -22694,6 +22713,11 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                          if "model_name" in _ord_cols else "'' AS o_model, '' AS o_equip")
             # v5H226z1033: 수주별 PO유형 — 없으면 빈값 → 화면에서 프로젝트 값으로 폴백(기존 데이터 무영향)
             _optype_col = ("COALESCE(o.po_type,'') AS o_ptype" if "po_type" in _ord_cols else "'' AS o_ptype")
+            # v5H226z1053 (대표 지시): 수주별 형태(so_form) + 폴백용 shipment_form + 프로젝트 유형 —
+            #   작업일정표 '형태' 칸을 수주별로 표시(전엔 프로젝트 형태를 전 행에 물려 '완제품'만 떴음).
+            _soform_col = ("COALESCE(o.so_form,'') AS so_form" if "so_form" in _ord_cols else "'' AS so_form")
+            _soship_col = ("COALESCE(o.shipment_form,'') AS o_shipform" if "shipment_form" in _ord_cols else "'' AS o_shipform")
+            _pptype_sub = "(SELECT COALESCE(pj.project_type,'NEW_EQUIP') FROM projects pj WHERE pj.id=o.project_id) AS proj_ptype"
             _i_extra += (", oi.line_note AS i_note" if "line_note" in _oi_cols else ", '' AS i_note")
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
@@ -22701,6 +22725,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                 "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
                 + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", " + _optype_col + ", "
+                + _soform_col + ", " + _soship_col + ", " + _pptype_sub + ", "
                 "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
                 + _i_extra + " "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
@@ -22729,14 +22754,27 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "o_cc_phone": (d.get("o_cc_phone") or ""),   # v5H226z678: SO 담당자/부서/연락처
                         "o_model": (d.get("o_model") or ""), "o_equip": (d.get("o_equip") or ""),   # v5H226z981: SO 모델명·장비명
                         "o_ptype": (d.get("o_ptype") or ""),   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
+                        "so_form": (d.get("so_form") or "").upper(),   # v5H226z1053: 수주별 형태(단일 진실)
+                        "o_shipform": (d.get("o_shipform") or "").upper(),   # v5H226z1053: 형태 폴백용
+                        "proj_ptype": (d.get("proj_ptype") or "NEW_EQUIP").upper(),   # v5H226z1053: 소모품 프로젝트 판정용
                         "items": [],
                     }
                 if d.get("oi_id") is not None:
                     _so_acc[k]["items"].append(d)
+            # v5H226z1053 (대표 지시): 이 수주(SO)의 형태(라벨,키) — 상세 수주내역과 같은 공용 함수(so_form_label_key).
+            #   호기수 = 라벨이 숫자로 시작하는 items 수(1호기·23호기…). so_form 있으면 그게 우선이라 이 폴백은 옛 데이터만 탐.
+            def _so_form_lk(_so):
+                _hn = sum(1 for _it in (_so.get("items") or [])
+                          if str(_it.get("lbl") or "").strip()[:1].isdigit())
+                return _pwf.so_form_label_key(
+                    so_form=_so.get("so_form"), so_type=_so.get("so_type"),
+                    shipment_form=_so.get("o_shipform"), hogi_n=_hn, proj_ptype=_so.get("proj_ptype"))
+
             # v5H226z638 (대표 지시): 한 관리번호에 SO 여러 개면 '메인(최초) SO'만 행으로,
             #   추가 SO 는 메인 행의 '참고(ref_sos)' 데이터로(별도 행 X). 보드는 메인 일정만 깔끔히.
             def _collapse_line(_so):
                 # 소모품·부품·빈 SO → SO당 1줄(자재 분할 안 함)
+                _cflk = _so_form_lk(_so)   # v5H226z1053: 이 수주 형태(라벨,키)
                 _citems = _so.get("items") or []
                 _ciex = next((it.get("i_iex") for it in _citems if it.get("i_iex") is not None), None)   # v5H226z683: 호기 거래구분(수출/내수) — None이던 버그
                 # v5H226z710 (대표 지시·버그수정): 발주일/납기/납품처도 호기(order_items) override 우선 — 이 합산 줄(iids)은
@@ -22772,12 +22810,14 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "so_ptype": _so.get("o_ptype") or "",   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
                     "so_note": (None if _so.get("so_type") == "PARTS_EXPORT"
                                 else _join_notes981([_it.get("i_note") for _it in _citems])),
+                    "form_label": _cflk[0], "form_key": _cflk[1],   # v5H226z1053: 이 수주 형태(작업일정표 형태 칸)
                 }
 
             def _so_lines(_so):
                 # 장비 SO → 호기 라인(override 상속) → z454 묶음. 소모품/부품/빈SO 는 1줄.
                 if _so["so_type"] in ("PARTS_EXPORT", "CONSUMABLE"):
                     return [_collapse_line(_so)]
+                _lflk = _so_form_lk(_so)   # v5H226z1053: 이 수주 형태(호기 전 줄 공통)
                 _ul = []
                 for it in _so["items"]:
                     eff_due = (str(it.get("i_due") or "").strip() or _so["o_due"])
@@ -22799,6 +22839,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
                     "so_ptype": _so.get("o_ptype") or "",   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
                         "so_note": (None if it.get("i_note") is None else str(it.get("i_note")).strip()),
+                        "form_label": _lflk[0], "form_key": _lflk[1],   # v5H226z1053: 이 수주 형태(작업일정표 형태 칸)
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -23426,6 +23467,10 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 #   없으면 프로젝트 값 유지(기존 데이터는 지금까지와 똑같이 보인다).
                 if _ln.get("so_ptype"):
                     _iu["po_type"] = _ln["so_ptype"]
+                # v5H226z1053 (대표 지시): 형태도 수주별 — 있으면 그 수주 형태로 덮음(전엔 프로젝트 형태를 전 행에 물려
+                #   '완제품'만 떴음). 상세 수주내역 배지와 같은 값(so_form_label_key). 없으면 프로젝트값 유지.
+                if _ln.get("form_label"):
+                    _iu["form_type"] = _ln["form_label"]
                 if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
@@ -24814,6 +24859,10 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 #   없으면 프로젝트 값 유지(기존 데이터는 지금까지와 똑같이 보인다).
                 if _ln.get("so_ptype"):
                     _iu["po_type"] = _ln["so_ptype"]
+                # v5H226z1053 (대표 지시): 형태도 수주별 — 있으면 그 수주 형태로 덮음(전엔 프로젝트 형태를 전 행에 물려
+                #   '완제품'만 떴음). 상세 수주내역 배지와 같은 값(so_form_label_key). 없으면 프로젝트값 유지.
+                if _ln.get("form_label"):
+                    _iu["form_type"] = _ln["form_label"]
                 if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")

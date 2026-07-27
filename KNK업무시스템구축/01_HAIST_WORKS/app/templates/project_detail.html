@@ -1856,8 +1856,10 @@
           <dd>{% set _pt2 = p.po_type|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}{% if project_orders and project_orders|length > 1 %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;" title="이 값은 자기 값이 없는 수주에만 적용되는 기본값입니다. 수주마다 다르면 아래 [수주 내역]의 각 카드에서 'PO유형'을 고르면 그 수주만 바뀝니다.">수주마다 다르면 <b>아래 수주 내역</b>에서</span>{% endif %}</dd>
           <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
-          {# v5H226z645: 형태 텍스트(완제품/제품/상품/기타/소모품·미설정=완제품) #}
-          <dt>형태</dt><dd>{% set _sf2 = (p.shipment_form or '')|upper %}{% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품{% elif _sf2 == 'PARTS' %}상품{% elif _sf2 == 'ETC' %}기타{% elif _sf2 == 'SEMI' %}제품{% else %}완제품{% endif %}</dd>
+          {# v5H226z645/z1053: 형태 — 수주별 so_form 분포(form_summary). 섞이면 '혼합 · 완제품 N · 제품 M' + 안내(PO유형과 동일 손길).
+             수주가 없으면(빈 프로젝트) 프로젝트 shipment_form 폴백(완제품/제품/상품/기타/소모품). #}
+          <dt>형태{% if form_summary and form_summary.mixed %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;">(혼합)</span>{% endif %}</dt>
+          <dd>{% if form_summary and form_summary.has_orders %}{% if form_summary.mixed %}<b style="color:var(--amber-deep);">혼합</b>{% for lbl, n in form_summary.breakdown %} · {{ lbl }} {{ n }}{% endfor %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;" title="이 관리번호에 형태가 다른 수주가 섞여 있습니다. 각 수주의 형태는 아래 [수주 내역]의 카드 배지에서 확인·수정하세요.">수주마다 다르면 <b>아래 수주 내역</b>에서</span>{% else %}{{ form_summary.label }}{% endif %}{% else %}{% set _sf2 = (p.shipment_form or '')|upper %}{% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품{% elif _sf2 == 'PARTS' %}상품{% elif _sf2 == 'ETC' %}기타{% elif _sf2 == 'SEMI' %}제품{% else %}완제품{% endif %}{% endif %}</dd>
           {# v5H226z994: 유형(제목 옆 알약에서 이동) — 한글만, 시스템 코드 비노출 #}
           <dt>유형</dt><dd>{% set _pty994 = (p.project_type or 'NEW_EQUIP')|upper %}{% if _pty994 == 'CONSUMABLE' %}소모품·부품{% elif _pty994 == 'SERVICE' %}수리·유지보수{% elif _pty994 == 'OTHER' %}기타{% else %}신규 장비{% endif %}</dd>
           <dt>모델명</dt><dd>{{ p.model_name|default('—') }}</dd>

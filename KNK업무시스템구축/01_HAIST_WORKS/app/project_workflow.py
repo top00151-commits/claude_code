@@ -23,6 +23,37 @@ import re
 from datetime import date
 
 
+# v5H226z1053 (대표 지시): 수주(SO)별 '형태' 라벨·키 = 단일 진실.
+#   so_form(수주별 진짜 형태)이 있으면 그것을 우선, 없으면(구 데이터) so_type·shipment_form·호기수로 추론.
+#   ⭐get_project_orders(상세 수주내역 배지)와 작업일정표(_board_split_lines_map)가 **같은 함수**를 써서
+#     화면마다 형태 표기가 어긋나지 않게 한다(작업일정표가 프로젝트 형태를 전 행에 물려 '완제품'만 뜨던 문제).
+FORM_LABELKEY = {"ASSEMBLY": ("완제품", "assembly"), "SEMI": ("제품", "semi"),
+                 "PARTS": ("상품", "parts"), "ETC": ("기타", "etc"),
+                 "CONSUMABLE": ("소모품", "consumable")}
+
+
+def so_form_label_key(so_form="", so_type="", shipment_form="", hogi_n=0, proj_ptype="") -> tuple:
+    """수주(SO) 한 건의 형태 → (라벨, 키). 예: ('완제품', 'assembly').
+    우선순위: ① so_form(단일 진실) ② so_type=CONSUMABLE(소모품 프로젝트면 소모품, 아니면 '제품 1줄' z466·z874)
+              ③ PARTS ④ ETC ⑤ 호기 있으면 완제품 ⑥ 그 외 제품."""
+    _soform = (so_form or "").upper()
+    if _soform in FORM_LABELKEY:
+        return FORM_LABELKEY[_soform]
+    _styp = (so_type or "").upper()
+    _sf = (shipment_form or "").upper()
+    if _styp == "CONSUMABLE":
+        if (proj_ptype or "").upper() == "CONSUMABLE":
+            return ("소모품", "consumable")
+        return ("제품", "semi")
+    if _styp == "PARTS_EXPORT" or _sf == "PARTS":
+        return ("상품", "parts")
+    if _sf == "ETC":
+        return ("기타", "etc")
+    if (hogi_n or 0) >= 1 or _sf == "ASSEMBLY":
+        return ("완제품", "assembly")
+    return ("제품", "semi")
+
+
 def generate_mgmt_code(c, biz_div: str, ref_date: date | None = None) -> str:
     """관리번호 자동 발급 — NNN + T/M + YYMM 형식.
     같은 (사업부, 년월) 내 시퀀스 자동 증가.
@@ -1302,37 +1333,13 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         d["items_n"] = items_n
         d["items_sum"] = items_sum
 
-        # v5H226z699 (대표 지시): 수주(발주)별 '형태' 라벨 — 화면 표시(호기별 N줄=완제품 / 1줄=제품)와 일치하게.
-        #   소모품/부품은 so_type, 장비는 shipment_form(있으면) 우선 + 호기-라벨(_sort_n<9999) 유무로 완제품/제품 판정.
-        #   (과거 SO 는 shipment_form 이 NULL 인 경우가 많아, 실제 호기 분할 여부로 표시와 어긋나지 않게 함.)
-        _styp = (d.get("so_type") or "").upper()
-        _sf = (d.get("shipment_form") or "").upper()
+        # v5H226z699/z873/z1053 (대표 지시): 수주(발주)별 '형태' 라벨 — 공용 so_form_label_key() 단일 로직.
+        #   so_form(수주별 진짜 형태) 우선, 없으면 so_type·shipment_form·호기수 추론. ⭐작업일정표와 같은 함수를 써
+        #   화면마다 표기가 어긋나지 않게 한다(전엔 여기서만 계산 → 작업일정표는 프로젝트 형태를 전 행에 물려 오표시).
         _hogi_n = sum(1 for _u in d["units"] if (_u.get("_sort_n") or 9999) < 9999)
-        # v5H226z873 (대표 지시): so_form(수주별 진짜 형태)이 있으면 그것을 단일 진실로 — so_type 추론보다 우선.
-        #   근본원인: 일괄등록이 '제품 1줄'을 so_type=CONSUMABLE 로 저장(호기오염 방지)해 제품이 소모품으로 오표시됐음.
-        #   so_form 값(ASSEMBLY/SEMI/PARTS/ETC/CONSUMABLE) 은 형태를 직접 담아 오표시 원천 차단. 없으면(구 데이터) 기존 추론.
-        _soform = (d.get("so_form") or "").upper()
-        _FORM_LABELKEY = {"ASSEMBLY": ("완제품", "assembly"), "SEMI": ("제품", "semi"),
-                          "PARTS": ("상품", "parts"), "ETC": ("기타", "etc"),
-                          "CONSUMABLE": ("소모품", "consumable")}
-        if _soform in _FORM_LABELKEY:
-            d["form_label"], d["form_key"] = _FORM_LABELKEY[_soform]
-        elif _styp == "CONSUMABLE":
-            # v5H226z874 (대표 지시): so_form 없는 옛 데이터 교정 —
-            #   소모품 프로젝트면 진짜 소모품, 아니면(장비/기타) '제품 1줄'을 so_type=CONSUMABLE 로 저장한 것(z466)이라 '제품'으로 표시.
-            #   (정확한 상품/기타 구분은 so_form 이 있어야 가능 → 재업로드 시 그 값이 우선.)
-            if _proj_ptype == "CONSUMABLE":
-                d["form_label"], d["form_key"] = "소모품", "consumable"
-            else:
-                d["form_label"], d["form_key"] = "제품", "semi"
-        elif _styp == "PARTS_EXPORT" or _sf == "PARTS":
-            d["form_label"], d["form_key"] = "상품", "parts"
-        elif _sf == "ETC":
-            d["form_label"], d["form_key"] = "기타", "etc"
-        elif _hogi_n >= 1 or _sf == "ASSEMBLY":
-            d["form_label"], d["form_key"] = "완제품", "assembly"
-        else:
-            d["form_label"], d["form_key"] = "제품", "semi"
+        d["form_label"], d["form_key"] = so_form_label_key(
+            so_form=d.get("so_form"), so_type=d.get("so_type"),
+            shipment_form=d.get("shipment_form"), hogi_n=_hogi_n, proj_ptype=_proj_ptype)
 
         out.append(d)
     return out
