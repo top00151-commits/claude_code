@@ -881,6 +881,24 @@ def startup():
             print(f"[FORM-TYPE-MIG-Z455] resynced {_rft}")
     except Exception as _e:
         print(f"[FORM-TYPE-MIG-Z455 ERR] {_e}")
+    # v5H226z1053 (2026-07-25, ERP V1 WP-03): 프로젝트 호기·일련번호 테이블 (idempotent·순수 추가)
+    try:
+        from .migrations.m_z1053_project_unit import migrate as _punit_migrate
+        from .database import DB_PATH as _DB_PATH_PUNIT
+        _rpunit = _punit_migrate(_DB_PATH_PUNIT)
+        if _rpunit.get('created'):
+            print(f"[PROJECT-UNIT-MIG-Z1053] {_rpunit}")
+    except Exception as _e:
+        print(f"[PROJECT-UNIT-MIG-Z1053 ERR] {_e}")
+    # v5H226z1054 (2026-07-26): 호기 **업무 진행상태**를 신원 상태와 분리 보존(순수 추가)
+    try:
+        from .migrations.m_z1054_unit_work_status import migrate as _pwork_migrate
+        from .database import DB_PATH as _DB_PATH_PWORK
+        _rpwork = _pwork_migrate(_DB_PATH_PWORK)
+        if _rpwork.get('added'):
+            print(f"[PROJECT-UNIT-MIG-Z1054] {_rpwork}")
+    except Exception as _e:
+        print(f"[PROJECT-UNIT-MIG-Z1054 ERR] {_e}")
     seed_sample_tasks(14)
     # v5H45 (2026-05-03 대표 지시) — 빈 페이지 자동 보충용 비즈니스 데이터 시드
     try:
@@ -6939,6 +6957,7 @@ async def project_detail(req: Request, pid: int):
                retire_blocked=bool(_retire_fin.get("any")),   # v5H226z872: 실거래 기록 있으면 폐기 불가
                retire_block_reasons=_rb_reasons,
                can_money=can_view_sales(u),   # 단가·금액은 영업·관리 권한자만(제작요청 통보 받은 부서원에 비공개)
+               can_view_units=can_view_units(u),   # v5H226z1053 WP-03: 호기 링크는 조회 권한자에게만(게이트 F-09)
                user=u, p=p, tasks=tasks[:50], stats=stats,
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
@@ -21216,6 +21235,560 @@ async def project_bom_board(request: Request, pid: int, view: str = ""):
                project=dict(pr), rows=rows, uploads=uploads,
                latest_upload=latest_upload, recent_map=recent_map,
                view=view, can_edit=can_edit)
+
+
+# ============================================================
+# v5H226z1053 (2026-07-25, ERP V1 전환 WP-03) — 프로젝트 호기 (Project Unit)
+#   ⭐ 영구 식별자 계약: 장비 Unit 의 시스템 영구 식별자는 project_units.id 이다.
+#      관리번호·현재 호기번호·연결된 수주번호는 사용자가 장비를 찾고 업무 관계를 확인하기 위한
+#      표시·검색 정보이며 영구 식별자가 아니다.
+#   게이트 v3 판정 반영: 후보는 현재 호기번호로 자동 승격하지 않음(F-01) ·
+#      같은 호기가 여러 수주에 나오는 것은 정상 업무 → 기존 Unit 연결 선택 제공(F-02·F-04) ·
+#      기본 미선택·사유 필수(F-03) · 번호 재사용 금지(F-06) · Effectivity 조회(F-07) ·
+#      법인 빈값 중단(F-08) · 업무 역할 권한(F-09)
+#   ⛔ 분할·통합은 구조만(실행·승인 없음) · 영향분석 미연동은 사실대로 표시
+# ============================================================
+from . import project_unit as _punit
+
+
+def _punit_actor(u) -> int:
+    try:
+        return int(u.get("id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+# ── 호기 업무 권한 (대표 확정 DEC-PUNIT-OWNER-01 · 2026-07-25) ──────────────
+#   ⭐ 개발호기 생성·수주 후보 판정·기존 Unit 연결·호기번호 지정/변경은 **기술영업팀** 담당 업무.
+#      설계·구매·제조·품질·출하는 호기를 업무에 쓰지만 **기준정보를 만들거나 바꾸지 않는다**(조회만).
+#   ⛔ 기존 can_use_sales() 는 팀 1·2·3 + 자재권한 폴백까지 포함해 범위가 넓다 → 그대로 쓰지 않고
+#      아래 호기 전용 함수에서 기술영업팀·명시 위임자만 판정한다(게이트 §3 주의).
+PUNIT_OWNER_TEAM_ID = 1        # 기술영업팀 (teams.id=1 · code '01')
+_PUNIT_EXEC_ROLES = ("ceo", "executive")   # 대표·임원 — 항상 가능
+_PUNIT_ADMIN_ROLE = "admin"                # 시스템 관리자 — 복구 목적(감사 기록)
+
+
+def _punit_role(u):
+    return (u or {}).get("role")
+
+
+def _punit_team(u):
+    try:
+        return int((u or {}).get("team_id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _punit_is_owner_team(u) -> bool:
+    return _punit_team(u) == PUNIT_OWNER_TEAM_ID
+
+
+def _punit_owner_delegated(u) -> bool:
+    """기술영업팀 **위임 사용자** — 기존 영업 등록권한 플래그(can_use_sales)를 받은 사람."""
+    if not _punit_is_owner_team(u):
+        return False
+    try:
+        return bool((u or {}).get("can_use_sales"))
+    except AttributeError:
+        return False
+
+
+def _punit_owner_leader(u) -> bool:
+    """기술영업팀장 — 자동으로 수정·승인 가능."""
+    return _punit_is_owner_team(u) and _punit_role(u) == "leader"
+
+
+def can_view_units(u) -> bool:
+    """호기 조회 — 전 부서 허용(설계·구매·제조·품질·출하가 후속 업무에 사용)."""
+    if not u:
+        return False
+    if _punit_role(u) in _PUNIT_EXEC_ROLES + (_PUNIT_ADMIN_ROLE, "leader"):
+        return True
+    return bool(_punit_team(u)) or can_view_logistics(u) or can_view_sales(u)
+
+
+def can_create_unit(u) -> bool:
+    """개발호기 생성·후보 판정·호기번호 지정/변경 — **기술영업팀**(위임자·팀장) · 대표·임원 · 관리자(복구)."""
+    if not u:
+        return False
+    if _punit_role(u) in _PUNIT_EXEC_ROLES + (_PUNIT_ADMIN_ROLE,):
+        return True
+    return _punit_owner_leader(u) or _punit_owner_delegated(u)
+
+
+def can_link_unit_order(u) -> bool:
+    """수주번호 연결 — 호기 생성과 같은 소유부서(기술영업팀) 기준."""
+    return can_create_unit(u)
+
+
+def can_approve_unit(u) -> bool:
+    """호기 확정·취소 — **기술영업팀장**·대표·임원·관리자(비상 복구).
+    ⛔ 다른 부서의 leader 라는 이유만으로는 허용하지 않는다(대표 확정)."""
+    if not u:
+        return False
+    if _punit_role(u) in _PUNIT_EXEC_ROLES + (_PUNIT_ADMIN_ROLE,):
+        return True
+    return _punit_owner_leader(u)
+
+
+PUNIT_OVERRIDE_REASON_FIELD = "override_reason"        # 관리자 우회 사유 입력칸 이름
+PUNIT_OVERRIDE_REQUESTER_FIELD = "override_requester"  # 요청 부서·요청자 입력칸 이름
+PUNIT_REQUESTER_FIELD = "requester"                    # 일반 요청자·승인 근거 입력칸 이름
+
+# ── [최종 실행 승인서 2026-07-26 §4.2] 처리 유형별 요청자·사유 요구 ──────────
+#   승인서의 표를 그대로 코드로 옮긴 것. 원칙은 두 가지다.
+#     ① **모든 호기 업무는 감사기록을 남긴다** — 누가·언제·어떤 상태에서 어떤 상태로.
+#        ⛔ 예전에는 '관리자 우회'만 기록해서 **정상 확정은 아무 기록도 남지 않았다.**
+#           운영 DB 실측 결과 project_unit_audit 0건 — 대표님이 직접 확정한 1·2호기조차
+#           "화면에서 눌렀다"를 증명할 기록이 없었다. 그것을 고친 것이다.
+#     ② 자유입력 요청자·사유는 **위험한 처리 유형에만** 요구한다.
+#        "일반적인 최초 확정마다 사유를 강제하면 의미 없는 반복 문구만 쌓이고
+#         사용자 부담만 증가한다"(승인서 §4.2) — 그래서 일상 업무는 자동 기록으로 끝낸다.
+PUNIT_ACTION_LABEL = {
+    "create": "개발호기 생성",
+    "candidates_apply": "수주내역 후보 반영",
+    "order_link": "수주 연결",
+    "unit_no": "호기번호 지정·변경",
+    "confirm": "호기 최초 확정",
+    "cancel": "호기 취소",
+    "status_backfill": "과거 데이터 보정",
+}
+# 처리 유형 자체가 요청자·사유를 요구하는 것
+PUNIT_STRICT_ACTIONS = {"status_backfill": "과거 데이터 보정"}
+# **확정된 호기**를 대상으로 할 때만 요구하는 것(= 승인서 §4.2 '확정 후 정정·취소')
+PUNIT_STRICT_IF_CONFIRMED = {"unit_no": "확정 후 호기번호 정정", "cancel": "확정 후 취소"}
+
+# ⭐ 호기 쓰기 경로 공통 순서 (게이트 v6 §4 지시 — 모든 POST 라우트가 이 순서를 지킨다)
+#      권한 확인 → 입력폼 읽기 → 관리자 우회 요청자·사유 검증
+#      → 업무 변경 → **같은 트랜잭션에서 감사 기록** → 성공 응답
+#   ⛔ 업무 변경 뒤에 폼을 읽거나 검증하면 "화면엔 오류인데 DB 는 이미 바뀐" 부분 성공이 된다.
+
+
+def _punit_override_ctx(form) -> dict:
+    """관리자 우회 시 함께 받는 정보 — 요청 부서·요청자, 우회 사유."""
+    try:
+        return {"requester": (form.get(PUNIT_OVERRIDE_REQUESTER_FIELD) or "").strip(),
+                "reason": (form.get(PUNIT_OVERRIDE_REASON_FIELD) or "").strip()}
+    except AttributeError:
+        return {"requester": "", "reason": ""}
+
+
+def _punit_is_backdated(effective_from) -> bool:
+    """소급 효력일(지난 날짜로 정정)인가? — 승인서 §4.2 '소급 효력일 변경'은 요청자·사유 필수.
+    형식이 이상한 값은 여기서 판정하지 않는다(형식 검증은 업무 함수가 담당)."""
+    s = (effective_from or "").strip()[:10]
+    if len(s) != 10:
+        return False
+    return s < datetime.now().strftime("%Y-%m-%d")
+
+
+def _punit_strict_kinds(u, action, unit=None, effective_from=None) -> list:
+    """[승인서 §4.2] 이 요청이 **요청자·사유를 반드시 받아야 하는 처리 유형**인지 판정."""
+    kinds = []
+    if _punit_role(u) == _PUNIT_ADMIN_ROLE:
+        kinds.append("관리자 대행")
+    if action in PUNIT_STRICT_ACTIONS:
+        kinds.append(PUNIT_STRICT_ACTIONS[action])
+    if action in PUNIT_STRICT_IF_CONFIRMED and (unit or {}).get("unit_state") == "CONFIRMED":
+        kinds.append(PUNIT_STRICT_IF_CONFIRMED[action])
+    if action == "unit_no" and _punit_is_backdated(effective_from):
+        kinds.append("소급 효력일 변경")
+    return kinds
+
+
+def _punit_require_ctx(u, form, action, unit=None, effective_from=None):
+    """[승인서 §4.2] 처리 유형에 따라 **요청 부서·요청자와 사유**를 요구한다.
+
+      · 본인이 정상 권한으로 하는 일상 업무(생성·연결·최초 확정) → 아무것도 요구하지 않는다.
+        대신 처리자·시각·상태변경은 **자동으로** 감사기록에 남는다(§4.2 마지막 문단).
+      · 시스템 관리자 대행 → 요청 부서·요청자 + 우회 사유 항상 필수(게이트 v6/v7 계약 유지).
+      · 과거 데이터 보정 · 확정 후 정정·취소 · 소급 효력일 변경 → 요청자 + 사유 필수.
+
+    ⭐ 검사는 **업무를 바꾸기 전에** 끝난다(하나라도 없으면 아무것도 바뀌지 않는다).
+       화면 JS 를 거치지 않고 HTTP 요청을 직접 보내도 서버에서 막힌다(게이트 v6 P0-02)."""
+    is_admin = _punit_role(u) == _PUNIT_ADMIN_ROLE
+    ctx0 = _punit_override_ctx(form)
+    try:
+        if not ctx0["requester"]:
+            ctx0["requester"] = (form.get(PUNIT_REQUESTER_FIELD) or "").strip()
+        biz_reason = (form.get("reason") or "").strip()
+    except AttributeError:
+        biz_reason = ""
+    kinds = _punit_strict_kinds(u, action, unit, effective_from)
+    ctx0["kinds"] = kinds
+    ctx0["is_admin"] = is_admin
+    if not kinds:
+        return ctx0
+    miss = []
+    if not ctx0["requester"]:
+        miss.append("요청 부서·요청자")
+    if is_admin and not ctx0["reason"]:
+        miss.append("우회 사유")
+    if not is_admin and not biz_reason:
+        miss.append("사유")
+    if miss:
+        head = ("시스템 관리자 권한으로 호기 업무를 대신 수행하려면" if is_admin
+                else f"‘{' · '.join(kinds)}’ 처리이므로")
+        raise ValueError(f"{head} 다음을 입력하세요 — " + ", ".join(miss) + " (감사 기록에 남습니다).")
+    return ctx0
+
+
+def _punit_audit_payload(u, action: str, target: str, note: str = "", override: dict = None):
+    """[승인서 §4.2] **모든 호기 업무의 감사 기록** — 예전에는 관리자 우회만 남겨서
+       정상 확정이 아무 기록도 남기지 않았다(운영 실측 project_unit_audit 0건).
+    ⭐ 업무 변경 함수의 `audit=` 로 넘겨 **같은 트랜잭션**에 기록한다(게이트 v6 P0-03):
+       감사 기록이 실패하면 업무 변경도 함께 취소된다.
+    기록 내용: 처리 유형 · 대상 관리번호/Unit · **처리자(실행자)** · 처리시각
+               · (해당되면) 요청·승인자와 사유 · 상태 전/후(업무 함수가 덧붙임)."""
+    ov = override or {}
+    is_admin = ov.get("is_admin")
+    if is_admin is None:
+        is_admin = _punit_role(u) == _PUNIT_ADMIN_ROLE
+    kinds = [k for k in (ov.get("kinds") or []) if k != "관리자 대행"]
+    kind_txt = " · ".join(kinds) or PUNIT_ACTION_LABEL.get(action, action)
+    detail = (("[관리자 비상복구] " if is_admin else "") + f"[{kind_txt}] {note}").strip()
+    # [승인서 §4.1] 승인자와 실행자를 **구분해서** 남긴다(실행자는 언제나 기록).
+    detail += f" · 실행: {((u or {}).get('name') or '')}(id {_punit_actor(u)})"
+    if ov.get("requester"):
+        detail += f" · 요청·승인: {ov['requester']}"
+    if ov.get("reason"):
+        detail += (" · 우회 사유: " if is_admin else " · 사유: ") + ov["reason"]
+    return {"actor_id": _punit_actor(u), "actor_name": ((u or {}).get("name") or ""),
+            "action": action, "target": target, "note": detail}
+
+
+@app.get("/project/{pid:int}/units", response_class=HTMLResponse)
+async def project_units_page(request: Request, pid: int):
+    """호기 화면 — 상태·현재/이전 호기번호·수주 다중연결·영향분석 미연동 안내."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_units(u):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+        orders = [dict(r) for r in c.execute(
+            "SELECT id, order_no FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall()]
+    if not pr:
+        return RedirectResponse("/", 303)
+    # [게이트 UI 판정 §3.2] 호기마다 **연결할 수 있는 수주만** 고르게 한다.
+    #   · 이미 그 호기에 **활성 연결된 수주는 그 호기 목록에서 제외**(눌러보고 거부당하지 않게).
+    #   · ⛔ 다른 호기에 연결됐다는 이유로는 빼지 않는다 — 한 수주에 여러 호기는 KNK 정상 업무(F-02).
+    _units = _punit.get_units(pid)
+    for _u in _units:
+        _linked = {o.get("order_id") for o in (_u.get("orders") or []) if o.get("active")}
+        _u["linkable_orders"] = [o for o in orders if o["id"] not in _linked]
+    return ctx(request, "project_units.html", user=u, active="parts",
+               project=dict(pr), units=_units,
+               summary=_punit.project_unit_summary(pid), project_orders_min=orders,
+               impact_msg=_punit.IMPACT_NOT_WIRED_MSG, identity_contract=_punit.IDENTITY_CONTRACT,
+               can_create=can_create_unit(u), can_link=can_link_unit_order(u),
+               can_approve=can_approve_unit(u),
+               # [대표 지시 2026-07-26] 잠긴 화면으로 가는 버튼이 멀쩡해 보이면 안 된다(WP-01 F-03 판정과 같은 이유).
+               sync_locked=_punit.status_sync_locked(),
+               today_ymd=date.today().isoformat(),          # V1: 미래 적용 예약 차단(입력칸 max)
+               is_admin_override=(_punit_role(u) == _PUNIT_ADMIN_ROLE))
+
+
+@app.get("/project/{pid:int}/units/candidates", response_class=HTMLResponse)
+async def project_units_candidates(request: Request, pid: int):
+    """수주내역에서 **호기 후보**를 찾아 비교 표시(생성하지 않음)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_create_unit(u) or can_link_unit_order(u)):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+    if not pr:
+        return RedirectResponse("/", 303)
+    return ctx(request, "project_unit_candidates.html", user=u, active="parts",
+               project=dict(pr), scan=_punit.scan_candidates(pid),
+               identity_contract=_punit.IDENTITY_CONTRACT,
+               can_create=can_create_unit(u), can_link=can_link_unit_order(u),
+               is_admin_override=(_punit_role(u) == _PUNIT_ADMIN_ROLE))
+
+
+@app.post("/project/{pid:int}/units/candidates/apply")
+async def project_units_candidates_apply(request: Request, pid: int):
+    """후보별 사용자 판정(신규 개발호기 / 기존 호기에 수주 연결)을 반영."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_create_unit(u) or can_link_unit_order(u)):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    decisions = []
+    for oid in form.getlist("pick"):
+        act = (form.get(f"action_{oid}") or "").strip()
+        # new_no = 새 개발호기 + **수주내역 표기를 호기번호로 그대로**(대표 지시 07-25 · 사용자 명시 선택)
+        if act not in ("new", "new_no", "link"):
+            continue
+        if act in ("new", "new_no") and not can_create_unit(u):
+            continue
+        if act == "link" and not can_link_unit_order(u):
+            continue
+        d = {"order_item_id": oid, "action": act}
+        if act == "link":
+            d["unit_id"] = form.get(f"unit_{oid}")
+            d["relation_type"] = form.get(f"rel_{oid}") or "ADDITIONAL"
+        decisions.append(d)
+    try:
+        _ov = _punit_require_ctx(u, form, "candidates_apply")   # ② 업무 변경 **전** 검증
+        # [게이트 v5 P1-01 · v6 P0-03] 후보 일괄반영도 감사에 남기되
+        #   반영과 **같은 트랜잭션**에서 기록한다(신규/연결/거부 건수는 반영 결과에서 채워짐).
+        # allow_confirm: 작업일정표가 '출하'·'취소'인 줄은 결과가 확정·취소라 **승인권자만** 반영
+        r = _punit.apply_candidate_decisions(
+            pid, decisions, form.get("reason"), actor_id=_punit_actor(u),
+            allow_confirm=can_approve_unit(u),
+            audit=_punit_audit_payload(
+                u, "candidates_apply", f"project#{pid}",
+                f"후보 일괄반영 · 입력 사유: {(form.get('reason') or '').strip()}", override=_ov))
+        msg = f"신규 개발호기 {r['created']}대"
+        if r.get("numbered"):
+            msg += f"(호기번호까지 지정 {r['numbered']}대)"
+        msg += f" · 기존 호기에 수주 연결 {r['linked']}건"
+        if r["rejected"]:
+            msg += f" · 반영 못 함 {len(r['rejected'])}건"
+        return RedirectResponse(f"/project/{pid}/units?success={_q(msg)}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units/candidates?error={_q(str(e))}", 303)
+
+
+@app.post("/project/{pid:int}/units/create")
+async def project_units_create(request: Request, pid: int):
+    """개발호기 직접 생성 — 호기번호 없이 개발호기명만으로도 생성."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_create_unit(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    try:
+        _ov = _punit_require_ctx(u, form, "create")      # ② 업무 변경 **전** 검증
+        # target 의 {unit_id} 는 생성된 Unit id 로 채워진다(같은 트랜잭션 안에서 기록)
+        _punit.create_unit(pid, working_name=form.get("working_name"),
+                           unit_no=form.get("unit_no"),
+                           equipment_type=form.get("equipment_type"),
+                           actor_id=_punit_actor(u),
+                           audit=_punit_audit_payload(u, "create",
+                                                      f"project#{pid}/unit#{{unit_id}}",
+                                                      "개발호기 생성", override=_ov))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('개발호기 추가됨')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/units/{unit_id:int}/unit-no")
+async def project_unit_change_no(request: Request, unit_id: int):
+    """호기번호 지정·변경 — Unit id 는 유지되고 적용시점과 함께 이력이 남는다."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_create_unit(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return RedirectResponse("/", 303)
+    pid = unit["project_id"]
+    try:
+        # [승인서 §4.2] 확정된 호기의 번호 정정·소급 적용은 요청자·사유 필수(업무 변경 전 검증)
+        _ov = _punit_require_ctx(u, form, "unit_no", unit=unit,
+                                 effective_from=form.get("effective_from"))
+        _punit.change_unit_no(
+            unit_id, form.get("new_unit_no"), form.get("reason"),
+            actor_id=_punit_actor(u), change_id=(form.get("change_id") or None),
+            effective_from=(form.get("effective_from") or None),
+            audit=_punit_audit_payload(
+                u, "unit_no", f"project#{pid}/unit#{unit_id}",
+                f"호기번호 변경 — 업무 사유: {(form.get('reason') or '').strip()}", override=_ov))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기번호 반영됨')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/units/{unit_id:int}/confirm")
+async def project_unit_confirm(request: Request, unit_id: int):
+    """개발·미확정 → 확정. 현재 호기번호 필수 · 지정 승인자만(F-09·§5-5)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_approve_unit(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    # [게이트 v6 P0-01] 입력폼을 **확정하기 전에** 읽는다.
+    #   예전에는 확정을 먼저 실행하고 감사 단계에서 폼을 참조해, 확정은 이미 끝났는데
+    #   화면엔 오류가 뜨는 '부분 성공'이 났다(재시도 시 중복 동작·현장 혼란).
+    form = await request.form()
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return RedirectResponse("/", 303)
+    pid = unit["project_id"]
+    try:
+        _ov = _punit_require_ctx(u, form, "confirm", unit=unit)  # ② 업무 변경 **전** 검증
+        _punit.confirm_unit(unit_id, actor_id=_punit_actor(u),
+                            audit=_punit_audit_payload(u, "confirm",
+                                                       f"project#{pid}/unit#{unit_id}",
+                                                       "호기 확정", override=_ov))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 확정됨')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/units/{unit_id:int}/cancel")
+async def project_unit_cancel(request: Request, unit_id: int):
+    """호기 취소 — 물리삭제 금지(CANCELLED 전환·사유 필수). 승인권자만."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_approve_unit(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return RedirectResponse("/", 303)
+    pid = unit["project_id"]
+    try:
+        # [승인서 §4.2] **확정 후 취소**는 요청자·사유 필수(업무 변경 전 검증)
+        _ov = _punit_require_ctx(u, form, "cancel", unit=unit)
+        _punit.cancel_unit(
+            unit_id, form.get("reason"), actor_id=_punit_actor(u),
+            audit=_punit_audit_payload(
+                u, "cancel", f"project#{pid}/unit#{unit_id}",
+                f"호기 취소 — 업무 사유: {(form.get('reason') or '').strip()}", override=_ov))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('호기 취소됨(이력 유지)')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.post("/units/{unit_id:int}/order-link")
+async def project_unit_order_link(request: Request, unit_id: int):
+    """호기에 수주번호 연결 — 기존 연결을 덮어쓰지 않고 새 관계 행으로 추가."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_link_unit_order(u):
+        return RedirectResponse("/home", 303)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return RedirectResponse("/", 303)
+    pid = unit["project_id"]
+    try:
+        _ov = _punit_require_ctx(u, form, "order_link", unit=unit)   # ② 업무 변경 **전** 검증
+        # [게이트 UI 판정 §3.1-4] 아무것도 고르지 않은 요청은 **업무를 바꾸기 전에** 거부하고,
+        #   무엇을 해야 하는지 알려준다(화면 JS 를 거치지 않고 직접 보내도 막힌다).
+        _oid = (form.get("order_id") or "").strip()
+        if not _oid or not _oid.isdigit() or int(_oid) <= 0:
+            raise ValueError("연결할 수주를 고르지 않았습니다. 목록에서 수주번호를 먼저 고르세요.")
+        _punit.link_order(
+            unit_id, int(_oid),
+            relation_type=(form.get("relation_type") or "ADDITIONAL"),
+            reason=(form.get("reason") or None), actor_id=_punit_actor(u),
+            audit=_punit_audit_payload(
+                u, "order_link", f"project#{pid}/unit#{unit_id}",
+                f"수주 연결 — 업무 사유: {(form.get('reason') or '').strip()}", override=_ov))
+        return RedirectResponse(f"/project/{pid}/units?success={_q('수주 연결됨')}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units?error={_q(str(e))}", 303)
+
+
+@app.get("/project/{pid:int}/units/status-sync", response_class=HTMLResponse)
+async def project_units_status_sync(request: Request, pid: int):
+    """[게이트 판정 2026-07-26 §9] 과거 데이터 보정 — **작업일정표 상태 전/후 대조표**(읽기 전용).
+    ⛔ 이 화면은 아무것도 바꾸지 않는다. 표를 먼저 보고 확인한 뒤 아래 버튼으로 보정한다."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_units(u):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+    if not pr:
+        return RedirectResponse("/", 303)
+    return ctx(request, "project_unit_status_sync.html", user=u, active="parts",
+               project=dict(pr), preview=_punit.status_backfill_preview(pid),
+               scan_excluded=_punit.scan_candidates(pid).get("excluded", []),
+               log=_punit.get_status_backfill_log(pid, 50),
+               can_apply=can_approve_unit(u),
+               # [대표 지시 2026-07-26] 보정 실행 잠금 — 대조표·이력은 그대로 보이고 실행만 막는다.
+               sync_locked=_punit.status_sync_locked(),
+               sync_lock_msg=_punit.STATUS_SYNC_LOCK_MSG,
+               is_admin_override=(_punit_role(u) == _PUNIT_ADMIN_ROLE))
+
+
+@app.post("/project/{pid:int}/units/status-sync/apply")
+async def project_units_status_sync_apply(request: Request, pid: int):
+    """[§9] 대조 결과대로 보정 — **바뀌는 것만**, 원본 상태·근거를 이력에 남기고, 재실행해도 무동작."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    # 출하→확정 / 취소→취소 로 **신원이 바뀌는** 보정이라 승인권자만 실행한다.
+    if not can_approve_unit(u):
+        return RedirectResponse("/home", 303)
+    # [대표 지시 2026-07-26 · 확산 승인 철회] 화면에서 버튼을 감추는 것만으론 부족하다 —
+    #   서버가 실제 실행 요청을 거부한다. **승인권자여도 잠금이 우선**한다(데이터 전부 불변).
+    if _punit.status_sync_locked():
+        return JSONResponse({"error": "과거 데이터 보정 잠김",
+                             "message": _punit.STATUS_SYNC_LOCK_MSG}, 403)
+    from urllib.parse import quote as _q
+    form = await request.form()
+    try:
+        # [승인서 §4.1] 과거 데이터 보정 — **승인 근거와 실행자를 반드시 구분해서** 남긴다.
+        #   요청·승인 칸이 비어 있으면 업무를 바꾸기 전에 거부한다.
+        _ov = _punit_require_ctx(u, form, "status_backfill")
+        r = _punit.status_backfill_apply(
+            pid, form.get("reason"), actor_id=_punit_actor(u),
+            audit=_punit_audit_payload(u, "status_backfill", f"project#{pid}",
+                                       f"작업일정표 상태 보정 · 입력 사유: "
+                                       f"{(form.get('reason') or '').strip()}", override=_ov))
+        msg = f"보정 {r['changed']}대"
+        if r["skipped"]:
+            msg += f" · 예외 {r['skipped']}건(덮어쓰지 않음)"
+        return RedirectResponse(f"/project/{pid}/units/status-sync?success={_q(msg)}", 303)
+    except Exception as e:
+        return RedirectResponse(f"/project/{pid}/units/status-sync?error={_q(str(e))}", 303)
+
+
+@app.get("/units/{unit_id:int}/history")
+async def project_unit_history_json(request: Request, unit_id: int):
+    """호기 변경이력(호기번호·수주연결·분할통합) — 적용시점 기준 과거 조회 지원."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"error": "login"}, status_code=401)
+    if not can_view_units(u):
+        return JSONResponse({"error": "권한 없음"}, status_code=403)
+    unit = _punit.get_unit(unit_id)
+    if not unit:
+        return JSONResponse({"error": "호기 없음"}, status_code=404)
+    at = (request.query_params.get("at") or "").strip()
+    return JSONResponse({
+        "unit_id": unit["id"],
+        "identity_contract": _punit.IDENTITY_CONTRACT,
+        "current_unit_no": unit["current_unit_no"],
+        "working_name": unit["working_name"],
+        "state": unit["unit_state"],
+        "unit_no_at": (_punit.unit_no_at(unit_id, at) if at else None),
+        "identifier_history": [{
+            "recorded_at": (h.get("changed_at") or "")[:16],
+            "effective_from": h.get("effective_from"), "effective_to": h.get("effective_to"),
+            "old": h.get("old_unit_no"), "new": h.get("new_unit_no"),
+            "reason": h.get("change_reason"), "by": h.get("changed_by_name") or "",
+            "change_id": h.get("change_id"),
+        } for h in unit["identifier_history"]],
+        "orders": [{
+            "order_no": o.get("order_no"), "type": o.get("relation_type"),
+            "active": bool(o.get("active")), "at": (o.get("linked_at") or "")[:16],
+        } for o in unit["orders"]],
+        "relations": unit["relations"],
+        "impact": unit["impact"],
+    })
 
 
 @app.get("/bom/uploads/{uid:int}/report", response_class=HTMLResponse)

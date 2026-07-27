@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ project.mgmt_code }} 호기 · KNK HAIST WORKS</title>
+
+{# v5H226z1053 (2026-07-25) — ERP V1 WP-03 프로젝트 호기(Project Unit)
+   ⭐ 대표 업무교정: 일련번호(S/N) 미사용 · 개발호기로 시작해 호기번호·구성이 바뀐다.
+      영구 식별자는 시스템 내부 ID 하나. 호기번호는 '현재값'이며 바뀌면 이력이 남는다.
+   ⛔ BOM·발주·생산 영향 분석 미연동 — 영향 확인이 필요한 변경은 승인 처리 불가(사실대로 표시). #}
+
+<link href="/static/css/v5_tokens.css?v=20260726v5H226z1057" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root { --pq-mono:ui-monospace,Consolas,monospace; }
+.pl-head { padding:14px 24px 10px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+.pl-head .crumb { font-size:12px; color:var(--pq-ink-4); }
+.pl-head .crumb a { color:var(--pq-ink-2); }
+.pl-title { font-size:20px; font-weight:700; color:var(--pq-ink); margin-top:2px; }
+.pl-meta { font-size:12.5px; color:var(--pq-ink-3); margin-top:3px; }
+.pl-meta b { font-family:var(--pq-mono); color:var(--pq-ink); }
+.pl-actions { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.btn-ghost { height:32px; padding:0 12px; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12.5px; color:var(--pq-ink-2); display:inline-flex; align-items:center; gap:5px; text-decoration:none; background:transparent; cursor:pointer; }
+.btn-ghost:hover { background:var(--pq-surface-2); }
+.btn-dark { height:32px; padding:0 14px; background:var(--pq-ink); border:0; border-radius:8px; font-size:12.5px; font-weight:600; color:#fff; display:inline-flex; align-items:center; gap:5px; text-decoration:none; cursor:pointer; }
+.banner { margin:10px 24px 0; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
+.banner.ok { background:#ecfdf5; color:#0d7c4f; border:1px solid #a7f3d0; }
+.banner.err { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+.banner.warn { background:#fffbeb; color:#92400e; border:1px solid #fde68a; font-weight:600; }
+.wrap { padding:14px 24px 90px; }
+.card { background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; padding:13px 16px; margin-bottom:14px; }
+.card h3 { margin:0 0 9px; font-size:13px; color:var(--pq-ink); }
+.scroll { overflow-x:auto; background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; }
+table.u { width:100%; border-collapse:collapse; font-size:12.5px; min-width:900px; }
+table.u th { text-align:left; padding:8px 10px; background:var(--pq-surface-2); color:var(--pq-ink-3); font-size:11px; font-weight:700; border-bottom:1px solid var(--pq-line); white-space:nowrap; }
+table.u td { padding:8px 10px; border-bottom:1px solid var(--pq-line); white-space:nowrap; vertical-align:middle; }
+table.u tr:last-child td { border-bottom:0; }
+table.u tr.is-cancelled { opacity:.55; }
+table.u tr.is-cancelled td.no { text-decoration:line-through; }
+table.u td.mono { font-family:var(--pq-mono); }
+.st { font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:800; white-space:nowrap; }
+.st.PROVISIONAL { background:#fef3c7; color:#92400e; }
+.st.CONFIRMED { background:#eff6ff; color:#1e5fbf; }
+.st.CANCELLED { background:#fef2f2; color:#b91c1c; }
+/* 업무 진행상태 — 신원(.st)과 **다른 값**이라 색·모양도 구분한다(둥근 사각) */
+.wk { font-size:10.5px; padding:2px 8px; border-radius:6px; font-weight:800; white-space:nowrap; }
+.wk.IN_PROGRESS { background:#f1f5f9; color:#475569; }
+.wk.ON_HOLD { background:#fff7ed; color:#9a3412; }
+.wk.SHIPPED { background:#ecfdf5; color:#047857; }
+.wk.CANCELLED { background:#fef2f2; color:#b91c1c; }
+.rt { font-size:10px; padding:1px 6px; border-radius:999px; font-weight:700; background:var(--pq-surface-3); color:var(--pq-ink-3); margin-right:3px; }
+.rt.ORIGIN { background:#ecfdf5; color:#0d7c4f; }
+.rt.off { opacity:.5; text-decoration:line-through; }
+.prev { font-size:10.5px; color:#94a3b8; text-decoration:line-through; }
+.inl { display:inline-flex; gap:5px; align-items:center; flex-wrap:wrap; }
+.inl input, .inl select { height:27px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 7px; font-size:11.5px; }
+.mini { height:27px; padding:0 10px; border:1px solid var(--pq-line-2); border-radius:7px; font-size:11.5px; background:var(--pq-surface); cursor:pointer; color:var(--pq-ink-2); }
+.mini.dark { background:var(--pq-ink); color:#fff; border:0; font-weight:600; }
+.mini.danger { color:#b91c1c; border-color:#fecaca; }
+.mini[disabled] { opacity:.45; cursor:not-allowed; }
+.addform { display:none; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px dashed var(--pq-line); }
+.addform.show { display:flex; }
+.addform input { height:30px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 10px; font-size:12.5px; }
+/* ── 작업 패널 (게이트 UI 판정 §4) — 평소엔 접혀 있고, 한 번에 한 작업만 ────────── */
+table.u tr.ops-row > td { background:var(--pq-surface-2); padding:0; }
+.ops { padding:12px 14px; border-left:3px solid var(--pq-ink); }
+.ops-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12.5px; color:var(--pq-ink-2); margin-bottom:10px; }
+.ops-tabs { display:inline-flex; gap:6px; flex-wrap:wrap; }
+.ops-tabs .mini[aria-pressed="true"] { background:var(--pq-ink); color:#fff; border-color:var(--pq-ink); font-weight:600; }
+.ops-tabs .mini.danger[aria-pressed="true"] { background:#b91c1c; border-color:#b91c1c; color:#fff; }
+.ops-form { display:none; flex-direction:column; gap:7px; padding:11px 12px; background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:9px; }
+.ops-form.show { display:flex; }
+/* ⚠ hidden 속성이 다른 규칙에 덮이지 않게 못박는다(같은 함정 재발 방지) */
+table.u tr.ops-row[hidden] { display:none !important; }
+.ops-form[hidden] { display:none !important; }
+.ops-form.ops-danger { border-color:#fecaca; background:#fffbfb; }
+.ops-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
+.ops-lbl { min-width:120px; color:var(--pq-ink-3); font-size:11.5px; }
+.ops-form input, .ops-form select { height:29px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 8px; font-size:12px; background:var(--pq-surface); }
+.ops-hint { font-size:11px; color:var(--pq-ink-4); }
+.ops-warn { font-size:11.5px; color:#b91c1c; font-weight:600; }
+.ops-confirm { font-size:12px; color:var(--pq-ink-2); font-weight:600; }
+.ops-btns { margin-top:3px; gap:6px; }
+/* 좁은 화면(폰)에서는 라벨을 값 위로 — 가로 스크롤 없이 읽히게 */
+@media (max-width:640px) {
+  .ops-line { flex-direction:column; align-items:flex-start; gap:3px; }
+  .ops-lbl { min-width:0; }
+  .ops-btns { flex-direction:row; }
+}
+.empty { padding:28px; text-align:center; color:var(--pq-ink-4); font-size:13px; }
+.note { margin:12px 4px; font-size:11.5px; color:var(--pq-ink-4); line-height:1.7; }
+.note b { color:var(--pq-ink-3); }
+/* '잘못된 걸 봤을 때 어디에 요청하나' — 눈에 띄되 경고처럼 보이지 않게 */
+.fixnote { margin:10px 4px 0; padding:10px 13px; background:var(--pq-surface-2); border:1px solid var(--pq-line-2);
+           border-left:3px solid var(--pq-ink-3); border-radius:9px; font-size:12px; color:var(--pq-ink-2); line-height:1.7; }
+.fixnote .sub { display:block; margin-top:3px; font-size:11.5px; color:var(--pq-ink-4); }
+.fixnote b { color:var(--pq-ink); }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+
+    <div class="pl-head">
+      <div>
+        <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/project/{{ project.id }}">{{ project.mgmt_code }}</a> · <b>호기</b></div>
+        <div class="pl-title">🔧 {{ project.mgmt_code }} <span style="font-weight:500;color:var(--pq-ink-2);">{{ project.name }}</span></div>
+        {# 후보 = **아직 반영 안 한 것만**. 다 끝났으면 '남은 후보 없음'으로 말한다(대표 지적 07-26) #}
+        {# ⭐ 신원(몇 호기로 정해졌나)과 진행(지금 어느 단계인가)을 **따로** 센다 — 한 숫자로 뭉치지 않는다 #}
+        <div class="pl-meta">호기 <b>{{ summary.units }}</b>대 (개발·미확정 <b>{{ summary.provisional }}</b> · 확정 <b>{{ summary.confirmed }}</b> · 취소 <b>{{ summary.cancelled }}</b>)
+          · 진행: 진행중 <b>{{ summary.in_progress }}</b> · 보류 <b>{{ summary.on_hold }}</b> · 출하 <b>{{ summary.shipped }}</b> · 취소 <b>{{ summary.work_cancelled }}</b>
+          {%- if summary.candidates %} · 수주내역에 <b>아직 반영 안 한 후보 {{ summary.candidates }}</b>
+          {%- elif summary.candidates_total %} · 수주내역 호기 <b>{{ summary.candidates_total }}</b>줄 <b>전부 반영됨</b>
+          {%- endif %}</div>
+      </div>
+      <div class="pl-actions">
+        {% if (can_create or can_link) and summary.ready %}
+          {% if summary.candidates %}<a class="btn-dark" href="/project/{{ project.id }}/units/candidates">🔍 수주내역에서 호기 후보 확인 ({{ summary.candidates }})</a>
+          {% else %}<a class="btn-ghost" href="/project/{{ project.id }}/units/candidates">🔍 수주내역 다시 확인</a>{% endif %}
+        {% endif %}
+        {# 보여주는 곳엔 고치러 갈 길도 — 작업일정표 상태와 호기 상태가 어긋났는지 확인·보정 #}
+        {# [대표 지시 2026-07-26] 보정 실행이 잠겼으면 **버튼 글도 그대로 말한다**(눌렀다가 잠긴 화면을 만나지 않게). #}
+        {% if summary.ready and summary.units %}
+          {% if sync_locked %}<a class="btn-ghost" href="/project/{{ project.id }}/units/status-sync"
+             title="과거 데이터 보정은 대표 지시로 잠겨 있습니다. 표는 보실 수 있습니다.">🔒 작업일정표 상태 대조 (보기만)</a>
+          {% else %}<a class="btn-ghost" href="/project/{{ project.id }}/units/status-sync">🔄 작업일정표 상태 맞추기</a>{% endif %}
+        {% endif %}
+        <a class="btn-ghost" href="/project/{{ project.id }}" data-knk-back>프로젝트 상세 ↗</a>
+      </div>
+    </div>
+
+    {% set _succ = request.query_params.get('success') %}
+    {% set _err = request.query_params.get('error') %}
+    {% if _succ %}<div class="banner ok">✅ {{ _succ }}</div>{% endif %}
+    {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
+    {% if not summary.impact_wired %}
+    {# ⛔ 거짓으로 '영향 없음'이라고 하지 않는다 — 미연동 사실을 그대로 알린다(대표 확정) #}
+    <div class="banner warn">⚠ {{ impact_msg }}</div>
+    {% endif %}
+
+    {% if is_admin_override %}
+    {# 관리자 비상복구 — 기술영업팀 업무를 대신 수행할 때는 '왜 대신 했는지'를 반드시 남긴다 #}
+    <div class="banner warn" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <b>🛠 시스템 관리자 비상복구</b>
+      <span style="font-weight:500;">호기 업무는 기술영업팀 담당입니다. 대신 수행하려면 아래를 입력하세요(감사 기록에 남습니다).</span>
+      <input id="ovRequester" placeholder="요청 부서·요청자(필수)" style="height:28px;border:1px solid #fde68a;border-radius:7px;padding:0 8px;font-size:12px;">
+      <input id="ovReason" placeholder="우회 사유(필수)" style="height:28px;border:1px solid #fde68a;border-radius:7px;padding:0 8px;font-size:12px;min-width:220px;">
+    </div>
+    {% endif %}
+
+    <div class="wrap">
+      {% if not summary.ready %}
+      <div class="banner err">호기 기능이 아직 준비되지 않았습니다(테이블 미생성). 관리자에게 문의하세요.</div>
+      {% endif %}
+
+      {% if can_create and summary.ready %}
+      <div class="card">
+        <h3>호기 직접 추가</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn-ghost" type="button" onclick="document.getElementById('addForm').classList.toggle('show')">+ 개발호기 만들기</button>
+          <span style="font-size:12px;color:var(--pq-ink-4);">개발 단계에서는 <b>호기번호 없이 개발호기명만으로도</b> 만들 수 있습니다. 번호는 나중에 정하고 바꿔도 이력이 남습니다.</span>
+        </div>
+        <form class="addform" id="addForm" method="post" action="/project/{{ project.id }}/units/create">
+          <input name="working_name" placeholder="개발호기명 (예: 개발1호기)">
+          <input name="unit_no" placeholder="호기번호 (선택 · 예: 1호기)">
+          <input name="equipment_type" placeholder="장비 구분 (선택)">
+          <button class="mini dark" type="submit">추가</button>
+        </form>
+      </div>
+      {% endif %}
+
+      <div class="scroll">
+        <table class="u">
+          <thead>
+            <tr>
+              {# ⭐ '몇 호기인지 정해졌나'(신원) 와 '지금 어느 단계인가'(진행) 는 다른 값이라 칸을 나눈다 #}
+              <th>개발호기명</th><th>현재 호기번호</th><th>상태</th><th>진행</th><th>연결된 수주</th>
+              <th>장비 구분</th>{% if can_create or can_link or can_approve %}<th>작업</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in units %}
+            <tr class="{{ 'is-cancelled' if u.unit_state == 'CANCELLED' }}">
+              <td>{{ u.working_name or '—' }}</td>
+              <td class="mono no">
+                {% if u.current_unit_no %}<b>{{ u.current_unit_no }}</b>{% else %}<span style="color:var(--pq-ink-4);">미정</span>{% endif %}
+                {% if u.previous_unit_no %}<div class="prev">← {{ u.previous_unit_no }}</div>{% endif %}
+              </td>
+              <td><span class="st {{ u.unit_state }}">{{ {'PROVISIONAL':'개발·미확정','CONFIRMED':'확정','CANCELLED':'취소'}.get(u.unit_state, u.unit_state) }}</span></td>
+              <td>
+                <span class="wk {{ u.work_status }}">{{ {'IN_PROGRESS':'진행중','ON_HOLD':'보류','SHIPPED':'출하','CANCELLED':'취소'}.get(u.work_status, u.work_status or '—') }}</span>
+                {# 출하로 적혀 있어도 **실제 출하일을 모르면** 지어내지 않고 '날짜 미확인'이라고 말한다 #}
+                {% if u.work_status == 'SHIPPED' %}<div class="prev">{{ u.shipped_on or '날짜 미확인' }}</div>{% endif %}
+              </td>
+              <td>
+                {% for o in u.orders %}<span class="rt {{ o.relation_type }} {{ '' if o.active else 'off' }}">{{ {'ORIGIN':'최초','ADDITIONAL':'추가','CHANGE':'변경','CANCEL':'취소'}.get(o.relation_type, o.relation_type) }} {{ o.order_no or '-' }}</span>{% else %}<span style="color:var(--pq-ink-4);">—</span>{% endfor %}
+              </td>
+              <td style="color:var(--pq-ink-3);">{{ u.equipment_type or '—' }}</td>
+              {% if can_create or can_link or can_approve %}
+              {# ⭐[게이트 UI 판정 §4] 입력칸을 줄마다 펼쳐 두지 않는다 — 평소엔 확인해야 할 정보만 보이고
+                 고칠 일이 있을 때만 '작업 열기'로 편다. 한 번에 **한 가지 작업만** 보여준다. #}
+              <td class="ops-cell">
+                {% if u.unit_state != 'CANCELLED' %}
+                <div class="inl">
+                  {% if can_approve and u.unit_state == 'PROVISIONAL' %}
+                  {# 자주 쓰는 확정만 짧게 밖에 둔다 #}
+                  <form method="post" action="/units/{{ u.id }}/confirm" onsubmit="return confirm('이 호기를 확정할까요? (현재 호기번호 필요)');">
+                    <button class="mini" type="submit" {% if not u.current_unit_no %}disabled title="호기번호를 먼저 정하세요"{% endif %}>확정</button>
+                  </form>
+                  {% endif %}
+                  <button type="button" class="mini js-ops-open" data-unit="{{ u.id }}"
+                          aria-expanded="false" aria-controls="ops-{{ u.id }}">작업 열기 ▾</button>
+                </div>
+                {% else %}
+                <span style="font-size:11.5px;color:var(--pq-ink-4);">{{ u.cancellation_reason or '취소됨' }}</span>
+                {% endif %}
+              </td>
+              {% endif %}
+            </tr>
+
+            {# ── 작업 패널 — 그 호기 **바로 아래 줄**. 열기 전에는 화면에 나오지 않는다 ────── #}
+            {% if (can_create or can_link or can_approve) and u.unit_state != 'CANCELLED' %}
+            <tr class="ops-row" id="ops-{{ u.id }}" data-unit="{{ u.id }}" hidden>
+              <td colspan="7">
+                <div class="ops">
+                  <div class="ops-head">
+                    <b>{{ u.current_unit_no or u.working_name or ('호기 #' ~ u.id) }}</b> 작업
+                    <span class="ops-tabs">
+                      {% if can_create %}<button type="button" class="mini js-ops-tab" data-unit="{{ u.id }}" data-op="no">호기번호 지정·변경</button>{% endif %}
+                      {% if can_link %}<button type="button" class="mini js-ops-tab" data-unit="{{ u.id }}" data-op="link">수주 추가 연결</button>{% endif %}
+                      {% if can_approve %}<button type="button" class="mini danger js-ops-tab" data-unit="{{ u.id }}" data-op="cancel">호기 취소</button>{% endif %}
+                    </span>
+                    <button type="button" class="mini js-ops-close" data-unit="{{ u.id }}" style="margin-left:auto;">닫기 ✕</button>
+                  </div>
+
+                  {% if can_create %}
+                  {# ① 호기번호 지정·변경 — ⛔ 이 자리에 수주번호를 보이거나 고르게 하지 않는다(게이트 §5.1) #}
+                  <form class="ops-form js-punit-strict" data-unit="{{ u.id }}" data-op="no" hidden
+                        method="post" action="/units/{{ u.id }}/unit-no">
+                    <div class="ops-line"><span class="ops-lbl">현재 호기번호</span>
+                      <b class="mono">{{ u.current_unit_no or '아직 없음' }}</b></div>
+                    <div class="ops-line"><span class="ops-lbl">새 호기번호</span>
+                      <input name="new_unit_no" placeholder="예: 3호기" size="12"></div>
+                    <div class="ops-line"><span class="ops-lbl">적용일</span>
+                      <input name="effective_from" type="date" max="{{ today_ymd }}">
+                      <span class="ops-hint">비우면 지금 적용. 지난 날짜로 정정할 수 있고 미래 날짜는 넣을 수 없습니다.</span></div>
+                    <div class="ops-line"><span class="ops-lbl">변경 사유</span>
+                      <input name="reason" placeholder="필수" size="34"></div>
+                    <div class="ops-line"><span class="ops-lbl">요청 부서·요청자</span>
+                      <input name="requester" size="24"
+                             placeholder="{{ '필수' if u.unit_state == 'CONFIRMED' else '지난 날짜로 정정할 때 필수' }}"
+                             {% if u.unit_state == 'CONFIRMED' %}required{% endif %}>
+                      <span class="ops-hint">{% if u.unit_state == 'CONFIRMED' %}확정된 호기라 반드시 적어야 합니다.{% else %}지난 날짜로 소급 정정할 때만 필요합니다.{% endif %}</span></div>
+                    <div class="ops-line ops-btns">
+                      <button type="button" class="mini js-ops-close" data-unit="{{ u.id }}">그만두기</button>
+                      <button class="mini dark" type="submit">{{ '번호 지정' if not u.current_unit_no else '호기번호 변경' }}</button></div>
+                  </form>
+                  {% endif %}
+
+                  {% if can_link %}
+                  {# ② 수주 추가 연결 — ⭐고르기 전에는 **아무 수주번호도 보이지 않는다**(저장값으로 오해 금지) #}
+                  <form class="ops-form js-ops-link" data-unit="{{ u.id }}" data-op="link" hidden
+                        method="post" action="/units/{{ u.id }}/order-link">
+                    <div class="ops-line"><span class="ops-lbl">지금 연결된 수주</span>
+                      <span>{% for o in u.orders if o.active %}<span class="rt {{ o.relation_type }}">{{ {'ORIGIN':'최초','ADDITIONAL':'추가','CHANGE':'변경','CANCEL':'취소'}.get(o.relation_type, o.relation_type) }} {{ o.order_no or '-' }}</span>{% else %}<span style="color:var(--pq-ink-4);">없음</span>{% endfor %}</span></div>
+                    <div class="ops-line"><span class="ops-lbl">연결할 수주</span>
+                      {% if u.linkable_orders %}
+                      <select name="order_id" class="js-ops-order" data-unit="{{ u.id }}">
+                        <option value="" selected>— 연결할 수주 선택 —</option>
+                        {% for o in u.linkable_orders %}<option value="{{ o.id }}">{{ o.order_no or ('수주 #' ~ o.id) }}</option>{% endfor %}
+                      </select>
+                      {% else %}
+                      <span style="color:var(--pq-ink-4);">연결 가능한 수주 없음</span>
+                      {% endif %}
+                    </div>
+                    <div class="ops-line"><span class="ops-lbl">연결 관계</span>
+                      <select name="relation_type" class="js-ops-rel" data-unit="{{ u.id }}">
+                        <option value="ADDITIONAL">추가 수주</option>
+                        <option value="CHANGE">변경 수주</option>
+                        <option value="ORIGIN">최초 수주</option>
+                      </select></div>
+                    <div class="ops-line"><span class="ops-lbl">연결 사유</span>
+                      <input name="reason" placeholder="선택" size="34"></div>
+                    {# 저장 직전에 무엇을 하는지 사람 말로 한 번 더 보여준다(게이트 §5.2) #}
+                    <div class="ops-line"><span class="ops-lbl"></span>
+                      <span class="ops-confirm" id="linkecho-{{ u.id }}" data-unit="{{ u.id }}"
+                            data-unitname="{{ u.current_unit_no or u.working_name or ('호기 #' ~ u.id) }}">연결할 수주를 먼저 고르세요.</span></div>
+                    <div class="ops-line ops-btns">
+                      <button type="button" class="mini js-ops-close" data-unit="{{ u.id }}">그만두기</button>
+                      <button class="mini dark js-ops-linkbtn" data-unit="{{ u.id }}" type="submit" disabled>수주 연결</button></div>
+                  </form>
+                  {% endif %}
+
+                  {% if can_approve %}
+                  {# ③ 호기 취소 — 일상 작업과 **떨어뜨리고** 위험하다고 말한다(게이트 §5.3) #}
+                  <form class="ops-form ops-danger" data-unit="{{ u.id }}" data-op="cancel" hidden
+                        method="post" action="/units/{{ u.id }}/cancel"
+                        onsubmit="return confirm('이 호기를 취소할까요? (삭제가 아니라 취소 이력으로 남습니다)');">
+                    <div class="ops-line"><span class="ops-warn">⚠ 되돌리기 어려운 작업입니다. 취소한 호기의 호기번호는 <b>다시 쓸 수 없습니다.</b> 기록은 지워지지 않고 취소 이력으로 남습니다.</span></div>
+                    <div class="ops-line"><span class="ops-lbl">취소 사유</span>
+                      <input name="reason" placeholder="필수" size="34" required></div>
+                    <div class="ops-line"><span class="ops-lbl">요청 부서·요청자</span>
+                      <input name="requester" size="24"
+                             placeholder="{{ '필수' if u.unit_state == 'CONFIRMED' else '선택' }}"
+                             {% if u.unit_state == 'CONFIRMED' %}required{% endif %}>
+                      {% if u.unit_state == 'CONFIRMED' %}<span class="ops-hint">확정된 호기라 반드시 적어야 합니다.</span>{% endif %}</div>
+                    <div class="ops-line ops-btns">
+                      <button type="button" class="mini js-ops-close" data-unit="{{ u.id }}">돌아가기</button>
+                      <button class="mini danger" type="submit">호기 취소</button></div>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endif %}
+            {% else %}
+            <tr><td colspan="{{ 7 if (can_create or can_link or can_approve) else 6 }}"><div class="empty">아직 호기가 없습니다.{% if (can_create or can_link) and summary.candidates > 0 %} 위 '수주내역에서 호기 후보 확인'으로 시작하세요.{% endif %}</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="note">
+        {# 화면에는 현장 말로 — 규정 원문(개발 용어 포함)은 접어 둔다(대표 지시 07-25) #}
+        · 장비는 <b>시스템이 따로 매긴 고유번호</b>로 관리합니다. 호기번호·수주번호는 <b>사람이 찾고 확인하기 위한 표시</b>일 뿐입니다.
+          그래서 <b>호기번호가 바뀌어도 지금까지 쌓인 기록(BOM·자재출고·실제 투입·출하)은 그대로 따라갑니다.</b>
+          <details style="display:inline;"><summary style="cursor:pointer;display:inline;font-size:11px;">규정 원문</summary>
+            <span style="font-size:11px;">{{ identity_contract }}</span></details><br>
+        · <b>한 관리번호에 수주번호가 여러 개</b> 붙을 수 있고, <b>한 호기에 최초·추가·변경 수주를 함께</b> 연결할 수 있습니다.<br>
+        · 한 번 쓴 호기번호는 <b>취소된 것이라도 다시 쓰지 않습니다</b>(현장 대화·서류 혼동 방지).<br>
+        · 호기번호·수주 연결은 <b>바뀔 수 있는 값</b>이며 바꾸면 이전 값·사유·변경자가 이력으로 남습니다. 취소한 호기는 <b>지우지 않고</b> 취소 이력으로 보관합니다.<br>
+        · 호기 분할·통합은 <b>아직 실행할 수 없습니다</b>(자료 구조만 준비 · BOM·발주·생산 영향 분석이 연결되는 다음 단계에서 제공).<br>
+        {# [승인서 §4.2] 화면에도 "언제 요청자를 적어야 하는지"를 현장 말로 적어 둔다 #}
+        · 호기 업무는 <b>누가 언제 무엇을 어떻게 바꿨는지 모두 기록</b>됩니다. 평소 업무는 따로 적을 것이 없습니다.<br>
+        · 다만 <b>이미 확정한 호기를 고치거나 취소할 때</b>, 그리고 <b>지난 날짜로 소급해 정정할 때</b>는
+          <b>요청한 부서·사람</b>을 함께 적어야 저장됩니다(나중에 "왜 바뀌었나"를 찾을 수 있어야 하므로).
+      </p>
+
+      {# [게이트 UI 판정 §7-5] "잘못된 데이터를 발견했을 때 어디에 정정을 요청하는지 알 수 있는가"
+         — 화면에 답이 없었다(기술영업팀 확인에서 지적된 항목). 권한에 따라 다르게 말해 준다. #}
+      <div class="fixnote">
+        {% if can_create or can_link or can_approve %}
+        <b>🛠 잘못된 것이 보이면</b> — 그 줄의 <b>[작업 열기]</b> 에서 직접 고치실 수 있습니다
+        (호기번호 지정·변경 / 수주 추가 연결 / 호기 취소).
+        <span class="sub">이미 <b>확정</b>된 호기를 고치거나 취소할 때는 <b>요청한 부서·사람</b>과 사유를 함께 적습니다.
+        고친 내용은 지워지지 않고 <b>이력과 기록으로 남습니다</b>.</span>
+        {% else %}
+        <b>🛠 잘못된 것이 보이면</b> — <b>기술영업팀</b>에 정정을 요청하세요.
+        호기 정보(호기번호·수주 연결·확정·취소)는 <b>기술영업팀이 관리</b>합니다. 이 화면에서는 확인만 하실 수 있습니다.
+        <span class="sub">요청하실 때 <b>관리번호({{ project.mgmt_code }})·호기번호·무엇이 어떻게 잘못됐는지</b>를 함께 알려주시면 빠릅니다.
+        고친 내용은 누가 언제 왜 바꿨는지 기록으로 남습니다.</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <script>
+    /* [승인서 §4.2] 지난 날짜로 **소급 정정**할 때는 요청자가 필수다.
+       날짜를 고른 뒤에야 알 수 있으므로 화면에서 미리 알려준다.
+       ⭐ 진짜 차단은 **서버**가 한다(화면을 거치지 않고 요청을 직접 보내도 막힌다). */
+    (function(){
+      var today = "{{ today_ymd }}";
+      document.addEventListener('submit', function(ev){
+        var f = ev.target;
+        if (!f || !f.classList || !f.classList.contains('js-punit-strict')) return;
+        var eff = f.querySelector('input[name="effective_from"]');
+        var rq  = f.querySelector('input[name="requester"]');
+        if (!eff || !rq) return;
+        var back = eff.value && eff.value < today;
+        if (back && !rq.value.trim()) {
+          ev.preventDefault();
+          alert('지난 날짜로 소급해 정정할 때는 요청한 부서·사람을 적어야 합니다.');
+          rq.focus();
+        }
+      }, true);
+    })();
+    </script>
+
+    {% if can_create or can_link or can_approve %}
+    <script>
+    /* [게이트 UI 판정 §4·§5] 작업 패널 — 평소엔 접혀 있고, 한 번에 **한 가지 작업만** 보인다.
+       ⭐ 닫으면 입력하던 값을 **지운다**(게이트 §8-9): 남은 값이 다음에 잘못 저장되는 것을 막는다.
+       ⭐ 수주 연결은 **고르기 전까지 버튼이 눌리지 않는다**. 진짜 차단은 서버가 한다. */
+    (function(){
+      if (window.__knkUnitOps) return;      /* 화면(.main)만 갈아끼우는 구조라 중복 등록 방지 */
+      window.__knkUnitOps = 1;
+
+      function panel(uid) { return document.getElementById('ops-' + uid); }
+      function forms(uid) {
+        return Array.prototype.slice.call(
+          document.querySelectorAll('.ops-form[data-unit="' + uid + '"]'));
+      }
+      function tabs(uid) {
+        return Array.prototype.slice.call(
+          document.querySelectorAll('.js-ops-tab[data-unit="' + uid + '"]'));
+      }
+      function hideForms(uid, wipe) {
+        forms(uid).forEach(function(f){
+          f.hidden = true; f.classList.remove('show');
+          if (wipe) {
+            f.querySelectorAll('input[type="text"], input:not([type]), input[type="date"]')
+             .forEach(function(i){ i.value = ''; });
+            f.querySelectorAll('select').forEach(function(s){ s.selectedIndex = 0; });
+            syncLink(uid);
+          }
+        });
+        tabs(uid).forEach(function(t){ t.setAttribute('aria-pressed', 'false'); });
+      }
+      function closePanel(uid) {
+        var p = panel(uid);
+        if (!p) return;
+        hideForms(uid, true);
+        p.hidden = true;
+        var op = document.querySelector('.js-ops-open[data-unit="' + uid + '"]');
+        if (op) { op.setAttribute('aria-expanded', 'false'); op.textContent = '작업 열기 ▾'; }
+      }
+      function closeAll(except) {
+        document.querySelectorAll('.ops-row').forEach(function(r){
+          if (String(r.getAttribute('data-unit')) !== String(except)) closePanel(r.getAttribute('data-unit'));
+        });
+      }
+      /* 연결할 수주를 고르기 전에는 버튼을 못 누르고, 무엇을 하려는지 사람 말로 보여준다 */
+      function syncLink(uid) {
+        var sel = document.querySelector('.js-ops-order[data-unit="' + uid + '"]');
+        var btn = document.querySelector('.js-ops-linkbtn[data-unit="' + uid + '"]');
+        var rel = document.querySelector('.js-ops-rel[data-unit="' + uid + '"]');
+        var echo = document.getElementById('linkecho-' + uid);
+        if (!btn) return;
+        var val = sel ? (sel.value || '') : '';
+        btn.disabled = !val;
+        if (!echo) return;
+        if (!val) { echo.textContent = sel ? '연결할 수주를 먼저 고르세요.' : '연결할 수 있는 수주가 없습니다.'; return; }
+        var ono = sel.options[sel.selectedIndex].text;
+        var rl = rel ? rel.options[rel.selectedIndex].text : '';
+        echo.textContent = echo.getAttribute('data-unitname') + '에 ' + ono + '를 ' + rl + '로 연결합니다.';
+      }
+
+      document.addEventListener('click', function(ev){
+        var t = ev.target.closest ? ev.target.closest('button') : null;
+        if (!t) return;
+        var uid = t.getAttribute('data-unit');
+        if (!uid) return;
+        if (t.classList.contains('js-ops-open')) {
+          ev.preventDefault();
+          var p = panel(uid);
+          if (!p) return;
+          if (p.hidden) { closeAll(uid); p.hidden = false;
+                          t.setAttribute('aria-expanded', 'true'); t.textContent = '작업 닫기 ▴'; }
+          else { closePanel(uid); }
+        } else if (t.classList.contains('js-ops-close')) {
+          ev.preventDefault(); closePanel(uid);
+        } else if (t.classList.contains('js-ops-tab')) {
+          ev.preventDefault();
+          var op = t.getAttribute('data-op');
+          var already = t.getAttribute('aria-pressed') === 'true';
+          hideForms(uid, true);                    /* 다른 작업 폼은 접고 값도 비운다 */
+          if (already) return;                     /* 같은 걸 다시 누르면 닫기 */
+          var f = document.querySelector('.ops-form[data-unit="' + uid + '"][data-op="' + op + '"]');
+          if (f) { f.hidden = false; f.classList.add('show'); }
+          t.setAttribute('aria-pressed', 'true');
+          if (op === 'link') syncLink(uid);
+        }
+      }, false);
+
+      document.addEventListener('change', function(ev){
+        var el = ev.target;
+        if (!el || !el.classList) return;
+        if (el.classList.contains('js-ops-order') || el.classList.contains('js-ops-rel'))
+          syncLink(el.getAttribute('data-unit'));
+      }, false);
+
+      /* 화면 검사를 우회해 직접 보내도 서버가 막지만, 여기서도 먼저 알려준다 */
+      document.addEventListener('submit', function(ev){
+        var f = ev.target;
+        if (!f || !f.classList || !f.classList.contains('js-ops-link')) return;
+        var sel = f.querySelector('select[name="order_id"]');
+        if (!sel || !sel.value) {
+          ev.preventDefault();
+          alert('연결할 수주를 먼저 고르세요.');
+          if (sel) sel.focus();
+        }
+      }, true);
+    })();
+    </script>
+    {% endif %}
+
+    {% if is_admin_override %}
+    <script>
+    /* 관리자 비상복구: 상단에 입력한 요청자·우회 사유를 이 화면의 모든 저장 요청에 함께 보낸다.
+       (폼마다 칸을 넣지 않고 한 곳에서 입력 — 감사 기록 누락 방지)
+       ⭐ 이 화면 검사는 '먼저 알려주기'일 뿐이고, 진짜 차단은 **서버**가 한다
+          (화면을 거치지 않고 요청을 직접 보내도 막힌다 — 게이트 v6 P0-02). */
+    (function(){
+      document.addEventListener('submit', function(ev){
+        var f = ev.target;
+        if (!f || f.method.toLowerCase() !== 'post') return;
+        var rq = document.getElementById('ovRequester');
+        var rs = document.getElementById('ovReason');
+        if (!rs) return;
+        if (!rq || !rq.value.trim()) { ev.preventDefault(); alert('시스템 관리자 비상복구: 요청 부서·요청자를 입력하세요.'); if (rq) rq.focus(); return; }
+        if (!rs.value.trim()) { ev.preventDefault(); alert('시스템 관리자 비상복구: 우회 사유를 입력하세요.'); rs.focus(); return; }
+        [['override_requester', rq ? rq.value : ''], ['override_reason', rs.value]].forEach(function(kv){
+          var el = f.querySelector('input[name="' + kv[0] + '"]');
+          if (!el) { el = document.createElement('input'); el.type = 'hidden'; el.name = kv[0]; f.appendChild(el); }
+          el.value = kv[1];
+        });
+      }, true);
+    })();
+    </script>
+    {% endif %}
+
+  </main>
+</div>
+</body>
+</html>

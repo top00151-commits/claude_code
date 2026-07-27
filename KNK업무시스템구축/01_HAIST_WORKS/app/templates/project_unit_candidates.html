@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ project.mgmt_code }} 호기 후보 확인 · KNK HAIST WORKS</title>
+
+{# v5H226z1053 (2026-07-25) — ERP V1 WP-03 호기 후보 확인 (게이트 F-01~F-04 반영)
+   · 수주내역 호기 라인 = 확정 사실이 아니라 **후보**. 라벨을 현재 호기번호로 승격하지 않는다(F-01).
+   · 같은 호기가 여러 수주에 나오는 것은 **정상 업무** → 기존 호기에 연결(최초/추가/변경) 선택 제공(F-02·F-04).
+   · 기본 미선택 · 반영 사유 필수 · 제출 전 요약 확인(F-03). #}
+
+<link href="/static/css/v5_tokens.css?v=20260726v5H226z1057" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+:root { --pq-mono:ui-monospace,Consolas,monospace; }
+.pl-head { padding:14px 24px 10px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+.pl-head .crumb { font-size:12px; color:var(--pq-ink-4); }
+.pl-head .crumb a { color:var(--pq-ink-2); }
+.pl-title { font-size:20px; font-weight:700; color:var(--pq-ink); margin-top:2px; }
+.pl-actions { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.btn-ghost { height:32px; padding:0 12px; border:1px solid var(--pq-line-2); border-radius:8px; font-size:12.5px; color:var(--pq-ink-2); display:inline-flex; align-items:center; gap:5px; text-decoration:none; background:transparent; cursor:pointer; }
+.btn-dark { height:34px; padding:0 16px; background:var(--pq-ink); border:0; border-radius:8px; font-size:13px; font-weight:700; color:#fff; display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+.btn-dark[disabled] { opacity:.4; cursor:not-allowed; }
+.banner { margin:10px 24px 0; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
+.banner.err { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+.lead { margin:14px 24px 0; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; font-size:13.5px; color:#1e3a8a; line-height:1.75; }
+.lead b { font-weight:800; }
+.lead .sub { color:#334155; font-size:12px; }
+.wrap { padding:14px 24px 130px; }
+.scroll { overflow-x:auto; background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; }
+table.c { width:100%; border-collapse:collapse; font-size:12.5px; min-width:940px; }
+table.c th { text-align:left; padding:8px 10px; background:var(--pq-surface-2); color:var(--pq-ink-3); font-size:11px; font-weight:700; border-bottom:1px solid var(--pq-line); white-space:nowrap; }
+table.c td { padding:8px 10px; border-bottom:1px solid var(--pq-line); vertical-align:middle; }
+table.c tr:last-child td { border-bottom:0; }
+table.c td.mono { font-family:var(--pq-mono); white-space:nowrap; }
+tr.blocked { background:#fffbeb; }
+tr.already_linked { opacity:.55; }
+tr.link { background:#f5f3ff; }
+.sg { font-size:10.5px; padding:2px 8px; border-radius:999px; font-weight:800; white-space:nowrap; }
+.sg.new { background:#ecfdf5; color:#0d7c4f; }
+.sg.link { background:#ede9fe; color:#6d28d9; }
+.sg.already_linked { background:var(--pq-surface-3); color:var(--pq-ink-3); }
+.sg.blocked { background:#fef3c7; color:#92400e; }
+.why { font-size:11.5px; color:#92400e; line-height:1.5; }
+select, .dec input { height:27px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 7px; font-size:11.5px; background:var(--pq-surface); }
+.dec { display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+.foot { position:fixed; left:0; right:0; bottom:0; background:var(--pq-ink); color:#fff; padding:11px 24px; display:flex; align-items:center; gap:12px; z-index:60; font-size:13px; flex-wrap:wrap; }
+.foot input[name=reason] { height:32px; border:0; border-radius:7px; padding:0 10px; font-size:12.5px; min-width:260px; }
+.sumbox { background:rgba(255,255,255,.14); padding:5px 12px; border-radius:8px; font-size:12.5px; }
+.sumbox b { font-family:var(--pq-mono); }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+
+    <div class="pl-head">
+      <div>
+        <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/project/{{ project.id }}">{{ project.mgmt_code }}</a> · <a href="/project/{{ project.id }}/units">호기</a> · <b>후보 확인</b></div>
+        <div class="pl-title">🔍 {{ project.mgmt_code }} 호기 후보 확인</div>
+      </div>
+      <div class="pl-actions">
+        <a class="btn-ghost" href="/project/{{ project.id }}/units" data-knk-back>← 호기 목록</a>
+      </div>
+    </div>
+
+    {% set _err = request.query_params.get('error') %}
+    {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
+
+    <div class="lead">
+      수주서에서 <b>장비로 보이는 줄 {{ scan.summary.total }}개</b>를 찾았습니다.
+      <b>아직 아무것도 등록되지 않았습니다</b> — 아래에서 고르신 것만 등록됩니다.<br>
+      <span class="sub">
+        · 오른쪽 <b>처리 방법</b>에서 <b>수주서에 적힌 번호를 그대로 쓸지</b>, <b>번호는 나중에 정할지</b> 고르시면 됩니다.<br>
+        · <b>같은 장비가 여러 수주에 나오는 것은 정상</b>입니다(추가·변경 발주). 그럴 땐 <b>기존 호기에 그 수주를 연결</b>하세요 —
+          새로 만들면 <b>장비 한 대가 두 대로 갈라집니다</b>.<br>
+        · 장비는 <b>시스템이 따로 매긴 고유번호</b>로 관리합니다. 그래서 나중에 <b>호기번호가 바뀌어도</b>
+          그때까지 쌓인 기록(자재·발주·입고·투입·출하)은 <b>그대로 따라갑니다</b>.
+        <details style="margin-top:4px;"><summary style="cursor:pointer;font-size:11px;">규정 원문 보기</summary>
+          <span style="font-size:11px;">{{ identity_contract }}</span></details>
+      </span>
+    </div>
+
+    <form method="post" action="/project/{{ project.id }}/units/candidates/apply" id="applyForm">
+    <div class="wrap">
+      {% if can_create and scan.summary.total %}
+      {# 한 줄씩 23번 고르지 않게 — 한 번에 정하고, 다른 줄만 개별로 바꾸면 된다(대표 지시 07-25) #}
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 4px 10px;">
+        <span style="font-size:12px;color:var(--pq-ink-4);">한꺼번에 정하기 :</span>
+        <button class="mini dark" type="button" id="bulkNumbered">☑ 전부 — 수주서 번호 그대로</button>
+        <button class="btn-ghost" type="button" id="bulkLater">☑ 전부 — 번호는 나중에</button>
+        <button class="btn-ghost" type="button" id="bulkClear">선택 모두 해제</button>
+        <span style="font-size:11.5px;color:var(--pq-ink-4);">고른 뒤 개별 줄만 따로 바꿔도 됩니다.</span>
+      </div>
+      {% endif %}
+      <div class="scroll">
+        <table class="c">
+          <thead>
+            <tr>
+              <th style="width:34px;"><input type="checkbox" id="allChk" title="전체 선택"></th>
+              <th>수주번호</th><th>수주내역 표기</th><th>현재 호기번호</th><th>수량</th>
+              <th>판정</th><th style="min-width:330px;">처리 방법</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in scan.candidates %}
+            {% set sel = c.suggestion in ('new','link') %}
+            <tr class="{{ c.suggestion }}">
+              <td>
+                {% if sel %}<input type="checkbox" name="pick" value="{{ c.order_item_id }}" class="pick" data-oid="{{ c.order_item_id }}">
+                {% else %}<input type="checkbox" disabled title="선택할 수 없습니다">{% endif %}
+              </td>
+              <td class="mono">{{ c.order_no or '—' }}</td>
+              <td>{{ c.label }}</td>
+              {# F-01: 후보 라벨을 '현재 호기번호'로 표시하지 않는다 #}
+              <td class="mono" style="color:var(--pq-ink-4);">{% if c.existing_unit_id %}(기존 호기 참조){% else %}미정{% endif %}</td>
+              <td class="mono">{{ c.qty|int if c.qty is not none else '—' }}</td>
+              <td><span class="sg {{ c.suggestion }}">{{ {'new':'새 개발호기','link':'기존 호기 있음','already_linked':'이미 반영됨','blocked':'확인 필요'}.get(c.suggestion) }}</span></td>
+              <td>
+                {% if c.suggestion == 'blocked' %}
+                  <span class="why">{% for b in c.blockers %}· {{ b }}<br>{% endfor %}수주내역을 정리한 뒤 다시 확인하세요.</span>
+                {% elif c.suggestion == 'already_linked' %}
+                  <span style="font-size:11.5px;color:var(--pq-ink-4);">이 수주 라인으로 만든 호기가 이미 있습니다.</span>
+                {% else %}
+                <div class="dec">
+                  <select name="action_{{ c.order_item_id }}" class="act" data-oid="{{ c.order_item_id }}">
+                    {% if c.match_units and can_link %}
+                    <option value="link" {{ 'selected' if c.suggestion == 'link' }}>기존 호기에 이 수주 연결</option>
+                    {% endif %}
+                    {% if can_create %}
+                      {# 대표 지시(07-25): 수주서 표기와 호기번호가 같은 프로젝트에서 번호를 다시 입력하게 하지 않는다.
+                         F-01 이 막는 것은 '자동 승격' 이고, 여기서 사용자가 고르는 것은 '명시 지정' 이다. #}
+                      {% if not c.no_taken %}
+                      <option value="new_no" {{ 'selected' if c.suggestion == 'new' }}>새 개발호기 — 호기번호도 ‘{{ c.label }}’ 로</option>
+                      {% endif %}
+                      <option value="new" {{ 'selected' if c.suggestion == 'new' and c.no_taken }}>새 개발호기 — 호기번호는 나중에</option>
+                    {% endif %}
+                    <option value="hold">보류 (아무것도 안 함)</option>
+                  </select>
+                  {% if c.match_units and can_link %}
+                  <select name="unit_{{ c.order_item_id }}" class="ulist" data-oid="{{ c.order_item_id }}">
+                    {% for mu in c.match_units %}
+                    <option value="{{ mu.id }}">{{ mu.current_unit_no or mu.working_name or ('호기 #' ~ mu.id) }}{{ ' · 이 수주 이미 연결됨' if mu.already_linked_order }}</option>
+                    {% endfor %}
+                  </select>
+                  <select name="rel_{{ c.order_item_id }}" class="rlist" data-oid="{{ c.order_item_id }}">
+                    <option value="ADDITIONAL">추가 수주</option>
+                    <option value="CHANGE">변경 수주</option>
+                    <option value="ORIGIN">최초 수주</option>
+                  </select>
+                  {% endif %}
+                </div>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="padding:28px;text-align:center;color:var(--pq-ink-4);">수주내역에 호기 형식(1호기·2호기…) 라인이 없습니다.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p style="margin:12px 4px;font-size:11.5px;color:var(--pq-ink-4);line-height:1.7;">
+        · <b>확인 필요</b>로 나온 줄은 자동으로 반영하지 않습니다 — <b>수량이 1이 아니면</b> 장비 한 대로 볼 수 없기 때문입니다. 수주내역을 정리한 뒤 다시 확인하세요.<br>
+        · 부속·부품 줄(‘1호기’ 같은 표기가 아닌 것)은 장비가 아니므로 목록에서 뺐습니다.<br>
+        · <b>이미 쓴 호기번호</b>가 있는 줄에는 ‘수주서 번호 그대로’ 선택지가 나오지 않습니다 — 한 관리번호에서 <b>같은 번호를 두 번 쓰지 않기</b> 때문입니다(취소된 것 포함).
+      </p>
+    </div>
+
+    <div class="foot">
+      <span class="sumbox" id="sumBox">선택 <b>0</b>건 · 새 개발호기 <b>0</b> · 기존 호기 연결 <b>0</b></span>
+      {% if is_admin_override %}
+      {# 관리자 비상복구 — 기술영업팀 업무를 대신 수행하는 사유를 감사에 남긴다 #}
+      <input name="override_requester" placeholder="요청 부서·요청자(필수)" required style="height:32px;border:0;border-radius:7px;padding:0 10px;font-size:12.5px;">
+      <input name="override_reason" placeholder="관리자 우회 사유(필수)" required style="height:32px;border:0;border-radius:7px;padding:0 10px;font-size:12.5px;min-width:200px;">
+      {% endif %}
+      <input name="reason" id="reasonInput" placeholder="반영 사유 (필수)" required>
+      <button class="btn-dark" type="submit" id="submitBtn" style="margin-left:auto;" disabled>✔ 선택한 후보 반영</button>
+    </div>
+    </form>
+
+  </main>
+</div>
+<script>
+(function(){
+  // F-03: 기본 미선택 · 선택 요약 · 사유 필수 · 제출 전 확인
+  var all = document.getElementById('allChk');
+  var picks = Array.prototype.slice.call(document.querySelectorAll('.pick'));
+  var sumBox = document.getElementById('sumBox');
+  var btn = document.getElementById('submitBtn');
+  var form = document.getElementById('applyForm');
+  var reason = document.getElementById('reasonInput');
+  if (all) all.checked = false;
+  picks.forEach(function(p){ p.checked = false; });
+
+  function actOf(oid){
+    var s = document.querySelector('.act[data-oid="' + oid + '"]');
+    return s ? s.value : 'hold';
+  }
+  function refresh(){
+    var n = 0, nNum = 0, nNew = 0, nLink = 0;
+    picks.forEach(function(p){
+      if (!p.checked) return;
+      n++;
+      var a = actOf(p.dataset.oid);
+      if (a === 'new_no') nNum++; else if (a === 'new') nNew++; else if (a === 'link') nLink++;
+    });
+    var held = n - nNum - nNew - nLink;
+    sumBox.innerHTML = '선택 <b>' + n + '</b>건 · 번호 그대로 <b>' + nNum + '</b> · 번호 나중에 <b>' + nNew
+                     + '</b> · 기존 호기 연결 <b>' + nLink + '</b>'
+                     + (held > 0 ? ' · 보류 <b>' + held + '</b>' : '');
+    btn.disabled = (nNum + nNew + nLink === 0);
+  }
+  // 한꺼번에 정하기 — 그 값을 고를 수 있는 줄만 바꾼다(이미 쓴 번호인 줄은 '번호 그대로'가 없음)
+  function bulk(val, check){
+    picks.forEach(function(p){
+      var s = document.querySelector('.act[data-oid="' + p.dataset.oid + '"]');
+      if (!s) return;
+      var can = Array.prototype.some.call(s.options, function(o){ return o.value === val; });
+      if (can) { s.value = val; s.dispatchEvent(new Event('change')); }
+      p.checked = check && can;
+    });
+    if (all) all.checked = false;
+    refresh();
+  }
+  var bn = document.getElementById('bulkNumbered');
+  var bl = document.getElementById('bulkLater');
+  var bc = document.getElementById('bulkClear');
+  if (bn) bn.addEventListener('click', function(){ bulk('new_no', true); });
+  if (bl) bl.addEventListener('click', function(){ bulk('new', true); });
+  if (bc) bc.addEventListener('click', function(){
+    picks.forEach(function(p){ p.checked = false; });
+    if (all) all.checked = false;
+    refresh();
+  });
+  picks.forEach(function(p){ p.addEventListener('change', refresh); });
+  document.querySelectorAll('.act').forEach(function(s){
+    s.addEventListener('change', function(){
+      var oid = s.dataset.oid;
+      var show = (s.value === 'link');
+      ['ulist','rlist'].forEach(function(cls){
+        var el = document.querySelector('.' + cls + '[data-oid="' + oid + '"]');
+        if (el) el.style.display = show ? '' : 'none';
+      });
+      refresh();
+    });
+    s.dispatchEvent(new Event('change'));
+  });
+  if (all) all.addEventListener('change', function(){
+    picks.forEach(function(p){ p.checked = all.checked; });
+    refresh();
+  });
+  form.addEventListener('submit', function(e){
+    if (!reason.value.trim()) { e.preventDefault(); alert('반영 사유를 입력하세요.'); return; }
+    var n = 0, nNum = 0, nNew = 0, nLink = 0;
+    picks.forEach(function(p){
+      if (!p.checked) return;
+      var a = actOf(p.dataset.oid);
+      if (a === 'new_no') nNum++; else if (a === 'new') nNew++; else if (a === 'link') nLink++; else n++;
+    });
+    if (!confirm('아래대로 반영합니다.\n\n'
+        + '· 새 개발호기 (수주서 번호 그대로): ' + nNum + '대\n'
+        + '· 새 개발호기 (호기번호는 나중에): ' + nNew + '대\n'
+        + '· 기존 호기에 수주 연결: ' + nLink + '건\n'
+        + '· 보류: ' + n + '건\n\n진행할까요?')) e.preventDefault();
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>

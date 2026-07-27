@@ -1,7 +1,7 @@
 {# v5H5 STANDALONE 공통 스타일 — _v5_partials/styles.html (v5H55 셸 고정, v5H56 다중 담당자) #}
 {# v5H226z422 (대표 지시): KNK Eum WORKS 설치형 앱(PWA) head — 전 페이지 1곳 주입. 메일은 자체 PWA(mail_pwa_head)라 /mail 경로 제외(매니페스트 충돌 방지). #}
 {% if not (request and request.url and request.url.path.startswith('/mail')) %}{% include "_v5_partials/works_pwa_head.html" ignore missing %}{% endif %}
-<link href="/static/css/v5_tokens.css?v=20260501v5STANDALONE" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v=20260726v5H226z1057" rel="stylesheet" />
 <link rel="stylesheet" href="/static/css/v5_main.css?v={{ APP_VERSION }}" />
 
 {# v5H226z48 (2026-05-09): Quiet Tone v3 — 빨강 톤 ↓, 잉크/회색 + 표 zebra (전 페이지) #}
