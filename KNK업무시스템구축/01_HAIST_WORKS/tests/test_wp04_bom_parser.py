@@ -68,7 +68,9 @@ def s(items, key):
 
 _missing = [p for p in (F_DESIGN, F_BUY) if not os.path.exists(p)]
 if _missing:
-    print("SKIP — 실물 파일 없음:")
+    print("SKIP — 이 파일은 **실물 BOM 대조 전용**입니다(핵심 회귀는")
+    print("       tests/test_wp04_bom_parser_synthetic.py 가 파일 없이 항상 수행).")
+    print("  없는 파일:")
     for p in _missing:
         print("   " + p)
     sys.exit(0)
@@ -85,17 +87,17 @@ chk("A-3 총계행을 품목으로 세지 않음",
 
 # ══════════ B. P-1 재고·발주수량 열 (구매검토의 핵심) ══════════
 print("\n── B. P-1 재고·발주수량 열 매핑 ──")
-chk("B-1 사내재고 칸이 있다", "stock_qty_kor" in (B[0] if B else {}))
+chk("B-1 사내 **배분**수량 칸이 있다", "source_stock_allocated_kor" in (B[0] if B else {}))
 chk("B-2 베트남재고 **참고칸**이 있다", "stock_ref_vn" in (B[0] if B else {}))
-chk("B-3 발주수량 칸이 있다", "order_qty" in (B[0] if B else {}))
-chk("B-4 사내재고 합계 3", s(B, "stock_qty_kor") == 3, f'{s(B, "stock_qty_kor")}')
+chk("B-3 발주 **원본**수량 칸이 있다", "source_purchase_qty" in (B[0] if B else {}))
+chk("B-4 사내 배분수량 합계 3", s(B, "source_stock_allocated_kor") == 3, f'{s(B, "source_stock_allocated_kor")}')
 chk("B-5 베트남재고 합계 15 (참고수량)", s(B, "stock_ref_vn") == 15, f'{s(B, "stock_ref_vn")}')
-chk("B-6 발주수량 합계 5,183", s(B, "order_qty") == 5183, f'{s(B, "order_qty")}')
-chk("B-7 총수량 = 사내 + 베트남 + 발주",
-    abs(s(B, "total_qty") - (s(B, "stock_qty_kor") + s(B, "stock_ref_vn") + s(B, "order_qty"))) < 0.001,
-    f'{s(B, "total_qty")} vs {s(B, "stock_qty_kor") + s(B, "stock_ref_vn") + s(B, "order_qty")}')
+chk("B-6 발주 원본수량 합계 5,183", s(B, "source_purchase_qty") == 5183, f'{s(B, "source_purchase_qty")}')
+chk("B-7 [원본 파일 대조용] 총수량 = 사내배분 + 베트남참고 + 발주원본 (⛔운영 구매량 계산식 아님)",
+    abs(s(B, "total_qty") - (s(B, "source_stock_allocated_kor") + s(B, "stock_ref_vn") + s(B, "source_purchase_qty"))) < 0.001,
+    f'{s(B, "total_qty")} vs {s(B, "source_stock_allocated_kor") + s(B, "stock_ref_vn") + s(B, "source_purchase_qty")}')
 chk("B-8 설계팀 파일엔 재고·발주 열이 없어 0",
-    s(D, "stock_qty_kor") == 0 and s(D, "order_qty") == 0)
+    s(D, "source_stock_allocated_kor") == 0 and s(D, "source_purchase_qty") == 0)
 
 # ══════════ C. P-2 금액 3종 분리 ══════════
 print("\n── C. P-2 재고금액·발주금액·합계 분리 ──")

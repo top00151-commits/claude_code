@@ -36,11 +36,17 @@ _HEADER_ALIASES = [
     #   '어떻게 조달할 것인가'다. 아래 5열이 구매검토의 핵심인데 그동안 통째로 버려졌다.
     #   ⭐ 반드시 아래 넓은 별칭("수량"·"금액"·"TOTAL")보다 **앞에** 둔다.
     #      안 그러면 `발주 수량`이 "수량"에, `재고 금액`이 "금액"에 먼저 잡혀 원본이 사라진다.
-    ("stock_qty_kor", ["사내재고", "본사재고", "국내재고", "KOR재고"]),
+    #   ⭐ 이름에 `source_` 를 붙인 것은 **엑셀 원본에 적힌 값을 그대로 읽은 것**이라는 뜻이다.
+    #      운영 필드(가용재고·발주수량)가 아니다 — 구매단위·환산계수를 확인한 뒤에야 운영값이 된다.
+    #   ⚠ `사내 재고 3개`는 본사 전체 보유량이 아니라 **이 구매검토에서 배분한 수량**이다.
+    #      그래서 stock_qty 가 아니라 stock_allocated 로 적는다(전체 현재고로 오해 금지).
+    ("source_stock_allocated_kor", ["사내재고", "본사재고", "국내재고", "KOR재고"]),
     # ⚠ 베트남 재고는 **참고수량**이다(대표 판정 2026-07-28). 본사 가용재고·원장·
     #    자동 구매량 계산에 **넣지 않는다**. 이름도 ref 로 두어 운영수량과 섞이지 않게 한다.
     ("stock_ref_vn",  ["베트남재고", "VN재고", "VINA재고", "해외재고"]),
-    ("order_qty",     ["발주수량"]),
+    #   ⚠ 엑셀의 `발주 수량`을 **운영 발주수량으로 바로 쓰지 않는다.** 승인된 계약은
+    #      구매수량·구매단위·환산계수·기준단위 발주수량·초과구매수량을 분리한다.
+    ("source_purchase_qty", ["발주수량"]),
     ("stock_amount",  ["재고금액"]),
     ("order_amount",  ["발주금액"]),
     # ───────────────────────────────────────────────────────────────────────
@@ -238,6 +244,9 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
             name_raw = _cell_str(row_vals.get("part_name"))
             if not pno_raw and not name_raw:
                 continue                     # 소계/장식 행
+            # 금액 원본 상태 — **빈칸과 명시적 0을 구분**해야 하므로 _num() 전에 본다
+            _amt_raw = row_vals.get("amount")
+            _amt_present = _amt_raw is not None and str(_amt_raw).strip() != ""
             it = {
                 "item_type": item_type,
                 "category": _cell_str(row_vals.get("category")),
@@ -251,12 +260,17 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
                 "unit": _cell_str(row_vals.get("unit")) or "EA",
                 "unit_price": _num(row_vals.get("unit_price")),
                 "amount": _num(row_vals.get("amount")),
-                "amount_is_calculated": False,   # 원본에 합계가 없어 우리가 계산했는가
-                # ── 구매검토 결과(구매팀 최종본) ──────────────────────────────
-                "stock_qty_kor": _num(row_vals.get("stock_qty_kor")),
+                # ⭐ 금액은 **네 상태**를 잃지 않는다(판정 2026-07-28 P0-2):
+                #    ① 원본값 있음 ② 명시적 0 ③ 셀이 빈칸 ④ 합계 열 자체가 없음
+                #    present=False + calculated=False 면 '모름'이지 0이 아니다.
+                "amount_source_present": _amt_present,
+                "amount_source_value": _num(_amt_raw) if _amt_present else None,
+                "amount_is_calculated": False,   # 원본이 비어 우리가 계산했는가
+                # ── 구매검토 결과(구매팀 최종본) · 전부 **엑셀 원본 그대로** ──────
+                "source_stock_allocated_kor": _num(row_vals.get("source_stock_allocated_kor")),
                 # ⚠ 참고수량 — 본사 가용재고·원장·자동 구매량 계산에 넣지 않는다(대표 판정)
                 "stock_ref_vn": _num(row_vals.get("stock_ref_vn")),
-                "order_qty": _num(row_vals.get("order_qty")),
+                "source_purchase_qty": _num(row_vals.get("source_purchase_qty")),
                 "stock_amount": _num(row_vals.get("stock_amount")),
                 "order_amount": _num(row_vals.get("order_amount")),
                 # 자재가 아닐 수 있는 줄(출장비·개발비 등)에 다는 **의심 표시**.
@@ -306,14 +320,16 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
                     out["mgmt_code"] = m.group(1)
             if it["total_qty"] == 0 and it["unit_count"]:
                 it["total_qty"] = it["unit_count"]
-            # ⭐ [WP-04 판정 2026-07-28] **원본에 적힌 금액이 있으면 계산하지 않는다.**
+            # ⭐ [WP-04 판정 2026-07-28 · P0-2] 금액 네 상태를 지킨다.
             #    예전에는 amount 가 0이기만 하면 단가×수량으로 덮어써서, 구매팀 최종본의
             #    실제 합계(103,521,961.32원)를 계산값(103,266,661.32원)으로 바꿔 놓았다.
-            #    이제 **합계 열 자체가 없을 때만** 계산하고, 계산했다는 사실을 표시한다.
-            if "amount" not in _mapped and it["unit_price"]:
-                if it["amount"] == 0:
-                    it["amount"] = round((it["total_qty"] or it["unit_count"] or 0) * it["unit_price"], 2)
-                    it["amount_is_calculated"] = True
+            #    ⛔ **명시적 0 은 사용자가 적은 값이므로 계산으로 덮지 않는다.**
+            #    ⛔ 계산 근거(단가·수량)가 없으면 **0 이라고 단정하지 않는다**
+            #       — present=False · calculated=False 조합이 '모름'을 뜻한다.
+            _qty_for_amt = it["total_qty"] or it["unit_count"] or 0
+            if not it["amount_source_present"] and it["unit_price"] and _qty_for_amt:
+                it["amount"] = round(_qty_for_amt * it["unit_price"], 2)
+                it["amount_is_calculated"] = True
             # 자재가 아닐 수 있는 줄에 **의심 표시**만 단다(판정·자동 제외 없음)
             _nm = (it["part_name"] or "") + " " + (it["category"] or "")
             it["is_service_suspect"] = any(k in _nm for k in _SERVICE_HINTS)
@@ -327,6 +343,18 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
         if m:
             out["mgmt_code"] = m.group(1)
     return out
+
+
+def _chain_prev_values(ch: dict) -> list:
+    """변경 기록 하나에서 **매칭 후보로 쓸 이전값 전부**를 뽑는다.
+
+    `A->B->C` 면 최종값 C 를 뺀 `[A, B]` 를 돌려준다. 보드에 A 가 있든 B 가 있든
+    같은 품목의 변경으로 이어 붙이기 위해서다(P0-3).
+    """
+    chain = ch.get("chain")
+    if chain and len(chain) >= 2:
+        return [c for c in chain[:-1] if c]
+    return [ch["old"]] if ch.get("old") else []
 
 
 # ── 매칭 키: (구분, 모델명) — 모델명 없으면(가공품) 품명 기준 ──
@@ -347,26 +375,49 @@ _ORDERED_STATES = ("발주", "부분입고", "입고")
 def _pair_items(board_items: list, file_items: list):
     """보드(활성) ↔ 파일 라인 매칭.
     같은 키가 여러 개면 등장 순서대로 짝지음(같은 부품이 여러 줄인 실측 케이스).
-    화살표 표기 행은 '기존' 모델명 키로도 매칭 시도 (모델명 변경 추적의 핵심)."""
+    화살표 표기 행은 '기존' 모델명 키로도 매칭 시도 (모델명 변경 추적의 핵심).
+
+    ⭐ [판정 2026-07-28 P0-3] `A->B->C` 는 **최종값을 뺀 모든 이전값**을 후보로 쓴다.
+       보드에 이미 `B` 가 저장돼 있는데 `A` 만 후보로 쓰면, 실제로는 `B→C` 변경인데
+       **'B 삭제 + C 신규'** 두 건으로 왜곡되어 한 품목의 이력이 끊긴다.
+    ⛔ 이전값 후보가 **여러 줄에 걸리면 자동으로 확정하지 않는다** — 모호 표시만 하고
+       사람이 확인한다(엉뚱한 줄에 변경이력을 붙이는 것이 더 나쁘다)."""
     b_by_key: dict = {}
     for b in board_items:
         b_by_key.setdefault(_item_key(b.get("category"), b.get("part_no"), b.get("part_name")), []).append(b)
     pairs = []      # (board, file_item)
     adds = []
     for f in file_items:
-        keys = [_item_key(f.get("category"), f.get("part_no"), f.get("part_name"))]
+        cat = f.get("category")
+        direct_key = _item_key(cat, f.get("part_no"), f.get("part_name"))
+        prev_keys = []          # 변경 추적용 — 이전값(체인 중간값 포함)
         for ch in f.get("excel_changes", []):
-            if ch["field"] == "part_no" and ch.get("old"):
-                keys.append(_item_key(f.get("category"), ch["old"], f.get("part_name")))
-            if ch["field"] == "part_name" and ch.get("old") and not f.get("part_no"):
-                keys.append(_item_key(f.get("category"), "", ch["old"]))
+            olds = _chain_prev_values(ch)
+            if ch["field"] == "part_no":
+                prev_keys += [_item_key(cat, o, f.get("part_name")) for o in olds]
+            if ch["field"] == "part_name" and not f.get("part_no"):
+                prev_keys += [_item_key(cat, "", o) for o in olds]
         matched = None
-        for k in keys:
-            lst = b_by_key.get(k)
-            if lst:
-                matched = lst.pop(0)
+        ambiguous = False
+        # ① 현재값으로 먼저 — 같은 부품이 여러 줄인 실측 케이스는 등장 순서대로(기존 동작)
+        lst = b_by_key.get(direct_key)
+        if lst:
+            matched = lst.pop(0)
+        else:
+            # ② 변경 추적 — 이전값 후보. 후보가 둘 이상이면 **자동 확정 금지**
+            for k in prev_keys:
+                cand = b_by_key.get(k)
+                if not cand:
+                    continue
+                if len(cand) > 1:
+                    ambiguous = True
+                    break
+                matched = cand.pop(0)
                 break
-        if matched is not None:
+        if ambiguous:
+            f["match_ambiguous"] = True     # 화면이 '확인 필요'로 구분해 보여줄 근거
+            adds.append(f)
+        elif matched is not None:
             pairs.append((matched, f))
         else:
             adds.append(f)
