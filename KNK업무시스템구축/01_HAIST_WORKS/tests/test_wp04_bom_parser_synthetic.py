@@ -204,5 +204,52 @@ chk("F-4 ⭐취소선 = 삭제 표시가 읽힌다", by["TEST-PART-I"]["is_delet
 chk("F-5 표시 없는 줄은 False",
     not by["TEST-PART-A"]["is_new_marked"] and not by["TEST-PART-A"]["is_deleted_marked"])
 
+# ══════════ G. BOM 업로드 검증 ① 원본 ↔ 파서가 읽은 값 ══════════
+print("\n── G. 원본↔읽은값 대조 (규칙47 · knkVerifyMsg1024 형식) ──")
+V = bom.verify_source_vs_parsed(P_FULL, os.path.basename(P_FULL))
+chk("G-1 세션01 공통 형식 그대로 (ok·checked·diff)",
+    all(k in V for k in ("ok", "checked", "diff")))
+chk("G-2 원본 위치가 시트!행 으로 표시된다", "_src_sheet" in F[0] and "_src_row" in F[0])
+chk("G-3 9줄 전부 대조", V["checked"] == 9, str(V["checked"]))
+chk("G-4 ⭐불일치 0건 — 파서가 원본을 그대로 읽는다", V["ok"] and not V["diff"],
+    str(V["diff"][:2]))
+chk("G-5 ⭐화살표 줄이 불일치로 잡히지 않는다(마지막 값이 정답)",
+    not [d for d in V["diff"] if d["field"] in ("part_no", "maker")])
+chk("G-6 ⭐계산한 금액이 불일치로 잡히지 않는다(규칙대로 검산)",
+    not [d for d in V["diff"] if d["field"] == "amount"])
+VN = bom.verify_source_vs_parsed(P_NOAMT, os.path.basename(P_NOAMT))
+chk("G-7 합계 열 없는 양식도 대조 통과", VN["ok"] and VN["checked"] == 2,
+    f'ok={VN["ok"]} checked={VN["checked"]}')
+chk("G-8 원본에 없는 값을 지어내지 않는다 — 저장 안 되는 칸은 대조 대상에서 제외",
+    "_src_row" not in bom._ITEM_COLS)
+
+# ══════════ H. 중복 시트 감지 ══════════
+print("\n── H. 중복 시트 (실물 003M2506 사례) ──")
+P_DUP = os.path.join(_tmp, "999T9903 구매품 LIST_TEST.xlsx")
+_wb = openpyxl.load_workbook(P_FULL)
+_wb.copy_worksheet(_wb["1. 구매품"]).title = "1. 구매품 (2)"
+_wb.save(P_DUP)
+DUP = bom.scan_duplicate_sheets(P_DUP)
+chk("H-1 같은 내용 시트 2개를 찾아낸다", len(DUP) == 1, str(DUP))
+chk("H-2 어느 시트인지 알려준다",
+    bool(DUP) and set(DUP[0]["sheets"]) == {"1. 구매품", "1. 구매품 (2)"})
+VD = bom.verify_source_vs_parsed(P_DUP, os.path.basename(P_DUP))
+chk("H-3 ⭐중복이 있으면 ok=False — 그대로 올리면 줄이 두 배", VD["ok"] is False)
+chk("H-4 사람 말로 안내한다", "두 배" in (VD.get("skipped") or ""))
+chk("H-5 정상 파일은 중복 없음", not bom.scan_duplicate_sheets(P_FULL))
+# 빈 시트 오탐 방지 — 실물 002M2505 의 2.가공품·3.공용부 가 줄번호만 있어 100% 같게 나왔다
+P_EMPTY = os.path.join(_tmp, "999T9904 구매품 LIST_TEST.xlsx")
+_wb2 = openpyxl.Workbook()
+for t in ("1. 구매품", "2. 가공품", "3. 공용부"):
+    _ws = _wb2.create_sheet(t) if t != "1. 구매품" else _wb2.active
+    _ws.title = t
+    _write(_ws, _FULL_HDR, [[1, "UNIT-A", "A1", "TEST", "TEST-PART-A", "M", 1, 1, "EA",
+                             0, 0, 1, 10, 0, 10, 10, "1W", ""]] if t == "1. 구매품"
+           else [[i, None, None, None, None, None, None, None, None,
+                  None, None, None, None, None, None, None, None, None] for i in range(1, 6)])
+_wb2.save(P_EMPTY)
+chk("H-6 ⭐빈 시트끼리는 중복으로 보지 않는다(오탐 방지)",
+    not bom.scan_duplicate_sheets(P_EMPTY), str(bom.scan_duplicate_sheets(P_EMPTY)))
+
 print(f"\n{'=' * 52}\n결과: PASS {ok} · FAIL {fail}")
 sys.exit(0 if fail == 0 else 1)

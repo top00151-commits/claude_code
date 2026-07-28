@@ -248,6 +248,10 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
             _amt_raw = row_vals.get("amount")
             _amt_present = _amt_raw is not None and str(_amt_raw).strip() != ""
             it = {
+                # 원본 위치 — **저장하지 않는다**(_ITEM_COLS 에 없음). 대조 결과에
+                # "몇 번째 시트 몇 행이 다른지" 를 사람이 짚을 수 있게 담아 두는 값이다.
+                "_src_sheet": sn,
+                "_src_row": r,
                 "item_type": item_type,
                 "category": _cell_str(row_vals.get("category")),
                 "unit_code": _cell_str(row_vals.get("unit_code")),
@@ -343,6 +347,196 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
         if m:
             out["mgmt_code"] = m.group(1)
     return out
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  BOM 업로드 검증 — 원본 엑셀 ↔ 파서가 읽은 값 ↔ DB 저장값
+#  [대표규정 §4 규칙47 · 업무분장 V2 2026-07-28 — BOM 은 세션 05 담당]
+#  ⭐ 결과 형식은 세션 01 공통 자산 `window.knkVerifyMsg1024` 를 **그대로 재사용**한다.
+#     {ok, checked, diff:[{row, name, field, excel, saved}], error, skipped}
+#     ⛔ 공통 메시지 함수를 복제하지 않는다.
+#  ⛔ 판단은 사람이 한다 — 불일치를 자동으로 고치지 않고 **보고만** 한다.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# 파서가 **일부러** 바꾸는 값들. 원본과 달라도 불일치가 아니며, 아래 규칙대로 검산한다.
+#   · part_no/maker/part_name : 'A->B->C' 는 마지막 값만 남긴다(변경 표기 분해)
+#   · total_qty               : 비어 있으면 unit_count 로 채운다
+#   · unit                    : 비어 있으면 'EA'
+#   · amount                  : 원본이 비어 있을 때만 수량×단가로 계산(amount_is_calculated)
+_VERIFY_TEXT_FIELDS = ("category", "unit_code", "part_no", "part_name", "maker",
+                       "vendor", "material", "finishing", "unit", "delivery_text", "remarks")
+_VERIFY_NUM_FIELDS = ("unit_count", "total_qty", "unit_price", "amount",
+                      "source_stock_allocated_kor", "stock_ref_vn",
+                      "source_purchase_qty", "stock_amount", "order_amount")
+
+
+def _vsame_text(a, b) -> bool:
+    return (str(a or "").strip()) == (str(b or "").strip())
+
+
+def _vsame_num(a, b) -> bool:
+    try:
+        return abs(float(a or 0) - float(b or 0)) < 0.005
+    except (TypeError, ValueError):
+        return _vsame_text(a, b)
+
+
+def scan_duplicate_sheets(path: str) -> list:
+    """**같은 내용의 시트가 둘 이상인지** 찾는다.
+
+    실물 `003M2506` 은 `1. 구매품` 과 `1. 구매품 (2)` 를 함께 갖고 있고 6,208셀 중
+    24셀만 다르다. 그대로 올리면 **326줄이 두 번 들어가 652줄**이 된다.
+    ⛔ 자동으로 지우지 않는다 — 어느 시트를 쓸지는 사람이 고른다.
+    반환: [{sheets:[a,b], rows:n, same_ratio:0.99}]
+    """
+    out = []
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(path, data_only=True)
+    except Exception:
+        return out
+    parsed = {}
+    for sn in wb.sheetnames:
+        ws = wb[sn]
+        if ws.sheet_state != "visible":
+            continue
+        hr, cmap = detect_header(ws)
+        if not hr:
+            continue
+        pno_c = next((c for c, f in cmap.items() if f == "part_no"), None)
+        nm_c = next((c for c, f in cmap.items() if f == "part_name"), None)
+        key = []
+        for r in range(hr + 1, min(ws.max_row or hr, hr + 400) + 1):
+            # ⚠ 품명·품번이 둘 다 빈 줄은 세지 않는다. 실물 `002M2505` 의 `2.가공품`·
+            #    `3.공용부` 는 줄번호(1,2,3…)만 있고 품목이 없어, 그대로 비교하면
+            #    **빈 시트끼리 100% 같다**고 나와 없는 중복을 경고하게 된다(오탐).
+            has = (pno_c and _cell_str(ws.cell(r, pno_c).value)) or \
+                  (nm_c and _cell_str(ws.cell(r, nm_c).value))
+            if not has:
+                continue
+            key.append(tuple(_cell_str(ws.cell(r, c).value) for c in sorted(cmap)))
+        if not key:
+            continue                      # 품목이 하나도 없는 시트는 중복 대상이 아니다
+        parsed[sn] = key
+    names = list(parsed)
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            a, b = parsed[names[i]], parsed[names[j]]
+            if not a or not b:
+                continue
+            n = min(len(a), len(b))
+            same = sum(1 for k in range(n) if a[k] == b[k])
+            ratio = same / max(len(a), len(b))
+            if ratio >= 0.9:
+                out.append({"sheets": [names[i], names[j]],
+                            "rows": max(len(a), len(b)), "same_ratio": round(ratio, 4)})
+    wb.close()
+    return out
+
+
+def verify_source_vs_parsed(path: str, filename: str = "") -> dict:
+    """① **원본 엑셀 셀 ↔ 파서가 읽은 값** 1:1 대조.
+
+    파서가 일부러 바꾸는 값(화살표 분해·빈칸 보완·금액 계산)은 **규칙대로 검산**하고,
+    규칙을 벗어난 것만 불일치로 올린다.
+    """
+    try:
+        from openpyxl import load_workbook
+        res = parse_bom_file(path, filename)
+        wb = load_workbook(path, data_only=True)
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+    diff, checked, skipped_rows = [], 0, 0
+    try:
+        for sh in res.get("sheets", []):
+            if not sh.get("ok"):
+                continue
+            ws = wb[sh["sheet"]]
+            hr, cmap = detect_header(ws)
+            col_of = {f: c for c, f in cmap.items()}
+            for it in sh.get("items", []):
+                r = it.get("_src_row")
+                if not r:
+                    skipped_rows += 1
+                    continue
+                checked += 1
+                name = it.get("part_name") or it.get("part_no") or ""
+                loc = f'{sh["sheet"]}!{r}'
+
+                def _raw(f):
+                    c = col_of.get(f)
+                    return ws.cell(r, c).value if c else None
+
+                for f in _VERIFY_TEXT_FIELDS:
+                    if f not in col_of:
+                        continue
+                    src = _cell_str(_raw(f))
+                    got = it.get(f)
+                    if f in ("part_no", "maker", "part_name") and ("->" in src or "→" in src):
+                        _, last, _m, _c = _split_arrow_chain(src)
+                        if not _vsame_text(last, got):
+                            diff.append({"row": loc, "name": name, "field": f,
+                                         "excel": f"{src} (마지막 값)", "saved": got})
+                        continue
+                    if f == "unit" and not src and got == "EA":
+                        continue                       # 규칙: 빈 단위는 EA
+                    if not _vsame_text(src, got):
+                        diff.append({"row": loc, "name": name, "field": f,
+                                     "excel": src, "saved": got})
+                for f in _VERIFY_NUM_FIELDS:
+                    if f not in col_of:
+                        continue
+                    src, got = _raw(f), it.get(f)
+                    if f == "total_qty" and (src is None or str(src).strip() == ""):
+                        if _vsame_num(it.get("unit_count"), got):
+                            continue                   # 규칙: 총수량 비면 대분 수량
+                    if f == "amount" and it.get("amount_is_calculated"):
+                        _q = it.get("total_qty") or it.get("unit_count") or 0
+                        if _vsame_num(round(_q * (it.get("unit_price") or 0), 2), got):
+                            continue                   # 규칙: 원본이 비어 계산한 값
+                        diff.append({"row": loc, "name": name, "field": f,
+                                     "excel": "(빈칸→계산)", "saved": got})
+                        continue
+                    if not _vsame_num(src, got):
+                        diff.append({"row": loc, "name": name, "field": f,
+                                     "excel": src, "saved": got})
+    finally:
+        wb.close()
+    dups = scan_duplicate_sheets(path)
+    out = {"checked": checked, "diff": diff, "ok": not diff,
+           "stage": "원본↔읽은값", "duplicate_sheets": dups,
+           "skipped_rows": skipped_rows}
+    if dups:
+        out["ok"] = False
+        out["skipped"] = ("같은 내용의 시트가 둘 이상입니다 — 그대로 올리면 줄이 두 배가 됩니다: "
+                          + " / ".join("%s ≒ %s (%d줄)" % (d["sheets"][0], d["sheets"][1], d["rows"])
+                                       for d in dups))
+    return out
+
+
+def verify_parsed_vs_saved(project_id: int, file_items: list) -> dict:
+    """② **파서가 읽은 값 ↔ DB 에 저장된 값** 대조.
+
+    ⚠ `bom_items` 에 칸이 있는 항목만 볼 수 있다. 재고·발주수량·서비스 의심 표시 등은
+       아직 저장되지 않으므로(스키마 확장 미승인) 이 단계의 대조 대상이 아니다.
+       그 항목들은 ①(원본↔읽은값)에서 확인한다.
+    """
+    saved = get_board(int(project_id))
+    pairs, adds, leftovers = _pair_items(saved, file_items)
+    diff = []
+    for b, f in pairs:
+        loc = f'{f.get("_src_sheet") or ""}!{f.get("_src_row") or ""}'
+        name = f.get("part_name") or f.get("part_no") or ""
+        for fld in _ITEM_COLS:
+            if fld in ("item_type", "line_no", "buy_at"):
+                continue                       # 저장 시 별도 규칙이 있는 칸
+            a, b2 = f.get(fld), (b.get(fld) if isinstance(b, dict) else None)
+            same = _vsame_num(a, b2) if fld in _VERIFY_NUM_FIELDS else _vsame_text(a, b2)
+            if not same:
+                diff.append({"row": loc, "name": name, "field": fld,
+                             "excel": a, "saved": b2})
+    return {"checked": len(pairs), "diff": diff, "ok": not diff and not adds,
+            "stage": "읽은값↔저장값", "not_saved": len(adds), "only_in_db": len(leftovers)}
 
 
 def _chain_prev_values(ch: dict) -> list:
