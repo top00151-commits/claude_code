@@ -83,7 +83,7 @@
 
 {# v5H226z989 (대표 지시·2026-07-17): '열어본 화면 책갈피 탭'(ERP식 페이지 탭줄).
    ① 화면을 열면 상단 탭줄에 자동 추가 — 경로(pathname)당 탭 1개, 재방문하면 그 탭을 마지막 주소(검색조건 포함)로 갱신.
-      최근 탭은 최대 12개(가장 오래 안 본 것부터 자동 정리)·이 기기(localStorage)에 유지 = 브라우저 껐다 켜도 남음.
+      최근 탭은 최대 8개(가장 오래 안 본 것부터 자동 정리)·이 창이 열려 있는 동안만 유지(sessionStorage) = WORKS 종료(창 닫기) 시 초기화. (z1070)
    ② 탭 클릭 = 그 화면으로 복귀(스크롤 위치는 z984 화면위치복원이 이어받아 '보던 위치 그대로'). × = 탭 닫기.
       현재 화면 탭을 닫으면 가장 최근에 본 다른 탭으로 이동(없으면 홈). 🕘 = 전체 목록(탭줄에 다 안 보일 때 포함).
    ③ 📌 고정 = 계정별 서버 저장(view_prefs 'page_tabs_pinned', /api/page-tabs/pinned) → 다른 PC·재로그인에도 유지.
@@ -183,12 +183,15 @@
   var LKEY = 'knkPtabs989', MAXR = 8, MAXP = 10;   // z993(대표 지시): 책갈피 최대 8개
   var EXCL = {'/':1, '/home':1, '/sales':1, '/logistics':1, '/login':1, '/logout':1, '/guide':1};
   var recent = [], pinned = [];
-  try { recent = JSON.parse(localStorage.getItem(LKEY) || '[]') || []; } catch(e){ recent = []; }
+  // v5H226z1070 (대표 지시 2026-07-28): 최근(책갈피) 탭은 sessionStorage 저장 → WORKS 창(앱)을 닫으면 자동 초기화.
+  //   (전엔 localStorage라 브라우저 껐다 켜도 남아 탭이 계속 쌓였음.) 📌 고정 탭(서버 view_prefs)·워크스페이스 탭은 그대로 유지.
+  try { recent = JSON.parse(sessionStorage.getItem(LKEY) || '[]') || []; } catch(e){ recent = []; }
+  try { localStorage.removeItem(LKEY); } catch(e){}   // z1070: 과거 localStorage 잔여분 한 번 정리(이제 sessionStorage 사용)
   if (!Array.isArray(recent)) recent = [];
   recent = recent.filter(function(e){ return e && typeof e.u === 'string' && e.u.charAt(0) === '/'; });
   evictR();   // z993: 기존 저장분(최대 12개 시절)도 로드 즉시 8개로 정리(함수 선언은 호이스팅되어 안전)
 
-  function saveR(){ try { localStorage.setItem(LKEY, JSON.stringify(recent)); } catch(e){} }
+  function saveR(){ try { sessionStorage.setItem(LKEY, JSON.stringify(recent)); } catch(e){} }   // z1070: 세션 저장(창 닫으면 초기화)
   function pathOf(u){ return String(u || '').split('?')[0].split('#')[0]; }
   function findR(p){ for (var i = 0; i < recent.length; i++) if (pathOf(recent[i].u) === p) return i; return -1; }
   function findP(p){ for (var i = 0; i < pinned.length; i++) if (pathOf(pinned[i].u) === p) return i; return -1; }
