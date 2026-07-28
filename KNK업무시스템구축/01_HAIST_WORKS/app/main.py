@@ -18769,6 +18769,73 @@ async def parts_import_submit(req: Request, file: UploadFile = File(...)):
                file_b64=file_b64, filename=fname)
 
 
+def _parts_import_verify_saved(raw_bytes):
+    """대표규정(2026-07-28·§4 규칙47): 자재 일괄등록 '엑셀 원본 ↔ 저장값' 대조(읽기전용).
+    ⛔세션 05(자재구매)의 저장 로직(parts_bulk_import_excel)은 건드리지 않는다 — dry_run=True 로 호출해 '파싱행'만
+    얻고, 자재번호(part_no) 정확일치로 저장값과 비교(검증층만). 금액(매입가·마진 등 환율·산출 필드)은
+    세션 05의 파서검증 영역이라 이 층에선 **저장 그대로 들어가는 텍스트 필드**(품명·규격·제작사·단위·통화)만 대조(거짓경고 방지).
+    반환 {checked, ok, diff:[{row,name,field,excel,saved}], skipped, fields}."""
+    out = {"checked": 0, "ok": True, "diff": [], "fields": "품명·규격·제작사·단위·통화"}
+    import tempfile as _tf, os as _os
+    _tmp = None
+    try:
+        _td = _tf.mkdtemp(prefix="parts_verify_")
+        _tmp = _os.path.join(_td, "u.xlsx")
+        with open(_tmp, "wb") as _f:
+            _f.write(raw_bytes)
+        from .database import parts_bulk_import_excel as _pbi
+        pre = _pbi(_tmp, dry_run=True)   # 파싱만(DB 변경 0) — 저장 로직 재사용, 무접촉
+    except Exception as _e:
+        return {"checked": 0, "ok": True, "diff": [], "fields": out["fields"],
+                "skipped": f"엑셀을 다시 열지 못했습니다({str(_e)[:60]})"}
+    finally:
+        try:
+            if _tmp:
+                _os.remove(_tmp); _os.rmdir(_os.path.dirname(_tmp))
+        except Exception:
+            pass
+    if isinstance(pre, dict) and pre.get("error"):
+        out["skipped"] = pre["error"]
+        return out
+    rows = (pre.get("preview") or []) if isinstance(pre, dict) else []
+
+    def _s(v):
+        return str(v).strip() if v not in (None, "") else ""
+
+    def _add(idx, name, field, ex, sv):
+        out["ok"] = False
+        if len(out["diff"]) < 20:
+            out["diff"].append({"row": idx, "name": str(name or "")[:24], "field": field,
+                                "excel": ("" if ex is None else str(ex)), "saved": ("" if sv is None else str(sv))})
+
+    _FIELDS = [("품명", "part_name"), ("규격", "spec"), ("제작사", "maker"),
+               ("단위", "unit"), ("통화", "currency")]
+    try:
+        with db_session() as c:
+            _cols = {r[1] for r in c.execute("PRAGMA table_info(parts)").fetchall()}
+            for _idx, pr in enumerate(rows, 1):
+                if pr.get("errors"):
+                    continue
+                d = pr.get("data") or {}
+                _pno = _s(d.get("part_no"))
+                if not _pno:
+                    continue
+                _cand = c.execute("SELECT * FROM parts WHERE part_no=?", (_pno,)).fetchall()
+                if len(_cand) != 1:
+                    continue   # 없거나 복수(모호) → 대조 보류(거짓경고 방지)
+                _sd = dict(_cand[0]); out["checked"] += 1
+                _nm = _s(d.get("part_name")) or _pno
+                for _f, _k in _FIELDS:
+                    if _k not in _cols:
+                        continue
+                    _ev = _s(d.get(_k))
+                    if _ev and _ev != _s(_sd.get(_k)):
+                        _add(_idx, _nm, _f, _ev, _s(_sd.get(_k)))
+    except Exception as _e:
+        out["error"] = str(_e)[:120]
+    return out
+
+
 @app.post("/parts/import/apply")
 async def parts_import_apply(req: Request,
                               file_b64: str = Form(""),
@@ -18807,16 +18874,15 @@ async def parts_import_apply(req: Request,
     if result.get("error"):
         return ctx(req, "parts_import.html", user=u, active="parts",
                    result=result, mode="result", filename=filename)
-    s = result.get("summary") or {}
-    from urllib.parse import urlencode
-    qs = urlencode({
-        "imported": s.get("inserted", 0),
-        "dup": s.get("dup", 0),
-        "sim": s.get("similar_warn", 0),
-        "err": s.get("error", 0),
-        "total": result.get("total", 0),
-    })
-    return RedirectResponse(f"/parts?{qs}", status_code=303)
+    # 대표규정(2026-07-28·§4 규칙47): 확정 후 '엑셀 원본 ↔ 저장값' 대조(검증층만·저장 로직 무접촉).
+    #   전엔 곧장 /parts 리다이렉트라 대조가 없었음 → 결과 화면에 ✅/⚠ 보여주고 '자재 목록으로' 링크.
+    _vfy = None
+    try:
+        _vfy = _parts_import_verify_saved(raw)
+    except Exception:
+        _vfy = None
+    return ctx(req, "parts_import.html", user=u, active="parts",
+               result=result, mode="result", filename=filename, verify=_vfy)
 
 
 # v5H226z648 (2026-06-25) — 검증결과 색칠 엑셀 다운로드 (구매팀 원본 정리용)

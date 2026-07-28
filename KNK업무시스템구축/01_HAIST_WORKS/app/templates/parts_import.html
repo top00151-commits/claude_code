@@ -431,6 +431,25 @@
             ✅ <b>등록 완료</b> — {{ s.inserted|default(0) }}건 자재 신규 등록 (파일: {{ filename }})
           </div>
 
+          {# 대표규정(2026-07-28·§4 규칙47): 확정 후 '엑셀 원본 ↔ 저장값' 대조 결과(서버 렌더·검증층만·저장 로직 무접촉) #}
+          {% if verify %}
+            {% if verify.skipped %}
+            <div style="padding:12px 16px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;color:#9a6a1a;font-size:13px;margin-bottom:14px;">⚠ 원본 대조를 건너뜀 — {{ verify.skipped }} <span style="color:#888;">(저장은 됐습니다 · 화면에서 값을 확인해 주세요)</span></div>
+            {% elif verify.ok %}
+            <div style="padding:12px 16px;background:var(--pq-ok-soft);border:1px solid var(--pq-ok);border-radius:8px;color:var(--pq-ok);font-size:13px;font-weight:600;margin-bottom:14px;">✅ 올린 엑셀 원본과 대조 {{ verify.checked|default(0) }}행 — 적어 넣은 값 전부 일치 <span style="font-weight:400;color:#5b7;">({{ verify.fields }})</span></div>
+            {% else %}
+            <div style="padding:12px 16px;background:var(--pq-err-soft);border:1px solid var(--pq-err);border-radius:8px;color:var(--pq-err);font-size:13px;margin-bottom:14px;">
+              ⚠ <b>올린 엑셀과 다른 값 {{ verify.diff|length }}건</b> (대조 {{ verify.checked|default(0) }}행) — 확인해 주세요
+              <ul style="margin:8px 0 0;padding-left:18px;font-weight:500;">
+                {% for x in verify.diff[:8] %}<li>{{ x.row }}행 {{ x.name }} [{{ x.field }}] 엑셀 <b>{{ x.excel }}</b> → 저장 <b>{{ x.saved }}</b></li>{% endfor %}
+                {% if verify.diff|length > 8 %}<li>… 외 {{ verify.diff|length - 8 }}건</li>{% endif %}
+              </ul>
+            </div>
+            {% endif %}
+          {% endif %}
+
+          <div style="margin-bottom:14px;"><a href="/parts" style="display:inline-block;padding:9px 18px;background:var(--pq-ok);color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">자재 목록으로 →</a> <a href="/parts/import" style="margin-left:8px;color:var(--mute);font-size:13px;">＋ 또 올리기</a></div>
+
           <div class="kpi-strip">
             <div class="kpi-cell ok">
               <div class="l">✓ 등록됨</div>
