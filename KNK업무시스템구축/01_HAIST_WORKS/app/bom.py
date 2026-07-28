@@ -31,6 +31,19 @@ _HEADER_ALIASES = [
     ("vendor",       ["VENDOR", "외주사", "NHATHAUPHU", "NHÀTHẦUPHỤ", "협력사"]),
     ("material",     ["MATERIAL", "재질", "VATLIEU", "VẬTLIỆU"]),
     ("finishing",    ["FINISHING", "후처리", "XULYBEMAT", "XỬLÝBỀMẶT", "표면처리"]),
+    # ── 구매팀 최종본(구매검토 결과) 전용 열 ─────────────────────────────────
+    #   [WP-04 판정 2026-07-28] 설계팀 BOM 은 '무엇이 필요한가', 구매팀 최종본은
+    #   '어떻게 조달할 것인가'다. 아래 5열이 구매검토의 핵심인데 그동안 통째로 버려졌다.
+    #   ⭐ 반드시 아래 넓은 별칭("수량"·"금액"·"TOTAL")보다 **앞에** 둔다.
+    #      안 그러면 `발주 수량`이 "수량"에, `재고 금액`이 "금액"에 먼저 잡혀 원본이 사라진다.
+    ("stock_qty_kor", ["사내재고", "본사재고", "국내재고", "KOR재고"]),
+    # ⚠ 베트남 재고는 **참고수량**이다(대표 판정 2026-07-28). 본사 가용재고·원장·
+    #    자동 구매량 계산에 **넣지 않는다**. 이름도 ref 로 두어 운영수량과 섞이지 않게 한다.
+    ("stock_ref_vn",  ["베트남재고", "VN재고", "VINA재고", "해외재고"]),
+    ("order_qty",     ["발주수량"]),
+    ("stock_amount",  ["재고금액"]),
+    ("order_amount",  ["발주금액"]),
+    # ───────────────────────────────────────────────────────────────────────
     ("total_qty",    ["UNITTOTAL", "TOTAL", "총수량"]),
     ("unit_count",   ["UNITCOUNT", "수량", "SOLUONG", "SỐLƯỢNG", "QTY"]),
     ("unit_price",   ["UNITPRICE", "단가", "DONGIA", "ĐƠNGIÁ"]),
@@ -47,6 +60,13 @@ _REQUIRED_ANY = ("part_name", "unit_count")  # + (part_no 또는 material) — �
 
 _MGMT_RE = re.compile(r"\b(\d{3}[A-Z]\d{4})\b")
 _ARROW_SPLIT = re.compile(r"\s*->\s*")
+
+# 자재가 아닐 수 있는 줄에 다는 **의심 표시**용 낱말.
+#   [WP-04 실물 검증] 구매팀 최종본에 `해외 출장비 (VINA)`·`프로그램 개발비` 가
+#   단위 EA 로 자재와 똑같은 모양으로 들어와 있다. 재고·검수 흐름에 그대로 태우면 안 된다.
+#   ⛔ 그러나 시스템이 **자동으로 걸러내지 않는다** — 표시만 하고 사람이 판정한다
+#      (임의 추정 금지 원칙).
+_SERVICE_HINTS = ("출장", "개발비", "프로그램", "설치비", "용역", "수수료", "운송비", "교육")
 
 
 def _norm_header_text(v) -> str:
@@ -93,16 +113,32 @@ def _is_strike(cell) -> bool:
         return False
 
 
-def _split_arrow(raw: str):
-    """'기존->변경' 표기 분해. '→'도 인식. 반환 (old, new, is_multi) — 화살표 없으면 (None, raw, False).
-    1→N 분해(예: 'A->B+C+D')는 new에 '+' 포함 → is_multi=True (라인 분할은 화면에서 수동)."""
+def _split_arrow_chain(raw: str):
+    """'기존->변경' 표기 분해. '→'도 인식. 반환 (old, new, is_multi, chain).
+
+    ⭐ [WP-04 실물 검증 2026-07-28] **화살표가 여러 번** 나오는 줄이 실제로 있다.
+       예) 'MFMCA0030RJD->ELM-PWR3M0-A1->E-CASP3M-N'  (단종 → 대체 → 재대체)
+       예전에는 maxsplit=1 이라 첫 화살표만 자르고 **뒤쪽 화살표가 새 품번 안에 그대로 남아**
+       'ELM-PWR3M0-A1->E-CASP3M-N' 하나를 품번으로 오인했다(구매팀 최종본에서 5줄 발생).
+       이제 체인 전체를 분해해 **처음 값 → 마지막 값**으로 잡고, 중간 단계는 chain 에 보존한다.
+
+    1→N 분해(예: 'A->B+C+D')는 new에 '+' 포함 → is_multi=True (라인 분할은 화면에서 수동).
+    """
     s = (raw or "").replace("→", "->")
     if "->" not in s:
-        return None, (raw or "").strip(), False
-    parts = _ARROW_SPLIT.split(s, maxsplit=1)
-    old = parts[0].strip()
-    new = parts[1].strip() if len(parts) > 1 else ""
-    return old, new, ("+" in new)
+        return None, (raw or "").strip(), False, []
+    chain = [p.strip() for p in _ARROW_SPLIT.split(s)]
+    chain = [c for c in chain if c != ""]
+    if len(chain) < 2:
+        return None, (raw or "").strip(), False, []
+    old, new = chain[0], chain[-1]
+    return old, new, ("+" in new), chain
+
+
+def _split_arrow(raw: str):
+    """(호환) 반환 (old, new, is_multi). 체인이 필요하면 _split_arrow_chain 을 쓴다."""
+    old, new, is_multi, _chain = _split_arrow_chain(raw)
+    return old, new, is_multi
 
 
 def detect_header(ws, scan_max: int = 15):
@@ -176,6 +212,8 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
         if not out["mgmt_code"]:
             out["mgmt_code"] = _scan_code_top(ws)
         item_type = _sheet_item_type(sn)
+        # 이 시트에서 **실제로 잡힌 열**. 합계 열이 있는지 없는지로 계산 여부를 가른다.
+        _mapped = set(cmap.values())
         items = []
         stats = {"rows": 0, "arrows": 0, "new_marked": 0, "deleted_marked": 0, "multi_split": 0}
         empty_streak = 0
@@ -213,6 +251,18 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
                 "unit": _cell_str(row_vals.get("unit")) or "EA",
                 "unit_price": _num(row_vals.get("unit_price")),
                 "amount": _num(row_vals.get("amount")),
+                "amount_is_calculated": False,   # 원본에 합계가 없어 우리가 계산했는가
+                # ── 구매검토 결과(구매팀 최종본) ──────────────────────────────
+                "stock_qty_kor": _num(row_vals.get("stock_qty_kor")),
+                # ⚠ 참고수량 — 본사 가용재고·원장·자동 구매량 계산에 넣지 않는다(대표 판정)
+                "stock_ref_vn": _num(row_vals.get("stock_ref_vn")),
+                "order_qty": _num(row_vals.get("order_qty")),
+                "stock_amount": _num(row_vals.get("stock_amount")),
+                "order_amount": _num(row_vals.get("order_amount")),
+                # 자재가 아닐 수 있는 줄(출장비·개발비 등)에 다는 **의심 표시**.
+                # ⛔ 판정이 아니다 — 시스템이 자동으로 걸러내지 않고 사람이 확인한다.
+                "is_service_suspect": False,
+                # ─────────────────────────────────────────────────────────────
                 "delivery_text": _cell_str(row_vals.get("delivery_text")),
                 "buy_at": _cell_str(row_vals.get("buy_at")).upper(),
                 "remarks": _cell_str(row_vals.get("remarks")),
@@ -224,10 +274,15 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
             # 변경 어휘 ①: 셀 안 '기존->변경' (모델명·제조사·품명)
             for f, raw in (("part_no", pno_raw), ("maker", _cell_str(row_vals.get("maker"))),
                            ("part_name", name_raw)):
-                old, new, is_multi = _split_arrow(raw)
+                old, new, is_multi, chain = _split_arrow_chain(raw)
                 it[f] = new
                 if old is not None:
-                    it["excel_changes"].append({"field": f, "old": old, "new": new, "is_multi": is_multi})
+                    _ch = {"field": f, "old": old, "new": new, "is_multi": is_multi}
+                    if len(chain) > 2:
+                        # 2회 이상 바뀐 품목 — 중간 단계까지 사실대로 남긴다
+                        _ch["chain"] = chain
+                        stats["arrow_chain"] = stats.get("arrow_chain", 0) + 1
+                    it["excel_changes"].append(_ch)
                     stats["arrows"] += 1
                     if is_multi:
                         stats["multi_split"] += 1
@@ -251,8 +306,17 @@ def parse_bom_file(path: str, filename: str = "") -> dict:
                     out["mgmt_code"] = m.group(1)
             if it["total_qty"] == 0 and it["unit_count"]:
                 it["total_qty"] = it["unit_count"]
-            if it["amount"] == 0 and it["unit_price"]:
-                it["amount"] = round((it["total_qty"] or it["unit_count"] or 0) * it["unit_price"], 2)
+            # ⭐ [WP-04 판정 2026-07-28] **원본에 적힌 금액이 있으면 계산하지 않는다.**
+            #    예전에는 amount 가 0이기만 하면 단가×수량으로 덮어써서, 구매팀 최종본의
+            #    실제 합계(103,521,961.32원)를 계산값(103,266,661.32원)으로 바꿔 놓았다.
+            #    이제 **합계 열 자체가 없을 때만** 계산하고, 계산했다는 사실을 표시한다.
+            if "amount" not in _mapped and it["unit_price"]:
+                if it["amount"] == 0:
+                    it["amount"] = round((it["total_qty"] or it["unit_count"] or 0) * it["unit_price"], 2)
+                    it["amount_is_calculated"] = True
+            # 자재가 아닐 수 있는 줄에 **의심 표시**만 단다(판정·자동 제외 없음)
+            _nm = (it["part_name"] or "") + " " + (it["category"] or "")
+            it["is_service_suspect"] = any(k in _nm for k in _SERVICE_HINTS)
             items.append(it)
             stats["rows"] += 1
         out["sheets"].append({"sheet": sn, "ok": True, "reason": "", "item_type": item_type,
