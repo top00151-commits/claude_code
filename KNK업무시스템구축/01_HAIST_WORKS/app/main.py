@@ -32549,6 +32549,73 @@ async def suppliers_import_submit(req: Request, file: UploadFile = File(...)):
                result=result, mode="preview", file_b64=file_b64, filename=fname)
 
 
+def _supplier_import_verify_saved(raw_bytes):
+    """대표규정(2026-07-28·§4 규칙47): 공급사 일괄등록 '엑셀 원본 ↔ 저장값' 대조(읽기전용).
+    ⛔세션 05(자재구매)의 저장 로직(suppliers_bulk_import_excel)은 건드리지 않는다 — 그 함수를 dry_run=True 로
+    호출해 '파싱행'만 얻고, 공급사명 정확일치로 저장된 값과 비교한다(검증층만).
+    반환 {checked, ok, diff:[{row,name,field,excel,saved}], skipped, fields}."""
+    out = {"checked": 0, "ok": True, "diff": [],
+           "fields": "코드·사업자번호·대표·전화·이메일·주소·담당자"}
+    import tempfile as _tf, os as _os
+    _tmp = None
+    try:
+        _td = _tf.mkdtemp(prefix="sup_verify_")
+        _tmp = _os.path.join(_td, "u.xlsx")
+        with open(_tmp, "wb") as _f:
+            _f.write(raw_bytes)
+        from .database import suppliers_bulk_import_excel as _sbi
+        pre = _sbi(_tmp, dry_run=True)   # 파싱만(DB 변경 0) — 저장 로직 재사용, 무접촉
+    except Exception as _e:
+        return {"checked": 0, "ok": True, "diff": [], "fields": out["fields"],
+                "skipped": f"엑셀을 다시 열지 못했습니다({str(_e)[:60]})"}
+    finally:
+        try:
+            if _tmp:
+                _os.remove(_tmp); _os.rmdir(_os.path.dirname(_tmp))
+        except Exception:
+            pass
+    if isinstance(pre, dict) and pre.get("error"):
+        out["skipped"] = pre["error"]
+        return out
+    rows = (pre.get("preview") or []) if isinstance(pre, dict) else []
+
+    def _s(v):
+        return str(v).strip() if v not in (None, "") else ""
+
+    def _add(idx, name, field, ex, sv):
+        out["ok"] = False
+        if len(out["diff"]) < 20:
+            out["diff"].append({"row": idx, "name": str(name or "")[:24], "field": field,
+                                "excel": ("" if ex is None else str(ex)), "saved": ("" if sv is None else str(sv))})
+
+    _FIELDS = [("코드", "code"), ("사업자번호", "biz_no"), ("대표", "ceo_name"),
+               ("전화", "phone"), ("이메일", "email"), ("주소", "address"), ("담당자", "manager_name")]
+    try:
+        with db_session() as c:
+            _cols = {r[1] for r in c.execute("PRAGMA table_info(suppliers)").fetchall()}
+            for _idx, pr in enumerate(rows, 1):
+                if pr.get("errors"):
+                    continue
+                d = pr.get("data") or {}
+                _nm = _s(d.get("name"))
+                if not _nm:
+                    continue
+                _row = c.execute("SELECT * FROM suppliers WHERE lower(name)=?", (_nm.lower(),)).fetchone()
+                if not _row:
+                    _add(_idx, _nm, "공급사명", _nm, "저장 안 됨")
+                    continue
+                _sd = dict(_row); out["checked"] += 1
+                for _f, _k in _FIELDS:
+                    if _k not in _cols:
+                        continue
+                    _ev = _s(d.get(_k))
+                    if _ev and _ev != _s(_sd.get(_k)):
+                        _add(_idx, _nm, _f, _ev, _s(_sd.get(_k)))
+    except Exception as _e:
+        out["error"] = str(_e)[:120]
+    return out
+
+
 @app.post("/suppliers/import/apply")
 async def suppliers_import_apply(req: Request,
                                   file_b64: str = Form(""),
@@ -32588,15 +32655,15 @@ async def suppliers_import_apply(req: Request,
     if result.get("error"):
         return ctx(req, "suppliers_import.html", user=u, active="suppliers",
                    result=result, mode="result", filename=filename)
-    s = result.get("summary") or {}
-    from urllib.parse import urlencode
-    qs = urlencode({
-        "imported": s.get("inserted", 0),
-        "dup": s.get("dup", 0),
-        "err": s.get("error", 0),
-        "total": result.get("total", 0),
-    })
-    return RedirectResponse(f"/suppliers?{qs}", status_code=303)
+    # 대표규정(2026-07-28·§4 규칙47): 확정 후 '엑셀 원본 ↔ 저장값' 대조(검증층만·저장 로직 무접촉).
+    #   결과 화면에 ✅/⚠를 보여준다(전엔 곧장 목록 리다이렉트라 대조가 없었음). '공급사 목록으로' 링크로 이동.
+    _vfy = None
+    try:
+        _vfy = _supplier_import_verify_saved(raw)
+    except Exception:
+        _vfy = None
+    return ctx(req, "suppliers_import.html", user=u, active="suppliers",
+               result=result, mode="result", filename=filename, verify=_vfy)
 
 
 @app.get("/suppliers/import/template.xlsx")
