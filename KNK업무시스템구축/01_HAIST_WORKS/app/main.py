@@ -13413,6 +13413,7 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
         return JSONResponse({"ok": False, "message": "so_id 또는 rows 누락"}, 400)
     inserted = 0
     last_err = None
+    _ins = []   # (row, order_items.id) — 대표규정 §4 규칙47: 확정 후 '원본↔저장' 대조(방금 넣은 항목만 1:1)
     with db_session() as c:
         # SO 검증
         so = c.execute("SELECT id, project_id, currency FROM orders WHERE id=?",
@@ -13454,11 +13455,12 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
                     cols.append("image_thumb_path")
                     vals.append(_img_pref + str(r.get("image_thumb_file")))
                 placeholders = ",".join(["?"] * len(vals))
-                c.execute(
+                _cur = c.execute(
                     f"INSERT INTO order_items({','.join(cols)}) VALUES({placeholders})",
                     vals
                 )
                 inserted += 1
+                _ins.append((r, _cur.lastrowid))   # §4 규칙47: 이 행이 넣은 호기(대조용)
             except Exception as e:
                 last_err = str(e)
                 print(f"[v5H226] line insert err: {e}")
@@ -13492,10 +13494,52 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
             )
         except Exception:
             pass
+        # 대표규정(2026-07-28·§4 규칙47): 확정 후 '엑셀 원본 ↔ 저장값' 대조 — 방금 넣은 항목만 그 행과 1:1(매칭 모호성 0).
+        _vout = {"checked": 0, "ok": True, "diff": [], "fields": "품명·수량·단가·비고·발주일"}
+        try:
+            def _vs(v):
+                return str(v).strip() if v not in (None, "") else ""
+
+            def _vn(v):
+                try:
+                    return round(float(str(v).replace(",", "").strip()), 2)
+                except Exception:
+                    return None
+
+            def _vadd(nm, fld, ex, sv):
+                _vout["ok"] = False
+                if len(_vout["diff"]) < 20:
+                    _vout["diff"].append({"row": 0, "name": str(nm or "")[:24], "field": fld,
+                                          "excel": ("" if ex is None else str(ex)), "saved": ("" if sv is None else str(sv))})
+
+            for _r, _iid in _ins:
+                _it = c.execute("SELECT unit_label, qty, unit_price, line_note, order_date "
+                                "FROM order_items WHERE id=?", (_iid,)).fetchone()
+                _pn = _vs(_r.get("part_name"))
+                if not _it:
+                    _vadd(_pn, "행", "있음", "저장 안 됨")
+                    continue
+                _d = dict(_it); _vout["checked"] += 1
+                if _pn and _pn != _vs(_d.get("unit_label")):
+                    _vadd(_pn, "품명", _pn, _vs(_d.get("unit_label")))
+                _q = _vn(_r.get("qty"))
+                if _q is not None and _q != _vn(_d.get("qty")):
+                    _vadd(_pn, "수량", _q, _vn(_d.get("qty")))
+                _up = _vn(_r.get("unit_price"))
+                if _up is not None and _up != _vn(_d.get("unit_price")):
+                    _vadd(_pn, "단가", _up, _vn(_d.get("unit_price")))
+                if _vs(_r.get("spec")) and _vs(_r.get("spec")) != _vs(_d.get("line_note")):
+                    _vadd(_pn, "비고", _vs(_r.get("spec")), _vs(_d.get("line_note")))
+                if _vs(_r.get("order_date")):
+                    _eo = _vs(_r.get("order_date"))[:10]
+                    if _eo != _vs(_d.get("order_date"))[:10]:
+                        _vadd(_pn, "발주일", _eo, _vs(_d.get("order_date"))[:10])
+        except Exception as _ve:
+            _vout["error"] = str(_ve)[:120]
     if inserted == 0:
         return JSONResponse({"ok": False,
                               "message": f"0건 등록 — DB 오류: {last_err or '알 수 없음'}"}, 500)
-    return JSONResponse({"ok": True, "inserted": inserted})
+    return JSONResponse({"ok": True, "inserted": inserted, "verify": _vout})
 
 
 # ============================================================
@@ -13793,6 +13837,7 @@ async def projects_import_parts_confirm(req: Request, pid: int):
         return JSONResponse({"ok": False, "message": "so_id 또는 rows 누락"}, 400)
     inserted = 0
     last_err = None
+    _ins = []   # (row, order_items.id) — 대표규정 §4 규칙47: 확정 후 '원본↔저장' 대조(방금 넣은 항목만 1:1)
     with db_session() as c:
         so = c.execute("SELECT id, project_id, currency FROM orders WHERE id=?",
                         (so_id,)).fetchone()
@@ -13860,11 +13905,12 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                 if "image_thumb_path" in oicols and r.get("image_thumb_file"):
                     cols.append("image_thumb_path"); vals.append(_img_pref + str(r.get("image_thumb_file")))
                 placeholders = ",".join(["?"] * len(vals))
-                c.execute(
+                _cur = c.execute(
                     f"INSERT INTO order_items({','.join(cols)}) VALUES({placeholders})",
                     vals
                 )
                 inserted += 1
+                _ins.append((r, _cur.lastrowid))   # §4 규칙47: 이 행이 넣은 호기(대조용)
             except Exception as e:
                 last_err = str(e)
                 print(f"[v5H226z] parts insert err: {e}")
@@ -13900,10 +13946,48 @@ async def projects_import_parts_confirm(req: Request, pid: int):
             )
         except Exception:
             pass
+        # 대표규정(2026-07-28·§4 규칙47): 확정 후 '엑셀 원본 ↔ 저장값' 대조 — 방금 넣은 항목만 그 행과 1:1(매칭 모호성 0).
+        _vout = {"checked": 0, "ok": True, "diff": [], "fields": "품명·수량·단가·금액"}
+        try:
+            def _vs(v):
+                return str(v).strip() if v not in (None, "") else ""
+
+            def _vn(v):
+                try:
+                    return round(float(str(v).replace(",", "").strip()), 2)
+                except Exception:
+                    return None
+
+            def _vadd(nm, fld, ex, sv):
+                _vout["ok"] = False
+                if len(_vout["diff"]) < 20:
+                    _vout["diff"].append({"row": 0, "name": str(nm or "")[:24], "field": fld,
+                                          "excel": ("" if ex is None else str(ex)), "saved": ("" if sv is None else str(sv))})
+
+            for _r, _iid in _ins:
+                _it = c.execute("SELECT unit_label, qty, unit_price, amount FROM order_items WHERE id=?", (_iid,)).fetchone()
+                _pn = _vs(_r.get("part_name"))
+                if not _it:
+                    _vadd(_pn, "행", "있음", "저장 안 됨")
+                    continue
+                _d = dict(_it); _vout["checked"] += 1
+                if _pn and _pn != _vs(_d.get("unit_label")):
+                    _vadd(_pn, "품명", _pn, _vs(_d.get("unit_label")))
+                _q = _vn(_r.get("qty"))
+                if _q is not None and _q != _vn(_d.get("qty")):
+                    _vadd(_pn, "수량", _q, _vn(_d.get("qty")))
+                _up = _vn(_r.get("unit_price"))
+                if _up is not None and _up != _vn(_d.get("unit_price")):
+                    _vadd(_pn, "단가", _up, _vn(_d.get("unit_price")))
+                _am = _vn(_r.get("amount"))
+                if _am is not None and _am > 0 and _am != _vn(_d.get("amount")):
+                    _vadd(_pn, "금액", _am, _vn(_d.get("amount")))
+        except Exception as _ve:
+            _vout["error"] = str(_ve)[:120]
     if inserted == 0:
         return JSONResponse({"ok": False,
                               "message": f"0건 등록 — DB 오류: {last_err or '알 수 없음'}"}, 500)
-    return JSONResponse({"ok": True, "inserted": inserted})
+    return JSONResponse({"ok": True, "inserted": inserted, "verify": _vout})
 
 
 @app.post("/projects/{pid:int}/quick-status")

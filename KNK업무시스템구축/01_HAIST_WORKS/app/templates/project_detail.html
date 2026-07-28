@@ -2405,7 +2405,10 @@
         return;
       }
       document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--success);">✓ ' + j.inserted + '개 라인 추가 완료. 새로고침합니다…</span>';
-      setTimeout(() => location.reload(), 800);
+      // 대표규정(2026-07-28·§4 규칙47): 확정 후 '엑셀 원본 ↔ 저장값' 대조 결과 표시(백엔드가 이미 계산해 j.verify로 보냄).
+      var _vm = (window.knkVerifyMsg1024 && j.verify) ? window.knkVerifyMsg1024(j.verify) : '';
+      if (_vm) { alert('📊 엑셀 원본 ↔ 저장값 대조' + _vm); }
+      setTimeout(() => location.reload(), 1000);
     } catch(err) {
       document.getElementById('coImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ 네트워크 오류</span>';
       btn.disabled = false; btn.textContent = '✓ 확정 등록';
@@ -2910,7 +2913,10 @@
         return;
       }
       document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--success);">✓ ' + j.inserted + '개 부품 추가 완료. 새로고침합니다…</span>';
-      setTimeout(() => location.reload(), 800);
+      // 대표규정(2026-07-28·§4 규칙47): 확정 후 '엑셀 원본 ↔ 저장값' 대조 결과(백엔드가 j.verify로 보냄).
+      var _vmP = (window.knkVerifyMsg1024 && j.verify) ? window.knkVerifyMsg1024(j.verify) : '';
+      if (_vmP) { alert('📊 엑셀 원본 ↔ 저장값 대조' + _vmP); }
+      setTimeout(() => location.reload(), 1000);
     } catch(err) {
       document.getElementById('partsImportMsg').innerHTML = '<span style="color:var(--knk-red);">✗ 네트워크 오류</span>';
       btn.disabled = false; btn.textContent = '✓ 확정 등록';
