@@ -21534,8 +21534,16 @@ async def bom_upload_submit(request: Request, file: UploadFile = File(...)):
     with open(tmp_path, "wb") as f:
         f.write(raw)
     err = ""
+    verify_src = None
     try:
         parsed = _bom.parse_bom_file(tmp_path, filename=fname)
+        # [대표규정 §4 규칙47 · 업무분장 V2] 확정 **전에** 원본↔읽은값을 대조해 보여준다.
+        #   ⛔ 자동으로 고치지 않는다 — 다르면 알려주고 사람이 판단한다.
+        #   같은 내용 시트가 둘 이상이면(실물 003M2506) 여기서 경고한다.
+        try:
+            verify_src = _bom.verify_source_vs_parsed(tmp_path, fname)
+        except Exception as _ve:
+            verify_src = {"error": f"{type(_ve).__name__}: {_ve}"}
     except Exception as e:
         parsed = None
         err = f"파싱 오류: {e}"
@@ -21569,6 +21577,7 @@ async def bom_upload_submit(request: Request, file: UploadFile = File(...)):
     return ctx(request, "bom_upload.html", user=u, active="parts", mode="preview",
                parsed=parsed, ok_sheets=ok_sheets, bad_sheets=bad_sheets,
                project=proj, project_pick=pick, plan=plan,
+               verify_src=verify_src,          # 원본↔읽은값 대조 + 중복시트 경고
                file_b64=file_b64, filename=fname)
 
 
@@ -21609,6 +21618,14 @@ async def bom_upload_apply(request: Request):
         except (KeyError, TypeError, ValueError):
             _uid = 0
         res = _bom.apply_upload(project_id, items, mode, _uid, fname, used_sheets)
+        # [대표규정 §4 규칙47] 저장 **직후** 읽은값↔저장값을 대조한다.
+        #   ⚠ `bom_items` 에 칸이 있는 항목만 볼 수 있다(재고·발주수량 등은 아직 저장 안 됨).
+        #      그 항목들은 업로드 미리보기의 '원본↔읽은값'에서 확인한다.
+        #   ⛔ 대조가 실패해도 저장은 유지한다 — 결과만 알린다.
+        try:
+            _vfy = _bom.verify_parsed_vs_saved(project_id, items)
+        except Exception as _ve:
+            _vfy = {"error": f"{type(_ve).__name__}: {_ve}"}
     except Exception as e:
         return RedirectResponse(f"/bom/upload?error={_q('적용 실패: ' + str(e))}", 303)
     finally:
@@ -21641,9 +21658,24 @@ async def bom_upload_apply(request: Request):
                     _ntf_note += f" (메신저 {_nres['msg_err'][:40]})"
     except Exception as _e:
         _ntf_note = f" · 구매팀 통보 실패({str(_e)[:40]})"
+    # 저장값 대조 결과를 사람 말로 한 줄 붙인다(주소창 길이 제한 때문에 요약만).
+    _vmsg = ""
+    if isinstance(_vfy, dict):
+        if _vfy.get("error"):
+            _vmsg = f" · ⚠ 저장값 대조를 못 했습니다({_vfy['error'][:40]}) — 저장은 됐습니다"
+        elif _vfy.get("ok"):
+            _vmsg = f" · ✅ 저장값 대조 {_vfy.get('checked', 0)}줄 전부 일치"
+        else:
+            _d = _vfy.get("diff") or []
+            _vmsg = f" · ⚠ 저장값과 다른 값 {len(_d)}건(대조 {_vfy.get('checked', 0)}줄)"
+            if _d:
+                _vmsg += " — " + ", ".join(f"{x['row']} [{x['field']}]" for x in _d[:3])
+            if _vfy.get("not_saved"):
+                _vmsg += f" · 저장 못 찾은 줄 {_vfy['not_saved']}"
     msg = (f"v{res['version_no']} 반영 — 추가 {res['added']} · 변경 {res['changed']} · 삭제 {res['deleted']}"
            + (f" · 파일에 없던 기존 라인 {res['missing']}건 유지" if res.get("missing") else "")
            + (f" · 🔴 발주 후 변경 {res['ordered_warn']}건 재검토 필요" if res.get("ordered_warn") else "")
+           + _vmsg
            + _ntf_note)
     return RedirectResponse(f"/projects/{project_id}/bom?success={_q(msg)}", 303)
 

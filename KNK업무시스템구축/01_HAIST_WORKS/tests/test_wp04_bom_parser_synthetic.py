@@ -11,6 +11,7 @@
 
 ⛔ 실제 회사명·품번·단가를 쓰지 않는다. 전부 `TEST-...` 와 가상 금액이다.
 """
+import io
 import os
 import sys
 import tempfile
@@ -250,6 +251,23 @@ for t in ("1. 구매품", "2. 가공품", "3. 공용부"):
 _wb2.save(P_EMPTY)
 chk("H-6 ⭐빈 시트끼리는 중복으로 보지 않는다(오탐 방지)",
     not bom.scan_duplicate_sheets(P_EMPTY), str(bom.scan_duplicate_sheets(P_EMPTY)))
+
+# ══════════ I. 화면·라우트에 실제로 붙었는가 ══════════
+print("\n── I. 업로드 화면 연결 (한 곳만 고치고 끝내지 않기) ──")
+_APP = os.path.dirname(_HERE)
+_main = io.open(os.path.join(_APP, "app", "main.py"), encoding="utf-8").read()
+_tpl = io.open(os.path.join(_APP, "app", "templates", "bom_upload.html"), encoding="utf-8").read()
+chk("I-1 미리보기에서 원본↔읽은값을 대조한다", "verify_source_vs_parsed" in _main)
+chk("I-2 대조 결과를 화면으로 넘긴다", "verify_src=verify_src" in _main)
+chk("I-3 화면이 결과를 그린다", "verify_src" in _tpl and "vfy" in _tpl)
+chk("I-4 일치·불일치·중복·오류 네 갈래를 다 그린다",
+    all(k in _tpl for k in ("verify_src.ok", "verify_src.diff",
+                            "verify_src.skipped", "verify_src.error")))
+chk("I-5 적용 직후 저장값을 대조한다", "verify_parsed_vs_saved" in _main)
+chk("I-6 대조 결과를 완료 안내에 붙인다", "_vmsg" in _main and "저장값 대조" in _main)
+chk("I-7 ⭐대조가 실패해도 저장은 유지한다(결과만 알림)",
+    "저장값 대조를 못 했습니다" in _main and "저장은 됐습니다" in _main)
+chk("I-8 CSS 가 있다(글자만 있고 안 보이는 일 없게)", ".vfy-ok" in _tpl and ".vfy-bad" in _tpl)
 
 print(f"\n{'=' * 52}\n결과: PASS {ok} · FAIL {fail}")
 sys.exit(0 if fail == 0 else 1)
