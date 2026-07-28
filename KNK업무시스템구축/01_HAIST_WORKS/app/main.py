@@ -31463,6 +31463,79 @@ async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
     })
 
 
+def _cust_import_verify_saved(raw_bytes):
+    """대표규정(2026-07-28·§4 규칙 47): 고객사 일괄등록 '엑셀 원본 ↔ 저장값' 대조(읽기전용).
+    고객사명으로 UPSERT 라 매칭은 이름 정확일치(유일). 엑셀에 '적어 넣은 칸'만 대조(빈 칸은 미갱신이라 제외).
+    반환 {checked, ok, diff:[{row,name,field,excel,saved}], skipped, fields}."""
+    out = {"checked": 0, "ok": True, "diff": [],
+           "fields": "사업자번호·대표·담당자·전화·이메일·주소·업태·종목·팩스·종사업자번호·우편번호·상세주소"}
+    try:
+        rows = _cust_import_parse_xlsx(raw_bytes)
+    except Exception as _e:
+        out["skipped"] = f"엑셀을 다시 열지 못했습니다({str(_e)[:60]})"
+        return out
+
+    def _add(idx, name, field, ex, sv):
+        out["ok"] = False
+        if len(out["diff"]) < 20:
+            out["diff"].append({"row": idx, "name": str(name or "")[:24], "field": field,
+                                "excel": ("" if ex is None else str(ex)), "saved": ("" if sv is None else str(sv))})
+
+    def _s(v):
+        return str(v).strip() if v not in (None, "") else ""
+
+    _FIELDS = [("사업자번호", "biz_no"), ("대표", "ceo_name"), ("담당자", "manager_name"),
+               ("전화", "phone"), ("이메일", "email"), ("주소", "address"),
+               ("업태", "business_type"), ("종목", "business_item"), ("팩스", "fax"),
+               ("종사업자번호", "sub_biz_no"), ("우편번호", "zipcode"), ("상세주소", "address_detail")]
+    try:
+        with db_session() as c:
+            _cols = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
+            for _idx, r in enumerate(rows, 1):
+                if r.get("_errors"):
+                    continue
+                _nm = _s(r.get("name"))
+                if not _nm:
+                    continue
+                _row = c.execute("SELECT * FROM customers WHERE name=?", (_nm,)).fetchone()
+                if not _row:
+                    _add(_idx, _nm, "고객사명", _nm, "저장 안 됨")
+                    continue
+                _d = dict(_row)
+                out["checked"] += 1
+                for _f, _k in _FIELDS:
+                    if _k not in _cols:
+                        continue
+                    _ev = _s(r.get(_k))
+                    if _ev and _ev != _s(_d.get(_k)):
+                        _add(_idx, _nm, _f, _ev, _s(_d.get(_k)))
+    except Exception as _e:
+        out["error"] = str(_e)[:120]
+    return out
+
+
+@app.post("/customers/import-verify")
+async def customers_import_verify(request: Request, xlsx: UploadFile = File(...)):
+    """대표규정(2026-07-28·§4 규칙 47): 고객사 일괄등록 확정 후 '엑셀 원본 ↔ 저장값' 자동 대조. ⛔조회 전용."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    _raw = await xlsx.read()
+    if not _raw:
+        return JSONResponse({"ok": False, "error": "빈 파일입니다"}, 200)
+    if len(_raw) > 10 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "파일이 너무 큽니다 (10MB 제한)"}, 200)
+    if not (xlsx.filename or "").lower().endswith((".xlsx", ".xlsm")):
+        return JSONResponse({"ok": False, "error": "Excel 파일(.xlsx)만 지원합니다"}, 200)
+    try:
+        _v = _cust_import_verify_saved(_raw)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"대조 오류: {str(e)[:150]}"}, 200)
+    return JSONResponse({"ok": True, "verify": _v})
+
+
 @app.post("/customers/import-confirm")
 async def customers_import_confirm(request: Request):
     """v5H226z122: 미리보기 확정 → INSERT / UPDATE. 담당자 5명 INSERT (중복 이름 skip)."""

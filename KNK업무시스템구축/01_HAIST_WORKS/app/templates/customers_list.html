@@ -52,6 +52,7 @@ th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
       <button type="button" class="btn btn-secondary" onclick="document.getElementById('cuImportXlsx').click()" title="엑셀 업로드 → 미리보기 → 일괄 등록">📤 엑셀 일괄 업로드</button>
       {# v5H226z75: data-knk-no-dropzone — 자동 dropzone 영역 생성 차단 (버튼 클릭으로만 동작) #}
       <input type="file" id="cuImportXlsx" accept=".xlsx" style="display:none;" data-knk-no-dropzone onchange="uploadCustomersXlsx(this.files[0])">
+      {% include '_v5_partials/knk_verify_msg.html' %}{# 대표규정 §4 규칙47: 원본↔저장 대조 메시지 포매터 #}
       {# v5H226z577 (대표 지시): 시스템명은 '수정' 버튼을 눌러 편집모드로 전환해야 입력 가능(실수 방지)·'저장'으로 적용 #}
       {% if can_sales %}
       <button type="button" class="btn btn-secondary" id="cuEditBtn" onclick="cuToggleEdit()" title="시스템명 칸 잠금 해제(편집)">✏ 시스템명 수정</button>
@@ -315,9 +316,11 @@ th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
 
 <script>
 let cuImportRows = [];
+let _cuFile = null;   // 대표규정(2026-07-28): 확정 후 '엑셀 원본 ↔ 저장값' 대조에 다시 쓸 파일
 
 async function uploadCustomersXlsx(file){
   if(!file) return;
+  _cuFile = file;
   const fd = new FormData();
   fd.append('xlsx', file);
   const ov = window.KNKBusy ? KNKBusy.overlay('📤 엑셀 업로드·분석 중입니다…','파일을 읽고 고객사를 인식하고 있어요.') : null;
@@ -392,7 +395,19 @@ async function confirmCuImport(){
     const j = await res.json();
     if(!j.ok){ if(ov) ov.fail('등록 실패'); alert('등록 실패: ' + (j.error || 'unknown')); btn.disabled=false; btn.textContent='등록 확정'; return; }
     if(ov) ov.close();
-    alert(`완료 — 신규 ${j.created_count}건 / 업데이트 ${j.updated_count}건` + (j.failed_count?` / 실패 ${j.failed_count}건`:''));
+    let _msg = `완료 — 신규 ${j.created_count}건 / 업데이트 ${j.updated_count}건` + (j.failed_count?` / 실패 ${j.failed_count}건`:'');
+    // 대표규정(2026-07-28·§4 규칙47): 확정 후 '엑셀 원본 ↔ 저장값' 대조(경고+목록·차단 아님).
+    if(_cuFile){
+      try{
+        btn.textContent='원본 대조 중…';
+        const vfd = new FormData(); vfd.append('xlsx', _cuFile);
+        const vr = await fetch('/customers/import-verify', {method:'POST', body: vfd, credentials:'same-origin'});
+        const vj = await vr.json();
+        _msg += vj.ok ? (window.knkVerifyMsg1024 ? window.knkVerifyMsg1024(vj.verify) : '')
+                      : ('\n\n⚠ 원본 대조 실패: ' + (vj.error || '알 수 없음'));
+      }catch(e){ _msg += '\n\n⚠ 원본 대조 통신 실패: ' + e; }
+    }
+    alert(_msg);
     location.reload();
   }catch(e){
     if(ov) ov.fail('확정 오류');
