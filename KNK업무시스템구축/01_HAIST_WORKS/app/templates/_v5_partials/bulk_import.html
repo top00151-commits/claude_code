@@ -63,11 +63,14 @@
     </div>
   </div>
 </div>
+{% include '_v5_partials/knk_verify_msg.html' %}
 <script>
 var BULK_BIZ = '{{ bulk_biz }}';   // v5H226z326: 관리번호 없는 행의 자동발급 사업부(업로드 탭)
 var _importRows = [];
+var _impFile = null;   // 대표규정(2026-07-28): 확정 후 '엑셀 원본 ↔ 저장값' 대조에 다시 쓸 업로드 파일
 async function uploadProjectsXlsx(file) {
   if (!file) { alert('파일이 선택되지 않았습니다.'); return; }
+  _impFile = file;
   var fd = new FormData();
   fd.append('xlsx', file);
   fd.append('biz', (typeof BULK_BIZ !== 'undefined' ? BULK_BIZ : ''));
@@ -233,6 +236,18 @@ async function confirmImport() {
   if (acc.so_skipped_count > 0) msg += '\n\nℹ 발주일 없어 수주번호 미발행 ' + acc.so_skipped_count + '건 (헤더만 등록 · 발주일 입력 후 재발행 가능)';
   if (acc.ti_made > 0) msg += '\n\n📄 세금계산서 ' + acc.ti_made + '장 묶어 발행 (' + acc.ti_lines + '개 항목)';
   if (acc.ti_warns.length) msg += '\n⚠ 세금계산서 일부 실패 ' + acc.ti_warns.length + '건';
+  // 대표규정(2026-07-28·§4 규칙 47): 확정 후 '엑셀 원본 ↔ 저장값' 전항목 대조(경고+목록·차단 아님).
+  //   확정 요청엔 파일이 없으므로 같은 엑셀을 한 번 더 보내 대조한다. 대조 실패해도 등록은 이미 성공.
+  if (acc.created_count > 0 && _impFile) {
+    try {
+      btn.textContent = '원본 대조 중...';
+      var vfd = new FormData(); vfd.append('xlsx', _impFile);
+      var vr = await fetch('/projects/import-verify', {method:'POST', body: vfd, credentials:'same-origin'});
+      var vj = await vr.json();
+      msg += vj.ok ? (window.knkVerifyMsg1024 ? window.knkVerifyMsg1024(vj.verify) : '')
+                   : ('\n\n⚠ 원본 대조 실패: ' + (vj.error || '알 수 없음'));
+    } catch (e) { msg += '\n\n⚠ 원본 대조 통신 실패: ' + e; }
+  }
   alert(msg);
   closeImportPreview();
   if (acc.created_count > 0) {

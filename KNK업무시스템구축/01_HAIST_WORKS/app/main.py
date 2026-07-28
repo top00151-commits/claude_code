@@ -25021,6 +25021,123 @@ async def projects_verify_upload(request: Request, xlsx: UploadFile = File(...),
     return JSONResponse({"ok": True, "verify": _v})
 
 
+def _proj_import_verify_saved(raw_bytes):
+    """대표규정(2026-07-28·§4 규칙 47): 프로젝트 일괄등록 '엑셀 원본 ↔ 저장값' 필드별 대조(읽기전용).
+    엑셀을 다시 파싱해 각 데이터 행을 저장된 수주(SO)와 대조한다. 매칭 = 관리번호 + 금액(≈) + 비고.
+    ⭐거짓 불일치 방지: **단일품목 SO(유일 매칭)만** 대조하고, 병합/모호(복수 후보·품목 2+)는 '대조 보류'로 센다.
+    대조 = 모델·장비(화면표시=SO값 우선·없으면 프로젝트)·수량(order_items 합)·금액·통화·발주일.
+    ⛔ 조회 전용 — 아무것도 안 고침. 반환 {checked, ok, diff:[{row,name,field,excel,saved}], skipped, fields}."""
+    out = {"checked": 0, "ok": True, "diff": [],
+           "fields": "모델명·장비명·수량·금액·통화·발주일"}
+    _hold = 0
+    try:
+        rows = _proj_import_parse_xlsx(raw_bytes)
+    except Exception as _e:
+        out["skipped"] = f"엑셀을 다시 열지 못했습니다({str(_e)[:60]})"
+        return out
+
+    def _add(idx, name, field, ex, sv):
+        out["ok"] = False
+        if len(out["diff"]) < 20:
+            out["diff"].append({"row": idx, "name": str(name or "")[:24], "field": field,
+                                "excel": ("" if ex is None else str(ex)), "saved": ("" if sv is None else str(sv))})
+
+    def _n(v):
+        try:
+            return round(float(str(v).replace(",", "").strip()), 2)
+        except Exception:
+            return None
+
+    def _s(v):
+        return str(v).strip() if v not in (None, "") else ""
+
+    try:
+        with db_session() as c:
+            for _idx, r in enumerate(rows, 1):
+                if r.get("_errors"):
+                    continue
+                _mc = (r.get("mgmt_code_input") or "").strip().upper()
+                if not _mc:
+                    continue
+                _amt = _n(r.get("amount"))
+                if _amt is None:
+                    _up = _n(r.get("unit_price")); _q0 = _n(r.get("unit_qty")) or 1
+                    _amt = (round(_up * max(1, _q0), 2) if _up is not None else None)
+                _note = _s(r.get("note"))
+                _nm = _s(r.get("model_name")) or _s(r.get("name"))
+                _p = c.execute("SELECT id, COALESCE(model_name,'') AS pm, COALESCE(equip_name,'') AS pe "
+                               "FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1", (_mc,)).fetchone()
+                if not _p:
+                    _add(_idx, _nm, "관리번호", _mc, "저장 안 됨")
+                    continue
+                _pid = _p["id"]
+                cands = c.execute(
+                    "SELECT o.id AS oid, COALESCE(o.total_amount,0) AS total, COALESCE(o.model_name,'') AS om, "
+                    "COALESCE(o.equip_name,'') AS oe, COALESCE(o.currency,'KRW') AS ccy, "
+                    "substr(COALESCE(o.order_date,''),1,10) AS od, "
+                    "(SELECT COALESCE(SUM(COALESCE(oi.qty,1)),0) FROM order_items oi WHERE oi.order_id=o.id) AS sumq, "
+                    "(SELECT COUNT(*) FROM order_items oi WHERE oi.order_id=o.id) AS oin, "
+                    "(SELECT GROUP_CONCAT(COALESCE(NULLIF(oi.line_note,''), oi.unit_label), ' | ') "
+                    " FROM order_items oi WHERE oi.order_id=o.id) AS notes "
+                    "FROM orders o WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED'", (_pid,)).fetchall()
+                _match = [x for x in cands if (_amt is None or abs(float(x["total"]) - _amt) < 1)]
+                if len(_match) > 1 and _note:
+                    _m2 = [x for x in _match if _note and (_note in (x["notes"] or ""))]
+                    if _m2:
+                        _match = _m2
+                if len(_match) != 1 or (int(_match[0]["oin"] or 0) > 1):
+                    _hold += 1   # 병합/모호 → 대조 보류(거짓 불일치 방지)
+                    continue
+                so = _match[0]
+                out["checked"] += 1
+                _disp_m = _s(so["om"]) or _s(_p["pm"])   # 화면표시 = SO값 우선, 없으면 프로젝트
+                _disp_e = _s(so["oe"]) or _s(_p["pe"])
+                if _s(r.get("model_name")) and _s(r.get("model_name")) != _disp_m:
+                    _add(_idx, _nm, "모델명", _s(r.get("model_name")), _disp_m)
+                if _s(r.get("equip_name")) and _s(r.get("equip_name")) != _disp_e:
+                    _add(_idx, _nm, "장비명", _s(r.get("equip_name")), _disp_e)
+                _eq = _n(r.get("unit_qty"))
+                if _eq is not None and int(so["oin"] or 0) >= 1 and _eq != _n(so["sumq"]):
+                    _add(_idx, _nm, "수량", _eq, _n(so["sumq"]))
+                if _amt is not None and _amt != _n(so["total"]):
+                    _add(_idx, _nm, "금액", _amt, _n(so["total"]))
+                if _s(r.get("currency")) and _s(r.get("currency")).upper() != _s(so["ccy"]).upper():
+                    _add(_idx, _nm, "통화", _s(r.get("currency")).upper(), _s(so["ccy"]))
+                if _s(r.get("order_date")):
+                    _eo = _s(r.get("order_date"))[:10]
+                    if _eo != _s(so["od"]):
+                        _add(_idx, _nm, "발주일", _eo, _s(so["od"]))
+    except Exception as _e:
+        out["error"] = str(_e)[:120]
+    if _hold:
+        _pre = (out.get("skipped") or "")
+        out["skipped"] = (_pre + " · " if _pre else "") + f"대조 보류 {_hold}행(같은 금액·비고의 병합/복수 수주 — 화면에서 직접 확인)"
+    return out
+
+
+@app.post("/projects/import-verify")
+async def projects_import_verify(request: Request, xlsx: UploadFile = File(...)):
+    """대표규정(2026-07-28·§4 규칙 47): 프로젝트 일괄등록 확정 후 '엑셀 원본 ↔ 저장값' 자동 대조.
+    확정 요청엔 파일이 없으므로 화면이 같은 엑셀을 한 번 더 보내 대조한다. ⛔조회 전용 — 아무것도 안 고침."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    _raw = await xlsx.read()
+    if not _raw:
+        return JSONResponse({"ok": False, "error": "빈 파일입니다"}, 200)
+    if len(_raw) > 10 * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "파일이 너무 큽니다 (10MB 제한)"}, 200)
+    if not (xlsx.filename or "").lower().endswith((".xlsx", ".xlsm")):
+        return JSONResponse({"ok": False, "error": "Excel 파일(.xlsx)만 지원합니다"}, 200)
+    try:
+        _v = _proj_import_verify_saved(_raw)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"대조 오류: {str(e)[:150]}"}, 200)
+    return JSONResponse({"ok": True, "verify": _v})
+
+
 @app.get("/projects/import-product-template")
 async def projects_import_product_template(request: Request, so_id: int = 0):
     """상품 일괄등록 양식(.xlsx) 다운로드 — 기본=빈 양식(기존 그대로).
