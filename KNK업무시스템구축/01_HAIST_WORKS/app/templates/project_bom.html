@@ -32,6 +32,9 @@
 .banner { margin:10px 24px 0; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
 .banner.ok { background:var(--pq-ok-soft); color:var(--pq-ok); border:1px solid #a7f3d0; }
 .banner.err { background:var(--pq-danger-soft); color:var(--pq-danger); border:1px solid #fecaca; }
+/* 지금 화면의 BOM 이 '임시 저장'이라는 상태 고지 — 경고(빨강)가 아니라 사실 안내(모래색) */
+.banner.stage { background:var(--pq-warn-soft, #F7F2E8); color:#6b4715; border:1px solid #e7d7b8; font-weight:500; line-height:1.7; }
+.banner.stage b { color:#5a3a10; font-weight:700; }
 
 .filterbar { display:flex; gap:8px; align-items:center; padding:10px 24px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line); flex-wrap:wrap; font-size:12.5px; }
 .fchip { padding:5px 12px; border:1px solid var(--pq-line-2); border-radius:999px; cursor:pointer; background:transparent; font-size:12px; color:var(--pq-ink-2); }
@@ -99,7 +102,8 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
         {% set dels = rows | rejectattr('status','equalto','활성') | list %}
         {% set reviews = act | selectattr('review_flag') | list %}
         활성 <b>{{ act|length }}</b>종 · 삭제 <b>{{ dels|length }}</b> · 🔴재검토 <b style="color:#b91c1c;">{{ reviews|length }}</b>
-        {% if uploads %} · 최신 v<b>{{ uploads[0].version_no }}</b> ({{ (uploads[0].created_at or '')[:16] }}, {{ uploads[0].uploaded_by_name or '' }}){% endif %}
+        {# ⭐ [판정 2026-07-29 §3.5] 'v2'는 **파일을 몇 번째로 올렸나**이지 설계 Revision 2 가 아니다. #}
+        {% if uploads %} · 업로드 버전 v<b>{{ uploads[0].version_no }}</b> ({{ (uploads[0].created_at or '')[:16] }}, {{ uploads[0].uploaded_by_name or '' }}){% endif %}
       </div>
       <div class="pl-actions">
         <a class="btn-ghost" href="/projects/{{ project.id }}" title="프로젝트 상세">프로젝트 ↗</a>
@@ -120,6 +124,15 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
     {% set _err = request.query_params.get('error') %}
     {% if _succ %}<div class="banner ok">✅ {{ _succ }}</div>{% endif %}
     {% if _err %}<div class="banner err">⚠ {{ _err }}</div>{% endif %}
+
+    {# ⭐ [판정 2026-07-29 §3.1] 여기 있는 값은 **올려둔 것**이지 확정된 공식 BOM 이 아니다.
+       Release·구매근거 계층은 아직 없다(B단계) — 그 사실을 보는 사람 눈앞에 적어 둔다.
+       ⛔ 이 문구를 지우려면 BOM Release 가 실제로 생긴 뒤여야 한다. #}
+    {% if uploads %}
+    <div class="banner stage">📌 <b>임시 저장(업로드 반영) 상태</b> — 설계팀이 올린 BOM 을 담아 둔 것입니다.
+      <b>Release 전</b>이라 아직 <b>공식 구매근거가 아니며</b>, 이 화면만 보고 발주하지 마세요.
+      구매팀 통보도 Release 또는 구매요청을 낼 때 나갑니다.</div>
+    {% endif %}
 
     {# v5H226z987 — 바뀐 칸에 옛값 병기용 매크로 (기존값 취소선 ← 표시) #}
     {% macro oldv(rc, f) -%}

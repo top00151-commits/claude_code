@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BOM 업로드 결과 · KNK HAIST WORKS</title>
+
+{# [대표 조건부 승인 2026-07-29 1829 · 판정서 §3.4]
+   저장 직후 대조에서 **다른 값이 나왔을 때만** 나오는 결과화면.
+   ⛔ 주소창(쿼리)에 상세를 싣지 않는다 — 길이 제한 때문에 앞 몇 건만 남아 증빙이 못 된다.
+   ⛔ 대조가 어긋나도 저장은 되돌리지 않는다 — 알리기만 하고 판단은 사람이 한다.
+   ⚠ 이 화면은 '지금 보는' 것까지다. 확인자·확인일시·해결상태를 남기려면 표가 필요하고
+      그건 B단계(스키마 승인)다. 아래 안내문에 그 한계를 그대로 적어 둔다. #}
+
+<link href="/static/css/v5_tokens.css?v=20260726v5H226z1057" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/knk_icons.html" %}
+<style>
+:root {
+  --pq-surface: var(--knk-bg-surface, #FAFBF9);
+  --pq-surface-2: var(--knk-bg-page, #F3F5F2);
+  --pq-line: var(--knk-border-subtle, #E2E6E1);
+  --pq-line-2: var(--knk-border-default, #D4DAD4);
+  --pq-ink: var(--knk-text-primary, #27302B);
+  --pq-ink-2: var(--knk-text-secondary, #46524B);
+  --pq-ink-3: var(--knk-text-muted, #657169);
+  --pq-ink-4: var(--knk-text-muted, #657169);
+  --pq-warn: var(--knk-warning, #875A1B);     --pq-warn-soft: var(--knk-warning-subtle, #F7F2E8);
+  --pq-danger: var(--knk-danger, #A33A3E);    --pq-danger-soft: var(--knk-danger-subtle, #F7ECEC);
+  --pq-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); }
+.bw { padding:18px 24px 48px; display:flex; flex-direction:column; gap:14px; max-width:1100px; }
+.card { background:var(--pq-surface); border:1px solid var(--pq-line-2); border-radius:10px; padding:16px; }
+.card h3 { font-size:14.5px; font-weight:700; margin:0 0 10px; color:var(--pq-ink); }
+.hit { padding:12px 15px; border-radius:9px; font-size:13.5px; font-weight:700; line-height:1.7;
+       background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; }
+.hit .sub { display:block; margin-top:3px; font-size:12px; font-weight:500; opacity:.9; }
+.saved { padding:11px 14px; border-radius:9px; font-size:12.8px; line-height:1.75;
+         background:var(--pq-warn-soft); border:1px solid #e7d7b8; color:#6b4715; }
+.saved b { color:#5a3a10; }
+.tblx { width:100%; border-collapse:collapse; font-size:12px; }
+.tblx th { text-align:left; padding:6px 8px; background:var(--pq-surface-2); color:var(--pq-ink-3); font-size:10.5px; border-bottom:1px solid var(--pq-line); white-space:nowrap; }
+.tblx td { padding:6px 8px; border-bottom:1px solid var(--pq-line); vertical-align:top; }
+.tblx td.mono { font-family:var(--pq-mono); }
+.scroll { overflow-x:auto; }
+.was { color:var(--pq-ink-4); }
+.now { color:var(--pq-danger); font-weight:700; }
+.note { font-size:11.8px; color:var(--pq-ink-3); line-height:1.75; }
+@media (max-width:640px){ .bw{padding:12px 10px 40px;} }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+    <header class="knk-page-head">
+      <div>
+        <nav class="knk-breadcrumb"><a href="/logistics">자재구매센터</a> · <a href="/bom/upload">BOM 업로드</a> · <b>반영 결과</b></nav>
+        <h1 class="knk-page-title">BOM 반영 결과 — 확인이 필요합니다</h1>
+      </div>
+      <div class="knk-page-actions">
+        <a class="knk-btn knk-btn--ghost" href="/bom/upload">다시 올리기</a>
+        <a class="knk-btn knk-btn--primary" href="/projects/{{ project.id }}/bom">BOM 보드로 가기 →</a>
+      </div>
+    </header>
+
+    <div class="bw">
+      {% set _diff = verify.diff | default([]) %}
+
+      {% if verify.error %}
+        <div class="hit">⚠ 저장된 값을 맞춰 보지 못했습니다 — {{ verify.error }}
+          <span class="sub">파일은 <b>저장됐습니다</b>. 아래 '보드로 가기'에서 실제로 들어간 값을 직접 확인해 주세요.</span>
+        </div>
+      {% else %}
+        <div class="hit">⚠ 읽은 값과 저장된 값이 다른 곳이 <b>{{ _diff | length }}건</b> 있습니다 (대조 {{ verify.checked }}줄)
+          <span class="sub">저장은 그대로 유지했습니다 — 무엇이 다른지 아래에 <b>전부</b> 적었습니다. 고칠지 말지는 사람이 정합니다.</span>
+        </div>
+      {% endif %}
+
+      <div class="saved">
+        <b>{{ project.mgmt_code }}</b> {{ project.name }} · {{ summary }}<br>
+        이 BOM 은 <b>임시 저장(업로드 반영)</b> 상태입니다 — <b>Release 전</b>이라 구매근거로 쓸 수 없습니다.
+        {% if notified %}
+          · 구매팀 {{ notified }}명에게 통보됐습니다.
+        {% else %}
+          · <b>구매팀에는 통보하지 않았습니다.</b> 구매팀 통보는 BOM Release 또는 구매요청을 낼 때 나갑니다.
+        {% endif %}
+      </div>
+
+      {% if _diff %}
+      <div class="card">
+        <h3>다르게 저장된 값 — 전체 {{ _diff | length }}건</h3>
+        <div class="note" style="margin-bottom:8px;">
+          왼쪽이 <b>파일에서 읽은 값</b>, 오른쪽이 <b>지금 저장돼 있는 값</b>입니다.
+          올린 엑셀 원본과 읽은 값이 같은지는 <b>반영하기 전 미리보기</b>에서 이미 맞춰 봤습니다.
+        </div>
+        <div class="scroll"><table class="tblx" id="vfyTbl">
+          <thead><tr>
+            <th>위치 (시트!행)</th><th>품명</th><th>항목</th>
+            <th>파일에서 읽은 값</th><th>저장된 값</th>
+          </tr></thead>
+          <tbody>
+          {% for d in _diff %}
+            <tr>
+              <td class="mono">{{ d.row }}</td>
+              <td>{{ d.name }}</td>
+              <td>{{ field_labels.get(d.field, d.field) }}
+                  <span style="font-size:10px;color:var(--pq-ink-4);">{{ d.field }}</span></td>
+              <td class="mono was">{{ d.excel if d.excel is not none else '(빈칸)' }}</td>
+              <td class="mono now">{{ d.saved if d.saved is not none else '(빈칸)' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        {% if verify.not_saved %}
+          <div class="note" style="margin-top:8px;">
+            · 파일에는 있는데 <b>저장된 곳을 찾지 못한 줄 {{ verify.not_saved }}건</b>이 있습니다.
+          </div>
+        {% endif %}
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" class="knk-btn knk-btn--ghost" id="vfyCsvBtn">⤓ 이 목록 내려받기 (CSV)</button>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <h3>이 화면의 한계 — 꼭 읽어 주세요</h3>
+        <div class="note">
+          · 위 목록은 <b>지금 이 화면에서만</b> 봅니다. 화면을 벗어나면 다시 볼 수 없으니,
+            필요하시면 <b>내려받기</b>를 눌러 파일로 남겨 주세요.<br>
+          · <b>누가 언제 확인했고 어떻게 처리했는지</b>를 시스템에 남기는 기능은 아직 없습니다
+            (기록용 표가 필요하고, 그건 다음 단계에서 대표 승인을 받고 만듭니다).<br>
+          · 대조는 <b>시스템이 인식한 열·행을 기준</b>으로 합니다. 열 이름 자체를 잘못 알아봤다면
+            대조도 같이 잘못 봅니다 — <b>자동 대조가 설계책임자의 검토를 대신하지 않습니다.</b>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // 불일치 목록을 파일로 남긴다 — 서버에 기록하는 기능은 아직 없다(B단계).
+  var rows = {{ (verify.diff | default([])) | tojson }};
+  var btn = document.getElementById('vfyCsvBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function(){
+    var esc = function(v){
+      if (v === null || v === undefined) v = '';
+      v = String(v);
+      return '"' + v.replace(/"/g, '""') + '"';
+    };
+    var out = ['위치,품명,항목,파일에서 읽은 값,저장된 값'];
+    rows.forEach(function(d){
+      out.push([d.row, d.name, d.field, d.excel, d.saved].map(esc).join(','));
+    });
+    // 엑셀이 한글을 깨지 않게 BOM 을 붙인다.
+    var blob = new Blob(['﻿' + out.join('\r\n')], {type:'text/csv;charset=utf-8;'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'BOM_대조불일치_{{ project.mgmt_code }}_v{{ version_no }}.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  });
+})();
+</script>
+</body>
+</html>

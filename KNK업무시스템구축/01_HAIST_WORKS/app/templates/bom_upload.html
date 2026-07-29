@@ -42,6 +42,16 @@
 .vfy-bad { background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; }
 .vfy .sub { display:block; margin-top:2px; font-size:11.5px; opacity:.85; }
 .vfy-list { margin-top:6px; font-size:11.8px; line-height:1.75; }
+/* 불일치가 많아도 **전부** 싣는다 — 화면만 스크롤한다(앞 몇 건만 보이면 나머지를 확인할 길이 없다) */
+.vfy-scroll { max-height:230px; overflow-y:auto; padding-right:6px; }
+/* ④ 반영 — 아직 '임시 저장'이라는 사실을 버튼 바로 위에 둔다 */
+.stage-note { margin:2px 0 12px; padding:10px 13px; border-radius:9px; font-size:12.5px; line-height:1.75;
+              background:var(--pq-warn-soft); border:1px solid #e7d7b8; color:#6b4715; }
+.stage-note b { color:#5a3a10; }
+.dup-pick { margin:10px 0 2px; padding:10px 13px; border-radius:9px; font-size:12.5px; line-height:1.7;
+            background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; }
+.sheet-pick { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; }
+.sheet-pick label.dup { color:#9f1239; font-weight:700; }
 .banner { padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; }
 .banner.err { background:var(--pq-danger-soft); color:var(--pq-danger); border:1px solid #fecaca; white-space:pre-wrap; }
 .guide { padding:12px 14px; background:var(--pq-info-soft); border:1px solid #bfdbfe; border-radius:8px; font-size:12.5px; color:#1e3a8a; line-height:1.7; }
@@ -99,7 +109,8 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
         · 영업관리코드(예: 002M2505)로 <b>프로젝트 자동 연결</b> (제목·파일명·열 어디에 있든)<br>
         · 셀 안 <b><code>기존->변경</code></b> 표기 = 변경 이력으로 자동 기록 · <b>노랑 배경</b> = 신규 · <b>취소선</b> = 삭제<br>
         · 직전 BOM과 <b>자동 비교</b>해 추가/변경/삭제만 골라 보여주고, <b>이미 발주된 품목의 변경은 🔴 재검토</b>로 표시<br>
-        · 구매품/가공품/공용부 시트 모두 인식 · 적용 전 <b>미리보기에서 확인 후 반영</b>됩니다
+        · 구매품/가공품/공용부 시트 모두 인식 · 적용 전 <b>미리보기에서 확인 후 반영</b>됩니다<br>
+        · 올린 값은 <b>임시 저장</b>됩니다 — <b>Release 전</b>이라 구매근거로 쓸 수 없고, <b>구매팀에도 통보되지 않습니다</b>
       </div>
 
       <form method="post" action="/bom/upload" enctype="multipart/form-data" class="card" id="bomUpForm">
@@ -166,27 +177,42 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
           </tbody>
         </table></div>
 
-        {# [대표규정 §4 규칙47 · 업무분장 V2] 확정 **전에** 올린 엑셀 원본과 읽은 값을 대조한다.
-           ⛔ 자동으로 고치지 않는다 — 다르면 알려주고 사람이 판단한다. #}
+        {# [대표규정 §4 규칙47 · 업무분장 V2] 반영 **전에** 올린 엑셀 원본과 읽은 값을 대조한다.
+           ⛔ 자동으로 고치지 않는다 — 다르면 알려주고 사람이 판단한다.
+           [판정 2026-07-29 §5] '전부 일치'는 **시스템이 인식한 열·행 기준**이라는 한계를 같이 적는다 —
+           열 자체를 잘못 알아보면 대조도 같이 잘못 보고 '일치'라고 말한다. #}
+        {% if verify_src and verify_src.duplicate_sheets %}
+        {# 중복 시트는 값 대조와 **별개 사고**다 — 둘 다 보여준다(하나가 다른 하나를 가리지 않게). #}
+        <div class="vfy vfy-bad">
+          🔴 <b>같은 내용의 시트가 둘 이상입니다</b> — 그대로 반영하면 같은 자재가 두 번 들어갑니다
+          <div class="vfy-list">
+            {% for d in verify_src.duplicate_sheets %}
+            <div>· <b>{{ d.sheets[0] }}</b> ≒ <b>{{ d.sheets[1] }}</b>
+              ({{ d.rows }}줄 · {{ (d.same_ratio * 100) | round(1) }}% 같음)</div>
+            {% endfor %}
+          </div>
+          <span class="sub">아래 <b>④ 반영</b>에서 <b>쓸 시트만 직접 골라 주세요.</b>
+            고르기 전에는 반영 버튼이 잠깁니다. 서로 다른 하위장비 BOM 일 수도 있으니 지우지 않고 그대로 뒀습니다.</span>
+        </div>
+        {% endif %}
         {% if verify_src %}
-        <div class="vfy {{ 'vfy-bad' if not verify_src.ok else 'vfy-ok' }}">
+        <div class="vfy {{ 'vfy-ok' if (verify_src.ok or (not verify_src.error and not verify_src.diff)) else 'vfy-bad' }}">
           {% if verify_src.error %}
             ⚠ 원본 대조를 못 했습니다 — {{ verify_src.error }}
             <span class="sub">파일은 읽혔습니다. 아래 표로 확인해 주세요.</span>
-          {% elif verify_src.skipped %}
-            🔴 {{ verify_src.skipped }}
-            <span class="sub">쓸 시트만 아래에서 골라 주세요. 두 시트를 다 고르면 같은 자재가 두 번 들어갑니다.</span>
-          {% elif verify_src.ok %}
+          {% elif not verify_src.diff %}
             ✅ 올린 엑셀 원본과 대조 <b>{{ verify_src.checked }}줄</b> — 읽은 값 전부 일치
-            <span class="sub">품명·품번·제조사·수량·단위·단가·금액·납기·비고를 한 칸씩 맞춰 봤습니다.</span>
+            <span class="sub">품명·품번·제조사·수량·단위·단가·금액·납기·비고를 한 칸씩 맞춰 봤습니다.
+              단, <b>시스템이 인식한 열·행을 기준</b>으로 맞춘 것입니다 — 위 표의 열 이름과 대표 품목이
+              맞는지 눈으로 한 번 봐 주세요. <b>자동 대조가 설계책임자의 검토를 대신하지 않습니다.</b></span>
           {% else %}
             ⚠ 올린 엑셀과 다르게 읽은 값 <b>{{ verify_src.diff|length }}건</b> (대조 {{ verify_src.checked }}줄)
-            <div class="vfy-list">
-              {% for d in verify_src.diff[:8] %}
+            {# [판정 §3.4 같은 취지] 앞 몇 건만 보여주면 나머지를 확인할 방법이 없다 — **전부** 싣는다. #}
+            <div class="vfy-list vfy-scroll">
+              {% for d in verify_src.diff %}
               <div>· <span class="mono">{{ d.row }}</span> {{ d.name }} [{{ d.field }}]
                 엑셀 <b>{{ d.excel }}</b> → 읽은 값 <b>{{ d.saved }}</b></div>
               {% endfor %}
-              {% if verify_src.diff|length > 8 %}<div>… 외 {{ verify_src.diff|length - 8 }}건</div>{% endif %}
             </div>
           {% endif %}
         </div>
@@ -286,12 +312,33 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
             </select>
           </div>
         {% endif %}
+        {# [판정 2026-07-29 §4] 중복 후보 시트는 **기본 해제**하고, 고르기 전에는 아래 버튼을 잠근다.
+           둘 다 쓰려면 '중복인 줄 알지만 둘 다 사용'을 따로 체크해야 한다.
+           ⛔ 유사도만 보고 시트를 자동으로 지우지 않는다 — 서로 다른 하위장비 BOM 일 수 있다. #}
+        {% set dupset = dup_sheet_names | default([]) %}
         <div style="font-size:12.5px;font-weight:700;margin-bottom:4px;">적용할 시트</div>
+        <div class="sheet-pick">
         {% for s in ok_sheets %}
-          <label style="font-size:12.5px;margin-right:14px;">
-            <input type="checkbox" name="sheets" value="{{ s.sheet }}" checked> {{ s.sheet }} ({{ s.stats.rows }}행)
+          {% set is_dup = s.sheet in dupset %}
+          <label class="{{ 'dup' if is_dup else '' }}">
+            <input type="checkbox" name="sheets" value="{{ s.sheet }}"
+                   {{ '' if is_dup else 'checked' }} {{ 'data-dup="1"' if is_dup else '' }}>
+            {{ s.sheet }} ({{ s.stats.rows }}행){{ ' 🔴중복 후보' if is_dup else '' }}
           </label>
         {% endfor %}
+        </div>
+        {% if dupset %}
+        <div class="dup-pick">
+          🔴 <b>중복 후보 시트는 선택을 비워 뒀습니다</b> — 쓸 시트를 직접 골라 주세요.
+          고르기 전에는 아래 <b>반영</b> 버튼이 잠깁니다.
+          <div style="margin-top:7px;">
+            <label style="font-weight:700;">
+              <input type="checkbox" name="dup_ack" value="1" id="dupAck">
+              중복인 줄 알지만 <b>둘 다 사용</b>하겠습니다 (서로 다른 하위장비 BOM 인 경우)
+            </label>
+          </div>
+        </div>
+        {% endif %}
         <div class="mode-row">
           <label><input type="radio" name="mode" value="merge" checked>
             <span><b>안전 반영 (기본·권장)</b><br>
@@ -300,10 +347,24 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
             <span><b>전체 교체</b><br>
             <span style="color:var(--pq-ink-3);">이 파일이 완전한 최신 BOM일 때만 — 파일에 없는 기존 라인 {{ plan.missing | length if plan else 0 }}건을 삭제 처리(이력 남음·복원 가능)</span></span></label>
         </div>
-        <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
-          <a class="knk-btn knk-btn--ghost" href="/bom/upload">다시 선택</a>
-          <button type="submit" class="knk-btn knk-btn--primary" id="applyBtn">✅ 보드에 반영</button>
+        {# [판정 2026-07-29 §3.1·§3.2] '반영'은 아직 **임시 저장**이다.
+           Release·구매근거와 같은 말로 읽히지 않게 버튼 바로 위에 상태를 적는다. #}
+        <div class="stage-note" style="margin-top:14px;">
+          <b>이 버튼은 '임시 저장'입니다.</b> 올린 내용을 BOM 보드에 반영해 두는 것까지이고,
+          아직 <b>Release 전</b>이라 <b>구매근거로 쓸 수 없습니다.</b><br>
+          <b>구매팀에는 통보되지 않습니다</b> — 구매팀 통보는 BOM Release 또는 구매요청을 낼 때 나갑니다.
         </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <a class="knk-btn knk-btn--ghost" href="/bom/upload">다시 선택</a>
+          <button type="submit" class="knk-btn knk-btn--primary" id="applyBtn"
+                  {{ 'disabled' if dupset else '' }}>💾 보드에 임시 저장</button>
+        </div>
+        {% if dupset %}
+        <div style="font-size:11.5px;color:var(--pq-ink-3);text-align:right;margin-top:5px;" id="applyHint">
+          쓸 시트를 고르면 버튼이 열립니다.
+        </div>
+        <script type="application/json" id="dupPairs">{{ verify_src.duplicate_sheets | tojson }}</script>
+        {% endif %}
       </form>
       {% endif %}
     </div>
@@ -318,13 +379,48 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
     var b = document.getElementById('upBtn'); if (b) { b.disabled = true; b.textContent = '분석 중…'; }
   });
   var f2 = document.getElementById('bomApplyForm');
+
+  // [판정 2026-07-29 §4] 중복 후보 시트 — 사람이 고르기 전에는 반영 버튼을 잠근다.
+  //   ⭐ 화면 잠금은 **친절함**이고, 진짜 차단은 서버(_bom.duplicate_selection_block)다.
+  //      화면을 거치지 않은 요청도 막히도록 두 겹으로 둔다.
+  (function(){
+    var raw = document.getElementById('dupPairs');
+    if (!f2 || !raw) return;                       // 중복 없음 = 기존 동작 그대로
+    var pairs = [];
+    try { pairs = JSON.parse(raw.textContent || '[]'); } catch(e) { return; }
+    var btn = document.getElementById('applyBtn');
+    var hint = document.getElementById('applyHint');
+    var ack = document.getElementById('dupAck');
+    var boxes = f2.querySelectorAll('input[name=sheets]');
+    function checkedNames(){
+      var out = {};
+      Array.prototype.forEach.call(boxes, function(b){ if (b.checked) out[b.value] = 1; });
+      return out;
+    }
+    function refresh(){
+      var sel = checkedNames();
+      var n = Object.keys(sel).length;
+      var bothPair = pairs.some(function(p){ return sel[p.sheets[0]] && sel[p.sheets[1]]; });
+      var okToGo = (n > 0) && (!bothPair || (ack && ack.checked));
+      if (btn) btn.disabled = !okToGo;
+      if (hint) {
+        hint.textContent = okToGo ? '반영할 수 있습니다.'
+          : (n === 0 ? '쓸 시트를 하나 이상 골라 주세요.'
+                     : "같은 내용의 시트를 둘 다 골랐습니다 — 하나만 고르시거나 '둘 다 사용'을 체크해 주세요.");
+      }
+    }
+    Array.prototype.forEach.call(boxes, function(b){ b.addEventListener('change', refresh); });
+    if (ack) ack.addEventListener('change', refresh);
+    refresh();
+  })();
+
   if (f2) f2.addEventListener('submit', function(ev){
     var mode = f2.querySelector('input[name=mode]:checked');
     if (mode && mode.value === 'replace') {
       if (!confirm('전체 교체 모드입니다.\n파일에 없는 기존 라인이 삭제 처리됩니다 (이력이 남고 복원 가능).\n계속할까요?')) { ev.preventDefault(); return; }
     }
-    try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('BOM 반영 중…'); } catch(e) {}
-    var b = document.getElementById('applyBtn'); if (b) { b.disabled = true; b.textContent = '반영 중…'; }
+    try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('BOM 임시 저장 중…'); } catch(e) {}
+    var b = document.getElementById('applyBtn'); if (b) { b.disabled = true; b.textContent = '저장 중…'; }
   });
 })();
 </script>

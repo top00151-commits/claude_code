@@ -22,6 +22,12 @@ sys.path.insert(0, os.path.dirname(_HERE))
 import openpyxl                                    # noqa: E402
 from openpyxl.styles import Font, PatternFill      # noqa: E402
 
+# ⚠ §J 는 실제 라우트를 돌린다. **운영 DB 를 절대 건드리지 않도록** 임시 DB 를
+#   먼저 세우고 나서 앱을 들여온다(순서가 뒤바뀌면 기본 DB 경로가 잡힌다).
+from app import database as _db                    # noqa: E402
+_db.DB_PATH = os.path.join(tempfile.mkdtemp(prefix="wp04syn_"), "test.db")
+_db.init_db()
+
 from app import bom                                # noqa: E402
 
 ok = 0
@@ -262,12 +268,166 @@ chk("I-2 대조 결과를 화면으로 넘긴다", "verify_src=verify_src" in _m
 chk("I-3 화면이 결과를 그린다", "verify_src" in _tpl and "vfy" in _tpl)
 chk("I-4 일치·불일치·중복·오류 네 갈래를 다 그린다",
     all(k in _tpl for k in ("verify_src.ok", "verify_src.diff",
-                            "verify_src.skipped", "verify_src.error")))
+                            "verify_src.duplicate_sheets", "verify_src.error")))
 chk("I-5 적용 직후 저장값을 대조한다", "verify_parsed_vs_saved" in _main)
-chk("I-6 대조 결과를 완료 안내에 붙인다", "_vmsg" in _main and "저장값 대조" in _main)
+chk("I-6 대조 결과를 사람에게 알린다", "저장값 대조" in _main)
+_res_tpl = io.open(os.path.join(_APP, "app", "templates", "bom_upload_result.html"),
+                   encoding="utf-8").read()
 chk("I-7 ⭐대조가 실패해도 저장은 유지한다(결과만 알림)",
-    "저장값 대조를 못 했습니다" in _main and "저장은 됐습니다" in _main)
+    "저장됐습니다" in _res_tpl and "되돌리지 않는다" in _res_tpl)
 chk("I-8 CSS 가 있다(글자만 있고 안 보이는 일 없게)", ".vfy-ok" in _tpl and ".vfy-bad" in _tpl)
+
+# ══════════ J. 2026-07-29 판정 보정 5건 ══════════
+# 근거: `CHATGPT_WP04_BOM검증_A단계_중간판정_및_B단계_분리요청_2026-07-29_1715.md`
+#       + 대표 조건부 승인 2026-07-29 18:29
+print("\n── J. 판정 보정 (①상태고지 ②통보잠금 ③중복선택 ④전체상세 ⑤버전문구) ──")
+_bom_tpl = io.open(os.path.join(_APP, "app", "templates", "project_bom.html"),
+                   encoding="utf-8").read()
+_dbsrc = io.open(os.path.join(_APP, "app", "database.py"), encoding="utf-8").read()
+
+# ── ⑤ 업로드 버전 ≠ BOM Revision ──
+chk("J-1 완료 안내가 '업로드 버전 vN'이라고 말한다(설계 Revision 과 구분)",
+    "업로드 버전 v{res['version_no']}" in _main)
+chk("J-2 옛 표현 'v{n} 반영'이 남아 있지 않다",
+    "f\"v{res['version_no']} 반영" not in _main)
+chk("J-3 보드 화면도 '업로드 버전'이라고 쓴다", "업로드 버전 v<b>" in _bom_tpl)
+
+# ── ① 임시 저장 · Release 전 ──
+chk("J-4 반영 버튼이 '임시 저장'이라고 말한다", "보드에 임시 저장" in _tpl)
+chk("J-5 버튼 위에 Release 전이라고 적혀 있다",
+    "Release 전" in _tpl and "구매근거로 쓸 수 없습니다" in _tpl)
+chk("J-6 ⭐BOM 보드에도 임시저장 상태가 표시된다(보는 사람이 오해하지 않게)",
+    "임시 저장(업로드 반영) 상태" in _bom_tpl and "공식 구매근거가 아니며" in _bom_tpl)
+chk("J-7 상태 고지에 색이 있다(글자만 있고 안 보이는 일 없게)",
+    ".banner.stage" in _bom_tpl and ".stage-note" in _tpl)
+chk("J-8 완료 안내도 '임시 저장'이라고 말한다", "반영(임시 저장)" in _main)
+
+# ── ② 구매팀 통보 잠금 ──
+chk("J-9 잠금 스위치가 WP-01 공용 목록에 있다(배포 전 검사기가 자동으로 본다)",
+    "KNK_ENABLE_BOM_UPLOAD_NOTIFY" in _dbsrc
+    and "KNK_ENABLE_BOM_UPLOAD_NOTIFY" in _db.WP01_LOCK_SWITCHES)
+chk("J-10 ⭐기본값이 잠김이다(환경변수 없으면 통보 안 함)",
+    _db.wp01_unlocked("KNK_ENABLE_BOM_UPLOAD_NOTIFY") is False)
+chk("J-11 화면이 '구매팀에 통보되지 않는다'고 알려 준다",
+    "구매팀에는 통보되지 않습니다" in _tpl)
+chk("J-12 통보 코드는 지우지 않고 잠갔다(Release 때 되살릴 수 있게)",
+    "_notify_users(c, _uids" in _main)
+
+# ── ③ 중복 후보 시트 ──
+chk("J-13 서버에 중복 선택 차단 함수가 있다", hasattr(bom, "duplicate_selection_block"))
+chk("J-14 라우트가 그 함수를 부른다", "duplicate_selection_block" in _main)
+_dp = [{"sheets": ["1. 구매품", "1. 구매품 (2)"], "rows": 326, "same_ratio": 0.99}]
+chk("J-15 ⭐둘 다 고르면 막는다", bool(bom.duplicate_selection_block(_dp, ["1. 구매품", "1. 구매품 (2)"])))
+chk("J-16 ⭐아무것도 안 고르면(=전부 적용) 막는다", bool(bom.duplicate_selection_block(_dp, [])))
+chk("J-17 한쪽만 고르면 통과", bom.duplicate_selection_block(_dp, ["1. 구매품"]) == "")
+chk("J-18 '둘 다 사용' 확인하면 통과", bom.duplicate_selection_block(_dp, [], ack=True) == "")
+chk("J-19 중복이 없으면 늘 통과", bom.duplicate_selection_block([], []) == "")
+chk("J-20 화면이 중복 시트를 기본 해제한다",
+    "is_dup" in _tpl and "'' if is_dup else 'checked'" in _tpl)
+chk("J-21 화면에 '둘 다 사용' 확인칸이 있다", 'name="dup_ack"' in _tpl)
+chk("J-22 고르기 전에는 버튼이 잠긴다", "'disabled' if dupset" in _tpl)
+
+# ── ④ 불일치 전체 상세 ──
+chk("J-23 결과화면 템플릿이 있다",
+    os.path.exists(os.path.join(_APP, "app", "templates", "bom_upload_result.html")))
+chk("J-24 라우트가 결과화면을 렌더한다", "bom_upload_result.html" in _main)
+chk("J-25 ⭐전체를 싣는다(앞 몇 건만 자르지 않는다)",
+    "for d in _diff" in _res_tpl and "_diff[:3]" not in _res_tpl and "diff[:8]" not in _res_tpl)
+chk("J-26 ⭐주소창에 상세를 싣지 않는다",
+    "x['row']" not in _main and "for x in _d[:3]" not in _main)
+chk("J-27 영문 칸이름에 사람 이름표를 붙인다",
+    bom.field_label("part_no") == "모델명(품번)" and "field_labels" in _res_tpl)
+chk("J-28 목록을 파일로 내려받을 수 있다", "vfyCsvBtn" in _res_tpl)
+chk("J-29 ⭐이 화면의 한계를 정직하게 적는다(기록 보존은 다음 단계)",
+    "다음 단계에서 대표 승인" in _res_tpl)
+chk("J-30 미리보기 불일치도 전부 싣는다(같은 결함을 한쪽만 고치지 않기)",
+    "for d in verify_src.diff %}" in _tpl and "verify_src.diff[:8]" not in _tpl)
+chk("J-31 '전부 일치'의 한계를 적는다(§5)",
+    "인식한 열·행" in _tpl and "설계책임자의 검토를 대신하지 않습니다" in _tpl)
+
+# ── ⑥ 실제 라우트로 '통보 0건' 증명 (대표 지시 6항) ──
+print("\n── J' 실제 라우트 실행 — 통보 0건·중복 차단 (임시 DB) ──")
+try:
+    import base64
+    from fastapi.testclient import TestClient
+    import app.main as m
+    from app import sso_client as _sso
+
+    _sent = {"n": 0}
+
+    def _fake_push(emp_nos, title, body, link):     # ⛔ 실제 메신저로 나가지 않게 가로챈다
+        _sent["n"] += len(emp_nos or [])
+        return {"ok": True, "sent": len(emp_nos or [])}
+
+    _sso.notify_via_messenger = _fake_push
+    _cl = TestClient(m.app)
+
+    with _db.db_session() as _c:
+        # 운영 스키마엔 마이그레이션으로 붙는 칸 — 시험 DB 에도 맞춰 준다(있으면 그냥 넘어간다)
+        try:
+            _c.execute("ALTER TABLE users ADD COLUMN employee_no TEXT")
+        except Exception:
+            pass
+        _c.execute("INSERT INTO projects (mgmt_code, name) VALUES ('999T9999','시험 프로젝트')")
+        _PID = _c.execute("SELECT id FROM projects WHERE mgmt_code='999T9999'").fetchone()[0]
+        if not _c.execute("SELECT 1 FROM teams WHERE id=10").fetchone():
+            _c.execute("INSERT INTO teams (id, code, name) VALUES (10,'T99','구매팀')")
+        # 구매팀(team_id=10) 사람 2명 — 잠금이 없었다면 통보가 갔어야 할 대상
+        for _i, _n in enumerate(("구매A", "구매B"), start=1):
+            _c.execute("INSERT INTO users (name, login_id, password, team_id, is_active, employee_no)"
+                       " VALUES (?,?,'x',10,1,?)", (_n, f"T99{_i}", f"T99{_i}"))
+        # 올리는 사람 — bom_uploads.uploaded_by 가 users 를 참조하므로 실제 행이 있어야 한다
+        _c.execute("INSERT INTO users (name, login_id, password, team_id, is_active)"
+                   " VALUES ('시험올린이','T990','x',10,1)")
+        _UID = _c.execute("SELECT id FROM users WHERE login_id='T990'").fetchone()[0]
+    m.get_user = lambda req: {"id": _UID, "name": "시험올린이", "role": "ceo", "team_id": 10}
+    _tgt = 0
+    with _db.db_session() as _c:
+        _tgt = _c.execute("SELECT COUNT(*) FROM users WHERE team_id=10 AND COALESCE(is_active,1)=1"
+                          ).fetchone()[0]
+    chk("J'-0 통보 대상이 실제로 존재한다(0명이라 안 간 게 아님)", _tgt >= 2, f"대상 {_tgt}명")
+
+    _b64 = base64.b64encode(io.open(P_FULL, "rb").read()).decode("ascii")
+    _r = _cl.post("/bom/upload/apply", follow_redirects=False,
+                  data={"file_b64": _b64, "filename": os.path.basename(P_FULL),
+                        "project_id": str(_PID), "mode": "merge"})
+    chk("J'-1 반영이 정상 처리된다", _r.status_code in (200, 303), str(_r.status_code))
+    with _db.db_session() as _c:
+        _nrow = _c.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+        _items = _c.execute("SELECT COUNT(*) FROM bom_items WHERE project_id=?", (_PID,)).fetchone()[0]
+    chk("J'-2 ⭐⭐ 인앱 알림 0건 — 업로드 단계에서 구매팀에 통보하지 않았다", _nrow == 0, f"{_nrow}건")
+    chk("J'-3 ⭐⭐ 메신저 푸시 0건", _sent["n"] == 0, f"{_sent['n']}건")
+    chk("J'-4 통보는 안 했지만 저장은 됐다(기능을 죽인 게 아님)", _items > 0, f"{_items}줄")
+    _loc = _r.headers.get("location", "")
+    chk("J'-5 완료 안내에 '통보하지 않았습니다'가 있다",
+        ("통보하지" in _loc) or ("통보하지" in _r.text))
+
+    # 중복 시트 파일을 화면 없이 그대로 밀어 넣어도 서버가 막는가
+    _b64d = base64.b64encode(io.open(P_DUP, "rb").read()).decode("ascii")
+    _rd = _cl.post("/bom/upload/apply", follow_redirects=False,
+                   data={"file_b64": _b64d, "filename": os.path.basename(P_DUP),
+                         "project_id": str(_PID), "mode": "merge"})
+    chk("J'-6 ⭐중복 시트를 화면 없이 밀어 넣어도 서버가 막는다",
+        _rd.status_code == 303 and "error=" in _rd.headers.get("location", ""),
+        _rd.headers.get("location", "")[:80])
+    with _db.db_session() as _c:
+        _items2 = _c.execute("SELECT COUNT(*) FROM bom_items WHERE project_id=?", (_PID,)).fetchone()[0]
+    chk("J'-7 ⭐막혔으니 줄이 두 배가 되지 않았다", _items2 == _items, f"{_items} → {_items2}")
+
+    # 잠금을 열면 원래대로 통보가 나가는가 (기능이 살아 있다는 증명 · 곧바로 되잠근다)
+    os.environ["KNK_ENABLE_BOM_UPLOAD_NOTIFY"] = "1"
+    _r2 = _cl.post("/bom/upload/apply", follow_redirects=False,
+                   data={"file_b64": _b64, "filename": os.path.basename(P_FULL),
+                         "project_id": str(_PID), "mode": "merge"})
+    with _db.db_session() as _c:
+        _nrow2 = _c.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+    chk("J'-8 잠금을 열면 통보가 나간다(지운 게 아니라 잠근 것)", _nrow2 > 0, f"{_nrow2}건")
+    os.environ.pop("KNK_ENABLE_BOM_UPLOAD_NOTIFY", None)
+    chk("J'-9 시험 뒤 다시 잠긴다", _db.wp01_unlocked("KNK_ENABLE_BOM_UPLOAD_NOTIFY") is False)
+except Exception as _e:
+    import traceback
+    traceback.print_exc()
+    chk("J' 라우트 시험 실행", False, f"{type(_e).__name__}: {_e}")
 
 print(f"\n{'=' * 52}\n결과: PASS {ok} · FAIL {fail}")
 sys.exit(0 if fail == 0 else 1)

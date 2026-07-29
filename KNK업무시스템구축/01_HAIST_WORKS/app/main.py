@@ -21574,10 +21574,15 @@ async def bom_upload_submit(request: Request, file: UploadFile = File(...)):
             plan = {"error": str(e)}
     pick = [] if proj else _bom.projects_pick_list()
     file_b64 = base64.b64encode(raw).decode("ascii")
+    # [판정 2026-07-29 §4] 중복 후보에 걸린 시트 이름 — 화면에서 **기본 해제**하고
+    #   사람이 고르기 전에는 반영 버튼을 잠그기 위해 넘긴다(서버에서도 한 번 더 막는다).
+    _dup_names = sorted({s for d in ((verify_src or {}).get("duplicate_sheets") or [])
+                         for s in d["sheets"]})
     return ctx(request, "bom_upload.html", user=u, active="parts", mode="preview",
                parsed=parsed, ok_sheets=ok_sheets, bad_sheets=bad_sheets,
                project=proj, project_pick=pick, plan=plan,
                verify_src=verify_src,          # 원본↔읽은값 대조 + 중복시트 경고
+               dup_sheet_names=_dup_names,
                file_b64=file_b64, filename=fname)
 
 
@@ -21600,6 +21605,7 @@ async def bom_upload_apply(request: Request):
     fname = form.get("filename") or "bom.xlsx"
     mode = "replace" if (form.get("mode") == "replace") else "merge"
     sel_sheets = [s for s in form.getlist("sheets") if s]
+    dup_ack = (form.get("dup_ack") == "1")
     if not raw or not project_id:
         return RedirectResponse(f"/bom/upload?error={_q('적용 정보가 유실됐습니다 — 다시 업로드해주세요')}", 303)
     tmp_dir = tempfile.mkdtemp(prefix="bom_apply_")
@@ -21608,6 +21614,12 @@ async def bom_upload_apply(request: Request):
         f.write(raw)
     try:
         parsed = _bom.parse_bom_file(tmp_path, filename=fname)
+        # [판정 2026-07-29 §4] 중복 후보 시트는 **사람이 고르기 전에는 반영하지 않는다**.
+        #   화면에서 기본 해제·버튼 잠금을 하지만, 화면을 거치지 않은 요청도 여기서 막는다.
+        _dupmsg = _bom.duplicate_selection_block(
+            _bom.scan_duplicate_sheets(tmp_path), sel_sheets, dup_ack)
+        if _dupmsg:
+            return RedirectResponse(f"/bom/upload?error={_q(_dupmsg)}", 303)
         items = [it for s in parsed["sheets"]
                  if s.get("ok") and (not sel_sheets or s["sheet"] in sel_sheets)
                  for it in s["items"]]
@@ -21636,48 +21648,61 @@ async def bom_upload_apply(request: Request):
             pass
     # v5H226z984 (대표 지시 "등록한 걸 보고 구매팀 업무가 시작"): 반영 즉시 구매팀 자동 통보
     #   인앱 알림 + 메신저(KNK Eum) 푸시(_notify_users 재사용). 단가·금액 미포함. 실패해도 반영은 유지(표면화만).
+    #
+    # ⛔ [대표 조건부 승인 2026-07-29 1829 §1] **Release 전에는 구매팀에 통보하지 않는다.**
+    #    BOM 업로드 반영은 아직 '임시 저장'이라, 검증 불일치가 있는 자료로 구매가 시작될 수 있다.
+    #    기능을 지우지 않고 잠갔다(KNK_ENABLE_BOM_UPLOAD_NOTIFY · 기본 잠김).
+    #    B단계에서 BOM Release·구매요청 제출 시점으로 옮겨 되살린다.
+    #    ⭐ 잠긴 동안 업로드 단계의 실제 통보는 **0건**이어야 한다 — 아래 분기 밖으로 새는 발송 경로가 없어야 한다.
     _ntf_note = ""
-    try:
+    _notified = 0
+    if not _wp01_unlocked("KNK_ENABLE_BOM_UPLOAD_NOTIFY"):
+        _ntf_note = " · 구매팀에는 통보하지 않았습니다(Release 전)"
+    else:
+        try:
+            with db_session() as c:
+                _prow = c.execute("SELECT mgmt_code, name FROM projects WHERE id=?", (project_id,)).fetchone()
+                _uids = [r[0] for r in c.execute(
+                    "SELECT id FROM users WHERE team_id=10 AND COALESCE(is_active,1)=1 AND id<>?",
+                    (_uid or -1,)).fetchall()]
+                if _uids:
+                    _mgmt = ((_prow["mgmt_code"] if _prow else "") or "—")
+                    _pnm = ((_prow["name"] if _prow else "") or "")
+                    # ⭐ 'v2' 는 **파일을 몇 번째로 올렸나**이지 설계 Revision 2 가 아니다(판정 §3.5).
+                    _t = (f"📋 BOM {'등록' if res['version_no'] == 1 else '변경'} [{_mgmt}] "
+                          f"업로드 버전 v{res['version_no']}")
+                    _warn = f" · 🔴발주후변경 {res['ordered_warn']}건" if res.get("ordered_warn") else ""
+                    _b = (f"{_pnm} — {(u.get('name') or '')} 업로드 · "
+                          f"추가 {res['added']} · 변경 {res['changed']} · 삭제 {res['deleted']}{_warn}"
+                          f" · 파일: {fname}")
+                    _nres = _notify_users(c, _uids, "bom", _t, _b, f"/projects/{project_id}/bom")
+                    if _nres.get("in_app") or _nres.get("msg_sent"):
+                        _notified = len(_uids)
+                        _ntf_note = f" · 구매팀 {len(_uids)}명 통보"
+                    if _nres.get("msg_err"):
+                        _ntf_note += f" (메신저 {_nres['msg_err'][:40]})"
+        except Exception as _e:
+            _ntf_note = f" · 구매팀 통보 실패({str(_e)[:40]})"
+    # ⭐ [판정 §3.1·§3.5] '반영'은 **임시 저장**이고 'v2'는 **업로드 회차**다.
+    #    Release·구매근거와 같은 말로 읽히지 않게 문구를 분리한다.
+    _sum = (f"업로드 버전 v{res['version_no']} 반영(임시 저장) — "
+            f"추가 {res['added']} · 변경 {res['changed']} · 삭제 {res['deleted']}"
+            + (f" · 파일에 없던 기존 라인 {res['missing']}건 유지" if res.get("missing") else "")
+            + (f" · 🔴 발주 후 변경 {res['ordered_warn']}건 재검토 필요" if res.get("ordered_warn") else ""))
+    # ⭐ [판정 §3.4] 불일치가 있으면 **전체 목록을 결과화면에 서버렌더**한다.
+    #    ⛔ 주소창(쿼리)에 상세를 싣지 않는다 — 길이 제한 때문에 앞 몇 건만 남아 증빙이 못 된다.
+    #    ⚠ 이 화면은 '그 자리에서 보는' 것까지다. 확인자·확인일시·해결상태를 남기려면 표가 필요하고
+    #       그건 B단계(스키마 승인)다. 화면에도 그 한계를 적어 둔다.
+    if isinstance(_vfy, dict) and (_vfy.get("error") or not _vfy.get("ok")):
         with db_session() as c:
-            _prow = c.execute("SELECT mgmt_code, name FROM projects WHERE id=?", (project_id,)).fetchone()
-            _uids = [r[0] for r in c.execute(
-                "SELECT id FROM users WHERE team_id=10 AND COALESCE(is_active,1)=1 AND id<>?",
-                (_uid or -1,)).fetchall()]
-            if _uids:
-                _mgmt = ((_prow["mgmt_code"] if _prow else "") or "—")
-                _pnm = ((_prow["name"] if _prow else "") or "")
-                _t = f"📋 BOM {'등록' if res['version_no'] == 1 else '변경'} [{_mgmt}] v{res['version_no']}"
-                _warn = f" · 🔴발주후변경 {res['ordered_warn']}건" if res.get("ordered_warn") else ""
-                _b = (f"{_pnm} — {(u.get('name') or '')} 업로드 · "
-                      f"추가 {res['added']} · 변경 {res['changed']} · 삭제 {res['deleted']}{_warn}"
-                      f" · 파일: {fname}")
-                _nres = _notify_users(c, _uids, "bom", _t, _b, f"/projects/{project_id}/bom")
-                if _nres.get("in_app") or _nres.get("msg_sent"):
-                    _ntf_note = f" · 구매팀 {len(_uids)}명 통보"
-                if _nres.get("msg_err"):
-                    _ntf_note += f" (메신저 {_nres['msg_err'][:40]})"
-    except Exception as _e:
-        _ntf_note = f" · 구매팀 통보 실패({str(_e)[:40]})"
-    # 저장값 대조 결과를 사람 말로 한 줄 붙인다(주소창 길이 제한 때문에 요약만).
-    _vmsg = ""
-    if isinstance(_vfy, dict):
-        if _vfy.get("error"):
-            _vmsg = f" · ⚠ 저장값 대조를 못 했습니다({_vfy['error'][:40]}) — 저장은 됐습니다"
-        elif _vfy.get("ok"):
-            _vmsg = f" · ✅ 저장값 대조 {_vfy.get('checked', 0)}줄 전부 일치"
-        else:
-            _d = _vfy.get("diff") or []
-            _vmsg = f" · ⚠ 저장값과 다른 값 {len(_d)}건(대조 {_vfy.get('checked', 0)}줄)"
-            if _d:
-                _vmsg += " — " + ", ".join(f"{x['row']} [{x['field']}]" for x in _d[:3])
-            if _vfy.get("not_saved"):
-                _vmsg += f" · 저장 못 찾은 줄 {_vfy['not_saved']}"
-    msg = (f"v{res['version_no']} 반영 — 추가 {res['added']} · 변경 {res['changed']} · 삭제 {res['deleted']}"
-           + (f" · 파일에 없던 기존 라인 {res['missing']}건 유지" if res.get("missing") else "")
-           + (f" · 🔴 발주 후 변경 {res['ordered_warn']}건 재검토 필요" if res.get("ordered_warn") else "")
-           + _vmsg
-           + _ntf_note)
-    return RedirectResponse(f"/projects/{project_id}/bom?success={_q(msg)}", 303)
+            _pr2 = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (project_id,)).fetchone()
+        return ctx(request, "bom_upload_result.html", user=u, active="parts",
+                   project=(dict(_pr2) if _pr2 else {"id": project_id, "mgmt_code": "", "name": ""}),
+                   filename=fname, version_no=res["version_no"], summary=_sum,
+                   verify=_vfy, notify_note=_ntf_note, notified=_notified,
+                   field_labels=_bom.FIELD_LABELS_KO)
+    _vmsg = f" · ✅ 저장값 대조 {_vfy.get('checked', 0)}줄 전부 일치" if isinstance(_vfy, dict) else ""
+    return RedirectResponse(f"/projects/{project_id}/bom?success={_q(_sum + _vmsg + _ntf_note)}", 303)
 
 
 @app.get("/projects/{pid:int}/bom", response_class=HTMLResponse)

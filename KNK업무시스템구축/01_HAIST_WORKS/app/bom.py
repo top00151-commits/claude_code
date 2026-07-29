@@ -370,6 +370,25 @@ _VERIFY_NUM_FIELDS = ("unit_count", "total_qty", "unit_price", "amount",
                       "source_purchase_qty", "stock_amount", "order_amount")
 
 
+# 화면에 그대로 쓰는 **사람 이름표**. 대조 결과에 `part_no` 같은 영문 칸이름이 나오면
+# 신고자가 무슨 값이 틀렸는지 알 수 없다(대표규정 · 사람친화 용어).
+FIELD_LABELS_KO = {
+    "category": "구분", "unit_code": "호기", "part_no": "모델명(품번)",
+    "part_name": "품명", "maker": "제조사", "vendor": "구매처",
+    "material": "재질", "finishing": "표면처리", "unit_count": "대당 수량",
+    "total_qty": "총수량", "unit": "단위", "unit_price": "단가", "amount": "금액",
+    "delivery_text": "납기", "remarks": "비고", "item_type": "품목 종류",
+    "line_no": "줄번호", "buy_at": "구매시기",
+    "source_stock_allocated_kor": "사내재고(본사)", "stock_ref_vn": "베트남재고(참고)",
+    "source_purchase_qty": "발주수량", "stock_amount": "재고금액", "order_amount": "발주금액",
+}
+
+
+def field_label(f: str) -> str:
+    """영문 칸이름 → 사람 이름표. 모르는 칸은 원문 그대로 돌려준다."""
+    return FIELD_LABELS_KO.get(f, f)
+
+
 def _vsame_text(a, b) -> bool:
     return (str(a or "").strip()) == (str(b or "").strip())
 
@@ -432,6 +451,35 @@ def scan_duplicate_sheets(path: str) -> list:
                             "rows": max(len(a), len(b)), "same_ratio": round(ratio, 4)})
     wb.close()
     return out
+
+
+def duplicate_selection_block(dups: list, selected: list, ack: bool = False) -> str:
+    """중복 후보 시트를 **사람이 고르기 전에는 반영하지 못하게** 막는다.
+
+    [판정 2026-07-29 §4] 경고문만 띄우고 두 시트를 다 고를 수 있게 두면 수량이 두 배가 된다.
+    화면에서 기본 해제·버튼 잠금을 하지만, 화면을 거치지 않은 요청도 여기서 막는다.
+
+    · `selected` 가 비면 '전부 적용'이므로 중복 짝도 둘 다 들어간다 → 막는다.
+    · 둘 다 골랐고 `ack`(중복인 줄 알지만 둘 다 쓰겠다)가 없으면 → 막는다.
+    · 한쪽만 골랐으면 통과. `ack` 가 있으면 사람이 확인한 것이므로 통과.
+    반환: 막을 사유 문장(없으면 빈 문자열).
+    """
+    if not dups:
+        return ""
+    if ack:
+        return ""
+    sel = set(selected or [])
+    hit = []
+    for d in dups:
+        a, b = d["sheets"][0], d["sheets"][1]
+        if not sel or (a in sel and b in sel):      # 빈 선택 = 전부 적용
+            hit.append(f'{a} ≒ {b} ({d["rows"]}줄)')
+    if not hit:
+        return ""
+    return ("같은 내용의 시트가 둘 이상인데 두 시트가 모두 선택돼 있습니다 — "
+            "그대로 반영하면 같은 자재가 두 번 들어갑니다: " + " / ".join(hit)
+            + " · 다시 올려서 쓸 시트만 고르시거나, 둘 다 쓰실 거면 "
+              "'중복인 줄 알지만 둘 다 사용'을 체크해 주세요.")
 
 
 def verify_source_vs_parsed(path: str, filename: str = "") -> dict:
