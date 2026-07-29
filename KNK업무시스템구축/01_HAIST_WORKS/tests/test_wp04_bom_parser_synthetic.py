@@ -271,8 +271,15 @@ chk("I-4 일치·불일치·중복·오류 네 갈래를 다 그린다",
                             "verify_src.duplicate_sheets", "verify_src.error")))
 chk("I-5 적용 직후 저장값을 대조한다", "verify_parsed_vs_saved" in _main)
 chk("I-6 대조 결과를 사람에게 알린다", "저장값 대조" in _main)
-_res_tpl = io.open(os.path.join(_APP, "app", "templates", "bom_upload_result.html"),
-                   encoding="utf-8").read()
+def _read(*parts):
+    """없는 파일은 **크래시가 아니라 빈 문자열** — 뒤 시험까지 못 돌면 변별력을 못 본다."""
+    try:
+        return io.open(os.path.join(_APP, *parts), encoding="utf-8").read()
+    except OSError:
+        return ""
+
+
+_res_tpl = _read("app", "templates", "bom_upload_result.html")
 chk("I-7 ⭐대조가 실패해도 저장은 유지한다(결과만 알림)",
     "저장됐습니다" in _res_tpl and "되돌리지 않는다" in _res_tpl)
 chk("I-8 CSS 가 있다(글자만 있고 안 보이는 일 없게)", ".vfy-ok" in _tpl and ".vfy-bad" in _tpl)
@@ -281,9 +288,9 @@ chk("I-8 CSS 가 있다(글자만 있고 안 보이는 일 없게)", ".vfy-ok" i
 # 근거: `CHATGPT_WP04_BOM검증_A단계_중간판정_및_B단계_분리요청_2026-07-29_1715.md`
 #       + 대표 조건부 승인 2026-07-29 18:29
 print("\n── J. 판정 보정 (①상태고지 ②통보잠금 ③중복선택 ④전체상세 ⑤버전문구) ──")
-_bom_tpl = io.open(os.path.join(_APP, "app", "templates", "project_bom.html"),
-                   encoding="utf-8").read()
-_dbsrc = io.open(os.path.join(_APP, "app", "database.py"), encoding="utf-8").read()
+_bom_tpl = _read("app", "templates", "project_bom.html")
+
+_dbsrc = _read("app", "database.py")
 
 # ── ⑤ 업로드 버전 ≠ BOM Revision ──
 chk("J-1 완료 안내가 '업로드 버전 vN'이라고 말한다(설계 Revision 과 구분)",
@@ -317,11 +324,19 @@ chk("J-12 통보 코드는 지우지 않고 잠갔다(Release 때 되살릴 수 
 chk("J-13 서버에 중복 선택 차단 함수가 있다", hasattr(bom, "duplicate_selection_block"))
 chk("J-14 라우트가 그 함수를 부른다", "duplicate_selection_block" in _main)
 _dp = [{"sheets": ["1. 구매품", "1. 구매품 (2)"], "rows": 326, "same_ratio": 0.99}]
-chk("J-15 ⭐둘 다 고르면 막는다", bool(bom.duplicate_selection_block(_dp, ["1. 구매품", "1. 구매품 (2)"])))
-chk("J-16 ⭐아무것도 안 고르면(=전부 적용) 막는다", bool(bom.duplicate_selection_block(_dp, [])))
-chk("J-17 한쪽만 고르면 통과", bom.duplicate_selection_block(_dp, ["1. 구매품"]) == "")
-chk("J-18 '둘 다 사용' 확인하면 통과", bom.duplicate_selection_block(_dp, [], ack=True) == "")
-chk("J-19 중복이 없으면 늘 통과", bom.duplicate_selection_block([], []) == "")
+
+
+def _dsb(*a, **k):
+    """함수가 아직 없으면 None — 아래 판정이 전부 FAIL 로 떨어진다(크래시로 멈추지 않게)."""
+    f = getattr(bom, "duplicate_selection_block", None)
+    return f(*a, **k) if f else None
+
+
+chk("J-15 ⭐둘 다 고르면 막는다", bool(_dsb(_dp, ["1. 구매품", "1. 구매품 (2)"])))
+chk("J-16 ⭐아무것도 안 고르면(=전부 적용) 막는다", bool(_dsb(_dp, [])))
+chk("J-17 한쪽만 고르면 통과", _dsb(_dp, ["1. 구매품"]) == "")
+chk("J-18 '둘 다 사용' 확인하면 통과", _dsb(_dp, [], ack=True) == "")
+chk("J-19 중복이 없으면 늘 통과", _dsb([], []) == "")
 chk("J-20 화면이 중복 시트를 기본 해제한다",
     "is_dup" in _tpl and "'' if is_dup else 'checked'" in _tpl)
 chk("J-21 화면에 '둘 다 사용' 확인칸이 있다", 'name="dup_ack"' in _tpl)
@@ -336,7 +351,8 @@ chk("J-25 ⭐전체를 싣는다(앞 몇 건만 자르지 않는다)",
 chk("J-26 ⭐주소창에 상세를 싣지 않는다",
     "x['row']" not in _main and "for x in _d[:3]" not in _main)
 chk("J-27 영문 칸이름에 사람 이름표를 붙인다",
-    bom.field_label("part_no") == "모델명(품번)" and "field_labels" in _res_tpl)
+    getattr(bom, "field_label", lambda f: f)("part_no") == "모델명(품번)"
+    and "field_labels" in _res_tpl)
 chk("J-28 목록을 파일로 내려받을 수 있다", "vfyCsvBtn" in _res_tpl)
 chk("J-29 ⭐이 화면의 한계를 정직하게 적는다(기록 보존은 다음 단계)",
     "다음 단계에서 대표 승인" in _res_tpl)
