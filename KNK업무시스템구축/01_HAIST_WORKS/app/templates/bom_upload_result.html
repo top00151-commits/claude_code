@@ -69,13 +69,20 @@
     <div class="bw">
       {% set _diff = verify.diff | default([]) %}
 
+      {# ⚠ 세 갈래를 갈라 쓴다. 예전에는 한 문장으로 묶어 두어 불일치가 0건인데도
+         "다른 곳이 0건 있습니다"라는 헛말이 화면에 떴다(로컬 화면 확인에서 잡음). #}
       {% if verify.error %}
         <div class="hit">⚠ 저장된 값을 맞춰 보지 못했습니다 — {{ verify.error }}
           <span class="sub">파일은 <b>저장됐습니다</b>. 아래 '보드로 가기'에서 실제로 들어간 값을 직접 확인해 주세요.</span>
         </div>
-      {% else %}
+      {% elif _diff %}
         <div class="hit">⚠ 읽은 값과 저장된 값이 다른 곳이 <b>{{ _diff | length }}건</b> 있습니다 (대조 {{ verify.checked }}줄)
           <span class="sub">저장은 그대로 유지했습니다 — 무엇이 다른지 아래에 <b>전부</b> 적었습니다. 고칠지 말지는 사람이 정합니다.</span>
+        </div>
+      {% else %}
+        <div class="hit">⚠ 파일에는 있는데 <b>저장된 곳을 찾지 못한 줄이 {{ verify.not_saved }}건</b> 있습니다 (대조 {{ verify.checked }}줄)
+          <span class="sub">값이 다른 곳은 없었습니다. 저장은 그대로 유지했습니다 —
+            아래 '보드로 가기'에서 해당 줄이 실제로 들어갔는지 확인해 주세요.</span>
         </div>
       {% endif %}
 

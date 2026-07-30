@@ -408,15 +408,24 @@ try:
                   data={"file_b64": _b64, "filename": os.path.basename(P_FULL),
                         "project_id": str(_PID), "mode": "merge"})
     chk("J'-1 반영이 정상 처리된다", _r.status_code in (200, 303), str(_r.status_code))
+    # ⭐ 정상 파일은 **보드로 바로 가야 한다**. 예전엔 취소선(삭제) 표기 줄을 '저장 못 찾음'으로
+    #    세어, 아무 문제 없는데도 "다른 곳이 0건 있습니다" 결과화면이 떴다(로컬 화면 확인에서 잡음).
+    #    status 만 보던 예전 판정으로는 이 결함이 통과해 버렸다 — 목적지와 문구까지 본다.
+    chk("J'-1a ⭐정상 파일은 헛경고 없이 보드로 간다",
+        _r.status_code == 303 and "/bom" in _r.headers.get("location", ""),
+        f'{_r.status_code} {_r.headers.get("location", "")[:60]}')
+    from urllib.parse import unquote as _unq
+    _loc1 = _unq(_r.headers.get("location", ""))
+    chk("J'-1b ⭐정상 파일은 '전부 일치'라고 알린다", "전부 일치" in _loc1, _loc1[:90])
     with _db.db_session() as _c:
         _nrow = _c.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
         _items = _c.execute("SELECT COUNT(*) FROM bom_items WHERE project_id=?", (_PID,)).fetchone()[0]
     chk("J'-2 ⭐⭐ 인앱 알림 0건 — 업로드 단계에서 구매팀에 통보하지 않았다", _nrow == 0, f"{_nrow}건")
     chk("J'-3 ⭐⭐ 메신저 푸시 0건", _sent["n"] == 0, f"{_sent['n']}건")
     chk("J'-4 통보는 안 했지만 저장은 됐다(기능을 죽인 게 아님)", _items > 0, f"{_items}줄")
-    _loc = _r.headers.get("location", "")
-    chk("J'-5 완료 안내에 '통보하지 않았습니다'가 있다",
-        ("통보하지" in _loc) or ("통보하지" in _r.text))
+    # ⚠ 주소창 값은 퍼센트 인코딩돼 있다 — 되돌려서 봐야 한다(예전엔 인코딩 때문에 못 보고
+    #    결과화면 본문에서 우연히 찾아 통과했다).
+    chk("J'-5 완료 안내에 '통보하지 않았습니다'가 있다", "통보하지 않았습니다" in _loc1, _loc1[:90])
 
     # 중복 시트 파일을 화면 없이 그대로 밀어 넣어도 서버가 막는가
     _b64d = base64.b64encode(io.open(P_DUP, "rb").read()).decode("ascii")

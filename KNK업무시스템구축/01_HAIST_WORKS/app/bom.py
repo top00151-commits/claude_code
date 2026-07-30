@@ -569,8 +569,13 @@ def verify_parsed_vs_saved(project_id: int, file_items: list) -> dict:
        아직 저장되지 않으므로(스키마 확장 미승인) 이 단계의 대조 대상이 아니다.
        그 항목들은 ①(원본↔읽은값)에서 확인한다.
     """
+    # ⭐ 취소선(삭제) 표기 줄은 **일부러** 활성 보드에 넣지 않는다(status='삭제').
+    #    그래서 대조 대상에서 빼야 한다 — 안 빼면 정상 업로드인데도 '저장된 곳을 못 찾은 줄'로
+    #    잡혀 "다른 곳이 0건" 같은 헛경고 화면이 뜬다(로컬 화면 확인에서 실제로 나왔다).
+    #    `plan_diff` 도 같은 규칙을 쓴다(live = 삭제표기 제외).
     saved = get_board(int(project_id))
-    pairs, adds, leftovers = _pair_items(saved, file_items)
+    live_items = [f for f in file_items if not f.get("is_deleted_marked")]
+    pairs, adds, leftovers = _pair_items(saved, live_items)
     diff = []
     for b, f in pairs:
         loc = f'{f.get("_src_sheet") or ""}!{f.get("_src_row") or ""}'
