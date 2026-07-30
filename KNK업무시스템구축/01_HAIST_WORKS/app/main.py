@@ -20608,22 +20608,34 @@ def _fx_load_rates(c):
     return rates
 
 
+def _fx_pick(rates, ccy, ym):
+    """(환율, 실제 적용된 'YYYY-MM') 짝을 돌려준다. 값이 아예 없으면 (None, None).
+
+    ⭐ '대체 규칙'의 단일 출처 — 그 달 없으면 직전 달, 그것도 없으면 가장 이른 입력월.
+       _fx_rate_for 도 이 함수를 쓴다. 같은 규칙을 두 군데 적어두면 화면마다 숫자가 갈린다.
+       적용월을 함께 돌려주는 이유: 메신저 환율 창이 '○○년 ○월 기준'이라고 적어야 해서
+       (대체가 일어났는데 요청한 달을 그대로 표시하면 거짓말이 된다). v5H226z1071"""
+    m = rates.get((ccy or "").strip().upper()) or {}
+    if not m:
+        return None, None
+    if ym and ym in m:
+        return m[ym], ym
+    if ym:
+        prev = [k for k in m.keys() if k <= ym]
+        if prev:
+            k = max(prev)
+            return m[k], k
+    k = min(m.keys())
+    return m[k], k
+
+
 def _fx_rate_for(rates, ccy, ym):
     """(CCY, 'YYYY-MM')의 기준환율. 그 달 없으면 직전 달 대체, 그것도 없으면
     가장 이른 입력월로 폴백(과거 미입력 대비). 통화 자체가 없으면 None."""
     ccy = (ccy or "").strip().upper()
     if not ccy or ccy == "KRW":
         return 1.0
-    m = rates.get(ccy)
-    if not m:
-        return None
-    if ym and ym in m:
-        return m[ym]
-    if ym:
-        prev = [k for k in m.keys() if k <= ym]
-        if prev:
-            return m[max(prev)]
-    return m[min(m.keys())] if m else None
+    return _fx_pick(rates, ccy, ym)[0]
 
 
 def _fx_to_krw(rates, amount, ccy, ref_ym, missing=None):
@@ -20646,6 +20658,59 @@ def _fx_to_krw(rates, amount, ccy, ref_ym, missing=None):
 # 통화별 입력 단위(관리자 화면 편의) — 내부 저장은 항상 '1 통화당 KRW'.
 #   엔·위안·동은 1단위가 작아 100단위로 입력받아 100으로 나눠 저장(대표 지시).
 FX_INPUT_UNIT = {"USD": 1, "EUR": 1, "JPY": 100, "CNY": 100, "VND": 100}
+
+
+# ── 메신저용 '월 기준환율 읽기' (v5H226z1071 · 대표 지시 2026-07-30) ────────────
+#   왜: 메신저 대화에 나오는 $ · VND 금액을 눌러 원화로 볼 수 있게 한다(대표 지시).
+#       그 숫자는 반드시 **WORKS 월 기준환율** — 대표규정 §4 규칙48(단일 기준).
+#       인터넷 시세를 따로 가져오면 회계 숫자와 어긋나므로 쓰지 않는다.
+#   ⚠ 읽기 전용 — 이 경로에서 exchange_rates 에 쓰기(INSERT/UPDATE/DELETE) 금지.
+#   ⚠ 인증 = 서비스 토큰(aud=knk-fx). 사람 로그인 토큰(aud=haist-works)과 분리돼 있어
+#     이 토큰으로는 WORKS 에 로그인할 수 없다 — sso_client.verify_service_token 주석 참고.
+FX_SERVICE_AUDIENCE = "knk-fx"
+FX_SERVICE_PURPOSE = "fx_read"
+
+
+@app.get("/api/fx/monthly")
+async def api_fx_monthly(req: Request, ym: str = ""):
+    """월 기준환율 조회 (서버 대 서버 전용).
+
+    rate 는 언제나 '1 통화당 KRW' (화면의 100단위 입력과 다름 — VND 는 0.058 처럼 작다).
+    ym 미지정이면 이번 달. 그 달 값이 없으면 직전 달로 대체하고,
+    **실제 적용된 달**을 rate_ym 에 담아 돌려준다(부르는 쪽이 '○월 기준'이라 정직히 적게)."""
+    from . import sso_client
+
+    auth = (req.headers.get("Authorization") or "").strip()
+    token = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+    if not sso_client.verify_service_token(token, FX_SERVICE_PURPOSE, FX_SERVICE_AUDIENCE):
+        return JSONResponse({"ok": False, "error": "unauthorized"}, 401)
+
+    ymk = (ym or "").strip()
+    if len(ymk) != 7 or ymk[4] != "-":
+        ymk = date.today().strftime("%Y-%m")
+
+    with db_session() as c:
+        rates = _fx_load_rates(c)
+
+    out, used_ym, missing = {}, {}, []
+    for ccy in FX_KRW_CURRENCIES:
+        r, r_ym = _fx_pick(rates, ccy, ymk)
+        if r and r > 0:
+            out[ccy] = r
+            used_ym[ccy] = r_ym
+        else:
+            missing.append(ccy)   # 아직 관리자가 안 채운 통화 — 부르는 쪽은 '미입력'으로 표시할 것
+
+    return JSONResponse({
+        "ok": True,
+        "ym": ymk,                 # 물어본 달
+        "base": "KRW",
+        "rates": out,              # {'USD': 1527.3, 'VND': 0.058, ...} — 1 통화당 원
+        "rate_ym": used_ym,        # 통화별 실제 적용월 (대체됐으면 ym 과 다르다)
+        "missing": missing,        # 값이 없는 통화 — 거짓 숫자를 만들지 말 것
+        "input_unit": {c: FX_INPUT_UNIT.get(c, 1) for c in FX_KRW_CURRENCIES},
+        "source": "WORKS 월 기준환율",
+    })
 
 
 @app.get("/admin/fx-rates", response_class=HTMLResponse)

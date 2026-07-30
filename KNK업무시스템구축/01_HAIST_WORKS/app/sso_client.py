@@ -155,6 +155,59 @@ def verify_token(token: str) -> Optional[dict]:
     return None
 
 
+# ── 서버 대 서버 '서비스 토큰' 검증 (사람 로그인 아님) ────────
+#   v5H226z1071 (대표 지시 2026-07-30): 메신저가 WORKS 의 월 기준환율을 읽어가기 위한 통로.
+#   메신저가 자기 SSO 개인키(RS256)로 서명하고, 여기서 위 public key 로 검증한다 —
+#   새 비밀키를 따로 만들 필요가 없다(이미 있는 신뢰 관계 재사용).
+#
+#   ⚠⚠ audience 를 로그인 토큰과 **일부러 다르게** 둔다 (knk-fx ≠ haist-works).
+#      같은 audience 를 쓰면 이 서비스 토큰을 그대로 /sso/land?token= 에 넣어
+#      'knk-messenger' 라는 존재하지 않는 사람으로 WORKS 에 입장할 수 있다.
+#      audience 가 다르면 verify_token(audience=haist-works) 이 반드시 거절하므로
+#      이 토큰은 로그인에 **쓸 수 없다**. 분리를 없애지 말 것.
+def verify_service_token(token: str, purpose: str, audience: str) -> Optional[dict]:
+    """서비스 토큰 검증 → payload dict. 실패 시 None.
+
+    검증 항목: 서명(RS256) · iss · aud(전용 audience) · exp(자동) · purpose 일치.
+    """
+    if not (token and isinstance(token, str) and purpose and audience):
+        return None
+    pem = get_public_key()
+    if not pem:
+        print("[SSO] verify_service_token: public key 미수신")
+        return None
+
+    def _decode(key: str) -> dict:
+        return pyjwt.decode(
+            token, key, algorithms=["RS256"],
+            audience=audience, issuer=SSO_ISSUER,
+        )
+
+    try:
+        payload = _decode(pem)
+    except pyjwt.InvalidTokenError as e:
+        # 만료·audience 불일치·issuer 불일치·서명 불일치가 전부 여기로 온다
+        print(f"[SSO] verify_service_token: invalid - {e}")
+        return None
+    except Exception as e:
+        # public key 교체 직후 → 캐시 무효화 + 1회 재시도 (verify_token 과 같은 처리)
+        print(f"[SSO] verify_service_token: 예외({e}) — public key 재조회 후 1회 재시도")
+        invalidate_public_key_cache()
+        pem2 = get_public_key(force_refresh=True)
+        if not pem2 or pem2 == pem:
+            return None
+        try:
+            payload = _decode(pem2)
+        except Exception as e2:
+            print(f"[SSO] verify_service_token: 재시도도 실패 ({e2})")
+            return None
+
+    if (payload or {}).get("purpose") != purpose:
+        print(f"[SSO] verify_service_token: purpose 불일치 (expected {purpose})")
+        return None
+    return payload
+
+
 # ── userinfo 호출 (pwv 검증 포함) ────────────────────────────
 def fetch_userinfo(token: str) -> Optional[dict]:
     """Bearer 토큰으로 /api/sso/userinfo 호출 → 최신 사용자 정보.
