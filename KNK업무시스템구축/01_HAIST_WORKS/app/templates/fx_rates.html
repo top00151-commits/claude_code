@@ -206,7 +206,7 @@
                 <td class="center"><span class="chip-cur to">{{ r.to_currency|default('KRW') }}</span></td>
                 <td class="num">{{ '{:,.4f}'.format(r.rate|default(0)|float) }}</td>
                 <td><span class="chip-src">{{ r.source|default('—') }}</span></td>
-                <td class="mute" style="font-size:11.5px;">{{ (r.note|default('—'))|truncate(40) }}</td>
+                <td class="mute" style="font-size:11.5px;">{{ (r.note or '—')|truncate(40) }}</td>{# z1072: note=None 이어도 truncate 안 터지게(default는 None 미처리) #}
                 <td class="center mute" style="font-size:11px;">{{ r.created_by_name|default('—') }}</td>
               </tr>
             {% endfor %}
