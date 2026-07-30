@@ -149,56 +149,25 @@
 
       <div class="fx-body" data-dn="fx:body">
 
+        {# v5H226z1072 (대표 지시 2026-07-30 · 환율 단일 기준 보호 §2): 입력 폼 제거 → 조회 전용 안내.
+           월 기준환율 입력의 유일 근거 = /admin/fx-rates(규칙48). POST /fx/rates 는 서버측 잠금됨. #}
         <div class="qsec" data-dn="fx:add">
           <div class="qsec-h">
-            <span class="ttl">＋ 환율 신규 등록</span>
-            <span class="badge">같은 날짜+통화쌍 UPSERT</span>
-            <span class="right">필수 항목 *</span>
+            <span class="ttl">🔒 이 화면은 조회 전용입니다</span>
+            <span class="badge">환율 단일 기준 · 규칙48</span>
           </div>
-          <form class="add-form" method="post" action="/fx/rates">
-            <div class="grid">
-              <div class="field col-2">
-                <label>환율 일자 <span class="req">*</span></label>
-                <input type="date" name="rate_date" required>
-              </div>
-              <div class="field">
-                <label>From <span class="req">*</span></label>
-                <select name="from_currency" required>
-                  {% for c in CURRENCIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-                </select>
-              </div>
-              <div class="field">
-                <label>To</label>
-                <select name="to_currency">
-                  <option value="KRW" selected>KRW</option>
-                  {% for c in CURRENCIES %}{% if c != 'KRW' %}<option value="{{ c }}">{{ c }}</option>{% endif %}{% endfor %}
-                </select>
-              </div>
-              <div class="field col-2">
-                <label>환율 <span class="req">*</span></label>
-                <input type="number" name="rate" step="0.0001" min="0" required placeholder="0.0000">
-              </div>
-
-              <div class="field col-2">
-                <label>출처</label>
-                <select name="source">
-                  <option value="수동">수동</option>
-                  <option value="API">API</option>
-                  <option value="한국은행">한국은행</option>
-                  <option value="시중은행">시중은행</option>
-                  <option value="고시">고시</option>
-                </select>
-              </div>
-              <div class="field col-2">
-                <label>비고</label>
-                <input type="text" name="note" placeholder="비고 (선택)">
-              </div>
+          <div style="padding:14px 16px;line-height:1.7;color:#4b5563;font-size:13px;">
+            {% if locked %}
+            <div style="margin-bottom:10px;padding:10px 14px;background:#fef2f2;border:1px solid #dc2626;border-radius:8px;color:#b91c1c;font-weight:600;">
+              ⚠ 방금 입력은 <b>저장되지 않았습니다</b> — 이 화면은 입력이 잠겨 있습니다.
             </div>
-            <div class="submit-row">
-              <button type="submit">＋ 환율 등록</button>
-              <span class="note">💡 같은 일자·동일 통화쌍 중복 시 자동 UPSERT</span>
+            {% endif %}
+            <b>월 기준환율은 「관리자 · 월 기준환율」 한 곳에서만 입력합니다</b> (대표규정 §4 규칙48 · 단일 기준).
+            이 화면(<code>/fx/rates</code>)은 <b>조회 전용</b>으로 두었고 입력은 잠겼습니다.
+            <div style="margin-top:12px;">
+              <a href="/admin/fx-rates" style="display:inline-block;padding:9px 18px;background:var(--knk-red,#a5282c);color:#fff;border-radius:8px;font-weight:700;text-decoration:none;">→ 월 기준환율 입력(관리자)로 가기</a>
             </div>
-          </form>
+          </div>
         </div>
 
         <div class="qsec" data-dn="fx:list" data-dn-tone="purple">
@@ -247,7 +216,7 @@
           <div class="po-empty">
             <div class="ico">💱</div>
             <div class="ttl">환율 데이터가 없습니다</div>
-            <div style="font-size:12px;">위 폼에서 환율을 등록하세요.</div>
+            <div style="font-size:12px;">월 기준환율은 <a href="/admin/fx-rates" style="color:var(--knk-red,#a5282c);font-weight:700;">관리자 · 월 기준환율</a>에서 입력하세요.</div>
           </div>
           {% endif %}
         </div>

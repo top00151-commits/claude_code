@@ -20592,12 +20592,22 @@ FX_KRW_CURRENCIES = ("USD", "EUR", "JPY", "CNY", "VND")
 
 
 def _fx_load_rates(c):
-    """월 기준환율 로드 → {CCY: {'YYYY-MM': rate}} (to_currency=KRW·rate>0)."""
+    """월 기준환율 로드 → {CCY: {'YYYY-MM': rate}} (to_currency=KRW·rate>0).
+    ⭐ v5H226z1072 (대표 지시 2026-07-30 · 환율 단일 기준 보호): **rate_date 가 그 달 '1일'(YYYY-MM-01)인 행만**
+       월 기준환율로 쓴다. 같은 통화·월에 2일 이후 행이 DB에 남아 있어도 환산에 쓰지 않는다 —
+       매출·메신저·소모품·관리자 월 환율이 **입력 순서·마지막 행과 무관하게 1일 행만** 선택하도록.
+       (전엔 substr(월)로 묶어 dict 덮어써 마지막 읽힌 행이 이기던 '덮임 문제'.)
+       ⛔ 비-1일 행은 삭제·수정하지 않는다(읽지 않을 뿐). 월 기준환율의 유일 입력 근거 = /admin/fx-rates(항상 1일 저장).
+       필터가 '선택 규칙'이다(정렬로 마지막 행을 고르는 방식이 아님). ORDER BY 는 혹시 모를 중복 1일 행에서도
+       결과가 데이터 순서에 흔들리지 않게 하는 결정적 읽기용."""
     rates = {}
     try:
         for r in c.execute(
             "SELECT UPPER(from_currency) AS ccy, substr(rate_date,1,7) AS ym, rate "
-            "FROM exchange_rates WHERE COALESCE(to_currency,'KRW')='KRW' AND rate>0"
+            "FROM exchange_rates "
+            "WHERE COALESCE(to_currency,'KRW')='KRW' AND rate>0 "
+            "AND substr(rate_date,9,2)='01' "                 # ⭐ 1일(YYYY-MM-01) 행만 — 덮임 방지(대표 지시)
+            "ORDER BY substr(rate_date,1,7), rowid"           # 결정적 읽기(입력 순서 무관)
         ).fetchall():
             ccy = (r[0] or "").strip().upper()
             if not ccy or ccy == "KRW" or not r[1]:
@@ -40713,7 +40723,7 @@ def _fx_guard(user) -> bool:
 
 
 @app.get("/fx/rates", response_class=HTMLResponse)
-async def fx_rates_page(request: Request, currency: str = ""):
+async def fx_rates_page(request: Request, currency: str = "", locked: str = ""):
     """
     환율 목록 + 입력 폼 (사이클 54 1차).
 
@@ -40730,7 +40740,8 @@ async def fx_rates_page(request: Request, currency: str = ""):
     items = exchange_rates_list(limit=200, currency=currency)
     latest = exchange_rates_latest()
     return ctx(request, "fx_rates.html", user=u, items=items, latest=latest,
-               currency=currency, CURRENCIES=CURRENCIES, active="fx_rates")
+               currency=currency, CURRENCIES=CURRENCIES, active="fx_rates",
+               locked=(str(locked) == "1"))   # z1072 §2: 잠긴 POST 시도 뒤 안내
 
 
 @app.post("/fx/rates")
@@ -40756,19 +40767,10 @@ async def fx_rates_create(
         return RedirectResponse("/login", 303)
     if not _fx_guard(u):
         return RedirectResponse("/home", 303)
-    try:
-        exchange_rate_create({
-            "rate_date": rate_date,
-            "from_currency": from_currency,
-            "to_currency": to_currency,
-            "rate": float(rate),
-            "source": source,
-            "note": note,
-        }, user_id=u["id"])
-    except Exception as e:
-        from urllib.parse import quote
-        return RedirectResponse(f"/fx/rates?error={quote(str(e))}", 303)
-    return RedirectResponse("/fx/rates?success=1", 303)
+    # v5H226z1072 (대표 지시 2026-07-30 · 환율 단일 기준 보호 §2): POST /fx/rates 서버측 잠금.
+    #   월 기준환율 입력의 유일 근거 = /admin/fx-rates(규칙48). 이 경로는 어떤 값이 와도 exchange_rates 에 쓰지 않는다
+    #   — UI 버튼 숨김이 아니라 **서버가 거부**(exchange_rate_create 호출 제거). GET(조회)는 존치·URL 삭제/리다이렉트 안 함.
+    return RedirectResponse("/fx/rates?locked=1", 303)
 
 
 @app.get("/parts/{part_id}/prices", response_class=HTMLResponse)
