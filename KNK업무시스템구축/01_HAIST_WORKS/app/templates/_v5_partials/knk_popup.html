@@ -1,0 +1,151 @@
+{# v5H226z1073d (대표 지적 2026-08-03 "팝업이 너무 위쪽으로 나오고, 고정이라 이동이 안 된다"):
+   ⭐ 대표 팝업창 표준 4조(v654·2026-07-17)를 **WORKS 에도** 적용하는 공용 장치.
+      ① 모서리 사각  ② PC 우하단 모서리로 크기 조절  ③ 크기 변화는 위 라인 고정·아래로만  ④ PC 창 안 드래그 이동
+   그동안 이 규정을 자동으로 걸어주는 장치는 **메신저 앱에만** 있었다(WORKS 에는 없었음).
+
+   ── 쓰는 법 (opt-in — 표 높이 자동채움 data-knk-fill 과 같은 방식) ──
+     <div class="…" data-knk-popup>
+       <div class="…" data-knk-popup-head>제목 … <button>✕</button></div>
+       <div>본문</div>
+     </div>
+   달아둔 팝업만 적용된다. 기존 팝업은 아무 영향 없음.
+
+   ── 왜 '못박기(pin)'가 규정 ③ 의 전부인가 ──
+   대부분의 팝업은 `left:50%; transform:translateX(-50%)` 처럼 **가운데 기준**이라, 크기가 커지면
+   위아래로 동시에 자란다(=위 라인이 밀려 올라감). 열리는 순간 그 자리를 fixed 좌표로 못박으면
+   브라우저 기본 동작(좌상단 고정)이 그대로 규정 ③ 이 된다. 보정 코드가 따로 필요 없다.
+
+   ⚠ 못박기 예약은 setTimeout(0) — requestAnimationFrame 금지.
+      창이 화면에 안 보이면(다른 탭·최소화) rAF 가 영영 안 와서 팝업이 못박히지 않는다(메신저에서 실측).
+   ⚠ 팝업 크기 CSS 에 !important 금지 — 사람이 조절한 값(인라인)이 못 이긴다.
+   ⚠ 휴대폰(≤640px)은 건너뛴다 — 꽉 찬 팝업이 맞다. 사각 모서리만 공통 적용. #}
+<style>
+/* ① 모서리 사각 — 전 기기 공통 */
+[data-knk-popup]{ border-radius:0; }
+@media (min-width:641px){
+  /* ② 우하단 모서리로 크기 조절 */
+  [data-knk-popup]{ resize:both; min-width:280px; min-height:150px; }
+  /* ④ 제목줄을 잡고 끌어 옮긴다 — 본문 글자 선택은 그대로 살린다 */
+  [data-knk-popup] [data-knk-popup-head]{ cursor:move; user-select:none; }
+  [data-knk-popup] [data-knk-popup-head] button,
+  [data-knk-popup] [data-knk-popup-head] a,
+  [data-knk-popup] [data-knk-popup-head] input{ cursor:auto; }
+  [data-knk-popup].knk-popup-dragging{ user-select:none; }
+}
+</style>
+<script>
+/* z1073d 공용 팝업 표준 — ES5. 어디서 실패해도 팝업 자체는 원래대로 뜬다(try/catch). */
+(function(){
+  var PC   = function(){ return (window.innerWidth || 0) >= 641; };
+  var EDGE = 80;   /* 팝업이 화면 밖으로 나가도 최소 이만큼은 남긴다 */
+
+  function shown(el){
+    return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  }
+
+  /* 열리는 순간 그 자리를 fixed 좌표로 못박는다(규정 ③).
+     처음 한 번은 세로 가운데로 옮긴다 — 대표 지적 '너무 위쪽으로 나온다'.
+     그 뒤에는 사람이 옮겨 둔 자리를 그대로 지킨다. */
+  function pin(el){
+    if (!PC() || el.getAttribute('data-knk-pinned') === '1') return;
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var top = Math.round((window.innerHeight - r.height) / 2);
+    if (!(top > 8)) top = Math.round(r.top);        /* 화면보다 크면 원래 자리 유지 */
+    el.style.position  = 'fixed';
+    el.style.margin    = '0';
+    el.style.transform = 'none';
+    el.style.right     = 'auto';
+    el.style.bottom    = 'auto';
+    el.style.left      = Math.round(r.left) + 'px';
+    el.style.top       = top + 'px';
+    el.setAttribute('data-knk-pinned', '1');
+  }
+
+  function targets(){ return document.querySelectorAll('[data-knk-popup]'); }
+
+  function sweep(){
+    try {
+      var els = targets(), i;
+      for (i = 0; i < els.length; i++) { if (shown(els[i])) pin(els[i]); }
+    } catch (e) { /* 팝업은 그대로 뜬다 */ }
+  }
+
+  /* 팝업은 class/style 이 바뀌며 열린다 → 그 변화를 보고 못박는다.
+     setTimeout(0) 인 이유는 위 주석 참고(rAF 금지). */
+  try {
+    var mo = new MutationObserver(function(){ setTimeout(sweep, 0); });
+    mo.observe(document.documentElement, {
+      attributes: true, attributeFilter: ['class', 'style', 'hidden', 'open'],
+      subtree: true, childList: true
+    });
+  } catch (e) {}
+
+  /* ④ 제목줄 드래그 */
+  var drag = null;
+  function headOf(t){
+    while (t && t !== document) {
+      if (t.getAttribute && t.getAttribute('data-knk-popup-head') !== null) return t;
+      t = t.parentNode;
+    }
+    return null;
+  }
+  function boxOf(t){
+    while (t && t !== document) {
+      if (t.getAttribute && t.getAttribute('data-knk-popup') !== null) return t;
+      t = t.parentNode;
+    }
+    return null;
+  }
+  document.addEventListener('mousedown', function(e){
+    if (!PC() || e.button !== 0) return;
+    var head = headOf(e.target);
+    if (!head) return;
+    /* 닫기 버튼·입력칸은 드래그가 아니라 그 기능이 우선 */
+    var t = e.target, tag = (t.tagName || '').toLowerCase();
+    if (tag === 'button' || tag === 'a' || tag === 'input' ||
+        tag === 'select' || tag === 'textarea') return;
+    var el = boxOf(head);
+    if (!el) return;
+    pin(el);
+    var r = el.getBoundingClientRect();
+    drag = { el: el, dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width };
+    el.classList.add('knk-popup-dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e){
+    if (!drag) return;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    /* 좌우는 창 안에 두고, 제목줄은 항상 화면에 남긴다(규정 ④) */
+    var x = Math.max(0, Math.min(vw - Math.min(drag.w, vw), e.clientX - drag.dx));
+    var y = Math.max(0, Math.min(vh - 40, e.clientY - drag.dy));
+    drag.el.style.left = Math.round(x) + 'px';
+    drag.el.style.top  = Math.round(y) + 'px';
+  });
+  function endDrag(){
+    if (!drag) return;
+    drag.el.classList.remove('knk-popup-dragging');
+    drag = null;
+  }
+  document.addEventListener('mouseup', endDrag);
+  window.addEventListener('blur', endDrag);
+
+  /* 창 크기가 바뀌면 화면 밖으로 밀려난 팝업을 도로 끌어온다 */
+  window.addEventListener('resize', function(){
+    try {
+      var els = targets(), i, vw = window.innerWidth, vh = window.innerHeight;
+      for (i = 0; i < els.length; i++) {
+        var el = els[i];
+        if (el.getAttribute('data-knk-pinned') !== '1') continue;
+        var r = el.getBoundingClientRect();
+        if (r.left > vw - EDGE) el.style.left = Math.max(0, vw - EDGE) + 'px';
+        if (r.top  > vh - 40)   el.style.top  = Math.max(0, vh - 40)  + 'px';
+      }
+    } catch (e) {}
+  });
+
+  window.knkPopupPin = sweep;          /* 동적으로 만든 팝업용 수동 호출 */
+  if (document.readyState !== 'loading') setTimeout(sweep, 0);
+  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(sweep, 0); });
+})();
+</script>

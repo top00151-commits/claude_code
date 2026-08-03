@@ -103,7 +103,9 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
 /* 상세 모달 */
 .bmodal-bg { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; z-index:70; }
 .bmodal-bg.show { display:block; }
-.bmodal { position:fixed; top:4vh; left:50%; transform:translateX(-50%); width:min(860px, 94vw); max-height:90vh; overflow:auto; background:var(--pq-surface); border-radius:12px; box-shadow:0 18px 60px rgba(0,0,0,.28); z-index:71; display:none; }
+/* z1073d: 모서리 둥글기(12px)를 뺐다 — 대표 팝업 표준 ①'모서리 사각'. 공용 장치가 0 으로 잡는데
+   여기 12px 이 뒤에 와서 이기고 있었다. ⛔ 팝업 크기 CSS 에 !important 금지(사람이 조절한 값이 못 이김). */
+.bmodal { position:fixed; top:4vh; left:50%; transform:translateX(-50%); width:min(860px, 94vw); max-height:90vh; overflow:auto; background:var(--pq-surface); box-shadow:0 18px 60px rgba(0,0,0,.28); z-index:71; display:none; }
 .bmodal.show { display:block; }
 .bmodal-head { padding:13px 18px; border-bottom:1px solid var(--pq-line); display:flex; align-items:center; gap:10px; position:sticky; top:0; background:var(--pq-surface); }
 .bmodal-head b { font-family:var(--pq-mono); font-size:15px; }
@@ -325,9 +327,12 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
     {% endif %}
 
     {# ── 상세/수정 모달 ── #}
+    {# z1073d (대표 지적 2026-08-03 '너무 위쪽으로 나오고 고정이라 이동이 안 된다'):
+       대표 팝업창 표준 4조(v654)를 이 창에 건다 — 공용 장치가 알아서 처리한다.
+       ① 사각 ② 우하단으로 크기 조절 ③ 커질 때 위 라인 고정·아래로만 ④ 제목줄 잡고 이동 #}
     <div class="bmodal-bg" id="bmBg"></div>
-    <div class="bmodal" id="bm">
-      <div class="bmodal-head">
+    <div class="bmodal" id="bm" data-knk-popup>
+      <div class="bmodal-head" data-knk-popup-head title="이 줄을 잡고 끌면 창을 옮길 수 있습니다">
         <b id="bmTitle"></b>
         <span id="bmFlags"></span>
         <button class="bmodal-close" id="bmClose" title="닫기">✕</button>
@@ -589,6 +594,9 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
       })
       .catch(function(){ hd.innerHTML = '<div style="color:#b91c1c;font-size:12px;">이력 조회 실패</div>'; });
     bm.classList.add('show'); bg.classList.add('show');
+    /* z1073d: 뜨는 그 순간 자리를 못박는다(공용 팝업 표준).
+       자동 감시(MutationObserver)만 믿으면 한 박자 뒤에 잡혀 창이 한 번 **튀어 보인다**. */
+    try { if (window.knkPopupPin) window.knkPopupPin(); } catch(e) {}
   }
   function closeModal(){ bm.classList.remove('show'); bg.classList.remove('show'); }
   document.getElementById('bmClose').addEventListener('click', closeModal);
