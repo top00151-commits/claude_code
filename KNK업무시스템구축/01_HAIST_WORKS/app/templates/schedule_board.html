@@ -1905,6 +1905,10 @@ function _schedApplyFilter(){
   } else {
     var ci=changes.length;
     var _step=function(){
+      if(document.hidden){   // 화면이 안 보이면(다른 탭·최소화) 그리기 부담이 없다 — 남은 것 즉시 전부(rAF 는 이때 멈추므로)
+        while(ci>0){ ci--; changes[ci][0].classList.toggle('search-hide', changes[ci][1]); }
+        _schedChunkJob=null; syncSelAll(); return;
+      }
       var n=0;
       while(ci>0 && n<30){ ci--; changes[ci][0].classList.toggle('search-hide', changes[ci][1]); n++; }
       if(ci>0){ _schedChunkJob=requestAnimationFrame(_step); }
