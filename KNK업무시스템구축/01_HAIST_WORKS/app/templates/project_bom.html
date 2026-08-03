@@ -161,7 +161,13 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
               data-recent="{{ 1 if rc else 0 }}"
               data-buy="{{ it.buy_at or '' }}"
               data-search="{{ ((it.part_no or '') ~ ' ' ~ (it.part_name or '') ~ ' ' ~ (it.maker or '')) | lower }}"
-              data-item="{{ it | tojson | e }}">
+              {# 🔴 z1073 결함수정 (대표 지시 2026-08-03): 여기가 **큰따옴표**였다. tojson 은 < > & ' 는
+                 escape 하지만 " 는 그대로 둔다(스크립트 태그·홑따옴표 속성용 설계). 그래서 값 안의 첫 "
+                 에서 속성이 끊겨 data-item 에 '{' 한 글자만 담겼고 → **행을 눌러도 상세·이력 창이 안
+                 열렸다**. 여는 코드가 try/catch 라 아무 표시 없이 조용히 실패해 오래 발견되지 않았다.
+                 ⛔ 다시 큰따옴표로 바꾸지 말 것. | e 는 tojson 결과(Markup)에 아무 일도 하지 않으면서
+                 안전해 보이게 만들던 것이라 뺀다. 전 화면 통틀어 같은 표기는 여기 한 곳뿐(실측). #}
+              data-item='{{ it | tojson }}'>
             {% if can_edit %}<td onclick="event.stopPropagation()"><input type="checkbox" class="rowck" value="{{ it.id }}" {{ 'disabled' if it.status != '활성' }}></td>{% endif %}
             <td class="mono">{{ it.line_no or '' }}</td>
             <td class="mono"><b>{{ it.part_no or '—' }}</b>{{ oldv(rc, 'part_no') }}</td>
