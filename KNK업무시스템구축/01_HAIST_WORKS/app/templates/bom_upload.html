@@ -80,6 +80,10 @@
 .tag.add { background:var(--pq-warn-soft); color:var(--pq-warn); }
 .tag.del { background:var(--pq-danger-soft); color:var(--pq-danger); }
 .tag.ord { background:#fee2e2; color:#b91c1c; }
+/* z1073f: 전에 한 변경을 그대로 되돌리는 건 — 막지 않고 눈에 띄게만 한다(모래색=경고이되 위험 아님) */
+.tag.rev { background:var(--pq-warn-soft, #fef3c7); color:var(--pq-warn, #b45309); margin-left:5px; }
+.banner.warn { background:var(--pq-warn-soft, #fef3c7); color:#6b4715; border:1px solid #e7d7b8; line-height:1.65; font-weight:500; }
+.banner.warn b { color:#5a3a10; font-weight:700; }
 details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:var(--pq-ink-2); padding:4px 0; }
 @media (max-width:640px){ .bw{padding:12px 10px 40px;} }
 </style>
@@ -229,7 +233,19 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
           <div class="sum-cell ok"><div class="l">동일(변경없음)</div><div class="v">{{ plan.unchanged }}</div></div>
           <div class="sum-cell"><div class="l">파일에 없는 기존</div><div class="v">{{ plan.missing | length }}</div></div>
           <div class="sum-cell {{ 'warn' if plan.ordered_warn }}"><div class="l">🔴 발주 후 변경</div><div class="v">{{ plan.ordered_warn }}</div></div>
+          {# z1073f (대표 지적 2026-08-03): 예전 파일을 올리면 최신 사양이 조용히 옛날로 돌아간다. #}
+          <div class="sum-cell {{ 'warn' if plan.revert_cnt }}"><div class="l">🔄 되돌림</div><div class="v">{{ plan.revert_cnt or 0 }}</div></div>
         </div>
+
+        {% if plan.revert_cnt %}
+        {# 막지 않는다 — 일부러 되돌리는 일도 있다. 사실만 알리고 판단은 사람이 한다. #}
+        <div class="banner warn" style="margin-top:10px;">
+          🔄 <b>이 중 {{ plan.revert_cnt }}건은 전에 했던 변경을 그대로 되돌립니다</b>{% if plan.revert_vers %}
+          (업로드 버전 v{{ plan.revert_vers | join(', v') }} 에서 한 변경){% endif %}.
+          <b>예전 파일을 올리신 것은 아닌지</b> 확인해 주세요 — 그대로 반영하면 최신 단가·사양이 옛날 값으로 돌아갑니다.
+          <span style="font-weight:400;">일부러 되돌리시는 것이라면 그대로 진행하시면 됩니다.</span>
+        </div>
+        {% endif %}
 
         {% if plan.changes %}
         <details class="fold" open style="margin-top:12px;">
@@ -245,7 +261,9 @@ details.fold summary { cursor:pointer; font-weight:700; font-size:13px; color:va
                 <td>
                   {% for fld, ov in chgitem.fields.items() %}
                     <div><span style="font-size:10px;color:var(--pq-ink-4);">{{ fld }}</span>
-                      <span class="chg-old">{{ ov.old }}</span> → <span class="chg-new">{{ ov.new }}</span></div>
+                      <span class="chg-old">{{ ov.old }}</span> → <span class="chg-new">{{ ov.new }}</span>
+                      {# z1073f: 이 변경이 전에 한 것을 그대로 되돌리는 경우 — 이력 대조로 판정(추측 아님) #}
+                      {% if ov.revert %}<span class="tag rev" title="{{ ov.revert.at }}{% if ov.revert.source %} · {{ ov.revert.source }}{% endif %}">🔄 되돌림{% if ov.revert.version_no %} (v{{ ov.revert.version_no }} 에서 한 변경){% endif %}</span>{% endif %}</div>
                   {% endfor %}
                 </td>
                 <td>{% if chgitem.ordered %}<span class="tag ord">🔴 발주 후 변경</span>{% endif %}</td>

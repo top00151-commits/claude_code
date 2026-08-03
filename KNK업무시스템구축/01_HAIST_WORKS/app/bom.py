@@ -724,9 +724,66 @@ def plan_diff(project_id: int, file_items: list) -> dict:
             if warn:
                 ordered_warn += 1
             del_hits.append({"item_id": b["id"], "board": b, "file": f, "ordered": warn})
-    return {"adds": adds, "changes": changes, "deletes": del_hits,
-            "missing": remaining, "unchanged": unchanged,
-            "ordered_warn": ordered_warn, "board_count": len(board)}
+    out = {"adds": adds, "changes": changes, "deletes": del_hits,
+           "missing": remaining, "unchanged": unchanged,
+           "ordered_warn": ordered_warn, "board_count": len(board)}
+    out.update(mark_reverts(changes))
+    return out
+
+
+# 값 비교 시 숫자로 다뤄야 하는 칸 (문자 비교하면 '84000' 과 '84000.0' 이 다르게 보인다)
+_NUM_FIELDS = ("unit_count", "total_qty", "unit_price", "amount")
+
+
+def _same_val(a, b, numeric: bool) -> bool:
+    if numeric:
+        return abs(_num(a) - _num(b)) <= 0.0001
+    return (str(a).strip() if a is not None else "") == (str(b).strip() if b is not None else "")
+
+
+def mark_reverts(changes: list) -> dict:
+    """z1073f (대표 지적 2026-08-03): 이번 변경이 **직전에 한 것을 되돌리는지** 표시한다.
+
+    ⭐ 파일 이름·날짜로 '오래된 파일인가'를 **추측하지 않는다** — 사람이 이름을 아무렇게나 붙이기 때문.
+       대신 이력만 본다: 전에 `A→B` 를 했는데 이번이 `B→A` 면 **그건 되돌림이다**. 다른 해석이 없다.
+    ⛔ 막지 않는다. 사실만 알려주고 판단은 사람이 한다(일부러 되돌리는 일도 있다).
+
+    왜 필요한가: 설계팀이 예전 파일을 실수로 올리면 최신 단가·사양이 **조용히 옛날로 돌아가고**,
+    그 사이 구매팀이 옛 단가로 발주하면 그대로 손실이 된다. 화면은 '변경 4' 라고만 말할 뿐이었다.
+
+    각 필드 dict 에 `revert` 를 달아 주고, 요약 수치를 돌려준다. DB 는 읽기만 한다.
+    """
+    hits = 0
+    vers = []
+    if not changes:
+        return {"revert_cnt": 0, "revert_vers": []}
+    with db_session() as c:
+        for chg in changes:
+            iid = chg.get("item_id")
+            if not iid:
+                continue
+            for fld, ov in (chg.get("fields") or {}).items():
+                r = c.execute(
+                    "SELECT h.old_value, h.new_value, h.source, h.created_at, u.version_no "
+                    "  FROM bom_item_history h "
+                    "  LEFT JOIN bom_uploads u ON u.id = h.upload_id "
+                    " WHERE h.item_id=? AND h.field=? ORDER BY h.id DESC LIMIT 1",
+                    (int(iid), fld)).fetchone()
+                if not r:
+                    continue
+                numeric = fld in _NUM_FIELDS
+                # 직전 결과가 지금의 출발점이고(당연), 직전 출발점이 지금의 도착점이면 = 되돌림
+                if (_same_val(r["new_value"], ov.get("old"), numeric)
+                        and _same_val(r["old_value"], ov.get("new"), numeric)):
+                    ov["revert"] = {
+                        "version_no": r["version_no"],
+                        "source": r["source"] or "",
+                        "at": (r["created_at"] or "")[:16],
+                    }
+                    hits += 1
+                    if r["version_no"] and r["version_no"] not in vers:
+                        vers.append(r["version_no"])
+    return {"revert_cnt": hits, "revert_vers": sorted(vers)}
 
 
 def _match_part_id(c, part_no: str):
