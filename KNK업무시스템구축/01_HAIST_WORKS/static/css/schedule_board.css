@@ -506,3 +506,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 #schedNavVeil .nv-box { display:inline-flex; align-items:center; gap:10px; background:#1e293b; color:#fff; padding:13px 22px; border-radius:12px; font-size:14.5px; font-weight:800; box-shadow:0 10px 32px rgba(15,23,42,.25); }
 #schedNavVeil .nv-spin { width:16px; height:16px; border:2.5px solid #94a3b8; border-top-color:#fff; border-radius:50%; animation:knkNavSpin .7s linear infinite; }
 @keyframes knkNavSpin { to { transform:rotate(360deg); } }
+
+/* ===== v5H226z1075 (대표 지시 2026-08-03): 상단 실행 줄 칸 크기 통일 — 전사 일정표·자동 저장됨·저장·엑셀로 저장·신규 등록 ===== */
+.sched-top .sb-act { display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-width:150px; height:34px; padding:0 12px; box-sizing:border-box; border-radius:7px;
+  font-size:13px; font-weight:800; white-space:nowrap; cursor:pointer; text-decoration:none; font-family:inherit; }
+.sched-top .sb-act .ti { font-size:14px; }
+.sched-top .sb-act.sb-stat { cursor:default; }   /* 자동 저장됨 = 상태 표시(버튼 아님) */
