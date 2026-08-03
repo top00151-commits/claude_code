@@ -499,3 +499,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
   .sched tbody tr, .sched thead { break-inside:avoid; }
   .sched .day.today { border-left:2px solid #b91c1c; border-right:2px solid #b91c1c; }
 }
+
+/* ===== v5H226z1074 (대표 지시 2026-08-03): 화면 전환 베일 — 월 이동·전체 검색 클릭 '즉시' 불러오는 중 표시 ===== */
+#schedNavVeil { position:fixed; inset:0; z-index:99998; display:none; align-items:center; justify-content:center; background:rgba(248,250,252,.62); backdrop-filter:blur(1.5px); }
+#schedNavVeil.show { display:flex; }
+#schedNavVeil .nv-box { display:inline-flex; align-items:center; gap:10px; background:#1e293b; color:#fff; padding:13px 22px; border-radius:12px; font-size:14.5px; font-weight:800; box-shadow:0 10px 32px rgba(15,23,42,.25); }
+#schedNavVeil .nv-spin { width:16px; height:16px; border:2.5px solid #94a3b8; border-top-color:#fff; border-radius:50%; animation:knkNavSpin .7s linear infinite; }
+@keyframes knkNavSpin { to { transform:rotate(360deg); } }
