@@ -21724,10 +21724,54 @@ async def project_bom_board(request: Request, pid: int, view: str = ""):
         latest_upload, recent_map = _bom.get_recent_changes(pid)
     except Exception:
         latest_upload, recent_map = None, {}
+    # z1073c (대표 지적 2026-08-03 '표 너비를 조정할 수 없다'): 열 폭·순서·숨김을 계정별로 기억한다.
+    #   통관 입력표(z951)와 **같은 범용 저장소**(view_prefs) 재사용 — 새 표를 만들지 않는다.
+    try:
+        col_prefs = _logi.view_prefs_get(u.get("id"), "bom_board_cols") or "{}"
+    except Exception:
+        col_prefs = "{}"
     return ctx(request, "project_bom.html", user=u, active="parts",
                project=dict(pr), rows=rows, uploads=uploads,
                latest_upload=latest_upload, recent_map=recent_map,
-               view=view, can_edit=can_edit)
+               view=view, can_edit=can_edit, col_prefs=col_prefs)
+
+
+@app.post("/projects/{pid:int}/bom/cols")
+async def project_bom_cols_save(request: Request, pid: int):
+    """z1073c (대표 지시 2026-08-03): BOM 보드 열 설정(폭·순서·숨김)을 계정별로 저장.
+    통관 입력표(z951)와 동일한 범용 view_prefs 재사용(key='bom_board_cols'). 화이트리스트만 저장.
+    ⛔ 열 설정은 **보는 방식**일 뿐이라 BOM 데이터·권한과 무관하다 — 저장 대상에 값이 섞이지 않게 한다."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    if not (can_view_logistics(u) or _bom_can_upload(u)):
+        return JSONResponse({"ok": False}, 403)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    import re as _re1073
+
+    def _okk(s):   # 열 키는 [a-z_] 만 (JSON 을 화면 script 에 실으므로 주입 차단)
+        return isinstance(s, str) and bool(_re1073.match(r'^[a-z_]{1,24}$', s))
+
+    _w = body.get("w") if isinstance(body.get("w"), dict) else {}
+    _order = body.get("order") if isinstance(body.get("order"), list) else []
+    _hidden = body.get("hidden") if isinstance(body.get("hidden"), dict) else {}
+    cfg = {
+        "w": {k: int(v) for k, v in _w.items()
+              if _okk(k) and isinstance(v, (int, float)) and 20 <= v <= 900},
+        "order": [k for k in _order if _okk(k)][:40],
+        "hidden": {k: bool(v) for k, v in _hidden.items() if _okk(k)},
+    }
+    try:
+        import json as _json1073
+        _logi.view_prefs_set(u.get("id"), "bom_board_cols", _json1073.dumps(cfg))
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": str(e)}, 200)
+    return JSONResponse({"ok": True})
 
 
 # ============================================================

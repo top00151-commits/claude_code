@@ -56,6 +56,29 @@ table.bom th { text-align:left; padding:6px 8px; background:var(--pq-surface-2);
 table.bom td { padding:6px 8px; border-bottom:1px solid var(--pq-line); white-space:nowrap; }
 /* 표 맨 끝의 빈 자리 — 하단 '구매처 일괄 지정' 막대가 마지막 줄을 가리지 않게 한다 */
 table.bom tr.tail-space td { height:56px; border-bottom:0; background:transparent; }
+
+/* ── z1073c (대표 지적 2026-08-03 '넓은 칸을 줄일 수가 없다'): 열 폭 조절·순서·숨김 ──
+   통관 입력표(z951)와 같은 방식. ⚠ 아래 규칙은 **#bomGrid 에만** 건다 —
+   .bom 은 아래 '업로드 이력' 표도 함께 쓰는 클래스라 전체에 걸면 그 표까지 칸이 뭉개진다. */
+#bomGrid { table-layout:fixed; }
+/* 폭을 좁히면 글자가 넘치므로 잘라서 …로 보이게 한다(전체 글자는 마우스를 올리면 title 로 보임) */
+#bomGrid th, #bomGrid td { overflow:hidden; text-overflow:ellipsis; }
+#bomGrid thead th { padding:0; }
+#bomGrid .th-wrap { position:relative; display:flex; align-items:center; gap:3px; height:26px; padding:0 10px 0 6px; box-sizing:border-box; white-space:nowrap; overflow:hidden; }
+#bomGrid th[style*="right"] .th-wrap { justify-content:flex-end; }
+#bomGrid .col-grip { cursor:grab; color:var(--pq-ink-4); font-size:11px; line-height:1; user-select:none; -webkit-user-drag:element; }
+#bomGrid .col-grip:hover { color:var(--pq-ink); }
+#bomGrid .col-grip:active { cursor:grabbing; }
+#bomGrid .col-resizer { position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; z-index:9; user-select:none; }
+#bomGrid .col-resizer:hover { background:rgba(37,99,235,.28); }
+#bomGrid th.col-dragging { opacity:.45; }
+#bomGrid th.col-drop-to .th-wrap { box-shadow:inset 3px 0 0 #2563eb; }
+#bomGrid th.col-collapsed, #bomGrid td.col-collapsed { padding:0 !important; border-right:0 !important; }
+#bomGrid th.col-collapsed .th-wrap { padding:0; }
+.excol-bar { display:flex; align-items:center; gap:8px; margin:0 0 8px; flex-wrap:wrap; }
+.excol-panel { border:1px solid var(--pq-line-2); border-radius:9px; background:var(--pq-surface); padding:10px 12px; margin:0 0 10px; box-shadow:0 4px 14px rgba(0,0,0,.06); }
+.excol-panel .excol-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:2px 14px; }
+.excol-hint { font-size:11px; color:var(--pq-ink-4); }
 table.bom tr:last-child td { border-bottom:0; }
 table.bom tr.rowx { cursor:pointer; }
 table.bom tr.rowx:hover { background:var(--pq-surface-2); }
@@ -89,6 +112,10 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
 .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
 .fgrid label { font-size:10.5px; color:var(--pq-ink-3); font-weight:700; display:block; margin-bottom:2px; }
 .fgrid input, .fgrid select { width:100%; height:30px; border:1px solid var(--pq-line-2); border-radius:7px; padding:0 8px; font-size:12.5px; box-sizing:border-box; }
+/* z1073b: 금액 편집칸 — 통화기호는 칸 안 왼쪽에 겹쳐 보이고, 실제 입력값은 숫자만 유지(규정 z758) */
+.fgrid .ccywrap { position:relative; }
+.fgrid .ccywrap .ccy-pre { position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--pq-ink-3); font-size:12px; pointer-events:none; }
+.fgrid .ccywrap input { padding-left:26px; }
 .hist-item { padding:7px 0; border-bottom:1px dashed var(--pq-line); font-size:12px; line-height:1.5; }
 .hist-item .t { font-family:var(--pq-mono); color:var(--pq-ink-4); font-size:10.5px; }
 @media (max-width:640px){ .bwrap{padding:10px 8px 100px;} .pl-head,.filterbar{padding:10px 12px;} }
@@ -143,9 +170,10 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
     {% endif %}
 
     {# v5H226z987 — 바뀐 칸에 옛값 병기용 매크로 (기존값 취소선 ← 표시) #}
-    {% macro oldv(rc, f) -%}
+    {# z1073b: 돈이 들어가는 칸은 옛값에도 통화기호를 붙인다(규정 z750) — ccy 를 넘기면 money() 로 찍는다. #}
+    {% macro oldv(rc, f, ccy=none) -%}
       {%- if rc and f in rc.fields and rc.fields[f].old is not none and (rc.fields[f].old | string | trim) != '' -%}
-        <div class="oldv">← {{ rc.fields[f].old }}</div>
+        <div class="oldv">← {% if ccy %}{{ money(rc.fields[f].old, ccy) }}{% else %}{{ rc.fields[f].old }}{% endif %}</div>
       {%- endif -%}
     {%- endmacro %}
 
@@ -164,17 +192,42 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
          · 열이 구분마다 어긋나던 문제가 사라진다 (표가 하나면 열 너비도 하나)
          · 열 이름줄(thead)이 sticky 로 계속 붙어 있다 — 표가 하나라 더더욱 필요하다
          · data-knk-fill = 화면 남은 높이 자동 채움(공용 z1009). ⛔ 100vh 매직넘버 금지 규정 준수 #}
+      {# z1073c (대표 지적 2026-08-03 '불필요하게 넓은 칸을 줄일 수가 없다'):
+         열 폭 조절·순서·숨김을 통관 입력표(z951)와 **같은 방식**으로 붙였다. 계정별 자동 저장. #}
       {% if rows %}
+      <div class="excol-bar">
+        <button type="button" class="btn-ghost" onclick="bomColToggle()">⚙ 열 고르기</button>
+        <button type="button" class="btn-ghost" onclick="bomColReset()">↺ 기본으로</button>
+        <span class="excol-hint">머리글의 <b>⠿</b> 를 끌어 <b>순서</b> · 머리글 <b>오른쪽 경계</b>를 끌어 <b>폭</b> · <b>⚙ 열 고르기</b>로 안 쓰는 칸 숨김 (내 계정에 자동 저장)</span>
+      </div>
+      <div id="bomColPanel" class="excol-panel" hidden><div class="excol-list"></div></div>
+      {# 서버가 준 내 계정의 열 설정. 키는 [a-z_] 만 통과시켜 저장하므로 그대로 실어도 안전(z1073c 서버 검증) #}
+      <script type="application/json" id="bomColPrefs">{{ (col_prefs or '{}') | safe }}</script>
       <div class="scroll" data-knk-fill>
-      <table class="bom">
+      <table class="bom" id="bomGrid">
+        {# 폭은 여기 width(px)가 기본값. 사람이 끌어 바꾸면 그 값만 덮어쓴다(table-layout:fixed → 한 칸 바꿔도 나머지 불변) #}
+        <colgroup>
+          {% if can_edit %}<col data-col="ck" width="34">{% endif %}
+          <col data-col="no" width="46"><col data-col="part_no" width="200"><col data-col="part_name" width="200">
+          <col data-col="maker" width="130"><col data-col="vendor" width="120">
+          <col data-col="unit_count" width="54"><col data-col="total_qty" width="54"><col data-col="unit" width="50">
+          <col data-col="unit_price" width="104"><col data-col="amount" width="112">
+          <col data-col="delivery" width="140"><col data-col="buy_at" width="74"><col data-col="stock" width="62">
+          <col data-col="order_status" width="74"><col data-col="flag" width="96">
+        </colgroup>
         <thead>
           <tr>
-            {% if can_edit %}<th style="text-align:center;"><input type="checkbox" id="allck" title="화면에 보이는 줄 전부 선택"></th>{% endif %}
-            <th>NO</th><th>모델명</th><th>품명</th><th>제조사</th><th>외주/재질</th>
-            <th style="text-align:right">대당</th><th style="text-align:right">총</th><th>단위</th>
-            <th style="text-align:right">단가</th><th style="text-align:right">금액</th>
-            <th>납기</th><th>구매처</th><th style="text-align:right" title="자재 마스터 연결 시 현재 실재고">재고</th>
-            <th>발주</th><th></th>
+            {% if can_edit %}<th data-col="ck" data-nomove style="text-align:center;"><input type="checkbox" id="allck" title="화면에 보이는 줄 전부 선택"></th>{% endif %}
+            {% macro colh(key, label, right=false, tip='') -%}
+              <th data-col="{{ key }}"{% if right %} style="text-align:right"{% endif %}{% if tip %} title="{{ tip }}"{% endif %}><div class="th-wrap"><span class="col-grip" draggable="true" title="끌어서 순서 바꾸기">⠿</span>{{ label }}<span class="col-resizer" data-col="{{ key }}" title="끌어서 폭 조절"></span></div></th>
+            {%- endmacro %}
+            {{ colh('no', 'NO') }}{{ colh('part_no', '모델명') }}{{ colh('part_name', '품명') }}
+            {{ colh('maker', '제조사') }}{{ colh('vendor', '외주/재질') }}
+            {{ colh('unit_count', '대당', true) }}{{ colh('total_qty', '총', true) }}{{ colh('unit', '단위') }}
+            {{ colh('unit_price', '단가', true) }}{{ colh('amount', '금액', true) }}
+            {{ colh('delivery', '납기') }}{{ colh('buy_at', '구매처') }}
+            {{ colh('stock', '재고', true, '자재 마스터 연결 시 현재 실재고') }}
+            {{ colh('order_status', '발주') }}{{ colh('flag', '표시') }}
           </tr>
         </thead>
         <tbody>
@@ -197,23 +250,29 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
                  ⛔ 다시 큰따옴표로 바꾸지 말 것. | e 는 tojson 결과(Markup)에 아무 일도 하지 않아 오히려
                  안전해 보이게 만들던 것이라 뺀다. 전 화면 통틀어 같은 표기는 여기 한 곳뿐이었다(실측). #}
               data-item='{{ it | tojson }}'>
-            {% if can_edit %}<td onclick="event.stopPropagation()"><input type="checkbox" class="rowck" value="{{ it.id }}" {{ 'disabled' if it.status != '활성' }}></td>{% endif %}
-            <td class="mono">{{ it.line_no or '' }}</td>
-            <td class="mono"><b>{{ it.part_no or '—' }}</b>{{ oldv(rc, 'part_no') }}</td>
-            <td class="nm">{{ it.part_name }}{{ oldv(rc, 'part_name') }}</td>
-            <td>{{ it.maker or '' }}{{ oldv(rc, 'maker') }}</td>
-            <td style="font-size:11px;color:var(--pq-ink-3);">{{ it.vendor or it.material or '' }}{{ ('·' ~ it.finishing) if it.finishing else '' }}</td>
-            <td class="num">{{ '%g' | format(it.unit_count or 0) }}{{ oldv(rc, 'unit_count') }}</td>
-            <td class="num">{{ '%g' | format(it.total_qty or 0) }}{{ oldv(rc, 'total_qty') }}</td>
-            <td>{{ it.unit }}</td>
-            <td class="num">{{ '{:,.0f}'.format(it.unit_price or 0) }}{{ oldv(rc, 'unit_price') }}</td>
-            <td class="num">{{ '{:,.0f}'.format(it.amount or 0) }}</td>
-            <td style="font-size:11px;">{{ it.delivery_text or '' }}{{ oldv(rc, 'delivery_text') }}</td>
-            <td>{% if it.buy_at == 'KOR' %}<span class="flag kor">KOR</span>
+            {# z1073c: 칸마다 data-col — 폭 조절·순서·숨김이 머리글과 본문을 같이 움직이게 하는 열쇠.
+               폭을 좁히면 글자가 잘리므로(table-layout:fixed) 긴 글 칸에는 title 을 달아 마우스로 전체를 본다. #}
+            {% if can_edit %}<td data-col="ck" onclick="event.stopPropagation()"><input type="checkbox" class="rowck" value="{{ it.id }}" {{ 'disabled' if it.status != '활성' }}></td>{% endif %}
+            <td data-col="no" class="mono">{{ it.line_no or '' }}</td>
+            <td data-col="part_no" class="mono" title="{{ it.part_no or '' }}"><b>{{ it.part_no or '—' }}</b>{{ oldv(rc, 'part_no') }}</td>
+            <td data-col="part_name" class="nm" title="{{ it.part_name or '' }}">{{ it.part_name }}{{ oldv(rc, 'part_name') }}</td>
+            <td data-col="maker" title="{{ it.maker or '' }}">{{ it.maker or '' }}{{ oldv(rc, 'maker') }}</td>
+            {% set _vend = (it.vendor or it.material or '') ~ (('·' ~ it.finishing) if it.finishing else '') %}
+            <td data-col="vendor" style="font-size:11px;color:var(--pq-ink-3);" title="{{ _vend }}">{{ _vend }}</td>
+            <td data-col="unit_count" class="num">{{ '%g' | format(it.unit_count or 0) }}{{ oldv(rc, 'unit_count') }}</td>
+            <td data-col="total_qty" class="num">{{ '%g' | format(it.total_qty or 0) }}{{ oldv(rc, 'total_qty') }}</td>
+            <td data-col="unit">{{ it.unit }}</td>
+            {# ⭐ z1073b (대표 지적 2026-08-03): 단가·금액에 단위(통화기호)가 없었다 — 대표 규정 z750 위반.
+               ⛔ '{:,.0f}' 로 직접 찍지 말 것. 공용 money(값, 통화) 를 쓴다(기호 앞·콤마·원화 정수/외화 2자리).
+               통화는 bom_items.currency (기본 KRW). 값 앞에 기호가 붙으므로 열 이름에 통화 라벨을 또 달지 않는다. #}
+            <td data-col="unit_price" class="num">{{ money(it.unit_price or 0, it.currency) }}{{ oldv(rc, 'unit_price', it.currency) }}</td>
+            <td data-col="amount" class="num">{{ money(it.amount or 0, it.currency) }}</td>
+            <td data-col="delivery" style="font-size:11px;" title="{{ it.delivery_text or '' }}">{{ it.delivery_text or '' }}{{ oldv(rc, 'delivery_text') }}</td>
+            <td data-col="buy_at">{% if it.buy_at == 'KOR' %}<span class="flag kor">KOR</span>
                 {% elif it.buy_at == 'VINA' %}<span class="flag vina">VINA</span>{% endif %}</td>
-            <td class="num">{% if it.part_id %}<span class="flag stock">{{ '%g' | format(it.master_stock or 0) }}</span>{% else %}<span style="color:var(--pq-ink-4);">—</span>{% endif %}</td>
-            <td><span class="flag ost {{ 'on' if (it.order_status or '미발주') != '미발주' }}">{{ it.order_status or '미발주' }}</span></td>
-            <td>{% if it.review_flag %}<span class="flag review">🔴 재검토</span>{% endif %}
+            <td data-col="stock" class="num">{% if it.part_id %}<span class="flag stock">{{ '%g' | format(it.master_stock or 0) }}</span>{% else %}<span style="color:var(--pq-ink-4);">—</span>{% endif %}</td>
+            <td data-col="order_status"><span class="flag ost {{ 'on' if (it.order_status or '미발주') != '미발주' }}">{{ it.order_status or '미발주' }}</span></td>
+            <td data-col="flag">{% if it.review_flag %}<span class="flag review">🔴 재검토</span>{% endif %}
                 {% if rc %}<span class="flag chg" title="최근 업로드에서 {{ rc.types | join('·') }}">{{ '➕' if '추가' in rc.types else ('➖' if '삭제' in rc.types else '✏️') }} v{{ latest_upload.version_no if latest_upload else '' }}</span>{% endif %}</td>
           </tr>
         {% endfor %}
@@ -287,7 +346,11 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
             <div><label>대당 수량</label><input name="unit_count" id="bf_unit_count" inputmode="decimal"></div>
             <div><label>총 수량</label><input name="total_qty" id="bf_total_qty" inputmode="decimal"></div>
             <div><label>단위</label><input name="unit" id="bf_unit"></div>
-            <div><label>단가 (금액 자동 재계산)</label><input name="unit_price" id="bf_unit_price" inputmode="decimal"></div>
+            {# z1073b: 편집칸은 숫자만 담아야 저장이 깨지지 않는다(규정 z758) → 통화기호는 칸 안 왼쪽에 겹쳐 보여준다.
+               ⛔ input 의 value 에 money() 를 넣지 말 것 — 저장·재계산이 깨진다. #}
+            <div><label>단가 (금액 자동 재계산)</label>
+              <div class="ccywrap"><span class="ccy-pre" id="bf_ccy">₩</span><input name="unit_price" id="bf_unit_price" inputmode="decimal"></div>
+            </div>
             <div><label>납기</label><input name="delivery_text" id="bf_delivery_text"></div>
             <div><label>구매처</label>
               <select name="buy_at" id="bf_buy_at"><option value="">— 미지정 —</option><option value="KOR">KOR (본사)</option><option value="VINA">VINA (베트남)</option></select></div>
@@ -321,6 +384,8 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
   var CAN_EDIT = {{ 'true' if can_edit else 'false' }};
+  /* z1073b: 통화기호 표 — 서버 _CCY_SYMBOL(main.py) 과 **같은 표**여야 한다. 한쪽만 고치지 말 것. */
+  var CCY_SYM = { USD:'$', KRW:'₩', VND:'₫', EUR:'€', JPY:'¥', CNY:'元' };
 
   // ── 필터 ──
   // z1073 (2026-08-03): ① 표가 하나가 되면서 '빈 구분 숨김'은 표 뭉치가 아니라 구분 줄(tr.cat-row)을 숨긴다.
@@ -478,6 +543,12 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
         if (el) el.value = (item[k] == null ? '' : item[k]);
       });
       document.getElementById('bf_edit_note').value = '';
+      /* z1073b: 단가 칸 왼쪽 통화기호를 그 품목의 통화로 맞춘다(값은 숫자 그대로 유지) */
+      var _cs = document.getElementById('bf_ccy');
+      if (_cs) {
+        var _c = String(item.currency || 'KRW').toUpperCase();
+        _cs.textContent = CCY_SYM[_c] || (_c + ' ');
+      }
       var cr = document.getElementById('bmClearReview');
       cr.style.display = item.review_flag ? '' : 'none';
       cr.onclick = function(){
@@ -546,6 +617,148 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
     try { if (window.KNKBusy && KNKBusy.overlay) KNKBusy.overlay('BOM 삭제 중…'); } catch(e) {}
     document.getElementById('bomPurgeForm').submit();
   });
+})();
+</script>
+
+<script>
+/* z1073c (대표 지적 2026-08-03 '표의 너비를 조정할 수 없어 넓은 칸을 줄일 수가 없다'):
+   BOM 보드 열 폭 조절·순서·숨김 — 통관 입력표(z951)와 **같은 방식**을 그대로 가져왔다.
+   · 머리글(thead th[data-col])에서 열 목록을 뽑는다(DOM 주도) → 화면을 고쳐도 이 코드는 안 고쳐도 된다.
+   · table-layout:fixed + colgroup 폭(px) → 한 칸을 바꿔도 나머지 칸은 그대로.
+   · 이 코드가 죽어도 기본 표(colgroup 기본폭)는 정상으로 보인다. */
+(function(){
+  var grid = document.getElementById('bomGrid'); if(!grid) return;
+  var cg    = grid.querySelector('colgroup');
+  var thead = grid.querySelector('thead tr');
+  var SAVE_URL = '/projects/{{ project.id }}/bom/cols';
+  /* 맨 앞 체크칸은 자리를 옮기거나 숨길 수 없다 — 옮기면 구분 줄(colspan)과 어긋난다 */
+  var FIRST = 'ck';
+  function ths(){ return Array.prototype.slice.call(grid.querySelectorAll('thead th[data-col]')); }
+  function colEl(k){ return cg ? cg.querySelector('col[data-col="'+k+'"]') : null; }
+  function allKeys(){ return ths().map(function(th){ return th.dataset.col; }); }
+
+  var P = {};
+  try { P = JSON.parse((document.getElementById('bomColPrefs')||{}).textContent || '{}') || {}; } catch(e){ P = {}; }
+  if(typeof P!=='object' || !P) P = {};
+  P.w      = (P.w && typeof P.w==='object') ? P.w : {};
+  P.hidden = (P.hidden && typeof P.hidden==='object') ? P.hidden : {};
+  P.order  = Array.isArray(P.order) ? P.order : [];
+  var hadOrder = P.order.length > 0;
+
+  var _saveT=null;
+  function save(){
+    clearTimeout(_saveT);
+    _saveT = setTimeout(function(){
+      try {
+        fetch(SAVE_URL, {method:'POST', headers:{'Content-Type':'application/json'},
+                         credentials:'same-origin',
+                         body: JSON.stringify({w:P.w, order:P.order, hidden:P.hidden})});
+      } catch(e){}
+    }, 450);
+  }
+  function orderList(){
+    var all = allKeys();
+    var ord = (P.order||[]).filter(function(k){ return all.indexOf(k)>=0; });
+    all.forEach(function(k){ if(ord.indexOf(k)<0) ord.push(k); });
+    /* 체크칸은 언제나 맨 앞 */
+    if(ord.indexOf(FIRST)>0){ ord = [FIRST].concat(ord.filter(function(k){ return k!==FIRST; })); }
+    return ord;
+  }
+  function applyOrder(reorderBody){
+    var ord = orderList(); P.order = ord;
+    if(cg)    ord.forEach(function(k){ var c=colEl(k); if(c) cg.appendChild(c); });
+    if(thead) ord.forEach(function(k){ var th=thead.querySelector(':scope>th[data-col="'+k+'"]'); if(th) thead.appendChild(th); });
+    if(reorderBody){
+      /* 품목 줄만 옮긴다 — 구분 줄·맨끝 빈줄은 data-col 이 없어 저절로 건너뛴다 */
+      grid.querySelectorAll('tbody tr').forEach(function(tr){
+        ord.forEach(function(k){ var td=tr.querySelector(':scope>td[data-col="'+k+'"]'); if(td) tr.appendChild(td); });
+      });
+    }
+  }
+  /* ⚠ z965 에서 겪은 함정: CSS min-width 만 믿으면, 여러 칸을 숨겨 '남은 폭 합 < min-width' 가 될 때
+     브라우저가 표를 억지로 늘리며 **폭 0으로 접은 칸까지 되살린다**(=숨김이 무력화).
+     → 숨김·폭 변경마다 표 폭을 '보이는 칸 폭 합'으로 못박아 그 일을 막는다. */
+  function colDefW(k){ var c=colEl(k); return (c && parseInt(c.getAttribute('width'),10)) || 80; }
+  function fitTableWidth(){
+    var tot=0;
+    allKeys().forEach(function(k){ if(!P.hidden[k]) tot += (P.w[k] || colDefW(k)); });
+    grid.style.width = tot+'px'; grid.style.minWidth = tot+'px';
+  }
+  function applyOne(k){
+    var c=colEl(k), th=grid.querySelector('thead th[data-col="'+k+'"]'), hidden=!!P.hidden[k];
+    var wv = hidden ? '0px' : (P.w[k] ? P.w[k]+'px' : '');
+    if(c) c.style.width = wv;
+    if(th){ th.style.width = wv; th.classList.toggle('col-collapsed', hidden); }
+    grid.querySelectorAll('td[data-col="'+k+'"]').forEach(function(td){ td.classList.toggle('col-collapsed', hidden); });
+    fitTableWidth();
+  }
+  function applyAll(){ allKeys().forEach(applyOne); }
+
+  /* 폭 조절 — 머리글 오른쪽 경계를 끈다. 그 칸만 px 로 정해지고 나머지는 그대로 */
+  var rz=null;
+  grid.querySelectorAll('.col-resizer').forEach(function(h){
+    h.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var k=h.dataset.col, th=grid.querySelector('thead th[data-col="'+k+'"]');
+      rz={k:k, x:e.clientX, w: th ? Math.round(th.getBoundingClientRect().width) : 80};
+      document.body.style.cursor='col-resize';
+    });
+  });
+  document.addEventListener('mousemove', function(e){
+    if(!rz) return;
+    var w=Math.max(34, Math.min(700, rz.w + (e.clientX - rz.x)));
+    P.w[rz.k]=Math.round(w); P.hidden[rz.k]=false; applyOne(rz.k);
+  });
+  document.addEventListener('mouseup', function(){ if(rz){ rz=null; document.body.style.cursor=''; save(); } });
+
+  /* 순서 — ⠿ 를 끌어 놓는다 */
+  var dragK=null;
+  ths().forEach(function(th){
+    var grip=th.querySelector('.col-grip');
+    if(grip){
+      grip.addEventListener('click', function(e){ e.stopPropagation(); });
+      grip.addEventListener('dragstart', function(e){ dragK=th.dataset.col; th.classList.add('col-dragging'); try{ e.dataTransfer.setData('text/plain',dragK); e.dataTransfer.effectAllowed='move'; }catch(_){} });
+      grip.addEventListener('dragend', function(){ dragK=null; ths().forEach(function(x){ x.classList.remove('col-dragging','col-drop-to'); }); });
+    }
+    if(th.hasAttribute('data-nomove')) return;    /* 체크칸 앞으로는 끌어놓을 수 없다 */
+    th.addEventListener('dragover', function(e){ if(dragK && dragK!==th.dataset.col){ e.preventDefault(); try{ e.dataTransfer.dropEffect='move'; }catch(_){} th.classList.add('col-drop-to'); } });
+    th.addEventListener('dragleave', function(){ th.classList.remove('col-drop-to'); });
+    th.addEventListener('drop', function(e){
+      e.preventDefault(); th.classList.remove('col-drop-to');
+      if(!dragK || dragK===th.dataset.col) return;
+      var ord = orderList().filter(function(k){ return k!==dragK; });
+      var ti = ord.indexOf(th.dataset.col); if(ti<0) ti=ord.length;
+      ord.splice(ti, 0, dragK); P.order=ord; applyOrder(true);
+      save();
+    });
+  });
+
+  /* 숨김 — ⚙ 열 고르기 */
+  var panel  = document.getElementById('bomColPanel');
+  var listEl = panel ? panel.querySelector('.excol-list') : null;
+  if(listEl){
+    var html='';
+    ths().forEach(function(th){
+      if(th.hasAttribute('data-nomove')) return;   /* 체크칸은 숨기면 일괄 지정이 막힌다 */
+      var k=th.dataset.col, lbl=((th.textContent||k).replace(/⠿/g,'')).trim() || k;
+      html += '<label style="display:flex;align-items:center;gap:6px;padding:2px 4px;font-size:12px;cursor:pointer;">'
+            + '<input type="checkbox" data-colk="'+k+'"'+(P.hidden[k]?'':' checked')+'> '+lbl+'</label>';
+    });
+    listEl.innerHTML=html;
+    listEl.querySelectorAll('input[data-colk]').forEach(function(cb){
+      cb.addEventListener('change', function(){ P.hidden[cb.dataset.colk]=!cb.checked; applyOne(cb.dataset.colk); save(); });
+    });
+  }
+  window.bomColToggle=function(){ var pn=document.getElementById('bomColPanel'); if(pn) pn.hidden=!pn.hidden; };
+  window.bomColReset=function(){
+    P={w:{},order:[],hidden:{}};
+    if(cg) cg.querySelectorAll('col').forEach(function(c){ c.style.width=''; });
+    ths().forEach(function(th){ th.style.width=''; th.classList.remove('col-collapsed'); });
+    grid.querySelectorAll('td').forEach(function(td){ td.classList.remove('col-collapsed'); });
+    save(); setTimeout(function(){ location.reload(); }, 300);
+  };
+
+  try { applyOrder(hadOrder); applyAll(); } catch(e){}
 })();
 </script>
 </body>
