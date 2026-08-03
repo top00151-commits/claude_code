@@ -1869,11 +1869,25 @@ function schedRangeGo(){
   schedNavVeil('기간 '+f+' ~ '+t+' 불러오는 중…');   // v5H226z1074: 클릭 즉시 표시
   location.href=q;
 }
-function schedDoSearch(){
+// v5H226z1074b (대표 지시 2026-08-03): "두 글자 입력하면 2초 멈춤" 해결 —
+//   실측: 행 숨김/표시가 크게 바뀌는 키 하나에 표 전체(9천여 칸) 재계산 1~3초(6월 175행·좁힘 2.7초·비우기 6.6초),
+//   한글 조합은 글자당 입력 이벤트가 5~6번이라 그 비용이 연달아 발생. → ①조합·연타를 모아 0.2초 뒤 1회만
+//   ②같은 검색어 재실행 금지 ③변경 40행 초과면 30행씩 프레임 분할(아래부터) = 한 번에 몰아치는 통멈춤 제거.
+var _schedFTimer=null, _schedLastQ=null, _schedChunkJob=null, _schedComposing=false;
+function schedDoSearch(){   // 입력 수신부 — 실제 필터는 _schedApplyFilter 가 모아서 실행
+  clearTimeout(_schedFTimer);
+  _schedFTimer=setTimeout(_schedApplyFilter, 200);
+}
+function _schedApplyFilter(){
+  if(_schedComposing){ clearTimeout(_schedFTimer); _schedFTimer=setTimeout(_schedApplyFilter, 200); return; }   // 한글 조합 끝난 뒤로
   var inp=document.getElementById('schedSearch'); if(!inp||!_tbody) return;
-  schedCollapseUnits();   // v5H226z481: 검색 시 펼친 호기 줄 접기(부모행 숨김에 떠다님 방지)
   var q=(inp.value||'').trim().toLowerCase();
-  var trs=_tbody.querySelectorAll('tr'), shown=0;
+  if(q===_schedLastQ) return;   // 같은 검색어(방향키·포커스 등) — 무거운 재적용 금지
+  _schedLastQ=q;
+  if(_schedChunkJob){ cancelAnimationFrame(_schedChunkJob); _schedChunkJob=null; }   // 진행 중이던 분할 적용 취소
+  schedCollapseUnits();   // v5H226z481: 검색 시 펼친 호기 줄 접기(부모행 숨김에 떠다님 방지)
+  // 1) 스캔: 내용만 읽어(레이아웃 무접촉) '상태가 바뀌어야 하는 행'만 추린다
+  var trs=_tbody.querySelectorAll('tr'), shown=0, changes=[];
   for(var i=0;i<trs.length;i++){
     var tr=trs[i], hit=true;
     if(q){
@@ -1881,8 +1895,22 @@ function schedDoSearch(){
       for(var j=0;j<cells.length;j++) hay+=cells[j].textContent+' ';
       hit = hay.toLowerCase().indexOf(q)>=0;
     }
-    tr.classList.toggle('search-hide', !hit);
     if(hit) shown++;
+    if(tr.classList.contains('search-hide') === hit) changes.push([tr, !hit]);   // 현재상태≠목표 → 변경 대상
+  }
+  // 2) 적용: 소량(≤40행)=즉시 1회 / 대량=30행씩 프레임 분할·아래부터(위 행 위치 불변 → 재계산 범위 축소)
+  if(changes.length <= 40){
+    for(var k=0;k<changes.length;k++) changes[k][0].classList.toggle('search-hide', changes[k][1]);
+    syncSelAll();
+  } else {
+    var ci=changes.length;
+    var _step=function(){
+      var n=0;
+      while(ci>0 && n<30){ ci--; changes[ci][0].classList.toggle('search-hide', changes[ci][1]); n++; }
+      if(ci>0){ _schedChunkJob=requestAnimationFrame(_step); }
+      else { _schedChunkJob=null; syncSelAll(); }
+    };
+    _step();
   }
   // v5H226z1074 (대표 지시 2026-08-03): 안내 — 여기 0건이면 'Enter=전체 기간에서 찾기'를 알려주고,
   //   검색어를 비웠는데 서버가 전 기간 모드면 'Enter=이번 달 달력으로' 복귀를 안내.
@@ -1895,11 +1923,16 @@ function schedDoSearch(){
   }
   // v5H226z561(대표 지시): 검색어를 세션에 저장 — 수정 후 새로고침돼도 찾던 조건 유지(비우면 해제)
   try{ if(q) sessionStorage.setItem('knk.sched.q', inp.value); else sessionStorage.removeItem('knk.sched.q'); }catch(e){}
-  syncSelAll();
-  // v5H226z1074: z862의 '0.8초 멈추면 자동 전 기간 전환(_schedGlobalDebounce)' 호출 제거 —
-  //   페이지 전체 이동이 타이핑 중 끼어들어 입력이 날아가고(오타 지우고 다시 쓰면 검색 자체가 안 됨)
-  //   수정할 때마다 1~3초 재로딩되던 원인. 전 기간 검색 기능 자체는 아래 Enter·버튼으로 그대로.
+  // (z1074: z862 자동 전 기간 전환 호출 제거 — 전 기간 검색은 Enter·버튼. z1074b: syncSelAll 은 적용 분기 안에서 호출)
 }
+// v5H226z1074b: 한글 조합 추적 — 조합 중엔 필터 보류(조합 확정 후 1회). 입력칸은 인라인 oninput 과 별개로 여기서 연결.
+(function(){
+  var _si=document.getElementById('schedSearch');
+  if(_si){
+    _si.addEventListener('compositionstart', function(){ _schedComposing=true; });
+    _si.addEventListener('compositionend', function(){ _schedComposing=false; schedDoSearch(); });
+  }
+})();
 // v5H226z862 (대표 지시): 찾기는 그 달이 아니라 전체에서 — 검색어를 서버로 보내 전 기간 검색, 비우면 이번 달 복귀.
 // v5H226z1074 (대표 지시 2026-08-03): 발동 방식 변경 — 0.8초 디바운스 '자동' 전환 폐지, Enter 키·[전체에서 찾기]
 //   버튼의 '명시적' 실행으로. 기능(전 기간 검색·빈칸=이번 달 복귀)은 그대로.
