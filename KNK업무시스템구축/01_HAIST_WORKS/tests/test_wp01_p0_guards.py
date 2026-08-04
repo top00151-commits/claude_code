@@ -8,6 +8,14 @@
 - A부: 함수 수준 가드·KPI 계약 (차단 시 '변경 전후 행 수 불변'을 함께 출력)
 - B부: 라우트 수준 실HTTP(TestClient) — 인증(get_user)만 대체하고 인가(can_*)는 실로직.
   필요 패키지: fastapi + httpx (개발 PC 기준).
+
+갱신 2026-08-04: 완전삭제 운영 잠금 기준을 z1060b(대표 지시 2026-07-27)에 맞춤 —
+  '관리번호 있음=무조건 잠금'(07-24) → '실거래(출하·세금계산서·수금) 있으면 잠금, 0이면 허용'.
+  PJ_REAL 에 세금계산서 1건을 붙여 차단 시험 유지 + 실거래 0 껍데기(PJ_SHELL) 삭제 허용 검증 추가.
+  근거: 작업기록 2026-07-27_1906_완전삭제_운영잠금_숨김보관실거래0만허용_z1060.md (커밋 ea284fd9).
+
+⚠ 종료코드: FAIL 이 있으면 1, 전부 통과면 0 (sys.exit). 단 `python … | tail` 처럼 파이프를 걸면
+  셸의 $? 는 tail 의 종료코드(항상 0)가 되므로, 자동화에서는 파이프 없이 실행하거나 PIPESTATUS 를 볼 것.
 """
 import os
 import sys
@@ -79,6 +87,13 @@ with db.db_session() as c:
 
     c.execute("INSERT INTO projects (mgmt_code, name, status) VALUES ('002M2599','운영유사 프로젝트','진행중')")
     PJ_REAL = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    # z1060b(대표 지시 2026-07-27): 완전삭제 운영 잠금 기준이 '관리번호 있음'→'실거래(출하·세금계산서·수금) 있음'으로
+    #   정밀화됨. PJ_REAL 은 세금계산서 발행 1건을 붙여 '실거래 있는 운영 프로젝트'로 만들어 차단 시험을 유지한다.
+    c.execute("INSERT INTO orders (order_no, project_id, order_date, tax_invoice_date) VALUES ('SO-WP01-R',?,?,?)",
+              (PJ_REAL, D(5), D(3)))
+    # 실거래 0 관리번호 껍데기(#1002 유형·오등록) — z1060b: force 완전삭제 '허용' 검증용
+    c.execute("INSERT INTO projects (mgmt_code, name, status) VALUES ('998M2598','오등록 껍데기(실거래0)','진행중')")
+    PJ_SHELL = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     c.execute("INSERT INTO projects (mgmt_code, name, status) VALUES ('999T001','테스트 프로젝트','진행중')")
     PJ_TEST = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     for pj, tag in ((PJ_REAL, "R"), (PJ_TEST, "T")):
@@ -304,7 +319,7 @@ chk("잠금 해제 시 정상 입고 — 수량 3·상태 부분입고·원장 +
     res.get("ok") and po_state() == (3, "부분입고", _rcv_before[2] + 1, 3), po_state())
 os.environ.pop("KNK_ENABLE_PO_RECEIVE", None)
 
-print("[A7] projects_delete_logi — 완전삭제 운영 잠금 + 전참조 (게이트 v3 F-02 · 대표 결정)")
+print("[A7] projects_delete_logi — 완전삭제 운영 잠금(z1060b 실거래 기준) + 전참조 (게이트 v3 F-02 · 대표 결정 07-24 → 07-27 정밀화)")
 
 
 def hist5():
@@ -325,7 +340,12 @@ try:
     db.projects_delete_logi(PJ_REAL, force=True)
     chk("운영 관리번호 프로젝트 완전폐기 차단", False, "예외 없이 삭제됨!")
 except PermissionError as e:
-    chk("운영 관리번호(002M2599) 완전폐기 차단", "관리번호" in str(e), str(e)[:70])
+    # z1060b(대표 지시 2026-07-27): 차단 사유 = '실거래(출하·세금계산서·수금) 있음' — 문구까지 확인
+    chk("운영 관리번호(002M2599·실거래 있음) 완전폐기 차단", "관리번호" in str(e) and "실거래" in str(e), str(e)[:70])
+# z1060b(대표 지시 2026-07-27): 관리번호가 있어도 실거래 0 인 오등록 껍데기(#1002 유형)는 force 완전삭제 허용
+#   — 껍데기가 관리번호를 쥐어 재사용 못 하는 교착 해소. 완전삭제 자체가 비밀번호 확인 2단계 = 고의 안전장치.
+db.projects_delete_logi(PJ_SHELL, force=True)
+chk("실거래 0 관리번호 껍데기(998M2598)는 완전폐기 허용(z1060b)", cnt("projects", "id=?", (PJ_SHELL,)) == 0)
 # 게이트 v4 F-01: 이름이 다른 별칭 FK(consumable_order_items.linked_project_id)
 
 
@@ -548,13 +568,14 @@ chk("운영 관리번호 폐기 차단(라우트층)", r.status_code == 303 and 
 r = client.post(f"/projects/{PJ_TEST}/bom/purge", data={"confirm_code": "999T001"})
 chk("스위치+테스트(999 접두)+관리자+타이핑 일치 → 폐기 허용", r.status_code == 303 and "success" in loc(r) and cnt("bom_items", "project_id=?", (PJ_TEST,)) == 0)
 
-print("[B5] 프로젝트 삭제 3경로 — 자재·수주·변경·품질 이력 보존 (게이트 v3 F-02 · 대표 결정)")
+print("[B5] 프로젝트 삭제 3경로 — 자재·수주·변경·품질 이력 보존 (게이트 v3 F-02 · z1060b 실거래 기준)")
 b = (cnt("bom_items", "project_id=?", (PJ_REAL,)), cnt("bom_uploads", "project_id=?", (PJ_REAL,)), cnt("bom_item_history", "project_id=?", (PJ_REAL,)))
 try:
     db.projects_delete_logi(PJ_REAL, force=True)
     chk("완전폐기(force) 차단", False, "예외 없이 삭제됨!")
 except PermissionError as e:
-    chk("완전폐기(force)도 차단(PermissionError)", "관리번호" in str(e), str(e)[:70])
+    # z1060b: 실거래 있는 운영 프로젝트라 차단 (실거래 0 껍데기 허용은 [A7]에서 검증)
+    chk("완전폐기(force)도 차단(PermissionError)", "관리번호" in str(e) and "실거래" in str(e), str(e)[:70])
 after = (cnt("bom_items", "project_id=?", (PJ_REAL,)), cnt("bom_uploads", "project_id=?", (PJ_REAL,)), cnt("bom_item_history", "project_id=?", (PJ_REAL,)))
 chk(f"  BOM 3표 불변 {b}→{after} (판정서 §7 증빙표)", b == after and all(b))
 CURRENT["u"] = CEO
