@@ -958,12 +958,16 @@
                   {% endif %}
                   <td class="num px-x">
                     {# v5H226z627 (대표 지시): 1줄에 수량 2+면 '합산금액'이 아니라 '단가(1대) ×수량'으로 표시 #}
+                    {# v5H226z1076 (안지연 프로 신고): 제품(SEMI)의 편집칸 = 1대 단가(unit_price). 기존엔 amount(=수량×단가 총액)가
+                       단가 자리에 보여 사용자가 '단가'로 고쳐 저장 → 총액이 단가로 덮여 수량이 금액에 반영 안 되던 원인. #}
+                    {% set _amt_edit_v = (u.unit_price or u.amount or 0) if _is_semi else (u.amount or u.unit_price or 0) %}
                     <span class="display-val price">{% if can_sales_amt %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ money(u.unit_price, _u_ccy) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ money(u.amount or u.unit_price or 0, _u_ccy) }}{% endif %}{% else %}🔒{% endif %}</span>
-                    {% if _editable %}<span class="ccy-pre">{{ _u_ccy|ccysym }}</span><input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(u.amount or u.unit_price or 0)) if (_u_ccy != 'KRW') else ('%.0f'|format(u.amount or u.unit_price or 0)) }}" value="{{ '{:,.2f}'.format(u.amount or u.unit_price or 0) if (_u_ccy != 'KRW') else '{:,.0f}'.format(u.amount or u.unit_price or 0) }}">{% endif %}
+                    {% if _editable %}<span class="ccy-pre">{{ _u_ccy|ccysym }}</span><input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(_amt_edit_v)) if (_u_ccy != 'KRW') else ('%.0f'|format(_amt_edit_v)) }}" value="{{ '{:,.2f}'.format(_amt_edit_v) if (_u_ccy != 'KRW') else '{:,.0f}'.format(_amt_edit_v) }}">{% endif %}
                   </td>
                   {# v5H226z634 (대표 지시): 완제품 금액 칸 = 호기 라인 금액(u.amount). 원화 무소수점·외화 2자리 · z829: can_sales_amt #}
+                  {# v5H226z1076: span+data-ccysym — 제품(SEMI) 편집 중 단가×수량 라이브 표시용 #}
                   {% if _is_equip and can_sales_amt %}
-                  <td class="num px-x" style="background:#fef9e6;font-weight:600;">{{ money(u.amount or 0, _u_ccy) }}</td>
+                  <td class="num px-x" style="background:#fef9e6;font-weight:600;"><span class="equip-amt-disp" data-ccysym="{{ _u_ccy|ccysym }}">{{ money(u.amount or 0, _u_ccy) }}</span></td>
                   {% endif %}
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
                   {# v5H226z83: 통화 td 중앙 정렬 #}
@@ -1264,6 +1268,7 @@
                   || (statusSel && statusSel.value !== statusSel.dataset.orig)
                   || partsDirty;
                 if (dirty) out.push({
+                  row,   // v5H226z1076: 제품(SEMI) 행 판별용(테이블 클래스 검사)
                   uid, baseTs, lblInp, amtInp, noteInp, ordInp, dueInp, shipInp, curSel, iexSel, statusSel,
                   specInp, makerInp, supplierInp, originInp, boxInp, qtyInp, unitInp, arrivalInp,
                   costInp, marginInp, priceInp,
@@ -1335,6 +1340,15 @@
                 if (r.descInp)     body.set('description',    r.descInp.value || '');
                 if (r.palletInp)   body.set('pallet_size',    r.palletInp.value || '');
                 if (r.weightInp)   body.set('weight_kg',      r.weightInp.value || '');
+                // v5H226z1076 (안지연 프로 신고): 제품(SEMI) 행 — 단가 입력(.amt)=1대 단가.
+                //   z1050 모델(unit_price=단가 · amount=단가×수량)로 저장해야 수량이 금액·합계에 반영된다.
+                //   판별: 수량 칸이 있고 상품(parts-excel) 표가 아닌 행 = 제품. 상품·완제품(수량 칸 없음)은 기존 그대로.
+                if (r.qtyInp && r.amtInp && r.row && !r.row.closest('table.parts-excel')) {
+                  var _semiUnit = parseFloat((r.amtInp.value || '0').replace(/,/g,'')) || 0;
+                  var _semiQty = parseFloat((r.qtyInp.value || '1').replace(/,/g,'')) || 1;
+                  body.set('unit_price', String(_semiUnit));
+                  body.set('amount', String(Math.round(_semiUnit * _semiQty * 100) / 100));
+                }
                 try {
                   const resp = await fetch('/sales/orders/items/' + r.uid + '/edit',
                                            { method:'POST', body });
@@ -1618,6 +1632,20 @@
                 if (marginInpR) marginInpR.addEventListener('input', _fromCostMargin);
                 if (priceInpR) priceInpR.addEventListener('input', _fromPrice);
                 if (qtyInpR) qtyInpR.addEventListener('input', _recalcAmt);
+              }
+              // v5H226z1076 (안지연 프로 신고): 제품(SEMI) — 단가(.amt)×수량(.qty-inp)을 금액 칸에 라이브 표시.
+              //   저장값과 같은 규칙(JS 저장부 참조). 상품(cost/price 칸 있음)·완제품(수량 칸 없음)은 제외.
+              const equipAmtDispR = row.querySelector('.equip-amt-disp');
+              if (qtyInpR && amtInp && !costInpR && !priceInpR && equipAmtDispR && !row.closest('table.parts-excel')) {
+                const _pnS = el => parseFloat((el.value || '0').replace(/,/g, '')) || 0;
+                const _semiLive = () => {
+                  const _a = Math.round(_pnS(amtInp) * (_pnS(qtyInpR) || 1) * 100) / 100;
+                  const _sym = equipAmtDispR.dataset.ccysym || '';
+                  const _dec = (_sym === '₩') ? 0 : 2;
+                  equipAmtDispR.textContent = _sym + _a.toLocaleString('en-US', { minimumFractionDigits: _dec, maximumFractionDigits: _dec });
+                };
+                amtInp.addEventListener('input', _semiLive);
+                qtyInpR.addEventListener('input', _semiLive);
               }
               if (delBtn) {
                 delBtn.addEventListener('click', () => {
