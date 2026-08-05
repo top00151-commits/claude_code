@@ -1051,6 +1051,19 @@ def delete_order(c, order_id: int, restore_project: bool = True) -> dict:
     # 2) 수주 본체 삭제
     c.execute("DELETE FROM orders WHERE id=?", (order_id,))
 
+    # v5H226z1077 (안지연 프로 신고 후속): 수주 삭제 후 프로젝트 수주액 재동기화.
+    #   이게 없어 SO 0건인데 화면 수주액이 옛 합계로 남았다(SOCKET 건 $6,830 잔존 실사례).
+    #   남은 수주 합으로 갱신(마지막 수주였다면 0) — 편집(edit)·확정(confirm) 경로와 같은 규칙.
+    if project_id:
+        try:
+            _rem = c.execute(
+                "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                (project_id,)).fetchone()[0]
+            c.execute("UPDATE projects SET order_amount=? WHERE id=?",
+                      (float(_rem or 0), project_id))
+        except Exception:
+            pass   # 재동기화 실패해도 수주 삭제 자체는 성립(best-effort·기존 원칙)
+
     mgmt_cleared = False
     # 3) 프로젝트 상태 복원 (선택) — 실패해도 수주 삭제는 성립(best-effort)
     if restore_project and project_id:
