@@ -7609,13 +7609,32 @@ def projects_delete_logi(pid: int, force: bool = False) -> None:
                         "상세화면에서 상태를 '취소/보류'로 처리하세요.")
             else:
                 # 관리번호 없는 건(오등록·영업 단계): 업무 이력 참조 있으면 잠금(ERP 원안 유지)
+                # v5H226z1078 (대표 결정 2026-08-05): '자기 부속물'만 남은 껍데기는 폐기(force=위험구역·본인
+                #   비밀번호 2단계) 경로에 한해 완전삭제 허용. 전환기(엑셀 관리번호 수동입력)에 수주 삭제로
+                #   번호가 회수된 껍데기가 자기 변경이력(project_history)·자기 장비항목(project_items)·자기
+                #   제작요청서(prod_requests·이미지) 때문에 상태 '취소'로도 영영 못 지워지던 교착 해소
+                #   (SM-S952·SOCKET 실사례). 수주·변경서·품질이슈·BOM·소모품연결·자식 프로젝트 등
+                #   타 업무 연결은 종전대로 차단. 일반 삭제(force=False)는 종전대로 전부 차단.
                 _refs = _project_delete_ref_counts(c, pid)
-                if _refs:
-                    _top = " · ".join(f"{t} {n}건" for t, n in _refs[:5])
-                    _more = f" 외 {len(_refs) - 5}개 표" if len(_refs) > 5 else ""
+                _SELF_APPENDAGE = {
+                    "project_history.project_id",           # 자기 변경 이력
+                    "project_items.project_id",             # 자기 장비 항목(등록 구성)
+                    "prod_requests.project_id",             # 자기 제작요청서
+                    "prod_request_images.project_id",       # 자기 제작요청서 첨부(직접 컬럼)
+                    "prod_request_images(prod_requests)",   # 자기 제작요청서 첨부(간접 경로)
+                }
+                _cross = [r for r in _refs if r[0] not in _SELF_APPENDAGE]   # 타 업무 연결만
+                _blocking = _cross if force else _refs
+                if _blocking:
+                    _top = " · ".join(f"{t} {n}건" for t, n in _blocking[:5])
+                    _more = f" 외 {len(_blocking) - 5}개 표" if len(_blocking) > 5 else ""
+                    if (not force) and (not _cross):
+                        _hint = ("자기 기록(변경이력·항목·제작요청서)뿐이므로 상세화면 "
+                                 "'위험 구역 → 폐기(완전삭제)'(본인 비밀번호 확인)로 삭제할 수 있습니다.")
+                    else:
+                        _hint = "이력 보존을 위해 프로젝트 상태를 '취소/보류'로 처리하세요."
                     raise PermissionError(
-                        f"업무 이력이 있어 삭제할 수 없습니다 — {_top}{_more}. "
-                        "이력 보존을 위해 프로젝트 상태를 '취소/보류'로 처리하세요.")
+                        f"업무 이력이 있어 삭제할 수 없습니다 — {_top}{_more}. {_hint}")
         if _mc and str(_mc).strip() and not force:
             raise PermissionError(
                 f"수주확정 건(관리코드 {str(_mc).strip()})은 삭제할 수 없습니다. "

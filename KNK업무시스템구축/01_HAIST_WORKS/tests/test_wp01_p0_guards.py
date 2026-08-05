@@ -94,6 +94,18 @@ with db.db_session() as c:
     # 실거래 0 관리번호 껍데기(#1002 유형·오등록) — z1060b: force 완전삭제 '허용' 검증용
     c.execute("INSERT INTO projects (mgmt_code, name, status) VALUES ('998M2598','오등록 껍데기(실거래0)','진행중')")
     PJ_SHELL = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    # z1078(대표 결정 2026-08-05): 관리번호 없음 + '자기 부속물'(자기 변경이력·장비항목·제작요청서)만 남은
+    #   껍데기 — 수주 삭제로 번호 회수된 전환기 실사례(SM-S952·SOCKET). force(폐기) 허용·일반 삭제 차단 검증용
+    c.execute("INSERT INTO projects (name, status) VALUES ('번호 회수된 껍데기(자기 기록만)','수주예정')")
+    PJ_SELF = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    for _f in ("단가", "수량"):
+        c.execute("INSERT INTO project_history (project_id, field, old_value, new_value) VALUES (?,?,?,?)",
+                  (PJ_SELF, _f, "300", "30"))
+    c.execute("INSERT INTO project_items (project_id, seq, item_name) VALUES (?,1,'SM-검사기')", (PJ_SELF,))
+    c.execute("INSERT INTO prod_requests (project_id, note) VALUES (?,'제작요청 1건')", (PJ_SELF,))
+    PRQ_SELF = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    c.execute("INSERT INTO prod_request_images (prod_request_id, project_id, url) VALUES (?,?,'x.jpg')",
+              (PRQ_SELF, PJ_SELF))
     c.execute("INSERT INTO projects (mgmt_code, name, status) VALUES ('999T001','테스트 프로젝트','진행중')")
     PJ_TEST = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     for pj, tag in ((PJ_REAL, "R"), (PJ_TEST, "T")):
@@ -346,6 +358,17 @@ except PermissionError as e:
 #   — 껍데기가 관리번호를 쥐어 재사용 못 하는 교착 해소. 완전삭제 자체가 비밀번호 확인 2단계 = 고의 안전장치.
 db.projects_delete_logi(PJ_SHELL, force=True)
 chk("실거래 0 관리번호 껍데기(998M2598)는 완전폐기 허용(z1060b)", cnt("projects", "id=?", (PJ_SHELL,)) == 0)
+# z1078(대표 결정 2026-08-05): 관리번호 없음 + 자기 부속물(자기 이력·항목·제작요청서)만 = 폐기(force)만 허용
+try:
+    db.projects_delete_logi(PJ_SELF)   # 일반 삭제(force=False)는 종전대로 차단 + '위험 구역' 안내
+    chk("자기 기록만 껍데기 — 일반 삭제 차단", False, "예외 없이 삭제됨!")
+except PermissionError as e:
+    chk("자기 기록만 껍데기 — 일반 삭제 차단 + 폐기 경로 안내(z1078)", "위험 구역" in str(e), str(e)[:80])
+db.projects_delete_logi(PJ_SELF, force=True)
+chk("자기 기록만 껍데기 — 폐기(force)는 허용(z1078) + 부속물 4표 연쇄 소거",
+    cnt("projects", "id=?", (PJ_SELF,)) == 0 and cnt("project_history", "project_id=?", (PJ_SELF,)) == 0
+    and cnt("project_items", "project_id=?", (PJ_SELF,)) == 0 and cnt("prod_requests", "project_id=?", (PJ_SELF,)) == 0
+    and cnt("prod_request_images", "project_id=?", (PJ_SELF,)) == 0)
 # 게이트 v4 F-01: 이름이 다른 별칭 FK(consumable_order_items.linked_project_id)
 
 
