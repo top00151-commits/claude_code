@@ -14865,14 +14865,20 @@ async def sales_orders_quick_edit(req: Request, oid: int):
         if not _ocv:
             sets.append("customer_id=?"); vals.append(None)
         else:
+            # v5H226z1079b: 같은 법인 종사업장은 정식명이 동일(예: '(주) 드림텍' = 본사/아산 공통)라
+            #   정식명 매칭 LIMIT 1 은 아무 지점이나 잡는 비결정 연결 — 자동연결은 '명확한 단일후보'만.
+            #   시스템명(alias) 정확 일치 우선, 정식명은 유일할 때만. 다지점 동명이면 거부하고 시스템명 유도.
             with db_session() as _coc:
-                _ocrow = _coc.execute(
-                    "SELECT id FROM customers WHERE name=? OR alias=? LIMIT 1",
-                    (_ocv, _ocv)).fetchone()
-            if not _ocrow:
+                _oc_hits = _coc.execute("SELECT id FROM customers WHERE alias=?", (_ocv,)).fetchall()
+                if not _oc_hits:
+                    _oc_hits = _coc.execute("SELECT id FROM customers WHERE name=?", (_ocv,)).fetchall()
+            if not _oc_hits:
                 return JSONResponse({"ok": False, "message":
-                    f"발주처 '{_ocv}' 를 등록 고객사에서 찾을 수 없습니다 — 고객사 화면의 정식명(또는 시스템명) 그대로 입력해 주세요. 비우면 프로젝트 고객사를 따릅니다."}, 400)
-            sets.append("customer_id=?"); vals.append(_ocrow[0])
+                    f"발주처 '{_ocv}' 를 등록 고객사에서 찾을 수 없습니다 — 고객사 화면의 시스템명(또는 정식명) 그대로 입력해 주세요. 비우면 프로젝트 고객사를 따릅니다."}, 400)
+            if len(_oc_hits) > 1:
+                return JSONResponse({"ok": False, "message":
+                    f"'{_ocv}' 이름의 등록 고객사가 {len(_oc_hits)}곳입니다(같은 정식명의 지점들) — 어느 지점인지 시스템명(예: 드림텍(아산))으로 입력해 주세요."}, 400)
+            sets.append("customer_id=?"); vals.append(_oc_hits[0][0])
     # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명 + 이 수주 호기 비고 — 작업일정표 셀 편집이
     #   그 발주(SO) 것만 고치도록(프로젝트 전체 덮어쓰기 방지). 컬럼 미생성 DB 는 PRAGMA 로 방어.
     _note981 = (form.get("line_note") or "").strip() if "line_note" in form else None
