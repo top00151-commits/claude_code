@@ -616,8 +616,14 @@
                 {# v5H226z981: 수주(SO)별 모델명·장비명 — 한 관리번호 아래 성격이 다른 발주 구분(값 있을 때만·프로젝트 값과 다르면 강조) #}
                 {% set _so_meq = (so.model_name or so.equip_name) %}
                 {% if _so_meq %}<span class="item" title="이 수주의 모델명/장비명 (프로젝트 대표값과 별개)"><span class="k">📦 모델/장비</span><span class="v" style="{% if (so.model_name and so.model_name != p.model_name) or (so.equip_name and so.equip_name != p.equip_name) %}font-weight:700;color:#7c2d12;{% endif %}">{{ so.model_name or '—' }}{% if so.equip_name and so.equip_name != so.model_name %} · {{ so.equip_name }}{% endif %}</span></span>{% endif %}
-                {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음 #}
-                {% if so.so_customer %}<span class="item"><span class="k">🏢 발주처</span><span class="v" style="font-weight:700;color:#1d4ed8;" title="정식: {{ so.so_customer }}">{{ (cust_alias|default({},true)).get(so.customer_id) or so.so_customer }}</span></span>{% endif %}{# v5H226z706: 발주처도 시스템명 우선 #}
+                {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음
+                   v5H226z1079 (이새롬 프로 신고): 편집 가능하게 — 표시만 있고 고칠 수단이 없어 잘못 등록된 발주처
+                   (015T2607 드림텍 본사↔아산)를 실무자가 못 바로잡던 문제. 등록 고객사 정확 일치만 저장·비우면
+                   프로젝트 고객 상속. 일정표 고객사1=SO 발주처 우선(z705)이라 여기서 고치면 일정표도 따라온다. #}
+                <span class="item"><span class="k">🏢 발주처</span>
+                  <span class="v display-val" {% if so.so_customer %}style="font-weight:700;color:#1d4ed8;" title="정식: {{ so.so_customer }}"{% else %}style="color:var(--mute);"{% endif %}>{% if so.so_customer %}{{ (cust_alias|default({},true)).get(so.customer_id) or so.so_customer }}{% else %}(프로젝트 고객){% endif %}</span>{# v5H226z706: 발주처도 시스템명 우선 #}
+                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="order_customer" data-orig="{{ so.so_customer or '' }}" value="{{ so.so_customer or '' }}" placeholder="(프로젝트 고객 상속)" title="이 수주(발주)의 발주처 — 등록 고객사 정식명(또는 시스템명) 그대로 입력. 비우면 프로젝트 고객사를 따릅니다" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:150px;">{% endif %}
+                </span>
                 <span class="item"><span class="k">{# v5H226z695: 메인=누른 수주(선택)일 수 있음 → '최초 수주' 표식은 실제 가장 오래된 카드에만, 나머지는 정확히 구분 #}{% if loop.first %}{% if so.id == _oldest_id %}🆕 최초 수주{% else %}📌 보던 수주 (선택){% endif %}{% else %}{% if so.id == _oldest_id %}🆕 최초 수주 · 참고{% else %}📎 참고 (추가 #{{ loop.index0 }}) · 읽기전용{% endif %}{% endif %}</span></span>
               </div>
               <div class="so-actions">

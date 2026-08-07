@@ -14856,6 +14856,23 @@ async def sales_orders_quick_edit(req: Request, oid: int):
         sets.append("order_date=?"); vals.append(raw_ord or None)
     if "ship_to" in form:
         sets.append("ship_to=?"); vals.append(raw_ship or None)
+    # v5H226z1079 (이새롬 프로 신고): SO별 발주처(order_customer) 인라인 편집 — 등록 고객사 '정확 일치'
+    #   (정식명 또는 시스템명)로만 연결. 오타·미등록은 저장 거부(연결 없는 이름 저장 금지 — 데이터 연결성 안전).
+    #   빈 값 = 발주처 해제(프로젝트 고객 상속). 작업일정표 고객사1 은 SO 발주처 우선(z705)이라
+    #   여기서 바로잡으면 일정표도 따라온다(015T2607 드림텍 본사↔아산 사례).
+    if "order_customer" in form:
+        _ocv = (form.get("order_customer") or "").strip()
+        if not _ocv:
+            sets.append("customer_id=?"); vals.append(None)
+        else:
+            with db_session() as _coc:
+                _ocrow = _coc.execute(
+                    "SELECT id FROM customers WHERE name=? OR alias=? LIMIT 1",
+                    (_ocv, _ocv)).fetchone()
+            if not _ocrow:
+                return JSONResponse({"ok": False, "message":
+                    f"발주처 '{_ocv}' 를 등록 고객사에서 찾을 수 없습니다 — 고객사 화면의 정식명(또는 시스템명) 그대로 입력해 주세요. 비우면 프로젝트 고객사를 따릅니다."}, 400)
+            sets.append("customer_id=?"); vals.append(_ocrow[0])
     # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명 + 이 수주 호기 비고 — 작업일정표 셀 편집이
     #   그 발주(SO) 것만 고치도록(프로젝트 전체 덮어쓰기 방지). 컬럼 미생성 DB 는 PRAGMA 로 방어.
     _note981 = (form.get("line_note") or "").strip() if "line_note" in form else None
