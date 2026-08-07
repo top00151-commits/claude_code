@@ -32087,6 +32087,19 @@ async def projects_edit_submit(request: Request, pid: int):
         amt = unit_price * unit_qty
     elif amt > 0 and unit_qty >= 1:
         unit_price = amt / unit_qty
+    # v5H226z1081 (대표 지시 2026-08-07 '금액 다른 건 급하다'): 수주가 발행된 프로젝트의 확정 금액
+    #   원천 = Σ(수주 합계). 폼의 '평균단가(반올림)×수량' 재계산이 1원 오차를 저장했다
+    #   (014T2606: 3,742,000→3,741,999 실측). 수주 있으면 폼 계산값을 버리고 서버가 수주 합으로
+    #   확정 — 편집·확정·수주삭제(z1077) 경로와 같은 단일 원천. 수주 0건(제안 단계)은 기존 그대로.
+    try:
+        with db_session() as _sac1081:
+            _sorow1081 = _sac1081.execute(
+                "SELECT COUNT(*), COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
+                (int(pid),)).fetchone()
+        if _sorow1081 and int(_sorow1081[0] or 0) > 0:
+            amt = float(_sorow1081[1] or 0)
+    except Exception:
+        pass
     # v5H226z976 (대표 지시): 형태=상품 — [정보 수정]에서도 '완제품 몇 대분'(parts_units→unit_qty) 교정.
     #   등록 오입력은 이 폼에서 고치는 게 정석. 상품은 수량·금액 섹션이 숨겨져 unit_qty가 1로 밀리던 부작용도 함께 해소.
     _sf976 = (form.get("shipment_form") or "").strip().upper()
