@@ -1455,7 +1455,9 @@ def cascade_project_meta_to_so(c, project_id: int,
     # 1) due_date cascade
     new_due = new_meta.get("due_date")
     old_due = old_meta.get("due_date")
-    if new_due is not None and (new_due or "") != (old_due or ""):
+    # v5H226z1080: 빈 값으로의 자식 전파 금지(이중 안전) — 어떤 경로로든 부모 날짜가 비워져도
+    #   수주·호기 날짜는 보존한다. 빈 값 전파가 작업일정표 행 실종 사고의 원인(015T2607).
+    if (new_due or "").strip() and (new_due or "") != (old_due or ""):
         try:
             r1 = c.execute(
                 f"""UPDATE orders SET due_date=?
@@ -1482,7 +1484,8 @@ def cascade_project_meta_to_so(c, project_id: int,
     # 2) order_date cascade
     new_ord = new_meta.get("order_date")
     old_ord = old_meta.get("order_date")
-    if new_ord is not None and (new_ord or "") != (old_ord or ""):
+    # v5H226z1080: 빈 값 전파 금지 — due_date 와 동일 원칙
+    if (new_ord or "").strip() and (new_ord or "") != (old_ord or ""):
         try:
             r1 = c.execute(
                 f"""UPDATE orders SET order_date=?

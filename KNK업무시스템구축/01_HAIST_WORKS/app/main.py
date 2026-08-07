@@ -32126,8 +32126,12 @@ async def projects_edit_submit(request: Request, pid: int):
         "order_amount": amt,
         "unit_qty": unit_qty,
         "unit_price": unit_price if (unit_price is not None and unit_price > 0) else None,  # v5H226z441: None 안전(형태=상품 부품등록 시 unit_price=None)
-        "order_date": form.get("order_date", ""),
-        "due_date": form.get("due_date", ""),
+        # v5H226z1080 (이새롬 프로 실사고 2026-08-07): 수정 경로의 날짜 빈 값 = '변경 없음'(기존값 유지).
+        #   간편 폼(날짜 칸 없음)·빈 칸 저장이 프로젝트 날짜를 지우고 meta cascade 가 수주·호기까지
+        #   지워 작업일정표에서 행이 사라졌다(015T2607: 발주 07-22·납기 08-10/08-21 소실 → 이력으로 복구).
+        #   날짜 '지우기'가 필요한 실무 시나리오는 없음 — 필요해지면 별도 명시 UI 로. (신규 등록 경로는 빈 값=미정 그대로)
+        "order_date": (form.get("order_date", "") or (_old_meta.get("order_date") or "")),
+        "due_date": (form.get("due_date", "") or (_old_meta.get("due_date") or "")),
         # v5H201: 제안 단계 일정 (수주확정 전 스케줄용)
         "proposal_date": form.get("proposal_date", ""),
         "quotation_date": form.get("quotation_date", ""),
@@ -32212,8 +32216,10 @@ async def projects_edit_submit(request: Request, pid: int):
     # v5H226s: 메타필드(due_date/order_date/currency) cascade
     try:
         _new_meta = {
-            "due_date":   form.get("due_date", "") or "",
-            "order_date": form.get("order_date", "") or "",
+            # v5H226z1080: 저장부와 같은 규칙 — 빈 값 = 변경 없음(기존값). 이걸 안 맞추면
+            #   '빈 값으로 바뀜'으로 판정돼 cascade 가 수주·호기 날짜를 지운다(015T2607 실사고).
+            "due_date":   (form.get("due_date", "") or (_old_meta.get("due_date") or "")),
+            "order_date": (form.get("order_date", "") or (_old_meta.get("order_date") or "")),
             "currency":   (form.get("currency", "KRW") or "KRW").upper(),
         }
         with db_session() as c:
