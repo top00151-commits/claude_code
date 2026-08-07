@@ -28850,11 +28850,17 @@ async def projects_new_submit(request: Request):
                 return _err_redirect("mgmt_not_found", f"code={mgmt_code_in}")
             # v5H226z202 (대표 지시): 한 프로젝트에 발주처(구매대행사) 여러 곳 가능 → 불일치 차단 제거.
             #   이 발주의 고객사(발주처)를 그 SO 의 customer_id 로 기록(없으면 프로젝트 고객 상속).
+            # v5H226z1082 (이새롬 프로 요청 2026-08-07): 매칭을 z651 공용 해석(resolve_customer_id)으로 교체.
+            #   기존 'WHERE name=? LIMIT 1' 은 같은 상호 종사업장(드림텍 본사/아산 — 정식명 바이트까지 동일 실측)
+            #   중 id 빠른 본사(74)를 항상 골라, 아산 프로젝트의 추가 발주가 '계속 본사로 저장'됐다.
+            #   이제: picker 로 고른 종사업장 최우선 → 이름은 유일 후보만 자동연결 → 동명 다수면 미지정
+            #   (=SO 발주처 없음 → 기존 프로젝트 고객(예: 아산)을 그대로 상속·표시[z705]).
+            #   특정 지점을 명시하려면 시스템명(드림텍(아산)/드림텍(본사))을 입력 — alias 일치로 정확 연결.
             _fu_cust_id = None
-            if customer and customer.strip():
+            if (form.get("customer_id") or "").strip() or (customer and customer.strip()):
                 with db_session() as _ccx:
-                    _crx = _ccx.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (customer.strip(),)).fetchone()
-                _fu_cust_id = _crx[0] if _crx else None
+                    _fu_cust_id, _fu_creason = _logi.resolve_customer_id(
+                        _ccx, (customer or "").strip(), picked_id=form.get("customer_id"))
             # v5H226z436 (대표 지시): 형태=상품 + PO=추가 → 부품(pk_*)을 '기존 프로젝트'의 PARTS 수주로 저장.
             #   신규 등록 z430 과 동일 패턴: 빈 PARTS SO(PARTS_EXPORT) + 부품마다 order_items(품명·모델=규격·수량·단가).
             #   → 002M2509 같은 기존 프로젝트 상세 PACKING LIST 에 그대로 나타남. (이전엔 부품 무시되고 EQUIPMENT SO만 생겼음)
