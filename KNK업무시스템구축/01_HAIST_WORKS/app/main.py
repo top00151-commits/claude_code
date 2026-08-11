@@ -28958,6 +28958,31 @@ async def projects_new_submit(request: Request):
                         except Exception:
                             pass
             else:
+                # v5H226z1084 (이새롬 프로 신고 2026-08-11): 형태='제품'(SEMI) 추가 발주 — 선택한 형태를
+                #   무시하고 장비(호기 분할) 경로로 저장돼 개조 건이 '완제품·2호기/3호기'로 인식되던 결함
+                #   (012T2606 방수검사기 실사례·엑셀 업로드는 제품 인식 정상이라 등록 경로만의 구멍).
+                #   신규 등록(z1050)과 같은 제품 항목(it_*)을 읽어 items 로 저장 — 호기 발번 없음·
+                #   줄=품명·규격·수량·단가(금액=수량×단가) → 형태 배지도 '제품'으로 계산됨(z699).
+                _fu_semi_items = []
+                if _fu_sf == "SEMI":
+                    _itn = form.getlist("it_name[]"); _its = form.getlist("it_spec[]")
+                    _itq = form.getlist("it_qty[]"); _itp = form.getlist("it_price[]")
+                    for _i in range(len(_itn)):
+                        _nm = (_itn[_i] or "").strip()
+                        _sp = ((_its[_i] if _i < len(_its) else "") or "").strip()
+                        if not _nm and not _sp:
+                            continue
+                        try:
+                            _q2 = int(float(((_itq[_i] if _i < len(_itq) else "1") or "1").replace(",", "")))
+                        except (ValueError, TypeError):
+                            _q2 = 1
+                        try:
+                            _pr2 = float(((_itp[_i] if _i < len(_itp) else "0") or "0").replace(",", ""))
+                        except (ValueError, TypeError):
+                            _pr2 = 0.0
+                        _fu_semi_items.append({"name": _nm or _sp, "spec": _sp,
+                                               "qty": max(1, _q2), "price": _pr2})
+                    _fu_semi_items = _fu_semi_items[:50]
                 # 호기 확정 단가(첫 유효값) → 1대 단가, 호기 수 → qty (없으면 예상 단가/수량 폴백)
                 _fu_units = form.getlist("unit_amount[]")
                 _fu_price = 0.0
@@ -28984,7 +29009,12 @@ async def projects_new_submit(request: Request):
                         order_customer_id=_fu_cust_id,
                         # v5H226z1033: 사용자가 고른 PO유형을 **그 수주에** 남긴다.
                         #   '추가'뿐 아니라 개조·수리·기타도 있으므로 폼값을 그대로 쓴다(비면 '추가').
-                        po_type=(form.get("po_type") or "").strip())
+                        po_type=(form.get("po_type") or "").strip(),
+                        # v5H226z1084: 형태='제품' — 항목 줄 그대로 저장(호기 발번 없음).
+                        #   항목을 안 적은 제품 폴백도 호기 분할 금지(1줄) + 'N호기' 라벨 방지.
+                        items=(_fu_semi_items or None),
+                        expand_units=(False if _fu_sf == "SEMI" else True),
+                        line_label=((form.get("model") or "").strip() or "제품") if (_fu_sf == "SEMI" and not _fu_semi_items) else None)
             # v5H226z384 (대표 지시): 추가 발주도 제작요청 발행(전부서 통보) — 신규처럼. 같은 관리번호의 기존 프로젝트로 통보.
             _fu_url = f"/project/{_existing['id']}?followup=1"
             if _fu_sf == "PARTS":   # v5H226z436: 상품 추가발주는 상세 PACKING LIST 로 유도
