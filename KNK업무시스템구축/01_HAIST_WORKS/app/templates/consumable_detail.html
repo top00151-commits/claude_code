@@ -41,9 +41,11 @@ a { text-decoration: none; color: inherit; }
 .ntf-row input { width:16px; height:16px; }
 .ntf-row .ntf-cnt { margin-left:auto; font-size:11px; color:var(--qv-ink-3); }
 .ntf-foot { padding:12px 18px; border-top:1px solid var(--qv-line); display:flex; gap:8px; justify-content:flex-end; }
-/* v5H226z1083 (대표 지시): 규격 옆 [이력] 버튼 + 규격별 출하 이력 팝업 */
-.spec-cell { display:flex; gap:2px; align-items:center; }
-.spec-cell input { flex:1; min-width:0; }
+/* v5H226z1083 (대표 지시): 규격 옆 [이력] 버튼 + 규격별 출하 이력 팝업
+   v5H226z1083b (대표 지적): td 에 flex 를 주면 표 셀 높이·정렬이 틀어진다(칸 어긋남 신고) —
+   td 는 표 셀 그대로 두고 안쪽 wrapper(.spec-wrap)만 flex. */
+.spec-wrap { display:flex; gap:2px; align-items:center; }
+.spec-wrap input { flex:1; min-width:0; }
 .spec-hist-btn { flex:0 0 auto; border:1px solid var(--qv-line); background:#f8f6f1; border-radius:5px; font-size:12px; padding:2px 5px; cursor:pointer; }
 .spec-hist-btn:hover { background:#eef2ff; border-color:#c7d2fe; }
 .sh-card { width:min(760px,95vw); }
@@ -418,7 +420,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             {# v5H226z730: 모델명·장비명은 발주 단위(위 '제품' 섹션)로 일원화 → 라인에서 제거. 품목별 칸 = 품명·규격~ #}
             <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="소모품 품명" /></td>
             {# v5H226z1083 (대표 지시 2026-08-11): 규격 옆 [이력] — 이 규격이 어느 업체로·언제·얼마에 나갔는지 팝업 #}
-            <td class="spec-cell"><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /><button type="button" class="spec-hist-btn" title="이 규격의 출하 이력 보기 — 어느 업체로·언제·업체별 단가" onclick="openSpecHist(this)">📊</button></td>
+            {# v5H226z1083b (대표 지적): td 를 flex 로 바꾸면 표 셀 높이·정렬이 틀어짐 → td 는 그대로, 안쪽 wrapper 만 flex #}
+            <td class="spec-cell"><div class="spec-wrap"><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /><button type="button" class="spec-hist-btn" title="이 규격의 출하 이력 보기 — 어느 업체로·언제·업체별 단가" onclick="openSpecHist(this)">📊</button></div></td>
             {# v5H226z904 (대표 지시): 칸 클릭 후 Ctrl+V 로 클립보드 사진 붙여넣기(📷 파일선택도 그대로) #}
             <td class="photo-cell" tabindex="0" data-iid="{{ it.id }}" data-cat="loc" title="클릭 후 Ctrl+V 로 복사한 사진 붙여넣기">
               {% if it.image_loc_thumb_path %}
