@@ -1210,9 +1210,14 @@ def co_list(status: str = "", q: str = "", limit: int = 200, overlap=None) -> li
         sql += " AND status=?"; params.append(status)
     if q:
         # v5H226z996 (대표 지시): 고객사 검색 = 정식명+시스템명(별칭) 모두(customer_id 경유)
+        # v5H226z1083 (대표 지시 2026-08-11): 품명·규격도 검색 — "KNK-P-4847" 치면 그 품목이 담긴 발주가 나옴
+        #   (실무자가 규격으로 출하 이력을 못 찾던 문제). 관리번호(mgmt_code)도 함께.
         sql += (" AND (co_no LIKE ? OR customer_name LIKE ? OR note LIKE ?"
-                " OR customer_id IN (SELECT c.id FROM customers c WHERE c.name LIKE ? OR COALESCE(c.alias,'') LIKE ?))")
-        params += [f"%{q}%"] * 5
+                " OR COALESCE(mgmt_code,'') LIKE ?"
+                " OR customer_id IN (SELECT c.id FROM customers c WHERE c.name LIKE ? OR COALESCE(c.alias,'') LIKE ?)"
+                " OR id IN (SELECT ci.co_id FROM consumable_order_items ci"
+                "           WHERE COALESCE(ci.part_name,'') LIKE ? OR COALESCE(ci.spec,'') LIKE ?))")
+        params += [f"%{q}%"] * 8
     if overlap:
         # v5H226z864 (성능): overlap=(시작,끝) — 발주~납품 기간이 겹치는 건만(일정표 월 보기 프리필터).
         #   일정표 행 판정(_mk_row: s=(발주 or 납품), e=(납품 or 발주), 스왑 후 겹침)과 동일 재현.

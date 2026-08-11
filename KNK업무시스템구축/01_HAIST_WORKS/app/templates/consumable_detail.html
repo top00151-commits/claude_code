@@ -41,6 +41,17 @@ a { text-decoration: none; color: inherit; }
 .ntf-row input { width:16px; height:16px; }
 .ntf-row .ntf-cnt { margin-left:auto; font-size:11px; color:var(--qv-ink-3); }
 .ntf-foot { padding:12px 18px; border-top:1px solid var(--qv-line); display:flex; gap:8px; justify-content:flex-end; }
+/* v5H226z1083 (대표 지시): 규격 옆 [이력] 버튼 + 규격별 출하 이력 팝업 */
+.spec-cell { display:flex; gap:2px; align-items:center; }
+.spec-cell input { flex:1; min-width:0; }
+.spec-hist-btn { flex:0 0 auto; border:1px solid var(--qv-line); background:#f8f6f1; border-radius:5px; font-size:12px; padding:2px 5px; cursor:pointer; }
+.spec-hist-btn:hover { background:#eef2ff; border-color:#c7d2fe; }
+.sh-card { width:min(760px,95vw); }
+.sh-table { width:100%; border-collapse:collapse; font-size:12.5px; margin:6px 0 12px; }
+.sh-table th { background:#f4f1e8; border:1px solid var(--qv-line); padding:5px 8px; white-space:nowrap; }
+.sh-table td { border:1px solid var(--qv-line); padding:5px 8px; white-space:nowrap; }
+.sh-table td.num { text-align:right; }
+.sh-sub { font-size:12px; color:var(--qv-ink-3); margin:2px 0 6px; }
 /* v5H226z890(대표 지시): 통보 개별 인원 선택(제작요청과 동일) */
 .ntf-teamblk { border-bottom:1px solid #f1f0ec; }
 .ntf-teamrow { display:flex; align-items:center; gap:6px; }
@@ -216,6 +227,14 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
     {% endif %}
 
     {# v5H226z292 (대표 지시): 관련부서 통보 — 부서·인원 선택 모달 #}
+    {# v5H226z1083 (대표 지시 2026-08-11): 규격별 출하 이력 팝업 — 어느 업체로·언제·업체별 단가 #}
+    <div id="specHistModal" class="ntf-modal" style="display:none;">
+      <div class="ntf-card sh-card">
+        <div class="ntf-head">📊 <span id="shTitle">규격 출하 이력</span></div>
+        <div class="ntf-body" id="shBody">불러오는 중…</div>
+        <div class="ntf-foot"><button type="button" class="btn" onclick="closeSpecHist()">닫기</button></div>
+      </div>
+    </div>
     <div id="notifyModal" class="ntf-modal" style="display:none;">
       <div class="ntf-card">
         <div class="ntf-head">📤 관련부서 통보 — 받을 부서·인원을 선택하세요</div>
@@ -398,7 +417,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             <td><b title="저장된 줄 번호 {{ it.line_no }}">{{ loop.index }}</b></td>
             {# v5H226z730: 모델명·장비명은 발주 단위(위 '제품' 섹션)로 일원화 → 라인에서 제거. 품목별 칸 = 품명·규격~ #}
             <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="소모품 품명" /></td>
-            <td><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /></td>
+            {# v5H226z1083 (대표 지시 2026-08-11): 규격 옆 [이력] — 이 규격이 어느 업체로·언제·얼마에 나갔는지 팝업 #}
+            <td class="spec-cell"><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /><button type="button" class="spec-hist-btn" title="이 규격의 출하 이력 보기 — 어느 업체로·언제·업체별 단가" onclick="openSpecHist(this)">📊</button></td>
             {# v5H226z904 (대표 지시): 칸 클릭 후 Ctrl+V 로 클립보드 사진 붙여넣기(📷 파일선택도 그대로) #}
             <td class="photo-cell" tabindex="0" data-iid="{{ it.id }}" data-cat="loc" title="클릭 후 Ctrl+V 로 복사한 사진 붙여넣기">
               {% if it.image_loc_thumb_path %}
@@ -814,6 +834,55 @@ async function delLine(iid) {
 // v5H226z292 — 관련부서 통보: 부서 선택 모달
 function sendNotify() { document.getElementById('notifyModal').style.display = 'flex'; }
 function closeNotify() { document.getElementById('notifyModal').style.display = 'none'; }
+
+/* ===== v5H226z1083 (대표 지시 2026-08-11): 규격별 출하 이력 팝업 ===== */
+function _shEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+function _shMoney(v, ccy){
+  if (v == null || v === '') return '—';
+  var sym = {KRW:'₩', USD:'$', VND:'₫', EUR:'€', JPY:'¥', CNY:'元'}[ccy] || (ccy + ' ');
+  var dec = (ccy === 'KRW') ? 0 : 2;
+  var n = Number(v);
+  if (isNaN(n)) return _shEsc(v);
+  return sym + n.toLocaleString('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+}
+function closeSpecHist(){ document.getElementById('specHistModal').style.display = 'none'; }
+async function openSpecHist(btn){
+  var inp = btn.parentElement.querySelector('input[data-k="spec"]');
+  var sp = (inp && inp.value || '').trim();
+  if (!sp) { alert('규격이 비어 있습니다 — 규격을 먼저 입력하세요'); return; }
+  var m = document.getElementById('specHistModal');
+  document.getElementById('shTitle').textContent = '규격 출하 이력 — ' + sp;
+  var body = document.getElementById('shBody');
+  body.innerHTML = '불러오는 중…';
+  m.style.display = 'flex';
+  try {
+    var r = await fetch('/consumables/spec-history?spec=' + encodeURIComponent(sp));
+    var j = await r.json();
+    if (!r.ok || !j.ok) { body.innerHTML = '⚠ ' + _shEsc(j.message || ('HTTP ' + r.status)); return; }
+    if (!j.rows.length) { body.innerHTML = '이 규격(' + _shEsc(sp) + ')이 담긴 소모품 발주가 없습니다.'; return; }
+    var h = '';
+    if (j.summary.length) {
+      h += '<div class="sh-sub">업체별 요약 (출하 기준 · 일자 = 상태발생일, 없으면 납품일)</div>';
+      h += '<table class="sh-table"><tr><th>출하 업체</th><th>출하 횟수</th><th>최근 출하일</th><th>최근 단가</th></tr>';
+      j.summary.forEach(function(s){
+        h += '<tr><td>' + _shEsc(s.customer) + '</td><td class="num">' + s.ship_count + '회</td><td>' + _shEsc(s.last_shipped || '—') + '</td><td class="num">' + _shMoney(s.latest_price, s.currency) + '</td></tr>';
+      });
+      h += '</table>';
+    } else {
+      h += '<div class="sh-sub">아직 \'출하\' 상태의 발주가 없습니다 (아래는 전체 발주 이력)</div>';
+    }
+    h += '<div class="sh-sub">전체 발주 이력 (' + j.rows.length + '건)</div>';
+    h += '<table class="sh-table"><tr><th>일자</th><th>업체</th><th>상태</th><th>발주번호</th><th>관리번호</th><th>수량</th><th>단가</th><th>금액</th></tr>';
+    j.rows.forEach(function(d){
+      h += '<tr><td>' + _shEsc(d.sdate || '—') + '</td><td>' + _shEsc(d.customer || '—') + '</td><td>' + _shEsc(d.status_ko) + '</td><td>' + _shEsc(d.co_no) + '</td><td>' + _shEsc(d.mgmt_code || '—') + '</td><td class="num">' + _shEsc(d.qty == null ? '—' : d.qty) + _shEsc(d.unit || '') + '</td><td class="num">' + _shMoney(d.unit_price, d.currency) + '</td><td class="num">' + _shMoney(d.amount, d.currency) + '</td></tr>';
+    });
+    h += '</table>';
+    body.innerHTML = h;
+  } catch(e) {
+    body.innerHTML = '⚠ 조회 실패: ' + _shEsc(e.message);
+  }
+}
+document.getElementById('specHistModal').addEventListener('click', function(e){ if (e.target === this) closeSpecHist(); });
 function ntfAll(on) { document.querySelectorAll('.ntf-ck').forEach(c => c.checked = on); if (window.KNKPicker) KNKPicker.refresh('knkpNtf'); }
 // v5H226z890(대표 지시): 개별 인원 펼치기(제작요청과 동일)
 function ntfExp(tid, btn) { var m = document.querySelector('.ntf-members[data-team="'+tid+'"]'); if(!m) return; var show = !m.classList.contains('open'); m.classList.toggle('open', show); if(btn) btn.textContent = show ? '▾개별' : '▸개별'; }

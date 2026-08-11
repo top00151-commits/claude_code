@@ -22872,9 +22872,13 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                 _cparams = []
                 if _q:
                     # z987: 시스템명(alias) 검색 포함
+                    # v5H226z1083 (대표 지시 2026-08-11): 작업일정표 소모품 찾기에도 품명·규격 포함 —
+                    #   "KNK-P-4847" 검색 시 그 품목이 담긴 소모품 발주 행이 나온다.
                     _cconds.append("(co.mgmt_code LIKE ? OR co.co_no LIKE ? OR co.customer_name LIKE ? "
-                                   "OR cu.alias LIKE ? OR co.model_name LIKE ? OR co.equip_name LIKE ?)")
-                    _cparams += [f"%{_q}%"] * 6
+                                   "OR cu.alias LIKE ? OR co.model_name LIKE ? OR co.equip_name LIKE ? "
+                                   "OR co.id IN (SELECT ci.co_id FROM consumable_order_items ci "
+                                   "             WHERE COALESCE(ci.part_name,'') LIKE ? OR COALESCE(ci.spec,'') LIKE ?))")
+                    _cparams += [f"%{_q}%"] * 8
                 if _period == "day":
                     _cconds.append("substr(COALESCE(order_date,''),1,10) = ?"); _cparams.append(_today)
                 elif _period == "week":
@@ -24527,8 +24531,10 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         from . import consumables as _co_mod
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
                    "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
+        _co_pblob = _co_parts_blob_map()   # v5H226z1083: 품명·규격 찾기 매칭용(엑셀 저장 경로도 동일)
         for cr in _co_mod.co_list(status="", q="", limit=1000):
             info = {
+                "parts_blob": _co_pblob.get(cr.get("id"), ""),   # v5H226z1083
                 "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "", "name": "소모품",
                 "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
@@ -25743,16 +25749,29 @@ async def projects_import_product_confirm(request: Request):
                          "verify_so": _verify_so1024})   # v5H226z1025: 이 SO 를 올린 엑셀 원본과 대조하라
 
 
+def _co_parts_blob_map():
+    """v5H226z1083 (대표 지시 2026-08-11): 소모품 발주별 라인 품명·규격 묶음 —
+    작업일정표 '찾기'가 품명·규격(예: KNK-P-4847)도 매칭하도록 행에 실어 준다."""
+    try:
+        with db_session() as c:
+            return {r[0]: (r[1] or "") for r in c.execute(
+                "SELECT co_id, GROUP_CONCAT(COALESCE(part_name,'')||' '||COALESCE(spec,''), ' ') "
+                "FROM consumable_order_items GROUP BY co_id")}
+    except Exception:
+        return {}
+
+
 def _sched_cust_hit(row, q):
     """v5H226z862 (대표 지시): 작업일정표 '찾기' 매칭 — 검색어가 관리번호/프로젝트명/모델/장비/고객사/수주번호
     중 하나라도 부분매칭(대소문자 무시)이면 통과. 빈 검색어면 전부 통과.
-    (기존엔 고객사만 매칭했고 그 달 행만 필터돼 불편 → 다중 필드 + 전 기간 검색으로 확장)."""
+    (기존엔 고객사만 매칭했고 그 달 행만 필터돼 불편 → 다중 필드 + 전 기간 검색으로 확장).
+    v5H226z1083: 소모품 행은 품명·규격 묶음(parts_blob)도 매칭."""
     if not q:
         return True
     ql = str(q).strip().lower()
     if not ql:
         return True
-    for _k in ("code", "name", "model", "equip", "customer", "customer_disp", "so_no"):
+    for _k in ("code", "name", "model", "equip", "customer", "customer_disp", "so_no", "parts_blob"):
         if ql in str(row.get(_k) or "").lower():
             return True
     return False
@@ -26038,9 +26057,11 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
                    "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
         # v5H226z864: 월 보기면 그 달과 겹치는 소모품 발주만(SQL) — 프리필터 실패(None) 시 전체(기존)
+        _co_pblob = _co_parts_blob_map()   # v5H226z1083: 품명·규격 찾기 매칭용
         for cr in _co_mod.co_list(status="", q="", limit=1000,
                                   overlap=((mstart, mend) if _pids is not None else None)):
             info = {
+                "parts_blob": _co_pblob.get(cr.get("id"), ""),   # v5H226z1083
                 "ref_id": cr.get("id"),                    # v5H226z264: 셀 편집/메모용
                 "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "",
@@ -41837,6 +41858,49 @@ async def api_project_by_mgmt(request: Request, code: str = ""):
 # ═══════════════════════════════════════════════════════════════════════════════
 from . import consumables as _co
 import shutil
+
+
+@app.get("/consumables/spec-history")
+async def consumables_spec_history(request: Request, spec: str = ""):
+    """v5H226z1083 (대표 지시 2026-08-11): 소모품 품목(규격)별 출하 이력 — 어느 업체로·언제·얼마에.
+    실무 질문(031C2607 PCB 사례: "이 품목 어디로 나갔고 최근 언제, 업체별 가격은?")을 화면에서 바로 확인.
+    일자 = 상태발생일(status_date) 우선 → 납기(발주 공통) → 발주일 (읽기전용 실측 답변과 동일 규칙)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    from . import consumables as _co
+    sp = (spec or "").strip()
+    if not sp:
+        return JSONResponse({"ok": False, "message": "규격이 비어 있습니다"}, 400)
+    with db_session() as c:
+        rows = c.execute(
+            "SELECT co.co_no, COALESCE(co.mgmt_code,'') AS mgmt_code, co.customer_name AS customer, "
+            "       co.status, COALESCE(co.currency,'KRW') AS currency, "
+            "       COALESCE(NULLIF(co.status_date,''), NULLIF(co.due_date,''), co.order_date, '') AS sdate, "
+            "       ci.qty, COALESCE(ci.unit,'') AS unit, ci.unit_price, ci.amount, COALESCE(ci.part_name,'') AS part_name "
+            "FROM consumable_order_items ci JOIN consumable_orders co ON co.id = ci.co_id "
+            "WHERE TRIM(COALESCE(ci.spec,'')) = ? "
+            "ORDER BY sdate DESC, co.id DESC", (sp,)).fetchall()
+    out = []
+    summary: dict = {}
+    for r in rows:
+        d = dict(r)
+        d["status_ko"] = _co.CO_STATUS_LABELS.get(d.get("status") or "", d.get("status") or "")
+        out.append(d)
+        if (d.get("status") or "").upper() == "SHIPPED":
+            s = summary.setdefault(d["customer"] or "—", {
+                "customer": d["customer"] or "—", "ship_count": 0,
+                "last_shipped": "", "latest_price": None, "currency": d["currency"]})
+            s["ship_count"] += 1
+            if (d["sdate"] or "") >= (s["last_shipped"] or ""):
+                s["last_shipped"] = d["sdate"] or ""
+                s["latest_price"] = d["unit_price"]
+                s["currency"] = d["currency"]
+    return JSONResponse({"ok": True, "spec": sp,
+                         "summary": sorted(summary.values(), key=lambda x: x["last_shipped"], reverse=True),
+                         "rows": out})
 
 
 @app.get("/consumables", response_class=HTMLResponse)
