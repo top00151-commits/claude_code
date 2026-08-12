@@ -21594,6 +21594,88 @@ def _bom_can_upload(u) -> bool:
     return tid in (4, 5, 6)   # 설계팀·소프트웨어팀·전장설계팀 (BOM 작성 부서)
 
 
+# =====================================================
+# WP-04 기준전환 — 자재 관리 단계 화면 (대표 지시 2026-08-12 "코드 작업 해도 된다")
+#   근거: 기준전환모델 V3 (대표 승인 2026-08-11)
+#   개발 초기 BOM 은 Excel 로 하던 대로 두고, **제작에 들어간 뒤부터** WORKS 가 원장이 된다.
+#   ⛔ 자동 판정 금지 — 사람이 판정하고 무엇을 보고 판정했는지 남긴다.
+# =====================================================
+from .database import (MATERIAL_STAGES as _MS, MATERIAL_STAGE_LABEL as _MSL,
+                       ENTERED_KINDS as _MEK, get_material_stage as _ms_get,
+                       set_material_stage as _ms_set,
+                       material_baseline_history as _ms_hist)
+
+_MS_NEXT = {"EXCEL": "PREPARE", "PREPARE": "OFFICIAL", "OFFICIAL": None}
+_MS_BACK = {"EXCEL": None, "PREPARE": "EXCEL", "OFFICIAL": "PREPARE"}
+
+
+def _ms_can_change(u) -> bool:
+    """기준전환을 실행할 수 있는 사람 — 자재 담당(구매팀) · 대표/임원 · 관리자.
+    ⛔ 조회는 넓게, 바꾸는 것은 좁게."""
+    if not u:
+        return False
+    if (u.get("role") if isinstance(u, dict) else u["role"]) in ("ceo", "executive", "admin"):
+        return True
+    return bool(can_use_logistics(u))
+
+
+@app.get("/projects/{pid:int}/baseline", response_class=HTMLResponse)
+async def project_baseline_page(request: Request, pid: int):
+    """이 프로젝트의 자재를 **언제부터 WORKS 로 관리하는지** 보는 화면."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_view_logistics(u) or _bom_can_upload(u)):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+        if not pr:
+            return RedirectResponse("/bom/upload", 303)
+        stage = _ms_get(c, pid)
+        hist = _ms_hist(c, pid)
+        who = {r[0]: r[1] for r in c.execute("SELECT id, name FROM users").fetchall()}
+    for h in hist:
+        h["entered_by_name"] = who.get(h.get("entered_by")) or ""
+        h["decided_by_name"] = who.get(h.get("decided_by")) or ""
+        h["stage_from_label"] = _MSL.get(h.get("stage_from"), h.get("stage_from"))
+        h["stage_to_label"] = _MSL.get(h.get("stage_to"), h.get("stage_to"))
+    return ctx(request, "project_baseline.html", user=u, active="parts",
+               project=dict(pr), stage=stage, stage_label=_MSL.get(stage, stage),
+               stages=_MS, stage_labels=_MSL, entered_kinds=_MEK,
+               next_stage=_MS_NEXT.get(stage), back_stage=_MS_BACK.get(stage),
+               next_label=_MSL.get(_MS_NEXT.get(stage) or ""),
+               back_label=_MSL.get(_MS_BACK.get(stage) or ""),
+               history=hist, can_change=_ms_can_change(u),
+               msg=request.query_params.get("msg", ""),
+               err=request.query_params.get("err", ""))
+
+
+@app.post("/projects/{pid:int}/baseline")
+async def project_baseline_apply(request: Request, pid: int,
+                                 stage_to: str = Form(""), entered_kind: str = Form(""),
+                                 entered_basis: str = Form(""), scope_kind: str = Form(""),
+                                 scope_note: str = Form(""), note: str = Form("")):
+    """단계를 옮긴다. ⛔ 규칙은 database.set_material_stage 안에서 막는다(화면만 믿지 않는다)."""
+    from urllib.parse import quote as _q
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _ms_can_change(u):
+        return RedirectResponse(f"/projects/{pid}/baseline?err={_q('이 작업을 하실 권한이 없습니다.')}", 303)
+    with db_session() as c:
+        r = _ms_set(c, pid, (stage_to or "").strip(), decided_by=u["id"],
+                    entered_kind=(entered_kind or "").strip() or None,
+                    entered_basis=(entered_basis or "").strip() or None,
+                    entered_by=(u["id"] if (entered_kind or "").strip() else None),
+                    scope_kind=(scope_kind or "").strip() or None,
+                    scope_note=(scope_note or "").strip() or None,
+                    note=(note or "").strip() or None)
+    if not r.get("ok"):
+        return RedirectResponse(f"/projects/{pid}/baseline?err={_q(r.get('error', '옮기지 못했습니다.'))}", 303)
+    return RedirectResponse(
+        f"/projects/{pid}/baseline?msg={_q('「' + _MSL.get(r['to'], r['to']) + '」 로 옮겼습니다.')}", 303)
+
+
 @app.get("/bom/upload", response_class=HTMLResponse)
 async def bom_upload_form(request: Request):
     u = get_user(request)

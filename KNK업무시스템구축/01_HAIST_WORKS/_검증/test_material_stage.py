@@ -39,6 +39,97 @@ def c(label, cond, detail=""):
     print(("  PASS  " if cond else "  FAIL  ") + label + (f"   {detail}" if not cond and detail else ""))
 
 
+# ══════════════════════════════════════════════════════════════════
+#  B부 — 화면(라우트) 시험 : 실제 HTTP 로 눌러본다
+#  인증만 대체하고 **인가(권한)는 실제 코드**를 그대로 돌린다.
+# ══════════════════════════════════════════════════════════════════
+def routes():
+    import app.main as appmain
+    from fastapi.testclient import TestClient
+
+    CUR = {"u": None}
+    appmain.get_user = lambda request: CUR["u"]
+    cl = TestClient(appmain.app, follow_redirects=False)
+
+    VIEW = {"id": 601, "name": "조회자", "role": "member", "team_id": 3,
+            "can_use_logistics": 0, "can_view_logistics": 1}
+    BUY = {"id": 602, "name": "구매팀원", "role": "member", "team_id": 10,
+           "can_use_logistics": 1, "can_view_logistics": 1}
+    CEO = {"id": 603, "name": "대표", "role": "ceo", "team_id": 11,
+           "can_use_logistics": 1, "can_view_logistics": 1}
+
+    with D.db_session() as conn:
+        conn.execute("INSERT INTO projects(name, mgmt_code) VALUES('화면시험','A999T9903')")
+        pid = conn.execute("SELECT id FROM projects WHERE mgmt_code='A999T9903'").fetchone()[0]
+        # 이름 표시용 행만 만든다. 권한은 get_user 가 주는 값으로 판단하므로 team_id 는 안 넣는다
+        # (씨앗 DB 에 없는 팀번호를 넣으면 외래키에 걸린다)
+        for uu in (VIEW, BUY, CEO):
+            conn.execute("INSERT INTO users(id, name, login_id, password, role) "
+                         "VALUES(?,?,?,'x',?)",
+                         (uu["id"], uu["name"], f"T{uu['id']}", uu["role"]))
+
+    def loc(r):
+        return r.headers.get("location", "")
+
+    print()
+    print("  [화면]")
+    CUR["u"] = None
+    r = cl.get(f"/projects/{pid}/baseline")
+    c("Ⓑ1 미로그인 → 로그인 화면으로", r.status_code == 303 and "/login" in loc(r))
+
+    CUR["u"] = VIEW
+    r = cl.get(f"/projects/{pid}/baseline")
+    c("Ⓑ2 조회 권한자는 화면이 뜬다", r.status_code == 200, str(r.status_code))
+    body = r.text
+    c("Ⓑ3 지금 단계가 보인다 (Excel)", "Excel 로 관리" in body)
+    c("Ⓑ4 ⛔ '시스템이 알아서 넘기지 않는다' 안내가 있다", "시스템이 알아서 넘기지 않습니다" in body)
+    c("Ⓑ5 조회만 되는 분께는 '바꾸실 수 없습니다' 안내",
+      "바꾸실 수는 없습니다" in body and "옮기기" not in body)
+
+    # ⛔ 권한 없는 사람이 POST 로 직접 찔러도 막혀야 한다 (화면만 숨기면 안 된다)
+    r = cl.post(f"/projects/{pid}/baseline", data={"stage_to": "PREPARE"})
+    c("Ⓑ6 ⛔ 조회 권한자가 POST 로 찔러도 막힘",
+      r.status_code == 303 and "err=" in loc(r))
+    with D.db_session() as conn:
+        c("Ⓑ6-b 막혔으니 단계 그대로", D.get_material_stage(conn, pid) == "EXCEL")
+
+    CUR["u"] = BUY
+    r = cl.get(f"/projects/{pid}/baseline")
+    c("Ⓑ7 구매팀은 옮기는 칸이 보인다", r.status_code == 200 and "로 옮기기" in r.text)
+
+    # ⛔ 화면을 건너뛰고 바로 OFFICIAL 을 보내도 서버가 막아야 한다
+    r = cl.post(f"/projects/{pid}/baseline",
+                data={"stage_to": "OFFICIAL", "entered_kind": "발주",
+                      "entered_basis": "발주서 확인"})
+    c("Ⓑ8 ⛔ 화면 건너뛰고 바로 공식관리 → 서버가 막음",
+      r.status_code == 303 and "err=" in loc(r))
+    with D.db_session() as conn:
+        c("Ⓑ8-b 단계 그대로", D.get_material_stage(conn, pid) == "EXCEL")
+
+    r = cl.post(f"/projects/{pid}/baseline", data={"stage_to": "PREPARE", "note": "시작자료 모음"})
+    c("Ⓑ9 준비 단계로 옮기기 성공", r.status_code == 303 and "msg=" in loc(r))
+    with D.db_session() as conn:
+        c("Ⓑ9-b 단계가 PREPARE", D.get_material_stage(conn, pid) == "PREPARE")
+
+    # ⛔ 근거 없이 공식관리
+    r = cl.post(f"/projects/{pid}/baseline", data={"stage_to": "OFFICIAL"})
+    c("Ⓑ10 ⛔ 근거 없이 공식관리 → 막힘", r.status_code == 303 and "err=" in loc(r))
+
+    CUR["u"] = CEO
+    r = cl.post(f"/projects/{pid}/baseline",
+                data={"stage_to": "OFFICIAL", "entered_kind": "발주",
+                      "entered_basis": "협력사 발주서 3건 8/10 발송", "scope_kind": "관리번호전체"})
+    c("Ⓑ11 근거를 갖추면 공식관리로", r.status_code == 303 and "msg=" in loc(r), loc(r))
+    with D.db_session() as conn:
+        c("Ⓑ11-b 단계가 OFFICIAL", D.get_material_stage(conn, pid) == "OFFICIAL")
+
+    r = cl.get(f"/projects/{pid}/baseline")
+    c("Ⓑ12 기록이 화면에 보인다 (판정 근거·판정자)",
+      "협력사 발주서 3건" in r.text and "대표" in r.text)
+    c("Ⓑ13 공식관리에서는 '옮기기' 가 없고 '되돌리기' 만",
+      "되돌리기" in r.text and "로 옮기기" not in r.text)
+
+
 def main():
     print("=" * 74)
     print("  WP-04 기준전환 — 자재 관리 단계 시험 (임시 DB)")
@@ -139,6 +230,8 @@ def main():
         row = conn.execute("SELECT name, mgmt_code FROM projects WHERE id=?", (pid,)).fetchone()
         c("⛔ 프로젝트의 다른 칸은 그대로",
           row[0] == "시험설비" and row[1] == "A999T9901")
+
+    routes()          # B부 — 화면(라우트) 시험
 
     # ⭐ 실제 DB 를 정말로 안 건드렸나 — 수정시각으로 확인
     _after = os.path.getmtime(_REAL_DB) if os.path.exists(_REAL_DB) else None
