@@ -2474,6 +2474,46 @@ def init_db():
                 except Exception:
                     pass
 
+        # ── WP-04 기준전환 (대표 지시 2026-08-12 "코드 작업 해도 된다") ──────────
+        #  근거: 기준전환모델 V3 (승인 2026-08-11)
+        #    개발 초기 BOM 반복은 **Excel 로 계속** 하고, 제작에 들어간 뒤부터
+        #    WORKS 가 공식 원장이 된다. 그 넘어가는 지점이 '기준전환' 이다.
+        #
+        #  ⛔ 자동 판정 금지 — 발주가 있다고 시스템이 멋대로 '제작 진입' 으로 넘기지 않는다.
+        #     사람이 판정하고 무엇을 보고 판정했는지 남긴다.
+        #  ⛔ 기존 프로젝트는 전부 'EXCEL'(기본값)로 들어간다. 그래야 지금 동작이 안 바뀐다.
+        #     실제 잠금은 환경변수로 따로 켠다 (KNK_ENABLE_MATERIAL_STAGE_LOCK).
+        try:
+            _pcols = [r[1] for r in c.execute("PRAGMA table_info(projects)").fetchall()]
+            if "material_stage" not in _pcols:
+                # EXCEL    = 개발 초기 · Excel 로 운영 (WORKS 는 참고만)
+                # PREPARE  = WORKS 전환 준비 · 시작자료 모으는 중
+                # OFFICIAL = WORKS 공식관리 · 여기부터 WORKS 가 원장
+                c.execute("ALTER TABLE projects ADD COLUMN material_stage TEXT DEFAULT 'EXCEL'")
+        except Exception:
+            pass
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS material_baselines (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id    INTEGER NOT NULL REFERENCES projects(id),
+                stage_from    TEXT NOT NULL,              -- 넘어오기 전 단계
+                stage_to      TEXT NOT NULL,              -- 넘어간 뒤 단계
+                -- ⛔ 아래 넷이 비면 OFFICIAL 로 넘어갈 수 없다 (사람 판정 강제)
+                entered_kind  TEXT,                       -- 발주 / 가공 / 입고 / 조립
+                entered_basis TEXT,                       -- 무엇을 보고 판정했나 (사람이 적음)
+                entered_by    INTEGER REFERENCES users(id),
+                entered_at    TEXT,
+                scope_kind    TEXT,                       -- 관리번호전체 / 특정수주 / 특정호기 / 대수지정
+                scope_note    TEXT,
+                decided_by    INTEGER REFERENCES users(id),
+                decided_at    TEXT DEFAULT (datetime('now','localtime')),
+                note          TEXT
+            )""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_matbl_proj "
+                      "ON material_baselines(project_id, decided_at)")
+        except Exception:
+            pass
+
         # v5H226z763 (대표 지시): 제작요청서 수정 — 기존 prod_requests 테이블에 수정 일시·수정자 보강
         try:
             prcols = [r[1] for r in c.execute("PRAGMA table_info(prod_requests)").fetchall()]
@@ -16221,3 +16261,104 @@ def reset_demo_apply(actor_name: str = "") -> dict:
     except Exception as e:
         return {"ok": False, "error": str(e), "backup": backup}
 
+
+# ══════════════════════════════════════════════════════════════════════════
+#  WP-04 기준전환 — 자재 관리 단계
+#  근거: 기준전환모델 V3 (대표 승인 2026-08-11) · 대표 지시 2026-08-12
+#
+#  개발 초기 BOM 은 몇 번이고 바뀐다. 그걸 매번 시스템에 넣으면 서로 못 따라간다.
+#  그래서 **제작에 들어가기 전까지는 Excel 로 하던 대로** 두고,
+#  제작에 들어간 뒤부터 WORKS 를 공식 원장으로 삼는다. 그 지점이 '기준전환' 이다.
+#
+#  ⛔ 자동 판정 금지 (대표 확정)
+#     발주가 있다고 시스템이 멋대로 '제작 진입' 으로 넘기지 않는다.
+#     사람이 판정하고, 무엇을 보고 판정했는지 남긴다.
+# ══════════════════════════════════════════════════════════════════════════
+MATERIAL_STAGES = ("EXCEL", "PREPARE", "OFFICIAL")
+MATERIAL_STAGE_LABEL = {
+    "EXCEL":    "Excel 로 관리 중 (개발 초기)",
+    "PREPARE":  "WORKS 전환 준비 중 (시작자료 모으는 중)",
+    "OFFICIAL": "WORKS 공식관리 (여기부터 WORKS 가 원장)",
+}
+# 사람이 고를 수 있는 '제작에 들어갔다' 의 근거. ⛔ 이 중 하나가 없으면 공식관리로 못 간다.
+ENTERED_KINDS = ("발주", "가공", "입고", "조립")
+
+
+def get_material_stage(conn, project_id):
+    """이 프로젝트의 자재 관리 단계. 값이 없으면 EXCEL(지금까지 하던 대로)."""
+    try:
+        r = conn.execute("SELECT material_stage FROM projects WHERE id=?",
+                         (project_id,)).fetchone()
+    except Exception:
+        return "EXCEL"
+    v = (r[0] if r else None) or "EXCEL"
+    return v if v in MATERIAL_STAGES else "EXCEL"
+
+
+def material_stage_locked(conn, project_id):
+    """WORKS 발주·입고를 막아야 하는 단계인가.
+
+    ⚠ 기존 프로젝트는 전부 EXCEL 로 들어가므로, 이 잠금을 그냥 켜면
+       지금 잘 쓰고 계신 화면이 갑자기 막힌다. 그래서 **환경변수로 따로 켠다**.
+       (WP-01 에서 운영 잠금을 다룬 방식과 같다)
+    """
+    if (os.environ.get("KNK_ENABLE_MATERIAL_STAGE_LOCK", "") or "").strip().lower() \
+            not in ("1", "on", "true", "yes"):
+        return False
+    return get_material_stage(conn, project_id) != "OFFICIAL"
+
+
+def set_material_stage(conn, project_id, stage_to, *, decided_by,
+                       entered_kind=None, entered_basis=None, entered_by=None,
+                       scope_kind=None, scope_note=None, note=None):
+    """단계를 옮기고 그 사실을 기록한다. 규칙을 어기면 옮기지 않고 이유를 돌려준다.
+
+    돌려주는 값: {"ok": True, "from": .., "to": ..} 또는 {"ok": False, "error": "..."}
+    """
+    if stage_to not in MATERIAL_STAGES:
+        return {"ok": False, "error": f"모르는 단계입니다: {stage_to}"}
+    if not decided_by:
+        return {"ok": False, "error": "누가 전환하는지가 없습니다."}
+    stage_from = get_material_stage(conn, project_id)
+    if stage_from == stage_to:
+        return {"ok": False, "error": f"이미 「{MATERIAL_STAGE_LABEL[stage_to]}」 입니다."}
+
+    # ⛔ Excel → 공식관리 직행 금지.
+    #    사이의 '전환 준비' 단계가 시작자료(발주잔량·재고·기사용)를 모으는 자리다.
+    #    건너뛰면 시작자료 없이 공식 원장이 되어 버린다.
+    if stage_from == "EXCEL" and stage_to == "OFFICIAL":
+        return {"ok": False, "error":
+                "바로 공식관리로 갈 수 없습니다. 먼저 「WORKS 전환 준비」 로 옮겨 "
+                "시작자료(발주잔량·재고·기사용)를 모아 주십시오."}
+
+    # ⛔ 공식관리로 갈 때는 **사람이 판정한 제작 진입 근거**가 반드시 있어야 한다.
+    if stage_to == "OFFICIAL":
+        if entered_kind not in ENTERED_KINDS:
+            return {"ok": False, "error":
+                    "제작에 들어간 근거를 골라 주십시오 (발주·가공·입고·조립 중 하나). "
+                    "시스템이 대신 판정하지 않습니다."}
+        if not (entered_basis or "").strip():
+            return {"ok": False, "error": "무엇을 보고 판정하셨는지 적어 주십시오."}
+        if not entered_by:
+            return {"ok": False, "error": "누가 판정했는지가 없습니다."}
+
+    # 표 기본값(datetime('now','localtime'))과 같은 방식으로 시각을 얻는다
+    now = conn.execute("SELECT datetime('now','localtime')").fetchone()[0]
+    conn.execute("UPDATE projects SET material_stage=? WHERE id=?", (stage_to, project_id))
+    conn.execute(
+        "INSERT INTO material_baselines(project_id, stage_from, stage_to, entered_kind, "
+        "entered_basis, entered_by, entered_at, scope_kind, scope_note, decided_by, "
+        "decided_at, note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        (project_id, stage_from, stage_to, entered_kind, entered_basis, entered_by,
+         (now if entered_by else None), scope_kind, scope_note, decided_by, now, note))
+    return {"ok": True, "from": stage_from, "to": stage_to}
+
+
+def material_baseline_history(conn, project_id):
+    """이 프로젝트가 단계를 옮긴 기록 (최근 것부터)."""
+    try:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM material_baselines WHERE project_id=? "
+            "ORDER BY id DESC", (project_id,)).fetchall()]
+    except Exception:
+        return []
