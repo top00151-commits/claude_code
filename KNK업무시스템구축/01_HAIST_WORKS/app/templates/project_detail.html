@@ -744,7 +744,7 @@
               <button type="button" data-pgroup="somet"   class="active">SO 메타 (단가·일정·상태)</button>
               {# v5H226z1085: 중복만 보기 — 같은 규격 2줄 이상인 품목만 남기고 나머지 줄을 잠시 숨김(화면만·저장 안 함) #}
               {% if _spec_grp %}
-              <button type="button" class="dup-only-toggle" title="같은 규격이 2줄 이상인 품목만 남기고 나머지 줄을 잠시 숨깁니다. 다시 누르면 전체가 다시 보입니다. (화면에서만 잠시 숨기는 것 — 저장과 무관)">🔎 중복만 보기 ({{ _spec_grp|length }}묶음·{{ _dupns.rows }}줄)</button>
+              <button type="button" class="dup-only-toggle" title="같은 규격이 2줄 이상인 품목만 남기고, 같은 묶음끼리 붙여서 보여줍니다. 다시 누르면 원래 순서의 전체 목록으로 돌아옵니다. (화면에서만 — 저장과 무관)">🔎 중복만 보기 ({{ _spec_grp|length }}묶음·{{ _dupns.rows }}줄)</button>
               {% endif %}
               <button type="button" class="reset" id="partsResetCols-{{ so.id }}" title="컬럼 폭 원복">↻ 폭 리셋</button>
             </div>
@@ -2551,6 +2551,19 @@
         const on = tbl.classList.toggle('dup-only');
         dupBtn.classList.toggle('active', on);
         dupBtn.textContent = on ? '전체 보기 (숨긴 줄 되돌리기)' : dupLabel;
+        // v5H226z1085c (대표 "묶음으로 연속으로"): 켜면 같은 묶음끼리 붙여서(묶음 번호순·묶음 안은 원래 순서),
+        // 끄면 원래 순서 그대로 복원. 줄을 옮길 뿐 내용·저장 무관. 행번호(#)는 원래 번호를 그대로 들고 다님.
+        const tbody = tbl.tBodies[0];
+        if (!tbody) return;
+        if (!tbl._knkOrigRows) tbl._knkOrigRows = Array.from(tbody.rows);
+        const orig = tbl._knkOrigRows;
+        if (on) {
+          const dups = orig.filter(r => r.hasAttribute('data-dupgrp'));
+          dups.sort((a, b) => (+a.getAttribute('data-dupgrp') - +b.getAttribute('data-dupgrp')) || (orig.indexOf(a) - orig.indexOf(b)));
+          dups.forEach(r => tbody.appendChild(r));
+        } else {
+          orig.forEach(r => tbody.appendChild(r));
+        }
       });
     }
   });
