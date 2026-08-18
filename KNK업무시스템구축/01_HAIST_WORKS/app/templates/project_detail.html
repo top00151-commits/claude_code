@@ -885,8 +885,8 @@
                   <td style="font-size:11.5px;">
                     <span class="display-val">{{ u.spec or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit spec-inp" data-orig="{{ u.spec or '' }}" value="{{ u.spec or '' }}" style="width:120px;font-size:11.5px;">{% endif %}
-                    {# v5H226z1085: 묶음 번호 표기 — 「중복 ① · 2줄」 = 이 규격 묶음은 ①번이고 같은 규격이 2줄 #}
-                    {% if _spec_dup %}<span class="knk-flag-badge" title="같은 규격 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 · 중복 묶음 {{ _dmark }} — 같은 번호끼리 같은 규격">중복 {{ _dmark }} · {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄</span>{% endif %}
+                    {# v5H226z1085: 묶음 번호 표기 — 「중복 ① · 2줄」 = 이 규격 묶음은 ①번이고 같은 규격이 2줄. z1085b: 배지 클릭=같은 묶음 다음 줄로 이동 #}
+                    {% if _spec_dup %}<span class="knk-flag-badge" title="같은 규격 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 · 중복 묶음 {{ _dmark }} — 같은 번호끼리 같은 규격 · 배지를 누르면 다음 줄로 이동">중복 {{ _dmark }} · {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄</span>{% endif %}
                   </td>
                   <td style="font-size:11.5px;">{# v5H226z604: 제작사 #}
                     <span class="display-val">{{ u.maker or '—' }}</span>
@@ -2591,6 +2591,28 @@
     btn.addEventListener('click', () => {
       tr.classList.toggle('row-collapsed');
       btn.textContent = tr.classList.contains('row-collapsed') ? '▶' : btn.textContent.replace(/[▶▼]/g, '').trim() || '#';
+    });
+  });
+
+  // 6) v5H226z1085b (대표 "이부분도 있어야할듯"): 중복 배지 클릭 = 같은 묶음의 다음 줄로 이동+깜빡임(누를 때마다 순환).
+  //    1,194줄에서 짝을 스크롤로 뒤지지 않게. 화면 이동뿐 — 데이터·저장 무관.
+  document.querySelectorAll('table.so-units.parts-excel tbody tr[data-dupgrp] .knk-flag-badge').forEach(bd => {
+    bd.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const tr = bd.closest('tr');
+      const tbl2 = bd.closest('table');
+      if (!tr || !tbl2) return;
+      const grp = tr.getAttribute('data-dupgrp');
+      const rows = Array.from(tbl2.querySelectorAll('tbody tr[data-dupgrp="' + grp + '"]'));
+      if (rows.length < 2) return;
+      const next = rows[(rows.indexOf(tr) + 1) % rows.length];
+      // 즉시 이동(smooth 금지) — 이 화면은 세로 스크롤러가 중첩(.main + .list-scroll)이라
+      // smooth 모드에선 크로미움이 바깥(.main)을 안 움직이는 것을 렌더 실측으로 확인. 도착 인지는 깜빡임이 담당.
+      next.scrollIntoView({ block: 'center' });
+      next.classList.remove('dup-jump-flash');
+      void next.offsetWidth;  // 연타 시 애니메이션 재시작
+      next.classList.add('dup-jump-flash');
+      setTimeout(() => next.classList.remove('dup-jump-flash'), 1600);
     });
   });
 })();
