@@ -171,6 +171,11 @@ table.so-units.parts-excel .row-toggle:hover { color: var(--knk-red); }
 .parts-col-toggle button.active { background: #b07a18; color: #fff; }
 .parts-col-toggle button:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .parts-col-toggle button.reset { margin-left: auto; background: #fff; color: #555; border-color: #ccc; }
+/* v5H226z1085 (안지연 프로 요청·대표 "a,c 적용"): 중복만 보기 — 같은 규격 2줄 이상(data-dupgrp 있는 행)만 남김.
+   이 표(tbody tr)에만 적용 — 다른 표·카드 무영향. 화면 필터일 뿐 저장·데이터 무관. */
+table.so-units.parts-excel.dup-only tbody tr:not([data-dupgrp]) { display: none !important; }
+.parts-col-toggle button.dup-only-toggle { border-color: #d97706; }
+.parts-col-toggle button.dup-only-toggle.active { background: #d97706; border-color: #d97706; color: #fff; }
 
 /* v5H226z11/z12: SO 카드 풀스크린 팝업 — 모니터 최대 크기 */
 .so-card.so-fullscreen {

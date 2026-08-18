@@ -724,6 +724,13 @@
                그래서 빨간 경고가 아니라 '확인해 보세요' 수준(연한 색 + 규격칸 표식)으로만 알린다. #}
             {% set _spec_cnt = {} %}
             {% if _is_parts and _units_desc %}{% for _su in _units_desc %}{% set _sp = (_su.spec or '')|trim %}{% if _sp %}{% if _spec_cnt.update({_sp: (_spec_cnt.get(_sp, 0) + 1)}) %}{% endif %}{% endif %}{% endfor %}{% endif %}
+            {# v5H226z1085 (안지연 프로 요청·대표 "a,c 적용" 08-11): 중복 '묶음 번호' — 같은 규격끼리 같은 번호(첫 등장 순서 ①②③…).
+               1,194줄 목록에서 「중복 2」 배지만으로는 짝이 어디 있는지 못 찾는다는 신고 → 번호로 눈 대조. 51묶음부터는 #51 형식. #}
+            {% set _spec_grp = {} %}
+            {% if _is_parts and _units_desc %}{% for _su in _units_desc %}{% set _sp = (_su.spec or '')|trim %}{% if _sp and _spec_cnt.get(_sp, 0) > 1 and _sp not in _spec_grp %}{% if _spec_grp.update({_sp: (_spec_grp|length + 1)}) %}{% endif %}{% endif %}{% endfor %}{% endif %}
+            {% set _GRP_MARKS = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿' %}
+            {% set _dupns = namespace(rows=0) %}
+            {% if _spec_grp %}{% for _v in _spec_cnt.values() %}{% if _v > 1 %}{% set _dupns.rows = _dupns.rows + _v %}{% endif %}{% endfor %}{% endif %}
             {% set _krw_col_ccy = 'KRW' if (_pfx or _so_has_krworig) else (_so_ccy if _is_fx_view else 'KRW') %}
             {# v5H226z6/z7: PARTS 일 때 28컬럼이라 가로 스크롤 — SO 카드 안에서만 #}
             {# 부모 grid/flex 가 자식 min-width 에 의해 늘어나는 걸 막기 위해 #}
@@ -735,6 +742,10 @@
               <span class="lbl">📋 컬럼 그룹:</span>
               <button type="button" data-pgroup="basic"   class="active">기본 (사진·품명·규격·수량 등)</button>
               <button type="button" data-pgroup="somet"   class="active">SO 메타 (단가·일정·상태)</button>
+              {# v5H226z1085: 중복만 보기 — 같은 규격 2줄 이상인 품목만 남기고 나머지 줄을 잠시 숨김(화면만·저장 안 함) #}
+              {% if _spec_grp %}
+              <button type="button" class="dup-only-toggle" title="같은 규격이 2줄 이상인 품목만 남기고 나머지 줄을 잠시 숨깁니다. 다시 누르면 전체가 다시 보입니다. (화면에서만 잠시 숨기는 것 — 저장과 무관)">🔎 중복만 보기 ({{ _spec_grp|length }}묶음·{{ _dupns.rows }}줄)</button>
+              {% endif %}
               <button type="button" class="reset" id="partsResetCols-{{ so.id }}" title="컬럼 폭 원복">↻ 폭 리셋</button>
             </div>
             {% endif %}
@@ -821,7 +832,10 @@
                 {% set _u_ccy = u.currency or u.eff_currency or _cur or 'KRW' %}
                 {% set _ov_c = (u.currency and u.currency != (so.currency or _cur)) %}
                 {% set _spec_dup = (_spec_cnt.get((u.spec or '')|trim, 0) > 1) if _is_parts else false %}
-                <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}"{% if _spec_dup %} class="knk-row-flag" title="같은 규격이 이 수주에 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 있습니다 — 납기가 달라 나눠 적은 것이면 정상입니다"{% endif %}>{# v5H226z1029: 공용 강조 클래스로 통일(덧칠 방식) #}
+                {# v5H226z1085: 이 줄의 중복 묶음 번호(①②…·51부터 #51) — 배지·행 속성(중복만 보기 필터 기준)에 함께 사용 #}
+                {% set _dgrp = _spec_grp.get((u.spec or '')|trim, 0) if _spec_dup else 0 %}
+                {% set _dmark = ((_GRP_MARKS[_dgrp-1]) if _dgrp <= 50 else ('#' ~ _dgrp)) if _dgrp else '' %}
+                <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}"{% if _spec_dup %} class="knk-row-flag" data-dupgrp="{{ _dgrp }}" title="같은 규격이 이 수주에 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 있습니다 (중복 묶음 {{ _dmark }} — 같은 번호끼리 같은 규격) — 납기가 달라 나눠 적은 것이면 정상입니다"{% endif %}>{# v5H226z1029: 공용 강조 클래스로 통일(덧칠 방식) #}
                   {% if _is_parts %}
                   <td style="text-align:center;color:#888;font-size:10.5px;font-family:monospace;background:#f4f1e8;cursor:pointer;" class="row-num-cell" title="행 번호 — 클릭하면 이 행 접기/펴기">
                     <button type="button" class="row-toggle" title="행 접기/펴기">{{ loop.index }}</button>
@@ -871,7 +885,8 @@
                   <td style="font-size:11.5px;">
                     <span class="display-val">{{ u.spec or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit spec-inp" data-orig="{{ u.spec or '' }}" value="{{ u.spec or '' }}" style="width:120px;font-size:11.5px;">{% endif %}
-                    {% if _spec_dup %}<span class="knk-flag-badge" title="같은 규격 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄">중복 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}</span>{% endif %}
+                    {# v5H226z1085: 묶음 번호 표기 — 「중복 ① · 2줄」 = 이 규격 묶음은 ①번이고 같은 규격이 2줄 #}
+                    {% if _spec_dup %}<span class="knk-flag-badge" title="같은 규격 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 · 중복 묶음 {{ _dmark }} — 같은 번호끼리 같은 규격">중복 {{ _dmark }} · {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄</span>{% endif %}
                   </td>
                   <td style="font-size:11.5px;">{# v5H226z604: 제작사 #}
                     <span class="display-val">{{ u.maker or '—' }}</span>
@@ -2527,6 +2542,17 @@
     if (resetBtn) resetBtn.addEventListener('click', () => {
       tbl.querySelectorAll('thead th').forEach(th => { th.style.width = ''; th.style.minWidth = ''; });
     });
+    // v5H226z1085 (안지연 프로 요청): 중복만 보기 — data-dupgrp 있는 행(같은 규격 2줄 이상)만 남김.
+    // 화면 필터일 뿐 저장·데이터와 무관. 새로고침하면 항상 전체(일부러 기억 안 함 — 줄이 사라진 걸로 오해 방지).
+    const dupBtn = bar.querySelector('.dup-only-toggle');
+    if (dupBtn) {
+      const dupLabel = dupBtn.textContent;
+      dupBtn.addEventListener('click', () => {
+        const on = tbl.classList.toggle('dup-only');
+        dupBtn.classList.toggle('active', on);
+        dupBtn.textContent = on ? '전체 보기 (숨긴 줄 되돌리기)' : dupLabel;
+      });
+    }
   });
 
   // 4) v5H226z19: sticky 가로 스크롤 프록시 — wrapper 와 proxy scrollLeft 동기화
