@@ -227,7 +227,20 @@ html,body{background:#fff!important;overflow:auto!important;}
             <select name="is_export"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option></select>
           </div>
           <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span></label>
-            <input name="name" placeholder="예: 압착 자동화설비 1호기" value="{{ project.name|default('') if ed else '' }}"></div>
+            {% if not ed %}
+            {# v5H226z1087 (대표 지시 08-19·2차 확장): 검사기(T) 등록은 **모든 형태**에서 프로젝트명이 분야로 정해짐
+               (TSP·PBA·SENSOR·전장) → 드롭다운 선택. 수기 입력도 열어둠('직접 입력…' — 개조·A/S 서술명 등).
+               다른 탭(자동화 등)은 기존 자유 입력 그대로. 수정(ed) 화면은 기존 이름 보존을 위해 자유 입력 유지. #}
+            <select id="qNameSel" style="display:none;" onchange="qNamePick(this.value)" title="검사기 제품의 분야 — 프로젝트명으로 저장됩니다">
+              <option value="">(분야 선택 — TSP·PBA·SENSOR·전장)</option>
+              <option value="TSP">TSP</option>
+              <option value="PBA">PBA</option>
+              <option value="SENSOR">SENSOR</option>
+              <option value="전장">전장</option>
+              <option value="__free__">직접 입력…</option>
+            </select>
+            {% endif %}
+            <input name="name" id="qNameInp" placeholder="예: 압착 자동화설비 1호기" value="{{ project.name|default('') if ed else '' }}"></div>
           </div></div>
           <div class="qf-group"><div class="qf-group-ttl">품목 · 사양</div><div class="qf-grid">
           {# v5H226z445(대표 지시): 모델명·장비명을 자재 목록 '위쪽 줄'로 이동 #}
@@ -558,6 +571,34 @@ function qSyncShip(){
   qCalcParts();
   qItemsToggle();  // v5H226z1050: 제품(SEMI)일 때만 '📋 항목' 블록
   qBuildUnits();   // v5H226z455: 형태 바뀌면 호기별 섹션 재평가 — 호기는 완제품만
+  qNameMode();     // v5H226z1087: 검사기+제품이면 프로젝트명을 분야 드롭다운으로
+}
+
+/* v5H226z1087 (대표 지시 08-19·2차 확장): 검사기(T) 등록 → 프로젝트명 = 분야 드롭다운(TSP·PBA·SENSOR·전장).
+   **모든 형태(완제품·제품·상품·기타) 공통** — 수기 입력은 '직접 입력…'으로 열어둠(대표 "수기로 입력도 가능하도록").
+   제출 칸은 그대로 input[name=name] 하나 — 드롭다운은 그 값을 채우는 역할만(서버·검증 무변경).
+   추가 발주(PO≠신규)는 프로젝트명이 기존 프로젝트에서 상속되므로 드롭다운을 끈다. */
+function qNameMode(){
+  var sel=document.getElementById('qNameSel'), inp=document.getElementById('qNameInp');
+  if(!sel||!inp) return;   // 수정(ed) 화면엔 드롭다운 자체가 없다
+  // ⚠QF_BIZ 전역은 이 함수의 첫 호출(초기 qSyncShip)보다 아래에서 선언된다 — DOM hidden(#qBizDiv)에서 직접 읽어 순서 무관하게
+  var biz=(((document.getElementById('qBizDiv')||{}).value)||'').toUpperCase();
+  var on=(biz==='T');
+  try{ if(on && typeof qIsFollowup==='function' && qIsFollowup()) on=false; }catch(_e){}
+  sel.style.display = on ? '' : 'none';
+  if(on){
+    var known=['TSP','PBA','SENSOR','전장'];
+    if(known.indexOf((inp.value||'').trim())>=0){ sel.value=(inp.value||'').trim(); inp.style.display='none'; }
+    else if(!(inp.value||'').trim()){ sel.value=''; inp.style.display='none'; }
+    else { sel.value='__free__'; inp.style.display=''; }   // 이미 적어둔 자유 이름은 지우지 않는다
+  } else {
+    inp.style.display='';
+  }
+}
+function qNamePick(v){
+  var inp=document.getElementById('qNameInp'); if(!inp) return;
+  if(v==='__free__'){ inp.style.display=''; inp.value=''; try{ inp.focus(); }catch(_e){} }
+  else { inp.value=v; inp.style.display='none'; }
 }
 
 /* v5H226z1050 (대표 지시): 제품 = 견적서 한 줄 아래 구성품 여러 개(소켓 2개·소켓PCB 3개 · 단가 각각).
@@ -774,6 +815,7 @@ function qSyncPoType(){
     else { if(auto) auto.style.display = _manOn ? 'none' : ''; inp.style.display='none'; inp.disabled=true; inp.value=''; qMgmtHide(); }
   }
   qBuildUnits();   // 추가면 호기별 숨김 재평가
+  try{ qNameMode(); }catch(_e){}   // v5H226z1087: PO유형(신규↔추가) 전환 시 프로젝트명 드롭다운 재평가
 }
 function qMgmtHide(){ var l=document.getElementById('qMgmtList'); if(l) l.style.display='none'; }
 // v5H226z885(대표 지시): 관리번호 수동발행(지정 3명) — 체크 토글·검증(사용가능 확인)·변경 시 재검증 요구.
