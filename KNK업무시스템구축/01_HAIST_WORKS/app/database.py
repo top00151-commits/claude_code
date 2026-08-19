@@ -3635,6 +3635,10 @@ def init_db():
                 # v5H226z942 (대표 지시): 수주(SO) 환율 — 상품 양식 올릴 때 환율(1 USD=원)이 저장 안 되던 버그.
                 #   컬럼이 없어 overwrite-product/import-product-confirm 의 exchange_rate 저장이 조용히 스킵됐음.
                 ("exchange_rate",      "ALTER TABLE orders ADD COLUMN exchange_rate REAL"),
+                # v5H226z1088 (대표 지시 2026-08-19): 제품(SEMI) '작업일정표 표시수량·단위(EA/식/SET)'.
+                #   표시 전용 — 금액·매출 계산에 일절 안 씀. NULL=미입력(작업일정표는 기존 품명별 줄 유지).
+                ("board_qty",          "ALTER TABLE orders ADD COLUMN board_qty INTEGER"),
+                ("board_unit",         "ALTER TABLE orders ADD COLUMN board_unit TEXT"),
             ]:
                 if col not in ocols:
                     try:

@@ -242,10 +242,26 @@ html,body{background:#fff!important;overflow:auto!important;}
             {% endif %}
             <input name="name" id="qNameInp" placeholder="예: 압착 자동화설비 1호기" value="{{ project.name|default('') if ed else '' }}"></div>
           </div></div>
-          <div class="qf-group"><div class="qf-group-ttl">품목 · 사양</div><div class="qf-grid">
+          {# v5H226z1088 (대표 지시 08-19): 제목 옆 안내 — 여기 모델명·장비명 = 작업일정표 한 줄의 대표 이름 #}
+          <div class="qf-group"><div class="qf-group-ttl">품목 · 사양 <span style="font-weight:400;font-size:11px;color:var(--qv-ink-3);text-transform:none;letter-spacing:0;">— 여기 모델명·장비명이 <b>작업일정표 한 줄</b>에 표시되는 대표 이름입니다</span></div><div class="qf-grid">
           {# v5H226z445(대표 지시): 모델명·장비명을 자재 목록 '위쪽 줄'로 이동 #}
           <div class="qf-f c6"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명" value="{{ project.model_name|default('') if ed else '' }}"></div>
           <div class="qf-f c6"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)" value="{{ project.equip_name|default('') if ed else '' }}"></div>
+          {# v5H226z1088 (대표 지시 08-19): 형태=제품(SEMI) — '수량·금액' 구획을 없애고 여기로:
+             작업일정표 수량(표시 전용)·단위(EA/식/SET) 신설 + 통화·환율 칸은 아래 구획에서 DOM 이동(qSemiLayout·값 유지)
+             + 금액 = 항목 합계 자동 표기(입력 아님). 금액·매출 계산은 무변경(항목 합계 그대로). 다른 형태는 기존 그대로. #}
+          {% if can_money %}
+          <div class="qf-f c3" id="qBoardQtyCell" style="display:none;"><label>작업일정표 수량 <span style="font-weight:400;color:var(--qv-ink-3);">(한 줄 표시용)</span></label>
+            <input type="number" name="board_qty" id="qBoardQty" min="1" step="1" placeholder="예: 10세트면 10" value="{{ board_qty|default('') if ed else '' }}"></div>
+          <div class="qf-f c2" id="qBoardUnitCell" style="display:none;"><label>단위</label>
+            <select name="board_unit" id="qBoardUnit">
+              <option value="EA" {% if ed and (board_unit|default('')) == 'EA' %}selected{% endif %}>EA</option>
+              <option value="식" {% if ed and (board_unit|default('')) == '식' %}selected{% endif %}>식</option>
+              <option value="SET" {% if ed and (board_unit|default('')) == 'SET' %}selected{% endif %}>SET</option>
+            </select></div>
+          <div class="qf-f c4" id="qSemiAmtCell" style="display:none;"><label>금액 <span style="font-weight:400;color:var(--qv-ink-3);">({% if ed %}수주 금액{% else %}항목 합계 · 자동{% endif %})</span></label>
+            <div id="qSemiAmt" style="min-height:38px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 12px;background:var(--qv-surface-3);border:1px solid var(--qv-line);border-radius:8px;font-weight:700;">0 <span id="qSemiAmtCur" style="font-weight:400;font-size:11px;color:var(--qv-ink-3);">KRW</span></div></div>
+          {% endif %}
           {# 형태=상품(부품 품명/모델) · 기타(기타 품명) 선택 시 펼침 — 신규 등록 전용(수정은 부품 상세를 '고급 편집'에서) #}
           {% if not ed %}
           {# v5H226z430(대표 지시): 형태=상품 → 자재를 폼에서 바로 여러 개 입력. 많으면 등록 후 상세 PACKING LIST·엑셀.
@@ -336,18 +352,20 @@ html,body{background:#fff!important;overflow:auto!important;}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
       <button type="button" id="qItemAdd" style="padding:7px 15px;background:var(--qv-ink-2);color:#fff;border:0;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 항목 추가</button>
       <span style="font-size:11.5px;color:var(--qv-ink-3);">
-        위 <b>수량·단가·금액</b> 은 항목 합계로 <b>자동</b> 채워집니다 · 항목을 안 적으면 지금처럼 <b>1품목</b>으로 등록됩니다
+        {# v5H226z1088: 수량·금액 구획이 사라져 안내 갱신 — 금액=항목 합계 자동, 일정표 수량=위 표시수량 #}
+        금액은 항목 합계로 <b>자동</b> 계산되어 위 <b>금액</b> 칸에 표기됩니다 · 작업일정표에는 위 <b>작업일정표 수량·단위</b>가 한 줄로 나옵니다(비우면 품명별 줄)
       </span>
     </div>
   </div>
 </div>
 {% endif %}
-<div class="qf-group"><div class="qf-group-ttl">수량 · 금액</div><div class="qf-grid">
+{# v5H226z1088 (대표 지시): 형태=제품이면 이 구획 통째 숨김(qSemiLayout) — 통화·환율은 품목·사양으로 이동, 수량·단가·금액 입력칸은 숨긴 채 항목 합계 자동값 그대로 전송(서버 무변경) #}
+<div class="qf-group" id="qQtyAmtGroup"><div class="qf-group-ttl">수량 · 금액</div><div class="qf-grid">
 
           {# 4행 — 수량(0000·좁게) · 통화 · 단가 · 금액(단가보다 크게). 수량은 항상 표시, 금액류는 영업·관리만 #}
           <div class="qf-f c2" id="qTopQtyCell"><label>수량</label><input type="number" name="unit_qty" min="1" placeholder="0000" value="{{ project.unit_qty|default(1) if ed else 1 }}"></div>
           {% if can_money %}
-          <div class="qf-f c3"><label>통화</label>
+          <div class="qf-f c3" id="qCcyCell"><label>통화</label>
             <select name="currency" id="qCurrency" onchange="qToggleFx()">
               <option value="KRW" {% if ed and (project.currency|default('KRW')) == 'KRW' %}selected{% endif %}>₩ KRW (원)</option><option value="USD" {% if ed and project.currency == 'USD' %}selected{% endif %}>$ USD (달러)</option>
               <option value="VND" {% if ed and project.currency == 'VND' %}selected{% endif %}>₫ VND (동)</option><option value="JPY" {% if ed and project.currency == 'JPY' %}selected{% endif %}>¥ JPY (엔)</option>
@@ -555,6 +573,46 @@ html,body{background:#fff!important;overflow:auto!important;}
 function qToggleFx(){
   var sel=document.getElementById('qCurrency'); if(!sel) return;
   var w=document.getElementById('qFxWrap'); if(w) w.style.display=(sel.value!=='KRW')?'flex':'none';
+  var cc=document.getElementById('qSemiAmtCur'); if(cc) cc.textContent=sel.value;   /* v5H226z1088: 제품 금액 표기의 통화 코드 동기화 */
+}
+/* v5H226z1088 (대표 지시 08-19): 형태=제품(SEMI) — '수량·금액' 구획을 숨기고 통화·환율 칸을 '품목·사양'으로 옮긴다.
+   ⚠칸을 복제하지 않고 DOM 째로 옮긴다(입력값·onchange 유지 — 두 벌이면 어긋난다). 다른 형태로 바꾸면 원위치.
+   숨긴 구획의 수량·단가·금액 입력칸은 DOM에 그대로 살아 있어(z1050 항목 합계 자동 채움) 서버 전송·검증 무변경. */
+function qSemiLayout(){
+  if(typeof qCanMoney!=='undefined' && !qCanMoney) return;   /* 금액 권한 없으면 기존 화면 유지(항목 입력 자체가 없음) */
+  var v=((document.getElementById('qFormType')||{}).value)||'ASSEMBLY';
+  var on=(v==='SEMI');
+  ['qBoardQtyCell','qBoardUnitCell','qSemiAmtCell'].forEach(function(id){
+    var e=document.getElementById(id); if(e) e.style.display=on?'':'none';
+  });
+  var grp=document.getElementById('qQtyAmtGroup');
+  var ccy=document.getElementById('qCcyCell'), fx=document.getElementById('qFxWrap');
+  var amtCell=document.getElementById('qSemiAmtCell');
+  if(grp) grp.style.display=on?'none':'';
+  if(ccy && amtCell){
+    if(on){
+      if(ccy.parentNode!==amtCell.parentNode || ccy.nextSibling!==(fx||amtCell)){
+        amtCell.parentNode.insertBefore(ccy, amtCell);
+        if(fx) amtCell.parentNode.insertBefore(fx, amtCell);
+      }
+    } else if(grp){
+      var grid=grp.querySelector('.qf-grid');
+      if(grid && ccy.parentNode!==grid){
+        grid.insertBefore(ccy, document.getElementById('qTopPriceCell'));
+        if(fx) grid.insertBefore(fx, document.getElementById('qUnitWrap'));
+      }
+    }
+  }
+  qSemiAmtSync();
+}
+function qSemiAmtSync(){
+  var box=document.getElementById('qSemiAmt'); if(!box) return;
+  var am=document.getElementById('qAmount');
+  var cc=box.querySelector('#qSemiAmtCur');
+  box.textContent=((am&&am.value)||'0')+' ';
+  if(cc) box.appendChild(cc);
+  var sel=document.getElementById('qCurrency');
+  if(cc && sel) cc.textContent=sel.value;
 }
 // v5H226z350(대표 지시): 형태(제품/상품/기타) → 부품/기타 칸 토글. 상품(PARTS)=부품 품명·모델, 기타(ETC)=기타 품명.
 //   2차거래 토글(qSyncSec)은 폐지 — 고객사2가 본문 상시 입력칸이 됨.
@@ -570,6 +628,7 @@ function qSyncShip(){
   ['qTopQtyCell','qTopPriceCell','qTopAmtCell'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=_isParts?'none':''; });
   qCalcParts();
   qItemsToggle();  // v5H226z1050: 제품(SEMI)일 때만 '📋 항목' 블록
+  qSemiLayout();   // v5H226z1088: 제품이면 '수량·금액' 숨김 + 통화·환율을 품목·사양으로 + 표시수량·단위·금액 표기
   qBuildUnits();   // v5H226z455: 형태 바뀌면 호기별 섹션 재평가 — 호기는 완제품만
   qNameMode();     // v5H226z1087: 검사기+제품이면 프로젝트명을 분야 드롭다운으로
 }
@@ -609,6 +668,8 @@ function qItemsToggle(){
   var on=(v==='SEMI');
   g.style.display=on?'':'none';
   if(!on) qItemClearAll();          /* 다른 형태로 바꾸면 적어둔 항목을 남기지 않는다(엉뚱한 저장 방지) */
+  /* v5H226z1088: 수량·금액 구획이 숨어 항목이 입력의 전부 — 켜지면 첫 줄을 미리 펼쳐준다(상품 qAddPart와 동일) */
+  if(on && !document.querySelector('#qItemRows .qi-row')) qItemAdd();
   qItemCalc();
 }
 function qItemRowHtml(){
@@ -651,6 +712,7 @@ function qItemCalc(){
     if(up) up.value=(tq?Math.floor(ta/tq):0).toLocaleString();   /* 표시용 평균(줄별 단가는 그대로 저장) */
     if(am) am.value=ta.toLocaleString();
   }
+  if(typeof qSemiAmtSync==='function') qSemiAmtSync();   /* v5H226z1088: 품목·사양의 '금액(항목 합계)' 표기 갱신 */
 }
 function qItemAttach(row){
   var del=row.querySelector('.qi-del');
@@ -1089,9 +1151,15 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
     if(_od && !((_od.value||'').trim())){ var _n=new Date(); _od.value=_n.getFullYear()+'-'+('0'+(_n.getMonth()+1)).slice(-2)+'-'+('0'+_n.getDate()).slice(-2); }   // 발주일 비면 오늘(폼 안내대로 자동)
     var _du=document.getElementById('qDueDate');
     if(_du && !((_du.value||'').trim())){ e.preventDefault(); err.textContent='납품일을 입력하세요. (작업일정표 표시에 필요)'; err.classList.add('show'); try{_du.focus();}catch(_e){} qScrollErr(); return; }
+    /* v5H226z1088: 제품(SEMI)은 단가칸이 숨고 항목(구성품)이 입력의 전부 — 항목 합계로 검증하고 안내도 항목 기준으로 */
+    if(_sfV==='SEMI' && typeof qCanMoney!=='undefined' && qCanMoney){
+      var _semiAmt=parseFloat((((document.getElementById('qAmount')||{}).value)||'0').replace(/,/g,''))||0;
+      if(_semiAmt<=0){ e.preventDefault(); err.textContent='항목(구성품)을 1줄 이상 적어주세요 — 품명·수량·단가.'; err.classList.add('show'); try{ var _fi=document.querySelector('#qItemRows .qi-name'); if(_fi) _fi.focus(); }catch(_e){} qScrollErr(); return; }
+    } else {
     var _priceEl=(((document.getElementById('qMultiUnit')||{}).value)||'')==='1' ? document.getElementById('qAmount') : document.getElementById('qUnitPrice');
     var _priceV=parseFloat((((_priceEl||{}).value)||'0').replace(/,/g,''))||0;
     if(_priceV<=0){ e.preventDefault(); err.textContent='단가를 입력하세요 (0보다 커야 합니다).'; err.classList.add('show'); try{ if(_priceEl) _priceEl.focus(); }catch(_e){} qScrollErr(); return; }
+    }
   }
 });
 // 서버 검증 오류(고객사 미등록 등) 표시 + 고객사 prefill

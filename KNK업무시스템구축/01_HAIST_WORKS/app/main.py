@@ -23775,6 +23775,9 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             _soform_col = ("COALESCE(o.so_form,'') AS so_form" if "so_form" in _ord_cols else "'' AS so_form")
             _soship_col = ("COALESCE(o.shipment_form,'') AS o_shipform" if "shipment_form" in _ord_cols else "'' AS o_shipform")
             _pptype_sub = "(SELECT COALESCE(pj.project_type,'NEW_EQUIP') FROM projects pj WHERE pj.id=o.project_id) AS proj_ptype"
+            # v5H226z1088 (대표 지시): 제품(SEMI) '작업일정표 표시수량·단위' — 있으면 품명별 분할 대신 합산 1줄
+            _bqty_col = ("COALESCE(o.board_qty,0) AS o_bqty, COALESCE(o.board_unit,'') AS o_bunit"
+                         if "board_qty" in _ord_cols else "0 AS o_bqty, '' AS o_bunit")
             _i_extra += (", oi.line_note AS i_note" if "line_note" in _oi_cols else ", '' AS i_note")
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
@@ -23782,7 +23785,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                 "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
                 + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", " + _optype_col + ", "
-                + _soform_col + ", " + _soship_col + ", " + _pptype_sub + ", "
+                + _soform_col + ", " + _soship_col + ", " + _pptype_sub + ", " + _bqty_col + ", "
                 "oi.id AS oi_id, oi.unit_label AS lbl, oi.unit_price AS up, oi.amount AS amt, COALESCE(oi.qty,1) AS i_qty, "
                 + _i_extra + " "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
@@ -23814,6 +23817,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "so_form": (d.get("so_form") or "").upper(),   # v5H226z1058: 수주별 형태(단일 진실)
                         "o_shipform": (d.get("o_shipform") or "").upper(),   # v5H226z1058: 형태 폴백용
                         "proj_ptype": (d.get("proj_ptype") or "NEW_EQUIP").upper(),   # v5H226z1058: 소모품 프로젝트 판정용
+                        "o_bqty": int(d.get("o_bqty") or 0), "o_bunit": (d.get("o_bunit") or ""),   # v5H226z1088: 표시수량·단위
                         "items": [],
                     }
                 if d.get("oi_id") is not None:
@@ -23880,6 +23884,20 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                 }
 
             def _so_lines(_so):
+                # v5H226z1088 (대표 지시): 제품(SEMI) 표시수량(board_qty) 있으면 최우선 — '대표 한 줄'.
+                #   수량=표시수량(단위 EA/식/SET)·금액=SO 총액(항목 합·불변)·단가=총액÷표시수량(10세트 $7,100→$710).
+                #   ⚠z1050 제품 SO는 so_type='CONSUMABLE'(빈 SO 관행)이라 아래 합산줄(수량=항목 수량합 — 대표 신고
+                #   "이상한 수량")로 빠진다 → 그 판정보다 먼저 본다(실측으로 잡음). board_qty 는 제품 등록·수정만 기록.
+                #   없으면(기존 데이터 전부) 아래 기존 경로 그대로 — 화면 무변화.
+                if int(_so.get("o_bqty") or 0) > 0:
+                    _bl = _collapse_line(_so)
+                    _bq88 = int(_so["o_bqty"])
+                    _bl["qty"] = _bq88
+                    _bl["count"] = _bq88
+                    _bl["price"] = (float(_so["o_total"] or 0) / max(1, _bq88))
+                    _bl["board_unit"] = (_so.get("o_bunit") or "EA")
+                    _bl["is_bqty"] = True
+                    return [_bl]
                 # 장비 SO → 호기 라인(override 상속) → z454 묶음. 소모품/부품/빈SO 는 1줄.
                 if _so["so_type"] in ("PARTS_EXPORT", "CONSUMABLE"):
                     return [_collapse_line(_so)]
@@ -24500,6 +24518,9 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
+                # v5H226z1088 (대표 지시): 제품 표시수량 줄 — 수량 칸 "10 SET"·"1식" 표기 + 셀 직접수정 제외(수정은 빠른 폼)
+                _iu["is_bqty"] = bool(_ln.get("is_bqty"))
+                _iu["board_unit"] = _ln.get("board_unit") or ""
                 # v5H226z974 (대표 지시): 상품(PARTS_EXPORT) 줄 — 수량='완제품 몇 대분'(orders.unit_qty).
                 #   줄 단위 판정(so_type)이라 '장비 프로젝트+상품 추가발주(z436)' 혼합도 그 줄만 상품으로 처리.
                 _iu["so_oid"] = _ln.get("oid")
@@ -26024,6 +26045,9 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
+                # v5H226z1088 (대표 지시): 제품 표시수량 줄 — 수량 칸 "10 SET"·"1식" 표기 + 셀 직접수정 제외(수정은 빠른 폼)
+                _iu["is_bqty"] = bool(_ln.get("is_bqty"))
+                _iu["board_unit"] = _ln.get("board_unit") or ""
                 # v5H226z974 (대표 지시): 상품(PARTS_EXPORT) 줄 — 수량='완제품 몇 대분'(orders.unit_qty).
                 #   줄 단위 판정(so_type)이라 '장비 프로젝트+상품 추가발주(z436)' 혼합도 그 줄만 상품으로 처리.
                 _iu["so_oid"] = _ln.get("oid")
@@ -28647,16 +28671,21 @@ async def projects_quick_edit_form(request: Request, pid: int):
     p = dict(p)
     # 대표 SO(orders 최신)의 수주번호·납품위치 — 표시·편집용
     _so_no, _ship_to = "", ""
+    _board_qty, _board_unit = "", ""   # v5H226z1088: 제품(SEMI) 작업일정표 표시수량·단위(대표 SO)
     try:
         with db_session() as c3:
             _ocols = {r[1] for r in c3.execute("PRAGMA table_info(orders)").fetchall()}
             _ship_sql = "ship_to" if "ship_to" in _ocols else "'' AS ship_to"
+            _bq_sql = ("COALESCE(board_qty,''), COALESCE(board_unit,'')" if "board_qty" in _ocols
+                       else "'', ''")
             _r = c3.execute(
-                f"SELECT order_no, {_ship_sql} FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1",
+                f"SELECT order_no, {_ship_sql}, {_bq_sql} FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1",
                 (pid,)).fetchone()
             if _r:
                 _so_no = _r[0] or ""
                 _ship_to = (_r[1] if len(_r) > 1 else "") or ""
+                _board_qty = (_r[2] if len(_r) > 2 else "") or ""
+                _board_unit = (_r[3] if len(_r) > 3 else "") or ""
     except Exception:
         pass
     _embed = str(request.query_params.get("embed") or "").strip().lower() in ("1", "true", "on", "yes", "y")
@@ -28666,7 +28695,8 @@ async def projects_quick_edit_form(request: Request, pid: int):
                can_money=bool(can_view_sales(u)),
                PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
                customers=_logi.customers_for_picker(),
-               project=p, so_no=_so_no, ship_to=_ship_to)
+               project=p, so_no=_so_no, ship_to=_ship_to,
+               board_qty=_board_qty, board_unit=_board_unit)
 
 
 # v5H226z460 (대표 지시): 상품(PARTS) 자재 행의 매입단가·마진% 파싱.
@@ -28793,6 +28823,20 @@ async def projects_new_submit(request: Request):
                                  "qty": max(1, _q), "price": _pr})
         _z1050_items = _z1050_items[:50]      # 상한(그 이상은 상품/소모품 경로가 맞다)
     _z1050_total = sum(x["qty"] * x["price"] for x in _z1050_items)
+    # v5H226z1088 (대표 지시 08-19): 제품(SEMI) '작업일정표 표시수량·단위' — 표시 전용(금액 계산 무관).
+    #   비우면 None = 작업일정표가 기존처럼 품명별 줄. 제품일 때만 읽는다(다른 형태 값은 무시).
+    _bq_v, _bu_v = None, "EA"
+    if (form.get("shipment_form") or "").strip().upper() == "SEMI":
+        _bq_raw = (form.get("board_qty") or "").strip().replace(",", "")
+        try:
+            _bq_i = int(float(_bq_raw)) if _bq_raw else 0
+        except (ValueError, TypeError):
+            _bq_i = 0
+        if _bq_i > 0:
+            _bq_v = _bq_i
+        _bu_v = (form.get("board_unit") or "").strip()
+        if _bu_v not in ("EA", "식", "SET"):
+            _bu_v = "EA"
     _strict = (_status_v in ("진행중", "출하") or _confirm_now_v) and not _is_consumable and not _is_parts_reg
     # PO유형은 항상 필수 (관리코드 산출 키)
     if not po_type_v:
@@ -29516,6 +29560,13 @@ async def projects_new_submit(request: Request):
                                       (_tot, sum(x["qty"] for x in _z1050_items), _s_oid))
                         except Exception as _e:
                             log.warning("z1050 SO 합계 갱신 실패: %s", _e)
+                        # v5H226z1088 (대표 지시): 작업일정표 표시수량·단위 — 적었을 때만 SO에 기록(표시 전용)
+                        if _bq_v:
+                            try:
+                                c.execute("UPDATE orders SET board_qty=?, board_unit=? WHERE id=?",
+                                          (_bq_v, _bu_v, _s_oid))
+                            except Exception as _e:
+                                log.warning("z1088 표시수량 저장 실패: %s", _e)
                 elif units:
                     _pwf.confirm_order_multi(
                         c, int(new_pid), units=units,
@@ -32254,6 +32305,30 @@ async def projects_edit_submit(request: Request, pid: int):
                     _sc976.execute("UPDATE orders SET unit_qty=? WHERE id=?", (int(unit_qty), _sos976[0][0]))
         except Exception as _pu_err976:
             print(f"[v5H226z976] parts_units SO sync err: {_pu_err976}")
+    # v5H226z1088 (대표 지시): 형태=제품 — 빠른 폼의 '작업일정표 표시수량·단위'를 단일 SO에 동기화(z976 패턴).
+    #   빈 값 저장 = 지움(NULL) → 작업일정표가 기존 품명별 줄로 복귀. SO 여러 건이면 건드리지 않음(어느 수주인지 불명).
+    if _sf976 == "SEMI" and _is_quick_edit and (form.get("board_qty") is not None or form.get("board_unit") is not None):
+        try:
+            _bq_raw88 = (form.get("board_qty") or "").strip().replace(",", "")
+            try:
+                _bq88 = int(float(_bq_raw88)) if _bq_raw88 else 0
+            except (ValueError, TypeError):
+                _bq88 = 0
+            _bu88 = (form.get("board_unit") or "").strip()
+            if _bu88 not in ("EA", "식", "SET"):
+                _bu88 = "EA"
+            with db_session() as _sc1088:
+                _ocols1088 = {r[1] for r in _sc1088.execute("PRAGMA table_info(orders)").fetchall()}
+                if "board_qty" in _ocols1088:
+                    _sos1088 = _sc1088.execute(
+                        "SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'",
+                        (pid,)).fetchall()
+                    if len(_sos1088) == 1:
+                        _sc1088.execute("UPDATE orders SET board_qty=?, board_unit=? WHERE id=?",
+                                        ((_bq88 if _bq88 > 0 else None),
+                                         (_bu88 if _bq88 > 0 else None), _sos1088[0][0]))
+        except Exception as _bq_err1088:
+            print(f"[v5H226z1088] board_qty SO sync err: {_bq_err1088}")
     # v5H226z354 (대표 지시): 빠른 폼 수정 모드는 납품위치(ship_to)를 대표 SO(orders 최신)에 반영.
     #   정식 폼은 호기별 unit_ship[] 을 쓰므로 top-level 'ship_to' 를 보내지 않음 → 빠른 폼에만 적용(필드 존재 시).
     if _is_quick_edit and (form.get("ship_to") is not None):
