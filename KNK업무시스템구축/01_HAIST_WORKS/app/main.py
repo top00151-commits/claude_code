@@ -20937,7 +20937,10 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
     """v5H226z925 (대표 지시): 매출 홈 3지표 —
        ① 수주매출 = 발주일(orders.order_date) 기준, 전 호기 oi.amount + 소모품 발주.
        ② 진행매출 = 출하일 기준, unit_status='출하'(기존 _sales_delivered 와 동일 로직).
-       ③ 최종매출 = 세금계산서 발행일 기준, 호기 차수 발행액(_board_tax_oi_map 단일소스).
+       ③ 최종매출 = 세금계산서 발행일 기준, 호기 차수 발행액(_board_tax_oi_map 단일소스)
+          + 소모품 차수 발행액(v5H226z1086 · 대표 "진행해" 08-19 — 그동안 ①②엔 소모품이 있는데 ③만 빠져
+          2026년 5.3억이 최종매출에서 누락. 규칙 동일: 발행칸에 적힌 1~3차 금액만·각 차수 발행월 환율.
+          ⛔출하됐어도 발행칸이 비면 합산 안 함 — 1·2·3차 분할 발행이 있어 전액 간주 금지(대표 확정)).
        공급가(부가세 제외)·외화는 각 기준월 환율로 원화 환산·취소(CANCELLED)/폐기(is_archived) 제외.
        사업부 = 관리번호 4번째 글자(정식). 기간 세분(연간/분기/월간)은 _sales_period_ok 로 필터.
        반환: kpi/biz_rows/years/top_customers/period_label/missing_fx 등."""
@@ -21034,6 +21037,24 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
             if amt == 0:
                 continue
             add("final", dd, biz, cust, amt, currency)
+    # v5H226z1086 (대표 "진행해" 08-19): 소모품 세금계산서 발행분도 최종매출에 — 호기와 같은 규칙
+    #   (발행칸에 적힌 1~3차 금액만 · 각 차수 발행일의 달 환율 · 출하만 되고 발행칸 비면 미포함).
+    for r in c.execute(
+            "SELECT COALESCE(customer_name,'') AS cust, currency, "
+            "tax_invoice_date AS d1, COALESCE(tax_invoice_amt1,0) AS a1, "
+            "tax_invoice_date2 AS d2, COALESCE(tax_invoice_amt2,0) AS a2, "
+            "tax_invoice_date3 AS d3, COALESCE(tax_invoice_amt3,0) AS a3 "
+            "FROM consumable_orders WHERE COALESCE(status,'')<>'CANCELLED'").fetchall():
+        d = dict(r)
+        for dk, ak in (("d1", "a1"), ("d2", "a2"), ("d3", "a3")):
+            dd = (d[dk] or "").strip()
+            try:
+                amt = float(d[ak] or 0)
+            except (TypeError, ValueError):
+                continue
+            if not dd or amt == 0:
+                continue
+            add("final", dd, "C", d["cust"], amt, d["currency"])
 
     all_years = sorted(set(agg["order"]["years"]) | set(agg["prog"]["years"])
                        | set(agg["final"]["years"]), reverse=True)
