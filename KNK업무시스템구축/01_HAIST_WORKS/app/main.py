@@ -29065,7 +29065,7 @@ async def projects_new_submit(request: Request):
                 _fu_sotype = {"NEW_EQUIP": "EQUIPMENT", "CONSUMABLE": "CONSUMABLE",
                               "SERVICE": "SERVICE", "OTHER": "OTHER"}.get(_ptype, "EQUIPMENT")
                 with db_session() as _cc3:
-                    _pwf.add_followup_order(
+                    _fu_res88 = _pwf.add_followup_order(
                         _cc3, _existing["id"], order_date=order_date_v,
                         total_amount=_fu_price, due_date=due_date_v,
                         created_by=_u.get("id"), po_number=form.get("customer_po", ""),
@@ -29080,6 +29080,17 @@ async def projects_new_submit(request: Request):
                         items=(_fu_semi_items or None),
                         expand_units=(False if _fu_sf == "SEMI" else True),
                         line_label=((form.get("model") or "").strip() or "제품") if (_fu_sf == "SEMI" and not _fu_semi_items) else None)
+                    # v5H226z1088b (이새롬 프로 신고 08-20): 추가 발주(제품)도 '작업일정표 표시수량·단위' 저장.
+                    #   z1088이 신규 등록 경로에만 저장을 붙여, 같은 폼에서 칸이 보이는데 추가 발주는 조용히
+                    #   버려졌다 → 추가 건만 일정표에서 품명별 줄로 갈라짐(027T2602 실사례·신규는 정상).
+                    if _fu_sf == "SEMI" and _bq_v:
+                        try:
+                            _fu_oid88 = (_fu_res88 or {}).get("order_id") if isinstance(_fu_res88, dict) else None
+                            if _fu_oid88:
+                                _cc3.execute("UPDATE orders SET board_qty=?, board_unit=? WHERE id=?",
+                                             (_bq_v, _bu_v, _fu_oid88))
+                        except Exception as _e88:
+                            log.warning("z1088b 추가발주 표시수량 저장 실패: %s", _e88)
             # v5H226z384 (대표 지시): 추가 발주도 제작요청 발행(전부서 통보) — 신규처럼. 같은 관리번호의 기존 프로젝트로 통보.
             _fu_url = f"/project/{_existing['id']}?followup=1"
             if _fu_sf == "PARTS":   # v5H226z436: 상품 추가발주는 상세 PACKING LIST 로 유도
@@ -32305,8 +32316,11 @@ async def projects_edit_submit(request: Request, pid: int):
                     _sc976.execute("UPDATE orders SET unit_qty=? WHERE id=?", (int(unit_qty), _sos976[0][0]))
         except Exception as _pu_err976:
             print(f"[v5H226z976] parts_units SO sync err: {_pu_err976}")
-    # v5H226z1088 (대표 지시): 형태=제품 — 빠른 폼의 '작업일정표 표시수량·단위'를 단일 SO에 동기화(z976 패턴).
-    #   빈 값 저장 = 지움(NULL) → 작업일정표가 기존 품명별 줄로 복귀. SO 여러 건이면 건드리지 않음(어느 수주인지 불명).
+    # v5H226z1088 (대표 지시): 형태=제품 — 빠른 폼의 '작업일정표 표시수량·단위'를 SO에 동기화.
+    #   빈 값 저장 = 지움(NULL) → 작업일정표가 기존 품명별 줄로 복귀.
+    # v5H226z1088b (이새롬 프로 신고 08-20): 대상 = **최신 SO(id DESC)** — 납품위치(z354)·수정화면 GET 표시와
+    #   같은 규칙. 처음엔 'SO 1건일 때만'으로 좁혔는데, 수주 2건 프로젝트(027T2602)에서 화면엔 값이
+    #   보이는데 저장이 조용히 버려지는 구멍이 됐다(추가 건 교정 불가). 읽는 SO = 쓰는 SO 로 정합.
     if _sf976 == "SEMI" and _is_quick_edit and (form.get("board_qty") is not None or form.get("board_unit") is not None):
         try:
             _bq_raw88 = (form.get("board_qty") or "").strip().replace(",", "")
@@ -32320,13 +32334,13 @@ async def projects_edit_submit(request: Request, pid: int):
             with db_session() as _sc1088:
                 _ocols1088 = {r[1] for r in _sc1088.execute("PRAGMA table_info(orders)").fetchall()}
                 if "board_qty" in _ocols1088:
-                    _sos1088 = _sc1088.execute(
-                        "SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'",
-                        (pid,)).fetchall()
-                    if len(_sos1088) == 1:
+                    _so1088 = _sc1088.execute(
+                        "SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                        "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+                    if _so1088:
                         _sc1088.execute("UPDATE orders SET board_qty=?, board_unit=? WHERE id=?",
                                         ((_bq88 if _bq88 > 0 else None),
-                                         (_bu88 if _bq88 > 0 else None), _sos1088[0][0]))
+                                         (_bu88 if _bq88 > 0 else None), _so1088[0]))
         except Exception as _bq_err1088:
             print(f"[v5H226z1088] board_qty SO sync err: {_bq_err1088}")
     # v5H226z354 (대표 지시): 빠른 폼 수정 모드는 납품위치(ship_to)를 대표 SO(orders 최신)에 반영.
