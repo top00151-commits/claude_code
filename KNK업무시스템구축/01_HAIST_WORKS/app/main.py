@@ -42016,7 +42016,8 @@ async def consumables_spec_history(request: Request, spec: str = ""):
         return JSONResponse({"ok": False, "message": "규격이 비어 있습니다"}, 400)
     with db_session() as c:
         rows = c.execute(
-            "SELECT co.co_no, COALESCE(co.mgmt_code,'') AS mgmt_code, co.customer_name AS customer, "
+            # v5H226z1089 (이새롬 프로 요청 08-20): co_id — 팝업 발주번호·관리번호를 그 발주 상세로 링크
+            "SELECT co.id AS co_id, co.co_no, COALESCE(co.mgmt_code,'') AS mgmt_code, co.customer_name AS customer, "
             "       co.status, COALESCE(co.currency,'KRW') AS currency, "
             "       COALESCE(NULLIF(co.status_date,''), NULLIF(co.due_date,''), co.order_date, '') AS sdate, "
             "       ci.qty, COALESCE(ci.unit,'') AS unit, ci.unit_price, ci.amount, COALESCE(ci.part_name,'') AS part_name "
