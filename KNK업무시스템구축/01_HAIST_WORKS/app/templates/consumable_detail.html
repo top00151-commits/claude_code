@@ -849,6 +849,16 @@ function _shMoney(v, ccy){
   return sym + n.toLocaleString('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec});
 }
 function closeSpecHist(){ document.getElementById('specHistModal').style.display = 'none'; }
+/* v5H226z1089b (대표 확인 08-24): 같은 창 이동이 아니라 **새 팝업창** — 지금 발주 화면과 나란히 놓고 비교.
+   발주별 창 이름(knkco_id) = 같은 발주를 또 누르면 그 창 재사용·다른 발주는 각각 창. 팝업 차단 시 기존 링크 이동(기능 상실 방지). */
+function _shPop(a){
+  try{
+    var w = window.open(a.href, 'knkco_' + String(a.pathname || a.href).replace(/\D/g, ''),
+                        'width=1280,height=860,left=120,top=60,resizable=yes,scrollbars=yes');
+    if (w) { try{ w.focus(); }catch(_e){} return false; }
+  }catch(_e){}
+  return true;
+}
 async function openSpecHist(btn){
   var inp = btn.parentElement.querySelector('input[data-k="spec"]');
   var sp = (inp && inp.value || '').trim();
@@ -874,7 +884,7 @@ async function openSpecHist(btn){
     } else {
       h += '<div class="sh-sub">아직 \'출하\' 상태의 발주가 없습니다 (아래는 전체 발주 이력)</div>';
     }
-    h += '<div class="sh-sub">전체 발주 이력 (' + j.rows.length + '건) — 발주번호·관리번호를 누르면 그 발주 상세로 (같이 나간 품목 확인)</div>';
+    h += '<div class="sh-sub">전체 발주 이력 (' + j.rows.length + '건) — 발주번호·관리번호를 누르면 그 발주 상세가 <b>새 팝업창</b>으로 열립니다 (지금 화면과 나란히 비교)</div>';
     h += '<table class="sh-table"><tr><th>일자</th><th>업체</th><th>상태</th><th>발주번호</th><th>관리번호</th><th>수량</th><th>단가</th><th>금액</th></tr>';
     j.rows.forEach(function(d){
       /* v5H226z1089 (이새롬 프로 요청 08-20): 발주번호·관리번호 = 그 발주 상세 바로가기 —
@@ -884,7 +894,7 @@ async function openSpecHist(btn){
         if (!txt) return '—';
         if (_cur) return _shEsc(txt) + ' <span style="color:var(--qv-ink-3,#94a3b8);font-size:11px;">(현재)</span>';
         if (!d.co_id) return _shEsc(txt);
-        return '<a href="/consumables/' + Number(d.co_id) + '" style="color:#1d4ed8;text-decoration:underline;" title="이 발주 상세로 이동 — 같이 나간 품목 확인">' + _shEsc(txt) + '</a>';
+        return '<a href="/consumables/' + Number(d.co_id) + '" onclick="return _shPop(this)" style="color:#1d4ed8;text-decoration:underline;" title="새 팝업창으로 이 발주 상세 열기 — 지금 화면과 나란히 비교 (같이 나간 품목 확인)">' + _shEsc(txt) + '</a>';
       }
       h += '<tr><td>' + _shEsc(d.sdate || '—') + '</td><td>' + _shEsc(d.customer || '—') + '</td><td>' + _shEsc(d.status_ko) + '</td><td>' + _shLnk(d.co_no) + '</td><td>' + _shLnk(d.mgmt_code) + '</td><td class="num">' + _shEsc(d.qty == null ? '—' : d.qty) + _shEsc(d.unit || '') + '</td><td class="num">' + _shMoney(d.unit_price, d.currency) + '</td><td class="num">' + _shMoney(d.amount, d.currency) + '</td></tr>';
     });
