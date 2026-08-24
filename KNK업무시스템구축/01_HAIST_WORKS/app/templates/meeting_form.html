@@ -505,15 +505,39 @@ window.__MTG = {
   }
 
   // ── 핵심 실행 단계(버튼·자동 파이프라인 공용) ──
-  // doTranscribe: 녹음 → 글자 (성공 시 회의 내용 칸·잠금시각 갱신)
+  // doTranscribe: 녹음 → 글자 — z1090: 변환이 1~2분+ 걸리면 프록시가 연결을 먼저 끊어
+  //   '변환 실패'로 보이던 문제 → 서버는 백그라운드로 변환하고 여기선 3초마다 상태만 폴링.
+  function _sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
   async function doTranscribe(){
     var res = await jreq('POST', '/api/meeting/'+M.id+'/transcribe', {});
-    if (res.ok && res.data.ok){
-      var ta=$('mtgBody'); if(ta) ta.value=res.data.body;
-      M.base_ts = res.data.updated_at || M.base_ts;
-      return { ok:true };
+    if (!(res.ok && res.data.ok)){
+      return { ok:false, error: res.data.error || '음성→글자 시작 실패' };
     }
-    return { ok:false, error: res.data.error || '음성→글자 변환 실패' };
+    // 시작됨(또는 이미 변환 중) — 상태 폴링 (최대 ~15분, 요청당 수 ms라 프록시 제한 무관)
+    var miss = 0;
+    for (var i = 0; i < 300; i++){
+      await _sleep(3000);
+      var st = await jreq('GET', '/api/meeting/'+M.id+'/stt-status');
+      if (st.ok && st.data.ok){
+        miss = 0;
+        if (st.data.state === 'done'){
+          var ta=$('mtgBody'); if(ta && st.data.body != null) ta.value = st.data.body;
+          M.base_ts = st.data.updated_at || M.base_ts;
+          return { ok:true };
+        }
+        if (st.data.state === 'error'){
+          return { ok:false, error: st.data.error || '음성→글자 변환 실패' };
+        }
+        if (st.data.state === 'none'){
+          return { ok:false, error: '변환 상태가 사라졌습니다(서버 재시작 가능). 화면 새로고침 후 다시 시도해 주세요.' };
+        }
+        // running → 계속 대기
+      } else {
+        // 일시 통신 오류는 몇 번 봐주고 계속(이동 중 전파 끊김 등) — 연속 10회(30초)면 중단
+        if (++miss >= 10) return { ok:false, error: '상태 확인 통신이 계속 끊깁니다 — 네트워크 확인 후 「다시 시도」를 눌러주세요.' };
+      }
+    }
+    return { ok:false, error: '변환이 15분을 넘겨 확인을 중단했습니다 — 잠시 후 화면을 새로고침해 확인해 주세요.' };
   }
   // doExtract: AI 정리 (성공 시 요약·결정·할일 렌더 + AI 제안 제목 반영)
   async function doExtract(){

@@ -4264,9 +4264,70 @@ async def api_meeting_audio_get(req: Request, mid: int):
     return FileResponse(disk, media_type=_MEETING_AUDIO_MIME.get(ext, "application/octet-stream"))
 
 
+# ── z1090: 음성→글자 = 백그라운드 작업 + 상태 폴링 (2026-08-24 대표 실사) ──────────
+#  증상: 변환이 1~2분+ 걸리면 NAS 리버스프록시 응답제한에 연결이 먼저 끊겨 비-JSON 응답
+#        → 화면엔 구체 원인 없이 '변환 실패'만 표시(실제론 서버에서 변환이 계속 돌기도 함
+#        → 재시도 시 본문 중복 덧붙음 위험). HTTP 를 오래 붙잡는 구조 자체가 원인.
+#  해결: POST /transcribe 는 즉시 응답(작업 시작만), 변환은 스레드에서. 화면은
+#        GET /stt-status 를 3초마다 폴링(요청당 수 ms — 프록시 제한 무관).
+#  db_session 은 호출마다 새 sqlite 연결을 열고 닫으므로 워커 스레드에서 안전.
+import threading as _stt_thr
+_STT_JOBS: dict = {}          # {meeting_id: {"state": "running"|"done"|"error", "error": str}}
+_STT_LOCK = _stt_thr.Lock()
+
+
+def _stt_worker(mid: int, disk: str, lang: str):
+    """백그라운드 음성→글자 워커 — 기존 동기 로직 그대로(압축→Whisper→body 덧붙임).
+    body 는 완료 시점에 DB에서 새로 읽어 덧붙임(작업 중 사용자가 원문을 고쳐도 안 덮음)."""
+    err = ""
+    try:
+        from . import ai_client
+        stt_path, _tmp_stt = disk, None
+        # Whisper 1요청 25MB 한도 — 초과(긴 파일 업로드)면 ffmpeg로 모노 32k mp3 자동 압축 시도.
+        try:
+            if os.path.getsize(disk) > 25 * 1024 * 1024:
+                import subprocess, time as _t
+                _cand = os.path.join(os.path.dirname(disk), f"stt_{int(_t.time())}.mp3")
+                _r = subprocess.run(["ffmpeg", "-y", "-i", disk, "-ac", "1", "-b:a", "32k", _cand],
+                                    capture_output=True, timeout=600)
+                if _r.returncode == 0 and os.path.exists(_cand) and os.path.getsize(_cand) <= 25 * 1024 * 1024:
+                    stt_path, _tmp_stt = _cand, _cand
+                elif os.path.exists(_cand):
+                    try:
+                        os.remove(_cand)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        if os.path.getsize(stt_path) > 25 * 1024 * 1024:
+            err = "음성이 25MB를 넘어 음성→글자가 어렵습니다. 브라우저 녹음(자동 압축)을 쓰거나 파일을 나눠 올려주세요."
+        else:
+            ok, text = ai_client.ai_transcribe(stt_path, lang or "")
+            if not ok:
+                err = text
+            elif not text.strip():
+                err = "음성에서 인식된 내용이 없습니다(무음/잡음일 수 있어요)."
+            else:
+                with db_session() as c:
+                    row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
+                    prev = ((row["body"] if row else "") or "").strip()
+                    new_body = ((prev + "\n\n") if prev else "") + "🎙 [음성 변환]\n" + text.strip()
+                    c.execute("UPDATE meetings SET body=?, updated_at=datetime('now','localtime') WHERE id=?",
+                              (new_body, mid))
+        if _tmp_stt:  # 압축 임시파일 정리
+            try:
+                os.remove(_tmp_stt)
+            except Exception:
+                pass
+    except Exception as e:  # 표면화 원칙 — 예외 종류까지 상태에 담아 화면에 노출
+        err = f"{type(e).__name__}: {str(e)[:200]}"
+    with _STT_LOCK:
+        _STT_JOBS[mid] = {"state": ("error" if err else "done"), "error": err}
+
+
 @app.post("/api/meeting/{mid:int}/transcribe")
 async def api_meeting_transcribe(req: Request, mid: int):
-    """녹음 → Whisper 음성→글자 → 회의 내용(body)에 추가. 그 뒤 「AI로 정리」로 결정·할일 추출."""
+    """녹음 → Whisper 음성→글자(백그라운드 시작). 진행·결과는 GET /stt-status 폴링."""
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
@@ -4289,42 +4350,37 @@ async def api_meeting_transcribe(req: Request, mid: int):
     disk = (m.get("audio_path") or "").strip()
     if not disk or not os.path.exists(disk):
         return JSONResponse({"ok": False, "error": "녹음 파일이 없습니다. 먼저 녹음·업로드하세요."}, 400)
-    # Whisper 1요청 25MB 한도 — 초과(긴 파일 업로드)면 ffmpeg로 모노 32k mp3 자동 압축 시도.
-    stt_path, _tmp_stt = disk, None
-    try:
-        if os.path.getsize(disk) > 25 * 1024 * 1024:
-            import subprocess, time as _t
-            _cand = os.path.join(os.path.dirname(disk), f"stt_{int(_t.time())}.mp3")
-            _r = subprocess.run(["ffmpeg", "-y", "-i", disk, "-ac", "1", "-b:a", "32k", _cand],
-                                capture_output=True, timeout=600)
-            if _r.returncode == 0 and os.path.exists(_cand) and os.path.getsize(_cand) <= 25 * 1024 * 1024:
-                stt_path, _tmp_stt = _cand, _cand
-            elif os.path.exists(_cand):
-                try:
-                    os.remove(_cand)
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    if os.path.getsize(stt_path) > 25 * 1024 * 1024:
-        return JSONResponse({"ok": False, "error": "음성이 25MB를 넘어 음성→글자가 어렵습니다. 브라우저 녹음(자동 압축)을 쓰거나 파일을 나눠 올려주세요."}, 400)
-    ok, text = ai_client.ai_transcribe(stt_path, lang or "")
-    if _tmp_stt:  # 압축 임시파일 정리
-        try:
-            os.remove(_tmp_stt)
-        except Exception:
-            pass
-    if not ok:
-        return JSONResponse({"ok": False, "error": text}, 502)
-    if not text.strip():
-        return JSONResponse({"ok": False, "error": "음성에서 인식된 내용이 없습니다(무음/잡음일 수 있어요)."}, 422)
-    prev = (m.get("body") or "").strip()
-    new_body = ((prev + "\n\n") if prev else "") + "🎙 [음성 변환]\n" + text.strip()
+    with _STT_LOCK:
+        j = _STT_JOBS.get(mid)
+        if j and j.get("state") == "running":
+            # 이미 변환 중(중복 클릭/재진입) — 새로 시작하지 않고 그 작업을 이어서 폴링
+            return JSONResponse({"ok": True, "already": True})
+        _STT_JOBS[mid] = {"state": "running", "error": ""}
+    _stt_thr.Thread(target=_stt_worker, args=(mid, disk, lang or ""), daemon=True).start()
+    return JSONResponse({"ok": True, "started": True})
+
+
+@app.get("/api/meeting/{mid:int}/stt-status")
+async def api_meeting_stt_status(req: Request, mid: int):
+    """음성→글자 진행 상태 폴링. done 이면 갱신된 body·updated_at 을 함께 반환."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
     with db_session() as c:
-        c.execute("UPDATE meetings SET body=?, updated_at=datetime('now','localtime') WHERE id=?",
-                  (new_body, mid))
-        _new_ts = _row_ts(c, "meetings", mid)
-    return JSONResponse({"ok": True, "transcript": text.strip(), "body": new_body, "updated_at": _new_ts})
+        m = c.execute("SELECT id, owner_id FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        if not _can_edit_meeting(u, dict(m)):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    with _STT_LOCK:
+        j = dict(_STT_JOBS.get(mid) or {"state": "none", "error": ""})
+    out = {"ok": True, "state": j.get("state") or "none", "error": j.get("error") or ""}
+    if out["state"] == "done":
+        with db_session() as c:
+            row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
+            out["body"] = (row["body"] if row else "") or ""
+            out["updated_at"] = _row_ts(c, "meetings", mid)
+    return JSONResponse(out)
 
 
 @app.post("/api/meeting/{mid:int}/link")
