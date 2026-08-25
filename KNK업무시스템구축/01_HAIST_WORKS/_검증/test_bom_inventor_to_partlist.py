@@ -16,15 +16,16 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-import bom_inventor_to_partlist as B          # noqa: E402
+sys.path.insert(0, os.path.dirname(HERE))
+from app.bom_tools import inventor_to_partlist as B   # noqa: E402
 from openpyxl import load_workbook, Workbook  # noqa: E402
 
 KIT = os.path.normpath(os.path.join(HERE, "..", "..", "참고자료", "설계팀",
                                     "BOM 업무 자동화_2026.08.04", "1. BUDS 단차 검사기"))
 INV = os.path.join(KIT, "INVENTOR DOWN")
 UNITS = [os.path.join(INV, u + ".xlsx") for u in ("AA00", "AB00", "AC00", "AD00")]
-TPL = B.DEFAULT_TEMPLATE
+# 골든(사람 완성본 60줄)은 키트 실물 — 동봉 양식(DEFAULT_TEMPLATE)은 자료를 비운 판
+TPL = os.path.join(KIT, "000M0000 구매품 PART LIST_2026.00.00.xlsx")
 TMP = tempfile.mkdtemp(prefix="knk_bomconv_")
 
 FAIL = []

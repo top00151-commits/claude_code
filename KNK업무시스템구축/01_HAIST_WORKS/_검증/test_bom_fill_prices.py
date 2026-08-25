@@ -17,8 +17,8 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-import bom_fill_prices as F                  # noqa: E402
+sys.path.insert(0, os.path.dirname(HERE))
+from app.bom_tools import fill_prices as F   # noqa: E402
 from openpyxl import load_workbook, Workbook  # noqa: E402
 
 DL = r"C:\Users\top00\Downloads"

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BOM 도구 — 구매품 부품표 공장 · KNK HAIST WORKS</title>
+
+{# WP-04 BOM 도구 공장 (대표 지시 2026-08-25)
+   "웍스에서 결과물을 만들어 주는 형식 · 각 단계별 데이터는 웍스에 저장 · 언제든 다운로드"
+   파일을 올리면 → 산출물을 만들어 주고 → 입력·산출·보고가 전부 기록에 남는다. #}
+
+<link href="/static/css/v5_tokens.css?v=20260825bt" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.main { min-width:0; }
+.bt-head { padding:14px 24px 10px; background:var(--pq-surface); border-bottom:1px solid var(--pq-line);
+           display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.bt-head .crumb { font-size:12px; color:var(--pq-ink-4); }
+.bt-head .crumb a { color:var(--pq-ink-2); }
+.bt-title { font-size:20px; font-weight:700; color:var(--pq-ink); }
+.wrap { padding:18px 24px 40px; }
+.ok   { background:#ecfdf5; border:1px solid #0d7c4f; border-radius:10px; padding:12px 14px;
+        font-size:12.5px; color:#0b5f3d; margin-bottom:14px; }
+.bad  { background:#fef2f2; border:1px solid #b91c1c; border-radius:10px; padding:12px 14px;
+        font-size:12.5px; color:#8f1414; margin-bottom:14px; white-space:pre-wrap; }
+.flow { font-size:12.5px; color:var(--pq-ink-3); background:var(--pq-surface); border:1px solid var(--pq-line);
+        border-radius:10px; padding:10px 14px; margin-bottom:16px; line-height:1.8; }
+.flow b { color:var(--pq-ink); }
+.cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; margin-bottom:22px; }
+.card { background:var(--pq-surface); border:1px solid var(--pq-line); border-radius:12px; padding:14px 16px; }
+.card h2 { font-size:13.5px; font-weight:700; color:var(--pq-ink); margin:0 0 4px; }
+.card .d { font-size:11.5px; color:var(--pq-ink-4); line-height:1.6; margin-bottom:10px; }
+label.f { display:block; font-size:11.5px; font-weight:600; color:var(--pq-ink-2); margin:8px 0 3px; }
+input[type=text], input[type=file], input[type=date], input[type=number] {
+  width:100%; border:1px solid var(--pq-line-2); border-radius:8px; padding:7px 9px;
+  font-size:12.5px; color:var(--pq-ink); background:#fff; font-family:inherit; }
+input[type=file] { padding:5px; background:var(--pq-surface-2); }
+.row2 { display:flex; gap:8px; } .row2 > div { flex:1; }
+.btn-run { margin-top:10px; height:32px; padding:0 14px; background:var(--pq-ink); border:0; border-radius:8px;
+           font-size:12.5px; font-weight:600; color:#fff; cursor:pointer; }
+.btn-run:disabled { opacity:.35; cursor:not-allowed; }
+.chk { font-size:11.5px; color:var(--pq-ink-3); display:flex; align-items:center; gap:5px; margin-top:8px; }
+.warn { background:#fef3c7; border:1px solid #b45309; border-radius:10px; padding:10px 13px;
+        font-size:12.5px; color:#7c3a00; margin-bottom:14px; }
+
+.runs h2 { font-size:14px; font-weight:700; color:var(--pq-ink); margin:0 0 10px; }
+table.hist { width:100%; border-collapse:collapse; font-size:12px; background:var(--pq-surface); }
+table.hist th, table.hist td { border:1px solid var(--pq-line); padding:7px 9px; text-align:left; vertical-align:top; }
+table.hist th { background:var(--pq-surface-2); font-weight:600; color:var(--pq-ink-2); white-space:nowrap; }
+table.hist td.mono { font-family:ui-monospace,Consolas,monospace; white-space:nowrap; }
+.dl { display:inline-block; padding:2px 9px; border:1px solid var(--pq-line-2); border-radius:7px;
+      font-size:11.5px; color:var(--pq-ink-2); text-decoration:none; margin:1px 2px 1px 0; background:var(--pq-surface-2); }
+.dl.out { background:#eff6ff; border-color:#1e5fbf55; color:#1e5fbf; font-weight:600; }
+details.rep summary { cursor:pointer; font-size:11.5px; color:var(--pq-ink-3); }
+details.rep pre { margin:6px 0 0; padding:8px 10px; background:var(--pq-surface-2); border-radius:8px;
+                  font-size:11.5px; line-height:1.7; white-space:pre-wrap; word-break:break-all;
+                  font-family:inherit; color:var(--pq-ink-2); }
+.empty { font-size:12.5px; color:var(--pq-ink-4); padding:18px; text-align:center;
+         background:var(--pq-surface); border:1px solid var(--pq-line); border-radius:10px; }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active_tab = "logi" %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+
+<div class="bt-head">
+  <div>
+    <div class="crumb"><a href="/logistics">자재구매센터</a> · <a href="/bom/upload">BOM 업로드</a> · <b>BOM 도구</b></div>
+    <div class="bt-title">BOM 도구 <span style="font-size:12px;color:var(--pq-ink-3);font-weight:400;">— 파일을 올리면 결과물을 만들어 드리고, 단계별 자료가 전부 기록에 남습니다</span></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  {% if msg %}<div class="ok">✅ {{ msg }}</div>{% endif %}
+  {% if err %}<div class="bad">⛔ {{ err }}</div>{% endif %}
+
+  <div class="flow">
+    <b>흐름</b> — ①-a 인벤터 유닛 BOM들 → 간이판 초안 &nbsp;→&nbsp; ①-b 간이판+전장 BOM → 통일판 뼈대
+    &nbsp;→&nbsp; ③ 수불부로 기존단가 자동 &nbsp;→&nbsp; ② 협력사별 견적요청서·발주서.
+    각 단계 산출물을 내려받아 확인·수정 후 다음 단계에 올리시면 됩니다. (엑셀 방식 그대로 — 화면화는 다음 단계)
+  </div>
+
+  {% if not can_run %}
+  <div class="warn">실행은 <b>자재 담당(구매팀)·설계팀·전장설계팀·소프트웨어팀</b>만 할 수 있습니다. 기록 열람·다운로드는 됩니다.</div>
+  {% endif %}
+
+  <div class="cards">
+
+    <div class="card">
+      <h2>①-a 인벤터 → 간이판 초안</h2>
+      <div class="d">인벤터에서 내린 유닛별 BOM 엑셀들을 올리면 구매품만 골라 간이판을 만듭니다. 품명 빈 줄·서보(케이블 협의)는 보고로 알려 드립니다.</div>
+      <form method="post" action="/bom/tools/run/draft" enctype="multipart/form-data">
+        <label class="f">인벤터 BOM 파일들 (여러 개 선택)</label>
+        <input type="file" name="files" accept=".xlsx" multiple required {% if not can_run %}disabled{% endif %} />
+        <div class="row2">
+          <div><label class="f">관리번호</label><input type="text" name="code" placeholder="예: 005M2606" required {% if not can_run %}disabled{% endif %} /></div>
+          <div><label class="f">프로젝트 이름</label><input type="text" name="name" placeholder="예: BUDS 단차 검사기" required {% if not can_run %}disabled{% endif %} /></div>
+        </div>
+        <label class="f">작성자 (비우면 본인 이름)</label>
+        <input type="text" name="author" {% if not can_run %}disabled{% endif %} />
+        <button class="btn-run" {% if not can_run %}disabled{% endif %}>간이판 만들기</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>①-b 취합 → 통일판 뼈대</h2>
+      <div class="d">간이판(기구)과 전장 BOM(같은 양식)을 함께 올리면 한 시트(통일판 26칸)로 취합하고 수식까지 심습니다. 단가·납기는 넣지 않습니다(구매팀 몫).</div>
+      <form method="post" action="/bom/tools/run/master" enctype="multipart/form-data">
+        <label class="f">간이판·전장 BOM 파일들</label>
+        <input type="file" name="files" accept=".xlsx" multiple required {% if not can_run %}disabled{% endif %} />
+        <div class="row2">
+          <div><label class="f">관리번호</label><input type="text" name="code" required {% if not can_run %}disabled{% endif %} /></div>
+          <div><label class="f">프로젝트 이름</label><input type="text" name="name" required {% if not can_run %}disabled{% endif %} /></div>
+        </div>
+        <div class="row2">
+          <div><label class="f">제작 대수</label><input type="number" name="sets" value="1" min="1" {% if not can_run %}disabled{% endif %} /></div>
+          <div><label class="f">작성자 (비우면 본인)</label><input type="text" name="author" {% if not can_run %}disabled{% endif %} /></div>
+        </div>
+        <button class="btn-run" {% if not can_run %}disabled{% endif %}>통일판 뼈대 만들기</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>③ 기존단가 자동 기입</h2>
+      <div class="d">마스터와 수불부를 올리면 실적가를 자동으로 채웁니다 — 형번+협력사·최근 발주일 기준. 이미 적힌 단가는 절대 덮지 않습니다.</div>
+      <form method="post" action="/bom/tools/run/price" enctype="multipart/form-data">
+        <label class="f">마스터 (통일판) 파일</label>
+        <input type="file" name="files" accept=".xlsx" required {% if not can_run %}disabled{% endif %} />
+        <label class="f">수불부 파일 (발주관리대장 들어 있는 것)</label>
+        <input type="file" name="ledger" accept=".xlsx" required {% if not can_run %}disabled{% endif %} />
+        <button class="btn-run" {% if not can_run %}disabled{% endif %}>단가 채우기</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>② 견적요청서</h2>
+      <div class="d">마스터에서 협력사 한 곳의 견적요청서를 만듭니다. 기존단가=실적가, 변경단가·소요일·입고가능일은 매입처 몫으로 비웁니다. 「옛-&gt;새」 표기는 그대로 둡니다.</div>
+      <form method="post" action="/bom/tools/run/rfq" enctype="multipart/form-data">
+        <label class="f">마스터 (통일판) 파일</label>
+        <input type="file" name="files" accept=".xlsx" required {% if not can_run %}disabled{% endif %} />
+        <div class="row2">
+          <div><label class="f">협력사 이름</label><input type="text" name="vendor" placeholder="예: 파익스" required {% if not can_run %}disabled{% endif %} /></div>
+          <div><label class="f">입고 요청일</label><input type="text" name="due" placeholder="예: 2026-08-29" {% if not can_run %}disabled{% endif %} /></div>
+        </div>
+        <label class="chk"><input type="checkbox" name="only_missing" value="1" {% if not can_run %}disabled{% endif %} /> 실적가 없는 신규 품목만</label>
+        <button class="btn-run" {% if not can_run %}disabled{% endif %}>견적요청서 만들기</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>② 발주서</h2>
+      <div class="d">마스터에서 발주서를 만듭니다 — 협력사 비우면 전체 협력사 묶음(zip). 「옛-&gt;새」는 새 형번만 적습니다(실물 규칙). VINA 줄은 제외합니다.</div>
+      <form method="post" action="/bom/tools/run/po" enctype="multipart/form-data">
+        <label class="f">마스터 (통일판) 파일</label>
+        <input type="file" name="files" accept=".xlsx" required {% if not can_run %}disabled{% endif %} />
+        <div class="row2">
+          <div><label class="f">협력사 (비우면 전체)</label><input type="text" name="vendor" {% if not can_run %}disabled{% endif %} /></div>
+          <div><label class="f">요청 납기</label><input type="text" name="due" placeholder="예: 2026-09-01" {% if not can_run %}disabled{% endif %} /></div>
+        </div>
+        <button class="btn-run" {% if not can_run %}disabled{% endif %}>발주서 만들기</button>
+      </form>
+    </div>
+
+  </div>
+
+  <div class="runs">
+    <h2>실행 기록 — 입력·산출물 전부 보관, 언제든 다운로드</h2>
+    {% if runs %}
+    <table class="hist">
+      <thead><tr>
+        <th>언제</th><th>단계</th><th>관리번호</th><th>내용</th><th>산출물</th><th>입력 파일</th><th>보고</th><th>누가</th>
+      </tr></thead>
+      <tbody>
+      {% for r in runs %}
+      <tr>
+        <td class="mono">{{ (r.created_at or '')[:16] }}</td>
+        <td>{{ r.step_label }}</td>
+        <td class="mono">{{ r.mgmt_code or '' }}</td>
+        <td>{{ r.title or '' }}</td>
+        <td><a class="dl out" href="/bom/tools/download/{{ r.id }}?f=out">⬇ {{ r.output_name }}</a></td>
+        <td>{% for it in r.inputs_list %}<a class="dl" href="/bom/tools/download/{{ r.id }}?f=in{{ loop.index0 }}">{{ it.name }}</a>{% endfor %}</td>
+        <td>{% if r.report %}<details class="rep"><summary>펼치기</summary><pre>{{ r.report }}</pre></details>{% endif %}</td>
+        <td>{{ r.by_name or '' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">아직 실행 기록이 없습니다 — 위에서 파일을 올려 시작해 보십시오.</div>
+    {% endif %}
+  </div>
+
+</div>
+  </main>
+</div>
+</body>
+</html>

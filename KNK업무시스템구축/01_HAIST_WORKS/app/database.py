@@ -2513,6 +2513,25 @@ def init_db():
                       "ON material_baselines(project_id, decided_at)")
         except Exception:
             pass
+        # ── WP-04 BOM 도구 공장 실행 기록 (대표 지시 2026-08-25
+        #    "웍스에서 결과물을 만들어 주는 형식 · 단계별 저장 · 언제든 다운로드") ──
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS bom_tool_runs (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                mgmt_code    TEXT,               -- 관리번호 (자유 입력 — 시험 A 접두 포함)
+                step         TEXT NOT NULL,      -- draft/master/price/rfq/po
+                title        TEXT,               -- 화면에 보일 한 줄
+                inputs       TEXT,               -- 입력 파일 [{name,path}] JSON
+                output_name  TEXT,
+                output_path  TEXT,
+                report       TEXT,               -- 실행 보고 전문
+                created_by   INTEGER REFERENCES users(id),
+                created_at   TEXT DEFAULT (datetime('now','localtime'))
+            )""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_bomtool_code "
+                      "ON bom_tool_runs(mgmt_code, created_at)")
+        except Exception:
+            pass
 
         # v5H226z763 (대표 지시): 제작요청서 수정 — 기존 prod_requests 테이블에 수정 일시·수정자 보강
         try:

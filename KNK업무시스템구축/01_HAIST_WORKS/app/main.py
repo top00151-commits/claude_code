@@ -21676,6 +21676,278 @@ async def project_baseline_apply(request: Request, pid: int,
         f"/projects/{pid}/baseline?msg={_q('「' + _MSL.get(r['to'], r['to']) + '」 로 옮겼습니다.')}", 303)
 
 
+# =====================================================
+# WP-04 BOM 도구 공장 (대표 지시 2026-08-25)
+#   "웍스에서 결과물을 만들어 주는 형식 · 각 단계별 데이터는 웍스에 저장 · 언제든 다운로드"
+#   도구 5종은 app/bom_tools 패키지 (골든 = 실물 재현 시험 94건이 규칙을 보증)
+#   ⛔ 산출물은 /uploads 정적 마운트(공개) **밖** 비공개 폴더에 두고 권한 라우트로만 준다.
+# =====================================================
+from .bom_tools import inventor_to_partlist as _bt_draft
+from .bom_tools import merge_to_master as _bt_master
+from .bom_tools import make_po as _bt_po
+from .bom_tools import make_rfq as _bt_rfq
+from .bom_tools import fill_prices as _bt_price
+
+_BT_STORE = os.path.join(BASE, "bom_tools_store")
+os.makedirs(_BT_STORE, exist_ok=True)
+
+_BT_STEPS = {
+    "draft":  "①-a 인벤터 → 간이판 초안",
+    "master": "①-b 취합 → 통일판 뼈대",
+    "price":  "③ 기존단가 자동 기입",
+    "rfq":    "② 견적요청서",
+    "po":     "② 발주서",
+}
+
+
+def _bt_safe_name(fname):
+    base = os.path.basename(str(fname or "파일.xlsx")).replace("\\", "_").replace("/", "_")
+    return base[:120] or "파일.xlsx"
+
+
+async def _bt_save_inputs(run_dir, uploads):
+    """올린 파일들을 실행 폴더에 원래 이름으로 저장 — 단계별 자료 보존(대표 지시)."""
+    saved = []
+    for f in uploads:
+        if f is None or not (f.filename or "").strip():
+            continue
+        raw = await f.read()
+        if not raw:
+            continue
+        name = _bt_safe_name(f.filename)
+        path = os.path.join(run_dir, "입력_" + name)
+        i = 1
+        while os.path.exists(path):
+            i += 1
+            path = os.path.join(run_dir, f"입력_{i}_" + name)
+        with open(path, "wb") as fh:
+            fh.write(raw)
+        saved.append({"name": name, "path": path})
+    return saved
+
+
+@app.get("/bom/tools", response_class=HTMLResponse)
+async def bom_tools_page(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_view_logistics(u) or _bom_can_upload(u)):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT r.*, u.name AS by_name FROM bom_tool_runs r "
+            "LEFT JOIN users u ON u.id = r.created_by "
+            "ORDER BY r.id DESC LIMIT 100").fetchall()]
+    for r in rows:
+        try:
+            r["inputs_list"] = _json.loads(r.get("inputs") or "[]")
+        except Exception:
+            r["inputs_list"] = []
+        r["step_label"] = _BT_STEPS.get(r.get("step"), r.get("step"))
+    return ctx(request, "bom_tools.html", user=u, active="parts",
+               steps=_BT_STEPS, runs=rows, can_run=_bom_can_upload(u),
+               msg=request.query_params.get("msg", ""),
+               err=request.query_params.get("err", ""))
+
+
+@app.post("/bom/tools/run/{step}")
+async def bom_tools_run(request: Request, step: str,
+                        files: list[UploadFile] = File([]),
+                        ledger: UploadFile | None = File(None),
+                        code: str = Form(""), name: str = Form(""),
+                        author: str = Form(""), sets: str = Form("1"),
+                        vendor: str = Form(""), due: str = Form(""),
+                        only_missing: str = Form("")):
+    from urllib.parse import quote as _q
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _bom_can_upload(u):
+        return RedirectResponse(f"/bom/tools?err={_q('실행 권한이 없습니다 (자재·설계·전장 담당).')}", 303)
+    if step not in _BT_STEPS:
+        return RedirectResponse(f"/bom/tools?err={_q('없는 단계입니다.')}", 303)
+
+    import uuid
+    run_dir = os.path.join(_BT_STORE, datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6])
+    os.makedirs(run_dir, exist_ok=True)
+    code = (code or "").strip()
+    name = (name or "").strip()
+    author = (author or "").strip() or (u.get("name") if isinstance(u, dict) else u["name"])
+    vendor = (vendor or "").strip()
+    due = (due or "").strip()
+
+    try:
+        saved_files = await _bt_save_inputs(run_dir, list(files))
+        saved_ledger = await _bt_save_inputs(run_dir, [ledger] if ledger is not None else [])
+        saved = saved_files + saved_ledger
+        rep_lines = []
+
+        if step == "draft":
+            if not saved_files or not code or not name:
+                raise ValueError("인벤터 파일(들)과 관리번호·프로젝트명이 필요합니다.")
+            rows, excluded, per_file = _bt_draft.read_inventor_files([s["path"] for s in saved_files])
+            if not rows:
+                raise ValueError("구매품 줄이 한 줄도 없습니다 — 인벤터 구분 칸을 확인해 주십시오.")
+            out_name = f"{code} 구매품 PART LIST_초안.xlsx"
+            out_path = os.path.join(run_dir, out_name)
+            res = _bt_draft.write_partlist(rows, code, name, author, out_path)
+            title = f"{res['품목']}줄 초안"
+            rep_lines.append(f"구매품 {res['품목']}줄 · 제외 " +
+                             (", ".join(f"{k} {v}줄" for k, v in sorted(excluded.items())) or "없음"))
+            if res["품명빈칸"]:
+                rep_lines.append(f"✍ 품명 빈 줄 {len(res['품명빈칸'])}건(사람 몫): " +
+                                 ", ".join(f"{no}번 {s}" for no, s, _ in res["품명빈칸"]))
+            if res["서보표시"]:
+                rep_lines.append(f"🔵 서보 {len(res['서보표시'])}건 — 케이블 전장 협의: " +
+                                 ", ".join(f"{no}번 {s}" for no, _, s in res["서보표시"]))
+
+        elif step == "master":
+            if not saved_files or not code or not name:
+                raise ValueError("간이판·전장 BOM 파일과 관리번호·프로젝트명이 필요합니다.")
+            rows, rep = _bt_master.read_draft_files([s["path"] for s in saved_files])
+            if not rows:
+                raise ValueError("옮길 품목이 한 줄도 없습니다.")
+            out_name = f"{code} 구매품 PART LIST_취합뼈대.xlsx"
+            out_path = os.path.join(run_dir, out_name)
+            try:
+                n_sets = max(1, int(sets or "1"))
+            except ValueError:
+                n_sets = 1
+            res = _bt_master.write_master(rows, code, name, author, out_path, sets=n_sets)
+            title = f"{res['품목']}줄 통일판 뼈대 (대수 {n_sets})"
+            rep_lines.append(" · ".join(f"{fn} {n}줄" for fn, n in rep["파일"]))
+            if rep["자리표시제거"]:
+                rep_lines.append(f"「전장 구매품 별도」 자리표시 {rep['자리표시제거']}줄 걷어냄")
+            if res["단위기본값"]:
+                rep_lines.append(f"단위 빈칸 {res['단위기본값']}줄 → 'EA' 기본값")
+            if rep["옮기지않음"]:
+                rep_lines.append(f"⚠ 옮기지 않은 입력값 {len(rep['옮기지않음'])}건(단가·납기류는 구매팀 몫): " +
+                                 ", ".join(f"{fn} r{r} {k}" for fn, r, k, _ in rep["옮기지않음"][:8]))
+
+        elif step == "price":
+            if not saved_files or not saved_ledger:
+                raise ValueError("마스터 파일과 수불부 파일이 둘 다 필요합니다.")
+            master_in, ledger_in = saved_files[0], saved_ledger[0]
+            code2, _n, _s, _rows, _v = _bt_po.read_master(master_in["path"])
+            code = code or code2
+            out_name = os.path.splitext(master_in["name"])[0].replace("입력_", "") + "_단가채움.xlsx"
+            out_path = os.path.join(run_dir, out_name)
+            res = _bt_price.fill_prices(master_in["path"], ledger_in["path"], out_path)
+            title = f"기존단가 {res['채움']}줄 자동 기입"
+            rep_lines.append(f"수불부 실적 {res['수불부항목']:,}건 대조 · 채움 {res['채움']}줄"
+                             + (f" · 타매입처 실적 {res['타매입처']}줄" if res["타매입처"] else ""))
+            if res["변동후보"]:
+                rep_lines.append("⚠ 단가 변동 후보(덮지 않음): " +
+                                 ", ".join(f"r{r} {s} {cur:,}→{new:,}({v})" for r, s, cur, new, v in res["변동후보"][:8]))
+            if res["협력사미정참고"]:
+                rep_lines.append(f"📌 협력사 미정 과거 실적 참고 {len(res['협력사미정참고'])}건: " +
+                                 ", ".join(f"r{r} {s}={p:,}원({v})" for r, s, p, v in res["협력사미정참고"][:10]))
+            if res["신규"]:
+                rep_lines.append(f"✍ 실적 없음(견적 대상) {len(res['신규'])}줄: " +
+                                 ", ".join(f"r{r} [{v}] {s}" for r, v, s in res["신규"][:10]))
+
+        elif step == "rfq":
+            if not saved_files or not vendor:
+                raise ValueError("마스터 파일과 협력사 이름이 필요합니다.")
+            code2, _n, _s, rows, _v = _bt_po.read_master(saved_files[0]["path"])
+            code = code or code2
+            items = [x for x in rows if x["협력사"] == vendor]
+            if only_missing:
+                items = [x for x in items if x["기존단가"] in (None, "", 0)]
+            out_name = f"{code} {vendor} 견적요청서_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            out_path = os.path.join(run_dir, out_name)
+            res = _bt_rfq.write_rfq(items, vendor, code, out_path, due=due)
+            title = f"{vendor} 견적요청서 {res['품목']}줄" + (" (신규만)" if only_missing else "")
+            rep_lines.append(f"{res['품목']}줄 · 신규 단가 요청 {res['신규단가요청']}줄 · "
+                             f"「옛->새」 유지 {res['변경표기유지']}건 · 변경단가·소요일·입고가능일=매입처 몫 비움")
+
+        elif step == "po":
+            if not saved_files:
+                raise ValueError("마스터 파일이 필요합니다.")
+            code2, name2, n_sets, rows, vina = _bt_po.read_master(saved_files[0]["path"])
+            code = code or code2
+            by_vendor = {}
+            for x in rows:
+                if x["협력사"]:
+                    by_vendor.setdefault(x["협력사"], []).append(x)
+            targets = [vendor] if vendor else sorted(by_vendor)
+            if not targets:
+                raise ValueError("발주서를 만들 협력사가 없습니다 — 마스터의 협력사 칸을 먼저 채워 주십시오.")
+            stamp = datetime.now().strftime("%Y%m%d")
+            made = []
+            for v in targets:
+                items = by_vendor.get(v, [])
+                if not items:
+                    raise ValueError(f"협력사 「{v}」 의 산 줄이 없습니다.")
+                po_path = os.path.join(run_dir, f"{code} {v} 발주서_{stamp}.xlsx")
+                r1 = _bt_po.write_po(items, v, code, po_path, due=due)
+                made.append((v, r1, po_path))
+                warn = f" · ⚠단가 미확정 {r1['단가미확정']}줄" if r1["단가미확정"] else ""
+                rep_lines.append(f"{v} {r1['품목']}줄 · 합계 {r1['합계']:,}원{warn}"
+                                 + (f" · 변경표기 정리 {r1['변경정리']}건" if r1["변경정리"] else ""))
+            if vina:
+                rep_lines.append(f"VINA 줄 {vina}개 제외 — 베트남 담당자 협의 대상")
+            rep_lines.append("협력사 전화·메일 칸은 비움 — 거래처 목록 연결 전(손 기입)")
+            if len(made) == 1:
+                out_name = os.path.basename(made[0][2])
+                out_path = made[0][2]
+            else:
+                import zipfile
+                out_name = f"{code} 발주서묶음_{stamp} ({len(made)}곳).zip"
+                out_path = os.path.join(run_dir, out_name)
+                with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as z:
+                    for _v, _r, p in made:
+                        z.write(p, os.path.basename(p))
+            title = f"발주서 {len(made)}건" + (f" ({vendor})" if vendor else " (전체 협력사)")
+
+        else:  # pragma: no cover
+            raise ValueError("없는 단계입니다.")
+
+        report = "\n".join(rep_lines)
+        with db_session() as c:
+            c.execute("INSERT INTO bom_tool_runs(mgmt_code, step, title, inputs, output_name, "
+                      "output_path, report, created_by) VALUES(?,?,?,?,?,?,?,?)",
+                      (code, step, title, _json.dumps(saved, ensure_ascii=False),
+                       out_name, out_path, report, u["id"]))
+        return RedirectResponse(
+            f"/bom/tools?msg={_q(_BT_STEPS[step] + ' 완료 — ' + title + ' (아래 기록에서 다운로드)')}", 303)
+    except ValueError as e:
+        return RedirectResponse(f"/bom/tools?err={_q(str(e))}", 303)
+    except Exception:
+        import logging as _lg
+        _lg.exception("bom_tools run 실패")
+        return RedirectResponse(f"/bom/tools?err={_q('실행 중 오류가 났습니다 — 파일 양식을 확인해 주십시오.')}", 303)
+
+
+@app.get("/bom/tools/download/{run_id:int}")
+async def bom_tools_download(request: Request, run_id: int, f: str = "out"):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_view_logistics(u) or _bom_can_upload(u)):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        r = c.execute("SELECT * FROM bom_tool_runs WHERE id=?", (run_id,)).fetchone()
+    if not r:
+        return RedirectResponse("/bom/tools", 303)
+    r = dict(r)
+    if f == "out":
+        path, fname = r.get("output_path"), r.get("output_name")
+    else:
+        try:
+            idx = int(f.replace("in", ""))
+            item = _json.loads(r.get("inputs") or "[]")[idx]
+            path, fname = item["path"], item["name"]
+        except Exception:
+            return RedirectResponse("/bom/tools", 303)
+    # ⛔ 저장소 폴더 밖 경로는 주지 않는다 (기록 조작 대비)
+    if not path or not os.path.abspath(path).startswith(os.path.abspath(_BT_STORE)) \
+            or not os.path.exists(path):
+        from urllib.parse import quote as _q
+        return RedirectResponse(f"/bom/tools?err={_q('파일이 없습니다 (지워졌거나 이동됨).')}", 303)
+    return FileResponse(path, filename=fname or os.path.basename(path))
+
+
 @app.get("/bom/upload", response_class=HTMLResponse)
 async def bom_upload_form(request: Request):
     u = get_user(request)

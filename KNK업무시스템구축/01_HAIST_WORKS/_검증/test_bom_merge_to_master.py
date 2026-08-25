@@ -15,9 +15,9 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-import bom_merge_to_master as B                    # noqa: E402
-import bom_inventor_to_partlist as A               # noqa: E402
+sys.path.insert(0, os.path.dirname(HERE))
+from app.bom_tools import merge_to_master as B     # noqa: E402
+from app.bom_tools import inventor_to_partlist as A  # noqa: E402
 from openpyxl import load_workbook                 # noqa: E402
 
 DL = r"C:\Users\top00\Downloads"

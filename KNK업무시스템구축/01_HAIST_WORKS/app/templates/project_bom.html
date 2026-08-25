@@ -106,6 +106,9 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
         {# WP-04 기준전환: 이 프로젝트 자재를 언제부터 WORKS 로 관리하는지 #}
         <a class="btn-ghost" href="/projects/{{ project.id }}/baseline"
            title="이 프로젝트 자재를 언제부터 WORKS 로 관리하는지">자재 관리 단계</a>
+        {# WP-04 BOM 도구 공장: 파일 올리면 간이판·통일판·단가·견적요청서·발주서를 만들어 줌 #}
+        <a class="btn-ghost" href="/bom/tools"
+           title="파일을 올리면 결과물을 만들어 주고 단계별로 기록됩니다">BOM 도구</a>
         <a class="btn-ghost" href="/projects/{{ project.id }}/bom/export.xlsx">⤓ 현재 BOM 엑셀</a>
         {% if can_edit %}
         {# v5H226z986 (대표 지시): 테스트/오등록 정리 — 관리번호 타이핑 확인 후 BOM 데이터만 전체 삭제 (프로젝트 유지) #}
