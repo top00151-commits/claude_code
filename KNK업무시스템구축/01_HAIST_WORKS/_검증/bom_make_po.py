@@ -112,7 +112,8 @@ def read_master(path):
                      "제조사": str(ws.cell(row=r, column=7).value or "").strip(),
                      "수량": qty,
                      "단위": str(ws.cell(row=r, column=12).value or "").strip() or "EA",
-                     "단가": ws.cell(row=r, column=20).value,
+                     "단가": ws.cell(row=r, column=20).value,        # T 확정단가 (발주서용)
+                     "기존단가": ws.cell(row=r, column=16).value,    # P 실적가 (견적요청서용)
                      "비고": str(ws.cell(row=r, column=27).value or "").strip()})
     return code, name, sets, rows, vina
 
