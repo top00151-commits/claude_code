@@ -186,6 +186,12 @@ r = cl.get("/bom/tools")
 check("기록 화면: 실행들이 표로 보임 + 다운로드 단추", "실행 기록" in r.text
       and "A005M2606" in r.text and "download" in r.text)
 
+# 메뉴 입구 (대표 화면 지적 2026-08-25 "메뉴 경로가 안 보인다") — 센터 홈 카드 + 사이드바
+r = cl.get("/logistics")
+check("자재구매센터 홈 카드·사이드바에 「BOM 도구」 입구",
+      r.status_code == 200 and r.text.count('href="/bom/tools"') >= 2 and "BOM 도구" in r.text,
+      f"{r.status_code}/{r.text.count('href=\"/bom/tools\"')}")
+
 print("-" * 66)
 print(f"  시험 {CNT}건 · 실패 {len(FAIL)}건" + ("" if not FAIL else " → " + ", ".join(FAIL)))
 # 임시 DB 확인 — 실제 DB 무변경
