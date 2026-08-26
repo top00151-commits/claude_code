@@ -137,6 +137,43 @@ run2 = last_run()
 check("③ 실행: 수불부 2,532건 대조 보고", r.status_code == 303 and run2["step"] == "price"
       and "2,532건 대조" in (run2["report"] or ""), (run2 or {}).get("report", "")[:60])
 
+# ── ①-b 실행 (간이판 → 통일판 뼈대) — ①-c 의 옛 마스터 재료 ──
+with open(run1["output_path"], "rb") as fh:
+    _draft_bytes = fh.read()
+r = cl.post("/bom/tools/run/master", data={"code": "A005M2606", "name": "BUDS 시험", "sets": "1"},
+            files=[("files", ("간이판.xlsx", _draft_bytes, XLSX))])
+run_b = last_run()
+check("①-b 취합: 60줄 뼈대 기록", r.status_code == 303 and run_b["step"] == "master"
+      and "60줄" in (run_b["title"] or ""), (run_b or {}).get("title", ""))
+
+# ── ①-c 실행 (마스터 개정 — AA00 수량 1건 수정해 업로드) ──
+import shutil
+from app.bom_tools import inventor_to_partlist as _inv
+mod = os.path.join(TMP, "AA00_수정.xlsx")
+shutil.copy(os.path.join(INV, "AA00.xlsx"), mod)
+_wm = load_workbook(mod)
+_wsm = _wm["BOM"] if "BOM" in _wm.sheetnames else _wm.active
+_hr, _col, _m = _inv._find_columns(_wsm)
+_qc = _col.get("수량") or _col.get("수량예비")
+for _r in range(_hr + 1, _wsm.max_row + 1):
+    if str(_wsm.cell(row=_r, column=_col["구분"]).value or "").strip() == "구매품":
+        _wsm.cell(row=_r, column=_qc, value=(_wsm.cell(row=_r, column=_qc).value or 0) + 5)
+        break
+_wm.save(mod)
+with open(run_b["output_path"], "rb") as fh:
+    _master_bytes = fh.read()
+r = cl.post("/bom/tools/run/revise",
+            files=[("master", ("옛마스터.xlsx", _master_bytes, XLSX)), fpart("files", mod)])
+run_rev = last_run()
+check("①-c 개정: 수량변경 1건 + 기록 저장", r.status_code == 303 and run_rev["step"] == "revise"
+      and "수량변경 1건" in (run_rev["report"] or "") and "개정" in (run_rev["title"] or ""),
+      loc(r)[:60] + " | " + (run_rev or {}).get("report", "")[:60])
+zr0 = cl.get(f"/bom/tools/download/{run_rev['id']}?f=out")
+check("①-c 산출물(_개정.xlsx) 다운로드", zr0.status_code == 200
+      and run_rev["output_name"].endswith("_개정.xlsx"))
+check("①-c 보고: 본 블록 밖 교차 줄(AB00 속 AA00) 무접촉 보고",
+      "본 블록 밖" in (run_rev["report"] or ""), (run_rev or {}).get("report", "")[:100])
+
 # ── ② 발주서 (협력사 한 곳) ──
 r = cl.post("/bom/tools/run/po", data={"vendor": "광원전기", "due": "2026-09-01"},
             files=[fpart("files", MASTER)])

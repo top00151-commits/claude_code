@@ -80,6 +80,7 @@ details.rep pre { margin:6px 0 0; padding:8px 10px; background:var(--pq-surface-
   <div class="flow">
     <b>흐름</b> — ①-a 인벤터 유닛 BOM들 → 간이판 초안 &nbsp;→&nbsp; ①-b 간이판+전장 BOM → 통일판 뼈대
     &nbsp;→&nbsp; ③ 수불부로 기존단가 자동 &nbsp;→&nbsp; ② 협력사별 견적요청서·발주서.
+    제작 중 설계가 바뀌면 <b>①-c 마스터 개정</b>에 바뀐 유닛 BOM만 올리면 됩니다(손 기입 보존).
     각 단계 산출물을 내려받아 확인·수정 후 다음 단계에 올리시면 됩니다. (엑셀 방식 그대로 — 화면화는 다음 단계)
   </div>
 
@@ -120,6 +121,20 @@ details.rep pre { margin:6px 0 0; padding:8px 10px; background:var(--pq-surface-
           <div><label class="f">작성자 (비우면 본인)</label><input type="text" name="author" {% if not can_run %}disabled{% endif %} /></div>
         </div>
         <button class="btn-run" {% if not can_run %}disabled{% endif %}>통일판 뼈대 만들기</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>①-c 마스터 개정 (설계 변경 반영)</h2>
+      <div class="d">제작 중 부품이 추가·변경·삭제되면 옛 마스터와 <b>바뀐 유닛의 인벤터 BOM만</b> 올리십시오.
+        그 유닛만 대조해 추가는 「추가」 줄, 삭제는 줄을 남기고 「삭제」+확정단가 0(실물 관행),
+        형번 변경은 「옛-&gt;새」로 적습니다. 단가·협력사 등 손 기입과 다른 유닛은 건드리지 않습니다.</div>
+      <form method="post" action="/bom/tools/run/revise" enctype="multipart/form-data">
+        <label class="f">옛 마스터 (통일판) 파일</label>
+        <input type="file" name="master" accept=".xlsx" required {% if not can_run %}disabled{% endif %} />
+        <label class="f">바뀐 유닛의 인벤터 BOM 파일들</label>
+        <input type="file" name="files" accept=".xlsx" multiple required {% if not can_run %}disabled{% endif %} />
+        <button class="btn-run" {% if not can_run %}disabled{% endif %}>개정본 만들기</button>
       </form>
     </div>
 

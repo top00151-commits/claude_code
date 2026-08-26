@@ -21687,6 +21687,7 @@ from .bom_tools import merge_to_master as _bt_master
 from .bom_tools import make_po as _bt_po
 from .bom_tools import make_rfq as _bt_rfq
 from .bom_tools import fill_prices as _bt_price
+from .bom_tools import revise_master as _bt_revise
 
 _BT_STORE = os.path.join(BASE, "bom_tools_store")
 os.makedirs(_BT_STORE, exist_ok=True)
@@ -21694,6 +21695,7 @@ os.makedirs(_BT_STORE, exist_ok=True)
 _BT_STEPS = {
     "draft":  "①-a 인벤터 → 간이판 초안",
     "master": "①-b 취합 → 통일판 뼈대",
+    "revise": "①-c 마스터 개정 (설계 변경 반영)",
     "price":  "③ 기존단가 자동 기입",
     "rfq":    "② 견적요청서",
     "po":     "② 발주서",
@@ -21754,6 +21756,7 @@ async def bom_tools_page(request: Request):
 async def bom_tools_run(request: Request, step: str,
                         files: list[UploadFile] = File([]),
                         ledger: UploadFile | None = File(None),
+                        master: UploadFile | None = File(None),
                         code: str = Form(""), name: str = Form(""),
                         author: str = Form(""), sets: str = Form("1"),
                         vendor: str = Form(""), due: str = Form(""),
@@ -21823,6 +21826,44 @@ async def bom_tools_run(request: Request, step: str,
             if rep["옮기지않음"]:
                 rep_lines.append(f"⚠ 옮기지 않은 입력값 {len(rep['옮기지않음'])}건(단가·납기류는 구매팀 몫): " +
                                  ", ".join(f"{fn} r{r} {k}" for fn, r, k, _ in rep["옮기지않음"][:8]))
+
+        elif step == "revise":
+            saved_master = await _bt_save_inputs(run_dir, [master] if master is not None else [])
+            if not saved_master or not saved_files:
+                raise ValueError("옛 마스터 파일과 바뀐 유닛의 인벤터 BOM 파일(들)이 둘 다 필요합니다.")
+            saved = saved_master + saved_files
+            out_name = os.path.splitext(saved_master[0]["name"])[0] + "_개정.xlsx"
+            out_path = os.path.join(run_dir, out_name)
+            res = _bt_revise.revise(saved_master[0]["path"], [s["path"] for s in saved_files], out_path)
+            code2, _n, _s, _rows, _v = _bt_po.read_master(saved_master[0]["path"])
+            code = code or code2
+            title = (f"개정 — 추가 {len(res['추가'])}·삭제표시 {len(res['삭제표시'])}"
+                     f"·수량변경 {len(res['수량변경'])}·형번 {len(res['형번개정'])}")
+            rep_lines.append("대조 유닛: " + ", ".join(res["유닛"])
+                             + " · 안 건드린 유닛: " + (", ".join(res["안건드린유닛"]) or "없음"))
+            if res["추가"]:
+                rep_lines.append(f"추가 {len(res['추가'])}건: " +
+                                 ", ".join(f"r{r} [{u2}] {f}" for r, u2, f in res["추가"][:8]))
+            if res["삭제표시"]:
+                rep_lines.append(f"삭제표시(줄 남김) {len(res['삭제표시'])}건: " +
+                                 ", ".join(f"r{r} {f}" for r, f in res["삭제표시"][:8]))
+            if res["수량변경"]:
+                rep_lines.append(f"수량변경 {len(res['수량변경'])}건: " +
+                                 ", ".join(f"r{r} {f} {a}→{b}" for r, f, a, b in res["수량변경"][:8]))
+            if res["형번개정"]:
+                rep_lines.append(f"형번 「옛->새」 {len(res['형번개정'])}건: " +
+                                 ", ".join(f"r{r} {a}->{b}" for r, a, b in res["형번개정"][:6]))
+            if res["T내림"]:
+                rep_lines.append("삭제줄 확정단가 0 처리(금액 제외 — 실물 관행): " +
+                                 ", ".join(f"r{r} {f} {t:,}원" for r, f, t in res["T내림"][:6]))
+            if res["이미표시"]:
+                rep_lines.append("B열 낱말 있어 안 건드림: " +
+                                 ", ".join(f"r{r} 「{b}」 {f}" for r, b, f in res["이미표시"][:6]))
+            if res["형번후보"]:
+                rep_lines.append(f"⚠ 형번 변경 후보(자동 기입 안 함 — 손 확인): {res['형번후보'][:4]}")
+            if res["블록밖"]:
+                rep_lines.append("📌 본 블록 밖 같은 유닛 줄(무접촉 — 손 확인): " +
+                                 ", ".join(f"r{r} [{d}] {f}" for r, d, f in res["블록밖"][:6]))
 
         elif step == "price":
             if not saved_files or not saved_ledger:
