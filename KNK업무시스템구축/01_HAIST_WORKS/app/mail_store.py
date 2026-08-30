@@ -1079,24 +1079,39 @@ def parse_raw_email(raw) -> dict:
 
 
 # ─── 첨부 저장·조회 + 안전 HTML 렌더(원본처럼 보이기) ────────────────
-# 첨부 바이트는 POC 단계에서 DB(mail_attachments.data)에 보관. 상한 초과분은 메타만.
+# 첨부 바이트는 나스 파일(data/mail_att/)에 저장하고 DB엔 path 만 → DB 경량화(2026-08-30 대표 지시).
+# 마이그 전/폴백은 DB(mail_attachments.data BLOB). get_attachment 가 path 우선·없으면 BLOB.
 _ATT_STORE_MAX = 12 * 1024 * 1024   # 12MB/건
 
 
+def _att_dir():
+    """첨부 파일 저장 폴더(나스·DB 옆 data/mail_att/)."""
+    from .database import DB_PATH
+    return os.path.join(os.path.dirname(DB_PATH), "mail_att")
+
+
 def _save_attachments(c, mail_id: int, attachments) -> None:
-    """파싱된 첨부 리스트를 mail_attachments 에 저장(인라인 이미지 포함)."""
+    """파싱된 첨부 리스트를 저장(인라인 포함). 바이트는 나스 파일로, DB엔 path 만(BLOB 아님)."""
     for a in (attachments or []):
         try:
             data = a.get("data") or b""
-            store = data if (data and len(data) <= _ATT_STORE_MAX) else None
-            c.execute(
+            keep = bool(data and len(data) <= _ATT_STORE_MAX)
+            cur = c.execute(
                 """INSERT INTO mail_attachments
-                   (mail_id, filename, mime, size, content_id, is_inline, data)
-                   VALUES(?,?,?,?,?,?,?)""",
+                   (mail_id, filename, mime, size, content_id, is_inline, data, path)
+                   VALUES(?,?,?,?,?,?,?,?)""",
                 (mail_id, (a.get("filename") or "")[:255], (a.get("mime") or "")[:120],
                  int(a.get("size") or 0), (a.get("content_id") or "")[:255],
-                 1 if a.get("inline") else 0, store),
+                 1 if a.get("inline") else 0, None, None),
             )
+            if keep:
+                att_id = cur.lastrowid
+                d = os.path.join(_att_dir(), str(mail_id))
+                os.makedirs(d, exist_ok=True)
+                p = os.path.join(d, "%d_%s" % (att_id, safe_filename(a.get("filename") or "file")))
+                with open(p, "wb") as f:
+                    f.write(data)
+                c.execute("UPDATE mail_attachments SET path=? WHERE id=?", (p, att_id))
         except Exception:
             # 데이터 연결성: 첨부 1건 실패가 메일 저장을 막지 않게(메일은 이미 저장됨)
             pass
@@ -1117,17 +1132,29 @@ def list_attachments(c, mail_id: int, *, inline=None):
 
 
 def get_attachment(c, att_id: int, user_id: int):
-    """첨부 1건의 바이트(소유권 강제: 메일 소유자만). 없거나 미보관이면 None."""
+    """첨부 1건의 바이트(소유권 강제: 메일 소유자만). 나스 파일(path) 우선, 없으면 DB(data) 폴백.
+    둘 다 없으면 None. (파일 우선 덕분에 마이그 전 기존 첨부는 BLOB 로 그대로 열림.)"""
     r = c.execute(
-        "SELECT a.filename, a.mime, a.data FROM mail_attachments a "
+        "SELECT a.filename, a.mime, a.data, a.path FROM mail_attachments a "
         "JOIN mail_messages m ON m.id = a.mail_id "
         "WHERE a.id=? AND m.user_id=? AND m.is_deleted=0",
         (att_id, user_id),
     ).fetchone()
-    if not r or r["data"] is None:
+    if not r:
+        return None
+    data = None
+    if r["path"]:
+        try:
+            with open(r["path"], "rb") as f:
+                data = f.read()
+        except Exception:
+            data = None
+    if data is None:
+        data = r["data"]   # 마이그 전/폴백: DB BLOB
+    if data is None:
         return None
     return {"filename": r["filename"] or "attachment",
-            "mime": r["mime"] or "application/octet-stream", "data": r["data"]}
+            "mime": r["mime"] or "application/octet-stream", "data": data}
 
 
 def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
