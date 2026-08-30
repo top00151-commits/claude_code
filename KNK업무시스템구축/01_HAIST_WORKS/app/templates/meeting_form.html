@@ -104,6 +104,12 @@
 #mtgMore { margin-top:14px; }
 #mtgMore summary { cursor:pointer; font-size:13px; font-weight:700; color: var(--qv-ink-2); padding:6px 0; }
 #mtgMore summary:hover { color: var(--qv-ink); }
+/* ── z1091 📋 복사 버튼(원문·정리) — 눌러서 바로 클립보드, 다른 곳 전달용 ── */
+.copy-btn { border:1px solid var(--qv-line-3); background: var(--qv-surface); color: var(--qv-ink-2);
+  font-size:12px; font-weight:700; cursor:pointer; padding:5px 11px; border-radius:7px;
+  white-space:nowrap; flex-shrink:0; }
+.copy-btn:hover { background: var(--qv-surface-2); color: var(--qv-ink); }
+.copy-btn[disabled] { opacity:.75; cursor:default; }
 /* ── z971 자동 정리 진행 카드 ── */
 #pipeCard { border-left:4px solid #7C3AED; }
 #pipeSteps { display:flex; flex-direction:column; gap:7px; font-size:13.5px; line-height:1.55; }
@@ -280,7 +286,11 @@
       </div>
       <div class="mf-body">
         <div class="mf-fld full">
-          <label>회의 내용 (원문)</label>
+          {# z1091: 원문 복사 — 눌러서 바로 클립보드(다른 곳 전달용). 열람자도 사용 가능 #}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <label>회의 내용 (원문)</label>
+            <button class="copy-btn" id="btnCopyBody" type="button" title="원문 전체를 복사합니다">📋 복사</button>
+          </div>
           <textarea id="mtgBody" placeholder="회의에서 오간 내용. 녹음을 올리면 음성→글자 변환 결과가 여기에 자동으로 들어옵니다." {% if not can_edit %}disabled{% endif %}>{{ meeting.body }}</textarea>
         </div>
       </div>
@@ -290,7 +300,10 @@
   {% if not is_new %}
     <!-- ── 요약 ── -->
     <div class="mf-section" id="secSummary">
-      <div class="mf-sec-head"><div class="mf-sec-title">📋 회의록 정리 <em>(안건·논의·요점)</em></div></div>
+      <div class="mf-sec-head"><div class="mf-sec-title">📋 회의록 정리 <em>(안건·논의·요점)</em></div>
+        {# z1091: 정리 복사 — 제목·날짜 머리말과 함께 클립보드(전달받는 쪽이 맥락을 알도록) #}
+        <button class="copy-btn" id="btnCopySum" type="button" style="margin-left:auto;" title="정리 내용을 제목·날짜와 함께 복사합니다">📋 복사</button>
+      </div>
       <div class="sum-box empty" id="mtgSummary">아직 정리 전입니다 — 회의 내용을 적거나 녹음하면 자동으로 정리됩니다.</div>
     </div>
 
@@ -672,6 +685,33 @@ window.__MTG = {
     var ta=$('mtgBody'); if(ta){ try{ ta.focus(); }catch(_){}}
   });
   var bGo=$('pipeGo'); if(bGo) bGo.addEventListener('click', function(){ autoPipeline({}); });
+
+  // ── z1091 📋 복사(원문·정리) — 클립보드로 담아 메신저 등에 바로 붙여넣기 ──
+  async function copyText(txt){
+    try { await navigator.clipboard.writeText(txt); return true; } catch(_){}
+    try {  // 구형/설치형 브라우저 폴백
+      var ta=document.createElement('textarea'); ta.value=txt;
+      ta.style.position='fixed'; ta.style.left='-9999px'; ta.setAttribute('readonly','');
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, txt.length);
+      var ok=document.execCommand('copy'); document.body.removeChild(ta); return ok;
+    } catch(_){ return false; }
+  }
+  function copyFlash(b,msg){ var o=b.textContent; b.disabled=true; b.textContent=msg;
+    setTimeout(function(){ b.textContent=o; b.disabled=false; }, 1400); }
+  function bindCopy(id, getText, emptyMsg){
+    var b=$(id); if(!b) return;
+    b.addEventListener('click', async function(){
+      var t=(getText()||'').trim();
+      if(!t){ copyFlash(b, emptyMsg); return; }
+      copyFlash(b, (await copyText(t)) ? '✓ 복사됨' : '복사 실패');
+    });
+  }
+  bindCopy('btnCopyBody', function(){ return (($('mtgBody')||{}).value)||''; }, '내용 없음');
+  bindCopy('btnCopySum', function(){
+    var s=(M.summary||'').trim(); if(!s) return '';
+    var tt=((($('mtgTitle')||{}).value)||'').trim(), dt=((($('mtgDate')||{}).value)||'').trim();
+    return '📋 회의록 정리 — '+tt+(dt?(' ('+dt+')'):'')+'\n\n'+s;  // 전달받는 쪽 맥락용 머리말
+  }, '정리 전');
   var bRt=$('pipeRetry'); if(bRt) bRt.addEventListener('click', function(){ autoPipeline(_pipeLastOpts||{}); });
 
   // 목록 이벤트 위임(삭제·일일카드로)
