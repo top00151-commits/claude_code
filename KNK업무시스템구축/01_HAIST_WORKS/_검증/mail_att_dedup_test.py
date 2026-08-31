@@ -136,5 +136,28 @@ check("상한 초과=파일 없음(path NULL)", rb["path"] is None)
 check("상한 초과=BLOB 없음(data NULL)", rb["data"] is None)
 check("상한 초과=sha256 없음", rb["sha256"] is None)
 
+print("=== 10) 기존 운영DB(sha256 컬럼 없음)에 SCHEMA 재실행해도 기동 안 깨짐 — 실장애 회귀가드 ===")
+# 2026-08-31 실장애 재현: 스키마 executescript 가 아직 없는 sha256 컬럼에 인덱스를 걸어
+#   "no such column: sha256" 로 init_db 크래시 → 앱 기동 불가. 재시작 시나리오를 정확히 모사.
+import app.database as dbmod  # noqa: E402
+c5 = sqlite3.connect(":memory:")
+c5.executescript(dbmod.SCHEMA)                       # ① 신규 DB — 전 테이블 생성(정상)
+c5.execute("DROP TABLE mail_attachments")            # ② mail_attachments 만 구버전으로 되돌림
+c5.execute("""CREATE TABLE mail_attachments(         -- 구 스키마 = sha256 컬럼 없음(운영DB 상태)
+  id INTEGER PRIMARY KEY AUTOINCREMENT, mail_id INT, filename TEXT, mime TEXT,
+  size INT, path TEXT, content_id TEXT, is_inline INT DEFAULT 0, data BLOB,
+  created_at TEXT)""")
+schema_ok, schema_err = True, ""
+try:
+    c5.executescript(dbmod.SCHEMA)                   # ③ 앱 재시작 = SCHEMA 재실행. 예전엔 여기서 크래시
+except Exception as e:
+    schema_ok, schema_err = False, str(e)
+check("구 mail_attachments(sha256 없음)에 SCHEMA 재실행해도 안 깨짐(no such column 방지)", schema_ok)
+if not schema_ok:
+    print("      실제 오류:", schema_err)
+# 주석 줄(--)은 빼고, 실제 실행문에 sha256 인덱스 생성이 없어야 한다(마이그·런타임으로 미룸).
+_schema_stmts = "\n".join(l for l in dbmod.SCHEMA.splitlines() if not l.strip().startswith("--"))
+check("SCHEMA 실행문에 idx_mailatt_sha 생성 없음(마이그로 미룸)", "idx_mailatt_sha" not in _schema_stmts)
+
 print("\n===== 결과: %d PASS / %d FAIL =====" % (PASS, FAIL))
 sys.exit(0 if FAIL == 0 else 1)

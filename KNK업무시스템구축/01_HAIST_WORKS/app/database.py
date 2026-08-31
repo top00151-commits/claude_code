@@ -426,7 +426,11 @@ CREATE TABLE IF NOT EXISTS mail_attachments (
     created_at  TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_mailatt_mail ON mail_attachments(mail_id);
-CREATE INDEX IF NOT EXISTS idx_mailatt_sha  ON mail_attachments(sha256);
+-- ⚠ idx_mailatt_sha 는 이 스키마(executescript)에서 만들지 않는다.
+--   기존 운영DB엔 CREATE TABLE IF NOT EXISTS 가 건너뛰어 sha256 컬럼이 아직 없고,
+--   그 상태로 이 인덱스를 만들면 "no such column: sha256" 로 executescript 통째 실패
+--   → init_db 크래시 → 앱 기동 불가(2026-08-31 실장애). 컬럼을 ALTER 로 보장한 뒤
+--   아래 마이그레이션 블록(try 감쌈)에서 생성한다. mail_store._ensure_att_cols 도 런타임 보강.
 
 -- 수신 주소 → WORKS 사용자 매핑(없으면 대표 기본). POC: test@ → 대표.
 CREATE TABLE IF NOT EXISTS mail_aliases (
