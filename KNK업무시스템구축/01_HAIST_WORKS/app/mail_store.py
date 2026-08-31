@@ -1090,28 +1090,87 @@ def _att_dir():
     return os.path.join(os.path.dirname(DB_PATH), "mail_att")
 
 
+def _att_sha256(data: bytes) -> str:
+    """첨부 바이트의 내용 지문(sha256) — 같은 내용 = 같은 지문(중복 판별용, 대표 확정 2026-08-31)."""
+    return hashlib.sha256(data).hexdigest()
+
+
+def _content_att_path(sha: str) -> str:
+    """내용주소 저장 경로: data/mail_att/sha256/<앞2글자>/<전체해시>.
+    같은 내용은 항상 같은 경로 → 물리 파일 1개만(중복제거). 앞2글자=폴더 분산(한 폴더 과밀 방지)."""
+    return os.path.join(_att_dir(), "sha256", sha[:2], sha)
+
+
+_ATT_COLS_OK = False
+
+
+def _ensure_att_cols(c):
+    """mail_attachments 에 sha256 컬럼/인덱스 보장(idempotent, 프로세스당 1회)."""
+    global _ATT_COLS_OK
+    if _ATT_COLS_OK:
+        return
+    try:
+        c.execute("ALTER TABLE mail_attachments ADD COLUMN sha256 TEXT")
+    except Exception:
+        pass
+    try:
+        c.execute("CREATE INDEX IF NOT EXISTS idx_mailatt_sha ON mail_attachments(sha256)")
+    except Exception:
+        pass
+    _ATT_COLS_OK = True
+
+
+def _write_content_file(p: str, data: bytes) -> bool:
+    """내용해시 파일을 원자적으로 기록(임시파일→rename). 이미 있고 크기 같으면 안 씀(중복제거).
+    반환 True=파일 최종 존재(신규 기록 or 기존 재사용). 실패 시 False.
+    ⭐파일 삭제는 어디서도 하지 않음 → 여러 메일이 한 파일 공유해도 서로 깨질 위험 0(고아만 남을 뿐)."""
+    try:
+        if os.path.exists(p) and os.path.getsize(p) == len(data):
+            return True                     # 같은 내용 이미 있음 → 재사용(중복제거)
+        d = os.path.dirname(p)
+        os.makedirs(d, exist_ok=True)
+        import tempfile
+        fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp_")
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+            os.replace(tmp, p)              # 원자적 교체(동시 기록·중단 안전)
+        except Exception:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+            raise
+        return True
+    except Exception:
+        return False
+
+
 def _save_attachments(c, mail_id: int, attachments) -> None:
-    """파싱된 첨부 리스트를 저장(인라인 포함). 바이트는 나스 파일로, DB엔 path 만(BLOB 아님)."""
+    """파싱된 첨부 리스트를 저장(인라인 포함). 바이트는 나스 파일(내용해시 경로)로, DB엔 경로+지문만.
+    ⭐내용해시 저장 = 같은 내용은 물리 파일 1개만(중복제거·대표 확정 2026-08-31). 여러 메일이 그 파일을 참조.
+    파일명·mime 는 첨부 행마다 그대로(같은 물리파일이라도 메일별 원래 이름으로 표시)."""
+    _ensure_att_cols(c)
     for a in (attachments or []):
         try:
             data = a.get("data") or b""
             keep = bool(data and len(data) <= _ATT_STORE_MAX)
-            cur = c.execute(
+            sha = None
+            p = None
+            if keep:
+                sha = _att_sha256(data)
+                if _write_content_file(_content_att_path(sha), data):
+                    p = _content_att_path(sha)   # 파일 확보 성공 시에만 경로 기록
+            # 파일 기록 실패(디스크 등) 시 데이터 손실 방지: 그 건만 예외적으로 BLOB 저장(폴백).
+            _blob = data if (keep and p is None) else None
+            c.execute(
                 """INSERT INTO mail_attachments
-                   (mail_id, filename, mime, size, content_id, is_inline, data, path)
-                   VALUES(?,?,?,?,?,?,?,?)""",
+                   (mail_id, filename, mime, size, content_id, is_inline, data, path, sha256)
+                   VALUES(?,?,?,?,?,?,?,?,?)""",
                 (mail_id, (a.get("filename") or "")[:255], (a.get("mime") or "")[:120],
                  int(a.get("size") or 0), (a.get("content_id") or "")[:255],
-                 1 if a.get("inline") else 0, None, None),
+                 1 if a.get("inline") else 0, _blob, p, sha),
             )
-            if keep:
-                att_id = cur.lastrowid
-                d = os.path.join(_att_dir(), str(mail_id))
-                os.makedirs(d, exist_ok=True)
-                p = os.path.join(d, "%d_%s" % (att_id, safe_filename(a.get("filename") or "file")))
-                with open(p, "wb") as f:
-                    f.write(data)
-                c.execute("UPDATE mail_attachments SET path=? WHERE id=?", (p, att_id))
         except Exception:
             # 데이터 연결성: 첨부 1건 실패가 메일 저장을 막지 않게(메일은 이미 저장됨)
             pass

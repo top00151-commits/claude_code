@@ -367,6 +367,11 @@ CREATE INDEX IF NOT EXISTS idx_scontact_name    ON shared_contacts(name);
 CREATE INDEX IF NOT EXISTS idx_scontact_company ON shared_contacts(company);
 CREATE INDEX IF NOT EXISTS idx_scontact_email   ON shared_contacts(email);
 CREATE INDEX IF NOT EXISTS idx_scontact_mobile  ON shared_contacts(mobile);
+-- 성능(대표 지시 2026-08-30·실측): 받은편지함 '거래처 폴더' 집계가 lower(sc.email)=lower(from_email)
+--   로 대조 → email 인덱스 무력화 → 받은메일×연락처 전체훑기(실측 받은편지함 1회 ≈ 2.3초).
+--   소문자 이메일 표현식 인덱스로 조회 전환(실측 2.3초→~35ms·65배). customer_id 동봉=집계 커버링.
+--   ⚠라이브 knk.db 엔 이미 직접 생성 적용(apply_mail_speed_index.ps1)·이 줄은 새 환경/재구축 대비.
+CREATE INDEX IF NOT EXISTS idx_scontact_emaillower ON shared_contacts(lower(email), customer_id);
 
 -- v5H228 (2026-05-31 대표 지시) — 직원 본인 하이웍스 계정 SMTP 발송용 자격증명
 -- 비밀번호는 Fernet 으로 암호화 보관(KNK_MAIL_KEY). 하이웍스 "앱 비밀번호" 사용 권장.
@@ -416,10 +421,12 @@ CREATE TABLE IF NOT EXISTS mail_attachments (
     path        TEXT,                        -- NAS/uploads 저장 경로(미사용 시 NULL)
     content_id  TEXT,                        -- 인라인 이미지 cid 매핑(<...> 제거 보관)
     is_inline   INTEGER DEFAULT 0,           -- 1=본문 인라인 이미지(서명 로고 등)
-    data        BLOB,                        -- 첨부 바이트(POC: DB 보관, 상한 초과 시 메타만)
+    data        BLOB,                        -- 첨부 바이트(마이그 전/폴백용 DB 보관, 상한 초과 시 메타만)
+    sha256      TEXT,                        -- 내용 지문(2026-08-31): 같은 내용=파일 1개(중복제거)·path 는 내용해시 경로
     created_at  TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_mailatt_mail ON mail_attachments(mail_id);
+CREATE INDEX IF NOT EXISTS idx_mailatt_sha  ON mail_attachments(sha256);
 
 -- 수신 주소 → WORKS 사용자 매핑(없으면 대표 기본). POC: test@ → 대표.
 CREATE TABLE IF NOT EXISTS mail_aliases (
@@ -2649,12 +2656,18 @@ def init_db():
                 ("content_id", "ALTER TABLE mail_attachments ADD COLUMN content_id TEXT"),
                 ("is_inline",  "ALTER TABLE mail_attachments ADD COLUMN is_inline INTEGER DEFAULT 0"),
                 ("data",       "ALTER TABLE mail_attachments ADD COLUMN data BLOB"),
+                # 2026-08-31: 첨부 내용해시(중복제거) — 같은 내용은 파일 1개만, path 는 내용해시 경로
+                ("sha256",     "ALTER TABLE mail_attachments ADD COLUMN sha256 TEXT"),
             ]:
                 if col not in macols:
                     try:
                         c.execute(ddl)
                     except Exception:
                         pass
+            try:
+                c.execute("CREATE INDEX IF NOT EXISTS idx_mailatt_sha ON mail_attachments(sha256)")
+            except Exception:
+                pass
         except Exception:
             pass
 
