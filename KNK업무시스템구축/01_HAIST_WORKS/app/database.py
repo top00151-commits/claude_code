@@ -3992,30 +3992,24 @@ def init_db():
         except Exception as _e:
             print(f"[v5H226z474] 납품완료→출하 통일 마이그레이션 실패: {_e}")
 
-        # v5H226t: 상태 cascade 자가치유 백필
-        # (1) 모든 호기가 동일 terminal 상태인데 부모 프로젝트가 다르면 → 부모 갱신 (상방)
-        # (2) 부모가 terminal 인데 자식 SO/호기가 동기 안 됐으면 → 자식 갱신 (하방)
-        try:
-            from . import project_workflow as _pwf_csc
-            # (1) 상방 backfill — 모든 프로젝트에 대해 호기 종합 검사
-            pids = [r[0] for r in c.execute(
-                "SELECT DISTINCT id FROM projects WHERE id IN "
-                "  (SELECT DISTINCT project_id FROM orders WHERE project_id IS NOT NULL)"
-            ).fetchall()]
-            up_promoted = 0
-            for _pid in pids:
-                _r = _pwf_csc.cascade_unit_status_to_project(c, _pid, None)
-                if _r.get("changed"):
-                    up_promoted += 1
-            # (2) 하방 backfill — 프로젝트가 terminal 인데 자식 미반영
-            for _pid, _st in c.execute(
-                "SELECT id, status FROM projects WHERE status IN ('진행중','출하','취소','보류')"
-            ).fetchall():
-                _pwf_csc.cascade_project_status_to_so(c, _pid, _st, None)
-            if up_promoted:
-                print(f"[v5H226t] cascade 백필: 프로젝트 {up_promoted}건 상태 자동 승급")
-        except Exception as _e:
-            print(f"[v5H226t] cascade 백필 실패: {_e}")
+        # ── v5H226z1094 (대표 지시 2026-09-01 "이런 문제 발생되지 않도록 조치하자"): 폐지 ──
+        #   여기 있던 'v5H226t 상태 cascade 자가치유 백필'(상방+하방)을 없앴다.
+        #
+        #   무슨 일이 있었나: 이 블록은 init_db 안이라 **앱을 켤 때마다** 돌았고, 그중 하방이
+        #     "프로젝트가 '출하'면 딸린 SO·호기를 전부 '출하'로" 덮었다. 그래서 **출하가 끝난
+        #     프로젝트에 추가 수주를 등록하면, 다음 재기동 때 그 추가분까지 출하로 둔갑**했다.
+        #     실무자가 화면에서 되돌려도 다음 재기동에 또 덮여 고칠 수가 없었다.
+        #     실측(2026-09-01): 납기 미도래인데 SHIPPED 인 수주 23건 / 17개 프로젝트.
+        #     013T2606 은 8-27 추가 수주 3건이 8-30 17:57 재기동에 한꺼번에 출하로 바뀌었다
+        #     (이력 "시스템 · 상태 cascade 동기화 → 출하 (호기 7건 · SO 3건)").
+        #
+        #   상방도 함께 뺀 이유: 호기가 전부 출하이면 프로젝트·SO 를 출하로 되돌려 놓기 때문에,
+        #     실무자가 수주 상태만 고쳐 놓아도 다음 기동에 무효가 된다.
+        #
+        #   ⭐ 사람이 화면에서 상태를 바꿀 때의 cascade 는 그대로다(의도된 기능) —
+        #      main.py 의 프로젝트 상태 변경(cascade_project_status_to_so)·호기 상태 변경
+        #      (cascade_unit_status_to_project) 경로에서 계속 호출된다. 없앤 것은
+        #      '사람이 시키지 않았는데 기동할 때마다 덮어쓰던' 자동 실행뿐이다.
 
 
 # =====================================================

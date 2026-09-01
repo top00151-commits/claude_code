@@ -1386,13 +1386,25 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
                                   changed_by: int | None = None) -> dict:
     """v5H226r/w — 프로젝트 status 변경 시 자식 SO·호기 자동 동기화.
     cascade 대상이 아닌 status (제안작성/초기협의/...) 는 no-op.
-    INVOICED/PAID SO 만 보호 (재무 기록). 호기는 모두 cascade — 사용자 직관(프로젝트=마스터)."""
+    INVOICED/PAID SO 만 보호 (재무 기록). 호기는 모두 cascade — 사용자 직관(프로젝트=마스터).
+    v5H226z1094 (2026-09-01 대표 지시): '출하'로 내릴 때만 **납기 미도래 수주를 제외**한다.
+      출하가 끝난 프로젝트에 추가 수주를 넣으면 그 추가분까지 출하로 둔갑하던 사고 방지.
+      조기 출하는 그 수주·호기에서 직접 바꾸면 된다(개별 경로는 그대로)."""
     target_unit = PROJECT_TO_UNIT_STATUS.get(new_status)
     target_so = PROJECT_TO_SO_STATUS.get(new_status)
     if not target_unit:
         return {"units_changed": 0, "orders_changed": 0, "skipped": True}
     units_changed = 0
     orders_changed = 0
+    # v5H226z1094 (대표 지시 2026-09-01): '출하'로 내릴 때는 **납기가 아직 안 온 수주**를 건드리지 않는다.
+    #   출하가 끝난 프로젝트에 추가 수주를 넣으면 그 추가분까지 출하로 둔갑하던 사고를 막는다
+    #   (실측: 납기 미도래인데 SHIPPED 23건 / 17개 프로젝트).
+    #   ⭐ 조기 출하는 그 수주·호기에서 직접 바꾸면 된다 — 개별 변경 경로는 막지 않는다.
+    #   납기가 비어 있으면 판단할 근거가 없으므로 기존대로 함께 바꾼다.
+    _due_oi = _due_o = ""
+    if new_status == "출하":
+        _due_oi = " AND (COALESCE(o.due_date,'') = '' OR o.due_date <= date('now','localtime'))"
+        _due_o = " AND (COALESCE(due_date,'') = '' OR due_date <= date('now','localtime'))"
     try:
         # 호기 unit_status 일괄 갱신 — 보호 SO(INVOICED/PAID)에 속한 것만 제외
         # v5H226w: terminal 보호('출하','취소') 폐지 → 프로젝트→진행중 등
@@ -1406,6 +1418,7 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
                       WHERE o.project_id=?
                         AND COALESCE(oi.unit_status,'진행중') != ?
                         AND COALESCE(o.status,'') NOT IN ({','.join('?'*len(PROTECTED_SO_STATUSES))})
+                        {_due_oi}
                     )""",
                 (target_unit, project_id, target_unit, *PROTECTED_SO_STATUSES)
             )
@@ -1419,7 +1432,8 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
                     f"""UPDATE orders SET status=?
                         WHERE project_id=?
                           AND COALESCE(status,'') NOT IN ({','.join('?'*len(PROTECTED_SO_STATUSES))})
-                          AND COALESCE(status,'') != ?""",
+                          AND COALESCE(status,'') != ?
+                          {_due_o}""",
                     (target_so, project_id, *PROTECTED_SO_STATUSES, target_so)
                 )
                 orders_changed = _r2.rowcount or 0
@@ -1432,6 +1446,18 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
                 _detail = f"호기 {units_changed}건"
                 if orders_changed:
                     _detail += f" · SO {orders_changed}건 ({target_so})"
+                # z1094: 납기가 아직 안 와 일부러 건드리지 않은 수주가 있으면 이력에 밝힌다
+                if new_status == "출하":
+                    try:
+                        _kept = c.execute(
+                            "SELECT COUNT(*) FROM orders WHERE project_id=? "
+                            "  AND COALESCE(due_date,'') <> '' "
+                            "  AND due_date > date('now','localtime')", (project_id,)
+                        ).fetchone()
+                        if _kept and _kept[0]:
+                            _detail += f" · 납기 미도래 {_kept[0]}건은 그대로 둠"
+                    except Exception:
+                        pass
                 log_project_change(c, project_id, changed_by,
                                     "상태 cascade 동기화",
                                     "", new_status,
