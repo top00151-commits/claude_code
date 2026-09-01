@@ -908,6 +908,20 @@ def _sync_employees_core(c, payloads, actor_id=None, do_remove=True) -> dict:
             works_only.append({"id": x["id"], "name": x["name"],
                                "login_id": x["login_id"], "employee_no": _eno})
 
+    # z1092b: 관리자가 '전원' 삭제 대상이면 관리자만 남긴다.
+    #   한 명이라도 관리자가 남으면 그대로 지운다(퇴사자 정리는 정상 동작).
+    #   전원이 사라지면 아무도 관리자 화면에 못 들어가 되돌릴 수조차 없다 — 그 상태만 막는다.
+    admin_kept = []
+    if works_only:
+        try:
+            _adm = {r["id"] for r in c.execute(
+                "SELECT id FROM users WHERE COALESCE(role,'') IN ('admin','ceo')").fetchall()}
+        except Exception:
+            _adm = set()
+        if _adm and _adm.issubset({w["id"] for w in works_only}):
+            admin_kept = [w for w in works_only if w["id"] in _adm]
+            works_only = [w for w in works_only if w["id"] not in _adm]
+
     # 안전장치 — 메신저 명부가 비정상이면 통째로 중단하고 명단만 보여준다.
     removed, remove_failed, remove_blocked = [], [], None
     _total_users = 0
@@ -955,6 +969,7 @@ def _sync_employees_core(c, payloads, actor_id=None, do_remove=True) -> dict:
             "inserted": inserted, "skipped": skipped,
             "works_only": works_only, "removed": removed,
             "remove_failed": remove_failed, "remove_blocked": remove_blocked,
+            "admin_kept": admin_kept,
             "sample_new": sample_new, "sample_upd": sample_upd, "dept_map": dept_map}
 
 

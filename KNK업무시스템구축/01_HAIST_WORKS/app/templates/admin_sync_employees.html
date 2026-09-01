@@ -66,6 +66,7 @@
       · <b>기존 직원</b>은 빈 칸만 채우고 기존 값은 보존합니다(역할·비밀번호 유지).<br>
       · <b>메신저 부서코드(01_KOR/00_총괄 형식) → 법인(본사/베트남법인) + 기능팀</b> 으로 자동 도입 — 없는 부서는 새 팀 자동 생성(아래 표).<br>
       · <b style="color:#b91c1c;">메신저가 기준입니다</b> — 메신저에 없는 WORKS 계정은 <b style="color:#b91c1c;">삭제</b>됩니다(대표 지시 2026-08-31). 사람은 <b>사번</b>으로 맞춥니다.<br>
+      · <b>매일 새벽 4:10</b> 자동 동기화에서도 <b>같은 규칙</b>으로 정리됩니다(대표 지시 2026-09-01) — 이 화면은 지금 바로 맞추고 싶을 때 씁니다.<br>
       · 실행 전 <b>WORKS DB 자동 백업</b> · 아래는 <b>미리보기</b>라 누르기 전까지 아무 것도 바뀌지 않습니다.
     </div>
 
@@ -131,6 +132,14 @@
       <div class="se-err">
         ⚠ 안전장치가 걸렸습니다 — {{ preview.remove_blocked }}<br>
         <span style="font-size:12px;">메신저 명부를 정상적으로 받아오지 못했을 때 직원이 통째로 지워지는 것을 막는 장치입니다. 메신저 상태를 확인한 뒤 다시 실행하세요.</span>
+      </div>
+      {% endif %}
+
+      {% if preview.admin_kept %}
+      <div class="se-err">
+        ⚠ 관리자 계정이 <b>전원</b> 삭제 대상이라 관리자만 남겼습니다 —
+        {% for w in preview.admin_kept %}{{ w.name }}({{ w.employee_no or '-' }}){% if not loop.last %} · {% endif %}{% endfor %}<br>
+        <span style="font-size:12px;">전원이 사라지면 아무도 관리자 화면에 들어오지 못해 되돌릴 수조차 없습니다. 메신저 명부를 먼저 확인하세요.</span>
       </div>
       {% endif %}
 

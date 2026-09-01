@@ -1206,12 +1206,29 @@ def _run_directory_autosync():
         return
     conn = get_db()
     try:
-        # z1092: 자동(새벽 4:10)은 추가·갱신만. 사람 계정 삭제는 사람이 보는 앞에서만
-        #   — 관리자 화면에서 확인 문구를 넣고 실행할 때만 지운다(대표 확인 전 기본값).
-        res = sso_client.sync_employees_from_messenger_api(conn.cursor(), do_remove=False)
+        # z1092b (대표 확인 2026-09-01 "여기서도 삭제까지 진행해"): 자동(새벽 4:10)도
+        #   메신저 기준으로 완전히 맞춘다 — 삭제 포함. 안전장치(명부 이상 시 전면 중단·봇 제외·
+        #   사번없음 제외·업무기록 남으면 보류·관리자 전원삭제 방지)는 그대로 적용되고,
+        #   실행 전 자동 백업(knk.db.bak_autoempsync_*)은 위에서 이미 떴다.
+        res = sso_client.sync_employees_from_messenger_api(conn.cursor())
         if res and res.get("ok"):
             conn.commit()
-            print(f"[DIR-SYNC] 자동 명부 동기화 완료 — 신규 {res.get('inserted','?')} · 갱신 {res.get('updated','?')}")
+            # 자동 실행이라 사람이 보고 있지 않다 — 지운 사람은 이름·사번까지 로그에 남긴다.
+            _rm = res.get("removed") or []
+            _rf = res.get("remove_failed") or []
+            print(f"[DIR-SYNC] 자동 명부 동기화 완료 — 신규 {res.get('inserted','?')}"
+                  f" · 갱신 {res.get('updated','?')} · 삭제 {len(_rm)} · 보류 {len(_rf)}")
+            if _rm:
+                print("[DIR-SYNC] 삭제됨: " + " · ".join(
+                    f"{w.get('name')}({w.get('employee_no')})" for w in _rm))
+            if _rf:
+                print("[DIR-SYNC] 보류(업무기록 있음): " + " · ".join(
+                    f"{w.get('name')}({w.get('employee_no')})" for w in _rf))
+            if res.get("admin_kept"):
+                print("[DIR-SYNC] 관리자 전원삭제 방지로 남김: " + " · ".join(
+                    f"{w.get('name')}({w.get('employee_no')})" for w in res["admin_kept"]))
+            if res.get("remove_blocked"):
+                print(f"[DIR-SYNC] 삭제 중단 — {res.get('remove_blocked')}")
         else:
             conn.rollback()
             print(f"[DIR-SYNC] 자동 동기화 실패 — {(res or {}).get('error')}")
