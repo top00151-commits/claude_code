@@ -2728,19 +2728,11 @@ def init_db():
                 "can_view_sales=1, can_view_logistics=1 "
                 "WHERE role='leader' AND is_active=1"
             )
-            # 2026-04-28 자재 보기 시드 (실무자 폭넓게):
-            #   - 영업팀(1), 검사기(2), 품질(3), 생산팀(7,8), 가공(9), 구매(10) 평직원 전원 자동
-            #     (재고·부품·단가·구매사 조회 필요)
-            c.execute(
-                "UPDATE users SET can_view_logistics=1 "
-                "WHERE role='member' AND is_active=1 AND team_id IN (1,2,3,7,8,9,10)"
-            )
-            # 매출 보기 시드:
-            #   - 영업(1), 검사기(2), 품질(3) 평직원 (현재 폴백과 동일 범위)
-            c.execute(
-                "UPDATE users SET can_view_sales=1 "
-                "WHERE role='member' AND is_active=1 AND team_id IN (1,2,3)"
-            )
+            # v5H226z1093 (대표 지시 2026-09-01): 팀 기반 '매 기동 시드' 2개 제거.
+            #   ⚠ 여기 있던 두 UPDATE 는 앱이 재시작될 때마다 실행돼(주석 'idempotent, 매 init 실행'),
+            #     관리자 화면에서 체크를 꺼도 다음 기동 때 되살아났다. 부서별 권한을 손으로 정할 수
+            #     없게 만드는 원인이라 걷어낸다. 부서 권한은 아래 z1093 1회 세팅 + 화면 체크로만 정한다.
+            #   (지운 것: can_view_logistics=1 for team 1,2,3,7,8,9,10 / can_view_sales=1 for team 1,2,3)
             # 쓰기 권한자는 보기도 자동 부여 (write implies read)
             c.execute(
                 "UPDATE users SET can_view_sales=1 WHERE can_use_sales=1 AND is_active=1"
@@ -2750,6 +2742,53 @@ def init_db():
             )
         except Exception:
             pass
+
+        # ── v5H226z1093 (대표 지시 2026-09-01): 센터 진입 권한 부서별 재설정 — 딱 1회만 ──
+        #   대표: "테스트 기간이라 이렇게 먼저 적용해서 완료되면 다시 부서별·개인별 권한 재부여예정"
+        #   → 그 재부여를 덮어쓰면 안 되므로 app_settings 에 표시를 남겨 두 번은 돌지 않는다.
+        #   보존(손대지 않음): 기술영업팀(1)·관리팀(11)·총괄(15, 대표 2인)
+        #   대표·임원·관리자(role)는 위 시드/권한함수에서 계속 전권이라 여기서 다루지 않는다.
+        try:
+            _z1093_key = "z1093_center_perm_reset"
+            _z1093_done = c.execute(
+                "SELECT value FROM app_settings WHERE key=?", (_z1093_key,)).fetchone()
+            if not _z1093_done:
+                # ① 자재·구매 '보기'만 — 설계(4)·소프트웨어(5)·전장설계(6)
+                c.execute(
+                    "UPDATE users SET can_view_logistics=1, can_use_logistics=0, "
+                    "can_view_sales=0, can_use_sales=0 "
+                    "WHERE team_id IN (4,5,6)"
+                )
+                # ② 자재·구매 '보기+등록편집' — 구매팀(10). 매출·영업은 막는다.
+                c.execute(
+                    "UPDATE users SET can_view_logistics=1, can_use_logistics=1, "
+                    "can_view_sales=0, can_use_sales=0 "
+                    "WHERE team_id=10"
+                )
+                # ③ 그 밖의 전 부서 차단 — 보존 3팀(1·11·15)과 위 ①② 를 뺀 나머지 전부.
+                #    본사 검사기(2)·품질(3)·제조기술1(7)·2(8)·가공(9)·개발혁신(13)·라이프밸류(14)·
+                #    AI혁신(26) + 베트남 전체(12,16~25) 가 여기 해당한다.
+                c.execute(
+                    "UPDATE users SET can_view_sales=0, can_use_sales=0, "
+                    "can_view_logistics=0, can_use_logistics=0 "
+                    "WHERE team_id IS NOT NULL "
+                    "  AND team_id NOT IN (1,4,5,6,10,11,15)"
+                )
+                # ④ 기술영업팀(1) 보존 — 지금까지 팀 자동허용으로 열려 있던 '매출 등록·편집'을
+                #    플래그로 고정한다(자동허용을 걷어내도 오늘과 똑같이 쓰이게).
+                c.execute(
+                    "UPDATE users SET can_view_sales=1, can_use_sales=1, can_view_logistics=1 "
+                    "WHERE team_id=1"
+                )
+                c.execute(
+                    "INSERT OR REPLACE INTO app_settings(key, value, description) VALUES(?,?,?)",
+                    (_z1093_key, "done",
+                     "z1093 센터 진입 권한 부서별 1회 재설정 완료 표시 — 지우면 다음 기동에 다시 적용된다")
+                )
+                print("[z1093] 센터 진입 권한 부서별 재설정 1회 적용 완료")
+        except Exception as _e:
+            print(f"[z1093] 센터 권한 재설정 건너뜀: {_e}")
+
         # 마이그레이션: changes에 source 컬럼 (Abram Scientific 모델 — 외부 도구 출처)
         try:
             ccols = [r[1] for r in c.execute("PRAGMA table_info(changes)").fetchall()]

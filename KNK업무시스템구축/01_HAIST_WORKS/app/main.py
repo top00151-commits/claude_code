@@ -1843,11 +1843,11 @@ def role_home(user) -> str:
 
 
 def can_use_logistics(user) -> bool:
-    """HAIST WORKS 물류 모듈 접근 권한.
+    """자재·구매 **등록·편집** 권한.
     - admin / ceo / executive: 항상 허용
-    - team_id == 7 (제조팀): 허용 (2026-04-22 대표 결재 D01-02 안B)
-    - team_id == 10 (구매팀): 허용 (v5H226z980 · 2026-07-15 대표 지시 "구매팀은 사용이 가능해야")
-    - 그 외: users.can_use_logistics 플래그가 1일 때만
+    - 그 외: users.can_use_logistics 플래그가 1일 때만 (관리자 화면의 '센터 진입 권한' 체크)
+    v5H226z1093 (2026-09-01 대표 지시): 팀 번호 자동 허용(7 제조기술1팀 · 10 구매팀) 폐지.
+      부서 권한은 화면 체크로만 정한다 — 구매팀은 z1093 1회 세팅에서 플래그로 옮겼다.
     """
     if not user:
         return False
@@ -1855,12 +1855,11 @@ def can_use_logistics(user) -> bool:
     if role in ("admin", "ceo", "executive"):
         return True
     team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
-    # v5H226z980 (2026-07-15, 대표 지시): 구매팀(team_id=10) 팀 단위 자동 허용.
-    #   기존(2026-04-22 D01-NEW-PERM)엔 구매팀장만 개인 플래그로 부여받는 방식이라
-    #   팀원(예: 288 김선미)이 자재 중복정리·등록 등 use 게이트에서 조용히 /home 으로 튕겼음.
-    #   자재구매센터 주무 부서 = 팀 자동 허용이 정합 (개인 플래그는 타 부서 예외자용 유지).
-    if team_id in (7, 10):
-        return True
+    # v5H226z1093 (대표 지시 2026-09-01): 팀 번호 자동 허용을 걷어냈다.
+    #   기존 `if team_id in (7, 10)` 는 제조기술1팀·구매팀을 코드로 무조건 열어, 화면 체크를
+    #   꺼도 막을 수 없었다. 구매팀 권한은 z1093 1회 세팅에서 플래그(can_use_logistics=1)로
+    #   옮겼으므로 동작은 같고, 이제 화면에서 켜고 끌 수 있다.
+    #   (역할 admin/ceo/executive 자동 허용은 위에 그대로 유지)
     flag = user.get("can_use_logistics") if isinstance(user, dict) else user["can_use_logistics"]
     return bool(flag)
 
@@ -1890,18 +1889,17 @@ def _stock_approve_guard(req: Request):
 def can_view_sales(user) -> bool:
     """매출·영업 **읽기 전용** 권한 (2026-04-28 대표 결재 — R/W 분리).
     - admin / ceo / executive / leader: 항상 허용 (전사 매출 현황 조회)
-    - team_id 1·2·3 (영업·검사기·품질): 항상 허용
-    - 그 외: users.can_view_sales 플래그 1
+    - 그 외: users.can_view_sales 플래그 1 (관리자 화면의 '센터 진입 권한' 체크)
     - 쓰기 권한자(can_use_sales=1)는 자동 포함
+    v5H226z1093 (2026-09-01 대표 지시): 팀 번호 자동 허용(1·2·3) 폐지 — 화면 체크로만.
     """
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
     if role in ("admin", "ceo", "executive", "leader"):
         return True
-    team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
-    if team_id in (1, 2, 3):
-        return True
+    # v5H226z1093 (대표 지시 2026-09-01): 팀 번호 자동 허용(1·2·3) 제거 — 화면 체크로만 판정.
+    #   기술영업팀(1)은 z1093 1회 세팅에서 플래그로 고정해 오늘과 똑같이 열린다.
     try:
         if user.get("can_view_sales") or user.get("can_use_sales"):
             return True
@@ -1912,20 +1910,18 @@ def can_view_sales(user) -> bool:
 
 def can_view_logistics(user) -> bool:
     """자재·구매 **읽기 전용** 권한 (2026-04-28 대표 결재 — R/W 분리).
-    실무자가 부품·재고·단가·구매사를 조회해야 할 때 폭넓게 허용.
     - admin / ceo / executive / leader: 항상 허용
-    - team_id 1,2,3,7,8,9,10 (영업·검사기·품질·생산1·생산2·가공·구매): 항상 허용
-    - 그 외: users.can_view_logistics 플래그 1
+    - 그 외: users.can_view_logistics 플래그 1 (관리자 화면의 '센터 진입 권한' 체크)
     - 쓰기 권한자(can_use_logistics=1)는 자동 포함
+    v5H226z1093 (2026-09-01 대표 지시): 팀 번호 자동 허용(1·2·3·7·8·9·10) 폐지 — 화면 체크로만.
     """
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
     if role in ("admin", "ceo", "executive", "leader"):
         return True
-    team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
-    if team_id in (1, 2, 3, 7, 8, 9, 10):
-        return True
+    # v5H226z1093 (대표 지시 2026-09-01): 팀 번호 자동 허용(1·2·3·7·8·9·10) 제거 — 화면 체크로만.
+    #   설계·소프트웨어·전장설계·구매팀은 z1093 1회 세팅에서 플래그로 부여한다.
     try:
         if user.get("can_view_logistics") or user.get("can_use_logistics"):
             return True
@@ -2660,27 +2656,26 @@ async def admin_work_pattern_manual_generate(request: Request, uid: int):
 def can_use_sales(user) -> bool:
     """매출·영업 **쓰기** (등록·편집·견적·수주) 권한 (Plan Y S1).
     - admin / ceo / executive: 항상 허용
-    - 영업팀·관리팀 leader/member: 항상 허용 (현장 입력자)
-    - 그 외: users.can_use_sales 플래그가 1일 때만
-    회귀 폴백: can_use_sales 컬럼이 없거나 미설정인 경우 can_use_logistics 로 graceful 폴백.
+    - 그 외: users.can_use_sales 플래그가 1일 때만 (관리자 화면의 '센터 진입 권한' 체크)
+    v5H226z1093 (2026-09-01 대표 지시): 팀 번호 자동 허용(1·2·3)과 can_use_logistics 폴백 폐지.
+      폴백이 있으면 자재·구매 등록 권한자에게 매출·영업 등록까지 열려 두 센터가 분리되지 않는다.
     """
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
     if role in ("admin", "ceo", "executive"):
         return True
-    # team_id 1·2·3 (대표직속·영업·관리) 폭넓게 허용 — 추후 팀장 위임 UI 로 정밀화 (S1-2)
-    team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
-    if team_id in (1, 2, 3):
-        return True
+    # v5H226z1093 (대표 지시 2026-09-01): 팀 번호 자동 허용(1·2·3) 제거 — 화면 체크로만 판정.
     try:
         flag = user.get("can_use_sales") if isinstance(user, dict) else user["can_use_sales"]
         if flag:
             return True
     except (KeyError, IndexError):
         pass
-    # 회귀 폴백: 기존 logistics 권한자도 일단 허용 (S1 안전 모드, S2에서 분리 강화)
-    return can_use_logistics(user)
+    # v5H226z1093 (대표 지시 2026-09-01): 회귀 폴백 제거.
+    #   기존엔 `return can_use_logistics(user)` 라, 자재·구매 등록 권한만 준 사람에게
+    #   매출·영업 등록·편집까지 열렸다(구매팀이 대표적). 대표 지시상 두 센터는 분리돼야 한다.
+    return False
 
 
 def status_color(s):
