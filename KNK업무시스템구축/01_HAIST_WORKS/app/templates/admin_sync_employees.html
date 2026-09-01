@@ -51,6 +51,9 @@
         ✅ <b>동기화 완료</b><br>
         · 정보 갱신(기존 직원): <b>{{ done.updated }}</b>명<br>
         · 신규 추가(WORKS 새로): <b>{{ done.inserted }}</b>명<br>
+        {% if done.removed %}· <b style="color:#b91c1c;">삭제(메신저에 없는 계정)</b>: <b>{{ done.removed|length }}</b>명 —
+          {% for w in done.removed %}{{ w.name }}({{ w.employee_no or '-' }}){% if not loop.last %} · {% endif %}{% endfor %}<br>{% endif %}
+        {% if done.remove_failed %}· <b style="color:#b45309;">삭제 보류(업무 기록 있음)</b>: {{ done.remove_failed|length }}명<br>{% endif %}
         {% if done.skipped %}· 건너뜀(사번 없음/오류): {{ done.skipped }}명<br>{% endif %}
         · 메신저 직원 총 {{ done.total }}명 처리<br>
         {% if done.backup %}· 백업: <code>{{ done.backup }}</code> (문제 시 원복 가능)<br>{% endif %}
@@ -62,6 +65,7 @@
       🔄 메신저에 등록된 <b>전 직원</b>(사번·이름(한/영/베)·부서·직급·메일·연락처)을 WORKS 로 가져옵니다.<br>
       · <b>기존 직원</b>은 빈 칸만 채우고 기존 값은 보존합니다(역할·비밀번호 유지).<br>
       · <b>메신저 부서코드(01_KOR/00_총괄 형식) → 법인(본사/베트남법인) + 기능팀</b> 으로 자동 도입 — 없는 부서는 새 팀 자동 생성(아래 표).<br>
+      · <b style="color:#b91c1c;">메신저가 기준입니다</b> — 메신저에 없는 WORKS 계정은 <b style="color:#b91c1c;">삭제</b>됩니다(대표 지시 2026-08-31). 사람은 <b>사번</b>으로 맞춥니다.<br>
       · 실행 전 <b>WORKS DB 자동 백업</b> · 아래는 <b>미리보기</b>라 누르기 전까지 아무 것도 바뀌지 않습니다.
     </div>
 
@@ -79,9 +83,9 @@
           <div class="se-stat upd"><div class="n">정보 갱신(기존)</div><div class="v">{{ preview.updated }}</div></div>
           <div class="se-stat new"><div class="n">신규 추가</div><div class="v">{{ preview.inserted }}</div></div>
           <div class="se-stat skip"><div class="n">건너뜀</div><div class="v">{{ preview.skipped }}</div></div>
-          <div class="se-stat only"><div class="n">WORKS 전용*</div><div class="v">{{ preview.works_only|length }}</div></div>
+          <div class="se-stat only"><div class="n">삭제 대상*</div><div class="v">{{ preview.works_only|length }}</div></div>
         </div>
-        <div style="margin-top:8px;font-size:11.5px;color:#94a3b8;">* WORKS 에만 있고 메신저엔 없는 사람 — <b>자동 삭제하지 않습니다</b>(아래 목록, 수동 판단).</div>
+        <div style="margin-top:8px;font-size:11.5px;color:#94a3b8;">* 메신저에 없는 WORKS 계정 — 실행하면 <b>지워집니다</b>(아래 목록). 사번으로 대조합니다.</div>
       </div>
 
       {% if preview.dept_map %}
@@ -123,19 +127,39 @@
       </div>
       {% endif %}
 
+      {% if preview.remove_blocked %}
+      <div class="se-err">
+        ⚠ 안전장치가 걸렸습니다 — {{ preview.remove_blocked }}<br>
+        <span style="font-size:12px;">메신저 명부를 정상적으로 받아오지 못했을 때 직원이 통째로 지워지는 것을 막는 장치입니다. 메신저 상태를 확인한 뒤 다시 실행하세요.</span>
+      </div>
+      {% endif %}
+
       {% if preview.works_only %}
       <div class="se-card">
-        <h3>🟠 WORKS 에만 있는 사용자 ({{ preview.works_only|length }}명) — 메신저 미등재</h3>
+        <h3 style="color:#b91c1c;">🔴 삭제 대상 ({{ preview.works_only|length }}명) — 메신저에 없는 계정</h3>
         <div class="se-only-list">
-          {% for w in preview.works_only %}<span class="tag">{{ w.name }}({{ w.login_id or '-' }})</span>{% endfor %}
+          {% for w in preview.works_only %}<span class="tag">{{ w.name }}({{ w.employee_no or w.login_id or '-' }})</span>{% endfor %}
         </div>
-        <div style="margin-top:8px;font-size:12px;color:#b45309;">↑ 퇴사/유지 판단은 수동입니다. 동기화는 이들을 <b>건드리지 않습니다</b>.</div>
+        <div style="margin-top:8px;font-size:12px;color:#b91c1c;">
+          ↑ 동기화를 실행하면 이 계정들이 <b>지워집니다</b>(메신저가 기준). 사번으로 대조하며, 개인 알림도 함께 정리됩니다.<br>
+          <span style="color:#b45309;">업무 기록(작성·담당·승인)이 남아 있는 사람은 기록을 지키기 위해 <b>삭제하지 않고 보류</b>로 보고합니다.</span>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if done and done.ok and done.remove_failed %}
+      <div class="se-card">
+        <h3 style="color:#b45309;">⚠ 삭제 보류 ({{ done.remove_failed|length }}명) — 업무 기록이 남아 있음</h3>
+        <div class="se-only-list">
+          {% for w in done.remove_failed %}<span class="tag">{{ w.name }}({{ w.employee_no or '-' }})</span>{% endfor %}
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:#b45309;">↑ 이 사람들이 만든 기록이 남아 있어 지우지 않았습니다. 과거 기록을 지키기 위한 동작입니다.</div>
       </div>
       {% endif %}
 
       {% if not (done and done.ok) %}
       <form method="post" action="/admin/sync-employees" class="se-confirm"
-            onsubmit="return confirm('메신저 직원 정보를 WORKS 에 반영할까요? (실행 전 자동 백업)');">
+            onsubmit="return confirm('메신저 기준으로 WORKS 직원 명부를 맞춥니다.\n\n메신저에 없는 계정 {{ preview.works_only|length }}명이 삭제됩니다.\n(실행 전 자동 백업)\n\n진행할까요?');">
         <h3 style="margin:0 0 10px;font-size:14px;font-weight:800;color:#1e3a8a;">반영하려면 아래에 <code>직원동기화</code> 를 입력하세요</h3>
         <input type="text" name="confirm" id="seConfirm" placeholder="직원동기화" autocomplete="off"
                oninput="document.getElementById('seBtn').disabled = (this.value.trim() !== '직원동기화');">

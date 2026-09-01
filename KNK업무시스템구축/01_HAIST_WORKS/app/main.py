@@ -1206,7 +1206,9 @@ def _run_directory_autosync():
         return
     conn = get_db()
     try:
-        res = sso_client.sync_employees_from_messenger_api(conn.cursor())
+        # z1092: 자동(새벽 4:10)은 추가·갱신만. 사람 계정 삭제는 사람이 보는 앞에서만
+        #   — 관리자 화면에서 확인 문구를 넣고 실행할 때만 지운다(대표 확인 전 기본값).
+        res = sso_client.sync_employees_from_messenger_api(conn.cursor(), do_remove=False)
         if res and res.get("ok"):
             conn.commit()
             print(f"[DIR-SYNC] 자동 명부 동기화 완료 — 신규 {res.get('inserted','?')} · 갱신 {res.get('updated','?')}")
@@ -10017,7 +10019,8 @@ async def admin_sync_employees_page(req: Request):
     from .database import get_db
     conn = get_db()
     try:
-        preview = sso_client.sync_employees_from_messenger_api(conn.cursor())
+        # z1092: 미리보기도 삭제까지 그대로 해 본 뒤 rollback — '지워질 사람'을 정확히 보여준다.
+        preview = sso_client.sync_employees_from_messenger_api(conn.cursor(), actor_id=u["id"])
     finally:
         conn.rollback()   # 미리보기 — 아무 것도 반영하지 않음
         conn.close()
@@ -10037,7 +10040,7 @@ async def admin_sync_employees_apply(req: Request, confirm: str = Form("")):
     def _preview():
         cn = get_db()
         try:
-            return sso_client.sync_employees_from_messenger_api(cn.cursor())
+            return sso_client.sync_employees_from_messenger_api(cn.cursor(), actor_id=u["id"])
         finally:
             cn.rollback()
             cn.close()
@@ -10062,7 +10065,7 @@ async def admin_sync_employees_apply(req: Request, confirm: str = Form("")):
     # 2) 실제 반영
     conn = get_db()
     try:
-        res = sso_client.sync_employees_from_messenger_api(conn.cursor())
+        res = sso_client.sync_employees_from_messenger_api(conn.cursor(), actor_id=u["id"])
         if res.get("ok"):
             conn.commit()
             res["backup"] = os.path.basename(backup)

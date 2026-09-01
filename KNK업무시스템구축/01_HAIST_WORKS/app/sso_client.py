@@ -758,7 +758,7 @@ def _read_messenger_users(msg_db: str):
     return rows
 
 
-def sync_employees_from_messenger_db(c, msg_db: str = None) -> dict:
+def sync_employees_from_messenger_db(c, msg_db: str = None, actor_id=None, do_remove=True) -> dict:
     """메신저 DB 직접 동기화. c=WORKS DB 커서(트랜잭션은 호출측 제어).
 
     dry-run/apply 구분은 호출측 commit/rollback 으로. 여기선 upsert 만 수행.
@@ -776,16 +776,29 @@ def sync_employees_from_messenger_db(c, msg_db: str = None) -> dict:
 
     # v5H226z493: 출처(DB)만 다르고 통계/upsert 로직은 공유 코어로 — API 출처와 동일하게.
     payloads = [_messenger_row_to_payload(r) for r in rows]
-    res = _sync_employees_core(c, payloads)
+    res = _sync_employees_core(c, payloads, actor_id=actor_id, do_remove=do_remove)
     res["msg_db"] = msg_db
     res["source"] = "messenger_db"
     return res
 
 
-def _sync_employees_core(c, payloads) -> dict:
-    """payloads(upsert payload dict 목록) → 미리보기 통계 + upsert. 트랜잭션은 호출측(commit/rollback).
+# v5H226z1092 (대표 지시 2026-08-31): 메신저 명부가 비정상일 때 전 직원이 지워지는 사고를 막는 가드.
+#   메신저 API 가 부분 응답/장애를 내면 "전원 미등재"로 보여 명부가 통째로 날아갈 수 있다.
+_MIN_DIRECTORY_FOR_REMOVE = 10      # 명부가 이보다 적으면 이상으로 보고 삭제 중단
+_MAX_REMOVE_RATIO = 0.30            # 삭제 대상이 전체의 이 비율을 넘으면 중단
+
+
+def _sync_employees_core(c, payloads, actor_id=None, do_remove=True) -> dict:
+    """payloads(upsert payload dict 목록) → 미리보기 통계 + upsert + 메신저 미등재자 삭제.
+    트랜잭션은 호출측(commit/rollback) — 미리보기는 rollback 이라 삭제도 되돌아간다.
     출처(메신저 DB 파일 / HTTP 디렉터리 API) 무관하게 동일 로직.
-    반환: {ok, total, updated, inserted, skipped, works_only[], sample_new[], sample_upd[]}"""
+
+    Args:
+        actor_id: 실행자 users.id — 자기 계정은 삭제 대상에서 제외(로그인 세션 보호).
+        do_remove: False 면 삭제하지 않고 명단만 만든다(구 동작).
+
+    반환: {ok, total, updated, inserted, skipped, works_only[], removed[],
+           remove_failed[], remove_blocked, sample_new[], sample_upd[], dept_map[]}"""
     # z541: 메신저 봇/시스템 계정(zz*, _* — 업무보고/삭제자리표시 등) 제외 → 통계·부서표·명부 전부에서 빠짐.
     payloads = [p for p in (payloads or [])
                 if not _is_system_account(
@@ -794,6 +807,7 @@ def _sync_employees_core(c, payloads) -> dict:
     updated = inserted = skipped = 0
     sample_new, sample_upd = [], []
     msg_names = set()
+    msg_empnos = set()   # z1092: 삭제 판정 기준 — 이름이 아니라 사번
 
     # v5H226z540: 메신저 부서 목록 + WORKS 팀 매핑 상태 (업서트 전 읽기전용으로 '사전 상태' 캡처).
     #             → 동기화 미리보기 화면에 그대로 표시(수동 목록 입력 불필요·메신저 체계 가시화).
@@ -836,6 +850,7 @@ def _sync_employees_core(c, payloads) -> dict:
         if not emp_no:
             skipped += 1
             continue
+        msg_empnos.add(emp_no)
         # 신규/갱신 분류: upsert 전에 매칭 존재여부 확인
         exists = None
         try:
@@ -865,30 +880,89 @@ def _sync_employees_core(c, payloads) -> dict:
             if len(sample_new) < 15:
                 sample_new.append(f"[{emp_no}] {name}")
 
-    # WORKS 에만 있고 메신저엔 없는 사람 (수동 판단용 — 자동 삭제/비활성 안 함)
+    # v5H226z1092 (대표 지시 2026-08-31 "메신저가 기준이니깐 메신저와 동일하게 맞추면됨"):
+    #   메신저에 없는 WORKS 계정은 지운다. 예전엔 명단만 보여주고 손대지 않았다.
+    #   ⚠ 판정 기준은 '이름'이 아니라 '사번(employee_no)' — 대표 규정 '사람 참조는 항상 ID로'.
+    #     이름 비교는 표기가 조금만 달라도 멀쩡한 직원을 대상으로 만들고, 반대로 동명이인의
+    #     구 계정을 놓친다(실측 2026-08-31: 이름 기준 5명 / 사번 기준 8명 — 차이 3명이 전부
+    #     '메신저에 같은 이름의 다른 사번이 있는' 구 계정이었다).
     works_only = []
-    if msg_names:
+    if msg_empnos:
         try:
-            ph = ",".join("?" * len(msg_names))
-            works_only = [
-                {"name": x["name"], "login_id": x["login_id"]}
-                for x in c.execute(
-                    f"SELECT name, login_id FROM users WHERE name NOT IN ({ph}) "
-                    "ORDER BY name", tuple(msg_names)).fetchall()
-            ]
+            ph = ",".join("?" * len(msg_empnos))
+            _cands = c.execute(
+                f"SELECT id, name, login_id, employee_no FROM users "
+                f"WHERE COALESCE(TRIM(employee_no),'') <> '' "
+                f"  AND COALESCE(TRIM(employee_no),'') NOT IN ({ph}) "
+                f"ORDER BY name", tuple(msg_empnos)).fetchall()
         except Exception:
-            works_only = []
+            _cands = []
+        for x in _cands:
+            _eno = str(x["employee_no"] or "").strip()
+            # 봇/시스템 계정은 메신저 명부에서 일부러 빠진다(z541) → 두면 매번 대상이 된다.
+            if _is_system_account(_eno, x["name"] or ""):
+                continue
+            # 실행하는 본인은 건드리지 않는다(로그인 세션·되돌릴 사람이 사라지는 사고 방지).
+            if actor_id and str(x["id"]) == str(actor_id):
+                continue
+            works_only.append({"id": x["id"], "name": x["name"],
+                               "login_id": x["login_id"], "employee_no": _eno})
+
+    # 안전장치 — 메신저 명부가 비정상이면 통째로 중단하고 명단만 보여준다.
+    removed, remove_failed, remove_blocked = [], [], None
+    _total_users = 0
+    try:
+        _total_users = c.execute("SELECT COUNT(*) FROM users").fetchone()[0] or 0
+    except Exception:
+        _total_users = 0
+    if do_remove and works_only:
+        if len(msg_empnos) < _MIN_DIRECTORY_FOR_REMOVE:
+            remove_blocked = (
+                f"메신저 명부가 {len(msg_empnos)}명뿐이라 중단했습니다"
+                f"(정상이라면 최소 {_MIN_DIRECTORY_FOR_REMOVE}명). 명단만 보여드립니다.")
+        elif _total_users and len(works_only) > _total_users * _MAX_REMOVE_RATIO:
+            remove_blocked = (
+                f"대상 {len(works_only)}명이 전체 {_total_users}명의 "
+                f"{int(_MAX_REMOVE_RATIO * 100)}% 를 넘어 중단했습니다. 명단만 보여드립니다.")
+
+    if do_remove and works_only and not remove_blocked:
+        for w in works_only:
+            # 한 사람씩 SAVEPOINT — 업무 기록이 걸려 막히면 그 사람만 되돌리고 넘어간다
+            # (알림만 없어지고 계정은 남는 어중간한 상태를 만들지 않는다).
+            try:
+                c.execute("SAVEPOINT z1092_rm")
+            except Exception:
+                pass
+            try:
+                # 개인 부속물(알림)은 함께 정리한다. 업무 기록(작성자·담당자·승인자 등)은
+                # 손대지 않으며, 그런 참조가 남아 있으면 아래 예외로 빠져 '보류'가 된다.
+                c.execute("DELETE FROM notifications WHERE user_id=?", (w["id"],))
+                c.execute("DELETE FROM users WHERE id=?", (w["id"],))
+                try:
+                    c.execute("RELEASE z1092_rm")
+                except Exception:
+                    pass
+                removed.append(w)
+            except Exception as _e:
+                try:
+                    c.execute("ROLLBACK TO z1092_rm")
+                    c.execute("RELEASE z1092_rm")
+                except Exception:
+                    pass
+                remove_failed.append({**w, "reason": str(_e)})
 
     return {"ok": True, "total": len(payloads), "updated": updated,
             "inserted": inserted, "skipped": skipped,
-            "works_only": works_only, "sample_new": sample_new,
-            "sample_upd": sample_upd, "dept_map": dept_map}
+            "works_only": works_only, "removed": removed,
+            "remove_failed": remove_failed, "remove_blocked": remove_blocked,
+            "sample_new": sample_new, "sample_upd": sample_upd, "dept_map": dept_map}
 
 
-def sync_employees_from_messenger_api(c) -> dict:
+def sync_employees_from_messenger_api(c, actor_id=None, do_remove=True) -> dict:
     """v5H226z493 (컨테이너 분리·대표 지시): 메신저 명부를 'GET /api/sso/directory'(HTTP)로 받아 동기화.
     DB 파일 직접읽기(sync_employees_from_messenger_db) 대체 — 분리 후 볼륨 마운트 불필요.
-    미리보기/적용은 호출측 commit/rollback. 반환 = _sync_employees_core 동일 형태(+source)."""
+    미리보기/적용은 호출측 commit/rollback. 반환 = _sync_employees_core 동일 형태(+source).
+    z1092: actor_id=실행자 users.id(자기 계정 보호) · do_remove=False 면 명단만(구 동작)."""
     _key = get_service_key()
     if not _key:
         return {"ok": False, "error": "공유키 미설정 — 관리자 페이지(/admin/sso-key) 또는 NAS .env 에 등록"}
@@ -913,6 +987,6 @@ def sync_employees_from_messenger_api(c) -> dict:
         "dept": u.get("dept"), "position": u.get("position"), "entity": u.get("entity"),
         "email": u.get("email"), "phone": u.get("phone"), "is_admin": u.get("is_admin"),
     } for u in users]
-    res = _sync_employees_core(c, payloads)
+    res = _sync_employees_core(c, payloads, actor_id=actor_id, do_remove=do_remove)
     res["source"] = "messenger_api"
     return res
