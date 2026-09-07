@@ -73,6 +73,8 @@
 @keyframes recPulse { 0%,100%{opacity:1;} 50%{opacity:.72;} }
 .rec-banner { display:flex; align-items:center; gap:9px; background: var(--knk-red); color:#fff; font-size:15.5px; font-weight:800; padding:11px 15px; border-radius:10px; margin-bottom:11px; animation: recBnPulse 1.5s infinite; }
 .rec-banner.paused { background:#b45309; animation:none; }
+/* z1092: 소리가 안 들어올 때 — 배너를 더 진한 빨강으로 빠르게 깜빡여 즉시 알아채게 */
+.rec-banner.nosound { background:#991b1b; animation: recBnPulse 0.6s infinite; }
 .rec-banner .rec-dot { width:11px; height:11px; border-radius:50%; background:#fff; flex-shrink:0; animation: recBlink 1s infinite; }
 .rec-banner.paused .rec-dot { animation:none; }
 .rec-banner #recBigTime { font-family:ui-monospace,Consolas,monospace; margin-left:auto; }
@@ -536,7 +538,7 @@ window.__MTG = {
         if (st.data.state === 'done'){
           var ta=$('mtgBody'); if(ta && st.data.body != null) ta.value = st.data.body;
           M.base_ts = st.data.updated_at || M.base_ts;
-          return { ok:true };
+          return { ok:true, warn: st.data.warn||'' };  // z1092 무음 구간 경고
         }
         if (st.data.state === 'error'){
           return { ok:false, error: st.data.error || '음성→글자 변환 실패' };
@@ -584,9 +586,9 @@ window.__MTG = {
     var card=$('pipeCard'), box=$('pipeSteps'); if(!card||!box) return;
     card.hidden=false;
     box.innerHTML = steps.map(function(s){
-      var ic = s.st==='done' ? '✅' : (s.st==='run' ? '⏳' : (s.st==='err' ? '❌' : '○'));
-      var col = s.st==='err' ? 'var(--knk-red)' : (s.st==='done' ? '#15803d' : (s.st==='run' ? 'var(--qv-ink)' : 'var(--qv-ink-3)'));
-      return '<div style="color:'+col+';font-weight:'+((s.st==='run'||s.st==='err')?'800':'600')+';">'+ic+' '+esc(s.label)+'</div>';
+      var ic = s.st==='done' ? '✅' : (s.st==='run' ? '⏳' : (s.st==='err' ? '❌' : (s.st==='warn' ? '⚠' : '○')));
+      var col = s.st==='err' ? 'var(--knk-red)' : (s.st==='warn' ? '#b45309' : (s.st==='done' ? '#15803d' : (s.st==='run' ? 'var(--qv-ink)' : 'var(--qv-ink-3)')));
+      return '<div style="color:'+col+';font-weight:'+((s.st==='run'||s.st==='err'||s.st==='warn')?'800':'600')+';">'+ic+' '+esc(s.label)+'</div>';
     }).join('');
   }
   async function autoPipeline(opts){
@@ -604,24 +606,28 @@ window.__MTG = {
     _pipeLastOpts = opts; _pipeBusy = true;
     var go=$('pipeGo'), rt=$('pipeRetry'); if(go)go.hidden=true; if(rt)rt.hidden=true;
     await reqWake();  // 진행 중 화면 꺼짐 방지
+    var warns = [];  // z1092 무음 경고 모음(steps 에 넣으면 루프가 실행 대상으로 오해함)
+    if (_silTotal >= 30) warns.push({ st:'warn',
+      label:'녹음 중 소리가 없던 시간이 약 '+_silTotal+'초입니다 — 그 구간은 회의록에 담기지 않습니다.' });
     var steps = plan.map(function(k){
       return { k:k, st:'wait', label: k==='stt' ? '음성을 글자로 바꾸는 중 (길면 1~2분)' : 'AI가 회의록으로 정리하는 중' };
     });
     for (var i=0; i<steps.length; i++){
-      steps[i].st='run'; pipeRender(steps);
+      steps[i].st='run'; pipeRender(steps.concat(warns));
       var r;
       try { r = (steps[i].k==='stt') ? await doTranscribe() : await doExtract(); }
       catch(e){ r = { ok:false, error:(e&&e.message)||'오류' }; }
       if (!r.ok){
-        steps[i].st='err'; steps[i].label += ' — ' + (r.error||'실패'); pipeRender(steps);
+        steps[i].st='err'; steps[i].label += ' — ' + (r.error||'실패'); pipeRender(steps.concat(warns));
         if (rt) rt.hidden=false;
         _pipeBusy=false; relWake(); return;
       }
       steps[i].st='done';
       steps[i].label = (steps[i].k==='stt') ? '음성→글자 완료 (회의 내용에 들어감)' : 'AI 정리 완료';
-      pipeRender(steps);
+      if (r.warn) warns.push({ st:'warn', label:r.warn });  // 서버가 찾은 무음 구간
+      pipeRender(steps.concat(warns));
     }
-    pipeRender(steps.concat([{ st:'done', label:'모두 끝났습니다 — 아래 정리 결과를 확인하세요. 필요하면 고치고, 할 일은 「일일카드로」.' }]));
+    pipeRender(steps.concat(warns).concat([{ st:'done', label:'모두 끝났습니다 — 아래 정리 결과를 확인하세요. 필요하면 고치고, 할 일은 「일일카드로」.' }]));
     _pipeBusy=false; relWake();
   }
 
@@ -731,6 +737,8 @@ window.__MTG = {
   // ── 🎙 음성 녹음 (모드 B) — 60분+·화면꺼짐방지·수동 일시정지·큰 표시 ──
   var _mr=null,_chunks=[],_recBlob=null,_recMime='',_recTimer=null,_recSec=0;
   var _stream=null,_track=null,_wakeLock=null,_userStop=false,_paused=false,_docTitle='';
+  // z1092 무음 감시(대표 실사: 화면 끄면 마이크가 끊겨 '무음'만 녹음됨)
+  var _ac=null,_analyser=null,_levelTimer=null,_silSec=0,_silTotal=0,_silWarned=false,_hiddenAt=0;
   function recFmt(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
   function recExt(mime){mime=mime||'';if(mime.indexOf('mp4')>=0||mime.indexOf('m4a')>=0||mime.indexOf('aac')>=0)return 'm4a';if(mime.indexOf('ogg')>=0)return 'ogg';if(mime.indexOf('wav')>=0)return 'wav';return 'webm';}
   function recSt(msg,kind){var el=$('recStatus');if(el){el.textContent=msg||'';el.style.color=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)');}}
@@ -743,8 +751,53 @@ window.__MTG = {
     if(!_mr)return;
     try{ if(_mr.state==='recording') _mr.pause(); else if(_mr.state==='paused') _mr.resume(); }catch(_){}
   }
+  // ── z1092 무음 감시 — 마이크 입력을 1초마다 재서 소리가 끊기면 즉시 경고 ──
+  //   화면이 꺼지면 이 검사도 멈출 수 있어, visibilitychange 경고·서버 환각 경고와 3중으로 막는다.
+  function silStart(stream){
+    try{
+      var AC=window.AudioContext||window.webkitAudioContext; if(!AC||!stream) return;
+      _ac=new AC(); _analyser=_ac.createAnalyser(); _analyser.fftSize=512;
+      _ac.createMediaStreamSource(stream).connect(_analyser);
+      _silSec=0; _silTotal=0; _silWarned=false;
+      _levelTimer=setInterval(silTick,1000);
+    }catch(_){}
+  }
+  function silTick(){
+    if(!_analyser||_paused) return;
+    try{
+      var buf=new Uint8Array(_analyser.fftSize);
+      _analyser.getByteTimeDomainData(buf);
+      var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; }
+      var rms=Math.sqrt(sum/buf.length);
+      if(rms<0.008){            // 사실상 무음
+        _silSec++; _silTotal++;
+        if(_silSec>=30&&!_silWarned){ _silWarned=true; silWarn(true); }
+      } else {
+        _silSec=0;
+        if(_silWarned){ _silWarned=false; silWarn(false); }
+      }
+    }catch(_){}
+  }
+  function silWarn(on){
+    var b=$('recBanner'); if(b) b.classList.toggle('nosound',!!on);
+    var l=$('recBannerLbl');
+    if(l) l.textContent = on ? '⚠ 소리가 안 들어옵니다! 화면을 켜 두세요'
+                             : '🔴 본 회의 녹음 중';
+    if(on){
+      try{ if(navigator.vibrate) navigator.vibrate([300,150,300,150,300]); }catch(_){}
+      recSt('⚠ 30초 넘게 소리가 안 들어옵니다 — 화면이 꺼졌거나 마이크를 다른 앱이 쓰고 있을 수 있어요. 화면을 켜고 말소리가 들어오는지 확인하세요.','err');
+    } else { recSt('소리가 다시 들어옵니다 ✓ 계속 녹음 중…','ok'); }
+  }
+  function silStop(){
+    try{ if(_levelTimer) clearInterval(_levelTimer); }catch(_){}
+    _levelTimer=null;
+    try{ if(_ac) _ac.close(); }catch(_){}
+    _ac=null; _analyser=null; _silWarned=false;
+    var b=$('recBanner'); if(b) b.classList.remove('nosound');
+  }
   function _finishRec(){
     clearInterval(_recTimer);
+    silStop();
     _recBlob=new Blob(_chunks,{type:_recMime||'audio/webm'});
     try{if(_stream)_stream.getTracks().forEach(function(t){t.stop();});}catch(_){}
     relWake();recBanner(false);try{if(_docTitle)document.title=_docTitle;}catch(_){}
@@ -769,6 +822,7 @@ window.__MTG = {
         _track.onended=function(){if(!_userStop){_userStop=true;recSt('녹음이 종료돼 여기까지 저장합니다. 이어서 녹음하려면 다시 「녹음 시작」.','err');try{if(_mr&&_mr.state!=='inactive')_mr.stop();else _finishRec();}catch(_){_finishRec();}}};
       }
       _mr.start(2000);
+      silStart(_stream);  // z1092 무음 감시 시작
       _recSec=0;var t=$('recTime');if(t){t.hidden=false;t.textContent='● 00:00';}
       _docTitle=document.title;recBanner(true,false);
       _recTimer=setInterval(recTick,1000);
@@ -780,8 +834,19 @@ window.__MTG = {
   }
   function recStop(){_userStop=true;try{if(_mr&&_mr.state!=='inactive')_mr.stop();else _finishRec();}catch(_){_finishRec();}}
   document.addEventListener('visibilitychange',function(){
-    // 앱 전환·화면 끔은 정지하지 않음(마이크 안 뺏김 → 녹음 유지).
-    if(document.visibilityState==='visible'&&_mr&&_mr.state!=='inactive'){reqWake();}
+    // 앱 전환은 녹음을 유지한다. 다만 z1092: 화면이 꺼져 있던 동안 폰이 마이크를 끊어
+    //   '무음'만 녹음될 수 있으므로, 돌아왔을 때 그 사실을 분명히 알린다.
+    var rec = _mr && _mr.state!=='inactive';
+    if(document.visibilityState==='hidden'){ if(rec) _hiddenAt=Date.now(); return; }
+    if(!rec){ _hiddenAt=0; return; }
+    reqWake();
+    if(_hiddenAt){
+      var gap=Math.round((Date.now()-_hiddenAt)/1000); _hiddenAt=0;
+      if(gap>=20){
+        recSt('⚠ 화면이 꺼져 있던 '+gap+'초 동안 소리가 녹음되지 않았을 수 있습니다 — 끝난 뒤 회의 내용을 꼭 확인하세요.','err');
+        try{ if(navigator.vibrate) navigator.vibrate([300,150,300]); }catch(_){}
+      }
+    }
   });
   // 새 회의(미저장)에서 녹음/업로드하면 회의를 자동 생성(제목 비면 기본값 — AI 정리 때 자동 제목).
   async function ensureMeetingSaved(){

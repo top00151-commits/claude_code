@@ -4248,12 +4248,11 @@ async def api_meeting_audio_upload(req: Request, mid: int, file: UploadFile = Fi
         c.execute("UPDATE meetings SET audio_path=?, mode='B', updated_at=datetime('now','localtime') WHERE id=?",
                   (rel, mid))
         _new_ts = _row_ts(c, "meetings", mid)
-    if old and old != rel:  # 단일 음성 정책 — 이전 파일 정리
-        try:
-            if os.path.exists(old):
-                os.remove(old)
-        except Exception:
-            pass
+    # z1092 (대표 지시 2026-09-07): 이전 녹음 파일을 지우지 않는다(보존).
+    #   전엔 '단일 음성 정책'으로 새 녹음 업로드 시 앞 파일을 삭제했다 → 회의를 이어서
+    #   녹음하면 1차 파일이 사라져 다시 변환·확인할 방법이 없었다(회의 17 실사고).
+    #   재생·변환은 최신 것을 쓰되 파일 자체는 남겨 증거와 재변환 여지를 지킨다.
+    _prev_audio_kept = old  # 보존됨(삭제하지 않음)
     return JSONResponse({"ok": True, "audio_url": f"/api/meeting/{mid}/audio?v={ts}",
                          "size_kb": len(raw) // 1024, "updated_at": _new_ts})
 
@@ -4289,11 +4288,44 @@ import threading as _stt_thr
 _STT_JOBS: dict = {}          # {meeting_id: {"state": "running"|"done"|"error", "error": str}}
 _STT_LOCK = _stt_thr.Lock()
 
+# z1092 (2026-09-07 대표 실사): 휴대폰 화면을 끄면 마이크가 끊겨 '무음'이 녹음되는데,
+#   Whisper 는 무음 구간에서 학습 문구("시청해주셔서 감사합니다" 등)를 끝없이 반복 생성한다.
+#   실측(회의 17): 1차 녹음 1,658자 중 91회가 그 헛소리 — 실제 내용은 384자뿐이었다.
+#   → 같은 말이 연속 반복되면 경고 한 줄로 접고, 몇 곳이었는지 화면에 알린다.
+#   ⚠ 과잉 삭제 방지: '짧은 말'이 '3회 이상 연속'일 때만(실제 발언 2회 반복은 그대로 둔다).
+#   실데이터 검증: 무음 블록 1,658자→409자(98회 축약) / 정상 블록 2,267자→2,265자(무손상).
+_STT_REPEAT_MIN = 3       # 몇 회 연속부터 무음 환각으로 볼지
+_STT_REPEAT_MAXLEN = 40   # 그 말이 이 길이 이하일 때만(긴 문장 반복은 실제 발언일 수 있음)
+
+
+def _stt_strip_hallucination(text: str):
+    """무음 구간 환각(같은 말 반복) → 경고 한 줄로 축약. 반환 (정리된 글, 축약한 구간 수)."""
+    import re as _re_h
+    if not text or not text.strip():
+        return (text, 0)
+    parts = _re_h.split(r"(?<=[.!?\u2026])(?![.!?\u2026])\s*|\n+", text)
+    parts = [p.strip() for p in parts if p and p.strip()]
+    out, spots = [], 0
+    i = 0
+    while i < len(parts):
+        cur = parts[i]
+        j = i + 1
+        while j < len(parts) and parts[j] == cur:
+            j += 1
+        rep_n = j - i
+        if rep_n >= _STT_REPEAT_MIN and len(cur) <= _STT_REPEAT_MAXLEN:
+            out.append(f"\u26a0 [이 구간은 소리가 들어오지 않았습니다 — 같은 말 {rep_n}회 반복]")
+            spots += 1
+        else:
+            out.extend(parts[i:j])
+        i = j
+    return (" ".join(out), spots)
+
 
 def _stt_worker(mid: int, disk: str, lang: str):
     """백그라운드 음성→글자 워커 — 기존 동기 로직 그대로(압축→Whisper→body 덧붙임).
     body 는 완료 시점에 DB에서 새로 읽어 덧붙임(작업 중 사용자가 원문을 고쳐도 안 덮음)."""
-    err = ""
+    err, warn = "", ""
     try:
         from . import ai_client
         stt_path, _tmp_stt = disk, None
@@ -4322,6 +4354,11 @@ def _stt_worker(mid: int, disk: str, lang: str):
             elif not text.strip():
                 err = "음성에서 인식된 내용이 없습니다(무음/잡음일 수 있어요)."
             else:
+                text, _hallu = _stt_strip_hallucination(text.strip())
+                if _hallu:  # 화면에 "소리가 안 들어온 구간이 있었다"고 알린다
+                    warn = (f"소리가 들어오지 않은 구간 {_hallu}곳이 있었습니다 — "
+                            "녹음 중 휴대폰 화면을 끄면 마이크가 끊깁니다. "
+                            "긴 회의는 「음성 파일 올리기」(폰 기본 녹음기)가 가장 안전합니다.")
                 with db_session() as c:
                     row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
                     prev = ((row["body"] if row else "") or "").strip()
@@ -4336,7 +4373,7 @@ def _stt_worker(mid: int, disk: str, lang: str):
     except Exception as e:  # 표면화 원칙 — 예외 종류까지 상태에 담아 화면에 노출
         err = f"{type(e).__name__}: {str(e)[:200]}"
     with _STT_LOCK:
-        _STT_JOBS[mid] = {"state": ("error" if err else "done"), "error": err}
+        _STT_JOBS[mid] = {"state": ("error" if err else "done"), "error": err, "warn": warn}
 
 
 @app.post("/api/meeting/{mid:int}/transcribe")
@@ -4387,8 +4424,9 @@ async def api_meeting_stt_status(req: Request, mid: int):
         if not _can_edit_meeting(u, dict(m)):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
     with _STT_LOCK:
-        j = dict(_STT_JOBS.get(mid) or {"state": "none", "error": ""})
-    out = {"ok": True, "state": j.get("state") or "none", "error": j.get("error") or ""}
+        j = dict(_STT_JOBS.get(mid) or {"state": "none", "error": "", "warn": ""})
+    out = {"ok": True, "state": j.get("state") or "none", "error": j.get("error") or "",
+           "warn": j.get("warn") or ""}
     if out["state"] == "done":
         with db_session() as c:
             row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
