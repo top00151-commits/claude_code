@@ -103,12 +103,23 @@ def read_master(path):
         j = ws.cell(row=r, column=10).value
         mm = ws.cell(row=r, column=13).value or 0
         nn = ws.cell(row=r, column=14).value or 0
+        # 🔴 2026-09-07 수리(11-3): 예전엔 계산이 실패하면 `qty = j` 로 **1대분 수량을 그대로**
+        #   썼다 — 대수 12 인데 재고 칸에 글자가 있으면 120 이 아니라 10 이 발주로 나갔다.
+        #   이제 실패를 감추지 않고 수량을 비운 뒤 사유를 실어 보낸다.
+        #   음수 발주수량도 그대로 내보내던 것을 「구매 필요 0 + 초과분 보고」로 나눈다.
+        #   ⚠ 사내·베트남 재고를 둘 다 빼는 것 자체는 구매팀 실물 수식과 같아 그대로 둔다
+        #     (001M2607 실물 `=$I9-($K9+$L9)`) — 바꿀지는 구매팀·대표 결정 사항.
+        warn = ""
         try:
-            qty = (float(j) if j not in (None, "") else 0) * float(sets) - float(mm) - float(nn)
+            need = (float(j) if j not in (None, "") else 0) * float(sets)
+            qty = need - float(mm) - float(nn)
             qty = int(qty) if qty == int(qty) else qty
+            if qty < 0:
+                warn = f"재고가 필요량보다 많음(초과 {abs(qty):g}) — 구매 필요 0"
+                qty = 0
         except Exception:
-            qty = j
-        rows.append({"협력사": vendor, "품명": pn, "형번": spec,
+            qty, warn = None, "수량 계산 실패 — 수량·대수·재고 칸을 확인해 주십시오"
+        rows.append({"협력사": vendor, "품명": pn, "형번": spec, "줄": r, "수량경고": warn,
                      "제조사": str(ws.cell(row=r, column=7).value or "").strip(),
                      "수량": qty,
                      "단위": str(ws.cell(row=r, column=12).value or "").strip() or "EA",

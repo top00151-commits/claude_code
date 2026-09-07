@@ -197,6 +197,40 @@ run5 = last_run()
 check("② 견적요청서(파익스): 신규 2줄 보고", "신규 단가 요청 2줄" in (run5["report"] or ""),
       (run5 or {}).get("report", "")[:60])
 
+# ── 2026-09-07 수리 확인 (웹 보고 계층) ──
+# 11-8-③ — 「신규만」이 타매입처 실적으로 채워진 줄을 건너뛴다는 사실을 화면이 알리는가
+r = cl.post("/bom/tools/run/rfq", data={"vendor": "파익스", "due": "2026-09-01",
+                                        "only_missing": "on"},
+            files=[fpart("files", MASTER)])
+run5b = last_run()
+check("② 「신규만」: 타매입처로 채워진 줄이 빠진다는 안내",
+      "「신규만」" in (run5b["report"] or "") and "타매입처" in (run5b["report"] or ""),
+      (run5b or {}).get("report", "")[:90])
+
+# 11-3 — 재고 칸이 글자면 1대분 수량이 그대로 나가던 것을 막고 화면에 알리는가
+import shutil as _sh2
+from openpyxl import load_workbook as _lw2
+_badm = os.path.join(TMP, "수량깨진마스터.xlsx")
+_sh2.copy(MASTER, _badm)
+_wbb = _lw2(_badm); _wsb = _wbb.active
+_wsb["J5"] = 12                                   # 대수 12
+_hit = 0
+for _r in range(9, (_wsb.max_row or 9) + 1):      # 실제로 발주에 나가는 광원전기 줄의 재고를 글자로
+    if (str(_wsb.cell(_r, 8).value or "").strip() == "광원전기"
+            and str(_wsb.cell(_r, 2).value or "").strip() not in ("삭제", "실패")
+            and str(_wsb.cell(_r, 6).value or "").strip()):
+        _wsb.cell(_r, 13, "미확인")
+        _hit += 1
+        break
+_wbb.save(_badm)
+check("시험 준비: 광원전기 줄의 재고 칸을 글자로 바꿈", _hit == 1, f"바꾼 줄 {_hit}")
+r = cl.post("/bom/tools/run/po", data={"vendor": "광원전기", "due": "2026-09-01"},
+            files=[fpart("files", _badm)])
+run6 = last_run()
+check("② 발주: 수량 해석 실패를 감추지 않고 알림",
+      "수량 확인 필요" in (run6["report"] or "") and "발주하지 마십시오" in (run6["report"] or ""),
+      (run6 or {}).get("report", "")[:90])
+
 # ── 권한·오류 ──
 CUR["u"] = VIEW
 r = cl.post("/bom/tools/run/draft", data={"code": "A1", "name": "x"},

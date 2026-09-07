@@ -21742,6 +21742,17 @@ from .bom_tools import make_rfq as _bt_rfq
 from .bom_tools import fill_prices as _bt_price
 from .bom_tools import revise_master as _bt_revise
 
+def _bt_qty_warn(rows):
+    """수량을 확정하지 못한 줄을 보고문으로 돌려준다 (없으면 빈 목록).
+    🔴 2026-09-07: 예전엔 대수·재고 칸 해석이 실패해도 1대분 수량이 그대로 발주로 나갔다.
+    이제 make_po.read_master 가 사유를 실어 보내고, 여기서 사람에게 드러낸다."""
+    bad = [x for x in rows if x.get("수량경고")]
+    if not bad:
+        return []
+    return [f"🔴 수량 확인 필요 {len(bad)}줄 — **이대로 발주하지 마십시오**: " +
+            ", ".join(f"r{x.get('줄','?')} {x['형번']}({x['수량경고']})" for x in bad[:10])]
+
+
 _BT_STORE = os.path.join(BASE, "bom_tools_store")
 os.makedirs(_BT_STORE, exist_ok=True)
 
@@ -21930,6 +21941,13 @@ async def bom_tools_run(request: Request, step: str,
             title = f"기존단가 {res['채움']}줄 자동 기입"
             rep_lines.append(f"수불부 실적 {res['수불부항목']:,}건 대조 · 채움 {res['채움']}줄"
                              + (f" · 타매입처 실적 {res['타매입처']}줄" if res["타매입처"] else ""))
+            if res["타매입처목록"]:
+                # 🔴 2026-09-07 수리(11-5): 예전엔 건수만 적어 **어느 품목에 어느 업체 가격을
+                #   썼는지가 웍스에 남지 않았다** → 받는 사람이 선정업체 가격으로 오인.
+                rep_lines.append(
+                    f"🔀 타매입처 실적으로 채운 {len(res['타매입처목록'])}줄"
+                    "(선정 협력사의 가격이 아님 — 견적으로 확인 필요): " +
+                    ", ".join(f"r{r} {s}={p:,}원(출처 {v})" for r, s, p, v in res["타매입처목록"][:10]))
             if res["변동후보"]:
                 rep_lines.append("⚠ 단가 변동 후보(덮지 않음): " +
                                  ", ".join(f"r{r} {s} {cur:,}→{new:,}({v})" for r, s, cur, new, v in res["변동후보"][:8]))
@@ -21954,11 +21972,19 @@ async def bom_tools_run(request: Request, step: str,
             title = f"{vendor} 견적요청서 {res['품목']}줄" + (" (신규만)" if only_missing else "")
             rep_lines.append(f"{res['품목']}줄 · 신규 단가 요청 {res['신규단가요청']}줄 · "
                              f"「옛->새」 유지 {res['변경표기유지']}건 · 변경단가·소요일·입고가능일=매입처 몫 비움")
+            rep_lines += _bt_qty_warn(rows)
+            if only_missing:
+                # 11-8-③ 재현됨 — 「신규만」은 기존단가(P) 가 빈 줄만 고른다. ③ 단가 채움이
+                #   **타매입처 실적으로 채운 줄도 P가 차서 여기서 빠진다.** 「신규」의 뜻을
+                #   바꾸는 것은 업무 판단이라 동작은 그대로 두고 사실만 알린다.
+                rep_lines.append("ℹ 「신규만」 = 기존단가 칸이 빈 줄. ③에서 타매입처 실적으로 "
+                                 "채워진 줄은 값이 차 있어 이 요청서에서 빠집니다 — 확인해 주십시오.")
 
         elif step == "po":
             if not saved_files:
                 raise ValueError("마스터 파일이 필요합니다.")
             code2, name2, n_sets, rows, vina = _bt_po.read_master(saved_files[0]["path"])
+            rep_lines += _bt_qty_warn(rows)
             code = code or code2
             by_vendor = {}
             for x in rows:

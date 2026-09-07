@@ -112,7 +112,8 @@ def fill_prices(master_path, ledger_path, out_path):
             # 협력사 미정(뼈대 단계) — 채우지 않고 과거 실적을 참고로만 보여준다.
             #   협력사 확정은 구매팀 비교견적 몫 (인터뷰 확정) — 판단을 대신하지 않는다.
             got = by_k.get(spec)
-            if got is not None and ws.cell(row=r, column=16).value in (None, "", 0):
+            _cur = ws.cell(row=r, column=16).value
+            if got is not None and (_cur is None or _cur == ""):    # 0 = 적힌 값 (11-5)
                 refs.append((r, spec_raw[:30], got[1], got[2]))
             continue
         got = by_vk.get((spec, ven))
@@ -121,7 +122,9 @@ def fill_prices(master_path, ledger_path, out_path):
             got = by_k.get(spec)
             src = "타매입처"
         cur = ws.cell(row=r, column=16).value          # P 기존단가
-        if cur not in (None, "", 0):
+        # 🔴 2026-09-07 수리(11-5): 0 을 빈칸과 똑같이 봐서 **「0원으로 확정」을 덮어썼다**.
+        #   (무상 사급품·서비스 품목이 실적가로 바뀜) 0 도 사람이 적은 값으로 본다.
+        if cur is not None and cur != "":
             if got is not None and float(got[1]) != float(cur):
                 changed.append((r, spec_raw[:30], cur, got[1], got[2]))
             continue                                    # ⛔ 이미 적힌 값은 안 덮는다

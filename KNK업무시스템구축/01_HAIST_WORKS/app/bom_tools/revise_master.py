@@ -26,6 +26,7 @@ r"""
 """
 import argparse
 import os
+import re
 import sys
 from copy import copy as _copy
 
@@ -65,6 +66,17 @@ def _norm_spec(v):
 
 def _norm_txt(v):
     return str(v or "").strip().upper().replace(" ", "")
+
+
+_REF = re.compile(r"(\$?[A-Z]{1,3}\$?)(\d+)")
+
+
+def _retarget(formula, old_r, new_r):
+    """수식의 **자기줄 참조만** 새 줄번호로 옮긴다 — 수식 모양은 그대로 둔다.
+    `=$K32-$M32` (r32→r35) → `=$K35-$M35` · `$J$5` 같은 다른 줄 참조는 건드리지 않는다."""
+    def sub(m):
+        return m.group(1) + (str(new_r) if int(m.group(2)) == old_r else m.group(2))
+    return _REF.sub(sub, formula)
 
 
 def _find_total_row(ws):
@@ -170,21 +182,32 @@ def revise(master_path, inventor_paths, out_path):
     deletes = [x for lst in pool.values() for x in lst]
 
     # ── 형번 변경: 같은 유닛·같은 품명·같은 제조사 1:1 쌍만 「옛->새」 (실물 표기) ──
+    #   🔴 2026-09-07 수리: 옛 쪽이 여럿일 때도 1:1 로 확정하던 결함(11-8-②).
+    #   옛 2개(OLD-1·OLD-2) → 새 1개(NEW) 면 OLD-1 을 자동 확정하고 OLD-2 를 삭제해 버렸다.
+    #   이제 **양쪽 다 1개일 때만** 확정하고, 아니면 후보로만 보고한다(사람 판단 몫).
     renames, spec_suggest = [], []
+    _RENAMEABLE = ("", MARK_ADD)          # 손 낱말은 안 건드림 · 도구가 찍은 「추가」는 대상
     for unit in units:
         old_u = [x for x in deletes if _norm_txt(x["D"]) == unit]
         new_u = [x for x in adds if _norm_txt(x["CODE"]) == unit]
         for od in list(old_u):
-            same = [nw for nw in new_u
-                    if _norm_txt(nw["품명"]) == _norm_txt(od["E"])
-                    and _norm_txt(nw["제조사"]) == _norm_txt(od["G"])]
-            if len(same) == 1 and od["B"] == "":
-                nw = same[0]
+            if od["B"] not in _RENAMEABLE or od not in old_u:
+                continue
+            pair = (_norm_txt(od["E"]), _norm_txt(od["G"]))
+            same_new = [nw for nw in new_u
+                        if (_norm_txt(nw["품명"]), _norm_txt(nw["제조사"])) == pair]
+            if not same_new:
+                continue
+            same_old = [o for o in old_u
+                        if o["B"] in _RENAMEABLE
+                        and (_norm_txt(o["E"]), _norm_txt(o["G"])) == pair]
+            if len(same_new) == 1 and len(same_old) == 1:
+                nw = same_new[0]
                 renames.append((od, nw))
                 deletes.remove(od); old_u.remove(od)
                 adds.remove(nw); new_u.remove(nw)
-            elif same:
-                spec_suggest.append((od["F"], [nw["형번"] for nw in same]))
+            else:                          # 모호 — 확정하지 않고 사람에게 보고만
+                spec_suggest.append((od["F"], [nw["형번"] for nw in same_new]))
 
     report = {"추가": [], "삭제표시": [], "이미표시": [], "수량변경": [],
               "형번개정": [], "형번후보": spec_suggest, "T내림": [],
@@ -207,7 +230,11 @@ def revise(master_path, inventor_paths, out_path):
             ws.cell(row=od["r"], column=10, value=nw["수량"])
         report["형번개정"].append((od["r"], od["F"], nw["형번"]))
     for od in deletes:
-        if od["B"]:
+        # 🔴 2026-09-07 수리(11-6): 「이미 낱말이 있으면 안 건드린다」가 **도구가 직전 개정에서
+        #   찍은 「추가」까지** 사람 손자국으로 봤다 → 추가했다가 다음 설계에서 빠진 부품이
+        #   삭제 표시도 T=0 도 안 되고 발주 대상에 남았다. 「추가」만 예외로 뺀다.
+        #   (비교·실패·VINA·구성품 등 사람이 적은 낱말은 지금처럼 그대로 보존)
+        if od["B"] and od["B"] != MARK_ADD:
             report["이미표시"].append((od["r"], od["B"], od["F"]))
             continue
         ws.cell(row=od["r"], column=2, value=MARK_DEL)
@@ -226,13 +253,24 @@ def revise(master_path, inventor_paths, out_path):
         pos = pos_of_unit.get(u, last_item) + 1
         groups.setdefault(pos, []).append(nw)
 
+    # 🔴 2026-09-07 수리(11-8-①): 아래쪽부터 넣으면 먼저 넣은(아래) 줄이 나중 삽입(위)으로
+    #   다시 밀리는데, 보고에는 삽입 당시 번호가 그대로 남아 실제와 어긋났다(NEW-AC-001 보고
+    #   65 · 실제 66). 그 잘못된 번호로 수식을 심어 **신규줄 K·O 가 빈 채** 남기도 했다.
+    #   삽입량을 모아 두고 끝난 뒤 한 번에 최종 좌표로 환산한다.
+    shifts = [(pos, len(b)) for pos, b in groups.items()]
+
+    def _shift(r):                                        # 원래 좌표 → 삽입 뒤 좌표
+        return r + sum(n for p, n in shifts if p <= r)
+
     unit_defaulted = 0
+    added_rows = set()                                    # 최종 좌표 기준
     for pos in sorted(groups, reverse=True):
         batch = groups[pos]
         n = len(batch)
         _shift_merges(ws, pos, n)
         ws.insert_rows(pos, n)
         style_src = pos - 1                               # 바로 위 품목줄 서식을 물려받음
+        base = pos + sum(m for p, m in shifts if p < pos)  # 이 무리의 최종 시작줄
         for i, nw in enumerate(batch):
             r = pos + i
             for ci in range(C_FROM, C_TO + 1):
@@ -252,26 +290,43 @@ def revise(master_path, inventor_paths, out_path):
             else:
                 ws.cell(row=r, column=12, value="EA")
                 unit_defaulted += 1
-            report["추가"].append((r, nw["CODE"], nw["형번"]))
+            report["추가"].append((base + i, nw["CODE"], nw["형번"]))
+            added_rows.add(base + i)
     report["단위기본값"] = unit_defaulted
 
-    # ── 수식 재작성 — 삽입으로 밀린 줄의 자기줄 참조 교정 + 새 줄 수식 심기 ──
+    # 삽입 전에 적어 둔 보고 줄번호를 최종 좌표로 환산 (11-8-①)
+    if shifts:
+        for k in ("삭제표시", "이미표시", "수량변경", "형번개정", "T내림", "블록밖"):
+            report[k] = [(_shift(t[0]),) + tuple(t[1:]) for t in report[k]]
+
+    # ── 수식 — 새 줄엔 표준 수식을 심고, 밀린 줄은 **자기줄 참조만** 고친다 ──
+    #   🔴 2026-09-07 수리(11-7): 예전엔 자료 전 범위를 표준 수식으로 덮어써서, 개정하지도
+    #   않은 유닛에서 구매팀이 손으로 고쳐 둔 수식(예: VN 재고를 빼지 않는 `=$K-$M`)까지
+    #   되돌려 놓고는 「안 건드린 유닛」이라고 보고했다. 이제 모양을 보존하고 번호만 옮긴다.
     total_row = _find_total_row(ws)
-    added_rows = {r for r, _u, _f in report["추가"]}
-    for r in range(ROW0, total_row):
+    for r in sorted(added_rows):
         e = str(ws.cell(row=r, column=5).value or "").strip()
         f = str(ws.cell(row=r, column=6).value or "").strip()
-        is_item = bool(e or f)
+        if not (e or f):
+            continue
         for ci, mk in FORMULA_COLS.items():
             c = ws.cell(row=r, column=ci)
             want = mk(r)
-            if r in added_rows and is_item:
-                if c.value != want:
-                    c.value = want
-                    report["수식보정"] += 1
-            elif isinstance(c.value, str) and c.value.startswith("=") and c.value != want:
-                c.value = want                            # 밀린 줄 — 값 손기입 칸은 안 건드림
+            if c.value != want:
+                c.value = want
                 report["수식보정"] += 1
+    if shifts:
+        for x in items:                                   # items = 삽입 전(원래) 좌표
+            r_new = _shift(x["r"])
+            if r_new == x["r"]:
+                continue                                  # 안 밀린 줄은 무접촉
+            for ci in range(C_FROM, C_TO + 1):
+                c = ws.cell(row=r_new, column=ci)
+                if isinstance(c.value, str) and c.value.startswith("="):
+                    fixed = _retarget(c.value, x["r"], r_new)
+                    if fixed != c.value:
+                        c.value = fixed
+                        report["수식보정"] += 1
     for ci in SUBTOTAL_COLS:                              # 합계줄 범위 교정
         c = ws.cell(row=total_row, column=ci)
         if str(c.value or "").startswith("=SUBTOTAL"):
