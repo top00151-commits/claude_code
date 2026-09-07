@@ -2,6 +2,8 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ p.name }} · 프로젝트</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
+{# z1095: 금액칸 소수점 보존 공용 함수(knkFmtAmtTyping 등) — 세금계산서/인보이스 금액 팝업에서 쓴다 #}
+{% include "_v5_partials/knk_amt.html" %}
 <link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" />
 {# v5H226z971 (대표 지적): 부품 추가 업로드·전체 교체는 [✏️ 수정](편집 모드) 후에만 — 잠금 상태에선 흐리게(클릭 시 JS 가드가 안내) #}
 <style>.so-card:not(.unlocked) .ow-need-edit{opacity:.4;filter:grayscale(.4);}</style></head>
@@ -2837,7 +2839,8 @@
     _tiPopOpen=true;
     var pop=document.createElement('div'); pop.className='ti-pop';
     pop.innerHTML='<div class="ti-pop-ttl">'+(cell.dataset.title||'발행')+'</div>'
-      +(hasAmt?('<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+(ccy==='KRW'?'₩':ccy)+'</span><input type="text" inputmode="numeric" class="ti-pa" value="'+(curAmt?Number(curAmt).toLocaleString():'')+'" placeholder="0"></div>'):'')
+      // z1095: inputmode=decimal(모바일 소수점 키) · 초기값도 소수 보존 포맷
+      +(hasAmt?('<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+(ccy==='KRW'?'₩':ccy)+'</span><input type="text" inputmode="decimal" class="ti-pa" value="'+(curAmt?window.knkFmtAmtTyping(curAmt):'')+'" placeholder="0"></div>'):'')
       +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd knk-cal" value="'+curDate+'"></div>'
       +'<div class="ti-pop-hint">이 호기에 '+(cell.dataset.title||'')+' 발행일'+(hasAmt?'·금액':'')+'을 입력하세요.<br>호기마다 따로 발행할 수 있습니다(출하 일정별).</div>'
       +'<div class="ti-pop-btns"><button type="button" class="ti-clear">지우기</button><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
@@ -2846,7 +2849,9 @@
     if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
     else { var rect=cell.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-320))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
     var pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
-    if(pa){ pa.addEventListener('input',function(){ var raw=pa.value.replace(/[^0-9]/g,''); pa.value=raw?Number(raw).toLocaleString():''; }); }
+    // z1095 (이새롬 프로 신고): 소수점 보존. 기존 [^0-9] 재포맷이 '.' 을 키 입력 즉시 지워
+    //   외화 금액을 넣을 수 없었고, 기존 값을 고치면 10배가 됐다(1,315.5 → 13,155).
+    if(pa && window.knkAttachAmt){ window.knkAttachAmt(pa); }
     setTimeout(function(){ (pa||pd).focus(); if(pa)pa.select(); },0);
     var done=false;
     function close(){ if(done)return; done=true; pop.remove(); _tiPopOpen=false; document.removeEventListener('mousedown',onDoc); }
@@ -2859,7 +2864,9 @@
       catch(e){ btn.disabled=false; _tiToast('⚠ '+(e.message||'실패')); }
     });
     pop.querySelector('.ti-save').addEventListener('click',async function(){
-      var dv=_tiNormDate((pd.value||'').trim()), av=pa?(pa.value||'').replace(/[^0-9.]/g,''):'';
+      // z1095: 콤마만 떼고 소수점은 남긴다(점 중복도 공용 헬퍼가 정리)
+      var dv=_tiNormDate((pd.value||'').trim()),
+          av=pa?(window.knkAmtToRaw?window.knkAmtToRaw(pa.value):(pa.value||'').replace(/[^0-9.]/g,'')):'';
       var btn=pop.querySelector('.ti-save'); btn.disabled=true;
       try{
         await _tiSave(iid,datefield,dv);

@@ -468,7 +468,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             {# v5H226z725: 발주 공통(ord-col) — 거래명세서·세금계산서 발행일·금액(1건). 모든 줄 동일 #}
             <td class="ord-col"><input type="date" class="ef co-ord" data-field="statement_date" value="{{ (co.statement_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
             <td class="ord-col"><input type="date" class="ef co-ord" data-field="tax_invoice_date" value="{{ (co.tax_invoice_date or '')[:10] }}" title="발주 공통 — 모든 줄 동일" /></td>
-            <td class="ord-col amount"><span class="amt-inp"><span class="ccy-pre">{{ (co.currency or 'KRW')|ccysym }}</span><input class="ef co-ord knk-money" data-field="tax_invoice_amt1" type="text" inputmode="numeric" value="{{ (co.tax_invoice_amt1)|pricefmt(co.currency or 'KRW') if co.tax_invoice_amt1 else '' }}" title="발주 공통 — 모든 줄 동일" style="text-align:right;" /></span></td>
+            <td class="ord-col amount"><span class="amt-inp"><span class="ccy-pre">{{ (co.currency or 'KRW')|ccysym }}</span><input class="ef co-ord knk-money" data-field="tax_invoice_amt1" type="text" inputmode="decimal" value="{{ (co.tax_invoice_amt1)|pricefmt(co.currency or 'KRW') if co.tax_invoice_amt1 else '' }}" title="발주 공통 — 모든 줄 동일" style="text-align:right;" /></span></td>
             <td>
               <button class="btn-danger" type="button" onclick="delLine({{ it.id }})" style="padding:4px 8px;font-size:11px;">삭제</button>
             </td>

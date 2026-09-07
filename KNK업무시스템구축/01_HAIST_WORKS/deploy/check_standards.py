@@ -259,6 +259,44 @@ def check_qty(files):
     return bad
 
 
+def check_amt_decimal(files):
+    """§금액 = 소수 보존(z1095 · 이새롬 프로 신고). 금액칸 타이핑 포맷이 소수점을 지우면 잡는다.
+
+    통화 표준(z751 대표 지시)은 **KRW 정수 · 외화 소수 2자리**다. 그런데 금액 입력칸의
+    콤마 재포맷을 `value.replace(/[^0-9]/g,'')` 로 쓰면 숫자만 남아 **'.' 이 키 입력 즉시 지워진다**.
+    못 넣는 것으로 끝나지 않는다 — **기존 값을 고치면 10배가 된다**(1,315.5 → 13,155).
+
+    z986 에서 작업일정표를 고쳤는데 프로젝트 상세·등록폼이 빠져 **그대로 재발**했다(z1095).
+    수량칸(check_qty)과 같은 번짐이라 같은 방식으로 소스에서 막는다.
+    금액칸은 공용 `_v5_partials/knk_amt.html` 의 knkFmtAmtTyping/knkAttachAmt 를 쓸 것.
+
+    ⚠날짜(YYYYMMDD)·전화번호 정규화에는 `[^0-9]` 가 정당하다 → **주변 ±3줄에 금액 신호가
+      있을 때만** 위반으로 본다(변수명이 `pa` 처럼 짧아 같은 줄만 봐서는 못 잡는다 — 실제 사례).
+    """
+    bad = []
+    strip_re = re.compile(r"replace\(\s*/\[\^0-9\]/g")
+    amt_sig = re.compile(
+        r"knk-money|pi-price|ti-pa|ux-money|price|amount|\bamt\b|금액|단가|money", re.I)
+    # 주석은 실행되지 않으므로 검사 대상이 아니다(이 규칙을 설명하는 주석 자체가 잡혔다).
+    #   Jinja 주석은 줄바꿈만 남기고 지워 **줄 번호를 유지**한다.
+    jinja_cmt = re.compile(r"\{#.*?#\}", re.S)
+    for p in files:
+        if not p.endswith(".html"):
+            continue
+        src = jinja_cmt.sub(lambda m: "\n" * m.group(0).count("\n"), _read(p))
+        lines = src.splitlines()
+        for i, ln in enumerate(lines):
+            if not strip_re.search(ln):
+                continue
+            if ln.lstrip().startswith(("//", "*", "/*")):     # JS 주석 줄
+                continue
+            lo, hi = max(0, i - 3), min(len(lines), i + 4)
+            window = "\n".join(lines[lo:hi])
+            if amt_sig.search(window):
+                bad.append((p, i + 1, ln.strip()[:110]))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -319,6 +357,16 @@ def main():
             print("       %s:%s  %s" % (f, l, m))
     else:
         print("  ✅ 수량칸 소수 허용 : 새 위반 없음 (기존 면제 %d건)" % qty_old)
+
+    amt_new, amt_old = split_baseline(check_amt_decimal(files), "amt")
+    if amt_new:
+        fail += len(amt_new)
+        print("  ❌ 금액칸 소수점 삭제 : 새로 %d건 → 공용 knkFmtAmtTyping/knkAttachAmt 사용"
+              " (_v5_partials/knk_amt.html)" % len(amt_new))
+        for f, l, m in amt_new[:20]:
+            print("       %s:%s  %s" % (f, l, m))
+    else:
+        print("  ✅ 금액칸 소수점 보존 : 새 위반 없음 (기존 면제 %d건)" % amt_old)
 
     print("=" * 72)
     if fail:

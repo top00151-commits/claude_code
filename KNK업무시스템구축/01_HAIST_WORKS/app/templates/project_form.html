@@ -2,6 +2,8 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{% if project %}프로젝트 수정{% else %}프로젝트 등록{% endif %} · KNK</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
+{# z1095: 금액칸 소수점 보존 공용 함수 — 항목 단가(외화 소수 2자리)에서 쓴다 #}
+{% include "_v5_partials/knk_amt.html" %}
 <style>
 /* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z55: 시안1 토큰 — project_form v1+v2 차수 */
@@ -1315,7 +1317,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         + '<input type="text" name="pi_name[]" class="pi-name" placeholder="장비명" style="width:100%;padding:6px;">'
         + '<input type="text" name="pi_model[]" class="pi-model" placeholder="모델명" style="width:100%;padding:6px;">'
         + '<input type="number" name="pi_qty[]" class="pi-qty" value="1" min="1" style="width:100%;padding:6px;text-align:center;">'
-        + '<input type="text" name="pi_price[]" class="pi-price" inputmode="numeric" placeholder="0" style="width:100%;padding:6px;text-align:right;">'
+        + '<input type="text" name="pi_price[]" class="pi-price" inputmode="decimal" placeholder="0" style="width:100%;padding:6px;text-align:right;">'
         + '<input type="text" class="pi-amt" readonly value="0" style="width:100%;padding:6px;text-align:right;background:var(--qv-surface-3);color:var(--knk-red);font-weight:700;">'
         + '<button type="button" class="pi-del" title="이 품목 삭제" style="width:28px;height:34px;border:1px solid var(--qv-line);background:#fff;border-radius:6px;cursor:pointer;color:#c33;font-weight:700;">✕</button>'
         + '</div>';
@@ -1339,11 +1341,10 @@ html,body{background:#fff!important;overflow:auto!important;}
         }
         sf.addEventListener('change', syncSf);
         qty.addEventListener('input', calc);
-        price.addEventListener('input', function(){
-          var raw=this.value.replace(/[^0-9]/g,'');
-          this.value = raw ? Number(raw).toLocaleString() : '';
-          calc();
-        });
+        // z1095 (이새롬 프로 신고 계열): 단가 소수점 보존 — 기존 [^0-9] 재포맷이 '.' 을 즉시 지워
+        //   수출(USD 등) 단가에 소수를 넣을 수 없었다. 콤마·캐럿 보정은 공용 헬퍼가 맡는다.
+        if(window.knkAttachAmt){ window.knkAttachAmt(price); }
+        price.addEventListener('input', calc);
         del.addEventListener('click', function(){ row.remove(); renumber(); });
         syncSf(); calc();
       }

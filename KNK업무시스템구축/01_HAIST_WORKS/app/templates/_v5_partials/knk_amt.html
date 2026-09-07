@@ -1,0 +1,67 @@
+{# v5H226z1095 (이새롬 프로 신고 2026-09-07): 금액칸 타이핑 포맷 — 소수점 보존 공용 함수 #}
+{#
+  증상: 세금계산서 금액에 소수점을 칠 수 없다(023T2508 · USD).
+  원인: 화면마다 따로 쓰던  value.replace(/[^0-9]/g,'')  — 숫자만 남겨 '.' 을 키 입력 즉시 지운다.
+  ⚠ 단순히 못 넣는 게 아니라 **기존 값을 고치면 10배가 된다** (1,315.5 → 13,155).
+
+  z986(대표 신고 · EUR)에서 작업일정표만 고치고 프로젝트 화면이 빠져 그대로 재발했다.
+  같은 로직이 화면마다 흩어지지 않도록 여기 한 벌만 두고 필요한 화면이 include 한다.
+
+  규칙 = z751 대표 지시 통화 표준과 같다: KRW 정수 · 외화 소수 2자리.
+    타이핑 중에는 통화가 바뀔 수 있으므로 **소수 2자리까지 받아 두고**,
+    KRW 정수화·반올림은 서버 저장과 표시(money())가 맡는다.
+
+  ※ 이 파일은 **함수만** 제공한다(자동 스캔 없음). knk_inputs.html 처럼 화면의 모든 금액칸에
+    스스로 달라붙지 않으므로, 잘 도는 칸의 동작을 바꾸지 않는다.
+  ※ 작업일정표(schedule_board.html)는 z986 때 만든 자체 사본 `_fmtAmtTyping` 을 그대로 쓴다
+    — 잘 도는 화면이라 건드리지 않았다. 로직은 아래와 동일하다.
+#}
+<script>
+(function () {
+  if (window.knkFmtAmtTyping) return;   // 중복 include 안전
+
+  // 타이핑 중 포맷: 정수부만 콤마, 소수부는 친 그대로(최대 2자리)
+  function fmtAmtTyping(v) {
+    v = String(v == null ? '' : v);
+    var m = v.replace(/[^0-9.]/g, '');                    // 숫자와 소수점만 — '.' 을 지우지 않는다
+    var i = m.indexOf('.');
+    var ip = (i < 0 ? m : m.slice(0, i)).slice(0, 15);
+    var fp = (i < 0 ? '' : '.' + m.slice(i + 1).replace(/\./g, '').slice(0, 2));
+    return (ip ? Number(ip).toLocaleString() : (fp ? '0' : '')) + fp;
+  }
+
+  // 저장 직후 칸에 되비칠 때 — 서버 money() 와 같은 규칙(KRW 정수 · 외화 소수 2자리)
+  function fmtAmtShow(v, ccy) {
+    var n = Number(v);
+    if (isNaN(n)) return '';
+    return (ccy && ccy !== 'KRW')
+      ? n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})
+      : Math.round(n).toLocaleString();
+  }
+
+  // 서버로 보내기 직전 — 콤마만 떼고 소수점은 남긴다
+  function amtToRaw(v) {
+    var s = String(v == null ? '' : v).replace(/[^0-9.\-]/g, '');
+    var i = s.indexOf('.');
+    return i < 0 ? s : s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');   // 점 1개만
+  }
+
+  // 금액 input 한 칸에 붙이는 헬퍼 — inputmode 까지 함께 맞춘다(모바일 소수점 키)
+  function attachAmt(el) {
+    if (!el || el.dataset.knkAmtAttached) return;
+    el.dataset.knkAmtAttached = '1';
+    el.setAttribute('inputmode', 'decimal');
+    el.addEventListener('input', function () {
+      var caret = el.selectionStart, oldLen = el.value.length;
+      el.value = fmtAmtTyping(el.value);
+      var d = el.value.length - oldLen;
+      try { el.setSelectionRange(caret + d, caret + d); } catch (_) {}
+    });
+  }
+
+  window.knkFmtAmtTyping = fmtAmtTyping;
+  window.knkFmtAmtShow   = fmtAmtShow;
+  window.knkAmtToRaw     = amtToRaw;
+  window.knkAttachAmt    = attachAmt;
+})();
+</script>
