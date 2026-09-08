@@ -1740,6 +1740,11 @@ def ctx(request, name, **kwargs):
     base["can_sales_amt"]      = can_view_field(user, "sales_amount", _fa_pol) if user else False
     base["can_purchase_price"] = can_view_field(user, "purchase_price", _fa_pol) if user else False
     base["can_supplier"]       = can_view_field(user, "supplier_info", _fa_pol) if user else False
+    # WP-04 BOM 입구 분리 (2026-09-08) — 공통 메뉴에서 두 입구를 감추고 보이는 데 쓴다.
+    #   세션01 이 `chrome.html` 에서 `{% if can_bom_design %}` 처럼 쓸 수 있도록 여기서 싣는다.
+    #   ⛔ 이건 **메뉴 노출용**이다 — 진짜 차단은 서버 라우트(`_bom_can_upload`/`_bom_can_purchase`)가 한다.
+    base["can_bom_design"]   = _bom_can_upload(user) if user else False
+    base["can_bom_purchase"] = _bom_can_purchase(user) if user else False
     # 메일 '앱(독립 창)' 모드 — KNK Eum 등에서 ?app=1 로 별도 창 실행 시 사이드바 없이 메일만.
     # 세션 보존(이후 내부 이동도 유지) · ?app=0 으로 해제(WORKS 전체화면 복귀).
     _mail_app = False
@@ -21946,9 +21951,18 @@ async def bom_tools_page(request: Request):
             #   파일·보고문만 가리고 제목을 두면 업체명이 그대로 남는다 — 작업 종류만 남긴다.
             #   ⛔ 줄 자체는 지우지 않는다: 누가 언제 무슨 작업을 했는지는 협업에 필요하다.
             r["title"] = _BT_STEPS.get(r.get("step"), r.get("step") or "작업") + " (내용 비공개)"
+    # 입구 분리 (2026-09-08) — `?mode=design` / `?mode=purchase` 로 **첫 화면만** 갈린다.
+    #   ⛔ mode 는 권한이 아니다. 무엇을 할 수 있는지는 위·아래 서버 검사가 정한다
+    #      (판정 문서 §5-2: "메뉴 숨김·URL 이름 변경만으로 권한 분리를 대신하지 않는다").
+    #   구매 권한이 없는 사람이 ?mode=purchase 로 와도 구매 작업은 보이지도, 실행되지도 않는다.
+    _mode = (request.query_params.get("mode") or "").strip().lower()
+    if _mode not in ("design", "purchase"):
+        _mode = "purchase" if _bom_can_purchase(u) else "design"
+    if _mode == "purchase" and not _bom_can_purchase(u):
+        _mode = "design"
     return ctx(request, "bom_tools.html", user=u, active="parts",
                steps=_BT_STEPS, runs=rows, can_run=_bom_can_upload(u),
-               can_purchase=_bom_can_purchase(u),
+               can_purchase=_bom_can_purchase(u), mode=_mode,
                msg=request.query_params.get("msg", ""),
                err=request.query_params.get("err", ""))
 

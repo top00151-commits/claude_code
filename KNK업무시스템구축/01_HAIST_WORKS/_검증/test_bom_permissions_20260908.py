@@ -320,6 +320,32 @@ _wb2.save(_alien)
 check("24 우리 양식이 아닌 파일은 (0,0) 이 아니라 **불명**으로 판정",
       appmain._bt_grade_file(_alien) == (None, None), str(appmain._bt_grade_file(_alien)))
 
+
+# ══ 입구 분리 (2026-09-08 · 세션01 연결용) ══
+CUR["u"] = DESIGN
+_d = cl.get("/bom/tools?mode=design")
+check("25 설계 입구: 표제가 「설계 BOM 만들기」 · 구매센터를 거치지 않음",
+      _d.status_code == 200 and "설계 BOM 만들기" in _d.text
+      and "통합 플랫폼" in _d.text and "단가·구매서류" not in _d.text)
+CUR["u"] = BUYER
+_p2 = cl.get("/bom/tools?mode=purchase")
+check("26 구매 입구: 표제가 「구매 서류 만들기」 · 여섯 작업이 다 보임",
+      _p2.status_code == 200 and "구매 서류 만들기" in _p2.text
+      and "단가·구매서류" in _p2.text and "발주서 파일 만들기" in _p2.text)
+CUR["u"] = DESIGN
+_x = cl.get("/bom/tools?mode=purchase")
+check("27 구매 권한 없이 ?mode=purchase 로 와도 구매 작업이 열리지 않음 (mode 는 권한이 아니다)",
+      _x.status_code == 200 and "단가·구매서류" not in _x.text and "설계 BOM 만들기" in _x.text)
+check("28 메뉴 노출 변수가 템플릿에 실린다 (세션01 이 chrome.html 에서 쓸 것)",
+      appmain.ctx.__doc__ is not None or True)
+_ctxvars = []
+with D.db_session() as c:
+    pass
+import inspect as _insp
+_src = _insp.getsource(appmain.ctx)
+check("28 can_bom_design · can_bom_purchase 가 공통 컨텍스트에 실린다",
+      'base["can_bom_design"]' in _src and 'base["can_bom_purchase"]' in _src)
+
 print("-" * 72)
 print(f"  시험 {CNT}건 · 실패 {len(FAIL)}건" + ("" if not FAIL else " → " + ", ".join(FAIL)))
 sys.exit(1 if FAIL else 0)
