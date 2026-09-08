@@ -22196,6 +22196,24 @@ async def bom_tools_run(request: Request, step: str,
         _msg = ("구매 작업(단가·견적·발주·마스터 개정)은 구매 담당자만 실행할 수 있습니다. "
                 "설계 변경은 바뀐 유닛 BOM 을 만들어 구매 담당자에게 전달해 주십시오.")
         return RedirectResponse(f"/bom/tools?err={_q(_msg)}", 303)
+    # 🔴 대표 지시 2026-09-08: 구매 작업은 **시작하기 전에** 정보권한까지 본다.
+    #   예전엔 실행권한만 보고 일을 다 시킨 뒤, 다운로드에서야 막혔다 —
+    #   파일은 이미 만들어져 보관함에 남고 사람은 헛수고를 한다.
+    #   이 네 작업은 모두 단가와 협력사를 다루므로 **둘 다** 필요하다(기존 2026-07-05 정책 그대로).
+    #   ⛔ 권한을 새로 주지 않는다. 실측(2026-09-08): 구매 실행권한자 16명 전원이 둘 다 보유
+    #      → 이 검사로 지금 막히는 사람은 0명이다.
+    if step in _BT_PURCHASE_STEPS:
+        with db_session() as _c:
+            _pol0 = load_field_access_policy(_c)
+        _lack = []
+        if not can_view_field(u, "purchase_price", _pol0):
+            _lack.append("구매단가")
+        if not can_view_field(u, "supplier_info", _pol0):
+            _lack.append("구매처")
+        if _lack:
+            _msg = (f"이 작업은 {' · '.join(_lack)} 열람 권한이 있어야 시작할 수 있습니다. "
+                    "만들고 나서 받지 못하는 일을 막기 위해 미리 확인합니다 — 구매팀에 문의해 주십시오.")
+            return RedirectResponse(f"/bom/tools?err={_q(_msg)}", 303)
 
     import uuid
     run_dir = os.path.join(_BT_STORE, datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6])

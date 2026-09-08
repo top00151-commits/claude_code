@@ -346,6 +346,39 @@ _src = _insp.getsource(appmain.ctx)
 check("28 can_bom_design · can_bom_purchase 가 공통 컨텍스트에 실린다",
       'base["can_bom_design"]' in _src and 'base["can_bom_purchase"]' in _src)
 
+
+# ══ 구매 작업 사전 정보권한 검사 (대표 지시 2026-09-08) ══
+# 실행권한은 있는데 정보권한이 없는 사람 — 운영엔 지금 없지만(16명 전원 보유),
+# 정책이 바뀌면 생길 수 있다. 그때 **일을 다 시킨 뒤 막지 말고 미리** 막아야 한다.
+LACK = {"id": 906, "name": "시험구매권한만", "role": "member", "team_id": 7,   # 팀7: 정책에 없음
+        "can_use_logistics": 1, "can_view_logistics": 1}
+with D.db_session() as c:
+    c.execute("INSERT OR IGNORE INTO users(id,name,login_id,password,role) VALUES(906,'x','P906','x','member')")
+CUR["u"] = LACK
+_before_n = (last_run() or {}).get("id")
+_blocked, _detail = True, ""
+for _st in ("price", "rfq", "po", "revise"):
+    _fl = [fpart("files", m)] + ([fpart("ledger", m)] if _st == "price" else [])         + ([fpart("master", m)] if _st == "revise" else [])
+    _rr = cl.post(f"/bom/tools/run/{_st}", data={"vendor": "가나상사", "due": "2026-09-30",
+                                                 "code": "A999X9995", "name": "x"}, files=_fl)
+    _loc = _rr.headers.get("location") or ""
+    if not (_rr.status_code == 303 and "err=" in _loc):
+        _blocked, _detail = False, f"{_st} → {_loc[:60]}"
+        break
+check("29 실행권한만 있고 정보권한이 없으면 **시작 전에** 막힌다 (4작업 전부)",
+      _blocked, _detail)
+check("30 막혔을 때 파일·기록이 만들어지지 않는다 (헛수고 방지)",
+      (last_run() or {}).get("id") == _before_n,
+      f"기록 id {_before_n} → {(last_run() or {}).get('id')}")
+CUR["u"] = BUYER
+_ok_n = (last_run() or {}).get("id")
+_rr = cl.post("/bom/tools/run/rfq", data={"vendor": "가나상사", "due": "2026-09-30"},
+              files=[fpart("files", m)])
+check("31 정보권한을 갖춘 구매 담당자는 그대로 실행된다 (막히지 않음)",
+      _rr.status_code == 303 and "msg=" in (_rr.headers.get("location") or "")
+      and (last_run() or {}).get("id") != _ok_n,
+      (_rr.headers.get("location") or "")[:60])
+
 print("-" * 72)
 print(f"  시험 {CNT}건 · 실패 {len(FAIL)}건" + ("" if not FAIL else " → " + ", ".join(FAIL)))
 sys.exit(1 if FAIL else 0)

@@ -2548,16 +2548,38 @@ def init_db():
         #   하나로 묶지 않고 칸을 따로 둔다(묶으면 「단가 없음·구매처 있음」 조합을 표현 못 함).
         #   값: 1=포함 · 0=없음 확인됨 · NULL=불명(과거 행) → **불명은 제한**한다.
         #   🔴 CREATE TABLE IF NOT EXISTS 는 기존 표에 칸을 만들지 않는다 → ALTER 로 보강.
+        #   🔴 대표 지시 2026-09-08: **실패를 조용히 넘기지 않는다.**
+        #     예전엔 `except: pass` 라 칸이 안 만들어져도 아무도 몰랐다. 그러면 등급이 늘 불명이 되어
+        #     모든 파일이 제한된다(안전하지만 업무는 멈춘다) — 그런데 그 사실을 알 길이 없었다.
+        #   ⛔ 그렇다고 기동을 막지는 않는다(메일 모듈 오류로 WORKS 전체가 죽은 전례 `4829f1da`).
+        #     대신 ①사유를 남기고 ②기존 행을 세어 보존을 확인하고 ③결과를 한 줄로 찍는다.
+        #     배포 전 확인은 `deploy/check_bom_schema.py` 가 맡는다.
+        _bt_before = None
         try:
+            _bt_before = c.execute("SELECT COUNT(*) FROM bom_tool_runs").fetchone()[0]
             _btc = [r[1] for r in c.execute("PRAGMA table_info(bom_tool_runs)").fetchall()]
+            _added = []
             for _col, _ddl in (
                 ("has_price",  "ALTER TABLE bom_tool_runs ADD COLUMN has_price INTEGER"),
                 ("has_vendor", "ALTER TABLE bom_tool_runs ADD COLUMN has_vendor INTEGER"),
             ):
                 if _col not in _btc:
                     c.execute(_ddl)
-        except Exception:
-            pass
+                    _added.append(_col)
+            _btc2 = [r[1] for r in c.execute("PRAGMA table_info(bom_tool_runs)").fetchall()]
+            _missing = [x for x in ("has_price", "has_vendor") if x not in _btc2]
+            _bt_after = c.execute("SELECT COUNT(*) FROM bom_tool_runs").fetchone()[0]
+            if _missing:
+                print(f"[WP-04] 🔴 bom_tool_runs 등급 칸 없음: {_missing} — "
+                      f"등급 판정이 늘 '불명'이 되어 모든 파일이 제한됩니다. 확인 필요.")
+            elif _added:
+                print(f"[WP-04] bom_tool_runs 등급 칸 추가: {_added} · 기존 기록 {_bt_before}건 보존({_bt_after}건)")
+            if _bt_before is not None and _bt_after != _bt_before:
+                print(f"[WP-04] 🔴 bom_tool_runs 행 수가 바뀜: {_bt_before} → {_bt_after} — 확인 필요")
+        except Exception as _e:
+            # 사유를 남긴다. 기동은 계속하되, 무엇이 실패했는지 알 수 있어야 한다.
+            print(f"[WP-04] 🔴 bom_tool_runs 등급 칸 마이그레이션 실패: {type(_e).__name__}: {_e} "
+                  f"(기존 기록 {_bt_before}건) — 등급이 불명 처리되어 파일이 제한됩니다.")
 
         # v5H226z763 (대표 지시): 제작요청서 수정 — 기존 prod_requests 테이블에 수정 일시·수정자 보강
         try:
