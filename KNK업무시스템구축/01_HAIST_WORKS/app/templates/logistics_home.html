@@ -316,12 +316,29 @@
           <div class="action-text"><h4>BOM 업로드</h4><p>설계 BOM 반영 + 자동 비교</p></div>
           <div class="action-arrow">→</div>
         </a>
-        {# WP-04 BOM 도구 공장 정식 입구 (대표 화면 지적 2026-08-25 "메뉴 경로가 안 보인다") #}
-        <a class="action-card" href="/bom/tools">
+        {# WP-04 BOM 입구 (대표 화면 지적 2026-08-25 "메뉴 경로가 안 보인다")
+           2026-09-08 입구 분리 — 사이드바와 **같은 이름·같은 규칙**으로 맞춘다(세션01 요청).
+           옛 이름 「BOM 도구」는 화면 어디에도 남기지 않는다. 보는 사람에 따라 카드 하나만 나온다.
+           ⛔ 카드는 안내일 뿐 — 무엇을 할 수 있는지는 서버가 정한다. #}
+        {% if can_bom_purchase %}
+        <a class="action-card" href="/bom/tools?mode=purchase">
           <div class="action-icon">🛠</div>
-          <div class="action-text"><h4>BOM 도구</h4><p>간이판·통일판·단가·견적/발주서 산출</p></div>
+          <div class="action-text"><h4>구매 서류 만들기</h4><p>과거 단가 채우기 · 견적요청서 · 발주서</p></div>
           <div class="action-arrow">→</div>
         </a>
+        {% elif can_bom_design %}
+        <a class="action-card" href="/bom/tools?mode=design">
+          <div class="action-icon">🛠</div>
+          <div class="action-text"><h4>설계 BOM 만들기</h4><p>인벤터 BOM 양식 바꾸기 · 한 파일로 합치기</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        {% else %}
+        <a class="action-card" href="/bom/tools">
+          <div class="action-icon">🛠</div>
+          <div class="action-text"><h4>BOM 자료 보기</h4><p>만들어진 자료 열람 · 다운로드</p></div>
+          <div class="action-arrow">→</div>
+        </a>
+        {% endif %}
         <a class="action-card" href="/po/new">
           <div class="action-icon">📝</div>
           <div class="action-text"><h4>새 발주서</h4><p>거래처 + 품목 + 단가</p></div>

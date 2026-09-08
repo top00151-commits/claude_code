@@ -111,8 +111,9 @@ CUR["u"] = VIEW
 r = cl.get("/bom/tools")
 # 2026-09-07 화면 간소화 — 옛 제목("인벤터 → 간이판") 대신 새 작업 이름을 확인한다
 # 2026-09-08 권한 분리 — 구매 묶음은 **구매 담당자에게만** 보인다
-check("조회 권한: 화면 200 + 설계 묶음 + 실행버튼 잠금 안내",
-      r.status_code == 200 and "BOM 도구" in r.text
+# 2026-09-08 입구 분리 — 옛 이름 「BOM 도구」는 없애고 표제가 역할에 따라 달라진다
+check("조회 권한: 화면 200 + 설계 표제 + 설계 묶음 + 실행버튼 잠금 안내",
+      r.status_code == 200 and "설계 BOM 만들기" in r.text
       and "BOM 만들기·수정" in r.text
       and "인벤터 BOM 양식 바꾸기" in r.text
       and "실행은" in r.text)
@@ -289,9 +290,29 @@ check("기록 화면: 실행들이 표로 보임 + 다운로드 단추", "실행
 
 # 메뉴 입구 (대표 화면 지적 2026-08-25 "메뉴 경로가 안 보인다") — 센터 홈 카드 + 사이드바
 r = cl.get("/logistics")
-check("자재구매센터 홈 카드·사이드바에 「BOM 도구」 입구",
-      r.status_code == 200 and r.text.count('href="/bom/tools"') >= 2 and "BOM 도구" in r.text,
-      f"{r.status_code}/{r.text.count('href=\"/bom/tools\"')}")
+# 2026-09-08 입구 분리 — 카드도 사이드바와 같은 이름·규칙으로 (세션01 요청)
+check("자재구매센터 홈: 구매 담당에게 「구매 서류 만들기」 카드",
+      r.status_code == 200 and "구매 서류 만들기" in r.text
+      and "/bom/tools?mode=purchase" in r.text)
+check("옛 이름 「BOM 도구」가 화면에 남아 있지 않음",
+      "BOM 도구" not in r.text, "옛 이름 잔존")
+CUR["u"] = {"id": 705, "name": "설계자", "role": "member", "team_id": 4,
+            "can_use_logistics": 0, "can_view_logistics": 1}
+with D.db_session() as _c:
+    _c.execute("INSERT OR IGNORE INTO users(id,name,login_id,password,role) VALUES(705,'설계자','T705','x','member')")
+_lg = cl.get("/logistics")
+check("설계 권한자에게는 「설계 BOM 만들기」 카드 (구매 카드 아님)",
+      _lg.status_code == 200 and "설계 BOM 만들기" in _lg.text
+      and "구매 서류 만들기" not in _lg.text)
+CUR["u"] = {"id": 706, "name": "조회자", "role": "member", "team_id": 1,
+            "can_use_logistics": 0, "can_view_logistics": 1}
+with D.db_session() as _c:
+    _c.execute("INSERT OR IGNORE INTO users(id,name,login_id,password,role) VALUES(706,'조회자','T706','x','member')")
+_lg2 = cl.get("/logistics")
+check("조회 전용에게는 「BOM 자료 보기」 카드 (만들기 아님)",
+      _lg2.status_code == 200 and "BOM 자료 보기" in _lg2.text
+      and "만들기" not in _lg2.text.split("자재 작업")[-1][:2000])
+CUR["u"] = RUN
 
 print("-" * 66)
 print(f"  시험 {CNT}건 · 실패 {len(FAIL)}건" + ("" if not FAIL else " → " + ", ".join(FAIL)))
