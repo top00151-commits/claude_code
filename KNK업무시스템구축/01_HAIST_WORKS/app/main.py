@@ -21742,6 +21742,91 @@ from .bom_tools import make_rfq as _bt_rfq
 from .bom_tools import fill_prices as _bt_price
 from .bom_tools import revise_master as _bt_revise
 
+# 구매 작업 = 구매 실행권한이 있어야 하는 단계 (대표 지시 2026-09-08)
+_BT_PURCHASE_STEPS = ("price", "rfq", "po", "revise")
+
+
+def _bom_can_purchase(u) -> bool:
+    """구매 작업 실행 권한 — `price`·`rfq`·`po`·`revise`.
+    대표 지시 2026-09-08: 설계 팀번호로 구매 작업까지 열리던 것을 끊는다.
+    ⛔ 팀 이름으로 판정하지 않는다 — 기존 구매 등록·편집 권한(`can_use_logistics`)을 그대로 쓴다.
+       (역할 admin·ceo·executive 자동 허용도 그 함수 안의 기존 정책 그대로)
+    ⚠ `revise` 가 여기 있는 이유: 구매팀이 적은 협력사·단가·납기를 보존하며 고치는 **구매 관리본** 작업이다."""
+    return can_use_logistics(u)
+
+
+# 통일판 칸 (B=2 기준) — 등급 판정에 쓰는 자리
+_BT_COL_VENDOR, _BT_COL_PRICE_P, _BT_COL_PRICE_T = 8, 16, 20
+
+
+def _bt_grade_file(path):
+    """산출물이 실제로 담은 민감정보를 (단가, 구매처) 로 돌려준다. 못 읽으면 (None, None)=불명.
+
+    🔴 대표 지시 2026-09-08 · 검토 정정 A:
+      작업 이름으로 등급을 정하지 않는다. `draft`·`master` 도 입력에 협력사가 있으면 그대로 옮긴다
+      (inventor_to_partlist → 간이판 col 8 · merge_to_master → 통일판 H열).
+      그래서 **파일을 열어 실제 값을 본다.**
+    ⚠ 검사 범위 = 첫 시트의 품목줄 중 협력사 칸(H/8)과 단가 칸(P/16·T/20) 뿐이다.
+      비고·다른 시트·템플릿 문구까지 안전하다고 **주장하지 않는다** — 그래서 판정 실패는 불명으로 남긴다.
+    ⛔ 등급을 낮추려고 값을 지우지 않는다. 읽기만 한다."""
+    try:
+        from openpyxl import load_workbook as _lw
+        ws = _lw(path, read_only=True, data_only=True).active
+        has_v = has_p = 0
+        for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row or 1, 3000),
+                                min_col=1, max_col=27, values_only=True):
+            def _at(i):
+                return row[i - 1] if len(row) >= i else None
+            if str(_at(_BT_COL_VENDOR) or "").strip():
+                has_v = 1
+            for _c in (_BT_COL_PRICE_P, _BT_COL_PRICE_T):
+                v = _at(_c)
+                if isinstance(v, (int, float)) and v:
+                    has_p = 1
+            if has_v and has_p:
+                break
+        return has_p, has_v
+    except Exception:
+        return None, None
+
+
+def _bt_grade_report(report, hp, hv):
+    """보고문에 단가·업체가 **글로** 남았는지도 등급에 반영한다.
+
+    🔴 시험이 잡아준 구멍: 산출물 파일에는 단가가 없어도 **보고문에는 있을 수 있다**
+      (예: 「타매입처 실적으로 채운 1줄: r10 …=7,777원(출처 다른업체)」·「확정단가 0 처리 … (15,400)」).
+      파일만 보고 등급을 매기면 보고문으로 샌다. 보수적으로 올리기만 하고 내리지 않는다."""
+    if not report:
+        return hp, hv
+    # ⛔ 여기서 조용히 실패하면 민감정보가 샌다 — 실패하면 **보수적으로 올린다**(안전한 쪽).
+    #   🔴 실제로 겪은 일: `import re` 가 없어 NameError 가 났는데 `except: pass` 가 삼켜
+    #      등급이 안 올라갔고, 시험이 그것을 잡았다.
+    try:
+        import re as _re
+        _has_won = bool(_re.search(r"\d[\d,]*\s*원", report))
+    except Exception:
+        _has_won = True                      # 판단 못 하면 포함으로 본다
+    if _has_won:
+        hp = 1 if hp is None else max(hp, 1)
+    if any(w in report for w in ("출처", "협력사", "매입처", "매입처목록")):
+        hv = 1 if hv is None else max(hv, 1)
+    return hp, hv
+
+
+def _bt_may_see(u, run, policy=None) -> bool:
+    """이 실행의 파일·보고문을 볼 수 있는가 — 조회 관문은 이미 통과했다고 보고 **내용 등급만** 본다.
+    검토 정정 B: 읽기에 생성·편집 권한을 요구하지 않는다(조회 전용 사용자 보존).
+    🔴 불명(NULL)은 제한한다 — 과거 행·판정 실패는 안전한 쪽으로."""
+    hp, hv = run.get("has_price"), run.get("has_vendor")
+    if hp is None or hv is None:
+        return False
+    if hp and not can_view_field(u, "purchase_price", policy):
+        return False
+    if hv and not can_view_field(u, "supplier_info", policy):
+        return False
+    return True
+
+
 def _bt_qty_warn(rows):
     """수량을 확정하지 못한 줄을 보고문으로 돌려준다 (없으면 빈 목록).
     🔴 2026-09-07: 예전엔 대수·재고 칸 해석이 실패해도 1대분 수량이 그대로 발주로 나갔다.
@@ -21804,14 +21889,23 @@ async def bom_tools_page(request: Request):
             "SELECT r.*, u.name AS by_name FROM bom_tool_runs r "
             "LEFT JOIN users u ON u.id = r.created_by "
             "ORDER BY r.id DESC LIMIT 100").fetchall()]
+    with db_session() as c:
+        _pol = load_field_access_policy(c)
     for r in rows:
         try:
             r["inputs_list"] = _json.loads(r.get("inputs") or "[]")
         except Exception:
             r["inputs_list"] = []
         r["step_label"] = _BT_STEPS.get(r.get("step"), r.get("step"))
+        # 🔴 보고문에도 단가·업체명이 글로 들어 있다(예: 「타매입처 … 7,777원(출처 …)」).
+        #   파일만 막고 보고문을 두면 그대로 샌다 — 같은 등급으로 함께 가린다.
+        r["may_see"] = _bt_may_see(u, r, _pol)
+        if not r["may_see"]:
+            r["report"] = None
+            r["inputs_list"] = []
     return ctx(request, "bom_tools.html", user=u, active="parts",
                steps=_BT_STEPS, runs=rows, can_run=_bom_can_upload(u),
+               can_purchase=_bom_can_purchase(u),
                msg=request.query_params.get("msg", ""),
                err=request.query_params.get("err", ""))
 
@@ -21833,6 +21927,13 @@ async def bom_tools_run(request: Request, step: str,
         return RedirectResponse(f"/bom/tools?err={_q('실행 권한이 없습니다 (자재·설계·전장 담당).')}", 303)
     if step not in _BT_STEPS:
         return RedirectResponse(f"/bom/tools?err={_q('없는 단계입니다.')}", 303)
+    # 🔴 구매 작업은 구매 실행권한을 따로 본다 (대표 지시 2026-09-08 · 검토 정정 C).
+    #   revise 도 여기 있다 — 구매팀이 적은 협력사·단가·납기를 보존하며 고치는 **구매 관리본** 작업이라
+    #   설계가 실행하면 그 판단까지 대신하게 된다. 설계는 바뀐 유닛 BOM 을 만들어 넘긴다.
+    if step in _BT_PURCHASE_STEPS and not _bom_can_purchase(u):
+        _msg = ("구매 작업(단가·견적·발주·마스터 개정)은 구매 담당자만 실행할 수 있습니다. "
+                "설계 변경은 바뀐 유닛 BOM 을 만들어 구매 담당자에게 전달해 주십시오.")
+        return RedirectResponse(f"/bom/tools?err={_q(_msg)}", 303)
 
     import uuid
     run_dir = os.path.join(_BT_STORE, datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6])
@@ -22025,10 +22126,20 @@ async def bom_tools_run(request: Request, step: str,
 
         report = "\n".join(rep_lines)
         with db_session() as c:
+            # 등급 판정 (대표 지시 2026-09-08 · 검토 정정 A) — **작업 이름이 아니라 실제 내용**으로.
+            #   구매 작업은 단가·협력사를 다루므로 파일을 못 읽어도 보수적으로 「포함」으로 둔다.
+            #   설계 작업(draft·master)은 산출물을 열어 실제 값을 본다 — 협력사가 넘어왔을 수 있다.
+            #   ⛔ 등급을 낮추려고 칸을 지우지 않는다. 판정 실패 = 불명(NULL) → 나중에 제한된다.
+            _hp, _hv = _bt_grade_file(out_path)
+            _hp, _hv = _bt_grade_report(report, _hp, _hv)   # 보고문에 글로 남은 단가·업체도 반영
+            if step in _BT_PURCHASE_STEPS:
+                _hp = 1 if _hp is None else max(_hp, 1)
+                _hv = 1 if _hv is None else max(_hv, 1)
             c.execute("INSERT INTO bom_tool_runs(mgmt_code, step, title, inputs, output_name, "
-                      "output_path, report, created_by) VALUES(?,?,?,?,?,?,?,?)",
+                      "output_path, report, created_by, has_price, has_vendor) "
+                      "VALUES(?,?,?,?,?,?,?,?,?,?)",
                       (code, step, title, _json.dumps(saved, ensure_ascii=False),
-                       out_name, out_path, report, u["id"]))
+                       out_name, out_path, report, u["id"], _hp, _hv))
         return RedirectResponse(
             f"/bom/tools?msg={_q(_BT_STEPS[step] + ' 완료 — ' + title + ' (아래 기록에서 다운로드)')}", 303)
     except ValueError as e:
@@ -22048,9 +22159,18 @@ async def bom_tools_download(request: Request, run_id: int, f: str = "out"):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         r = c.execute("SELECT * FROM bom_tool_runs WHERE id=?", (run_id,)).fetchone()
+        _pol = load_field_access_policy(c)
     if not r:
         return RedirectResponse("/bom/tools", 303)
     r = dict(r)
+    # 🔴 파일이 담은 정보로 기존 정책을 적용한다 (대표 지시 2026-09-08).
+    #   조회 관문(위)은 그대로 두고 **내용 등급만** 더 본다 — 읽기에 실행권한을 요구하지 않는다(정정 B).
+    #   화면에서 가려도 엑셀로 새던 구멍을 여기서 막는다. 불명(과거 행)은 제한한다.
+    if not _bt_may_see(u, r, _pol):
+        from urllib.parse import quote as _q
+        _m = ("이 파일에는 구매단가 또는 구매처 정보가 들어 있어 열람 권한이 필요합니다. "
+              "(정보 분류를 알 수 없는 예전 자료도 제한됩니다) 구매팀에 문의해 주십시오.")
+        return RedirectResponse(f"/bom/tools?err={_q(_m)}", 303)
     if f == "out":
         path, fname = r.get("output_path"), r.get("output_name")
     else:

@@ -57,6 +57,14 @@ with D.db_session() as conn:
     for uu in (RUN, VIEW, NONE):
         conn.execute("INSERT INTO users(id, name, login_id, password, role) VALUES(?,?,?,'x',?)",
                      (uu["id"], uu["name"], f"T{uu['id']}", uu["role"]))
+    # 2026-09-08 권한 분리 — 운영과 같은 민감정보 정책을 심는다(실측: 구매팀=10 은 둘 다 허용).
+    #   🔴 이 표가 비면 can_view_field 가 비관리자에게 False 를 주어 **구매팀조차 자기 파일을 못 받는다**
+    #      (안전한 쪽이지만 업무는 멈춘다). 시험 환경을 운영과 같게 맞춘다.
+    conn.execute("DELETE FROM field_access_policy")
+    for _cat, _teams in (("purchase_price", (1, 2, 4, 10, 11, 15)),
+                         ("supplier_info", (1, 10, 11, 15))):
+        for _t in _teams:
+            conn.execute("INSERT INTO field_access_policy(category, team_id) VALUES(?,?)", (_cat, _t))
 
 KIT = os.path.normpath(os.path.join(ROOT, "..", "참고자료", "설계팀",
                                     "BOM 업무 자동화_2026.08.04", "1. BUDS 단차 검사기"))
@@ -101,17 +109,17 @@ print("=" * 66)
 # ── 화면 접근 ──
 CUR["u"] = VIEW
 r = cl.get("/bom/tools")
-# 2026-09-07 화면 간소화 — 옛 제목("인벤터 → 간이판") 대신 새 작업 이름·두 묶음을 확인한다
-check("조회 권한: 화면 200 + 작업 두 묶음 + 실행버튼 잠금 안내",
+# 2026-09-07 화면 간소화 — 옛 제목("인벤터 → 간이판") 대신 새 작업 이름을 확인한다
+# 2026-09-08 권한 분리 — 구매 묶음은 **구매 담당자에게만** 보인다
+check("조회 권한: 화면 200 + 설계 묶음 + 실행버튼 잠금 안내",
       r.status_code == 200 and "BOM 도구" in r.text
-      and "BOM 만들기·수정" in r.text and "단가·구매서류" in r.text
+      and "BOM 만들기·수정" in r.text
       and "인벤터 BOM 양식 바꾸기" in r.text
       and "실행은" in r.text)
-check("여섯 작업 이름이 모두 보임(결과물 중심 표현)",
-      all(t in r.text for t in ("인벤터 BOM 양식 바꾸기", "BOM 한 파일로 합치기", "변경된 설계 반영하기",
-                                "과거 구매단가 찾아 넣기", "견적요청서 만들기", "발주서 파일 만들기")))
-check("발주서는 「실제 발주 아님」을 접지 않고 보여줌",
-      "실제 발주 아님" in r.text and "발주가 나가는 것이 아닙니다" in r.text)
+check("조회 권한에게는 구매 작업 묶음이 보이지 않음 (2026-09-08 권한 분리)",
+      "단가·구매서류" not in r.text and "발주서 파일 만들기" not in r.text)
+check("설계 작업 세 이름이 보임(결과물 중심 표현)",
+      all(t in r.text for t in ("인벤터 BOM 양식 바꾸기", "BOM 한 파일로 합치기")))
 CUR["u"] = NONE
 check("무권한: /home 으로 돌려보냄", cl.get("/bom/tools").status_code == 303)
 
@@ -120,6 +128,12 @@ CUR["u"] = RUN
 # 화면 간소화 전제 — 여섯 폼은 **숨기기만** 하고 DOM 에 남아야 한다.
 #   지우면 작업을 옮겼다 돌아왔을 때 고른 파일이 사라진다(대표 지시: 입력값 유지).
 _rp = cl.get("/bom/tools")
+check("구매 담당자에게는 두 묶음과 여섯 작업이 모두 보임",
+      "BOM 만들기·수정" in _rp.text and "단가·구매서류" in _rp.text
+      and all(t in _rp.text for t in ("인벤터 BOM 양식 바꾸기", "BOM 한 파일로 합치기", "변경된 설계 반영하기",
+                                      "과거 구매단가 찾아 넣기", "견적요청서 만들기", "발주서 파일 만들기")))
+check("발주서는 「실제 발주 아님」을 접지 않고 보여줌 (구매 담당자 화면)",
+      "실제 발주 아님" in _rp.text and "발주가 나가는 것이 아닙니다" in _rp.text)
 check("여섯 폼이 모두 화면에 남아 있음 (작업 이동해도 고른 파일 유지)",
       all(('/bom/tools/run/' + s) in _rp.text
           for s in ("draft", "master", "revise", "price", "rfq", "po"))

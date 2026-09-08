@@ -2543,6 +2543,21 @@ def init_db():
                       "ON bom_tool_runs(mgmt_code, created_at)")
         except Exception:
             pass
+        # ── WP-04 권한 분리 (대표 지시 2026-09-08) — 산출물이 담은 민감정보 등급 ──
+        #   구매단가(purchase_price)·구매처(supplier_info) 는 **기존 정책이 서로 다른 두 분류**라
+        #   하나로 묶지 않고 칸을 따로 둔다(묶으면 「단가 없음·구매처 있음」 조합을 표현 못 함).
+        #   값: 1=포함 · 0=없음 확인됨 · NULL=불명(과거 행) → **불명은 제한**한다.
+        #   🔴 CREATE TABLE IF NOT EXISTS 는 기존 표에 칸을 만들지 않는다 → ALTER 로 보강.
+        try:
+            _btc = [r[1] for r in c.execute("PRAGMA table_info(bom_tool_runs)").fetchall()]
+            for _col, _ddl in (
+                ("has_price",  "ALTER TABLE bom_tool_runs ADD COLUMN has_price INTEGER"),
+                ("has_vendor", "ALTER TABLE bom_tool_runs ADD COLUMN has_vendor INTEGER"),
+            ):
+                if _col not in _btc:
+                    c.execute(_ddl)
+        except Exception:
+            pass
 
         # v5H226z763 (대표 지시): 제작요청서 수정 — 기존 prod_requests 테이블에 수정 일시·수정자 보강
         try:

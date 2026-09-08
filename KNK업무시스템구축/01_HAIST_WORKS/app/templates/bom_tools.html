@@ -89,6 +89,7 @@ details.rep pre { margin:6px 0 0; padding:8px 10px; background:var(--pq-surface-
                   font-size:11.5px; line-height:1.7; white-space:pre-wrap; word-break:break-all;
                   font-family:inherit; color:var(--pq-ink-2); }
 details.older summary { cursor:pointer; font-size:12px; color:var(--pq-ink-3); margin-top:10px; }
+.locked { font-size:11.5px; color:var(--pq-ink-4); }
 .empty { font-size:12.5px; color:var(--pq-ink-4); padding:18px; text-align:center;
          background:var(--pq-surface); border:1px solid var(--pq-line); border-radius:10px; }
 
@@ -133,12 +134,21 @@ details.older summary { cursor:pointer; font-size:12px; color:var(--pq-ink-3); m
         <button type="button" class="task-btn" role="tab" data-task="master" aria-selected="false" aria-controls="pane-master">
           <span class="t">BOM 한 파일로 합치기</span><span class="s">기구·전장 취합 → 통일판</span>
         </button>
-        <button type="button" class="task-btn" role="tab" data-task="revise" aria-selected="false" aria-controls="pane-revise">
-          <span class="t">변경된 설계 반영하기</span><span class="s">기존 마스터 개정 · 손 기입 보존</span>
-        </button>
+        {% if not can_purchase %}
+        <div class="s" style="font-size:11px;color:var(--pq-ink-4);line-height:1.6;padding:6px 2px 0;">
+          설계가 바뀌면 <b>바뀐 유닛의 BOM 파일</b>을 만들어 구매 담당자에게 전달해 주십시오.
+          구매 관리본(단가·협력사가 들어간 마스터) 개정은 구매 담당자가 합니다.
+        </div>
+        {% endif %}
       </div>
+      {# 구매 작업은 구매 담당자에게만 보인다 (대표 지시 2026-09-08).
+         ⛔ 화면에서 숨기는 것은 안내일 뿐이고, 진짜 차단은 서버(_bom_can_purchase)가 한다. #}
+      {% if can_purchase %}
       <div class="grp">
         <div class="gh">단가·구매서류</div>
+        <button type="button" class="task-btn" role="tab" data-task="revise" aria-selected="false" aria-controls="pane-revise">
+          <span class="t">변경된 설계 반영하기</span><span class="s">구매 관리본 개정 · 손 기입 보존</span>
+        </button>
         <button type="button" class="task-btn" role="tab" data-task="price" aria-selected="false" aria-controls="pane-price">
           <span class="t">과거 구매단가 찾아 넣기</span><span class="s">수불부 대조 · 참고단가</span>
         </button>
@@ -149,6 +159,7 @@ details.older summary { cursor:pointer; font-size:12px; color:var(--pq-ink-3); m
           <span class="t">발주서 파일 만들기</span><span class="s">파일 생성 · 실제 발주 아님</span>
         </button>
       </div>
+      {% endif %}
       <details class="more">
         <summary>전체 흐름 보기</summary>
         <div class="body">
@@ -212,6 +223,9 @@ details.older summary { cursor:pointer; font-size:12px; color:var(--pq-ink-3); m
         </details>
       </section>
 
+      {# 구매 작업 패널 — 권한 없으면 렌더하지 않는다 (대표 지시 2026-09-08).
+         설계 전용 사용자에게는 이 칸들이 아예 없다. 진짜 차단은 서버가 한다. #}
+      {% if can_purchase %}
       <section class="pane" id="pane-revise" role="tabpanel" hidden>
         <h2>변경된 설계 반영하기</h2>
         <div class="sub">기존 마스터 개정 · 손 기입 보존 (기존 ①-c)</div>
@@ -290,6 +304,7 @@ details.older summary { cursor:pointer; font-size:12px; color:var(--pq-ink-3); m
           ⚠ <b>발주수량에서 베트남 재고를 빼는 규칙이 확인 중</b>입니다(구매팀 확인 대기). 보내기 전에 수량을 꼭 확인해 주십시오.
           수량을 계산하지 못한 줄은 보고에 「수량 확인 필요」로 표시됩니다.</div>
       </section>
+      {% endif %}
 
     </div>
   </div>
@@ -309,9 +324,9 @@ details.older summary { cursor:pointer; font-size:12px; color:var(--pq-ink-3); m
         <td>{{ r.step_label }}</td>
         <td class="mono">{{ r.mgmt_code or '' }}</td>
         <td>{{ r.title or '' }}</td>
-        <td><a class="dl out" href="/bom/tools/download/{{ r.id }}?f=out">⬇ {{ r.output_name }}</a></td>
+        <td>{% if r.may_see %}<a class="dl out" href="/bom/tools/download/{{ r.id }}?f=out">⬇ {{ r.output_name }}</a>{% else %}<span class="locked">🔒 열람 권한 필요</span>{% endif %}</td>
         <td>{% for it in r.inputs_list %}<a class="dl" href="/bom/tools/download/{{ r.id }}?f=in{{ loop.index0 }}">{{ it.name }}</a>{% endfor %}</td>
-        <td>{% if r.report %}<details class="rep"><summary>펼치기</summary><pre>{{ r.report }}</pre></details>{% endif %}</td>
+        <td>{% if r.report %}<details class="rep"><summary>펼치기</summary><pre>{{ r.report }}</pre></details>{% elif not r.may_see %}<span class="locked">구매 정보 포함 — 구매팀 문의</span>{% endif %}</td>
         <td>{{ r.by_name or '' }}</td>
       </tr>
       {% endfor %}
@@ -333,9 +348,9 @@ details.older summary { cursor:pointer; font-size:12px; color:var(--pq-ink-3); m
           <td>{{ r.step_label }}</td>
           <td class="mono">{{ r.mgmt_code or '' }}</td>
           <td>{{ r.title or '' }}</td>
-          <td><a class="dl out" href="/bom/tools/download/{{ r.id }}?f=out">⬇ {{ r.output_name }}</a></td>
+          <td>{% if r.may_see %}<a class="dl out" href="/bom/tools/download/{{ r.id }}?f=out">⬇ {{ r.output_name }}</a>{% else %}<span class="locked">🔒 열람 권한 필요</span>{% endif %}</td>
           <td>{% for it in r.inputs_list %}<a class="dl" href="/bom/tools/download/{{ r.id }}?f=in{{ loop.index0 }}">{{ it.name }}</a>{% endfor %}</td>
-          <td>{% if r.report %}<details class="rep"><summary>펼치기</summary><pre>{{ r.report }}</pre></details>{% endif %}</td>
+          <td>{% if r.report %}<details class="rep"><summary>펼치기</summary><pre>{{ r.report }}</pre></details>{% elif not r.may_see %}<span class="locked">구매 정보 포함 — 구매팀 문의</span>{% endif %}</td>
           <td>{{ r.by_name or '' }}</td>
         </tr>
         {% endfor %}
