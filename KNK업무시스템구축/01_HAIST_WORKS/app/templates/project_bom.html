@@ -106,9 +106,21 @@ table.bom td.num { font-family:var(--pq-mono); text-align:right; font-variant-nu
         {# WP-04 기준전환: 이 프로젝트 자재를 언제부터 WORKS 로 관리하는지 #}
         <a class="btn-ghost" href="/projects/{{ project.id }}/baseline"
            title="이 프로젝트 자재를 언제부터 WORKS 로 관리하는지">자재 관리 단계</a>
-        {# WP-04 BOM 도구 공장: 파일 올리면 간이판·통일판·단가·견적요청서·발주서를 만들어 줌 #}
+        {# WP-04 입구 분리 (2026-09-08 · z1096b): 사이드바·자재 홈 카드와 **같은 이름·같은 규칙**.
+           옛 이름은 화면 어디에도 남기지 않는다 — 보는 사람에 따라 버튼 하나만 나온다.
+           이 화면은 라우트에서 can_view_logistics 또는 BOM 권한자만 들여보내므로(위 게이트)
+           무권한자에게 버튼이 노출될 일이 없다 — 자재 홈 카드와 같은 집합이다.
+           ⛔ 버튼은 안내일 뿐 — 무엇을 할 수 있는지는 서버가 정한다. #}
+        {% if can_bom_purchase %}
+        <a class="btn-ghost" href="/bom/tools?mode=purchase"
+           title="과거 단가 채우기 · 견적요청서 · 발주서를 만듭니다">구매 서류 만들기</a>
+        {% elif can_bom_design %}
+        <a class="btn-ghost" href="/bom/tools?mode=design"
+           title="인벤터 BOM 양식 바꾸기 · 한 파일로 합치기">설계 BOM 만들기</a>
+        {% else %}
         <a class="btn-ghost" href="/bom/tools"
-           title="파일을 올리면 결과물을 만들어 주고 단계별로 기록됩니다">BOM 도구</a>
+           title="만들어진 자료를 열람·다운로드합니다">BOM 자료 보기</a>
+        {% endif %}
         <a class="btn-ghost" href="/projects/{{ project.id }}/bom/export.xlsx">⤓ 현재 BOM 엑셀</a>
         {% if can_edit %}
         {# v5H226z986 (대표 지시): 테스트/오등록 정리 — 관리번호 타이핑 확인 후 BOM 데이터만 전체 삭제 (프로젝트 유지) #}

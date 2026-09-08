@@ -161,6 +161,40 @@ chk(src.count("/bom/upload") == 1, "BOM 보드는 1개 그대로")
 
 print()
 print("=" * 78)
+print("§7 ⭐옛 이름 「BOM 도구」가 **화면에 뜨는 곳**이 하나도 없는가 — 전수")
+print("=" * 78)
+# 🔴 2026-09-08: 사이드바·자재 홈 카드를 고치고도 project_bom.html 의 버튼이 남아 있었다.
+#   (grep 만 하면 주석까지 세어 '있다'고 나오고, 주석만 보고 넘기면 진짜를 놓친다)
+#   → **주석을 걷어낸 뒤** 남는 것만 위반으로 본다.
+JINJA_CMT = re.compile(r"\{#.*?#\}", re.S)
+HTML_CMT = re.compile(r"<!--.*?-->", re.S)
+OLD_NAMES = ["BOM 도구"]
+bad = []
+for dirpath, _dirs, files in os.walk(TPL):
+    for fn in files:
+        if not fn.endswith(".html"):
+            continue
+        p = os.path.join(dirpath, fn)
+        body = HTML_CMT.sub("", JINJA_CMT.sub("", io.open(p, encoding="utf-8").read()))
+        for nm in OLD_NAMES:
+            if nm in body:
+                rel = os.path.relpath(p, TPL)
+                ln = body[:body.index(nm)].count("\n") + 1
+                bad.append("%s (주석 걷어낸 기준 %d번째 줄)" % (rel, ln))
+chk(not bad, "화면에 뜨는 옛 이름 0건 (실제 %s)" % (bad or "없음"))
+
+print()
+print("=" * 78)
+print("§8 프로젝트 BOM 화면 버튼도 같은 규칙인가")
+print("=" * 78)
+pb = io.open(os.path.join(TPL, "project_bom.html"), encoding="utf-8").read()
+chk("can_bom_purchase" in pb and "can_bom_design" in pb, "권한 분기 있음")
+for nm in ("구매 서류 만들기", "설계 BOM 만들기", "BOM 자료 보기"):
+    chk(nm in pb, "「%s」 버튼 있음" % nm)
+chk("mode=purchase" in pb and "mode=design" in pb, "목적지에 mode 붙음")
+
+print()
+print("=" * 78)
 print("결과: %d OK / %d FAIL" % (OK, FAIL))
 print("=" * 78)
 sys.exit(1 if FAIL else 0)
