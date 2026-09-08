@@ -21756,21 +21756,41 @@ def _bom_can_purchase(u) -> bool:
 
 
 # 통일판 칸 (B=2 기준) — 등급 판정에 쓰는 자리
-_BT_COL_VENDOR, _BT_COL_PRICE_P, _BT_COL_PRICE_T = 8, 16, 20
+# (열 번호 고정 상수는 폐기 — 양식마다 다르다. 머리글로 찾는 _bt_form_layout 을 쓴다)
 # 🔴 자료 시작줄 — **머리글을 데이터로 읽으면 안 된다** (2026-09-08 오차단 사고).
 #   간이판 8행 · 통일판 9행 (각 도구의 ROW0 과 같다). 그 위는 제목·머리글이다.
 #   판별: 통일판은 7~8행이 머리글이고 J5 에 대수가 있다 → B7 이 'NO.' 인 줄 아래부터 읽는다.
 _BT_ROW0_DRAFT, _BT_ROW0_MASTER = 8, 9
 
 
-def _bt_data_row0(ws):
-    """자료가 시작하는 줄을 찾는다 — 못 찾으면 보수적으로 간이판 기준(8)."""
-    for r in range(1, 12):
-        if str(ws.cell(row=r, column=2).value or "").strip().upper().startswith("NO"):
-            # 통일판은 머리글이 7~8행 두 줄(P8='기존' 등) — 그 아래가 자료
-            nxt = str(ws.cell(row=r + 1, column=16).value or "").strip()
-            return r + (2 if nxt else 1)
-    return _BT_ROW0_DRAFT
+def _bt_form_layout(ws):
+    """우리 양식의 **머리글을 읽어** (자료시작줄, 협력사열들, 단가열들) 을 찾는다. 아니면 None.
+
+    🔴 2026-09-08 검토 지적 두 가지를 함께 고친 것:
+      ① 못 찾을 때 8행을 기본값으로 쓰면 **우리 양식이 아닌 원본**(단가가 C열에 있는 개인 엑셀 등)을
+         「정보 없음」으로 오판한다 → 모르면 **불명**으로 돌린다.
+      ② 열 번호를 통일판으로 고정하면 **간이판을 놓친다**
+         (실측: 협력사는 둘 다 H(8) 이지만 단가는 **간이판 K(11) · 통일판 P(16)·T(20)**).
+         → 자리가 아니라 **칸 이름**으로 찾는다(도구들이 쓰는 방식과 같다).
+    ⚠ 검사 범위 = 첫 시트의 이 열들뿐이다. 비고·다른 시트까지 안전하다고 주장하지 않는다."""
+    for hr in range(1, 12):
+        if not str(ws.cell(row=hr, column=2).value or "").strip().upper().startswith("NO"):
+            continue
+        ven, pri = [], []
+        for ci in range(2, 28):
+            h = str(ws.cell(row=hr, column=ci).value or "").upper().replace(" ", "")
+            if not h:
+                continue
+            if "VENDOR" in h or "외주사" in h or "협력사" in h:
+                ven.append(ci)
+            if "UNITPRICE" in h or "단가" in h:
+                pri.append(ci)
+        if not ven or not pri:
+            return None                       # 우리 양식의 머리글이 아니다
+        # 통일판은 머리글이 두 줄(P8='기존' 등) — 그 아래가 자료
+        row0 = hr + (2 if str(ws.cell(row=hr + 1, column=16).value or "").strip() else 1)
+        return row0, ven, pri
+    return None
 
 
 def _bt_grade_file(path):
@@ -21780,21 +21800,25 @@ def _bt_grade_file(path):
       작업 이름으로 등급을 정하지 않는다. `draft`·`master` 도 입력에 협력사가 있으면 그대로 옮긴다
       (inventor_to_partlist → 간이판 col 8 · merge_to_master → 통일판 H열).
       그래서 **파일을 열어 실제 값을 본다.**
-    ⚠ 검사 범위 = 첫 시트의 품목줄 중 협력사 칸(H/8)과 단가 칸(P/16·T/20) 뿐이다.
+    ⚠ 검사 범위 = 첫 시트에서 **머리글로 찾은** 협력사·단가 칸의 품목줄뿐이다.
       비고·다른 시트·템플릿 문구까지 안전하다고 **주장하지 않는다** — 그래서 판정 실패는 불명으로 남긴다.
     ⛔ 등급을 낮추려고 값을 지우지 않는다. 읽기만 한다."""
     try:
         from openpyxl import load_workbook as _lw
         ws = _lw(path, data_only=True).active
-        row0 = _bt_data_row0(ws)                 # 🔴 머리글 아래부터 — 제목을 업체명으로 오인 금지
+        lay = _bt_form_layout(ws)                # 머리글로 자리 찾기 — 우리 양식이 아니면 불명
+        if lay is None:
+            return None, None
+        row0, ven_cols, pri_cols = lay
         has_v = has_p = 0
         for row in ws.iter_rows(min_row=row0, max_row=min(ws.max_row or row0, 3000),
                                 min_col=1, max_col=27, values_only=True):
             def _at(i):
                 return row[i - 1] if len(row) >= i else None
-            if str(_at(_BT_COL_VENDOR) or "").strip():
-                has_v = 1
-            for _c in (_BT_COL_PRICE_P, _BT_COL_PRICE_T):
+            for _c in ven_cols:
+                if str(_at(_c) or "").strip():
+                    has_v = 1
+            for _c in pri_cols:
                 v = _at(_c)
                 if isinstance(v, (int, float)) and v:
                     has_p = 1
@@ -22200,6 +22224,11 @@ async def bom_tools_download(request: Request, run_id: int, f: str = "out"):
             _ip, _iv = _bt_grade_file(_item.get("path"))
         except Exception:
             _ip = _iv = None
+        if _ip is None or _iv is None:
+            # 우리 양식이 아니거나 못 읽었다 → **가장 보수적인 등급**으로 본다.
+            #   ⛔ 아무도 못 보게 막지는 않는다(그러면 구매팀이 자기 수불부도 못 받는다).
+            #   단가·구매처를 **둘 다** 가진 사람만 — 구매팀은 통과, 설계는 막힌다.
+            _ip = _iv = 1
         if not _bt_may_see(u, {"has_price": _ip, "has_vendor": _iv}, _pol):
             _m2 = ("올린 원본 파일에는 구매단가·구매처 정보가 들어 있을 수 있어 열람 권한이 필요합니다. "
                    "(산출물은 볼 수 있어도 원본은 따로 판단합니다) 구매팀에 문의해 주십시오.")

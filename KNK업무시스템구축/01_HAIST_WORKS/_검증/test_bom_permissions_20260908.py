@@ -90,9 +90,15 @@ def last_run():
 
 
 def mk_unified(path, vendor=None, price=None):
-    """통일판 모양의 작은 파일 — H(8)=협력사 · P(16)/T(20)=단가 자리."""
+    """통일판을 **머리글까지 실물과 같게** 만든다.
+    🔴 2026-09-08: 등급 판정이 머리글로 자리를 찾도록 바뀌었다. 머리글 없이 값만 넣은 파일은
+    「우리 양식 아님=불명」이 되므로, 시험 자료도 실물을 닮아야 한다."""
     wb = Workbook(); ws = wb.active
-    ws.cell(7, 2, "NO."); ws.cell(8, 2, "")
+    ws.cell(7, 2, "NO.")
+    ws.cell(7, 5, "PRODUCT NAME 제품명"); ws.cell(7, 6, "PRODUCT CODE 코드명")
+    ws.cell(7, 8, "FINAL VENDOR 외주사")
+    ws.cell(7, 16, "단가 및 납기"); ws.cell(7, 20, "UNIT PRICE 단가")
+    ws.cell(8, 16, "기존")
     ws.cell(9, 5, "시험품"); ws.cell(9, 6, "TEST-SPEC")
     if vendor:
         ws.cell(9, 8, vendor)
@@ -255,26 +261,64 @@ check("21 설계자가 만든 간이판을 **본인이 내려받을 수 있다**
       f"등급={_made and (_made.get('has_price'), _made.get('has_vendor'))}")
 
 # 보수 2 — 제목에 협력사명이 남지 않는다
+#   🔴 앞선 시험은 **거짓 통과**였다: 마스터 업체명과 요청 업체가 달라 rfq 가 실패했고,
+#      last_run() 이 이전 기록을 봤다. 이제 **같은 업체명**으로 실제 생성하고 **새 ID** 를 확인한다.
 CUR["u"] = BUYER
-rr = cl.post("/bom/tools/run/rfq", data={"vendor": "파익스시험", "due": "2026-09-30"},
+_before = (last_run() or {}).get("id")
+rr = cl.post("/bom/tools/run/rfq", data={"vendor": "가나상사", "due": "2026-09-30"},
              files=[fpart("files", m)])
 _rfq = last_run()
+_made_ok = (rr.status_code == 303 and "msg=" in (rr.headers.get("location") or "")
+            and _rfq and _rfq["id"] != _before and _rfq["step"] == "rfq")
+check("22a 견적요청서가 실제로 생성됐다 (실패를 통과로 세지 않기)",
+      _made_ok, f"loc={(rr.headers.get('location') or '')[:60]!r} id={_rfq and _rfq['id']}→{_before}")
+check("22b 생성된 제목에 협력사명이 들어 있다 (가릴 대상이 존재)",
+      _made_ok and "가나상사" in (_rfq["title"] or ""), str(_rfq and _rfq["title"]))
 CUR["u"] = SW
 _pg = cl.get("/bom/tools")
-check("22 권한 없으면 실행기록 **제목의 협력사명**도 가려진다",
-      "파익스시험" not in _pg.text and "내용 비공개" in _pg.text,
-      f"제목노출={'파익스시험' in _pg.text}")
+check("22c 권한 없으면 실행기록 **제목의 협력사명**이 가려진다",
+      _made_ok and "가나상사" not in _pg.text and "내용 비공개" in _pg.text,
+      f"제목노출={'가나상사' in _pg.text}")
 
-# 보수 3 — 산출물은 깨끗해도 **입력 원본**에 단가가 있으면 원본은 막는다
+# 보수 3 — 산출물은 깨끗해도 **입력 원본**에 단가가 있으면 원본만 막는다
+#   🔴 실제 시나리오: `master` 는 입력의 단가를 **산출물로 옮기지 않는다**.
+#      앞선 시험은 draft 에 엉뚱한 파일을 넣어 실행이 실패했고, 없는 in1 의 303 을 성공으로 셌다.
 CUR["u"] = BUYER
-_src = mk_unified(os.path.join(TMP, "원본_단가있음.xlsx"), None, 9999)   # 원본엔 단가
-rr = cl.post("/bom/tools/run/draft", data={"code": "A999X9997", "name": "원본시험", "author": "시험"},
-             files=[fpart("files", os.path.join(KIT, "AA00.xlsx")), fpart("files", _src)])
+_dr = os.path.join(TMP, "간이판_단가있음.xlsx")
+_wb = Workbook(); _ws = _wb.active
+_ws.cell(7, 2, "NO."); _ws.cell(7, 3, "CATEGORY 구분"); _ws.cell(7, 4, "CODE")
+_ws.cell(7, 5, "PRODUCT NAME 제품명"); _ws.cell(7, 6, "PRODUCT CODE 코드명")
+_ws.cell(7, 7, "MANUFACTURER 제조사"); _ws.cell(7, 8, "VENDOR 외주사")
+_ws.cell(7, 9, "수량"); _ws.cell(7, 10, "UNIT 단위"); _ws.cell(7, 11, "UNIT PRICE 단가")
+_ws.cell(8, 3, "BOTTOM FRAME"); _ws.cell(8, 4, "AA00"); _ws.cell(8, 5, "원본품")
+_ws.cell(8, 6, "SRC-SPEC"); _ws.cell(8, 9, 2); _ws.cell(8, 11, 8888)   # 🔴 원본에만 단가
+_wb.save(_dr)
+_before = (last_run() or {}).get("id")
+rr = cl.post("/bom/tools/run/master", data={"code": "A999X9996", "name": "원본시험", "sets": "1"},
+             files=[fpart("files", _dr)])
 _mix = last_run()
+_ok3 = (rr.status_code == 303 and "msg=" in (rr.headers.get("location") or "")
+        and _mix and _mix["id"] != _before and _mix["step"] == "master")
+check("23a 취합이 실제로 성공했다 (실패를 통과로 세지 않기)",
+      _ok3, f"loc={(rr.headers.get('location') or '')[:60]!r}")
+check("23b 산출물에는 단가가 넘어가지 않았다 (master 의 원래 동작)",
+      _ok3 and _mix["has_price"] == 0, f"산출물등급={(_mix or {}).get('has_price')}")
 CUR["u"] = SW
-check("23 산출물은 볼 수 있어도 **단가가 든 입력 원본**은 따로 막힌다",
-      cl.get(f"/bom/tools/download/{_mix['id']}?f=in1").status_code == 303,
-      f"산출물등급={(_mix.get('has_price'), _mix.get('has_vendor'))}")
+check("23c 산출물은 볼 수 있다",
+      _ok3 and cl.get(f"/bom/tools/download/{_mix['id']}?f=out").status_code == 200)
+check("23d 단가가 든 **입력 원본**은 같은 사람에게 막힌다",
+      _ok3 and cl.get(f"/bom/tools/download/{_mix['id']}?f=in0").status_code == 303)
+CUR["u"] = BUYER
+check("23e 구매 담당자는 그 원본을 받을 수 있다 (실무 유지)",
+      _ok3 and cl.get(f"/bom/tools/download/{_mix['id']}?f=in0").status_code == 200)
+
+# 보수 A — 우리 양식이 아닌 원본은 「정보 없음」으로 오판하지 않는다
+_alien = os.path.join(TMP, "남의양식.xlsx")
+_wb2 = Workbook(); _w2 = _wb2.active
+_w2["A1"] = "품명"; _w2["C1"] = "단가"; _w2["A2"] = "부품"; _w2["C2"] = 7777
+_wb2.save(_alien)
+check("24 우리 양식이 아닌 파일은 (0,0) 이 아니라 **불명**으로 판정",
+      appmain._bt_grade_file(_alien) == (None, None), str(appmain._bt_grade_file(_alien)))
 
 print("-" * 72)
 print(f"  시험 {CNT}건 · 실패 {len(FAIL)}건" + ("" if not FAIL else " → " + ", ".join(FAIL)))
