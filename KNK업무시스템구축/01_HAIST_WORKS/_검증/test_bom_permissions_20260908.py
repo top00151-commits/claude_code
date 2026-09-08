@@ -234,6 +234,48 @@ CUR["u"] = BUYER
 check("15 등급 불명(과거 행)은 구매권한자라도 제한된다",
       cl.get(f"/bom/tools/download/{rid_old}?f=out").status_code == 303)
 
+
+# ══ 보수 1·2·3 (2026-09-08 검토 지적) ══
+# 보수 1 — 실제 회사 빈 양식의 머리글(H7 "VENDOR/외주사")을 협력사로 오인하면 안 된다
+_f_draft = os.path.join(ROOT, "app", "bom_tools", "양식", "양식_간이판.xlsx")
+_f_master = os.path.join(ROOT, "app", "bom_tools", "양식", "양식_통일판_구매품PARTLIST.xlsx")
+check("19 빈 간이판 양식: 머리글을 협력사로 오인하지 않음",
+      appmain._bt_grade_file(_f_draft) == (0, 0), str(appmain._bt_grade_file(_f_draft)))
+check("20 빈 통일판 양식: 머리글을 협력사로 오인하지 않음",
+      appmain._bt_grade_file(_f_master) == (0, 0), str(appmain._bt_grade_file(_f_master)))
+
+# 보수 1 — 실제 draft 생성 → 설계 권한으로 **내려받기까지** (양식 제목 오차단 회귀)
+CUR["u"] = DESIGN
+rr = cl.post("/bom/tools/run/draft", data={"code": "A999X9998", "name": "양식시험", "author": "시험"},
+             files=[fpart("files", os.path.join(KIT, "AA00.xlsx"))])
+_made = last_run()
+check("21 설계자가 만든 간이판을 **본인이 내려받을 수 있다** (오차단 회귀)",
+      rr.status_code == 303 and _made is not None
+      and cl.get(f"/bom/tools/download/{_made['id']}?f=out").status_code == 200,
+      f"등급={_made and (_made.get('has_price'), _made.get('has_vendor'))}")
+
+# 보수 2 — 제목에 협력사명이 남지 않는다
+CUR["u"] = BUYER
+rr = cl.post("/bom/tools/run/rfq", data={"vendor": "파익스시험", "due": "2026-09-30"},
+             files=[fpart("files", m)])
+_rfq = last_run()
+CUR["u"] = SW
+_pg = cl.get("/bom/tools")
+check("22 권한 없으면 실행기록 **제목의 협력사명**도 가려진다",
+      "파익스시험" not in _pg.text and "내용 비공개" in _pg.text,
+      f"제목노출={'파익스시험' in _pg.text}")
+
+# 보수 3 — 산출물은 깨끗해도 **입력 원본**에 단가가 있으면 원본은 막는다
+CUR["u"] = BUYER
+_src = mk_unified(os.path.join(TMP, "원본_단가있음.xlsx"), None, 9999)   # 원본엔 단가
+rr = cl.post("/bom/tools/run/draft", data={"code": "A999X9997", "name": "원본시험", "author": "시험"},
+             files=[fpart("files", os.path.join(KIT, "AA00.xlsx")), fpart("files", _src)])
+_mix = last_run()
+CUR["u"] = SW
+check("23 산출물은 볼 수 있어도 **단가가 든 입력 원본**은 따로 막힌다",
+      cl.get(f"/bom/tools/download/{_mix['id']}?f=in1").status_code == 303,
+      f"산출물등급={(_mix.get('has_price'), _mix.get('has_vendor'))}")
+
 print("-" * 72)
 print(f"  시험 {CNT}건 · 실패 {len(FAIL)}건" + ("" if not FAIL else " → " + ", ".join(FAIL)))
 sys.exit(1 if FAIL else 0)

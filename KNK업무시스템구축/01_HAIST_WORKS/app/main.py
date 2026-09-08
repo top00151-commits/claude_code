@@ -21757,6 +21757,20 @@ def _bom_can_purchase(u) -> bool:
 
 # 통일판 칸 (B=2 기준) — 등급 판정에 쓰는 자리
 _BT_COL_VENDOR, _BT_COL_PRICE_P, _BT_COL_PRICE_T = 8, 16, 20
+# 🔴 자료 시작줄 — **머리글을 데이터로 읽으면 안 된다** (2026-09-08 오차단 사고).
+#   간이판 8행 · 통일판 9행 (각 도구의 ROW0 과 같다). 그 위는 제목·머리글이다.
+#   판별: 통일판은 7~8행이 머리글이고 J5 에 대수가 있다 → B7 이 'NO.' 인 줄 아래부터 읽는다.
+_BT_ROW0_DRAFT, _BT_ROW0_MASTER = 8, 9
+
+
+def _bt_data_row0(ws):
+    """자료가 시작하는 줄을 찾는다 — 못 찾으면 보수적으로 간이판 기준(8)."""
+    for r in range(1, 12):
+        if str(ws.cell(row=r, column=2).value or "").strip().upper().startswith("NO"):
+            # 통일판은 머리글이 7~8행 두 줄(P8='기존' 등) — 그 아래가 자료
+            nxt = str(ws.cell(row=r + 1, column=16).value or "").strip()
+            return r + (2 if nxt else 1)
+    return _BT_ROW0_DRAFT
 
 
 def _bt_grade_file(path):
@@ -21771,9 +21785,10 @@ def _bt_grade_file(path):
     ⛔ 등급을 낮추려고 값을 지우지 않는다. 읽기만 한다."""
     try:
         from openpyxl import load_workbook as _lw
-        ws = _lw(path, read_only=True, data_only=True).active
+        ws = _lw(path, data_only=True).active
+        row0 = _bt_data_row0(ws)                 # 🔴 머리글 아래부터 — 제목을 업체명으로 오인 금지
         has_v = has_p = 0
-        for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row or 1, 3000),
+        for row in ws.iter_rows(min_row=row0, max_row=min(ws.max_row or row0, 3000),
                                 min_col=1, max_col=27, values_only=True):
             def _at(i):
                 return row[i - 1] if len(row) >= i else None
@@ -21903,6 +21918,10 @@ async def bom_tools_page(request: Request):
         if not r["may_see"]:
             r["report"] = None
             r["inputs_list"] = []
+            # 🔴 제목에도 협력사명이 들어간다(예: 「파익스 견적요청서 12줄」·「광원전기 발주서」).
+            #   파일·보고문만 가리고 제목을 두면 업체명이 그대로 남는다 — 작업 종류만 남긴다.
+            #   ⛔ 줄 자체는 지우지 않는다: 누가 언제 무슨 작업을 했는지는 협업에 필요하다.
+            r["title"] = _BT_STEPS.get(r.get("step"), r.get("step") or "작업") + " (내용 비공개)"
     return ctx(request, "bom_tools.html", user=u, active="parts",
                steps=_BT_STEPS, runs=rows, can_run=_bom_can_upload(u),
                can_purchase=_bom_can_purchase(u),
@@ -22166,11 +22185,25 @@ async def bom_tools_download(request: Request, run_id: int, f: str = "out"):
     # 🔴 파일이 담은 정보로 기존 정책을 적용한다 (대표 지시 2026-09-08).
     #   조회 관문(위)은 그대로 두고 **내용 등급만** 더 본다 — 읽기에 실행권한을 요구하지 않는다(정정 B).
     #   화면에서 가려도 엑셀로 새던 구멍을 여기서 막는다. 불명(과거 행)은 제한한다.
+    from urllib.parse import quote as _q      # ⚠ 아래 두 분기가 모두 쓴다 — 블록 안에서 import 하면 UnboundLocalError
     if not _bt_may_see(u, r, _pol):
-        from urllib.parse import quote as _q
         _m = ("이 파일에는 구매단가 또는 구매처 정보가 들어 있어 열람 권한이 필요합니다. "
               "(정보 분류를 알 수 없는 예전 자료도 제한됩니다) 구매팀에 문의해 주십시오.")
         return RedirectResponse(f"/bom/tools?err={_q(_m)}", 303)
+    # 🔴 입력 원본은 산출물 등급으로 열지 않는다 (2026-09-08 검토 지적).
+    #   `master` 는 **원본의 단가·납기를 산출물로 옮기지 않는다** → 산출물이 깨끗해도 원본엔 있을 수 있다.
+    #   원본은 사람이 채워 올린 것이라 내용을 미리 알 수 없으므로 **그때 열어 직접 판정**한다.
+    if f != "out":
+        _ip, _iv = None, None
+        try:
+            _item = _json.loads(r.get("inputs") or "[]")[int(f.replace("in", ""))]
+            _ip, _iv = _bt_grade_file(_item.get("path"))
+        except Exception:
+            _ip = _iv = None
+        if not _bt_may_see(u, {"has_price": _ip, "has_vendor": _iv}, _pol):
+            _m2 = ("올린 원본 파일에는 구매단가·구매처 정보가 들어 있을 수 있어 열람 권한이 필요합니다. "
+                   "(산출물은 볼 수 있어도 원본은 따로 판단합니다) 구매팀에 문의해 주십시오.")
+            return RedirectResponse(f"/bom/tools?err={_q(_m2)}", 303)
     if f == "out":
         path, fname = r.get("output_path"), r.get("output_name")
     else:
