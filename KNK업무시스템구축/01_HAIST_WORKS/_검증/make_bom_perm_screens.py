@@ -68,9 +68,56 @@ with D.db_session() as conn:
         for t in teams:
             conn.execute("INSERT INTO field_access_policy(category, team_id) VALUES(?,?)", (cat, t))
 
+LEFTOVER = []
 OUT = os.path.join(HERE, "_화면_BOM권한_" + datetime.date.today().strftime("%Y%m%d"))
 os.makedirs(OUT, exist_ok=True)
 SHOTS = []
+
+
+import io                                                      # noqa: E402
+import base64                                                  # noqa: E402
+import re as _re                                               # noqa: E402
+
+_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif",
+         ".svg": "image/svg+xml", ".ico": "image/x-icon", ".webp": "image/webp"}
+
+_CSS1 = r'<link[^>]+rel="stylesheet"[^>]*href="(/static/[^"]+)"[^>]*>'
+_CSS2 = r'<link[^>]+href="(/static/[^"]+[.]css[^"]*)"[^>]*rel="stylesheet"[^>]*>'
+_IMG  = r'src="(/static/[^"]+)"'
+_ANY  = r'"(/static/[^"]+)"'
+
+
+def inline_assets(html):
+    """바깥 CSS·그림을 **파일 안으로 넣는다.**
+    🔴 이걸 안 하면 화면을 파일로 열었을 때 모양이 통째로 깨진다 — 세션01 이 잘못 볼 수 있다.
+    """
+    misses = []
+
+    def css(m):
+        rel = m.group(1).split('?')[0].lstrip('/')
+        fp = os.path.join(ROOT, rel)
+        if not os.path.exists(fp):
+            misses.append(rel)
+            return m.group(0)
+        return ('<style>/* ' + rel + ' */' + chr(10)
+                + io.open(fp, encoding='utf-8').read() + '</style>')
+
+    html = _re.sub(_CSS1, css, html)
+    html = _re.sub(_CSS2, css, html)
+
+    def img(m):
+        rel = m.group(1).split('?')[0].lstrip('/')
+        fp = os.path.join(ROOT, rel)
+        if not os.path.exists(fp):
+            misses.append(rel)
+            return m.group(0)
+        mime = _MIME.get(os.path.splitext(fp)[1].lower(), 'application/octet-stream')
+        with open(fp, 'rb') as fh:
+            b = base64.b64encode(fh.read()).decode()
+        return 'src=' + chr(34) + 'data:' + mime + ';base64,' + b + chr(34)
+
+    html = _re.sub(_IMG, img, html)
+    return html, sorted(set(misses)), sorted(set(_re.findall(_ANY, html)))
 
 
 def shot(fname, title, why, user, url, method="GET", data=None):
@@ -92,6 +139,10 @@ def shot(fname, title, why, user, url, method="GET", data=None):
         ' &nbsp;·&nbsp; 결과: ' + str(r.status_code) +
         (' &nbsp;·&nbsp; ' + " / ".join(hops) if hops else '') +
         ' &nbsp;·&nbsp; <i>시험용 가상 계정 · 운영 자료 아님</i></span></div>')
+    html, _miss, _left = inline_assets(html)
+    if _miss:
+        print('    ⚠ 못 찾은 자원: ' + ', '.join(_miss))
+    LEFTOVER.extend(_left)
     if "<body" in html:
         i = html.index("<body")
         j = html.index(">", i) + 1
@@ -139,6 +190,9 @@ with D.db_session() as c:
     nrun = c.execute("SELECT COUNT(*) FROM bom_tool_runs").fetchone()[0]
 nfile = len([f for f in os.listdir(appmain._BT_STORE)
              if os.path.isfile(os.path.join(appmain._BT_STORE, f))])
+_lo = sorted(set(LEFTOVER))
+print('  확인  파일 안에 못 넣은 바깥 자원 %d개 (0 이어야 모양이 온전하다)' % len(_lo)
+      + ('' if not _lo else ' -> ' + ', '.join(_lo)))
 print("  확인  차단 뒤 남은 기록 %d건 · 남은 파일 %d개 (둘 다 0 이어야 함)" % (nrun, nfile))
 
 rows = "".join(
@@ -165,4 +219,4 @@ with open(os.path.join(OUT, "index.html"), "w", encoding="utf-8") as fh:
 print("-" * 74)
 print("  화면 %d장 · 폴더: %s" % (len(SHOTS), OUT))
 print("  먼저 열 파일: " + os.path.join(OUT, "index.html"))
-sys.exit(0 if (nrun == 0 and nfile == 0) else 1)
+sys.exit(0 if (nrun == 0 and nfile == 0 and not _lo) else 1)
