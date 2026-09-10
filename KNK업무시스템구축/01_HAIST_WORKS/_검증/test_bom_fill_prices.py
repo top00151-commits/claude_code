@@ -147,22 +147,33 @@ sample_ok = all(wa.cell(row=r, column=ci).value == wb_.cell(row=r, column=ci).va
 check("기존단가(P) 밖의 칸은 손대지 않음", sample_ok)
 
 # Ⓐ12 협력사 미정(뼈대 단계) — 채우지 않고 과거 실적 참고 목록으로
-SC = os.path.join(os.environ.get("TMP", TMP))
-skel_src = None
-for base in (r"C:\Users\top00\AppData\Local\Temp\claude\C--Users-top00-JR-Claude---\72ba0949-a2b2-4048-9f20-763eff42b897\scratchpad",):
-    p = os.path.join(base, "001M2606 통일판 뼈대(전장).xlsx")
-    if os.path.exists(p):
-        skel_src = p
-if skel_src:
-    res_sk = F.fill_prices(skel_src, LEDGER, os.path.join(TMP, "skel_out.xlsx"))
-    check("전장 뼈대(협력사 미정): 채움 0 + 과거 실적 참고 41건(51줄 중 80%)",
-          res_sk["채움"] == 0 and len(res_sk["협력사미정참고"]) == 41,
-          f"{res_sk['채움']}/{len(res_sk['협력사미정참고'])}")
-    wsk = load_workbook(os.path.join(TMP, "skel_out.xlsx"), data_only=True).active
-    check("뼈대의 기존단가는 여전히 전부 빈칸 (판단 대행 안 함)",
-          all(wsk.cell(row=r, column=16).value in (None, "") for r in range(9, 60)))
-else:
-    check("전장 뼈대 표본 없음 — 건너뜀(수동 확인 필요)", False, "뼈대 파일 경로 없음")
+# 🔴 2026-09-10: 예전엔 **개인 임시 폴더**의 특정 파일을 찾았고, 그 폴더가 지워져
+#    시험이 실패했다. 실패를 「이상 없음」의 근거로 쓸 수 없으므로 **비식별 표본**으로 복구한다.
+#    ⛔ 실제 거래자료는 저장소에 넣지 않는다 — 코드로 똑같은 표본을 만든다.
+sys.path.insert(0, os.path.join(HERE, "_표본"))
+import make_price_fixtures as FIX                        # noqa: E402
+
+skel_src, skel_led = FIX.make_all(os.path.join(TMP, "표본"))
+res_sk = F.fill_prices(skel_src, skel_led, os.path.join(TMP, "skel_out.xlsx"))
+check("전장 뼈대(협력사 미정): 단가를 채우지 않는다", res_sk["채움"] == 0, str(res_sk["채움"]))
+check(f"전장 뼈대: 과거 실적 참고 {FIX.REF_COUNT}건만 알려 준다",
+      len(res_sk["협력사미정참고"]) == FIX.REF_COUNT, str(len(res_sk["협력사미정참고"])))
+check("수불부에 없는 형번은 참고에도 안 뜬다",
+      all(not str(x[1]).startswith("TST-B") for x in res_sk["협력사미정참고"]),
+      str([x[1] for x in res_sk["협력사미정참고"]][:3]))
+wsk = load_workbook(os.path.join(TMP, "skel_out.xlsx"), data_only=True).active
+check("뼈대의 기존단가는 여전히 전부 빈칸 (판단 대행 안 함)",
+      all(wsk.cell(row=r, column=16).value in (None, "")
+          for r in range(9, 9 + FIX.ROW_COUNT)))
+wb_v = load_workbook(skel_src)
+ws_v = wb_v.active
+for _i in range(FIX.REF_COUNT):
+    ws_v.cell(row=9 + _i, column=8, value=FIX.VENDORS[_i % len(FIX.VENDORS)])
+vend_src = os.path.join(TMP, "표본", "뼈대_협력사확정.xlsx")
+wb_v.save(vend_src)
+res_v = F.fill_prices(vend_src, skel_led, os.path.join(TMP, "vend_out.xlsx"))
+check(f"역검사: 협력사를 확정하면 {FIX.REF_COUNT}줄이 실제로 채워진다",
+      res_v["채움"] == FIX.REF_COUNT, str(res_v["채움"]))
 
 # Ⓐ14 잘못된 수불부 → 한국어 에러
 bad = os.path.join(TMP, "bad.xlsx")
