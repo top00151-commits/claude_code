@@ -3022,18 +3022,31 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
             from datetime import date as _d
             ym = _d.today().strftime("%Y-%m")
             with db_session() as c:
-                r = c.execute(
-                    "SELECT COALESCE(SUM(order_amount),0) AS t "
-                    "FROM projects WHERE order_date LIKE ? AND order_amount>0",
-                    (f"{ym}%",)).fetchone()
-                monthly_revenue = r["t"] if r else 0
+                # z1097 (대표 지시 2026-09-10): 통화별로 읽어 **월 기준환율로 환산**해 더한다.
+                #   전엔 SUM(order_amount) 한 줄이라 달러 프로젝트가 '원'인 양 더해졌다.
+                #   실측(2026-09-10): 2026-07 화면 186,149,155원 vs 올바름 325,279,719원
+                #   — 1억 3,913만원(43%)이 빠져 있었다. 대표규정 §4 규칙48(월 기준환율 단일 기준).
+                _rates = _fx_load_rates(c)
+
+                def _month_krw(_ym):
+                    _rows = [dict(x) for x in c.execute(
+                        "SELECT COALESCE(currency,'KRW') AS currency, "
+                        "COALESCE(order_amount,0) AS order_amount, "
+                        "COALESCE(order_date,'') AS order_date "
+                        "FROM projects WHERE order_date LIKE ? AND order_amount>0",
+                        (f"{_ym}%",)).fetchall()]
+                    _bd = _ccy_breakdown(_rows, "order_amount", "currency",
+                                         date_keys=("order_date",), rates=_rates)
+                    if _bd["krw"] is not None:
+                        return _bd["krw"]
+                    # 환율이 아예 없는 통화가 섞였을 때: 그 통화는 빼고 원화분만 센다.
+                    # ⛔ 절대 통화 무시 단순합(naive)으로 되돌아가지 않는다 — 그게 이 결함이었다.
+                    return sum(r["total"] for r in _bd["by_ccy"] if r["currency"] == "KRW")
+
+                monthly_revenue = _month_krw(ym)
                 # YoY 전년 동월 대비
                 last_year_ym = f"{_d.today().year - 1}-{_d.today().strftime('%m')}"
-                r2 = c.execute(
-                    "SELECT COALESCE(SUM(order_amount),0) AS t "
-                    "FROM projects WHERE order_date LIKE ? AND order_amount>0",
-                    (f"{last_year_ym}%",)).fetchone()
-                last = r2["t"] if r2 else 0
+                last = _month_krw(last_year_ym)
                 if last > 0:
                     yoy_delta = round((monthly_revenue - last) / last * 100, 1)
         except Exception as e:
@@ -6972,6 +6985,14 @@ async def project_detail(req: Request, pid: int):
                 )
     except Exception:
         pass
+    # z1097 (대표 지시 2026-09-10): 아래쪽 '수주번호 합계'가 쓰는 통화별 합계.
+    #   ⭐ 위쪽 '확정 매출' KPI 는 currency_mix 로 이미 통화별로 나눠 그리는데
+    #      아래쪽 합계만 환산 없이 더해 원화+달러가 한 숫자로 붙었다(대표 신고).
+    #      공용 _ccy_breakdown 한 벌로 두 곳이 같은 규칙을 쓰게 한다.
+    #   환산 기준월 = 납품월(due_date) → 없으면 수주일(order_date). 대표규정 §4 규칙48.
+    so_total_bd = _ccy_breakdown(
+        project_orders, "total_amount", "currency",
+        date_keys=("due_date", "order_date"), rates=_fx_rates_now())
     # v5H136 (2026-05-05): 이 프로젝트(장비)에 연결된 PO 라인 = 소모품·부품 사용 이력
     consumables = {"rows": [], "total_amount": 0, "total_qty": 0, "count": 0}
     try:
@@ -7005,6 +7026,11 @@ async def project_detail(req: Request, pid: int):
         child_projects = _logi.get_child_projects(pid, limit=200)
     except Exception:
         child_projects = []
+    # z1097 (대표 지시 2026-09-10): '소모품·수리 누적' 합계도 같은 공용 규칙으로.
+    #   전엔 통화를 안 보고 더한 뒤 'KRW' 라고 적었다(자식이 달러면 원화로 둔갑).
+    child_total_bd = _ccy_breakdown(
+        child_projects, "total_so_amount", "currency",
+        date_keys=("last_so_date",), rates=_fx_rates_now())
     # v5H200: 호기 상태로부터 종합 표시 상태 산출 (A안)
     # v5H214: 호기 0건(수주확정 전)이면 fallback 으로 stage 가 아닌 status 사용 — 사용자가 선택한 세부 상태 노출
     try:
@@ -7082,6 +7108,8 @@ async def project_detail(req: Request, pid: int):
                all_units_sorted=all_units_sorted,
                currency_mix=currency_mix,
                currency_warning=currency_warning,
+               so_total_bd=so_total_bd,            # z1097: 수주번호 합계(통화별+원화)
+               child_total_bd=child_total_bd,      # z1097: 소모품·수리 누적(통화별+원화)
                primary_so_currency=primary_so_currency,
                consumables=consumables,
                consumable_orders=consumable_orders,
@@ -7617,6 +7645,11 @@ async def customer_detail(req: Request, cid: int):
         pjts = [dict(r) for r in c.execute(
             "SELECT * FROM projects WHERE customer_id=? ORDER BY id DESC", (cid,),
         ).fetchall()]
+        # z1097 (대표 지시 2026-09-10): '총 수주액' 도 통화별 합계 + 원화 환산.
+        #   전엔 통화를 안 보고 더한 뒤 '원' 이라고 적었다(달러 프로젝트가 원화로 둔갑).
+        pjts_total_bd = _ccy_breakdown(
+            pjts, "order_amount", "currency",
+            date_keys=("order_date", "due_date"), rates=_fx_load_rates(c))
         # 최근 2주 카드
         since = (date.today() - timedelta(days=30)).isoformat()
         tasks = [dict(r) for r in c.execute(
@@ -7664,6 +7697,7 @@ async def customer_detail(req: Request, cid: int):
         customer_history = []
     return ctx(req, "customer_detail.html",
                user=u, cu=cu, pjts=pjts, tasks=tasks[:80],
+               pjts_total_bd=pjts_total_bd,     # z1097: 총 수주액(통화별+원화)
                stats=stats, by_team=by_team_list, total_tasks=len(tasks),
                contacts=contacts, tier_breakdown=tier_breakdown,
                customer_history=customer_history)
@@ -20800,6 +20834,81 @@ def _fx_to_krw(rates, amount, ccy, ref_ym, missing=None):
             missing.add((ccy, ref_ym or "?"))
         return 0.0
     return amt * rate
+
+def _fx_rates_now():
+    """월 기준환율 표 한 벌 — 커서가 없는 자리에서 쓰는 편의 함수. 실패하면 빈 표."""
+    try:
+        with db_session() as _c:
+            return _fx_load_rates(_c)
+    except Exception:
+        return {}
+
+
+def _ccy_get(row, key):
+    """dict / sqlite3.Row 어느 쪽이 와도 같은 방식으로 칸을 읽는다."""
+    try:
+        return row[key]
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def _ccy_breakdown(rows, amount_key, ccy_key="currency", date_keys=(), rates=None):
+    """z1097 (대표 지시 2026-09-10) 여러 건 금액 = **통화별 합계 + 월 기준환율 원화 환산**.
+
+    ⭐ 왜 공용 한 벌인가 — 화면마다 for 문으로 직접 더하다가 **원화와 달러를 환산 없이
+       그대로 더한 값**이 프로젝트 상세 아래쪽에 떴다(대표 신고 2026-09-10).
+       같은 화면 위쪽 '확정 매출' KPI 는 이미 통화별로 나눠 그리고 있었는데
+       아래쪽 '수주번호 합계'만 그 규칙에서 빠져 있었다(실측 25건·오차 41억원).
+       ⛔ 앞으로 여러 건 금액을 합쳐 보여줄 때 직접 더하지 말고 이 함수를 쓴다.
+
+    rows       : dict(또는 sqlite3.Row) 목록
+    amount_key : 금액 칸 이름
+    ccy_key    : 통화 칸 이름(없거나 비면 KRW 로 본다)
+    date_keys  : 환산 기준월을 뽑을 날짜 칸 후보(앞에서부터 값 있는 것 사용).
+                 대표규정 §4 규칙48 — 환산 기준은 **납품월**.
+    rates      : _fx_load_rates() 결과. None 이면 원화 환산 없이 통화별 합계만 돌려준다.
+
+    돌려주는 것:
+      by_ccy  [{currency,total,cnt}] — 금액 큰 순
+      mixed   통화가 2종 이상인가
+      krw     원화 환산 합계(환율이 없어 못 바꾸면 None)
+      missing 환율이 없어 못 바꾼 (통화, 'YYYY-MM') 목록
+      naive   ⚠ 통화 무시 단순합 — **화면에 쓰지 말 것**(회귀 시험 대조 전용)
+    """
+    per, cnt = {}, {}
+    krw = 0.0
+    ok = rates is not None
+    missing = set()
+    naive = 0.0
+    for r in (rows or []):
+        try:
+            amt = float(_ccy_get(r, amount_key) or 0)
+        except (TypeError, ValueError):
+            amt = 0.0
+        ccy = str(_ccy_get(r, ccy_key) or "KRW").strip().upper() or "KRW"
+        per[ccy] = per.get(ccy, 0.0) + amt
+        cnt[ccy] = cnt.get(ccy, 0) + 1
+        naive += amt
+        if ok:
+            ym = ""
+            for k in (date_keys or ()):
+                v = _ccy_get(r, k)
+                if v:
+                    ym = str(v)[:7]
+                    break
+            conv = _fx_to_krw(rates, amt, ccy, ym or None, missing)
+            if ccy != "KRW" and amt and not conv:
+                ok = False          # 환율이 없으면 원화 합계를 아예 내지 않는다(반쪽 숫자 금지)
+            else:
+                krw += conv
+    by_ccy = sorted(
+        [{"currency": k, "total": v, "cnt": cnt.get(k, 0)} for k, v in per.items()],
+        key=lambda z: -abs(z["total"]),
+    )
+    return {"by_ccy": by_ccy, "mixed": len(by_ccy) > 1,
+            "krw": (krw if ok else None),
+            "missing": sorted(missing), "naive": naive}
+
 
 
 # 통화별 입력 단위(관리자 화면 편의) — 내부 저장은 항상 '1 통화당 KRW'.

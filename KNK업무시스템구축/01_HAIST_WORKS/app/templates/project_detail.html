@@ -4,6 +4,8 @@
 {% include "_v5_partials/knk_datepicker.html" %}
 {# z1095: 금액칸 소수점 보존 공용 함수(knkFmtAmtTyping 등) — 세금계산서/인보이스 금액 팝업에서 쓴다 #}
 {% include "_v5_partials/knk_amt.html" %}
+{# z1097: 통화별 합계 표기 공용 한 벌 — 원화+달러 환산 없는 합산 재발 방지 #}
+{% import "_v5_partials/knk_ccy_total.html" as _ccy %}
 <link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" />
 {# v5H226z971 (대표 지적): 부품 추가 업로드·전체 교체는 [✏️ 수정](편집 모드) 후에만 — 잠금 상태에선 흐리게(클릭 시 JS 가드가 안내) #}
 <style>.so-card:not(.unlocked) .ow-need-edit{opacity:.4;filter:grayscale(.4);}</style></head>
@@ -337,7 +339,14 @@
     <div class="kpi-card"><div class="kpi-label">완료</div><div class="kpi-num" style="color:var(--success);">{{ s.done|default(0) }}</div><div class="kpi-trend up">{% if total_tasks %}{{ ((s.done*100/total_tasks)|round|int) }}%{% else %}0%{% endif %}</div></div>
     <div class="kpi-card"><div class="kpi-label">누적 공수</div><div class="kpi-num">{{ '%.1f'|format(s.hours|default(0)) }}<span class="unit">h</span></div></div>
     {# v5H94: 수주액 KPI 는 SO 합계가 우선 (단일 진실 소스). SO 가 없으면 폼 입력값 폴백. #}
-    {% set _so_total = (project_orders|sum(attribute='total_amount')) if project_orders else 0 %}
+    {# z1097 (대표 지시 2026-09-10): 통화 무시 단순합 폐기.
+       ⭐ 이 값은 '통화가 하나일 때의 SO 합계' 라는 뜻으로만 쓰인다(혼합이면 아래에서
+          currency_mix 로 통화별 표기). 그런데 예전엔 통화를 안 보고 더한 숫자를
+          여기 담아 뒀다 — 화면에 안 뜰 뿐 언제든 새 코드가 집어 쓸 수 있는 지뢰였다.
+          서버 so_total_bd(공용 _ccy_breakdown) 에서 뽑아 그 소지를 없앤다. #}
+    {% set _so_total = (so_total_bd.by_ccy[0].total
+                        if (so_total_bd and so_total_bd.by_ccy and not so_total_bd.mixed)
+                        else 0) %}
     {% set _displayed_amt = _so_total if project_orders else (p.order_amount or 0) %}
     {# v5H172: 통화 표기는 프로젝트 헤더 우선 (SO 통화가 비었거나 백필 전이어도 정확) #}
     {% set _kpi_ccy = p.currency or primary_so_currency or 'KRW' %}
@@ -1185,9 +1194,11 @@
         <!-- 전체 합계 -->
         {# v5H226z974 (대표 지시): 상품(PARTS) SO 는 부품 낱개 합('1194대' 오표기)이 아니라
            '완제품 몇 대분'(pm)·부품 낱개(pp)·1식 건수(ps)로 분리 집계 — 장비 SO(q)는 기존 그대로 #}
-        {% set _gtotal = namespace(t=0, q=0, pm=0, pp=0, ps=0) %}
+        {# z1097 (대표 지시 2026-09-10): 금액 누적(t) 폐기 — 통화를 안 보고 더해
+           원화와 달러가 한 숫자로 붙었다. 금액은 서버 so_total_bd(통화별)만 쓴다.
+           아래 q/pm/pp/ps 는 '수량' 집계라 통화와 무관하므로 그대로 둔다. #}
+        {% set _gtotal = namespace(q=0, pm=0, pp=0, ps=0) %}
         {% for _so in project_orders %}
-          {% set _gtotal.t = _gtotal.t + (_so.total_amount or 0) %}
           {% if _so.form_key == 'parts' %}
             {% set _gtotal.ps = _gtotal.ps + 1 %}
             {% if (_so.unit_qty or 1)|int >= 2 %}{% set _gtotal.pm = _gtotal.pm + (_so.unit_qty|int) %}{% endif %}
@@ -1209,11 +1220,14 @@
           </div>
           <div class="value">
             {% if can_sales_amt %}
-            {{ money(_gtotal.t, _gt_ccy) }}
+            {# z1097: 통화가 섞이면 통화별로 나눠 적고 그 아래 월 기준환율 원화 합계.
+               통화가 하나면 예전 그대로(프로젝트 환율 병기)를 유지한다. #}
+            {{ _ccy.ccy_total(so_total_bd) }}
             <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
-            {% if _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
+            {% if not (so_total_bd and so_total_bd.mixed) and _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
+            {% set _gt_one = (so_total_bd.by_ccy[0].total if so_total_bd and so_total_bd.by_ccy else 0) %}
             <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">
-              ≈ {{ money(_gtotal.t * p.fx_rate, 'KRW') }}
+              ≈ {{ money(_gt_one * p.fx_rate, 'KRW') }}
               <span style="color:#94a3b8;font-weight:500;font-size:11px;">(환율 1 {{ _gt_ccy }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
             </div>
             {% endif %}
@@ -1791,11 +1805,11 @@
           {% endfor %}
             <tr style="background:#fef3c7;font-weight:700;">
               <td colspan="6" style="text-align:right;">소모품·수리 누적</td>
-              <td class="num" style="color:var(--knk-red);">{% if can_sales_amt %}{{ money(child_projects|sum(attribute='total_so_amount'), 'KRW') }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="color:var(--knk-red);">{% if can_sales_amt %}{{ _ccy.ccy_total(child_total_bd) }}{% else %}🔒{% endif %}</td>
             </tr>
           </tbody>
         </table></div>
-        <div style="margin-top:8px;font-size:11px;color:var(--mute);">자식 프로젝트는 등록 시 <b>parent_project_id</b> 로 이 장비에 귀속됩니다. 합계는 각 자식 프로젝트의 SO(수주) 총액 단순 합산입니다(통화 환산 미포함).</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--mute);">자식 프로젝트는 등록 시 <b>parent_project_id</b> 로 이 장비에 귀속됩니다. 합계는 각 자식 프로젝트의 SO(수주) 총액이며, <b>통화가 섞이면 통화별로 나눠 적고 월 기준환율로 바꾼 원화 합계를 함께</b> 보여줍니다(z1097).</div>
       </section>
       {% endif %}
 

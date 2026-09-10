@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ cu.name }} · 고객사</title>
 {% include "_v5_partials/styles.html" %}
+{# z1097: 통화별 합계 표기 공용 한 벌 #}
+{% import "_v5_partials/knk_ccy_total.html" as _ccy %}
 <style>
 /* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z46: 시안1 토큰 + .mgmt-pill — customer_detail v1 차수 */
@@ -40,7 +42,9 @@ body {
   <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,1fr);">
     <div class="kpi-card"><div class="kpi-label">총 프로젝트</div><div class="kpi-num">{{ pjts|length }}</div></div>
     <div class="kpi-card"><div class="kpi-label">진행 중</div><div class="kpi-num">{{ pjts|selectattr('status','in',['진행중','진행'])|list|length }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">총 수주액</div><div class="kpi-num">{{ '{:,.0f}'.format(pjts|sum(attribute='order_amount')|default(0)) }}<span class="unit">원</span></div></div>
+    {# z1097 (대표 지시 2026-09-10): 통화를 안 보고 더한 뒤 '원'이라 적던 것을
+        통화별 합계 + 월 기준환율 원화 합계로. 통화가 하나면 그 통화로 정확히 적는다. #}
+    <div class="kpi-card"><div class="kpi-label">총 수주액</div><div class="kpi-num">{{ _ccy.ccy_total(pjts_total_bd, compact=true) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">관련 업무</div><div class="kpi-num">{{ total_tasks }}</div></div>
   </div>
 

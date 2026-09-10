@@ -44,6 +44,13 @@ BASELINE = {
     "design_v2.html": {"important": None, "vh": None},
     "print.css": {"important": None, "vh": None},
 
+    # ── 환산 없는 금액 합산 (z1097 · 2026-09-10) ──
+    #    발주(PO) 목록 합계 = **세션05(자재구매) 소유 파일**(업무분장 V2). 세션01이 대신 고치지 않는다.
+    #    위치·재현 결과를 세션05에 전달했다. 발주에 외화가 실제로 섞여 있는지는 **실측하지 않았다**
+    #    (매출쪽 orders 는 실측했으나 purchase_orders 는 세션05 담당이라 열지 않았다).
+    #    ⚠ 이 숫자를 늘리지 말 것 — 늘리면 새 위반으로 잡힌다. 세션05가 고치면 0 으로 내릴 것.
+    "po_list.html": {"ccy": 1},
+
     # ── 표 줄/셀 강조 (knk-row-flag 로 옮길 후보) ──
     #    전부 '상태 표시'라 동작은 정상. 해당 화면 개편 시 덧칠 방식으로 통일.
     "sales_shipments_receipts.html": {"important": 1},   # sr-hl 행 하이라이트
@@ -297,6 +304,50 @@ def check_amt_decimal(files):
     return bad
 
 
+def _blank_keep_lines(m):
+    """주석을 지우되 줄바꿈은 남긴다 — 잡았을 때 알려주는 줄 번호가 어긋나지 않게."""
+    return "\n" * m.group(0).count("\n")
+
+
+def check_ccy_sum(files):
+    """§통화 = 환산 없는 금액 합산 금지 (z1097 · 대표 신고 2026-09-10).
+
+    화면에 **원화와 달러를 환산 없이 그대로 더한 값**이 떴다.
+    프로젝트 005M2511 'BIM LINE' 아래쪽 「수주번호 합계」 =
+    $83,882.73 + ₩1,720,000 → **$1,803,882.73**. 운영 실측 25건 · 오차 합계 약 41억원.
+    부풀림은 1건뿐이고 나머지 24건은 **작게** 나와 아무도 눈치채지 못했다.
+
+    ⭐ 왜 검사기까지 만드는가 — 같은 화면 **위쪽** '확정 매출' KPI 는 이미 통화별로
+       나눠 그리고 있었다. 아래쪽만 규칙에서 빠진 것이다. 매출 대시보드도
+       2026-05-04(v5H123)에 같은 결함을 고쳤는데 그때도 그 화면만 고쳤다.
+       **한 곳만 고치면 반드시 다른 곳에서 되살아난다**(대표규정 「⛔한 곳만 고치고 완료 금지」).
+
+    올바른 방법: 서버에서 `_ccy_breakdown(...)` 으로 통화별 합계 + 월 기준환율 원화 합계를
+    만들고, 화면은 공용 매크로 `_v5_partials/knk_ccy_total.html` 의 `ccy_total()` 로 그린다.
+
+    잡는 것 두 가지
+      ① `|sum(attribute='금액칸')`
+      ② `{% set ns.x = ns.x + (... 금액칸 ...) %}` 꼴 누적
+    ⚠ 수량·건수·공수(qty·cnt·hours·duration)는 통화와 무관하므로 잡지 않는다.
+    ⚠ 주석은 실행되지 않으므로 검사 대상이 아니다(이 규칙을 설명하는 주석이 잡히면 안 된다).
+      Jinja 주석은 줄바꿈만 남기고 지워 **줄 번호를 유지**한다.
+    """
+    MONEY = (r"(?:total_amount|order_amount|total_so_amount|sum_amount|"
+             r"paid_total|unit_price|total_price|amount|price|amt)")
+    sum_re = re.compile(r"\|\s*sum\s*\(\s*attribute\s*=\s*['\"]" + MONEY + r"['\"]")
+    acc_re = re.compile(r"\{%\s*set\s+(\w+)\.(\w+)\s*=\s*\1\.\2\s*\+[^%]*" + MONEY)
+    jinja_cmt = re.compile(r"\{#.*?#\}", re.S)
+    bad = []
+    for p in files:
+        if not p.endswith(".html"):
+            continue
+        src = jinja_cmt.sub(_blank_keep_lines, _read(p))
+        for i, ln in enumerate(src.splitlines()):
+            if sum_re.search(ln) or acc_re.search(ln):
+                bad.append((p, i + 1, ln.strip()[:110]))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -367,6 +418,16 @@ def main():
             print("       %s:%s  %s" % (f, l, m))
     else:
         print("  ✅ 금액칸 소수점 보존 : 새 위반 없음 (기존 면제 %d건)" % amt_old)
+
+    ccy_new, ccy_old = split_baseline(check_ccy_sum(files), "ccy")
+    if ccy_new:
+        fail += len(ccy_new)
+        print("  ❌ 환산 없는 금액 합산 : 새로 %d건 → 서버 _ccy_breakdown() + 공용 ccy_total()"
+              " (_v5_partials/knk_ccy_total.html)" % len(ccy_new))
+        for f, l, m in ccy_new[:20]:
+            print("       %s:%s  %s" % (f, l, m))
+    else:
+        print("  ✅ 환산 없는 금액 합산 : 새 위반 없음 (기존 면제 %d건)" % ccy_old)
 
     print("=" * 72)
     if fail:

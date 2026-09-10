@@ -1,0 +1,40 @@
+{#═══════════════════════════════════════════════════════════════════════════
+  통화별 합계 표기 = 공용 한 벌   ·   z1097 (대표 지시 2026-09-10)
+
+  ⭐ 왜 여기 한 곳에만 두는가
+     같은 '여러 건 금액 합계'를 화면마다 따로 그리다가, 프로젝트 상세 **아래쪽**
+     합계만 규칙에서 빠져 **원화와 달러를 환산 없이 그대로 더한 값**이 떴다.
+     (같은 화면 위쪽 '확정 매출' KPI 는 이미 통화별로 나눠 그리고 있었다.)
+     실측 25건 · 오차 41억원. 대표 신고 2026-09-10.
+
+  ⛔ 금액 여러 건을 더해 보여줄 때 템플릿에서 직접 더하지 말 것.
+     서버 `_ccy_breakdown(...)` 결과를 그대로 이 매크로에 넘긴다.
+     (배포 전 검사 `deploy/check_standards.py` 가 직접 더하는 코드를 막는다)
+
+  넘겨받는 것 bd = {
+      by_ccy : [{currency, total, cnt}]  금액 큰 순
+      mixed  : 통화가 2종 이상인가
+      krw    : 월 기준환율로 바꾼 원화 합계 (못 바꾸면 None)
+      missing: 환율이 없어 못 바꾼 (통화, 'YYYY-MM') 목록
+      naive  : ⚠ 통화 무시 단순합 — 화면에 쓰지 말 것(시험 대조 전용)
+  }
+═══════════════════════════════════════════════════════════════════════════#}
+
+{% macro ccy_total(bd, compact=false) %}
+{%- if not bd or not bd.by_ccy -%}
+—
+{%- elif not bd.mixed -%}
+{{ money(bd.by_ccy[0].total, bd.by_ccy[0].currency) }}
+{%- else -%}
+<span class="knk-ccy-mix" style="display:inline-block;text-align:inherit;">
+{%- for r in bd.by_ccy %}
+<span class="knk-ccy-one" style="display:block;{% if not loop.first %}font-size:{% if compact %}13px{% else %}0.78em{% endif %};color:var(--mute);font-weight:600;{% endif %}">{{ money(r.total, r.currency) }}<span style="font-size:10.5px;color:var(--mute);font-weight:500;margin-left:4px;">{{ r.cnt }}건</span></span>
+{%- endfor %}
+{%- if bd.krw is not none %}
+<span class="knk-ccy-krw" style="display:block;font-size:12px;color:#1e3a8a;font-weight:700;margin-top:3px;">≈ {{ money(bd.krw, 'KRW') }} <span style="color:#94a3b8;font-weight:500;font-size:11px;">(월 기준환율로 바꾼 합계)</span></span>
+{%- else %}
+<span class="knk-ccy-nofx" style="display:block;font-size:11.5px;color:#b45309;font-weight:600;margin-top:3px;">⚠ 원화 합계는 못 냅니다 — 기준환율 미등록{% if bd.missing %} ({% for m in bd.missing %}{{ m[0] }} {{ m[1] }}{{ ', ' if not loop.last else '' }}{% endfor %}){% endif %}</span>
+{%- endif %}
+</span>
+{%- endif -%}
+{% endmacro %}
