@@ -6882,9 +6882,11 @@ async def project_detail(req: Request, pid: int):
             except Exception:
                 pass
             if project_orders:
-                _so_sum = sum(float(o.get("total_amount") or 0) for o in project_orders)
+                # z1097b: 통화별 환산 합계로 자가치유. 못 정하면(환율 없음) 그대로 둔다.
+                _so_sum = _recalc_project_amount(c2, pid)
                 _curr = float(p.get("order_amount") or 0) if isinstance(p, dict) else float((p["order_amount"] or 0))
-                if abs(_so_sum - _curr) > 0.5:
+                if _so_sum is not None and abs(_so_sum - _curr) > 0.5:
+                    # ccy-ok: 값은 위 _recalc_project_amount(통화별 환산) 결과. 조건부라 직접 저장한다.
                     c2.execute("UPDATE projects SET order_amount=? WHERE id=?",
                                (_so_sum, pid))
                     # v5H130: 자가치유 변경 이력 기록 (이전 누락분)
@@ -7621,6 +7623,29 @@ async def customers_list(req: Request):
                    ORDER BY tier_score DESC, total_amount DESC, cu.name"""
             ).fetchall()
             customers = [dict(r) for r in rows]
+            # z1097b (대표 지시 2026-09-10): 위 SUM 은 통화를 안 본다 — 달러 프로젝트가
+            #   '원'인 양 더해져 **정렬 순서가 뒤집힌다**(화면에 숫자로 나오지는 않는다).
+            #   원화 환산 합계(total_krw)를 따로 만들어 그 기준으로 다시 세운다.
+            try:
+                _rt = _fx_load_rates(c)
+                _pr = [dict(r) for r in c.execute(
+                    "SELECT customer_id AS cid, COALESCE(currency,'KRW') AS currency, "
+                    "COALESCE(order_amount,0) AS order_amount, order_date, due_date "
+                    "FROM projects WHERE customer_id IS NOT NULL").fetchall()]
+                _by = {}
+                for _r in _pr:
+                    _by.setdefault(_r["cid"], []).append(_r)
+                for _cu in customers:
+                    _bd = _ccy_breakdown(_by.get(_cu["id"], []), "order_amount", "currency",
+                                         date_keys=("order_date", "due_date"), rates=_rt)
+                    _cu["total_krw"] = (_bd["krw"] if _bd["krw"] is not None
+                                        else _cu.get("total_amount") or 0)
+                    _cu["ccy_mixed"] = _bd["mixed"]
+                customers.sort(key=lambda x: (-(x.get("tier_score") or 0),
+                                              -(x.get("total_krw") or 0),
+                                              x.get("name") or ""))
+            except Exception:
+                pass
         except Exception:
             customers = [dict(r) for r in c.execute(
                 "SELECT id, name, tier, note FROM customers ORDER BY tier DESC, name"
@@ -9493,10 +9518,25 @@ async def admin_customer_health(req: Request):
                 master_dups.append({"key": k, "members": lst})
 
         # B. 프로젝트 고객사 표기 분산 + 미연결(customer_id NULL)
-        prows = [dict(r) for r in c.execute(
-            "SELECT customer_name AS nm, customer_id AS cid, COUNT(*) AS cnt, "
-            "COALESCE(SUM(order_amount),0) AS total FROM projects "
-            "WHERE COALESCE(customer_name,'')<>'' GROUP BY customer_name, customer_id").fetchall()]
+        # z1097b (대표 지시 2026-09-10): 통화를 안 보고 더하면 달러 프로젝트가 '원'으로 둔갑한다.
+        #   통화별로 읽어 월 기준환율로 환산한 뒤 합친다(대표규정 §4 규칙48).
+        _rt_ch = _fx_load_rates(c)
+        _praw = [dict(r) for r in c.execute(
+            "SELECT customer_name AS nm, customer_id AS cid, "
+            "COALESCE(currency,'KRW') AS currency, COALESCE(order_amount,0) AS order_amount, "
+            "order_date, due_date FROM projects "
+            "WHERE COALESCE(customer_name,'')<>''").fetchall()]
+        _agg = {}
+        for _r in _praw:
+            _agg.setdefault((_r["nm"], _r["cid"]), []).append(_r)
+        prows = []
+        for (_nm, _cid), _lst in _agg.items():
+            _bd = _ccy_breakdown(_lst, "order_amount", "currency",
+                                 date_keys=("order_date", "due_date"), rates=_rt_ch)
+            _t = _bd["krw"]
+            if _t is None:      # 환율이 없는 통화가 섞였으면 원화분만 센다(달러를 원으로 더하지 않는다)
+                _t = sum(x["total"] for x in _bd["by_ccy"] if x["currency"] == "KRW")
+            prows.append({"nm": _nm, "cid": _cid, "cnt": len(_lst), "total": _t})
         gp = defaultdict(list)
         for r in prows:
             gp[_nc(r["nm"])].append(r)
@@ -10067,8 +10107,7 @@ async def admin_fix_unit_price_apply(req: Request, confirm: str = Form("")):
                 errors.append(f"SO {oid}: {str(e)[:80]}")
         for pid in affected_p:
             try:
-                row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
-                c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+                _apply_project_amount(c, pid)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
             except Exception as e:
                 errors.append(f"PRJ {pid}: {str(e)[:80]}")
     body = ["<meta charset='utf-8'><div style='font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 18px;'>",
@@ -13624,12 +13663,7 @@ async def projects_import_consumable_confirm(req: Request, pid: int):
                 (float(agg["t"] or 0), int(agg["n"] or 0), so_id)
             )
             # 프로젝트 order_amount 도 갱신
-            proj_total = c.execute(
-                "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
-                (pid,)
-            ).fetchone()[0] or 0
-            c.execute("UPDATE projects SET order_amount=? WHERE id=?",
-                      (float(proj_total), pid))
+            proj_total = _apply_project_amount(c, pid) or 0  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
         except Exception:
             pass
         # 변경 이력
@@ -14077,12 +14111,7 @@ async def projects_import_parts_confirm(req: Request, pid: int):
                     "UPDATE orders SET total_amount=?, unit_qty=? WHERE id=?",
                     (float(agg["t"] or 0), int(agg["n"] or 0), so_id)
                 )
-            proj_total = c.execute(
-                "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
-                (pid,)
-            ).fetchone()[0] or 0
-            c.execute("UPDATE projects SET order_amount=? WHERE id=?",
-                      (float(proj_total), pid))
+            proj_total = _apply_project_amount(c, pid) or 0  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
         except Exception:
             pass
         try:
@@ -14508,12 +14537,7 @@ async def sales_order_item_edit(req: Request, iid: int):
         try:
             pid = it["project_id"]
             if pid:
-                row = c.execute(
-                    "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
-                    (pid,)
-                ).fetchone()
-                c.execute("UPDATE projects SET order_amount=? WHERE id=?",
-                          (float(row[0] or 0), pid))
+                _apply_project_amount(c, pid)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
         except Exception:
             pass
         # v5H100: 변경 이력 기록 (before → after) — order_status_history
@@ -14752,12 +14776,7 @@ async def sales_order_item_delete(req: Request, iid: int):
         try:
             pid = it["project_id"]
             if pid:
-                row = c.execute(
-                    "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
-                    (pid,)
-                ).fetchone()
-                c.execute("UPDATE projects SET order_amount=? WHERE id=?",
-                          (float(row[0] or 0), pid))
+                _apply_project_amount(c, pid)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
         except Exception:
             pass
         # v5H100: 삭제 이력  (v5H226z1018b: 상품은 '부품 행' 표현)
@@ -14923,12 +14942,7 @@ async def sales_orders_add_unit(req: Request, oid: int):
         try:
             pid = cur["project_id"]
             if pid:
-                row = c.execute(
-                    "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
-                    (pid,)
-                ).fetchone()
-                c.execute("UPDATE projects SET order_amount=? WHERE id=?",
-                          (float(row[0] or 0), pid))
+                _apply_project_amount(c, pid)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
         except Exception:
             pass
         # 이력 (v5H100: SO 합계 변동 명시 / v5H110: bulk 표시)
@@ -15099,12 +15113,7 @@ async def sales_orders_quick_edit(req: Request, oid: int):
         try:
             pid = cur["project_id"]
             if pid:
-                row = c.execute(
-                    "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
-                    (pid,)
-                ).fetchone()
-                c.execute("UPDATE projects SET order_amount=? WHERE id=?",
-                          (float(row[0] or 0), pid))
+                _apply_project_amount(c, pid)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
         except Exception:
             pass
         # 변경 이력
@@ -15336,10 +15345,7 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 _pval.append(pid)
                 c.execute(f"UPDATE projects SET {', '.join(_pset)} WHERE id=?", _pval)
             # 프로젝트 총액 = 전체 수주 합(추가발주 보존)
-            _sumr = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders "
-                              "WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'", (pid,)).fetchone()
-            c.execute("UPDATE projects SET order_amount=? WHERE id=?",
-                      (round(float((_sumr[0] if not isinstance(_sumr, dict) else list(_sumr.values())[0]) or 0), 2), pid))
+            _apply_project_amount(c, pid, exclude_cancelled=True)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
             # v5H226z971 (대표 지적): 부품 전체 교체/추가 업로드를 '프로젝트 변경 이력'에 기록(그동안 미기록이라 이력에 안 보였음).
             #   금액은 이력 마스킹 정책과 무관하게 개수 중심으로 기록. 실패해도 업로드 자체는 성공 처리(이력은 부가 기록).
             try:
@@ -20834,6 +20840,80 @@ def _fx_to_krw(rates, amount, ccy, ref_ym, missing=None):
             missing.add((ccy, ref_ym or "?"))
         return 0.0
     return amt * rate
+
+def _recalc_project_amount(c, pid, rates=None, exclude_cancelled=False):
+    """프로젝트 수주금액(`projects.order_amount`) 재계산 → **그 프로젝트 통화 기준** 합계.
+
+    z1097b (대표 지시 2026-09-10). ⛔ `SELECT SUM(total_amount) FROM orders WHERE project_id=?`
+    로 **직접 더하지 말 것** — 수주 통화가 섞이면 원화와 달러가 한 숫자로 붙는다.
+
+    ⭐ 왜 이 함수가 따로 필요한가 — z1097 에서 **화면**은 고쳤지만, 저장값을 채우는 자리가
+       코드 안에 **14곳** 남아 있었다. 그대로 두면 수주를 고치거나 프로젝트 상세를 열 때마다
+       저장값이 **다시 오염된다**(z1093 팀 시드·z1094 기동 백필과 똑같은 '되살아남' 함정).
+       데이터만 고치고 끝내면 반드시 되돌아온다.
+
+    규칙
+      · 수주 통화가 **하나면 예전과 똑같은 값**을 돌려준다(회귀 0 — 전체 351건 중 326건).
+      · 섞이면 각 수주를 **납품월 기준환율**로 원화 환산한 뒤(대표규정 §4 규칙48)
+        프로젝트 통화로 되돌려 담는다. 기준월은 그 프로젝트의 **가장 늦은 납품월**.
+      · 환율이 없어 환산할 수 없으면 **None** 을 돌려준다 → 부르는 쪽은 **아무것도 쓰지 않는다.**
+        반쪽 숫자로 덮어쓰지 않는다.
+
+    exclude_cancelled: 취소 수주를 빼고 셀지(부르는 쪽이 원래 쓰던 조건을 그대로 유지)
+    돌려주는 값: 새 order_amount(float) · 수주가 없으면 0.0 · 못 정하면 None
+    """
+    try:
+        _pr = c.execute("SELECT COALESCE(currency,'KRW') AS ccy FROM projects WHERE id=?",
+                        (pid,)).fetchone()
+    except Exception:
+        return None
+    try:
+        pccy = str((_pr["ccy"] if _pr else "KRW") or "KRW").strip().upper() or "KRW"
+    except Exception:
+        pccy = "KRW"
+    _w = " AND COALESCE(status,'')<>'CANCELLED'" if exclude_cancelled else ""
+    try:
+        _rows = [dict(r) for r in c.execute(
+            "SELECT COALESCE(currency,'KRW') AS currency, "
+            "COALESCE(total_amount,0) AS total_amount, due_date, order_date "
+            "FROM orders WHERE project_id=?" + _w, (pid,)).fetchall()]
+    except Exception:
+        return None
+    if rates is None:
+        rates = _fx_load_rates(c)
+    bd = _ccy_breakdown(_rows, "total_amount", "currency",
+                        date_keys=("due_date", "order_date"), rates=rates)
+    if not bd["by_ccy"]:
+        return 0.0
+    if not bd["mixed"]:
+        return round(float(bd["by_ccy"][0]["total"]), 2)     # 예전과 같은 값
+    if bd["krw"] is None:
+        return None                                          # 환율 없음 → 손대지 않는다
+    if pccy == "KRW":
+        return round(float(bd["krw"]), 2)
+    _ym = ""
+    for r in _rows:
+        _d = str(r.get("due_date") or r.get("order_date") or "")[:7]
+        if _d > _ym:
+            _ym = _d
+    _rate = _fx_rate_for(rates, pccy, _ym or None)
+    if not _rate:
+        return None
+    return round(float(bd["krw"]) / float(_rate), 2)
+
+
+def _apply_project_amount(c, pid, rates=None, exclude_cancelled=False):
+    """`_recalc_project_amount` 결과를 실제로 저장한다. 못 정하면 **건드리지 않는다.**
+    돌려주는 값: 저장한 금액(float) 또는 None(=안 건드림)."""
+    v = _recalc_project_amount(c, pid, rates=rates, exclude_cancelled=exclude_cancelled)
+    if v is None:
+        return None
+    try:
+        c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(v), pid))
+    except Exception:
+        return None
+    return float(v)
+
 
 def _fx_rates_now():
     """월 기준환율 표 한 벌 — 커서가 없는 자리에서 쓰는 편의 함수. 실패하면 빈 표."""
@@ -26607,14 +26687,10 @@ async def projects_import_product_confirm(request: Request):
                     c.execute(f"UPDATE orders SET {', '.join(_oset)} WHERE id=?", _oval)
                 if _is_followup:
                     # z598: 기존 프로젝트는 '전체 수주 합계'로 재계산(이번 추가분만으로 덮어쓰지 않음)
-                    _sumr = c.execute(
-                        "SELECT COALESCE(SUM(total_amount),0) FROM orders "
-                        "WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'",
-                        (int(new_pid),)).fetchone()
-                    _proj_amt = float((_sumr[0] if not isinstance(_sumr, dict) else list(_sumr.values())[0]) or 0)
-                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (round(_proj_amt, 2), int(new_pid)))
+                    _proj_amt = _apply_project_amount(c, int(new_pid), exclude_cancelled=True) or 0  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
                 else:
-                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (total, int(new_pid)))
+                    # 신규 프로젝트라 수주 1건뿐이지만, 규칙은 한 곳에서만 나오게 한다.
+                    _apply_project_amount(c, int(new_pid))
                 # v5H226z735 (대표 지시): 추가발주(기존 관리번호)여도 프로젝트 모델/장비/발주일/납기가
                 #   '비어 있으면' 엑셀값으로 채움(신규는 projects_create_logi가 이미 채움·기존값은 안 덮어씀).
                 try:
@@ -27711,8 +27787,7 @@ async def schedule_board_unit_field(request: Request):
                 new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
                 c.execute("UPDATE orders SET total_amount=?, updated_at=datetime('now','localtime') WHERE id=?", (new_total, oid))
                 if pid:
-                    row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
-                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+                    _apply_project_amount(c, pid)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
             elif field == "amount":
                 # v5H226z669 (대표 지시·폭주 버그 수정): 금액 직접 저장 + 단가=금액÷그 호기 qty(서버 권위)로 역산.
                 #   클라는 '행 금액÷묶인 호기수'로 분배해 보냄. 단가↔금액이 서로 역연산이라 반복 클릭에도 값이 안 커짐
@@ -27729,8 +27804,7 @@ async def schedule_board_unit_field(request: Request):
                 new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
                 c.execute("UPDATE orders SET total_amount=?, updated_at=datetime('now','localtime') WHERE id=?", (new_total, oid))
                 if pid:
-                    row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
-                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+                    _apply_project_amount(c, pid)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
             elif field == "qty":
                 # v5H226z666 (대표 지시): 수량 — 호기 qty + 금액(단가×수량) 갱신 + SO·프로젝트 금액 자가치유(단가와 동일 경로).
                 try:
@@ -27748,8 +27822,7 @@ async def schedule_board_unit_field(request: Request):
                 new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
                 c.execute("UPDATE orders SET total_amount=?, updated_at=datetime('now','localtime') WHERE id=?", (new_total, oid))
                 if pid:
-                    row = c.execute("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?", (pid,)).fetchone()
-                    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (float(row[0] or 0), pid))
+                    _apply_project_amount(c, pid)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
             elif field == "order_date":
                 c.execute("UPDATE order_items SET order_date=?, updated_at=datetime('now','localtime') WHERE id=?",
                           (str(value or "").strip() or None, iid))
@@ -30381,7 +30454,7 @@ async def projects_new_submit(request: Request):
                                     _os.append("exchange_rate=?"); _ov.append(_so_fx)
                                 _os.append("total_amount=?"); _ov.append(_psum); _ov.append(_po_oid)
                                 c.execute(f"UPDATE orders SET {', '.join(_os)} WHERE id=?", _ov)
-                                c.execute("UPDATE projects SET order_amount=? WHERE id=?", (_psum, int(new_pid)))
+                                _apply_project_amount(c, int(new_pid))  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
                                 if _foreign_v and _so_fx > 0:
                                     _akrw = round(sum((float(_p.get("price") or 0)) * (float(_p.get("qty") or 1))
                                                       for _p in _pk_parts), 2)
@@ -32139,11 +32212,9 @@ async def projects_import_confirm(request: Request):
         try:
             with db_session() as c:
                 for pid in _created_pids:
-                    _row = c.execute(
-                        "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE project_id=?",
-                        (pid,)).fetchone()
-                    _tot = float(_row[0] or 0) if _row else 0.0
+                    _tot = _recalc_project_amount(c, pid) or 0.0  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
                     if _tot > 0:
+                        # ccy-ok: 값은 위 _recalc_project_amount 결과. expected_amount 와 함께 저장한다.
                         c.execute(
                             "UPDATE projects SET order_amount=?, expected_amount=? WHERE id=?",
                             (_tot, _tot, pid))

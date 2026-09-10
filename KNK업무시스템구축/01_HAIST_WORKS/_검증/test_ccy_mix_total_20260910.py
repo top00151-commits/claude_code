@@ -44,7 +44,8 @@ MAIN_PY = os.path.join(ROOT, "app", "main.py")
 #     필요해 시험이 못 돌기 때문. 뽑는 대상은 아래 목록뿐이고, 못 찾으면 멈춘다.)
 WANT = ["_fmt_qty", "_fmt_price", "_CCY_SYMBOL", "_fmt_money", "_ccy_sym",
         "_fx_load_rates", "_fx_pick", "_fx_rate_for", "_fx_to_krw",
-        "_ccy_get", "_ccy_breakdown"]
+        "_ccy_get", "_ccy_breakdown",
+        "_recalc_project_amount", "_apply_project_amount"]
 _tree = ast.parse(io.open(MAIN_PY, encoding="utf-8").read())
 _picked, _found = [], set()
 for _node in _tree.body:
@@ -388,6 +389,115 @@ chk(46, "홈 KPI 코드가 통화 무시 단순합(SUM(order_amount)) 을 더 �
      "main.py 에 옛 쿼리가 남아 있음")
 chk(47, "홈 KPI 가 공용 _ccy_breakdown 을 쓴다",
      "_month_krw" in io.open(MAIN_PY, encoding="utf-8").read())
+
+# ===========================================================================
+print("\n§10 저장값 재계산 — 화면만 고치면 되살아난다")
+#   z1097 은 화면을 고쳤다. 그런데 projects.order_amount 를 채우는 자리가 서버에 14곳
+#   남아 있었고 전부 통화를 안 봤다 → 수주를 고치거나 상세를 열 때마다 다시 오염됐다.
+#   z1093(매 기동 팀 시드)·z1094(기동 백필)와 같은 되살아남 함정.
+
+
+def _mkdb():
+    """운영과 같은 모양의 임시 DB(projects·orders·exchange_rates)."""
+    d = sqlite3.connect(":memory:")
+    d.row_factory = sqlite3.Row
+    d.execute("CREATE TABLE projects(id INTEGER PRIMARY KEY, currency TEXT, order_amount REAL)")
+    d.execute("CREATE TABLE orders(id INTEGER PRIMARY KEY, project_id INT, currency TEXT,"
+              " total_amount REAL, due_date TEXT, order_date TEXT, status TEXT)")
+    d.execute("CREATE TABLE exchange_rates(id INTEGER PRIMARY KEY, rate_date TEXT,"
+              " from_currency TEXT, to_currency TEXT, rate REAL)")
+    for _y, _v in list(REAL_USD.items()):
+        d.execute("INSERT INTO exchange_rates(rate_date,from_currency,to_currency,rate)"
+                  " VALUES(?,?,?,?)", (_y + "-01", "USD", "KRW", _v))
+    return d
+
+
+def _seed(d, pccy, orders, amt=0):
+    d.execute("INSERT INTO projects(id,currency,order_amount) VALUES(1,?,?)", (pccy, amt))
+    for i, o in enumerate(orders, 1):
+        d.execute("INSERT INTO orders(id,project_id,currency,total_amount,due_date,status)"
+                  " VALUES(?,1,?,?,?,?)", (i, o[0], o[1], o[2], o[3] if len(o) > 3 else None))
+    return d
+
+
+_d = _seed(_mkdb(), "KRW", [("KRW", 1000.0, "2026-04-10"), ("KRW", 2000.0, "2026-04-10")])
+chk(48, "통화 하나(원화) → 예전과 같은 단순 합 3,000",
+     near(M._recalc_project_amount(_d, 1), 3000.0))
+
+_d = _seed(_mkdb(), "USD", [("USD", 100.0, "2026-04-10"), ("USD", 50.0, "2026-04-10")])
+chk(49, "통화 하나(달러) → 환산하지 않고 150.00 그대로",
+     near(M._recalc_project_amount(_d, 1), 150.0))
+
+_d = _seed(_mkdb(), "KRW", [("KRW", 205500000.0, "2026-02-01"), ("USD", 425052.0, "2026-02-01")])
+chk(50, "섞임 + 프로젝트=원화 → 원화 환산 합계 824,592,488.52 (운영 실측 003M2509)",
+     near(M._recalc_project_amount(_d, 1), 205500000 + 425052 * 1456.51, 0.05),
+     M._recalc_project_amount(_d, 1))
+
+_d = _seed(_mkdb(), "USD", [("USD", 83882.73, "2026-04-01"), ("KRW", 1720000.0, "2026-08-19")])
+_exp = round((83882.73 * 1486.64 + 1720000) / 1497.43, 2)   # 최신 납품월(8월) 환율로 되돌림
+chk(51, "섞임 + 프로젝트=달러(BIM LINE) → 달러 기준 합계",
+     near(M._recalc_project_amount(_d, 1), _exp, 0.02),
+     (M._recalc_project_amount(_d, 1), _exp))
+chk(52, "그 값은 옛 단순합 1,803,882.73 과 전혀 다르다",
+     not near(M._recalc_project_amount(_d, 1), 1803882.73, 1.0))
+
+_d = _seed(_mkdb(), "KRW", [("KRW", 100.0, "2026-04-10"), ("JPY", 50.0, "2026-04-10")])
+chk(53, "환율 없는 통화가 섞이면 None — 반쪽 숫자로 덮어쓰지 않는다",
+     M._recalc_project_amount(_d, 1) is None, M._recalc_project_amount(_d, 1))
+
+_d = _mkdb()
+_d.execute("INSERT INTO projects(id,currency,order_amount) VALUES(1,'KRW',0)")
+chk(54, "수주가 없으면 0.0", near(M._recalc_project_amount(_d, 1), 0.0))
+
+_d = _seed(_mkdb(), "KRW", [("KRW", 1000.0, "2026-04-10", "CANCELLED"),
+                            ("KRW", 2000.0, "2026-04-10", "")])
+chk(55, "취소 수주 제외 옵션이 실제로 뺀다 (3,000 → 2,000)",
+     near(M._recalc_project_amount(_d, 1), 3000.0)
+     and near(M._recalc_project_amount(_d, 1, exclude_cancelled=True), 2000.0),
+     (M._recalc_project_amount(_d, 1), M._recalc_project_amount(_d, 1, exclude_cancelled=True)))
+
+_d = _seed(_mkdb(), "KRW", [("KRW", 1000.0, "2026-04-10")], amt=999999.0)
+M._apply_project_amount(_d, 1)
+chk(56, "_apply_project_amount 가 실제로 저장한다 (999,999 → 1,000)",
+     near(_d.execute("SELECT order_amount FROM projects WHERE id=1").fetchone()[0], 1000.0))
+
+_d = _seed(_mkdb(), "KRW", [("KRW", 100.0, "2026-04-10"), ("JPY", 50.0, "2026-04-10")], amt=777.0)
+_r = M._apply_project_amount(_d, 1)
+chk(57, "환율이 없으면 저장하지 않고 기존 값을 지킨다 (777 유지)",
+     _r is None
+     and near(_d.execute("SELECT order_amount FROM projects WHERE id=1").fetchone()[0], 777.0))
+
+print("\n§11 서버 코드 검사기(check_project_amount_sum) 역검사")
+_lab2 = tempfile.mkdtemp(prefix="knk_pa_")
+os.makedirs(os.path.join(_lab2, "app"), exist_ok=True)
+
+
+def probe_py(body):
+    io.open(os.path.join(_lab2, "app", "main.py"), "w", encoding="utf-8",
+            newline="").write(body)
+    _old = CS.ROOT
+    CS.ROOT = _lab2
+    try:
+        return [ln for _f, ln, _m in CS.check_project_amount_sum()]
+    finally:
+        CS.ROOT = _old
+
+
+chk(58, "위반① UPDATE projects SET order_amount 직접 실행을 잡는다",
+     probe_py('c.execute("UPDATE projects SET order_amount=? WHERE id=?", (v, pid))') == [1])
+chk(59, "위반② SUM(total_amount) FROM orders WHERE project_id 직접 조회를 잡는다",
+     probe_py('row = c.execute("SELECT SUM(total_amount) FROM orders WHERE project_id=?", (pid,))')
+     == [1])
+chk(60, "면제 ccy-ok 표식이 있으면 안 잡는다",
+     probe_py("# ccy-ok: 값은 _recalc_project_amount 결과" + NL +
+              'c.execute("UPDATE projects SET order_amount=? WHERE id=?", (v, pid))') == [])
+chk(61, "공용 함수 몸통 안은 안 잡는다",
+     probe_py("def _apply_project_amount(c, pid):" + NL +
+              '    c.execute("UPDATE projects SET order_amount=? WHERE id=?", (v, pid))') == [])
+chk(62, "관계없는 UPDATE 는 안 잡는다",
+     probe_py('c.execute("UPDATE projects SET status=? WHERE id=?", (v, pid))') == [])
+chk(63, "지금 배포할 main.py 는 이 검사를 통과한다",
+     CS.check_project_amount_sum() == [], CS.check_project_amount_sum())
 
 # ═══════════════════════════════════════════════════════════════════════════
 print("\n" + "=" * 66)

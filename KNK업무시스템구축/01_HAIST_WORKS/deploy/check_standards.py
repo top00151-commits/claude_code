@@ -348,6 +348,61 @@ def check_ccy_sum(files):
     return bad
 
 
+def check_project_amount_sum(_files=None):
+    """§프로젝트 수주금액 저장 = 공용 함수로만 (z1097b · 대표 지시 2026-09-10).
+
+    z1097 에서 **화면**의 통화 무시 합산을 고쳤는데, `projects.order_amount` 를 채우는
+    자리가 서버 코드에 **14곳** 남아 있었다. 전부 `SELECT SUM(total_amount) FROM orders
+    WHERE project_id=?` — 통화를 안 본다. 그대로 두면 수주를 고치거나 프로젝트 상세를
+    열 때마다 **저장값이 다시 오염된다.**
+    z1093(매 기동 팀 시드)·z1094(기동 cascade 백필)와 **똑같은 '되살아남' 함정**이다.
+    ⭐ 데이터만 고치고 끝내면 반드시 되돌아온다.
+
+    올바른 방법: `_recalc_project_amount(c, pid, ...)` 로 값을 구하고
+                 `_apply_project_amount(c, pid, ...)` 로 저장한다.
+
+    잡는 것 (app/main.py 만 검사 — 화면이 아니라 서버 코드다)
+      ① `UPDATE projects SET order_amount` 직접 실행 — 공용 함수 안이 아닌 곳
+      ② `SUM(total_amount) FROM orders WHERE project_id` 직접 조회
+
+    면제: 값이 이미 `_recalc_project_amount` 에서 온 조건부 저장(자가치유·expected_amount
+    동시 저장)은 같은 줄이나 바로 윗줄에 **`ccy-ok`** 주석을 달아 통과시킨다.
+    ⛔ 이 표식을 '검사를 지나가려고' 붙이지 말 것 — 값의 출처를 주석에 적을 것.
+    """
+    src_path = os.path.join(ROOT, "app", "main.py")
+    if not os.path.exists(src_path):
+        return []
+    body = _read(src_path)
+    lines = body.split("\n")
+
+    # 공용 함수 두 개의 몸통 줄 범위는 면제한다(거기서는 당연히 써야 한다).
+    allow = set()
+    for i, ln in enumerate(lines):
+        if ln.startswith("def _recalc_project_amount(") or ln.startswith("def _apply_project_amount("):
+            j = i + 1
+            while j < len(lines) and (lines[j].startswith((" ", "\t")) or not lines[j].strip()):
+                allow.add(j)
+                j += 1
+    upd = re.compile(r"UPDATE\s+projects\s+SET\s+order_amount")
+    sel = re.compile(r"SUM\(\s*total_amount\s*\)\s*FROM\s+orders", re.I)
+    proj = re.compile(r"project_id\s*=\s*\?")
+    bad = []
+    for i, ln in enumerate(lines):
+        if i in allow:
+            continue
+        st = ln.strip()
+        if st.startswith("#"):
+            continue
+        _near = ln + "\n" + (lines[i - 1] if i else "") + "\n" + (lines[i - 2] if i > 1 else "")
+        if "ccy-ok" in _near:
+            continue
+        if upd.search(ln):
+            bad.append((src_path, i + 1, st[:110]))
+        elif sel.search(ln) and (proj.search(ln) or proj.search(lines[i + 1] if i + 1 < len(lines) else "")):
+            bad.append((src_path, i + 1, st[:110]))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -428,6 +483,16 @@ def main():
             print("       %s:%s  %s" % (f, l, m))
     else:
         print("  ✅ 환산 없는 금액 합산 : 새 위반 없음 (기존 면제 %d건)" % ccy_old)
+
+    pa_bad = check_project_amount_sum()
+    if pa_bad:
+        fail += len(pa_bad)
+        print("  ❌ 프로젝트 수주금액 직접 저장 : %d건 → _recalc_project_amount()/"
+              "_apply_project_amount() 사용" % len(pa_bad))
+        for f, l, m in pa_bad[:20]:
+            print("       %s:%s  %s" % (os.path.basename(f), l, m))
+    else:
+        print("  ✅ 프로젝트 수주금액 저장 : 공용 함수로만 (직접 SUM 0건)")
 
     print("=" * 72)
     if fail:
