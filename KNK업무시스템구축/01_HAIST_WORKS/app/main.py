@@ -22452,20 +22452,39 @@ async def bom_tools_download(request: Request, run_id: int, f: str = "out"):
     #   조회 관문(위)은 그대로 두고 **내용 등급만** 더 본다 — 읽기에 실행권한을 요구하지 않는다(정정 B).
     #   화면에서 가려도 엑셀로 새던 구멍을 여기서 막는다. 불명(과거 행)은 제한한다.
     from urllib.parse import quote as _q      # ⚠ 아래 두 분기가 모두 쓴다 — 블록 안에서 import 하면 UnboundLocalError
-    if not _bt_may_see(u, r, _pol):
+    # ── 본인이 직접 올린 「미분류 원본」 되받기 (대표 확정 2026-09-10 · **제한형**) ──
+    #   설계자가 인벤터에서 내보낸 파일을 올린 뒤 **그대로 다시 받으려고**
+    #   구매권한을 얻어야 하는 것은 불필요한 업무 장애다. 그래서 딱 이것만 연다.
+    #     여는 것 : 서버가 기록한 사용자 ID(created_by)로 업로더가 확인되는 사람이,
+    #               지원 양식과 달라 **분류하지 못한 그 입력 원본**을 가공 없이 그대로.
+    #   ⛔ 열지 않는 것 : 산출물 · 보고문 · 남이 올린 원본 · 구매 실행권한 ·
+    #      단가/구매처 전체 열람 · 같은 관리번호의 다른 파일 · 인계받은 파일.
+    #   ⛔ 화면 표시 이름·관리번호·파일명으로 판단하지 않는다 — created_by 만 본다.
+    #   ⛔ 일반 열람 경로(기본 조회 + 단가·구매처 두 권한)는 **그대로 둔다**.
+    _self_orig, _in_item, _in_p, _in_v = False, None, None, None
+    if f != "out":
+        try:
+            _in_item = _json.loads(r.get("inputs") or "[]")[int(f.replace("in", ""))]
+            _in_p, _in_v = _bt_grade_file(_in_item.get("path"))
+        except Exception:
+            _in_item, _in_p, _in_v = None, None, None
+        _uploader = r.get("created_by")
+        try:
+            _same = (_uploader is not None and u.get("id") is not None
+                     and int(_uploader) == int(u.get("id")))
+        except Exception:
+            _same = False
+        # 미분류(등급 불명)인 것만 — 분류된 파일은 기존 규칙 그대로 간다
+        _self_orig = bool(_in_item is not None and (_in_p is None or _in_v is None) and _same)
+    if not _self_orig and not _bt_may_see(u, r, _pol):
         _m = ("이 파일에는 구매단가 또는 구매처 정보가 들어 있어 열람 권한이 필요합니다. "
               "(정보 분류를 알 수 없는 예전 자료도 제한됩니다) 구매팀에 문의해 주십시오.")
         return RedirectResponse(f"/bom/tools?err={_q(_m)}", 303)
     # 🔴 입력 원본은 산출물 등급으로 열지 않는다 (2026-09-08 검토 지적).
     #   `master` 는 **원본의 단가·납기를 산출물로 옮기지 않는다** → 산출물이 깨끗해도 원본엔 있을 수 있다.
     #   원본은 사람이 채워 올린 것이라 내용을 미리 알 수 없으므로 **그때 열어 직접 판정**한다.
-    if f != "out":
-        _ip, _iv = None, None
-        try:
-            _item = _json.loads(r.get("inputs") or "[]")[int(f.replace("in", ""))]
-            _ip, _iv = _bt_grade_file(_item.get("path"))
-        except Exception:
-            _ip = _iv = None
+    if f != "out" and not _self_orig:
+        _ip, _iv = _in_p, _in_v
         if _ip is None or _iv is None:
             # 우리 양식이 아니거나 못 읽었다 → **가장 보수적인 등급**으로 본다.
             #   ⛔ 아무도 못 보게 막지는 않는다(그러면 구매팀이 자기 수불부도 못 받는다).
