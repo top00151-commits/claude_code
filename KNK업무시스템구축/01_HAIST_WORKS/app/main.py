@@ -34159,9 +34159,31 @@ async def po_list_page(request: Request, q: str = "", status: str = ""):
     if not can_view_logistics(u):
         return RedirectResponse("/home", 303)
     rows = _logi.po_list(q=q, status=status)
+    # 🔴 세션01 전달 2026-09-10 — 이 화면 합계가 **통화를 안 보고 그냥 더하고** 있었다.
+    #   매출 쪽이 같은 결함으로 25건·오차 41억을 냈고, ⚠**24건은 실제보다 작게** 나와
+    #   아무도 신고하지 않았다(부풀려진 1건만 신고됨). 작게 나오는 오류는 스스로 드러나지 않는다.
+    #   지금 발주는 원화뿐이라 숫자가 틀리진 않지만, **외화 발주가 처음 들어오는 순간** 조용히 틀린다.
+    #   환산 기준월 = 입고 예정월(expected_date) → 없으면 발주일(order_date). 대표규정 §4 규칙48.
+    po_total_bd = _ccy_breakdown(rows, "total_amount", "currency",
+                                 date_keys=("expected_date", "order_date"),
+                                 rates=_fx_rates_now())
+    # 건당 평균 — 통화가 섞이면 한 숫자로 낼 수 없으므로 **원화로 바꾼 합계**로만 낸다.
+    #   환율이 없어 원화를 못 내면 평균도 내지 않는다(반쪽 숫자 금지).
+    _n = len(rows or [])
+    _one = po_total_bd["by_ccy"][0] if (po_total_bd["by_ccy"] and not po_total_bd["mixed"]) else None
+    if _n and _one:
+        po_avg_bd = {"by_ccy": [{"currency": _one["currency"], "total": _one["total"] / _n,
+                                 "cnt": _n}],
+                     "mixed": False, "krw": None, "missing": [], "naive": 0.0}
+    elif _n and po_total_bd["krw"] is not None:
+        po_avg_bd = {"by_ccy": [{"currency": "KRW", "total": po_total_bd["krw"] / _n, "cnt": _n}],
+                     "mixed": False, "krw": None, "missing": [], "naive": 0.0}
+    else:
+        po_avg_bd = None
     return ctx(request, "po_list.html",
                user=u, active="po",
                orders=rows, q=q, status=status,
+               po_total_bd=po_total_bd, po_avg_bd=po_avg_bd,
                PO_STATUSES=_logi.PO_STATUSES)
 
 

@@ -89,8 +89,15 @@
 {% set received_cnt = orders|selectattr('status','equalto','입고완료')|list|length %}
 {% set cancelled_cnt = orders|selectattr('status','equalto','취소')|list|length %}
 {% set in_progress_cnt = draft_cnt + issued_cnt + partial_cnt %}
-{% set sum_amount = orders|sum(attribute='total_amount') if orders else 0 %}
-{% set avg_amount = (sum_amount / total_cnt) if total_cnt else 0 %}
+{# 🔴 통화를 무시하고 더하면 안 된다 (세션01 전달 2026-09-10 · z1097 규칙).
+   예전엔 목록 금액을 통째로 합산해 원화와 달러가 한 숫자로 붙었다.
+   서버 _ccy_breakdown 이 통화별로 나눠 준 po_total_bd / po_avg_bd 만 쓴다.
+   ⭐원화 하나뿐이면 **예전과 똑같이** 억/만 으로 보인다(잘 되는건 안 건드린다). #}
+{% import "_v5_partials/knk_ccy_total.html" as _ccy %}
+{% set po_krw_only = po_total_bd and not po_total_bd.mixed and po_total_bd.by_ccy
+                     and po_total_bd.by_ccy[0].currency == 'KRW' %}
+{% set sum_amount = po_total_bd.by_ccy[0].total if po_krw_only else 0 %}
+{% set avg_amount = po_avg_bd.by_ccy[0].total if (po_krw_only and po_avg_bd) else 0 %}
 
 <div class="app">
   {% set active_tab = "logi" %}
@@ -151,6 +158,7 @@
           <span class="knk-kpi__label">{% if status %}필터 합계{% else %}총 발주액{% endif %}</span>
           <span class="knk-kpi__value">
             {% if not can_purchase_price %}<span title="구매단가 열람 권한 없음">🔒</span>
+            {% elif not po_krw_only %}{{ _ccy.ccy_total(po_total_bd, compact=true) }}
             {% elif sum_amount >= 100000000 %}
               {{ '{:.2f}'.format(sum_amount / 100000000) }}<span class="knk-kpi__unit">억</span>
             {% elif sum_amount >= 10000 %}
@@ -165,6 +173,7 @@
           <span class="knk-kpi__label">평균 발주액</span>
           <span class="knk-kpi__value">
             {% if not can_purchase_price %}<span title="구매단가 열람 권한 없음">🔒</span>
+            {% elif not po_krw_only %}{{ _ccy.ccy_total(po_avg_bd, compact=true) }}
             {% elif avg_amount >= 10000 %}
               {{ '{:,.0f}'.format(avg_amount / 10000) }}<span class="knk-kpi__unit">만</span>
             {% else %}
@@ -251,6 +260,7 @@
               <td colspan="4">합계 ({{ total_cnt }}건{% if status %} · {{ status }}{% endif %})</td>
               <td class="knk-td-num">
                 {% if not can_purchase_price %}🔒
+                {% elif not po_krw_only %}{{ _ccy.ccy_total(po_total_bd) }}
                 {% elif sum_amount >= 100000000 %}
                   {{ '{:.2f}'.format(sum_amount / 100000000) }} 억
                 {% else %}
@@ -258,7 +268,7 @@
                 {% endif %}
               </td>
               <td colspan="3" style="color: var(--pq-ink-3); font-weight: 500;">
-                {% if can_purchase_price %}평균 {{ '{:,.0f}'.format(avg_amount / 10000) if avg_amount >= 10000 else '{:,.0f}'.format(avg_amount) }}{{ '만원' if avg_amount >= 10000 else '원' }}{% endif %}
+                {% if can_purchase_price %}{% if not po_krw_only %}평균 {{ _ccy.ccy_total(po_avg_bd, compact=true) }}{% else %}평균 {{ '{:,.0f}'.format(avg_amount / 10000) if avg_amount >= 10000 else '{:,.0f}'.format(avg_amount) }}{{ '만원' if avg_amount >= 10000 else '원' }}{% endif %}{% endif %}
                 {% if partial_cnt %} · 부분입고 {{ partial_cnt }}건{% endif %}
               </td>
             </tr>
