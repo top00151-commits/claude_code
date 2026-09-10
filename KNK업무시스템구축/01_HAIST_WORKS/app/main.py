@@ -21871,6 +21871,22 @@ def _bt_may_see(u, run, policy=None) -> bool:
     return True
 
 
+def _bt_photo_line(res):
+    """산출물에 실린 부품 사진 수를 사람 말로 알려 준다.
+
+    ⛔ 조용히 넘기지 않는다 — 한 장도 못 실었으면 그 사실을 말한다.
+       (인벤터 사진은 대표 지시 2026-09-10 으로 마지막 칸에 함께 싣는다.)
+    """
+    n = int(res.get("사진") or 0)
+    miss = int(res.get("사진없음") or 0)
+    if n and miss:
+        return ("📷 부품 사진 " + str(n) + "장 실음(맨 오른쪽 칸) · "
+                + str(miss) + "줄은 인벤터 원본에 사진이 없었습니다")
+    if n:
+        return "📷 부품 사진 " + str(n) + "장 실음 (맨 오른쪽 칸)"
+    return "📷 부품 사진 없음 — 올리신 인벤터 파일에 사진이 들어 있지 않습니다"
+
+
 def _bt_qty_warn(rows):
     """수량을 확정하지 못한 줄을 보고문으로 돌려준다 (없으면 빈 목록).
     🔴 2026-09-07: 예전엔 대수·재고 칸 해석이 실패해도 1대분 수량이 그대로 발주로 나갔다.
@@ -22019,6 +22035,7 @@ async def bom_tools_run(request: Request, step: str,
             title = f"{res['품목']}줄 초안"
             rep_lines.append(f"구매품 {res['품목']}줄 · 제외 " +
                              (", ".join(f"{k} {v}줄" for k, v in sorted(excluded.items())) or "없음"))
+            rep_lines.append(_bt_photo_line(res))
             if res["품명빈칸"]:
                 rep_lines.append(f"✍ 품명 빈 줄 {len(res['품명빈칸'])}건(사람 몫): " +
                                  ", ".join(f"{no}번 {s}" for no, s, _ in res["품명빈칸"]))
@@ -22043,6 +22060,7 @@ async def bom_tools_run(request: Request, step: str,
             rep_lines.append(" · ".join(f"{fn} {n}줄" for fn, n in rep["파일"]))
             if rep["자리표시제거"]:
                 rep_lines.append(f"「전장 구매품 별도」 자리표시 {rep['자리표시제거']}줄 걷어냄")
+            rep_lines.append(_bt_photo_line(res))
             if res["단위기본값"]:
                 rep_lines.append(f"단위 빈칸 {res['단위기본값']}줄 → 'EA' 기본값")
             if rep["옮기지않음"]:
@@ -22063,6 +22081,9 @@ async def bom_tools_run(request: Request, step: str,
                      f"·수량변경 {len(res['수량변경'])}·형번 {len(res['형번개정'])}")
             rep_lines.append("대조 유닛: " + ", ".join(res["유닛"])
                              + " · 안 건드린 유닛: " + (", ".join(res["안건드린유닛"]) or "없음"))
+            if res.get("사진추가"):
+                rep_lines.append("📷 새로 추가된 줄에 부품 사진 "
+                                 + str(res["사진추가"]) + "장 함께 실음")
             if res["추가"]:
                 rep_lines.append(f"추가 {len(res['추가'])}건: " +
                                  ", ".join(f"r{r} [{u2}] {f}" for r, u2, f in res["추가"][:8]))

@@ -39,6 +39,11 @@ for _s in (sys.stdout, sys.stderr):
 
 from openpyxl import load_workbook
 
+try:                                      # 도구 단독 실행/패키지 양쪽 지원
+    from . import photos as _ph
+except ImportError:
+    import photos as _ph
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_TEMPLATE = os.path.join(HERE, "양식", "양식_통일판_구매품PARTLIST.xlsx")
 
@@ -105,6 +110,12 @@ def read_draft_files(paths):
             raise ValueError(f"[{os.path.basename(f)}] 간이판 양식 머리글(구분·제품명·코드명·수량)을 찾지 못했습니다.\n"
                              f"  → 설계팀 간이판/전장 BOM 양식 파일이 맞는지 확인해 주십시오.")
 
+        # 간이판 Q열에 실린 부품 사진 — 통일판까지 이어간다 (대표 지시 2026-09-10 · (나)안)
+        _pics, _pic_bad = _ph.read_photos(ws)
+        if _pic_bad:
+            report.setdefault('사진못읽음', 0)
+            report['사진못읽음'] += _pic_bad
+
         def get(r, key):
             ci = col.get(key)
             return ws.cell(row=r, column=ci).value if ci else None
@@ -128,7 +139,8 @@ def read_draft_files(paths):
                          "협력사": str(get(r, "협력사") or "").strip(),
                          "수량": _qty(get(r, "수량")),
                          "단위": str(get(r, "단위") or "").strip(),
-                         "비고": str(get(r, "비고") or "").strip()})
+                         "비고": str(get(r, "비고") or "").strip(),
+                         "사진": _pics.get(r)})
             n += 1
         report["파일"].append((os.path.basename(f), n))
     return rows, report
@@ -151,7 +163,8 @@ def make_master_template(source_master, out_path):
     return out_path
 
 
-def write_master(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE, sets=1):
+def write_master(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE, sets=1,
+                 photo_pt=None):
     """통일판 뼈대에 품목을 채우고 실물과 같은 수식을 심는다."""
     wb = load_workbook(template)
     ws = wb.active
@@ -159,6 +172,15 @@ def write_master(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE, 
 
     ws["C2"] = f"{code} 구매 BOM\n{name}"
     ws["C5"] = f"AUTHOR : {author}"
+
+    # 사진 칸은 비고(AA) 뒤 AB — 기존 26칸(B~AA)은 그대로 둔다.
+    PHOTO_COL = 28
+    _ph.write_header(ws, 7, PHOTO_COL, ref_col=27, pt=photo_pt)
+    try:                                   # 머리글 7~8행 병합(옆 칸 AA7:AA8 과 같게)
+        ws.merge_cells(start_row=7, start_column=PHOTO_COL, end_row=8, end_column=PHOTO_COL)
+    except Exception:
+        pass
+    n_photo = 0
     ws["J5"] = sets
 
     def styled(r, ci, value=None):
@@ -195,6 +217,8 @@ def write_master(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE, 
         if x["비고"]:
             styled(r, 27, x["비고"])
         put_formulas(r)
+        if x.get("사진") and _ph.put_photo(ws, r, PHOTO_COL, x["사진"], photo_pt):
+            n_photo += 1
         r += 1
 
     for _ in range(2):                                # 실물 관행: 여분 수식 줄 2
@@ -214,7 +238,8 @@ def write_master(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE, 
         styled(total_row, ci, f"=SUBTOTAL(9,{L}{ROW0}:{L}{last})")
 
     wb.save(out_path)
-    return {"품목": len(rows), "단위기본값": unit_defaulted, "합계줄": total_row}
+    return {"품목": len(rows), "단위기본값": unit_defaulted, "합계줄": total_row,
+            "사진": n_photo, "사진없음": len(rows) - n_photo}
 
 
 def main(argv=None):

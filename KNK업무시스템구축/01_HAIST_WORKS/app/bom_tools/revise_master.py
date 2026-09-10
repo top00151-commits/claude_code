@@ -37,6 +37,11 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 from openpyxl import load_workbook
+
+try:                                      # 도구 단독 실행/패키지 양쪽 지원
+    from . import photos as _ph
+except ImportError:
+    import photos as _ph
 from openpyxl.utils import get_column_letter as _gl
 
 try:
@@ -263,11 +268,16 @@ def revise(master_path, inventor_paths, out_path):
         return r + sum(n for p, n in shifts if p <= r)
 
     unit_defaulted = 0
+    n_photo_added = 0
+    PHOTO_COL = 28                                    # 통일판 사진 칸 (비고 AA 뒤)
     added_rows = set()                                    # 최종 좌표 기준
     for pos in sorted(groups, reverse=True):
         batch = groups[pos]
         n = len(batch)
         _shift_merges(ws, pos, n)
+        # 🔴 openpyxl 의 insert_rows 는 **사진을 밀지 않는다**(병합 칸과 같은 함정).
+        #    이걸 빼면 줄만 내려가고 사진은 제자리에 남아 엉뚱한 부품에 붙는다.
+        _ph.shift_photos(ws, pos, n)
         ws.insert_rows(pos, n)
         style_src = pos - 1                               # 바로 위 품목줄 서식을 물려받음
         base = pos + sum(m for p, m in shifts if p < pos)  # 이 무리의 최종 시작줄
@@ -290,9 +300,12 @@ def revise(master_path, inventor_paths, out_path):
             else:
                 ws.cell(row=r, column=12, value="EA")
                 unit_defaulted += 1
+            if nw.get("사진") and _ph.put_photo(ws, r, PHOTO_COL, nw["사진"]):
+                n_photo_added += 1
             report["추가"].append((base + i, nw["CODE"], nw["형번"]))
             added_rows.add(base + i)
     report["단위기본값"] = unit_defaulted
+    report["사진추가"] = n_photo_added
 
     # 삽입 전에 적어 둔 보고 줄번호를 최종 좌표로 환산 (11-8-①)
     if shifts:

@@ -38,6 +38,11 @@ for _s in (sys.stdout, sys.stderr):
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 
+try:                                      # 도구 단독 실행/패키지 양쪽 지원
+    from . import photos as _ph
+except ImportError:
+    import photos as _ph
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 # 간이판 양식 — 설계팀 실물(BUDS 키트)에서 자료를 비워 도출한 동봉본
 DEFAULT_TEMPLATE = os.path.join(HERE, "양식", "양식_간이판.xlsx")
@@ -120,6 +125,10 @@ def read_inventor_files(paths):
                 f"[{os.path.basename(f)}] 인벤터 BOM 머리글에서 찾지 못한 칸: {', '.join(missing)}\n"
                 f"  → 내보내기 설정에 이 칸들이 있는지 확인해 주십시오 (칸 순서는 상관없습니다).")
 
+        # 인벤터는 부품 사진을 B열에 한 줄당 1장 붙여 보낸다 (실측 2026-09-10).
+        # 예전엔 이걸 읽지도 않고 버렸다 — 대표 지시로 간이판까지 실어 나른다.
+        _pics, _pic_bad = _ph.read_photos(ws)
+
         def get(r, key):
             ci = col.get(key)
             return ws.cell(row=r, column=ci).value if ci else None
@@ -148,17 +157,22 @@ def read_inventor_files(paths):
                 "수량": qty,
                 "단위": str(get(r, "단위") or "").strip(),
                 "원본": f"{os.path.basename(f)} r{r}",
+                "사진": _pics.get(r),
             })
             n_buy += 1
-        per_file.append((os.path.basename(f), n_buy, n_skip))
+        n_pic = sum(1 for x in rows[-n_buy:] if x.get('사진')) if n_buy else 0
+        per_file.append((os.path.basename(f), n_buy, n_skip, n_pic, _pic_bad))
     return rows, excluded, per_file
 
 
-def write_partlist(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE):
+def write_partlist(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE,
+                   photo_pt=None):
     """간이판 양식 사본에 구매품 줄을 채운다. 산출 줄 수를 돌려준다."""
     wb = load_workbook(template)
     ws = wb.active
     ROW0, C_FROM, C_TO = 8, 2, 16          # 자료 시작줄 · B~P
+    HEAD_ROW, PHOTO_COL = 7, 17            # 머리글 줄 · 사진은 비고(P) 뒤 Q
+    # ⛔ 비고(P)를 밀어내지 않는다 — 사진은 **뒤에 새 칸으로** 붙인다 (대표 지시).
 
     base_style = {ci: _copy(ws.cell(row=ROW0, column=ci)._style) for ci in range(C_FROM, C_TO + 1)}
     for r in range(ROW0, (ws.max_row or ROW0) + 1):
@@ -167,10 +181,12 @@ def write_partlist(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE
             cell.value = None
             cell._style = _copy(base_style[ci])
 
+    _ph.write_header(ws, HEAD_ROW, PHOTO_COL, ref_col=16, pt=photo_pt)
     ws["C2"] = f"{code} 구매품 BOM\nPROJECT : {name}"
     ws["C5"] = f"AUTHOR : {author}"
 
     servo_rows, empty_name_rows = [], []
+    n_photo = 0
     r = ROW0
     for i, x in enumerate(rows, start=1):
         ws.cell(row=r, column=2, value=i)
@@ -186,6 +202,8 @@ def write_partlist(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE
             for ci in range(2, 6):
                 ws.cell(row=r, column=ci).fill = BLUE
             servo_rows.append((i, x["품명"], x["형번"]))
+        if x.get("사진") and _ph.put_photo(ws, r, PHOTO_COL, x["사진"], photo_pt):
+            n_photo += 1
         if not x["품명"]:
             empty_name_rows.append((i, x["형번"], x["원본"]))
         r += 1
@@ -197,7 +215,8 @@ def write_partlist(rows, code, name, author, out_path, template=DEFAULT_TEMPLATE
         ws.cell(row=r, column=ci).fill = BLUE
 
     wb.save(out_path)
-    return {"품목": len(rows), "서보표시": servo_rows, "품명빈칸": empty_name_rows}
+    return {"품목": len(rows), "서보표시": servo_rows, "품명빈칸": empty_name_rows,
+            "사진": n_photo, "사진없음": len(rows) - n_photo}
 
 
 def main(argv=None):
