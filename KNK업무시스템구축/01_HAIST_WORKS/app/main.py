@@ -872,6 +872,15 @@ def startup():
             print(f"[MEETING-LINK-MIG-Z430] {_rmlink}")
     except Exception as _e:
         print(f"[MEETING-LINK-MIG-Z430 ERR] {_e}")
+    # 회의 알림(이음)↔회의록 연결 컬럼 (2026-09-15 대표 지시 · idempotent · 인덱스는 ALTER 뒤)
+    try:
+        from .migrations.m_meeting_msg_link import migrate as _mmsg_migrate
+        from .database import DB_PATH as _DB_PATH_MMSG
+        _rmmsg = _mmsg_migrate(_DB_PATH_MMSG)
+        if _rmmsg.get('added'):
+            print(f"[MEETING-MSG-LINK-MIG] {_rmmsg}")
+    except Exception as _e:
+        print(f"[MEETING-MSG-LINK-MIG ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -3706,17 +3715,35 @@ def _meeting_match_user_id(c, name):
 
 def _meeting_link_attendees(c, mid, attendees_text):
     """참석자 자유텍스트(쉼표/줄바꿈/세미콜론 구분) → meeting_attendees 재구성.
-    단일후보 매칭 시 user_id 연결."""
+    단일후보 매칭 시 user_id 연결.
+    회의 알림 연결(2026-09-15): 이미 ID로 연결돼 있던 참석자는 같은 이름이면 그 ID를 그대로 유지한다.
+    메신저에서 사번으로 정확히 연결한 참석자를, 회의록을 고쳐 저장할 때 이름 재매칭으로 잃지 않게 —
+    동명이인이면 이름 매칭은 '연결 안 함'이 되어 비공개 회의 열람 권한이 사라질 수 있었다(사람 참조는 ID)."""
+    prev = {}
+    for r in c.execute("SELECT name, user_id FROM meeting_attendees "
+                       "WHERE meeting_id=? AND user_id IS NOT NULL ORDER BY id", (mid,)).fetchall():
+        prev.setdefault(r[0], []).append(r[1])
     c.execute("DELETE FROM meeting_attendees WHERE meeting_id=?", (mid,))
     raw = (attendees_text or "").replace("\n", ",").replace(";", ",").replace("、", ",")
-    seen = set()
+    seen, used = set(), set()
     for nm in (p.strip() for p in raw.split(",")):
-        if not nm or nm in seen:
+        if not nm:
             continue
+        left = [x for x in prev.get(nm, ()) if x not in used]
+        if left:                       # 전에 ID로 연결돼 있던 사람 → 그 ID 그대로(동명이인도 각자)
+            uid = left[0]
+        elif nm in seen:               # 같은 이름 반복(이전 연결 없음) → 기존처럼 한 번만
+            continue
+        else:
+            uid = _meeting_match_user_id(c, nm)
+            if uid and uid in used:    # 이미 넣은 같은 사람
+                continue
         seen.add(nm)
+        if uid:
+            used.add(uid)
         c.execute(
             "INSERT INTO meeting_attendees(meeting_id, user_id, name) VALUES(?,?,?)",
-            (mid, _meeting_match_user_id(c, nm), nm),
+            (mid, uid, nm),
         )
 
 
@@ -4513,6 +4540,195 @@ async def api_meeting_stt_status(req: Request, mid: int):
             out["body"] = (row["body"] if row else "") or ""
             out["updated_at"] = _row_ts(c, "meetings", mid)
     return JSONResponse(out)
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  회의 알림(이음 메신저) ↔ 회의록 연결 — 서버끼리 쓰는 입구 2개 (2026-09-15 대표 지시)
+#  흐름: 메신저 회의 알림 카드 「▶ 회의 시작」(참석자 누구나 · 먼저 누른 사람이 녹음 담당)
+#        → 메신저 서버가 POST /api/meeting/msg/start → 회의 1건당 회의록 1개 생성·연결
+#        → 누른 사람의 WORKS 창에 /meetings/{id}?autorec=1 (녹음 자동 시작 시도)
+#        → 녹음 종료 → 기존 자동 정리 → 카드는 POST /api/meeting/msg/status 로
+#          '진행 중/정리 중/실패/완료' + '이 직원이 볼 수 있나'를 WORKS 에 묻는다.
+#  ⭐ 열람 권한 판단은 WORKS(_can_view_meeting) 한 곳에서만 — 메신저가 규칙을 흉내내면
+#     WORKS 에서 공개범위를 바꿨을 때 두 쪽이 어긋난다(대표 결정 '볼 수 있는 사람에게만').
+#  인증: 기존 서버간 공유키(X-SSO-Service-Key = sso_client.get_service_key()). 키가 비었으면 항상 거부.
+#  대표 결정: 녹음=WORKS 녹음창 · 시작=참석자 누구나 · 보기=볼 수 있는 사람에게만 · WORKS 먼저.
+# ════════════════════════════════════════════════════════════════════════
+_MSG_VIS_MAP = {"all": "all", "hq": "hq", "vn": "vn", "private": "private"}   # 메신저 공개범위 = WORKS 그대로
+
+
+def _msg_service_key_ok(req) -> bool:
+    """서버간 공유키 확인 — 비교는 시간 일정(hmac). WORKS 쪽 키가 비어 있으면 무엇이 와도 거부."""
+    import hmac as _hm
+    got = (req.headers.get("X-SSO-Service-Key") or "").strip()
+    if not got:
+        return False
+    try:
+        from . import sso_client as _sc
+        want = (_sc.get_service_key() or "").strip()
+    except Exception:
+        return False
+    return bool(want) and _hm.compare_digest(got.encode("utf-8"), want.encode("utf-8"))
+
+
+def _msg_user_by_empno(c, emp):
+    """사번 → 활성 WORKS 사용자(dict). 정확히 1명일 때만(대소문자 무관 — VN 사번 규칙). 아니면 None."""
+    emp = str(emp or "").strip()
+    if not emp:
+        return None
+    rows = c.execute("SELECT * FROM users WHERE UPPER(COALESCE(employee_no,''))=UPPER(?) AND is_active=1",
+                     (emp,)).fetchall()
+    return dict(rows[0]) if len(rows) == 1 else None
+
+
+def _msg_owner_disp(c, uid) -> str:
+    """녹음 담당(회의록 작성자) 표시 — 이름 직책 부서 규칙, 조회가 비면 이름만(빈칸 금지)."""
+    s = user_disp_by_id(c, uid, "")
+    if s:
+        return s
+    r = c.execute("SELECT name FROM users WHERE id=?", (uid,)).fetchone() if uid else None
+    return (r[0] if r else "") or ""
+
+
+def _meeting_msg_stage(m) -> str:
+    """카드 표시 단계: started(진행 중) / recorded(녹음됨·정리 대기) / processing(글자 변환 중) / failed / done."""
+    if (m.get("summary") or "").strip():
+        return "done"
+    with _STT_LOCK:
+        job = dict(_STT_JOBS.get(m["id"]) or {})
+    if job.get("state") == "running":
+        return "processing"
+    if job.get("state") == "error":
+        return "failed"
+    if (m.get("audio_path") or "").strip() or "[음성 변환]" in (m.get("body") or ""):
+        return "recorded"
+    return "started"
+
+
+@app.post("/api/meeting/msg/start")
+async def api_meeting_msg_start(req: Request):
+    """[서버 전용] 메신저 「▶ 회의 시작」 → 회의 1건당 회의록 1개(이미 있으면 그대로) · 연결 정보 반환.
+    누를 자격(참석자인가)은 메신저가 확인한다(참석자 명단은 메신저만 안다) — WORKS 는 공유키로 신뢰."""
+    if not _msg_service_key_ok(req):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "json_required"}, 400)
+    if not isinstance(d, dict):
+        return JSONResponse({"ok": False, "error": "json_required"}, 400)
+    try:
+        msg_id = int(d.get("msg_meeting_id") or 0)
+    except (TypeError, ValueError):
+        msg_id = 0
+    if msg_id <= 0:
+        return JSONResponse({"ok": False, "error": "msg_meeting_id_required"}, 400)
+    title = str(d.get("title") or "").strip()[:200]
+    if not title:
+        return JSONResponse({"ok": False, "error": "title_required"}, 400)
+    mdate = str(d.get("start_at") or "").strip()[:10]   # 메신저 start_at = 등록자 소속 현지 'YYYY-MM-DDTHH:MM'
+    try:
+        datetime.strptime(mdate, "%Y-%m-%d")
+    except ValueError:
+        return JSONResponse({"ok": False, "error": "start_at_invalid"}, 400)
+    vis = _MSG_VIS_MAP.get(str(d.get("visibility") or "").strip())
+    if not vis:
+        return JSONResponse({"ok": False, "error": "visibility_invalid"}, 400)
+    externals = [str(x).strip()[:80] for x in (d.get("externals") or []) if str(x).strip()][:30]
+    att_emps = [str(x).strip() for x in (d.get("attendee_employee_nos") or []) if str(x).strip()][:200]
+    import sqlite3 as _sq3
+    with db_session() as c:
+        starter = _msg_user_by_empno(c, d.get("starter_employee_no"))
+        if not starter:
+            return JSONResponse({"ok": False, "error": "starter_not_found"}, 404)
+        created = False
+        row = c.execute("SELECT * FROM meetings WHERE msg_meeting_id=?", (msg_id,)).fetchone()
+        if not row:
+            att_users, seen = [], set()
+            for e in att_emps:
+                au = _msg_user_by_empno(c, e)
+                if au and au["id"] not in seen:
+                    seen.add(au["id"])
+                    att_users.append(au)
+            names = [au["name"] for au in att_users] + externals
+            try:
+                cur = c.execute(
+                    """INSERT INTO meetings(title, meeting_date, mode, team_id, owner_id, location, tags,
+                                            attendees_text, body, visibility, status, msg_meeting_id, msg_started_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))""",
+                    (title, mdate, "A", starter.get("team_id"), starter["id"],
+                     str(d.get("location") or "").strip()[:200], str(d.get("tags") or "").strip()[:200],
+                     ", ".join(names)[:1000], str(d.get("note") or "").strip()[:4000], vis, "draft", msg_id),
+                )
+                new_id = cur.lastrowid
+                for au in att_users:      # 사번으로 정확히 연결 — 사람 참조는 ID(이름 매칭 X)
+                    c.execute("INSERT INTO meeting_attendees(meeting_id, user_id, name) VALUES(?,?,?)",
+                              (new_id, au["id"], au["name"]))
+                for nm in externals:      # 외부 참석자 = 계정 없음 → 이름만
+                    c.execute("INSERT INTO meeting_attendees(meeting_id, user_id, name) VALUES(?,?,?)",
+                              (new_id, None, nm))
+                created = True
+            except _sq3.IntegrityError:
+                created = False           # 거의 같은 순간 다른 사람이 먼저 만들었다 → 그 회의록을 쓴다
+            row = c.execute("SELECT * FROM meetings WHERE msg_meeting_id=?", (msg_id,)).fetchone()
+        m = dict(row)
+        if created:
+            try:
+                log_activity(c, starter["id"], "meeting_create",
+                             f"{starter['name']} 회의 알림에서 회의 시작: {title[:60]}",
+                             team_id=starter.get("team_id"))
+            except Exception as _le:
+                print(f"[MEETING-MSG] 활동기록 실패(회의록 생성은 완료): {_le}")
+        is_starter = (m.get("owner_id") == starter["id"])
+        autorec = bool(is_starter and not (m.get("audio_path") or "").strip())
+        out = {
+            "ok": True, "created": created, "meeting_id": m["id"], "is_starter": is_starter,
+            "started_by": _msg_owner_disp(c, m.get("owner_id")),
+            "started_at": m.get("msg_started_at") or "",
+            "stage": _meeting_msg_stage(m),
+            "url": f"/meetings/{m['id']}" + ("?autorec=1" if autorec else ""),
+        }
+    return JSONResponse(out)
+
+
+@app.post("/api/meeting/msg/status")
+async def api_meeting_msg_status(req: Request):
+    """[서버 전용] 메신저 회의 카드 표시용 — 회의별 단계 + '이 직원이 볼 수 있나'(WORKS 권한 단일 판단). 최대 50건.
+    body: {employee_no: 사번, msg_meeting_ids: [메신저 회의 id...]}"""
+    if not _msg_service_key_ok(req):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "json_required"}, 400)
+    if not isinstance(d, dict):
+        return JSONResponse({"ok": False, "error": "json_required"}, 400)
+    ids = []
+    for x in (d.get("msg_meeting_ids") or [])[:50]:
+        try:
+            v = int(x)
+        except (TypeError, ValueError):
+            continue
+        if v > 0 and v not in ids:
+            ids.append(v)
+    items = {}
+    with db_session() as c:
+        viewer = _msg_user_by_empno(c, d.get("employee_no"))
+        for msg_id in ids:
+            row = c.execute("SELECT * FROM meetings WHERE msg_meeting_id=?", (msg_id,)).fetchone()
+            if not row:
+                items[str(msg_id)] = {"stage": "none", "can_view": False}
+                continue
+            m = dict(row)
+            can_view = bool(viewer) and _can_view_meeting(c, viewer, m)
+            it = {"stage": _meeting_msg_stage(m), "can_view": can_view,
+                  "started_by": _msg_owner_disp(c, m.get("owner_id")),
+                  "started_at": m.get("msg_started_at") or ""}
+            if can_view:                  # 볼 수 없는 사람에겐 회의록 주소 자체를 주지 않는다
+                it["meeting_id"] = m["id"]
+                it["url"] = f"/meetings/{m['id']}"
+            items[str(msg_id)] = it
+    return JSONResponse({"ok": True, "items": items})
 
 
 @app.post("/api/meeting/{mid:int}/link")

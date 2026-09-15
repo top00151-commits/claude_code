@@ -137,6 +137,7 @@
   #secActions { order:5; }
   .mf-top { order:10; }
   #redoTools { order:11; }
+  .mf-wrap.autorec #redoTools { order:2; }   /* 회의 알림 「회의 시작」으로 열린 창 — 녹음 칸을 맨 위로 */
   #secLink { order:12; }
 }
 </style>
@@ -759,11 +760,20 @@ window.__MTG = {
       _ac=new AC(); _analyser=_ac.createAnalyser(); _analyser.fftSize=512;
       _ac.createMediaStreamSource(stream).connect(_analyser);
       _silSec=0; _silTotal=0; _silWarned=false;
+      // 회의 알림 자동 녹음(autorec)은 화면을 누르기 전에 시작돼 브라우저가 소리 분석기를 '일시중지'로 둘 수 있다
+      //   → 깨우기를 시도하고, 안 되면 첫 터치 때 깨운다. 깨어나기 전엔 무음으로 세지 않는다(가짜 경고 방지).
+      if(_ac.state==='suspended'){
+        try{ _ac.resume(); }catch(_){}
+        var _wake=function(){ try{ if(_ac&&_ac.state==='suspended') _ac.resume(); }catch(_){} };
+        document.addEventListener('pointerdown',_wake,{once:true});
+        document.addEventListener('keydown',_wake,{once:true});
+      }
       _levelTimer=setInterval(silTick,1000);
     }catch(_){}
   }
   function silTick(){
     if(!_analyser||_paused) return;
+    if(_ac&&_ac.state&&_ac.state!=='running') return;   // 분석기가 깨어나기 전엔 무음으로 세지 않음
     try{
       var buf=new Uint8Array(_analyser.fftSize);
       _analyser.getByteTimeDomainData(buf);
@@ -924,6 +934,32 @@ window.__MTG = {
   // ── 초기 렌더 + 자동 정리 진입 (상세 모드) ──
   if (!M.is_new){
     renderSummary(); renderDecisions(); renderActions();
+    // ── 회의 알림(이음) 「▶ 회의 시작」으로 열린 창: 녹음 자동 시작 시도 (2026-09-15 대표 지시) ──
+    //   브라우저 보안상 다른 창(메신저)에서 누른 것은 녹음 허락으로 인정되지 않을 수 있다 →
+    //   자동 시작을 시도하고, 막히면 녹음 칸을 펼친 채 큰 버튼 한 번으로 시작하게 안내한다.
+    var _autorec=false;
+    try{ _autorec = new URLSearchParams(location.search).get('autorec')==='1'; }catch(_){}
+    if (_autorec){
+      try{ history.replaceState(null,'',location.pathname); }catch(_){}   // 새로고침해도 다시 녹음되지 않게
+      var _rt=$('redoTools');
+      if (CAN_EDIT && _rt){
+        _rt.open = true;
+        try{ var _w=document.querySelector('.mf-wrap'); if(_w) _w.classList.add('autorec'); }catch(_){}
+        var _rb=$('recBtn');
+        if (!M.has_audio){
+          if (_rb && !_rb.dataset.on) _rb.textContent='🎙 녹음 시작';
+          try{ _rt.scrollIntoView({block:'start'}); }catch(_){}
+          recSt('회의 녹음을 시작합니다… (마이크 허용 창이 뜨면 「허용」을 눌러주세요)');
+          recStart().then(function(){
+            if (!(_mr && _mr.state !== 'inactive')){
+              recSt('자동 시작이 막혔습니다 — 위의 「🎙 녹음 시작」을 한 번 눌러주세요.','err');
+            }
+          });
+        } else {
+          recSt('이 회의는 이미 녹음이 있습니다 — 더 녹음하려면 「🎙 녹음 추가」를 누르세요.');
+        }
+      }
+    }
     var _auto=false;
     try{ _auto = new URLSearchParams(location.search).get('auto')==='1'; }catch(_){}
     if (_auto){
