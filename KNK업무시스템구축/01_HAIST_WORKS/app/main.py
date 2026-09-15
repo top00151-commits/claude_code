@@ -4340,6 +4340,59 @@ def _stt_strip_hallucination(text: str):
     return (" ".join(out), spots)
 
 
+# z1093 (2026-09-15 대표 실사): 삼성·안드로이드 녹음기로 만든 m4a 는 속 음성이 표준 AAC-LC 인데
+#   포장 표식(ftyp major brand)이 '3gp4' 라서 OpenAI 가 "Invalid file format"(400)으로 거부한다
+#   (자기 오류문에 'm4a 지원'이라 적어 놓고도 거부 — 확장자가 아니라 표식을 본다).
+#   실측(회의 20 '이음벡업.m4a'): ftyp=3gp4/[isom,3gp4] · 코덱 mp4a AAC-LC 모노 48kHz · 349초.
+#   → 표식만 'M4A ' 로 바꾼 '사본'을 보내고 끝나면 지운다. 원본은 그대로 보존(z1092 원칙).
+#   ⚠ ftyp 박스 크기는 절대 바꾸지 않는다 — 크기가 달라지면 목차(stco)의 절대 위치가 전부
+#   어긋나 파일이 깨진다. 같은 크기 안에서 표식 글자만 교체(실측: 바뀐 바이트 12개·나머지 동일).
+_STT_3GP_BRANDS = (b"3gp", b"3g2")
+
+
+def _stt_fix_3gp_brand(path: str):
+    """3GP 표식이 붙은 MP4 계열 음성 → 표식만 'M4A '로 바꾼 사본 경로. 해당 없으면 None."""
+    import shutil as _sh, struct as _st, time as _tm
+    tmp = ""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(16)
+        if len(head) < 16:
+            return None
+        size, typ = _st.unpack(">I4s", head[:8])
+        if (typ != b"ftyp" or not (16 <= size <= 64) or (size - 16) % 4
+                or head[8:11] not in _STT_3GP_BRANDS):
+            return None
+        tmp = os.path.join(os.path.dirname(path) or ".", f"stt_brand_{int(_tm.time() * 1000)}.m4a")
+        _sh.copyfile(path, tmp)
+        with open(tmp, "r+b") as f:
+            hb = f.read(size)
+            n = (size - 16) // 4
+            new = hb[:8] + b"M4A " + hb[12:16] + b"".join(([b"M4A ", b"isom", b"mp42"] * n)[:n])
+            if len(new) != size:
+                raise ValueError("ftyp 크기 불일치")
+            f.seek(0)
+            f.write(new)
+        return tmp
+    except Exception:
+        # 사본을 못 만들면 원본으로 보낸다 — 그러면 OpenAI 오류가 화면에 그대로 드러난다(숨기지 않음).
+        if tmp and os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+        return None
+
+
+def _stt_friendly_error(text: str) -> str:
+    """OpenAI 원문 오류 → 사람이 읽을 안내. 모르는 오류는 원문 그대로(표면화 원칙)."""
+    t = text or ""
+    if "Invalid file format" in t:
+        return ("이 녹음 파일은 음성 형식을 읽을 수 없어 글자로 바꾸지 못했습니다 — "
+                "폰 녹음 앱에서 m4a·mp3 형식으로 저장해 다시 올려주세요. (OpenAI: Invalid file format)")
+    return t
+
+
 def _stt_worker(mid: int, disk: str, lang: str):
     """백그라운드 음성→글자 워커 — 기존 동기 로직 그대로(압축→Whisper→body 덧붙임).
     body 는 완료 시점에 DB에서 새로 읽어 덧붙임(작업 중 사용자가 원문을 고쳐도 안 덮음)."""
@@ -4366,9 +4419,18 @@ def _stt_worker(mid: int, disk: str, lang: str):
         if os.path.getsize(stt_path) > 25 * 1024 * 1024:
             err = "음성이 25MB를 넘어 음성→글자가 어렵습니다. 브라우저 녹음(자동 압축)을 쓰거나 파일을 나눠 올려주세요."
         else:
-            ok, text = ai_client.ai_transcribe(stt_path, lang or "")
+            # z1093: 삼성·안드로이드 녹음기 m4a(속=AAC·표식=3gp4)는 표식만 바꾼 사본으로 보낸다
+            _brand_tmp = _stt_fix_3gp_brand(stt_path)
+            try:
+                ok, text = ai_client.ai_transcribe(_brand_tmp or stt_path, lang or "")
+            finally:
+                if _brand_tmp:  # 사본은 변환 직후 삭제(원본은 보존)
+                    try:
+                        os.remove(_brand_tmp)
+                    except Exception:
+                        pass
             if not ok:
-                err = text
+                err = _stt_friendly_error(text)
             elif not text.strip():
                 err = "음성에서 인식된 내용이 없습니다(무음/잡음일 수 있어요)."
             else:
