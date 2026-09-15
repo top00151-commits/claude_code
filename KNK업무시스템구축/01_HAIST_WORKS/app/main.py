@@ -922,11 +922,16 @@ def startup():
     except Exception as _e:
         print(f"[SEED-RECENT ERR] {_e}")
     # v5H58 (2026-05-03) — 고객사 등급 자동 재계산 (startup + 24h 주기)
+    # z1101 (NAS 백업 시간 · 2026-09-16): 월요일 02:00~07:30 에 기동되면 기동 직후 재계산을 건너뛴다.
+    #   재기동 시각은 배포·워치독을 따라 떠다니므로 타이머만 막으면 여기서 샌다. 07:30 에 스케줄러가 채운다.
     try:
-        from . import customer_tier as _ct
-        with db_session() as c:
-            n = _ct.refresh_all_customer_tiers(c)
-        print(f"[TIER] {n} customers tier auto-computed")
+        if _nas_quiet_now():
+            print("[TIER] 월요일 NAS 백업 시간(02:00~07:30) — 기동 직후 재계산 건너뜀(07:30 에 자동 재계산)")
+        else:
+            from . import customer_tier as _ct
+            with db_session() as c:
+                n = _ct.refresh_all_customer_tiers(c)
+            print(f"[TIER] {n} customers tier auto-computed")
     except Exception as _e:
         print(f"[TIER ERR] {_e}")
     _start_tier_refresh_scheduler()
@@ -1075,9 +1080,55 @@ def startup():
         print(f"[TIER-FIX ERR] {_e}")
 
 
+# =====================================================
+# z1101 (2026-09-16) NAS 백업 시간 = **매주 월요일 02:00~07:30 (한국시간)** 묶음 작업 금지
+#   근거: 전산 최보현 상무이사 확정 2026-09-15 16:05 — 월요일 02:00 에 스냅샷 → 로컬 백업 →
+#   서버간 백업이 연쇄로 돈다(다른 요일 새벽은 해당 없음). 요청 경로: 세션10(이음) 전달 지시서 → 대표.
+#   실측(2026-09-16): 04:10 명부 동기화가 9/14(월) 04:10 에도 돌며 DB 사본 약 280MB 를 썼다.
+#   ⭐ 하루 1회·몇 시간마다 스스로 예약하는 작업은 반드시 아래 판정을 거친다
+#      (배포 전 검사 `check_nas_quiet_schedulers` 가 막는다).
+#   이음(메신저)과 **같은 규칙·같은 이름** — 10_KNK_Messenger/app.py `_nas_quiet_wait_secs`.
+# =====================================================
+NAS_QUIET_WEEKDAY = 0      # 월요일(파이썬 weekday)
+NAS_QUIET_START = (2, 0)   # 02:00 KST 부터
+NAS_QUIET_END = (7, 30)    # 07:30 KST 전까지 — 07:30 정각부터는 다시 돈다
+
+
+def _kst_wall_now():
+    """한국시간 벽시계(시간대 정보 없는 datetime). 컨테이너 시간대 설정에 기대지 않는다."""
+    from datetime import timezone as _tz
+    return datetime.now(_tz.utc).replace(tzinfo=None) + timedelta(hours=9)
+
+
+def _nas_quiet_wait_secs(now_kst=None):
+    """지금이 월요일 02:00~07:30(한국시간) 안이면 07:30 까지 남은 초(1 이상), 밖이면 0.
+    now_kst 를 주면 그 값을 한국시간 벽시계로 본다(시험·예약 시각 판정용)."""
+    k = now_kst if now_kst is not None else _kst_wall_now()
+    if k.weekday() != NAS_QUIET_WEEKDAY:
+        return 0
+    start = k.replace(hour=NAS_QUIET_START[0], minute=NAS_QUIET_START[1], second=0, microsecond=0)
+    end = k.replace(hour=NAS_QUIET_END[0], minute=NAS_QUIET_END[1], second=0, microsecond=0)
+    if start <= k < end:
+        return max(1, int((end - k).total_seconds()))
+    return 0
+
+
+def _nas_quiet_now(now_kst=None):
+    """월요일 02:00~07:30(한국시간) NAS 백업 시간이면 True."""
+    return _nas_quiet_wait_secs(now_kst) > 0
+
+
 # v5H58: 24시간마다 자동 재계산 (백그라운드 타이머)
 def _tier_refresh_tick():
     import threading as _th
+    # z1101: 월요일 NAS 백업 시간이면 07:30 까지 미룬다(24시간 주기라 시각이 재기동을 따라 떠다닌다).
+    _quiet = _nas_quiet_wait_secs()
+    if _quiet:
+        print(f"[TIER-AUTO] 월요일 NAS 백업 시간 — {_quiet // 60}분 뒤(07:30)로 미룸")
+        timer = _th.Timer(_quiet, _tier_refresh_tick)
+        timer.daemon = True
+        timer.start()
+        return
     try:
         from . import customer_tier as _ct
         with db_session() as c:
@@ -1092,7 +1143,12 @@ def _tier_refresh_tick():
 
 def _start_tier_refresh_scheduler():
     import threading as _th
-    timer = _th.Timer(86400, _tier_refresh_tick)
+    # z1101: 백업 시간에 기동되면 기동 직후 재계산을 건너뛰었으므로 07:30 에 첫 재계산을 잡는다.
+    _quiet = _nas_quiet_wait_secs()
+    delay = _quiet if _quiet else 86400
+    _nxt = (_kst_wall_now() + timedelta(seconds=delay)).strftime("%m-%d %a %H:%M")
+    print(f"[TIER-AUTO] 등급 자동 재계산 예약 — 다음 {_nxt} (한국시간)")
+    timer = _th.Timer(delay, _tier_refresh_tick)
     timer.daemon = True
     timer.start()
 
@@ -1180,14 +1236,22 @@ def _start_daily_reminder_scheduler():
 # v5H226z526 (대표 지시): 매일 새벽 자동 명부 동기화 (메신저 → WORKS)
 #   신규자는 로그인 시 자동 등록(JIT)되고, 이건 '아직 로그인 안 한 사람 포함 전 직원'을 매일 자동 채움.
 #   공유키(KNK_SSO_SERVICE_KEY) 없으면 조용히 건너뜀(설정되는 즉시 자동 동작). 비파괴(빈칸만 채움·기존 보존).
+#   z1101 (대표 결정 2026-09-16 「월요일만 07:40에 실행」): 월요일 04:10 은 NAS 백업 시간(02:00~07:30) 안이라
+#   그날만 백업 시간 끝나고 10분 뒤인 **07:40** 에 돌린다(실행 전에 DB 사본 약 280MB 를 쓰기 때문).
 # =====================================================
-def _seconds_until_next_0410():
-    from datetime import datetime as _dt, timedelta as _td
-    now = _dt.now()
-    target = now.replace(hour=4, minute=10, second=0, microsecond=0)  # 새벽 4:10 KST(메일 VACUUM 2~7시와 겹침 회피용 늦춤)
-    if target <= now:
-        target += _td(days=1)
-    return max(60.0, (target - now).total_seconds())
+def _seconds_until_next_0410(now_kst=None):
+    """다음 자동 명부 동기화까지 남은 초. 평소 04:10(한국시간) · 월요일은 07:40.
+    now_kst 는 시험용(한국시간 벽시계). 최소 60초(예전과 같음)."""
+    now = now_kst if now_kst is not None else _kst_wall_now()
+    for _add in range(0, 8):
+        day = (now + timedelta(days=_add)).replace(hour=0, minute=0, second=0, microsecond=0)
+        slot = day.replace(hour=4, minute=10)
+        _quiet = _nas_quiet_wait_secs(slot)
+        if _quiet:                      # 월요일 04:10 → 07:30 + 10분 = 07:40
+            slot = slot + timedelta(seconds=_quiet, minutes=10)
+        if slot > now:
+            return max(60.0, (slot - now).total_seconds())
+    return 86400.0
 
 
 def _run_directory_autosync():
@@ -1250,20 +1314,28 @@ def _run_directory_autosync():
 
 def _directory_sync_tick():
     import threading as _th
-    try:
-        _run_directory_autosync()
-    except Exception as e:
-        print(f"[DIR-SYNC tick ERR] {e}")
-    timer = _th.Timer(_seconds_until_next_0410(), _directory_sync_tick)
+    # z1101: 이중 안전 — 계산이 어긋나 월요일 NAS 백업 시간에 깨어나도 돌리지 않고 다시 잡는다.
+    if _nas_quiet_now():
+        print("[DIR-SYNC] 월요일 NAS 백업 시간 — 이번엔 건너뛰고 다시 예약(07:40)")
+    else:
+        try:
+            _run_directory_autosync()
+        except Exception as e:
+            print(f"[DIR-SYNC tick ERR] {e}")
+    delay = _seconds_until_next_0410()
+    _nxt = (_kst_wall_now() + timedelta(seconds=delay)).strftime("%m-%d %a %H:%M")
+    print(f"[DIR-SYNC] 다음 자동 명부 동기화 {_nxt} (한국시간)")
+    timer = _th.Timer(delay, _directory_sync_tick)
     timer.daemon = True
     timer.start()
 
 
 def _start_directory_sync_scheduler():
-    """startup 1회 호출 — 매일 새벽 4:10 자동 명부 동기화 예약."""
+    """startup 1회 호출 — 매일 새벽 4:10(월요일은 07:40) 자동 명부 동기화 예약."""
     import threading as _th
     delay = _seconds_until_next_0410()
-    print(f"[DIR-SYNC] 자동 명부 동기화 스케줄러 시작. 다음 실행까지 {int(delay/3600)}시간.")
+    _nxt = (_kst_wall_now() + timedelta(seconds=delay)).strftime("%m-%d %a %H:%M")
+    print(f"[DIR-SYNC] 자동 명부 동기화 스케줄러 시작. 다음 실행 {_nxt} (한국시간 · {int(delay/3600)}시간 뒤).")
     timer = _th.Timer(delay, _directory_sync_tick)
     timer.daemon = True
     timer.start()

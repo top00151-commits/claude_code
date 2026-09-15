@@ -404,6 +404,130 @@ def check_project_amount_sum(_files=None):
     return bad
 
 
+def check_nas_quiet_schedulers(_files=None):
+    """§NAS 백업 시간 = 매주 월요일 02:00~07:30(한국시간) 묶음 작업 금지 (z1101 · 2026-09-16).
+
+    전산(최보현 상무이사) 확정 2026-09-15 16:05 — NAS 가 월요일 02:00 에 스냅샷 → 로컬 백업 →
+    서버간 백업을 연쇄로 돌린다. 그동안 무거운 쓰기가 끼면 백업이 느려지고 중복이 생긴다.
+    실측(2026-09-16): 04:10 명부 동기화가 **9/14(월) 04:10 에도 돌며 DB 사본 약 280MB 를 썼다.**
+    고객 등급 재계산은 '기동 뒤 24시간마다'라 **재기동 시각을 따라 떠다니고**, 기동 직후에도 한 번 돈다.
+
+    올바른 방법: 공용 판정 `_nas_quiet_wait_secs()` / `_nas_quiet_now()` 를 거친다
+                 (이음 `10_KNK_Messenger/app.py` 와 같은 이름·같은 규칙).
+
+    잡는 것 (app/main.py · 파이썬 구문 트리로 본다 — 주석·문자열에 적힌 이름은 인정하지 않는다)
+      ① 판정 상수가 월요일·02:00·07:30 이 아니다 / 공용 판정이 없다 / 07:30 을 포함하도록 바뀌었다
+      ② `Timer(` 로 스스로 예약하는 함수가 판정을 부르지 않는다(아래 면제 제외)
+      ③ 판정을 부르긴 하지만 무거운 작업(등급 재계산·명부 동기화·DB 사본)보다 **뒤에서** 부른다
+      ④ 명부 동기화 시각 계산 `_seconds_until_next_0410` 이 판정을 안 거친다
+      ⑤ 앱 기동(`startup`) 중 등급 재계산이 판정 조건 밖에서 돈다
+
+    면제 (사유를 여기 적는다 — 늘릴 땐 전산·대표 확인)
+      · 평일 16:30 업무카드 알림 — 고정 시각이 금지 시간 밖
+      · 메일 자동 가져오기 5분 — 가벼운 상시 수집 · 금지 대상인지 전산 확인 전 · 끄면 월요일 메일이 늦는다
+    """
+    import ast as _ast
+    src_path = os.path.join(ROOT, "app", "main.py")
+    if not os.path.exists(src_path):
+        return []
+    try:
+        tree = _ast.parse(_read(src_path))
+    except SyntaxError as e:
+        return [(src_path, getattr(e, "lineno", 0) or 0, "main.py 구문 오류 — 검사 불가: %s" % e)]
+    QN = {"_nas_quiet_wait_secs", "_nas_quiet_now"}
+    PRED = QN | {"_seconds_until_next_0410"}
+    HEAVY = {"refresh_all_customer_tiers", "_run_directory_autosync", "backup_db_file"}
+    EXEMPT = {
+        "_daily_reminder_tick": "평일 16:30 고정 — 금지 시간 밖",
+        "_start_daily_reminder_scheduler": "평일 16:30 고정 — 금지 시간 밖",
+        "_mail_fetch_tick": "메일 5분 상시 수집 — 전산 확인 전",
+        "_start_mail_fetch_scheduler": "메일 5분 상시 수집 — 전산 확인 전",
+    }
+    bad = []
+
+    def _name(call):
+        f = call.func
+        if isinstance(f, _ast.Name):
+            return f.id
+        if isinstance(f, _ast.Attribute):
+            return f.attr
+        return ""
+
+    def _calls(node):
+        return [x for x in _ast.walk(node) if isinstance(x, _ast.Call)]
+
+    funcs, consts = {}, {}
+    for n in tree.body:
+        if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            funcs[n.name] = n
+        elif (isinstance(n, _ast.Assign) and len(n.targets) == 1
+              and isinstance(n.targets[0], _ast.Name) and n.targets[0].id.startswith("NAS_QUIET_")):
+            try:
+                consts[n.targets[0].id] = (_ast.literal_eval(n.value), n.lineno)
+            except Exception:
+                consts[n.targets[0].id] = (None, n.lineno)
+
+    # ① 상수·공용 판정·경계
+    for k, v in (("NAS_QUIET_WEEKDAY", 0), ("NAS_QUIET_START", (2, 0)), ("NAS_QUIET_END", (7, 30))):
+        got = consts.get(k)
+        if not got:
+            bad.append((src_path, 1, "① %s 가 없다 — 월요일 02:00~07:30 판정 상수 필수" % k))
+        elif got[0] != v:
+            bad.append((src_path, got[1], "① %s = %r — 전산 확정값 %r 과 다르다" % (k, got[0], v)))
+    qw = funcs.get("_nas_quiet_wait_secs")
+    if qw is None or "_nas_quiet_now" not in funcs:
+        bad.append((src_path, 1, "① 공용 판정 _nas_quiet_wait_secs / _nas_quiet_now 가 없다"))
+    elif not any(isinstance(x, _ast.Compare) and len(x.ops) == 2
+                 and isinstance(x.ops[0], _ast.LtE) and isinstance(x.ops[1], _ast.Lt)
+                 for x in _ast.walk(qw)):
+        bad.append((src_path, qw.lineno, "① 경계는 `시작 <= 지금 < 끝` — 07:30 정각부터는 다시 돌아야 한다"))
+
+    # ② ③ 스스로 예약하는 함수
+    for name, fn in funcs.items():
+        cs = _calls(fn)
+        if not any(_name(c) == "Timer" for c in cs) or name in EXEMPT:
+            continue
+        pred_lines = [c.lineno for c in cs if _name(c) in PRED]
+        if not pred_lines:
+            bad.append((src_path, fn.lineno, "② %s — Timer 로 예약하는데 NAS 백업 시간 판정을 안 거친다" % name))
+            continue
+        heavy_lines = [c.lineno for c in cs if _name(c) in HEAVY]
+        if heavy_lines and min(pred_lines) > min(heavy_lines):
+            bad.append((src_path, min(heavy_lines), "③ %s — 판정보다 무거운 작업이 먼저 돈다" % name))
+
+    # ④ 명부 동기화 시각 계산
+    s0410 = funcs.get("_seconds_until_next_0410")
+    if s0410 is not None and not any(_name(c) in QN for c in _calls(s0410)):
+        bad.append((src_path, s0410.lineno,
+                    "④ _seconds_until_next_0410 — 월요일 04:10(금지 시간 안)을 피하지 않는다"))
+
+    # ⑤ 앱 기동 중 등급 재계산 — 판정 조건의 '돌아도 되는 쪽'에 있어야 한다
+    st = funcs.get("startup")
+    if st is not None:
+        parents = {}
+        for p in _ast.walk(st):
+            for ch in _ast.iter_child_nodes(p):
+                parents[ch] = p
+        for c in _calls(st):
+            if _name(c) != "refresh_all_customer_tiers":
+                continue
+            node, guarded = c, False
+            while node in parents:
+                par = parents[node]
+                if isinstance(par, _ast.If) and any(_name(x) in QN for x in _calls(par.test)):
+                    negated = isinstance(par.test, _ast.UnaryOp) and isinstance(par.test.op, _ast.Not)
+                    in_else = any(node is x for x in par.orelse)
+                    in_body = any(node is x for x in par.body)
+                    if (in_else and not negated) or (in_body and negated):
+                        guarded = True
+                        break
+                node = par
+            if not guarded:
+                bad.append((src_path, c.lineno,
+                            "⑤ startup — 기동 직후 등급 재계산이 NAS 백업 시간 판정 밖에서 돈다"))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -494,6 +618,16 @@ def main():
             print("       %s:%s  %s" % (os.path.basename(f), l, m))
     else:
         print("  ✅ 프로젝트 수주금액 저장 : 공용 함수로만 (직접 SUM 0건)")
+
+    nas_bad = check_nas_quiet_schedulers()
+    if nas_bad:
+        fail += len(nas_bad)
+        print("  ❌ NAS 백업 시간(월 02:00~07:30) 예약 작업 : %d건 → _nas_quiet_wait_secs()/"
+              "_nas_quiet_now() 판정을 거칠 것" % len(nas_bad))
+        for f, l, m in nas_bad[:20]:
+            print("       %s:%s  %s" % (os.path.basename(f), l, m))
+    else:
+        print("  ✅ NAS 백업 시간(월 02:00~07:30) 예약 작업 : 모두 판정 거침")
 
     print("=" * 72)
     if fail:
