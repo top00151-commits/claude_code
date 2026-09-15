@@ -33,6 +33,7 @@ JWT 규격:
 """
 from __future__ import annotations
 import os
+import threading
 import time
 from typing import Optional
 
@@ -63,8 +64,13 @@ SSO_ISSUER   = os.environ.get(
 _PUBKEY_CACHE: dict = {
     "pem": None,        # 다운로드한 PEM 문자열
     "fetched_at": 0,    # epoch sec
+    "forced_at": 0,     # 마지막 '서명 불일치 → 강제 재조회' 시각 (z1100)
 }
 _PUBKEY_TTL_SEC = 3600  # 1시간
+# z1100: 서명이 틀린 토큰은 누구나 만들 수 있다 → 강제 재조회는 이 간격에 1번만(이음 두드림 방지).
+#   진짜 키 교체 직후라도 최악 이 시간만큼만 늦는다(예전 결함은 최대 1시간).
+_PUBKEY_FORCE_REFRESH_MIN_SEC = 30
+_PUBKEY_FORCE_LOCK = threading.Lock()
 
 # pwv 동기화 캐싱 (사용자별 마지막 확인 시각) — Q4=B
 _PWV_CHECK_CACHE: dict[int, float] = {}  # user_id → epoch sec
@@ -103,6 +109,23 @@ def invalidate_public_key_cache():
     _PUBKEY_CACHE["fetched_at"] = 0
 
 
+def _refetch_public_key_on_signature_mismatch(old_pem: str) -> Optional[str]:
+    """z1100: 서명 불일치 때만 부른다 → 이음 공개키 1회 강제 재조회. 옛 키와 다른 새 키면 반환, 아니면 None.
+
+    - 캐시를 먼저 비우지 않는다: 이음이 503·연결 실패면 get_public_key 가 옛 캐시를 그대로 돌려줘
+      기존 키로 서명된 로그인은 계속 된다(비우면 이음 장애 동안 전원 입장 불가).
+    - 최소 간격(_PUBKEY_FORCE_REFRESH_MIN_SEC) 안이면 받지 않고 현재 캐시만 본다 —
+      다른 요청이 방금 새 키를 받아 두었으면 그 키로 재검증된다.
+    """
+    with _PUBKEY_FORCE_LOCK:
+        now = time.time()
+        may_fetch = (now - _PUBKEY_CACHE["forced_at"]) >= _PUBKEY_FORCE_REFRESH_MIN_SEC
+        if may_fetch:
+            _PUBKEY_CACHE["forced_at"] = now
+    pem2 = get_public_key(force_refresh=True) if may_fetch else _PUBKEY_CACHE["pem"]
+    return pem2 if (pem2 and pem2 != old_pem) else None
+
+
 # ── JWT 검증 ─────────────────────────────────────────────────
 def verify_token(token: str) -> Optional[dict]:
     """JWT 검증 → payload dict 반환. 실패 시 None.
@@ -129,20 +152,14 @@ def verify_token(token: str) -> Optional[dict]:
             # exp/iat/nbf 검증 default ON
         )
         return payload
-    except pyjwt.ExpiredSignatureError:
-        print("[SSO] verify_token: 토큰 만료")
-    except pyjwt.InvalidAudienceError:
-        print(f"[SSO] verify_token: audience 불일치 (expected {SSO_AUDIENCE})")
-    except pyjwt.InvalidIssuerError:
-        print(f"[SSO] verify_token: issuer 불일치 (expected {SSO_ISSUER})")
-    except pyjwt.InvalidTokenError as e:
-        print(f"[SSO] verify_token: invalid - {e}")
-    except Exception as e:
-        # public key 만료/변경 → 캐시 무효화 + 1회 재시도
-        print(f"[SSO] verify_token: 예외 ({e}) — public key 재조회 후 1회 재시도")
-        invalidate_public_key_cache()
-        pem2 = get_public_key(force_refresh=True)
-        if pem2 and pem2 != pem:
+    except pyjwt.InvalidSignatureError:
+        # z1100: 서명 불일치 = 이음 서명키가 새로 만들어졌을 수 있음 → 공개키 1회 재조회 후 재검증.
+        #   ⚠ 이 except 는 반드시 InvalidTokenError 보다 **앞**에 둘 것 — InvalidSignatureError 는
+        #     DecodeError → InvalidTokenError 의 하위라, 뒤에 두면 앞에서 잡혀 재조회가 실행되지 않는다(예전 결함).
+        #   만료·audience·issuer 오류는 서명이 맞았다는 뜻이므로 재조회하지 않는다(이음 두드림 방지).
+        print("[SSO] verify_token: 서명 불일치 — public key 재조회 후 1회 재시도")
+        pem2 = _refetch_public_key_on_signature_mismatch(pem)
+        if pem2:
             try:
                 return pyjwt.decode(
                     token, pem2,
@@ -152,6 +169,18 @@ def verify_token(token: str) -> Optional[dict]:
                 )
             except Exception as e2:
                 print(f"[SSO] verify_token: 재시도도 실패 ({e2})")
+        else:
+            print("[SSO] verify_token: 새 public key 없음(같은 키·이음 응답 없음·재조회 간격 안) — 거부")
+    except pyjwt.ExpiredSignatureError:
+        print("[SSO] verify_token: 토큰 만료")
+    except pyjwt.InvalidAudienceError:
+        print(f"[SSO] verify_token: audience 불일치 (expected {SSO_AUDIENCE})")
+    except pyjwt.InvalidIssuerError:
+        print(f"[SSO] verify_token: issuer 불일치 (expected {SSO_ISSUER})")
+    except pyjwt.InvalidTokenError as e:
+        print(f"[SSO] verify_token: invalid - {e}")
+    except Exception as e:
+        print(f"[SSO] verify_token: 예외 ({e})")
     return None
 
 
@@ -185,22 +214,25 @@ def verify_service_token(token: str, purpose: str, audience: str) -> Optional[di
 
     try:
         payload = _decode(pem)
-    except pyjwt.InvalidTokenError as e:
-        # 만료·audience 불일치·issuer 불일치·서명 불일치가 전부 여기로 온다
-        print(f"[SSO] verify_service_token: invalid - {e}")
-        return None
-    except Exception as e:
-        # public key 교체 직후 → 캐시 무효화 + 1회 재시도 (verify_token 과 같은 처리)
-        print(f"[SSO] verify_service_token: 예외({e}) — public key 재조회 후 1회 재시도")
-        invalidate_public_key_cache()
-        pem2 = get_public_key(force_refresh=True)
-        if not pem2 or pem2 == pem:
+    except pyjwt.InvalidSignatureError:
+        # z1100: 서명 불일치일 때만 공개키 1회 재조회 — verify_token 과 같은 규칙·같은 순서 주의
+        #   (InvalidTokenError 보다 앞에 둘 것)
+        print("[SSO] verify_service_token: 서명 불일치 — public key 재조회 후 1회 재시도")
+        pem2 = _refetch_public_key_on_signature_mismatch(pem)
+        if not pem2:
             return None
         try:
             payload = _decode(pem2)
         except Exception as e2:
             print(f"[SSO] verify_service_token: 재시도도 실패 ({e2})")
             return None
+    except pyjwt.InvalidTokenError as e:
+        # 만료·audience 불일치·issuer 불일치 — 서명은 맞았으므로 재조회하지 않는다
+        print(f"[SSO] verify_service_token: invalid - {e}")
+        return None
+    except Exception as e:
+        print(f"[SSO] verify_service_token: 예외({e})")
+        return None
 
     if (payload or {}).get("purpose") != purpose:
         print(f"[SSO] verify_service_token: purpose 불일치 (expected {purpose})")
