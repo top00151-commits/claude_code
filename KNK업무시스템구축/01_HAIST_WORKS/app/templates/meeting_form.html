@@ -157,7 +157,7 @@
     <div style="display:flex;gap:10px;">
       <a class="btn btn-secondary" href="/meetings">← 목록</a>
       {% if not is_new %}<a class="btn btn-primary" href="/meetings/{{ meeting.id }}/doc" target="_blank" rel="noopener" data-no-swap>📄 회의록 양식</a>{% endif %}
-      {% if not is_new and can_edit %}<button class="btn btn-secondary" id="btnDelete" style="color:var(--knk-red);">🗑 삭제</button>{% endif %}
+      {% if not is_new and can_delete %}<button class="btn btn-secondary" id="btnDelete" style="color:var(--knk-red);">🗑 삭제</button>{% endif %}
     </div>
   </div>
 

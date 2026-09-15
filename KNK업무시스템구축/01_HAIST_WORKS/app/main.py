@@ -3763,6 +3763,8 @@ def _can_view_meeting(c, u, m) -> bool:
         return True
     if m.get("owner_id") == uid:
         return True
+    if m.get("msg_organizer_id") and m.get("msg_organizer_id") == uid:   # 회의 알림 등록 담당 (2026-09-15)
+        return True
     try:
         if c.execute(
             "SELECT 1 FROM meeting_attendees WHERE meeting_id=? AND user_id=?",
@@ -3783,12 +3785,26 @@ def _can_view_meeting(c, u, m) -> bool:
 
 
 def _can_edit_meeting(u, m) -> bool:
-    """회의록 수정·삭제 권한: 작성자 본인 또는 admin/ceo."""
+    """회의록 수정 권한: 작성자 본인 · 회의 알림 등록 담당(msg_organizer_id) · admin/ceo.
+    2026-09-15 대표 결정: 녹음을 직접 하지 않은 등록 담당도 회의록을 고칠 수 있어야 한다.
+    ⚠ 삭제는 _can_delete_meeting(작성자·admin/ceo 만) — '고치기'까지가 지시 범위."""
     if not u or not m:
         return False
     if (u.get("role") or "").lower() in ("admin", "ceo"):
         return True
-    return m.get("owner_id") == u.get("id")
+    uid = u.get("id")
+    if not uid:
+        return False
+    return m.get("owner_id") == uid or (bool(m.get("msg_organizer_id")) and m.get("msg_organizer_id") == uid)
+
+
+def _can_delete_meeting(u, m) -> bool:
+    """회의록 삭제 권한: 작성자 본인 또는 admin/ceo (등록 담당은 고치기만 — 2026-09-15 대표 결정 범위)."""
+    if not u or not m:
+        return False
+    if (u.get("role") or "").lower() in ("admin", "ceo"):
+        return True
+    return bool(u.get("id")) and m.get("owner_id") == u.get("id")
 
 
 def _meeting_due_or_none(s):
@@ -3822,12 +3838,13 @@ async def meetings_page(req: Request):
             _ent_vis = "vn" if _meeting_user_entity(c, u) == "VN" else "hq"
             rows = c.execute(
                 _sel + """WHERE (m.owner_id=?
+                                 OR m.msg_organizer_id=?
                                  OR m.visibility='all'
                                  OR m.visibility=?
                                  OR (m.visibility='team' AND m.team_id=?)
                                  OR m.id IN (SELECT meeting_id FROM meeting_attendees WHERE user_id=?))
                           ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300""",
-                (u["id"], _ent_vis, u.get("team_id"), u["id"]),
+                (u["id"], u["id"], _ent_vis, u.get("team_id"), u["id"]),
             ).fetchall()
         meetings = [dict(r) for r in rows]
     return ctx(req, "meetings.html", user=u, meetings=meetings)
@@ -3905,7 +3922,7 @@ async def meeting_detail_page(req: Request, mid: int):
             linked_opp = dict(_r) if _r else None
     return ctx(req, "meeting_form.html", user=u, meeting=m,
                decisions=decisions, actions=actions, attendees=attendees,
-               can_edit=_can_edit_meeting(u, m), ai_on=ai_client.ai_available(),
+               can_edit=_can_edit_meeting(u, m), can_delete=_can_delete_meeting(u, m), ai_on=ai_client.ai_available(),
                transcribe_on=ai_client.transcribe_available(),
                projects=projects, opps=opps, linked_project=linked_project, linked_opp=linked_opp,
                can_link_proj=_can_vsales, can_link_sales=_can_sales)
@@ -4055,7 +4072,7 @@ async def api_meeting_delete(req: Request, mid: int):
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
         if not m:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
-        if not _can_edit_meeting(u, dict(m)):
+        if not _can_delete_meeting(u, dict(m)):   # 등록 담당은 고치기만(삭제 X) — 2026-09-15 대표 결정
             return JSONResponse({"ok": False, "error": "삭제 권한이 없습니다."}, 403)
         # 자식(결정·할일·참석자)은 FK ON DELETE CASCADE 로 정리.
         # 단, 일일카드(tasks)로 연동된 것은 카드 자체를 지우지 않음(이미 독립 업무).
@@ -4641,6 +4658,10 @@ async def api_meeting_msg_start(req: Request):
         starter = _msg_user_by_empno(c, d.get("starter_employee_no"))
         if not starter:
             return JSONResponse({"ok": False, "error": "starter_not_found"}, 404)
+        # 등록 담당(회의를 만든 사람) — 녹음을 안 해도 회의록을 고칠 수 있다(대표 결정 2026-09-15).
+        #   사번이 없거나 WORKS 에서 정확히 1명으로 안 찾아지면 비워 둔다(추측 연결 금지).
+        organizer = _msg_user_by_empno(c, d.get("organizer_employee_no")) if d.get("organizer_employee_no") else None
+        org_id = organizer["id"] if organizer else None
         created = False
         row = c.execute("SELECT * FROM meetings WHERE msg_meeting_id=?", (msg_id,)).fetchone()
         if not row:
@@ -4654,11 +4675,13 @@ async def api_meeting_msg_start(req: Request):
             try:
                 cur = c.execute(
                     """INSERT INTO meetings(title, meeting_date, mode, team_id, owner_id, location, tags,
-                                            attendees_text, body, visibility, status, msg_meeting_id, msg_started_at)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))""",
+                                            attendees_text, body, visibility, status, msg_meeting_id, msg_started_at,
+                                            msg_organizer_id)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'),?)""",
                     (title, mdate, "A", starter.get("team_id"), starter["id"],
                      str(d.get("location") or "").strip()[:200], str(d.get("tags") or "").strip()[:200],
-                     ", ".join(names)[:1000], str(d.get("note") or "").strip()[:4000], vis, "draft", msg_id),
+                     ", ".join(names)[:1000], str(d.get("note") or "").strip()[:4000], vis, "draft", msg_id,
+                     org_id),
                 )
                 new_id = cur.lastrowid
                 for au in att_users:      # 사번으로 정확히 연결 — 사람 참조는 ID(이름 매칭 X)
@@ -4672,6 +4695,9 @@ async def api_meeting_msg_start(req: Request):
                 created = False           # 거의 같은 순간 다른 사람이 먼저 만들었다 → 그 회의록을 쓴다
             row = c.execute("SELECT * FROM meetings WHERE msg_meeting_id=?", (msg_id,)).fetchone()
         m = dict(row)
+        if org_id and not m.get("msg_organizer_id"):   # 먼저 만들어진 회의록에 등록 담당이 비어 있으면 채움(있으면 안 바꿈)
+            c.execute("UPDATE meetings SET msg_organizer_id=? WHERE id=?", (org_id, m["id"]))
+            m["msg_organizer_id"] = org_id
         if created:
             try:
                 log_activity(c, starter["id"], "meeting_create",
@@ -4686,6 +4712,7 @@ async def api_meeting_msg_start(req: Request):
             "started_by": _msg_owner_disp(c, m.get("owner_id")),
             "started_at": m.get("msg_started_at") or "",
             "stage": _meeting_msg_stage(m),
+            "organizer_set": bool(m.get("msg_organizer_id")),
             "url": f"/meetings/{m['id']}" + ("?autorec=1" if autorec else ""),
         }
     return JSONResponse(out)

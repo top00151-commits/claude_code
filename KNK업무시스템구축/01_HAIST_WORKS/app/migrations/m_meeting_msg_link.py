@@ -7,6 +7,7 @@
 추가 컬럼 (idempotent · ALTER):
   - meetings.msg_meeting_id : 이음 메신저 회의 id (회의 1건당 회의록 1개 — 부분 유일 인덱스)
   - meetings.msg_started_at : 「회의 시작」을 누른 시각 (카드의 '진행 중' 표기용)
+  - meetings.msg_organizer_id : 회의 알림 등록 담당(WORKS users.id) — 녹음 안 해도 회의록 편집 가능(대표 결정 2026-09-15)
 
 ⚠ 인덱스는 반드시 ALTER '뒤'에 만든다 — 스키마(executescript)에 넣으면 기존 운영 DB 에서는
   CREATE TABLE IF NOT EXISTS 가 건너뛰어 컬럼이 없는데 인덱스가 먼저 실행돼 앱 기동이 죽는다
@@ -36,6 +37,9 @@ def migrate(db_path: str) -> dict:
         if "msg_started_at" not in mc:
             c.execute("ALTER TABLE meetings ADD COLUMN msg_started_at TEXT")
             added.append("meetings.msg_started_at")
+        if "msg_organizer_id" not in mc:   # 등록 담당 — 녹음 안 해도 회의록 편집 가능(대표 결정 2026-09-15)
+            c.execute("ALTER TABLE meetings ADD COLUMN msg_organizer_id INTEGER")
+            added.append("meetings.msg_organizer_id")
         # 메신저 회의 1건당 회의록 1개 — 연결 없는 일반 회의(NULL)는 여러 개 허용
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_meetings_msg "
                   "ON meetings(msg_meeting_id) WHERE msg_meeting_id IS NOT NULL")
