@@ -12,6 +12,7 @@ WORKS sso_client(2026-05-31)를 메일 앱용으로 이식.
 """
 from __future__ import annotations
 import os
+import threading
 import time
 from typing import Optional
 
@@ -27,8 +28,11 @@ MESSENGER_INTERNAL_BASE = os.environ.get(
 SSO_AUDIENCE = os.environ.get("KNK_MAIL_SSO_AUDIENCE", "knk-mail")
 SSO_ISSUER = os.environ.get("KNK_SSO_ISSUER", "https://haist.knknara.co.kr/msg/")
 
-_PUBKEY_CACHE: dict = {"pem": None, "fetched_at": 0}
+_PUBKEY_CACHE: dict = {"pem": None, "fetched_at": 0, "forced_at": 0}
 _PUBKEY_TTL_SEC = 3600
+# 서명이 틀린 토큰은 누구나 만들 수 있다 → 강제 재조회는 이 간격에 1번만(이음 두드림 방지 · WORKS z1100 과 동일)
+_PUBKEY_FORCE_REFRESH_MIN_SEC = 30
+_PUBKEY_FORCE_LOCK = threading.Lock()
 _PWV_CHECK_CACHE: dict = {}
 PWV_CHECK_INTERVAL_SEC = 300
 _HTTP_TIMEOUT_SEC = 5.0
@@ -57,6 +61,18 @@ def invalidate_public_key_cache():
     _PUBKEY_CACHE["fetched_at"] = 0
 
 
+def _refetch_public_key_on_signature_mismatch(old_pem: str) -> Optional[str]:
+    """서명 불일치 때만 부른다 → 이음 공개키 1회 강제 재조회. 옛 키와 다른 새 키면 반환, 아니면 None.
+    캐시를 먼저 비우지 않는다(이음 503 이면 옛 캐시 유지). 최소 간격 안이면 받지 않고 현재 캐시만 본다."""
+    with _PUBKEY_FORCE_LOCK:
+        now = time.time()
+        may_fetch = (now - _PUBKEY_CACHE["forced_at"]) >= _PUBKEY_FORCE_REFRESH_MIN_SEC
+        if may_fetch:
+            _PUBKEY_CACHE["forced_at"] = now
+    pem2 = get_public_key(force_refresh=True) if may_fetch else _PUBKEY_CACHE["pem"]
+    return pem2 if (pem2 and pem2 != old_pem) else None
+
+
 # ── JWT 검증 ──────────────────────────────────────────
 def verify_token(token: str) -> Optional[dict]:
     if not token or not isinstance(token, str):
@@ -68,6 +84,20 @@ def verify_token(token: str) -> Optional[dict]:
     try:
         return pyjwt.decode(token, pem, algorithms=["RS256"],
                             audience=SSO_AUDIENCE, issuer=SSO_ISSUER)
+    except pyjwt.InvalidSignatureError:
+        # 서명 불일치 = 이음 서명키가 새로 만들어졌을 수 있음 → 공개키 1회 재조회 후 재검증.
+        #   ⚠ 반드시 InvalidTokenError 보다 **앞**에 둘 것(하위 예외라 뒤에 두면 재조회가 실행되지 않음).
+        #   만료·audience·issuer 오류는 서명이 맞았다는 뜻이므로 재조회하지 않는다.
+        print("[SSO] verify_token: 서명 불일치 — public key 재조회 후 1회 재시도")
+        pem2 = _refetch_public_key_on_signature_mismatch(pem)
+        if pem2:
+            try:
+                return pyjwt.decode(token, pem2, algorithms=["RS256"],
+                                    audience=SSO_AUDIENCE, issuer=SSO_ISSUER)
+            except Exception as e2:
+                print(f"[SSO] verify_token: 재시도도 실패 ({e2})")
+        else:
+            print("[SSO] verify_token: 새 public key 없음(같은 키·이음 응답 없음·재조회 간격 안) — 거부")
     except pyjwt.ExpiredSignatureError:
         print("[SSO] verify_token: 토큰 만료")
     except pyjwt.InvalidAudienceError:
@@ -77,15 +107,7 @@ def verify_token(token: str) -> Optional[dict]:
     except pyjwt.InvalidTokenError as e:
         print(f"[SSO] verify_token: invalid - {e}")
     except Exception as e:
-        print(f"[SSO] verify_token: 예외 ({e}) — public key 재조회 후 1회 재시도")
-        invalidate_public_key_cache()
-        pem2 = get_public_key(force_refresh=True)
-        if pem2 and pem2 != pem:
-            try:
-                return pyjwt.decode(token, pem2, algorithms=["RS256"],
-                                    audience=SSO_AUDIENCE, issuer=SSO_ISSUER)
-            except Exception as e2:
-                print(f"[SSO] verify_token: 재시도도 실패 ({e2})")
+        print(f"[SSO] verify_token: 예외 ({e})")
     return None
 
 
