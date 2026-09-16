@@ -1044,6 +1044,31 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 {% include "_v5_partials/spa_nav.html" ignore missing %}
 
 <script>
+/* v5H226z1104 (이새롬 프로 요청 2026-09-16): ⭐저장하면 '저장한 그 화면'으로 돌아온다 (전 페이지 공통).
+   신고: 프로젝트 상세에서 수주를 수정·저장하면 다른 수주 카드 화면으로 넘어간다.
+   원인: 저장 뒤 새로고침을 `location.pathname + '?_t=' + Date.now()` 로 해 **지금 주소의 조건이 통째로
+   버려졌다**. 프로젝트 상세는 ?so=<수주번호> 로 '보던 수주'를 메인(편집) 카드로 올리는데(z695), 그 조건이
+   사라지면 규칙상 가장 오래된 수주(최초 수주)가 메인이 된다 → 저장만 하면 엉뚱한 카드가 떴다.
+   덤으로 매번 달라지는 _t 때문에 화면 위치 복원(z984b) 열쇠까지 어긋나 맨 위로 올라갔다.
+   규칙: **저장·삭제 뒤 새로고침은 이 함수로만.** 주소의 조건은 그대로 두고 _t 만 새로 끼운다
+   (위치 복원 열쇠는 normSearch 가 _t 를 빼고 만드니 같은 화면 = 같은 열쇠).
+   배포 전 검사: deploy/check_standards.py `check_reload_keep_view` 가 옛 방식을 잡는다. */
+(function(){
+  if (window.knkReloadKeepView) return;
+  window.knkReloadKeepView = function(){
+    try {
+      var sp = new URLSearchParams(location.search || '');
+      sp.set('_t', String(Date.now()));          /* 캐시버스터는 갱신 — 저장 결과가 캐시에 가리지 않게(v5H172) */
+      var q = sp.toString();
+      location.href = location.pathname + (q ? ('?' + q) : '');
+    } catch (e) {
+      location.reload();                         /* 폴백: 주소 그대로 다시 읽기 */
+    }
+  };
+})();
+</script>
+
+<script>
 /* v5H226z984b (대표 지시): 화면 위치 복원(⭐전사 표준) — "목록에서 스크롤 내려 찾아 들어갔다 돌아오면
    그 자리 그대로". 문제: 1차(z984)는 창+본문(.main) 위치만 저장 → .main 자체가 스크롤되는 화면(소모품
    목록 등)만 복원되고, 작업일정표(div#schedWrap.sched-wrap)처럼 '내부 컨테이너'가 따로 스크롤되는 화면은
@@ -1078,6 +1103,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     for (var i = 0; i < parts.length; i++){
       var p = parts[i]; if (!p) continue;
       var eq = p.indexOf('=');
+      if ((eq < 0 ? p : p.slice(0, eq)) === '_t') continue;   /* z1104: 새로고침 캐시버스터는 열쇠에서 뺀다 — 값이 매번 달라 같은 화면인데 열쇠가 어긋났다(저장하면 맨 위로 올라가던 원인) */
       if ((eq < 0 ? '' : p.slice(eq + 1)) === '') continue;
       keep.push(p);
     }

@@ -528,6 +528,44 @@ def check_nas_quiet_schedulers(_files=None):
     return bad
 
 
+def check_reload_keep_view(files):
+    """§저장 후 새로고침 = 보던 화면 그대로 (z1104 · 이새롬 프로 신고 2026-09-16).
+
+    신고 원문: "1번 화면에서 수정-저장 하면 2번 화면으로 넘어갑니다. 저장 후 저장된 화면으로 나와야 합니다."
+    원인: 저장 뒤 새로고침이 `location.href = location.pathname + '?_t=' + Date.now()` 였다.
+    `pathname` 만 쓰면 **지금 주소의 조건이 통째로 버려진다.** 프로젝트 상세는 `?so=<수주번호>` 로
+    '보던 수주'를 메인(편집) 카드로 올리므로(z695), 저장만 하면 가장 오래된 수주(최초 수주) 카드로 튀었다.
+    같은 이유로 매번 달라지는 `_t` 가 화면 위치 복원(z984b) 열쇠까지 어긋내 화면이 맨 위로 올라갔다.
+    project_detail.html 한 곳이 아니라 **같은 줄이 8곳**이었다 — 한 곳만 고치면 나머지에서 그대로 재발한다.
+
+    올바른 방법: 공용 `knkReloadKeepView()` (`_v5_partials/chrome.html`) — 주소 조건은 그대로 두고
+                 `_t` 만 새로 끼운다. 조건 없이 그냥 다시 읽으면 되는 자리는 `location.reload()` 도 좋다
+                 (그 역시 주소를 안 버린다).
+
+    잡는 것: `location.href=` / `location.assign(` / `location.replace(` 에
+             `location.pathname + '?…'` 를 넘기는 모든 자리(줄바꿈이 끼어 있어도 잡는다).
+    빼는 것: 주석 줄 · Jinja 주석(`{# #}`). WORKS 의 화면 JS 는 전부 템플릿 인라인이라 .html 만 본다
+             (static 에 .js 파일 0개 — 2026-09-16 실측).
+    """
+    bad = []
+    pat = re.compile(
+        r"location\s*\.\s*(?:href\s*=|assign\s*\(|replace\s*\()\s*"
+        r"(?:window\s*\.\s*)?location\s*\.\s*pathname\s*\+\s*['\"]\?", re.S)
+    jinja_cmt = re.compile(r"\{#.*?#\}", re.S)
+    for p in files:
+        if not p.endswith(".html"):
+            continue
+        src = jinja_cmt.sub(_blank_keep_lines, _read(p))
+        lines = src.splitlines()
+        for m in pat.finditer(src):
+            i = src.count("\n", 0, m.start())
+            ln = lines[i] if i < len(lines) else ""
+            if ln.lstrip().startswith(("//", "*", "/*")):     # 규칙을 설명하는 주석 줄은 위반이 아니다
+                continue
+            bad.append((p, i + 1, ln.strip()[:110]))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -628,6 +666,16 @@ def main():
             print("       %s:%s  %s" % (os.path.basename(f), l, m))
     else:
         print("  ✅ NAS 백업 시간(월 02:00~07:30) 예약 작업 : 모두 판정 거침")
+
+    rkv_bad = check_reload_keep_view(files)
+    if rkv_bad:
+        fail += len(rkv_bad)
+        print("  ❌ 저장 후 새로고침이 보던 화면을 버림 : %d건 → 공용 knkReloadKeepView() 사용"
+              " (_v5_partials/chrome.html)" % len(rkv_bad))
+        for f, l, m in rkv_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 저장 후 새로고침 : 보던 화면(주소 조건) 유지")
 
     print("=" * 72)
     if fail:
