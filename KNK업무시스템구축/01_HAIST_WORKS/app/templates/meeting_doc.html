@@ -6,59 +6,108 @@
 <title>회의록 · {{ m.title }}</title>
 {# ============================================================
    meeting_doc.html — 회의록 인쇄/PDF 양식 (16_KNK_Meeting)
-   실 회의 데이터 자동채움. 결재란·보안등급(공개범위 매핑)·배포처 포함.
-   인쇄/PDF: 우상단 버튼(window.print) → @media print 로 버튼 숨김·깔끔 출력.
-   표준 양식 v2 (대표 확정 2026-06-14): 로고·결재란·분류/보안·배포처.
+   표준 양식 v3 (대표 확정 2026-09-16): 사내에서 실제 쓰는 종이 양식 그대로.
+     로고(좌상단) · 「회 의 록」 · 결재란(담당/검토/승인)
+     회의명 / 일시 / 회의장소 / 부서·작성자
+     참 석 자 (부서 · 성명(서명) 3쌍 × 최소 3줄)
+     안    건  ← 회의록 정리(AI) + 결정사항 + 할 일이 여기에 들어간다
+   실 회의 데이터 자동채움. 인쇄/PDF: 우상단 버튼(window.print), @media print 로 버튼 숨김.
+   A4 세로 1장 기준(내용이 길면 자연스럽게 다음 장으로 이어짐).
+   ⚠ 글자 간격(회 의 록 / 참 석 자 / 안   건)은 종이 양식 그대로 맞춘 것 — 임의로 줄이지 말 것.
    ============================================================ #}
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; background: #f3f4f6; color: #1a1a1a;
-    font-family: "Malgun Gothic","맑은 고딕",system-ui,sans-serif; font-size: 13.5px; line-height: 1.6; }
-  .page { max-width: 820px; margin: 18px auto; background: #fff; border: 1px solid #e5e7eb;
-    border-radius: 10px; padding: 30px 34px; }
-  h1 { font-size: 24px; font-weight: 800; margin: 3px 0 8px; letter-spacing: 0.02em; }
-  .hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
-    border-bottom: 2px solid #333; padding-bottom: 14px; }
-  .logo { width: 52px; height: 52px; border: 1px solid #d1d5db; border-radius: 7px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; overflow: hidden; }
-  .logo img { max-width: 100%; max-height: 100%; }
-  .logo span { font-size: 16px; font-weight: 700; letter-spacing: 0.06em; }
-  .co { font-size: 12.5px; color: #6b7280; letter-spacing: 0.03em; }
-  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
-  .pill { font-size: 11.5px; padding: 2px 8px; border-radius: 6px; font-weight: 700; white-space: nowrap; }
-  .p-sec { background: #fdecec; color: #b91c1c; }
-  .p-team { background: #eef2f7; color: #475569; }
-  .p-all { background: #e8f3ec; color: #15803d; }
-  .p-no { background: #f3f4f6; color: #6b7280; }
-  table.appr { border-collapse: collapse; width: 232px; flex-shrink: 0; table-layout: fixed; }
-  table.appr td, table.appr th { border: 1px solid #9ca3af; font-size: 11.5px; text-align: center; padding: 4px; }
-  table.appr th { background: #f3f4f6; color: #4b5563; font-weight: 700; }
-  table.appr .v { width: 20px; background: #f3f4f6; color: #4b5563; line-height: 1.25; }
-  .meta { display: grid; grid-template-columns: 72px 1fr 72px 1fr; gap: 0; margin-top: 16px;
-    border: 1px solid #d1d5db; }
-  .meta > div { padding: 6px 10px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
-  .meta .k { background: #f7f8fa; color: #4b5563; font-weight: 700; border-right: 1px solid #e5e7eb; }
-  .sec-h { display: flex; align-items: center; gap: 6px; font-size: 14.5px; font-weight: 800;
-    margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #d1d5db; }
-  .sum { white-space: pre-wrap; font-size: 13.5px; line-height: 1.75; background: #fafbfc;
-    border: 1px solid #eceef1; border-radius: 6px; padding: 11px 13px; }
-  table.data { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  table.data td, table.data th { border: 1px solid #d1d5db; padding: 7px 9px; font-size: 13px;
-    text-align: left; vertical-align: top; }
-  table.data th { background: #f3f4f6; color: #4b5563; font-weight: 700; }
-  .foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid #d1d5db; font-size: 13px;
-    display: flex; flex-direction: column; gap: 6px; }
-  .foot .k { color: #6b7280; font-weight: 700; }
-  .empty { color: #9ca3af; text-align: center; }
-  .toolbar { max-width: 820px; margin: 14px auto 0; display: flex; gap: 8px; justify-content: flex-end; }
+  body { margin: 0; background: #eceef1; color: #000;
+    font-family: "Malgun Gothic","맑은 고딕",system-ui,sans-serif; font-size: 13px; line-height: 1.55; }
+
+  .toolbar { width: 794px; max-width: 96vw; margin: 14px auto 0; display: flex; gap: 8px; justify-content: flex-end; }
   .btn { font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 7px; cursor: pointer;
     border: 1px solid #cbd5e1; background: #fff; color: #1f2937; text-decoration: none; }
   .btn.print { background: #111827; color: #fff; border-color: #111827; }
+
+  /* A4 세로(210mm) — 화면에서도 종이 비율 그대로 */
+  .sheet { width: 794px; max-width: 96vw; margin: 12px auto 26px; background: #fff;
+    padding: 26px 30px 30px; box-shadow: 0 1px 6px rgba(0,0,0,.14); }
+
+  /* ── 머리: 로고 · 회 의 록 · 결재란 ───────────────────────── */
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .top-l { flex: 1 1 auto; min-width: 0; }
+  .logo { width: 268px; max-width: 100%; height: auto; display: block; }
+  .logo-txt { display: none; font-size: 17px; font-weight: 800; color: #a5282c; letter-spacing: .04em; }
+  .doc-title { text-align: center; margin: 14px 0 0; }
+  .doc-title span { display: inline-block; font-size: 30px; font-weight: 700;
+    letter-spacing: .62em; margin-right: -.62em; }
+
+  table.appr { border-collapse: collapse; width: 278px; flex: 0 0 auto; table-layout: fixed; }
+  table.appr td, table.appr th { border: 1px solid #000; font-size: 12px; text-align: center;
+    padding: 2px 3px; font-weight: 400; }
+  table.appr th { font-weight: 400; }
+  table.appr .lab { width: 24px; font-size: 12px; line-height: 1.15; }
+  table.appr .sign { height: 44px; }
+  table.appr .who { font-size: 11px; color: #333; vertical-align: bottom; padding-bottom: 3px; }
+  table.appr .dt { height: 17px; font-size: 11px; color: #333; }
+
+  /* ── 회의명 / 일시 / 회의장소 / 부서·작성자 ───────────────── */
+  table.form { border-collapse: collapse; width: 100%; table-layout: fixed; margin-top: 14px; }
+  table.form td, table.form th { border: 1px solid #000; padding: 5px 8px; font-size: 13px;
+    vertical-align: middle; }
+  table.form th.k { width: 108px; text-align: center; font-weight: 700; }
+  table.form th.k i { font-style: normal; display: inline-block; }
+  table.form th.k i.s3 { letter-spacing: .34em; margin-right: -.34em; }   /* 회 의 명 */
+  table.form th.k i.s2 { letter-spacing: 1.5em; margin-right: -1.5em; }   /* 일    시 */
+  table.form td.v { text-align: left; height: 27px; word-break: break-all; }
+
+  /* ── 구역 머리띠(참 석 자 / 안   건) ─────────────────────── */
+  .band { border: 1px solid #000; border-top: 0; text-align: center; font-weight: 700;
+    font-size: 14px; padding: 4px 0; }
+  .band i { font-style: normal; display: inline-block; letter-spacing: .6em; margin-right: -.6em; }
+  .band.wide i { display: inline-flex; width: 38%; min-width: 130px; justify-content: space-between;
+    letter-spacing: 0; margin-right: 0; }
+  .spacer { border: 1px solid #000; border-top: 0; height: 15px; }
+
+  /* ── 참석자 표 ───────────────────────────────────────────── */
+  table.att { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  table.att td, table.att th { border: 1px solid #000; font-size: 12.5px; padding: 4px 5px;
+    text-align: center; height: 26px; word-break: break-all; }
+  table.att th { font-weight: 700; border-top: 0; }
+  table.att .d { width: 11.5%; }
+  table.att .n { width: 21.83%; }
+
+  /* ── 안건(본문) ──────────────────────────────────────────── */
+  .body { border: 1px solid #000; border-top: 0; padding: 12px 13px 16px; min-height: 360px; }
+  .ln { font-size: 13px; line-height: 1.72; white-space: pre-wrap; word-break: break-word; }
+  .ln.k { font-weight: 700; margin-bottom: 3px; }          /* 핵심: … */
+  .ln.h { font-weight: 700; margin: 11px 0 3px; }          /* [안건명] */
+  .ln.e { height: 7px; }
+  .ln.none { color: #888; }
+
+  .sub { font-size: 13px; font-weight: 700; margin: 16px 0 5px; }
+  table.data { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.data td, table.data th { border: 1px solid #000; padding: 5px 7px; font-size: 12.5px;
+    text-align: left; vertical-align: top; word-break: break-word; }
+  table.data th { font-weight: 700; text-align: center; }
+  table.data td.c { text-align: center; }
+
+  .foot { margin-top: 9px; font-size: 11px; color: #666; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
   @media print {
     body { background: #fff; }
     .toolbar { display: none !important; }
-    .page { border: 0; border-radius: 0; margin: 0; max-width: 100%; padding: 0; }
-    @page { margin: 14mm; }
+    .sheet { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; }
+    .body { min-height: 300px; }
+    tr { page-break-inside: avoid; }
+    @page { size: A4 portrait; margin: 12mm; }
+  }
+  /* 휴대폰 — 종이 양식 그대로 보되 겹치지 않게만 줄인다 */
+  @media (max-width: 840px) {
+    .sheet { padding: 14px 12px 18px; }
+    .logo { width: 210px; }
+    .doc-title span { font-size: 22px; letter-spacing: .45em; margin-right: -.45em; }
+    table.appr { width: 190px; }
+    table.form th.k { width: 84px; font-size: 11.5px; padding: 4px 3px; }
+    table.form td, table.form th { font-size: 12px; }
+    table.att td, table.att th { font-size: 11px; padding: 3px 2px; }
+    .band.wide i { width: 50%; }
   }
 </style>
 </head>
@@ -69,81 +118,103 @@
   <a class="btn print" href="javascript:void(0)" onclick="window.print()">🖨 인쇄 / PDF 저장</a>
 </div>
 
-<div class="page">
+<div class="sheet">
 
-  <div class="hd">
-    <div style="display:flex; align-items:flex-start; gap:12px;">
-      <div class="logo">
-        <img src="/static/logo.png" alt="KNK" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-        <span style="display:none;">KNK</span>
-      </div>
-      <div>
-        <div class="co">㈜케이엔케이 · HAIST Innovation</div>
-        <h1>회의록</h1>
-        <div class="badges">
-          <span class="pill {{ 'p-sec' if m.visibility=='private' else ('p-all' if m.visibility=='all' else 'p-team') }}">{{ sec }}</span>
-          <span class="pill p-no">{{ docno }}</span>
-        </div>
-      </div>
+  <div class="top">
+    <div class="top-l">
+      <img class="logo" src="/static/logo.png" alt="KNK HAIST Innovation"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+      <div class="logo-txt">KNK HAIST Innovation</div>
+      <div class="doc-title"><span>회의록</span></div>
     </div>
     <table class="appr">
       <tbody>
         <tr>
-          <td rowspan="3" class="v">결<br>재</td>
-          <th>작성</th><th>검토</th><th>승인</th>
+          <td class="lab" rowspan="2">결<br>재</td>
+          <th>담당</th><th>검토</th><th>승인</th>
         </tr>
-        <tr><td style="height:30px;"></td><td></td><td></td></tr>
-        <tr><td style="font-size:12px;">{{ owner_name }}</td><td></td><td></td></tr>
+        <tr>
+          <td class="sign who">{{ owner_name or '' }}</td><td class="sign"></td><td class="sign"></td>
+        </tr>
+        <tr>
+          <td class="dt">/</td><td class="dt">/</td><td class="dt">/</td><td class="dt">/</td>
+        </tr>
       </tbody>
     </table>
   </div>
 
-  <div class="meta">
-    <div class="k">회의명</div><div style="border-right:1px solid #e5e7eb;">{{ m.title }}</div>
-    <div class="k">일시</div><div>{{ date_disp }}{% if m.meeting_date %} {{ '' }}{% endif %}</div>
-    <div class="k">장소</div><div style="border-right:1px solid #e5e7eb;">{{ m.location or '—' }}</div>
-    <div class="k">작성자</div><div>{{ owner_disp or owner_name or '—' }}</div>
-    <div class="k" style="border-bottom:0;">참석자</div>
-    <div style="grid-column:2 / -1; border-bottom:0;">{{ m.attendees_text or '—' }}</div>
+  <table class="form">
+    <tbody>
+      <tr><th class="k"><i class="s3">회의명</i></th><td class="v">{{ m.title }}</td></tr>
+      <tr><th class="k"><i class="s2">일시</i></th><td class="v">{{ date_disp }}{% if time_disp %} {{ time_disp }}{% endif %}</td></tr>
+      <tr><th class="k"><i>회의장소</i></th><td class="v">{{ m.location or '' }}</td></tr>
+      <tr><th class="k"><i>부서/작성자</i></th><td class="v">{{ owner_line or '' }}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="band"><i>참석자</i></div>
+  <table class="att">
+    <thead>
+      <tr>
+        <th class="d">부서</th><th class="n">성명 (서명)</th>
+        <th class="d">부서</th><th class="n">성명 (서명)</th>
+        <th class="d">부서</th><th class="n">성명 (서명)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in att_rows %}
+      <tr>{% for a in row %}<td>{{ a.dept }}</td><td>{{ a.name }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="spacer"></div>
+
+  <div class="band wide"><i><b>안</b><b>건</b></i></div>
+  <div class="body">
+
+    {% if sum_lines %}
+      {% for ln in sum_lines %}<div class="ln {{ ln.kind }}">{{ ln.t }}</div>{% endfor %}
+    {% else %}
+      <div class="ln none">아직 정리 전입니다. (회의록 화면에서 「✨ AI로 정리」)</div>
+    {% endif %}
+
+    {% if decisions %}
+    <div class="sub">■ 결정사항</div>
+    <table class="data">
+      <colgroup><col style="width:30px"><col><col style="width:110px"><col style="width:100px"></colgroup>
+      <thead><tr><th>#</th><th>결정 내용</th><th>책임자</th><th>기한</th></tr></thead>
+      <tbody>
+        {% for d in decisions %}
+        <tr><td class="c">{{ loop.index }}</td><td>{{ d.what }}</td>
+            <td class="c">{{ d.who or '—' }}</td><td class="c">{{ d.due or '—' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if actions %}
+    <div class="sub">■ 할 일</div>
+    <table class="data">
+      <colgroup><col style="width:30px"><col><col style="width:110px"><col style="width:100px"></colgroup>
+      <thead><tr><th>#</th><th>할 일</th><th>담당</th><th>기한</th></tr></thead>
+      <tbody>
+        {% for a in actions %}
+        <tr><td class="c">{{ loop.index }}</td><td>{{ a.task }}</td>
+            <td class="c" title="{{ a.assignee_disp or a.assignee_name or '' }}">{{ a.assignee_name or '—' }}</td>
+            <td class="c">{{ a.due_date or '—' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
   </div>
 
-  <div class="sec-h">📋 회의록 정리</div>
-  {% if m.summary %}<div class="sum">{{ m.summary }}</div>
-  {% else %}<div class="sum empty">아직 정리 전입니다. (회의록에서 「✨ AI로 정리」)</div>{% endif %}
-
-  <div class="sec-h">✔ 결정사항</div>
-  <table class="data">
-    <colgroup><col style="width:32px"><col><col style="width:84px"><col style="width:98px"></colgroup>
-    <thead><tr><th>#</th><th>결정 내용</th><th>책임자</th><th>기한</th></tr></thead>
-    <tbody>
-      {% for d in decisions %}
-      <tr><td>{{ loop.index }}</td><td>{{ d.what }}</td><td>{{ d.who or '—' }}</td><td>{{ d.due or '—' }}</td></tr>
-      {% else %}
-      <tr><td colspan="4" class="empty">결정사항 없음</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <div class="sec-h">📌 할 일 (Action Items)</div>
-  <table class="data">
-    <colgroup><col style="width:32px"><col><col style="width:72px"><col style="width:92px"><col style="width:70px"></colgroup>
-    <thead><tr><th>#</th><th>할 일</th><th>담당</th><th>기한</th><th>상태</th></tr></thead>
-    <tbody>
-      {% for a in actions %}
-      <tr><td>{{ loop.index }}</td><td>{{ a.task }}</td><td title="{{ a.assignee_disp or a.assignee_name or '' }}">{{ a.assignee_name or '—' }}</td>
-          <td>{{ a.due_date or '—' }}</td>
-          <td>{% if a.linked_task_id %}일일카드{% else %}예정{% endif %}</td></tr>
-      {% else %}
-      <tr><td colspan="5" class="empty">할 일 없음</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
   <div class="foot">
-    {% if link_proj or link_opp %}<div><span class="k">연결</span> &nbsp;{% if link_proj %}📋 {{ link_proj.mgmt_code or link_proj.code }} {{ link_proj.name }}{% endif %}{% if link_proj and link_opp %} &nbsp;·&nbsp; {% endif %}{% if link_opp %}🎯 {{ link_opp.opp_no }} {{ link_opp.title }}{% endif %}</div>{% endif %}
-    <div><span class="k">분류</span> &nbsp;정기 / 임시 (해당란 표기)</div>
-    <div><span class="k">배포처(회람)</span> &nbsp;________________________________________</div>
-    <div><span class="k">비고</span> &nbsp;</div>
+    <span>{{ docno }}</span>
+    <span>공개범위 {{ sec }}</span>
+    {% if link_proj %}<span>연결 {{ link_proj.mgmt_code or link_proj.code }} {{ link_proj.name }}</span>{% endif %}
+    {% if link_opp %}<span>영업 {{ link_opp.opp_no }} {{ link_opp.title }}</span>{% endif %}
   </div>
 
 </div>

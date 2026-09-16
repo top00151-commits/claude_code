@@ -4000,6 +4000,48 @@ async def meeting_detail_page(req: Request, mid: int):
                can_link_proj=_can_vsales, can_link_sales=_can_sales)
 
 
+# ── 회의록 종이 양식(v3 · 대표 확정 2026-09-16) 채움 도우미 ──────────────────
+#   사내에서 실제 쓰는 종이 회의록 양식 그대로 인쇄되게 한다.
+#   참석자 = '부서 | 성명(서명)' 3쌍씩 줄로, 「안 건」 칸 = AI 정리 본문(머리말 포함).
+def _mtg_doc_att_rows(atts, per_row=3, min_rows=3):
+    """참석자 목록 → 종이 양식 줄 목록. 빈칸을 채우고 최소 min_rows 줄을 보장한다."""
+    def _blank():
+        return {"dept": "", "name": ""}
+    rows, cur = [], []
+    for a in atts:
+        cur.append(a)
+        if len(cur) == per_row:
+            rows.append(cur)
+            cur = []
+    if cur:
+        while len(cur) < per_row:
+            cur.append(_blank())
+        rows.append(cur)
+    while len(rows) < min_rows:
+        rows.append([_blank() for _ in range(per_row)])
+    return rows
+
+
+def _mtg_doc_sum_lines(summary):
+    """AI 정리 본문 → 줄 목록. kind: k=핵심 h=[안건명] e=빈줄 p=본문.
+    아직 정리 전(빈 글)이면 빈 목록 — 양식에 '아직 정리 전입니다' 안내가 뜬다."""
+    if not (summary or "").strip():
+        return []
+    out = []
+    for ln in (summary or "").replace("\r\n", "\n").split("\n"):
+        t = ln.strip()
+        if not t:
+            kind = "e"
+        elif t.startswith("[") and t.endswith("]"):
+            kind = "h"
+        elif t.startswith("핵심"):
+            kind = "k"
+        else:
+            kind = "p"
+        out.append({"t": ln.rstrip(), "kind": kind})
+    return out
+
+
 @app.get("/meetings/{mid:int}/doc", response_class=HTMLResponse)
 async def meeting_doc_page(req: Request, mid: int):
     """회의록 표준 양식 — 인쇄/PDF용 standalone 문서. 실 회의 데이터 자동채움.
@@ -4018,7 +4060,29 @@ async def meeting_doc_page(req: Request, mid: int):
             "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
         actions = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
-        orow = c.execute("SELECT name FROM users WHERE id=?", (m.get("owner_id"),)).fetchone()
+        # 종이 양식 '부서/작성자' 칸 — 작성자의 부서까지 함께 읽는다.
+        orow = c.execute(
+            "SELECT u.name, COALESCE(u.name_vi,'') AS name_vi, COALESCE(u.rank,'') AS rank, "
+            "COALESCE(t.name,'') AS dept FROM users u LEFT JOIN teams t ON u.team_id=t.id "
+            "WHERE u.id=?", (m.get("owner_id"),)).fetchone()
+        owner_dept = ((orow["dept"] if orow else "") or "")
+        # 종이 양식 참석자 칸 — 사번으로 연결된 사람만 부서·직책이 붙는다(외부 참석자는 이름 그대로).
+        doc_atts = []
+        for _ar in c.execute(
+                "SELECT a.name AS raw, a.user_id, COALESCE(t.name,'') AS dept, "
+                "COALESCE(u.rank,'') AS rank, COALESCE(u.name,'') AS uname, "
+                "COALESCE(u.name_vi,'') AS name_vi "
+                "FROM meeting_attendees a LEFT JOIN users u ON a.user_id=u.id "
+                "LEFT JOIN teams t ON u.team_id=t.id "
+                "WHERE a.meeting_id=? ORDER BY a.id", (mid,)):
+            _ar = dict(_ar)
+            if _ar.get("user_id") and _ar.get("uname"):
+                _anm = vname({"name": _ar["uname"], "name_vi": _ar["name_vi"]})
+                if _ar.get("rank"):
+                    _anm = (_anm + " " + _ar["rank"]).strip()
+            else:
+                _anm = _ar.get("raw") or ""
+            doc_atts.append({"dept": _ar.get("dept") or "", "name": _anm})
         # v5H226z800 (대표 지시·규칙): 작성자·할일 담당 = 이름 직책 부서 [[knk_name_display_rule]].
         #   할일 담당은 매칭된 사용자(assignee_user_id)일 때만 직책·부서 부착, 아니면 원문 이름 유지.
         owner_disp = user_disp_by_id(c, m.get("owner_id"), (orow["name"] if orow else "") or "")
@@ -4033,6 +4097,14 @@ async def meeting_doc_page(req: Request, mid: int):
             _r = c.execute("SELECT opp_no, title FROM sales_opportunities WHERE id=?", (m["opportunity_id"],)).fetchone()
             link_opp = dict(_r) if _r else None
     owner_name = ((orow["name"] if orow else "") or "")
+    # '부서 / 이름 직책' — 이름 표시 규칙(이름 직책 부서)에서 부서만 앞 칸으로 뺀 형태 [[knk_name_display_rule]]
+    _onm = (vname(dict(orow)) if orow else owner_name) or owner_name
+    _ork = ((orow["rank"] if orow else "") or "").strip()
+    owner_nm = (_onm + " " + _ork).strip() if _onm else ""
+    owner_line = ((owner_dept + " / " + owner_nm) if (owner_dept and owner_nm)
+                  else (owner_nm or owner_dept or ""))
+    att_rows = _mtg_doc_att_rows(doc_atts)
+    sum_lines = _mtg_doc_sum_lines(m.get("summary"))
     sec = {"private": "대외비", "team": "사내한정", "hq": "본사한정",
            "vn": "법인한정", "all": "공개"}.get(m.get("visibility"), "사내한정")
     _md = (m.get("meeting_date") or "")
@@ -4043,10 +4115,16 @@ async def meeting_doc_page(req: Request, mid: int):
         date_disp = f"{_md} ({'월화수목금토일'[_d.weekday()]})"
     except Exception:
         pass
+    # 「회의 시작」으로 만든 회의록만 시작 시각을 안다 — 같은 날짜일 때만 붙인다(추측 금지).
+    time_disp = ""
+    _st = str(m.get("msg_started_at") or "").strip()
+    if _md and _st.startswith(_md) and len(_st) >= 16:
+        time_disp = _st[11:16]
     return tpl.TemplateResponse(request=req, name="meeting_doc.html", context={
         "m": m, "decisions": decisions, "actions": actions, "owner_name": owner_name,
         "owner_disp": owner_disp,
-        "sec": sec, "docno": docno, "date_disp": date_disp,
+        "sec": sec, "docno": docno, "date_disp": date_disp, "time_disp": time_disp,
+        "owner_line": owner_line, "att_rows": att_rows, "sum_lines": sum_lines,
         "link_proj": link_proj, "link_opp": link_opp,
     })
 
