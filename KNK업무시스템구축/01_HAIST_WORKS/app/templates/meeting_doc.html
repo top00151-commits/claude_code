@@ -14,16 +14,22 @@
    실 회의 데이터 자동채움. 인쇄/PDF: 우상단 버튼(window.print), @media print 로 버튼 숨김.
    A4 세로 1장 기준(내용이 길면 자연스럽게 다음 장으로 이어짐).
    ⚠ 글자 간격(회 의 록 / 참 석 자 / 안   건)은 종이 양식 그대로 맞춘 것 — 임의로 줄이지 말 것.
+   🖼 이미지 저장·복사 (z1105 · 2026-09-16 대표 지시): 휴대폰에서 양식이 한 화면에 다 안 보인다 →
+      A4 양식 전체를 이미지 한 장으로. 휴대폰 너비와 상관없이 **PC(A4) 모양 그대로** 그린다(.sheet.cap).
+      ⚠ 휴대폰 전용 줄임 규칙은 반드시 `.sheet:not(.cap)` 아래에 둘 것 — 아니면 이미지가 휴대폰 모양으로 찌그러진다.
    ============================================================ #}
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; background: #eceef1; color: #000;
     font-family: "Malgun Gothic","맑은 고딕",system-ui,sans-serif; font-size: 13px; line-height: 1.55; }
 
-  .toolbar { width: 794px; max-width: 96vw; margin: 14px auto 0; display: flex; gap: 8px; justify-content: flex-end; }
+  .toolbar { width: 794px; max-width: 96vw; margin: 14px auto 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
   .btn { font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 7px; cursor: pointer;
     border: 1px solid #cbd5e1; background: #fff; color: #1f2937; text-decoration: none; }
   .btn.print { background: #111827; color: #fff; border-color: #111827; }
+  button.btn { font-family: inherit; line-height: inherit; }
+  .btn.img { background: #a5282c; color: #fff; border-color: #a5282c; }
+  .btn:disabled { opacity: .6; cursor: default; }
 
   /* A4 세로(210mm) — 화면에서도 종이 비율 그대로 */
   .sheet { width: 794px; max-width: 96vw; margin: 12px auto 26px; background: #fff;
@@ -90,24 +96,52 @@
 
   .foot { margin-top: 9px; font-size: 11px; color: #666; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 
+  /* 🖼 이미지로 그릴 사본 — 휴대폰에서도 A4(794px) 모양 그대로 */
+  .sheet.cap { width: 794px; max-width: none; margin: 0; box-shadow: none; }
+  /* html2canvas 는 붙은 테두리(collapse)를 칸마다 따로 그려 가로줄이 두 겹으로 두꺼워진다
+     → 사본에서만 표 바깥 위·왼쪽 + 칸 오른쪽·아래 한 줄씩 그린다(화면·인쇄 모양은 그대로) */
+  .sheet.cap table.form, .sheet.cap table.att, .sheet.cap table.data, .sheet.cap table.appr {
+    border-collapse: separate; border-spacing: 0; border-top: 1px solid #000; border-left: 1px solid #000; }
+  .sheet.cap table.form td, .sheet.cap table.form th, .sheet.cap table.att td, .sheet.cap table.att th,
+  .sheet.cap table.data td, .sheet.cap table.data th, .sheet.cap table.appr td, .sheet.cap table.appr th {
+    border-top: 0; border-left: 0; }
+  .sheet.cap table.att { border-top: 0; }
+
+  /* 🖼 미리보기 창 */
+  .capov { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 9999; background: rgba(15,23,42,.62);
+    display: flex; align-items: center; justify-content: center; padding: 12px; }
+  .capbox { background: #fff; border-radius: 12px; width: 560px; max-width: 100%; max-height: 100%;
+    display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+  .caphd { font-weight: 800; font-size: 15px; padding: 11px 14px; border-bottom: 1px solid #e5e7eb;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .capsz { font-size: 12px; color: #6b7280; font-weight: 400; }
+  .capprev { overflow: auto; background: #eceef1; padding: 10px; flex: 1 1 auto; min-height: 120px; }
+  .capprev img { display: block; width: 100%; height: auto; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  .capmsg { min-height: 20px; font-size: 13px; padding: 7px 14px 0; color: #15803d; font-weight: 700; }
+  .capmsg.err { color: #b91c1c; }
+  .capbtns { display: flex; gap: 8px; flex-wrap: wrap; padding: 9px 14px 6px; }
+  .capbtns .btn { flex: 1 1 auto; text-align: center; }
+  .caphint { font-size: 12px; color: #6b7280; padding: 0 14px 12px; line-height: 1.5; }
+
   @media print {
     body { background: #fff; }
     .toolbar { display: none !important; }
+    .capov { display: none !important; }
     .sheet { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; }
     .body { min-height: 300px; }
     tr { page-break-inside: avoid; }
     @page { size: A4 portrait; margin: 12mm; }
   }
-  /* 휴대폰 — 종이 양식 그대로 보되 겹치지 않게만 줄인다 */
+  /* 휴대폰 — 종이 양식 그대로 보되 겹치지 않게만 줄인다. ⚠ 이미지 사본(.cap)에는 적용하지 않는다 */
   @media (max-width: 840px) {
-    .sheet { padding: 14px 12px 18px; }
-    .logo { width: 210px; }
-    .doc-title span { font-size: 22px; letter-spacing: .45em; margin-right: -.45em; }
-    table.appr { width: 190px; }
-    table.form th.k { width: 84px; font-size: 11.5px; padding: 4px 3px; }
-    table.form td, table.form th { font-size: 12px; }
-    table.att td, table.att th { font-size: 11px; padding: 3px 2px; }
-    .band.wide i { width: 50%; }
+    .sheet:not(.cap) { padding: 14px 12px 18px; }
+    .sheet:not(.cap) .logo { width: 210px; }
+    .sheet:not(.cap) .doc-title span { font-size: 22px; letter-spacing: .45em; margin-right: -.45em; }
+    .sheet:not(.cap) table.appr { width: 190px; }
+    .sheet:not(.cap) table.form th.k { width: 84px; font-size: 11.5px; padding: 4px 3px; }
+    .sheet:not(.cap) table.form td, .sheet:not(.cap) table.form th { font-size: 12px; }
+    .sheet:not(.cap) table.att td, .sheet:not(.cap) table.att th { font-size: 11px; padding: 3px 2px; }
+    .sheet:not(.cap) .band.wide i { width: 50%; }
   }
 </style>
 </head>
@@ -115,6 +149,7 @@
 
 <div class="toolbar">
   <a class="btn" href="/meetings/{{ m.id }}">← 회의록으로</a>
+  <button type="button" class="btn img" id="btnImg" data-title="{{ m.title }}" data-date="{{ m.meeting_date or '' }}">🖼 이미지 저장·복사</button>
   <a class="btn print" href="javascript:void(0)" onclick="window.print()">🖨 인쇄 / PDF 저장</a>
 </div>
 
@@ -218,5 +253,182 @@
   </div>
 
 </div>
+
+<script>
+/* 🖼 회의록 양식 → 이미지 한 장 (저장·복사) — z1105 · 2026-09-16 대표 지시
+   · 휴대폰에서는 양식이 한 화면에 다 안 보인다 → A4 양식 전체를 이미지로 만들어 저장·복사.
+   · 방식은 이음 「📸 대화 캡처」(v573·v574)와 같다: html2canvas 로 화면 밖 사본을 그린다 → 미리보기 → 버튼.
+   · ⚠ 휴대폰의 공유·복사는 '누른 그 순간'에만 허락된다. 그림을 만드는 1초 사이에 그 순간이 지나가므로
+     미리보기 창에서 한 번 더 누르게 한다(이음과 같은 이유).
+   · 저장: 아이폰 = 공유 창(「이미지 저장」) / 안드로이드·PC = 내려받기(갤러리 「Download」에 보임). */
+(function () {
+  var btn = document.getElementById('btnImg');
+  var sheet = document.querySelector('.sheet');
+  if (!btn || !sheet) return;
+  var LABEL = btn.textContent;
+  var IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var made = null;   // 한 번 만든 이미지는 이 화면에 있는 동안 다시 쓴다 {blob, file, url, w, h}
+
+  function loadH2C() {
+    return new Promise(function (res, rej) {
+      if (window.html2canvas) return res(window.html2canvas);
+      var s = document.createElement('script');
+      s.src = '/static/vendor/html2canvas/html2canvas.min.js';
+      s.onload = function () { if (window.html2canvas) res(window.html2canvas); else rej(new Error('no html2canvas')); };
+      s.onerror = function () { rej(new Error('html2canvas load fail')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function fileName() {
+    var t = String(btn.getAttribute('data-title') || '').replace(/[\\\/:*?"<>|]+/g, ' ')
+      .split('').filter(function (ch) { return ch.charCodeAt(0) >= 32; }).join('')
+      .replace(/\s+/g, ' ').trim().slice(0, 40) || '회의록';
+    var d = String(btn.getAttribute('data-date') || '').replace(/[^0-9-]/g, '');
+    return '회의록_' + t + (d ? '_' + d : '') + '.png';
+  }
+
+  function waitImages(root) {
+    var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
+    var pending = imgs.filter(function (im) { return !im.complete; });
+    if (!pending.length) return Promise.resolve();
+    return new Promise(function (res) {
+      var left = pending.length;
+      var fin = function () { left -= 1; if (left <= 0) res(); };
+      pending.forEach(function (im) {
+        im.addEventListener('load', fin, { once: true });
+        im.addEventListener('error', fin, { once: true });
+      });
+      setTimeout(res, 4000);
+    });
+  }
+
+  async function makeImage() {
+    if (made) return made;
+    var h2c = await loadH2C();
+    // 화면 밖 사본 — 휴대폰이어도 A4(794px) 모양으로 그린다(.cap 에는 휴대폰 줄임 규칙이 안 걸림)
+    var holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#fff;';
+    var copy = sheet.cloneNode(true);
+    copy.classList.add('cap');
+    holder.appendChild(copy);
+    document.body.appendChild(holder);
+    try {
+      await waitImages(copy);
+      if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) { /* 글꼴 대기 실패는 그대로 진행 */ } }
+      var W = 794;
+      var H = Math.ceil(copy.getBoundingClientRect().height);
+      // 선명도 — 기기 배율(최소 2·최대 3). 아이폰 캔버스 한계(한 변 16000·총 1,600만 화소)를 넘지 않게 줄인다.
+      var dpr = window.devicePixelRatio || 1;
+      var target = Math.min(3, Math.max(2, dpr));
+      var byDim = Math.min(16000 / W, 16000 / Math.max(H, 1));
+      var byArea = Math.sqrt(16000000 / Math.max(W * H, 1));
+      var scale = Math.max(1, Math.min(target, byDim, byArea));
+      var canvas = await h2c(copy, {
+        backgroundColor: '#ffffff', scale: scale, useCORS: true, logging: false,
+        width: W, height: H, windowWidth: 1000, scrollX: 0, scrollY: 0
+      });
+      var blob = await new Promise(function (r) { canvas.toBlob(r, 'image/png'); });
+      if (!blob) throw new Error('image blob empty');
+      made = {
+        blob: blob,
+        file: new File([blob], fileName(), { type: 'image/png' }),
+        url: URL.createObjectURL(blob),
+        w: canvas.width, h: canvas.height
+      };
+      return made;
+    } finally {
+      if (holder.parentNode) holder.parentNode.removeChild(holder);
+    }
+  }
+
+  function say(el, text, isErr) {
+    el.textContent = text;
+    el.className = 'capmsg' + (isErr ? ' err' : '');
+  }
+
+  async function saveImage(msg) {
+    var f = made.file;
+    if (IOS) {
+      try {
+        if (navigator.canShare && navigator.share && navigator.canShare({ files: [f] })) {
+          await navigator.share({ files: [f], title: f.name });
+          say(msg, '✓ 공유 창에서 「이미지 저장」을 고르면 사진에 저장됩니다.');
+          return;
+        }
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;          // 사용자가 공유 창을 닫음
+      }
+    }
+    try {
+      var a = document.createElement('a');
+      a.href = made.url;
+      a.download = f.name;
+      document.body.appendChild(a);
+      a.click();
+      a.parentNode.removeChild(a);
+      say(msg, '✓ 저장했습니다 — ' + f.name + (IOS ? '' : ' (휴대폰은 갤러리 「Download」)'));
+    } catch (e2) {
+      say(msg, '저장이 안 됐습니다. 위 이미지를 길게 눌러 「이미지 저장」을 고르세요.', true);
+    }
+  }
+
+  async function copyImage(msg) {
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('clipboard unsupported');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': made.blob })]);
+      say(msg, '✓ 복사했습니다 — 보낼 곳(카카오톡·이음·메일)에 붙여넣기 하세요.');
+    } catch (e) {
+      say(msg, '이 기기에서는 바로 복사가 안 됩니다. 위 이미지를 길게 눌러 「이미지 복사」를 고르세요.', true);
+    }
+  }
+
+  function openPreview() {
+    var ov = document.createElement('div');
+    ov.className = 'capov';
+    ov.innerHTML =
+      '<div class="capbox" role="dialog" aria-label="회의록 이미지">' +
+        '<div class="caphd"><span>🖼 회의록 이미지</span><span class="capsz"></span></div>' +
+        '<div class="capprev"><img alt="회의록 이미지"></div>' +
+        '<div class="capmsg"></div>' +
+        '<div class="capbtns">' +
+          '<button type="button" class="btn img cap-save">💾 이미지 저장</button>' +
+          '<button type="button" class="btn print cap-copy">📋 이미지 복사</button>' +
+          '<button type="button" class="btn cap-close">닫기</button>' +
+        '</div>' +
+        '<div class="caphint">' + (IOS
+          ? '「이미지 저장」을 누르면 공유 창이 열립니다 — 「이미지 저장」을 고르세요.'
+          : '휴대폰은 갤러리의 「Download」 앨범에 저장됩니다.') +
+          ' 위 이미지를 길게 눌러도 저장·복사할 수 있습니다.</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    ov.querySelector('.capprev img').src = made.url;
+    ov.querySelector('.capsz').textContent =
+      made.w + '×' + made.h + ' · ' + (made.blob.size / 1048576).toFixed(1) + 'MB';
+    var msg = ov.querySelector('.capmsg');
+    var close = function () { if (ov.parentNode) ov.parentNode.removeChild(ov); };
+    ov.querySelector('.cap-close').addEventListener('click', close);
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    ov.querySelector('.cap-save').addEventListener('click', function () { saveImage(msg); });
+    ov.querySelector('.cap-copy').addEventListener('click', function () { copyImage(msg); });
+  }
+
+  btn.addEventListener('click', async function () {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = '⏳ 이미지 만드는 중…';
+    try {
+      await makeImage();
+      openPreview();
+    } catch (e) {
+      alert('이미지를 만들지 못했습니다. 잠시 뒤 다시 눌러주세요.\n(' + (e && e.message ? e.message : e) + ')');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = LABEL;
+    }
+  });
+})();
+</script>
 </body>
 </html>
