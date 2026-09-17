@@ -3919,7 +3919,9 @@ async def meetings_page(req: Request):
                 (u["id"], u["id"], _ent_vis, u.get("team_id"), u["id"]),
             ).fetchall()
         meetings = [dict(r) for r in rows]
-    return ctx(req, "meetings.html", user=u, meetings=meetings)
+    # 🗓 회의 카드 모아보기 탭(2026-09-17 대표 지시) — ?tab=cards
+    tab = "cards" if (req.query_params.get("tab") or "") == "cards" else "list"
+    return ctx(req, "meetings.html", user=u, meetings=meetings, tab=tab)
 
 
 @app.get("/meetings/new", response_class=HTMLResponse)
@@ -4910,6 +4912,156 @@ async def api_meeting_msg_status(req: Request):
                              else f"/meetings/{m['id']}")
             items[str(msg_id)] = it
     return JSONResponse({"ok": True, "items": items})
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  🗓 회의 카드 모아보기 (2026-09-17 대표 지시)
+#  「이음에서 등록한 회의 카드(회의 정보·회의록)를 회의록 화면 탭에서 한 번에」
+#  ⭐ 어떤 회의 카드가 보이나 = 이음 🗓 회의와 똑같이 — 이음 서버가 판단(POST /api/works/meetings).
+#  ⭐ 회의록 버튼 = WORKS _can_view_meeting — 회의 알림 카드(msg/status)와 같은 판단·같은 착지.
+#  🔴 WORKS 는 일꾼 1개 — 이음 호출은 스레드에서(8초 제한). 보는 사람+기간별 30초 캐시.
+#  🔴 이음을 못 부르면 이 탭에만 안내문 — 회의록 탭은 그대로.
+#  보기 전용 — 참석 응답·수정·삭제·「▶ 회의 시작」은 이음 회의 카드에서.
+# ════════════════════════════════════════════════════════════════════════
+_MSG_CARDS_TTL = 30                 # 초
+_MSG_CARDS_SPAN_MAX = 450           # 한 번에 묻는 기간(일) 상한 — 이음 입구와 같은 값
+_MSG_CARDS_CACHE = {}               # (user_id, from, to) → (저장 시각, 이음 결과)
+_MSG_CARDS_LOCK = _stt_thr.Lock()
+_MSG_CARDS_DOWN = {"until": 0.0}    # 이음 연결 실패 직후 15초는 다시 부르지 않는다(스레드가 8초씩 묶이지 않게)
+_MSG_RESP_OK = ("attending", "declined", "change")
+
+
+def _msg_card_clean(it):
+    """이음이 준 회의 1건 → 화면에 쓰는 칸만(글자 길이 제한). 형식이 틀리면 None."""
+    if not isinstance(it, dict):
+        return None
+    try:
+        mid = int(it.get("id") or 0)
+    except (TypeError, ValueError):
+        return None
+    start_at = str(it.get("start_at") or "").strip()[:16]
+    try:
+        datetime.strptime(start_at, "%Y-%m-%dT%H:%M")
+    except ValueError:
+        return None
+    if mid <= 0:
+        return None
+
+    def _int(v, dflt, lo, hi):
+        try:
+            v = int(v)
+        except (TypeError, ValueError):
+            return dflt
+        return v if lo <= v <= hi else dflt
+
+    atts = []
+    for a in (it.get("attendees") or [])[:300]:
+        if not isinstance(a, dict):
+            continue
+        nm = str(a.get("name") or "").strip()[:60]
+        if not nm:
+            continue
+        r = str(a.get("response") or "")
+        atts.append({"name": nm, "response": r if r in _MSG_RESP_OK else "",
+                     "is_organizer": bool(a.get("is_organizer"))})
+    me = it.get("me") if isinstance(it.get("me"), dict) else {}
+    my_r = str(me.get("response") or "")
+    org = it.get("organizer") if isinstance(it.get("organizer"), dict) else {}
+    vis = str(it.get("visibility") or "")
+    return {
+        "id": mid,
+        "title": str(it.get("title") or "").strip()[:200] or "(제목 없음)",
+        "start_at": start_at,
+        "tz_offset": _int(it.get("tz_offset"), 9, -12, 14),
+        "tz_label": str(it.get("tz_label") or "").strip()[:20],
+        "duration_min": _int(it.get("duration_min"), 30, 1, 7 * 24 * 60),
+        "location": str(it.get("location") or "").strip()[:200],
+        "visibility": vis if vis in ("all", "hq", "vn", "private") else "",
+        "organizer": str(org.get("name") or "").strip()[:80],
+        "attendees": atts,
+        "externals": [str(x).strip()[:80] for x in (it.get("externals") or [])[:30] if str(x).strip()],
+        "me": {"is_organizer": bool(me.get("is_organizer")), "is_attendee": bool(me.get("is_attendee")),
+               "response": my_r if my_r in _MSG_RESP_OK else ""},
+    }
+
+
+@app.get("/api/meetings/msg-cards")
+async def api_meetings_msg_cards(req: Request):
+    """🗓 회의 카드 모아보기 — 이음 회의(나에게 보이는 것) + WORKS 회의록 단계·버튼.
+    ?from=YYYY-MM-DD&to=YYYY-MM-DD (시작일 기준 · 없으면 60일 전 ~ 1년 뒤)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인이 필요합니다."}, 401)
+    from datetime import timezone as _tz
+    with db_session() as c:
+        ent = _meeting_user_entity(c, u)
+    # 날짜 경계 = 보는 사람 소속(본사 +9 · 베트남 +7) — KNK 시간대 표준
+    today = (datetime.now(_tz.utc) + timedelta(hours=7 if ent == "VN" else 9)).date()
+    try:
+        d_from = datetime.strptime(req.query_params.get("from") or "", "%Y-%m-%d").date()
+    except ValueError:
+        d_from = today - timedelta(days=60)
+    try:
+        d_to = datetime.strptime(req.query_params.get("to") or "", "%Y-%m-%d").date()
+    except ValueError:
+        d_to = today + timedelta(days=366)
+    if d_to < d_from or (d_to - d_from).days > _MSG_CARDS_SPAN_MAX:
+        return JSONResponse({"ok": False, "error": "기간이 올바르지 않습니다."}, 400)
+    emp = str(u.get("employee_no") or "").strip()      # 사람 참조 = 사번 (회의 알림 연결과 같은 기준)
+    key = (u.get("id"), d_from.isoformat(), d_to.isoformat())
+    now_t = datetime.now().timestamp()
+    with _MSG_CARDS_LOCK:
+        hit = _MSG_CARDS_CACHE.get(key)
+    if hit and now_t - hit[0] < _MSG_CARDS_TTL:
+        res = hit[1]
+    elif now_t < _MSG_CARDS_DOWN["until"]:
+        res = {"ok": False, "error": "이음에 연결하지 못했습니다. 잠시 뒤 다시 눌러 주세요."}
+    else:
+        from . import sso_client
+        from starlette.concurrency import run_in_threadpool
+        res = await run_in_threadpool(sso_client.fetch_msg_meetings, emp, d_from.isoformat(), d_to.isoformat())
+        if res.get("code") == "conn":
+            _MSG_CARDS_DOWN["until"] = datetime.now().timestamp() + 15
+        if res.get("ok"):
+            with _MSG_CARDS_LOCK:
+                if len(_MSG_CARDS_CACHE) > 500:          # 오래 쌓이지 않게
+                    _MSG_CARDS_CACHE.clear()
+                _MSG_CARDS_CACHE[key] = (now_t, res)
+    if not res.get("ok"):
+        return JSONResponse({"ok": False, "error": res.get("error") or "이음 회의 목록을 가져오지 못했습니다."})
+    cards, _seen = [], set()
+    for it in res.get("items") or []:
+        x = _msg_card_clean(it)
+        if x and x["id"] not in _seen:          # 같은 회의가 두 번 오면 한 장만
+            _seen.add(x["id"])
+            cards.append(x)
+    with db_session() as c:
+        rows = {}
+        ids = [x["id"] for x in cards]
+        for i in range(0, len(ids), 200):
+            part = ids[i:i + 200]
+            for r in c.execute(
+                "SELECT m.*, (SELECT COUNT(*) FROM meeting_decisions WHERE meeting_id=m.id) AS dec_cnt, "
+                "(SELECT COUNT(*) FROM meeting_actions WHERE meeting_id=m.id) AS act_cnt "
+                "FROM meetings m WHERE m.msg_meeting_id IN (%s)" % ",".join("?" * len(part)), part
+            ).fetchall():
+                rows[r["msg_meeting_id"]] = dict(r)
+        for x in cards:
+            m = rows.get(x["id"])
+            if not m:
+                x["minutes"] = {"stage": "none", "can_view": False}
+                continue
+            can_view = _can_view_meeting(c, u, m)
+            mn = {"stage": _meeting_msg_stage(m), "can_view": can_view,
+                  "started_by": _msg_owner_disp(c, m.get("owner_id"))}
+            if can_view:      # 볼 수 없는 사람에겐 회의록 주소·내용 수를 주지 않는다
+                mn["url"] = (f"/meetings/{m['id']}/doc" if mn["stage"] == "done" else f"/meetings/{m['id']}")
+                mn["dec_cnt"] = m.get("dec_cnt") or 0
+                mn["act_cnt"] = m.get("act_cnt") or 0
+            x["minutes"] = mn
+    return JSONResponse({"ok": True, "from": d_from.isoformat(), "to": d_to.isoformat(),
+                         "today": today.isoformat(), "items": cards,
+                         "truncated": bool(res.get("truncated"))})
 
 
 @app.post("/api/meeting/{mid:int}/link")

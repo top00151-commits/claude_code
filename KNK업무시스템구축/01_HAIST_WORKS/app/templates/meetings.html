@@ -7,6 +7,8 @@
 {# ============================================================
    meetings.html — 회의록 목록 (16_KNK_Meeting Phase 1 · 모드 A)
    회의 원문 → AI 결정·할 일·요약 → 일일카드 연동의 진입 목록.
+   2026-09-17 대표 지시: 탭 「🗓 회의 카드 모아보기」 — 이음에서 등록한 회의 카드(회의 정보·회의록)를 한 번에.
+     카드가 보이는 범위는 이음 🗓 회의와 같다(이음 서버가 판단) · 이 화면은 보기 전용.
    ============================================================ #}
 {% include "_v5_partials/styles.html" %}
 <style>
@@ -17,13 +19,54 @@
 .mtg-meta { display:flex; gap:14px; font-size:12px; color: var(--qv-ink-3); margin-top:6px; flex-wrap:wrap; }
 .mtg-meta b { color: var(--qv-ink-2); font-weight:700; }
 .mtg-badges { display:flex; gap:6px; align-items:center; flex-shrink:0; }
-.vis-badge { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; }
+.vis-badge { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; white-space:nowrap; }
 .vis-team { background: var(--qv-surface-3); color: var(--qv-ink-2); }
 .vis-private { background: #fdecec; color: var(--knk-red); }
 .vis-all { background: #e8f3ec; color: #15803d; }
-.cnt-badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background: var(--qv-surface-2); color: var(--qv-ink-2); border:1px solid var(--qv-line); }
+.cnt-badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background: var(--qv-surface-2); color: var(--qv-ink-2); border:1px solid var(--qv-line); white-space:nowrap; }
 .mtg-empty { padding: 40px 20px; text-align:center; color: var(--qv-ink-3); background: var(--qv-surface); border:1px dashed var(--qv-line-2); border-radius: var(--radius-lg); }
 .mtg-empty .big { font-size: 40px; margin-bottom: 10px; }
+/* 🗓 탭 — 회의록 / 회의 카드 모아보기 (2026-09-17) */
+.mt-tabs { display:flex; gap:4px; margin: 0 var(--content-pad) 16px; border-bottom: 1px solid var(--qv-line); }
+#mcWrap { margin: 0 var(--content-pad); }
+.mt-tab { padding: 10px 16px; font-size: 14px; font-weight: 700; color: var(--qv-ink-3); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.mt-tab:hover { color: var(--qv-ink); }
+.mt-tab.on { color: var(--knk-red); border-bottom-color: var(--knk-red); }
+.mt-tab .n { font-size: 11.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--qv-surface-3); color: var(--qv-ink-2); margin-left: 4px; }
+.mc-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+.mc-guide { font-size: 12.5px; color: var(--qv-ink-3); line-height: 1.55; }
+.mc-sum { font-size: 13px; color: var(--qv-ink-2); margin: 0 0 4px; }
+.mc-sum b { color: var(--qv-ink); }
+.mc-sec { font-size: 14px; font-weight: 800; color: var(--qv-ink); margin: 18px 0 8px; }
+.mc-sec small { font-size: 12px; font-weight: 600; color: var(--qv-ink-3); margin-left: 4px; }
+.mc-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-left: 4px solid #3b82f6; border-radius: var(--radius-lg); padding: 12px 16px; margin-bottom: 10px; }
+.mc-card.live { border-left-color: #dc2626; }
+.mc-card.end { border-left-color: #b8bcc4; }
+.mc-top { display:flex; align-items:center; gap:8px; }
+.mc-pill { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+.mc-pill.up { background: #dbeafe; color: #1d4ed8; }
+.mc-pill.live { background: #fee2e2; color: #b91c1c; }
+.mc-pill.end { background: var(--qv-surface-3); color: var(--qv-ink-2); }
+.mc-ttl { font-size: 15px; font-weight: 800; color: var(--qv-ink); flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mc-sub { font-size: 12.5px; color: var(--qv-ink-3); margin-top: 5px; line-height: 1.5; overflow-wrap: anywhere; }
+.mc-sub b { color: var(--qv-ink-2); font-weight: 700; }
+.mc-min { display:flex; align-items:center; gap:8px; flex-wrap: wrap; margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--qv-line); }
+.mc-btn { display:inline-flex; align-items:center; padding: 5px 13px; border-radius: 999px; border: 1px solid var(--qv-line-2); font-size: 13px; font-weight: 700; color: var(--qv-ink); text-decoration: none; background: var(--qv-surface); white-space: nowrap; }
+.mc-btn:hover { border-color: var(--qv-line-3); }
+.mc-btn.mc-go { background: var(--knk-red); border-color: var(--knk-red); color: #fff; }
+.mc-state { font-size: 13px; color: var(--qv-ink-2); }
+.mc-state.dim { color: var(--qv-ink-3); }
+.mc-empty { padding: 24px 16px; text-align: center; color: var(--qv-ink-3); background: var(--qv-surface); border: 1px dashed var(--qv-line-2); border-radius: var(--radius-lg); font-size: 13px; line-height: 1.6; }
+.mc-empty .btn { margin-top: 10px; }
+.mc-more-row { text-align: center; margin: 14px 0 6px; }
+#mcMore[hidden] { display: none; }   /* 공용 .btn 의 display 가 hidden 속성을 덮지 않게 */
+.mc-more-note { font-size: 12px; color: var(--qv-ink-3); margin-top: 6px; }
+@media (max-width: 640px) {
+  .mt-tab { flex: 1; text-align: center; padding: 10px 6px; font-size: 13.5px; }
+  .mc-bar { flex-direction: column; align-items: stretch; }
+  .mc-card { padding: 11px 12px; }
+  .mc-top { flex-wrap: wrap; }
+}
 </style>
 </head>
 <body>
@@ -41,6 +84,250 @@
     </div>
   </div>
 
+  <nav class="mt-tabs" aria-label="회의록 보기">
+    <a class="mt-tab{% if tab != 'cards' %} on{% endif %}" href="/meetings"{% if tab != 'cards' %} aria-current="page"{% endif %}>📝 회의록 <span class="n">{{ meetings|length }}</span></a>
+    <a class="mt-tab{% if tab == 'cards' %} on{% endif %}" href="/meetings?tab=cards"{% if tab == 'cards' %} aria-current="page"{% endif %}>🗓 회의 카드 모아보기</a>
+  </nav>
+
+  {% if tab == 'cards' %}
+  <section id="mcWrap">
+    <div class="mc-bar">
+      <div class="mc-guide">이음 🗓 회의에 등록된 회의 중 <b>이음에서 나에게 보이는 회의</b>를 모았습니다.<br>참석 응답·수정·「▶ 회의 시작」은 이음 회의 카드에서 합니다.</div>
+      <button type="button" class="btn" id="mcReload">↻ 새로 고침</button>
+    </div>
+    <div id="mcBody" aria-live="polite"><div class="mc-empty">이음에서 회의를 불러오는 중…</div></div>
+    <div class="mc-more-row">
+      <button type="button" class="btn" id="mcMore" hidden>▼ 지난 회의 더 보기 (60일)</button>
+      <div class="mc-more-note" id="mcMoreNote"></div>
+    </div>
+  </section>
+  <script>
+  (function(){
+    var wrap = document.getElementById('mcWrap');
+    if (!wrap || wrap.getAttribute('data-on')) return;
+    wrap.setAttribute('data-on', '1');
+    var body = document.getElementById('mcBody');
+    var btnMore = document.getElementById('mcMore');
+    var moreNote = document.getElementById('mcMoreNote');
+    var btnReload = document.getElementById('mcReload');
+    // from = 빠짐없이 불러온 가장 이른 날짜 · fromIncl = 그날은 일부만 받았을 수 있음(이음이 잘라 보냄) → 그날부터 다시 묻는다
+    var ST = { items: [], from: '', fromIncl: false, busy: false, sig: '', loadedAt: 0 };
+    var TRUNC_NOTE = '회의가 많아 한 번에 다 불러오지 못했습니다 — 「▼ 지난 회의 더 보기」로 이어서 볼 수 있습니다.';
+    var DAY = 86400000, STUCK = 12 * 3600000;
+    var WD = ['일', '월', '화', '수', '목', '금', '토'];
+    var HEAD = { up: '🗓 예정', live: '🔴 회의 중', end: '✅ 회의 종료' };
+    var VIS = { all: ['본사+법인 공개', 'vis-all'], hq: ['본사 공개', 'vis-team'], vn: ['법인 공개', 'vis-team'], 'private': ['비공개', 'vis-private'] };
+    var RESP = { attending: '✅ 참석', declined: '❌ 불참', change: '🔄 변경요청' };
+
+    function alive(){ return wrap.isConnected; }
+    function esc(s){
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+    function pad(n){ return (n < 10 ? '0' : '') + n; }
+    function ymd(d){ return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
+    function addDays(s, n){
+      var p = s.split('-');
+      return ymd(new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]) + n * DAY));
+    }
+    // 회의 시각 = 등록한 사람 소속 시각(tz_offset) — 이음과 같은 규칙으로 절대 시각을 만든다
+    function startMs(m){
+      var p = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(m.start_at || '');
+      if (!p) return 0;
+      return Date.UTC(+p[1], +p[2] - 1, +p[3], +p[4], +p[5]) - (m.tz_offset || 0) * 3600000;
+    }
+    function endMs(m){ var s = startMs(m); return s ? s + (m.duration_min || 30) * 60000 : 0; }
+    function durText(min){
+      min = min || 30;
+      var d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), mm = min % 60, out = [];
+      if (d) out.push(d + '일');
+      if (h) out.push(h + '시간');
+      if (mm) out.push(mm + '분');
+      return out.join(' ');
+    }
+    function whenText(m){
+      var off = (m.tz_offset || 0) * 3600000;
+      var a = new Date(startMs(m) + off), b = new Date(endMs(m) + off);
+      var hm = function(d){ return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+      var endPart = (ymd(a) === ymd(b)) ? hm(b) : (pad(b.getUTCMonth() + 1) + '-' + pad(b.getUTCDate()) + ' ' + hm(b));
+      return ymd(a) + ' (' + WD[a.getUTCDay()] + ') ' + hm(a) + '~' + endPart
+        + (m.tz_label ? ' (' + m.tz_label + ')' : '') + ' · ' + durText(m.duration_min);
+    }
+    // 카드 윗줄 상태 — 이음 회의 카드(v795)와 같은 판단: 녹음이 끝났으면 종료 · 녹음 중이면 회의 중(끝나고 12시간까지)
+    function headState(m, now){
+      var st = (m.minutes && m.minutes.stage) || 'none', s = startMs(m), e = endMs(m);
+      if (st === 'recorded' || st === 'processing' || st === 'done' || st === 'failed') return 'end';
+      if (st === 'started' && !(e && now >= e + STUCK)) return 'live';
+      if (e && now >= e) return 'end';
+      if (s && now >= s) return 'live';
+      return 'up';
+    }
+    function minutesHtml(m, hs){
+      var mn = m.minutes || {}, st = mn.stage || 'none', out = '';
+      if (st === 'started') out += '<span class="mc-state">🔴 회의 진행 중 · ' + esc(mn.started_by || '') + ' 녹음</span>';
+      else if (st === 'recorded' || st === 'processing') out += '<span class="mc-state">⏳ 회의록 정리 중</span>';
+      else if (st === 'failed') out += '<span class="mc-state">⚠ 정리 실패 — 회의록에서 다시 시도</span>';
+      else if (st === 'none' && hs === 'end') out += '<span class="mc-state dim">회의록 없음</span>';
+      if (mn.can_view && mn.url) {
+        if (st === 'done') {
+          // 양식은 새 창 — 모아보기 목록은 그대로 둔다(회의록 화면의 「📄 회의록 양식」과 같은 방식)
+          out += '<a class="mc-btn mc-go" href="' + esc(mn.url) + '" target="_blank" rel="noopener" data-no-swap>📋 회의록 보기</a>';
+          if (mn.dec_cnt) out += '<span class="cnt-badge">✔ 결정 ' + (+mn.dec_cnt) + '</span>';
+          if (mn.act_cnt) out += '<span class="cnt-badge">📌 할일 ' + (+mn.act_cnt) + '</span>';
+        } else {
+          out += '<a class="mc-btn" href="' + esc(mn.url) + '">📝 회의록 화면</a>';
+        }
+      }
+      return out ? '<div class="mc-min">' + out + '</div>' : '';
+    }
+    function cardHtml(m, now){
+      var hs = headState(m, now), me = m.me || {}, atts = m.attendees || [];
+      var vis = VIS[m.visibility];
+      var h = '<article class="mc-card ' + hs + '">'
+        + '<div class="mc-top"><span class="mc-pill ' + hs + '">' + HEAD[hs] + '</span>'
+        + '<span class="mc-ttl">' + esc(m.title) + '</span>'
+        + (vis ? '<span class="vis-badge ' + vis[1] + '">' + vis[0] + '</span>' : '') + '</div>'
+        + '<div class="mc-sub">🕒 <b>' + esc(whenText(m)) + '</b>'
+        + (m.location ? ' · 📍 ' + esc(m.location) : '')
+        + (m.organizer ? ' · 👤 ' + esc(m.organizer) : '') + '</div>'
+        + '<div class="mc-sub">👥 ' + atts.length + '명'
+        + (atts.length ? ' — ' + atts.map(function(a){ return esc(a.name); }).join(', ') : '') + '</div>';
+      if (m.externals && m.externals.length) {
+        h += '<div class="mc-sub">🏢 외부 ' + m.externals.length + '명 — ' + esc(m.externals.join(', ')) + '</div>';
+      }
+      if (me.is_organizer) {
+        // 👤 응답 현황은 등록 담당에게만 — 이음 회의 카드와 같은 규칙
+        var c = { attending: 0, declined: 0, change: 0, none: 0 };
+        var ic = { attending: '✅', declined: '❌', change: '🔄', none: '⬜' };
+        atts.forEach(function(a){ c[a.response || 'none']++; });
+        h += '<div class="mc-sub">👤 내가 등록한 회의 · 응답 현황 ✅' + c.attending + ' · ❌' + c.declined
+          + ' · 🔄' + c.change + ' · ⬜' + c.none + '</div>';
+        if (atts.length) {
+          h += '<div class="mc-sub">' + atts.map(function(a){ return ic[a.response || 'none'] + ' ' + esc(a.name); }).join(' · ') + '</div>';
+        }
+      } else if (me.is_attendee) {
+        h += '<div class="mc-sub">🙋 내 응답: ' + (RESP[me.response] || '⬜ 아직 응답 안 함') + '</div>';
+      }
+      return h + minutesHtml(m, hs) + '</article>';
+    }
+    function section(title, list, now, emptyText, small){
+      var h = '<div class="mc-sec">' + title + ' (' + list.length + ')' + (small ? '<small>' + small + '</small>' : '') + '</div>';
+      if (!list.length) return emptyText ? h + '<div class="mc-empty">' + emptyText + '</div>' : '';
+      return h + list.map(function(m){ return cardHtml(m, now); }).join('');
+    }
+    function groups(now){
+      var g = { live: [], up: [], end: [] };
+      ST.items.forEach(function(m){ g[headState(m, now)].push(m); });
+      g.live.sort(function(a, b){ return startMs(a) - startMs(b); });
+      g.up.sort(function(a, b){ return startMs(a) - startMs(b); });
+      g.end.sort(function(a, b){ return startMs(b) - startMs(a); });
+      return g;
+    }
+    function render(){
+      var now = Date.now(), g = groups(now);
+      var done = ST.items.filter(function(m){ return m.minutes && m.minutes.stage === 'done' && m.minutes.can_view; }).length;
+      var h = '<div class="mc-sum">모두 <b>' + ST.items.length + '</b>건'
+        + (g.live.length ? ' · 회의 중 <b>' + g.live.length + '</b>' : '')
+        + ' · 예정 <b>' + g.up.length + '</b> · 지난 회의 <b>' + g.end.length + '</b> · 회의록 완료 <b>' + done + '</b></div>';
+      if (g.live.length) h += section('🔴 지금 회의 중', g.live, now);
+      h += section('🔜 진행할 회의', g.up, now, '예정된 회의가 없습니다.');
+      h += section('✅ 진행한 회의', g.end, now, '이 기간에 지난 회의가 없습니다.', ST.from ? ST.from.replace(/-/g, '.') + '부터' : '');
+      body.innerHTML = h;
+      ST.sig = sig(now);
+      btnMore.hidden = !ST.from;
+    }
+    function sig(now){
+      return ST.items.map(function(m){ return m.id + ':' + headState(m, now); }).join(',');
+    }
+    function showError(msg){
+      body.innerHTML = '<div class="mc-empty">⚠ ' + esc(msg) + '<br><button type="button" class="btn" data-mc-retry>다시 시도</button></div>';
+      btnMore.hidden = true;
+    }
+    // 이음은 한 번에 300건까지 — 넘으면 **시작이 이른 회의부터 빼고** truncated 로 알려 준다(세션 10 회신 2026-09-17).
+    //   그래서 잘렸으면 받은 것 중 가장 이른 날짜까지만 '빠짐없음'으로 보고, 더 보기는 그 날짜를 포함해 다시 묻는다(겹치는 회의는 번호로 한 장).
+    function oldestDay(list){
+      var o = '';
+      list.forEach(function(m){ var d = (m.start_at || '').slice(0, 10); if (d && (!o || d < o)) o = d; });
+      return o;
+    }
+    function edgeOf(d, from){
+      var od = d.truncated ? oldestDay(d.items || []) : '';
+      return od ? { day: od, incl: true } : { day: from, incl: false };
+    }
+    function setNote(truncated, otherwise){
+      if (truncated) moreNote.textContent = TRUNC_NOTE;
+      else if (otherwise != null) moreNote.textContent = otherwise;
+      else if (moreNote.textContent === TRUNC_NOTE) moreNote.textContent = '';
+    }
+    function get(qs){
+      return fetch('/api/meetings/msg-cards' + (qs || ''), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(function(r){
+          return r.json().catch(function(){ return { ok: false, error: '응답을 읽지 못했습니다 (' + r.status + ')' }; });
+        });
+    }
+    function loadFirst(){
+      if (ST.busy) return;
+      ST.busy = true;
+      btnReload.disabled = true;
+      get('').then(function(d){
+        if (!alive()) return;
+        if (!d || !d.ok) { if (!ST.items.length) showError((d && d.error) || '이음 회의 목록을 가져오지 못했습니다.'); else alert((d && d.error) || '새로 고치지 못했습니다.'); return; }
+        var list = d.items || [], edge = edgeOf(d, d.from), got = {};
+        list.forEach(function(m){ got[m.id] = 1; });
+        // 더 보기로 불러 둔 옛 회의는 남긴다 — 이번 응답이 빠짐없이 덮지 못한 날짜의 것만
+        var keep = ST.items.filter(function(m){
+          var dd = (m.start_at || '').slice(0, 10);
+          return !got[m.id] && (edge.incl ? dd <= edge.day : dd < edge.day);
+        });
+        ST.items = list.concat(keep);
+        if (!ST.from || edge.day < ST.from) { ST.from = edge.day; ST.fromIncl = edge.incl; }
+        else if (edge.day === ST.from) { ST.fromIncl = ST.fromIncl && edge.incl; }
+        ST.loadedAt = Date.now();
+        setNote(!!d.truncated);
+        render();
+      }).catch(function(){
+        if (alive() && !ST.items.length) showError('연결이 끊겼습니다. 다시 시도해 주세요.');
+      }).then(function(){ ST.busy = false; btnReload.disabled = false; });
+    }
+    function loadMore(){
+      if (ST.busy || !ST.from) return;
+      ST.busy = true;
+      var to = ST.fromIncl ? ST.from : addDays(ST.from, -1), from = addDays(ST.from, -60);
+      btnMore.disabled = true;
+      btnMore.textContent = '불러오는 중…';
+      get('?from=' + from + '&to=' + to).then(function(d){
+        if (!alive()) return;
+        if (!d || !d.ok) { alert((d && d.error) || '지난 회의를 가져오지 못했습니다.'); return; }
+        var list = d.items || [], edge = edgeOf(d, from), seen = {};
+        ST.items.forEach(function(m){ seen[m.id] = 1; });
+        var add = list.filter(function(m){ return !seen[m.id]; });
+        ST.items = ST.items.concat(add);
+        // 한 날짜에만 300건이 넘으면 날짜로는 더 나눌 수 없다 — 같은 곳을 되풀이하지 않게 그 기간은 넘어간다
+        if (edge.incl && edge.day >= ST.from) edge = { day: from, incl: false };
+        ST.from = edge.day;
+        ST.fromIncl = edge.incl;
+        setNote(!!d.truncated, add.length ? '' : (from.replace(/-/g, '.') + ' ~ ' + to.replace(/-/g, '.') + ' 에는 회의가 없습니다.'));
+        render();
+      }).catch(function(){ if (alive()) alert('연결이 끊겼습니다. 다시 시도해 주세요.'); })
+        .then(function(){ ST.busy = false; btnMore.disabled = false; btnMore.textContent = '▼ 지난 회의 더 보기 (60일)'; });
+    }
+    btnReload.addEventListener('click', loadFirst);
+    btnMore.addEventListener('click', loadMore);
+    body.addEventListener('click', function(e){
+      if (e.target && e.target.closest && e.target.closest('[data-mc-retry]')) loadFirst();
+    });
+    // 시간이 지나면 윗줄(예정→회의 중→종료)만 바뀐다 — 바뀐 카드가 있을 때만 다시 그림 · 화면이 떠 있을 때만
+    var tick = setInterval(function(){
+      if (!alive()) { clearInterval(tick); return; }
+      if (document.visibilityState !== 'visible' || !ST.items.length) return;
+      if (Date.now() - ST.loadedAt > 120000) { loadFirst(); return; }   // 2분마다 회의록 단계도 새로
+      if (sig(Date.now()) !== ST.sig) render();
+    }, 30000);
+    loadFirst();
+  })();
+  </script>
+  {% else %}
   {% if meetings %}
   <div class="bento" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px;">
     <div class="kpi-card"><div class="kpi-label">전체 회의</div><div class="kpi-num">{{ meetings|length }}</div><div class="kpi-trend neutral">건</div></div>
@@ -81,6 +368,7 @@
     <div style="font-size:13px;margin-bottom:16px;">회의 내용을 글로 적으면 AI가 결정사항·할 일·요약을 자동으로 정리합니다.</div>
     <a class="btn btn-primary" href="/meetings/new">＋ 첫 회의록 작성</a>
   </div>
+  {% endif %}
   {% endif %}
 </main>
 </div>

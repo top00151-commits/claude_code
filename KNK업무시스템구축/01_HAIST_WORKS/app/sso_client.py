@@ -735,6 +735,50 @@ def notify_via_messenger(employee_nos, title, body, link="", timeout=10.0, card=
 
 
 # =====================================================
+# 2026-09-17 (대표 지시): 회의록 「🗓 회의 카드 모아보기」 — 이음에서 등록한 회의를 WORKS 에서 한 번에.
+#   메신저 'POST /api/works/meetings' 호출 → 그 직원(사번)이 이음 🗓 회의에서 보는 회의 그대로.
+#   ⭐ 어떤 회의가 보이는지는 이음이 판단한다(등록·참석·공개범위) — WORKS 가 규칙을 흉내내지 않는다.
+#   공유키(X-SSO-Service-Key) 필수. 실패는 사람말 오류로 돌려준다(침묵 금지 · 내부 정보는 싣지 않음).
+# =====================================================
+def fetch_msg_meetings(employee_no, date_from, date_to, timeout=8.0) -> dict:
+    """이음 회의 목록(그 직원에게 보이는 것만 · 시작일이 date_from~date_to).
+    반환: {ok, items, truncated} 또는 {ok:False, error}."""
+    emp = str(employee_no or "").strip()
+    if not emp:
+        return {"ok": False, "error": "사번이 연결되지 않은 계정은 이음 회의를 볼 수 없습니다."}
+    _key = get_service_key()
+    if not _key:
+        return {"ok": False, "error": "이음 연결 키가 설정되지 않았습니다(관리자 확인 필요)."}
+    url = f"{MESSENGER_INTERNAL_BASE}/api/works/meetings"
+    try:
+        r = httpx.post(url, headers={"X-SSO-Service-Key": _key},
+                       json={"employee_no": emp, "from": date_from, "to": date_to},
+                       timeout=timeout)
+    except Exception as e:
+        print(f"[MSG-CARDS] 이음 연결 실패: {type(e).__name__}: {str(e)[:160]}")
+        return {"ok": False, "code": "conn", "error": "이음에 연결하지 못했습니다. 잠시 뒤 다시 눌러 주세요."}
+    try:
+        d = r.json() or {}
+    except Exception:
+        d = {}
+    if not isinstance(d, dict):
+        d = {}
+    if r.status_code == 403:
+        return {"ok": False, "error": "이음이 요청을 거부했습니다(연결 키 확인 필요)."}
+    if r.status_code == 404:
+        if d.get("error") == "viewer_not_found":
+            return {"ok": False, "error": "이음에서 내 계정(사번)을 찾지 못했습니다."}
+        return {"ok": False, "error": "이음에 회의 목록 입구가 아직 없습니다(이음 업데이트 전)."}
+    if r.status_code != 200 or not d.get("ok"):
+        print(f"[MSG-CARDS] 이음 응답 오류: {r.status_code} {str(d.get('error') or '')[:80]}")
+        return {"ok": False, "error": f"이음 응답 오류({r.status_code})"}
+    items = d.get("items")
+    if not isinstance(items, list):
+        return {"ok": False, "error": "이음 응답 형식이 다릅니다."}
+    return {"ok": True, "items": items, "truncated": bool(d.get("truncated"))}
+
+
+# =====================================================
 # v5H226z143 (2026-06-01): 메신저 직원 → WORKS **DB 직접** 1회 동기화
 #   대표 지시(2026-06-01): API/공유키 방식 보류. WORKS·메신저가 같은 컨테이너에
 #   떠 있으므로 메신저 DB 를 직접 읽어 전 직원을 WORKS 에 동일 등록.
