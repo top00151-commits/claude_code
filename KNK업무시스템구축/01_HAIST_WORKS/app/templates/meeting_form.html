@@ -93,6 +93,13 @@
 .link-chip:hover { border-color: var(--qv-line-3); background: var(--qv-surface-3); }
 .rec-time { font-size:14px; font-weight:800; color: var(--knk-red); font-family:ui-monospace,Consolas,monospace; }
 .rec-status { font-size:12px; color: var(--qv-ink-3); }
+/* 🎤 마이크 허용 안내 (2026-09-17) — 처음(묻는 중)·다시 누르기=주황 / 막힘=빨강 / 허용됨=초록 */
+.mic-help { border-radius:10px; padding:10px 13px; font-size:13px; line-height:1.65; margin:0 0 10px; word-break:keep-all; overflow-wrap:anywhere; }
+.mic-help.ask, .mic-help.retry { background:#fff7ed; border:1px solid #fdba74; color:#7c2d12; }
+.mic-help.block, .mic-help.any, .mic-help.os { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; }
+.mic-help.ok { background:#f0fdf4; border:1px solid #86efac; color:#166534; }
+.mic-help b { font-weight:800; }
+.mic-help .nw { white-space:nowrap; }
 /* ── z971 새 회의 시작 화면(폰 우선 큰 버튼) ── */
 .start-btns { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:620px; }
 .start-big { border:0; border-radius:14px; padding:20px 18px; font-size:19px; font-weight:800; cursor:pointer;
@@ -877,10 +884,101 @@ window.__MTG = {
     if(_recBlob&&_recBlob.size>200){var a=$('recAudio');if(a)a.src=URL.createObjectURL(_recBlob);var w=$('recPlayWrap');if(w)w.hidden=false;uploadAudioBlob(_recBlob,'rec.'+recExt(_recMime));}
     else recSt('녹음된 소리가 없습니다.','err');
   }
-  async function recStart(){
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof MediaRecorder==='undefined'){recSt('이 브라우저는 녹음을 지원하지 않습니다. 「📁 음성 파일 올리기」를 쓰세요.','err');return;}
+  // ── 🎤 마이크 허용 상태별 안내 (2026-09-17 대표 지시 · 세션 10 조사) ──
+  //   크롬은 이 사이트 마이크 허용이 '저장'돼 있으면 화면을 누르지 않아도 녹음을 허락한다(회의 알림에서 연 창도 — 실측).
+  //   처음이면 크롬이 묻는 창을 띄운다(누르기 전 요청도 창이 뜸 — 크롬 153 실측) → 「사이트에 있는 동안 허용」을 고르게 안내
+  //   (「이번에만 허용」은 다음 회의에서 또 묻는다). 막혀 있으면 요청해도 소용없다 → 푸는 방법을 한국어로.
+  var _micPerm=null,_micBusy=false;
+  var _isPhone=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+  function micEsc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function recLabel(){
+    if(M.is_new) return '🎙 녹음하며 회의';
+    var b=$('recBtn'); var t=b?(b.textContent||'').trim():'';
+    return (t&&t.indexOf('🎙')===0)?t:'🎙 녹음 시작';
+  }
+  async function micState(){
     try{
+      if(!navigator.permissions||!navigator.permissions.query) return 'unknown';
+      var st=await navigator.permissions.query({name:'microphone'});
+      if(!_micPerm){
+        _micPerm=st;
+        try{ st.addEventListener('change',micPermChanged); }catch(_){ try{ st.onchange=micPermChanged; }catch(__){} }
+      }
+      return st.state||'unknown';
+    }catch(_){ return 'unknown'; }   // 마이크 상태를 묻지 못하는 브라우저 — 지금처럼 바로 시도
+  }
+  function micPermChanged(){
+    if(!_alive()||!_micPerm) return;
+    var rec=_mr&&_mr.state!=='inactive';
+    if(_micPerm.state==='granted'){ if(!rec&&!_micBusy&&$('micHelp')) micHelp('ok'); }
+    else if(_micPerm.state==='denied'){ if(!rec) micHelp('block'); }
+  }
+  function micHelp(kind){
+    var old=$('micHelp');
+    if(!kind){ if(old&&old.parentNode) old.parentNode.removeChild(old); return; }
+    var btn=$('recBtn'); if(!btn) return;
+    var L='<b class="nw">「'+micEsc(recLabel())+'」</b>';
+    var FILE=' 급하면 휴대폰 기본 녹음기로 녹음한 뒤 「📁 음성 파일 올리기」를 쓰세요.';
+    var h;
+    if(kind==='ask'){
+      h=_isPhone
+        ? '🎤 <b>마이크를 써도 되는지 묻는 창이 떴어요.</b><br>그 창에서 <b>허용</b>을 누르면 바로 녹음이 시작됩니다. 「이번에만」이 아닌 허용을 고르면 <b>다음 회의부터는 묻지 않고 바로 녹음</b>돼요.'
+        : '🎤 <b>크롬이 마이크를 써도 되는지 묻고 있어요.</b><br>주소창 아래에 뜬 창에서 <b class="nw">「사이트에 있는 동안 허용」</b>을 누르면 바로 녹음이 시작됩니다(브라우저에 따라 「허용」).<br>이렇게 한 번 허용하면 <b>다음 회의부터는 묻지 않고 바로 녹음</b>돼요. (「이번에만 허용」을 누르면 다음 회의에서 또 물어요)';
+    } else if(kind==='retry'){
+      h=_isPhone
+        ? '🎤 <b>마이크 허용이 필요해요.</b> '+L+'을 누른 뒤 뜨는 창에서 <b>허용</b>을 눌러 주세요.'
+        : '🎤 <b>마이크 허용이 필요해요.</b> '+L+'을 누른 뒤, 주소창 아래에 뜨는 창에서 <b class="nw">「사이트에 있는 동안 허용」</b>을 눌러 주세요. 한 번 허용하면 다음 회의부터는 바로 녹음돼요.';
+    } else if(kind==='block'){
+      h=_isPhone
+        ? '🚫 <b>이 휴대폰 브라우저에서 이음웍스의 마이크가 막혀 있어요.</b><br>크롬: 오른쪽 위 ⋮ → 설정 → 사이트 설정 → 마이크 → works.knknara.co.kr 을 <b>허용</b> → 이 화면으로 돌아와 '+L+' 누르기.<br>다른 브라우저는 그 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.'+FILE
+        : '🚫 <b>이 브라우저에서 이음웍스의 마이크가 막혀 있어요.</b> 아래처럼 한 번만 풀어 주세요.<br>① 주소창 맨 왼쪽 아이콘(사이트 정보)을 누르기 → ② 「마이크」를 <b>허용</b>으로 바꾸기 → ③ 크롬이 새로고침을 권하면 새로고침 → '+L+' 누르기<br>설치한 이음웍스 앱에서 막혔다면, 그 앱을 설치한 크롬(또는 엣지)에서 works.knknara.co.kr 을 열어 같은 방법으로 풀면 됩니다.'+FILE;
+    } else if(kind==='os'){
+      h=_isPhone
+        ? '🚫 <b>휴대폰 설정에서 브라우저의 마이크 사용이 꺼져 있어요.</b> 휴대폰 설정 → 애플리케이션 → 크롬(쓰는 브라우저) → 권한 → 마이크를 허용한 뒤 '+L+'을 눌러 주세요.'+FILE
+        : '🚫 <b>컴퓨터 설정에서 마이크 사용이 꺼져 있어요.</b> 윈도우 설정의 「개인 정보 및 보안 → 마이크」에서 마이크 사용을 켠 뒤 '+L+'을 눌러 주세요.'+FILE;
+    } else if(kind==='ok'){
+      h='✅ <b>마이크가 허용됐어요.</b> '+L+'을 누르면 녹음이 시작됩니다.';
+    } else {
+      h='🚫 <b>마이크를 쓸 수 없어요.</b> 브라우저 설정에서 이 사이트(works.knknara.co.kr)의 마이크를 <b>허용</b>으로 바꾼 뒤 '+L+'을 눌러 주세요.'+FILE;
+      kind='any';
+    }
+    var box=old;
+    if(!box){
+      box=document.createElement('div'); box.id='micHelp'; box.setAttribute('role','status');
+      var row=btn.closest('.redo-row')||btn;           // 상세=버튼 줄 위 · 새 회의=큰 버튼 위
+      row.parentNode.insertBefore(box,row);
+    }
+    box.className='mic-help '+kind;
+    box.innerHTML=h;
+  }
+  async function micFail(e){
+    var nm=(e&&e.name)||'', msg=String((e&&e.message)||e||'');
+    if(nm==='NotAllowedError'||nm==='PermissionDeniedError'||nm==='SecurityError'){
+      if(/system/i.test(msg)){ micHelp('os'); }                      // 크롬: Permission denied by system (컴퓨터·휴대폰 설정에서 꺼짐)
+      else{
+        var ms=await micState();
+        micHelp(ms==='denied'?'block':(ms==='prompt'?'retry':'any'));
+      }
+      recSt('마이크 허용이 필요합니다 — 위 안내를 봐 주세요.','err');
+    } else if(nm==='NotFoundError'||nm==='DevicesNotFoundError'||nm==='OverconstrainedError'){
+      micHelp(null); recSt('마이크를 찾지 못했습니다 — 마이크가 연결돼 있는지 확인하세요. 급하면 「📁 음성 파일 올리기」를 쓰세요.','err');
+    } else if(nm==='NotReadableError'||nm==='TrackStartError'||nm==='AbortError'){
+      micHelp(null); recSt('마이크를 열지 못했습니다 — 통화나 다른 녹음 앱이 마이크를 쓰고 있는지 확인한 뒤 다시 누르세요.','err');
+    } else {
+      micHelp(null); recSt('마이크 사용 불가: '+msg+' — 「📁 음성 파일 올리기」를 쓰세요.','err');
+    }
+  }
+  async function recStart(){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof MediaRecorder==='undefined'){recSt('이 브라우저는 녹음을 지원하지 않습니다. 「📁 음성 파일 올리기」를 쓰세요.','err');return false;}
+    // 크롬 허용 창을 기다리는 동안 화면 버튼을 또 누르면 녹음기가 둘 생겨 소리가 섞인다 → 한 번만
+    if(_micBusy){ if(_micPerm&&_micPerm.state==='prompt') micHelp('ask'); return false; }
+    _micBusy=true;
+    try{
+      if((await micState())==='prompt') micHelp('ask');
       _stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      _micBusy=false;
+      if(!_alive()){ try{_stream.getTracks().forEach(function(t){t.stop();});}catch(_){} return false; }   // 그 사이 화면을 떠났다
+      micHelp(null);
       _track=_stream.getAudioTracks()[0]||null;
       _chunks=[];_recBlob=null;_userStop=false;_paused=false;
       try{_mr=new MediaRecorder(_stream,{audioBitsPerSecond:32000});}catch(_){_mr=new MediaRecorder(_stream);}
@@ -901,7 +999,13 @@ window.__MTG = {
       await reqWake();
       var pb=$('recPauseBtn');if(pb){pb.hidden=false;pb.textContent='⏸ 일시정지';}
       recSt('녹음 중… 전화 받을 땐 「⏸ 일시정지」를 누르세요(통화 내용 녹음 방지). 다른 앱을 봐도 녹음은 계속됩니다.');
-    }catch(e){recSt('마이크 사용 불가: '+(e.message||e)+' — 「📁 음성 파일 올리기」를 쓰세요.','err');recBanner(false);}
+      return true;
+    }catch(e){
+      _micBusy=false;
+      recBanner(false);
+      if(_alive()) await micFail(e);
+      return false;
+    }
   }
   function recStop(){_userStop=true;try{if(_mr&&_mr.state!=='inactive')_mr.stop();else _finishRec();}catch(_){_finishRec();}}
   document.addEventListener('visibilitychange',function(){
@@ -1017,11 +1121,17 @@ window.__MTG = {
         if (!M.has_audio){
           if (_rb && !_rb.dataset.on) _rb.textContent='🎙 녹음 시작';
           try{ _rt.scrollIntoView({block:'start'}); }catch(_){}
-          recSt('회의 녹음을 시작합니다… (마이크 허용 창이 뜨면 「허용」을 눌러주세요)');
-          recStart().then(function(){
-            if (!(_mr && _mr.state !== 'inactive')){
-              recSt('자동 시작이 막혔습니다 — 위의 「🎙 녹음 시작」을 한 번 눌러주세요.','err');
+          // 🎤 먼저 마이크 허용 상태를 본다 (2026-09-17) — 허용 저장=바로 녹음 · 처음=크롬 창 안내 · 막힘=요청하지 않고 푸는 방법
+          micState().then(function(ms){
+            if (!_alive()) return;
+            if (ms === 'denied'){
+              micHelp('block');
+              recSt('마이크가 막혀 있어 녹음을 자동으로 시작하지 못했습니다 — 위 안내대로 허용한 뒤 「🎙 녹음 시작」을 누르세요.','err');
+              return;
             }
+            recSt(ms === 'granted' ? '회의 녹음을 시작합니다…'
+                                   : '회의 녹음을 시작합니다… 마이크 허용 창이 뜨면 「사이트에 있는 동안 허용」을 눌러주세요.');
+            recStart();   // 실패하면 recStart 가 까닭별 안내를 띄운다
           });
         } else {
           recSt('이 회의는 이미 녹음이 있습니다 — 더 녹음하려면 「🎙 녹음 추가」를 누르세요.');
