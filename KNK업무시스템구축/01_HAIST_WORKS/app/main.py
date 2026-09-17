@@ -3888,11 +3888,21 @@ def _meeting_due_or_none(s):
     return None
 
 
+def _meeting_login_redirect(req: Request):
+    """회의록 화면 미로그인 → 로그인(이음 SSO) 뒤 '이 주소 그대로' 복귀. (2026-09-17 세션 10 요청 · 대표 「진행해」)
+    휴대폰 이음은 입장 토큰 없이 회의록 주소를 직접 연다 → bare /login 이면 로그인 뒤 /home 으로 새어
+    「▶ 회의 시작」(?autorec=1)·「📋 회의록 보기」가 끊겼다. 제작요청서(z816)·/meetings/new 와 같은 패턴 —
+    next 는 /login·/sso/land 의 _safe_next_path 가 내부 경로만 허용(경로가 늘 /meetings 로 시작)."""
+    from urllib.parse import quote
+    _nxt = req.url.path + (("?" + req.url.query) if req.url.query else "")
+    return RedirectResponse("/login?next=" + quote(_nxt, safe=""), 303)
+
+
 @app.get("/meetings", response_class=HTMLResponse)
 async def meetings_page(req: Request):
     u = get_user(req)
     if not u:
-        return RedirectResponse("/login", 303)
+        return _meeting_login_redirect(req)   # ?tab=cards 도 보존
     role = (u.get("role") or "member").lower()
     _sel = """SELECT m.*, t.name AS team_name, usr.name AS owner_name,
                  (SELECT COUNT(*) FROM meeting_decisions WHERE meeting_id=m.id) AS dec_cnt,
@@ -3955,7 +3965,7 @@ async def meeting_new_page(req: Request):
 async def meeting_detail_page(req: Request, mid: int):
     u = get_user(req)
     if not u:
-        return RedirectResponse("/login", 303)
+        return _meeting_login_redirect(req)   # 「▶ 회의 시작」 ?autorec=1 도 보존
     from . import ai_client
     with db_session() as c:
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
@@ -4050,7 +4060,7 @@ async def meeting_doc_page(req: Request, mid: int):
     보안등급은 공개범위(visibility) 매핑(private→대외비). 권한 게이트(_can_view_meeting)."""
     u = get_user(req)
     if not u:
-        return RedirectResponse("/login", 303)
+        return _meeting_login_redirect(req)   # 「📋 회의록 보기」
     with db_session() as c:
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
         if not m:
