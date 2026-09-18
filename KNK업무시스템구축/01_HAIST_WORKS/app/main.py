@@ -5195,6 +5195,9 @@ def _meeting_msg_stage(m) -> str:
         return "processing"
     if job.get("state") == "error":
         return "failed"
+    if (m.get("rec_state") or "") == "recording":
+        # z1114: 녹음 중(창이 닫혀 끊긴 녹음 포함)은 앞 조각 파일이 있어도 '진행 중' — 카드가 「녹음됨·정리 대기」로 잘못 보이지 않게
+        return "started"
     if (m.get("audio_path") or "").strip() or "[음성 변환]" in (m.get("body") or ""):
         return "recorded"
     return "started"
@@ -5326,15 +5329,19 @@ async def api_meeting_msg_status(req: Request):
                 continue
             m = dict(row)
             can_view = bool(viewer) and _can_view_meeting(c, viewer, m)
+            _rv = _rec_view(m)       # z1114: 녹음 중인가 · 서버에 저장된 초(창이 닫혀 끊긴 녹음도)
             it = {"stage": _meeting_msg_stage(m), "can_view": can_view,
                   "started_by": _msg_owner_disp(c, m.get("owner_id")),
-                  "started_at": m.get("msg_started_at") or ""}
+                  "started_at": m.get("msg_started_at") or "",
+                  "recording": _rv["state"] == "recording",
+                  "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0}
             if can_view:                  # 볼 수 없는 사람에겐 회의록 주소 자체를 주지 않는다
                 it["meeting_id"] = m["id"]
                 # 「📋 회의록 보기」 착지 (대표 지시 2026-09-16): 정리가 끝났으면 **회의록 양식**으로 바로.
                 #   양식은 읽기 전용이라, 아직 손봐야 하는 단계(정리 실패 등)는 고칠 수 있는 회의록 화면으로 보낸다
                 #   — 카드 안내문이 "회의록에서 다시 시도"라고 말하는 그 화면.
-                it["url"] = (f"/meetings/{m['id']}/doc" if it["stage"] == "done"
+                #   z1114: 녹음 중이면(창이 닫혀 끊겼어도) 녹음을 끝낼 수 있는 회의록 화면으로 — 이음 카드 「🔴 회의 진행 중」 → 여기
+                it["url"] = (f"/meetings/{m['id']}/doc" if (it["stage"] == "done" and not it["recording"])
                              else f"/meetings/{m['id']}")
             items[str(msg_id)] = it
     return JSONResponse({"ok": True, "items": items})
