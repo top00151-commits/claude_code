@@ -881,6 +881,15 @@ def startup():
             print(f"[MEETING-MSG-LINK-MIG] {_rmmsg}")
     except Exception as _e:
         print(f"[MEETING-MSG-LINK-MIG ERR] {_e}")
+    # z1113 (대표 지시 2026-09-18): 녹음 중 서버 저장 — meetings.rec_state · rec_json (idempotent)
+    try:
+        from .migrations.m_z1113_meeting_rec import migrate as _mrec_migrate
+        from .database import DB_PATH as _DB_PATH_MREC
+        _rmrec = _mrec_migrate(_DB_PATH_MREC)
+        if _rmrec.get('added'):
+            print(f"[MEETING-REC-MIG-Z1113] {_rmrec}")
+    except Exception as _e:
+        print(f"[MEETING-REC-MIG-Z1113 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -3929,6 +3938,8 @@ async def meetings_page(req: Request):
                 (u["id"], u["id"], _ent_vis, u.get("team_id"), u["id"]),
             ).fetchall()
         meetings = [dict(r) for r in rows]
+        for _mm in meetings:   # z1113: 목록에서도 「🔴 녹음 중」을 보고 바로 끝낼 수 있게
+            _mm["rec"] = _rec_view(_mm, u)
     # 🗓 회의 카드 모아보기 탭(2026-09-17 대표 지시) — ?tab=cards
     tab = "cards" if (req.query_params.get("tab") or "") == "cards" else "list"
     return ctx(req, "meetings.html", user=u, meetings=meetings, tab=tab)
@@ -4009,7 +4020,8 @@ async def meeting_detail_page(req: Request, mid: int):
                can_edit=_can_edit_meeting(u, m), can_delete=_can_delete_meeting(u, m), ai_on=ai_client.ai_available(),
                transcribe_on=ai_client.transcribe_available(),
                projects=projects, opps=opps, linked_project=linked_project, linked_opp=linked_opp,
-               can_link_proj=_can_vsales, can_link_sales=_can_sales)
+               can_link_proj=_can_vsales, can_link_sales=_can_sales,
+               rec=_rec_view(m, u))   # z1113: 「🔴 녹음 중」 복귀 안내
 
 
 # ── 회의록 종이 양식(v3 · 대표 확정 2026-09-16) 채움 도우미 ──────────────────
@@ -4435,6 +4447,48 @@ _MEETING_AUDIO_MIME = {
     ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg",
     ".aac": "audio/aac", ".3gp": "audio/3gpp", ".caf": "audio/x-caf",
 }
+# 2026-09-17 대표 지시: 음성 파일 올리기 60MB → 300MB (긴 폰 녹음). 글자 변환은 _stt_worker 가 줄이고 20분씩 나눠서.
+#   ⭐ 한도 숫자는 여기 한 곳 — 화면(meeting_form.html)은 window.__MTG.audio_max_mb 로 같은 값을 받는다.
+_MEETING_AUDIO_MAX_MB = 300
+_MEETING_AUDIO_BLOCK = 1024 * 1024
+tpl.env.globals["MEETING_AUDIO_MAX_MB"] = _MEETING_AUDIO_MAX_MB
+
+
+def _meeting_audio_too_big(n: int, exact: bool = True) -> str:
+    return (f"음성은 {_MEETING_AUDIO_MAX_MB}MB 이하만 올릴 수 있습니다"
+            + (f"(이 파일 {n // 1024 // 1024}MB)." if exact else f"(이 파일은 {_MEETING_AUDIO_MAX_MB}MB 를 넘습니다)."))
+
+
+def _meeting_audio_save(src, dest: str, limit: int) -> int:
+    """올린 음성(서버가 받아 둔 임시 파일)을 1MB 씩 dest 로 옮겨 적는다 — 300MB 를 메모리에 통째로 올리지 않게.
+    반환 = 옮긴 바이트 수. limit 을 넘거나 100바이트 미만이면 옮기던 조각 파일을 지우고 그 수를 돌려준다(호출부가 안내)."""
+    part = dest + ".part"
+    n = 0
+    try:
+        try:
+            src.seek(0)
+        except Exception:
+            pass
+        with open(part, "wb") as out:
+            while True:
+                b = src.read(_MEETING_AUDIO_BLOCK)
+                if not b:
+                    break
+                n += len(b)
+                if n > limit:
+                    break
+                out.write(b)
+        if n > limit or n < 100:
+            os.remove(part)
+            return n
+        os.replace(part, dest)
+        return n
+    except Exception:
+        try:
+            os.remove(part)
+        except Exception:
+            pass
+        raise
 
 
 @app.post("/api/meeting/{mid:int}/audio")
@@ -4454,18 +4508,23 @@ async def api_meeting_audio_upload(req: Request, mid: int, file: UploadFile = Fi
     ext = os.path.splitext(orig)[1].lower() or ".webm"
     if ext not in _MEETING_AUDIO_EXT:
         return JSONResponse({"ok": False, "error": f"지원하지 않는 음성 형식({ext})."}, 400)
-    raw = await file.read()
-    if len(raw) < 100:
+    _lim = _MEETING_AUDIO_MAX_MB * 1024 * 1024
+    _sz = getattr(file, "size", None)          # 서버가 이미 임시 파일로 다 받아 둔 크기(있으면 옮기기 전에 거른다)
+    if _sz is not None and _sz > _lim:
+        return JSONResponse({"ok": False, "error": _meeting_audio_too_big(_sz)}, 400)
+    if _sz is not None and _sz < 100:
         return JSONResponse({"ok": False, "error": "빈/손상 음성 파일입니다."}, 400)
-    if len(raw) > 60 * 1024 * 1024:
-        return JSONResponse({"ok": False, "error": f"음성은 60MB 이하만 가능합니다(현재 {len(raw)//1024//1024}MB)."}, 400)
     import time as _time
+    from starlette.concurrency import run_in_threadpool
     audio_dir = os.path.join("meeting_audio", f"meeting_{mid}")
     os.makedirs(audio_dir, exist_ok=True)
     ts = int(_time.time())
     disk_path = os.path.join(audio_dir, f"rec_{ts}{ext}")
-    with open(disk_path, "wb") as f:
-        f.write(raw)
+    _n = await run_in_threadpool(_meeting_audio_save, file.file, disk_path, _lim)   # 일꾼 1개 — 디스크 쓰기는 스레드에서
+    if _n > _lim:
+        return JSONResponse({"ok": False, "error": _meeting_audio_too_big(_n, exact=False)}, 400)
+    if _n < 100:
+        return JSONResponse({"ok": False, "error": "빈/손상 음성 파일입니다."}, 400)
     rel = disk_path.replace("\\", "/")
     old = (m.get("audio_path") or "").strip()
     with db_session() as c:
@@ -4477,8 +4536,284 @@ async def api_meeting_audio_upload(req: Request, mid: int, file: UploadFile = Fi
     #   녹음하면 1차 파일이 사라져 다시 변환·확인할 방법이 없었다(회의 17 실사고).
     #   재생·변환은 최신 것을 쓰되 파일 자체는 남겨 증거와 재변환 여지를 지킨다.
     _prev_audio_kept = old  # 보존됨(삭제하지 않음)
+    _rec_add_pending(mid, rel)   # z1113: 올린 파일도 '아직 글자로 안 바꾼 녹음'에 — 끊긴 조각과 차례로 변환
     return JSONResponse({"ok": True, "audio_url": f"/api/meeting/{mid}/audio?v={ts}",
-                         "size_kb": len(raw) // 1024, "updated_at": _new_ts})
+                         "size_kb": _n // 1024, "updated_at": _new_ts})
+
+
+# ── 🔴 녹음 중 서버 저장 (z1113 · 대표 지시 2026-09-18) ────────────────────────────
+#   대표 신고: 「녹음 중에 다른 앱을 쓰면 녹음이 안 되고, 창이 닫히면 그 화면을 다시 못 열어
+#             회의 종료도 못 누른다」 → 그때까지 녹음한 것이 통째로 사라졌다(증상=창이 닫혀 있었음).
+#   까닭(실측): 조각은 휴대폰 메모리에만 쌓이고 서버로는 「녹음 종료」 때 한 번에 올라갔다.
+#   고침: 녹음하는 동안 조각(10초쯤)을 이 API 로 보내 서버 파일(rec_*.part)에 순서대로 이어 붙인다.
+#         · 창이 닫혀도 서버에는 그때까지가 남는다(파일은 지우지 않음 — z1092 보존 원칙)
+#         · 「녹음 끝내고 정리」는 목록·다른 기기에서도 부를 수 있다(rec-finish)
+#   ⚠ 휴대폰이 앱을 재우면 마이크 자체가 끊기는 것은 웹으로 못 막는다 — 막을 수 있는 건
+#     '들어온 소리를 잃지 않기'와 '언제든 끝내기' 둘이다(안내문도 그렇게 적었다).
+_REC_CHUNK_MAX = 8 * 1024 * 1024        # 조각 하나 최대(10초 ≈ 40KB · 넉넉히)
+_REC_EXT_OK = (".webm", ".m4a", ".mp4", ".ogg", ".wav")
+_REC_MAX_PENDING = 20                   # '아직 글자로 안 바꾼 녹음' 보관 개수
+
+
+def _rec_info(m: dict) -> dict:
+    """meetings.rec_json → dict(형식이 깨져 있으면 빈 dict)."""
+    import json as _j
+    try:
+        d = _j.loads((((m or {}).get("rec_json") or "")).strip() or "{}")
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _rec_dump(info: dict) -> str:
+    import json as _j
+    try:
+        return _j.dumps(info or {}, ensure_ascii=False)
+    except Exception:
+        return "{}"
+
+
+def _rec_now() -> str:
+    import time as _t
+    return _t.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _rec_view(m: dict, u=None) -> dict:
+    """화면에 줄 요약 — 서버 파일 경로는 주지 않는다."""
+    info = _rec_info(m)
+    return {"state": (((m or {}).get("rec_state") or "")).strip(),
+            "secs": int(info.get("secs") or 0),
+            "kb": int(info.get("bytes") or 0) // 1024,
+            "started_at": info.get("started_at") or "",
+            "last_at": info.get("last_at") or "",
+            "by_name": info.get("by_name") or "",
+            "mine": bool(u and info.get("by") and info.get("by") == u.get("id")),
+            "pending": len([p for p in (info.get("pending") or []) if p])}
+
+
+def _rec_close_part(info: dict) -> str:
+    """열려 있던 조각(.part)을 정식 파일로 닫는다. 반환=닫은 파일 경로('' 면 없거나 소리가 없음)."""
+    part = (info.get("part") or "").strip()
+    info["part"] = ""
+    if not part or not os.path.exists(part):
+        return ""
+    final = part[:-len(".part")] if part.endswith(".part") else part
+    try:
+        if os.path.getsize(part) < 100:      # 소리가 거의 없다 — 남기지 않는다
+            os.remove(part)
+            return ""
+        os.replace(part, final)
+    except Exception:
+        return ""
+    rel = final.replace("\\", "/")
+    pend = [p for p in (info.get("pending") or []) if p and p != rel]
+    pend.append(rel)
+    info["pending"] = pend[-_REC_MAX_PENDING:]
+    return rel
+
+
+def _rec_add_pending(mid: int, path: str):
+    """새로 저장된 음성을 '아직 글자로 안 바꾼 녹음' 목록에 넣는다(순서 보존)."""
+    try:
+        with db_session() as c:
+            row = c.execute("SELECT rec_json FROM meetings WHERE id=?", (mid,)).fetchone()
+            info = _rec_info({"rec_json": (row["rec_json"] if row else "")})
+            pend = [p for p in (info.get("pending") or []) if p and p != path]
+            pend.append(path)
+            info["pending"] = pend[-_REC_MAX_PENDING:]
+            c.execute("UPDATE meetings SET rec_json=? WHERE id=?", (_rec_dump(info), mid))
+    except Exception:
+        pass
+
+
+def _rec_drop_pending(mid: int, path: str):
+    """글자로 바꾼 조각은 목록에서 뺀다(파일 자체는 그대로 둔다)."""
+    try:
+        with db_session() as c:
+            row = c.execute("SELECT rec_json FROM meetings WHERE id=?", (mid,)).fetchone()
+            info = _rec_info({"rec_json": (row["rec_json"] if row else "")})
+            pend = [p for p in (info.get("pending") or []) if p and p != path]
+            if pend != (info.get("pending") or []):
+                info["pending"] = pend
+                c.execute("UPDATE meetings SET rec_json=? WHERE id=?", (_rec_dump(info), mid))
+    except Exception:
+        pass
+
+
+def _rec_load(c, u, mid: int, need_edit: bool = True):
+    """회의 한 건 + 권한 확인. 반환 (회의dict, 오류응답) — 오류응답이 있으면 그대로 돌려준다."""
+    row = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+    if not row:
+        return None, JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+    mm = dict(row)
+    if need_edit and not _can_edit_meeting(u, mm):
+        return None, JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    if not need_edit and not _can_view_meeting(c, u, mm):
+        return None, JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    return mm, None
+
+
+@app.post("/api/meeting/{mid:int}/rec-start")
+async def api_meeting_rec_start(req: Request, mid: int):
+    """녹음 시작 — 서버에 「🔴 녹음 중」으로 적고, 조각을 이어 붙일 파일을 연다.
+    앞서 창이 닫혀 끊긴 조각이 있으면 먼저 정식 파일로 닫아 보존한다(잃지 않게)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        d = {}
+    ext = str(d.get("ext") or ".webm").lower().strip()
+    if not ext.startswith("."):
+        ext = "." + ext
+    if ext not in _REC_EXT_OK:
+        ext = ".webm"
+    import time as _time
+    with db_session() as c:
+        mm, bad = _rec_load(c, u, mid)
+        if bad:
+            return bad
+        info = _rec_info(mm)
+        closed = _rec_close_part(info)
+        audio_dir = os.path.join("meeting_audio", f"meeting_{mid}")
+        os.makedirs(audio_dir, exist_ok=True)
+        ses = str(int(_time.time() * 1000))
+        part = os.path.join(audio_dir, f"rec_{ses}{ext}.part").replace("\\", "/")
+        try:
+            open(part, "wb").close()
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": f"녹음 파일을 열지 못했습니다: {type(e).__name__}"}, 500)
+        info.update({"session": ses, "part": part, "seq": 0, "bytes": 0, "secs": 0,
+                     "by": u.get("id"), "by_name": (u.get("name") or ""),
+                     "started_at": _rec_now(), "last_at": _rec_now()})
+        if closed:
+            c.execute("UPDATE meetings SET audio_path=?, mode='B' WHERE id=?", (closed, mid))
+        c.execute("UPDATE meetings SET rec_state='recording', rec_json=?, mode='B', "
+                  "updated_at=datetime('now','localtime') WHERE id=?", (_rec_dump(info), mid))
+    return JSONResponse({"ok": True, "session": ses, "kept": bool(closed),
+                         "pending": len(info.get("pending") or [])})
+
+
+@app.post("/api/meeting/{mid:int}/rec-chunk")
+async def api_meeting_rec_chunk(req: Request, mid: int):
+    """녹음 조각 이어 붙이기 — 본문은 소리 바이트 그대로, 순서는 seq(1부터).
+    순서가 어긋나면 서버가 기다리는 번호를 알려 주고(화면이 맞춰 다시 보냄), 늦게 온 옛 녹음은 받지 않는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    q = req.query_params
+    ses = (q.get("session") or "").strip()
+    try:
+        seq = int(q.get("seq") or "0")
+        secs = int(float(q.get("secs") or "0"))
+    except Exception:
+        return JSONResponse({"ok": False, "error": "잘못된 조각 번호입니다."}, 400)
+    raw = await req.body()
+    if not raw:
+        return JSONResponse({"ok": False, "error": "빈 조각입니다."}, 400)
+    if len(raw) > _REC_CHUNK_MAX:
+        return JSONResponse({"ok": False, "error": "조각이 너무 큽니다."}, 413)
+    with db_session() as c:
+        mm, bad = _rec_load(c, u, mid)
+        if bad:
+            return bad
+        info = _rec_info(mm)
+        if (mm.get("rec_state") or "") != "recording" or not info.get("part") or info.get("session") != ses:
+            return JSONResponse({"ok": False, "stale": True,
+                                 "error": "이 녹음은 이미 끝났거나 다른 곳에서 새로 시작됐습니다."}, 409)
+        exp = int(info.get("seq") or 0) + 1
+        if seq != exp:
+            return JSONResponse({"ok": False, "expect": exp,
+                                 "error": f"조각 순서가 어긋났습니다(서버는 {exp}번을 기다립니다)."}, 409)
+        if int(info.get("bytes") or 0) + len(raw) > _MEETING_AUDIO_MAX_MB * 1024 * 1024:
+            return JSONResponse({"ok": False, "full": True,
+                                 "error": f"녹음이 {_MEETING_AUDIO_MAX_MB}MB 를 넘었습니다 — 「녹음 종료」를 눌러 주세요."}, 413)
+        try:
+            with open(info["part"], "ab") as fh:
+                fh.write(raw)
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": f"조각 저장 실패: {type(e).__name__}"}, 500)
+        info["seq"] = seq
+        info["bytes"] = int(info.get("bytes") or 0) + len(raw)
+        info["secs"] = max(int(info.get("secs") or 0), secs)
+        info["last_at"] = _rec_now()
+        c.execute("UPDATE meetings SET rec_json=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (_rec_dump(info), mid))
+    return JSONResponse({"ok": True, "seq": seq, "bytes": info["bytes"], "secs": info["secs"]})
+
+
+@app.post("/api/meeting/{mid:int}/rec-finish")
+async def api_meeting_rec_finish(req: Request, mid: int):
+    """녹음 끝내기 — 열린 조각을 정식 파일로 닫고 「🔴 녹음 중」을 지운다.
+    회의록 목록이나 다른 기기(PC)에서도 부를 수 있다(창이 닫혀 끊긴 회의를 마치는 길)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        mm, bad = _rec_load(c, u, mid)
+        if bad:
+            return bad
+        info = _rec_info(mm)
+        final = _rec_close_part(info)
+        pend = [p for p in (info.get("pending") or []) if p and os.path.exists(p)]
+        info["pending"] = pend
+        newest = final or (pend[-1] if pend else "")
+        secs = int(info.get("secs") or 0)
+        kb = int(info.get("bytes") or 0) // 1024
+        info["session"] = ""
+        info["seq"] = 0
+        info["bytes"] = 0
+        info["secs"] = 0
+        if newest:
+            c.execute("UPDATE meetings SET audio_path=?, mode='B', rec_state='', rec_json=?, "
+                      "updated_at=datetime('now','localtime') WHERE id=?", (newest, _rec_dump(info), mid))
+        else:
+            c.execute("UPDATE meetings SET rec_state='', rec_json=?, updated_at=datetime('now','localtime') "
+                      "WHERE id=?", (_rec_dump(info), mid))
+        _ts = _row_ts(c, "meetings", mid)
+    return JSONResponse({"ok": True, "saved": bool(newest), "secs": secs, "size_kb": kb,
+                         "pending": len(pend), "updated_at": _ts})
+
+
+@app.post("/api/meeting/{mid:int}/rec-cancel")
+async def api_meeting_rec_cancel(req: Request, mid: int):
+    """이 조각 버리기 — 인터넷이 끊겨 녹음 전체를 한 번에 올릴 때처럼, 반쪽 조각이 겹쳐 남지 않게."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        mm, bad = _rec_load(c, u, mid)
+        if bad:
+            return bad
+        info = _rec_info(mm)
+        part = (info.get("part") or "").strip()
+        if part and os.path.exists(part):
+            try:
+                os.remove(part)
+            except Exception:
+                pass
+        info["part"] = ""
+        info["session"] = ""
+        info["seq"] = 0
+        info["bytes"] = 0
+        info["secs"] = 0
+        c.execute("UPDATE meetings SET rec_state='', rec_json=?, updated_at=datetime('now','localtime') "
+                  "WHERE id=?", (_rec_dump(info), mid))
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/meeting/{mid:int}/rec-status")
+async def api_meeting_rec_status(req: Request, mid: int):
+    """지금 이 회의가 녹음 중인지 · 얼마나 저장됐는지(화면 표시·복귀 안내용)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        mm, bad = _rec_load(c, u, mid, need_edit=False)
+        if bad:
+            return bad
+    return JSONResponse({"ok": True, "rec": _rec_view(mm, u)})
 
 
 @app.get("/api/meeting/{mid:int}/audio")
@@ -4599,67 +4934,145 @@ def _stt_friendly_error(text: str) -> str:
     return t
 
 
-def _stt_worker(mid: int, disk: str, lang: str):
-    """백그라운드 음성→글자 워커 — 기존 동기 로직 그대로(압축→Whisper→body 덧붙임).
-    body 는 완료 시점에 DB에서 새로 읽어 덧붙임(작업 중 사용자가 원문을 고쳐도 안 덮음)."""
-    err, warn = "", ""
+_STT_MAX_BYTES = 25 * 1024 * 1024     # OpenAI 음성→글자 한 번 요청 한도
+_STT_SEG_SEC = 20 * 60                # 큰 음성은 20분씩 나눠 변환(구간마다 ai_transcribe 5분 제한 안에 넉넉히)
+
+
+def _stt_progress(mid: int, txt: str):
+    """진행 글(화면 「음성을 글자로 바꾸는 중 — …」) — 돌고 있는 작업에만 적는다."""
+    with _STT_LOCK:
+        j = _STT_JOBS.get(mid)
+        if j is not None and j.get("state") == "running":
+            j["progress"] = txt
+
+
+def _stt_split(disk: str, workdir: str):
+    """25MB 넘는 음성 → 모노 16kHz 32kbps mp3 로 줄이면서 20분씩 나눈다(구간당 약 4.6MB).
+    반환 (성공, 조각 경로 목록 | 사람말 오류). 원본은 건드리지 않는다(z1092 보존 원칙).
+    ⚠ 2026-09-17 확인: 운영 WORKS 서버에 ffmpeg 가 없어 25MB 넘는 음성은 한 번도 글자로 바뀐 적이 없었다
+      → 없으면 그 사실을 그대로 알린다(예전엔 「25MB를 넘어…」로만 보여 원인이 가려졌다)."""
+    import glob as _glob, shutil as _sh, subprocess as _sp
+    ff = _sh.which("ffmpeg")
+    if not ff:
+        return (False, "서버에 음성 줄이는 도구(ffmpeg)가 없어 25MB 넘는 음성은 글자로 바꾸지 못했습니다 — 관리자에게 알려 주세요.")
+    os.makedirs(workdir, exist_ok=True)
+    try:
+        r = _sp.run([ff, "-hide_banner", "-nostdin", "-y", "-i", disk, "-vn", "-ac", "1", "-ar", "16000",
+                     "-b:a", "32k", "-f", "segment", "-segment_time", str(_STT_SEG_SEC),
+                     "-reset_timestamps", "1", os.path.join(workdir, "part_%03d.mp3")],
+                    capture_output=True, timeout=1800)
+    except _sp.TimeoutExpired:
+        return (False, "음성을 줄이는 데 30분을 넘겨 멈췄습니다 — 관리자에게 알려 주세요.")
+    parts = sorted(_glob.glob(os.path.join(workdir, "part_*.mp3")))
+    if r.returncode != 0 or not parts:
+        last = [ln.strip() for ln in (r.stderr or b"").decode("utf-8", "replace").splitlines() if ln.strip()][-1:]
+        return (False, "음성 파일을 읽지 못해 글자로 바꾸지 못했습니다(파일이 손상됐거나 읽을 수 없는 형식) — "
+                       + (last[0][:160] if last else f"ffmpeg 코드 {r.returncode}"))
+    if any(os.path.getsize(p) > _STT_MAX_BYTES for p in parts):
+        return (False, "나눈 음성 조각이 25MB를 넘었습니다 — 관리자에게 알려 주세요.")
+    return (True, parts)
+
+
+_STT_APPEND_LOCK = _stt_thr.Lock()   # 본문 덧붙이기는 한 번에 하나(조각 둘이 같이 끝나도 한쪽이 안 지워지게)
+
+
+def _stt_append_body(mid: int, text: str):
+    """음성 글자를 회의 본문 끝에 덧붙인다(그 사이 사람이 고친 원문은 그대로 둔다)."""
+    with _STT_APPEND_LOCK:
+        with db_session() as c:
+            row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
+            prev = ((row["body"] if row else "") or "").strip()
+            new_body = ((prev + "\n\n") if prev else "") + "🎙 [음성 변환]\n" + text.strip()
+            c.execute("UPDATE meetings SET body=?, updated_at=datetime('now','localtime') WHERE id=?",
+                      (new_body, mid))
+
+
+def _stt_one(mid: int, disk: str, lang: str, head: str = ""):
+    """음성 하나 → 글자. 25MB 이하=한 번에(지금까지와 같음) / 넘으면 줄여 20분씩 나눠 차례로.
+    반환 (글, 오류, 경고) — 오류가 있으면 글은 비어 있다(반쪽 회의록 방지)."""
+    import shutil as _sh
+    err, warn, workdir, texts = "", "", "", []
     try:
         from . import ai_client
-        stt_path, _tmp_stt = disk, None
-        # Whisper 1요청 25MB 한도 — 초과(긴 파일 업로드)면 ffmpeg로 모노 32k mp3 자동 압축 시도.
-        try:
-            if os.path.getsize(disk) > 25 * 1024 * 1024:
-                import subprocess, time as _t
-                _cand = os.path.join(os.path.dirname(disk), f"stt_{int(_t.time())}.mp3")
-                _r = subprocess.run(["ffmpeg", "-y", "-i", disk, "-ac", "1", "-b:a", "32k", _cand],
-                                    capture_output=True, timeout=600)
-                if _r.returncode == 0 and os.path.exists(_cand) and os.path.getsize(_cand) <= 25 * 1024 * 1024:
-                    stt_path, _tmp_stt = _cand, _cand
-                elif os.path.exists(_cand):
-                    try:
-                        os.remove(_cand)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-        if os.path.getsize(stt_path) > 25 * 1024 * 1024:
-            err = "음성이 25MB를 넘어 음성→글자가 어렵습니다. 브라우저 녹음(자동 압축)을 쓰거나 파일을 나눠 올려주세요."
-        else:
+        if os.path.getsize(disk) <= _STT_MAX_BYTES:
             # z1093: 삼성·안드로이드 녹음기 m4a(속=AAC·표식=3gp4)는 표식만 바꾼 사본으로 보낸다
-            _brand_tmp = _stt_fix_3gp_brand(stt_path)
+            _brand_tmp = _stt_fix_3gp_brand(disk)
             try:
-                ok, text = ai_client.ai_transcribe(_brand_tmp or stt_path, lang or "")
+                ok, text = ai_client.ai_transcribe(_brand_tmp or disk, lang or "")
             finally:
                 if _brand_tmp:  # 사본은 변환 직후 삭제(원본은 보존)
                     try:
                         os.remove(_brand_tmp)
                     except Exception:
                         pass
-            if not ok:
-                err = _stt_friendly_error(text)
-            elif not text.strip():
-                err = "음성에서 인식된 내용이 없습니다(무음/잡음일 수 있어요)."
+            if ok:
+                texts.append(text)
             else:
-                text, _hallu = _stt_strip_hallucination(text.strip())
-                if _hallu:  # 화면에 "소리가 안 들어온 구간이 있었다"고 알린다
-                    warn = (f"소리가 들어오지 않은 구간 {_hallu}곳이 있었습니다 — "
-                            "녹음 중 휴대폰 화면을 끄면 마이크가 끊깁니다. "
-                            "긴 회의는 「음성 파일 올리기」(폰 기본 녹음기)가 가장 안전합니다.")
-                with db_session() as c:
-                    row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
-                    prev = ((row["body"] if row else "") or "").strip()
-                    new_body = ((prev + "\n\n") if prev else "") + "🎙 [음성 변환]\n" + text.strip()
-                    c.execute("UPDATE meetings SET body=?, updated_at=datetime('now','localtime') WHERE id=?",
-                              (new_body, mid))
-        if _tmp_stt:  # 압축 임시파일 정리
-            try:
-                os.remove(_tmp_stt)
-            except Exception:
-                pass
-    except Exception as e:  # 표면화 원칙 — 예외 종류까지 상태에 담아 화면에 노출
+                err = _stt_friendly_error(text)
+        else:
+            import time as _t
+            _stt_progress(mid, head + "긴 음성을 줄여서 20분씩 나누는 중")
+            workdir = os.path.join(os.path.dirname(disk) or ".", f"stt_parts_{int(_t.time() * 1000)}")
+            ok, parts = _stt_split(disk, workdir)
+            if not ok:
+                err = parts
+            else:
+                n = len(parts)
+                for i, p in enumerate(parts, 1):
+                    _stt_progress(mid, head + f"{n}개 구간 중 {i}번째")
+                    ok, text = ai_client.ai_transcribe(p, lang or "")
+                    if not ok:
+                        err = (f"{n}개 구간 중 {i}번째(약 {(i - 1) * _STT_SEG_SEC // 60}분부터)를 글자로 바꾸지 못했습니다 — "
+                               + _stt_friendly_error(text))
+                        break
+                    texts.append(text)
+    except Exception as e:  # 표면화 원칙 — 예외 종류까지 화면에 노출
         err = f"{type(e).__name__}: {str(e)[:200]}"
+    finally:
+        if workdir:  # 나눈 조각 정리(원본은 보존)
+            _sh.rmtree(workdir, ignore_errors=True)
+    if err:
+        return ("", err, "")
+    text = "\n".join(t.strip() for t in texts if t and t.strip())
+    if not text:
+        return ("", "음성에서 인식된 내용이 없습니다(무음/잡음일 수 있어요).", "")
+    text, _hallu = _stt_strip_hallucination(text)
+    if _hallu:  # 화면에 "소리가 안 들어온 구간이 있었다"고 알린다
+        warn = (f"소리가 들어오지 않은 구간 {_hallu}곳이 있었습니다 — "
+                "녹음 중 휴대폰 화면을 끄면 마이크가 끊깁니다. "
+                "긴 회의는 「음성 파일 올리기」(폰 기본 녹음기)가 가장 안전합니다.")
+    return (text, "", warn)
+
+
+def _stt_worker(mid: int, disks, lang: str):
+    """백그라운드 음성→글자 워커. disks = 녹음 파일 하나 또는 여러 개.
+    z1113: 창이 닫혀 끊긴 조각·이어서 녹음한 조각을 '순서대로' 바꿔 하나씩 본문에 덧붙인다
+    (조각 하나가 끝날 때마다 저장하므로 뒤에서 실패해도 앞부분은 남는다)."""
+    if isinstance(disks, str):
+        disks = [disks]
+    disks = [d for d in (disks or []) if d]
+    err, warn, done = "", "", 0
+    n = len(disks)
+    for i, d in enumerate(disks, 1):
+        if not os.path.exists(d):      # 지워진 조각은 건너뛴다
+            _rec_drop_pending(mid, d)
+            continue
+        head = (f"{n}개 녹음 중 {i}번째 · " if n > 1 else "")
+        if n > 1:
+            _stt_progress(mid, f"{n}개 녹음 중 {i}번째")
+        text, e1, w1 = _stt_one(mid, d, lang, head)
+        if e1:
+            err = (f"{n}개 녹음 중 {i}번째 — " if n > 1 else "") + e1
+            break
+        if w1:
+            warn = w1
+        _stt_append_body(mid, text)
+        _rec_drop_pending(mid, d)      # 글자로 바꾼 조각은 목록에서 뺀다(다시 정리해도 두 번 안 붙게)
+        done += 1
+    if not disks and not err:
+        err = "녹음 파일이 없습니다."
     with _STT_LOCK:
-        _STT_JOBS[mid] = {"state": ("error" if err else "done"), "error": err, "warn": warn}
+        _STT_JOBS[mid] = {"state": ("error" if err else "done"), "error": err, "warn": warn, "done": done}
 
 
 @app.post("/api/meeting/{mid:int}/transcribe")
@@ -4684,8 +5097,11 @@ async def api_meeting_transcribe(req: Request, mid: int):
         m = dict(m)
         if not _can_edit_meeting(u, m):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    # z1113: 아직 글자로 안 바꾼 녹음 조각들(끊긴 녹음·이어서 녹음·올린 파일)을 순서대로. 없으면 최신 음성 하나.
     disk = (m.get("audio_path") or "").strip()
-    if not disk or not os.path.exists(disk):
+    _pend = [p for p in (_rec_info(m).get("pending") or []) if p and os.path.exists(p)]
+    _disks = _pend or ([disk] if (disk and os.path.exists(disk)) else [])
+    if not _disks:
         return JSONResponse({"ok": False, "error": "녹음 파일이 없습니다. 먼저 녹음·업로드하세요."}, 400)
     with _STT_LOCK:
         j = _STT_JOBS.get(mid)
@@ -4693,7 +5109,7 @@ async def api_meeting_transcribe(req: Request, mid: int):
             # 이미 변환 중(중복 클릭/재진입) — 새로 시작하지 않고 그 작업을 이어서 폴링
             return JSONResponse({"ok": True, "already": True})
         _STT_JOBS[mid] = {"state": "running", "error": ""}
-    _stt_thr.Thread(target=_stt_worker, args=(mid, disk, lang or ""), daemon=True).start()
+    _stt_thr.Thread(target=_stt_worker, args=(mid, _disks, lang or ""), daemon=True).start()
     return JSONResponse({"ok": True, "started": True})
 
 
@@ -4712,7 +5128,7 @@ async def api_meeting_stt_status(req: Request, mid: int):
     with _STT_LOCK:
         j = dict(_STT_JOBS.get(mid) or {"state": "none", "error": "", "warn": ""})
     out = {"ok": True, "state": j.get("state") or "none", "error": j.get("error") or "",
-           "warn": j.get("warn") or ""}
+           "warn": j.get("warn") or "", "progress": j.get("progress") or ""}
     if out["state"] == "done":
         with db_session() as c:
             row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()

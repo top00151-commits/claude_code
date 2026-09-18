@@ -13,6 +13,14 @@
 {% include "_v5_partials/styles.html" %}
 <style>
 .mtg-card { display:block; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 12px; transition: all .16s; text-decoration:none; color:inherit; }
+.mtg-recbar { background: #FEF2F2; border:1px solid #FECACA; border-radius: var(--radius-lg); padding:12px 16px; margin-bottom:14px; }
+.mtg-recbar-ttl { font-size:14px; font-weight:800; color: var(--knk-red); margin-bottom:8px; }
+.mtg-recbar-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0; }
+.mtg-recbar-row a { font-weight:700; color: var(--qv-ink); text-decoration:none; }
+.mtg-recbar-row a:hover { text-decoration:underline; }
+.mtg-recbar-sub { font-size:12px; color: var(--qv-ink-3); }
+.mtg-recbar-hint { font-size:12px; color: var(--qv-ink-3); margin-top:8px; line-height:1.6; }
+.cnt-badge.rec-on { background: var(--knk-red); color:#fff; border-color: var(--knk-red); }
 .mtg-card:hover { border-color: var(--qv-line-3); box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .mtg-top { display:flex; align-items:center; gap:10px; }
 .mtg-ttl { font-size: 15px; font-weight: 800; color: var(--qv-ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -335,12 +343,50 @@
     <div class="kpi-card"><div class="kpi-label">할 일</div><div class="kpi-num">{{ meetings|sum(attribute='act_cnt') }}</div><div class="kpi-trend neutral">건</div></div>
   </div>
 
+  {# z1113 (대표 지시 2026-09-18): 창이 닫혀 끊긴 녹음 — 목록 맨 위에서 바로 마칠 수 있게 #}
+  {% set _recs = meetings|selectattr('rec')|selectattr('rec.state','equalto','recording')|list %}
+  {% if _recs %}
+  <div class="mtg-recbar" id="mtgRecBar">
+    <div class="mtg-recbar-ttl">🔴 녹음 중인 회의 {{ _recs|length }}건</div>
+    {% for r in _recs[:3] %}
+    <div class="mtg-recbar-row">
+      <a href="/meetings/{{ r.id }}">{{ r.title }}</a>
+      <span class="mtg-recbar-sub">{{ '%d분 %d초'|format(r.rec.secs // 60, r.rec.secs % 60) }} 저장됨{% if r.rec.last_at %} · 마지막 소리 {{ r.rec.last_at[11:16] }}{% endif %}</span>
+      <button type="button" class="btn btn-primary" data-rec-finish="{{ r.id }}">⏹ 녹음 끝내고 정리</button>
+    </div>
+    {% endfor %}
+    <div class="mtg-recbar-hint">회의 중 창이 닫혀도 여기까지는 서버에 저장돼 있습니다. 「끝내고 정리」를 누르면 음성→글자·AI 정리가 이어집니다.</div>
+  </div>
+  <script>
+  /* z1113: 「⏹ 녹음 끝내고 정리」 — 마친 뒤 그 회의로 옮겨 자동 정리(?auto=1)를 잇는다.
+     SPA 로 .main 만 바뀌어도 돌도록 이 안(.main)에 두고, 한 번만 붙인다. */
+  (function(){
+    if(window.__mtgRecFinish) return; window.__mtgRecFinish=true;
+    document.addEventListener('click', async function(e){
+      var b=e.target && e.target.closest && e.target.closest('[data-rec-finish]');
+      if(!b) return;
+      e.preventDefault();
+      var id=b.getAttribute('data-rec-finish'); if(!id) return;
+      b.disabled=true; var old=b.textContent; b.textContent='마치는 중…';
+      try{
+        var r=await fetch('/api/meeting/'+id+'/rec-finish',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        var j={}; try{ j=await r.json(); }catch(_){}
+        if(r.ok&&j.ok){ location.href='/meetings/'+id+(j.saved?'?auto=1':''); return; }
+        alert((j&&j.error)||'녹음을 마치지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
+      }catch(_){ alert('녹음을 마치지 못했습니다(연결 오류).'); }
+      b.disabled=false; b.textContent=old;
+    });
+  })();
+  </script>
+  {% endif %}
+
   <div class="section">
     {% for m in meetings %}
     <a class="mtg-card" href="/meetings/{{ m.id }}">
       <div class="mtg-top">
         <div class="mtg-ttl">{{ m.title }}</div>
         <div class="mtg-badges">
+          {% if m.rec and m.rec.state == 'recording' %}<span class="cnt-badge rec-on">🔴 녹음 중</span>{% endif %}
           {% if m.dec_cnt %}<span class="cnt-badge">✔ 결정 {{ m.dec_cnt }}</span>{% endif %}
           {% if m.act_cnt %}<span class="cnt-badge">📌 할일 {{ m.act_cnt }}</span>{% endif %}
           {# z972 공개범위 5단계 배지 #}

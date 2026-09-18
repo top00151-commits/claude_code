@@ -194,7 +194,7 @@
           <span class="rec-status" id="recStatus"></span>
         </div>
       </div>
-      <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 녹음을 마치면 <b>음성→글자, AI 정리까지 자동</b>으로 됩니다. 녹음 중 <b>화면을 켜 두세요</b>(자동 꺼짐 방지 작동). <b>전화를 받을 땐 「⏸ 일시정지」</b>(통화 내용 녹음 방지) → 통화 후 「▶ 재개」. 다른 앱을 잠깐 봐도 녹음은 계속됩니다. 길고 중요한 회의는 「📁 음성 파일 올리기」(폰 기본 녹음기로 녹음 후 올리기)가 가장 안정적입니다.</div>
+      <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 녹음을 마치면 <b>음성→글자, AI 정리까지 자동</b>으로 됩니다. 녹음 중 <b>화면을 켜 두세요</b>(자동 꺼짐 방지 작동). <b>전화를 받을 땐 「⏸ 일시정지」</b>(통화 내용 녹음 방지) → 통화 후 「▶ 재개」. 녹음은 <b>10초마다 서버에 저장</b>돼 창이 닫혀도 그때까지는 남고, <b>회의록 목록에서 「녹음 끝내고 정리」</b>로 마칠 수 있습니다. 다만 휴대폰이 앱을 재우면 <b>소리가 안 들어올 수</b> 있으니 회의 중에는 화면을 켜 두세요. 길고 중요한 회의는 「📁 음성 파일 올리기」(폰 기본 녹음기로 녹음 후 올리기)가 가장 안정적입니다.</div>
 
       <div id="writeWrap" {% if not pf.get('body') %}hidden{% endif %} style="margin-top:16px;">
         <div class="mf-fld">
@@ -349,6 +349,23 @@
       {% endif %}
     </div>
 
+    {% if can_edit and rec and rec.state == 'recording' %}
+    {# z1113 (대표 지시 2026-09-18): 창이 닫혀 끊긴 녹음 — 여기서 마치거나 이어서 녹음한다.
+       녹음은 10초쯤마다 서버에 저장되므로 아래 시간까지는 이미 서버에 있다. #}
+    <div class="mf-section" id="recResume" style="border-left:4px solid var(--knk-red);">
+      <div style="font-size:15px;font-weight:800;color:var(--knk-red);margin-bottom:6px;">🔴 녹음 중이던 회의입니다</div>
+      <div class="mf-hint" style="line-height:1.7;margin-bottom:10px;">
+        지금까지 <b id="recResumeSaved">{{ '%d분 %d초'|format(rec.secs // 60, rec.secs % 60) }}</b>가 서버에 저장돼 있습니다{% if rec.kb %} ({{ rec.kb }}KB){% endif %}.
+        {% if rec.last_at %}마지막 소리 {{ rec.last_at }}.{% endif %}
+        창이 닫히거나 앱이 꺼져도 <b>여기까지는 남습니다</b> — 아래에서 마치거나 이어서 녹음하세요.
+      </div>
+      <div class="redo-row">
+        <button class="btn btn-primary" id="recFinishBtn">⏹ 녹음 끝내고 정리</button>
+        <button class="btn btn-secondary" id="recResumeBtn">🎙 이어서 녹음</button>
+        <span class="rec-status" id="recResumeSt"></span>
+      </div>
+    </div>
+    {% endif %}
     {% if can_edit %}
     <!-- ── 🔧 다시 하기 (필요할 때만) — z973: 평소 닫힘. 녹음 추가·다시 정리 재실행용 ── -->
     <details class="mf-section" id="redoTools">
@@ -368,7 +385,7 @@
         <div id="recPlayWrap" {% if not meeting.audio_path %}hidden{% endif %} style="margin-top:6px;">
           <audio id="recAudio" controls style="width:100%;max-width:440px;display:block;"{% if meeting.audio_path %} src="/api/meeting/{{ meeting.id }}/audio"{% endif %}></audio>
         </div>
-        <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 새 녹음을 올리면 <b>음성→글자·AI 정리까지 자동</b>으로 다시 됩니다. 「🔄 다시 정리」는 원문을 고친 뒤 <b>AI 정리만 다시</b> 돌립니다(고친 내용은 <b>먼저 자동 저장</b> · 직접 추가한 결정·할 일은 보존).<br>녹음 중 <b>화면을 켜 두세요</b>. <b>전화 받을 땐 「⏸ 일시정지」</b> → 통화 후 「▶ 재개」. 다른 앱을 잠깐 봐도 녹음은 계속됩니다.</div>
+        <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 새 녹음을 올리면 <b>음성→글자·AI 정리까지 자동</b>으로 다시 됩니다. 「🔄 다시 정리」는 원문을 고친 뒤 <b>AI 정리만 다시</b> 돌립니다(고친 내용은 <b>먼저 자동 저장</b> · 직접 추가한 결정·할 일은 보존).<br>녹음 중 <b>화면을 켜 두세요</b>. <b>전화 받을 땐 「⏸ 일시정지」</b> → 통화 후 「▶ 재개」. 녹음은 <b>10초마다 서버에 저장</b>돼 창이 닫혀도 남습니다(목록에서 「녹음 끝내고 정리」).</div>
         {% if not transcribe_on %}<div class="mf-hint" style="margin-top:6px;color:var(--knk-red);">⚠ 음성→글자는 OpenAI 키 등록 후 동작합니다 — 녹음·저장·재생은 지금도 됩니다.</div>{% endif %}
       </div>
     </details>
@@ -429,6 +446,8 @@ window.__MTG = {
   ai_on: {{ 'true' if ai_on else 'false' }},
   tr_on: {{ 'true' if transcribe_on else 'false' }},
   has_audio: {{ 'true' if (not is_new and meeting.audio_path) else 'false' }},
+  rec: {{ (rec|default({}, true))|tojson }},   {# z1113: 녹음 중 상태(초·저장량) — 창이 닫혀도 이어서 끝낼 수 있게 #}
+  audio_max_mb: {{ MEETING_AUDIO_MAX_MB|int }},   {# 2026-09-17: 음성 올리기 한도 — 숫자는 main.py _MEETING_AUDIO_MAX_MB 한 곳 #}
   summary: {{ ((meeting.summary or '') if not is_new else '')|tojson }},
   decisions: {{ decisions|tojson if decisions else '[]' }},
   actions: {{ actions|tojson if actions else '[]' }}
@@ -439,6 +458,7 @@ window.__MTG = {
   var M = window.__MTG || {};
   var CAN_EDIT = !!M.can_edit;
   var AI_ON = !!M.ai_on, TR_ON = !!M.tr_on;
+  var AUDIO_MAX_MB = +M.audio_max_mb || 0;   // 음성 올리기 한도(서버 값) — 넘는 파일은 올리기 전에 알림
   // z973: 녹음 유휴 라벨 — 새 회의='녹음하며 회의', 상세(다시 하기 폴드)='녹음 추가'
   var REC_IDLE = M.is_new ? '🎙 녹음하며 회의' : '🎙 녹음 추가';
 
@@ -585,14 +605,14 @@ window.__MTG = {
   // doTranscribe: 녹음 → 글자 — z1090: 변환이 1~2분+ 걸리면 프록시가 연결을 먼저 끊어
   //   '변환 실패'로 보이던 문제 → 서버는 백그라운드로 변환하고 여기선 3초마다 상태만 폴링.
   function _sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
-  async function doTranscribe(){
+  async function doTranscribe(onProg){
     var res = await jreq('POST', '/api/meeting/'+M.id+'/transcribe', {});
     if (!(res.ok && res.data.ok)){
       return { ok:false, error: res.data.error || '음성→글자 시작 실패' };
     }
-    // 시작됨(또는 이미 변환 중) — 상태 폴링 (최대 ~15분, 요청당 수 ms라 프록시 제한 무관)
-    var miss = 0;
-    for (var i = 0; i < 300; i++){
+    // 시작됨(또는 이미 변환 중) — 상태 폴링 (최대 60분 · 긴 녹음은 20분씩 나눠 변환 · 요청당 수 ms라 프록시 제한 무관)
+    var miss = 0, lastProg = '';
+    for (var i = 0; i < 1200; i++){
       await _sleep(3000);
       var st = await jreq('GET', '/api/meeting/'+M.id+'/stt-status');
       if (st.ok && st.data.ok){
@@ -608,13 +628,14 @@ window.__MTG = {
         if (st.data.state === 'none'){
           return { ok:false, error: '변환 상태가 사라졌습니다(서버 재시작 가능). 화면 새로고침 후 다시 시도해 주세요.' };
         }
-        // running → 계속 대기
+        // running → 계속 대기(진행 글이 바뀌면 화면에 알림 — 예: 「8개 구간 중 3번째」)
+        if (onProg && st.data.progress && st.data.progress !== lastProg){ lastProg = st.data.progress; onProg(lastProg); }
       } else {
         // 일시 통신 오류는 몇 번 봐주고 계속(이동 중 전파 끊김 등) — 연속 10회(30초)면 중단
         if (++miss >= 10) return { ok:false, error: '상태 확인 통신이 계속 끊깁니다 — 네트워크 확인 후 「다시 시도」를 눌러주세요.' };
       }
     }
-    return { ok:false, error: '변환이 15분을 넘겨 확인을 중단했습니다 — 잠시 후 화면을 새로고침해 확인해 주세요.' };
+    return { ok:false, error: '변환이 60분을 넘겨 확인을 중단했습니다 — 잠시 후 화면을 새로고침해 확인해 주세요.' };
   }
   // doExtract: AI 정리 (성공 시 요약·결정·할일 렌더 + AI 제안 제목 반영)
   async function doExtract(){
@@ -678,12 +699,16 @@ window.__MTG = {
     if (_silTotal >= 30) warns.push({ st:'warn',
       label:'녹음 중 소리가 없던 시간이 약 '+_silTotal+'초입니다 — 그 구간은 회의록에 담기지 않습니다.' });
     var steps = plan.map(function(k){
-      return { k:k, st:'wait', label: k==='stt' ? '음성을 글자로 바꾸는 중 (길면 1~2분)' : 'AI가 회의록으로 정리하는 중' };
+      return { k:k, st:'wait', label: k==='stt' ? '음성을 글자로 바꾸는 중 (긴 녹음은 몇 분 걸려요)' : 'AI가 회의록으로 정리하는 중' };
     });
     for (var i=0; i<steps.length; i++){
       steps[i].st='run'; pipeRender(steps.concat(warns));
       var r;
-      try { r = (steps[i].k==='stt') ? await doTranscribe() : await doExtract(); }
+      try {
+        r = (steps[i].k==='stt')
+          ? await doTranscribe(function(p){ steps[i].label='음성을 글자로 바꾸는 중 — '+p; pipeRender(steps.concat(warns)); })
+          : await doExtract();
+      }
       catch(e){ r = { ok:false, error:(e&&e.message)||'오류' }; }
       if (!r.ok){
         steps[i].st='err'; steps[i].label += ' — ' + (r.error||'실패'); pipeRender(steps.concat(warns));
@@ -811,7 +836,7 @@ window.__MTG = {
   function recFmt(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
   function recExt(mime){mime=mime||'';if(mime.indexOf('mp4')>=0||mime.indexOf('m4a')>=0||mime.indexOf('aac')>=0)return 'm4a';if(mime.indexOf('ogg')>=0)return 'ogg';if(mime.indexOf('wav')>=0)return 'wav';return 'webm';}
   function recSt(msg,kind){var el=$('recStatus');if(el){el.textContent=msg||'';el.style.color=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)');}}
-  function recBanner(show,paused){var b=$('recBanner');if(!b)return;b.hidden=!show;b.classList.toggle('paused',!!paused);var l=$('recBannerLbl');if(l)l.textContent=paused?'⏸ 일시정지됨 — ▶ 다시 누르면 이어집니다':'🔴 본 회의 녹음 중';}
+  function recBanner(show,paused){var b=$('recBanner');if(!b)return;b.hidden=!show;b.classList.toggle('paused',!!paused);var l=$('recBannerLbl');if(!l)return;if(b.classList.contains('nosound')){l.textContent='⚠ 소리가 안 들어옵니다! 화면을 켜 두세요';return;}var sv=recSavedTxt();l.textContent=paused?'⏸ 일시정지됨 — ▶ 다시 누르면 이어집니다':('🔴 본 회의 녹음 중'+(sv?(' · '+sv):''));}
   function recTick(){if(!_paused)_recSec++;var s=recFmt(_recSec);var t=$('recTime');if(t)t.textContent=(_paused?'⏸ ':'● ')+s;var bt=$('recBigTime');if(bt)bt.textContent=s;try{document.title=(_paused?'⏸ 일시정지 ':'🔴 녹음 중 ')+s+' · 회의록';}catch(_){}}
   async function reqWake(){try{if('wakeLock' in navigator){_wakeLock=await navigator.wakeLock.request('screen');}}catch(_){}}
   function relWake(){try{if(_wakeLock){_wakeLock.release();_wakeLock=null;}}catch(_){}}
@@ -881,7 +906,9 @@ window.__MTG = {
     relWake();recBanner(false);try{if(_docTitle)document.title=_docTitle;}catch(_){}
     var pb=$('recPauseBtn');if(pb){pb.hidden=true;pb.textContent='⏸ 일시정지';}
     var b=$('recBtn');if(b){b.textContent=REC_IDLE;b.classList.remove('on');b.dataset.on='';}
-    if(_recBlob&&_recBlob.size>200){var a=$('recAudio');if(a)a.src=URL.createObjectURL(_recBlob);var w=$('recPlayWrap');if(w)w.hidden=false;uploadAudioBlob(_recBlob,'rec.'+recExt(_recMime));}
+    if(_recBlob&&_recBlob.size>200){var a=$('recAudio');if(a)a.src=URL.createObjectURL(_recBlob);var w=$('recPlayWrap');if(w)w.hidden=false;}
+    if(_recNet){ recDone(); }   // z1113: 이미 서버에 있다 — 마무리만(큰 파일을 끝에 통째로 올리지 않는다)
+    else if(_recBlob&&_recBlob.size>200) uploadAudioBlob(_recBlob,'rec.'+recExt(_recMime));
     else recSt('녹음된 소리가 없습니다.','err');
   }
   // ── 🎤 마이크 허용 상태별 안내 (2026-09-17 대표 지시 · 세션 10 조사) ──
@@ -971,6 +998,94 @@ window.__MTG = {
       micHelp(null); recSt('마이크 사용 불가: '+msg+' — 「📁 음성 파일 올리기」를 쓰세요.','err');
     }
   }
+  // ── 🔴 녹음 조각을 10초마다 서버에 저장 (z1113 · 대표 지시 2026-09-18) ──
+  //   대표 신고: 회의 중 다른 앱을 보다 창이 닫히면 녹음이 통째로 사라지고, 돌아갈 화면이 없어
+  //             「회의 종료」조차 못 눌렀다. → 녹음하는 동안 조각을 서버 파일에 이어 붙인다.
+  //   순서(seq)는 1부터. 못 보낸 조각은 순서를 지켜 다시 보내고, 끝까지 못 보내면
+  //   예전 방식(녹음 전체를 한 번에 올리기)으로 안전하게 넘어간다.
+  var REC = M.rec || {};
+  var _recSes='', _recSeq=0, _recQ=[], _recPumping=false, _recNet=false, _recSavedSec=0, _recNetWarned=false, _recWasNew=false;
+  function recSavedTxt(){ return _recSavedSec>0 ? (recFmt(_recSavedSec)+' 저장됨') : ''; }
+  async function recNetStart(){
+    _recSes=''; _recSeq=0; _recQ=[]; _recSavedSec=0; _recNetWarned=false;
+    try{
+      var r=await fetch('/api/meeting/'+M.id+'/rec-start',{method:'POST',headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({ext:'.'+recExt(_recMime)})});
+      var j=await r.json();
+      if(r.ok&&j.ok&&j.session){ _recSes=j.session; return true; }
+    }catch(_){}
+    return false;
+  }
+  async function recSend(blob,seq){
+    var url='/api/meeting/'+M.id+'/rec-chunk?session='+encodeURIComponent(_recSes)+'&seq='+seq+'&secs='+_recSec;
+    try{
+      var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:blob});
+      var j={}; try{ j=await r.json(); }catch(_){}
+      if(r.ok&&j.ok) return true;
+      if(j&&j.expect){ _recSeq=j.expect-1; }          // 서버가 기다리는 번호에 맞춘다
+      if(j&&(j.stale||j.full)){ _recNet=false; recSt(j.error||'서버 저장을 멈췄습니다.','err'); }
+      return false;
+    }catch(_){ return false; }                        // 인터넷이 잠깐 끊김 — 다음 조각 때 다시
+  }
+  async function recPump(){
+    if(_recPumping||!_recNet||!M.id) return;
+    _recPumping=true;
+    try{
+      while(_recQ.length&&_recNet){
+        var ok=await recSend(_recQ[0],_recSeq+1);
+        if(!ok) break;
+        _recQ.shift(); _recSeq++;
+        _recSavedSec=_recSec;
+        if(_recNetWarned){ _recNetWarned=false; recSt('다시 연결됐습니다 ✓ 계속 저장 중…','ok'); }
+        recBanner(true,_paused);
+      }
+      if(_recQ.length>=3&&!_recNetWarned){
+        _recNetWarned=true;
+        recSt('⚠ 인터넷이 끊겨 서버에 못 보낸 부분이 있습니다 — 녹음은 계속됩니다(끝낼 때 한 번에 올립니다).','err');
+      }
+    } finally { _recPumping=false; }
+  }
+  function recFlush(){ try{ if(_mr&&_mr.state==='recording') _mr.requestData(); }catch(_){} }
+  async function recNetFinish(){
+    try{
+      var r=await fetch('/api/meeting/'+M.id+'/rec-finish',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      var j={}; try{ j=await r.json(); }catch(_){}
+      return (r.ok&&j.ok)?j:null;
+    }catch(_){ return null; }
+  }
+  async function recNetCancel(){
+    try{ await fetch('/api/meeting/'+M.id+'/rec-cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); }catch(_){}
+  }
+  // 녹음이 끝난 뒤 — 서버에 이미 저장돼 있으면 그대로 정리로, 못 보낸 게 남았으면 전체를 한 번에 올린다
+  async function recDone(){
+    var t0=Date.now();
+    while(_recQ.length&&_recNet&&Date.now()-t0<30000){
+      await recPump();
+      if(_recQ.length) await new Promise(function(r){ setTimeout(r,1500); });
+    }
+    if(!_recNet||_recQ.length){
+      recSt('서버에 못 보낸 부분이 있어 녹음 전체를 한 번에 올립니다…');
+      await recNetCancel();                                  // 반쪽 조각은 버리고(겹치지 않게)
+      if(_recBlob&&_recBlob.size>200) await uploadAudioBlob(_recBlob,'rec.'+recExt(_recMime));
+      else recSt('녹음된 소리가 없습니다.','err');
+      return;
+    }
+    var j=await recNetFinish();
+    if(!j){ recSt('녹음 마무리에 실패했습니다 — 「🔄 다시 정리」를 눌러 주세요.','err'); return; }
+    if(!j.saved){
+      recSt('녹음된 소리가 없습니다.','err');
+      // 방금 녹음하려고 만든 빈 회의록이고 아무것도 안 적었으면 목록을 더럽히지 않게 지운다
+      if(_recWasNew && M.id){
+        var ff=collectForm();
+        if(!(ff.title||'').trim() && !(ff.body||'').trim()){
+          try{ await jreq('DELETE','/api/meeting/'+M.id,{}); M.id=null; M.is_new=true; M.has_audio=false; }catch(_){}
+        }
+      }
+      return;
+    }
+    M.has_audio=true; M.base_ts=j.updated_at||M.base_ts;
+    await afterAudioSaved(_recWasNew, j.size_kb||0);
+  }
   async function recStart(){
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof MediaRecorder==='undefined'){recSt('이 브라우저는 녹음을 지원하지 않습니다. 「📁 음성 파일 올리기」를 쓰세요.','err');return false;}
     // 크롬 허용 창을 기다리는 동안 화면 버튼을 또 누르면 녹음기가 둘 생겨 소리가 섞인다 → 한 번만
@@ -986,14 +1101,18 @@ window.__MTG = {
       _chunks=[];_recBlob=null;_userStop=false;_paused=false;
       try{_mr=new MediaRecorder(_stream,{audioBitsPerSecond:32000});}catch(_){_mr=new MediaRecorder(_stream);}
       _recMime=_mr.mimeType||'';
-      _mr.ondataavailable=function(e){if(e.data&&e.data.size)_chunks.push(e.data);};
+      // z1113: 회의록을 '먼저' 만든다 — 그래야 창이 닫혀도 목록에 「🔴 녹음 중」으로 남아 끝낼 수 있다
+      _recWasNew=!M.id;
+      if(await ensureMeetingSaved()) _recNet=await recNetStart();
+      else _recNet=false;
+      _mr.ondataavailable=function(e){if(!e.data||!e.data.size)return;_chunks.push(e.data);if(_recNet){_recQ.push(e.data);recPump();}};
       _mr.onpause=function(){_paused=true;recBanner(true,true);var pb=$('recPauseBtn');if(pb)pb.textContent='▶ 녹음 재개';recSt('⏸ 일시정지됨 (녹음 멈춤) — ▶ 다시 누르면 이어집니다.');};
       _mr.onresume=function(){_paused=false;recBanner(true,false);var pb=$('recPauseBtn');if(pb)pb.textContent='⏸ 일시정지';recSt('▶ 녹음 재개 ✓ 계속 녹음 중…');};
       _mr.onstop=function(){_finishRec();};
       if(_track){
         _track.onended=function(){if(!_userStop){_userStop=true;recSt('녹음이 종료돼 여기까지 저장합니다. 이어서 녹음하려면 다시 「녹음 시작」.','err');try{if(_mr&&_mr.state!=='inactive')_mr.stop();else _finishRec();}catch(_){_finishRec();}}};
       }
-      _mr.start(2000);
+      _mr.start(_recNet?10000:2000);   // z1113: 서버 저장이면 10초 조각(끊겨도 10초만 잃는다)
       silStart(_stream);  // z1092 무음 감시 시작
       _recSec=0;var t=$('recTime');if(t){t.hidden=false;t.textContent='● 00:00';}
       _docTitle=document.title;recBanner(true,false);
@@ -1001,7 +1120,7 @@ window.__MTG = {
       var b=$('recBtn');if(b){b.textContent='⏹ 녹음 종료 (자동 정리 시작)';b.classList.add('on');b.dataset.on='1';}
       await reqWake();
       var pb=$('recPauseBtn');if(pb){pb.hidden=false;pb.textContent='⏸ 일시정지';}
-      recSt('녹음 중… 전화 받을 땐 「⏸ 일시정지」를 누르세요(통화 내용 녹음 방지). 다른 앱을 봐도 녹음은 계속됩니다.');
+      recSt(_recNet?'녹음 중… 10초마다 서버에 저장됩니다(창이 닫혀도 남습니다). 전화 받을 땐 「⏸ 일시정지」.':'녹음 중… 서버 저장을 열지 못해 이 화면에만 담깁니다 — 창을 닫지 마세요. 전화 받을 땐 「⏸ 일시정지」.');
       return true;
     }catch(e){
       _micBusy=false;
@@ -1015,7 +1134,7 @@ window.__MTG = {
     // 앱 전환은 녹음을 유지한다. 다만 z1092: 화면이 꺼져 있던 동안 폰이 마이크를 끊어
     //   '무음'만 녹음될 수 있으므로, 돌아왔을 때 그 사실을 분명히 알린다.
     var rec = _mr && _mr.state!=='inactive';
-    if(document.visibilityState==='hidden'){ if(rec) _hiddenAt=Date.now(); return; }
+    if(document.visibilityState==='hidden'){ if(rec){ _hiddenAt=Date.now(); recFlush(); recPump(); } return; }
     if(!rec){ _hiddenAt=0; return; }
     reqWake();
     if(_hiddenAt){
@@ -1035,6 +1154,24 @@ window.__MTG = {
     if(res.ok&&res.data.ok){ M.id=res.data.id; M.is_new=false; M.base_ts=res.data.updated_at||''; return true; }
     recSt(res.data.error||'회의 저장 실패','err'); return false;
   }
+  // 음성이 저장된 뒤 공통 — 새 회의면 그 회의로 옮겨 자동 정리, 아니면 이 화면에서 바로 정리
+  async function afterAudioSaved(wasNew, sizeKb){
+    if(wasNew){
+      // z1106: 그사이 다른 화면으로 옮겼으면 그 화면 칸을 읽어 저장·이동하지 않고, 정리만 뒤에서 이어 간다
+      if(!_alive()){ autoPipeline({forceStt:true}); return; }
+      // 녹음 중 적었을 수 있는 제목·상세정보를 저장에 반영(실패해도 진행) 후 자동 정리로 이동
+      recSt('녹음 저장됨 ✓ 자동 정리를 시작합니다…','ok');
+      try{
+        var f=collectForm(); f.base_ts=M.base_ts;
+        var pr=await jreq('PUT','/api/meeting/'+M.id,f);
+        if(pr.ok&&pr.data.ok) M.base_ts=pr.data.updated_at||M.base_ts;
+      }catch(_){}
+      _leaveOk=true;   // 방금 만든 회의로 이동 — 나갈 때 알림 생략
+      location.href='/meetings/'+M.id+'?auto=1'; return;
+    }
+    recSt('저장됨 ('+sizeKb+'KB) ✓','ok');
+    autoPipeline({forceStt:true});  // 상세 화면에서 새 녹음 → 변환·AI 정리 자동
+  }
   async function uploadAudioBlob(blob,filename){
     if(!blob||!blob.size)return;
     _upBusy++;
@@ -1042,7 +1179,7 @@ window.__MTG = {
   }
   async function _uploadAudioBlob(blob,filename){
     var wasNew=!M.id;
-    recSt('저장 중… ('+(Math.round(blob.size/1024/1024*10)/10)+'MB)');
+    recSt('저장 중… ('+(Math.round(blob.size/1024/1024*10)/10)+'MB)'+(blob.size>25*1024*1024?' — 큰 파일은 올리는 데 몇 분 걸릴 수 있어요. 화면을 닫지 마세요.':''));
     if(!(await ensureMeetingSaved())) return;
     var fd=new FormData();fd.append('file',blob,filename);
     try{
@@ -1050,26 +1187,16 @@ window.__MTG = {
       var j={};try{j=await r.json();}catch(_){}
       if(r.ok&&j.ok){
         M.base_ts=j.updated_at||M.base_ts; M.has_audio=true;
-        if(wasNew){
-          // z1106: 그사이 다른 화면으로 옮겼으면 그 화면 칸을 읽어 저장·이동하지 않고, 정리만 뒤에서 이어 간다
-          if(!_alive()){ autoPipeline({forceStt:true}); return; }
-          // 녹음 중 적었을 수 있는 제목·상세정보를 저장에 반영(실패해도 진행) 후 자동 정리로 이동
-          recSt('녹음 저장됨 ✓ 자동 정리를 시작합니다…','ok');
-          try{
-            var f=collectForm(); f.base_ts=M.base_ts;
-            var pr=await jreq('PUT','/api/meeting/'+M.id,f);
-            if(pr.ok&&pr.data.ok) M.base_ts=pr.data.updated_at||M.base_ts;
-          }catch(_){}
-          _leaveOk=true;   // 방금 만든 회의로 이동 — 나갈 때 알림 생략
-          location.href='/meetings/'+M.id+'?auto=1'; return;
-        }
-        recSt('저장됨 ('+j.size_kb+'KB) ✓','ok');
-        autoPipeline({forceStt:true});  // 상세 화면에서 새 녹음 → 변환·AI 정리 자동
+        await afterAudioSaved(wasNew, j.size_kb||0);
       } else recSt(j.error||'업로드 실패','err');
     }catch(e){recSt('업로드 오류: '+(e.message||e),'err');}
   }
   function onPickFile(e){
     var f=e.target.files&&e.target.files[0];if(!f){return;}
+    if(AUDIO_MAX_MB&&f.size>AUDIO_MAX_MB*1024*1024){
+      recSt('음성은 '+AUDIO_MAX_MB+'MB 이하만 올릴 수 있습니다(이 파일 '+Math.round(f.size/1024/1024)+'MB).','err');
+      e.target.value='';return;
+    }
     var a=$('recAudio');if(a)a.src=URL.createObjectURL(f);var w=$('recPlayWrap');if(w)w.hidden=false;
     var ext=(f.name.split('.').pop()||'m4a').toLowerCase();
     uploadAudioBlob(f,'upload.'+ext);
@@ -1077,6 +1204,24 @@ window.__MTG = {
   }
   var _recBtn=$('recBtn');if(_recBtn)_recBtn.addEventListener('click',function(){if(_recBtn.dataset.on)recStop();else recStart();});
   var _recPause=$('recPauseBtn');if(_recPause)_recPause.addEventListener('click',recTogglePause);
+  // z1113: 「🔴 녹음 중이던 회의」 상자 — 끝내고 정리 / 이어서 녹음
+  var _recFin=$('recFinishBtn');
+  if(_recFin) _recFin.addEventListener('click',async function(){
+    _recFin.disabled=true;
+    var st=$('recResumeSt'); if(st){ st.textContent='녹음을 마치는 중…'; st.style.color='var(--qv-ink-3)'; }
+    var j=await recNetFinish();
+    if(!j){ if(st){ st.textContent='마치지 못했습니다 — 잠시 뒤 다시 눌러 주세요.'; st.style.color='var(--knk-red)'; } _recFin.disabled=false; return; }
+    var box=$('recResume'); if(box) box.style.display='none';
+    M.has_audio=true; M.base_ts=j.updated_at||M.base_ts;
+    if(j.saved){ recSt('녹음을 마쳤습니다 ✓ 자동 정리를 시작합니다…','ok'); autoPipeline({forceStt:true}); }
+    else recSt('저장된 소리가 없어 녹음만 마쳤습니다.','err');
+  });
+  var _recRes=$('recResumeBtn');
+  if(_recRes) _recRes.addEventListener('click',function(){
+    var box=$('recResume'); if(box) box.style.display='none';
+    var d=$('redoTools'); if(d) d.open=true;
+    recStart();
+  });
   var _recFile=$('recFile');if(_recFile)_recFile.addEventListener('change',onPickFile);
 
   // ── 🔗 연결 (프로젝트·영업기회) ──
