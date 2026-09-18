@@ -727,6 +727,32 @@
 @media (max-width: 1023px) {
   .victor-dock { width: 100%; }
 }
+/* ── v5H226z1112 (대표 지시 2026-09-18 · 사진 「휴대폰에서 화면 비율이 안 맞는다」) ────────────
+   실측 원인: 이 머리줄이 항상 744px 를 요구한다(로고 184 + 오른쪽 묶음 #knkTopRight 509 + 여백).
+     → 폭 360~600px 휴대폰에선 문서 전체가 744px 로 늘어나고, 휴대폰이 그걸 화면에 맞춰 줄여
+       보여 주기 때문에 글자·버튼이 통째로 작아지고 오른쪽에 빈 띠가 생긴다(=비율이 안 맞음).
+     → 본문은 이미 화면 폭에 맞다(오른쪽 묶음만 감추면 문서 폭 = 화면 폭 실측). 그래서 '머리줄만' 좁힌다.
+   없애는 기능 0: ←(이전) · ↻(새로고침) · AI · 🔔 · ❓ · 👤 · 🚪 모두 그대로 남는다.
+     · 「이전 페이지」 글자만 빼고 ← 만(버튼·동작 동일)  · 이름 글자는 동그라미(김)로 대신
+     · 아주 좁은 휴대폰(≤479px)에선 로고만 숨김 — 그래야 나머지가 한 줄에 다 들어간다(☰ 로 홈 이동 가능).
+   PC(≥768px)는 한 줄도 바뀌지 않는다. 휴대폰 머리줄 높이는 45→41px(아이콘이 작아진 만큼) — 본문 위치는 안 밀린다(실측). */
+@media (max-width: 767px) {
+  .top { gap: 6px !important; padding: 0 8px !important; }
+  .tb-brand { padding: 0 !important; }
+  .tb-brand img { height: 20px !important; }
+  #knkTopRight { gap: 6px !important; }
+  /* ← 이전 페이지: 글자 빼고 화살표만 (버튼은 JS 가 인라인 스타일로 만들어 !important 필요) */
+  #knkBackBtn { padding: 6px 9px !important; }
+  #knkBackBtn > span + span { display: none !important; }
+  /* 사람 이름 글자 → 동그라미만 (누르면 그대로 내 정보) */
+  .top-user { padding: 3px !important; gap: 0 !important; }
+  .top-user > div:not(.avatar) { display: none !important; }
+  .top-icon { width: 32px !important; height: 32px !important; }
+  #victorToggleBtn.ai-avatar { width: 32px !important; height: 32px !important; font-size: 12.5px !important; }
+}
+@media (max-width: 479px) {
+  .tb-brand { display: none !important; }   /* 좁은 휴대폰: 로고만 숨김(기능 아님) */
+}
 </style>
 
 <script>
