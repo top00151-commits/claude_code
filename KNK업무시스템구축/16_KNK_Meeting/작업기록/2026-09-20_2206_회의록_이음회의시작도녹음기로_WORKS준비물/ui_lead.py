@@ -81,15 +81,19 @@ def main():
         lead = p.locator("#recPhoneLead")
         ok("착지 안내 상자가 보인다", lead.is_visible())
         lt = lead.inner_text() if lead.is_visible() else ""
-        ok("상자 제목 「휴대폰 녹음기로 녹음하시겠어요?」", "휴대폰 녹음기로 녹음하시겠어요" in lt)
-        ok("상자에 까닭(다른 앱 = 소리 안 들어옴)", "소리가 들어오지 않습니다" in lt)
-        ok("상자에 「지금까지 녹음도 그대로 이어집니다」", "그대로 이어집니다" in lt)
+        ok("상자가 「아직 녹음이 시작되지 않았습니다」로 뜬다(z1118 — 안드로이드는 녹음기가 기본)",
+           "아직 녹음이 시작되지 않았습니다" in lt, lt[:60])
         ok("녹음기 단추가 상자 안에 있다",
            p.evaluate("() => { const s=document.getElementById('recPhoneLeadSlot'), w=document.getElementById('recPhoneRecWrap');"
                       " return !!s && !!w && s.contains(w); }"))
         ok("녹음기 입력은 하나뿐(중복 없음)",
            p.evaluate("() => document.querySelectorAll('#recFileCap').length") == 1)
-        ok("안전망 — 이 화면 녹음이 자동으로 시작돼 있다",
+        ok("z1118 — 이 화면 녹음은 저절로 켜지지 않는다",
+           not p.evaluate("() => { const b=document.getElementById('recBanner'); return !!b && !b.hidden; }"))
+        # 넘기기(z1116)를 보려면 이 화면 녹음이 돌고 있어야 한다 → 직접 켠다
+        p.locator("#recBtn").click()
+        p.wait_for_timeout(3000)
+        ok("「🎙 녹음 시작」으로 이 화면 녹음이 켜진다",
            p.evaluate("() => { const b=document.getElementById('recBanner'); return !!b && !b.hidden; }"))
         st = api(p, "/api/meeting/%d/rec-status" % M1)
         ok("서버도 「녹음 중」으로 안다", (st.get("rec") or {}).get("state") == "recording", st.get("rec"))
