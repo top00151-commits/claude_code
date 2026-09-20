@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>녹음 받기 · KNK HAIST WORKS</title>
+{# ============================================================
+   share_audio.html — 휴대폰 녹음기 「공유 → KNK Eum WORKS」 로 들어온 음성 (z1117)
+   대표 지시 2026-09-20: 「녹음기로 녹음한 것이 자동으로 요약되게 해라.」
+   평소엔 녹음기가 파일을 회의록 화면으로 직접 돌려준다(z1115). 회의가 길어 크롬이 그 화면을
+   버리면 돌려줄 곳이 없어지므로, 「공유」로 들어오는 두 번째 길을 둔다.
+   · 넘기던 회의가 이 브라우저에 표시돼 있으면(localStorage) 묻지 않고 바로 붙이고 정리한다.
+   · 없으면 「＋ 새 회의록으로 정리」 한 번 또는 최근 회의 고르기.
+   ============================================================ #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.sh-box { background: var(--qv-surface); border:1px solid var(--qv-line); border-radius: var(--radius-lg);
+  padding:18px 20px; margin-bottom:14px; }
+.sh-file { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:800; color: var(--qv-ink); }
+.sh-file .sz { font-size:12px; font-weight:700; color: var(--qv-ink-3); }
+.sh-note { font-size:13px; line-height:1.75; color: var(--qv-ink-2); margin-top:8px; }
+.sh-big { width:100%; border:0; border-radius:14px; padding:18px 16px; font-size:18px; font-weight:800;
+  background: var(--knk-red); color:#fff; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; gap:8px; margin-top:14px; }
+.sh-big:disabled { opacity:.6; cursor:default; }
+.sh-pick { display:flex; align-items:center; gap:10px; padding:12px 14px; border:1px solid var(--qv-line);
+  border-radius:12px; margin-top:8px; background: var(--qv-surface); cursor:pointer; width:100%;
+  text-align:left; font-size:14px; font-weight:700; color: var(--qv-ink); }
+.sh-pick:hover { background: var(--qv-surface-2); }
+.sh-pick .d { font-size:12px; font-weight:600; color: var(--qv-ink-3); flex-shrink:0; }
+.sh-st { font-size:14px; font-weight:700; margin-top:12px; min-height:20px; color: var(--qv-ink-2); }
+.sh-st.err { color: var(--knk-red); }
+.sh-st.ok { color:#15803d; }
+.sh-err { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; border-radius:12px;
+  padding:16px 18px; font-size:14px; line-height:1.8; }
+</style>
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+
+<main class="main" data-dn="share-audio-main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">회의록 · 휴대폰 녹음기에서 보냄</div>
+      <h1 class="page-title">녹음 <em>받기</em></h1>
+    </div>
+  </div>
+
+  <div class="section">
+  {% if err == 'nofile' %}
+    <div class="sh-err">
+      <b>음성 파일이 오지 않았습니다.</b><br>
+      휴대폰 녹음기에서 <b>녹음 파일 하나</b>를 골라 「공유 → KNK Eum WORKS」로 보내 주세요.
+      (사진·글이 아니라 <b>음성 파일</b>이어야 합니다.)
+    </div>
+  {% elif err == 'toobig' %}
+    <div class="sh-err">
+      <b>{{ errmsg }}</b><br>
+      너무 긴 녹음은 휴대폰 녹음기에서 나눠 저장한 뒤 하나씩 보내 주세요.
+    </div>
+  {% elif err == 'ext' %}
+    <div class="sh-err">
+      <b>{{ errmsg }}</b><br>
+      음성 파일(m4a·mp3·wav·webm 등)만 받을 수 있습니다.
+    </div>
+  {% else %}
+    <div class="sh-box">
+      <div class="sh-file">🎙 <span>{{ share.name }}</span> <span class="sz">{{ share.mb }}MB</span></div>
+      <div class="sh-note" id="shNote">어느 회의록에 붙일지 확인하는 중…</div>
+      <div class="sh-st" id="shSt"></div>
+    </div>
+
+    <div class="sh-box" id="shPickWrap" hidden>
+      <div style="font-size:15px;font-weight:800;color:var(--qv-ink);margin-bottom:4px;">어디에 붙일까요?</div>
+      <div class="sh-note">고르면 <b>음성→글자, AI 정리까지 자동</b>으로 이어집니다.</div>
+      <button type="button" class="sh-big" id="shNew">＋ 새 회의록으로 정리</button>
+      {% if meetings %}
+      <div style="font-size:13px;font-weight:700;color:var(--qv-ink-3);margin:16px 0 2px;">또는 최근 회의에 이어 붙이기</div>
+      {% for m in meetings %}
+      <button type="button" class="sh-pick" data-mid="{{ m.id }}">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ m.title }}</span>
+        <span class="d">{{ m.meeting_date }}</span>
+      </button>
+      {% endfor %}
+      {% endif %}
+    </div>
+  {% endif %}
+  </div>
+
+  <script>
+  /* z1117: 받은 녹음을 회의록에 붙이고 자동 정리까지. 표시가 있으면 묻지 않는다. */
+  (function(){
+    var TOKEN = {{ (share.token if share else '')|tojson }};
+    var OKIDS = {{ (ok_ids if ok_ids else [])|tojson }};
+    if(!TOKEN) return;
+    var KEY='knk_mtg_phonerec';
+    var note=document.getElementById('shNote'), st=document.getElementById('shSt'),
+        pick=document.getElementById('shPickWrap');
+    function say(m,k){ if(st){ st.textContent=m||''; st.className='sh-st'+(k?(' '+k):''); } }
+    function askWhere(msg){
+      if(note) note.textContent = msg || '이 녹음을 어느 회의록에 붙일지 골라 주세요.';
+      if(pick) pick.hidden=false;
+    }
+    async function attach(url, body){
+      say('붙이는 중…');
+      try{
+        var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        var j={}; try{ j=await r.json(); }catch(_){}
+        if(r.ok&&j.ok&&j.id){
+          try{ localStorage.removeItem(KEY); }catch(_){}
+          say('붙였습니다 ✓ 자동 정리를 시작합니다…','ok');
+          location.replace('/meetings/'+j.id+'?auto=1');
+          return true;
+        }
+        say((j&&j.error)||'붙이지 못했습니다 — 아래에서 골라 주세요.','err');
+      }catch(_){ say('붙이지 못했습니다(연결 오류) — 아래에서 다시 눌러 주세요.','err'); }
+      return false;
+    }
+    // ① 넘기던 회의가 있으면 묻지 않고 바로
+    var mk=null; try{ mk=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(_){ mk=null; }
+    var fresh = mk && mk.id && mk.at && (Date.now()-mk.at) < 24*3600*1000;
+    if(fresh && OKIDS.indexOf(mk.id) >= 0){
+      if(note) note.textContent = '녹음기로 녹음하던 회의「'+(mk.title||'제목 없는 회의')+'」에 이어 붙입니다.';
+      attach('/api/meeting/'+mk.id+'/attach-share', {token:TOKEN}).then(function(done){ if(!done) askWhere(); });
+    } else {
+      askWhere();
+    }
+    // ② 직접 고르기
+    var nb=document.getElementById('shNew');
+    if(nb) nb.addEventListener('click',function(){ nb.disabled=true;
+      attach('/api/meeting/share-new', {token:TOKEN}).then(function(done){ if(!done) nb.disabled=false; }); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-mid]'), function(b){
+      b.addEventListener('click',function(){ b.disabled=true;
+        attach('/api/meeting/'+b.getAttribute('data-mid')+'/attach-share', {token:TOKEN})
+          .then(function(done){ if(!done) b.disabled=false; }); });
+    });
+  })();
+  </script>
+</main>
+</div>
+</body>
+</html>
