@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% if meeting %}{{ meeting.title }}{% else %}새 회의록{% endif %} · KNK HAIST WORKS</title>
+{# ============================================================
+   meeting_form.html — 회의록 작성/상세 (16_KNK_Meeting)
+   z971 사용 흐름 전면 단순화 (대표 지시 2026-07-15 "사용 순서가 헛갈려·폰에서 편하게"):
+   · 새 회의(폰 기준) = 제목(선택) + 큰 버튼 3개(🎙 녹음하며 회의 / 📁 파일 올리기 / ⌨️ 글로 쓰기).
+     날짜·장소·참석자·공개범위는 「상세 정보」 접이식(나중에 채워도 됨).
+   · 자동 파이프라인: 녹음 종료/파일 올리기/글 저장 → (음성→글자) → (AI 정리) 까지 자동.
+     사람이 누르는 건 「녹음 시작/종료」 또는 「저장하고 AI 정리」 한 번.
+   · 상세 화면 ?auto=1 로 착지하면 남은 단계를 이어서 자동 실행. 중간에 끊겨도
+     「▶ 이어서 자동 정리」 버튼이 남은 단계부터 재개(진행상태 카드 #pipeCard).
+   · 제목을 안 지으면 AI 정리 때 내용 기반 제목 자동 제안(서버 extract가 기본제목만 교체).
+   · 폰(≤768px)에선 상세 화면 순서를 [정리 결과]부터 위로 재배치(CSS order).
+   안전: 동적 목록은 |tojson 임베드 후 esc()로 렌더(저장형 XSS 방지),
+        스크립트는 IIFE + 이벤트 위임(SPA 재실행 안전).
+   ============================================================ #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.mf-wrap { max-width: 1200px; }
+.mf-grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px; }
+.mf-top { display:grid; grid-template-columns: minmax(0,380px) minmax(0,1fr); gap:18px; align-items:stretch; }
+.mf-info { display:flex; flex-direction:column; gap:11px; }
+.mf-grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px 12px; }
+.mf-body { display:flex; }
+.mf-body .mf-fld { flex:1; }
+.mf-body #mtgBody { height:100%; box-sizing:border-box; }
+@media (max-width: 820px) { .mf-top { grid-template-columns: 1fr; } }
+.mf-fld { display:flex; flex-direction:column; gap:5px; }
+.mf-fld.full { grid-column: 1 / -1; }
+.mf-fld label { font-size:12px; font-weight:700; color: var(--qv-ink-2); }
+.mf-fld input, .mf-fld select, .mf-fld textarea { border:1px solid var(--qv-line); border-radius:8px; padding:9px 11px; font-size:13.5px; font-family:inherit; background: var(--qv-surface); color: var(--qv-ink); outline:none; }
+.mf-fld input:focus, .mf-fld select:focus, .mf-fld textarea:focus { border-color: var(--qv-line-3); box-shadow:0 0 0 3px var(--qv-surface-2); }
+.mf-fld textarea { resize: vertical; line-height:1.6; }
+#mtgBody { min-height: 340px; }
+.mf-hint { font-size:11.5px; color: var(--qv-ink-3); }
+.mf-section { background: var(--qv-surface); border:1px solid var(--qv-line); border-radius: var(--radius-lg); padding:16px 18px; margin-bottom:14px; }
+.mf-sec-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.mf-sec-title { font-size:14px; font-weight:800; color: var(--qv-ink); }
+.mf-sec-title em { color: var(--knk-red); font-style:normal; }
+.ai-bar { display:flex; align-items:center; gap:12px; padding:14px 16px; background: linear-gradient(180deg,var(--qv-surface-2),var(--qv-surface)); border:1px solid var(--qv-line); border-radius: var(--radius-lg); margin-bottom:14px; }
+.ai-bar .desc { flex:1; min-width:0; }
+.ai-bar .desc b { font-size:13.5px; color: var(--qv-ink); }
+.ai-bar .desc div { font-size:11.5px; color: var(--qv-ink-3); margin-top:3px; }
+.sum-box { font-size:13px; line-height:1.7; color: var(--qv-ink); white-space:pre-wrap; background: var(--qv-surface-2); border-radius:8px; padding:10px 12px; }
+.sum-box.empty { color: var(--qv-ink-3); }
+.row-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--qv-line); border-radius:8px; margin-bottom:8px; background: var(--qv-surface); }
+.ri-main { flex:1; min-width:0; }
+.ri-main b { font-size:13.5px; color: var(--qv-ink); display:block; line-height:1.5; }
+.ri-sub { font-size:11.5px; color: var(--qv-ink-3); margin-right:12px; display:inline-block; margin-top:4px; }
+.ri-ai { font-size:10px; font-weight:800; color:#2563eb; background:#eaf1fe; padding:1px 6px; border-radius:5px; margin-left:6px; vertical-align:middle; }
+.ri-del { border:0; background:transparent; color: var(--qv-ink-3); cursor:pointer; font-size:14px; padding:4px 6px; border-radius:6px; flex-shrink:0; }
+.ri-del:hover { background:#fdecec; color: var(--knk-red); }
+.ri-daily { border:1px solid var(--qv-line-3); background: var(--qv-surface); color: var(--qv-ink); font-size:11.5px; font-weight:700; cursor:pointer; padding:5px 10px; border-radius:7px; flex-shrink:0; white-space:nowrap; }
+.ri-daily:hover { background: var(--qv-surface-2); border-color: var(--qv-ink-3); }
+.ri-linked { font-size:11.5px; font-weight:700; color:#15803d; flex-shrink:0; white-space:nowrap; padding:5px 4px; }
+.ri-empty { font-size:12.5px; color: var(--qv-ink-3); padding:12px; text-align:center; background: var(--qv-surface-2); border-radius:8px; }
+.add-row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.add-row input { flex:1; min-width:110px; border:1px solid var(--qv-line); border-radius:7px; padding:7px 10px; font-size:12.5px; font-family:inherit; background: var(--qv-surface); color: var(--qv-ink); outline:none; }
+.add-row input.who { flex:0 0 120px; }
+.add-row input.due { flex:0 0 130px; }
+.add-row button { border:1px dashed var(--qv-line-3); background: var(--qv-surface-2); color: var(--qv-ink-2); font-size:12.5px; font-weight:700; cursor:pointer; padding:7px 12px; border-radius:7px; }
+.add-row button:hover { background: var(--qv-surface-3); }
+.mf-actions { display:flex; gap:10px; align-items:center; margin:18px 0; }
+.save-status { font-size:12px; color: var(--qv-ink-3); min-height:16px; }
+.save-status.ok { color:#15803d; } .save-status.err { color: var(--knk-red); } .save-status.busy { color: var(--qv-ink-2); }
+/* z1106: 고친 칸이 저장 전이면 저장 버튼 옆에 표시 */
+.dirty-flag { font-size:13px; font-weight:700; color:#b45309; }
+.btn[disabled] { opacity:.5; cursor:not-allowed; }
+.rec-wrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.rec-btn.on { background: var(--knk-red) !important; animation: recPulse 1.2s infinite; }
+@keyframes recPulse { 0%,100%{opacity:1;} 50%{opacity:.72;} }
+.rec-banner { display:flex; align-items:center; gap:9px; background: var(--knk-red); color:#fff; font-size:15.5px; font-weight:800; padding:11px 15px; border-radius:10px; margin-bottom:11px; animation: recBnPulse 1.5s infinite; }
+.rec-banner.paused { background:#b45309; animation:none; }
+/* z1092: 소리가 안 들어올 때 — 배너를 더 진한 빨강으로 빠르게 깜빡여 즉시 알아채게 */
+.rec-banner.nosound { background:#991b1b; animation: recBnPulse 0.6s infinite; }
+/* z1114: 녹음 중 뒤로 가기 → 「회의를 끝낼까요?」 창 · 휴대폰 '이 화면을 켜 두세요' 줄 */
+.rec-back-ask { position:fixed; inset:0; z-index:10050; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+.rec-back-ask[hidden] { display:none !important; }
+.rec-back-ask .rba-box { background: var(--qv-surface, #fff); color: var(--qv-ink, #111); border-radius:12px; padding:18px 18px 14px; width:min(380px, 100%); box-shadow:0 12px 40px rgba(0,0,0,.25); }
+.rec-back-ask .rba-ttl { font-size:17px; font-weight:800; color: var(--knk-red); margin-bottom:8px; }
+.rec-back-ask .rba-msg { font-size:14px; line-height:1.6; margin-bottom:14px; }
+.rec-back-ask .rba-btns { display:flex; gap:8px; flex-wrap:wrap; }
+.rec-back-ask .rba-btns .btn { flex:1 1 150px; min-height:44px; font-size:14.5px; }
+.rec-back-ask .rba-note { font-size:12px; color: var(--qv-ink-3); line-height:1.6; margin-top:10px; }
+.rec-phone-hint { font-size:12.5px; font-weight:700; color:#9a3412; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:8px 11px; margin:-4px 0 11px; line-height:1.55; }
+.rec-phone-hint[hidden] { display:none !important; }
+.rec-banner .rec-dot { width:11px; height:11px; border-radius:50%; background:#fff; flex-shrink:0; animation: recBlink 1s infinite; }
+.rec-banner.paused .rec-dot { animation:none; }
+.rec-banner #recBigTime { font-family:ui-monospace,Consolas,monospace; margin-left:auto; }
+/* v5H226z450 (대표 보고: 녹음 안 하는데도 '본 회의 녹음 중'이 떠서 헷갈림): hidden 속성이
+   .rec-banner{display:flex}·.btn{display:inline-flex} 같은 author CSS 에 덮여 무력화됨(녹음 배너·일시정지 버튼이 항상 보임).
+   → hidden 일 땐 반드시 숨김. 녹음 시작 시 JS 가 hidden 을 제거해 표시(부작용 없음).
+   z971: 새 요소(#writeWrap·#pipeCard·#pipeGo·#pipeRetry)도 같은 함정 방지로 추가. */
+#recBanner[hidden], #recPauseBtn[hidden], #recTime[hidden], #recPlayWrap[hidden],
+#writeWrap[hidden], #pipeCard[hidden], #pipeGo[hidden], #pipeRetry[hidden] { display:none !important; }
+@keyframes recBnPulse { 0%,100%{opacity:1;} 50%{opacity:.88;} }
+@keyframes recBlink { 0%,100%{opacity:1;} 50%{opacity:.2;} }
+.rec-file { cursor:pointer; }
+.link-chip { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:999px; background: var(--qv-surface-2); color: var(--qv-ink); border:1px solid var(--qv-line); text-decoration:none; }
+.link-chip:hover { border-color: var(--qv-line-3); background: var(--qv-surface-3); }
+.rec-time { font-size:14px; font-weight:800; color: var(--knk-red); font-family:ui-monospace,Consolas,monospace; }
+.rec-status { font-size:12px; color: var(--qv-ink-3); }
+/* 🎤 마이크 허용 안내 (2026-09-17) — 처음(묻는 중)·다시 누르기=주황 / 막힘=빨강 / 허용됨=초록 */
+.mic-help { border-radius:10px; padding:10px 13px; font-size:13px; line-height:1.65; margin:0 0 10px; word-break:keep-all; overflow-wrap:anywhere; }
+.mic-help.ask, .mic-help.retry { background:#fff7ed; border:1px solid #fdba74; color:#7c2d12; }
+.mic-help.block, .mic-help.any, .mic-help.os { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; }
+.mic-help.ok { background:#f0fdf4; border:1px solid #86efac; color:#166534; }
+.mic-help b { font-weight:800; }
+.mic-help .nw { white-space:nowrap; }
+/* ── z971 새 회의 시작 화면(폰 우선 큰 버튼) ── */
+.start-btns { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:620px; }
+.start-big { border:0; border-radius:14px; padding:20px 18px; font-size:19px; font-weight:800; cursor:pointer;
+  background: var(--knk-red); color:#fff; display:flex; align-items:center; justify-content:center; gap:10px;
+  box-shadow:0 2px 10px rgba(160,30,30,.18); }
+.start-big:active { transform: scale(.99); }
+.start-big .start-sub { font-size:12px; font-weight:600; opacity:.85; }
+.start-row { display:flex; gap:10px; }
+.start-mid { flex:1; border:1px solid var(--qv-line-3); background: var(--qv-surface); color: var(--qv-ink);
+  border-radius:12px; padding:13px 12px; font-size:14px; font-weight:700; cursor:pointer; text-align:center;
+  display:flex; align-items:center; justify-content:center; gap:6px; }
+.start-mid:hover { background: var(--qv-surface-2); }
+/* ── z1115 📱 휴대폰 녹음기로 녹음(안드로이드) · 기기별 안내(안드로이드·아이폰) ── */
+.start-big.alt { background: var(--qv-surface); color: var(--qv-ink);
+  border:1px solid var(--qv-line-3); box-shadow:none; }
+.rec-phone { text-align:center; }
+/* 🔴 .start-big/.btn 의 display 가 hidden 속성을 덮는다 — 이겨야 아이폰·PC 에서 안 보인다 */
+.rec-phone[hidden] { display:none !important; }
+.plat-note { border-radius:12px; padding:12px 14px; margin-top:12px; font-size:13px; line-height:1.75;
+  border:1px solid #FED7AA; background:#FFF7ED; color:#7C2D12; }
+.plat-note.ios { border-color:#BFDBFE; background:#EFF6FF; color:#1E3A8A; }
+.plat-note b { font-weight:800; }
+#mtgMore { margin-top:14px; }
+#mtgMore summary { cursor:pointer; font-size:13px; font-weight:700; color: var(--qv-ink-2); padding:6px 0; }
+#mtgMore summary:hover { color: var(--qv-ink); }
+/* ── z1091 📋 복사 버튼(원문·정리) — 눌러서 바로 클립보드, 다른 곳 전달용 ── */
+.copy-btn { border:1px solid var(--qv-line-3); background: var(--qv-surface); color: var(--qv-ink-2);
+  font-size:12px; font-weight:700; cursor:pointer; padding:5px 11px; border-radius:7px;
+  white-space:nowrap; flex-shrink:0; }
+.copy-btn:hover { background: var(--qv-surface-2); color: var(--qv-ink); }
+.copy-btn[disabled] { opacity:.75; cursor:default; }
+/* ── z971 자동 정리 진행 카드 ── */
+#pipeCard { border-left:4px solid #7C3AED; }
+#pipeSteps { display:flex; flex-direction:column; gap:7px; font-size:13.5px; line-height:1.55; }
+/* ── z973 '다시 하기' 접이식 폴드 — 평소 닫힘(자동 처리 후 화면 깔끔), 필요할 때만 펼침 ── */
+#redoTools { padding:0; overflow:hidden; }
+#redoTools > summary { cursor:pointer; list-style:none; padding:14px 18px; font-size:13.5px; font-weight:800;
+  color: var(--qv-ink-2); display:flex; align-items:center; gap:8px; }
+#redoTools > summary::-webkit-details-marker { display:none; }
+#redoTools > summary::after { content:'▾ 펼치기'; margin-left:auto; font-size:12px; font-weight:700; color: var(--qv-ink-3); }
+#redoTools[open] > summary::after { content:'▴ 접기'; }
+#redoTools > summary:hover { color: var(--qv-ink); background: var(--qv-surface-2); }
+#redoTools .redo-body { padding:4px 18px 18px; border-top:1px solid var(--qv-line); }
+#redoTools .redo-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:12px 0; }
+/* z452 mobile — 2열 입력 그리드를 폰에서 세로로 */
+@media (max-width: 768px) {
+  .mf-grid, .mf-grid2 { grid-template-columns: 1fr !important; }
+  /* z971/z973: 폰에선 상세 화면 순서를 '결과 먼저'로 재배치 — 진행카드 → 정리·결정·할일 → 기본정보(원문) → 다시하기 → 연결 */
+  .mf-wrap { display:flex; flex-direction:column; }
+  .mf-wrap > * { order:50; }
+  #pipeCard { order:1; }
+  #secSummary { order:3; }
+  #secDecisions { order:4; }
+  #secActions { order:5; }
+  .mf-top { order:10; }
+  #redoTools { order:11; }
+  .mf-wrap.autorec #redoTools { order:2; }   /* 회의 알림 「회의 시작」으로 열린 창 — 녹음 칸을 맨 위로 */
+  #secLink { order:12; }
+}
+</style>
+</head>
+<body>
+{% set is_new = (meeting is none) %}
+{% set pf = prefill|default({}) %}   {# 메신저 '📋 회의록' 딥링크 프리필 (신규 작성 시에만). 대표 지시 2026-07-03 #}
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+
+<main class="main" data-dn="meeting-form-main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta"><a href="/meetings" style="color:var(--qv-ink-3);">회의록</a> · {% if is_new %}새로 작성{% else %}{{ meeting.meeting_date }}{% endif %}</div>
+      <h1 class="page-title">{% if is_new %}새 <em>회의록</em>{% else %}회의록 <em>상세</em>{% endif %}</h1>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-secondary" href="/meetings">← 목록</a>
+      {% if not is_new %}<a class="btn btn-primary" href="/meetings/{{ meeting.id }}/doc" target="_blank" rel="noopener" data-no-swap>📄 회의록 양식</a>{% endif %}
+      {% if not is_new and can_delete %}<button class="btn btn-secondary" id="btnDelete" style="color:var(--knk-red);">🗑 삭제</button>{% endif %}
+    </div>
+  </div>
+
+  <div class="mf-wrap">
+
+  {% if is_new %}
+    <!-- ═══ z971 새 회의 시작 화면 — 폰에서 누르는 건 사실상 한 번 ═══ -->
+    <div class="mf-section">
+      <div class="mf-fld">
+        <label>회의 제목 <span class="mf-hint">(비워도 됩니다 — AI가 내용을 보고 지어드려요)</span></label>
+        <input id="mtgTitle" type="text" maxlength="200" placeholder="예: 드림텍 검사장비 미팅" value="{{ pf.get('title','') }}">
+      </div>
+
+      <div class="rec-banner" id="recBanner" hidden><span class="rec-dot"></span><span id="recBannerLbl">🔴 본 회의 녹음 중</span><span id="recBigTime">00:00</span></div>
+
+      <div class="start-btns">
+        <!-- z1115: 휴대폰은 다른 앱으로 넘어가면 OS 가 마이크를 막는다(2026-09-20 실측 95초 무음)
+             → 안 끊기는 길(휴대폰 기본 녹음기)을 맨 위에. 안드로이드에서만 보인다(iOS 는 녹음기가 안 열림). -->
+        <label class="start-big rec-phone" id="recPhoneRecWrap" hidden>📱 휴대폰 녹음기로 녹음&nbsp;<span class="start-sub">다른 앱을 봐도 끊기지 않아요</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
+        <button class="start-big rec-btn" id="recBtn">🎙 녹음하며 회의&nbsp;<span class="start-sub">누르면 바로 녹음</span></button>
+        <div class="start-row">
+          <label class="start-mid rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
+          <button class="start-mid" id="btnWriteMode" type="button">⌨️ 글로 쓰기</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="recPauseBtn" hidden>⏸ 일시정지</button>
+          <span class="rec-time" id="recTime" hidden>● 00:00</span>
+          <span class="rec-status" id="recStatus"></span>
+        </div>
+      </div>
+      <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 녹음을 마치면 <b>음성→글자, AI 정리까지 자동</b>으로 됩니다. <b>전화를 받을 땐 「⏸ 일시정지」</b>(통화 내용 녹음 방지) → 통화 후 「▶ 재개」. 이 화면 녹음은 <b>10초마다 서버에 저장</b>돼 창이 닫혀도 그때까지는 남고, <b>회의록 목록에서 「녹음 끝내고 정리」</b>로 마칠 수 있습니다.</div>
+      <div class="plat-note" id="recPlatNote" hidden></div>
+
+      <div id="writeWrap" {% if not pf.get('body') %}hidden{% endif %} style="margin-top:16px;">
+        <div class="mf-fld">
+          <label>회의 내용</label>
+          <textarea id="mtgBody" placeholder="회의에서 오간 내용을 자유롭게 적으세요. 「저장하고 AI 정리」를 누르면 결정사항·할 일·요약까지 자동으로 정리됩니다.">{{ pf.get('body','') }}</textarea>
+        </div>
+        <div class="mf-actions" style="margin-bottom:0;">
+          <button class="btn btn-primary" id="btnSave">💾 저장하고 AI 정리</button>
+          <span class="save-status" id="saveStatus"></span><span class="dirty-flag" id="dirtyFlag" hidden>● 저장 안 됨</span>
+        </div>
+      </div>
+
+      <details id="mtgMore" {% if pf.get('meeting_date') or pf.get('location') or pf.get('attendees') or pf.get('tags') or pf.get('visibility') in ('private','all','hq','vn') %}open{% endif %}>
+        <summary>상세 정보 (날짜·공개범위·장소·참석자) — 나중에 채워도 됩니다</summary>
+        <div class="mf-grid2" style="margin-top:12px;">
+          <div class="mf-fld">
+            <label>회의 날짜</label>
+            <input id="mtgDate" type="date" value="{{ pf.get('meeting_date') or today }}">
+          </div>
+          <div class="mf-fld">
+            <label>공개 범위</label>
+            {# z972 5단계 — 본사/법인 = 보는 사람 '팀'의 소속 법인 기준 #}
+            <select id="mtgVis">
+              <option value="private" {% if pf.get('visibility')=='private' %}selected{% endif %}>비공개 (나+참석자)</option>
+              <option value="team"    {% if pf.get('visibility','team')=='team' %}selected{% endif %}>팀 공개</option>
+              <option value="hq"      {% if pf.get('visibility')=='hq' %}selected{% endif %}>본사 공개</option>
+              <option value="vn"      {% if pf.get('visibility')=='vn' %}selected{% endif %}>법인 공개</option>
+              <option value="all"     {% if pf.get('visibility')=='all' %}selected{% endif %}>본사+법인 공개</option>
+            </select>
+          </div>
+          <div class="mf-fld">
+            <label>장소 <span class="mf-hint">(선택)</span></label>
+            <input id="mtgLoc" type="text" placeholder="회의실 A / 화상 / 고객사" value="{{ pf.get('location','') }}">
+          </div>
+          <div class="mf-fld">
+            <label>태그 <span class="mf-hint">(선택)</span></label>
+            <input id="mtgTags" type="text" placeholder="주간,검사기" value="{{ pf.get('tags','') }}">
+          </div>
+          <div class="mf-fld full">
+            <label>참석자 <span class="mf-hint">(쉼표 구분 · 직원 이름과 일치 시 일일카드 배정)</span></label>
+            <input id="mtgAttendees" type="text" placeholder="홍길동, 김철수, 응우옌" value="{{ pf.get('attendees','') }}">
+          </div>
+        </div>
+      </details>
+    </div>
+
+  {% else %}
+    <!-- ═══ 자동 정리 진행 카드 (?auto=1 착지·이어서 하기·실패 재시도) ═══ -->
+    <div class="mf-section" id="pipeCard" hidden>
+      <div class="mf-sec-head" style="margin-bottom:9px;"><div class="mf-sec-title">🤖 자동 정리</div></div>
+      <div id="pipeSteps"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="btn btn-primary" id="pipeGo" hidden>▶ 자동 정리 시작</button>
+        <button class="btn btn-secondary" id="pipeRetry" hidden>🔄 다시 시도</button>
+      </div>
+    </div>
+
+    <!-- ── 회의 기본 정보 ── -->
+    <div class="mf-section mf-top">
+      <div class="mf-info">
+        <div class="mf-grid2">
+          <div class="mf-fld full">
+            <label>회의 제목 *</label>
+            <input id="mtgTitle" type="text" maxlength="200" placeholder="예: 6월 검사기T 주간회의"
+                   value="{{ meeting.title }}" {% if not can_edit %}disabled{% endif %}>
+          </div>
+          <div class="mf-fld">
+            <label>회의 날짜</label>
+            <input id="mtgDate" type="date" value="{{ meeting.meeting_date }}" {% if not can_edit %}disabled{% endif %}>
+          </div>
+          <div class="mf-fld">
+            <label>공개 범위</label>
+            {# z972 5단계 — 본사/법인 = 보는 사람 '팀'의 소속 법인 기준 #}
+            <select id="mtgVis" {% if not can_edit %}disabled{% endif %}>
+              <option value="private" {% if meeting.visibility=='private' %}selected{% endif %}>비공개 (나+참석자)</option>
+              <option value="team"    {% if meeting.visibility=='team' %}selected{% endif %}>팀 공개</option>
+              <option value="hq"      {% if meeting.visibility=='hq' %}selected{% endif %}>본사 공개</option>
+              <option value="vn"      {% if meeting.visibility=='vn' %}selected{% endif %}>법인 공개</option>
+              <option value="all"     {% if meeting.visibility=='all' %}selected{% endif %}>본사+법인 공개</option>
+            </select>
+          </div>
+          <div class="mf-fld">
+            <label>장소 <span class="mf-hint">(선택)</span></label>
+            <input id="mtgLoc" type="text" placeholder="회의실 A / 화상" value="{{ meeting.location }}" {% if not can_edit %}disabled{% endif %}>
+          </div>
+          <div class="mf-fld">
+            <label>태그 <span class="mf-hint">(선택)</span></label>
+            <input id="mtgTags" type="text" placeholder="주간,검사기" value="{{ meeting.tags }}" {% if not can_edit %}disabled{% endif %}>
+          </div>
+          <div class="mf-fld full">
+            <label>참석자 <span class="mf-hint">(쉼표 구분 · 직원 이름과 일치 시 일일카드 배정)</span></label>
+            <input id="mtgAttendees" type="text" placeholder="홍길동, 김철수, 응우옌" value="{{ meeting.attendees_text }}" {% if not can_edit %}disabled{% endif %}>
+          </div>
+        </div>
+        <div class="mf-actions">
+          {% if can_edit %}
+            <button class="btn btn-primary" id="btnSave">💾 저장</button>
+          {% endif %}
+          <span class="save-status" id="saveStatus"></span><span class="dirty-flag" id="dirtyFlag" hidden>● 저장 안 됨</span>
+        </div>
+      </div>
+      <div class="mf-body">
+        <div class="mf-fld full">
+          {# z1091: 원문 복사 — 눌러서 바로 클립보드(다른 곳 전달용). 열람자도 사용 가능 #}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <label>회의 내용 (원문)</label>
+            <button class="copy-btn" id="btnCopyBody" type="button" title="원문 전체를 복사합니다">📋 복사</button>
+          </div>
+          <textarea id="mtgBody" placeholder="회의에서 오간 내용. 녹음을 올리면 음성→글자 변환 결과가 여기에 자동으로 들어옵니다." {% if not can_edit %}disabled{% endif %}>{{ meeting.body }}</textarea>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if not is_new %}
+    <!-- ── 요약 ── -->
+    <div class="mf-section" id="secSummary">
+      <div class="mf-sec-head"><div class="mf-sec-title">📋 회의록 정리 <em>(안건·논의·요점)</em></div>
+        {# z1091: 정리 복사 — 제목·날짜 머리말과 함께 클립보드(전달받는 쪽이 맥락을 알도록) #}
+        <button class="copy-btn" id="btnCopySum" type="button" style="margin-left:auto;" title="정리 내용을 제목·날짜와 함께 복사합니다">📋 복사</button>
+      </div>
+      <div class="sum-box empty" id="mtgSummary">아직 정리 전입니다 — 회의 내용을 적거나 녹음하면 자동으로 정리됩니다.</div>
+    </div>
+
+    <!-- ── 결정사항 ── -->
+    <div class="mf-section" id="secDecisions">
+      <div class="mf-sec-head"><div class="mf-sec-title">결정사항 <em>(누가 · 무엇을 · 언제까지)</em></div></div>
+      <div id="decList"></div>
+      {% if can_edit %}
+      <div class="add-row">
+        <input class="who" id="decWho" type="text" placeholder="담당(선택)">
+        <input id="decWhat" type="text" placeholder="결정 내용">
+        <input class="due" id="decDue" type="text" placeholder="기한(선택)">
+        <button id="btnAddDec">＋ 추가</button>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ── 할 일 ── -->
+    <div class="mf-section" id="secActions">
+      <div class="mf-sec-head"><div class="mf-sec-title">할 일 <em>(담당 · 내용 · 기한)</em></div>
+        <span class="mf-hint" style="margin-left:auto;">「일일카드로」를 누르면 일일업무카드에 등록됩니다</span>
+      </div>
+      <div id="actList"></div>
+      {% if can_edit %}
+      <div class="add-row">
+        <input class="who" id="actAssignee" type="text" placeholder="담당(선택)">
+        <input id="actTask" type="text" placeholder="할 일 내용">
+        <input class="due" id="actDue" type="text" placeholder="기한(선택)">
+        <button id="btnAddAct">＋ 추가</button>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if can_edit and rec and rec.state == 'recording' %}
+    {# z1113 (대표 지시 2026-09-18): 창이 닫혀 끊긴 녹음 — 여기서 마치거나 이어서 녹음한다.
+       녹음은 10초쯤마다 서버에 저장되므로 아래 시간까지는 이미 서버에 있다. #}
+    <div class="mf-section" id="recResume" style="border-left:4px solid var(--knk-red);">
+      <div style="font-size:15px;font-weight:800;color:var(--knk-red);margin-bottom:6px;">🔴 녹음 중이던 회의입니다</div>
+      <div class="mf-hint" style="line-height:1.7;margin-bottom:10px;">
+        지금까지 <b id="recResumeSaved">{{ '%d분 %d초'|format(rec.secs // 60, rec.secs % 60) }}</b>가 서버에 저장돼 있습니다{% if rec.kb %} ({{ rec.kb }}KB){% endif %}.
+        {% if rec.last_at %}마지막 소리 {{ rec.last_at }}.{% endif %}
+        창이 닫히거나 앱이 꺼져도 <b>여기까지는 남습니다</b> — 아래에서 마치거나 이어서 녹음하세요.
+      </div>
+      <div class="redo-row">
+        <button class="btn btn-primary" id="recFinishBtn">⏹ 녹음 끝내고 정리</button>
+        <button class="btn btn-secondary" id="recResumeBtn">🎙 이어서 녹음</button>
+        <span class="rec-status" id="recResumeSt"></span>
+      </div>
+    </div>
+    {% endif %}
+    {% if can_edit %}
+    <!-- ── 🔧 다시 하기 (필요할 때만) — z973: 평소 닫힘. 녹음 추가·다시 정리 재실행용 ── -->
+    <details class="mf-section" id="redoTools">
+      <summary>🔧 다시 하기 · 녹음 추가 <span style="font-weight:600;color:var(--qv-ink-3);">(필요할 때만)</span></summary>
+      <div class="redo-body">
+        <div class="mf-hint" style="margin:10px 0 4px;line-height:1.6;">회의가 <b>이어져 더 녹음</b>하거나, 위 ‘회의 내용(원문)’의 <b>오타를 고친 뒤 다시 정리</b>하고 싶을 때 씁니다. 평소엔 위 자동 정리로 충분합니다.</div>
+        <div class="plat-note" id="recPlatNote" hidden></div>
+
+        <div class="rec-banner" id="recBanner" hidden><span class="rec-dot"></span><span id="recBannerLbl">🔴 본 회의 녹음 중</span><span id="recBigTime">00:00</span></div>
+        <div class="redo-row">
+          <button class="btn btn-primary rec-btn" id="recBtn">🎙 녹음 추가</button>
+          <button class="btn btn-secondary" id="recPauseBtn" hidden>⏸ 일시정지</button>
+          <label class="btn btn-primary rec-phone" id="recPhoneRecWrap" hidden>📱 휴대폰 녹음기로 녹음<input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
+          <label class="btn btn-secondary rec-file">📁 음성 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
+          <button class="btn btn-secondary" id="btnExtract" {% if not ai_on %}disabled title="AI 키가 설정되어 있지 않습니다(관리자 → AI 설정). 그 전에는 아래에서 직접 추가하세요."{% endif %}>🔄 다시 정리</button>
+          <span class="rec-time" id="recTime" hidden>● 00:00</span>
+          <span class="rec-status" id="recStatus"></span>
+        </div>
+        <div id="recPlayWrap" {% if not meeting.audio_path %}hidden{% endif %} style="margin-top:6px;">
+          <audio id="recAudio" controls style="width:100%;max-width:440px;display:block;"{% if meeting.audio_path %} src="/api/meeting/{{ meeting.id }}/audio"{% endif %}></audio>
+        </div>
+        <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 새 녹음을 올리면 <b>음성→글자·AI 정리까지 자동</b>으로 다시 됩니다. 「🔄 다시 정리」는 원문을 고친 뒤 <b>AI 정리만 다시</b> 돌립니다(고친 내용은 <b>먼저 자동 저장</b> · 직접 추가한 결정·할 일은 보존).<br>녹음 중 <b>화면을 켜 두세요</b>. <b>전화 받을 땐 「⏸ 일시정지」</b> → 통화 후 「▶ 재개」. 녹음은 <b>10초마다 서버에 저장</b>돼 창이 닫혀도 남습니다(목록에서 「녹음 끝내고 정리」).</div>
+        {% if not transcribe_on %}<div class="mf-hint" style="margin-top:6px;color:var(--knk-red);">⚠ 음성→글자는 OpenAI 키 등록 후 동작합니다 — 녹음·저장·재생은 지금도 됩니다.</div>{% endif %}
+      </div>
+    </details>
+    {% endif %}
+
+    {% if can_link_proj or can_link_sales %}
+    <!-- ── 🔗 연결 (프로젝트·영업기회) ── -->
+    <div class="mf-section" id="secLink">
+      <div class="mf-sec-head"><div class="mf-sec-title">🔗 연결 <em>(프로젝트·영업기회)</em></div></div>
+      <div class="mf-grid2">
+        {% if can_link_proj %}
+        <div class="mf-fld">
+          <label>프로젝트(관리코드) 연결</label>
+          <select id="mtgProj" {% if not can_edit %}disabled{% endif %}>
+            <option value="">— 연결 안 함 —</option>
+            {% for p in projects %}<option value="{{ p.id }}" {% if linked_project and linked_project.id==p.id %}selected{% endif %}>{{ p.mgmt_code or p.code or ('P' ~ p.id) }} · {{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        {% if can_link_sales %}
+        <div class="mf-fld">
+          <label>영업기회 연결</label>
+          <select id="mtgOpp" {% if not can_edit %}disabled{% endif %}>
+            <option value="">— 연결 안 함 —</option>
+            {% for o in opps %}<option value="{{ o.id }}" {% if linked_opp and linked_opp.id==o.id %}selected{% endif %}>{{ o.opp_no }} · {{ o.title }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+      </div>
+      {% if can_edit %}
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <button class="btn btn-primary" id="btnLink">💾 연결 저장</button>
+        {% if can_link_sales %}<button class="btn btn-secondary" id="btnToOpp" {% if linked_opp %}disabled title="이미 영업기회와 연결됨"{% endif %}>🎯 새 영업기회 등록</button>{% endif %}
+        <span class="rec-status" id="linkStatus"></span>
+      </div>
+      <div class="mf-hint" style="margin-top:6px;">「새 영업기회 등록」을 누르면 이 회의록(제목·요약·날짜)으로 영업기회가 만들어지고 자동 연결되며, 그 영업기회 화면으로 이동합니다.</div>
+      {% endif %}
+      <div id="linkChips" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        {% if linked_project %}<a class="link-chip" href="/projects/{{ linked_project.id }}" target="_blank" rel="noopener" data-no-swap>📋 {{ linked_project.mgmt_code or linked_project.code }} · {{ linked_project.name }}</a>{% endif %}
+        {% if linked_opp %}<a class="link-chip" href="/sales/opportunities/{{ linked_opp.id }}" target="_blank" rel="noopener" data-no-swap>🎯 {{ linked_opp.opp_no }} · {{ linked_opp.title }}</a>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  {% endif %}
+  </div>
+</main>
+</div>
+{% include "_v5_partials/knk_inputs.html" %}
+{% include "_v5_partials/knk_datepicker.html" %}
+
+<script>
+window.__MTG = {
+  is_new: {{ 'true' if is_new else 'false' }},
+  id: {{ meeting.id if not is_new else 'null' }},
+  {# z1106: 새 회의일 때 빈 값도 tojson 으로 — '""' 를 그냥 쓰면 &#34;&#34; 로 바뀌어 이 스크립트 전체가 멈췄다(06-14 새 회의 저장 실패 원인) #}
+  base_ts: {{ ((meeting.updated_at or '') if not is_new else '')|tojson }},
+  can_edit: {{ 'true' if (is_new or can_edit) else 'false' }},
+  ai_on: {{ 'true' if ai_on else 'false' }},
+  tr_on: {{ 'true' if transcribe_on else 'false' }},
+  has_audio: {{ 'true' if (not is_new and meeting.audio_path) else 'false' }},
+  rec: {{ (rec|default({}, true))|tojson }},   {# z1113: 녹음 중 상태(초·저장량) — 창이 닫혀도 이어서 끝낼 수 있게 #}
+  audio_max_mb: {{ MEETING_AUDIO_MAX_MB|int }},   {# 2026-09-17: 음성 올리기 한도 — 숫자는 main.py _MEETING_AUDIO_MAX_MB 한 곳 #}
+  summary: {{ ((meeting.summary or '') if not is_new else '')|tojson }},
+  decisions: {{ decisions|tojson if decisions else '[]' }},
+  actions: {{ actions|tojson if actions else '[]' }}
+};
+</script>
+<script>
+(function(){
+  var M = window.__MTG || {};
+  var CAN_EDIT = !!M.can_edit;
+  var AI_ON = !!M.ai_on, TR_ON = !!M.tr_on;
+  var AUDIO_MAX_MB = +M.audio_max_mb || 0;   // 음성 올리기 한도(서버 값) — 넘는 파일은 올리기 전에 알림
+  // z973: 녹음 유휴 라벨 — 새 회의='녹음하며 회의', 상세(다시 하기 폴드)='녹음 추가'
+  var REC_IDLE = M.is_new ? '🎙 녹음하며 회의' : '🎙 녹음 추가';
+
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  // z1106: WORKS 는 링크를 누르면 본문만 갈아끼운다(spa_nav) → 이 코드는 화면을 떠난 뒤에도 살아 있다.
+  //   녹음 올리기·자동 정리가 뒤에서 끝날 때 새 화면의 같은 id 칸을 읽고 쓰면 엉뚱한 회의에 저장된다
+  //   (빈 원문·참석자로 덮어쓰기 위험) → 이 화면이 사라졌으면 $() 는 아무것도 찾지 않는다.
+  var _root = document.querySelector('.mf-wrap');
+  function _alive(){ return !_root || _root.isConnected; }
+  function $(id){ return _alive() ? document.getElementById(id) : null; }
+  function status(msg, kind){ var el=$('saveStatus'); if(!el) return; el.textContent=msg||''; el.className='save-status'+(kind?(' '+kind):''); }
+
+  // ── z1106 (대표 「보완해」 2026-09-16) 고친 칸 추적 — 「● 저장 안 됨」 · 나갈 때 알림 · 다시 정리 전 자동 저장 ──
+  //   기준값 = 서버에 저장된 값. 서버가 바꾼 칸(음성→글자 원문·AI 제목)은 그때 기준값도 옮긴다.
+  var _FIELDS = ['mtgTitle','mtgDate','mtgVis','mtgLoc','mtgTags','mtgAttendees','mtgBody'];
+  var _base = {};
+  var _upBusy = 0;        // 녹음 파일 올리는 중
+  var _leaveOk = false;   // 이 화면이 스스로 이동할 때(저장·삭제 직후)는 알림 생략
+  function _raw(){
+    if (!_alive()) return _base;
+    var o = {};
+    _FIELDS.forEach(function(id){ var el=document.getElementById(id); o[id] = el ? String(el.value == null ? '' : el.value) : null; });
+    return o;
+  }
+  function isDirty(){
+    if (!CAN_EDIT || !_alive()) return false;
+    var cur = _raw();
+    for (var i = 0; i < _FIELDS.length; i++){ if (cur[_FIELDS[i]] !== _base[_FIELDS[i]]) return true; }
+    return false;
+  }
+  function refreshDirty(){
+    var d = isDirty(), fl = $('dirtyFlag');
+    if (fl) fl.hidden = !d;
+    if (d){ var st = $('saveStatus'); if (st && st.classList.contains('ok')) status(''); }   // '저장됨 ✓' 과 함께 보이지 않게
+  }
+  function rebase(ids, snap){
+    var cur = snap || _raw();
+    (ids || _FIELDS).forEach(function(id){ _base[id] = cur[id]; });
+    refreshDirty();
+  }
+  function leaveReason(){
+    if (_leaveOk || !_alive()) return '';
+    if (_mr && _mr.state !== 'inactive') return _recNet
+      ? '🎙 녹음 중입니다. 나가면 녹음이 멈춥니다(지금까지 녹음은 서버에 저장돼 있고, 회의록 목록에서 「녹음 끝내고 정리」로 마칠 수 있어요).'
+      : '🎙 녹음 중입니다. 먼저 「⏹ 녹음 종료」를 눌러야 녹음이 저장됩니다.';
+    if (_upBusy > 0) return '🎙 녹음 파일을 올리는 중입니다. 끝날 때까지 기다려 주세요.';
+    if (isDirty()) return '고친 내용이 아직 저장되지 않았습니다. 먼저 「💾 저장」을 누르세요 — 나가면 고친 내용이 사라집니다.';
+    return '';
+  }
+
+  async function jreq(method, url, body){
+    var opt = { method: method, headers: {'Content-Type':'application/json'} };
+    if (body !== undefined) opt.body = JSON.stringify(body);
+    try {
+      var r = await fetch(url, opt);
+      var d = {}; try { d = await r.json(); } catch(e){}
+      return { ok: r.ok, status: r.status, data: d };
+    } catch(e){
+      return { ok:false, status:0, data:{ error:'연결 오류: '+((e&&e.message)||e) } };
+    }
+  }
+
+  function collectForm(){
+    return {
+      title: ($('mtgTitle')||{}).value || '',
+      meeting_date: ($('mtgDate')||{}).value || '',
+      visibility: ($('mtgVis')||{}).value || 'team',
+      location: ($('mtgLoc')||{}).value || '',
+      tags: ($('mtgTags')||{}).value || '',
+      attendees_text: ($('mtgAttendees')||{}).value || '',
+      body: ($('mtgBody')||{}).value || ''
+    };
+  }
+
+  // ── 저장(신규 생성 / 기존 수정) ──
+  // z971 신규: 제목 없으면 기본 제목으로 만들고, 내용이 있으면 ?auto=1 로 넘어가 AI 정리까지 자동.
+  // 기존 회의 저장 — 결과를 돌려준다. 「💾 저장」과 「다시 정리」 전 자동 저장이 같이 쓴다.
+  async function saveExisting(){
+    if (!_alive()) return { ok:false, error:'화면이 바뀌어 저장하지 않았습니다.' };   // 새 화면 칸을 이 회의에 저장하지 않는다
+    var snap = _raw();
+    var f = collectForm();
+    if (!f.title.trim()) return { ok:false, error:'회의 제목을 입력하세요.', focus:'mtgTitle' };
+    f.base_ts = M.base_ts;
+    var res2 = await jreq('PUT', '/api/meeting/' + M.id, f);
+    if (res2.ok && res2.data.ok) { M.base_ts = res2.data.updated_at || M.base_ts; rebase(null, snap); return { ok:true }; }
+    if (res2.status === 409) return { ok:false, error: res2.data.message || '다른 곳에서 먼저 저장됐습니다. 새로고침하세요.' };
+    return { ok:false, error: res2.data.error || '저장 실패' };
+  }
+  async function save(){
+    var f = collectForm();
+    status('저장 중…', 'busy');
+    if (M.is_new) {
+      if (!f.title.trim()) f.title = '제목 없는 회의 ' + (f.meeting_date || '');
+      var res = await jreq('POST', '/api/meeting', f);
+      if (res.ok && res.data.ok) {
+        var go = '/meetings/' + res.data.id + ((f.body.trim() && AI_ON) ? '?auto=1' : '');
+        _leaveOk = true;   // 방금 저장한 회의로 이동 — 나갈 때 알림 생략
+        location.href = go;
+      }
+      else { status(res.data.error || '저장 실패', 'err'); }
+    } else {
+      var r = await saveExisting();
+      if (r.ok) { status('저장됨 ✓', 'ok'); }
+      else { status(r.error, 'err'); if (r.focus){ var t=$(r.focus); if(t) t.focus(); } }
+    }
+  }
+
+  // ── 렌더 ──
+  function renderSummary(){
+    var box = $('mtgSummary'); if(!box) return;
+    if (M.summary && M.summary.trim()){ box.textContent = M.summary; box.className='sum-box'; }
+    else { box.textContent='아직 정리 전입니다 — 회의 내용을 적거나 녹음하면 자동으로 정리됩니다.'; box.className='sum-box empty'; }
+  }
+  function renderDecisions(){
+    var box = $('decList'); if(!box) return;
+    if (!M.decisions.length){ box.innerHTML = '<div class="ri-empty">결정사항이 없습니다. 「AI로 정리」를 누르거나 직접 추가하세요.</div>'; return; }
+    box.innerHTML = M.decisions.map(function(d){
+      var sub = '';
+      if (d.who) sub += '<span class="ri-sub">👤 '+esc(d.who)+'</span>';
+      if (d.due) sub += '<span class="ri-sub">⏰ '+esc(d.due)+'</span>';
+      return '<div class="row-item"><div class="ri-main"><b>'+esc(d.what)
+        + (d.source==='ai'?'<span class="ri-ai">AI</span>':'') + '</b>'+sub+'</div>'
+        + (CAN_EDIT?'<button class="ri-del" data-act="del-dec" data-id="'+d.id+'" title="삭제">✕</button>':'')
+        + '</div>';
+    }).join('');
+  }
+  function renderActions(){
+    var box = $('actList'); if(!box) return;
+    if (!M.actions.length){ box.innerHTML = '<div class="ri-empty">할 일이 없습니다. 「AI로 정리」를 누르거나 직접 추가하세요.</div>'; return; }
+    box.innerHTML = M.actions.map(function(a){
+      var sub = '';
+      if (a.assignee_name) sub += '<span class="ri-sub">👤 '+esc(a.assignee_name)+'</span>';
+      if (a.due_date) sub += '<span class="ri-sub">⏰ '+esc(a.due_date)+'</span>';
+      var right = a.linked_task_id
+        ? '<span class="ri-linked">✓ 일일카드 등록됨</span>'
+        : '<button class="ri-daily" data-act="to-daily" data-id="'+a.id+'">📋 일일카드로</button>';
+      return '<div class="row-item"><div class="ri-main"><b>'+esc(a.task)
+        + (a.source==='ai'?'<span class="ri-ai">AI</span>':'') + '</b>'+sub+'</div>'
+        + right
+        + (CAN_EDIT?'<button class="ri-del" data-act="del-act" data-id="'+a.id+'" title="삭제">✕</button>':'')
+        + '</div>';
+    }).join('');
+  }
+
+  // ── 핵심 실행 단계(버튼·자동 파이프라인 공용) ──
+  // doTranscribe: 녹음 → 글자 — z1090: 변환이 1~2분+ 걸리면 프록시가 연결을 먼저 끊어
+  //   '변환 실패'로 보이던 문제 → 서버는 백그라운드로 변환하고 여기선 3초마다 상태만 폴링.
+  function _sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  async function doTranscribe(onProg){
+    var res = await jreq('POST', '/api/meeting/'+M.id+'/transcribe', {});
+    if (!(res.ok && res.data.ok)){
+      return { ok:false, error: res.data.error || '음성→글자 시작 실패' };
+    }
+    // 시작됨(또는 이미 변환 중) — 상태 폴링 (최대 60분 · 긴 녹음은 20분씩 나눠 변환 · 요청당 수 ms라 프록시 제한 무관)
+    var miss = 0, lastProg = '';
+    for (var i = 0; i < 1200; i++){
+      await _sleep(3000);
+      var st = await jreq('GET', '/api/meeting/'+M.id+'/stt-status');
+      if (st.ok && st.data.ok){
+        miss = 0;
+        if (st.data.state === 'done'){
+          var ta=$('mtgBody'); if(ta && st.data.body != null){ ta.value = st.data.body; rebase(['mtgBody']); }
+          M.base_ts = st.data.updated_at || M.base_ts;
+          return { ok:true, warn: st.data.warn||'' };  // z1092 무음 구간 경고
+        }
+        if (st.data.state === 'error'){
+          return { ok:false, error: st.data.error || '음성→글자 변환 실패' };
+        }
+        if (st.data.state === 'none'){
+          return { ok:false, error: '변환 상태가 사라졌습니다(서버 재시작 가능). 화면 새로고침 후 다시 시도해 주세요.' };
+        }
+        // running → 계속 대기(진행 글이 바뀌면 화면에 알림 — 예: 「8개 구간 중 3번째」)
+        if (onProg && st.data.progress && st.data.progress !== lastProg){ lastProg = st.data.progress; onProg(lastProg); }
+      } else {
+        // 일시 통신 오류는 몇 번 봐주고 계속(이동 중 전파 끊김 등) — 연속 10회(30초)면 중단
+        if (++miss >= 10) return { ok:false, error: '상태 확인 통신이 계속 끊깁니다 — 네트워크 확인 후 「다시 시도」를 눌러주세요.' };
+      }
+    }
+    return { ok:false, error: '변환이 60분을 넘겨 확인을 중단했습니다 — 잠시 후 화면을 새로고침해 확인해 주세요.' };
+  }
+  // doExtract: AI 정리 (성공 시 요약·결정·할일 렌더 + AI 제안 제목 반영)
+  async function doExtract(){
+    // z1106: 서버는 '저장된' 원문으로 정리한다 → 화면에서 고친 내용이 있으면 먼저 저장(안 하면 고치기 전 글로 정리됨)
+    if (isDirty()){
+      var sv = await saveExisting();
+      if (!sv.ok) return { ok:false, error:'고친 내용을 먼저 저장하지 못해 정리를 멈췄습니다 — ' + sv.error };
+      status('저장됨 ✓', 'ok');
+    }
+    var res = await jreq('POST', '/api/meeting/'+M.id+'/extract', {});
+    if (res.ok && res.data.ok){
+      M.summary = res.data.summary || '';
+      M.decisions = res.data.decisions || [];
+      M.actions = res.data.actions || [];
+      M.base_ts = res.data.updated_at || M.base_ts;
+      if (res.data.title){ var t=$('mtgTitle'); if(t){ t.value=res.data.title; rebase(['mtgTitle']); } }
+      renderSummary(); renderDecisions(); renderActions();
+      return { ok:true };
+    }
+    return { ok:false, error: res.data.error || 'AI 정리 실패' };
+  }
+
+  // ── 「🔄 다시 정리」(다시 하기 폴드) — 원문 고친 뒤 AI 정리만 다시. 피드백은 폴드 안 recStatus로 ──
+  async function extract(){
+    var btn = $('btnExtract'); if (btn){ btn.disabled=true; }
+    recSt(isDirty() ? '고친 내용을 저장하고 AI가 다시 정리하는 중…' : 'AI가 회의 내용을 다시 정리하는 중…');
+    var r = await doExtract();
+    if (btn){ btn.disabled=false; }
+    if (r.ok) recSt('다시 정리 완료 ✓ 위 정리 결과가 갱신됐습니다.', 'ok');
+    else recSt(r.error, 'err');
+  }
+
+  // ── z971 자동 파이프라인 — 업로드/저장 후 (음성→글자)→(AI 정리) 자동 실행 ──
+  var _pipeBusy=false, _pipeLastOpts=null;
+  function bodyHasStt(){ return ((($('mtgBody')||{}).value)||'').indexOf('[음성 변환]') >= 0; }
+  function pipeRender(steps){
+    var card=$('pipeCard'), box=$('pipeSteps'); if(!card||!box) return;
+    card.hidden=false;
+    box.innerHTML = steps.map(function(s){
+      var ic = s.st==='done' ? '✅' : (s.st==='run' ? '⏳' : (s.st==='err' ? '❌' : (s.st==='warn' ? '⚠' : '○')));
+      var col = s.st==='err' ? 'var(--knk-red)' : (s.st==='warn' ? '#b45309' : (s.st==='done' ? '#15803d' : (s.st==='run' ? 'var(--qv-ink)' : 'var(--qv-ink-3)')));
+      return '<div style="color:'+col+';font-weight:'+((s.st==='run'||s.st==='err'||s.st==='warn')?'800':'600')+';">'+ic+' '+esc(s.label)+'</div>';
+    }).join('');
+  }
+  async function autoPipeline(opts){
+    opts = opts || {};
+    if (_pipeBusy || M.is_new || !CAN_EDIT) return;
+    var body = ((($('mtgBody')||{}).value)||'').trim();
+    var wantStt = M.has_audio && (opts.forceStt || !bodyHasStt());
+    var plan = [];
+    if (wantStt && TR_ON) plan.push('stt');
+    if ((body || (wantStt && TR_ON)) && AI_ON) plan.push('extract');
+    if (!plan.length){
+      if (wantStt && !TR_ON) pipeRender([{label:'음성→글자는 OpenAI 키 등록 후 가능합니다 (관리자 → AI 설정)', st:'err'}]);
+      return;
+    }
+    _pipeLastOpts = opts; _pipeBusy = true;
+    var go=$('pipeGo'), rt=$('pipeRetry'); if(go)go.hidden=true; if(rt)rt.hidden=true;
+    await reqWake();  // 진행 중 화면 꺼짐 방지
+    var warns = [];  // z1092 무음 경고 모음(steps 에 넣으면 루프가 실행 대상으로 오해함)
+    if (_silTotal >= 30) warns.push({ st:'warn',
+      label:'녹음 중 소리가 없던 시간이 약 '+_silTotal+'초입니다 — 그 구간은 회의록에 담기지 않습니다.' });
+    var steps = plan.map(function(k){
+      return { k:k, st:'wait', label: k==='stt' ? '음성을 글자로 바꾸는 중 (긴 녹음은 몇 분 걸려요)' : 'AI가 회의록으로 정리하는 중' };
+    });
+    for (var i=0; i<steps.length; i++){
+      steps[i].st='run'; pipeRender(steps.concat(warns));
+      var r;
+      try {
+        r = (steps[i].k==='stt')
+          ? await doTranscribe(function(p){ steps[i].label='음성을 글자로 바꾸는 중 — '+p; pipeRender(steps.concat(warns)); })
+          : await doExtract();
+      }
+      catch(e){ r = { ok:false, error:(e&&e.message)||'오류' }; }
+      if (!r.ok){
+        steps[i].st='err'; steps[i].label += ' — ' + (r.error||'실패'); pipeRender(steps.concat(warns));
+        if (rt) rt.hidden=false;
+        _pipeBusy=false; relWake(); return;
+      }
+      steps[i].st='done';
+      steps[i].label = (steps[i].k==='stt') ? '음성→글자 완료 (회의 내용에 들어감)' : 'AI 정리 완료';
+      if (r.warn) warns.push({ st:'warn', label:r.warn });  // 서버가 찾은 무음 구간
+      pipeRender(steps.concat(warns));
+    }
+    pipeRender(steps.concat(warns).concat([{ st:'done', label:'모두 끝났습니다 — 아래 정리 결과를 확인하세요. 필요하면 고치고, 할 일은 「일일카드로」.' }]));
+    _pipeBusy=false; relWake();
+  }
+
+  // ── 결정·할일 수기 추가 ──
+  async function addDec(){
+    var what = ($('decWhat')||{}).value || '';
+    if (!what.trim()){ ($('decWhat')||{}).focus && $('decWhat').focus(); return; }
+    var body = { who: ($('decWho')||{}).value||'', what: what, due: ($('decDue')||{}).value||'' };
+    var res = await jreq('POST', '/api/meeting/'+M.id+'/decision', body);
+    if (res.ok && res.data.ok){
+      M.decisions.push({ id: res.data.id, who: body.who, what: body.what, due: body.due, source:'manual' });
+      $('decWho').value=''; $('decWhat').value=''; $('decDue').value='';
+      renderDecisions();
+    } else { status(res.data.error||'추가 실패','err'); }
+  }
+  async function addAct(){
+    var task = ($('actTask')||{}).value || '';
+    if (!task.trim()){ ($('actTask')||{}).focus && $('actTask').focus(); return; }
+    var body = { assignee: ($('actAssignee')||{}).value||'', task: task, due: ($('actDue')||{}).value||'' };
+    var res = await jreq('POST', '/api/meeting/'+M.id+'/action', body);
+    if (res.ok && res.data.ok){
+      M.actions.push({ id: res.data.id, assignee_name: body.assignee, task: body.task, due_date: body.due, source:'manual', linked_task_id:null });
+      $('actAssignee').value=''; $('actTask').value=''; $('actDue').value='';
+      renderActions();
+    } else { status(res.data.error||'추가 실패','err'); }
+  }
+
+  // ── 일일카드로 보내기 ──
+  async function toDaily(aid){
+    status('일일카드로 보내는 중…', 'busy');
+    var res = await jreq('POST', '/api/meeting/'+M.id+'/action/'+aid+'/to-daily', {});
+    if (res.ok && res.data.ok){
+      M.actions.forEach(function(a){ if (a.id===aid) a.linked_task_id = res.data.task_id; });
+      renderActions();
+      status('일일카드로 보냈습니다 ✓', 'ok');
+    } else if (res.status===409){
+      M.actions.forEach(function(a){ if (a.id===aid) a.linked_task_id = res.data.task_id||1; });
+      renderActions();
+      status('이미 등록된 할 일입니다.', 'err');
+    } else { status(res.data.error||'등록 실패','err'); }
+  }
+
+  // ── 삭제 ──
+  async function delDec(did){ var res=await jreq('DELETE','/api/meeting/'+M.id+'/decision/'+did); if(res.ok&&res.data.ok){ M.decisions=M.decisions.filter(function(d){return d.id!=did;}); renderDecisions(); } }
+  async function delAct(aid){ var res=await jreq('DELETE','/api/meeting/'+M.id+'/action/'+aid); if(res.ok&&res.data.ok){ M.actions=M.actions.filter(function(a){return a.id!=aid;}); renderActions(); } }
+  async function delMeeting(){
+    if (!confirm('이 회의록을 삭제할까요? (이미 일일카드로 보낸 할 일은 그대로 남습니다)')) return;
+    var res = await jreq('DELETE','/api/meeting/'+M.id);
+    if (res.ok && res.data.ok){ _leaveOk = true; location.href='/meetings'; }
+    else { status(res.data.error||'삭제 실패','err'); }
+  }
+
+  // ── 바인딩 ──
+  rebase();   // z1106: 지금 화면 값 = 저장된 값(기준). 자동 정리보다 먼저.
+  var bSave=$('btnSave'); if(bSave) bSave.addEventListener('click', save);
+  var bExt=$('btnExtract'); if(bExt && !bExt.disabled) bExt.addEventListener('click', extract);
+  var bDel=$('btnDelete'); if(bDel) bDel.addEventListener('click', delMeeting);
+  var bAD=$('btnAddDec'); if(bAD) bAD.addEventListener('click', addDec);
+  var bAA=$('btnAddAct'); if(bAA) bAA.addEventListener('click', addAct);
+  var bWr=$('btnWriteMode'); if(bWr) bWr.addEventListener('click', function(){
+    var w=$('writeWrap'); if(w){ w.hidden=false; }
+    var ta=$('mtgBody'); if(ta){ try{ ta.focus(); }catch(_){}}
+  });
+  var bGo=$('pipeGo'); if(bGo) bGo.addEventListener('click', function(){ autoPipeline({}); });
+
+  // ── z1091 📋 복사(원문·정리) — 클립보드로 담아 메신저 등에 바로 붙여넣기 ──
+  async function copyText(txt){
+    try { await navigator.clipboard.writeText(txt); return true; } catch(_){}
+    try {  // 구형/설치형 브라우저 폴백
+      var ta=document.createElement('textarea'); ta.value=txt;
+      ta.style.position='fixed'; ta.style.left='-9999px'; ta.setAttribute('readonly','');
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, txt.length);
+      var ok=document.execCommand('copy'); document.body.removeChild(ta); return ok;
+    } catch(_){ return false; }
+  }
+  function copyFlash(b,msg){ var o=b.textContent; b.disabled=true; b.textContent=msg;
+    setTimeout(function(){ b.textContent=o; b.disabled=false; }, 1400); }
+  function bindCopy(id, getText, emptyMsg){
+    var b=$(id); if(!b) return;
+    b.addEventListener('click', async function(){
+      var t=(getText()||'').trim();
+      if(!t){ copyFlash(b, emptyMsg); return; }
+      copyFlash(b, (await copyText(t)) ? '✓ 복사됨' : '복사 실패');
+    });
+  }
+  bindCopy('btnCopyBody', function(){ return (($('mtgBody')||{}).value)||''; }, '내용 없음');
+  bindCopy('btnCopySum', function(){
+    var s=(M.summary||'').trim(); if(!s) return '';
+    var tt=((($('mtgTitle')||{}).value)||'').trim(), dt=((($('mtgDate')||{}).value)||'').trim();
+    return '📋 회의록 정리 — '+tt+(dt?(' ('+dt+')'):'')+'\n\n'+s;  // 전달받는 쪽 맥락용 머리말
+  }, '정리 전');
+  var bRt=$('pipeRetry'); if(bRt) bRt.addEventListener('click', function(){ autoPipeline(_pipeLastOpts||{}); });
+
+  // 목록 이벤트 위임(삭제·일일카드로)
+  function delegate(box){ if(!box) return; box.addEventListener('click', function(e){
+    var b = e.target.closest('[data-act]'); if(!b) return;
+    var act=b.getAttribute('data-act'), id=parseInt(b.getAttribute('data-id'),10);
+    if (act==='del-dec') delDec(id);
+    else if (act==='del-act') delAct(id);
+    else if (act==='to-daily') toDaily(id);
+  }); }
+  delegate($('decList')); delegate($('actList'));
+
+  // Enter 로 빠른 추가
+  ['decWhat','decDue','decWho'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); addDec(); } }); });
+  ['actTask','actDue','actAssignee'].forEach(function(id){ var el=$(id); if(el) el.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); addAct(); } }); });
+
+  // ── 🎙 음성 녹음 (모드 B) — 60분+·화면꺼짐방지·수동 일시정지·큰 표시 ──
+  var _mr=null,_chunks=[],_recBlob=null,_recMime='',_recTimer=null,_recSec=0;
+  var _stream=null,_track=null,_wakeLock=null,_userStop=false,_paused=false,_docTitle='';
+  // z1092 무음 감시(대표 실사: 화면 끄면 마이크가 끊겨 '무음'만 녹음됨)
+  var _ac=null,_analyser=null,_levelTimer=null,_silSec=0,_silTotal=0,_silWarned=false,_hiddenAt=0;
+  function recFmt(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
+  function recExt(mime){mime=mime||'';if(mime.indexOf('mp4')>=0||mime.indexOf('m4a')>=0||mime.indexOf('aac')>=0)return 'm4a';if(mime.indexOf('ogg')>=0)return 'ogg';if(mime.indexOf('wav')>=0)return 'wav';return 'webm';}
+  function recSt(msg,kind){var el=$('recStatus');if(el){el.textContent=msg||'';el.style.color=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)');}}
+  function recBanner(show,paused){var b=$('recBanner');if(!b)return;b.hidden=!show;b.classList.toggle('paused',!!paused);var l=$('recBannerLbl');if(!l)return;if(b.classList.contains('nosound')){l.textContent='⚠ 소리가 안 들어옵니다! 화면을 켜 두세요';return;}var sv=recSavedTxt();l.textContent=paused?'⏸ 일시정지됨 — ▶ 다시 누르면 이어집니다':('🔴 본 회의 녹음 중'+(sv?(' · '+sv):''));}
+  function recTick(){if(!_paused)_recSec++;var s=recFmt(_recSec);var t=$('recTime');if(t)t.textContent=(_paused?'⏸ ':'● ')+s;var bt=$('recBigTime');if(bt)bt.textContent=s;try{document.title=(_paused?'⏸ 일시정지 ':'🔴 녹음 중 ')+s+' · 회의록';}catch(_){}}
+  async function reqWake(){try{if('wakeLock' in navigator){_wakeLock=await navigator.wakeLock.request('screen');}}catch(_){}}
+  function relWake(){try{if(_wakeLock){_wakeLock.release();_wakeLock=null;}}catch(_){}}
+  // 수동 일시정지/재개 — 전화 받을 때 직접 누름. 자동 정지 없음(앱 전환·화면 끔은 녹음 유지).
+  function recTogglePause(){
+    if(!_mr)return;
+    try{ if(_mr.state==='recording') _mr.pause(); else if(_mr.state==='paused') _mr.resume(); }catch(_){}
+  }
+  // ── z1092 무음 감시 — 마이크 입력을 1초마다 재서 소리가 끊기면 즉시 경고 ──
+  //   화면이 꺼지면 이 검사도 멈출 수 있어, visibilitychange 경고·서버 환각 경고와 3중으로 막는다.
+  function silStart(stream){
+    try{
+      var AC=window.AudioContext||window.webkitAudioContext; if(!AC||!stream) return;
+      _ac=new AC(); _analyser=_ac.createAnalyser(); _analyser.fftSize=512;
+      _ac.createMediaStreamSource(stream).connect(_analyser);
+      _silSec=0; _silTotal=0; _silWarned=false;
+      // 회의 알림 자동 녹음(autorec)은 화면을 누르기 전에 시작돼 브라우저가 소리 분석기를 '일시중지'로 둘 수 있다
+      //   → 깨우기를 시도하고, 안 되면 첫 터치 때 깨운다. 깨어나기 전엔 무음으로 세지 않는다(가짜 경고 방지).
+      if(_ac.state==='suspended'){
+        try{ _ac.resume(); }catch(_){}
+        var _wake=function(){ try{ if(_ac&&_ac.state==='suspended') _ac.resume(); }catch(_){} };
+        document.addEventListener('pointerdown',_wake,{once:true});
+        document.addEventListener('keydown',_wake,{once:true});
+      }
+      _levelTimer=setInterval(silTick,1000);
+    }catch(_){}
+  }
+  function silTick(){
+    if(!_analyser||_paused) return;
+    if(_ac&&_ac.state&&_ac.state!=='running') return;   // 분석기가 깨어나기 전엔 무음으로 세지 않음
+    try{
+      var buf=new Uint8Array(_analyser.fftSize);
+      _analyser.getByteTimeDomainData(buf);
+      var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; }
+      var rms=Math.sqrt(sum/buf.length);
+      if(rms<0.008){            // 사실상 무음
+        _silSec++; _silTotal++;
+        if(_silSec>=30&&!_silWarned){ _silWarned=true; silWarn(true); }
+      } else {
+        _silSec=0;
+        if(_silWarned){ _silWarned=false; silWarn(false); }
+      }
+    }catch(_){}
+  }
+  function silWarn(on){
+    var b=$('recBanner'); if(b) b.classList.toggle('nosound',!!on);
+    var l=$('recBannerLbl');
+    if(l) l.textContent = on ? '⚠ 소리가 안 들어옵니다! 화면을 켜 두세요'
+                             : '🔴 본 회의 녹음 중';
+    if(on){
+      try{ if(navigator.vibrate) navigator.vibrate([300,150,300,150,300]); }catch(_){}
+      recSt('⚠ 30초 넘게 소리가 안 들어옵니다 — 화면이 꺼졌거나 마이크를 다른 앱이 쓰고 있을 수 있어요. 화면을 켜고 말소리가 들어오는지 확인하세요.','err');
+    } else { recSt('소리가 다시 들어옵니다 ✓ 계속 녹음 중…','ok'); }
+  }
+  function silStop(){
+    try{ if(_levelTimer) clearInterval(_levelTimer); }catch(_){}
+    _levelTimer=null;
+    try{ if(_ac) _ac.close(); }catch(_){}
+    _ac=null; _analyser=null; _silWarned=false;
+    var b=$('recBanner'); if(b) b.classList.remove('nosound');
+  }
+  function _finishRec(){
+    clearInterval(_recTimer);
+    silStop();
+    _recBlob=new Blob(_chunks,{type:_recMime||'audio/webm'});
+    try{if(_stream)_stream.getTracks().forEach(function(t){t.stop();});}catch(_){}
+    relWake();recBanner(false);try{if(_docTitle)document.title=_docTitle;}catch(_){}
+    var pb=$('recPauseBtn');if(pb){pb.hidden=true;pb.textContent='⏸ 일시정지';}
+    var b=$('recBtn');if(b){b.textContent=REC_IDLE;b.classList.remove('on');b.dataset.on='';}
+    if(_recBlob&&_recBlob.size>200){var a=$('recAudio');if(a)a.src=URL.createObjectURL(_recBlob);var w=$('recPlayWrap');if(w)w.hidden=false;}
+    recPhoneHint(false);
+    if(_recStale) return;       // z1114: 다른 곳에서 이미 마쳤다 — 이 화면 녹음은 올리지 않는다(겹침 방지)
+    if(_recNet){ recDone(); }   // z1113: 이미 서버에 있다 — 마무리만(큰 파일을 끝에 통째로 올리지 않는다)
+    else if(_recBlob&&_recBlob.size>200) uploadAudioBlob(_recBlob,'rec.'+recExt(_recMime));
+    else recSt('녹음된 소리가 없습니다.','err');
+  }
+  // ── 🎤 마이크 허용 상태별 안내 (2026-09-17 대표 지시 · 세션 10 조사) ──
+  //   크롬은 이 사이트 마이크 허용이 '저장'돼 있으면 화면을 누르지 않아도 녹음을 허락한다(회의 알림에서 연 창도 — 실측).
+  //   처음이면 크롬이 묻는 창을 띄운다(누르기 전 요청도 창이 뜸 — 크롬 153 실측) → 「사이트에 있는 동안 허용」을 고르게 안내
+  //   (「이번에만 허용」은 다음 회의에서 또 묻는다). 막혀 있으면 요청해도 소용없다 → 푸는 방법을 한국어로.
+  //   ⭐ PC 안내 = 「「이번에만 허용」 말고 「사이트에 있는 동안 허용」」(이음 v801 과 같은 말 · 2026-09-17 오후) — 크롬 153 언어 파일에는
+  //      같은 버튼 자리에 「방문할 때마다 허용」(36391)도 있어 설정·실험에 따라 그 이름이 뜰 수 있다(36390 이번에만 · 36392 사이트에 있는 동안).
+  //      휴대폰은 버튼 이름을 쓰지 않는다(주황 상자·자동 시작 상태 줄 모두 「「이번에만」이 아닌 허용」).
+  var _micPerm=null,_micBusy=false;
+  var _isPhone=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+  function micEsc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function recLabel(){
+    if(M.is_new) return '🎙 녹음하며 회의';
+    var b=$('recBtn'); var t=b?(b.textContent||'').trim():'';
+    return (t&&t.indexOf('🎙')===0)?t:'🎙 녹음 시작';
+  }
+  async function micState(){
+    try{
+      if(!navigator.permissions||!navigator.permissions.query) return 'unknown';
+      var st=await navigator.permissions.query({name:'microphone'});
+      if(!_micPerm){
+        _micPerm=st;
+        try{ st.addEventListener('change',micPermChanged); }catch(_){ try{ st.onchange=micPermChanged; }catch(__){} }
+      }
+      return st.state||'unknown';
+    }catch(_){ return 'unknown'; }   // 마이크 상태를 묻지 못하는 브라우저 — 지금처럼 바로 시도
+  }
+  function micPermChanged(){
+    if(!_alive()||!_micPerm) return;
+    var rec=_mr&&_mr.state!=='inactive';
+    if(_micPerm.state==='granted'){ if(!rec&&!_micBusy&&$('micHelp')) micHelp('ok'); }
+    else if(_micPerm.state==='denied'){ if(!rec) micHelp('block'); }
+  }
+  function micHelp(kind){
+    var old=$('micHelp');
+    if(!kind){ if(old&&old.parentNode) old.parentNode.removeChild(old); return; }
+    var btn=$('recBtn'); if(!btn) return;
+    var L='<b class="nw">「'+micEsc(recLabel())+'」</b>';
+    var FILE=' 급하면 휴대폰 기본 녹음기로 녹음한 뒤 「📁 음성 파일 올리기」를 쓰세요.';
+    var h;
+    if(kind==='ask'){
+      h=_isPhone
+        ? '🎤 <b>마이크를 써도 되는지 묻는 창이 떴어요.</b><br>그 창에서 <b>허용</b>을 누르면 바로 녹음이 시작됩니다. 「이번에만」이 아닌 허용을 고르면 <b>다음 회의부터는 묻지 않고 바로 녹음</b>돼요.'
+        : '🎤 <b>크롬이 마이크를 써도 되는지 묻고 있어요.</b><br>주소창 아래에 뜬 창에서 <span class="nw">「이번에만 허용」 말고</span> <b class="nw">「사이트에 있는 동안 허용」</b>을 누르면 바로 녹음이 시작됩니다(크롬에 따라 「방문할 때마다 허용」 · 다른 브라우저는 「허용」).<br>이렇게 한 번 허용하면 <b>다음 회의부터는 묻지 않고 바로 녹음</b>돼요. (「이번에만 허용」을 누르면 다음 회의에서 또 물어요)';
+    } else if(kind==='retry'){
+      h=_isPhone
+        ? '🎤 <b>마이크 허용이 필요해요.</b> '+L+'을 누른 뒤 뜨는 창에서 <b>허용</b>을 눌러 주세요.'
+        : '🎤 <b>마이크 허용이 필요해요.</b> '+L+'을 누른 뒤, 주소창 아래에 뜨는 창에서 <span class="nw">「이번에만 허용」 말고</span> <b class="nw">「사이트에 있는 동안 허용」</b>을 눌러 주세요(크롬에 따라 「방문할 때마다 허용」). 한 번 허용하면 다음 회의부터는 바로 녹음돼요.';
+    } else if(kind==='block'){
+      h=_isPhone
+        ? '🚫 <b>이 휴대폰 브라우저에서 이음웍스의 마이크가 막혀 있어요.</b><br>크롬: 오른쪽 위 ⋮ → 설정 → 사이트 설정 → 마이크 → works.knknara.co.kr 을 <b>허용</b> → 이 화면으로 돌아와 '+L+' 누르기.<br>다른 브라우저는 그 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.'+FILE
+        : '🚫 <b>이 브라우저에서 이음웍스의 마이크가 막혀 있어요.</b> 아래처럼 한 번만 풀어 주세요.<br>① 주소창 맨 왼쪽 아이콘(사이트 정보)을 누르기 → ② 「마이크」를 <b>허용</b>으로 바꾸기 → ③ 크롬이 새로고침을 권하면 새로고침 → '+L+' 누르기<br>설치한 이음웍스 앱에서 막혔다면, 그 앱을 설치한 크롬(또는 엣지)에서 works.knknara.co.kr 을 열어 같은 방법으로 풀면 됩니다.'+FILE;
+    } else if(kind==='os'){
+      h=_isPhone
+        ? '🚫 <b>휴대폰 설정에서 브라우저의 마이크 사용이 꺼져 있어요.</b> 휴대폰 설정 → 애플리케이션 → 크롬(쓰는 브라우저) → 권한 → 마이크를 허용한 뒤 '+L+'을 눌러 주세요.'+FILE
+        : '🚫 <b>컴퓨터 설정에서 마이크 사용이 꺼져 있어요.</b> 윈도우 설정의 「개인 정보 및 보안 → 마이크」에서 마이크 사용을 켠 뒤 '+L+'을 눌러 주세요.'+FILE;
+    } else if(kind==='ok'){
+      h='✅ <b>마이크가 허용됐어요.</b> '+L+'을 누르면 녹음이 시작됩니다.';
+    } else {
+      h='🚫 <b>마이크를 쓸 수 없어요.</b> 브라우저 설정에서 이 사이트(works.knknara.co.kr)의 마이크를 <b>허용</b>으로 바꾼 뒤 '+L+'을 눌러 주세요.'+FILE;
+      kind='any';
+    }
+    var box=old;
+    if(!box){
+      box=document.createElement('div'); box.id='micHelp'; box.setAttribute('role','status');
+      var row=btn.closest('.redo-row')||btn;           // 상세=버튼 줄 위 · 새 회의=큰 버튼 위
+      row.parentNode.insertBefore(box,row);
+    }
+    box.className='mic-help '+kind;
+    box.innerHTML=h;
+  }
+  async function micFail(e){
+    var nm=(e&&e.name)||'', msg=String((e&&e.message)||e||'');
+    if(nm==='NotAllowedError'||nm==='PermissionDeniedError'||nm==='SecurityError'){
+      if(/system/i.test(msg)){ micHelp('os'); }                      // 크롬: Permission denied by system (컴퓨터·휴대폰 설정에서 꺼짐)
+      else{
+        var ms=await micState();
+        micHelp(ms==='denied'?'block':(ms==='prompt'?'retry':'any'));
+      }
+      recSt('마이크 허용이 필요합니다 — 위 안내를 봐 주세요.','err');
+    } else if(nm==='NotFoundError'||nm==='DevicesNotFoundError'||nm==='OverconstrainedError'){
+      micHelp(null); recSt('마이크를 찾지 못했습니다 — 마이크가 연결돼 있는지 확인하세요. 급하면 「📁 음성 파일 올리기」를 쓰세요.','err');
+    } else if(nm==='NotReadableError'||nm==='TrackStartError'||nm==='AbortError'){
+      micHelp(null); recSt('마이크를 열지 못했습니다 — 통화나 다른 녹음 앱이 마이크를 쓰고 있는지 확인한 뒤 다시 누르세요.','err');
+    } else {
+      micHelp(null); recSt('마이크 사용 불가: '+msg+' — 「📁 음성 파일 올리기」를 쓰세요.','err');
+    }
+  }
+  // ── 🔴 녹음 조각을 10초마다 서버에 저장 (z1113 · 대표 지시 2026-09-18) ──
+  //   대표 신고: 회의 중 다른 앱을 보다 창이 닫히면 녹음이 통째로 사라지고, 돌아갈 화면이 없어
+  //             「회의 종료」조차 못 눌렀다. → 녹음하는 동안 조각을 서버 파일에 이어 붙인다.
+  //   순서(seq)는 1부터. 못 보낸 조각은 순서를 지켜 다시 보내고, 끝까지 못 보내면
+  //   예전 방식(녹음 전체를 한 번에 올리기)으로 안전하게 넘어간다.
+  var REC = M.rec || {};
+  var _recSes='', _recSeq=0, _recQ=[], _recPumping=false, _recNet=false, _recSavedSec=0, _recNetWarned=false, _recWasNew=false;
+  var _recStale=false, _recGuardWait=false;   // z1114: 다른 곳에서 이 녹음을 마침 · 되돌아갈 칸을 '처음 누를 때' 만들기로 기다리는 중
+  function recSavedTxt(){ return _recSavedSec>0 ? (recFmt(_recSavedSec)+' 저장됨') : ''; }
+  async function recNetStart(){
+    _recSes=''; _recSeq=0; _recQ=[]; _recSavedSec=0; _recNetWarned=false; _recStale=false;
+    try{
+      var r=await fetch('/api/meeting/'+M.id+'/rec-start',{method:'POST',headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({ext:'.'+recExt(_recMime)})});
+      var j=await r.json();
+      if(r.ok&&j.ok&&j.session){ _recSes=j.session; return true; }
+    }catch(_){}
+    return false;
+  }
+  async function recSend(blob,seq){
+    var url='/api/meeting/'+M.id+'/rec-chunk?session='+encodeURIComponent(_recSes)+'&seq='+seq+'&secs='+_recSec;
+    try{
+      var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:blob});
+      var j={}; try{ j=await r.json(); }catch(_){}
+      if(r.ok&&j.ok) return true;
+      if(j&&j.expect){ _recSeq=j.expect-1; }          // 서버가 기다리는 번호에 맞춘다
+      // z1114: 다른 곳(목록·PC)에서 이 녹음을 마쳤거나 새로 시작함 → 이 화면 녹음을 멈추고 올리지 않는다(서버 것과 겹치지 않게)
+      if(j&&j.stale){ _recStale=true; _recNet=false; _recQ=[];
+        recSt('다른 곳에서 이 녹음을 마쳤거나 새로 시작해서, 이 화면의 녹음을 멈췄습니다(서버에 저장된 녹음은 그대로).','err');
+        setTimeout(function(){ try{ _userStop=true; if(_mr&&_mr.state!=='inactive') _mr.stop(); }catch(_){} },0); }
+      // 300MB 를 넘음 → 서버에 이미 있는 데까지로 마무리(남은 조각은 버림)
+      if(j&&j.full){ _recQ=[]; recSt(j.error||'녹음이 한도를 넘었습니다.','err');
+        setTimeout(function(){ try{ recStop(); }catch(_){} },0); }
+      return false;
+    }catch(_){ return false; }                        // 인터넷이 잠깐 끊김 — 다음 조각 때 다시
+  }
+  async function recPump(){
+    if(_recPumping||!_recNet||!M.id) return;
+    _recPumping=true;
+    try{
+      while(_recQ.length&&_recNet){
+        var ok=await recSend(_recQ[0],_recSeq+1);
+        if(!ok) break;
+        _recQ.shift(); _recSeq++;
+        _recSavedSec=_recSec;
+        if(_recNetWarned){ _recNetWarned=false; recSt('다시 연결됐습니다 ✓ 계속 저장 중…','ok'); }
+        recBanner(true,_paused);
+      }
+      if(_recQ.length>=3&&!_recNetWarned){
+        _recNetWarned=true;
+        recSt('⚠ 인터넷이 끊겨 서버에 못 보낸 부분이 있습니다 — 녹음은 계속됩니다(끝낼 때 한 번에 올립니다).','err');
+      }
+    } finally { _recPumping=false; }
+  }
+  function recFlush(){ try{ if(_mr&&_mr.state==='recording') _mr.requestData(); }catch(_){} }
+  async function recNetFinish(){
+    try{
+      var r=await fetch('/api/meeting/'+M.id+'/rec-finish',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      var j={}; try{ j=await r.json(); }catch(_){}
+      return (r.ok&&j.ok)?j:null;
+    }catch(_){ return null; }
+  }
+  async function recNetCancel(){
+    try{ await fetch('/api/meeting/'+M.id+'/rec-cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); }catch(_){}
+  }
+  // 녹음이 끝난 뒤 — 서버에 이미 저장돼 있으면 그대로 정리로, 못 보낸 게 남았으면 전체를 한 번에 올린다
+  async function recDone(){
+    var t0=Date.now();
+    while(_recQ.length&&_recNet&&Date.now()-t0<30000){
+      await recPump();
+      if(_recQ.length) await new Promise(function(r){ setTimeout(r,1500); });
+    }
+    if(!_recNet||_recQ.length){
+      recSt('서버에 못 보낸 부분이 있어 녹음 전체를 한 번에 올립니다…');
+      await recNetCancel();                                  // 반쪽 조각은 버리고(겹치지 않게)
+      if(_recBlob&&_recBlob.size>200) await uploadAudioBlob(_recBlob,'rec.'+recExt(_recMime));
+      else recSt('녹음된 소리가 없습니다.','err');
+      return;
+    }
+    var j=await recNetFinish();
+    if(!j){ recSt('녹음 마무리에 실패했습니다 — 「🔄 다시 정리」를 눌러 주세요.','err'); return; }
+    if(!j.saved){
+      recSt('녹음된 소리가 없습니다.','err');
+      // 방금 녹음하려고 만든 빈 회의록이고 아무것도 안 적었으면 목록을 더럽히지 않게 지운다
+      if(_recWasNew && M.id){
+        var ff=collectForm();
+        if(!(ff.title||'').trim() && !(ff.body||'').trim()){
+          try{ await jreq('DELETE','/api/meeting/'+M.id,{}); M.id=null; M.is_new=true; M.has_audio=false; }catch(_){}
+        }
+      }
+      return;
+    }
+    M.has_audio=true; M.base_ts=j.updated_at||M.base_ts;
+    await afterAudioSaved(_recWasNew, j.size_kb||0);
+  }
+  // ── z1114 (대표 신고 2026-09-18 22시): 녹음 중 뒤로 가기 → 창이 그냥 닫혀 녹음이 멈췄다 ──
+  //   이음에서 연 창은 되돌아갈 칸이 없어 뒤로 가기 = 창 닫기. 녹음을 시작하면 같은 주소로 '되돌아갈 칸'을 하나 만들고,
+  //   뒤로 가기가 그 칸으로 올 때 브라우저 이동 알림(Navigation API)에서 취소한 뒤 「회의를 끝낼까요?」를 묻는다.
+  //   ⚠ 크롬은 한 번도 누르지 않은 화면이 만든 칸을 뒤로 가기에서 건너뛴다(뒤로 가기 가두기 방지)
+  //     → 회의 알림에서 자동으로 시작돼 아직 안 누른 화면은 '처음 누르는 순간' 칸을 만든다.
+  function recGuardArm(){
+    if(!window.navigation||!navigation.currentEntry) return;              // 이 브라우저는 뒤로 가기를 못 받는다(예전대로)
+    if(history.state&&history.state.knkRecGuard&&window.__knkRecPre) return;   // 이미 되돌아갈 칸 위에 있다
+    var ua=navigator.userActivation;
+    if(ua&&!ua.hasBeenActive){
+      if(_recGuardWait) return;
+      _recGuardWait=true;
+      var evs=['click','keydown','pointerup','touchend'];
+      var arm=function(){
+        if(navigator.userActivation&&!navigator.userActivation.hasBeenActive) return;   // 아직 '누름'으로 안 쳐짐 — 계속 기다림
+        evs.forEach(function(t){ document.removeEventListener(t,arm,true); });
+        _recGuardWait=false;
+        if(_alive()&&_mr&&_mr.state!=='inactive') recGuardArm();
+      };
+      evs.forEach(function(t){ document.addEventListener(t,arm,true); });
+      return;
+    }
+    try{
+      window.__knkRecPre={ key: navigation.currentEntry.key, url: location.href };
+      history.pushState(Object.assign({}, history.state||{}, { knkRecGuard: 1 }), '', location.href);
+    }catch(_){ window.__knkRecPre=null; }
+  }
+  function recBackAsk(){
+    var box=$('recBackAsk');
+    if(!box){
+      box=document.createElement('div');
+      box.id='recBackAsk'; box.className='rec-back-ask'; box.hidden=true;
+      box.innerHTML='<div class="rba-box" role="dialog" aria-modal="true" aria-labelledby="rbaTtl">'
+        +'<div class="rba-ttl" id="rbaTtl">🎙 녹음 중입니다</div>'
+        +'<div class="rba-msg"><b>회의를 끝낼까요?</b><br>끝내면 지금까지 녹음으로 <b>음성→글자·AI 정리</b>를 시작합니다.</div>'
+        +'<div class="rba-btns"><button type="button" class="btn btn-primary" id="rbaEnd">⏹ 회의 끝내고 정리</button>'
+        +'<button type="button" class="btn btn-secondary" id="rbaKeep">🎙 계속 녹음</button></div>'
+        +'<div class="rba-note">창이 닫혀도 지금까지 녹음은 서버에 남습니다 — 회의록 목록에서 「녹음 끝내고 정리」로 마칠 수 있어요.</div></div>';
+      (document.querySelector('.main')||document.body).appendChild(box);   // 화면이 바뀌면 함께 사라지게 .main 안에
+      var hide=function(){ box.hidden=true; };
+      box.addEventListener('click',function(e){
+        if(e.target===box){ hide(); return; }                               // 바깥 누름 = 계속 녹음
+        var t=e.target.closest?e.target.closest('button'):null; if(!t) return;
+        hide();
+        if(t.id==='rbaEnd'){ try{ recStop(); }catch(_){} }
+      });
+      document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&!box.hidden) hide(); });
+    }
+    box.hidden=false;
+    try{ var k=$('rbaKeep'); if(k) k.focus(); }catch(_){}
+  }
+  // 뒤로 가기(취소 가능한 이동) — 녹음 중이면 이 화면의 창으로 묻고 true(=이동 취소)
+  window.__knkRecBack=function(){
+    if(!_alive()||!_mr||_mr.state==='inactive') return false;
+    recBackAsk();
+    return true;
+  };
+  // 녹음이 끝난 뒤 '되돌아갈 칸'으로 가는 뒤로 가기 → 그 칸을 건너뛰어 한 번에 나간다(이음이 연 창이면 창을 닫는다)
+  window.__knkRecSkip=function(e){
+    var pre=window.__knkRecPre;
+    if(!pre||!e.destination||e.destination.key!==pre.key) return false;
+    window.__knkRecPre=null;                                                  // 한 번만
+    var idx=e.destination.index, ents=[];
+    try{ ents=navigation.entries(); }catch(_){}
+    if(idx>0&&ents[idx-1]){ try{ navigation.traverseTo(ents[idx-1].key); return true; }catch(_){ return false; } }
+    try{ window.close(); }catch(_){}
+    return !!window.closed;                                                   // 못 닫는 창이면 원래대로 이동
+  };
+  // 휴대폰: 녹음 띠 아래 '이 화면을 켜 두세요' — 다른 앱으로 넘어가면 휴대폰이 마이크를 막는다(2026-09-18 운영 실측 26초 무음)
+  function recPhoneHint(on){
+    var el=$('recPhoneHint');
+    if(!on||!_isPhone){ if(el) el.hidden=true; return; }
+    if(!el){
+      var bn=$('recBanner'); if(!bn||!bn.parentNode) return;
+      el=document.createElement('div'); el.id='recPhoneHint'; el.className='rec-phone-hint';
+      el.textContent='📱 이 화면을 켠 채로 두세요 — 다른 앱으로 넘어가면 휴대폰이 마이크를 막아 그동안은 녹음되지 않습니다.';
+      bn.parentNode.insertBefore(el,bn.nextSibling);
+    }
+    el.hidden=false;
+  }
+  async function recStart(){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof MediaRecorder==='undefined'){recSt('이 브라우저는 녹음을 지원하지 않습니다. 「📁 음성 파일 올리기」를 쓰세요.','err');return false;}
+    // 크롬 허용 창을 기다리는 동안 화면 버튼을 또 누르면 녹음기가 둘 생겨 소리가 섞인다 → 한 번만
+    if(_micBusy){ if(_micPerm&&_micPerm.state==='prompt') micHelp('ask'); return false; }
+    _micBusy=true;
+    try{
+      if((await micState())==='prompt') micHelp('ask');
+      _stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      _micBusy=false;
+      if(!_alive()){ try{_stream.getTracks().forEach(function(t){t.stop();});}catch(_){} return false; }   // 그 사이 화면을 떠났다
+      micHelp(null);
+      _track=_stream.getAudioTracks()[0]||null;
+      _chunks=[];_recBlob=null;_userStop=false;_paused=false;
+      try{_mr=new MediaRecorder(_stream,{audioBitsPerSecond:32000});}catch(_){_mr=new MediaRecorder(_stream);}
+      _recMime=_mr.mimeType||'';
+      // z1113: 회의록을 '먼저' 만든다 — 그래야 창이 닫혀도 목록에 「🔴 녹음 중」으로 남아 끝낼 수 있다
+      _recWasNew=!M.id;
+      if(await ensureMeetingSaved()) _recNet=await recNetStart();
+      else _recNet=false;
+      _mr.ondataavailable=function(e){if(!e.data||!e.data.size)return;_chunks.push(e.data);if(_recNet){_recQ.push(e.data);recPump();}};
+      _mr.onpause=function(){_paused=true;recBanner(true,true);var pb=$('recPauseBtn');if(pb)pb.textContent='▶ 녹음 재개';recSt('⏸ 일시정지됨 (녹음 멈춤) — ▶ 다시 누르면 이어집니다.');};
+      _mr.onresume=function(){_paused=false;recBanner(true,false);var pb=$('recPauseBtn');if(pb)pb.textContent='⏸ 일시정지';recSt('▶ 녹음 재개 ✓ 계속 녹음 중…');};
+      _mr.onstop=function(){_finishRec();};
+      if(_track){
+        _track.onended=function(){if(!_userStop){_userStop=true;recSt('녹음이 종료돼 여기까지 저장합니다. 이어서 녹음하려면 다시 「녹음 시작」.','err');try{if(_mr&&_mr.state!=='inactive')_mr.stop();else _finishRec();}catch(_){_finishRec();}}};
+      }
+      _mr.start(_recNet?10000:2000);   // z1113: 서버 저장이면 10초 조각(끊겨도 10초만 잃는다)
+      silStart(_stream);  // z1092 무음 감시 시작
+      _recSec=0;var t=$('recTime');if(t){t.hidden=false;t.textContent='● 00:00';}
+      _docTitle=document.title;recBanner(true,false);
+      _recTimer=setInterval(recTick,1000);
+      var b=$('recBtn');if(b){b.textContent='⏹ 녹음 종료 (자동 정리 시작)';b.classList.add('on');b.dataset.on='1';}
+      await reqWake();
+      var pb=$('recPauseBtn');if(pb){pb.hidden=false;pb.textContent='⏸ 일시정지';}
+      recSt(_recNet?'녹음 중… 10초마다 서버에 저장됩니다(창이 닫혀도 남습니다). 전화 받을 땐 「⏸ 일시정지」.':'녹음 중… 서버 저장을 열지 못해 이 화면에만 담깁니다 — 창을 닫지 마세요. 전화 받을 땐 「⏸ 일시정지」.');
+      recGuardArm();        // z1114: 뒤로 가기 → 「회의를 끝낼까요?」
+      recPhoneHint(true);   // z1114: 휴대폰 — 이 화면을 켜 두세요
+      return true;
+    }catch(e){
+      _micBusy=false;
+      recBanner(false);
+      if(_alive()) await micFail(e);
+      return false;
+    }
+  }
+  function recStop(){_userStop=true;try{if(_mr&&_mr.state!=='inactive')_mr.stop();else _finishRec();}catch(_){_finishRec();}}
+  document.addEventListener('visibilitychange',function(){
+    // 앱 전환은 녹음을 유지한다. 다만 z1092: 화면이 꺼져 있던 동안 폰이 마이크를 끊어
+    //   '무음'만 녹음될 수 있으므로, 돌아왔을 때 그 사실을 분명히 알린다.
+    var rec = _mr && _mr.state!=='inactive';
+    if(document.visibilityState==='hidden'){ if(rec){ _hiddenAt=Date.now(); recFlush(); recPump(); } return; }
+    if(!rec){ _hiddenAt=0; return; }
+    reqWake();
+    if(_hiddenAt){
+      var gap=Math.round((Date.now()-_hiddenAt)/1000); _hiddenAt=0;
+      if(_isPhone&&gap>=3){
+        // z1114: 휴대폰은 다른 앱으로 넘어가면 마이크를 막는다(2026-09-18 운영 실측: 뒤에 있던 26초가 완전 무음)
+        recSt('⚠ 다른 앱(또는 꺼진 화면)에 있던 '+gap+'초 동안은 휴대폰이 마이크를 막아 소리가 녹음되지 않았습니다 — 녹음은 계속됩니다. 이 화면을 켜 두세요.','err');
+        try{ if(navigator.vibrate) navigator.vibrate([300,150,300]); }catch(_){}
+      } else if(gap>=20){
+        recSt('⚠ 화면이 꺼져 있던 '+gap+'초 동안 소리가 녹음되지 않았을 수 있습니다 — 끝난 뒤 회의 내용을 꼭 확인하세요.','err');
+        try{ if(navigator.vibrate) navigator.vibrate([300,150,300]); }catch(_){}
+      }
+    }
+  });
+  // 새 회의(미저장)에서 녹음/업로드하면 회의를 자동 생성(제목 비면 기본값 — AI 정리 때 자동 제목).
+  async function ensureMeetingSaved(){
+    if(M.id) return true;
+    var f=collectForm();
+    if(!f.title.trim()){ f.title='제목 없는 회의 '+((($('mtgDate')||{}).value)||''); }
+    var res=await jreq('POST','/api/meeting',f);
+    if(res.ok&&res.data.ok){ M.id=res.data.id; M.is_new=false; M.base_ts=res.data.updated_at||''; return true; }
+    recSt(res.data.error||'회의 저장 실패','err'); return false;
+  }
+  // 음성이 저장된 뒤 공통 — 새 회의면 그 회의로 옮겨 자동 정리, 아니면 이 화면에서 바로 정리
+  async function afterAudioSaved(wasNew, sizeKb){
+    if(wasNew){
+      // z1106: 그사이 다른 화면으로 옮겼으면 그 화면 칸을 읽어 저장·이동하지 않고, 정리만 뒤에서 이어 간다
+      if(!_alive()){ autoPipeline({forceStt:true}); return; }
+      // 녹음 중 적었을 수 있는 제목·상세정보를 저장에 반영(실패해도 진행) 후 자동 정리로 이동
+      recSt('녹음 저장됨 ✓ 자동 정리를 시작합니다…','ok');
+      try{
+        var f=collectForm(); f.base_ts=M.base_ts;
+        var pr=await jreq('PUT','/api/meeting/'+M.id,f);
+        if(pr.ok&&pr.data.ok) M.base_ts=pr.data.updated_at||M.base_ts;
+      }catch(_){}
+      _leaveOk=true;   // 방금 만든 회의로 이동 — 나갈 때 알림 생략
+      location.href='/meetings/'+M.id+'?auto=1'; return;
+    }
+    recSt('저장됨 ('+sizeKb+'KB) ✓','ok');
+    autoPipeline({forceStt:true});  // 상세 화면에서 새 녹음 → 변환·AI 정리 자동
+  }
+  async function uploadAudioBlob(blob,filename){
+    if(!blob||!blob.size)return;
+    _upBusy++;
+    try{ await _uploadAudioBlob(blob,filename); } finally { _upBusy--; }
+  }
+  async function _uploadAudioBlob(blob,filename){
+    var wasNew=!M.id;
+    recSt('저장 중… ('+(Math.round(blob.size/1024/1024*10)/10)+'MB)'+(blob.size>25*1024*1024?' — 큰 파일은 올리는 데 몇 분 걸릴 수 있어요. 화면을 닫지 마세요.':''));
+    if(!(await ensureMeetingSaved())) return;
+    var fd=new FormData();fd.append('file',blob,filename);
+    try{
+      var r=await fetch('/api/meeting/'+M.id+'/audio',{method:'POST',body:fd});
+      var j={};try{j=await r.json();}catch(_){}
+      if(r.ok&&j.ok){
+        M.base_ts=j.updated_at||M.base_ts; M.has_audio=true;
+        phrecClear();   // z1115: 녹음기 파일이 들어왔으니 목록의 '녹음기로 녹음 중' 표시를 지운다
+        await afterAudioSaved(wasNew, j.size_kb||0);
+      } else recSt(j.error||'업로드 실패','err');
+    }catch(e){recSt('업로드 오류: '+(e.message||e),'err');}
+  }
+  function onPickFile(e){
+    var f=e.target.files&&e.target.files[0];if(!f){return;}
+    if(AUDIO_MAX_MB&&f.size>AUDIO_MAX_MB*1024*1024){
+      recSt('음성은 '+AUDIO_MAX_MB+'MB 이하만 올릴 수 있습니다(이 파일 '+Math.round(f.size/1024/1024)+'MB).','err');
+      e.target.value='';return;
+    }
+    var a=$('recAudio');if(a)a.src=URL.createObjectURL(f);var w=$('recPlayWrap');if(w)w.hidden=false;
+    var ext=(f.name.split('.').pop()||'m4a').toLowerCase();
+    uploadAudioBlob(f,'upload.'+ext);
+    e.target.value='';
+  }
+  var _recBtn=$('recBtn');if(_recBtn)_recBtn.addEventListener('click',function(){if(_recBtn.dataset.on)recStop();else recStart();});
+  var _recPause=$('recPauseBtn');if(_recPause)_recPause.addEventListener('click',recTogglePause);
+  // z1113: 「🔴 녹음 중이던 회의」 상자 — 끝내고 정리 / 이어서 녹음
+  var _recFin=$('recFinishBtn');
+  if(_recFin) _recFin.addEventListener('click',async function(){
+    _recFin.disabled=true;
+    var st=$('recResumeSt'); if(st){ st.textContent='녹음을 마치는 중…'; st.style.color='var(--qv-ink-3)'; }
+    var j=await recNetFinish();
+    if(!j){ if(st){ st.textContent='마치지 못했습니다 — 잠시 뒤 다시 눌러 주세요.'; st.style.color='var(--knk-red)'; } _recFin.disabled=false; return; }
+    var box=$('recResume'); if(box) box.style.display='none';
+    M.has_audio=true; M.base_ts=j.updated_at||M.base_ts;
+    if(j.saved){ recSt('녹음을 마쳤습니다 ✓ 자동 정리를 시작합니다…','ok'); autoPipeline({forceStt:true}); }
+    else recSt('저장된 소리가 없어 녹음만 마쳤습니다.','err');
+  });
+  var _recRes=$('recResumeBtn');
+  if(_recRes) _recRes.addEventListener('click',function(){
+    var box=$('recResume'); if(box) box.style.display='none';
+    var d=$('redoTools'); if(d) d.open=true;
+    recStart();
+  });
+  var _recFile=$('recFile');if(_recFile)_recFile.addEventListener('change',onPickFile);
+
+  // ── z1115 「📱 휴대폰 녹음기로 녹음」 — 어떤 경우에도 녹음이 멈추면 안 된다(대표 지시 2026-09-20) ──
+  //   실측(회의 37 「테스트2」): 이 화면이 뒤로 가 있던 95초가 완전 무음(-101dB)으로 녹음됐다.
+  //   안드로이드 11+ 는 화면에 안 보이는 앱의 마이크를 막고, 예외는 '마이크용 상주 서비스'를 가진 진짜 앱뿐이다.
+  //   브라우저 안의 웹 화면은 그 자격을 만들 수 없다 → 휴대폰 기본 녹음기에 맡기고 파일만 받아 온다.
+  //   capture 속성이 그 녹음기를 바로 연다(안드로이드만 · iOS 는 그런 연결이 없어 단추를 숨기고 안내만 한다).
+  var _isAndroid=/Android/i.test(navigator.userAgent||'');
+  var _isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent||'')
+          || (/Macintosh/i.test(navigator.userAgent||'') && (navigator.maxTouchPoints||0)>1);   // 아이패드는 맥으로 보임
+  var PHREC_KEY='knk_mtg_phonerec';
+  function phrecMark(id,title){
+    if(!id) return;
+    try{ localStorage.setItem(PHREC_KEY, JSON.stringify({id:id,title:title||'',at:Date.now()})); }catch(_){}
+  }
+  function phrecClear(){ try{ localStorage.removeItem(PHREC_KEY); }catch(_){} }
+  var _phWrap=$('recPhoneRecWrap'), _phIn=$('recFileCap'), _phSaving=null;
+  if(_phIn) _phIn.addEventListener('change',onPickFile);   // 돌아온 파일 = 평소 올리기와 같은 길
+  if(_phWrap&&_phIn&&_isAndroid){
+    _phWrap.hidden=false;
+    _phWrap.addEventListener('click',function(){
+      // 한 번 눌러도 라벨→입력으로 두 번 올라온다(브라우저 기본 동작) → 회의는 한 번만 만든다.
+      // 기다리면(await) '누른 것'이 풀려 녹음기가 안 열린다 → 저장은 뒤에서, 녹음기는 바로.
+      if(!_phSaving){
+        _phSaving=Promise.resolve().then(ensureMeetingSaved).then(function(ok){
+          if(ok) phrecMark(M.id, (($('mtgTitle')||{}).value)||'');
+          return ok;
+        }).catch(function(){ return false; });
+      } else if(M.id){ phrecMark(M.id, (($('mtgTitle')||{}).value)||''); }
+      recSt('휴대폰 녹음기가 열립니다 — 회의가 끝나면 녹음기에서 저장하세요. 이 화면으로 돌아오면 자동으로 올라갑니다.');
+    });
+    // 휴대폰에선 이 화면 녹음이 '두 번째 선택' — 색으로만 구분한다
+    //   (글자는 그대로 둔다: 이음 안내 4개 언어가 「🎙 녹음하며 회의」라는 이름을 그대로 쓴다)
+    var _rb=$('recBtn'); if(_rb&&_rb.classList.contains('start-big')) _rb.classList.add('alt');
+  }
+  // 기기별 안내 — 안드로이드는 녹음기로, 아이폰·아이패드는 이 화면을 켠 채로(대표 지시 2026-09-20)
+  (function(){
+    var el=$('recPlatNote'); if(!el) return;
+    if(_isAndroid){
+      el.innerHTML='📱 <b>안드로이드</b> — 회의 중에 다른 앱을 보거나 화면이 꺼져도 끊기지 않으려면 '
+        +'<b>「📱 휴대폰 녹음기로 녹음」</b>을 쓰세요. 「🎙 녹음하며 회의」는 <b>이 화면을 켜 둘 때만</b> 소리가 들어옵니다 '
+        +'— 다른 앱으로 넘어가면 휴대폰이 마이크를 막습니다(2026-09-20 실측 95초).';
+      el.hidden=false;
+    } else if(_isIOS){
+      el.className='plat-note ios';
+      el.innerHTML='🍎 <b>아이폰·아이패드</b> — 지금처럼 이 화면에서 녹음합니다. 다만 <b>다른 앱이나 다른 웹 화면으로 넘어가면 '
+        +'그동안은 녹음되지 않습니다.</b> 회의 중에는 <b>이 화면을 켠 채로</b> 두세요. '
+        +'자리를 비우거나 다른 일을 해야 하면 아이폰 기본 <b>「음성 메모」로 녹음한 뒤 「📁 음성 파일 올리기」</b>를 쓰세요.';
+      el.hidden=false;
+    }
+  })();
+
+  // ── 🔗 연결 (프로젝트·영업기회) ──
+  function refreshChips(){
+    var box=$('linkChips'); if(!box)return; var html='';
+    var p=$('mtgProj'); if(p&&p.value){ html+='<a class="link-chip" href="/projects/'+p.value+'" target="_blank" rel="noopener" data-no-swap>📋 '+esc(p.options[p.selectedIndex].text)+'</a>'; }
+    var o=$('mtgOpp'); if(o&&o.value){ html+='<a class="link-chip" href="/sales/opportunities/'+o.value+'" target="_blank" rel="noopener" data-no-swap>🎯 '+esc(o.options[o.selectedIndex].text)+'</a>'; }
+    box.innerHTML=html;
+  }
+  function linkSt(msg,kind){ var el=$('linkStatus'); if(el){ el.textContent=msg||''; el.style.color=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)'); } }
+  async function saveLink(){
+    var p=$('mtgProj'), o=$('mtgOpp');
+    var body={ project_id:(p?p.value:'')||null, opportunity_id:(o?o.value:'')||null };
+    linkSt('저장 중…');
+    var res=await jreq('POST','/api/meeting/'+M.id+'/link',body);
+    if(res.ok&&res.data.ok){ M.base_ts=res.data.updated_at||M.base_ts; refreshChips(); linkSt('연결 저장됨 ✓','ok'); }
+    else linkSt(res.data.error||'저장 실패','err');
+  }
+  async function toOpportunity(){
+    var btn=$('btnToOpp'); if(btn)btn.disabled=true;
+    linkSt('영업기회 만드는 중…');
+    var res=await jreq('POST','/api/meeting/'+M.id+'/to-opportunity',{});
+    if(res.ok&&res.data.ok){ linkSt('영업기회 생성됨 ✓ 이동합니다…','ok'); location.href=res.data.url; return; }
+    if(res.status===409&&res.data.url){ linkSt('이미 연결된 영업기회로 이동…','ok'); location.href=res.data.url; return; }
+    if(btn)btn.disabled=false; linkSt(res.data.error||'생성 실패','err');
+  }
+  var _bLink=$('btnLink'); if(_bLink)_bLink.addEventListener('click',saveLink);
+  var _bToOpp=$('btnToOpp'); if(_bToOpp&&!_bToOpp.disabled)_bToOpp.addEventListener('click',toOpportunity);
+
+  // ── 초기 렌더 + 자동 정리 진입 (상세 모드) ──
+  if (!M.is_new){
+    renderSummary(); renderDecisions(); renderActions();
+    // ── 회의 알림(이음) 「▶ 회의 시작」으로 열린 창: 녹음 자동 시작 시도 (2026-09-15 대표 지시) ──
+    //   브라우저 보안상 다른 창(메신저)에서 누른 것은 녹음 허락으로 인정되지 않을 수 있다 →
+    //   자동 시작을 시도하고, 막히면 녹음 칸을 펼친 채 큰 버튼 한 번으로 시작하게 안내한다.
+    var _autorec=false;
+    try{ _autorec = new URLSearchParams(location.search).get('autorec')==='1'; }catch(_){}
+    if (_autorec){
+      try{ history.replaceState(null,'',location.pathname); }catch(_){}   // 새로고침해도 다시 녹음되지 않게
+      var _rt=$('redoTools');
+      if (CAN_EDIT && _rt){
+        _rt.open = true;
+        try{ var _w=document.querySelector('.mf-wrap'); if(_w) _w.classList.add('autorec'); }catch(_){}
+        var _rb=$('recBtn');
+        if (!M.has_audio){
+          if (_rb && !_rb.dataset.on) _rb.textContent='🎙 녹음 시작';
+          try{ _rt.scrollIntoView({block:'start'}); }catch(_){}
+          // 🎤 먼저 마이크 허용 상태를 본다 (2026-09-17) — 허용 저장=바로 녹음 · 처음=크롬 창 안내 · 막힘=요청하지 않고 푸는 방법
+          micState().then(function(ms){
+            if (!_alive()) return;
+            if (ms === 'denied'){
+              micHelp('block');
+              recSt('마이크가 막혀 있어 녹음을 자동으로 시작하지 못했습니다 — 위 안내대로 허용한 뒤 「🎙 녹음 시작」을 누르세요.','err');
+              return;
+            }
+            recSt(ms === 'granted' ? '회의 녹음을 시작합니다…'
+                                   : (_isPhone ? '회의 녹음을 시작합니다… 마이크 허용 창이 뜨면 「이번에만」이 아닌 허용을 눌러주세요.'
+                                               : '회의 녹음을 시작합니다… 마이크 허용 창이 뜨면 「이번에만 허용」 말고 「사이트에 있는 동안 허용」을 눌러주세요.'));
+            recStart();   // 실패하면 recStart 가 까닭별 안내를 띄운다
+          });
+        } else {
+          recSt('이 회의는 이미 녹음이 있습니다 — 더 녹음하려면 「🎙 녹음 추가」를 누르세요.');
+        }
+      }
+    }
+    var _auto=false;
+    try{ _auto = new URLSearchParams(location.search).get('auto')==='1'; }catch(_){}
+    if (_auto){
+      try{ history.replaceState(null,'',location.pathname); }catch(_){}  // 새로고침 시 중복 실행 방지
+      if (CAN_EDIT) autoPipeline({});
+    } else if (CAN_EDIT){
+      // 아직 안 끝난 단계가 있으면 「▶ 자동 정리 시작」 제안 카드만 표시(자동 실행 X)
+      var _b = ((($('mtgBody')||{}).value)||'').trim();
+      var _needStt = M.has_audio && !bodyHasStt() && TR_ON;
+      var _needExt = (_b || _needStt) && AI_ON
+                     && !(M.summary && M.summary.trim()) && !M.decisions.length && !M.actions.length;
+      if (_needStt || _needExt){
+        var _pl=[];
+        if (_needStt) _pl.push({st:'wait', label:'음성을 글자로 바꾸기'});
+        if (_needExt) _pl.push({st:'wait', label:'AI가 회의록으로 정리'});
+        pipeRender(_pl);
+        var _go=$('pipeGo'); if(_go) _go.hidden=false;
+      }
+    }
+  }
+
+  // ── z1106 나갈 때 알림 (대표 「보완해」 2026-09-16) ──
+  //   ① 칸을 고치면 저장 버튼 옆 「● 저장 안 됨」
+  //   ② 고친 내용이 저장 전이거나 녹음 중·녹음 올리는 중에 나가려 하면 확인 — 링크(화면 전환)·뒤로 가기·새로고침·창 닫기
+  //   ⚠ spa_nav 가 링크를 가로채므로 '캡처 단계'에서 먼저 확인하고, 취소하면 전환 자체를 막는다.
+  //   ⚠ 화면 전환 뒤에도 전역 이벤트는 남으니 한 번만 등록하고, 지금 보이는 회의 화면의 판단(__knkLeaveCheck)만 쓴다.
+  if (CAN_EDIT){
+    _FIELDS.forEach(function(id){ var el=$(id); if(!el) return; el.addEventListener('input', refreshDirty); el.addEventListener('change', refreshDirty); });
+  }
+  window.__knkLeaveCheck = leaveReason;
+  window.__knkLeaveGo = function(){ if (_mr && _mr.state !== 'inactive'){ try{ recStop(); }catch(_){} } };   // 그래도 나가면 마이크를 끄고 지금까지 녹음을 올린다
+  if (!window.__knkLeaveGuardOn){
+    window.__knkLeaveGuardOn = true;
+    var _why = function(){ try{ return (window.__knkLeaveCheck && window.__knkLeaveCheck()) || ''; }catch(_){ return ''; } };
+    var _ask = function(why){
+      if (window.confirm(why + '\n\n그래도 이 화면을 나갈까요?')){
+        try{ window.__knkLeaveGo && window.__knkLeaveGo(); }catch(_){}
+        window.__knkLeaveCheck = null;
+        return true;
+      }
+      return false;
+    };
+    window.addEventListener('beforeunload', function(e){
+      if (!_why()) return;
+      e.preventDefault(); e.returnValue = '';   // 브라우저 기본 확인창(문구는 브라우저가 정함)
+    });
+    document.addEventListener('click', function(e){
+      var why = _why(); if (!why) return;
+      var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a) return;
+      if (a.target && a.target !== '_self') return;                  // 새 창(회의록 양식·연결 칩)은 이 화면이 그대로 남는다
+      if (a.hasAttribute('download')) return;
+      var href = a.getAttribute('href') || '';
+      if (!href || href.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(href)) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;   // 새 탭으로 열기
+      if (_ask(why)) return;                                        // 나감 — 원래대로 이동
+      e.preventDefault(); e.stopImmediatePropagation();              // 머묾 — 화면 전환(spa_nav)까지 막는다
+    }, true);
+    // 뒤로 가기 — 창(window)의 popstate 는 먼저 등록된 spa_nav 가 먼저 받아 화면을 바꿔 버린다(실측: 캡처로도 못 앞섬)
+    //   → 브라우저 이동 알림(Navigation API)으로 '뒤로 가기 자체'를 취소한다. 취소하면 popstate 도 안 생긴다.
+    //   (Chrome·삼성 인터넷 최신 지원 · 없는 브라우저는 뒤로 가기만 알림 없이 이동 — 링크·새로고침·창 닫기 알림은 그대로)
+    if (window.navigation && typeof window.navigation.addEventListener === 'function'){
+      window.navigation.addEventListener('navigate', function(e){
+        if (e.navigationType !== 'traverse' || !e.cancelable) return;   // 링크(push)는 위 click, 새로고침·다른 문서는 beforeunload 가 맡는다
+        // z1114 ① 녹음 중 뒤로 가기 → 이 화면의 「회의를 끝낼까요?」 창(이동은 취소)
+        try { if (window.__knkRecBack && window.__knkRecBack(e)) { e.preventDefault(); return; } } catch(_){}
+        var why = _why();
+        if (why && !_ask(why)) { e.preventDefault(); return; }         // 머묾
+        // z1114 ③ 녹음 때 만든 '되돌아갈 칸'으로 가는 뒤로 가기 → 그 칸을 건너뛰어 한 번에 나간다
+        try { if (window.__knkRecSkip && window.__knkRecSkip(e)) { e.preventDefault(); return; } } catch(_){}
+      });
+    }
+  }
+})();
+</script>
+</body>
+</html>
