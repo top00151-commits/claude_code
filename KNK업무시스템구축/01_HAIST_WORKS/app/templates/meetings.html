@@ -380,6 +380,37 @@
   </script>
   {% endif %}
 
+  {# z1115 (대표 지시 2026-09-20): 「📱 휴대폰 녹음기로 녹음」 하러 간 회의 —
+     녹음기가 떠 있는 동안 크롬이 이 화면을 버릴 수 있어, 돌아왔을 때 어디에 올릴지 바로 보이게 한다.
+     표시는 이 브라우저에만 남는다(서버 기록 아님) · 파일이 올라가면 스스로 사라진다. #}
+  <div class="mtg-recbar" id="mtgPhRecBar" hidden style="background:#FFF7ED;border-color:#FED7AA;">
+    <div class="mtg-recbar-ttl" style="color:#C2410C;">📱 휴대폰 녹음기로 녹음하던 회의</div>
+    <div class="mtg-recbar-row">
+      <a id="mtgPhRecLink" href="/meetings">회의 열기</a>
+      <span class="mtg-recbar-sub" id="mtgPhRecWhen"></span>
+      <button type="button" class="btn btn-secondary" id="mtgPhRecDrop">표시 지우기</button>
+    </div>
+    <div class="mtg-recbar-hint">녹음기에서 녹음을 마쳤으면 이 회의를 열어 「📁 음성 파일 올리기」로 그 파일을 올리세요.
+      녹음 파일은 <b>휴대폰 녹음기에 그대로</b> 있습니다.</div>
+  </div>
+  <script>
+  /* z1115: 표시가 남아 있으면(12시간 안) 목록 맨 위에 보여 준다. SPA 로 .main 만 바뀌어도 돌도록 이 안에 둔다. */
+  (function(){
+    var KEY='knk_mtg_phonerec', bar=document.getElementById('mtgPhRecBar');
+    if(!bar) return;
+    var v=null; try{ v=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(_){ v=null; }
+    if(!v||!v.id||!v.at||(Date.now()-v.at)>12*3600*1000){ try{ if(v) localStorage.removeItem(KEY); }catch(_){} return; }
+    var a=document.getElementById('mtgPhRecLink');
+    if(a){ a.href='/meetings/'+v.id; a.textContent=(v.title||'제목 없는 회의')+' 열기'; }
+    var w=document.getElementById('mtgPhRecWhen');
+    if(w){ var mn=Math.round((Date.now()-v.at)/60000);
+           w.textContent=(mn<1?'방금':(mn<60?(mn+'분 전'):(Math.floor(mn/60)+'시간 전')))+' 녹음기로 이동'; }
+    var d=document.getElementById('mtgPhRecDrop');
+    if(d) d.addEventListener('click',function(){ try{ localStorage.removeItem(KEY); }catch(_){} bar.hidden=true; });
+    bar.hidden=false;
+  })();
+  </script>
+
   <div class="section">
     {% for m in meetings %}
     <a class="mtg-card" href="/meetings/{{ m.id }}">

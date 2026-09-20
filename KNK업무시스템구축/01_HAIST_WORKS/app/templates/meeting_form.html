@@ -123,6 +123,16 @@
   border-radius:12px; padding:13px 12px; font-size:14px; font-weight:700; cursor:pointer; text-align:center;
   display:flex; align-items:center; justify-content:center; gap:6px; }
 .start-mid:hover { background: var(--qv-surface-2); }
+/* ── z1115 📱 휴대폰 녹음기로 녹음(안드로이드) · 기기별 안내(안드로이드·아이폰) ── */
+.start-big.alt { background: var(--qv-surface); color: var(--qv-ink);
+  border:1px solid var(--qv-line-3); box-shadow:none; }
+.rec-phone { text-align:center; }
+/* 🔴 .start-big/.btn 의 display 가 hidden 속성을 덮는다 — 이겨야 아이폰·PC 에서 안 보인다 */
+.rec-phone[hidden] { display:none !important; }
+.plat-note { border-radius:12px; padding:12px 14px; margin-top:12px; font-size:13px; line-height:1.75;
+  border:1px solid #FED7AA; background:#FFF7ED; color:#7C2D12; }
+.plat-note.ios { border-color:#BFDBFE; background:#EFF6FF; color:#1E3A8A; }
+.plat-note b { font-weight:800; }
 #mtgMore { margin-top:14px; }
 #mtgMore summary { cursor:pointer; font-size:13px; font-weight:700; color: var(--qv-ink-2); padding:6px 0; }
 #mtgMore summary:hover { color: var(--qv-ink); }
@@ -194,6 +204,9 @@
       <div class="rec-banner" id="recBanner" hidden><span class="rec-dot"></span><span id="recBannerLbl">🔴 본 회의 녹음 중</span><span id="recBigTime">00:00</span></div>
 
       <div class="start-btns">
+        <!-- z1115: 휴대폰은 다른 앱으로 넘어가면 OS 가 마이크를 막는다(2026-09-20 실측 95초 무음)
+             → 안 끊기는 길(휴대폰 기본 녹음기)을 맨 위에. 안드로이드에서만 보인다(iOS 는 녹음기가 안 열림). -->
+        <label class="start-big rec-phone" id="recPhoneRecWrap" hidden>📱 휴대폰 녹음기로 녹음&nbsp;<span class="start-sub">다른 앱을 봐도 끊기지 않아요</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
         <button class="start-big rec-btn" id="recBtn">🎙 녹음하며 회의&nbsp;<span class="start-sub">누르면 바로 녹음</span></button>
         <div class="start-row">
           <label class="start-mid rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
@@ -205,7 +218,8 @@
           <span class="rec-status" id="recStatus"></span>
         </div>
       </div>
-      <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 녹음을 마치면 <b>음성→글자, AI 정리까지 자동</b>으로 됩니다. 녹음 중 <b>화면을 켜 두세요</b>(자동 꺼짐 방지 작동). <b>전화를 받을 땐 「⏸ 일시정지」</b>(통화 내용 녹음 방지) → 통화 후 「▶ 재개」. 녹음은 <b>10초마다 서버에 저장</b>돼 창이 닫혀도 그때까지는 남고, <b>회의록 목록에서 「녹음 끝내고 정리」</b>로 마칠 수 있습니다. 다만 휴대폰이 앱을 재우면 <b>소리가 안 들어올 수</b> 있으니 회의 중에는 화면을 켜 두세요. 길고 중요한 회의는 「📁 음성 파일 올리기」(폰 기본 녹음기로 녹음 후 올리기)가 가장 안정적입니다.</div>
+      <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 녹음을 마치면 <b>음성→글자, AI 정리까지 자동</b>으로 됩니다. <b>전화를 받을 땐 「⏸ 일시정지」</b>(통화 내용 녹음 방지) → 통화 후 「▶ 재개」. 이 화면 녹음은 <b>10초마다 서버에 저장</b>돼 창이 닫혀도 그때까지는 남고, <b>회의록 목록에서 「녹음 끝내고 정리」</b>로 마칠 수 있습니다.</div>
+      <div class="plat-note" id="recPlatNote" hidden></div>
 
       <div id="writeWrap" {% if not pf.get('body') %}hidden{% endif %} style="margin-top:16px;">
         <div class="mf-fld">
@@ -383,11 +397,13 @@
       <summary>🔧 다시 하기 · 녹음 추가 <span style="font-weight:600;color:var(--qv-ink-3);">(필요할 때만)</span></summary>
       <div class="redo-body">
         <div class="mf-hint" style="margin:10px 0 4px;line-height:1.6;">회의가 <b>이어져 더 녹음</b>하거나, 위 ‘회의 내용(원문)’의 <b>오타를 고친 뒤 다시 정리</b>하고 싶을 때 씁니다. 평소엔 위 자동 정리로 충분합니다.</div>
+        <div class="plat-note" id="recPlatNote" hidden></div>
 
         <div class="rec-banner" id="recBanner" hidden><span class="rec-dot"></span><span id="recBannerLbl">🔴 본 회의 녹음 중</span><span id="recBigTime">00:00</span></div>
         <div class="redo-row">
           <button class="btn btn-primary rec-btn" id="recBtn">🎙 녹음 추가</button>
           <button class="btn btn-secondary" id="recPauseBtn" hidden>⏸ 일시정지</button>
+          <label class="btn btn-primary rec-phone" id="recPhoneRecWrap" hidden>📱 휴대폰 녹음기로 녹음<input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
           <label class="btn btn-secondary rec-file">📁 음성 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
           <button class="btn btn-secondary" id="btnExtract" {% if not ai_on %}disabled title="AI 키가 설정되어 있지 않습니다(관리자 → AI 설정). 그 전에는 아래에서 직접 추가하세요."{% endif %}>🔄 다시 정리</button>
           <span class="rec-time" id="recTime" hidden>● 00:00</span>
@@ -1295,6 +1311,7 @@ window.__MTG = {
       var j={};try{j=await r.json();}catch(_){}
       if(r.ok&&j.ok){
         M.base_ts=j.updated_at||M.base_ts; M.has_audio=true;
+        phrecClear();   // z1115: 녹음기 파일이 들어왔으니 목록의 '녹음기로 녹음 중' 표시를 지운다
         await afterAudioSaved(wasNew, j.size_kb||0);
       } else recSt(j.error||'업로드 실패','err');
     }catch(e){recSt('업로드 오류: '+(e.message||e),'err');}
@@ -1331,6 +1348,56 @@ window.__MTG = {
     recStart();
   });
   var _recFile=$('recFile');if(_recFile)_recFile.addEventListener('change',onPickFile);
+
+  // ── z1115 「📱 휴대폰 녹음기로 녹음」 — 어떤 경우에도 녹음이 멈추면 안 된다(대표 지시 2026-09-20) ──
+  //   실측(회의 37 「테스트2」): 이 화면이 뒤로 가 있던 95초가 완전 무음(-101dB)으로 녹음됐다.
+  //   안드로이드 11+ 는 화면에 안 보이는 앱의 마이크를 막고, 예외는 '마이크용 상주 서비스'를 가진 진짜 앱뿐이다.
+  //   브라우저 안의 웹 화면은 그 자격을 만들 수 없다 → 휴대폰 기본 녹음기에 맡기고 파일만 받아 온다.
+  //   capture 속성이 그 녹음기를 바로 연다(안드로이드만 · iOS 는 그런 연결이 없어 단추를 숨기고 안내만 한다).
+  var _isAndroid=/Android/i.test(navigator.userAgent||'');
+  var _isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent||'')
+          || (/Macintosh/i.test(navigator.userAgent||'') && (navigator.maxTouchPoints||0)>1);   // 아이패드는 맥으로 보임
+  var PHREC_KEY='knk_mtg_phonerec';
+  function phrecMark(id,title){
+    if(!id) return;
+    try{ localStorage.setItem(PHREC_KEY, JSON.stringify({id:id,title:title||'',at:Date.now()})); }catch(_){}
+  }
+  function phrecClear(){ try{ localStorage.removeItem(PHREC_KEY); }catch(_){} }
+  var _phWrap=$('recPhoneRecWrap'), _phIn=$('recFileCap'), _phSaving=null;
+  if(_phIn) _phIn.addEventListener('change',onPickFile);   // 돌아온 파일 = 평소 올리기와 같은 길
+  if(_phWrap&&_phIn&&_isAndroid){
+    _phWrap.hidden=false;
+    _phWrap.addEventListener('click',function(){
+      // 한 번 눌러도 라벨→입력으로 두 번 올라온다(브라우저 기본 동작) → 회의는 한 번만 만든다.
+      // 기다리면(await) '누른 것'이 풀려 녹음기가 안 열린다 → 저장은 뒤에서, 녹음기는 바로.
+      if(!_phSaving){
+        _phSaving=Promise.resolve().then(ensureMeetingSaved).then(function(ok){
+          if(ok) phrecMark(M.id, (($('mtgTitle')||{}).value)||'');
+          return ok;
+        }).catch(function(){ return false; });
+      } else if(M.id){ phrecMark(M.id, (($('mtgTitle')||{}).value)||''); }
+      recSt('휴대폰 녹음기가 열립니다 — 회의가 끝나면 녹음기에서 저장하세요. 이 화면으로 돌아오면 자동으로 올라갑니다.');
+    });
+    // 휴대폰에선 이 화면 녹음이 '두 번째 선택' — 색으로만 구분한다
+    //   (글자는 그대로 둔다: 이음 안내 4개 언어가 「🎙 녹음하며 회의」라는 이름을 그대로 쓴다)
+    var _rb=$('recBtn'); if(_rb&&_rb.classList.contains('start-big')) _rb.classList.add('alt');
+  }
+  // 기기별 안내 — 안드로이드는 녹음기로, 아이폰·아이패드는 이 화면을 켠 채로(대표 지시 2026-09-20)
+  (function(){
+    var el=$('recPlatNote'); if(!el) return;
+    if(_isAndroid){
+      el.innerHTML='📱 <b>안드로이드</b> — 회의 중에 다른 앱을 보거나 화면이 꺼져도 끊기지 않으려면 '
+        +'<b>「📱 휴대폰 녹음기로 녹음」</b>을 쓰세요. 「🎙 녹음하며 회의」는 <b>이 화면을 켜 둘 때만</b> 소리가 들어옵니다 '
+        +'— 다른 앱으로 넘어가면 휴대폰이 마이크를 막습니다(2026-09-20 실측 95초).';
+      el.hidden=false;
+    } else if(_isIOS){
+      el.className='plat-note ios';
+      el.innerHTML='🍎 <b>아이폰·아이패드</b> — 지금처럼 이 화면에서 녹음합니다. 다만 <b>다른 앱이나 다른 웹 화면으로 넘어가면 '
+        +'그동안은 녹음되지 않습니다.</b> 회의 중에는 <b>이 화면을 켠 채로</b> 두세요. '
+        +'자리를 비우거나 다른 일을 해야 하면 아이폰 기본 <b>「음성 메모」로 녹음한 뒤 「📁 음성 파일 올리기」</b>를 쓰세요.';
+      el.hidden=false;
+    }
+  })();
 
   // ── 🔗 연결 (프로젝트·영업기회) ──
   function refreshChips(){
