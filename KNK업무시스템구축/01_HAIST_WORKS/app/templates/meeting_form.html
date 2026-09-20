@@ -129,6 +129,16 @@
 .rec-phone { text-align:center; }
 /* 🔴 .start-big/.btn 의 display 가 hidden 속성을 덮는다 — 이겨야 아이폰·PC 에서 안 보인다 */
 .rec-phone[hidden] { display:none !important; }
+/* ── z1116 이음 「▶ 회의 시작」 착지 — 녹음기로 넘어가는 첫 안내 ── */
+.phrec-lead { border:2px solid var(--knk-red); border-radius:14px; padding:14px 16px; margin:10px 0 14px;
+  background:#FFF7ED; }
+.phrec-lead[hidden] { display:none !important; }
+.phrec-lead-ttl { font-size:16px; font-weight:800; color: var(--knk-red); margin-bottom:6px; }
+.phrec-lead-sub { font-size:13px; line-height:1.75; color:#7C2D12; }
+.phrec-lead-slot { margin:12px 0; }
+.phrec-lead-slot .rec-phone { width:100%; border:0; border-radius:14px; padding:18px 16px;
+  font-size:18px; font-weight:800; background: var(--knk-red); color:#fff; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:8px; }
 .plat-note { border-radius:12px; padding:12px 14px; margin-top:12px; font-size:13px; line-height:1.75;
   border:1px solid #FED7AA; background:#FFF7ED; color:#7C2D12; }
 .plat-note.ios { border-color:#BFDBFE; background:#EFF6FF; color:#1E3A8A; }
@@ -396,6 +406,13 @@
     <details class="mf-section" id="redoTools">
       <summary>🔧 다시 하기 · 녹음 추가 <span style="font-weight:600;color:var(--qv-ink-3);">(필요할 때만)</span></summary>
       <div class="redo-body">
+        <!-- z1116: 이음 회의 카드 「▶ 회의 시작」(?autorec=1)으로 들어온 휴대폰에서만 보인다 -->
+        <div class="phrec-lead" id="recPhoneLead" hidden>
+          <div class="phrec-lead-ttl">📱 이 회의, 휴대폰 녹음기로 녹음하시겠어요?</div>
+          <div class="phrec-lead-sub">이 화면 녹음은 <b>다른 앱으로 넘어가면 그동안 소리가 들어오지 않습니다</b>(2026-09-20 실측 95초). 녹음기로 바꾸면 <b>다른 앱을 써도 끊기지 않고</b>, 지금까지 녹음한 것도 그대로 이어집니다.</div>
+          <div class="phrec-lead-slot" id="recPhoneLeadSlot"></div>
+          <div class="phrec-lead-sub">이 화면에서 계속 녹음하시려면 이 안내를 지나치세요 — 다만 <b>화면을 켠 채로</b> 두셔야 합니다.</div>
+        </div>
         <div class="mf-hint" style="margin:10px 0 4px;line-height:1.6;">회의가 <b>이어져 더 녹음</b>하거나, 위 ‘회의 내용(원문)’의 <b>오타를 고친 뒤 다시 정리</b>하고 싶을 때 씁니다. 평소엔 위 자동 정리로 충분합니다.</div>
         <div class="plat-note" id="recPlatNote" hidden></div>
 
@@ -860,6 +877,7 @@ window.__MTG = {
   // ── 🎙 음성 녹음 (모드 B) — 60분+·화면꺼짐방지·수동 일시정지·큰 표시 ──
   var _mr=null,_chunks=[],_recBlob=null,_recMime='',_recTimer=null,_recSec=0;
   var _stream=null,_track=null,_wakeLock=null,_userStop=false,_paused=false,_docTitle='';
+  var _recHandoff=false,_phrecChosen=false;   // z1116: 휴대폰 녹음기로 넘기는 중(겹침·두 번 정리 방지)
   // z1092 무음 감시(대표 실사: 화면 끄면 마이크가 끊겨 '무음'만 녹음됨)
   var _ac=null,_analyser=null,_levelTimer=null,_silSec=0,_silTotal=0,_silWarned=false,_hiddenAt=0;
   function recFmt(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
@@ -1075,7 +1093,7 @@ window.__MTG = {
         _recQ.shift(); _recSeq++;
         _recSavedSec=_recSec;
         if(_recNetWarned){ _recNetWarned=false; recSt('다시 연결됐습니다 ✓ 계속 저장 중…','ok'); }
-        recBanner(true,_paused);
+        if(_mr&&_mr.state!=='inactive') recBanner(true,_paused);   // z1116: 이미 끝난 녹음이면 띠를 다시 켜지 않는다
       }
       if(_recQ.length>=3&&!_recNetWarned){
         _recNetWarned=true;
@@ -1122,6 +1140,12 @@ window.__MTG = {
       return;
     }
     M.has_audio=true; M.base_ts=j.updated_at||M.base_ts;
+    if(_recHandoff){
+      // z1116: 휴대폰 녹음기로 넘기는 중 — 여기서 정리하면 두 번 정리된다.
+      //   지금까지 녹음은 서버의 '아직 글자로 안 바꾼 녹음'에 남고, 녹음기 파일이 올라올 때 함께 순서대로 정리된다.
+      recSt('지금까지 녹음이 서버에 저장됐습니다 ✓ 녹음기에서 녹음을 마치고 이 화면으로 돌아오면 이어서 정리합니다.','ok');
+      return;
+    }
     await afterAudioSaved(_recWasNew, j.size_kb||0);
   }
   // ── z1114 (대표 신고 2026-09-18 22시): 녹음 중 뒤로 가기 → 창이 그냥 닫혀 녹음이 멈췄다 ──
@@ -1214,6 +1238,8 @@ window.__MTG = {
       _stream=await navigator.mediaDevices.getUserMedia({audio:true});
       _micBusy=false;
       if(!_alive()){ try{_stream.getTracks().forEach(function(t){t.stop();});}catch(_){} return false; }   // 그 사이 화면을 떠났다
+      // z1116: 그 사이 「📱 휴대폰 녹음기로 녹음」을 골랐다 — 이 화면 녹음은 시작하지 않는다(겹침 방지)
+      if(_phrecChosen){ try{_stream.getTracks().forEach(function(t){t.stop();});}catch(_){} return false; }
       micHelp(null);
       _track=_stream.getAudioTracks()[0]||null;
       _chunks=[];_recBlob=null;_userStop=false;_paused=false;
@@ -1318,6 +1344,7 @@ window.__MTG = {
   }
   function onPickFile(e){
     var f=e.target.files&&e.target.files[0];if(!f){return;}
+    _recHandoff=false; _phrecChosen=false;   // z1116: 녹음기 파일이 왔다 — 넘기기 끝
     if(AUDIO_MAX_MB&&f.size>AUDIO_MAX_MB*1024*1024){
       recSt('음성은 '+AUDIO_MAX_MB+'MB 이하만 올릴 수 있습니다(이 파일 '+Math.round(f.size/1024/1024)+'MB).','err');
       e.target.value='';return;
@@ -1376,12 +1403,44 @@ window.__MTG = {
           return ok;
         }).catch(function(){ return false; });
       } else if(M.id){ phrecMark(M.id, (($('mtgTitle')||{}).value)||''); }
-      recSt('휴대폰 녹음기가 열립니다 — 회의가 끝나면 녹음기에서 저장하세요. 이 화면으로 돌아오면 자동으로 올라갑니다.');
+      // z1116: 이 화면 녹음이 돌고 있으면 깨끗이 마치고 넘긴다(전엔 두 녹음이 겹쳤다).
+      //   지금까지 조각은 서버에 남고, 정리는 녹음기 파일까지 받은 뒤 한 번만 한다.
+      _phrecChosen=true;
+      if(_mr && _mr.state!=='inactive'){
+        _recHandoff=true;
+        try{ recStop(); }catch(_){}
+        recSt('이 화면 녹음을 마치고 휴대폰 녹음기로 넘깁니다 — 지금까지 녹음은 서버에 저장됩니다. 녹음기에서 마치고 돌아오면 이어서 정리합니다.');
+      } else {
+        recSt('휴대폰 녹음기가 열립니다 — 회의가 끝나면 녹음기에서 저장하세요. 이 화면으로 돌아오면 자동으로 올라갑니다.');
+      }
     });
     // 휴대폰에선 이 화면 녹음이 '두 번째 선택' — 색으로만 구분한다
     //   (글자는 그대로 둔다: 이음 안내 4개 언어가 「🎙 녹음하며 회의」라는 이름을 그대로 쓴다)
     var _rb=$('recBtn'); if(_rb&&_rb.classList.contains('start-big')) _rb.classList.add('alt');
   }
+
+  // ── z1116: 이음 회의 카드 「▶ 회의 시작」으로 들어와도 녹음기로 (대표 지시 2026-09-20) ──
+  //   그 길은 /meetings/{id}?autorec=1 로 와서 '이 화면 녹음'이 자동으로 시작된다(안전망 — 그대로 둔다).
+  //   안드로이드에서는 그 위에 「📱 휴대폰 녹음기로 녹음」을 큰 첫 선택으로 올려, 한 번 눌러 넘어갈 수 있게 한다.
+  //   🔴 브라우저는 '사용자가 누른 것' 없이는 녹음기를 열 수 없다 → 자동으로는 못 열고, 한 번 누르게 한다.
+  function phrecLeadShow(){
+    var lead=$('recPhoneLead'), slot=$('recPhoneLeadSlot');
+    if(!lead||!slot||!_phWrap||!_isAndroid) return;
+    try{ slot.appendChild(_phWrap); }catch(_){ return; }   // 단추는 하나만 둔다(입력이 둘이 되지 않게)
+    _phWrap.hidden=false; lead.hidden=false;
+    try{ lead.scrollIntoView({block:'start'}); }catch(_){}
+  }
+  // 녹음기에 다녀왔는데 파일을 안 가져왔을 때 — 지금까지 녹음이 어디 있는지 분명히 (한 번만)
+  var _phrecBackTold=false;
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState!=='visible'||!_phrecChosen||_phrecBackTold) return;
+    setTimeout(function(){
+      if(!_alive()||!_phrecChosen||_phrecBackTold) return;   // 파일이 들어왔으면 _phrecChosen 이 풀린다
+      _phrecBackTold=true;
+      recSt('녹음기에서 받은 파일이 없습니다 — 「📱 휴대폰 녹음기로 녹음」을 다시 누르거나 「📁 음성 파일 올리기」로 올리세요. '
+           +'지금까지 녹음은 서버에 저장돼 있습니다(「🔄 다시 정리」로 이어서 정리).','err');
+    },4000);
+  });
   // 기기별 안내 — 안드로이드는 녹음기로, 아이폰·아이패드는 이 화면을 켠 채로(대표 지시 2026-09-20)
   (function(){
     var el=$('recPlatNote'); if(!el) return;
@@ -1440,6 +1499,7 @@ window.__MTG = {
       if (CAN_EDIT && _rt){
         _rt.open = true;
         try{ var _w=document.querySelector('.mf-wrap'); if(_w) _w.classList.add('autorec'); }catch(_){}
+        phrecLeadShow();   // z1116: 안드로이드면 「📱 휴대폰 녹음기로 녹음」을 맨 위 큰 단추로
         var _rb=$('recBtn');
         if (!M.has_audio){
           if (_rb && !_rb.dataset.on) _rb.textContent='🎙 녹음 시작';
