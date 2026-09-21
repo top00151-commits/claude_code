@@ -779,6 +779,53 @@ def fetch_msg_meetings(employee_no, date_from, date_to, timeout=8.0) -> dict:
 
 
 # =====================================================
+# z1122 (대표 결정 2026-09-21): WORKS 회의록을 지우면 이음 회의도 함께 지운다.
+#   · 이음 회의까지 지우는 건 **이음 등록자 또는 관리자**만 — 이음이 판단한다(WORKS 가 흉내내지 않음).
+#   · 이음은 회의를 지우고 그 회의의 「회의 알림」 카드를 방에서 숨긴다(세션 10 · POST /api/works/meetings/delete).
+#   반환 {"kind": ...}
+#     deleted · already(이미 없음)         → 이음 회의가 없어졌다
+#     not_allowed · viewer_not_found       → 이음이 거절 — 회의록만 지운다
+#     not_ready(이음에 입구가 아직 없음)    → 회의록만 지운다(세션 10 배포 전)
+#     refused(키 없음·거부) · unreachable  → 🔴 아무것도 지우지 않는다(한쪽만 지워지지 않게)
+# =====================================================
+def delete_msg_meeting(msg_meeting_id, employee_no, works_meeting_id=None, timeout=8.0) -> dict:
+    emp = str(employee_no or "").strip()
+    if not emp:
+        return {"kind": "viewer_not_found"}          # 사번 없는 계정 — 이음이 누군지 알 수 없다
+    _key = get_service_key()
+    if not _key:
+        return {"kind": "refused", "error": "이음 연결 키가 설정되지 않았습니다(관리자 확인 필요)."}
+    url = f"{MESSENGER_INTERNAL_BASE}/api/works/meetings/delete"
+    try:
+        r = httpx.post(url, headers={"X-SSO-Service-Key": _key},
+                       json={"msg_meeting_id": int(msg_meeting_id), "employee_no": emp,
+                             "works_meeting_id": works_meeting_id},
+                       timeout=timeout)
+    except Exception as e:
+        print(f"[MSG-DEL] 이음 연결 실패: {type(e).__name__}: {str(e)[:160]}")
+        return {"kind": "unreachable", "error": "이음에 연결하지 못했습니다."}
+    try:
+        d = r.json()
+    except Exception:
+        d = None
+    if not isinstance(d, dict):
+        d = None
+    err = (d or {}).get("error")
+    if r.status_code == 200 and d and d.get("ok"):
+        return {"kind": "already" if d.get("already") else "deleted"}
+    if err == "not_allowed":
+        return {"kind": "not_allowed"}
+    if err == "viewer_not_found":
+        return {"kind": "viewer_not_found"}
+    if r.status_code == 404 and d is None:
+        return {"kind": "not_ready"}                 # 이음에 삭제 입구가 아직 없다(글자 404 화면)
+    if r.status_code == 403:
+        return {"kind": "refused", "error": "이음이 요청을 거부했습니다(연결 키 확인 필요)."}
+    print(f"[MSG-DEL] 이음 응답 오류: {r.status_code} {str(err or '')[:80]}")
+    return {"kind": "unreachable", "error": f"이음 응답 오류({r.status_code})."}
+
+
+# =====================================================
 # v5H226z143 (2026-06-01): 메신저 직원 → WORKS **DB 직접** 1회 동기화
 #   대표 지시(2026-06-01): API/공유키 방식 보류. WORKS·메신저가 같은 컨테이너에
 #   떠 있으므로 메신저 DB 를 직접 읽어 전 직원을 WORKS 에 동일 등록.

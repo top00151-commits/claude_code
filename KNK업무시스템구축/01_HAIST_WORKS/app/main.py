@@ -4015,13 +4015,19 @@ async def meeting_detail_page(req: Request, mid: int):
         if m.get("opportunity_id"):
             _r = c.execute("SELECT id, opp_no, title FROM sales_opportunities WHERE id=?", (m["opportunity_id"],)).fetchone()
             linked_opp = dict(_r) if _r else None
+    # z1122: 🗑 삭제 확인 글 — 이음 회의도 함께 지워지나 미리 알린다(최종 판단은 이음 · 등록자·관리자만)
+    _role = (u.get("role") or "").lower()
+    _msg_del = ("none" if not m.get("msg_meeting_id") else
+                ("yes" if (_role in ("admin", "ceo") or
+                           (m.get("msg_organizer_id") and m.get("msg_organizer_id") == u.get("id"))) else "no"))
     return ctx(req, "meeting_form.html", user=u, meeting=m,
                decisions=decisions, actions=actions, attendees=attendees,
                can_edit=_can_edit_meeting(u, m), can_delete=_can_delete_meeting(u, m), ai_on=ai_client.ai_available(),
                transcribe_on=ai_client.transcribe_available(),
                projects=projects, opps=opps, linked_project=linked_project, linked_opp=linked_opp,
                can_link_proj=_can_vsales, can_link_sales=_can_sales,
-               rec=_rec_view(m, u))   # z1113: 「🔴 녹음 중」 복귀 안내
+               rec=_rec_view(m, u),   # z1113: 「🔴 녹음 중」 복귀 안내
+               msg_del=_msg_del)      # z1122: 🗑 삭제 확인 글 — 이음 회의도 함께 지워지나
 
 
 # ── 회의록 종이 양식(v3 · 대표 확정 2026-09-16) 채움 도우미 ──────────────────
@@ -4246,12 +4252,34 @@ async def api_meeting_delete(req: Request, mid: int):
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
         if not m:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
-        if not _can_delete_meeting(u, dict(m)):   # 등록 담당은 고치기만(삭제 X) — 2026-09-15 대표 결정
+        m = dict(m)
+        if not _can_delete_meeting(u, m):   # 등록 담당은 고치기만(삭제 X) — 2026-09-15 대표 결정 · 작성자·관리자만(09-21 대표 재확인)
             return JSONResponse({"ok": False, "error": "삭제 권한이 없습니다."}, 403)
+    # z1122 (대표 결정 2026-09-21): 이음에서 온 회의면 이음 회의(🗓 달력·회의 알림 카드·모아보기 카드)도 함께 지운다.
+    #   이음 회의까지 지우는 건 이음 등록자·관리자만 — 이음이 판단(아니면 회의록만 지우고 까닭을 알린다).
+    #   🔴 이음에 닿지 못하면(연결 실패·키 거부·오류) 아무것도 지우지 않는다 — 한쪽만 지워진 채 남지 않게.
+    #   이음에 삭제 입구가 아직 없으면(세션 10 배포 전) 회의록만 지우고 알린다.
+    msg = {"linked": False}
+    if m.get("msg_meeting_id"):
+        from . import sso_client
+        from starlette.concurrency import run_in_threadpool
+        res = await run_in_threadpool(sso_client.delete_msg_meeting, m["msg_meeting_id"],
+                                      u.get("employee_no") or "", mid)
+        kind = res.get("kind") or "unreachable"
+        if kind in ("unreachable", "refused"):
+            return JSONResponse({"ok": False, "error": (res.get("error") or "이음에 연결하지 못했습니다.")
+                                 + " 회의록을 지우지 않았습니다 — 잠시 뒤 다시 눌러 주세요."}, 503)
+        msg = {"linked": True, "deleted": kind in ("deleted", "already"), "reason": kind}
+    with db_session() as c:
         # 자식(결정·할일·참석자)은 FK ON DELETE CASCADE 로 정리.
         # 단, 일일카드(tasks)로 연동된 것은 카드 자체를 지우지 않음(이미 독립 업무).
         c.execute("DELETE FROM meetings WHERE id=?", (mid,))
-    return JSONResponse({"ok": True})
+    try:   # z1122: 「🗓 회의 카드 모아보기」가 30초 저장본을 보여 주지 않게 — 지운 회의가 바로 빠진다
+        with _MSG_CARDS_LOCK:
+            _MSG_CARDS_CACHE.clear()
+    except Exception as _e:
+        print(f"[MSG-CARDS] 저장본 비우기 실패(무시): {_e}")
+    return JSONResponse({"ok": True, "msg": msg})
 
 
 @app.post("/api/meeting/{mid:int}/extract")
@@ -5663,13 +5691,17 @@ async def api_meetings_msg_cards(req: Request):
                 x["minutes"] = {"stage": "none", "can_view": False}
                 continue
             can_view = _can_view_meeting(c, u, m)
-            _rv = _rec_view(m)   # z1119: 녹음 중인가(이음 msg/status 와 같은 값) — 탭이 「녹음 중」과 「시작만 누름」을 가른다
+            _rv = _rec_view(m, u)   # z1119: 녹음 중인가(이음 msg/status 와 같은 값) — 탭이 「녹음 중」과 「시작만 누름」을 가른다
             mn = {"stage": _meeting_msg_stage(m), "can_view": can_view,
                   "started_by": _msg_owner_disp(c, m.get("owner_id")),
                   "recording": _rv["state"] == "recording",
-                  "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0}
+                  "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0,
+                  # z1122: 보는 사람이 그 녹음을 시작했나(msg/status z1121 과 같은 값) — 이음 v817 처럼 본인에게만 「🎙 이어서 녹음」
+                  "rec_mine": _rv["state"] == "recording" and bool(_rv["mine"])}
             if can_view:      # 볼 수 없는 사람에겐 회의록 주소·내용 수를 주지 않는다
-                mn["url"] = (f"/meetings/{m['id']}/doc" if mn["stage"] == "done" else f"/meetings/{m['id']}")
+                # z1122: 주소는 msg/status(z1114)와 같게 — 정리가 끝났어도 녹음이 열려 있으면 녹음을 이어가거나 끝낼 화면
+                mn["url"] = (f"/meetings/{m['id']}/doc" if (mn["stage"] == "done" and not mn["recording"])
+                             else f"/meetings/{m['id']}")
                 mn["dec_cnt"] = m.get("dec_cnt") or 0
                 mn["act_cnt"] = m.get("act_cnt") or 0
             x["minutes"] = mn

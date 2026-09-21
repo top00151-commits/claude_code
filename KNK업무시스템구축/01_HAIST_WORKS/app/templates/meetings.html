@@ -62,6 +62,8 @@
 .mc-btn { display:inline-flex; align-items:center; padding: 5px 13px; border-radius: 999px; border: 1px solid var(--qv-line-2); font-size: 13px; font-weight: 700; color: var(--qv-ink); text-decoration: none; background: var(--qv-surface); white-space: nowrap; }
 .mc-btn:hover { border-color: var(--qv-line-3); }
 .mc-btn.mc-go { background: var(--knk-red); border-color: var(--knk-red); color: #fff; }
+.mc-btn.mc-resume { background: #dc2626; border-color: #dc2626; color: #fff; font-weight: 800; }   /* z1122: 이음 v817 「🎙 이어서 녹음」과 같은 빨강 */
+.mc-card.tap { cursor: pointer; }   /* z1122: 회의록 단추가 있는 카드만 — 빈 곳을 눌러도 그 단추와 같게 */
 .mc-state { font-size: 13px; color: var(--qv-ink-2); }
 .mc-state.dim { color: var(--qv-ink-3); }
 .mc-empty { padding: 24px 16px; text-align: center; color: var(--qv-ink-3); background: var(--qv-surface); border: 1px dashed var(--qv-line-2); border-radius: var(--radius-lg); font-size: 13px; line-height: 1.6; }
@@ -191,7 +193,10 @@
       else if (st === 'failed') out += '<span class="mc-state">⚠ 정리 실패 — 회의록에서 다시 시도</span>';
       else if (st === 'none' && hs === 'end') out += '<span class="mc-state dim">회의록 없음</span>';
       if (mn.can_view && mn.url) {
-        if (st === 'done') {
+        if (mn.recording === true && mn.rec_mine === true) {
+          // z1122: 창이 닫혀 멈춘 녹음을 하던 본인 — 이음 회의 카드(v817)와 같은 「🎙 이어서 녹음」 · 도착 화면 맨 위 상자(z1120)
+          out += '<a class="mc-btn mc-resume" href="' + esc(mn.url) + '">🎙 이어서 녹음</a>';
+        } else if (st === 'done') {
           // 양식은 새 창 — 모아보기 목록은 그대로 둔다(회의록 화면의 「📄 회의록 양식」과 같은 방식)
           out += '<a class="mc-btn mc-go" href="' + esc(mn.url) + '" target="_blank" rel="noopener" data-no-swap>📋 회의록 보기</a>';
           if (mn.dec_cnt) out += '<span class="cnt-badge">✔ 결정 ' + (+mn.dec_cnt) + '</span>';
@@ -230,7 +235,10 @@
       } else if (me.is_attendee) {
         h += '<div class="mc-sub">🙋 내 응답: ' + (RESP[me.response] || '⬜ 아직 응답 안 함') + '</div>';
       }
-      return h + minutesHtml(m, hs) + '</article>';
+      var mh = minutesHtml(m, hs);
+      // z1122: 회의록 단추가 있는 카드는 빈 곳을 눌러도 그 단추와 같게(이음 v817) — 손가락 모양은 그런 카드에만
+      if (mh.indexOf('class="mc-btn') >= 0) h = h.replace('<article class="mc-card ', '<article class="mc-card tap ');
+      return h + mh + '</article>';
     }
     function section(title, list, now, emptyText, small){
       var h = '<div class="mc-sec">' + title + ' (' + list.length + ')' + (small ? '<small>' + small + '</small>' : '') + '</div>';
@@ -337,6 +345,16 @@
     btnMore.addEventListener('click', loadMore);
     body.addEventListener('click', function(e){
       if (e.target && e.target.closest && e.target.closest('[data-mc-retry]')) loadFirst();
+    });
+    // z1122: 카드 빈 곳 = 그 카드의 회의록 단추(이어서 녹음·회의록 화면·회의록 보기)와 같게 — 이음 v817 과 같은 규칙.
+    //   단추·링크·입력·글자 고르기·오른쪽 버튼은 예전대로 · 단추가 없는 카드는 아무 일 없음.
+    body.addEventListener('click', function(e){
+      if (e.defaultPrevented || e.button) return;
+      var tg = e.target;
+      if (!tg || !tg.closest || tg.closest('a,button,input,select,textarea,label,[data-mc-retry]')) return;
+      var card = tg.closest('article.mc-card.tap'); if (!card) return;
+      try { if (String((window.getSelection && window.getSelection()) || '').trim()) return; } catch (_) {}
+      var go = card.querySelector('.mc-min a.mc-btn'); if (go) go.click();   // 단추를 누른 것과 똑같이(새 창·화면 전환 규칙 그대로)
     });
     // 시간이 지나면 윗줄(예정→회의 중→종료)만 바뀐다 — 바뀐 카드가 있을 때만 다시 그림 · 화면이 떠 있을 때만
     var tick = setInterval(function(){

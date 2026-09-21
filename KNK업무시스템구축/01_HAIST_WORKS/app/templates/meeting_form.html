@@ -498,6 +498,7 @@ window.__MTG = {
   tr_on: {{ 'true' if transcribe_on else 'false' }},
   has_audio: {{ 'true' if (not is_new and meeting.audio_path) else 'false' }},
   rec: {{ (rec|default({}, true))|tojson }},   {# z1113: 녹음 중 상태(초·저장량) — 창이 닫혀도 이어서 끝낼 수 있게 #}
+  msg_del: {{ (msg_del|default('none', true))|tojson }},   {# z1122: 🗑 삭제 때 이음 회의도 함께 지워지나(none·yes·no) — 확인 글에 미리 알림 #}
   audio_max_mb: {{ MEETING_AUDIO_MAX_MB|int }},   {# 2026-09-17: 음성 올리기 한도 — 숫자는 main.py _MEETING_AUDIO_MAX_MB 한 곳 #}
   summary: {{ ((meeting.summary or '') if not is_new else '')|tojson }},
   decisions: {{ decisions|tojson if decisions else '[]' }},
@@ -820,10 +821,31 @@ window.__MTG = {
   async function delDec(did){ var res=await jreq('DELETE','/api/meeting/'+M.id+'/decision/'+did); if(res.ok&&res.data.ok){ M.decisions=M.decisions.filter(function(d){return d.id!=did;}); renderDecisions(); } }
   async function delAct(aid){ var res=await jreq('DELETE','/api/meeting/'+M.id+'/action/'+aid); if(res.ok&&res.data.ok){ M.actions=M.actions.filter(function(a){return a.id!=aid;}); renderActions(); } }
   async function delMeeting(){
-    if (!confirm('이 회의록을 삭제할까요? (이미 일일카드로 보낸 할 일은 그대로 남습니다)')) return;
+    // z1122 (대표 지시 2026-09-21): 삭제는 **두 번** 확인 — 무엇이 지워지는지·이음 회의도 함께인지 먼저 보이고, 한 번 더 묻는다.
+    //   삭제 단추는 작성자·관리자에게만 보이고, 서버도 그 밖의 사람은 막는다(403).
+    var ttl=((($('mtgTitle')||{}).value)||'').trim()||'(제목 없음)', dt=((($('mtgDate')||{}).value)||'').trim();
+    var md=M.msg_del||'none';
+    var q1='🗑 이 회의록을 삭제할까요?\n\n「'+ttl+'」'+(dt?' ('+dt+')':'')
+      +'\n\n녹음·음성 글자·정리·결정·할 일을 더 이상 볼 수 없습니다.\n(이미 일일카드로 보낸 할 일은 그대로 남습니다)';
+    if(md==='yes') q1+='\n\n🗓 이음 회의도 함께 지워집니다 — 참석자 달력·회의 알림 카드·회의 카드 모아보기에서 사라집니다.';
+    else if(md==='no') q1+='\n\n🗓 이음 회의는 남습니다 — 이음에서 회의를 등록한 사람(또는 관리자)만 함께 지울 수 있어, 회의록만 지웁니다.';
+    if (!confirm(q1)) return;
+    if (!confirm('⚠ 정말 삭제할까요?\n\n「'+ttl+'」'+(md==='yes'?' — 이음 회의까지':'')+'\n지우면 되돌릴 수 없습니다.')) return;
+    var bd=$('btnDelete'); if(bd) bd.disabled=true;
     var res = await jreq('DELETE','/api/meeting/'+M.id);
-    if (res.ok && res.data.ok){ _leaveOk = true; location.href='/meetings'; }
-    else { status(res.data.error||'삭제 실패','err'); }
+    if (res.ok && res.data.ok){
+      var mg=res.data.msg||{};
+      if (mg.linked && !mg.deleted){   // 이음 회의가 남았으면 까닭을 알린다
+        alert(mg.reason==='not_ready'
+          ? '회의록을 지웠습니다.\n\n이음 회의는 아직 함께 지울 수 없어 그대로 남았습니다(이음 쪽 준비 중). 필요하면 이음 🗓 회의에서 등록한 사람이 지워 주세요.'
+          : '회의록을 지웠습니다.\n\n이음 회의는 등록한 사람(또는 관리자)만 지울 수 있어 그대로 남았습니다.');
+      }
+      _leaveOk = true; location.href='/meetings';
+    }
+    else {   // 실패는 화면 가운데 알림 — 전엔 아래쪽 저장 줄에 떠서 휴대폰에선 안 보였다
+      if(bd) bd.disabled=false;
+      alert((res.data&&res.data.error)||'삭제하지 못했습니다.');
+    }
   }
 
   // ── 바인딩 ──
@@ -1511,8 +1533,9 @@ window.__MTG = {
       el.innerHTML='🍎 <b>아이폰·아이패드</b> — 지금처럼 이 화면에서 녹음합니다. 다만 <b>다른 앱이나 다른 웹 화면으로 넘어가면 '
         +'그동안은 녹음되지 않습니다.</b> 회의 중에는 <b>이 화면을 켠 채로</b> 두세요. '
         +'자리를 비우거나 다른 일을 해야 하면 아이폰 기본 <b>「음성 메모」로 녹음한 뒤 「📁 음성 파일 올리기」</b>를 쓰세요.'
-        +'<br>실수로 이 창을 닫았으면(✕) 이음 회의 카드의 <b>「📋 회의록 열기」</b>(또는 회의록 목록에서 이 회의)를 누르세요 '
-        +'— 맨 위 <b>「🎙 이어서 녹음」</b>으로 바로 이어집니다(그때까지 녹음은 서버에 남아 있습니다).';   // z1120
+        +'<br>실수로 이 창을 닫았으면(✕) 이음 회의 카드의 <b>「🎙 이어서 녹음」</b>(또는 카드 빈 곳)을 누르세요 '
+        +'— 이 화면 맨 위 <b>「🎙 이어서 녹음」</b>으로 바로 이어집니다(그때까지 녹음은 서버에 남아 있습니다). '
+        +'회의록 목록에서 이 회의를 열어도 됩니다.';   // z1120 · z1122: 이음 v817 카드 단추 이름(녹음하던 본인에게 「🎙 이어서 녹음」)
       el.hidden=false;
     }
   })();
