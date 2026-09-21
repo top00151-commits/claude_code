@@ -1,0 +1,26 @@
+PASS 1-1 이음 4초 기다리는 동안 다른 요청 바로 응답(막히지 않음) · 1.382
+PASS 1-2 느린 요청도 끝남 · (7.196316957473755, 200)
+PASS 1-3 이음 15초 → 8초에 끊고 안내 · (9.34, {'ok': False, 'error': '이음에 연결하지 못했습니다. 잠시 뒤 다시 눌러 주세요.'})
+PASS 1-4 끊긴 직후엔 이음을 다시 부르지 않음 · 1
+Traceback (most recent call last):
+  File "C:\Users\top00\JR\Claude �ڵ�\KNK�����ý��۱���\16_KNK_Meeting\�۾����\2026-09-22_0815_��ƺ���_ȸ�ǷϿ���_�̸�����_WORKS�غ�\ui_test_cards_z1124.py", line 118, in <module>
+    pg.goto(BASE + "/meetings")
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\sync_api\_generated.py", line 9875, in goto
+    self._sync(
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_sync_base.py", line 115, in _sync
+    return task.result()
+           ^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_page.py", line 560, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_frame.py", line 156, in goto
+    await self._channel.send(
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "http://127.0.0.1:8921/meetings", waiting until "load"
+

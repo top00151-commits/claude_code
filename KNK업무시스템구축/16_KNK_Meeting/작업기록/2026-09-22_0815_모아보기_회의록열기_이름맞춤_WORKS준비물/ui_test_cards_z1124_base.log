@@ -1,0 +1,46 @@
+PASS 1-1 이음 4초 기다리는 동안 다른 요청 바로 응답(막히지 않음) · 0.409
+PASS 1-2 느린 요청도 끝남 · (5.161797761917114, 200)
+PASS 1-3 이음 15초 → 8초에 끊고 안내 · (8.7, {'ok': False, 'error': '이음에 연결하지 못했습니다. 잠시 뒤 다시 눌러 주세요.'})
+PASS 1-4 끊긴 직후엔 이음을 다시 부르지 않음 · 1
+PASS 2-1 기본 = 회의록 탭 · 카드 요청 없음 · []
+PASS 2-2 탭 전환 = 주소 ?tab=cards · http://127.0.0.1:8921/meetings?tab=cards
+PASS 2-3 카드 12장 (사진 4 + 예시 6 + 시험 2) · 12
+PASS 2-4 스크립트 오류 없음·악성 글자 실행 안 됨
+PASS 2-5 악성 제목은 글자로만 · <img src=x onerror="window.__xss=1">악성 제목
+PASS 2-6 태그 글자도 글자로
+PASS 2-7 악성 카드 안에 진짜 태그 없음 · 0
+PASS 2-8 곧 시작 = 🗓 예정 · 진행할 회의 묶음
+PASS 2-9 70일 전 회의는 처음엔 안 보임
+PASS 2-10 회의록 보기 = 새 창 · 화면 전환 장치 제외
+PASS 2-11 새 창 = 회의록 양식 · ('http://127.0.0.1:8921/meetings/1/doc', '회의록 · 먹자')
+PASS 2-12 원래 창은 카드 탭 그대로
+PASS 2-13 시작 시각이 지나면 🔴 회의 중 묶음으로 · 🔴 회의 중
+PASS 2-14 그 사이 서버 재요청 없음(2분 전) · (1, 1)
+PASS 2-15 2분 넘으면 회의록 단계 새로 받기 · (1, 2)
+PASS 2-16 더 보기 = 바로 앞 60일을 물음 · {'employee_no': 'KNK0001', 'from': '2026-05-25', 'to': '2026-07-23'}
+PASS 2-17 70일 전 회의가 진행한 회의에 붙음 · 기간 글자 바뀜 · 2026.05.25부터
+PASS 2-18 합계 13건 · 모두 13건 · 회의 중 2 · 예정 3 · 지난 회의 8 · 회의록 완료 1
+PASS 2-19 새로 고침 뒤에도 더 불러온 회의 유지 · 13
+FAIL 2-19b 진행 중 카드 단추 = 「📋 회의록 열기」 · 옛 「📝 회의록 화면」 없음 · ['📝 회의록 화면']
+Traceback (most recent call last):
+  File "C:\Users\top00\JR\Claude �ڵ�\KNK�����ý��۱���\16_KNK_Meeting\�۾����\2026-09-22_0815_��ƺ���_ȸ�ǷϿ���_�̸�����_WORKS�غ�\ui_test_cards_z1124.py", line 183, in <module>
+    pg.locator(".mc-card", has_text="ǰ�� �̽�").locator("a.mc-btn", has_text="ȸ�Ƿ� ����").click()
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\sync_api\_generated.py", line 17876, in click
+    self._sync(
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_sync_base.py", line 115, in _sync
+    return task.result()
+           ^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_locator.py", line 165, in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_frame.py", line 593, in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator(".mc-card").filter(has_text="ǰ�� �̽�").locator("a.mc-btn").filter(has_text="ȸ�Ƿ� ����")
+
