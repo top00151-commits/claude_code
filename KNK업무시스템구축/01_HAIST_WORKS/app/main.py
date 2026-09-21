@@ -5660,8 +5660,11 @@ async def api_meetings_msg_cards(req: Request):
                 x["minutes"] = {"stage": "none", "can_view": False}
                 continue
             can_view = _can_view_meeting(c, u, m)
+            _rv = _rec_view(m)   # z1119: 녹음 중인가(이음 msg/status 와 같은 값) — 탭이 「녹음 중」과 「시작만 누름」을 가른다
             mn = {"stage": _meeting_msg_stage(m), "can_view": can_view,
-                  "started_by": _msg_owner_disp(c, m.get("owner_id"))}
+                  "started_by": _msg_owner_disp(c, m.get("owner_id")),
+                  "recording": _rv["state"] == "recording",
+                  "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0}
             if can_view:      # 볼 수 없는 사람에겐 회의록 주소·내용 수를 주지 않는다
                 mn["url"] = (f"/meetings/{m['id']}/doc" if mn["stage"] == "done" else f"/meetings/{m['id']}")
                 mn["dec_cnt"] = m.get("dec_cnt") or 0

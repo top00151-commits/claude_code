@@ -162,18 +162,31 @@
       return ymd(a) + ' (' + WD[a.getUTCDay()] + ') ' + hm(a) + '~' + endPart
         + (m.tz_label ? ' (' + m.tz_label + ')' : '') + ' · ' + durText(m.duration_min);
     }
-    // 카드 윗줄 상태 — 이음 회의 카드(v795)와 같은 판단: 녹음이 끝났으면 종료 · 녹음 중이면 회의 중(끝나고 12시간까지)
+    // 카드 윗줄 상태 — 이음 회의 카드(v795·v815)와 같은 판단: 녹음이 끝났으면 종료 · 녹음 중이면 회의 중(끝나고 12시간까지)
+    //   z1119: WORKS 단계 started 는 「녹음 중」과 「▶ 회의 시작만 누르고 녹음 없음」을 둘 다 담는다(09-21 대표 신고 · 세션 10 전달).
+    //   녹음이 없으면(recording === false) 끝 시각에 종료 — 끝 뒤 12시간 「회의 중」은 녹음 중일 때만.
+    //   시작 전·회의 시간 안에 누른 회의는 그대로 「회의 중」 · recording 칸이 없으면(옛 응답) 예전 그대로.
     function headState(m, now){
-      var st = (m.minutes && m.minutes.stage) || 'none', s = startMs(m), e = endMs(m);
+      var mn = m.minutes || {}, st = mn.stage || 'none', s = startMs(m), e = endMs(m);
       if (st === 'recorded' || st === 'processing' || st === 'done' || st === 'failed') return 'end';
-      if (st === 'started' && !(e && now >= e + STUCK)) return 'live';
+      var grace = (mn.recording === false) ? 0 : STUCK;
+      if (st === 'started' && !(e && now >= e + grace)) return 'live';
       if (e && now >= e) return 'end';
       if (s && now >= s) return 'live';
       return 'up';
     }
     function minutesHtml(m, hs){
       var mn = m.minutes || {}, st = mn.stage || 'none', out = '';
-      if (st === 'started') out += '<span class="mc-state">🔴 회의 진행 중 · ' + esc(mn.started_by || '') + ' 녹음</span>';
+      if (st === 'started') {
+        // z1119: 실제 녹음 여부(recording · 서버 저장 초 rec_secs)로 — 이음 회의 카드(v807·v815)와 같은 글
+        //   아래 줄은 윗줄 판정(hs)을 따라간다 → 30초 다시 그리기 때 두 줄이 함께 바뀐다
+        var who = esc(mn.started_by || ''), mins = Math.floor((+mn.rec_secs || 0) / 60);
+        if (mn.recording === true) out += '<span class="mc-state">🔴 녹음 중 · ' + who + (mins >= 1 ? ' · ' + mins + '분 저장됨' : '') + '</span>';
+        else if (mn.recording === false) out += (hs === 'end')
+          ? '<span class="mc-state dim">⏹ 회의 끝남 · ' + who + ' · 녹음 없음</span>'
+          : '<span class="mc-state">🔴 회의 진행 중 · ' + who + ' · 녹음 안 됨</span>';
+        else out += '<span class="mc-state">🔴 회의 진행 중 · ' + who + ' 녹음</span>';   // 칸이 없는 옛 응답 — 예전 글
+      }
       else if (st === 'recorded' || st === 'processing') out += '<span class="mc-state">⏳ 회의록 정리 중</span>';
       else if (st === 'failed') out += '<span class="mc-state">⚠ 정리 실패 — 회의록에서 다시 시도</span>';
       else if (st === 'none' && hs === 'end') out += '<span class="mc-state dim">회의록 없음</span>';
