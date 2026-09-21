@@ -4270,6 +4270,8 @@ async def api_meeting_delete(req: Request, mid: int):
             return JSONResponse({"ok": False, "error": (res.get("error") or "이음에 연결하지 못했습니다.")
                                  + " 회의록을 지우지 않았습니다 — 잠시 뒤 다시 눌러 주세요."}, 503)
         msg = {"linked": True, "deleted": kind in ("deleted", "already"), "reason": kind}
+        if res.get("notified"):   # z1123: 시작 전 회의면 이음이 참석자에게 「회의가 취소되었습니다」 — 몇 명에게 갔나(대표 결정 2026-09-22)
+            msg["notified"] = res["notified"]
     with db_session() as c:
         # 자식(결정·할일·참석자)은 FK ON DELETE CASCADE 로 정리.
         # 단, 일일카드(tasks)로 연동된 것은 카드 자체를 지우지 않음(이미 독립 업무).
@@ -5540,7 +5542,10 @@ async def api_meeting_msg_status(req: Request):
                   "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0,
                   # z1121: 보는 사람이 그 녹음을 시작했나 — 창을 닫아 멈춘 녹음이면 이음 카드 단추를 그 사람에게만
                   #   「🎙 이어서 녹음」으로(대표 지시 2026-09-21 · 세션 10). WORKS 회의 화면의 REC.mine(z1120)과 같은 판단.
-                  "rec_mine": _rv["state"] == "recording" and bool(_rv["mine"])}
+                  "rec_mine": _rv["state"] == "recording" and bool(_rv["mine"]),
+                  # z1123: 보는 사람이 이 회의록을 지울 수 있나(작성자·관리자 = WORKS 🗑 삭제와 같은 판단) — 이음 🗓 회의 「삭제」
+                  #   확인 창이 「📋 WORKS 회의록도 함께 지워집니다 / 남습니다」를 미리 보이게(대표 결정 2026-09-22).
+                  "can_delete": bool(viewer) and _can_delete_meeting(viewer, m)}
             if can_view:                  # 볼 수 없는 사람에겐 회의록 주소 자체를 주지 않는다
                 it["meeting_id"] = m["id"]
                 # 「📋 회의록 보기」 착지 (대표 지시 2026-09-16): 정리가 끝났으면 **회의록 양식**으로 바로.
@@ -5551,6 +5556,58 @@ async def api_meeting_msg_status(req: Request):
                              else f"/meetings/{m['id']}")
             items[str(msg_id)] = it
     return JSONResponse({"ok": True, "items": items})
+
+
+@app.post("/api/meeting/msg/delete")
+async def api_meeting_msg_delete(req: Request):
+    """[서버 전용] 이음 🗓 회의에서 회의를 지울 때 그 회의의 WORKS 회의록도 함께 지운다 (z1123 · 대표 결정 2026-09-22).
+    ⭐ 이음은 자기 회의를 지우기 **전에** 이것을 부르고 200 ok 를 받아야 지운다 — WORKS 에 못 닿으면 이음도 안 지운다
+      (한쪽만 지워진 채 남지 않게 · WORKS 🗑 삭제 z1122 와 거꾸로 같은 규칙).
+    회의록은 WORKS 규칙 그대로 작성자(▶ 회의 시작을 누른 사람)·관리자(admin/ceo)가 지울 때만 — 아니면 남기고 까닭을 돌려준다.
+    🔴 여기서는 이음을 다시 부르지 않는다(이음이 지우는 중 — 서로 부르며 돌지 않게).
+    body: {msg_meeting_id, employee_no(지우는 사람 사번)}
+    → 200 {ok: true, result: "deleted" | "none"(회의록 없음) | "kept", reason?: "not_allowed" | "viewer_not_found", works_meeting_id?}"""
+    if not _msg_service_key_ok(req):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "json_required"}, 400)
+    if not isinstance(d, dict):
+        return JSONResponse({"ok": False, "error": "json_required"}, 400)
+    try:
+        msg_id = int(d.get("msg_meeting_id") or 0)
+    except (TypeError, ValueError):
+        msg_id = 0
+    if msg_id <= 0:
+        return JSONResponse({"ok": False, "error": "msg_meeting_id_required"}, 400)
+    out = {"ok": True, "result": "none"}
+    with db_session() as c:
+        row = c.execute("SELECT * FROM meetings WHERE msg_meeting_id=?", (msg_id,)).fetchone()
+        if row:
+            m = dict(row)
+            out["works_meeting_id"] = m["id"]
+            viewer = _msg_user_by_empno(c, d.get("employee_no"))
+            if not viewer:
+                out.update(result="kept", reason="viewer_not_found")
+            elif not _can_delete_meeting(viewer, m):
+                out.update(result="kept", reason="not_allowed")
+            else:
+                # 자식(결정·할일·참석자)은 FK ON DELETE CASCADE — WORKS 🗑 삭제(api_meeting_delete)와 같은 한 줄
+                c.execute("DELETE FROM meetings WHERE id=?", (m["id"],))
+                out["result"] = "deleted"
+                try:
+                    log_activity(c, viewer["id"], "meeting_delete",
+                                 f"{viewer['name']} 이음 🗓 회의에서 삭제 — 회의록도 함께: {(m.get('title') or '')[:60]}",
+                                 team_id=viewer.get("team_id"))
+                except Exception as _le:
+                    print(f"[MEETING-MSG] 활동기록 실패(삭제는 완료): {_le}")
+    try:   # 이음 회의가 곧 지워진다 — 「🗓 회의 카드 모아보기」 30초 저장본을 비워 바로 빠지게(z1122 와 같게)
+        with _MSG_CARDS_LOCK:
+            _MSG_CARDS_CACHE.clear()
+    except Exception as _e:
+        print(f"[MSG-CARDS] 저장본 비우기 실패(무시): {_e}")
+    return JSONResponse(out)
 
 
 # ════════════════════════════════════════════════════════════════════════

@@ -812,7 +812,14 @@ def delete_msg_meeting(msg_meeting_id, employee_no, works_meeting_id=None, timeo
         d = None
     err = (d or {}).get("error")
     if r.status_code == 200 and d and d.get("ok"):
-        return {"kind": "already" if d.get("already") else "deleted"}
+        out = {"kind": "already" if d.get("already") else "deleted"}
+        try:   # z1123: 시작 전 회의면 이음이 참석자에게 「회의가 취소되었습니다」를 보내고 몇 명인지 돌려준다(대표 결정 2026-09-22)
+            n = int(d.get("notified") or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n > 0:
+            out["notified"] = n
+        return out
     if err == "not_allowed":
         return {"kind": "not_allowed"}
     if err == "viewer_not_found":
