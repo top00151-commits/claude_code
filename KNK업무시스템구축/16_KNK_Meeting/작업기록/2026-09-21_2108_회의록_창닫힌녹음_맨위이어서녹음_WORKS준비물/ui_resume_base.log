@@ -1,0 +1,72 @@
+
+■ ① 아이폰 · 본인 녹음 (카드 「📋 회의록 열기」 → /meetings/{id})
+   상자: {'exists': True, 'shown': True, 'top': 1822, 'bottom': 1991, 'btns': ['⏹ 녹음 끝내고 정리', '🎙 이어서 녹음'], 'first': 'secSummary', 'order': '50'}
+PASS 상자가 있다 · {'exists': True, 'shown': True, 'top': 1822, 'bottom': 1991, 'btns': ['⏹ 녹음 끝내고 정리', '🎙 이어서 녹음'], 'first': 'secSummary', 'order': '50'}
+FAIL 🔴 상자가 첫 화면에(스크롤 없이) 다 보인다 · top=1822 bottom=1991
+FAIL 🔴 본문 칸 중 맨 위 · secSummary
+FAIL 「🎙 이어서 녹음」이 첫 단추 · ['⏹ 녹음 끝내고 정리', '🎙 이어서 녹음']
+PASS 「⏹ 녹음 끝내고 정리」도 있다 · ['⏹ 녹음 끝내고 정리', '🎙 이어서 녹음']
+FAIL 단추 높이 44px 이상(누르기 쉬움) · 37
+PASS 시험 전 서버 = 녹음 중(끊긴 조각 70초) · {'state': 'recording', 'secs': 70, 'kb': 3, 'started_at': '2026-09-21 21:21:55', 'last_at': '2026-09-21 21:23:05', 'by_name': '안지연', 'mine': True, 'pending': 0}
+PASS 🔴 본인 녹음 = 묻지 않고 바로 · []
+PASS 누르면 이 화면 녹음이 켜진다
+PASS 상자는 치워진다
+PASS 서버 = 새 녹음(끊긴 조각은 보관 1개) · {'state': 'recording', 'secs': 0, 'kb': 0, 'started_at': '2026-09-21 21:24:43', 'last_at': '2026-09-21 21:24:43', 'by_name': '안지연', 'mine': True, 'pending': 1}
+FAIL 🔴 녹음 띠(🔴 본 회의 녹음 중)가 첫 화면에 보인다 · {'top': 872, 'bottom': 918}
+FAIL 「⏹ 녹음 종료」 단추도 첫 화면에 · {'top': 995, 'bottom': 1030, 't': '⏹ 녹음 종료 (자동 정리 시작)'}
+PASS 조각이 서버에 쌓인다 · {'state': 'recording', 'secs': 9, 'kb': 37, 'started_at': '2026-09-21 21:24:43', 'last_at': '2026-09-21 21:24:53', 'by_name': '안지연', 'mine': True, 'pending': 1}
+PASS 끝내면 자동으로 글자 두 개(끊긴 조각 + 이어서 녹음) · 🎙 [음성 변환]
+[가짜 변환] rec_1789970001000. webm
+
+🎙 [음성 변환]
+[가짜 변환] rec_1789993483543. webm
+PASS 🔴 순서 = 끊긴 조각 먼저 → 이어서 녹음 · ['rec_1789970001000.webm', 'rec_1789993483543.webm']
+PASS 끝난 뒤 서버 = 녹음 아님 · 남은 조각 0 · {'state': '', 'secs': 0, 'kb': 0, 'started_at': '2026-09-21 21:24:43', 'last_at': '2026-09-21 21:24:57', 'by_name': '안지연', 'mine': True, 'pending': 0}
+PASS AI 정리까지
+
+■ ② 대표가 남(안지연)의 녹음 화면 — 「🎙 이어서 녹음」은 한 번 묻는다
+FAIL 대표에게도 상자가 맨 위에(고칠 수 있는 사람) · {'exists': True, 'shown': True, 'top': 2140, 'bottom': 2309, 'btns': ['⏹ 녹음 끝내고 정리', '🎙 이어서 녹음'], 'first': 'secSummary', 'order': '50'}
+PASS 서버 = 남의 녹음(mine=false) · {'state': 'recording', 'secs': 40, 'kb': 3, 'started_at': '2026-09-21 21:22:25', 'last_at': '2026-09-21 21:23:05', 'by_name': '안지연', 'mine': False, 'pending': 0}
+FAIL 🔴 묻는다 · []
+FAIL 묻는 글 = 그쪽 녹음이 멈춘다고 알림 · []
+FAIL 취소 → 녹음 안 켜짐
+FAIL 취소 → 상자 그대로
+FAIL 취소 → 서버 그대로(남의 녹음 · 40초) · {'state': 'recording', 'secs': 0, 'kb': 0, 'started_at': '2026-09-21 21:25:04', 'last_at': '2026-09-21 21:25:04', 'by_name': '김정락', 'mine': True, 'pending': 1}
+Traceback (most recent call last):
+  File "C:\Users\top00\JR\Claude �ڵ�\KNK�����ý��۱���\16_KNK_Meeting\�۾����\2026-09-21_2108_ȸ�Ƿ�_â��������_�����̾����_WORKS�غ�\ui_resume.py", line 423, in <module>
+    main()
+  File "C:\Users\top00\JR\Claude �ڵ�\KNK�����ý��۱���\16_KNK_Meeting\�۾����\2026-09-21_2108_ȸ�Ƿ�_â��������_�����̾����_WORKS�غ�\ui_resume.py", line 205, in main
+    p.locator("#recResumeBtn").click()
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\sync_api\_generated.py", line 17876, in click
+    self._sync(
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_sync_base.py", line 115, in _sync
+    return task.result()
+           ^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_locator.py", line 165, in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_frame.py", line 593, in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("#recResumeBtn")
+    - locator resolved to <button id="recResumeBtn" class="btn btn-secondary">\U0001f399 �̾ ����</button>
+  - attempting click action
+    2 �� waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+    - waiting 20ms
+    2 �� waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+      - waiting 100ms
+    56 �� waiting for element to be visible, enabled and stable
+       - element is not visible
+     - retrying click action
+       - waiting 500ms
+
