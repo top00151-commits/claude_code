@@ -1,0 +1,92 @@
+fatal: not a git repository (or any of the parent directories): .git
+[holidays] 자동 생성 완료 — KR 135건 / VN 91건
+[WFB] workflow lego builder routes registered (z104)
+[WP-04] bom_tool_runs 등급 칸 추가: ['has_price', 'has_vendor'] · 기존 기록 0건 보존(0건)
+[z1093] 센터 진입 권한 부서별 재설정 1회 적용 완료
+[v5H216] consumable_orders.mgmt_code 컬럼 추가됨
+[v5H218] consumable_orders.biz_div 컬럼 추가됨
+[v5H226z264] consumable_orders.cc_dept 컬럼 추가됨
+[v5H226z264] consumable_orders.cc_name 컬럼 추가됨
+[v5H226z264] consumable_orders.ship_to 컬럼 추가됨
+[v5H226z285] consumable_orders.is_export 컬럼 추가됨
+[v5H226z287] consumable_orders.secondary_customer 컬럼 추가됨
+[v5H226z287] consumable_orders.cc_phone 컬럼 추가됨
+[v5H226z287] consumable_orders.model_name 컬럼 추가됨
+[v5H226z287] consumable_orders.equip_name 컬럼 추가됨
+[v5H226z287] consumable_orders.sales_name 컬럼 추가됨
+[v5H226z563] consumable_orders.form_type 컬럼 추가됨
+[v5H226z367] consumable_orders.statement_date 컬럼 추가됨
+[v5H226z367] consumable_orders.tax_invoice_date 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_amt1 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_date2 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_amt2 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_date3 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_amt3 컬럼 추가됨
+[v5H226z1038] consumable_orders.status_date 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_recipients 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_dept_names 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_user_ids 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_team_ids 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_at 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_by_name 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_sent_to 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_dept_count 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_msg_sent 컬럼 추가됨
+[z619] customers.name UNIQUE 제거 완료 — 같은 상호 다른 종사업장 등록 허용 (0건 보존)
+[z822] 정보열람권한 초기 시드: 행 10개 · 해석={'sales_amount': [1, 11], 'purchase_price': [1, 11, 10, 4, 2], 'supplier_info': [11, 10, 1]}
+[z822] ⚠ 못 찾은 팀(시드 건너뜀·화면서 체크 가능): {'총괄': ['sales_amount', 'purchase_price', 'supplier_info']}
+[WFB-MIG] {'added_cols': ['customer_country', 'po_entity', 'ship_entity'], 'countries': 13, 'nodes': 45, 'templates': 5, 'template_nodes': 160}
+[WFB-MIG-Z105] {'added_cols': ['sop_guide', 'deliverables_json', 'system_link_template'], 'meta_updated': 45}
+[WFB-MIG-Z106] {'added_cols': ['mfg_machining', 'mfg_assembly', 'mfg_electrical', 'mfg_verification', 'ship_split', 'setup_split'], 'new_nodes': 8, 'meta_updated': 8}
+[WFB-MIG-Z107] {'added_cols': ['workflow_node_id']}
+[WFB-MIG-Z108D] {'added_cols': ['is_mass_revision', 'machined_po_dept'], 'new_nodes': 22, 'meta_updated': 22, 'total_new_node_specs': 22}
+[WFB-MIG-Z108H] {'updated': 75, 'not_found': [], 'total_mapped': 75}
+[WFB-MIG-Z108I] {'updated': 75, 'not_found': [], 'total_mapped': 75}
+[WFB-MIG-Z108J] {'existing_updated': 1, 'new_nodes': 2, 'meta_seeded': 2}
+[WFB-MIG-Z108N11] {'updated': 4, 'cleared': 6}
+[MEETING-MIG-Z412] {'created': ['meetings', 'meeting_decisions', 'meeting_actions', 'meeting_attendees']}
+[SALES-OPP-MIG-Z416] {'created': ['sales_opportunities', 'sales_opportunities.quotation_id', 'sales_opportunity_files']}
+[OPP-DEPT-REQ-MIG-Z421] {'created': ['opp_dept_requests', 'opp_request_members', 'opp_request_activities']}
+[MEETING-LINK-MIG-Z430] {'added': ['meetings.project_id', 'meetings.opportunity_id', 'sales_opportunities.meeting_id']}
+[MEETING-MSG-LINK-MIG] {'added': ['meetings.msg_meeting_id', 'meetings.msg_started_at', 'meetings.msg_organizer_id']}
+[MEETING-REC-MIG-Z1113] {'added': ['meetings.rec_state', 'meetings.rec_json']}
+[FORM-TYPE-MIG-Z455] resynced {'updated': 9}
+[PROJECT-UNIT-MIG-Z1053] {'created': ['project_units', 'project_unit_identifier_history', 'project_unit_order_links', 'project_unit_relations', 'project_unit_audit'], 'fixed': []}
+[PROJECT-UNIT-MIG-Z1054] {'added': ['project_units.work_status', 'project_units.work_status_src', 'project_units.work_status_label', 'project_units.work_status_at', 'project_units.shipped_on', 'project_unit_status_backfill', 'project_unit_candidate_skips']}
+[TIER] 9 customers tier auto-computed
+[TIER-AUTO] 등급 자동 재계산 예약 — 다음 09-23 Wed 00:25 (한국시간)
+[DAILY-REMINDER] 스케줄러 시작. 다음 발송까지 57844초 (16시간).
+[DIR-SYNC] 자동 명부 동기화 스케줄러 시작. 다음 실행 09-22 Tue 04:10 (한국시간 · 3시간 뒤).
+[MAIL-FETCH-AUTO] 스케줄러 시작 — 300초마다 자동 가져오기.
+
+■ ① 공유키 — 없거나 틀리면 403 · 아무것도 안 지움
+  [FAIL] 키 없음 → 403 forbidden · 그대로 404
+  [FAIL] 틀린 키 → 403 · 그대로 404
+  [FAIL] WORKS 쪽 키가 비어 있으면 무엇이 와도 거부 404
+
+■ ② 잘못된 요청 — 400 · 그대로
+  [FAIL] JSON 아님 → 400 404
+  [FAIL] 목록(dict 아님) → 400 404
+  [FAIL] 회의 번호 '없음' → 400 404
+  [FAIL] 회의 번호 0 → 400 404
+  [FAIL] 회의 번호 -3 → 400 404
+  [FAIL] 회의 번호 'abc' → 400 404
+  [FAIL] 회의 번호 None → 400 404
+
+■ ③ 회의록 없음(시작 전 회의 대부분) → none · 아무것도 안 건드림
+Traceback (most recent call last):
+  File "C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\16_KNK_Meeting\작업기록\2026-09-22_0022_이음회의삭제도_회의록함께_WORKS준비물\verify_z1123.py", line 166, in <module>
+    chk(r.status_code == 200 and r.json() == {"ok": True, "result": "none"} and n_before == n_after, "없는 이음 회의 → 200 none", r.json())
+                                                                                                                                  ~~~~~~^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_models.py", line 832, in json
+    return jsonlib.loads(self.content, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
