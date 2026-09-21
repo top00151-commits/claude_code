@@ -5504,12 +5504,15 @@ async def api_meeting_msg_status(req: Request):
                 continue
             m = dict(row)
             can_view = bool(viewer) and _can_view_meeting(c, viewer, m)
-            _rv = _rec_view(m)       # z1114: 녹음 중인가 · 서버에 저장된 초(창이 닫혀 끊긴 녹음도)
+            _rv = _rec_view(m, viewer)   # z1114: 녹음 중인가 · 서버에 저장된 초(창이 닫혀 끊긴 녹음도)
             it = {"stage": _meeting_msg_stage(m), "can_view": can_view,
                   "started_by": _msg_owner_disp(c, m.get("owner_id")),
                   "started_at": m.get("msg_started_at") or "",
                   "recording": _rv["state"] == "recording",
-                  "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0}
+                  "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0,
+                  # z1121: 보는 사람이 그 녹음을 시작했나 — 창을 닫아 멈춘 녹음이면 이음 카드 단추를 그 사람에게만
+                  #   「🎙 이어서 녹음」으로(대표 지시 2026-09-21 · 세션 10). WORKS 회의 화면의 REC.mine(z1120)과 같은 판단.
+                  "rec_mine": _rv["state"] == "recording" and bool(_rv["mine"])}
             if can_view:                  # 볼 수 없는 사람에겐 회의록 주소 자체를 주지 않는다
                 it["meeting_id"] = m["id"]
                 # 「📋 회의록 보기」 착지 (대표 지시 2026-09-16): 정리가 끝났으면 **회의록 양식**으로 바로.
