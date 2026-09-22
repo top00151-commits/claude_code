@@ -202,7 +202,8 @@
           if (mn.dec_cnt) out += '<span class="cnt-badge">✔ 결정 ' + (+mn.dec_cnt) + '</span>';
           if (mn.act_cnt) out += '<span class="cnt-badge">📌 할일 ' + (+mn.act_cnt) + '</span>';
         } else {
-          out += '<a class="mc-btn" href="' + esc(mn.url) + '">📝 회의록 화면</a>';
+          // z1124 (대표 지시 2026-09-22 「회의록 열기로 맞춰」): 이음 회의 카드(v807 · 진행 중·정리 중·실패)와 같은 이름 — 가는 곳은 그대로
+          out += '<a class="mc-btn" href="' + esc(mn.url) + '">📋 회의록 열기</a>';
         }
       }
       return out ? '<div class="mc-min">' + out + '</div>' : '';
@@ -346,7 +347,7 @@
     body.addEventListener('click', function(e){
       if (e.target && e.target.closest && e.target.closest('[data-mc-retry]')) loadFirst();
     });
-    // z1122: 카드 빈 곳 = 그 카드의 회의록 단추(이어서 녹음·회의록 화면·회의록 보기)와 같게 — 이음 v817 과 같은 규칙.
+    // z1122: 카드 빈 곳 = 그 카드의 회의록 단추(이어서 녹음·회의록 열기·회의록 보기)와 같게 — 이음 v817 과 같은 규칙.
     //   단추·링크·입력·글자 고르기·오른쪽 버튼은 예전대로 · 단추가 없는 카드는 아무 일 없음.
     body.addEventListener('click', function(e){
       if (e.defaultPrevented || e.button) return;
