@@ -4276,6 +4276,10 @@ async def api_meeting_delete(req: Request, mid: int):
         # 자식(결정·할일·참석자)은 FK ON DELETE CASCADE 로 정리.
         # 단, 일일카드(tasks)로 연동된 것은 카드 자체를 지우지 않음(이미 독립 업무).
         c.execute("DELETE FROM meetings WHERE id=?", (mid,))
+    # z1125 (대표 결정 2026-09-26): 그 회의의 녹음 파일도 함께 — 디스크가 느릴 수 있어 스레드에서
+    #   🔴 이음과 무관한 회의는 위 블록을 건너뛰어 run_in_threadpool 이름이 없다 → 여기서 다시 불러온다
+    from starlette.concurrency import run_in_threadpool
+    await run_in_threadpool(_meeting_audio_purge, mid)
     try:   # z1122: 「🗓 회의 카드 모아보기」가 30초 저장본을 보여 주지 않게 — 지운 회의가 바로 빠진다
         with _MSG_CARDS_LOCK:
             _MSG_CARDS_CACHE.clear()
@@ -4464,6 +4468,37 @@ async def api_meeting_action_to_daily(req: Request, mid: int, aid: int):
         except Exception:
             pass
     return JSONResponse({"ok": True, "task_id": tid, "assigned_to": target_uid})
+
+
+def _meeting_audio_purge(mid: int) -> dict:
+    """회의록을 지울 때 그 회의의 녹음 파일도 함께 지운다 (z1125 · 대표 결정 2026-09-26 「지울때 함께 지워」).
+    전에는 DB 줄만 지우고 `meeting_audio/meeting_<번호>/` 는 서버에 남았다(화면에선 안 보이지만 파일은 남음).
+    🔴 그 회의 폴더 하나만 — 폴더 이름·경로를 다시 확인해 `meeting_audio` 밖이나 `_share`(아직 어느 회의인지 정해지지 않은 파일)는 건드리지 않는다.
+    🔴 지우다 실패해도 회의록 삭제는 이미 끝났다 → 실패는 기록만 남기고 넘어간다(삭제를 되돌리지 않는다).
+    디스크가 느릴 수 있어(NAS) 부르는 쪽에서 스레드로 돌린다."""
+    out = {"files": 0, "bytes": 0}
+    try:
+        mid = int(mid)
+        base = os.path.abspath("meeting_audio")
+        d = os.path.abspath(os.path.join("meeting_audio", f"meeting_{mid}"))
+        if os.path.basename(d) != f"meeting_{mid}" or os.path.dirname(d) != base:
+            print(f"[MEETING-AUDIO] 지우지 않음(폴더 자리가 이상): {d}")
+            return out
+        if not os.path.isdir(d):
+            return out
+        for root, _dirs, files in os.walk(d):
+            for fn in files:
+                out["files"] += 1
+                try:
+                    out["bytes"] += os.path.getsize(os.path.join(root, fn))
+                except OSError:
+                    pass
+        import shutil as _sh
+        _sh.rmtree(d)
+        print(f"[MEETING-AUDIO] 회의 {mid} 녹음 파일 {out['files']}개({out['bytes'] // 1024}KB) 함께 지움")
+    except Exception as _e:
+        print(f"[MEETING-AUDIO] 녹음 파일 지우기 실패(회의록은 지워짐): {type(_e).__name__}: {str(_e)[:160]}")
+    return out
 
 
 # ── 모드 B: 음성 녹음 → Whisper 음성→글자 (z412+ ) ──────────────────────────
@@ -5602,6 +5637,9 @@ async def api_meeting_msg_delete(req: Request):
                                  team_id=viewer.get("team_id"))
                 except Exception as _le:
                     print(f"[MEETING-MSG] 활동기록 실패(삭제는 완료): {_le}")
+    if out.get("result") == "deleted":   # z1125: 그 회의의 녹음 파일도 함께(대표 결정 2026-09-26)
+        from starlette.concurrency import run_in_threadpool
+        await run_in_threadpool(_meeting_audio_purge, out["works_meeting_id"])
     try:   # 이음 회의가 곧 지워진다 — 「🗓 회의 카드 모아보기」 30초 저장본을 비워 바로 빠지게(z1122 와 같게)
         with _MSG_CARDS_LOCK:
             _MSG_CARDS_CACHE.clear()
