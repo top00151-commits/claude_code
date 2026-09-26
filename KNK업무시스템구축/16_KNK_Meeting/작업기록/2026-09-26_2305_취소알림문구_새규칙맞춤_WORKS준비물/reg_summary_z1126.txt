@@ -1,0 +1,32 @@
+시작 전 89xx 듣는 포트: 0
+== ui_rec: 합계: 통과 26 · 실패 1
+FAIL 화면 오류 없음 · ['pageerror Transition was aborted because of invalid state. Viewport size changed']
+== phone_fit_rec: 합계: 통과 31 · 실패 0
+== ui_back: 합계: 통과 35 · 실패 0
+== ui_phrec: 통과 44 / 실패 0
+== ui_lead: 합계: 통과 26 · 실패 0
+== ui_first: 합계: 통과 25 · 실패 0
+== ui_share: 합계: 통과 16 · 실패 0
+== ui_cards_rec: 합계: 통과 23 · 실패 0
+== mic_text_test: 결과: 16/16 통과
+== pw_guard: ===== 통과 62 · 실패 0 =====
+== ui_resume: 합계: 통과 74 · 실패 0
+== ui_test_cards_z1124: 결과: 44/44 통과
+READY app_new 8942 (26s)
+== ui_del_z1124: 합계: 통과 46 · 실패 0
+READY app_new 8942 (25s)
+== ui_z1126: 합계: 통과 13 · 실패 0
+== verify_rec: 합계: 통과 55 · 실패 0
+== verify_share: 합계: 통과 48 · 실패 0
+== verify_msg_rec: 합계: 통과 14 · 실패 0
+== verify_cards_rec: 합계: 통과 17 · 실패 0
+== verify_msg_mine: 합계: 통과 14 · 실패 0
+== verify_cards: 결과: 80 통과 / 0 실패
+== verify_del: 합계: 통과 33 · 실패 0
+== verify_z1123: 합계: 통과 45 · 실패 0
+== verify_z1126: 합계: 통과 21 · 실패 0
+끝난 뒤 89xx 듣는 포트: 0
+ALLDONE
+
+── 따로 다시(23:34~23:36)
+== ui_rec 다시: 합계: 통과 27 · 실패 0

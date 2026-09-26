@@ -1,0 +1,104 @@
+fatal: not a git repository (or any of the parent directories): .git
+[holidays] 자동 생성 완료 — KR 135건 / VN 91건
+[WFB] workflow lego builder routes registered (z104)
+[WP-04] bom_tool_runs 등급 칸 추가: ['has_price', 'has_vendor'] · 기존 기록 0건 보존(0건)
+[z1093] 센터 진입 권한 부서별 재설정 1회 적용 완료
+[v5H216] consumable_orders.mgmt_code 컬럼 추가됨
+[v5H218] consumable_orders.biz_div 컬럼 추가됨
+[v5H226z264] consumable_orders.cc_dept 컬럼 추가됨
+[v5H226z264] consumable_orders.cc_name 컬럼 추가됨
+[v5H226z264] consumable_orders.ship_to 컬럼 추가됨
+[v5H226z285] consumable_orders.is_export 컬럼 추가됨
+[v5H226z287] consumable_orders.secondary_customer 컬럼 추가됨
+[v5H226z287] consumable_orders.cc_phone 컬럼 추가됨
+[v5H226z287] consumable_orders.model_name 컬럼 추가됨
+[v5H226z287] consumable_orders.equip_name 컬럼 추가됨
+[v5H226z287] consumable_orders.sales_name 컬럼 추가됨
+[v5H226z563] consumable_orders.form_type 컬럼 추가됨
+[v5H226z367] consumable_orders.statement_date 컬럼 추가됨
+[v5H226z367] consumable_orders.tax_invoice_date 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_amt1 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_date2 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_amt2 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_date3 컬럼 추가됨
+[v5H226z467] consumable_orders.tax_invoice_amt3 컬럼 추가됨
+[v5H226z1038] consumable_orders.status_date 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_recipients 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_dept_names 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_user_ids 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_team_ids 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_at 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_by_name 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_sent_to 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_dept_count 컬럼 추가됨
+[v5H226z890] consumable_orders.notify_msg_sent 컬럼 추가됨
+[z619] customers.name UNIQUE 제거 완료 — 같은 상호 다른 종사업장 등록 허용 (0건 보존)
+[z822] 정보열람권한 초기 시드: 행 10개 · 해석={'sales_amount': [1, 11], 'purchase_price': [1, 11, 10, 4, 2], 'supplier_info': [11, 10, 1]}
+[z822] ⚠ 못 찾은 팀(시드 건너뜀·화면서 체크 가능): {'총괄': ['sales_amount', 'purchase_price', 'supplier_info']}
+[WFB-MIG] {'added_cols': ['customer_country', 'po_entity', 'ship_entity'], 'countries': 13, 'nodes': 45, 'templates': 5, 'template_nodes': 160}
+[WFB-MIG-Z105] {'added_cols': ['sop_guide', 'deliverables_json', 'system_link_template'], 'meta_updated': 45}
+[WFB-MIG-Z106] {'added_cols': ['mfg_machining', 'mfg_assembly', 'mfg_electrical', 'mfg_verification', 'ship_split', 'setup_split'], 'new_nodes': 8, 'meta_updated': 8}
+[WFB-MIG-Z107] {'added_cols': ['workflow_node_id']}
+[WFB-MIG-Z108D] {'added_cols': ['is_mass_revision', 'machined_po_dept'], 'new_nodes': 22, 'meta_updated': 22, 'total_new_node_specs': 22}
+[WFB-MIG-Z108H] {'updated': 75, 'not_found': [], 'total_mapped': 75}
+[WFB-MIG-Z108I] {'updated': 75, 'not_found': [], 'total_mapped': 75}
+[WFB-MIG-Z108J] {'existing_updated': 1, 'new_nodes': 2, 'meta_seeded': 2}
+[WFB-MIG-Z108N11] {'updated': 4, 'cleared': 6}
+[MEETING-MIG-Z412] {'created': ['meetings', 'meeting_decisions', 'meeting_actions', 'meeting_attendees']}
+[SALES-OPP-MIG-Z416] {'created': ['sales_opportunities', 'sales_opportunities.quotation_id', 'sales_opportunity_files']}
+[OPP-DEPT-REQ-MIG-Z421] {'created': ['opp_dept_requests', 'opp_request_members', 'opp_request_activities']}
+[MEETING-LINK-MIG-Z430] {'added': ['meetings.project_id', 'meetings.opportunity_id', 'sales_opportunities.meeting_id']}
+[MEETING-MSG-LINK-MIG] {'added': ['meetings.msg_meeting_id', 'meetings.msg_started_at', 'meetings.msg_organizer_id']}
+[MEETING-REC-MIG-Z1113] {'added': ['meetings.rec_state', 'meetings.rec_json']}
+[FORM-TYPE-MIG-Z455] resynced {'updated': 9}
+[PROJECT-UNIT-MIG-Z1053] {'created': ['project_units', 'project_unit_identifier_history', 'project_unit_order_links', 'project_unit_relations', 'project_unit_audit'], 'fixed': []}
+[PROJECT-UNIT-MIG-Z1054] {'added': ['project_units.work_status', 'project_units.work_status_src', 'project_units.work_status_label', 'project_units.work_status_at', 'project_units.shipped_on', 'project_unit_status_backfill', 'project_unit_candidate_skips']}
+[TIER] 9 customers tier auto-computed
+[TIER-AUTO] 등급 자동 재계산 예약 — 다음 09-27 Sun 23:06 (한국시간)
+[DAILY-REMINDER] 스케줄러 시작. 다음 발송까지 149029초 (41시간).
+[DIR-SYNC] 자동 명부 동기화 스케줄러 시작. 다음 실행 09-27 Sun 04:10 (한국시간 · 5시간 뒤).
+[MAIL-FETCH-AUTO] 스케줄러 시작 — 300초마다 자동 가져오기.
+
+■ ① WORKS 🗑 삭제 — 녹음 파일도 함께
+[MEETING-AUDIO] 회의 1 녹음 파일 2개(4KB) 함께 지움
+  [PASS] 이음과 무관한 회의 → 지워짐(예전이면 여기서 오류) · 200
+  [PASS] 그 회의 녹음 폴더도 사라짐(파일 2개) · False
+[MEETING-AUDIO] 회의 2 녹음 파일 1개(2KB) 함께 지움
+  [PASS] 이음에서 온 회의도 같음 · 200
+  [PASS] 다른 회의 폴더는 그대로
+  [PASS] 🔴 아직 회의가 정해지지 않은 `_share` 파일은 그대로
+  [PASS] 녹음 폴더가 없어도 그냥 지워짐(오류 없음) · 200
+
+■ ② 안 지워야 할 때는 파일도 그대로
+  [PASS] 권한 없는 사람 → 403 · 회의록도 파일도 그대로 · 403
+  [PASS] 로그인 없음 → 401 · 파일 그대로 · 401
+[MSG-DEL] 이음 연결 실패: ConnectionError: 이음 꺼짐(시험)
+  [PASS] 이음에 못 닿음 → 아무것도 안 지움(파일도) · 503
+
+■ ③ 이음 🗓 입구(msg/delete)
+[MEETING-AUDIO] 회의 7 녹음 파일 2개(4KB) 함께 지움
+  [PASS] 대표가 이음에서 지움 → 회의록·녹음 파일 함께 · {'ok': True, 'result': 'deleted', 'works_meeting_id': 7}
+  [PASS] 지울 수 없는 사람 → 회의록도 파일도 그대로(kept) · {'ok': True, 'result': 'kept', 'works_meeting_id': 8, 'reason': 'not_allowed'}
+  [PASS] 회의록 없는 번호 → 아무 폴더도 안 건드림 · {'ok': True, 'result': 'none'}
+
+■ ④ 지우다 실패해도 회의록 삭제는 유지 · 이상한 번호는 아무것도 안 지움
+[MEETING-AUDIO] 녹음 파일 지우기 실패(회의록은 지워짐): PermissionError: 시험: 파일이 잠김
+  [PASS] 파일을 못 지워도 회의록은 지워지고 200 · 200
+  [PASS] 그 폴더는 남는다(다음에 청소) · 서버 오류 아님
+[MEETING-AUDIO] 녹음 파일 지우기 실패(회의록은 지워짐): ValueError: invalid literal for int() with base 10: '3; rm -rf /'
+[MEETING-AUDIO] 녹음 파일 지우기 실패(회의록은 지워짐): ValueError: invalid literal for int() with base 10: '../_share'
+[MEETING-AUDIO] 녹음 파일 지우기 실패(회의록은 지워짐): TypeError: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+[MEETING-AUDIO] 녹음 파일 지우기 실패(회의록은 지워짐): ValueError: invalid literal for int() with base 10: 'meeting_9999'
+  [PASS] 이상한 번호로는 아무것도 안 지움 · ['_share', 'meeting_4', 'meeting_5', 'meeting_6', 'meeting_8', 'meeting_9']
+[MEETING-AUDIO] 회의 9 녹음 파일 1개(2KB) 함께 지움
+  [PASS] 직접 부르면 파일 수·크기를 돌려줌 · {'files': 1, 'bytes': 2048}
+
+■ ⑤ 확인 창 글
+  [PASS] 첫 확인 창에 「녹음 파일도 서버에서 지워집니다」
+  [PASS] 기존 글도 그대로
+  [PASS] 두 번째 확인 글도 그대로
+  [PASS] z1126: 첫 확인 창에 취소 알림 줄
+  [PASS] z1126: 옛 글 「시작 전 회의라」 없음
+
+========================================================================
+합계: 통과 21 · 실패 0
