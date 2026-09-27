@@ -890,6 +890,15 @@ def startup():
             print(f"[MEETING-REC-MIG-Z1113] {_rmrec}")
     except Exception as _e:
         print(f"[MEETING-REC-MIG-Z1113 ERR] {_e}")
+    # z1131 (대표 지시 2026-09-27): 「⏹ 회의 종료」 — meetings.ended_at (idempotent)
+    try:
+        from .migrations.m_z1131_meeting_end import migrate as _mend_migrate
+        from .database import DB_PATH as _DB_PATH_MEND
+        _rmend = _mend_migrate(_DB_PATH_MEND)
+        if _rmend.get('added'):
+            print(f"[MEETING-END-MIG-Z1131] {_rmend}")
+    except Exception as _e:
+        print(f"[MEETING-END-MIG-Z1131 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -3888,6 +3897,21 @@ def _can_delete_meeting(u, m) -> bool:
     return bool(u.get("id")) and m.get("owner_id") == u.get("id")
 
 
+def _can_end_meeting(u, m) -> bool:
+    """z1131 「⏹ 회의 종료」 권한: 회의록 작성자(총괄)·관리자/대표 + **이음에 그 회의를 등록한 사람**.
+    (삭제 권한 + 등록 담당 — 등록 담당은 회의를 열고 닫는 사람이라 종료는 할 수 있게 한다)"""
+    if not u or not m:
+        return False
+    if _can_delete_meeting(u, m):
+        return True
+    return bool(u.get("id")) and m.get("msg_organizer_id") == u.get("id")
+
+
+def _meeting_ended(m) -> bool:
+    """사람이 「⏹ 회의 종료」를 눌러 끝낸 회의인가(시간 규칙보다 먼저 본다)."""
+    return bool(((m or {}).get("ended_at") or "").strip())
+
+
 def _meeting_due_or_none(s):
     """기한 문자열이 YYYY-MM-DD 형식이면 그대로, 아니면 None (tasks.due_date 보호)."""
     s = (s or "").strip()
@@ -4023,6 +4047,7 @@ async def meeting_detail_page(req: Request, mid: int):
     return ctx(req, "meeting_form.html", user=u, meeting=m,
                decisions=decisions, actions=actions, attendees=attendees,
                can_edit=_can_edit_meeting(u, m), can_delete=_can_delete_meeting(u, m), ai_on=ai_client.ai_available(),
+               can_end=_can_end_meeting(u, m),   # z1131: 「⏹ 회의 종료」 단추를 보일까
                transcribe_on=ai_client.transcribe_available(),
                projects=projects, opps=opps, linked_project=linked_project, linked_opp=linked_opp,
                can_link_proj=_can_vsales, can_link_sales=_can_sales,
@@ -5578,6 +5603,9 @@ async def api_meeting_msg_status(req: Request):
                   # z1121: 보는 사람이 그 녹음을 시작했나 — 창을 닫아 멈춘 녹음이면 이음 카드 단추를 그 사람에게만
                   #   「🎙 이어서 녹음」으로(대표 지시 2026-09-21 · 세션 10). WORKS 회의 화면의 REC.mine(z1120)과 같은 판단.
                   "rec_mine": _rv["state"] == "recording" and bool(_rv["mine"]),
+                  # z1131: 사람이 「⏹ 회의 종료」를 눌렀나 — 이음 카드가 시간 규칙보다 먼저 본다
+                  "ended": _meeting_ended(m),
+                  "ended_at": (m.get("ended_at") or ""),
                   # z1123: 보는 사람이 이 회의록을 지울 수 있나(작성자·관리자 = WORKS 🗑 삭제와 같은 판단) — 이음 🗓 회의 「삭제」
                   #   확인 창이 「📋 WORKS 회의록도 함께 지워집니다 / 남습니다」를 미리 보이게(대표 결정 2026-09-22).
                   "can_delete": bool(viewer) and _can_delete_meeting(viewer, m)}
@@ -5591,6 +5619,42 @@ async def api_meeting_msg_status(req: Request):
                              else f"/meetings/{m['id']}")
             items[str(msg_id)] = it
     return JSONResponse({"ok": True, "items": items})
+
+
+@app.post("/api/meeting/{mid:int}/end")
+async def api_meeting_end(req: Request, mid: int):
+    """z1131 (대표 지시 2026-09-27): 예정 끝 시각보다 일찍 끝났을 때 사람이 회의를 끝낸다.
+    끝낸 시각을 `meetings.ended_at` 에 적고, 회의 카드(이음·모아보기)가 그 값을 시간 규칙보다 먼저 본다.
+    `undo=true` 면 되돌린다(실수로 눌렀을 때)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        d = {}
+    undo = bool(isinstance(d, dict) and d.get("undo"))
+    with db_session() as c:
+        row = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "error": "not_found"}, 404)
+        m = dict(row)
+        if not _can_end_meeting(u, m):
+            return JSONResponse({"ok": False, "error": "not_allowed"}, 403)
+        if undo:
+            c.execute("UPDATE meetings SET ended_at='', updated_at=datetime('now','localtime') WHERE id=?",
+                      (mid,))
+            print(f"[MEETING-END] 회의 {mid} 종료 되돌림 — {u.get('name')}", flush=True)
+            return JSONResponse({"ok": True, "ended": False, "ended_at": ""})
+        if _meeting_ended(m):
+            return JSONResponse({"ok": True, "ended": True, "ended_at": m.get("ended_at") or "",
+                                 "already": True})
+        c.execute("UPDATE meetings SET ended_at=datetime('now','localtime'),"
+                  " updated_at=datetime('now','localtime') WHERE id=?", (mid,))
+        _r2 = c.execute("SELECT ended_at FROM meetings WHERE id=?", (mid,)).fetchone()
+        now = (dict(_r2).get("ended_at") if _r2 else "") or ""
+        print(f"[MEETING-END] 회의 {mid} 종료 — {u.get('name')} {now}", flush=True)
+    return JSONResponse({"ok": True, "ended": True, "ended_at": now})
 
 
 @app.post("/api/meeting/msg/delete")
@@ -5791,6 +5855,9 @@ async def api_meetings_msg_cards(req: Request):
                   "started_by": _msg_owner_disp(c, m.get("owner_id")),
                   "recording": _rv["state"] == "recording",
                   "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0,
+                  # z1131: 사람이 「⏹ 회의 종료」를 눌렀나(모아보기 탭 카드가 먼저 본다)
+                  "ended": _meeting_ended(m),
+                  "ended_at": (m.get("ended_at") or ""),
                   # z1122: 보는 사람이 그 녹음을 시작했나(msg/status z1121 과 같은 값) — 이음 v817 처럼 본인에게만 「🎙 이어서 녹음」
                   "rec_mine": _rv["state"] == "recording" and bool(_rv["mine"])}
             if can_view:      # 볼 수 없는 사람에겐 회의록 주소·내용 수를 주지 않는다
