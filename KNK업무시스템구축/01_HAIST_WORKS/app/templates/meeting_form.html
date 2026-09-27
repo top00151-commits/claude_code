@@ -136,6 +136,9 @@
 .phrec-lead-ttl { font-size:16px; font-weight:800; color: var(--knk-red); margin-bottom:6px; }
 .phrec-lead-sub { font-size:13px; line-height:1.75; color:#7C2D12; }
 .phrec-lead-slot { margin:12px 0; }
+.phrec-lead-slot .rec-phone.alt { background: var(--qv-surface) !important; color: var(--qv-ink) !important;
+  border:1px solid var(--qv-line-3) !important; font-size:14px !important; font-weight:700 !important;
+  padding:12px 14px !important; margin-top:8px; }   /* z1127: 불려 나온 녹음기는 둘째 선택 */
 .phrec-lead-slot .rec-phone { width:100%; border:0; border-radius:14px; padding:18px 16px;
   font-size:18px; font-weight:800; background: var(--knk-red); color:#fff; cursor:pointer;
   display:flex; align-items:center; justify-content:center; gap:8px; }
@@ -221,7 +224,8 @@
       <div class="start-btns">
         <!-- z1115: 휴대폰은 다른 앱으로 넘어가면 OS 가 마이크를 막는다(2026-09-20 실측 95초 무음)
              → 안 끊기는 길(휴대폰 기본 녹음기)을 맨 위에. 안드로이드에서만 보인다(iOS 는 녹음기가 안 열림). -->
-        <label class="start-big rec-phone" id="recPhoneRecWrap" hidden>📱 휴대폰 녹음기로 녹음&nbsp;<span class="start-sub">다른 앱을 봐도 끊기지 않아요</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
+        <button class="start-big rec-phone" type="button" id="recOpenApp" hidden>📱 녹음기 앱 열기&nbsp;<span class="start-sub">다른 앱을 봐도 계속 녹음돼요</span></button>
+        <label class="start-big rec-phone alt" id="recPhoneRecWrap" hidden>📱 녹음기로 바로 녹음&nbsp;<span class="start-sub">짧은 회의용 — 다른 앱으로 가면 저장되고 끝납니다</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
         <button class="start-big rec-btn" id="recBtn">🎙 녹음하며 회의&nbsp;<span class="start-sub">누르면 바로 녹음</span></button>
         <div class="start-row">
           <label class="start-mid rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
@@ -427,7 +431,8 @@
         <div class="redo-row">
           <button class="btn btn-primary rec-btn" id="recBtn">🎙 녹음 추가</button>
           <button class="btn btn-secondary" id="recPauseBtn" hidden>⏸ 일시정지</button>
-          <label class="btn btn-primary rec-phone" id="recPhoneRecWrap" hidden><span id="recPhoneBtnLbl">📱 휴대폰 녹음기로 녹음</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
+          <button class="btn btn-primary rec-phone" type="button" id="recOpenApp" hidden>📱 녹음기 앱 열기</button>
+          <label class="btn btn-secondary rec-phone alt" id="recPhoneRecWrap" hidden><span id="recPhoneBtnLbl">📱 녹음기로 바로 녹음(짧은 회의)</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
           <label class="btn btn-secondary rec-file">📁 음성 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
           <button class="btn btn-secondary" id="btnExtract" {% if not ai_on %}disabled title="AI 키가 설정되어 있지 않습니다(관리자 → AI 설정). 그 전에는 아래에서 직접 추가하세요."{% endif %}>🔄 다시 정리</button>
           <span class="rec-time" id="recTime" hidden>● 00:00</span>
@@ -1480,6 +1485,49 @@ window.__MTG = {
         recSt('휴대폰 녹음기가 열립니다 — 회의가 끝나면 녹음기에서 저장하세요. 이 화면으로 돌아오면 자동으로 올라갑니다.');
       }
     });
+  }
+
+  // ── z1127 「📱 녹음기 앱 열기」 — 다른 앱을 봐도 끊기지 않는 유일한 길 (대표 실사 2026-09-26) ──
+  //   🔴 `capture` 로 연 녹음기는 **불려 나온 모드**: 파일 하나를 돌려주는 것이 임무라 다른 앱으로 넘어가면
+  //      녹음을 끝내고 저장해 버리고, 길이 상한도 걸린다(대표 사진 「최대: 05:16」).
+  //   ⭐ 녹음기 **앱 자체**를 열면(LAUNCHER intent) 알림줄에 남아 다른 앱을 봐도 계속 녹음된다.
+  //      끝난 파일은 녹음기에서 「공유 → KNK WORKS」(설치된 앱) 또는 이 화면 「📁 음성 파일 올리기」로 붙인다.
+  //   🔴 크롬이 못 열면(그 앱이 없거나 막힘) `S.browser_fallback_url` 로 이 화면에 ?recapp=manual 로 돌아온다.
+  function recAppIntentUrl(){
+    var back=location.href.split('#')[0].replace(/[?&]recapp=manual/, '');
+    back += (back.indexOf('?')<0?'?':'&') + 'recapp=manual';
+    var ua=navigator.userAgent||'';
+    var pkg=/SM-|SAMSUNG|Galaxy|SC-\d|SCV\d/i.test(ua) ? 'com.sec.android.app.voicenote'
+                                                        : 'com.google.android.apps.recorder';
+    return 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;'
+         + 'package='+pkg+';S.browser_fallback_url='+encodeURIComponent(back)+';end';
+  }
+  try{ window.__knkRecAppUrl=recAppIntentUrl; }catch(_){}   // 시험이 주소를 들여다볼 수 있게
+  var _appBtn=$('recOpenApp');
+  if(_appBtn&&_isAndroid){
+    _appBtn.hidden=false;
+    _appBtn.addEventListener('click',function(){
+      // 회의록을 먼저 만들어 두고(기다리지 않는다 — 기다리면 '누름'이 풀린다), 목록 표시줄에 남긴다
+      if(!_phSaving){
+        _phSaving=Promise.resolve().then(ensureMeetingSaved).then(function(ok){
+          if(ok) phrecMark(M.id, (($('mtgTitle')||{}).value)||'');
+          return ok;
+        }).catch(function(){ return false; });
+      } else if(M.id){ phrecMark(M.id, (($('mtgTitle')||{}).value)||''); }
+      _phrecChosen=true;
+      try{ if(_phFallback){ clearTimeout(_phFallback); _phFallback=null; } }catch(_){}
+      if(_mr && _mr.state!=='inactive'){          // 이 화면 녹음이 돌고 있으면 깨끗이 마치고 넘긴다
+        _recHandoff=true;
+        try{ recStop(); }catch(_){}
+      } else if(_recOpen && REC.mine){            // 창이 닫혀 멈춘 내 녹음이 서버에 열려 있으면 닫아 둔다
+        _recOpen=false; recResumeShow(false); recNetFinish();
+      }
+      recSt('녹음기 앱을 엽니다 — 거기서 녹음을 시작하세요. 다른 앱을 봐도 끊기지 않습니다. '
+           +'회의가 끝나면 녹음기에서 「공유 → KNK WORKS」로 이 회의를 고르면 자동으로 정리됩니다.');
+      try{ location.href=recAppIntentUrl(); }catch(_){}
+    });
+  }
+  if(_phWrap&&_phIn&&_isAndroid){
     // 휴대폰에선 이 화면 녹음이 '두 번째 선택' — 색으로만 구분한다
     //   (글자는 그대로 둔다: 이음 안내 4개 언어가 「🎙 녹음하며 회의」라는 이름을 그대로 쓴다)
     var _rb=$('recBtn'); if(_rb&&_rb.classList.contains('start-big')) _rb.classList.add('alt');
@@ -1492,27 +1540,47 @@ window.__MTG = {
   function phrecLeadShow(mode, footHtml){
     var lead=$('recPhoneLead'), slot=$('recPhoneLeadSlot');
     if(!lead||!slot||!_phWrap||!_isAndroid) return;
-    try{ slot.appendChild(_phWrap); }catch(_){ return; }   // 단추는 하나만 둔다(입력이 둘이 되지 않게)
+    try{ if(_appBtn) slot.appendChild(_appBtn); slot.appendChild(_phWrap); }catch(_){ return; }   // 단추는 하나씩만 둔다(입력이 둘이 되지 않게 · z1127: 녹음기 앱 열기가 먼저)
     var t=$('recPhoneLeadTtl'), w=$('recPhoneLeadWhy'), ft=$('recPhoneLeadFoot'), bl=$('recPhoneBtnLbl');
-    if(mode==='first'){
+    if(mode==='manual'){
+      // z1127: 크롬이 녹음기 앱을 못 열었다(그 앱이 없거나 막힘) — 손으로 여는 길
+      if(t) t.textContent='📱 녹음기 앱을 자동으로 열지 못했습니다';
+      if(w) w.innerHTML='휴대폰 홈 화면에서 <b>「음성 녹음」</b>(녹음기) 앱을 직접 열어 녹음을 시작해 주세요 — '
+        +'그렇게 하면 <b>다른 앱을 보거나 화면이 꺼져도 계속 녹음</b>됩니다. 회의가 끝나면 녹음기에서 '
+        +'<b>「공유 → KNK WORKS」</b>로 이 회의를 고르거나, 이 화면의 <b>「📁 음성 파일 올리기」</b>로 붙이세요.';
+      if(ft) ft.innerHTML='급하면 아래 <b>「📱 녹음기로 바로 녹음(짧은 회의)」</b>도 쓸 수 있습니다 — '
+        +'다만 그 길은 <b>다른 앱으로 넘어가면 녹음이 저장되고 끝납니다</b>.';
+    } else if(mode==='first'){
       // z1118: 안드로이드 기본 — 이 화면 녹음을 아직 켜지 않았다. 녹음이 '아직 안 됐다'는 것부터 분명히.
       if(t) t.textContent='🔴 아직 녹음이 시작되지 않았습니다';
-      if(bl) bl.textContent='📱 녹음기로 회의 녹음 시작';
-      if(w) w.innerHTML='누르면 <b>휴대폰 녹음기</b>가 열립니다 — 다른 앱을 보거나 화면이 꺼져도 '
-        +'<b>녹음이 끊기지 않습니다</b>. 녹음을 마치고 저장하면 이 화면으로 돌아와 <b>자동으로 정리</b>됩니다.';
+      if(bl) bl.textContent='📱 녹음기로 바로 녹음(짧은 회의)';
+      if(w) w.innerHTML='<b>「📱 녹음기 앱 열기」</b>를 누르면 휴대폰 <b>녹음기 앱</b>이 열립니다 — 거기서 녹음을 시작하면 '
+        +'<b>다른 앱을 보거나 화면이 꺼져도 계속 녹음</b>됩니다. 회의가 끝나면 녹음기에서 '
+        +'<b>「공유 → KNK WORKS」</b>로 이 회의를 고르면 자동으로 정리됩니다.';
       if(ft) ft.innerHTML='<b>30초 안에 누르지 않으면</b> 이 화면에서 녹음을 시작합니다'
         +'(그때는 <b>이 화면을 켠 채로</b> 두셔야 합니다).';
     } else {
-      if(t) t.textContent='📱 이 회의, 휴대폰 녹음기로 녹음하시겠어요?';
-      if(bl) bl.textContent='📱 휴대폰 녹음기로 녹음';
+      if(t) t.textContent='📱 이 회의, 녹음기 앱으로 녹음하시겠어요?';
+      if(bl) bl.textContent='📱 녹음기로 바로 녹음(짧은 회의)';
       if(w) w.innerHTML='이 화면 녹음은 <b>다른 앱으로 넘어가면 그동안 소리가 들어오지 않습니다</b>'
-        +'(2026-09-20 실측 95초). 녹음기로 바꾸면 <b>다른 앱을 써도 끊기지 않고</b>, 지금까지 녹음한 것도 그대로 이어집니다.';
+        +'(2026-09-20 실측 95초). <b>「📱 녹음기 앱 열기」</b>로 바꾸면 <b>다른 앱을 써도 계속 녹음</b>되고, '
+        +'지금까지 녹음한 것도 그대로 이어집니다(끝나면 「공유 → KNK WORKS」).';
       if(ft) ft.innerHTML='이 화면에서 계속 녹음하시려면 이 안내를 지나치세요 — 다만 <b>화면을 켠 채로</b> 두셔야 합니다.';
     }
     if(ft && footHtml) ft.innerHTML=footHtml;   // z1118: 왜 이렇게 됐는지는 상자에 남긴다(상태줄은 곧 덮인다)
-    _phWrap.hidden=false; lead.hidden=false;
+    _phWrap.hidden=false; if(_appBtn&&_isAndroid) _appBtn.hidden=false; lead.hidden=false;
     try{ lead.scrollIntoView({block:'start'}); }catch(_){}
   }
+  // z1127: 녹음기 앱을 자동으로 못 열어 되돌아왔다(?recapp=manual) → 손으로 여는 길을 안내
+  //   상세 화면에는 상자가 있고, 새 회의록 화면에는 상자가 없다 → 그때는 상태줄로 같은 말을 한다
+  try{
+    if(_isAndroid && /[?&]recapp=manual(&|$)/.test(location.search)){
+      var _rt0=$('redoTools'); if(_rt0) _rt0.open=true;   // 접혀 있으면 상자가 안 보인다
+      if($('recPhoneLead')) phrecLeadShow('manual');
+      else recSt('📱 녹음기 앱을 자동으로 열지 못했습니다 — 휴대폰 홈 화면에서 「음성 녹음」을 직접 열어 녹음하세요. '
+               +'끝나면 녹음기에서 「공유 → KNK WORKS」로 이 회의를 고르거나 「📁 음성 파일 올리기」로 붙이세요.','err');
+    }
+  }catch(_){}
   // 녹음기에 다녀왔는데 파일을 안 가져왔을 때 — 지금까지 녹음이 어디 있는지 분명히 (한 번만)
   var _phrecBackTold=false;
   document.addEventListener('visibilitychange',function(){
@@ -1520,7 +1588,7 @@ window.__MTG = {
     setTimeout(function(){
       if(!_alive()||!_phrecChosen||_phrecBackTold) return;   // 파일이 들어왔으면 _phrecChosen 이 풀린다
       _phrecBackTold=true;
-      recSt('녹음기에서 받은 파일이 없습니다 — 「📱 휴대폰 녹음기로 녹음」을 다시 누르거나 「📁 음성 파일 올리기」로 올리세요. '
+      recSt('녹음기에서 받은 파일이 없습니다 — 녹음기에서 「공유 → KNK WORKS」로 보내거나 「📁 음성 파일 올리기」로 올리세요. '
            +'지금까지 녹음은 서버에 저장돼 있습니다(「🔄 다시 정리」로 이어서 정리).','err');
     },4000);
   });
@@ -1529,8 +1597,10 @@ window.__MTG = {
     var el=$('recPlatNote'); if(!el) return;
     if(_isAndroid){
       el.innerHTML='📱 <b>안드로이드</b> — 회의 중에 다른 앱을 보거나 화면이 꺼져도 끊기지 않으려면 '
-        +'<b>「📱 휴대폰 녹음기로 녹음」</b>을 쓰세요. 「🎙 녹음하며 회의」는 <b>이 화면을 켜 둘 때만</b> 소리가 들어옵니다 '
-        +'— 다른 앱으로 넘어가면 휴대폰이 마이크를 막습니다(2026-09-20 실측 95초).';
+        +'<b>「📱 녹음기 앱 열기」</b>로 <b>녹음기 앱에서</b> 녹음하세요(끝나면 녹음기에서 <b>「공유 → KNK WORKS」</b>). '
+        +'「📱 녹음기로 바로 녹음(짧은 회의)」은 이 화면이 불러온 녹음기라 <b>다른 앱으로 넘어가면 저장되고 끝나고</b> 길이 상한도 있습니다'
+        +'(2026-09-26 실사 「최대 5분 16초」). 「🎙 녹음하며 회의」는 <b>이 화면을 켜 둘 때만</b> 소리가 들어옵니다'
+        +'(2026-09-20 실측 95초 무음).';
       el.hidden=false;
     } else if(_isIOS){
       el.className='plat-note ios';
@@ -1612,7 +1682,7 @@ window.__MTG = {
           if (_rb && !_rb.dataset.on) _rb.textContent='🎙 녹음 시작';
           try{ _rt.scrollIntoView({block:'start'}); }catch(_){}
           if (_phFirst){
-            recSt('📱 위의 「녹음기로 회의 녹음 시작」을 눌러 주세요 — 다른 앱을 봐도 끊기지 않습니다. '
+            recSt('📱 위의 「녹음기 앱 열기」를 눌러 주세요 — 녹음기 앱에서 녹음하면 다른 앱을 봐도 끊기지 않습니다. '
                  +'30초 안에 누르지 않으면 이 화면에서 녹음을 시작합니다.');
             _phFallback = setTimeout(function(){
               _phFallback=null;
@@ -1620,7 +1690,7 @@ window.__MTG = {
               if (_mr && _mr.state !== 'inactive') return;
               phrecLeadShow('running',
                 '⚠ <b>30초 동안 고르지 않아 이 화면에서 녹음을 시작했습니다</b> — 이 화면을 켠 채로 두세요. '
-                + '위 단추를 누르면 지금이라도 <b>휴대폰 녹음기</b>로 바꿀 수 있습니다(지금까지 녹음은 그대로 이어집니다).');
+                + '위 <b>「📱 녹음기 앱 열기」</b>를 누르면 지금이라도 바꿀 수 있습니다(지금까지 녹음은 그대로 이어집니다).');
               recSt('30초 동안 고르지 않아 이 화면에서 녹음을 시작합니다 — 이 화면을 켜 두세요.','err');
               autorecStartHere();
             }, 30000);
