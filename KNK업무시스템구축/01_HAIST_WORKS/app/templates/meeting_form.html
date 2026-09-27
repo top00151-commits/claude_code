@@ -224,7 +224,7 @@
       <div class="start-btns">
         <!-- z1115: 휴대폰은 다른 앱으로 넘어가면 OS 가 마이크를 막는다(2026-09-20 실측 95초 무음)
              → 안 끊기는 길(휴대폰 기본 녹음기)을 맨 위에. 안드로이드에서만 보인다(iOS 는 녹음기가 안 열림). -->
-        <button class="start-big rec-phone" type="button" id="recOpenApp" hidden>📱 녹음기 앱 열기&nbsp;<span class="start-sub">다른 앱을 봐도 계속 녹음돼요</span></button>
+        <button class="start-big rec-phone" type="button" id="recOpenApp" hidden>📱 녹음기 앱 열기&nbsp;<span class="start-sub">녹음기 앱에서 녹음하면 다른 앱을 봐도 안 끊겨요</span></button>
         <label class="start-big rec-phone alt" id="recPhoneRecWrap" hidden>📱 녹음기로 바로 녹음&nbsp;<span class="start-sub">짧은 회의용 — 다른 앱으로 가면 저장되고 끝납니다</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
         <button class="start-big rec-btn" id="recBtn">🎙 녹음하며 회의&nbsp;<span class="start-sub">누르면 바로 녹음</span></button>
         <div class="start-row">
@@ -1499,7 +1499,10 @@ window.__MTG = {
     var ua=navigator.userAgent||'';
     var pkg=/SM-|SAMSUNG|Galaxy|SC-\d|SCV\d/i.test(ua) ? 'com.sec.android.app.voicenote'
                                                         : 'com.google.android.apps.recorder';
-    return 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;'
+    // 🔴 z1128(안드로이드 소스 확인): 'intent://' 로 적으면 남는 「//」가 그대로 intent 의 데이터가 되고,
+    //   MAIN·LAUNCHER 걸개는 data 칸이 없어 IntentFilter.matchData 가 안 걸어 준다 → 아무 앱도 못 찾아
+    //   바로 fallback 으로 떨어졌다. 그래서 데이터 부분 없이 'intent:' 로 적는다.
+    return 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;'
          + 'package='+pkg+';S.browser_fallback_url='+encodeURIComponent(back)+';end';
   }
   try{ window.__knkRecAppUrl=recAppIntentUrl; }catch(_){}   // 시험이 주소를 들여다볼 수 있게
@@ -1523,6 +1526,7 @@ window.__MTG = {
         _recOpen=false; recResumeShow(false); recNetFinish();
       }
       recSt('녹음기 앱을 엽니다 — 거기서 녹음을 시작하세요. 다른 앱을 봐도 끊기지 않습니다. '
+           +'열리지 않으면 홈 화면에서 「음성 녹음」을 직접 열어 주세요(효과는 같습니다). '
            +'회의가 끝나면 녹음기에서 「공유 → KNK WORKS」로 이 회의를 고르면 자동으로 정리됩니다.');
       try{ location.href=recAppIntentUrl(); }catch(_){}
     });
@@ -1554,7 +1558,8 @@ window.__MTG = {
       // z1118: 안드로이드 기본 — 이 화면 녹음을 아직 켜지 않았다. 녹음이 '아직 안 됐다'는 것부터 분명히.
       if(t) t.textContent='🔴 아직 녹음이 시작되지 않았습니다';
       if(bl) bl.textContent='📱 녹음기로 바로 녹음(짧은 회의)';
-      if(w) w.innerHTML='<b>「📱 녹음기 앱 열기」</b>를 누르면 휴대폰 <b>녹음기 앱</b>이 열립니다 — 거기서 녹음을 시작하면 '
+      if(w) w.innerHTML='<b>「📱 녹음기 앱 열기」</b>를 누르면 휴대폰 <b>녹음기 앱</b>을 엽니다'
+        +'(크롬이 막아 안 열리는 기종도 있습니다 — 그때는 홈 화면에서 <b>「음성 녹음」</b>을 직접 열어 주세요 · 효과는 같습니다) — 거기서 녹음을 시작하면 '
         +'<b>다른 앱을 보거나 화면이 꺼져도 계속 녹음</b>됩니다. 회의가 끝나면 녹음기에서 '
         +'<b>「공유 → KNK WORKS」</b>로 이 회의를 고르면 자동으로 정리됩니다.';
       if(ft) ft.innerHTML='<b>30초 안에 누르지 않으면</b> 이 화면에서 녹음을 시작합니다'
@@ -1598,6 +1603,7 @@ window.__MTG = {
     if(_isAndroid){
       el.innerHTML='📱 <b>안드로이드</b> — 회의 중에 다른 앱을 보거나 화면이 꺼져도 끊기지 않으려면 '
         +'<b>「📱 녹음기 앱 열기」</b>로 <b>녹음기 앱에서</b> 녹음하세요(끝나면 녹음기에서 <b>「공유 → KNK WORKS」</b>). '
+        +'단추로 열리지 않는 기종에서는 홈 화면에서 <b>「음성 녹음」</b>을 직접 열어도 마찬가지입니다. '
         +'「📱 녹음기로 바로 녹음(짧은 회의)」은 이 화면이 불러온 녹음기라 <b>다른 앱으로 넘어가면 저장되고 끝나고</b> 길이 상한도 있습니다'
         +'(2026-09-26 실사 「최대 5분 16초」). 「🎙 녹음하며 회의」는 <b>이 화면을 켜 둘 때만</b> 소리가 들어옵니다'
         +'(2026-09-20 실측 95초 무음).';
