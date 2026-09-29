@@ -29210,6 +29210,9 @@ async def schedule_board_unit_field(request: Request):
     # 단가·수량·금액(청구 성격)·거래명세서·세금계산서는 영업·관리만
     if (field in ("unit_price", "qty", "amount") or field in _TAX_FIELDS) and not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    # z1132 (이새롬 프로 신고): 호기별 편집도 날짜 칸은 날짜만
+    if field in _logi.DATE_CELL_FIELDS and not _logi.date_cell_ok(value):
+        return JSONResponse({"ok": False, "error": _logi.DATE_CELL_MSG}, 400)
     try:
         with db_session() as c:
             it = c.execute(
@@ -29453,6 +29456,9 @@ async def schedule_board_row_tax(request: Request):
     _AMT_F = ("tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3")
     if field not in (_DATE_F + _AMT_F):
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
+    # z1132 (이새롬 프로 신고): 발행일에 금액 같은 글자가 저장되던 것 차단 — 서버가 마지막 방어선
+    if field in _DATE_F and not _logi.date_cell_ok(value):
+        return JSONResponse({"ok": False, "error": _logi.DATE_CELL_MSG}, 400)
     try:
         _uid_list = [int(x) for x in str(uids).split(",") if str(x).strip().isdigit()]
     except Exception:
@@ -29682,6 +29688,9 @@ async def schedule_tax_invoice_issue(request: Request):
     if not issue_date:
         from datetime import date as _d
         issue_date = _d.today().isoformat()
+    # z1132 (이새롬 프로 신고): 묶음 발행일도 날짜만
+    if not _logi.date_cell_ok(issue_date):
+        return JSONResponse({"ok": False, "error": _logi.DATE_CELL_MSG}, 400)
     memo = (str(b.get("memo") or "").strip())
     # v5H226z489 (대표 지시): 묶음은 세금계산서 차수(1=계약금·2=중도금·3=잔금) 단위 — 여러 건의 같은 차수끼리 한 장.
     try:

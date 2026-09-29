@@ -566,6 +566,100 @@ def check_reload_keep_view(files):
     return bad
 
 
+def _js_func(src, name):
+    """템플릿에서 최상위 JS 함수 한 개의 본문을 잘라 온다(`in APP` 같은 계수 함정을 피하려 구간으로 본다)."""
+    import re as _re
+    m = _re.search(r"(?m)^(?:async\s+)?function\s+" + _re.escape(name) + r"\s*\(", src)
+    if not m:
+        return None
+    nxt = _re.search(r"(?m)^(?:async\s+)?function\s+", src[m.end():])
+    return src[m.start(): m.end() + (nxt.start() if nxt else len(src) - m.end())]
+
+
+def check_date_cell_guard(_files=None):
+    """§날짜 칸 = ①달력이 뜨고 ②날짜만 저장된다 (z1132 · 이새롬 프로 신고 2026-09-29).
+
+    신고 원문: "발주일, 납품일도 발행일처럼 달력창이 뜨게 해주세요 / 발행일 입력시 날짜로만
+    입력되게 해주세요. 발행일에 금액을 입력해도 저장이 됩니다."
+
+    왜 두 신고가 한 뿌리인가: 공용 달력(`_v5_partials/knk_datepicker.html`)은
+    `input.knk-cal` / `input[type=date]` 에만 붙는다. 작업일정표는 표 칸을 클릭하면 **그 자리에서
+    맨 글자칸**을 만들어 달력이 안 붙었다(신고 ①). 그리고 달력은 브라우저 기본 달력을 끄려고
+    `type=date` → `type=text` 로 바꾸므로 **브라우저 검사가 사라진다** — 그런데 화면에도 서버에도
+    '날짜냐' 확인이 없어 금액 글자가 그대로 저장됐다(신고 ②).
+    실측(2026-09-29 운영 읽기 전용): 이미 45건 — 소모품 발행일 43건(`2026-01-28-1` 꼴)·
+    소모품 납품일 1건(`2026-02-6`)·원납기 1건(`확인 중`).
+
+    올바른 방법
+      · 화면: 편집칸은 `_mkCellInput()` 으로 만든다(날짜 칸이면 `knk-cal` 이 붙어 달력이 뜬다),
+              저장 전 `_dateOk()` 를 거친다.
+      · 서버: `database.date_cell_ok()` 로 막는다 — **마지막 방어선**. 화면 검사만으로는
+              엑셀 일괄수정·다른 진입 경로를 못 막는다.
+
+    잡는 것
+      ① schedule_board.html 에 `_mkCellInput`·`_dateOk` 가 없거나 달력(`knk-cal`)을 안 붙인다
+      ② 날짜 칸을 여는 편집기가 편집칸을 직접 만든다(`_mkCellInput` 을 안 쓴다)
+      ③ 날짜를 저장하는 화면 함수가 `_dateOk` 를 안 거친다
+      ④ 날짜를 저장하는 서버 함수가 `date_cell_ok` 를 안 거친다(구문 트리로 본다)
+    """
+    import ast as _ast
+    bad = []
+    tpl = os.path.join(TPL, "schedule_board.html")
+    if os.path.exists(tpl):
+        src = _read(tpl)
+        # ① 공용 한 벌
+        mk = _js_func(src, "_mkCellInput")
+        if mk is None:
+            bad.append((tpl, 1, "① 공용 _mkCellInput() 이 없다 — 날짜 칸에 달력이 안 붙는다"))
+        elif "knk-cal" not in mk:
+            bad.append((tpl, 1, "① _mkCellInput() 이 날짜 칸에 달력(knk-cal)을 안 붙인다"))
+        if _js_func(src, "_dateOk") is None:
+            bad.append((tpl, 1, "① 공용 _dateOk() 가 없다 — 날짜 형식을 검사할 수 없다"))
+        # ② ③ 날짜 칸을 다루는 편집기
+        for fn in ("startEdit", "startUnitEdit"):
+            body = _js_func(src, fn)
+            if body is None:
+                continue
+            if "_mkCellInput" not in body and "cell-input" in body:
+                bad.append((tpl, 1, "② %s — 편집칸을 직접 만든다. _mkCellInput() 을 쓸 것(달력이 안 붙는다)" % fn))
+        for fn in ("startEdit", "startUnitEdit", "startTaxInvEdit", "_uxSave"):
+            body = _js_func(src, fn)
+            if body is None:
+                continue
+            if "_dateOk" not in body:
+                bad.append((tpl, 1, "③ %s — 날짜를 저장하는데 _dateOk() 를 안 거친다" % fn))
+    # ④ 서버 — 마지막 방어선
+    for rel, funcs in (("app/database.py", ("schedule_cell_update",)),
+                       ("app/main.py", ("schedule_board_row_tax", "schedule_board_unit_field",
+                                        "schedule_tax_invoice_issue"))):
+        p = os.path.join(ROOT, *rel.split("/"))
+        if not os.path.exists(p):
+            continue
+        try:
+            tree = _ast.parse(_read(p))
+        except SyntaxError as e:
+            bad.append((p, getattr(e, "lineno", 0) or 0, "%s 구문 오류 — 검사 불가: %s" % (rel, e)))
+            continue
+        found = {}
+        for n in _ast.walk(tree):
+            if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and n.name in funcs:
+                found[n.name] = n
+        for fn in funcs:
+            node = found.get(fn)
+            if node is None:
+                bad.append((p, 1, "④ %s() 를 못 찾았다 — 날짜 검사 위치가 바뀌었는지 확인할 것" % fn))
+                continue
+            names = set()
+            for c in _ast.walk(node):
+                if isinstance(c, _ast.Call):
+                    f = c.func
+                    names.add(f.id if isinstance(f, _ast.Name) else (f.attr if isinstance(f, _ast.Attribute) else ""))
+            if "date_cell_ok" not in names:
+                bad.append((p, node.lineno,
+                            "④ %s — 날짜 칸을 저장하는데 date_cell_ok() 를 안 거친다(서버가 마지막 방어선)" % fn))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -676,6 +770,16 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 저장 후 새로고침 : 보던 화면(주소 조건) 유지")
+
+    dc_bad = check_date_cell_guard()
+    if dc_bad:
+        fail += len(dc_bad)
+        print("  ❌ 날짜 칸 달력·날짜 검사 : %d건 → 화면 _mkCellInput()/_dateOk() · 서버 date_cell_ok()"
+              % len(dc_bad))
+        for f, l, m in dc_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 날짜 칸 : 달력이 붙고 날짜만 저장됨 (화면·서버 양쪽)")
 
     print("=" * 72)
     if fail:

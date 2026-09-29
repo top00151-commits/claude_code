@@ -1105,6 +1105,7 @@ function _expandConsumableItems(tr, btn, ref, key){
     }).catch(()=>{ toast('통신 오류'); if(btn) btn.textContent='＋'; });
 }
 function _uxSave(iid, field, value, el){
+  if(_isDateField(field) && !_dateOk(value)){ _dateWarn(); return; }   // z1132: 호기별 표도 날짜만
   fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})})
     .then(r=>r.json()).then(j=>{
       if(j&&j.ok){ toast('저장됨'); if(el){ el.classList.add('ux-ok'); setTimeout(function(){el.classList.remove('ux-ok');},900);} }
@@ -1154,6 +1155,7 @@ function openUnitTaxPop(box){
   pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
   pop.querySelector('.ti-save').addEventListener('click',async ()=>{
     const dv=(pd.value||'').trim(), av=(pa.value||'').replace(/[^0-9.]/g,'');
+    if(!_dateOk(dv)){ _dateWarn(); pd.focus(); return; }   // z1132: 발행일은 날짜만(신고 ②)
     const btn=pop.querySelector('.ti-save'); btn.disabled=true;
     try{
       await _uxSaveTax(iid, box.dataset.datefield, dv);
@@ -1165,6 +1167,52 @@ function openUnitTaxPop(box){
   });
 }
 // v5H226z486 (대표 지시): 날짜 직접입력 정규화 — 260618(YYMMDD)·20260618(YYYYMMDD)·2026.06.18·2026/6/8 등 → YYYY-MM-DD. 못 알아보면 원문.
+/* v5H226z1132 (이새롬 프로 신고 2026-09-29): 날짜 칸은 ①달력이 뜨고 ②날짜만 저장된다.
+   신고 ① "발주일·납품일도 발행일처럼 달력창이 뜨게" — 공용 달력(knk_datepicker)은
+        `input.knk-cal` / `input[type=date]` 에만 붙는데, 표에서 즉석으로 만드는 편집칸은
+        맨 글자칸이라 대상이 아니었다. → 편집칸은 _mkCellInput() 으로 만든다(날짜면 달력이 붙는다).
+   신고 ② "발행일에 금액을 입력해도 저장된다" — 공용 달력이 브라우저 기본 달력을 끄려고
+        type=date → text 로 바꾸므로 브라우저 검사가 사라진다. 그런데 화면에도 서버에도
+        '날짜냐' 확인이 없었다(금액 칸은 "숫자만 입력" 검사가 있었다).
+        실측(2026-09-29 운영 읽기): 이미 45건 — 소모품 발행일 43건(`2026-01-28-1` 꼴)·
+        소모품 납품일 1건(`2026-02-6`)·원납기 1건(`확인 중`).
+   규칙: 날짜 칸은 _mkCellInput() 으로 만들고, 저장 전 _dateOk() 를 거친다.
+        서버도 같은 검사를 한다(database.date_cell_ok) — 일괄수정·다른 경로로 들어와도 막힌다.
+        배포 전 검사: deploy/check_standards.py `check_date_cell_guard`. */
+var _DATE_FIELDS = ['order_date','due_date','statement_date',
+                    'tax_invoice_date','tax_invoice_date2','tax_invoice_date3'];
+function _isDateField(f){ return _DATE_FIELDS.indexOf(f) >= 0; }
+function _dateOk(s){
+  s=(s||'').trim();
+  if(!s) return true;                                   // 빈 값 = 지우기(허용)
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  var y=+s.slice(0,4), m=+s.slice(5,7), d=+s.slice(8,10);
+  var dt=new Date(y, m-1, d);                           // 2026-02-31 처럼 없는 날도 걸러낸다
+  return dt.getFullYear()===y && dt.getMonth()===m-1 && dt.getDate()===d;
+}
+function _dateWarn(){ toast('⚠ 날짜는 2026-09-29 처럼 적어 주세요 — 달력에서 고르면 가장 정확합니다'); }
+function _calIsOpen(){ var p=document.querySelector('.knk-cal-pop'); return !!(p && !p.classList.contains('hidden')); }
+function _mkCellInput(field, cur){
+  var inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
+  if(_isDateField(field)){
+    inp.classList.add('knk-cal'); inp.placeholder='YYYY-MM-DD'; inp.setAttribute('inputmode','numeric');
+    if(window.KnkCal && KnkCal.attach) KnkCal.attach(inp);   // 이어지는 focus() 가 달력을 연다
+  }
+  return inp;
+}
+/* 달력을 누르면 편집칸이 blur 된다 — 그때 저장해 버리면 달력이 넣어 줄 값을 잃는다
+   (z485 에서 세금계산서 팝업이 같은 함정에 빠졌다: 달력은 body 에 따로 떠서 '바깥'으로 잡힌다).
+   그래서 날짜 칸은 **달력이 닫힌 뒤** 마무리한다 — 날짜를 고르든 닫든 지우든 한 길로 끝난다. */
+function _bindCellBlur(inp, field, finish){
+  inp.addEventListener('blur', function(){
+    if(!(_isDateField(field) && _calIsOpen())){ finish(true); return; }
+    var t=setInterval(function(){
+      if(!document.body.contains(inp)){ clearInterval(t); return; }   // 다른 경로로 이미 끝남
+      if(_calIsOpen()) return;
+      clearInterval(t); finish(true);
+    }, 120);
+  });
+}
 function _normDate(s){
   s=(s||'').trim(); if(!s) return s;
   var m=s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})$/);
@@ -1200,14 +1248,18 @@ function startEdit(td){
   if(td.dataset.edit==='cust' && td.dataset.real!=null) cur = td.dataset.real.trim();
   // 숫자/금액 칸은 통화기호·콤마 빼고 순수 숫자만 편집
   if(['qty','price','amount'].indexOf(td.dataset.edit)>=0) cur=cur.replace(_MONEY_STRIP,'');
-  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
+  const inp=_mkCellInput(td.dataset.edit, cur);   // z1132: 날짜 칸이면 달력이 붙는다
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
   const finish=(save)=>{
     if(done) return; done=true;
     let val=inp.value.trim();
     // v5H226z486 (대표 지시): 직접 입력 날짜칸은 일정 서식으로 — 260618·20260618·2026.06.18·2026/6/8 등 → YYYY-MM-DD
-    if(['order_date','due_date','statement_date'].indexOf(td.dataset.edit)>=0) val=_normDate(val);
+    if(_isDateField(td.dataset.edit)){
+      val=_normDate(val);
+      // z1132: 날짜가 아니면 저장하지 않는다(발행일에 금액이 들어가던 신고와 같은 뿌리)
+      if(save && !_dateOk(val)){ _dateWarn(); td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
+    }
     if(!save){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
     // v5H226z1033: 이 줄의 수주번호(so_oid)도 함께 보낸다 — PO유형은 **그 수주에** 저장(줄마다 다를 수 있음).
     //   안 보내면 프로젝트가 고쳐지는데 화면은 수주값을 보여줘 '고쳐도 안 바뀌는' 상태가 된다.
@@ -1230,7 +1282,7 @@ function startEdit(td){
         else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ '+(j.message||j.error||'저장 실패')); }
       }).catch(()=>{ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
   };
-  inp.addEventListener('blur',()=>finish(true));
+  _bindCellBlur(inp, td.dataset.edit, finish);   // z1132: 달력을 누른 blur 는 기다렸다 마무리
   inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z625 (대표 지시): 작업일정표 고객사 인라인 = 등록 고객사(시스템명) 자동완성 드롭다운.
@@ -1304,13 +1356,16 @@ function startUnitEdit(td, tr, uids){
   const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';   // v5H226z687: 통화기호 포함 원본 표시(무변경·취소·오류 복원용 — 숫자칸 복원 시 ₩/$ 유지)
   let cur = origDisp;
   if(isNum) cur=cur.replace(_MONEY_STRIP,'');
-  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
+  const inp=_mkCellInput(td.dataset.edit, cur);   // z1132: 날짜 칸이면 달력이 붙는다
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
   const finish=async(save)=>{
     if(done) return; done=true;
     let val=inp.value.trim();
-    if(['order_date','due_date'].indexOf(fld)>=0) val=_normDate(val);
+    if(_isDateField(fld)){
+      val=_normDate(val);
+      if(save && !_dateOk(val)){ _dateWarn(); td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); _editing=null; return; }
+    }
     // v5H226z671 (대표 지시·폭주 재발 차단): 값이 안 바뀌었으면 저장하지 않음(클릭만 했다 나가도 재저장→금액 재계산이 도는 것 방지).
     //   화면이 옛 값(폭주 잔재)일 때 클릭만으로 그 값을 다시 써 재손상되던 문제 차단. (startSelectEdit 와 동일 가드)
     //   v5H226z687: 복원은 origDisp(통화기호 포함 원본)로 — 무변경 blur 시 단가/금액 ₩·$ 가 사라지던 버그 수정.
@@ -1333,7 +1388,7 @@ function startUnitEdit(td, tr, uids){
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+msg); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
-  inp.addEventListener('blur',()=>finish(true));
+  _bindCellBlur(inp, td.dataset.edit, finish);   // z1132: 달력을 누른 blur 는 기다렸다 마무리
   inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z974 (대표 지시): 상품(PARTS) 줄 수량 인라인 편집 = '완제품 몇 대분'.
@@ -1359,7 +1414,7 @@ function startPartsQtyEdit(td, tr){
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+(j.message||j.error||'저장 실패')); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
-  inp.addEventListener('blur',()=>finish(true));
+  _bindCellBlur(inp, td.dataset.edit, finish);   // z1132: 달력을 누른 blur 는 기다렸다 마무리
   inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z981 (대표 지시): SO 분할 행의 모델명/장비명/기타사항 편집 → 그 수주(quick-edit)에만 저장.
@@ -1386,7 +1441,7 @@ function startSoTextEdit(td, tr){
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+(j.message||j.error||'저장 실패')); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
-  inp.addEventListener('blur',()=>finish(true));
+  _bindCellBlur(inp, td.dataset.edit, finish);   // z1132: 달력을 누른 blur 는 기다렸다 마무리
   inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z349 (대표 지시): 선택형 셀(형태=제품/상품/기타) 인라인 드롭다운 편집 — 텍스트 에디터와 동일 저장 경로.
@@ -1477,6 +1532,7 @@ function startTaxInvEdit(td, tr){
   pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
   pop.querySelector('.ti-save').addEventListener('click',async ()=>{
     const dv=(pd.value||'').trim(), av=(pa.value||'').replace(/[^0-9.]/g,'');
+    if(!_dateOk(dv)){ _dateWarn(); pd.focus(); return; }   // z1132: 발행일은 날짜만(신고 ②)
     const btn=pop.querySelector('.ti-save'); btn.disabled=true;
     try{
       await taxSave(tr, td.dataset.datefield, dv);
@@ -2120,6 +2176,7 @@ window._tiAmtFmt=_tiAmtFmt;
 function _tiSubmit(force){
   if(!_tiLines){ return; }
   var datev=(document.getElementById('tiIssueDate')||{}).value||_tiToday();
+  if(!_dateOk(datev)){ _dateWarn(); return; }   // z1132: 묶음 발행일도 날짜만
   var memo=(document.getElementById('tiMemo')||{}).value||'';
   var out=[];   // 이 차수로 묶을 수 있는(이미 묶이지 않은) 항목만 + 입력 금액
   document.querySelectorAll('#tiModalBack .ti-amt').forEach(function(inp){
@@ -2207,6 +2264,8 @@ function schedBulkPreview(){
   if(field==='name' && !val.trim()){ toast('프로젝트명은 비울 수 없습니다'); return; }
   if(field==='cust' && !val.trim()){ toast('고객사명은 비울 수 없습니다'); return; }
   if(field==='trade' && !val){ toast('거래구분 값을 선택하세요'); return; }
+  // z1132: 날짜 칸 일괄수정도 날짜만 — 260618·2026.6.18 은 서식을 고쳐 주고, 그래도 날짜가 아니면 막는다
+  if(_isDateField(field)){ val=_normDate(val); if(!_dateOk(val)){ _dateWarn(); return; } }
   var targets=[], lines=[], nProj=0, nCons=0;
   rows.forEach(function(tr){
     targets.push({kind:tr.dataset.kind, ref_id:parseInt(tr.dataset.ref,10)});

@@ -14176,6 +14176,37 @@ _SCHED_CELL_MAP = {
 _SCHED_NUM_FIELDS = {"qty", "price", "amount"}  # 숫자 필드 (콤마 제거 후 저장)
 
 
+DATE_CELL_FIELDS = ("order_date", "due_date", "statement_date",
+                    "tax_invoice_date", "tax_invoice_date2", "tax_invoice_date3")
+DATE_CELL_MSG = "날짜는 2026-09-29 처럼 적어 주세요 (달력에서 고르면 가장 정확합니다)"
+
+
+def date_cell_ok(value) -> bool:
+    """z1132 (이새롬 프로 신고 2026-09-29): 일정표 날짜 칸 값 검사 — **서버가 마지막 방어선**.
+
+    왜 서버가 막아야 하나: 공용 달력(knk_datepicker)은 브라우저 기본 달력을 끄려고
+    `type=date` 를 `type=text` 로 바꾼다 → 브라우저 검사가 사라진다. 그래서 화면 검사만으로는
+    엑셀 일괄수정·다른 진입 경로로 들어온 값을 못 막는다.
+    실측(2026-09-29 운영 읽기 전용): 이미 45건이 날짜가 아닌 값으로 저장돼 있었다 —
+    소모품 세금계산서 발행일 43건(`2026-01-28-1` 꼴)·소모품 납품일 1건(`2026-02-6`)·
+    원납기 1건(`확인 중`).
+
+    빈 값은 '지우기'라 허용한다. 그 밖에는 진짜 달력에 있는 날짜(YYYY-MM-DD)만 통과한다
+    (2026-02-31 처럼 없는 날도 걸러진다).
+    """
+    s = (value or "").strip()
+    if not s:
+        return True
+    if len(s) != 10 or s[4] != "-" or s[7] != "-":
+        return False
+    from datetime import datetime as _dtv
+    try:
+        _dtv.strptime(s, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
+
 def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> tuple[bool, str]:
     """일정표 정보칸(기타사항·부서·담당자·납품위치) 원본 수정.
     화이트리스트(_SCHED_CELL_MAP) 필드만 허용. 반환 (성공, 메시지).
@@ -14183,6 +14214,9 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
     if ref_kind not in _SCHED_CELL_MAP or not ref_id or not field:
         return (False, "허용되지 않은 대상/필드")
     val = (value or "").strip()
+    # z1132 (이새롬 프로 신고): 날짜 칸은 날짜만 — 화면·일괄수정 어느 길로 와도 여기서 막힌다
+    if field in DATE_CELL_FIELDS and not date_cell_ok(val):
+        return (False, DATE_CELL_MSG)
     # v5H226z365 (대표 지시): 프로젝트명은 빈 값으로 지우기 금지 — 클릭 실수로 이름이 사라지는 사고 방지(실패 표면화)
     if field == "name" and not val:
         return (False, "프로젝트명은 비울 수 없습니다")
