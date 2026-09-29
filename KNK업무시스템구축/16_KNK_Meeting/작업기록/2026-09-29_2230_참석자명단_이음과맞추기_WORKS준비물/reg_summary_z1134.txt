@@ -1,0 +1,35 @@
+시작 전 89xx 듣는 포트: 0
+== ui_rec: 합계: 통과 27 · 실패 0
+== phone_fit_rec: 합계: 통과 31 · 실패 0
+== ui_back: 합계: 통과 34 · 실패 1
+FAIL B 음성→글자·정리까지
+== ui_phrec: 통과 46 / 실패 0
+== ui_lead: 합계: 통과 27 · 실패 0
+== ui_first: 합계: 통과 22 · 실패 0
+== ui_share: 합계: 통과 16 · 실패 0
+== ui_cards_rec: 합계: 통과 23 · 실패 0
+== ui_simple: 합계: 통과 33 · 실패 0
+== ui_end_z1131: 합계: 통과 22 · 실패 0
+== ui_attendee_z1133: 합계: 통과 12 · 실패 0
+== mic_text_test: 결과: 16/16 통과
+== pw_guard: ===== 통과 62 · 실패 0 =====
+== ui_resume: 합계: 통과 75 · 실패 0
+== ui_test_cards_z1124: 결과: 44/44 통과
+READY app_new 8942 (25s)
+== ui_del_z1124: 합계: 통과 46 · 실패 0
+READY app_new 8942 (25s)
+== ui_z1126: 합계: 통과 13 · 실패 0
+== verify_rec: 합계: 통과 55 · 실패 0
+== verify_share: 합계: 통과 48 · 실패 0
+== verify_msg_rec: 합계: 통과 14 · 실패 0
+== verify_cards_rec: 합계: 통과 17 · 실패 0
+== verify_msg_mine: 합계: 통과 14 · 실패 0
+== verify_cards: 결과: 80 통과 / 0 실패
+== verify_del: 합계: 통과 33 · 실패 0
+== verify_z1123: 합계: 통과 45 · 실패 0
+== verify_z1126: 합계: 통과 21 · 실패 0
+== verify_end_z1131: 합계: 통과 23 · 실패 0
+== verify_attendee_z1133: 합계: 통과 30 · 실패 0
+== verify_att_sync_z1134: 합계: 통과 48 · 실패 0
+끝난 뒤 89xx 듣는 포트: 0
+ALLDONE

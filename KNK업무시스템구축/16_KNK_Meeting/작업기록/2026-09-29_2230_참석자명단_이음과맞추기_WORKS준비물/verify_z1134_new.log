@@ -1,0 +1,85 @@
+fatal: not a git repository (or any of the parent directories): .git
+[holidays] 자동 생성 완료 — KR 135건 / VN 91건
+[WFB] workflow lego builder routes registered (z104)
+[v5H226z208] project_items 백필 9건 생성
+[WFB-MIG-Z105] {'added_cols': [], 'meta_updated': 45}
+[WFB-MIG-Z108H] {'updated': 75, 'not_found': [], 'total_mapped': 75}
+[WFB-MIG-Z108I] {'updated': 75, 'not_found': [], 'total_mapped': 75}
+[WFB-MIG-Z108J] {'existing_updated': 1, 'new_nodes': 0, 'meta_seeded': 2}
+[WFB-MIG-Z108N11] {'updated': 4, 'cleared': 6}
+[TIER] 9 customers tier auto-computed
+[TIER-AUTO] 등급 자동 재계산 예약 — 다음 09-30 Wed 22:37 (한국시간)
+[DAILY-REMINDER] 스케줄러 시작. 다음 발송까지 64323초 (17시간).
+[DIR-SYNC] 자동 명부 동기화 스케줄러 시작. 다음 실행 09-30 Wed 04:10 (한국시간 · 5시간 뒤).
+[MAIL-FETCH-AUTO] 스케줄러 시작 — 300초마다 자동 가져오기.
+
+■ A. 새 입구 문지기 (공유키·본문·회의록 없음)
+  [PASS] A1 공유키 없으면 403 · 403
+  [PASS] A2 공유키가 틀리면 403 · 403
+  [PASS] A3 WORKS 키가 비어 있으면 무엇이 와도 403 · 403
+  [PASS] A4 JSON 이 아니면 400 · 400
+  [PASS] A5 회의 번호 없으면 400 · {'ok': False, 'error': 'msg_meeting_id_required'}
+  [PASS] A6 🔴 참석자 칸이 아예 없으면 400 — 실수로 전원이 지워지지 않게 · {'ok': False, 'error': 'attendee_employee_nos_required'}
+  [PASS] A7 아직 회의록이 없는 이음 회의 → 그냥 넘어간다(none) · {'ok': True, 'result': 'none'}
+  [PASS] A8 🔴 회의록을 새로 만들지 않는다
+  [PASS] A9 다른 회의 명단도 그대로
+
+■ B. 명단 맞추기 (이한중 그대로 · 윤경호 빠짐 · 최홍광 새로)
+[MSG-ATT] 회의 13 참석자 +1 -1 (그대로 2)
+  [PASS] B1 맞춤 200 · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 1, 'removed': 1, 'kept': 2, 'held': 0}
+  [PASS] B2 새로 1 · 빠짐 1 · 그대로 2 · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 1, 'removed': 1, 'kept': 2, 'held': 0}
+  [PASS] B3 새로 온 사람이 사번으로 연결돼 들어왔다
+  [PASS] B4 빠진 사람은 명단에서 빠졌다
+  [PASS] B5 그대로인 사람은 그대로
+  [PASS] B6 계정 없는 외부 참석자는 이름만(user_id 없음)
+  [PASS] B7 참석자 칸 글도 이음 명단 순서대로 다시 적힘(대표 결정 ③) · 이한중, 최홍광, 드림텍 전영우 프로
+  [PASS] B8 다른 회의 명단은 안 건드린다 · [(89, '이한중')]
+  [PASS] B9 같은 내용을 다시 불러도 그대로(멱등) · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 0, 'removed': 0, 'kept': 3, 'held': 0}
+  [PASS] B10 줄 수가 늘지 않는다 · 3
+  [PASS] B11 WORKS 에 없는 사번은 조용히 무시(추측 연결 금지) · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 0, 'removed': 0, 'kept': 3, 'held': 0}
+  [PASS] B12 없는 사번은 명단에 안 들어간다
+[MSG-ATT] 회의 13 참석자 +0 -3 (그대로 0)
+  [PASS] B13 이음이 전원을 뺐으면 WORKS 도 빈다 · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 0, 'removed': 3, 'kept': 0, 'held': 0}
+  [PASS] B14 참석자 칸도 빈다
+[MSG-ATT] 회의 13 참석자 +3 -0 (그대로 0)
+  [PASS] B15 다시 넣으면 다시 들어온다 · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 3, 'removed': 0, 'kept': 0, 'held': 0}
+
+■ C. 권한이 실제로 따라 움직인다
+  [PASS] C1 지금 참석자는 회의록을 고칠 수 있다 · 200
+  [PASS] C2 명단에서 빠진 사람은 못 고친다(대표 결정 ①) · 403
+[MSG-ATT] 회의 13 참석자 +1 -0 (그대로 3)
+  [PASS] C3 이음에서 넣어 주면 바로 고칠 수 있다 · 200
+[MSG-ATT] 회의 13 참석자 +0 -1 (그대로 3)
+  [PASS] C4 다시 빠지면 다시 막힌다 · 403
+  [PASS] C5 빠진 사람이 적어 둔 글은 그대로 남는다 · 최홍광이 적음
+  [PASS] C6 작성자는 명단과 무관하게 그대로(대표 결정 ②) · 200
+  [PASS] C7 이음 등록 담당도 그대로 · 200
+  [PASS] C8 참석자가 아닌 직원은 그대로 막힘 · 403
+  [PASS] C9 🗑 삭제는 여전히 참석자에게 없다 · 403
+
+■ D. 🔴 녹음 중인 사람은 명단에서 빠져도 그대로 둔다 (대표 결정 ②)
+[MSG-ATT] 회의 13 참석자 +0 -1 (그대로 2) · 녹음 중이라 남김 1
+  [PASS] D1 녹음 중인 사람은 「남김」으로 센다 · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 0, 'removed': 1, 'kept': 2, 'held': 1}
+  [PASS] D2 녹음 중인 사람이 명단에 그대로 있다
+  [PASS] D3 녹음 안 하는 외부 참석자는 예정대로 빠졌다 · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 0, 'removed': 1, 'kept': 2, 'held': 1}
+  [PASS] D4 참석자 칸 글에도 남는다(뒤에 붙임) · 이한중, 윤경호
+  [PASS] D5 녹음 중인 사람은 조각을 계속 보낼 수 있다(권한 통과) · 409
+  [PASS] D6 녹음 끝내기도 된다 · 200
+[MSG-ATT] 회의 13 참석자 +0 -1 (그대로 1)
+  [PASS] D7 녹음이 끝난 뒤 다시 맞추면 그때 빠진다 · {'ok': True, 'result': 'synced', 'meeting_id': 13, 'added': 0, 'removed': 1, 'kept': 1, 'held': 0}
+  [PASS] D8 이제 명단에 없다
+
+■ E. 「▶ 회의 시작」을 다시 불러도 명단이 맞춰진다
+[MSG-ATT] 회의 시작 때 명단 맞춤 — 회의 13 +3 -0
+  [PASS] E1 이미 있는 회의록이면 새로 만들지 않는다 · {'ok': True, 'created': False, 'meeting_id': 13, 'is_starter': True, 'started_by': '안지연', 'started_at': '', 'stage': 'started', 'organizer_set': True, 'url': '/meetings/13?autorec=1'}
+  [PASS] E2 회의 시작 때 바뀐 명단으로 맞춰진다 · [(89, '이한중'), (90, '윤경호'), (91, '최홍광'), (None, '드림텍 전영우 프로')]
+  [PASS] E3 🔴 참석자 칸을 안 보내면 명단을 건드리지 않는다 · [(89, '이한중'), (90, '윤경호'), (91, '최홍광'), (None, '드림텍 전영우 프로')]
+  [PASS] E4 처음 만들기는 예전 그대로 · {'ok': True, 'created': True, 'meeting_id': 15, 'is_starter': True, 'started_by': '안지연', 'started_at': '2026-09-29 22:37:56', 'stage': 'started', 'organizer_set': False, 'url': '/meetings/15?autorec=1'}
+  [PASS] E5 처음 만든 회의 명단도 정상 · [(89, '이한중')]
+
+■ F. 🔴 이음을 되부르지 않는다
+  [PASS] F1 시험 내내 이음으로 나간 호출 0건 · []
+  [PASS] F2 도우미 `_msg_sync_attendees` 가 있다
+
+====================================================================
+합계: 통과 48 · 실패 0
