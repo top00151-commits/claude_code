@@ -3874,10 +3874,28 @@ def _can_view_meeting(c, u, m) -> bool:
     return False
 
 
-def _can_edit_meeting(u, m) -> bool:
-    """회의록 수정 권한: 작성자 본인 · 회의 알림 등록 담당(msg_organizer_id) · admin/ceo.
+def _meeting_is_attendee(c, u, m) -> bool:
+    """z1133: 이 사람이 그 회의의 **참석자**인가(계정이 연결된 참석자 줄).
+    이음 「▶ 회의 시작」이 참석자를 **사번으로** 연결해 `meeting_attendees.user_id` 에 넣어 준다
+    (이름 맞추기가 아니다 — 사람 참조는 ID). 계정 없는 외부 참석자는 이름만 남아 해당 없음."""
+    uid = (u or {}).get("id")
+    mid = (m or {}).get("id")
+    if not uid or not mid or c is None:
+        return False
+    try:
+        return bool(c.execute("SELECT 1 FROM meeting_attendees WHERE meeting_id=? AND user_id=?",
+                              (mid, uid)).fetchone())
+    except Exception:
+        return False
+
+
+def _can_edit_meeting(u, m, c=None) -> bool:
+    """회의록 수정 권한: 작성자 본인 · 회의 알림 등록 담당(msg_organizer_id) · admin/ceo · **그 회의 참석자**.
     2026-09-15 대표 결정: 녹음을 직접 하지 않은 등록 담당도 회의록을 고칠 수 있어야 한다.
-    ⚠ 삭제는 _can_delete_meeting(작성자·admin/ceo 만) — '고치기'까지가 지시 범위."""
+    2026-09-28 대표 지시: **참석자 누구나** 녹음·녹음파일 올리기·회의록 작성을 할 수 있어야 한다(z1133).
+    ⚠ 삭제는 _can_delete_meeting(작성자·admin/ceo 만) — 대표 결정으로 삭제는 넓히지 않는다.
+    🔴 c(열린 커서)를 넘기면 그걸로 참석자를 본다. 안 넘기면 짧게 새로 열어 본다
+       (안 넘겼다고 조용히 권한이 사라지면 안 된다 · WAL 이라 읽기는 서로 막지 않는다)."""
     if not u or not m:
         return False
     if (u.get("role") or "").lower() in ("admin", "ceo"):
@@ -3885,7 +3903,15 @@ def _can_edit_meeting(u, m) -> bool:
     uid = u.get("id")
     if not uid:
         return False
-    return m.get("owner_id") == uid or (bool(m.get("msg_organizer_id")) and m.get("msg_organizer_id") == uid)
+    if m.get("owner_id") == uid or (bool(m.get("msg_organizer_id")) and m.get("msg_organizer_id") == uid):
+        return True
+    if c is not None:
+        return _meeting_is_attendee(c, u, m)
+    try:
+        with db_session() as _c:
+            return _meeting_is_attendee(_c, u, m)
+    except Exception:
+        return False
 
 
 def _can_delete_meeting(u, m) -> bool:
@@ -3897,14 +3923,17 @@ def _can_delete_meeting(u, m) -> bool:
     return bool(u.get("id")) and m.get("owner_id") == u.get("id")
 
 
-def _can_end_meeting(u, m) -> bool:
-    """z1131 「⏹ 회의 종료」 권한: 회의록 작성자(총괄)·관리자/대표 + **이음에 그 회의를 등록한 사람**.
-    (삭제 권한 + 등록 담당 — 등록 담당은 회의를 열고 닫는 사람이라 종료는 할 수 있게 한다)"""
+def _can_end_meeting(u, m, c=None) -> bool:
+    """z1131 「⏹ 회의 종료」 권한: 회의록 작성자(총괄)·관리자/대표 + 이음에 그 회의를 등록한 사람
+    + z1133(대표 결정 2026-09-28) **그 회의 참석자**(회의를 함께 한 사람이 끝낼 수 있게).
+    ⚠ 🗑 삭제는 넓히지 않는다(_can_delete_meeting 그대로)."""
     if not u or not m:
         return False
     if _can_delete_meeting(u, m):
         return True
-    return bool(u.get("id")) and m.get("msg_organizer_id") == u.get("id")
+    if bool(u.get("id")) and m.get("msg_organizer_id") == u.get("id"):
+        return True
+    return _can_edit_meeting(u, m, c)   # z1133: 참석자면 종료도 할 수 있다
 
 
 def _meeting_ended(m) -> bool:
@@ -4240,7 +4269,7 @@ async def api_meeting_update(req: Request, mid: int):
         if not m:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
         m = dict(m)
-        if not _can_edit_meeting(u, m):
+        if not _can_edit_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
         _conf, _cur = _edit_conflict(c, "meetings", mid, d.get("base_ts"))
         if _conf:
@@ -4328,7 +4357,7 @@ async def api_meeting_extract(req: Request, mid: int):
         if not m:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
         m = dict(m)
-        if not _can_edit_meeting(u, m):
+        if not _can_edit_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         body = m.get("body") or ""
     if not body.strip():
@@ -4391,7 +4420,7 @@ async def api_meeting_decision_add(req: Request, mid: int):
         return JSONResponse({"ok": False, "error": "결정 내용은 필수입니다."}, 400)
     with db_session() as c:
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
-        if not m or not _can_edit_meeting(u, dict(m)):
+        if not m or not _can_edit_meeting(u, dict(m), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         cur = c.execute(
             "INSERT INTO meeting_decisions(meeting_id, who, what, due, source) VALUES(?,?,?,?,'manual')",
@@ -4409,7 +4438,7 @@ async def api_meeting_decision_del(req: Request, mid: int, did: int):
         return JSONResponse({"error": "로그인 필요"}, 401)
     with db_session() as c:
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
-        if not m or not _can_edit_meeting(u, dict(m)):
+        if not m or not _can_edit_meeting(u, dict(m), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         c.execute("DELETE FROM meeting_decisions WHERE id=? AND meeting_id=?", (did, mid))
     return JSONResponse({"ok": True})
@@ -4426,7 +4455,7 @@ async def api_meeting_action_add(req: Request, mid: int):
         return JSONResponse({"ok": False, "error": "할 일 내용은 필수입니다."}, 400)
     with db_session() as c:
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
-        if not m or not _can_edit_meeting(u, dict(m)):
+        if not m or not _can_edit_meeting(u, dict(m), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         assignee = (d.get("assignee") or "").strip()
         cur = c.execute(
@@ -4446,7 +4475,7 @@ async def api_meeting_action_del(req: Request, mid: int, aid: int):
         return JSONResponse({"error": "로그인 필요"}, 401)
     with db_session() as c:
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
-        if not m or not _can_edit_meeting(u, dict(m)):
+        if not m or not _can_edit_meeting(u, dict(m), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         c.execute("DELETE FROM meeting_actions WHERE id=? AND meeting_id=?", (aid, mid))
     return JSONResponse({"ok": True})
@@ -4592,7 +4621,7 @@ async def api_meeting_audio_upload(req: Request, mid: int, file: UploadFile = Fi
         if not m:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
         m = dict(m)
-        if not _can_edit_meeting(u, m):
+        if not _can_edit_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
     orig = file.filename or "rec.webm"
     ext = os.path.splitext(orig)[1].lower() or ".webm"
@@ -4751,7 +4780,7 @@ async def share_audio_receive(req: Request):
     with db_session() as c:
         rows = c.execute("""SELECT * FROM meetings
                             ORDER BY meeting_date DESC, id DESC LIMIT 60""").fetchall()
-        mine = [dict(r) for r in rows if _can_edit_meeting(u, dict(r))][:12]
+        mine = [dict(r) for r in rows if _can_edit_meeting(u, dict(r), c)][:12]
     print(f"[SHARE-AUDIO] uid={u['id']} {f.filename} {n // 1024}KB → {token}", flush=True)
     return ctx(req, "share_audio.html", user=u,
                share={"token": token, "name": f.filename[:80], "mb": round(n / 1048576, 1)},
@@ -4770,7 +4799,7 @@ async def api_meeting_attach_share(req: Request, mid: int):
         r = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
         if not r:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
-        if not _can_edit_meeting(u, dict(r)):
+        if not _can_edit_meeting(u, dict(r), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
     path = _share_find(d.get("token") or "", u["id"])
     if not path or not os.path.exists(path):
@@ -4911,7 +4940,7 @@ def _rec_load(c, u, mid: int, need_edit: bool = True):
     if not row:
         return None, JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
     mm = dict(row)
-    if need_edit and not _can_edit_meeting(u, mm):
+    if need_edit and not _can_edit_meeting(u, mm, c):
         return None, JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
     if not need_edit and not _can_view_meeting(c, u, mm):
         return None, JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
@@ -5360,7 +5389,7 @@ async def api_meeting_transcribe(req: Request, mid: int):
         if not m:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
         m = dict(m)
-        if not _can_edit_meeting(u, m):
+        if not _can_edit_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
     # z1113: 아직 글자로 안 바꾼 녹음 조각들(끊긴 녹음·이어서 녹음·올린 파일)을 순서대로. 없으면 최신 음성 하나.
     disk = (m.get("audio_path") or "").strip()
@@ -5388,7 +5417,7 @@ async def api_meeting_stt_status(req: Request, mid: int):
         m = c.execute("SELECT id, owner_id FROM meetings WHERE id=?", (mid,)).fetchone()
         if not m:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
-        if not _can_edit_meeting(u, dict(m)):
+        if not _can_edit_meeting(u, dict(m), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
     with _STT_LOCK:
         j = dict(_STT_JOBS.get(mid) or {"state": "none", "error": "", "warn": ""})
@@ -5639,7 +5668,7 @@ async def api_meeting_end(req: Request, mid: int):
         if not row:
             return JSONResponse({"ok": False, "error": "not_found"}, 404)
         m = dict(row)
-        if not _can_end_meeting(u, m):
+        if not _can_end_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "not_allowed"}, 403)
         if undo:
             c.execute("UPDATE meetings SET ended_at='', updated_at=datetime('now','localtime') WHERE id=?",
@@ -5892,7 +5921,7 @@ async def api_meeting_link(req: Request, mid: int):
         if not m:
             return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
         m = dict(m)
-        if not _can_edit_meeting(u, m):
+        if not _can_edit_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
         if pid is not None:
             if not can_view_sales(u):
