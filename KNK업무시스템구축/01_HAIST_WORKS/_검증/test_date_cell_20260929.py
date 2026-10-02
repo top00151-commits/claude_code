@@ -103,7 +103,9 @@ dbsrc = read(DBPY)
 chk("서버에 공용 date_cell_ok() 가 있다", "def date_cell_ok(" in dbsrc)
 chk("서버 셀 저장이 날짜를 검사한다", "if field in DATE_CELL_FIELDS and not date_cell_ok(val):" in dbsrc)
 mainsrc = read(MAINPY)
-chk("서버 세금계산서·호기·묶음 3곳도 검사한다", mainsrc.count("_logi.date_cell_ok(") == 3,
+# z1136: '정확히 3곳'으로 세면 같은 검사를 쓰는 새 입구가 생길 때마다 깨진다 — '3곳 이상'으로 본다.
+#        어느 함수가 거치는지는 검사기 check_date_cell_guard ④ 가 이름으로 확인한다(§4).
+chk("서버 세금계산서·호기·묶음 3곳도 검사한다", mainsrc.count("_logi.date_cell_ok(") >= 3,
     "%d곳" % mainsrc.count("_logi.date_cell_ok("))
 
 # ════════════════════════════════════════════════════════════════════

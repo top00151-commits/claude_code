@@ -29822,6 +29822,49 @@ def _write_tax_truth(c, table, ids, tier, idate, amount):
                       (share + (rem if _i == 0 else 0), _iid))
 
 
+@app.get("/sales/tax-invoice/same-day")
+async def tax_invoice_same_day(request: Request, tier: int = 1, date: str = "",
+                               iid: int = 0, kind: str = "", ref_id: int = 0):
+    """z1136 (이새롬·안지연 프로 요청): 세금계산서 「같은 날 함께 발행」 — 같은 고객사·같은 날·같은 차수로
+    발행된 건을 한 번에 보여 준다(보기 전용 · 아무것도 바꾸지 않는다).
+    조회 본체는 database.tax_same_day(연결만 받는 순수 함수). 여기서는 권한·검증·금액 표기만 한다.
+    세금계산서 금액은 영업·관리만 본다(can_view_sales — 다른 세금계산서 입구와 같은 기준)."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    date = (date or "").strip()
+    if tier not in (1, 2, 3) or not date or not _logi.date_cell_ok(date):
+        return JSONResponse({"ok": False, "error": "bad_request"}, 400)
+    try:
+        with db_session() as c:
+            res = _logi.tax_same_day(c, tier, date, iid=iid, kind=(kind or "").strip(), ref_id=ref_id)
+            cname = ""
+            if res.get("customer_id") is not None:
+                _r = c.execute("SELECT name FROM customers WHERE id=?", (res["customer_id"],)).fetchone()
+                cname = ((_r[0] if _r else "") or "")
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+    if not res.get("ok"):
+        return JSONResponse({"ok": False, "error": res.get("error") or "fail"}, 400)
+    from urllib.parse import quote as _q
+    items = []
+    for it in res.get("items", []):
+        d = dict(it)
+        d["amount_text"] = _fmt_money(it["amount"], it["currency"])   # 통화 표기는 한 곳(z751)
+        if it["kind"] == "consumable":
+            d["url"] = f"/consumables/{it['ref_id']}"
+        else:   # 그 수주 카드가 바로 보이게(z695 ?so=) — 저장해도 그 화면에 머문다(z1104)
+            d["url"] = f"/project/{it['ref_id']}" + (("?so=" + _q(it["order_no"])) if it["order_no"] else "")
+        items.append(d)
+    totals = [{"currency": k, "amount": v[0], "n": v[1], "text": _fmt_money(v[0], k)}
+              for k, v in sorted(res.get("totals", {}).items())]
+    return JSONResponse({"ok": True, "tier": tier, "date": date,
+                         "customer": {"id": res.get("customer_id"), "name": cname},
+                         "items": items, "totals": totals})
+
+
 @app.post("/sales/schedule/tax-invoice/issue")
 async def schedule_tax_invoice_issue(request: Request):
     """작업일정표에서 체크한 여러 출하 건(여러 관리번호/여러 호기/같은 출하시점)을 '한 장의 세금계산서'로 묶어 발행.

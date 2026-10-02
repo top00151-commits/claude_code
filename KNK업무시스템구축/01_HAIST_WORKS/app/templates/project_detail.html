@@ -4,6 +4,8 @@
 {% include "_v5_partials/knk_datepicker.html" %}
 {# z1095: 금액칸 소수점 보존 공용 함수(knkFmtAmtTyping 등) — 세금계산서/인보이스 금액 팝업에서 쓴다 #}
 {% include "_v5_partials/knk_amt.html" %}
+{# z1136: 세금계산서 「같은 날 함께 발행」 보기(공용) #}
+{% include "_v5_partials/knk_tax_sameday.html" %}
 {# z1097: 통화별 합계 표기 공용 한 벌 — 원화+달러 환산 없는 합산 재발 방지 #}
 {% import "_v5_partials/knk_ccy_total.html" as _ccy %}
 <link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" />
@@ -2859,6 +2861,8 @@
       +'<div class="ti-pop-hint">이 호기에 '+(cell.dataset.title||'')+' 발행일'+(hasAmt?'·금액':'')+'을 입력하세요.<br>호기마다 따로 발행할 수 있습니다(출하 일정별).</div>'
       +'<div class="ti-pop-btns"><button type="button" class="ti-clear">지우기</button><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
     document.body.appendChild(pop);
+    // z1136 (이새롬·안지연 프로 요청): 같은 고객사·같은 날 함께 발행한 다른 건을 함께 보여 준다(보기 전용)
+    if(window.knkTaxSameDay){ window.knkTaxSameDay(pop, {datefield:datefield, date:curDate, iid:iid}); }
     // v5H226z995 (대표 지시): 셀 아래 붙이기(하단 행=화면 밖) → 화면 중앙 + 제목줄 드래그 이동
     if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
     else { var rect=cell.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-320))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }

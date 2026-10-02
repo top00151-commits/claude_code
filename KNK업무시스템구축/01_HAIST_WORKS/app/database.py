@@ -14207,6 +14207,101 @@ def date_cell_ok(value) -> bool:
         return False
 
 
+def tax_same_day(c, tier, date, iid=0, kind="", ref_id=0) -> dict:
+    """z1136 (이새롬·안지연 프로 요청 2026-10-02): 세금계산서 「같은 날 함께 발행」 — 보기 전용 조회.
+
+    요청: "세금계산서에서 묶임이 표현됐으면 좋겠다 — 뭐하고 뭐하고 묶여서 발행이 됐다 … 말일자로 발행하는 게
+    많아서, 안 그러면 하나씩 다 눌러서 확인해야 한다."
+    실측(2026-10-02 운영 읽기): (고객사+발행일+차수) 317묶음 중 관리번호 2개 이상이 115묶음·653건.
+    기존 「묶어 발행」(tax_invoices)은 운영 0장 — 실무는 이미 끊은 세금계산서의 발행일을 건마다 적는다.
+
+    묶는 기준 = **고객사 id + 발행일 + 차수**.
+      · 고객사는 **이름이 아니라 id** — 드림텍(본사)·드림텍(아산)이 둘 다 「(주) 드림텍」이라는 이름을 갖고 있어
+        이름으로 묶으면 서로 다른 종사업장이 섞인다(세금계산서는 종사업장 단위로 끊는다).
+      · **수주(SO)의 발주처 id 가 우선**, 없으면 프로젝트 고객 id — 발주처가 프로젝트 고객과 다른 수주가
+        운영에 96건 있다. 프로젝트 고객만 보면 그 96건이 엉뚱한 묶음에 들어간다.
+      · 취소된 수주(CANCELLED)는 뺀다. 프로젝트와 소모품을 **함께** 모은다(섞인 묶음 29개).
+    통화가 섞일 수 있어 합계는 **통화별**로만 낸다(환산 없이 더하지 않는다 — z1097).
+
+    c: sqlite 연결. tier: 1/2/3. date: YYYY-MM-DD.
+    누른 건: iid(호기 id) 또는 kind('consumable'/'project') + ref_id.
+    반환 {ok, customer_id, items:[{kind, ref_id, order_id, mgmt_code, name, order_no, units, amount,
+                                    currency, is_self}], totals:{통화: [합계, 건수]}}
+    """
+    try:
+        tier = int(tier)          # 0·None 을 조용히 1차로 바꾸지 않는다(시험이 잡아낸 구멍)
+    except (TypeError, ValueError):
+        tier = 0
+    if tier not in (1, 2, 3):
+        return {"ok": False, "error": "bad_tier", "items": [], "totals": {}}
+    date = (date or "").strip()
+    if not date or not date_cell_ok(date):
+        return {"ok": False, "error": "bad_date", "items": [], "totals": {}}
+    dcol = "tax_invoice_date" if tier == 1 else "tax_invoice_date%d" % tier   # 화이트리스트(차수 1~3)에서만 만든다
+    acol = "tax_invoice_amt%d" % tier
+
+    cid, self_pid, self_oid, self_cons = None, 0, 0, 0
+    if iid:
+        r = c.execute(
+            "SELECT COALESCE(o.customer_id, p.customer_id), p.id, o.id FROM order_items oi "
+            "JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id WHERE oi.id=?",
+            (int(iid),)).fetchone()
+        if r:
+            cid, self_pid, self_oid = r[0], int(r[1]), int(r[2])
+    elif kind == "consumable" and ref_id:
+        r = c.execute("SELECT customer_id FROM consumable_orders WHERE id=?", (int(ref_id),)).fetchone()
+        if r:
+            cid, self_cons = r[0], int(ref_id)
+    elif kind == "project" and ref_id:
+        r = c.execute("SELECT customer_id FROM projects WHERE id=?", (int(ref_id),)).fetchone()
+        if r:
+            cid, self_pid = r[0], int(ref_id)
+    if cid is None:
+        return {"ok": True, "customer_id": None, "items": [], "totals": {}}
+
+    items, grp = [], {}
+    # 프로젝트 — 수주(SO) 단위로 모은다(호기는 대수로 센다)
+    for r in c.execute(
+            f"SELECT p.id, p.mgmt_code, p.name, o.id, o.order_no, oi.{acol}, "
+            f"COALESCE(NULLIF(TRIM(oi.currency),''), NULLIF(TRIM(o.currency),''), 'KRW') "
+            f"FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
+            f"WHERE oi.{dcol}=? AND COALESCE(o.customer_id, p.customer_id)=? "
+            f"AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY p.mgmt_code, o.id, oi.id",
+            (date, cid)).fetchall():
+        cur = str(r[6] or "KRW").upper()
+        k = (int(r[0]), int(r[3]), cur)
+        g = grp.get(k)
+        if g is None:
+            g = grp[k] = {"kind": "project", "ref_id": int(r[0]), "order_id": int(r[3]),
+                          "mgmt_code": r[1] or "", "name": r[2] or "", "order_no": r[4] or "",
+                          "units": 0, "amount": 0.0, "currency": cur}
+            items.append(g)
+        g["units"] += 1
+        g["amount"] += float(r[5] or 0)
+    # 소모품 — 한 발주가 한 줄
+    for r in c.execute(
+            f"SELECT id, mgmt_code, co_no, {acol}, COALESCE(NULLIF(TRIM(currency),''),'KRW'), "
+            f"COALESCE(model_name,''), COALESCE(equip_name,'') "
+            f"FROM consumable_orders WHERE {dcol}=? AND customer_id=? ORDER BY mgmt_code, id",
+            (date, cid)).fetchall():
+        nm = " ".join(x for x in ((r[5] or "").strip(), (r[6] or "").strip()) if x)
+        items.append({"kind": "consumable", "ref_id": int(r[0]), "order_id": 0,
+                      "mgmt_code": r[1] or "", "name": nm, "order_no": r[2] or "",
+                      "units": 1, "amount": float(r[3] or 0), "currency": str(r[4] or "KRW").upper()})
+
+    totals = {}
+    for it in items:
+        if it["kind"] == "consumable":
+            it["is_self"] = bool(self_cons and it["ref_id"] == self_cons)
+        else:
+            it["is_self"] = bool(self_pid and it["ref_id"] == self_pid
+                                 and (not self_oid or it["order_id"] == self_oid))
+        t = totals.setdefault(it["currency"], [0.0, 0])
+        t[0] += it["amount"]
+        t[1] += 1
+    return {"ok": True, "customer_id": cid, "items": items, "totals": totals}
+
+
 def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> tuple[bool, str]:
     """일정표 정보칸(기타사항·부서·담당자·납품위치) 원본 수정.
     화이트리스트(_SCHED_CELL_MAP) 필드만 허용. 반환 (성공, 메시지).

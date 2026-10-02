@@ -8,6 +8,8 @@
 {% include "_v5_partials/styles.html" %}
 {# z1135: 금액칸 공용 함수(knkFmtAmtTyping·knkAmtToRaw) — 마이너스(네고)·소수점 보존 #}
 {% include "_v5_partials/knk_amt.html" %}
+{# z1136: 세금계산서 「같은 날 함께 발행」 보기(공용) #}
+{% include "_v5_partials/knk_tax_sameday.html" %}
 <link rel="stylesheet" href="/static/css/schedule_board.css?v={{ APP_VERSION }}" />
 </head>
 <body>
@@ -1143,6 +1145,8 @@ function openUnitTaxPop(box){
     +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 발행일·금액(세금계산서 아님).':'이 호기의 세금계산서 발행일·금액을 입력하세요.')+'</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
   _editing={box,pop}; document.body.appendChild(pop);
+  // z1136: 같은 고객사·같은 날 함께 발행한 다른 건(보기 전용)
+  if(window.knkTaxSameDay){ window.knkTaxSameDay(pop, {datefield:box.dataset.datefield, date:curDate, iid:iid}); }
   // v5H226z995 (대표 지시): 셀 아래 붙이기(하단 행=화면 밖) → 화면 중앙 + 제목줄 드래그 이동
   if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
   else { const rect=box.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
@@ -1519,6 +1523,10 @@ function startTaxInvEdit(td, tr){
     +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 금액(세금계산서 아님). ':'')+'1·2·3차 합계가 수주금액과 같으면 <b>초록</b>, 다르면 <b>주황</b>.</div>'
     +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
   _editing={td,pop}; document.body.appendChild(pop);
+  // z1136: 같은 고객사·같은 날 함께 발행한 다른 건(보기 전용) — 프로젝트는 그 줄 첫 호기로 발주처를 찾는다
+  if(window.knkTaxSameDay){ var _u0=String(tr.dataset.uids||'').split(',')[0];
+    window.knkTaxSameDay(pop, {datefield:td.dataset.datefield, date:curDate, iid:(_u0||''),
+                                kind:tr.dataset.kind, ref_id:tr.dataset.ref}); }
   // v5H226z995 (대표 지시): 셀 아래 붙이기(하단 행=화면 밖) → 화면 중앙 + 제목줄 드래그 이동
   if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
   else { const rect=td.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }

@@ -1,0 +1,102 @@
+{# v5H226z1136 (이새롬·안지연 프로 요청 2026-10-02): 세금계산서 「같은 날 함께 발행」 — 공용 한 벌 #}
+{#
+  요청(녹음 원문): "소모품에 지금 우리가 묶인 거 표현하듯이 세금계산서에서 묶임이 표현됐으면 좋겠다 —
+        뭐하고 뭐하고 묶여서 발행이 됐다 … 말일자로 발행하는 게 많잖아요. 9월 30일에 발행한 게 되게
+        많을 텐데, 그거를 클릭하면 같이 묶여서(보여야지) 안 그러면 하나씩 다 눌러서 확인해야 되잖아요."
+
+  실측(2026-10-02 운영 읽기): 발행일이 적힌 줄 2,449건 → (고객사+발행일+차수) 317묶음,
+        그 중 관리번호가 2개 이상인 묶음 115개 · 653건. 최대 26개(두성테크 2026-04-30).
+        프로젝트와 소모품이 한 날에 섞인 묶음 29개 → **둘을 같이** 보여야 한다.
+        기존 「묶어 발행」(z488·tax_invoices)은 운영에서 **0장** — 실무는 이미 끊은 세금계산서의
+        발행일을 각 건에 적는 방식이라 그 도구를 쓰지 않았다. 그래서 입력은 그대로 두고 **보기만** 더한다.
+
+  규칙
+    · 묶는 기준 = **고객사 id + 발행일 + 차수**. 고객사는 이름이 아니라 id 로 맞춘다
+      (드림텍(본사)·드림텍(아산)이 둘 다 「(주) 드림텍」이라는 이름을 갖고 있어 이름으로 묶으면 종사업장이 섞인다).
+      수주마다 발주처가 다를 수 있어 **수주의 발주처 id 가 우선**이다(서버 database.tax_same_day).
+    · 이름은 사실대로 「같은 날 함께 발행」 — 실제로 한 장으로 끊었는지는 시스템이 모른다(「묶음」이라 단정하지 않는다).
+    · 통화가 섞이면 **통화별 소계**만 보인다(환산 없이 더하지 않는다 — z1097 규정).
+    · 혼자뿐이면 아무것도 그리지 않는다(잘 도는 팝업을 어지럽히지 않는다).
+    · 금액 표기는 서버 money()(z751) 가 만든 글자를 그대로 쓴다 — 화면에서 통화 서식을 다시 만들지 않는다.
+
+  쓰는 법:  knkTaxSameDay(팝업요소, {datefield:'tax_invoice_date', date:'2026-09-30', iid:123})
+            또는 {datefield, date, kind:'consumable', ref_id:45}
+#}
+<style id="knk-tsd-css">
+.knk-tsd{margin-top:10px;border-top:1px dashed #d6cdb6;padding-top:9px;font-size:12px;line-height:1.45;}
+.knk-tsd-ttl{font-weight:800;color:#1e293b;display:flex;align-items:baseline;gap:6px;}
+.knk-tsd-ttl .n{color:#b0271f;}
+.knk-tsd-sub{color:#64748b;font-size:11px;margin:1px 0 6px;}
+.knk-tsd-list{max-height:210px;overflow:auto;border:1px solid #eee5d3;border-radius:7px;background:#fffdf8;}
+.knk-tsd-row{display:flex;justify-content:space-between;gap:8px;padding:5px 8px;border-bottom:1px solid #f3ecdd;
+  text-decoration:none;color:inherit;}
+.knk-tsd-row:last-child{border-bottom:0;}
+.knk-tsd-row:hover{background:#fff4dc;}
+.knk-tsd-row.self{background:#f1f5f9;}
+.knk-tsd-row .l{min-width:0;}
+.knk-tsd-row .c{font-weight:800;color:#b0271f;white-space:nowrap;}
+.knk-tsd-row .s{font-weight:600;color:#334155;margin-left:5px;white-space:nowrap;}
+.knk-tsd-row .m{display:block;color:#64748b;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:165px;}
+.knk-tsd-row .a{font-weight:700;color:#1d4ed8;white-space:nowrap;align-self:center;}
+.knk-tsd-row .tag{font-size:10px;font-weight:700;border-radius:6px;padding:0 5px;margin-left:5px;background:#e2e8f0;color:#334155;}
+.knk-tsd-tot{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-weight:800;color:#1e293b;}
+.knk-tsd-tot .a{color:#b0271f;}
+.knk-tsd-load{color:#94a3b8;font-size:11px;}
+</style>
+<script>
+(function(){
+  if (window.knkTaxSameDay) return;    // 중복 include 안전
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+  /* 날짜 칸 이름 → 차수. 거래명세서(statement_date) 처럼 세금계산서가 아니면 0(아무것도 안 그린다) */
+  function tierOf(datefield){
+    if (datefield === 'tax_invoice_date') return 1;
+    if (datefield === 'tax_invoice_date2') return 2;
+    if (datefield === 'tax_invoice_date3') return 3;
+    return 0;
+  }
+  window.knkTaxSameDayTier = tierOf;
+  window.knkTaxSameDay = function(host, q){
+    q = q || {};
+    var tier = q.tier || tierOf(q.datefield);
+    var date = String(q.date || '').trim();
+    if (!host || !tier || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;   // 발행일이 아직 없으면 보여줄 것이 없다
+    var sp = new URLSearchParams();
+    sp.set('tier', tier); sp.set('date', date);
+    if (q.iid) sp.set('iid', q.iid);
+    else if (q.kind && q.ref_id) { sp.set('kind', q.kind); sp.set('ref_id', q.ref_id); }
+    else return;
+    var box = document.createElement('div'); box.className = 'knk-tsd';
+    box.innerHTML = '<div class="knk-tsd-load">같은 날 발행한 건을 찾는 중…</div>';
+    host.appendChild(box);
+    fetch('/sales/tax-invoice/same-day?' + sp.toString(), {credentials: 'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var items = (j && j.ok && j.items) || [];
+        var others = items.filter(function(x){ return !x.is_self; });
+        if (!others.length) { box.remove(); return; }             // 혼자뿐이면 그리지 않는다
+        var h = '<div class="knk-tsd-ttl">같은 날 함께 발행 <span class="n">' + items.length + '건</span></div>'
+              + '<div class="knk-tsd-sub">' + esc((j.customer || {}).name || '') + ' · ' + esc(j.date) + ' · ' + j.tier + '차</div>'
+              + '<div class="knk-tsd-list">';
+        items.forEach(function(x){
+          var tag = (x.kind === 'consumable') ? '<span class="tag">소모품</span>' : '';
+          var sub = (x.kind === 'consumable') ? (x.name || '소모품')
+                  : ((x.name || '') + (x.units > 1 ? ' · ' + x.units + '대' : ''));
+          h += '<a class="knk-tsd-row' + (x.is_self ? ' self' : '') + '" href="' + esc(x.url) + '"'
+             + ' title="' + esc((x.mgmt_code || '') + ' ' + (x.order_no || '')) + (x.is_self ? ' — 지금 보는 건' : ' — 눌러서 이동') + '">'
+             + '<span class="l"><span class="c">' + esc(x.mgmt_code || '—') + '</span>'
+             + (x.order_no ? '<span class="s">' + esc(x.order_no) + '</span>' : '') + tag
+             + '<span class="m">' + esc(sub) + (x.is_self ? ' · 지금 보는 건' : '') + '</span></span>'
+             + '<span class="a">' + esc(x.amount_text || '') + '</span></a>';
+        });
+        h += '</div>';
+        (j.totals || []).forEach(function(t){
+          h += '<div class="knk-tsd-tot"><span>합계 ' + t.n + '건' + ((j.totals.length > 1) ? ' (' + esc(t.currency) + ')' : '') + '</span>'
+             + '<span class="a">' + esc(t.text) + '</span></div>';
+        });
+        box.innerHTML = h;
+      })
+      .catch(function(){ box.remove(); });   // 못 불러오면 조용히 접는다 — 본래 팝업(발행일·금액 입력)은 그대로 쓴다
+  };
+})();
+</script>
