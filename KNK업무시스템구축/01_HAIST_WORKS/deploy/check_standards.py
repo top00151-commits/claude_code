@@ -569,10 +569,11 @@ def check_reload_keep_view(files):
 def _js_func(src, name):
     """템플릿에서 최상위 JS 함수 한 개의 본문을 잘라 온다(`in APP` 같은 계수 함정을 피하려 구간으로 본다)."""
     import re as _re
-    m = _re.search(r"(?m)^(?:async\s+)?function\s+" + _re.escape(name) + r"\s*\(", src)
+    # z1135: 들여쓴 함수(공용 부품 knk_amt.html 처럼 IIFE 안에 든 것)도 찾는다
+    m = _re.search(r"(?m)^[ 	]*(?:async\s+)?function\s+" + _re.escape(name) + r"\s*\(", src)
     if not m:
         return None
-    nxt = _re.search(r"(?m)^(?:async\s+)?function\s+", src[m.end():])
+    nxt = _re.search(r"(?m)^[ 	]*(?:async\s+)?function\s+", src[m.end():])
     return src[m.start(): m.end() + (nxt.start() if nxt else len(src) - m.end())]
 
 
@@ -657,6 +658,78 @@ def check_date_cell_guard(_files=None):
             if "date_cell_ok" not in names:
                 bad.append((p, node.lineno,
                             "④ %s — 날짜 칸을 저장하는데 date_cell_ok() 를 안 거친다(서버가 마지막 방어선)" % fn))
+    return bad
+
+
+def check_amt_sign(files):
+    """§금액 칸 = 마이너스(네고·할인) 보존 (z1135 · 이새롬 프로 신고 2026-10-02).
+
+    신고 원문: "마이너스 건은 세금계산서 입력을 해도 플러스로 인식됩니다."
+    실측(999T2606 SENSOR): 수주 금액 **-1,865,000** 인데 1차 세금계산서는 **+1,865,000**.
+
+    원인: 금액 칸의 타이핑 재포맷이 `value.replace(/[^0-9.]/g,'')` 라 **'-' 를 키 입력 즉시 지웠다.**
+    z1095 의 '.'(소수점) 삭제와 **같은 종류**다 — 그때는 10배가 됐고 이번엔 부호가 뒤집힌다.
+    같은 화면 안에서도 단가·금액 칸(`_MONEY_STRIP`=통화기호·콤마만 제거)은 마이너스가 되는데
+    세금계산서 금액만 안 되어, 한 줄 안에서 부호가 어긋났다.
+
+    올바른 방법: 공용 `_v5_partials/knk_amt.html` 의 `knkFmtAmtTyping`(타이핑)·`knkAmtToRaw`(저장).
+                 둘 다 **맨 앞 '-' 하나만** 살린다(중간·중복 '-' 는 버린다).
+
+    잡는 것
+      ① 공용 함수가 부호를 안 지킨다(사람이 되돌려 놓는 것을 막는다)
+      ② 금액 칸에서 `[^0-9.]` 로 숫자·점만 남긴다(= 부호 삭제) · 주변 ±3줄에 금액 신호가 있을 때만
+      ③ 금액 타이핑 포맷 **사본**이 또 생겼다(공용을 안 부르고 스스로 구현)
+    빼는 것: 주석 · `[^0-9.\-]`(부호를 지키는 올바른 형태) · 날짜·전화 정규화(금액 신호 없음)
+    """
+    bad = []
+    # z1135: 신호를 넓힌다 — 세금계산서 팝업 저장 줄(`av=(pa.value||'')...`)이 주변 3줄에
+    #   'amt' 신호가 없어 빠져나가던 구멍을 시험(§4)이 찾아냈다.
+    amt_sig = re.compile(
+        r"knk-money|pi-price|ti-pa|ti-amt|ti-pd|ux-money|price|amount|amt|금액|단가|money"
+        r"|AmtTyping|AmtToRaw|pa\.value|taxSave|taxinv|tax_invoice|세금계산서|인보이스|발행",
+        re.I)
+    LEAD_NEG = re.compile(r"\^\\s\*-|\^-|charAt\(0\)\s*===\s*'-'|startsWith\('-'\)|\[0\]\s*===\s*'-'")
+    strip_sign = re.compile(r"replace\(\s*/\[\^0-9\.\]/g")      # [^0-9.] 만 — [^0-9.\-] 는 안 걸린다
+    jinja_cmt = re.compile(r"\{#.*?#\}", re.S)
+
+    # ① 공용 한 벌이 부호를 지키는가
+    shared = os.path.join(TPL, "_v5_partials", "knk_amt.html")
+    if os.path.exists(shared):
+        src = _read(shared)
+        for fn in ("fmtAmtTyping", "amtToRaw"):
+            body = _js_func(src, fn)
+            if body is None:
+                bad.append((shared, 1, "① 공용 %s() 가 없다" % fn))
+            elif not LEAD_NEG.search(body):
+                bad.append((shared, 1,
+                            "① 공용 %s() 가 **맨 앞 마이너스**를 보지 않는다 — 네고(할인) 금액이 양수가 된다" % fn))
+
+    # ② ③ 화면들
+    for p in files:
+        if not p.endswith(".html"):
+            continue
+        # 공용 부품 자신은 ① 에서 이미 봤다 — 부호를 먼저 떼어 둔 뒤 숫자만 남기는 게 올바른 구현이다
+        _is_shared = os.path.basename(p) == "knk_amt.html"
+        src = jinja_cmt.sub(_blank_keep_lines, _read(p))
+        lines = src.splitlines()
+        for i, ln in enumerate(lines):
+            if _is_shared or not strip_sign.search(ln):
+                continue
+            if ln.lstrip().startswith(("//", "*", "/*")):
+                continue
+            lo, hi = max(0, i - 5), min(len(lines), i + 6)
+            if amt_sig.search("\n".join(lines[lo:hi])):
+                bad.append((p, i + 1, ln.strip()[:110]))
+        # 금액 타이핑 포맷 사본 — 공용을 부르지 않고 스스로 만들면 또 갈라진다
+        for fn in ("_fmtAmtTyping", "fmtAmtTyping"):
+            if os.path.basename(p) == "knk_amt.html":
+                continue
+            body = _js_func(src, fn)
+            if body is None:
+                continue
+            if "knkFmtAmtTyping" not in body:
+                bad.append((p, 1,
+                            "③ %s() 사본 — 공용 knkFmtAmtTyping() 을 부를 것(사본은 화면마다 따로 재발한다)" % fn))
     return bad
 
 
@@ -780,6 +853,16 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 날짜 칸 : 달력이 붙고 날짜만 저장됨 (화면·서버 양쪽)")
+
+    sign_bad = check_amt_sign(files)
+    if sign_bad:
+        fail += len(sign_bad)
+        print("  ❌ 금액칸 마이너스(네고) 삭제 : %d건 → 공용 knkFmtAmtTyping()/knkAmtToRaw() 사용"
+              " (_v5_partials/knk_amt.html)" % len(sign_bad))
+        for f, l, m in sign_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 금액칸 마이너스(네고·할인) : 부호 보존")
 
     print("=" * 72)
     if fail:

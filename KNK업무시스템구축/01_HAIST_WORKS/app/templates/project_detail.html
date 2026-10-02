@@ -2880,7 +2880,7 @@
     pop.querySelector('.ti-save').addEventListener('click',async function(){
       // z1095: 콤마만 떼고 소수점은 남긴다(점 중복도 공용 헬퍼가 정리)
       var dv=_tiNormDate((pd.value||'').trim()),
-          av=pa?(window.knkAmtToRaw?window.knkAmtToRaw(pa.value):(pa.value||'').replace(/[^0-9.]/g,'')):'';
+          av=pa?(window.knkAmtToRaw?window.knkAmtToRaw(pa.value):(pa.value||'').replace(/[^0-9.\-]/g,'')):'';   // z1135: 폴백도 부호 보존
       var btn=pop.querySelector('.ti-save'); btn.disabled=true;
       try{
         await _tiSave(iid,datefield,dv);

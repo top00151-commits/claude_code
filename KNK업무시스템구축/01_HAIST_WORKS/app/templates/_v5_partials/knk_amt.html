@@ -21,13 +21,21 @@
   if (window.knkFmtAmtTyping) return;   // 중복 include 안전
 
   // 타이핑 중 포맷: 정수부만 콤마, 소수부는 친 그대로(최대 2자리)
+  //   v5H226z1135 (이새롬 프로 신고 2026-10-02): **맨 앞 마이너스 1개를 지킨다.**
+  //   증상: 네고(할인) 수주는 금액이 음수인데 세금계산서 금액을 넣으면 양수로 들어갔다
+  //        (999T2606 SENSOR · 수주 -1,865,000 ↔ 1차 세금계산서 +1,865,000).
+  //   원인: 아래 [^0-9.] 가 '-' 를 **키 입력 즉시** 지웠다 — z1095 의 '.' 과 같은 종류.
+  //   부호는 맨 앞에서만 뜻이 있다 → 앞의 '-' 하나만 살리고 중간·중복 '-' 는 버린다.
+  //   '-' 만 친 상태(아직 숫자 없음)도 그대로 두어야 이어서 숫자를 칠 수 있다.
   function fmtAmtTyping(v) {
     v = String(v == null ? '' : v);
+    var neg = /^\s*-/.test(v);
     var m = v.replace(/[^0-9.]/g, '');                    // 숫자와 소수점만 — '.' 을 지우지 않는다
     var i = m.indexOf('.');
     var ip = (i < 0 ? m : m.slice(0, i)).slice(0, 15);
     var fp = (i < 0 ? '' : '.' + m.slice(i + 1).replace(/\./g, '').slice(0, 2));
-    return (ip ? Number(ip).toLocaleString() : (fp ? '0' : '')) + fp;
+    var out = (ip ? Number(ip).toLocaleString() : (fp ? '0' : '')) + fp;
+    return neg ? '-' + out : out;
   }
 
   // 저장 직후 칸에 되비칠 때 — 서버 money() 와 같은 규칙(KRW 정수 · 외화 소수 2자리)
@@ -39,11 +47,17 @@
       : Math.round(n).toLocaleString();
   }
 
-  // 서버로 보내기 직전 — 콤마만 떼고 소수점은 남긴다
+  // 서버로 보내기 직전 — 콤마만 떼고 소수점·부호는 남긴다
+  //   z1135: 부호도 **맨 앞 1개만**(`1-2` 같은 입력이 그대로 넘어가 서버에서 깨지던 구멍을 막는다).
+  //          숫자가 하나도 없으면(예: '-' 만 친 상태) 빈 값 = 지우기로 본다.
   function amtToRaw(v) {
     var s = String(v == null ? '' : v).replace(/[^0-9.\-]/g, '');
+    var neg = s.charAt(0) === '-';
+    s = s.replace(/-/g, '');
     var i = s.indexOf('.');
-    return i < 0 ? s : s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');   // 점 1개만
+    s = (i < 0) ? s : s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, '');   // 점 1개만
+    if (!/[0-9]/.test(s)) return '';
+    return (neg ? '-' : '') + s;
   }
 
   // 금액 input 한 칸에 붙이는 헬퍼 — inputmode 까지 함께 맞춘다(모바일 소수점 키)

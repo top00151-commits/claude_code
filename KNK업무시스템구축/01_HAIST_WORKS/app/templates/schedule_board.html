@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>작업 일정표 · KNK HAIST WORKS</title>
 {% include "_v5_partials/styles.html" %}
+{# z1135: 금액칸 공용 함수(knkFmtAmtTyping·knkAmtToRaw) — 마이너스(네고)·소수점 보존 #}
+{% include "_v5_partials/knk_amt.html" %}
 <link rel="stylesheet" href="/static/css/schedule_board.css?v={{ APP_VERSION }}" />
 </head>
 <body>
@@ -966,7 +968,7 @@ if(_tbody){
     const row=e.target.closest('tr[data-iid]'); if(!row) return;
     const t=e.target, f=t.dataset.field; if(!f) return;
     const iid=row.dataset.iid;
-    if(t.classList.contains('ux-money')) _uxSave(iid,f,(t.value||'').replace(/[^0-9.]/g,''),t);
+    if(t.classList.contains('ux-money')) _uxSave(iid,f,window.knkAmtToRaw(t.value),t);   // z1135: 부호 보존
     else _uxSave(iid,f,t.value,t);
   });
   // v5H226z483/z484: 금액칸(단가·세금계산서) 입력 시 천단위 콤마 자동 — z986: 소수점 보존(_fmtAmtTyping)
@@ -1154,7 +1156,7 @@ function openUnitTaxPop(box){
   setTimeout(()=>document.addEventListener('mousedown',onDoc),0);
   pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
   pop.querySelector('.ti-save').addEventListener('click',async ()=>{
-    const dv=(pd.value||'').trim(), av=(pa.value||'').replace(/[^0-9.]/g,'');
+    const dv=(pd.value||'').trim(), av=window.knkAmtToRaw(pa.value);   // z1135: 마이너스(네고) 보존
     if(!_dateOk(dv)){ _dateWarn(); pd.focus(); return; }   // z1132: 발행일은 날짜만(신고 ②)
     const btn=pop.querySelector('.ti-save'); btn.disabled=true;
     try{
@@ -1531,7 +1533,7 @@ function startTaxInvEdit(td, tr){
   setTimeout(()=>document.addEventListener('mousedown',onDoc),0);
   pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
   pop.querySelector('.ti-save').addEventListener('click',async ()=>{
-    const dv=(pd.value||'').trim(), av=(pa.value||'').replace(/[^0-9.]/g,'');
+    const dv=(pd.value||'').trim(), av=window.knkAmtToRaw(pa.value);   // z1135: 마이너스(네고) 보존
     if(!_dateOk(dv)){ _dateWarn(); pd.focus(); return; }   // z1132: 발행일은 날짜만(신고 ②)
     const btn=pop.querySelector('.ti-save'); btn.disabled=true;
     try{
@@ -1565,11 +1567,10 @@ function fmtMoney(v){ var n=parseFloat(String(v).replace(_MONEY_STRIP,'')); retu
 // v5H226z986 (대표 신고 '소수점 이하 직접 입력이 아예 안 됨'): 금액 입력 콤마 — 소수점 보존.
 //   기존 재포맷이 [^0-9] 로 '.'을 키 입력 즉시 지워 외화(EUR 등) 소수 입력 자체가 불가능했음(단가·세금계산서/인보이스 공통).
 //   정수부만 콤마, 소수부는 친 그대로(최대 2자리 — 외화 소수2 규칙). 수량 칸은 별도 편집기라 영향 없음(정수 유지).
-function _fmtAmtTyping(v){
-  v=String(v==null?'':v); var m=v.replace(/[^0-9.]/g,'');
-  var i=m.indexOf('.'); var ip=(i<0?m:m.slice(0,i)).slice(0,15); var fp=(i<0?'':'.'+m.slice(i+1).replace(/\./g,'').slice(0,2));
-  return (ip?Number(ip).toLocaleString():(fp?'0':''))+fp;
-}
+// v5H226z1135 (이새롬 프로 신고): 금액 타이핑 포맷은 **공용 한 벌**(_v5_partials/knk_amt.html)만 쓴다.
+//   자체 사본이 갈라져 있던 탓에 z1095(소수점)·z1135(마이너스)가 화면마다 따로 재발했다.
+//   이름은 그대로 둬 부르는 자리(5곳)는 안 건드린다.
+function _fmtAmtTyping(v){ return window.knkFmtAmtTyping(v); }
 // z986: 저장 직후 칸 표시 — 서버 money() 규칙과 동일(KRW 정수·외화 소수 2자리 고정)
 function _fmtAmtShow(v,ccy){ var n=Number(v)||0; return (ccy&&ccy!=='KRW')?n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):n.toLocaleString(); }
 function recalcAmount(tr){
