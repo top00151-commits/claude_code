@@ -38718,6 +38718,30 @@ async def sales_production_start(req: Request):
         return JSONResponse({"ok": True, "production_id": cur.lastrowid})
 
 
+def _sr_bill_state(total, issued_amt, eps):
+    """v5H226z1137 (이새롬 프로 신고 「마이너스 세금계산서는 미발행으로 인식 됩니다」 2026-10-02): 납품·수금의 발행 판정.
+
+    🔴 금액의 **부호를 가정하지 않는다** — 네고·할인 건은 수주금액도 세금계산서도 마이너스다(999T2606 -1,865,000).
+       예전 식은 `발행합계 <= 0` 이면 「전부 미발행」, `잔액 > 0` 일 때만 「발행 대기」였다. 그래서
+         ① 마이너스로 **다 끊은** 건이 「전부 미발행」으로 세어지고(운영 실측 1건)
+         ② 마이너스 수주를 **아직 안 끊으면** 「발행 대기」에 안 뜨고 **어느 목록에도 안 나왔다**(상태값만 「수금완료」).
+    미발행 잔액 = 수주금액 − 발행합계 를 **수주금액의 방향으로** 본다.
+       플러스 수주는 남은 +금액, 마이너스 수주는 남은 −금액. 넘겨 끊은 쪽(초과 발행)은 예전처럼 잔액 0.
+       ⇒ 수주금액이 0 이상인 건의 잔액·발행 대기 판정은 예전 식과 **한 글자도 다르지 않다.**
+    반환 {"unbilled": 미발행 잔액, "billing_due": 잔액 남음, "nothing_issued": 하나도 안 끊음(발행합계 0)}
+    연결·요청과 무관한 순수 함수 — `_검증/test_tax_sign_status_20261002.py` 가 이 원문을 그대로 뽑아 시험한다."""
+    total = float(total or 0)
+    issued_amt = float(issued_amt or 0)
+    unb = total - issued_amt
+    if total < 0:
+        unbilled = unb if unb < -eps else 0
+    else:
+        unbilled = unb if unb > eps else 0
+    return {"unbilled": unbilled,
+            "billing_due": abs(unbilled) > eps,
+            "nothing_issued": abs(issued_amt) <= eps}
+
+
 @app.get("/sales/shipments-receipts", response_class=HTMLResponse)
 async def sales_shipments_receipts_page(req: Request):
     """납품·수금 (수금 관리 2단계·z745) — 작업일정표의 '다음 스텝'.
@@ -38828,10 +38852,11 @@ async def sales_shipments_receipts_page(req: Request):
         #   잔액이 0이 될 때까지 '발행 대기'로 남아 부분 누락(계약금만·중도금 깜빡 등)까지 잡는다.
         _eps = 0.5 if o["currency"] == "KRW" else 0.005
         o["issued_amt"] = round((o.get("t1a") or 0) + (o.get("t2a") or 0) + (o.get("t3a") or 0), 2)
-        _unb = (o["total_amount"] or 0) - o["issued_amt"]
-        o["unbilled"] = _unb if _unb > _eps else 0
-        o["billing_due"] = o["unbilled"] > _eps            # 미발행 잔액 남음(출하 시작 건)
-        o["nothing_issued"] = o["issued_amt"] <= _eps      # 완전 미발행(마감이월)
+        # v5H226z1137 (이새롬 프로 신고): 발행 판정은 공용 순수 함수 한 곳 — 금액의 부호를 가정하지 않는다.
+        _bs = _sr_bill_state(o["total_amount"], o["issued_amt"], _eps)
+        o["unbilled"] = _bs["unbilled"]                    # 수주금액 방향으로 남은 금액(마이너스 수주는 −)
+        o["billing_due"] = _bs["billing_due"]              # 미발행 잔액 남음(출하 시작 건)
+        o["nothing_issued"] = _bs["nothing_issued"]        # 완전 미발행(마감이월)
         o["fully_issued"] = not o["billing_due"]
         # v5H226z913 (대표 지시): 부가세 포함 = 고객 실입금액. 국내 10%·수출/외화 영세율 0%.
         #   청구합계(포함)=발행합계×(1+세율)·미수(포함)=청구합계−수금(입금 대조 기준).
@@ -38879,7 +38904,7 @@ async def sales_shipments_receipts_page(req: Request):
         for _tk in ("1", "2", "3"):
             _td = o.get("t" + _tk + "d") or ""
             _ta = o.get("t" + _tk + "a") or 0
-            if _td or (_ta and _ta > _eps):
+            if _td or (_ta and abs(_ta) > _eps):   # z1137: 마이너스 발행액도 「끊은 것」이다
                 _iss.append({"date": _td, "amt": _ta})
         _chips, _ni = [], len(_iss)
         for _idx, _it in enumerate(_iss):
@@ -38916,7 +38941,7 @@ async def sales_shipments_receipts_page(req: Request):
 
     def _akey(o):
         if o["order_id"] in billing_ids:
-            return (0, -(o.get("unbilled") or 0), o["order_no"])   # 미발행 잔액 큰 순
+            return (0, -abs(o.get("unbilled") or 0), o["order_no"])   # 미발행 잔액 큰 순(z1137: 크기로 — 마이너스 잔액도 챙길 금액)
         if o["order_id"] in overdue_ids:
             return (1, o["dday"] if o["dday"] is not None else 0, o["order_no"])
         return (2, o.get("order_date") or "", o["order_no"])
@@ -38938,7 +38963,10 @@ async def sales_shipments_receipts_page(req: Request):
         return sum((o.get("unbilled") or 0) for o in lst if o["currency"] == "KRW")
     kpi = {"ym": ym,
            "billing_cnt": len(billing), "billing_sum": _fmt_money(_ksum_unb(billing), "KRW"),
-           "carryover_cnt": sum(1 for o in shipped if o.get("nothing_issued")),
+           # v5H226z1137 (대표 결정 2026-10-02 「목록과 맞춘다」): 위 숫자 = 아래 목록에서 「마감이월」로 나오는 줄 수.
+           #   예전엔 `발행합계 0 이하`를 세어 ① 마이너스로 다 끊은 건 ② 끊을 세금계산서가 없는 0원 수주까지 들어가
+           #   위 27건 · 목록 20건으로 어긋났다(운영 실측). 줄의 상태(state)와 **같은 조건**으로 센다 — 따로 세면 또 어긋난다.
+           "carryover_cnt": sum(1 for o in shipped if o.get("state") == "마감이월"),
            "expect_sum": _fmt_money(_ksum(inmonth), "KRW"),
            "overdue_cnt": len(overdue), "overdue_sum": _fmt_money(_ksum(overdue), "KRW"),
            "outstanding_sum": _fmt_money(_ksum(shipped), "KRW"),

@@ -235,6 +235,7 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
       if(k==='mgmt') return (d.mgmt||'');
       if(k==='state') return (d.state||'');
       if(k==='exp') return (d.exp||'￿');   // 빈 값은 맨 뒤
+      if(k==='unbilled') return Math.abs(num(d[k]));   // z1137: 잔액은 크기로 — 마이너스(네고) 잔액도 챙길 금액이다
       return num(d[k]);
     }
     var tables = Array.prototype.slice.call(document.querySelectorAll('main table[data-sr-table]'));

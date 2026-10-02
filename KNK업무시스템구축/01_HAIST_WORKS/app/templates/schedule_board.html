@@ -53,7 +53,7 @@
     {# v5H226z673 (대표 지시): 세금계산서 1/2/3차 칸 '색상' 의미 범례 — 영업·관리만(세금계산서 칸 자체가 can_sales_amt). 색 기준=refreshTaxStatus(z469): 1·2·3차 발행금액 합계 vs 수주금액. #}
     {# v5H226z823: 매출금액 표시 게이트 can_money→can_sales_amt(임원·매출금액 허용팀). #}
     {% if can_sales_amt %}
-    <span class="legend ti-color-legend" style="margin-left:16px;" title="세금계산서 칸 배경색 = 1·2·3차 발행금액 합계와 그 건 수주금액 비교 — 합계=수주액이면 초록(전액 발행), 다르면 주황(일부만 발행했거나 금액 불일치), 미입력은 무색">
+    <span class="legend ti-color-legend" style="margin-left:16px;" title="세금계산서 칸 배경색 = 1·2·3차 발행금액 합계와 그 건 수주금액 비교 — 합계=수주액이면 초록(전액 발행), 다르면 주황(일부만 발행했거나 금액 불일치), 미입력은 무색 · 마이너스(네고·할인) 건도 같은 기준">
       <b style="font-weight:800;color:var(--qv-ink-2,#475569);">세금계산서:</b>
       <span><i style="background:#f0fdf4;box-shadow:inset 0 0 0 1px #86efac;"></i>전액 발행</span>
       <span><i style="background:#fff4ed;box-shadow:inset 2px 0 0 #f59e0b;"></i>일부·불일치</span>
@@ -1508,7 +1508,9 @@ function startTaxInvEdit(td, tr){
   const curDate=td.dataset.date||'';
   let curAmt=td.dataset.amt||'';
   // v5H226z469 (대표 지시): 1세금계산서 금액 기본값 = 수주금액(총액). 비어 있을 때만 채움(다르게 적으면 2/3차 발행이 있다는 뜻).
-  if(!curAmt && td.dataset.edit==='taxinv1'){ const rt=parseFloat(tr.dataset.rowamt||'0')||0; if(rt>0) curAmt=String(Math.round(rt*100)/100); }   // z986: 외화 소수 보존(정수 반올림 제거)
+  // v5H226z1137 (이새롬 프로 신고): 마이너스 수주(네고·할인)도 그 금액 그대로 미리 채운다. `rt>0` 이라 마이너스 건만
+  //   빈칸이 떠서 `-` 를 손으로 쳐야 했고, 빠뜨리면 플러스로 들어갔다(z1135 와 같은 뿌리 — 「금액은 플러스」라는 가정).
+  if(!curAmt && td.dataset.edit==='taxinv1'){ const rt=parseFloat(tr.dataset.rowamt||'0')||0; if(rt!==0) curAmt=String(Math.round(rt*100)/100); }   // z986: 외화 소수 보존(정수 반올림 제거)
   // v5H226z704 (대표 지시): 팝업 통화·제목 = 그 행 통화·수출여부 — ₩/원 하드코딩 제거, 수출은 인보이스로.
   const _ccy=tr.dataset.cur||'KRW';
   const _exp=(((tr.querySelector('td[data-col="trade"]'))||{}).textContent||'').trim()==='수출';
@@ -1562,7 +1564,11 @@ function refreshTaxStatus(tr){
   cells.forEach(c=>{ const a=parseFloat(c.dataset.amt||'0')||0; if((c.dataset.amt||'').trim()) anyAmt=true; sum+=a; });
   const total=Math.round(parseFloat(tr.dataset.rowamt||'0')||0), ssum=Math.round(sum);
   let status='none';   // none=입력없음 / ok=합계=총액(발행완료) / mismatch=합계≠총액(미발행)
-  if(anyAmt && total>0) status=(ssum===total)?'ok':'mismatch';
+  // v5H226z1137 (이새롬 프로 신고 "마이너스 세금계산서는 미발행으로 인식 됩니다"): 판정은 금액의 **부호를 가정하지 않는다.**
+  //   `total>0` 이라 마이너스 수주(네고·할인 — 999T2606 -1,865,000)는 판정을 통째로 건너뛰어 무색(미발행처럼)이었다.
+  //   그 건에 플러스로 잘못 넣어도 무색이라 걸러지지 않았다 → 합계=수주금액이면 초록, 다르면 주황(부호가 달라도 주황).
+  //   수주금액이 0(미입력)인 줄만 판정에서 뺀다 — 견줄 금액이 없다.
+  if(anyAmt && total!==0) status=(ssum===total)?'ok':'mismatch';
   cells.forEach(c=>{ c.classList.remove('tax-ok','tax-mismatch'); if(status==='ok') c.classList.add('tax-ok'); else if(status==='mismatch') c.classList.add('tax-mismatch'); });
   // v5H226z486 (대표 지시): '✓ 발행완료/⚠ 미발행' 텍스트 뱃지 제거(칸 높이 절약) — 셀 배경색(tax-ok/tax-mismatch)만으로 상태 표시.
   const first=tr.querySelector('td.taxinv-cell[data-edit="taxinv1"]');

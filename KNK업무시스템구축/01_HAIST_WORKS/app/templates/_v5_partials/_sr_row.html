@@ -7,7 +7,7 @@
   <td><span class="sr-l">세금계산서</span><span class="sr-v wrap">{% if o.tier_chips %}{% for tc in o.tier_chips %}<span class="sr-tok on">{{ tc.label }} ✓{% if tc.date %} {{ tc.date[5:] }}{% endif %}</span> {% endfor %}{% else %}<span class="sr-tok" style="background:#fef3c7;color:#92400e;font-weight:700;">미발행</span>{% endif %}</span></td>
   <td class="num"><span class="sr-l">수주금액</span><span class="sr-v">{% if can_money %}{{ o.total_fmt }}{% else %}🔒{% endif %}</span></td>
   <td class="num"><span class="sr-l">부가세</span><span class="sr-v" style="color:#7c3aed;">{% if can_money %}{{ o.vat_fmt }}{% else %}🔒{% endif %}</span></td>
-  <td class="num"><span class="sr-l">미발행 잔액</span><span class="sr-v" style="{% if o.unbilled > 0 %}color:#b45309;{% endif %}">{% if can_money %}{{ o.unbilled_fmt }}{% else %}🔒{% endif %}</span></td>
+  <td class="num"><span class="sr-l">미발행 잔액</span><span class="sr-v" style="{% if o.unbilled != 0 %}color:#b45309;{% endif %}">{# z1137: 마이너스(네고) 잔액도 남은 것 — 부호를 가정하지 않는다 #}{% if can_money %}{{ o.unbilled_fmt }}{% else %}🔒{% endif %}</span></td>
   <td><span class="sr-l">상태</span><span class="sr-v"><span class="pill {% if o.state == '수금완료' %}pill-done{% elif o.state == '마감이월' %}pill-carry{% elif o.state == '발행 대기' %}pill-billing{% else %}pill-expect{% endif %}">{{ o.state }}</span></span></td>
 </tr>
 <tr class="sr-recB sr-st-{{ _sk }} {{ _zc }}" data-rec="{{ o.order_id }}">

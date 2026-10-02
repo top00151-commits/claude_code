@@ -662,7 +662,7 @@ def check_date_cell_guard(_files=None):
 
 
 def check_amt_sign(files):
-    """§금액 칸 = 마이너스(네고·할인) 보존 (z1135 · 이새롬 프로 신고 2026-10-02).
+    r"""§금액 칸 = 마이너스(네고·할인) 보존 (z1135 · 이새롬 프로 신고 2026-10-02).
 
     신고 원문: "마이너스 건은 세금계산서 입력을 해도 플러스로 인식됩니다."
     실측(999T2606 SENSOR): 수주 금액 **-1,865,000** 인데 1차 세금계산서는 **+1,865,000**.
@@ -730,6 +730,122 @@ def check_amt_sign(files):
             if "knkFmtAmtTyping" not in body:
                 bad.append((p, 1,
                             "③ %s() 사본 — 공용 knkFmtAmtTyping() 을 부를 것(사본은 화면마다 따로 재발한다)" % fn))
+    return bad
+
+
+def _py_top_func(src, name):
+    """파이썬 원문에서 **최상위 함수 한 개**를 잘라 온다 → (시작 줄, 원문). 없으면 (None, None).
+    main.py 는 4만 줄이 넘어 통째로 구문 분석하면 느리다 — 이름으로 찾아 다음 최상위 문장 앞까지만 자른다."""
+    m = re.search(r"(?m)^(?:async\s+)?def\s+" + re.escape(name) + r"\s*\(", src)
+    if not m:
+        return None, None
+    ln = src[:m.start()].count("\n") + 1
+    eol = src.find("\n", m.end())                       # def 줄의 끝 — 여기서부터 찾아야 한다
+    if eol < 0:                                         #   (자른 문자열의 맨 앞도 `^` 에 맞아 def 줄 한가운데서 끊겼었다)
+        return ln, src[m.start():]
+    nxt = re.search(r"(?m)^[^\s#]", src[eol + 1:])      # 다음 최상위 문장(데코레이터·def·대입)
+    end = eol + 1 + (nxt.start() if nxt else len(src) - eol - 1)
+    return ln, src[m.start():end]
+
+
+def check_tax_sign(files):
+    r"""§세금계산서 발행 판정은 금액의 부호를 가정하지 않는다 (z1137 · 이새롬 프로 신고 2026-10-02).
+
+    신고 원문: "마이너스 세금계산서는 미발행으로 인식 됩니다. 마이너스 세금계산서도 발행으로 처리될수있게"
+    실측(999T2606 SENSOR · 운영 읽기 전용): 수주 **-1,865,000** · 1차 세금계산서 **-1,865,000**
+      (z1135 덕에 마이너스로 제대로 저장됨). 그런데
+        ① 작업일정표 색 판정이 `total>0` 일 때만 돌아 **무색(미발행처럼)**
+        ② 납품·수금이 `발행합계 <= 0` 을 「전부 미발행」으로 세어 **위쪽 숫자에 들어감**
+    z1135(입력이 '-' 를 지움)와 **같은 뿌리**다 — 「금액은 플러스」라는 가정. 입력을 고쳐도 **판정**에 남아 있었다.
+    마이너스 건에 플러스로 잘못 넣어도 무색이라 걸러지지 않던 것도 같은 줄이다.
+
+    올바른 방법
+      · 화면: 수주금액이 **0 인지만** 본다(`total!==0`). 견줄 금액이 있으면 부호와 무관하게 견준다.
+      · 서버: 납품·수금의 발행 판정은 `_sr_bill_state()` 한 곳(순수 함수). 미발행 잔액은 **수주금액의 방향으로** 본다.
+      · 위쪽 숫자는 줄의 상태(state)와 **같은 조건**으로 센다 — 따로 세면 숫자≠목록이 된다(27 대 20 이었다).
+
+    잡는 것
+      ① `refreshTaxStatus()` 가 수주금액을 「0보다 큰가」로 거른다
+      ② 수주금액(`rowamt`)을 읽은 줄이 「0보다 큰가」로 거른다(1차 금액 미리 채움 등)
+      ③ `_sr_bill_state()` 가 없거나, **원문을 뽑아 실제로 돌려 보니** 마이너스를 미발행으로 본다
+      ④ 납품·수금 화면 함수가 `_sr_bill_state()` 를 안 거치고 스스로 판정한다
+      ⑤ 「마감이월」 위쪽 숫자를 줄의 상태가 아닌 다른 조건으로 센다
+      ⑥ 납품·수금 줄이 미발행 잔액을 「0보다 큰가」로 강조한다
+    빼는 것: 주석(설명에 옛 조건을 적어 둔 것)
+    """
+    bad = []
+    js_cmt = re.compile(r"//[^\n]*")
+    jinja_cmt = re.compile(r"\{#.*?#\}", re.S)
+    GT0 = re.compile(r"(?<![=\-<>!])>\s*0(?![\d.])")      # `>0` · `> 0` (`=>` · `>=` · `0.5` 는 아님)
+
+    # ① 작업일정표 색 판정
+    board = os.path.join(TPL, "schedule_board.html")
+    if os.path.exists(board):
+        src = jinja_cmt.sub(_blank_keep_lines, _read(board))
+        body = _js_func(src, "refreshTaxStatus")
+        if body is None:
+            bad.append((board, 1, "① refreshTaxStatus() 가 없다 — 색 판정 함수 이름을 바꿨으면 이 검사도 함께 고칠 것"))
+        else:
+            ln0 = src[:src.find(body)].count("\n") + 1
+            for i, ln in enumerate(body.splitlines()):
+                if re.search(r"\btotal\s*>\s*0(?![\d.])", js_cmt.sub("", ln)):
+                    bad.append((board, ln0 + i,
+                                "① 수주금액을 「0보다 큰가」로 거른다 — 마이너스(네고) 건이 무색(미발행처럼)이 된다 → total!==0"))
+
+    # ② ⑥ 화면들
+    for p in files:
+        if not p.endswith(".html"):
+            continue
+        src = jinja_cmt.sub(_blank_keep_lines, _read(p))
+        for i, ln in enumerate(src.splitlines()):
+            code = js_cmt.sub("", ln)
+            if "rowamt" in code and GT0.search(code):
+                bad.append((p, i + 1, "② 수주금액(rowamt)을 「0보다 큰가」로 거른다 — " + ln.strip()[:80]))
+            if re.search(r"\bunbilled\s*>\s*0(?![\d.])", code):
+                bad.append((p, i + 1, "⑥ 미발행 잔액을 「0보다 큰가」로 본다 — 마이너스 잔액도 남은 것이다 → != 0"))
+
+    # ③ ④ ⑤ 서버 — 납품·수금
+    main_py = os.path.join(ROOT, "app", "main.py")
+    if os.path.exists(main_py):
+        msrc = _read(main_py)
+        ln_st, st = _py_top_func(msrc, "_sr_bill_state")
+        if st is None:
+            bad.append((main_py, 1, "③ _sr_bill_state() 가 없다 — 납품·수금 발행 판정의 공용 순수 함수"))
+        else:
+            try:
+                ns = {}
+                exec(compile(st, "_sr_bill_state", "exec"), ns)
+                fn = ns["_sr_bill_state"]
+                cases = [   # (수주금액, 발행합계, 하나도 안 끊음?, 잔액 남음?, 설명)
+                    (-1865000, -1865000, False, False, "마이너스로 다 끊었는데 미발행으로 본다"),
+                    (-1865000, 0, True, True, "마이너스 수주를 안 끊었는데 발행 대기로 안 본다"),
+                    (-1865000, -1000000, False, True, "마이너스 수주를 일부만 끊었는데 발행 대기로 안 본다"),
+                    (1865000, 1865000, False, False, "플러스로 다 끊은 건의 판정이 바뀌었다"),
+                    (1865000, 0, True, True, "플러스 수주를 안 끊은 건의 판정이 바뀌었다"),
+                    (1865000, 1000000, False, True, "플러스 수주를 일부만 끊은 건의 판정이 바뀌었다"),
+                ]
+                for tot, iss, e_none, e_due, why in cases:
+                    r = fn(tot, iss, 0.5)
+                    if bool(r.get("nothing_issued")) != e_none or bool(r.get("billing_due")) != e_due:
+                        bad.append((main_py, ln_st, "③ _sr_bill_state(%d, %d) — %s" % (tot, iss, why)))
+            except Exception as e:      # 못 돌리면 통과가 아니라 위반이다(죽은 검사 = 안 한 검사)
+                bad.append((main_py, ln_st, "③ _sr_bill_state() 를 돌려 볼 수 없다: %r" % (e,)))
+        ln_pg, pg = _py_top_func(msrc, "sales_shipments_receipts_page")
+        if pg is None:
+            bad.append((main_py, 1, "④ sales_shipments_receipts_page() 가 없다 — 이름을 바꿨으면 이 검사도 함께 고칠 것"))
+        else:
+            has_call = False
+            for i, ln in enumerate(pg.splitlines()):
+                code = ln.split("#", 1)[0]
+                if "_sr_bill_state(" in code:
+                    has_call = True
+                if re.search(r"issued_amt[\"'\]]*\s*<=|\b_unb\s*>\s*_eps", code):
+                    bad.append((main_py, ln_pg + i, "④ 발행 판정을 스스로 한다 — _sr_bill_state() 를 거칠 것: " + ln.strip()[:70]))
+                if "carryover_cnt" in code and "마감이월" not in code:
+                    bad.append((main_py, ln_pg + i,
+                                "⑤ 「마감이월」 위쪽 숫자를 줄의 상태(state)와 다른 조건으로 센다 — 숫자≠목록이 된다"))
+            if not has_call:
+                bad.append((main_py, ln_pg, "④ 납품·수금 화면이 _sr_bill_state() 를 부르지 않는다"))
     return bad
 
 
@@ -863,6 +979,16 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 금액칸 마이너스(네고·할인) : 부호 보존")
+
+    ts_bad = check_tax_sign(files)
+    if ts_bad:
+        fail += len(ts_bad)
+        print("  ❌ 세금계산서 발행 판정이 금액 부호를 가정 : %d건 → 화면 total!==0 · 서버 _sr_bill_state()"
+              % len(ts_bad))
+        for f, l, m in ts_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 세금계산서 발행 판정 : 마이너스(네고·할인)도 같은 기준 (화면·서버)")
 
     print("=" * 72)
     if fail:
