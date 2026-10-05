@@ -1,0 +1,32 @@
+
+â–  A. ë…¹ìŒì´ ì—†ëŠ” íšŒì˜ â€” íœ´ëŒ€í° (390Ã—844)
+  âŒ A1 ã€ŒğŸ“ ë…¹ìŒ íŒŒì¼ ì˜¬ë¦¬ê¸°ã€ ì¹¸ì´ ë³´ì¸ë‹¤
+  âŒ A2 ğŸ”´ ìŠ¤í¬ë¡¤í•˜ì§€ ì•Šì€ ì²« í™”ë©´ ì•ˆì— ìˆë‹¤  â€” None
+  âœ… A3 ã€ŒğŸ”§ ë‹¤ì‹œ í•˜ê¸°ã€ë¥¼ í¼ì¹˜ì§€ ì•Šì•„ë„ ë³´ì¸ë‹¤
+Traceback (most recent call last):
+  File "C:\Users\top00\JR\Claude ÄÚµå\KNK¾÷¹«½Ã½ºÅÛ±¸Ãà\16_KNK_Meeting\ÀÛ¾÷±â·Ï\2026-10-05_1120_³ìÀ½ÆÄÀÏ¿Ã¸®±â_¹Ù·Îº¸ÀÌ°Ô_WORKSÁØºñ¹°\ui_recup_z1138.py", line 163, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "C:\Users\top00\JR\Claude ÄÚµå\KNK¾÷¹«½Ã½ºÅÛ±¸Ãà\16_KNK_Meeting\ÀÛ¾÷±â·Ï\2026-10-05_1120_³ìÀ½ÆÄÀÏ¿Ã¸®±â_¹Ù·Îº¸ÀÌ°Ô_WORKSÁØºñ¹°\ui_recup_z1138.py", line 88, in main
+    lbl = p.locator("#recUpBtn").inner_text()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\sync_api\_generated.py", line 19446, in inner_text
+    self._sync(self._impl_obj.inner_text(timeout=to_milliseconds(timeout)))
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_sync_base.py", line 115, in _sync
+    return task.result()
+           ^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_locator.py", line 498, in inner_text
+    return await self._frame.inner_text(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_frame.py", line 743, in inner_text
+    return await self._channel.send(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\top00\AppData\Local\Programs\Python\Python312\Lib\site-packages\playwright\_impl\_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.inner_text: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("#recUpBtn")
+

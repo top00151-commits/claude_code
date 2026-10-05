@@ -375,7 +375,14 @@ def main():
         fst = p.evaluate("""() => { const w=document.querySelector('.mf-wrap');
             const k=[...w.children].filter(x=>getComputedStyle(x).display!=='none'&&x.offsetHeight>0);
             k.sort((a,c)=>a.getBoundingClientRect().top-c.getBoundingClientRect().top); return k[0] ? (k[0].id||k[0].className) : ''; }""")
-        ok("휴대폰 첫 칸 = 회의록 정리(지금 그대로)", fst == "secSummary", fst)
+        # z1138(대표 지시 2026-10-05 「올리는 메뉴가 바로 보이질 않아 찾기 어렵다」):
+        #   녹음도 정리도 없는 회의록은 **첫 칸이 「📁 녹음 파일 올리기」**다. 정리 칸은 그 다음.
+        ok("휴대폰 첫 칸 = 「📁 녹음 파일 올리기」(z1138)", fst == "recUpTop", fst)
+        snd = p.evaluate("""() => { const w=document.querySelector('.mf-wrap');
+            const k=[...w.children].filter(x=>getComputedStyle(x).display!=='none'&&x.offsetHeight>0);
+            k.sort((a,c)=>a.getBoundingClientRect().top-c.getBoundingClientRect().top);
+            return k[1] ? (k[1].id||k[1].className) : ''; }""")
+        ok("그 다음 칸 = 회의록 정리(결과 먼저 그대로)", snd == "secSummary", snd)
         c.close()
 
         # ══════════ ⑪ 마이크 막힘 ══════════

@@ -1,0 +1,10 @@
+== mic_text_test: 결과: 14/16 통과
+FAIL T4 휴대폰 처음 안내 그대로(「이번에만」이 아닌 허용 · 이름 없음)
+FAIL T4 휴대폰 상태 줄 = 이름 없이 「「이번에만」이 아닌 허용」 · None
+== verify_del: 합계: 통과 33 · 실패 0
+== verify_z1123: 합계: 통과 45 · 실패 0
+== verify_z1126: 합계: 통과 21 · 실패 0
+== verify_end_z1131: 합계: 통과 23 · 실패 0
+== verify_attendee_z1133: 합계: 통과 30 · 실패 0
+== verify_att_sync_z1134: 합계: 통과 48 · 실패 0
+ALLDONE-SRV

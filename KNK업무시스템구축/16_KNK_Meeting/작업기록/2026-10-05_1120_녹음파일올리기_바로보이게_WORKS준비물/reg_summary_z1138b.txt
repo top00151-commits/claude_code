@@ -1,0 +1,6 @@
+== ui_phrec: 통과 46 / 실패 0
+== ui_lead: 합계: 통과 27 · 실패 0
+== ui_simple: 합계: 통과 33 · 실패 0
+== ui_recup_z1138: 합계: 통과 25 · 실패 0
+== ui_resume: 합계: 통과 76 · 실패 0
+ALLDONE-UI

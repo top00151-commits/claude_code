@@ -165,7 +165,8 @@ def main():
         p.wait_for_timeout(6000)
         stt = (p.locator("#recStatus").inner_text() or "")
         ok("빈손 복귀 안내가 뜬다", "받은 파일이 없습니다" in stt, stt[:110])
-        ok("안내가 올릴 방법을 알려 준다", "음성 파일 올리기" in stt and "다시 정리" in stt)
+        # z1138: 이름 통일 — 「음성 파일 올리기」 → 「녹음 파일 올리기」
+        ok("안내가 올릴 방법을 알려 준다", "녹음 파일 올리기" in stt and "다시 정리" in stt)
         c.close()
 
         # ══════════ ⑤ PC · 예전 그대로 ══════════

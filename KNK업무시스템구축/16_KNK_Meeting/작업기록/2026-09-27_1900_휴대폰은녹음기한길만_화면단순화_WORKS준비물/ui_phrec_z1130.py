@@ -150,7 +150,8 @@ def main():
         chk("안내에 「아이폰·아이패드」", "아이폰" in nt)
         chk("안내에 「넘어가면 그동안은 녹음되지 않습니다」", "녹음되지 않습니다" in nt, nt[:70])
         chk("안내에 「이 화면을 켠 채로」", "켠 채로" in nt)
-        chk("안내에 대안(음성 메모 → 올리기)", "음성 메모" in nt and "음성 파일 올리기" in nt)
+        # z1138(대표 지시 2026-10-05): 단추 이름을 「📁 녹음 파일 올리기」 하나로 통일했다(안내문과 달라 더 찾기 어려웠다)
+        chk("안내에 대안(음성 메모 → 올리기)", "음성 메모" in nt and "녹음 파일 올리기" in nt)
         chk("아이폰 안내는 파란 상자(ios)",
             p.evaluate("() => document.getElementById('recPlatNote').classList.contains('ios')"))
         c.close()
