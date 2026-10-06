@@ -147,6 +147,11 @@
 #btnSumEdit { color: var(--knk-red); border-color: var(--knk-red); font-weight:800; }
 /* 🔴 .sum-box / div 의 display 가 hidden 속성을 덮는다 — 이겨야 서로 바꿔 보인다 */
 #sumEditWrap[hidden], #mtgSummary[hidden] { display:none !important; }
+/* ── 📁 파일 고르기 입력칸 숨기기 — z1141 (아이폰 신고 2026-10-06) ──
+   🔴 `display:none` 은 아이폰에서 단추를 눌러도 **파일 고르기 창이 안 열리는** 일이 있다.
+   「안 보이게」 하되 「없는 것」으로는 만들지 않는다(접근성 표준 방식 · 자리도 차지하지 않는다). */
+.knk-file-vh { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0; }
 /* 좁은 휴대폰에서는 단추가 둘이라 제목이 어중간하게 끊긴다 → 단추를 아랫줄 오른쪽으로 */
 @media (max-width: 430px) {
   #secSummary .mf-sec-head { flex-wrap:wrap; row-gap:8px; }
@@ -272,10 +277,10 @@
           <summary>다른 방법 <span style="font-weight:600;color:var(--qv-ink-3);">(이 화면에서 녹음 · 짧은 회의)</span></summary>
           <div id="recOtherSlot" style="margin-top:10px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;"></div>
         </details>
-        <label class="start-big rec-phone alt" id="recPhoneRecWrap" hidden>📱 녹음기로 바로 녹음&nbsp;<span class="start-sub">짧은 회의용 — 다른 앱으로 가면 저장되고 끝납니다</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
+        <label class="start-big rec-phone alt" id="recPhoneRecWrap" hidden>📱 녹음기로 바로 녹음&nbsp;<span class="start-sub">짧은 회의용 — 다른 앱으로 가면 저장되고 끝납니다</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone class="knk-file-vh"></label>
         <button class="start-big rec-btn" id="recBtn">🎙 녹음하며 회의&nbsp;<span class="start-sub">누르면 바로 녹음</span></button>
         <div class="start-row">
-          <label class="start-mid rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
+          <label class="start-mid rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*,.m4a,.mp3,.mp4,.wav,.webm,.ogg,.oga,.aac,.3gp,.mpeg,.mpga,.caf" data-knk-no-dropzone class="knk-file-vh"></label>
           <button class="start-mid" id="btnWriteMode" type="button">⌨️ 글로 쓰기</button>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -372,7 +377,7 @@
     <div class="mf-section" id="recUpTop">
       <label class="recup-big" id="recUpBtn">📁 녹음 파일 올리기
         <span class="recup-sub">휴대폰 녹음기로 녹음한 파일을 고르면 <b>음성→글자·AI 정리까지 자동</b></span>
-        <input type="file" id="recFileTop" accept="audio/*" data-knk-no-dropzone style="display:none">
+        <input type="file" id="recFileTop" accept="audio/*,.m4a,.mp3,.mp4,.wav,.webm,.ogg,.oga,.aac,.3gp,.mpeg,.mpga,.caf" data-knk-no-dropzone class="knk-file-vh">
       </label>
       <div class="mf-hint" style="margin-top:9px;line-height:1.7;">휴대폰 <b>홈 화면 「음성 녹음」</b>으로 녹음하면
         다른 앱을 보거나 화면이 꺼져도 <b>안 끊깁니다</b>. 끝나면 이 단추로 그 녹음을 고르세요.</div>
@@ -526,8 +531,8 @@
         <div class="redo-row">
           <button class="btn btn-primary rec-btn" id="recBtn">🎙 녹음 추가</button>
           <button class="btn btn-secondary" id="recPauseBtn" hidden>⏸ 일시정지</button>
-          <label class="btn btn-secondary rec-phone alt" id="recPhoneRecWrap" hidden><span id="recPhoneBtnLbl">📱 녹음기로 바로 녹음(짧은 회의)</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone style="display:none"></label>
-          <label class="btn btn-secondary rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*" data-knk-no-dropzone style="display:none"></label>
+          <label class="btn btn-secondary rec-phone alt" id="recPhoneRecWrap" hidden><span id="recPhoneBtnLbl">📱 녹음기로 바로 녹음(짧은 회의)</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone class="knk-file-vh"></label>
+          <label class="btn btn-secondary rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*,.m4a,.mp3,.mp4,.wav,.webm,.ogg,.oga,.aac,.3gp,.mpeg,.mpga,.caf" data-knk-no-dropzone class="knk-file-vh"></label>
           <button class="btn btn-secondary" id="btnExtract" {% if not ai_on %}disabled title="AI 키가 설정되어 있지 않습니다(관리자 → AI 설정). 그 전에는 아래에서 직접 추가하세요."{% endif %}>🔄 다시 정리</button>
           <span class="rec-time" id="recTime" hidden>● 00:00</span>
           <span class="rec-status" id="recStatus"></span>
