@@ -1,0 +1,19 @@
+시작 전 89xx 듣는 포트: 0
+== verify_rec: 합계: 통과 55 · 실패 0
+== verify_share: 
+  [FAIL] 고칠 수 있는 최근 회의가 보인다 
+Traceback (most recent call last):
+== verify_msg_rec: 합계: 통과 14 · 실패 0
+== verify_cards_rec: 합계: 통과 17 · 실패 0
+== verify_msg_mine: 합계: 통과 14 · 실패 0
+== verify_cards: 결과: 80 통과 / 0 실패
+== verify_del: 합계: 통과 33 · 실패 0
+== verify_z1123: 합계: 통과 45 · 실패 0
+== verify_z1126: 합계: 통과 21 · 실패 0
+== verify_end_z1131: 합계: 통과 23 · 실패 0
+== verify_attendee_z1133: 합계: 통과 30 · 실패 0
+== verify_att_sync_z1134: 합계: 통과 48 · 실패 0
+== verify_sumedit_z1139: 합계: 통과 27 · 실패 0
+끝난 뒤 89xx 듣는 포트: 0
+ALLDONE
+ALLDONE-C
