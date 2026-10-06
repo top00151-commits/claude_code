@@ -138,6 +138,20 @@
 .recup-big .recup-sub { font-size:12.5px; font-weight:600; opacity:.9; line-height:1.5; }
 /* 🔴 .mf-section 의 display 가 hidden 속성을 덮는다 — 이겨야 녹음이 들어온 뒤 사라진다 */
 #recUpTop[hidden] { display:none !important; }
+/* ── ✏ 정리 글 바로 고치기 — z1139 대표 지시 2026-10-05 ──
+   음성 인식이 잘못 들은 낱말을 그 자리에서 고친다(AI 를 다시 돌리지 않는다). */
+#sumEdit { width:100%; box-sizing:border-box; min-height:240px; padding:12px 13px; font-size:14px;
+  line-height:1.75; border:1px solid var(--qv-line-3); border-radius:10px; background: var(--qv-surface);
+  color: var(--qv-ink); font-family:inherit; white-space:pre-wrap; resize:vertical; }
+#sumEdit:focus { outline:2px solid rgba(160,30,30,.35); outline-offset:1px; }
+#btnSumEdit { color: var(--knk-red); border-color: var(--knk-red); font-weight:800; }
+/* 🔴 .sum-box / div 의 display 가 hidden 속성을 덮는다 — 이겨야 서로 바꿔 보인다 */
+#sumEditWrap[hidden], #mtgSummary[hidden] { display:none !important; }
+/* 좁은 휴대폰에서는 단추가 둘이라 제목이 어중간하게 끊긴다 → 단추를 아랫줄 오른쪽으로 */
+@media (max-width: 430px) {
+  #secSummary .mf-sec-head { flex-wrap:wrap; row-gap:8px; }
+  #secSummary .mf-sec-title { flex:1 1 100%; }
+}
 /* 🔴 .start-big/.btn 의 display 가 hidden 속성을 덮는다 — 이겨야 아이폰·PC 에서 안 보인다 */
 .rec-phone[hidden] { display:none !important; }
 #recOther[hidden] { display:none !important; }
@@ -428,9 +442,25 @@
     <div class="mf-section" id="secSummary">
       <div class="mf-sec-head"><div class="mf-sec-title">📋 회의록 정리 <em>(안건·논의·요점)</em></div>
         {# z1091: 정리 복사 — 제목·날짜 머리말과 함께 클립보드(전달받는 쪽이 맥락을 알도록) #}
-        <button class="copy-btn" id="btnCopySum" type="button" style="margin-left:auto;" title="정리 내용을 제목·날짜와 함께 복사합니다">📋 복사</button>
+        {# z1139(대표 지시 2026-10-05): 음성 인식이 잘못 들은 낱말을 여기서 바로 고친다 #}
+        {% if can_edit %}<button class="copy-btn" id="btnSumEdit" type="button" style="margin-left:auto;" title="음성 인식이 잘못 들은 낱말을 여기서 바로 고칩니다(AI 를 다시 돌리지 않습니다)">✏ 고치기</button>{% endif %}
+        <button class="copy-btn" id="btnCopySum" type="button" style="margin-left:8px;" title="정리 내용을 제목·날짜와 함께 복사합니다">📋 복사</button>
       </div>
       <div class="sum-box empty" id="mtgSummary">아직 정리 전입니다 — 회의 내용을 적거나 녹음하면 자동으로 정리됩니다.</div>
+      {% if can_edit %}
+      {# z1139: 고치기 상자 — 「✏ 고치기」를 누르면 위 정리 글 대신 이 칸이 보인다 #}
+      <div id="sumEditWrap" hidden style="margin-top:4px;">
+        <textarea id="sumEdit" spellcheck="false" placeholder="정리 글을 고치세요. 잘못 들린 낱말만 바꾸시면 됩니다."></textarea>
+        <div class="mf-hint" style="margin-top:8px;line-height:1.7;">잘못 들린 낱말만 고쳐 저장하세요 —
+          <b>AI 를 다시 돌리지 않으므로 다른 문장은 그대로</b> 있습니다.
+          (회의 원문까지 바로잡고 싶으시면 아래 「회의 내용」을 고친 뒤 「🔧 다시 하기 · 녹음 추가」의 「🔄 다시 정리」를 쓰세요.)</div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-primary" id="btnSumSave" type="button">💾 정리 저장</button>
+          <button class="btn btn-secondary" id="btnSumCancel" type="button">취소</button>
+          <span class="rec-status" id="sumSt"></span>
+        </div>
+      </div>
+      {% endif %}
     </div>
 
     <!-- ── 결정사항 ── -->
@@ -783,6 +813,9 @@ window.__MTG = {
 
   // ── 「🔄 다시 정리」(다시 하기 폴드) — 원문 고친 뒤 AI 정리만 다시. 피드백은 폴드 안 recStatus로 ──
   async function extract(){
+    // z1139: 손으로 고친 정리 글은 AI 가 다시 쓰면 사라진다 → 그때만 한 번 묻는다
+    if (_sumEdited && !confirm('「🔄 다시 정리」를 하면 AI 가 정리 글을 새로 만듭니다.'
+        + String.fromCharCode(10) + '손으로 고치신 정리 글은 사라집니다. 계속할까요?')) return;
     var btn = $('btnExtract'); if (btn){ btn.disabled=true; }
     recSt(isDirty() ? '고친 내용을 저장하고 AI가 다시 정리하는 중…' : 'AI가 회의 내용을 다시 정리하는 중…');
     var r = await doExtract();
@@ -925,6 +958,48 @@ window.__MTG = {
   rebase();   // z1106: 지금 화면 값 = 저장된 값(기준). 자동 정리보다 먼저.
   var bSave=$('btnSave'); if(bSave) bSave.addEventListener('click', save);
   var bExt=$('btnExtract'); if(bExt && !bExt.disabled) bExt.addEventListener('click', extract);
+  // ── z1139 ✏ 정리 글 바로 고치기 (대표 지시 2026-10-05) ───────────────────────
+  //   음성 인식이 잘못 들은 낱말을 그 자리에서 고친다. AI 를 다시 돌리지 않으므로 다른 문장은 그대로.
+  var _sumEdited = false;   // 이 화면에서 손으로 고쳤나 → 「🔄 다시 정리」 때 한 번 묻는다
+  function sumSt(msg, kind){
+    var el=$('sumSt'); if(!el) return;
+    el.textContent = msg || '';
+    el.style.color = kind==='err' ? 'var(--knk-red)' : (kind==='ok' ? '#15803d' : 'var(--qv-ink-3)');
+  }
+  function sumEditShow(on){
+    var w=$('sumEditWrap'), box=$('mtgSummary'), b=$('btnSumEdit');
+    if(!w||!box) return;
+    if(on){ var t=$('sumEdit'); if(t) t.value = M.summary || ''; }
+    w.hidden = !on; box.hidden = !!on;
+    if(b) b.textContent = on ? '✖ 그만두기' : '✏ 고치기';
+    if(on){ var t2=$('sumEdit'); if(t2){ try{ t2.focus(); }catch(_){} } }
+  }
+  var _bSumE=$('btnSumEdit');
+  if(_bSumE) _bSumE.addEventListener('click', function(){
+    var w=$('sumEditWrap'); if(!w) return;
+    sumEditShow(!!w.hidden); sumSt('');
+  });
+  var _bSumC=$('btnSumCancel');
+  if(_bSumC) _bSumC.addEventListener('click', function(){ sumEditShow(false); sumSt(''); });
+  var _bSumS=$('btnSumSave');
+  if(_bSumS) _bSumS.addEventListener('click', async function(){
+    var t=$('sumEdit'); if(!t) return;
+    _bSumS.disabled=true; sumSt('저장 중…');
+    var r = await jreq('POST', '/api/meeting/' + M.id + '/summary', { summary: t.value, base_ts: M.base_ts });
+    _bSumS.disabled=false;
+    if(r.ok && r.data && r.data.ok){
+      M.summary = (t.value||'').replace(/\r\n/g, String.fromCharCode(10)).trim();
+      M.base_ts = r.data.updated_at || M.base_ts;
+      _sumEdited = true;
+      renderSummary(); sumEditShow(false); sumSt('');
+      status('정리를 고쳤습니다 ✓', 'ok');
+    } else if (r.status === 409){
+      sumSt((r.data && r.data.message) || '다른 곳에서 먼저 저장됐습니다. 새로고침하세요.', 'err');
+    } else {
+      sumSt((r.data && r.data.error) || '저장 실패', 'err');
+    }
+  });
+
   var bDel=$('btnDelete'); if(bDel) bDel.addEventListener('click', delMeeting);
   // ── z1131(대표 지시 2026-09-27): 「⏹ 회의 종료」 — 예정 끝 시각 전에 끝났을 때 사람이 끝낸다 ──
   //   회의 카드(이음·모아보기)는 이 값을 시간 규칙보다 **먼저** 본다 → 누르면 곧 「✅ 회의 종료」.

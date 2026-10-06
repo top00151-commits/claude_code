@@ -4297,6 +4297,47 @@ async def api_meeting_update(req: Request, mid: int):
     return JSONResponse({"ok": True, "updated_at": new_ts})
 
 
+@app.post("/api/meeting/{mid:int}/summary")
+async def api_meeting_summary_save(req: Request, mid: int):
+    """z1139 (대표 지시 2026-10-05): 「📋 회의록 정리」 글을 **사람이 바로 고친다**.
+    음성→글자가 낱말을 잘못 들었을 때, 전에는 원문을 고쳐 「🔄 다시 정리」로 AI 를 통째로 다시 돌려야 했고
+    그러면 다른 문장 표현까지 바뀌었다. 여기서는 **고친 글을 그대로 저장**한다(AI 를 부르지 않는다).
+    body: {summary: 고친 글, base_ts: 내가 보던 시각}
+    권한은 회의록 고치기와 같다(작성자·이음 등록 담당·관리자/대표·그 회의 참석자 — z1133)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "본문을 읽지 못했습니다."}, 400)
+    if not isinstance(d, dict) or d.get("summary") is None:
+        return JSONResponse({"ok": False, "error": "고친 정리 글이 없습니다."}, 400)
+    summary = str(d.get("summary")).replace("\r\n", "\n").strip()[:20000]
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m, c):
+            return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
+        _conf, _cur = _edit_conflict(c, "meetings", mid, d.get("base_ts"))
+        if _conf:
+            return _conflict_resp(_cur)
+        if summary == (m.get("summary") or "").strip():
+            return JSONResponse({"ok": True, "updated_at": _row_ts(c, "meetings", mid), "changed": False})
+        c.execute("UPDATE meetings SET summary=?, updated_at=datetime('now','localtime') WHERE id=?",
+                  (summary, mid))
+        try:    # 누가 고쳤는지 남긴다(AI 정리와 사람이 고친 것을 나중에 가릴 수 있게)
+            log_activity(c, u["id"], "meeting_summary_edit",
+                         f"{u['name']} 회의록 정리 고침: {(m.get('title') or '')[:60]}",
+                         team_id=u.get("team_id"))
+        except Exception:
+            pass
+        new_ts = _row_ts(c, "meetings", mid)
+    return JSONResponse({"ok": True, "updated_at": new_ts, "changed": True})
+
+
 @app.delete("/api/meeting/{mid:int}")
 async def api_meeting_delete(req: Request, mid: int):
     u = get_user(req)
