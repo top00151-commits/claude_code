@@ -1,0 +1,7 @@
+
+■ A. 기본값 = 새 모델
+Traceback (most recent call last):
+  File "C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\16_KNK_Meeting\작업기록\2026-10-06_1330_받아쓰기모델_교체_WORKS준비물\verify_stt_z1140.py", line 82, in <module>
+    chk(AC.STT_MODEL == "gpt-transcribe", "A1 기본 모델 = gpt-transcribe", AC.STT_MODEL)
+        ^^^^^^^^^^^^
+AttributeError: module 'app.ai_client' has no attribute 'STT_MODEL'

@@ -1,0 +1,41 @@
+
+■ A. 기본값 = 새 모델
+  [PASS] A1 기본 모델 = gpt-transcribe · gpt-transcribe
+  [PASS] A2 실패하면 whisper-1 · whisper-1
+  [PASS] A3 받아쓰기 성공 · 받아쓴 글 (gpt-transcribe)
+  [PASS] A4 새 모델로 한 번만 보냈다 · ['gpt-transcribe']
+
+■ B. 신형·구형 호출법이 다르다
+  [PASS] B1 신형은 response_format=json · json
+  [PASS] B2 신형 언어는 languages(복수) · {'languages': ['ko']}
+  [PASS] B3 신형에 단수 language 를 보내지 않는다
+  [PASS] B4 언어를 안 주면 언어 칸도 안 보낸다(베트남 회의 보호) · dict_keys(['file', 'model', 'response_format'])
+  [PASS] B5 구형은 단수 language · vi
+  [PASS] B6 구형에 신형 칸을 보내지 않는다 · dict_keys(['file', 'model', 'language'])
+
+■ C. 🔴 지시문·힌트는 아무 때도 안 보낸다
+  [PASS] C1 prompt 를 한 번도 안 보냈다
+  [PASS] C2 keywords 도 안 보냈다
+
+■ D. 새 모델이 터지면 옛 모델로 자동으로 한 번 더
+[STT] gpt-transcribe 실패: 일부러 낸 오류(gpt-transcribe)
+[STT] gpt-transcribe 실패 → whisper-1 로 받아씀
+  [PASS] D1 옛 모델로 받아써서 성공 · 받아쓴 글 (whisper-1)
+  [PASS] D2 새 모델 먼저, 그다음 옛 모델 · ['gpt-transcribe', 'whisper-1']
+[STT] gpt-transcribe 실패: 일부러 낸 오류(gpt-transcribe)
+[STT] whisper-1 실패: 일부러 낸 오류(whisper-1)
+  [PASS] D3 둘 다 터지면 사람말 오류 · 음성→글자 오류(openai): whisper-1: 일부러 낸 오류(whisper-1)
+  [PASS] D4 두 번만 시도한다(무한 재시도 없음) · 2
+
+■ E. 환경변수 한 줄로 되돌릴 수 있다
+  [PASS] E1 KNK_WORKS_STT_MODEL=whisper-1 이면 옛 모델만 · ['whisper-1']
+  [PASS] E2 다른 신형 모델로도 바꿀 수 있다 · gpt-4o-transcribe
+
+■ F. 예전 그대로
+  [PASS] F1 키 없으면 그대로 안내 · 음성→글자: OpenAI 키가 필요합니다(현재 미설정/무효). 관리자 →
+  [PASS] F2 파일 없으면 그대로 안내 · 음성 파일을 찾을 수 없습니다.
+  [PASS] F3 SDK 없으면 그대로 안내 · 음성→글자: openai SDK 미설치 (pip install opena
+  [PASS] F4 쓰기 전 확인 함수는 그대로
+
+====================================================================
+합계: 통과 22 · 실패 0
