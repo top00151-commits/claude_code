@@ -3,6 +3,10 @@
   + 🔴 「녹음 시작」 먹통 버그(휴대폰 녹음기를 고른 뒤 눌러도 아무 일 없던 것) 재발 방지
 사용: py -3.12 ui_simple_z1130.py [포트=8936]
 """
+# 🔴 z1143(대표 지시 2026-10-07): 사람이 눌러 시작하는 이 화면 녹음은 막혔다.
+#   이 묶음이 재는 것은 「녹음이 도는 동안」의 동작이고, 그 길은 이음 「▶ 회의 시작」
+#   자동 녹음으로 그대로 산다 → 아래에서 그 길과 **똑같은 표시**를 켜고 시작한다.
+#   (막혔는지 자체는 ui_block_z1143.py 가 따로 잰다)
 import json
 import os
 import sys
@@ -93,6 +97,7 @@ def main():
         p.evaluate("() => { const d=document.getElementById('recOther'); if(d) d.open=true; }")
         p.wait_for_timeout(300)
         n0 = len(reqs)
+        p.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
         p.locator("#recBtn").click()
         p.wait_for_timeout(2500)
         started = [r for r in reqs[n0:] if "rec-start" in r]
@@ -100,6 +105,7 @@ def main():
         ok("단추가 「녹음 종료」로 바뀐다", "녹음 종료" in (p.locator("#recBtn").inner_text() or ""),
            (p.locator("#recBtn").inner_text() or "")[:30])
         ok("녹음 띠가 보인다", p.locator("#recBanner").is_visible())
+        p.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
         p.locator("#recBtn").click()          # 끝내기
         p.wait_for_timeout(1500)
         c.close()
@@ -118,12 +124,14 @@ def main():
         p.wait_for_timeout(600)
         ok("짧은 녹음(녹음기) 고르기가 열렸다", True)
         n0 = len(reqs)
+        p.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
         p.locator("#recBtn").click()
         p.wait_for_timeout(2500)
         started = [r for r in reqs[n0:] if "rec-start" in r]
         ok("🔴 그래도 「녹음 시작」이 돈다(옛 버그 없음)", bool(started), started[:1])
         ok("단추가 「녹음 종료」로 바뀐다", "녹음 종료" in (p.locator("#recBtn").inner_text() or ""),
            (p.locator("#recBtn").inner_text() or "")[:30])
+        p.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
         p.locator("#recBtn").click()
         p.wait_for_timeout(1200)
         c.close()

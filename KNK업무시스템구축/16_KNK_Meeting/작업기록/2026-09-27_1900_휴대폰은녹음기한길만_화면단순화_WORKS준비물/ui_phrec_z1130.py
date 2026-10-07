@@ -166,13 +166,16 @@ def main():
         chk("PC: 기기별 안내 상자 없음", not p.locator("#recPlatNote").is_visible())
         chk("PC: 「🎙 녹음하며 회의」 그대로",
             p.evaluate("() => { const b=document.getElementById('recBtn'); return b.classList.contains('start-big') && !b.classList.contains('alt'); }"))
-        # 화면 녹음이 여전히 시작된다(회귀)
+        # 🔴 z1143(대표 지시 2026-10-07): PC 에서도 사람이 눌러 시작하는 이 화면 녹음은 막는다.
+        #   예전엔 여기서 「PC 는 여전히 녹음이 시작된다」를 봤다(안드로이드 전용 변경이 PC 를
+        #   건드리지 않았는지 보는 회귀). 이제 의도가 바뀌어 **막히는 것이 정상**이다.
         p.locator("#recBtn").click()
-        p.wait_for_timeout(3000)
-        chk("PC: 화면 녹음이 여전히 시작된다(회귀)",
-            p.evaluate("() => { const b=document.getElementById('recBanner'); return !!b && !b.hidden; }"))
-        p.locator("#recBtn").click()
-        p.wait_for_timeout(1500)
+        p.wait_for_timeout(2000)
+        chk("PC: 눌러도 녹음이 시작되지 않는다(z1143)",
+            p.evaluate("() => { const b=document.getElementById('recBanner'); return !b || b.hidden; }"))
+        chk("PC: 휴대폰 녹음기를 쓰라는 안내가 뜬다(z1143)",
+            p.evaluate("() => { const n=document.getElementById('recBlockNote');"
+                       " return !!n && !n.hidden && (n.innerText||'').indexOf('녹음기') >= 0; }"))
         c.close()
 
         # ══════════════ ④ 상세 화면(안드로이드) ══════════════

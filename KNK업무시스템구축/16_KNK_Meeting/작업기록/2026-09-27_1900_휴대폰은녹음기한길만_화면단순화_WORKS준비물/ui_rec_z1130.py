@@ -6,6 +6,10 @@ OPEN_OTHER = ("document.addEventListener('DOMContentLoaded', function(){ setTime
 """녹음 화면 시험 — 녹음하는 동안 서버에 저장되는지 · 창이 닫혀도 끝낼 수 있는지 (z1113)
 가짜 마이크(크롬 --use-fake-device-for-media-stream)로 실제 녹음을 돌린다.
 사용: py -3.12 ui_rec.py <seed_rec.json 폴더>"""
+# 🔴 z1143(대표 지시 2026-10-07): 사람이 눌러 시작하는 이 화면 녹음은 막혔다.
+#   이 묶음이 재는 것은 「녹음이 도는 동안」의 동작이고, 그 길은 이음 「▶ 회의 시작」
+#   자동 녹음으로 그대로 산다 → 아래에서 그 길과 **똑같은 표시**를 켜고 시작한다.
+#   (막혔는지 자체는 ui_block_z1143.py 가 따로 잰다)
 import io
 import json
 import os
@@ -66,6 +70,7 @@ with sync_playwright() as p:
     pg.on("request", lambda r: calls.append((r.method, r.url.replace(BASE, ""))) if "/api/meeting" in r.url else None)
     pg.goto(BASE + "/meetings/new", wait_until="domcontentloaded")
     pg.wait_for_timeout(400)
+    pg.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
     pg.click("#recBtn")
     pg.wait_for_timeout(2500)
     ok("녹음 시작 = 회의 만들기(POST /api/meeting)", any(m == "POST" and u == "/api/meeting" for m, u in calls), calls[:4])
@@ -143,6 +148,7 @@ with sync_playwright() as p:
     ok("이어서 녹음이 시작됨(빨간 띠)", pg3.locator("#recBanner").is_visible())
     st = api(pg3, "/api/meeting/%d/rec-status" % mid2)
     ok("서버도 다시 「녹음 중」", st.get("rec", {}).get("state") == "recording", st)
+    pg3.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
     pg3.click("#recBtn")                       # ⏹ 녹음 종료
     pg3.wait_for_timeout(7000)
     st = api(pg3, "/api/meeting/%d/rec-status" % mid2)
@@ -161,10 +167,12 @@ with sync_playwright() as p:
     pg4.goto(BASE + "/meetings/%d" % mid3, wait_until="domcontentloaded")
     pg4.wait_for_timeout(300)
     pg4.evaluate("() => { const d = document.getElementById('redoTools'); if (d) d.open = true; }")
+    pg4.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
     pg4.click("#recBtn")
     pg4.wait_for_timeout(3000)
     sttxt = pg4.inner_text("#recStatus")
     ok("서버 저장을 못 열면 그렇게 알린다", "창을 닫지 마세요" in sttxt, sttxt[:120])
+    pg4.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
     pg4.click("#recBtn")                       # 종료 → 예전 방식(통째로 올리기)
     pg4.wait_for_timeout(6000)
     ok("녹음 전체가 예전 방식으로 올라감", len(ups) >= 1, ups[:3])
@@ -182,9 +190,11 @@ with sync_playwright() as p:
     pg5.on("request", lambda r: dels.append(r.url.replace(BASE, "")) if r.method == "DELETE" else None)
     pg5.goto(BASE + "/meetings/new", wait_until="domcontentloaded")
     pg5.wait_for_timeout(400)
+    pg5.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
     pg5.click("#recBtn")
     pg5.wait_for_timeout(2500)
     newid = pg5.evaluate("window.__MTG && window.__MTG.id")
+    pg5.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
     pg5.click("#recBtn")
     pg5.wait_for_timeout(5000)
     sttxt = pg5.inner_text("#recStatus")

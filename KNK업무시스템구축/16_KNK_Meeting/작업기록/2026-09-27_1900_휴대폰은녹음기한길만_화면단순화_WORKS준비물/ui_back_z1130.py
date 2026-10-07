@@ -5,6 +5,10 @@ OPEN_OTHER = ("document.addEventListener('DOMContentLoaded', function(){ setTime
               " var d=document.getElementById('recOther'); if(d) d.open=true; }, 0); });")
 """녹음 중 뒤로 가기 = 「회의를 끝낼까요?」 · 다른 앱 경고 · 다른 곳에서 끝냄 — 실제 크롬 화면 시험 (z1114)
 가짜 마이크(크롬 --use-fake-device-for-media-stream). 사용: py -3.12 ui_back.py <seed_rec.json 폴더>"""
+# 🔴 z1143(대표 지시 2026-10-07): 사람이 눌러 시작하는 이 화면 녹음은 막혔다.
+#   이 묶음이 재는 것은 「녹음이 도는 동안」의 동작이고, 그 길은 이음 「▶ 회의 시작」
+#   자동 녹음으로 그대로 산다 → 아래에서 그 길과 **똑같은 표시**를 켜고 시작한다.
+#   (막혔는지 자체는 ui_block_z1143.py 가 따로 잰다)
 import io
 import json
 import os
@@ -81,6 +85,7 @@ def hide_for(pg, ms):
 def start_rec(pg):
     pg.wait_for_selector("#redoTools")
     pg.evaluate("() => { const d = document.getElementById('redoTools'); if (d) d.open = true; }")
+    pg.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
     pg.click("#recBtn")
     pg.wait_for_timeout(2500)
 
@@ -137,6 +142,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(400)
     start_rec(pg)
     with pg.expect_response(lambda r: r.url.endswith(f"/api/meeting/{newid}/extract"), timeout=20000):
+        pg.evaluate("()=>{var b=document.getElementById('recBtn'); if(b) b.dataset.autorec='1';}")  # z1143
         pg.click("#recBtn")                 # ⏹ 종료 → 음성→글자 → AI 정리(extract)까지 기다린다
     pg.wait_for_load_state("networkidle")
     pg.wait_for_timeout(1500)
