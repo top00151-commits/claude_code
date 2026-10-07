@@ -9989,6 +9989,9 @@ async def admin_ai_settings_page(req: Request):
     info["claude_key"] = _ki["claude"]
     info["sdk_claude"] = ai_client._ANTHROPIC_OK
     info["sdk_openai"] = ai_client._OPENAI_OK
+    # z1142(대표 지시): 회의록 정리에서 바로잡을 「우리 회사 말」 — 빈 값이면 기본 목록
+    info["meeting_terms"] = (get_setting("meeting_terms", "") or "")
+    info["meeting_terms_default"] = ai_client._MEETING_TERMS_DEFAULT
     return ctx(req, "admin_ai_settings.html", user=u, active="admin",
                info=info, saved=(req.query_params.get("saved") == "1"))
 
@@ -9997,14 +10000,17 @@ async def admin_ai_settings_page(req: Request):
 async def admin_ai_settings_save(req: Request,
                                  ai_provider: str = Form(""), ai_model: str = Form(""),
                                  openai_api_key: str = Form(""), anthropic_api_key: str = Form(""),
-                                 openai_key_clear: str = Form(""), anthropic_key_clear: str = Form("")):
+                                 openai_key_clear: str = Form(""), anthropic_key_clear: str = Form(""),
+                                 meeting_terms: str = Form("")):
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
     from . import ai_client
     with db_session() as c:
         for k, v in (("ai_provider", (ai_provider or "").strip()),
-                     ("ai_model", (ai_model or "").strip())):
+                     ("ai_model", (ai_model or "").strip()),
+                     # z1142 — 회의록에서 바로잡을 우리 회사 말(빈 값=기본 목록 · "-"=끄기)
+                     ("meeting_terms", (meeting_terms or "").strip()[:4000])):
             c.execute(
                 "INSERT INTO app_settings(key, value) VALUES(?, ?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))

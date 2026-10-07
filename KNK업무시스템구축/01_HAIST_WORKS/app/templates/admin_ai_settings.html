@@ -12,7 +12,8 @@
 .ai-field { margin-bottom:14px; }
 .ai-field label { display:block; font-size:12.5px; font-weight:700; color:#334155; margin-bottom:5px; }
 .ai-field input, .ai-field select { width:100%; max-width:420px; padding:9px 12px; border:1px solid #d6cdb6; border-radius:8px; font-size:14px; font-family:inherit; }
-.ai-hint { font-size:11.5px; color:#8a7842; margin-top:4px; }
+.ai-hint { font-size:11.5px; color:#8a7842; margin-top:4px; line-height:1.75; }
+.ai-field textarea { width:100%; max-width:640px; padding:9px 12px; border:1px solid #d6cdb6; border-radius:8px; font-size:13.5px; font-family:inherit; line-height:1.65; resize:vertical; }
 .ai-btn { padding:9px 18px; border:0; border-radius:8px; font-size:14px; font-weight:800; cursor:pointer; }
 .ai-btn.primary { background:#b07a18; color:#fff; }
 .ai-btn.test { background:#1e40af; color:#fff; }
@@ -81,6 +82,21 @@
           <label>Claude 키 <span style="color:#8a7842;font-weight:500;">(ANTHROPIC_API_KEY)</span></label>
           <input type="password" name="anthropic_api_key" value="" placeholder="{% if info.claude_key.set %}새 키 입력 시 교체 (비우면 유지){% else %}sk-ant-api03-...{% endif %}" autocomplete="off">
           <div class="ai-hint">현재: {% if info.claude_key.set %}<b>{{ info.claude_key.masked }}</b> <span style="color:#64748b;">({{ '화면 저장' if info.claude_key.src=='db' else '환경변수' }})</span>{% else %}<span style="color:#991b1b;">미설정</span>{% endif %} &nbsp;·&nbsp; <label style="display:inline;font-weight:500;cursor:pointer;"><input type="checkbox" name="anthropic_key_clear" value="1"> 저장된 키 삭제</label>{% if not info.sdk_claude %}<br><span style="color:#991b1b;">⚠ 이 서버에 <b>anthropic SDK 미설치</b> — Claude를 쓰려면 설치가 필요합니다(전산담당자/빅터).</span>{% endif %}</div>
+        </div>
+      </div>
+
+      {# z1142(대표 지시 2026-10-07): 회의 녹음이 잘못 들린 우리 회사 말을 「정리」에서 바로잡는다 #}
+      <div class="ai-field" style="margin-top:18px;border-top:1px dashed #f1e8d4;padding-top:16px;">
+        <label>🗓 회의록에서 바로잡을 <b>우리 회사 말</b></label>
+        <textarea name="meeting_terms" rows="5" placeholder="비워 두면 아래 기본 목록을 씁니다">{{ info.meeting_terms }}</textarea>
+        <div class="ai-hint">
+          회의 녹음을 글자로 바꿀 때 <b>MLCC를 MSCC로</b> 적는 것처럼 잘못 들리는 말이 있습니다.
+          여기 적어 두면 <b>「정리」 단계에서 우리 회사 말로 바로잡습니다.</b>
+          쉼표로 이어 적고, 자주 틀리는 말은 <b>MLCC(MSCC로 잘못 들림)</b>처럼 적어 두면 더 잘 잡습니다.<br>
+          🔴 <b>받아쓴 원문은 바꾸지 않습니다</b> — 정리 글에서만 바로잡습니다.
+          회의 <b>제목</b>에 틀린 말이 적혀 있으면 그 말은 잘 안 고쳐지니, 제목도 함께 바로잡아 주세요.<br>
+          비워 두면 기본 목록을 씁니다 · <b>-</b> 한 글자만 적으면 이 기능을 끕니다.<br>
+          <span style="color:#64748b;">기본 목록: {{ info.meeting_terms_default }}</span>
         </div>
       </div>
 

@@ -414,6 +414,29 @@ _KNK_MEETING_CONTEXT = (
     "음성→글자 변환 오타로 보이는 이런 회사 용어·사람 이름은 문맥상 자연스럽게 바로잡되, 불확실하면 원문을 유지한다."
 )
 
+# z1142 (대표 지시 2026-10-07): 회의 녹음을 글자로 바꿀 때 잘못 들린 우리 회사 말을
+#   「정리」 단계에서 바로잡는다. 실측(같은 회의 원문 3,648자 · 5회 반복):
+#     표면장 → 표면저항, 카트리스트 → 파트리스트 = 5회 모두 바로잡힘
+#     목록에만 있고 회의에 없던 말(코그넥스·YOLO·텔레센트릭) = 0회 (억지로 넣지 않음)
+#   🔴 회의 제목에 틀린 말이 적혀 있으면 그 말만은 흔들린다 → 제목을 고쳐야 확실하다.
+#   🔴 원문(body)은 절대 바꾸지 않는다. 바로잡기는 정리 글에서만 일어난다.
+_MEETING_TERMS_DEFAULT = (
+    "MLCC(적층 세라믹 콘덴서 · MSC/MSCC/MHC 로 잘못 들림), FPCB, "
+    "파트리스트(부품 목록 · 카트리스트로 잘못 들림), 표면저항(표면장으로 잘못 들림), "
+    "정전기, 러버, PVC, 비딩(입찰), OK/NG 판정, 출하 검사기, 치수 검사, 외관 검사, "
+    "텔레센트릭 렌즈, 코그넥스, 오픈CV, YOLO"
+)
+
+
+def meeting_terms() -> str:
+    """회의록 정리에 함께 주는 「우리 회사 말」. 관리자 → AI 설정에서 고친다.
+    빈 값이면 기본 목록 · "-" 한 글자면 이 기능을 끈다(안 보냄)."""
+    v = _setting("meeting_terms")
+    if v == "-":
+        return ""
+    return (v or _MEETING_TERMS_DEFAULT).strip()
+
+
 _MEETING_EXTRACT_SYSTEM = (
     "당신은 KNK 사내 AI 빅터입니다. 회의 원문(음성→글자 변환 포함 가능)을 분석해 "
     "깔끔하게 정리·구성한 회의록과 결정사항·할 일을 만든다.\n"
@@ -475,6 +498,13 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
     system = _MEETING_EXTRACT_SYSTEM + "\n\n" + _KNK_MEETING_CONTEXT
     if context and context.strip():
         system += "\n\n[이번 회의 정보]\n" + context.strip()
+    _terms = meeting_terms()           # z1142 — 우리 회사 말(관리자가 고칠 수 있음)
+    if _terms:
+        system += ("\n\n[우리 회사 말 — 음성 변환이 흔히 틀리는 말]\n" + _terms
+                   + "\n\U0001F534 위 말이 원문에 비슷하게 들어 있으면 그 말로 바로잡는다. "
+                     "원문에 없는 말은 절대 넣지 않는다. "
+                     "회의 제목·참석자에 적힌 말이라도 이 목록과 어긋나면 이 목록 쪽을 따른다"
+                     "(제목도 사람이 잘못 적었을 수 있다).")
     ok, resp = ai_chat(
         body.strip(),
         system=system,
