@@ -278,7 +278,7 @@
           <div id="recOtherSlot" style="margin-top:10px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;"></div>
         </details>
         <label class="start-big rec-phone alt" id="recPhoneRecWrap" hidden>📱 녹음기로 바로 녹음&nbsp;<span class="start-sub">짧은 회의용 — 다른 앱으로 가면 저장되고 끝납니다</span><input type="file" id="recFileCap" accept="audio/*" capture data-knk-no-dropzone class="knk-file-vh"></label>
-        <button class="start-big rec-btn" id="recBtn">🎙 녹음하며 회의&nbsp;<span class="start-sub">누르면 바로 녹음</span></button>
+        <button class="start-big rec-btn" id="recBtn">🎙 녹음하며 회의&nbsp;<span class="start-sub">휴대폰 녹음기로 녹음해 주세요</span></button>
         <div class="start-row">
           <label class="start-mid rec-file">📁 녹음 파일 올리기<input type="file" id="recFile" accept="audio/*,.m4a,.mp3,.mp4,.wav,.webm,.ogg,.oga,.aac,.3gp,.mpeg,.mpga,.caf" data-knk-no-dropzone class="knk-file-vh"></label>
           <button class="start-mid" id="btnWriteMode" type="button">⌨️ 글로 쓰기</button>
@@ -289,7 +289,7 @@
           <span class="rec-status" id="recStatus"></span>
         </div>
       </div>
-      <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ 녹음을 마치면 <b>음성→글자, AI 정리까지 자동</b>으로 됩니다. <b>전화를 받을 땐 「⏸ 일시정지」</b>(통화 내용 녹음 방지) → 통화 후 「▶ 재개」. 이 화면 녹음은 <b>10초마다 서버에 저장</b>돼 창이 닫혀도 그때까지는 남고, <b>회의록 목록에서 「녹음 끝내고 정리」</b>로 마칠 수 있습니다.</div>
+      <div class="mf-hint" style="margin-top:10px;line-height:1.6;">※ <b>회의 녹음은 휴대폰 기본 녹음기</b>(안드로이드 「음성 녹음」 · 아이폰 「음성 메모」)로 하세요 — 다른 앱을 보거나 화면이 꺼져도 <b>안 끊깁니다</b>. 끝나면 <b>「📁 녹음 파일 올리기」</b>로 그 파일을 고르면 <b>음성→글자, AI 정리까지 자동</b>입니다. 소리는 <b>말하는 사람 가까이</b>에서 담을수록 정확합니다.</div>
       <div class="plat-note" id="recPlatNote" hidden></div>
 
       <div id="writeWrap" {% if not pf.get('body') %}hidden{% endif %} style="margin-top:16px;">
@@ -1600,8 +1600,35 @@ window.__MTG = {
   }
   // 🔴 z1130: 사람이 직접 「녹음 시작」을 눌렀다 = 마음을 바꾼 것 → 휴대폰 녹음기로 넘기던 표시를 푼다
   //   (그 표시가 켜진 채로 두면 recStart 가 조용히 되돌아가 '눌러도 아무 일 없음'이 된다 — 대표 신고 2026-09-27)
+  // 🔴 z1143 (대표 지시 2026-10-07): 이 화면에서 **사람이 직접** 시작하는 녹음을 막는다.
+  //   왜 — 이 화면 녹음은 화면을 켜 둘 때만 소리가 들어오고(아이폰은 다른 앱으로 가면 끊김),
+  //   2026-10-07 대회의실 실측에서 멀리 담긴 소리는 받아쓰기가 무너졌다(일치율 73% ↔ 95%).
+  //   🔴 막는 것은 ① 새 회의록 「🎙 녹음하며 회의」 ② 상세 「🎙 녹음 추가」 **둘뿐**이다.
+  //     이음 「▶ 회의 시작」 자동 녹음(dataset.autorec)·「🎙 이어서 녹음」(recResumeBtn 은 recStart 를
+  //     직접 부른다)·녹음 중 「⏹ 종료」는 **그대로 둔다**(대표 결정).
+  //   🔴 「먹통」으로 보이지 않게 — 누르면 반드시 **까닭과 갈 길**을 보여 준다.
+  function recBlockNote(){
+    var b=$('recBtn'); if(!b) return null;
+    var n=$('recBlockNote');
+    if(!n){
+      n=document.createElement('div'); n.id='recBlockNote'; n.className='plat-note';
+      try{ b.parentNode.insertBefore(n, b.nextSibling); }catch(_){ return null; }
+    }
+    n.innerHTML='🎙 <b>이 화면 녹음은 지금 쓰지 않습니다.</b><br>'
+      +'회의 녹음은 <b>휴대폰 기본 녹음기</b>(안드로이드 「음성 녹음」 · 아이폰 「음성 메모」)로 하세요 — '
+      +'다른 앱을 보거나 화면이 꺼져도 <b>안 끊깁니다</b>.<br>'
+      +'끝나면 이 화면 <b>「📁 녹음 파일 올리기」</b>로 그 파일을 고르면 '
+      +'<b>음성→글자·AI 정리까지 자동</b>입니다. 소리는 <b>말하는 사람 가까이</b>에서 담을수록 정확합니다.';
+    n.hidden=false;
+    return n;
+  }
   var _recBtn=$('recBtn');if(_recBtn)_recBtn.addEventListener('click',function(){
     if(_recBtn.dataset.on){ recStop(); return; }
+    if(!_recBtn.dataset.autorec){                      // z1143 — 사람이 직접 시작하는 길은 막는다
+      var _n=recBlockNote();
+      try{ (_n||_recBtn).scrollIntoView({block:'center'}); }catch(_){}
+      return;
+    }
     _phrecChosen=false; _recHandoff=false;
     try{ if(_phFallback){ clearTimeout(_phFallback); _phFallback=null; } }catch(_){}
     if(_otherBox) _otherBox.open=true;
@@ -1844,6 +1871,9 @@ window.__MTG = {
         var _phFirst = _isAndroid && !!_guideBox;
         if(!_phFirst) phrecLeadShow('running');
         var _rb=$('recBtn');
+        // 🔴 z1143: 이음 「▶ 회의 시작」으로 열린 창임을 단추에 남긴다 — 이 길의 녹음은 막지 않는다
+        //   (주소의 ?autorec=1 은 바로 위에서 지워지므로 나중에 다시 읽을 수 없다)
+        if(_rb) _rb.dataset.autorec='1';
         // 🎤 마이크 허용 상태를 보고 이 화면 녹음을 켠다 (2026-09-17) — 허용 저장=바로 · 처음=크롬 창 안내 · 막힘=푸는 방법
         function autorecStartHere(){
           if (!_alive() || _phrecChosen) return;
