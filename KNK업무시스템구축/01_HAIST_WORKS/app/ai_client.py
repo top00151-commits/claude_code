@@ -541,6 +541,55 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
     return (True, result)
 
 
+# ── 🎙 음성 메모 정리 (z1144 · 대표 지시 2026-10-08) ─────────────────────────
+#   회의가 아니다 — 혼자 말한 생각·전화 통화·현장 메모·말로 하는 보고.
+#   🔴 회의용 틀(안건·결정사항·참석자 귀속)을 씌우면 **없는 결정을 지어내거나 빈칸만** 나온다.
+#      그래서 요점·할 일만 뽑는 **다른 틀**을 쓴다.
+_NOTE_EXTRACT_SYSTEM = (
+    "당신은 KNK 사내 AI 빅터입니다. 사람이 혼자 말한 녹음(회의가 아님)을 글자로 바꾼 원문을 읽고 "
+    "짧고 쓸모 있게 정리한다.\n"
+    "출력 규칙:\n"
+    "- summary: 아래 형식(한국어, 여러 줄). 해당 없는 묶음은 통째로 뺀다.\n"
+    "    요점\n"
+    "    - <한 줄씩 · 말한 순서대로>\n"
+    "    할 일\n"
+    "    - <무엇을> — <누가/언제까지 · 원문에 나온 것만>\n"
+    "    나온 이름·회사·날짜\n"
+    "    - <원문에 나온 것만 그대로>\n"
+    "  \U0001F534 안건·결정사항·참석자별 발언 귀속은 만들지 않는다(혼자 말한 것이다).\n"
+    "- title: 이 메모에 어울리는 짧은 제목(공백 포함 20자 이내). "
+    "반드시 원문에 나온 말로만 짓는다(창작 금지). 지을 수 없으면 \"\".\n"
+    "- 절대 추측·창작 금지. 원문에 없는 내용을 지어내지 않는다. 말이 짧으면 정리도 짧게.\n"
+    "출력은 오직 아래 JSON 한 개. 마크다운 코드펜스·설명·인사말 금지.\n"
+    '{"title":"","summary":""}'
+)
+
+
+def ai_extract_note(body: str) -> tuple[bool, dict]:
+    """🎙 음성 메모 원문 → {"summary", "title"} (z1144).
+    회의용 ai_extract_meeting 과 **틀이 다르다**(안건·결정사항 없음).
+    「우리 회사 말」 바로잡기(meeting_terms)는 회의록과 **같은 한 벌**을 쓴다."""
+    empty = {"summary": "", "title": ""}
+    if not body or not body.strip():
+        return (True, dict(empty))
+    system = _NOTE_EXTRACT_SYSTEM + "\n\n" + _KNK_MEETING_CONTEXT
+    _terms = meeting_terms()
+    if _terms:
+        system += ("\n\n[우리 회사 말 — 음성 변환이 흔히 틀리는 말]\n" + _terms
+                   + "\n\U0001F534 위 말이 원문에 비슷하게 들어 있으면 그 말로 바로잡는다. "
+                     "원문에 없는 말은 절대 넣지 않는다.")
+    ok, resp = ai_chat(body.strip(), system=system, max_tokens=1500, temperature=0.1)
+    if not ok:
+        return (False, {"error": resp, **empty})
+    data = _parse_json_loose(resp)
+    if not isinstance(data, dict):
+        return (False, {"error": "AI 응답을 정리 형식(JSON)으로 해석하지 못했습니다.", **empty})
+    return (True, {
+        "summary": str(data.get("summary", "") or "").strip(),
+        "title": str(data.get("title", "") or "").strip()[:60],
+    })
+
+
 # ── 음성→글자 (16_KNK_Meeting 모드 B 음성 회의) ─────────────────────────────
 # Whisper STT 는 OpenAI 전용(Claude 미지원). 공급사 설정과 무관하게 OPENAI 키가 있어야 동작.
 # 정의서 제약3 DEC-3: OpenAI API 데이터는 학습 미사용(opt-out 기본). 음성 파일은 사내 저장.
