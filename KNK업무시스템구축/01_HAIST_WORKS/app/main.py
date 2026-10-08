@@ -3800,6 +3800,15 @@ _MEETING_VIS = ("team", "private", "all", "hq", "vn")
 #   🔵 이미 연결된 회의록의 연결 표시는 그대로 보인다(지난 기록은 안 지운다).
 _MEETING_LINK_ON = False
 
+# z1149 (대표 지시 2026-10-08): 「회의 시작을 눌렀을때 녹음되는걸 막아.. 그래야 지금 적용되는
+#   사항들을 반영할수있어」 → 이음 「▶ 회의 시작」으로 열린 창의 **자동 녹음도 켜지 않는다**.
+#   z1143 에서 ①새 회의록 ②녹음 추가 둘만 막고 이 길은 남겨 두었는데, 대표 지시로 그 예외를 닫는다.
+#   녹음은 **휴대폰 기본 녹음기 한 길**로 통일한다(2026-10-07 실측: 멀리 담긴 소리는 받아쓰기가 무너진다).
+#   🔴 두 겹으로 막는다 — ①주소에 ?autorec=1 을 **안 보낸다** ②화면도 AUTOREC_ON 으로 막는다
+#     (이음도 v843 에서 받은 신호를 떼지만, 안 보내는 쪽이 한 겹 더 안전하다).
+#   🔴 되살릴 때는 **이 한 줄만** True.
+_MEETING_AUTOREC_ON = False
+
 
 def _meeting_user_entity(c, u) -> str:
     """열람자 소속 법인 판정: 'VN'(베트남 법인) / 'KOR'(본사).
@@ -4132,6 +4141,7 @@ async def meeting_detail_page(req: Request, mid: int):
                projects=projects, opps=opps, linked_project=linked_project, linked_opp=linked_opp,
                can_link_proj=_can_vsales, can_link_sales=_can_sales,
                link_on=_MEETING_LINK_ON,   # z1147: 「🔗 연결」 잠금(한 줄로 되살림)
+               autorec_on=_MEETING_AUTOREC_ON,   # z1149: 이음 「▶ 회의 시작」 자동 녹음 잠금
                viewers=viewers,            # z1148: 「이 사람들도 보기」 명단
                rec=_rec_view(m, u),   # z1113: 「🔴 녹음 중」 복귀 안내
                msg_del=_msg_del)      # z1122: 🗑 삭제 확인 글 — 이음 회의도 함께 지워지나
@@ -6061,14 +6071,22 @@ async def api_meeting_msg_start(req: Request):
             except Exception as _le:
                 print(f"[MEETING-MSG] 활동기록 실패(회의록 생성은 완료): {_le}")
         is_starter = (m.get("owner_id") == starter["id"])
-        autorec = bool(is_starter and not (m.get("audio_path") or "").strip())
+        # z1149: 녹음 자동 시작은 막혔다(_MEETING_AUTOREC_ON=False).
+        #   \U0001F534 다만 **이음에서 들어왔다는 표시**는 보내야 한다 — 착지 화면이 그 표시를 보고
+        #   「\U0001F527 다시 하기」를 펴서 **휴대폰 녹음기 안내**(z1116·z1130)를 보여 주기 때문이다.
+        #   처음에 이 표시까지 껐다가 안내가 접힌 채 숨었다(회귀 ui_lead·ui_first 가 잡음).
+        #   \U0001F534 이름을 autorec → fromeum 으로 바꾼 까닭: ①이음 v843 이 autorec 만 떼어 낸다
+        #     ②autorec 은 '녹음을 자동으로 켠다'는 뜻이라 이제 사실과 다르다.
+        _land = bool(is_starter and not (m.get("audio_path") or "").strip())
+        autorec = bool(_MEETING_AUTOREC_ON and _land)
         out = {
             "ok": True, "created": created, "meeting_id": m["id"], "is_starter": is_starter,
             "started_by": _msg_owner_disp(c, m.get("owner_id")),
             "started_at": m.get("msg_started_at") or "",
             "stage": _meeting_msg_stage(m),
             "organizer_set": bool(m.get("msg_organizer_id")),
-            "url": f"/meetings/{m['id']}" + ("?autorec=1" if autorec else ""),
+            "url": f"/meetings/{m['id']}" + ("?autorec=1" if autorec
+                                              else ("?fromeum=1" if _land else "")),
         }
     return JSONResponse(out)
 
@@ -6175,7 +6193,8 @@ async def api_meeting_msg_status(req: Request):
 async def api_meeting_end(req: Request, mid: int):
     """z1131 (대표 지시 2026-09-27): 예정 끝 시각보다 일찍 끝났을 때 사람이 회의를 끝낸다.
     끝낸 시각을 `meetings.ended_at` 에 적고, 회의 카드(이음·모아보기)가 그 값을 시간 규칙보다 먼저 본다.
-    `undo=true` 면 되돌린다(실수로 눌렀을 때)."""
+    🔴 z1152 (대표 지시 2026-10-08 「되돌리기는 웍스화면에서도 지워줘」): **되돌리기는 없앴다.**
+      실수로 끝냈으면 관리자가 서버에서 고친다. `undo` 를 보내도 무시한다(갈래 자체가 없다)."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login"}, 401)
@@ -6183,7 +6202,6 @@ async def api_meeting_end(req: Request, mid: int):
         d = await req.json()
     except Exception:
         d = {}
-    undo = bool(isinstance(d, dict) and d.get("undo"))
     with db_session() as c:
         row = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
         if not row:
@@ -6191,11 +6209,6 @@ async def api_meeting_end(req: Request, mid: int):
         m = dict(row)
         if not _can_end_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "not_allowed"}, 403)
-        if undo:
-            c.execute("UPDATE meetings SET ended_at='', updated_at=datetime('now','localtime') WHERE id=?",
-                      (mid,))
-            print(f"[MEETING-END] 회의 {mid} 종료 되돌림 — {u.get('name')}", flush=True)
-            return JSONResponse({"ok": True, "ended": False, "ended_at": ""})
         if _meeting_ended(m):
             return JSONResponse({"ok": True, "ended": True, "ended_at": m.get("ended_at") or "",
                                  "already": True})
@@ -6205,6 +6218,71 @@ async def api_meeting_end(req: Request, mid: int):
         now = (dict(_r2).get("ended_at") if _r2 else "") or ""
         print(f"[MEETING-END] 회의 {mid} 종료 — {u.get('name')} {now}", flush=True)
     return JSONResponse({"ok": True, "ended": True, "ended_at": now})
+
+
+@app.post("/api/meeting/msg/end")
+async def api_meeting_msg_end(req: Request):
+    """[서버 전용] z1150 (대표 지시 2026-10-08): 이음 🗓 회의 카드의 「⏹ 회의 종료」가 부른다.
+
+    왜 따로 두나 — `POST /api/meeting/{mid}/end` 는 `get_user(req)` 라 **브라우저 로그인**이 있어야 한다.
+    이음 **서버**는 사람 세션이 없어 그 길을 못 쓴다(세션 10 요청 2026-10-08).
+    🔴 누가 끝낼 수 있는지는 **WORKS 가 판정한다** — 이음은 화면에서 1차로만 거른다.
+      판정 기준은 사람이 누르는 길과 **똑같이** `_can_end_meeting`(회의록 작성자·관리자/대표·
+      이음 등록 담당·그 회의 참석자). 사람은 **사번**으로 찾는다(이름 맞추기 금지 — 사람 참조는 ID).
+    🔴 녹음 중이면 끝내지 않는다 — 녹음은 그 사람의 WORKS 창 안에서 돌아 서버가 마칠 수 없고,
+      여기서 끝내 버리면 녹음이 계속 돌면서 회의록 정리도 시작되지 않는다. `recording` 을 돌려준다
+      (z1149 로 새 녹음은 안 생기지만, 그 전에 시작돼 안 끝난 녹음이 남아 있을 수 있다).
+
+    body: {msg_meeting_id, employee_no(누르는 사람 사번)}
+    🔴 되돌리기는 **만들지 않는다**(대표 지시 2026-10-08 「되돌리기 만들지마」 · 세션 10 전달).
+      WORKS 자기 화면의 「↩ 종료 되돌리기」(z1131)는 그대로 — 사람이 자기 화면에서 쓰는 것이다.
+    → 200 {ok:true, ended, ended_at, works_meeting_id}
+       200 {ok:false, error: "not_found"|"no_user"|"not_allowed"|"recording", works_meeting_id?}
+       403 {ok:false, error:"forbidden"}  (공유키 불일치)
+    """
+    if not _msg_service_key_ok(req):
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "json_required"}, 400)
+    if not isinstance(d, dict):
+        return JSONResponse({"ok": False, "error": "json_required"}, 400)
+    try:
+        msg_id = int(d.get("msg_meeting_id") or 0)
+    except (TypeError, ValueError):
+        msg_id = 0
+    if msg_id <= 0:
+        return JSONResponse({"ok": False, "error": "msg_meeting_id_required"}, 400)
+    with db_session() as c:
+        row = c.execute("SELECT * FROM meetings WHERE msg_meeting_id=?", (msg_id,)).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "error": "not_found"})
+        m = dict(row)
+        mid = m["id"]
+        actor = _msg_user_by_empno(c, d.get("employee_no"))
+        if not actor:
+            return JSONResponse({"ok": False, "error": "no_user", "works_meeting_id": mid})
+        if not _can_end_meeting(actor, m, c):
+            return JSONResponse({"ok": False, "error": "not_allowed", "works_meeting_id": mid})
+        if str((m.get("rec_state") or "")).strip() == "recording":
+            # 🔴 녹음 중 — 이음에서 끝내지 않는다. 그 사람 WORKS 창의 「⏹」로 마쳐야 정리가 돈다.
+            return JSONResponse({"ok": False, "error": "recording", "works_meeting_id": mid})
+        if _meeting_ended(m):
+            return JSONResponse({"ok": True, "ended": True, "ended_at": m.get("ended_at") or "",
+                                 "already": True, "works_meeting_id": mid})
+        c.execute("UPDATE meetings SET ended_at=datetime('now','localtime'),"
+                  " updated_at=datetime('now','localtime') WHERE id=?", (mid,))
+        _r = c.execute("SELECT ended_at FROM meetings WHERE id=?", (mid,)).fetchone()
+        ended_at = (_r["ended_at"] if _r else "") or ""
+        try:
+            log_activity(c, actor["id"], "meeting_end",
+                         f"{actor['name']} 이음 🗓 회의 카드에서 종료: {(m.get('title') or '')[:60]}",
+                         team_id=actor.get("team_id"))
+        except Exception:
+            pass
+    print(f"[MEETING-END-MSG] 회의 {mid} 종료 — {actor.get('name')} ({ended_at})", flush=True)
+    return JSONResponse({"ok": True, "ended": True, "ended_at": ended_at, "works_meeting_id": mid})
 
 
 @app.post("/api/meeting/msg/delete")
@@ -6461,9 +6539,11 @@ async def api_meeting_viewers_get(req: Request, mid: int):
         if not _can_edit_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
         chosen = set(_meeting_viewer_ids(c, mid))
+        _me_ent = _meeting_user_entity(c, u)   # z1151: 'KOR' / 'VN' — 먼저 열 탭
         rows = [dict(r) for r in c.execute(
             "SELECT u.id, u.name, u.rank, u.team_id, u.role, t.name AS team_name, "
-            "       COALESCE(t.display_order, 999) AS t_ord "
+            "       COALESCE(t.display_order, 999) AS t_ord, "
+            "       COALESCE(t.entity,'KOR') AS t_ent "
             "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
             "WHERE COALESCE(u.is_active,1)=1 "
             "ORDER BY t_ord, u.name")]
@@ -6476,10 +6556,17 @@ async def api_meeting_viewers_get(req: Request, mid: int):
                                                     "team_id": r.get("team_id")}, m)
                 except Exception:
                     already = False
+            # z1151 (대표 지시 2026-10-08 「본사, 베트남은 탭으로 구분해줘」):
+            #   \U0001F534 같은 이름의 팀이 양쪽 법인에 있다(가공팀·품질팀·관리팀·구매팀·설계팀·
+            #   소프트웨어팀·총괄 — 운영 실측 7쌍) → 법인을 안 주면 화면에서 구분할 길이 없다.
+            #   판정은 공개 범위 「본사/법인 공개」와 **같은 단일소스**(teams.entity · z747).
             out.append({"id": r["id"], "label": vname_full(r),
                         "team": (r.get("team_name") or "부서 없음"),
+                        "entity": ("VN" if str(r.get("t_ent") or "KOR").strip().upper() == "VN"
+                                   else "KOR"),
                         "on": r["id"] in chosen, "already": bool(already)})
-    return JSONResponse({"ok": True, "users": out})
+    # me_entity = 보는 사람의 법인 — 그 탭이 먼저 열린다(대표 결정)
+    return JSONResponse({"ok": True, "users": out, "me_entity": _me_ent})
 
 
 @app.post("/api/meeting/{mid:int}/viewers")
