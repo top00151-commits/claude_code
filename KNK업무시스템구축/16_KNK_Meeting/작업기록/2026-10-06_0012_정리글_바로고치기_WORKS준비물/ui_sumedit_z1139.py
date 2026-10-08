@@ -57,8 +57,13 @@ def main():
         br = pw.chromium.launch(channel="chrome", headless=True)
 
         def page_as(uid):
+            # 🔴 z1144(2026-10-08): 앱 설치 안내 팝업(#worksInstallHint)을 끔다.
+            #   휴대폰 UA 에서 불러온 뒤 약 1.2초 뒤에 떠 화면을 덮는다(세션당 1회).
+            #   이 묶음은 불러오고 곧바로 누르므로 경주에 기대고 있었다 — 팝업은
+            #   정상 기능이고 여기서 재는 대상이 아니다 → 꺼 두고 본디만 재다.
             c = br.new_context(user_agent=UA, viewport={"width": 390, "height": 844},
                                is_mobile=True, has_touch=True, base_url=BASE)
+            c.add_init_script("try{localStorage.setItem('knk_works_install_hint_never','1')}catch(e){}")
             c.add_cookies([{"name": "tuser", "value": str(uid), "url": BASE}])
             p = c.new_page()
             p.on("pageerror", lambda e: ERRS.append(str(e)))

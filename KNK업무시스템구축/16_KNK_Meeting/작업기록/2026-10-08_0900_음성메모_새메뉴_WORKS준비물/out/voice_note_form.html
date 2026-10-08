@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% if note %}음성 메모{% else %}새 음성 메모{% endif %} · KNK HAIST WORKS</title>
+{# ============================================================
+   voice_note_form.html — 🎙 음성 메모 새로 만들기 / 보기·고치기 (z1144 · 대표 지시 2026-10-08)
+   흐름: 📁 녹음 파일 올리기 → 음성→글자 → AI 정리(요점·할 일) 까지 자동.
+   🔴 이 화면에서 직접 녹음하지 않는다(z1143 과 같은 뜻 — 휴대폰 기본 녹음기가 안 끊긴다).
+   🔴 내 메모만 열린다(서버에서도 막는다).
+   ============================================================ #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.vn-wrap { max-width: 900px; }
+.vn-fld { margin-bottom: 14px; }
+.vn-fld label { display:block; font-size:12.5px; font-weight:800; color: var(--qv-ink-2); margin-bottom:6px; }
+.vn-fld input[type=text] { width:100%; padding:10px 13px; border:1px solid var(--qv-line); border-radius:9px;
+  font-size:15px; font-family:inherit; }
+.vn-fld textarea { width:100%; padding:11px 13px; border:1px solid var(--qv-line); border-radius:9px;
+  font-size:14px; font-family:inherit; line-height:1.8; resize:vertical; }
+.vn-sec { background: var(--qv-surface); border:1px solid var(--qv-line); border-radius: var(--radius-lg);
+  padding:18px 20px; margin-bottom:16px; }
+.vn-sec-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.vn-sec-ttl { font-size:14px; font-weight:800; color: var(--qv-ink); }
+.vn-up { display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%;
+  min-height:96px; background:#FFF7ED; border:2px dashed #FDBA74; border-radius:14px; color:#7C2D12;
+  font-size:17px; font-weight:800; cursor:pointer; text-align:center; padding:14px 16px; line-height:1.5; }
+.vn-up:hover { background:#FFEDD5; border-color:#FB923C; }
+.knk-file-vh { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0; }
+.vn-hint { font-size:12px; color: var(--qv-ink-3); line-height:1.8; margin-top:10px; }
+.vn-st { font-size:13px; font-weight:700; margin-top:10px; min-height:18px; }
+.vn-st.ok { color:#166534; } .vn-st.err { color: var(--knk-red); } .vn-st.go { color:#1D4ED8; }
+.vn-sum { white-space:pre-wrap; font-size:14px; line-height:1.85; color: var(--qv-ink); }
+.vn-sum.empty { color: var(--qv-ink-3); font-size:13px; }
+#vnSumEditWrap[hidden], #vnSumBox[hidden], #vnBodyWrap[hidden], #vnUpWrap[hidden] { display:none !important; }
+.vn-acts { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+@media (max-width:430px){ .vn-sec-head { flex-wrap:wrap; } }
+</style>
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+
+<main class="main vn-wrap" data-dn="voice-note-main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta"><a href="/voice-notes" style="color:var(--qv-ink-3);">음성 메모</a> ·
+        {% if note %}{{ note.created_at[:16] }}{% else %}새로 만들기{% endif %}</div>
+      <h1 class="page-title">{% if note %}음성 <em>메모</em>{% else %}새 음성 <em>메모</em>{% endif %}</h1>
+    </div>
+    <div class="vn-acts">
+      {% if note %}<button class="btn btn-secondary" id="vnDel" style="color:var(--knk-red);">🗑 삭제</button>{% endif %}
+    </div>
+  </div>
+
+  <div class="vn-sec">
+    <div class="vn-fld">
+      <label>제목 <span style="font-weight:600;color:var(--qv-ink-3);">(비워도 됩니다 — AI가 내용을 보고 지어드려요)</span></label>
+      <input id="vnTitle" type="text" maxlength="200" placeholder="예: 드림텍 통화 내용"
+             value="{{ (note.title if note else '')|e }}">
+    </div>
+
+    <div id="vnUpWrap"{% if note and note.body %} hidden{% endif %}>
+      <label class="vn-up">📁 녹음 파일 올리기
+        <input type="file" id="vnFile"
+               accept="audio/*,.m4a,.mp3,.mp4,.wav,.webm,.ogg,.oga,.aac,.3gp,.mpeg,.mpga,.caf"
+               data-knk-no-dropzone class="knk-file-vh"></label>
+      <div class="vn-hint">※ 녹음은 <b>휴대폰 기본 녹음기</b>(안드로이드 「음성 녹음」 · 아이폰 「음성 메모」)로 하세요 —
+        다른 앱을 보거나 화면이 꺼져도 <b>안 끊깁니다</b>. 올리면 <b>글자로 바꾸고 요점·할 일까지 자동</b>으로 정리됩니다.
+        소리는 <b>말하는 사람 가까이</b>에서 담을수록 정확합니다.</div>
+    </div>
+    <div class="vn-st" id="vnSt"></div>
+  </div>
+
+  <div class="vn-sec" id="vnSumSec">
+    <div class="vn-sec-head">
+      <div class="vn-sec-ttl">📌 정리 (요점 · 할 일)</div>
+      <div class="vn-acts">
+        <button class="btn btn-secondary" id="vnSumEdit" type="button">✏ 고치기</button>
+        <button class="btn btn-secondary" id="vnRedo" type="button">🔄 다시 정리</button>
+      </div>
+    </div>
+    <div class="vn-sum{% if not (note and note.summary) %} empty{% endif %}" id="vnSumBox">{% if note and note.summary %}{{ note.summary }}{% else %}아직 정리 전입니다 — 녹음을 올리면 자동으로 정리됩니다.{% endif %}</div>
+    <div id="vnSumEditWrap" hidden>
+      <textarea id="vnSumEdit2" rows="10">{{ (note.summary if note else '')|e }}</textarea>
+      <div class="vn-acts" style="margin-top:10px;">
+        <button class="btn btn-primary" id="vnSumSave" type="button">저장</button>
+        <button class="btn btn-secondary" id="vnSumCancel" type="button">취소</button>
+        <span class="vn-st" id="vnSumSt"></span>
+      </div>
+    </div>
+  </div>
+
+  <details class="vn-sec" id="vnBodyWrap"{% if not (note and note.body) %} hidden{% endif %}>
+    <summary style="cursor:pointer;font-size:14px;font-weight:800;color:var(--qv-ink);">
+      🎙 받아쓴 원문 <span style="font-weight:600;color:var(--qv-ink-3);">(잘못 들린 곳은 여기서 고치고 「🔄 다시 정리」)</span>
+    </summary>
+    <div class="vn-fld" style="margin-top:12px;">
+      <textarea id="vnBody" rows="12">{{ (note.body if note else '')|e }}</textarea>
+    </div>
+    <div class="vn-acts">
+      <button class="btn btn-primary" id="vnBodySave" type="button">원문 저장</button>
+      {% if note and note.audio_path %}<a class="btn btn-secondary" href="/api/voice-note/{{ note.id }}/audio" target="_blank" rel="noopener" data-no-swap>🔊 녹음 다시 듣기</a>{% endif %}
+      <span class="vn-st" id="vnBodySt"></span>
+    </div>
+  </details>
+</main>
+</div>
+{% include "_v5_partials/toasts.html" %}
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var NID = {{ note.id if note else 'null' }};
+  function st(el, msg, kind){ var e=$(el); if(!e) return; e.textContent=msg||''; e.className='vn-st'+(kind?(' '+kind):''); }
+  async function api(url, opt){
+    try{ var r = await fetch(url, opt||{}); var j = await r.json().catch(function(){ return {}; });
+         return { ok: r.ok && j.ok !== false, status: r.status, data: j }; }
+    catch(e){ return { ok:false, status:0, data:{ error:'연결에 실패했습니다 — 잠시 뒤 다시 해 주세요.' } }; }
+  }
+  // ── 올리기 → 글자 → 정리 ───────────────────────────────
+  async function onPick(e){
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!f) return;
+    st('vnSt','녹음을 올리는 중…','go');
+    if(!NID){
+      var cr = await api('/api/voice-note', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ title: ($('vnTitle').value||'').trim() }) });
+      if(!cr.ok){ st('vnSt', cr.data.error || '메모를 만들지 못했습니다.', 'err'); return; }
+      NID = cr.data.id;
+      try{ history.replaceState(null, '', '/voice-notes/' + NID); }catch(_){}
+      // z1144: 저장된 메모가 됐으니 머리글도 사실에 맞춘다(「새 음성 메모」로 남으면 안 된다)
+      try{ var _h=document.querySelector('.page-title'); if(_h) _h.innerHTML='음성 <em>메모</em>';
+           var _m=document.querySelector('.page-meta');
+           if(_m) _m.innerHTML='<a href="/voice-notes" style="color:var(--qv-ink-3);">음성 메모</a> · 방금 만듦'; }catch(_){}
+    }
+    var fd = new FormData(); fd.append('file', f, f.name || 'rec.m4a');
+    var up = await api('/api/voice-note/' + NID + '/audio', { method:'POST', body: fd });
+    if(!up.ok){ st('vnSt', up.data.error || '올리지 못했습니다.', 'err'); return; }
+    st('vnSt','음성을 글자로 바꾸는 중… (길면 몇 분 걸립니다)','go');
+    var tr = await api('/api/voice-note/' + NID + '/transcribe', { method:'POST' });
+    if(!tr.ok){ st('vnSt', tr.data.error || '글자로 바꾸지 못했습니다.', 'err'); return; }
+    var tries = 0;
+    var timer = setInterval(async function(){
+      tries++;
+      var s = await api('/api/voice-note/' + NID + '/stt-status');
+      if(!s.ok){ return; }
+      if(s.data.progress) st('vnSt','음성을 글자로 바꾸는 중 — ' + s.data.progress, 'go');
+      if(s.data.state === 'running'){ if(tries > 900){ clearInterval(timer); st('vnSt','시간이 너무 걸립니다 — 화면을 새로 고쳐 확인해 주세요.','err'); } return; }
+      clearInterval(timer);
+      if(s.data.state === 'error'){ st('vnSt', s.data.error || '글자로 바꾸지 못했습니다.', 'err'); return; }
+      st('vnSt','글자로 바꿨습니다 ✓ 정리하는 중…','go');
+      await extract(true);
+    }, 2000);
+  }
+  var _f = $('vnFile'); if(_f) _f.addEventListener('change', onPick);
+
+  // ── AI 정리 ────────────────────────────────────────────
+  async function extract(silent){
+    if(!NID) return;
+    if(!silent) st('vnSt','정리하는 중…','go');
+    var r = await api('/api/voice-note/' + NID + '/extract', { method:'POST' });
+    if(!r.ok){ st('vnSt', r.data.error || '정리하지 못했습니다.', 'err'); return; }
+    var n = await api('/api/voice-note/' + NID);
+    if(n.ok && n.data.note){
+      var d = n.data.note;
+      if($('vnSumBox')){ $('vnSumBox').textContent = d.summary || '아직 정리 전입니다.'; $('vnSumBox').className = 'vn-sum' + (d.summary ? '' : ' empty'); }
+      if($('vnSumEdit2')) $('vnSumEdit2').value = d.summary || '';
+      if($('vnBody')) $('vnBody').value = d.body || '';
+      if($('vnBodyWrap')) $('vnBodyWrap').hidden = !d.body;
+      if($('vnUpWrap')) $('vnUpWrap').hidden = !!d.body;
+      if(d.title && $('vnTitle') && !($('vnTitle').value||'').trim()) $('vnTitle').value = d.title;
+    }
+    st('vnSt','정리가 끝났습니다 ✓','ok');
+  }
+  var _re = $('vnRedo'); if(_re) _re.addEventListener('click', function(){ extract(false); });
+
+  // ── 제목 저장(입력칸을 벗어날 때) ───────────────────────
+  var _t = $('vnTitle');
+  if(_t) _t.addEventListener('blur', async function(){
+    if(!NID) return;
+    await api('/api/voice-note/' + NID + '/save', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title: (_t.value||'').trim() }) });
+  });
+
+  // ── 정리 글 고치기 ─────────────────────────────────────
+  var _se = $('vnSumEdit'), _sw = $('vnSumEditWrap'), _sb = $('vnSumBox');
+  if(_se) _se.addEventListener('click', function(){
+    if(!NID){ st('vnSt','먼저 녹음을 올려 주세요.','err'); return; }
+    if($('vnSumEdit2')) $('vnSumEdit2').value = (_sb.className.indexOf('empty') >= 0) ? '' : (_sb.textContent||'');
+    _sw.hidden = false; _sb.hidden = true;
+  });
+  var _sc = $('vnSumCancel'); if(_sc) _sc.addEventListener('click', function(){ _sw.hidden = true; _sb.hidden = false; });
+  var _ss = $('vnSumSave');
+  if(_ss) _ss.addEventListener('click', async function(){
+    var v = ($('vnSumEdit2').value || '').trim();
+    st('vnSumSt','저장하는 중…','go');
+    var r = await api('/api/voice-note/' + NID + '/save', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ summary: v }) });
+    if(!r.ok){ st('vnSumSt', r.data.error || '저장하지 못했습니다.', 'err'); return; }
+    _sb.textContent = v || '아직 정리 전입니다.'; _sb.className = 'vn-sum' + (v ? '' : ' empty');
+    _sw.hidden = true; _sb.hidden = false; st('vnSumSt','');
+    st('vnSt','고친 정리를 저장했습니다 ✓','ok');
+  });
+
+  // ── 원문 저장 ──────────────────────────────────────────
+  var _bs = $('vnBodySave');
+  if(_bs) _bs.addEventListener('click', async function(){
+    st('vnBodySt','저장하는 중…','go');
+    var r = await api('/api/voice-note/' + NID + '/save', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ body: ($('vnBody').value || '') }) });
+    st('vnBodySt', r.ok ? '저장했습니다 ✓ — 「🔄 다시 정리」를 누르면 고친 글로 다시 정리합니다.' : (r.data.error || '저장하지 못했습니다.'), r.ok ? 'ok' : 'err');
+  });
+
+  // ── 삭제 ───────────────────────────────────────────────
+  var _d = $('vnDel');
+  if(_d) _d.addEventListener('click', async function(){
+    if(!confirm('이 음성 메모를 지울까요? 올린 녹음 파일도 함께 지워집니다.')) return;
+    _d.disabled = true;
+    var r = await api('/api/voice-note/' + NID, { method:'DELETE' });
+    if(!r.ok){ st('vnSt', r.data.error || '지우지 못했습니다.', 'err'); _d.disabled = false; return; }
+    location.href = '/voice-notes';
+  });
+})();
+</script>
+</body>
+</html>

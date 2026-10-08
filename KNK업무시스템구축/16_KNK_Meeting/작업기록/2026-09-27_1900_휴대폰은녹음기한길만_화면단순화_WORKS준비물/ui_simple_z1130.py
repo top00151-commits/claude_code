@@ -34,9 +34,15 @@ def ok(name, cond, extra=""):
 
 
 def ctx(br, ua, phone=True):
-    return br.new_context(user_agent=ua,
+    # 🔴 z1144(2026-10-08): 앱 설치 안내 팝업(#worksInstallHint)을 끔다.
+    #   휴대폰 UA 에서 불러온 뒤 약 1.2초 뒤에 떠 화면을 덮는다(세션당 1회).
+    #   이 묶음은 불러오고 곧바로 누르므로 경주에 기대고 있었다 — 팝업은
+    #   정상 기능이고 여기서 재는 대상이 아니다 → 꺼 두고 본디만 재다.
+    _c = br.new_context(user_agent=ua,
                           viewport={"width": 390, "height": 844} if phone else {"width": 1440, "height": 900},
                           is_mobile=phone, has_touch=phone, permissions=["microphone"], base_url=BASE)
+    _c.add_init_script("try{localStorage.setItem('knk_works_install_hint_never','1')}catch(e){}")
+    return _c
 
 
 def open_page(c, path, reqs=None):

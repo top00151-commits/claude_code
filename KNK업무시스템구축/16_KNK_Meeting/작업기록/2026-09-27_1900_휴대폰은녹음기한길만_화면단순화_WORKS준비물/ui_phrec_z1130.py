@@ -54,6 +54,12 @@ def ctx(br, ua, phone):
         is_mobile=phone, has_touch=phone,
         permissions=["microphone"], base_url=BASE)
     c.add_init_script(OPEN_OTHER)
+    # 🔴 z1144(2026-10-08): 앱 설치 안내 팝업(#worksInstallHint)을 끔다.
+    #   그 팝업은 휴대폰 UA 에서 불러온 뒤 약 1.2초 뒤에 떠 화면을 덮는다(세션당 1회).
+    #   이 묶음은 `load` 뒤 700ms 에 누르므로 **0.5초 차 경주**에 기대고 있었다 —
+    #   페이지가 조금만 무거워지면(메뉴 한 줄) 경주가 뒤집혀 엉똑한 고장처럼 보였다.
+    #   팝업 자체는 정상 기능이고 이 묶음이 재는 대상이 아니다 → 꺼 두고 본디만 재다.
+    c.add_init_script("try{localStorage.setItem('knk_works_install_hint_never','1')}catch(e){}")
     return c
 
 
