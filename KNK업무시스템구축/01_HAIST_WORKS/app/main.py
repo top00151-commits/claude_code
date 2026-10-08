@@ -908,6 +908,15 @@ def startup():
             print(f"[VOICE-NOTE-MIG-Z1144] {_rvn}")
     except Exception as _e:
         print(f"[VOICE-NOTE-MIG-Z1144 ERR] {_e}")
+    # z1148 (대표 지시 2026-10-08): 👁 「이 사람들도 보기」 — meeting_viewers 새 표 (idempotent)
+    try:
+        from .migrations.m_z1148_meeting_viewers import migrate as _mv_migrate
+        from .database import DB_PATH as _DB_PATH_MV
+        _rmv = _mv_migrate(_DB_PATH_MV)
+        if _rmv.get('added'):
+            print(f"[MEETING-VIEWER-MIG-Z1148] {_rmv}")
+    except Exception as _e:
+        print(f"[MEETING-VIEWER-MIG-Z1148 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -3784,6 +3793,13 @@ def _row_ts(c, table, row_id):
 #  (teams.entity 단일소스 — z747 규칙, users.entity 비신뢰).
 _MEETING_VIS = ("team", "private", "all", "hq", "vn")
 
+# z1147 (대표 지시 2026-10-08): 「🔗 연결 (프로젝트·영업기회)」 은 **아직 쓰지 않는다**.
+#   대표 지시: 「이 부분은 아직 사용 안 할 거야.. 사용못하도록 막아줘.. 삭제하지는 말고 비활성화로 처리」
+#   🔴 되살릴 때는 **이 한 줄만** True 로. 화면(회색 잠금)·서버(두 API)가 같은 값을 본다.
+#   🔴 화면만 잠그면 주소로 직접 부르는 길이 열려 있다 — 그래서 서버도 같이 막는다.
+#   🔵 이미 연결된 회의록의 연결 표시는 그대로 보인다(지난 기록은 안 지운다).
+_MEETING_LINK_ON = False
+
 
 def _meeting_user_entity(c, u) -> str:
     """열람자 소속 법인 판정: 'VN'(베트남 법인) / 'KOR'(본사).
@@ -3853,6 +3869,7 @@ def _can_view_meeting(c, u, m) -> bool:
     - visibility 'all': 전 직원
     - visibility 'team': 작성자와 같은 팀(팀장 포함)
     - visibility 'private': 작성자+참석자만(위에서 처리) — 그 외 불가
+    - z1148 「이 사람들도 보기」(meeting_viewers): 참석하지 않았어도 항상 열람(보기만)
     """
     if not u or not m:
         return False
@@ -3867,6 +3884,18 @@ def _can_view_meeting(c, u, m) -> bool:
     try:
         if c.execute(
             "SELECT 1 FROM meeting_attendees WHERE meeting_id=? AND user_id=?",
+            (m["id"], uid),
+        ).fetchone():
+            return True
+    except Exception:
+        pass
+    # z1148 (대표 지시 2026-10-08): 「이 사람들도 보기」 로 콕 집어 준 사람 — 참석 안 했어도 본다.
+    #   🔴 참석자 표에 넣지 않는 까닭: 참석자는 저장할 때마다 글자에서 다시 만들어지고
+    #      (_sync_attendees 는 DELETE 후 INSERT) 이음 명단 맞추기(z1134)가 또 덮어쓴다
+    #      → 넣어도 사라지고, 오지도 않은 사람이 참석자로 남는다.
+    try:
+        if c.execute(
+            "SELECT 1 FROM meeting_viewers WHERE meeting_id=? AND user_id=?",
             (m["id"], uid),
         ).fetchone():
             return True
@@ -3988,6 +4017,8 @@ async def meetings_page(req: Request):
             ).fetchall()
         else:
             # z972: 본사 공개/법인 공개 — 내 팀의 소속 법인에 해당하는 공개분도 목록에 포함
+            # z1148: 「이 사람들도 보기」 로 지정된 회의도 목록에 — 🔴 열람 판정만 고치면
+            #   주소로는 열리는데 회의록 목록엔 안 보인다(목록은 이 질의를 따로 한다).
             _ent_vis = "vn" if _meeting_user_entity(c, u) == "VN" else "hq"
             rows = c.execute(
                 _sel + """WHERE (m.owner_id=?
@@ -3995,9 +4026,10 @@ async def meetings_page(req: Request):
                                  OR m.visibility='all'
                                  OR m.visibility=?
                                  OR (m.visibility='team' AND m.team_id=?)
-                                 OR m.id IN (SELECT meeting_id FROM meeting_attendees WHERE user_id=?))
+                                 OR m.id IN (SELECT meeting_id FROM meeting_attendees WHERE user_id=?)
+                                 OR m.id IN (SELECT meeting_id FROM meeting_viewers WHERE user_id=?))
                           ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300""",
-                (u["id"], u["id"], _ent_vis, u.get("team_id"), u["id"]),
+                (u["id"], u["id"], _ent_vis, u.get("team_id"), u["id"], u["id"]),
             ).fetchall()
         meetings = [dict(r) for r in rows]
         for _mm in meetings:   # z1113: 목록에서도 「🔴 녹음 중」을 보고 바로 끝낼 수 있게
@@ -4054,6 +4086,16 @@ async def meeting_detail_page(req: Request, mid: int):
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
         attendees = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id", (mid,))]
+        # z1148: 「이 사람들도 보기」 — 참석 안 했어도 볼 수 있게 콕 집어 준 사람들
+        viewers = []
+        try:
+            viewers = [{"id": r["id"], "label": vname_full(dict(r))} for r in c.execute(
+                "SELECT u.id, u.name, u.rank, t.name AS team_name "
+                "FROM meeting_viewers mv JOIN users u ON u.id=mv.user_id "
+                "LEFT JOIN teams t ON t.id=u.team_id "
+                "WHERE mv.meeting_id=? ORDER BY u.name", (mid,))]
+        except Exception:
+            viewers = []
         # 연결(프로젝트·영업기회) — 권한 게이트
         _can_vsales = can_view_sales(u)
         _can_sales = can_use_sales(u)
@@ -4089,6 +4131,8 @@ async def meeting_detail_page(req: Request, mid: int):
                transcribe_on=ai_client.transcribe_available(),
                projects=projects, opps=opps, linked_project=linked_project, linked_opp=linked_opp,
                can_link_proj=_can_vsales, can_link_sales=_can_sales,
+               link_on=_MEETING_LINK_ON,   # z1147: 「🔗 연결」 잠금(한 줄로 되살림)
+               viewers=viewers,            # z1148: 「이 사람들도 보기」 명단
                rec=_rec_view(m, u),   # z1113: 「🔴 녹음 중」 복귀 안내
                msg_del=_msg_del)      # z1122: 🗑 삭제 확인 글 — 이음 회의도 함께 지워지나
 
@@ -4379,6 +4423,8 @@ async def api_meeting_delete(req: Request, mid: int):
     with db_session() as c:
         # 자식(결정·할일·참석자)은 FK ON DELETE CASCADE 로 정리.
         # 단, 일일카드(tasks)로 연동된 것은 카드 자체를 지우지 않음(이미 독립 업무).
+        # z1148: 권한 표는 CASCADE 에 맡기지 않고 확실히 지운다(남아 돌면 안 될 사람이 본다).
+        c.execute("DELETE FROM meeting_viewers WHERE meeting_id=?", (mid,))
         c.execute("DELETE FROM meetings WHERE id=?", (mid,))
     # z1125 (대표 결정 2026-09-26): 그 회의의 녹음 파일도 함께 — 디스크가 느릴 수 있어 스레드에서
     #   🔴 이음과 무관한 회의는 위 블록을 건너뛰어 run_in_threadpool 이름이 없다 → 여기서 다시 불러온다
@@ -6376,9 +6422,116 @@ async def api_meetings_msg_cards(req: Request):
                          "truncated": bool(res.get("truncated"))})
 
 
+# ── z1148 (대표 지시 2026-10-08): 「이 사람들도 보기」 ─────────────────
+#   대표 지시: 「회의 참석하지 않은 특정 인원들에게도 보일 수 있게 공개범위를 직원 선택이 가능하도록」
+#   대표 결정: 공개 범위 5가지는 그대로 · 명단을 고치는 사람 = 회의록을 고칠 수 있는 사람
+#   🔵 고른 사람은 **보기만** 한다(고치기·지우기·녹음은 그대로 참석자 권한).
+def _meeting_viewer_ids(c, mid: int) -> list:
+    try:
+        return [r["user_id"] for r in c.execute(
+            "SELECT user_id FROM meeting_viewers WHERE meeting_id=?", (mid,))]
+    except Exception:
+        return []
+
+
+def _meeting_viewer_rows(c, mid: int) -> list:
+    """화면에 보여 줄 명단 — 이름은 「이름 직책 부서」 규칙(vname_full)."""
+    try:
+        return [{"id": r["id"], "label": vname_full(dict(r))} for r in c.execute(
+            "SELECT u.id, u.name, u.rank, t.name AS team_name "
+            "FROM meeting_viewers mv JOIN users u ON u.id=mv.user_id "
+            "LEFT JOIN teams t ON t.id=u.team_id "
+            "WHERE mv.meeting_id=? ORDER BY u.name", (mid,))]
+    except Exception:
+        return []
+
+
+@app.get("/api/meeting/{mid:int}/viewers")
+async def api_meeting_viewers_get(req: Request, mid: int):
+    """고를 수 있는 직원 명단 + 지금 고른 사람.
+    이미 다른 규칙으로 볼 수 있는 사람은 「이미 볼 수 있음」으로 알려만 준다(막지는 않는다)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m, c):
+            return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
+        chosen = set(_meeting_viewer_ids(c, mid))
+        rows = [dict(r) for r in c.execute(
+            "SELECT u.id, u.name, u.rank, u.team_id, u.role, t.name AS team_name, "
+            "       COALESCE(t.display_order, 999) AS t_ord "
+            "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+            "WHERE COALESCE(u.is_active,1)=1 "
+            "ORDER BY t_ord, u.name")]
+        out = []
+        for r in rows:
+            already = False
+            if r["id"] not in chosen:
+                try:
+                    already = _can_view_meeting(c, {"id": r["id"], "role": r.get("role"),
+                                                    "team_id": r.get("team_id")}, m)
+                except Exception:
+                    already = False
+            out.append({"id": r["id"], "label": vname_full(r),
+                        "team": (r.get("team_name") or "부서 없음"),
+                        "on": r["id"] in chosen, "already": bool(already)})
+    return JSONResponse({"ok": True, "users": out})
+
+
+@app.post("/api/meeting/{mid:int}/viewers")
+async def api_meeting_viewers_save(req: Request, mid: int):
+    """명단을 통째로 맞춘다. body: {"user_ids": [1,2,3]}"""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    d = await req.json()
+    ids = []
+    for x in (d.get("user_ids") or [])[:200]:
+        try:
+            n = int(x)
+        except (ValueError, TypeError):
+            continue
+        if n > 0 and n not in ids:
+            ids.append(n)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m, c):
+            return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
+        ok_ids = []
+        if ids:
+            _q = ",".join("?" * len(ids))
+            ok_ids = [r["id"] for r in c.execute(
+                "SELECT id FROM users WHERE id IN (" + _q + ") AND COALESCE(is_active,1)=1", ids)]
+        before = set(_meeting_viewer_ids(c, mid))
+        c.execute("DELETE FROM meeting_viewers WHERE meeting_id=?", (mid,))
+        for _i in ok_ids:
+            c.execute("INSERT INTO meeting_viewers(meeting_id, user_id, added_by) VALUES(?,?,?)",
+                      (mid, _i, u["id"]))
+        rows = _meeting_viewer_rows(c, mid)
+        if set(ok_ids) != before:   # 권한을 넓힌 기록은 남긴다
+            try:
+                log_activity(c, u["id"], "meeting_viewers",
+                             f"{u['name']} 회의록 「이 사람들도 보기」 {len(ok_ids)}명: "
+                             f"{(m.get('title') or '')[:50]}",
+                             team_id=u.get("team_id"))
+            except Exception:
+                pass
+    return JSONResponse({"ok": True, "viewers": rows, "dropped": len(ids) - len(ok_ids)})
+
+
 @app.post("/api/meeting/{mid:int}/link")
 async def api_meeting_link(req: Request, mid: int):
-    """회의록 ↔ 프로젝트·영업기회 연결 저장. 명시적 선택만(자동매칭 없음, 데이터 연결 안전)."""
+    """회의록 ↔ 프로젝트·영업기회 연결 저장. 명시적 선택만(자동매칭 없음, 데이터 연결 안전).
+    z1147 (대표 지시 2026-10-08): 지금은 쓰지 않는다 — 화면도 회색이고 여기서도 막는다."""
+    if not _MEETING_LINK_ON:
+        return JSONResponse({"ok": False, "error": "「연결」 기능은 지금 사용하지 않습니다."}, 403)
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
@@ -6421,7 +6574,10 @@ async def api_meeting_link(req: Request, mid: int):
 
 @app.post("/api/meeting/{mid:int}/to-opportunity")
 async def api_meeting_to_opportunity(req: Request, mid: int):
-    """회의록 정보(제목·요약·날짜·작성자)로 영업기회를 새로 만들고 양방향 연결. 영업 권한 필요."""
+    """회의록 정보(제목·요약·날짜·작성자)로 영업기회를 새로 만들고 양방향 연결. 영업 권한 필요.
+    z1147 (대표 지시 2026-10-08): 지금은 쓰지 않는다 — 화면도 회색이고 여기서도 막는다."""
+    if not _MEETING_LINK_ON:
+        return JSONResponse({"ok": False, "error": "「새 영업기회 등록」 은 지금 사용하지 않습니다."}, 403)
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)

@@ -100,6 +100,22 @@
 @keyframes recBnPulse { 0%,100%{opacity:1;} 50%{opacity:.88;} }
 @keyframes recBlink { 0%,100%{opacity:1;} 50%{opacity:.2;} }
 .rec-file { cursor:pointer; }
+.mf-offtag { font-size:11.5px; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:999px; padding:3px 10px; }
+/* z1148 (대표 지시 2026-10-08): 「이 사람들도 보기」 — 참석 안 한 직원도 보게 콕 집어 준다 */
+.vw-box { display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap; }
+.vw-chips { display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:160px; align-items:center; }
+.vw-chip { display:inline-flex; align-items:center; gap:4px; font-size:12.5px; font-weight:700; padding:4px 10px; border-radius:999px; background: var(--qv-surface-2); color: var(--qv-ink); border:1px solid var(--qv-line); }
+.vw-mini { font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; border:1px solid var(--qv-line); background: var(--qv-surface); color: var(--qv-ink); cursor:pointer; }
+.vw-mini.on { background: var(--knk-red); border-color: var(--knk-red); color:#fff; }
+.vw-panel { margin-top:8px; border:1px solid var(--qv-line); border-radius:10px; background: var(--qv-surface); }
+.vw-top { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px; border-bottom:1px solid var(--qv-line); }
+.vw-top input { flex:1; min-width:140px; border:1px solid var(--qv-line); border-radius:8px; padding:8px 11px; font-size:13.5px; font-family:inherit; background: var(--qv-surface); color: var(--qv-ink); }
+.vw-list { max-height:280px; overflow-y:auto; padding:6px 0; }
+.vw-team { font-size:11.5px; font-weight:800; color: var(--qv-ink-3); padding:7px 12px 3px; }
+.vw-row { display:flex; align-items:center; gap:9px; padding:6px 12px; cursor:pointer; font-size:13.5px; }
+.vw-row:hover { background: var(--qv-surface-2); }
+.vw-row input { width:16px; height:16px; }
+.vw-row .vw-al { font-size:11px; color: var(--qv-ink-3); margin-left:auto; }
 .link-chip { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:999px; background: var(--qv-surface-2); color: var(--qv-ink); border:1px solid var(--qv-line); text-decoration:none; }
 .link-chip:hover { border-color: var(--qv-line-3); background: var(--qv-surface-3); }
 .rec-time { font-size:14px; font-weight:800; color: var(--knk-red); font-family:ui-monospace,Consolas,monospace; }
@@ -320,6 +336,8 @@
               <option value="vn"      {% if pf.get('visibility')=='vn' %}selected{% endif %}>법인 공개</option>
               <option value="all"     {% if pf.get('visibility')=='all' %}selected{% endif %}>본사+법인 공개</option>
             </select>
+            {# z1148: 새 회의록엔 아직 번호가 없어 명단을 붙일 수 없다 → 저장 뒤 고른다고 알려 준다 #}
+            <div class="mf-hint" style="margin-top:5px;">저장한 뒤 <b>「이 사람들도 보기」</b>로 참석 안 한 직원도 볼 수 있게 할 수 있습니다.</div>
           </div>
           <div class="mf-fld">
             <label>장소 <span class="mf-hint">(선택)</span></label>
@@ -408,6 +426,32 @@
               <option value="vn"      {% if meeting.visibility=='vn' %}selected{% endif %}>법인 공개</option>
               <option value="all"     {% if meeting.visibility=='all' %}selected{% endif %}>본사+법인 공개</option>
             </select>
+          </div>
+          {# ── z1148 (대표 지시 2026-10-08): 「이 사람들도 보기」 ───────────────────
+             대표 지시: 「회의 참석하지 않은 특정 인원들에게도 보일 수 있게 … 직원 선택이 가능하도록」
+             🔵 공개 범위 5가지는 그대로 두고 **더하는** 칸이다(팀 공개 + 콕 집은 몇 명).
+             🔵 여기 고른 사람은 **보기만** 한다 — 고치기·지우기·녹음은 그대로. #}
+          <div class="mf-fld full" id="vwFld">
+            <label>이 사람들도 보기 <span class="mf-hint">(참석 안 한 직원도 볼 수 있게 — 보기만 됩니다)</span></label>
+            <div class="vw-box">
+              <div class="vw-chips" id="vwChips" data-ids="{{ viewers|map(attribute='id')|join(',') }}">
+                {% for v in viewers %}<span class="vw-chip">👤 {{ v.label }}</span>{% endfor %}
+                {% if not viewers %}<span class="mf-hint">아직 없습니다 — 지금은 참석자와 공개 범위에 해당하는 사람만 봅니다.</span>{% endif %}
+              </div>
+              {% if can_edit %}<button type="button" class="vw-mini" id="vwOpen">＋ 직원 고르기</button>{% endif %}
+            </div>
+            {% if can_edit %}
+            <div class="vw-panel" id="vwPanel" style="display:none;">
+              <div class="vw-top">
+                <input type="text" id="vwQ" placeholder="이름·부서로 찾기" autocomplete="off">
+                <span class="mf-hint" id="vwCnt"></span>
+                <button type="button" class="vw-mini on" id="vwSave">확인</button>
+                <button type="button" class="vw-mini" id="vwCancel">취소</button>
+              </div>
+              <div class="vw-list" id="vwList">불러오는 중…</div>
+            </div>
+            <div class="mf-hint" id="vwSt" style="margin-top:6px;"></div>
+            {% endif %}
           </div>
           <div class="mf-fld">
             <label>장소 <span class="mf-hint">(선택)</span></label>
@@ -549,12 +593,15 @@
     {% if can_link_proj or can_link_sales %}
     <!-- ── 🔗 연결 (프로젝트·영업기회) ── -->
     <div class="mf-section" id="secLink">
-      <div class="mf-sec-head"><div class="mf-sec-title">🔗 연결 <em>(프로젝트·영업기회)</em></div></div>
+      <div class="mf-sec-head"><div class="mf-sec-title">🔗 연결 <em>(프로젝트·영업기회)</em></div>
+        {# z1147 (대표 지시 2026-10-08): 「이 부분은 아직 사용 안 할 거야.. 사용못하도록 막아줘..
+           삭제하지는 말고 비활성화로 처리」 → 지우지 않고 회색으로 잠근다. 되살리기 = main.py `_MEETING_LINK_ON = True` 한 줄 #}
+        {% if not link_on %}<span class="mf-offtag">지금은 사용하지 않습니다</span>{% endif %}</div>
       <div class="mf-grid2">
         {% if can_link_proj %}
         <div class="mf-fld">
           <label>프로젝트(관리코드) 연결</label>
-          <select id="mtgProj" {% if not can_edit %}disabled{% endif %}>
+          <select id="mtgProj" {% if not can_edit or not link_on %}disabled{% endif %}>
             <option value="">— 연결 안 함 —</option>
             {% for p in projects %}<option value="{{ p.id }}" {% if linked_project and linked_project.id==p.id %}selected{% endif %}>{{ p.mgmt_code or p.code or ('P' ~ p.id) }} · {{ p.name }}</option>{% endfor %}
           </select>
@@ -563,7 +610,7 @@
         {% if can_link_sales %}
         <div class="mf-fld">
           <label>영업기회 연결</label>
-          <select id="mtgOpp" {% if not can_edit %}disabled{% endif %}>
+          <select id="mtgOpp" {% if not can_edit or not link_on %}disabled{% endif %}>
             <option value="">— 연결 안 함 —</option>
             {% for o in opps %}<option value="{{ o.id }}" {% if linked_opp and linked_opp.id==o.id %}selected{% endif %}>{{ o.opp_no }} · {{ o.title }}</option>{% endfor %}
           </select>
@@ -572,11 +619,18 @@
       </div>
       {% if can_edit %}
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
-        <button class="btn btn-primary" id="btnLink">💾 연결 저장</button>
-        {% if can_link_sales %}<button class="btn btn-secondary" id="btnToOpp" {% if linked_opp %}disabled title="이미 영업기회와 연결됨"{% endif %}>🎯 새 영업기회 등록</button>{% endif %}
+        <button class="btn btn-primary" id="btnLink" {% if not link_on %}disabled title="지금은 사용하지 않습니다"{% endif %}>💾 연결 저장</button>
+        {% if can_link_sales %}<button class="btn btn-secondary" id="btnToOpp" {% if linked_opp or not link_on %}disabled title="{% if not link_on %}지금은 사용하지 않습니다{% else %}이미 영업기회와 연결됨{% endif %}"{% endif %}>🎯 새 영업기회 등록</button>{% endif %}
         <span class="rec-status" id="linkStatus"></span>
       </div>
+      {% if link_on %}
       <div class="mf-hint" style="margin-top:6px;">「새 영업기회 등록」을 누르면 이 회의록(제목·요약·날짜)으로 영업기회가 만들어지고 자동 연결되며, 그 영업기회 화면으로 이동합니다.</div>
+      {% else %}
+      <div class="mf-hint" id="linkOffNote" style="margin-top:6px;line-height:1.6;">
+        ※ <b>이 칸은 아직 사용하지 않습니다</b>(대표 지시 2026-10-08) — 프로젝트·영업기회 연결은 잠가 두었습니다.<br>
+        아래에 이미 보이는 연결 표시는 <b>지난 기록이라 그대로 둡니다.</b>
+      </div>
+      {% endif %}
       {% endif %}
       <div id="linkChips" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         {% if linked_project %}<a class="link-chip" href="/projects/{{ linked_project.id }}" target="_blank" rel="noopener" data-no-swap>📋 {{ linked_project.mgmt_code or linked_project.code }} · {{ linked_project.name }}</a>{% endif %}
@@ -1824,7 +1878,77 @@ window.__MTG = {
     }
   })();
 
+  // ── z1148 (대표 지시 2026-10-08): 「이 사람들도 보기」 ───────────────────────
+  //   대표 지시: 「회의 참석하지 않은 특정 인원들에게도 보일 수 있게 … 직원 선택이 가능하도록」
+  //   🔴 참석자 칸에 넣지 않는다 — 참석자는 저장 때마다 글자에서 다시 만들어지고 이음이 덮어쓴다.
+  //   🔵 명단은 「확인」을 누를 때 바로 저장된다(회의록 「저장」과 따로 — 연결 칸과 같은 방식).
+  var VW = { all:null, sel:null };
+  function vwIds(){
+    var box=$('vwChips'); var s=(box&&box.getAttribute('data-ids'))||'';
+    return s ? s.split(',').map(function(x){return parseInt(x,10);}).filter(function(n){return n>0;}) : [];
+  }
+  function vwSt(msg,kind){ var el=$('vwSt'); if(el){ el.textContent=msg||''; el.style.color=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)'); } }
+  function vwPaint(rows){
+    var box=$('vwChips'); if(!box) return;
+    box.setAttribute('data-ids', rows.map(function(r){return r.id;}).join(','));
+    box.innerHTML = rows.length
+      ? rows.map(function(r){ return '<span class="vw-chip">👤 '+esc(r.label)+'</span>'; }).join('')
+      : '<span class="mf-hint">아직 없습니다 — 지금은 참석자와 공개 범위에 해당하는 사람만 봅니다.</span>';
+  }
+  function vwRender(){
+    var wrap=$('vwList'); if(!wrap||!VW.all) return;
+    var q=((($('vwQ')||{}).value)||'').trim().toLowerCase();
+    var html='', team=null, shown=0;
+    VW.all.forEach(function(r){
+      if(q && (r.label+' '+r.team).toLowerCase().indexOf(q)<0) return;
+      if(r.team!==team){ team=r.team; html+='<div class="vw-team">'+esc(team)+'</div>'; }
+      shown++;
+      html+='<label class="vw-row"><input type="checkbox" data-uid="'+r.id+'"'+(VW.sel[r.id]?' checked':'')+'>'
+          + '<span>'+esc(r.label)+'</span>'
+          + (r.already?'<span class="vw-al">이미 볼 수 있음</span>':'') + '</label>';
+    });
+    wrap.innerHTML = shown ? html : '<div class="vw-team">찾는 직원이 없습니다.</div>';
+    var n=0; for(var k in VW.sel){ if(VW.sel[k]) n++; }
+    var cnt=$('vwCnt'); if(cnt) cnt.textContent = n ? (n+'명 골랐습니다') : '';
+  }
+  async function vwOpen(){
+    var pn=$('vwPanel'); if(!pn) return;
+    pn.style.display='block'; vwSt('');
+    if(!VW.all){
+      var res=await jreq('GET','/api/meeting/'+M.id+'/viewers');   // 🔴 jreq 는 null 도 본문으로 싣는다(GET 은 본문 금지)
+      if(!(res.ok&&res.data.ok)){ $('vwList').textContent=(res.data&&res.data.error)||'명단을 불러오지 못했습니다.'; return; }
+      VW.all=res.data.users||[];
+    }
+    VW.sel={}; vwIds().forEach(function(i){ VW.sel[i]=true; });
+    vwRender();
+  }
+  async function vwSave(){
+    var ids=[]; for(var k in VW.sel){ if(VW.sel[k]) ids.push(parseInt(k,10)); }
+    vwSt('저장 중…');
+    var res=await jreq('POST','/api/meeting/'+M.id+'/viewers',{user_ids:ids});
+    if(res.ok&&res.data.ok){
+      vwPaint(res.data.viewers||[]);
+      $('vwPanel').style.display='none';
+      vwSt('저장했습니다 ✓ 고른 분들은 회의록 목록에서도 이 회의가 보입니다.','ok');
+    } else vwSt((res.data&&res.data.error)||'저장 실패','err');
+  }
+  (function(){
+    var o=$('vwOpen'); if(o) o.addEventListener('click',vwOpen);
+    var cl=$('vwCancel'); if(cl) cl.addEventListener('click',function(){ $('vwPanel').style.display='none'; vwSt(''); });
+    var sv=$('vwSave'); if(sv) sv.addEventListener('click',vwSave);
+    var q=$('vwQ'); if(q) q.addEventListener('input',vwRender);
+    var ls=$('vwList'); if(ls) ls.addEventListener('change',function(e){
+      var cb=e.target; if(!cb||cb.type!=='checkbox') return;
+      var id=parseInt(cb.getAttribute('data-uid'),10); if(!id) return;
+      VW.sel[id]=cb.checked;
+      var n=0; for(var k in VW.sel){ if(VW.sel[k]) n++; }
+      var cnt=$('vwCnt'); if(cnt) cnt.textContent = n ? (n+'명 골랐습니다') : '';
+    });
+  })();
+
   // ── 🔗 연결 (프로젝트·영업기회) ──
+  //   z1147 (대표 지시 2026-10-08): 지금은 잠겨 있다. 서버(_MEETING_LINK_ON)가 같은 값을 보고 API 도 막는다.
+  var LINK_ON = {% if link_on %}true{% else %}false{% endif %};
   function refreshChips(){
     var box=$('linkChips'); if(!box)return; var html='';
     var p=$('mtgProj'); if(p&&p.value){ html+='<a class="link-chip" href="/projects/'+p.value+'" target="_blank" rel="noopener" data-no-swap>📋 '+esc(p.options[p.selectedIndex].text)+'</a>'; }
@@ -1833,6 +1957,7 @@ window.__MTG = {
   }
   function linkSt(msg,kind){ var el=$('linkStatus'); if(el){ el.textContent=msg||''; el.style.color=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)'); } }
   async function saveLink(){
+    if(!LINK_ON) return;   // z1147: 화면이 뚫려도 여기서 한 번 더 막는다
     var p=$('mtgProj'), o=$('mtgOpp');
     var body={ project_id:(p?p.value:'')||null, opportunity_id:(o?o.value:'')||null };
     linkSt('저장 중…');
@@ -1841,6 +1966,7 @@ window.__MTG = {
     else linkSt(res.data.error||'저장 실패','err');
   }
   async function toOpportunity(){
+    if(!LINK_ON) return;   // z1147: 화면이 뚫려도 여기서 한 번 더 막는다
     var btn=$('btnToOpp'); if(btn)btn.disabled=true;
     linkSt('영업기회 만드는 중…');
     var res=await jreq('POST','/api/meeting/'+M.id+'/to-opportunity',{});
@@ -1848,7 +1974,7 @@ window.__MTG = {
     if(res.status===409&&res.data.url){ linkSt('이미 연결된 영업기회로 이동…','ok'); location.href=res.data.url; return; }
     if(btn)btn.disabled=false; linkSt(res.data.error||'생성 실패','err');
   }
-  var _bLink=$('btnLink'); if(_bLink)_bLink.addEventListener('click',saveLink);
+  var _bLink=$('btnLink'); if(_bLink&&!_bLink.disabled)_bLink.addEventListener('click',saveLink);
   var _bToOpp=$('btnToOpp'); if(_bToOpp&&!_bToOpp.disabled)_bToOpp.addEventListener('click',toOpportunity);
 
   // ── 초기 렌더 + 자동 정리 진입 (상세 모드) ──
