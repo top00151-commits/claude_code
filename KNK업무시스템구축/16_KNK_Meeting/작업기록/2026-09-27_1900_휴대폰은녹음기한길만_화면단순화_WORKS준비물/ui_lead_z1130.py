@@ -100,7 +100,7 @@ def main():
         # 넘기기(z1116)를 보려면 이 화면 녹음이 돌고 있어야 한다 → 직접 켠다
         p.locator("#recBtn").click()
         p.wait_for_timeout(3000)
-        ok("「🎙 녹음 시작」으로 이 화면 녹음이 켜진다",
+        ok("「🎤 녹음 시작」으로 이 화면 녹음이 켜진다",
            p.evaluate("() => { const b=document.getElementById('recBanner'); return !!b && !b.hidden; }"))
         st = api(p, "/api/meeting/%d/rec-status" % M1)
         ok("서버도 「녹음 중」으로 안다", (st.get("rec") or {}).get("state") == "recording", st.get("rec"))

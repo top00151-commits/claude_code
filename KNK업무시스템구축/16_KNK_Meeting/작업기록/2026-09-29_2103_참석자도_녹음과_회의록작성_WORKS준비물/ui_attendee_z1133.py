@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """z1133 화면 시험 — 참석자 눈에 녹음·올리기·정리·종료 단추가 보이고, 삭제는 안 보인다
-  ① 참석자: 회의록이 열리고 「🎙 녹음」·「📁 녹음 파일 올리기」·「🔄 다시 정리」·「⏹ 회의 종료」 보임 · 「🗑 삭제」 없음
+  ① 참석자: 회의록이 열리고 「🎤 녹음」·「📁 녹음 파일 올리기」·「🔄 다시 정리」·「⏹ 회의 종료」 보임 · 「🗑 삭제」 없음
   ② 참석자 아닌 직원: 비공개 회의는 열리지 않는다(목록으로 튕김)
   ③ 작성자: 예전 그대로(삭제까지 보임)
 사용: py -3.12 ui_attendee_z1133.py [포트=8936] [씨앗폴더]
@@ -75,7 +75,7 @@ def main():
         p.evaluate("() => { const d=document.getElementById('redoTools'); if(d) d.open=true;"
                    " const o=document.getElementById('recOther'); if(o) o.open=true; }")
         p.wait_for_timeout(400)
-        ok("「🎙 녹음」 단추가 보인다", p.locator("#recBtn").is_visible())
+        ok("「🎤 녹음」 단추가 보인다", p.locator("#recBtn").is_visible())
         ok("「📁 음성 파일 올리기」가 보인다", p.locator("label.rec-file").first.is_visible())
         ok("「🔄 다시 정리」가 보인다", p.locator("#btnExtract").is_visible())
         ok("「⏹ 회의 종료」가 보인다", p.locator("#btnEndMeeting").is_visible(), p.locator("#btnEndMeeting").count())

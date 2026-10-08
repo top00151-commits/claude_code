@@ -88,7 +88,7 @@ def main():
             if(!w||!b) return 'missing';
             return (w.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? 'phone-first' : 'rec-first';
         }""")
-        chk("녹음기 단추가 「🎙 녹음하며 회의」보다 위", order == "phone-first", order)
+        chk("녹음기 단추가 「🎤 녹음하며 회의」보다 위", order == "phone-first", order)
 
         cap = p.evaluate("""() => {
             const i=document.getElementById('recFileCap');
@@ -97,7 +97,7 @@ def main():
         chk("숨은 입력에 capture 속성", bool(cap and cap["cap"]), cap)
         chk("accept=audio/*", bool(cap and cap["acc"] == "audio/*"), cap and cap["acc"])
 
-        chk("「🎙 녹음하며 회의」는 두 번째 선택(alt 색)",
+        chk("「🎤 녹음하며 회의」는 두 번째 선택(alt 색)",
             p.evaluate("() => document.getElementById('recBtn').classList.contains('alt')"))
 
         note = p.locator("#recPlatNote")
@@ -148,7 +148,7 @@ def main():
         p.goto(BASE + "/meetings/new", wait_until="load")
         p.wait_for_timeout(700)
         chk("아이폰: 녹음기 단추는 보이지 않는다", not p.locator("#recPhoneRecWrap").is_visible())
-        chk("아이폰: 「🎙 녹음하며 회의」는 큰 빨강 그대로",
+        chk("아이폰: 「🎤 녹음하며 회의」는 큰 빨강 그대로",
             p.evaluate("() => { const b=document.getElementById('recBtn'); return b.classList.contains('start-big') && !b.classList.contains('alt'); }"))
         note = p.locator("#recPlatNote")
         nt = note.inner_text() if note.is_visible() else ""
@@ -170,7 +170,7 @@ def main():
         p.wait_for_timeout(700)
         chk("PC: 녹음기 단추 없음", not p.locator("#recPhoneRecWrap").is_visible())
         chk("PC: 기기별 안내 상자 없음", not p.locator("#recPlatNote").is_visible())
-        chk("PC: 「🎙 녹음하며 회의」 그대로",
+        chk("PC: 「🎤 녹음하며 회의」 그대로",
             p.evaluate("() => { const b=document.getElementById('recBtn'); return b.classList.contains('start-big') && !b.classList.contains('alt'); }"))
         # 🔴 z1143(대표 지시 2026-10-07): PC 에서도 사람이 눌러 시작하는 이 화면 녹음은 막는다.
         #   예전엔 여기서 「PC 는 여전히 녹음이 시작된다」를 봤다(안드로이드 전용 변경이 PC 를

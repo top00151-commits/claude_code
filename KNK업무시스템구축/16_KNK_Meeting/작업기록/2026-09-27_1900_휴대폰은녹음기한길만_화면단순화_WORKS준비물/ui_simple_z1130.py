@@ -76,7 +76,7 @@ def main():
         g = p.locator("#recPhoneGuide")
         ok("안내 카드가 보인다", g.is_visible())
         gt = (g.inner_text() or "").replace("\n", " ")
-        ok("제목 = 🎙 이 회의 녹음", "이 회의 녹음" in gt, gt[:40])
+        ok("제목 = 🎤 이 회의 녹음", "이 회의 녹음" in gt, gt[:40])
         ok("① 홈 화면에서 「음성 녹음」", "홈 화면" in gt and "음성 녹음" in gt, gt[:110])
         ok("① 안 끊긴다고 적는다", "안 끊깁니다" in gt, gt[:130])
         ok("② 공유 → KNK WORKS", "공유 → KNK WORKS" in gt, gt[-110:])
@@ -163,7 +163,7 @@ def main():
             p = open_page(c, "/meetings/new")
             ok("%s: 안내 카드 숨김" % nm, not p.locator("#recPhoneGuide").is_visible())
             ok("%s: 「다른 방법」 접기 숨김" % nm, not p.locator("#recOther").is_visible())
-            ok("%s: 「🎙 녹음하며 회의」가 그대로 보인다" % nm, p.locator("#recBtn").is_visible())
+            ok("%s: 「🎤 녹음하며 회의」가 그대로 보인다" % nm, p.locator("#recBtn").is_visible())
             ok("%s: 녹음 단추가 접기 안으로 안 갔다" % nm, not in_other(p, "recBtn"))
             c.close()
 
