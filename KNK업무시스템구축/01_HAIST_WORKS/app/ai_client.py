@@ -541,7 +541,7 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
     return (True, result)
 
 
-# ── 🎙 음성 메모 정리 (z1144 · 대표 지시 2026-10-08) ─────────────────────────
+# ── 🎤 음성 메모 정리 (z1144 · 대표 지시 2026-10-08) ─────────────────────────
 #   회의가 아니다 — 혼자 말한 생각·전화 통화·현장 메모·말로 하는 보고.
 #   🔴 회의용 틀(안건·결정사항·참석자 귀속)을 씌우면 **없는 결정을 지어내거나 빈칸만** 나온다.
 #      그래서 요점·할 일만 뽑는 **다른 틀**을 쓴다.
@@ -566,7 +566,7 @@ _NOTE_EXTRACT_SYSTEM = (
 
 
 def ai_extract_note(body: str) -> tuple[bool, dict]:
-    """🎙 음성 메모 원문 → {"summary", "title"} (z1144).
+    """🎤 음성 메모 원문 → {"summary", "title"} (z1144).
     회의용 ai_extract_meeting 과 **틀이 다르다**(안건·결정사항 없음).
     「우리 회사 말」 바로잡기(meeting_terms)는 회의록과 **같은 한 벌**을 쓴다."""
     empty = {"summary": "", "title": ""}

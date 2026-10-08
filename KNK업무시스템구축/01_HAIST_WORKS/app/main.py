@@ -899,7 +899,7 @@ def startup():
             print(f"[MEETING-END-MIG-Z1131] {_rmend}")
     except Exception as _e:
         print(f"[MEETING-END-MIG-Z1131 ERR] {_e}")
-    # z1144 (대표 지시 2026-10-08): 🎙 음성 메모 — voice_notes 새 표 (idempotent)
+    # z1144 (대표 지시 2026-10-08): 🎤 음성 메모 — voice_notes 새 표 (idempotent)
     try:
         from .migrations.m_z1144_voice_note import migrate as _vn_migrate
         from .database import DB_PATH as _DB_PATH_VN
@@ -5326,7 +5326,7 @@ def _stt_append_body(mid: int, text: str):
         with db_session() as c:
             row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
             prev = ((row["body"] if row else "") or "").strip()
-            new_body = ((prev + "\n\n") if prev else "") + "🎙 [음성 변환]\n" + text.strip()
+            new_body = ((prev + "\n\n") if prev else "") + "🎤 [음성 변환]\n" + text.strip()
             c.execute("UPDATE meetings SET body=?, updated_at=datetime('now','localtime') WHERE id=?",
                       (new_body, mid))
 
@@ -5334,7 +5334,7 @@ def _stt_append_body(mid: int, text: str):
 def _stt_one(mid: int, disk: str, lang: str, head: str = "", progress=None):
     """음성 하나 → 글자. 25MB 이하=한 번에(지금까지와 같음) / 넘으면 줄여 20분씩 나눠 차례로.
     반환 (글, 오류, 경고) — 오류가 있으면 글은 비어 있다(반쪽 회의록 방지).
-    progress: 진행 글을 적을 함수(없으면 회의록 쪽 _stt_progress). z1144 에서 🎙 음성 메모가
+    progress: 진행 글을 적을 함수(없으면 회의록 쪽 _stt_progress). z1144 에서 🎤 음성 메모가
       **같은 알맹이 한 벌**을 쓰려고 갈아끼운다 — 두 벌이 되면 한쪽만 고치는 사고가 난다."""
     import shutil as _sh
     _pg = progress if callable(progress) else (lambda _t: _stt_progress(mid, _t))
@@ -5485,7 +5485,7 @@ async def api_meeting_stt_status(req: Request, mid: int):
 
 
 # ════════════════════════════════════════════════════════════════════════
-#  🎙 음성 메모 (z1144 · 대표 지시 2026-10-08)
+#  🎤 음성 메모 (z1144 · 대표 지시 2026-10-08)
 #  「이 녹음파일 올려서 정리하는 걸 지금은 회의록 들어가서 새 회의록을 눌러야만 하는데…
 #    회의록 말고 **일반적인 의견 내용을 녹음한 걸 정리해주는 것도** 필요해」
 #  쓰임새(대표): 떠오른 생각·지시사항 / 전화 통화·고객 방문 / 현장·설비 메모 / 말로 하는 보고
@@ -6105,7 +6105,7 @@ async def api_meeting_msg_status(req: Request):
                   "recording": _rv["state"] == "recording",
                   "rec_secs": _rv["secs"] if _rv["state"] == "recording" else 0,
                   # z1121: 보는 사람이 그 녹음을 시작했나 — 창을 닫아 멈춘 녹음이면 이음 카드 단추를 그 사람에게만
-                  #   「🎙 이어서 녹음」으로(대표 지시 2026-09-21 · 세션 10). WORKS 회의 화면의 REC.mine(z1120)과 같은 판단.
+                  #   「🎤 이어서 녹음」으로(대표 지시 2026-09-21 · 세션 10). WORKS 회의 화면의 REC.mine(z1120)과 같은 판단.
                   "rec_mine": _rv["state"] == "recording" and bool(_rv["mine"]),
                   # z1131: 사람이 「⏹ 회의 종료」를 눌렀나 — 이음 카드가 시간 규칙보다 먼저 본다
                   "ended": _meeting_ended(m),
@@ -6362,7 +6362,7 @@ async def api_meetings_msg_cards(req: Request):
                   # z1131: 사람이 「⏹ 회의 종료」를 눌렀나(모아보기 탭 카드가 먼저 본다)
                   "ended": _meeting_ended(m),
                   "ended_at": (m.get("ended_at") or ""),
-                  # z1122: 보는 사람이 그 녹음을 시작했나(msg/status z1121 과 같은 값) — 이음 v817 처럼 본인에게만 「🎙 이어서 녹음」
+                  # z1122: 보는 사람이 그 녹음을 시작했나(msg/status z1121 과 같은 값) — 이음 v817 처럼 본인에게만 「🎤 이어서 녹음」
                   "rec_mine": _rv["state"] == "recording" and bool(_rv["mine"])}
             if can_view:      # 볼 수 없는 사람에겐 회의록 주소·내용 수를 주지 않는다
                 # z1122: 주소는 msg/status(z1114)와 같게 — 정리가 끝났어도 녹음이 열려 있으면 녹음을 이어가거나 끝낼 화면

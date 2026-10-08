@@ -62,7 +62,7 @@
 .mc-btn { display:inline-flex; align-items:center; padding: 5px 13px; border-radius: 999px; border: 1px solid var(--qv-line-2); font-size: 13px; font-weight: 700; color: var(--qv-ink); text-decoration: none; background: var(--qv-surface); white-space: nowrap; }
 .mc-btn:hover { border-color: var(--qv-line-3); }
 .mc-btn.mc-go { background: var(--knk-red); border-color: var(--knk-red); color: #fff; }
-.mc-btn.mc-resume { background: #dc2626; border-color: #dc2626; color: #fff; font-weight: 800; }   /* z1122: 이음 v817 「🎙 이어서 녹음」과 같은 빨강 */
+.mc-btn.mc-resume { background: #dc2626; border-color: #dc2626; color: #fff; font-weight: 800; }   /* z1122: 이음 v817 「🎤 이어서 녹음」과 같은 빨강 */
 .mc-card.tap { cursor: pointer; }   /* z1122: 회의록 단추가 있는 카드만 — 빈 곳을 눌러도 그 단추와 같게 */
 .mc-state { font-size: 13px; color: var(--qv-ink-2); }
 .mc-state.dim { color: var(--qv-ink-3); }
@@ -196,8 +196,8 @@
       else if (st === 'none' && hs === 'end') out += '<span class="mc-state dim">회의록 없음</span>';
       if (mn.can_view && mn.url) {
         if (mn.recording === true && mn.rec_mine === true) {
-          // z1122: 창이 닫혀 멈춘 녹음을 하던 본인 — 이음 회의 카드(v817)와 같은 「🎙 이어서 녹음」 · 도착 화면 맨 위 상자(z1120)
-          out += '<a class="mc-btn mc-resume" href="' + esc(mn.url) + '">🎙 이어서 녹음</a>';
+          // z1122: 창이 닫혀 멈춘 녹음을 하던 본인 — 이음 회의 카드(v817)와 같은 「🎤 이어서 녹음」 · 도착 화면 맨 위 상자(z1120)
+          out += '<a class="mc-btn mc-resume" href="' + esc(mn.url) + '">🎤 이어서 녹음</a>';
         } else if (st === 'done') {
           // 양식은 새 창 — 모아보기 목록은 그대로 둔다(회의록 화면의 「📄 회의록 양식」과 같은 방식)
           out += '<a class="mc-btn mc-go" href="' + esc(mn.url) + '" target="_blank" rel="noopener" data-no-swap>📋 회의록 보기</a>';
