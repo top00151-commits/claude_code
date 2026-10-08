@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>음성 메모 · KNK HAIST WORKS</title>
+{# ============================================================
+   voice_notes.html — 🎤 음성 메모 목록 (z1144 · 대표 지시 2026-10-08)
+   회의가 아닌 것(떠오른 생각·전화 통화·현장 메모·말로 하는 보고)을 녹음해 올리면
+   음성→글자 → AI 정리(요점·할 일)까지 해 준다.
+   🔴 내 것만 보인다(대표 결정) · 회의록과 섞지 않는다.
+   ============================================================ #}
+{% include "_v5_partials/styles.html" %}
+<style>
+.vn-card { display:block; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg);
+  padding: 14px 18px; margin-bottom: 12px; transition: all .16s; text-decoration:none; color:inherit; }
+.vn-card:hover { border-color: var(--knk-red); box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.vn-ttl { font-size:15px; font-weight:800; color: var(--qv-ink); margin-bottom:4px; }
+.vn-meta { font-size:12px; color: var(--qv-ink-3); display:flex; gap:10px; flex-wrap:wrap; }
+.vn-pre { font-size:13px; color: var(--qv-ink-2); margin-top:8px; line-height:1.65;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.vn-tag { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:800; }
+.vn-tag.done { background:#DCFCE7; color:#166534; }
+.vn-tag.wait { background:#FEF3C7; color:#92400E; }
+.vn-tag.none { background:#F1F5F9; color:#475569; }
+.vn-empty { background: var(--qv-surface); border:1px dashed var(--qv-line); border-radius: var(--radius-lg);
+  padding: 28px 22px; text-align:center; color: var(--qv-ink-3); font-size:13.5px; line-height:1.85; }
+.vn-lead { background:#FFF7ED; border:1px solid #FED7AA; color:#7C2D12; border-radius:12px;
+  padding:12px 16px; font-size:13px; line-height:1.75; margin-bottom:16px; }
+.vn-lead b { font-weight:800; }
+</style>
+</head>
+<body>
+<div class="app">
+{% include "_v5_partials/chrome.html" with context %}
+
+<main class="main" data-dn="voice-notes-main">
+  <div class="page-head">
+    <div>
+      <div class="page-meta">음성 메모 · 회의가 아닌 것도 말로 남기면 정리됩니다</div>
+      <h1 class="page-title">🎤 음성 <em>메모</em></h1>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-primary" href="/voice-notes/new">+ 새 메모</a>
+    </div>
+  </div>
+
+  <div class="vn-lead">
+    떠오른 생각·지시사항 · 전화 통화·고객 방문 · 현장·설비 메모 · 말로 하는 보고 —
+    <b>휴대폰 기본 녹음기</b>로 녹음해 올리면 <b>글자로 바꾸고 요점·할 일까지 정리</b>해 드립니다.
+    여기 메모는 <b>나만 봅니다</b>.
+  </div>
+
+  {% if notes %}
+    {% for n in notes %}
+    <a class="vn-card" href="/voice-notes/{{ n.id }}">
+      <div class="vn-ttl">{{ n.title or '제목 없는 메모' }}</div>
+      <div class="vn-meta">
+        <span>{{ n.created_at[:16] }}</span>
+        {% if n.summary %}<span class="vn-tag done">정리됨</span>
+        {% elif n.body %}<span class="vn-tag wait">글자만</span>
+        {% elif n.audio_path %}<span class="vn-tag wait">바꾸는 중</span>
+        {% else %}<span class="vn-tag none">녹음 없음</span>{% endif %}
+      </div>
+      {% if n.summary %}<div class="vn-pre">{{ n.summary }}</div>
+      {% elif n.body %}<div class="vn-pre">{{ n.body }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="vn-empty">
+      아직 메모가 없습니다.<br>
+      <b>+ 새 메모</b>를 눌러 휴대폰으로 녹음한 파일을 올려 보세요.
+    </div>
+  {% endif %}
+</main>
+</div>
+{% include "_v5_partials/toasts.html" %}
+</body>
+</html>

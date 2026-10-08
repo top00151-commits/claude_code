@@ -56,14 +56,18 @@ def main():
         pg.goto(f"{BASE}/home", wait_until="domcontentloaded")
         pg.wait_for_selector("a.sb-item[href='/voice-notes']", timeout=15000)   # count() 는 기다리지 않는다
         _mn = pg.locator("a.sb-item[href='/voice-notes']").count()
-        chk(_mn == 1, "왼쪽 메뉴에 「🎙 음성 메모」가 하나 있다", "%d개" % _mn)
-        chk("🎙 음성 메모" in pg.inner_text("a.sb-item[href='/voice-notes']"), "이름이 사람 말로 되어 있다")
+        chk(_mn == 1, "왼쪽 메뉴에 「🎤 음성 메모」가 하나 있다", "%d개" % _mn)
+        _mt = pg.inner_text("a.sb-item[href='/voice-notes']")
+        chk("🎤 음성 메모" in _mt, "이름이 사람 말로 되어 있다", _mt.strip())
+        # 🔴 z1145(대표 2026-10-08): 옛 글자(🎙 U+1F399)는 기본이 흑백이라 막대기처럼 보였다 → 🎤(U+1F3A4)
+        chk("🎙" not in pg.inner_text("body"), "막대기처럼 보이던 옛 마이크 글자가 없다")
         pg.goto(f"{BASE}/voice-notes", wait_until="domcontentloaded")
         body = pg.inner_text("body")
         chk("음성 메모" in body, "목록 화면이 열린다")
         chk("아직 메모가 없습니다" in body, "처음엔 비어 있다")
         chk("남의 메모" not in body, "🔴 남의 메모는 목록에 안 보인다")
         chk("나만 봅니다" in body, "내 것만 보인다는 안내가 있다")
+        chk("🎤" in body and "🎙" not in body, "목록 제목도 또렷한 마이크 🎤")
 
         # ── ② 새 메모 — 올리기 → 글자 → 정리 ────────────────
         print("\n[②] 새 메모 — 올리면 글자·정리까지 자동")
