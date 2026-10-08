@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{% if note %}음성 메모{% else %}새 음성 메모{% endif %} · KNK HAIST WORKS</title>
 {# ============================================================
-   voice_note_form.html — 🎙 음성 메모 새로 만들기 / 보기·고치기 (z1144 · 대표 지시 2026-10-08)
+   voice_note_form.html — 🎤 음성 메모 새로 만들기 / 보기·고치기 (z1144 · 대표 지시 2026-10-08)
    흐름: 📁 녹음 파일 올리기 → 음성→글자 → AI 정리(요점·할 일) 까지 자동.
    🔴 이 화면에서 직접 녹음하지 않는다(z1143 과 같은 뜻 — 휴대폰 기본 녹음기가 안 끊긴다).
    🔴 내 메모만 열린다(서버에서도 막는다).
@@ -95,7 +95,7 @@
 
   <details class="vn-sec" id="vnBodyWrap"{% if not (note and note.body) %} hidden{% endif %}>
     <summary style="cursor:pointer;font-size:14px;font-weight:800;color:var(--qv-ink);">
-      🎙 받아쓴 원문 <span style="font-weight:600;color:var(--qv-ink-3);">(잘못 들린 곳은 여기서 고치고 「🔄 다시 정리」)</span>
+      🎤 받아쓴 원문 <span style="font-weight:600;color:var(--qv-ink-3);">(잘못 들린 곳은 여기서 고치고 「🔄 다시 정리」)</span>
     </summary>
     <div class="vn-fld" style="margin-top:12px;">
       <textarea id="vnBody" rows="12">{{ (note.body if note else '')|e }}</textarea>
