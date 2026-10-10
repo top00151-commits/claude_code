@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>여는 쪽</title>
+<button id="go" style="font-size:24px;padding:20px">▶ 회의 시작</button>
+<script>
+document.getElementById('go').addEventListener('click', async () => {
+  const pre = window.open('', 'knk_meetings');
+  await new Promise(r => setTimeout(r, 400));
+  pre.location.href = new URLSearchParams(location.search).get('to');
+});
+</script>

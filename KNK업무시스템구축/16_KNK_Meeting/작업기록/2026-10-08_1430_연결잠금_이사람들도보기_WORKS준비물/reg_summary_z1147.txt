@@ -1,0 +1,21 @@
+시작 전 89xx 듣는 포트: 0
+runner: rec=/c/Users/top00/AppData/Local/Temp/claude/C--Users-top00-JR-Claude---/31b97fce-95eb-4c01-8a66-eddd91b2bd12/scratchpad/z1147/reg/run_rec_app.py ph=/c/Users/top00/AppData/Local/Temp/claude/C--Users-top00-JR-Claude---/31b97fce-95eb-4c01-8a66-eddd91b2bd12/scratchpad/z1147/reg/run_phrec_app.py
+== phone_fit_rec: 합계: 통과 31 · 실패 0
+== ui_phrec: 통과 48 / 실패 0
+== ui_lead: 합계: 통과 19 · 실패 0
+== ui_first: 합계: 통과 22 · 실패 0
+== ui_share: 합계: 통과 16 · 실패 0
+== ui_cards_rec: 합계: 통과 23 · 실패 0
+== ui_simple: 합계: 통과 33 · 실패 0
+== ui_end_z1131: 합계: 통과 21 · 실패 0
+== ui_attendee_z1133: 합계: 통과 12 · 실패 0
+== ui_recup_z1138: 합계: 통과 25 · 실패 0
+== ui_sumedit_z1139: 합계: 통과 23 · 실패 0
+== ui_filepick_z1141: 합계: 통과 16 · 실패 0
+== ui_block_z1143: ==============================================  통과 23 · 실패 0
+== ui_norec_z1149: 합계: 통과 23 · 실패 0
+== ui_vn_z1144: ==============================================  통과 34 · 실패 0
+== ui_vw_z1148: 
+== ui_end_z1150: 
+끝난 뒤 89xx 듣는 포트: 0
+ALLDONE-47
