@@ -2898,6 +2898,58 @@ def _safe_next_path(nxt: str) -> str:
     return nxt
 
 
+def _sso_existing_active_uid(payload):
+    """z1160: 입장 때 계정 저장이 DB 잠김으로 안 될 때 — 사번으로 이미 있는 **재직** WORKS 직원을 **읽기만** 해서 찾는다.
+    WAL 이라 읽기는 다른 쓰기에 막히지 않는다. 봇·시스템 계정(zz*·_*)은 찾지 않는다(upsert 와 같은 기준)."""
+    from .sso_client import _is_system_account
+    p = payload or {}
+    emp_no = str(p.get("sub") or p.get("employee_no") or "").strip()
+    if not emp_no or _is_system_account(emp_no, p.get("name_kr") or p.get("name") or ""):
+        return None
+    try:
+        with db_session() as c:
+            r = c.execute("SELECT id FROM users WHERE employee_no = ? AND COALESCE(is_active, 1) = 1",
+                          (emp_no,)).fetchone()
+        return r["id"] if r else None
+    except Exception as e:
+        print(f"[SSO] 입장 — 기존 직원 찾기 실패: {e}")
+        return None
+
+
+def _sso_land_upsert(payload, tries=3):
+    """z1160 (운영 기록 2026-09-14 · 10-02): 입장(/sso/land) 때 계정 저장이 「database is locked」로 끝나 500 이 됐다.
+    다른 쓰기가 DB 를 5초(busy_timeout) 넘게 잡고 있으면 생긴다(9/8~10/11 로그인 약 290번 중 1번 500).
+      · 잠기면 → 이미 있는 재직 직원이면 **정보 갱신 없이 그대로 입장**(갱신은 새벽 직원 동기화가 맞춘다)
+      · 처음 들어오는 사람이면 → 잠깐 기다렸다 다시(최대 tries 번) · 그래도 잠기면 "locked"(안내 화면 · 500 아님)
+      · 잠김이 아닌 오류는 그대로 올린다(숨기지 않는다)
+    반환 (uid, 상태) — 상태: "ok" · "fail"(저장 함수가 None) · "locked_existing" · "locked"."""
+    import sqlite3 as _sq3
+    import time as _tm
+    from .sso_client import upsert_user_from_payload
+    for i in range(tries):
+        try:
+            with db_session() as c:
+                # 쓰기 자리를 **먼저** 잡는다 — 잠겨 있으면 여기서 「database is locked」가 난다.
+                #   저장 함수(sso_client)의 새 직원 INSERT 는 모든 예외를 삼켜 None 을 돌려주므로,
+                #   잠김을 그 안에서 만나면 「잠김」인지 「다른 실패」인지 가릴 수 없다(새 직원은 엉뚱한 안내를 받았다).
+                #   자리를 잡은 뒤에는 이 저장이 잠김에 걸리지 않는다.
+                c.execute("BEGIN IMMEDIATE")
+                uid = upsert_user_from_payload(c, payload)
+            return uid, ("ok" if uid else "fail")
+        except _sq3.OperationalError as e:
+            if "locked" not in str(e).lower():
+                raise
+            print(f"[SSO] 입장 저장이 DB 잠김으로 실패({i + 1}/{tries}): {e}")
+        uid = _sso_existing_active_uid(payload)
+        if uid:
+            print(f"[SSO] 입장 저장 잠김 — 이미 있는 직원(id={uid})은 정보 갱신 없이 입장(새벽 동기화가 맞춘다)")
+            return uid, "locked_existing"
+        if i < tries - 1:
+            _tm.sleep(0.5 * (i + 1))
+    print("[SSO] 입장 저장 잠김이 계속됨 — WORKS 에 아직 없는 사람이라 이번엔 입장 못 함(안내 화면)")
+    return None, "locked"
+
+
 @app.get("/sso/land")
 # v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
 def sso_land(req: Request):
@@ -2923,8 +2975,11 @@ def sso_land(req: Request):
                    error="WORKS 사용 권한이 없습니다. 메신저 관리자에게 'WORKS 사용 권한'을 요청해주세요.")
 
     # 계정 동기화 (메신저가 마스터) — 사번 매칭 upsert
-    with db_session() as c:
-        uid = upsert_user_from_payload(c, payload)
+    # z1160: DB 가 잠겨 있으면 잠깐 기다렸다 다시 · 이미 있는 직원은 갱신 없이 입장(_sso_land_upsert)
+    uid, _land_state = _sso_land_upsert(payload)
+    if _land_state == "locked":
+        return ctx(req, "login.html", messenger_url=MESSENGER_BASE,
+                   error="잠시 저장이 밀려 입장하지 못했습니다. 잠시 뒤 메신저에서 다시 열어주세요.")
     if not uid:
         return ctx(req, "login.html", messenger_url=MESSENGER_BASE,
                    error="사용자 동기화 실패(사번 컬럼 마이그레이션 필요 가능). 관리자에게 문의해주세요.")
