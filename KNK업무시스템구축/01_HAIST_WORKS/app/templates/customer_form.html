@@ -216,7 +216,7 @@ body { overflow: hidden !important; }
           <label>등급 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 자동</span></label>
           {% if customer %}
           <div style="padding: 5px 10px; border:1px dashed var(--line); border-radius: var(--radius-md); background: var(--paper-2); display:flex; align-items:center; justify-content:space-between; gap: 6px;">
-            <span class="pill {% if customer.tier == 'VIP' %}pill-danger{% elif customer.tier == '주요' %}pill-progress{% elif customer.tier == '신규' %}pill-warn{% elif customer.tier == '휴면' %}pill-muted{% else %}pill-done{% endif %}" style="font-size:12px;font-weight:700;">
+            <span class="pill {{ tier_pill(customer.tier) }}" style="font-size:12px;font-weight:700;">
               {{ customer.tier|default('—') }}
             </span>
             <span style="font-size:10.5px; color:var(--mute); white-space: nowrap;">

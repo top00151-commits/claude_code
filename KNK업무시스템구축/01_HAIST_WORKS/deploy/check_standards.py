@@ -1053,6 +1053,69 @@ def check_customer_tier(files):
     return bad
 
 
+def check_tier_display(files):
+    r"""§고객 등급의 화면 색·순서는 customer_tier.py 한 곳에서 (z1157 · 대표 2026-10-11 「등급순 · VIP 먼저」).
+
+    겪은 것: 등급 색을 화면마다 따로 적어 두었더니 고객 목록·관리자 고객 표·고객 상세 제목이 **옛 A·B 등급**을 보고 있었다
+      (지금 등급 VIP·주요·일반·신규·휴면엔 색이 안 들어감 — 같은 상세 화면 아래 칸은 5단계를 봐서 한 화면에 두 기준).
+      고르기 목록 5곳은 `ORDER BY tier DESC`(등급 글자 내림차순)라 **휴면→주요→일반→신규→VIP** 로 나왔다.
+
+    잡는 것
+      ① 화면이 옛 A·B·C 등급과 견준다(`tier == 'A'`)
+      ② 화면이 등급 알약 색을 스스로 고른다(`class="pill {% if … tier == …`) — `{{ tier_pill(…) }}` 를 쓸 것
+      ③ 파이썬이 등급 글자로 정렬한다(`ORDER BY tier …`) — `customer_tier.TIER_ORDER_SQL` 을 쓸 것
+      ④ customer_tier 의 순서·색 기준을 **실제로 돌려 보니** 틀리다(5단계 순서 · 등급마다 다른 색 · 모르는 값은 회색 ·
+         TIER_ORDER_SQL 로 실제 정렬)
+      ⑤ main.py 가 템플릿 전역 `tier_pill` 을 등록하지 않는다(화면이 깨진다)
+    빼는 것: 예전·백업 화면 · 주석
+    """
+    import sqlite3 as _sq
+    bad = []
+    app = os.path.join(ROOT, "app")
+    main_p = os.path.join(app, "main.py")
+    ct_p = os.path.join(app, "customer_tier.py")
+    jinja_cmt = re.compile(r"\{#.*?#\}", re.S)
+    tpls = set(p for p in files if p.endswith(".html")) | set(_walk(TPL, (".html",)))
+    for p in sorted(tpls):
+        rp = p.replace("\\", "/")
+        if "/_legacy" in rp or "_backup" in rp:
+            continue
+        src = jinja_cmt.sub(_blank_keep_lines, _read(p))
+        for i, ln in enumerate(src.splitlines(), 1):
+            if re.search(r"\btier\s*==\s*['\"][ABC]['\"]", ln):
+                bad.append((p, i, "① 옛 A·B·C 등급과 견준다 — 지금 등급은 VIP·주요·일반·신규·휴면 → {{ tier_pill(…) }}"))
+            if re.search(r"class\s*=\s*\"pill\s*\{%-?\s*if[^\"]*\btier\s*==", ln):
+                bad.append((p, i, "② 등급 알약 색을 화면이 스스로 고른다 — {{ tier_pill(…) }}(customer_tier.TIER_PILL 한 곳)"))
+    for p in sorted(_walk(app, (".py",))):
+        for i, ln in enumerate(_read(p).splitlines(), 1):
+            if ln.strip().startswith("#"):
+                continue
+            if re.search(r"ORDER\s+BY\s+(?:\w+\.)?tier\b(?!_)", ln):
+                bad.append((p, i, "③ 등급 글자로 정렬한다(휴면→…→VIP 가 된다) — customer_tier.TIER_ORDER_SQL"))
+    try:
+        ns = {}
+        exec(compile(_read(ct_p), ct_p, "exec"), ns)
+        order, pill, f = ns["TIER_ORDER"], ns["TIER_PILL"], ns["tier_pill_class"]
+        if tuple(order) != ("VIP", "주요", "일반", "신규", "휴면"):
+            bad.append((ct_p, 1, "④ TIER_ORDER 가 %r — 대표 결정은 VIP→주요→일반→신규→휴면" % (tuple(order),)))
+        if set(pill) != set(order) or len(set(pill.values())) != len(pill):
+            bad.append((ct_p, 1, "④ TIER_PILL 이 5단계를 다 갖지 않거나 같은 색이 겹친다: %r" % (pill,)))
+        if f("A") != "pill-muted" or f(None) != "pill-muted" or any(f(t) != pill.get(t) for t in order):
+            bad.append((ct_p, 1, "④ tier_pill_class() 가 기준표와 다르다(모르는 값은 회색이어야 함)"))
+        db = _sq.connect(":memory:")
+        db.execute("CREATE TABLE customers(name TEXT, tier TEXT)")
+        db.executemany("INSERT INTO customers VALUES(?,?)",
+                       [("가", "휴면"), ("나", "신규"), ("다", "일반"), ("라", "주요"), ("마", "VIP"), ("바", "A"), ("사", "VIP")])
+        got = [r[0] for r in db.execute("SELECT tier FROM customers ORDER BY " + ns["TIER_ORDER_SQL"] + ", name")]
+        if got != ["VIP", "VIP", "주요", "일반", "신규", "휴면", "A"]:
+            bad.append((ct_p, 1, "④ TIER_ORDER_SQL 로 실제 정렬해 보니 %s" % "→".join(got)))
+    except Exception as e:
+        bad.append((ct_p, 1, "④ customer_tier 의 순서·색 기준을 돌려 보지 못했다(%s) — 못 돌리면 위반" % e))
+    if 'tpl.env.globals["tier_pill"]' not in (_read(main_p) if os.path.exists(main_p) else ""):
+        bad.append((main_p, 1, "⑤ 템플릿 전역 tier_pill 등록이 없다 — 등급 알약을 쓰는 화면이 깨진다"))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -1212,6 +1275,15 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 고객 등급 : 자동 산정 한 곳만 씀 (VIP·주요·일반·신규·휴면)")
+
+    td_bad = check_tier_display(files)
+    if td_bad:
+        fail += len(td_bad)
+        print("  ❌ 고객 등급 색·순서가 기준 한 곳을 안 거침 : %d건 → {{ tier_pill(…) }} · customer_tier.TIER_ORDER_SQL" % len(td_bad))
+        for f, l, m in td_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 고객 등급 색·순서 : 기준 한 곳(customer_tier) · VIP 먼저")
 
     print("=" * 72)
     if fail:

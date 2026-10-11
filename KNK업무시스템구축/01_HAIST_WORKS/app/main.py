@@ -227,6 +227,9 @@ def _t_helper(key: str, default: str = "", lang: str = "ko"):
         pass
     return default or key
 tpl.env.globals["t"] = _t_helper
+# z1157: 고객 등급 알약 색·순서의 기준 한 곳(customer_tier) — 화면마다 따로 적지 않는다
+from .customer_tier import tier_pill_class as _tier_pill_class, TIER_ORDER_SQL as _TIER_ORDER_SQL   # noqa: E402
+tpl.env.globals["tier_pill"] = _tier_pill_class
 
 
 # =====================================================
@@ -2827,7 +2830,7 @@ def fetch_projects(c):
 
 def fetch_customers(c):
     return [dict(r) for r in c.execute(
-        "SELECT id, name, tier FROM customers ORDER BY tier DESC, name"
+        "SELECT id, name, tier FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name"   # z1157: VIP 먼저
     ).fetchall()]
 
 
@@ -9828,7 +9831,7 @@ async def customers_list(req: Request):
                 pass
         except Exception:
             customers = [dict(r) for r in c.execute(
-                "SELECT id, name, tier, note FROM customers ORDER BY tier DESC, name"
+                "SELECT id, name, tier, note FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name"   # z1157
             ).fetchall()]
     return ctx(req, "customers_list.html", user=u, active="customers", customers=customers)
 
@@ -10192,7 +10195,7 @@ async def admin_page(req: Request):
             """SELECT p.*, cu.name AS customer_name FROM projects p
                LEFT JOIN customers cu ON p.customer_id=cu.id ORDER BY p.id DESC"""
         ).fetchall()]
-        customers = [dict(r) for r in c.execute("SELECT * FROM customers ORDER BY tier DESC, id").fetchall()]
+        customers = [dict(r) for r in c.execute("SELECT * FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name").fetchall()]
     return ctx(req, "admin.html",
                user=u, teams=teams, users=users, projects=projects, customers=customers,
                active="admin", can_work_patterns=can_view_work_patterns(u))
@@ -22473,7 +22476,7 @@ async def issues_new_form(req: Request, project_id: str = ""):
                ORDER BY mgmt_code DESC LIMIT 200"""
         ).fetchall()]
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name FROM customers ORDER BY tier DESC, name"
+            "SELECT id, name FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name"   # z1157: VIP 먼저
         ).fetchall()]
     return ctx(req, "issue_form.html", user=u, teams=teams, projects=projects,
                customers=customers, default_project_id=project_id,
@@ -36950,7 +36953,7 @@ async def stock_issue_form(request: Request, part_id: str = ""):
                ORDER BY mgmt_code DESC LIMIT 200"""
         ).fetchall()
         customers = c.execute(
-            "SELECT id, name FROM customers ORDER BY tier DESC, name"
+            "SELECT id, name FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name"   # z1157: VIP 먼저
         ).fetchall()
     return ctx(request, "stock_issue.html", user=u,
                parts=[dict(r) for r in parts],

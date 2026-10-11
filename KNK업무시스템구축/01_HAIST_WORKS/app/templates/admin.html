@@ -387,7 +387,7 @@ tbody tr:hover td { background: var(--amber-glow); }
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ c.id }}</td>
               <td><b>{{ c.name }}</b></td>
               <td style="font-family:monospace;font-size:12px;color:var(--mute);">{{ c.business_no|default('—') }}</td>
-              <td style="text-align:center;">{% if c.tier %}<span class="role-badge role-{% if c.tier == 'A' %}admin{% elif c.tier == 'B' %}leader{% else %}member{% endif %}">{{ c.tier }}</span>{% else %}—{% endif %}</td>
+              <td style="text-align:center;">{% if c.tier %}<span class="pill {{ tier_pill(c.tier) }}">{{ c.tier }}</span>{% else %}—{% endif %}</td>
             </tr>
           {% else %}
             <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--mute);">등록된 고객사가 없습니다.</td></tr>

@@ -82,6 +82,21 @@ def score_to_tier(score: int, days_inactive: int | None) -> str:
     return "신규"
 
 
+# z1157 (대표 2026-10-11 「등급순 · VIP 먼저」): 화면의 등급 **순서**와 **색**의 기준 한 곳.
+#   예전엔 화면마다 따로 적어, 고객 목록·관리자·상세 제목이 옛 A·B 등급 색을 보고 있었고(지금 등급엔 색이 안 들어감),
+#   고르기 목록은 `ORDER BY tier DESC`(등급 글자 내림차순)라 휴면→주요→일반→신규→VIP 로 나왔다.
+TIER_ORDER = ("VIP", "주요", "일반", "신규", "휴면")      # 같은 등급 안은 가나다(이름)
+TIER_ORDER_SQL = ("CASE tier " + " ".join("WHEN '%s' THEN %d" % (t, i) for i, t in enumerate(TIER_ORDER))
+                  + " ELSE %d END" % len(TIER_ORDER))
+TIER_PILL = {"VIP": "pill-danger", "주요": "pill-progress", "일반": "pill-done", "신규": "pill-warn", "휴면": "pill-muted"}
+
+
+def tier_pill_class(tier):
+    """화면의 등급 알약 색 — 고객 목록·상세·수정·관리자 화면이 함께 쓴다(z1157 · 템플릿에선 `tier_pill(…)`).
+    모르는 값(옛 A·B 등)은 회색."""
+    return TIER_PILL.get(str(tier or "").strip(), "pill-muted")
+
+
 def compute_customer_tier(c, customer_id: int) -> dict:
     """1개 거래처의 5지표 측정 + 점수화 + 등급 산정.
     c: sqlite3.Connection (db_session 안에서 호출)
