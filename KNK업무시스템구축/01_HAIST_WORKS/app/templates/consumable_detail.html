@@ -261,7 +261,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
                   {% if team_members.get(t.id) %}
                   <div class="ntf-members knkp-collapse" data-team="{{ t.id }}">
                     {% for m in team_members.get(t.id) %}
-                    <label class="ntf-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" class="ntf-uck" value="{{ m.id }}"{% if (m.id|string) in _last_users %} checked{% endif %}> {{ vname(m) }}{% if m.rank %} <span class="ntf-mrank">{{ m.rank }}</span>{% endif %}</label>
+                    <label class="ntf-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" class="ntf-uck" value="{{ m.id }}"{% if (m.id|string) in _last_users %} checked{% endif %}> {{ vname(m) }}{% if m.rank %} <span class="ntf-mrank">{{ rank_label(m.rank, lang|default('ko')) }}</span>{% endif %}</label>
                     {% endfor %}
                   </div>
                   {% endif %}

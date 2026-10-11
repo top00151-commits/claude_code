@@ -167,7 +167,7 @@ select.prq-in { appearance:auto; }
                     <button type="button" class="pns-exp" onclick="pnsExp(this)">▸ 개별</button>
                     <div class="pns-members knkp-collapse">
                       {% for m in team_members.get(t.id) %}
-                      <label class="pns-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ m.rank }}{% endif %}</label>
+                      <label class="pns-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ rank_label(m.rank, lang|default('ko')) }}{% endif %}</label>
                       {% endfor %}
                     </div>
                     {% endif %}
@@ -329,7 +329,7 @@ select.prq-in { appearance:auto; }
                     <button type="button" class="pae-exp" onclick="paeExp(this)">▸ 개별</button>
                     <div class="pae-members knkp-collapse">
                       {% for m in team_members.get(t.id) %}
-                      <label class="pae-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ m.rank }}{% endif %}</label>
+                      <label class="pae-mrow knkp-item" data-kind="user" data-label="{{ vname(m) }}"><input type="checkbox" name="add_user_ids" value="{{ m.id }}"> {{ vname(m) }}{% if m.rank %} {{ rank_label(m.rank, lang|default('ko')) }}{% endif %}</label>
                       {% endfor %}
                     </div>
                     {% endif %}

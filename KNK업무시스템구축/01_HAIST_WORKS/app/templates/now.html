@@ -25,7 +25,7 @@
       <div class="now-card">
         <div class="now-icon">{% if it.status == '완료' %}✅{% elif it.status == '진행중' %}🔄{% elif it.status == '지연' %}⚠{% else %}📌{% endif %}</div>
         <div>
-          <b>{{ it.user_name|default('—') }}</b>{% if it.user_rank %} <span style="color:var(--qv-ink-3);font-size:11px;">{{ it.user_rank }}</span>{% endif %}
+          <b>{{ it.user_name|default('—') }}</b>{% if it.user_rank %} <span style="color:var(--qv-ink-3);font-size:11px;">{{ rank_label(it.user_rank, lang|default('ko')) }}</span>{% endif %}
           <span style="color:var(--qv-ink-3);margin:0 6px;">·</span>
           {{ it.title|default('—') }}
           {% if it.project_name %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">📋 {{ it.project_name }}</div>{% endif %}

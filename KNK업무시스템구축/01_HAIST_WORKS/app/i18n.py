@@ -1493,3 +1493,52 @@ def t(key, lang="ko"):
 def get_all_translations(lang="ko"):
     """현재 언어의 전체 번역 사전 반환 (템플릿에서 사용)"""
     return {k: (v.get(lang) or v.get("ko") or k) for k, v in T.items()}
+
+# ── z1163 (대표 지시 2026-10-11 「직책도 … 베트남은 영어로」): 직책을 보여 줄 때 쓰는 말 ──
+#   출처 = 이음 메신저 app.py 의 [직급 — 베트남법인 확정 번역] 표(16개)를 그대로.
+#   🔴 **저장값은 안 바꾼다** — users.rank 는 한국어 그대로다. 여기는 **보여 줄 때만** 쓴다.
+#   🔵 베트남법인은 직책을 영어로 쓴다(대표 확인) → 한국어가 아닌 사람에게는 영어로 보여 준다.
+#   ℹ 이음 표에는 베트남어도 있다(대표이사=Tổng Giám đốc 등). 지금은 쓰지 않지만 바꾸려면 여기만 고치면 된다.
+RANK_EN = {
+    "대표이사": "CEO",
+    "전무이사": "Senior Managing Director",
+    "전무": "Senior Managing Director",
+    "상무이사": "Managing Director",
+    "상무": "Managing Director",
+    "이사": "Director",
+    "법인장": "General Director",
+    "부장": "General Manager",
+    "차장": "Deputy General Manager",
+    "과장": "Manager",
+    "대리": "Assistant Manager",
+    "주임": "Supervisor",
+    "프로": "Pro",
+    "매니저": "Manager",
+    "팀장": "Team Lead",
+    "사원": "Staff",
+    "반장": "Line Supervisor",
+    "조장": "Section Leader",
+}
+
+
+def rank_label(rank, lang="ko"):
+    """직책을 **보는 사람의 말**로. 한국어면 그대로, 아니면 영어(이음 확정 표).
+
+    · 「과장(팀장)」처럼 겹쳐 쓴 꼴은 둘 다 바꿔 「Manager (Team Lead)」로.
+    · 🔴 표에 없는 직책은 **한국어 그대로** 돌려준다 — 지어내지 않는다.
+    """
+    s = str(rank or "").strip()
+    if not s or str(lang or "ko").lower().startswith("ko"):
+        return s
+    i, j = s.find("("), s.rfind(")")
+    if 0 < i < j == len(s) - 1:
+        a, b = s[:i].strip(), s[i + 1:j].strip()
+        ea, eb = RANK_EN.get(a), RANK_EN.get(b)
+        if ea and eb:
+            return "%s (%s)" % (ea, eb)
+        if ea:
+            return "%s (%s)" % (ea, b)
+        if eb:
+            return "%s (%s)" % (a, eb)
+        return s
+    return RANK_EN.get(s, s)

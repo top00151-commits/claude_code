@@ -48,7 +48,7 @@
       <div>
         <div class="crumbs"><a href="/daily">일일업무</a> · <b>업무 상세</b></div>
         <h1 class="page-title">{{ task.title }}</h1>
-        <div class="page-meta" style="margin-top:6px;">{{ task.work_date }} · {{ task.user_name|default('—') }}{% if task.user_rank %} {{ task.user_rank }}{% endif %}{% if task.team_name %} · {{ task.team_name }}{% endif %}</div>
+        <div class="page-meta" style="margin-top:6px;">{{ task.work_date }} · {{ task.user_name|default('—') }}{% if task.user_rank %} {{ rank_label(task.user_rank, lang|default('ko')) }}{% endif %}{% if task.team_name %} · {{ task.team_name }}{% endif %}</div>
       </div>
       <div style="display:flex;gap:10px;">
         <a class="btn btn-secondary" href="/daily">← 목록</a>
@@ -177,7 +177,7 @@
 
         <div class="side-card">
           <h3>👤 작성자</h3>
-          <div class="kv"><span class="k">담당자</span><span class="v"><b>{{ task.user_name|default('—') }}</b>{% if task.user_rank %} {{ task.user_rank }}{% endif %}</span></div>
+          <div class="kv"><span class="k">담당자</span><span class="v"><b>{{ task.user_name|default('—') }}</b>{% if task.user_rank %} {{ rank_label(task.user_rank, lang|default('ko')) }}{% endif %}</span></div>
           <div class="kv"><span class="k">소속팀</span><span class="v">{{ task.team_name|default('—') }}</span></div>
         </div>
 

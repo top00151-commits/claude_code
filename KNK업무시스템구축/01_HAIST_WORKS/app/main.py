@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import os, io, calendar, tempfile
 from datetime import datetime, timedelta, date
-from .i18n import LANGS, t as i18n_t, get_all_translations, USER_LANGS, USER_LANG_NAMES, user_lang_label
+from .i18n import LANGS, t as i18n_t, get_all_translations, USER_LANGS, USER_LANG_NAMES, user_lang_label, rank_label
 from . import menu_catalog as _menu  # Phase 1 (2026-04-29): M-코드 카탈로그
 from .database import (db_session, init_db, seed_all, seed_sample_tasks,
                         seed_business_data, seed_recent_tasks_topup, hash_pw, verify_pw, is_legacy_hash,
@@ -272,13 +272,16 @@ tpl.env.globals["vname"] = vname
 
 # v5H226z799 (대표 지시·규칙): 이름 표시는 항상 '이름 직책 부서'. 이름=vname()(본사=한국이름 / VN=베트남어(한국발음)).
 #   dept 미지정 시 u의 team_name/dept/team 사용. 신규 이름 표시는 이 헬퍼로 통일.
-def vname_full(u, dept=None):
+# z1163 (대표 지시 2026-10-11 「직책도 … 베트남은 영어로」): lang 을 주면 **직책만** 그 사람 말로
+#   바꿔 보여 준다(이음 확정 표 · i18n.rank_label). 🔴 저장값(users.rank)은 그대로다.
+#   lang 을 안 주면 지금까지와 **글자 하나도 다르지 않다** — 옛 부르는 곳이 안 바뀌게.
+def vname_full(u, dept=None, lang=None):
     try:
         nm = vname(u)
         rank = ""
         dept_s = (dept or "")
         if hasattr(u, "get"):
-            rank = (u.get("rank") or "").strip()
+            rank = rank_label((u.get("rank") or "").strip(), lang or "ko")
             if not dept_s:
                 dept_s = (u.get("team_name") or u.get("dept") or u.get("team") or "").strip()
         parts = [nm]
@@ -290,6 +293,8 @@ def vname_full(u, dept=None):
     except Exception:
         return vname(u)
 tpl.env.globals["vname_full"] = vname_full
+# z1163: 화면에서 직책만 그 사람 말로 — {{ rank_label(u.rank, lang) }}
+tpl.env.globals["rank_label"] = rank_label
 
 
 # v5H226z800 (대표 지시·규칙): user id → '이름 직책 부서'(VN=베트남어(한국발음)). 이름만 스냅샷(..._by_name)을
@@ -4163,7 +4168,8 @@ async def meeting_detail_page(req: Request, mid: int):
         # z1148: 「이 사람들도 보기」 — 참석 안 했어도 볼 수 있게 콕 집어 준 사람들
         viewers = []
         try:
-            viewers = [{"id": r["id"], "label": vname_full(dict(r))} for r in c.execute(
+            viewers = [{"id": r["id"], "label": vname_full(dict(r), lang=(u.get("lang") or "ko"))}
+                       for r in c.execute(
                 "SELECT u.id, u.name, u.rank, t.name AS team_name "
                 "FROM meeting_viewers mv JOIN users u ON u.id=mv.user_id "
                 "LEFT JOIN teams t ON t.id=u.team_id "
@@ -4291,7 +4297,9 @@ async def meeting_doc_page(req: Request, mid: int):
             if _ar.get("user_id") and _ar.get("uname"):
                 _anm = vname({"name": _ar["uname"], "name_vi": _ar["name_vi"]})
                 if _ar.get("rank"):
-                    _anm = (_anm + " " + _ar["rank"]).strip()
+                    # z1163: 보는 사람 말로 직책만(인쇄 양식 · 저장값 아님)
+                    _anm = (_anm + " " + rank_label(_ar["rank"],
+                                                    u.get("lang") or "ko")).strip()
             else:
                 _anm = _ar.get("raw") or ""
             doc_atts.append({"dept": _ar.get("dept") or "", "name": _anm})
@@ -6577,10 +6585,11 @@ def _meeting_viewer_ids(c, mid: int) -> list:
         return []
 
 
-def _meeting_viewer_rows(c, mid: int) -> list:
-    """화면에 보여 줄 명단 — 이름은 「이름 직책 부서」 규칙(vname_full)."""
+def _meeting_viewer_rows(c, mid: int, lang: str = "ko") -> list:
+    """화면에 보여 줄 명단 — 이름은 「이름 직책 부서」 규칙(vname_full).
+    z1163: lang 을 주면 직책만 그 사람 말로(기본 ko = 지금까지와 같다)."""
     try:
-        return [{"id": r["id"], "label": vname_full(dict(r))} for r in c.execute(
+        return [{"id": r["id"], "label": vname_full(dict(r), lang=lang)} for r in c.execute(
             "SELECT u.id, u.name, u.rank, t.name AS team_name "
             "FROM meeting_viewers mv JOIN users u ON u.id=mv.user_id "
             "LEFT JOIN teams t ON t.id=u.team_id "
@@ -6625,7 +6634,7 @@ async def api_meeting_viewers_get(req: Request, mid: int):
             #   \U0001F534 같은 이름의 팀이 양쪽 법인에 있다(가공팀·품질팀·관리팀·구매팀·설계팀·
             #   소프트웨어팀·총괄 — 운영 실측 7쌍) → 법인을 안 주면 화면에서 구분할 길이 없다.
             #   판정은 공개 범위 「본사/법인 공개」와 **같은 단일소스**(teams.entity · z747).
-            out.append({"id": r["id"], "label": vname_full(r),
+            out.append({"id": r["id"], "label": vname_full(r, lang=(u.get("lang") or "ko")),
                         "team": (r.get("team_name") or "부서 없음"),
                         "entity": ("VN" if str(r.get("t_ent") or "KOR").strip().upper() == "VN"
                                    else "KOR"),
@@ -6666,7 +6675,7 @@ async def api_meeting_viewers_save(req: Request, mid: int):
         for _i in ok_ids:
             c.execute("INSERT INTO meeting_viewers(meeting_id, user_id, added_by) VALUES(?,?,?)",
                       (mid, _i, u["id"]))
-        rows = _meeting_viewer_rows(c, mid)
+        rows = _meeting_viewer_rows(c, mid, lang=(u.get("lang") or "ko"))
         if set(ok_ids) != before:   # 권한을 넓힌 기록은 남긴다
             try:
                 log_activity(c, u["id"], "meeting_viewers",
@@ -8387,7 +8396,8 @@ def dashboard_page(req: Request):
         body_parts = []
         for cd in cards[:3]:
             who = cd.get("user_name", "")
-            rk = cd.get("rank") or ""
+            # z1163: 보는 사람 말로 직책만(저장값 아님 · 이 글은 화면에만 쓰인다)
+            rk = rank_label(cd.get("rank") or "", u.get("lang") or "ko")
             tit = (cd.get("title") or "").strip()
             np = (cd.get("next_plan") or "").strip()
             chunk = f"[{who} {rk}] {tit}" if rk else f"[{who}] {tit}"

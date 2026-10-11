@@ -179,7 +179,7 @@ tbody tr:hover td { background: var(--amber-glow); }
             {% set _corp = '베트남법인' if _vn else '본사' %}
             {# v5H226z542: 부서명에 법인 접두 — 본사 설계팀 / 베트남 설계팀 구분 #}
             {% if u.team_name %}{% set _dept = ('베트남 · ' if _vn else '본사 · ') ~ u.team_name %}{% elif u.dept_code %}{% set _dept = u.dept_code %}{% else %}{% set _dept = '미지정' %}{% endif %}
-            {% set _rank = u.rank or '' %}
+            {% set _rank = rank_label(u.rank or '', lang|default('ko')) %}
             {% set _prot = (user and u.id == user.id) or (u.role in ['admin','ceo']) %}
             <tr class="urow" data-corp="{{ _corp }}" data-dept="{{ _dept }}" data-rank="{{ _rank }}" data-q="{{ (vname(u) ~ ' ' ~ (u.employee_no or '') ~ ' ' ~ (u.login_id or '') ~ ' ' ~ (u.email or ''))|lower }}">
               <td style="text-align:center;">{% if not _prot %}<input type="checkbox" class="urow-chk" value="{{ u.id }}" onchange="ucfSelCount()">{% else %}<span title="보호 계정(본인·관리자/대표) — 개별 삭제만" style="color:var(--mute);">🔒</span>{% endif %}</td>
@@ -300,7 +300,7 @@ tbody tr:hover td { background: var(--amber-glow); }
               <td><span class="corp-badge {% if _tvn %}vn{% endif %}">{{ _tcorp }}</span></td>
               <td><b>{{ t.name }}</b></td>
               <td style="font-family:monospace;font-size:12px;color:var(--amber-deep);">{{ t.code|default('—') }}</td>
-              <td>{{ t.leader_name|default('—') }}{% if t.leader_rank %} {{ t.leader_rank }}{% endif %}</td>
+              <td>{{ t.leader_name|default('—') }}{% if t.leader_rank %} {{ rank_label(t.leader_rank, lang|default('ko')) }}{% endif %}</td>
               <td style="text-align:center;">{{ t.display_order|default('—') }}</td>
               <td style="text-align:center;"><a class="btn btn-secondary" href="/admin/teams/{{ t.id }}/edit">수정</a></td>
             </tr>

@@ -32,7 +32,7 @@
         {% for m in members %}
           <tr>
             <td><b>{{ vname(m) }}</b></td>
-            <td style="font-size:12px;">{{ m.rank|default('—') }}</td>
+            <td style="font-size:12px;">{{ rank_label(m.rank|default('—'), lang|default('ko')) }}</td>
             <td class="center"><span class="pill {% if m.role == 'leader' %}pill-progress{% elif m.role in ('ceo','admin') %}pill-danger{% else %}pill-muted{% endif %}">{{ m.role|default('member') }}</span></td>
             <td class="num">{{ m.direct_count|default(0) }}</td>
             <td class="num">{{ m.group_count|default(0) }}</td>

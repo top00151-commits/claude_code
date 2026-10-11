@@ -44,7 +44,7 @@ ul.wp-list li .n{color:#94a3b8;font-variant-numeric:tabular-nums;}
 <main class="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/admin">관리자</a> · <a href="/admin/work-patterns?days={{ days }}">직원 업무 패턴</a> · <b>{{ emp.name }}</b></div>
-    <h1 class="page-title">{{ emp.name }} <em>{{ emp.team_name or '' }}{% if emp.rank %} · {{ emp.rank }}{% endif %}</em></h1>
+    <h1 class="page-title">{{ emp.name }} <em>{{ emp.team_name or '' }}{% if emp.rank %} · {{ rank_label(emp.rank, lang|default('ko')) }}{% endif %}</em></h1>
   </div></div>
   <div class="wp-wrap">
     <div class="wp-period">

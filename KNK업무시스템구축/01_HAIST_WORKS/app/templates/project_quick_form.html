@@ -506,7 +506,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                       {% if _mem %}
                       <div class="pr-members knkp-collapse" data-team="{{ t.id }}" style="display:none;flex-wrap:wrap;gap:3px 12px;padding:2px 0 5px 22px;">
                         {% for m in _mem %}
-                        <label class="knkp-item" data-kind="user" data-label="{{ vname(m) }}" style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:#334155;cursor:pointer;"><input type="checkbox" class="pr-user" name="pr_user_ids" value="{{ m.id }}" data-team="{{ t.id }}" data-dispname="{{ vname_full(m, t.name) }}" onchange="prUserToggle(this)"> {{ vname(m) }}{% if m.rank %} <span style="color:#94a3b8;font-size:10.5px;">{{ m.rank }}</span>{% endif %}</label>
+                        <label class="knkp-item" data-kind="user" data-label="{{ vname(m) }}" style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:#334155;cursor:pointer;"><input type="checkbox" class="pr-user" name="pr_user_ids" value="{{ m.id }}" data-team="{{ t.id }}" data-dispname="{{ vname_full(m, t.name, lang|default('ko')) }}" onchange="prUserToggle(this)"> {{ vname(m) }}{% if m.rank %} <span style="color:#94a3b8;font-size:10.5px;">{{ rank_label(m.rank, lang|default('ko')) }}</span>{% endif %}</label>
                         {% endfor %}
                       </div>
                       {% endif %}

@@ -140,7 +140,7 @@ button { font-family: inherit; cursor: pointer; }
       <div class="label">VICTOR'S WEEKLY INSIGHT</div>
       <h2>이번 주의 키워드 — <span style="color: var(--qv-surface-2);">"{% if rate >= 80 %}가속{% elif delay > 0 %}주의{% elif total == 0 %}준비{% else %}꾸준{% endif %}"</span></h2>
       <p>
-        이번 주 {{ user.name }}{% if user.rank %} {{ user.rank }}{% endif %}님은 <b>{{ total }}건 업무</b> 중 <b>{{ done }}건 완료</b>(완료율 {{ rate }}%)·<b>누적 {{ '%.1f'|format(hours) }}h</b>를 기록했습니다.
+        이번 주 {{ user.name }}{% if user.rank %} {{ rank_label(user.rank, lang|default('ko')) }}{% endif %}님은 <b>{{ total }}건 업무</b> 중 <b>{{ done }}건 완료</b>(완료율 {{ rate }}%)·<b>누적 {{ '%.1f'|format(hours) }}h</b>를 기록했습니다.
         {% if delay > 0 %}<b>지연 {{ delay }}건</b> 우선 점검 권장.{% endif %}
         {% if total == 0 %}이번 주 등록된 업무가 없습니다 — 다음 주 일일업무 등록을 잊지 마세요.{% endif %}
       </p>

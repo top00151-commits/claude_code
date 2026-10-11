@@ -48,7 +48,7 @@
   <div class="profile-hero" data-dn="profile-hero">
     <div class="avatar-lg">{{ user.name[0] if user.name else '?' }}</div>
     <div style="position:relative;z-index:1;">
-      <h1>{{ vname(user) }}{% if user.rank %} {{ user.rank }}{% endif %}</h1>
+      <h1>{{ vname(user) }}{% if user.rank %} {{ rank_label(user.rank, lang|default('ko')) }}{% endif %}</h1>
       <p>{{ user.role|default('member')|upper }} · {{ user.team_name|default('—') }} · {{ user.login_id }}</p>
       <p>{% if user.email %}📧 {{ user.email }}{% endif %}{% if user.phone %} · 📞 {{ user.phone }}{% endif %}</p>
     </div>

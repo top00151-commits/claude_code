@@ -104,7 +104,7 @@ var CH = {
     <a class="top-icon" href="/guide" target="_blank" title="{{ i.ch_help }}">❓</a>
     <a class="top-user" href="/profile">
       <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
-      <div>{{ vname(user) }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
+      <div>{{ vname(user) }}{% if user.rank %} {{ rank_label(user.rank, lang|default('ko')) }}{% endif %}</div>
     </a>
     <a class="top-icon" href="/logout" title="{{ i.ch_logout }}">🚪</a>
   </div>

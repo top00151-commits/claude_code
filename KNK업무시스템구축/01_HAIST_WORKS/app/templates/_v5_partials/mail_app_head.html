@@ -58,7 +58,7 @@
   {% if user %}{% set _dn = vname(user) or '사용자' %}
   <span class="me" title="현재 로그인한 사용자(접속자) — KNK Eum 자동 로그인">
     <span class="av">{{ _dn[0] }}</span>
-    <b>{{ _dn }}</b>{% if user.rank %}<span class="role">· {{ user.rank }}</span>{% endif %}{% if user.team_name %}<span class="role">· {{ user.team_name }}</span>{% endif %}
+    <b>{{ _dn }}</b>{% if user.rank %}<span class="role">· {{ rank_label(user.rank, lang|default('ko')) }}</span>{% endif %}{% if user.team_name %}<span class="role">· {{ user.team_name }}</span>{% endif %}
   </span>{% endif %}
   {# 「WORKS 전체화면」(?app=0) 버튼 제거 — 메일은 KNK Eum 전용 독립 창, WORKS는 KNK Eum 🌟 아이콘으로 별도 실행(역할 분리). (대표 지시 2026-06-14) #}
 </div>

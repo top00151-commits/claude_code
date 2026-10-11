@@ -41,7 +41,7 @@
       <table class="tbl">
         <thead><tr><th>이름</th><th>팀</th><th>역할</th></tr></thead>
         <tbody>
-        {% for m in missing %}<tr><td><b>{{ m.name }}</b>{% if m.rank %} {{ m.rank }}{% endif %}</td><td>{{ m.team_name|default('—') }}</td><td>{{ m.role|default('—') }}</td></tr>{% endfor %}
+        {% for m in missing %}<tr><td><b>{{ m.name }}</b>{% if m.rank %} {{ rank_label(m.rank, lang|default('ko')) }}{% endif %}</td><td>{{ m.team_name|default('—') }}</td><td>{{ m.role|default('—') }}</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>

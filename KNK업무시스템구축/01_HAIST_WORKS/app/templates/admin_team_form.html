@@ -60,7 +60,7 @@
         <select name="leader_id">
           <option value="">— 미지정 —</option>
           {% for u in users %}
-          <option value="{{ u.id }}" {% if team and team.leader_id == u.id %}selected{% endif %}>{{ vname(u) }} ({{ u.rank|default('-') }})</option>
+          <option value="{{ u.id }}" {% if team and team.leader_id == u.id %}selected{% endif %}>{{ vname(u) }} ({{ rank_label(u.rank|default('-'), lang|default('ko')) }})</option>
           {% endfor %}
         </select>
       </div>

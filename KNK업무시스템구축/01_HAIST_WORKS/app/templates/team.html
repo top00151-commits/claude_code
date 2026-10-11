@@ -87,7 +87,7 @@
         <div class="member-head">
           <div class="member-avatar">{{ m.name[0] }}</div>
           <div class="member-info">
-            <div class="name">{{ vname(m) }}{% if m.rank %} {{ m.rank }}{% endif %}</div>
+            <div class="name">{{ vname(m) }}{% if m.rank %} {{ rank_label(m.rank, lang|default('ko')) }}{% endif %}</div>
             <div class="role">{{ m.role|default('member') }}</div>
           </div>
           <div class="member-stats">
