@@ -54,6 +54,12 @@ def main():
         br = pw.chromium.launch(channel="chrome", headless=True)
         c = br.new_context(user_agent=UA_IOS, viewport={"width": 390, "height": 844},
                            is_mobile=True, has_touch=True, base_url=BASE)
+        # z1165: 설치 안내 팝업(#worksInstallHint)은 **재는 대상이 아니다**.
+        #   모바일 UA 로 들어오면 1.2~2.5초 뒤 화면 전체(z-index 3000)를 덮어 **누르기를 가로막는다**
+        #   → C1·C2 가 「Page.click: Timeout 30000ms」 로 떨어졌다(덮은 놈을 elementFromPoint 로 확인).
+        #   팝업이 뜨는 것은 **정상 동작**이고, 경주로 1/5~4/5 들쭉날쭉했다 → 시험에서 끈다.
+        #   ui_end_z1131(z1163) · ui_vn_z1144 가 이미 같은 한 줄을 쓴다.
+        c.add_init_script("try{localStorage.setItem('knk_works_install_hint_never','1')}catch(e){}")
         c.add_cookies([{"name": "tuser", "value": str(ceo), "url": BASE}])
         p = c.new_page()
         p.on("pageerror", lambda e: ERRS.append(str(e)))

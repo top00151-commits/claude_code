@@ -4745,7 +4745,7 @@ _MEETING_AUDIO_MIME = {
     ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg",
     ".aac": "audio/aac", ".3gp": "audio/3gpp", ".caf": "audio/x-caf",
 }
-# 2026-09-17 대표 지시: 음성 파일 올리기 60MB → 300MB (긴 폰 녹음). 글자 변환은 _stt_worker 가 줄이고 20분씩 나눠서.
+# 2026-09-17 대표 지시: 음성 파일 올리기 60MB → 300MB (긴 폰 녹음). 글자 변환은 _stt_worker 가 줄이고 _STT_SEG_SEC 마다 나눠서.
 #   ⭐ 한도 숫자는 여기 한 곳 — 화면(meeting_form.html)은 window.__MTG.audio_max_mb 로 같은 값을 받는다.
 _MEETING_AUDIO_MAX_MB = 300
 _MEETING_AUDIO_BLOCK = 1024 * 1024
@@ -5408,7 +5408,14 @@ def _stt_friendly_error(text: str) -> str:
 
 
 _STT_MAX_BYTES = 25 * 1024 * 1024     # OpenAI 음성→글자 한 번 요청 한도
-_STT_SEG_SEC = 20 * 60                # 큰 음성은 20분씩 나눠 변환(구간마다 ai_transcribe 5분 제한 안에 넉넉히)
+_STT_SEG_SEC = 30 * 60                # 큰 음성은 30분씩 나눠 변환(구간마다 ai_transcribe 5분 제한 안에 넉넉히)
+# z1165 (대표 지시 2026-10-11): 소리를 **필요보다 과하게 누르지 않는다**.
+#   실측 — 운영 녹음 원본은 48kHz·258kbps 인데 25MB 넘는 8건은 32kbps 로 눌려 있었다.
+#   한 구간이 25MB 안에만 들면 되니 30분 × 64kbps = **14.4MB**(여유 42%)로 넉넉하다.
+#   덤으로 구간이 20분→30분이 되어 **뚝 잘리는 경계가 줄어든다**(80분 회의: 3곳→2곳).
+#   ⚠ 올릴 때는 반드시 `한 조각 25MB 넘나` 확인(_stt_split 아래 검사)을 함께 본다.
+#   🔧 되돌리기: 환경변수 KNK_WORKS_STT_KBPS=32 한 줄.
+_STT_SEG_KBPS = max(16, min(192, int(os.environ.get("KNK_WORKS_STT_KBPS") or "64")))
 
 
 def _stt_progress(mid: int, txt: str):
@@ -5420,7 +5427,8 @@ def _stt_progress(mid: int, txt: str):
 
 
 def _stt_split(disk: str, workdir: str):
-    """25MB 넘는 음성 → 모노 16kHz 32kbps mp3 로 줄이면서 20분씩 나눈다(구간당 약 4.6MB).
+    """25MB 넘는 음성 → 모노 16kHz mp3 로 줄이면서 _STT_SEG_SEC 마다 나눈다
+    (기본 30분 × 64kbps = 구간당 약 14.4MB · z1165 전에는 20분 × 32kbps = 약 4.6MB 였다).
     반환 (성공, 조각 경로 목록 | 사람말 오류). 원본은 건드리지 않는다(z1092 보존 원칙).
     ⚠ 2026-09-17 확인: 운영 WORKS 서버에 ffmpeg 가 없어 25MB 넘는 음성은 한 번도 글자로 바뀐 적이 없었다
       → 없으면 그 사실을 그대로 알린다(예전엔 「25MB를 넘어…」로만 보여 원인이 가려졌다)."""
@@ -5431,7 +5439,7 @@ def _stt_split(disk: str, workdir: str):
     os.makedirs(workdir, exist_ok=True)
     try:
         r = _sp.run([ff, "-hide_banner", "-nostdin", "-y", "-i", disk, "-vn", "-ac", "1", "-ar", "16000",
-                     "-b:a", "32k", "-f", "segment", "-segment_time", str(_STT_SEG_SEC),
+                     "-b:a", f"{_STT_SEG_KBPS}k", "-f", "segment", "-segment_time", str(_STT_SEG_SEC),
                      "-reset_timestamps", "1", os.path.join(workdir, "part_%03d.mp3")],
                     capture_output=True, timeout=1800)
     except _sp.TimeoutExpired:
@@ -5461,7 +5469,7 @@ def _stt_append_body(mid: int, text: str):
 
 
 def _stt_one(mid: int, disk: str, lang: str, head: str = "", progress=None):
-    """음성 하나 → 글자. 25MB 이하=한 번에(지금까지와 같음) / 넘으면 줄여 20분씩 나눠 차례로.
+    """음성 하나 → 글자. 25MB 이하=한 번에(지금까지와 같음) / 넘으면 줄여 구간마다 차례로.
     반환 (글, 오류, 경고) — 오류가 있으면 글은 비어 있다(반쪽 회의록 방지).
     progress: 진행 글을 적을 함수(없으면 회의록 쪽 _stt_progress). z1144 에서 🎤 음성 메모가
       **같은 알맹이 한 벌**을 쓰려고 갈아끼운다 — 두 벌이 되면 한쪽만 고치는 사고가 난다."""
@@ -5487,7 +5495,7 @@ def _stt_one(mid: int, disk: str, lang: str, head: str = "", progress=None):
                 err = _stt_friendly_error(text)
         else:
             import time as _t
-            _pg(head + "긴 음성을 줄여서 20분씩 나누는 중")
+            _pg(head + f"긴 음성을 줄여서 {_STT_SEG_SEC // 60}분씩 나누는 중")
             workdir = os.path.join(os.path.dirname(disk) or ".", f"stt_parts_{int(_t.time() * 1000)}")
             ok, parts = _stt_split(disk, workdir)
             if not ok:
@@ -5649,11 +5657,12 @@ def _vn_progress(nid: int, txt: str):
             j["progress"] = txt
 
 
-def _vn_worker(nid: int, disk: str):
-    """음성 → 글자 → 메모 원문에 덧붙이기(백그라운드). 사람이 고쳐 둔 원문은 지우지 않는다."""
+def _vn_worker(nid: int, disk: str, lang: str = ""):
+    """음성 → 글자 → 메모 원문에 덧붙이기(백그라운드). 사람이 고쳐 둔 원문은 지우지 않는다.
+    lang: 'ko'/'vi'/'en' 또는 ''(자동 감지) — z1165 에서 화면이 보내 준다."""
     text, err, warn = "", "", ""
     try:
-        text, err, warn = _stt_one(0, disk, "", "", progress=lambda t: _vn_progress(nid, t))
+        text, err, warn = _stt_one(0, disk, lang or "", "", progress=lambda t: _vn_progress(nid, t))
         if text:
             with db_session() as c:
                 row = c.execute("SELECT body FROM voice_notes WHERE id=?", (nid,)).fetchone()
@@ -5793,6 +5802,11 @@ async def api_voice_note_transcribe(req: Request, nid: int):
     if not ai_client.transcribe_available():
         return JSONResponse({"ok": False, "error": "음성→글자는 OpenAI 키가 필요합니다(현재 미설정/무효). "
                                                    "관리자 → AI 설정에서 등록하면 즉시 동작합니다."}, 400)
+    try:                                   # z1165: 화면이 고른 「쓰는 말」(없으면 자동 감지)
+        _d = await req.json()
+    except Exception:
+        _d = {}
+    lang = _d.get("lang") if _d.get("lang") in ("ko", "vi", "en") else ""
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
@@ -5804,7 +5818,7 @@ async def api_voice_note_transcribe(req: Request, nid: int):
         if (_VN_JOBS.get(nid) or {}).get("state") == "running":
             return JSONResponse({"ok": True, "already": True})
         _VN_JOBS[nid] = {"state": "running", "progress": "", "error": "", "warn": ""}
-    _stt_thr.Thread(target=_vn_worker, args=(nid, disk), daemon=True).start()
+    _stt_thr.Thread(target=_vn_worker, args=(nid, disk, lang or ""), daemon=True).start()
     return JSONResponse({"ok": True, "started": True})
 
 

@@ -619,11 +619,143 @@ def _stt_is_new_model(model: str) -> bool:
     return (model or "").lower().startswith("gpt")
 
 
-def ai_transcribe(audio_path: str, lang: str = "") -> tuple[bool, str]:
+# ── 받아쓸 때 미리 주는 힌트 (z1165 · 대표 지시 2026-10-11 「인식율·정확도를 올렸으면」) ──
+#  🔎 왜: 운영 음성 회의록 24건(22.6만 자)을 훑어 보니, 회사가 「이 말은 잘못 들린다」고
+#     **이미 적어 둔** 낱말이 그대로 틀려 있었다 —
+#       MSCC·MSC·MHC ← MLCC · 표면장 ← 표면저항 · 동굴 ← 동글 ·
+#       「OK 엔지」 ← OK/NG · 교수적으로 ← 기술적으로
+#     원인은 그 목록(meeting_terms)을 **정리할 때만 주고 받아쓸 때는 안 줬기** 때문이다.
+#     그래서 뒤에서도 못 건졌다 — 정리 글에 MSC 가 2번 그대로 남아 있었다.
+#  ✅ 이음(메신저)이 2026-07-31 대표 지시로 **석 달째** 쓰는 방식과 같다(공개 시험 오인식률 40.4%→19.3%).
+#  ⚠ 낱말은 많이 넣을수록 나쁘다 — 안 한 말을 지어낸다(환각). 자주 쓰고 잘못 들리기 쉬운 것만.
+#  ⛔ 직원 명부는 넣지 않는다 (기존 규정: 명부 통째주입 금지). 사람 이름은 교정사전이 담당(z1166).
+#  🔧 되돌리기: 환경변수 KNK_WORKS_STT_HINT=0 한 줄이면 z1165 이전과 글자 하나까지 같아진다.
+STT_HINT_ON = (os.environ.get("KNK_WORKS_STT_HINT") or "1").strip() != "0"
+
+# 현장에서 실제로 오가는 말 — 모델에 "이런 낱말이 나온다"고 미리 알려준다.
+_STT_KEYWORDS = {
+    "ko": ["케이엔케이", "하이스트", "사출", "금형", "지그", "포고핀", "프로브핀", "비전검사",
+           "검사장비", "출하 검사기", "자동화", "공차", "치수", "품번", "발주", "견적", "납기",
+           "검수", "협력사", "고객사", "베트남법인", "설비", "가동", "불량", "양산", "샘플",
+           "도면", "센서", "컨베이어", "에어호스", "유닛", "조립체", "단가", "세금계산서",
+           "동글", "정전기", "표면저항"],
+    "vi": ["ép phun nhựa", "khuôn mẫu", "bản vẽ", "ngày giao hàng", "máy kiểm tra",
+           "kích thước", "nghiệm thu", "báo giá", "nhà cung cấp", "dây khí", "cụm"],
+    "en": ["injection molding", "mold", "jig", "pogo pin", "vision inspection",
+           "tolerance", "part number", "purchase order", "quotation", "delivery date"],
+}
+
+# 사람별 말투(억양) — 사투리는 사람마다 다르다. 표준어 쓰는 분에게 주면 오히려 방해가 된다.
+#  ⏭ z1166 에서 「내 프로필」 칸(users.stt_dialect)과 이어 붙인다. 지금은 받을 준비만 돼 있다.
+#  ⚠ 키는 언어를 넘어 유일해야 한다 — 저장된 값 하나만 보고 어느 언어 것인지 알 수 있어야 한다.
+_STT_DIALECTS = {
+    "ko": {"gyeongsang": "경상도(부산·대구·경남·경북)", "jeolla": "전라도(광주·전남·전북)",
+           "chungcheong": "충청도(대전·충남·충북)", "gangwon": "강원도", "jeju": "제주도"},
+    "vi": {"vi_north": "북부(하노이·홍하 삼각주)", "vi_central": "중부(후에·다낭)",
+           "vi_south": "남부(호찌민)"},
+}
+_STT_DIALECT_LANG = {k: lg for lg, m in _STT_DIALECTS.items() for k in m}
+
+# 🇻🇳 베트남 지역별 발음 힌트 — 지역보다 「소리는 같은데 글자가 다른」 것이 진짜 문제다.
+#   우리 직원 대부분은 하노이 주변(박닌·박장·꾸에보·푸토·타이응우옌) = 북부.
+_STT_VI_DIALECT_HINT = {
+    "vi_north": ("The speaker is from northern Vietnam (Hanoi / Red River Delta — Bac Ninh, Bac Giang, "
+                 "Que Vo, Phu Tho, Thai Nguyen). In this accent tr/ch, s/x and r/d/gi sound identical and "
+                 "initial n and l are often swapped. Do NOT transcribe these sounds letter by letter — "
+                 "decide from context which standard Vietnamese spelling is meant, with correct diacritics. "),
+    "vi_central": ("The speaker is from central Vietnam (Hue / Da Nang); tones and some final consonants "
+                   "differ from the Hanoi standard. Write standard spelling with correct diacritics. "),
+    "vi_south": ("The speaker is from southern Vietnam (Ho Chi Minh City); v/d/gi and some final consonants "
+                 "differ from the Hanoi standard. Write standard spelling with correct diacritics. "),
+}
+
+
+def _stt_company_words() -> list:
+    """관리자 → AI 설정의 「우리 회사 말」에서 **바른 말만** 뽑는다.
+    그 목록은 'MLCC(적층 세라믹 콘덴서 · MSC/MSCC/MHC 로 잘못 들림), FPCB, …' 꼴이라
+    괄호 앞이 바른 말이다. 괄호 안은 「잘못 들리는 보기」라 **넣으면 거꾸로 틀리게 만든다**."""
+    out = []
+    for part in (meeting_terms() or "").split(","):
+        w = part.split("(")[0].strip()
+        if 1 < len(w) <= 24 and w not in out:
+            out.append(w)
+    return out
+
+
+def _stt_keywords(lang: str) -> list:
+    """그 언어로 줄 낱말 목록. 언어를 모를 때(자동 감지)는 한국어+베트남어를 함께 준다."""
+    lang = (lang or "").lower()
+    if lang.startswith("ko"):
+        words = list(_STT_KEYWORDS["ko"])
+    elif lang.startswith("vi"):
+        words = list(_STT_KEYWORDS["vi"])
+    elif lang.startswith("en"):
+        words = list(_STT_KEYWORDS["en"])
+    else:
+        words = list(_STT_KEYWORDS["ko"]) + list(_STT_KEYWORDS["vi"])
+    if not lang or lang.startswith("ko"):   # 회사 말 목록은 한국어로 적혀 있다
+        for w in _stt_company_words():
+            if w not in words:
+                words.append(w)
+    return words
+
+
+def _stt_prompt(lang: str = "", dialect: str = "", new_model: bool = True) -> str:
+    """모델에 미리 주는 「무슨 회의인지」. 애매한 발음을 회사 업무 쪽으로 붙게 한다.
+
+    🔴 구형(whisper-1)에는 **지시문을 주면 안 된다** — whisper 의 prompt 는 '앞서 받아쓴 글'
+       취급이라 지시문이 결과에 그대로 튀어나온다. 그래서 낱말 나열만 준다.
+    🔴 언어를 모를 때(자동 감지) **한국어 설명을 주면 베트남 회의를 한국어로 끌어당긴다** →
+       그때는 어느 말도 편들지 않는 설명으로 준다."""
+    lang = (lang or "").lower()
+    if not new_model:
+        return ", ".join(_stt_keywords(lang))[:800]      # 구형 = 낱말만 (지시문 금지)
+    dialect = (dialect or "").strip()
+    if dialect and _STT_DIALECT_LANG.get(dialect) != (lang if lang else None):
+        dialect = ""                                     # 말투는 '그 언어의 것'일 때만
+    if lang.startswith("ko"):
+        p = ("㈜케이엔케이(KNK)·하이스트(HAIST) 임직원의 사내 업무 회의입니다. "
+             "검사장비·자동화·사출·금형 제조와 납기·발주·견적·고객사 이야기가 자주 나옵니다. ")
+        label = _STT_DIALECTS["ko"].get(dialect)
+        if label:
+            p += (f"말하는 사람은 {label} 억양의 한국어를 씁니다. 억양 때문에 표준 발음과 다를 수 있으니 "
+                  "소리만으로 단정하지 말고 앞뒤 문맥으로 판단해 표준어 표기로 적어 주세요. ")
+        p += ("말한 그대로 받아쓰세요. 요약·의역·문장 다듬기·설명 추가를 하지 마세요. "
+              "알아듣지 못한 부분은 지어내지 말고 빼세요.")
+        return p
+    p = ("Internal work meeting at KNK / HAIST — inspection equipment, automation, injection molding "
+         "and mold manufacturing, plus delivery dates, purchase orders, quotations and customers. ")
+    if not lang:
+        # 자동 감지 — 어느 말도 편들지 않는다(한국어 회의도 베트남어 회의도 있다)
+        p += ("The speakers may be using Korean, Vietnamese, or both. ")
+    if dialect:
+        p += _STT_VI_DIALECT_HINT.get(dialect, "")
+    p += ("Transcribe verbatim in the language actually spoken. Do not summarize, paraphrase, translate "
+          "or add anything. If a part is unclear, omit it rather than guessing.")
+    return p
+
+
+def _stt_param_error(e) -> bool:
+    """모델이 **힌트 항목 자체를 모를 때**인가 — 그러면 같은 모델로 힌트 없이 한 번 더 간다.
+    🔴 이게 없으면 힌트가 거부될 때 곧장 whisper-1 로 떨어져 **정확도가 거꾸로 나빠진다**
+       (whisper-1 은 앞 20초를 빠뜨리고 전문용어를 줄줄이 틀린 바로 그 모델이다)."""
+    m = str(e or "").lower()
+    return any(k in m for k in (
+        "unknown parameter", "unknown_parameter", "unrecognized", "invalid parameter",
+        "extra_body", "keywords", "not supported", "unsupported", "additional properties",
+        "unexpected keyword"))
+
+
+def ai_transcribe(audio_path: str, lang: str = "", dialect: str = "",
+                  keywords=None) -> tuple[bool, str]:
     """음성 파일 → 텍스트. 기본 `gpt-transcribe`, 실패하면 `whisper-1` 로 한 번 더(z1140).
     audio_path: 디스크 경로(webm/m4a/mp4/mp3/wav 등). lang: 'ko'/'vi'/'en' 또는 ''(자동감지).
+    dialect: 말하는 사람의 억양(_STT_DIALECTS 키 · ⏭z1166). keywords: 이 사람 전용으로 더 얹을 낱말.
     반환 (성공, 텍스트 또는 오류메시지). 호출부는 transcribe_available() 로 먼저 확인 권장.
-    OpenAI 전용 — claude만 설정돼 있으면 (False, 사유) 반환."""
+    OpenAI 전용 — claude만 설정돼 있으면 (False, 사유) 반환.
+
+    z1165: 회사 말·회의 설명을 **미리 준다**(STT_HINT_ON). 힌트 항목을 모르는 모델이면
+      **같은 모델로 힌트 없이 한 번 더** 간 뒤에야 예비 모델로 내려간다(정확도 역행 방지)."""
     key = _key_for("openai")
     if not _OPENAI_OK:
         return (False, "음성→글자: openai SDK 미설치 (pip install openai)")
@@ -634,25 +766,46 @@ def ai_transcribe(audio_path: str, lang: str = "") -> tuple[bool, str]:
     models = [STT_MODEL] + ([STT_FALLBACK_MODEL] if (STT_FALLBACK_MODEL and STT_FALLBACK_MODEL != STT_MODEL) else [])
     client = openai.OpenAI(api_key=key, timeout=300)
     last = ""
-    for i, model in enumerate(models):
-        kwargs: dict[str, Any] = {"model": model}
-        if _stt_is_new_model(model):
-            kwargs["response_format"] = "json"        # 신형은 text/verbose_json/srt/vtt 미지원
-            if lang in ("ko", "vi", "en"):
-                kwargs["extra_body"] = {"languages": [lang]}
-        else:
-            if lang in ("ko", "vi", "en"):
-                kwargs["language"] = lang             # 구형은 단수
-        try:
-            with open(audio_path, "rb") as f:         # ⚠ 스트림은 시도마다 새로 연다(한 번 읽으면 다시 못 읽는다)
-                resp = client.audio.transcriptions.create(file=f, **kwargs)
-            text = (getattr(resp, "text", "") or "").strip()
-            if i > 0:
-                print(f"[STT] {models[0]} 실패 → {model} 로 받아씀")
-            return (True, text)
-        except Exception as e:
-            last = f"{model}: {e}"
-            print(f"[STT] {model} 실패: {str(e)[:160]}")
+    for mi, model in enumerate(models):
+        for use_hint in ((True, False) if STT_HINT_ON else (False,)):
+            kwargs: dict[str, Any] = {"model": model}
+            new = _stt_is_new_model(model)
+            if use_hint:
+                p = _stt_prompt(lang, dialect, new_model=new)
+                if p:
+                    kwargs["prompt"] = p[:2000]
+            if new:
+                kwargs["response_format"] = "json"    # 신형은 text/verbose_json/srt/vtt 미지원
+                extra: dict[str, Any] = {}
+                if lang in ("ko", "vi", "en"):
+                    extra["languages"] = [lang]       # 신형은 복수
+                if use_hint:
+                    words = _stt_keywords(lang)
+                    for w in (keywords or []):
+                        if w and w not in words:
+                            words.append(w)
+                    if words:
+                        extra["keywords"] = words[:80]
+                if extra:
+                    kwargs["extra_body"] = extra
+            else:
+                if lang in ("ko", "vi", "en"):
+                    kwargs["language"] = lang         # 구형은 단수
+            try:
+                with open(audio_path, "rb") as f:     # ⚠ 스트림은 시도마다 새로 연다(한 번 읽으면 다시 못 읽는다)
+                    resp = client.audio.transcriptions.create(file=f, **kwargs)
+                text = (getattr(resp, "text", "") or "").strip()
+                if mi > 0:
+                    print(f"[STT] {models[0]} 실패 → {model} 로 받아씀")
+                if not use_hint and STT_HINT_ON:
+                    print(f"[STT] {model}: 힌트를 안 받아 힌트 없이 받아씀")
+                return (True, text)
+            except Exception as e:
+                last = f"{model}: {e}"
+                print(f"[STT] {model} 실패(힌트={1 if use_hint else 0}): {str(e)[:160]}")
+                if use_hint and _stt_param_error(e):
+                    continue                          # 같은 모델로 힌트 없이 다시
+                break                                 # 다른 이유 → 다음 모델로
     return (False, f"음성→글자 오류(openai): {last}")
 
 

@@ -62,6 +62,17 @@
              value="{{ (note.title if note else '')|e }}">
     </div>
 
+    {# z1165: 쓰는 말을 골라 두면 받아쓰기가 더 정확하다. 파일을 고르는 순간 바로 변환이
+         시작되므로 이 칸은 **파일 단추보다 위**에 있어야 한다. 기본은 자동 감지. #}
+    <div class="vn-fld" id="vnLangWrap"{% if note and note.body %} hidden{% endif %}>
+      <label for="vnLang">쓰는 말</label>
+      <select id="vnLang">
+        <option value="">자동 감지 (기본)</option>
+        <option value="ko">한국어</option>
+        <option value="vi">베트남어</option>
+      </select>
+    </div>
+
     <div id="vnUpWrap"{% if note and note.body %} hidden{% endif %}>
       <label class="vn-up">📁 녹음 파일 올리기
         <input type="file" id="vnFile"
@@ -140,7 +151,9 @@
     var up = await api('/api/voice-note/' + NID + '/audio', { method:'POST', body: fd });
     if(!up.ok){ st('vnSt', up.data.error || '올리지 못했습니다.', 'err'); return; }
     st('vnSt','음성을 글자로 바꾸는 중… (길면 몇 분 걸립니다)','go');
-    var tr = await api('/api/voice-note/' + NID + '/transcribe', { method:'POST' });
+    var tr = await api('/api/voice-note/' + NID + '/transcribe',
+      { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ lang: (($('vnLang')||{}).value) || '' }) });   // z1165
     if(!tr.ok){ st('vnSt', tr.data.error || '글자로 바꾸지 못했습니다.', 'err'); return; }
     var tries = 0;
     var timer = setInterval(async function(){
