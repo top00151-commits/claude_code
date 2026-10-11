@@ -185,7 +185,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# v5H226z621 (대표 지시): 고객사1 = 등록 고객사(시스템명) 자동완성 콤보 — 미매칭이면 적색·저장차단. customer_id 바인딩 #}
           <div class="qf-f c4"><label>고객사1 <span class="req">*</span> <span style="font-weight:400;color:var(--qv-ink-3);font-size:11px;">(등록 목록에서 선택)</span></label>
             <input type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="1" data-cust-initial="{{ project.customer_name|default('') if ed else '' }}" placeholder="고객사명·시스템명 입력 → 목록 선택" autocomplete="off">
-            <datalist id="qCustList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist>
+            <datalist id="qCustList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist>{# z1158-허용: 「최종 고객사명」은 고객 번호로 연결하지 않고 이름 그대로 저장되는 자유 입력칸 — 정식 상호를 제안한다 #}
           </div>
           {# v5H226z350: 2차거래 폐지 → 고객사2(최종 고객) 직접 입력칸 #}
           <div class="qf-f c4"><label>고객사2 <span style="font-weight:400;color:var(--qv-ink-3);">(최종 고객·선택)</span></label>

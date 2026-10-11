@@ -42,7 +42,7 @@
     <select name="customer_id" id="f_customer_id">
       <option value="">(연결 안 함)</option>
       {% for cu in customers %}
-      <option value="{{ cu.id }}" {% if contact and contact.customer_id == cu.id %}selected{% endif %}>{{ cu.name }}</option>
+      <option value="{{ cu.id }}" {% if contact and contact.customer_id == cu.id %}selected{% endif %}>{{ cust_label(cu) }}</option>
       {% endfor %}
     </select>
   </div>

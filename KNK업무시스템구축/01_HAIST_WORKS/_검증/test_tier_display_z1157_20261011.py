@@ -148,7 +148,8 @@ MUT = [
      '<span class="pill {% if c.tier == \'A\' %}pill-danger{% else %}pill-muted{% endif %}">{{ c.tier }}</span>', "①", "옛 A·B 색을 되살림"),
     ("app/templates/customer_form.html", '<span class="pill {{ tier_pill(customer.tier) }}"',
      '<span class="pill {% if customer.tier == \'VIP\' %}pill-danger{% else %}pill-done{% endif %}"', "②", "화면이 알약 색을 스스로 고름"),
-    ("app/main.py", '"SELECT id, name, tier FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name"',
+    # z1158 에서 fetch_customers 쿼리가 고르기 기준(CUSTOMER_PICK_*)으로 바뀌어 되돌림 대상도 새 줄로
+    ("app/main.py", '"SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL   # z1157·z1158',
      '"SELECT id, name, tier FROM customers ORDER BY tier DESC, name"', "③", "등급 글자 정렬을 되살림"),
     ("app/customer_tier.py", 'TIER_ORDER = ("VIP", "주요", "일반", "신규", "휴면")',
      'TIER_ORDER = ("휴면", "주요", "일반", "신규", "VIP")', "④", "순서 기준을 뒤집음"),

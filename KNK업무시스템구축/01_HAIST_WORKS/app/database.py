@@ -13538,15 +13538,17 @@ def search_orders(q, limit=5):
 
 
 def customers_for_picker():
-    """v5H75: 프로젝트 등록 폼 고객사 드롭다운용 — 활성 고객 전부 (id, name)."""
+    """v5H75: 프로젝트 등록 폼 고객사 드롭다운용 — 활성 고객 전부 (id, name).
+    z1158: 고르기 목록 기준 한 곳(customer_tier) — 시스템명·종사업장번호도 싣고 VIP 먼저 → 보이는 이름 순."""
+    from .customer_tier import CUSTOMER_PICK_COLS, CUSTOMER_PICK_ORDER_SQL
     with db_session() as c:
         try:
             rows = c.execute(
-                "SELECT id, name FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY name ASC"
+                "SELECT " + CUSTOMER_PICK_COLS + " FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY " + CUSTOMER_PICK_ORDER_SQL
             ).fetchall()
         except Exception:
             rows = c.execute(
-                "SELECT id, name FROM customers ORDER BY name ASC"
+                "SELECT id, name FROM customers ORDER BY name ASC"   # z1158-허용: 칸이 모자란 옛 DB 의 마지막 대체(이름만이라도)
             ).fetchall()
         return [dict(r) for r in rows]
 

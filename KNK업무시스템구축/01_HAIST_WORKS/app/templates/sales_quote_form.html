@@ -59,7 +59,7 @@ body {
         <select name="customer_id" required>
           <option value="">— 선택 —</option>
           {% for c in customers %}
-          <option value="{{ c.id }}">{{ c.name }}</option>
+          <option value="{{ c.id }}">{{ cust_label(c) }}</option>
           {% endfor %}
         </select>
       </div>

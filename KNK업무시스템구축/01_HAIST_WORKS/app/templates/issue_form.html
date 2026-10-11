@@ -191,7 +191,7 @@
                       <label>고객사 (선택)</label>
                       <select name="customer_id">
                         <option value="">— 없음 —</option>
-                        {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                        {% for c in customers %}<option value="{{ c.id }}">{{ cust_label(c) }}</option>{% endfor %}
                       </select>
                     </div>
                     <div class="field col-2">

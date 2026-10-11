@@ -230,6 +230,10 @@ tpl.env.globals["t"] = _t_helper
 # z1157: 고객 등급 알약 색·순서의 기준 한 곳(customer_tier) — 화면마다 따로 적지 않는다
 from .customer_tier import tier_pill_class as _tier_pill_class, TIER_ORDER_SQL as _TIER_ORDER_SQL   # noqa: E402
 tpl.env.globals["tier_pill"] = _tier_pill_class
+# z1158: 고객 고르기 목록 표시(시스템명 우선 + [종사업장번호]) · 순서(VIP 먼저 → 보이는 이름) 기준 한 곳
+from .customer_tier import (customer_pick_label as _cust_pick_label,   # noqa: E402
+                            CUSTOMER_PICK_COLS as _CUST_PICK_COLS, CUSTOMER_PICK_ORDER_SQL as _CUST_PICK_ORDER_SQL)
+tpl.env.globals["cust_label"] = _cust_pick_label
 
 
 # =====================================================
@@ -2830,7 +2834,7 @@ def fetch_projects(c):
 
 def fetch_customers(c):
     return [dict(r) for r in c.execute(
-        "SELECT id, name, tier FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name"   # z1157: VIP 먼저
+        "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL   # z1157·z1158
     ).fetchall()]
 
 
@@ -2847,7 +2851,7 @@ async def api_customers_options(req: Request):
         _sb = "sub_biz_no" if "sub_biz_no" in cols else "''"
         rows = c.execute(
             f"SELECT id, name, COALESCE({_al},'') AS alias, COALESCE({_sb},'') AS sub_biz_no "
-            "FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY name COLLATE NOCASE").fetchall()
+            "FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()   # z1158: 공용 선택기도 같은 순서
     out = [{"id": r["id"], "name": r["name"] or "",
             "alias": (r["alias"] or ""), "sub_biz_no": (r["sub_biz_no"] or "")} for r in rows]
     return JSONResponse({"ok": True, "customers": out})
@@ -11692,7 +11696,7 @@ async def admin_customer_health(req: Request):
     ti_repurposed = ti_overwritten = 0
     with db_session() as c:
         # A. 고객사 마스터 중복 의심 — 정규화 키는 같은데 등록명이 둘 이상
-        custs = [dict(r) for r in c.execute("SELECT id, name, COALESCE(alias,'') AS alias, sub_biz_no FROM customers ORDER BY name").fetchall()]
+        custs = [dict(r) for r in c.execute("SELECT id, name, COALESCE(alias,'') AS alias, sub_biz_no FROM customers ORDER BY name").fetchall()]   # z1158-허용: 고르기 목록이 아니라 중복 의심 진단 — 정식 상호로 묶어 보므로 이름순
         gm = defaultdict(list)
         for r in custs:
             k = _nc(r["name"])
@@ -18714,7 +18718,7 @@ async def contacts_new(req: Request):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+            "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()]   # z1158
     return ctx(req, "contact_form.html", user=u, contact=None,
                customers=customers, mode="new")
 
@@ -18726,7 +18730,7 @@ async def contacts_scan(req: Request):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+            "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()]   # z1158
     try:
         from . import ai_client as _aic
         _ai_on = _aic.ai_available()
@@ -18744,7 +18748,7 @@ async def contacts_from_signature(req: Request):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+            "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()]   # z1158
     return ctx(req, "contacts_signature.html", user=u, customers=customers)
 
 
@@ -19089,7 +19093,7 @@ async def contacts_edit(req: Request, cid: int):
             return ctx(req, "contact_detail.html", user=u, contact=contact,
                        can_edit=False, perm_error="수정 권한이 없습니다 (등록 본인·관리자만 가능).")
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name FROM customers ORDER BY name COLLATE NOCASE").fetchall()]
+            "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()]   # z1158
     return ctx(req, "contact_form.html", user=u, contact=contact,
                customers=customers, mode="edit")
 
@@ -20933,7 +20937,7 @@ async def sales_quotes_new_form(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY name"
+            "SELECT " + _CUST_PICK_COLS + " FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY " + _CUST_PICK_ORDER_SQL   # z1158
         ).fetchall()]
     return ctx(req, "sales_quote_form.html", user=u, active="sales_quotations",
                customers=customers)
@@ -22476,7 +22480,7 @@ async def issues_new_form(req: Request, project_id: str = ""):
                ORDER BY mgmt_code DESC LIMIT 200"""
         ).fetchall()]
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name"   # z1157: VIP 먼저
+            "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL   # z1157·z1158
         ).fetchall()]
     return ctx(req, "issue_form.html", user=u, teams=teams, projects=projects,
                customers=customers, default_project_id=project_id,
@@ -36953,7 +36957,7 @@ async def stock_issue_form(request: Request, part_id: str = ""):
                ORDER BY mgmt_code DESC LIMIT 200"""
         ).fetchall()
         customers = c.execute(
-            "SELECT id, name FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name"   # z1157: VIP 먼저
+            "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL   # z1157·z1158
         ).fetchall()
     return ctx(request, "stock_issue.html", user=u,
                parts=[dict(r) for r in parts],
@@ -44412,7 +44416,7 @@ async def export_fta_new_form(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name, COALESCE(tier,'') AS country FROM customers ORDER BY name LIMIT 200"
+            "SELECT " + _CUST_PICK_COLS + ", COALESCE(tier,'') AS country FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL + " LIMIT 200"
         ).fetchall()]
         export_orders = [dict(r) for r in c.execute(
             """SELECT eo.id, eo.buyer, COALESCE(o.order_no,'-') AS order_no
@@ -44546,7 +44550,7 @@ async def export_fta_detail(req: Request, cert_id: int):
     company = _company_info_dict()
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name, COALESCE(tier,'') AS country FROM customers ORDER BY name LIMIT 200"
+            "SELECT " + _CUST_PICK_COLS + ", COALESCE(tier,'') AS country FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL + " LIMIT 200"
         ).fetchall()]
         export_orders = [dict(r) for r in c.execute(
             """SELECT eo.id, eo.buyer, COALESCE(o.order_no,'-') AS order_no
@@ -44680,7 +44684,7 @@ async def qc_report_new_form(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name, COALESCE(tier,'') AS country FROM customers ORDER BY name LIMIT 200"
+            "SELECT " + _CUST_PICK_COLS + ", COALESCE(tier,'') AS country FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL + " LIMIT 200"
         ).fetchall()]
         orders = [dict(r) for r in c.execute(
             """SELECT o.id, o.order_no, COALESCE(cu.name,'-') AS cust_name
@@ -44786,7 +44790,7 @@ async def qc_report_detail(req: Request, report_id: int):
     company = _company_info_dict()
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
-            "SELECT id, name, COALESCE(tier,'') AS country FROM customers ORDER BY name LIMIT 200"
+            "SELECT " + _CUST_PICK_COLS + ", COALESCE(tier,'') AS country FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL + " LIMIT 200"
         ).fetchall()]
         orders = [dict(r) for r in c.execute(
             """SELECT o.id, o.order_no, COALESCE(cu.name,'-') AS cust_name
@@ -45326,7 +45330,7 @@ async def consumables_list(request: Request, status: str = "", q: str = ""):
     try:
         with db_session() as _cc:
             _customers = [dict(r) for r in _cc.execute(
-                "SELECT id, name FROM customers ORDER BY name").fetchall()]
+                "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()]   # z1158
     except Exception:
         _customers = []
     return ctx(request, "consumables.html",
@@ -45979,7 +45983,7 @@ async def consumables_detail(request: Request, co_id: int):
     try:
         with db_session() as _cc:
             _customers = [dict(r) for r in _cc.execute(
-                "SELECT id, name FROM customers ORDER BY name").fetchall()]
+                "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()]   # z1158
     except Exception:
         _customers = []
     return ctx(request, "consumable_detail.html",

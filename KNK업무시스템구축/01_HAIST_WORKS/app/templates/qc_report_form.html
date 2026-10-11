@@ -372,7 +372,7 @@
                     <select name="customer_id">
                       <option value="">— 선택 안함 —</option>
                       {% for c in customers|default([]) %}
-                      <option value="{{ c.id }}">{{ c.name }}{% if c.country %} ({{ c.country }}){% endif %}</option>
+                      <option value="{{ c.id }}">{{ cust_label(c) }}{% if c.country %} ({{ c.country }}){% endif %}</option>
                       {% endfor %}
                     </select>
                   </div>

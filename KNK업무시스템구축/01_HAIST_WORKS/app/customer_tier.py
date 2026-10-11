@@ -91,6 +91,30 @@ TIER_ORDER_SQL = ("CASE tier " + " ".join("WHEN '%s' THEN %d" % (t, i) for i, t 
 TIER_PILL = {"VIP": "pill-danger", "주요": "pill-progress", "일반": "pill-done", "신규": "pill-warn", "휴면": "pill-muted"}
 
 
+# z1158 (대표 2026-10-11 「전부 같은 기준」): 고객 **고르기 목록**의 표시·순서 기준 한 곳.
+#   표시 = 공용 고객 선택기(z621 · _v5_partials/customer_picker.html 의 disp())와 같다 — 시스템명(별칭) 우선, 없으면 정식 상호 + [종사업장번호]
+#   (전 화면 고객사 표시는 시스템명 우선 = 대표 정책 z706). 서류(견적서·세금계산서 등)에 찍히는 이름은 정식 상호 그대로.
+#   순서 = 등급순(VIP 먼저) → 같은 등급 안은 **보이는 이름** 가나다.
+#   예전엔 고르기 목록마다 정식 상호만 보여, 같은 상호 「(주) 드림텍」 본사·아산·동탄이 똑같은 세 줄이었고
+#   일일업무는 글자로 고객을 찾아 **늘 첫 번째(본사)로 기록**했다.
+CUSTOMER_PICK_COLS = "id, name, COALESCE(alias,'') AS alias, COALESCE(sub_biz_no,'') AS sub_biz_no, tier"
+CUSTOMER_PICK_ORDER_SQL = TIER_ORDER_SQL + ", COALESCE(NULLIF(TRIM(alias),''), name) COLLATE NOCASE, id"
+
+
+def customer_pick_label(c):
+    """고객 고르기 목록에 보일 이름(템플릿에선 `cust_label(…)`) — 공용 선택기 disp() 와 같다."""
+    if c is None:
+        return ""
+    if hasattr(c, "get"):
+        get = c.get
+    else:                                   # sqlite3.Row
+        keys = c.keys()
+        get = (lambda k: c[k] if k in keys else None)
+    base = str(get("alias") or "").strip() or str(get("name") or "").strip()
+    sub = str(get("sub_biz_no") or "").strip()
+    return base + (" [" + sub + "]" if sub else "")
+
+
 def tier_pill_class(tier):
     """화면의 등급 알약 색 — 고객 목록·상세·수정·관리자 화면이 함께 쓴다(z1157 · 템플릿에선 `tier_pill(…)`).
     모르는 값(옛 A·B 등)은 회색."""

@@ -1116,6 +1116,71 @@ def check_tier_display(files):
     return bad
 
 
+def check_customer_picker(files):
+    r"""§고객 고르기 목록은 기준 한 곳(customer_tier)에서 — 시스템명 우선 + [종사업장번호] · VIP 먼저 (z1158 · 대표 2026-10-11 「전부 같은 기준」).
+
+    겪은 것: 고르기 목록마다 정식 상호만 보여 같은 상호 「(주) 드림텍」 본사·아산·동탄이 똑같은 세 줄이었고,
+      일일업무는 고른 글자로 고객을 찾아 **늘 첫 번째(본사)로 기록**했다. 순서도 화면마다 이름순·등급 글자순으로 제각각.
+      공용 고객 선택기(z621)는 이미 시스템명+종사업장번호로 구별하고 있었다 — 옛 고르기 목록들만 안 따랐다.
+
+    잡는 것
+      ① 화면의 고객 고르기(<option>)가 정식 상호만 보인다(`{{ c.name }}` · `value="{{ c.name }}"`) — `{{ cust_label(c) }}`
+      ② 파이썬의 고객 목록 쿼리가 이름순이다(`FROM customers … ORDER BY name`) — customer_tier.CUSTOMER_PICK_ORDER_SQL
+      ③ customer_pick_label() · CUSTOMER_PICK_ORDER_SQL 을 **실제로 돌려 보니** 틀리다
+      ④ main.py 가 템플릿 전역 `cust_label` 을 등록하지 않는다
+    빼는 것: 예전·백업 화면 · 주석 · 그 줄에 `z1158-허용` 표시와 사유가 있는 곳
+    """
+    import sqlite3 as _sq
+    bad = []
+    app = os.path.join(ROOT, "app")
+    main_p = os.path.join(app, "main.py")
+    ct_p = os.path.join(app, "customer_tier.py")
+    OPT = re.compile(r"<option\b[^>]*(?:>\s*\{\{\s*(?:c|cu|cust)\.name\s*\}\}|value\s*=\s*\"\{\{\s*(?:c|cu|cust)\.name\s*\}\}\")")
+    tpls = set(p for p in files if p.endswith(".html")) | set(_walk(TPL, (".html",)))
+    for p in sorted(tpls):
+        rp = p.replace("\\", "/")
+        if "/_legacy" in rp or "_backup" in rp:
+            continue
+        for i, ln in enumerate(_read(p).splitlines(), 1):
+            if "z1158-허용" in ln:
+                continue
+            if OPT.search(ln):
+                bad.append((p, i, "① 고객 고르기가 정식 상호만 보인다 — 같은 상호가 구별 안 됨 → {{ cust_label(…) }}"))
+    for p in sorted(_walk(app, (".py",))):
+        for i, ln in enumerate(_read(p).splitlines(), 1):
+            if ln.strip().startswith("#") or "z1158-허용" in ln:
+                continue
+            if re.search(r"FROM\s+customers\b[^\"\n]*ORDER\s+BY\s+name\b", ln, re.I):
+                bad.append((p, i, "② 고객 목록을 이름순으로 정렬한다 — customer_tier.CUSTOMER_PICK_ORDER_SQL(VIP 먼저 → 보이는 이름)"))
+    try:
+        ns = {}
+        exec(compile(_read(ct_p), ct_p, "exec"), ns)
+        lab = ns["customer_pick_label"]
+        cases = [({"name": "(주) 드림텍", "alias": "드림텍(아산)", "sub_biz_no": "0005"}, "드림텍(아산) [0005]"),
+                 ({"name": "(주) 드림텍", "alias": "드림텍(본사)", "sub_biz_no": ""}, "드림텍(본사)"),
+                 ({"name": "에스알씨", "alias": "", "sub_biz_no": None}, "에스알씨"),
+                 ({"name": " 공백 ", "alias": "  "}, "공백")]
+        for cdict, want in cases:
+            got = lab(cdict)
+            if got != want:
+                bad.append((ct_p, 1, "③ customer_pick_label(%r) = %r (맞는 값 %r)" % (cdict, got, want)))
+        db = _sq.connect(":memory:")
+        db.row_factory = _sq.Row
+        db.execute("CREATE TABLE customers(id INTEGER, name TEXT, alias TEXT, sub_biz_no TEXT, tier TEXT)")
+        db.executemany("INSERT INTO customers VALUES(?,?,?,?,?)", [
+            (1, "(주) 하나", "하나", "", "휴면"), (2, "(주) 드림텍", "드림텍(동탄)", "0007", "VIP"),
+            (3, "(주) 드림텍", "드림텍(본사)", "", "VIP"), (4, "가나", "", "", "일반"), (5, "Zeta", "", "", "VIP")])
+        got = [lab(r) for r in db.execute("SELECT " + ns["CUSTOMER_PICK_COLS"] + " FROM customers ORDER BY " + ns["CUSTOMER_PICK_ORDER_SQL"])]
+        want = ["Zeta", "드림텍(동탄) [0007]", "드림텍(본사)", "가나", "하나"]
+        if got != want:
+            bad.append((ct_p, 1, "③ 고르기 순서를 실제로 돌려 보니 %s (맞는 순서 %s)" % (" · ".join(got), " · ".join(want))))
+    except Exception as e:
+        bad.append((ct_p, 1, "③ 고르기 기준을 돌려 보지 못했다(%s) — 못 돌리면 위반" % e))
+    if 'tpl.env.globals["cust_label"]' not in (_read(main_p) if os.path.exists(main_p) else ""):
+        bad.append((main_p, 1, "④ 템플릿 전역 cust_label 등록이 없다 — 고르기 목록 화면이 깨진다"))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -1284,6 +1349,15 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 고객 등급 색·순서 : 기준 한 곳(customer_tier) · VIP 먼저")
+
+    cp_bad = check_customer_picker(files)
+    if cp_bad:
+        fail += len(cp_bad)
+        print("  ❌ 고객 고르기 목록이 기준 한 곳을 안 거침 : %d건 → {{ cust_label(…) }} · customer_tier.CUSTOMER_PICK_ORDER_SQL" % len(cp_bad))
+        for f, l, m in cp_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 고객 고르기 목록 : 시스템명 우선·종사업장번호 · VIP 먼저 (기준 한 곳)")
 
     print("=" * 72)
     if fail:

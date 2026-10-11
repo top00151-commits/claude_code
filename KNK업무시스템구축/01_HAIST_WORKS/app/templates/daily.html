@@ -145,7 +145,8 @@
     <input type="text" id="newCustomer" list="customerOptions" placeholder="🏢 고객사" autocomplete="off" style="min-width:140px;">
     <datalist id="customerOptions">
       <option value="사내업무">
-      {% for c in customers %}<option data-cid="{{ c.id }}" value="{{ c.name }}">{% endfor %}
+      {# z1158: 보이는 이름 = 시스템명 우선 + [종사업장번호] — 같은 상호여도 글자가 달라 고른 그 고객으로 기록된다(예전엔 늘 첫 번째) #}
+      {% for c in customers %}<option data-cid="{{ c.id }}" value="{{ cust_label(c) }}">{% endfor %}
     </datalist>
     <input type="number" id="newHours" placeholder="⏱ h" title="오늘 이 업무에 들인 시간 (시간 단위, 예: 0.5/1/2/4)" step="0.5" min="0" max="24" style="width:70px;">
     <button class="btn btn-primary" onclick="addTask()">등록</button>
