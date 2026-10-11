@@ -48,36 +48,65 @@
     <span>{{ label }}</span>{% if code %} <span class="menu-code">{{ code }}</span>{% endif %}
   </a>
 {%- endmacro %}
+<script>
+{# z1162: 바깥 틀의 자바스크립트가 쓸 말 — 번역 사전(i)에서 한 번만 내려 준다.
+   이 상자는 본문(.main) 밖이라 화면을 갈아끼워도 그대로 남는다. #}
+var CH = {
+  lang: {{ (lang or 'ko')|tojson }},
+  back: {{ i.ch_back|tojson }},
+  back_t: {{ i.ch_back_t|tojson }},
+  drag: {{ i.ch_drag|tojson }},
+  pin: {{ i.ch_pin|tojson }},
+  pin_max_a: {{ i.ch_pin_max_a|tojson }},
+  pin_max_b: {{ i.ch_pin_max_b|tojson }},
+  pinned: {{ i.ch_pinned|tojson }},
+  recent_h_a: {{ i.ch_recent_h_a|tojson }},
+  recent_h_b: {{ i.ch_recent_h_b|tojson }},
+  tab_close: {{ i.ch_tab_close|tojson }},
+  tab_del: {{ i.ch_tab_del|tojson }},
+  unpin: {{ i.ch_unpin|tojson }},
+  up_later: {{ i.ch_up_later|tojson }},
+  up_msg: {{ i.ch_up_msg|tojson }},
+  up_now: {{ i.ch_up_now|tojson }},
+  up_t: {{ i.ch_up_t|tojson }},
+  vd_cand_a: {{ i.ch_vd_cand_a|tojson }},
+  vd_cand_b: {{ i.ch_vd_cand_b|tojson }},
+  vd_goto: {{ i.ch_vd_goto|tojson }},
+  vd_neterr: {{ i.ch_vd_neterr|tojson }},
+  vd_nomatch: {{ i.ch_vd_nomatch|tojson }},
+  vd_think: {{ i.ch_vd_think|tojson }}
+};
+</script>
 
 {# v5H226z849 (대표 지시): '테스트 날짜 변경' 노란 배너 제거 — 더 이상 사용 안 함 #}
 <header class="top" data-dn="top-bar" data-dn-tone="amber">
   {# v5H16 — 좌: KNK 로고+탭 / 중앙: HAIST WORKS 큰 타이틀 / 우: 아이콘+사용자 #}
-  <button type="button" class="mob-sb-btn" onclick="document.body.classList.toggle('mob-sb-open')" aria-label="메뉴">☰</button>
+  <button type="button" class="mob-sb-btn" onclick="document.body.classList.toggle('mob-sb-open')" aria-label="{{ i.ch_menu }}">☰</button>
   <a class="tb-brand" href="/home" style="padding:0 var(--space-5);display:flex;align-items:center;height:100%;text-decoration:none;color:inherit;flex-shrink:0;">
     <img src="/static/logo.png" alt="KNK · HAIST Innovation" style="height:38px;" onerror="this.style.display='none'">
   </a>
   <div class="top-tabs" style="flex-shrink:0;">
-    <a class="top-tab {% if _at == 'home' %}active{% endif %}" href="/home">통합 플랫폼</a>
-    <a class="top-tab {% if _at == 'sales' %}active{% endif %}" href="/sales">매출영업센터</a>
-    <a class="top-tab {% if _at == 'logi' %}active{% endif %}" href="/logistics">자재구매센터</a>
+    <a class="top-tab {% if _at == 'home' %}active{% endif %}" href="/home">{{ i.ch_tab_home }}</a>
+    <a class="top-tab {% if _at == 'sales' %}active{% endif %}" href="/sales">{{ i.ch_tab_sales }}</a>
+    <a class="top-tab {% if _at == 'logi' %}active{% endif %}" href="/logistics">{{ i.ch_tab_logi }}</a>
   </div>
   <div class="tb-headline" style="font-size:27px;font-weight:800;letter-spacing:0.07em;color:var(--knk-red);white-space:nowrap;">KNK Eum WORKS</div>
   <div id="knkTopRight" style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
     {# v5H226z422 (대표 지시): KNK Eum WORKS 앱 설치 — 설치 가능할 때만 노출(beforeinstallprompt). 핸들러는 works_pwa_head.html #}
-    <a class="top-icon" id="worksInstallBtn" href="javascript:void(0)" onclick="worksInstallApp()" title="KNK Eum WORKS 앱으로 설치 (바탕화면·홈 아이콘)" style="display:none;background:var(--knk-red);color:#fff;">📲</a>
+    <a class="top-icon" id="worksInstallBtn" href="javascript:void(0)" onclick="worksInstallApp()" title="{{ i.ch_install_t }}" style="display:none;background:var(--knk-red);color:#fff;">📲</a>
     {# v5H226z123: 새로고침 — 배포 후 최신 화면 반영. 새 버전 감지 시 빨강 점 강조 #}
-    <a class="top-icon" id="knkRefreshBtn" href="javascript:void(0)" onclick="location.reload()" title="새로고침 (새 버전 반영)" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);position:relative;">↻</a>
+    <a class="top-icon" id="knkRefreshBtn" href="javascript:void(0)" onclick="location.reload()" title="{{ i.ch_refresh_t }}" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);position:relative;">↻</a>
     {% if _role in ('ceo','admin','leader','executive') %}
     {# v5H226z849 (대표 지시): '테스트 날짜 변경'(🧪) 상단 버튼 제거 — 더 이상 사용 안 함 #}
     {% endif %}
-    <a href="javascript:void(0)" onclick="toggleVictorDock()" title="빅터 AI {% if ai_on %}· 사용 가능{% else %}· 현재 사용 불가{% endif %} (열기/닫기)" id="victorToggleBtn" class="ai-avatar {{ 'on' if ai_on else 'off' }}">AI</a>
-    <a class="top-icon" href="/notifications" title="알림">🔔</a>
-    <a class="top-icon" href="/guide" target="_blank" title="도움말">❓</a>
+    <a href="javascript:void(0)" onclick="toggleVictorDock()" title="{{ i.ch_vd_name }} AI {% if ai_on %}{{ i.ch_ai_on }}{% else %}{{ i.ch_ai_off }}{% endif %} {{ i.ch_ai_t }}" id="victorToggleBtn" class="ai-avatar {{ 'on' if ai_on else 'off' }}">AI</a>
+    <a class="top-icon" href="/notifications" title="{{ i.ch_noti }}">🔔</a>
+    <a class="top-icon" href="/guide" target="_blank" title="{{ i.ch_help }}">❓</a>
     <a class="top-user" href="/profile">
       <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
       <div>{{ vname(user) }}{% if user.rank %} {{ user.rank }}{% endif %}</div>
     </a>
-    <a class="top-icon" href="/logout" title="나가기">🚪</a>
+    <a class="top-icon" href="/logout" title="{{ i.ch_logout }}">🚪</a>
   </div>
 </header>
 
@@ -94,7 +123,7 @@
 <div id="knkPtabs" class="knk-ptabs" data-dn="page-tabs" data-dn-tone="amber">
   <div class="knk-ptabs-ws" id="knkPtabsWs"></div>
   <div class="knk-ptabs-list" id="knkPtabsList"></div>
-  <button type="button" class="knk-ptabs-recent" id="knkPtabsRecent" title="최근 연 화면 전체 목록">🕘</button>
+  <button type="button" class="knk-ptabs-recent" id="knkPtabsRecent" title="{{ i.ch_recent_t }}">🕘</button>
   <div class="knk-ptabs-menu" id="knkPtabsMenu"></div>
 </div>
 <style>
@@ -254,7 +283,7 @@
       var e0 = pinned.splice(pi, 1)[0];                          // 해제 → 최근 목록으로 복귀(탭이 사라지지 않게)
       if (findR(p) < 0){ recent.push({ u: e0.u, t: e0.t, ts: Date.now() }); evictR(); saveR(); }
     } else {
-      if (pinned.length >= MAXP){ alert('📌 고정 탭은 최대 ' + MAXP + '개까지입니다. 다른 고정을 해제한 뒤 다시 시도해 주세요.'); return; }
+      if (pinned.length >= MAXP){ alert(CH.pin_max_a + MAXP + CH.pin_max_b); return; }
       var ri = findR(p);
       var e = (ri >= 0) ? recent[ri]
             : (p === location.pathname ? { u: p + location.search, t: cleanTitle(document.title) } : null);
@@ -283,14 +312,14 @@
   function mkTab(it){
     var e = it.e, p = pathOf(e.u);
     var a = el('a', 'knk-ptab' + (it.pin ? ' pinned' : '') + (p === location.pathname ? ' active' : ''));
-    a.href = e.u; a.title = (e.t || p) + (it.pin ? ' · 고정됨' : '');
+    a.href = e.u; a.title = (e.t || p) + (it.pin ? CH.pinned : '');
     var pin = el('span', 'pp', '📌');
-    pin.title = it.pin ? '고정 해제' : '이 화면 고정 — 계정에 저장되어 다른 PC에서도 유지';
+    pin.title = it.pin ? CH.unpin : CH.pin;
     pin.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); togglePin(p); });
     a.appendChild(pin);
     a.appendChild(el('span', 'tt', e.t || p));
     if (!it.pin){
-      var x = el('button', 'xx', '×'); x.type = 'button'; x.title = '탭 닫기';
+      var x = el('button', 'xx', '×'); x.type = 'button'; x.title = CH.tab_close;
       x.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); closeTab(p); });
       a.appendChild(x);
     }
@@ -301,12 +330,12 @@
     var a = el('a', 'knk-ptabs-mi' + (p === location.pathname ? ' active' : ''));
     a.href = e.u; a.title = e.t || p;
     var pin = el('span', 'pp' + (it.pin ? ' pinned' : ''), '📌');
-    pin.title = it.pin ? '고정 해제' : '이 화면 고정 — 계정에 저장되어 다른 PC에서도 유지';
+    pin.title = it.pin ? CH.unpin : CH.pin;
     pin.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); togglePin(p); });
     a.appendChild(pin);
     a.appendChild(el('span', 'tt', e.t || p));
     if (!it.pin){
-      var x = el('button', 'xx', '×'); x.type = 'button'; x.title = '목록에서 지우기';
+      var x = el('button', 'xx', '×'); x.type = 'button'; x.title = CH.tab_del;
       x.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); closeTab(p); });
       a.appendChild(x);
     }
@@ -320,7 +349,7 @@
     box.innerHTML = ''; menu.innerHTML = '';
     if (!its.length) return;
     its.forEach(function(it){ box.appendChild(mkTab(it)); });
-    menu.appendChild(el('div', 'knk-ptabs-mh', '최근 연 화면 · ' + its.length + '개 (📌 고정은 다른 PC에서도 유지)'));
+    menu.appendChild(el('div', 'knk-ptabs-mh', CH.recent_h_a + its.length + CH.recent_h_b));
     its.forEach(function(it){ menu.appendChild(mkMenuRow(it)); });
     // 현재 화면 탭이 탭줄 밖에 있으면 보이게 가로 이동(페이지 스크롤 부작용 없는 수동 계산)
     var act = box.querySelector('.knk-ptab.active');
@@ -390,7 +419,7 @@
       var hdr = handleSel ? pop.querySelector(handleSel) : null;
       if (!hdr) return;
       hdr.style.cursor = 'move'; hdr.style.userSelect = 'none';
-      hdr.title = (hdr.title ? hdr.title + ' · ' : '') + '끌어서 위치 이동';
+      hdr.title = (hdr.title ? hdr.title + ' · ' : '') + CH.drag;
       var sx = 0, sy = 0, ox = 0, oy = 0, on = false;
       function mv(x, y){
         if (!on) return;
@@ -469,12 +498,12 @@
   // === 버튼 생성/배치 (제목 왼쪽 앞) — SPA 로 .main 이 교체되면 버튼이 사라지므로 매번 재삽입 ===
   function createBtn(){
     var a = document.createElement('a');
-    a.id = 'knkBackBtn'; a.href = 'javascript:void(0)'; a.title = '이전 페이지로 (Alt+←)';
+    a.id = 'knkBackBtn'; a.href = 'javascript:void(0)'; a.title = CH.back_t;
     a.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:5px 12px;'
       + 'background:#fff;color:var(--knk-red);border:1px solid var(--knk-border-subtle, #E2E6E1);border-radius:16px;'
       + 'font-size:12.5px;font-weight:700;line-height:1;text-decoration:none;white-space:nowrap;flex:none;'
       + 'transition:background .12s, box-shadow .15s;';
-    a.innerHTML = '<span style="font-size:13px;line-height:1;">←</span><span>이전 페이지</span>';
+    a.innerHTML = '<span style="font-size:13px;line-height:1;">←</span><span>' + CH.back + '</span>';
     a.addEventListener('mouseenter', function(){ a.style.background = 'var(--knk-bg-hover, #E8EFEA)'; a.style.boxShadow = '0 2px 8px rgba(0,0,0,0.10)'; });
     a.addEventListener('mouseleave', function(){ a.style.background = '#fff'; a.style.boxShadow = 'none'; });
     a.addEventListener('click', window.knkGoBack);
@@ -514,60 +543,60 @@
   {# v5H226z362 (대표 지시): 휴대폰에선 상단 허브 전환 탭(통합/매출영업/자재구매)이 숨겨져 매출영업센터로 못 넘어감
      → 사이드바 맨 위에 허브 전환 버튼을 휴대폰 전용으로 추가 (데스크톱은 상단 탭이 있으므로 숨김) #}
   <div class="mob-hub-tabs">
-    <a class="mob-hub{% if _at == 'home' %} on{% endif %}" href="/home">🏠 통합</a>
-    <a class="mob-hub{% if _at == 'sales' %} on{% endif %}" href="/sales">📊 매출영업</a>
-    <a class="mob-hub{% if _at == 'logi' %} on{% endif %}" href="/logistics">📦 자재구매</a>
+    <a class="mob-hub{% if _at == 'home' %} on{% endif %}" href="/home">{{ i.ch_hub_home }}</a>
+    <a class="mob-hub{% if _at == 'sales' %} on{% endif %}" href="/sales">{{ i.ch_hub_sales }}</a>
+    <a class="mob-hub{% if _at == 'logi' %} on{% endif %}" href="/logistics">{{ i.ch_hub_logi }}</a>
   </div>
   {# ─────────── 허브별 메뉴 (상단 탭 선택에 따라 변경) ─────────── #}
   {% if _at == 'sales' %}
-    <div class="sb-group">매출·영업</div>
-    {{ a('/sales',                 '🏢 매출 홈',     'M-01-01') }}
+    <div class="sb-group">{{ i.ch_g_sales }}</div>
+    {{ a('/sales',                 i.ch_m_sales,     'M-01-01') }}
     {# v5H226z416 (대표 지시): 영업 기회 — 수주 전(미팅·제안·견적) → 수주 확정 시 프로젝트 승격 #}
-    {{ a('/sales/opportunities',   '🎯 영업 기회',   'M-01-16') }}
-    {{ a('/projects',              '📋 프로젝트',                     'M-01-11') }}
+    {{ a('/sales/opportunities',   i.ch_m_opp,   'M-01-16') }}
+    {{ a('/projects',              i.ch_m_proj,                     'M-01-11') }}
     {# v5H226z761 (대표 지시): 사이드바 '📝 제작요청서' 항목 제거 — /projects/new는 프로젝트 신규 등록 폼과 동일했음.
        등록은 '📋 프로젝트' → 상단 '🆕 등록' 탭으로 진입(라우트·폼·제작요청 발행 기능은 그대로 유지). #}
     {# v5H226z256 (대표 지시): 작업 일정표(전사 일정 운영 보드) — 1단계 #}
-    {{ a('/sales/schedule',        '📅 작업 일정표', 'M-01-14') }}
-    {{ a('/customers',             '🤝 고객사',      'M-01-09') }}
-    {{ a('/sales/quotations',      '📋 견적서',      'M-01-02') }}
-    {{ a('/sales/orders',          '📑 수주',        'M-01-03') }}
+    {{ a('/sales/schedule',        i.ch_m_sched, 'M-01-14') }}
+    {{ a('/customers',             i.ch_m_cust,      'M-01-09') }}
+    {{ a('/sales/quotations',      i.ch_m_quot,      'M-01-02') }}
+    {{ a('/sales/orders',          i.ch_m_order,        'M-01-03') }}
     {# v5H226z246 (대표 지시): 소모품 진입은 '프로젝트 등록 → C 소모품' 한 곳으로 통일 →
        사이드바 '소모품 발주' 메뉴 항목 제거. 목록은 프로젝트 목록 🧴소모품 책갈피에서 조회. #}
-    {{ a('/sales/shipments-receipts','🚚 납품·수금', 'M-01-04') }}
-    {{ a('/sales/outstanding',     '💰 미수금',      'M-01-05') }}
+    {{ a('/sales/shipments-receipts',i.ch_m_ship, 'M-01-04') }}
+    {{ a('/sales/outstanding',     i.ch_m_out,      'M-01-05') }}
     {# v5H226z929 (대표 지시): 은행 입금내역으로 수금 대조(1단계=파일 읽기·미리보기) — 재무 권한만 #}
-    {% if (user.role or '')|lower in ('admin','ceo','executive') %}{{ a('/sales/bank-recon', '🏦 입금 대사', 'M-01-17') }}{% endif %}
-    {{ a('/export',                '🌐 수출입',      'M-01-10') }}
-    {{ a('/as',                    '🛠 A/S 관리',    'M-01-12') }}
+    {% if (user.role or '')|lower in ('admin','ceo','executive') %}{{ a('/sales/bank-recon', i.ch_m_bank, 'M-01-17') }}{% endif %}
+    {{ a('/export',                i.ch_m_export,      'M-01-10') }}
+    {{ a('/as',                    i.ch_m_as,    'M-01-12') }}
   {% elif _at == 'logi' %}
-    <div class="sb-group">자재·구매</div>
-    {{ a('/logistics',         '📦 자재 홈',     'M-02-01') }}
-    {{ a('/parts',             '🔩 부품 마스터', 'M-02-02') }}
-    {{ a('/bom/upload',        '📋 BOM 보드',    'M-02-17') }}{# v5H226z985: 설계→구매 인계 시작점 (대표 화면 지적) #}
+    <div class="sb-group">{{ i.ch_g_logi }}</div>
+    {{ a('/logistics',         i.ch_m_logi,     'M-02-01') }}
+    {{ a('/parts',             i.ch_m_parts, 'M-02-02') }}
+    {{ a('/bom/upload',        i.ch_m_bom,    'M-02-17') }}{# v5H226z985: 설계→구매 인계 시작점 (대표 화면 지적) #}
     {# v5H226z1096 (WP-04 입구 분리): 「BOM 도구」 → 구매용 입구로 이름·목적지 확정.
        설계용 입구는 아래 '공통' 그룹에 따로 둔다(설계자가 자재구매센터를 거치지 않도록).
        노출 조건 can_bom_purchase = 서버 _bom_can_purchase(user) — 세션05가 ctx 에 실어 준다. #}
-    {% if can_bom_purchase %}{{ a('/bom/tools?mode=purchase', '🛠 구매 서류 만들기', 'M-02-28') }}{% endif %}
-    {% if can_supplier %}{{ a('/suppliers',         '🏭 협력사',      'M-02-03') }}{% endif %}{# v5H226z830: 구매처 정보 정책 팀만 메뉴 노출(라우트도 게이트) #}
-    {{ a('/po',                '📋 발주 목록',   'M-02-05') }}
-    {{ a('/po/new',            '📝 발주 작성',   'M-02-04') }}
-    {{ a('/stock/movements',   '📚 수불부',      'M-02-07') }}
+    {% if can_bom_purchase %}{{ a('/bom/tools?mode=purchase', i.ch_m_bom_pur, 'M-02-28') }}{% endif %}
+    {% if can_supplier %}{{ a('/suppliers',         i.ch_m_supp,      'M-02-03') }}{% endif %}{# v5H226z830: 구매처 정보 정책 팀만 메뉴 노출(라우트도 게이트) #}
+    {{ a('/po',                i.ch_m_po,   'M-02-05') }}
+    {{ a('/po/new',            i.ch_m_po_new,   'M-02-04') }}
+    {{ a('/stock/movements',   i.ch_m_stock,      'M-02-07') }}
     {# WP-01(게이트 v3 F-01 · 2026-07-24): 메뉴가 승인 없이 즉시 차감하는 /stock/issue 로 가던 것을
        출고 요청 목록(/stock/issues)으로 교체. 직접 차감 화면은 서버에서도 잠김. #}
-    {{ a('/stock/issues',      '📤 출고 요청 (준비 중)', 'M-02-08') }}
-    {{ a('/rates',             '💱 환율',        'M-02-13') }}
-    {{ a('/materials/new-review', '🆕 신규 검토 자재', 'M-02-16') }}
+    {{ a('/stock/issues',      i.ch_m_issues, 'M-02-08') }}
+    {{ a('/rates',             i.ch_m_rates,        'M-02-13') }}
+    {{ a('/materials/new-review', i.ch_m_newmat, 'M-02-16') }}
   {% else %}
-    <div class="sb-group">통합 플랫폼</div>
-    {{ a('/home',          '🏠 업무현황',     'M-00-01') }}
-    {{ a('/daily',         '📝 일일업무',     'M-00-02') }}
-    {{ a('/now',           '⚡ 실시간 진행',  'M-00-03') }}
-    {{ a('/board/company', '📋 게시판',       'M-00-10') }}
-    {{ a('/team',          '👥 팀 대시보드',  'M-00-07') }}
-    {{ a('/weekly',        '📊 주간 보고',    'M-05-02') }}
+    <div class="sb-group">{{ i.ch_tab_home }}</div>
+    {{ a('/home',          i.ch_m_home,     'M-00-01') }}
+    {{ a('/daily',         i.ch_m_daily,     'M-00-02') }}
+    {{ a('/now',           i.ch_m_now,  'M-00-03') }}
+    {{ a('/board/company', i.ch_m_board,       'M-00-10') }}
+    {{ a('/team',          i.ch_m_team,  'M-00-07') }}
+    {{ a('/weekly',        i.ch_m_weekly,    'M-05-02') }}
     {% if _role in ('ceo','admin','executive','leader') %}
-    {{ a('/dashboard',     '🏢 대표 대시',    'M-05-01') }}
+    {{ a('/dashboard',     i.ch_m_dash,    'M-05-01') }}
     {% endif %}
   {% endif %}
 
@@ -575,16 +604,16 @@
   <div style="margin: 14px 14px; border-top: 1px solid var(--line);"></div>
 
   {# ─────────── 공통 메뉴 (항상 노출) ─────────── #}
-  <div class="sb-group">공통</div>
+  <div class="sb-group">{{ i.ch_g_common }}</div>
   {# v5H226z898 (대표 지시): 전사 일정표를 공통 메뉴 맨 위(자재 카탈로그 위)로 — 자주 쓰는 메뉴 우선 노출. #}
-  {{ a('/dept/schedule', '🗓 전사 일정표', 'M-00-22') }}
-  {{ a('/catalog',            '🔍 자재 카탈로그', 'M-00-14') }}
-  {{ a('/materials/requests', '📋 자재 요청서',   'M-00-15') }}
+  {{ a('/dept/schedule', i.ch_m_deptsch, 'M-00-22') }}
+  {{ a('/catalog',            i.ch_m_catalog, 'M-00-14') }}
+  {{ a('/materials/requests', i.ch_m_matreq,   'M-00-15') }}
   {# v5H226z1096 (WP-04 입구 분리): 설계자용 BOM 입구를 '공통'에 둔다 — 공통 그룹은 세 허브
      (통합·매출영업·자재구매) 어디서나 보이므로 **자재구매센터를 거치지 않고** 바로 들어간다.
      ⭐구매 담당자에게는 여기를 감춘다(can_bom_purchase 가 참이면 구매 입구 하나만) —
        입구가 둘이면 "뭘 눌러야 하지"가 된다. 구매 입구 안에 설계 작업도 다 들어 있다. #}
-  {% if can_bom_design and not can_bom_purchase %}{{ a('/bom/tools?mode=design', '🛠 설계 BOM 만들기', 'M-00-25') }}{% endif %}
+  {% if can_bom_design and not can_bom_purchase %}{{ a('/bom/tools?mode=design', i.ch_m_bom_des, 'M-00-25') }}{% endif %}
   {# z108 (대표 지시 "쉬워야 해"): 일반 직원은 워크플로우 메뉴 숨김. 홈 위젯이 진입점.
      팀장 → 우리 팀 1개 / PM·CEO·admin → 워크플로우 관리 1개 (모든 기능 접근) #}
   {% set _pos = (user.position or '') %}
@@ -592,44 +621,44 @@
   {% set _is_pm = _role in ('ceo','admin') or user.dept in ('영업','영업팀','경영','경영기획','기획','관리','관리팀','PM') or _is_leader %}
   {# z108f (2026-05-17): "쉬운이름(용어)" 표기 — 사람 친화 #}
   {% if _is_leader %}
-  {{ a('/workflow/team',      '🗂 우리 팀 현황',   'M-00-17') }}
+  {{ a('/workflow/team',      i.ch_m_wf_team,   'M-00-17') }}
   {% endif %}
   {% if _is_pm %}
-  {{ a('/workflow',           '🧩 일 순서 만들기', 'M-00-18') }}
+  {{ a('/workflow',           i.ch_m_wf, 'M-00-18') }}
   {% endif %}
-  {{ a('/contacts',      '📇 연락처(주소록)', 'M-00-16') }}
-  {{ a('/meetings',      '📋 회의록',      'M-00-17') }}
+  {{ a('/contacts',      i.ch_m_contacts, 'M-00-16') }}
+  {{ a('/meetings',      i.ch_m_meet,      'M-00-17') }}
   {# z1144(대표 지시 2026-10-08): 회의가 아닌 녹음도 정리 — 내 것만 보인다 #}
-  {{ a('/voice-notes',   '🎤 음성 메모',   'M-00-26') }}
+  {{ a('/voice-notes',   i.ch_m_voice,   'M-00-26') }}
   {# v5H226z421 (대표 지시): 수주 전 부서 협업 — 영업이 부서에 검토·조사 요청 → 팀장 PM 지정 → 구성원 #}
-  {{ a('/dept/requests', '📥 부서 요청함',  'M-00-19') }}
+  {{ a('/dept/requests', i.ch_m_deptreq,  'M-00-19') }}
   {# v5H226z571 (대표 지시): 단계 시스템 제거 — '내 부서 단계 작업' 사이드바 항목 폐지(부서일정표로 일원화) #}
   {# v5H226z496·z898 (대표 지시): 전사 일정표(부서 일정표)는 공통 메뉴 맨 위(자재 카탈로그 위)로 이동됨 — 위쪽 참조. #}
   {# v5H226z521 (대표 지시): 지시자 대시보드 — 내가 시킨 일/우리 부서로 보낸 일 추적 #}
-  {{ a('/work-orders', '📋 내가 시킨 일', 'M-00-23') }}
+  {{ a('/work-orders', i.ch_m_wo, 'M-00-23') }}
   {# v5H226z578 (대표 지시): 부서 자체 연구개발(R&D) 과제 — 매출과 별개 #}
-  {{ a('/rnd', '🔬 연구개발 과제', 'M-00-24') }}
+  {{ a('/rnd', i.ch_m_rnd, 'M-00-24') }}
   {# 메일함 메뉴 제거 — 메일 진입은 KNK Eum 메신저 📧 아이콘 전용(별도 창). 메일 라우트/기능은 유지. (대표 지시 2026-06-14) #}
-  {{ a('/notifications', '📢 알림함',    'M-00-09') }}
-  {{ a('/calendar',      '📅 캘린더',    'M-00-08') }}
-  {{ a('/tickets',       '🎫 티켓',      'M-00-12') }}
-  {{ a('/changes',       '📌 변경 공지', 'M-00-04') }}
-  {{ a('/issues',        '🚨 이슈·AS',  'M-00-05') }}
-  {{ a('/search',        '🔍 검색',      'M-00-11') }}
+  {{ a('/notifications', i.ch_m_noti,    'M-00-09') }}
+  {{ a('/calendar',      i.ch_m_cal,    'M-00-08') }}
+  {{ a('/tickets',       i.ch_m_ticket,      'M-00-12') }}
+  {{ a('/changes',       i.ch_m_changes, 'M-00-04') }}
+  {{ a('/issues',        i.ch_m_issue,  'M-00-05') }}
+  {{ a('/search',        i.ch_m_search,      'M-00-11') }}
 
   {% if _role in ('ceo','admin') %}
-  <div class="sb-group">관리</div>
-  {{ a('/admin',             '⚙️ 관리자',    'M-04-01') }}
-  {{ a('/admin/permissions', '🔐 권한 위임', 'M-04-02') }}
+  <div class="sb-group">{{ i.ch_g_admin }}</div>
+  {{ a('/admin',             i.ch_m_admin,    'M-04-01') }}
+  {{ a('/admin/permissions', i.ch_m_perm, 'M-04-02') }}
   {# v5H226z900 (대표 지시): 월 기준환율 입력 — 외화 매출 원화 환산 #}
-  {{ a('/admin/fx-rates', '💱 월 기준환율', 'M-04-11') }}
-  {% if _role in ('ceo','admin') %}{{ a('/admin/ai-settings', '🤖 AI 모델 설정', 'M-04-08') }}{% endif %}
-  {% if _role in ('ceo','admin') %}{{ a('/admin/reset-demo', '🗑 데모 초기화', 'M-04-09') }}{% endif %}
-  {% if _role in ('ceo','admin') %}{{ a('/admin/test-data', '🧪 검증 데이터 관리', 'M-04-10') }}{% endif %}
+  {{ a('/admin/fx-rates', i.ch_m_fx, 'M-04-11') }}
+  {% if _role in ('ceo','admin') %}{{ a('/admin/ai-settings', i.ch_m_ai, 'M-04-08') }}{% endif %}
+  {% if _role in ('ceo','admin') %}{{ a('/admin/reset-demo', i.ch_m_demo, 'M-04-09') }}{% endif %}
+  {% if _role in ('ceo','admin') %}{{ a('/admin/test-data', i.ch_m_testdata, 'M-04-10') }}{% endif %}
   {% endif %}
 
   <div class="sb-group">&nbsp;</div>
-  <a class="sb-item" href="/guide" target="_blank"><span>📖 사용 가이드 ↗</span> <span class="menu-code">M-00-13</span></a>
+  <a class="sb-item" href="/guide" target="_blank"><span>{{ i.ch_m_guide }}</span> <span class="menu-code">M-00-13</span></a>
   </div>{# /.sb-scroll #}
   <div class="sb-bottom-pad" aria-hidden="true"></div>{# v5H226z268b: 고정 하단 50px 띠 — 메뉴 글씨가 이 아래로 안 내려감 #}
 </aside>
@@ -638,22 +667,22 @@
 <aside id="victorDock" class="victor-dock" aria-hidden="true">
   <div class="vd-head">
     <div>
-      <div class="vd-name" style="display:flex;align-items:center;gap:7px;"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}">AI</span> 빅터</div>
-      {% if ai_on %}<div class="vd-role">YOUR WARM PARTNER · AI 사용 가능</div>
-      {% else %}<div class="vd-role" style="color:#dc2626;font-weight:700;">AI 사용 불가 — 메뉴 검색만 됩니다</div>{% endif %}
+      <div class="vd-name" style="display:flex;align-items:center;gap:7px;"><span class="ai-avatar sm {{ 'on' if ai_on else 'off' }}">AI</span> {{ i.ch_vd_name }}</div>
+      {% if ai_on %}<div class="vd-role">{{ i.ch_vd_on }}</div>
+      {% else %}<div class="vd-role" style="color:#dc2626;font-weight:700;">{{ i.ch_vd_off }}</div>{% endif %}
     </div>
-    <button type="button" class="vd-close" onclick="toggleVictorDock(false)" aria-label="닫기">✕</button>
+    <button type="button" class="vd-close" onclick="toggleVictorDock(false)" aria-label="{{ i.ch_close }}">✕</button>
   </div>
   <div class="vd-body" id="vdBody">
     <div class="vd-msg">
-      안녕하세요 {{ vname(user) or '' }}님 👋<br>
-      자연어로 메뉴를 물어보세요. 예: <b>"견적 작성"</b>, <b>"수불부"</b>, <b>"권한 위임"</b>
-      {% if ai_on %}<br><span class="ai-mark on">AI</span> 켜짐 — 메뉴에 없는 질문·메일 초안도 물어보세요{% endif %}
+      {{ i.ch_vd_hi_a }}{{ vname(user) or '' }}{{ i.ch_vd_hi_b }}<br>
+      {{ i.ch_vd_ask|safe }} <b>"견적 작성"</b>, <b>"수불부"</b>, <b>"권한 위임"</b>
+      {% if ai_on %}<br><span class="ai-mark on">AI</span> {{ i.ch_vd_ai_on }}{% endif %}
     </div>
   </div>
   <form class="vd-input-wrap" onsubmit="event.preventDefault();victorAsk(document.getElementById('vdInput').value);">
-    <input id="vdInput" placeholder="빅터에게 물어보기…" autocomplete="off">
-    <button type="submit">전송</button>
+    <input id="vdInput" placeholder="{{ i.ch_vd_ph }}" autocomplete="off">
+    <button type="submit">{{ i.ch_vd_send }}</button>
   </form>
 </aside>
 
@@ -791,7 +820,7 @@ async function victorAsk(q){
     '<div class="vd-msg user">' + _vdEsc(q) + '</div>');
   var inp = document.getElementById('vdInput'); if (inp) inp.value = '';
   var _think = document.createElement('div');
-  _think.className = 'vd-msg vd-thinking'; _think.textContent = '🤖 생각 중…';
+  _think.className = 'vd-msg vd-thinking'; _think.textContent = CH.vd_think;
   body.appendChild(_think);
   body.scrollTop = body.scrollHeight;
   try {
@@ -802,7 +831,7 @@ async function victorAsk(q){
     var j = await r.json();
     if (_think) _think.remove();
     if (j.ok && j.auto_navigate && j.path){
-      var navHtml = '<div class="vd-msg">→ <b>' + _vdEsc(j.label||'') + '</b> 페이지로 이동합니다 (' + _vdEsc(j.code||'') + ')';
+      var navHtml = '<div class="vd-msg">→ <b>' + _vdEsc(j.label||'') + '</b>' + CH.vd_goto + _vdEsc(j.code||'') + ')';
       if (j.tip) navHtml += '<div style="margin-top:5px;color:var(--mute);font-size:11.5px;">' + _vdEsc(j.tip) + '</div>';
       navHtml += '</div>';
       body.insertAdjacentHTML('beforeend', navHtml);
@@ -818,7 +847,7 @@ async function victorAsk(q){
       body.insertAdjacentHTML('beforeend', aiHtml);
       body.scrollTop = body.scrollHeight;
     } else if (j.ok && j.candidates && j.candidates.length){
-      var html = '<div class="vd-msg">후보 ' + j.candidates.length + '건 — 선택하세요:';
+      var html = '<div class="vd-msg">' + CH.vd_cand_a + j.candidates.length + CH.vd_cand_b;
       j.candidates.forEach(function(c){
         html += '<a href="' + c.path + '">→ <b>' + _vdEsc(c.label) + '</b> <span style="color:var(--mute);">(' + _vdEsc(c.code) + ')</span></a>';
       });
@@ -830,11 +859,11 @@ async function victorAsk(q){
         '<div class="vd-msg vd-ai">🤖 ' + _vdEsc(j.msg).replace(/\n/g,'<br>') + '</div>');
     } else {
       body.insertAdjacentHTML('beforeend',
-        '<div class="vd-msg">' + _vdEsc(j.msg || '해당하는 메뉴를 찾지 못했습니다') + '</div>');
+        '<div class="vd-msg">' + _vdEsc(j.msg || CH.vd_nomatch) + '</div>');
     }
   } catch(e){
     if (_think) _think.remove();
-    body.insertAdjacentHTML('beforeend', '<div class="vd-msg">통신 실패: ' + _vdEsc(e.message||'') + '</div>');
+    body.insertAdjacentHTML('beforeend', '<div class="vd-msg">' + CH.vd_neterr + _vdEsc(e.message||'') + '</div>');
   }
   body.scrollTop = body.scrollHeight;
 }
@@ -1014,19 +1043,19 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
   function showBanner() {
     if (shown) return; shown = true;
     var btn = document.getElementById('knkRefreshBtn');
-    if (btn) { btn.classList.add('knk-update'); btn.title = '새 버전이 있습니다 — 클릭해 새로고침'; }
+    if (btn) { btn.classList.add('knk-update'); btn.title = CH.up_t; }
     if (document.getElementById('knkUpdateBar')) return;
     var bar = document.createElement('div');
     bar.id = 'knkUpdateBar';
     var msg = document.createElement('span');
-    msg.textContent = '🆕 새 버전이 배포되었습니다. 작업 중이 아니면 곧 자동으로 새로고침됩니다.';
+    msg.textContent = CH.up_msg;
     var reload = document.createElement('button');
     reload.className = 'knk-up-reload';
-    reload.textContent = '지금 새로고침 ↻';
+    reload.textContent = CH.up_now;
     reload.onclick = function () { try { location.reload(); } catch (e) {} };
     var later = document.createElement('button');
     later.className = 'knk-up-later';
-    later.textContent = '나중에';
+    later.textContent = CH.up_later;
     later.onclick = function () { snoozed = true; var b = document.getElementById('knkUpdateBar'); if (b) b.remove(); };
     bar.appendChild(msg); bar.appendChild(reload); bar.appendChild(later);
     document.body.appendChild(bar);
@@ -1466,6 +1495,10 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
           iTitle:'已安装 WORKS 应用', iBody:'点击按钮即可在应用中打开。', iOpen:'📲 在应用中打开' }
   };
   function pickLang(){
+    /* z1162: 이 상자만 **휴대폰 언어**를 보고 있었다 — 그 사람의 WORKS 언어를 먼저 쓴다.
+       (베트남 직원이 한국어 휴대폰을 쓰면 다른 데는 베트남어인데 여기만 한국어로 떴다) */
+    var w = (CH && CH.lang) ? String(CH.lang).slice(0,2).toLowerCase() : '';
+    if (DICT[w]) return w;
     var l = (navigator.language || 'ko').slice(0,2).toLowerCase();
     return DICT[l] ? l : 'en';   // ko/vi/en/zh 외 → en 폴백
   }
