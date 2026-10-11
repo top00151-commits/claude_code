@@ -998,6 +998,61 @@ def check_user_lang(files):
     return bad
 
 
+def check_customer_tier(files):
+    r"""§고객 등급은 자동 산정(customer_tier.py) 한 곳만 쓴다 (z1156 · 대표 2026-10-11 「신규 유지」).
+
+    v5H58(대표 지시 2026-05-03): 고객 등급은 점수로 **VIP·주요·일반·신규·휴면 5단계** 자동 산정, 수동 선택 폐지.
+    그런데 v5H181(05-07)이 「'신규'는 비표준」으로 잘못 보고 **앱이 켜질 때마다** `UPDATE customers SET tier='일반'
+    WHERE tier='신규'` 를 돌렸다 → 점수 1~24점 고객(운영 11곳)이 켤 때 '일반' → 24시간 재계산에 '신규' → 또 '일반'
+    (운영 기록 1,265번). 같은 값을 두 곳이 서로 다르게 쓰면 화면은 「마지막으로 누가 썼나」에 따라 오락가락한다.
+
+    잡는 것
+      ① app/ 의 파이썬(customer_tier.py 밖)이 등급 값을 **일괄로 바꿔 쓴다** — `UPDATE customers SET tier=… WHERE tier=…`
+      ② 앱 시작 함수 startup() 이 customers.tier 를 UPDATE 한다(기동 때 업무 데이터 일괄 수정 금지)
+      ③ customer_tier.score_to_tier() 를 **실제로 돌려** 나오는 등급이 VIP·주요·일반·신규·휴면 5개가 아니다
+         (등급 체계를 바꾸려면 대표 결정 + 이 검사를 함께 고칠 것)
+    빼는 것: 주석·설명글
+    """
+    bad = []
+    app = os.path.join(ROOT, "app")
+    main_p = os.path.join(app, "main.py")
+    ct_p = os.path.join(app, "customer_tier.py")
+    BULK = re.compile(r"UPDATE\s+customers\s+SET\s+tier\s*=\s*(?:'[^']*'|\?)\s+WHERE\s+[^\"\n]*\btier\s*(?:=|IN\b)", re.I)
+    for p in sorted(_walk(app, (".py",))):
+        if os.path.abspath(p) == os.path.abspath(ct_p):
+            continue
+        for i, ln in enumerate(_read(p).splitlines(), 1):
+            s = ln.strip()
+            if s.startswith("#"):
+                continue
+            if BULK.search(ln):
+                bad.append((p, i, "① 고객 등급을 일괄로 바꿔 쓴다 — 등급은 customer_tier.refresh_* 한 곳만(자동 산정과 서로 덮는다)"))
+    ln0, body = _py_top_func(_read(main_p) if os.path.exists(main_p) else "", "startup")
+    if body is None:
+        bad.append((main_p, 1, "② startup() 이 없다 — 앱 시작 함수 이름을 바꿨으면 이 검사도 함께 고칠 것"))
+    else:
+        for i, ln in enumerate(body.splitlines()):
+            if ln.strip().startswith("#"):
+                continue
+            if re.search(r"UPDATE\s+customers\s+SET\s+[^\"\n]*\btier\s*=", ln, re.I):
+                bad.append((main_p, ln0 + i, "② 앱이 켜질 때 고객 등급을 고친다 — 기동 코드에서 업무 데이터를 일괄로 고치지 않는다"))
+    try:
+        ns = {}
+        exec(compile(_read(ct_p), ct_p, "exec"), ns)
+        f = ns["score_to_tier"]
+        got = set()
+        for sc in range(0, 101):
+            for days in (None, 0, 30, 400):
+                got.add(f(sc, days))
+        want = {"VIP", "주요", "일반", "신규", "휴면"}
+        if got != want:
+            bad.append((ct_p, 1, "③ 자동 산정 등급이 %s — 대표 지시 5단계(VIP·주요·일반·신규·휴면)와 다르다"
+                        % "·".join(sorted(got))))
+    except Exception as e:
+        bad.append((ct_p, 1, "③ customer_tier.score_to_tier() 를 돌려 보지 못했다(%s) — 못 돌리면 위반" % e))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -1148,6 +1203,15 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 사람 화면 언어 : 이음 따름 · 한국어·베트남어 (동기화·내 프로필·바꾸는 창구)")
+
+    ct_bad = check_customer_tier(files)
+    if ct_bad:
+        fail += len(ct_bad)
+        print("  ❌ 고객 등급을 두 곳이 쓴다 : %d건 → 등급은 customer_tier.refresh_* 한 곳만(기동 때 일괄 수정 금지)" % len(ct_bad))
+        for f, l, m in ct_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 고객 등급 : 자동 산정 한 곳만 씀 (VIP·주요·일반·신규·휴면)")
 
     print("=" * 72)
     if fail:

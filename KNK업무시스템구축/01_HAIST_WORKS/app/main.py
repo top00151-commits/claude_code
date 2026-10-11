@@ -1106,14 +1106,11 @@ def startup():
                 print(f"[z977] 상품 SO 납기 백필 {_r977.rowcount}건 (프로젝트 납기 상속)")
     except Exception as _e977:
         print(f"[z977 백필 ERR] {_e977}")
-    # v5H181 (2026-05-06): customers.tier='신규' 비표준 → '일반' 으로 정리
-    try:
-        with db_session() as c:
-            _r = c.execute("UPDATE customers SET tier='일반' WHERE tier='신규'")
-            if _r.rowcount:
-                print(f"[TIER-FIX] customers.tier='신규' → '일반' 정리 {_r.rowcount}건")
-    except Exception as _e:
-        print(f"[TIER-FIX ERR] {_e}")
+    # z1156 (대표 2026-10-11 「신규 유지」): 여기 있던 v5H181 기동 정리(customers.tier '신규' → '일반')를 뺐다.
+    #   '신규'는 v5H58 고객 등급 자동 산정(대표 지시 2026-05-03 · VIP·주요·일반·신규·휴면)의 **정식 등급**이다.
+    #   이 줄이 켤 때마다 점수 1~24점 고객(운영 11곳)을 '일반'으로 덮고 → 24시간 자동 재계산이 다시 '신규'로 →
+    #   다음 재기동에 또 '일반'… 을 되풀이했다(운영 기록 1,265번). 등급은 customer_tier.refresh_* 한 곳만 쓴다
+    #   — 기동 코드에서 업무 데이터를 일괄로 고치지 않는다(검사기 check_customer_tier).
 
 
 # =====================================================
