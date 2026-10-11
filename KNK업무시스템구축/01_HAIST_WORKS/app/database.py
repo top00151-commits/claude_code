@@ -151,6 +151,47 @@ def backup_db_file(dst_path: str, src_path: str = None) -> str:
         src.close()
     return dst_path
 
+
+# z1161 (대표 2026-10-11 「사본 쌓임 막기」): 앱이 뜨는 DB 사본은 **기능마다 최근 7개**만 남긴다.
+#   7 = 04:10 자동 직원 동기화 사본이 원래 지키던 수와 같다(기준 한 곳 — 그 회전도 이 함수를 쓴다).
+#   2026-09-02 이전 사본은 대표가 10-11 정리 때 「기능마다 최근 1개 기록용」으로 남긴 것 → 세지도 지우지도 않는다.
+#   예전엔 폐기·수동 직원 동기화·그룹 비우기·초기화 3종·SO 보정이 뜰 때마다 쌓이기만 해 125개·82GB 가 됐었다.
+BACKUP_KEEP_PER_KIND = 7
+BACKUP_PRUNE_SINCE = "20260902"
+
+
+def prune_db_backups(bdir: str, prefix: str, keep: int = BACKUP_KEEP_PER_KIND) -> list:
+    """bdir 안에서 이름이 prefix 로 시작하는 DB 사본을 최근 keep 개만 남기고 지운다. 지운 파일 이름 목록을 돌려준다.
+      · prefix 는 「knk.db.bak_<기능>_」 처럼 **밑줄까지** — bak_reset_ 과 bak_resetgrp_ 처럼 다른 기능이 섞이지 않게
+      · 순서는 이름 끝의 시각(YYYYMMDD_HHMMSS) — 시각이 없는 이름은 건드리지 않는다
+      · BACKUP_PRUNE_SINCE 이전 시각의 사본은 세지도 지우지도 않는다(기록용)
+      · 지우는 사본의 보조 파일(-wal · -shm · -journal)도 함께 지운다
+      · **실패해도 예외를 올리지 않는다** — 사본 정리 때문에 원래 작업(폐기·동기화 등)이 멈추면 안 된다. 기록만 남긴다."""
+    import re as _re
+    removed = []
+    try:
+        if not prefix or not prefix.endswith("_") or int(keep) < 1:
+            return removed
+        pat = _re.compile("^" + _re.escape(prefix) + r"(?:.*_)?(\d{8})_(\d{6})$")
+        cands = []
+        for f in os.listdir(bdir):
+            m = pat.match(f)
+            if not m or m.group(1) < BACKUP_PRUNE_SINCE:
+                continue
+            cands.append((m.group(1) + m.group(2), f))
+        cands.sort()
+        for _stamp, f in cands[:-int(keep)]:
+            for g in (f, f + "-wal", f + "-shm", f + "-journal"):
+                p = os.path.join(bdir, g)
+                if os.path.isfile(p):
+                    os.remove(p)
+            removed.append(f)
+        if removed:
+            print(f"[BACKUP] 사본 정리 {prefix}*: {len(removed)}개 지움(최근 {int(keep)}개 유지): " + " · ".join(removed))
+    except Exception as e:
+        print(f"[BACKUP] 사본 정리 실패 {prefix}*: {e}")
+    return removed
+
 @contextmanager
 def db_session():
     conn = get_db()
@@ -2367,7 +2408,7 @@ def migrate_customers_name_unique():
             import shutil as _sh, datetime as _dtu
             bdir = os.path.join(os.path.dirname(DB_PATH), "backups")
             os.makedirs(bdir, exist_ok=True)
-            backup_db_file(os.path.join(bdir, f"knk.db.bak_custuniq_{_dtu.datetime.now().strftime('%Y%m%d_%H%M%S')}"))   # v5H226z866: WAL 안전 백업
+            backup_db_file(os.path.join(bdir, f"knk.db.bak_custuniq_{_dtu.datetime.now().strftime('%Y%m%d_%H%M%S')}"))   # v5H226z866: WAL 안전 백업 · z1161-허용: 한 번만 도는 이관(상호 중복 해제)의 사본 — 개수 정리 대상 아님
         except Exception:
             pass
         n_before = conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
@@ -16091,6 +16132,7 @@ def reset_groups_apply(group_keys, actor_name: str = "") -> dict:
         backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
+    prune_db_backups(bdir, "knk.db.bak_resetgrp_")   # z1161: 기능마다 최근 7개(9/2 이전 기록용은 남김)
     try:
         cleared = {}
         with db_session() as c:
@@ -16175,6 +16217,7 @@ def reset_consumables_full(actor_name: str = "") -> dict:
         backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
+    prune_db_backups(bdir, "knk.db.bak_co_reset_")   # z1161: 기능마다 최근 7개(9/2 이전 기록용은 남김)
     try:
         deleted = {}
         with db_session() as c:
@@ -16319,6 +16362,7 @@ def reset_sales_division_apply(divisions, actor_name: str = "") -> dict:
         backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
+    prune_db_backups(bdir, "knk.db.bak_resetdiv_")   # z1161: 기능마다 최근 7개(9/2 이전 기록용은 남김)
 
     def _inq(n):
         return ",".join("?" * n)
@@ -16464,6 +16508,7 @@ def reset_demo_apply(actor_name: str = "") -> dict:
         backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return {"ok": False, "error": f"백업 실패 — 중단: {e}"}
+    prune_db_backups(bdir, "knk.db.bak_reset_")   # z1161: 기능마다 최근 7개(9/2 이전 기록용은 남김)
 
     try:
         with db_session() as c:

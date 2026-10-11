@@ -1181,6 +1181,92 @@ def check_customer_picker(files):
     return bad
 
 
+def check_backup_prune(files):
+    r"""§앱이 뜨는 DB 사본은 기능마다 최근 7개 · 2026-09-02 이전 기록용은 지우지 않는다 (z1161 · 대표 2026-10-11 「사본 쌓임 막기」).
+
+    겪은 것: 폐기·수동 직원 동기화·그룹 비우기·초기화 3종·SO 보정이 DB 사본을 뜰 때마다 쌓이기만 해
+      data/backups 가 125개·82GB 가 됐다(04:10 자동 사본만 「최근 7개」를 지켰다). 대표가 정리 후 「쌓임 막기」.
+
+    잡는 것
+      ① app/*.py 에서 사본 이름(knk.db.bak_<기능>_…)을 만드는데 그 뒤 40줄 안에 같은 이름 앞부분으로
+         prune_db_backups(…) 를 부르지 않는다 — 새 사본 기능이 정리 없이 생기는 것
+      ② 사본 목록을 손으로 돌며 지운다(startswith("knk.db.bak_") — 공용 함수 밖) — 기준이 갈라지는 것
+      ③ database.py 의 BACKUP_KEEP_PER_KIND · BACKUP_PRUNE_SINCE 값이 대표 결정(7 · "20260902")과 다르다
+      ④ prune_db_backups 원문을 뽑아 **임시 폴더에서 실제로 돌려 보니** 틀리다
+         (최근 7개 · 9/2 이전 안 지움 · bak_reset_ 과 bak_resetgrp_ 안 섞임 · 보조 파일 함께 · 시각 없는 이름 안 건드림 · 없는 폴더도 예외 없음)
+    빼는 것: 주석 · 그 줄에 `z1161-허용` 과 사유가 있는 곳(한 번만 도는 이관 등)
+    """
+    import ast as _ast
+    import shutil as _sh
+    import tempfile as _tf
+    bad = []
+    app = os.path.join(ROOT, "app")
+    db_p = os.path.join(app, "database.py")
+    NAME = re.compile(r"knk\.db\.bak_([a-z0-9_]+?)_\{")
+    for p in sorted(_walk(app, (".py",))):
+        lines = _read(p).splitlines()
+        for i, ln in enumerate(lines):
+            s = ln.strip()
+            if s.startswith("#") or "z1161-허용" in ln:
+                continue
+            m = NAME.search(ln)
+            if m:
+                pref = '"knk.db.bak_%s_"' % m.group(1)
+                win = "\n".join(lines[i:i + 40])
+                if not re.search(r"prune(?:_db_backups|_bak)\([^)]*" + re.escape(pref), win):
+                    bad.append((p, i + 1, "① 사본(%s)을 뜨고 정리를 안 부른다 — prune_db_backups(bdir, %s)" % (m.group(1), pref)))
+            if 'startswith("knk.db.bak_' in ln and p != db_p:
+                bad.append((p, i + 1, "② 사본 목록을 손으로 돌며 지운다 — 공용 prune_db_backups 로"))
+    try:
+        src = _read(db_p)
+        tree = _ast.parse(src)
+        want_names = {"BACKUP_KEEP_PER_KIND", "BACKUP_PRUNE_SINCE", "prune_db_backups"}
+        parts = []
+        for node in tree.body:
+            if isinstance(node, _ast.Assign) and any(getattr(t, "id", None) in want_names for t in node.targets):
+                parts.append(_ast.get_source_segment(src, node))
+            elif isinstance(node, _ast.FunctionDef) and node.name == "prune_db_backups":
+                parts.append(_ast.get_source_segment(src, node))
+        ns = {"os": os}
+        exec(compile("\n\n".join(parts), db_p, "exec"), ns)
+        if ns.get("BACKUP_KEEP_PER_KIND") != 7 or ns.get("BACKUP_PRUNE_SINCE") != "20260902":
+            bad.append((db_p, 1, "③ 보존 기준이 대표 결정(7개 · 20260902 이전 보존)과 다르다: %r · %r"
+                        % (ns.get("BACKUP_KEEP_PER_KIND"), ns.get("BACKUP_PRUNE_SINCE"))))
+        prune = ns["prune_db_backups"]
+        tmp = _tf.mkdtemp(prefix="chk_z1161_")
+        try:
+            def mk(n):
+                open(os.path.join(tmp, n), "w").close()
+            for k in range(10):
+                mk("knk.db.bak_resetgrp_202610%02d_120000" % (k + 1))
+            mk("knk.db.bak_resetgrp_20261001_120000-wal")
+            mk("knk.db.bak_resetgrp_20261001_120000-shm")
+            mk("knk.db.bak_resetgrp_20260705_224023")          # 9/2 이전 기록용
+            for k in range(9):
+                mk("knk.db.bak_reset_202610%02d_090000" % (k + 1))
+            mk("knk.db.bak_resetgrp_note")                       # 시각 없는 이름
+            gone = prune(tmp, "knk.db.bak_resetgrp_")
+            left = set(os.listdir(tmp))
+            exp_gone = ["knk.db.bak_resetgrp_202610%02d_120000" % d_ for d_ in (1, 2, 3)]
+            if sorted(gone) != exp_gone:
+                bad.append((db_p, 1, "④ 최근 7개만 남기지 않는다: 지운 것 %r" % (sorted(gone),)))
+            if "knk.db.bak_resetgrp_20260705_224023" not in left:
+                bad.append((db_p, 1, "④ 9/2 이전 기록용 사본을 지웠다"))
+            if sum(1 for f in left if f.startswith("knk.db.bak_reset_2")) != 9:
+                bad.append((db_p, 1, "④ 다른 기능(bak_reset_) 사본까지 건드렸다"))
+            if any(f.startswith("knk.db.bak_resetgrp_20261001_120000-") for f in left):
+                bad.append((db_p, 1, "④ 지운 사본의 보조 파일(-wal·-shm)이 남았다"))
+            if "knk.db.bak_resetgrp_note" not in left:
+                bad.append((db_p, 1, "④ 시각 없는 이름을 지웠다"))
+            if prune(os.path.join(tmp, "없는폴더"), "knk.db.bak_resetgrp_") != []:
+                bad.append((db_p, 1, "④ 없는 폴더에서 빈 목록을 돌려주지 않는다"))
+        finally:
+            _sh.rmtree(tmp, ignore_errors=True)
+    except Exception as e:
+        bad.append((db_p, 1, "④ 정리 함수를 돌려 보지 못했다(%s) — 못 돌리면 위반" % e))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -1358,6 +1444,15 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 고객 고르기 목록 : 시스템명 우선·종사업장번호 · VIP 먼저 (기준 한 곳)")
+
+    bp_bad = check_backup_prune(files)
+    if bp_bad:
+        fail += len(bp_bad)
+        print("  ❌ DB 사본 정리 규칙 위반 : %d건 → prune_db_backups(bdir, \"knk.db.bak_<기능>_\")" % len(bp_bad))
+        for f, l, m in bp_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ DB 사본 : 기능마다 최근 7개 · 9/2 이전 기록용 보존 (공용 정리 함수 한 곳)")
 
     print("=" * 72)
     if fail:

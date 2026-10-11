@@ -1307,13 +1307,9 @@ def _run_directory_autosync():
         _os.makedirs(bdir, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_db_file(_os.path.join(bdir, f"knk.db.bak_autoempsync_{ts}"))   # v5H226z866: WAL 안전 백업
-        # 자동백업 누적 방지 — 최근 7개만
-        _fs = sorted(f for f in _os.listdir(bdir) if f.startswith("knk.db.bak_autoempsync_"))
-        for _old in _fs[:-7]:
-            try:
-                _os.remove(_os.path.join(bdir, _old))
-            except Exception:
-                pass
+        # 자동백업 누적 방지 — 최근 7개만 (z1161: 공용 정리 함수 한 곳 — 다른 기능 사본과 같은 규칙)
+        from .database import prune_db_backups as _prune_bak
+        _prune_bak(bdir, "knk.db.bak_autoempsync_")
     except Exception as e:
         print(f"[DIR-SYNC] 백업 실패 — 중단: {e}")
         return
@@ -12437,6 +12433,7 @@ async def admin_sync_employees_apply(req: Request, confirm: str = Form("")):
     except Exception as e:
         return ctx(req, "admin_sync_employees.html", user=u, active="admin",
                    preview=_preview(), done=None, error=f"백업 실패 — 중단: {e}")
+    _logi.prune_db_backups(bdir, "knk.db.bak_empsync_")   # z1161: 기능마다 최근 7개(9/2 이전 기록용은 남김)
 
     # 2) 실제 반영
     conn = get_db()
@@ -34673,6 +34670,7 @@ async def projects_so_backfill_run(request: Request):
         _logi.backup_db_file(backup)   # v5H226z866: WAL 안전 백업(backup API — copy2 는 -wal 누락)
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"백업 실패 — 중단: {str(e)[:160]}"}, 500)
+    _logi.prune_db_backups(bdir, "knk.db.bak_sobackfill_")   # z1161: 기능마다 최근 7개
     # 2) 대상 재조회 (실행 시점)
     try:
         with db_session() as c:
@@ -35780,6 +35778,7 @@ async def projects_retire_submit(request: Request, pid: int):
     except Exception as _be:
         return JSONResponse({"ok": False, "error": "백업 실패",
                              "message": f"삭제 전 DB 백업 실패 — 안전을 위해 중단합니다: {str(_be)[:160]}"}, 500)
+    _logi.prune_db_backups(_bdir, "knk.db.bak_retire_")   # z1161: 폐기 사본도 최근 7개(대상이 달라도 한 기능 · 9/2 이전 기록용은 남김)
     # 봉인 먼저(번호 재사용 원천 차단) → 완전삭제. 순서 보장: 삭제 실패해도 번호는 봉인(안전측).
     try:
         with db_session() as c:
