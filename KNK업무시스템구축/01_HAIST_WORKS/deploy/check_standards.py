@@ -1267,6 +1267,136 @@ def check_backup_prune(files):
     return bad
 
 
+def check_date_fallback(files):
+    r"""§매출을 세는 SQL 의 날짜·통화는 일정표와 같은 규칙 — 호기 → 수주 → 프로젝트 · 빈 글자('')는 빈칸
+    (z1164 · 대표 2026-10-11 「일정표와 같은 규칙으로 고치기」).
+
+    겪은 것: SQL COALESCE 는 빈 글자를 건너뛰지 않는다(파이썬 `or` 는 건너뛴다). 7월 일괄 등록분 날짜 95칸이
+      빈 글자라 매출 홈이 프로젝트 날짜로 못 넘어갔고(2026 수주 1.2억·진행 2.2억 빠짐), 매출 홈만 호기 발주일·수주 통화를
+      안 봐서 002M2602 13대 31.4억이 어느 해에도 안 잡히고 원화 172만원 수주가 172만 달러(약 25.7억)로 셈해졌다.
+      일정표(호기 값 → 수주 값)는 처음부터 맞게 보였다 — 같은 자료를 화면마다 다르게 셌다.
+
+    잡는 것
+      ① app/*.py 의 SQL 에서 COALESCE(날짜칸, 다른 날짜칸 …) · COALESCE(통화칸, 다른 통화칸 …) 인데 NULLIF 가 없다
+         (COALESCE(x,'') 처럼 빈칸을 빈 글자로 바꾸기만 하는 건 넘김이 아니라 괜찮다)
+      ② main.py 의 SALES_DD_ORDER · SALES_DD_SHIP · SALES_CCY_ITEM 이 대표 결정 모양(호기 → 수주 → 프로젝트 · NULLIF(TRIM(…),''))이 아니다
+      ③ _sales_3way 를 뽑아 **메모리 DB 에서 실제로 돌려 보니** 틀리다
+         (빈 글자·공백 날짜 넘김 · 호기 발주일 · 수주 통화 · 소모품 납기 · 환율 대체 표시)
+      ④ 소모품 매출 진단(admin_consumable_sales_audit)이 같은 식을 안 쓴다 · 매출 홈 화면이 fx_fallback 을 안 보여 준다
+    빼는 것: 주석 · 그 줄에 `z1164-허용` 과 사유가 있는 곳(부르는 곳 없는 옛 함수 · 매출 아닌 관리번호 백필)
+    """
+    import ast as _ast
+    import sqlite3 as _sq
+    bad = []
+    app = os.path.join(ROOT, "app")
+    main_p = os.path.join(app, "main.py")
+    dcol = r"(?:order_date|due_date|statement_date|tax_invoice_date[23]?|ship_date|shipped_at|delivery_date|issue_date|status_date)"
+    dcol2 = r"(?:order_date|due_date|statement_date|tax_invoice_date[23]?|ship_date|shipped_at|delivery_date|issue_date|status_date|created_at)"
+    pat = re.compile(r"COALESCE\(\s*(?:[a-z_0-9]+\.)?" + dcol + r"\s*,\s*(?:[a-z_0-9]+\.)?" + dcol2
+                     + r"|COALESCE\(\s*(?:[a-z_0-9]+\.)?currency\s*,\s*(?:[a-z_0-9]+\.)?currency", re.I)
+    for p in sorted(_walk(app, (".py",))):
+        for i, ln in enumerate(_read(p).splitlines()):
+            if ln.strip().startswith("#") or "z1164-허용" in ln:
+                continue
+            if pat.search(ln):
+                bad.append((p, i + 1, "① 날짜·통화를 다른 칸으로 넘기는데 빈 글자에서 멈춘다 — NULLIF(TRIM(x),'') · "
+                                      "매출은 SALES_DD_ORDER/SALES_DD_SHIP/SALES_CCY_ITEM"))
+    exp = {
+        "SALES_DD_ORDER": "COALESCE(NULLIF(TRIM(oi.order_date),''),NULLIF(TRIM(o.order_date),''),NULLIF(TRIM(p.order_date),''))",
+        "SALES_DD_SHIP": ("COALESCE(NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),"
+                          "NULLIF(TRIM(p.due_date),''),NULLIF(TRIM(p.order_date),''))"),
+        "SALES_CCY_ITEM": "COALESCE(NULLIF(TRIM(oi.currency),''),NULLIF(TRIM(o.currency),''),NULLIF(TRIM(p.currency),''))",
+    }
+    try:
+        src = _read(main_p)
+        tree = _ast.parse(src)
+    except Exception as e:
+        return bad + [(main_p, 1, "② main.py 를 읽지 못했다(%s)" % e)]
+    want_c = set(exp) | {"FX_KRW_CURRENCIES", "SALES_BIZ", "SALES_BIZ_LABEL"}
+    want_f = {"_fx_pick", "_fx_rate_for", "_fx_to_krw", "_sales_period_ok", "_sales_3way", "admin_consumable_sales_audit"}
+    consts, funcs = {}, {}
+    for node in tree.body:
+        if isinstance(node, _ast.Assign):
+            for t in node.targets:
+                if getattr(t, "id", None) in want_c:
+                    consts[t.id] = _ast.get_source_segment(src, node)
+        elif isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and node.name in want_f:
+            funcs[node.name] = _ast.get_source_segment(src, node)
+    ns = {}
+    for k in sorted(want_c):
+        if k not in consts:
+            bad.append((main_p, 1, "② %s 가 없다" % k))
+            continue
+        exec(consts[k], ns)
+    for k, v in exp.items():
+        if k in ns and ns[k] != v:
+            bad.append((main_p, 1, "② %s 모양이 대표 결정(호기 → 수주 → 프로젝트 · 빈 글자 = 빈칸)과 다르다: %r" % (k, ns[k])))
+    s3 = funcs.get("_sales_3way", "")
+    if s3.count("SALES_CCY_ITEM") < 3 or "SALES_DD_ORDER" not in s3 or "SALES_DD_SHIP" not in s3 or "fx_fallback" not in s3:
+        bad.append((main_p, 1, "③ _sales_3way 가 SALES_DD_ORDER·SALES_DD_SHIP·SALES_CCY_ITEM(①②③)·fx_fallback 을 다 쓰지 않는다"))
+    au = funcs.get("admin_consumable_sales_audit", "")
+    if "SALES_DD_ORDER" not in au or "SALES_CCY_ITEM" not in au:
+        bad.append((main_p, 1, "④ 소모품 매출 진단이 매출 홈 ①과 같은 식(SALES_DD_ORDER·SALES_CCY_ITEM)을 안 쓴다"))
+    try:
+        for k in ("_fx_pick", "_fx_rate_for", "_fx_to_krw", "_sales_period_ok", "_sales_3way"):
+            exec(funcs[k], ns)
+        con = _sq.connect(":memory:")
+        con.row_factory = _sq.Row
+        con.executescript(
+            "CREATE TABLE projects(id INTEGER PRIMARY KEY, mgmt_code TEXT, customer_name TEXT, currency TEXT,"
+            " order_date TEXT, due_date TEXT, is_archived INTEGER);"
+            "CREATE TABLE orders(id INTEGER PRIMARY KEY, project_id INTEGER, status TEXT, currency TEXT,"
+            " order_date TEXT, due_date TEXT);"
+            "CREATE TABLE order_items(id INTEGER PRIMARY KEY, order_id INTEGER, amount REAL, currency TEXT,"
+            " order_date TEXT, due_date TEXT, unit_status TEXT);"
+            "CREATE TABLE consumable_orders(id INTEGER PRIMARY KEY, customer_name TEXT, total_amount REAL, currency TEXT,"
+            " order_date TEXT, due_date TEXT, status TEXT, tax_invoice_date TEXT, tax_invoice_amt1 REAL,"
+            " tax_invoice_date2 TEXT, tax_invoice_amt2 REAL, tax_invoice_date3 TEXT, tax_invoice_amt3 REAL);"
+            # 가: 수주 발주일 빈 글자 → 프로젝트 발주일 · 호기 납기 공백 → 수주 납기
+            "INSERT INTO projects VALUES(1,'001T2601','가','KRW','2026-01-26','2026-05-08',0);"
+            "INSERT INTO orders VALUES(1,1,'SHIPPED','KRW','','2026-02-04');"
+            "INSERT INTO order_items VALUES(1,1,100,NULL,NULL,'  ','출하');"
+            # 나: 수주·프로젝트 발주일 빈 글자 · 호기 발주일만 있음
+            "INSERT INTO projects VALUES(2,'002M2602','나','KRW','','2026-07-27',0);"
+            "INSERT INTO orders VALUES(2,2,'CONFIRMED','KRW','','');"
+            "INSERT INTO order_items VALUES(2,2,1000,NULL,'2026-03-05',NULL,'진행중');"
+            # 다: 프로젝트 USD · 수주 원화 · 호기 통화 비어 있음 → 원화
+            "INSERT INTO projects VALUES(3,'005M2511','다','USD','2025-11-27','2026-08-19',0);"
+            "INSERT INTO orders VALUES(3,3,'SHIPPED','KRW','2026-08-19','2026-08-19');"
+            "INSERT INTO order_items VALUES(3,3,1720000,NULL,NULL,'2026-08-19','출하');"
+            # 라: 프로젝트 원화 · 수주 USD · 9월(환율 없음 → 8월 환율)
+            "INSERT INTO projects VALUES(4,'004T2605','라','KRW','2026-09-01','2026-09-10',0);"
+            "INSERT INTO orders VALUES(4,4,'SHIPPED','USD','2026-09-01','2026-09-10');"
+            "INSERT INTO order_items VALUES(4,4,10,NULL,NULL,'2026-09-10','출하');"
+            # 소모품: 납기 빈 글자 → 발주일
+            "INSERT INTO consumable_orders VALUES(1,'마',500,'KRW','2026-04-01','','SHIPPED','2026-04-30',500,NULL,NULL,NULL,NULL);")
+        rates = {"USD": {"2026-08": 1500.0}}
+        oi_map = {3: {"t1d": "2026-08-20", "t1a": 1720000.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""},
+                  4: {"t1d": "2026-09-15", "t1a": 10.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""}}
+        r = ns["_sales_3way"](con, rates, oi_map, "year", "2026", "1", "1")
+        k3 = r["kpi"]
+        got = (round(k3["order"]), round(k3["prog"]), round(k3["final"]))
+        want = (1736600, 1735600, 1735500)
+        if got != want:
+            bad.append((main_p, 1, "③ 메모리 DB 에서 돌린 매출 3지표가 다르다: %r (맞는 값 %r · 빈 글자 넘김·호기 발주일·수주 통화)"
+                        % (got, want)))
+        if r.get("fx_fallback") != [{"ccy": "USD", "applied": "2026-08", "months": ["2026-09"]}]:
+            bad.append((main_p, 1, "③ 환율 대체(9월 → 8월 환율) 표시가 다르다: %r" % (r.get("fx_fallback"),)))
+        con.close()
+    except Exception as e:
+        bad.append((main_p, 1, "③ _sales_3way 를 돌려 보지 못했다(%s) — 못 돌리면 위반" % e))
+    tpl = os.path.join(app, "templates", "sales_home.html")
+    try:
+        tpl_s = _read(tpl)
+        if ("{% if s3.fx_fallback %}" not in tpl_s or "{% for f in s3.fx_fallback %}" not in tpl_s
+                or "기준환율 미입력 달" not in tpl_s or "환율로 계산 중" not in tpl_s):
+            bad.append((tpl, 1, "④ 매출 홈이 환율 대체(fx_fallback)를 안 보여 준다 — "
+                                "{% if s3.fx_fallback %} 「⚠ 기준환율 미입력 달: … 환율로 계산 중」"))
+    except Exception as e:
+        bad.append((tpl, 1, "④ 매출 홈 화면을 읽지 못했다(%s)" % e))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -1453,6 +1583,15 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ DB 사본 : 기능마다 최근 7개 · 9/2 이전 기록용 보존 (공용 정리 함수 한 곳)")
+
+    df_bad = check_date_fallback(files)
+    if df_bad:
+        fail += len(df_bad)
+        print("  ❌ 매출 날짜·통화 규칙 위반 : %d건 → SALES_DD_ORDER/SALES_DD_SHIP/SALES_CCY_ITEM · NULLIF(TRIM(x),'')" % len(df_bad))
+        for f, l, m in df_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 매출 날짜·통화 : 일정표와 같은 규칙(호기 → 수주 → 프로젝트 · 빈 글자 = 빈칸) · 환율 대체 표시")
 
     print("=" * 72)
     if fail:

@@ -3337,7 +3337,7 @@ def init_db():
             # 같은 conn 안에서 generate_mgmt_code() 가 별도 conn 으로 검색해 미커밋 UPDATE 못 봄 → 직접 SQL 로 sequence 추적
             try:
                 _missing = c.execute(
-                    "SELECT id, COALESCE(order_date, created_at, date('now')) AS d "
+                    "SELECT id, COALESCE(order_date, created_at, date('now')) AS d "   # z1164-허용: 관리번호 백필용 날짜(매출 숫자 아님 · 빈 글자면 오늘 달)
                     "FROM consumable_orders WHERE mgmt_code IS NULL OR mgmt_code = '' "
                     "ORDER BY id ASC"
                 ).fetchall()

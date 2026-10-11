@@ -11354,12 +11354,12 @@ async def admin_so_audit_dump(req: Request, like: str = "T", dl: str = "", mode:
     with db_session() as c:
         for r in c.execute(
             "SELECT o.id AS oid, p.mgmt_code AS mc, COALESCE(o.order_no,'') AS sono, "   # v5H226z1064: order id(백필 대상 정확 지정용)
-            "substr(COALESCE(o.order_date,p.order_date,''),1,10) AS od, "
+            "substr(COALESCE(NULLIF(TRIM(o.order_date),''),NULLIF(TRIM(p.order_date),''),''),1,10) AS od, "   # z1164: 빈 글자 = 빈칸
             "COALESCE(NULLIF(o.model_name,''), p.model_name, '') AS model, "        # 화면 표시 모델(SO값 우선, 없으면 대표)
             "COALESCE(NULLIF(o.equip_name,''), p.equip_name, '') AS equip, "        # 화면 표시 장비(SO값 우선, 없으면 대표)
             "COALESCE(o.model_name,'') AS so_model, COALESCE(o.equip_name,'') AS so_equip, "  # SO 자체값(빈값 여부 판별)
             "COALESCE(o.so_form,'') AS sf, COALESCE(o.total_amount,0) AS total, "
-            "COALESCE(o.currency, p.currency, 'KRW') AS ccy, "
+            "COALESCE(NULLIF(TRIM(o.currency),''), NULLIF(TRIM(p.currency),''), 'KRW') AS ccy, "   # z1164: 빈 글자 = 빈칸
             "(SELECT COALESCE(SUM(COALESCE(oi.qty,1)),0) FROM order_items oi WHERE oi.order_id=o.id) AS qty, "
             "(SELECT COUNT(*) FROM order_items oi WHERE oi.order_id=o.id) AS oi_n, "
             "(SELECT GROUP_CONCAT(COALESCE(NULLIF(oi.line_note,''), oi.unit_label), ' | ') "
@@ -11552,8 +11552,8 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
         for r in c.execute(
                 "SELECT COALESCE(p.mgmt_code,'') AS mc, COALESCE(o.order_no,'') AS no, p.id AS oid, "
                 "COALESCE(p.customer_name,'') AS cust, oi.amount AS amount, "
-                "COALESCE(oi.currency,p.currency) AS ccy, "
-                "COALESCE(o.order_date,p.order_date) AS dd, COALESCE(oi.unit_label,'') AS lbl "
+                + SALES_CCY_ITEM + " AS ccy, "             # z1164: 매출 홈 ①과 같은 규칙(호기 → 수주 → 프로젝트 · 빈 글자 = 빈칸)
+                + SALES_DD_ORDER + " AS dd, COALESCE(oi.unit_label,'') AS lbl "
                 "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
                 "JOIN projects p ON p.id=o.project_id "
                 "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
@@ -23418,8 +23418,8 @@ def _sales_delivered(c, rates, sel_year, cur_ym):
             "SELECT UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
             "       COALESCE(p.customer_name,'') AS cust, "
             "       oi.amount AS amount, "
-            "       COALESCE(oi.currency, p.currency) AS currency, "
-            "       COALESCE(oi.due_date, p.due_date, p.order_date) AS dd "
+            "       COALESCE(oi.currency, p.currency) AS currency, "   # z1164-허용: 부르는 곳 없는 옛 함수(매출 홈은 _sales_3way)
+            "       COALESCE(oi.due_date, p.due_date, p.order_date) AS dd "   # z1164-허용: 부르는 곳 없는 옛 함수(매출 홈은 _sales_3way)
             "FROM order_items oi "
             "JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
@@ -23431,7 +23431,7 @@ def _sales_delivered(c, rates, sel_year, cur_ym):
     for r in c.execute(
             "SELECT 'C' AS biz, COALESCE(customer_name,'') AS cust, "
             "       total_amount AS amount, currency, "
-            "       COALESCE(due_date, order_date) AS dd "
+            "       COALESCE(due_date, order_date) AS dd "   # z1164-허용: 부르는 곳 없는 옛 함수(매출 홈은 _sales_3way)
             "FROM consumable_orders WHERE status IN ('SHIPPED','PAID')").fetchall():
         rows.append(dict(r))
 
@@ -23500,6 +23500,24 @@ def _sales_period_ok(mm: int, mode: str, q, m) -> bool:
     return True  # year(연간)
 
 
+# z1164 (대표 결정 2026-10-11 「일정표와 같은 규칙으로 고치기」): 매출 홈이 호기 하나를 셀 때 쓰는 날짜·통화.
+#   작업일정표와 같은 순서(호기 → 수주 → 프로젝트)로 보고, 빈 글자('')·공백만 있는 칸은 빈칸으로 본다.
+#   ⭐ 왜: SQL COALESCE 는 빈 글자를 건너뛰지 않는다(파이썬 `or` 는 건너뛴다). 그래서
+#      · 7월 일괄 등록분 날짜 95칸이 빈 글자라 프로젝트 날짜로 못 넘어가 매출에서 빠졌다(2026 수주 1.2억 · 진행 2.2억)
+#      · 매출 홈만 호기 발주일을 안 봐서 002M2602 13대(31.4억)가 어느 해 수주매출에도 안 잡혔다
+#      · 매출 홈만 수주 통화를 안 봐서 원화 172만원 수주(005M2511 M-260819-2)가 프로젝트 통화(USD)로
+#        172만 달러(약 25.7억)로 셈해졌다
+#      일정표(_board_split_lines_map · 호기 값 → 수주 값)는 처음부터 맞게 보였다 — 같은 자료를 화면마다 다르게 셌다.
+#   ⛔ 매출 숫자를 세는 SQL 에서 호기의 날짜·통화를 고를 때는 이 세 식을 쓴다
+#      (검사기 check_date_fallback · 현황판 §4 규칙 57 · 시험 _검증/test_sales_date_rule_z1164_20261011.py).
+SALES_DD_ORDER = ("COALESCE(NULLIF(TRIM(oi.order_date),''),NULLIF(TRIM(o.order_date),''),"
+                  "NULLIF(TRIM(p.order_date),''))")                                   # ① 수주매출 — 발주일
+SALES_DD_SHIP = ("COALESCE(NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),"
+                 "NULLIF(TRIM(p.due_date),''),NULLIF(TRIM(p.order_date),''))")         # ② 진행매출 — 납기(출하)
+SALES_CCY_ITEM = ("COALESCE(NULLIF(TRIM(oi.currency),''),NULLIF(TRIM(o.currency),''),"
+                  "NULLIF(TRIM(p.currency),''))")                                     # 호기 통화(①②③ 공통)
+
+
 def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
     """v5H226z925 (대표 지시): 매출 홈 3지표 —
        ① 수주매출 = 발주일(orders.order_date) 기준, 전 호기 oi.amount + 소모품 발주.
@@ -23510,8 +23528,12 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
           ⛔출하됐어도 발행칸이 비면 합산 안 함 — 1·2·3차 분할 발행이 있어 전액 간주 금지(대표 확정)).
        공급가(부가세 제외)·외화는 각 기준월 환율로 원화 환산·취소(CANCELLED)/폐기(is_archived) 제외.
        사업부 = 관리번호 4번째 글자(정식). 기간 세분(연간/분기/월간)은 _sales_period_ok 로 필터.
-       반환: kpi/biz_rows/years/top_customers/period_label/missing_fx 등."""
+       반환: kpi/biz_rows/years/top_customers/period_label/missing_fx 등.
+       z1164 (대표 결정 2026-10-11): 호기의 날짜·통화 = SALES_DD_ORDER · SALES_DD_SHIP · SALES_CCY_ITEM
+          (일정표와 같은 호기 → 수주 → 프로젝트 · 빈 글자 = 빈칸) · fx_fallback = 그 달 기준환율이 없어
+          다른 달(앞 달 · 없으면 가장 이른 달) 환율로 계산한 [{ccy, applied, months}] — 화면에 「미입력」 표시."""
     missing = set()
+    fx_fb = {}           # z1164: {(통화, 실제 적용월): {요청월, …}} — 그 달 환율이 없어 다른 달로 계산한 것
     sel = str(sel_year)
     agg = {k: {"years": {}, "biz": {}, "cust": {}, "total": 0.0, "cnt": 0}
            for k in ("order", "prog", "final")}
@@ -23531,6 +23553,12 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
         if b not in SALES_BIZ:
             b = "E"      # 관리번호 없음/미지정 → 기타
         krw = _fx_to_krw(rates, amount, currency, dd[:7], missing)
+        # z1164: 그 달 기준환율이 없어 다른 달 환율로 계산했으면 적어 둔다 → 매출 홈에 「미입력」 표시
+        _fc = (currency or "KRW").strip().upper() or "KRW"
+        if _fc != "KRW" and krw:
+            _fr, _fym = _fx_pick(rates, _fc, dd[:7])
+            if _fym and _fym != dd[:7]:
+                fx_fb.setdefault((_fc, _fym), set()).add(dd[:7])
         A = agg[metric]
         A["years"][yr] = A["years"].get(yr, 0.0) + krw
         if yr == sel:
@@ -23544,8 +23572,8 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
     for r in c.execute(
             "SELECT UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
             "COALESCE(p.customer_name,'') AS cust, oi.amount AS amount, "
-            "COALESCE(oi.currency,p.currency) AS currency, "
-            "COALESCE(o.order_date,p.order_date) AS dd "
+            + SALES_CCY_ITEM + " AS currency, "       # z1164: 호기 → 수주 → 프로젝트(일정표와 같게)
+            + SALES_DD_ORDER + " AS dd "               # z1164: 호기 발주일 → 수주 → 프로젝트 · 빈 글자 = 빈칸
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
             "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
@@ -23562,8 +23590,8 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
     for r in c.execute(
             "SELECT UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
             "COALESCE(p.customer_name,'') AS cust, oi.amount AS amount, "
-            "COALESCE(oi.currency,p.currency) AS currency, "
-            "COALESCE(oi.due_date,p.due_date,p.order_date) AS dd "
+            + SALES_CCY_ITEM + " AS currency, "       # z1164: 호기 → 수주 → 프로젝트(일정표와 같게)
+            + SALES_DD_SHIP + " AS dd "                # z1164: 호기 납기 → 수주 → 프로젝트 · 빈 글자 = 빈칸
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
             "WHERE oi.unit_status='출하' AND COALESCE(o.status,'')<>'CANCELLED' "
@@ -23572,7 +23600,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
         add("prog", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
     for r in c.execute(
             "SELECT 'C' AS biz, COALESCE(customer_name,'') AS cust, total_amount AS amount, "
-            "currency, COALESCE(due_date,order_date) AS dd FROM consumable_orders "
+            "currency, COALESCE(NULLIF(TRIM(due_date),''),NULLIF(TRIM(order_date),'')) AS dd FROM consumable_orders "   # z1164: 빈 글자 = 빈칸
             "WHERE status IN ('SHIPPED','PAID')").fetchall():
         d = dict(r)
         add("prog", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
@@ -23581,7 +23609,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
     meta = {}
     for r in c.execute(
             "SELECT oi.id AS iid, UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
-            "COALESCE(p.customer_name,'') AS cust, COALESCE(oi.currency,p.currency) AS currency "
+            "COALESCE(p.customer_name,'') AS cust, " + SALES_CCY_ITEM + " AS currency "   # z1164: 호기 → 수주 → 프로젝트
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
             "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
@@ -23660,6 +23688,9 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
         "period_label": plabel,
         "year_choices": all_years,
         "missing_fx": sorted({ccy for (ccy, _y) in missing}),
+        # z1164: 그 달 기준환율이 없어 다른 달로 계산한 것 — [{ccy, applied(실제 쓴 달), months(요청월들)}]
+        "fx_fallback": [{"ccy": k[0], "applied": k[1], "months": sorted(v)}
+                        for k, v in sorted(fx_fb.items())],
     }
 
 
