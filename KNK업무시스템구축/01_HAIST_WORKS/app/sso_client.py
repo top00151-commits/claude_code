@@ -40,6 +40,8 @@ from typing import Optional
 import httpx
 import jwt as pyjwt
 
+from .i18n import user_lang_from_messenger   # z1155: 사람 언어 = 이음 언어(한국어·베트남어)
+
 
 # ── 설정 (환경변수로 override 가능) ──────────────────────────
 # v5H226z118 (2026-05-31): 두 base 분리
@@ -467,8 +469,13 @@ def _is_system_account(emp_no, name="") -> bool:
     return False
 
 
-def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
+def upsert_user_from_payload(c, payload: dict, lang_changes: Optional[list] = None) -> Optional[int]:
     """JWT payload (또는 userinfo) 로 HAIST WORKS users 테이블 upsert.
+
+    z1155 (대표 2026-10-10): payload 에 `lang`(이음에서 그 사람이 쓰는 언어)이 오면 WORKS 언어를 그 값으로 맞춘다
+      (한국어·베트남어 · 그 밖은 한국어 — i18n.user_lang_from_messenger). 안 오면 손대지 않는다.
+      lang_changes(list) 를 주면 언어가 바뀐 기존 직원을 {id, employee_no, name, old, new} 로 담는다
+      — 동기화 화면·새벽 기록에 남기기 위해.
 
     매칭: ① employee_no → ② (없으면) 이름 같고 사번 없는 레거시/시드 계정 병합 → ③ INSERT
     team_id 는 dept 로 매핑해 설정(권한 동작).
@@ -494,6 +501,7 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
     email   = (payload.get("email") or "").strip() or None
     phone   = (payload.get("phone") or "").strip() or None
     is_admin = bool(payload.get("is_admin", False))
+    lang    = user_lang_from_messenger(payload.get("lang"))   # z1155: None = 이음이 안 보냄 → 그대로 둔다
 
     team_id = _resolve_team_id(c, dept, create_missing=True, entity_hint=entity)   # 부서 → team_id (z540 자동생성·z544 법인은 payload entity 우선)
 
@@ -530,6 +538,13 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
 
     if row:
         # 기존/병합 사용자 — 정보 갱신 (role·password 보존, team_id 는 매핑될 때만)
+        _old_lang = None
+        if lang and lang_changes is not None:
+            try:
+                _ol = c.execute("SELECT lang FROM users WHERE id = ?", (row["id"],)).fetchone()
+                _old_lang = (_ol["lang"] if _ol else None) or "ko"
+            except Exception:
+                _old_lang = None
         c.execute(
             """UPDATE users SET
                  name = COALESCE(?, name),
@@ -541,10 +556,14 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
                  team_id = COALESCE(?, team_id),
                  rank = COALESCE(?, rank),
                  entity = COALESCE(?, entity),
+                 lang = COALESCE(?, lang),
                  is_active = 1
                WHERE id = ?""",
-            (name_kr, email, phone, name_en, name_vi, dept, team_id, pos, entity, row["id"]),
+            (name_kr, email, phone, name_en, name_vi, dept, team_id, pos, entity, lang, row["id"]),
         )
+        if _old_lang and _old_lang != lang:
+            lang_changes.append({"id": row["id"], "employee_no": emp_no, "name": name_kr,
+                                 "old": _old_lang, "new": lang})
         return row["id"]
     else:
         # ③ 신규 사용자 — 메신저에서 처음 보는 사번
@@ -570,7 +589,8 @@ def upsert_user_from_payload(c, payload: dict) -> Optional[int]:
                     team_id,       # 부서 매핑된 팀
                     pos,
                     "admin" if is_admin else "member",
-                    "vi" if entity == "VN" else "ko",
+                    # z1155: 이음이 언어를 보냈으면 그대로, 아니면 예전처럼 법인으로 짐작(다음 동기화 때 이음 값으로 맞춰진다)
+                    lang or ("vi" if entity == "VN" else "ko"),
                 ),
             )
             return cur.lastrowid
@@ -641,6 +661,21 @@ def test_directory(key: str = "") -> dict:
     return {"ok": True, "status": 200, "count": cnt, "base": base}
 
 
+def _directory_user_to_payload(u) -> dict:
+    """이음 직원 명부(GET /api/sso/directory) 한 사람 → upsert_user_from_payload 가 받는 payload.
+    z1155: 명부를 받는 두 창구(sync_directory_from_messenger · sync_employees_from_messenger_api)가 **함께 쓴다**
+      — 예전엔 같은 dict 를 두 곳에 따로 적어, 한 칸을 더할 때 한쪽만 고치는 일이 생길 수 있었다.
+    `lang` = 그 사람이 이음에서 쓰는 언어(이음이 계산한 값 · 세션 10 이 명부에 싣는다).
+      이음이 아직 안 보내면 None → upsert 가 손대지 않는다."""
+    return {
+        "sub": u.get("employee_no"), "employee_no": u.get("employee_no"),
+        "name_kr": u.get("name_kr"), "name_en": u.get("name_en"), "name_vi": u.get("name_vi"),
+        "dept": u.get("dept"), "position": u.get("position"), "entity": u.get("entity"),
+        "email": u.get("email"), "phone": u.get("phone"), "is_admin": u.get("is_admin"),
+        "lang": u.get("lang"),
+    }
+
+
 def sync_directory_from_messenger(c) -> dict:
     """메신저 직원 명부를 가져와 전 직원 upsert.
     반환: {ok, synced, total} 또는 {ok:False, error}"""
@@ -664,25 +699,18 @@ def sync_directory_from_messenger(c) -> dict:
         return {"ok": False, "error": f"응답 파싱 실패: {e}"}
 
     synced = 0
+    lang_changed = []   # z1155
     for u in users:
         try:
-            payload = {
-                "sub": u.get("employee_no"),
-                "name_kr": u.get("name_kr"),
-                "name_en": u.get("name_en"),
-                "name_vi": u.get("name_vi"),
-                "dept": u.get("dept"),
-                "position": u.get("position"),
-                "entity": u.get("entity"),
-                "email": u.get("email"),
-                "phone": u.get("phone"),
-                "is_admin": u.get("is_admin"),
-            }
-            if upsert_user_from_payload(c, payload):
+            payload = _directory_user_to_payload(u)
+            if upsert_user_from_payload(c, payload, lang_changes=lang_changed):
                 synced += 1
         except Exception as _e:
             print(f"[SSO] 명부 동기화 항목 실패: {_e}")
-    return {"ok": True, "synced": synced, "total": len(users)}
+    if lang_changed:
+        print("[SSO] 명부 동기화 — 언어 바뀜(이음 따름): " + " · ".join(
+            f"{x['name']}({x['employee_no']}) {x['old']}→{x['new']}" for x in lang_changed))
+    return {"ok": True, "synced": synced, "total": len(users), "lang_changed": lang_changed}
 
 
 # =====================================================
@@ -936,6 +964,7 @@ def _sync_employees_core(c, payloads, actor_id=None, do_remove=True) -> dict:
                     p.get("name_kr") or p.get("name") or "")]
     updated = inserted = skipped = 0
     sample_new, sample_upd = [], []
+    lang_changed = []    # z1155: 이음 언어를 따라 WORKS 언어가 바뀐 기존 직원 {id, employee_no, name, old, new}
     msg_names = set()
     msg_empnos = set()   # z1092: 삭제 판정 기준 — 이름이 아니라 사번
 
@@ -994,7 +1023,7 @@ def _sync_employees_core(c, payloads, actor_id=None, do_remove=True) -> dict:
         except Exception:
             exists = None
         try:
-            rid = upsert_user_from_payload(c, payload)
+            rid = upsert_user_from_payload(c, payload, lang_changes=lang_changed)
         except Exception as _e:
             print(f"[SYNC] {name} 실패: {_e}")
             rid = None
@@ -1100,7 +1129,8 @@ def _sync_employees_core(c, payloads, actor_id=None, do_remove=True) -> dict:
             "works_only": works_only, "removed": removed,
             "remove_failed": remove_failed, "remove_blocked": remove_blocked,
             "admin_kept": admin_kept,
-            "sample_new": sample_new, "sample_upd": sample_upd, "dept_map": dept_map}
+            "sample_new": sample_new, "sample_upd": sample_upd, "dept_map": dept_map,
+            "lang_changed": lang_changed}
 
 
 def sync_employees_from_messenger_api(c, actor_id=None, do_remove=True) -> dict:
@@ -1126,12 +1156,7 @@ def sync_employees_from_messenger_api(c, actor_id=None, do_remove=True) -> dict:
         users = (r.json() or {}).get("users") or []
     except Exception as e:
         return {"ok": False, "error": f"응답 파싱 실패: {e}"}
-    payloads = [{
-        "sub": u.get("employee_no"), "employee_no": u.get("employee_no"),
-        "name_kr": u.get("name_kr"), "name_en": u.get("name_en"), "name_vi": u.get("name_vi"),
-        "dept": u.get("dept"), "position": u.get("position"), "entity": u.get("entity"),
-        "email": u.get("email"), "phone": u.get("phone"), "is_admin": u.get("is_admin"),
-    } for u in users]
+    payloads = [_directory_user_to_payload(u) for u in users]   # z1155: 두 창구가 같은 함수로
     res = _sync_employees_core(c, payloads, actor_id=actor_id, do_remove=do_remove)
     res["source"] = "messenger_api"
     return res

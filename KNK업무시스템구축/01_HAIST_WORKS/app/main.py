@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import os, io, calendar, tempfile
 from datetime import datetime, timedelta, date
-from .i18n import LANGS, t as i18n_t, get_all_translations
+from .i18n import LANGS, t as i18n_t, get_all_translations, USER_LANGS, USER_LANG_NAMES, user_lang_label
 from . import menu_catalog as _menu  # Phase 1 (2026-04-29): M-코드 카탈로그
 from .database import (db_session, init_db, seed_all, seed_sample_tasks,
                         seed_business_data, seed_recent_tasks_topup, hash_pw, verify_pw, is_legacy_hash,
@@ -1338,6 +1338,11 @@ def _run_directory_autosync():
                     f"{w.get('name')}({w.get('employee_no')})" for w in res["admin_kept"]))
             if res.get("remove_blocked"):
                 print(f"[DIR-SYNC] 삭제 중단 — {res.get('remove_blocked')}")
+            # z1155: 이음 언어를 따라 WORKS 언어가 바뀐 사람도 이름·사번까지 남긴다(사람이 안 보는 자동 실행).
+            if res.get("lang_changed"):
+                print(f"[DIR-SYNC] 언어 바뀜(이음 따름) {len(res['lang_changed'])}명: " + " · ".join(
+                    f"{x.get('name')}({x.get('employee_no')}) {x.get('old')}→{x.get('new')}"
+                    for x in res["lang_changed"]))
         else:
             conn.rollback()
             print(f"[DIR-SYNC] 자동 동기화 실패 — {(res or {}).get('error')}")
@@ -1780,6 +1785,10 @@ def ctx(request, name, **kwargs):
         lang = user.get("lang") or "ko"
     elif hasattr(request, "session"):
         lang = request.session.get("lang", "ko")
+    # z1155 (대표 2026-10-10): 사람 화면 언어는 한국어·베트남어만 — 그 밖의 값(옛 en·zh 등)은 한국어로 보인다.
+    #   저장된 값은 바꾸지 않는다(「내 프로필」에 그대로 보여 준다). 견적서 인쇄의 문서 언어(?lang=en)는 아래 kwargs 로 따로 덮는다.
+    if lang not in USER_LANGS:
+        lang = "ko"
 
     # 번역 사전 생성
     i = get_all_translations(lang)
@@ -1805,6 +1814,7 @@ def ctx(request, name, **kwargs):
         "lang": lang,
         "i": i,
         "LANGS": LANGS,
+        "USER_LANG_NAMES": USER_LANG_NAMES,   # z1155: 사람 언어 이름(국기 없음 — 윈도에선 국기가 VN·KR 글자로 보인다)
         # HAIST WORKS 브랜드 (통합 후)
         "app_name": "HAIST WORKS",
         "app_subtitle": "KNK 통합 업무 플랫폼",
@@ -7289,6 +7299,9 @@ async def api_set_lang(req: Request):
     """사용자 UI 언어 변경.
     - POST(JSON body): 기존 프런트 fetch 호출용 (base.html changeLang)
     - GET(쿼리스트링 ?lang=vi): 주소창·북마크·테스트 호출용
+    z1155 (대표 2026-10-10): 한국어·베트남어(USER_LANGS)만 받는다. 모르는 값·빈 값은 **아무것도 바꾸지 않고** 거절한다
+      (예전엔 한국어로 바꿔 저장했다 = 조용한 덮어쓰기). 🔵 사람마다의 언어는 이음 메신저 설정을 따른다 —
+      여기서 바꿔도 다음 직원 동기화 때 이음 값으로 돌아간다(지금 이 창구를 부르는 화면은 없다 · 시험·주소창용).
     """
     u = get_user(req)
     if not u:
@@ -7302,9 +7315,13 @@ async def api_set_lang(req: Request):
         except Exception:
             lang = None
     if not lang:
-        lang = req.query_params.get("lang") or "ko"
-    if lang not in LANGS:
-        lang = "ko"
+        lang = req.query_params.get("lang")
+    lang = (lang or "").strip().lower()
+    if lang not in USER_LANGS:
+        if req.method == "GET":
+            return RedirectResponse(req.headers.get("referer") or "/home", status_code=303)
+        return JSONResponse({"error": "지원하지 않는 언어입니다(한국어 ko · 베트남어 vi)",
+                             "allowed": list(USER_LANGS)}, 400)
     with db_session() as c:
         c.execute("UPDATE users SET lang=? WHERE id=?", (lang, u["id"]))
     req.session["lang"] = lang
@@ -13389,7 +13406,8 @@ async def profile_page(req: Request, msg: str = "", err: str = ""):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         pdata = _profile_payload(c, u["id"])
-    return ctx(req, "profile.html", user=u, msg=msg, err=err, active="profile", **pdata)
+    return ctx(req, "profile.html", user=u, msg=msg, err=err, active="profile",
+               user_lang_label=user_lang_label(u.get("lang")), **pdata)   # z1155: 언어는 보여 주기만
 
 
 @app.get("/me", response_class=HTMLResponse)
@@ -13440,22 +13458,21 @@ async def change_password(req: Request,
 
 @app.post("/me")
 async def me_update(req: Request,
-                    email: str = Form(""),
-                    lang: str = Form("")):
-    """본인 프로필 수정 — email / lang 만 (본인 한정).
+                    email: str = Form("")):
+    """본인 프로필 수정 — email (+ phone/dept) · 본인 한정.
     phone/dept 컬럼은 스키마에 따라 선택 적용 (PRAGMA로 존재 시만).
+    z1155 (대표 2026-10-10 「이음 따름 표시만」): **언어는 여기서 바꾸지 않는다** — 이음 메신저에서 고른 언어를
+      직원 동기화가 옮긴다. 예전엔 고르는 칸에 베트남어가 없어, 베트남어인 사람이 이메일만 고쳐 저장해도
+      언어가 한국어로 바뀌었다(이 화면에 lang 이 실려 와도 무시한다 — 옛 화면이 캐시에 남아 있을 때 대비).
     """
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     email = (email or "").strip()
-    lang = (lang or "").strip()
     sets, vals = [], []
     if email:
         if "@" in email and len(email) <= 120:
             sets.append("email=?"); vals.append(email)
-    if lang in ("ko", "en", "vi", "zh"):
-        sets.append("lang=?"); vals.append(lang)
     # phone / dept (스키마에 존재할 때만)
     try:
         with db_session() as c:

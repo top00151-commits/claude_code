@@ -54,6 +54,8 @@
         {% if done.removed %}· <b style="color:#b91c1c;">삭제(메신저에 없는 계정)</b>: <b>{{ done.removed|length }}</b>명 —
           {% for w in done.removed %}{{ w.name }}({{ w.employee_no or '-' }}){% if not loop.last %} · {% endif %}{% endfor %}<br>{% endif %}
         {% if done.remove_failed %}· <b style="color:#b45309;">삭제 보류(업무 기록 있음)</b>: {{ done.remove_failed|length }}명<br>{% endif %}
+        {% if done.lang_changed %}· 🌐 <b>언어 바뀜(이음 설정을 따름)</b>: <b>{{ done.lang_changed|length }}</b>명 —
+          {% for x in done.lang_changed %}{{ x.name }}({{ x.employee_no or '-' }}) {{ USER_LANG_NAMES.get(x.old, x.old) }}→{{ USER_LANG_NAMES.get(x.new, x.new) }}{% if not loop.last %} · {% endif %}{% endfor %}<br>{% endif %}
         {% if done.skipped %}· 건너뜀(사번 없음/오류): {{ done.skipped }}명<br>{% endif %}
         · 메신저 직원 총 {{ done.total }}명 처리<br>
         {% if done.backup %}· 백업: <code>{{ done.backup }}</code> (문제 시 원복 가능)<br>{% endif %}
@@ -63,7 +65,8 @@
 
     <div class="se-info">
       🔄 메신저에 등록된 <b>전 직원</b>(사번·이름(한/영/베)·부서·직급·메일·연락처)을 WORKS 로 가져옵니다.<br>
-      · <b>기존 직원</b>은 빈 칸만 채우고 기존 값은 보존합니다(역할·비밀번호 유지).<br>
+      · <b>기존 직원</b>은 빈 칸만 채우고 기존 값은 보존합니다(역할·비밀번호 유지 · 언어는 아래 줄).<br>
+      · 🌐 <b>언어</b>는 사람마다 <b>이음 메신저에서 고른 언어</b>로 맞춥니다(한국어·베트남어 · 대표 지시 2026-10-10) — WORKS 에서는 바꾸지 않습니다.<br>
       · <b>메신저 부서코드(01_KOR/00_총괄 형식) → 법인(본사/베트남법인) + 기능팀</b> 으로 자동 도입 — 없는 부서는 새 팀 자동 생성(아래 표).<br>
       · <b style="color:#b91c1c;">메신저가 기준입니다</b> — 메신저에 없는 WORKS 계정은 <b style="color:#b91c1c;">삭제</b>됩니다(대표 지시 2026-08-31). 사람은 <b>사번</b>으로 맞춥니다.<br>
       · <b>매일 새벽 4:10</b> 자동 동기화에서도 <b>같은 규칙</b>으로 정리됩니다(대표 지시 2026-09-01) — 이 화면은 지금 바로 맞추고 싶을 때 씁니다.<br>
@@ -125,6 +128,14 @@
       <div class="se-card">
         <h3>🔵 정보 갱신 예시 (최대 15)</h3>
         <div class="se-sample">{% for s in preview.sample_upd %}<span class="tag">{{ s }}</span>{% endfor %}</div>
+      </div>
+      {% endif %}
+
+      {# z1155: 사람마다의 WORKS 언어 = 이음 메신저에서 고른 언어 — 바뀌는 사람을 미리 보여 준다 #}
+      {% if preview.lang_changed %}
+      <div class="se-card">
+        <h3>🌐 언어가 바뀌는 사람 ({{ preview.lang_changed|length }}명) — 이음 메신저 「🟢 내 상태 → 언어」를 따름</h3>
+        <div class="se-sample">{% for x in preview.lang_changed %}<span class="tag">{{ x.name }}({{ x.employee_no or '-' }}) {{ USER_LANG_NAMES.get(x.old, x.old) }} → {{ USER_LANG_NAMES.get(x.new, x.new) }}</span>{% endfor %}</div>
       </div>
       {% endif %}
 

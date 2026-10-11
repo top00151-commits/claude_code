@@ -9,6 +9,34 @@ LANGS = {
     "en": "🇺🇸 English",
 }
 
+# v5H226z1155 (대표 2026-10-10 「웍스에는 기본적으로 한국어, 베트남어 적용 … 사용자 설정은 이음메신저에서
+#   직원동기화할때 이음메신저 선택 언어로 동일하게 개인별 적용」):
+#   사람마다의 WORKS 화면 언어는 **한국어·베트남어 두 가지**이고, 값은 **이음 메신저에서 그 사람이 쓰는 언어**를
+#   직원 동기화 때 그대로 옮긴다 — WORKS 에서는 고르지 않는다(「내 프로필」은 보여 주기만).
+#   위 LANGS(ko·vi·en)는 번역 사전·사내 번역기·견적서 인쇄(고객에게 내는 문서 언어)용이라 그대로 둔다.
+USER_LANGS = ("ko", "vi")
+USER_LANG_NAMES = {"ko": "한국어", "vi": "Tiếng Việt"}
+
+
+def user_lang_from_messenger(v):
+    """이음이 보낸 그 사람의 언어 → WORKS 언어.
+    · 안 보냈으면(None·빈 값) None — 손대지 않는다(이음이 아직 언어를 안 보내던 때와 같다).
+    · 한국어·베트남어는 그대로, 그 밖(영어·중국어 등)은 한국어."""
+    s = str(v or "").strip().lower()
+    if not s:
+        return None
+    return s if s in USER_LANGS else "ko"
+
+
+def user_lang_label(v):
+    """「내 프로필」에 보일 이름. 목록 밖 값은 숨기거나 바꾸지 않고 그대로 보여 준다(z1155)."""
+    s = str(v or "").strip()
+    if not s:
+        return USER_LANG_NAMES["ko"]
+    if s in USER_LANG_NAMES:
+        return USER_LANG_NAMES[s]
+    return s + " (목록에 없음 · 화면은 한국어)"
+
 T = {
     # ===== 공통 / 상단바 =====
     "app_title":        {"ko":"KNK 데일리허브",    "vi":"KNK Daily Hub",        "en":"KNK Daily Hub"},

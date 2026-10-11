@@ -849,6 +849,155 @@ def check_tax_sign(files):
     return bad
 
 
+def check_user_lang(files):
+    r"""§사람마다의 WORKS 화면 언어 = 이음 메신저에서 고른 언어 · 한국어·베트남어 (z1155 · 대표 2026-10-10).
+
+    대표 지시: 「웍스에는 기본적으로 한국어, 베트남어 적용을 해줘... 사용자 설정은 이음메신저에서 직원동기화할때
+               이음메신저 선택 언어로 동일하게 개인별 적용하면 됨」 + 「내 프로필」은 「이음 따름 표시만」.
+    겪은 것(세션 16 지시서 2026-10-10): 「내 프로필」 언어 칸이 한국어·English 둘뿐이라, 베트남어(vi)인 52명이
+      이 화면에서 이메일만 고쳐 저장해도 **말없이 한국어로** 바뀌었다(맞는 선택지가 없으면 브라우저는 첫 항목을 보낸다).
+      언어를 바꾸는 창구 둘(/me · /api/set-lang)의 기준도 달랐다(/me 는 i18n 에 없는 zh 까지 받았다).
+
+    잡는 것
+      ① i18n.USER_LANGS 가 없거나 ("ko","vi") 가 아니다 · user_lang_from_messenger() 를 **실제로 돌려 보니** 틀린다
+      ② 화면에 언어 고르는 칸(<select name="lang">)이 있는데 USER_LANGS 중 빠진 것이 있다 — 원래 사고의 모양
+      ③ 「내 프로필」(profile.html)에 언어를 **바꾸는** 칸(name="lang")이 다시 생겼다 — 대표 결정 「이음 따름 표시만」
+      ④ /me 저장(me_update)이 언어를 쓴다
+      ⑤ /api/set-lang 이 USER_LANGS 로 거르지 않거나, 모르는 값·빈 값을 한국어로 바꿔 저장한다
+      ⑥ 명부 한 사람 → payload(_directory_user_to_payload)에 lang 이 없다 · 명부를 받는 두 창구가 그 함수를 안 쓰고
+         dict 를 따로 만든다 · upsert_user_from_payload 가 이음 언어를 안 쓴다
+      ⑦ 화면 공통 ctx() 가 USER_LANGS 밖 값(옛 en·zh)을 그대로 화면 언어로 쓴다
+    빼는 것: 예전·백업 화면(_legacy · _backup) · 주석
+    """
+    bad = []
+    app = os.path.join(ROOT, "app")
+    i18n_p = os.path.join(app, "i18n.py")
+    main_p = os.path.join(app, "main.py")
+    sso_p = os.path.join(app, "sso_client.py")
+    prof_p = os.path.join(TPL, "profile.html")
+    jinja_cmt = re.compile(r"\{#.*?#\}", re.S)
+    html_cmt = re.compile(r"<!--.*?-->", re.S)
+
+    # ① 기준 한 곳 — 원문을 실제로 돌려 본다(못 돌리면 위반)
+    langs = ("ko", "vi")
+    try:
+        ns = {}
+        exec(compile(_read(i18n_p), i18n_p, "exec"), ns)
+        ul = ns.get("USER_LANGS")
+        if tuple(ul or ()) != ("ko", "vi"):
+            bad.append((i18n_p, 1, "① USER_LANGS 가 (\"ko\",\"vi\") 가 아니다: %r — 대표 결정은 한국어·베트남어" % (ul,)))
+        else:
+            langs = tuple(ul)
+        fn = ns.get("user_lang_from_messenger")
+        cases = [(None, None), ("", None), ("  ", None), ("ko", "ko"), ("vi", "vi"), ("VI", "vi"),
+                 (" vi ", "vi"), ("en", "ko"), ("zh", "ko"), ("xx", "ko")]
+        if not callable(fn):
+            bad.append((i18n_p, 1, "① user_lang_from_messenger() 가 없다 — 이음 언어를 WORKS 언어로 바꾸는 한 곳"))
+        else:
+            for v, want in cases:
+                got = fn(v)
+                if got != want:
+                    bad.append((i18n_p, 1, "① user_lang_from_messenger(%r) = %r (맞는 값 %r)" % (v, got, want)))
+    except Exception as e:
+        bad.append((i18n_p, 1, "① i18n.py 를 돌려 보지 못했다(%s) — 못 돌리면 통과가 아니라 위반" % e))
+
+    # ② ③ 화면
+    tpls = set(p for p in files if p.endswith(".html"))
+    if os.path.exists(prof_p):
+        tpls.add(prof_p)
+    for p in sorted(tpls):
+        rp = p.replace("\\", "/")
+        if "/_legacy" in rp or "_backup" in rp:
+            continue
+        src = html_cmt.sub(_blank_keep_lines, jinja_cmt.sub(_blank_keep_lines, _read(p)))
+        for m in re.finditer(r"<select\b[^>]*\bname\s*=\s*[\"']lang[\"'][^>]*>(.*?)</select>", src, re.S | re.I):
+            vals = set(re.findall(r"value\s*=\s*[\"']([^\"']+)[\"']", m.group(1)))
+            miss = [x for x in langs if x not in vals]
+            if miss:
+                bad.append((p, src[:m.start()].count("\n") + 1,
+                            "② 언어 고르는 칸에 %s 이(가) 없다 — 그 언어인 사람이 저장하면 말없이 첫 항목으로 바뀐다"
+                            % "·".join(miss)))
+        if os.path.abspath(p) == os.path.abspath(prof_p):
+            for m in re.finditer(r"<(?:select|input|textarea)\b[^>]*\bname\s*=\s*[\"']lang[\"']", src, re.I):
+                bad.append((p, src[:m.start()].count("\n") + 1,
+                            "③ 「내 프로필」에 언어를 바꾸는 칸이 있다 — 대표 결정 「이음 따름 표시만」"
+                            "(바꿔도 다음 동기화 때 이음 값으로 돌아간다)"))
+
+    # ④ ⑤ ⑦ 서버 창구
+    msrc = _read(main_p) if os.path.exists(main_p) else ""
+
+    def _code_lines(body, ln0):
+        """주석·설명글(docstring) 줄을 빼고 (줄번호, 줄) 을 돌려준다."""
+        out, in_doc = [], False
+        for i, ln in enumerate(body.splitlines()):
+            s = ln.strip()
+            if in_doc:
+                if '"""' in s:
+                    in_doc = False
+                continue
+            if s.startswith('"""'):
+                if s.count('"""') == 1:
+                    in_doc = True
+                continue
+            if s.startswith("#"):
+                continue
+            out.append((ln0 + i, ln.split("  #")[0]))
+        return out
+
+    ln0, body = _py_top_func(msrc, "me_update")
+    if body is None:
+        bad.append((main_p, 1, "④ me_update() 가 없다 — /me 저장 함수 이름을 바꿨으면 이 검사도 함께 고칠 것"))
+    else:
+        for n, ln in _code_lines(body, ln0):
+            if re.search(r"\blang\s*=\s*\?|[\"']lang=\?|\blang\s*:\s*str\s*=\s*Form", ln):
+                bad.append((main_p, n, "④ /me 저장이 언어를 받거나 쓴다 — 언어는 이음 따름(여기선 바꾸지 않는다)"))
+
+    ln0, body = _py_top_func(msrc, "api_set_lang")
+    if body is None:
+        bad.append((main_p, 1, "⑤ api_set_lang() 가 없다 — 이름을 바꿨으면 이 검사도 함께 고칠 것"))
+    else:
+        code = _code_lines(body, ln0)
+        if not any("USER_LANGS" in ln for _, ln in code):
+            bad.append((main_p, ln0, "⑤ /api/set-lang 이 USER_LANGS 로 거르지 않는다 — 기준은 i18n.USER_LANGS 한 곳"))
+        for n, ln in code:
+            if re.search(r"^\s*lang\s*=\s*[\"']ko[\"']\s*$", ln) or re.search(r"get\(\s*[\"']lang[\"']\s*\)\s*or\s*[\"']ko", ln):
+                bad.append((main_p, n, "⑤ 모르는 값·빈 값을 한국어로 바꿔 저장한다 — 바꾸지 말고 거절할 것"))
+            if re.search(r"\bnot\s+in\s+LANGS\b", ln):
+                bad.append((main_p, n, "⑤ LANGS(번역 사전 ko·vi·en)로 거른다 — 사람 언어는 USER_LANGS"))
+
+    ln0, body = _py_top_func(msrc, "ctx")
+    if body is None:
+        bad.append((main_p, 1, "⑦ ctx() 가 없다"))
+    elif "USER_LANGS" not in body:
+        bad.append((main_p, ln0, "⑦ ctx() 가 USER_LANGS 밖 값(옛 en·zh)을 그대로 화면 언어로 쓴다"))
+
+    # ⑥ 직원 동기화
+    ssrc = _read(sso_p) if os.path.exists(sso_p) else ""
+    ln0, body = _py_top_func(ssrc, "_directory_user_to_payload")
+    if body is None:
+        bad.append((sso_p, 1, "⑥ _directory_user_to_payload() 가 없다 — 이음 명부 한 사람 → payload 는 한 곳에서"))
+    elif not re.search(r"[\"']lang[\"']\s*:\s*u\.get\(\s*[\"']lang[\"']\s*\)", body):
+        bad.append((sso_p, ln0, "⑥ 명부 → payload 에 lang 이 없다 — 이음 언어가 WORKS 로 안 넘어온다"))
+    for fname in ("sync_directory_from_messenger", "sync_employees_from_messenger_api"):
+        ln0, body = _py_top_func(ssrc, fname)
+        if body is None:
+            bad.append((sso_p, 1, "⑥ %s() 가 없다 — 이름을 바꿨으면 이 검사도 함께 고칠 것" % fname))
+            continue
+        if "_directory_user_to_payload(" not in body:
+            bad.append((sso_p, ln0, "⑥ %s() 가 _directory_user_to_payload() 를 안 쓴다" % fname))
+        if re.search(r"[\"']name_kr[\"']\s*:\s*u\.get\(", body):
+            bad.append((sso_p, ln0, "⑥ %s() 가 payload dict 를 따로 만든다 — 한쪽만 고치는 일이 생긴다" % fname))
+    ln0, body = _py_top_func(ssrc, "upsert_user_from_payload")
+    if body is None:
+        bad.append((sso_p, 1, "⑥ upsert_user_from_payload() 가 없다"))
+    else:
+        if "user_lang_from_messenger(" not in body:
+            bad.append((sso_p, ln0, "⑥ upsert 가 이음 언어를 user_lang_from_messenger() 로 읽지 않는다"))
+        if not re.search(r"lang\s*=\s*COALESCE\(\s*\?\s*,\s*lang\s*\)", body):
+            bad.append((sso_p, ln0, "⑥ upsert 가 기존 직원의 언어를 이음 값으로 맞추지 않는다(lang = COALESCE(?, lang))"))
+    return bad
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -989,6 +1138,16 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 세금계산서 발행 판정 : 마이너스(네고·할인)도 같은 기준 (화면·서버)")
+
+    ul_bad = check_user_lang(files)
+    if ul_bad:
+        fail += len(ul_bad)
+        print("  ❌ 사람 화면 언어(이음 따름·한국어·베트남어) : %d건 → i18n.USER_LANGS · 「내 프로필」 보여 주기만"
+              " · 직원 동기화가 이음 언어를 옮김" % len(ul_bad))
+        for f, l, m in ul_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 사람 화면 언어 : 이음 따름 · 한국어·베트남어 (동기화·내 프로필·바꾸는 창구)")
 
     print("=" * 72)
     if fail:
