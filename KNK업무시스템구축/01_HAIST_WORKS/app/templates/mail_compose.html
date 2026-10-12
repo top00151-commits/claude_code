@@ -9,6 +9,8 @@
   .cmp-row label{width:84px;font-size:13px;color:var(--mute);flex:none}
   .cmp-row input{flex:1;border:0;font-size:14px;outline:none;background:transparent}
   .cmp-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  /* z1168(대표 지시): 같은 단추줄을 위에도 — 긴 메일에서 끝까지 안 내려가도 보낼 수 있게 */
+  .cmp-actions-top{margin-top:0;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
   .ac-box div:hover{background:#f5f7ff}
   .cmp-tb{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px;background:#fafafa;margin-top:8px}
   .cmp-tb>button,.cmp-color{font-size:13px;height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
@@ -68,6 +70,14 @@
   {% endif %}
 
   <div class="cmp-card">
+    {# z1168: 아래 단추줄과 같은 것을 위에도. id 는 아래에만 두고 여기선 클래스(js-send/js-cmsg)로만 — 중복 id 금지 #}
+    <div class="cmp-actions cmp-actions-top">
+      <button type="button" class="btn btn-primary js-send" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
+      <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
+      <a href="/mail/inbox" class="btn btn-secondary">취소</a>
+      <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
+      <span class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
+    </div>
     <div class="cmp-from">보내는 사람 &nbsp;<b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</div>
     <div class="cmp-row"><label>받는사람</label><input id="cTo" type="email" placeholder="customer@example.com" value="{{ prefill.to }}"></div>
     <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}">
@@ -109,11 +119,11 @@
       </div>
     </div>
     <div class="cmp-actions btn-row">
-      <button type="button" class="btn btn-primary" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
+      <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
       <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
       <a href="/mail/inbox" class="btn btn-secondary">취소</a>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
-      <span id="cMsg" style="font-size:12.5px;margin-left:6px;"></span>
+      <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     <div style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 첨부한 파일이 <b>10MB</b>를 넘으면 자동으로 <b>대용량(NAS 다운로드 링크·30일 유효)</b>으로 보냅니다. (작은 파일은 메일에 그대로 첨부)</div>
   </div>
@@ -125,8 +135,8 @@
   var LARGE_TH = 10*1024*1024;      // 10MB 초과 → 자동 대용량
   var NORMAL_BUDGET = 20*1024*1024; // 일반 첨부 누적 상한(Cloudflare 25MB 한도 안전)
 
-  function cmsg(t,c){ var m=document.getElementById('cMsg'); if(!m)return; m.textContent=t;
-    m.style.color = c==='red'?'var(--knk-red)':(c==='green'?'var(--success)':'var(--mute)'); }
+  function cmsg(t,c){ var col = c==='red'?'var(--knk-red)':(c==='green'?'var(--success)':'var(--mute)');
+    document.querySelectorAll('.js-cmsg').forEach(function(m){ m.textContent=t; m.style.color=col; }); }
   function hsize(n){ var u=['B','KB','MB','GB']; var i=0; n=n||0;
     while(n>=1024 && i<3){ n/=1024; i++; } return (i===0? n+' B' : n.toFixed(1)+' '+u[i]); }
 
@@ -469,7 +479,8 @@
         var nt=(j.body||'').replace(/\s+$/,''); if(tail) nt+='\n\n'+tail.replace(/^\s+/,'');
         ed.innerText=nt;
         var subj=document.getElementById('cSubj'); if(j.subject && !subj.value.trim()) subj.value=j.subject;
-        var m=document.getElementById('cMsg'); m.textContent='✨ AI가 정리했습니다. '; m.style.color='var(--success)';
+        cmsg('✨ AI가 정리했습니다. ','green');
+        var m=document.getElementById('cMsg');
         var ul=document.createElement('a'); ul.href='javascript:void(0)'; ul.textContent='↩ 되돌리기';
         ul.style.cssText='color:var(--knk-red);margin-left:4px'; ul.addEventListener('click',window.aiUndo); m.appendChild(ul);
       } else cmsg('⚠ '+(j.message||'정리 실패'),'red');
@@ -480,7 +491,9 @@
   window.sendMail=async function(){
     var to=document.getElementById('cTo').value.trim();
     if(!to){ cmsg('받는사람을 입력하세요','red'); return; }
-    var btn=document.getElementById('cSendBtn'); btn.disabled=true; cmsg('📤 보내는 중...','');
+    var sendBtns=document.querySelectorAll('.js-send');
+    function setSend(d){ sendBtns.forEach(function(b){ b.disabled=d; }); }   // 위·아래 보내기 단추 함께
+    setSend(true); cmsg('📤 보내는 중...','');
     var fd=new FormData();
     fd.append('to', to);
     fd.append('cc', document.getElementById('cCc').value.trim());
@@ -496,8 +509,8 @@
       var r=await fetch('/mail/send',{method:'POST',body:fd});
       var j=await r.json();
       if(j.ok){ cmsg('✅ 보냈습니다. 보낸편지함으로 이동합니다...','green'); setTimeout(function(){location.href='/mail/sent';},800); }
-      else { cmsg('⚠ '+(j.message||'발송 실패'),'red'); btn.disabled=false; }
-    }catch(e){ cmsg('⚠ 네트워크 오류','red'); btn.disabled=false; }
+      else { cmsg('⚠ '+(j.message||'발송 실패'),'red'); setSend(false); }
+    }catch(e){ cmsg('⚠ 네트워크 오류','red'); setSend(false); }
   };
 
   // ── 받는사람 자동완성 (전사 연락처) — 쉼표로 여러 명, 마지막 토큰 기준 ──
