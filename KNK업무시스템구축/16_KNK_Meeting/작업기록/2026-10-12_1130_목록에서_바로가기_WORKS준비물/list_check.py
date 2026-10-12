@@ -96,9 +96,13 @@ ADDED = ['mtg-row', 'mtg-acts', 'mtg-act', 'mt_act', '수정', '양식', '/doc"'
          '시험 4곳이 깨진다', 'ui_share', 'not-allowed', 'opacity', 'max-width: 560px', 'z1166',
          'transition: all .12s', 'color: var(--qv-ink-2);',
          'border:1px solid var(--qv-line); border-radius', 'padding:14px 18px', 'align-items:center',
-         'flex:1; min-width:0; text-decoration:none']
+         'flex:1; min-width:0; text-decoration:none',
+         # z1166b: 글자가 길어져 좁은 화면에서 더 일찍 숨긴다(560px → 760px)
+         'max-width: 760px', '글자가 「수정·양식」에서', '더 일찍', '회의상세(수정)', '회의록']
 #  겉모습을 바깥 칸으로 옮기며 지워진 CSS 두 줄 · 들여쓰기만 바뀐 닫는 태그
-REMOVED_OK = ['.mtg-card { display:block;', '.mtg-card:hover {', '</a>']
+#  z1166b: 대표 지시로 바뀐 옛 단추 글자와 옛 기준폭
+REMOVED_OK = ['.mtg-card { display:block;', '.mtg-card:hover {', '</a>',
+              'max-width: 560px', '>수정</span>', '>양식</span>']
 
 print("두 벌 띄우는 중…")
 pb, ib = boot("app_base", PORT_BASE)
@@ -183,8 +187,11 @@ try:
 
     print("\n── ⑤ 베트남어 쓰는 분 화면 (권한은 한국어 쪽과 똑같게 맞춰 둠) ──")
     vi_new = get(PORT_NEW, "/meetings", inn["vi"])
-    for s in ("Sửa", "Biểu mẫu", "Sửa biên bản", "Xem theo biểu mẫu biên bản"):
+    #  z1166b: 대표 지시로 단추 글자가 바뀌었다 — 「수정」→「회의상세(수정)」 · 「양식」→「회의록」
+    for s in ("Chi tiết (sửa)", "Biên bản", "Sửa biên bản", "Xem theo biểu mẫu biên bản"):
         chk("베트남어 「%s」" % s, s in vi_new)
+    for s in ("회의상세(수정)", "회의록"):
+        chk("한국어 단추 글자 「%s」" % s, s in ko_new)
     v_ok, v_no = row(vi_new, inn["ok"]), row(vi_new, inn["no"])
     chk("베트남어도: 고칠 수 있는 회의 = 링크", '<a class="mtg-act" href="/meetings/%d"' % inn["ok"] in v_ok)
     chk("베트남어도: 못 고치는 회의 = 흐림", "mtg-act off" in v_no)

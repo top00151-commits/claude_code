@@ -627,9 +627,9 @@ T = {
     "mt_btn_view": {"ko": "📋 회의록 보기", "vi": "📋 Xem biên bản"},
     "mt_btn_open": {"ko": "📋 회의록 열기", "vi": "📋 Mở biên bản"},
     # z1166: 목록 줄 오른쪽 바로가기 두 개
-    "mt_act_edit": {"ko": "수정", "vi": "Sửa"},
+    "mt_act_edit": {"ko": "회의상세(수정)", "vi": "Chi tiết (sửa)"},
     "mt_act_edit_t": {"ko": "회의록 고치기", "vi": "Sửa biên bản"},
-    "mt_act_doc": {"ko": "양식", "vi": "Biểu mẫu"},
+    "mt_act_doc": {"ko": "회의록", "vi": "Biên bản"},
     "mt_act_doc_t": {"ko": "회의록 양식으로 보기 (인쇄·PDF)",
                     "vi": "Xem theo biểu mẫu biên bản (in · PDF)"},
     "mt_act_noedit": {"ko": "이 회의록은 고칠 수 없습니다 — 작성자·참석자·관리자만 고칠 수 있어요",

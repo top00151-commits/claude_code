@@ -31,7 +31,9 @@
 .mtg-act:hover { border-color: var(--qv-line-3); background: var(--qv-surface-2); color: var(--qv-ink); }
 /* 못 고치는 회의 — 보이되 안 눌린다(까닭은 마우스를 올리면 알려 준다) */
 .mtg-act.off { opacity:.42; cursor:not-allowed; }
-@media (max-width: 560px) { .mtg-act-t { display:none; } .mtg-act { padding:6px 9px; } }
+/* z1166b: 글자가 「수정·양식」에서 「회의상세(수정)·회의록」으로 길어졌다(대표 지시) →
+   좁은 화면에서 제목을 밀지 않게 **더 일찍** 글자를 숨긴다(560px → 760px). 그림은 남는다. */
+@media (max-width: 760px) { .mtg-act-t { display:none; } .mtg-act { padding:6px 9px; } }
 .mtg-recbar { background: #FEF2F2; border:1px solid #FECACA; border-radius: var(--radius-lg); padding:12px 16px; margin-bottom:14px; }
 .mtg-recbar-ttl { font-size:14px; font-weight:800; color: var(--knk-red); margin-bottom:8px; }
 .mtg-recbar-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0; }
