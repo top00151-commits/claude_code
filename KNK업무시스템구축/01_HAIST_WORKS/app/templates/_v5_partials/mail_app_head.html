@@ -2,7 +2,15 @@
    WORKS 사이드바 대신 슬림 메일 상단바 + 본문 전체폭. ?app=0 으로 WORKS 전체화면 복귀. #}
 <style>
   body .app { display:block !important; min-width:auto !important; height:auto !important; overflow:visible !important; }
-  body .main { width:100% !important; grid-column:auto !important; padding-right:0 !important; }
+  body .main { width:100% !important; grid-column:auto !important; padding-right:0 !important; overflow:visible !important; }
+  /* 🔴 2026-10-12 (대표 신고: 메일 쓰기에서 📤 보내기 단추에 닿을 수 없음) — 앱 모드 스크롤 복구.
+     WORKS 셸은 html/body/.app 을 height:100dvh; overflow:hidden 으로 묶고 .main 만 내부 스크롤한다.
+     그런데 바로 위에서 .app 을 height:auto; overflow:visible 로 풀면 .main 의 높이 제한이 사라져
+     내부 스크롤이 없어지는데, html/body 는 여전히 잘라내므로 본문 아래쪽(단추줄)이 통째로 가려진다.
+     → 앱 모드에서는 "문서가 스크롤하는 평범한 페이지"로 되돌린다.
+     이 파일은 ?app=1 일 때만 포함되므로 일반 WORKS 화면(사이드바 셸)에는 영향 없음. */
+  html { height:auto !important; overflow-y:auto !important; }
+  body { height:auto !important; min-height:100dvh !important; overflow-y:visible !important; }
   .mail-app-top { position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
                   background:var(--knk-red,#b91c1c); color:#fff; padding:9px 16px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
   .mail-app-top .brand { font-weight:800; font-size:15px; margin-right:8px; }
