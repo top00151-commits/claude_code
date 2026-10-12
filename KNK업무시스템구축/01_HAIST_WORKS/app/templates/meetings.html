@@ -12,7 +12,26 @@
    ============================================================ #}
 {% include "_v5_partials/styles.html" %}
 <style>
-.mtg-card { display:block; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 12px; transition: all .16s; text-decoration:none; color:inherit; }
+/* z1166: 줄 = [본문 링크][바로가기 둘].
+   겉모습(테두리·여백·마우스 올릴 때 뜨는 느낌)은 **바깥 .mtg-row** 가 갖고,
+   안쪽 .mtg-card 는 **이름과 href 를 그대로 둔 채** 본문 링크가 된다.
+   ⚠ 이 이름을 바꾸면 줄을 글자로 찾는 시험 4곳이 깨진다(실제로 겪었다) —
+      ui_share · ui_back · ui_back_z1130 · verify_cards 가 a.mtg-card[href^="/meetings/"] 를 쓴다.
+   ⚠ 주석에 꺾쇠 태그를 적지 말 것 — 구조를 글자로 보는 검사가 주석을 범인으로 잡는다. */
+.mtg-row { display:flex; align-items:center; gap:12px; background: var(--qv-surface);
+           border:1px solid var(--qv-line); border-radius: var(--radius-lg);
+           padding:14px 18px; margin-bottom:12px; transition: all .16s; }
+.mtg-row:hover { border-color: var(--qv-line-3); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.mtg-card { display:block; flex:1; min-width:0; text-decoration:none; color:inherit; }
+.mtg-acts { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.mtg-act { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700;
+           padding:6px 11px; border-radius:999px; white-space:nowrap; text-decoration:none;
+           border:1px solid var(--qv-line); background: var(--qv-surface); color: var(--qv-ink-2);
+           transition: all .12s; }
+.mtg-act:hover { border-color: var(--qv-line-3); background: var(--qv-surface-2); color: var(--qv-ink); }
+/* 못 고치는 회의 — 보이되 안 눌린다(까닭은 마우스를 올리면 알려 준다) */
+.mtg-act.off { opacity:.42; cursor:not-allowed; }
+@media (max-width: 560px) { .mtg-act-t { display:none; } .mtg-act { padding:6px 9px; } }
 .mtg-recbar { background: #FEF2F2; border:1px solid #FECACA; border-radius: var(--radius-lg); padding:12px 16px; margin-bottom:14px; }
 .mtg-recbar-ttl { font-size:14px; font-weight:800; color: var(--knk-red); margin-bottom:8px; }
 .mtg-recbar-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0; }
@@ -21,7 +40,7 @@
 .mtg-recbar-sub { font-size:12px; color: var(--qv-ink-3); }
 .mtg-recbar-hint { font-size:12px; color: var(--qv-ink-3); margin-top:8px; line-height:1.6; }
 .cnt-badge.rec-on { background: var(--knk-red); color:#fff; border-color: var(--knk-red); }
-.mtg-card:hover { border-color: var(--qv-line-3); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+/* (뜨는 느낌은 위 .mtg-row:hover 로 옮겼다 — 겉모습을 갖는 칸이 그쪽이다) */
 .mtg-top { display:flex; align-items:center; gap:10px; }
 .mtg-ttl { font-size: 15px; font-weight: 800; color: var(--qv-ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mtg-meta { display:flex; gap:14px; font-size:12px; color: var(--qv-ink-3); margin-top:6px; flex-wrap:wrap; }
@@ -554,6 +573,7 @@
 
   <div class="section">
     {% for m in meetings %}
+    <div class="mtg-row">
     <a class="mtg-card" href="/meetings/{{ m.id }}">
       <div class="mtg-top">
         <div class="mtg-ttl">{{ m.title }}</div>
@@ -577,6 +597,20 @@
         {% if m.status == 'done' %}<span style="color:#15803d;font-weight:700;">{{ i.mt_row_done }}</span>{% else %}<span>{{ i.mt_row_draft }}</span>{% endif %}
       </div>
     </a>
+      {# z1166 (대표 지시): 줄에서 바로 들어가기 — 수정 / 회의록 양식.
+         ⛔ 「수정」은 고칠 수 있는 사람만 눌린다(판정은 서버 _can_edit_meeting 한 곳). #}
+      <div class="mtg-acts">
+        {% if m.can_edit %}
+        <a class="mtg-act" href="/meetings/{{ m.id }}" title="{{ i.mt_act_edit_t }}"
+           aria-label="{{ i.mt_act_edit_t }}">✏<span class="mtg-act-t">{{ i.mt_act_edit }}</span></a>
+        {% else %}
+        <span class="mtg-act off" title="{{ i.mt_act_noedit }}" aria-disabled="true"
+              role="link">✏<span class="mtg-act-t">{{ i.mt_act_edit }}</span></span>
+        {% endif %}
+        <a class="mtg-act" href="/meetings/{{ m.id }}/doc" title="{{ i.mt_act_doc_t }}"
+           aria-label="{{ i.mt_act_doc_t }}">📄<span class="mtg-act-t">{{ i.mt_act_doc }}</span></a>
+      </div>
+    </div>
     {% endfor %}
   </div>
   {% else %}

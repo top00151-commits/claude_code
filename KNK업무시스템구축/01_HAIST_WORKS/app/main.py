@@ -4113,6 +4113,10 @@ async def meetings_page(req: Request):
         meetings = [dict(r) for r in rows]
         for _mm in meetings:   # z1113: 목록에서도 「🔴 녹음 중」을 보고 바로 끝낼 수 있게
             _mm["rec"] = _rec_view(_mm, u)
+            # z1166: 줄 오른쪽 「✏ 수정」을 켤지 끌지 — **판정은 _can_edit_meeting 한 곳**에만 둔다.
+            #   여기서 규칙을 다시 적으면(작성자·등록담당·참석자·관리자) 나중에 한쪽만 고쳐 어긋난다.
+            #   열린 커서 c 를 넘겨 참석자를 그걸로 본다(안 넘기면 회의마다 새로 연다).
+            _mm["can_edit"] = _can_edit_meeting(u, _mm, c)
     # 🗓 회의 카드 모아보기 탭(2026-09-17 대표 지시) — ?tab=cards
     tab = "cards" if (req.query_params.get("tab") or "") == "cards" else "list"
     return ctx(req, "meetings.html", user=u, meetings=meetings, tab=tab)
