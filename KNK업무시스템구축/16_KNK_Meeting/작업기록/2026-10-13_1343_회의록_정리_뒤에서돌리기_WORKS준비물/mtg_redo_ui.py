@@ -1,16 +1,22 @@
 # -*- coding: utf-8 -*-
-"""z1170 검사기 ② — 🗓 회의록 「🔄 다시 정리」를 진짜 브라우저로 눌러 끝까지 본다.
+"""z1170 → **z1175** 검사기 — 🗓 회의록 「🔄 다시 정리」를 진짜 브라우저로 눌러 끝까지 본다.
+
+z1170: 정리를 **뒤에서 돌린다**(앞단 60초에 안 끊기게).
+z1175 (대표 2026-10-13 「회의록에는 다시 정리하기 기능이 없는데」
+       → 「다시 정리 위치를 **위쪽에도 하나 더** 추가하자.. "고치기" **왼쪽 옆**에」):
+  단추는 **있었지만** 접힌 「🔧 다시 하기 · 녹음 추가」 칸 안이라 아무도 못 찾았다.
+  → 「📌 정리」 머리줄에 **하나 더** 놓는다(접힌 칸 것은 그대로).
+  🔴 진행·결과 글도 같이 옮긴다 — `recSt()` 가 쓰던 두 자리는 ①접힌 칸 안 ②맨 위 올리기 칸인데
+     ②는 녹음이 들어오면 감춰진다(`recUpHide`). **다시 정리할 때가 바로 그때**라 안 보였다.
 
 재는 것 (가짜 AI 를 **느리게** 해 둔다 — 기본 6초)
-  ① 🔴 **빨간 실패 글이 안 뜬다**(「AI 정리 실패」가 다시 나오면 실패)
-  ② 기다리는 동안 「…정리하는 중…」이 보인다
-  ③ 끝나면 「다시 정리 완료 ✓」 + **요약 글이 새것으로 바뀐다**
-  ④ 결정사항·할 일이 화면에 그려진다 · **사람이 적은 것도 그대로 남는다**
-  ⑤ 콘솔 오류 0
-  🔵 양쪽(운영 그대로·내 변경) 다 돌려 **바꿔도 화면이 여전히 끝까지 간다**를 지킨다.
-     (여기엔 앞단이 없어 옛 코드도 끊기지 않는다 — 끊김 자체는 mtg_async_check 가 잰다)
-
-🔴 단추는 접힌 「다시 하기」 칸(`#redoTools`) 안에 있다 — 먼저 펴야 누를 수 있다(z1165 교훈).
+  ① 🔴 반대 시험 — 운영 그대로엔 위 단추(`#btnExtractTop`)가 **없다**
+  ② 위 단추가 **「✏ 고치기」 왼쪽**에 있다 (x 좌표로 잰다) · **안 펴도 바로 보인다**
+  ③ 🔵 **위 단추로** 눌러 끝까지 — 빨간 실패 글 없음 · 요약이 새것으로 · 결정·할 일 그려짐
+  ④ 🔵 **진행·결과 글이 위(`#sumSt2`)에 보인다** (아래 접힌 칸을 펴지 않고도)
+  ⑤ 접힌 칸의 **옛 단추도 여전히** 된다 (양쪽이 같은 함수)
+  ⑥ 🔴 사람이 손으로 적은 결정·할 일은 **그대로** · 콘솔 오류 0
+  ⑦ 🔴 **못 고치는 사람에겐 위 단추가 안 보인다**
 
 쓰는 법: py mtg_redo_ui.py <포트_base> <포트_new> [app_base·app_new 가 있는 폴더]
 판정: **종료코드**(0=통과).
@@ -59,16 +65,27 @@ def boot(app, port):
         except Exception:
             s = ""
         if "READY" in s:
-            m = re.search(r"READY \d+ me (\d+) other (\d+) mine (\d+)", s)
-            return pr, {"me": int(m.group(1)), "mine": int(m.group(3))}
+            m = re.search(r"READY \d+ me (\d+) other (\d+) mine (\d+) empty (\d+) notmine (\d+)", s)
+            return pr, {"me": int(m.group(1)), "other": int(m.group(2)), "mine": int(m.group(3)),
+                        "notmine": int(m.group(5))}
         if pr.poll() is not None:
             print(s[-2500:])
             raise SystemExit("!! %s(%d) 가 떴다 죽었다" % (app, port))
     raise SystemExit("!! %s(%d) 가 안 떴다" % (app, port))
 
 
-#  recSt() 가 쓰는 그 칸을 똑같이 읽는다(이 화면엔 recStatus 가 둘 있어 첫째가 쓰인다)
+#  recSt() 가 쓰는 칸들 — 위(z1175) · 접힌 칸 안
+TOPST = "() => { var e = document.getElementById('sumSt2'); return e ? (e.textContent||'') : '(없음)'; }"
 RECST = "() => { var e = document.getElementById('recStatus'); return e ? (e.textContent||'') : ''; }"
+
+
+def page_for(br, port, uid):
+    ctx = br.new_context(viewport={"width": 1280, "height": 1000})
+    ctx.add_cookies([{"name": "tuser", "value": str(uid), "url": "http://127.0.0.1:%d" % port}])
+    pg = ctx.new_page()
+    pg.add_init_script("try{localStorage.setItem('knk_works_install_hint_never','1');}catch(e){}")
+    return ctx, pg
+
 
 print("두 벌 띄우는 중… (가짜 AI %.0f초)" % SLOW)
 pb, ib = boot("app_base", PB)
@@ -77,65 +94,99 @@ pn, inn = boot("app_new", PN)
 try:
     with sync_playwright() as p:
         br = p.chromium.launch()
-        for lab, port, info in (("운영 그대로", PB, ib), ("내 변경", PN, inn)):
-            print("\n── 【%s】 🔄 다시 정리를 눌러 본다 ──" % lab)
-            ctx = br.new_context(viewport={"width": 1280, "height": 1000})
-            ctx.add_cookies([{"name": "tuser", "value": str(info["me"]),
-                              "url": "http://127.0.0.1:%d" % port}])
-            errs = []
-            pg = ctx.new_page()
-            pg.on("console", lambda m: errs.append(m.text[:140]) if m.type == "error" else None)
-            pg.add_init_script(
-                "try{localStorage.setItem('knk_works_install_hint_never','1');}catch(e){}")
-            pg.goto("http://127.0.0.1:%d/meetings/%d" % (port, info["mine"]),
-                    wait_until="domcontentloaded")
-            #  🔴 단추는 접힌 칸 안이라 **처음엔 안 보인다** — 먼저 칸을 펴고 나서 기다린다
-            pg.wait_for_selector("#btnExtract", state="attached", timeout=20000)
-            before = (pg.inner_text("#mtgSummary") or "").strip()
-            chk("%s · 누르기 전 요약은 옛것" % lab, "옛 정리" in before, before[:50])
 
-            pg.evaluate("() => { var d=document.getElementById('redoTools'); if(d) d.open=true; }")
-            pg.wait_for_selector("#btnExtract", state="visible", timeout=20000)
-            chk("%s · 「🔄 다시 정리」 단추를 누를 수 있다" % lab,
-                pg.locator("#btnExtract").is_enabled())
-            pg.click("#btnExtract")
+        # ── ① 🔴 반대 시험 ─────────────────────────────────────
+        print("\n── ① 🔴 반대 시험: 운영 그대로엔 **위 단추가 없다** ──")
+        cb, gb = page_for(br, PB, ib["me"])
+        gb.goto("http://127.0.0.1:%d/meetings/%d" % (PB, ib["mine"]), wait_until="domcontentloaded")
+        gb.wait_for_selector("#btnSumEdit", timeout=20000)
+        chk("운영: 위 단추 0개", gb.locator("#btnExtractTop").count() == 0)
+        chk("운영: 위 상태칸도 없다", gb.locator("#sumSt2").count() == 0)
+        chk("운영: 접힌 칸 안의 단추는 있다(숨어 있을 뿐)",
+            gb.locator("#btnExtract").count() == 1)
+        cb.close()
 
-            #  ② 기다리는 동안
-            saw = False
-            for _ in range(20):
-                pg.wait_for_timeout(300)
-                if "정리하는 중" in pg.evaluate(RECST):
-                    saw = True
-                    break
-            chk("%s · 기다리는 동안 「정리하는 중…」이 보인다" % lab, saw, pg.evaluate(RECST)[:60])
+        # ── ②③④⑥ 내 화면 — 위 단추로 끝까지 ───────────────────
+        print("\n── ②③④ 내 화면: **「✏ 고치기」 왼쪽**에 있고, 안 펴도 눌러 끝까지 간다 ──")
+        cn, gn = page_for(br, PN, inn["me"])
+        errs = []
+        gn.on("console", lambda m: errs.append(m.text[:140]) if m.type == "error" else None)
+        gn.goto("http://127.0.0.1:%d/meetings/%d" % (PN, inn["mine"]), wait_until="domcontentloaded")
+        gn.wait_for_selector("#btnExtractTop", timeout=20000)
+        chk("위 단추가 **안 펴도 보인다**", gn.locator("#btnExtractTop").is_visible())
+        chk("접힌 「다시 하기」 칸은 **그대로 닫혀 있다**",
+            gn.evaluate("() => { var d=document.getElementById('redoTools'); return d ? !d.open : null; }") is True)
+        bt = gn.locator("#btnExtractTop").bounding_box()
+        be = gn.locator("#btnSumEdit").bounding_box()
+        bc = gn.locator("#btnCopySum").bounding_box()
+        chk("🔵 **「✏ 고치기」 왼쪽**에 있다 (다시정리 x=%.0f < 고치기 x=%.0f)" % (bt["x"], be["x"]),
+            bt["x"] < be["x"])
+        chk("차례가 [다시 정리][고치기][복사] 다 (복사 x=%.0f)" % bc["x"], be["x"] < bc["x"])
+        chk("같은 줄에 있다", abs(bt["y"] - be["y"]) < 6, "%.0f vs %.0f" % (bt["y"], be["y"]))
+        chk("글자가 「다시 정리」다", "다시 정리" in (gn.inner_text("#btnExtractTop") or ""),
+            gn.inner_text("#btnExtractTop"))
+        before = (gn.inner_text("#mtgSummary") or "").strip()
+        chk("누르기 전 요약은 옛것", "옛 정리" in before, before[:50])
 
-            #  ③ 끝날 때까지 (최대 60초)
-            done, waited = False, 0.0
-            for _ in range(120):
-                pg.wait_for_timeout(500)
-                waited += 0.5
-                msg = pg.evaluate(RECST)
-                if "완료" in msg:
-                    done = True
-                    break
-                if "실패" in msg or "오래" in msg:
-                    break
-            msg = pg.evaluate(RECST)
-            chk("%s · 🔴 **빨간 실패 글이 안 뜬다**" % lab, "실패" not in msg, msg[:80])
-            chk("%s · 「다시 정리 완료 ✓」 (%.1f초 뒤)" % (lab, waited), done, msg[:80])
+        gn.click("#btnExtractTop")
+        saw = False
+        for _ in range(20):
+            gn.wait_for_timeout(300)
+            if "정리하는 중" in gn.evaluate(TOPST):
+                saw = True
+                break
+        chk("🔵 **위 칸에** 「정리하는 중…」이 보인다", saw, gn.evaluate(TOPST)[:60])
+        done, waited = False, 0.0
+        for _ in range(120):
+            gn.wait_for_timeout(500)
+            waited += 0.5
+            m = gn.evaluate(TOPST)
+            if "완료" in m:
+                done = True
+                break
+            if "실패" in m or "오래" in m:
+                break
+        msg = gn.evaluate(TOPST)
+        chk("🔴 **빨간 실패 글이 안 뜬다**", "실패" not in msg, msg[:80])
+        chk("🔵 **위 칸에** 「다시 정리 완료 ✓」 (%.1f초 뒤)" % waited, done, msg[:80])
+        chk("접힌 칸 안에도 같은 글이 들어가 있다", "완료" in gn.evaluate(RECST),
+            gn.evaluate(RECST)[:60])
+        after = (gn.inner_text("#mtgSummary") or "").strip()
+        chk("요약이 **새것으로 바뀐다**", "가짜 정리" in after, after[:60])
+        chk("옛 요약은 사라졌다", "옛 정리" not in after, after[:60])
+        whole = gn.inner_text("body")
+        chk("AI 결정·할 일이 보인다", "가짜 결정" in whole and "가짜 할 일" in whole)
+        chk("🔴 사람이 적은 결정·할 일이 **그대로** 보인다",
+            "사람이 적은 결정" in whole and "사람이 적은 할 일" in whole)
 
-            after = (pg.inner_text("#mtgSummary") or "").strip()
-            chk("%s · 요약이 **새것으로 바뀐다**" % lab, "가짜 정리" in after, after[:60])
-            chk("%s · 옛 요약은 사라졌다" % lab, "옛 정리" not in after, after[:60])
+        # ── ⑤ 접힌 칸의 옛 단추도 여전히 ───────────────────────
+        print("\n── ⑤ 접힌 칸의 **옛 단추도 여전히** 된다 ──")
+        gn.evaluate("() => { var d=document.getElementById('redoTools'); if(d) d.open=true; }")
+        gn.wait_for_selector("#btnExtract", state="visible", timeout=20000)
+        chk("옛 단추를 누를 수 있다", gn.locator("#btnExtract").is_enabled())
+        gn.click("#btnExtract")
+        done2, w2 = False, 0.0
+        for _ in range(120):
+            gn.wait_for_timeout(500)
+            w2 += 0.5
+            if "완료" in gn.evaluate(TOPST):
+                done2 = True
+                break
+            if "실패" in gn.evaluate(TOPST):
+                break
+        chk("옛 단추로도 끝까지 간다 (%.1f초)" % w2, done2, gn.evaluate(TOPST)[:60])
+        chk("콘솔 오류 0", not errs, errs[:2])
+        cn.close()
 
-            #  ④ 결정·할 일 — AI 것과 사람이 적은 것이 **함께** 보인다
-            whole = pg.inner_text("body")
-            chk("%s · AI 결정이 보인다" % lab, "가짜 결정" in whole)
-            chk("%s · AI 할 일이 보인다" % lab, "가짜 할 일" in whole)
-            chk("%s · 🔴 사람이 적은 결정이 **그대로** 보인다" % lab, "사람이 적은 결정" in whole)
-            chk("%s · 🔴 사람이 적은 할 일이 **그대로** 보인다" % lab, "사람이 적은 할 일" in whole)
-            chk("%s · 콘솔 오류 0" % lab, not errs, errs[:2])
-            ctx.close()
+        # ── ⑦ 못 고치는 사람 ───────────────────────────────────
+        print("\n── ⑦ 🔴 못 고치는 사람에겐 **위 단추가 안 보인다** ──")
+        co, go = page_for(br, PN, inn["other"])
+        go.goto("http://127.0.0.1:%d/meetings/%d" % (PN, inn["mine"]), wait_until="domcontentloaded")
+        go.wait_for_selector("#mtgSummary", timeout=20000)
+        chk("위 단추 0개", go.locator("#btnExtractTop").count() == 0)
+        chk("「✏ 고치기」도 0개(지금과 같다)", go.locator("#btnSumEdit").count() == 0)
+        chk("🔵 「📋 복사」는 그대로 있다", go.locator("#btnCopySum").count() == 1)
+        co.close()
         br.close()
 finally:
     for pr in (pb, pn):

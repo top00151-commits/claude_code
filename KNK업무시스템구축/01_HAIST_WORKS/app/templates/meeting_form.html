@@ -527,9 +527,22 @@
       <div class="mf-sec-head"><div class="mf-sec-title">{{ i.mf_sec_sum|safe }}</div>
         {# z1091: 정리 복사 — 제목·날짜 머리말과 함께 클립보드(전달받는 쪽이 맥락을 알도록) #}
         {# z1139(대표 지시 2026-10-05): 음성 인식이 잘못 들은 낱말을 여기서 바로 고친다 #}
-        {% if can_edit %}<button class="copy-btn" id="btnSumEdit" type="button" style="margin-left:auto;" title="{{ i.mf_sumedit_t }}">{{ i.mf_sumedit }}</button>{% endif %}
+        {# 🔴 z1175 (대표 지시 2026-10-13 「회의록에는 다시 정리하기 기능이 없는데」
+               → 「다시 정리 위치를 위쪽에도 하나 더 추가하자.. "고치기" 왼쪽 옆에」)
+           있긴 했지만 **접힌 「🔧 다시 하기 · 녹음 추가」 칸 안**이라 아무도 못 찾았다 —
+           그 칸 이름이 「녹음 추가」라 정리가 거기 있으리라 생각할 수 없다.
+           ⚠ **같은 칸에서 두 번째다** — z1165 때도 대표가 「안 보인다」고 하셨다(쓰는 말 고르기).
+           🔵 접힌 칸의 단추는 **그대로 둔다**(녹음 추가하고 바로 다시 정리하는 흐름) ·
+              둘 다 **같은 한 함수**(extract)를 부른다. #}
+        {% if can_edit %}<button class="copy-btn" id="btnExtractTop" type="button" style="margin-left:auto;"
+                {% if not ai_on %}disabled title="{{ i.mf_noai_t }}"{% endif %}>{{ i.mf_reextract }}</button>{% endif %}
+        {% if can_edit %}<button class="copy-btn" id="btnSumEdit" type="button" style="margin-left:8px;" title="{{ i.mf_sumedit_t }}">{{ i.mf_sumedit }}</button>{% endif %}
         <button class="copy-btn" id="btnCopySum" type="button" style="margin-left:8px;" title="{{ i.mf_copysum_t }}">{{ i.mf_copy }}</button>
       </div>
+      {# 🔴 z1175: 위에서 누르면 **여기에** 진행·결과가 뜬다.
+         recSt() 가 쓰던 두 자리는 ①접힌 칸 안 ②맨 위 올리기 칸인데, ②는 녹음이 들어오면 감춰진다
+         (recUpHide) — 다시 정리할 때가 바로 그때라 **아무 글도 안 보였다**. #}
+      {% if can_edit %}<div class="rec-status" id="sumSt2" style="margin:-2px 0 8px;"></div>{% endif %}
       <div class="sum-box empty" id="mtgSummary">{{ i.mf_sum_empty }}</div>
       {% if can_edit %}
       {# z1139: 고치기 상자 — 「✏ 고치기」를 누르면 위 정리 글 대신 이 칸이 보인다 #}
@@ -1157,10 +1170,14 @@ window.__MTG = {
     // z1139: 손으로 고친 정리 글은 AI 가 다시 쓰면 사라진다 → 그때만 한 번 묻는다
     if (_sumEdited && !confirm(MF.re_ask1
         + String.fromCharCode(10) + MF.re_ask2)) return;
-    var btn = $('btnExtract'); if (btn){ btn.disabled=true; }
+    // z1175: 단추가 둘(접힌 칸 안 · 「📌 정리」 머리줄)이다 — 둘 다 잠그고, **원래 상태로** 되돌린다
+    //   (AI 가 꺼져 있으면 처음부터 잠겨 있으므로 무턱대고 풀면 안 된다)
+    var btns = [$('btnExtract'), $('btnExtractTop')].filter(function(b){ return !!b; });
+    var was = btns.map(function(b){ return b.disabled; });
+    btns.forEach(function(b){ b.disabled = true; });
     recSt(isDirty() ? MF.re_busy1 : MF.re_busy2);
     var r = await doExtract();
-    if (btn){ btn.disabled=false; }
+    btns.forEach(function(b, i){ b.disabled = was[i]; });
     if (r.ok) recSt(MF.re_done, 'ok');
     else recSt(r.error, 'err');
   }
@@ -1299,6 +1316,8 @@ window.__MTG = {
   rebase();   // z1106: 지금 화면 값 = 저장된 값(기준). 자동 정리보다 먼저.
   var bSave=$('btnSave'); if(bSave) bSave.addEventListener('click', save);
   var bExt=$('btnExtract'); if(bExt && !bExt.disabled) bExt.addEventListener('click', extract);
+  // z1175: 「📌 정리」 머리줄의 같은 단추 — **같은 함수**를 부른다
+  var bExtT=$('btnExtractTop'); if(bExtT && !bExtT.disabled) bExtT.addEventListener('click', extract);
   // ── z1139 ✏ 정리 글 바로 고치기 (대표 지시 2026-10-05) ───────────────────────
   //   음성 인식이 잘못 들은 낱말을 그 자리에서 고친다. AI 를 다시 돌리지 않으므로 다른 문장은 그대로.
   var _sumEdited = false;   // 이 화면에서 손으로 고쳤나 → 「🔄 다시 정리」 때 한 번 묻는다
@@ -1430,9 +1449,12 @@ window.__MTG = {
   function recFmt(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
   function recExt(mime){mime=mime||'';if(mime.indexOf('mp4')>=0||mime.indexOf('m4a')>=0||mime.indexOf('aac')>=0)return 'm4a';if(mime.indexOf('ogg')>=0)return 'ogg';if(mime.indexOf('wav')>=0)return 'wav';return 'webm';}
   // z1138: 알림 글을 맨 위 올리기 칸에도 같이 쓴다 — 접힌 「🔧 다시 하기」 안의 글은 안 보인다
+  // z1175: 「📌 정리」 머리줄 밑에도 같이 쓴다 — 맨 위 올리기 칸(recUpSt)은 녹음이 들어오면
+  //        감춰지는데(recUpHide), **다시 정리할 때가 바로 그때**라 아무 글도 안 보였다.
   function recSt(msg,kind){var c=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)');
     var el=$('recStatus');if(el){el.textContent=msg||'';el.style.color=c;}
-    var t=$('recUpSt');if(t){t.textContent=msg||'';t.style.color=c;}}
+    var t=$('recUpSt');if(t){t.textContent=msg||'';t.style.color=c;}
+    var s=$('sumSt2');if(s){s.textContent=msg||'';s.style.color=c;}}
   // z1138: 녹음이 들어오면 맨 위 「📁 녹음 파일 올리기」 칸을 감춘다(대표 결정: 녹음이 없을 때만 크게)
   function recUpHide(){try{var u=$('recUpTop');if(u)u.hidden=true;}catch(_){}}
   function recBanner(show,paused){var b=$('recBanner');if(!b)return;b.hidden=!show;if(show)recUpHide();b.classList.toggle('paused',!!paused);var l=$('recBannerLbl');if(!l)return;if(b.classList.contains('nosound')){l.textContent=MF.nosound;return;}var sv=recSavedTxt();l.textContent=paused?MF.paused_lbl:(MF.rec_banner+(sv?(' · '+sv):''));}
