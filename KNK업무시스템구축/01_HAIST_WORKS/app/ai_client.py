@@ -42,6 +42,12 @@ DEFAULT_MODEL_CLAUDE = "claude-sonnet-4-5"
 DEFAULT_MODEL_OPENAI = "gpt-4o-mini"
 DEFAULT_MAX_TOKENS = 1024
 TIMEOUT_SEC = 30
+#  🔴 z1172 (대표 신고 2026-10-13 「AI 호출 오류(openai): Request timed out.」)
+#     위 30초는 **짧은 답**(번역·한 줄 요약 등)에 맞춘 값이다. 회의록·음성 메모 **정리**는
+#     원문이 길면 답이 수천 자라 30초를 넘는다(재시도 2번이라 90초쯤 버티다 터진다).
+#     ⛔ 공용값(TIMEOUT_SEC)을 올리면 **남의 기능까지 전부** 바뀐다 → **정리 호출에만** 이 값을 준다.
+#     🔵 받아쓰기용 클라이언트는 전부터 300초를 쓰고 있었다(아래 ai_transcribe) — 그 값에 맞췄다.
+EXTRACT_TIMEOUT_SEC = 300
 
 # SDK lazy import (없어도 앱 정상 — 해당 공급사만 비활성)
 try:
@@ -281,10 +287,18 @@ def ai_chat(
     model: str = "",
     temperature: float = 0.3,
     cache_system: bool = True,
+    timeout_sec: float = 0,
 ) -> tuple[bool, str]:
     """
     단발 채팅 호출 (공급사 자동). 반환 (성공여부, 응답 또는 오류메시지).
     호출부는 ai_available() 로 먼저 확인할 것.
+
+    timeout_sec (z1172 · 대표 신고 2026-10-13 「AI 호출 오류(openai): Request timed out.」):
+      0 이면 **지금까지와 똑같다**(공용 TIMEOUT_SEC = 30초). 0보다 크면 **이 호출에만** 그 초를 쓴다.
+      🔴 왜 필요한가 — 공용 한도가 30초인데 긴 글 정리는 그보다 오래 걸린다(재시도 2번이라 90초쯤
+         버티다 터진다). 그렇다고 공용값을 올리면 **남의 기능까지 전부** 바뀐다.
+      🔵 `with_options()` 는 **새 사본을 돌려주고 원래 클라이언트는 안 건드린다**(실측 확인).
+         받아쓰기용 클라이언트는 이미 300초를 쓰고 있었다(아래 `ai_transcribe`).
     """
     provider = get_provider()
     if not provider:
@@ -292,6 +306,11 @@ def ai_chat(
     client = _get_client(provider)
     if client is None:
         return (False, f"AI 비활성 ({provider} 키 미등록 또는 SDK 미설치)")
+    if timeout_sec and timeout_sec > 0:
+        try:
+            client = client.with_options(timeout=timeout_sec)   # 공용 클라이언트는 그대로 둔다
+        except Exception:
+            pass                                                # 못 바꾸면 지금까지대로 간다
 
     mdl = model or default_model(provider)
     try:
@@ -510,6 +529,7 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
         system=system,
         max_tokens=2000,
         temperature=0.1,
+        timeout_sec=EXTRACT_TIMEOUT_SEC,       # z1172 — 30초는 긴 회의에 모자란다
     )
     if not ok:
         return (False, {"error": resp, **empty})
@@ -601,14 +621,16 @@ def ai_extract_note(body: str) -> tuple[bool, dict]:
                      "원문에 없는 말은 절대 넣지 않는다.")
     text = body.strip()
     budget = _note_budget(len(text))                      # z1168 — 원문 길이에 맞춘다
-    ok, resp = ai_chat(text, system=system, max_tokens=budget, temperature=0.1)
+    ok, resp = ai_chat(text, system=system, max_tokens=budget, temperature=0.1,
+                       timeout_sec=EXTRACT_TIMEOUT_SEC)      # z1172 — 30초는 긴 녹음에 모자란다
     if not ok:
         return (False, {"error": resp, **empty})
     data = _parse_json_loose(resp)
     #  🔴 z1168: 답이 **중간에서 끊기면** JSON 이 깨진다(닫는 괄호가 없다).
     #     전에는 그대로 「해석하지 못했습니다」로 끝났다 → 한 번만 더, 한도를 끝까지 올려 다시 부른다.
     if not isinstance(data, dict) and budget < _NOTE_TOK_MAX:
-        ok2, resp2 = ai_chat(text, system=system, max_tokens=_NOTE_TOK_MAX, temperature=0.1)
+        ok2, resp2 = ai_chat(text, system=system, max_tokens=_NOTE_TOK_MAX, temperature=0.1,
+                             timeout_sec=EXTRACT_TIMEOUT_SEC)
         if ok2:
             data = _parse_json_loose(resp2)
     if not isinstance(data, dict):
