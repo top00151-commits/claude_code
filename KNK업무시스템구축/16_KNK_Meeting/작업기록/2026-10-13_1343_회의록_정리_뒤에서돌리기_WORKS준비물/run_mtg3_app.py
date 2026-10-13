@@ -36,6 +36,23 @@ from app import main as M              # noqa: E402
 from app.database import db_session    # noqa: E402
 from app import ai_client              # noqa: E402
 
+# 🧹 시험에서는 **아무 일도 안 하는** 서비스워커를 내준다.
+#    운영 /sw.js 의 activate 는 c.navigate(c.url) 로 **열린 화면을 전부 다시 읽힌다** →
+#    시험은 매번 새 브라우저라 그게 깔리면서 화면이 0.8초 뒤 다시 읽히고,
+#    Playwright 가 'Execution context was destroyed' 로 터진다(이틀에 네 번 겪음).
+#    🔵 404 로 두면 콘솔에 오류 한 줄이 남아 「콘솔 오류 0」 검사가 깨진다 → 빈 스크립트로.
+#    ⛔ 운영 /sw.js 는 건드리지 않는다. 이 줄은 **시험 서버에만** 있다.
+from starlette.responses import PlainTextResponse as _PTR_no_sw   # noqa: E402
+_no_sw_in_test = [r for r in M.app.router.routes if getattr(r, 'path', '') == '/sw.js']
+for _r in _no_sw_in_test:
+    M.app.router.routes.remove(_r)
+
+
+@M.app.get('/sw.js')
+async def _sw_noop_for_test():
+    return _PTR_no_sw('/* 시험용 빈 서비스워커 — 아무 일도 하지 않는다 */',
+                      media_type='application/javascript')
+
 ai_client.ai_available = lambda: True
 ai_client.transcribe_available = lambda: True
 

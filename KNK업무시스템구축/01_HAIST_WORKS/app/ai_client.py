@@ -524,16 +524,24 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
                      "원문에 없는 말은 절대 넣지 않는다. "
                      "회의 제목·참석자에 적힌 말이라도 이 목록과 어긋나면 이 목록 쪽을 따른다"
                      "(제목도 사람이 잘못 적었을 수 있다).")
-    ok, resp = ai_chat(
-        body.strip(),
-        system=system,
-        max_tokens=2000,
-        temperature=0.1,
-        timeout_sec=EXTRACT_TIMEOUT_SEC,       # z1172 — 30초는 긴 회의에 모자란다
-    )
+    text = body.strip()
+    budget = _mtg_budget(len(text))            # z1174 — 전에는 2000 고정이라 긴 회의가 눌렸다
+    ok, resp = ai_chat(text, system=system, max_tokens=budget, temperature=0.1,
+                       timeout_sec=EXTRACT_TIMEOUT_SEC)   # z1172 — 30초는 긴 회의에 모자란다
+    #  🔴 z1174: 모델이 그만큼 못 내보내면 호출 자체가 거부된다 → 작은 값으로 한 번 더
+    if not ok and budget > _SAFE_TOK and _tok_limit_error(resp):
+        ok, resp = ai_chat(text, system=system, max_tokens=_SAFE_TOK, temperature=0.1,
+                           timeout_sec=EXTRACT_TIMEOUT_SEC)
     if not ok:
         return (False, {"error": resp, **empty})
     data = _parse_json_loose(resp)
+    #  🔴 z1174: 답이 중간에서 끊기면 JSON 이 깨진다 → 상한까지 올려 한 번만 더
+    #     (음성 메모와 같은 규칙 — z1168)
+    if not isinstance(data, dict) and budget < _MTG_TOK_MAX:
+        ok2, resp2 = ai_chat(text, system=system, max_tokens=_MTG_TOK_MAX, temperature=0.1,
+                             timeout_sec=EXTRACT_TIMEOUT_SEC)
+        if ok2:
+            data = _parse_json_loose(resp2)
     if not isinstance(data, dict):
         return (False, {"error": "AI 응답을 회의록 형식(JSON)으로 해석하지 못했습니다.", **empty})
 
@@ -594,16 +602,58 @@ _NOTE_EXTRACT_SYSTEM = (
     '{"title":"","summary":""}'
 )
 
-#  🎤 음성 메모 정리에 줄 **답 길이** (z1168) — 원문이 길면 답도 길어야 한다.
-#    0.16 = 원문 글자수 → 넉넉한 출력 토큰. 한국어는 글자당 약 1.5토큰이라
-#    원문의 1/10 을 정리로 쓴다고 보면 0.15 안팎이면 남는다.
-#      10,327자 → 1,652 · 19,684자 → 3,149 · 27,950자 → 4,472 · 50,000자 이상 → 8,000(상한)
-_NOTE_TOK_MIN, _NOTE_TOK_MAX, _NOTE_TOK_RATIO = 1500, 8000, 0.16
+#  🎤 음성 메모 정리에 줄 **답 길이** (z1168 → z1174 에서 올림 · 대표 허락)
+#
+#  🔴 z1174 — **운영 실측으로 0.16 이 모자란 것이 드러났다**(2026-10-13).
+#     한국어는 **글자 하나 ≈ 토큰 하나**다(아래 세 건이 그 증거).
+#       · 메모 4: 원문  9,321자 → 한도 1,500 → 정리 1,413자 = **한도의 94%** (눌림)
+#       · 메모 3: 원문 27,950자 → 한도 4,472 → 정리 4,032자 = **한도의 90%** (눌림)
+#       · 메모 2: 원문 19,684자 → 한도 3,149 → 정리 **6,759자** = 한도에 **들어갈 수 없는 크기**
+#                 → 첫 호출이 잘려 「끊기면 상한으로 한 번 더」가 구해 줬다.
+#     🔵 마음껏 쓰게 뒀을 때(메모 2) AI 는 **원문의 34%**를 썼다. 0.16 은 거의 항상 모자라
+#        **긴 메모마다 AI 를 두 번** 부르고 있었다(돈·시간 두 배).
+#     → 0.45 로 올린다(34%에 30% 여유). 상한도 8,000 → 12,000.
+#       9,321자 → 4,194 · 19,684자 → 8,857 · 27,950자 → 12,000(상한) · 5,000자 이하 → 1,500(옛값)
+_NOTE_TOK_MIN, _NOTE_TOK_MAX, _NOTE_TOK_RATIO = 1500, 12000, 0.45
+
+#  🗓 회의록 정리에 줄 **답 길이** (z1174 · 대표 「회의록도 정리되는 글자수가 정해져있지?」)
+#
+#  🔴 전에는 **2000 고정**이라 원문이 아무리 길어도 같았다. 운영 실측(2026-10-13):
+#       원문 8,421자 → 정리 868자(10%) · 원문 23,811자 → 정리 1,174자(**4%**)
+#       = 원문이 2.8배가 되는 동안 정리는 1.4배. **운영 전체에서 가장 긴 정리가 1,278자.**
+#  🔴 회의록은 음성 메모보다 **더 빡빡하다** — 정리 글·**결정사항**·**할 일**이 **한 답에 다 들어간다.**
+#     (회의 56 = 정리 1,174자 + 결정 5 + 할 일 10 → 2000 을 거의 꽉 채운다 → 긴 회의일수록
+#      결정·할 일이 먼저 깎인다)
+#  → 음성 메모와 같은 비율(0.45)에 **결정·할 일 몫**을 따로 얹는다.
+#    🔵 짧은 회의는 **옛값 2000 그대로**다(1,700자 이하면 하한에 걸린다).
+_MTG_TOK_MIN, _MTG_TOK_MAX, _MTG_TOK_RATIO = 2000, 12000, 0.45
+_MTG_TOK_EXTRA = 1200            # 결정사항·할 일이 같은 답에 들어가는 몫
 
 
 def _note_budget(n_chars: int) -> int:
-    """원문 글자수 → 답 길이 한도. 옛 값(1500)보다 작아지지 않는다."""
+    """🎤 음성 메모 — 원문 글자수 → 답 길이 한도. 옛 하한(1500)보다 작아지지 않는다."""
     return max(_NOTE_TOK_MIN, min(_NOTE_TOK_MAX, int(n_chars * _NOTE_TOK_RATIO)))
+
+
+def _mtg_budget(n_chars: int) -> int:
+    """🗓 회의록 — 원문 글자수 → 답 길이 한도. 옛 값(2000)보다 작아지지 않는다.
+    결정·할 일이 같은 답에 들어가므로 그 몫(_MTG_TOK_EXTRA)을 얹는다."""
+    return max(_MTG_TOK_MIN,
+               min(_MTG_TOK_MAX, int(n_chars * _MTG_TOK_RATIO) + _MTG_TOK_EXTRA))
+
+
+#  🔴 z1174 안전장치 — 관리자가 **답을 적게 내보내는 모델**로 바꾸면(예: 4,096 한도)
+#     위 한도가 그 모델의 한계를 넘어 **호출 자체가 거부**된다. 그때는 오류 대신 **작은 값으로 한 번 더**.
+_SAFE_TOK = 4000
+
+
+def _tok_limit_error(msg: str) -> bool:
+    """「답 길이가 너무 크다」는 뜻의 오류인가. 그 밖의 오류(키·모델 없음)는 건드리지 않는다."""
+    m = (msg or "").lower()
+    if "max_tokens" in m or "max_completion_tokens" in m or "max output tokens" in m:
+        return True
+    return ("token" in m) and ("too large" in m or "less than" in m or "exceed" in m
+                               or "maximum" in m or "at most" in m)
 
 
 def ai_extract_note(body: str) -> tuple[bool, dict]:
@@ -623,6 +673,10 @@ def ai_extract_note(body: str) -> tuple[bool, dict]:
     budget = _note_budget(len(text))                      # z1168 — 원문 길이에 맞춘다
     ok, resp = ai_chat(text, system=system, max_tokens=budget, temperature=0.1,
                        timeout_sec=EXTRACT_TIMEOUT_SEC)      # z1172 — 30초는 긴 녹음에 모자란다
+    #  🔴 z1174: 모델이 그만큼 못 내보내면 호출 자체가 거부된다 → 작은 값으로 한 번 더
+    if not ok and budget > _SAFE_TOK and _tok_limit_error(resp):
+        ok, resp = ai_chat(text, system=system, max_tokens=_SAFE_TOK, temperature=0.1,
+                           timeout_sec=EXTRACT_TIMEOUT_SEC)
     if not ok:
         return (False, {"error": resp, **empty})
     data = _parse_json_loose(resp)
