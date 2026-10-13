@@ -937,7 +937,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
             # v5H226z204: 부품/소모품 라인은 qty=N(낱개), 단가=라인금액/N. 장비는 qty=1.
             _u_qty = int(u.get("qty") or 1)
             _u_unit_price = (amt / _u_qty) if _u_qty > 1 else amt
-            note_u = (u.get("note") or "").strip()
+            note_u = (u.get("note") or "").strip() or None   # z1173: 빈 호기 비고는 NULL(한 번도 안 적음) — '' 는 z983 규칙에서 「일부러 지움」이라 일정표가 등록 메모를 숨겼다(운영 56행 실측)
             u_due = (u.get("due_date") or "").strip()
             u_ship = (u.get("ship_to") or "").strip()
             u_ord = (u.get("order_date") or "").strip()

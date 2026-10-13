@@ -16719,6 +16719,31 @@ async def projects_quick_status(req: Request, pid: int):
                          "auto_so_no": auto_so_no})
 
 
+def _z1173_autofill_guard(u, pairs):
+    """z1173 (대표 승인 2026-10-13 · 이새롬 프로 신고 「비고에 적은 내용이 사번으로 바뀐다」):
+    크롬은 저장해 둔 로그인 정보의 로그인 ID(=사번)를 autocomplete=off 와 상관없이 글자 입력칸에 저절로 채운다
+    (z983 뒤에도 7번 저장됨 · 운영 이력 실측). 서버에서도 막는다 — 글자 칸 값이 **저장하는 사람 자신의**
+    로그인 ID·사번과 똑같으면 그 칸 이름을 돌려준다(막아야 함). 다른 사람 사번·긴 글·숫자 칸은 건드리지 않는다.
+    pairs = [(칸 이름, 값), …]. 화면(project_detail.html 읽기전용·knkDropAutofill)과 한 묶음."""
+    ids = set()
+    for k in ("login_id", "employee_no"):
+        v = str((u or {}).get(k) or "").strip().upper()
+        if v:
+            ids.add(v)
+    if not ids:
+        return None
+    for name, val in pairs:
+        if str(val or "").strip().upper() in ids:
+            return name
+    return None
+
+
+def _z1173_autofill_msg(name):
+    """z1173: 거부 안내문 — 왜 막혔고 무엇을 하면 되는지(「먹통」으로 보이지 않게)."""
+    return ("%s 칸에 로그인 ID(사번)가 들어왔습니다 — 브라우저가 저절로 채운 값입니다. "
+            "그 칸을 비우거나 다시 적은 뒤 저장해 주세요." % name)
+
+
 @app.post("/sales/orders/items/{iid:int}/edit")
 async def sales_order_item_edit(req: Request, iid: int):
     """v5H93: 호기 라인(order_items) 인라인 편집 — 라벨/금액/비고."""
@@ -16735,6 +16760,13 @@ async def sales_order_item_edit(req: Request, iid: int):
     u_order = (form.get("order_date") or "").strip() or None
     u_due = (form.get("due_date") or "").strip() or None
     u_ship = (form.get("ship_to") or "").strip() or None
+    # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기 — 화면 읽기전용·knkDropAutofill 과 한 묶음(글자 칸만 · 숫자 칸 제외)
+    _af1173 = _z1173_autofill_guard(u, [("비고", note), ("호기", label), ("납품처", u_ship),
+                                        ("규격", form.get("spec")), ("제작사", form.get("maker")),
+                                        ("공급사", form.get("supplier")), ("원산지", form.get("origin")),
+                                        ("설명", form.get("description"))])
+    if _af1173:
+        return JSONResponse({"ok": False, "message": _z1173_autofill_msg(_af1173)}, 400)
     # v5H189: 호기별 통화 override (KRW/USD/VND/JPY/CNY/EUR)
     u_cur_raw = (form.get("currency") or "").strip().upper()
     u_cur = u_cur_raw if u_cur_raw in ("KRW","USD","VND","JPY","CNY","EUR") else None
@@ -17199,6 +17231,9 @@ async def sales_orders_add_unit(req: Request, oid: int):
     label = (form.get("label") or "").strip()
     raw_a = (form.get("amount") or "0").strip().replace(",", "")
     note  = (form.get("note") or "").strip()
+    _af1173 = _z1173_autofill_guard(u, [("비고", note), ("호기", label)])   # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기
+    if _af1173:
+        return JSONResponse({"ok": False, "message": _z1173_autofill_msg(_af1173)}, 400)
     cur_v = (form.get("currency") or "").strip().upper() or "KRW"
     # v5H226z357 (통화 중대버그): 6종 통화 허용 (EUR/JPY/CNY 누락 수정)
     if cur_v not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
@@ -17379,6 +17414,11 @@ async def sales_orders_quick_edit(req: Request, oid: int):
     raw_due = (form.get("due_date") or "").strip()
     raw_ord = (form.get("order_date") or "").strip()
     raw_ship = (form.get("ship_to") or "").strip()
+    # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기(수주 머리 글자 칸)
+    _af1173 = _z1173_autofill_guard(u, [("납품처", raw_ship), ("비고", form.get("line_note")),
+                                        ("모델명", form.get("model_name")), ("장비명", form.get("equip_name"))])
+    if _af1173:
+        return JSONResponse({"ok": False, "message": _z1173_autofill_msg(_af1173)}, 400)
     sets, vals = [], []
     # v5H226z357 (통화 중대버그): 6종 통화 허용 (EUR/JPY/CNY 선택 시 통화만 저장 안 되던 버그 수정)
     if raw_c in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
@@ -17889,6 +17929,9 @@ async def projects_add_followup(req: Request, pid: int):
     if currency not in ("KRW", "USD", "VND", "JPY", "CNY", "EUR"):
         currency = ""  # 빈 값 → add_followup_order 가 프로젝트 헤더 통화 사용
     ship_to = (form.get("ship_to") or "").strip()
+    _af1173 = _z1173_autofill_guard(u, [("비고", note), ("납품처", ship_to), ("PO 번호", po_number)])   # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기
+    if _af1173:
+        return JSONResponse({"ok": False, "message": _z1173_autofill_msg(_af1173)}, 400)
     with db_session() as c:
         res = _pwf.add_followup_order(c, pid, order_date=order_date,
                                         total_amount=total, due_date=due_date,
@@ -30202,6 +30245,10 @@ async def schedule_board_unit_field(request: Request):
         return JSONResponse({"ok": False, "error": "bad_request"}, 400)
     field = (b.get("field") or "").strip()
     value = b.get("value")
+    if field in ("note", "ship_to"):   # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기(상세 화면과 같은 규칙)
+        _af1173 = _z1173_autofill_guard(u, [("비고" if field == "note" else "납품처", value)])
+        if _af1173:
+            return JSONResponse({"ok": False, "error": _z1173_autofill_msg(_af1173)}, 400)
     # v5H226z483/z484 (대표 지시): 발주일·납품처·통화·거래방식·비고 + 호기별 거래명세서·세금계산서(발행일+금액)
     _TAX_FIELDS = ("statement_date", "tax_invoice_date", "tax_invoice_amt1",
                    "tax_invoice_date2", "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3")
