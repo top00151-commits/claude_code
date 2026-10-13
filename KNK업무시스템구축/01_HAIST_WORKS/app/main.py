@@ -4625,10 +4625,12 @@ async def api_meeting_extract(req: Request, mid: int):
         body = m.get("body") or ""
     if not body.strip():
         return JSONResponse({"ok": False, "error": "회의 내용이 비어 있습니다. 내용을 먼저 입력·저장하세요."}, 400)
+    import time as _time
     with _MTG_SUM_LOCK:
         if (_MTG_SUM_JOBS.get(mid) or {}).get("state") == "running":
             return JSONResponse({"ok": True, "already": True})
-        _MTG_SUM_JOBS[mid] = {"state": "running", "error": "", "result": {}}
+        # z1177: 시작 시각 — 다시 연 화면·다른 창이 「몇 초째」를 이어 보여 준다(/extract-status 의 elapsed)
+        _MTG_SUM_JOBS[mid] = {"state": "running", "error": "", "result": {}, "t0": _time.time()}
     _mtg_thr.Thread(target=_mtg_sum_worker, args=(mid,), daemon=True).start()
     return JSONResponse({"ok": True, "started": True})
 
@@ -4651,6 +4653,10 @@ async def api_meeting_extract_status(req: Request, mid: int):
     out = {"ok": True, "state": j.get("state"), "error": j.get("error") or ""}
     if j.get("state") == "done":
         out.update(j.get("result") or {})
+    # z1177: 돌고 있으면 몇 초째인지(서버 시계로) — 화면의 ⏱ 시계가 다시 열어도·다른 창에서도 맞는다
+    if j.get("state") == "running" and j.get("t0"):
+        import time as _time
+        out["elapsed"] = max(0, int(_time.time() - j["t0"]))
     return JSONResponse(out)
 
 
@@ -5959,10 +5965,12 @@ async def api_voice_note_extract(req: Request, nid: int):
     body = (n.get("body") or "").strip()
     if not body:
         return JSONResponse({"ok": False, "error": "정리할 내용이 없습니다. 녹음을 먼저 올리세요."}, 400)
+    import time as _time
     with _VN_LOCK:
         if (_VN_SUM_JOBS.get(nid) or {}).get("state") == "running":
             return JSONResponse({"ok": True, "already": True})
-        _VN_SUM_JOBS[nid] = {"state": "running", "error": ""}
+        # z1177: 시작 시각 — 다시 연 화면·다른 창이 「몇 초째」를 이어 보여 준다(/extract-status 의 elapsed)
+        _VN_SUM_JOBS[nid] = {"state": "running", "error": "", "t0": _time.time()}
     _stt_thr.Thread(target=_vn_sum_worker, args=(nid,), daemon=True).start()
     return JSONResponse({"ok": True, "started": True})
 
@@ -5979,6 +5987,11 @@ async def api_voice_note_extract_status(req: Request, nid: int):
         return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
     with _VN_LOCK:
         j = dict(_VN_SUM_JOBS.get(nid) or {"state": "idle", "error": ""})
+    # z1177: 시작 시각은 그대로 내보내지 않고, 돌고 있으면 몇 초째인지(서버 시계로)만 알려 준다
+    t0 = j.pop("t0", None)
+    if j.get("state") == "running" and t0:
+        import time as _time
+        j["elapsed"] = max(0, int(_time.time() - t0))
     j["ok"] = True
     return JSONResponse(j)
 

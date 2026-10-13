@@ -703,6 +703,9 @@ T = {
                   "vi": "AI đã tổng hợp xong"},
     "mf_ai_fail": {"ko": "AI 정리 실패",
                   "vi": "AI tổng hợp thất bại"},
+    # z1177 — 「정리하는 중」 진행 칸의 안내. 🔵 창을 닫아도 서버가 끝까지 해서 저장한다(z1170 · 시험으로 확인)
+    "mf_ai_hint": {"ko": "긴 회의는 몇 분 걸릴 수 있습니다 — 창을 닫아도 정리는 끝까지 됩니다.",
+                  "vi": "Cuộc họp dài có thể mất vài phút — đóng cửa sổ thì việc tổng hợp vẫn chạy đến cuối."},
     # z1170 — 정리가 아주 오래 걸려 확인을 멈췄을 때. 🔵 「실패」가 아니다: 서버에서 계속 돌고 있을 수 있다.
     "mf_ai_slow": {"ko": "정리가 오래 걸려 확인을 멈췄습니다 — 잠시 후 화면을 새로고침해 확인해 주세요.",
                   "vi": "Việc tổng hợp quá lâu nên đã dừng kiểm tra — hãy làm mới trang sau ít phút để xem lại."},
@@ -1092,8 +1095,9 @@ T = {
                    "vi": "Đang lưu nội dung đã sửa và AI đang tổng hợp lại…"},
     "mf_re_busy2": {"ko": "AI가 회의 내용을 다시 정리하는 중…",
                    "vi": "AI đang tổng hợp lại nội dung cuộc họp…"},
-    "mf_re_done": {"ko": "다시 정리 완료 ✓ 위 정리 결과가 갱신됐습니다.",
-                  "vi": "Đã tổng hợp lại ✓ Kết quả tổng hợp ở trên đã được cập nhật."},
+    # z1177 — 「위」를 뺐다: z1175 부터 이 글이 정리 글 **위**(머리줄 밑)에도 뜬다
+    "mf_re_done": {"ko": "다시 정리 완료 ✓ 정리 결과가 새것으로 바뀌었습니다.",
+                  "vi": "Đã tổng hợp lại ✓ Kết quả tổng hợp đã được cập nhật."},
     "mf_rec_banner": {"ko": "🔴 본 회의 녹음 중",
                      "vi": "🔴 Đang ghi âm cuộc họp này"},
     "mf_rec_fin_fail": {"ko": "녹음 마무리에 실패했습니다 — 「🔄 다시 정리」를 눌러 주세요.",

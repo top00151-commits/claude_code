@@ -543,6 +543,10 @@
          recSt() 가 쓰던 두 자리는 ①접힌 칸 안 ②맨 위 올리기 칸인데, ②는 녹음이 들어오면 감춰진다
          (recUpHide) — 다시 정리할 때가 바로 그때라 **아무 글도 안 보였다**. #}
       {% if can_edit %}<div class="rec-status" id="sumSt2" style="margin:-2px 0 8px;"></div>{% endif %}
+      {# 🔴 z1177 (대표 지시 2026-10-13 「"AI가 회의 내용을 다시 정리하는 중…" 이부분이 확실하게 표현이 됐으면」)
+         위 줄(sumSt2)은 12px 회색 글 한 줄뿐이고, 밑에는 옛 정리가 그대로 보여 **멈춘 것처럼** 보였다.
+         → 정리하는 동안은 이 진행 칸(도는 표시 · ⏱ 시계 · 안내)이 위 줄 자리를 대신하고, 옛 정리는 흐리게. #}
+      {% if can_edit %}<div id="aiBusy" hidden></div>{% endif %}
       <div class="sum-box empty" id="mtgSummary">{{ i.mf_sum_empty }}</div>
       {% if can_edit %}
       {# z1139: 고치기 상자 — 「✏ 고치기」를 누르면 위 정리 글 대신 이 칸이 보인다 #}
@@ -695,6 +699,8 @@
 </div>
 {% include "_v5_partials/knk_inputs.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
+{# z1177: 「AI가 … 정리하는 중」 진행 칸 — 🎤 음성 메모와 **같은 부품** #}
+{% include "_v5_partials/knk_ai_busy.html" %}
 
 <script>
 {# z1159: 자바스크립트가 쓸 말 — 번역 사전(i)에서 한 번만 내려 준다 #}
@@ -703,6 +709,7 @@ var MF = {
   add_fail: {{ i.mf_add_fail|tojson }},
   ai_done: {{ i.mf_ai_done|tojson }},
   ai_fail: {{ i.mf_ai_fail|tojson }},
+  ai_hint: {{ i.mf_ai_hint|tojson }},        {# z1177 — 진행 칸 안내(몇 분 걸릴 수 있다 · 창을 닫아도 된다) #}
   ai_slow: {{ i.mf_ai_slow|tojson }},        {# z1170 — 정리가 오래 걸려 확인을 멈췄을 때 #}
   all_done: {{ i.mf_all_done|tojson }},
   already1: {{ i.mf_already1|tojson }},
@@ -1132,6 +1139,10 @@ window.__MTG = {
     }
     var res = await jreq('POST', '/api/meeting/'+M.id+'/extract', {});
     if (!(res.ok && res.data.ok)) return { ok:false, error: res.data.error || MF.ai_fail };
+    return await waitExtract();
+  }
+  // z1177: 기다리는 부분만 따로 — 정리하는 도중에 이 화면을 다시 열었을 때도 이것으로 이어서 기다린다
+  async function waitExtract(){
     /* z1170 (대표 지시 2026-10-13 「회의록도 같은 방식으로 변경해」)
        전에는 이 한 요청 안에서 AI 를 다 기다렸다. 앞단(NAS 리버스프록시) 기다림 한도에 60초짜리가
        있어, 정리가 길어지면 연결이 먼저 끊긴다 → 화면엔 「AI 정리 실패」만 뜨는데
@@ -1147,6 +1158,8 @@ window.__MTG = {
         continue;
       }
       miss = 0;
+      // z1177: 서버가 알려 준 「몇 초째」로 진행 칸 시계를 맞춘다(다른 창에서 먼저 시작했어도 맞다)
+      if (st.data.state === 'running' && _ab) _ab.sync(st.data.elapsed);
       if (st.data.state === 'error') return { ok:false, error: st.data.error || MF.ai_fail };
       if (st.data.state === 'done'){
         M.summary = st.data.summary || '';
@@ -1170,16 +1183,36 @@ window.__MTG = {
     // z1139: 손으로 고친 정리 글은 AI 가 다시 쓰면 사라진다 → 그때만 한 번 묻는다
     if (_sumEdited && !confirm(MF.re_ask1
         + String.fromCharCode(10) + MF.re_ask2)) return;
+    await extractUi(isDirty() ? MF.re_busy1 : MF.re_busy2, doExtract);
+  }
+  // z1177: 진행 칸 — 처음 쓸 때 만든다(못 고치는 사람 화면엔 칸이 없어 아무 일도 안 한다)
+  var _ab = null;
+  function aiBusy(){
+    if (!_ab && window.KNKAiBusy) _ab = KNKAiBusy($('aiBusy'), { dim: $('mtgSummary'), hide: $('sumSt2') });
+    return _ab;
+  }
+  // 누를 때(extract)와 다시 열었을 때(resumeExtract) 화면 쪽은 똑같이 한다
+  async function extractUi(busyMsg, work, already){
     // z1175: 단추가 둘(접힌 칸 안 · 「📌 정리」 머리줄)이다 — 둘 다 잠그고, **원래 상태로** 되돌린다
     //   (AI 가 꺼져 있으면 처음부터 잠겨 있으므로 무턱대고 풀면 안 된다)
     var btns = [$('btnExtract'), $('btnExtractTop')].filter(function(b){ return !!b; });
     var was = btns.map(function(b){ return b.disabled; });
     btns.forEach(function(b){ b.disabled = true; });
-    recSt(isDirty() ? MF.re_busy1 : MF.re_busy2);
-    var r = await doExtract();
+    recSt(busyMsg);
+    var ab = aiBusy(); if (ab) ab.start(busyMsg, MF.ai_hint, already);
+    var r = await work();
     btns.forEach(function(b, i){ b.disabled = was[i]; });
-    if (r.ok) recSt(MF.re_done, 'ok');
-    else recSt(r.error, 'err');
+    if (r.ok){ recSt(MF.re_done, 'ok'); if (ab) ab.done(MF.re_done); }
+    else { recSt(r.error, 'err'); if (ab) ab.fail(r.error); }
+  }
+  /* z1177: 정리하는 **도중에** 이 화면을 다시 열면(탭을 옮겼다 오기 · 새로고침 · 다른 창) 진행 칸을 다시 띄우고
+     이어서 기다린다. 전에는 옛 정리만 보여 멈춘 것처럼 보였다(서버는 끝까지 해서 저장한다).
+     🔵 서버가 「몇 초째」를 알려 주므로 시계도 처음부터가 아니라 **실제로 지난 시간**부터 간다. */
+  async function resumeExtract(){
+    var st = await jreq('GET', '/api/meeting/'+M.id+'/extract-status');
+    if (!(st.ok && st.data && st.data.ok && st.data.state === 'running')) return;
+    //  처음 정리(녹음 뒤 자동)인지 다시 정리인지는 여기서 모른다 → 「다시」가 없는 글로
+    await extractUi(MF.step_ai + '…', waitExtract, st.data.elapsed);
   }
 
   // ── z971 자동 파이프라인 — 업로드/저장 후 (음성→글자)→(AI 정리) 자동 실행 ──
@@ -1318,6 +1351,8 @@ window.__MTG = {
   var bExt=$('btnExtract'); if(bExt && !bExt.disabled) bExt.addEventListener('click', extract);
   // z1175: 「📌 정리」 머리줄의 같은 단추 — **같은 함수**를 부른다
   var bExtT=$('btnExtractTop'); if(bExtT && !bExtT.disabled) bExtT.addEventListener('click', extract);
+  // z1177: 정리하는 도중에 다시 연 화면이면 진행 칸을 다시 띄운다(고칠 수 있는 사람 · AI 켜짐 · 저장된 회의만)
+  if (!M.is_new && CAN_EDIT && AI_ON && $('aiBusy')) resumeExtract();
   // ── z1139 ✏ 정리 글 바로 고치기 (대표 지시 2026-10-05) ───────────────────────
   //   음성 인식이 잘못 들은 낱말을 그 자리에서 고친다. AI 를 다시 돌리지 않으므로 다른 문장은 그대로.
   var _sumEdited = false;   // 이 화면에서 손으로 고쳤나 → 「🔄 다시 정리」 때 한 번 묻는다

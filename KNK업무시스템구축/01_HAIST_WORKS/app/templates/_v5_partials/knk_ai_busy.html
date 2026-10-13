@@ -1,0 +1,109 @@
+{# =====================================================================
+   _v5_partials/knk_ai_busy.html — z1177 (대표 지시 2026-10-13)
+   「AI가 … 정리하는 중」을 **확실하게** 보여 주는 진행 칸 — 🗓 회의록 · 🎤 음성 메모 **공용**.
+
+   왜: 전에는 12px 회색 글 한 줄뿐이었다(움직임 없음 · 몇 초째인지 없음).
+       그 밑에는 옛 정리가 그대로 보여 **멈춘 것처럼** 보였다(대표 사진 2026-10-13).
+   보이는 것:
+     · 파란 칸 + 도는 표시 + 굵은 글 + ⏱ 시계(0:42) + 안내 한 줄 + 흐르는 막대
+     · 그동안 옛 정리 글은 **흐리게** — 곧 바뀐다는 뜻
+     · 끝나면 초록 ✅ + 걸린 시간(10초 뒤 접힘) / 안 되면 빨강 ⚠(20초 뒤 접힘)
+       접힌 뒤에도 원래 있던 상태 글 줄에 결과가 남는다 — 이 칸은 「눈에 띄게」만 맡는다.
+   쓰는 법:
+     var ab = KNKAiBusy(칸, { dim: 흐리게 할 정리 칸, hide: 이 칸이 떠 있는 동안 감출 상태 글 줄 });
+     ab.start(제목, 안내[, 이미 지난 초]) · ab.sync(서버가 알려 준 지난 초) · ab.done(글) · ab.fail(글)
+   🔴 글자는 부르는 쪽이 넘긴다(회의록=두 언어 · 음성 메모=한국어). 이 부품에는 글자가 없다.
+   🔵 페이지에 이미 있는 「처리 중」 공용(KNKBusy · knk_busy.html)은 **화면 전체를 막는다** —
+      몇 분 걸리는 AI 정리에 쓰면 그동안 아무것도 못 한다. 그래서 칸 안에 두는 이 부품을 따로 둔다.
+   ===================================================================== #}
+<style id="knk-ai-busy-css">
+.kab{display:flex;align-items:flex-start;gap:12px;margin:2px 0 10px;padding:12px 14px;border-radius:12px;
+  background:#EFF6FF;border:1.5px solid #93C5FD;color:#0F172A;}
+.kab[hidden]{display:none !important;}
+.kab-ic{flex:0 0 auto;box-sizing:border-box;width:22px;height:22px;margin-top:1px;
+  border:3px solid #BFDBFE;border-top-color:#1D4ED8;border-radius:50%;animation:kabspin .8s linear infinite;}
+@keyframes kabspin{to{transform:rotate(360deg);}}
+.kab-tx{flex:1 1 auto;min-width:0;}
+.kab-t{font-size:14.5px;font-weight:800;line-height:1.45;overflow-wrap:anywhere;}
+.kab-s{font-size:12.5px;font-weight:600;color:#334155;margin-top:3px;line-height:1.55;}
+.kab-clk{font-variant-numeric:tabular-nums;font-weight:800;color:#1D4ED8;white-space:nowrap;}
+.kab-bar{position:relative;height:4px;margin-top:9px;border-radius:99px;background:#DBEAFE;overflow:hidden;}
+.kab-bar > i{position:absolute;top:0;bottom:0;left:-35%;width:35%;border-radius:99px;background:#2563EB;
+  animation:kabslide 1.5s ease-in-out infinite;}
+@keyframes kabslide{to{left:100%;}}
+.kab.ok{background:#F0FDF4;border-color:#86EFAC;}
+.kab.err{background:#FEF2F2;border-color:#FCA5A5;}
+.kab.ok .kab-ic,.kab.err .kab-ic{border:0;animation:none;font-size:19px;line-height:22px;text-align:center;}
+.kab.ok .kab-ic::before{content:"✅";}
+.kab.err .kab-ic::before{content:"⚠";color:#B91C1C;}
+.kab.ok .kab-clk{color:#15803D;}
+.kab.err .kab-clk{color:#B91C1C;}
+.kab.ok .kab-bar,.kab.err .kab-bar{display:none;}
+.kab-dim{opacity:.38;transition:opacity .25s ease;}
+</style>
+<script>
+(function(){
+  if (window.KNKAiBusy) return;
+  function mmss(sec){ sec = Math.max(0, Math.floor(sec)); return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+  var NOOP = { start:function(){}, sync:function(){}, secs:function(){ return 0; }, done:function(){},
+               fail:function(){}, close:function(){}, running:function(){ return false; } };
+  window.KNKAiBusy = function(host, opt){
+    if (!host) return NOOP;
+    opt = opt || {};
+    if (!host.querySelector('.kab-t')){
+      host.innerHTML = '<div class="kab-ic" aria-hidden="true"></div>'
+        + '<div class="kab-tx"><div class="kab-t"></div><div class="kab-s"></div>'
+        + '<div class="kab-bar" aria-hidden="true"><i></i></div></div>';
+    }
+    host.classList.add('kab');
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
+    var elT = host.querySelector('.kab-t'), elS = host.querySelector('.kab-s');
+    var t0 = 0, iv = null, hideT = null, hint = '';
+    function secs(){ return (Date.now() - t0) / 1000; }
+    function clk(){ return '<span class="kab-clk">⏱ ' + mmss(secs()) + '</span>'; }
+    function tick(){ elS.innerHTML = clk() + (hint ? ' · ' + esc(hint) : ''); }
+    function stop(){ if (iv){ clearInterval(iv); iv = null; } if (hideT){ clearTimeout(hideT); hideT = null; } }
+    function show(on){
+      host.hidden = !on;
+      if (opt.hide) opt.hide.style.display = on ? 'none' : '';   // 같은 글이 두 번 보이지 않게
+    }
+    function end(kind, msg, ms){
+      stop();
+      if (opt.dim) opt.dim.classList.remove('kab-dim');
+      host.classList.remove('ok', 'err'); host.classList.add(kind);
+      elT.textContent = msg || '';
+      elS.innerHTML = clk();                                       // 걸린 시간
+      show(true);
+      hideT = setTimeout(api.close, ms);
+    }
+    var api = {
+      start: function(title, h, already){
+        stop();
+        t0 = Date.now() - Math.max(0, +already || 0) * 1000;
+        hint = h || '';
+        host.classList.remove('ok', 'err');
+        elT.textContent = title || '';
+        tick(); iv = setInterval(tick, 1000);
+        if (opt.dim) opt.dim.classList.add('kab-dim');
+        show(true);
+      },
+      //  서버가 알려 준 「몇 초째」로 시계를 맞춘다 — 다른 창에서 먼저 시작했어도 맞는 시간이 보인다
+      sync: function(sec){ if (iv && sec != null && isFinite(+sec)){ t0 = Date.now() - (+sec) * 1000; tick(); } },
+      secs: function(){ return t0 ? Math.floor(secs()) : 0; },
+      done: function(msg){ end('ok', msg, 10000); },
+      fail: function(msg){ end('err', msg, 20000); },
+      close: function(){
+        stop();
+        if (opt.dim) opt.dim.classList.remove('kab-dim');
+        host.classList.remove('ok', 'err');
+        show(false);
+      },
+      running: function(){ return !!iv; }
+    };
+    return api;
+  };
+})();
+</script>
