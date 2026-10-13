@@ -5638,6 +5638,9 @@ async def api_meeting_stt_status(req: Request, mid: int):
 # ════════════════════════════════════════════════════════════════════════
 _VN_DIR = "voice_notes"
 _VN_JOBS: dict = {}
+#  🔴 z1169: 「정리」는 받아쓰기와 **따로** 적는다. 한 칸을 같이 쓰면
+#     녹음 올리기 흐름(받아쓰기 → 곧바로 정리)에서 서로의 상태를 덮어쓴다.
+_VN_SUM_JOBS: dict = {}
 _VN_LOCK = _stt_thr.Lock()
 
 
@@ -5841,9 +5844,46 @@ async def api_voice_note_stt_status(req: Request, nid: int):
     return JSONResponse(j)
 
 
+def _vn_sum_worker(nid: int):
+    """🎤 받아쓴 원문 → 요점·할 일 정리 (백그라운드 · z1169).
+    🔴 원문(body)은 바꾸지 않는다. 🔴 개인 메모라 활동 기록에 남기지 않는다."""
+    from . import ai_client
+    err = ""
+    try:
+        with db_session() as c:
+            n = _vn_row(c, nid)
+        body = ((n or {}).get("body") or "").strip()
+        if not body:
+            err = "정리할 내용이 없습니다."
+        else:
+            ok, r = ai_client.ai_extract_note(body)
+            if not ok:
+                err = r.get("error") or "정리 실패"
+            else:
+                summary = (r.get("summary") or "").strip()[:20000]
+                title = ((n or {}).get("title") or "").strip()
+                #  사람이 지은 제목은 건드리지 않는다
+                new_title = title or (r.get("title") or "").strip()[:200]
+                with db_session() as c:
+                    c.execute("UPDATE voice_notes SET summary=?, title=?, "
+                              "updated_at=datetime('now','localtime') WHERE id=?",
+                              (summary, new_title, nid))
+    except Exception as _e:
+        err = err or f"정리하지 못했습니다: {_e}"
+    with _VN_LOCK:
+        _VN_SUM_JOBS[nid] = {"state": ("error" if err else "done"), "error": err}
+
+
 @app.post("/api/voice-note/{nid:int}/extract")
 async def api_voice_note_extract(req: Request, nid: int):
-    """받아쓴 원문 → 요점·할 일 정리. 🔴 원문(body)은 바꾸지 않는다."""
+    """받아쓴 원문 → 요점·할 일 정리 **시작**(백그라운드). 상태는 /extract-status 로 본다.
+
+    🔴 z1169 (대표 신고 2026-10-13 「다시 정리 눌렀는데 정리하지 못했습니다」):
+       전에는 이 한 요청 안에서 AI 를 다 기다렸다. 그런데 **앞단 웹서버의 기다림 한도가 60초**라,
+       z1168 로 정리가 길어지자(원문 27,950자 → 정리 4,032자) **60초를 넘겨 앞단이 먼저 끊었다.**
+       서버는 끝까지 해서 **저장까지 됐는데** 화면에는 「정리하지 못했습니다」가 떴다(실측).
+       → 받아쓰기와 **같은 방식**으로 바꾼다: 바로 시작만 알리고, 화면이 상태를 물어 본다.
+    🔵 사람이 바로 알아야 할 것(로그인·AI 꺼짐·남의 메모·내용 없음)은 **여기서 그대로** 답한다."""
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
@@ -5857,16 +5897,28 @@ async def api_voice_note_extract(req: Request, nid: int):
     body = (n.get("body") or "").strip()
     if not body:
         return JSONResponse({"ok": False, "error": "정리할 내용이 없습니다. 녹음을 먼저 올리세요."}, 400)
-    ok, r = ai_client.ai_extract_note(body)
-    if not ok:
-        return JSONResponse({"ok": False, "error": r.get("error", "정리 실패")}, 502)
-    summary = (r.get("summary") or "").strip()[:20000]
-    title = (n.get("title") or "").strip()
-    new_title = title or (r.get("title") or "").strip()[:200]   # 사람이 지은 제목은 건드리지 않는다
+    with _VN_LOCK:
+        if (_VN_SUM_JOBS.get(nid) or {}).get("state") == "running":
+            return JSONResponse({"ok": True, "already": True})
+        _VN_SUM_JOBS[nid] = {"state": "running", "error": ""}
+    _stt_thr.Thread(target=_vn_sum_worker, args=(nid,), daemon=True).start()
+    return JSONResponse({"ok": True, "started": True})
+
+
+@app.get("/api/voice-note/{nid:int}/extract-status")
+async def api_voice_note_extract_status(req: Request, nid: int):
+    """정리가 끝났나 (z1169). state = idle | running | done | error"""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
     with db_session() as c:
-        c.execute("UPDATE voice_notes SET summary=?, title=?, updated_at=datetime('now','localtime') "
-                  "WHERE id=?", (summary, new_title, nid))
-    return JSONResponse({"ok": True, "summary": summary, "title": new_title})
+        n = _vn_row(c, nid)
+    if not _vn_mine(u, n):
+        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+    with _VN_LOCK:
+        j = dict(_VN_SUM_JOBS.get(nid) or {"state": "idle", "error": ""})
+    j["ok"] = True
+    return JSONResponse(j)
 
 
 @app.post("/api/voice-note/{nid:int}/save")
@@ -5924,6 +5976,7 @@ async def api_voice_note_delete(req: Request, nid: int):
         c.execute("DELETE FROM voice_notes WHERE id=?", (nid,))
     with _VN_LOCK:
         _VN_JOBS.pop(nid, None)
+        _VN_SUM_JOBS.pop(nid, None)        # z1169 — 정리 상태도 같이 치운다
     return JSONResponse({"ok": True})
 
 

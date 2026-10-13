@@ -1,0 +1,110 @@
+# -*- coding: utf-8 -*-
+"""z1169 시험용 WORKS 서버 — 🎤 음성 메모 **정리**를 느린 가짜 AI 로 재 본다.
+사용: py run_vn3_app.py <앱폴더(절대경로)> <포트> [정리에 걸리는 초(기본 5)]
+
+세우는 것
+  · 사람 둘 — 나(주인) · 남 (남의 메모는 404 가 나야 한다)
+  · 메모 셋 — ① 원문 있는 내 메모 ② 원문이 **빈** 내 메모(400 이 나야 한다) ③ 남의 메모
+
+🔴 **느린 가짜 AI** — 진짜 AI 를 부르지 않고(키도 비운다), 정해진 초만큼 자고 나서 정리 글을 돌려준다.
+   그래야 「요청이 바로 돌아오는가」를 잴 수 있다(옛 코드는 다 기다리느라 그 초만큼 붙잡혀 있다).
+"""
+import io
+import json
+import os
+import shutil
+import sys
+import threading
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+APP = sys.argv[1]
+PORT = int(sys.argv[2])
+SLOW = float(sys.argv[3]) if len(sys.argv) > 3 else 5.0
+os.chdir(APP)
+sys.path.insert(0, APP)
+os.environ.setdefault("KNK_SECRET_KEY", "verify-only-key")
+os.environ["KNK_MESSENGER_SSO_INTERNAL_BASE"] = "http://127.0.0.1:9"
+for _k in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "KNK_OPENAI_API_KEY"):
+    os.environ[_k] = ""
+sys.stdout.reconfigure(encoding="utf-8")
+shutil.rmtree(os.path.join(APP, "data"), ignore_errors=True)
+shutil.rmtree(os.path.join(APP, "voice_notes"), ignore_errors=True)
+
+import uvicorn                         # noqa: E402
+from app import main as M              # noqa: E402
+from app.database import db_session    # noqa: E402
+from app import ai_client              # noqa: E402
+
+ai_client.ai_available = lambda: True
+ai_client.transcribe_available = lambda: True
+
+CALLS = []
+
+
+def slow_extract(body):
+    """느린 가짜 — SLOW 초 자고 정리 글을 돌려준다. 받은 원문 길이를 적어 둔다."""
+    CALLS.append({"len": len(body or ""), "t": time.time()})
+    time.sleep(SLOW)
+    n = len(body or "")
+    return (True, {"summary": "요점\n- 가짜 정리 (원문 %d자)\n할 일\n- 아무것도 없음" % n,
+                   "title": "가짜 제목"})
+
+
+ai_client.ai_extract_note = slow_extract
+
+
+def fake_get_user(req):
+    uid = req.cookies.get("tuser")
+    with db_session() as c:
+        if uid:
+            r = c.execute("SELECT * FROM users WHERE id=?", (int(uid),)).fetchone()
+        else:
+            r = c.execute("SELECT * FROM users WHERE is_active=1 ORDER BY id LIMIT 1").fetchone()
+        return dict(r) if r else None
+
+
+M.get_user = fake_get_user
+srv = uvicorn.Server(uvicorn.Config(M.app, host="127.0.0.1", port=PORT,
+                                    log_level="warning", lifespan="on"))
+th = threading.Thread(target=srv.run, daemon=True)
+th.start()
+for _ in range(300):
+    if srv.started:
+        break
+    time.sleep(0.1)
+
+with db_session() as c:
+    have = {r[1] for r in c.execute("PRAGMA table_info(users)")}
+    for col in ("name_vi", "name_en", "employee_no", "entity", "phone", "dept_code", "lang"):
+        if col not in have:
+            c.execute("ALTER TABLE users ADD COLUMN %s TEXT" % col)
+    r = c.execute("SELECT id FROM teams WHERE name=?", ("총괄",)).fetchone()
+    tid = r[0] if r else c.execute(
+        "INSERT INTO teams(name, code, display_order) VALUES('총괄','TF0',0)").lastrowid
+
+    me = c.execute("SELECT id FROM users WHERE is_active=1 ORDER BY id LIMIT 1").fetchone()[0]
+    c.execute("UPDATE users SET team_id=?, rank='과장', role='member', name='김한국', lang='ko' "
+              "WHERE id=?", (tid, me))
+    other = c.execute(
+        "INSERT INTO users(login_id, name, rank, role, team_id, is_active, password, lang) "
+        "VALUES('z69ot','남의사람','부장','member',?,1,'x-no-login-z1169','ko')", (tid,)).lastrowid
+
+    #  ① 원문이 있는 내 메모 (정리할 거리가 있다)
+    mine = c.execute("INSERT INTO voice_notes(owner_id, title, body, summary) VALUES(?,?,?,?)",
+                     (me, "현장 설비 메모",
+                      "오늘 3호기 베어링에서 소리가 납니다. " * 40,
+                      "요점\n- 옛 정리")).lastrowid
+    #  ② 원문이 빈 내 메모 (400 이 나야 한다)
+    empty = c.execute("INSERT INTO voice_notes(owner_id, title, body, summary) VALUES(?,?,'','')",
+                      (me, "빈 메모")).lastrowid
+    #  ③ 남의 메모 (404 가 나야 한다)
+    notmine = c.execute("INSERT INTO voice_notes(owner_id, title, body, summary) VALUES(?,?,?,'')",
+                        (other, "남의 메모", "남의 원문")).lastrowid
+
+io.open(os.path.join(HERE, "seed_%d.json" % PORT), "w", encoding="utf-8").write(
+    json.dumps({"me": me, "other": other, "mine": mine, "empty": empty,
+                "notmine": notmine, "slow": SLOW, "port": PORT}, ensure_ascii=False))
+print("READY", PORT, "me", me, "mine", mine, "empty", empty, "notmine", notmine,
+      "slow", SLOW, flush=True)
+th.join()

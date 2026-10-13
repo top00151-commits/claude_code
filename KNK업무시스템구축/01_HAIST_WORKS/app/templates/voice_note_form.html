@@ -178,9 +178,25 @@
   // ── AI 정리 ────────────────────────────────────────────
   async function extract(silent){
     if(!NID) return;
-    if(!silent) st('vnSt','정리하는 중…','go');
+    if(!silent) st('vnSt','정리하는 중… (긴 녹음은 몇 분 걸립니다)','go');
     var r = await api('/api/voice-note/' + NID + '/extract', { method:'POST' });
     if(!r.ok){ st('vnSt', r.data.error || '정리하지 못했습니다.', 'err'); return; }
+    /* 🔴 z1169 (대표 신고 2026-10-13 「다시 정리 눌렀는데 정리하지 못했습니다」)
+       전에는 이 한 요청 안에서 끝까지 기다렸다. z1168 로 정리가 길어지자(원문 27,950자 → 정리 4,032자)
+       **앞단 웹서버의 기다림 한도 60초**를 넘겨 앞단이 먼저 끊었다 —
+       서버는 성공해 **저장까지 됐는데** 화면만 「정리하지 못했습니다」였다(실측).
+       → 받아쓰기와 같은 방식: 서버는 시작만 알리고, 여기서 끝날 때까지 물어본다. */
+    var done = false;
+    for(var i = 0; i < 300 && !done; i++){            // 2초 × 300 = 최대 10분
+      await new Promise(function(f){ setTimeout(f, 2000); });
+      var s = await api('/api/voice-note/' + NID + '/extract-status');
+      if(!s.ok) continue;                             // 잠깐 끊겨도 포기하지 않는다
+      var sv = s.data.state;
+      if(sv === 'error'){ st('vnSt', s.data.error || '정리하지 못했습니다.', 'err'); return; }
+      if(sv === 'done' || sv === 'idle'){ done = true; break; }   // idle = 서버가 다시 켜졌다 → 글을 확인
+      if(i % 15 === 14) st('vnSt','정리하는 중… ' + ((i + 1) * 2) + '초째 (긴 녹음은 몇 분 걸립니다)','go');
+    }
+    if(!done){ st('vnSt','정리가 오래 걸립니다 — 잠시 뒤 새로고침(F5) 해 보세요.','err'); return; }
     var n = await api('/api/voice-note/' + NID);
     if(n.ok && n.data.note){
       var d = n.data.note;
