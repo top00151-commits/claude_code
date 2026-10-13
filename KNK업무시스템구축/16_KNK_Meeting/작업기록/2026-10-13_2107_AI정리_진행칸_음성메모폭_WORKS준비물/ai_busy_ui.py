@@ -199,7 +199,10 @@ chk("안내에 「실패」「오래」 낱말이 없다(옛 시험이 그 낱�
 RD = _i.T["mf_re_done"]
 chk("완료 글에서 「위」를 뺐다(정리 글 **위**에도 뜬다)", "위 " not in RD["ko"] and "ở trên" not in RD["vi"], RD)
 chk("완료 글에 「완료」는 그대로(옛 시험이 그 낱말을 본다)", "완료" in RD["ko"], RD["ko"])
-chk("번역 글 수 +1 (%d → %d)" % (len(_i0.T), len(_i.T)), len(_i.T) == len(_i0.T) + 1)
+#  🔴 z1178 회귀에서 고침: 처음엔 「글 수 +1」로 **숫자를 못박았다** → 뒤 변경(z1178 검색 +17)을 얹은 코드로
+#     돌리면 969 → 987 이 되어 **제품은 멀쩡한데 깨졌다**. 뜻(z1177 의 새 글이 있다 · 사라진 글 0)만 본다.
+chk("새로 생긴 번역 글에 mf_ai_hint 가 있다 (%d → %d)" % (len(_i0.T), len(_i.T)),
+    "mf_ai_hint" in (set(_i.T) - set(_i0.T)))
 gone_keys = set(_i0.T) - set(_i.T)
 chk("사라진 번역 글 0", not gone_keys, gone_keys)
 STEP_AI = _i.T["mf_step_ai"]["ko"]

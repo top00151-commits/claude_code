@@ -4077,39 +4077,99 @@ def _meeting_login_redirect(req: Request):
     return RedirectResponse("/login?next=" + quote(_nxt, safe=""), 303)
 
 
-@app.get("/meetings", response_class=HTMLResponse)
-async def meetings_page(req: Request):
-    u = get_user(req)
-    if not u:
-        return _meeting_login_redirect(req)   # ?tab=cards 도 보존
-    role = (u.get("role") or "member").lower()
-    _sel = """SELECT m.*, t.name AS team_name, usr.name AS owner_name,
+_MTG_LIST_SEL = """SELECT m.*, t.name AS team_name, usr.name AS owner_name,
                  (SELECT COUNT(*) FROM meeting_decisions WHERE meeting_id=m.id) AS dec_cnt,
                  (SELECT COUNT(*) FROM meeting_actions WHERE meeting_id=m.id) AS act_cnt
               FROM meetings m
               LEFT JOIN teams t ON m.team_id=t.id
               LEFT JOIN users usr ON m.owner_id=usr.id """
-    with db_session() as c:
-        if role in ("admin", "ceo", "executive"):
-            rows = c.execute(
-                _sel + "ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300"
-            ).fetchall()
-        else:
-            # z972: 본사 공개/법인 공개 — 내 팀의 소속 법인에 해당하는 공개분도 목록에 포함
-            # z1148: 「이 사람들도 보기」 로 지정된 회의도 목록에 — 🔴 열람 판정만 고치면
-            #   주소로는 열리는데 회의록 목록엔 안 보인다(목록은 이 질의를 따로 한다).
-            _ent_vis = "vn" if _meeting_user_entity(c, u) == "VN" else "hq"
-            rows = c.execute(
-                _sel + """WHERE (m.owner_id=?
+
+
+def _meeting_list_rows(c, u, cond: str = "", args=()):
+    """회의록 목록에 보이는 회의(공개 범위 그대로 · 최근 300건).
+    🔴 z1178: 목록 화면과 🔍 검색이 **같은 이 함수**를 쓴다 — 공개 범위를 두 곳에 따로 적으면
+       한쪽만 고쳐 어긋난다(z1148 · z1166 과 같은 교훈). 검색 결과는 늘 목록의 부분집합이다.
+    cond = 「 AND (…)」 로 덧붙일 조건 · args = 그 값들."""
+    role = (u.get("role") or "member").lower()
+    if role in ("admin", "ceo", "executive"):
+        return c.execute(
+            _MTG_LIST_SEL + "WHERE 1=1 " + cond + " ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300",
+            tuple(args),
+        ).fetchall()
+    # z972: 본사 공개/법인 공개 — 내 팀의 소속 법인에 해당하는 공개분도 목록에 포함
+    # z1148: 「이 사람들도 보기」 로 지정된 회의도 목록에 — 🔴 열람 판정만 고치면
+    #   주소로는 열리는데 회의록 목록엔 안 보인다(목록은 이 질의를 따로 한다).
+    _ent_vis = "vn" if _meeting_user_entity(c, u) == "VN" else "hq"
+    return c.execute(
+        _MTG_LIST_SEL + """WHERE (m.owner_id=?
                                  OR m.msg_organizer_id=?
                                  OR m.visibility='all'
                                  OR m.visibility=?
                                  OR (m.visibility='team' AND m.team_id=?)
                                  OR m.id IN (SELECT meeting_id FROM meeting_attendees WHERE user_id=?)
-                                 OR m.id IN (SELECT meeting_id FROM meeting_viewers WHERE user_id=?))
+                                 OR m.id IN (SELECT meeting_id FROM meeting_viewers WHERE user_id=?))""" + cond + """
                           ORDER BY m.meeting_date DESC, m.id DESC LIMIT 300""",
-                (u["id"], u["id"], _ent_vis, u.get("team_id"), u["id"], u["id"]),
-            ).fetchall()
+        (u["id"], u["id"], _ent_vis, u.get("team_id"), u["id"], u["id"]) + tuple(args),
+    ).fetchall()
+
+
+# ── 🔍 z1178 회의록 검색 (대표 지시 2026-10-13 「회의록 검색 기능을 넣었으면 좋겠어..
+#    검색에는 제목,내용,참여자,고객사등 내용으로 검색할수있게」) ─────────────────────────
+#   · 찾는 곳: 제목 · 정리 · 원문 · 참석자(적은 글 + 참석자 명단) · 작성자 · 팀 · 장소 · 태그 · 결정 · 할 일
+#   · 🔵 고객사는 따로 적는 칸이 쓰이지 않는다(운영 실측 2026-10-13: 프로젝트·영업기회 연결 0/33 · 태그 0/33)
+#     → 고객사 이름은 제목·원문·정리 글 안에 있다 → 위 글 전체에서 찾으면 고객사로도 찾아진다.
+#   · 띄어 쓴 낱말은 **모두** 들어간 회의만(낱말마다 어느 칸에 있어도 된다).
+#   · 🔴 % 와 _ 는 글자 그대로 찾는다(안 막으면 「%」 하나로 모든 회의가 나온다).
+_MTG_Q_MAX_TERMS, _MTG_Q_MAX_LEN = 8, 40
+
+
+def _meeting_q_terms(q: str) -> list:
+    out = []
+    for t in (q or "").split():
+        t = t.strip()[:_MTG_Q_MAX_LEN]
+        if t and t.lower() not in [x.lower() for x in out]:
+            out.append(t)
+    return out[:_MTG_Q_MAX_TERMS]
+
+
+def _meeting_q_cond(terms: list):
+    """낱말마다 「어느 칸이든 들어 있다」 — 낱말끼리는 AND. 값은 전부 자리표(?)로 넘긴다."""
+    cond, args = "", []
+    for t in terms:
+        pat = "%" + t.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        cond += """ AND (m.title LIKE ? ESCAPE '\\' OR m.summary LIKE ? ESCAPE '\\' OR m.body LIKE ? ESCAPE '\\'
+                   OR m.attendees_text LIKE ? ESCAPE '\\' OR m.location LIKE ? ESCAPE '\\'
+                   OR m.tags LIKE ? ESCAPE '\\' OR usr.name LIKE ? ESCAPE '\\' OR t.name LIKE ? ESCAPE '\\'
+                   OR EXISTS (SELECT 1 FROM meeting_attendees qa LEFT JOIN users qu ON qu.id=qa.user_id
+                              WHERE qa.meeting_id=m.id AND (qa.name LIKE ? ESCAPE '\\' OR qu.name LIKE ? ESCAPE '\\'))
+                   OR EXISTS (SELECT 1 FROM meeting_decisions qd
+                              WHERE qd.meeting_id=m.id AND (qd.what LIKE ? ESCAPE '\\' OR qd.who LIKE ? ESCAPE '\\'))
+                   OR EXISTS (SELECT 1 FROM meeting_actions qx
+                              WHERE qx.meeting_id=m.id AND (qx.task LIKE ? ESCAPE '\\' OR qx.assignee_name LIKE ? ESCAPE '\\')))"""
+        args += [pat] * 14
+    return cond, args
+
+
+def _meeting_q_snip(text: str, terms: list, width: int = 36) -> str:
+    """찾은 곳 앞뒤 한 줄 — 줄바꿈은 띄어쓰기로. 못 찾으면 빈 글."""
+    s = text or ""
+    low = s.lower()
+    hits = [p for p in (low.find(t.lower()) for t in terms) if p >= 0]
+    if not hits:
+        return ""
+    p = min(hits)
+    a, b = max(0, p - width), min(len(s), p + width * 2)
+    mid = " ".join(s[a:b].split())
+    return ("…" if a > 0 else "") + mid + ("…" if b < len(s) else "")
+
+
+@app.get("/meetings", response_class=HTMLResponse)
+async def meetings_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return _meeting_login_redirect(req)   # ?tab=cards 도 보존
+    with db_session() as c:
+        rows = _meeting_list_rows(c, u)      # z1178: 공개 범위는 이 함수 한 곳(검색도 같은 것을 쓴다)
         meetings = [dict(r) for r in rows]
         for _mm in meetings:   # z1113: 목록에서도 「🔴 녹음 중」을 보고 바로 끝낼 수 있게
             _mm["rec"] = _rec_view(_mm, u)
@@ -4120,6 +4180,66 @@ async def meetings_page(req: Request):
     # 🗓 회의 카드 모아보기 탭(2026-09-17 대표 지시) — ?tab=cards
     tab = "cards" if (req.query_params.get("tab") or "") == "cards" else "list"
     return ctx(req, "meetings.html", user=u, meetings=meetings, tab=tab)
+
+
+@app.get("/api/meetings/search")
+async def api_meetings_search(req: Request):
+    """🔍 회의록 검색 (z1178) — 목록과 **같은 공개 범위** 안에서만 찾는다(_meeting_list_rows).
+    돌려주는 것: 찾은 회의 id · 어느 칸에서 찾았나(hits) · 찾은 곳 앞뒤 한 줄(snip).
+    🔵 원문이 길어(5만 자까지) 화면에 다 싣지 않고 여기서 찾는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    q = (req.query_params.get("q") or "").strip()[:120]
+    terms = _meeting_q_terms(q)
+    if not terms:
+        return JSONResponse({"ok": True, "q": q, "terms": [], "items": [], "total": 0})
+    cond, args = _meeting_q_cond(terms)
+    with db_session() as c:
+        rows = [dict(r) for r in _meeting_list_rows(c, u, cond, args)]
+        ids = [r["id"] for r in rows]
+        att, dec, act = {}, {}, {}
+        for i in range(0, len(ids), 200):
+            part = ids[i:i + 200]
+            ph = ",".join("?" * len(part))
+            #  찾을 때(SQL)와 같은 두 이름을 본다 — 적힌 이름 · 사람 표의 이름(어긋나면 「어디서 찾았나」가 빈다)
+            for r in c.execute("SELECT qa.meeting_id, COALESCE(qa.name,''), COALESCE(qu.name,'') "
+                               "FROM meeting_attendees qa LEFT JOIN users qu ON qu.id=qa.user_id "
+                               "WHERE qa.meeting_id IN (%s)" % ph, part):
+                att.setdefault(r[0], []).extend([x for x in (r[1], r[2]) if x])
+            for r in c.execute("SELECT meeting_id, COALESCE(who,''), COALESCE(what,'') FROM meeting_decisions "
+                               "WHERE meeting_id IN (%s) ORDER BY id" % ph, part):
+                dec.setdefault(r[0], []).append((r[1] + " " + r[2]).strip())
+            for r in c.execute("SELECT meeting_id, COALESCE(assignee_name,''), COALESCE(task,'') FROM meeting_actions "
+                               "WHERE meeting_id IN (%s) ORDER BY id" % ph, part):
+                act.setdefault(r[0], []).append((r[1] + " " + r[2]).strip())
+    lows = [t.lower() for t in terms]
+    items = []
+    for m in rows:
+        mid = m["id"]
+        fields = [  # (칸 이름, 글) — 찾은 곳 한 줄은 이 차례로 고른다(제목은 줄에 이미 보이니 맨 끝)
+            ("summary", m.get("summary") or ""),
+            ("body", m.get("body") or ""),
+            ("dec", "\n".join(dec.get(mid, []))),
+            ("act", "\n".join(act.get(mid, []))),
+            ("att", ((m.get("attendees_text") or "") + "\n" + "\n".join(att.get(mid, []))).strip()),
+            ("loc", m.get("location") or ""),
+            ("tags", m.get("tags") or ""),
+            ("owner", m.get("owner_name") or ""),
+            ("team", m.get("team_name") or ""),
+            ("title", m.get("title") or ""),
+        ]
+        hits, snip, sf = [], "", ""
+        for k, txt in fields:
+            low = txt.lower()
+            if any(t in low for t in lows):
+                hits.append(k)
+                if not snip and k not in ("title", "owner", "team"):
+                    snip, sf = _meeting_q_snip(txt, terms), k
+        order = ["title", "summary", "body", "att", "owner", "team", "loc", "tags", "dec", "act"]
+        hits.sort(key=lambda k: order.index(k))
+        items.append({"id": mid, "hits": hits, "snip": snip, "snip_field": sf})
+    return JSONResponse({"ok": True, "q": q, "terms": terms, "items": items, "total": len(items)})
 
 
 @app.get("/meetings/new", response_class=HTMLResponse)

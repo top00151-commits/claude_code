@@ -98,6 +98,24 @@
   .mc-card { padding: 11px 12px; }
   .mc-top { flex-wrap: wrap; }
 }
+/* 🔍 z1178 회의록 검색 — 칸은 목록 카드와 같은 좌우 여백(--content-pad) */
+.mq-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin: 0 var(--content-pad) 16px; }
+.mq-box { position:relative; flex:1 1 320px; min-width:0; }
+.mq-box input { width:100%; box-sizing:border-box; height:44px; padding:0 44px 0 40px; font-size:15px; font-family:inherit;
+  border:1.5px solid var(--qv-line-2); border-radius:12px; background: var(--qv-surface); color: var(--qv-ink); }
+.mq-box input:focus { outline:none; border-color: var(--knk-red); box-shadow: 0 0 0 3px rgba(165,40,44,.12); }
+.mq-ic { position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:16px; pointer-events:none; }
+.mq-clear { position:absolute; right:7px; top:50%; transform:translateY(-50%); width:30px; height:30px; border:0; border-radius:50%;
+  background: var(--qv-surface-3); color: var(--qv-ink-2); font-size:13px; font-weight:800; cursor:pointer; }
+.mq-cnt { font-size:13.5px; font-weight:800; color: var(--qv-ink-2); white-space:nowrap; }
+.mq-hit { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; margin-top:8px; font-size:12.5px; line-height:1.6; }
+.mq-f { font-size:11px; font-weight:800; padding:1px 7px; border-radius:6px; background:#FEF3C7; color:#92400E; white-space:nowrap; }
+.mq-snip { flex:1 1 260px; min-width:0; color: var(--qv-ink-3); overflow-wrap:anywhere; }
+.mtg-ttl mark, .mq-snip mark { background:#FDE68A; color:inherit; padding:0 1px; border-radius:3px; }
+/* 공용 클래스의 display 가 hidden 속성을 덮는다 — 이겨야 걸러진 줄·숫자 칸이 숨는다 */
+.mtg-row[hidden], .bento[hidden], .mq-none[hidden], .mq-clear[hidden] { display:none !important; }
+.mq-none { margin: 0 var(--content-pad) 12px; }
+@media (max-width: 640px) { .mq-cnt { width:100%; } }
 </style>
 </head>
 <body>
@@ -209,7 +227,21 @@
     row_draft: {{ i.mt_row_draft|tojson }},
     empty_head: {{ i.mt_empty_head|tojson }},
     empty_note: {{ i.mt_empty_note|tojson }},
-    empty_btn: {{ i.mt_empty_btn|tojson }}
+    empty_btn: {{ i.mt_empty_btn|tojson }},
+    {# z1178 🔍 회의록 검색 #}
+    q_cnt: {{ i.mt_q_cnt|tojson }},
+    q_busy: {{ i.mt_q_busy|tojson }},
+    q_err: {{ i.mt_q_err|tojson }},
+    qf_title: {{ i.mt_qf_title|tojson }},
+    qf_summary: {{ i.mt_qf_summary|tojson }},
+    qf_body: {{ i.mt_qf_body|tojson }},
+    qf_att: {{ i.mt_qf_att|tojson }},
+    qf_owner: {{ i.mt_qf_owner|tojson }},
+    qf_team: {{ i.mt_qf_team|tojson }},
+    qf_loc: {{ i.mt_qf_loc|tojson }},
+    qf_tags: {{ i.mt_qf_tags|tojson }},
+    qf_dec: {{ i.mt_qf_dec|tojson }},
+    qf_act: {{ i.mt_qf_act|tojson }}
 };</script>
   <div class="page-head">
     <div>
@@ -499,6 +531,24 @@
   </script>
   {% else %}
   {% if meetings %}
+  {# 🔍 z1178 (대표 지시 2026-10-13 「회의록 검색 기능을 넣었으면 좋겠어.. 검색에는 제목,내용,참여자,고객사등 내용으로 검색할수있게」)
+     찾는 일은 서버가 한다(원문이 5만 자까지라 화면에 다 싣지 않는다) — 🔴 목록과 같은 공개 범위 안에서만.
+     🔴 읽기 전용으로 시작한다 — 크롬은 저장된 로그인 ID 를 화면의 글자 칸에 저절로 채운다(z1173 · autocomplete=off 도 무시).
+        채워지면 목록이 엉뚱하게 걸러진다 → 누르는 순간 풀린다. #}
+  <div class="mq-bar">
+    <div class="mq-box">
+      <span class="mq-ic" aria-hidden="true">🔍</span>
+      <input type="text" id="mqInput" readonly autocomplete="off" autocapitalize="off" spellcheck="false"
+             maxlength="120" enterkeyhint="search" placeholder="{{ i.mt_q_ph }}" aria-label="{{ i.mt_q_ph }}"
+             title="{{ i.mt_q_hint }}" data-lpignore="true" data-1p-ignore>
+      <button type="button" class="mq-clear" id="mqClear" hidden aria-label="{{ i.mt_q_clear }}" title="{{ i.mt_q_clear }}">✕</button>
+    </div>
+    <div class="mq-cnt" id="mqCnt" aria-live="polite"></div>
+  </div>
+  <div class="mtg-empty mq-none" id="mqNone" hidden>
+    <div class="big">🔍</div>
+    <div style="font-size:14px;font-weight:700;color:var(--qv-ink-2);">{{ i.mt_q_none }}</div>
+  </div>
   <div class="bento" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px;">
     <div class="kpi-card"><div class="kpi-label">{{ i.mt_f_all }}</div><div class="kpi-num">{{ meetings|length }}</div><div class="kpi-trend neutral">{{ i.mt_sum_cnt }}</div></div>
     <div class="kpi-card"><div class="kpi-label">{{ i.mt_f_dec }}</div><div class="kpi-num">{{ meetings|sum(attribute='dec_cnt') }}</div><div class="kpi-trend neutral">{{ i.mt_sum_cnt }}</div></div>
@@ -615,6 +665,104 @@
     </div>
     {% endfor %}
   </div>
+  <script>
+  /* 🔍 z1178 회의록 검색 — 치는 대로(0.25초 뒤) 서버에 묻고, 목록에서 찾은 줄만 남긴다.
+     · 줄은 그대로 두고 숨기기만 한다(이름·주소는 안 바꾼다 — 줄을 글자로 찾는 시험 4곳이 있다)
+     · 찾은 줄 아래에 「어디서 찾았나」 칸 이름 + 찾은 곳 앞뒤 한 줄 · 찾은 낱말은 노랗게
+     · 검색어는 주소(?q=)에 남긴다 — 회의를 열었다가 「뒤로」 오면 그대로 다시 찾는다
+     · SPA 로 .main 만 바뀌어도 돌도록 이 안(.main)에 둔다(칸이 새로 생기니 두 번 붙지 않는다) */
+  (function(){
+    var inp = document.getElementById('mqInput'); if (!inp) return;
+    var clr = document.getElementById('mqClear'), cnt = document.getElementById('mqCnt'),
+        none = document.getElementById('mqNone'), bento = document.querySelector('.main .bento');
+    var ROWS = Array.prototype.map.call(document.querySelectorAll('.mtg-row'), function(r){
+      var a = r.querySelector('a.mtg-card'), t = r.querySelector('.mtg-ttl');
+      var m = a ? /\/meetings\/(\d+)/.exec(a.getAttribute('href') || '') : null;
+      return { el: r, card: a, id: m ? +m[1] : 0, ttl: t, t0: t ? t.textContent : '' };
+    });
+    var seq = 0, timer = null;
+    function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+    //  찾은 낱말을 노랗게 — 글은 먼저 막고(esc) 칠한다
+    function marks(text, terms){
+      var s = String(text || ''), low = s.toLowerCase(), out = '', i = 0;
+      var ts = (terms || []).map(function(t){ return String(t).toLowerCase(); }).filter(Boolean);
+      while (i < s.length){
+        var best = -1, bl = 0;
+        ts.forEach(function(t){ var p = low.indexOf(t, i);
+          if (p >= 0 && (best < 0 || p < best || (p === best && t.length > bl))){ best = p; bl = t.length; } });
+        if (best < 0){ out += esc(s.slice(i)); break; }
+        out += esc(s.slice(i, best)) + '<mark>' + esc(s.slice(best, best + bl)) + '</mark>';
+        i = best + bl;
+      }
+      return out;
+    }
+    function setUrl(q){
+      try { var u = new URL(location.href);
+            if (q) u.searchParams.set('q', q); else u.searchParams.delete('q');
+            history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch(_){}
+    }
+    function showAll(){
+      ROWS.forEach(function(R){
+        R.el.hidden = false;
+        var h = R.el.querySelector('.mq-hit'); if (h) h.parentNode.removeChild(h);
+        if (R.ttl) R.ttl.textContent = R.t0;
+      });
+      cnt.textContent = ''; none.hidden = true; if (bento) bento.hidden = false;
+    }
+    async function run(q){
+      var my = ++seq, j = null;
+      cnt.textContent = MT.q_busy;
+      try {
+        var r = await fetch('/api/meetings/search?q=' + encodeURIComponent(q), { credentials: 'same-origin' });
+        j = await r.json();
+      } catch(_){ j = null; }
+      if (my !== seq || !inp.isConnected) return;      // 더 새 검색이 있거나 화면을 떠났다
+      if (!j || !j.ok){ cnt.textContent = MT.q_err; return; }
+      var by = {}; (j.items || []).forEach(function(it){ by[it.id] = it; });
+      var n = 0;
+      ROWS.forEach(function(R){
+        var it = by[R.id], old = R.el.querySelector('.mq-hit');
+        if (old) old.parentNode.removeChild(old);
+        if (R.ttl) R.ttl.innerHTML = it ? marks(R.t0, j.terms) : esc(R.t0);
+        R.el.hidden = !it;
+        if (!it) return;
+        n++;
+        var d = document.createElement('div');
+        d.className = 'mq-hit';
+        d.innerHTML = (it.hits || []).map(function(k){ return '<span class="mq-f">' + esc(MT['qf_' + k] || k) + '</span>'; }).join('')
+          + (it.snip ? '<span class="mq-snip">' + marks(it.snip, j.terms) + '</span>' : '');
+        (R.card || R.el).appendChild(d);
+      });
+      cnt.textContent = MT.q_cnt.replace('{n}', n);
+      none.hidden = n > 0;
+      if (bento) bento.hidden = true;                  // 찾는 동안엔 전체 숫자 칸 대신 결과가 바로 밑에
+    }
+    function onType(){
+      var q = inp.value.trim();
+      clr.hidden = !inp.value;
+      setUrl(q);
+      clearTimeout(timer);
+      if (!q){ seq++; showAll(); return; }
+      timer = setTimeout(function(){ run(q); }, 250);
+    }
+    //  🔴 누르기 전엔 읽기 전용 — 크롬이 저장된 로그인 ID 를 채우지 못하게(z1173 과 같은 방식)
+    function unlock(){ if (inp.readOnly) inp.readOnly = false; }
+    inp.addEventListener('pointerdown', unlock);
+    inp.addEventListener('focus', unlock);
+    inp.addEventListener('input', onType);
+    inp.addEventListener('keydown', function(e){
+      unlock();
+      if (e.key === 'Escape'){ inp.value = ''; onType(); }
+      else if (e.key === 'Enter'){ e.preventDefault(); clearTimeout(timer); var q = inp.value.trim(); if (q) run(q); }
+    });
+    clr.addEventListener('click', function(){ inp.value = ''; onType(); unlock(); inp.focus(); });
+    //  주소에 검색어가 있으면(「뒤로」 돌아옴 · 새로고침) 그대로 다시 찾는다
+    var q0 = '';
+    try { q0 = (new URLSearchParams(location.search).get('q') || '').trim(); } catch(_){}
+    if (q0){ inp.readOnly = false; inp.value = q0; clr.hidden = false; run(q0); }
+  })();
+  </script>
   {% else %}
   <div class="mtg-empty">
     <div class="big">📝</div>
