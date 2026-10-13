@@ -690,6 +690,7 @@ var MF = {
   add_fail: {{ i.mf_add_fail|tojson }},
   ai_done: {{ i.mf_ai_done|tojson }},
   ai_fail: {{ i.mf_ai_fail|tojson }},
+  ai_slow: {{ i.mf_ai_slow|tojson }},        {# z1170 — 정리가 오래 걸려 확인을 멈췄을 때 #}
   all_done: {{ i.mf_all_done|tojson }},
   already1: {{ i.mf_already1|tojson }},
   already2: {{ i.mf_already2|tojson }},
@@ -1117,16 +1118,38 @@ window.__MTG = {
       status(MF.saved_ok, 'ok');
     }
     var res = await jreq('POST', '/api/meeting/'+M.id+'/extract', {});
-    if (res.ok && res.data.ok){
-      M.summary = res.data.summary || '';
-      M.decisions = res.data.decisions || [];
-      M.actions = res.data.actions || [];
-      M.base_ts = res.data.updated_at || M.base_ts;
-      if (res.data.title){ var t=$('mtgTitle'); if(t){ t.value=res.data.title; rebase(['mtgTitle']); } }
-      renderSummary(); renderDecisions(); renderActions();
-      return { ok:true };
+    if (!(res.ok && res.data.ok)) return { ok:false, error: res.data.error || MF.ai_fail };
+    /* z1170 (대표 지시 2026-10-13 「회의록도 같은 방식으로 변경해」)
+       전에는 이 한 요청 안에서 AI 를 다 기다렸다. 앞단(NAS 리버스프록시) 기다림 한도에 60초짜리가
+       있어, 정리가 길어지면 연결이 먼저 끊긴다 → 화면엔 「AI 정리 실패」만 뜨는데
+       **서버는 성공해 저장까지 한다**(음성 메모에서 실제로 났다 · z1168→z1169).
+       → 받아쓰기(z1090)와 같은 방식: 서버는 시작만 알리고 여기서 물어본다(요청당 수 ms). */
+    var miss = 0;
+    for (var i = 0; i < 400; i++){                 // 3초 × 400 = 최대 20분
+      await _sleep(3000);
+      var st = await jreq('GET', '/api/meeting/'+M.id+'/extract-status');
+      if (!(st.ok && st.data.ok)){
+        // 일시 통신 오류는 몇 번 봐주고 계속 — 연속 10회(30초)면 중단
+        if (++miss >= 10) return { ok:false, error: MF.stt_netlost };
+        continue;
+      }
+      miss = 0;
+      if (st.data.state === 'error') return { ok:false, error: st.data.error || MF.ai_fail };
+      if (st.data.state === 'done'){
+        M.summary = st.data.summary || '';
+        M.decisions = st.data.decisions || [];
+        M.actions = st.data.actions || [];
+        M.base_ts = st.data.updated_at || M.base_ts;
+        if (st.data.title){ var t=$('mtgTitle'); if(t){ t.value=st.data.title; rebase(['mtgTitle']); } }
+        renderSummary(); renderDecisions(); renderActions();
+        return { ok:true };
+      }
+      /* 🔴 idle = 서버가 다시 켜져 기록이 사라졌다. 결과를 받을 길이 없으니
+         **화면 값을 비우지 말고** 새로고침을 권한다(정리는 저장돼 있을 수 있다). */
+      if (st.data.state === 'idle') return { ok:false, error: MF.ai_slow };
+      // running → 계속 기다린다
     }
-    return { ok:false, error: res.data.error || MF.ai_fail };
+    return { ok:false, error: MF.ai_slow };
   }
 
   // ── 「🔄 다시 정리」(다시 하기 폴드) — 원문 고친 뒤 AI 정리만 다시. 피드백은 폴드 안 recStatus로 ──

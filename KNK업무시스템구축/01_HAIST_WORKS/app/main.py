@@ -4525,9 +4525,89 @@ async def api_meeting_delete(req: Request, mid: int):
     return JSONResponse({"ok": True, "msg": msg})
 
 
+# ── z1170: AI 정리 = 백그라운드 작업 + 상태 폴링 (대표 지시 2026-10-13 「회의록도 같은 방식으로」) ──
+#  까닭: 받아쓰기는 2026-08-24(z1090)에 같은 까닭으로 이미 뒤로 보냈는데 **정리는 안 옮겼다.**
+#        앞단(NAS 리버스프록시) 기다림 한도에 60초짜리가 있어, 정리가 길어지면 연결이 먼저 끊긴다.
+#        그러면 화면은 비-JSON 쪽지를 받아 「AI 정리 실패」만 띄우는데 **서버는 성공해 저장까지 한다.**
+#        실제로 음성 메모에서 그 일이 났다(z1168→z1169 · 원문 27,950자 → 정리 4,032자 · 실측).
+#  해결: POST /extract 는 **시작만** 알리고, 화면이 GET /extract-status 를 물어본다(요청당 수 ms).
+#  🔵 사람이 바로 알아야 할 것(로그인·AI 꺼짐·없는 회의·권한·내용 없음)은 **여기서 그대로** 답한다.
+import threading as _mtg_thr
+_MTG_SUM_JOBS: dict = {}      # {meeting_id: {"state": …, "error": str, "result": {...}}}
+_MTG_SUM_LOCK = _mtg_thr.Lock()
+
+
+def _mtg_sum_worker(mid: int):
+    """회의 원문 → 결정사항·할 일·요약 (백그라운드 · z1170).
+    🔴 하는 일은 옛 코드와 **글자 그대로 같다** — 바뀐 건 기다리는 방식뿐이다."""
+    from . import ai_client
+    err, payload = "", None
+    try:
+        with db_session() as c:
+            r = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+            m = dict(r) if r else None
+        if not m:
+            err = "없는 회의록입니다."
+        else:
+            body = m.get("body") or ""
+            # 회사 맥락 주입 — 참석자 이름 귀속·구조화 정리에 사용
+            _ctx_parts = []
+            if (m.get("title") or "").strip():
+                _ctx_parts.append(f"회의 제목: {m['title'].strip()}")
+            if (m.get("meeting_date") or "").strip():
+                _ctx_parts.append(f"날짜: {m['meeting_date'].strip()}")
+            if (m.get("attendees_text") or "").strip():
+                _ctx_parts.append(f"참석자: {m['attendees_text'].strip()}")
+            ok, result = ai_client.ai_extract_meeting(body, context="\n".join(_ctx_parts))
+            if not ok:
+                err = result.get("error", "AI 추출 실패")
+            else:
+                # z971: 제목이 비었거나 기본값('제목 없는 회의 …' — 녹음 자동생성)이면 AI 제안 제목으로
+                #   교체. 사용자가 직접 지은 제목은 절대 건드리지 않는다.
+                _cur_title = (m.get("title") or "").strip()
+                _ai_title = (result.get("title") or "").strip()[:200]
+                new_title = _ai_title if (_ai_title and (not _cur_title
+                                          or _cur_title.startswith("제목 없는 회의"))) else ""
+                with db_session() as c:
+                    # AI 추출분만 교체(수기 추가분·이미 일일카드 연동분은 보존)
+                    c.execute("DELETE FROM meeting_decisions WHERE meeting_id=? AND source='ai'", (mid,))
+                    c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL", (mid,))
+                    for dec in result["decisions"]:
+                        c.execute(
+                            "INSERT INTO meeting_decisions(meeting_id, who, what, due, source) VALUES(?,?,?,?,'ai')",
+                            (mid, dec["who"], dec["what"], dec["due"]),
+                        )
+                    for act in result["actions"]:
+                        c.execute(
+                            """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source)
+                               VALUES(?,?,?,?,?,'ai')""",
+                            (mid, act["assignee"], _meeting_match_user_id(c, act["assignee"]),
+                             act["task"], act["due"]),
+                        )
+                    if result["summary"]:
+                        c.execute("UPDATE meetings SET summary=?, updated_at=datetime('now','localtime') WHERE id=?",
+                                  (result["summary"], mid))
+                    if new_title:
+                        c.execute("UPDATE meetings SET title=?, updated_at=datetime('now','localtime') WHERE id=?",
+                                  (new_title, mid))
+                    new_ts = _row_ts(c, "meetings", mid)
+                    decisions = [dict(r2) for r2 in c.execute(
+                        "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
+                    actions = [dict(r2) for r2 in c.execute(
+                        "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
+                payload = {"summary": result["summary"], "title": new_title,
+                           "decisions": decisions, "actions": actions, "updated_at": new_ts}
+    except Exception as _e:
+        err = err or f"AI 정리에 실패했습니다: {_e}"
+    with _MTG_SUM_LOCK:
+        _MTG_SUM_JOBS[mid] = {"state": ("error" if err else "done"),
+                              "error": err, "result": payload or {}}
+
+
 @app.post("/api/meeting/{mid:int}/extract")
 async def api_meeting_extract(req: Request, mid: int):
-    """회의 원문 → AI 결정사항·할 일·요약 추출 후 저장(검토용). 자동 일일카드 등록 X."""
+    """회의 원문 → AI 결정사항·할 일·요약 **시작**(백그라운드 · z1170).
+    결과는 GET /extract-status 로 본다. 자동 일일카드 등록 X."""
     u = get_user(req)
     if not u:
         return JSONResponse({"error": "로그인 필요"}, 401)
@@ -4545,51 +4625,33 @@ async def api_meeting_extract(req: Request, mid: int):
         body = m.get("body") or ""
     if not body.strip():
         return JSONResponse({"ok": False, "error": "회의 내용이 비어 있습니다. 내용을 먼저 입력·저장하세요."}, 400)
-    # 회사 맥락 주입 — 참석자 이름 귀속·구조화 정리에 사용
-    _ctx_parts = []
-    if (m.get("title") or "").strip():
-        _ctx_parts.append(f"회의 제목: {m['title'].strip()}")
-    if (m.get("meeting_date") or "").strip():
-        _ctx_parts.append(f"날짜: {m['meeting_date'].strip()}")
-    if (m.get("attendees_text") or "").strip():
-        _ctx_parts.append(f"참석자: {m['attendees_text'].strip()}")
-    ok, result = ai_client.ai_extract_meeting(body, context="\n".join(_ctx_parts))
-    if not ok:
-        return JSONResponse({"ok": False, "error": result.get("error", "AI 추출 실패")}, 502)
-    # z971: 제목이 비었거나 기본값('제목 없는 회의 …' — 녹음 자동생성)이면 AI 제안 제목으로 교체.
-    #   사용자가 직접 지은 제목은 절대 건드리지 않는다.
-    _cur_title = (m.get("title") or "").strip()
-    _ai_title = (result.get("title") or "").strip()[:200]
-    new_title = _ai_title if (_ai_title and (not _cur_title or _cur_title.startswith("제목 없는 회의"))) else ""
+    with _MTG_SUM_LOCK:
+        if (_MTG_SUM_JOBS.get(mid) or {}).get("state") == "running":
+            return JSONResponse({"ok": True, "already": True})
+        _MTG_SUM_JOBS[mid] = {"state": "running", "error": "", "result": {}}
+    _mtg_thr.Thread(target=_mtg_sum_worker, args=(mid,), daemon=True).start()
+    return JSONResponse({"ok": True, "started": True})
+
+
+@app.get("/api/meeting/{mid:int}/extract-status")
+async def api_meeting_extract_status(req: Request, mid: int):
+    """AI 정리가 끝났나 (z1170). state = idle | running | done | error
+    done 이면 옛 POST 가 돌려주던 것(summary·title·decisions·actions·updated_at)을 그대로 담는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
     with db_session() as c:
-        # AI 추출분만 교체(수기 추가분·이미 일일카드 연동분은 보존)
-        c.execute("DELETE FROM meeting_decisions WHERE meeting_id=? AND source='ai'", (mid,))
-        c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL", (mid,))
-        for dec in result["decisions"]:
-            c.execute(
-                "INSERT INTO meeting_decisions(meeting_id, who, what, due, source) VALUES(?,?,?,?,'ai')",
-                (mid, dec["who"], dec["what"], dec["due"]),
-            )
-        for act in result["actions"]:
-            c.execute(
-                """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source)
-                   VALUES(?,?,?,?,?,'ai')""",
-                (mid, act["assignee"], _meeting_match_user_id(c, act["assignee"]),
-                 act["task"], act["due"]),
-            )
-        if result["summary"]:
-            c.execute("UPDATE meetings SET summary=?, updated_at=datetime('now','localtime') WHERE id=?",
-                      (result["summary"], mid))
-        if new_title:
-            c.execute("UPDATE meetings SET title=?, updated_at=datetime('now','localtime') WHERE id=?",
-                      (new_title, mid))
-        new_ts = _row_ts(c, "meetings", mid)
-        decisions = [dict(r) for r in c.execute(
-            "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
-        actions = [dict(r) for r in c.execute(
-            "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
-    return JSONResponse({"ok": True, "summary": result["summary"], "title": new_title,
-                         "decisions": decisions, "actions": actions, "updated_at": new_ts})
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        if not _can_edit_meeting(u, dict(m), c):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    with _MTG_SUM_LOCK:
+        j = dict(_MTG_SUM_JOBS.get(mid) or {"state": "idle", "error": "", "result": {}})
+    out = {"ok": True, "state": j.get("state"), "error": j.get("error") or ""}
+    if j.get("state") == "done":
+        out.update(j.get("result") or {})
+    return JSONResponse(out)
 
 
 @app.post("/api/meeting/{mid:int}/decision")

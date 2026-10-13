@@ -703,6 +703,9 @@ T = {
                   "vi": "AI đã tổng hợp xong"},
     "mf_ai_fail": {"ko": "AI 정리 실패",
                   "vi": "AI tổng hợp thất bại"},
+    # z1170 — 정리가 아주 오래 걸려 확인을 멈췄을 때. 🔵 「실패」가 아니다: 서버에서 계속 돌고 있을 수 있다.
+    "mf_ai_slow": {"ko": "정리가 오래 걸려 확인을 멈췄습니다 — 잠시 후 화면을 새로고침해 확인해 주세요.",
+                  "vi": "Việc tổng hợp quá lâu nên đã dừng kiểm tra — hãy làm mới trang sau ít phút để xem lại."},
     "mf_all_done": {"ko": "모두 끝났습니다 — 아래 정리 결과를 확인하세요. 필요하면 고치고, 할 일은 「일일카드로」.",
                    "vi": "Đã xong tất cả — hãy xem kết quả tổng hợp bên dưới. Sửa nếu cần, việc cần làm thì dùng 「📋 Sang thẻ hằng ngày」."},
     "mf_already1": {"ko": "이 회의는 이미 녹음이 있습니다 — 더 녹음하려면 「🎤 녹음 추가」를 누르세요.",
