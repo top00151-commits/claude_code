@@ -6298,21 +6298,42 @@ def _msg_owner_disp(c, uid) -> str:
     return (r[0] if r else "") or ""
 
 
+_MTG_STALL_MIN = 10   # z1179: 녹음은 있는데 이만큼(분) 아무것도 안 돌면 「멈춤」 — 사람 손이 필요하다
+
+
+def _meeting_idle_min(m) -> float:
+    """회의록을 마지막으로 고친 뒤 몇 분 지났나(서버 시계 · DB 의 localtime 저장값과 같은 기준). 모르면 0."""
+    try:
+        t = datetime.strptime(str(m.get("updated_at") or "")[:19], "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return 0.0
+    return max(0.0, (datetime.now() - t).total_seconds() / 60.0)
+
+
 def _meeting_msg_stage(m) -> str:
-    """카드 표시 단계: started(진행 중) / recorded(녹음됨·정리 대기) / processing(글자 변환 중) / failed / done."""
+    """카드 표시 단계: started(진행 중) / recorded(녹음됨·정리 대기) / processing(글자 변환·AI 정리 중) / failed / done.
+    🔴 z1179 (이음 v854 와 맞추며 · 대표 확인 2026-10-13): 「⏳ 정리 중」은 **정말 무언가 돌 때만**.
+       전에는 받아쓰기 작업만 봐서 ① AI 정리(z1170 부터 뒤에서 돈다)가 실패해도 「실패」가 안 떴고
+       ② 녹음은 있는데 아무것도 안 돌아도(창이 닫혀 시작 못 함 · 서버가 다시 켜져 작업 기록이 사라짐) 영영 「정리 중」이었다
+       (운영 2026-10-13 실측: 33건 중 2건). 이음 v854 는 이 단계에 단추 없이 「끝나면 알려 드려요」라 **막다른 곳**이 됐다.
+       → AI 정리도 보고 · 녹음이 있는데 _MTG_STALL_MIN 분째 아무것도 안 돌면 failed(= 「🔄 다시 정리」 단추가 뜬다).
+       단계 값 다섯 개는 그대로(이음과의 약속) — 뜻만 정확해진다. done(정리 글 있음)은 그대로(이음 「회의록 등록」 알림 기준)."""
     if (m.get("summary") or "").strip():
         return "done"
     with _STT_LOCK:
         job = dict(_STT_JOBS.get(m["id"]) or {})
-    if job.get("state") == "running":
+    with _MTG_SUM_LOCK:
+        sj = dict(_MTG_SUM_JOBS.get(m["id"]) or {})
+    if job.get("state") == "running" or sj.get("state") == "running":
         return "processing"
-    if job.get("state") == "error":
+    if job.get("state") == "error" or sj.get("state") == "error":
         return "failed"
     if (m.get("rec_state") or "") == "recording":
         # z1114: 녹음 중(창이 닫혀 끊긴 녹음 포함)은 앞 조각 파일이 있어도 '진행 중' — 카드가 「녹음됨·정리 대기」로 잘못 보이지 않게
         return "started"
     if (m.get("audio_path") or "").strip() or "[음성 변환]" in (m.get("body") or ""):
-        return "recorded"
+        # z1179: 녹음이 막 들어와 다음 단계가 곧 시작될 짧은 사이만 「정리 대기」 — 그 뒤엔 멈춘 것
+        return "failed" if _meeting_idle_min(m) >= _MTG_STALL_MIN else "recorded"
     return "started"
 
 
@@ -6833,6 +6854,9 @@ async def api_meetings_msg_cards(req: Request):
                              else f"/meetings/{m['id']}")
                 mn["dec_cnt"] = m.get("dec_cnt") or 0
                 mn["act_cnt"] = m.get("act_cnt") or 0
+                # z1179: 정리 전 단추(📁 녹음 올리기 · ✏️ 작성하기 · 🔄 다시 정리)는 **고칠 수 있는 사람에게만**
+                #   (이음 v854 와 같은 규칙 · 판정은 _can_edit_meeting 한 곳)
+                mn["can_edit"] = bool(_can_edit_meeting(u, m, c))
             x["minutes"] = mn
     return JSONResponse({"ok": True, "from": d_from.isoformat(), "to": d_to.isoformat(),
                          "today": today.isoformat(), "items": cards,

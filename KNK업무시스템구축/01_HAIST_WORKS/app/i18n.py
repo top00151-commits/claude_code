@@ -620,12 +620,19 @@ T = {
     "mt_rec_live": {"ko": "🔴 회의 진행 중 ·", "vi": "🔴 Cuộc họp đang diễn ra ·"},
     "mt_rec_notrec": {"ko": "· 녹음 안 됨", "vi": "· Chưa ghi âm"},
     "mt_rec_word": {"ko": "녹음", "vi": "ghi âm"},
-    "mt_stage_proc": {"ko": "⏳ 회의록 정리 중", "vi": "⏳ Đang soạn biên bản"},
-    "mt_stage_fail": {"ko": "⚠ 정리 실패 — 회의록에서 다시 시도", "vi": "⚠ Soạn biên bản thất bại — thử lại trong biên bản"},
-    "mt_stage_none": {"ko": "회의록 없음", "vi": "Chưa có biên bản"},
+    # z1179 (이음 v854 와 맞춤 · 대표 2026-10-13 「"회의록" 표현은 회의록이 작성됐을 때만」):
+    #   「회의록」을 뺐다 — 이음 v854 와 같은 글(베트남어도 이음 것 그대로)
+    "mt_stage_proc": {"ko": "⏳ 정리 중", "vi": "⏳ Đang tóm tắt"},
+    "mt_stage_fail": {"ko": "⚠ 정리 실패", "vi": "⚠ Tóm tắt thất bại"},
+    "mt_stage_none": {"ko": "회의록 없음", "vi": "Chưa có biên bản"},     # z1179: 화면에서 안 쓴다(대표 「뺀다」) — 글만 둔다
     "mt_btn_resume": {"ko": "🎤 이어서 녹음", "vi": "🎤 Ghi âm tiếp"},
     "mt_btn_view": {"ko": "📋 회의록 보기", "vi": "📋 Xem biên bản"},
-    "mt_btn_open": {"ko": "📋 회의록 열기", "vi": "📋 Mở biên bản"},
+    "mt_btn_open": {"ko": "📋 회의록 열기", "vi": "📋 Mở biên bản"},      # z1179: 화면에서 안 쓴다 — 정리 전엔 할 일 이름으로
+    # z1179: 정리 전 단추(고칠 수 있는 사람에게만) · 정리 끝 윗줄 — 이음 v854 와 같은 글
+    "mt_btn_upload": {"ko": "📁 녹음 올리기", "vi": "📁 Tải ghi âm lên"},
+    "mt_btn_write": {"ko": "✏️ 작성하기", "vi": "✏️ Soạn thảo"},
+    "mt_btn_redo": {"ko": "🔄 다시 정리", "vi": "🔄 Tóm tắt lại"},
+    "mt_head_min": {"ko": "📋 회의록 등록", "vi": "📋 Đã đăng biên bản"},
     # z1166: 목록 줄 오른쪽 바로가기 두 개
     "mt_act_edit": {"ko": "회의상세(수정)", "vi": "Chi tiết (sửa)"},
     "mt_act_edit_t": {"ko": "회의록 고치기", "vi": "Sửa biên bản"},

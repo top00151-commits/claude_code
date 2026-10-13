@@ -84,7 +84,10 @@
 .mc-btn:hover { border-color: var(--qv-line-3); }
 .mc-btn.mc-go { background: var(--knk-red); border-color: var(--knk-red); color: #fff; }
 .mc-btn.mc-resume { background: #dc2626; border-color: #dc2626; color: #fff; font-weight: 800; }   /* z1122: 이음 v817 「🎤 이어서 녹음」과 같은 빨강 */
-.mc-card.tap { cursor: pointer; }   /* z1122: 회의록 단추가 있는 카드만 — 빈 곳을 눌러도 그 단추와 같게 */
+/* z1179: 「📋 회의록 등록」 — 이음 v854 와 같은 연한 노랑(윗줄) · 카드 왼쪽 띠도 노랑 */
+.mc-card.min { border-left-color: #f59e0b; }
+.mc-pill.min { background: #fef3c7; color: #92400e; }
+/* (z1122 「빈 곳 누르기」 손가락 모양은 z1179 에서 걷었다 — 단추를 눌렀을 때만 연다 · 이음 v856) */
 .mc-state { font-size: 13px; color: var(--qv-ink-2); }
 .mc-state.dim { color: var(--qv-ink-3); }
 .mc-empty { padding: 24px 16px; text-align: center; color: var(--qv-ink-3); background: var(--qv-surface); border: 1px dashed var(--qv-line-2); border-radius: var(--radius-lg); font-size: 13px; line-height: 1.6; }
@@ -147,6 +150,7 @@
     head_up: {{ i.mt_head_up|tojson }},
     head_live: {{ i.mt_head_live|tojson }},
     head_end: {{ i.mt_head_end|tojson }},
+    head_min: {{ i.mt_head_min|tojson }},      {# z1179 — 📋 회의록 등록(정리 끝 · 이음 v854) #}
     vis_all: {{ i.mt_vis_all|tojson }},
     vis_hq: {{ i.mt_vis_hq|tojson }},
     vis_vn: {{ i.mt_vis_vn|tojson }},
@@ -163,16 +167,15 @@
     rec_now: {{ i.mt_rec_now|tojson }},
     rec_saved: {{ i.mt_rec_saved|tojson }},
     rec_endnorec: {{ i.mt_rec_endnorec|tojson }},
-    rec_norec: {{ i.mt_rec_norec|tojson }},
     rec_live: {{ i.mt_rec_live|tojson }},
-    rec_notrec: {{ i.mt_rec_notrec|tojson }},
-    rec_word: {{ i.mt_rec_word|tojson }},
+    {# z1179: 「녹음 없음 · 녹음 안 됨 · 녹음 · 회의록 없음 · 회의록 열기」는 화면에서 뺐다(이음 v854 · 대표 결정) #}
     stage_proc: {{ i.mt_stage_proc|tojson }},
     stage_fail: {{ i.mt_stage_fail|tojson }},
-    stage_none: {{ i.mt_stage_none|tojson }},
     btn_resume: {{ i.mt_btn_resume|tojson }},
     btn_view: {{ i.mt_btn_view|tojson }},
-    btn_open: {{ i.mt_btn_open|tojson }},
+    btn_upload: {{ i.mt_btn_upload|tojson }},    {# z1179 — 정리 전 단추(고칠 수 있는 사람만) #}
+    btn_write: {{ i.mt_btn_write|tojson }},
+    btn_redo: {{ i.mt_btn_redo|tojson }},
     cnt_dec: {{ i.mt_cnt_dec|tojson }},
     cnt_act: {{ i.mt_cnt_act|tojson }},
     sum_all: {{ i.mt_sum_all|tojson }},
@@ -284,7 +287,7 @@
     var TRUNC_NOTE = MT.trunc;
     var DAY = 86400000, STUCK = 12 * 3600000;
     var WD = [MT.wd_sun, MT.wd_mon, MT.wd_tue, MT.wd_wed, MT.wd_thu, MT.wd_fri, MT.wd_sat];
-    var HEAD = { up: MT.head_up, live: MT.head_live, end: MT.head_end };
+    var HEAD = { up: MT.head_up, live: MT.head_live, end: MT.head_end, min: MT.head_min };   // z1179: min = 📋 회의록 등록
     var VIS = { all: [MT.vis_all, 'vis-all'], hq: [MT.vis_hq, 'vis-team'], vn: [MT.vis_vn, 'vis-team'], 'private': [MT.vis_private, 'vis-private'] };
     var RESP = { attending: MT.resp_yes, declined: MT.resp_no, change: MT.resp_chg };
 
@@ -329,30 +332,38 @@
     //   시작 전·회의 시간 안에 누른 회의는 그대로 「회의 중」 · recording 칸이 없으면(옛 응답) 예전 그대로.
     function headState(m, now){
       var mn = m.minutes || {}, st = mn.stage || 'none', s = startMs(m), e = endMs(m);
+      // z1179 (이음 v854 와 맞춤 · 대표 확인 2026-10-13): 정리가 끝났으면 윗줄 「📋 회의록 등록」(연한 노랑)
+      //   — 「✅ 회의 종료」보다 먼저(이음 _mtgHeadState 와 같은 차례) · 묶음은 「진행한 회의」(groups)
+      if (st === 'done') return 'min';
       // z1131: 사람이 「⏹ 회의 종료」를 눌렀으면 시간과 상관없이 끝난 회의(이음 카드도 같은 규칙으로 요청)
       if (mn.ended === true) return 'end';
-      if (st === 'recorded' || st === 'processing' || st === 'done' || st === 'failed') return 'end';
+      if (st === 'recorded' || st === 'processing' || st === 'failed') return 'end';
       var grace = (mn.recording === false) ? 0 : STUCK;
       if (st === 'started' && !(e && now >= e + grace)) return 'live';
       if (e && now >= e) return 'end';
       if (s && now >= s) return 'live';
       return 'up';
     }
+    /* z1179 (이음 v854~v856 과 맞춤 · 대표 2026-10-13 「"회의록" 표현은 회의록이 작성됐을 때만」
+       「녹음없음은 삭제해.. 휴대폰 녹음기를 사용해」 · 확인 「📋 회의록 등록으로」 「회의록 없음 뺀다」):
+       · 「녹음 없음 / 녹음 안 됨 / 녹음」 글을 뺐다
+       · 정리 전 단추는 할 일 이름으로 — 📁 녹음 올리기 · ✏️ 작성하기(실패면 🔄 다시 정리) — **고칠 수 있는 사람에게만**
+         (서버 can_edit = _can_edit_meeting · 보기만 하는 사람은 정리 전엔 단추 없음) · 가는 곳은 그대로(url)
+       · 「⏳ 정리 중」엔 단추 없음 · 「회의록 없음」은 쓰지 않는다
+       → 「회의록」이라는 말은 정리가 끝난 카드(📋 회의록 등록 · 📋 회의록 보기)에만 나온다 */
     function minutesHtml(m, hs){
       var mn = m.minutes || {}, st = mn.stage || 'none', out = '';
+      var ed = !!(mn.can_view && mn.can_edit && mn.url);
       if (st === 'started') {
         // z1119: 실제 녹음 여부(recording · 서버 저장 초 rec_secs)로 — 이음 회의 카드(v807·v815)와 같은 글
         //   아래 줄은 윗줄 판정(hs)을 따라간다 → 30초 다시 그리기 때 두 줄이 함께 바뀐다
         var who = esc(mn.started_by || ''), mins = Math.floor((+mn.rec_secs || 0) / 60);
         if (mn.recording === true) out += '<span class="mc-state">' + MT.rec_now + ' ' + who + (mins >= 1 ? ' · ' + mins + MT.rec_saved : '') + '</span>';
-        else if (mn.recording === false) out += (hs === 'end')
-          ? '<span class="mc-state dim">' + MT.rec_endnorec + ' ' + who + ' ' + MT.rec_norec + '</span>'
-          : '<span class="mc-state">' + MT.rec_live + ' ' + who + ' ' + MT.rec_notrec + '</span>';
-        else out += '<span class="mc-state">' + MT.rec_live + ' ' + who + ' ' + MT.rec_word + '</span>';   // 칸이 없는 옛 응답 — 예전 글
+        else if (hs === 'end') out += '<span class="mc-state dim">' + MT.rec_endnorec + ' ' + who + '</span>';
+        else out += '<span class="mc-state">' + MT.rec_live + ' ' + who + '</span>';
       }
       else if (st === 'recorded' || st === 'processing') out += '<span class="mc-state">' + MT.stage_proc + '</span>';
       else if (st === 'failed') out += '<span class="mc-state">' + MT.stage_fail + '</span>';
-      else if (st === 'none' && hs === 'end') out += '<span class="mc-state dim">' + MT.stage_none + '</span>';
       if (mn.can_view && mn.url) {
         if (mn.recording === true && mn.rec_mine === true) {
           // z1122: 창이 닫혀 멈춘 녹음을 하던 본인 — 이음 회의 카드(v817)와 같은 「🎤 이어서 녹음」 · 도착 화면 맨 위 상자(z1120)
@@ -362,9 +373,11 @@
           out += '<a class="mc-btn mc-go" href="' + esc(mn.url) + '" target="_blank" rel="noopener" data-no-swap>' + MT.btn_view + '</a>';
           if (mn.dec_cnt) out += '<span class="cnt-badge">' + MT.cnt_dec + ' ' + (+mn.dec_cnt) + '</span>';
           if (mn.act_cnt) out += '<span class="cnt-badge">' + MT.cnt_act + ' ' + (+mn.act_cnt) + '</span>';
-        } else {
-          // z1124 (대표 지시 2026-09-22 「회의록 열기로 맞춰」): 이음 회의 카드(v807 · 진행 중·정리 중·실패)와 같은 이름 — 가는 곳은 그대로
-          out += '<a class="mc-btn" href="' + esc(mn.url) + '">' + MT.btn_open + '</a>';
+        } else if (ed && st === 'started') {
+          out += '<a class="mc-btn" href="' + esc(mn.url) + '">' + MT.btn_upload + '</a>'
+               + '<a class="mc-btn" href="' + esc(mn.url) + '">' + MT.btn_write + '</a>';
+        } else if (ed && st === 'failed') {
+          out += '<a class="mc-btn" href="' + esc(mn.url) + '">' + MT.btn_redo + '</a>';
         }
       }
       return out ? '<div class="mc-min">' + out + '</div>' : '';
@@ -397,10 +410,9 @@
       } else if (me.is_attendee) {
         h += '<div class="mc-sub">' + MT.resp_mine + ' ' + (RESP[me.response] || MT.resp_none) + '</div>';
       }
-      var mh = minutesHtml(m, hs);
-      // z1122: 회의록 단추가 있는 카드는 빈 곳을 눌러도 그 단추와 같게(이음 v817) — 손가락 모양은 그런 카드에만
-      if (mh.indexOf('class="mc-btn') >= 0) h = h.replace('<article class="mc-card ', '<article class="mc-card tap ');
-      return h + mh + '</article>';
+      // z1179: 카드 빈 곳 누르기는 없앴다(z1122 를 걷음) — 이음 v856 과 같게 「단추를 눌렀을 때만」
+      //   (대표 「아이콘이 눌렸을때만 동작」 · 이음 v817 「카드를 누르면 바로 이어서 녹음」의 이유가 v843 뒤 사라졌다)
+      return h + minutesHtml(m, hs) + '</article>';
     }
     function section(title, list, now, emptyText, small){
       var h = '<div class="mc-sec">' + title + ' (' + list.length + ')' + (small ? '<small>' + small + '</small>' : '') + '</div>';
@@ -409,7 +421,8 @@
     }
     function groups(now){
       var g = { live: [], up: [], end: [] };
-      ST.items.forEach(function(m){ g[headState(m, now)].push(m); });
+      //  z1179: 「📋 회의록 등록」(min)도 끝난 회의 — 「진행한 회의」 묶음에 둔다
+      ST.items.forEach(function(m){ var hs = headState(m, now); g[hs === 'min' ? 'end' : hs].push(m); });
       g.live.sort(function(a, b){ return startMs(a) - startMs(b); });
       g.up.sort(function(a, b){ return startMs(a) - startMs(b); });
       g.end.sort(function(a, b){ return startMs(b) - startMs(a); });
@@ -509,16 +522,8 @@
     body.addEventListener('click', function(e){
       if (e.target && e.target.closest && e.target.closest('[data-mc-retry]')) loadFirst();
     });
-    // z1122: 카드 빈 곳 = 그 카드의 회의록 단추(이어서 녹음·회의록 열기·회의록 보기)와 같게 — 이음 v817 과 같은 규칙.
-    //   단추·링크·입력·글자 고르기·오른쪽 버튼은 예전대로 · 단추가 없는 카드는 아무 일 없음.
-    body.addEventListener('click', function(e){
-      if (e.defaultPrevented || e.button) return;
-      var tg = e.target;
-      if (!tg || !tg.closest || tg.closest('a,button,input,select,textarea,label,[data-mc-retry]')) return;
-      var card = tg.closest('article.mc-card.tap'); if (!card) return;
-      try { if (String((window.getSelection && window.getSelection()) || '').trim()) return; } catch (_) {}
-      var go = card.querySelector('.mc-min a.mc-btn'); if (go) go.click();   // 단추를 누른 것과 똑같이(새 창·화면 전환 규칙 그대로)
-    });
+    // z1179: z1122 「카드 빈 곳 = 회의록 단추」를 걷었다 — 이음 v856 과 같게 **단추를 눌렀을 때만** 연다
+    //   (대표 「아이콘이 눌렸을때만 동작」 · 정리 전 단추가 둘(📁·✏️)이 되어 빈 곳이 어느 쪽인지도 정할 수 없다)
     // 시간이 지나면 윗줄(예정→회의 중→종료)만 바뀐다 — 바뀐 카드가 있을 때만 다시 그림 · 화면이 떠 있을 때만
     var tick = setInterval(function(){
       if (!alive()) { clearInterval(tick); return; }
