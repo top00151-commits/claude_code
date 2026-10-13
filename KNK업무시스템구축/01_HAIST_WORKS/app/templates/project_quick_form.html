@@ -372,7 +372,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="CNY" {% if ed and project.currency == 'CNY' %}selected{% endif %}>¥ CNY (위안)</option><option value="EUR" {% if ed and project.currency == 'EUR' %}selected{% endif %}>€ EUR (유로)</option>
             </select>
           </div>
-          <div class="qf-f c3" id="qTopPriceCell"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" id="qUnitPrice" class="knk-money" placeholder="0" value="{{ project.unit_price|round|int if (ed and project.unit_price) else '' }}"></div>
+          <div class="qf-f c3" id="qTopPriceCell"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" id="qUnitPrice" class="knk-money" placeholder="무상이면 0" value="{{ project.unit_price|round|int if (ed and project.unit_price) else '' }}"></div>
           <div class="qf-f c4" id="qTopAmtCell"><label>금액</label><input type="text" inputmode="numeric" name="order_amount" id="qAmount" class="knk-money" placeholder="0" value="{{ project.order_amount|round|int if (ed and project.order_amount) else '' }}"></div>
           <div class="qf-f c4" id="qFxWrap" style="display:none;"><label>환율 <span class="req">*</span> (1단위=?원)</label>
             <input type="text" inputmode="numeric" name="fx_rate" id="qFx" class="knk-money" placeholder="예: 1,350" value="{{ project.fx_rate if (ed and project.fx_rate) else '' }}"></div>
@@ -678,12 +678,15 @@ function qItemRowHtml(){
     + '<input type="text" name="it_name[]" class="qi-name" placeholder="예: 소켓" style="width:100%;padding:6px;">'
     + '<input type="text" name="it_spec[]" class="qi-spec" placeholder="예: THES123-SK" style="width:100%;padding:6px;">'
     + '<input type="number" name="it_qty[]" class="qi-qty" value="1" min="1" style="width:100%;padding:6px;text-align:center;">'
-    + '<input type="text" name="it_price[]" class="qi-price knk-money" inputmode="numeric" placeholder="0" style="width:100%;padding:6px;text-align:right;">'
+    + '<input type="text" name="it_price[]" class="qi-price knk-money" inputmode="numeric" placeholder="무상이면 0" style="width:100%;padding:6px;text-align:right;">'
     + '<input type="text" class="qi-amt" readonly value="0" style="width:100%;padding:6px;text-align:right;background:var(--qv-surface-3);color:var(--qv-ink-2);font-weight:700;">'
     + '<button type="button" class="qi-del" title="이 항목 삭제" style="width:26px;height:32px;border:1px solid var(--qv-line);background:#fff;border-radius:6px;cursor:pointer;color:var(--knk-red);font-weight:700;">×</button>'
     + '</div>';
 }
 function qItemNum(v){ return Number(String(v==null?'':v).replace(/[^0-9.-]/g,''))||0; }
+/* z1171 (이새롬 프로 요청 · 대표 「0을 적으면 무상」 2026-10-13): 금액 칸을 **비워 두면** 아직 안 적은 것(막는다) ·
+   **0을 적으면** 무상(통과). 빈칸과 0을 가르는 곳은 이 함수 하나 — 서버 /projects/new 도 같은 규칙(z1171). */
+function qPriceGiven(el){ return !!el && String(el.value==null?'':el.value).replace(/,/g,'').trim()!==''; }
 function qItemCalc(){
   var box=document.getElementById('qItemRows');
   var rows=box?box.querySelectorAll('.qi-row'):[];
@@ -1001,9 +1004,9 @@ function qUnitSum(){
     var amt=document.getElementById('qAmount'); if(amt) amt.value=sum.toLocaleString('en-US');
     var _a=[]; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(x){ _a.push(parseFloat((x.value||'0').replace(/,/g,''))||0); });
     var _eq=_a.length>0 && _a.every(function(x){ return x===_a[0]; });
-    if(up){ up.value=_eq?_a[0].toLocaleString('en-US'):''; up.placeholder=_eq?'0':'(호기별)'; }
-  } else if(up && up.placeholder !== '0'){
-    up.placeholder='0';   // 호기별 모드 해제 → 안내문 원복(못 쓰는 칸으로 오해하던 것 제거)
+    if(up){ up.value=_eq?_a[0].toLocaleString('en-US'):''; up.placeholder=_eq?'무상이면 0':'(호기별)'; }
+  } else if(up && up.placeholder !== '무상이면 0'){
+    up.placeholder='무상이면 0';   // 호기별 모드 해제 → 안내문 원복(못 쓰는 칸으로 오해하던 것 제거) · z1171 무상 안내
   }
 }
 // v5H226z383(대표 지시): 호기별이면 헤더 단가·금액 칸 잠금 — 입력은 호기별 금액 칸으로만.
@@ -1117,12 +1120,15 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   if(qIsFollowup()){
     // 추가 발주 — unit_*[] 미전송 → add_followup_order 가 단가(1대)×수량 으로 호기 N줄 생성
     qSyncUnitStatic(true);
-  } else if(_q>=2 && document.getElementById('qUnitWrap')){
+  } else if(_q>=2 && document.getElementById('qUnitWrap')
+            && ((((document.getElementById('qFormType')||{}).value)||'').toUpperCase()!=='SEMI')){   /* z1171: 제품(SEMI)은 호기 없음 — 호기별 검사 안 함 */
     qSyncUnitStatic(true);
     // z389(대표 지시): 평균 주입 금지. 호기 전부 동일 → 공통단가 저장 / 다름 → 단가 비움 + multi_unit=1 (보드에서 호기별 분할 표시).
-    var _amts=[]; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ _amts.push(parseFloat((a.value||'0').replace(/,/g,''))||0); });
+    var _amtEls=document.querySelectorAll('#qUnitRows .qf-unit-amt');
+    var _amts=[]; _amtEls.forEach(function(a){ _amts.push(parseFloat((a.value||'0').replace(/,/g,''))||0); });
     var _sum=_amts.reduce(function(s,x){ return s+x; },0);
-    if(_sum<=0){ e.preventDefault(); err.textContent='호기별 금액을 입력하세요 (한 대 이상).'; err.classList.add('show'); qScrollErr(); return; }
+    /* z1171: 합계 0 은 호기 금액을 **모두 적었을 때만**(0 = 무상) 통과 — 하나라도 비었으면 아직 덜 적은 것 */
+    if(_sum<=0 && (_sum<0 || !(_amtEls.length>0 && Array.prototype.every.call(_amtEls, qPriceGiven)))){ e.preventDefault(); err.textContent='호기별 금액을 입력하세요 (무상이면 0).'; err.classList.add('show'); qScrollErr(); return; }
     var _eq=_amts.length>0 && _amts.every(function(x){ return x===_amts[0]; });
     var _up=document.querySelector('[name=unit_price]');
     var _mu=document.getElementById('qMultiUnit');
@@ -1154,11 +1160,27 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
     /* v5H226z1088: 제품(SEMI)은 단가칸이 숨고 항목(구성품)이 입력의 전부 — 항목 합계로 검증하고 안내도 항목 기준으로 */
     if(_sfV==='SEMI' && typeof qCanMoney!=='undefined' && qCanMoney){
       var _semiAmt=parseFloat((((document.getElementById('qAmount')||{}).value)||'0').replace(/,/g,''))||0;
-      if(_semiAmt<=0){ e.preventDefault(); err.textContent='항목(구성품)을 1줄 이상 적어주세요 — 품명·수량·단가.'; err.classList.add('show'); try{ var _fi=document.querySelector('#qItemRows .qi-name'); if(_fi) _fi.focus(); }catch(_e){} qScrollErr(); return; }
+      /* z1171: 수정 화면(정보 수정)에는 항목 칸이 없다(항목 블록은 새 등록일 때만 그린다) — 금액은 수주 카드의 항목에서 정해지고 여기서 안 바뀐다.
+         항목·금액 검사는 **새로 등록할 때만**. (안 그러면 무상 제품(금액 0)은 납기 하나 고치려 해도 막히고 풀 길이 없다) */
+      if(_semiAmt<=0 && document.getElementById('qItemRows')){
+        /* z1171: 품명(또는 규격)을 적은 줄만 센다(서버 _z1050_items 와 같은 기준).
+           합계 0 은 그 줄들의 단가를 **모두 적었을 때만**(0 = 무상) 통과 */
+        var _qiRows=document.querySelectorAll('#qItemRows .qi-row'), _qiNamed=0, _qiBlank=null;
+        for(var _qk=0;_qk<_qiRows.length;_qk++){
+          var _qn=((_qiRows[_qk].querySelector('.qi-name')||{}).value||'').trim(), _qs=((_qiRows[_qk].querySelector('.qi-spec')||{}).value||'').trim();
+          if(!_qn && !_qs) continue;
+          _qiNamed++;
+          var _qp=_qiRows[_qk].querySelector('.qi-price');
+          if(!_qiBlank && !qPriceGiven(_qp)) _qiBlank=_qp;
+        }
+        if(!_qiNamed || _semiAmt<0){ e.preventDefault(); err.textContent='항목(구성품)을 1줄 이상 적어주세요 — 품명·수량·단가(무상이면 0).'; err.classList.add('show'); try{ var _fi=document.querySelector('#qItemRows .qi-name'); if(_fi) _fi.focus(); }catch(_e){} qScrollErr(); return; }
+        if(_qiBlank){ e.preventDefault(); err.textContent='항목 단가를 적어 주세요 (무상이면 0).'; err.classList.add('show'); try{ _qiBlank.focus(); }catch(_e){} qScrollErr(); return; }
+      }
     } else {
     var _priceEl=(((document.getElementById('qMultiUnit')||{}).value)||'')==='1' ? document.getElementById('qAmount') : document.getElementById('qUnitPrice');
     var _priceV=parseFloat((((_priceEl||{}).value)||'0').replace(/,/g,''))||0;
-    if(_priceV<=0){ e.preventDefault(); err.textContent='단가를 입력하세요 (0보다 커야 합니다).'; err.classList.add('show'); try{ if(_priceEl) _priceEl.focus(); }catch(_e){} qScrollErr(); return; }
+    /* z1171: 0 은 **적었을 때만**(무상) 통과 — 비어 있으면 아직 안 적은 것 */
+    if(_priceV<=0 && (_priceV<0 || !qPriceGiven(_priceEl))){ e.preventDefault(); err.textContent='단가를 입력하세요 (무상이면 0).'; err.classList.add('show'); try{ if(_priceEl) _priceEl.focus(); }catch(_e){} qScrollErr(); return; }
     }
   }
 });
@@ -1172,7 +1194,7 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
       equip_required:'장비명을 입력하세요.', model_required:'모델명을 입력하세요.',
       order_date_required:'발주일을 입력하세요. (간편 등록은 진행중으로 등록돼 발주일·납품일·단가가 필요합니다 — 작업일정표에도 발주일/납기가 있어야 나타납니다)',
       due_date_required:'납품일을 입력하세요. (작업일정표 표시에 필요)',
-      unit_price_required:'단가를 입력하세요 (0보다 커야 합니다).',
+      unit_price_required:'단가를 입력하세요 (무상이면 0).',
       po_type_required:'PO유형을 선택하세요.',
       mgmt_not_found:'그 관리번호의 기존 프로젝트가 없습니다 — 검색해서 선택하세요.',
       mgmt_required_followup:'추가 발주는 기존 관리번호를 검색해 선택하세요.',

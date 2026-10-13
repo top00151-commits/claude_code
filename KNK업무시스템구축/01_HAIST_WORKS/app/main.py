@@ -32231,6 +32231,8 @@ async def projects_new_submit(request: Request):
         _up_v = float(raw_price_v) if raw_price_v else 0
     except ValueError:
         _up_v = 0
+    # z1171: 단가 칸을 적었나 — 0 을 적으면 무상(통과) · 비우면 아직 안 적은 것(아래 _strict 에서 막음)
+    _up_given = bool((form.get("unit_price") or "").strip().replace(",", ""))
     _status_v = (form.get("status") or "초기협의").strip()
     _confirm_now_v = (form.get("confirm_now") or "").strip() in ("1", "on", "true", "yes")
     # v5H226z389 (대표 지시): 호기별(검사기 N대) 단가가 서로 다르면 헤더 '단가'를 비워 보냄(평균 금지).
@@ -32247,6 +32249,7 @@ async def projects_new_submit(request: Request):
     #   ⚠**검증보다 먼저** 읽어야 한다 — 항목만 적고 위 단가를 비우면 '단가 필수'에 막힌다(실측으로 잡음).
     #   ⚠제품일 때만 읽는다. 다른 형태에서 값이 섞여 와도 무시(화면도 형태가 바뀌면 지운다).
     _z1050_items = []
+    _z1050_blank = False      # z1171: 품명을 적은 줄 가운데 단가를 **비운** 줄이 있나(0 = 무상과 다르다)
     if (form.get("shipment_form") or "").strip().upper() == "SEMI":
         _itn = form.getlist("it_name[]")
         _its = form.getlist("it_spec[]")
@@ -32261,8 +32264,11 @@ async def projects_new_submit(request: Request):
                 _q = int(float(((_itq[_i] if _i < len(_itq) else "1") or "1").replace(",", "")))
             except (ValueError, TypeError):
                 _q = 1
+            _praw = ((_itp[_i] if _i < len(_itp) else "") or "").strip().replace(",", "")
+            if not _praw:
+                _z1050_blank = True
             try:
-                _pr = float(((_itp[_i] if _i < len(_itp) else "0") or "0").replace(",", ""))
+                _pr = float(_praw or "0")
             except (ValueError, TypeError):
                 _pr = 0.0
             _z1050_items.append({"name": _nm or _sp, "spec": _sp,
@@ -32295,7 +32301,9 @@ async def projects_new_submit(request: Request):
         if _z1050_items:
             # z1050: 제품 항목 — 단가가 항목마다 다르다. 위 단가칸이 아니라 **항목 합계**로 검증한다
             #   (호기별 단가와 같은 원리). 항목을 적었는데 금액이 0이면 그건 진짜로 덜 적은 것이다.
-            if _z1050_total <= 0:
+            # z1171 (이새롬 프로 요청 · 대표 「0을 적으면 무상」 2026-10-13): 단가를 **모두 적었는데** 합계가 0 이면
+            #   무상 제품이다(통과). 단가를 비운 줄이 있으면 아직 덜 적은 것 — 화면(qPriceGiven)과 같은 규칙.
+            if _z1050_total < 0 or (_z1050_total == 0 and _z1050_blank):
                 return _err_redirect("unit_price_required")
         elif _multi_v:
             # 호기별 단가 — 단가칸은 비어 있음. 대신 호기 합계(폼 order_amount)로 검증.
@@ -32303,9 +32311,13 @@ async def projects_new_submit(request: Request):
                 _oa_chk = float((form.get("order_amount") or "0").strip().replace(",", ""))
             except ValueError:
                 _oa_chk = 0
-            if _oa_chk <= 0:
+            # z1171: 합계 0 은 호기 금액을 **모두 적었을 때만**(무상) 통과
+            _ua_v = form.getlist("unit_amount[]")
+            _ua_given = bool(_ua_v) and all((x or "").strip().replace(",", "") for x in _ua_v)
+            if _oa_chk < 0 or (_oa_chk == 0 and not _ua_given):
                 return _err_redirect("unit_price_required")
-        elif _up_v <= 0:
+        elif _up_v < 0 or (_up_v == 0 and not _up_given):
+            # z1171: 단가 0 은 적었을 때만(무상) 통과 — 비어 있으면 아직 안 적은 것
             return _err_redirect("unit_price_required")
     # 외화 시 기준환율 — strict 단계에서만 필수 (제안 단계는 환율 미정 OK)
     _ccy_v = (form.get("currency") or "KRW").strip().upper()

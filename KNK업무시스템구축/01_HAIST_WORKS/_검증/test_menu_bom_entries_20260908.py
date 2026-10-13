@@ -17,6 +17,11 @@ from jinja2 import Environment, FileSystemLoader
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TPL = os.path.join(ROOT, "app", "templates")
 
+# z1162(2026-10-11)부터 chrome.html 이 번역 사전 `i`(i.ch_*)와 `lang` 을 쓴다.
+#   운영은 ctx() 가 늘 넣어 준다(main.py ctx · `i = get_all_translations(lang)`) — 시험도 같은 한국어 사전을 넣는다.
+sys.path.insert(0, ROOT)
+from app.i18n import get_all_translations  # noqa: E402
+
 env = Environment(loader=FileSystemLoader(TPL))
 env.globals.update({
     "url_for": lambda *a, **k: "#",
@@ -65,6 +70,7 @@ def render(path, **flags):
               "position": "", "dept": "", "team_id": 4},
         _path=path, path=path, active="", nav_badges={}, unread=0,
         can_supplier=False, can_bom_design=False, can_bom_purchase=False,
+        lang="ko", i=get_all_translations("ko"),
     )
     base.update(flags)
     return tpl.render(**base)

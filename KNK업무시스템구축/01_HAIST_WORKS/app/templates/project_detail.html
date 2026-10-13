@@ -309,7 +309,8 @@
     var unitRaw = document.getElementById('fup_total_amount').value.replace(/,/g,'');
     var unit = parseFloat(unitRaw) || 0;
     var qty = parseInt(document.getElementById('fup_qty').value, 10) || 1;
-    if (unit <= 0) { alert('1대 단가를 입력하세요'); return; }
+    // z1171 (대표 「0을 적으면 무상」): 0 은 적었을 때만(무상) 통과 — 비어 있으면 아직 안 적은 것
+    if (unit < 0 || (unit === 0 && unitRaw.trim() === '')) { alert('1대 단가를 입력하세요 (무상이면 0)'); return; }
     if (qty < 1 || qty > 100) { alert('수량은 1~100 사이 정수'); return; }
     const fd = new FormData();
     fd.append('order_date', document.getElementById('fup_order_date').value);

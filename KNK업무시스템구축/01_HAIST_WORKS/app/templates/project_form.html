@@ -229,7 +229,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       {% elif _err == 'due_date_required' %}
         ⚠ <b>납기</b> 를 입력해주세요.
       {% elif _err == 'unit_price_required' %}
-        ⚠ <b>1대 단가</b> 를 입력해주세요. <span style="font-weight:500;">— 0보다 큰 값이어야 합니다.</span>
+        ⚠ <b>1대 단가</b> 를 입력해주세요. <span style="font-weight:500;">— 무상이면 0 을 적으세요.</span>
       {% elif _err == 'fx_rate_required' %}
         ⚠ <b>{{ request.query_params.get('ccy', '외화') }}</b> 통화는 <b>기준환율</b> 입력이 필수입니다.
       {% elif _err == 'unlock_required' %}
