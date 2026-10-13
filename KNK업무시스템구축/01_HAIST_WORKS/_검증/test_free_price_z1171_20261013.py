@@ -193,9 +193,19 @@ out = {"page_errors": [], "cases": {}}
 
 def fill_common(pg, name, po="신규", mgmt=""):
     pg.goto(BASEURL + "/projects/quick?biz_div=T")
-    pg.wait_for_load_state("domcontentloaded")
-    pg.fill("input[data-cust-picker]", "가상고객")
-    pg.wait_for_selector(".knkcust-it", timeout=8000)
+    try:
+        pg.wait_for_load_state("networkidle", timeout=15000)   # 고르기 칸 스크립트·목록 받기가 끝난 뒤에 친다
+    except Exception:
+        pass
+    # 고객사는 사람처럼 한 글자씩 치고, 목록이 안 뜨면 지우고 다시 친다(스크립트가 붙기 전에 친 글자는 놓친다)
+    for _t in range(3):
+        pg.fill("input[data-cust-picker]", "")
+        pg.type("input[data-cust-picker]", "가상고객", delay=30)
+        try:
+            pg.wait_for_selector(".knkcust-it", timeout=6000)
+            break
+        except Exception:
+            pg.wait_for_timeout(700)
     pg.dispatch_event(".knkcust-it >> nth=0", "mousedown")
     if po != "신규":
         pg.select_option("#qPoType", po)
@@ -275,6 +285,10 @@ with sync_playwright() as p:
     def run(key, fn):
         # 시험마다 새 브라우저 상태 — 등록 화면은 막혔을 때 입력을 저장해 두었다가 다음에 되살리므로 섞이지 않게
         ctx = br.new_context(viewport={"width": 1400, "height": 1000})
+        # 바깥 틀의 「새 버전 자동 새로고침」(chrome.html safeReload · 25초 안 재실행 막음)이 시험 서버에선
+        #   버전 글자가 달라 화면을 열 때마다 한 번 다시 부른다 → 고르기 도중 목록이 사라져 시험이 흔들렸다(회귀에서 8개).
+        #   운영은 버전이 같아 안 일어난다. 시험에서만 그 25초 표시를 미리 넣어 막는다.
+        ctx.add_init_script("try{sessionStorage.setItem('knkAutoReloadTs', String(Date.now()));}catch(e){}")
         pg = ctx.new_page()
         pg.on("pageerror", lambda e: out["page_errors"].append(key + ": " + str(e)[:200]))
         try:
