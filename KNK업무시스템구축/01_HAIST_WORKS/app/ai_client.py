@@ -545,24 +545,45 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
 #   회의가 아니다 — 혼자 말한 생각·전화 통화·현장 메모·말로 하는 보고.
 #   🔴 회의용 틀(안건·결정사항·참석자 귀속)을 씌우면 **없는 결정을 지어내거나 빈칸만** 나온다.
 #      그래서 요점·할 일만 뽑는 **다른 틀**을 쓴다.
+#   🔴 z1168 (대표 지시 2026-10-13): 64분 녹음(원문 27,950자)이 936자로 눌렸다.
+#      실측 — 원문 10,327→19,684→27,950자(2.7배)인데 정리는 760→970→936자(1.2배).
+#      길이가 **안 따라 늘었다**. 까닭 둘 = ①답 길이 한도 1500 ②「짧고 쓸모 있게」뿐이라
+#      길면 길게 하라는 말이 없었다. 둘 다 고친다.
+#   🔴 z1168: 「나온 이름·회사·날짜」 묶음은 **뺀다**(대표 「없어도 됨 — 내용을 정리할 때
+#      포함된 사항들이라」). 그만큼 요점·할 일에 자리를 내준다.
 _NOTE_EXTRACT_SYSTEM = (
     "당신은 KNK 사내 AI 빅터입니다. 사람이 혼자 말한 녹음(회의가 아님)을 글자로 바꾼 원문을 읽고 "
-    "짧고 쓸모 있게 정리한다.\n"
+    "쓸모 있게 정리한다.\n"
     "출력 규칙:\n"
     "- summary: 아래 형식(한국어, 여러 줄). 해당 없는 묶음은 통째로 뺀다.\n"
     "    요점\n"
     "    - <한 줄씩 · 말한 순서대로>\n"
     "    할 일\n"
     "    - <무엇을> — <누가/언제까지 · 원문에 나온 것만>\n"
-    "    나온 이름·회사·날짜\n"
-    "    - <원문에 나온 것만 그대로>\n"
     "  \U0001F534 안건·결정사항·참석자별 발언 귀속은 만들지 않는다(혼자 말한 것이다).\n"
+    "  \U0001F534 이름·회사·날짜만 따로 모은 목록은 만들지 않는다 "
+    "(요점·할 일 문장 안에 이미 들어 있다).\n"
+    "  \U0001F534 원문을 **처음부터 끝까지** 읽고 **끝부분까지 빠짐없이** 정리한다. "
+    "뒤로 갈수록 짧아지거나 중간에서 그만두면 안 된다.\n"
+    "  \U0001F534 **원문이 길면 정리도 그만큼 길어야 한다** — 긴 녹음을 몇 줄로 누르지 말 것. "
+    "원문 1,000자마다 요점을 **한 줄 이상** 남긴다.\n"
     "- title: 이 메모에 어울리는 짧은 제목(공백 포함 20자 이내). "
     "반드시 원문에 나온 말로만 짓는다(창작 금지). 지을 수 없으면 \"\".\n"
     "- 절대 추측·창작 금지. 원문에 없는 내용을 지어내지 않는다. 말이 짧으면 정리도 짧게.\n"
     "출력은 오직 아래 JSON 한 개. 마크다운 코드펜스·설명·인사말 금지.\n"
     '{"title":"","summary":""}'
 )
+
+#  🎤 음성 메모 정리에 줄 **답 길이** (z1168) — 원문이 길면 답도 길어야 한다.
+#    0.16 = 원문 글자수 → 넉넉한 출력 토큰. 한국어는 글자당 약 1.5토큰이라
+#    원문의 1/10 을 정리로 쓴다고 보면 0.15 안팎이면 남는다.
+#      10,327자 → 1,652 · 19,684자 → 3,149 · 27,950자 → 4,472 · 50,000자 이상 → 8,000(상한)
+_NOTE_TOK_MIN, _NOTE_TOK_MAX, _NOTE_TOK_RATIO = 1500, 8000, 0.16
+
+
+def _note_budget(n_chars: int) -> int:
+    """원문 글자수 → 답 길이 한도. 옛 값(1500)보다 작아지지 않는다."""
+    return max(_NOTE_TOK_MIN, min(_NOTE_TOK_MAX, int(n_chars * _NOTE_TOK_RATIO)))
 
 
 def ai_extract_note(body: str) -> tuple[bool, dict]:
@@ -578,10 +599,18 @@ def ai_extract_note(body: str) -> tuple[bool, dict]:
         system += ("\n\n[우리 회사 말 — 음성 변환이 흔히 틀리는 말]\n" + _terms
                    + "\n\U0001F534 위 말이 원문에 비슷하게 들어 있으면 그 말로 바로잡는다. "
                      "원문에 없는 말은 절대 넣지 않는다.")
-    ok, resp = ai_chat(body.strip(), system=system, max_tokens=1500, temperature=0.1)
+    text = body.strip()
+    budget = _note_budget(len(text))                      # z1168 — 원문 길이에 맞춘다
+    ok, resp = ai_chat(text, system=system, max_tokens=budget, temperature=0.1)
     if not ok:
         return (False, {"error": resp, **empty})
     data = _parse_json_loose(resp)
+    #  🔴 z1168: 답이 **중간에서 끊기면** JSON 이 깨진다(닫는 괄호가 없다).
+    #     전에는 그대로 「해석하지 못했습니다」로 끝났다 → 한 번만 더, 한도를 끝까지 올려 다시 부른다.
+    if not isinstance(data, dict) and budget < _NOTE_TOK_MAX:
+        ok2, resp2 = ai_chat(text, system=system, max_tokens=_NOTE_TOK_MAX, temperature=0.1)
+        if ok2:
+            data = _parse_json_loose(resp2)
     if not isinstance(data, dict):
         return (False, {"error": "AI 응답을 정리 형식(JSON)으로 해석하지 못했습니다.", **empty})
     return (True, {
