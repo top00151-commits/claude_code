@@ -243,7 +243,7 @@ try:
         gn.click("#btnExtractTop")
         p1, w1 = wait_panel(gn, "aiBusy", lambda q: q["shown"], 3)
         chk("🔵 누르고 **%.1f초** 만에 진행 칸이 뜬다" % w1, p1["shown"] and w1 < 1.0, p1)
-        chk("제목 = 「%s」" % p1["title"], p1["title"] == "AI가 회의 내용을 다시 정리하는 중…", p1["title"])
+        chk("제목 = 「%s」" % p1["title"], p1["title"] == "빅터AI가 회의 내용을 다시 정리하는 중…", p1["title"])
         chk("🔵 글이 **크고 굵다** (%.1fpx · %d — 전엔 12px)" % (p1["tfs"], p1["tfw"]),
             p1["tfs"] >= 14 and p1["tfw"] >= 700, p1)
         chk("파란 바탕 (%s)" % p1["bg"], p1["bg"] == "rgb(239, 246, 255)", p1["bg"])
@@ -426,7 +426,7 @@ try:
         gv.click("#vnRedo")
         q1, x1 = wait_panel(gv, "vnAiBusy", lambda q: q["shown"], 3)
         chk("🔵 누르고 %.1f초 만에 뜬다" % x1, q1["shown"] and x1 < 1.0, q1)
-        chk("제목 「%s」" % q1["title"], q1["title"] == "AI가 녹음 내용을 다시 정리하는 중…", q1["title"])
+        chk("제목 「%s」" % q1["title"], q1["title"] == "빅터AI가 녹음 내용을 다시 정리하는 중…", q1["title"])
         chk("🔵 회의록과 **같은 모양** (바탕 %s · 글 %.1fpx)" % (q1["bg"], q1["tfs"]),
             q1["bg"] == MSHOT["bg"] and q1["tfs"] == MSHOT["tfs"], (q1, MSHOT))
         chk("도는 표시 · 흐르는 막대", q1["spin"] == "kabspin" and q1["slide"] == "kabslide", q1)

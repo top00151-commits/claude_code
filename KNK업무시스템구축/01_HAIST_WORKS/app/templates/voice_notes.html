@@ -28,6 +28,23 @@
 .vn-lead { background:#FFF7ED; border:1px solid #FED7AA; color:#7C2D12; border-radius:12px;
   padding:12px 16px; font-size:13px; line-height:1.75; margin-bottom:16px; }
 .vn-lead b { font-weight:800; }
+/* 🔍 z1180 음성 메모 검색 — 회의록 검색(z1178)과 같은 모양 · 같은 이름(mq-*) · 칸은 메모 카드와 같은 폭 */
+.mq-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin: 0 0 14px; }
+.mq-box { position:relative; flex:1 1 320px; min-width:0; }
+.mq-box input { width:100%; box-sizing:border-box; height:44px; padding:0 44px 0 40px; font-size:15px; font-family:inherit;
+  border:1.5px solid var(--qv-line-2); border-radius:12px; background: var(--qv-surface); color: var(--qv-ink); }
+.mq-box input:focus { outline:none; border-color: var(--knk-red); box-shadow: 0 0 0 3px rgba(165,40,44,.12); }
+.mq-ic { position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:16px; pointer-events:none; }
+.mq-clear { position:absolute; right:7px; top:50%; transform:translateY(-50%); width:30px; height:30px; border:0; border-radius:50%;
+  background: var(--qv-surface-3); color: var(--qv-ink-2); font-size:13px; font-weight:800; cursor:pointer; }
+.mq-cnt { font-size:13.5px; font-weight:800; color: var(--qv-ink-2); white-space:nowrap; }
+.mq-hit { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; margin-top:8px; font-size:12.5px; line-height:1.6; }
+.mq-f { font-size:11px; font-weight:800; padding:1px 7px; border-radius:6px; background:#FEF3C7; color:#92400E; white-space:nowrap; }
+.mq-snip { flex:1 1 260px; min-width:0; color: var(--qv-ink-3); overflow-wrap:anywhere; }
+.vn-ttl mark, .mq-snip mark { background:#FDE68A; color:inherit; padding:0 1px; border-radius:3px; }
+/* 공용·위 클래스의 display 가 hidden 속성을 덮는다 — 이겨야 걸러진 메모·안내가 숨는다 */
+.vn-card[hidden], .vn-empty[hidden], .mq-clear[hidden] { display:none !important; }
+@media (max-width: 640px) { .mq-cnt { width:100%; } }
 </style>
 </head>
 <body>
@@ -52,8 +69,22 @@
   </div>
 
   {% if notes %}
+    {# 🔍 z1180 (대표 2026-10-14 「회의록 검색 기능을 … "음성메모" 이 부분에도 적용을 해」) — 회의록 검색(z1178)과 같은 칸.
+       찾는 일은 서버가 한다(원문이 5만 자를 넘기도 한다) · 내 메모만(목록과 같은 범위).
+       🔴 읽기 전용으로 시작 — 크롬이 저장된 로그인 ID 를 채우지 못하게(z1173 · 누르는 순간 풀린다) #}
+    <div class="mq-bar">
+      <div class="mq-box">
+        <span class="mq-ic" aria-hidden="true">🔍</span>
+        <input type="text" id="vqInput" readonly autocomplete="off" autocapitalize="off" spellcheck="false"
+               maxlength="120" enterkeyhint="search" placeholder="제목·정리·원문으로 찾기" aria-label="제목·정리·원문으로 찾기"
+               title="띄어 쓰면 낱말이 모두 들어간 메모만 찾습니다" data-lpignore="true" data-1p-ignore>
+        <button type="button" class="mq-clear" id="vqClear" hidden aria-label="검색어 지우기" title="검색어 지우기">✕</button>
+      </div>
+      <div class="mq-cnt" id="vqCnt" aria-live="polite"></div>
+    </div>
+    <div class="vn-empty" id="vqNone" hidden>🔍 <b>찾는 메모가 없습니다</b> — 다른 낱말로 찾아 보세요.</div>
     {% for n in notes %}
-    <a class="vn-card" href="/voice-notes/{{ n.id }}">
+    <a class="vn-card" href="/voice-notes/{{ n.id }}" data-vid="{{ n.id }}">
       <div class="vn-ttl">{{ n.title or '제목 없는 메모' }}</div>
       <div class="vn-meta">
         <span>{{ n.created_at[:16] }}</span>
@@ -66,6 +97,101 @@
       {% elif n.body %}<div class="vn-pre">{{ n.body }}</div>{% endif %}
     </a>
     {% endfor %}
+    <script>
+    /* 🔍 z1180 음성 메모 검색 — 회의록 검색(z1178)과 같은 방식: 치는 대로(0.25초 뒤) 서버에 묻고, 찾은 메모만 남긴다.
+       · 메모 카드는 그대로 두고 숨기기만 한다 · 찾은 카드 아래 「어디서 찾았나」(제목·정리·원문) + 찾은 곳 앞뒤 한 줄 · 낱말은 노랗게
+       · 검색어는 주소(?q=)에 남긴다 — 메모를 열었다가 「뒤로」 오면 그대로 다시 찾는다
+       · SPA 로 .main 만 바뀌어도 돌도록 이 안(.main)에 둔다(칸이 새로 생기니 두 번 붙지 않는다) */
+    (function(){
+      var inp = document.getElementById('vqInput'); if (!inp) return;
+      var clr = document.getElementById('vqClear'), cnt = document.getElementById('vqCnt'), none = document.getElementById('vqNone');
+      var VQF = { title: '제목', summary: '정리', body: '원문' };
+      var CARDS = Array.prototype.map.call(document.querySelectorAll('.vn-card[data-vid]'), function(a){
+        var t = a.querySelector('.vn-ttl');
+        return { el: a, id: +a.getAttribute('data-vid'), ttl: t, t0: t ? t.textContent : '' };
+      });
+      var seq = 0, timer = null;
+      function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+      //  찾은 낱말을 노랗게 — 글은 먼저 막고(esc) 칠한다(회의록 검색과 같은 함수)
+      function marks(text, terms){
+        var s = String(text || ''), low = s.toLowerCase(), out = '', i = 0;
+        var ts = (terms || []).map(function(t){ return String(t).toLowerCase(); }).filter(Boolean);
+        while (i < s.length){
+          var best = -1, bl = 0;
+          ts.forEach(function(t){ var p = low.indexOf(t, i);
+            if (p >= 0 && (best < 0 || p < best || (p === best && t.length > bl))){ best = p; bl = t.length; } });
+          if (best < 0){ out += esc(s.slice(i)); break; }
+          out += esc(s.slice(i, best)) + '<mark>' + esc(s.slice(best, best + bl)) + '</mark>';
+          i = best + bl;
+        }
+        return out;
+      }
+      function setUrl(q){
+        try { var u = new URL(location.href);
+              if (q) u.searchParams.set('q', q); else u.searchParams.delete('q');
+              history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch(_){}
+      }
+      function showAll(){
+        CARDS.forEach(function(R){
+          R.el.hidden = false;
+          var h = R.el.querySelector('.mq-hit'); if (h) h.parentNode.removeChild(h);
+          if (R.ttl) R.ttl.textContent = R.t0;
+        });
+        cnt.textContent = ''; none.hidden = true;
+      }
+      async function run(q){
+        var my = ++seq, j = null;
+        cnt.textContent = '찾는 중…';
+        try {
+          var r = await fetch('/api/voice-notes/search?q=' + encodeURIComponent(q), { credentials: 'same-origin' });
+          j = await r.json();
+        } catch(_){ j = null; }
+        if (my !== seq || !inp.isConnected) return;    // 더 새 검색이 있거나 화면을 떠났다
+        if (!j || !j.ok){ cnt.textContent = '검색하지 못했습니다 — 잠시 뒤 다시 해 주세요.'; return; }
+        var by = {}; (j.items || []).forEach(function(it){ by[it.id] = it; });
+        var n = 0;
+        CARDS.forEach(function(R){
+          var it = by[R.id], old = R.el.querySelector('.mq-hit');
+          if (old) old.parentNode.removeChild(old);
+          if (R.ttl) R.ttl.innerHTML = it ? marks(R.t0, j.terms) : esc(R.t0);
+          R.el.hidden = !it;
+          if (!it) return;
+          n++;
+          var d = document.createElement('div');
+          d.className = 'mq-hit';
+          d.innerHTML = (it.hits || []).map(function(k){ return '<span class="mq-f">' + esc(VQF[k] || k) + '</span>'; }).join('')
+            + (it.snip ? '<span class="mq-snip">' + marks(it.snip, j.terms) + '</span>' : '');
+          R.el.appendChild(d);
+        });
+        cnt.textContent = '검색 결과 ' + n + '건';
+        none.hidden = n > 0;
+      }
+      function onType(){
+        var q = inp.value.trim();
+        clr.hidden = !inp.value;
+        setUrl(q);
+        clearTimeout(timer);
+        if (!q){ seq++; showAll(); return; }
+        timer = setTimeout(function(){ run(q); }, 250);
+      }
+      //  🔴 누르기 전엔 읽기 전용 — 크롬이 저장된 로그인 ID 를 채우지 못하게(z1173 과 같은 방식)
+      function unlock(){ if (inp.readOnly) inp.readOnly = false; }
+      inp.addEventListener('pointerdown', unlock);
+      inp.addEventListener('focus', unlock);
+      inp.addEventListener('input', onType);
+      inp.addEventListener('keydown', function(e){
+        unlock();
+        if (e.key === 'Escape'){ inp.value = ''; onType(); }
+        else if (e.key === 'Enter'){ e.preventDefault(); clearTimeout(timer); var q = inp.value.trim(); if (q) run(q); }
+      });
+      clr.addEventListener('click', function(){ inp.value = ''; onType(); unlock(); inp.focus(); });
+      //  주소에 검색어가 있으면(「뒤로」 돌아옴 · 새로고침) 그대로 다시 찾는다
+      var q0 = '';
+      try { q0 = (new URLSearchParams(location.search).get('q') || '').trim(); } catch(_){}
+      if (q0){ inp.readOnly = false; inp.value = q0; clr.hidden = false; run(q0); }
+    })();
+    </script>
   {% else %}
     <div class="vn-empty">
       아직 메모가 없습니다.<br>

@@ -65,7 +65,7 @@
 
   <div class="vn-sec">
     <div class="vn-fld">
-      <label>제목 <span style="font-weight:600;color:var(--qv-ink-3);">(비워도 됩니다 — AI가 내용을 보고 지어드려요)</span></label>
+      <label>제목 <span style="font-weight:600;color:var(--qv-ink-3);">(비워도 됩니다 — 빅터AI가 내용을 보고 지어드려요)</span></label>
       <input id="vnTitle" type="text" maxlength="200" placeholder="예: 드림텍 통화 내용"
              value="{{ (note.title if note else '')|e }}">
     </div>
@@ -210,7 +210,7 @@
     return lockRedo(async function(){
       if(!silent) st('vnSt','정리하는 중… (긴 녹음은 몇 분 걸립니다)','go');
       var ab = aiBusy();
-      if(ab) ab.start(silent ? 'AI가 녹음 내용을 정리하는 중…' : 'AI가 녹음 내용을 다시 정리하는 중…', VN_HINT);
+      if(ab) ab.start(silent ? '빅터AI가 녹음 내용을 정리하는 중…' : '빅터AI가 녹음 내용을 다시 정리하는 중…', VN_HINT);
       var r = await api('/api/voice-note/' + NID + '/extract', { method:'POST' });
       if(!r.ok){ var e1 = r.data.error || '정리하지 못했습니다.'; st('vnSt', e1, 'err'); if(ab) ab.fail(e1); return; }
       await waitNote(ab);
@@ -224,7 +224,7 @@
     if(!(s.ok && s.data.state === 'running')) return;
     return lockRedo(async function(){
       st('vnSt','정리하는 중… (긴 녹음은 몇 분 걸립니다)','go');
-      var ab = aiBusy(); if(ab) ab.start('AI가 녹음 내용을 정리하는 중…', VN_HINT, s.data.elapsed);
+      var ab = aiBusy(); if(ab) ab.start('빅터AI가 녹음 내용을 정리하는 중…', VN_HINT, s.data.elapsed);
       await waitNote(ab);
     });
   }

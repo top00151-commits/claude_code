@@ -709,6 +709,7 @@ var MF = {
   add_fail: {{ i.mf_add_fail|tojson }},
   ai_done: {{ i.mf_ai_done|tojson }},
   ai_fail: {{ i.mf_ai_fail|tojson }},
+  ai_tag: {{ i.mf_ai_tag|tojson }},          {# z1180 — 결정·할 일 옆 「빅터AI」 꼬리표 #}
   ai_hint: {{ i.mf_ai_hint|tojson }},        {# z1177 — 진행 칸 안내(몇 분 걸릴 수 있다 · 창을 닫아도 된다) #}
   ai_slow: {{ i.mf_ai_slow|tojson }},        {# z1170 — 정리가 오래 걸려 확인을 멈췄을 때 #}
   all_done: {{ i.mf_all_done|tojson }},
@@ -1052,7 +1053,7 @@ window.__MTG = {
       if (d.who) sub += '<span class="ri-sub">👤 '+esc(d.who)+'</span>';
       if (d.due) sub += '<span class="ri-sub">⏰ '+esc(d.due)+'</span>';
       return '<div class="row-item"><div class="ri-main"><b>'+esc(d.what)
-        + (d.source==='ai'?'<span class="ri-ai">AI</span>':'') + '</b>'+sub+'</div>'
+        + (d.source==='ai'?'<span class="ri-ai">' + MF.ai_tag + '</span>':'') + '</b>'+sub+'</div>'
         + (CAN_EDIT?'<button class="ri-del" data-act="del-dec" data-id="'+d.id+'" title="'+MF.del_t+'">✕</button>':'')
         + '</div>';
     }).join('');
@@ -1068,7 +1069,7 @@ window.__MTG = {
         ? '<span class="ri-linked">'+MF.daily_done+'</span>'
         : '<button class="ri-daily" data-act="to-daily" data-id="'+a.id+'">'+MF.to_daily+'</button>';
       return '<div class="row-item"><div class="ri-main"><b>'+esc(a.task)
-        + (a.source==='ai'?'<span class="ri-ai">AI</span>':'') + '</b>'+sub+'</div>'
+        + (a.source==='ai'?'<span class="ri-ai">' + MF.ai_tag + '</span>':'') + '</b>'+sub+'</div>'
         + right
         + (CAN_EDIT?'<button class="ri-del" data-act="del-act" data-id="'+a.id+'" title="'+MF.del_t+'">✕</button>':'')
         + '</div>';

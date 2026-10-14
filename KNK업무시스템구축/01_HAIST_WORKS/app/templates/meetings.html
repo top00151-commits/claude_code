@@ -118,6 +118,9 @@
 /* 공용 클래스의 display 가 hidden 속성을 덮는다 — 이겨야 걸러진 줄·숫자 칸이 숨는다 */
 .mtg-row[hidden], .bento[hidden], .mq-none[hidden], .mq-clear[hidden] { display:none !important; }
 .mq-none { margin: 0 var(--content-pad) 12px; }
+/* 🔍 z1180 모아보기 탭 검색 — 칸은 #mcWrap 안(이미 좌우 여백)이라 여백 없이 · 찾은 낱말은 회의록 탭과 같은 노랑 */
+#mcWrap .mq-bar { margin: 0 0 12px; }
+.mc-ttl mark, .mc-sub mark { background:#FDE68A; color:inherit; padding:0 1px; border-radius:3px; }
 @media (max-width: 640px) { .mq-cnt { width:100%; } }
 </style>
 </head>
@@ -244,7 +247,12 @@
     qf_loc: {{ i.mt_qf_loc|tojson }},
     qf_tags: {{ i.mt_qf_tags|tojson }},
     qf_dec: {{ i.mt_qf_dec|tojson }},
-    qf_act: {{ i.mt_qf_act|tojson }}
+    qf_act: {{ i.mt_qf_act|tojson }},
+    {# z1180 🔍 모아보기 탭 검색 #}
+    q_none: {{ i.mt_q_none|tojson }},
+    cq_old: {{ i.mt_cq_old|tojson }},
+    cq_from: {{ i.mt_cq_from|tojson }},
+    cq_err: {{ i.mt_cq_err|tojson }}
 };</script>
   <div class="page-head">
     <div>
@@ -266,6 +274,18 @@
     <div class="mc-bar">
       <div class="mc-guide">{{ i.mt_guide|safe }}</div>
       <button type="button" class="btn" id="mcReload">{{ i.mt_reload }}</button>
+    </div>
+    {# 🔍 z1180 (대표 2026-10-14 「회의록 검색 기능을 "회의카드모아보기" … 에도 적용을 해」) — 회의록 탭(z1178)과 같은 칸.
+       🔴 읽기 전용으로 시작 — 크롬이 저장된 로그인 ID 를 채우지 못하게(z1173 · 누르는 순간 풀린다) #}
+    <div class="mq-bar">
+      <div class="mq-box">
+        <span class="mq-ic" aria-hidden="true">🔍</span>
+        <input type="text" id="mcqInput" readonly autocomplete="off" autocapitalize="off" spellcheck="false"
+               maxlength="120" enterkeyhint="search" placeholder="{{ i.mt_cq_ph }}" aria-label="{{ i.mt_cq_ph }}"
+               title="{{ i.mt_q_hint }}" data-lpignore="true" data-1p-ignore>
+        <button type="button" class="mq-clear" id="mcqClear" hidden aria-label="{{ i.mt_q_clear }}" title="{{ i.mt_q_clear }}">✕</button>
+      </div>
+      <div class="mq-cnt" id="mcqCnt" aria-live="polite"></div>
     </div>
     <div id="mcBody" aria-live="polite"><div class="mc-empty">{{ i.mt_loading_eum }}</div></div>
     <div class="mc-more-row">
@@ -290,6 +310,62 @@
     var HEAD = { up: MT.head_up, live: MT.head_live, end: MT.head_end, min: MT.head_min };   // z1179: min = 📋 회의록 등록
     var VIS = { all: [MT.vis_all, 'vis-all'], hq: [MT.vis_hq, 'vis-team'], vn: [MT.vis_vn, 'vis-team'], 'private': [MT.vis_private, 'vis-private'] };
     var RESP = { attending: MT.resp_yes, declined: MT.resp_no, change: MT.resp_chg };
+    // 🔍 z1180 모아보기 탭 검색 (대표 2026-10-14 「회의록 검색 기능을 "회의카드모아보기", "음성메모" … 에도」 · 권장안 확정)
+    //   · 카드 글(제목·장소·등록자·참석자·외부 참석자)은 여기서 찾는다
+    //   · 그 회의의 **회의록 내용**(정리·원문·결정·할 일·고객사 …)은 회의록 탭 검색(z1178 /api/meetings/search)에 **낱말마다** 묻는다
+    //     → 낱말끼리 AND 를 두 곳에 걸쳐 지킨다(「IPO」는 회의록에만 · 「김정락」은 참석자에만 있어도 찾는다)
+    //   · 회의록은 **볼 수 있는 것만** — 검색 API 가 목록과 같은 공개 범위 · 카드엔 볼 수 있을 때만 회의록 번호(mid)가 온다
+    //   · 찾는 동안 옛 기간도 저절로 불러온다(처음엔 60일 전부터라 그 전 카드가 빠진다) — 440일씩 · 한 건도 없는 기간이 나오면 멈춤
+    var qInp = document.getElementById('mcqInput'), qClr = document.getElementById('mcqClear'), qCnt = document.getElementById('mcqCnt');
+    var Q = { terms: [], cache: {}, seq: 0, timer: null, pending: false, err: false };
+    var Q_TTL = 120000, OLD_SPAN = 440;     // 440일 = 서버가 한 번에 묻는 기간 상한(_MSG_CARDS_SPAN_MAX 450) 안
+    function qTerms(q){     // 서버 _meeting_q_terms 와 같은 규칙 — 띄어 쓴 낱말 · 40자까지 · 같은 낱말은 한 번 · 8개까지
+      var out = [], seen = {};
+      String(q || '').split(/\s+/).forEach(function(t){
+        t = t.slice(0, 40);
+        var k = t.toLowerCase();
+        if (t && !seen[k]) { seen[k] = 1; out.push(t); }
+      });
+      return out.slice(0, 8);
+    }
+    //  찾은 낱말을 노랗게 — 글은 먼저 막고(esc) 칠한다(회의록 탭 z1178 과 같은 함수)
+    function marks(text, terms){
+      var s = String(text == null ? '' : text), low = s.toLowerCase(), out = '', i = 0;
+      var ts = (terms || []).map(function(t){ return String(t).toLowerCase(); }).filter(Boolean);
+      while (i < s.length){
+        var best = -1, bl = 0;
+        ts.forEach(function(t){ var p = low.indexOf(t, i);
+          if (p >= 0 && (best < 0 || p < best || (p === best && t.length > bl))){ best = p; bl = t.length; } });
+        if (best < 0){ out += esc(s.slice(i)); break; }
+        out += esc(s.slice(i, best)) + '<mark>' + esc(s.slice(best, best + bl)) + '</mark>';
+        i = best + bl;
+      }
+      return out;
+    }
+    function hx(s){ return Q.terms.length ? marks(s, Q.terms) : esc(s); }
+    function cardText(m){
+      return [m.title, m.location, m.organizer]
+        .concat((m.attendees || []).map(function(a){ return a.name; }), m.externals || [])
+        .map(function(x){ return String(x == null ? '' : x); }).join('\n').toLowerCase();
+    }
+    function minHit(m, lt){   // 그 낱말이 이 카드의 회의록에서 찾아졌나 → 찾은 줄 또는 null
+      var mid = m.minutes && m.minutes.mid, c = Q.cache[lt];
+      return (mid && c && c.by[mid]) || null;
+    }
+    function matchCard(m){
+      var tx = cardText(m);
+      return Q.terms.every(function(t){ var lt = t.toLowerCase(); return tx.indexOf(lt) >= 0 || !!minHit(m, lt); });
+    }
+    //  카드 글에 없는 낱말을 회의록에서 찾았으면 — 「📋 회의록 · 어느 칸」 + 찾은 곳 앞뒤 한 줄
+    function qHitHtml(m){
+      if (!Q.terms.length) return '';
+      var tx = cardText(m), it = null;
+      Q.terms.some(function(t){ var lt = t.toLowerCase(); if (tx.indexOf(lt) < 0) it = minHit(m, lt); return !!it; });
+      if (!it) return '';
+      return '<div class="mq-hit"><span class="mq-f">' + esc(MT.cq_from) + '</span>'
+        + (it.hits || []).map(function(k){ return '<span class="mq-f">' + esc(MT['qf_' + k] || k) + '</span>'; }).join('')
+        + (it.snip ? '<span class="mq-snip">' + marks(it.snip, Q.terms) + '</span>' : '') + '</div>';
+    }
 
     function alive(){ return wrap.isConnected; }
     function esc(s){
@@ -387,15 +463,15 @@
       var vis = VIS[m.visibility];
       var h = '<article class="mc-card ' + hs + '">'
         + '<div class="mc-top"><span class="mc-pill ' + hs + '">' + HEAD[hs] + '</span>'
-        + '<span class="mc-ttl">' + esc(m.title) + '</span>'
+        + '<span class="mc-ttl">' + hx(m.title) + '</span>'
         + (vis ? '<span class="vis-badge ' + vis[1] + '">' + vis[0] + '</span>' : '') + '</div>'
         + '<div class="mc-sub">🕒 <b>' + esc(whenText(m)) + '</b>'
-        + (m.location ? ' · 📍 ' + esc(m.location) : '')
-        + (m.organizer ? ' · 👤 ' + esc(m.organizer) : '') + '</div>'
+        + (m.location ? ' · 📍 ' + hx(m.location) : '')
+        + (m.organizer ? ' · 👤 ' + hx(m.organizer) : '') + '</div>'
         + '<div class="mc-sub">👥 ' + atts.length + '명'
-        + (atts.length ? ' — ' + atts.map(function(a){ return esc(a.name); }).join(', ') : '') + '</div>';
+        + (atts.length ? ' — ' + atts.map(function(a){ return hx(a.name); }).join(', ') : '') + '</div>';
       if (m.externals && m.externals.length) {
-        h += '<div class="mc-sub">' + MT.external + ' ' + m.externals.length + MT.people + ' ' + esc(m.externals.join(', ')) + '</div>';
+        h += '<div class="mc-sub">' + MT.external + ' ' + m.externals.length + MT.people + ' ' + hx(m.externals.join(', ')) + '</div>';
       }
       if (me.is_organizer) {
         // 👤 응답 현황은 등록 담당에게만 — 이음 회의 카드와 같은 규칙
@@ -412,23 +488,24 @@
       }
       // z1179: 카드 빈 곳 누르기는 없앴다(z1122 를 걷음) — 이음 v856 과 같게 「단추를 눌렀을 때만」
       //   (대표 「아이콘이 눌렸을때만 동작」 · 이음 v817 「카드를 누르면 바로 이어서 녹음」의 이유가 v843 뒤 사라졌다)
-      return h + minutesHtml(m, hs) + '</article>';
+      return h + minutesHtml(m, hs) + qHitHtml(m) + '</article>';
     }
     function section(title, list, now, emptyText, small){
       var h = '<div class="mc-sec">' + title + ' (' + list.length + ')' + (small ? '<small>' + small + '</small>' : '') + '</div>';
       if (!list.length) return emptyText ? h + '<div class="mc-empty">' + emptyText + '</div>' : '';
       return h + list.map(function(m){ return cardHtml(m, now); }).join('');
     }
-    function groups(now){
+    function groups(now, list){
       var g = { live: [], up: [], end: [] };
-      //  z1179: 「📋 회의록 등록」(min)도 끝난 회의 — 「진행한 회의」 묶음에 둔다
-      ST.items.forEach(function(m){ var hs = headState(m, now); g[hs === 'min' ? 'end' : hs].push(m); });
+      //  z1179: 「📋 회의록 등록」(min)도 끝난 회의 — 「진행한 회의」 묶음에 둔다 · z1180: list = 검색으로 걸러진 카드
+      (list || ST.items).forEach(function(m){ var hs = headState(m, now); g[hs === 'min' ? 'end' : hs].push(m); });
       g.live.sort(function(a, b){ return startMs(a) - startMs(b); });
       g.up.sort(function(a, b){ return startMs(a) - startMs(b); });
       g.end.sort(function(a, b){ return startMs(b) - startMs(a); });
       return g;
     }
     function render(){
+      if (Q.terms.length) { renderFound(); return; }     // z1180: 찾는 중이면 걸러서 그린다
       var now = Date.now(), g = groups(now);
       var done = ST.items.filter(function(m){ return m.minutes && m.minutes.stage === 'done' && m.minutes.can_view; }).length;
       var h = '<div class="mc-sum">' + MT.sum_all + ' <b>' + ST.items.length + '</b>' + MT.sum_cnt
@@ -440,7 +517,25 @@
       h += section(MT.sec_end, g.end, now, MT.sec_end_none, ST.from ? ST.from.replace(/-/g, '.') + MT.from : '');
       body.innerHTML = h;
       ST.sig = sig(now);
-      btnMore.hidden = !ST.from;
+      btnMore.hidden = !ST.from || !!ST.oldDone;     // z1180: 옛 기간을 끝까지 불러왔으면 「더 보기」도 끝
+    }
+    // z1180 — 찾는 동안: 맞는 카드만 · 묶음(회의 중·예정·진행한 회의)은 그대로 · 빈 묶음은 안 보인다
+    function renderFound(){
+      var now = Date.now(), list = ST.items.filter(matchCard), g = groups(now, list), h = '';
+      var small = (!ST.oldDone && ST.from) ? ST.from.replace(/-/g, '.') + MT.from : '';
+      if (g.live.length) h += section(MT.sec_live, g.live, now);
+      if (g.up.length) h += section(MT.sec_up, g.up, now);
+      if (g.end.length) h += section(MT.sec_end, g.end, now, '', small);
+      body.innerHTML = h || '<div class="mc-empty">' + esc(Q.pending ? MT.q_busy : MT.q_none) + '</div>';
+      ST.sig = sig(now);
+      btnMore.hidden = !ST.from || !!ST.oldDone;
+      qStatus(list.length);
+    }
+    function qStatus(n){
+      if (!Q.terms.length) { qCnt.textContent = ''; return; }
+      var s = Q.pending ? MT.q_busy : MT.q_cnt.replace('{n}', n) + (Q.err ? ' · ' + MT.cq_err : '');
+      if (ST.oldBusy) s += ' · ' + MT.cq_old;
+      qCnt.textContent = s;
     }
     function sig(now){
       return ST.items.map(function(m){ return m.id + ':' + headState(m, now); }).join(',');
@@ -493,7 +588,7 @@
         render();
       }).catch(function(){
         if (alive() && !ST.items.length) showError(MT.err_net);
-      }).then(function(){ ST.busy = false; btnReload.disabled = false; });
+      }).then(function(){ ST.busy = false; btnReload.disabled = false; if (Q.terms.length) loadOld(); });
     }
     function loadMore(){
       if (ST.busy || !ST.from) return;
@@ -531,7 +626,81 @@
       if (Date.now() - ST.loadedAt > 120000) { loadFirst(); return; }   // 2분마다 회의록 단계도 새로
       if (sig(Date.now()) !== ST.sig) render();
     }, 30000);
+    // ── z1180 🔍 검색 ──
+    //  찾는 동안 옛 기간도 불러온다(「더 보기」를 대신 눌러 주는 것) · 못 불러오면 조용히 멈춘다(「더 보기」는 남는다)
+    function loadOld(){
+      if (!Q.terms.length || ST.oldDone || ST.busy || !ST.from || !alive()) return;
+      ST.busy = true; ST.oldBusy = true;
+      qStatus(ST.items.filter(matchCard).length);
+      var to = ST.fromIncl ? ST.from : addDays(ST.from, -1), from = addDays(to, -OLD_SPAN), more = false;
+      get('?from=' + from + '&to=' + to).then(function(d){
+        if (!alive() || !d || !d.ok) return;
+        var list = d.items || [], edge = edgeOf(d, from), seen = {};
+        ST.items.forEach(function(m){ seen[m.id] = 1; });
+        ST.items = ST.items.concat(list.filter(function(m){ return !seen[m.id]; }));
+        if (edge.incl && edge.day >= ST.from) edge = { day: from, incl: false };
+        ST.from = edge.day; ST.fromIncl = edge.incl;
+        if (list.length) more = true;
+        else ST.oldDone = true;                     // 440일 동안 한 건도 없다 → 그보다 옛날 회의는 없다고 본다
+      }).catch(function(){}).then(function(){
+        ST.busy = false; ST.oldBusy = false;
+        if (!alive()) return;
+        render();
+        if (more) loadOld();
+      });
+    }
+    //  낱말마다 회의록 검색에 묻는다(2분 동안은 받아 둔 것을 다시 쓴다) → 다 오면 걸러 그린다
+    function qRun(q){
+      var my = ++Q.seq, now = Date.now();
+      Q.terms = qTerms(q); Q.err = false;
+      var need = Q.terms.filter(function(t){ var c = Q.cache[t.toLowerCase()]; return !c || now - c.at > Q_TTL; });
+      Q.pending = need.length > 0;
+      qStatus(0);
+      Promise.all(need.map(function(t){
+        return fetch('/api/meetings/search?q=' + encodeURIComponent(t), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            if (!j || !j.ok) throw new Error('search');
+            var by = {};
+            (j.items || []).forEach(function(it){ by[it.id] = it; });
+            Q.cache[t.toLowerCase()] = { at: Date.now(), by: by };
+          });
+      })).then(function(){ return true; }, function(){ return false; }).then(function(ok){
+        if (my !== Q.seq || !alive()) return;       // 더 새 검색이 있거나 화면을 떠났다
+        Q.pending = false; Q.err = !ok;             // 회의록 검색이 안 돼도 카드 글로 찾은 것은 보여 준다
+        if (ST.loadedAt) { render(); loadOld(); } else qCnt.textContent = MT.q_busy;   // 카드가 아직 안 왔다 — 다 오면 loadFirst 가 걸러 그린다
+      });
+    }
+    function setUrl(q){
+      try { var u = new URL(location.href);
+            if (q) u.searchParams.set('q', q); else u.searchParams.delete('q');
+            history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch(_){}
+    }
+    function qType(){
+      var q = qInp.value.trim();
+      qClr.hidden = !qInp.value;
+      setUrl(q);
+      clearTimeout(Q.timer);
+      if (!q) { Q.seq++; Q.terms = []; Q.pending = false; Q.err = false; qStatus(0); if (ST.loadedAt) render(); return; }
+      Q.timer = setTimeout(function(){ qRun(q); }, 250);
+    }
+    //  🔴 누르기 전엔 읽기 전용 — 크롬이 저장된 로그인 ID 를 채우지 못하게(z1173 · 회의록 탭과 같은 방식)
+    function qUnlock(){ if (qInp.readOnly) qInp.readOnly = false; }
+    qInp.addEventListener('pointerdown', qUnlock);
+    qInp.addEventListener('focus', qUnlock);
+    qInp.addEventListener('input', qType);
+    qInp.addEventListener('keydown', function(e){
+      qUnlock();
+      if (e.key === 'Escape'){ qInp.value = ''; qType(); }
+      else if (e.key === 'Enter'){ e.preventDefault(); clearTimeout(Q.timer); var q = qInp.value.trim(); if (q) qRun(q); }
+    });
+    qClr.addEventListener('click', function(){ qInp.value = ''; qType(); qUnlock(); qInp.focus(); });
+    //  주소에 검색어가 있으면(「뒤로」 돌아옴 · 새로고침) 그대로 다시 찾는다
+    var q0 = '';
+    try { q0 = (new URLSearchParams(location.search).get('q') || '').trim(); } catch(_){}
+    if (q0){ qInp.readOnly = false; qInp.value = q0; qClr.hidden = false; }
     loadFirst();
+    if (q0) qRun(q0);
   })();
   </script>
   {% else %}

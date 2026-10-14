@@ -4680,7 +4680,7 @@ def _mtg_sum_worker(mid: int):
                 _ctx_parts.append(f"참석자: {m['attendees_text'].strip()}")
             ok, result = ai_client.ai_extract_meeting(body, context="\n".join(_ctx_parts))
             if not ok:
-                err = result.get("error", "AI 추출 실패")
+                err = result.get("error", "빅터AI 정리 실패")
             else:
                 # z971: 제목이 비었거나 기본값('제목 없는 회의 …' — 녹음 자동생성)이면 AI 제안 제목으로
                 #   교체. 사용자가 직접 지은 제목은 절대 건드리지 않는다.
@@ -4718,7 +4718,7 @@ def _mtg_sum_worker(mid: int):
                 payload = {"summary": result["summary"], "title": new_title,
                            "decisions": decisions, "actions": actions, "updated_at": new_ts}
     except Exception as _e:
-        err = err or f"AI 정리에 실패했습니다: {_e}"
+        err = err or f"빅터AI 정리에 실패했습니다: {_e}"
     with _MTG_SUM_LOCK:
         _MTG_SUM_JOBS[mid] = {"state": ("error" if err else "done"),
                               "error": err, "result": payload or {}}
@@ -4733,7 +4733,7 @@ async def api_meeting_extract(req: Request, mid: int):
         return JSONResponse({"error": "로그인 필요"}, 401)
     from . import ai_client
     if not ai_client.ai_available():
-        return JSONResponse({"ok": False, "error": "AI가 비활성 상태입니다(키 미설정). "
+        return JSONResponse({"ok": False, "error": "빅터AI가 비활성 상태입니다(키 미설정). "
                              "결정사항·할 일은 직접 추가할 수 있습니다."}, 400)
     with db_session() as c:
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
@@ -5882,6 +5882,43 @@ async def voice_notes_page(req: Request):
     return ctx(req, "voice_notes.html", user=u, notes=[dict(r) for r in rows])
 
 
+@app.get("/api/voice-notes/search")
+async def api_voice_notes_search(req: Request):
+    """🔍 음성 메모 검색 (z1180 · 대표 2026-10-14 「회의록 검색 기능을 … "음성메모" … 에도 적용을 해」)
+    목록과 **같은 범위** — 내 메모만(owner_id · 대표 결정 「내 것만」) · 최근 300건.
+    제목·정리·받아쓴 원문에서 찾는다 · 낱말 규칙은 회의록 검색과 같다(띄어 쓴 낱말끼리 AND · _meeting_q_terms).
+    🔵 원문이 5만 자를 넘기도 해 화면에 다 싣지 않고 여기서 찾는다(회의록 검색 z1178 과 같은 까닭)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    q = (req.query_params.get("q") or "").strip()[:120]
+    terms = _meeting_q_terms(q)
+    if not terms:
+        return JSONResponse({"ok": True, "q": q, "terms": [], "items": [], "total": 0})
+    cond, args = "", []
+    for t in terms:
+        pat = "%" + t.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        cond += " AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\')"
+        args += [pat] * 3
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT id, title, summary, body FROM voice_notes WHERE owner_id=?" + cond + " ORDER BY id DESC LIMIT 300",
+            (u["id"], *args)).fetchall()]
+    lows = [t.lower() for t in terms]
+    items = []
+    for n in rows:
+        fields = [("summary", n.get("summary") or ""), ("body", n.get("body") or ""), ("title", n.get("title") or "")]
+        hits = [k for k, v in fields if any(t in v.lower() for t in lows)]
+        snip, sf = "", ""
+        for k, v in fields[:2]:            # 찾은 곳 한 줄 = 정리 → 원문 차례(제목은 카드에 이미 보인다)
+            s = _meeting_q_snip(v, terms)
+            if s:
+                snip, sf = s, k
+                break
+        items.append({"id": n["id"], "hits": hits, "snip": snip, "snip_field": sf})
+    return JSONResponse({"ok": True, "q": q, "terms": terms, "items": items, "total": len(items)})
+
+
 @app.get("/voice-notes/new", response_class=HTMLResponse)
 async def voice_note_new_page(req: Request):
     u = get_user(req)
@@ -6077,7 +6114,7 @@ async def api_voice_note_extract(req: Request, nid: int):
         return JSONResponse({"error": "로그인 필요"}, 401)
     from . import ai_client
     if not ai_client.ai_available():
-        return JSONResponse({"ok": False, "error": "AI가 비활성 상태입니다(키 미설정)."}, 400)
+        return JSONResponse({"ok": False, "error": "빅터AI가 비활성 상태입니다(키 미설정)."}, 400)
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
@@ -6857,6 +6894,9 @@ async def api_meetings_msg_cards(req: Request):
                 # z1179: 정리 전 단추(📁 녹음 올리기 · ✏️ 작성하기 · 🔄 다시 정리)는 **고칠 수 있는 사람에게만**
                 #   (이음 v854 와 같은 규칙 · 판정은 _can_edit_meeting 한 곳)
                 mn["can_edit"] = bool(_can_edit_meeting(u, m, c))
+                # z1180: 🔍 모아보기 탭 검색 — 회의록 내용으로 찾은 것(/api/meetings/search 의 id)을 이 카드에 잇는다
+                #   (볼 수 있는 회의록에만 준다 — 검색 API 도 목록과 같은 공개 범위)
+                mn["mid"] = m["id"]
             x["minutes"] = mn
     return JSONResponse({"ok": True, "from": d_from.isoformat(), "to": d_to.isoformat(),
                          "today": today.isoformat(), "items": cards,
