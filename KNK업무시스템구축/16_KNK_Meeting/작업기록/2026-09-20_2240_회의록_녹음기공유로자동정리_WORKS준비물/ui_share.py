@@ -49,7 +49,10 @@ def main():
 
         # 붙일 회의 번호를 하나 얻는다
         p.goto(BASE + "/meetings", wait_until="domcontentloaded")
-        mid = p.evaluate("""() => { const a=document.querySelector('a.mtg-card[href^="/meetings/"]');
+        #  z1182: 목록 본문은 이제 링크가 아니다(대표 「아이콘을 눌렀을 때만」) → 번호는 data-mid · 옛 화면은 링크 주소에서
+        mid = p.evaluate("""() => { const d=document.querySelector('.mtg-card[data-mid]');
+                                    if (d) return parseInt(d.getAttribute('data-mid'),10);
+                                    const a=document.querySelector('a.mtg-card[href^="/meetings/"]');
                                     return a ? parseInt(a.getAttribute('href').split('/').pop(),10) : 0; }""")
         ok("붙일 회의를 찾았다", bool(mid), mid)
 

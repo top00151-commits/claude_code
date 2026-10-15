@@ -12,24 +12,27 @@
    ============================================================ #}
 {% include "_v5_partials/styles.html" %}
 <style>
-/* z1166: 줄 = [본문 링크][바로가기 둘].
-   겉모습(테두리·여백·마우스 올릴 때 뜨는 느낌)은 **바깥 .mtg-row** 가 갖고,
-   안쪽 .mtg-card 는 **이름과 href 를 그대로 둔 채** 본문 링크가 된다.
-   ⚠ 이 이름을 바꾸면 줄을 글자로 찾는 시험 4곳이 깨진다(실제로 겪었다) —
-      ui_share · ui_back · ui_back_z1130 · verify_cards 가 a.mtg-card[href^="/meetings/"] 를 쓴다.
+/* z1166: 줄 = [본문][바로가기 둘].
+   겉모습(테두리·여백)은 **바깥 .mtg-row** 가 갖는다.
+   🔴 z1182 (대표 2026-10-15 「"회의상세(수정), 회의록" 이 두 아이콘을 클릭했을때 다음으로 넘어가야하는데..
+      지금은 제목있는 여백을 아무대나 눌러도 … 넘어가」): 본문(.mtg-card)은 **이제 링크가 아니다** —
+      넘어가는 것은 오른쪽 아이콘 둘뿐 · 회의 번호는 data-mid 에 둔다(🔍 검색이 이것으로 줄을 찾는다) ·
+      마우스를 올려도 줄이 뜨지 않는다(눌리는 것처럼 보이지 않게 · 이음 v856·모아보기 탭 z1179 와 같은 규칙).
+   ⚠ 이 이름(mtg-card)을 바꾸면 줄을 글자로 찾는 시험이 깨진다 — 이름은 그대로 두었다
+      (ui_share · mtg_search_ui 는 z1182 에서 data-mid·아이콘으로 고쳤다 · ui_back · ui_back_z1130 · verify_cards 는 옛 시험).
    ⚠ 주석에 꺾쇠 태그를 적지 말 것 — 구조를 글자로 보는 검사가 주석을 범인으로 잡는다. */
 .mtg-row { display:flex; align-items:center; gap:12px; background: var(--qv-surface);
            border:1px solid var(--qv-line); border-radius: var(--radius-lg);
            padding:14px 18px; margin-bottom:12px; transition: all .16s; }
-.mtg-row:hover { border-color: var(--qv-line-3); box-shadow: var(--shadow-md); transform: translateY(-1px); }
-.mtg-card { display:block; flex:1; min-width:0; text-decoration:none; color:inherit; }
+/* (z1182: 줄에 마우스를 올려도 뜨지 않는다 — 넘어가는 것은 아이콘뿐) */
+.mtg-card { display:block; flex:1; min-width:0; color:inherit; cursor:default; }
 .mtg-acts { display:flex; gap:6px; align-items:center; flex-shrink:0; }
 .mtg-act { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700;
            padding:6px 11px; border-radius:999px; white-space:nowrap; text-decoration:none;
            border:1px solid var(--qv-line); background: var(--qv-surface); color: var(--qv-ink-2);
            transition: all .12s; }
 .mtg-act:hover { border-color: var(--qv-line-3); background: var(--qv-surface-2); color: var(--qv-ink); }
-/* 못 고치는 회의 — 보이되 안 눌린다(까닭은 마우스를 올리면 알려 준다) */
+/* (z1182 부터 안 쓴다 — 못 고치는 회의는 「🔍 회의상세(보기)」가 켜진다) */
 .mtg-act.off { opacity:.42; cursor:not-allowed; }
 /* z1166b: 글자가 「수정·양식」에서 「회의상세(수정)·회의록」으로 길어졌다(대표 지시) →
    좁은 화면에서 제목을 밀지 않게 **더 일찍** 글자를 숨긴다(560px → 760px). 그림은 남는다. */
@@ -42,7 +45,7 @@
 .mtg-recbar-sub { font-size:12px; color: var(--qv-ink-3); }
 .mtg-recbar-hint { font-size:12px; color: var(--qv-ink-3); margin-top:8px; line-height:1.6; }
 .cnt-badge.rec-on { background: var(--knk-red); color:#fff; border-color: var(--knk-red); }
-/* (뜨는 느낌은 위 .mtg-row:hover 로 옮겼다 — 겉모습을 갖는 칸이 그쪽이다) */
+/* (뜨는 느낌은 z1182 에서 걷었다 — 줄은 눌리지 않는다) */
 .mtg-top { display:flex; align-items:center; gap:10px; }
 .mtg-ttl { font-size: 15px; font-weight: 800; color: var(--qv-ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mtg-meta { display:flex; gap:14px; font-size:12px; color: var(--qv-ink-3); margin-top:6px; flex-wrap:wrap; }
@@ -800,7 +803,8 @@
   <div class="section">
     {% for m in meetings %}
     <div class="mtg-row">
-    <a class="mtg-card" href="/meetings/{{ m.id }}">
+    {# z1182: 본문은 링크가 아니다 — 넘어가는 것은 오른쪽 아이콘 둘뿐(대표 지시) · 번호는 data-mid #}
+    <div class="mtg-card" data-mid="{{ m.id }}">
       <div class="mtg-top">
         <div class="mtg-ttl">{{ m.title }}</div>
         <div class="mtg-badges">
@@ -822,7 +826,7 @@
         {% if m.location %}<span>📍 {{ m.location }}</span>{% endif %}
         {% if m.status == 'done' %}<span style="color:#15803d;font-weight:700;">{{ i.mt_row_done }}</span>{% else %}<span>{{ i.mt_row_draft }}</span>{% endif %}
       </div>
-    </a>
+    </div>
       {# z1166 (대표 지시): 줄에서 바로 들어가기 — 수정 / 회의록 양식.
          ⛔ 「수정」은 고칠 수 있는 사람만 눌린다(판정은 서버 _can_edit_meeting 한 곳). #}
       <div class="mtg-acts">
@@ -830,8 +834,10 @@
         <a class="mtg-act" href="/meetings/{{ m.id }}" title="{{ i.mt_act_edit_t }}"
            aria-label="{{ i.mt_act_edit_t }}">✏<span class="mtg-act-t">{{ i.mt_act_edit }}</span></a>
         {% else %}
-        <span class="mtg-act off" title="{{ i.mt_act_noedit }}" aria-disabled="true"
-              role="link">✏<span class="mtg-act-t">{{ i.mt_act_edit }}</span></span>
+        {# z1182 (대표 확인 「회의상세(보기)로 켬」): 줄을 눌러 들어가던 길이 없어졌으니 못 고치는 사람에겐
+           같은 자리에 **보기** 아이콘 — 상세 화면은 이 사람에게 읽기 전용으로 열린다(수정은 지금처럼 못 함) #}
+        <a class="mtg-act view" href="/meetings/{{ m.id }}" title="{{ i.mt_act_view_t }}"
+           aria-label="{{ i.mt_act_view_t }}">🔍<span class="mtg-act-t">{{ i.mt_act_view }}</span></a>
         {% endif %}
         <a class="mtg-act" href="/meetings/{{ m.id }}/doc" title="{{ i.mt_act_doc_t }}"
            aria-label="{{ i.mt_act_doc_t }}">📄<span class="mtg-act-t">{{ i.mt_act_doc }}</span></a>
@@ -850,9 +856,9 @@
     var clr = document.getElementById('mqClear'), cnt = document.getElementById('mqCnt'),
         none = document.getElementById('mqNone'), bento = document.querySelector('.main .bento');
     var ROWS = Array.prototype.map.call(document.querySelectorAll('.mtg-row'), function(r){
-      var a = r.querySelector('a.mtg-card'), t = r.querySelector('.mtg-ttl');
-      var m = a ? /\/meetings\/(\d+)/.exec(a.getAttribute('href') || '') : null;
-      return { el: r, card: a, id: m ? +m[1] : 0, ttl: t, t0: t ? t.textContent : '' };
+      //  z1182: 본문이 링크가 아니게 됐다 → 회의 번호는 data-mid 에서
+      var a = r.querySelector('.mtg-card'), t = r.querySelector('.mtg-ttl');
+      return { el: r, card: a, id: a ? +(a.getAttribute('data-mid') || 0) : 0, ttl: t, t0: t ? t.textContent : '' };
     });
     var seq = 0, timer = null;
     function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){

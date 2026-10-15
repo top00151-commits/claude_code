@@ -100,7 +100,8 @@ def get(port, path, uid):
 
 def list_ids(port, uid):
     code, html = get(port, "/meetings", uid)
-    return code, [int(x) for x in re.findall(r'<a class="mtg-card" href="/meetings/(\d+)"', html)]
+    #  z1182: 목록 본문이 링크가 아니게 됐다 → 새 화면은 data-mid · 옛 화면(운영 그대로 쪽)은 링크 주소
+    return code, [int(a or b) for a, b in re.findall(r'<a class="mtg-card" href="/meetings/(\d+)"|<div class="mtg-card" data-mid="(\d+)"', html)]
 
 
 def search(port, uid, q):
@@ -228,7 +229,7 @@ try:
             pg.on("pageerror", lambda e: errs.append("pageerror: " + str(e)[:160]))
             return ctx, pg, errs
 
-        VIS = "() => Array.prototype.filter.call(document.querySelectorAll('.mtg-row'), function(r){ return !r.hidden; }).map(function(r){ var a=r.querySelector('a.mtg-card'); return +(/\\/meetings\\/(\\d+)/.exec(a.getAttribute('href'))[1]); })"
+        VIS = "() => Array.prototype.filter.call(document.querySelectorAll('.mtg-row'), function(r){ return !r.hidden; }).map(function(r){ var a=r.querySelector('.mtg-card'), d=a.getAttribute('data-mid'); return +(d || /\\/meetings\\/(\\d+)/.exec(a.getAttribute('href'))[1]); })"
 
         def wait_cnt(pg, want_sub, sec=6):
             t0 = time.time()
@@ -293,7 +294,8 @@ try:
             pg.input_value("#mqInput") == "드림텍" and pg.evaluate(VIS) == [S["M3"]])
         chk("「정리」에서 찾았다", "정리" in pg.inner_text(".mtg-row:not([hidden]) .mq-hit"))
         pg.evaluate("() => { window.__spaMark = 1; }")
-        pg.click('.mtg-row:not([hidden]) a.mtg-card')
+        #  z1182: 줄은 이제 안 눌린다 — 상세로 가는 아이콘(✏ 회의상세(수정) · 🔍 회의상세(보기))을 누른다
+        pg.click('.mtg-row:not([hidden]) a.mtg-act[href="/meetings/%d"]' % S["M3"])
         pg.wait_for_function("() => location.pathname === '/meetings/%d'" % S["M3"], timeout=20000)
         pg.wait_for_timeout(800)
         pg.go_back()

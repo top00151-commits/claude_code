@@ -42,7 +42,9 @@
 {%- endif %}
 {% endmacro %}
 <style>
-.mf-wrap { max-width: 1200px; }
+/* z1182 (대표 2026-10-15 「모니터 크기에 맞게 여백이 자동으로 조정되게 해줘.. 오른쪽 여백이 너무 많아」):
+   폭 상한 1200px 을 걷었다 — 입력 시트는 모니터 폭 꽉(표준 · 음성 메모 z1177 과 같다) · 휴대폰은 그대로 */
+.mf-wrap { }
 .mf-grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px; }
 .mf-top { display:grid; grid-template-columns: minmax(0,380px) minmax(0,1fr); gap:18px; align-items:stretch; }
 .mf-info { display:flex; flex-direction:column; gap:11px; }

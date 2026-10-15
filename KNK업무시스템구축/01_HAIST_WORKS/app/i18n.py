@@ -641,6 +641,10 @@ T = {
                     "vi": "Xem theo biểu mẫu biên bản (in · PDF)"},
     "mt_act_noedit": {"ko": "이 회의록은 고칠 수 없습니다 — 작성자·참석자·관리자만 고칠 수 있어요",
                      "vi": "Bạn không sửa được biên bản này — chỉ người tạo · người tham dự · quản trị viên mới sửa được"},
+    # z1182 (대표 확인 2026-10-15): 목록 줄은 안 눌린다 → 못 고치는 사람에겐 「✏ 회의상세(수정)」 자리에 보기 아이콘
+    "mt_act_view": {"ko": "회의상세(보기)", "vi": "Chi tiết (xem)"},
+    "mt_act_view_t": {"ko": "회의상세 보기 — 이 회의록은 보기만 됩니다(작성자·참석자·관리자만 고칠 수 있어요)",
+                     "vi": "Xem chi tiết — bạn chỉ xem được biên bản này (chỉ người tạo · người tham dự · quản trị viên mới sửa được)"},
     "mt_cnt_dec": {"ko": "✔ 결정", "vi": "✔ Quyết định"},
     "mt_cnt_act": {"ko": "📌 할일", "vi": "📌 Việc cần làm"},
     "mt_sum_all": {"ko": "모두", "vi": "Tất cả"},
