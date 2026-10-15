@@ -4365,15 +4365,22 @@ def _mtg_doc_att_rows(atts, per_row=3, min_rows=3):
 
 
 def _mtg_doc_sum_lines(summary):
-    """AI 정리 본문 → 줄 목록. kind: k=핵심 h=[안건명] e=빈줄 p=본문.
-    아직 정리 전(빈 글)이면 빈 목록 — 양식에 '아직 정리 전입니다' 안내가 뜬다."""
+    """AI 정리 본문 → 줄 목록. kind: s=묶음 머리말(결론·목적·회의 내용 · z1181) k=핵심(옛 틀)
+    h=[안건명] e=빈줄 p=본문.
+    아직 정리 전(빈 글)이면 빈 목록 — 양식에 '아직 정리 전입니다' 안내가 뜬다.
+    🔵 z1181: 새 틀(결론 → 목적 → 회의 내용)의 머리말은 그 낱말 **한 줄**일 때만(「■ 결론」「결론:」도) —
+       「- 결론은 다음 주에」 같은 본문 줄은 머리말이 아니다 · 옛 「핵심:」 회의록은 예전 그대로 그린다."""
     if not (summary or "").strip():
         return []
+    import re as _re
+    sec = _re.compile(r"^[■#*\s]*(결론|목적|회의\s*내용|내용|할\s*일)[\s*:：]*$")
     out = []
     for ln in (summary or "").replace("\r\n", "\n").split("\n"):
         t = ln.strip()
         if not t:
             kind = "e"
+        elif sec.match(t):
+            kind = "s"
         elif t.startswith("[") and t.endswith("]"):
             kind = "h"
         elif t.startswith("핵심"):

@@ -82,7 +82,11 @@
   /* ── 안건(본문) ──────────────────────────────────────────── */
   .body { border: 1px solid #000; border-top: 0; padding: 12px 13px 16px; min-height: 360px; }
   .ln { font-size: 13px; line-height: 1.72; white-space: pre-wrap; word-break: break-word; }
-  .ln.k { font-weight: 700; margin-bottom: 3px; }          /* 핵심: … */
+  .ln.k { font-weight: 700; margin-bottom: 3px; }          /* 핵심: … (옛 틀) */
+  /* z1181 — 새 틀의 묶음 머리말(결론 → 목적 → 회의 내용) · 아래 「■ 결정사항」「■ 할 일」과 같은 모양 */
+  .ln.s { font-weight: 800; margin: 13px 0 3px; }
+  .ln.s:first-child { margin-top: 0; }
+  .ln.s::before { content: "■ "; }
   .ln.h { font-weight: 700; margin: 11px 0 3px; }          /* [안건명] */
   .ln.e { height: 7px; }
   .ln.none { color: #888; }
