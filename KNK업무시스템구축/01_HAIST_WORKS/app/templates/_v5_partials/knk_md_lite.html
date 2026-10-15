@@ -1,0 +1,78 @@
+{# ============================================================
+   _v5_partials/knk_md_lite.html — 정리 글 「가벼운 마크다운」 그리기 (z1183 · 🗓 회의록 · 🎤 음성 메모 공용)
+   대표 2026-10-15 「Markdown처럼 깔끔한 느낌은 기존 본문 안의 소제목·목록·굵은 강조·문단 간격으로 표현」
+                   「음성메모는 회사 양식이 없어.. 보기 좋게 마크다운 방식으로 정리를 해줘.」
+   · 쓰는 것만 그린다: ## 소제목 · - 목록(들여 쓰면 한 단 더) · 1. 번호 · **굵게** · 줄 앞 [결정]·[제안]·[미결]·[확인 필요]·[내부 방침]
+     그 밖의 기호(표·코드 칸 등)는 **글자 그대로** 보인다(지시문도 쓰지 말라고 한다).
+   · 옛 정리도 그대로 보인다 — 「[안건명]」 줄 · 「핵심: …」 줄 · z1181 「결론·목적·회의 내용」 머리말.
+   · 🔴 글은 **먼저 막고(escape) 그린다** — 정리 글 안의 꺾쇠가 화면 코드가 되지 않는다.
+   · 📄 회의록 양식(서버 · main._md_lite_line)과 **같은 규칙** — 둘이 어긋나지 않게 시험이 같은 글을 둘에 넣어 맞춰 본다.
+   · plain() = 복사·미리보기용 글 — 「## 소제목」→「■ 소제목」 · **굵게** 표시만 뺀다(목록 「- 」·표시 [결정]은 둔다).
+   ============================================================ #}
+<style>
+.sum-box.mdl, .vn-sum.mdl { white-space: normal; }
+.mdl .md-s { font-weight: 800; color: var(--qv-ink); margin: 12px 0 4px; }
+.mdl .md-s::before { content: "■ "; }
+.mdl .md-s:first-child { margin-top: 0; }
+.mdl .md-h { font-weight: 800; color: var(--qv-ink); margin: 10px 0 3px; }
+.mdl .md-k { font-weight: 700; margin-bottom: 3px; }
+.mdl .md-p { margin: 1px 0; }
+.mdl .md-li, .mdl .md-li2, .mdl .md-ol { position: relative; padding-left: 16px; margin: 1px 0; }
+.mdl .md-li::before { content: "•"; position: absolute; left: 4px; color: var(--qv-ink-3); }
+.mdl .md-li2 { padding-left: 32px; }
+.mdl .md-li2::before { content: "–"; position: absolute; left: 19px; color: var(--qv-ink-3); }
+.mdl .md-ol { padding-left: 22px; }
+.mdl .md-ol .md-n { position: absolute; left: 0; font-weight: 700; }
+.mdl .md-e { height: 7px; }
+.mdl .tg { font-weight: 800; }
+.mdl .tg-dec { color: #15803d; } .mdl .tg-pro { color: #1d4ed8; } .mdl .tg-und { color: #b45309; }
+.mdl .tg-chk { color: #b91c1c; } .mdl .tg-int { color: #475569; }
+</style>
+<script>
+window.KNKMdLite = window.KNKMdLite || (function(){
+  var TAGS = { '결정': 'dec', '제안': 'pro', '미결': 'und', '확인 필요': 'chk', '확인필요': 'chk', '내부 방침': 'int' };
+  var TAG_RE = /^\[(결정|제안|미결|확인 ?필요|내부 방침)\]\s*/;
+  var SEC_RE = /^[■#*\s]*(결론|목적|회의\s*내용|내용|할\s*일|핵심)[\s*:：]*$/;
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  //  줄 안: 맨 앞 표시([결정] 등) → 색 글씨 · **굵게** → b  (글은 먼저 막는다)
+  function inline(t){
+    var out = '', m = TAG_RE.exec(t);
+    if (m){
+      out = '<span class="tg tg-' + (TAGS[m[1]] || 'chk') + '">[' + esc(m[1]) + ']</span> ';
+      t = t.slice(m[0].length);
+    }
+    return out + esc(t).replace(/\*\*([^*]+?)\*\*/g, '<b>$1</b>');
+  }
+  //  한 줄 → { k: 종류, h: 그릴 글 } — 종류 이름은 회의록 양식(서버)과 같다
+  function line(raw){
+    var t = String(raw == null ? '' : raw).replace(/\s+$/, ''), s = t.replace(/^\s+/, ''), m;
+    if (!s) return { k: 'e', h: '' };
+    if ((m = /^#{1,3}\s+(.+?)\s*#*$/.exec(s))) return { k: 's', h: inline(m[1]) };
+    if ((m = SEC_RE.exec(s))) return { k: 's', h: esc(m[1]) };
+    if (/^\[[^\]]+\]$/.test(s) && !TAG_RE.test(s)) return { k: 'h', h: esc(s) };
+    if (/^핵심\s*[:：]/.test(s)) return { k: 'k', h: inline(s) };
+    if ((m = /^(\s*)[-*•]\s+(.+)$/.exec(t))) return { k: (m[1].replace(/\t/g, '  ').length >= 2 ? 'li2' : 'li'), h: inline(m[2]) };
+    if ((m = /^(\d{1,2})[.)]\s+(.+)$/.exec(s))) return { k: 'ol', h: '<span class="md-n">' + m[1] + '.</span>' + inline(m[2]) };
+    return { k: 'p', h: inline(s) };
+  }
+  function render(text){
+    return String(text == null ? '' : text).replace(/\r\n/g, '\n').split('\n').map(function(r){
+      var x = line(r);
+      return '<div class="md-' + x.k + '">' + x.h + '</div>';
+    }).join('');
+  }
+  //  복사·미리보기용 — 「## 소제목」→「■ 소제목」 · **굵게** 표시만 뺀다
+  function plain(text){
+    return String(text == null ? '' : text).replace(/\r\n/g, '\n').split('\n').map(function(r){
+      var t = r.replace(/\s+$/, ''), m = /^\s*#{1,3}\s+(.+?)\s*#*$/.exec(t);
+      if (m) t = '■ ' + m[1];
+      return t.replace(/\*\*([^*]+?)\*\*/g, '$1');
+    }).join('\n');
+  }
+  return { render: render, plain: plain, line: line };
+})();
+</script>

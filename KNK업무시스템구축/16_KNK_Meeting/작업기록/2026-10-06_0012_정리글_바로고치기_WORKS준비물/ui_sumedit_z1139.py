@@ -136,7 +136,10 @@ def main():
         p.click("#btnExtract")
         p.wait_for_timeout(1200)
         ok("D1 되묻는 창이 뜬다", asked["n"] == 1, asked["txt"][:80])
-        ok("D2 창 글에 「사라집니다」가 들어 있다", "사라집니다" in asked["txt"], asked["txt"][:80])
+        # z1183 (대표 확인 2026-10-15 「확인 + 이전 정리 보관」): 고친 글은 이제 사라지지 않고 「↩ 이전 정리」로
+        #   보관된다 → 묻는 글도 그 말로 바뀌었다(묻는 일은 서버가 · 원본 = .bak_z1183)
+        ok("D2 창 글에 「이전 정리」로 보관된다는 말이 들어 있다 (z1183 전엔 「사라집니다」)",
+           "이전 정리" in asked["txt"] and "계속할까요" in asked["txt"], asked["txt"][:80])
         ok("D3 「아니오」면 고친 글이 그대로",
            "손으로 한 줄 더" in (sql("SELECT summary FROM meetings WHERE id=?", (MID,))[0][0] or ""))
         c.close()

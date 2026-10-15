@@ -87,6 +87,17 @@
   .ln.s { font-weight: 800; margin: 13px 0 3px; }
   .ln.s:first-child { margin-top: 0; }
   .ln.s::before { content: "■ "; }
+  /* z1183 (대표 「Markdown처럼 깔끔한 느낌은 기존 본문 안의 소제목·목록·굵은 강조·문단 간격으로」) — 양식은 그대로,
+     안건 본문만: 목록(•)·한 단 더(–)·번호 · 굵게 · 줄 앞 표시 [결정]·[제안]·[미결]·[확인 필요]·[내부 방침] */
+  .ln.li, .ln.li2, .ln.ol { position: relative; padding-left: 16px; }
+  .ln.li::before { content: "•"; position: absolute; left: 4px; }
+  .ln.li2 { padding-left: 32px; }
+  .ln.li2::before { content: "–"; position: absolute; left: 19px; }
+  .ln.ol { padding-left: 22px; }
+  .ln.ol .md-n { position: absolute; left: 0; font-weight: 700; }
+  .ln .tg { font-weight: 800; }
+  .ln .tg-dec { color: #15803d; } .ln .tg-pro { color: #1d4ed8; } .ln .tg-und { color: #b45309; }
+  .ln .tg-chk { color: #b91c1c; } .ln .tg-int { color: #475569; }
   .ln.h { font-weight: 700; margin: 11px 0 3px; }          /* [안건명] */
   .ln.e { height: 7px; }
   .ln.none { color: #888; }
@@ -213,7 +224,7 @@
   <div class="body">
 
     {% if sum_lines %}
-      {% for ln in sum_lines %}<div class="ln {{ ln.kind }}">{{ ln.t }}</div>{% endfor %}
+      {% for ln in sum_lines %}<div class="ln {{ ln.kind }}">{{ ln.html|safe }}</div>{% endfor %}{# z1183: 줄은 서버가 먼저 막고(escape) 그린다(main._md_lite_line) #}
     {% else %}
       <div class="ln none">아직 정리 전입니다. (회의록 화면에서 「💾 저장하고 빅터AI 정리」)</div>
     {% endif %}

@@ -71,6 +71,7 @@
 .ai-bar .desc div { font-size:11.5px; color: var(--qv-ink-3); margin-top:3px; }
 .sum-box { font-size:13px; line-height:1.7; color: var(--qv-ink); white-space:pre-wrap; background: var(--qv-surface-2); border-radius:8px; padding:10px 12px; }
 .sum-box.empty { color: var(--qv-ink-3); }
+#btnSumPrev[hidden] { display:none !important; }   /* z1183 — 공용 단추 모양이 hidden 을 덮지 않게 */
 .row-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--qv-line); border-radius:8px; margin-bottom:8px; background: var(--qv-surface); }
 .ri-main { flex:1; min-width:0; }
 .ri-main b { font-size:13.5px; color: var(--qv-ink); display:block; line-height:1.5; }
@@ -538,6 +539,8 @@
               둘 다 **같은 한 함수**(extract)를 부른다. #}
         {% if can_edit %}<button class="copy-btn" id="btnExtractTop" type="button" style="margin-left:auto;"
                 {% if not ai_on %}disabled title="{{ i.mf_noai_t }}"{% endif %}>{{ i.mf_reextract }}</button>{% endif %}
+        {# z1183 (대표 확인 「확인 + 이전 정리 보관」): 다시 정리로 바뀌기 전 정리와 맞바꾼다(한 번 더 누르면 돌아온다) #}
+        {% if can_edit %}<button class="copy-btn" id="btnSumPrev" type="button" style="margin-left:8px;"{% if not (meeting and (meeting.summary_prev or '').strip()) %} hidden{% endif %}>{{ i.mf_prev_btn }}</button>{% endif %}
         {% if can_edit %}<button class="copy-btn" id="btnSumEdit" type="button" style="margin-left:8px;" title="{{ i.mf_sumedit_t }}">{{ i.mf_sumedit }}</button>{% endif %}
         <button class="copy-btn" id="btnCopySum" type="button" style="margin-left:8px;" title="{{ i.mf_copysum_t }}">{{ i.mf_copy }}</button>
       </div>
@@ -703,6 +706,8 @@
 {% include "_v5_partials/knk_datepicker.html" %}
 {# z1177: 「AI가 … 정리하는 중」 진행 칸 — 🎤 음성 메모와 **같은 부품** #}
 {% include "_v5_partials/knk_ai_busy.html" %}
+{# z1183: 정리 글 「가벼운 마크다운」 그리기 — 🎤 음성 메모·📄 회의록 양식과 같은 규칙 #}
+{% include "_v5_partials/knk_md_lite.html" %}
 
 <script>
 {# z1159: 자바스크립트가 쓸 말 — 번역 사전(i)에서 한 번만 내려 준다 #}
@@ -712,6 +717,15 @@ var MF = {
   ai_done: {{ i.mf_ai_done|tojson }},
   ai_fail: {{ i.mf_ai_fail|tojson }},
   ai_tag: {{ i.mf_ai_tag|tojson }},          {# z1180 — 결정·할 일 옆 「빅터AI」 꼬리표 #}
+  prev_btn: {{ i.mf_prev_btn|tojson }},      {# z1183 — 「↩ 이전 정리」 #}
+  prev_t: {{ i.mf_prev_t|tojson }},
+  prev_ask1: {{ i.mf_prev_ask1|tojson }},   {# 확인 창 두 줄 — 줄바꿈은 JS 에서(글자 escape 를 쓰지 않는다) #}
+  prev_ask2: {{ i.mf_prev_ask2|tojson }},
+  prev_done: {{ i.mf_prev_done|tojson }},
+  edit_ask1: {{ i.mf_edit_ask1|tojson }},   {# z1183 — 사람이 고친 정리가 있을 때 다시 정리 전에(세 줄) #}
+  edit_ask2: {{ i.mf_edit_ask2|tojson }},
+  edit_ask3: {{ i.mf_edit_ask3|tojson }},
+  edit_kept: {{ i.mf_edit_kept|tojson }},
   ai_hint: {{ i.mf_ai_hint|tojson }},        {# z1177 — 진행 칸 안내(몇 분 걸릴 수 있다 · 창을 닫아도 된다) #}
   ai_slow: {{ i.mf_ai_slow|tojson }},        {# z1170 — 정리가 오래 걸려 확인을 멈췄을 때 #}
   all_done: {{ i.mf_all_done|tojson }},
@@ -920,6 +934,8 @@ window.__MTG = {
   msg_del: {{ (msg_del|default('none', true))|tojson }},   {# z1122: 🗑 삭제 때 이음 회의도 함께 지워지나(none·yes·no) — 확인 글에 미리 알림 #}
   audio_max_mb: {{ MEETING_AUDIO_MAX_MB|int }},   {# 2026-09-17: 음성 올리기 한도 — 숫자는 main.py _MEETING_AUDIO_MAX_MB 한 곳 #}
   summary: {{ ((meeting.summary or '') if not is_new else '')|tojson }},
+  has_prev: {{ 'true' if (not is_new and (meeting.summary_prev or '').strip()) else 'false' }},   {# z1183 #}
+  prev_at: {{ (((meeting.summary_prev_at or '')[:16]) if not is_new else '')|tojson }},
   decisions: {{ decisions|tojson if decisions else '[]' }},
   actions: {{ actions|tojson if actions else '[]' }}
 };
@@ -1044,8 +1060,20 @@ window.__MTG = {
   // ── 렌더 ──
   function renderSummary(){
     var box = $('mtgSummary'); if(!box) return;
-    if (M.summary && M.summary.trim()){ box.textContent = M.summary; box.className='sum-box'; }
+    if (M.summary && M.summary.trim()){
+      //  z1183: 정리 글은 가벼운 마크다운(## 소제목 · - 목록 · **굵게** · [결정] 표시) — 보기 좋게 그린다.
+      //  원래 글은 M.summary 에 그대로(✏ 고치기·복사는 그 글을 쓴다)
+      if (window.KNKMdLite){ box.innerHTML = KNKMdLite.render(M.summary); box.className = 'sum-box mdl'; }
+      else { box.textContent = M.summary; box.className = 'sum-box'; }
+    }
     else { box.textContent=MF.sum_empty; box.className='sum-box empty'; }
+    syncPrev();
+  }
+  //  z1183: 「↩ 이전 정리」 — 다시 정리로 바뀌기 전 정리가 있을 때만 · 말풍선에 언제 것인지
+  function syncPrev(){
+    var b = $('btnSumPrev'); if(!b) return;
+    b.hidden = !M.has_prev;
+    b.title = M.has_prev ? MF.prev_t.replace('{at}', M.prev_at || '') : '';
   }
   function renderDecisions(){
     var box = $('decList'); if(!box) return;
@@ -1141,6 +1169,14 @@ window.__MTG = {
       status(MF.saved_ok, 'ok');
     }
     var res = await jreq('POST', '/api/meeting/'+M.id+'/extract', {});
+    /* 🔴 z1183 (대표 확인 「확인 + 이전 정리 보관」): 사람이 고친 정리가 있으면 서버가 먼저 묻는다(need_confirm).
+       「🔄 다시 정리」·새 녹음 자동 정리 둘 다 여기를 지난다 → 한 곳에서 묻는다. 확인하면 지금 정리는 「이전 정리」로 보관. */
+    if (res.data && res.data.need_confirm){
+      var _nl = String.fromCharCode(10);
+      if (!confirm(MF.edit_ask1.replace('{at}', res.data.edited_at || '-') + _nl + MF.edit_ask2 + _nl + MF.edit_ask3))
+        return { ok:false, cancel:true, error: MF.edit_kept };
+      res = await jreq('POST', '/api/meeting/'+M.id+'/extract', { confirm_overwrite: true });
+    }
     if (!(res.ok && res.data.ok)) return { ok:false, error: res.data.error || MF.ai_fail };
     return await waitExtract();
   }
@@ -1169,6 +1205,8 @@ window.__MTG = {
         M.decisions = st.data.decisions || [];
         M.actions = st.data.actions || [];
         M.base_ts = st.data.updated_at || M.base_ts;
+        M.has_prev = !!st.data.prev_at || M.has_prev;      // z1183 — 다시 정리로 이전 정리가 생겼다
+        if (st.data.prev_at) M.prev_at = st.data.prev_at;
         if (st.data.title){ var t=$('mtgTitle'); if(t){ t.value=st.data.title; rebase(['mtgTitle']); } }
         renderSummary(); renderDecisions(); renderActions();
         return { ok:true };
@@ -1183,9 +1221,8 @@ window.__MTG = {
 
   // ── 「🔄 다시 정리」(다시 하기 폴드) — 원문 고친 뒤 AI 정리만 다시. 피드백은 폴드 안 recStatus로 ──
   async function extract(){
-    // z1139: 손으로 고친 정리 글은 AI 가 다시 쓰면 사라진다 → 그때만 한 번 묻는다
-    if (_sumEdited && !confirm(MF.re_ask1
-        + String.fromCharCode(10) + MF.re_ask2)) return;
+    // z1139 → z1183: 손으로 고친 정리를 묻는 일은 **서버가** 한다(고친 표시가 저장돼 다른 화면·다른 사람이 눌러도 묻는다 ·
+    //   doExtract 가 확인 창을 띄운다). 전에는 이 화면에서 고쳤을 때만 여기서 물었다.
     await extractUi(isDirty() ? MF.re_busy1 : MF.re_busy2, doExtract);
   }
   // z1177: 진행 칸 — 처음 쓸 때 만든다(못 고치는 사람 화면엔 칸이 없어 아무 일도 안 한다)
@@ -1206,6 +1243,7 @@ window.__MTG = {
     var r = await work();
     btns.forEach(function(b, i){ b.disabled = was[i]; });
     if (r.ok){ recSt(MF.re_done, 'ok'); if (ab) ab.done(MF.re_done); }
+    else if (r.cancel){ recSt(r.error, ''); if (ab) ab.close(); }   // z1183 — 고친 정리를 그대로 두기로 했다(실패 아님)
     else { recSt(r.error, 'err'); if (ab) ab.fail(r.error); }
   }
   /* z1177: 정리하는 **도중에** 이 화면을 다시 열면(탭을 옮겼다 오기 · 새로고침 · 다른 창) 진행 칸을 다시 띄우고
@@ -1260,6 +1298,10 @@ window.__MTG = {
           : await doExtract();
       }
       catch(e){ r = { ok:false, error:(e&&e.message)||MF.err }; }
+      if (r.cancel){   // z1183 — 사람이 고친 정리를 그대로 두기로 했다 → 실패가 아니라 「그대로 둠」으로 끝낸다
+        steps[i].st='warn'; steps[i].label = MF.edit_kept; pipeRender(steps.concat(warns));
+        _pipeBusy=false; relWake(); return;
+      }
       if (!r.ok){
         steps[i].st='err'; steps[i].label += ' — ' + (r.error||MF.fail); pipeRender(steps.concat(warns));
         if (rt) rt.hidden=false;
@@ -1358,7 +1400,7 @@ window.__MTG = {
   if (!M.is_new && CAN_EDIT && AI_ON && $('aiBusy')) resumeExtract();
   // ── z1139 ✏ 정리 글 바로 고치기 (대표 지시 2026-10-05) ───────────────────────
   //   음성 인식이 잘못 들은 낱말을 그 자리에서 고친다. AI 를 다시 돌리지 않으므로 다른 문장은 그대로.
-  var _sumEdited = false;   // 이 화면에서 손으로 고쳤나 → 「🔄 다시 정리」 때 한 번 묻는다
+  //  z1139 의 「이 화면에서 고쳤나」 표시(_sumEdited)는 z1183 에서 뺐다 — 고친 표시는 서버(DB)에 남고 서버가 묻는다
   function sumSt(msg, kind){
     var el=$('sumSt'); if(!el) return;
     el.textContent = msg || '';
@@ -1379,6 +1421,28 @@ window.__MTG = {
   });
   var _bSumC=$('btnSumCancel');
   if(_bSumC) _bSumC.addEventListener('click', function(){ sumEditShow(false); sumSt(''); });
+  // z1183: 「↩ 이전 정리」 — 지금 정리와 이전 정리를 맞바꾼다(서버 · 정리 글 + 그때의 AI 결정·할 일)
+  var _bSumP=$('btnSumPrev');
+  if(_bSumP) _bSumP.addEventListener('click', async function(){
+    if (!M.has_prev) return;
+    if (!confirm(MF.prev_ask1.replace('{at}', M.prev_at || '-') + String.fromCharCode(10) + MF.prev_ask2)) return;
+    _bSumP.disabled = true;
+    var r = await jreq('POST', '/api/meeting/' + M.id + '/summary-restore', { base_ts: M.base_ts });
+    _bSumP.disabled = false;
+    if (r.ok && r.data && r.data.ok){
+      M.summary = r.data.summary || '';
+      M.decisions = r.data.decisions || [];
+      M.actions = r.data.actions || [];
+      M.base_ts = r.data.updated_at || M.base_ts;
+      M.has_prev = !!r.data.has_prev; M.prev_at = r.data.prev_at || '';
+      renderSummary(); renderDecisions(); renderActions();
+      status(MF.prev_done, 'ok');
+    } else if (r.status === 409){
+      status((r.data && r.data.message) || MF.conflict, 'err');
+    } else {
+      status((r.data && r.data.error) || MF.save_fail, 'err');
+    }
+  });
   var _bSumS=$('btnSumSave');
   if(_bSumS) _bSumS.addEventListener('click', async function(){
     var t=$('sumEdit'); if(!t) return;
@@ -1388,7 +1452,6 @@ window.__MTG = {
     if(r.ok && r.data && r.data.ok){
       M.summary = (t.value||'').replace(/\r\n/g, String.fromCharCode(10)).trim();
       M.base_ts = r.data.updated_at || M.base_ts;
-      _sumEdited = true;
       renderSummary(); sumEditShow(false); sumSt('');
       status(MF.sum_saved, 'ok');
     } else if (r.status === 409){
@@ -1459,6 +1522,8 @@ window.__MTG = {
   bindCopy('btnCopySum', function(){
     var s=(M.summary||'').trim(); if(!s) return '';
     var tt=((($('mtgTitle')||{}).value)||'').trim(), dt=((($('mtgDate')||{}).value)||'').trim();
+    //  z1183: 복사는 마크다운 기호를 뺀 글(「## 핵심」→「■ 핵심」 · **굵게** 표시 없이) — 메신저·메일에 그대로 붙게
+    if (window.KNKMdLite) s = KNKMdLite.plain(s);
     return MF.copy_head+tt+(dt?(' ('+dt+')'):'')+MF.nl2+s;  // 전달받는 쪽 맥락용 머리말
   }, MF.not_yet);
   var bRt=$('pipeRetry'); if(bRt) bRt.addEventListener('click', function(){ autoPipeline(_pipeLastOpts||{}); });

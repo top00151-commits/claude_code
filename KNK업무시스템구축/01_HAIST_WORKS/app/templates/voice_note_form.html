@@ -99,6 +99,9 @@
       <div class="vn-acts">
         <button class="btn btn-secondary" id="vnSumEdit" type="button">✏ 고치기</button>
         <button class="btn btn-secondary" id="vnRedo" type="button">🔄 다시 정리</button>
+        {# z1183 (대표 확인 「확인 + 이전 정리 보관」): 다시 정리로 바뀌기 전 정리와 맞바꾼다(한 번 더 누르면 돌아온다) #}
+        <button class="btn btn-secondary" id="vnPrev" type="button"{% if not (note and (note.summary_prev or '').strip()) %} hidden{% endif %}
+                title="{% if note and note.summary_prev_at %}{{ note.summary_prev_at[:16] }} 정리와 맞바꿉니다{% endif %}">↩ 이전 정리</button>
       </div>
     </div>
     {# 🔴 z1177 (대표 지시 2026-10-13 「AI가 … 정리하는 중… 이부분이 확실하게 표현이 됐으면 … 음성메모 부분도 동일하게」)
@@ -133,6 +136,8 @@
 </div>
 {# z1177: 「AI가 … 정리하는 중」 진행 칸 — 🗓 회의록과 **같은 부품** #}
 {% include "_v5_partials/knk_ai_busy.html" %}
+{# z1183: 정리 글 「가벼운 마크다운」 그리기 — 대표 「음성메모는 회사 양식이 없어.. 보기 좋게 마크다운 방식으로」 #}
+{% include "_v5_partials/knk_md_lite.html" %}
 <script>
 (function(){
   /* 🔴 z1177: WORKS 는 링크를 누르면 본문만 갈아끼운다(spa_nav) → 이 코드는 화면을 떠난 뒤에도 살아 있다.
@@ -144,6 +149,24 @@
   function _alive(){ return !_root || _root.isConnected; }
   var $ = function(id){ return _alive() ? document.getElementById(id) : null; };
   var NID = {{ note.id if note else 'null' }};
+  /* z1183: 정리 글의 **원래 글**은 여기에 둔다 — 화면 칸은 마크다운을 그린 모양이라 글자가 다르다
+     (✏ 고치기·📋 복사·켜고 끄기는 이 글을 쓴다) */
+  var SUM = {{ ((note.summary if note else '') or '')|tojson }};
+  var HAS_PREV = {{ 'true' if (note and (note.summary_prev or '').strip()) else 'false' }};
+  var PREV_AT = {{ (((note.summary_prev_at or '')[:16]) if note else '')|tojson }};
+  function setSum(v){
+    SUM = v || '';
+    var b = $('vnSumBox'); if(!b) return;
+    if(SUM.trim()){
+      if(window.KNKMdLite){ b.innerHTML = KNKMdLite.render(SUM); b.className = 'vn-sum mdl'; }
+      else { b.textContent = SUM; b.className = 'vn-sum'; }
+    } else { b.textContent = '아직 정리 전입니다 — 녹음을 올리면 자동으로 정리됩니다.'; b.className = 'vn-sum empty'; }
+  }
+  function syncPrev(){
+    var p = $('vnPrev'); if(!p) return;
+    p.hidden = !HAS_PREV;
+    p.title = HAS_PREV ? ((PREV_AT ? PREV_AT + ' ' : '') + '정리와 맞바꿉니다 — 지금 정리는 「이전 정리」로 남아 다시 바꿀 수 있습니다') : '';
+  }
   function st(el, msg, kind){ var e=$(el); if(!e) return; e.textContent=msg||''; e.className='vn-st'+(kind?(' '+kind):''); }
   async function api(url, opt){
     try{ var r = await fetch(url, opt||{}); var j = await r.json().catch(function(){ return {}; });
@@ -212,6 +235,15 @@
       var ab = aiBusy();
       if(ab) ab.start(silent ? '빅터AI가 녹음 내용을 정리하는 중…' : '빅터AI가 녹음 내용을 다시 정리하는 중…', VN_HINT);
       var r = await api('/api/voice-note/' + NID + '/extract', { method:'POST' });
+      /* 🔴 z1183: 사람이 고친 정리가 있으면 서버가 먼저 묻는다(need_confirm) — 확인하면 지금 정리는 「이전 정리」로 보관 */
+      if(!r.ok && r.data && r.data.need_confirm){
+        if(!confirm('사람이 고친 정리가 있습니다(' + (r.data.edited_at || '') + ').\n다시 정리하면 새 정리로 바뀝니다 — '
+                    + '고친 정리는 「↩ 이전 정리」로 보관되어 되돌릴 수 있습니다.\n계속할까요?')){
+          st('vnSt','고친 정리를 그대로 두었습니다(다시 정리하지 않음).',''); if(ab) ab.close(); return;
+        }
+        r = await api('/api/voice-note/' + NID + '/extract', { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ confirm_overwrite: true }) });
+      }
       if(!r.ok){ var e1 = r.data.error || '정리하지 못했습니다.'; st('vnSt', e1, 'err'); if(ab) ab.fail(e1); return; }
       await waitNote(ab);
     });
@@ -251,7 +283,8 @@
     var n = await api('/api/voice-note/' + NID);
     if(n.ok && n.data.note){
       var d = n.data.note;
-      if($('vnSumBox')){ $('vnSumBox').textContent = d.summary || '아직 정리 전입니다.'; $('vnSumBox').className = 'vn-sum' + (d.summary ? '' : ' empty'); }
+      setSum(d.summary || '');                      // z1183 — 마크다운을 그려 넣는다(원래 글은 SUM)
+      HAS_PREV = !!d.has_prev; PREV_AT = d.prev_at || ''; syncPrev();
       syncCopy();                                   // z1168 — 정리가 생기면 📋 복사를 켠다
       if($('vnSumEdit2')) $('vnSumEdit2').value = d.summary || '';
       if($('vnBody')) $('vnBody').value = d.body || '';
@@ -263,6 +296,21 @@
     if(ab) ab.done('정리가 끝났습니다 ✓');
   }
   var _re = $('vnRedo'); if(_re) _re.addEventListener('click', function(){ extract(false); });
+  // z1183: 「↩ 이전 정리」 — 지금 정리와 이전 정리를 맞바꾼다(한 번 더 누르면 돌아온다)
+  var _pv = $('vnPrev');
+  if(_pv) _pv.addEventListener('click', async function(){
+    if(!NID || !HAS_PREV) return;
+    if(!confirm((PREV_AT ? PREV_AT + ' 의 ' : '') + '이전 정리로 되돌릴까요?\n지금 정리는 「이전 정리」로 남아 다시 바꿀 수 있습니다.')) return;
+    _pv.disabled = true;
+    var r = await api('/api/voice-note/' + NID + '/summary-restore', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+    _pv.disabled = false;
+    if(!r.ok){ st('vnSt', r.data.error || '되돌리지 못했습니다.', 'err'); return; }
+    setSum(r.data.summary || ''); syncCopy();
+    if($('vnSumEdit2')) $('vnSumEdit2').value = SUM;
+    HAS_PREV = !!r.data.has_prev; PREV_AT = r.data.prev_at || ''; syncPrev();
+    st('vnSt','이전 정리로 되돌렸습니다 ✓ (한 번 더 누르면 바꿔 돌아옵니다)','ok');
+  });
+  setSum(SUM); syncPrev();   // z1183 — 처음 열 때도 마크다운을 그린다
   if(NID) resumeNote();      // z1177 — 정리하는 도중에 다시 연 화면이면 진행 칸을 다시 띄운다
 
   // ── 제목 저장(입력칸을 벗어날 때) ───────────────────────
@@ -277,7 +325,7 @@
   var _se = $('vnSumEdit'), _sw = $('vnSumEditWrap'), _sb = $('vnSumBox');
   if(_se) _se.addEventListener('click', function(){
     if(!NID){ st('vnSt','먼저 녹음을 올려 주세요.','err'); return; }
-    if($('vnSumEdit2')) $('vnSumEdit2').value = (_sb.className.indexOf('empty') >= 0) ? '' : (_sb.textContent||'');
+    if($('vnSumEdit2')) $('vnSumEdit2').value = SUM || '';   // z1183 — 그린 모양이 아니라 원래 글을 고친다
     _sw.hidden = false; _sb.hidden = true;
   });
   var _sc = $('vnSumCancel'); if(_sc) _sc.addEventListener('click', function(){ _sw.hidden = true; _sb.hidden = false; });
@@ -288,7 +336,7 @@
     var r = await api('/api/voice-note/' + NID + '/save', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ summary: v }) });
     if(!r.ok){ st('vnSumSt', r.data.error || '저장하지 못했습니다.', 'err'); return; }
-    _sb.textContent = v || '아직 정리 전입니다.'; _sb.className = 'vn-sum' + (v ? '' : ' empty');
+    setSum(v);                                      // z1183
     syncCopy();                                     // z1168 — 사람이 고친 뒤에도 맞춘다
     _sw.hidden = true; _sb.hidden = false; st('vnSumSt','');
     st('vnSt','고친 정리를 저장했습니다 ✓','ok');
@@ -305,17 +353,19 @@
 
   // ── 📋 복사 — 제목 + 날짜 + 정리 글 (z1168) ───────────
   //    🔵 「정리한 형식 그대로」가 대표 지시라 정리 글은 **손대지 않고 그대로** 넘긴다.
+  //    z1183: 정리 글이 마크다운이 되어 — **화면에 보이는 모양 그대로**(■ 소제목 · - 목록) 넘긴다(##·** 기호만 뺀다).
   //    정리 글이 생기거나 사라지면 단추를 켜고 끈다(흐리면 안 눌린다)
   function syncCopy(){
     var c = $('vnCopy'), b = $('vnSumBox');
     if(!c) return;
-    var has = !!(b && b.className.indexOf('empty') < 0 && (b.textContent || '').trim());
+    var has = !!(SUM || '').trim();                 // z1183 — 원래 글로 본다
     c.disabled = !has;
     c.title = has ? '제목·날짜와 함께 정리 글을 복사합니다' : '아직 정리 전입니다 — 녹음을 올리면 정리됩니다';
   }
   function copyBody(){
     var c = $('vnCopy'), b = $('vnSumBox');
-    var s = (b && b.className.indexOf('empty') < 0) ? (b.textContent || '').trim() : '';
+    //  z1183: 원래 글에서 마크다운 기호만 뺀 글(「## 핵심」→「■ 핵심」 · **굵게** 표시 없이 · 목록 「- 」은 둔다)
+    var s = window.KNKMdLite ? KNKMdLite.plain(SUM || '').trim() : (SUM || '').trim();
     if(!s) return '';
     var t = (($('vnTitle') || {}).value || '').trim();
     var w = (c && c.dataset ? (c.dataset.when || '') : '');

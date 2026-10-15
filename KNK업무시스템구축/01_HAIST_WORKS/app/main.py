@@ -929,6 +929,15 @@ def startup():
             print(f"[MEETING-VIEWER-MIG-Z1148] {_rmv}")
     except Exception as _e:
         print(f"[MEETING-VIEWER-MIG-Z1148 ERR] {_e}")
+    # z1183 (대표 확인 2026-10-15 「확인 + 이전 정리 보관」): 회의록·음성 메모에 이전 정리·고친 표시 칸 (idempotent · 칸만)
+    try:
+        from .migrations.m_z1183_summary_keep import migrate as _sk_migrate
+        from .database import DB_PATH as _DB_PATH_SK
+        _rsk = _sk_migrate(_DB_PATH_SK)
+        if _rsk.get('added'):
+            print(f"[SUMMARY-KEEP-MIG-Z1183] {_rsk}")
+    except Exception as _e:
+        print(f"[SUMMARY-KEEP-MIG-Z1183 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -4218,7 +4227,7 @@ async def api_meetings_search(req: Request):
     for m in rows:
         mid = m["id"]
         fields = [  # (칸 이름, 글) — 찾은 곳 한 줄은 이 차례로 고른다(제목은 줄에 이미 보이니 맨 끝)
-            ("summary", m.get("summary") or ""),
+            ("summary", _md_plain(m.get("summary") or "")),   # z1183 — 찾은 곳 한 줄에 ##·** 가 안 보이게
             ("body", m.get("body") or ""),
             ("dec", "\n".join(dec.get(mid, []))),
             ("act", "\n".join(act.get(mid, []))),
@@ -4364,30 +4373,81 @@ def _mtg_doc_att_rows(atts, per_row=3, min_rows=3):
     return rows
 
 
+# ── z1183: 정리 글 「가벼운 마크다운」 — 화면 부품(_v5_partials/knk_md_lite.html)과 **같은 규칙** ──
+#   쓰는 것: ## 소제목 · - 목록(들여 쓰면 한 단 더) · 1. 번호 · **굵게** · 줄 앞 [결정]·[제안]·[미결]·[확인 필요]·[내부 방침]
+#   옛 정리도 그대로: 「[안건명]」 줄 · 「핵심: …」 줄 · z1181 「결론·목적·회의 내용」 머리말
+#   🔴 글은 먼저 막고(escape) 그린다 · 둘이 어긋나지 않게 시험(md_same_check)이 같은 글을 둘에 넣어 맞춰 본다.
+import re as _re83
+_MD_TAGS = {"결정": "dec", "제안": "pro", "미결": "und", "확인 필요": "chk", "확인필요": "chk", "내부 방침": "int"}
+_MD_TAG_RE = _re83.compile(r"^\[(결정|제안|미결|확인 ?필요|내부 방침)\]\s*")
+_MD_SEC_RE = _re83.compile(r"^[■#*\s]*(결론|목적|회의\s*내용|내용|할\s*일|핵심)[\s*:：]*$")
+_MD_HEAD_RE = _re83.compile(r"^#{1,3}\s+(.+?)\s*#*$")
+_MD_LI_RE = _re83.compile(r"^(\s*)[-*•]\s+(.+)$")
+_MD_OL_RE = _re83.compile(r"^([0-9]{1,2})[.)]\s+(.+)$")   # [0-9] — 파이썬 \d 는 전각 숫자도 받아 화면(JS)과 어긋난다
+_MD_BOLD_RE = _re83.compile(r"\*\*([^*]+?)\*\*")
+
+
+def _md_esc(s) -> str:
+    #  화면 부품의 esc() 와 **같은 글자**로 막는다(작은따옴표 = &#39;)
+    return (str("" if s is None else s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;").replace("'", "&#39;"))
+
+
+def _md_inline(t: str) -> str:
+    out = ""
+    m = _MD_TAG_RE.match(t)
+    if m:
+        out = '<span class="tg tg-%s">[%s]</span> ' % (_MD_TAGS.get(m.group(1), "chk"), _md_esc(m.group(1)))
+        t = t[m.end():]
+    return out + _MD_BOLD_RE.sub(r"<b>\1</b>", _md_esc(t))
+
+
+def _md_lite_line(raw):
+    """한 줄 → (종류, 그릴 글). 종류: s 소제목 · h [안건명] · k 핵심: · li/li2 목록 · ol 번호 · p 문단 · e 빈 줄"""
+    t = str("" if raw is None else raw).rstrip()
+    s = t.lstrip()
+    if not s:
+        return "e", ""
+    m = _MD_HEAD_RE.match(s)
+    if m:
+        return "s", _md_inline(m.group(1))
+    m = _MD_SEC_RE.match(s)
+    if m:
+        return "s", _md_esc(m.group(1))
+    if len(s) > 2 and s.startswith("[") and s.endswith("]") and "]" not in s[1:-1] and not _MD_TAG_RE.match(s):
+        return "h", _md_esc(s)
+    if _re83.match(r"^핵심\s*[:：]", s):
+        return "k", _md_inline(s)
+    m = _MD_LI_RE.match(t)
+    if m:
+        return ("li2" if len(m.group(1).replace("\t", "  ")) >= 2 else "li"), _md_inline(m.group(2))
+    m = _MD_OL_RE.match(s)
+    if m:
+        return "ol", '<span class="md-n">' + m.group(1) + '.</span>' + _md_inline(m.group(2))
+    return "p", _md_inline(s)
+
+
+def _md_plain(text) -> str:
+    """복사·미리보기용 — 「## 소제목」→「■ 소제목」 · **굵게** 표시만 뺀다(화면 부품 plain() 과 같다)."""
+    out = []
+    for r in str("" if text is None else text).replace("\r\n", "\n").split("\n"):
+        t = r.rstrip()
+        m = _re83.match(r"^\s*#{1,3}\s+(.+?)\s*#*$", t)
+        if m:
+            t = "■ " + m.group(1)
+        out.append(_MD_BOLD_RE.sub(r"\1", t))
+    return "\n".join(out)
+
+
 def _mtg_doc_sum_lines(summary):
-    """AI 정리 본문 → 줄 목록. kind: s=묶음 머리말(결론·목적·회의 내용 · z1181) k=핵심(옛 틀)
-    h=[안건명] e=빈줄 p=본문.
-    아직 정리 전(빈 글)이면 빈 목록 — 양식에 '아직 정리 전입니다' 안내가 뜬다.
-    🔵 z1181: 새 틀(결론 → 목적 → 회의 내용)의 머리말은 그 낱말 **한 줄**일 때만(「■ 결론」「결론:」도) —
-       「- 결론은 다음 주에」 같은 본문 줄은 머리말이 아니다 · 옛 「핵심:」 회의록은 예전 그대로 그린다."""
+    """AI 정리 본문 → 줄 목록 [{t, kind, html}] — 회의록 양식이 그린다(z1183 가벼운 마크다운 · 옛 정리도 그대로).
+    아직 정리 전(빈 글)이면 빈 목록 — 양식에 '아직 정리 전입니다' 안내가 뜬다."""
     if not (summary or "").strip():
         return []
-    import re as _re
-    sec = _re.compile(r"^[■#*\s]*(결론|목적|회의\s*내용|내용|할\s*일)[\s*:：]*$")
     out = []
     for ln in (summary or "").replace("\r\n", "\n").split("\n"):
-        t = ln.strip()
-        if not t:
-            kind = "e"
-        elif sec.match(t):
-            kind = "s"
-        elif t.startswith("[") and t.endswith("]"):
-            kind = "h"
-        elif t.startswith("핵심"):
-            kind = "k"
-        else:
-            kind = "p"
-        out.append({"t": ln.rstrip(), "kind": kind})
+        kind, html = _md_lite_line(ln)
+        out.append({"t": ln.rstrip(), "kind": kind, "html": html})
     return out
 
 
@@ -4593,7 +4653,9 @@ async def api_meeting_summary_save(req: Request, mid: int):
             return _conflict_resp(_cur)
         if summary == (m.get("summary") or "").strip():
             return JSONResponse({"ok": True, "updated_at": _row_ts(c, "meetings", mid), "changed": False})
-        c.execute("UPDATE meetings SET summary=?, updated_at=datetime('now','localtime') WHERE id=?",
+        # z1183: 사람이 고친 표시 — 나중에 「🔄 다시 정리」·새 녹음 자동 정리가 **먼저 묻는다**
+        c.execute("UPDATE meetings SET summary=?, summary_edited_at=datetime('now','localtime'), "
+                  "updated_at=datetime('now','localtime') WHERE id=?",
                   (summary, mid))
         try:    # 누가 고쳤는지 남긴다(AI 정리와 사람이 고친 것을 나중에 가릴 수 있게)
             log_activity(c, u["id"], "meeting_summary_edit",
@@ -4603,6 +4665,81 @@ async def api_meeting_summary_save(req: Request, mid: int):
             pass
         new_ts = _row_ts(c, "meetings", mid)
     return JSONResponse({"ok": True, "updated_at": new_ts, "changed": True})
+
+
+def _mtg_ai_items(c, mid: int) -> dict:
+    """z1183: 지금 AI 가 만든 결정·할 일(사람이 넣은 것·일일카드로 보낸 할 일은 빼고) — 이전 정리와 같이 보관한다."""
+    decs = [{"who": r["who"] or "", "what": r["what"] or "", "due": r["due"] or ""} for r in c.execute(
+        "SELECT who, what, due FROM meeting_decisions WHERE meeting_id=? AND source='ai' ORDER BY id", (mid,))]
+    acts = [{"assignee_name": r["assignee_name"] or "", "assignee_user_id": r["assignee_user_id"],
+             "task": r["task"] or "", "due_date": r["due_date"] or ""} for r in c.execute(
+        "SELECT assignee_name, assignee_user_id, task, due_date FROM meeting_actions "
+        "WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL ORDER BY id", (mid,))]
+    return {"decisions": decs, "actions": acts}
+
+
+@app.post("/api/meeting/{mid:int}/summary-restore")
+async def api_meeting_summary_restore(req: Request, mid: int):
+    """z1183 (대표 확인 「확인 + 이전 정리 보관」): 「↩ 이전 정리」 — 지금 정리와 이전 정리를 **맞바꾼다**
+    (정리 글 + 그때의 AI 결정·할 일). 맞바꾸므로 한 번 더 누르면 돌아온다.
+    사람이 넣은 결정·할 일 · 일일카드로 보낸 할 일은 그대로. 권한은 회의록 고치기와 같다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        d = {}
+    import json as _j83
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m, c):
+            return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
+        _conf, _cur = _edit_conflict(c, "meetings", mid, (d or {}).get("base_ts") if isinstance(d, dict) else None)
+        if _conf:
+            return _conflict_resp(_cur)
+        prev = (m.get("summary_prev") or "").strip()
+        if not prev:
+            return JSONResponse({"ok": False, "error": "되돌릴 이전 정리가 없습니다."}, 400)
+        try:
+            prev_items = _j83.loads(m.get("summary_prev_items") or "{}") or {}
+        except Exception:
+            prev_items = {}
+        cur_sum = (m.get("summary") or "").strip()
+        cur_items = _mtg_ai_items(c, mid)
+        c.execute("DELETE FROM meeting_decisions WHERE meeting_id=? AND source='ai'", (mid,))
+        c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL", (mid,))
+        for dec in (prev_items.get("decisions") or []):
+            c.execute("INSERT INTO meeting_decisions(meeting_id, who, what, due, source) VALUES(?,?,?,?,'ai')",
+                      (mid, dec.get("who") or "", dec.get("what") or "", dec.get("due") or ""))
+        for act in (prev_items.get("actions") or []):
+            c.execute("INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source) "
+                      "VALUES(?,?,?,?,?,'ai')",
+                      (mid, act.get("assignee_name") or "", act.get("assignee_user_id"),
+                       act.get("task") or "", act.get("due_date") or ""))
+        #  되돌린 정리 = 사람이 고른 것 → 다음 「다시 정리」도 먼저 묻는다
+        c.execute("UPDATE meetings SET summary=?, summary_prev=?, summary_prev_items=?, "
+                  "summary_prev_at=datetime('now','localtime'), summary_edited_at=datetime('now','localtime'), "
+                  "updated_at=datetime('now','localtime') WHERE id=?",
+                  (prev, cur_sum, _j83.dumps(cur_items, ensure_ascii=False), mid))
+        try:
+            log_activity(c, u["id"], "meeting_summary_restore",
+                         f"{u['name']} 회의록 이전 정리로 맞바꿈: {(m.get('title') or '')[:60]}",
+                         team_id=u.get("team_id"))
+        except Exception:
+            pass
+        new_ts = _row_ts(c, "meetings", mid)
+        _pv = c.execute("SELECT summary_prev_at FROM meetings WHERE id=?", (mid,)).fetchone()
+        decisions = [dict(r2) for r2 in c.execute(
+            "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
+        actions = [dict(r2) for r2 in c.execute(
+            "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
+    return JSONResponse({"ok": True, "summary": prev, "decisions": decisions, "actions": actions,
+                         "updated_at": new_ts, "has_prev": bool(cur_sum),
+                         "prev_at": ((_pv["summary_prev_at"] if _pv else "") or "")[:16] if cur_sum else ""})
 
 
 @app.delete("/api/meeting/{mid:int}")
@@ -4666,7 +4803,8 @@ _MTG_SUM_LOCK = _mtg_thr.Lock()
 
 def _mtg_sum_worker(mid: int):
     """회의 원문 → 결정사항·할 일·요약 (백그라운드 · z1170).
-    🔴 하는 일은 옛 코드와 **글자 그대로 같다** — 바뀐 건 기다리는 방식뿐이다."""
+    🔴 하는 일은 옛 코드와 **글자 그대로 같다** — 바뀐 건 기다리는 방식뿐이다.
+    z1183: 덮어쓰기 전 정리(글 + 그때의 AI 결정·할 일)를 「이전 정리」로 보관 · 새 AI 정리는 「사람이 고친 표시」를 지운다."""
     from . import ai_client
     err, payload = "", None
     try:
@@ -4696,6 +4834,10 @@ def _mtg_sum_worker(mid: int):
                 new_title = _ai_title if (_ai_title and (not _cur_title
                                           or _cur_title.startswith("제목 없는 회의"))) else ""
                 with db_session() as c:
+                    # z1183: 다시 정리 전 정리를 보관한다(정리 글 + 그때의 AI 결정·할 일) — 「↩ 이전 정리」로 맞바꿀 수 있게
+                    _old = c.execute("SELECT summary FROM meetings WHERE id=?", (mid,)).fetchone()
+                    _old_sum = ((_old["summary"] if _old else "") or "").strip()
+                    _old_items = _mtg_ai_items(c, mid)
                     # AI 추출분만 교체(수기 추가분·이미 일일카드 연동분은 보존)
                     c.execute("DELETE FROM meeting_decisions WHERE meeting_id=? AND source='ai'", (mid,))
                     c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL", (mid,))
@@ -4712,18 +4854,28 @@ def _mtg_sum_worker(mid: int):
                              act["task"], act["due"]),
                         )
                     if result["summary"]:
-                        c.execute("UPDATE meetings SET summary=?, updated_at=datetime('now','localtime') WHERE id=?",
+                        if _old_sum and _old_sum != result["summary"].strip():
+                            import json as _j83
+                            c.execute("UPDATE meetings SET summary_prev=?, summary_prev_items=?, "
+                                      "summary_prev_at=datetime('now','localtime') WHERE id=?",
+                                      (_old_sum, _j83.dumps(_old_items, ensure_ascii=False), mid))
+                        # 새 AI 정리 = 사람이 고친 것이 아니다 → 고친 표시를 지운다
+                        c.execute("UPDATE meetings SET summary=?, summary_edited_at='', "
+                                  "updated_at=datetime('now','localtime') WHERE id=?",
                                   (result["summary"], mid))
                     if new_title:
                         c.execute("UPDATE meetings SET title=?, updated_at=datetime('now','localtime') WHERE id=?",
                                   (new_title, mid))
                     new_ts = _row_ts(c, "meetings", mid)
+                    _pv = c.execute("SELECT summary_prev, summary_prev_at FROM meetings WHERE id=?", (mid,)).fetchone()
+                    prev_at = ((_pv["summary_prev_at"] or "")[:16]) if (_pv and (_pv["summary_prev"] or "").strip()) else ""
                     decisions = [dict(r2) for r2 in c.execute(
                         "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
                     actions = [dict(r2) for r2 in c.execute(
                         "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
                 payload = {"summary": result["summary"], "title": new_title,
-                           "decisions": decisions, "actions": actions, "updated_at": new_ts}
+                           "decisions": decisions, "actions": actions, "updated_at": new_ts,
+                           "prev_at": prev_at}   # z1183 — 「↩ 이전 정리」 단추를 켤지
     except Exception as _e:
         err = err or f"빅터AI 정리에 실패했습니다: {_e}"
     with _MTG_SUM_LOCK:
@@ -4750,8 +4902,21 @@ async def api_meeting_extract(req: Request, mid: int):
         if not _can_edit_meeting(u, m, c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         body = m.get("body") or ""
+        _edited = (m.get("summary_edited_at") or "").strip() if (m.get("summary") or "").strip() else ""
     if not body.strip():
         return JSONResponse({"ok": False, "error": "회의 내용이 비어 있습니다. 내용을 먼저 입력·저장하세요."}, 400)
+    # 🔴 z1183 (대표 확인 「확인 + 이전 정리 보관」): 사람이 고친 정리가 있으면 **먼저 묻는다** — 화면이 확인을 받아
+    #    confirm_overwrite 로 다시 보낸다. 다시 정리하면 지금 정리는 「이전 정리」로 보관된다(_mtg_sum_worker).
+    #    전에는 같은 화면을 띄운 채 고쳤을 때만 화면이 물었다 → 나중에 누가 누르면 **확인 없이 덮어썼다**.
+    #    🔵 200 으로 답한다(ok:false · need_confirm) — 묻기는 정상 흐름이다. 409 로 답하면 브라우저가 콘솔에 빨간 오류를 찍는다.
+    try:
+        _d = await req.json()
+    except Exception:
+        _d = {}
+    if _edited and not (isinstance(_d, dict) and _d.get("confirm_overwrite")):
+        return JSONResponse({"ok": False, "need_confirm": True, "edited_at": _edited[:16],
+                             "error": "사람이 고친 정리가 있습니다 — 다시 정리하면 새 정리로 바뀝니다"
+                                      "(고친 정리는 「이전 정리」로 보관되어 되돌릴 수 있습니다)."})
     import time as _time
     with _MTG_SUM_LOCK:
         if (_MTG_SUM_JOBS.get(mid) or {}).get("state") == "running":
@@ -5886,7 +6051,10 @@ async def voice_notes_page(req: Request):
     with db_session() as c:
         rows = c.execute("SELECT * FROM voice_notes WHERE owner_id=? ORDER BY id DESC LIMIT 300",
                          (u["id"],)).fetchall()
-    return ctx(req, "voice_notes.html", user=u, notes=[dict(r) for r in rows])
+    notes = [dict(r) for r in rows]
+    for _n in notes:   # z1183: 목록 미리보기는 마크다운 기호를 뺀 글(「## 핵심」→「■ 핵심」 · **굵게** 표시 없이)
+        _n["summary_plain"] = _md_plain(_n.get("summary") or "")
+    return ctx(req, "voice_notes.html", user=u, notes=notes)
 
 
 @app.get("/api/voice-notes/search")
@@ -5914,7 +6082,9 @@ async def api_voice_notes_search(req: Request):
     lows = [t.lower() for t in terms]
     items = []
     for n in rows:
-        fields = [("summary", n.get("summary") or ""), ("body", n.get("body") or ""), ("title", n.get("title") or "")]
+        #  z1183: 정리는 마크다운 기호를 뺀 글로 찾고 보여 준다(찾은 곳 한 줄에 ##·** 가 안 보이게)
+        fields = [("summary", _md_plain(n.get("summary") or "")), ("body", n.get("body") or ""),
+                  ("title", n.get("title") or "")]
         hits = [k for k, v in fields if any(t in v.lower() for t in lows)]
         snip, sf = "", ""
         for k, v in fields[:2]:            # 찾은 곳 한 줄 = 정리 → 원문 차례(제목은 카드에 이미 보인다)
@@ -5971,9 +6141,11 @@ async def api_voice_note_get(req: Request, nid: int):
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
         return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
-    return JSONResponse({"ok": True, "note": {k: n.get(k) for k in
-                                              ("id", "title", "body", "summary", "audio_path",
-                                               "created_at", "updated_at")}})
+    out = {k: n.get(k) for k in ("id", "title", "body", "summary", "audio_path", "created_at", "updated_at")}
+    #  z1183: 「↩ 이전 정리」 단추를 켤지 · 언제 것인지
+    out["has_prev"] = bool((n.get("summary_prev") or "").strip())
+    out["prev_at"] = (n.get("summary_prev_at") or "")[:16] if out["has_prev"] else ""
+    return JSONResponse({"ok": True, "note": out})
 
 
 @app.post("/api/voice-note/{nid:int}/audio")
@@ -6097,7 +6269,13 @@ def _vn_sum_worker(nid: int):
                 #  사람이 지은 제목은 건드리지 않는다
                 new_title = title or (r.get("title") or "").strip()[:200]
                 with db_session() as c:
-                    c.execute("UPDATE voice_notes SET summary=?, title=?, "
+                    # z1183: 덮어쓰기 전 정리를 보관한다 — 「↩ 이전 정리」로 맞바꿀 수 있게 · 새 AI 정리 = 고친 표시 지움
+                    _old = c.execute("SELECT summary FROM voice_notes WHERE id=?", (nid,)).fetchone()
+                    _old_sum = ((_old["summary"] if _old else "") or "").strip()
+                    if _old_sum and _old_sum != summary:
+                        c.execute("UPDATE voice_notes SET summary_prev=?, summary_prev_at=datetime('now','localtime') "
+                                  "WHERE id=?", (_old_sum, nid))
+                    c.execute("UPDATE voice_notes SET summary=?, title=?, summary_edited_at='', "
                               "updated_at=datetime('now','localtime') WHERE id=?",
                               (summary, new_title, nid))
     except Exception as _e:
@@ -6129,6 +6307,17 @@ async def api_voice_note_extract(req: Request, nid: int):
     body = (n.get("body") or "").strip()
     if not body:
         return JSONResponse({"ok": False, "error": "정리할 내용이 없습니다. 녹음을 먼저 올리세요."}, 400)
+    # 🔴 z1183: 사람이 고친 정리가 있으면 먼저 묻는다(회의록과 같다 · 200 + need_confirm) — 다시 정리하면 지금 정리는
+    #    「이전 정리」로 보관
+    _edited = (n.get("summary_edited_at") or "").strip() if (n.get("summary") or "").strip() else ""
+    try:
+        _d = await req.json()
+    except Exception:
+        _d = {}
+    if _edited and not (isinstance(_d, dict) and _d.get("confirm_overwrite")):
+        return JSONResponse({"ok": False, "need_confirm": True, "edited_at": _edited[:16],
+                             "error": "사람이 고친 정리가 있습니다 — 다시 정리하면 새 정리로 바뀝니다"
+                                      "(고친 정리는 「이전 정리」로 보관되어 되돌릴 수 있습니다)."})
     import time as _time
     with _VN_LOCK:
         if (_VN_SUM_JOBS.get(nid) or {}).get("state") == "running":
@@ -6182,8 +6371,12 @@ async def api_voice_note_save(req: Request, nid: int):
         sets.append("body=?")
         args.append(str(d.get("body")).replace("\r\n", "\n").strip()[:200000])
     if d.get("summary") is not None:
+        _ns = str(d.get("summary")).replace("\r\n", "\n").strip()[:20000]
         sets.append("summary=?")
-        args.append(str(d.get("summary")).replace("\r\n", "\n").strip()[:20000])
+        args.append(_ns)
+        # z1183: 사람이 고친 표시(바뀌었을 때만) — 나중에 「🔄 다시 정리」가 먼저 묻는다
+        if _ns != ((n or {}).get("summary") or "").strip():
+            sets.append("summary_edited_at=datetime('now','localtime')")
     if not sets:
         return JSONResponse({"ok": False, "error": "바꿀 내용이 없습니다."}, 400)
     args.append(nid)
@@ -6192,6 +6385,28 @@ async def api_voice_note_save(req: Request, nid: int):
                   + ", updated_at=datetime('now','localtime') WHERE id=?", tuple(args))
         ts = _row_ts(c, "voice_notes", nid)
     return JSONResponse({"ok": True, "updated_at": ts})
+
+
+@app.post("/api/voice-note/{nid:int}/summary-restore")
+async def api_voice_note_summary_restore(req: Request, nid: int):
+    """z1183: 🎤 「↩ 이전 정리」 — 지금 정리와 이전 정리를 맞바꾼다(한 번 더 누르면 돌아온다) · 내 메모만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        n = _vn_row(c, nid)
+        if not _vn_mine(u, n):
+            return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        prev = (n.get("summary_prev") or "").strip()
+        if not prev:
+            return JSONResponse({"ok": False, "error": "되돌릴 이전 정리가 없습니다."}, 400)
+        cur = (n.get("summary") or "").strip()
+        c.execute("UPDATE voice_notes SET summary=?, summary_prev=?, summary_prev_at=datetime('now','localtime'), "
+                  "summary_edited_at=datetime('now','localtime'), updated_at=datetime('now','localtime') WHERE id=?",
+                  (prev, cur, nid))
+        n2 = _vn_row(c, nid)
+    return JSONResponse({"ok": True, "summary": prev, "has_prev": bool(cur),
+                         "prev_at": ((n2 or {}).get("summary_prev_at") or "")[:16] if cur else ""})
 
 
 @app.delete("/api/voice-note/{nid:int}")
@@ -7092,7 +7307,7 @@ async def api_meeting_to_opportunity(req: Request, mid: int):
             return JSONResponse({"ok": False, "error": "이미 영업기회와 연결돼 있습니다.",
                                  "opportunity_id": m["opportunity_id"],
                                  "url": f"/sales/opportunities/{m['opportunity_id']}"}, 409)
-        memo = ((m.get("summary") or "").strip() or (m.get("body") or "").strip())[:1500]
+        memo = (_md_plain((m.get("summary") or "").strip()) or (m.get("body") or "").strip())[:1500]   # z1183 — 기호 없이
         fields = {
             "opp_no": _gen_opp_no(c),
             "title": (m.get("title") or "제목 없는 영업기회")[:200],

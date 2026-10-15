@@ -124,8 +124,14 @@ def main():
         pg.click("#vnBodySave")
         pg.wait_for_timeout(1200)
         chk("저장" in pg.inner_text("#vnBodySt"), "원문도 고쳐 저장할 수 있다", pg.inner_text("#vnBodySt")[:24])
+        # z1183 (대표 확인 2026-10-15 「확인 + 이전 정리 보관」): 위에서 정리 글을 고쳤으니 「🔄 다시 정리」가
+        #   **먼저 묻는다** → 「예」(고친 정리는 「↩ 이전 정리」로 보관된다 · 원본 = .bak_z1183)
+        _asked = []
+        pg.once("dialog", lambda d: (_asked.append(d.message), d.accept()))
         pg.click("#vnRedo")
         pg.wait_for_timeout(2500)
+        chk(len(_asked) == 1 and "이전 정리" in (_asked or [""])[0],
+            "z1183: 고친 정리가 있으면 다시 정리 전에 묻는다(「이전 정리」로 보관)", (_asked or [""])[0][:40])
         chk("사람이 고친 원문" in sent().split("@@@원문@@@")[-1], "「🔄 다시 정리」는 고친 원문으로 돌린다")
 
         # ── ⑤ 🔴 남의 메모 ─────────────────────────────────

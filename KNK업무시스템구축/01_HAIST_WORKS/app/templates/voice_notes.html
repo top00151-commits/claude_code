@@ -93,7 +93,7 @@
         {% elif n.audio_path %}<span class="vn-tag wait">바꾸는 중</span>
         {% else %}<span class="vn-tag none">녹음 없음</span>{% endif %}
       </div>
-      {% if n.summary %}<div class="vn-pre">{{ n.summary }}</div>
+      {% if n.summary %}<div class="vn-pre">{{ n.summary_plain or n.summary }}</div>{# z1183 — 마크다운 기호 없이 #}
       {% elif n.body %}<div class="vn-pre">{{ n.body }}</div>{% endif %}
     </a>
     {% endfor %}

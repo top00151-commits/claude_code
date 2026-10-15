@@ -741,6 +741,25 @@ T = {
     # z1180 — 결정·할 일 옆 꼬리표(빅터AI 가 만든 줄) · 대표 「AI를 "빅터AI"로」
     "mf_ai_tag": {"ko": "빅터AI",
                  "vi": "Victor AI"},
+    # z1183 (대표 확인 2026-10-15 「확인 + 이전 정리 보관」): 사람이 고친 정리 지키기 · 「↩ 이전 정리」
+    "mf_prev_btn": {"ko": "↩ 이전 정리", "vi": "↩ Bản trước"},
+    "mf_prev_t": {"ko": "{at} 정리와 맞바꿉니다 — 지금 정리는 「이전 정리」로 남아 다시 바꿀 수 있습니다",
+                  "vi": "Đổi với bản tổng hợp lúc {at} — bản hiện tại được giữ làm 「bản trước」, có thể đổi lại"},
+    #   확인 창은 줄마다 한 칸 — 줄바꿈은 화면(JS)이 넣는다(이 화면은 글자 escape 를 쓰지 않는다 · re_ask1·2 와 같은 방식)
+    "mf_prev_ask1": {"ko": "{at} 의 이전 정리로 되돌릴까요?",
+                     "vi": "Quay lại bản tổng hợp lúc {at}?"},
+    "mf_prev_ask2": {"ko": "지금 정리는 「이전 정리」로 남아 다시 바꿀 수 있습니다.",
+                     "vi": "Bản hiện tại được giữ làm 「bản trước」, có thể đổi lại."},
+    "mf_prev_done": {"ko": "이전 정리로 되돌렸습니다 ✓ (한 번 더 누르면 바꿔 돌아옵니다)",
+                     "vi": "Đã quay lại bản trước ✓ (bấm lần nữa để đổi lại)"},
+    "mf_edit_ask1": {"ko": "사람이 고친 정리가 있습니다({at}).",
+                     "vi": "Có bản tổng hợp đã được sửa tay ({at})."},
+    "mf_edit_ask2": {"ko": "다시 정리하면 새 정리로 바뀝니다 — 고친 정리는 「↩ 이전 정리」로 보관되어 되돌릴 수 있습니다.",
+                     "vi": "Tổng hợp lại sẽ thay bằng bản mới — bản đã sửa được giữ ở 「↩ Bản trước」 và có thể khôi phục."},
+    "mf_edit_ask3": {"ko": "계속할까요?",
+                     "vi": "Tiếp tục?"},
+    "mf_edit_kept": {"ko": "고친 정리를 그대로 두었습니다(다시 정리하지 않음)",
+                     "vi": "Đã giữ nguyên bản đã sửa (không tổng hợp lại)"},
     # z1177 — 「정리하는 중」 진행 칸의 안내. 🔵 창을 닫아도 서버가 끝까지 해서 저장한다(z1170 · 시험으로 확인)
     "mf_ai_hint": {"ko": "긴 회의는 몇 분 걸릴 수 있습니다 — 창을 닫아도 정리는 끝까지 됩니다.",
                   "vi": "Cuộc họp dài có thể mất vài phút — đóng cửa sổ thì việc tổng hợp vẫn chạy đến cuối."},
