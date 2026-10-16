@@ -244,7 +244,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         expand_units: bool = True,
                         line_label: str | None = None,
                         po_type: str = "",   # v5H226z1033: 이 수주의 PO유형(비우면 '추가')
-                        items: list | None = None) -> dict:   # v5H226z1050: 한 수주에 서로 다른 품목 N줄
+                        items: list | None = None,   # v5H226z1050: 한 수주에 서로 다른 품목 N줄
+                        is_export: int | None = None) -> dict:   # z1186: 이 수주의 거래구분(0 내수·1 수출) — None=예전처럼 프로젝트 값 상속
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
@@ -511,6 +512,18 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                     )
             except Exception:
                 pass
+
+    # z1186 (이새롬 프로 신고 · 대표 「발주처 따라 채움 + 고른 대로 저장」 2026-10-16): 화면에서 고른 거래구분을
+    #   이 수주의 호기 줄 모두에 적는다(세 갈래 INSERT 를 하나하나 고치지 않고 여기서 한 번에).
+    #   예전엔 등록 화면의 값이 버려져 호기 거래구분이 비고 → 프로젝트 값을 물려받았다
+    #   (KNK VINA·수출 프로젝트에 드림텍(국내) 추가 발주를 내도 '수출'). 안 주면(None) 예전 그대로.
+    if is_export in (0, 1) and "is_export" in _oi_cols:
+        try:
+            c.execute("UPDATE order_items SET is_export=? WHERE order_id=?", (int(is_export), order_id))
+        except Exception as _e1186:
+            # ⛔조용히 삼키지 않는다 — 거래구분이 빠지면 부가세(수출=영세율) 판정이 틀린다
+            import logging as _lg
+            _lg.getLogger("knk").warning("z1186 추가 발주 거래구분 저장 실패 order=%s: %s", order_id, _e1186)
 
     # 상태 이력
     _unit_word = "대" if expand_units else "개"   # 장비=대 / 부품·소모품=개

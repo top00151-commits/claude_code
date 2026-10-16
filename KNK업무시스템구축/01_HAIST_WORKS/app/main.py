@@ -2857,6 +2857,18 @@ def fetch_customers(c):
     ).fetchall()]
 
 
+_Z1186_DOMESTIC = {"", "none", "null", "-", "korea", "south korea", "republic of korea",
+                   "kr", "kor", "한국", "대한민국"}
+
+
+def _cust_is_foreign(country) -> bool:
+    """z1186: 고객사 나라 칸 → 해외(수출 상대)인가. 빈칸·'None'·한국 = 국내.
+    등록 화면이 추가 발주의 거래구분을 미리 채울 때 쓴다(사람이 바꿀 수 있는 '처음 값'일 뿐 — 저장값은 화면 값).
+    10-16 실측: 내수 프로젝트 고객 357건 전부 빈칸/'None' · 수출 프로젝트 고객 35건 중 31건 나라 있음
+    (예외 = 나라 빈칸인 삼성전자 수출 4건 → 같은 고객 추가 발주는 화면이 프로젝트 값을 따른다)."""
+    return str(country or "").strip().lower() not in _Z1186_DOMESTIC
+
+
 @app.get("/api/customers/options")
 async def api_customers_options(req: Request):
     """v5H226z621 (대표 지시): 고객사 자동완성 콤보박스용 — 활성 고객사 전부.
@@ -2868,11 +2880,13 @@ async def api_customers_options(req: Request):
         cols = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
         _al = "alias" if "alias" in cols else "''"
         _sb = "sub_biz_no" if "sub_biz_no" in cols else "''"
+        _ct = "country" if "country" in cols else "''"   # z1186: 해외 판정(거래구분 미리 채움)
         rows = c.execute(
-            f"SELECT id, name, COALESCE({_al},'') AS alias, COALESCE({_sb},'') AS sub_biz_no "
+            f"SELECT id, name, COALESCE({_al},'') AS alias, COALESCE({_sb},'') AS sub_biz_no, COALESCE({_ct},'') AS country "
             "FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()   # z1158: 공용 선택기도 같은 순서
     out = [{"id": r["id"], "name": r["name"] or "",
-            "alias": (r["alias"] or ""), "sub_biz_no": (r["sub_biz_no"] or "")} for r in rows]
+            "alias": (r["alias"] or ""), "sub_biz_no": (r["sub_biz_no"] or ""),
+            "foreign": _cust_is_foreign(r["country"])} for r in rows]   # z1186
     return JSONResponse({"ok": True, "customers": out})
 
 
@@ -32961,6 +32975,11 @@ async def projects_new_submit(request: Request):
             #   신규 등록 z430 과 동일 패턴: 빈 PARTS SO(PARTS_EXPORT) + 부품마다 order_items(품명·모델=규격·수량·단가).
             #   → 002M2509 같은 기존 프로젝트 상세 PACKING LIST 에 그대로 나타남. (이전엔 부품 무시되고 EQUIPMENT SO만 생겼음)
             _fu_sf = (form.get("shipment_form") or "ASSEMBLY").strip().upper()
+            # z1186 (이새롬 프로 신고 · 대표 「발주처 따라 채움 + 고른 대로 저장」 2026-10-16): 추가 발주도 화면의
+            #   거래구분(내수 0 / 수출 1)을 그 수주의 호기에 그대로 남긴다. 예전엔 여기서 버려져 호기가 프로젝트 값을
+            #   물려받았다(011T2607 KNK VINA·수출 프로젝트의 드림텍(국내) 추가 발주 T-261013-3 가 '수출'). 상품(PARTS)은 원래 남겼다.
+            _fu_iex_raw = (form.get("is_export") or "").strip()
+            _fu_iex = int(_fu_iex_raw) if _fu_iex_raw in ("0", "1") else None
             if _fu_sf == "PARTS":
                 _fu_parts = []
                 _pn = form.getlist("pk_name[]"); _pm = form.getlist("pk_model[]")
@@ -33082,6 +33101,7 @@ async def projects_new_submit(request: Request):
                         note=form.get("note", ""), qty=_fu_qty,
                         so_type=_fu_sotype, currency=_ccy_v, ship_to="",
                         order_customer_id=_fu_cust_id,
+                        is_export=_fu_iex,   # z1186: 화면의 거래구분 그대로
                         # v5H226z1033: 사용자가 고른 PO유형을 **그 수주에** 남긴다.
                         #   '추가'뿐 아니라 개조·수리·기타도 있으므로 폼값을 그대로 쓴다(비면 '추가').
                         po_type=(form.get("po_type") or "").strip(),

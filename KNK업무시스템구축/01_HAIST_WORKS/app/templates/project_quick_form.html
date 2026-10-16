@@ -223,8 +223,8 @@ html,body{background:#fff!important;overflow:auto!important;}
               </div>
             </div>
           </div>
-          <div class="qf-f c2"><label>거래구분</label>
-            <select name="is_export"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option></select>
+          <div class="qf-f c2"><label>거래구분 <span id="qIexHint" style="display:none;font-weight:400;color:var(--qv-ink-3);font-size:11px;">(발주처 기준 · 바꿀 수 있음)</span></label>
+            <select name="is_export" id="qIsExport"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option></select>
           </div>
           <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span></label>
             {% if not ed %}
@@ -939,6 +939,9 @@ function qMgmtPick(rw){
   // v5H226z429(대표 지시): 추가발주로 기존 관리번호 연결 시 모델명·장비명도 그 프로젝트값으로 자동 채움.
   var md=document.querySelector('[name=model]'); if(md && !md.value && rw.model_name) md.value=rw.model_name;
   var eq=document.querySelector('[name=equip_name]'); if(eq && !eq.value && rw.equip_name) eq.value=rw.equip_name;
+  /* z1186: 고른 관리번호 프로젝트의 고객·거래구분을 기억 — 같은 고객의 추가 발주는 그 프로젝트 값을 따른다 */
+  window._qFuProj = { cid: (rw.customer_id==null ? '' : String(rw.customer_id)), exp: (Number(rw.is_export)===1 ? '1' : '0') };
+  try{ qIexApply(); }catch(_e){}
 }
 function qMgmtSearch(){
   var inp=document.getElementById('qMgmtInput'), lst=document.getElementById('qMgmtList'); if(!inp||!lst) return;
@@ -1383,6 +1386,50 @@ function qfShowRestoredBar(d){
   // 등록 제출 시 임시본 삭제 — 단, 클라 검증에서 막힌(preventDefault) 경우엔 보존
   f.addEventListener('submit', function(e){ if(!e.defaultPrevented) qfClear(); });
   try{ qfRestore(); }catch(e){ try{ console.warn('[간편폼 임시본 복원 실패]', e); }catch(_){} }
+})();
+// z1186 (이새롬 프로 신고 · 대표 「발주처 따라 채움 + 고른 대로 저장」 2026-10-16): 추가 발주(PO유형이 신규가 아님)에서
+//   발주처를 고르면 거래구분을 미리 채운다 — 관리번호 프로젝트와 **같은 고객**이면 그 프로젝트 값,
+//   **다른 고객**이면 그 고객 나라(해외=수출 · 국내=내수 · 판정은 서버 /api/customers/options 의 foreign 한 곳).
+//   사람이 거래구분을 먼저 바꿨으면 덮지 않는다. 서버는 화면에 보이는 값을 그 수주의 호기에 그대로 저장한다.
+//   새 등록 화면에서만(정보 수정 화면은 저장된 값을 건드리지 않는다).
+var _qIexTouched = false, _qIexSelf = false, _qIexMap = null, _qIexLoading = null;
+function qIexLoad(){
+  if(_qIexMap) return Promise.resolve(_qIexMap);
+  if(_qIexLoading) return _qIexLoading;
+  _qIexLoading = fetch('/api/customers/options', {credentials:'same-origin'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){ var m={}; ((j&&j.customers)||[]).forEach(function(o){ m[String(o.id)] = !!o.foreign; }); _qIexMap=m; return m; })
+    .catch(function(){ _qIexMap={}; return _qIexMap; });
+  return _qIexLoading;
+}
+function qIexApply(){
+  if(QF_ED || _qIexTouched || !qIsFollowup()) return;
+  var sel=document.getElementById('qIsExport'); if(!sel) return;
+  qIexLoad().then(function(m){
+    if(QF_ED || _qIexTouched || !qIsFollowup()) return;
+    var hid=document.querySelector('#quickForm input[name=customer_id]');
+    var cid=hid ? String(hid.value||'').trim() : '';
+    if(!cid) return;
+    var fp=window._qFuProj, v;
+    if(fp && fp.cid && fp.cid===cid) v=fp.exp;
+    else if(cid in m) v=(m[cid] ? '1' : '0');
+    else return;
+    if(sel.value!==v){ sel.value=v; _qIexSelf=true; try{ sel.dispatchEvent(new Event('change', {bubbles:true})); }catch(_e){} _qIexSelf=false; }
+    var h=document.getElementById('qIexHint'); if(h) h.style.display='';
+  });
+}
+(function(){
+  if(QF_ED) return;
+  var sel=document.getElementById('qIsExport');
+  /* 이 스크립트가 채운 것이 아니면 사람이 고른 것 — 그 뒤로는 덮지 않는다 */
+  if(sel) sel.addEventListener('change', function(){
+    if(_qIexSelf) return;
+    _qIexTouched=true; var h=document.getElementById('qIexHint'); if(h) h.style.display='none';
+  });
+  var cp=document.querySelector('input[data-cust-picker][data-cust-name=customer_name]');
+  if(cp) cp.addEventListener('change', function(){ qIexApply(); });
+  var po=document.getElementById('qPoType');
+  if(po) po.addEventListener('change', function(){ qIexApply(); });
 })();
 // v5H226z772 (대표 지시): 제작요청 참고 이미지 — 선택/드래그 누적·미리보기·개별 제거. 제출 시 input.files로 멀티파트 전송.
 (function(){
