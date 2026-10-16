@@ -17935,7 +17935,8 @@ async def sales_orders_quick_edit(req: Request, oid: int):
     raw_ship = (form.get("ship_to") or "").strip()
     # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기(수주 머리 글자 칸)
     _af1173 = _z1173_autofill_guard(u, [("납품처", raw_ship), ("비고", form.get("line_note")),
-                                        ("모델명", form.get("model_name")), ("장비명", form.get("equip_name"))])
+                                        ("모델명", form.get("model_name")), ("장비명", form.get("equip_name")),
+                                        ("2차 발주처", form.get("end_customer"))])   # z1190
     if _af1173:
         return JSONResponse({"ok": False, "message": _z1173_autofill_msg(_af1173)}, 400)
     sets, vals = [], []
@@ -17988,6 +17989,13 @@ async def sales_orders_quick_edit(req: Request, oid: int):
                 return JSONResponse({"ok": False, "message":
                     f"'{_ocv}' 이름의 등록 고객사가 {len(_oc_hits)}곳입니다(같은 정식명의 지점들) — 어느 지점인지 시스템명(예: 드림텍(아산))으로 입력해 주세요."}, 400)
             sets.append("customer_id=?"); vals.append(_oc_hits[0][0])
+    # z1190 (대표 2026-10-16 「수주마다 1차·2차 발주처」): 이 수주의 2차 발주처(최종 고객) — 자유 글(프로젝트 고객사2 와 같은 꼴).
+    #   빈 값 = 지움(NULL) → 1차가 프로젝트 고객과 같으면 프로젝트 고객사2 를 따른다(상세 카드·작업일정표 같은 규칙).
+    if "end_customer" in form:
+        with db_session() as _c1190:
+            _has1190 = "end_customer" in {r[1] for r in _c1190.execute("PRAGMA table_info(orders)").fetchall()}
+        if _has1190:
+            sets.append("end_customer=?"); vals.append(((form.get("end_customer") or "").strip()[:100]) or None)
     # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명 + 이 수주 호기 비고 — 작업일정표 셀 편집이
     #   그 발주(SO) 것만 고치도록(프로젝트 전체 덮어쓰기 방지). 컬럼 미생성 DB 는 PRAGMA 로 방어.
     _note981 = (form.get("line_note") or "").strip() if "line_note" in form else None
@@ -27724,6 +27732,8 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             _ocust_col = (("o.customer_id AS o_cust_id, (SELECT cu.name FROM customers cu WHERE cu.id=o.customer_id) AS o_cust_name, "
                            "(SELECT " + _disp_expr + " FROM customers cu WHERE cu.id=o.customer_id) AS o_cust_disp")
                           if "customer_id" in _ord_cols else "NULL AS o_cust_id, '' AS o_cust_name, '' AS o_cust_disp")
+            # z1190: 수주(SO)별 2차 발주처(최종 고객) — 없는 옛 DB 는 빈 글자
+            _ocust_col += (", o.end_customer AS o_end" if "end_customer" in _ord_cols else ", '' AS o_end")
             # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문(담당자 다름) 구분용
             _occ_col = ("o.cc_name AS o_cc_name, o.cc_dept AS o_cc_dept, o.cc_phone AS o_cc_phone"
                         if "cc_name" in _ord_cols else "'' AS o_cc_name, '' AS o_cc_dept, '' AS o_cc_phone")
@@ -27773,6 +27783,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
                         "o_cust": (d.get("o_cust_name") or ""), "o_cust_id": d.get("o_cust_id"),   # v5H226z668/z682: SO 고객사(이름·id)
                         "o_cust_disp": (d.get("o_cust_disp") or ""),   # v5H226z705: SO 고객사 표시명(시스템명 우선)
+                        "o_end": (d.get("o_end") or ""),   # z1190: SO 2차 발주처(최종 고객)
                         "o_cc_name": (d.get("o_cc_name") or ""), "o_cc_dept": (d.get("o_cc_dept") or ""),
                         "o_cc_phone": (d.get("o_cc_phone") or ""),   # v5H226z678: SO 담당자/부서/연락처
                         "o_model": (d.get("o_model") or ""), "o_equip": (d.get("o_equip") or ""),   # v5H226z981: SO 모델명·장비명
@@ -27836,6 +27847,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
                     "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                     "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
+                    "so_end": _so.get("o_end") or "",   # z1190: SO 2차 발주처
                     "status_date": (_eff_c("i_sdate", "") or "")[:10],   # v5H226z711: 상태 발생일(호기)
                     # v5H226z981: SO별 모델명·장비명 + 이 SO 호기 비고(부품 SO는 부품별 비고라 제외 — 기타사항 아님)
                     # v5H226z983: None=안 적음(프로젝트 메모 폴백) / ''=지움(폴백 안 함) / 문자열=비고
@@ -27879,6 +27891,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "is_export": it.get("i_iex"), "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "",   # v5H226z668/z705: 호기 거래방식·SO 발주처(정식명+표시명)
                         "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                         "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
+                        "so_end": _so.get("o_end") or "",   # z1190: SO 2차 발주처
                         "status_date": (str(it.get("i_sdate") or "").strip()[:10]),   # v5H226z711: 상태 발생일(호기)
                         # v5H226z981: SO별 모델명·장비명 + 이 호기 비고 / oid·so_type = 셀 편집 SO 라우팅(data-soid)용
                         # v5H226z983: 비고 3상태 — None=안 적음(폴백) / ''=지움(폴백 안 함) / 문자열
@@ -28453,6 +28466,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "form_type": p.get("form_type") or _logi.SHIP_TO_FORM.get((p.get("shipment_form") or "").upper(), ""),
             "customer": p.get("customer_name") or "—",
             "cust_ok": bool(p.get("customer_id")), "cust2": p.get("secondary_customer") or "",
+            "pcid": p.get("customer_id"),   # z1190: 프로젝트 고객 id — 줄 1차가 다르면 고객사2 를 물려받지 않게
             "dept": p.get("cc_dept") or "", "owner": p.get("cc_name") or "",
             "contact": p.get("cc_phone") or "", "ship_to": _ship,
             "order_date": str(p.get("order_date") or "")[:10],
@@ -28499,6 +28513,12 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                     _iu["customer"] = _ln.get("so_customer") or info["customer"]
                     _iu["customer_disp"] = _ln.get("so_customer_disp") or _ln.get("so_customer") or info.get("customer_disp") or info.get("customer") or "—"   # v5H226z705: 표시는 시스템명 우선(같은 상호 종사업장 구분)
                     _iu["cust_ok"] = True
+                # z1190 (대표 「수주마다 1차·2차 발주처」): 줄의 고객사2 = 그 수주의 2차(있으면) ·
+                #   없고 1차가 프로젝트 고객과 다르면(KNK VINA 처럼 다른 경로) 프로젝트 고객사2 를 물려받지 않는다
+                if _ln.get("so_end"):
+                    _iu["cust2"] = _ln.get("so_end")
+                elif _ln.get("so_cust_id") and info.get("pcid") and _ln.get("so_cust_id") != info.get("pcid"):
+                    _iu["cust2"] = ""
                 _iu["so_customer"] = ""
                 # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문 구분(수주값 있으면 덮어씀)
                 if _ln.get("so_owner"):
@@ -29971,6 +29991,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
             "customer": p.get("customer_name") or "—",          # 고객사1(직접 고객·정식명·편집/매칭/발행 기준)
             "customer_disp": (_cust_alias.get(p.get("customer_id")) or p.get("customer_name") or "—"),  # v5H226z551: 화면 표시 전용(시스템명 우선)
             "cust_ok": bool(p.get("customer_id")),               # v5H226z294: 등록 고객사 연결 여부(미연결=적색)
+            "pcid": p.get("customer_id"),                       # z1190: 프로젝트 고객 id(줄 1차와 비교)
             # v5H226z282 (대표 지시): 고객사2(최종)·연락처·영업담당자·발주일·납품일 컬럼
             "cust2": p.get("secondary_customer") or "",          # 고객사2(최종 고객)
             # v5H226z258 (대표 지시): 부서·담당자 = 고객사 담당자 부서·이름
@@ -30022,6 +30043,12 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                     _iu["customer"] = _ln.get("so_customer") or info["customer"]
                     _iu["customer_disp"] = _ln.get("so_customer_disp") or _ln.get("so_customer") or info.get("customer_disp") or info.get("customer") or "—"   # v5H226z705: 표시는 시스템명 우선(같은 상호 종사업장 구분)
                     _iu["cust_ok"] = True
+                # z1190 (대표 「수주마다 1차·2차 발주처」): 줄의 고객사2 = 그 수주의 2차(있으면) ·
+                #   없고 1차가 프로젝트 고객과 다르면(KNK VINA 처럼 다른 경로) 프로젝트 고객사2 를 물려받지 않는다
+                if _ln.get("so_end"):
+                    _iu["cust2"] = _ln.get("so_end")
+                elif _ln.get("so_cust_id") and info.get("pcid") and _ln.get("so_cust_id") != info.get("pcid"):
+                    _iu["cust2"] = ""
                 _iu["so_customer"] = ""
                 # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문 구분(수주값 있으면 덮어씀)
                 if _ln.get("so_owner"):
@@ -33026,6 +33053,10 @@ async def projects_new_submit(request: Request):
                             _pu974f = 1
                         _cc3.execute("UPDATE orders SET unit_qty=? WHERE id=?",
                                      (max(1, min(100, _pu974f)), _po_oid))
+                        # z1190: 상품 추가 발주도 화면의 고객사2 = 이 수주의 2차 발주처(최종 고객)
+                        _end1190 = (form.get("secondary_customer") or "").strip()
+                        if _end1190 and "end_customer" in {r[1] for r in _cc3.execute("PRAGMA table_info(orders)").fetchall()}:
+                            _cc3.execute("UPDATE orders SET end_customer=? WHERE id=?", (_end1190[:100], _po_oid))
                     if _po_oid and _fu_parts:
                         _oicols = {r[1] for r in _cc3.execute("PRAGMA table_info(order_items)").fetchall()}
                         for _pp2 in _fu_parts:
@@ -33102,6 +33133,7 @@ async def projects_new_submit(request: Request):
                         so_type=_fu_sotype, currency=_ccy_v, ship_to="",
                         order_customer_id=_fu_cust_id,
                         is_export=_fu_iex,   # z1186: 화면의 거래구분 그대로
+                        end_customer=((form.get("secondary_customer") or "").strip() or None),   # z1190: 화면의 고객사2 = 이 수주의 2차 발주처
                         # v5H226z1033: 사용자가 고른 PO유형을 **그 수주에** 남긴다.
                         #   '추가'뿐 아니라 개조·수리·기타도 있으므로 폼값을 그대로 쓴다(비면 '추가').
                         po_type=(form.get("po_type") or "").strip(),

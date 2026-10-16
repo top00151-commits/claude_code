@@ -509,7 +509,8 @@ check("서버: 해외 판정 한 곳 · 고객 목록 foreign · 추가 발주�
       "def _cust_is_foreign(country)" in mn and '"foreign": _cust_is_foreign(r["country"])' in mn
       and "is_export=_fu_iex," in mn)
 check("add_followup_order: is_export 매개변수 · 호기 줄에 적기",
-      "is_export: int | None = None) -> dict:" in pw and 'UPDATE order_items SET is_export=? WHERE order_id=?' in pw)
+      "is_export: int | None = None" in pw   # z1190: 뒤에 end_customer 가 붙어 머리줄 끝이 바뀜 — 이름만 본다
+      and 'UPDATE order_items SET is_export=? WHERE order_id=?' in pw)
 
 print()
 print("결과: %d개 중 실패 %d" % (OK + FAIL, FAIL))

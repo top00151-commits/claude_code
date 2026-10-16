@@ -2519,6 +2519,10 @@ def init_db():
             #   안지연 프로: "추가로 관리번호 직접 입력해서 등록했는데 왜 다 신규라고 나오는거예요?"
             #   NULL = 미지정(프로젝트 값 상속). 값이 있으면 그 수주의 실제 유형.
             ("po_type",    "ALTER TABLE orders ADD COLUMN po_type TEXT"),
+            # z1190 (대표 2026-10-16 「수주마다 1차·2차 발주처」): 수주(SO)별 2차 발주처(최종 고객) — 같은 관리번호라도
+            #   추가 제작은 드림텍 베트남 → KNK VINA(1차) → 본사처럼 경로가 다르다. 2차가 프로젝트에만 있어
+            #   늘 처음 입력한 값으로 보였다. NULL = 미지정(1차가 프로젝트 고객과 같을 때만 프로젝트 고객사2 를 따른다).
+            ("end_customer", "ALTER TABLE orders ADD COLUMN end_customer TEXT"),
         ]:
             if _ocol not in ocols:
                 try:

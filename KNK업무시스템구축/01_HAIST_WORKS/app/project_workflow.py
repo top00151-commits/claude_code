@@ -245,7 +245,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         line_label: str | None = None,
                         po_type: str = "",   # v5H226z1033: 이 수주의 PO유형(비우면 '추가')
                         items: list | None = None,   # v5H226z1050: 한 수주에 서로 다른 품목 N줄
-                        is_export: int | None = None) -> dict:   # z1186: 이 수주의 거래구분(0 내수·1 수출) — None=예전처럼 프로젝트 값 상속
+                        is_export: int | None = None,   # z1186: 이 수주의 거래구분(0 내수·1 수출) — None=예전처럼 프로젝트 값 상속
+                        end_customer: str | None = None) -> dict:   # z1190: 이 수주의 2차 발주처(최종 고객) — None=미지정
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
@@ -435,6 +436,9 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     if "po_type" in _ord_cols:
         cols.append("po_type")
         vals.append((str(po_type or "").strip() or "추가"))
+    # z1190: 이 수주의 2차 발주처(최종 고객) — 화면의 고객사2. 비면 적지 않는다(NULL = 미지정)
+    if end_customer and str(end_customer).strip() and "end_customer" in _ord_cols:
+        cols.append("end_customer"); vals.append(str(end_customer).strip()[:100])
     if _has_sotype:
         cols.append("so_type"); vals.append(_st)
     if _has_currency:
@@ -1233,7 +1237,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                "exchange_rate", "is_export", "shipment_form",   # v5H226z699: 수주별 형태(완제품/제품/상품/기타) 배지용
                "so_form",   # v5H226z873: 수주별 '진짜 형태' 단일 진실(있으면 so_type 추론보다 우선)
                "model_name", "equip_name",   # v5H226z981: 수주별 모델명·장비명(SO 카드 표시)
-               "po_type"):   # v5H226z1034: 수주별 PO유형 — SO 카드에서 그 수주만 고치게(z1033 저장분 표시)
+               "po_type",   # v5H226z1034: 수주별 PO유형 — SO 카드에서 그 수주만 고치게(z1033 저장분 표시)
+               "end_customer"):   # z1190: 수주별 2차 발주처(최종 고객) — SO 카드 표시·수정
         if cn in cols:
             extra.append(cn)
     extra_sql = (", " + ", ".join(extra)) if extra else ""
