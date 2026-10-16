@@ -240,6 +240,17 @@ body.so-fs-on { overflow: hidden; }
 .def-amt dt:first-child { margin-top: 0; }
 .def-amt dd { margin: 3px 0 0; color: var(--ink); }
 @media (max-width: 900px) { .proj-info-2col { grid-template-columns: 1fr; } }
+/* z1190b (대표 「화면이 배열이 너무 안맞게 나오는데」 2026-10-16 · 013T2606 · A안):
+   ① 수주액 상자는 내용만큼 넓어지되 460px 까지만 — z717 의 max-content 는 위 5줄에 아주 긴 품명이 보이면 끝없이 넓어져
+      (619px) 왼쪽 정보 칸을 눌렀다(값이 한 자씩 꺾임). 긴 품명은 「…」(.ab-lbl 말줄임 · 마우스 올리면 전체 title).
+   ② 왼쪽 정보 칸이 좁으면 3쌍 대신 2쌍(760px 미만)·1쌍(470px 미만) — 화면 폭이 아니라 **그 칸 폭** 기준(container).
+   ⚠ 900px 이하 한 줄 쌓기(위 @media)보다 뒤에 두면 그 규칙을 덮는다 → 그 아래 @media 로 다시 한 줄. */
+.proj-info-2col { grid-template-columns: minmax(0, 1fr) fit-content(460px); }
+.def-amt { min-width: 340px; }
+.proj-info-left { container-type: inline-size; }
+@container (max-width: 760px) { .def { grid-template-columns: 88px 1fr 88px 1fr; } }
+@container (max-width: 470px) { .def { grid-template-columns: 76px 1fr; } }
+@media (max-width: 900px) { .proj-info-2col { grid-template-columns: 1fr; } .def-amt { min-width: 0; } }
 
 /* v5H226z40: 1100px 이하 반응형 — 작은 모니터/노트북 깨짐 방지 */
 @media (max-width: 1100px) {
