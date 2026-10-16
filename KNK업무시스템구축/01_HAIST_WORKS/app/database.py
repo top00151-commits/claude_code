@@ -6870,6 +6870,14 @@ def _form_num975(v, fb=None):
         return fb
 
 
+def _form_txt1190c(v) -> str:
+    """z1190c: 폼 글자 칸 정리 — 템플릿이 DB NULL 을 글자 'None' 으로 굳혀 보낸 값은 빈칸(z975 의 글자판).
+    배경: 수정 화면 입력 칸이 |default('') 라 NULL 이 글자 None 으로 보였고, 그대로 저장되어 프로젝트 9개의
+    2차 발주처·담당자 칸에 글자 None 이 남았다(2차가 글자 None 이면 2단 발주로도 판정됐다)."""
+    s = str(v).strip() if v is not None else ""
+    return "" if s == "None" else s
+
+
 def _project_insert_or_update_values(data: dict) -> dict:
     """공통 필드 정리"""
     return {
@@ -6893,17 +6901,18 @@ def _project_insert_or_update_values(data: dict) -> dict:
                             if _form_num975(data.get("expected_amount")) is not None
                             else (_form_num975(data.get("order_amount"), 0.0) or 0.0)),
         # v5H226z166: 고객사 담당자
-        "cc_name":     (data.get("cc_name") or "").strip() or None,
-        "cc_dept":     (data.get("cc_dept") or "").strip() or None,
-        "cc_position": (data.get("cc_position") or "").strip() or None,
-        "cc_phone":    (data.get("cc_phone") or "").strip() or None,
-        "cc_email":    (data.get("cc_email") or "").strip() or None,
-        "cc_note":     (data.get("cc_note") or "").strip() or None,
+        # z1190c: 글자 None(수정 화면이 NULL 을 굳혀 보낸 값)은 빈칸 — _form_txt1190c
+        "cc_name":     _form_txt1190c(data.get("cc_name")) or None,
+        "cc_dept":     _form_txt1190c(data.get("cc_dept")) or None,
+        "cc_position": _form_txt1190c(data.get("cc_position")) or None,
+        "cc_phone":    _form_txt1190c(data.get("cc_phone")) or None,
+        "cc_email":    _form_txt1190c(data.get("cc_email")) or None,
+        "cc_note":     _form_txt1190c(data.get("cc_note")) or None,
         # v5H226z195/z350: 2단계 발주 — 2차고객사·최종 고객 매출(참고).
         #   z350: '2차거래' 체크박스 폐지 → 고객사2(secondary_customer) 입력 시 2단계 발주로 자동 판정.
         "two_tier_order": 1 if (str(data.get("two_tier_order") or "").lower() in ("1", "true", "on", "yes")
-                                or (data.get("secondary_customer") or "").strip()) else 0,
-        "secondary_customer": (data.get("secondary_customer") or "").strip() or None,
+                                or _form_txt1190c(data.get("secondary_customer"))) else 0,   # z1190c: 글자 None 은 2단 아님
+        "secondary_customer": _form_txt1190c(data.get("secondary_customer")) or None,   # z1190c
         "final_amount": _form_num975(data.get("final_amount")),   # v5H226z975: 빈값/'None' → None (500 원인 지점)
         # v5H132: 단가/수량 — 폼에서 받지 않으면 None/1 폴백 (백워드 호환) (z975: 안전 파싱)
         "unit_qty": max(1, min(100, int(_form_num975(data.get("unit_qty"), 1) or 1))),

@@ -2012,10 +2012,10 @@
           <dt>상태</dt><dd><span class="pill {% if _pds.tone == 'done' %}pill-done{% elif _pds.tone == 'danger' %}pill-danger{% elif _pds.tone == 'warn' %}pill-warn{% elif _pds.tone == 'progress' %}pill-progress{% else %}pill-muted{% endif %}" style="font-size:12px;font-weight:700;">{{ _pds.label }}</span>{% if _pds.total > 0 %}<span style="margin-left:8px;font-size:11px;color:var(--mute);font-weight:600;white-space:nowrap;">진행 {{ _pds.dist['진행중'] }} · 완료 {{ _pds.dist['출하'] }} · 취소 {{ _pds.dist['취소'] }} · 보류 {{ _pds.dist['보류'] }}</span>{% endif %}</dd>
           <dt>장비명</dt><dd>{{ p.equip_name|default('—') }}</dd>
           {# v5H201: 제안 단계 일정 #}
-          <dt>제안서</dt><dd>{{ p.proposal_date|default('—') }}</dd>
-          <dt>견적서</dt><dd>{{ p.quotation_date|default('—') }}</dd>
+          <dt>제안서</dt><dd>{{ p.proposal_date or '—' }}</dd>
+          <dt>견적서</dt><dd>{{ p.quotation_date or '—' }}</dd>
           {# 조건부: 최종 고객(2단계)·연관 관리번호. v5H226z814(대표 지시): 각인 제거 · 자료 경로는 항상 표시(모두 포함) #}
-          {% if p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer|default('—') }}</dd>{% endif %}
+          {% if p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer or '—' }}</dd>{% endif %}
           {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:inherit;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}
           <dt class="fullw">자료 경로</dt><dd class="fullw"><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path or '—' }}</span></dd>
         </dl>

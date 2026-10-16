@@ -317,13 +317,13 @@ html,body{background:#fff!important;overflow:auto!important;}
         <div class="pf-field">
           <label><span id="pf_equip_lb">{{ '기기명' if _bd_eq == 'L' else '장비명' }}</span>{% if _eq_req %}<span class="req">*</span>{% endif %} <span class="sub">(장비 단위)</span></label>
           <input type="text" name="equip_name" id="pf_equip_name"
-                 value="{{ project.equip_name|default('') }}"{% if _eq_req %} required{% endif %}
+                 value="{{ project.equip_name or '' }}"{% if _eq_req %} required{% endif %}
                  autocomplete="off" placeholder="예: Display 압착 자동화설비">
         </div>
         <div class="pf-field">
           <label>모델명{% if _eq_req %}<span class="req">*</span>{% endif %} <span class="sub">(장비 모델명)</span></label>
           <input type="text" name="model" id="pf_model_input"
-                 value="{{ project.model_name|default('') }}"{% if _eq_req %} required{% endif %}
+                 value="{{ project.model_name or '' }}"{% if _eq_req %} required{% endif %}
                  autocomplete="off" placeholder="예: BATTPRESSAUTO-S-V2">
         </div>
       </div>
@@ -455,7 +455,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         <div class="pf-field full">
           <label>관리코드 <span class="sub" style="color:#a07a30;">(기존 코드 있으면 입력 · 비우면 자동 발급)</span></label>
           <div style="display:flex;gap:8px;align-items:stretch;">
-            <input type="text" name="mgmt_code" id="pf_mgmt_input" value="{{ project.mgmt_code|default('') }}"
+            <input type="text" name="mgmt_code" id="pf_mgmt_input" value="{{ project.mgmt_code or '' }}"
                    placeholder="예: 001M2403 — 비우면 자동 발급" maxlength="8" autocomplete="off"
                    style="text-transform:uppercase;flex:1;" {% if project %}readonly{% endif %}>
             {% if not project %}
@@ -710,13 +710,13 @@ html,body{background:#fff!important;overflow:auto!important;}
           <label>고객사1 <span class="sub">(등록된 고객사만 선택 가능)</span></label>
           {# v5H226z653 (대표 지시): 옛 이름전용 자동완성 → KNKCust 종사업장 picker 로 교체(같은 상호 여러 종사업장 구분·hidden customer_id 제출). 추가발주 잠금/자동채움은 free 모드, 편집은 기존 customer_id 로 복원(아래 스크립트). #}
           <input type="text" id="pf_customer_input" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id"
-                 data-cust-required="1" data-cust-initial="{{ project.customer_name|default('') }}" autocomplete="off"
+                 data-cust-required="1" data-cust-initial="{{ project.customer_name or '' }}" autocomplete="off"
                  placeholder="고객사명·시스템명 입력 → 목록에서 종사업장까지 선택. 없으면 /customers/new 에서 등록">
         </div>
         <div class="pf-field">
           <label>고객사2 <span class="sub">(최종 고객 — 다를 때만, 선택)</span></label>
           <input type="text" name="secondary_customer" id="pf_secondary_customer" autocomplete="off"
-                 value="{{ project.secondary_customer|default('') }}" placeholder="최종 고객사명(선택)">
+                 value="{{ project.secondary_customer or '' }}" placeholder="최종 고객사명(선택)">
           {# 최종 고객 매출(참고)은 UI에서 내림 — 기존 값은 hidden 으로 보존(편집 시 미손실)
              v5H226z975 (대표 신고 500 수정): |default('')는 None(DB NULL)엔 무력 → value="None" 렌더 → 저장 시 float('None') 500.
              None이면 빈칸으로. #}
@@ -779,17 +779,17 @@ html,body{background:#fff!important;overflow:auto!important;}
         </div>
       </div>
       <div class="pf-row three">
-        <div class="pf-field"><label>담당자명</label><input type="text" name="cc_name" id="pf_cc_name" autocomplete="new-password" value="{{ project.cc_name|default('') }}" placeholder="홍길동"></div>
-        <div class="pf-field"><label>부서</label><input type="text" name="cc_dept" id="pf_cc_dept" autocomplete="off" value="{{ project.cc_dept|default('') }}" placeholder="구매2팀"></div>
-        <div class="pf-field"><label>직책</label><input type="text" name="cc_position" id="pf_cc_position" autocomplete="off" value="{{ project.cc_position|default('') }}" placeholder="과장 / 팀장"></div>
+        <div class="pf-field"><label>담당자명</label><input type="text" name="cc_name" id="pf_cc_name" autocomplete="new-password" value="{{ project.cc_name or '' }}" placeholder="홍길동"></div>
+        <div class="pf-field"><label>부서</label><input type="text" name="cc_dept" id="pf_cc_dept" autocomplete="off" value="{{ project.cc_dept or '' }}" placeholder="구매2팀"></div>
+        <div class="pf-field"><label>직책</label><input type="text" name="cc_position" id="pf_cc_position" autocomplete="off" value="{{ project.cc_position or '' }}" placeholder="과장 / 팀장"></div>
       </div>
       <div class="pf-row">
-        <div class="pf-field"><label>연락처</label><input type="text" name="cc_phone" id="pf_cc_phone" autocomplete="new-password" value="{{ project.cc_phone|default('') }}" placeholder="010-1234-5678"></div>
-        <div class="pf-field"><label>메일주소</label><input type="text" name="cc_email" id="pf_cc_email" autocomplete="new-password" value="{{ project.cc_email|default('') }}" placeholder="hong@customer.com"></div>
+        <div class="pf-field"><label>연락처</label><input type="text" name="cc_phone" id="pf_cc_phone" autocomplete="new-password" value="{{ project.cc_phone or '' }}" placeholder="010-1234-5678"></div>
+        <div class="pf-field"><label>메일주소</label><input type="text" name="cc_email" id="pf_cc_email" autocomplete="new-password" value="{{ project.cc_email or '' }}" placeholder="hong@customer.com"></div>
       </div>
       <div class="pf-row solo">
         <div class="pf-field full"><label>성향 <span class="sub">(메모 — 의사결정 스타일·연락 선호·주의사항 등)</span></label>
-          <input type="text" name="cc_note" id="pf_cc_note" autocomplete="off" value="{{ project.cc_note|default('') }}" placeholder="예: 꼼꼼함 · 오전 통화 선호 · 가격 민감"></div>
+          <input type="text" name="cc_note" id="pf_cc_note" autocomplete="off" value="{{ project.cc_note or '' }}" placeholder="예: 꼼꼼함 · 오전 통화 선호 · 가격 민감"></div>
       </div>
       </div>
       {# v5H226z181 (대표 지시): '이미 수주확정 토글 + 발주일/납기 + 제안/견적 일정' 블록을 매크로로 추출.
@@ -800,11 +800,11 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="pf-row" id="pfConfirmRows">
         <div class="pf-field">
           <label>발주일</label>
-          <input type="date" class="knk-cal" name="order_date" value="{{ project.order_date|default('') }}">
+          <input type="date" class="knk-cal" name="order_date" value="{{ project.order_date or '' }}">
         </div>
         <div class="pf-field">
           <label>납기</label>
-          <input type="date" class="knk-cal" name="due_date" value="{{ project.due_date|default('') }}">
+          <input type="date" class="knk-cal" name="due_date" value="{{ project.due_date or '' }}">
         </div>
       </div>
       {# v5H201: 제안 단계 일정 — 수주확정 전 스케줄 관리용. 검사기(T)는 기본 '해당없음'. #}
@@ -1364,7 +1364,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <h3>📝 {% if _is_consumable or _is_parts_form %}③{% else %}④{% endif %} 비고</h3>
       <div class="pf-row solo">
         <div class="pf-field full">
-          <textarea name="note" placeholder="프로젝트 특이사항 (선택)">{{ project.note|default('') }}</textarea>
+          <textarea name="note" placeholder="프로젝트 특이사항 (선택)">{{ project.note or '' }}</textarea>
         </div>
       </div>
     </div>
