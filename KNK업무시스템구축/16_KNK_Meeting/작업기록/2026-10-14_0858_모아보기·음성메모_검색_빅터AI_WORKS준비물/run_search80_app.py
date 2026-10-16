@@ -84,7 +84,8 @@ def slow_meeting(body, context=""):
     })
 
 
-def slow_note(body):
+# z1184: 진짜 ai_extract_note 가 context([메모 정보] · 메모 날짜)를 받게 되어 가짜도 같은 모양으로(원본 .bak_z1184)
+def slow_note(body, context=""):
     time.sleep(SLOW)
     return (True, {"summary": "요점\n- 가짜 정리 (원문 %d자)\n할 일\n- 없음" % len(body or ""), "title": ""})
 

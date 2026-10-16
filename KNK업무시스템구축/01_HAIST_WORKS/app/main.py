@@ -4801,6 +4801,15 @@ _MTG_SUM_JOBS: dict = {}      # {meeting_id: {"state": …, "error": str, "resul
 _MTG_SUM_LOCK = _mtg_thr.Lock()
 
 
+def _ko_wd(d) -> str:
+    """z1184: 'YYYY-MM-DD…' → ' (화)' — 정리 지시문에 날짜와 요일을 함께 준다(「다음 주 화요일」 같은 약속을
+    실제 날짜로 바꿀 근거 · AI 가 요일을 잘못 세지 않게). 날짜가 아니면 빈 글."""
+    try:
+        return " (%s)" % "월화수목금토일"[datetime.strptime(str(d or "")[:10], "%Y-%m-%d").weekday()]
+    except ValueError:
+        return ""
+
+
 def _mtg_sum_worker(mid: int):
     """회의 원문 → 결정사항·할 일·요약 (백그라운드 · z1170).
     🔴 하는 일은 옛 코드와 **글자 그대로 같다** — 바뀐 건 기다리는 방식뿐이다.
@@ -4820,7 +4829,7 @@ def _mtg_sum_worker(mid: int):
             if (m.get("title") or "").strip():
                 _ctx_parts.append(f"회의 제목: {m['title'].strip()}")
             if (m.get("meeting_date") or "").strip():
-                _ctx_parts.append(f"날짜: {m['meeting_date'].strip()}")
+                _ctx_parts.append(f"날짜: {m['meeting_date'].strip()}{_ko_wd(m['meeting_date'])}")   # z1184 — 요일도
             if (m.get("attendees_text") or "").strip():
                 _ctx_parts.append(f"참석자: {m['attendees_text'].strip()}")
             ok, result = ai_client.ai_extract_meeting(body, context="\n".join(_ctx_parts))
@@ -6260,7 +6269,9 @@ def _vn_sum_worker(nid: int):
         if not body:
             err = "정리할 내용이 없습니다."
         else:
-            ok, r = ai_client.ai_extract_note(body)
+            # z1184: [메모 정보] — 메모 날짜(요일)를 함께 준다(「오늘」「다음 달 10일」 같은 기한을 실제 날짜로 바꿀 근거)
+            _vd = ((n or {}).get("created_at") or "")[:10]
+            ok, r = ai_client.ai_extract_note(body, context=(f"메모 날짜: {_vd}{_ko_wd(_vd)}" if _vd else ""))
             if not ok:
                 err = r.get("error") or "정리 실패"
             else:

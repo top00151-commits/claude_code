@@ -61,7 +61,8 @@ ai_client.transcribe_available = lambda: True
 CALLS = []
 
 
-def slow_extract(body):
+# z1184: 진짜 ai_extract_note 가 context([메모 정보] · 메모 날짜)를 받게 되어 가짜도 같은 모양으로(원본 .bak_z1184)
+def slow_extract(body, context=""):
     """느린 가짜 — SLOW 초 자고 정리 글을 돌려준다. 받은 원문 길이를 적어 둔다."""
     CALLS.append({"len": len(body or ""), "t": time.time(), "head": (body or "")[:10]})
     time.sleep(SLOW)
