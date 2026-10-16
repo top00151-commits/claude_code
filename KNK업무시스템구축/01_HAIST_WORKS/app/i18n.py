@@ -639,6 +639,9 @@ T = {
     "mt_act_doc": {"ko": "회의록", "vi": "Biên bản"},
     "mt_act_doc_t": {"ko": "회의록 양식으로 보기 (인쇄·PDF)",
                     "vi": "Xem theo biểu mẫu biên bản (in · PDF)"},
+    # z1185 (대표 2026-10-16 「회의록보기 아이콘은 회의록이 작성되었을때만 활성화」): 꺼진 📄 의 까닭
+    "mt_act_doc_off_t": {"ko": "아직 회의록이 작성되지 않았습니다 — 녹음을 올리거나 회의 내용을 적으면 열립니다",
+                        "vi": "Biên bản chưa được soạn — tải bản ghi âm lên hoặc ghi nội dung cuộc họp thì sẽ mở được"},
     "mt_act_noedit": {"ko": "이 회의록은 고칠 수 없습니다 — 작성자·참석자·관리자만 고칠 수 있어요",
                      "vi": "Bạn không sửa được biên bản này — chỉ người tạo · người tham dự · quản trị viên mới sửa được"},
     # z1182 (대표 확인 2026-10-15): 목록 줄은 안 눌린다 → 못 고치는 사람에겐 「✏ 회의상세(수정)」 자리에 보기 아이콘
@@ -760,6 +763,13 @@ T = {
                      "vi": "Tiếp tục?"},
     "mf_edit_kept": {"ko": "고친 정리를 그대로 두었습니다(다시 정리하지 않음)",
                      "vi": "Đã giữ nguyên bản đã sửa (không tổng hợp lại)"},
+    # z1185 — 원문이 이음 회의 메모뿐일 때 · 흐린 「📄 회의록 양식」
+    "mf_no_minutes": {"ko": "아직 회의 내용이 없습니다 — 녹음을 올리거나 「회의 내용」 칸에 먼저 적어 주세요(이음 회의 메모만으로는 정리하지 않습니다).",
+                      "vi": "Chưa có nội dung cuộc họp — hãy tải bản ghi âm lên hoặc ghi vào ô 「Nội dung cuộc họp」 trước (không tổng hợp chỉ từ ghi chú cuộc họp trên Eum)."},
+    "mf_doc_off": {"ko": "아직 회의록이 작성되지 않았습니다 — 녹음을 올리거나 「회의 내용」 칸에 적어 저장하면 열립니다.",
+                   "vi": "Biên bản chưa được soạn — hãy tải bản ghi âm lên hoặc ghi vào ô 「Nội dung cuộc họp」 rồi lưu thì sẽ mở được."},
+    "mf_doc_off_t": {"ko": "아직 회의록이 작성되지 않았습니다 — 녹음을 올리거나 회의 내용을 적으면 열립니다",
+                     "vi": "Biên bản chưa được soạn — tải bản ghi âm lên hoặc ghi nội dung cuộc họp thì sẽ mở được"},
     # z1177 — 「정리하는 중」 진행 칸의 안내. 🔵 창을 닫아도 서버가 끝까지 해서 저장한다(z1170 · 시험으로 확인)
     "mf_ai_hint": {"ko": "긴 회의는 몇 분 걸릴 수 있습니다 — 창을 닫아도 정리는 끝까지 됩니다.",
                   "vi": "Cuộc họp dài có thể mất vài phút — đóng cửa sổ thì việc tổng hợp vẫn chạy đến cuối."},

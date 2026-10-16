@@ -938,6 +938,15 @@ def startup():
             print(f"[SUMMARY-KEEP-MIG-Z1183] {_rsk}")
     except Exception as _e:
         print(f"[SUMMARY-KEEP-MIG-Z1183 ERR] {_e}")
+    # z1185 (대표 2026-10-16 「회의록보기 아이콘은 회의록이 작성되었을때만 활성화」): 사람이 원문을 쓰거나 고친 시각 칸 (idempotent · 칸만)
+    try:
+        from .migrations.m_z1185_body_edited import migrate as _be_migrate
+        from .database import DB_PATH as _DB_PATH_BE
+        _rbe = _be_migrate(_DB_PATH_BE)
+        if _rbe.get('added'):
+            print(f"[BODY-EDITED-MIG-Z1185] {_rbe}")
+    except Exception as _e:
+        print(f"[BODY-EDITED-MIG-Z1185 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -4186,6 +4195,8 @@ async def meetings_page(req: Request):
             #   여기서 규칙을 다시 적으면(작성자·등록담당·참석자·관리자) 나중에 한쪽만 고쳐 어긋난다.
             #   열린 커서 c 를 넘겨 참석자를 그걸로 본다(안 넘기면 회의마다 새로 연다).
             _mm["can_edit"] = _can_edit_meeting(u, _mm, c)
+            # z1185: 줄 오른쪽 「📄 회의록」은 회의록이 **작성됐을 때만** 켠다(판정은 _meeting_has_minutes 한 곳)
+            _mm["has_minutes"] = _meeting_has_minutes(_mm)
     # 🗓 회의 카드 모아보기 탭(2026-09-17 대표 지시) — ?tab=cards
     tab = "cards" if (req.query_params.get("tab") or "") == "cards" else "list"
     return ctx(req, "meetings.html", user=u, meetings=meetings, tab=tab)
@@ -4339,6 +4350,7 @@ async def meeting_detail_page(req: Request, mid: int):
                            (m.get("msg_organizer_id") and m.get("msg_organizer_id") == u.get("id"))) else "no"))
     return ctx(req, "meeting_form.html", user=u, meeting=m,
                decisions=decisions, actions=actions, attendees=attendees,
+               body_written=_meeting_body_written(m), has_minutes=_meeting_has_minutes(m),   # z1185
                can_edit=_can_edit_meeting(u, m), can_delete=_can_delete_meeting(u, m), ai_on=ai_client.ai_available(),
                can_end=_can_end_meeting(u, m),   # z1131: 「⏹ 회의 종료」 단추를 보일까
                transcribe_on=ai_client.transcribe_available(),
@@ -4568,6 +4580,8 @@ async def api_meeting_create(req: Request):
                  attendees_text, (d.get("body") or ""), vis, "draft"),
             )
             mid = cur.lastrowid
+            if (d.get("body") or "").strip():   # z1185: 이음웍스에서 사람이 원문을 쓰고 만들었다(「회의록 작성됨」 판정이 본다)
+                c.execute("UPDATE meetings SET body_edited_at=datetime('now','localtime') WHERE id=?", (mid,))
             try:  # 참석자 연결 실패는 회의 생성을 막지 않음(비치명)
                 _meeting_link_attendees(c, mid, attendees_text)
             except Exception:
@@ -4620,8 +4634,16 @@ async def api_meeting_update(req: Request, mid: int):
              vis, status, mid),
         )
         _meeting_link_attendees(c, mid, attendees_text)
+        # 🔴 z1185 (대표 2026-10-16 「녹음 원문 또는 수기 작성」): 사람이 원문을 쓰거나 고쳤다 → 그 시각을 남긴다
+        #    (「회의록 작성됨」 판정 _meeting_body_written 이 본다). 띄어쓰기·줄바꿈만 다른 것은 고친 것이 아니다
+        #    — 이음 메모의 줄바꿈이 화면 칸을 거쳐 바뀌어 돌아와도 「사람이 썼다」가 되지 않게.
+        if d.get("body") is not None and _mtg_text_key(d.get("body")) != _mtg_text_key(m.get("body")):
+            c.execute("UPDATE meetings SET body_edited_at=datetime('now','localtime') WHERE id=?", (mid,))
         new_ts = _row_ts(c, "meetings", mid)
-    return JSONResponse({"ok": True, "updated_at": new_ts})
+        _mw = dict(c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone())
+    # z1185: 화면이 「📄 회의록 양식」 단추를 저장한 그 자리에서 다시 맞춘다(판정은 서버 한 곳)
+    return JSONResponse({"ok": True, "updated_at": new_ts,
+                         "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)})
 
 
 @app.post("/api/meeting/{mid:int}/summary")
@@ -4664,7 +4686,9 @@ async def api_meeting_summary_save(req: Request, mid: int):
         except Exception:
             pass
         new_ts = _row_ts(c, "meetings", mid)
-    return JSONResponse({"ok": True, "updated_at": new_ts, "changed": True})
+        _mw = dict(c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone())
+    return JSONResponse({"ok": True, "updated_at": new_ts, "changed": True,   # z1185: 판정도 함께
+                         "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)})
 
 
 def _mtg_ai_items(c, mid: int) -> dict:
@@ -4733,13 +4757,15 @@ async def api_meeting_summary_restore(req: Request, mid: int):
             pass
         new_ts = _row_ts(c, "meetings", mid)
         _pv = c.execute("SELECT summary_prev_at FROM meetings WHERE id=?", (mid,)).fetchone()
+        _mw = dict(c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone())   # z1185
         decisions = [dict(r2) for r2 in c.execute(
             "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
         actions = [dict(r2) for r2 in c.execute(
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
     return JSONResponse({"ok": True, "summary": prev, "decisions": decisions, "actions": actions,
                          "updated_at": new_ts, "has_prev": bool(cur_sum),
-                         "prev_at": ((_pv["summary_prev_at"] if _pv else "") or "")[:16] if cur_sum else ""})
+                         "prev_at": ((_pv["summary_prev_at"] if _pv else "") or "")[:16] if cur_sum else "",
+                         "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)})
 
 
 @app.delete("/api/meeting/{mid:int}")
@@ -4912,8 +4938,16 @@ async def api_meeting_extract(req: Request, mid: int):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         body = m.get("body") or ""
         _edited = (m.get("summary_edited_at") or "").strip() if (m.get("summary") or "").strip() else ""
+        _written = _meeting_body_written(m)   # z1185
     if not body.strip():
         return JSONResponse({"ok": False, "error": "회의 내용이 비어 있습니다. 내용을 먼저 입력·저장하세요."}, 400)
+    # 🔴 z1185 (대표 2026-10-16 「녹음 원문 또는 수기 작성이 되지 않았을때는 …」): 원문이 이음 회의 메모(씨앗)뿐이면
+    #    빅터AI 정리를 돌리지 않는다 — 회의 내용 없는 정리가 「정리 끝」이 되던 길(운영 3건). 판정은 _meeting_body_written 한 곳.
+    #    🔵 200 으로 답한다(ok:false · no_minutes) — 안내는 정상 흐름이다(z1183: 409·400 은 콘솔에 빨간 오류).
+    if not _written:
+        return JSONResponse({"ok": False, "no_minutes": True,
+                             "error": "아직 회의 내용이 없습니다 — 녹음을 올리거나 「회의 내용」 칸에 먼저 적어 주세요"
+                                      "(이음 회의 메모만으로는 정리하지 않습니다)."})
     # 🔴 z1183 (대표 확인 「확인 + 이전 정리 보관」): 사람이 고친 정리가 있으면 **먼저 묻는다** — 화면이 확인을 받아
     #    confirm_overwrite 로 다시 보낸다. 다시 정리하면 지금 정리는 「이전 정리」로 보관된다(_mtg_sum_worker).
     #    전에는 같은 화면을 띄운 채 고쳤을 때만 화면이 물었다 → 나중에 누가 누르면 **확인 없이 덮어썼다**.
@@ -5991,6 +6025,10 @@ async def api_meeting_stt_status(req: Request, mid: int):
             row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
             out["body"] = (row["body"] if row else "") or ""
             out["updated_at"] = _row_ts(c, "meetings", mid)
+            _mw = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()   # z1185
+            if _mw:
+                out["body_written"] = _meeting_body_written(dict(_mw))
+                out["has_minutes"] = _meeting_has_minutes(dict(_mw))
     return JSONResponse(out)
 
 
@@ -6580,6 +6618,40 @@ def _meeting_idle_min(m) -> float:
     return max(0.0, (datetime.now() - t).total_seconds() / 60.0)
 
 
+def _mtg_text_key(s) -> str:
+    """z1185: 원문 비교용 — 띄어쓰기·줄바꿈 차이는 같은 글로 본다(「사람이 고쳤나」 판정)."""
+    return " ".join(str(s or "").split())
+
+
+def _meeting_body_written(m) -> bool:
+    """🔴 z1185 (대표 2026-10-16 · 세션 10 전달 · 사진): 「회의록이 녹음 원문 또는 수기 작성이 되지 않았을때는
+    회의록보기 아이콘은 비활성화가 되어야함.. 회의록보기 아이콘은 회의록이 작성되었을때만 활성화하는게 맞음.」
+    원문에 **회의 내용**이 있나 — 판정은 여기 한 곳(이음 카드 단계 · 목록 📄 · 상세 「📄 회의록 양식」 · 빅터AI 정리 입구).
+      ① 녹음을 받아쓴 글이 있다(「[음성 변환]」 — _stt_append_body 가 붙이는 머리)
+      ② 사람이 이음웍스에서 원문을 쓰거나 고쳤다(body_edited_at · 저장할 때 적힌다 · z1185 부터)
+      ③ 이음웍스에서 직접 만든 회의록(이음 회의와 안 이어짐)의 원문 — 사람이 쓴 것뿐이다(씨앗이 없다)
+    ⛔ 이음 「▶ 회의 시작」으로 만든 회의록의 원문 = 이음 회의 메모(씨앗)일 뿐 — 회의 내용이 아니다
+       (운영 2026-10-16: 메모만 있는 채로 정리를 눌러 회의 내용 없는 정리가 「정리 끝」이 된 회의 3건)."""
+    body = (m.get("body") or "").strip()
+    if not body:
+        return False
+    if "[음성 변환]" in body or (m.get("body_edited_at") or "").strip():
+        return True
+    return not m.get("msg_meeting_id")
+
+
+def _meeting_has_minutes(m) -> bool:
+    """z1185: 회의록이 **작성됐나** = 원문에 회의 내용이 있다(_meeting_body_written) · 또는 사람이 정리 글을 직접 고쳤다
+    (z1183 「✏ 고치기」 → summary_edited_at). 「📋 회의록 보기」(이음)·목록 「📄 회의록」·상세 「📄 회의록 양식」은
+    이것이 참일 때만 켠다.
+    🔵 「↩ 이전 정리」 맞바꾸기는 사람이 쓴 것이 아니다 — 그때는 고친 시각과 보관 시각이 **같은 값**으로 함께 적힌다
+       (summary-restore 의 UPDATE 한 줄 · SQLite 의 now 는 한 문장 안에서 같다). 사람이 고치면 고친 시각만 새로 적힌다."""
+    if _meeting_body_written(m):
+        return True
+    ed = (m.get("summary_edited_at") or "").strip()
+    return bool(ed and ed != (m.get("summary_prev_at") or "").strip() and (m.get("summary") or "").strip())
+
+
 def _meeting_msg_stage(m) -> str:
     """카드 표시 단계: started(진행 중) / recorded(녹음됨·정리 대기) / processing(글자 변환·AI 정리 중) / failed / done.
     🔴 z1179 (이음 v854 와 맞추며 · 대표 확인 2026-10-13): 「⏳ 정리 중」은 **정말 무언가 돌 때만**.
@@ -6587,8 +6659,11 @@ def _meeting_msg_stage(m) -> str:
        ② 녹음은 있는데 아무것도 안 돌아도(창이 닫혀 시작 못 함 · 서버가 다시 켜져 작업 기록이 사라짐) 영영 「정리 중」이었다
        (운영 2026-10-13 실측: 33건 중 2건). 이음 v854 는 이 단계에 단추 없이 「끝나면 알려 드려요」라 **막다른 곳**이 됐다.
        → AI 정리도 보고 · 녹음이 있는데 _MTG_STALL_MIN 분째 아무것도 안 돌면 failed(= 「🔄 다시 정리」 단추가 뜬다).
-       단계 값 다섯 개는 그대로(이음과의 약속) — 뜻만 정확해진다. done(정리 글 있음)은 그대로(이음 「회의록 등록」 알림 기준)."""
-    if (m.get("summary") or "").strip():
+       단계 값 다섯 개는 그대로(이음과의 약속) — 뜻만 정확해진다. done(정리 글 있음)은 그대로(이음 「회의록 등록」 알림 기준).
+    🔴 z1185 (대표 2026-10-16 「회의록보기 아이콘은 회의록이 작성되었을때만 활성화」): done = 정리 글 + **회의록 작성됨**
+       (_meeting_has_minutes). 이음 메모만으로 만든 정리는 done 이 아니다 → 이음 카드는 「📁 녹음 올리기」·「✏️ 작성하기」 ·
+       「회의록 등록」 알림도 안 간다(세션 10: 이음은 바꿀 것 없음 — 이 단계 값을 그대로 따른다)."""
+    if (m.get("summary") or "").strip() and _meeting_has_minutes(m):
         return "done"
     with _STT_LOCK:
         job = dict(_STT_JOBS.get(m["id"]) or {})

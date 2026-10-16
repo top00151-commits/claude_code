@@ -137,7 +137,8 @@ with db_session() as c:
     S["S4"] = mtg(105, audio="meeting_audio/fake_s4.m4a")
     S["S5"] = mtg(106, body="🎙 [음성 변환]\n받아쓴 글", audio="meeting_audio/fake_s5.m4a")
     S["S6"] = mtg(107, body="🎙 [음성 변환]\n받아쓴 글", audio="meeting_audio/fake_s6.m4a")
-    S["S7"] = mtg(109, body="원문", summary="요점\n- 정리 끝")
+    #  z1185: 「정리 끝」= 정리 + 회의록 작성됨 — 원문이 메모뿐이면 이제 done 이 아니다 → 받아쓴 글(S5·S6 과 같은 꼴)
+    S["S7"] = mtg(109, body="🎙 [음성 변환]\n받아쓴 글", summary="요점\n- 정리 끝")
     #  108 = 회의록 없음(WORKS 에 없다)
     #  베트남어 직원은 S1·S3·S6 의 **참석자** — 참석자는 고칠 수 있다(z1133) → 베트남어 단추 글을 본다
     for k in ("S1", "S3", "S6"):

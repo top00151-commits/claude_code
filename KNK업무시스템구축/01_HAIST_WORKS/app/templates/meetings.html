@@ -32,8 +32,9 @@
            border:1px solid var(--qv-line); background: var(--qv-surface); color: var(--qv-ink-2);
            transition: all .12s; }
 .mtg-act:hover { border-color: var(--qv-line-3); background: var(--qv-surface-2); color: var(--qv-ink); }
-/* (z1182 부터 안 쓴다 — 못 고치는 회의는 「🔍 회의상세(보기)」가 켜진다) */
+/* z1185: 회의록이 아직 작성되지 않은 회의의 📄 (z1182 까지는 안 쓰던 모양) — 올려도 눌리는 것처럼 보이지 않게 */
 .mtg-act.off { opacity:.42; cursor:not-allowed; }
+.mtg-act.off:hover { border-color: var(--qv-line); background: var(--qv-surface); color: var(--qv-ink-2); }
 /* z1166b: 글자가 「수정·양식」에서 「회의상세(수정)·회의록」으로 길어졌다(대표 지시) →
    좁은 화면에서 제목을 밀지 않게 **더 일찍** 글자를 숨긴다(560px → 760px). 그림은 남는다. */
 @media (max-width: 760px) { .mtg-act-t { display:none; } .mtg-act { padding:6px 9px; } }
@@ -839,8 +840,15 @@
         <a class="mtg-act view" href="/meetings/{{ m.id }}" title="{{ i.mt_act_view_t }}"
            aria-label="{{ i.mt_act_view_t }}">🔍<span class="mtg-act-t">{{ i.mt_act_view }}</span></a>
         {% endif %}
+        {% if m.has_minutes %}
         <a class="mtg-act" href="/meetings/{{ m.id }}/doc" title="{{ i.mt_act_doc_t }}"
            aria-label="{{ i.mt_act_doc_t }}">📄<span class="mtg-act-t">{{ i.mt_act_doc }}</span></a>
+        {% else %}
+        {# z1185 (대표 2026-10-16 「회의록보기 아이콘은 회의록이 작성되었을때만 활성화」): 녹음 원문도 손으로 쓴 원문도 없으면
+           📄 는 꺼 둔다(누를 수 없음 · 까닭은 마우스를 올리면) — 판정은 서버 _meeting_has_minutes 한 곳 #}
+        <span class="mtg-act off" role="link" aria-disabled="true" title="{{ i.mt_act_doc_off_t }}"
+              aria-label="{{ i.mt_act_doc_off_t }}">📄<span class="mtg-act-t">{{ i.mt_act_doc }}</span></span>
+        {% endif %}
       </div>
     </div>
     {% endfor %}
@@ -941,6 +949,13 @@
     var q0 = '';
     try { q0 = (new URLSearchParams(location.search).get('q') || '').trim(); } catch(_){}
     if (q0){ inp.readOnly = false; inp.value = q0; clr.hidden = false; run(q0); }
+  })();
+  /* z1185: 꺼진 📄(회의록이 아직 작성되지 않음)를 누르면 까닭만 알린다 —
+     휴대폰엔 말풍선이 없어 그냥 두면 눌러도 아무 일이 없는 「먹통」처럼 보인다(상세 「📄 회의록 양식」과 같은 길) */
+  (function(){
+    Array.prototype.forEach.call(document.querySelectorAll('.main .mtg-act.off'), function(el){
+      el.addEventListener('click', function(e){ e.preventDefault(); alert(el.getAttribute('title') || ''); });
+    });
   })();
   </script>
   {% else %}

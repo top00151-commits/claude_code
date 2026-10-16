@@ -211,6 +211,8 @@
             background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; padding:8px 12px; }
 /* 🔴 .btn 의 display 가 hidden 속성을 덮는다 — 이겨야 숨는다(.rec-phone 과 같은 함정) */
 .mf-ended[hidden], #btnEndMeeting[hidden] { display:none !important; }   /* z1152: 되돌리기 단추는 없앴다 */
+/* z1185: 회의록이 아직 작성되지 않았으면 「📄 회의록 양식」을 흐리게(누르면 까닭만 알린다 · 새 창 안 엶) */
+.btn.mf-doc-off { opacity:.45; cursor:not-allowed; filter:grayscale(1); }
 /* ── z1116 이음 「▶ 회의 시작」 착지 — 녹음기로 넘어가는 첫 안내 ── */
 .phrec-lead { border:2px solid var(--knk-red); border-radius:14px; padding:14px 16px; margin:10px 0 14px;
   background:#FFF7ED; }
@@ -287,7 +289,9 @@
     </div>
     <div style="display:flex;gap:10px;">
       <a class="btn btn-secondary" href="/meetings">{{ i.mf_back }}</a>
-      {% if not is_new %}<a class="btn btn-primary" href="/meetings/{{ meeting.id }}/doc" target="_blank" rel="noopener" data-no-swap>{{ i.mf_doc }}</a>{% endif %}
+      {# z1185 (대표 2026-10-16 「회의록보기 아이콘은 회의록이 작성되었을때만 활성화」): 녹음 원문도 손으로 쓴 원문도 없으면 흐리게 ·
+         누르면 까닭을 알린다 · 저장·받아쓰기로 작성되면 화면이 그 자리에서 다시 켠다(minutesSync) — 판정은 서버 한 곳 #}
+      {% if not is_new %}<a class="btn btn-primary{% if not has_minutes %} mf-doc-off{% endif %}" id="btnDocView" href="/meetings/{{ meeting.id }}/doc" target="_blank" rel="noopener" data-no-swap{% if not has_minutes %} aria-disabled="true" title="{{ i.mf_doc_off_t }}"{% endif %}>{{ i.mf_doc }}</a>{% endif %}
       {% if not is_new and can_delete %}<button class="btn btn-secondary" id="btnDelete" style="color:var(--knk-red);">{{ i.mf_del }}</button>{% endif %}
       {# z1131(대표 지시 2026-09-27): 예정 끝 시각보다 일찍 끝났을 때 — 이음 회의와 연결된 회의록에만 #}
       {% if not is_new and meeting.msg_meeting_id and can_end %}<button class="btn btn-secondary" id="btnEndMeeting"{% if meeting.ended_at %} hidden{% endif %}>{{ i.mf_end }}</button>{# z1152 (대표 지시 2026-10-08): 되돌리기 단추는 없앴다 #}{% endif %}
@@ -726,6 +730,9 @@ var MF = {
   edit_ask2: {{ i.mf_edit_ask2|tojson }},
   edit_ask3: {{ i.mf_edit_ask3|tojson }},
   edit_kept: {{ i.mf_edit_kept|tojson }},
+  no_minutes: {{ i.mf_no_minutes|tojson }},   {# z1185 — 원문에 회의 내용이 없을 때(이음 메모만) 정리 안내 #}
+  doc_off: {{ i.mf_doc_off|tojson }},         {# z1185 — 흐린 「📄 회의록 양식」을 눌렀을 때 #}
+  doc_off_t: {{ i.mf_doc_off_t|tojson }},
   ai_hint: {{ i.mf_ai_hint|tojson }},        {# z1177 — 진행 칸 안내(몇 분 걸릴 수 있다 · 창을 닫아도 된다) #}
   ai_slow: {{ i.mf_ai_slow|tojson }},        {# z1170 — 정리가 오래 걸려 확인을 멈췄을 때 #}
   all_done: {{ i.mf_all_done|tojson }},
@@ -935,6 +942,8 @@ window.__MTG = {
   audio_max_mb: {{ MEETING_AUDIO_MAX_MB|int }},   {# 2026-09-17: 음성 올리기 한도 — 숫자는 main.py _MEETING_AUDIO_MAX_MB 한 곳 #}
   summary: {{ ((meeting.summary or '') if not is_new else '')|tojson }},
   has_prev: {{ 'true' if (not is_new and (meeting.summary_prev or '').strip()) else 'false' }},   {# z1183 #}
+  body_written: {{ 'true' if (not is_new and body_written|default(false)) else 'false' }},   {# z1185: 원문에 회의 내용이 있나(서버 _meeting_body_written) #}
+  has_minutes: {{ 'true' if (not is_new and has_minutes|default(false)) else 'false' }},     {# z1185: 회의록 작성됨 → 「📄 회의록 양식」 켬 #}
   prev_at: {{ (((meeting.summary_prev_at or '')[:16]) if not is_new else '')|tojson }},
   decisions: {{ decisions|tojson if decisions else '[]' }},
   actions: {{ actions|tojson if actions else '[]' }}
@@ -961,6 +970,15 @@ window.__MTG = {
   function _alive(){ return !_root || _root.isConnected; }
   function $(id){ return _alive() ? document.getElementById(id) : null; }
   function status(msg, kind){ var el=$('saveStatus'); if(!el) return; el.textContent=msg||''; el.className='save-status'+(kind?(' '+kind):''); }
+  // z1185: 서버가 알려 준 「원문에 회의 내용 있음 · 회의록 작성됨」으로 「📄 회의록 양식」 단추를 그 자리에서 맞춘다
+  function minutesSync(d){
+    if (!d || d.has_minutes === undefined) return;
+    M.body_written = !!d.body_written; M.has_minutes = !!d.has_minutes;
+    var b = $('btnDocView'); if (!b) return;
+    b.classList.toggle('mf-doc-off', !M.has_minutes);
+    if (M.has_minutes){ b.removeAttribute('aria-disabled'); b.removeAttribute('title'); }
+    else { b.setAttribute('aria-disabled', 'true'); b.title = MF.doc_off_t; }
+  }
 
   // ── z1106 (대표 「보완해」 2026-09-16) 고친 칸 추적 — 「● 저장 안 됨」 · 나갈 때 알림 · 다시 정리 전 자동 저장 ──
   //   기준값 = 서버에 저장된 값. 서버가 바꾼 칸(음성→글자 원문·AI 제목)은 그때 기준값도 옮긴다.
@@ -1034,7 +1052,7 @@ window.__MTG = {
     if (!f.title.trim()) return { ok:false, error:MF.need_title, focus:'mtgTitle' };
     f.base_ts = M.base_ts;
     var res2 = await jreq('PUT', '/api/meeting/' + M.id, f);
-    if (res2.ok && res2.data.ok) { M.base_ts = res2.data.updated_at || M.base_ts; rebase(null, snap); return { ok:true }; }
+    if (res2.ok && res2.data.ok) { M.base_ts = res2.data.updated_at || M.base_ts; rebase(null, snap); minutesSync(res2.data); return { ok:true }; }
     if (res2.status === 409) return { ok:false, error: res2.data.message || MF.conflict };
     return { ok:false, error: res2.data.error || MF.save_fail };
   }
@@ -1143,6 +1161,7 @@ window.__MTG = {
         if (st.data.state === 'done'){
           var ta=$('mtgBody'); if(ta && st.data.body != null){ ta.value = st.data.body; rebase(['mtgBody']); }
           M.base_ts = st.data.updated_at || M.base_ts;
+          minutesSync(st.data);   // z1185: 받아쓴 글이 들어왔다 → 「📄 회의록 양식」이 그 자리에서 켜진다
           return { ok:true, warn: st.data.warn||'' };  // z1092 무음 구간 경고
         }
         if (st.data.state === 'error'){
@@ -1169,6 +1188,9 @@ window.__MTG = {
       status(MF.saved_ok, 'ok');
     }
     var res = await jreq('POST', '/api/meeting/'+M.id+'/extract', {});
+    /* 🔴 z1185 (대표 2026-10-16): 원문이 이음 회의 메모뿐이면 서버가 정리를 돌리지 않고 안내한다(no_minutes)
+       — 실패가 아니라 「먼저 적어 주세요」로 끝낸다(z1183 「그대로 둠」과 같은 길 · note = 눈에 띄는 주황 글) */
+    if (res.data && res.data.no_minutes) return { ok:false, cancel:true, note:true, error: MF.no_minutes };
     /* 🔴 z1183 (대표 확인 「확인 + 이전 정리 보관」): 사람이 고친 정리가 있으면 서버가 먼저 묻는다(need_confirm).
        「🔄 다시 정리」·새 녹음 자동 정리 둘 다 여기를 지난다 → 한 곳에서 묻는다. 확인하면 지금 정리는 「이전 정리」로 보관. */
     if (res.data && res.data.need_confirm){
@@ -1243,7 +1265,7 @@ window.__MTG = {
     var r = await work();
     btns.forEach(function(b, i){ b.disabled = was[i]; });
     if (r.ok){ recSt(MF.re_done, 'ok'); if (ab) ab.done(MF.re_done); }
-    else if (r.cancel){ recSt(r.error, ''); if (ab) ab.close(); }   // z1183 — 고친 정리를 그대로 두기로 했다(실패 아님)
+    else if (r.cancel){ recSt(r.error, r.note ? 'warn' : ''); if (ab) ab.close(); }   // z1183 — 고친 정리를 그대로 두기로 했다(실패 아님) · z1185 안내
     else { recSt(r.error, 'err'); if (ab) ab.fail(r.error); }
   }
   /* z1177: 정리하는 **도중에** 이 화면을 다시 열면(탭을 옮겼다 오기 · 새로고침 · 다른 창) 진행 칸을 다시 띄우고
@@ -1299,7 +1321,7 @@ window.__MTG = {
       }
       catch(e){ r = { ok:false, error:(e&&e.message)||MF.err }; }
       if (r.cancel){   // z1183 — 사람이 고친 정리를 그대로 두기로 했다 → 실패가 아니라 「그대로 둠」으로 끝낸다
-        steps[i].st='warn'; steps[i].label = MF.edit_kept; pipeRender(steps.concat(warns));
+        steps[i].st='warn'; steps[i].label = r.error || MF.edit_kept; pipeRender(steps.concat(warns));   // z1185: 안내 글 그대로
         _pipeBusy=false; relWake(); return;
       }
       if (!r.ok){
@@ -1396,6 +1418,8 @@ window.__MTG = {
   var bExt=$('btnExtract'); if(bExt && !bExt.disabled) bExt.addEventListener('click', extract);
   // z1175: 「📌 정리」 머리줄의 같은 단추 — **같은 함수**를 부른다
   var bExtT=$('btnExtractTop'); if(bExtT && !bExtT.disabled) bExtT.addEventListener('click', extract);
+  // z1185: 「📄 회의록 양식」 — 회의록이 작성되기 전엔 흐리게 두고, 누르면 새 창을 열지 않고 까닭만 알린다(판정 = 서버 M.has_minutes)
+  var bDocV=$('btnDocView'); if(bDocV) bDocV.addEventListener('click', function(e){ if (M.has_minutes) return; e.preventDefault(); alert(MF.doc_off); });
   // z1177: 정리하는 도중에 다시 연 화면이면 진행 칸을 다시 띄운다(고칠 수 있는 사람 · AI 켜짐 · 저장된 회의만)
   if (!M.is_new && CAN_EDIT && AI_ON && $('aiBusy')) resumeExtract();
   // ── z1139 ✏ 정리 글 바로 고치기 (대표 지시 2026-10-05) ───────────────────────
@@ -1435,6 +1459,7 @@ window.__MTG = {
       M.actions = r.data.actions || [];
       M.base_ts = r.data.updated_at || M.base_ts;
       M.has_prev = !!r.data.has_prev; M.prev_at = r.data.prev_at || '';
+      minutesSync(r.data);   // z1185
       renderSummary(); renderDecisions(); renderActions();
       status(MF.prev_done, 'ok');
     } else if (r.status === 409){
@@ -1452,7 +1477,7 @@ window.__MTG = {
     if(r.ok && r.data && r.data.ok){
       M.summary = (t.value||'').replace(/\r\n/g, String.fromCharCode(10)).trim();
       M.base_ts = r.data.updated_at || M.base_ts;
-      renderSummary(); sumEditShow(false); sumSt('');
+      renderSummary(); sumEditShow(false); sumSt(''); minutesSync(r.data);   // z1185
       status(MF.sum_saved, 'ok');
     } else if (r.status === 409){
       sumSt((r.data && r.data.message) || MF.conflict, 'err');
@@ -1554,7 +1579,7 @@ window.__MTG = {
   // z1138: 알림 글을 맨 위 올리기 칸에도 같이 쓴다 — 접힌 「🔧 다시 하기」 안의 글은 안 보인다
   // z1175: 「📌 정리」 머리줄 밑에도 같이 쓴다 — 맨 위 올리기 칸(recUpSt)은 녹음이 들어오면
   //        감춰지는데(recUpHide), **다시 정리할 때가 바로 그때**라 아무 글도 안 보였다.
-  function recSt(msg,kind){var c=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':'var(--qv-ink-3)');
+  function recSt(msg,kind){var c=kind==='err'?'var(--knk-red)':(kind==='ok'?'#15803d':(kind==='warn'?'#b45309':'var(--qv-ink-3)'));   // z1185: warn
     var el=$('recStatus');if(el){el.textContent=msg||'';el.style.color=c;}
     var t=$('recUpSt');if(t){t.textContent=msg||'';t.style.color=c;}
     var s=$('sumSt2');if(s){s.textContent=msg||'';s.style.color=c;}}
@@ -2469,7 +2494,8 @@ window.__MTG = {
       // 아직 안 끝난 단계가 있으면 「▶ 자동 정리 시작」 제안 카드만 표시(자동 실행 X)
       var _b = ((($('mtgBody')||{}).value)||'').trim();
       var _needStt = M.has_audio && !bodyHasStt() && TR_ON;
-      var _needExt = (_b || _needStt) && AI_ON
+      //  z1185: 원문이 이음 회의 메모뿐이면 정리를 권하지 않는다 — 판정은 서버(M.body_written)
+      var _needExt = ((_b && M.body_written) || _needStt) && AI_ON
                      && !(M.summary && M.summary.trim()) && !M.decisions.length && !M.actions.length;
       if (_needStt || _needExt){
         var _pl=[];
