@@ -766,6 +766,9 @@ T = {
     # z1185 — 원문이 이음 회의 메모뿐일 때 · 흐린 「📄 회의록 양식」
     "mf_no_minutes": {"ko": "아직 회의 내용이 없습니다 — 녹음을 올리거나 「회의 내용」 칸에 먼저 적어 주세요(이음 회의 메모만으로는 정리하지 않습니다).",
                       "vi": "Chưa có nội dung cuộc họp — hãy tải bản ghi âm lên hoặc ghi vào ô 「Nội dung cuộc họp」 trước (không tổng hợp chỉ từ ghi chú cuộc họp trên Eum)."},
+    # z1187 — 받아쓴 글에 알아들을 말이 거의 없을 때(무음의 헛말 · 외국 글자 · 시험 한두 마디)
+    "mf_no_minutes_stt": {"ko": "녹음에서 알아들을 수 있는 말이 거의 없습니다 — 녹음이 제대로 됐는지 확인해 다시 올리거나 「회의 내용」 칸에 적어 주세요.",
+                          "vi": "Bản ghi âm gần như không có lời nói nghe được — hãy kiểm tra bản ghi rồi tải lên lại, hoặc ghi vào ô 「Nội dung cuộc họp」."},
     "mf_doc_off": {"ko": "아직 회의록이 작성되지 않았습니다 — 녹음을 올리거나 「회의 내용」 칸에 적어 저장하면 열립니다.",
                    "vi": "Biên bản chưa được soạn — hãy tải bản ghi âm lên hoặc ghi vào ô 「Nội dung cuộc họp」 rồi lưu thì sẽ mở được."},
     "mf_doc_off_t": {"ko": "아직 회의록이 작성되지 않았습니다 — 녹음을 올리거나 회의 내용을 적으면 열립니다",

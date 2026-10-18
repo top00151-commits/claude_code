@@ -731,6 +731,7 @@ var MF = {
   edit_ask3: {{ i.mf_edit_ask3|tojson }},
   edit_kept: {{ i.mf_edit_kept|tojson }},
   no_minutes: {{ i.mf_no_minutes|tojson }},   {# z1185 — 원문에 회의 내용이 없을 때(이음 메모만) 정리 안내 #}
+  no_minutes_stt: {{ i.mf_no_minutes_stt|tojson }},   {# z1187 — 녹음에 알아들을 말이 거의 없을 때 #}
   doc_off: {{ i.mf_doc_off|tojson }},         {# z1185 — 흐린 「📄 회의록 양식」을 눌렀을 때 #}
   doc_off_t: {{ i.mf_doc_off_t|tojson }},
   ai_hint: {{ i.mf_ai_hint|tojson }},        {# z1177 — 진행 칸 안내(몇 분 걸릴 수 있다 · 창을 닫아도 된다) #}
@@ -1190,7 +1191,8 @@ window.__MTG = {
     var res = await jreq('POST', '/api/meeting/'+M.id+'/extract', {});
     /* 🔴 z1185 (대표 2026-10-16): 원문이 이음 회의 메모뿐이면 서버가 정리를 돌리지 않고 안내한다(no_minutes)
        — 실패가 아니라 「먼저 적어 주세요」로 끝낸다(z1183 「그대로 둠」과 같은 길 · note = 눈에 띄는 주황 글) */
-    if (res.data && res.data.no_minutes) return { ok:false, cancel:true, note:true, error: MF.no_minutes };
+    if (res.data && res.data.no_minutes) return { ok:false, cancel:true, note:true,
+      error: (res.data.reason === 'stt_short' ? MF.no_minutes_stt : MF.no_minutes) };   // z1187: 녹음에 말이 거의 없을 때
     /* 🔴 z1183 (대표 확인 「확인 + 이전 정리 보관」): 사람이 고친 정리가 있으면 서버가 먼저 묻는다(need_confirm).
        「🔄 다시 정리」·새 녹음 자동 정리 둘 다 여기를 지난다 → 한 곳에서 묻는다. 확인하면 지금 정리는 「이전 정리」로 보관. */
     if (res.data && res.data.need_confirm){

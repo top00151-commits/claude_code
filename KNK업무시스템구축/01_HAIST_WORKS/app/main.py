@@ -4953,15 +4953,19 @@ async def api_meeting_extract(req: Request, mid: int):
         body = m.get("body") or ""
         _edited = (m.get("summary_edited_at") or "").strip() if (m.get("summary") or "").strip() else ""
         _written = _meeting_body_written(m)   # z1185
+        _why = "stt_short" if "[음성 변환]" in body else "memo"   # z1187: 안내 글을 가른다
     if not body.strip():
         return JSONResponse({"ok": False, "error": "회의 내용이 비어 있습니다. 내용을 먼저 입력·저장하세요."}, 400)
     # 🔴 z1185 (대표 2026-10-16 「녹음 원문 또는 수기 작성이 되지 않았을때는 …」): 원문이 이음 회의 메모(씨앗)뿐이면
     #    빅터AI 정리를 돌리지 않는다 — 회의 내용 없는 정리가 「정리 끝」이 되던 길(운영 3건). 판정은 _meeting_body_written 한 곳.
     #    🔵 200 으로 답한다(ok:false · no_minutes) — 안내는 정상 흐름이다(z1183: 409·400 은 콘솔에 빨간 오류).
     if not _written:
-        return JSONResponse({"ok": False, "no_minutes": True,
-                             "error": "아직 회의 내용이 없습니다 — 녹음을 올리거나 「회의 내용」 칸에 먼저 적어 주세요"
-                                      "(이음 회의 메모만으로는 정리하지 않습니다)."})
+        # z1187: 받아쓴 글은 있는데 알아들을 말이 거의 없으면(헛말·시험 한두 마디) 그렇게 알린다(reason = stt_short)
+        return JSONResponse({"ok": False, "no_minutes": True, "reason": _why,
+                             "error": ("녹음에서 알아들을 수 있는 말이 거의 없습니다 — 녹음이 제대로 됐는지 확인해 다시 올리거나 "
+                                       "「회의 내용」 칸에 적어 주세요." if _why == "stt_short" else
+                                       "아직 회의 내용이 없습니다 — 녹음을 올리거나 「회의 내용」 칸에 먼저 적어 주세요"
+                                       "(이음 회의 메모만으로는 정리하지 않습니다).")})
     # 🔴 z1183 (대표 확인 「확인 + 이전 정리 보관」): 사람이 고친 정리가 있으면 **먼저 묻는다** — 화면이 확인을 받아
     #    confirm_overwrite 로 다시 보낸다. 다시 정리하면 지금 정리는 「이전 정리」로 보관된다(_mtg_sum_worker).
     #    전에는 같은 화면을 띄운 채 고쳤을 때만 화면이 물었다 → 나중에 누가 누르면 **확인 없이 덮어썼다**.
@@ -6637,6 +6641,46 @@ def _mtg_text_key(s) -> str:
     return " ".join(str(s or "").split())
 
 
+import re as _re87
+#  🔴 z1187 (대표 2026-10-16 「이전에 회의록들은 확인을 안한건가?? 이전 회의록 등록안한건 아직 그대로 인데...」 · 사진 09-30 회의):
+#    녹음은 있으나 받아쓴 글에 회의 말이 거의 없는 회의록(무음에서 받아쓰기가 지어낸 헛말 · 외국 글자 · 「녹음 한번 해보고 있어」 ·
+#    잡담 몇 마디)도 정리가 「판독되지 않아 확인할 수 없음」으로 남아 「정리 끝」이었다(운영 5건 — z1185 는 받아쓴 글이 있기만 하면 봤다).
+#    운영 실측(10-16 · 받아쓴 글 있는 회의록 33건): 그 5건의 알아들을 말 0·0·10·15·70자 ↔ 진짜 회의 가장 짧은 것 426자(그다음 1,853자)
+_MTG_STT_MIN_CHARS = 200     # 받아쓴 글에서 알아들을 말(글자)이 이만큼은 있어야 「녹음 원문 있음」 — 말로 약 40초
+#  받아쓰기 헛말(무음·잡음에서 받아쓰기가 지어내는 말) — 세지 않는다
+_STT_HALLU_RE = _re87.compile(
+    r"시청\s*해\s*주셔서\s*감사합니다|구독\s*(과|와)?\s*좋아요|좋아요\s*(와|과)?\s*구독|알림\s*설정|"
+    r"다음\s*영상에서\s*(만나요|뵙겠습니다)|MBC\s*뉴스|KBS\s*뉴스|SBS\s*뉴스|"
+    r"thank(s| you) for watching|please subscribe", _re87.I)
+#  알아들을 수 있는 글자 = 한글 음절 · 라틴 글자(베트남어 성조 글자 포함) · 숫자 — 받아쓰기가 지어낸 외국 글자는 세지 않는다
+_STT_READ_RE = _re87.compile(r"[가-힣A-Za-z0-9À-ɏḀ-ỿ]")
+
+
+def _mtg_split_stt(body):
+    """z1187: 원문 → (받아쓴 글 앞(사람이 쓴 글 · 이음 메모), 받아쓴 글).
+    받아쓴 글 = 첫 「[음성 변환]」부터 끝까지(_stt_append_body 가 「🎤 [음성 변환]」 머리를 붙여 덧붙인다)."""
+    b = str(body or "")
+    i = b.find("[음성 변환]")
+    if i < 0:
+        return b, ""
+    return b[:i].replace("🎤", "").replace("🎙", ""), b[i:]
+
+
+def _stt_meaningful_len(stt) -> int:
+    """z1187: 받아쓴 글에서 알아들을 수 있는 말의 양(글자 수) — 머리 「[음성 변환]」 · 받아쓰기 헛말 ·
+    같은 문장 되풀이(한 번만 센다)는 빼고 한글·라틴·숫자 글자만 센다."""
+    t = str(stt or "").replace("🎤", " ").replace("🎙", " ").replace("[음성 변환]", " ")
+    t = _STT_HALLU_RE.sub(" ", t)
+    seen, n = set(), 0
+    for s in _re87.split(r"[.!?。！？\n]+", t):
+        k = " ".join(s.split())
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        n += len(_STT_READ_RE.findall(k))
+    return n
+
+
 def _meeting_body_written(m) -> bool:
     """🔴 z1185 (대표 2026-10-16 · 세션 10 전달 · 사진): 「회의록이 녹음 원문 또는 수기 작성이 되지 않았을때는
     회의록보기 아이콘은 비활성화가 되어야함.. 회의록보기 아이콘은 회의록이 작성되었을때만 활성화하는게 맞음.」
@@ -6645,13 +6689,18 @@ def _meeting_body_written(m) -> bool:
       ② 사람이 이음웍스에서 원문을 쓰거나 고쳤다(body_edited_at · 저장할 때 적힌다 · z1185 부터)
       ③ 이음웍스에서 직접 만든 회의록(이음 회의와 안 이어짐)의 원문 — 사람이 쓴 것뿐이다(씨앗이 없다)
     ⛔ 이음 「▶ 회의 시작」으로 만든 회의록의 원문 = 이음 회의 메모(씨앗)일 뿐 — 회의 내용이 아니다
-       (운영 2026-10-16: 메모만 있는 채로 정리를 눌러 회의 내용 없는 정리가 「정리 끝」이 된 회의 3건)."""
+       (운영 2026-10-16: 메모만 있는 채로 정리를 눌러 회의 내용 없는 정리가 「정리 끝」이 된 회의 3건).
+    🔴 z1187: ① 은 받아쓴 글에 **알아들을 말이 _MTG_STT_MIN_CHARS 자 이상**일 때만(헛말·외국 글자·시험 한두 마디는 아님 —
+       운영 5건) · ③ 은 받아쓴 글 **앞**의 글만 본다(받아쓴 글이 헛말뿐인 직접 회의록은 아님)."""
     body = (m.get("body") or "").strip()
     if not body:
         return False
-    if "[음성 변환]" in body or (m.get("body_edited_at") or "").strip():
+    if (m.get("body_edited_at") or "").strip():
         return True
-    return not m.get("msg_meeting_id")
+    head, stt = _mtg_split_stt(body)
+    if stt and _stt_meaningful_len(stt) >= _MTG_STT_MIN_CHARS:
+        return True
+    return (not m.get("msg_meeting_id")) and bool(head.strip())
 
 
 def _meeting_has_minutes(m) -> bool:
@@ -6691,6 +6740,10 @@ def _meeting_msg_stage(m) -> str:
         # z1114: 녹음 중(창이 닫혀 끊긴 녹음 포함)은 앞 조각 파일이 있어도 '진행 중' — 카드가 「녹음됨·정리 대기」로 잘못 보이지 않게
         return "started"
     if (m.get("audio_path") or "").strip() or "[음성 변환]" in (m.get("body") or ""):
+        # 🔴 z1187: 받아쓰기는 끝났는데 알아들을 말이 거의 없으면(무음의 헛말 · 외국 글자 · 시험 한두 마디) 기다릴 것도
+        #    「실패」도 아니다 → 시작 상태(이음 카드 「📁 녹음 올리기」·「✏️ 작성하기」 — 녹음을 다시 올리거나 적게 한다)
+        if "[음성 변환]" in (m.get("body") or "") and not _meeting_body_written(m):
+            return "started"
         # z1179: 녹음이 막 들어와 다음 단계가 곧 시작될 짧은 사이만 「정리 대기」 — 그 뒤엔 멈춘 것
         return "failed" if _meeting_idle_min(m) >= _MTG_STALL_MIN else "recorded"
     return "started"
