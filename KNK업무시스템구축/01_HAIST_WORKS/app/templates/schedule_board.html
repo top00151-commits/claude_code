@@ -1317,7 +1317,7 @@ function startCustEdit(td, tr){
       dd.innerHTML = list.length ? list.map(function(o){ return '<div class="knkcust-it" data-id="'+o.id+'">'+
           '<b>'+esc(o.alias||o.name)+'</b>'+((o.alias&&o.alias!==o.name)?(' <span class="ksub">'+esc(o.name)+'</span>'):'')+
           (o.sub_biz_no?(' <span class="ksbn">['+esc(o.sub_biz_no)+']</span>'):'')+'</div>'; }).join('')
-        : '<div class="knkcust-empty">등록 고객사 없음 — 새 이름은 그대로 저장(미연결·적색)</div>';
+        : '<div class="knkcust-empty">'+(tr.dataset.soid ? '등록 고객사 없음 — 수주 줄은 등록 고객사에서 골라야 합니다' : '등록 고객사 없음 — 새 이름은 그대로 저장(미연결·적색)')+'</div>';
       _ddPos(); dd.style.display='block';
     });
   }
@@ -1332,7 +1332,7 @@ function startCustEdit(td, tr){
   function save(opt){
     var sendName = opt ? opt.name : inp.value.trim();   // 서버 저장·세금계산서 기준은 정식 상호
     fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:'cust',value:sendName,base_ts:tr.dataset.ts||'',customer_id:(opt?opt.id:'')})})
+      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:'cust',value:sendName,base_ts:tr.dataset.ts||'',customer_id:(opt?opt.id:''),so_oid:tr.dataset.soid||''})})
       .then(function(r){return r.json();}).then(function(j){ _editing=null;
         if(j.updated_at) tr.dataset.ts=j.updated_at;
         if(j.ok){ td.dataset.real=sendName;
@@ -2283,7 +2283,7 @@ function schedBulkPreview(){
   if(_isDateField(field)){ val=_normDate(val); if(!_dateOk(val)){ _dateWarn(); return; } }
   var targets=[], lines=[], nProj=0, nCons=0;
   rows.forEach(function(tr){
-    targets.push({kind:tr.dataset.kind, ref_id:parseInt(tr.dataset.ref,10)});
+    targets.push({kind:tr.dataset.kind, ref_id:parseInt(tr.dataset.ref,10), so_oid:(tr.dataset.soid||''), uids:(tr.dataset.uids||'')});   // z1191: 줄의 수주
     if(tr.dataset.kind==='consumable') nCons++; else nProj++;
     var code=((tr.querySelector('.c1 a')||{}).textContent||'').trim();
     var nm=((tr.querySelector('td[data-col="name"]')||{}).textContent||'').trim();
@@ -2316,10 +2316,13 @@ function schedBulkConfirm(){
       var okSet={}; (j.ok_keys||[]).forEach(function(k){ okSet[k]=1; });
       var cr=j.cust_results||{};
       p.targets.forEach(function(t){
-        if(!okSet[(t.kind||'')+':'+t.ref_id]) return;   // 성공건만 반영(실패·건너뜀 제외)
-        var tr=_tbody.querySelector('tr[data-kind="'+t.kind+'"][data-ref="'+t.ref_id+'"]');
+        // z1191: 수주 줄은 「관리번호:수주」 키 — 같은 관리번호 여러 수주 줄도 고른 줄만 칠한다
+        var _k=(t.kind||'')+':'+t.ref_id, _ks=t.so_oid ? (_k+':'+t.so_oid) : _k;
+        if(!okSet[_ks] && !okSet[_k]) return;   // 성공건만 반영(실패·건너뜀 제외)
+        var tr=t.so_oid ? _tbody.querySelector('tr[data-kind="'+t.kind+'"][data-ref="'+t.ref_id+'"][data-soid="'+t.so_oid+'"]') : null;
+        if(!tr) tr=_tbody.querySelector('tr[data-kind="'+t.kind+'"][data-ref="'+t.ref_id+'"]');
         if(!tr) return;
-        var cust_ok = (j.field==='cust') ? !!cr[String(t.ref_id)] : true;
+        var cust_ok = (j.field==='cust') ? !!(cr[t.ref_id+':'+t.so_oid] || cr[String(t.ref_id)]) : true;
         setCellDisplay(tr, p.field, p.value, cust_ok);
       });
       closeBulkModal();

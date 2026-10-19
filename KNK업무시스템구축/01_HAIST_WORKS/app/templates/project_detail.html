@@ -1991,7 +1991,7 @@
         <div class="proj-grid-wrap">
         <dl class="def">
           <dt>관리번호</dt><dd style="font-family:inherit;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
-          <dt>고객사</dt><dd title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}</dd>{# v5H226z706: 표시는 시스템명 우선(정식명은 title) #}
+          <dt>고객사</dt><dd title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}{% set _oth1191 = (project_orders or [])|selectattr('customer_id')|rejectattr('customer_id', 'equalto', p.customer_id)|map(attribute='customer_id')|unique|list %}{% if _oth1191 %} <span class="cust-oth1191" style="font-size:11px;color:#64748b;font-weight:500;" title="이 관리번호의 다른 발주처(수주별) — 수주 카드 「🏢 발주처」에서 고칩니다">외 {{ _oth1191|length }}곳 ({% for _c1191 in _oth1191 %}{{ (cust_alias|default({},true)).get(_c1191) or ((project_orders|selectattr('customer_id', 'equalto', _c1191)|first).so_customer) or '—' }}{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endif %}{# z1191c: 수주번호 기준 — 다른 발주처가 있으면 외 n곳 #}</dd>{# v5H226z706: 표시는 시스템명 우선(정식명은 title) #}
           {# v5H226z1034 (안지연 프로 신고·대표 지시): 이 값은 **프로젝트 기본값**이다 — 수주마다 자기 값이 있으면 그게 우선.
              이걸 '이 관리번호의 PO유형' 하나로 읽고 [프로젝트 정보 수정]에서 고쳐, 수주 4건이 통째로 바뀐 사고가 났다.
              → 수주가 2건 이상이면 '기본값'임을 밝히고 수주별로 고치라고 안내한다. #}

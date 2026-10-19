@@ -3584,6 +3584,10 @@ def init_db():
             # v5H226z570 (대표 지시·업무량 집계): 소요시간(시간) — 완료 기록 시 직접 입력(부서/개인 업무량 측정)
             if "hours" not in _dslc:
                 c.execute("ALTER TABLE dept_schedule_log ADD COLUMN hours REAL")
+            # z1191b (대표 2026-10-19 「부서 기록도 수주번호별로」): 기록이 붙는 수주(orders.id)
+            #   NULL = 옛 기록(관리번호 전체 — 전사일정표에서 그 관리번호 첫 수주 줄에 보인다)
+            if "order_id" not in _dslc:
+                c.execute("ALTER TABLE dept_schedule_log ADD COLUMN order_id INTEGER")
         except Exception as _e:
             print(f"[v5H226z496] dept_schedule_log 생성 스킵: {_e}")
 

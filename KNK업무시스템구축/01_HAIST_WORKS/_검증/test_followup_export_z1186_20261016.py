@@ -250,6 +250,13 @@ def pick_cust(pg, text):
     pg.dispatch_event(".knkcust-it >> nth=0", "mousedown")
     pg.wait_for_timeout(700)
 
+def pick_chip(pg, text):
+    # z1191: 관리번호를 골라도 고객사는 비어 있다 — 「지난 발주처」 단추로 고른다(사람이 누르는 것과 같게)
+    hit = pg.evaluate("""(t)=>{ var b=[].filter.call(document.querySelectorAll('#qCust1Chips .qf-chip'), function(e){ return e.textContent===t; })[0];
+        if(!b) return false; b.click(); return true; }""", text)
+    pg.wait_for_timeout(900)   # 번호로 고르기(목록 받기) → change → 거래구분 채움(목록 받기)
+    return hit
+
 def pick_mgmt(pg, code):
     for _t in range(3):
         pg.fill("#qMgmtInput", "")
@@ -297,12 +304,14 @@ def a_mgmt_first(pg):
     pg.select_option("#qPoType", "개조")
     pg.wait_for_timeout(300)
     hit = pick_mgmt(pg, M1)
+    s0 = st(pg)   # z1191: 관리번호만 골랐을 때 — 고객사 비어 있음
+    pick_chip(pg, "가상 VINA")
     s1 = st(pg)
     pick_cust(pg, "가상국내(동탄)")
     s2 = st(pg)
     fill_rest(pg, "z1186-A")
     r = submit(pg)
-    return {"hit": hit, "after_mgmt": s1, "after_cust": s2, "submit": r}
+    return {"hit": hit, "before_chip": s0, "after_mgmt": s1, "after_cust": s2, "submit": r}
 
 def b_cust_first(pg):
     # 발주처(국내)를 먼저 고르고 → PO 개조 → 관리번호(수출 프로젝트) → 내수 그대로
@@ -324,6 +333,7 @@ def c_same_blank_country(pg):
     pg.select_option("#qPoType", "개조")
     pg.wait_for_timeout(300)
     hit = pick_mgmt(pg, M2)
+    pick_chip(pg, "가상삼성")   # z1191
     s1 = st(pg)
     pick_cust(pg, "가상국내(동탄)")
     s2 = st(pg)
@@ -337,6 +347,7 @@ def d_reverse(pg):
     pg.select_option("#qPoType", "추가")
     pg.wait_for_timeout(300)
     hit = pick_mgmt(pg, M3)
+    pick_chip(pg, "가상아산")   # z1191
     s1 = st(pg)
     pick_cust(pg, "가상 VINA")
     s2 = st(pg)
@@ -348,6 +359,7 @@ def e_touched(pg):
     pg.select_option("#qPoType", "개조")
     pg.wait_for_timeout(300)
     hit = pick_mgmt(pg, M1)
+    pick_chip(pg, "가상 VINA")   # z1191
     s1 = st(pg)
     pg.select_option("#qIsExport", "0")
     pg.wait_for_timeout(200)
@@ -449,7 +461,9 @@ def case(k):
 
 S_DOM, S_VINA, S_SAM = str(CUST["DOM"]), str(CUST["VINA"]), str(CUST["SAM"])
 A = case("A")
-check("A 관리번호 먼저 → 고객사가 그 프로젝트 고객으로 채워지고 거래구분 = 수출(같은 고객 → 프로젝트 값) · 안내 보임",
+check("A 관리번호만 고르면 고객사 비어 있음(z1191 · 몰래 안 채움)", A.get("hit") and not (A.get("before_chip") or {}).get("cid"),
+      A.get("before_chip"))
+check("   「지난 발주처」 단추로 그 프로젝트 고객 → 거래구분 = 수출(같은 고객 → 프로젝트 값) · 안내 보임",
       A.get("hit") and (A.get("after_mgmt") or {}).get("cid") == S_VINA and (A.get("after_mgmt") or {}).get("iex") == "1"
       and (A.get("after_mgmt") or {}).get("hint") is True, A)
 check("   발주처를 국내로 바꾸면 거래구분 = 내수", (A.get("after_cust") or {}).get("cid") == S_DOM

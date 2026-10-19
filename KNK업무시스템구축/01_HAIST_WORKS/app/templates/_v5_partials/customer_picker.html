@@ -67,6 +67,8 @@ window.KNKCust = (function(){
     inp.__custSetFree=function(free){ inp.setAttribute('data-cust-free', free?'1':'0');
       if(free){ hName.value=inp.value.trim(); hId.value=''; mark(true); fire(); }
       else { var o=findExact(inp.value); if(o){ setSel(o); } else { clearSel(); } } };
+    // z1191: 번호로 바로 고르기(같은 상호 다른 종사업장도 정확히) — 추가 발주 「지난 발주처」 단추가 쓴다
+    inp.__custSetById=function(id){ load().then(function(){ var o=(_opts||[]).filter(function(x){ return String(x.id)===String(id); })[0]; if(o) setSel(o); }); };
     function render(q){
       var t=norm(q), qq=(q||'').trim();
       var list=(_opts||[]).filter(function(o){ return !t || norm(o.name).indexOf(t)>=0 || (o.alias&&norm(o.alias).indexOf(t)>=0) || (o.sub_biz_no&&o.sub_biz_no.indexOf(qq)>=0); }).slice(0,80);
@@ -107,6 +109,7 @@ window.KNKCust = (function(){
   var _t=null;
   try{ new MutationObserver(function(){ if(_t) return; _t=setTimeout(function(){ _t=null; initAll(); },120); }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}
   function setFree(inp, free){ try{ if(inp && inp.__custSetFree) inp.__custSetFree(free); }catch(e){} }
-  return { attach:attach, initAll:initAll, validate:validate, load:load, setFree:setFree };
+  function setById(inp, id){ try{ if(inp && inp.__custSetById) inp.__custSetById(id); }catch(e){} }   // z1191
+  return { attach:attach, initAll:initAll, validate:validate, load:load, setFree:setFree, setById:setById };
 })();
 </script>

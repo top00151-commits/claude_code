@@ -18106,9 +18106,23 @@ async def sales_orders_quick_edit(req: Request, oid: int):
                                     f"차액 {new_a - items_s:,.0f}원이 발생합니다.\n"
                                     f"호기별 단가를 직접 수정하거나, '➕ 호기' 로 차액만큼의 호기를 추가하세요.")
                     }, 400)
+        # z1191: 첫 수주의 발주처·2차를 고치면 프로젝트 대표값도 맞춘다(옛 값이 같을 때만) — 고치기 전 값을 먼저 잡는다
+        _old1191 = None
+        if sets and (("order_customer" in form) or ("end_customer" in form)):
+            try:
+                _oc1191 = {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
+                _old1191 = c.execute("SELECT customer_id, " + ("end_customer" if "end_customer" in _oc1191 else "NULL")
+                                     + " FROM orders WHERE id=?", (oid,)).fetchone()
+            except Exception as _e1191:
+                print(f"[z1191] 빠른 수정 옛 발주처 읽기 실패: {_e1191}")
         if sets:   # v5H226z981: 비고(line_note)만 수정하는 호출은 orders UPDATE 없음
             vals.append(oid)
             c.execute(f"UPDATE orders SET {', '.join(sets)} WHERE id=?", vals)
+            if _old1191 is not None and cur["project_id"]:
+                try:
+                    _z1191_sync_project_from_so(c, int(cur["project_id"]), int(oid), _old1191[0], _old1191[1])
+                except Exception as _e1191:
+                    print(f"[z1191] 첫 수주 → 프로젝트 대표값 맞추기 실패: {_e1191}")
         # v5H226z981: 이 수주 호기 비고 일괄 수정(작업일정표 기타사항 셀 = 그 SO 호기 전체)
         # v5H226z983: 지움='' 저장(NULL 아님) — 보드가 프로젝트 메모로 되살리지 않게('지우면 진짜 지워짐')
         if _note981 is not None:
@@ -30318,6 +30332,194 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
 
 # v5H226z264 (대표 지시): 작업 일정표 보드 — 셀 편집/메모/칸설정 저장 라우트.
 #   연결성 원칙: 화이트리스트 필드만(_SCHED_CELL_MAP) · id·종류 검증 · 권한 가드.
+# ─────────────────────────────────────────────────────────────────────────────
+# z1191 (대표 2026-10-19 「등록할 때부터 발주업체를 관리번호가 아니라 수주번호별로 — 고객사1·고객사2 모두」)
+#   수주(SO)마다 1차(orders.customer_id)·2차(orders.end_customer)를 갖는다. 프로젝트 값 = 대표(첫 수주).
+#   · 작업일정표 칸(고객사·고객사2·거래구분, 일괄은 PO유형까지)은 **그 줄의 수주**에 저장 — z1033(PO유형)과 같은 원칙
+#     (화면은 수주 값을 보이는데 프로젝트를 고치면 「고쳐도 안 바뀐다」 + 같은 관리번호 다른 수주 줄까지 바뀐다).
+#   · 첫 수주를 고치면 대표값도, 정보수정(대표값)을 고치면 첫 수주도 맞춘다 — 상대 값이 옛 값과 같을 때만
+#     (일부러 다르게 둔 것은 덮지 않는다 · 날짜 퍼뜨리기와 같은 규칙).
+# ─────────────────────────────────────────────────────────────────────────────
+def _z1191_first_so_id(c, pid):
+    r = c.execute("SELECT MIN(id) FROM orders WHERE project_id=?", (int(pid),)).fetchone()
+    return int(r[0]) if (r and r[0]) else None
+
+
+def _z1191_ocols(c):
+    return {x[1] for x in c.execute("PRAGMA table_info(orders)").fetchall()}
+
+
+def _z1191_resolve_cust(c, text, picked_id=None):
+    """등록 고객사 정확 연결 — 고른 번호 우선 · 시스템명(alias) 정확 일치 · 정식명은 유일할 때만(z1079 와 같은 규칙).
+    수주에는 이름만 따로 적는 칸이 없어 연결 안 되는 이름은 저장하지 않는다. 반환 (id 또는 None, 안내문)."""
+    if picked_id is not None and str(picked_id).strip().isdigit():
+        r = c.execute("SELECT id FROM customers WHERE id=?", (int(str(picked_id).strip()),)).fetchone()
+        if r:
+            return int(r[0]), ""
+    t = (text or "").strip()
+    if not t:
+        return None, "고객사를 비울 수 없습니다 — 등록 고객사에서 고르세요"
+    ccols = {x[1] for x in c.execute("PRAGMA table_info(customers)").fetchall()}
+    hits = c.execute("SELECT id FROM customers WHERE alias=?", (t,)).fetchall() if "alias" in ccols else []
+    if not hits:
+        hits = c.execute("SELECT id FROM customers WHERE name=?", (t,)).fetchall()
+    if not hits:
+        return None, f"'{t}' 를 등록 고객사에서 찾을 수 없습니다 — 목록에서 고르세요(수주 줄은 등록 고객사만)"
+    if len(hits) > 1:
+        return None, f"'{t}' 이름의 등록 고객사가 {len(hits)}곳입니다 — 시스템명(예: 드림텍(아산))으로 고르세요"
+    return int(hits[0][0]), ""
+
+
+def _z1191_sync_project_from_so(c, pid, oid, old_cid, old_end):
+    """첫 수주를 고쳤으면 프로젝트 대표값(고객사1·고객사2)도 맞춘다 — 프로젝트 값이 그 수주의 옛 값과 같을 때만."""
+    if not pid or _z1191_first_so_id(c, pid) != int(oid):
+        return
+    p = c.execute("SELECT customer_id, COALESCE(secondary_customer,''), COALESCE(final_amount,0) FROM projects WHERE id=?",
+                  (int(pid),)).fetchone()
+    if not p:
+        return
+    has_end = "end_customer" in _z1191_ocols(c)
+    so = c.execute("SELECT customer_id, " + ("end_customer" if has_end else "NULL") + " FROM orders WHERE id=?",
+                   (int(oid),)).fetchone()
+    if not so:
+        return
+    if so[0] and so[0] != old_cid and p[0] == old_cid:
+        nm = c.execute("SELECT name FROM customers WHERE id=?", (so[0],)).fetchone()
+        c.execute("UPDATE projects SET customer_id=?, customer_name=? WHERE id=?", (so[0], (nm[0] if nm else None), int(pid)))
+    if has_end:
+        p2 = (p[1] or "").strip()
+        eff_old = ((old_end if old_end is not None else p2) or "").strip()   # NULL = 프로젝트 값을 따르고 있었다
+        eff_new = (so[1] or "").strip()                                      # 첫 수주에서 지우면 대표도 지운다
+        if p2 == eff_old and eff_new != p2:
+            c.execute("UPDATE projects SET secondary_customer=?, two_tier_order=? WHERE id=?",
+                      (eff_new or None, 1 if (eff_new or float(p[2] or 0) > 0) else 0, int(pid)))
+
+
+def _z1191_cascade_first_so(c, pid, old_cid, old_sec):
+    """정보수정으로 프로젝트 대표값(고객사1·고객사2)을 바꾸면 첫 수주도 맞춘다 — 첫 수주 값이 옛 대표값과 같을 때만."""
+    fid = _z1191_first_so_id(c, pid)
+    if not fid:
+        return
+    p = c.execute("SELECT customer_id, COALESCE(secondary_customer,'') FROM projects WHERE id=?", (int(pid),)).fetchone()
+    if not p:
+        return
+    has_end = "end_customer" in _z1191_ocols(c)
+    so = c.execute("SELECT customer_id, " + ("end_customer" if has_end else "NULL") + " FROM orders WHERE id=?",
+                   (fid,)).fetchone()
+    if p[0] and p[0] != old_cid and so[0] == old_cid:
+        c.execute("UPDATE orders SET customer_id=? WHERE id=?", (p[0], fid))
+    new_sec, old_sec = (p[1] or "").strip(), (old_sec or "").strip()
+    if has_end and new_sec != old_sec and so[1] is not None and (so[1] or "").strip() == old_sec:
+        c.execute("UPDATE orders SET end_customer=? WHERE id=?", (new_sec[:100] or None, fid))
+
+
+def _z1191_hist(c, oid, user, note):
+    try:
+        c.execute("INSERT INTO order_status_history(order_id, from_status, to_status, changed_by, note) VALUES(?,?,?,?,?)",
+                  (int(oid), "", "", ((user or {}).get("id") or None), note))
+    except Exception as e:
+        print(f"[z1191] 변경 이력 남기기 실패: {e}")
+
+
+def _z1191_so_cell(field, value, so_oid, pid, picked_cid=None, uids=None, user=None):
+    """작업일정표 칸 → **그 줄의 수주**에 저장. field = cust(1차) · cust2(2차) · trade(거래구분) · po_type(일괄).
+    계산서 발행·수금이 끝난(또는 취소된) 수주는 1차·거래구분을 바꾸지 않는다(상세 수주 카드와 같은 기준). 반환 dict(ok, error, value)."""
+    val = str(value or "").strip()
+    try:
+        so_oid, pid = int(so_oid), int(pid)
+    except Exception:
+        return {"ok": False, "error": "대상 형식 오류"}
+    with db_session() as c:
+        oc = _z1191_ocols(c)
+        r = c.execute("SELECT project_id, customer_id, " + ("end_customer" if "end_customer" in oc else "NULL") + ", "
+                      + ("COALESCE(po_type,'')" if "po_type" in oc else "''") + ", UPPER(COALESCE(status,''))"
+                      " FROM orders WHERE id=?", (so_oid,)).fetchone()
+        if not r or int(r[0] or 0) != pid:
+            return {"ok": False, "error": "이 수주는 해당 관리번호의 것이 아닙니다"}
+        old_cid, old_end, old_po, st = r[1], r[2], r[3], r[4]
+        if field in ("cust", "trade") and st in ("INVOICED", "PAID", "CANCELLED"):
+            return {"ok": False, "error": "계산서 발행·수금이 끝났거나 취소된 수주는 " + ("발주처" if field == "cust" else "거래구분")
+                                          + "를 바꿀 수 없습니다"}
+        if field == "cust":
+            cid, msg = _z1191_resolve_cust(c, val, picked_cid)
+            if not cid:
+                return {"ok": False, "error": msg}
+            c.execute("UPDATE orders SET customer_id=? WHERE id=?", (cid, so_oid))
+            _z1191_sync_project_from_so(c, pid, so_oid, old_cid, old_end)
+            ccols = {x[1] for x in c.execute("PRAGMA table_info(customers)").fetchall()}
+            d = c.execute(("SELECT COALESCE(NULLIF(alias,''), name) " if "alias" in ccols else "SELECT name ")
+                          + "FROM customers WHERE id=?", (cid,)).fetchone()
+            _z1191_hist(c, so_oid, user, "발주처(1차) 변경 (작업일정표)")
+            return {"ok": True, "value": (d[0] if d else val)}
+        if field == "cust2":
+            if "end_customer" not in oc:
+                return {"ok": False, "error": "수주 2차 칸 없음(마이그레이션 필요)"}
+            c.execute("UPDATE orders SET end_customer=? WHERE id=?", (val[:100] or None, so_oid))
+            _z1191_sync_project_from_so(c, pid, so_oid, old_cid, old_end)
+            _z1191_hist(c, so_oid, user, f"2차 발주처 변경: {old_end or '(미지정)'} → {val or '(비움)'} (작업일정표)")
+            return {"ok": True, "value": val}
+        if field == "trade":
+            if val not in ("수출", "내수"):
+                return {"ok": False, "error": "거래구분은 수출/내수만 가능"}
+            iv = 1 if val == "수출" else 0
+            ids = [int(x) for x in (uids or []) if str(x).strip().isdigit()]
+            if ids:
+                q = ",".join("?" * len(ids))
+                c.execute(f"UPDATE order_items SET is_export=? WHERE order_id=? AND id IN ({q})", (iv, so_oid, *ids))
+            else:
+                c.execute("UPDATE order_items SET is_export=? WHERE order_id=?", (iv, so_oid))
+            _z1191_hist(c, so_oid, user, f"거래구분 → {val} (작업일정표)")
+            return {"ok": True, "value": val}
+        if field == "po_type":
+            pv = val or "신규"
+            if pv not in _logi.PO_TYPES:
+                return {"ok": False, "error": "PO유형은 " + "/".join(_logi.PO_TYPES) + " 중 하나여야 합니다"}
+            if "po_type" not in oc:
+                return {"ok": False, "error": "수주별 PO유형 칸 없음(마이그레이션 필요)"}
+            c.execute("UPDATE orders SET po_type=?, updated_at=datetime('now','localtime') WHERE id=?", (pv, so_oid))
+            _z1191_hist(c, so_oid, user, f"PO유형 변경: {old_po or '(미지정)'} → {pv} (작업일정표 일괄)")
+            return {"ok": True, "value": pv}
+    return {"ok": False, "error": "허용되지 않은 항목"}
+
+
+def _rows_add_so_custs_z1191(c, rows):
+    """추가 발주 「지난 발주처」 단추 — 관리번호마다 수주들의 1차(최근 것부터 · 중복 없이 · 건수)와 2차(수주 2차 + 프로젝트 고객사2).
+    수주가 없는 관리번호는 프로젝트 고객을 하나 보인다."""
+    pids = [int(r["id"]) for r in rows if r.get("id")]
+    for r in rows:
+        r["so_custs"], r["so_ends"] = [], []
+    if not pids:
+        return
+    ccols = {x[1] for x in c.execute("PRAGMA table_info(customers)").fetchall()}
+    nm = "COALESCE(NULLIF(cu.alias,''), cu.name, '')" if "alias" in ccols else "COALESCE(cu.name, '')"
+    ec = "o.end_customer" if "end_customer" in _z1191_ocols(c) else "NULL"
+    q = ",".join("?" * len(pids))
+    by = {}
+    for o in c.execute(f"SELECT o.project_id, o.customer_id, {nm}, {ec} FROM orders o "
+                       f"LEFT JOIN customers cu ON cu.id=o.customer_id WHERE o.project_id IN ({q}) ORDER BY o.id DESC", pids):
+        d = by.setdefault(o[0], {"c": [], "e": []})
+        if o[1] and (o[2] or "").strip():
+            hit = next((x for x in d["c"] if x["id"] == o[1]), None)
+            if hit:
+                hit["n"] += 1
+            else:
+                d["c"].append({"id": o[1], "name": o[2].strip(), "n": 1})
+        e = (o[3] or "").strip()
+        if e and e != "None" and e not in d["e"]:
+            d["e"].append(e)
+    for p in c.execute(f"SELECT p.id, COALESCE(p.secondary_customer,''), p.customer_id, {nm} FROM projects p "
+                       f"LEFT JOIN customers cu ON cu.id=p.customer_id WHERE p.id IN ({q})", pids):
+        d = by.setdefault(p[0], {"c": [], "e": []})
+        s = (p[1] or "").strip()
+        if s and s != "None" and s not in d["e"]:
+            d["e"].append(s)
+        if not d["c"] and p[2] and (p[3] or "").strip():
+            d["c"].append({"id": p[2], "name": p[3].strip(), "n": 0})
+    for r in rows:
+        d = by.get(int(r["id"]), {"c": [], "e": []})
+        r["so_custs"], r["so_ends"] = d["c"][:8], d["e"][:8]
+
+
 @app.post("/sales/schedule/cell")
 async def schedule_board_cell(request: Request):
     """정보칸(기타사항·부서·담당자·납품위치) 원본 수정 — 혼합 정책의 '원본 반영' 부분."""
@@ -30388,6 +30590,21 @@ async def schedule_board_cell(request: Request):
         except Exception as e:
             return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
         return JSONResponse({"ok": True, "value": _pv, "scope": "so"})
+    # z1191 (대표 2026-10-19 「수주번호 기준」): 고객사1·고객사2·거래구분도 **그 줄의 수주**에 저장(위 z1033 과 같은 원칙 —
+    #   화면은 수주 값을 보이는데 프로젝트를 고치면 고쳐도 안 바뀌고, 같은 관리번호 다른 수주 줄까지 바뀌었다).
+    #   so_oid 가 없는 줄(수주 없는 프로젝트)은 기존대로 프로젝트를 고친다.
+    if field in ("cust", "cust2", "trade") and kind == "project" and _so_oid.isdigit():
+        _uids1191 = [x for x in str(b.get("uids") or "").split(",") if x.strip().isdigit()]
+        try:
+            _r1191 = _z1191_so_cell(field, value, _so_oid, ref_id, picked_cid=b.get("customer_id"), uids=_uids1191, user=u)
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+        if not _r1191.get("ok"):
+            return JSONResponse({"ok": False, "error": _r1191.get("error") or "저장 실패"}, 400)
+        _out1191 = {"ok": True, "error": "", "value": _r1191.get("value", ""), "scope": "so"}
+        if field == "cust":
+            _out1191["cust_ok"] = True
+        return JSONResponse(_out1191)
     try:
         ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
     except Exception as e:
@@ -30460,6 +30677,23 @@ async def schedule_board_bulk_cell(request: Request):
             _ref = int(t.get("ref_id"))
         except Exception:
             failures.append({"ref_id": (t or {}).get("ref_id"), "error": "대상 형식 오류"})
+            continue
+        # z1191: 고객사1·고객사2·거래구분·PO유형은 고른 **줄의 수주**에(한 칸 고치기와 같은 규칙)
+        _soid1191 = str((t or {}).get("so_oid") or "").strip()
+        if field in ("cust", "cust2", "trade", "po_type") and _kind == "project" and _soid1191.isdigit():
+            _uids1191 = [x for x in str((t or {}).get("uids") or "").split(",") if x.strip().isdigit()]
+            try:
+                _r1191 = _z1191_so_cell(field, value, _soid1191, _ref, uids=_uids1191, user=u)
+            except Exception as e:
+                failures.append({"ref_id": _ref, "kind": _kind, "so_oid": _soid1191, "error": str(e)[:120]})
+                continue
+            if _r1191.get("ok"):
+                ok_count += 1
+                ok_keys.append(f"{_kind}:{_ref}:{_soid1191}")
+                if field == "cust":
+                    cust_results[f"{_ref}:{_soid1191}"] = True
+            else:
+                failures.append({"ref_id": _ref, "kind": _kind, "so_oid": _soid1191, "error": _r1191.get("error") or "실패"})
             continue
         try:
             ok, msg = _logi.schedule_cell_update(_kind, _ref, field, value)
@@ -31635,7 +31869,9 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
     def _dsx_hidden(st):
         s = str(st or "").strip()
         return s in ("출하", "취소", "보류") or s.upper() in ("SHIPPED", "PAID", "CANCELLED", "HOLD")
-    _split_map = _board_split_lines_map(unfold_sos=False, pids=_pids)   # v5H226z665: 부서일정표는 관리번호=한 줄 유지(추가 SO 묶음) — 부서 기록 중복 방지 (z864: 월 한정)
+    # z1191b (대표 2026-10-19 「부서 기록이 수주번호별로」): 전사일정표도 수주번호마다 한 줄(작업일정표와 같은 unfold_sos=True).
+    #   옛 z665 「관리번호=한 줄」은 부서 기록이 관리번호 단위라 겹쳐 보이지 않게 하려던 것 — 기록이 수주별(order_id)이 되어 필요 없다.
+    _split_map = _board_split_lines_map(unfold_sos=True, pids=_pids)   # v5H226z665: 부서일정표는 관리번호=한 줄 유지(추가 SO 묶음) — 부서 기록 중복 방지 (z864: 월 한정)
     _bus_iid, _bus_proj = _board_unit_status_maps(pids=_pids)   # v5H226z661 (대표 지시): 부서일정표 납기 지연색도 호기 출하 반영(작업일정표와 동일)
     for p in (dict(r) for r in _logi.projects_list_logi(ids=_pids)):   # v5H226z864: 월 보기 후보만
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
@@ -31665,6 +31901,20 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
                 _iu["due_date"] = (_ln.get("due_date") or info.get("due_date") or "")
                 _iu["uids"] = _ln.get("iids") or []
                 _iu["unit_label"] = _ln.get("label") or ""
+                # z1191b (대표 「수주번호 기준」): 이 줄 = 그 수주 — 발주처·고객 담당자·PO유형·모델·장비도 그 수주 값(없으면 프로젝트 값)
+                _iu["so_oid"] = _ln.get("oid")
+                if _ln.get("so_cust_id"):
+                    _iu["customer"] = (_cust_alias.get(_ln.get("so_cust_id")) or _ln.get("so_customer_disp")
+                                       or _ln.get("so_customer") or info["customer"])
+                    _iu["cust_ok"] = True
+                if _ln.get("so_owner"):
+                    _iu["owner"] = _ln.get("so_owner")
+                if _ln.get("so_ptype"):
+                    _iu["po_type"] = _ln.get("so_ptype")
+                if _ln.get("so_model"):
+                    _iu["model"] = _ln.get("so_model")
+                if _ln.get("so_equip"):
+                    _iu["equip"] = _ln.get("so_equip")
                 try:
                     _iu["multi"] = int(_iu.get("qty") or 0) >= 2
                 except Exception:
@@ -31709,6 +31959,17 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
     except Exception:
         pass
 
+    # z1191b: 줄마다 기록 열쇠 — 수주 줄 = 「project:관리번호id:수주id」 · 수주 없는 프로젝트·소모품 = 예전대로 「kind:id」.
+    #   옛 기록(수주 없이 관리번호에 붙은 것)은 그 관리번호의 첫(가장 앞 수주) 줄에 보인다.
+    _first_lk1191 = {}
+    for r in rows:
+        if r.get("kind") == "project" and r.get("so_oid"):
+            r["log_key"] = f"project:{r['ref_id']}:{r['so_oid']}"
+            _pf1191 = _first_lk1191.get(r["ref_id"])
+            if _pf1191 is None or int(r["so_oid"]) < _pf1191[0]:
+                _first_lk1191[r["ref_id"]] = (int(r["so_oid"]), r["log_key"])
+        else:
+            r["log_key"] = f"{r['kind']}:{r['ref_id']}"
     # 사업부 분류 + 탭 필터 (관리번호 4번째 글자 T/M/L/E/C)
     for r in rows:
         _rc = r.get("code") or ""
@@ -31744,20 +32005,29 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
     # 이 달 부서 기록 로드 → logmap[key][day_str]=[entries] , cellsum[key][day_str]={n,color}
     #   + 월간/품목별 요약(summary): 유형분포·부서별 건수·기록 품목 수 (사업부 필터된 행 대상)
     logmap, cellsum = {}, {}
-    _visible_keys = {f"{r['kind']}:{r['ref_id']}" for r in rows}
+    _visible_keys = {(r.get("log_key") or f"{r['kind']}:{r['ref_id']}") for r in rows}   # z1191b: 줄 열쇠
     # v5H226z570 (대표 지시·업무량 집계): 월간 요약에 소요시간(hours) + 부서별/개인별 건수·완료·시간
     summary = {"total": 0, "prog": 0, "done": 0, "chg": 0, "etc": 0, "items": 0,
                "hours": 0.0, "by_dept": [], "by_person": []}
     _by_dept, _by_person, _items_with = {}, {}, set()
     try:
         with db_session() as _c:
+            # z1191b: 기록이 붙은 수주(order_id) — 칸이 없으면(마이그레이션 전) NULL
+            _oidc1191 = ("order_id" if "order_id" in {x[1] for x in _c.execute("PRAGMA table_info(dept_schedule_log)").fetchall()}
+                         else "NULL")
             for lr in _c.execute(
                 "SELECT ref_kind, ref_id, log_date, id, COALESCE(dept,''), COALESCE(log_type,'진행'), "
                 "COALESCE(content,''), COALESCE(created_by_name,''), COALESCE(updated_at,''), COALESCE(created_by,0), "
-                "COALESCE(handoff_to,''), COALESCE(unit_label,''), COALESCE(hours,0) "
+                "COALESCE(handoff_to,''), COALESCE(unit_label,''), COALESCE(hours,0), " + _oidc1191 + " "
                 "FROM dept_schedule_log WHERE log_date BETWEEN ? AND ? ORDER BY id",
                     (mstart.isoformat(), mend.isoformat())):
-                key = f"{lr[0]}:{lr[1]}"
+                # z1191b: 수주 줄 열쇠 · 옛 기록(수주 없음)은 그 관리번호 첫 수주 줄
+                if lr[0] == "project" and lr[13]:
+                    key = f"project:{lr[1]}:{lr[13]}"
+                elif lr[0] == "project" and lr[1] in _first_lk1191:
+                    key = _first_lk1191[lr[1]][1]
+                else:
+                    key = f"{lr[0]}:{lr[1]}"
                 try:
                     dnum = str(int(str(lr[2])[8:10]))
                 except Exception:
@@ -31855,9 +32125,21 @@ async def dept_schedule_add(request: Request):
         dept = _dept_sched_dept_of(u)
     notify = {"sent": 0, "in_app": 0, "to": handoff_to}
     with db_session() as c:
-        c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, unit_label, hours, created_by, created_by_name) "
-                  "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                  (kind, ref_id, date, dept, log_type, content, handoff_to or None, unit_label or None, hours, u.get("id"), u.get("name") or ""))
+        # z1191b: 기록이 붙는 수주 — 그 관리번호의 수주인지 확인(아니면 거부)
+        _oid1191 = None
+        if kind == "project" and str(body.get("order_id") or "").strip().isdigit():
+            _oid1191 = int(str(body.get("order_id")).strip())
+            _orow1191 = c.execute("SELECT project_id FROM orders WHERE id=?", (_oid1191,)).fetchone()
+            if not _orow1191 or int(_orow1191[0] or 0) != int(ref_id):
+                return JSONResponse({"ok": False, "error": "이 수주는 해당 관리번호의 것이 아닙니다"}, 400)
+        if "order_id" in {x[1] for x in c.execute("PRAGMA table_info(dept_schedule_log)").fetchall()}:
+            c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, unit_label, hours, created_by, created_by_name, order_id) "
+                      "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (kind, ref_id, date, dept, log_type, content, handoff_to or None, unit_label or None, hours, u.get("id"), u.get("name") or "", _oid1191))
+        else:
+            c.execute("INSERT INTO dept_schedule_log(ref_kind, ref_id, log_date, dept, log_type, content, handoff_to, unit_label, hours, created_by, created_by_name) "
+                      "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                      (kind, ref_id, date, dept, log_type, content, handoff_to or None, unit_label or None, hours, u.get("id"), u.get("name") or ""))
         # v5H226z543 (대표 지시): '넘길 부서'를 여러 개 선택 가능 — ' | '로 합쳐 옴 → 각 부서원에게 통보(합집합 1회).
         _targets = [t.strip() for t in (handoff_to or "").split("|") if t.strip()]
         _targets = [t for t in _targets if t != (dept or "")]
@@ -31870,6 +32152,10 @@ async def dept_schedule_add(request: Request):
                 else:
                     _cr = c.execute("SELECT mgmt_code FROM consumable_orders WHERE id=?", (ref_id,)).fetchone()
                 _code = (_cr[0] if _cr else "") or f"{kind}#{ref_id}"
+                if _oid1191:   # z1191b: 어느 수주의 기록인지 알림 제목에
+                    _sr1191 = c.execute("SELECT order_no FROM orders WHERE id=?", (_oid1191,)).fetchone()
+                    if _sr1191 and _sr1191[0]:
+                        _code = f"{_code} · {_sr1191[0]}"
                 # v5H226z542: 각 대상은 법인 라벨('베트남 · 설계팀') → 이름+법인으로 정확 매칭
                 _ids = set()
                 for _tg in _targets:
@@ -31978,13 +32264,16 @@ async def dept_schedule_timeline(request: Request, kind: str = "", ref_id: int =
             else:
                 _cr = c.execute("SELECT mgmt_code FROM consumable_orders WHERE id=?", (ref_id,)).fetchone()
             code = (_cr[0] if _cr else "") or f"{kind}#{ref_id}"
+            # z1191b: 어느 수주의 기록인지(수주번호) — 칸이 없으면 빈 글
+            _so1191 = ("COALESCE((SELECT o.order_no FROM orders o WHERE o.id=dept_schedule_log.order_id),'')"
+                       if "order_id" in {x[1] for x in c.execute("PRAGMA table_info(dept_schedule_log)").fetchall()} else "''")
             for r in c.execute(
                 "SELECT log_date, COALESCE(dept,''), COALESCE(log_type,'진행'), COALESCE(content,''), "
-                "COALESCE(created_by_name,''), COALESCE(handoff_to,''), COALESCE(unit_label,''), COALESCE(updated_at,'') "
-                "FROM dept_schedule_log WHERE ref_kind=? AND ref_id=? ORDER BY log_date, id",
+                "COALESCE(created_by_name,''), COALESCE(handoff_to,''), COALESCE(unit_label,''), COALESCE(updated_at,''), "
+                + _so1191 + " FROM dept_schedule_log WHERE ref_kind=? AND ref_id=? ORDER BY log_date, id",
                     (kind, ref_id)):
                 items.append({"date": str(r[0])[:10], "dept": r[1], "type": r[2], "content": r[3],
-                              "by": r[4], "to": r[5], "unit": r[6], "ts": r[7]})
+                              "by": r[4], "to": r[5], "unit": r[6], "ts": r[7], "so": r[8]})
     except Exception as _e:
         return JSONResponse({"ok": False, "error": f"조회 오류: {str(_e)[:80]}"}, 500)
     return JSONResponse({"ok": True, "code": code, "kind": kind, "ref_id": ref_id, "items": items})
@@ -36301,6 +36590,16 @@ async def projects_edit_submit(request: Request, pid: int):
                              "currency": _mr["currency"]}
     except Exception:
         _old_meta = {}
+    # z1191: 고객사1·2 = 대표(첫 수주) — 바꾸기 전 대표값을 잡아 두었다가 저장 뒤 첫 수주도 맞춘다
+    _old1191 = None
+    try:
+        with db_session() as _mc1191:
+            _r1191 = _mc1191.execute("SELECT customer_id, COALESCE(secondary_customer,'') FROM projects WHERE id=?",
+                                     (pid,)).fetchone()
+            if _r1191:
+                _old1191 = (_r1191[0], _r1191[1])
+    except Exception as _e1191:
+        print(f"[z1191] 정보수정 옛 대표값 읽기 실패: {_e1191}")
     # v5H192: 필수 필드 검증 (비고 제외)
     if not project_name:
         return RedirectResponse(f"{_edit_base}?error=name_required", status_code=303)
@@ -36520,6 +36819,13 @@ async def projects_edit_submit(request: Request, pid: int):
             _pwf.cascade_project_meta_to_so(c, int(pid), _old_meta, _new_meta, _u.get("id"))
     except Exception as _csc_err:
         print(f"[v5H226s] edit-submit meta cascade err: {_csc_err}")
+    # z1191: 대표(첫 수주) 맞추기 — 정보수정의 고객사1·2 를 바꾸면 첫 수주도(첫 수주 값이 옛 대표값과 같을 때만)
+    if _old1191 is not None:
+        try:
+            with db_session() as c:
+                _z1191_cascade_first_so(c, int(pid), _old1191[0], _old1191[1])
+        except Exception as _e1191:
+            print(f"[z1191] 정보수정 → 첫 수주 맞추기 실패: {_e1191}")
     return RedirectResponse(f"/project/{pid}", status_code=303)
 
 
@@ -46110,6 +46416,11 @@ async def api_projects_search(request: Request, q: str = ""):
                        ORDER BY p.id DESC LIMIT 30"""
                 ).fetchall()
             rows = [dict(r) for r in rs]
+            # z1191 (대표 「등록할 때부터 발주업체를 수주번호별로」): 추가 발주 「지난 발주처」 단추 — 그 관리번호 수주들의 1차·2차
+            try:
+                _rows_add_so_custs_z1191(c, rows)
+            except Exception as _e1191:
+                print(f"[z1191] 지난 발주처 목록 실패(단추 없이 계속): {_e1191}")
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
     return JSONResponse({"ok": True, "rows": rows})

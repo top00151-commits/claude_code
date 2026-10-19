@@ -137,6 +137,20 @@ def generate_so_no(c, biz_div: str = "T",
     return f"{base}-{max_n + 1}"
 
 
+def _z1191_end_first(c, proj, order_id):
+    """z1191 (대표 2026-10-19 「등록할 때부터 발주업체를 수주번호별로 — 고객사1·2 모두」): 신규 등록으로 생기는 수주도
+    2차 발주처(고객사2)를 자기 칸(orders.end_customer)에 갖는다. 1차는 이미 프로젝트 고객으로 들어간다. 프로젝트 값 = 대표(첫 수주)."""
+    try:
+        sec = str((proj or {}).get("secondary_customer") or "").strip()
+        if not sec or sec == "None" or not order_id:
+            return
+        if "end_customer" not in {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}:
+            return
+        c.execute("UPDATE orders SET end_customer=? WHERE id=? AND end_customer IS NULL", (sec[:100], int(order_id)))
+    except Exception as e:
+        print(f"[z1191] 신규 수주 2차 저장 실패(프로젝트 값을 따름): {e}")
+
+
 def confirm_order(c, project_id: int, order_date: str | None = None,
                    total_amount: float = 0, due_date: str = "",
                    created_by: int = 0,
@@ -210,6 +224,7 @@ def confirm_order(c, project_id: int, order_date: str | None = None,
              total_amount or 0, created_by or None)
         )
     order_id = cur.lastrowid
+    _z1191_end_first(c, proj, order_id)   # z1191: 첫 수주도 2차를 자기 칸에
 
     # 3. 상태 이력 기록 (테이블 있으면)
     try:
@@ -939,6 +954,7 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
                 )
             oid = cur.lastrowid
             reused = False
+            _z1191_end_first(c, proj, oid)   # z1191: 새로 만든 수주도 2차를 자기 칸에
 
         # 호기별 라인은 order_items 에 적재 (재사용/신규 모두 공통)
         # v5H177: 호기별 발주일/납기/납품처 override 지원. SO 그룹값과 같으면 NULL 저장(상속).

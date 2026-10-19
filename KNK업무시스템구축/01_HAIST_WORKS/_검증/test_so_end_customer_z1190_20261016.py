@@ -106,8 +106,8 @@ st, loc = post(name="z1190-P", po_type="신규", customer_name=ALIAS["DT"], cust
                secondary_customer="가상최종A", unit_price="1000", order_amount="1000", **{"unit_amount[]": ["1000"]})
 with D.db_session() as c:
     P = dict(c.execute("SELECT * FROM projects WHERE name='z1190-P'").fetchone())
-check("2 신규 등록(1차 가상드림(동탄) · 고객사2 가상최종A) → 프로젝트 2차 · 첫 수주 2차 칸은 비움(프로젝트를 따름)",
-      st == 303 and (P.get("secondary_customer") or "") == "가상최종A" and orders_of(P["id"])[0].get("end_customer") is None,
+check("2 신규 등록(1차 가상드림(동탄) · 고객사2 가상최종A) → 프로젝트 2차 · 첫 수주 2차 칸에도 저장(z1191 수주번호 기준)",
+      st == 303 and (P.get("secondary_customer") or "") == "가상최종A" and orders_of(P["id"])[0].get("end_customer") == "가상최종A",
       (st, loc, P.get("secondary_customer"), orders_of(P["id"])[0].get("end_customer")))
 
 

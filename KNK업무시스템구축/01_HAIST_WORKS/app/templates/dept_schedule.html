@@ -284,9 +284,9 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       </thead>
       <tbody>
         {% for r in rows %}
-        {% set key = r.kind ~ ':' ~ r.ref_id %}
+        {% set key = r.log_key or (r.kind ~ ':' ~ r.ref_id) %}{# z1191b: 수주 줄 = 「관리번호:수주」 기록 열쇠 #}
         {% set cs = cellsum.get(key) or {} %}
-        <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}" data-sono="{{ r.so_no or '' }}" data-multi="{{ '1' if r.multi else '' }}" data-uids="{{ (r.uids or [])|join(',') }}">
+        <tr data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-code="{{ r.code }}" data-sono="{{ r.so_no or '' }}" data-lk="{{ key }}" data-oid="{{ r.so_oid or '' }}" data-multi="{{ '1' if r.multi else '' }}" data-uids="{{ (r.uids or [])|join(',') }}">
           <td class="c-code">
             {# v5H226z513 (대표 지시): 부서 진행기록 모아보기(📜)를 관리번호 앞쪽으로 + 사업부(M) 배지 삭제 #}
             <span class="tl-btn" title="이 품목의 모든 부서 진행 기록 모아보기" role="button">📜</span>
@@ -418,7 +418,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
   function handoffClear(){ if(handoffSel){ handoffSel.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){c.checked=false;}); } }
   function handoffValue(){ var v=[]; if(handoffSel){ handoffSel.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){ v.push(c.value); }); } return v.join(' | '); }
   // v5H226z514: 그 칸의 기록 중 현재 대상(공통='' 또는 그 호기)만
-  function entries(){ var k=cur.kind+':'+cur.ref; var a=(LOGS[k]&&LOGS[k][String(cur.day)])||[];
+  function entries(){ var k=cur.lk||(cur.kind+':'+cur.ref); var a=(LOGS[k]&&LOGS[k][String(cur.day)])||[];
     return a.filter(function(e){ return (e.unit||'')===(cur.unit||''); }); }
   function renderList(){
     var es=entries();
@@ -441,9 +441,10 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     // v5H226z514: 호기 줄(dsx-unit-row)의 칸이면 그 호기 기록, 본 줄(관리번호)이면 공통('')
     var isUnit=tr.classList.contains('dsx-unit-row');
     cur={kind:tr.dataset.kind,ref:Number(tr.dataset.ref),code:tr.dataset.code,
+      lk:(tr.dataset.lk||''), oid:(tr.dataset.oid||''), sono:(tr.dataset.sono||''),   /* z1191b: 그 줄의 수주 */
       date:td.dataset.date,day:Number(td.dataset.day),
       unit:(isUnit?(tr.dataset.unit||''):'')};
-    titleEl.textContent=cur.code+' · '+cur.date+(cur.unit?(' · '+cur.unit):' · (공통)');
+    titleEl.textContent=cur.code+(cur.sono?(' · '+cur.sono):'')+' · '+cur.date+(cur.unit?(' · '+cur.unit):' · (공통)');
     editId=0; contentEl.value=''; if(hoursEl) hoursEl.value=''; if(MYTEAM) deptSel.value=MYTEAM; typeSel.selectedIndex=0;
     handoffClear(); if(handoffSel){ var hr=handoffSel.closest('.row'); if(hr) hr.style.display=''; }
     // v5H226z514: 호기는 줄로 선택(펼침) → 모달 드롭다운 폐지. 공통/호기는 클릭한 줄로 자동 결정.
@@ -468,6 +469,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     rtr.className='dsx-unit-row'; rtr.dataset.for=rowKey;
     rtr.dataset.kind=mainTr.dataset.kind; rtr.dataset.ref=mainTr.dataset.ref;
     rtr.dataset.code=mainTr.dataset.code; rtr.dataset.unit=label;
+    rtr.dataset.lk=mainTr.dataset.lk||''; rtr.dataset.oid=mainTr.dataset.oid||''; rtr.dataset.sono=mainTr.dataset.sono||'';   /* z1191b */
     // v5H226z515 (대표 지시): 관리번호 칸은 비우고, 호기 리스트는 '수주번호' 칸부터 시작
     var blank=document.createElement('td'); blank.className='c-code dsx-unit-blank'; rtr.appendChild(blank);
     var info=document.createElement('td');
@@ -488,7 +490,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
     if(!tr) return;
     var kind=tr.dataset.kind||'project', ref=tr.dataset.ref;
     var uids=(tr.dataset.uids||'');                 // v5H226z549: 이 줄(분할 SO)의 호기 id — 그 호기만 펼침
-    var logKey=kind+':'+ref;                         // LOGS(마커)는 프로젝트 단위 키
+    var logKey=tr.dataset.lk||(kind+':'+ref);        // z1191b: LOGS(마커)는 그 줄(수주) 열쇠
     var rowKey=logKey+(uids?(':'+uids):'');          // 펼친 줄 식별은 행별 고유 키(분할 행 충돌 방지)
     var existing=tr.parentNode.querySelectorAll('tr.dsx-unit-row[data-for="'+rowKey+'"]');
     if(existing.length){ existing.forEach(function(x){x.remove();}); if(btn){ btn.textContent='＋'; btn.classList.remove('on'); } return; }
@@ -542,6 +544,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
           if(e.date!==curd){ if(curd!==null) html+='</div>'; curd=e.date; html+='<div class="tl-day"><div class="tl-date">'+esc(e.date)+'</div>'; }
           html+='<div class="tl-ent"><span class="e-dept">'+esc(e.dept||'(부서)')+'</span>'
             +'<span class="e-type '+typeCls(e.type)+'">'+esc(e.type)+'</span>'
+            +(e.so?('<span class="e-unit" style="background:#eef2ff;color:#3730a3;">'+esc(e.so)+'</span>'):'')   /* z1191b: 수주번호 */
             +(e.unit?('<span class="e-unit">'+esc(e.unit)+'</span>'):'')
             +(e.to?('<span class="e-to">→ '+esc(e.to)+'</span>'):'')
             +'<span class="tl-c">'+esc(e.content)+'</span>'
@@ -594,7 +597,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       var es=entries(), ts=''; es.forEach(function(x){ if(x.id===editId) ts=x.ts; });
       post('/dept/schedule/cell/update',{id:editId,content:content,log_type:type,hours:hours,base_ts:ts});
     } else {
-      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,hours:hours,handoff_to:handoffValue(),unit_label:(cur.unit||'')});
+      post('/dept/schedule/cell/add',{kind:cur.kind,ref_id:cur.ref,date:cur.date,dept:deptSel.value,log_type:type,content:content,hours:hours,handoff_to:handoffValue(),unit_label:(cur.unit||''),order_id:(cur.oid||'')});
     }
   });
   function post(url, body){
