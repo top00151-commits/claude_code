@@ -147,9 +147,22 @@ tbody tr:hover td { background: var(--amber-glow); }
         .corp-badge.vn{background:#dbeafe;color:#1d4ed8;}
         .btn-del-user{border:1px solid #fecaca;background:#fff;color:#dc2626;border-radius:7px;padding:6px 11px;font-weight:700;font-size:12px;cursor:pointer;margin-left:4px;}
         .btn-del-user:hover{background:#fee2e2;}
+        /* z1191e (대표 2026-10-20 「사용자를 본사·베트남법인 페이지를 책갈피 형태로」): 법인 책갈피 */
+        .ucf-tabs{display:flex;gap:4px;align-items:flex-end;margin:10px 0 0;padding:0 4px;border-bottom:2px solid var(--line);}
+        .ucf-tab{border:1px solid var(--line);border-bottom:none;background:var(--paper-2);color:var(--mute);font:inherit;font-size:13px;font-weight:600;padding:8px 20px;border-radius:10px 10px 0 0;cursor:pointer;margin-bottom:-2px;}
+        .ucf-tab:hover{color:var(--ink);background:var(--paper);}
+        .ucf-tab.on{background:#fff;color:var(--ink);font-weight:800;border-bottom:2px solid #fff;box-shadow:inset 0 3px 0 var(--knk-red);}
+        .ucf-tab .n{font-weight:700;margin-left:7px;color:var(--mute);}
+        .ucf-tab.on .n{color:var(--knk-red);}
+        .ucf-tab.all{font-size:12px;padding:7px 14px;margin-left:6px;}
         </style>
+        <div class="ucf-tabs" role="tablist" aria-label="법인 책갈피">{# z1191e: 누르면 그 법인 사람만 · 숫자 = 실제 줄 수 #}
+          <button type="button" class="ucf-tab" role="tab" data-corp="본사">본사<span class="n"></span></button>
+          <button type="button" class="ucf-tab" role="tab" data-corp="베트남법인">베트남법인<span class="n"></span></button>
+          <button type="button" class="ucf-tab all" role="tab" data-corp="">전체<span class="n"></span></button>
+        </div>
         <div class="ucf">
-          <select id="ucfCorp" onchange="ucfApply()"><option value="">법인 전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
+          <select id="ucfCorp" onchange="ucfApply()" style="display:none;" aria-hidden="true"><option value="">법인 전체</option><option value="본사">본사</option><option value="베트남법인">베트남법인</option></select>
           <select id="ucfDept" onchange="ucfApply()"><option value="">부서 전체</option></select>
           <select id="ucfRank" onchange="ucfApply()"><option value="">직급 전체</option></select>
           <input id="ucfQ" oninput="ucfApply()" placeholder="이름·사번·메일 검색">
@@ -260,7 +273,38 @@ tbody tr:hover td { background: var(--amber-glow); }
               .then(function(r){return r.json();}).then(function(j){ if(j&&j.ok){ location.reload(); } else alert('삭제 실패: '+((j&&j.error)||'오류')); })
               .catch(function(){ alert('통신 오류'); });
           };
-          ucfApply();
+          /* z1191e (대표 2026-10-20): 법인 책갈피 — 누른 법인만 보이고(숨긴 법인 드롭다운 값을 바꿔 ucfApply),
+             부서 목록도 그 법인 부서만. 마지막 책갈피는 이 브라우저에 기억(처음 = 본사). */
+          var corpSel=document.getElementById('ucfCorp'), deptSel=document.getElementById('ucfDept');
+          var corpTabs=Array.prototype.slice.call(document.querySelectorAll('.ucf-tab'));
+          corpTabs.forEach(function(t){
+            var c=t.getAttribute('data-corp')||'';
+            var n=rows.filter(function(r){ return !c || r.getAttribute('data-corp')===c; }).length;
+            var sp=t.querySelector('.n'); if(sp) sp.textContent=n;
+          });
+          function deptFor(corp){
+            if(!deptSel) return;
+            /* 부서 칸 폭은 처음(모든 부서가 든) 폭 아래로 줄지 않게 — 책갈피를 바꿔도 옆 칸이 움직이지 않는다 */
+            var w=deptSel.offsetWidth; if(w>(parseFloat(deptSel.style.minWidth)||0)){ deptSel.style.boxSizing='border-box'; deptSel.style.minWidth=w+'px'; }
+            var keep=deptSel.value, s={};
+            rows.forEach(function(r){ if(!corp || r.getAttribute('data-corp')===corp){ var v=r.getAttribute('data-dept')||''; if(v) s[v]=1; } });
+            while(deptSel.options.length>1) deptSel.remove(1);
+            Object.keys(s).sort().forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v; deptSel.appendChild(o); });
+            deptSel.value = s[keep] ? keep : '';
+          }
+          window.ucfTab=function(corp){
+            corp=corp||'';
+            if(corpSel) corpSel.value=corp;
+            corpTabs.forEach(function(t){ var on=(t.getAttribute('data-corp')||'')===corp; t.classList.toggle('on', on); t.setAttribute('aria-selected', on?'true':'false'); });
+            deptFor(corp);
+            try{ localStorage.setItem('knkAdminUserCorp', corp||'*'); }catch(e){}
+            ucfApply();
+          };
+          corpTabs.forEach(function(t){ t.addEventListener('click', function(){ ucfTab(t.getAttribute('data-corp')||''); }); });
+          var _corp0='본사';
+          try{ var _cv=localStorage.getItem('knkAdminUserCorp'); if(_cv!==null) _corp0=(_cv==='*')?'':_cv; }catch(e){}
+          if(['본사','베트남법인',''].indexOf(_corp0)<0) _corp0='본사';
+          ucfTab(_corp0);
         })();
         </script>
       </div>
