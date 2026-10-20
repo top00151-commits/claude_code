@@ -947,6 +947,15 @@ def startup():
             print(f"[BODY-EDITED-MIG-Z1185] {_rbe}")
     except Exception as _e:
         print(f"[BODY-EDITED-MIG-Z1185 ERR] {_e}")
+    # z1193 (대표 2026-10-20 「회의 내용을 … 도식화해서 더 쉽게 이해할수있는 페이지를 추가」): 📊 한눈에 보기 그림 자료 칸 4개 (idempotent · 칸만)
+    try:
+        from .migrations.m_z1193_meeting_viz import migrate as _vz_migrate
+        from .database import DB_PATH as _DB_PATH_VZ
+        _rvz = _vz_migrate(_DB_PATH_VZ)
+        if _rvz.get('added'):
+            print(f"[MEETING-VIZ-MIG-Z1193] {_rvz}")
+    except Exception as _e:
+        print(f"[MEETING-VIZ-MIG-Z1193 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -4575,6 +4584,179 @@ async def meeting_doc_page(req: Request, mid: int):
         "owner_line": owner_line, "att_rows": att_rows, "sum_lines": sum_lines,
         "link_proj": link_proj, "link_opp": link_opp,
     })
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  📊 회의록 「한눈에 보기」 (z1193 · 대표 2026-10-20)
+#  「이런 회의에 내용을 만약 이미지로 설명할수있으면 정말 좋을것 같아... 회의 내용을 이미지화 또는 도식화해서 더 쉽게 이해할수있는
+#    페이지를 추가해봤으면 좋겠다」 · 「기존에 글로된 회의록 정리는 그대로 하고 지금하는건 추가로 적용해야해」
+#  · 글 정리(안건·결정·할 일)는 그대로 — 이건 **추가 화면**. 빅터AI 가 정리+원문에서 그림 자료(JSON)를 따로 뽑아 meetings.viz_json 에 두고
+#    화면(meeting_viz.html)이 그린다(종류별: 설비=흐름 · 영업=일정·금액 · 내부=결정·할 일).
+#  · 만들기는 **사람이 누를 때만**(「📊 그림 만들기」 · 정리마다 AI 를 두 번 돌리지 않는다 — 빅뱅 방지) · 앞단 60초 규칙대로
+#    **시작만 알리고 화면이 묻는다**(_mtg_sum_worker 와 같은 틀) · 정리가 그 뒤 바뀌면 「다시 그리기」 안내(viz_sum_sig).
+#  · 켜짐·꺼짐은 「📄 회의록 양식」과 같은 판정(_meeting_has_minutes + 정리 있음) · 보기 권한 = 양식과 같음(_can_view_meeting) ·
+#    만들기 권한 = 정리와 같음(_can_edit_meeting).
+#  · 근거: AI 가 옮겨 적은 원문 구절(q)을 서버가 원문·정리에서 찾아 src(body|summary|'')로 표시 → 화면이 「근거」 창에 앞뒤와 함께 보여 준다.
+# ════════════════════════════════════════════════════════════════════════
+import threading as _viz_thr
+import hashlib as _hl93
+import json as _js93
+_MTG_VIZ_JOBS: dict = {}      # {meeting_id: {"state": …, "error": str, "viz": {...}, "t0": float}}
+_MTG_VIZ_LOCK = _viz_thr.Lock()
+
+
+def _viz_sig(summary) -> str:
+    """정리 글 지문 — 그림을 만들 때의 정리와 지금 정리가 같은지(다르면 「다시 그리기」 안내)."""
+    return _hl93.md5(((summary or "").strip()).encode("utf-8")).hexdigest()[:12]
+
+
+def _viz_mark_src(viz: dict, body: str, summary: str) -> tuple:
+    """항목마다 q(근거 구절)가 원문(body)·정리(summary)에 있는지 — 빈칸·줄바꿈 차이는 무시. 반환 (있는 수, 전체 수)."""
+    nb = "".join((body or "").split())
+    ns = "".join((summary or "").split())
+    found = total = 0
+
+    def mark(it):
+        nonlocal found, total
+        q = "".join((it.get("q") or "").split())
+        if not q:
+            it["src"] = ""
+            return
+        total += 1
+        if q in nb:
+            it["src"] = "body"
+            found += 1
+        elif q in ns:
+            it["src"] = "summary"
+            found += 1
+        else:
+            it["src"] = ""
+    for key in ("numbers", "decided", "open", "todo", "timeline", "parts"):
+        for it in viz.get(key) or []:
+            mark(it)
+    for z in (viz.get("flow") or {}).get("zones") or []:
+        for s in z.get("steps") or []:
+            mark(s)
+    return (found, total)
+
+
+def _viz_worker(mid: int):
+    """정리+원문 → 그림 자료 (백그라운드). 끝나면 meetings.viz_json 에 저장 · 기록엔 숫자만(회의 글은 안 찍는다)."""
+    from . import ai_client
+    err, viz = "", None
+    try:
+        with db_session() as c:
+            r = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+            m = dict(r) if r else None
+            decs = [dict(x) for x in c.execute("SELECT who, what, due FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))] if m else []
+            acts = [{"assignee": x["assignee_name"], "task": x["task"], "due": x["due_date"]} for x in c.execute(
+                "SELECT assignee_name, task, due_date FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))] if m else []
+        if not m:
+            err = "없는 회의록입니다."
+        else:
+            _ctx = []
+            if (m.get("title") or "").strip():
+                _ctx.append(f"회의 제목: {m['title'].strip()}")
+            if (m.get("meeting_date") or "").strip():
+                _ctx.append(f"날짜: {m['meeting_date'].strip()}{_ko_wd(m['meeting_date'])}")
+            if (m.get("attendees_text") or "").strip():
+                _ctx.append(f"참석자: {m['attendees_text'].strip()}")
+            ok, res = ai_client.ai_extract_viz(m.get("body") or "", m.get("summary") or "", decs, acts, context="\n".join(_ctx))
+            if not ok:
+                err = res.get("error") or "그림 자료를 뽑지 못했습니다"
+            else:
+                viz = res
+                found, total = _viz_mark_src(viz, m.get("body") or "", m.get("summary") or "")
+                with db_session() as c:
+                    c.execute("UPDATE meetings SET viz_json=?, viz_at=datetime('now','localtime'), viz_kind=?, viz_sum_sig=? WHERE id=?",
+                              (_js93.dumps(viz, ensure_ascii=False), viz.get("kind") or "", _viz_sig(m.get("summary")), mid))
+                print(f"[VIZ] 회의 {mid}: {viz.get('kind')} · 숫자 {len(viz['numbers'])} · 구역 {len(viz['flow']['zones'])} · 정한 것 {len(viz['decided'])} · "
+                      f"확인 필요 {len(viz['open'])} · 할 일 {len(viz['todo'])} · 일정 {len(viz['timeline'])} · 부품 {len(viz['parts'])} · 근거 {found}/{total}")
+    except Exception as _e:  # 표면화 원칙
+        err = f"{type(_e).__name__}: {str(_e)[:200]}"
+    with _MTG_VIZ_LOCK:
+        _MTG_VIZ_JOBS[mid] = {"state": ("error" if err else "done"), "error": err, "viz": viz}
+
+
+@app.get("/meetings/{mid:int}/viz", response_class=HTMLResponse)
+async def meeting_viz_page(req: Request, mid: int):
+    """📊 한눈에 보기 — 양식과 같은 보기 권한 · 그림이 없으면 「📊 그림 만들기」(만들기 권한 = 정리와 같음)."""
+    u = get_user(req)
+    if not u:
+        return _meeting_login_redirect(req)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return RedirectResponse("/meetings", 303)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            return RedirectResponse("/meetings", 303)
+        can_edit = _can_edit_meeting(u, m, c)
+        owner_disp = user_disp_by_id(c, m.get("owner_id"), "")
+    viz = None
+    try:
+        viz = _js93.loads(m.get("viz_json") or "null")
+    except Exception:
+        viz = None
+    if not isinstance(viz, dict):
+        viz = None
+    gate = bool((m.get("summary") or "").strip()) and _meeting_has_minutes(m)
+    stale = bool(viz) and (m.get("viz_sum_sig") or "") != _viz_sig(m.get("summary"))
+    return tpl.TemplateResponse(request=req, name="meeting_viz.html", context={
+        "m": m, "viz": viz, "viz_at": m.get("viz_at") or "", "stale": stale, "gate": gate, "can_edit": can_edit,
+        "owner_disp": owner_disp, "body": m.get("body") or "", "summary": m.get("summary") or ""})
+
+
+@app.post("/api/meeting/{mid:int}/viz")
+async def api_meeting_viz_build(req: Request, mid: int):
+    """📊 그림 자료 만들기 **시작**(백그라운드 · 앞단 60초 규칙). 결과는 GET /viz-status."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    from . import ai_client
+    if not ai_client.ai_available():
+        return JSONResponse({"ok": False, "error": "빅터AI가 비활성 상태입니다(키 미설정)."}, 400)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m, c):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    if not ((m.get("summary") or "").strip() and _meeting_has_minutes(m)):
+        # 양식과 같은 판정 — 정리가 아직 없으면 그림도 없다(200 · 안내는 정상 흐름)
+        return JSONResponse({"ok": False, "no_minutes": True,
+                             "error": "아직 회의록 정리가 없습니다 — 녹음을 올리거나 「회의 내용」을 적고 정리가 끝나면 그림을 만들 수 있습니다."})
+    import time as _time
+    with _MTG_VIZ_LOCK:
+        if (_MTG_VIZ_JOBS.get(mid) or {}).get("state") == "running":
+            return JSONResponse({"ok": True, "already": True})
+        _MTG_VIZ_JOBS[mid] = {"state": "running", "error": "", "viz": None, "t0": _time.time()}
+    _viz_thr.Thread(target=_viz_worker, args=(mid,), daemon=True).start()
+    return JSONResponse({"ok": True, "started": True})
+
+
+@app.get("/api/meeting/{mid:int}/viz-status")
+async def api_meeting_viz_status(req: Request, mid: int):
+    """📊 그림 자료가 끝났나. state = idle | running | done | error · done 이면 viz 를 담는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        if not _can_view_meeting(c, u, dict(m)):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    with _MTG_VIZ_LOCK:
+        j = dict(_MTG_VIZ_JOBS.get(mid) or {"state": "idle", "error": "", "viz": None})
+    out = {"ok": True, "state": j.get("state"), "error": j.get("error") or ""}
+    if j.get("state") == "done":
+        out["viz"] = j.get("viz")
+    if j.get("state") == "running" and j.get("t0"):
+        import time as _time
+        out["elapsed"] = max(0, int(_time.time() - j["t0"]))
+    return JSONResponse(out)
 
 
 @app.post("/api/meeting")

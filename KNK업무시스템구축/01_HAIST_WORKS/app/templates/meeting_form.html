@@ -293,6 +293,8 @@
       {# z1185 (대표 2026-10-16 「회의록보기 아이콘은 회의록이 작성되었을때만 활성화」): 녹음 원문도 손으로 쓴 원문도 없으면 흐리게 ·
          누르면 까닭을 알린다 · 저장·받아쓰기로 작성되면 화면이 그 자리에서 다시 켠다(minutesSync) — 판정은 서버 한 곳 #}
       {% if not is_new %}<a class="btn btn-primary{% if not has_minutes %} mf-doc-off{% endif %}" id="btnDocView" href="/meetings/{{ meeting.id }}/doc" target="_blank" rel="noopener" data-no-swap{% if not has_minutes %} aria-disabled="true" title="{{ i.mf_doc_off_t }}"{% endif %}>{{ i.mf_doc }}</a>{% endif %}
+      {# z1193 — 📊 한눈에 보기(도식화 · 추가 화면) · 켜짐 = 받아쓴 글(📄 와 같음) + 정리 글 있음(그림은 정리에서 만든다) #}
+      {% if not is_new %}{% set viz_on = has_minutes and ((meeting.summary or '')|trim) %}<a class="btn btn-secondary{% if not viz_on %} mf-doc-off{% endif %}" id="btnVizView" href="/meetings/{{ meeting.id }}/viz" target="_blank" rel="noopener" data-no-swap{% if not viz_on %} aria-disabled="true" title="{{ i.mf_viz_off_t }}"{% endif %}>{{ i.mf_viz }}</a>{% endif %}
       {% if not is_new and can_delete %}<button class="btn btn-secondary" id="btnDelete" style="color:var(--knk-red);">{{ i.mf_del }}</button>{% endif %}
       {# z1131(대표 지시 2026-09-27): 예정 끝 시각보다 일찍 끝났을 때 — 이음 회의와 연결된 회의록에만 #}
       {% if not is_new and meeting.msg_meeting_id and can_end %}<button class="btn btn-secondary" id="btnEndMeeting"{% if meeting.ended_at %} hidden{% endif %}>{{ i.mf_end }}</button>{# z1152 (대표 지시 2026-10-08): 되돌리기 단추는 없앴다 #}{% endif %}
@@ -735,6 +737,8 @@ var MF = {
   no_minutes_stt: {{ i.mf_no_minutes_stt|tojson }},   {# z1187 — 녹음에 알아들을 말이 거의 없을 때 #}
   doc_off: {{ i.mf_doc_off|tojson }},         {# z1185 — 흐린 「📄 회의록 양식」을 눌렀을 때 #}
   doc_off_t: {{ i.mf_doc_off_t|tojson }},
+  viz_off: {{ i.mf_viz_off|tojson }},         {# z1193 — 흐린 「📊 한눈에 보기」를 눌렀을 때(정리가 아직 없다) #}
+  viz_off_t: {{ i.mf_viz_off_t|tojson }},
   ai_hint: {{ i.mf_ai_hint|tojson }},        {# z1177 — 진행 칸 안내(몇 분 걸릴 수 있다 · 창을 닫아도 된다) #}
   ai_slow: {{ i.mf_ai_slow|tojson }},        {# z1170 — 정리가 오래 걸려 확인을 멈췄을 때 #}
   all_done: {{ i.mf_all_done|tojson }},
@@ -973,9 +977,17 @@ window.__MTG = {
   function $(id){ return _alive() ? document.getElementById(id) : null; }
   function status(msg, kind){ var el=$('saveStatus'); if(!el) return; el.textContent=msg||''; el.className='save-status'+(kind?(' '+kind):''); }
   // z1185: 서버가 알려 준 「원문에 회의 내용 있음 · 회의록 작성됨」으로 「📄 회의록 양식」 단추를 그 자리에서 맞춘다
+  // z1193: 「📊 한눈에 보기」 켜짐·꺼짐 = 받아쓴 글(has_minutes) + 정리 글이 있을 때 — 그림은 정리에서 만든다
+  function vizSync(){
+    var bv = $('btnVizView'); if (!bv) return;
+    var on = !!(M.has_minutes && String(M.summary || '').trim());
+    bv.classList.toggle('mf-doc-off', !on);
+    if (on){ bv.removeAttribute('aria-disabled'); bv.title = ''; } else { bv.setAttribute('aria-disabled', 'true'); bv.title = MF.viz_off_t; }
+  }
   function minutesSync(d){
     if (!d || d.has_minutes === undefined) return;
     M.body_written = !!d.body_written; M.has_minutes = !!d.has_minutes;
+    vizSync();   // z1193
     var b = $('btnDocView'); if (!b) return;
     b.classList.toggle('mf-doc-off', !M.has_minutes);
     if (M.has_minutes){ b.removeAttribute('aria-disabled'); b.removeAttribute('title'); }
@@ -1227,6 +1239,7 @@ window.__MTG = {
       if (st.data.state === 'error') return { ok:false, error: st.data.error || MF.ai_fail };
       if (st.data.state === 'done'){
         M.summary = st.data.summary || '';
+        vizSync();   // z1193: 정리가 생겼다 → 「📊 한눈에 보기」가 그 자리에서 켜진다
         M.decisions = st.data.decisions || [];
         M.actions = st.data.actions || [];
         M.base_ts = st.data.updated_at || M.base_ts;
@@ -1423,6 +1436,7 @@ window.__MTG = {
   var bExtT=$('btnExtractTop'); if(bExtT && !bExtT.disabled) bExtT.addEventListener('click', extract);
   // z1185: 「📄 회의록 양식」 — 회의록이 작성되기 전엔 흐리게 두고, 누르면 새 창을 열지 않고 까닭만 알린다(판정 = 서버 M.has_minutes)
   var bDocV=$('btnDocView'); if(bDocV) bDocV.addEventListener('click', function(e){ if (M.has_minutes) return; e.preventDefault(); alert(MF.doc_off); });
+  var bVizV=$('btnVizView'); if(bVizV) bVizV.addEventListener('click', function(e){ if (M.has_minutes && String(M.summary||'').trim()) return; e.preventDefault(); alert(MF.viz_off); });   // z1193
   // z1177: 정리하는 도중에 다시 연 화면이면 진행 칸을 다시 띄운다(고칠 수 있는 사람 · AI 켜짐 · 저장된 회의만)
   if (!M.is_new && CAN_EDIT && AI_ON && $('aiBusy')) resumeExtract();
   // ── z1139 ✏ 정리 글 바로 고치기 (대표 지시 2026-10-05) ───────────────────────

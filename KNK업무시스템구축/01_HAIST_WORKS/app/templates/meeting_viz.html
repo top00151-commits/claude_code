@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📊 회의 한눈에 보기 — {{ m.title }}</title>
+{# ── z1193 (대표 2026-10-20 「회의 내용을 이미지화 또는 도식화해서 더 쉽게 이해할수있는 페이지를 추가」) ──────────
+   회의록 「📊 한눈에 보기」 — 글 정리(안건·결정·할 일)는 그대로 두고 **추가 화면**으로. 빅터AI 가 뽑은 그림 자료(viz_json)를
+   화면이 그린다: 한 문장 · 숫자 카드 · 설비 흐름(구역·단계 · 설비 회의만) · 정한 것/확인 필요/할 일 · 일정 · 지정 부품.
+   · 휴대폰 세로 화면 우선(이음에서 열어 보는 사람이 많다) · PC 에선 두 칸.
+   · 항목을 누르면 「근거」 — 빅터AI 가 옮겨 적은 원문 구절을 받아쓴 원문에서 찾아 앞뒤와 함께 보여 준다(못 찾으면 그렇게 말한다).
+   · 글자는 모두 정리·원문에서 가져온 것 — 화면이 글을 만들지 않는다. 🔒 양식(meeting_doc)과 같이 한국어 화면(인쇄 양식 짝). #}
+<style>
+  :root{--red:#a8323a;--red-soft:#fbeeee;--ink:#1f2328;--ink2:#57606a;--ink3:#8c959f;--line:#d8dee4;--bg:#f6f7f9;--card:#fff;
+        --green:#1a7f37;--green-soft:#e9f7ee;--amber:#9a6700;--amber-soft:#fff6dd;--blue:#0b5cad;--blue-soft:#e8f1fb;--violet:#6639ba;--violet-soft:#f2ecfc}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-size:14px;line-height:1.45}
+  .wrap{max-width:430px;margin:0 auto;padding:12px 12px 40px}
+  .toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px;font-weight:700;font-size:12.5px;color:var(--ink2);text-decoration:none;cursor:pointer;white-space:nowrap}
+  .btn.on{background:var(--red);border-color:var(--red);color:#fff}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .ttl{font-size:16px;font-weight:800;margin:2px 0 0;word-break:keep-all}
+  .sub{font-size:12px;color:var(--ink3);margin-bottom:8px}
+  .core{background:var(--red-soft);border-left:4px solid var(--red);padding:9px 12px;border-radius:6px;font-size:13.5px;margin-bottom:10px;cursor:pointer}
+  .kindtag{display:inline-block;font-size:11px;font-weight:800;color:var(--red);border:1px solid #e3b4b8;border-radius:6px;padding:0 6px;margin-left:6px;background:#fff}
+  .notice{background:var(--amber-soft);border:1px solid #f0d58a;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
+  .empty{background:#fff;border:1px dashed var(--line);border-radius:12px;padding:22px 14px;text-align:center;color:var(--ink2);font-size:13px;margin-bottom:10px}
+  .empty .big{font-size:34px;margin-bottom:6px}
+  .nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  .num{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
+  .num b{display:block;font-size:19px;color:var(--red);line-height:1.2;word-break:keep-all}
+  .num span{font-size:11.5px;color:var(--ink2)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 10px 8px;margin-bottom:10px}
+  .card h2{margin:0 0 6px;font-size:13.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .card h2 small{color:var(--ink3);font-weight:600;font-size:11px}
+  /* 흐름(구역·단계) */
+  .zone{border:1.4px solid var(--ink3);border-radius:10px;padding:8px 8px 6px;margin-bottom:4px;background:#fff}
+  .zone.insp{border-color:var(--blue)}
+  .zone .zh{font-size:12px;font-weight:800;margin-bottom:6px}
+  .zone .zh small{font-weight:600;color:var(--ink2);margin-left:6px;font-size:10.5px}
+  .steps{display:flex;flex-wrap:wrap;align-items:stretch;gap:4px}
+  .step{border:1.3px solid var(--line);border-radius:8px;padding:5px 7px;background:#fff;min-width:88px;max-width:100%;flex:1 1 40%;cursor:pointer}
+  .step .l{font-weight:800;font-size:12px;word-break:keep-all}
+  .step .s{font-size:10.5px;color:var(--ink2);line-height:1.35;word-break:keep-all}
+  .step .w{font-size:10.5px;color:var(--amber);font-weight:800;margin-top:2px}
+  .step.t-insp{border-color:var(--blue);background:var(--blue-soft)}
+  .step.t-judge{border-color:var(--violet);background:var(--violet-soft)}
+  .step.t-ok{border-color:var(--green);background:var(--green-soft)}
+  .step.t-ng{border-color:var(--red);background:var(--red-soft)}
+  .step.t-buf,.step.t-in,.step.t-out{background:#f6f7f9}
+  .sarr{align-self:center;color:var(--ink3);font-weight:900;font-size:14px;flex:0 0 auto}
+  .zarr{text-align:center;color:var(--ink3);font-weight:900;font-size:16px;line-height:1.1;margin:0 0 4px}
+  .loop{font-size:11px;color:var(--ink3);margin-top:4px;padding-left:2px}
+  .three{display:grid;grid-template-columns:1fr;gap:8px}
+  .col{border-radius:10px;padding:9px 10px 6px;border:1px solid var(--line)}
+  .col h3{margin:0 0 5px;font-size:13px}
+  .col ul{margin:0;padding-left:16px}
+  .col li{font-size:12.5px;margin-bottom:4px;cursor:pointer}
+  .col .more{font-size:11.5px;color:var(--blue);font-weight:700;padding-left:2px;cursor:pointer}
+  .col.dec{background:var(--green-soft);border-color:#bfe3c9}.col.dec h3{color:var(--green)}
+  .col.opn{background:var(--amber-soft);border-color:#f0d58a}.col.opn h3{color:var(--amber)}
+  .col.act{background:var(--blue-soft);border-color:#bcd5f0}.col.act h3{color:var(--blue)}
+  .due{font-weight:800;color:var(--red)}
+  .who{color:var(--ink2);font-size:11.5px}
+  .tl{list-style:none;margin:0;padding:0 0 0 14px;border-left:3px solid var(--line)}
+  .tl li{position:relative;padding:0 0 9px 12px;font-size:12.5px;cursor:pointer}
+  .tl li:before{content:"";position:absolute;left:-20px;top:3px;width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid var(--red)}
+  .tl li.q:before{border-color:var(--amber)}
+  .tl b{display:inline-block;min-width:78px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top;word-break:keep-all}
+  th{background:#fafbfc;color:var(--ink2);font-weight:800;font-size:11.5px}
+  tr.pr{cursor:pointer}
+  .kinds{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .kind{border:1px solid var(--line);border-radius:10px;padding:8px 6px;text-align:center;background:#fafbfc}
+  .kind.on{border-color:var(--red);background:var(--red-soft)}
+  .kind .ic{font-size:20px}
+  .kind b{display:block;font-size:12px;margin:2px 0}
+  .kind span{font-size:10.5px;color:var(--ink2);line-height:1.35;display:block}
+  .foot{font-size:11px;color:var(--ink3);margin-top:4px}
+  .tg{font-weight:800}.tg-dec{color:var(--green)}.tg-pro{color:var(--blue)}.tg-und{color:var(--amber)}.tg-chk{color:var(--amber)}.tg-int{color:var(--violet)}
+  /* 근거 창 */
+  #sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:2px solid var(--red);box-shadow:0 -6px 20px rgba(0,0,0,.15);padding:12px 14px 16px;max-height:55vh;overflow:auto;display:none;z-index:50}
+  #sheet .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  #sheet .sh b{font-size:13px}
+  #sheet .sq{font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  #sheet mark{background:#fff1a8;padding:0 1px}
+  #sheet .nf{color:var(--amber);font-weight:700;font-size:12.5px}
+  .busy{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+  .spin{width:16px;height:16px;border:3px solid var(--line);border-top-color:var(--red);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (min-width:900px){
+    .wrap{max-width:1180px;padding:20px}
+    .grid{display:grid;grid-template-columns:560px 1fr;gap:16px;align-items:start}
+    .nums{grid-template-columns:1fr 1fr 1fr 1fr}
+    .three{grid-template-columns:1fr 1fr 1fr}
+    .ttl{font-size:20px}
+    .step{flex:1 1 28%}
+  }
+  @media print{ .toolbar,#sheet,.kindsCard{display:none} .wrap{max-width:none} }
+</style>
+</head>
+<body>
+<div class="wrap" data-dn="meeting-viz">
+  <div class="toolbar">
+    <a class="btn" href="/meetings/{{ m.id }}">← 회의록으로</a>
+    <a class="btn" href="/meetings/{{ m.id }}/doc">📄 회의록 양식</a>
+    <span class="btn on">📊 한눈에 보기</span>
+    {% if can_edit %}<button type="button" class="btn primary" id="btnBuild">{% if viz %}🔄 다시 그리기{% else %}📊 그림 만들기{% endif %}</button>{% endif %}
+  </div>
+  <div class="ttl">{{ m.title }}<span class="kindtag" id="kindTag" hidden></span></div>
+  <div class="sub" id="subLine"></div>
+  {% if viz and stale %}<div class="notice">⚠ 이 그림은 <b>{{ (viz_at or '')[:16] }}</b>에 만든 것인데, 그 뒤 글 정리가 바뀌었습니다 — {% if can_edit %}「🔄 다시 그리기」를 누르면 새 정리로 다시 그립니다.{% else %}작성자·참석자가 다시 그릴 수 있습니다.{% endif %}</div>{% endif %}
+  <div id="busy" class="card" hidden><div class="busy"><span class="spin"></span><span id="busyTxt">빅터AI가 그림 자료를 뽑는 중 — 긴 회의는 1~2분 걸립니다. 창을 닫아도 서버에서 끝까지 됩니다.</span></div></div>
+  <div id="empty" class="empty"{% if viz %} hidden{% endif %}>
+    <div class="big">📊</div>
+    {% if not gate %}아직 회의록이 작성되지 않았습니다 — 녹음을 올리거나 「회의 내용」을 적고 정리가 끝나면 그림을 만들 수 있습니다.
+    {% elif can_edit %}아직 그림이 없습니다 — 위 「📊 그림 만들기」를 누르면 빅터AI가 이 회의의 정리·원문에서 그림 자료를 뽑아 그립니다.
+    {% else %}아직 그림이 없습니다 — 작성자·참석자가 「📊 그림 만들기」를 누르면 생깁니다.{% endif %}
+  </div>
+  <div id="viz"{% if not viz %} hidden{% endif %}></div>
+  <div class="foot" id="foot"{% if not viz %} hidden{% endif %}>🤖 빅터AI 가 정리·원문에서 뽑아 그린 그림입니다(글은 정리에서 그대로). 항목을 누르면 원문 근거가 열립니다. 원문과 다르면 회의록을 고치고 「🔄 다시 그리기」.</div>
+</div>
+<div id="sheet"><div class="sh"><b id="shT">근거</b><button type="button" class="btn" id="shX">닫기</button></div><div class="sq" id="shQ"></div></div>
+{% include "_v5_partials/knk_md_lite.html" %}
+<script>
+(function(){
+  var MID = {{ m.id }};
+  var V = {{ (viz or none)|tojson }};
+  var BODY = {{ (body or '')|tojson }};
+  var SUMMARY = {{ (summary or '')|tojson }};
+  var M = {{ {"date": m.meeting_date or "", "st": (m.msg_started_at or "")[:16], "en": (m.ended_at or "")[:16], "loc": m.location or "", "owner": owner_disp or "", "att": m.attendees_text or ""}|tojson }};
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  //  글 한 줄 → 정리 화면과 같은 모양(줄 앞 [결정] 등 색 글씨 · **굵게**) — 그리기 부품(knk_md_lite)의 line() 을 그대로 쓴다
+  function md(s){ try{ if (window.KNKMdLite && KNKMdLite.line) return KNKMdLite.line(String(s||'')).h; }catch(_){ } return esc(s); }
+  //  머리줄 — 날짜 (요일) · 시작 ~ 끝 (N분) · 장소 · 작성자 (양식과 같은 규칙: 같은 날 끝난 시각이 있을 때만)
+  (function(){
+    var d = M.date, out = d;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)){ var dt = new Date(d + 'T00:00:00'); out = d + ' (' + '일월화수목금토'[dt.getDay()] + ')'; }
+    if (M.st && M.st.slice(0,10) === d){ out += ' ' + M.st.slice(11,16);
+      if (M.en && M.en.slice(0,10) === d){ var a = new Date(M.st.replace(' ','T')), b = new Date(M.en.replace(' ','T')); var mins = Math.floor((b - a)/60000);
+        if (mins > 0) out += ' ~ ' + M.en.slice(11,16) + ' (' + mins + '분)'; } }
+    var parts = [out]; if (M.loc) parts.push(M.loc); if (M.owner) parts.push(M.owner);
+    $('subLine').textContent = parts.join(' · ');
+  })();
+  var KIND = {equip: '🏭 설비 회의', sales: '💼 영업·고객 회의', internal: '🏢 내부 회의'};
+  var TYPES = ['in','step','insp','buf','judge','ok','ng','out'];
+  function item(tag, cls, html, q){ return '<' + tag + (cls ? ' class="' + cls + '"' : '') + ' data-q="' + esc(q || '') + '">' + html + '</' + tag + '>'; }
+  function list(cls, title, arr, fmt, limit){
+    var h = '<div class="col ' + cls + '"><h3>' + title + ' ' + arr.length + '</h3><ul>';
+    arr.forEach(function(x, i){ h += item('li', i >= limit ? 'morehide' : '', fmt(x), x.q); });
+    h += '</ul>';
+    if (arr.length > limit) h += '<div class="more" data-more="1">+' + (arr.length - limit) + ' 더 보기</div>';
+    return h + '</div>';
+  }
+  function render(v){
+    if (!v){ return; }
+    var h = '';
+    var kt = $('kindTag'); kt.textContent = KIND[v.kind] || '🏢 회의'; kt.hidden = false;
+    if (v.headline) h += '<div class="core" data-q="' + esc(v.headline_q || '') + '">' + md(v.headline) + '</div>';
+    h += '<div class="grid"><div>';
+    if (v.numbers && v.numbers.length){
+      h += '<div class="nums">';
+      v.numbers.forEach(function(n){ h += '<div class="num" data-q="' + esc(n.q||'') + '"><b>' + esc(n.v) + '</b><span>' + esc(n.label) + '</span></div>'; });
+      h += '</div>';
+    }
+    var fl = v.flow || {}; var zones = fl.zones || [];
+    if (zones.length){
+      h += '<div class="card"><h2>🏭 설비 흐름 <small>— 구역 → 단계 · ⚠ 확인 필요</small></h2>';
+      zones.forEach(function(z, zi){
+        var insp = (z.steps||[]).some(function(s){ return s.type === 'insp'; });
+        h += '<div class="zone' + (insp ? ' insp' : '') + '"><div class="zh">' + (zi+1) + '. ' + esc(z.name) + (z.note ? '<small>' + esc(z.note) + '</small>' : '') + '</div><div class="steps">';
+        (z.steps||[]).forEach(function(s, si){
+          if (si) h += '<span class="sarr">→</span>';
+          var t = TYPES.indexOf(s.type) >= 0 ? s.type : 'step';
+          h += '<div class="step t-' + t + '" data-q="' + esc(s.q||'') + '"><div class="l">' + esc(s.label) + '</div>' + (s.sub ? '<div class="s">' + esc(s.sub) + '</div>' : '') + (s.warn ? '<div class="w">⚠ ' + esc(s.warn) + '</div>' : '') + '</div>';
+        });
+        h += '</div></div>';
+        if (zi < zones.length - 1) h += '<div class="zarr">↓</div>';
+      });
+      if (fl.loop && fl.loop.label) h += '<div class="loop">┈ ' + esc(fl.loop.label) + (fl.loop.from ? ' : ' + esc(fl.loop.from) + ' → ' + esc(fl.loop.to || '') : '') + '</div>';
+      h += '</div>';
+    }
+    h += '</div><div>';
+    h += '<div class="three">';
+    h += list('dec', '✅ 정한 것', v.decided || [], function(x){ return md(x.t); }, 4);
+    h += list('opn', '⚠ 확인 필요', v.open || [], function(x){ return md(x.t); }, 4);
+    h += list('act', '📌 할 일', v.todo || [], function(x){ return (x.due ? '<span class="due">' + esc(x.due.slice(5)) + '</span> ' : '') + md(x.t) + (x.who ? ' <span class="who">— ' + esc(x.who) + '</span>' : ''); }, 4);
+    h += '</div>';
+    if (v.timeline && v.timeline.length){
+      h += '<div class="card" style="margin-top:10px"><h2>🗓 일정</h2><ul class="tl">';
+      v.timeline.forEach(function(t){ h += item('li', t.sure === false ? 'q' : '', '<b>' + esc(t.when) + '</b> ' + esc(t.t) + (t.sure === false ? ' <span style="color:var(--amber);font-weight:800">⚠ 확인</span>' : ''), t.q); });
+      h += '</ul></div>';
+    }
+    if (v.parts && v.parts.length){
+      h += '<div class="card"><h2>🔩 지정 부품 · 조건</h2><table><tr><th>무엇</th><th>지정 사양</th><th>메모</th></tr>';
+      v.parts.forEach(function(p){ h += '<tr class="pr" data-q="' + esc(p.q||'') + '"><td>' + esc(p.what) + '</td><td>' + esc(p.spec) + '</td><td>' + esc(p.note) + '</td></tr>'; });
+      h += '</table></div>';
+    }
+    h += '<div class="card kindsCard"><h2>🧭 회의 종류에 맞는 그림 <small>— 빅터AI가 고름</small></h2><div class="kinds">' +
+      '<div class="kind' + (v.kind==='equip'?' on':'') + '"><div class="ic">🏭</div><b>설비 · 장비</b><span>흐름 · 숫자<br>지정 부품</span></div>' +
+      '<div class="kind' + (v.kind==='sales'?' on':'') + '"><div class="ic">💼</div><b>영업 · 고객</b><span>일정 · 금액<br>결정 · 요구</span></div>' +
+      '<div class="kind' + (v.kind==='internal'?' on':'') + '"><div class="ic">🏢</div><b>내부 · 보고</b><span>결정 · 할 일<br>쟁점 · 기한</span></div></div></div>';
+    h += '</div></div>';
+    $('viz').innerHTML = h;
+    $('viz').hidden = false; $('empty').hidden = true; $('foot').hidden = false;
+    var st = document.createElement('style'); st.textContent = '.morehide{display:none}'; document.head.appendChild(st);
+  }
+  //  근거 — 빅터AI 가 옮겨 적은 구절을 원문(없으면 정리)에서 찾아 앞뒤 160자와 함께. 빈칸·줄바꿈 차이는 무시하고 찾는다.
+  function norm(s){ return String(s||'').replace(/\s+/g, ''); }
+  function findIn(text, q){
+    if (!q) return -1;
+    var i = text.indexOf(q); if (i >= 0) return i;
+    var nq = norm(q); if (!nq) return -1;
+    var map = [], nt = '';
+    for (var k = 0; k < text.length; k++){ if (!/\s/.test(text[k])){ map.push(k); nt += text[k]; } }
+    var j = nt.indexOf(nq); return j >= 0 ? map[j] : -1;
+  }
+  function showSrc(q){
+    var sh = $('sheet'), sq = $('shQ');
+    sh.style.display = 'block';
+    if (!q){ sq.innerHTML = '<span class="nf">이 항목은 정리 글에서 뽑은 것으로 원문 구절이 따로 없습니다.</span>'; return; }
+    var src = BODY, where = '원문', i = findIn(BODY, q);
+    if (i < 0){ i = findIn(SUMMARY, q); src = SUMMARY; where = '정리 글'; }
+    if (i < 0){ sq.innerHTML = '<span class="nf">원문에서 글자 그대로 찾지 못했습니다 — 빅터AI 가 옮긴 구절: </span>' + esc(q); return; }
+    var L = q.length, a = Math.max(0, i - 160), b = Math.min(src.length, i + L + 160);
+    var seg = src.slice(a, b), ri = i - a;
+    sq.innerHTML = (a > 0 ? '… ' : '') + esc(seg.slice(0, ri)) + '<mark>' + esc(seg.slice(ri, ri + L)) + '</mark>' + esc(seg.slice(ri + L)) + (b < src.length ? ' …' : '');
+    $('shT').textContent = '근거 (' + where + ')';
+  }
+  document.addEventListener('click', function(e){
+    var m = e.target.closest('[data-more]'); if (m){ var col = m.closest('.col'); col.querySelectorAll('.morehide').forEach(function(li){ li.classList.remove('morehide'); }); m.remove(); return; }
+    var el = e.target.closest('[data-q]'); if (el){ showSrc(el.getAttribute('data-q')); }
+  });
+  $('shX').addEventListener('click', function(){ $('sheet').style.display = 'none'; });
+  //  만들기 — 서버는 시작만 알리고(앞단 60초) 화면이 2초마다 묻는다
+  var b = $('btnBuild');
+  if (b) b.addEventListener('click', function(){
+    if (V && !confirm('빅터AI 가 지금 정리·원문으로 그림을 다시 만듭니다. 계속할까요?')) return;
+    b.disabled = true; $('busy').hidden = false;
+    fetch('/api/meeting/' + MID + '/viz', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+      .then(function(r){ return r.json(); }).then(function(j){
+        if (!j.ok){ $('busy').hidden = true; b.disabled = false; alert(j.error || '시작하지 못했습니다.'); return; }
+        var n = 0;
+        var t = setInterval(function(){
+          n++;
+          fetch('/api/meeting/' + MID + '/viz-status').then(function(r){ return r.json(); }).then(function(s){
+            if (s.elapsed != null) $('busyTxt').textContent = '빅터AI가 그림 자료를 뽑는 중 — ' + s.elapsed + '초째 (긴 회의는 1~2분 걸립니다. 창을 닫아도 서버에서 끝까지 됩니다)';
+            if (s.state === 'done'){ clearInterval(t); V = s.viz; $('busy').hidden = true; b.disabled = false; b.textContent = '🔄 다시 그리기'; var nt = document.querySelector('.notice'); if (nt) nt.remove(); render(V); }
+            else if (s.state === 'error'){ clearInterval(t); $('busy').hidden = true; b.disabled = false; alert('그림을 만들지 못했습니다 — ' + (s.error || '')); }
+            else if (n > 300){ clearInterval(t); $('busy').hidden = true; b.disabled = false; alert('시간이 너무 걸립니다 — 화면을 새로 고쳐 확인해 주세요.'); }
+          }).catch(function(){});
+        }, 2000);
+      }).catch(function(){ $('busy').hidden = true; b.disabled = false; alert('연결에 실패했습니다 — 잠시 뒤 다시 해 주세요.'); });
+  });
+  if (V) render(V);
+})();
+</script>
+</body>
+</html>

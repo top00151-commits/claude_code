@@ -164,6 +164,7 @@
 
 <div class="toolbar">
   <a class="btn" href="/meetings/{{ m.id }}">← 회의록으로</a>
+  <a class="btn" href="/meetings/{{ m.id }}/viz">📊 한눈에 보기</a>{# z1193 — 도식화(추가 화면) #}
   <button type="button" class="btn img" id="btnImg" data-title="{{ m.title }}" data-date="{{ m.meeting_date or '' }}">🖼 이미지 저장·복사</button>
   <a class="btn print" href="javascript:void(0)" onclick="window.print()">🖨 인쇄 / PDF 저장</a>
 </div>

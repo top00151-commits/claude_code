@@ -859,6 +859,13 @@ T = {
                 "vi": "● Chưa lưu"},
     "mf_doc": {"ko": "📄 회의록 양식",
               "vi": "📄 Mẫu biên bản"},
+    # z1193 — 📊 한눈에 보기(도식화) · 켜짐 = 받아쓴 글(📄 양식과 같음) + 정리 글이 있을 때(그림은 정리에서 만든다)
+    "mf_viz": {"ko": "📊 한눈에 보기",
+              "vi": "📊 Xem tổng quan"},
+    "mf_viz_off": {"ko": "아직 회의록 정리가 없습니다 — 정리가 끝나면 「📊 한눈에 보기」를 만들 수 있습니다.",
+                  "vi": "Chưa có bản tổng hợp biên bản — khi tổng hợp xong sẽ làm được 「📊 Xem tổng quan」."},
+    "mf_viz_off_t": {"ko": "아직 회의록 정리가 없습니다 — 정리가 끝나면 열립니다",
+                    "vi": "Chưa có bản tổng hợp — khi tổng hợp xong sẽ mở được"},
     "mf_edit_stop": {"ko": "✖ 그만두기",
                     "vi": "✖ Thôi"},
     "mf_end": {"ko": "⏹ 회의 종료",
