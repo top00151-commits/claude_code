@@ -4553,10 +4553,21 @@ async def meeting_doc_page(req: Request, mid: int):
     except Exception:
         pass
     # 「회의 시작」으로 만든 회의록만 시작 시각을 안다 — 같은 날짜일 때만 붙인다(추측 금지).
+    # z1192 (대표 2026-10-20 「넣기」): 끝난 시각(ended_at · ⏹ 회의 종료)이 같은 날짜에 있고 시작보다 뒤면
+    #   「14:00 ~ 14:50 (50분)」(이음 회의 알림 카드와 같은 모양) · 없거나 다른 날·시작보다 앞이면 지금처럼 시작 시각만.
     time_disp = ""
     _st = str(m.get("msg_started_at") or "").strip()
     if _md and _st.startswith(_md) and len(_st) >= 16:
         time_disp = _st[11:16]
+        _en = str(m.get("ended_at") or "").strip()
+        if _en.startswith(_md) and len(_en) >= 16:
+            try:
+                _mins = int((datetime.strptime(_en[:16], "%Y-%m-%d %H:%M")
+                             - datetime.strptime(_st[:16], "%Y-%m-%d %H:%M")).total_seconds() // 60)
+            except ValueError:
+                _mins = 0
+            if _mins > 0:
+                time_disp = f"{_st[11:16]} ~ {_en[11:16]} ({_mins}분)"
     return tpl.TemplateResponse(request=req, name="meeting_doc.html", context={
         "m": m, "decisions": decisions, "actions": actions, "owner_name": owner_name,
         "owner_disp": owner_disp,
