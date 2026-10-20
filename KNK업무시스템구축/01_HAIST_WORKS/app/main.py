@@ -5760,7 +5760,9 @@ def _stt_strip_hallucination(text: str):
     import re as _re_h
     if not text or not text.strip():
         return (text, 0)
-    parts = _re_h.split(r"(?<=[.!?\u2026])(?![.!?\u2026])\s*|\n+", text)
+    #  z1189 (대표 2026-10-19 「다음 건으로 고치기 검토」): 숫자 사이 점(「1.2%」·「0.05mm」·「10.23」)에서는 끊지 않는다 —
+    #   전에는 여기서 끊었다가 아래에서 빈칸으로 다시 이어 「1. 2%」가 됐다(운영 받아쓴 글 94곳 · 10-19 읽기만 · 저장분은 그대로)
+    parts = _re_h.split(r"(?<=[.!?\u2026])(?![.!?\u2026])(?!(?<=\d\.)\d)\s*|\n+", text)
     parts = [p.strip() for p in parts if p and p.strip()]
     out, spots = [], 0
     i = 0
