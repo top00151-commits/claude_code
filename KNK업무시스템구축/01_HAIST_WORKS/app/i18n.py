@@ -1284,8 +1284,13 @@ T = {
                         "vi": "Tự động nhận biết (mặc định)"},
     "mf_stt_lang_ko": {"ko": "한국어",
                       "vi": "Tiếng Hàn"},
-    "mf_stt_lang_note": {"ko": "골라 주면 받아쓰기가 더 정확해집니다. 두 말이 섞인 회의는 「자동 감지」로 두세요.",
-                        "vi": "Chọn đúng thì việc ghi lại sẽ chính xác hơn. Cuộc họp dùng lẫn cả hai tiếng thì hãy để 「Tự động nhận biết」."},
+    # z1188 — 한국어·베트남어가 섞인 회의(30초씩 나눠 받아써 베트남어도 살린다)
+    "mf_stt_lang_mix": {"ko": "한국어+베트남어 섞임",
+                       "vi": "Tiếng Hàn + Tiếng Việt (lẫn lộn)"},
+    "mf_stt_lang_note": {"ko": "골라 주면 받아쓰기가 더 정확해집니다. 한국어와 베트남어가 섞인 회의는 "
+                              "「한국어+베트남어 섞임」을 고르세요(30초씩 나눠 받아써 시간이 더 걸립니다).",
+                        "vi": "Chọn đúng thì việc ghi lại sẽ chính xác hơn. Cuộc họp dùng lẫn tiếng Hàn và tiếng Việt "
+                              "thì hãy chọn 「Tiếng Hàn + Tiếng Việt (lẫn lộn)」 (chia từng đoạn 30 giây nên lâu hơn)."},
     "mf_stt_lang_vi": {"ko": "베트남어",
                       "vi": "Tiếng Việt"},
     "mf_stt_netlost": {"ko": "상태 확인 통신이 계속 끊깁니다 — 네트워크 확인 후 「다시 시도」를 눌러주세요.",

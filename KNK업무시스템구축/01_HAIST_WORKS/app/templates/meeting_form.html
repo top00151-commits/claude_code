@@ -36,6 +36,7 @@
             <option value="">{{ i.mf_stt_lang_auto }}</option>
             <option value="ko">{{ i.mf_stt_lang_ko }}</option>
             <option value="vi">{{ i.mf_stt_lang_vi }}</option>
+            <option value="mix">{{ i.mf_stt_lang_mix }}</option>{# z1188 — 한국어·베트남어 섞인 회의(30초씩 나눠 받아씀) #}
           </select>
           <div class="mf-hint" style="margin-top:6px;line-height:1.6;">{{ i.mf_stt_lang_note }}</div>
         </div>
@@ -1140,10 +1141,10 @@ window.__MTG = {
     return '';
   }
   // 「새 회의록」에서 넘어온 말을 그대로 골라 둔다(아래 afterAudioSaved 와 한 쌍).
-  //   ⛔ ko·vi 만 받는다 — 주소로 들어온 값을 그대로 칸에 넣지 않는다.
+  //   ⛔ ko·vi·mix 만 받는다 — 주소로 들어온 값을 그대로 칸에 넣지 않는다(z1188: mix = 한국어+베트남어 섞임).
   (function(){ try{
     var v = new URLSearchParams(location.search).get('sttlang') || '';
-    if (v !== 'ko' && v !== 'vi') return;
+    if (v !== 'ko' && v !== 'vi' && v !== 'mix') return;
     var es = document.querySelectorAll('select.sttLangPick');
     for (var i = 0; i < es.length; i++){ es[i].value = v; }
   }catch(_){} })();

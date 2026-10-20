@@ -5851,10 +5851,11 @@ def _stt_progress(mid: int, txt: str):
             j["progress"] = txt
 
 
-def _stt_split(disk: str, workdir: str):
+def _stt_split(disk: str, workdir: str, seg_sec: int = 0):
     """25MB 넘는 음성 → 모노 16kHz mp3 로 줄이면서 _STT_SEG_SEC 마다 나눈다
     (기본 30분 × 64kbps = 구간당 약 14.4MB · z1165 전에는 20분 × 32kbps = 약 4.6MB 였다).
     반환 (성공, 조각 경로 목록 | 사람말 오류). 원본은 건드리지 않는다(z1092 보존 원칙).
+    seg_sec (z1188): 조각 길이(초) — 「한국어+베트남어 섞임」은 30초(ai_client.STT_MIX_WIN_SEC) · 비우면 _STT_SEG_SEC.
     ⚠ 2026-09-17 확인: 운영 WORKS 서버에 ffmpeg 가 없어 25MB 넘는 음성은 한 번도 글자로 바뀐 적이 없었다
       → 없으면 그 사실을 그대로 알린다(예전엔 「25MB를 넘어…」로만 보여 원인이 가려졌다)."""
     import glob as _glob, shutil as _sh, subprocess as _sp
@@ -5864,7 +5865,7 @@ def _stt_split(disk: str, workdir: str):
     os.makedirs(workdir, exist_ok=True)
     try:
         r = _sp.run([ff, "-hide_banner", "-nostdin", "-y", "-i", disk, "-vn", "-ac", "1", "-ar", "16000",
-                     "-b:a", f"{_STT_SEG_KBPS}k", "-f", "segment", "-segment_time", str(_STT_SEG_SEC),
+                     "-b:a", f"{_STT_SEG_KBPS}k", "-f", "segment", "-segment_time", str(seg_sec or _STT_SEG_SEC),
                      "-reset_timestamps", "1", os.path.join(workdir, "part_%03d.mp3")],
                     capture_output=True, timeout=1800)
     except _sp.TimeoutExpired:
@@ -5893,6 +5894,36 @@ def _stt_append_body(mid: int, text: str):
                       (new_body, mid))
 
 
+def _stt_mix_junk(text: str) -> bool:
+    """🇻🇳 z1188: 섞인 녹음 30초 조각에서 나온 **헛말**인가 — 그러면 그 조각을 한 번 더 받아쓰고, 또 헛말이면 버린다.
+    · 받아쓰기에 미리 준 힌트 낱말 목록이 그대로 나옴(대표 시험 18분 메모의 조용한 조각 — 쉼표·마침표·빗금 어느 것으로
+      나열돼도) · 같은 낱말 끝없이 되풀이 ·
+      받아쓰기 헛말(「시청해 주셔서 감사합니다」류)뿐 · 알아들을 글자(한글·라틴·숫자)가 하나도 없음(외국 글자 헛말)."""
+    from . import ai_client
+    t = (text or "").strip()
+    if not t:
+        return False
+    if not _STT_READ_RE.search(t):
+        return True
+    kws = {w.lower() for w in ai_client._stt_keywords("")}
+    parts = [p.strip(" .,").lower() for p in _re87.split(r"[,，、]", t) if p.strip(" .,")]
+    if len(parts) >= 2 and all(p in kws for p in parts):
+        return True
+    #  힌트 낱말이 마침표·빗금으로 나열돼 나오기도 한다(대표 메모 시연 10-19 「케이엔케이 / 하이스트. 사출, 금형, …」 ·
+    #  3차 시험 「케이엔케이. 하이스트. 사출. 금형. …」) → 힌트 낱말을 지우고 남는 알아들을 글자가 거의 없으면(1/5 이하) 헛말
+    low, hits = t.lower(), 0
+    for kw in sorted(kws, key=len, reverse=True):
+        if kw and kw in low:
+            hits += low.count(kw)
+            low = low.replace(kw, " ")
+    if hits >= 3 and len(_STT_READ_RE.findall(low)) <= max(2, len(_STT_READ_RE.findall(t)) // 5):
+        return True
+    w = _re87.findall(r"\w+", t)
+    if len(w) >= 8 and len(set(w)) <= max(2, len(w) // 6):
+        return True
+    return bool(_STT_HALLU_RE.search(t)) and len(_STT_HALLU_RE.sub("", t).strip(" .,!?…")) < 4
+
+
 def _stt_one(mid: int, disk: str, lang: str, head: str = "", progress=None):
     """음성 하나 → 글자. 25MB 이하=한 번에(지금까지와 같음) / 넘으면 줄여 구간마다 차례로.
     반환 (글, 오류, 경고) — 오류가 있으면 글은 비어 있다(반쪽 회의록 방지).
@@ -5903,7 +5934,40 @@ def _stt_one(mid: int, disk: str, lang: str, head: str = "", progress=None):
     err, warn, workdir, texts = "", "", "", []
     try:
         from . import ai_client
-        if os.path.getsize(disk) <= _STT_MAX_BYTES:
+        if lang == "mix":
+            # 🇻🇳 z1188 (대표 2026-10-19 「베트남어가 같이 있는 음성을 올려도 베트남어 까지 같이 확인하고 정리 할수있어?」)
+            #   통째로 받아쓰면 한국어가 주인 녹음에서 베트남어 말을 엉터리 한국어로 바꾸거나 뺀다(대표 시험 녹음 3건 · 10-19)
+            #   → 30초씩 나눠 조각마다 언어를 따로 감지 · 앞 조각 글을 이어 주고 · 빈칸·헛말이면 한 번 더(ai_transcribe_window).
+            #   🔵 「자동 감지」(기본)는 아래 그대로 — 검증된 한국어 회의 받아쓰기는 바꾸지 않는다.
+            #   조각 하나가 실패하면 통째로 실패(아래 30분 구간과 같은 규칙 — 반쪽 회의록 방지).
+            import time as _t
+            ok, parts = (False, "서버에 음성 나누는 도구(ffmpeg)가 없어 「한국어+베트남어 섞임」으로 받아쓰지 못했습니다 — "
+                                "관리자에게 알려 주세요.")
+            if _sh.which("ffmpeg"):
+                _pg(head + "한국어·베트남어 섞인 녹음을 30초씩 나누는 중")
+                workdir = os.path.join(os.path.dirname(disk) or ".", f"stt_mix_{int(_t.time() * 1000)}")
+                ok, parts = _stt_split(disk, workdir, seg_sec=ai_client.STT_MIX_WIN_SEC)
+            if not ok:
+                err = parts
+            else:
+                n, prev = len(parts), ""
+                for i, p in enumerate(parts, 1):
+                    # 맨 끝 1초 못 되는 자투리는 건너뛴다(말이 담길 수 없고 · 너무 짧으면 받아쓰기가 거부한다)
+                    if i == n and n > 1 and os.path.getsize(p) < _STT_SEG_KBPS * 125:
+                        continue
+                    _pg(head + f"30초 조각 {n}개 중 {i}번째")
+                    ok, text = ai_client.ai_transcribe_window(p, prev)
+                    if ok and (not text or _stt_mix_junk(text)):
+                        ok2, t2 = ai_client.ai_transcribe_window(p, "", retry=True)
+                        text = t2 if (ok2 and t2 and not _stt_mix_junk(t2)) else ""
+                    if not ok:
+                        err = (f"30초 조각 {n}개 중 {i}번째(약 {(i - 1) * ai_client.STT_MIX_WIN_SEC // 60}분부터)를 "
+                               "글자로 바꾸지 못했습니다 — " + _stt_friendly_error(text))
+                        break
+                    if text:
+                        texts.append(text)
+                        prev = text
+        elif os.path.getsize(disk) <= _STT_MAX_BYTES:
             # z1093: 삼성·안드로이드 녹음기 m4a(속=AAC·표식=3gp4)는 표식만 바꾼 사본으로 보낸다
             _brand_tmp = _stt_fix_3gp_brand(disk)
             try:
@@ -5998,7 +6062,7 @@ async def api_meeting_transcribe(req: Request, mid: int):
         d = await req.json()
     except Exception:
         d = {}
-    lang = d.get("lang") if d.get("lang") in ("ko", "vi", "en") else ""
+    lang = d.get("lang") if d.get("lang") in ("ko", "vi", "en", "mix") else ""   # z1188: mix = 한국어+베트남어 섞임
     with db_session() as c:
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
         if not m:
@@ -6282,7 +6346,7 @@ async def api_voice_note_transcribe(req: Request, nid: int):
         _d = await req.json()
     except Exception:
         _d = {}
-    lang = _d.get("lang") if _d.get("lang") in ("ko", "vi", "en") else ""
+    lang = _d.get("lang") if _d.get("lang") in ("ko", "vi", "en", "mix") else ""   # z1188: mix = 한국어+베트남어 섞임
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):

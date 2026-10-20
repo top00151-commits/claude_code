@@ -576,6 +576,64 @@ def _parse_json_loose(text: str) -> Optional[dict]:
     return None
 
 
+# ── 🇻🇳 베트남어로 말한 내용 표시 「v_」 (z1188 · 대표 2026-10-19 「문장앞에 "v_" 이런식으로」) ──────────
+#  🔴 지시문만 주면 AI 가 잘 안 따른다(이음 v854~v867 교훈) → **서버가 원문에서 베트남어 문장을 골라** 표시해 넘긴다.
+#  🔵 베트남어 문장이 없으면 원문·지시문 모두 **지금과 글자 그대로**(한국어만 있는 회의의 검증된 정리는 그대로).
+_VI_TONE_RE = re.compile(r"[ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵĂÂĐÊÔƠƯ]")
+#  문장 = 마침표·물음표·느낌표(뒤가 빈칸·줄 끝일 때만) 또는 줄바꿈까지 · 숫자 사이 점은 안 자른다(「3.5」 —
+#  받아쓴 글은 운영 헛말 정리(main._stt_strip_hallucination)를 거치며 「3. 5」로 벌어져 들어온다 → 그것도 숫자로 본다)
+_VI_SENT_RE = re.compile(r"(?:[^.!?。\n]|(?<=\d)\.(?=\s?\d)|[.!?。](?!\s|$))+[.!?。]*")
+_VI_MARK = "〔베트남어〕"
+_VI_RULE = (
+    "[베트남어로 말한 부분 — 「v_」 표시]\n"
+    "원문에서 「〔베트남어〕」로 시작하는 문장은 베트남어로 말한 것이다(서버가 골라 표시했다). "
+    "그 문장에서 나온 내용도 다른 내용과 똑같이 한국어로 정리하되, 그 내용을 쓴 문장·목록 줄 맨 앞에 「v_」를 "
+    "띄어쓰기 없이 붙여 베트남어에서 나온 것임을 알린다 — summary 의 주제별 목록 줄·문장 · decisions 의 what · "
+    "actions 의 task(있으면) 모두. 「## 핵심」 문단과 title 에는 붙이지 않는다. "
+    "줄 맨 앞에 「- 」나 [결정]·[제안]·[미결]·[확인 필요] 표시, 「(내부 방침)」이 있으면 그 뒤 — 문장 바로 앞에 붙인다"
+    "(모양: 「- v_<내용>」 · 「- [결정] v_<내용>」 · 「(내부 방침) v_<내용>」). "
+    "한국어로 말한 내용에는 붙이지 않는다 · 같은 내용을 한국어로도 말했으면(통역 등) 붙이지 않는다. "
+    "「〔베트남어〕」 표시 자체는 정리에 옮기지 않는다.")
+
+
+def _mark_vietnamese(text: str) -> tuple:
+    """원문에서 **베트남어 문장**(성조 글자 2개 이상 · 한글이 거의 없음 — 한국어 문장 속 지명·이름 하나는 아님) 맨 앞에
+    「〔베트남어〕」를 붙인다. 반환 (글, 표시한 문장 수) · 없으면 원문을 **글자 그대로** 돌려준다."""
+    import unicodedata
+    n = 0
+
+    def _one(m):
+        nonlocal n
+        s = m.group(0)
+        core = unicodedata.normalize("NFC", s.strip())     # 판정만 NFC(글은 그대로)
+        if len(_VI_TONE_RE.findall(core)) >= 2 and len(re.findall(r"[가-힣]", core)) <= max(1, len(core) // 10):
+            n += 1
+            lead = s[:len(s) - len(s.lstrip())]
+            return lead + _VI_MARK + s.lstrip()
+        return s
+    out = _VI_SENT_RE.sub(_one, text or "")
+    return (out, n) if n else (text, 0)
+
+
+_VI_TAG_AFTER_RE = re.compile(r"v_\s*((?:\[(?:결정|제안|미결|확인 필요|내부 방침)\]|\(내부 방침\))\s*)")
+
+
+def _vi_finish(res: dict, marked: int, what: str) -> None:
+    """정리 손보기 — 새어 나온 「〔베트남어〕」는 「v_」로(뜻이 같다) · 「v_ 」 띄어쓰기 붙이기 ·
+    「v_[결정]」처럼 표시 앞에 붙었으면 표시 뒤로(화면은 줄 맨 앞 표시만 색칠한다). 몇 곳인지만 기록(글은 안 찍는다)."""
+    def fx(s):
+        s = (s or "").replace(_VI_MARK, "v_")
+        s = re.sub(r"v_[ \t]+", "v_", s)
+        return _VI_TAG_AFTER_RE.sub(lambda m: m.group(1) + "v_", s)
+    res["summary"] = fx(res.get("summary"))
+    cnt = res["summary"].count("v_")
+    for k, f in (("decisions", "what"), ("actions", "task")):
+        for it in (res.get(k) or []):
+            it[f] = fx(it.get(f))
+            cnt += it[f].count("v_")
+    print(f"[VI-MARK] {what}: 베트남어 문장 {marked}개 표시 → 정리에 v_ {cnt}곳")
+
+
 def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
     """회의 원문 → 구조화 정리(summary)·결정사항·할 일 추출 (모드 A·B).
     context: 이번 회의 정보(제목·참석자·날짜 등) — 참석자 이름 귀속·맥락 정리에 사용.
@@ -597,7 +655,9 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
                      "원문에 없는 말은 절대 넣지 않는다. "
                      "회의 제목·참석자에 적힌 말이라도 이 목록과 어긋나면 이 목록 쪽을 따른다"
                      "(제목도 사람이 잘못 적었을 수 있다).")
-    text = body.strip()
+    text, _vi_n = _mark_vietnamese(body.strip())   # z1188: 베트남어 문장 표시(없으면 글자 그대로)
+    if _vi_n:
+        system += "\n\n" + _VI_RULE
     budget = _mtg_budget(len(text))            # z1174 — 전에는 2000 고정이라 긴 회의가 눌렸다
     ok, resp = ai_chat(text, system=system, max_tokens=budget, temperature=0.1,
                        timeout_sec=EXTRACT_TIMEOUT_SEC)   # z1172 — 30초는 긴 회의에 모자란다
@@ -639,6 +699,8 @@ def ai_extract_meeting(body: str, context: str = "") -> tuple[bool, dict]:
         # 제목 제안 — '제목 없는 회의'를 AI가 내용 기반으로 채우는 데 사용(호출부에서 기본제목일 때만 반영)
         "title": str(data.get("title", "") or "").strip()[:60],
     }
+    if _vi_n:
+        _vi_finish(result, _vi_n, "회의록")
     return (True, result)
 
 
@@ -779,7 +841,9 @@ def ai_extract_note(body: str, context: str = "") -> tuple[bool, dict]:
         system += ("\n\n[우리 회사 말 — 음성 변환이 흔히 틀리는 말]\n" + _terms
                    + "\n\U0001F534 위 말이 원문에 비슷하게 들어 있으면 그 말로 바로잡는다. "
                      "원문에 없는 말은 절대 넣지 않는다.")
-    text = body.strip()
+    text, _vi_n = _mark_vietnamese(body.strip())   # z1188: 베트남어 문장 표시(없으면 글자 그대로)
+    if _vi_n:
+        system += "\n\n" + _VI_RULE
     budget = _note_budget(len(text))                      # z1168 — 원문 길이에 맞춘다
     ok, resp = ai_chat(text, system=system, max_tokens=budget, temperature=0.1,
                        timeout_sec=EXTRACT_TIMEOUT_SEC)      # z1172 — 30초는 긴 녹음에 모자란다
@@ -799,10 +863,13 @@ def ai_extract_note(body: str, context: str = "") -> tuple[bool, dict]:
             data = _parse_json_loose(resp2)
     if not isinstance(data, dict):
         return (False, {"error": "AI 응답을 정리 형식(JSON)으로 해석하지 못했습니다.", **empty})
-    return (True, {
+    res = {
         "summary": str(data.get("summary", "") or "").strip(),
         "title": str(data.get("title", "") or "").strip()[:60],
-    })
+    }
+    if _vi_n:
+        _vi_finish(res, _vi_n, "음성 메모")
+    return (True, res)
 
 
 # ── 음성→글자 (16_KNK_Meeting 모드 B 음성 회의) ─────────────────────────────
@@ -1021,6 +1088,72 @@ def ai_transcribe(audio_path: str, lang: str = "", dialect: str = "",
                 if use_hint and _stt_param_error(e):
                     continue                          # 같은 모델로 힌트 없이 다시
                 break                                 # 다른 이유 → 다음 모델로
+    return (False, f"음성→글자 오류(openai): {last}")
+
+
+# ── 🇻🇳 한국어·베트남어 섞인 녹음 (z1188 · 대표 2026-10-19) ─────────────────────────────
+#  「베트남어가 같이 있는 음성을 올려도 베트남어 까지 같이 확인하고 정리 할수있어?」
+#  대표 시험 녹음 3건(음성 메모 · 운영 서버에서 방법별로 다시 받아씀 · 10-19 · 기록 =
+#  작업기록/2026-10-19_1706_베트남어섞인녹음_v표시_검토.md):
+#    통째로 받아쓰면(지금 「자동 감지」) 한국어가 주인 녹음에서 **베트남어 말을 엉터리 한국어로 바꾸거나 뺀다**
+#    (59초 메모: 앞 30초 베트남어 → 뜻이 뒤섞인 한국어 · 베트남어 0자).
+#    「둘 다 알려 주기(languages ko+vi)」·「베트남어 지정」·1분/말 끊기는 자리 자르기는 효과가 없었고,
+#    **30초 조각 + 앞 조각 글 이어 주기 + 「알아듣기 어려우면 빼라」 지시 빼기 + 빈칸·헛말이면 한 번 더** 가
+#    세 메모 모두 나았다(59초 베트남어 0→61 · 4분52초 897→1,196자 · 18분 579→982자).
+#  🔵 「한국어+베트남어 섞임」을 고를 때만 이 길로 간다 — 「자동 감지」(기본)는 지금 그대로(검증된 한국어 회의 받아쓰기).
+STT_MIX_WIN_SEC = 30
+_STT_MIX_OMIT = "If a part is unclear, omit it rather than guessing."
+_STT_MIX_RETRY_PROMPT = ("The speakers may be using Korean, Vietnamese, or both. Transcribe verbatim in the language "
+                         "actually spoken. Do not translate.")
+
+
+def _stt_mix_prompt(prev: str = "") -> str:
+    """섞인 녹음 조각에 주는 지시 — 자동 감지 지시에서 「알아듣기 어려우면 빼라」 한 문장만 빼고(짧은 조각을 통째로 비웠다),
+    앞 조각에서 받아쓴 글 끝 200자를 흐름 정보로 덧붙인다(되풀이하지 말라고)."""
+    p = _stt_prompt("", "", new_model=True).replace(_STT_MIX_OMIT, "").strip()
+    if prev:
+        p += " Previous part of this recording (context only — do not repeat it): " + prev[-200:]
+    return p
+
+
+def ai_transcribe_window(audio_path: str, prev: str = "", retry: bool = False) -> tuple[bool, str]:
+    """🇻🇳 섞인 녹음의 30초 조각 하나 → 글자(z1188). 언어는 정하지 않는다(조각마다 따로 감지).
+    prev: 앞 조각에서 받아쓴 글(흐름 정보) · retry: 빈칸·헛말이 나온 조각을 짧은 지시로(힌트 낱말 없이) 한 번 더.
+    ai_transcribe 와 같은 안전장치 — 힌트 낱말을 모르는 모델이면 같은 모델로 낱말 없이 한 번 더 →
+    그래도 안 되면 예비 모델(whisper-1 · 지시문 없이 앞 글만). 반환 (성공, 글 또는 오류)."""
+    key = _key_for("openai")
+    if not _OPENAI_OK:
+        return (False, "음성→글자: openai SDK 미설치 (pip install openai)")
+    if not key:
+        return (False, "음성→글자: OpenAI 키가 필요합니다(현재 미설정/무효). 관리자 → AI 설정에서 등록하세요.")
+    if not audio_path or not os.path.exists(audio_path):
+        return (False, "음성 파일을 찾을 수 없습니다.")
+    models = [STT_MODEL] + ([STT_FALLBACK_MODEL] if (STT_FALLBACK_MODEL and STT_FALLBACK_MODEL != STT_MODEL) else [])
+    client = openai.OpenAI(api_key=key, timeout=300)
+    last = ""
+    for mi, model in enumerate(models):
+        new = _stt_is_new_model(model)
+        for use_kw in ((True, False) if (new and STT_HINT_ON and not retry) else (False,)):
+            kwargs: dict[str, Any] = {"model": model}
+            if new:
+                kwargs["response_format"] = "json"
+                kwargs["prompt"] = (_STT_MIX_RETRY_PROMPT if retry else _stt_mix_prompt(prev))[:2000]
+                if use_kw:
+                    kwargs["extra_body"] = {"keywords": _stt_keywords("")[:80]}
+            elif prev and not retry:
+                kwargs["prompt"] = prev[-200:]            # 구형은 '앞서 받아쓴 글'만(지시문은 결과에 튀어나온다)
+            try:
+                with open(audio_path, "rb") as f:
+                    resp = client.audio.transcriptions.create(file=f, **kwargs)
+                if mi > 0:
+                    print(f"[STT-MIX] {models[0]} 실패 → {model} 로 받아씀")
+                return (True, (getattr(resp, "text", "") or "").strip())
+            except Exception as e:
+                last = f"{model}: {e}"
+                print(f"[STT-MIX] {model} 실패(낱말={1 if use_kw else 0}): {str(e)[:160]}")
+                if use_kw and _stt_param_error(e):
+                    continue                              # 같은 모델로 낱말 없이 다시
+                break                                     # 다른 이유 → 다음 모델로
     return (False, f"음성→글자 오류(openai): {last}")
 
 
