@@ -3,7 +3,7 @@
 {% include "_v5_partials/styles.html" %}
 {# z1191f (대표 2026-10-21 「담당사업부 선택 및 센터진입권한을 개인별 페이지로 들어가지 말고 한번에 일괄 설정」):
    한 줄 = 한 사람 · 칸 8개(담당 사업부 4 + 센터 진입 권한 4). 엑셀식 격자(얇은 선·머리줄 고정·칸 전체가 누르는 자리).
-   저장 규칙은 서버(main.py _z1191f_*)와 같다 — 대표·임원·관리자 센터 칸 잠금 · 팀장 보기 칸 잠금 · 등록·편집 → 보기. #}
+   저장 규칙은 서버(main.py _z1191f_*)와 같다 — 대표·임원 센터 칸 잠금(z1191g: 관리자는 체크대로) · 팀장 보기 칸 잠금 · 등록·편집 → 보기. #}
 <style>
 .pg-wrap{margin:0 0 var(--space-5);padding:0 var(--content-pad);}
 .pg-help{font-size:12.5px;color:var(--mute);line-height:1.7;margin:0 0 4px;}
@@ -58,7 +58,7 @@
     <div class="pg-help">
       칸을 눌러 켜고 끈 뒤 오른쪽 위 <b>💾 저장</b>을 누르세요. 바뀐 칸은 노랗게 보이고, 저장하면 사람마다 <b>변경 이력</b>에 남습니다.<br>
       칸 위 <b>모두</b> = 지금 보이는 사람 전부 켜기·끄기(법인·부서·검색으로 먼저 거르세요) ·
-      <b>등록·편집</b>을 켜면 <b>보기</b>도 켜집니다 · 대표·임원·관리자의 센터 칸은 역할상 항상 열립니다(🔒) · 담당 사업부를 모두 비우면 <b>공통</b>(전 사업부 통보).
+      <b>등록·편집</b>을 켜면 <b>보기</b>도 켜집니다 · 대표·임원의 센터 칸은 역할상 항상 열립니다(🔒) · <b>관리자</b>도 체크한 대로만 열립니다 · 담당 사업부를 모두 비우면 <b>공통</b>(전 사업부 통보).
     </div>
     <div class="ucf-tabs" role="tablist" aria-label="법인 책갈피">
       <button type="button" class="ucf-tab" role="tab" data-corp="본사">본사<span class="n"></span></button>
@@ -95,7 +95,7 @@
           {% set _bd = r.biz_divs.split(',') %}
           <tr class="prow" data-id="{{ r.id }}" data-corp="{{ r.corp }}" data-dept="{{ r.dept }}" data-bd="{{ r.biz_divs }}" data-nm="{{ vname(r) }}"
               data-q="{{ (vname(r) ~ ' ' ~ (r.employee_no or '') ~ ' ' ~ (r.login_id or ''))|lower }}">
-            <td class="pg-nm"><b>{{ vname(r) }}</b>{% if r.role_lbl %}<span class="pg-role" title="역할상 센터가 항상 열리는 사람">{{ r.role_lbl }}</span>{% endif %}
+            <td class="pg-nm"><b>{{ vname(r) }}</b>{% if r.role_lbl %}<span class="pg-role" title="{{ '관리 일(사람·팀·설정)은 역할로 · 센터는 체크한 대로' if r.role == 'admin' else '역할상 센터가 항상 열리는 사람' }}">{{ r.role_lbl }}</span>{% endif %}
               <span class="pg-sub"><span class="emp">{{ r.employee_no or r.login_id or '—' }}</span><span class="pg-common">{% if not r.biz_divs %} · 사업부 공통{% endif %}</span></span></td>
             <td>{{ r.dept }}</td>
             <td style="text-align:center;">{{ rank_label(r.rank or '', lang|default('ko')) or '—' }}</td>

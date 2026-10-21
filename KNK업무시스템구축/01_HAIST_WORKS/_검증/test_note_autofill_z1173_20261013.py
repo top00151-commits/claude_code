@@ -48,8 +48,9 @@ with D.db_session() as conn:
         if col not in have:
             conn.execute("ALTER TABLE users ADD COLUMN %s %s" % (col, typ))
     for nm, eno, lid in (("가상306", "306", "306"), ("가상777", "T777", "T777")):
-        conn.execute("INSERT INTO users (name, role, employee_no, login_id, password, is_active, password_version) "
-                     "VALUES (?, 'admin', ?, ?, 'sso_only_no_local_password', 1, 1)", (nm, eno, lid))
+        # z1191g(2026-10-21 대표): 관리자는 역할만으로 매출·자재가 열리지 않는다 → 이 시험의 가상 관리자는 센터 4칸을 켠 관리자로
+        conn.execute("INSERT INTO users (name, role, employee_no, login_id, password, is_active, password_version, can_view_sales, can_use_sales, can_view_logistics, can_use_logistics) "
+                     "VALUES (?, 'admin', ?, ?, 'sso_only_no_local_password', 1, 1, 1, 1, 1, 1)", (nm, eno, lid))
     U306 = dict(conn.execute("SELECT * FROM users WHERE login_id='306'").fetchone())
     U777 = dict(conn.execute("SELECT * FROM users WHERE login_id='T777'").fetchone())
     conn.execute("INSERT INTO customers (name) VALUES ('가상고객')")

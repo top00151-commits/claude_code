@@ -2017,7 +2017,7 @@ def role_home(user) -> str:
 
 def can_use_logistics(user) -> bool:
     """자재·구매 **등록·편집** 권한.
-    - admin / ceo / executive: 항상 허용
+    - ceo / executive: 항상 허용 (z1191g 2026-10-21 대표: 관리자(admin)도 아래 체크대로만)
     - 그 외: users.can_use_logistics 플래그가 1일 때만 (관리자 화면의 '센터 진입 권한' 체크)
     v5H226z1093 (2026-09-01 대표 지시): 팀 번호 자동 허용(7 제조기술1팀 · 10 구매팀) 폐지.
       부서 권한은 화면 체크로만 정한다 — 구매팀은 z1093 1회 세팅에서 플래그로 옮겼다.
@@ -2025,7 +2025,8 @@ def can_use_logistics(user) -> bool:
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
-    if role in ("admin", "ceo", "executive"):
+    # z1191g (대표 2026-10-21 「관리자가 자기 부서가 아닌 업무를 다 볼 수 있다는 건 아니다」): 관리자는 관리 일만 역할로 — 센터는 체크한 대로
+    if role in ("ceo", "executive"):
         return True
     team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
     # v5H226z1093 (대표 지시 2026-09-01): 팀 번호 자동 허용을 걷어냈다.
@@ -2061,7 +2062,7 @@ def _stock_approve_guard(req: Request):
 
 def can_view_sales(user) -> bool:
     """매출·영업 **읽기 전용** 권한 (2026-04-28 대표 결재 — R/W 분리).
-    - admin / ceo / executive / leader: 항상 허용 (전사 매출 현황 조회)
+    - ceo / executive / leader: 항상 허용 (전사 매출 현황 조회) · z1191g(2026-10-21 대표): 관리자(admin)는 아래 체크대로만
     - 그 외: users.can_view_sales 플래그 1 (관리자 화면의 '센터 진입 권한' 체크)
     - 쓰기 권한자(can_use_sales=1)는 자동 포함
     v5H226z1093 (2026-09-01 대표 지시): 팀 번호 자동 허용(1·2·3) 폐지 — 화면 체크로만.
@@ -2069,7 +2070,7 @@ def can_view_sales(user) -> bool:
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
-    if role in ("admin", "ceo", "executive", "leader"):
+    if role in ("ceo", "executive", "leader"):   # z1191g: 관리자는 체크대로
         return True
     # v5H226z1093 (대표 지시 2026-09-01): 팀 번호 자동 허용(1·2·3) 제거 — 화면 체크로만 판정.
     #   기술영업팀(1)은 z1093 1회 세팅에서 플래그로 고정해 오늘과 똑같이 열린다.
@@ -2083,7 +2084,7 @@ def can_view_sales(user) -> bool:
 
 def can_view_logistics(user) -> bool:
     """자재·구매 **읽기 전용** 권한 (2026-04-28 대표 결재 — R/W 분리).
-    - admin / ceo / executive / leader: 항상 허용
+    - ceo / executive / leader: 항상 허용 · z1191g(2026-10-21 대표): 관리자(admin)는 아래 체크대로만
     - 그 외: users.can_view_logistics 플래그 1 (관리자 화면의 '센터 진입 권한' 체크)
     - 쓰기 권한자(can_use_logistics=1)는 자동 포함
     v5H226z1093 (2026-09-01 대표 지시): 팀 번호 자동 허용(1·2·3·7·8·9·10) 폐지 — 화면 체크로만.
@@ -2091,7 +2092,7 @@ def can_view_logistics(user) -> bool:
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
-    if role in ("admin", "ceo", "executive", "leader"):
+    if role in ("ceo", "executive", "leader"):   # z1191g: 관리자는 체크대로
         return True
     # v5H226z1093 (대표 지시 2026-09-01): 팀 번호 자동 허용(1·2·3·7·8·9·10) 제거 — 화면 체크로만.
     #   설계·소프트웨어·전장설계·구매팀은 z1093 1회 세팅에서 플래그로 부여한다.
@@ -2154,7 +2155,9 @@ def load_field_access_policy(c) -> dict:
 def can_view_field(user, category, policy=None) -> bool:
     """민감 정보 분류(category) 열람 가능 여부.
     - user 없으면 False.
-    - role 이 ceo·admin·executive(임원) 이면 True(시스템 관리자·경영진·잠금 방지·정책 무관).
+    - role 이 ceo·executive(임원) 이면 True(경영진·정책 무관).
+    - admin(관리자)은 z1191g(2026-10-21 대표)부터 자기 센터 체크대로: 매출 보기 → sales_amount ·
+      자재 보기 → purchase_price·supplier_info. 그 밖엔 아래 팀 정책(정책 관리 화면은 관리자 화면이라 잠기지 않는다).
       (대표 결정 2026-07-05: 임원은 전 분류 항상 전체 열람. leader·일반직원은 팀 정책.)
     - 그 외: user 의 team_id 가 그 category 허용팀에 있으면 True(정책 기반).
     - policy(=load_field_access_policy 결과) 를 주면 그것을 사용, 없으면 그때 1회 조회.
@@ -2162,8 +2165,14 @@ def can_view_field(user, category, policy=None) -> bool:
     if not user:
         return False
     role = (user.get("role") if isinstance(user, dict) else user["role"]) or ""
-    if role in ("ceo", "admin", "executive"):
+    if role in ("ceo", "executive"):
         return True
+    # z1191g (대표 2026-10-21 「관리자가 자기 부서가 아닌 업무를 다 볼 수 있다는 건 아니다」)
+    if role == "admin":
+        if category == "sales_amount" and can_view_sales(user):
+            return True
+        if category in ("purchase_price", "supplier_info") and can_view_logistics(user):
+            return True
     team_id = user.get("team_id") if isinstance(user, dict) else None
     if team_id is None:
         return False
@@ -2828,7 +2837,7 @@ async def admin_work_pattern_manual_generate(request: Request, uid: int):
 
 def can_use_sales(user) -> bool:
     """매출·영업 **쓰기** (등록·편집·견적·수주) 권한 (Plan Y S1).
-    - admin / ceo / executive: 항상 허용
+    - ceo / executive: 항상 허용 · z1191g(2026-10-21 대표): 관리자(admin)는 아래 체크대로만
     - 그 외: users.can_use_sales 플래그가 1일 때만 (관리자 화면의 '센터 진입 권한' 체크)
     v5H226z1093 (2026-09-01 대표 지시): 팀 번호 자동 허용(1·2·3)과 can_use_logistics 폴백 폐지.
       폴백이 있으면 자재·구매 등록 권한자에게 매출·영업 등록까지 열려 두 센터가 분리되지 않는다.
@@ -2836,7 +2845,7 @@ def can_use_sales(user) -> bool:
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
-    if role in ("admin", "ceo", "executive"):
+    if role in ("ceo", "executive"):   # z1191g: 관리자는 체크대로
         return True
     # v5H226z1093 (대표 지시 2026-09-01): 팀 번호 자동 허용(1·2·3) 제거 — 화면 체크로만 판정.
     try:
@@ -3248,7 +3257,8 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
     # 대표 지적 2026-04-24: "매출을 전직원 공개는 아닌 것 같은데…"
     # 1) UI 조건 분기 (home.html Jinja) · 2) 컨텍스트 분기 (여기) · 3) 라우트 권한 (별도)
     role = (u.get("role") or "member").lower()
-    is_executive = role in ("ceo", "admin", "executive")
+    # z1191g (대표 2026-10-21): 관리자는 매출 보기 체크가 있을 때만 경영진 매출 카드(대표·임원은 그대로)
+    is_executive = role in ("ceo", "executive") or (role == "admin" and can_view_sales(u))
     is_leader_plus = role in ("ceo", "admin", "executive", "leader")
 
     monthly_revenue = None
@@ -9511,6 +9521,13 @@ def dashboard_page(req: Request):
          "note": f"활성 알림 {int(fx.get('alerts_active',0))}건"},
     ]
 
+    # z1191g (대표 2026-10-21): 관리자는 체크한 센터의 숫자만 — 매출·미수금·수출 카드 = 매출 보기, 재고 카드·안전재고 = 자재 보기
+    #   (대표·임원은 판정 함수에서 늘 열려 그대로 · 품질·완료율·지연·환율은 일반 진행 정보라 그대로)
+    _sv1191g, _lv1191g = can_view_sales(u), can_view_logistics(u)
+    _need1191g = {"이번달 매출": _sv1191g, "미수금 잔액": _sv1191g, "수출 오더 진행": _sv1191g, "활성 재고 품목": _lv1191g}
+    ceo_kpis_view = [k for k in ceo_kpis_view if _need1191g.get(k.get("label"), True)]
+    if not _lv1191g:
+        safety_top5 = []
     return ctx(req, "dashboard.html",
                user=u, teams=teams, total_stats=total_stats,
                mon=mon, sun=sun, today_s=today_s,
@@ -14794,7 +14811,7 @@ async def admin_users_bulk_delete(req: Request):
 # ── z1191f (대표 2026-10-21 「담당사업부 선택 및 센터진입권한을 개인별 페이지로 들어가지 말고 한번에 일괄 설정」) ──
 #   사업부·센터 권한 한꺼번에 설정 — 한 줄 = 한 사람, 칸 8개(담당 사업부 4 + 센터 진입 권한 4).
 #   · 저장 규칙은 판정 함수(can_view_sales 등)·기동 시드(database.py Plan Y S1)와 같게:
-#     대표·임원·관리자 = 센터 4칸 역할상 항상 열림(잠금) · 팀장 = 보기 2칸 잠금 · 등록·편집 → 보기 자동.
+#     대표·임원 = 센터 4칸 역할상 항상 열림(잠금 · z1191g 부터 관리자는 체크대로) · 팀장 = 보기 2칸 잠금 · 등록·편집 → 보기 자동.
 #   · 화면을 연 뒤 다른 곳에서 바뀐 칸은 덮어쓰지 않는다(보낸 옛 값 ≠ 지금 값 → 건너뛰고 알림).
 #   · 바뀐 칸은 사람마다 user_history 에 「일괄 설정」으로 남긴다(사람 수정 화면도 같은 기록 — 전에는 안 남았다).
 _Z1191F_FLAGS = (("can_view_sales", "매출·영업 보기"), ("can_use_sales", "매출·영업 등록·편집"),
@@ -14819,7 +14836,7 @@ def _z1191f_biz_label(v):
 
 def _z1191f_locked(role):
     """역할상 항상 열려 체크가 소용없는 센터 칸 — 판정 함수(can_view_sales 등)·기동 시드와 같은 규칙."""
-    if role in ("ceo", "executive", "admin"):
+    if role in ("ceo", "executive"):   # z1191g: 관리자는 체크대로(잠그지 않음)
         return {f for f, _ in _Z1191F_FLAGS}
     if role == "leader":
         return {"can_view_sales", "can_view_logistics"}
@@ -42151,6 +42168,8 @@ def _parse_bank_excel(raw, filename, override=None):
 async def bank_recon_page(req: Request):
     """은행 입금내역 대사 — 업로드 화면(1단계·미리보기)."""
     u = require(req, ["admin", "ceo", "executive"])
+    if u and (u.get("role") or "") == "admin" and not can_use_sales(u):   # z1191g: 관리자는 매출 등록 체크가 있어야
+        u = None
     if not u:
         return RedirectResponse("/home", 303)
     return ctx(req, "bank_recon.html", user=u, active="sales", result=None)
@@ -42160,6 +42179,8 @@ async def bank_recon_page(req: Request):
 async def bank_recon_upload(req: Request):
     """엑셀 업로드→파싱→미리보기. 저장하지 않음(1단계)."""
     u = require(req, ["admin", "ceo", "executive"])
+    if u and (u.get("role") or "") == "admin" and not can_use_sales(u):   # z1191g: 관리자는 매출 등록 체크가 있어야
+        u = None
     if not u:
         return RedirectResponse("/home", 303)
     form = await req.form()
@@ -42191,7 +42212,7 @@ def check_receivable_alerts():
         total_items = len(items)
         # 영업 권한자 폴백 (주된 알림 대상 미상시)
         sales_uids = [r[0] for r in c.execute(
-            "SELECT id FROM users WHERE can_use_sales=1 OR role IN ('admin','ceo')"
+            "SELECT id FROM users WHERE can_use_sales=1 OR role='ceo'"   # z1191g: 관리자는 매출 등록 체크로(위 조건)
         ).fetchall()]
         for it in items:
             ov = it["overdue_days"]
@@ -42290,12 +42311,12 @@ async def sales_alerts_check(req: Request):
 # 매출 자동 채움: orders 테이블 참조 → export_orders INSERT 시 자동 조회.
 # =====================================================
 def _export_guard(req: Request):
-    """수출입 권한 가드 — 베트남법인(team_id=12) OR admin/ceo/executive OR 영업권한자."""
+    """수출입 권한 가드 — 베트남법인(team_id=12) OR ceo/executive OR 영업권한자(z1191g: 관리자도 매출 등록 체크로)."""
     u = get_user(req)
     if not u:
         return None
     role = u.get("role") if isinstance(u, dict) else u["role"]
-    if role in ("admin", "ceo", "executive"):
+    if role in ("ceo", "executive"):
         return u
     team_id = u.get("team_id") if isinstance(u, dict) else u["team_id"]
     if team_id == 12:  # 12 베트남법인 (P11)
@@ -44759,7 +44780,7 @@ def check_export_alerts():
         # 베트남법인(team_id=12) + admin/ceo/executive + 영업권 사용자에게 송부
         recipients = [r["id"] for r in c.execute(
             "SELECT id FROM users WHERE is_active=1 AND "
-            "(team_id=12 OR role IN ('admin','ceo','executive'))"
+            "(team_id=12 OR role IN ('ceo','executive') OR (role='admin' AND COALESCE(can_use_sales,0)=1))"   # z1191g
         ).fetchall()]
         # 1) 출하 임박 D-3 — bills_of_lading.departure_date
         bls = c.execute(
@@ -45914,11 +45935,11 @@ async def stock_alerts_check(req: Request):
 # 권한: admin / finance(team_id=3 관리팀) / ceo (+ logistics 권한자)
 # =====================================================
 def _fx_guard(user) -> bool:
-    """환율 관리 권한 — admin/ceo/executive + 관리팀(finance) + logistics 권한자"""
+    """환율 관리 권한 — ceo/executive + 관리팀(finance) + logistics 권한자 (z1191g: 관리자도 체크대로)"""
     if not user:
         return False
     role = user.get("role") if isinstance(user, dict) else user["role"]
-    if role in ("admin", "ceo", "executive"):
+    if role in ("ceo", "executive"):
         return True
     team_id = user.get("team_id") if isinstance(user, dict) else user["team_id"]
     if team_id == 3:  # 관리팀 = finance

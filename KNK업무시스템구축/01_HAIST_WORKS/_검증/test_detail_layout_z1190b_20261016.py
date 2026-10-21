@@ -39,8 +39,9 @@ with D.db_session() as c:
     for col, typ in [("employee_no", "TEXT"), ("entity", "TEXT"), ("password_version", "INTEGER DEFAULT 1")]:
         if col not in have:
             c.execute("ALTER TABLE users ADD COLUMN %s %s" % (col, typ))
-    c.execute("INSERT INTO users (name, role, employee_no, login_id, password, is_active, password_version) "
-              "VALUES ('가상관리자', 'admin', 'T901', 'T901', 'x', 1, 1)")
+    # z1191g(2026-10-21 대표): 관리자는 역할만으로 매출·자재가 열리지 않는다 → 이 시험의 가상 관리자는 센터 4칸을 켠 관리자로
+    c.execute("INSERT INTO users (name, role, employee_no, login_id, password, is_active, password_version, can_view_sales, can_use_sales, can_view_logistics, can_use_logistics) "
+              "VALUES ('가상관리자', 'admin', 'T901', 'T901', 'x', 1, 1, 1, 1, 1, 1)")
     ADMIN = dict(c.execute("SELECT * FROM users WHERE employee_no='T901'").fetchone())
     cc = {r[1] for r in c.execute("PRAGMA table_info(customers)")}
     for col in ("alias", "country"):

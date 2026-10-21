@@ -566,7 +566,7 @@ var CH = {
     {{ a('/sales/shipments-receipts',i.ch_m_ship, 'M-01-04') }}
     {{ a('/sales/outstanding',     i.ch_m_out,      'M-01-05') }}
     {# v5H226z929 (대표 지시): 은행 입금내역으로 수금 대조(1단계=파일 읽기·미리보기) — 재무 권한만 #}
-    {% if (user.role or '')|lower in ('admin','ceo','executive') %}{{ a('/sales/bank-recon', i.ch_m_bank, 'M-01-17') }}{% endif %}
+    {% if (user.role or '')|lower in ('ceo','executive') or ((user.role or '')|lower == 'admin' and user.can_use_sales) %}{{ a('/sales/bank-recon', i.ch_m_bank, 'M-01-17') }}{% endif %}{# z1191g: 관리자는 매출 등록 체크가 있어야(경로와 같게) #}
     {{ a('/export',                i.ch_m_export,      'M-01-10') }}
     {{ a('/as',                    i.ch_m_as,    'M-01-12') }}
   {% elif _at == 'logi' %}

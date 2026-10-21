@@ -140,8 +140,9 @@ check("사업부: 검사기 T(100+15,000+28,000) · 자동화 M(1,000+1,720,000)
 
 print("§2 매출 홈 화면(/sales)")
 with D.db_session() as c:
-    c.execute("INSERT INTO users (name, role, employee_no, login_id, password, is_active, password_version) "
-              "VALUES ('가상관리자', 'admin', 'T901', 'T901', 'sso_only_no_local_password', 1, 1)")
+    # z1191g(2026-10-21 대표): 관리자는 역할만으로 매출·자재가 열리지 않는다 → 이 시험의 가상 관리자는 센터 4칸을 켠 관리자로
+    c.execute("INSERT INTO users (name, role, employee_no, login_id, password, is_active, password_version, can_view_sales, can_use_sales, can_view_logistics, can_use_logistics) "
+              "VALUES ('가상관리자', 'admin', 'T901', 'T901', 'sso_only_no_local_password', 1, 1, 1, 1, 1, 1)")
     ADMIN = dict(c.execute("SELECT * FROM users WHERE employee_no='T901'").fetchone())
 M.get_user = lambda request: ADMIN
 cl = TestClient(M.app, follow_redirects=False)

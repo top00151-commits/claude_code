@@ -123,13 +123,13 @@ with contextlib.redirect_stdout(io.StringIO()):
 h = r.text
 check("1 화면 200 · 근무 중인 사람만 %d줄(퇴사 1명 빠짐)" % N_ACT,
       r.status_code == 200 and h.count('class="prow"') == N_ACT and "가상퇴사" not in h, (r.status_code, h.count('class="prow"')))
-check("   잠긴 칸 = 대표 4 · 관리자 4 · 팀장 보기 2 = 10", h.count('<td class="lk"') == 10, h.count('<td class="lk"'))
+check("   잠긴 칸 = 대표 4 · 팀장 보기 2 = 6 (z1191g: 관리자는 잠그지 않고 체크대로)", h.count('<td class="lk"') == 6, h.count('<td class="lk"'))
 import re                                                   # noqa: E402
 _kr = len(re.findall(r'<tr class="prow"[^>]*data-corp="본사"', h))
 _vn = len(re.findall(r'<tr class="prow"[^>]*data-corp="베트남법인"', h))
 check("   본사 %d · 베트남법인 %d 줄 표시(법인 규칙 = 사용자 목록과 같음)" % (N_KR, N_VN), _kr == N_KR and _vn == N_VN, (_kr, _vn))
 check("   사업부 4칸·센터 4칸 체크(잠긴 칸 빼고) · 사업부 T,M,L,E 사람은 네 칸 모두 켜짐",
-      h.count('data-f="biz" data-v=') == N_ACT * 4 + 4 and h.count('class="pc" data-f="can_') == N_ACT * 4 - 10
+      h.count('data-f="biz" data-v=') == N_ACT * 4 + 4 and h.count('class="pc" data-f="can_') == N_ACT * 4 - 6
       and 'data-bd="T,M,L,E"' in h)
 M.get_user = lambda request: MEMBER
 with contextlib.redirect_stdout(io.StringIO()):
