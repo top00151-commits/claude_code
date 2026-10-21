@@ -5,7 +5,7 @@
   §1 서버(임시 DB · TestClient): 화면(근무 중인 사람만·잠금 칸) · 관리자만 · 저장 규칙(잠금 건너뜀·등록→보기·먼저 바뀐 칸
      덮어쓰기 막기·모르는 칸/글자/사람 무시) · 칸마다 변경 이력 · 이력 못 쓰면 하나도 안 바뀜 · 사람 수정 화면도 이력
   §2 실제 화면(Chromium): 처음=본사 · 칸 누르기 · 등록→보기 · 보기 끄면 등록도 · 「모두」는 보이는 사람만 · 되돌리기 ·
-     책갈피 넘어 바꾼 것도 저장 · 먼저 바뀐 칸 알림 · 다시 열기 · 머리줄 고정 · 칸 흔들림 없음 · 스크립트 오류 0
+     책갈피 넘어 바꾼 것도 저장 · 먼저 바뀐 칸 알림 · 다시 열기 · 틀 고정(윗부분·머리줄 · z1191i) · 칸 흔들림 없음 · 스크립트 오류 0
   §3 바뀐 곳 원문
 """
 import contextlib
@@ -277,7 +277,7 @@ with sync_playwright() as p:
     pg.click('.ucf-tab[data-corp="베트남법인"]'); pg.wait_for_timeout(250)
     click_cell(pg, cell(pg, "VN803", "biz", "E"))
     out["vn"] = st(pg)
-    wrap = pg.query_selector(".pg-wrap")
+    wrap = pg.query_selector("main.main")   # z1191i: 윗부분이 따로 묶여 .pg-wrap 이 둘 → 화면 전체를 찍는다
     if wrap:
         wrap.screenshot(path=SHOT + "_vn.png")
     pg.click('.ucf-tab.all'); pg.wait_for_timeout(250)
@@ -297,11 +297,21 @@ with sync_playwright() as p:
                     "t802_vs": val(pg, cell(pg, "T802", "can_view_sales"))}
     if wrap:
         wrap.screenshot(path=SHOT + "_saved.png")
-    # ⑥ 머리줄 고정 — 표를 아래로 내려도 두 줄 머리가 위에 붙어 있다
-    out["sticky"] = pg.evaluate("""()=>{ var s=document.querySelector('.pg-scroll'); var g=document.querySelector('#pgGrid thead tr.g th[colspan]'),
-        c=document.querySelector('#pgGrid thead tr.c th'); var before=s.scrollHeight>s.clientHeight; s.scrollTop=400;
-        var st=s.getBoundingClientRect().top, gt=g.getBoundingClientRect().top, ct=c.getBoundingClientRect().top, gh=g.getBoundingClientRect().height;
-        return {scrolls:before, top:s.scrollTop, g_off:Math.round(gt-st), c_off:Math.round(ct-st), g_h:Math.round(gh)}; }""")
+    # ⑥ 틀 고정(z1191i) — 대표가 한 그대로: 윗부분 위에서 휠 · 표 위에서 휠 → 화면은 내려가도 윗부분·머리 두 줄은 제자리
+    FIX = """()=>{ var m=document.querySelector('.main'), f=document.querySelector('.pg-fixed'), t=document.querySelector('.page-title'),
+        sv=document.getElementById('pgSave'), g=document.querySelector('#pgGrid thead tr.g th[colspan]'), c=document.querySelector('#pgGrid thead tr.c th');
+        var R=function(e){ return e.getBoundingClientRect(); };
+        return {main:Math.round(m.scrollTop), title:Math.round(R(t).top), save:Math.round(R(sv).top), fix_bottom:(f? Math.round(R(f).bottom) : null),
+                g_top:Math.round(R(g).top), g_h:Math.round(R(g).height), c_top:Math.round(R(c).top),
+                msg:(document.getElementById('pgMsg').textContent||'').length>0, box_scroll:getComputedStyle(document.querySelector('.pg-scroll')).overflowY}; }"""
+    st0 = pg.evaluate(FIX)
+    pg.mouse.move(700, 230); pg.mouse.wheel(0, 700); pg.wait_for_timeout(400)
+    st1 = pg.evaluate(FIX)
+    pg.mouse.move(700, 820); pg.mouse.wheel(0, 3000); pg.wait_for_timeout(500)
+    st2 = pg.evaluate(FIX)
+    out["sticky"] = {"before": st0, "wheel_top": st1, "wheel_table": st2}
+    if wrap:
+        pg.screenshot(path=SHOT + "_fixed.png")
     pg.reload()
     try:
         pg.wait_for_load_state("networkidle", timeout=15000)
@@ -399,8 +409,13 @@ H1 = {k: len(hist(k, "일괄 설정")) for k in H0}
 check("   이력 +1씩(본사2·팀장·베트남3) · 구매1 은 안 늘어남",
       H1["T802"] - H0["T802"] == 1 and H1["T850"] - H0["T850"] == 1 and H1["VN803"] - H0["VN803"] == 1 and H1["T803"] == H0["T803"], (H0, H1))
 SK = res.get("sticky") or {}
-check("H 머리줄 고정: 표를 내려도 머리 두 줄이 위에 붙어 있음",
-      SK.get("scrolls") and SK.get("top", 0) > 0 and abs(SK.get("g_off", 99)) <= 2 and abs(SK.get("c_off", 99) - SK.get("g_h", 0)) <= 3, SK)
+s0, s1, s2 = SK.get("before") or {}, SK.get("wheel_top") or {}, SK.get("wheel_table") or {}
+check("H 틀 고정(z1191i): 윗부분·표 위에서 휠 → 화면은 내려감 · 제목·저장 단추 자리 그대로(저장 안내가 뜬 상태)",
+      s1.get("main", 0) > 300 and s2.get("main", 0) > s1.get("main", 0) and s0.get("msg")
+      and all(abs(s.get("title", -99) - s0.get("title", 99)) <= 1 and abs(s.get("save", -99) - s0.get("save", 99)) <= 1 for s in (s1, s2)), SK)
+check("   머리 두 줄은 윗부분 바로 아래에 붙어 있음 · 표 자체 스크롤 없음(스크롤은 화면 하나)",
+      all((s.get("fix_bottom") is not None and abs(s.get("g_top", 99) - s.get("fix_bottom")) <= 2) and abs(s.get("c_top", 99) - s.get("g_top", 0) - s.get("g_h", 0)) <= 3
+          for s in (s1, s2)) and s2.get("box_scroll") == "visible", SK)
 RL = res.get("reload") or {}
 check("I 다시 열면: 마지막 책갈피(본사) · 저장한 값 · 바뀐 곳 0", tab(RL.get("st") or {}, "본사").get("on") and RL.get("t802_vs") == 1
       and (RL.get("st") or {}).get("chg") == "바뀐 곳 0칸 · 0명", RL)

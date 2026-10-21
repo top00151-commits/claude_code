@@ -6,6 +6,9 @@
    저장 규칙은 서버(main.py _z1191f_*)와 같다 — 대표·임원 센터 칸 잠금(z1191g: 관리자는 체크대로) · 팀장 보기 칸 잠금 · 등록·편집 → 보기. #}
 <style>
 .pg-wrap{margin:0 0 var(--space-5);padding:0 var(--content-pad);}
+/* z1191i (대표 2026-10-21 「스크롤로 내릴때 지금 사진 부분은 고정」): 윗부분은 화면 위에 붙고 직원 줄만 움직인다(엑셀 틀 고정) */
+.pg-fixed{position:sticky;top:0;z-index:6;background:var(--paper,#fff);}
+.pg-fixed .pg-wrap{margin-bottom:0;padding-bottom:8px;}
 .pg-help{font-size:12.5px;color:var(--mute);line-height:1.7;margin:0 0 4px;}
 .pg-help b{color:var(--ink);}
 .ucf-tabs{display:flex;gap:4px;align-items:flex-end;margin:10px 0 0;padding:0 4px;border-bottom:2px solid var(--line);}
@@ -25,12 +28,12 @@
 .pg-msg.ok{display:block;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;}
 .pg-msg.warn{display:block;background:#fffbeb;border:1px solid #fde68a;color:#92400e;}
 .pg-msg.err{display:block;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;}
-.pg-scroll{overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fff;}
+.pg-scroll{border:1px solid var(--line);border-radius:6px;background:#fff;}   /* z1191i: 표 자체 스크롤 없음 — 화면 스크롤 하나 */
 .pg-grid{border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%;min-width:1040px;font-size:12.5px;}
 .pg-grid th,.pg-grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:3px 7px;}
-.pg-grid thead th{position:sticky;top:0;background:var(--paper-2);color:var(--knk-red);font-weight:800;text-align:center;z-index:2;}
+.pg-grid thead th{position:sticky;top:var(--pg-th-top,0px);background:var(--paper-2);color:var(--knk-red);font-weight:800;text-align:center;z-index:2;}
 .pg-grid thead tr.g th{height:26px;font-size:12px;}
-.pg-grid thead tr.c th{top:31px;font-size:12px;line-height:1.3;padding:4px 2px;}
+.pg-grid thead tr.c th{top:calc(var(--pg-th-top,0px) + var(--pg-g-h,31px));font-size:12px;line-height:1.3;padding:4px 2px;}
 .pg-grid thead th.l{text-align:left;}
 .pg-grid thead .all{display:flex;align-items:center;justify-content:center;gap:3px;margin-top:3px;font-weight:600;color:var(--mute);font-size:11px;cursor:pointer;}
 .pg-grid td.c{padding:0;text-align:center;}
@@ -48,6 +51,7 @@
 </style></head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
+  <div class="pg-fixed">{# z1191i: 내려도 이 윗부분은 화면 위에 붙어 있다 #}
   <div class="page-head">
     <div>
       <div class="crumbs"><a href="/admin">관리자</a> · <b>권한 한꺼번에 설정</b></div>
@@ -76,7 +80,10 @@
       </div>
     </div>
     <div id="pgMsg" class="pg-msg" role="status"></div>
-    <div class="pg-scroll" data-knk-fill>
+  </div>
+  </div>{# /pg-fixed #}
+  <div class="pg-wrap">
+    <div class="pg-scroll">
       <table class="pg-grid" id="pgGrid">
         <colgroup><col><col style="width:16%;"><col style="width:86px;">{% for k, lbl in bizs %}<col style="width:74px;">{% endfor %}{% for f, lbl in flags %}<col style="width:84px;">{% endfor %}</colgroup>
         <thead>
@@ -212,11 +219,19 @@
   deptSel.addEventListener('change', apply);
   qIn.addEventListener('input', apply);
 
-  /* 머리줄 둘째 줄을 첫째 줄 높이만큼 내려 붙인다(고정 머리줄 두 줄) */
+  /* z1191i: 머리줄 두 줄은 윗부분(.pg-fixed) 바로 아래에 붙는다 — 윗부분 높이(안내 글이 뜨면 늘어남)를 재서 맞춘다 */
+  var fixed=document.querySelector('.pg-fixed');
   function stickTop(){
-    var g=grid.querySelector('thead tr.g'); if(!g) return;
-    var h=g.getBoundingClientRect().height;
-    if(h>0) Array.prototype.forEach.call(grid.querySelectorAll('thead tr.c th'), function(th){ th.style.top=h+'px'; });
+    var top=fixed ? Math.floor(fixed.getBoundingClientRect().height) : 0;
+    var g=grid.querySelector('thead tr.g'), gh=g ? g.getBoundingClientRect().height : 0;
+    grid.style.setProperty('--pg-th-top', top+'px');
+    if(gh>0) grid.style.setProperty('--pg-g-h', Math.floor(gh)+'px');
+  }
+  if(fixed){   /* 윗부분 바탕 = 화면 바탕(투명이면 아래로 지나가는 줄이 비친다) */
+    var _e=fixed.parentElement, _bg='';
+    while(_e && !_bg){ var _c=getComputedStyle(_e).backgroundColor; if(_c && _c!=='transparent' && _c.indexOf('rgba(0, 0, 0, 0)')<0) _bg=_c; _e=_e.parentElement; }
+    if(_bg) fixed.style.backgroundColor=_bg;
+    if(window.ResizeObserver){ try{ new ResizeObserver(function(){ stickTop(); }).observe(fixed); }catch(e){} }
   }
 
   undoBtn.addEventListener('click', function(){
@@ -229,7 +244,7 @@
     refresh();
   });
 
-  function msg(cls, html){ msgEl.className='pg-msg'+(cls?' '+cls:''); msgEl.innerHTML=html||''; }
+  function msg(cls, html){ msgEl.className='pg-msg'+(cls?' '+cls:''); msgEl.innerHTML=html||''; stickTop(); }   /* z1191i: 안내 글이 뜨면 머리줄 다시 맞춤 */
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
 
   function collect(){
