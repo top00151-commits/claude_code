@@ -9094,8 +9094,11 @@ def check_stock_alerts() -> dict:
             except Exception:
                 pass
             try:
+                # z1191h(2026-10-21 대표 ⓐ): 관리자(admin)는 자재 체크(등록·보기)가 켜진
+                #   사람만 받는다 — 체크 없는 법인 관리자에게 본사 재고 알림이 가지 않게.
                 for r in c.execute(
-                    "SELECT id FROM users WHERE role IN ('admin','ceo')"
+                    "SELECT id FROM users WHERE role='ceo' OR (role='admin' "
+                    "AND (COALESCE(can_use_logistics,0)=1 OR COALESCE(can_view_logistics,0)=1))"
                 ).fetchall():
                     if r["id"]:
                         recipients.add(int(r["id"]))

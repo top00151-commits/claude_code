@@ -11,6 +11,7 @@ r"""WP-04 BOM 권한 분리 시험 14항목 (대표 지시 2026-09-08 · 검토 
   · 파일은 **담긴 정보**로 판정 — 작업 이름으로 등급을 정하지 않는다(정정 A)
   · 읽기에 실행권한을 요구하지 않는다 — 조회 전용 사용자 보존(정정 B)
   · 법인 계정의 역할 기반 권한을 새로 뺏지 않는다(정정 D)
+    — z1191g(2026-10-21 대표)가 **관리자(admin)에 한해** 정정 D 를 대체: 센터는 체크대로
 
 실행:  python _검증/test_bom_permissions_20260908.py   → "실패 0" 이어야 통과
 """
@@ -214,11 +215,15 @@ CUR["u"] = SW
 check("06 관리번호를 같게 해도 권한이 늘지 않음",
       cl.get(f"/bom/tools/download/{rid_both}?f=out").status_code == 303)
 
-# ══ 14 법인 역할 기반 권한 보존 (정정 D) ══
-CUR["u"] = VN_ADMIN
-check("14 법인 팀이라도 역할(admin) 기반 기존 권한은 사라지지 않음",
-      cl.get("/bom/tools").status_code == 200
-      and cl.get(f"/bom/tools/download/{rid_both}?f=out").status_code == 200)
+# ══ 14 관리자도 센터는 체크대로 (z1191g 2026-10-21 대표 — 정정 D 를 관리자에 한해 대체) ══
+#    대표: 「이용식 법인장이 관리자인데 본사 … 자재구매를 다 볼 수 있다는 것도 이상해」
+CUR["u"] = VN_ADMIN                                  # 체크 0개 법인 관리자
+check("14 체크 없는 법인 관리자는 자재 화면이 닫힌다 (z1191g)",
+      cl.get("/bom/tools").status_code == 303
+      and cl.get(f"/bom/tools/download/{rid_both}?f=out").status_code == 303)
+CUR["u"] = dict(VN_ADMIN, can_view_logistics=1)      # 자재 보기 체크를 켜면
+check("14b 자재 보기 체크를 켠 관리자는 화면이 열린다",
+      cl.get("/bom/tools").status_code == 200)
 
 # ══ 7 인계 — 남이 만든 설계자료를 다음 담당자가 열 수 있음 ══
 CUR["u"] = SW

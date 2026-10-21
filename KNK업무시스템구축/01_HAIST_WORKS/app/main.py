@@ -25463,11 +25463,13 @@ _MS_BACK = {"EXCEL": None, "PREPARE": "EXCEL", "OFFICIAL": "PREPARE"}
 
 
 def _ms_can_change(u) -> bool:
-    """기준전환을 실행할 수 있는 사람 — 자재 담당(구매팀) · 대표/임원 · 관리자.
-    ⛔ 조회는 넓게, 바꾸는 것은 좁게."""
+    """기준전환을 실행할 수 있는 사람 — 자재 담당(구매팀) · 대표/임원.
+    ⛔ 조회는 넓게, 바꾸는 것은 좁게.
+    z1191h(2026-10-21 대표 ⓐ): 관리자(admin)는 역할만으로 못 바꾼다 — 자재 등록 체크가
+    있을 때만(아래 can_use_logistics 가 z1191g 부터 관리자를 체크대로 판정한다)."""
     if not u:
         return False
-    if (u.get("role") if isinstance(u, dict) else u["role"]) in ("ceo", "executive", "admin"):
+    if (u.get("role") if isinstance(u, dict) else u["role"]) in ("ceo", "executive"):
         return True
     return bool(can_use_logistics(u))
 
@@ -38527,7 +38529,11 @@ async def parts_price_create_submit(
 @app.post("/parts/prices/{price_id}/approve")
 async def parts_price_approve_submit(request: Request, price_id: int):
     u = get_user(request)
-    if not u or u["role"] not in ("admin", "ceo", "leader", "executive"):
+    # z1191h(2026-10-21 대표 ⓐ): 관리자(admin)는 자재 등록 체크가 있을 때만 단가 승인 —
+    #   역할만으로는 불가(z1191g 「관리자는 관리 일만 역할로」의 자재 안쪽 후속).
+    _r = (u["role"] if u else None)
+    if not u or not (_r in ("ceo", "leader", "executive")
+                     or (_r == "admin" and can_use_logistics(u))):
         return JSONResponse({"error": "권한 없음"}, 401)
     with db_session() as c:
         row = c.execute("SELECT part_id FROM part_prices WHERE id=?", (price_id,)).fetchone()
@@ -38815,7 +38821,7 @@ async def stock_adjust_submit(
 # =====================================================
 # 재고 실사·조정 워크플로 (Top10 #10 — 2026-04-26 P4 자재팀 분기 1회)
 # - 자재팀(can_use_logistics) + admin/ceo: 실사 진행 가능
-# - 조정 승인: admin/ceo/executive 또는 team_id==10(구매팀) leader (자재팀장)
+# - 조정 승인: ceo/executive · 자재 등록 체크 있는 admin(z1191h) · team_id==10 leader (자재팀장)
 # =====================================================
 def _audit_guard(u) -> bool:
     """실사 화면 접근 권한 — 물류 권한자."""
@@ -38823,11 +38829,14 @@ def _audit_guard(u) -> bool:
 
 
 def _audit_approve_guard(u) -> bool:
-    """조정 승인 권한 — admin/ceo/executive 또는 자재팀장(team_id=10 leader)."""
+    """조정 승인 권한 — ceo/executive · 자재 등록 체크 있는 admin · 자재팀장(team_id=10 leader).
+    z1191h(2026-10-21 대표 ⓐ): 관리자(admin)는 역할만으로 승인 불가 — 체크대로."""
     if not u:
         return False
     role = u.get("role") if isinstance(u, dict) else u["role"]
-    if role in ("admin", "ceo", "executive"):
+    if role in ("ceo", "executive"):
+        return True
+    if role == "admin" and can_use_logistics(u):
         return True
     team_id = u.get("team_id") if isinstance(u, dict) else u["team_id"]
     if team_id == 10 and role == "leader":
