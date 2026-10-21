@@ -626,5 +626,17 @@ db.projects_delete_logi(PJ_TEST2, force=True)
 chk("잠금 임시 해제 시 완전삭제 가능(테스트 정리 경로 유지)", cnt("projects", "id=?", (PJ_TEST2,)) == 0)
 os.environ.pop("KNK_ENABLE_PROJECT_HARD_DELETE", None)
 
+# ── z1191k(2026-10-21 대표 ⓐ): 재고 화면 문지기(_s2_guard 16곳) — 관리자도 체크대로 ──
+print("[B7] z1191k — 재고 화면은 관리자 역할만으론 안 열린다 (체크대로)")
+CURRENT["u"] = ADMIN            # role=admin · 자재 등록 체크 0
+r = client.get("/stock/balances")
+chk("관리자 역할만: 재고 현황 닫힘(303 /home)", r.status_code == 303 and loc(r) == "/home", r.status_code)
+r = client.post("/stock/alerts/check")
+chk("관리자 역할만: 재고 알림 점검 버튼도 닫힘(401)", r.status_code == 401, r.status_code)
+CURRENT["u"] = dict(ADMIN, can_use_logistics=1)   # 자재 등록 체크를 켜면
+chk("체크 켠 관리자: 재고 현황 열림(200)", client.get("/stock/balances").status_code == 200)
+CURRENT["u"] = CEO
+chk("대표: 그대로 열림(200)", client.get("/stock/balances").status_code == 200)
+
 print(f"\n==== 결과: PASS {ok} / FAIL {fail} ====")
 sys.exit(1 if fail else 0)

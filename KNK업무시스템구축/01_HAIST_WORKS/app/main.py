@@ -39990,11 +39990,14 @@ async def admin_permissions_cleanup_expired(req: Request):
 # 권한: P4 구매팀(can_use_logistics) 또는 admin/ceo.
 # =====================================================
 def _s2_guard(req: Request):
-    """S2 권한 가드 — 구매팀 권한 OR admin/ceo. 없으면 None 반환."""
+    """S2 권한 가드 — 자재 등록 체크(can_use_logistics) OR 대표(ceo). 없으면 None 반환.
+    z1191k(2026-10-21 대표 ⓐ): 관리자(admin)는 역할만으로 재고 화면 16곳을 못 연다 — 체크대로.
+    (z1191g 부터 can_use_logistics 가 관리자를 체크대로 판정하므로 체크 켠 관리자는 그대로 통과.
+     /stock/alerts/check 점검 버튼도 이 문 뒤라 함께 체크대로가 된다 — 대표 선택 ⓐ.)"""
     u = get_user(req)
     if not u:
         return None
-    if u.get("role") in ("admin", "ceo") or can_use_logistics(u):
+    if u.get("role") == "ceo" or can_use_logistics(u):
         return u
     return None
 
