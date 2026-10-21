@@ -14707,6 +14707,178 @@ async def admin_users_bulk_delete(req: Request):
                          "skipped": skipped, "errors": errors})
 
 
+# ── z1191f (대표 2026-10-21 「담당사업부 선택 및 센터진입권한을 개인별 페이지로 들어가지 말고 한번에 일괄 설정」) ──
+#   사업부·센터 권한 한꺼번에 설정 — 한 줄 = 한 사람, 칸 8개(담당 사업부 4 + 센터 진입 권한 4).
+#   · 저장 규칙은 판정 함수(can_view_sales 등)·기동 시드(database.py Plan Y S1)와 같게:
+#     대표·임원·관리자 = 센터 4칸 역할상 항상 열림(잠금) · 팀장 = 보기 2칸 잠금 · 등록·편집 → 보기 자동.
+#   · 화면을 연 뒤 다른 곳에서 바뀐 칸은 덮어쓰지 않는다(보낸 옛 값 ≠ 지금 값 → 건너뛰고 알림).
+#   · 바뀐 칸은 사람마다 user_history 에 「일괄 설정」으로 남긴다(사람 수정 화면도 같은 기록 — 전에는 안 남았다).
+_Z1191F_FLAGS = (("can_view_sales", "매출·영업 보기"), ("can_use_sales", "매출·영업 등록·편집"),
+                 ("can_view_logistics", "자재·구매 보기"), ("can_use_logistics", "자재·구매 등록·편집"))
+_Z1191F_BIZ = (("T", "검사기"), ("M", "자동화"), ("L", "라이프밸류"), ("E", "기타"))
+_Z1191F_ROLE_LBL = {"ceo": "대표", "executive": "임원", "admin": "관리자", "leader": "팀장"}
+_Z1191F_COLS = ("COALESCE(biz_divs,'') AS biz_divs, COALESCE(can_view_sales,0) AS can_view_sales, "
+                "COALESCE(can_use_sales,0) AS can_use_sales, COALESCE(can_view_logistics,0) AS can_view_logistics, "
+                "COALESCE(can_use_logistics,0) AS can_use_logistics")
+
+
+def _z1191f_biz_norm(v):
+    """담당 사업부 → 정해진 순서(T,M,L,E)·겹침 없이. 모르는 글자는 버린다. 빈값 = 공통(전 사업부 통보)."""
+    got = {x.strip().upper() for x in str(v or "").split(",") if x.strip()}
+    return ",".join(k for k, _ in _Z1191F_BIZ if k in got)
+
+
+def _z1191f_biz_label(v):
+    s = _z1191f_biz_norm(v).split(",")
+    return "·".join(lbl for k, lbl in _Z1191F_BIZ if k in s) or "공통"
+
+
+def _z1191f_locked(role):
+    """역할상 항상 열려 체크가 소용없는 센터 칸 — 판정 함수(can_view_sales 등)·기동 시드와 같은 규칙."""
+    if role in ("ceo", "executive", "admin"):
+        return {f for f, _ in _Z1191F_FLAGS}
+    if role == "leader":
+        return {"can_view_sales", "can_view_logistics"}
+    return set()
+
+
+def _z1191f_imply(vals):
+    """등록·편집 → 보기 (기동 시드 'write implies read' 와 같다 — 저장 때 맞춰 두면 재기동에 바뀌지 않는다)."""
+    if vals.get("can_use_sales"):
+        vals["can_view_sales"] = 1
+    if vals.get("can_use_logistics"):
+        vals["can_view_logistics"] = 1
+    return vals
+
+
+def _z1191f_history(c, uid, actor_id, before, after, note):
+    """담당 사업부·센터 칸 바뀐 것을 user_history 에 칸마다 한 줄(사람 수정 화면·일괄 설정 공용). 바뀐 칸 수를 돌려준다."""
+    rows = []
+    ob, nb = _z1191f_biz_norm(before.get("biz_divs")), _z1191f_biz_norm(after.get("biz_divs"))
+    if ob != nb:
+        rows.append(("담당 사업부", _z1191f_biz_label(ob), _z1191f_biz_label(nb)))
+    for f, lbl in _Z1191F_FLAGS:
+        o, n = (1 if before.get(f) else 0), (1 if after.get(f) else 0)
+        if o != n:
+            rows.append((lbl, "켬" if o else "끔", "켬" if n else "끔"))
+    for lbl, ov, nv in rows:
+        c.execute("INSERT INTO user_history(user_id, changed_by, field, old_value, new_value, note) "
+                  "VALUES(?,?,?,?,?,?)", (uid, actor_id, lbl, ov, nv, note))
+    return len(rows)
+
+
+@app.get("/admin/users/perms", response_class=HTMLResponse)
+async def admin_users_perms_page(req: Request):
+    """z1191f: 사업부·센터 권한 한꺼번에 설정 화면 — 근무 중인 직원 전부(본사 먼저 → 부서 → 사번 순)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        raw = c.execute(
+            "SELECT u.*, t.name AS team_name, t.entity AS team_entity FROM users u "
+            "LEFT JOIN teams t ON t.id=u.team_id WHERE COALESCE(u.is_active,1)=1 "
+            "ORDER BY CASE WHEN (COALESCE(t.entity,'')='VN' OR u.team_id=12) THEN 1 ELSE 0 END, "
+            "COALESCE(t.display_order, 9999), t.name, "
+            "CASE WHEN COALESCE(u.employee_no,'')='' THEN 1 ELSE 0 END, "
+            "CAST(u.employee_no AS INTEGER), u.employee_no, u.id").fetchall()
+    rows = []
+    for r in raw:
+        # 비밀번호 등 비밀값 칸은 화면으로 넘기지 않는다
+        d = {k: r[k] for k in r.keys() if not any(s in k.lower() for s in ("password", "token", "secret"))}
+        vn = ((d.get("team_entity") or d.get("entity")) == "VN") or d.get("team_id") == 12   # admin.html 사용자 목록과 같은 규칙(z747)
+        d["corp"] = "베트남법인" if vn else "본사"
+        d["dept"] = (("베트남 · " if vn else "본사 · ") + d["team_name"]) if d.get("team_name") else (d.get("dept_code") or "미지정")
+        d["biz_divs"] = _z1191f_biz_norm(d.get("biz_divs"))
+        for f, _ in _Z1191F_FLAGS:
+            d[f] = 1 if d.get(f) else 0
+        d["locked"] = sorted(_z1191f_locked(d.get("role")))
+        d["role_lbl"] = _Z1191F_ROLE_LBL.get(d.get("role") or "", "")
+        rows.append(d)
+    return ctx(req, "admin_users_perms.html", user=u, active="admin", rows=rows,
+               flags=_Z1191F_FLAGS, bizs=_Z1191F_BIZ)
+
+
+@app.post("/admin/users/perms")
+async def admin_users_perms_save(req: Request):
+    """z1191f: 바뀐 칸만 받아 한 번에 저장(한 거래 — 하나라도 실패하면 아무것도 안 바뀐다).
+    받는 것: {"changes": [{"id": 사람 번호, "f": 칸, "old": 화면을 열 때 값, "new": 바꾼 값}, ...]}
+      칸 = biz_divs('T,M' 글자) 또는 can_view_sales·can_use_sales·can_view_logistics·can_use_logistics(0/1)
+    돌려주는 것: {ok, people, cells, conflicts:[{id,name,f,now}], skipped:[{id,name,f,why}], rows:{번호:{칸:지금 값}}}"""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    try:
+        body = await req.json()
+    except Exception:
+        body = None
+    changes = body.get("changes") if isinstance(body, dict) else None
+    if not isinstance(changes, list) or not changes:
+        return JSONResponse({"ok": False, "error": "바뀐 칸이 없습니다."}, 400)
+    if len(changes) > 5000:
+        return JSONResponse({"ok": False, "error": "한 번에 너무 많습니다(5,000칸 넘음). 나눠서 저장해 주세요."}, 400)
+    flag_names = tuple(f for f, _ in _Z1191F_FLAGS)
+    want = {}
+    for ch in changes:
+        if not isinstance(ch, dict):
+            continue
+        try:
+            uid = int(ch.get("id"))
+        except (TypeError, ValueError):
+            continue
+        f = ch.get("f")
+        if f == "biz_divs":
+            old, new = _z1191f_biz_norm(ch.get("old")), _z1191f_biz_norm(ch.get("new"))
+        elif f in flag_names:
+            old = 1 if ch.get("old") in (1, "1", True) else 0
+            new = 1 if ch.get("new") in (1, "1", True) else 0
+        else:
+            continue
+        want.setdefault(uid, {})[f] = (old, new)
+    if not want:
+        return JSONResponse({"ok": False, "error": "바뀐 칸을 읽지 못했습니다."}, 400)
+    people = cells = 0
+    conflicts, skipped, rows_out = [], [], {}
+    try:
+        with db_session() as c:
+            ids = list(want)
+            cur = {}
+            for i in range(0, len(ids), 500):
+                part = ids[i:i + 500]
+                for r in c.execute("SELECT id, name, role, " + _Z1191F_COLS + " FROM users WHERE id IN (%s)"
+                                   % ",".join("?" * len(part)), part).fetchall():
+                    cur[r["id"]] = dict(r)
+            for uid, fields in want.items():
+                r = cur.get(uid)
+                if not r:
+                    skipped.append({"id": uid, "name": "#%d" % uid, "f": "", "why": "없는 사람"})
+                    continue
+                before = {"biz_divs": _z1191f_biz_norm(r["biz_divs"])}
+                before.update({f: (1 if r[f] else 0) for f in flag_names})
+                after = dict(before)
+                locked = _z1191f_locked(r.get("role"))
+                for f, (old, new) in fields.items():
+                    if f in locked:
+                        skipped.append({"id": uid, "name": r["name"], "f": f, "why": "역할상 항상 열림"})
+                    elif before[f] != old:
+                        conflicts.append({"id": uid, "name": r["name"], "f": f, "now": before[f]})
+                    else:
+                        after[f] = new
+                _z1191f_imply(after)
+                sets = {k: after[k] for k in ("biz_divs",) + flag_names if after[k] != before[k]}
+                if sets:
+                    c.execute("UPDATE users SET " + ", ".join("%s=?" % k for k in sets) + " WHERE id=?",
+                              list(sets.values()) + [uid])
+                    cells += _z1191f_history(c, uid, u.get("id"), before, after, "일괄 설정")
+                    people += 1
+                rows_out[str(uid)] = after
+    except Exception as e:
+        print(f"[z1191f] 일괄 설정 저장 실패(되돌림) by={u.get('id')}: {e}")
+        return JSONResponse({"ok": False, "error": "저장하지 못했습니다 — 아무것도 바뀌지 않았습니다. (%s)" % str(e)[:120]}, 500)
+    print(f"[z1191f] 일괄 설정 by={u.get('id')} · {people}명 · {cells}칸 · 먼저 바뀜 {len(conflicts)} · 건너뜀 {len(skipped)}")
+    return JSONResponse({"ok": True, "people": people, "cells": cells, "conflicts": conflicts,
+                         "skipped": skipped, "rows": rows_out})
+
+
 @app.post("/admin/users/{uid:int}/edit")
 async def admin_users_edit_submit(req: Request, uid: int):
     u = require(req, ["admin", "ceo"])
@@ -14719,8 +14891,9 @@ async def admin_users_edit_submit(req: Request, uid: int):
     with db_session() as c:
         # v5H113 LOW#18: 변경 전 스냅샷
         old_row = c.execute(
-            "SELECT name, role, team_id, rank, email, is_active "
-            "FROM users WHERE id=?", (uid,)
+            "SELECT name, role, team_id, rank, email, is_active, "
+            + _Z1191F_COLS +   # z1191f: 담당 사업부·센터 칸도 변경 전 값을 잡아 둔다(변경 이력용)
+            " FROM users WHERE id=?", (uid,)
         ).fetchone()
         old_data = dict(old_row) if old_row else {}
         # v5H226z536: 사번(=로그인ID) 중복 사전검사 — 다른 사용자가 이미 쓰면 차단(조용히 실패 금지)
@@ -14763,10 +14936,12 @@ async def admin_users_edit_submit(req: Request, uid: int):
                     c.execute("UPDATE users SET employee_no=? WHERE id=?", (_sabeon, uid))
             except Exception:
                 pass
-        for _flag in ("can_view_sales", "can_use_sales", "can_view_logistics", "can_use_logistics"):
+        # z1191f: 등록·편집 → 보기 (기동 시드·일괄 설정과 같은 규칙 — 저장 때 맞춰 재기동에 바뀌지 않게)
+        _fv1191f = _z1191f_imply({_flag: (1 if form.get(_flag) else 0) for _flag in
+                                  ("can_view_sales", "can_use_sales", "can_view_logistics", "can_use_logistics")})
+        for _flag, _val in _fv1191f.items():
             try:
-                c.execute(f"UPDATE users SET {_flag}=? WHERE id=?",
-                          (1 if form.get(_flag) else 0, uid))
+                c.execute(f"UPDATE users SET {_flag}=? WHERE id=?", (_val, uid))
             except Exception:
                 pass
         # z746(대표 지시): 담당 사업부(제작요청 통보 자동 라우팅) — 체크한 코드 CSV, 없으면 ''(공통·전 사업부 통보).
@@ -14775,6 +14950,12 @@ async def admin_users_edit_submit(req: Request, uid: int):
             c.execute("UPDATE users SET biz_divs=? WHERE id=?", (",".join(_bd_sel), uid))
         except Exception:
             pass
+        # z1191f (대표 2026-10-21): 담당 사업부·센터 권한 바뀐 것도 변경 이력에 — 전에는 안 남았다(일괄 설정과 같은 기록)
+        try:
+            _z1191f_history(c, uid, u.get("id"), old_data,
+                            dict(_fv1191f, biz_divs=",".join(x for x in form.getlist("biz_divs") if x in ("T", "M", "L", "E"))), "")
+        except Exception as _e1191f:
+            print(f"[z1191f] 사용자 수정 이력 기록 실패 uid={uid}: {_e1191f}")
         # v5H113 LOW#18: user_history diff 기록
         new_data = {
             "name": name,

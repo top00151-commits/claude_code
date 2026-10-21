@@ -2871,6 +2871,17 @@ def init_db():
         except Exception as _e:
             print(f"[z1093] 센터 권한 재설정 건너뜀: {_e}")
 
+        # z1191f (2026-10-21): 사람 변경 이력 표 — 운영엔 예전부터 같은 모양으로 있으나(10-21 확인) 코드에 만드는 곳이
+        #   없어, 새 DB(시험·이관)에서는 이력이 조용히 안 남았다. 없을 때만 만든다(있으면 아무 일 없음).
+        try:
+            c.execute(
+                "CREATE TABLE IF NOT EXISTS user_history ("
+                " id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,"
+                " changed_at TEXT DEFAULT (datetime('now','localtime')), changed_by INTEGER,"
+                " field TEXT, old_value TEXT, new_value TEXT, note TEXT )")
+        except Exception as _e:
+            print(f"[z1191f] user_history 표 만들기 건너뜀: {_e}")
+
         # 마이그레이션: changes에 source 컬럼 (Abram Scientific 모델 — 외부 도구 출처)
         try:
             ccols = [r[1] for r in c.execute("PRAGMA table_info(changes)").fetchall()]

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>권한 한꺼번에 설정 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{# z1191f (대표 2026-10-21 「담당사업부 선택 및 센터진입권한을 개인별 페이지로 들어가지 말고 한번에 일괄 설정」):
+   한 줄 = 한 사람 · 칸 8개(담당 사업부 4 + 센터 진입 권한 4). 엑셀식 격자(얇은 선·머리줄 고정·칸 전체가 누르는 자리).
+   저장 규칙은 서버(main.py _z1191f_*)와 같다 — 대표·임원·관리자 센터 칸 잠금 · 팀장 보기 칸 잠금 · 등록·편집 → 보기. #}
+<style>
+.pg-wrap{margin:0 0 var(--space-5);padding:0 var(--content-pad);}
+.pg-help{font-size:12.5px;color:var(--mute);line-height:1.7;margin:0 0 4px;}
+.pg-help b{color:var(--ink);}
+.ucf-tabs{display:flex;gap:4px;align-items:flex-end;margin:10px 0 0;padding:0 4px;border-bottom:2px solid var(--line);}
+.ucf-tab{border:1px solid var(--line);border-bottom:none;background:var(--paper-2);color:var(--mute);font:inherit;font-size:13px;font-weight:600;padding:8px 20px;border-radius:10px 10px 0 0;cursor:pointer;margin-bottom:-2px;}
+.ucf-tab:hover{color:var(--ink);background:var(--paper);}
+.ucf-tab.on{background:#fff;color:var(--ink);font-weight:800;border-bottom:2px solid #fff;box-shadow:inset 0 3px 0 var(--knk-red);}
+.ucf-tab .n{font-weight:700;margin-left:7px;color:var(--mute);}
+.ucf-tab.on .n{color:var(--knk-red);}
+.ucf-tab.all{font-size:12px;padding:7px 14px;margin-left:6px;}
+.pg-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 10px;}
+.pg-tools select,.pg-tools input[type=text]{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:var(--paper);}
+.pg-cnt{font-size:12.5px;color:var(--mute);}
+.pg-bar{margin-left:auto;display:flex;gap:8px;align-items:center;}
+.pg-chg{font-size:13px;font-weight:700;color:var(--mute);}
+.pg-chg.on{color:#b45309;}
+.pg-msg{display:none;margin:0 0 10px;padding:9px 13px;border-radius:9px;font-size:12.5px;line-height:1.65;}
+.pg-msg.ok{display:block;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;}
+.pg-msg.warn{display:block;background:#fffbeb;border:1px solid #fde68a;color:#92400e;}
+.pg-msg.err{display:block;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;}
+.pg-scroll{overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fff;}
+.pg-grid{border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%;min-width:1040px;font-size:12.5px;}
+.pg-grid th,.pg-grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:3px 7px;}
+.pg-grid thead th{position:sticky;top:0;background:var(--paper-2);color:var(--knk-red);font-weight:800;text-align:center;z-index:2;}
+.pg-grid thead tr.g th{height:26px;font-size:12px;}
+.pg-grid thead tr.c th{top:31px;font-size:12px;line-height:1.3;padding:4px 2px;}
+.pg-grid thead th.l{text-align:left;}
+.pg-grid thead .all{display:flex;align-items:center;justify-content:center;gap:3px;margin-top:3px;font-weight:600;color:var(--mute);font-size:11px;cursor:pointer;}
+.pg-grid td.c{padding:0;text-align:center;}
+.pg-grid td.c label{display:flex;align-items:center;justify-content:center;height:34px;cursor:pointer;}
+.pg-grid td.c input,.pg-grid thead .all input{width:16px;height:16px;cursor:pointer;accent-color:var(--knk-red);}
+.pg-grid td.lk{text-align:center;color:var(--mute);font-size:11.5px;background:var(--paper-2);cursor:not-allowed;}
+.pg-grid tbody tr:hover td{background:#fffaf0;}
+.pg-grid tbody tr:hover td.lk{background:var(--paper-2);}
+.pg-grid tr.pg-dirty td:first-child{box-shadow:inset 3px 0 0 #f59e0b;}
+.pg-nm b{color:var(--ink);}
+.pg-sub{display:block;font-size:11px;color:var(--mute);margin-top:1px;}
+.pg-sub .emp{font-family:monospace;}
+.pg-common{color:#9ca3af;}
+.pg-role{display:inline-block;margin-left:6px;padding:0 7px;border-radius:9px;font-size:10.5px;font-weight:700;background:#fee2e2;color:#b91c1c;vertical-align:1px;}
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head">
+    <div>
+      <div class="crumbs"><a href="/admin">관리자</a> · <b>권한 한꺼번에 설정</b></div>
+      <h1 class="page-title">🔑 사업부·센터 권한 <em>한꺼번에</em></h1>
+    </div>
+  </div>
+  <div class="pg-wrap">
+    <div class="pg-help">
+      칸을 눌러 켜고 끈 뒤 오른쪽 위 <b>💾 저장</b>을 누르세요. 바뀐 칸은 노랗게 보이고, 저장하면 사람마다 <b>변경 이력</b>에 남습니다.<br>
+      칸 위 <b>모두</b> = 지금 보이는 사람 전부 켜기·끄기(법인·부서·검색으로 먼저 거르세요) ·
+      <b>등록·편집</b>을 켜면 <b>보기</b>도 켜집니다 · 대표·임원·관리자의 센터 칸은 역할상 항상 열립니다(🔒) · 담당 사업부를 모두 비우면 <b>공통</b>(전 사업부 통보).
+    </div>
+    <div class="ucf-tabs" role="tablist" aria-label="법인 책갈피">
+      <button type="button" class="ucf-tab" role="tab" data-corp="본사">본사<span class="n"></span></button>
+      <button type="button" class="ucf-tab" role="tab" data-corp="베트남법인">베트남법인<span class="n"></span></button>
+      <button type="button" class="ucf-tab all" role="tab" data-corp="">전체<span class="n"></span></button>
+    </div>
+    <div class="pg-tools">
+      <select id="pgDept"><option value="">부서 전체</option></select>
+      <input type="text" id="pgQ" placeholder="이름·사번 검색" autocomplete="off">
+      <span id="pgCnt" class="pg-cnt"></span>
+      <div class="pg-bar">
+        <span id="pgChg" class="pg-chg">바뀐 곳 0칸 · 0명</span>
+        <button type="button" id="pgUndo" class="btn btn-secondary">되돌리기</button>
+        <button type="button" id="pgSave" class="btn btn-primary">💾 저장</button>
+      </div>
+    </div>
+    <div id="pgMsg" class="pg-msg" role="status"></div>
+    <div class="pg-scroll" data-knk-fill>
+      <table class="pg-grid" id="pgGrid">
+        <colgroup><col><col style="width:16%;"><col style="width:86px;">{% for k, lbl in bizs %}<col style="width:74px;">{% endfor %}{% for f, lbl in flags %}<col style="width:84px;">{% endfor %}</colgroup>
+        <thead>
+          <tr class="g">
+            <th rowspan="2" class="l">이름 · 사번</th><th rowspan="2" class="l">부서</th><th rowspan="2">직급</th>
+            <th colspan="4">담당 사업부 <span style="font-weight:600;color:var(--mute);">(모두 비우면 공통)</span></th>
+            <th colspan="2">📈 매출·영업</th><th colspan="2">📦 자재·구매</th>
+          </tr>
+          <tr class="c">
+            {% for k, lbl in bizs %}<th>{{ lbl }}<label class="all" title="보이는 사람 모두 켜기·끄기"><input type="checkbox" class="pall" data-f="biz" data-v="{{ k }}">모두</label></th>{% endfor %}
+            {% for f, lbl in flags %}<th>{{ '보기' if f.startswith('can_view') else '등록·편집' }}<label class="all" title="보이는 사람 모두 켜기·끄기"><input type="checkbox" class="pall" data-f="{{ f }}">모두</label></th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in rows %}
+          {% set _bd = r.biz_divs.split(',') %}
+          <tr class="prow" data-id="{{ r.id }}" data-corp="{{ r.corp }}" data-dept="{{ r.dept }}" data-bd="{{ r.biz_divs }}" data-nm="{{ vname(r) }}"
+              data-q="{{ (vname(r) ~ ' ' ~ (r.employee_no or '') ~ ' ' ~ (r.login_id or ''))|lower }}">
+            <td class="pg-nm"><b>{{ vname(r) }}</b>{% if r.role_lbl %}<span class="pg-role" title="역할상 센터가 항상 열리는 사람">{{ r.role_lbl }}</span>{% endif %}
+              <span class="pg-sub"><span class="emp">{{ r.employee_no or r.login_id or '—' }}</span><span class="pg-common">{% if not r.biz_divs %} · 사업부 공통{% endif %}</span></span></td>
+            <td>{{ r.dept }}</td>
+            <td style="text-align:center;">{{ rank_label(r.rank or '', lang|default('ko')) or '—' }}</td>
+            {% for k, lbl in bizs %}
+            <td class="c"><label title="{{ lbl }}"><input type="checkbox" class="pc" data-f="biz" data-v="{{ k }}" data-o="{{ 1 if k in _bd else 0 }}"{% if k in _bd %} checked{% endif %}></label></td>
+            {% endfor %}
+            {% for f, lbl in flags %}
+            {% if f in r.locked %}<td class="lk" title="{{ r.role_lbl }} — 역할상 항상 열립니다(체크와 무관)">🔒 역할</td>
+            {% else %}<td class="c"><label title="{{ lbl }}"><input type="checkbox" class="pc" data-f="{{ f }}" data-o="{{ r[f] }}"{% if r[f] %} checked{% endif %}></label></td>{% endif %}
+            {% endfor %}
+          </tr>
+        {% else %}
+          <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--mute);">근무 중인 직원이 없습니다.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main></div>
+<script>
+(function(){
+  /* z1191f: 사업부·센터 권한 한꺼번에 설정 — 바뀐 칸만 모아 한 번에 저장(서버가 옛 값과 비교해 덮어쓰기 막음) */
+  var grid=document.getElementById('pgGrid'); if(!grid) return;
+  var rows=Array.prototype.slice.call(grid.querySelectorAll('tbody tr.prow'));
+  var FLAGS=['can_view_sales','can_use_sales','can_view_logistics','can_use_logistics'];
+  var LBL={biz_divs:'담당 사업부',can_view_sales:'매출·영업 보기',can_use_sales:'매출·영업 등록·편집',can_view_logistics:'자재·구매 보기',can_use_logistics:'자재·구매 등록·편집'};
+  var BIZ=[['T','검사기'],['M','자동화'],['L','라이프밸류'],['E','기타']];
+  var IMPLY={can_use_sales:'can_view_sales',can_use_logistics:'can_view_logistics'};   /* 등록·편집 켜면 보기도 */
+  var DROP={can_view_sales:'can_use_sales',can_view_logistics:'can_use_logistics'};    /* 보기 끄면 등록·편집도 */
+  var deptSel=document.getElementById('pgDept'), qIn=document.getElementById('pgQ');
+  var chgEl=document.getElementById('pgChg'), msgEl=document.getElementById('pgMsg');
+  var saveBtn=document.getElementById('pgSave'), undoBtn=document.getElementById('pgUndo');
+  var tabs=Array.prototype.slice.call(document.querySelectorAll('.ucf-tab'));
+  var alls=Array.prototype.slice.call(grid.querySelectorAll('thead input.pall'));
+  var corp='본사', dirty=0, saving=false;
+
+  function box(tr,f,v){ return tr.querySelector('input.pc[data-f="'+f+'"]'+(v?'[data-v="'+v+'"]':'')); }
+  function bizOf(tr){ var a=[]; BIZ.forEach(function(b){ var x=box(tr,'biz',b[0]); if(x&&x.checked) a.push(b[0]); }); return a.join(','); }
+  function bizLabel(s){ if(!s) return '공통'; var a=s.split(','), o=[]; BIZ.forEach(function(b){ if(a.indexOf(b[0])>=0) o.push(b[1]); }); return o.join('·'); }
+  function visible(tr){ return tr.style.display!=='none'; }
+  function follow(tr,f,on){
+    if(on&&IMPLY[f]){ var y=box(tr,IMPLY[f]); if(y) y.checked=true; }
+    if(!on&&DROP[f]){ var z=box(tr,DROP[f]); if(z) z.checked=false; }
+  }
+  function mark(tr){
+    var any=false;
+    Array.prototype.forEach.call(tr.querySelectorAll('input.pc'), function(x){
+      var ch=((x.checked?1:0)!==(+x.getAttribute('data-o')));
+      x.parentNode.parentNode.classList.toggle('knk-row-flag', ch);
+      if(ch) any=true;
+    });
+    tr.classList.toggle('pg-dirty', any);
+    var cm=tr.querySelector('.pg-common'); if(cm) cm.textContent = bizOf(tr) ? '' : ' · 사업부 공통';
+  }
+  function refresh(){
+    var cells=0, people=0;
+    rows.forEach(function(tr){ var n=tr.querySelectorAll('td.knk-row-flag').length; cells+=n; if(n) people++; });
+    dirty=cells;
+    chgEl.textContent='바뀐 곳 '+cells+'칸 · '+people+'명';
+    chgEl.classList.toggle('on', cells>0);
+    alls.forEach(function(a){
+      var f=a.getAttribute('data-f'), v=a.getAttribute('data-v'), on=0, all=0;
+      rows.forEach(function(tr){ if(!visible(tr)) return; var x=box(tr,f,v); if(!x) return; all++; if(x.checked) on++; });
+      a.checked=(all>0&&on===all); a.indeterminate=(on>0&&on<all); a.disabled=(all===0);
+    });
+  }
+  grid.addEventListener('change', function(e){
+    var x=e.target; if(!x||!x.classList||!x.classList.contains('pc')) return;
+    var tr=x.parentNode.parentNode.parentNode;
+    follow(tr, x.getAttribute('data-f'), x.checked);
+    mark(tr); refresh();
+  });
+  alls.forEach(function(a){
+    a.addEventListener('change', function(){
+      var f=a.getAttribute('data-f'), v=a.getAttribute('data-v'), on=a.checked;
+      rows.forEach(function(tr){ if(!visible(tr)) return; var x=box(tr,f,v); if(!x) return; x.checked=on; follow(tr,f,on); mark(tr); });
+      refresh();
+    });
+  });
+
+  /* 거르기: 법인 책갈피 · 부서 · 검색 (z1191e 사용자 탭과 같은 방식 · 같은 기억 열쇠) */
+  function apply(){
+    var d=deptSel.value, q=(qIn.value||'').toLowerCase().trim(), n=0;
+    rows.forEach(function(tr){
+      var ok=(!corp||tr.getAttribute('data-corp')===corp)&&(!d||tr.getAttribute('data-dept')===d)&&(!q||(tr.getAttribute('data-q')||'').indexOf(q)>=0);
+      tr.style.display=ok?'':'none'; if(ok) n++;
+    });
+    document.getElementById('pgCnt').textContent=n+'명 표시';
+    refresh();
+  }
+  function deptFor(c){
+    /* 부서 칸 폭은 처음(모든 부서) 폭 아래로 줄지 않게 — 책갈피를 바꿔도 옆 칸이 움직이지 않는다(z1191e 교훈) */
+    var w=deptSel.offsetWidth; if(w>(parseFloat(deptSel.style.minWidth)||0)){ deptSel.style.boxSizing='border-box'; deptSel.style.minWidth=w+'px'; }
+    var keep=deptSel.value, s={};
+    rows.forEach(function(tr){ if(!c||tr.getAttribute('data-corp')===c){ var v=tr.getAttribute('data-dept')||''; if(v) s[v]=1; } });
+    while(deptSel.options.length>1) deptSel.remove(1);
+    Object.keys(s).sort().forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v; deptSel.appendChild(o); });
+    deptSel.value = s[keep] ? keep : '';
+  }
+  function setTab(c){
+    corp=c||'';
+    tabs.forEach(function(t){ var on=(t.getAttribute('data-corp')||'')===corp; t.classList.toggle('on',on); t.setAttribute('aria-selected',on?'true':'false'); });
+    deptFor(corp);
+    try{ localStorage.setItem('knkAdminUserCorp', corp||'*'); }catch(e){}
+    apply();
+  }
+  (function(){ var all={}; rows.forEach(function(tr){ var v=tr.getAttribute('data-dept')||''; if(v) all[v]=1; });
+    Object.keys(all).sort().forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v; deptSel.appendChild(o); }); })();
+  tabs.forEach(function(t){
+    var c=t.getAttribute('data-corp')||'';
+    var sp=t.querySelector('.n'); if(sp) sp.textContent=rows.filter(function(r){ return !c||r.getAttribute('data-corp')===c; }).length;
+    t.addEventListener('click', function(){ setTab(c); });
+  });
+  deptSel.addEventListener('change', apply);
+  qIn.addEventListener('input', apply);
+
+  /* 머리줄 둘째 줄을 첫째 줄 높이만큼 내려 붙인다(고정 머리줄 두 줄) */
+  function stickTop(){
+    var g=grid.querySelector('thead tr.g'); if(!g) return;
+    var h=g.getBoundingClientRect().height;
+    if(h>0) Array.prototype.forEach.call(grid.querySelectorAll('thead tr.c th'), function(th){ th.style.top=h+'px'; });
+  }
+
+  undoBtn.addEventListener('click', function(){
+    if(!dirty) return;
+    rows.forEach(function(tr){
+      Array.prototype.forEach.call(tr.querySelectorAll('input.pc'), function(x){ x.checked=(x.getAttribute('data-o')==='1'); });
+      mark(tr);
+    });
+    msg('', '');
+    refresh();
+  });
+
+  function msg(cls, html){ msgEl.className='pg-msg'+(cls?' '+cls:''); msgEl.innerHTML=html||''; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+
+  function collect(){
+    var out=[];
+    rows.forEach(function(tr){
+      var id=+tr.getAttribute('data-id'), nm=tr.getAttribute('data-nm')||'';
+      var ob=tr.getAttribute('data-bd')||'', nb=bizOf(tr);
+      if(ob!==nb) out.push({'id':id,'f':'biz_divs','old':ob,'new':nb,'nm':nm});
+      FLAGS.forEach(function(f){
+        var x=box(tr,f); if(!x) return;
+        var o=+x.getAttribute('data-o'), n=x.checked?1:0;
+        if(o!==n) out.push({'id':id,'f':f,'old':o,'new':n,'nm':nm});
+      });
+    });
+    return out;
+  }
+  function word(ch){
+    if(ch.f==='biz_divs') return '담당 사업부 '+bizLabel(ch['old'])+'→'+bizLabel(ch['new']);
+    return LBL[ch.f]+' '+(ch['new']?'켬':'끔');
+  }
+
+  saveBtn.addEventListener('click', function(){
+    if(saving) return;
+    var ch=collect();
+    if(!ch.length){ msg('warn','바뀐 칸이 없습니다. 칸을 눌러 켜고 끈 뒤 저장하세요.'); return; }
+    var by={}, order=[];
+    ch.forEach(function(c){ if(!by[c.id]){ by[c.id]={nm:c.nm,w:[]}; order.push(c.id); } by[c.id].w.push(word(c)); });
+    var lines=order.map(function(id){ return '· '+by[id].nm+' — '+by[id].w.join(', '); });
+    var text=order.length+'명 · '+ch.length+'칸을 저장합니다.\n\n'+lines.slice(0,20).join('\n')+
+             (lines.length>20?'\n… 외 '+(lines.length-20)+'명':'')+'\n\n저장할까요?';
+    if(!window.confirm(text)) return;
+    saving=true; saveBtn.disabled=true; saveBtn.textContent='저장 중…';
+    var payload=ch.map(function(c){ return {'id':c.id,'f':c.f,'old':c['old'],'new':c['new']}; });
+    fetch('/admin/users/perms', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+                                 body:JSON.stringify({'changes':payload})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'서버 응답을 읽지 못했습니다('+r.status+')'}; }); })
+      .then(function(j){
+        if(!j||!j.ok){ msg('err','⚠ '+esc((j&&j.error)||'저장하지 못했습니다.')); return; }
+        var byId={}; rows.forEach(function(tr){ byId[tr.getAttribute('data-id')]=tr; });
+        Object.keys(j.rows||{}).forEach(function(id){
+          var tr=byId[id], v=j.rows[id]; if(!tr||!v) return;
+          var bs=(v.biz_divs||'').split(',');
+          tr.setAttribute('data-bd', v.biz_divs||'');
+          BIZ.forEach(function(b){ var x=box(tr,'biz',b[0]); if(x){ x.checked=bs.indexOf(b[0])>=0; x.setAttribute('data-o', x.checked?'1':'0'); } });
+          FLAGS.forEach(function(f){ var x=box(tr,f); if(x){ x.checked=!!v[f]; x.setAttribute('data-o', v[f]?'1':'0'); } });
+          mark(tr);
+        });
+        refresh();
+        var html='✅ 저장했습니다 — '+j.people+'명 · '+j.cells+'칸 (사람마다 변경 이력에 남김)';
+        var warn=false;
+        if(j.conflicts&&j.conflicts.length){
+          warn=true;
+          html+='<br>⚠ 화면을 연 뒤 다른 곳에서 먼저 바뀐 칸 '+j.conflicts.length+'개는 저장하지 않고, 지금 값으로 바꿔 보여 드립니다: '+
+                j.conflicts.slice(0,8).map(function(c){ return esc(c.name)+' '+LBL[c.f]; }).join(', ')+(j.conflicts.length>8?' 외':'');
+        }
+        if(j.skipped&&j.skipped.length){
+          warn=true;
+          html+='<br>⚠ 저장하지 않은 칸 '+j.skipped.length+'개: '+
+                j.skipped.slice(0,8).map(function(c){ return esc(c.name)+(c.f?' '+LBL[c.f]:'')+'('+esc(c.why)+')'; }).join(', ')+(j.skipped.length>8?' 외':'');
+        }
+        msg(warn?'warn':'ok', html);
+      })
+      .catch(function(){ msg('err','⚠ 통신 오류 — 저장되지 않았을 수 있습니다. 새로고침해서 확인해 주세요.'); })
+      .then(function(){ saving=false; saveBtn.disabled=false; saveBtn.textContent='💾 저장'; });
+  });
+
+  window.addEventListener('beforeunload', function(e){ if(dirty>0&&!saving){ e.preventDefault(); e.returnValue=''; } });
+
+  var c0='본사';
+  try{ var cv=localStorage.getItem('knkAdminUserCorp'); if(cv!==null) c0=(cv==='*')?'':cv; }catch(e){}
+  if(['본사','베트남법인',''].indexOf(c0)<0) c0='본사';
+  setTab(c0);
+  stickTop();
+  window.addEventListener('resize', stickTop);
+  if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(stickTop).catch(function(){}); }
+})();
+</script>
+</body></html>
