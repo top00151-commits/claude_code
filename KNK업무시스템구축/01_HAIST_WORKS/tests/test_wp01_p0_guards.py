@@ -424,7 +424,9 @@ appmain.get_user = lambda request: CURRENT["u"]  # 인증만 대체 — 인가(c
 client = TestClient(appmain.app, follow_redirects=False)
 
 VIEW = {"id": 501, "name": "조회자", "role": "member", "team_id": 3, "can_use_logistics": 0, "can_view_logistics": 1}
-USE = {"id": 502, "name": "구매팀원", "role": "member", "team_id": 10, "can_use_logistics": 0, "can_view_logistics": 1}
+# z1093(2026-09-01 대표): 팀 번호 자동 허용 폐지 — 운영 구매팀은 1회 세팅으로 플래그(can_use_logistics=1)를
+#   받았다. 시험 계정도 운영과 같게 플래그로 쓰기 권한을 갖는다(팀 번호만으로는 더는 열리지 않음).
+USE = {"id": 502, "name": "구매팀원", "role": "member", "team_id": 10, "can_use_logistics": 1, "can_view_logistics": 1}
 CEO = {"id": 503, "name": "대표", "role": "ceo", "team_id": 11, "can_use_logistics": 1, "can_view_logistics": 1}
 # 게이트 v3 F-03: 시스템 관리 역할만 있고 자재 담당·물류 권한은 없는 사용자 (업무 승인 불가여야 함)
 ADMIN = {"id": 504, "name": "시스템관리자", "role": "admin", "team_id": 11, "can_use_logistics": 0, "can_view_logistics": 1}
@@ -482,8 +484,12 @@ chk("po_detail.html — 입고 처리 링크 제거 + '준비 중' 표시", "/re
 _t_pol = open("app/templates/po_list.html", encoding="utf-8").read()
 chk("po_list.html — 없는 절차('검수 종결')를 화면에 표시하지 않음(주석 제외)",
     ">검수 종결<" not in _t_pol and ">발주 수량 충족<" in _t_pol)
-chk("chrome.html — 사이드바 '출고 요청 (준비 중)'",
-    "출고 요청 (준비 중)" in open("app/templates/_v5_partials/chrome.html", encoding="utf-8").read())
+# z1155·z1163(10월 사람 언어): 메뉴 글자가 번역표(i.ch_m_issues)로 옮겨져 chrome.html 엔 더는
+#   한글 문구가 직접 없다. F-01 의 보호 의도는 「메뉴가 즉시차감(/stock/issue)으로 가지 않고
+#   출고 요청 목록(/stock/issues)으로 간다」이므로 글자가 아니라 링크 주소로 본다.
+_t_chrome = open("app/templates/_v5_partials/chrome.html", encoding="utf-8").read()
+chk("chrome.html — 사이드바가 즉시차감(/stock/issue) 아닌 출고 요청 목록(/stock/issues)으로 간다",
+    "'/stock/issue'" not in _t_chrome and "'/stock/issues'" in _t_chrome)
 _t_home = open("app/templates/logistics_home.html", encoding="utf-8").read()
 chk("logistics_home.html — 빠른 실행 입고·출고 '(준비 중)'",
     "입고 처리 (준비 중)" in _t_home and "출고 요청 (준비 중)" in _t_home)
