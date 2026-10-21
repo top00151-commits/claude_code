@@ -956,6 +956,15 @@ def startup():
             print(f"[MEETING-VIZ-MIG-Z1193] {_rvz}")
     except Exception as _e:
         print(f"[MEETING-VIZ-MIG-Z1193 ERR] {_e}")
+    # z1194 (대표 2026-10-21 「정리할때 대화참여자,장소,시간도 기록할수있으면」): 음성 메모 일시·장소·참여자 칸 3 (idempotent · 칸만)
+    try:
+        from .migrations.m_z1194_voice_note_meta import migrate as _vm_migrate
+        from .database import DB_PATH as _DB_PATH_VM
+        _rvm = _vm_migrate(_DB_PATH_VM)
+        if _rvm.get('added'):
+            print(f"[VOICE-META-MIG-Z1194] {_rvm}")
+    except Exception as _e:
+        print(f"[VOICE-META-MIG-Z1194 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -6341,6 +6350,63 @@ def _vn_mine(u, n) -> bool:
         return False
 
 
+#  z1194 (대표 2026-10-21 「정리할때 대화참여자,장소,시간도 기록할수있으면」): 음성 메모 일시·장소·참여자 — 사람이 적은 글 그대로
+_VN_META_MAX = {"meta_when": 100, "meta_place": 100, "meta_people": 300}
+
+
+def _vn_meta_from(d, keep_empty: bool = False) -> dict:
+    """요청 글에서 일시·장소·참여자만 골라 다듬는다(앞뒤 빈칸·줄바꿈 → 한 줄 · 칸마다 길이 한도).
+    keep_empty=False(새로 만들 때) = 적은 것만 · True(고칠 때) = 보낸 칸이면 빈 글도(지우기)."""
+    out = {}
+    for k, lim in _VN_META_MAX.items():
+        if not isinstance(d, dict) or d.get(k) is None:
+            continue
+        v = " ".join(str(d.get(k)).split())[:lim]
+        if v or keep_empty:
+            out[k] = v
+    return out
+
+
+def _vn_when_from_file(disk: str, rec_end_ms: str, u) -> str:
+    """🎤 z1194: 녹음 파일 → 일시 글 「2026-10-21 (수) 12:04 ~ 12:38 (34분)」.
+    끝 = 화면이 보낸 파일 수정 시각(휴대폰 녹음기가 저장을 마친 때) · 길이 = ffprobe ·
+    시간대 = 올린 사람 소속(본사 +9 · 베트남 +7 — timezone_standard · 브라우저 시간대는 쓰지 않는다).
+    🔴 지어내지 않는다 — 파일 시각이 없거나 앞날(지금 + 10분 넘음)·30일보다 옛날이면 채우지 않는다 ·
+       길이를 모르면 끝 시각만(「12:38 녹음」) · 사람이 고칠 수 있다(빈 칸일 때만 채운다)."""
+    import time as _t
+    from datetime import timezone as _tzz, timedelta as _tdz
+    try:
+        ms = int(str(rec_end_ms or "").strip() or 0)
+    except ValueError:
+        return ""
+    end = ms / 1000.0
+    now = _t.time()
+    if ms <= 0 or end > now + 600 or end < now - 30 * 86400:
+        return ""
+    sec = 0
+    try:
+        import shutil as _sh, subprocess as _sp
+        fp = _sh.which("ffprobe")
+        if fp:
+            r = _sp.run([fp, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", disk],
+                        capture_output=True, timeout=20)
+            sec = int(float((r.stdout or b"").decode("ascii", "ignore").strip() or 0))
+    except Exception as _e:
+        print(f"[VN-WHEN-Z1194] 녹음 길이를 못 읽음 — 끝 시각만: {_e}")
+        sec = 0
+    with db_session() as c:
+        hrs = 7 if _meeting_user_entity(c, u or {}) == "VN" else 9
+    tz = _tzz(_tdz(hours=hrs))
+    e = datetime.fromtimestamp(end, tz)
+    if sec >= 60:
+        #  분은 반올림 · 시작 = 끝 − 그 분 → 두 시각의 「분」 차이가 괄호 안 분과 늘 같다(초를 버리면 23:58 ~ 00:01 (2분)처럼 어긋난다)
+        mins = int(sec / 60.0 + 0.5)
+        s = datetime.fromtimestamp(end - mins * 60, tz)
+        return "%s%s %s ~ %s (%d분)" % (s.strftime("%Y-%m-%d"), _ko_wd(s.strftime("%Y-%m-%d")),
+                                        s.strftime("%H:%M"), e.strftime("%H:%M"), mins)
+    return "%s%s %s 녹음" % (e.strftime("%Y-%m-%d"), _ko_wd(e.strftime("%Y-%m-%d")), e.strftime("%H:%M"))
+
+
 def _vn_progress(nid: int, txt: str):
     with _VN_LOCK:
         j = _VN_JOBS.get(nid)
@@ -6437,7 +6503,9 @@ async def voice_note_detail_page(req: Request, nid: int):
         n = _vn_row(c, nid)
     if not n or not _vn_mine(u, n):
         return RedirectResponse("/voice-notes", 303)
-    return ctx(req, "voice_note_form.html", user=u, note=n)
+    with db_session() as c:   # z1194 — 🖼 이미지 맨 아래 「작성」(이름 직책 부서)
+        who = user_disp_by_id(c, u.get("id"), u.get("name") or "")
+    return ctx(req, "voice_note_form.html", user=u, note=n, who_disp=who)
 
 
 @app.post("/api/voice-note")
@@ -6453,6 +6521,11 @@ async def api_voice_note_create(req: Request):
     with db_session() as c:
         nid = c.execute("INSERT INTO voice_notes(owner_id, title) VALUES(?, ?)",
                         (u["id"], title)).lastrowid
+        # z1194: 녹음을 올리기 전에 적어 둔 일시·장소·참여자 — 적은 것만
+        _vm = _vn_meta_from(d)
+        if _vm:
+            c.execute("UPDATE voice_notes SET " + ", ".join(k + "=?" for k in _vm) + " WHERE id=?",
+                      (*_vm.values(), nid))
     return JSONResponse({"ok": True, "id": nid})
 
 
@@ -6465,7 +6538,8 @@ async def api_voice_note_get(req: Request, nid: int):
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
         return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
-    out = {k: n.get(k) for k in ("id", "title", "body", "summary", "audio_path", "created_at", "updated_at")}
+    out = {k: n.get(k) for k in ("id", "title", "body", "summary", "audio_path", "created_at", "updated_at",
+                                 "meta_when", "meta_place", "meta_people")}   # z1194 — 일시·장소·참여자
     #  z1183: 「↩ 이전 정리」 단추를 켤지 · 언제 것인지
     out["has_prev"] = bool((n.get("summary_prev") or "").strip())
     out["prev_at"] = (n.get("summary_prev_at") or "")[:16] if out["has_prev"] else ""
@@ -6473,7 +6547,8 @@ async def api_voice_note_get(req: Request, nid: int):
 
 
 @app.post("/api/voice-note/{nid:int}/audio")
-async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile = File(...)):
+async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile = File(...),
+                                      rec_end_ms: str = Form("")):
     """휴대폰 녹음 올리기 → voice_notes/note_{id}/ 에 저장. 받는 형식·한도는 회의록과 같다."""
     u = get_user(req)
     if not u:
@@ -6507,7 +6582,13 @@ async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile =
     with db_session() as c:
         c.execute("UPDATE voice_notes SET audio_path=?, updated_at=datetime('now','localtime') WHERE id=?",
                   (rel, nid))
-    return JSONResponse({"ok": True, "size_kb": _n // 1024})
+    # z1194: 일시가 비어 있으면 녹음 파일 시각·길이로 먼저 채운다 — 사람이 적어 둔 일시는 바꾸지 않는다
+    _mw = await run_in_threadpool(_vn_when_from_file, disk_path, rec_end_ms, u)
+    with db_session() as c:
+        if _mw:
+            c.execute("UPDATE voice_notes SET meta_when=? WHERE id=? AND TRIM(COALESCE(meta_when,''))=''", (_mw, nid))
+        _r = c.execute("SELECT meta_when FROM voice_notes WHERE id=?", (nid,)).fetchone()
+    return JSONResponse({"ok": True, "size_kb": _n // 1024, "meta_when": ((_r["meta_when"] if _r else "") or "")})
 
 
 @app.get("/api/voice-note/{nid:int}/audio")
@@ -6696,6 +6777,9 @@ async def api_voice_note_save(req: Request, nid: int):
     if d.get("body") is not None:
         sets.append("body=?")
         args.append(str(d.get("body")).replace("\r\n", "\n").strip()[:200000])
+    for _k, _v in _vn_meta_from(d, keep_empty=True).items():   # z1194 — 일시·장소·참여자(지우기도 된다)
+        sets.append(_k + "=?")
+        args.append(_v)
     if d.get("summary") is not None:
         _ns = str(d.get("summary")).replace("\r\n", "\n").strip()[:20000]
         sets.append("summary=?")

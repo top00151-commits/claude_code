@@ -39,6 +39,48 @@
 #vnSumEditWrap[hidden], #vnSumBox[hidden], #vnBodyWrap[hidden], #vnUpWrap[hidden] { display:none !important; }
 .vn-acts { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 @media (max-width:430px){ .vn-sec-head { flex-wrap:wrap; } }
+/* z1194 (대표 2026-10-21 「정리할때 대화참여자,장소,시간도 기록할수있으면」): 일시 · 장소 · 참여자 — 비워도 된다
+   🔴 이름 주의: 목록 화면(voice_notes.html)이 .vn-card · .vn-meta 를 이미 쓴다 → 여기는 .vn-fmeta · .vni-card (겹치면 목록 카드가 깨진다) */
+.vn-fmeta { display:grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr) minmax(0,1.7fr); gap:0 12px; }
+.vn-fmeta .vn-fld { margin-bottom:10px; }
+@media (max-width:760px){ .vn-fmeta { grid-template-columns: minmax(0,1fr); } }
+/* z1194 (대표 2026-10-21 「이미지로 복사해서 붙여 넣을수있게」): 🖼 정리 한 장 — 휴대폰 세로 화면 폭(480)으로 그린다.
+   화면 밖 사본을 html2canvas 로 그린다(📄 회의록 양식 z1105 와 같은 방식) · 정리 글 모양은 화면(knk_md_lite)과 같은 규칙.
+   🔵 색은 고정(어두운 화면에서 만들어도 흰 바탕 그림). */
+.vni-card { width:480px; background:#fff; color:#111827; padding:22px 22px 16px; box-sizing:border-box;
+  font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif; font-size:14.5px; line-height:1.72; }
+.vni-card .vc-top { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:9px; border-bottom:2px solid #a5282c; }
+.vni-card .vc-logo { height:24px; width:auto; display:block; }
+.vni-card .vc-kind { font-size:12.5px; font-weight:800; color:#a5282c; letter-spacing:.08em; }
+.vni-card .vc-title { font-size:20px; font-weight:800; line-height:1.42; margin:14px 0 10px; word-break:keep-all; overflow-wrap:anywhere; }
+.vni-card .vc-meta { background:#f6f7f9; border:1px solid #e5e7eb; border-radius:10px; padding:7px 12px; margin-bottom:14px; }
+.vni-card .vc-row { display:flex; gap:10px; font-size:13.5px; line-height:1.6; padding:2px 0; }
+.vni-card .vc-k { flex:0 0 46px; color:#6b7280; font-weight:700; }
+.vni-card .vc-v { flex:1 1 auto; min-width:0; word-break:keep-all; overflow-wrap:anywhere; }
+.vni-card .vc-body { --qv-ink:#111827; --qv-ink-3:#9ca3af; word-break:keep-all; overflow-wrap:anywhere; }
+.vni-card .vc-body .md-s { font-size:15.5px; margin:15px 0 5px; padding-top:10px; border-top:1px solid #eef0f3; }
+.vni-card .vc-body .md-s:first-child { margin-top:0; padding-top:0; border-top:0; }
+.vni-card .vc-foot { margin-top:16px; padding-top:8px; border-top:1px solid #e5e7eb; font-size:11.5px; color:#6b7280;
+  display:flex; justify-content:space-between; gap:4px 10px; flex-wrap:wrap; }
+/* 🖼 미리보기 창 — 📄 회의록 양식(z1105)과 같은 모양 */
+.vn-capov { position:fixed; top:0; right:0; bottom:0; left:0; z-index:9999; background:rgba(15,23,42,.62);
+  display:flex; align-items:center; justify-content:center; padding:12px; }
+.vn-capbox { background:#fff; border-radius:12px; width:560px; max-width:100%; max-height:100%;
+  display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.3); }
+.vn-caphd { font-weight:800; font-size:15px; padding:11px 14px; border-bottom:1px solid #e5e7eb;
+  display:flex; justify-content:space-between; align-items:center; gap:8px; color:#111827; }
+.vn-capsz { font-size:12px; color:#6b7280; font-weight:400; }
+.vn-capprev { overflow:auto; background:#eceef1; padding:10px; flex:1 1 auto; min-height:120px; }
+.vn-capprev img { display:block; width:100%; max-width:480px; margin:0 auto; height:auto; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.15); }
+.vn-capmsg { min-height:20px; font-size:13px; padding:7px 14px 0; color:#15803d; font-weight:700; }
+.vn-capmsg.err { color:#b91c1c; }
+.vn-capbtns { display:flex; gap:8px; flex-wrap:wrap; padding:9px 14px 6px; }
+.vn-capbtns .btn { flex:1 1 auto; justify-content:center; }
+.vn-caphint { font-size:12px; color:#6b7280; padding:0 14px 12px; line-height:1.5; }
+/* 정리가 길 때(세로가 가로의 2.2배 넘음) — 📝 파일을 권하는 한 줄(대표 선택 「둘 다 두기」) */
+.vn-captall { margin:8px 14px 0; padding:8px 10px; background:#fff7ed; border:1px solid #fdba74; border-radius:8px;
+  font-size:12.5px; color:#7c2d12; line-height:1.6; }
+.vn-captall .btn { padding:2px 9px; min-height:0; font-size:12px; vertical-align:baseline; }
 </style>
 </head>
 <body>
@@ -59,6 +101,16 @@
               data-when="{{ (note.created_at[:16] if note.created_at else '')|e }}"
               {% if not note.summary %}disabled title="아직 정리 전입니다 — 녹음을 올리면 정리됩니다"{% endif %}
               >📋 복사</button>{% endif %}
+      {# z1194 (대표 2026-10-21 「마크다운 방식에 파일 또는 음성메모 양식을 만들어 이미지로 복사해서 붙여 넣을수있게」):
+         🖼 이미지 = 정리 한 장(휴대폰 폭) → 미리보기 → 📋 이미지 복사 / 💾 저장 → 이음·카카오톡에 붙여넣기
+         📝 파일 = 마크다운(.md) — 이음에 첨부하면 문서 보기로 열린다(글자 그대로 · 길어도 확대 없이 읽힌다) #}
+      {% if note %}<button class="btn btn-secondary" id="vnImg" type="button"
+              data-who="{{ (who_disp or user.name or '')|e }}"
+              title="정리를 이미지 한 장으로 — 이음·카카오톡에 붙여넣기"
+              {% if not note.summary %}disabled{% endif %}>🖼 이미지</button>
+      <button class="btn btn-secondary" id="vnMd" type="button"
+              title="정리를 마크다운(.md) 파일로 저장 — 이음에 첨부하면 문서처럼 열립니다"
+              {% if not note.summary %}disabled{% endif %}>📝 파일</button>{% endif %}
       {% if note %}<button class="btn btn-secondary" id="vnDel" style="color:var(--knk-red);">🗑 삭제</button>{% endif %}
     </div>
   </div>
@@ -69,6 +121,21 @@
       <input id="vnTitle" type="text" maxlength="200" placeholder="예: 드림텍 통화 내용"
              value="{{ (note.title if note else '')|e }}">
     </div>
+    {# z1194 (대표 2026-10-21 「정리할때 대화참여자,장소,시간도 기록할수있으면」): 비워도 된다 · 적은 글 그대로 보인다
+       🔵 일시는 녹음 파일을 올릴 때 파일 시각·길이로 먼저 채운다(비어 있을 때만 · 서버가 소속 시간대로) #}
+    <div class="vn-fmeta" id="vnMeta">
+      <div class="vn-fld"><label for="vnWhen">일시</label>
+        <input id="vnWhen" type="text" maxlength="100" placeholder="예: 2026-10-21 (화) 14:00 ~ 15:00"
+               value="{{ ((note.meta_when if note else '') or '')|e }}"></div>
+      <div class="vn-fld"><label for="vnPlace">장소</label>
+        <input id="vnPlace" type="text" maxlength="100" placeholder="예: 본사 2층 회의실"
+               value="{{ ((note.meta_place if note else '') or '')|e }}"></div>
+      <div class="vn-fld"><label for="vnPeople">참여자</label>
+        <input id="vnPeople" type="text" maxlength="300" placeholder="예: 김정락 대표, 이용식 법인장, 임마누엘(회계사)"
+               value="{{ ((note.meta_people if note else '') or '')|e }}"></div>
+    </div>
+    <div class="vn-hint" style="margin-top:0;">일시·장소·참여자는 비워도 됩니다 — 적어 두면 📋 복사 · 🖼 이미지 · 📝 파일 맨 위에 함께 나옵니다.
+      일시는 녹음 파일을 올릴 때 <b>파일 시각·길이</b>로 먼저 채웁니다(다르면 고쳐 주세요).</div>
 
     {# z1165: 쓰는 말을 골라 두면 받아쓰기가 더 정확하다. 파일을 고르는 순간 바로 변환이
          시작되므로 이 칸은 **파일 단추보다 위**에 있어야 한다. 기본은 자동 감지. #}
@@ -182,7 +249,7 @@
     st('vnSt','녹음을 올리는 중…','go');
     if(!NID){
       var cr = await api('/api/voice-note', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ title: ($('vnTitle').value||'').trim() }) });
+        body: JSON.stringify(Object.assign({ title: ($('vnTitle').value||'').trim() }, metaVals())) });   // z1194
       if(!cr.ok){ st('vnSt', cr.data.error || '메모를 만들지 못했습니다.', 'err'); return; }
       NID = cr.data.id;
       if(_alive()) try{ history.replaceState(null, '', '/voice-notes/' + NID); }catch(_){}
@@ -192,8 +259,12 @@
            if(_m) _m.innerHTML='<a href="/voice-notes" style="color:var(--qv-ink-3);">음성 메모</a> · 방금 만듦'; }catch(_){}
     }
     var fd = new FormData(); fd.append('file', f, f.name || 'rec.m4a');
+    //  z1194: 파일 수정 시각(휴대폰 녹음기가 저장을 마친 때) — 서버가 길이와 함께 일시를 먼저 채운다(비어 있을 때만)
+    if(f.lastModified) fd.append('rec_end_ms', String(f.lastModified));
     var up = await api('/api/voice-note/' + NID + '/audio', { method:'POST', body: fd });
     if(!up.ok){ st('vnSt', up.data.error || '올리지 못했습니다.', 'err'); return; }
+    var _vw = $('vnWhen');
+    if(up.data.meta_when && _vw && !(_vw.value || '').trim()) _vw.value = up.data.meta_when;   // z1194
     st('vnSt','음성을 글자로 바꾸는 중… (길면 몇 분 걸립니다)','go');
     var tr = await api('/api/voice-note/' + NID + '/transcribe',
       { method:'POST', headers:{'Content-Type':'application/json'},
@@ -362,6 +433,7 @@
     var has = !!(SUM || '').trim();                 // z1183 — 원래 글로 본다
     c.disabled = !has;
     c.title = has ? '제목·날짜와 함께 정리 글을 복사합니다' : '아직 정리 전입니다 — 녹음을 올리면 정리됩니다';
+    ['vnImg', 'vnMd'].forEach(function(id){ var x = $(id); if(x) x.disabled = !has; });   // z1194 — 🖼 이미지 · 📝 파일도 같이
   }
   function copyBody(){
     var c = $('vnCopy'), b = $('vnSumBox');
@@ -372,7 +444,8 @@
     var w = (c && c.dataset ? (c.dataset.when || '') : '');
     var head = t || '음성 메모';
     if(w) head += ' (' + w + ')';
-    return head + '\n\n' + s;
+    var ml = metaRows().map(function(r){ return r[0] + ': ' + r[1]; });   // z1194 — 일시 · 장소 · 참여자(적은 것만)
+    return head + (ml.length ? '\n' + ml.join('\n') : '') + '\n\n' + s;
   }
   async function putClip(txt){
     try{
@@ -401,6 +474,218 @@
     _cp.textContent = '✓ 복사됨';
     st('vnSt','정리 글을 복사했습니다 ✓ — 붙여넣기 하세요(' + txt.length + '자).','ok');
     setTimeout(function(){ if(_cp) _cp.textContent = was; }, 1800);
+  });
+
+  // ── z1194: 일시 · 장소 · 참여자 (대표 2026-10-21 「정리할때 대화참여자,장소,시간도 기록할수있으면」) ──
+  //    비워도 된다 · 적은 글 그대로 📋 복사 · 🖼 이미지 · 📝 파일 맨 위에 나온다 · 입력칸을 벗어날 때 저장(제목과 같다)
+  var META = [['vnWhen', 'meta_when', '일시'], ['vnPlace', 'meta_place', '장소'], ['vnPeople', 'meta_people', '참여자']];
+  function metaVals(){
+    var o = {};
+    META.forEach(function(m){ var el = $(m[0]); if(el) o[m[1]] = (el.value || '').replace(/\s+/g, ' ').trim(); });
+    return o;
+  }
+  function metaRows(){
+    var v = metaVals(), out = [];
+    META.forEach(function(m){ if(v[m[1]]) out.push([m[2], v[m[1]]]); });
+    return out;
+  }
+  META.forEach(function(m){
+    var el = $(m[0]); if(!el) return;
+    el.addEventListener('blur', async function(){
+      if(!NID) return;
+      var o = {}; o[m[1]] = (el.value || '').replace(/\s+/g, ' ').trim();
+      var r = await api('/api/voice-note/' + NID + '/save', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(o) });
+      if(!r.ok) st('vnSt', (r.data && r.data.error) || (m[2] + '을(를) 저장하지 못했습니다.'), 'err');
+    });
+  });
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function noteTitle(){ return (($('vnTitle') || {}).value || '').trim() || '음성 메모'; }
+  function noteDay(){ var c = $('vnCopy'); return ((c && c.dataset ? (c.dataset.when || '') : '')).slice(0, 10); }
+  function safeName(ext){
+    var t = noteTitle().replace(/[\\\/:*?"<>|]+/g, ' ').split('').filter(function(ch){ return ch.charCodeAt(0) >= 32; })
+      .join('').replace(/\s+/g, ' ').trim().slice(0, 40) || '음성메모';
+    var d = noteDay().replace(/[^0-9-]/g, '');
+    return '음성메모_' + t + (d ? '_' + d : '') + ext;
+  }
+
+  // ── z1194: 🖼 이미지 — 정리 한 장(휴대폰 폭 480) · 📄 회의록 양식(z1105)과 같은 방식(html2canvas → 미리보기 → 복사·저장) ──
+  //    ⚠ 휴대폰의 공유·복사는 '누른 그 순간'에만 허락된다 → 그림을 만든 뒤 미리보기 창에서 한 번 더 누르게 한다(회의록 양식과 같은 까닭).
+  var IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var _made = null, _madeKey = '';
+  function loadH2C(){
+    return new Promise(function(res, rej){
+      if(window.html2canvas) return res(window.html2canvas);
+      var s = document.createElement('script');
+      s.src = '/static/vendor/html2canvas/html2canvas.min.js';
+      s.onload = function(){ if(window.html2canvas) res(window.html2canvas); else rej(new Error('no html2canvas')); };
+      s.onerror = function(){ rej(new Error('html2canvas load fail')); };
+      document.head.appendChild(s);
+    });
+  }
+  function cardHtml(){
+    var who = (($('vnImg') || {}).dataset || {}).who || '';
+    var rows = metaRows();
+    var body = window.KNKMdLite ? KNKMdLite.render(SUM || '') : esc(SUM || '').replace(/\n/g, '<br>');
+    return '<div class="vc-top"><img class="vc-logo" src="/static/logo.png" alt="KNK HAIST"><span class="vc-kind">음성 메모</span></div>'
+      + '<div class="vc-title">' + esc(noteTitle()) + '</div>'
+      + (rows.length ? '<div class="vc-meta">' + rows.map(function(r){
+            return '<div class="vc-row"><span class="vc-k">' + esc(r[0]) + '</span><span class="vc-v">' + esc(r[1]) + '</span></div>';
+          }).join('') + '</div>' : '')
+      + '<div class="vc-body mdl">' + body + '</div>'
+      + '<div class="vc-foot"><span>' + (who ? '작성 ' + esc(who) : '') + '</span><span>HAIST WORKS 음성 메모</span></div>';
+  }
+  function waitImgs(root){
+    var pend = Array.prototype.slice.call(root.querySelectorAll('img')).filter(function(im){ return !im.complete; });
+    if(!pend.length) return Promise.resolve();
+    return new Promise(function(res){
+      var left = pend.length, fin = function(){ left -= 1; if(left <= 0) res(); };
+      pend.forEach(function(im){ im.addEventListener('load', fin, { once:true }); im.addEventListener('error', fin, { once:true }); });
+      setTimeout(res, 4000);
+    });
+  }
+  async function makeImage(){
+    var html = cardHtml();
+    if(_made && _madeKey === html) return _made;      // 같은 글이면 한 번 만든 그림을 다시 쓴다
+    var h2c = await loadH2C();
+    var holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:480px;background:#fff;';
+    var card = document.createElement('div');
+    card.className = 'vni-card';
+    card.innerHTML = html;
+    holder.appendChild(card);
+    document.body.appendChild(holder);
+    try{
+      await waitImgs(card);
+      if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){ /* 글꼴 대기 실패는 그대로 진행 */ } }
+      var W = 480, H = Math.ceil(card.getBoundingClientRect().height);
+      //  선명도 — 기기 배율(최소 2 · 최대 3) · 아이폰 캔버스 한계(한 변 16000 · 1,600만 화소)를 넘지 않게 줄인다
+      var dpr = window.devicePixelRatio || 1;
+      var scale = Math.max(1, Math.min(Math.min(3, Math.max(2, dpr)), 16000 / W, 16000 / Math.max(H, 1),
+                                       Math.sqrt(16000000 / Math.max(W * H, 1))));
+      var canvas = await h2c(card, { backgroundColor:'#ffffff', scale: scale, useCORS: true, logging: false,
+                                     width: W, height: H, windowWidth: 1000, scrollX: 0, scrollY: 0 });
+      var blob = await new Promise(function(r){ canvas.toBlob(r, 'image/png'); });
+      if(!blob) throw new Error('image blob empty');
+      if(_made && _made.url) try{ URL.revokeObjectURL(_made.url); }catch(e){ /* 옛 주소 정리 실패는 무시해도 된다(화면을 떠나면 사라짐) */ }
+      _made = { blob: blob, file: new File([blob], safeName('.png'), { type:'image/png' }), url: URL.createObjectURL(blob),
+                w: canvas.width, h: canvas.height, cssH: H };
+      _madeKey = html;
+      return _made;
+    } finally {
+      if(holder.parentNode) holder.parentNode.removeChild(holder);
+    }
+  }
+  function capSay(el, text, isErr){ el.textContent = text; el.className = 'vn-capmsg' + (isErr ? ' err' : ''); }
+  async function saveImage(msg){
+    var f = _made.file;
+    if(IOS){
+      try{
+        if(navigator.canShare && navigator.share && navigator.canShare({ files:[f] })){
+          await navigator.share({ files:[f], title: f.name });
+          capSay(msg, '✓ 공유 창에서 「이미지 저장」을 고르면 사진에 저장됩니다.');
+          return;
+        }
+      }catch(e){ if(e && e.name === 'AbortError') return; }
+    }
+    try{
+      var a = document.createElement('a');
+      a.href = _made.url; a.download = f.name;
+      document.body.appendChild(a); a.click(); a.parentNode.removeChild(a);
+      capSay(msg, '✓ 저장했습니다 — ' + f.name + (IOS ? '' : ' (휴대폰은 갤러리 「Download」)'));
+    }catch(e2){ capSay(msg, '저장이 안 됐습니다. 위 이미지를 길게 눌러 「이미지 저장」을 고르세요.', true); }
+  }
+  async function copyImage(msg){
+    try{
+      if(!navigator.clipboard || !window.ClipboardItem) throw new Error('clipboard unsupported');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': _made.blob })]);
+      capSay(msg, '✓ 복사했습니다 — 이음 대화방(또는 카카오톡)에서 붙여넣기(Ctrl+V) 하세요.');
+    }catch(e){ capSay(msg, '이 기기에서는 바로 복사가 안 됩니다. 위 이미지를 길게 눌러 「이미지 복사」를 고르세요.', true); }
+  }
+  //  대표 선택 「둘 다 두기」(2026-10-21): 정리가 길면(세로가 가로의 2.2배 넘음) 이음 말풍선 사진 칸(최대 140×160)에선 가늘게 보이고
+  //  크게 봐도 화면에 맞춰 줄어 확대해야 읽힌다 → 미리보기 창에서 📝 파일을 권한다(파일은 이음 「문서 보기」로 글자 크기 그대로)
+  var TALL = 2.2;
+  function openPreview(){
+    var tall = (_made.cssH || 0) > 480 * TALL;
+    var ov = document.createElement('div');
+    ov.className = 'vn-capov';
+    ov.innerHTML =
+      '<div class="vn-capbox" role="dialog" aria-label="음성 메모 이미지">' +
+        '<div class="vn-caphd"><span>🖼 음성 메모 이미지</span><span class="vn-capsz"></span></div>' +
+        '<div class="vn-capprev"><img alt="음성 메모 이미지"></div>' +
+        (tall ? '<div class="vn-captall">📏 정리가 길어 이음에서는 그림이 가늘게 보이고 <b>확대해야</b> 읽힙니다 — ' +
+                '<button type="button" class="btn btn-secondary cap-md">📝 파일로 저장</button>' +
+                ' 해서 보내면 이음 「문서 보기」로 글자 크기 그대로 열립니다.</div>' : '') +
+        '<div class="vn-capmsg"></div>' +
+        '<div class="vn-capbtns">' +
+          '<button type="button" class="btn btn-primary cap-copy">📋 이미지 복사</button>' +
+          '<button type="button" class="btn btn-secondary cap-save">💾 이미지 저장</button>' +
+          '<button type="button" class="btn btn-secondary cap-close">닫기</button>' +
+        '</div>' +
+        '<div class="vn-caphint">' + (IOS
+          ? '「이미지 저장」을 누르면 공유 창이 열립니다 — 「이미지 저장」을 고르세요.'
+          : 'PC 는 「이미지 복사」 뒤 이음 대화방에서 Ctrl+V · 휴대폰은 갤러리의 「Download」 앨범에 저장됩니다.') +
+          ' 위 이미지를 길게 눌러도 저장·복사할 수 있습니다.</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    ov.querySelector('.vn-capprev img').src = _made.url;
+    ov.querySelector('.vn-capsz').textContent = _made.w + '×' + _made.h + ' · ' + (_made.blob.size / 1048576).toFixed(1) + 'MB';
+    var msg = ov.querySelector('.vn-capmsg');
+    var close = function(){ if(ov.parentNode) ov.parentNode.removeChild(ov); };
+    ov.querySelector('.cap-close').addEventListener('click', close);
+    ov.addEventListener('click', function(e){ if(e.target === ov) close(); });
+    ov.querySelector('.cap-save').addEventListener('click', function(){ saveImage(msg); });
+    ov.querySelector('.cap-copy').addEventListener('click', function(){ copyImage(msg); });
+    var cm = ov.querySelector('.cap-md');
+    if(cm) cm.addEventListener('click', function(){
+      var nm = saveMd();
+      capSay(msg, nm ? '✓ 마크다운 파일을 저장했습니다 — ' + nm + ' · 이음 대화방에 첨부(📎 또는 끌어다 놓기) 하세요.'
+                     : '파일을 만들지 못했습니다 — 📋 복사로 글을 넘겨 주세요.', !nm);
+    });
+  }
+  var _ib = $('vnImg');
+  if(_ib) _ib.addEventListener('click', async function(){
+    if(_ib.disabled) return;
+    if(!(SUM || '').trim()){ st('vnSt','아직 정리 전입니다 — 녹음을 올리면 정리됩니다.','err'); return; }
+    var was = _ib.textContent;
+    _ib.disabled = true; _ib.textContent = '⏳ 만드는 중…';
+    try{ await makeImage(); if(_alive()) openPreview(); }
+    catch(e){ st('vnSt', '이미지를 만들지 못했습니다 — 잠시 뒤 다시 눌러 주세요. (' + (e && e.message ? e.message : e) + ')', 'err'); }
+    finally{ _ib.disabled = !(SUM || '').trim(); _ib.textContent = was; }
+  });
+
+  // ── z1194: 📝 파일 — 마크다운(.md) 한 장 · 이음에 첨부하면 「문서 보기」로 열린다(글자 그대로 · 길어도 확대 없이 읽힌다) ──
+  function mdText(){
+    var who = (($('vnImg') || {}).dataset || {}).who || '';
+    var out = ['# ' + noteTitle(), ''];
+    metaRows().forEach(function(r){ out.push('- **' + r[0] + '**: ' + r[1]); });
+    if(who) out.push('- **작성**: ' + who);
+    out.push('');
+    out.push((SUM || '').trim());
+    return out.join('\n') + '\n';
+  }
+  function saveMd(){                                  // 저장한 파일 이름(못 만들면 빈 글) — 📝 단추와 🖼 미리보기 창이 같이 쓴다
+    try{
+      var name = safeName('.md');
+      var url = URL.createObjectURL(new Blob([mdText()], { type:'text/markdown;charset=utf-8' }));
+      var a = document.createElement('a'); a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.parentNode.removeChild(a);
+      setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(e){ /* 화면을 떠나면 사라진다 */ } }, 60000);
+      return name;
+    }catch(e){ return ''; }
+  }
+  var _mb = $('vnMd');
+  if(_mb) _mb.addEventListener('click', function(){
+    if(_mb.disabled) return;
+    if(!(SUM || '').trim()){ st('vnSt','아직 정리 전입니다 — 녹음을 올리면 정리됩니다.','err'); return; }
+    var name = saveMd();
+    if(name) st('vnSt', '✓ 마크다운 파일을 저장했습니다 — ' + name + ' · 이음 대화방에 첨부(📎 또는 끌어다 놓기)하면 문서처럼 열립니다.', 'ok');
+    else st('vnSt', '파일을 만들지 못했습니다 — 📋 복사로 글을 넘겨 주세요.', 'err');
   });
 
   // ── 삭제 ───────────────────────────────────────────────
