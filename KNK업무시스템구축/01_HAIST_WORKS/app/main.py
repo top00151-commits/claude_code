@@ -965,6 +965,15 @@ def startup():
             print(f"[VOICE-META-MIG-Z1194] {_rvm}")
     except Exception as _e:
         print(f"[VOICE-META-MIG-Z1194 ERR] {_e}")
+    # z1195 (대표 2026-10-21 「녹음파일을 한번 잘 못 올리면 … 파일 다시 올리기 기능이 필요해」): 자동으로 채운 일시 기억 칸 1 (idempotent · 칸만)
+    try:
+        from .migrations.m_z1195_voice_note_when_auto import migrate as _wa_migrate
+        from .database import DB_PATH as _DB_PATH_WA
+        _rwa = _wa_migrate(_DB_PATH_WA)
+        if _rwa.get('added'):
+            print(f"[VOICE-WHENAUTO-MIG-Z1195] {_rwa}")
+    except Exception as _e:
+        print(f"[VOICE-WHENAUTO-MIG-Z1195 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -6424,9 +6433,11 @@ def _vn_progress(nid: int, txt: str):
             j["progress"] = txt
 
 
-def _vn_worker(nid: int, disk: str, lang: str = ""):
+def _vn_worker(nid: int, disk: str, lang: str = "", replace: bool = False):
     """음성 → 글자 → 메모 원문에 덧붙이기(백그라운드). 사람이 고쳐 둔 원문은 지우지 않는다.
-    lang: 'ko'/'vi'/'en' 또는 ''(자동 감지) — z1165 에서 화면이 보내 준다."""
+    lang: 'ko'/'vi'/'en' 또는 ''(자동 감지) — z1165 에서 화면이 보내 준다.
+    replace (z1195 · 「📁 녹음 다시 올리기」): 잘못 올린 녹음의 글을 **새 녹음 글로 바꾼다**(덧붙이지 않는다) —
+      받아쓰기가 **끝났을 때만** 바꾼다(실패하면 원문 그대로 · 기록에는 글자 수만)."""
     text, err, warn = "", "", ""
     try:
         text, err, warn = _stt_one(0, disk, lang or "", "", progress=lambda t: _vn_progress(nid, t))
@@ -6434,9 +6445,11 @@ def _vn_worker(nid: int, disk: str, lang: str = ""):
             with db_session() as c:
                 row = c.execute("SELECT body FROM voice_notes WHERE id=?", (nid,)).fetchone()
                 prev = ((row["body"] if row else "") or "").strip()
-                body = ((prev + "\n\n") if prev else "") + text.strip()
+                body = text.strip() if replace else (((prev + "\n\n") if prev else "") + text.strip())   # z1195
                 c.execute("UPDATE voice_notes SET body=?, updated_at=datetime('now','localtime') WHERE id=?",
                           (body, nid))
+            if replace:
+                print(f"[VN-REUPLOAD-Z1195] 메모 {nid}: 녹음을 바꿔 원문을 새로 · {len(prev)}자 → {len(body)}자")
     except Exception as _e:
         err = err or f"받아쓴 글을 저장하지 못했습니다: {_e}"
     with _VN_LOCK:
@@ -6558,7 +6571,7 @@ async def api_voice_note_get(req: Request, nid: int):
 
 @app.post("/api/voice-note/{nid:int}/audio")
 async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile = File(...),
-                                      rec_end_ms: str = Form("")):
+                                      rec_end_ms: str = Form(""), replace: str = Form("")):
     """휴대폰 녹음 올리기 → voice_notes/note_{id}/ 에 저장. 받는 형식·한도는 회의록과 같다."""
     u = get_user(req)
     if not u:
@@ -6593,12 +6606,20 @@ async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile =
         c.execute("UPDATE voice_notes SET audio_path=?, updated_at=datetime('now','localtime') WHERE id=?",
                   (rel, nid))
     # z1194: 일시가 비어 있으면 녹음 파일 시각·길이로 먼저 채운다 — 사람이 적어 둔 일시는 바꾸지 않는다
+    # z1195: 채운 글은 meta_when_auto 에도 적어 둔다 · 「📁 녹음 다시 올리기」(replace=1)는 일시가 **자동으로 채운 그대로**면
+    #        새 녹음 기준으로 다시(새 녹음 시각을 모르면 비움 — 잘못 올린 녹음의 시각을 남기지 않는다) · 사람이 고쳐 적은 일시는 그대로
     _mw = await run_in_threadpool(_vn_when_from_file, disk_path, rec_end_ms, u)
+    _rep = str(replace or "").strip() == "1"
     with db_session() as c:
-        if _mw:
-            c.execute("UPDATE voice_notes SET meta_when=? WHERE id=? AND TRIM(COALESCE(meta_when,''))=''", (_mw, nid))
+        if _rep:
+            c.execute("UPDATE voice_notes SET meta_when=?, meta_when_auto=? WHERE id=? AND "
+                      "(TRIM(COALESCE(meta_when,''))='' OR meta_when=meta_when_auto)", (_mw, _mw, nid))
+        elif _mw:
+            c.execute("UPDATE voice_notes SET meta_when=?, meta_when_auto=? WHERE id=? AND TRIM(COALESCE(meta_when,''))=''",
+                      (_mw, _mw, nid))
         _r = c.execute("SELECT meta_when FROM voice_notes WHERE id=?", (nid,)).fetchone()
-    return JSONResponse({"ok": True, "size_kb": _n // 1024, "meta_when": ((_r["meta_when"] if _r else "") or "")})
+    return JSONResponse({"ok": True, "size_kb": _n // 1024, "meta_when": ((_r["meta_when"] if _r else "") or ""),
+                         "replaced": _rep})
 
 
 @app.get("/api/voice-note/{nid:int}/audio")
@@ -6644,7 +6665,8 @@ async def api_voice_note_transcribe(req: Request, nid: int):
         if (_VN_JOBS.get(nid) or {}).get("state") == "running":
             return JSONResponse({"ok": True, "already": True})
         _VN_JOBS[nid] = {"state": "running", "progress": "", "error": "", "warn": ""}
-    _stt_thr.Thread(target=_vn_worker, args=(nid, disk, lang or ""), daemon=True).start()
+    _rep = bool(isinstance(_d, dict) and _d.get("replace") is True)   # z1195 — 「📁 녹음 다시 올리기」면 원문을 바꾼다
+    _stt_thr.Thread(target=_vn_worker, args=(nid, disk, lang or "", _rep), daemon=True).start()
     return JSONResponse({"ok": True, "started": True})
 
 

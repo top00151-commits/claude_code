@@ -39,6 +39,12 @@
 #vnSumEditWrap[hidden], #vnSumBox[hidden], #vnBodyWrap[hidden], #vnUpWrap[hidden] { display:none !important; }
 .vn-acts { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 @media (max-width:430px){ .vn-sec-head { flex-wrap:wrap; } }
+/* z1195 (대표 2026-10-21 「녹음파일을 한번 잘 못 올리면 수정할 방법이 없어... 파일 다시 올리기 기능이 필요해」):
+   📁 녹음 다시 올리기(원문이 있는 메모) · 다시 올리기 중 「취소」 · 🔴 [hidden] 이 단추 모양 규칙에 지지 않게 */
+.vn-reup { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:2px; }
+.vn-reup .vn-hint { margin-top:0; }
+.vn-reup-cx { margin-top:8px; }
+#vnReupWrap[hidden], #vnLangWrap[hidden], #vnReupCancel[hidden] { display:none !important; }
 /* z1194 (대표 2026-10-21 「정리할때 대화참여자,장소,시간도 기록할수있으면」): 일시 · 장소 · 참여자 — 비워도 된다
    🔴 이름 주의: 목록 화면(voice_notes.html)이 .vn-card · .vn-meta 를 이미 쓴다 → 여기는 .vn-fmeta · .vni-card (겹치면 목록 카드가 깨진다) */
 .vn-fmeta { display:grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr) minmax(0,1.7fr); gap:0 12px; }
@@ -150,13 +156,21 @@
     </div>
 
     <div id="vnUpWrap"{% if note and note.body %} hidden{% endif %}>
-      <label class="vn-up">📁 녹음 파일 올리기
+      <label class="vn-up"><span id="vnUpTxt">📁 녹음 파일 올리기</span>{# z1195 — 다시 올리기 때 글만 바꾼다 #}
         <input type="file" id="vnFile"
                accept="audio/*,.m4a,.mp3,.mp4,.wav,.webm,.ogg,.oga,.aac,.3gp,.mpeg,.mpga,.caf"
                data-knk-no-dropzone class="knk-file-vh"></label>
       <div class="vn-hint">※ 녹음은 <b>휴대폰 기본 녹음기</b>(안드로이드 「음성 녹음」 · 아이폰 「음성 메모」)로 하세요 —
         다른 앱을 보거나 화면이 꺼져도 <b>안 끊깁니다</b>. 올리면 <b>글자로 바꾸고 요점·할 일까지 자동</b>으로 정리됩니다.
         소리는 <b>말하는 사람 가까이</b>에서 담을수록 정확합니다.</div>
+      <div class="vn-reup-cx"><button class="btn btn-secondary" id="vnReupCancel" type="button" hidden>취소 — 녹음 그대로 두기</button></div>
+    </div>
+    {# z1195 (대표 2026-10-21 「음성메모 녹음파일을 한번 잘 못 올리면 수정할 방법이 없어... 파일 다시 올리기 기능이 필요해」 → 「이대로 만들기」):
+       받아쓰기가 끝난 메모(원문 있음)에 보인다 → 누르면 위 「쓰는 말」·파일 칸을 다시 연다 → 고르면 확인 창 →
+       원문은 새 녹음으로 바꾸고 정리도 새로(지금 정리는 「↩ 이전 정리」) · 자동 일시만 새 녹음 기준 · 먼저 올린 녹음 파일은 서버에 남는다 #}
+    <div class="vn-reup" id="vnReupWrap"{% if not (note and note.body) %} hidden{% endif %}>
+      <button class="btn btn-secondary" id="vnReup" type="button">📁 녹음 다시 올리기</button>
+      <span class="vn-hint">잘못 올렸으면 다른 녹음 파일로 바꿉니다 — 받아쓴 원문과 정리를 새 녹음으로 다시 만들고, 지금 정리는 「↩ 이전 정리」로 보관합니다.</span>
     </div>
     <div class="vn-st" id="vnSt"></div>
   </div>
@@ -246,6 +260,10 @@
     var f = e.target.files && e.target.files[0];
     e.target.value = '';
     if(!f) return;
+    //  z1195 — 다시 올리기는 한 번 더 묻는다(원문·정리가 새 녹음으로 바뀐다)
+    if(REUP && !confirm('녹음 파일을 「' + (f.name || '새 녹음') + '」(으)로 바꿀까요?\n'
+        + '받아쓴 원문은 새 녹음으로 바뀌고 정리도 새로 합니다 — 지금 정리는 「↩ 이전 정리」로 보관됩니다.\n'
+        + '(먼저 올린 녹음 파일은 서버에 남습니다)')) return;
     st('vnSt','녹음을 올리는 중…','go');
     if(!NID){
       var cr = await api('/api/voice-note', { method:'POST', headers:{'Content-Type':'application/json'},
@@ -259,16 +277,19 @@
            if(_m) _m.innerHTML='<a href="/voice-notes" style="color:var(--qv-ink-3);">음성 메모</a> · 방금 만듦'; }catch(_){}
     }
     var fd = new FormData(); fd.append('file', f, f.name || 'rec.m4a');
+    if(REUP) fd.append('replace', '1');   // z1195 — 녹음 바꾸기(자동 일시만 새 녹음 기준으로)
     //  z1194: 파일 수정 시각(휴대폰 녹음기가 저장을 마친 때) — 서버가 길이와 함께 일시를 먼저 채운다(비어 있을 때만)
     if(f.lastModified) fd.append('rec_end_ms', String(f.lastModified));
     var up = await api('/api/voice-note/' + NID + '/audio', { method:'POST', body: fd });
     if(!up.ok){ st('vnSt', up.data.error || '올리지 못했습니다.', 'err'); return; }
     var _vw = $('vnWhen');
     if(up.data.meta_when && _vw && !(_vw.value || '').trim()) _vw.value = up.data.meta_when;   // z1194
+    if(REUP && _vw && up.data.replaced) _vw.value = up.data.meta_when || '';   // z1195 — 서버가 정한 일시(자동분만 새로 · 사람이 적은 것은 그대로)
     st('vnSt','음성을 글자로 바꾸는 중… (길면 몇 분 걸립니다)','go');
     var tr = await api('/api/voice-note/' + NID + '/transcribe',
       { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ lang: (($('vnLang')||{}).value) || '' }) });   // z1165
+        body: JSON.stringify(Object.assign({ lang: (($('vnLang')||{}).value) || '' },
+                                           REUP ? { replace: true } : {})) });   // z1165 · z1195 — 다시 올리기면 원문을 바꾼다
     if(!tr.ok){ st('vnSt', tr.data.error || '글자로 바꾸지 못했습니다.', 'err'); return; }
     var tries = 0;
     var timer = setInterval(async function(){
@@ -362,6 +383,9 @@
       if($('vnBody')) $('vnBody').value = d.body || '';
       if($('vnBodyWrap')) $('vnBodyWrap').hidden = !d.body;
       if($('vnUpWrap')) $('vnUpWrap').hidden = !!d.body;
+      if(REUP && d.body) reupMode(false);                          // z1195 — 다시 올리기를 마쳤으면 칸을 닫는다
+      if($('vnReupWrap') && !REUP) $('vnReupWrap').hidden = !d.body;   // z1195 — 원문이 생기면 「📁 녹음 다시 올리기」
+      if($('vnLangWrap') && !REUP) $('vnLangWrap').hidden = !!d.body;  // z1195 — 처음 열 때와 같게(원문이 있으면 숨김)
       if(d.title && $('vnTitle') && !($('vnTitle').value||'').trim()) $('vnTitle').value = d.title;
     }
     st('vnSt','정리가 끝났습니다 ✓','ok');
@@ -687,6 +711,39 @@
     if(name) st('vnSt', '✓ 마크다운 파일을 저장했습니다 — ' + name + ' · 이음 대화방에 첨부(📎 또는 끌어다 놓기)하면 문서처럼 열립니다.', 'ok');
     else st('vnSt', '파일을 만들지 못했습니다 — 📋 복사로 글을 넘겨 주세요.', 'err');
   });
+
+  // ── z1195: 📁 녹음 다시 올리기 (대표 2026-10-21 「녹음파일을 한번 잘 못 올리면 수정할 방법이 없어... 파일 다시 올리기 기능이 필요해」) ──
+  //    누르면 「쓰는 말」·파일 칸을 다시 연다 → 고르면 확인 창 → 올리기(replace=1) → 받아쓰기(replace: true — 원문을 **바꾼다**) → 다시 정리
+  //    (지금 정리는 「↩ 이전 정리」로 보관 — 일꾼이 원래 하던 대로 · 먼저 올린 녹음 파일은 서버에 남는다 · 자동으로 채운 일시만 새 녹음 기준으로)
+  //    🔵 받아쓰기가 실패하면 원문은 그대로 두고 칸도 열어 둔다(다시 고르거나 「취소」)
+  var REUP = false;
+  var _upTxt0 = (($('vnUpTxt') || {}).textContent) || '📁 녹음 파일 올리기';
+  function reupMode(on){
+    REUP = !!on;
+    var up = $('vnUpWrap'), lw = $('vnLangWrap'), rw = $('vnReupWrap'), t = $('vnUpTxt'), cx = $('vnReupCancel');
+    if(up) up.hidden = !on;
+    if(lw) lw.hidden = !on;
+    if(rw) rw.hidden = !!on;
+    if(t) t.textContent = on ? '📁 바꿀 녹음 파일 고르기' : _upTxt0;
+    if(cx) cx.hidden = !on;
+  }
+  var _rb = $('vnReup');
+  if(_rb) _rb.addEventListener('click', async function(){
+    if(!NID || _rb.disabled) return;
+    _rb.disabled = true;
+    try{
+      //  받아쓰기·정리가 도는 중이면 바꾸지 않는다(끝난 뒤 다시)
+      var s1 = await api('/api/voice-note/' + NID + '/stt-status');
+      var s2 = await api('/api/voice-note/' + NID + '/extract-status');
+      if((s1.ok && s1.data.state === 'running') || (s2.ok && s2.data.state === 'running')){
+        st('vnSt', '받아쓰기·정리가 끝난 뒤에 다시 눌러 주세요.', 'err'); return;
+      }
+      reupMode(true);
+      st('vnSt', '바꿀 녹음 파일을 고르세요 — 받아쓴 원문과 정리를 새 녹음으로 다시 만듭니다.', 'go');
+    } finally { _rb.disabled = false; }
+  });
+  var _rc = $('vnReupCancel');
+  if(_rc) _rc.addEventListener('click', function(){ reupMode(false); st('vnSt', '', ''); });
 
   // ── 삭제 ───────────────────────────────────────────────
   var _d = $('vnDel');
