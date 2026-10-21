@@ -2106,14 +2106,14 @@ def can_view_logistics(user) -> bool:
 
 def can_delete_sales(user) -> bool:
     """v5H72: 매출·영업 **삭제** 권한 — can_use_sales 보다 더 엄격.
-    - admin / ceo / executive: 자동 허용
+    - ceo / executive: 자동 허용 · z1191j(2026-10-21): 관리자(admin)도 아래 매출 등록 체크대로(관리 콘솔 삭제는 별개)
     - 기술영업팀(team_id=1) 팀장(leader): 자동 허용
     - 기타 멤버: users.can_use_sales=1 명시적으로 부여 받은 자만
     대표 정의: '기술영업팀에서 등록 권한을 받은 사용자만'."""
     if not user:
         return False
     role = (user.get("role") if isinstance(user, dict) else user["role"]) or ""
-    if role in ("admin", "ceo", "executive"):
+    if role in ("ceo", "executive"):   # z1191j: 관리자는 체크대로
         return True
     team_id = user.get("team_id") if isinstance(user, dict) else None
     if role == "leader" and team_id == 1:
@@ -40342,11 +40342,12 @@ async def stock_issues_approve(req: Request, issue_id: int):
 #         (database.py orders.status CHECK constraint · invoices 추가 정합)
 # =====================================================
 def _s1_guard(req: Request):
-    """S1 권한 가드 — 영업팀 권한 OR admin/ceo. 없으면 None 반환."""
+    """S1 권한 가드 — 영업팀 권한(매출 등록 체크) OR ceo. 없으면 None 반환.
+    z1191j(2026-10-21): 관리자(admin) 자동 허용 뺌 — 관리자도 매출 등록 체크대로(z1191g 빈틈 · 세션 05 알림)."""
     u = get_user(req)
     if not u:
         return None
-    if u.get("role") in ("admin", "ceo") or can_use_sales(u):
+    if u.get("role") == "ceo" or can_use_sales(u):   # 임원은 can_use_sales 가 역할로 참
         return u
     return None
 
