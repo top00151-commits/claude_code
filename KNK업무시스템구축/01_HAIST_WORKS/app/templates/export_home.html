@@ -18,6 +18,9 @@ body {
     <div><div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>수출 hub</b></div><h1 class="page-title" data-dn="title">🚢 수출 <em>관리</em></h1>
     <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">CI · P/L · B/L · 통관 신고 워크플로우</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {# z1191l (대표 지시 2026-10-26): 본사 인보이스 → 사전 확정 값으로 HS·베트남어 품명 자동 채움(법인은 노란 칸만) — 매일 쓰는 일이라 맨 앞 #}
+      <a class="btn btn-primary" href="/export/hs-fill" style="background:#15803d;border-color:#15803d;"
+         title="본사 인보이스를 올리면 HS 사전의 확정 값으로 HS CODE·Tên hàng 칸을 채워 드립니다 — 법인은 노란 칸만">🇻🇳 인보이스 HS 자동 채움</a>
       <a class="btn btn-primary" href="/export/prep" style="background:#1d4ed8;border-color:#1d4ed8;">🚢 출하 전 통관 정리</a>
       {# v5H226z1022 (대표 지시): HS 사전 진입점이 '통관 입력 상세' 버튼 1곳뿐이라 프로젝트를 골라야만 들어갈 수 있었음(4단계).
          공용 사전이므로 수출 관리에서 바로 열 수 있게 — 색은 통관 입력의 같은 버튼과 통일(보라). #}

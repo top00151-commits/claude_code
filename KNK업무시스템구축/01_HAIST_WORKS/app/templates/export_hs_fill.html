@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>인보이스 HS 자동 채움 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+{# z1191l (대표 지시 2026-10-26 「엑셀 양식은 지금 올려준 양식으로 최종 적용 … 직원들이 가장 편하고 실수없이 빠르게」):
+   본사 인보이스 → 사전 확정 값으로 HS·Tên hàng 칸 채움 → 법인은 노란 칸만 → 회신 올리면 사전 성장 #}
+.hf-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:12px 0 14px; }
+.hf-step { background:#fff; border:1px solid var(--qv-line,#e2ddd0); border-radius:10px; padding:10px 12px; font-size:12px; color:var(--qv-ink-2,#334155); line-height:1.55; }
+.hf-step b.n { display:inline-flex; width:22px; height:22px; border-radius:50%; align-items:center; justify-content:center; background:var(--knk-red,#b0271f); color:#fff; font-size:12px; margin-right:6px; }
+.hf-card { background:#fff; border:1px solid var(--qv-line,#e2ddd0); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.hf-card h3 { margin:0 0 6px; font-size:14px; }
+.hf-sub { font-size:11.5px; color:var(--mute,#64748b); line-height:1.6; }
+.hf-btn { padding:7px 16px; border:1px solid #15803d; background:#15803d; color:#fff; border-radius:7px; font-size:12.5px; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; }
+.hf-btn:disabled { opacity:.5; cursor:default; }
+.hf-btn.ghost { background:#fff; color:#15803d; }
+.hf-btn.blue { border-color:#1d4ed8; background:#1d4ed8; }
+.hf-chips { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+.hf-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:99px; border:1px solid var(--qv-line,#e2ddd0); background:#fff; font-size:12.5px; font-weight:700; }
+.hf-chip b { font-size:14px; }
+.sw { display:inline-block; width:14px; height:14px; border-radius:3px; border:1px solid rgba(0,0,0,.15); vertical-align:-2px; }
+.sw.y { background:#ffff00; } .sw.o { background:#ffc000; } .sw.g { background:#dcfce7; } .sw.n { background:#fff; }
+.hf-tbl { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
+.hf-tbl th { background:var(--paper-2,#f4f1e8); color:var(--knk-red,#b0271f); font-size:10.5px; font-weight:700; padding:6px 8px; text-align:left; border-bottom:2px solid var(--knk-red,#b0271f); position:sticky; top:0; }
+.hf-tbl td { padding:5px 8px; border-bottom:1px solid #f0ebdd; vertical-align:top; }
+.hf-tbl td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.hf-tbl td.mono { font-family:Consolas,monospace; font-weight:700; }
+.hf-hint { margin-top:8px; padding:8px 12px; border-radius:7px; background:#fff7ed; border:1px solid #fdba74; color:#9a3412; font-size:12px; }
+.hf-err { margin-top:8px; padding:8px 12px; border-radius:7px; background:#fef2f2; border:1px solid #fca5a5; color:#b91c1c; font-size:12px; }
+.hf-ok { color:#15803d; font-weight:700; }
+.hf-wait { display:inline-block; padding:2px 9px; border-radius:99px; font-size:10.5px; font-weight:800; background:#fef9c3; color:#a16207; }
+.hf-done { display:inline-block; padding:2px 9px; border-radius:99px; font-size:10.5px; font-weight:800; background:#dcfce7; color:#15803d; }
+.hf-scroll { max-height:340px; overflow:auto; border:1px solid var(--qv-line,#e2ddd0); border-radius:8px; }
+@media (max-width:900px){ .hf-steps{grid-template-columns:1fr;} }
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <div class="page-head" data-dn="page-head">
+    <div>
+      <div class="crumbs" data-dn="crumb"><a href="/export" data-knk-back>수출 hub</a> · <a href="/export/hs-dict">베트남 HS 사전</a> · <b>인보이스 HS 자동 채움</b></div>
+      <h1 class="page-title" data-dn="title">🇻🇳 인보이스 HS 자동 채움</h1>
+      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
+        본사 인보이스를 올리면 HS 사전의 <b>확정</b> 값(지금 {{ confirmed }}건)으로 HS CODE·Tên hàng 칸을 채운 <b>같은 파일</b>을 드립니다.
+        법인은 <span class="sw y"></span> 노란 칸만 채우면 되고, 회신을 올리면 다음부터 그 품목도 자동으로 채워집니다.
+      </div>
+    </div>
+  </div>
+
+  <div class="hf-steps">
+    <div class="hf-step"><b class="n">1</b><b>본사</b> — 인보이스(.xlsx)를 아래 ①에 올림 → <b>채운 파일 내려받기</b> → 이음 방에 그대로 올림
+      <div class="hf-sub">사진·서식·인쇄 설정은 그대로 · 색칠하는 HS·Tên hàng 칸은 인쇄 영역(A~I) 밖이라 세관용 출력에 안 찍힙니다</div></div>
+    <div class="hf-step"><b class="n">2</b><b>법인</b> — <span class="sw y"></span> 노란 칸만 HS CODE·Tên hàng 을 채워 회신
+      <div class="hf-sub"><span class="sw o"></span> 주황 칸은 채운 값이 맞는지 확인만 · 흰 칸은 사전 확정 값</div></div>
+    <div class="hf-step"><b class="n">3</b><b>본사</b> — 회신 파일을 아래 ③에 올림 → 사전에 반영
+      <div class="hf-sub">새 품목은 추가 · 같은 값은 확인 · <b style="color:#b91c1c;">다른 값은 덮지 않고 '확인 대기'</b>(사전 화면에서 고름)</div></div>
+  </div>
+
+  {# ① 보내기 전 #}
+  <div class="hf-card" id="hfFillCard">
+    <h3>① 보내기 전 — 인보이스 올리기</h3>
+    <div class="hf-sub">최종 양식(<b>수책</b>·<b>소모품</b>) 인보이스 .xlsx 한 개 — 다른 양식도 머리글('HS CODE'·'Tên hàng'·'Description')로 칸을 찾습니다.</div>
+    <div style="margin-top:8px;"><input type="file" id="hfFile" accept=".xlsx"></div>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="hf-btn" type="button" id="hfRun" onclick="hfFill()">자동 채우기</button>
+      <span id="hfMsg" style="font-size:12px;"></span>
+    </div>
+    <div id="hfOut"></div>
+  </div>
+
+  {# ③ 법인 회신 #}
+  <div class="hf-card" id="hfReplyCard">
+    <h3>③ 법인 회신 반영</h3>
+    <div class="hf-sub">법인이 노란 칸을 채워 보낸 파일(여러 개 가능) — 사전에 새 품목 추가 · 같은 값 확인 · 다른 값은 '확인 대기'.
+      <b>보내기 전 파일(HS 가 비어 있는 것)은 받지 않습니다.</b></div>
+    <div style="margin-top:8px;"><input type="file" id="hfReplyFiles" accept=".xlsx,.xlsm" multiple></div>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="hf-btn blue" type="button" id="hfReplyRun" onclick="hfReply()">회신 반영</button>
+      <span id="hfReplyMsg" style="font-size:12px;"></span>
+    </div>
+    <div id="hfReplyOut"></div>
+  </div>
+
+  {# 최근 기록 #}
+  <div class="hf-card">
+    <h3>🕘 최근 자동 채움 {% if waiting %}<span class="hf-wait">회신 대기 {{ waiting }}</span>{% endif %}</h3>
+    <div class="hf-sub">회신을 ③에 올리면 '반영'으로 바뀝니다 — <b>회신 대기</b>가 남아 있으면 법인 회신을 아직 사전에 안 올린 것입니다(그 품목은 다음에도 노랑).</div>
+    {% if logs %}
+    <div class="hf-scroll" style="margin-top:8px;">
+    <table class="hf-tbl">
+      <thead><tr><th>인보이스</th><th>파일</th><th>채운 때 · 사람</th><th class="num">자동</th><th class="num">확인</th><th class="num">법인 입력</th><th>회신</th><th></th></tr></thead>
+      <tbody>
+      {% for lg in logs %}
+      <tr>
+        <td class="mono">{{ lg.invoice_no or '—' }}</td>
+        <td style="word-break:break-all;">{{ lg.file_name }}<div class="hf-sub">{{ lg.form }}</div></td>
+        <td style="font-size:11.5px;">{{ (lg.filled_at or '')[:16] }}<div class="hf-sub">{{ lg.filled_name }}</div></td>
+        <td class="num">{{ lg.n_auto or 0 }}</td>
+        <td class="num">{{ lg.n_check or 0 }}</td>
+        <td class="num">{{ lg.n_need or 0 }}</td>
+        <td style="font-size:11.5px;">
+          {% if lg.reply_at %}<span class="hf-done">반영</span> {{ lg.reply_at[:16] }}
+            <div class="hf-sub">새 {{ lg.reply_added or 0 }} · 같음 {{ lg.reply_updated or 0 }} · <span style="color:#b91c1c;">확인 대기 {{ lg.reply_conflict or 0 }}</span>{% if lg.reply_empty %} · 빈 HS {{ lg.reply_empty }}{% endif %} · {{ lg.reply_name }}</div>
+          {% else %}<span class="hf-wait">회신 대기</span>{% endif %}
+        </td>
+        <td>{% if lg.has_file %}<a class="hf-btn ghost" style="padding:4px 10px;font-size:11.5px;" href="/export/hs-fill/{{ lg.id }}/download">다시 받기</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="hf-sub" style="margin-top:8px;">아직 기록이 없습니다.</div>
+    {% endif %}
+  </div>
+</main></div>
+
+<script>
+(function(){
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+  var ST = {NEED:['y','법인 입력'], CHECK:['o','확인'], CONFLICT:['o','확인']};
+  var lastMsg = '';
+  window.hfFill = async function(){
+    var inp = document.getElementById('hfFile'), btn = document.getElementById('hfRun'),
+        msg = document.getElementById('hfMsg'), out = document.getElementById('hfOut');
+    if(!inp.files || !inp.files.length){ msg.innerHTML = '<span style="color:#b91c1c;">인보이스 파일을 골라 주세요</span>'; return; }
+    var fd = new FormData(); fd.append('file', inp.files[0]);
+    btn.disabled = true; msg.textContent = '채우는 중…'; out.innerHTML = '';
+    try {
+      var r = await fetch('/export/hs-fill', {method:'POST', body:fd, credentials:'same-origin'});
+      var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
+      if(!j.ok){ msg.textContent = ''; out.innerHTML = '<div class="hf-err">' + esc(j.error || '처리하지 못했습니다') + '</div>'; return; }
+      var s = j.summary; lastMsg = j.message || '';
+      msg.innerHTML = '<span class="hf-ok">✓ 채웠습니다</span>';
+      var h = '<div style="margin-top:10px;font-size:13px;"><b>' + esc(j.invoice_no || j.file_name) + '</b> · ' + esc((j.forms || []).join('·')) + ' 양식 · ' + s.total + '줄</div>';
+      h += '<div class="hf-chips">'
+        + '<span class="hf-chip"><span class="sw n"></span>자동(사전 확정) <b>' + s.auto + '</b></span>'
+        + '<span class="hf-chip"><span class="sw o"></span>확인 <b>' + s.check + '</b></span>'
+        + '<span class="hf-chip"><span class="sw y"></span>법인 입력 <b>' + s.need + '</b></span>'
+        + (s.keep ? '<span class="hf-chip">이미 적혀 있음 <b>' + s.keep + '</b></span>' : '')
+        + '</div>';
+      h += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+        + '<a class="hf-btn" href="' + esc(j.download_url) + '">⬇ 채운 파일 내려받기</a>'
+        + '<button class="hf-btn ghost" type="button" onclick="hfCopy(this)">📋 이음 방에 보낼 글 복사</button>'
+        + '<span class="hf-sub" style="max-width:640px;">' + esc(lastMsg) + '</span></div>';
+      if(j.hint){ h += '<div class="hf-hint">' + esc(j.hint) + '</div>'; }
+      var at = j.attention || [];
+      if(at.length){
+        h += '<div class="hf-sub" style="margin-top:10px;">법인이 볼 줄 ' + at.length + '개 — 줄 번호는 엑셀 줄 번호입니다</div><div class="hf-scroll"><table class="hf-tbl"><thead><tr><th>줄</th><th>규격(Description)</th><th>칸</th><th>까닭</th><th>사전 값</th></tr></thead><tbody>';
+        at.forEach(function(a){
+          var st = ST[a.st] || ['n', a.st];
+          h += '<tr><td class="num">' + esc(a.row) + '</td><td>' + esc(a.desc) + '</td><td><span class="sw ' + st[0] + '"></span> ' + st[1] + '</td><td>' + esc(a.why) + '</td><td class="mono">' + esc(a.dict_hs || '') + '</td></tr>';
+        });
+        h += '</tbody></table></div>';
+      }
+      out.innerHTML = h;
+    } catch(e){ msg.textContent = ''; out.innerHTML = '<div class="hf-err">통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
+    finally { btn.disabled = false; }
+  };
+  window.hfCopy = function(b){
+    var t = lastMsg; if(!t) return;
+    var done = function(){ var o = b.textContent; b.textContent = '✓ 복사했습니다'; setTimeout(function(){ b.textContent = o; }, 1400); };
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done, function(){ prompt('복사해 주세요', t); }); }
+    else { prompt('복사해 주세요', t); }
+  };
+  window.hfReply = async function(){
+    var inp = document.getElementById('hfReplyFiles'), btn = document.getElementById('hfReplyRun'),
+        msg = document.getElementById('hfReplyMsg'), out = document.getElementById('hfReplyOut');
+    if(!inp.files || !inp.files.length){ msg.innerHTML = '<span style="color:#b91c1c;">회신 파일을 골라 주세요</span>'; return; }
+    var fd = new FormData(); for(var i = 0; i < inp.files.length; i++){ fd.append('files', inp.files[i]); }
+    btn.disabled = true; msg.textContent = '반영하는 중…'; out.innerHTML = '';
+    try {
+      var r = await fetch('/export/hs-fill/reply', {method:'POST', body:fd, credentials:'same-origin'});
+      var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
+      if(!j.ok){ msg.textContent = ''; out.innerHTML = '<div class="hf-err">' + esc(j.error || '처리하지 못했습니다') + '</div>'; return; }
+      msg.innerHTML = '<span class="hf-ok">✓ 끝났습니다</span> <a href="/export/hs-fill" style="font-size:12px;">기록 새로 보기</a>';
+      var h = '';
+      (j.results || []).forEach(function(x){
+        if(x.error){ h += '<div class="hf-err"><b>' + esc(x.file) + '</b> — ' + esc(x.error) + '</div>'; return; }
+        h += '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--qv-line,#e2ddd0);border-radius:8px;font-size:12px;">'
+          + '<b>' + esc(x.file) + '</b> · ' + x.rows + '줄 → 새로 추가 <b>' + x.added + '</b> · 같은 값 <b>' + x.updated + '</b> · '
+          + '<b style="color:#b91c1c;">다른 값 → 확인 대기 ' + x.conflict + '</b>'
+          + (x.or_clash ? ' · 원산지 이견 ' + x.or_clash : '')
+          + (x.six ? ' · 장비 6자리 HS ' + x.six + '줄(사전에 안 넣음)' : '');
+        if(x.log && x.log.id){ h += '<div class="hf-sub">자동 채움 기록 #' + x.log.id + (x.log.invoice_no ? ' (' + esc(x.log.invoice_no) + ')' : '') + ' → <b>반영</b>으로 바꿈</div>'; }
+        else if(x.log && x.log.error){ h += '<div class="hf-sub" style="color:#b91c1c;">자동 채움 기록 연결 실패 — ' + esc(x.log.error) + ' (사전 반영은 됐습니다)</div>'; }
+        else { h += '<div class="hf-sub">자동 채움 기록 없음 — 사전 반영은 됐습니다</div>'; }
+        if(x.conflict){ h += '<div class="hf-sub">→ <a href="/export/hs-dict?status=PENDING">확인 대기 목록</a>에서 맞는 값을 고르면 다시 자동 채움에 쓰입니다</div>'; }
+        if(x.empty){
+          h += '<div class="hf-hint">아직 HS 가 비어 있는 줄 ' + x.empty + '개 — 법인에 다시 확인해 주세요: '
+            + (x.empty_rows || []).slice(0, 12).map(function(e){ return esc(e.row) + '줄 ' + esc(e.desc); }).join(' · ') + '</div>';
+        }
+        h += '</div>';
+      });
+      out.innerHTML = h;
+    } catch(e){ msg.textContent = ''; out.innerHTML = '<div class="hf-err">통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
+    finally { btn.disabled = false; }
+  };
+})();
+</script>
+</body></html>

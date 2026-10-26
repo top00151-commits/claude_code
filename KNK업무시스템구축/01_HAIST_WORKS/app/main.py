@@ -9,6 +9,10 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import os, io, calendar, tempfile
 from datetime import datetime, timedelta, date
+import logging as _logging_z1191l
+# z1191l: 아래 `log.warning(...)` 7곳(소모품 이력·수주 제품·고객 지도·HS 세관 파싱)이 이 이름 없이 쓰여
+#   그 길(예외 처리)로 가면 경고 대신 NameError 로 멈췄다 → 모듈 이름 하나로 정의한다.
+log = _logging_z1191l.getLogger("knk")
 from .i18n import LANGS, t as i18n_t, get_all_translations, USER_LANGS, USER_LANG_NAMES, user_lang_label, rank_label
 from . import menu_catalog as _menu  # Phase 1 (2026-04-29): M-코드 카탈로그
 from .database import (db_session, init_db, seed_all, seed_sample_tasks,
@@ -43430,6 +43434,78 @@ async def export_hs_dict_save(req: Request, did: int):
     return JSONResponse({"ok": True})
 
 
+def _hs_learn_invoice_rows(c, rows: list, fname: str, today: str, u) -> dict:
+    """최종 인보이스(법인 회신) 줄 → 사전 성장 — z967 규칙 그대로(새 규격 추가 · 같은 HS 재출현 갱신 ·
+    다른 HS 는 '확인 대기') · z1046 원산지 원칙 그대로(다르면 덮지 않고 사유).
+    z1191l: `/export/hs-dict/upload` 안에 있던 코드를 함수로 뺐다(회신 반영 단추 `/export/hs-fill/reply` 도 같은 규칙) +
+      한 가지 더 — 새 규격이 사전의 **같은 모델**(확정)과 HS 가 다르면 '확인 대기'로 넣는다(아래 주석)."""
+    from . import hs_fill as _hf_learn
+    _idx_learn = _hf_learn.build_index([dict(r) for r in c.execute(
+        "SELECT part_key, model, hs_code, vn_name, status, seen_count FROM export_hs_dict")])
+    added = updated = conflict = or_clash = 0
+    for row in rows:
+        ex = c.execute("SELECT id, hs_code, status, origin FROM export_hs_dict WHERE part_key=?",
+                       (row["key"],)).fetchone()
+        if not ex:
+            # z1191l: 규격 전체는 처음이지만 **같은 모델**이 사전에 확정돼 있고 HS 가 다르면 → 확정이 아니라 '확인 대기'로 넣는다.
+            #   (소모품 최종 양식은 규격 앞에 분류 글이 붙어 'PARTS OF CONNECTORS SP100F…' 처럼 새 규격이 된다 →
+            #    그대로 확정으로 넣으면 같은 모델이 사전에서 서로 다른 HS 로 **말없이 갈라진다** — 10-26 실측 1·2호기 HS 불일치와 같은 모양)
+            _way, _e, _memo = _hf_learn.lookup(_idx_learn, row["model"])
+            if _way == "token" and _hf_learn.digits(_e.get("hs_code")) != row["hs"]:
+                c.execute(
+                    "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,first_seen,last_seen,source_file,note,updated_by) "
+                    "VALUES(?,?,?,?,?,?, 'PENDING',1,?,?,?,?,?)",
+                    (row["key"], row["model"], row["name_en"], row["vn"], row["hs"],
+                     row["origin"], today, today, fname,
+                     "충돌: 같은 모델 사전 %s = %s ↔ 신규 %s (%s)" % (_e.get("model") or _e.get("part_key"),
+                                                             _hf_learn.digits(_e.get("hs_code")), row["hs"], fname),
+                     u.get("id")))
+                conflict += 1
+                continue
+            c.execute(
+                "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,first_seen,last_seen,source_file,updated_by) "
+                "VALUES(?,?,?,?,?,?, 'CONFIRMED',1,?,?,?,?)",
+                (row["key"], row["model"], row["name_en"], row["vn"], row["hs"],
+                 row["origin"], today, today, fname, u.get("id")))
+            added += 1
+        elif (ex["hs_code"] or "") == row["hs"]:
+            # 같은 HS 재출현 — 실적 확인: AI 추정이었다면 CONFIRMED 승격
+            # v5H226z1046 (대표 지시): ⛔**원산지를 말없이 덮지 않는다**.
+            #   HS 는 다르면 '확인 대기'로 세우면서 원산지만 조용히 마지막 파일 값으로 바꾸고 있었다
+            #   (실측 103종). 원산지도 세관 신고 항목이라 같은 원칙이 맞다 —
+            #   빈 칸이면 채우고, 같으면 그대로, **다르면 덮지 않고 사유로 알린다**.
+            #   ⚠상태는 건드리지 않는다(HS 는 맞으므로 자동 채움은 계속 쓸 수 있어야 한다).
+            #   cf [[feedback_data_connectivity]] 자동연결=명확한 단일후보만
+            _cur_or = (ex["origin"] or "").strip()
+            _new_or = (row["origin"] or "").strip()
+            _clash = bool(_cur_or and _new_or and _cur_or != _new_or)
+            _sets = ["seen_count=seen_count+1", "last_seen=?", "source_file=?",
+                     "vn_name=CASE WHEN ?<>'' THEN ? ELSE vn_name END",
+                     "status=CASE WHEN status='AI' THEN 'CONFIRMED' ELSE status END"]
+            _vals = [today, fname, row["vn"], row["vn"]]
+            if _clash:
+                _sets.append("note=?")
+                _vals.append(f"⚠원산지 이견: 기존 {_cur_or} ↔ 신규 {_new_or} ({fname})")
+                or_clash += 1
+            elif _new_or:
+                _sets.append("origin=?")      # 비었으면 채우고, 같으면 그대로(무해)
+                _vals.append(_new_or)
+            _sets += ["updated_by=?", "updated_at=datetime('now','localtime')"]
+            _vals += [u.get("id"), ex["id"]]
+            c.execute(f"UPDATE export_hs_dict SET {','.join(_sets)} WHERE id=?", _vals)
+            updated += 1
+        else:
+            # 다른 HS 재출현 = 충돌 → PENDING(자동 채움 제외) + note 기록. 몰래 교체 금지(사람 확인).
+            c.execute(
+                "UPDATE export_hs_dict SET status='PENDING', "
+                "note=('충돌: 기존 ' || COALESCE(hs_code,'') || ' ↔ 신규 ' || ? || ' (' || ? || ')'), "
+                "last_seen=?, updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
+                (row["hs"], fname, today, u.get("id"), ex["id"]))
+            conflict += 1
+    return {"file": fname, "rows": len(rows), "added": added,
+            "updated": updated, "conflict": conflict, "or_clash": or_clash}
+
+
 @app.post("/export/hs-dict/upload")
 async def export_hs_dict_upload(req: Request):
     """파일 올리기(여러 개) → 사전 성장. **세 가지**를 머리글로 구분해 받는다:
@@ -43487,53 +43563,275 @@ async def export_hs_dict_upload(req: Request):
                 results.append({"file": fname,
                                 "error": "인보이스(HS CODE 헤더)·검토표·세관 보고서(Mã HS) 어느 것도 아닙니다"})
                 continue
-            added = updated = conflict = or_clash = 0
-            for row in rows:
-                ex = c.execute("SELECT id, hs_code, status, origin FROM export_hs_dict WHERE part_key=?",
-                               (row["key"],)).fetchone()
-                if not ex:
-                    c.execute(
-                        "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,first_seen,last_seen,source_file,updated_by) "
-                        "VALUES(?,?,?,?,?,?, 'CONFIRMED',1,?,?,?,?)",
-                        (row["key"], row["model"], row["name_en"], row["vn"], row["hs"],
-                         row["origin"], today, today, fname, u.get("id")))
-                    added += 1
-                elif (ex["hs_code"] or "") == row["hs"]:
-                    # 같은 HS 재출현 — 실적 확인: AI 추정이었다면 CONFIRMED 승격
-                    # v5H226z1046 (대표 지시): ⛔**원산지를 말없이 덮지 않는다**.
-                    #   HS 는 다르면 '확인 대기'로 세우면서 원산지만 조용히 마지막 파일 값으로 바꾸고 있었다
-                    #   (실측 103종). 원산지도 세관 신고 항목이라 같은 원칙이 맞다 —
-                    #   빈 칸이면 채우고, 같으면 그대로, **다르면 덮지 않고 사유로 알린다**.
-                    #   ⚠상태는 건드리지 않는다(HS 는 맞으므로 자동 채움은 계속 쓸 수 있어야 한다).
-                    #   cf [[feedback_data_connectivity]] 자동연결=명확한 단일후보만
-                    _cur_or = (ex["origin"] or "").strip()
-                    _new_or = (row["origin"] or "").strip()
-                    _clash = bool(_cur_or and _new_or and _cur_or != _new_or)
-                    _sets = ["seen_count=seen_count+1", "last_seen=?", "source_file=?",
-                             "vn_name=CASE WHEN ?<>'' THEN ? ELSE vn_name END",
-                             "status=CASE WHEN status='AI' THEN 'CONFIRMED' ELSE status END"]
-                    _vals = [today, fname, row["vn"], row["vn"]]
-                    if _clash:
-                        _sets.append("note=?")
-                        _vals.append(f"⚠원산지 이견: 기존 {_cur_or} ↔ 신규 {_new_or} ({fname})")
-                        or_clash += 1
-                    elif _new_or:
-                        _sets.append("origin=?")      # 비었으면 채우고, 같으면 그대로(무해)
-                        _vals.append(_new_or)
-                    _sets += ["updated_by=?", "updated_at=datetime('now','localtime')"]
-                    _vals += [u.get("id"), ex["id"]]
-                    c.execute(f"UPDATE export_hs_dict SET {','.join(_sets)} WHERE id=?", _vals)
-                    updated += 1
+            if _hs_fill_is_own_output(c, raw):
+                # z1191l: ① 자동 채움 파일 그대로면 거절 — 주황(모델만 일치) 값이 법인 확인 없이 확정되지 않게
+                results.append({"file": fname, "error": "① 자동 채움에서 받은 파일 그대로입니다 — 법인이 채워 보낸 회신 파일을 올려 주세요"})
+                continue
+            _res = _hs_learn_invoice_rows(c, rows, fname, today, u)
+            # z1191l: 자동 채움으로 보낸 인보이스의 회신이면 '회신 대기'를 푼다(같은 인보이스 번호 · 없으면 파일 이름)
+            _res["log"] = _hs_fill_log_mark_reply(c, raw, fname, _res, u)
+            results.append(_res)
+    return JSONResponse({"ok": True, "results": results})
+
+
+# ------------------------------------------------------------
+# z1191l (대표 지시 2026-10-26): 베트남 인보이스 HS 자동 채움 — 엑셀 왕복
+#   「엑셀 양식은 지금 올려준 양식으로 최종 적용해 … 직원들이 가장 편하고 실수없이 빠르게 할수있는 방법으로」
+#   ① 본사가 인보이스(최종 양식: 수책·소모품)를 올린다 → 사전 **확정** 값으로 HS CODE·Tên hàng 칸만 채운 같은 파일
+#      (법인이 채울 칸 노랑 · 확인할 칸 주황 — 두 칸 모두 인쇄 영역 A~I 밖이라 세관용 출력에 안 찍힌다)
+#   ② 법인은 노란 칸만 채워 이음 방으로 회신 ③ 본사가 회신을 올린다 → 사전 성장(z967 규칙 그대로) + '회신 대기' 풀림
+#   ⚠파일은 칸만 바꾼다(사진·병합·수식·인쇄 영역은 바이트 그대로) — app/hs_fill.py
+#   ⚠통관은 법적 신고 — 확정 값만 자동. 확인 대기·AI 추정·후보가 갈리는 것은 채우지 않는다.
+# ------------------------------------------------------------
+_HS_FILL_DIR = os.path.join(BASE, "data", "hs_fill")
+_HS_FILL_KEEP_DAYS = 30          # 채운 파일 보관 — 지나면 「다시 받기」만 사라진다(기록은 남음)
+_HS_FILL_MAX_MB = 60
+
+
+def _hs_fill_log_ensure(c):
+    """자동 채움 기록 — 어느 인보이스를 언제 채워 보냈고, 법인 회신이 사전에 반영됐는지('회신 대기' 해제)."""
+    c.execute("""CREATE TABLE IF NOT EXISTS export_hs_fill_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_no TEXT, file_name TEXT, form TEXT, stored TEXT, out_sha TEXT,
+        n_total INTEGER, n_auto INTEGER, n_check INTEGER, n_need INTEGER, n_keep INTEGER,
+        filled_by INTEGER, filled_at TEXT DEFAULT (datetime('now','localtime')),
+        reply_file TEXT, reply_by INTEGER, reply_at TEXT,
+        reply_added INTEGER, reply_updated INTEGER, reply_conflict INTEGER, reply_empty INTEGER)""")
+
+
+def _hs_fill_cleanup():
+    """보관 기한이 지난 채운 파일을 지운다(기록 줄은 그대로 · 「다시 받기」만 사라짐)."""
+    import time as _t
+    try:
+        lim = _t.time() - _HS_FILL_KEEP_DAYS * 86400
+        for fn in os.listdir(_HS_FILL_DIR):
+            p = os.path.join(_HS_FILL_DIR, fn)
+            if fn.endswith(".xlsx") and os.path.getmtime(p) < lim:
+                os.remove(p)
+    except FileNotFoundError:
+        pass
+
+
+def _hs_fill_is_own_output(c, raw: bytes) -> bool:
+    """올린 파일이 ① 자동 채움이 만든 파일 **그대로**인가(지문 sha256 대조).
+    ⚠그대로 회신으로 받으면 주황(모델만 일치) 값이 법인 확인 없이 사전에 확정된다 → 회신 반영·사전 업로드에서 거절."""
+    import hashlib as _hl
+    _hs_fill_log_ensure(c)
+    return c.execute("SELECT 1 FROM export_hs_fill_log WHERE out_sha=? LIMIT 1",
+                     (_hl.sha256(raw).hexdigest(),)).fetchone() is not None
+
+
+def _hs_fill_log_mark_reply(c, raw: bytes, fname: str, res: dict, u):
+    """회신 파일 → 자동 채움 기록 중 같은 인보이스 번호(없으면 파일 이름 앞부분)의 '회신 대기' 1건을 '반영'으로.
+    반환 {"id","invoice_no"} · 못 찾으면 None(사전 반영은 그대로 됐다) · 기록 실패면 {"error"}(사전 반영은 막지 않는다)."""
+    from . import hs_fill as _hf
+    try:
+        _hs_fill_log_ensure(c)
+        ino = _hf.invoice_no_quick(raw)
+        row = None
+        if ino:
+            row = c.execute("SELECT id, invoice_no FROM export_hs_fill_log WHERE invoice_no=? AND reply_at IS NULL "
+                            "ORDER BY id DESC LIMIT 1", (ino,)).fetchone()
+        if not row:
+            stem = _hf.file_stem(fname)
+            for r in c.execute("SELECT id, invoice_no, file_name FROM export_hs_fill_log WHERE reply_at IS NULL "
+                               "ORDER BY id DESC LIMIT 200").fetchall():
+                s2 = _hf.file_stem(r["file_name"])
+                if stem and s2 and (stem.startswith(s2) or s2.startswith(stem)):
+                    row = r
+                    break
+        if not row:
+            return None
+        c.execute("UPDATE export_hs_fill_log SET reply_file=?, reply_by=?, reply_at=datetime('now','localtime'), "
+                  "reply_added=?, reply_updated=?, reply_conflict=?, reply_empty=? WHERE id=?",
+                  (fname, u.get("id"), res.get("added", 0), res.get("updated", 0), res.get("conflict", 0),
+                   res.get("empty"), row["id"]))
+        return {"id": row["id"], "invoice_no": row["invoice_no"] or ""}
+    except Exception as e:
+        log.warning("hs fill log mark fail %s: %s", fname, e)
+        return {"error": str(e)[:120]}
+
+
+@app.get("/export/hs-fill", response_class=HTMLResponse)
+async def export_hs_fill_page(req: Request):
+    """인보이스 HS 자동 채움 — ① 보내기 전 채우기 · ③ 법인 회신 반영 · 최근 기록(회신 대기)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        _hs_fill_log_ensure(c)
+        stats = {r["status"]: r["n"] for r in c.execute(
+            "SELECT status, COUNT(*) n FROM export_hs_dict GROUP BY status")}
+        logs = [dict(r) for r in c.execute(
+            "SELECT * FROM export_hs_fill_log ORDER BY id DESC LIMIT 30")]
+        for lg in logs:
+            lg["filled_name"] = user_disp_by_id(c, lg.get("filled_by"))
+            lg["reply_name"] = user_disp_by_id(c, lg.get("reply_by")) if lg.get("reply_by") else ""
+            st = lg.get("stored") or ""
+            lg["has_file"] = bool(st) and os.path.exists(os.path.join(_HS_FILL_DIR, st))
+    waiting = sum(1 for lg in logs if not lg.get("reply_at"))
+    return ctx(req, "export_hs_fill.html", user=u, active="export", logs=logs, waiting=waiting,
+               confirmed=stats.get("CONFIRMED", 0), total=sum(stats.values()))
+
+
+@app.post("/export/hs-fill")
+async def export_hs_fill_run(req: Request):
+    """① 인보이스 1개 → 사전 확정 값으로 HS·Tên hàng 칸을 채운 같은 파일(보관) + 결과 요약."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    form = await req.form()
+    f = form.get("file")
+    fname = os.path.basename(getattr(f, "filename", "") or "") if f is not None else ""
+    if not fname:
+        return JSONResponse({"ok": False, "error": "인보이스 파일을 골라 주세요"}, 400)
+    if not fname.lower().endswith(".xlsx"):
+        return JSONResponse({"ok": False, "error": "엑셀(.xlsx) 파일만 됩니다 — 예전 형식(.xls)이면 .xlsx 로 저장해서 올려 주세요"}, 400)
+    raw = await f.read()
+    if len(raw) > _HS_FILL_MAX_MB * 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "파일이 너무 큽니다(%dMB 넘음)" % _HS_FILL_MAX_MB}, 400)
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        entries = [dict(r) for r in c.execute(
+            "SELECT part_key, model, hs_code, vn_name, status, seen_count FROM export_hs_dict")]
+    from . import hs_fill as _hf
+    from starlette.concurrency import run_in_threadpool
+    try:
+        res = await run_in_threadpool(_hf.fill, raw, entries)
+    except Exception as e:
+        log.warning("hs fill fail %s: %s", fname, e)
+        return JSONResponse({"ok": False, "error": "파일을 읽지 못했습니다 — %s" % str(e)[:150]})
+    if not res.get("ok"):
+        return JSONResponse({"ok": False, "error": res.get("error") or "처리하지 못했습니다"})
+    sm = res["summary"]
+    forms = sorted({s["form"] for s in res["scan"]["sheets"]})
+    import secrets as _sec
+    os.makedirs(_HS_FILL_DIR, exist_ok=True)
+    _hs_fill_cleanup()
+    stored = _sec.token_hex(16) + ".xlsx"
+    with open(os.path.join(_HS_FILL_DIR, stored), "wb") as fo:
+        fo.write(res["out"])
+    n_check = sm["CHECK"] + sm["CONFLICT"]
+    import hashlib as _hl
+    # 지문은 실제로 바뀐 파일만 남긴다 — 바꿀 것이 없어 원본을 그대로 돌려준 경우(법인 회신을 ①에 잘못 올린 때)
+    #   그 회신을 ③에 다시 올려도 '자동 채움 파일 그대로'로 오인해 막지 않게.
+    out_sha = _hl.sha256(res["out"]).hexdigest() if res["out"] != raw else None
+    with db_session() as c:
+        _hs_fill_log_ensure(c)
+        cur = c.execute(
+            "INSERT INTO export_hs_fill_log(invoice_no,file_name,form,stored,out_sha,n_total,n_auto,n_check,n_need,n_keep,filled_by) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (res["scan"]["invoice_no"], fname, "·".join(forms), stored, out_sha, sm["total"], sm["AUTO"], n_check,
+             sm["NEED"], sm["KEEP"], u.get("id")))
+        lid = cur.lastrowid
+    attention = [{"row": a["row"], "desc": a["desc"], "st": a["status"], "why": a["why"], "dict_hs": a["dict_hs"],
+                  "sheet": a["sheet"]}
+                 for a in res["acts"] if a["status"] in ("NEED", "CHECK", "CONFLICT")]
+    hint = ""
+    if sm["total"] and sm["KEEP"] >= sm["total"] * 0.8:
+        hint = ("이미 HS 가 거의 다 채워진 파일입니다 — 법인 회신 파일이면 아래 ③ [회신 반영]에 올려 주세요"
+                "(여기 ①은 사전에 반영하지 않습니다)")
+    if "예전 양식" in forms:
+        hint = (hint + " · " if hint else "") + "예전 양식입니다 — 칸은 머리글로 찾았습니다. 앞으로는 최종 양식(수책·소모품)으로 만들어 주세요"
+    ino = res["scan"]["invoice_no"] or fname
+    msg = "[HS 기재 요청] %s — 사전에 있는 품목 %d줄은 HS CODE·Tên hàng 을 미리 채웠습니다. " % (ino, sm["AUTO"])
+    if sm["NEED"]:
+        msg += "노란 칸 %d줄만 채워서 회신 부탁드립니다." % sm["NEED"]
+    else:
+        msg += "새로 채울 칸은 없습니다. 확인 후 회신 부탁드립니다."
+    if n_check:
+        msg += " 주황 칸 %d줄은 채운 값이 맞는지 확인해 주세요." % n_check
+    return JSONResponse({"ok": True, "log_id": lid, "file_name": fname, "invoice_no": res["scan"]["invoice_no"],
+                         "forms": forms, "sheets": [{"title": s["title"], "items": len(s["items"])} for s in res["scan"]["sheets"]],
+                         "summary": {"total": sm["total"], "auto": sm["AUTO"], "check": n_check, "need": sm["NEED"], "keep": sm["KEEP"]},
+                         "attention": attention[:400], "hint": hint, "message": msg,
+                         "download_url": "/export/hs-fill/%d/download" % lid})
+
+
+@app.get("/export/hs-fill/{lid:int}/download")
+async def export_hs_fill_download(req: Request, lid: int):
+    """채운 인보이스 내려받기 — 올린 이름 그대로(이음 방에 그대로 올리면 된다)."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        _hs_fill_log_ensure(c)
+        r = c.execute("SELECT file_name, stored FROM export_hs_fill_log WHERE id=?", (lid,)).fetchone()
+    p = os.path.join(_HS_FILL_DIR, (r["stored"] or "")) if r else ""
+    if not r or not r["stored"] or not os.path.exists(p):
+        return HTMLResponse("<p style='font-family:sans-serif;padding:20px'>채운 파일이 없습니다(보관 %d일이 지나 지웠거나 잘못된 주소). "
+                            "<a href='/export/hs-fill'>돌아가기</a></p>" % _HS_FILL_KEEP_DAYS, status_code=404)
+    from urllib.parse import quote as _q
+    import re as _re_dl
+    nm = r["file_name"] or "invoice.xlsx"
+    asc = _re_dl.sub(r"[^A-Za-z0-9._()\-]+", "_", nm) or "invoice.xlsx"
+    return FileResponse(p, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": "attachment; filename=\"%s\"; filename*=UTF-8''%s" % (asc, _q(nm))})
+
+
+@app.post("/export/hs-fill/reply")
+async def export_hs_fill_reply(req: Request):
+    """③ 법인 회신(HS 를 채운 인보이스) → 사전 성장(z967 규칙 그대로 · `_hs_learn_invoice_rows`) + 빈 HS 줄 알림 + '회신 대기' 해제."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    form = await req.form()
+    files = [f for f in form.getlist("files") if getattr(f, "filename", "")]
+    if not files:
+        return JSONResponse({"ok": False, "error": "회신 파일을 골라 주세요"}, 400)
+    from . import hs_fill as _hf
+    from starlette.concurrency import run_in_threadpool
+    results = []
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        today = c.execute("SELECT date('now','localtime')").fetchone()[0]
+        for f in files[:30]:
+            fname = os.path.basename(f.filename)
+            if not fname.lower().endswith((".xlsx", ".xlsm")):
+                results.append({"file": fname, "error": "엑셀(.xlsx)만 됩니다"})
+                continue
+            raw = await f.read()
+            if _hs_fill_is_own_output(c, raw):
+                results.append({"file": fname, "error": "① 자동 채움에서 받은 파일 그대로입니다 — 법인이 노란 칸을 채워 보낸 회신 파일을 올려 주세요"
+                                                        "(그대로 받으면 주황 칸 값이 법인 확인 없이 확정됩니다)"})
+                continue
+            try:
+                sc = await run_in_threadpool(_hf.scan, raw)
+            except Exception as e:
+                results.append({"file": fname, "error": "파일을 읽지 못했습니다 — %s" % str(e)[:120]})
+                continue
+            try:
+                rows = _hs_parse_invoice_xlsx(raw, fname)
+            except Exception as e:
+                results.append({"file": fname, "error": "파싱 실패: %s" % str(e)[:100]})
+                continue
+            if not rows:
+                if sc["sheets"]:
+                    results.append({"file": fname, "error": "HS 가 채워진 줄이 없습니다 — 법인 회신 전 파일로 보입니다"
+                                                            "(보내기 전 파일은 위 ① 자동 채움에 올립니다)"})
                 else:
-                    # 다른 HS 재출현 = 충돌 → PENDING(자동 채움 제외) + note 기록. 몰래 교체 금지(사람 확인).
-                    c.execute(
-                        "UPDATE export_hs_dict SET status='PENDING', "
-                        "note=('충돌: 기존 ' || COALESCE(hs_code,'') || ' ↔ 신규 ' || ? || ' (' || ? || ')'), "
-                        "last_seen=?, updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
-                        (row["hs"], fname, today, u.get("id"), ex["id"]))
-                    conflict += 1
-            results.append({"file": fname, "rows": len(rows), "added": added,
-                            "updated": updated, "conflict": conflict, "or_clash": or_clash})
+                    results.append({"file": fname, "error": "인보이스가 아닙니다 — 'HS CODE'·'Description' 머리글이 있는 시트가 필요합니다"})
+                continue
+            empties, six, n_items = [], 0, 0
+            for s in sc["sheets"]:
+                for it in s["items"]:
+                    n_items += 1
+                    d = _hf.digits(it["hs_raw"])
+                    if len(d) == 6:
+                        six += 1
+                    elif len(d) != 8:
+                        empties.append({"row": it["row"], "desc": it["desc"]})
+            if n_items and len(empties) * 2 >= n_items:
+                results.append({"file": fname, "error": "HS 가 빈 줄이 %d/%d줄입니다 — 법인 회신 전 파일로 보입니다"
+                                                        "(보내기 전 파일은 위 ① 자동 채움에 올립니다)" % (len(empties), n_items)})
+                continue
+            r = _hs_learn_invoice_rows(c, rows, fname, today, u)
+            r["empty"] = len(empties)
+            r["empty_rows"] = empties[:50]
+            r["six"] = six
+            r["log"] = _hs_fill_log_mark_reply(c, raw, fname, r, u)
+            results.append(r)
     return JSONResponse({"ok": True, "results": results})
 
 
