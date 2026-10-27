@@ -117,6 +117,9 @@
       <button class="btn btn-secondary" id="vnMd" type="button"
               title="정리를 마크다운(.md) 파일로 저장 — 이음에 첨부하면 문서처럼 열립니다"
               {% if not note.summary %}disabled{% endif %}>📝 파일</button>{% endif %}
+      {# z1196 (대표 2026-10-27 「통역이 제대로 통역을 했을까?」): 🗣 통역 대조 — 추가 화면 · **대표·임원만**(단추도 그 사람에게만 · 판정은 서버 interp_can_use 하나) #}
+      {% if note and interp_can_use(user) %}<a class="btn btn-secondary" id="vnInterp" href="/voice-notes/{{ note.id }}/interp" target="_blank" rel="noopener"
+         title="누가 어느 언어로 말했는지 나눠 받아쓰고, 통역의 말을 원말과 대조한 표 — 추가 화면(대표·임원만)">🗣 통역 대조</a>{% endif %}
       {% if note %}<button class="btn btn-secondary" id="vnDel" style="color:var(--knk-red);">🗑 삭제</button>{% endif %}
     </div>
   </div>

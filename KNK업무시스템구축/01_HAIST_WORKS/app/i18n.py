@@ -866,6 +866,11 @@ T = {
                   "vi": "Chưa có bản tổng hợp biên bản — khi tổng hợp xong sẽ làm được 「📊 Xem tổng quan」."},
     "mf_viz_off_t": {"ko": "아직 회의록 정리가 없습니다 — 정리가 끝나면 열립니다",
                     "vi": "Chưa có bản tổng hợp — khi tổng hợp xong sẽ mở được"},
+    # z1196 — 🗣 통역 대조(추가 화면 · 대표·임원만 · 단추는 그 사람에게만 보인다)
+    "mf_interp": {"ko": "🗣 통역 대조",
+                 "vi": "🗣 Đối chiếu phiên dịch"},
+    "mf_interp_t": {"ko": "누가 어느 언어로 말했는지 나눠 받아쓰고, 통역의 말을 원말과 대조한 표 — 추가 화면(대표·임원만)",
+                   "vi": "Bảng đối chiếu lời phiên dịch với lời gốc theo từng người nói — màn hình bổ sung (chỉ Ban lãnh đạo)"},
     "mf_edit_stop": {"ko": "✖ 그만두기",
                     "vi": "✖ Thôi"},
     "mf_end": {"ko": "⏹ 회의 종료",

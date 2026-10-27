@@ -978,6 +978,15 @@ def startup():
             print(f"[VOICE-WHENAUTO-MIG-Z1195] {_rwa}")
     except Exception as _e:
         print(f"[VOICE-WHENAUTO-MIG-Z1195 ERR] {_e}")
+    # z1196 (대표 2026-10-27 「통역이 제대로 통역을 했을까?」 → 「음성 메모 + 회의록 둘 다 · 대표·임원만」): 🗣 통역 대조 칸 7 × 2표 (idempotent · 칸만)
+    try:
+        from .migrations.m_z1196_interp_check import migrate as _ic_migrate
+        from .database import DB_PATH as _DB_PATH_IC
+        _ric = _ic_migrate(_DB_PATH_IC)
+        if _ric.get('added'):
+            print(f"[INTERP-MIG-Z1196] {_ric}")
+    except Exception as _e:
+        print(f"[INTERP-MIG-Z1196 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -4791,6 +4800,300 @@ async def api_meeting_viz_status(req: Request, mid: int):
     return JSONResponse(out)
 
 
+# ════════════════════════════════════════════════════════════════════════
+#  🗣 통역 대조 (z1196 · 대표 2026-10-27)
+#  「통역이 제대로 통역을 했을까? … 베트남 직원이 … 베트남어로 대답을 한 게 통역이 한국말로 제대로 전달을 했나가 중요」
+#  → 37분 녹음을 화자 구분 받아쓰기 + 빅터AI 독립 번역으로 대조한 엑셀(작업기록 1643) → 화면 시안(1733) → 대표 결정:
+#    음성 메모 + 회의록 둘 다 · **대표·임원만**(보기도 만들기도 — 통역을 평가하는 표라 민감) · 사람이 단추 눌러야 · 회귀 뒤 올리기
+#  · 📊 한눈에 보기(z1193)와 같은 **추가 화면** — 받아쓴 글·정리·정리 지시문은 손대지 않는다. 계산은 interp_check.py.
+#  · 만들기 = 뒤에서(스레드) · 앞단 60초 규칙대로 **시작만 알리고 화면이 묻는다**(_viz_worker 와 같은 틀) · 상태는 메모리 + DB(interp_state)
+#    → 서버가 다시 켜져 끊기면 「끊김」으로 알린다(z1179 교훈 · 영영 「만드는 중」 금지).
+#  · 다시 만들면 지금 표는 interp_prev 로(「↩ 이전 대조」 맞바꾸기) · 기록(print)에는 숫자만.
+#  · 녹음 응답은 Range(구간) 요청을 받는다(_audio_file_response) — 없으면 브라우저가 ▶ 자리로 못 옮긴다(시안에서 실측 · Starlette 0.38 FileResponse 는 200 통째).
+# ════════════════════════════════════════════════════════════════════════
+from . import interp_check as _ic
+from starlette.concurrency import run_in_threadpool as _rit96
+import json as _js96
+import re as _re96
+import threading as _thr96
+import time as _tm96
+_INTERP_JOBS: dict = {}       # {(kind, id): {"state": running|done|error, "error": str, "t0": float, "stage": str}}
+_INTERP_LOCK = _thr96.Lock()
+_INTERP_ROLES = ("ceo", "executive")
+
+
+def _interp_can_use(u) -> bool:
+    """🗣 통역 대조를 보고 만들 수 있는 사람 — **대표·임원 역할만**(대표 결정 2026-10-27). 관리자(admin)는 아니다(관리 일만 · z1191g).
+    화면 단추(음성 메모·회의록)도 이 함수 하나로 켠다(tpl 전역 interp_can_use) — 판정은 서버 한 곳."""
+    return bool(u) and (u.get("role") or "").lower() in _INTERP_ROLES
+
+
+tpl.env.globals["interp_can_use"] = _interp_can_use
+
+
+def _audio_file_response(req, disk: str, mime: str):
+    """녹음 파일 응답 — Range(구간) 요청이면 206 조각, 아니면 FileResponse(+Accept-Ranges). 416 = 범위 밖."""
+    size = os.path.getsize(disk)
+    m = _re96.match(r"bytes=(\d*)-(\d*)$", (req.headers.get("range") or "").strip())
+    if not m or (m.group(1) == "" and m.group(2) == ""):
+        return FileResponse(disk, media_type=mime, headers={"Accept-Ranges": "bytes"})
+    a, b = m.group(1), m.group(2)
+    if a == "":
+        start, end = max(0, size - int(b)), size - 1
+    else:
+        start, end = int(a), (min(size - 1, int(b)) if b else size - 1)
+    if start > end or start >= size:
+        return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+
+    def _gen(s=start, e=end, chunk=256 * 1024):
+        with open(disk, "rb") as f:
+            f.seek(s)
+            left = e - s + 1
+            while left > 0:
+                buf = f.read(min(chunk, left))
+                if not buf:
+                    break
+                left -= len(buf)
+                yield buf
+    return StreamingResponse(_gen(), status_code=206, media_type=mime, headers={
+        "Content-Range": f"bytes {start}-{end}/{size}", "Accept-Ranges": "bytes", "Content-Length": str(end - start + 1)})
+
+
+def _interp_table(kind: str) -> str:
+    return "meetings" if kind == "mtg" else "voice_notes"
+
+
+def _interp_get(kind: str, rid: int, u, c):
+    """(기록, 볼 수 있나) — 대표·임원 + 그 화면의 규칙(메모 = 주인 · 회의록 = 보기 권한)."""
+    r = c.execute("SELECT * FROM %s WHERE id=?" % _interp_table(kind), (rid,)).fetchone()
+    r = dict(r) if r else None
+    if not r or not _interp_can_use(u):
+        return r, False
+    return r, (_vn_mine(u, r) if kind == "vn" else _can_view_meeting(c, u, r))
+
+
+def _interp_start_clock(kind: str, rec: dict) -> str:
+    """녹음 시작 시각 HH:MM:SS(화면의 「시각」 열) — 메모는 자동 일시(meta_when_auto 의 첫 HH:MM) · 회의록은 msg_started_at. 없으면 빈 글."""
+    s = str((rec.get("meta_when_auto") or "") if kind == "vn" else (rec.get("msg_started_at") or ""))
+    m = _re96.search(r"(\d{2}):(\d{2})(?::(\d{2}))?", s)
+    return ("%s:%s:%s" % (m.group(1), m.group(2), m.group(3) or "00")) if m else ""
+
+
+def _interp_load(rec):
+    try:
+        d = _js96.loads((rec or {}).get("interp_json") or "null")
+    except Exception:
+        d = None
+    return d if isinstance(d, dict) else None
+
+
+def _interp_job_state(kind: str, rid: int, rec) -> dict:
+    """지금 상태 — 메모리 작업이 있으면 그것 · 없는데 DB 가 running 이면 서버가 다시 켜져 끊긴 것(error 로 알린다)."""
+    with _INTERP_LOCK:
+        j = dict(_INTERP_JOBS.get((kind, rid)) or {})
+    if j:
+        return j
+    st = (rec.get("interp_state") or "") if rec else ""
+    if st == "running":
+        return {"state": "error", "error": "서버가 다시 켜져 만들던 통역 대조가 끊겼습니다 — 「🗣 통역 대조 만들기」를 다시 눌러 주세요.", "stage": ""}
+    if st == "error":
+        return {"state": "error", "error": (rec.get("interp_error") or "만들지 못했습니다."), "stage": ""}
+    return {"state": ("done" if _interp_load(rec) else "idle"), "error": "", "stage": ""}
+
+
+def _interp_worker(kind: str, rid: int):
+    """녹음 → 화자 구분 받아쓰기 → 대조표(뒤에서). 끝나면 DB 에 저장(지금 표는 이전으로) · 기록엔 숫자만."""
+    key = (kind, rid)
+    err = ""
+
+    def _stage(s):
+        with _INTERP_LOCK:
+            if key in _INTERP_JOBS:
+                _INTERP_JOBS[key]["stage"] = s
+    try:
+        with db_session() as c:
+            r = c.execute("SELECT * FROM %s WHERE id=?" % _interp_table(kind), (rid,)).fetchone()
+            rec = dict(r) if r else None
+        if not rec:
+            raise _ic.InterpError("없는 기록입니다.")
+        disk = (rec.get("audio_path") or "").strip()
+        if not disk or not os.path.exists(disk):
+            raise _ic.InterpError("녹음 파일이 없습니다.")
+        work = os.path.join(os.path.abspath("data"), "interp_tmp", "%s_%d_%d" % (kind, rid, int(_tm96.time())))
+        data = _ic.run(disk, work, start_clock=_interp_start_clock(kind, rec), log=print, progress=_stage)
+        with db_session() as c:
+            cur = c.execute("SELECT interp_json, interp_at FROM %s WHERE id=?" % _interp_table(kind), (rid,)).fetchone()
+            prev_json, prev_at = ((cur["interp_json"] or ""), (cur["interp_at"] or "")) if cur else ("", "")
+            c.execute("UPDATE %s SET interp_prev=?, interp_prev_at=?, interp_json=?, interp_at=datetime('now','localtime'), "
+                      "interp_state='done', interp_error='', interp_usage=? WHERE id=?" % _interp_table(kind),
+                      (prev_json, prev_at, _js96.dumps(data, ensure_ascii=False), _js96.dumps(data.get("usage") or {}, ensure_ascii=False), rid))
+        cnt = data.get("counts") or {}
+        print(f"[INTERP-Z1196] {kind} {rid}: 저장 · 항목 {len(data.get('items') or [])} · ① {cnt.get('1')} ② {cnt.get('2')} ③ {cnt.get('3')} "
+              f"④ {cnt.get('4')} ⑤ {cnt.get('5')} · 이전 표 {'있음' if prev_json else '없음'} · 걸림 {data.get('elapsed')}")
+    except _ic.InterpError as _e:
+        err = str(_e)
+    except Exception as _e:   # 표면화 원칙 — 종류 + 앞 글만(회의 내용 아님)
+        err = f"{type(_e).__name__}: {str(_e)[:200]}"
+    if err:
+        try:
+            with db_session() as c:
+                c.execute("UPDATE %s SET interp_state='error', interp_error=? WHERE id=?" % _interp_table(kind), (err[:300], rid))
+        except Exception as _e2:
+            print(f"[INTERP-Z1196 ERR] {kind} {rid}: 실패 기록도 못 함 — {type(_e2).__name__}")
+        print(f"[INTERP-Z1196 ERR] {kind} {rid}: {err[:160]}")
+    with _INTERP_LOCK:
+        _INTERP_JOBS[key] = {"state": ("error" if err else "done"), "error": err, "stage": "", "t0": (_INTERP_JOBS.get(key) or {}).get("t0")}
+
+
+async def _interp_page(req: Request, kind: str, rid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse(f"/login?next=/voice-notes/{rid}/interp", 303) if kind == "vn" else _meeting_login_redirect(req)
+    with db_session() as c:
+        rec, ok = _interp_get(kind, rid, u, c)
+    if not rec:
+        return RedirectResponse("/voice-notes" if kind == "vn" else "/meetings", 303)
+    if not ok:   # 기록은 볼 수 있어도 대조표는 대표·임원만 — 그 기록 화면으로
+        return RedirectResponse(f"/voice-notes/{rid}" if kind == "vn" else f"/meetings/{rid}", 303)
+    data = _interp_load(rec)
+    disk = (rec.get("audio_path") or "").strip()
+    has_audio = bool(disk and os.path.exists(disk))
+    dur = (data or {}).get("dur") or 0
+    if not dur and has_audio:   # 빈 화면의 예상치(길이에 비례) — ffprobe 는 스레드풀에서
+        try:
+            dur = await _rit96(_ic._ffdur, disk)
+        except Exception:
+            dur = 0
+    job = _interp_job_state(kind, rid, rec)
+    if kind == "vn":
+        title = (rec.get("title") or "").strip() or "음성 메모"
+        sub = " · ".join(x for x in [(rec.get("meta_when") or "").strip(), (rec.get("meta_place") or "").strip()] if x)
+        back, links, audio_url = f"/voice-notes/{rid}", [], f"/api/voice-note/{rid}/audio"
+    else:
+        _d = (rec.get("meeting_date") or "").strip()
+        title = rec.get("title") or ""
+        sub = " · ".join(x for x in [(_d + _ko_wd(_d)) if _d else "", (rec.get("location") or "").strip()] if x)
+        back, audio_url = f"/meetings/{rid}", f"/api/meeting/{rid}/audio"
+        links = [(f"/meetings/{rid}/doc", "📄 회의록 양식"), (f"/meetings/{rid}/viz", "📊 한눈에 보기")]
+    return tpl.TemplateResponse(request=req, name="interp_check.html", context={
+        "kind": kind, "rid": rid, "title": title, "sub": sub, "back": back, "links": links, "audio_url": audio_url,
+        "data": data, "dur": dur, "has_audio": has_audio, "made_at": rec.get("interp_at") or "",
+        "prev_at": (rec.get("interp_prev_at") or "") if (rec.get("interp_prev") or "").strip() else "",
+        "state": job.get("state") or "idle", "job_error": job.get("error") or "", "can_edit": True, "user": u})
+
+
+def _interp_start(req: Request, kind: str, rid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        rec, ok = _interp_get(kind, rid, u, c)
+    if not rec:
+        return JSONResponse({"ok": False, "error": "없는 기록입니다."}, 404)
+    if not ok:
+        return JSONResponse({"ok": False, "error": ("통역 대조는 대표·임원만 만들 수 있습니다." if not _interp_can_use(u)
+                                                   else "권한이 없습니다 — 내 메모·볼 수 있는 회의록만.")}, 403)
+    disk = (rec.get("audio_path") or "").strip()
+    if not disk or not os.path.exists(disk):
+        return JSONResponse({"ok": False, "no_audio": True, "error": "녹음이 없어 통역 대조를 만들 수 없습니다 — 녹음 파일을 올린 뒤에 가능합니다."})
+    if not _ic.available():
+        return JSONResponse({"ok": False, "error": "빅터AI(받아쓰기) 키나 음성 도구(ffmpeg)가 없어 통역 대조를 만들 수 없습니다 — 관리자에게 알려 주세요."}, 400)
+    key = (kind, rid)
+    with _INTERP_LOCK:
+        if (_INTERP_JOBS.get(key) or {}).get("state") == "running":
+            return JSONResponse({"ok": True, "already": True})
+        _INTERP_JOBS[key] = {"state": "running", "error": "", "stage": "시작", "t0": _tm96.time()}
+    with db_session() as c:
+        c.execute("UPDATE %s SET interp_state='running', interp_error='' WHERE id=?" % _interp_table(kind), (rid,))
+    _thr96.Thread(target=_interp_worker, args=(kind, rid), daemon=True).start()
+    print(f"[INTERP-Z1196] {kind} {rid}: 시작(사용자 {u.get('id')})")
+    return JSONResponse({"ok": True, "started": True})
+
+
+def _interp_status(req: Request, kind: str, rid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        rec, ok = _interp_get(kind, rid, u, c)
+    if not rec:
+        return JSONResponse({"ok": False, "error": "없는 기록입니다."}, 404)
+    if not ok:
+        return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    j = _interp_job_state(kind, rid, rec)
+    out = {"ok": True, "state": j.get("state"), "error": j.get("error") or "", "stage": j.get("stage") or "", "at": rec.get("interp_at") or ""}
+    if j.get("state") == "running" and j.get("t0"):
+        out["elapsed"] = max(0, int(_tm96.time() - j["t0"]))
+    return JSONResponse(out)
+
+
+def _interp_restore(req: Request, kind: str, rid: int):
+    """「↩ 이전 대조」 — 지금 표와 이전 표를 맞바꾼다(만드는 중엔 안 됨)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        rec, ok = _interp_get(kind, rid, u, c)
+        if not rec:
+            return JSONResponse({"ok": False, "error": "없는 기록입니다."}, 404)
+        if not ok:
+            return JSONResponse({"ok": False, "error": ("통역 대조는 대표·임원만 다룰 수 있습니다." if not _interp_can_use(u)
+                                                       else "권한이 없습니다 — 내 메모·볼 수 있는 회의록만.")}, 403)
+        if not (rec.get("interp_prev") or "").strip():
+            return JSONResponse({"ok": False, "error": "이전 대조표가 없습니다."})
+        with _INTERP_LOCK:
+            running = (_INTERP_JOBS.get((kind, rid)) or {}).get("state") == "running"
+        if running:
+            return JSONResponse({"ok": False, "error": "만드는 중에는 바꿀 수 없습니다 — 끝난 뒤에 해 주세요."})
+        c.execute("UPDATE %s SET interp_json=?, interp_at=?, interp_prev=?, interp_prev_at=?, interp_state='done', interp_error='' WHERE id=?"
+                  % _interp_table(kind), (rec.get("interp_prev") or "", rec.get("interp_prev_at") or "", rec.get("interp_json") or "",
+                                          rec.get("interp_at") or "", rid))
+    print(f"[INTERP-Z1196] {kind} {rid}: 이전 대조표와 맞바꿈")
+    return JSONResponse({"ok": True})
+
+
+@app.get("/voice-notes/{nid:int}/interp", response_class=HTMLResponse)
+async def voice_note_interp_page(req: Request, nid: int):
+    """🗣 통역 대조(음성 메모) — 대표·임원 + 내 메모."""
+    return await _interp_page(req, "vn", nid)
+
+
+@app.get("/meetings/{mid:int}/interp", response_class=HTMLResponse)
+async def meeting_interp_page(req: Request, mid: int):
+    """🗣 통역 대조(회의록) — 대표·임원 + 회의록 보기 권한."""
+    return await _interp_page(req, "mtg", mid)
+
+
+@app.post("/api/voice-note/{nid:int}/interp")
+async def api_voice_note_interp_build(req: Request, nid: int):
+    return _interp_start(req, "vn", nid)
+
+
+@app.post("/api/meeting/{mid:int}/interp")
+async def api_meeting_interp_build(req: Request, mid: int):
+    return _interp_start(req, "mtg", mid)
+
+
+@app.get("/api/voice-note/{nid:int}/interp-status")
+async def api_voice_note_interp_status(req: Request, nid: int):
+    return _interp_status(req, "vn", nid)
+
+
+@app.get("/api/meeting/{mid:int}/interp-status")
+async def api_meeting_interp_status(req: Request, mid: int):
+    return _interp_status(req, "mtg", mid)
+
+
+@app.post("/api/voice-note/{nid:int}/interp-restore")
+async def api_voice_note_interp_restore(req: Request, nid: int):
+    return _interp_restore(req, "vn", nid)
+
+
+@app.post("/api/meeting/{mid:int}/interp-restore")
+async def api_meeting_interp_restore(req: Request, mid: int):
+    return _interp_restore(req, "mtg", mid)
+
+
 @app.post("/api/meeting")
 async def api_meeting_create(req: Request):
     # ⚠ 함수 전체를 try로 감싼다 — req.json()/get_user 등 try 바깥에서 터지면
@@ -5956,7 +6259,7 @@ async def api_meeting_audio_get(req: Request, mid: int):
     if not disk or not os.path.exists(disk):
         return JSONResponse({"error": "녹음 없음"}, 404)
     ext = os.path.splitext(disk)[1].lower()
-    return FileResponse(disk, media_type=_MEETING_AUDIO_MIME.get(ext, "application/octet-stream"))
+    return _audio_file_response(req, disk, _MEETING_AUDIO_MIME.get(ext, "application/octet-stream"))   # z1196 — Range(구간) 요청 → ▶ 자리 이동·재생 막대 끌기
 
 
 # ── z1090: 음성→글자 = 백그라운드 작업 + 상태 폴링 (2026-08-24 대표 실사) ──────────
@@ -6640,7 +6943,7 @@ async def api_voice_note_audio_get(req: Request, nid: int):
     if not disk or not os.path.exists(disk):
         return JSONResponse({"error": "녹음 없음"}, 404)
     ext = os.path.splitext(disk)[1].lower()
-    return FileResponse(disk, media_type=_MEETING_AUDIO_MIME.get(ext, "application/octet-stream"))
+    return _audio_file_response(req, disk, _MEETING_AUDIO_MIME.get(ext, "application/octet-stream"))   # z1196 — Range(구간) 요청 → ▶ 자리 이동·재생 막대 끌기
 
 
 @app.post("/api/voice-note/{nid:int}/transcribe")

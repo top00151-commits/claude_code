@@ -295,6 +295,8 @@
       {% if not is_new %}<a class="btn btn-primary{% if not has_minutes %} mf-doc-off{% endif %}" id="btnDocView" href="/meetings/{{ meeting.id }}/doc" target="_blank" rel="noopener" data-no-swap{% if not has_minutes %} aria-disabled="true" title="{{ i.mf_doc_off_t }}"{% endif %}>{{ i.mf_doc }}</a>{% endif %}
       {# z1193 — 📊 한눈에 보기(도식화 · 추가 화면) · 켜짐 = 받아쓴 글(📄 와 같음) + 정리 글 있음(그림은 정리에서 만든다) #}
       {% if not is_new %}{% set viz_on = has_minutes and ((meeting.summary or '')|trim) %}<a class="btn btn-secondary{% if not viz_on %} mf-doc-off{% endif %}" id="btnVizView" href="/meetings/{{ meeting.id }}/viz" target="_blank" rel="noopener" data-no-swap{% if not viz_on %} aria-disabled="true" title="{{ i.mf_viz_off_t }}"{% endif %}>{{ i.mf_viz }}</a>{% endif %}
+      {# z1196 — 🗣 통역 대조(추가 화면 · 대표·임원만 · 단추도 그 사람에게만 · 판정은 서버 interp_can_use 하나) #}
+      {% if not is_new and interp_can_use(user) %}<a class="btn btn-secondary" id="btnInterpView" href="/meetings/{{ meeting.id }}/interp" target="_blank" rel="noopener" data-no-swap title="{{ i.mf_interp_t }}">{{ i.mf_interp }}</a>{% endif %}
       {% if not is_new and can_delete %}<button class="btn btn-secondary" id="btnDelete" style="color:var(--knk-red);">{{ i.mf_del }}</button>{% endif %}
       {# z1131(대표 지시 2026-09-27): 예정 끝 시각보다 일찍 끝났을 때 — 이음 회의와 연결된 회의록에만 #}
       {% if not is_new and meeting.msg_meeting_id and can_end %}<button class="btn btn-secondary" id="btnEndMeeting"{% if meeting.ended_at %} hidden{% endif %}>{{ i.mf_end }}</button>{# z1152 (대표 지시 2026-10-08): 되돌리기 단추는 없앴다 #}{% endif %}

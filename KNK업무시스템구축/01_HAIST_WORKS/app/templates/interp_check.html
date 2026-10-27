@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🗣 통역 대조 — {{ title }}</title>
+{# ── 🗣 통역 대조 (z1196 · 대표 2026-10-27 「통역이 제대로 통역을 했을까?」 → 시안 → 「음성 메모 + 회의록 둘 다 · 대표·임원만 · 사람이 단추 눌러야」) ──
+   회의록·음성 메모의 **추가 화면**(📊 한눈에 보기 z1193 과 같은 자리). 화자 구분 받아쓰기(누가 · 어느 언어로 말했나) +
+   빅터AI 독립 번역 대조표(interp_json). 글자는 전부 받아쓴 그대로 · 판정은 「들어 볼 자리」(판결 아님) · ▶ 를 누르면 그 자리부터 녹음이 들린다.
+   · 만들기는 서버가 **시작만 알리고**(앞단 60초 규칙) 화면이 3초마다 묻는다 · 끝나면 화면을 새로 연다 · 「↩ 이전 대조」 = 맞바꾸기.
+   · 🔒 양식(meeting_doc)·한눈에 보기처럼 한국어 화면(보는 사람 = 대표·임원). #}
+<style>
+ :root{--red:#a8323a;--red-soft:#fbeeee;--ink:#1f2328;--ink2:#57606a;--ink3:#8c959f;--line:#d8dee4;--bg:#f6f7f9;--card:#fff;
+   --green:#1a7f37;--green-soft:#e9f7ee;--amber:#9a6700;--amber-soft:#fff6dd;--blue:#0b5cad;--blue-soft:#e8f1fb;--violet:#6639ba;--violet-soft:#f2ecfc}
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-size:14px;line-height:1.45}
+ .wrap{max-width:430px;margin:0 auto;padding:12px 12px 60px}
+ .toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+ .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px;font-weight:700;font-size:12.5px;color:var(--ink2);text-decoration:none;cursor:pointer;white-space:nowrap;font-family:inherit}
+ .btn.on{background:var(--red);border-color:var(--red);color:#fff}
+ .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+ .btn[disabled]{opacity:.5;cursor:not-allowed}
+ .ttl{font-size:16px;font-weight:800;margin:2px 0 0;word-break:keep-all}
+ .sub{font-size:12px;color:var(--ink3);margin-bottom:8px}
+ .player{position:sticky;top:0;z-index:40;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+ .player audio{width:100%;height:36px;display:block}
+ .player .now{font-size:11.5px;color:var(--ink2);margin-top:4px;min-height:14px}
+ .notice{background:var(--amber-soft);border:1px solid #f0d58a;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
+ .notice.err{background:var(--red-soft);border-color:#e3b4b8}
+ .empty{background:#fff;border:1px dashed var(--line);border-radius:12px;padding:18px 14px;color:var(--ink2);font-size:13px;margin-bottom:10px;line-height:1.55}
+ .empty .big{font-size:34px;text-align:center;margin-bottom:6px}
+ .est{background:var(--blue-soft);border:1px solid #bcd5f0;border-radius:10px;padding:9px 11px;font-size:12.5px;margin-top:10px;line-height:1.55;color:var(--ink)}
+ .est b{color:var(--blue)}
+ .busy{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+ .spin{width:16px;height:16px;border:3px solid var(--line);border-top-color:var(--red);border-radius:50%;animation:sp 1s linear infinite;flex:0 0 auto}
+ @keyframes sp{to{transform:rotate(360deg)}}
+ .nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+ .num{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;position:relative}
+ .num.on{border-color:var(--red);background:var(--red-soft)}
+ .num b{display:block;font-size:20px;color:var(--ink);line-height:1.2}
+ .num b i{font-style:normal;font-size:12px;color:var(--red);font-weight:800;margin-left:4px}
+ .num span{font-size:11.5px;color:var(--ink2);display:block;line-height:1.3;word-break:keep-all}
+ .num .k{position:absolute;right:8px;top:6px;font-size:11px;font-weight:800;color:var(--ink3)}
+ .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 10px 8px;margin-bottom:10px}
+ .card h2{margin:0 0 6px;font-size:13.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+ .card h2 small{color:var(--ink3);font-weight:600;font-size:11px}
+ .chips{display:flex;gap:5px;flex-wrap:wrap;margin:0 0 4px}
+ .chip{border:1px solid var(--line);border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700;color:var(--ink2);background:#fff;cursor:pointer}
+ .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+ .chip.red.on{background:var(--red);border-color:var(--red)}
+ .top{list-style:none;margin:0;padding:0}
+ .top li{display:flex;gap:6px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer}
+ .top li:last-child{border-bottom:0}
+ .top li.gh{display:block;font-size:11px;font-weight:800;color:var(--ink3);padding:8px 0 2px;cursor:default}
+ .top .tx{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+ .pl{border:1px solid var(--line);background:#fff;border-radius:6px;padding:2px 6px;font-weight:800;font-size:11.5px;color:var(--blue);cursor:pointer;white-space:nowrap;font-family:inherit}
+ .pl:hover{background:var(--blue-soft)}
+ .dir{font-size:10.5px;font-weight:800;border-radius:5px;padding:1px 5px;white-space:nowrap}
+ .d-vk{background:var(--blue-soft);color:var(--blue)} .d-kv{background:var(--violet-soft);color:var(--violet)}
+ .jd{font-size:10.5px;font-weight:800;border-radius:5px;padding:1px 5px;white-space:nowrap;background:#eef0f2;color:var(--ink2)}
+ .jd.s2{background:var(--red-soft);color:var(--red)} .jd.s1{background:var(--amber-soft);color:var(--amber)} .jd.ok{background:var(--green-soft);color:var(--green)}
+ .it{background:#fff;border:1px solid var(--line);border-left:5px solid var(--ink3);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+ .it.s2{border-left-color:var(--red)} .it.s1{border-left-color:#d9a400} .it.c5{border-left-color:var(--green)}
+ .it.playing{box-shadow:0 0 0 2px var(--blue)}
+ .it.hl{animation:hl 1.6s ease-out}
+ @keyframes hl{from{background:#fff1a8}to{background:#fff}}
+ .ih{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:5px;font-size:11.5px;color:var(--ink2)}
+ .ih .clk{color:var(--ink3)}
+ .ih .sp{font-weight:700}
+ .q{margin:4px 0}
+ .q label{display:block;font-size:10.5px;font-weight:800;color:var(--ink3);margin-bottom:1px}
+ .q div{font-size:12.5px;line-height:1.5;word-break:break-word}
+ .q.itx div{background:#fafbfc;border-radius:6px;padding:4px 6px}
+ .q.ai div{color:var(--ink2)}
+ .q.gist div{font-weight:700}
+ .why{font-size:11.5px;color:var(--amber);margin-top:4px}
+ .meta2{font-size:11.5px;color:var(--ink2);margin-top:2px}
+ .clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+ .more{font-size:11px;color:var(--blue);font-weight:700;cursor:pointer;margin-top:2px}
+ table{width:100%;border-collapse:collapse;font-size:12px}
+ th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top;word-break:keep-all}
+ th{background:#fafbfc;color:var(--ink2);font-weight:800;font-size:11.5px}
+ .spk{display:inline-block;min-width:18px;text-align:center;font-weight:800;border-radius:5px;padding:0 4px;font-size:11px;background:#eef0f2}
+ .spk.int{background:var(--red);color:#fff}
+ details.sec{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:10px}
+ details.sec summary{cursor:pointer;font-weight:800;font-size:13.5px}
+ details.sec summary small{color:var(--ink3);font-weight:600;font-size:11px;margin-left:6px}
+ .tl{margin:8px 0 0;padding:0;list-style:none;max-height:60vh;overflow:auto;border-top:1px solid var(--line)}
+ .tl li{display:flex;gap:6px;padding:4px 0;border-bottom:1px solid #eef0f2;font-size:12px;align-items:flex-start}
+ .tl li .t{flex:1;word-break:break-word;color:var(--ink)}
+ .tl li.int .t{color:var(--red)}
+ .lg{font-size:10px;font-weight:800;color:var(--ink3);border:1px solid var(--line);border-radius:4px;padding:0 3px;white-space:nowrap}
+ .foot{font-size:11px;color:var(--ink3);margin-top:4px;line-height:1.5}
+ .hid{display:none !important}
+ @media (min-width:900px){ .wrap{max-width:900px;padding:20px} .nums{grid-template-columns:repeat(5,1fr)} .ttl{font-size:20px} .q div{font-size:13px} }
+ @media print{ .toolbar,.player{display:none} .wrap{max-width:none} }
+</style>
+</head>
+<body>
+<div class="wrap" data-dn="interp-check">
+ <div class="toolbar">
+  <a class="btn" href="{{ back }}">← {% if kind == 'mtg' %}회의록으로{% else %}메모로{% endif %}</a>
+  {% for href, label in links %}<a class="btn" href="{{ href }}">{{ label }}</a>{% endfor %}
+  <span class="btn on">🗣 통역 대조</span>
+  {% if can_edit %}<button type="button" class="btn primary" id="btnBuild"{% if state == 'running' %} disabled{% endif %}>{% if data %}🔄 다시 대조{% else %}🗣 통역 대조 만들기{% endif %}</button>{% endif %}
+  {% if can_edit and prev_at %}<button type="button" class="btn" id="btnPrev" title="지금 표와 이전 대조표({{ prev_at[:16] }})를 맞바꿉니다">↩ 이전 대조</button>{% endif %}
+ </div>
+ <div class="ttl">{{ title }}</div>
+ <div class="sub" id="subLine">{{ sub }}</div>
+ {% if has_audio %}<div class="player"><audio id="au" controls preload="metadata" src="{{ audio_url }}"></audio><div class="now" id="now">▶ 를 누르면 그 자리부터 들립니다</div></div>{% endif %}
+ <div id="busy" class="card"{% if state != 'running' %} hidden{% endif %}><div class="busy"><span class="spin"></span><span id="busyTxt">빅터AI가 말한 사람을 나눠 다시 받아쓰고 대조하는 중 — 녹음 길이의 절반쯤 걸립니다. 창을 닫아도 서버에서 끝까지 됩니다.</span></div></div>
+ {% if job_error and state != 'running' %}<div class="notice err" id="jobErr">⚠ 만들지 못했습니다 — {{ job_error }}</div>{% endif %}
+ {% if not data %}
+ <div class="empty" id="empty">
+  <div class="big">🗣</div>
+  {% if not has_audio %}녹음이 없어 통역 대조를 만들 수 없습니다 — 녹음 파일을 올린 뒤에 가능합니다.
+  {% elif can_edit %}아직 통역 대조가 없습니다 — 위 「🗣 통역 대조 만들기」를 누르면 <b>누가 어느 언어로 말했는지</b> 나눠 다시 받아쓰고, 빅터AI가 통역의 말과 원말을 독립 번역으로 대조해 「들어 볼 자리」 표를 만듭니다. 지금의 받아쓴 글·정리는 그대로 둡니다.
+  {% else %}아직 통역 대조가 없습니다.{% endif %}
+  {% if has_audio %}<div class="est" id="est"></div>{% endif %}
+ </div>
+ {% endif %}
+ <div id="main"{% if not data %} hidden{% endif %}>
+  <div class="notice">※ <b>들어 볼 자리 목록</b>이지 판결이 아닙니다 — 기계 받아쓰기(특히 베트남어)와 AI 번역이 틀릴 수 있습니다. 빨강(심각도 2)부터 ▶ 로 들어 보세요. 화자(A·B…)는 목소리로 나눈 것이라 비슷한 목소리는 한 표시로 묶일 수 있습니다.</div>
+  <div class="nums" id="nums"></div>
+  <div class="card"><h2>🔴 먼저 들어 볼 자리 <small id="topN"></small></h2><ul class="top" id="top"></ul></div>
+  <div class="card" style="padding-bottom:6px"><h2>📋 전체 대조표 <small>시간순 · ▶ 를 누르면 그 자리부터 들립니다</small></h2><div class="chips" id="chips"></div></div>
+  <div id="list"></div>
+  <details class="sec" id="spkSec"><summary>👥 말한 사람<small id="spkN"></small></summary><div id="spk"></div></details>
+  <details class="sec" id="trSec"><summary>📝 말한 사람별 받아쓴 글<small id="trN"></small></summary><ul class="tl" id="tr"></ul></details>
+  <div class="foot" id="foot"></div>
+ </div>
+</div>
+<script>
+(function(){
+  var D = {{ (data or none)|tojson }};
+  var KIND = {{ kind|tojson }};
+  var RID = {{ rid|tojson }};
+  var DUR = {{ (dur or 0)|tojson }};
+  var MADE = {{ (made_at or '')|tojson }};
+  var STATE = {{ (state or 'idle')|tojson }};
+  var API = (KIND === 'mtg' ? '/api/meeting/' : '/api/voice-note/') + RID + '/interp';
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function mmss(sec){ sec = Math.round(+sec || 0); return Math.floor(sec/60) + ':' + ('0' + (sec % 60)).slice(-2); }
+  function clock(sec){ if (!D || !D.start_clock) return ''; var p = D.start_clock.split(':').map(Number); var s = (p[0]*3600 + p[1]*60 + (p[2]||0) + Math.round(+sec||0)) % 86400;
+    return ('0'+Math.floor(s/3600)).slice(-2) + ':' + ('0'+Math.floor(s%3600/60)).slice(-2) + ':' + ('0'+(s%60)).slice(-2); }
+  function estMin(){ return Math.max(1, Math.round(DUR/60*0.45)); }
+  var CAT = {1:'옮긴 말이 원말과 다름', 2:'베트남어가 한국어로 안 옴', 3:'한국어가 베트남어로 안 감', 4:'받아쓰기 깨짐', 5:'같다고 본 곳'};
+  var CATS = {1:'뜻 바뀜 · 빠짐 · 보탬 — 통역이 옮긴 말이 원말과 다른 곳', 2:'베트남 측 말이 한국어로 옮겨지지 않은 곳(한국 측이 못 들은 말)', 3:'한국 측 말이 베트남어로 옮겨지지 않은 곳(한국 측끼리 한 말은 0)', 4:'받아쓰기가 깨져 판단 못 한 곳', 5:'같다고 본 곳'};
+  var NUMK = ['①','②','③','④','⑤'];
+  var au = $('au');
+  var ROLE_S = {};
+  function roleShort(r){ return r.indexOf('통역') === 0 ? '통역' : r.indexOf('베트남') === 0 ? '베트남 측' : r.indexOf('한국') === 0 ? '한국 측' : '섞임'; }
+  // ── 만들기 · 상태 묻기(3초마다) · 끝나면 화면을 새로 연다 ──
+  var pollT = null;
+  function poll(){
+    if (pollT) return;
+    var n = 0;
+    pollT = setInterval(function(){
+      n++;
+      fetch(API + '-status').then(function(r){ return r.json(); }).then(function(s){
+        if (s.state === 'running'){ $('busyTxt').textContent = '빅터AI가 말한 사람을 나눠 다시 받아쓰고 대조하는 중 — ' + (s.stage || '') + (s.elapsed != null ? ' · ' + s.elapsed + '초째' : '') + ' (녹음 길이의 절반쯤 걸립니다 · 창을 닫아도 서버에서 끝까지 됩니다)'; }
+        else if (s.state === 'done'){ clearInterval(pollT); pollT = null; location.reload(); }
+        else if (s.state === 'error'){ clearInterval(pollT); pollT = null; $('busy').hidden = true; var b = $('btnBuild'); if (b) b.disabled = false; alert('통역 대조를 만들지 못했습니다 — ' + (s.error || '')); }
+        else if (n > 2400){ clearInterval(pollT); pollT = null; $('busy').hidden = true; alert('시간이 너무 걸립니다 — 화면을 새로 고쳐 확인해 주세요.'); }
+      }).catch(function(){});
+    }, 3000);
+  }
+  var bb = $('btnBuild');
+  if (bb) bb.addEventListener('click', function(){
+    var q = D ? '녹음을 다시 받아써 대조표를 새로 만듭니다 — 지금 표는 「↩ 이전 대조」로 보관됩니다.' : '녹음을 말한 사람별로 다시 받아쓰고 통역의 말을 대조합니다.';
+    if (!confirm(q + (DUR > 0 ? ' 약 ' + estMin() + '분 걸립니다.' : '') + ' 계속할까요?')) return;
+    bb.disabled = true; $('busy').hidden = false; var je = $('jobErr'); if (je) je.remove();
+    fetch(API, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+      .then(function(r){ return r.json(); }).then(function(j){
+        if (!j.ok){ $('busy').hidden = true; bb.disabled = false; alert(j.error || '시작하지 못했습니다.'); return; }
+        poll();
+      }).catch(function(){ $('busy').hidden = true; bb.disabled = false; alert('연결에 실패했습니다 — 잠시 뒤 다시 해 주세요.'); });
+  });
+  var bp = $('btnPrev');
+  if (bp) bp.addEventListener('click', function(){
+    if (!confirm('지금 표와 이전 대조표를 맞바꿉니다(다시 누르면 되돌아옵니다). 계속할까요?')) return;
+    bp.disabled = true;
+    fetch(API + '-restore', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+      .then(function(r){ return r.json(); }).then(function(j){ if (!j.ok){ bp.disabled = false; alert(j.error || '바꾸지 못했습니다.'); return; } location.reload(); })
+      .catch(function(){ bp.disabled = false; alert('연결에 실패했습니다 — 잠시 뒤 다시 해 주세요.'); });
+  });
+  if (STATE === 'running') poll();
+  //  빈 화면 — 예상치는 길이에 비례(37분 실측: 받아쓰기 14분 + 대조 · 토큰 약 19만)
+  if (!D){
+    var e = $('est');
+    if (e && DUR > 0){
+      var min = DUR/60, chunks = Math.max(1, Math.ceil(DUR/600)), tok = Math.max(1, Math.round(min/37*190));
+      e.innerHTML = '이 녹음 <b>' + Math.round(min) + '분</b> → 화자 구분 받아쓰기 <b>약 ' + chunks + '조각</b>(10분씩 · 한 요청 23분 한도 안 · 조각마다 앞 조각 목소리를 「아는 화자」로 넘겨 이름을 맞춤) · '
+        + '걸리는 시간 <b>약 ' + estMin() + '분</b>(실측: 37분 녹음 = 받아쓰기 14분 + 대조 3분) · 창을 닫아도 서버에서 끝까지 됩니다.<br>'
+        + '비용(토큰) 약 <b>' + tok + '천</b>(37분 실측 = 받아쓰기 11만 · 대조 8만 · 금액은 청구서 기준) · 보기·만들기: <b>대표·임원만</b>.';
+    }
+    return;
+  }
+  if (!D.made_at && MADE) D.made_at = MADE.slice(0, 16);
+  D.speakers.forEach(function(s){ ROLE_S[s.id] = roleShort(s.role); });
+  var items = D.items.slice().sort(function(a,b){ return a.t - b.t || a.cat - b.cat; });
+  (function(){
+    var parts = []; var s0 = $('subLine').textContent.trim(); if (s0) parts.push(s0);
+    parts.push('녹음 ' + mmss(D.dur)); parts.push('말한 사람 ' + D.speakers.length + '명(목소리로 나눔)'); parts.push('통역(추정) = 화자 ' + D.interp);
+    if (D.made_at) parts.push('대조 만든 때 ' + D.made_at);
+    $('subLine').textContent = parts.join(' · ');
+  })();
+  function seek(sec){ if (!au) return; try{ au.currentTime = Math.max(0, +sec || 0); var p = au.play(); if (p && p.catch) p.catch(function(){}); }catch(_){ } $('now').textContent = '▶ ' + mmss(sec) + ' 부터 듣는 중' + (clock(sec) ? ' (시각 ' + clock(sec) + ')' : ''); }
+  if (au) au.addEventListener('timeupdate', function(){
+    var c = au.currentTime, cur = null;
+    items.forEach(function(it){ if (it.t <= c + 0.5 && c < (it.t2 != null ? it.t2 + 15 : it.t + 45)) cur = it; });
+    document.querySelectorAll('.it.playing').forEach(function(el){ el.classList.remove('playing'); });
+    if (cur){ var el = $('it' + cur.id); if (el) el.classList.add('playing'); }
+  });
+  function plBtn(sec){ return '<button type="button" class="pl" data-seek="' + (+sec) + '">▶ ' + mmss(sec) + '</button>'; }
+  function dirTag(d){ return d === 'VI→KO' ? '<span class="dir d-vk" title="베트남어 원말 → 통역의 한국어">베→한</span>' : '<span class="dir d-kv" title="한국어 원말 → 통역의 베트남어">한→베</span>'; }
+  function jdTag(it){ var cls = it.cat === 5 ? 'ok' : it.sev === 2 ? 's2' : it.sev === 1 ? 's1' : ''; return '<span class="jd ' + cls + '">' + esc(it.judge) + (it.sev ? ' · 심각도 ' + it.sev : '') + '</span>'; }
+  function spTag(sp){ return String(sp||'').split(',').map(function(s){ s = s.trim(); return '<span class="spk' + (s === D.interp ? ' int' : '') + '">' + esc(s) + '</span>' + (ROLE_S[s] ? ' ' + esc(ROLE_S[s]) : ''); }).join(', '); }
+  var F = {cat: 0, red: false};
+  function numsHtml(){
+    var h = '';
+    [1,2,3,4,5].forEach(function(c){ var n = D.counts[String(c)] || [0,0];
+      h += '<div class="num' + (F.cat === c ? ' on' : '') + '" data-cat="' + c + '" title="' + esc(CATS[c]) + '"><span class="k">' + NUMK[c-1] + '</span><b>' + n[0] + (n[1] ? '<i>빨강 ' + n[1] + '</i>' : '') + '</b><span>' + esc(CAT[c]) + '</span></div>'; });
+    $('nums').innerHTML = h;
+  }
+  function chipsHtml(){
+    var h = '<span class="chip' + (F.cat === 0 && !F.red ? ' on' : '') + '" data-f="all">전부 ' + items.length + '</span>';
+    h += '<span class="chip red' + (F.red ? ' on' : '') + '" data-f="red">빨강만 ' + items.filter(function(i){ return i.sev === 2; }).length + '</span>';
+    [1,2,3,4,5].forEach(function(c){ h += '<span class="chip' + (F.cat === c ? ' on' : '') + '" data-cat="' + c + '">' + NUMK[c-1] + ' ' + (D.counts[String(c)]||[0])[0] + '</span>'; });
+    $('chips').innerHTML = h;
+  }
+  function pass(it){ return (!F.cat || it.cat === F.cat) && (!F.red || it.sev === 2); }
+  function applyFilter(){ numsHtml(); chipsHtml(); items.forEach(function(it){ var el = $('it' + it.id); if (el) el.classList.toggle('hid', !pass(it)); }); }
+  function card(it){
+    var h = '<div class="it s' + it.sev + ' c' + it.cat + '" id="it' + it.id + '" data-t="' + it.t + '">';
+    h += '<div class="ih">' + plBtn(it.t) + (it.kind === 'block' && it.t2 > it.t ? '<span class="clk">~ ' + mmss(it.t2) + '</span>' : '') + (clock(it.t) ? '<span class="clk">' + clock(it.t) + '</span>' : '')
+       + dirTag(it.dir) + jdTag(it) + '<span class="sp">' + spTag(it.sp) + '</span>' + (it.nature ? '<span>' + esc(it.nature) + '</span>' : '') + (it.kind === 'block' && it.n > 1 ? '<span>' + it.n + '줄 묶음</span>' : '') + '</div>';
+    if (it.kind === 'block'){
+      if (it.gist) h += '<div class="q gist"><label>요지(빅터AI · 한국어)</label><div>' + esc(it.gist) + '</div></div>';
+      h += '<div class="meta2">누구에게: <b>' + esc(it.target) + '</b> · 한국 측이 들었어야: <b>' + esc(it.should) + '</b></div>';
+      h += '<div class="q src"><label>원말(받아쓴 그대로 · 묶음)</label><div class="clamp">' + esc(it.src) + '</div><div class="more" data-more="1">더 보기</div></div>';
+      if (it.ai) h += '<div class="q ai"><label>AI 독립 번역</label><div class="clamp">' + esc(it.ai) + '</div><div class="more" data-more="1">더 보기</div></div>';
+    } else {
+      h += '<div class="q src"><label>원말(받아쓴 그대로)</label><div>' + esc(it.src) + '</div></div>';
+      h += '<div class="q itx"><label>통역한 말' + (it.isec != null ? ' <span style="font-weight:600">(' + mmss(it.isec) + ')</span>' : '') + '</label><div>' + (it.itxt ? esc(it.itxt) : '<span style="color:var(--ink3)">(없음)</span>') + '</div></div>';
+      if (it.ai) h += '<div class="q ai"><label>AI 독립 번역(원말을 그대로 옮기면)</label><div>' + esc(it.ai) + '</div></div>';
+    }
+    if (it.why) h += '<div class="why">까닭: ' + esc(it.why) + '</div>';
+    return h + '</div>';
+  }
+  $('list').innerHTML = items.map(card).join('');
+  var top = items.filter(function(i){ return i.sev === 2; });
+  var GH = {1:'① 통역이 옮긴 말이 원말과 다름', 2:'② 베트남어로 한 말이 한국어로 안 옴 — 한국 측이 못 들은 말', 3:'③ 한국어로 한 말이 베트남어로 안 감'};
+  var th = '';
+  [1,2,3].forEach(function(c){ var xs = top.filter(function(i){ return i.cat === c; }); if (!xs.length) return;
+    th += '<li class="gh">' + GH[c] + ' · ' + xs.length + '곳</li>';
+    xs.forEach(function(it){ th += '<li data-go="' + it.id + '">' + plBtn(it.t) + dirTag(it.dir) + '<span class="tx"><b>' + esc(it.judge) + '</b> · ' + esc(it.kind === 'block' ? (it.gist || it.src) : (it.why || it.src)) + '</span></li>'; }); });
+  $('topN').textContent = '심각도 2 · ' + top.length + '곳 · ① → ② → ③ 차례(안은 시간순) · 누르면 아래 표의 그 줄로';
+  $('top').innerHTML = th || '<li class="gh">심각도 2 인 자리가 없습니다.</li>';
+  $('spkN').textContent = D.speakers.length + '명 · 역할은 짐작 — 첫 등장 ▶ 를 들어 보면 통역이 맞는지 확인됩니다';
+  $('spk').innerHTML = '<table><tr><th>화자</th><th>역할(짐작)</th><th>말한 시간</th><th>발화</th><th>한국어</th><th>베트남어</th><th>첫 등장</th></tr>' + D.speakers.map(function(s){
+    return '<tr><td><span class="spk' + (s.id === D.interp ? ' int' : '') + '">' + esc(s.id) + '</span></td><td>' + esc(s.role) + '</td><td>' + mmss(s.sec) + '</td><td>' + s.n + '</td><td>' + s.ko + '%</td><td>' + s.vi + '%</td><td>' + plBtn(s.first) + '</td></tr>'; }).join('') + '</table>';
+  $('trN').textContent = D.n_turns + ' 발화 · 받아쓴 그대로 · 빨강 글 = 통역';
+  var LG = {ko:'한', vi:'베', 'ko+vi':'섞', '?':'?'}; var trDone = false;
+  $('trSec').addEventListener('toggle', function(){ if (trDone || !this.open) return; trDone = true;
+    $('tr').innerHTML = D.turns.map(function(t){ return '<li' + (t.sp === D.interp ? ' class="int"' : '') + '>' + plBtn(t.s) + '<span class="spk' + (t.sp === D.interp ? ' int' : '') + '">' + esc(t.sp) + '</span><span class="lg">' + (LG[t.lang]||'?') + '</span><span class="t">' + esc(t.t) + '</span></li>'; }).join(''); });
+  $('foot').innerHTML = '🤖 화자 구분 받아쓰기 ' + D.chunks + '조각(한 요청 23분까지) + 빅터AI 독립 번역 대조(4분 창 ' + Math.ceil(D.dur/240) + '개 + 「통역 안 함」 묶음 판정). 글자는 모두 받아쓴 그대로 — 화면이 글을 만들지 않습니다. '
+    + '빨강 줄은 통역이 아닌 베트남어 아는 사람이 들어 봐야 확정됩니다. 보기·만들기: 대표·임원만.';
+  applyFilter();
+  document.querySelectorAll('#list .clamp').forEach(function(el){ if (el.scrollHeight <= el.clientHeight + 2){ var m = el.nextElementSibling; if (m && m.classList.contains('more')) m.remove(); } });
+  document.addEventListener('click', function(e){
+    var p = e.target.closest('[data-seek]'); if (p){ e.stopPropagation(); seek(+p.getAttribute('data-seek')); return; }
+    var m = e.target.closest('[data-more]'); if (m){ var q = m.previousElementSibling; if (q) q.classList.remove('clamp'); m.remove(); return; }
+    var g = e.target.closest('[data-go]'); if (g){ var id = g.getAttribute('data-go'); F = {cat: 0, red: false}; applyFilter(); var el = $('it' + id); if (el){ el.scrollIntoView({behavior:'smooth', block:'center'}); el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); } return; }
+    var n = e.target.closest('.num'); if (n){ var c = +n.getAttribute('data-cat'); F.cat = (F.cat === c ? 0 : c); applyFilter(); return; }
+    var ch = e.target.closest('.chip'); if (ch){ if (ch.getAttribute('data-f') === 'all'){ F = {cat:0, red:false}; } else if (ch.getAttribute('data-f') === 'red'){ F.red = !F.red; } else { var cc = +ch.getAttribute('data-cat'); F.cat = (F.cat === cc ? 0 : cc); } applyFilter(); return; }
+  });
+})();
+</script>
+</body>
+</html>
