@@ -43710,7 +43710,7 @@ def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
         hint = ("이미 HS 가 거의 다 채워진 파일입니다 — 법인 회신 파일이면 아래 ③ [회신 반영]에 올려 주세요"
                 "(여기 ①은 사전에 반영하지 않습니다)")
     if "예전 양식" in forms:
-        hint = (hint + " · " if hint else "") + "예전 양식입니다 — 칸은 머리글로 찾았습니다. 앞으로는 최종 양식(수책·소모품)으로 만들어 주세요"
+        hint = (hint + " · " if hint else "") + "예전 양식입니다 — 칸은 머리글로 찾았습니다. 앞으로는 최종 양식(수책통관·일반통관)으로 만들어 주세요"
     ino = res["scan"]["invoice_no"] or fname
     if cn["no_reply"]:
         msg = "[인보이스 전달] %s — HS CODE·Tên hàng 을 사전 확정 값으로 모두 채웠습니다. 회신은 필요 없습니다." % ino
@@ -43724,7 +43724,8 @@ def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
             msg += "새로 채울 칸은 없습니다. 확인 후 회신 부탁드립니다."
         if cn["check"]:
             msg += " 주황 칸 %d줄은 채운 값이 맞는지 확인해 주세요." % cn["check"]
-    out = {"ok": True, "log_id": lid, "file_name": fname, "invoice_no": res["scan"]["invoice_no"], "forms": forms,
+    out = {"ok": True, "log_id": lid, "file_name": fname, "invoice_no": res["scan"]["invoice_no"],
+           "forms": [_hf.form_name(f) for f in forms],   # z1191o: 화면 이름(수책통관·일반통관)
            "sheets": [{"title": s["title"], "items": len(s["items"])} for s in res["scan"]["sheets"]],
            "summary": {k: cn[k] for k in ("total", "auto", "check", "need", "keep")}, "no_reply": cn["no_reply"],
            "attention": attention[:400], "hint": hint, "message": msg,
@@ -43739,6 +43740,7 @@ async def export_hs_fill_page(req: Request):
     u = _export_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
+    from . import hs_fill as _hf
     with db_session() as c:
         _hs_dict_ensure(c)
         _hs_fill_log_ensure(c)
@@ -43747,6 +43749,7 @@ async def export_hs_fill_page(req: Request):
         logs = [dict(r) for r in c.execute(
             "SELECT * FROM export_hs_fill_log ORDER BY id DESC LIMIT 30")]
         for lg in logs:
+            lg["form_name"] = _hf.form_name(lg.get("form"))   # z1191o: 저장된 「수책」·「소모품」 → 수책통관·일반통관
             lg["filled_name"] = user_disp_by_id(c, lg.get("filled_by"))
             lg["reply_name"] = user_disp_by_id(c, lg.get("reply_by")) if lg.get("reply_by") else ""
             st = lg.get("stored") or ""
@@ -43957,15 +43960,17 @@ async def export_hs_fill_confirm(req: Request, lid: int):
 #   기본적은 공통 정보는 사전에 작성된 상태로..」): 빈 표준 양식 내려받기.
 #   양식 = 대표 최종 양식에서 인보이스마다 바뀌는 칸(번호·날짜·선적일·품목 줄·품목 사진)만 비운 것
 #   (deploy/make_invoice_forms.py · 공통/가변 구분 = 대표 양식 2 + 방 본사 인보이스 11 칸 대조).
+#   z1191o (대표 2026-10-27 「표준 약식 이름을 "수책통관","일반통관" 으로 변경하자..」): 받는 파일 이름도 새 이름
+#   (주소 suchaek·somo 와 seed 파일 이름은 그대로)
 _HS_FORMS = {
-    "suchaek": ("invoice_form_suchaek.xlsx", "Invoice&packinglist_VN(수책)_표준양식.xlsx"),
-    "somo": ("invoice_form_somo.xlsx", "Invoice&packinglist_VN(소모품)_표준양식.xlsx"),
+    "suchaek": ("invoice_form_suchaek.xlsx", "Invoice&packinglist_VN(수책통관)_표준양식.xlsx"),
+    "somo": ("invoice_form_somo.xlsx", "Invoice&packinglist_VN(일반통관)_표준양식.xlsx"),
 }
 
 
 @app.get("/export/hs-fill/form/{kind}")
 async def export_hs_fill_form(req: Request, kind: str):
-    """표준 양식(수책·소모품) 내려받기 — 보내는 곳·받는 곳·담당·항구·조건·서명은 미리 적혀 있다."""
+    """표준 양식(수책통관·일반통관) 내려받기 — 보내는 곳·받는 곳·담당·항구·조건·서명은 미리 적혀 있다."""
     u = _export_guard(req)
     if not u:
         return RedirectResponse("/home", 303)

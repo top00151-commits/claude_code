@@ -320,15 +320,15 @@ check("18 막힘: 고를 수 없는 값 409 · JSON 아님 400 · HS·줄 틀림
       and "HS 사전 화면" in bad5.json().get("error", ""),
       (bad1.status_code, bad2.status_code, bad3.status_code, bad4.status_code, bad5.status_code, bad6.status_code))
 
-# 회신 짝 찾기 — 표준 양식을 이름 그대로 쓴 두 인보이스(번호 칸 비움)
-same = "Invoice&packinglist_VN(소모품)_표준양식.xlsx"
+# 회신 짝 찾기 — 표준 양식을 이름 그대로 쓴 두 인보이스(번호 칸 비움 · z1191o 받는 이름 = 일반통관)
+same = "Invoice&packinglist_VN(일반통관)_표준양식.xlsx"
 for _ in range(2):
     fx, _a, _b = make_form("소모품", [("NEW-AAA-11111", None, None, False)], ino=None)
     quiet(cl.post, "/export/hs-fill", files={"file": (same, fx)})
 with D.db_session() as c:
     two = [dict(r) for r in c.execute("SELECT id, reply_at FROM export_hs_fill_log WHERE file_name=? ORDER BY id", (same,))]
 rx, _a, _b = make_form("소모품", [("NEW-AAA-11111", "84799030", "Linh kiện", False)], ino=None)
-xa = (quiet(cl.post, "/export/hs-fill/reply", files=[("files", ("Invoice&packinglist_VN(소모품)_표준양식 (1).xlsx", rx))]).json().get("results") or [{}])[0]
+xa = (quiet(cl.post, "/export/hs-fill/reply", files=[("files", ("Invoice&packinglist_VN(일반통관)_표준양식 (1).xlsx", rx))]).json().get("results") or [{}])[0]
 with D.db_session() as c:
     two2 = [r[0] for r in c.execute("SELECT reply_at FROM export_hs_fill_log WHERE file_name=? ORDER BY id", (same,))]
 check("19 이름이 같은 후보 2개 → 어느 것인지 정하지 않음(ambiguous 2) · 두 기록 모두 회신 대기 그대로 · 사전 반영은 됨",

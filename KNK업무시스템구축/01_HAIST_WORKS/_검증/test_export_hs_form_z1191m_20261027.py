@@ -127,8 +127,11 @@ for kind, (fn, *_r) in FORMS.items():
     r = quiet(cl.get, "/export/hs-fill/form/" + kind)
     got[kind] = r
 cd_ok = all(r.status_code == 200 and "attachment" in r.headers.get("content-disposition", "") for r in got.values())
-check("8 표준 양식 둘 200 · 받는 이름 「…(수책)_표준양식.xlsx」·「…(소모품)_표준양식.xlsx」 · 내용 = seed 파일",
-      cd_ok and "%28%EC%88%98%EC%B1%85%29_%ED%91%9C%EC%A4%80%EC%96%91%EC%8B%9D.xlsx" in got["suchaek"].headers.get("content-disposition", "")
+from urllib.parse import quote as _q                         # noqa: E402
+# z1191o: 받는 이름이 새 양식 이름으로(수책통관·일반통관)
+check("8 표준 양식 둘 200 · 받는 이름 「…(수책통관)_표준양식.xlsx」·「…(일반통관)_표준양식.xlsx」 · 내용 = seed 파일",
+      cd_ok and _q("Invoice&packinglist_VN(수책통관)_표준양식.xlsx") in got["suchaek"].headers.get("content-disposition", "")
+      and _q("Invoice&packinglist_VN(일반통관)_표준양식.xlsx") in got["somo"].headers.get("content-disposition", "")
       and got["somo"].content == open(os.path.join(SEED, FORMS["somo"][0]), "rb").read(),
       {k: (v.status_code, v.headers.get("content-disposition")) for k, v in got.items()})
 r404 = quiet(cl.get, "/export/hs-fill/form/../../etc")
@@ -159,9 +162,9 @@ b = io.BytesIO()
 wb.save(b)
 rr = quiet(cl.post, "/export/hs-fill", files={"file": ("Invoice&packinglist_VN(261099).xlsx", b.getvalue())})
 j = rr.json()
-check("12 양식에 품목 3줄을 적어 ① 자동 채움 → 3줄(자동 1 · 법인 입력 2) · 인보이스 번호 · 수책 양식으로 알아봄",
+check("12 양식에 품목 3줄을 적어 ① 자동 채움 → 3줄(자동 1 · 법인 입력 2) · 인보이스 번호 · 수책통관 양식으로 알아봄",
       rr.status_code == 200 and j.get("ok") and j["summary"]["total"] == 3 and j["summary"]["auto"] == 1 and j["summary"]["need"] == 2
-      and j["invoice_no"] == "KNK-261099-1" and j["forms"] == ["수책"], j.get("summary") or j)
+      and j["invoice_no"] == "KNK-261099-1" and j["forms"] == ["수책통관"], j.get("summary") or j)
 SRC_DIR = os.environ.get("KNK_FORM_SRC_DIR") or os.path.dirname(os.path.dirname(os.path.dirname(ROOT)))   # 대표 원본 위치(이 PC: JR 폴더)
 SRC = [os.path.join(SRC_DIR, "Invoice&packinglist_VN(%s).xlsx" % k) for k in ("수책", "소모품")]
 SRC = [p for p in SRC if os.path.exists(p)]

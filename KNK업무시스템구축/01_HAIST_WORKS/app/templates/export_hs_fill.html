@@ -73,15 +73,16 @@
     <div class="hf-forms" style="margin:8px 0 10px;padding:10px 12px;border:1px dashed #15803d;border-radius:8px;background:#f0fdf4;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <b style="font-size:12.5px;">📄 표준 양식 내려받기</b>
-        <a class="hf-btn ghost" style="padding:5px 12px;font-size:12px;" href="/export/hs-fill/form/suchaek">수책 양식(설비 부품)</a>
-        <a class="hf-btn ghost" style="padding:5px 12px;font-size:12px;" href="/export/hs-fill/form/somo">소모품 양식</a>
+        {# z1191o (대표 2026-10-27): 이름 수책 양식(설비 부품) → 수책통관 · 소모품 양식 → 일반통관 #}
+        <a class="hf-btn ghost" style="padding:5px 12px;font-size:12px;" href="/export/hs-fill/form/suchaek">수책통관</a>
+        <a class="hf-btn ghost" style="padding:5px 12px;font-size:12px;" href="/export/hs-fill/form/somo">일반통관</a>
       </div>
       <div class="hf-sub" style="margin-top:6px;">
         보내는 곳(KNK)·받는 곳(KNK VINA)·담당·T/T·INCOTERMS·인천→하노이·서명은 <b>미리 적혀 있습니다</b>.
         <b>인보이스 번호·날짜·선적일</b>과 <b>품목 줄(INVOICE·PACKING LIST 두 시트)</b>만 채우세요 — 남는 빈 줄은 지우면 합계 수식이 알아서 맞춰집니다.
       </div>
     </div>
-    <div class="hf-sub">최종 양식(<b>수책</b>·<b>소모품</b>) 인보이스 .xlsx — <b>여러 개를 한꺼번에 올려도 하나씩 차례로</b> 채웁니다 ·
+    <div class="hf-sub">최종 양식(<b>수책통관</b>·<b>일반통관</b>) 인보이스 .xlsx — <b>여러 개를 한꺼번에 올려도 하나씩 차례로</b> 채웁니다 ·
       다른 양식도 머리글('HS CODE'·'Tên hàng'·'Description')로 칸을 찾습니다.</div>
     {# z1191n: 여러 파일 — 전에는 세 개를 놓으면 첫 파일만 채우고 둘은 말없이 빠졌다(대표 10-27 화면: 261015 만) #}
     <div style="margin-top:8px;"><input type="file" id="hfFile" accept=".xlsx" multiple></div>
@@ -118,7 +119,7 @@
       {% for lg in logs %}
       <tr>
         <td class="mono">{{ lg.invoice_no or '—' }}</td>
-        <td style="word-break:break-all;">{{ lg.file_name }}<div class="hf-sub">{{ lg.form }}</div></td>
+        <td style="word-break:break-all;">{{ lg.file_name }}<div class="hf-sub">{{ lg.form_name }}</div></td>
         <td style="font-size:11.5px;">{{ (lg.filled_at or '')[:16] }}<div class="hf-sub">{{ lg.filled_name }}</div></td>
         <td class="num">{{ lg.n_auto or 0 }}</td>
         <td class="num">{{ lg.n_check or 0 }}</td>
