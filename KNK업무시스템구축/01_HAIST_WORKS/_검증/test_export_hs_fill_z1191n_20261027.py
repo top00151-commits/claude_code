@@ -194,6 +194,7 @@ import app.main as M                                        # noqa: E402
 from fastapi.testclient import TestClient                  # noqa: E402
 
 M._HS_FILL_DIR = os.path.join(TMP, "hs_fill")              # 시험 파일은 임시 폴더에
+M._HS_HIST_IMG_DIR = os.path.join(TMP, "hs_hist_img")       # z1191r: 회신·최종 파일의 품목 사진도 임시 폴더에(작업 폴더 data/ 에 남기지 않게)
 cl = TestClient(M.app, follow_redirects=False)
 with D.db_session() as c:
     M._hs_dict_ensure(c)

@@ -205,6 +205,7 @@ import app.main as M                                        # noqa: E402
 from fastapi.testclient import TestClient                  # noqa: E402
 
 M._HS_FILL_DIR = os.path.join(TMP, "hs_fill")
+M._HS_HIST_IMG_DIR = os.path.join(TMP, "hs_hist_img")       # z1191r: 회신·최종 파일의 품목 사진도 임시 폴더에(작업 폴더 data/ 에 남기지 않게)
 cl = TestClient(M.app, follow_redirects=False)
 
 
@@ -324,10 +325,11 @@ check("18 막힘: 구분 없음·틀림 400 · 파일 없음 400 · .xls 400 · 
       and bad["HS 빈 줄 많음"][0] == 400 and "HS 가 빈 줄" in bad["HS 빈 줄 많음"][1]["error"] and bad["권한 없음"] == 403,
       {k: (v if isinstance(v, int) else v[0]) for k, v in bad.items()})
 pg = quiet(cl.get, "/export/hs-fill").text
-check("19 화면 📚 칸 — 인보이스 수·구분별·품목 줄·기간 · 목록에 번호 · '사전과 HS 다른 규격'에 FLOATING PIN-77(사전 84798939 ↔ 수출 84799030)",
+# z1191r: 「사전과 HS 다른 규격」 목록 → 「📌 HS 사전을 최근 수출 값으로 맞출 규격」(단추 하나) — 같은 FLOATING PIN-77 이 그 표에 있어야 한다
+check("19 화면 📚 칸 — 인보이스 수·구분별·품목 줄·기간 · 목록에 번호 · '최근 수출 값으로 맞출 규격'에 FLOATING PIN-77(사전 84798939 → 수출 84799030)",
       'id="hfHistCard"' in pg and "등록된 인보이스 <b>5</b>개" in pg and "수책통관 2 · 일반통관 3" in pg and "2026-01-01 ~ 2026-03-20" in pg
-      and "KNK-260310-1" in pg and re.search(r"FLOATING PIN-77</td>\s*<td class=\"mono\">84798939", pg) is not None
-      and "84799030" in pg and "HS 사전과 HS 가 다른 규격" in pg,
+      and "KNK-260310-1" in pg and re.search(r"FLOATING PIN-77</button></td>\s*<td class=\"mono\">84798939", pg) is not None
+      and "84799030" in pg and "📌 HS 사전을 최근 수출 값으로 맞출 규격" in pg,
       re.findall(r"등록된 인보이스[^\n]{0,160}", pg)[:1])
 
 U1 = make_final("수책", [("DCP32DN 15A", 2, 14.0, None, None), ("NEW-PART-B1", 1, 5.7, None, None), ("FLOATING PIN-77", 3, 1.0, None, None)],

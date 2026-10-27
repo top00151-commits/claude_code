@@ -43718,8 +43718,9 @@ def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
                           "hs_written": a["hs_written"], "choices": a["choices"],
                           # z1191n: 고를 때 품명도 근거 — 적힌 품명과 사전 품명이 다르면 화면이 함께 보여 준다
                           "vn_written": (a.get("vn_written") or "")[:160], "dict_vn": (a.get("dict_vn") or "")[:160],
-                          # z1191p: 지난 수출 근거(같은 규격이 몇 번 · 어떤 HS · 마지막 인보이스)
-                          "hist_ev": cmp["ev"].get((a["sheet"], a["row"]), "")})
+                          # z1191p: 지난 수출 근거(같은 규격이 몇 번 · 어떤 HS · 마지막 인보이스) · z1191r: 그 규격의 마지막 사진
+                          "hist_ev": cmp["ev"].get((a["sheet"], a["row"]), ""),
+                          "hist_img": cmp["img"].get((a["sheet"], a["row"]), "")})
     hint = ""
     if cn["total"] and cn["keep"] >= cn["total"] * 0.8:
         hint = ("이미 HS 가 거의 다 채워진 파일입니다 — 법인 회신 파일이면 아래 ③ [회신 반영]에 올려 주세요"
@@ -44041,30 +44042,45 @@ async def export_hs_fill_reply(req: Request):
         return JSONResponse({"ok": False, "error": "회신 파일을 골라 주세요"}, 400)
     from . import hs_fill as _hf
     from starlette.concurrency import run_in_threadpool
+
+    def _pre(raw, fname):
+        """z1191r: 느린 일(살피기·읽기·사진 줄이기)은 DB 를 열기 전에 — 앞 파일이 사전에 쓴 뒤 그 쓰기 잠금을 쥔 채
+        뒤 파일을 기다리지 않게(전에는 둘째 파일부터 살피기·읽기가 잠금 안에서 돌았다). 막힘은 값으로(스레드 밖으로 안 던짐)."""
+        try:
+            sc = _hf.scan(raw)
+        except Exception as e:
+            return {"scan_error": "파일을 읽지 못했습니다 — %s" % str(e)[:120]}
+        try:
+            rows = _hs_parse_invoice_xlsx(raw, fname)
+        except Exception as e:
+            return {"sc": sc, "parse_error": "파싱 실패: %s" % str(e)[:100]}
+        return {"sc": sc, "rows": rows, "imgs": _hs_hist_imgs_from(raw, sc) if rows else {}}
+
+    pre = []
+    for f in files[:30]:
+        fname = os.path.basename(f.filename)
+        if not fname.lower().endswith((".xlsx", ".xlsm")):
+            pre.append((f, fname, None))
+            continue
+        pre.append((f, fname, await run_in_threadpool(_pre, await f.read(), fname)))
     results = []
     with db_session() as c:
         _hs_dict_ensure(c)
         today = c.execute("SELECT date('now','localtime')").fetchone()[0]
-        for f in files[:30]:
-            fname = os.path.basename(f.filename)
-            if not fname.lower().endswith((".xlsx", ".xlsm")):
+        for f, fname, pp in pre:
+            if pp is None:
                 results.append({"file": fname, "error": "엑셀(.xlsx)만 됩니다"})
                 continue
-            raw = await f.read()
+            await f.seek(0)
+            raw = await f.read()            # 위에서 읽은 것을 다시(30개를 한꺼번에 메모리에 두지 않게) — 내려받은 임시 파일이라 빠름
             if _hs_fill_is_own_output(c, raw):
                 results.append({"file": fname, "error": "① 자동 채움에서 받은 파일 그대로입니다 — 법인이 노란 칸을 채워 보낸 회신 파일을 올려 주세요"
                                                         "(그대로 받으면 주황 칸 값이 법인 확인 없이 확정됩니다)"})
                 continue
-            try:
-                sc = await run_in_threadpool(_hf.scan, raw)
-            except Exception as e:
-                results.append({"file": fname, "error": "파일을 읽지 못했습니다 — %s" % str(e)[:120]})
+            if pp.get("scan_error") or pp.get("parse_error"):
+                results.append({"file": fname, "error": pp.get("scan_error") or pp.get("parse_error")})
                 continue
-            try:
-                rows = _hs_parse_invoice_xlsx(raw, fname)
-            except Exception as e:
-                results.append({"file": fname, "error": "파싱 실패: %s" % str(e)[:100]})
-                continue
+            sc, rows = pp["sc"], pp["rows"]
             if not rows:
                 if sc["sheets"]:
                     results.append({"file": fname, "error": "HS 가 채워진 줄이 없습니다 — 법인 회신 전 파일로 보입니다"
@@ -44091,7 +44107,8 @@ async def export_hs_fill_reply(req: Request):
             r["six"] = six
             r["log"] = _hs_fill_log_mark_reply(c, raw, fname, r, u)
             # z1191p: 법인 회신 = 최종 인보이스 → 지난 수출 이력(같은 번호면 바꿔 넣음 · 사전은 위 z967 규칙 그대로)
-            r["hist"] = _hs_hist_save_safe(c, sc, fname, _hf.kind_of(sc), "reply", u)
+            #   z1191r: 품목 사진도(위 _pre 에서 DB 밖 일꾼 스레드로 미리 줄여 둠)
+            r["hist"] = _hs_hist_save_safe(c, sc, fname, _hf.kind_of(sc), "reply", u, pp["imgs"])
             results.append(r)
     return JSONResponse({"ok": True, "results": results})
 
@@ -44121,6 +44138,64 @@ def _hs_hist_ensure(c):
         qty REAL, unit_price REAL, amount REAL, hs_code TEXT, vn_name TEXT)""")
     c.execute("CREATE INDEX IF NOT EXISTS ix_export_hist_line_key ON export_hist_line(part_key)")
     c.execute("CREATE INDEX IF NOT EXISTS ix_export_hist_line_inv ON export_hist_line(invoice_no)")
+    # z1191r: 품목 사진(화면용으로 줄인 파일 이름 · data/hs_hist_img) — 없을 때만 칸을 더한다
+    if "img" not in {r[1] for r in c.execute("PRAGMA table_info(export_hist_line)")}:
+        try:
+            c.execute("ALTER TABLE export_hist_line ADD COLUMN img TEXT")
+        except Exception as e:      # 두 요청이 동시에 넣으면 한쪽은 'duplicate column' — 이미 있으니 됐다
+            if "duplicate column" not in str(e).lower():
+                raise
+
+
+# z1191r (대표 2026-10-27 「등록할때 이미지도 가능하면 같이 사진,단가 부분도 볼수있게 등록을해줘」):
+#   품목 줄에 붙은 그림을 화면용으로 줄여(긴 변 480px · JPEG) 내용 지문 이름으로 한 번만 둔다(같은 사진은 한 파일).
+#   원본 246MB(54개 · 서로 다른 그림 422)를 그대로 두지 않는다. 수출 권한이 있어야 보인다(법인에 보내는 파일에는 안 들어감).
+_HS_HIST_IMG_DIR = os.path.join(BASE, "data", "hs_hist_img")
+
+
+def _hs_hist_thumbs(imgs: dict) -> dict:
+    """{(시트, 줄): (확장자, 바이트)} → {(시트, 줄): 파일 이름}. 줄이지 못한 그림(깨짐·너무 큼)은 빼고 로그에 남긴다."""
+    if not imgs:
+        return {}
+    import hashlib as _hl
+    import io as _io
+    import uuid as _uuid
+    from PIL import Image as _Img
+    os.makedirs(_HS_HIST_IMG_DIR, exist_ok=True)
+    out = {}
+    for k, (_ext, b) in imgs.items():
+        name = _hl.sha1(b).hexdigest() + ".jpg"
+        p = os.path.join(_HS_HIST_IMG_DIR, name)
+        if not os.path.exists(p):
+            try:
+                im = _Img.open(_io.BytesIO(b))
+                im.load()
+                if im.mode in ("RGBA", "LA", "P"):
+                    im = im.convert("RGBA")
+                    bg = _Img.new("RGB", im.size, (255, 255, 255))
+                    bg.paste(im, mask=im.split()[-1])
+                    im = bg
+                elif im.mode != "RGB":
+                    im = im.convert("RGB")
+                im.thumbnail((480, 480))
+                tmp = "%s.%s.tmp" % (p, _uuid.uuid4().hex[:12])     # 같은 그림을 두 요청이 동시에 줄여도 임시 파일이 겹치지 않게
+                im.save(tmp, "JPEG", quality=82, optimize=True)
+                os.replace(tmp, p)
+            except Exception as e:
+                log.warning("hs hist img fail %s: %s", k, e)
+                continue
+        out[k] = name
+    return out
+
+
+def _hs_hist_imgs_from(raw: bytes, sc) -> dict:
+    """올린 인보이스 → {(시트, 줄): 사진 파일 이름} — 읽기 실패는 사진 없이(이력 등록은 그대로) · 로그에 남긴다."""
+    from . import hs_fill as _hf
+    try:
+        return _hs_hist_thumbs(_hf.row_images(raw, sc))
+    except Exception as e:
+        log.warning("hs hist imgs fail: %s", e)
+        return {}
 
 
 class _HsHistMismatch(Exception):
@@ -44133,11 +44208,13 @@ def _hs_hist_same(a, b) -> bool:
     return abs(float(a) - float(b)) <= 1e-9 * max(1.0, abs(float(b)))
 
 
-def _hs_hist_save(c, sc, fname, kind, source, u) -> dict:
+def _hs_hist_save(c, sc, fname, kind, source, u, imgs=None) -> dict:
     """인보이스 한 장 → 이력(같은 번호면 바꿔 넣음) + **원본↔저장 줄마다 대조**(대표 규정: 엑셀 업로드는 원본↔저장 전항목 대조 ·
     다르게 저장 금지 → 한 줄이라도 다르면 _HsHistMismatch — 이 인보이스는 저장 전으로 되돌린다).
-    반환 {invoice_no, inv_date, kind, lines, empty_hs, total_amount, replaced:{source,file}|None, check:{ok,n}}
-    · 번호(KNK-…)가 없으면 {"error"} — 이름으로 묶으면 표준 양식 이름 그대로 쓴 다른 인보이스를 덮을 수 있다."""
+    반환 {invoice_no, inv_date, kind, lines, empty_hs, total_amount, replaced:{source,file}|None, check:{ok,n}, imgs}
+    · 번호(KNK-…)가 없으면 {"error"} — 이름으로 묶으면 표준 양식 이름 그대로 쓴 다른 인보이스를 덮을 수 있다.
+    z1191r: imgs = {(시트, 줄): 사진 파일 이름} — 이번 파일에 사진이 없는 줄은 바꿔 넣기 전 같은 번호의 사진을 그대로 잇는다
+            (같은 줄·규격 → 같은 규격 순 · 사진을 안 읽는 길(HS 사전 올림)로 다시 들어와도 사진이 사라지지 않게)."""
     from . import hs_fill as _hf
     ino = sc.get("invoice_no") or ""
     if not ino:
@@ -44148,24 +44225,32 @@ def _hs_hist_save(c, sc, fname, kind, source, u) -> dict:
     d = _hf.date_of(sc)
     _hs_hist_ensure(c)
     old = c.execute("SELECT source, file_name FROM export_hist_inv WHERE invoice_no=?", (ino,)).fetchone()
+    prev_at, prev_key = {}, {}
+    for r in c.execute("SELECT sheet, row_no, part_key, img FROM export_hist_line WHERE invoice_no=? AND COALESCE(img,'')<>''", (ino,)):
+        prev_at[(r["sheet"], r["row_no"], r["part_key"])] = r["img"]
+        prev_key.setdefault(r["part_key"], r["img"])
+    imgs = imgs or {}
+    for ln in lines:
+        ln["img"] = (imgs.get((ln["sheet"], ln["row"])) or prev_at.get((ln["sheet"], ln["row"], ln["key"]))
+                     or prev_key.get(ln["key"]) or None)
     tot = round(sum(ln["amount"] or 0 for ln in lines), 4)
     c.execute("SAVEPOINT hs_hist")
     try:
         c.execute("DELETE FROM export_hist_line WHERE invoice_no=?", (ino,))
         c.execute("DELETE FROM export_hist_inv WHERE invoice_no=?", (ino,))
         c.executemany(
-            "INSERT INTO export_hist_line(invoice_no,inv_date,kind,sheet,row_no,part_key,descr,qty,unit_price,amount,hs_code,vn_name) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-            [(ino, d, kind, ln["sheet"], ln["row"], ln["key"], ln["desc"], ln["qty"], ln["price"], ln["amount"], ln["hs"], ln["vn"])
-             for ln in lines])
+            "INSERT INTO export_hist_line(invoice_no,inv_date,kind,sheet,row_no,part_key,descr,qty,unit_price,amount,hs_code,vn_name,img) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [(ino, d, kind, ln["sheet"], ln["row"], ln["key"], ln["desc"], ln["qty"], ln["price"], ln["amount"], ln["hs"], ln["vn"],
+              ln["img"]) for ln in lines])
         c.execute("INSERT INTO export_hist_inv(invoice_no,inv_date,kind,file_name,source,n_lines,total_amount,reg_by) "
                   "VALUES(?,?,?,?,?,?,?,?)", (ino, d, kind, fname, source, len(lines), tot, (u or {}).get("id")))
-        got = c.execute("SELECT sheet, row_no, part_key, descr, qty, unit_price, amount, hs_code, vn_name FROM export_hist_line "
+        got = c.execute("SELECT sheet, row_no, part_key, descr, qty, unit_price, amount, hs_code, vn_name, img FROM export_hist_line "
                         "WHERE invoice_no=? ORDER BY id", (ino,)).fetchall()
         bad = abs(len(got) - len(lines))
         for g, ln in zip(got, lines):
-            if ((g["sheet"], g["row_no"], g["part_key"], g["descr"], g["hs_code"], g["vn_name"])
-                    != (ln["sheet"], ln["row"], ln["key"], ln["desc"], ln["hs"], ln["vn"])
+            if ((g["sheet"], g["row_no"], g["part_key"], g["descr"], g["hs_code"], g["vn_name"], g["img"])
+                    != (ln["sheet"], ln["row"], ln["key"], ln["desc"], ln["hs"], ln["vn"], ln["img"])
                     or not (_hs_hist_same(g["qty"], ln["qty"]) and _hs_hist_same(g["unit_price"], ln["price"])
                             and _hs_hist_same(g["amount"], ln["amount"]))):
                 bad += 1
@@ -44179,13 +44264,13 @@ def _hs_hist_save(c, sc, fname, kind, source, u) -> dict:
     return {"invoice_no": ino, "inv_date": d, "kind": kind, "lines": len(lines),
             "empty_hs": sum(1 for ln in lines if not ln["hs"]), "total_amount": tot,
             "replaced": {"source": old["source"], "file": old["file_name"]} if old else None,
-            "check": {"ok": True, "n": len(got)}}
+            "check": {"ok": True, "n": len(got)}, "imgs": sum(1 for ln in lines if ln["img"])}
 
 
-def _hs_hist_save_safe(c, sc, fname, kind, source, u) -> dict:
+def _hs_hist_save_safe(c, sc, fname, kind, source, u, imgs=None) -> dict:
     """③·HS 사전 올림처럼 이력이 덤인 곳 — 이력이 실패해도 본래 일(사전 반영)은 막지 않는다(실패는 결과에 보이고 로그에 남는다)."""
     try:
-        return _hs_hist_save(c, sc, fname, kind, source, u)
+        return _hs_hist_save(c, sc, fname, kind, source, u, imgs)
     except Exception as e:
         log.warning("hs hist save fail %s: %s", fname, e)
         return {"error": str(e)[:150]}
@@ -44207,8 +44292,9 @@ def _hs_hist_record_out(data: bytes, fname: str, u) -> dict:
     from . import hs_fill as _hf
     try:
         sc = _hf.scan(data)
+        imgs = _hs_hist_imgs_from(data, sc)        # z1191r: 사진은 DB 쓰기 전에(줄이는 데 몇 초)
         with db_session() as c:
-            return _hs_hist_save(c, sc, fname, _hf.kind_of(sc), "fill", u)
+            return _hs_hist_save(c, sc, fname, _hf.kind_of(sc), "fill", u, imgs)
     except Exception as e:
         log.warning("hs hist record fail %s: %s", fname, e)
         return {"error": str(e)[:150]}
@@ -44221,10 +44307,11 @@ def _hs_hist_past(c, keys) -> dict:
     out = {}
     for i in range(0, len(ks), 400):
         part = ks[i:i + 400]
-        for r in c.execute("SELECT id, part_key, invoice_no, inv_date, kind, hs_code, unit_price FROM export_hist_line "
+        for r in c.execute("SELECT id, part_key, invoice_no, inv_date, kind, hs_code, unit_price, img FROM export_hist_line "
                            "WHERE part_key IN (%s)" % ",".join("?" * len(part)), part):
             out.setdefault(r["part_key"], []).append({"id": r["id"], "invoice_no": r["invoice_no"], "inv_date": r["inv_date"] or "",
-                                                      "kind": r["kind"] or "", "hs": r["hs_code"] or "", "price": r["unit_price"]})
+                                                      "kind": r["kind"] or "", "hs": r["hs_code"] or "", "price": r["unit_price"],
+                                                      "img": r["img"] or ""})
     return out
 
 
@@ -44297,7 +44384,8 @@ def _hs_hist_dict_sync(c, keys, fname, u) -> dict:
 
 
 def _hs_hist_summary(c) -> dict:
-    """📚 칸 — 등록된 인보이스 수(통관 구분별)·줄·기간 · 인보이스 목록(최근 300) · 사전과 HS 다른 규격(이력의 마지막 HS 기준)."""
+    """📚 칸 — 등록된 인보이스 수(통관 구분별)·줄·기간 · 인보이스 목록(최근 300) · 사진 있는 줄 ·
+    z1191r: 최근 수출 값으로 맞출 사전 규격(latest) · 그래도 남는 AI 추정·확인 대기(이력 없음) 수."""
     _hs_hist_ensure(c)
     s = c.execute("SELECT COUNT(*) n, COALESCE(SUM(n_lines),0) l, MIN(inv_date) d0, MAX(inv_date) d1 FROM export_hist_inv").fetchone()
     by = {(r["kind"] or ""): r["n"] for r in c.execute("SELECT kind, COUNT(*) n FROM export_hist_inv GROUP BY kind")}
@@ -44308,18 +44396,54 @@ def _hs_hist_summary(c) -> dict:
         iv["src_name"] = _HS_HIST_SRC.get(iv.get("source") or "", iv.get("source") or "")
         iv["reg_name"] = user_disp_by_id(c, iv["reg_by"]) if iv.get("reg_by") else ""
         iv["amount_txt"] = "{:,.2f}".format(iv.get("total_amount") or 0)
-    from . import hs_fill as _hf
-    # 사전 HS 는 점·공백이 섞여 저장된 줄이 있을 수 있다 → 숫자만 맞대어 본다(SQL 글자 비교로 거르면 같은 값을 다르다고 센다)
-    differ = [dict(r) for r in c.execute(
-        "SELECT l.part_key, l.descr, l.hs_code AS hist_hs, l.invoice_no, l.inv_date, d.hs_code AS dict_hs, d.status AS dict_status, "
-        "(SELECT COUNT(DISTINCT x.invoice_no) FROM export_hist_line x WHERE x.part_key=l.part_key) AS n "
-        "FROM export_hist_line l JOIN export_hs_dict d ON d.part_key=l.part_key "
-        "WHERE l.hs_code<>'' AND l.id=(SELECT y.id FROM export_hist_line y WHERE y.part_key=l.part_key AND y.hs_code<>'' "
-        "ORDER BY y.inv_date DESC, y.id DESC LIMIT 1) "
-        "ORDER BY l.inv_date DESC, l.part_key")
-        if _hf.digits(r["dict_hs"]) != r["hist_hs"]]
+    # z1191r: 「사전과 HS 다른 규격」 목록 → 「최근 수출 값으로 맞출 규격」(HS 다름 + AI 추정·확인 대기) + 단추 하나
+    latest = _hs_hist_latest(c)
+    n_hs = sum(1 for x in latest if x["hs_change"])
+    imgs = c.execute("SELECT COUNT(*) FROM export_hist_line WHERE COALESCE(img,'')<>''").fetchone()[0]
+    #   이 단추로도 못 정하는 것(이력이 없는 AI 추정·확인 대기) — 「모두 확정」으로 오해하지 않게 수를 함께 보인다
+    rest = {r["status"]: r["n"] for r in c.execute(
+        "SELECT status, COUNT(*) n FROM export_hs_dict WHERE status IN ('AI','PENDING') GROUP BY status")}
+    for x in latest:
+        if x["dict_status"] in rest:
+            rest[x["dict_status"]] -= 1
     return {"n": s["n"], "lines": s["l"], "lines_txt": "{:,}".format(s["l"] or 0), "d0": s["d0"] or "", "d1": s["d1"] or "",
-            "kinds": kinds, "invs": invs, "differ": differ[:300], "n_differ": len(differ)}
+            "kinds": kinds, "invs": invs, "latest": latest[:300], "n_latest": len(latest), "n_latest_hs": n_hs,
+            "n_latest_st": len(latest) - n_hs, "n_img": imgs,
+            "rest_ai": rest.get("AI", 0), "rest_pending": rest.get("PENDING", 0)}
+
+
+def _hs_hist_latest(c) -> list:
+    """z1191r (대표 10-27 「지금 기준으로 AI추정 및 확인대기 이부분은 등록된 정보를 가장 최근걸로 입력을해줘」 · 「12개도 최근 수출 값으로」):
+    HS 사전을 지난 수출의 **가장 최근 값**으로 맞출 규격 — 이력(규격 그대로 같은 줄 · HS 8자리)이 있는 사전 줄 가운데
+    ① HS 가 마지막 수출 HS 와 다르거나(상태 무관 — 확정이어도) ② 상태가 확정이 아닌 것(AI 추정·확인 대기).
+    이력이 없는 규격은 대상이 아니다(그대로 남는다). 품명: HS 가 바뀌면 그 HS 로 나간 가장 최근 품명 · 사전 품명이 비었으면 채움.
+    반환 [{id, part_key, model, dict_hs, dict_status, dict_vn, note, hs, vn, vn_change, hs_change, invoice_no, inv_date, n, img}]"""
+    from . import hs_fill as _hf
+    _hs_hist_ensure(c)
+    rows = c.execute(
+        "SELECT d.id, d.part_key, d.model, d.hs_code AS dict_hs, d.status AS dict_status, d.vn_name AS dict_vn, d.note, "
+        "l.hs_code AS hs, l.invoice_no, l.inv_date, "
+        "(SELECT COUNT(DISTINCT x.invoice_no) FROM export_hist_line x WHERE x.part_key=d.part_key) AS n, "
+        "(SELECT z.img FROM export_hist_line z WHERE z.part_key=d.part_key AND COALESCE(z.img,'')<>'' "
+        " ORDER BY z.inv_date DESC, z.id DESC LIMIT 1) AS img "
+        "FROM export_hs_dict d JOIN export_hist_line l ON l.part_key=d.part_key "
+        "WHERE l.hs_code<>'' AND l.id=(SELECT y.id FROM export_hist_line y WHERE y.part_key=d.part_key AND y.hs_code<>'' "
+        "ORDER BY y.inv_date DESC, y.id DESC LIMIT 1) ORDER BY l.inv_date DESC, d.part_key").fetchall()
+    out = []
+    for r in rows:
+        hs_change = _hf.digits(r["dict_hs"]) != r["hs"]     # 사전 HS 에 점·공백이 섞여 있어도 숫자로 견준다
+        if not hs_change and r["dict_status"] == "CONFIRMED":
+            continue
+        v = c.execute("SELECT vn_name FROM export_hist_line WHERE part_key=? AND hs_code=? AND COALESCE(vn_name,'')<>'' "
+                      "ORDER BY inv_date DESC, id DESC LIMIT 1", (r["part_key"], r["hs"])).fetchone()
+        vn = ((v["vn_name"] if v else "") or "").strip()
+        cur_vn = (r["dict_vn"] or "").strip()
+        vn_change = bool(vn) and ((hs_change and vn != cur_vn) or not cur_vn)
+        out.append({"id": r["id"], "part_key": r["part_key"], "model": r["model"] or r["part_key"], "dict_hs": r["dict_hs"] or "",
+                    "dict_status": r["dict_status"] or "", "dict_vn": cur_vn, "note": r["note"] or "", "hs": r["hs"],
+                    "vn": vn if vn_change else "", "vn_change": vn_change, "hs_change": hs_change,
+                    "invoice_no": r["invoice_no"], "inv_date": r["inv_date"] or "", "n": r["n"], "img": r["img"] or ""})
+    return out
 
 
 def _hs_hist_register_work(raw: bytes, fname: str, kind: str, u) -> tuple:
@@ -44341,10 +44465,11 @@ def _hs_hist_register_work(raw: bytes, fname: str, kind: str, u) -> tuple:
     if empty * 2 >= len(lines):
         return 400, {"ok": False, "file": fname,
                      "error": "HS 가 빈 줄이 %d/%d줄입니다 — 지난 수출 등록은 HS 가 채워진 최종 인보이스만 받습니다" % (empty, len(lines))}
+    imgs = _hs_hist_imgs_from(raw, sc)     # z1191r: 품목 사진 — DB 쓰기 전에 줄여 둔다
     try:
         with db_session() as c:
             _hs_dict_ensure(c)
-            r = _hs_hist_save(c, sc, fname, kind, "register", u)
+            r = _hs_hist_save(c, sc, fname, kind, "register", u, imgs)
             if r.get("error"):
                 return 400, {"ok": False, "file": fname, "error": r["error"]}
             r["dict"] = _hs_hist_dict_sync(c, {ln["key"] for ln in lines if ln["hs"]}, fname, u)
@@ -44377,6 +44502,111 @@ async def export_hs_fill_hist(req: Request):
     from starlette.concurrency import run_in_threadpool
     code, out = await run_in_threadpool(_hs_hist_register_work, raw, fname, kind, u)
     return JSONResponse(out, code)
+
+
+# z1191r (대표 2026-10-27 「사진,단가 부분도 볼수있게」): 이력 사진 · 인보이스 한 장의 품목 · 규격으로 찾기 — 모두 수출 권한
+@app.get("/export/hs-fill/hist-img/{name}")
+async def export_hs_fill_hist_img(req: Request, name: str):
+    """이력 품목 사진(화면용으로 줄인 JPEG) — 이름은 내용 지문 40자리 + .jpg 만(경로 장난 막음)."""
+    if not _export_guard(req):
+        return Response(status_code=403)
+    import re as _re_img
+    if not _re_img.fullmatch(r"[0-9a-f]{40}\.jpg", name or ""):
+        return Response(status_code=404)
+    p = os.path.join(_HS_HIST_IMG_DIR, name)
+    if not os.path.exists(p):
+        return Response(status_code=404)
+    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=604800"})
+
+
+_HS_HIST_LINE_COLS = "invoice_no, inv_date, kind, sheet, row_no, descr, qty, unit_price, amount, hs_code, vn_name, img"
+
+
+@app.get("/export/hs-fill/hist/inv")
+async def export_hs_fill_hist_inv(req: Request, no: str = ""):
+    """등록된 인보이스 한 장의 품목(사진·규격·수량·단가·금액·HS·품명) — 📚 목록에서 번호를 누르면."""
+    if not _export_guard(req):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    with db_session() as c:
+        _hs_hist_ensure(c)
+        iv = c.execute("SELECT * FROM export_hist_inv WHERE invoice_no=?", (no,)).fetchone()
+        if not iv:
+            return JSONResponse({"ok": False, "error": "그 인보이스는 이력에 없습니다"}, 404)
+        lines = [dict(r) for r in c.execute("SELECT %s FROM export_hist_line WHERE invoice_no=? ORDER BY id" % _HS_HIST_LINE_COLS, (no,))]
+    return JSONResponse({"ok": True, "invoice": dict(iv), "lines": lines})
+
+
+@app.get("/export/hs-fill/hist/find")
+async def export_hs_fill_hist_find(req: Request, q: str = ""):
+    """규격으로 찾기 — 같은 규격(공백·대소문자 무시)이 들어간 지난 수출 줄을 최근 순으로(200줄까지) · 사진·단가와 함께."""
+    if not _export_guard(req):
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    from . import hs_fill as _hf
+    k = _hf.norm_key(q)
+    if len(k) < 2:
+        return JSONResponse({"ok": False, "error": "규격을 두 글자 이상 적어 주세요"}, 400)
+    pat = "%" + k.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    with db_session() as c:
+        _hs_hist_ensure(c)
+        rows = [dict(r) for r in c.execute(
+            "SELECT %s, part_key FROM export_hist_line WHERE part_key LIKE ? ESCAPE '\\' ORDER BY inv_date DESC, id DESC LIMIT 201"
+            % _HS_HIST_LINE_COLS, (pat,))]
+    return JSONResponse({"ok": True, "q": q, "lines": rows[:200], "more": len(rows) > 200})
+
+
+@app.post("/export/hs-fill/hist/apply-latest")
+async def export_hs_fill_hist_apply_latest(req: Request):
+    """z1191r: HS 사전을 지난 수출의 **가장 최근 값**으로 확정 — 대표 결정(10-27): AI 추정·확인 대기 + 확정인데 HS 가 다른 것까지.
+    화면이 본 개수(expect)와 지금 개수가 다르면 409(그 사이 바뀜 — 목록을 다시 보고 누르게).
+    사전 사유(note)에 날짜·누가·전 값(상태) → 새 값·근거 인보이스를 남기고, 전 사유는 뒤에 짧게 붙인다."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    try:
+        expect = int((body or {}).get("expect", -1))
+    except (TypeError, ValueError):
+        expect = -1
+    with db_session() as c:
+        _hs_dict_ensure(c)
+        code, out = _hs_hist_apply_latest(c, expect, u)
+    return JSONResponse(out, code)
+
+
+def _hs_hist_apply_latest(c, expect: int, u) -> tuple:
+    """z1191r: 최근 수출 값으로 확정(열린 DB 안에서 · 바깥이 확정/되돌림) → (코드, JSON).
+    expect = 화면이 본 개수(-1 이면 안 봄) — 지금 대상 수와 다르면 409 이고 아무것도 안 바꾼다."""
+    from . import hs_fill as _hf
+    st_name = {"PENDING": "확인 대기", "AI": "AI 추정", "CONFIRMED": "확정"}
+    cands = _hs_hist_latest(c)
+    if expect >= 0 and expect != len(cands):
+        return 409, {"ok": False, "error": "그 사이 목록이 바뀌었습니다(%d → %d개) — 화면을 새로 열어 확인한 뒤 다시 눌러 주세요"
+                     % (expect, len(cands))}
+    today = c.execute("SELECT date('now','localtime')").fetchone()[0]
+    who = (u.get("name") or "") if isinstance(u, dict) else ""
+    uid = u.get("id") if isinstance(u, dict) else None
+    hs_n = st_n = vn_n = 0
+    for x in cands:
+        prev = "%s(%s)" % (_hf.digits(x["dict_hs"]) or "HS 없음", st_name.get(x["dict_status"], x["dict_status"] or "?"))
+        note = "지난 수출 최근 값으로 확정 %s %s: %s → %s (%s %s)" % (today, who, prev, x["hs"], x["invoice_no"], x["inv_date"])
+        if x["note"]:
+            note += " · 전 사유: " + x["note"][:120]
+        sets, vals = ["hs_code=?", "status='CONFIRMED'", "note=?", "updated_by=?", "updated_at=datetime('now','localtime')"], \
+            [x["hs"], note, uid]
+        if x["vn_change"]:
+            en = x["vn"].split("#&")[0].strip() if "#&" in x["vn"] else ""
+            sets += ["vn_name=?", "name_en=CASE WHEN ?<>'' THEN ? ELSE name_en END"]
+            vals += [x["vn"], en, en]
+            vn_n += 1
+        c.execute("UPDATE export_hs_dict SET %s WHERE id=?" % ",".join(sets), vals + [x["id"]])
+        if x["hs_change"]:
+            hs_n += 1
+        else:
+            st_n += 1
+    return 200, {"ok": True, "applied": len(cands), "hs_changed": hs_n, "status_only": st_n, "vn_changed": vn_n}
 
 
 # ------------------------------------------------------------

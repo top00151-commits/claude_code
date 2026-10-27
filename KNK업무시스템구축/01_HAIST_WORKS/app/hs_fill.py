@@ -28,6 +28,9 @@ z1191p (대표 2026-10-27 「올해 수출한 내용을 수책통관, 일반통�
         비교할수있게 미리 등록을 해 줬으면해」 → 「진행해」):
   · scan 이 줄마다 수량·단가·금액(qty·price·amount)과 인보이스 날짜(date)도 읽는다 — 31줄 머리글 F·H·I(모든 KNK 양식 같음).
   · hist_lines = 지난 수출 이력 줄 · compare = ① 결과 줄 ↔ 이력(같은 규격만 · 단가 ±HIST_PRICE_TOL% · HS 다름) — 화면에만.
+
+z1191r (대표 2026-10-27 「등록할때 이미지도 가능하면 같이 사진,단가 부분도 볼수있게 등록을해줘」):
+  · row_images = 품목 줄에 붙은 그림(그림 자리 from~to 줄이 품목 줄에 걸리면 그 줄 · 첫 그림만) — 54개 실물 그림 510 중 450이 품목 줄.
 """
 import io
 import re
@@ -681,13 +684,72 @@ def hist_lines(sc) -> list:
     return out
 
 
+def _rels(z, path) -> dict:
+    """파트의 관계 → {rId: 묶음 안 전체 경로}('../media/x.png' 같은 상대 경로를 풀어서)."""
+    d, b = path.rsplit("/", 1) if "/" in path else ("", path)
+    rp = (d + "/" if d else "") + "_rels/" + b + ".rels"
+    if rp not in z.namelist():
+        return {}
+    out = {}
+    for m in re.finditer(r"<Relationship\b([^>]*)/?>", z.read(rp).decode("utf-8", "replace")):
+        a = m.group(1)
+        i = re.search(r'\bId="([^"]+)"', a)
+        t = re.search(r'\bTarget="([^"]+)"', a)
+        if not (i and t) or re.search(r'\bTargetMode="External"', a):
+            continue
+        tgt = t.group(1)
+        parts, st = (tgt.lstrip("/") if tgt.startswith("/") else (d + "/" + tgt)).split("/"), []
+        for p in parts:
+            if p == "..":
+                if st:
+                    st.pop()
+            elif p and p != ".":
+                st.append(p)
+        out[i.group(1)] = "/".join(st)
+    return out
+
+
+def row_images(data: bytes, sc) -> dict:
+    """z1191r: 품목 줄에 붙은 그림 → {(시트, 줄): (확장자, 바이트)}.
+    그림 자리(drawing 의 from~to 줄)가 품목 줄에 걸리면 그 줄 — 한 줄에 여러 장이면 첫 장만 · 품목 줄 밖(서명·도장)은 안 본다.
+    (예전 일반통관 양식은 B열 · 표준 양식은 IMAGE 칸 — 칸은 보지 않고 줄로만 잇는다)"""
+    z = zipfile.ZipFile(io.BytesIO(data))
+    names = set(z.namelist())
+    out = {}
+    for sh in sc.get("sheets", []):
+        items = {it["row"] for it in sh["items"]}
+        if not items:
+            continue
+        for dp in [t for t in _rels(z, sh["path"]).values() if "/drawings/" in t and t.endswith(".xml") and t in names]:
+            dx = z.read(dp).decode("utf-8", "replace")
+            dr = _rels(z, dp)
+            for am in re.finditer(r"<((?:\w+:)?)(twoCellAnchor|oneCellAnchor)\b.*?</\1\2>", dx, re.S):
+                a = am.group(0)
+                fr = re.search(r"<(?:\w+:)?from>.*?<(?:\w+:)?row>(\d+)</", a, re.S)
+                if not fr:
+                    continue
+                to = re.search(r"<(?:\w+:)?to>.*?<(?:\w+:)?row>(\d+)</", a, re.S)
+                r0 = int(fr.group(1)) + 1
+                r1 = max(r0, int(to.group(1)) + 1) if to else r0
+                row = next((r for r in range(r0, r1 + 1) if r in items), None)
+                if row is None or (sh["title"], row) in out:
+                    continue
+                for e in re.findall(r'<(?:\w+:)?blip\b[^>]*?\br:embed="([^"]+)"', a):
+                    mp = dr.get(e)
+                    if mp and mp in names:
+                        out[(sh["title"], row)] = (mp.rsplit(".", 1)[-1].lower(), z.read(mp))
+                        break
+    return out
+
+
 def compare(acts, prices, past, own_invoice="", tol=HIST_PRICE_TOL) -> dict:
     """① 결과 줄 ↔ 지난 수출 이력 — 규격이 **그대로** 같은 줄만 본다(모델 글자만 같은 다른 품목의 단가를 섞지 않는다).
     acts = plan 결과 · prices = {(시트, 줄): 이번 단가} · past = {규격 키: [{invoice_no, inv_date, kind, hs, price, id}]}
     같은 인보이스(번호)의 이력은 빼고 본다(이 인보이스가 이미 이력에 들어가 있어도 자기와 비교하지 않게).
-    반환 {matched, checked, price:[단가가 ±tol% 넘게 다른 줄], hs:[이번 HS ≠ 마지막 수출 HS], ev:{(시트, 줄): 근거 글}}
+    반환 {matched, checked, price:[단가가 ±tol% 넘게 다른 줄], hs:[이번 HS ≠ 마지막 수출 HS], ev:{(시트, 줄): 근거 글},
+          img:{(시트, 줄): 마지막 수출 사진}} — z1191r: 단가·HS 줄에도 그 규격의 마지막 사진(img)
     ⚠화면에만 쓴다 — 법인에 보내는 파일·이음 방 글에는 넣지 않는다(단가)."""
-    out = {"matched": 0, "checked": 0, "price": [], "hs": [], "ev": {}}
+    out = {"matched": 0, "checked": 0, "price": [], "hs": [], "ev": {}, "img": {}}
     for a in acts:
         rows = [p for p in past.get(a["key"], []) if p.get("invoice_no") != own_invoice]
         if not rows:
@@ -702,6 +764,9 @@ def compare(acts, prices, past, own_invoice="", tol=HIST_PRICE_TOL) -> dict:
         hcnt = {h: len(s) for h, s in hinv.items()}
         lh = next((p for p in reversed(rows) if p.get("hs")), None)
         last = rows[-1]
+        img = next((p["img"] for p in reversed(rows) if p.get("img")), "")
+        if img:
+            out["img"][(a["sheet"], a["row"])] = img
         ev = "지난 수출 %d번" % len(invs)
         if hcnt:
             ev += " · HS " + " · ".join("%s×%d" % (h, n) for h, n in sorted(hcnt.items(), key=lambda x: (-x[1], x[0])))
@@ -711,7 +776,7 @@ def compare(acts, prices, past, own_invoice="", tol=HIST_PRICE_TOL) -> dict:
         if now_hs and lh and now_hs != lh["hs"]:
             out["hs"].append({"sheet": a["sheet"], "row": a["row"], "desc": a["desc"], "now": now_hs, "last": lh["hs"],
                               "last_inv": lh.get("invoice_no") or "", "last_date": (lh.get("inv_date") or "")[:10],
-                              "counts": hcnt, "n": len(invs)})
+                              "counts": hcnt, "n": len(invs), "img": img})
         cur = prices.get((a["sheet"], a["row"]))
         lp = next((p for p in reversed(rows) if (p.get("price") or 0) > 0), None)
         if cur and cur > 0 and lp:
@@ -722,5 +787,5 @@ def compare(acts, prices, past, own_invoice="", tol=HIST_PRICE_TOL) -> dict:
                 out["price"].append({"sheet": a["sheet"], "row": a["row"], "desc": a["desc"], "now": round(cur, 4),
                                      "last": round(lp["price"], 4), "diff": round(diff, 1),
                                      "last_inv": lp.get("invoice_no") or "", "last_date": (lp.get("inv_date") or "")[:10],
-                                     "min": round(min(ps), 4), "max": round(max(ps), 4), "n": len(ps)})
+                                     "min": round(min(ps), 4), "max": round(max(ps), 4), "n": len(ps), "img": img})
     return out

@@ -44,9 +44,10 @@ js = tpl[tpl.index("<script>"):]
 print("=" * 78)
 print("§1 원문")
 print("=" * 78)
-check("1 등록된 인보이스 목록은 펼친 채로(<details … open>) · 사전과 다른 규격 목록은 접힌 채로",
+# z1191r: 「사전과 다른 규격」(접힌 목록) → 「📌 최근 수출 값으로 맞출 규격」(단추 + 펼친 표)으로 바뀌었다
+check("1 등록된 인보이스 목록은 펼친 채로(<details … open>) · 최근 수출 값으로 맞출 규격 표도 펼친 채로",
       re.search(r'<details class="hf-det" open><summary>등록된 인보이스 목록', tpl) is not None
-      and re.search(r'<details class="hf-det"><summary style="color:#b91c1c;">HS 사전과 HS 가 다른 규격', tpl) is not None)
+      and re.search(r'<details class="hf-det" open><summary>무엇이 바뀌는지', tpl) is not None)
 check("2 줄마다 「✅ 등록 완료」 + 새로 넣음 / 같은 번호 있던 것 바꿔 넣음",
       "✅ 등록 완료" in js and "새로 넣음" in js and "같은 번호 있던 것 바꿔 넣음" in js)
 check("3 끝나면 완료 띠 — 「N개 등록 완료」·품목 줄·원본↔저장·HS 사전 새 규격 · 다 못 넣으면 「N개 중 M개」",
@@ -78,6 +79,7 @@ import app.main as M                                        # noqa: E402
 from fastapi.testclient import TestClient                  # noqa: E402
 
 M._HS_FILL_DIR = os.path.join(TMP, "hs_fill")
+M._HS_HIST_IMG_DIR = os.path.join(TMP, "hs_hist_img")       # z1191r: 회신·최종 파일의 품목 사진도 임시 폴더에(작업 폴더 data/ 에 남기지 않게)
 M.get_user = lambda request, _u=U: _u
 cl = TestClient(M.app, follow_redirects=False)
 
@@ -102,7 +104,7 @@ r = quiet(cl.post, "/export/hs-fill/hist", data={"kind": "수책통관"}, files=
 pg1 = quiet(cl.get, "/export/hs-fill").text
 check("5 화면 200 · 등록 전에는 목록 없음 · 등록 1개 뒤 목록이 펼친 채로 그 번호가 보임",
       "<summary>등록된 인보이스 목록" not in pg0 and r.status_code == 200
-      and re.search(r'<details class="hf-det" open><summary>등록된 인보이스 목록 1개</summary>', pg1) is not None
+      and re.search(r'<details class="hf-det" open><summary>등록된 인보이스 목록 1개[ <]', pg1) is not None
       and "KNK-260101-1" in pg1, (r.status_code, re.findall(r"<details[^>]*><summary>등록된[^<]*", pg1)))
 
 print()
