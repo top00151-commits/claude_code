@@ -262,13 +262,15 @@ check("11 화면 열림(200) · 단계 안내 · ①·③ 올리기 칸", pg.sta
 draft, chs, cvn = make_form("소모품", ITEMS[:8], png=PNG)
 rr = quiet(cl.post, "/export/hs-fill", files={"file": ("Invoice&packinglist_VN(261099).xlsx", draft)})
 j = rr.json()
-check("12 ① 자동 채움: 요약(자동 3·확인 2·법인 입력 3) · 인보이스 번호 · 이음 방 글", rr.status_code == 200 and j.get("ok")
-      and j["summary"] == {"total": 8, "auto": 3, "check": 2, "need": 3, "keep": 0} and j["invoice_no"] == "KNK-261099-1"
-      and "노란 칸 3줄" in j["message"] and "주황 칸 2줄" in j["message"], j.get("summary") or j)
+# z1191n(2026-10-27): 셈은 칸 색으로 — 40줄(사전 확정 · 품명은 사전에 없음 → HS 자동 · 품명 노랑)은 '법인 입력'으로 센다
+check("12 ① 자동 채움: 요약(자동 2·확인 2·법인 입력 4 — z1191n: 품명만 노란 40줄도 법인 입력) · 인보이스 번호 · 이음 방 글",
+      rr.status_code == 200 and j.get("ok")
+      and j["summary"] == {"total": 8, "auto": 2, "check": 2, "need": 4, "keep": 0} and j["invoice_no"] == "KNK-261099-1"
+      and "노란 칸 4줄" in j["message"] and "주황 칸 2줄" in j["message"], j.get("summary") or j)
 with D.db_session() as c:
     lg = dict(c.execute("SELECT * FROM export_hs_fill_log ORDER BY id DESC LIMIT 1").fetchone())
 check("13 자동 채움 기록 1줄(회신 대기 · 채운 사람 · 숫자)", lg["invoice_no"] == "KNK-261099-1" and lg["reply_at"] is None
-      and lg["filled_by"] == U["L901"]["id"] and (lg["n_auto"], lg["n_check"], lg["n_need"]) == (3, 2, 3), lg)
+      and lg["filled_by"] == U["L901"]["id"] and (lg["n_auto"], lg["n_check"], lg["n_need"]) == (2, 2, 4), lg)
 dl = quiet(cl.get, j["download_url"])
 dl_ok = dl.status_code == 200 and "attachment" in dl.headers.get("content-disposition", "")
 filled = dl.content if dl_ok else b""

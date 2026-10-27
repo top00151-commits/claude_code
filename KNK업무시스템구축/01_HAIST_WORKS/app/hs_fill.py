@@ -13,6 +13,12 @@
    엑셀 안쪽 XML 에서 **그 칸들만** 바꾸고 나머지(사진 52장·병합·수식·인쇄 영역)는 바이트 그대로 둔다.
 ⚠ 두 최종 양식 모두 인쇄 영역이 A~I 열이고 HS·Tên hàng 은 그 밖(R~T 열) → 색이 세관용 인보이스 출력에 안 찍힌다.
 ⚠ 통관은 법적 신고 — 확정 값만 자동으로 채운다. 확인 대기·AI 추정·후보가 갈리는 것은 채우지 않고 노랑으로 둔다.
+
+z1191n (대표 2026-10-27 「전부 자동이면 법인 회신이 필요없는 사항인데」·「사전 확정을 하고 싶을때 어떻게해」):
+  · 셈은 칸 색으로 한다(counts) — 노란 칸이 하나라도 있으면 '법인 입력'(품명만 노란 줄 포함) · 주황이면 '확인'.
+    노랑·주황이 하나도 없으면 no_reply — 법인 회신이 필요 없고 받은 파일이 최종 파일이다.
+  · 본사가 ① 결과에서 HS 를 고르면(choices) 사전에 확정하고, overrides({규격 키: HS})로 원본에서 파일을 다시 만든다.
+    적힌 값은 원래 덮지 않는다 — 본사가 고른 규격만 덮는다.
 """
 import io
 import re
@@ -202,27 +208,58 @@ def scan(data: bytes) -> dict:
 # ─────────────────────────────────────────────────────────────
 # 채움 계획 — 줄마다 무엇을 쓰고 무엇을 칠할지
 # ─────────────────────────────────────────────────────────────
-def plan(sc, index) -> list:
-    """줄마다 {sheet, row, desc, status, write_hs, write_vn, color_hs, color_vn, why, dict_hs}"""
+def plan(sc, index, overrides=None) -> list:
+    """줄마다 {sheet, row, key, desc, status, write_hs, write_vn, color_hs, color_vn, why, dict_hs,
+              hs_written, dict_seen, dict_last, dict_model, dict_status, choices}
+    z1191n: overrides = {규격 키: HS} — 본사가 ① 결과에서 고른 값. 그 규격 줄은 적힌 값과 달라도 그 값으로 쓰고 칠하지 않는다.
+            choices = 본사가 그 자리에서 고를 수 있는 HS [{hs, kind: 'file'(적힌 값) | 'dict'(사전 값)}] — 없으면 []."""
     acts = []
+    ov_map = overrides or {}
     for sh in sc["sheets"]:
         has_vn = sh["col_vn"] is not None
         for it in sh["items"]:
             hs0, vn0 = digits(it["hs_raw"]), (it["vn_raw"] or "").strip()
+            key = norm_key(it["desc"])
             way, e, memo = lookup(index, it["desc"])
             dhs = digits(e.get("hs_code")) if e else ""
             dvn = (e.get("vn_name") or "").strip() if e else ""
-            a = {"sheet": sh["title"], "row": it["row"], "desc": it["desc"], "status": KEEP,
+            a = {"sheet": sh["title"], "row": it["row"], "key": key, "desc": it["desc"], "status": KEEP,
                  "write_hs": None, "write_vn": None, "color_hs": None, "color_vn": None,
-                 "why": "", "dict_hs": dhs if way in ("exact", "token", "pending") else ""}
+                 "why": "", "dict_hs": dhs if way in ("exact", "token", "pending") else "",
+                 # z1191n: 본사가 고를 때 보는 근거 — 사전 값이 몇 번 나왔고 마지막이 언제인지 · 다른 규격(모델만 일치)이면 그 규격
+                 "hs_written": str(it["hs_raw"] or "").strip(),
+                 "dict_seen": int(e.get("seen_count") or 0) if e else 0,
+                 "dict_last": str(e.get("last_seen") or "") if e else "",
+                 "dict_model": (e.get("model") or e.get("part_key") or "") if (e and e.get("part_key") != key) else "",
+                 "dict_status": str(e.get("status") or "") if e else "",
+                 "vn_written": vn0, "dict_vn": dvn,
+                 "choices": []}
+            ov = ov_map.get(key)
+            if ov:
+                # z1191n: 본사가 고른 값 — 적힌 값과 다르면 그 값으로 바꿔 쓴다(적힌 값은 원래 덮지 않는다 — 본사가 고른 규격만)
+                a["why"] = "본사 확정 %s" % ov
+                if hs0 != ov:
+                    a["write_hs"] = ov
+                if has_vn and not vn0:
+                    if way == "exact" and dhs == ov and dvn:
+                        a["write_vn"] = dvn
+                    else:
+                        a.update(color_vn=YELLOW, why=a["why"] + " · 품명은 사전에 없음")
+                a["status"] = AUTO if (a["write_hs"] is not None or a["write_vn"] is not None) else KEEP
+                acts.append(a)
+                continue
             if it["hs_raw"] and len(hs0) not in (6, 8):
                 a.update(status=CONFLICT, color_hs=ORANGE, why="HS 칸 형식 확인(8자리 숫자가 아님): %s" % it["hs_raw"][:20])
+                if way in ("exact", "token") and len(dhs) == 8:
+                    a["choices"] = [{"hs": dhs, "kind": "dict"}]
                 if has_vn and not vn0:
                     a["color_vn"] = YELLOW
             elif hs0:
                 # 이미 적힌 HS(본사가 미리 채움 · 장비 6자리 포함) — 값은 절대 덮지 않는다
                 if way in ("exact", "token") and len(hs0) == 8 and dhs != hs0:
-                    a.update(status=CONFLICT, color_hs=ORANGE, why="적힌 HS %s ↔ 사전 확정 %s" % (hs0, dhs))
+                    a.update(status=CONFLICT, color_hs=ORANGE,
+                             why="적힌 HS %s ↔ 사전 확정 %s" % (hs0, dhs) + (" (%s)" % memo if way == "token" else ""),
+                             choices=[{"hs": hs0, "kind": "file"}, {"hs": dhs, "kind": "dict"}])
                 elif way in ("exact", "token") and dhs == hs0 and has_vn and not vn0 and dvn:
                     a.update(status=AUTO, write_vn=dvn, why="HS 는 이미 같음 · 품명만 채움")
                 elif has_vn and not vn0:
@@ -235,7 +272,7 @@ def plan(sc, index) -> list:
                     else:
                         a.update(color_vn=YELLOW, why="사전 확정 · 품명은 사전에 없음")
             elif way == "token":
-                a.update(status=CHECK, write_hs=dhs, color_hs=ORANGE, why=memo)
+                a.update(status=CHECK, write_hs=dhs, color_hs=ORANGE, why=memo, choices=[{"hs": dhs, "kind": "dict"}])
                 if has_vn and not vn0:
                     if dvn:
                         a.update(write_vn=dvn, color_vn=ORANGE)
@@ -244,6 +281,9 @@ def plan(sc, index) -> list:
             else:
                 a.update(status=NEED, color_hs=YELLOW,
                          why={"none": "사전에 없음(새 품목)"}.get(way, memo or "사전에 없음"))
+                # z1191n: 사전에 이 규격이 '확인 대기'·'AI 추정'으로 있으면 본사가 그 값을 바로 확정할 수 있다
+                if way == "pending" and e is not None and e.get("part_key") == key and len(dhs) == 8:
+                    a["choices"] = [{"hs": dhs, "kind": "dict"}]
                 if has_vn and not vn0:
                     a["color_vn"] = YELLOW
             acts.append(a)
@@ -255,6 +295,27 @@ def summary(acts) -> dict:
     for a in acts:
         n[a["status"]] += 1
     n["total"] = len(acts)
+    return n
+
+
+def category(a) -> str:
+    """z1191n: 화면·기록에서 세는 칸 — 노란 칸이 하나라도 있으면 '법인 입력', 주황(또는 확인 상태)이면 '확인'.
+    상태만 세면 '사전 확정 · 품명은 사전에 없음' 줄(HS 자동 · 품명 노랑)이 '자동'으로 세져 노란 칸이 숫자·요청 글에서 빠졌다
+    (운영 사전 확정 1,989 중 63줄이 품명 없음 — 10-27 실측)."""
+    cs = (a.get("color_hs"), a.get("color_vn"))
+    if YELLOW in cs or a["status"] == NEED:
+        return NEED
+    if ORANGE in cs or a["status"] in (CHECK, CONFLICT):
+        return CHECK
+    return AUTO if a["status"] == AUTO else KEEP
+
+
+def counts(acts) -> dict:
+    """z1191n: {total, auto, check, need, keep, no_reply} — no_reply = 노랑·주황이 하나도 없음(법인 회신 필요 없음 · 받은 파일이 최종)."""
+    n = {"total": len(acts), "auto": 0, "check": 0, "need": 0, "keep": 0}
+    for a in acts:
+        n[{AUTO: "auto", CHECK: "check", NEED: "need", KEEP: "keep"}[category(a)]] += 1
+    n["no_reply"] = (n["need"] == 0 and n["check"] == 0)
     return n
 
 
@@ -476,8 +537,9 @@ def file_stem(name: str) -> str:
     return s
 
 
-def fill(data: bytes, entries) -> dict:
-    """한 번에: 읽기 → 계획 → 칸 바꾸기. 반환 {ok, out, scan, acts, summary, error}"""
+def fill(data: bytes, entries, overrides=None) -> dict:
+    """한 번에: 읽기 → 계획 → 칸 바꾸기. 반환 {ok, out, scan, acts, summary, counts, error}
+    z1191n: overrides = 본사가 고른 값({규격 키: HS}) · counts = 칸 색으로 센 숫자(no_reply 포함)."""
     try:
         sc = scan(data)
     except zipfile.BadZipFile:
@@ -487,7 +549,7 @@ def fill(data: bytes, entries) -> dict:
     if not any(s["items"] for s in sc["sheets"]):
         return {"ok": False, "error": "품목 줄이 없습니다 — Description 칸에 규격이 적힌 줄이 필요합니다"}
     idx = build_index(entries)
-    acts = plan(sc, idx)
+    acts = plan(sc, idx, overrides)
     skipped = []
     out = apply(data, sc, acts, skipped)
     if skipped:
@@ -499,5 +561,5 @@ def fill(data: bytes, entries) -> dict:
             if sh["col_vn"]:
                 refs.add("%s%d" % (_col_letter(sh["col_vn"]), a["row"]))
             if refs & sk:
-                a.update(status=CONFLICT, why="수식이 든 칸이라 값을 쓰지 않았습니다 — 직접 확인")
-    return {"ok": True, "out": out, "scan": sc, "acts": acts, "summary": summary(acts), "skipped": skipped}
+                a.update(status=CONFLICT, why="수식이 든 칸이라 값을 쓰지 않았습니다 — 직접 확인", choices=[])
+    return {"ok": True, "out": out, "scan": sc, "acts": acts, "summary": summary(acts), "counts": counts(acts), "skipped": skipped}
