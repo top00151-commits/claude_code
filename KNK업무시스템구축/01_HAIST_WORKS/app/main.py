@@ -43749,6 +43749,33 @@ async def export_hs_fill_run(req: Request):
                          "download_url": "/export/hs-fill/%d/download" % lid})
 
 
+# z1191m (대표 지시 2026-10-27 「본사에서 올릴 인보이스 표준양식(수책,소모품)을 여기서 받을수있게해줘..
+#   기본적은 공통 정보는 사전에 작성된 상태로..」): 빈 표준 양식 내려받기.
+#   양식 = 대표 최종 양식에서 인보이스마다 바뀌는 칸(번호·날짜·선적일·품목 줄·품목 사진)만 비운 것
+#   (deploy/make_invoice_forms.py · 공통/가변 구분 = 대표 양식 2 + 방 본사 인보이스 11 칸 대조).
+_HS_FORMS = {
+    "suchaek": ("invoice_form_suchaek.xlsx", "Invoice&packinglist_VN(수책)_표준양식.xlsx"),
+    "somo": ("invoice_form_somo.xlsx", "Invoice&packinglist_VN(소모품)_표준양식.xlsx"),
+}
+
+
+@app.get("/export/hs-fill/form/{kind}")
+async def export_hs_fill_form(req: Request, kind: str):
+    """표준 양식(수책·소모품) 내려받기 — 보내는 곳·받는 곳·담당·항구·조건·서명은 미리 적혀 있다."""
+    u = _export_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    f = _HS_FORMS.get(kind)
+    p = os.path.join(os.path.dirname(__file__), "seed", f[0]) if f else ""
+    if not f or not os.path.exists(p):
+        return HTMLResponse("<p style='font-family:sans-serif;padding:20px'>양식을 찾지 못했습니다. "
+                            "<a href='/export/hs-fill'>돌아가기</a></p>", status_code=404)
+    from urllib.parse import quote as _q
+    return FileResponse(p, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": "attachment; filename=\"invoice_form_%s.xlsx\"; filename*=UTF-8''%s"
+                                 % (kind, _q(f[1]))})
+
+
 @app.get("/export/hs-fill/{lid:int}/download")
 async def export_hs_fill_download(req: Request, lid: int):
     """채운 인보이스 내려받기 — 올린 이름 그대로(이음 방에 그대로 올리면 된다)."""

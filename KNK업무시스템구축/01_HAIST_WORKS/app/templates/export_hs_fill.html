@@ -48,7 +48,7 @@
   </div>
 
   <div class="hf-steps">
-    <div class="hf-step"><b class="n">1</b><b>본사</b> — 인보이스(.xlsx)를 아래 ①에 올림 → <b>채운 파일 내려받기</b> → 이음 방에 그대로 올림
+    <div class="hf-step"><b class="n">1</b><b>본사</b> — <b>표준 양식</b>으로 인보이스 작성 → 아래 ①에 올림 → <b>채운 파일 내려받기</b> → 이음 방에 그대로 올림
       <div class="hf-sub">사진·서식·인쇄 설정은 그대로 · 색칠하는 HS·Tên hàng 칸은 인쇄 영역(A~I) 밖이라 세관용 출력에 안 찍힙니다</div></div>
     <div class="hf-step"><b class="n">2</b><b>법인</b> — <span class="sw y"></span> 노란 칸만 HS CODE·Tên hàng 을 채워 회신
       <div class="hf-sub"><span class="sw o"></span> 주황 칸은 채운 값이 맞는지 확인만 · 흰 칸은 사전 확정 값</div></div>
@@ -59,6 +59,18 @@
   {# ① 보내기 전 #}
   <div class="hf-card" id="hfFillCard">
     <h3>① 보내기 전 — 인보이스 올리기</h3>
+    {# z1191m (대표 지시 2026-10-27): 표준 양식 내려받기 — 공통 정보는 미리 적힌 빈 양식 #}
+    <div class="hf-forms" style="margin:8px 0 10px;padding:10px 12px;border:1px dashed #15803d;border-radius:8px;background:#f0fdf4;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <b style="font-size:12.5px;">📄 표준 양식 내려받기</b>
+        <a class="hf-btn ghost" style="padding:5px 12px;font-size:12px;" href="/export/hs-fill/form/suchaek">수책 양식(설비 부품)</a>
+        <a class="hf-btn ghost" style="padding:5px 12px;font-size:12px;" href="/export/hs-fill/form/somo">소모품 양식</a>
+      </div>
+      <div class="hf-sub" style="margin-top:6px;">
+        보내는 곳(KNK)·받는 곳(KNK VINA)·담당·T/T·INCOTERMS·인천→하노이·서명은 <b>미리 적혀 있습니다</b>.
+        <b>인보이스 번호·날짜·선적일</b>과 <b>품목 줄(INVOICE·PACKING LIST 두 시트)</b>만 채우세요 — 남는 빈 줄은 지우면 합계 수식이 알아서 맞춰집니다.
+      </div>
+    </div>
     <div class="hf-sub">최종 양식(<b>수책</b>·<b>소모품</b>) 인보이스 .xlsx 한 개 — 다른 양식도 머리글('HS CODE'·'Tên hàng'·'Description')로 칸을 찾습니다.</div>
     <div style="margin-top:8px;"><input type="file" id="hfFile" accept=".xlsx"></div>
     <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
