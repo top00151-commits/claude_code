@@ -179,7 +179,8 @@
       </details>
       {% endif %}
       {% if hist.invs %}
-      <details class="hf-det"><summary>등록된 인보이스 목록 {{ hist.n }}개</summary>
+      {# z1191q (대표 10-27 「완료된 표가 안나는데」): 목록은 펼친 채로 — 접혀 있으면 등록이 안 된 것처럼 보였다 #}
+      <details class="hf-det" open><summary>등록된 인보이스 목록 {{ hist.n }}개</summary>
         <div class="hf-scroll" style="margin-top:6px;"><table class="hf-tbl">
           <thead><tr><th>인보이스</th><th>날짜</th><th>통관 구분</th><th>파일</th><th class="num">줄</th><th class="num">금액 합계</th><th>들어온 곳 · 사람 · 때</th></tr></thead>
           <tbody>
@@ -227,6 +228,13 @@
     return t.length ? '<div class="hf-ev">' + esc(t.join(' · ')) + '</div>' : '';
   }
   function cut(s, n){ s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
+  /* z1191q (대표 10-27 「파일 이름도 그대로 있고」): 처리가 끝나면 고른 파일과 상자 안 이름을 지운다 —
+     남아 있으면 아직 안 올린 것처럼 보이고, 다시 누르면 같은 파일을 또 보낸다(공용 끌어넣기 부품은 이름을 지우지 않는다) */
+  function clearPicked(inp){
+    try { inp.value = ''; } catch(e){}
+    var z = inp.closest('.knk-dropzone'), fl = z && z.querySelector('.dz-files');
+    if(fl) fl.parentNode.removeChild(fl);
+  }
   function vnDiff(a){
     /* 적힌 값 ↔ 사전 값을 고를 때 품명도 근거 — 둘이 다르면 짧게(전체는 마우스를 올리면) */
     if(a.status !== 'CONFLICT' || !a.vn_written || !a.dict_vn || a.vn_written === a.dict_vn) return '';
@@ -338,7 +346,9 @@
     if(d.differ) dd.push('<span style="color:#b91c1c;">사전과 HS 다름 ' + d.differ + '</span>');
     if(d.kept) dd.push('사전과 같음 ' + d.kept);
     var warn = (j.kind_found && j.kind_found !== kind) ? '<div class="hf-ev" style="color:#b45309;">양식은 ' + esc(j.kind_found) + '로 보임 — 고른 ' + esc(kind) + '(으)로 넣음</div>' : '';
-    var rep = j.replaced ? '바꿈<div class="hf-ev">전에 ' + esc(SRC[j.replaced.source] || j.replaced.source || '') + '</div>' : '새로';
+    /* z1191q (대표 10-27 「등록이 완료 된거야??」): 「새로」만으로는 끝났는지 몰랐다 → 줄마다 완료를 말한다 */
+    var rep = '<span class="hf-ok" style="white-space:nowrap;">✅ 등록 완료</span><div class="hf-ev">'
+      + (j.replaced ? '같은 번호 있던 것 바꿔 넣음(전에 ' + esc(SRC[j.replaced.source] || j.replaced.source || '') + ')' : '새로 넣음') + '</div>';
     return '<td style="word-break:break-all;">' + esc(j.file) + warn + '</td>'
       + '<td class="mono">' + esc(j.invoice_no) + '<div class="hf-ev">' + esc(j.inv_date || '날짜 모름') + '</div></td>'
       + '<td class="num">' + j.lines + (j.empty_hs ? '<div class="hf-ev">HS 빈 줄 ' + j.empty_hs + '</div>' : '') + '</td>'
@@ -351,9 +361,11 @@
         kr = document.querySelector('input[name="hfHistKind"]:checked');
     if(!kr){ msg.innerHTML = '<span style="color:#b91c1c;">통관 구분(수책통관·일반통관)을 먼저 골라 주세요</span>'; return; }
     if(!inp.files || !inp.files.length){ msg.innerHTML = '<span style="color:#b91c1c;">인보이스 파일을 골라 주세요</span>'; return; }
-    var kind = kr.value, files = Array.prototype.slice.call(inp.files), n = files.length, ok = 0;
+    var kind = kr.value, files = Array.prototype.slice.call(inp.files), n = files.length, ok = 0,
+        tot = {lines: 0, same: 0, added: 0, pending: 0};
     btn.disabled = true;
-    out.innerHTML = '<div class="hf-scroll" style="margin-top:8px;"><table class="hf-tbl"><thead><tr><th>파일</th><th>인보이스 · 날짜</th><th class="num">줄</th><th>원본↔저장</th><th>HS 사전</th><th>이력</th></tr></thead><tbody></tbody></table></div>';
+    out.innerHTML = '<div class="hf-hist-done"></div>'
+      + '<div class="hf-scroll" style="margin-top:8px;"><table class="hf-tbl"><thead><tr><th>파일</th><th>인보이스 · 날짜</th><th class="num">줄</th><th>원본↔저장</th><th>HS 사전</th><th>이력</th></tr></thead><tbody></tbody></table></div>';
     var body = out.querySelector('tbody');
     for(var i = 0; i < n; i++){
       var f = files[i], tr = document.createElement('tr');
@@ -366,10 +378,24 @@
         var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
         if(!j.ok){ tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" style="color:#b91c1c;">' + esc(j.error || '등록하지 못했습니다') + '</td>'; continue; }
         tr.innerHTML = histRow(j, kind); ok++;
+        tot.lines += j.lines || 0; tot.same += (j.check && j.check.ok) ? 1 : 0;
+        tot.added += (j.dict || {}).added || 0; tot.pending += (j.dict || {}).pending || 0;
       } catch(e){ tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" style="color:#b91c1c;">통신이 끊겼습니다 — ' + esc(e) + '</td>'; }
     }
-    msg.innerHTML = '<span class="hf-ok">✓ ' + esc(kind) + ' ' + ok + '/' + n + '개 등록</span>'
-      + (ok < n ? ' <span style="color:#b91c1c;">· 못 넣은 파일 ' + (n - ok) + '개(빨간 줄)</span>' : '');
+    /* z1191q (대표 10-27 「완료된 표가 안나는데… 파일 이름도 그대로 있고」): 끝나면 완료를 크게 말하고, 고른 파일 이름은 지운다
+       (남아 있으면 아직 안 올린 것처럼 보인다 · 다음 구분을 고를 때 헷갈림) */
+    var done = out.querySelector('.hf-hist-done');
+    if(ok){
+      done.innerHTML = '<div class="hf-final">' + (ok === n ? '✅ ' : '⚠ ') + esc(kind) + ' ' + (ok === n ? n + '개 등록 완료' : n + '개 중 ' + ok + '개 등록') + ' — 품목 '
+        + tot.lines.toLocaleString('en-US') + '줄 · 원본↔저장 ' + tot.same + '개 모두 같음'
+        + ' · HS 사전 새 규격 확정 ' + tot.added + (tot.pending ? ' · 확인 대기 ' + tot.pending : '')
+        + (ok < n ? ' · <span style="color:#b91c1c;">못 넣은 ' + (n - ok) + '개는 아래 표의 빨간 줄(까닭)</span>' : '')
+        + '<div style="font-weight:400;font-size:12px;margin-top:3px;">위 「등록된 인보이스 목록」에 들어 있습니다 · 다른 통관 구분도 있으면 구분을 바꿔 올려 주세요.</div></div>';
+    }
+    msg.innerHTML = ok ? '<span class="hf-ok">✅ 등록 완료 — ' + esc(kind) + ' ' + ok + '/' + n + '개</span>'
+      + (ok < n ? ' <span style="color:#b91c1c;">· 못 넣은 파일 ' + (n - ok) + '개(빨간 줄)</span>' : '')
+      : '<span style="color:#b91c1c;">등록한 파일이 없습니다(아래 빨간 줄의 까닭)</span>';
+    clearPicked(inp);
     btn.disabled = false;
     if(ok) hfReloadLog();
   };
@@ -394,6 +420,7 @@
       } catch(e){ slot.innerHTML = '<div class="hf-err"><b>' + esc(f.name) + '</b> — 통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
     }
     msg.innerHTML = ok ? '<span class="hf-ok">✓ 채웠습니다' + (n > 1 ? ' (' + ok + '/' + n + ')' : '') + '</span>' : '';
+    clearPicked(inp);
     btn.disabled = false;
     if(ok) hfReloadLog();
   };
@@ -455,6 +482,7 @@
         h += '</div>';
       });
       out.innerHTML = h;
+      clearPicked(inp);
       hfReloadLog();
     } catch(e){ msg.textContent = ''; out.innerHTML = '<div class="hf-err">통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
     finally { btn.disabled = false; }
