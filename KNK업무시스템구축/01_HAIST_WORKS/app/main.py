@@ -42610,9 +42610,14 @@ def _hs_dict_ensure(c):
     # v5H226z1044: 검토표 왕복 추적 — '누가(어느 검토표가) 이 값을 확정했나'.
     #   두 담당자(한국·베트남)가 같은 부품을 다르게 적어 왔을 때 충돌을 알아보려면 이 두 칸이 필요하다.
     _hcols = {r[1] for r in c.execute("PRAGMA table_info(export_hs_dict)").fetchall()}
-    for _cn in ("review_file", "review_at"):
+    # z1191p: hist_reg_at = 「지난 수출 등록」이 넣은 줄의 표시(그 뒤 사람이 고치지 않은 줄만 이력에 맞춰 다시 셈)
+    for _cn in ("review_file", "review_at", "hist_reg_at"):
         if _cn not in _hcols:
-            c.execute(f"ALTER TABLE export_hs_dict ADD COLUMN {_cn} TEXT")
+            try:
+                c.execute(f"ALTER TABLE export_hs_dict ADD COLUMN {_cn} TEXT")
+            except Exception as _e:   # 두 요청이 동시에 넣으면 한쪽은 'duplicate column' — 이미 있으니 됐다
+                if "duplicate column" not in str(_e).lower():
+                    raise
     if c.execute("SELECT COUNT(*) FROM export_hs_dict").fetchone()[0]:
         return 0
     import csv as _csv
@@ -43570,6 +43575,8 @@ async def export_hs_dict_upload(req: Request):
             _res = _hs_learn_invoice_rows(c, rows, fname, today, u)
             # z1191l: 자동 채움으로 보낸 인보이스의 회신이면 '회신 대기'를 푼다(같은 인보이스 번호 · 없으면 파일 이름)
             _res["log"] = _hs_fill_log_mark_reply(c, raw, fname, _res, u)
+            # z1191p: 최종 인보이스는 지난 수출 이력에도(같은 번호면 바꿔 넣음 · 사전은 위 z967 규칙 그대로)
+            _res["hist"] = _hs_hist_from_raw(c, raw, fname, "dict", u)
             results.append(_res)
     return JSONResponse({"ok": True, "results": results})
 
@@ -43690,10 +43697,16 @@ def _hs_fill_entries(c) -> list:
 
 def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
     """① 결과(그리고 본사 확정 뒤 다시 만든 결과) → 화면이 그리는 JSON.
-    z1191n: 셈은 칸 색으로(hs_fill.counts) — 품명만 노란 줄도 '법인 입력' · 노랑·주황이 하나도 없으면 no_reply(받은 파일이 최종)."""
+    z1191n: 셈은 칸 색으로(hs_fill.counts) — 품명만 노란 줄도 '법인 입력' · 노랑·주황이 하나도 없으면 no_reply(받은 파일이 최종).
+    z1191p: hist = 지난 수출 이력과 비교(단가 ±20% 넘게 다른 줄 · HS 다른 줄 · 노랑·주황 줄 근거) — 화면에만(이음 글·파일에는 안 넣음)."""
     from . import hs_fill as _hf
     cn = res["counts"]
     forms = sorted({s["form"] for s in res["scan"]["sheets"]})
+    with db_session() as c:
+        past = _hs_hist_past(c, {a["key"] for a in res["acts"]})
+        n_hist = c.execute("SELECT COUNT(*) FROM export_hist_inv").fetchone()[0]
+    prices = {(s["title"], it["row"]): it.get("price") for s in res["scan"]["sheets"] for it in s["items"]}
+    cmp = _hf.compare(res["acts"], prices, past, res["scan"]["invoice_no"] or "")
     attention = []
     for a in res["acts"]:
         cat = _hf.category(a)
@@ -43704,7 +43717,9 @@ def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
                           "dict_model": a["dict_model"], "dict_status": a["dict_status"],
                           "hs_written": a["hs_written"], "choices": a["choices"],
                           # z1191n: 고를 때 품명도 근거 — 적힌 품명과 사전 품명이 다르면 화면이 함께 보여 준다
-                          "vn_written": (a.get("vn_written") or "")[:160], "dict_vn": (a.get("dict_vn") or "")[:160]})
+                          "vn_written": (a.get("vn_written") or "")[:160], "dict_vn": (a.get("dict_vn") or "")[:160],
+                          # z1191p: 지난 수출 근거(같은 규격이 몇 번 · 어떤 HS · 마지막 인보이스)
+                          "hist_ev": cmp["ev"].get((a["sheet"], a["row"]), "")})
     hint = ""
     if cn["total"] and cn["keep"] >= cn["total"] * 0.8:
         hint = ("이미 HS 가 거의 다 채워진 파일입니다 — 법인 회신 파일이면 아래 ③ [회신 반영]에 올려 주세요"
@@ -43729,7 +43744,9 @@ def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
            "sheets": [{"title": s["title"], "items": len(s["items"])} for s in res["scan"]["sheets"]],
            "summary": {k: cn[k] for k in ("total", "auto", "check", "need", "keep")}, "no_reply": cn["no_reply"],
            "attention": attention[:400], "hint": hint, "message": msg,
-           "download_url": "/export/hs-fill/%d/download" % lid}
+           "download_url": "/export/hs-fill/%d/download" % lid,
+           "hist": {"n_inv": n_hist, "matched": cmp["matched"], "checked": cmp["checked"], "tol": _hf.HIST_PRICE_TOL,
+                    "price": cmp["price"][:300], "hs": cmp["hs"][:300]}}
     out.update(extra or {})
     return out
 
@@ -43757,9 +43774,10 @@ async def export_hs_fill_page(req: Request):
             # z1191n (대표 「전부 자동이면 법인 회신이 필요없는 사항인데」): 노랑·주황이 하나도 없던(또는 본사가 다 확정한)
             #   인보이스는 회신을 기다리지 않는다 — 받은 파일이 최종 파일
             lg["no_reply"] = (not lg.get("reply_at")) and not (lg.get("n_need") or 0) and not (lg.get("n_check") or 0)
+        hist = _hs_hist_summary(c)
     waiting = sum(1 for lg in logs if not lg.get("reply_at") and not lg.get("no_reply"))
     return ctx(req, "export_hs_fill.html", user=u, active="export", logs=logs, waiting=waiting,
-               confirmed=stats.get("CONFIRMED", 0), total=sum(stats.values()))
+               confirmed=stats.get("CONFIRMED", 0), total=sum(stats.values()), hist=hist)
 
 
 @app.post("/export/hs-fill")
@@ -43814,7 +43832,9 @@ async def export_hs_fill_run(req: Request):
             (res["scan"]["invoice_no"], fname, "·".join(forms), stored, orig, out_sha, cn["total"], cn["auto"], cn["check"],
              cn["need"], cn["keep"], u.get("id")))
         lid = cur.lastrowid
-    return JSONResponse(_hs_fill_payload(lid, fname, res))
+    # z1191p: 노랑·주황이 없으면 받은 파일이 최종 — 지난 수출 이력에도 넣는다(같은 번호면 바꿔 넣음 · 번호 없으면 안 넣음)
+    extra = {"hist_saved": await run_in_threadpool(_hs_hist_record_out, res["out"], fname, u)} if cn["no_reply"] else None
+    return JSONResponse(_hs_fill_payload(lid, fname, res, extra))
 
 
 # z1191n (대표 2026-10-27 「사전 확정을 하고 싶을때 어떻게해??」 → 「진행해」): ① 결과에서 본사가 그 줄의 HS 를 고른다.
@@ -43926,8 +43946,11 @@ def _hs_fill_confirm_do(lid: int, sheet: str, row: int, hs: str, u) -> dict:
         with db_session() as c:
             c.execute("UPDATE export_hs_fill_log SET out_sha=?, out_sha_hist=?, n_total=?, n_auto=?, n_check=?, n_need=?, n_keep=? "
                       "WHERE id=?", (new_sha, ",".join(hist[-30:]), cn["total"], cn["auto"], cn["check"], cn["need"], cn["keep"], lid))
-    return _hs_fill_payload(lid, lg.get("file_name") or "", res2,
-                            {"confirmed": {"row": row, "desc": a["desc"], "hs": hs, "prev": prev, "dict_changed": dict_changed}})
+    extra = {"confirmed": {"row": row, "desc": a["desc"], "hs": hs, "prev": prev, "dict_changed": dict_changed}}
+    if cn["no_reply"]:
+        # z1191p: 본사 확정으로 노랑·주황이 다 풀리면 이 파일이 최종 — 지난 수출 이력에도(같은 번호면 바꿔 넣음)
+        extra["hist_saved"] = _hs_hist_record_out(res2["out"], lg.get("file_name") or "", u)
+    return _hs_fill_payload(lid, lg.get("file_name") or "", res2, extra)
 
 
 @app.post("/export/hs-fill/{lid:int}/confirm")
@@ -44067,8 +44090,293 @@ async def export_hs_fill_reply(req: Request):
             r["empty_rows"] = empties[:50]
             r["six"] = six
             r["log"] = _hs_fill_log_mark_reply(c, raw, fname, r, u)
+            # z1191p: 법인 회신 = 최종 인보이스 → 지난 수출 이력(같은 번호면 바꿔 넣음 · 사전은 위 z967 규칙 그대로)
+            r["hist"] = _hs_hist_save_safe(c, sc, fname, _hf.kind_of(sc), "reply", u)
             results.append(r)
     return JSONResponse({"ok": True, "results": results})
+
+
+# ------------------------------------------------------------
+# z1191p (대표 2026-10-27 「지금 경로를 하나 줄꺼야... 이건 올해 수출한 내용을 수책통관, 일반통관 정리한 파일이야...
+#   최종 인보이스 양식이 아니라 조금씩 달라... 예전 파일을 보고 HS코드 및 금액도 비교할수있게 미리 등록을 해 줬으면해...」
+#   → 제안 ①지난 수출 이력 ②등록 칸 ③① 결과에 비교 ④사전에 없는 규격은 사전에 → 「진행해」):
+#   · 이력 = 인보이스(번호)마다 품목 줄 — 같은 번호를 다시 올리면 바꿔 넣는다(두 번 세지 않음) · 원본↔저장 줄마다 대조
+#   · 📚 등록만 HS 사전을 건드린다 — 사전에 없는 규격은 넣고(이력끼리 HS 갈림 · 같은 모델이 사전에 확정으로 다른 HS → '확인 대기'),
+#     원래 있던 사전 줄은 건드리지 않는다(횟수 두 번 세기·상태 바뀜 방지 — HS 가 다르면 화면 목록으로만)
+#   · 앞으로: ③ 법인 회신 · HS 사전에 올린 최종 인보이스 · ① '회신 필요 없음'(받은 파일이 최종)도 이력에 쌓인다(사전은 원래 규칙대로)
+#   · ① 결과 비교(단가 ±20% · HS 다름)는 본사 화면에만 — 법인에 보내는 파일·이음 방 글에는 단가를 넣지 않는다
+#   ⚠운영 SQLite 3.31 — RETURNING 없음 · 한 질의에 값 999개까지(IN 은 나눠서)
+# ------------------------------------------------------------
+_HS_HIST_SRC = {"register": "📚 등록", "reply": "③ 회신", "dict": "HS 사전 올림", "fill": "① 회신 필요 없음"}
+
+
+def _hs_hist_ensure(c):
+    """지난 수출 이력 표 — 인보이스 한 장(번호)마다 한 줄 + 품목 줄."""
+    c.execute("""CREATE TABLE IF NOT EXISTS export_hist_inv (
+        invoice_no TEXT PRIMARY KEY, inv_date TEXT, kind TEXT, file_name TEXT, source TEXT,
+        n_lines INTEGER, total_amount REAL, reg_by INTEGER, reg_at TEXT DEFAULT (datetime('now','localtime')))""")
+    c.execute("""CREATE TABLE IF NOT EXISTS export_hist_line (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_no TEXT NOT NULL, inv_date TEXT, kind TEXT,
+        sheet TEXT, row_no INTEGER, part_key TEXT, descr TEXT,
+        qty REAL, unit_price REAL, amount REAL, hs_code TEXT, vn_name TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_export_hist_line_key ON export_hist_line(part_key)")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_export_hist_line_inv ON export_hist_line(invoice_no)")
+
+
+class _HsHistMismatch(Exception):
+    """원본↔저장 대조가 다름 — 그 인보이스는 저장하지 않고 되돌린다."""
+
+
+def _hs_hist_same(a, b) -> bool:
+    if a is None or b is None:
+        return a is None and b is None
+    return abs(float(a) - float(b)) <= 1e-9 * max(1.0, abs(float(b)))
+
+
+def _hs_hist_save(c, sc, fname, kind, source, u) -> dict:
+    """인보이스 한 장 → 이력(같은 번호면 바꿔 넣음) + **원본↔저장 줄마다 대조**(대표 규정: 엑셀 업로드는 원본↔저장 전항목 대조 ·
+    다르게 저장 금지 → 한 줄이라도 다르면 _HsHistMismatch — 이 인보이스는 저장 전으로 되돌린다).
+    반환 {invoice_no, inv_date, kind, lines, empty_hs, total_amount, replaced:{source,file}|None, check:{ok,n}}
+    · 번호(KNK-…)가 없으면 {"error"} — 이름으로 묶으면 표준 양식 이름 그대로 쓴 다른 인보이스를 덮을 수 있다."""
+    from . import hs_fill as _hf
+    ino = sc.get("invoice_no") or ""
+    if not ino:
+        return {"error": "인보이스 번호(KNK-…)가 없어 이력에 넣지 않았습니다"}
+    lines = _hf.hist_lines(sc)
+    if not lines:
+        return {"error": "품목 줄이 없습니다"}
+    d = _hf.date_of(sc)
+    _hs_hist_ensure(c)
+    old = c.execute("SELECT source, file_name FROM export_hist_inv WHERE invoice_no=?", (ino,)).fetchone()
+    tot = round(sum(ln["amount"] or 0 for ln in lines), 4)
+    c.execute("SAVEPOINT hs_hist")
+    try:
+        c.execute("DELETE FROM export_hist_line WHERE invoice_no=?", (ino,))
+        c.execute("DELETE FROM export_hist_inv WHERE invoice_no=?", (ino,))
+        c.executemany(
+            "INSERT INTO export_hist_line(invoice_no,inv_date,kind,sheet,row_no,part_key,descr,qty,unit_price,amount,hs_code,vn_name) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            [(ino, d, kind, ln["sheet"], ln["row"], ln["key"], ln["desc"], ln["qty"], ln["price"], ln["amount"], ln["hs"], ln["vn"])
+             for ln in lines])
+        c.execute("INSERT INTO export_hist_inv(invoice_no,inv_date,kind,file_name,source,n_lines,total_amount,reg_by) "
+                  "VALUES(?,?,?,?,?,?,?,?)", (ino, d, kind, fname, source, len(lines), tot, (u or {}).get("id")))
+        got = c.execute("SELECT sheet, row_no, part_key, descr, qty, unit_price, amount, hs_code, vn_name FROM export_hist_line "
+                        "WHERE invoice_no=? ORDER BY id", (ino,)).fetchall()
+        bad = abs(len(got) - len(lines))
+        for g, ln in zip(got, lines):
+            if ((g["sheet"], g["row_no"], g["part_key"], g["descr"], g["hs_code"], g["vn_name"])
+                    != (ln["sheet"], ln["row"], ln["key"], ln["desc"], ln["hs"], ln["vn"])
+                    or not (_hs_hist_same(g["qty"], ln["qty"]) and _hs_hist_same(g["unit_price"], ln["price"])
+                            and _hs_hist_same(g["amount"], ln["amount"]))):
+                bad += 1
+        if bad:
+            raise _HsHistMismatch("원본↔저장 대조에서 %d줄이 달라 이 인보이스는 저장하지 않았습니다" % bad)
+        c.execute("RELEASE hs_hist")
+    except Exception:
+        c.execute("ROLLBACK TO hs_hist")
+        c.execute("RELEASE hs_hist")
+        raise
+    return {"invoice_no": ino, "inv_date": d, "kind": kind, "lines": len(lines),
+            "empty_hs": sum(1 for ln in lines if not ln["hs"]), "total_amount": tot,
+            "replaced": {"source": old["source"], "file": old["file_name"]} if old else None,
+            "check": {"ok": True, "n": len(got)}}
+
+
+def _hs_hist_save_safe(c, sc, fname, kind, source, u) -> dict:
+    """③·HS 사전 올림처럼 이력이 덤인 곳 — 이력이 실패해도 본래 일(사전 반영)은 막지 않는다(실패는 결과에 보이고 로그에 남는다)."""
+    try:
+        return _hs_hist_save(c, sc, fname, kind, source, u)
+    except Exception as e:
+        log.warning("hs hist save fail %s: %s", fname, e)
+        return {"error": str(e)[:150]}
+
+
+def _hs_hist_from_raw(c, raw: bytes, fname: str, source: str, u) -> dict:
+    """올린 파일(HS 사전 화면의 최종 인보이스) → 이력 — 읽기 실패도 결과에만 남기고 본래 일은 막지 않는다."""
+    from . import hs_fill as _hf
+    try:
+        sc = _hf.scan(raw)
+    except Exception as e:
+        log.warning("hs hist scan fail %s: %s", fname, e)
+        return {"error": "이력: 파일을 읽지 못했습니다 — %s" % str(e)[:100]}
+    return _hs_hist_save_safe(c, sc, fname, _hf.kind_of(sc), source, u)
+
+
+def _hs_hist_record_out(data: bytes, fname: str, u) -> dict:
+    """① '회신 필요 없음' — 받은 파일(채운 결과)이 최종이니 그 파일로 이력에 넣는다(일꾼 스레드 · 실패해도 ① 은 그대로)."""
+    from . import hs_fill as _hf
+    try:
+        sc = _hf.scan(data)
+        with db_session() as c:
+            return _hs_hist_save(c, sc, fname, _hf.kind_of(sc), "fill", u)
+    except Exception as e:
+        log.warning("hs hist record fail %s: %s", fname, e)
+        return {"error": str(e)[:150]}
+
+
+def _hs_hist_past(c, keys) -> dict:
+    """규격 키들 → {키: [{id, invoice_no, inv_date, kind, hs, price}]} — ① 결과 비교용(운영 SQLite 3.31: 400개씩 나눠 묻는다)."""
+    _hs_hist_ensure(c)
+    ks = sorted(k for k in keys if k)
+    out = {}
+    for i in range(0, len(ks), 400):
+        part = ks[i:i + 400]
+        for r in c.execute("SELECT id, part_key, invoice_no, inv_date, kind, hs_code, unit_price FROM export_hist_line "
+                           "WHERE part_key IN (%s)" % ",".join("?" * len(part)), part):
+            out.setdefault(r["part_key"], []).append({"id": r["id"], "invoice_no": r["invoice_no"], "inv_date": r["inv_date"] or "",
+                                                      "kind": r["kind"] or "", "hs": r["hs_code"] or "", "price": r["unit_price"]})
+    return out
+
+
+def _hs_hist_dict_sync(c, keys, fname, u) -> dict:
+    """📚 등록만: 이력 → HS 사전. 반환 {added, pending, synced, differ, kept}
+    · 사전에 없는 규격 → 넣는다: 이력 HS 가 하나면 '확정' · 이력끼리 갈리면 '확인 대기' ·
+      같은 모델이 사전에 확정으로 다른 HS 면 '확인 대기' — ③ 회신 학습(`_hs_learn_invoice_rows` z1191l)과 **같은 규칙**
+      (색인은 파일마다 한 번 · lookup 이 'token' 일 때만 — 따로 더 엄격하게 짰더니 'WATCH9'·'SM-F971U' 같은 제품군 이름만 같은
+       부품(핀 블록·PCB)을 검사 장비와 같은 모델로 묶어 실물 54개에서 확인 대기가 17 → 28 로 늘었다 · 10-27 실측)
+    · 이 등록이 넣은 줄(hist_reg_at)이고 그 뒤 아무도 안 고쳤으면(updated_at = hist_reg_at) → 횟수·처음·마지막·HS 를 이력에 맞추고,
+      이력끼리 HS 가 갈리면 '확인 대기'(같은 모델 충돌로 넣은 '확인 대기'는 그대로)
+    · 그 밖의 사전 줄(원래 있던 것 · 사람·회신이 고친 것)은 건드리지 않는다 — HS 가 다르면 differ 로 세기만(화면 목록)."""
+    from . import hs_fill as _hf
+    res = {"added": 0, "pending": 0, "synced": 0, "differ": 0, "kept": 0}
+    if not keys:
+        return res
+    now = c.execute("SELECT datetime('now','localtime')").fetchone()[0]
+    idx = _hf.build_index([dict(r) for r in c.execute(
+        "SELECT part_key, model, hs_code, vn_name, status, seen_count FROM export_hs_dict")])
+    uid = (u or {}).get("id")
+    for k in sorted(keys):
+        rows = c.execute("SELECT invoice_no, inv_date, hs_code, descr, vn_name FROM export_hist_line "
+                         "WHERE part_key=? AND hs_code<>'' ORDER BY inv_date, id", (k,)).fetchall()
+        if not rows:
+            continue
+        ex = c.execute("SELECT id, hs_code, status, note, hist_reg_at, updated_at FROM export_hs_dict WHERE part_key=?",
+                       (k,)).fetchone()
+        last = rows[-1]
+        if ex and not (ex["hist_reg_at"] and (ex["updated_at"] or "") == ex["hist_reg_at"]):
+            res["differ" if _hf.digits(ex["hs_code"]) != last["hs_code"] else "kept"] += 1
+            continue
+        hinv = {}       # HS 마다 몇 번(인보이스 수 — 한 인보이스의 여러 줄은 한 번)
+        for r in rows:
+            hinv.setdefault(r["hs_code"], set()).add(r["invoice_no"])
+        hcnt = {h: len(s) for h, s in hinv.items()}
+        invs = {r["invoice_no"] for r in rows}
+        dates = sorted(r["inv_date"] for r in rows if r["inv_date"])
+        d0, d1 = (dates[0], dates[-1]) if dates else (None, None)
+        vn = next((r["vn_name"] for r in reversed(rows) if (r["vn_name"] or "").strip()), "") or ""
+        hs = last["hs_code"]
+        if len(hcnt) > 1:
+            st = "PENDING"
+            note = "지난 수출 등록 · 이력끼리 HS 갈림: %s (마지막 %s)" % (
+                " · ".join("%s×%d" % x for x in sorted(hcnt.items(), key=lambda x: (-x[1], x[0]))), last["invoice_no"])
+        elif ex is not None and ex["status"] == "PENDING" and "같은 모델" in (ex["note"] or ""):
+            st, note = "PENDING", ex["note"]        # 넣을 때 같은 모델 충돌이었던 줄 — 사람이 고를 때까지 그대로
+        else:
+            st, note = "CONFIRMED", "지난 수출 등록: %d번 (%s ~ %s)" % (len(invs), d0 or "?", d1 or "?")
+            if ex is None:
+                way, e, _memo = _hf.lookup(idx, last["descr"])
+                if way == "token" and _hf.digits(e.get("hs_code")) != hs:
+                    st = "PENDING"
+                    note = "지난 수출 등록 · 충돌: 같은 모델 사전 %s = %s ↔ 지난 수출 %s (%s)" % (
+                        e.get("model") or e.get("part_key"), _hf.digits(e.get("hs_code")), hs, last["invoice_no"])
+        name_en = vn.split("#&")[0].strip() if "#&" in vn else ""
+        if ex is None:
+            c.execute(
+                "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,first_seen,last_seen,"
+                "source_file,note,updated_by,updated_at,hist_reg_at) VALUES(?,?,?,?,?,'',?,?,?,?,?,?,?,?,?)",
+                (k, last["descr"], name_en, vn, hs, st, len(invs), d0, d1, fname, note, uid, now, now))
+            res["added" if st == "CONFIRMED" else "pending"] += 1
+        else:
+            c.execute(
+                "UPDATE export_hs_dict SET model=?, name_en=CASE WHEN ?<>'' THEN ? ELSE name_en END, "
+                "vn_name=CASE WHEN ?<>'' THEN ? ELSE vn_name END, hs_code=?, status=?, seen_count=?, first_seen=?, last_seen=?, "
+                "source_file=?, note=?, updated_by=?, updated_at=?, hist_reg_at=? WHERE id=?",
+                (last["descr"], name_en, name_en, vn, vn, hs, st, len(invs), d0, d1, fname, note, uid, now, now, ex["id"]))
+            res["synced"] += 1
+    return res
+
+
+def _hs_hist_summary(c) -> dict:
+    """📚 칸 — 등록된 인보이스 수(통관 구분별)·줄·기간 · 인보이스 목록(최근 300) · 사전과 HS 다른 규격(이력의 마지막 HS 기준)."""
+    _hs_hist_ensure(c)
+    s = c.execute("SELECT COUNT(*) n, COALESCE(SUM(n_lines),0) l, MIN(inv_date) d0, MAX(inv_date) d1 FROM export_hist_inv").fetchone()
+    by = {(r["kind"] or ""): r["n"] for r in c.execute("SELECT kind, COUNT(*) n FROM export_hist_inv GROUP BY kind")}
+    kinds = [(k or "구분 모름", by[k]) for k in ("수책통관", "일반통관", "") if by.get(k)]
+    kinds += [(k, n) for k, n in by.items() if k not in ("수책통관", "일반통관", "")]
+    invs = [dict(r) for r in c.execute("SELECT * FROM export_hist_inv ORDER BY inv_date DESC, invoice_no DESC LIMIT 300")]
+    for iv in invs:
+        iv["src_name"] = _HS_HIST_SRC.get(iv.get("source") or "", iv.get("source") or "")
+        iv["reg_name"] = user_disp_by_id(c, iv["reg_by"]) if iv.get("reg_by") else ""
+        iv["amount_txt"] = "{:,.2f}".format(iv.get("total_amount") or 0)
+    from . import hs_fill as _hf
+    # 사전 HS 는 점·공백이 섞여 저장된 줄이 있을 수 있다 → 숫자만 맞대어 본다(SQL 글자 비교로 거르면 같은 값을 다르다고 센다)
+    differ = [dict(r) for r in c.execute(
+        "SELECT l.part_key, l.descr, l.hs_code AS hist_hs, l.invoice_no, l.inv_date, d.hs_code AS dict_hs, d.status AS dict_status, "
+        "(SELECT COUNT(DISTINCT x.invoice_no) FROM export_hist_line x WHERE x.part_key=l.part_key) AS n "
+        "FROM export_hist_line l JOIN export_hs_dict d ON d.part_key=l.part_key "
+        "WHERE l.hs_code<>'' AND l.id=(SELECT y.id FROM export_hist_line y WHERE y.part_key=l.part_key AND y.hs_code<>'' "
+        "ORDER BY y.inv_date DESC, y.id DESC LIMIT 1) "
+        "ORDER BY l.inv_date DESC, l.part_key")
+        if _hf.digits(r["dict_hs"]) != r["hist_hs"]]
+    return {"n": s["n"], "lines": s["l"], "lines_txt": "{:,}".format(s["l"] or 0), "d0": s["d0"] or "", "d1": s["d1"] or "",
+            "kinds": kinds, "invs": invs, "differ": differ[:300], "n_differ": len(differ)}
+
+
+def _hs_hist_register_work(raw: bytes, fname: str, kind: str, u) -> tuple:
+    """📚 등록 한 장(일꾼 스레드) — 읽기(큰 파일은 몇 초)는 DB 밖에서, 쓰기는 짧게. 막힘은 (코드, JSON) 값으로 돌려준다
+    (z1191n 교훈: 예외를 스레드 밖으로 던지면 압축 처리기를 붙잡는 고리가 생긴다)."""
+    from . import hs_fill as _hf
+    import zipfile as _zf
+    try:
+        sc = _hf.scan(raw)
+    except _zf.BadZipFile:
+        return 400, {"ok": False, "file": fname, "error": "엑셀(.xlsx) 파일이 아닙니다 — 예전 형식(.xls)이면 .xlsx 로 저장해서 올려 주세요"}
+    except Exception as e:
+        log.warning("hs hist scan fail %s: %s", fname, e)
+        return 400, {"ok": False, "file": fname, "error": "파일을 읽지 못했습니다 — %s" % str(e)[:120]}
+    lines = _hf.hist_lines(sc)
+    if not lines:
+        return 400, {"ok": False, "file": fname, "error": "인보이스 품목을 찾지 못했습니다 — 'HS CODE'·'Description' 머리글과 품목 줄이 필요합니다"}
+    empty = sum(1 for ln in lines if not ln["hs"])
+    if empty * 2 >= len(lines):
+        return 400, {"ok": False, "file": fname,
+                     "error": "HS 가 빈 줄이 %d/%d줄입니다 — 지난 수출 등록은 HS 가 채워진 최종 인보이스만 받습니다" % (empty, len(lines))}
+    try:
+        with db_session() as c:
+            _hs_dict_ensure(c)
+            r = _hs_hist_save(c, sc, fname, kind, "register", u)
+            if r.get("error"):
+                return 400, {"ok": False, "file": fname, "error": r["error"]}
+            r["dict"] = _hs_hist_dict_sync(c, {ln["key"] for ln in lines if ln["hs"]}, fname, u)
+    except _HsHistMismatch as e:
+        return 409, {"ok": False, "file": fname, "error": str(e)}
+    r.update(ok=True, file=fname, kind_found=_hf.kind_of(sc))
+    return 200, r
+
+
+@app.post("/export/hs-fill/hist")
+async def export_hs_fill_hist(req: Request):
+    """z1191p 📚 지난 수출 인보이스 등록 — 한 번에 1개(화면이 여러 개를 차례로 보낸다) · 통관 구분은 사람이 고른 값."""
+    u = _export_guard(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    from . import hs_fill as _hf
+    form = await req.form()
+    kind = str(form.get("kind") or "").strip()
+    f = form.get("file")
+    fname = os.path.basename(getattr(f, "filename", "") or "") if hasattr(f, "read") else ""
+    if kind not in _hf.HIST_KINDS:
+        return JSONResponse({"ok": False, "file": fname, "error": "통관 구분(수책통관·일반통관)을 골라 주세요"}, 400)
+    if not fname:
+        return JSONResponse({"ok": False, "error": "인보이스 파일을 골라 주세요"}, 400)
+    if not fname.lower().endswith((".xlsx", ".xlsm")):
+        return JSONResponse({"ok": False, "file": fname, "error": "엑셀(.xlsx) 파일만 됩니다 — 예전 형식(.xls)이면 .xlsx 로 저장해서 올려 주세요"}, 400)
+    raw = await f.read()
+    if len(raw) > _HS_FILL_MAX_MB * 1024 * 1024:
+        return JSONResponse({"ok": False, "file": fname, "error": "파일이 너무 큽니다(%dMB 넘음)" % _HS_FILL_MAX_MB}, 400)
+    from starlette.concurrency import run_in_threadpool
+    code, out = await run_in_threadpool(_hs_hist_register_work, raw, fname, kind, u)
+    return JSONResponse(out, code)
 
 
 # ------------------------------------------------------------

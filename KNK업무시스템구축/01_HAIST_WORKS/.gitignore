@@ -16,6 +16,8 @@ uploads/
 *.db.before*
 *.db.rollback*
 data/_credentials_*.csv
+# 대표 수출 인보이스 원본(수책통관·일반통관 · 단가 포함 · 2026-10-27) — 화면으로 등록하고 git 에는 올리지 않는다
+수출자료/
 
 # 환경변수 / 비밀
 .env

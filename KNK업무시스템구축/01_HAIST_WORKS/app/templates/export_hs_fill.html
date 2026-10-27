@@ -39,6 +39,12 @@
 .hf-pick.file { border-color:#b45309; color:#b45309; }
 .hf-pick:disabled { opacity:.5; cursor:default; }
 .hf-ev { font-family:inherit; font-size:10.5px; color:var(--mute,#64748b); font-weight:400; }
+{# z1191p: 지난 수출 이력과 비교(① 결과) · 📚 등록 칸 #}
+.hf-cmp { margin-top:10px; padding:8px 12px; border-radius:8px; background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a; font-size:12px; }
+.hf-up { color:#b91c1c; font-weight:800; } .hf-down { color:#1d4ed8; font-weight:800; }
+.hf-kind label { margin-right:14px; cursor:pointer; }
+.hf-det { margin-top:8px; font-size:12px; }
+.hf-det summary { cursor:pointer; font-weight:700; color:var(--qv-ink-2,#334155); }
 @media (max-width:900px){ .hf-steps{grid-template-columns:1fr;} }
 </style>
 </head><body>
@@ -83,7 +89,8 @@
       </div>
     </div>
     <div class="hf-sub">최종 양식(<b>수책통관</b>·<b>일반통관</b>) 인보이스 .xlsx — <b>여러 개를 한꺼번에 올려도 하나씩 차례로</b> 채웁니다 ·
-      다른 양식도 머리글('HS CODE'·'Tên hàng'·'Description')로 칸을 찾습니다.</div>
+      다른 양식도 머리글('HS CODE'·'Tên hàng'·'Description')로 칸을 찾습니다 ·
+      결과에 <b>📚 지난 수출과 단가(±20% 넘게)·HS 가 다른 줄</b>도 따로 보입니다(본사 화면에만 — 법인에 보내는 파일·글에는 안 들어감).</div>
     {# z1191n: 여러 파일 — 전에는 세 개를 놓으면 첫 파일만 채우고 둘은 말없이 빠졌다(대표 10-27 화면: 261015 만) #}
     <div style="margin-top:8px;"><input type="file" id="hfFile" accept=".xlsx" multiple></div>
     <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -142,6 +149,65 @@
     <div class="hf-sub" style="margin-top:8px;">아직 기록이 없습니다.</div>
     {% endif %}
   </div>
+
+  {# z1191p (대표 2026-10-27 「예전 파일을 보고 HS코드 및 금액도 비교할수있게 미리 등록」 → 「진행해」): 지난 수출 이력 #}
+  <div class="hf-card" id="hfHistCard">
+    <h3>📚 지난 수출 인보이스 — 비교용 이력</h3>
+    {# hfHistSum: ①·③·등록 뒤 이 칸만 새로 그린다 #}
+    <div id="hfHistSum">
+      {% if hist.n %}
+      <div style="font-size:12.5px;margin:2px 0 4px;">등록된 인보이스 <b>{{ hist.n }}</b>개
+        ({% for k, n in hist.kinds %}{{ k }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %})
+        · 품목 <b>{{ hist.lines_txt }}</b>줄{% if hist.d0 %} · {{ hist.d0 }} ~ {{ hist.d1 }}{% endif %}</div>
+      {% else %}
+      <div style="font-size:12.5px;margin:2px 0 4px;color:#b45309;font-weight:700;">아직 등록된 인보이스가 없습니다 — 아래에 올해 수출 인보이스(최종본)를 통관 구분별로 올려 주세요.</div>
+      {% endif %}
+      {% if hist.n_differ %}
+      <details class="hf-det"><summary style="color:#b91c1c;">HS 사전과 HS 가 다른 규격 {{ hist.n_differ }}개 — 사전은 그대로 두었습니다(맞는 값은 HS 사전 화면에서 고름)</summary>
+        <div class="hf-scroll" style="margin-top:6px;"><table class="hf-tbl">
+          <thead><tr><th>규격(Description)</th><th>사전 HS</th><th>마지막 수출 HS</th><th>마지막 인보이스</th><th class="num">수출 횟수</th></tr></thead>
+          <tbody>
+          {% for d in hist.differ %}
+          <tr><td>{{ d.descr }}</td>
+            <td class="mono">{{ d.dict_hs or '—' }}{% if d.dict_status and d.dict_status != 'CONFIRMED' %}<div class="hf-ev">{{ {'PENDING':'확인 대기','AI':'AI 추정'}.get(d.dict_status, d.dict_status) }}</div>{% endif %}</td>
+            <td class="mono">{{ d.hist_hs }}</td><td style="font-size:11.5px;">{{ d.invoice_no }}<div class="hf-ev">{{ d.inv_date or '' }}</div></td>
+            <td class="num">{{ d.n }}</td></tr>
+          {% endfor %}
+          </tbody></table></div>
+        {% if hist.n_differ > hist.differ|length %}<div class="hf-sub">앞 {{ hist.differ|length }}개만 보입니다.</div>{% endif %}
+        <div class="hf-sub" style="margin-top:4px;">→ <a href="/export/hs-dict">베트남 HS 사전</a>에서 규격을 찾아 맞는 값으로 고치면 다음 자동 채움부터 쓰입니다.</div>
+      </details>
+      {% endif %}
+      {% if hist.invs %}
+      <details class="hf-det"><summary>등록된 인보이스 목록 {{ hist.n }}개</summary>
+        <div class="hf-scroll" style="margin-top:6px;"><table class="hf-tbl">
+          <thead><tr><th>인보이스</th><th>날짜</th><th>통관 구분</th><th>파일</th><th class="num">줄</th><th class="num">금액 합계</th><th>들어온 곳 · 사람 · 때</th></tr></thead>
+          <tbody>
+          {% for iv in hist.invs %}
+          <tr><td class="mono">{{ iv.invoice_no }}</td><td style="font-size:11.5px;">{{ iv.inv_date or '' }}</td><td>{{ iv.kind or '구분 모름' }}</td>
+            <td style="word-break:break-all;font-size:11.5px;">{{ iv.file_name }}</td><td class="num">{{ iv.n_lines }}</td>
+            <td class="num">{{ iv.amount_txt }}</td>
+            <td style="font-size:11.5px;">{{ iv.src_name }}<div class="hf-ev">{% if iv.reg_name %}{{ iv.reg_name }} · {% endif %}{{ (iv.reg_at or '')[:16] }}</div></td></tr>
+          {% endfor %}
+          </tbody></table></div>
+      </details>
+      {% endif %}
+    </div>
+    <div class="hf-sub" style="margin-top:8px;">
+      올해 수출 인보이스(<b>HS 가 채워진 최종본</b>)를 <b>통관 구분을 골라</b> 올리면 이력에 넣습니다 — ① 결과에서 같은 규격의 지난 HS·단가와 비교합니다.
+      <b>같은 인보이스 번호를 다시 올리면 바꿔 넣습니다</b>(두 번 세지 않음) · 저장한 뒤 원본과 줄마다 맞대어 봅니다.<br>
+      HS 사전에 <b>없는</b> 규격은 사전에 넣습니다(이력끼리 HS 가 갈리거나 같은 모델이 사전과 다르면 '확인 대기') · 사전에 <b>이미 있는</b> 규격은 건드리지 않습니다.
+      앞으로 ③ 법인 회신과 '회신 필요 없음' 인보이스는 저절로 쌓입니다.</div>
+    <div class="hf-kind" style="margin-top:8px;font-size:12.5px;"><b style="margin-right:10px;">통관 구분</b>
+      <label><input type="radio" name="hfHistKind" value="수책통관"> 수책통관</label>
+      <label><input type="radio" name="hfHistKind" value="일반통관"> 일반통관</label></div>
+    <div style="margin-top:8px;"><input type="file" id="hfHistFiles" accept=".xlsx,.xlsm" multiple></div>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="hf-btn blue" type="button" id="hfHistRun" onclick="hfHist()">이력에 등록</button>
+      <span id="hfHistMsg" style="font-size:12px;"></span>
+    </div>
+    <div id="hfHistOut"></div>
+  </div>
 </main></div>
 
 <script>
@@ -167,6 +233,45 @@
     return '<div class="hf-ev" title="' + esc('적힌 품명: ' + a.vn_written + '\n사전 품명: ' + a.dict_vn) + '">품명 — 적힌 「'
       + esc(cut(a.vn_written, 34)) + '」 · 사전 「' + esc(cut(a.dict_vn, 34)) + '」</div>';
   }
+  /* z1191p: 지난 수출 이력과 비교 — 단가 ±tol% 넘게 다른 줄 · 마지막 수출과 HS 가 다른 줄(본사 화면에만) */
+  var SRC = {register:'📚 등록', reply:'③ 회신', dict:'HS 사전 올림', fill:'① 회신 필요 없음'};
+  function money(v){ return v == null ? '' : Number(v).toLocaleString('en-US', {maximumFractionDigits: 4}); }
+  function histBlock(j){
+    var hi = j.hist; if(!hi) return '';
+    if(!hi.n_inv){ return '<div class="hf-sub" style="margin-top:8px;">📚 지난 수출 이력이 아직 없습니다 — 아래 「📚 지난 수출 인보이스」에 올해 인보이스를 등록하면 같은 품목의 지난 HS·단가와 비교합니다.</div>'; }
+    var tol = hi.tol, pr = hi.price || [], hs = hi.hs || [];
+    var h = '<div class="hf-cmp"><b>📚 지난 수출과 비교</b> — 같은 규격이 이력에 있는 줄 <b>' + hi.matched + '</b>/' + j.summary.total
+      + ' · 단가를 견준 줄 ' + hi.checked + ' (기준 ±' + tol + '%)'
+      + (!pr.length && !hs.length ? ' · <span class="hf-ok">✓ 단가 ±' + tol + '% 넘는 줄·HS 다른 줄 없음</span>' : '') + '</div>';
+    if(pr.length){
+      h += '<div class="hf-sub" style="margin-top:8px;"><b>💲 단가가 지난 수출과 ±' + tol + '% 넘게 다른 줄 ' + pr.length + '개</b> — 빨강 = 올랐음 · 파랑 = 내렸음</div>'
+        + '<div class="hf-scroll"><table class="hf-tbl"><thead><tr><th>줄</th><th>규격(Description)</th><th class="num">이번 단가</th><th class="num">지난 단가</th><th class="num">차이</th><th>지난 인보이스</th><th class="num">지난 범위(번)</th></tr></thead><tbody>';
+      pr.forEach(function(p){
+        h += '<tr><td class="num">' + esc(p.row) + '</td><td>' + esc(p.desc) + '</td><td class="num">' + money(p.now) + '</td><td class="num">' + money(p.last) + '</td>'
+          + '<td class="num ' + (p.diff > 0 ? 'hf-up' : 'hf-down') + '">' + (p.diff > 0 ? '+' : '') + p.diff + '%</td>'
+          + '<td style="font-size:11.5px;">' + esc(p.last_inv) + '<div class="hf-ev">' + esc(p.last_date) + '</div></td>'
+          + '<td class="num" style="font-size:11.5px;">' + money(p.min) + (p.max !== p.min ? ' ~ ' + money(p.max) : '') + ' (' + p.n + ')</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+    if(hs.length){
+      h += '<div class="hf-sub" style="margin-top:8px;"><b>🔀 HS 가 마지막 수출과 다른 줄 ' + hs.length + '개</b> — 이번 파일의 HS(적힌 값 또는 채운 값)와 지난 수출의 마지막 HS</div>'
+        + '<div class="hf-scroll"><table class="hf-tbl"><thead><tr><th>줄</th><th>규격(Description)</th><th>이번 HS</th><th>마지막 수출 HS</th><th>마지막 인보이스</th><th>지난 HS(번)</th></tr></thead><tbody>';
+      hs.forEach(function(x){
+        var cs = Object.keys(x.counts || {}).sort(function(a, b){ return x.counts[b] - x.counts[a]; }).map(function(k){ return k + '×' + x.counts[k]; }).join(' · ');
+        h += '<tr><td class="num">' + esc(x.row) + '</td><td>' + esc(x.desc) + '</td><td class="mono">' + esc(x.now) + '</td><td class="mono">' + esc(x.last) + '</td>'
+          + '<td style="font-size:11.5px;">' + esc(x.last_inv) + '<div class="hf-ev">' + esc(x.last_date) + '</div></td><td style="font-size:11.5px;">' + esc(cs) + '</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+    return h;
+  }
+  function savedNote(s){
+    /* ① '회신 필요 없음'이면 이 파일이 최종 — 지난 수출 이력에도 들어갔는지 */
+    if(!s) return '';
+    if(s.error){ return '<div class="hf-sub" style="color:#b45309;">📚 지난 수출 이력에는 넣지 못했습니다 — ' + esc(s.error) + '</div>'; }
+    return '<div class="hf-sub">📚 최종 파일이라 지난 수출 이력에도 넣었습니다(' + esc(s.invoice_no) + ' · ' + s.lines + '줄' + (s.replaced ? ' · 같은 번호 있던 것 바꿈' : '') + ')</div>';
+  }
   function picks(lid, a){
     return (a.choices || []).map(function(c){
       var lab = c.kind === 'file' ? '✓ 적힌 값 ' + c.hs : (a.status === 'CONFLICT' ? '✓ 사전 값 ' : '✓ 이 값 확정 ') + c.hs;
@@ -181,6 +286,7 @@
       + esc((j.forms || []).join('·')) + ' 양식 · ' + s.total + '줄' + (j.invoice_no ? ' <span class="hf-sub">' + esc(j.file_name) + '</span>' : '') + '</div>';
     if(flash){ h += '<div class="hf-flash">' + esc(flash) + '</div>'; }
     if(j.no_reply){ h += '<div class="hf-final">✅ 법인 회신 필요 없음 — 노랑·주황 칸이 하나도 없습니다. 받은 파일이 최종 파일입니다.</div>'; }
+    h += savedNote(j.hist_saved);
     h += '<div class="hf-chips">'
       + '<span class="hf-chip"><span class="sw n"></span>자동(사전 확정) <b>' + s.auto + '</b></span>'
       + '<span class="hf-chip"><span class="sw o"></span>확인 <b>' + s.check + '</b></span>'
@@ -192,6 +298,7 @@
       + '<button class="hf-btn ghost" type="button" onclick="hfCopy(this,' + (+lid) + ')">📋 이음 방에 보낼 글 복사</button>'
       + '<span class="hf-sub" style="max-width:640px;">' + esc(j.message || '') + '</span></div>';
     if(j.hint){ h += '<div class="hf-hint">' + esc(j.hint) + '</div>'; }
+    h += histBlock(j);
     var at = j.attention || [];
     if(at.length){
       var anyPick = at.some(function(a){ return (a.choices || []).length; });
@@ -202,21 +309,69 @@
       at.forEach(function(a){
         var st = ST[a.st] || ['n', a.st];
         h += '<tr><td class="num">' + esc(a.row) + '</td><td>' + esc(a.desc) + '</td><td style="white-space:nowrap;"><span class="sw ' + st[0] + '"></span> ' + st[1] + '</td><td>' + esc(a.why) + vnDiff(a) + '</td>'
-          + '<td class="mono">' + esc(a.dict_hs || '') + evid(a) + '</td>' + (anyPick ? '<td>' + picks(lid, a) + '</td>' : '') + '</tr>';
+          + '<td class="mono">' + esc(a.dict_hs || '') + evid(a) + (a.hist_ev ? '<div class="hf-ev">📚 ' + esc(a.hist_ev) + '</div>' : '') + '</td>'
+          + (anyPick ? '<td>' + picks(lid, a) + '</td>' : '') + '</tr>';
       });
       h += '</tbody></table></div>';
     }
     return h + '</div>';
   }
-  /* z1191n: 아래 「최근 자동 채움」 표만 새로 그린다(①·③·본사 확정 뒤 — 전에는 화면을 다시 열어야 보였다) */
+  /* z1191n: 아래 「최근 자동 채움」 표만 새로 그린다(①·③·본사 확정 뒤 — 전에는 화면을 다시 열어야 보였다)
+     z1191p: 📚 이력 요약(hfHistSum)도 함께 — ③ 회신·'회신 필요 없음'·등록이 이력을 늘린다 */
   window.hfReloadLog = async function(){
     try {
       var r = await fetch('/export/hs-fill', {credentials:'same-origin'});
       if(!r.ok) return;
       var doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-      var nw = doc.getElementById('hfLogCard'), old = document.getElementById('hfLogCard');
-      if(nw && old) old.innerHTML = nw.innerHTML;
+      ['hfLogCard', 'hfHistSum'].forEach(function(id){
+        var nw = doc.getElementById(id), old = document.getElementById(id);
+        if(nw && old) old.innerHTML = nw.innerHTML;
+      });
     } catch(e){ console.warn('기록 표를 새로 그리지 못했습니다(화면을 다시 열면 보입니다)', e); }
+  };
+  /* z1191p: 📚 지난 수출 인보이스 등록 — 통관 구분을 고르고 여러 파일을 하나씩 차례로(파일마다 결과 한 줄) */
+  function histRow(j, kind){
+    var d = j.dict || {}, dd = [];
+    if(d.added) dd.push('새 규격 확정 ' + d.added);
+    if(d.pending) dd.push('<span style="color:#b45309;">확인 대기 ' + d.pending + '</span>');
+    if(d.synced) dd.push('이력에 맞춤 ' + d.synced);
+    if(d.differ) dd.push('<span style="color:#b91c1c;">사전과 HS 다름 ' + d.differ + '</span>');
+    if(d.kept) dd.push('사전과 같음 ' + d.kept);
+    var warn = (j.kind_found && j.kind_found !== kind) ? '<div class="hf-ev" style="color:#b45309;">양식은 ' + esc(j.kind_found) + '로 보임 — 고른 ' + esc(kind) + '(으)로 넣음</div>' : '';
+    var rep = j.replaced ? '바꿈<div class="hf-ev">전에 ' + esc(SRC[j.replaced.source] || j.replaced.source || '') + '</div>' : '새로';
+    return '<td style="word-break:break-all;">' + esc(j.file) + warn + '</td>'
+      + '<td class="mono">' + esc(j.invoice_no) + '<div class="hf-ev">' + esc(j.inv_date || '날짜 모름') + '</div></td>'
+      + '<td class="num">' + j.lines + (j.empty_hs ? '<div class="hf-ev">HS 빈 줄 ' + j.empty_hs + '</div>' : '') + '</td>'
+      + '<td>' + (j.check && j.check.ok ? '<span class="hf-ok">✅ ' + j.check.n + '줄 같음</span>' : '<span style="color:#b91c1c;">⚠ 다름</span>') + '</td>'
+      + '<td style="font-size:11.5px;">' + (dd.join(' · ') || '—') + '</td><td>' + rep + '</td>';
+  }
+  window.hfHist = async function(){
+    var inp = document.getElementById('hfHistFiles'), btn = document.getElementById('hfHistRun'),
+        msg = document.getElementById('hfHistMsg'), out = document.getElementById('hfHistOut'),
+        kr = document.querySelector('input[name="hfHistKind"]:checked');
+    if(!kr){ msg.innerHTML = '<span style="color:#b91c1c;">통관 구분(수책통관·일반통관)을 먼저 골라 주세요</span>'; return; }
+    if(!inp.files || !inp.files.length){ msg.innerHTML = '<span style="color:#b91c1c;">인보이스 파일을 골라 주세요</span>'; return; }
+    var kind = kr.value, files = Array.prototype.slice.call(inp.files), n = files.length, ok = 0;
+    btn.disabled = true;
+    out.innerHTML = '<div class="hf-scroll" style="margin-top:8px;"><table class="hf-tbl"><thead><tr><th>파일</th><th>인보이스 · 날짜</th><th class="num">줄</th><th>원본↔저장</th><th>HS 사전</th><th>이력</th></tr></thead><tbody></tbody></table></div>';
+    var body = out.querySelector('tbody');
+    for(var i = 0; i < n; i++){
+      var f = files[i], tr = document.createElement('tr');
+      body.appendChild(tr);
+      msg.textContent = kind + ' 등록 중… ' + (i + 1) + '/' + n + ' · ' + f.name;
+      tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" class="hf-sub">등록 중…</td>';
+      try {
+        var fd = new FormData(); fd.append('kind', kind); fd.append('file', f);
+        var r = await fetch('/export/hs-fill/hist', {method:'POST', body:fd, credentials:'same-origin'});
+        var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
+        if(!j.ok){ tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" style="color:#b91c1c;">' + esc(j.error || '등록하지 못했습니다') + '</td>'; continue; }
+        tr.innerHTML = histRow(j, kind); ok++;
+      } catch(e){ tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" style="color:#b91c1c;">통신이 끊겼습니다 — ' + esc(e) + '</td>'; }
+    }
+    msg.innerHTML = '<span class="hf-ok">✓ ' + esc(kind) + ' ' + ok + '/' + n + '개 등록</span>'
+      + (ok < n ? ' <span style="color:#b91c1c;">· 못 넣은 파일 ' + (n - ok) + '개(빨간 줄)</span>' : '');
+    btn.disabled = false;
+    if(ok) hfReloadLog();
   };
   window.hfFill = async function(){
     var inp = document.getElementById('hfFile'), btn = document.getElementById('hfRun'),
@@ -290,6 +445,9 @@
         else if(x.log && x.log.again){ h += '<div class="hf-sub">이미 반영된 기록 #' + x.log.again + (x.log.invoice_no ? ' (' + esc(x.log.invoice_no) + ')' : '') + '의 회신을 다시 올렸습니다 — 사전 반영은 됐고 기록은 그대로입니다</div>'; }
         else { h += '<div class="hf-sub">자동 채움 기록 없음 — 사전 반영은 됐습니다</div>'; }
         if(x.conflict){ h += '<div class="hf-sub">→ <a href="/export/hs-dict?status=PENDING">확인 대기 목록</a>에서 맞는 값을 고르면 다시 자동 채움에 쓰입니다</div>'; }
+        /* z1191p: 회신 = 최종 인보이스 → 지난 수출 이력 */
+        if(x.hist && x.hist.error){ h += '<div class="hf-sub" style="color:#b45309;">📚 지난 수출 이력에는 넣지 못했습니다 — ' + esc(x.hist.error) + '</div>'; }
+        else if(x.hist && x.hist.lines){ h += '<div class="hf-sub">📚 지난 수출 이력에 넣었습니다(' + esc(x.hist.invoice_no) + ' · ' + x.hist.lines + '줄' + (x.hist.replaced ? ' · 같은 번호 있던 것 바꿈' : '') + ')</div>'; }
         if(x.empty){
           h += '<div class="hf-hint">아직 HS 가 비어 있는 줄 ' + x.empty + '개 — 법인에 다시 확인해 주세요: '
             + (x.empty_rows || []).slice(0, 12).map(function(e){ return esc(e.row) + '줄 ' + esc(e.desc); }).join(' · ') + '</div>';

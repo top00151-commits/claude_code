@@ -23,6 +23,11 @@ z1191n (대표 2026-10-27 「전부 자동이면 법인 회신이 필요없는 �
 z1191o (대표 2026-10-27 「여기서 표준 약식 이름을 "수책통관","일반통관" 으로 변경하자..」):
   · 양식 이름 수책 → 수책통관 · 소모품 → 일반통관. 알아보는 값(form)은 「수책」·「소모품」 그대로 둔다
     (기록 표에 이미 저장된 줄도 같은 값) — 화면·결과에는 form_name() 으로 새 이름을 쓴다.
+
+z1191p (대표 2026-10-27 「올해 수출한 내용을 수책통관, 일반통관 정리한 파일… 예전 파일을 보고 HS코드 및 금액도
+        비교할수있게 미리 등록을 해 줬으면해」 → 「진행해」):
+  · scan 이 줄마다 수량·단가·금액(qty·price·amount)과 인보이스 날짜(date)도 읽는다 — 31줄 머리글 F·H·I(모든 KNK 양식 같음).
+  · hist_lines = 지난 수출 이력 줄 · compare = ① 결과 줄 ↔ 이력(같은 규격만 · 단가 ±HIST_PRICE_TOL% · HS 다름) — 화면에만.
 """
 import io
 import re
@@ -37,6 +42,11 @@ HEAD_DESC = re.compile(r"Description", re.I)
 WS_SKIP = re.compile(r"PACKING|P/L|CONTENT|COVER|양식|SAMPLE", re.I)
 TOTAL_ROW = re.compile(r"^\s*(SUB\s*)?TOTAL\b|^\s*합\s*계", re.I)
 INVOICE_NO = re.compile(r"KNK-\d{6}-\d+")
+# z1191p: 수량·단가·금액 머리글('14) Q'ty /Unit' · '15) Unit Price' · '16) Amount') · 인보이스 날짜 칸 이름('DATE:')
+HEAD_QTY = re.compile(r"Q'?\s*ty\b|Quantity", re.I)
+HEAD_PRICE = re.compile(r"Unit\s*Price", re.I)
+HEAD_AMT = re.compile(r"\bAmount\b", re.I)
+HEAD_DATE = re.compile(r"^\s*DATE\s*:?\s*$", re.I)
 
 # 상태 — 화면·기록에 같은 글자를 쓴다
 AUTO = "AUTO"          # 확정 값으로 채움(색 없음)
@@ -155,26 +165,62 @@ def _sheet_paths(z) -> list:
     return out
 
 
+def _num(v):
+    """엑셀 칸 → 숫자(수식은 저장된 계산 값 · '1,234.5' 같은 글자 숫자도) · 아니면 None."""
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return float(str(v).replace(",", "").strip())
+    except ValueError:
+        return None
+
+
+def _inv_date(top: dict) -> str:
+    """머리 칸(1~15줄) 'DATE:' 바로 오른쪽 값 → 'YYYY-MM-DD'(날짜·엑셀 날짜 숫자·'2026-09-21…' 글자) · 모르면 ''."""
+    import datetime as _dt
+    for (r, c), v in sorted(top.items()):
+        if not (isinstance(v, str) and HEAD_DATE.match(v)):
+            continue
+        d = top.get((r, c + 1))
+        if isinstance(d, _dt.datetime):
+            return d.date().isoformat()
+        if isinstance(d, _dt.date):
+            return d.isoformat()
+        if isinstance(d, (int, float)) and not isinstance(d, bool) and 30000 < d < 80000:
+            from openpyxl.utils.datetime import from_excel
+            return from_excel(d).date().isoformat()
+        m = re.match(r"\s*(20\d\d)[-./](\d{1,2})[-./](\d{1,2})", str(d or ""))
+        if m:
+            return "%s-%02d-%02d" % (m.group(1), int(m.group(2)), int(m.group(3)))
+    return ""
+
+
 def scan(data: bytes) -> dict:
     """인보이스 엑셀 → {sheets:[{title, path, header_row, col_desc, col_hs, col_vn, form, items:[…]}], invoice_no}
-    품목 줄 = 머리글 아래에서 Description 칸에 글이 있는 줄(합계 줄 제외)."""
+    품목 줄 = 머리글 아래에서 Description 칸에 글이 있는 줄(합계 줄 제외).
+    z1191p: 줄마다 qty·price·amount(수식은 저장된 계산 값 · 없으면 None) · 시트에 col_qty·col_price·col_amount ·
+            결과에 date(머리 칸 'DATE:' 옆 인보이스 날짜 'YYYY-MM-DD' · 없으면 '')."""
     import openpyxl
     z = zipfile.ZipFile(io.BytesIO(data))
     paths = _sheet_paths(z)
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-    res = {"sheets": [], "invoice_no": ""}
+    res = {"sheets": [], "invoice_no": "", "date": ""}
     try:
         for title, state, path in paths:
             if state != "visible" or WS_SKIP.search(title or "") or title not in wb.sheetnames:
                 continue
             ws = wb[title]
-            head = []
+            head, top = [], {}
             for r, row in enumerate(ws.iter_rows(min_row=1, max_row=45, max_col=30, values_only=True), start=1):
                 for c, v in enumerate(row, start=1):
                     if v is None:
                         continue
                     t = str(v).strip()
                     head.append((r, c, t))
+                    if r <= 15:
+                        top[(r, c)] = v
                     if not res["invoice_no"] and r <= 15:
                         mm = INVOICE_NO.search(t)
                         if mm:
@@ -188,6 +234,8 @@ def scan(data: bytes) -> dict:
             ds = next(((r, c) for r, c, t in head if HEAD_DESC.search(t)), None)
             if not ds:
                 continue
+            if not res["date"]:
+                res["date"] = _inv_date(top)
             words = {t.upper() for r, c, t in head if r == hr}
             if {"CATEGORY", "SUPPLIER"} <= words:
                 form = "수책"
@@ -195,10 +243,20 @@ def scan(data: bytes) -> dict:
                 form = "소모품"
             else:
                 form = "예전 양식"
+            # z1191p: 수량·단가·금액 칸 — Description·HS 머리글 줄 근처의 A~L 열만
+            #   (예전 양식은 31줄에 품명·수량·단가·금액 · HS 머리글은 32~33줄 — 오른쪽의 'Duty AMOUNT' 같은 칸은 안 본다)
+            near = range(min(ds[0], hr) - 1, max(ds[0], hr) + 1)
+
+            def _col(rx):
+                return next((c for r, c, t in head if r in near and c <= 12 and len(t) < 30 and rx.search(t)), None)
+            cq, cp, ca = _col(HEAD_QTY), _col(HEAD_PRICE), _col(HEAD_AMT)
+
+            def _at(row, col):
+                return _num(row[col - 1]) if (col and len(row) >= col) else None
             start = max(hr, ds[0], vn[0] if vn else hr) + 1
             items = []
-            for r, row in enumerate(ws.iter_rows(min_row=start, max_col=max(hc, vn[1] if vn else hc, ds[1], 4), values_only=True),
-                                    start=start):
+            mc = max(hc, vn[1] if vn else hc, ds[1], 4, cq or 0, cp or 0, ca or 0)
+            for r, row in enumerate(ws.iter_rows(min_row=start, max_col=mc, values_only=True), start=start):
                 # 합계(TOTAL) 줄에서 품목 읽기를 멈춘다 — 그 아래 서명·비고 글을 품목으로 오인해 칠하지 않게(최종 양식은 A열 'TOTAL')
                 if any(isinstance(v, str) and TOTAL_ROW.match(v) for v in row[:4]):
                     break
@@ -209,9 +267,11 @@ def scan(data: bytes) -> dict:
                 h = row[hc - 1] if len(row) >= hc else None
                 v = row[vn[1] - 1] if (vn and len(row) >= vn[1]) else None
                 items.append({"row": r, "desc": d, "hs_raw": "" if h is None else str(h).strip(),
-                              "vn_raw": "" if v is None else str(v).strip()})
+                              "vn_raw": "" if v is None else str(v).strip(),
+                              "qty": _at(row, cq), "price": _at(row, cp), "amount": _at(row, ca)})
             res["sheets"].append({"title": title, "path": path, "header_row": hr, "col_desc": ds[1], "col_hs": hc,
-                                  "col_vn": vn[1] if vn else None, "form": form, "items": items})
+                                  "col_vn": vn[1] if vn else None, "form": form, "items": items,
+                                  "col_qty": cq, "col_price": cp, "col_amount": ca})
     finally:
         wb.close()
     return res
@@ -575,3 +635,92 @@ def fill(data: bytes, entries, overrides=None) -> dict:
             if refs & sk:
                 a.update(status=CONFLICT, why="수식이 든 칸이라 값을 쓰지 않았습니다 — 직접 확인", choices=[])
     return {"ok": True, "out": out, "scan": sc, "acts": acts, "summary": summary(acts), "counts": counts(acts), "skipped": skipped}
+
+
+# ─────────────────────────────────────────────────────────────
+# z1191p 지난 수출 이력 — 대표 2026-10-27 「예전 파일을 보고 HS코드 및 금액도 비교할수있게 미리 등록」 → 「진행해」
+#   (제안: 비교 기준 ±20% · 사전에 없는 규격은 사전에 추가 · 앞으로 ③ 회신도 이력에 쌓기)
+# ─────────────────────────────────────────────────────────────
+KIND_BY_FORM = {"수책": "수책통관", "소모품": "일반통관"}
+HIST_KINDS = ("수책통관", "일반통관")
+HIST_PRICE_TOL = 20.0    # 단가 비교 기준 ±% — 같은 품목 1,580쌍 중 96%가 ±20% 안(환율로 조금씩 흔들린다 · 10-27 실측)
+
+
+def kind_of(sc) -> str:
+    """양식 → 통관 구분(시트가 모두 같은 양식일 때만) · 예전 양식은 모름('')."""
+    ks = {KIND_BY_FORM.get(s["form"], "") for s in sc.get("sheets", [])}
+    return ks.pop() if len(ks) == 1 else ""
+
+
+def date_of(sc) -> str:
+    """인보이스 날짜 — 머리 칸 'DATE:' 옆 값, 없으면 번호(KNK-YYMMDD-n)에서 · 모르면 ''."""
+    if sc.get("date"):
+        return sc["date"]
+    m = re.match(r"KNK-(\d{2})(\d{2})(\d{2})-", sc.get("invoice_no") or "")
+    if m and 1 <= int(m.group(2)) <= 12 and 1 <= int(m.group(3)) <= 31:
+        return "20%s-%s-%s" % m.groups()
+    return ""
+
+
+def hist_lines(sc) -> list:
+    """품목 줄 → 이력 줄 [{sheet,row,key,desc,qty,price,amount,hs,vn}].
+    HS 는 8자리만(7자리는 앞에 0 — 엑셀이 숫자로 바꿔 앞 0 을 잃은 것 · 사전 학습과 같은 규칙) · 6자리 장비 HS·빈 칸은 ''.
+    금액 칸이 비어 있으면(수식인데 저장된 계산 값이 없는 파일) 수량×단가 — 금액 칸 수식이 그 계산이다."""
+    out = []
+    for sh in sc.get("sheets", []):
+        for it in sh["items"]:
+            hs = digits(it["hs_raw"])
+            if len(hs) == 7:
+                hs = "0" + hs
+            q, p, a = it.get("qty"), it.get("price"), it.get("amount")
+            if a is None and q is not None and p is not None:
+                a = round(q * p, 6)
+            out.append({"sheet": sh["title"], "row": it["row"], "key": norm_key(it["desc"]), "desc": it["desc"],
+                        "qty": q, "price": p, "amount": a, "hs": hs if len(hs) == 8 else "",
+                        "vn": (it.get("vn_raw") or "").strip()})
+    return out
+
+
+def compare(acts, prices, past, own_invoice="", tol=HIST_PRICE_TOL) -> dict:
+    """① 결과 줄 ↔ 지난 수출 이력 — 규격이 **그대로** 같은 줄만 본다(모델 글자만 같은 다른 품목의 단가를 섞지 않는다).
+    acts = plan 결과 · prices = {(시트, 줄): 이번 단가} · past = {규격 키: [{invoice_no, inv_date, kind, hs, price, id}]}
+    같은 인보이스(번호)의 이력은 빼고 본다(이 인보이스가 이미 이력에 들어가 있어도 자기와 비교하지 않게).
+    반환 {matched, checked, price:[단가가 ±tol% 넘게 다른 줄], hs:[이번 HS ≠ 마지막 수출 HS], ev:{(시트, 줄): 근거 글}}
+    ⚠화면에만 쓴다 — 법인에 보내는 파일·이음 방 글에는 넣지 않는다(단가)."""
+    out = {"matched": 0, "checked": 0, "price": [], "hs": [], "ev": {}}
+    for a in acts:
+        rows = [p for p in past.get(a["key"], []) if p.get("invoice_no") != own_invoice]
+        if not rows:
+            continue
+        out["matched"] += 1
+        rows.sort(key=lambda p: (p.get("inv_date") or "", p.get("id") or 0))
+        invs = {p.get("invoice_no") for p in rows}
+        hinv = {}     # HS 마다 몇 번(인보이스 수) — 한 인보이스에 같은 규격이 여러 줄이어도 한 번(「지난 수출 N번」과 같은 단위)
+        for p in rows:
+            if p.get("hs"):
+                hinv.setdefault(p["hs"], set()).add(p.get("invoice_no"))
+        hcnt = {h: len(s) for h, s in hinv.items()}
+        lh = next((p for p in reversed(rows) if p.get("hs")), None)
+        last = rows[-1]
+        ev = "지난 수출 %d번" % len(invs)
+        if hcnt:
+            ev += " · HS " + " · ".join("%s×%d" % (h, n) for h, n in sorted(hcnt.items(), key=lambda x: (-x[1], x[0])))
+        out["ev"][(a["sheet"], a["row"])] = ev + " · 마지막 %s(%s)" % (last.get("invoice_no") or "", (last.get("inv_date") or "")[:10])
+        wr = digits(a.get("hs_written"))
+        now_hs = a.get("write_hs") or (wr if len(wr) == 8 else "")
+        if now_hs and lh and now_hs != lh["hs"]:
+            out["hs"].append({"sheet": a["sheet"], "row": a["row"], "desc": a["desc"], "now": now_hs, "last": lh["hs"],
+                              "last_inv": lh.get("invoice_no") or "", "last_date": (lh.get("inv_date") or "")[:10],
+                              "counts": hcnt, "n": len(invs)})
+        cur = prices.get((a["sheet"], a["row"]))
+        lp = next((p for p in reversed(rows) if (p.get("price") or 0) > 0), None)
+        if cur and cur > 0 and lp:
+            out["checked"] += 1
+            diff = (cur - lp["price"]) / lp["price"] * 100.0
+            if abs(diff) > tol:
+                ps = [p["price"] for p in rows if (p.get("price") or 0) > 0]
+                out["price"].append({"sheet": a["sheet"], "row": a["row"], "desc": a["desc"], "now": round(cur, 4),
+                                     "last": round(lp["price"], 4), "diff": round(diff, 1),
+                                     "last_inv": lp.get("invoice_no") or "", "last_date": (lp.get("inv_date") or "")[:10],
+                                     "min": round(min(ps), 4), "max": round(max(ps), 4), "n": len(ps)})
+    return out

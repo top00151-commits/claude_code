@@ -317,7 +317,10 @@
           else { a+=x.added; u2+=x.updated; cf+=x.conflict; oc+=(x.or_clash||0);
             lines.push('✅ ' + x.file + ' — ' + x.rows + '행 (추가 ' + x.added + ' · 갱신 ' + x.updated
               + (x.conflict? ' · ⚠충돌 ' + x.conflict : '')
-              + (x.or_clash? ' · ⚠원산지 이견 ' + x.or_clash : '') + ')'); }
+              + (x.or_clash? ' · ⚠원산지 이견 ' + x.or_clash : '') + ')'
+              /* z1191p: 최종 인보이스는 지난 수출 이력에도(자동 채움 화면 📚) */
+              + (x.hist && x.hist.lines ? ' · 📚 지난 수출 이력 ' + x.hist.lines + '줄' : '')
+              + (x.hist && x.hist.error ? ' · 📚 이력 못 넣음(' + x.hist.error + ')' : '')); }
         });
         draw();
       } catch(e){ er++; lines.push('❌ ' + f.name + ' — 통신 끊김: ' + e); draw(); }
