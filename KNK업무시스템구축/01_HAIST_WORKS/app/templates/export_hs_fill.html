@@ -56,6 +56,11 @@
 .hf-view { margin-top:8px; padding:10px 12px; border:1px solid #bfdbfe; border-radius:9px; background:#f8fbff; }
 .hf-view-head { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; font-size:12.5px; margin-bottom:6px; }
 .hf-view .hf-scroll { max-height:520px; }
+{# z1191s: 올리는 중 띠 — 화면 어디에 있어도 보이게(아래 가운데 · 공용 「새 판」 띠(bottom 22px)보다 위) #}
+{#   width:max-content — left:50% 인 고정 띠는 폭이 화면 절반에서 접힌다(실측 두 줄) → 글 길이만큼 · 좁은 화면에서만 접힘 #}
+.hf-busy { position:fixed; left:50%; bottom:86px; transform:translateX(-50%); z-index:9000; width:max-content; max-width:calc(100vw - 32px);
+  padding:9px 16px; border-radius:10px; background:#fff7ed; border:2px solid #f59e0b; color:#9a3412; font-size:12.5px; line-height:1.5;
+  box-shadow:0 6px 18px rgba(0,0,0,.18); }
 @media (max-width:900px){ .hf-steps{grid-template-columns:1fr;} }
 </style>
 </head><body>
@@ -255,12 +260,34 @@
     </div>
     <div id="hfHistOut"></div>
   </div>
+  {# z1191s (대표 10-27 「파일 올리는중에 페이지를 벗어나면 중지 되는거야?」 → 「경고 창이 뜨게」): 올리는 동안만 보이는 띠 #}
+  <div id="hfBusy" class="hf-busy" style="display:none;" role="status" aria-live="polite">⏳ <b>아직 올리는 중입니다</b> <span class="t"></span>
+    — 끝날 때까지 이 페이지를 벗어나거나 새로 고치지 마세요 · 다른 탭이나 프로그램으로 옮기는 것은 괜찮습니다</div>
 </main></div>
 
 <script>
 (function(){
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
   var ST = {NEED:['y','법인 입력'], CHECK:['o','확인'], CONFLICT:['o','확인']};
+  /* z1191s (대표 10-27 「파일 올리는중에 페이지를 벗어나면 중지 되는거야?」 → 「경고 창이 뜨게 해 두겠습니다 … 이렇게 해줘」):
+     📚·①·③은 브라우저가 파일을 차례로 보낸다 — 올리는 중에 이 탭에서 다른 화면으로 가거나 새로 고치거나 닫으면 남은 파일이 안 올라간다
+     (10-27 23:3x 실제로 끊김 2번 · 이미 끝난 파일은 저장됨). → 올리는 동안 아래 띠를 보이고, 떠나려 하면 브라우저가 한 번 묻는다.
+     · 묻는 창의 글은 브라우저가 정한다(「사이트에서 나가시겠습니까?」) — 그래서 「아직 올리는 중입니다」는 이 화면 띠에 쓴다
+     · 공용 틀의 「새 판」 저절로 새로 고침은 고른 파일이 칸에 남아 있는 동안 이미 미룬다(isWorking) — 띠의 「새로 고침」을 눌러도 이 창이 묻는다
+     · 켠 표시는 일이 어떻게 끝나든 끈다(finally) — 안 끄면 떠날 때마다 묻는 「먹통」이 된다 */
+  var BUSY = {};
+  function busy(key, txt){
+    if(txt == null) delete BUSY[key]; else BUSY[key] = txt;
+    var ks = Object.keys(BUSY), b = document.getElementById('hfBusy');
+    if(!b) return;
+    b.style.display = ks.length ? '' : 'none';
+    b.querySelector('.t').textContent = ks.length ? '(' + ks.map(function(k){ return BUSY[k]; }).join(' · ') + ')' : '';
+  }
+  window.addEventListener('beforeunload', function(e){
+    if(!Object.keys(BUSY).length) return;
+    e.preventDefault(); e.returnValue = '아직 올리는 중입니다';   // 브라우저 기본 확인창(문구는 브라우저가 정함)
+    return e.returnValue;
+  });
   /* z1191n: 파일마다 결과 카드 — 기록 번호 → 이음 방에 보낼 글 */
   var MSG = {};
   function evid(a){
@@ -422,21 +449,25 @@
     out.innerHTML = '<div class="hf-hist-done"></div>'
       + '<div class="hf-scroll" style="margin-top:8px;"><table class="hf-tbl"><thead><tr><th>파일</th><th>인보이스 · 날짜</th><th class="num">줄</th><th>원본↔저장</th><th>HS 사전</th><th>이력</th></tr></thead><tbody></tbody></table></div>';
     var body = out.querySelector('tbody');
-    for(var i = 0; i < n; i++){
-      var f = files[i], tr = document.createElement('tr');
-      body.appendChild(tr);
-      msg.textContent = kind + ' 등록 중… ' + (i + 1) + '/' + n + ' · ' + f.name;
-      tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" class="hf-sub">등록 중…</td>';
-      try {
-        var fd = new FormData(); fd.append('kind', kind); fd.append('file', f);
-        var r = await fetch('/export/hs-fill/hist', {method:'POST', body:fd, credentials:'same-origin'});
-        var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
-        if(!j.ok){ tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" style="color:#b91c1c;">' + esc(j.error || '등록하지 못했습니다') + '</td>'; continue; }
-        tr.innerHTML = histRow(j, kind); ok++;
-        tot.lines += j.lines || 0; tot.same += (j.check && j.check.ok) ? 1 : 0; tot.imgs += j.imgs || 0;
-        tot.added += (j.dict || {}).added || 0; tot.pending += (j.dict || {}).pending || 0;
-      } catch(e){ tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" style="color:#b91c1c;">통신이 끊겼습니다 — ' + esc(e) + '</td>'; }
-    }
+    busy('hist', '📚 ' + kind + ' 0/' + n);
+    try {
+      for(var i = 0; i < n; i++){
+        var f = files[i], tr = document.createElement('tr');
+        body.appendChild(tr);
+        msg.textContent = kind + ' 등록 중… ' + (i + 1) + '/' + n + ' · ' + f.name;
+        busy('hist', '📚 ' + kind + ' ' + (i + 1) + '/' + n);
+        tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" class="hf-sub">등록 중…</td>';
+        try {
+          var fd = new FormData(); fd.append('kind', kind); fd.append('file', f);
+          var r = await fetch('/export/hs-fill/hist', {method:'POST', body:fd, credentials:'same-origin'});
+          var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
+          if(!j.ok){ tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" style="color:#b91c1c;">' + esc(j.error || '등록하지 못했습니다') + '</td>'; continue; }
+          tr.innerHTML = histRow(j, kind); ok++;
+          tot.lines += j.lines || 0; tot.same += (j.check && j.check.ok) ? 1 : 0; tot.imgs += j.imgs || 0;
+          tot.added += (j.dict || {}).added || 0; tot.pending += (j.dict || {}).pending || 0;
+        } catch(e){ tr.innerHTML = '<td style="word-break:break-all;">' + esc(f.name) + '</td><td colspan="5" style="color:#b91c1c;">통신이 끊겼습니다 — ' + esc(e) + '</td>'; }
+      }
+    } finally { busy('hist'); }      // z1191s: 올리는 중 표시는 어떻게 끝나든 끈다
     /* z1191q (대표 10-27 「완료된 표가 안나는데… 파일 이름도 그대로 있고」): 끝나면 완료를 크게 말하고, 고른 파일 이름은 지운다
        (남아 있으면 아직 안 올린 것처럼 보인다 · 다음 구분을 고를 때 헷갈림) */
     var done = out.querySelector('.hf-hist-done');
@@ -546,19 +577,23 @@
     /* z1191n: 여러 파일은 하나씩 차례로 — 파일마다 결과 카드(전에는 첫 파일만 채우고 나머지는 말없이 빠졌다) */
     var files = Array.prototype.slice.call(inp.files), n = files.length, ok = 0;
     btn.disabled = true; out.innerHTML = '';
-    for(var i = 0; i < n; i++){
-      var f = files[i], slot = document.createElement('div');
-      out.appendChild(slot);
-      msg.textContent = '채우는 중… ' + (n > 1 ? (i + 1) + '/' + n + ' · ' : '') + f.name;
-      slot.innerHTML = '<div class="hf-res"><span class="hf-sub">' + esc(f.name) + ' — 채우는 중…</span></div>';
-      try {
-        var fd = new FormData(); fd.append('file', f);
-        var r = await fetch('/export/hs-fill', {method:'POST', body:fd, credentials:'same-origin'});
-        var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
-        if(!j.ok){ slot.innerHTML = '<div class="hf-err"><b>' + esc(f.name) + '</b> — ' + esc(j.error || '처리하지 못했습니다') + '</div>'; continue; }
-        slot.innerHTML = renderCard(j); ok++;
-      } catch(e){ slot.innerHTML = '<div class="hf-err"><b>' + esc(f.name) + '</b> — 통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
-    }
+    busy('fill', '① 0/' + n);
+    try {
+      for(var i = 0; i < n; i++){
+        var f = files[i], slot = document.createElement('div');
+        out.appendChild(slot);
+        msg.textContent = '채우는 중… ' + (n > 1 ? (i + 1) + '/' + n + ' · ' : '') + f.name;
+        busy('fill', '① ' + (i + 1) + '/' + n);
+        slot.innerHTML = '<div class="hf-res"><span class="hf-sub">' + esc(f.name) + ' — 채우는 중…</span></div>';
+        try {
+          var fd = new FormData(); fd.append('file', f);
+          var r = await fetch('/export/hs-fill', {method:'POST', body:fd, credentials:'same-origin'});
+          var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
+          if(!j.ok){ slot.innerHTML = '<div class="hf-err"><b>' + esc(f.name) + '</b> — ' + esc(j.error || '처리하지 못했습니다') + '</div>'; continue; }
+          slot.innerHTML = renderCard(j); ok++;
+        } catch(e){ slot.innerHTML = '<div class="hf-err"><b>' + esc(f.name) + '</b> — 통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
+      }
+    } finally { busy('fill'); }      // z1191s
     msg.innerHTML = ok ? '<span class="hf-ok">✓ 채웠습니다' + (n > 1 ? ' (' + ok + '/' + n + ')' : '') + '</span>' : '';
     clearPicked(inp);
     btn.disabled = false;
@@ -593,6 +628,7 @@
     if(!inp.files || !inp.files.length){ msg.innerHTML = '<span style="color:#b91c1c;">회신 파일을 골라 주세요</span>'; return; }
     var fd = new FormData(); for(var i = 0; i < inp.files.length; i++){ fd.append('files', inp.files[i]); }
     btn.disabled = true; msg.textContent = '반영하는 중…'; out.innerHTML = '';
+    busy('reply', '③ 회신 ' + inp.files.length + '개');      // z1191s: 한 번에 보내므로 떠나면 이번 묶음 전체가 끊긴다
     try {
       var r = await fetch('/export/hs-fill/reply', {method:'POST', body:fd, credentials:'same-origin'});
       var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
@@ -625,7 +661,7 @@
       clearPicked(inp);
       hfReloadLog();
     } catch(e){ msg.textContent = ''; out.innerHTML = '<div class="hf-err">통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
-    finally { btn.disabled = false; }
+    finally { btn.disabled = false; busy('reply'); }
   };
 })();
 </script>
