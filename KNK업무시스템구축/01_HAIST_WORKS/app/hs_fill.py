@@ -209,74 +209,226 @@ def scan(data: bytes) -> dict:
     z = zipfile.ZipFile(io.BytesIO(data))
     paths = _sheet_paths(z)
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-    res = {"sheets": [], "invoice_no": "", "date": ""}
     try:
-        for title, state, path in paths:
-            if state != "visible" or WS_SKIP.search(title or "") or title not in wb.sheetnames:
-                continue
-            ws = wb[title]
-            head, top = [], {}
-            for r, row in enumerate(ws.iter_rows(min_row=1, max_row=45, max_col=30, values_only=True), start=1):
-                for c, v in enumerate(row, start=1):
-                    if v is None:
-                        continue
-                    t = str(v).strip()
-                    head.append((r, c, t))
-                    if r <= 15:
-                        top[(r, c)] = v
-                    if not res["invoice_no"] and r <= 15:
-                        mm = INVOICE_NO.search(t)
-                        if mm:
-                            res["invoice_no"] = mm.group(0)
-            hs_cells = [(r, c, t) for r, c, t in head if HEAD_HS.search(t) and len(t) < 20]
-            if not hs_cells:
-                continue
-            exact = [x for x in hs_cells if HEAD_HS_EXACT.match(x[2])]
-            hr, hc, _ = (exact or hs_cells)[0]
-            vn = next(((r, c) for r, c, t in head if HEAD_VN.search(t)), None)
-            ds = next(((r, c) for r, c, t in head if HEAD_DESC.search(t)), None)
-            if not ds:
-                continue
-            if not res["date"]:
-                res["date"] = _inv_date(top)
-            words = {t.upper() for r, c, t in head if r == hr}
-            if {"CATEGORY", "SUPPLIER"} <= words:
-                form = "수책"
-            elif "IMAGE" in words and "C/O" in words:
-                form = "소모품"
-            else:
-                form = "예전 양식"
-            # z1191p: 수량·단가·금액 칸 — Description·HS 머리글 줄 근처의 A~L 열만
-            #   (예전 양식은 31줄에 품명·수량·단가·금액 · HS 머리글은 32~33줄 — 오른쪽의 'Duty AMOUNT' 같은 칸은 안 본다)
-            near = range(min(ds[0], hr) - 1, max(ds[0], hr) + 1)
-
-            def _col(rx):
-                return next((c for r, c, t in head if r in near and c <= 12 and len(t) < 30 and rx.search(t)), None)
-            cq, cp, ca = _col(HEAD_QTY), _col(HEAD_PRICE), _col(HEAD_AMT)
-
-            def _at(row, col):
-                return _num(row[col - 1]) if (col and len(row) >= col) else None
-            start = max(hr, ds[0], vn[0] if vn else hr) + 1
-            items = []
-            mc = max(hc, vn[1] if vn else hc, ds[1], 4, cq or 0, cp or 0, ca or 0)
-            for r, row in enumerate(ws.iter_rows(min_row=start, max_col=mc, values_only=True), start=start):
-                # 합계(TOTAL) 줄에서 품목 읽기를 멈춘다 — 그 아래 서명·비고 글을 품목으로 오인해 칠하지 않게(최종 양식은 A열 'TOTAL')
-                if any(isinstance(v, str) and TOTAL_ROW.match(v) for v in row[:4]):
-                    break
-                d = row[ds[1] - 1] if len(row) >= ds[1] else None
-                d = "" if d is None else str(d).strip()
-                if not d:
-                    continue
-                h = row[hc - 1] if len(row) >= hc else None
-                v = row[vn[1] - 1] if (vn and len(row) >= vn[1]) else None
-                items.append({"row": r, "desc": d, "hs_raw": "" if h is None else str(h).strip(),
-                              "vn_raw": "" if v is None else str(v).strip(),
-                              "qty": _at(row, cq), "price": _at(row, cp), "amount": _at(row, ca)})
-            res["sheets"].append({"title": title, "path": path, "header_row": hr, "col_desc": ds[1], "col_hs": hc,
-                                  "col_vn": vn[1] if vn else None, "form": form, "items": items,
-                                  "col_qty": cq, "col_price": cp, "col_amount": ca})
+        def rows_of(title, min_row, max_row, max_col):
+            if title not in wb.sheetnames:
+                return None
+            return wb[title].iter_rows(min_row=min_row, max_row=max_row, max_col=max_col, values_only=True)
+        return _scan_core(paths, rows_of)
     finally:
         wb.close()
+
+
+def scan_fast(data: bytes) -> dict:
+    """z1191u: scan 과 **같은 규칙**(_scan_core) — 칸 값만 엑셀 XML 에서 바로 읽는다(서식 표를 안 읽어 빠르다).
+    다른 점 하나: 날짜 칸이 날짜가 아니라 엑셀 날짜 숫자로 온다(_inv_date 는 둘 다 읽는다).
+    최종 양식 틀은 서식이 3만 개 넘게 쌓여 openpyxl 로 한 번 읽는 데 2~3초 — 옛 양식 → 최종 양식 바꾸기에서 쓴다."""
+    z = zipfile.ZipFile(io.BytesIO(data))
+    paths = _sheet_paths(z)
+    ss = shared_strings(z)
+    cache = {}
+
+    def rows_of(title, min_row, max_row, max_col):
+        p = next((pp for t, _, pp in paths if t == title), None)
+        if p is None or p not in z.namelist():
+            return None
+        if p not in cache:
+            cache[p] = sheet_cells(z, p, ss)
+        cells = cache[p]
+        top = max((r for r, _ in cells), default=0)
+        hi = top if max_row is None else min(max_row, top)
+        return (tuple((cells.get((r, c)) or (None, None))[0] for c in range(1, max_col + 1)) for r in range(min_row, hi + 1))
+    return _scan_core(paths, rows_of)
+
+
+def shared_strings(z) -> list:
+    """z1191u: 글자 표(sharedStrings) → 목록(서식 있는 글 조각은 이어 붙임 · 발음 표시는 뺌)."""
+    if "xl/sharedStrings.xml" not in z.namelist():
+        return []
+    x = z.read("xl/sharedStrings.xml").decode("utf-8")
+    out = []
+    for m in re.finditer(r"<si\b[^>]*?(?:/>|>(.*?)</si>)", x, re.S):
+        body = re.sub(r"<rPh\b.*?</rPh>", "", m.group(1) or "", flags=re.S)
+        out.append(_text("".join(re.findall(r"<t\b[^>]*>(.*?)</t>", body, re.S))))
+    return out
+
+
+_ENT = re.compile(r"&(#[xX][0-9A-Fa-f]+|#[0-9]+|lt|gt|quot|apos|amp);")
+_ENT_NAMED = {"lt": "<", "gt": ">", "quot": '"', "apos": "'", "amp": "&"}
+
+
+def _ent(m):
+    t = m.group(1)
+    if t[0] != "#":
+        return _ENT_NAMED[t]
+    try:
+        return chr(int(t[2:], 16) if t[1] in "xX" else int(t[1:]))
+    except (ValueError, OverflowError):
+        return m.group(0)
+
+
+def _unesc(s: str) -> str:
+    """XML 글자 풀기 — 한 번에(&#38;lt; 는 글자 「&lt;」) · 숫자 표기(&#44288; · &#x1F4A1;)도 푼다
+    (openpyxl 같은 도구는 한글·베트남어를 숫자 표기로 적는다 — 10-28 실측: 「관리코드」 = &#44288;&#47532;&#53076;&#46300;)."""
+    return _ENT.sub(_ent, s) if "&" in s else s
+
+
+def _text(s: str) -> str:
+    """XML 글자 → 칸 글자: 줄바꿈은 XML 규칙대로 \\n 하나로 · &lt; 같은 표기 풀기 · 엑셀 _x000D_ 표기 풀기(openpyxl 과 같게)."""
+    s = _unesc(s.replace("\r\n", "\n").replace("\r", "\n"))
+    if "_x" in s:
+        s = re.sub(r"_x([0-9A-Fa-f]{4})_", lambda m: chr(int(m.group(1), 16)), s)
+    return s
+
+
+def sheet_cells(z, path, ss) -> dict:
+    """z1191u: 시트 XML → {(줄, 칸): (값, 수식 글자 또는 None)} — 값은 저장된 값(수식이면 계산해 둔 값 · 날짜는 엑셀 숫자).
+    공유 수식은 주인 칸 수식을 그 칸 자리로 옮겨 적는다."""
+    return sheet_cells_xml(z.read(path).decode("utf-8"), ss)
+
+
+def sheet_cells_xml(x: str, ss) -> dict:
+    """sheet_cells 와 같음 — 시트 XML 글자를 바로 받는다(변환기가 만든 시트를 저장 전에 읽을 때)."""
+    out, shared = {}, {}
+    for cm in re.finditer(r'<c\b[^>]*?\br="([A-Z]+)(\d+)"[^>]*?(?:/>|>(.*?)</c>)', x, re.S):
+        col, row = _col_num(cm.group(1)), int(cm.group(2))
+        cell = cm.group(0)
+        head = cell[:cell.index(">") + 1]
+        tm = re.search(r'\bt="(\w+)"', head)
+        t = tm.group(1) if tm else "n"
+        body = cm.group(3) or ""
+        val = None
+        if t == "inlineStr":
+            val = _text("".join(re.findall(r"<t\b[^>]*>(.*?)</t>", body, re.S)))
+        else:
+            vm = re.search(r"<v>(.*?)</v>", body, re.S)
+            if vm is not None:
+                raw = vm.group(1)
+                if t == "s":
+                    val = ss[int(raw)] if raw.strip().isdigit() and int(raw) < len(ss) else None
+                elif t == "b":
+                    val = raw.strip() == "1"
+                elif t in ("str", "e"):
+                    val = _text(raw)
+                else:
+                    try:
+                        val = int(raw) if re.fullmatch(r"-?\d+", raw.strip()) else float(raw)
+                    except ValueError:
+                        val = _unesc(raw)
+        ftext = None
+        fm = re.search(r"<f\b([^>]*?)(?:/>|>(.*?)</f>)", body, re.S)
+        if fm:
+            if 't="shared"' in fm.group(1):
+                si = re.search(r'\bsi="(\d+)"', fm.group(1))
+                si = si.group(1) if si else ""
+                if fm.group(2):
+                    shared[si] = (col, row, _unesc(fm.group(2)))
+                    ftext = _unesc(fm.group(2))
+                elif si in shared:
+                    c0, r0, tx = shared[si]
+                    ftext = translate_formula(tx, row - r0, col - c0)
+            elif fm.group(2) is not None:
+                ftext = _unesc(fm.group(2))
+        if val is not None or ftext is not None:
+            out[(row, col)] = (val, ftext)
+    return out
+
+
+_FREF = re.compile(r"((?:'[^']+'|[A-Za-z_][\w.]*)!)?(\$?)([A-Z]{1,3})(\$?)(\d+)(?![\w(])")
+
+
+def translate_formula(f: str, dr: int, dc: int = 0) -> str:
+    """z1191u: 채우기처럼 옮기기 — $ 없는 줄·칸 주소만 dr·dc 만큼. 다른 시트 주소도 엑셀 채우기처럼 옮기고
+    (공유 수식 =INVOICE!D34 → 아래 칸 =INVOICE!D35) 따옴표 글자 안은 그대로 둔다."""
+    out, pos, in_str = [], 0, False
+    for m in _FREF.finditer(f):
+        seg = f[pos:m.start()]
+        in_str ^= (seg.count('"') % 2 == 1)
+        out.append(seg)
+        pos = m.end()
+        s = m.start()
+        if in_str or (s > 0 and (f[s - 1].isalnum() or f[s - 1] in "_.")):
+            out.append(m.group(0))
+            continue
+        col, row = m.group(3), int(m.group(5))
+        if not m.group(2) and dc:
+            col = _col_letter(_col_num(col) + dc)
+        if not m.group(4):
+            row += dr
+        out.append("%s%s%s%s%d" % (m.group(1) or "", m.group(2), col, m.group(4), row))
+    out.append(f[pos:])
+    return "".join(out)
+
+
+def _scan_core(paths, rows_of) -> dict:
+    """scan · scan_fast 의 본체 — rows_of(시트, 첫 줄, 끝 줄 또는 None, 끝 칸) 은 줄마다 값 튜플(빈 칸 None)을 낸다."""
+    res = {"sheets": [], "invoice_no": "", "date": ""}
+    for title, state, path in paths:
+        if state != "visible" or WS_SKIP.search(title or ""):
+            continue
+        first_rows = rows_of(title, 1, 45, 30)
+        if first_rows is None:
+            continue
+        head, top = [], {}
+        for r, row in enumerate(first_rows, start=1):
+            for c, v in enumerate(row, start=1):
+                if v is None:
+                    continue
+                t = str(v).strip()
+                head.append((r, c, t))
+                if r <= 15:
+                    top[(r, c)] = v
+                if not res["invoice_no"] and r <= 15:
+                    mm = INVOICE_NO.search(t)
+                    if mm:
+                        res["invoice_no"] = mm.group(0)
+        hs_cells = [(r, c, t) for r, c, t in head if HEAD_HS.search(t) and len(t) < 20]
+        if not hs_cells:
+            continue
+        exact = [x for x in hs_cells if HEAD_HS_EXACT.match(x[2])]
+        hr, hc, _ = (exact or hs_cells)[0]
+        vn = next(((r, c) for r, c, t in head if HEAD_VN.search(t)), None)
+        ds = next(((r, c) for r, c, t in head if HEAD_DESC.search(t)), None)
+        if not ds:
+            continue
+        if not res["date"]:
+            res["date"] = _inv_date(top)
+        words = {t.upper() for r, c, t in head if r == hr}
+        if {"CATEGORY", "SUPPLIER"} <= words:
+            form = "수책"
+        elif "IMAGE" in words and "C/O" in words:
+            form = "소모품"
+        else:
+            form = "예전 양식"
+        # z1191p: 수량·단가·금액 칸 — Description·HS 머리글 줄 근처의 A~L 열만
+        #   (예전 양식은 31줄에 품명·수량·단가·금액 · HS 머리글은 32~33줄 — 오른쪽의 'Duty AMOUNT' 같은 칸은 안 본다)
+        near = range(min(ds[0], hr) - 1, max(ds[0], hr) + 1)
+
+        def _col(rx):
+            return next((c for r, c, t in head if r in near and c <= 12 and len(t) < 30 and rx.search(t)), None)
+        cq, cp, ca = _col(HEAD_QTY), _col(HEAD_PRICE), _col(HEAD_AMT)
+
+        def _at(row, col):
+            return _num(row[col - 1]) if (col and len(row) >= col) else None
+        start = max(hr, ds[0], vn[0] if vn else hr) + 1
+        items = []
+        mc = max(hc, vn[1] if vn else hc, ds[1], 4, cq or 0, cp or 0, ca or 0)
+        for r, row in enumerate(rows_of(title, start, None, mc) or (), start=start):
+            # 합계(TOTAL) 줄에서 품목 읽기를 멈춘다 — 그 아래 서명·비고 글을 품목으로 오인해 칠하지 않게(최종 양식은 A열 'TOTAL')
+            if any(isinstance(v, str) and TOTAL_ROW.match(v) for v in row[:4]):
+                break
+            d = row[ds[1] - 1] if len(row) >= ds[1] else None
+            d = "" if d is None else str(d).strip()
+            if not d:
+                continue
+            h = row[hc - 1] if len(row) >= hc else None
+            v = row[vn[1] - 1] if (vn and len(row) >= vn[1]) else None
+            items.append({"row": r, "desc": d, "hs_raw": "" if h is None else str(h).strip(),
+                          "vn_raw": "" if v is None else str(v).strip(),
+                          "qty": _at(row, cq), "price": _at(row, cp), "amount": _at(row, ca)})
+        res["sheets"].append({"title": title, "path": path, "header_row": hr, "col_desc": ds[1], "col_hs": hc,
+                              "col_vn": vn[1] if vn else None, "form": form, "items": items,
+                              "col_qty": cq, "col_price": cp, "col_amount": ca})
     return res
 
 

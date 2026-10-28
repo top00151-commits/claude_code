@@ -44034,8 +44034,9 @@ def _hs_fill_log_ensure(c):
         reply_file TEXT, reply_by INTEGER, reply_at TEXT,
         reply_added INTEGER, reply_updated INTEGER, reply_conflict INTEGER, reply_empty INTEGER)""")
     # z1191n: 올린 원본(본사 확정 뒤 원본에서 다시 만든다) · 본사가 고른 값({규격 키: HS}) · 예전 채운 파일 지문들(③ 거절용)
+    # z1191u: 옛 양식 → 최종 양식 바꿈 요약(JSON · 바꾼 양식 · 원본대로 둔 머리 · 뺀 값 · 못 바꾼 까닭)
     have = {r[1] for r in c.execute("PRAGMA table_info(export_hs_fill_log)")}
-    for col in ("orig_stored", "overrides", "out_sha_hist"):
+    for col in ("orig_stored", "overrides", "out_sha_hist", "conv_note"):
         if col not in have:
             try:
                 c.execute("ALTER TABLE export_hs_fill_log ADD COLUMN %s TEXT" % col)
@@ -44124,6 +44125,30 @@ def _hs_fill_entries(c) -> list:
         "SELECT part_key, model, hs_code, vn_name, status, seen_count, last_seen FROM export_hs_dict")]
 
 
+def _hs_conv_note(conv: dict):
+    """z1191u: hs_form_convert.convert 결과 → 기록·화면용 요약. 이미 최종 양식이면 None.
+    ok=True: 바꾼 양식 · 자동 근거 · 늘린 줄 · 사진 · 원본대로 둔 머리 묶음 · 최종 양식 것으로 바꾼 묶음 · 뺀 값(이름 · 수 · 까닭 · 예)
+    ok=False: 못 바꾼 까닭(부르는 쪽은 올린 모양 그대로 채웠다)"""
+    from . import hs_fill as _hf
+    if not conv or conv.get("final"):
+        return None
+    if conv.get("converted") and conv.get("ok"):
+        rp = conv.get("report") or {}
+        moved = []
+        for m in rp.get("header_moved") or []:
+            b = m["block"][3:] if m["block"].startswith("패킹 ") else m["block"]
+            if b not in moved:
+                moved.append(b)
+        return {"ok": True, "kind": _hf.form_name(conv.get("kind")), "auto": bool(conv.get("auto")), "why": conv.get("why") or "",
+                "items": rp.get("items", 0), "expanded": rp.get("expanded", 0), "photos": rp.get("photos", 0),
+                "photos_dropped": rp.get("photos_dropped", 0), "header_moved": moved, "keep": _HS_FILL_KEEP_DAYS,
+                "header_final": [d["block"] for d in conv.get("header_diffs") or []],
+                "dropped": [{"label": k, "n": v["n"], "why": v["why"], "ex": [str(x)[:40] for x in v["ex"]][:3]}
+                            for k, v in (rp.get("dropped") or {}).items()]}
+    why = conv.get("error") or ("; ".join((conv.get("bad") or [])[:2]) or "바꾼 파일을 다시 읽어 보니 원본과 달랐습니다")
+    return {"ok": False, "why": str(why)[:300], "multi": bool(conv.get("multi"))}
+
+
 def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
     """① 결과(그리고 본사 확정 뒤 다시 만든 결과) → 화면이 그리는 JSON.
     z1191n: 셈은 칸 색으로(hs_fill.counts) — 품명만 노란 줄도 '법인 입력' · 노랑·주황이 하나도 없으면 no_reply(받은 파일이 최종).
@@ -44154,8 +44179,13 @@ def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
     if cn["total"] and cn["keep"] >= cn["total"] * 0.8:
         hint = ("이미 HS 가 거의 다 채워진 파일입니다 — 법인 회신 파일이면 아래 ③ [회신 반영]에 올려 주세요"
                 "(여기 ①은 사전에 반영하지 않습니다)")
-    if "예전 양식" in forms:
-        hint = (hint + " · " if hint else "") + "예전 양식입니다 — 칸은 머리글로 찾았습니다. 앞으로는 최종 양식(수책통관·일반통관)으로 만들어 주세요"
+    cv = (extra or {}).get("conv")
+    if "예전 양식" in forms or (cv and not cv.get("ok")):
+        h2 = "예전 양식입니다 — "
+        if cv and not cv.get("ok"):
+            # z1191u: 옛 양식인데 최종 양식으로 못 바꿈(인보이스 여러 장 · 칸 모양이 다름 · 다시 읽어 대조가 다름 …) — 올린 모양 그대로 채웠다
+            h2 += "최종 양식으로 바꾸지 못해 올린 모양 그대로 채웠습니다(%s) · " % cv.get("why", "")
+        hint = (hint + " · " if hint else "") + h2 + "칸은 머리글로 찾았습니다. 앞으로는 최종 양식(수책통관·일반통관)으로 만들어 주세요"
     ino = res["scan"]["invoice_no"] or fname
     if cn["no_reply"]:
         msg = "[인보이스 전달] %s — HS CODE·Tên hàng 을 사전 확정 값으로 모두 채웠습니다. 회신은 필요 없습니다." % ino
@@ -44204,6 +44234,10 @@ async def export_hs_fill_page(req: Request):
             # z1191n (대표 「전부 자동이면 법인 회신이 필요없는 사항인데」): 노랑·주황이 하나도 없던(또는 본사가 다 확정한)
             #   인보이스는 회신을 기다리지 않는다 — 받은 파일이 최종 파일
             lg["no_reply"] = (not lg.get("reply_at")) and not (lg.get("n_need") or 0) and not (lg.get("n_check") or 0)
+            try:
+                lg["conv"] = _json.loads(lg.get("conv_note") or "null")   # z1191u: 옛 양식 → 최종 양식 바꿈 요약
+            except ValueError:
+                lg["conv"] = None
         hist = _hs_hist_summary(c)
     waiting = sum(1 for lg in logs if not lg.get("reply_at") and not lg.get("no_reply"))
     return ctx(req, "export_hs_fill.html", user=u, active="export", logs=logs, waiting=waiting,
@@ -44226,18 +44260,47 @@ async def export_hs_fill_run(req: Request):
     raw = await f.read()
     if len(raw) > _HS_FILL_MAX_MB * 1024 * 1024:
         return JSONResponse({"ok": False, "error": "파일이 너무 큽니다(%dMB 넘음)" % _HS_FILL_MAX_MB}, 400)
+    # z1191u: 옛 양식이면 바꿀 최종 양식 — 화면에서 고름(자동 = 칸 모양으로 가름 · 수책통관 · 일반통관)
+    want = {"suchaek": "수책", "somo": "소모품"}.get(str(form.get("form_kind") or ""), "auto")
     with db_session() as c:
         _hs_dict_ensure(c)
         entries = _hs_fill_entries(c)
     from . import hs_fill as _hf
+    from . import hs_form_convert as _hfc
     from starlette.concurrency import run_in_threadpool
+    # z1191u (대표 2026-10-28 「…확인해서 작성한 내용들이 포함된 문서는 항상 최종 양식으로 변경되어 작성이 되도록 적용해줘」):
+    #   옛 양식은 최종 양식으로 바꿔서 채운다 — 바꾼 파일을 다시 읽어 칸마다 대조(hs_form_convert.verify) ·
+    #   못 바꾸거나(인보이스 여러 장 …) 대조가 다르거나 ① 이 읽은 품목 수가 다르면 올린 모양 그대로 채운다(전과 같음)
     try:
-        res = await run_in_threadpool(_hf.fill, raw, entries)
+        conv = await run_in_threadpool(_hfc.convert, raw, want)
     except Exception as e:
-        log.warning("hs fill fail %s: %s", fname, e)
-        return JSONResponse({"ok": False, "error": "파일을 읽지 못했습니다 — %s" % str(e)[:150]})
+        log.warning("hs form convert fail %s: %s", fname, e)
+        conv = {"converted": False, "ok": False, "error": "최종 양식으로 바꾸다 멈췄습니다 — %s" % str(e)[:150]}
+    data, res = raw, None
+    if conv.get("converted") and conv.get("ok"):
+        try:
+            res = await run_in_threadpool(_hf.fill, conv["out"], entries)
+            n_fill = sum(len(s["items"]) for s in res["scan"]["sheets"]) if res.get("ok") else -1
+            n_src = (conv.get("report") or {}).get("named")
+            if not res.get("ok") or n_fill != n_src:
+                conv = dict(conv, ok=False, error=(res.get("error") or "바꾼 파일을 채우지 못했습니다") if not res.get("ok")
+                            else "바꾼 파일의 품목 수가 원본과 달랐습니다(원본 %s · 바꾼 파일 %d)" % (n_src, n_fill))
+                res = None
+            else:
+                data = conv["out"]
+        except Exception as e:
+            log.warning("hs fill converted fail %s: %s", fname, e)
+            conv = dict(conv, ok=False, error="바꾼 파일을 채우지 못했습니다 — %s" % str(e)[:150])
+            res = None
+    if res is None:
+        try:
+            res = await run_in_threadpool(_hf.fill, raw, entries)
+        except Exception as e:
+            log.warning("hs fill fail %s: %s", fname, e)
+            return JSONResponse({"ok": False, "error": "파일을 읽지 못했습니다 — %s" % str(e)[:150]})
     if not res.get("ok"):
         return JSONResponse({"ok": False, "error": res.get("error") or "처리하지 못했습니다"})
+    note = _hs_conv_note(conv)
     cn = res["counts"]
     forms = sorted({s["form"] for s in res["scan"]["sheets"]})
     import secrets as _sec
@@ -44248,8 +44311,12 @@ async def export_hs_fill_run(req: Request):
     with open(os.path.join(_HS_FILL_DIR, stored), "wb") as fo:
         fo.write(res["out"])
     # z1191n: 올린 원본도 둔다 — 본사가 ① 결과에서 HS 를 고르면 원본에서 다시 만든다(색이 깨끗하게 · 30일 뒤 함께 지움)
+    # z1191u: 최종 양식으로 바꿨으면 바꾼 파일을 그 자리에(다시 만들어도 최종 양식) · 올린 파일은 _src 로 따로 둔다(30일 뒤 함께 지움)
     with open(os.path.join(_HS_FILL_DIR, orig), "wb") as fo:
-        fo.write(raw)
+        fo.write(data)
+    if data is not raw:
+        with open(os.path.join(_HS_FILL_DIR, tok + "_src.xlsx"), "wb") as fo:
+            fo.write(raw)
     import hashlib as _hl
     # 지문은 실제로 바뀐 파일만 남긴다 — 바꿀 것이 없어 원본을 그대로 돌려준 경우(법인 회신을 ①에 잘못 올린 때)
     #   그 회신을 ③에 다시 올려도 '자동 채움 파일 그대로'로 오인해 막지 않게.
@@ -44257,14 +44324,16 @@ async def export_hs_fill_run(req: Request):
     with db_session() as c:
         _hs_fill_log_ensure(c)
         cur = c.execute(
-            "INSERT INTO export_hs_fill_log(invoice_no,file_name,form,stored,orig_stored,out_sha,n_total,n_auto,n_check,n_need,n_keep,filled_by) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO export_hs_fill_log(invoice_no,file_name,form,stored,orig_stored,out_sha,n_total,n_auto,n_check,n_need,n_keep,filled_by,conv_note) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (res["scan"]["invoice_no"], fname, "·".join(forms), stored, orig, out_sha, cn["total"], cn["auto"], cn["check"],
-             cn["need"], cn["keep"], u.get("id")))
+             cn["need"], cn["keep"], u.get("id"), _json.dumps(note, ensure_ascii=False) if note else None))
         lid = cur.lastrowid
+    extra = {"conv": note} if note else {}
     # z1191p: 노랑·주황이 없으면 받은 파일이 최종 — 지난 수출 이력에도 넣는다(같은 번호면 바꿔 넣음 · 번호 없으면 안 넣음)
-    extra = {"hist_saved": await run_in_threadpool(_hs_hist_record_out, res["out"], fname, u)} if cn["no_reply"] else None
-    return JSONResponse(_hs_fill_payload(lid, fname, res, extra))
+    if cn["no_reply"]:
+        extra["hist_saved"] = await run_in_threadpool(_hs_hist_record_out, res["out"], fname, u)
+    return JSONResponse(_hs_fill_payload(lid, fname, res, extra or None))
 
 
 # z1191n (대표 2026-10-27 「사전 확정을 하고 싶을때 어떻게해??」 → 「진행해」): ① 결과에서 본사가 그 줄의 HS 를 고른다.
@@ -44377,6 +44446,12 @@ def _hs_fill_confirm_do(lid: int, sheet: str, row: int, hs: str, u) -> dict:
             c.execute("UPDATE export_hs_fill_log SET out_sha=?, out_sha_hist=?, n_total=?, n_auto=?, n_check=?, n_need=?, n_keep=? "
                       "WHERE id=?", (new_sha, ",".join(hist[-30:]), cn["total"], cn["auto"], cn["check"], cn["need"], cn["keep"], lid))
     extra = {"confirmed": {"row": row, "desc": a["desc"], "hs": hs, "prev": prev, "dict_changed": dict_changed}}
+    try:
+        cvn = _js.loads(lg.get("conv_note") or "null")      # z1191u: 옛 양식에서 바꾼 기록이면 결과 카드에 그 요약을 그대로
+    except ValueError:
+        cvn = None
+    if cvn:
+        extra["conv"] = cvn
     if cn["no_reply"]:
         # z1191p: 본사 확정으로 노랑·주황이 다 풀리면 이 파일이 최종 — 지난 수출 이력에도(같은 번호면 바꿔 넣음)
         extra["hist_saved"] = _hs_hist_record_out(res2["out"], lg.get("file_name") or "", u)
