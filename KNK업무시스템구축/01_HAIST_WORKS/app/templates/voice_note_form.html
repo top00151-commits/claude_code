@@ -38,6 +38,10 @@
 .vn-sum.empty { color: var(--qv-ink-3); font-size:13px; }
 #vnSumEditWrap[hidden], #vnSumBox[hidden], #vnBodyWrap[hidden], #vnUpWrap[hidden] { display:none !important; }
 .vn-acts { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+/* z1198 (대표 2026-10-28 · 폴드 사진 — 회의록 상세와 같은 규칙): 단추 글자 안 꺾임(한 단추 = 한 줄) · 단추째 줄바꿈(flex-wrap 은 위 줄) ·
+   <a>/<button> 줄높이 차이(40/37px) → line-height·min-height 고정으로 같은 높이 · 좁은 폭(≤480px)은 여백만 조금 줄임 */
+.vn-acts .btn { white-space:nowrap; flex:0 0 auto; line-height:1.25; min-height:38px; }
+@media (max-width: 480px) { .vn-acts { gap:8px; } .vn-acts .btn { padding:9px 12px; } }
 @media (max-width:430px){ .vn-sec-head { flex-wrap:wrap; } }
 /* z1195 (대표 2026-10-21 「녹음파일을 한번 잘 못 올리면 수정할 방법이 없어... 파일 다시 올리기 기능이 필요해」):
    📁 녹음 다시 올리기(원문이 있는 메모) · 다시 올리기 중 「취소」 · 🔴 [hidden] 이 단추 모양 규칙에 지지 않게 */

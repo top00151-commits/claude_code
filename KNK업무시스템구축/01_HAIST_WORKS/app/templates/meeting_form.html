@@ -208,6 +208,17 @@
 /* 🔴 .start-big/.btn 의 display 가 hidden 속성을 덮는다 — 이겨야 아이폰·PC 에서 안 보인다 */
 .rec-phone[hidden] { display:none !important; }
 #recOther[hidden] { display:none !important; }
+/* z1198 (대표 2026-10-28 · 폴드 접음·펼침 사진 「아이콘 이름이 여러 줄로 … 한 줄 또는 두 줄이면 줄 맞춤 · 폰마다 자동」):
+   상세 위 단추 줄 — 단추 글자는 안 꺾이고(한 단추 = 한 줄), 폭이 모자라면 단추째 다음 줄로 내려가 모든 줄의 높이·간격이 같다(flex-wrap · 폰마다 자동).
+   좁은 폭(≤480px)은 여백만 조금 줄여 한 줄에 더 들어가게. 🔴 인라인 style 이 CSS 를 이기므로 div 의 인라인 flex 를 이 class 로 바꿨다.
+   🔴 <a>·<button> 의 줄높이가 달라(20px / normal) 높이가 3px 어긋난다 → line-height·min-height 를 고정해 같은 높이로. */
+.mf-head-acts { display:flex; gap:10px; row-gap:8px; align-items:center; flex-wrap:wrap; min-width:0; max-width:100%; }
+.mf-head-acts .btn, .mf-head-acts .mf-ended { white-space:nowrap; flex:0 0 auto; line-height:1.25; min-height:38px; }
+@media (max-width: 480px) {
+  .mf-head-acts { gap:8px; }
+  .mf-head-acts .btn { padding:9px 12px; }
+  .mf-head-acts .mf-ended { padding:7px 10px; }
+}
 .mf-ended { display:inline-flex; align-items:center; font-size:13px; font-weight:800; color:#166534;
             background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; padding:8px 12px; }
 /* 🔴 .btn 의 display 가 hidden 속성을 덮는다 — 이겨야 숨는다(.rec-phone 과 같은 함정) */
@@ -288,7 +299,7 @@
       <div class="page-meta"><a href="/meetings" style="color:var(--qv-ink-3);">{{ i.mt_title }}</a> · {% if is_new %}{{ i.mf_new_sub }}{% else %}{{ meeting.meeting_date }}{% endif %}</div>
       <h1 class="page-title">{% if is_new %}{{ i.mf_h_new|safe }}{% else %}{{ i.mf_h_detail|safe }}{% endif %}</h1>
     </div>
-    <div style="display:flex;gap:10px;">
+    <div class="mf-head-acts">{# z1198: 인라인 flex → class(단추째 줄바꿈 · 글자 안 꺾임 · 같은 높이 — 규칙은 위 <style>) #}
       <a class="btn btn-secondary" href="/meetings">{{ i.mf_back }}</a>
       {# z1185 (대표 2026-10-16 「회의록보기 아이콘은 회의록이 작성되었을때만 활성화」): 녹음 원문도 손으로 쓴 원문도 없으면 흐리게 ·
          누르면 까닭을 알린다 · 저장·받아쓰기로 작성되면 화면이 그 자리에서 다시 켠다(minutesSync) — 판정은 서버 한 곳 #}
