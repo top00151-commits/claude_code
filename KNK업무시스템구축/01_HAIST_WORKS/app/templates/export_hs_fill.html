@@ -187,14 +187,17 @@
       <div class="hf-latest" id="hfLatest">
         <div style="font-size:13px;font-weight:800;color:#b91c1c;">📌 HS 사전을 최근 수출 값으로 맞출 규격 {{ hist.n_latest }}개
           <span style="font-weight:600;">(HS 바뀜 {{ hist.n_latest_hs }} · 같은 HS 로 확정만 {{ hist.n_latest_st }})</span></div>
-        <div class="hf-sub">지난 수출 이력에 있는 규격 가운데 사전이 <b>AI 추정·확인 대기</b>이거나, <b>확정이어도 HS 가 마지막 수출과 다른</b> 것입니다 —
+        <div class="hf-sub">지난 수출 이력에 있는 규격 가운데 사전이 <b>확인 대기</b>이거나, <b>확정이어도 HS 가 마지막 수출과 다른</b> 것입니다 —
           누르면 <b>가장 최근 수출의 HS</b>(HS 가 바뀌면 그때 나간 품명도)로 확정합니다 · 바뀌기 전 값과 근거 인보이스는 사전의 사유 칸에 남습니다.</div>
         <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <button class="hf-btn" type="button" data-n="{{ hist.n_latest }}" data-hs="{{ hist.n_latest_hs }}" data-st="{{ hist.n_latest_st }}"
                   onclick="hfApplyLatest(this)">최근 수출 값으로 확정 ({{ hist.n_latest }}개)</button>
-          {% if hist.rest_ai or hist.rest_pending %}<span class="hf-sub">이력이 없는 <a href="/export/hs-dict?status=AI">AI 추정 {{ hist.rest_ai }}</a> ·
-            <a href="/export/hs-dict?status=PENDING">확인 대기 {{ hist.rest_pending }}</a>개는 이 단추로 정하지 못합니다(그대로 — HS 사전 화면에서 고름)</span>{% endif %}
+          {% if hist.rest_ai or hist.rest_pending %}<span class="hf-sub">이력이 없는 {% if hist.rest_ai %}<a href="/export/hs-dict?status=AI">AI 추정 {{ hist.rest_ai }}</a> ·
+            {% endif %}<a href="/export/hs-dict?status=PENDING">확인 대기 {{ hist.rest_pending }}</a>개는 이 단추로 정하지 못합니다(그대로 — HS 사전 화면에서 고름)</span>{% endif %}
         </div>
+        {# z1191t: 마지막 수출 날짜의 줄끼리 HS 가 둘인 규격 — 단추가 줄 순서로 고르지 않는다(사람이 HS 사전에서) #}
+        {% if hist.n_split %}<div class="hf-sub" style="margin-top:4px;color:#b45309;">⚠ 같은 날 수출에서 HS 가 둘로 적힌 규격 {{ hist.n_split }}개는 이 단추가 고르지 않습니다 — HS 사전 화면에서 고르세요:
+          {% for x in hist.split %}<a href="/export/hs-dict?q={{ x.part_key|urlencode }}">{{ x.model or x.part_key }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
         <details class="hf-det" open><summary>무엇이 바뀌는지 — {{ hist.n_latest }}개 (규격을 누르면 그 규격의 지난 수출 단가·HS·사진)</summary>
           <div class="hf-scroll" style="margin-top:6px;"><table class="hf-tbl">
             <thead><tr><th>사진</th><th>규격(Description)</th><th>지금 사전</th><th>→ 최근 수출 HS</th><th>최근 인보이스</th><th>품명(Tên hàng)</th><th class="num">수출 횟수</th></tr></thead>
@@ -214,8 +217,10 @@
         </details>
       </div>
       {% elif hist.n %}
-      <div class="hf-sub" style="margin-top:4px;color:#15803d;">✅ HS 사전에서 지난 수출 이력이 있는 규격은 모두 최근 수출 값으로 확정돼 있습니다{% if hist.rest_ai or hist.rest_pending %}
-        · 이력이 없는 <a href="/export/hs-dict?status=AI">AI 추정 {{ hist.rest_ai }}</a> · <a href="/export/hs-dict?status=PENDING">확인 대기 {{ hist.rest_pending }}</a>개는 HS 사전 화면에서 고릅니다{% endif %}.</div>
+      <div class="hf-sub" style="margin-top:4px;color:#15803d;">✅ HS 사전에서 지난 수출 이력이 있는 규격은 {% if hist.n_split %}아래 ⚠ {{ hist.n_split }}개 말고 {% endif %}모두 최근 수출 값으로 확정돼 있습니다{% if hist.rest_ai or hist.rest_pending %}
+        · 이력이 없는 {% if hist.rest_ai %}<a href="/export/hs-dict?status=AI">AI 추정 {{ hist.rest_ai }}</a> · {% endif %}<a href="/export/hs-dict?status=PENDING">확인 대기 {{ hist.rest_pending }}</a>개는 HS 사전 화면에서 고릅니다{% endif %}.</div>
+      {% if hist.n_split %}<div class="hf-sub" style="margin-top:2px;color:#b45309;">⚠ 같은 날 수출에서 HS 가 둘로 적힌 규격 {{ hist.n_split }}개는 「최근 수출 값으로 확정」이 고르지 않습니다 — HS 사전 화면에서 고르세요:
+        {% for x in hist.split %}<a href="/export/hs-dict?q={{ x.part_key|urlencode }}">{{ x.model or x.part_key }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
       {% endif %}
       {% if hist.invs %}
       {# z1191q (대표 10-27 「완료된 표가 안나는데」): 목록은 펼친 채로 — 접혀 있으면 등록이 안 된 것처럼 보였다

@@ -57,7 +57,9 @@
       <h1 class="page-title" data-dn="title">📖 베트남 HS코드 사전</h1>
       <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
         과거 인보이스(베트남 세관 통과 실적)에서 쌓인 부품별 HS코드·베트남어 품명 — 통관 입력 [🤖 HS 자동 채움]의 근거.
-        <b style="color:#b91c1c;">확인 대기(충돌)</b>·<b style="color:#a16207;">AI 추정</b>은 검토 후 <b>확정</b>으로 바꿔야 자동 채움에 쓰입니다.
+        <b style="color:#b91c1c;">확인 대기(충돌)</b>는 검토 후 <b>확정</b>으로 바꿔야 자동 채움에 쓰입니다.
+        {# z1191t (대표 2026-10-28 「AI확정 … 앞으로도 기록하지 말고 보류하자」): AI 추정은 적지 않는다 — 법인이 통관 업체에 확인한 값만 #}
+        <b style="color:#a16207;">AI 추정은 보류</b>(대표 10-28) — 베트남 법인이 통관 업체에 확인한 HS 만 씁니다.
       </div>
     </div>
   </div>
@@ -66,7 +68,9 @@
     {% set _all = (st is not defined) or (not st) %}
     <a class="hsd-chip {{ 'on' if not st }}" href="/export/hs-dict{% if q %}?q={{ q|urlencode }}{% endif %}">전체 <b>{{ total }}</b></a>
     <a class="hsd-chip {{ 'on' if st=='PENDING' }}" href="/export/hs-dict?status=PENDING{% if q %}&q={{ q|urlencode }}{% endif %}"><span class="dot" style="background:#dc2626;"></span>확인 대기(충돌) <b>{{ stats.get('PENDING', 0) }}</b></a>
+    {% if stats.get('AI') or st=='AI' %}{# z1191t: AI 추정 보류 — 남은 줄이 있을 때만 보인다 #}
     <a class="hsd-chip {{ 'on' if st=='AI' }}" href="/export/hs-dict?status=AI{% if q %}&q={{ q|urlencode }}{% endif %}"><span class="dot" style="background:#eab308;"></span>AI 추정 <b>{{ stats.get('AI', 0) }}</b></a>
+    {% endif %}
     <a class="hsd-chip {{ 'on' if st=='CONFIRMED' }}" href="/export/hs-dict?status=CONFIRMED{% if q %}&q={{ q|urlencode }}{% endif %}"><span class="dot" style="background:#16a34a;"></span>확정 <b>{{ stats.get('CONFIRMED', 0) }}</b></a>
     <form method="get" action="/export/hs-dict" style="display:flex;gap:6px;margin-left:auto;">
       {% if st %}<input type="hidden" name="status" value="{{ st }}">{% endif %}
@@ -168,7 +172,8 @@
         <tr data-did="{{ r.id }}">
           <td data-col="status">
             <select name="status" style="font-size:11px;">
-              {% for s in ['CONFIRMED','PENDING','AI'] %}
+              {# z1191t: 「AI 추정」은 고를 수 없다(보류) — 그 상태로 남은 줄만 지금 값으로 보인다 #}
+              {% for s in ['CONFIRMED','PENDING'] + (['AI'] if r.status=='AI' else []) %}
               <option value="{{ s }}"{% if r.status==s %} selected{% endif %}>{{ {'CONFIRMED':'✅ 확정','PENDING':'⛔ 확인 대기','AI':'🟡 AI 추정'}[s] }}</option>
               {% endfor %}
             </select>
@@ -203,7 +208,7 @@
   </div>
   <div style="margin-top:8px;font-size:11.5px;color:var(--mute);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
     <span>
-      최대 400건 표시(확인 대기·AI 추정 우선, 사용 많은 순) — 더 보려면 검색을 이용하세요.
+      최대 400건 표시(확인 대기 우선, 사용 많은 순) — 더 보려면 검색을 이용하세요.
       수정 후 <b>[저장]</b>을 누르면 즉시 반영되고, <b>확정</b> 상태만 통관 입력 [🤖 HS 자동 채움]에 사용됩니다.
     </span>
     {# z1045 (현황판 §4 규칙 23 '되돌릴 길을 같이 준다'): 폭을 잘못 줄여도 한 번에 원래대로 #}

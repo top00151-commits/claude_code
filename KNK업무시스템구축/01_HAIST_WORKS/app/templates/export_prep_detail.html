@@ -101,8 +101,9 @@
     <div class="f"><label>인보이스단가(USD)</label><input id="bulkUnitUsd" inputmode="decimal" style="width:120px;text-align:right;" placeholder="0.00"></div>
     <div class="f"><label>관세율%</label><input id="bulkDutyRate" inputmode="decimal" style="width:70px;text-align:right;" placeholder="0"></div>
     <button type="button" class="apply" onclick="bulkApply()">⬇ 전 품목 적용</button>
-    {# v5H226z966 (대표 지시): HS 사전 자동 채움 — 과거 통관 실적(741종~)으로 빈 칸 채움 + 신규는 AI 추정(노란 표시·검토 후 저장) #}
-    <button type="button" class="apply" style="background:#7c3aed;border-color:#7c3aed;" onclick="hsAutofill()" title="과거 통관 실적 사전으로 HS·베트남어명·원산지·세율 빈 칸을 채웁니다. 사전에 없는 신규 품목은 AI 추정(노란 표시) 선택 가능.">🤖 HS 자동 채움</button>
+    {# v5H226z966 (대표 지시): HS 사전 자동 채움 — 과거 통관 실적(741종~)으로 빈 칸 채움 + 신규는 AI 추정(노란 표시·검토 후 저장)
+       z1191t (대표 2026-10-28 「AI확정 … 앞으로도 기록하지 말고 보류하자」): 신규 AI 추정은 보류 — 사전에 없는 품목은 비워 둔다 #}
+    <button type="button" class="apply" style="background:#7c3aed;border-color:#7c3aed;" onclick="hsAutofill()" title="과거 통관 실적 사전(확정)으로 HS·베트남어명·원산지·세율 빈 칸을 채웁니다. 사전에 없는 신규 품목은 비워 둡니다(AI 추정 보류 — 베트남 법인이 통관 업체에 확인한 HS 를 입력).">🤖 HS 자동 채움</button>
     {# v5H226z969 (대표 지적): '계수%'가 어려움 → '가산율%(신고가 올림)' + 실제 숫자 예시로 안내 #}
     <div class="f"><label>가산율% <span style="font-weight:400;">(신고가 올림)</span></label><input id="bulkUplift" inputmode="decimal" style="width:64px;text-align:right;" placeholder="예:16" title="인보이스(신고서)에 적을 단가를 판매단가보다 몇 % 올려 만들지 입력합니다.&#10;예: 16 입력 → 단가 4,000원이면 4,640원을 달러로 바꿔 $3.20 기재.&#10;비우면 판매단가를 그대로 달러로 바꿉니다."></div>
     <button type="button" class="fill" onclick="fillInvoiceFromSale()" title="전 품목의 인보이스단가(USD)를 한 번에 채웁니다 = 판매단가 + 가산율% → 환율로 달러 환산 (통화가 USD면 환산 없이 그대로)">💵 판매단가 → 인보이스단가</button>
@@ -342,6 +343,7 @@
   // ── v5H226z966 (대표 지시): HS 사전 자동 채움 + 신규 AI 추정 ──
   // ①사전(과거 세관 통과 실적·CONFIRMED)은 서버가 빈 칸만 저장 후 값 반환→화면 즉시 반영(dirty 아님).
   // ②사전에 없는 신규는 AI '제안만' 받아 노란 표시+dirty — 사람이 검토 후 [전체 저장](자동 확정 금지).
+  //   z1191t (대표 10-28): ② 보류 — 신규는 AI 로 추정하지 않고 비워 둔다(서버 hs-ai-suggest 도 보류 안내만 돌려준다).
   function applyVals(row, o){
     ['hs_code','description','origin','duty_rate','vat_rate'].forEach(function(nm){
       if(o[nm]!==undefined && o[nm]!==null) setIfEl(row, nm, o[nm]);
@@ -365,8 +367,10 @@
             + (j.pending? '\n⚠ 충돌 확인대기 '+j.pending+'건 (사전 확정 후 다시 실행)' : '')
             + '\n사전에 없는 신규 '+j.miss+'건';
     if(j.miss>0){
-      if(confirm(msg+'\n\n신규 '+j.miss+'건을 AI로 추정할까요?\n(노란 표시로만 채움 — 검토 후 [전체 저장] 해야 반영)')){ hsAiSuggest(); return; }
-    } else { alert(msg); }
+      msg += '\n\n신규 '+j.miss+'건은 비워 둡니다 — AI 추정은 보류 중입니다(대표 10-28).'
+           + '\n베트남 법인이 통관 업체에 확인한 HS 를 받아 입력하세요.';
+    }
+    alert(msg);
   }
   async function hsAiSuggest(){
     var btn=document.querySelector('button[onclick="hsAutofill()"]');
@@ -375,7 +379,7 @@
     try { r = await fetch('/export/prep/{{ p.id }}/hs-ai-suggest', {method:'POST', credentials:'same-origin'}); j = await r.json(); }
     catch(e){ alert('통신 오류: '+e); if(btn){ btn.disabled=false; btn.textContent='🤖 HS 자동 채움'; } return; }
     if(btn){ btn.disabled=false; btn.textContent='🤖 HS 자동 채움'; }
-    if(!j.ok){ alert('AI 추정 실패: '+(j.error||'')); return; }
+    if(!j.ok){ alert(j.hold ? j.error : ('AI 추정 실패: '+(j.error||''))); return; }
     var n=0;
     (j.suggestions||[]).forEach(function(o){
       var row = document.querySelector('.ex-grid tbody tr[data-iid="'+o.iid+'"]');

@@ -43011,13 +43011,25 @@ async def export_hs_autofill(req: Request, pid: int):
                          "miss": len(misses), "miss_names": misses[:30], "applied": applied})
 
 
+# z1191t (대표 2026-10-28 「AI확정은 근거가 없으니깐 삭제하고 AI확정 이부분은 앞으로도 기록하지 말고 보류하자.. 지금은 베트남법인에
+#   내용을 전달하면 법인에서 베트남통관 관련 업체에 품목 확인해서 HS코드 안내받아서 입력하는거라 지금은 이 방법으로 확정한것만 사용」):
+#   AI 추정 보류 — AI 를 부르지도 사전에 적지도 않는다(07-15 에 적힌 154줄은 같은 날 운영에서 지움).
+#   코드는 지우지 않고 꺼 둔다 · 다시 켜는 것은 대표 결정 뒤.
+_HS_AI_SUGGEST_ON = False
+_HS_AI_HOLD_MSG = ("AI 추정은 보류 중입니다(대표 2026-10-28) — 사전에 없는 품목의 HS 는 "
+                   "베트남 법인이 통관 업체에 확인한 값을 받아 입력합니다")
+
+
 @app.post("/export/prep/{pid:int}/hs-ai-suggest")
 async def export_hs_ai_suggest(req: Request, pid: int):
     """사전에 없는 신규 품목만 AI 추정(베트남 AHTN 8자리 + 베트남어 품명) — DB에 쓰지 않고 '제안만' 반환.
-    화면이 노란 표시로 채우고 사람이 검토 후 [전체 저장](법적 신고라 자동 확정 금지). 사전에는 status='AI'로 기록(관리 화면서 확정 가능)."""
+    화면이 노란 표시로 채우고 사람이 검토 후 [전체 저장](법적 신고라 자동 확정 금지). 사전에는 status='AI'로 기록(관리 화면서 확정 가능).
+    z1191t: 보류 중(_HS_AI_SUGGEST_ON) — AI 부르기·사전 기록 없이 보류 안내만 돌려준다."""
     u = _export_guard(req)
     if not u:
         return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    if not _HS_AI_SUGGEST_ON:
+        return JSONResponse({"ok": False, "hold": True, "error": _HS_AI_HOLD_MSG})
     from . import ai_client as _ai
     if not _ai.ai_available():
         return JSONResponse({"ok": False, "error": "AI 미설정 — 설정에서 AI 키 등록 후 사용할 수 있습니다"})
@@ -43730,7 +43742,9 @@ async def export_hs_dict_save(req: Request, did: int):
     if hs and len(hs) != 8:
         return JSONResponse({"ok": False, "error": "HS코드는 8자리 숫자입니다"}, 400)
     st = (form.get("status") or "").strip().upper()
-    if st not in ("CONFIRMED", "PENDING", "AI"):
+    if st == "AI":          # z1191t: AI 추정 보류 — 사람이 'AI 추정'으로 적지 않는다(옛 화면에서 와도 확인 대기로)
+        st = "PENDING"
+    if st not in ("CONFIRMED", "PENDING"):
         st = "CONFIRMED"
     with db_session() as c:
         _hs_dict_ensure(c)
@@ -44709,10 +44723,21 @@ def _hs_hist_summary(c) -> dict:
     for x in latest:
         if x["dict_status"] in rest:
             rest[x["dict_status"]] -= 1
+    #   z1191t: 마지막 수출 날짜의 줄끼리 HS 가 갈린 규격(같은 인보이스 안 두 값 등) — 단추가 줄 순서로 고르지 않는다 → 사람이 고른다
+    #   (10-28 실측: KNK-260901-1 안에 HSP0320-35E/B 가 460행 39269099 · 582행 39259000 — 10:38 📌 가 582행 값을 골랐다)
+    split = [dict(r) for r in c.execute(
+        "SELECT d.part_key, d.model, d.status FROM export_hs_dict d WHERE ("
+        "SELECT COUNT(DISTINCT w.hs_code) FROM export_hist_line w WHERE w.part_key=d.part_key AND w.hs_code<>'' "
+        "AND IFNULL(w.inv_date,'')=(SELECT IFNULL(MAX(v.inv_date),'') FROM export_hist_line v "
+        "WHERE v.part_key=d.part_key AND v.hs_code<>''))>1 ORDER BY d.part_key")]
+    for x in split:
+        if x["status"] in rest:
+            rest[x["status"]] -= 1
     return {"n": s["n"], "lines": s["l"], "lines_txt": "{:,}".format(s["l"] or 0), "d0": s["d0"] or "", "d1": s["d1"] or "",
             "kinds": kinds, "invs": invs, "latest": latest[:300], "n_latest": len(latest), "n_latest_hs": n_hs,
             "n_latest_st": len(latest) - n_hs, "n_img": imgs,
-            "rest_ai": rest.get("AI", 0), "rest_pending": rest.get("PENDING", 0)}
+            "rest_ai": rest.get("AI", 0), "rest_pending": rest.get("PENDING", 0),
+            "split": split[:50], "n_split": len(split)}
 
 
 def _hs_hist_latest(c) -> list:
@@ -44720,6 +44745,8 @@ def _hs_hist_latest(c) -> list:
     HS 사전을 지난 수출의 **가장 최근 값**으로 맞출 규격 — 이력(규격 그대로 같은 줄 · HS 8자리)이 있는 사전 줄 가운데
     ① HS 가 마지막 수출 HS 와 다르거나(상태 무관 — 확정이어도) ② 상태가 확정이 아닌 것(AI 추정·확인 대기).
     이력이 없는 규격은 대상이 아니다(그대로 남는다). 품명: HS 가 바뀌면 그 HS 로 나간 가장 최근 품명 · 사전 품명이 비었으면 채움.
+    z1191t: 마지막 수출 날짜의 줄끼리 HS 가 갈리면(같은 인보이스 안 두 값 등) 「가장 최근 값」이 하나가 아니다 → 대상에서 뺀다
+    (전에는 줄 순서 — 나중 줄 — 로 골랐다 · 그런 규격은 요약의 split 으로 따로 보인다).
     반환 [{id, part_key, model, dict_hs, dict_status, dict_vn, note, hs, vn, vn_change, hs_change, invoice_no, inv_date, n, img}]"""
     from . import hs_fill as _hf
     _hs_hist_ensure(c)
@@ -44731,7 +44758,9 @@ def _hs_hist_latest(c) -> list:
         " ORDER BY z.inv_date DESC, z.id DESC LIMIT 1) AS img "
         "FROM export_hs_dict d JOIN export_hist_line l ON l.part_key=d.part_key "
         "WHERE l.hs_code<>'' AND l.id=(SELECT y.id FROM export_hist_line y WHERE y.part_key=d.part_key AND y.hs_code<>'' "
-        "ORDER BY y.inv_date DESC, y.id DESC LIMIT 1) ORDER BY l.inv_date DESC, d.part_key").fetchall()
+        "ORDER BY y.inv_date DESC, y.id DESC LIMIT 1) "
+        "AND (SELECT COUNT(DISTINCT w.hs_code) FROM export_hist_line w WHERE w.part_key=d.part_key AND w.hs_code<>'' "
+        "AND IFNULL(w.inv_date,'')=IFNULL(l.inv_date,''))=1 ORDER BY l.inv_date DESC, d.part_key").fetchall()
     out = []
     for r in rows:
         hs_change = _hf.digits(r["dict_hs"]) != r["hs"]     # 사전 HS 에 점·공백이 섞여 있어도 숫자로 견준다
