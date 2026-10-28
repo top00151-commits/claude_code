@@ -91,6 +91,16 @@
 .add-row button { border:1px dashed var(--qv-line-3); background: var(--qv-surface-2); color: var(--qv-ink-2); font-size:12.5px; font-weight:700; cursor:pointer; padding:7px 12px; border-radius:7px; }
 .add-row button:hover { background: var(--qv-surface-3); }
 .mf-actions { display:flex; gap:10px; align-items:center; margin:18px 0; }
+/* z1197: 「작성자」 줄 — 이름 + ✏ 바꾸기 · 고르기 목록(이름으로 찾기) */
+.mf-author-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-height:38px; }
+.mf-author-row .mf-author-name { font-size:14px; font-weight:700; color: var(--qv-ink); }
+.mf-author-btn { padding:7px 11px; font-size:12.5px; min-height:34px; white-space:nowrap; }
+#authorPick { margin-top:8px; }
+#authorPick input { width:100%; max-width:360px; border:1px solid var(--qv-line); border-radius:7px; padding:8px 10px; font-size:13px; font-family:inherit; background: var(--qv-surface); color: var(--qv-ink); }
+.mf-author-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.mf-author-opt { border:1px solid var(--qv-line-3); background: var(--qv-surface-2); color: var(--qv-ink); font-size:12.5px; font-weight:700; cursor:pointer; padding:7px 10px; border-radius:7px; white-space:nowrap; }
+.mf-author-opt.auto { border-style:dashed; color: var(--qv-ink-2); }
+.mf-author-opt:hover { background: var(--qv-surface-3); }
 .save-status { font-size:12px; color: var(--qv-ink-3); min-height:16px; }
 .save-status.ok { color:#15803d; } .save-status.err { color: var(--knk-red); } .save-status.busy { color: var(--qv-ink-2); }
 /* z1106: 고친 칸이 저장 전이면 저장 버튼 옆에 표시 */
@@ -523,6 +533,18 @@
             <label>{{ i.mf_f_att }} <span class="mf-hint">{{ i.mf_f_att_hint }}</span></label>
             <input id="mtgAttendees" type="text" placeholder="{{ i.mf_f_att_ph }}" value="{{ meeting.attendees_text }}" {% if not can_edit %}disabled{% endif %}>
           </div>
+          {# z1197 (대표 2026-10-28): 「작성자」= 녹음 파일을 올린 사람이 기본 · 바꾸기는 녹음 올린 사람(관리자/대표)만 — 권한 칸이 아니라 표시용 칸 #}
+          <div class="mf-fld full" id="fldAuthor">
+            <label>{{ i.mf_f_author }} <span class="mf-hint">{{ i.mf_f_author_hint }}</span></label>
+            <div class="mf-author-row">
+              <span class="mf-author-name" id="authorDisp">{{ author_disp }}</span>
+              {% if can_set_author %}<button type="button" class="btn btn-secondary mf-author-btn" id="btnAuthor" title="{{ i.mf_author_change_t }}">{{ i.mf_author_change }}</button>{% endif %}
+            </div>
+            {% if can_set_author %}<div id="authorPick" hidden>
+              <input id="authorQ" type="text" placeholder="{{ i.mf_author_ph }}" autocomplete="off" maxlength="40">
+              <div class="mf-author-list" id="authorList"></div>
+            </div>{% endif %}
+          </div>
         </div>
         <div class="mf-actions">
           {% if can_edit %}
@@ -738,6 +760,7 @@ var MF = {
   ai_fail: {{ i.mf_ai_fail|tojson }},
   ai_tag: {{ i.mf_ai_tag|tojson }},          {# z1180 — 결정·할 일 옆 「빅터AI」 꼬리표 #}
   prev_btn: {{ i.mf_prev_btn|tojson }},      {# z1183 — 「↩ 이전 정리」 #}
+  author_ok: {{ i.mf_author_ok|tojson }}, author_no: {{ i.mf_author_no|tojson }}, author_auto: {{ i.mf_author_auto|tojson }},   {# z1197 — 작성자 바꾸기 #}
   prev_t: {{ i.mf_prev_t|tojson }},
   prev_ask1: {{ i.mf_prev_ask1|tojson }},   {# 확인 창 두 줄 — 줄바꿈은 JS 에서(글자 escape 를 쓰지 않는다) #}
   prev_ask2: {{ i.mf_prev_ask2|tojson }},
@@ -1405,6 +1428,26 @@ window.__MTG = {
       status(MF.daily_dup, 'err');
     } else { status(res.data.error||MF.reg_fail,'err'); }
   }
+
+  // ── z1197 작성자 바꾸기(녹음 올린 사람·관리자만 단추가 있다 · 판정은 서버가 다시 한다) ──
+  (function(){
+    var btn=$('btnAuthor'); if(!btn) return;
+    var pick=$('authorPick'), q=$('authorQ'), list=$('authorList'), disp=$('authorDisp'), t=null;
+    function render(d){
+      var h=(d.users||[]).map(function(x){ return '<button type="button" class="mf-author-opt'+(x.id===d.current?' on':'')+'" data-id="'+x.id+'">'+esc(x.disp)+'</button>'; }).join('');
+      if (d.manual) h+='<button type="button" class="mf-author-opt auto" data-id="0">'+esc(MF.author_auto)+'</button>';
+      list.innerHTML=h;
+    }
+    async function load(s){ var r=await jreq('GET','/api/meeting/'+M.id+'/author-candidates?q='+encodeURIComponent(s||'')); if(r.ok&&r.data.ok) render(r.data); else { list.innerHTML=''; status((r.data&&r.data.error)||MF.author_no,'err'); } }
+    btn.addEventListener('click', function(){ pick.hidden=!pick.hidden; if(!pick.hidden){ q.value=''; load(''); q.focus(); } });
+    q.addEventListener('input', function(){ clearTimeout(t); t=setTimeout(function(){ load(q.value.trim()); }, 180); });
+    list.addEventListener('click', async function(e){
+      var b=e.target.closest('.mf-author-opt'); if(!b) return;
+      var r=await jreq('POST','/api/meeting/'+M.id+'/author',{user_id: parseInt(b.getAttribute('data-id'),10)||0});
+      if (r.ok&&r.data.ok){ disp.textContent=r.data.author_disp||''; pick.hidden=true; status(MF.author_ok,'ok'); }
+      else { status((r.data&&r.data.error)||MF.author_no,'err'); }
+    });
+  })();
 
   // ── 삭제 ──
   async function delDec(did){ var res=await jreq('DELETE','/api/meeting/'+M.id+'/decision/'+did); if(res.ok&&res.data.ok){ M.decisions=M.decisions.filter(function(d){return d.id!=did;}); renderDecisions(); } }

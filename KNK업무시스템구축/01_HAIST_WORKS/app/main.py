@@ -987,6 +987,16 @@ def startup():
             print(f"[INTERP-MIG-Z1196] {_ric}")
     except Exception as _e:
         print(f"[INTERP-MIG-Z1196 ERR] {_e}")
+    # z1197 (대표 2026-10-28 「회의작성자는 기본적으로 녹음 파일을 올린 사람으로 우선하고 이 작성자를 수정할수있게도 해줘」 · 「표시용 칸 새로」):
+    #   meetings.author_id(보이는 작성자) · author_set_by/at(손으로 정함) · audio_by/at(녹음 올린 사람) — 칸만 더한다 · 권한 칸 owner_id 는 그대로
+    try:
+        from .migrations.m_z1197_meeting_author import migrate as _ma_migrate
+        from .database import DB_PATH as _DB_PATH_MA
+        _rma = _ma_migrate(_DB_PATH_MA)
+        if _rma.get('added'):
+            print(f"[MTG-AUTHOR-MIG-Z1197] {_rma}")
+    except Exception as _e:
+        print(f"[MTG-AUTHOR-MIG-Z1197 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -4135,6 +4145,44 @@ def _can_end_meeting(u, m, c=None) -> bool:
     return _can_edit_meeting(u, m, c)   # z1133: 참석자면 종료도 할 수 있다
 
 
+# z1197 (대표 2026-10-28 · 세션 10 전달문 「회의작성자는 기본적으로 녹음 파일을 올린 사람으로 우선하고 이 작성자를 수정할수있게도 해줘.
+#   (수정은 녹음파일 올리는 사람이 할수있게)」 → 대표 결정 10-28 「표시용 칸 새로」):
+#   · 「작성자」= 보이는 칸 author_id(비면 owner_id = 만든 사람 → 지금과 같음). 양식 「부서/작성자」· 상세 「작성자」· 목록 ✍ · 찾기가 이 값을 쓴다.
+#   · 녹음 파일이 올라올 때마다(📁 올리기·다시 올리기 · 공유로 붙이기 · 폰 자동 녹음 끝) 올린 사람을 적고, 사람이 손으로 정한 적이 없으면 작성자 = 올린 사람.
+#   · 바꿀 수 있는 사람 = 녹음 파일을 올린 사람(대표 말 그대로) · 관리자/대표 · 올린 사람 기록이 없는 옛 회의록은 지금 작성자(만든 사람).
+#   🔴 권한 판정(보기·고치기·삭제·종료 = _can_view/_edit/_delete/_end_meeting)은 **그대로 owner_id** — 이 칸을 보지 않는다(이음 카드 주인도 그대로).
+def _mtg_author_id(m):
+    return (m or {}).get("author_id") or (m or {}).get("owner_id")
+
+
+def _mtg_can_set_author(u, m) -> bool:
+    uid = (u or {}).get("id")
+    if not uid or not m:
+        return False
+    if (u.get("role") or "").lower() in ("admin", "ceo"):
+        return True
+    if m.get("audio_by"):
+        return m.get("audio_by") == uid
+    return _mtg_author_id(m) == uid or m.get("owner_id") == uid
+
+
+def _mtg_audio_uploaded(c, mid: int, uid) -> None:
+    """녹음 파일이 올라왔다 — 올린 사람을 적고, 손으로 정한 작성자가 없으면 작성자 = 올린 사람(기본값)."""
+    if not uid:
+        return
+    try:
+        c.execute("UPDATE meetings SET audio_by=?, audio_by_at=datetime('now','localtime') WHERE id=?", (uid, mid))
+        c.execute("UPDATE meetings SET author_id=? WHERE id=? AND (author_set_by IS NULL OR author_set_by=0)", (uid, mid))
+    except Exception as _e:   # 칸이 아직 없을 때(마이그레이션 전) — 녹음 올리기 자체는 막지 않는다
+        print(f"[MTG-AUTHOR-Z1197 WARN] mid={mid} {_e}", flush=True)
+
+
+def _mtg_author_disp(m) -> str:
+    """보이는 작성자 — 이름 직책 부서 규칙 [[knk_name_display_rule]] · 조회가 비면 이름만(빈칸 금지)."""
+    with db_session() as c:
+        return _msg_owner_disp(c, _mtg_author_id(m))
+
+
 def _meeting_ended(m) -> bool:
     """사람이 「⏹ 회의 종료」를 눌러 끝낸 회의인가(시간 규칙보다 먼저 본다)."""
     return bool(((m or {}).get("ended_at") or "").strip())
@@ -4159,12 +4207,13 @@ def _meeting_login_redirect(req: Request):
     return RedirectResponse("/login?next=" + quote(_nxt, safe=""), 303)
 
 
-_MTG_LIST_SEL = """SELECT m.*, t.name AS team_name, usr.name AS owner_name,
+_MTG_LIST_SEL = """SELECT m.*, t.name AS team_name, COALESCE(au.name, usr.name) AS owner_name,
                  (SELECT COUNT(*) FROM meeting_decisions WHERE meeting_id=m.id) AS dec_cnt,
                  (SELECT COUNT(*) FROM meeting_actions WHERE meeting_id=m.id) AS act_cnt
               FROM meetings m
               LEFT JOIN teams t ON m.team_id=t.id
-              LEFT JOIN users usr ON m.owner_id=usr.id """
+              LEFT JOIN users usr ON m.owner_id=usr.id
+              LEFT JOIN users au ON m.author_id=au.id """   # z1197: ✍ = 보이는 작성자(비면 만든 사람)
 
 
 def _meeting_list_rows(c, u, cond: str = "", args=()):
@@ -4221,14 +4270,14 @@ def _meeting_q_cond(terms: list):
         pat = "%" + t.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         cond += """ AND (m.title LIKE ? ESCAPE '\\' OR m.summary LIKE ? ESCAPE '\\' OR m.body LIKE ? ESCAPE '\\'
                    OR m.attendees_text LIKE ? ESCAPE '\\' OR m.location LIKE ? ESCAPE '\\'
-                   OR m.tags LIKE ? ESCAPE '\\' OR usr.name LIKE ? ESCAPE '\\' OR t.name LIKE ? ESCAPE '\\'
+                   OR m.tags LIKE ? ESCAPE '\\' OR usr.name LIKE ? ESCAPE '\\' OR au.name LIKE ? ESCAPE '\\' OR t.name LIKE ? ESCAPE '\\'
                    OR EXISTS (SELECT 1 FROM meeting_attendees qa LEFT JOIN users qu ON qu.id=qa.user_id
                               WHERE qa.meeting_id=m.id AND (qa.name LIKE ? ESCAPE '\\' OR qu.name LIKE ? ESCAPE '\\'))
                    OR EXISTS (SELECT 1 FROM meeting_decisions qd
                               WHERE qd.meeting_id=m.id AND (qd.what LIKE ? ESCAPE '\\' OR qd.who LIKE ? ESCAPE '\\'))
                    OR EXISTS (SELECT 1 FROM meeting_actions qx
                               WHERE qx.meeting_id=m.id AND (qx.task LIKE ? ESCAPE '\\' OR qx.assignee_name LIKE ? ESCAPE '\\')))"""
-        args += [pat] * 14
+        args += [pat] * 15   # z1197: au.name(보이는 작성자) 한 칸 더
     return cond, args
 
 
@@ -4417,6 +4466,8 @@ async def meeting_detail_page(req: Request, mid: int):
                body_written=_meeting_body_written(m), has_minutes=_meeting_has_minutes(m),   # z1185
                can_edit=_can_edit_meeting(u, m), can_delete=_can_delete_meeting(u, m), ai_on=ai_client.ai_available(),
                can_end=_can_end_meeting(u, m),   # z1131: 「⏹ 회의 종료」 단추를 보일까
+               author_disp=_mtg_author_disp(m), can_set_author=_mtg_can_set_author(u, m),   # z1197: 작성자(표시) · 바꾸기 단추
+               author_manual=bool(m.get("author_set_by")), author_from_audio=bool(m.get("audio_by")),
                transcribe_on=ai_client.transcribe_available(),
                projects=projects, opps=opps, linked_project=linked_project, linked_opp=linked_opp,
                can_link_proj=_can_vsales, can_link_sales=_can_sales,
@@ -4549,7 +4600,7 @@ async def meeting_doc_page(req: Request, mid: int):
         orow = c.execute(
             "SELECT u.name, COALESCE(u.name_vi,'') AS name_vi, COALESCE(u.rank,'') AS rank, "
             "COALESCE(t.name,'') AS dept FROM users u LEFT JOIN teams t ON u.team_id=t.id "
-            "WHERE u.id=?", (m.get("owner_id"),)).fetchone()
+            "WHERE u.id=?", (_mtg_author_id(m),)).fetchone()   # z1197: 보이는 작성자
         owner_dept = ((orow["dept"] if orow else "") or "")
         # 종이 양식 참석자 칸 — 사번으로 연결된 사람만 부서·직책이 붙는다(외부 참석자는 이름 그대로).
         doc_atts = []
@@ -4572,7 +4623,7 @@ async def meeting_doc_page(req: Request, mid: int):
             doc_atts.append({"dept": _ar.get("dept") or "", "name": _anm})
         # v5H226z800 (대표 지시·규칙): 작성자·할일 담당 = 이름 직책 부서 [[knk_name_display_rule]].
         #   할일 담당은 매칭된 사용자(assignee_user_id)일 때만 직책·부서 부착, 아니면 원문 이름 유지.
-        owner_disp = user_disp_by_id(c, m.get("owner_id"), (orow["name"] if orow else "") or "")
+        owner_disp = user_disp_by_id(c, _mtg_author_id(m), (orow["name"] if orow else "") or "")
         for _a in actions:
             _a["assignee_disp"] = user_disp_by_id(c, _a.get("assignee_user_id"), _a.get("assignee_name") or "")
         link_proj = None
@@ -5092,6 +5143,64 @@ async def api_voice_note_interp_restore(req: Request, nid: int):
 @app.post("/api/meeting/{mid:int}/interp-restore")
 async def api_meeting_interp_restore(req: Request, mid: int):
     return _interp_restore(req, "mtg", mid)
+
+
+@app.get("/api/meeting/{mid:int}/author-candidates")
+async def api_meeting_author_candidates(req: Request, mid: int, q: str = ""):
+    """z1197 — 작성자 고르기 후보(이름으로 찾기 · 이름 직책 부서 규칙) + 지금 상태. 바꿀 수 있는 사람에게만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        if not _mtg_can_set_author(u, m):
+            return JSONResponse({"ok": False, "error": "작성자는 녹음 파일을 올린 사람(또는 관리자)만 바꿀 수 있습니다."}, 403)
+        rows = c.execute("SELECT id FROM users WHERE is_active=1 AND name LIKE ? ORDER BY name LIMIT 8", ((q or "").strip() + "%",)).fetchall()
+        users = [{"id": r["id"], "disp": _msg_owner_disp(c, r["id"])} for r in rows]
+        cur = _mtg_author_id(m)
+    return JSONResponse({"ok": True, "users": users, "current": cur, "manual": bool(m.get("author_set_by")), "audio_by": m.get("audio_by") or 0})
+
+
+@app.post("/api/meeting/{mid:int}/author")
+async def api_meeting_set_author(req: Request, mid: int):
+    """z1197 — 작성자 바꾸기. body {user_id: 번호} · 0 = 기본값으로(녹음 올린 사람 · 없으면 만든 사람).
+    바꿀 수 있는 사람 = 녹음 파일을 올린 사람 · 관리자/대표 · (올린 사람 기록이 없으면) 지금 작성자. 권한 칸(owner_id)은 건드리지 않는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        d = {}
+    try:
+        target = int(d.get("user_id") or 0)
+    except (TypeError, ValueError):
+        target = 0
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        if not _mtg_can_set_author(u, m):
+            return JSONResponse({"ok": False, "error": "작성자는 녹음 파일을 올린 사람(또는 관리자)만 바꿀 수 있습니다."}, 403)
+        if target:
+            if not c.execute("SELECT 1 FROM users WHERE id=? AND is_active=1", (target,)).fetchone():
+                return JSONResponse({"ok": False, "error": "없는 직원입니다."}, 404)
+            c.execute("UPDATE meetings SET author_id=?, author_set_by=?, author_set_at=datetime('now','localtime') WHERE id=?",
+                      (target, u["id"], mid))
+        else:
+            c.execute("UPDATE meetings SET author_id=?, author_set_by=NULL, author_set_at='' WHERE id=?", (m.get("audio_by") or None, mid))
+        m = dict(c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone())
+        disp = _msg_owner_disp(c, _mtg_author_id(m))
+    print(f"[MTG-AUTHOR-Z1197] mid={mid} by={u['id']} → author={_mtg_author_id(m)} manual={bool(m.get('author_set_by'))}", flush=True)
+    return JSONResponse({"ok": True, "author_id": _mtg_author_id(m), "author_disp": disp, "manual": bool(m.get("author_set_by"))})
 
 
 @app.post("/api/meeting")
@@ -5781,6 +5890,7 @@ async def api_meeting_audio_upload(req: Request, mid: int, file: UploadFile = Fi
     with db_session() as c:
         c.execute("UPDATE meetings SET audio_path=?, mode='B', updated_at=datetime('now','localtime') WHERE id=?",
                   (rel, mid))
+        _mtg_audio_uploaded(c, mid, u.get("id"))   # z1197: 작성자 기본 = 녹음 올린 사람
         _new_ts = _row_ts(c, "meetings", mid)
     # z1092 (대표 지시 2026-09-07): 이전 녹음 파일을 지우지 않는다(보존).
     #   전엔 '단일 음성 정책'으로 새 녹음 업로드 시 앞 파일을 삭제했다 → 회의를 이어서
@@ -5833,7 +5943,7 @@ def _share_find(token: str, uid: int) -> str:
     return ""
 
 
-def _share_attach(mid: int, path: str) -> int:
+def _share_attach(mid: int, path: str, uid: int = 0) -> int:
     """받은 파일을 그 회의 폴더로 옮기고 '아직 글자로 안 바꾼 녹음'에 넣는다. 크기(바이트) 반환."""
     import time as _time
     import shutil as _sh
@@ -5846,6 +5956,7 @@ def _share_attach(mid: int, path: str) -> int:
     with db_session() as c:
         c.execute("UPDATE meetings SET audio_path=?, mode='B', updated_at=datetime('now','localtime') WHERE id=?",
                   (rel, mid))
+        _mtg_audio_uploaded(c, mid, uid)   # z1197: 작성자 기본 = 녹음 올린(공유로 붙인) 사람
     _rec_add_pending(mid, rel)   # z1113: 끊긴 조각과 차례로 변환돼 본문에 이어 붙는다
     return n
 
@@ -5937,7 +6048,7 @@ async def api_meeting_attach_share(req: Request, mid: int):
     if not path or not os.path.exists(path):
         return JSONResponse({"ok": False, "error": "받은 녹음을 찾지 못했습니다 — 녹음기에서 다시 공유해 주세요."}, 404)
     from starlette.concurrency import run_in_threadpool
-    n = await run_in_threadpool(_share_attach, mid, path)
+    n = await run_in_threadpool(_share_attach, mid, path, u["id"])
     print(f"[SHARE-AUDIO] uid={u['id']} → 회의 {mid} 붙임 {n // 1024}KB", flush=True)
     return JSONResponse({"ok": True, "id": mid, "size_kb": n // 1024})
 
@@ -5962,7 +6073,7 @@ async def api_meeting_share_new(req: Request):
             ("제목 없는 회의 " + today, today, "B", u.get("team_id"), u["id"], "", "", "", "", "team", "draft"),
         )
         mid = cur.lastrowid
-    n = await run_in_threadpool(_share_attach, mid, path)
+    n = await run_in_threadpool(_share_attach, mid, path, u["id"])
     print(f"[SHARE-AUDIO] uid={u['id']} → 새 회의 {mid} 만들고 붙임 {n // 1024}KB", flush=True)
     return JSONResponse({"ok": True, "id": mid, "size_kb": n // 1024})
 
@@ -6194,6 +6305,7 @@ async def api_meeting_rec_finish(req: Request, mid: int):
         if newest:
             c.execute("UPDATE meetings SET audio_path=?, mode='B', rec_state='', rec_json=?, "
                       "updated_at=datetime('now','localtime') WHERE id=?", (newest, _rec_dump(info), mid))
+            _mtg_audio_uploaded(c, mid, u.get("id"))   # z1197: 폰 자동 녹음도 「녹음 올린 사람」
         else:
             c.execute("UPDATE meetings SET rec_state='', rec_json=?, updated_at=datetime('now','localtime') "
                       "WHERE id=?", (_rec_dump(info), mid))

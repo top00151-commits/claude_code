@@ -1,0 +1,58 @@
+시작 전 89xx 듣는 포트: 0
+== OK   phone_fit_rec · 합계: 통과 31 · 실패 0
+== OK   ui_phrec · 통과 48 / 실패 0
+== OK   ui_lead · 합계: 통과 19 · 실패 0
+== OK   ui_first · 합계: 통과 22 · 실패 0
+== OK   ui_share · 합계: 통과 16 · 실패 0
+== OK   ui_cards_rec · 합계: 통과 24 · 실패 0
+== OK   ui_simple · 합계: 통과 33 · 실패 0
+== OK   ui_end_z1131 · 합계: 통과 21 · 실패 0
+== OK   ui_attendee_z1133 · 합계: 통과 12 · 실패 0
+== OK   ui_recup_z1138 · 합계: 통과 25 · 실패 0
+== OK   ui_sumedit_z1139 · 합계: 통과 23 · 실패 0
+== OK   ui_filepick_z1141 · 합계: 통과 16 · 실패 0
+== OK   ui_block_z1143 · ==============================================  통과 23 · 실패 0
+== OK   ui_norec_z1149 · 합계: 통과 23 · 실패 0
+== OK   ui_vn_z1144 · ==============================================  통과 35 · 실패 0
+== OK   ui_vw_z1148 ·   통과 38 · 실패 0
+== OK   ui_end_z1150 ·   통과 22 · 실패 0
+== OK   ui_form_vi_z1159 · 합계: 통과 8 · 실패 0
+== OK   ui_shell_vi_z1162 · 합계: 통과 12 · 실패 0
+== OK   ui_rank_z1163 · 합계: 통과 8 · 실패 0
+== OK   ui_stt_req_z1165 · 합계 60검사 · 실패 0
+== OK   ui_stt_scr_z1165 · 합계 32검사 · 실패 0
+== OK   ui_stt_pick_z1165 · 합계 18검사 · 실패 0
+== OK   ui_list_z1166b · 합계 35검사 · 실패 0
+== OK   ui_vn_toast_z1167 · 통과 54 · 실패 0
+== OK   ui_note_len_z1174 · 통과 70 · 실패 0
+== OK   ui_vn_copy_z1168 · 통과 33 · 실패 0
+== OK   ui_vn_async_z1169_on_z1197 · 통과 32 · 실패 0
+== OK   ui_vn_redo_z1169_on_z1197 · 통과 16 · 실패 0
+== OK   ui_mtg_async_z1170_on_z1197 · 통과 41 · 실패 0
+== OK   ui_mtg_redo_z1175_on_z1197 · 통과 24 · 실패 0
+== OK   ui_ai_timeout_z1172 · 통과 21 · 실패 0
+== OK   ui_mtg_prompt_z1176 · 통과 43 · 실패 0
+== OK   ui_ai_busy_z1177_on_z1197 · 통과 109 · 실패 0
+== OK   ui_mtg_search_z1178_on_z1197 · 통과 82 · 실패 0
+== OK   ui_cards_v854_z1179_on_z1197 · 통과 45 · 실패 0
+== OK   ui_search_z1180_on_z1197 · 통과 110 · 실패 0
+== OK   ui_fmt_z1181_own · 통과 40 · 실패 0
+== OK   ui_list_z1182_on_z1197 · 통과 38 · 실패 0
+== OK   ui_md_same_z1183_on_z1197 · ===== z1183 md_same_check: 통과 52 · 실패 0 =====
+== OK   ui_q83_z1183_on_z1197 · 통과 129 · 실패 0
+== OK   ui_q84_z1184_on_z1197 · 통과 27 · 실패 0
+== OK   ui_q85_z1185_on_z1197 · 통과 101 · 실패 0
+== OK   ui_q87_z1187_on_z1197 · 통과 67 · 실패 0
+== OK   ui_q88_z1188_on_z1197 · 통과 161 · 실패 0
+== OK   ui_q89_z1189_on_z1197 · 통과 47 · 실패 0
+== OK   ui_q92_z1192_on_z1197 · 통과 41 · 실패 0
+== OK   ui_q93_z1193_on_z1197 · 통과 66 · 실패 0
+== OK   ui_q94_z1194_on_z1197 · 결과: 통과 92 · 실패 0
+== OK   ui_q95_z1195_on_z1197 · 결과: 통과 59 · 실패 0
+== OK   ui_q96_z1196_on_z1197 · 결과: 통과 112 · 실패 0
+== OK   ui_q98_z1198_on_z1197 · 결과: 통과 25 · 실패 0
+== OK   ui_q97_z1197 · 결과: 통과 38 · 실패 0
+끝난 뒤 89xx 듣는 포트: 0
+===============================================
+묶음 53개 · 실패한 묶음 0개
+ALLDONE-97 rc=0
