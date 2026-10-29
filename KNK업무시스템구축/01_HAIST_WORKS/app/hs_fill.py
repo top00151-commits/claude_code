@@ -90,6 +90,31 @@ def digits(s) -> str:
     return re.sub(r"\D", "", re.sub(r"\.0$", "", str(s if s is not None else "")))
 
 
+# z1191v (대표 2026-10-28 「0 , #N/A 이건 엑셀 데이터가 함수로 연결되어서 오는건데 잘못 된거야... 이렇게 나오는 부분들은
+#   HS코드 등록에서 모두 삭제해.」 → 사전 44줄 삭제 → 「1번 재발 막기 진행해」):
+#   엑셀 함수가 못 찾을 때 내는 값 — 「0」(법인 회신 260901 의 =IFERROR(INDEX([다른 파일]…),"0") · 빈 칸을 가리킨 INDEX) ·
+#   #N/A 같은 오류 표시(260420 의 VLOOKUP). 품명(Tên hàng) 칸이 이 값이면 데이터가 아니다 →
+#   ③ 회신 · 📚 등록 · HS 사전 올림은 그 줄을 사전에 넣지 않고 · ① 은 빈칸으로 보고 · 📌 는 그 이력 줄을 쓰지 않는다.
+#   (이력 줄은 실제 인보이스 기록이라 그대로 남긴다)
+_FORMULA_JUNK = re.compile(
+    r"^\s*(?:[+-]?0+(?:\.0+)?|#(?:N/A|REF!|VALUE!|DIV/0!|NAME\?|NULL!|NUM!|SPILL!|CALC!|GETTING_DATA|FIELD!|BLOCKED!|CONNECT!|BUSY!|UNKNOWN!))\s*$",
+    re.I)
+
+
+def formula_junk(v) -> bool:
+    """엑셀 함수 실패 값인가 — 「0」 · 숫자 0 · 「#N/A」 같은 오류 표시. 빈칸은 아니다(False)."""
+    if v is None or isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return v == 0
+    return bool(_FORMULA_JUNK.match(str(v)))
+
+
+def formula_junk_sql(v) -> int:
+    """SQLite 함수로 등록해 쓰는 판(📌 가 이력 줄을 고르는 SQL) — 같은 판정 · 참이면 1."""
+    return 1 if formula_junk(v) else 0
+
+
 # ─────────────────────────────────────────────────────────────
 # 사전 색인
 # ─────────────────────────────────────────────────────────────
@@ -442,14 +467,32 @@ def plan(sc, index, overrides=None) -> list:
             choices = 본사가 그 자리에서 고를 수 있는 HS [{hs, kind: 'file'(적힌 값) | 'dict'(사전 값)}] — 없으면 []."""
     acts = []
     ov_map = overrides or {}
+
+    def _junk_done(a, vn_raw):
+        """z1191v: 품명 칸에 적힌 엑셀 함수 값 — 사전 품명으로 덮었으면 그대로, 아니면 칸을 비우고 노랑(법인 입력).
+        (수식이 든 칸이면 apply 가 값을 안 쓰고 '직접 확인'으로 바꾼다 — 수식은 건드리지 않는다)"""
+        if a["write_vn"]:
+            tail = "품명 칸 「%s」(엑셀 함수 값) → 사전 품명으로 채움" % vn_raw[:12]
+        else:
+            a["write_vn"] = ""
+            a["color_vn"] = a["color_vn"] or YELLOW
+            if a["status"] == KEEP:
+                a["status"] = NEED
+            tail = "품명 칸 「%s」은 엑셀 함수 값이라 비움(법인 입력)" % vn_raw[:12]
+        a["why"] = (a["why"] + " · " if a["why"] else "") + tail
+
     for sh in sc["sheets"]:
         has_vn = sh["col_vn"] is not None
         for it in sh["items"]:
-            hs0, vn0 = digits(it["hs_raw"]), (it["vn_raw"] or "").strip()
+            vn_raw = (it["vn_raw"] or "").strip()
+            vn_junk = has_vn and formula_junk(vn_raw)        # z1191v: 적힌 「0」·「#N/A」 = 빈칸으로 본다
+            hs0, vn0 = digits(it["hs_raw"]), ("" if vn_junk else vn_raw)
             key = norm_key(it["desc"])
             way, e, memo = lookup(index, it["desc"])
             dhs = digits(e.get("hs_code")) if e else ""
             dvn = (e.get("vn_name") or "").strip() if e else ""
+            if formula_junk(dvn):
+                dvn = ""                                     # z1191v: 사전에 남은 함수 값도 품명으로 쓰지 않는다
             a = {"sheet": sh["title"], "row": it["row"], "key": key, "desc": it["desc"], "status": KEEP,
                  "write_hs": None, "write_vn": None, "color_hs": None, "color_vn": None,
                  "why": "", "dict_hs": dhs if way in ("exact", "token", "pending") else "",
@@ -473,6 +516,8 @@ def plan(sc, index, overrides=None) -> list:
                     else:
                         a.update(color_vn=YELLOW, why=a["why"] + " · 품명은 사전에 없음")
                 a["status"] = AUTO if (a["write_hs"] is not None or a["write_vn"] is not None) else KEEP
+                if vn_junk:
+                    _junk_done(a, vn_raw)
                 acts.append(a)
                 continue
             if it["hs_raw"] and len(hs0) not in (6, 8):
@@ -513,6 +558,8 @@ def plan(sc, index, overrides=None) -> list:
                     a["choices"] = [{"hs": dhs, "kind": "dict"}]
                 if has_vn and not vn0:
                     a["color_vn"] = YELLOW
+            if vn_junk:
+                _junk_done(a, vn_raw)
             acts.append(a)
     return acts
 
@@ -650,7 +697,9 @@ def _edit_sheet(xml: str, edits: list, style_of_new, skipped=None) -> tuple:
                 if skipped is not None:
                     skipped.append(ref)
                 val = None
-            if val is not None:
+            if val == "":
+                new_cell = '<c r="%s" s="%d"/>' % (ref, s_new)       # z1191v: 값 비우기(적힌 함수 값 「0」 등) — 서식·색만 남긴다
+            elif val is not None:
                 new_cell = '<c r="%s" s="%d" t="inlineStr"><is><t xml:space="preserve">%s</t></is></c>' % (
                     ref, s_new, _xml_escape(val))
             elif cm:

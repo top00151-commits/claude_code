@@ -43227,6 +43227,7 @@ def _hs_parse_invoice_xlsx(data: bytes, fname: str) -> list[dict]:
     import io as _io
     import re as _re
     import openpyxl as _px
+    from . import hs_fill as _hf_p
     HEAD_HS = _re.compile(r"HS\s*CODE|HS\s*code|^HS$", _re.I)
     HEAD_VN = _re.compile(r"T[êe]n\s*h[àa]ng", _re.I)
     HEAD_DESC = _re.compile(r"Description", _re.I)
@@ -43276,9 +43277,13 @@ def _hs_parse_invoice_xlsx(data: bytes, fname: str) -> list[dict]:
                 hs = "0" + hs
             if len(hs) != 8:
                 continue
-            vn = str(ws.cell(r, cols["vn"]).value or "").strip() if cols.get("vn") else ""
+            # z1191v (대표 「0 , #N/A … 함수로 연결되어서 오는건데 잘못 된거야… HS코드 등록에서 모두 삭제해」): 품명 칸의 원래 값으로
+            #   함수 값(「0」·숫자 0·#N/A …)인지 본다 — 그런 줄은 junk 표시(사전 성장 `_hs_learn_invoice_rows` 가 건너뛰고 수만 센다)
+            _vraw = ws.cell(r, cols["vn"]).value if cols.get("vn") else None
+            _junk = _hf_p.formula_junk(_vraw)
+            vn = "" if _junk else str(_vraw or "").strip()
             origin = str(ws.cell(r, cols["origin"]).value or "").strip() if "origin" in cols else ""
-            out.append({"model": model, "key": _hs_norm_key(model), "hs": hs, "vn": vn,
+            out.append({"model": model, "key": _hs_norm_key(model), "hs": hs, "vn": vn, "junk": _junk,
                         "name_en": (vn.split("#&")[0].strip() if "#&" in vn else ""), "origin": origin,
                         "sheet": ws.title})
         return out
@@ -43876,8 +43881,13 @@ def _hs_learn_invoice_rows(c, rows: list, fname: str, today: str, u) -> dict:
     from . import hs_fill as _hf_learn
     _idx_learn = _hf_learn.build_index([dict(r) for r in c.execute(
         "SELECT part_key, model, hs_code, vn_name, status, seen_count FROM export_hs_dict")])
-    added = updated = conflict = or_clash = 0
+    added = updated = conflict = or_clash = junk = 0
     for row in rows:
+        if row.get("junk"):
+            # z1191v: 품명이 엑셀 함수 값(「0」·#N/A …)인 줄 = 함수로 끌어온 데이터라 HS 도 믿지 않는다 → 사전에 넣지 않는다
+            #   (대표 10-28 「이렇게 나오는 부분들은 HS코드 등록에서 모두 삭제해」 · 수만 세어 결과에 보인다)
+            junk += 1
+            continue
         ex = c.execute("SELECT id, hs_code, status, origin FROM export_hs_dict WHERE part_key=?",
                        (row["key"],)).fetchone()
         if not ex:
@@ -43937,7 +43947,7 @@ def _hs_learn_invoice_rows(c, rows: list, fname: str, today: str, u) -> dict:
                 (row["hs"], fname, today, u.get("id"), ex["id"]))
             conflict += 1
     return {"file": fname, "rows": len(rows), "added": added,
-            "updated": updated, "conflict": conflict, "or_clash": or_clash}
+            "updated": updated, "conflict": conflict, "or_clash": or_clash, "junk": junk}
 
 
 @app.post("/export/hs-dict/upload")
@@ -44829,7 +44839,7 @@ def _hs_hist_dict_sync(c, keys, fname, u) -> dict:
       이력끼리 HS 가 갈리면 '확인 대기'(같은 모델 충돌로 넣은 '확인 대기'는 그대로)
     · 그 밖의 사전 줄(원래 있던 것 · 사람·회신이 고친 것)은 건드리지 않는다 — HS 가 다르면 differ 로 세기만(화면 목록)."""
     from . import hs_fill as _hf
-    res = {"added": 0, "pending": 0, "synced": 0, "differ": 0, "kept": 0}
+    res = {"added": 0, "pending": 0, "synced": 0, "differ": 0, "kept": 0, "junk": 0}
     if not keys:
         return res
     now = c.execute("SELECT datetime('now','localtime')").fetchone()[0]
@@ -44841,6 +44851,13 @@ def _hs_hist_dict_sync(c, keys, fname, u) -> dict:
                          "WHERE part_key=? AND hs_code<>'' ORDER BY inv_date, id", (k,)).fetchall()
         if not rows:
             continue
+        # z1191v: 품명이 엑셀 함수 값(「0」·#N/A …)인 이력 줄은 함수로 끌어온 데이터 — 사전 판단(HS·품명·횟수)에 쓰지 않는다
+        #   (이력 줄은 실제 인보이스 기록이라 그대로 · 그 규격의 깨끗한 줄이 하나도 없으면 사전에 넣지 않고 수만 센다)
+        clean = [r for r in rows if not _hf.formula_junk(r["vn_name"])]
+        if not clean:
+            res["junk"] += 1
+            continue
+        rows = clean
         ex = c.execute("SELECT id, hs_code, status, note, hist_reg_at, updated_at FROM export_hs_dict WHERE part_key=?",
                        (k,)).fetchone()
         last = rows[-1]
@@ -44887,10 +44904,18 @@ def _hs_hist_dict_sync(c, keys, fname, u) -> dict:
     return res
 
 
+def _hs_junk_fn(c):
+    """z1191v: SQL 안에서 `formula_junk(칸)` — 품명이 엑셀 함수 값(「0」·#N/A …)인 이력 줄을 거른다(📌 · 같은 날 두 HS).
+    판정은 hs_fill.formula_junk 하나(파이썬·SQL 같은 기준)."""
+    from . import hs_fill as _hf
+    c.create_function("formula_junk", 1, _hf.formula_junk_sql, deterministic=True)
+
+
 def _hs_hist_summary(c) -> dict:
     """📚 칸 — 등록된 인보이스 수(통관 구분별)·줄·기간 · 인보이스 목록(최근 300) · 사진 있는 줄 ·
     z1191r: 최근 수출 값으로 맞출 사전 규격(latest) · 그래도 남는 AI 추정·확인 대기(이력 없음) 수."""
     _hs_hist_ensure(c)
+    _hs_junk_fn(c)
     s = c.execute("SELECT COUNT(*) n, COALESCE(SUM(n_lines),0) l, MIN(inv_date) d0, MAX(inv_date) d1 FROM export_hist_inv").fetchone()
     by = {(r["kind"] or ""): r["n"] for r in c.execute("SELECT kind, COUNT(*) n FROM export_hist_inv GROUP BY kind")}
     kinds = [(k or "구분 모름", by[k]) for k in ("수책통관", "일반통관", "") if by.get(k)]
@@ -44915,8 +44940,9 @@ def _hs_hist_summary(c) -> dict:
     split = [dict(r) for r in c.execute(
         "SELECT d.part_key, d.model, d.status FROM export_hs_dict d WHERE ("
         "SELECT COUNT(DISTINCT w.hs_code) FROM export_hist_line w WHERE w.part_key=d.part_key AND w.hs_code<>'' "
+        "AND formula_junk(w.vn_name)=0 "
         "AND IFNULL(w.inv_date,'')=(SELECT IFNULL(MAX(v.inv_date),'') FROM export_hist_line v "
-        "WHERE v.part_key=d.part_key AND v.hs_code<>''))>1 ORDER BY d.part_key")]
+        "WHERE v.part_key=d.part_key AND v.hs_code<>'' AND formula_junk(v.vn_name)=0))>1 ORDER BY d.part_key")]
     for x in split:
         if x["status"] in rest:
             rest[x["status"]] -= 1
@@ -44937,6 +44963,9 @@ def _hs_hist_latest(c) -> list:
     반환 [{id, part_key, model, dict_hs, dict_status, dict_vn, note, hs, vn, vn_change, hs_change, invoice_no, inv_date, n, img}]"""
     from . import hs_fill as _hf
     _hs_hist_ensure(c)
+    # z1191v: 품명이 엑셀 함수 값(「0」·#N/A …)인 이력 줄은 「가장 최근 값」을 고를 때 쓰지 않는다
+    #   (10-28: 260901 회신의 「0」 55줄 — 그 규격이 나중에 다른 HS 로 사전에 들어오면 함수로 끌어온 HS·「0」으로 되돌릴 뻔했다)
+    _hs_junk_fn(c)
     rows = c.execute(
         "SELECT d.id, d.part_key, d.model, d.hs_code AS dict_hs, d.status AS dict_status, d.vn_name AS dict_vn, d.note, "
         "l.hs_code AS hs, l.invoice_no, l.inv_date, "
@@ -44945,18 +44974,20 @@ def _hs_hist_latest(c) -> list:
         " ORDER BY z.inv_date DESC, z.id DESC LIMIT 1) AS img "
         "FROM export_hs_dict d JOIN export_hist_line l ON l.part_key=d.part_key "
         "WHERE l.hs_code<>'' AND l.id=(SELECT y.id FROM export_hist_line y WHERE y.part_key=d.part_key AND y.hs_code<>'' "
-        "ORDER BY y.inv_date DESC, y.id DESC LIMIT 1) "
+        "AND formula_junk(y.vn_name)=0 ORDER BY y.inv_date DESC, y.id DESC LIMIT 1) "
         "AND (SELECT COUNT(DISTINCT w.hs_code) FROM export_hist_line w WHERE w.part_key=d.part_key AND w.hs_code<>'' "
-        "AND IFNULL(w.inv_date,'')=IFNULL(l.inv_date,''))=1 ORDER BY l.inv_date DESC, d.part_key").fetchall()
+        "AND formula_junk(w.vn_name)=0 AND IFNULL(w.inv_date,'')=IFNULL(l.inv_date,''))=1 ORDER BY l.inv_date DESC, d.part_key").fetchall()
     out = []
     for r in rows:
         hs_change = _hf.digits(r["dict_hs"]) != r["hs"]     # 사전 HS 에 점·공백이 섞여 있어도 숫자로 견준다
         if not hs_change and r["dict_status"] == "CONFIRMED":
             continue
         v = c.execute("SELECT vn_name FROM export_hist_line WHERE part_key=? AND hs_code=? AND COALESCE(vn_name,'')<>'' "
-                      "ORDER BY inv_date DESC, id DESC LIMIT 1", (r["part_key"], r["hs"])).fetchone()
+                      "AND formula_junk(vn_name)=0 ORDER BY inv_date DESC, id DESC LIMIT 1", (r["part_key"], r["hs"])).fetchone()
         vn = ((v["vn_name"] if v else "") or "").strip()
         cur_vn = (r["dict_vn"] or "").strip()
+        if _hf.formula_junk(cur_vn):
+            cur_vn = ""                                    # 사전에 남은 함수 값은 「빈 품명」으로 — 지난 수출 품명으로 채운다
         vn_change = bool(vn) and ((hs_change and vn != cur_vn) or not cur_vn)
         out.append({"id": r["id"], "part_key": r["part_key"], "model": r["model"] or r["part_key"], "dict_hs": r["dict_hs"] or "",
                     "dict_status": r["dict_status"] or "", "dict_vn": cur_vn, "note": r["note"] or "", "hs": r["hs"],

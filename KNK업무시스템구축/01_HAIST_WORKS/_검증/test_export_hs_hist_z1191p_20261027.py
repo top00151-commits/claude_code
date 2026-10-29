@@ -254,7 +254,7 @@ check("10 📚 등록(수책통관) → 200 · 3줄 · 원본↔저장 3줄 같�
       c1 == 200 and j1.get("ok") and j1["lines"] == 3 and j1["check"] == {"ok": True, "n": 3} and j1["inv_date"] == "2026-01-01"
       and j1["replaced"] is None and j1["kind"] == "수책통관" and j1["kind_found"] == "수책통관", (c1, j1))
 check("11 사전 — 없던 규격(B1)은 확정으로 들어감(횟수 1 · 처음·마지막 날 · 표시) · 원래 있던 같은 HS(A)·다른 HS(C)는 그대로",
-      j1["dict"] == {"added": 1, "pending": 0, "synced": 0, "differ": 1, "kept": 1}
+      j1["dict"] == {"added": 1, "pending": 0, "synced": 0, "differ": 1, "kept": 1, "junk": 0}     # z1191v: junk = 함수 값 규격 수
       and B1 and B1["status"] == "CONFIRMED" and B1["hs_code"] == "39269099" and B1["seen_count"] == 1
       and B1["first_seen"] == B1["last_seen"] == "2026-01-01" and B1["hist_reg_at"] and B1["updated_at"] == B1["hist_reg_at"]
       and B1["vn_name"] == "Hộp nhựa B" and (B1["note"] or "").startswith("지난 수출 등록")

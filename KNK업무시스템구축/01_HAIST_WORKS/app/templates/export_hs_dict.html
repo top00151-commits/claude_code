@@ -268,7 +268,7 @@
        ⚠서버는 그대로(여러 개도 계속 받는다) — 화면만 나눠 보낸다. */
     var files = Array.prototype.slice.call(inp.files);
     btn.disabled = true; res.innerHTML = '';
-    var a=0,u2=0,cf=0,er=0,oc=0, lines=[];   /* oc = z1046 원산지 이견(값은 안 바꾸고 알리기만) */
+    var a=0,u2=0,cf=0,er=0,oc=0,jk=0, lines=[];   /* oc = z1046 원산지 이견(값은 안 바꾸고 알리기만) · jk = z1191v 품명이 엑셀 함수 값이라 안 넣은 행 */
     /* v5H226z1045 (표준 반영·가이드 §24 '처리 중 피드백'): 파일 분석은 개당 1~2초 — 공용 KNKBusy
        오버레이로 '처리 중'을 확실히 보여준다(진행률 n/N 포함). ⚠성공·실패·예외 **모든 경로**에서 닫는다. */
     var ov = null;
@@ -319,10 +319,12 @@
               + (x.bad? ' · ⛔HS 형식오류 ' + x.bad : ''));
           }
           /* z1046: 원산지 이견은 충돌(상태 전환)과 다르다 — 값은 그대로 두고 사유로만 알린다. 따로 센다. */
-          else { a+=x.added; u2+=x.updated; cf+=x.conflict; oc+=(x.or_clash||0);
+          else { a+=x.added; u2+=x.updated; cf+=x.conflict; oc+=(x.or_clash||0); jk+=(x.junk||0);
             lines.push('✅ ' + x.file + ' — ' + x.rows + '행 (추가 ' + x.added + ' · 갱신 ' + x.updated
               + (x.conflict? ' · ⚠충돌 ' + x.conflict : '')
-              + (x.or_clash? ' · ⚠원산지 이견 ' + x.or_clash : '') + ')'
+              + (x.or_clash? ' · ⚠원산지 이견 ' + x.or_clash : '')
+              /* z1191v (대표 10-28 「0 , #N/A … 함수로 연결되어서 오는건데 잘못 된거야」): 품명이 엑셀 함수 값인 줄은 안 넣음 */
+              + (x.junk? ' · ⚠품명 「0」·「#N/A」(엑셀 함수 값) ' + x.junk + '행 안 넣음' : '') + ')'
               /* z1191p: 최종 인보이스는 지난 수출 이력에도(자동 채움 화면 📚) */
               + (x.hist && x.hist.lines ? ' · 📚 지난 수출 이력 ' + x.hist.lines + '줄' : '')
               + (x.hist && x.hist.error ? ' · 📚 이력 못 넣음(' + x.hist.error + ')' : '')); }
@@ -331,11 +333,12 @@
       } catch(e){ er++; lines.push('❌ ' + f.name + ' — 통신 끊김: ' + e); draw(); }
     }
     var summary = '완료: 추가 ' + a + ' · 갱신 ' + u2 + (cf? ' · ⚠충돌 ' + cf + '(확인 대기로 전환)' : '')
-      + (oc? ' · ⚠원산지 이견 ' + oc + '(기존 값 유지 · 사유 표시)' : '') + (er? ' · 실패 ' + er : '');
+      + (oc? ' · ⚠원산지 이견 ' + oc + '(기존 값 유지 · 사유 표시)' : '')
+      + (jk? ' · ⚠품명 「0」·「#N/A」(엑셀 함수 값) ' + jk + '행 안 넣음' : '') + (er? ' · 실패 ' + er : '');
     msg.textContent = summary;
-    msg.style.color = cf||er||oc ? '#b45309' : '#15803d';
+    msg.style.color = cf||er||oc||jk ? '#b45309' : '#15803d';
     /* 저장→새로고침 패턴: reload 뒤에 완료 토스트가 뜨도록 예약(공용 표준) */
-    try { if(window.KNKBusy && KNKBusy.flashOnReload) KNKBusy.flashOnReload(summary, (cf||er||oc) ? 'info' : 'ok'); } catch(e){}
+    try { if(window.KNKBusy && KNKBusy.flashOnReload) KNKBusy.flashOnReload(summary, (cf||er||oc||jk) ? 'info' : 'ok'); } catch(e){}
     /* done()/fail() 은 스스로 닫는다 → 여기서 ov 를 비워 finally 가 겹쳐 닫지 않게(✓ 표시가 안 보이던 함정) */
     try { if(ov){ if(er) ov.fail('일부 파일을 읽지 못했습니다 — 아래 목록을 확인하세요'); else ov.done(summary); ov = null; } } catch(e){}
     setTimeout(function(){ location.reload(); }, cf||er||oc ? 4500 : 1800);   /* 읽을 게 있으면 더 오래 보여준다 */

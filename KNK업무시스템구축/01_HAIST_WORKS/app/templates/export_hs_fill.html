@@ -132,7 +132,9 @@
   <div class="hf-card" id="hfReplyCard">
     <h3>③ 법인 회신 반영</h3>
     <div class="hf-sub">법인이 노란 칸을 채워 보낸 파일(여러 개 가능) — 사전에 새 품목 추가 · 같은 값 확인 · 다른 값은 '확인 대기'.
-      <b>보내기 전 파일(HS 가 비어 있는 것)은 받지 않습니다.</b></div>
+      <b>보내기 전 파일(HS 가 비어 있는 것)은 받지 않습니다.</b>
+      {# z1191v (대표 2026-10-28 「1번 재발 막기 진행해」) #}
+      품명이 「0」·「#N/A」(엑셀 함수가 못 찾은 값)인 줄은 사전에 넣지 않습니다.</div>
     <div style="margin-top:8px;"><input type="file" id="hfReplyFiles" accept=".xlsx,.xlsm" multiple></div>
     <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <button class="hf-btn blue" type="button" id="hfReplyRun" onclick="hfReply()">회신 반영</button>
@@ -468,6 +470,7 @@
     if(d.synced) dd.push('이력에 맞춤 ' + d.synced);
     if(d.differ) dd.push('<span style="color:#b91c1c;">사전과 HS 다름 ' + d.differ + '(위 📌)</span>');
     if(d.kept) dd.push('사전과 같음 ' + d.kept);
+    if(d.junk) dd.push('<span style="color:#b45309;" title="품명이 「0」·「#N/A」(엑셀 함수 값)인 줄만 있는 규격 — 사전에 넣지 않음">함수 값 규격 ' + d.junk + '(사전 안 넣음)</span>');   // z1191v
     var warn = (j.kind_found && j.kind_found !== kind) ? '<div class="hf-ev" style="color:#b45309;">양식은 ' + esc(j.kind_found) + '로 보임 — 고른 ' + esc(kind) + '(으)로 넣음</div>' : '';
     /* z1191q (대표 10-27 「등록이 완료 된거야??」): 「새로」만으로는 끝났는지 몰랐다 → 줄마다 완료를 말한다 */
     var rep = '<span class="hf-ok" style="white-space:nowrap;">✅ 등록 완료</span><div class="hf-ev">'
@@ -685,6 +688,9 @@
           + '<b style="color:#b91c1c;">다른 값 → 확인 대기 ' + x.conflict + '</b>'
           + (x.or_clash ? ' · 원산지 이견 ' + x.or_clash : '')
           + (x.six ? ' · 장비 6자리 HS ' + x.six + '줄(사전에 안 넣음)' : '');
+        /* z1191v (대표 10-28 「0 , #N/A … 함수로 연결되어서 오는건데 잘못 된거야」): 품명이 엑셀 함수 값인 줄은 사전에 안 넣는다 */
+        if(x.junk){ h += '<div class="hf-hint">품명이 「0」·「#N/A」(엑셀 함수 값)인 줄 ' + x.junk + '개는 사전에 넣지 않았습니다 — '
+          + '함수로 다른 파일에서 끌어온 값이라 HS 도 믿지 않습니다. 법인에 품명·HS 를 다시 확인해 주세요(다음 ① 에서 노란 칸으로 나옵니다)</div>'; }
         if(x.log && x.log.id){ h += '<div class="hf-sub">자동 채움 기록 #' + x.log.id + (x.log.invoice_no ? ' (' + esc(x.log.invoice_no) + ')' : '') + (x.log.n > 1 ? ' 외 같은 번호 ' + (x.log.n - 1) + '개' : '') + ' → <b>반영</b>으로 바꿈</div>'; }
         else if(x.log && x.log.error){ h += '<div class="hf-sub" style="color:#b91c1c;">자동 채움 기록 연결 실패 — ' + esc(x.log.error) + ' (사전 반영은 됐습니다)</div>'; }
         else if(x.log && x.log.ambiguous){ h += '<div class="hf-sub" style="color:#b45309;">같은 이름의 자동 채움 기록이 ' + x.log.ambiguous + '개라 어느 인보이스인지 정하지 않았습니다(인보이스 번호가 있으면 번호로 찾습니다) — 사전 반영은 됐습니다</div>'; }
