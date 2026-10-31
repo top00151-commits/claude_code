@@ -198,7 +198,9 @@
        (도는 표시 · ⏱ 시계 · 안내)을 정리 글 바로 위에 띄우고, 옛 정리는 흐리게. #}
     <div id="vnAiBusy" hidden></div>
     <div class="vn-sum{% if not (note and note.summary) %} empty{% endif %}" id="vnSumBox">{% if note and note.summary %}{{ note.summary }}{% else %}아직 정리 전입니다 — 녹음을 올리면 자동으로 정리됩니다.{% endif %}</div>
-    <div id="vnSumEditWrap" hidden>
+    {# z1201 (이용식 법인장 신고 · 대표 전달 2026-10-31 「고치기 화면이 너무 작아서 수정하는데 어려움」):
+       이 칸에만 폭 규칙이 없어(z1144 부터) 브라우저 기본 폭으로 나왔다 → 받아쓴 원문 칸과 같은 .vn-fld(폭 100%) · 높이는 글 양에 맞춘다(vnSumFit) #}
+    <div id="vnSumEditWrap" class="vn-fld" hidden>
       <textarea id="vnSumEdit2" rows="10">{{ (note.summary if note else '')|e }}</textarea>
       <div class="vn-acts" style="margin-top:10px;">
         <button class="btn btn-primary" id="vnSumSave" type="button">저장</button>
@@ -426,10 +428,16 @@
 
   // ── 정리 글 고치기 ─────────────────────────────────────
   var _se = $('vnSumEdit'), _sw = $('vnSumEditWrap'), _sb = $('vnSumBox');
+  // z1201 — 칸 높이 = 글 양만큼(다 보이게) · 창 높이의 70% 까지(더 길면 칸 안에서 내림) · 가장 작아도 rows=10 · 모서리를 끌어 더 늘릴 수 있다
+  function vnSumFit(){
+    var t = $('vnSumEdit2'); if(!t) return;
+    t.style.height = 'auto';
+    t.style.height = Math.min(t.scrollHeight + 2, Math.max(t.offsetHeight, Math.round(window.innerHeight * 0.7))) + 'px';
+  }
   if(_se) _se.addEventListener('click', function(){
     if(!NID){ st('vnSt','먼저 녹음을 올려 주세요.','err'); return; }
     if($('vnSumEdit2')) $('vnSumEdit2').value = SUM || '';   // z1183 — 그린 모양이 아니라 원래 글을 고친다
-    _sw.hidden = false; _sb.hidden = true;
+    _sw.hidden = false; _sb.hidden = true; vnSumFit();
   });
   var _sc = $('vnSumCancel'); if(_sc) _sc.addEventListener('click', function(){ _sw.hidden = true; _sb.hidden = false; });
   var _ss = $('vnSumSave');
