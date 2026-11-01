@@ -820,6 +820,7 @@
           {% else %}<span class="vis-badge vis-team">{{ i.mt_vis_team }}</span>{% endif %}
         </div>
       </div>
+      {% if vi_titles is defined and vi_titles and vi_titles.get(m.id) %}<div class="mtg-ttl-vi" style="font-size:12.5px;color:#1d4ed8;font-weight:700;margin:4px 0 2px;line-height:1.45;">🌐 {{ vi_titles.get(m.id) }}</div>{% endif %}{# z1199 — 베트남어 사용자 = 제목 번역 #}
       <div class="mtg-meta">
         <span>📅 <b>{{ m.meeting_date }}</b></span>
         {% if m.owner_name %}<span>✍ {{ m.owner_name }}</span>{% endif %}

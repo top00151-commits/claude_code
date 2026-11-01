@@ -131,7 +131,7 @@ def walk(app):
 
 
 def func_text(src, name):
-    m = re.search(r"\ndef %s\(.*?(?=\n(?:def |@app\.|_[A-Z_]+ *=|# z1197))" % re.escape(name), src, re.S)
+    m = re.search(r"\ndef %s\(.*?(?=\n(?:def |@app\.|_[A-Z_]+ *=|# (?:── \S+ )?z119\d))" % re.escape(name), src, re.S)
     return m.group(0) if m else None
 
 

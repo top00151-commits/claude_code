@@ -279,7 +279,7 @@ try:
         ctx.close()
 
         print("== ⑦ 안 고친 곳 그대로 ==")
-        norm = lambda t: re.sub(r"\?v=[\w.-]+", "?v=X", t)
+        norm = lambda t: re.sub(r'var LOADED = "t\d+"', 'var LOADED = "tX"', re.sub(r"\?v=[\w.-]+", "?v=X", t))
         hb, hn = norm(html("app_base", me_b, "/voice-notes/%d" % idb["short"])), norm(html("app_new", me_n, "/voice-notes/%d" % idn["short"]))
         d = diff(hb, hn)
         rem_h = [x[1:].strip() for x in d if x.startswith("-")]

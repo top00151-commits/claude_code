@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>📊 회의 한눈에 보기 — {{ m.title }}</title>
+<title>{{ i.mv_title }} — {{ m.title }}</title>
 {# ── z1193 (대표 2026-10-20 「회의 내용을 이미지화 또는 도식화해서 더 쉽게 이해할수있는 페이지를 추가」) ──────────
    회의록 「📊 한눈에 보기」 — 글 정리(안건·결정·할 일)는 그대로 두고 **추가 화면**으로. 빅터AI 가 뽑은 그림 자료(viz_json)를
    화면이 그린다: 한 문장 · 숫자 카드 · 설비 흐름(구역·단계 · 설비 회의만) · 정한 것/확인 필요/할 일 · 일정 · 지정 부품.
@@ -105,29 +105,30 @@
 <body>
 <div class="wrap" data-dn="meeting-viz">
   <div class="toolbar">
-    <a class="btn" href="/meetings/{{ m.id }}">← 회의록으로</a>
-    <a class="btn" href="/meetings/{{ m.id }}/doc">📄 회의록 양식</a>
-    <span class="btn on">📊 한눈에 보기</span>
-    {% if can_edit %}<button type="button" class="btn primary" id="btnBuild">{% if viz %}🔄 다시 그리기{% else %}📊 그림 만들기{% endif %}</button>{% endif %}
+    <a class="btn" href="/meetings/{{ m.id }}">{{ i.mv_back }}</a>{% if tr is not none %}{% if vlang == 'vi' %}<a class="btn" href="/meetings/{{ m.id }}/viz?orig=1">{{ i.md_tr_orig }}</a>{% else %}<a class="btn" href="/meetings/{{ m.id }}/viz">{{ tr_back }}</a>{% endif %}{% endif %}{# z1199 #}
+    <a class="btn" href="/meetings/{{ m.id }}/doc">{{ i.mv_doc }}</a>
+    <span class="btn on">{{ i.mv_viz }}</span>
+    {% if can_edit %}<button type="button" class="btn primary" id="btnBuild">{% if viz %}{{ i.mv_rebuild }}{% else %}{{ i.mv_build }}{% endif %}</button>{% endif %}
   </div>
   <div class="ttl">{{ m.title }}<span class="kindtag" id="kindTag" hidden></span></div>
   <div class="sub" id="subLine"></div>
-  {% if viz and stale %}<div class="notice">⚠ 이 그림은 <b>{{ (viz_at or '')[:16] }}</b>에 만든 것인데, 그 뒤 글 정리가 바뀌었습니다 — {% if can_edit %}「🔄 다시 그리기」를 누르면 새 정리로 다시 그립니다.{% else %}작성자·참석자가 다시 그릴 수 있습니다.{% endif %}</div>{% endif %}
-  <div id="busy" class="card" hidden><div class="busy"><span class="spin"></span><span id="busyTxt">빅터AI가 그림 자료를 뽑는 중 — 긴 회의는 1~2분 걸립니다. 창을 닫아도 서버에서 끝까지 됩니다.</span></div></div>
+  {% if viz and stale %}<div class="notice">⚠ {{ i.mv_stale_a }}<b>{{ (viz_at or '')[:16] }}</b>{{ i.mv_stale_b }} — {% if can_edit %}{{ i.mv_stale_edit }}{% else %}{{ i.mv_stale_view }}{% endif %}</div>{% endif %}
+  <div id="busy" class="card" hidden><div class="busy"><span class="spin"></span><span id="busyTxt">{{ i.mv_busy }}</span></div></div>
   <div id="empty" class="empty"{% if viz %} hidden{% endif %}>
     <div class="big">📊</div>
-    {% if not gate %}아직 회의록이 작성되지 않았습니다 — 녹음을 올리거나 「회의 내용」을 적고 정리가 끝나면 그림을 만들 수 있습니다.
-    {% elif can_edit %}아직 그림이 없습니다 — 위 「📊 그림 만들기」를 누르면 빅터AI가 이 회의의 정리·원문에서 그림 자료를 뽑아 그립니다.
-    {% else %}아직 그림이 없습니다 — 작성자·참석자가 「📊 그림 만들기」를 누르면 생깁니다.{% endif %}
+    {% if not gate %}{{ i.mv_empty_gate }}
+    {% elif can_edit %}{{ i.mv_empty_edit }}
+    {% else %}{{ i.mv_empty_view }}{% endif %}
   </div>
   <div id="viz"{% if not viz %} hidden{% endif %}></div>
-  <div class="foot" id="foot"{% if not viz %} hidden{% endif %}>🤖 빅터AI 가 정리·원문에서 뽑아 그린 그림입니다(글은 정리에서 그대로). 항목을 누르면 원문 근거가 열립니다. 원문과 다르면 회의록을 고치고 「🔄 다시 그리기」.</div>
+  <div class="foot" id="foot"{% if not viz %} hidden{% endif %}>{{ i.mv_foot }}{% if vlang == 'vi' and tr and tr.viz %} · {{ i.md_tr_note }}{% endif %}</div>
 </div>
-<div id="sheet"><div class="sh"><b id="shT">근거</b><button type="button" class="btn" id="shX">닫기</button></div><div class="sq" id="shQ"></div></div>
+<div id="sheet"><div class="sh"><b id="shT">{{ i.mv_q }}</b><button type="button" class="btn" id="shX">{{ i.mv_close }}</button></div><div class="sq" id="shQ"></div></div>
 {% include "_v5_partials/knk_md_lite.html" %}
 <script>
 (function(){
   var MID = {{ m.id }};
+  var VL = {{ (vl if vl is defined else {})|tojson }};   // z1199 — 보는 말
   var V = {{ (viz or none)|tojson }};
   var BODY = {{ (body or '')|tojson }};
   var SUMMARY = {{ (summary or '')|tojson }};
@@ -135,31 +136,33 @@
   var $ = function(id){ return document.getElementById(id); };
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   //  글 한 줄 → 정리 화면과 같은 모양(줄 앞 [결정] 등 색 글씨 · **굵게**) — 그리기 부품(knk_md_lite)의 line() 을 그대로 쓴다
-  function md(s){ try{ if (window.KNKMdLite && KNKMdLite.line) return KNKMdLite.line(String(s||'')).h; }catch(_){ } return esc(s); }
+  function md(s){ try{ if (window.KNKMdLite && KNKMdLite.line) return vtag(KNKMdLite.line(String(s||'')).h); }catch(_){ } return esc(s); }
+  //  z1199: 베트남어 화면 — 줄 앞 [결정] 같은 표시를 베트남어 이름으로(색은 그대로)
+  function vtag(h){ return VL.tags ? String(h).replace(/<span class="tg tg-(dec|pro|und|chk|int)">\[[^\]]*\]<\/span>/g, function(_, k){ return '<span class="tg tg-' + k + '">[' + VL.tags[k] + ']</span>'; }) : h; }
   //  머리줄 — 날짜 (요일) · 시작 ~ 끝 (N분) · 장소 · 작성자 (양식과 같은 규칙: 같은 날 끝난 시각이 있을 때만)
   (function(){
     var d = M.date, out = d;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d)){ var dt = new Date(d + 'T00:00:00'); out = d + ' (' + '일월화수목금토'[dt.getDay()] + ')'; }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)){ var dt = new Date(d + 'T00:00:00'); out = d + ' (' + VL.wd[dt.getDay()] + ')'; }
     if (M.st && M.st.slice(0,10) === d){ out += ' ' + M.st.slice(11,16);
       if (M.en && M.en.slice(0,10) === d){ var a = new Date(M.st.replace(' ','T')), b = new Date(M.en.replace(' ','T')); var mins = Math.floor((b - a)/60000);
-        if (mins > 0) out += ' ~ ' + M.en.slice(11,16) + ' (' + mins + '분)'; } }
+        if (mins > 0) out += ' ~ ' + M.en.slice(11,16) + ' (' + mins + VL.min + ')'; } }
     var parts = [out]; if (M.loc) parts.push(M.loc); if (M.owner) parts.push(M.owner);
     $('subLine').textContent = parts.join(' · ');
   })();
-  var KIND = {equip: '🏭 설비 회의', sales: '💼 영업·고객 회의', internal: '🏢 내부 회의'};
+  var KIND = {equip: VL.kind_equip, sales: VL.kind_sales, internal: VL.kind_internal};
   var TYPES = ['in','step','insp','buf','judge','ok','ng','out'];
   function item(tag, cls, html, q){ return '<' + tag + (cls ? ' class="' + cls + '"' : '') + ' data-q="' + esc(q || '') + '">' + html + '</' + tag + '>'; }
   function list(cls, title, arr, fmt, limit){
     var h = '<div class="col ' + cls + '"><h3>' + title + ' ' + arr.length + '</h3><ul>';
     arr.forEach(function(x, i){ h += item('li', i >= limit ? 'morehide' : '', fmt(x), x.q); });
     h += '</ul>';
-    if (arr.length > limit) h += '<div class="more" data-more="1">+' + (arr.length - limit) + ' 더 보기</div>';
+    if (arr.length > limit) h += '<div class="more" data-more="1">+' + (arr.length - limit) + VL.more + '</div>';
     return h + '</div>';
   }
   function render(v){
     if (!v){ return; }
     var h = '';
-    var kt = $('kindTag'); kt.textContent = KIND[v.kind] || '🏢 회의'; kt.hidden = false;
+    var kt = $('kindTag'); kt.textContent = KIND[v.kind] || VL.kind_default; kt.hidden = false;
     if (v.headline) h += '<div class="core" data-q="' + esc(v.headline_q || '') + '">' + md(v.headline) + '</div>';
     h += '<div class="grid"><div>';
     if (v.numbers && v.numbers.length){
@@ -169,7 +172,7 @@
     }
     var fl = v.flow || {}; var zones = fl.zones || [];
     if (zones.length){
-      h += '<div class="card"><h2>🏭 설비 흐름 <small>— 구역 → 단계 · ⚠ 확인 필요</small></h2>';
+      h += '<div class="card"><h2>' + VL.flow_h + '</h2>';
       zones.forEach(function(z, zi){
         var insp = (z.steps||[]).some(function(s){ return s.type === 'insp'; });
         h += '<div class="zone' + (insp ? ' insp' : '') + '"><div class="zh">' + (zi+1) + '. ' + esc(z.name) + (z.note ? '<small>' + esc(z.note) + '</small>' : '') + '</div><div class="steps">';
@@ -186,24 +189,24 @@
     }
     h += '</div><div>';
     h += '<div class="three">';
-    h += list('dec', '✅ 정한 것', v.decided || [], function(x){ return md(x.t); }, 4);
-    h += list('opn', '⚠ 확인 필요', v.open || [], function(x){ return md(x.t); }, 4);
-    h += list('act', '📌 할 일', v.todo || [], function(x){ return (x.due ? '<span class="due">' + esc(x.due.slice(5)) + '</span> ' : '') + md(x.t) + (x.who ? ' <span class="who">— ' + esc(x.who) + '</span>' : ''); }, 4);
+    h += list('dec', VL.dec, v.decided || [], function(x){ return md(x.t); }, 4);
+    h += list('opn', VL.opn, v.open || [], function(x){ return md(x.t); }, 4);
+    h += list('act', VL.act, v.todo || [], function(x){ return (x.due ? '<span class="due">' + esc(x.due.slice(5)) + '</span> ' : '') + md(x.t) + (x.who ? ' <span class="who">— ' + esc(x.who) + '</span>' : ''); }, 4);
     h += '</div>';
     if (v.timeline && v.timeline.length){
-      h += '<div class="card" style="margin-top:10px"><h2>🗓 일정</h2><ul class="tl">';
-      v.timeline.forEach(function(t){ h += item('li', t.sure === false ? 'q' : '', '<b>' + esc(t.when) + '</b> ' + esc(t.t) + (t.sure === false ? ' <span style="color:var(--amber);font-weight:800">⚠ 확인</span>' : ''), t.q); });
+      h += '<div class="card" style="margin-top:10px"><h2>' + VL.tl + '</h2><ul class="tl">';
+      v.timeline.forEach(function(t){ h += item('li', t.sure === false ? 'q' : '', '<b>' + esc(t.when) + '</b> ' + esc(t.t) + (t.sure === false ? ' <span style="color:var(--amber);font-weight:800">' + VL.chk + '</span>' : ''), t.q); });
       h += '</ul></div>';
     }
     if (v.parts && v.parts.length){
-      h += '<div class="card"><h2>🔩 지정 부품 · 조건</h2><table><tr><th>무엇</th><th>지정 사양</th><th>메모</th></tr>';
+      h += '<div class="card"><h2>' + VL.parts + '</h2><table><tr><th>' + VL.p1 + '</th><th>' + VL.p2 + '</th><th>' + VL.p3 + '</th></tr>';
       v.parts.forEach(function(p){ h += '<tr class="pr" data-q="' + esc(p.q||'') + '"><td>' + esc(p.what) + '</td><td>' + esc(p.spec) + '</td><td>' + esc(p.note) + '</td></tr>'; });
       h += '</table></div>';
     }
-    h += '<div class="card kindsCard"><h2>🧭 회의 종류에 맞는 그림 <small>— 빅터AI가 고름</small></h2><div class="kinds">' +
-      '<div class="kind' + (v.kind==='equip'?' on':'') + '"><div class="ic">🏭</div><b>설비 · 장비</b><span>흐름 · 숫자<br>지정 부품</span></div>' +
-      '<div class="kind' + (v.kind==='sales'?' on':'') + '"><div class="ic">💼</div><b>영업 · 고객</b><span>일정 · 금액<br>결정 · 요구</span></div>' +
-      '<div class="kind' + (v.kind==='internal'?' on':'') + '"><div class="ic">🏢</div><b>내부 · 보고</b><span>결정 · 할 일<br>쟁점 · 기한</span></div></div></div>';
+    h += '<div class="card kindsCard"><h2>' + VL.kinds_h + '</h2><div class="kinds">' +
+      '<div class="kind' + (v.kind==='equip'?' on':'') + '"><div class="ic">🏭</div><b>' + VL.k_equip + '</b><span>' + VL.k_equip_s + '</span></div>' +
+      '<div class="kind' + (v.kind==='sales'?' on':'') + '"><div class="ic">💼</div><b>' + VL.k_sales + '</b><span>' + VL.k_sales_s + '</span></div>' +
+      '<div class="kind' + (v.kind==='internal'?' on':'') + '"><div class="ic">🏢</div><b>' + VL.k_int + '</b><span>' + VL.k_int_s + '</span></div></div></div>';
     h += '</div></div>';
     $('viz').innerHTML = h;
     $('viz').hidden = false; $('empty').hidden = true; $('foot').hidden = false;
@@ -222,14 +225,14 @@
   function showSrc(q){
     var sh = $('sheet'), sq = $('shQ');
     sh.style.display = 'block';
-    if (!q){ sq.innerHTML = '<span class="nf">이 항목은 정리 글에서 뽑은 것으로 원문 구절이 따로 없습니다.</span>'; return; }
-    var src = BODY, where = '원문', i = findIn(BODY, q);
-    if (i < 0){ i = findIn(SUMMARY, q); src = SUMMARY; where = '정리 글'; }
-    if (i < 0){ sq.innerHTML = '<span class="nf">원문에서 글자 그대로 찾지 못했습니다 — 빅터AI 가 옮긴 구절: </span>' + esc(q); return; }
+    if (!q){ sq.innerHTML = '<span class="nf">' + VL.q_none + '</span>'; return; }
+    var src = BODY, where = VL.w_body, i = findIn(BODY, q);
+    if (i < 0){ i = findIn(SUMMARY, q); src = SUMMARY; where = VL.w_sum; }
+    if (i < 0){ sq.innerHTML = '<span class="nf">' + VL.q_nf + '</span>' + esc(q); return; }
     var L = q.length, a = Math.max(0, i - 160), b = Math.min(src.length, i + L + 160);
     var seg = src.slice(a, b), ri = i - a;
     sq.innerHTML = (a > 0 ? '… ' : '') + esc(seg.slice(0, ri)) + '<mark>' + esc(seg.slice(ri, ri + L)) + '</mark>' + esc(seg.slice(ri + L)) + (b < src.length ? ' …' : '');
-    $('shT').textContent = '근거 (' + where + ')';
+    $('shT').textContent = VL.q + ' (' + where + ')';
   }
   document.addEventListener('click', function(e){
     var m = e.target.closest('[data-more]'); if (m){ var col = m.closest('.col'); col.querySelectorAll('.morehide').forEach(function(li){ li.classList.remove('morehide'); }); m.remove(); return; }
@@ -239,22 +242,22 @@
   //  만들기 — 서버는 시작만 알리고(앞단 60초) 화면이 2초마다 묻는다
   var b = $('btnBuild');
   if (b) b.addEventListener('click', function(){
-    if (V && !confirm('빅터AI 가 지금 정리·원문으로 그림을 다시 만듭니다. 계속할까요?')) return;
+    if (V && !confirm(VL.confirm)) return;
     b.disabled = true; $('busy').hidden = false;
     fetch('/api/meeting/' + MID + '/viz', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
       .then(function(r){ return r.json(); }).then(function(j){
-        if (!j.ok){ $('busy').hidden = true; b.disabled = false; alert(j.error || '시작하지 못했습니다.'); return; }
+        if (!j.ok){ $('busy').hidden = true; b.disabled = false; alert(j.error || VL.start_fail); return; }
         var n = 0;
         var t = setInterval(function(){
           n++;
           fetch('/api/meeting/' + MID + '/viz-status').then(function(r){ return r.json(); }).then(function(s){
-            if (s.elapsed != null) $('busyTxt').textContent = '빅터AI가 그림 자료를 뽑는 중 — ' + s.elapsed + '초째 (긴 회의는 1~2분 걸립니다. 창을 닫아도 서버에서 끝까지 됩니다)';
-            if (s.state === 'done'){ clearInterval(t); V = s.viz; $('busy').hidden = true; b.disabled = false; b.textContent = '🔄 다시 그리기'; var nt = document.querySelector('.notice'); if (nt) nt.remove(); render(V); }
-            else if (s.state === 'error'){ clearInterval(t); $('busy').hidden = true; b.disabled = false; alert('그림을 만들지 못했습니다 — ' + (s.error || '')); }
-            else if (n > 300){ clearInterval(t); $('busy').hidden = true; b.disabled = false; alert('시간이 너무 걸립니다 — 화면을 새로 고쳐 확인해 주세요.'); }
+            if (s.elapsed != null) $('busyTxt').textContent = VL.busy_a + s.elapsed + VL.busy_b;
+            if (s.state === 'done'){ clearInterval(t); V = s.viz; $('busy').hidden = true; b.disabled = false; b.textContent = VL.rebuild; var nt = document.querySelector('.notice'); if (nt) nt.remove(); render(V); }
+            else if (s.state === 'error'){ clearInterval(t); $('busy').hidden = true; b.disabled = false; alert(VL.fail + (s.error || '')); }
+            else if (n > 300){ clearInterval(t); $('busy').hidden = true; b.disabled = false; alert(VL.slow); }
           }).catch(function(){});
         }, 2000);
-      }).catch(function(){ $('busy').hidden = true; b.disabled = false; alert('연결에 실패했습니다 — 잠시 뒤 다시 해 주세요.'); });
+      }).catch(function(){ $('busy').hidden = true; b.disabled = false; alert(VL.net); });
   });
   if (V) render(V);
 })();

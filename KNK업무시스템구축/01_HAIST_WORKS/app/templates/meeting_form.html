@@ -75,6 +75,12 @@
 #btnSumPrev[hidden] { display:none !important; }   /* z1183 — 공용 단추 모양이 hidden 을 덮지 않게 */
 .row-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--qv-line); border-radius:8px; margin-bottom:8px; background: var(--qv-surface); }
 .ri-main { flex:1; min-width:0; }
+/* z1199 — 베트남어 사용자 번역 보기(A안): 안내 줄 · 제목 번역 */
+.vs-note { font-size:12px; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:6px 10px; margin:0 0 10px; line-height:1.6; }
+.vs-note.ko { color:#475569; background:#f8fafc; border-color:#e2e8f0; }
+.vs-note.run { color:#92400e; background:#fffbeb; border-color:#fde68a; }
+.vs-note a { color:inherit; font-weight:800; text-decoration:underline; white-space:nowrap; }
+.vi-title-hint { font-size:12.5px; color:#1d4ed8; margin-top:6px; font-weight:700; line-height:1.5; }
 .ri-main b { font-size:13.5px; color: var(--qv-ink); display:block; line-height:1.5; }
 .ri-sub { font-size:11.5px; color: var(--qv-ink-3); margin-right:12px; display:inline-block; margin-top:4px; }
 .ri-ai { font-size:10px; font-weight:800; color:#2563eb; background:#eaf1fe; padding:1px 6px; border-radius:5px; margin-left:6px; vertical-align:middle; }
@@ -473,6 +479,7 @@
             <label>{{ i.mf_f_title }} *</label>
             <input id="mtgTitle" type="text" maxlength="200" placeholder="{{ i.mf_f_title_ph2 }}"
                    value="{{ meeting.title }}" {% if not can_edit %}disabled{% endif %}>
+            {% if vi_tr is defined and vi_tr and vi_tr.title %}<div class="vi-title-hint" id="viTitleHint">🌐 {{ vi_tr.title }}</div>{% endif %}{# z1199 #}
           </div>
           <div class="mf-fld">
             <label>{{ i.mf_f_date }}</label>
@@ -755,6 +762,8 @@
 {# z1159: 자바스크립트가 쓸 말 — 번역 사전(i)에서 한 번만 내려 준다 #}
 var MF = {
   act_empty: {{ i.mf_act_empty|tojson }},
+  tr_note: {{ i.mf_tr_note|tojson }}, tr_orig: {{ i.mf_tr_orig|tojson }}, tr_orig_now: {{ i.mf_tr_orig_now|tojson }},   {# z1199 #}
+  tr_back: {{ i.mf_tr_back|tojson }}, tr_running: {{ i.mf_tr_running|tojson }}, tr_partial: {{ i.mf_tr_partial|tojson }},
   add_fail: {{ i.mf_add_fail|tojson }},
   ai_done: {{ i.mf_ai_done|tojson }},
   ai_fail: {{ i.mf_ai_fail|tojson }},
@@ -982,6 +991,7 @@ window.__MTG = {
   rec: {{ (rec|default({}, true))|tojson }},   {# z1113: 녹음 중 상태(초·저장량) — 창이 닫혀도 이어서 끝낼 수 있게 #}
   msg_del: {{ (msg_del|default('none', true))|tojson }},   {# z1122: 🗑 삭제 때 이음 회의도 함께 지워지나(none·yes·no) — 확인 글에 미리 알림 #}
   audio_max_mb: {{ MEETING_AUDIO_MAX_MB|int }},   {# 2026-09-17: 음성 올리기 한도 — 숫자는 main.py _MEETING_AUDIO_MAX_MB 한 곳 #}
+  vi_tr: {{ (vi_tr if (vi_tr is defined and not is_new) else none)|tojson }},   {# z1199 — 베트남어 사용자 = 번역(A안) · 한국어 = null #}
   summary: {{ ((meeting.summary or '') if not is_new else '')|tojson }},
   has_prev: {{ 'true' if (not is_new and (meeting.summary_prev or '').strip()) else 'false' }},   {# z1183 #}
   body_written: {{ 'true' if (not is_new and body_written|default(false)) else 'false' }},   {# z1185: 원문에 회의 내용이 있나(서버 _meeting_body_written) #}
@@ -1172,6 +1182,65 @@ window.__MTG = {
         + (CAN_EDIT?'<button class="ri-del" data-act="del-act" data-id="'+a.id+'" title="'+MF.del_t+'">✕</button>':'')
         + '</div>';
     }).join('');
+  }
+
+  // ── z1199 베트남어 사용자 번역 보기(A안) — 정리·결정·할 일을 베트남어로 · 안내 줄의 「Xem bản gốc tiếng Hàn」로 한국어 원문 ──
+  //   🔴 번역은 보여 주기만 — M.summary·결정·할 일(고치기·저장값)은 한국어 원문 그대로. 번역 중이면 3초마다 물어 끝나면 바꾼다.
+  var VT = M.vi_tr || null, VS_LANG = 'vi', vsCopy = null;
+  if (VT){
+    var VS_TAGVI = { dec: 'Quyết định', pro: 'Đề xuất', und: 'Chưa quyết', chk: 'Cần xác nhận', int: 'Chính sách nội bộ' };
+    var vsTagVi = function(h){ return String(h).replace(/<span class="tg tg-(dec|pro|und|chk|int)">\[[^\]]*\]<\/span>/g, function(_, k){ return '<span class="tg tg-' + k + '">[' + VS_TAGVI[k] + ']</span>'; }); };
+    var vsMd = function(s){ return window.KNKMdLite ? KNKMdLite.render(s) : esc(s); };
+    var vsHas = function(){ return !!(VT.summary || Object.keys(VT.decisions || {}).length || Object.keys(VT.actions || {}).length); };
+    var vsNote = function(){
+      if (VT.state === 'running' && !vsHas()) return '<div class="vs-note run">' + esc(MF.tr_running) + '</div>';
+      if (!vsHas()) return '';
+      if (VS_LANG === 'ko') return '<div class="vs-note ko">' + esc(MF.tr_orig_now) + ' · <a href="#" data-vs="vi">' + esc(MF.tr_back) + '</a></div>';
+      return '<div class="vs-note">' + esc(MF.tr_note) + (VT.at ? ' · ' + esc(VT.at) : '') + ' · <a href="#" data-vs="ko">' + esc(MF.tr_orig) + '</a>'
+        + (VT.state === 'running' ? '<br>' + esc(MF.tr_running) : (VT.failed ? '<br>' + esc(MF.tr_partial) : '')) + '</div>';
+    };
+    var _rs0 = renderSummary, _rd0 = renderDecisions, _ra0 = renderActions;
+    renderSummary = function(){
+      _rs0();
+      var box = $('mtgSummary'); if (!box || !(M.summary && M.summary.trim())) return;
+      var useVi = (VS_LANG === 'vi' && VT.summary);
+      box.innerHTML = vsNote() + (useVi ? vsTagVi(vsMd(VT.summary)) : vsMd(M.summary));
+      box.className = 'sum-box mdl';
+    };
+    var vsRows = function(boxId, items, map){
+      if (VS_LANG !== 'vi') return;
+      var box = $(boxId); if (!box) return;
+      var rows = box.querySelectorAll('.row-item');
+      (items || []).forEach(function(it, i){
+        var vi = map[String(it.id)], row = rows[i]; if (!vi || !row) return;
+        var b = row.querySelector('.ri-main b'); if (b && b.firstChild) b.firstChild.nodeValue = vi;
+      });
+    };
+    renderDecisions = function(){ _rd0(); vsRows('decList', M.decisions, VT.decisions || {}); };
+    renderActions = function(){ _ra0(); vsRows('actList', M.actions, VT.actions || {}); };
+    vsCopy = function(){ return (VS_LANG === 'vi' && VT.summary) ? { s: VT.summary, t: VT.title || '' } : null; };
+    document.addEventListener('click', function(e){
+      var a = e.target && e.target.closest ? e.target.closest('[data-vs]') : null; if (!a) return;
+      e.preventDefault(); VS_LANG = a.getAttribute('data-vs');
+      var th = $('viTitleHint'); if (th) th.hidden = (VS_LANG !== 'vi');
+      renderSummary(); renderDecisions(); renderActions();
+    });
+    //  번역 중(또는 옛 회의록을 지금 막 번역 시작) — 3초마다 묻고 끝나면 바꾼다(최대 4분)
+    var vsPoll = function(n){
+      if (!_alive() || n > 80) return;
+      fetch('/api/meeting/' + M.id + '/tr', {credentials: 'same-origin'}).then(function(r){ return r.json(); }).then(function(j){
+        if (!j || !j.ok || !j.tr) return;
+        var t = j.tr; VT.state = t.state; VT.at = t.at; VT.failed = t.failed;
+        if (t.summary) VT.summary = t.summary; if (t.title) VT.title = t.title;
+        VT.decisions = t.decisions || {}; VT.actions = t.actions || {};
+        var th = $('viTitleHint');
+        if (!th && VT.title){ var ti = $('mtgTitle'); if (ti && ti.parentNode){ th = document.createElement('div'); th.className = 'vi-title-hint'; th.id = 'viTitleHint'; ti.parentNode.appendChild(th); } }
+        if (th && VT.title) th.textContent = '🌐 ' + VT.title;
+        renderSummary(); renderDecisions(); renderActions();
+        if (t.state === 'running') setTimeout(function(){ vsPoll(n + 1); }, 3000);
+      }).catch(function(){ setTimeout(function(){ vsPoll(n + 1); }, 6000); });
+    };
+    if (VT.state === 'running') setTimeout(function(){ vsPoll(0); }, 3000);
   }
 
   // ── 핵심 실행 단계(버튼·자동 파이프라인 공용) ──
@@ -1620,6 +1689,7 @@ window.__MTG = {
   bindCopy('btnCopySum', function(){
     var s=(M.summary||'').trim(); if(!s) return '';
     var tt=((($('mtgTitle')||{}).value)||'').trim(), dt=((($('mtgDate')||{}).value)||'').trim();
+    var _vc = vsCopy ? vsCopy() : null; if (_vc){ s = _vc.s; if (_vc.t) tt = _vc.t; }   // z1199: 보이는 말(베트남어)로 복사
     //  z1183: 복사는 마크다운 기호를 뺀 글(「## 핵심」→「■ 핵심」 · **굵게** 표시 없이) — 메신저·메일에 그대로 붙게
     if (window.KNKMdLite) s = KNKMdLite.plain(s);
     return MF.copy_head+tt+(dt?(' ('+dt+')'):'')+MF.nl2+s;  // 전달받는 쪽 맥락용 머리말

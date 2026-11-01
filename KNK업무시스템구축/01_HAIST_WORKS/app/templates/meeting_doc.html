@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>회의록 · {{ m.title }}</title>
+<title>{{ i.md_doc }} · {{ m.title }}</title>{% if doc_lang == 'vi' %}<style>/* z1199 베트남어 양식 — 한국어 세 글자용 넓은 자간을 줄인다 */ table.appr .lab { width: 40px !important; } .doc-title span, .band i, .band i b, table.form th.k i { letter-spacing: .04em !important; margin-right: 0 !important; } td.lab { font-size: 11px; }</style>{% endif %}
 {# ============================================================
    meeting_doc.html — 회의록 인쇄/PDF 양식 (16_KNK_Meeting)
    표준 양식 v3 (대표 확정 2026-09-16): 사내에서 실제 쓰는 종이 양식 그대로.
@@ -163,10 +163,10 @@
 <body>
 
 <div class="toolbar">
-  <a class="btn" href="/meetings/{{ m.id }}">← 회의록으로</a>
-  <a class="btn" href="/meetings/{{ m.id }}/viz">📊 한눈에 보기</a>{# z1193 — 도식화(추가 화면) #}
-  <button type="button" class="btn img" id="btnImg" data-title="{{ m.title }}" data-date="{{ m.meeting_date or '' }}">🖼 이미지 저장·복사</button>
-  <a class="btn print" href="javascript:void(0)" onclick="window.print()">🖨 인쇄 / PDF 저장</a>
+  <a class="btn" href="/meetings/{{ m.id }}">{{ i.md_back }}</a>{% if tr is not none %}{% if doc_lang == 'vi' %}<a class="btn" href="/meetings/{{ m.id }}/doc?orig=1">{{ i.md_tr_orig }}</a>{% else %}<a class="btn" href="/meetings/{{ m.id }}/doc">{{ tr_back }}</a>{% endif %}{% endif %}{# z1199 #}
+  <a class="btn" href="/meetings/{{ m.id }}/viz">{{ i.md_viz }}</a>{# z1193 — 도식화(추가 화면) #}
+  <button type="button" class="btn img" id="btnImg" data-title="{{ m.title }}" data-date="{{ m.meeting_date or '' }}">{{ i.md_img }}</button>
+  <a class="btn print" href="javascript:void(0)" onclick="window.print()">{{ i.md_print }}</a>
 </div>
 
 <div class="sheet">
@@ -176,13 +176,13 @@
       <img class="logo" src="/static/logo.png" alt="KNK HAIST Innovation"
            onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
       <div class="logo-txt">KNK HAIST Innovation</div>
-      <div class="doc-title"><span>회의록</span></div>
+      <div class="doc-title"><span>{{ i.md_doc_title }}</span></div>
     </div>
     <table class="appr">
       <tbody>
         <tr>
-          <td class="lab" rowspan="2">결<br>재</td>
-          <th>담당</th><th>검토</th><th>승인</th>
+          <td class="lab" rowspan="2">{{ i.md_appr|safe }}</td>
+          <th>{{ i.md_appr1 }}</th><th>{{ i.md_appr2 }}</th><th>{{ i.md_appr3 }}</th>
         </tr>
         <tr>
           <td class="sign who">{{ owner_name or '' }}</td><td class="sign"></td><td class="sign"></td>
@@ -196,20 +196,20 @@
 
   <table class="form">
     <tbody>
-      <tr><th class="k"><i class="s3">회의명</i></th><td class="v">{{ m.title }}</td></tr>
-      <tr><th class="k"><i class="s2">일시</i></th><td class="v">{{ date_disp }}{% if time_disp %} {{ time_disp }}{% endif %}</td></tr>
-      <tr><th class="k"><i>회의장소</i></th><td class="v">{{ m.location or '' }}</td></tr>
-      <tr><th class="k"><i>부서/작성자</i></th><td class="v">{{ owner_line or '' }}</td></tr>
+      <tr><th class="k"><i{% if doc_lang != 'vi' %} class="s3"{% endif %}>{{ i.md_k_title }}</i></th><td class="v">{{ m.title }}</td></tr>
+      <tr><th class="k"><i{% if doc_lang != 'vi' %} class="s2"{% endif %}>{{ i.md_k_date }}</i></th><td class="v">{{ date_disp }}{% if time_disp %} {{ time_disp }}{% endif %}</td></tr>
+      <tr><th class="k"><i>{{ i.md_k_place }}</i></th><td class="v">{{ m.location or '' }}</td></tr>
+      <tr><th class="k"><i>{{ i.md_k_owner }}</i></th><td class="v">{{ owner_line or '' }}</td></tr>
     </tbody>
   </table>
 
-  <div class="band"><i>참석자</i></div>
+  <div class="band"><i>{{ i.md_att }}</i></div>
   <table class="att">
     <thead>
       <tr>
-        <th class="d">부서</th><th class="n">성명 (서명)</th>
-        <th class="d">부서</th><th class="n">성명 (서명)</th>
-        <th class="d">부서</th><th class="n">성명 (서명)</th>
+        <th class="d">{{ i.md_att_dept }}</th><th class="n">{{ i.md_att_name }}</th>
+        <th class="d">{{ i.md_att_dept }}</th><th class="n">{{ i.md_att_name }}</th>
+        <th class="d">{{ i.md_att_dept }}</th><th class="n">{{ i.md_att_name }}</th>
       </tr>
     </thead>
     <tbody>
@@ -221,20 +221,20 @@
 
   <div class="spacer"></div>
 
-  <div class="band wide"><i><b>안</b><b>건</b></i></div>
+  <div class="band wide"><i>{{ i.md_agenda|safe }}</i></div>
   <div class="body">
 
     {% if sum_lines %}
       {% for ln in sum_lines %}<div class="ln {{ ln.kind }}">{{ ln.html|safe }}</div>{% endfor %}{# z1183: 줄은 서버가 먼저 막고(escape) 그린다(main._md_lite_line) #}
     {% else %}
-      <div class="ln none">아직 정리 전입니다. (회의록 화면에서 「💾 저장하고 빅터AI 정리」)</div>
+      <div class="ln none">{{ i.md_none }}</div>
     {% endif %}
 
     {% if decisions %}
-    <div class="sub">■ 결정사항</div>
+    <div class="sub">{{ i.md_dec }}</div>
     <table class="data">
       <colgroup><col style="width:30px"><col><col style="width:110px"><col style="width:100px"></colgroup>
-      <thead><tr><th>#</th><th>결정 내용</th><th>책임자</th><th>기한</th></tr></thead>
+      <thead><tr><th>#</th><th>{{ i.md_dec_h }}</th><th>{{ i.md_dec_who }}</th><th>{{ i.md_due }}</th></tr></thead>
       <tbody>
         {% for d in decisions %}
         <tr><td class="c">{{ loop.index }}</td><td>{{ d.what }}</td>
@@ -245,10 +245,10 @@
     {% endif %}
 
     {% if actions %}
-    <div class="sub">■ 할 일</div>
+    <div class="sub">{{ i.md_act }}</div>
     <table class="data">
       <colgroup><col style="width:30px"><col><col style="width:110px"><col style="width:100px"></colgroup>
-      <thead><tr><th>#</th><th>할 일</th><th>담당</th><th>기한</th></tr></thead>
+      <thead><tr><th>#</th><th>{{ i.md_act_h }}</th><th>{{ i.md_act_who }}</th><th>{{ i.md_due }}</th></tr></thead>
       <tbody>
         {% for a in actions %}
         <tr><td class="c">{{ loop.index }}</td><td>{{ a.task }}</td>
@@ -263,9 +263,9 @@
 
   <div class="foot">
     <span>{{ docno }}</span>
-    <span>공개범위 {{ sec }}</span>
-    {% if link_proj %}<span>연결 {{ link_proj.mgmt_code or link_proj.code }} {{ link_proj.name }}</span>{% endif %}
-    {% if link_opp %}<span>영업 {{ link_opp.opp_no }} {{ link_opp.title }}</span>{% endif %}
+    <span>{{ i.md_sec }} {{ sec }}</span>{% if doc_lang == 'vi' and tr and tr.summary %}<span>{{ i.md_tr_note }}</span>{% endif %}
+    {% if link_proj %}<span>{{ i.md_link }} {{ link_proj.mgmt_code or link_proj.code }} {{ link_proj.name }}</span>{% endif %}
+    {% if link_opp %}<span>{{ i.md_opp }} {{ link_opp.opp_no }} {{ link_opp.title }}</span>{% endif %}
   </div>
 
 </div>
@@ -278,6 +278,7 @@
      미리보기 창에서 한 번 더 누르게 한다(이음과 같은 이유).
    · 저장: 아이폰 = 공유 창(「이미지 저장」) / 안드로이드·PC = 내려받기(갤러리 「Download」에 보임). */
 (function () {
+  var DL = {{ (dl if dl is defined else {})|tojson }};   // z1199 — 보는 말
   var btn = document.getElementById('btnImg');
   var sheet = document.querySelector('.sheet');
   if (!btn || !sheet) return;
@@ -300,9 +301,9 @@
   function fileName() {
     var t = String(btn.getAttribute('data-title') || '').replace(/[\\\/:*?"<>|]+/g, ' ')
       .split('').filter(function (ch) { return ch.charCodeAt(0) >= 32; }).join('')
-      .replace(/\s+/g, ' ').trim().slice(0, 40) || '회의록';
+      .replace(/\s+/g, ' ').trim().slice(0, 40) || DL.file;
     var d = String(btn.getAttribute('data-date') || '').replace(/[^0-9-]/g, '');
-    return '회의록_' + t + (d ? '_' + d : '') + '.png';
+    return DL.file + '_' + t + (d ? '_' + d : '') + '.png';
   }
 
   function waitImages(root) {
@@ -370,7 +371,7 @@
       try {
         if (navigator.canShare && navigator.share && navigator.canShare({ files: [f] })) {
           await navigator.share({ files: [f], title: f.name });
-          say(msg, '✓ 공유 창에서 「이미지 저장」을 고르면 사진에 저장됩니다.');
+          say(msg, DL.save_ios);
           return;
         }
       } catch (e) {
@@ -384,9 +385,9 @@
       document.body.appendChild(a);
       a.click();
       a.parentNode.removeChild(a);
-      say(msg, '✓ 저장했습니다 — ' + f.name + (IOS ? '' : ' (휴대폰은 갤러리 「Download」)'));
+      say(msg, DL.saved + f.name + (IOS ? '' : DL.saved_and));
     } catch (e2) {
-      say(msg, '저장이 안 됐습니다. 위 이미지를 길게 눌러 「이미지 저장」을 고르세요.', true);
+      say(msg, DL.save_fail, true);
     }
   }
 
@@ -394,9 +395,9 @@
     try {
       if (!navigator.clipboard || !window.ClipboardItem) throw new Error('clipboard unsupported');
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': made.blob })]);
-      say(msg, '✓ 복사했습니다 — 보낼 곳(카카오톡·이음·메일)에 붙여넣기 하세요.');
+      say(msg, DL.copied);
     } catch (e) {
-      say(msg, '이 기기에서는 바로 복사가 안 됩니다. 위 이미지를 길게 눌러 「이미지 복사」를 고르세요.', true);
+      say(msg, DL.copy_fail, true);
     }
   }
 
@@ -404,19 +405,19 @@
     var ov = document.createElement('div');
     ov.className = 'capov';
     ov.innerHTML =
-      '<div class="capbox" role="dialog" aria-label="회의록 이미지">' +
-        '<div class="caphd"><span>🖼 회의록 이미지</span><span class="capsz"></span></div>' +
-        '<div class="capprev"><img alt="회의록 이미지"></div>' +
+      '<div class="capbox" role="dialog" aria-label="' + DL.img + '">' +
+        '<div class="caphd"><span>🖼 ' + DL.img + '</span><span class="capsz"></span></div>' +
+        '<div class="capprev"><img alt="' + DL.img + '"></div>' +
         '<div class="capmsg"></div>' +
         '<div class="capbtns">' +
-          '<button type="button" class="btn img cap-save">💾 이미지 저장</button>' +
-          '<button type="button" class="btn print cap-copy">📋 이미지 복사</button>' +
-          '<button type="button" class="btn cap-close">닫기</button>' +
+          '<button type="button" class="btn img cap-save">' + DL.save_btn + '</button>' +
+          '<button type="button" class="btn print cap-copy">' + DL.copy_btn + '</button>' +
+          '<button type="button" class="btn cap-close">' + DL.close + '</button>' +
         '</div>' +
         '<div class="caphint">' + (IOS
-          ? '「이미지 저장」을 누르면 공유 창이 열립니다 — 「이미지 저장」을 고르세요.'
-          : '휴대폰은 갤러리의 「Download」 앨범에 저장됩니다.') +
-          ' 위 이미지를 길게 눌러도 저장·복사할 수 있습니다.</div>' +
+          ? DL.hint_ios
+          : DL.hint_and) +
+          DL.hint_tail + '</div>' +
       '</div>';
     document.body.appendChild(ov);
     ov.querySelector('.capprev img').src = made.url;
@@ -433,12 +434,12 @@
   btn.addEventListener('click', async function () {
     if (btn.disabled) return;
     btn.disabled = true;
-    btn.textContent = '⏳ 이미지 만드는 중…';
+    btn.textContent = DL.making;
     try {
       await makeImage();
       openPreview();
     } catch (e) {
-      alert('이미지를 만들지 못했습니다. 잠시 뒤 다시 눌러주세요.\n(' + (e && e.message ? e.message : e) + ')');
+      alert(DL.make_fail + '\n(' + (e && e.message ? e.message : e) + ')');
     } finally {
       btn.disabled = false;
       btn.textContent = LABEL;

@@ -997,6 +997,15 @@ def startup():
             print(f"[MTG-AUTHOR-MIG-Z1197] {_rma}")
     except Exception as _e:
         print(f"[MTG-AUTHOR-MIG-Z1197 ERR] {_e}")
+    # z1199 (대표 2026-10-28 · 회의록 베트남어 번역 보기): 번역 저장 표 content_tr · 기록 content_tr_log — 표만 더한다
+    try:
+        from .migrations.m_z1199_content_tr import migrate as _ctr_migrate
+        from .database import DB_PATH as _DB_PATH_CTR
+        _rctr = _ctr_migrate(_DB_PATH_CTR)
+        if _rctr.get('added'):
+            print(f"[CONTENT-TR-MIG-Z1199] {_rctr}")
+    except Exception as _e:
+        print(f"[CONTENT-TR-MIG-Z1199 ERR] {_e}")
     # v5H226z455 (2026-06-15, 대표 지시): 형태 4종(완제품/제품/상품/기타) — 기존 form_type 재동기화 (idempotent)
     try:
         from .migrations.m_z455_form_type_resync import migrate as _ft_migrate
@@ -4183,6 +4192,268 @@ def _mtg_author_disp(m) -> str:
         return _msg_owner_disp(c, _mtg_author_id(m))
 
 
+# ── 🌐 z1199 회의록 베트남어 번역 보기 ───────────────────────────────────────────────────────────
+#   대표 2026-10-28 「베트남직원이 포함된 회의록은 베트남 직원이 봤을때 베트남어로 표현이 되는거야?」 → 시안 A·B →
+#   결정: **A안**(베트남어 먼저 · 「Xem bản gốc tiếng Hàn」로 한국어 원문) · **베트남어 참석자가 있으면 정리 직후 미리** ·
+#   범위 = 정리·결정·할 일·제목 + 회의록 양식·한눈에 보기 (음성 메모 = z1200).
+#   · 「베트남어 참석자」 = 만든 사람·작성자·녹음 올린 사람·이음 등록 담당·참석자 명단에 직원으로 연결된 사람 중 화면 언어 vi 가 한 명 이상.
+#   · 번역은 content_tr 에 저장해 다시 쓴다 — 원문 지문(sig)이 같으면 다시 번역하지 않는다 · 바뀐 조각만.
+#   · 언제: 정리 끝(_mtg_sum_worker) · ✏ 고치기 · ↩ 이전 정리 · 결정/할 일 더하기·지우기 · 회의록 저장 · 그림 만든 뒤 ·
+#     조건인데 번역이 없는 옛 회의록은 베트남어 직원이 열 때 한 번.
+#   · 같은 원문으로 실패(숫자·표시가 원문과 다름 2번)한 조각은 「실패」로 남겨 다시 부르지 않는다(비용 고리 막기) — 화면은 그 조각만 원문.
+#   · 🔴 저장값(회의록 글)은 한국어 그대로 — 번역은 보여 주기만(✏ 고치기·복사 원문·양식 저장값 아님).
+#   · 로그에는 숫자만(회의 글·번역 글은 찍지 않는다).
+from . import content_tr as _ctr
+import threading as _tr_thr
+import time as _tr_time
+_TR_JOBS = {}
+_TR_LOCK = _tr_thr.Lock()
+_TR_ERR_WAIT = 600          # 연결·키 오류 뒤 10분은 화면 열기로 다시 부르지 않는다
+_TR_TAG_VI = {"결정": "Quyết định", "제안": "Đề xuất", "미결": "Chưa quyết", "확인 필요": "Cần xác nhận",
+              "확인필요": "Cần xác nhận", "내부 방침": "Chính sách nội bộ"}
+_TR_SEC_VI = {"private": "Mật", "team": "Nội bộ công ty", "hq": "Nội bộ trụ sở chính",
+              "vn": "Nội bộ Pháp nhân Việt Nam", "all": "Công khai"}
+_TR_WD_VI = {"월": "T2", "화": "T3", "수": "T4", "목": "T5", "금": "T6", "토": "T7", "일": "CN"}
+
+
+def _tr_vi_user(u) -> bool:
+    return bool(u) and (u.get("lang") or "ko") == "vi"
+
+
+def _tr_vi_participant(c, m) -> bool:
+    ids = {m.get("owner_id"), m.get("author_id"), m.get("audio_by"), m.get("msg_organizer_id")}
+    try:
+        ids |= {r[0] for r in c.execute(
+            "SELECT user_id FROM meeting_attendees WHERE meeting_id=? AND user_id IS NOT NULL", (m["id"],))}
+    except Exception as _e:
+        print(f"[TR-Z1199] 참석자 읽기 실패: {type(_e).__name__}", flush=True)
+    ids = [x for x in ids if x]
+    if not ids:
+        return False
+    return c.execute("SELECT 1 FROM users WHERE id IN (%s) AND lang='vi' LIMIT 1" % ",".join("?" * len(ids)),
+                     tuple(ids)).fetchone() is not None
+
+
+def _tr_sources_mtg(c, m) -> dict:
+    src = {}
+    if (m.get("title") or "").strip():
+        src["title"] = m["title"].strip()
+    if (m.get("summary") or "").strip():
+        src["summary"] = m["summary"].strip()
+    for r in c.execute("SELECT id, what FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (m["id"],)):
+        if (r["what"] or "").strip():
+            src["dec:%d" % r["id"]] = r["what"].strip()
+    for r in c.execute("SELECT id, task FROM meeting_actions WHERE meeting_id=? ORDER BY id", (m["id"],)):
+        if (r["task"] or "").strip():
+            src["act:%d" % r["id"]] = r["task"].strip()
+    vj = (m.get("viz_json") or "").strip()
+    if vj and vj != "null":
+        src["viz"] = vj
+    return src
+
+
+def _tr_rows(c, kind, rid) -> dict:
+    return {r["part"]: dict(r) for r in c.execute(
+        "SELECT part, src_sig, text, fail, at FROM content_tr WHERE kind=? AND ref_id=? AND lang='vi'", (kind, rid))}
+
+
+def _tr_need(src, rows) -> dict:
+    """번역할 조각 = 저장된 원문 지문과 다르거나 없는 것(같은 원문으로 실패한 조각은 다시 부르지 않는다)."""
+    return {p: t for p, t in src.items() if p not in rows or rows[p]["src_sig"] != _ctr.sig(t)}
+
+
+def _tr_kick(kind, rid, why=""):
+    """조건(베트남어 참석자)이고 낡은 조각이 있으면 뒤에서 번역을 시작한다 — 화면·요청은 기다리지 않는다."""
+    if kind != "mtg":
+        return False
+    try:
+        if not _ctr.available():
+            return False
+        with db_session() as c:
+            m = c.execute("SELECT * FROM meetings WHERE id=?", (rid,)).fetchone()
+            if not m:
+                return False
+            m = dict(m)
+            src = _tr_sources_mtg(c, m)
+            rows = _tr_rows(c, kind, rid)
+            for p in [p for p in rows if p not in src]:   # 지운 결정·할 일·그림의 번역은 바로 치운다(번역할 것이 없어도)
+                c.execute("DELETE FROM content_tr WHERE kind=? AND ref_id=? AND part=? AND lang='vi'", (kind, rid, p))
+            if not _tr_vi_participant(c, m):
+                return False
+            need = _tr_need(src, rows)
+    except Exception as _e:
+        print(f"[TR-Z1199] 시작 확인 실패 {kind} {rid}: {type(_e).__name__}", flush=True)
+        return False
+    if not need:
+        return False
+    with _TR_LOCK:
+        j = _TR_JOBS.get((kind, rid)) or {}
+        if j.get("state") == "running":
+            j["again"] = True
+            return True
+        if why == "view" and j.get("state") == "error" and _tr_time.time() - (j.get("t1") or 0) < _TR_ERR_WAIT:
+            return False
+        _TR_JOBS[(kind, rid)] = {"state": "running", "t0": _tr_time.time(), "again": False, "error": "", "why": why}
+    _tr_thr.Thread(target=_tr_worker, args=(kind, rid, why), daemon=True).start()
+    return True
+
+
+def _tr_put(c, kind, rid, part, sig, text, fail, model):
+    c.execute("INSERT INTO content_tr(kind, ref_id, part, lang, src_sig, text, fail, model, at) "
+              "VALUES(?,?,?,'vi',?,?,?,?,datetime('now','localtime')) "
+              "ON CONFLICT(kind, ref_id, part, lang) DO UPDATE SET src_sig=excluded.src_sig, text=excluded.text, "
+              "fail=excluded.fail, model=excluded.model, at=excluded.at",
+              (kind, rid, part, sig, text, fail, model))
+
+
+def _tr_worker(kind, rid, why=""):
+    err = ""
+    for _round in range(3):
+        try:
+            with db_session() as c:
+                m = c.execute("SELECT * FROM meetings WHERE id=?", (rid,)).fetchone()
+                if not m:
+                    break
+                src = _tr_sources_mtg(c, dict(m))
+                rows = _tr_rows(c, kind, rid)
+            need = _tr_need(src, rows)
+            if need:
+                res = _ctr.translate_parts(need, log=lambda s: print(s, flush=True))   # 네트워크 — DB 잠금 없이
+                n_ok = n_fail = 0
+                with db_session() as c:
+                    m2 = c.execute("SELECT * FROM meetings WHERE id=?", (rid,)).fetchone()
+                    cur = _tr_sources_mtg(c, dict(m2)) if m2 else {}
+                    for p, t in res["texts"].items():
+                        if p in cur and _ctr.sig(cur[p]) == _ctr.sig(need[p]):   # 번역하는 사이 원문이 바뀌었으면 버린다
+                            _tr_put(c, kind, rid, p, _ctr.sig(need[p]), t, "", res.get("model") or "")
+                            n_ok += 1
+                    for p, w in res["fails"].items():
+                        if p in cur and _ctr.sig(cur[p]) == _ctr.sig(need[p]):
+                            _tr_put(c, kind, rid, p, _ctr.sig(need[p]), "", w, res.get("model") or "")
+                            n_fail += 1
+                    for p in list(rows):
+                        if p not in cur:   # 지워진 결정·할 일 · 지운 그림의 번역은 치운다
+                            c.execute("DELETE FROM content_tr WHERE kind=? AND ref_id=? AND part=? AND lang='vi'", (kind, rid, p))
+                    tin = sum((u or {}).get("prompt", 0) for u in res.get("usage") or [])
+                    tout = sum((u or {}).get("completion", 0) for u in res.get("usage") or [])
+                    c.execute("INSERT INTO content_tr_log(kind, ref_id, why, parts, ok, fail, tokens_in, tokens_out, calls, secs, model) "
+                              "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                              (kind, rid, why, len(need), n_ok, n_fail, tin, tout, len(res.get("usage") or []),
+                               float(res.get("elapsed") or 0), res.get("model") or ""))
+                print(f"[TR-Z1199] {kind} {rid}({why}): 조각 {len(need)} · 저장 {n_ok} · 실패 {n_fail}", flush=True)
+        except Exception as _e:
+            err = type(_e).__name__
+            print(f"[TR-Z1199] {kind} {rid} 번역 오류: {err}", flush=True)
+            try:
+                with db_session() as c:
+                    c.execute("INSERT INTO content_tr_log(kind, ref_id, why, error) VALUES(?,?,?,?)", (kind, rid, why, err))
+            except Exception:
+                pass
+            break
+        with _TR_LOCK:
+            j = _TR_JOBS.get((kind, rid)) or {}
+            if not j.get("again"):
+                break
+            j["again"] = False
+    with _TR_LOCK:
+        _TR_JOBS[(kind, rid)] = {"state": ("error" if err else "done"), "error": err, "t1": _tr_time.time(), "again": False}
+
+
+def _tr_view_mtg(u, m, light=False):
+    """베트남어 사용자가 볼 번역 — 원문 지문이 같은 새 번역만 · 상태 · 조건인데 없으면 여기서 번역 시작(옛 회의록).
+    한국어 사용자 = None(화면 그대로)."""
+    if not _tr_vi_user(u) or not m:
+        return None
+    try:
+        with db_session() as c:
+            qual = _tr_vi_participant(c, m)
+            src = _tr_sources_mtg(c, m)
+            rows = _tr_rows(c, "mtg", m["id"])
+    except Exception as _e:
+        print(f"[TR-Z1199] 보기 읽기 실패 {m.get('id')}: {type(_e).__name__}", flush=True)
+        return None
+    fresh, failed = {}, []
+    for p, t in src.items():
+        r = rows.get(p)
+        if r and r["src_sig"] == _ctr.sig(t):
+            if (r["text"] or "").strip():
+                fresh[p] = r
+            else:
+                failed.append(p)
+    need = [p for p in src if p not in fresh and p not in failed]
+    if qual and need:
+        _tr_kick("mtg", m["id"], "view")
+    j = _TR_JOBS.get(("mtg", m["id"])) or {}
+    if j.get("state") == "running":
+        state = "running"
+    elif not qual and not fresh:
+        state = "none"
+    elif need:
+        state = "missing"
+    else:
+        state = "done"
+    at = max((r.get("at") or "") for r in fresh.values()) if fresh else ""
+    out = {"state": state, "at": at[5:16], "failed": len(failed), "qual": qual,
+           "title": (fresh.get("title") or {}).get("text", ""),
+           "summary": (fresh.get("summary") or {}).get("text", ""),
+           "decisions": {p[4:]: r["text"] for p, r in fresh.items() if p.startswith("dec:")},
+           "actions": {p[4:]: r["text"] for p, r in fresh.items() if p.startswith("act:")}}
+    if not light:
+        out["viz"] = (fresh.get("viz") or {}).get("text", "")
+    return out
+
+
+def _tr_titles(u, rows) -> dict:
+    """목록 — 베트남어 사용자에게 제목 번역(새것만) {회의록 번호: 번역}."""
+    if not _tr_vi_user(u) or not rows:
+        return {}
+    items = [(dict(r).get("id"), (dict(r).get("title") or "").strip()) for r in rows]
+    ids = [i for i, _t in items if i]
+    got = {}
+    try:
+        with db_session() as c:
+            for k in range(0, len(ids), 400):
+                ch = ids[k:k + 400]
+                for r in c.execute("SELECT ref_id, src_sig, text FROM content_tr WHERE kind='mtg' AND part='title' AND lang='vi' "
+                                   "AND text<>'' AND ref_id IN (%s)" % ",".join("?" * len(ch)), ch):
+                    got[r["ref_id"]] = (r["src_sig"], r["text"])
+    except Exception as _e:
+        print(f"[TR-Z1199] 목록 제목 읽기 실패: {type(_e).__name__}", flush=True)
+        return {}
+    return {i: got[i][1] for i, t in items if i in got and got[i][0] == _ctr.sig(t)}
+
+
+def _tr_tag_vi(html: str) -> str:
+    """양식 줄(서버가 그린 html)의 [결정] 같은 표시 → 베트남어 이름(색·자리는 그대로)."""
+    for k, v in _TR_TAG_VI.items():
+        html = html.replace("[" + k + "]", "[" + v + "]")
+    return html
+
+
+def _tr_date_vi(s: str) -> str:
+    for k, v in _TR_WD_VI.items():
+        s = s.replace("(" + k + ")", "(" + v + ")")
+    return s
+
+
+def _tr_doc_js(i) -> dict:
+    """양식 화면 자바스크립트가 쓸 말(이미지 저장·복사 창) — 보는 말로."""
+    keys = ("file", "save_ios", "saved", "saved_and", "save_fail", "copied", "copy_fail", "img", "save_btn", "copy_btn",
+            "close", "hint_ios", "hint_and", "hint_tail", "making", "make_fail")
+    return {k: i.get("md_js_" + k, "") for k in keys}
+
+
+def _tr_viz_js(i, lang) -> dict:
+    keys = ("min", "kind_equip", "kind_sales", "kind_internal", "kind_default", "more", "flow_h", "dec", "opn", "act", "tl",
+            "chk", "parts", "p1", "p2", "p3", "kinds_h", "k_equip", "k_equip_s", "k_sales", "k_sales_s", "k_int", "k_int_s",
+            "q_none", "w_body", "w_sum", "q_nf", "q", "confirm", "start_fail", "busy_a", "busy_b", "rebuild", "fail", "slow", "net")
+    out = {k: i.get("mv_js_" + k, "") for k in keys}
+    out["wd"] = (i.get("mv_js_wd") or "일,월,화,수,목,금,토").split(",")
+    out["tags"] = ({"dec": "Quyết định", "pro": "Đề xuất", "und": "Chưa quyết", "chk": "Cần xác nhận", "int": "Chính sách nội bộ"}
+                   if lang == "vi" else None)
+    return out
+
+
 def _meeting_ended(m) -> bool:
     """사람이 「⏹ 회의 종료」를 눌러 끝낸 회의인가(시간 규칙보다 먼저 본다)."""
     return bool(((m or {}).get("ended_at") or "").strip())
@@ -4312,7 +4583,8 @@ async def meetings_page(req: Request):
             _mm["has_minutes"] = _meeting_has_minutes(_mm)
     # 🗓 회의 카드 모아보기 탭(2026-09-17 대표 지시) — ?tab=cards
     tab = "cards" if (req.query_params.get("tab") or "") == "cards" else "list"
-    return ctx(req, "meetings.html", user=u, meetings=meetings, tab=tab)
+    return ctx(req, "meetings.html", user=u, meetings=meetings, tab=tab,
+               vi_titles=_tr_titles(u, meetings))   # z1199: 베트남어 사용자 = 제목 번역 한 줄
 
 
 @app.get("/api/meetings/search")
@@ -4466,6 +4738,7 @@ async def meeting_detail_page(req: Request, mid: int):
                body_written=_meeting_body_written(m), has_minutes=_meeting_has_minutes(m),   # z1185
                can_edit=_can_edit_meeting(u, m), can_delete=_can_delete_meeting(u, m), ai_on=ai_client.ai_available(),
                can_end=_can_end_meeting(u, m),   # z1131: 「⏹ 회의 종료」 단추를 보일까
+               vi_tr=_tr_view_mtg(u, m, light=True),   # z1199: 베트남어 사용자 = 번역(A안) · 한국어 사용자 = None
                author_disp=_mtg_author_disp(m), can_set_author=_mtg_can_set_author(u, m),   # z1197: 작성자(표시) · 바꾸기 단추
                author_manual=bool(m.get("author_set_by")), author_from_audio=bool(m.get("audio_by")),
                transcribe_on=ai_client.transcribe_available(),
@@ -4669,12 +4942,28 @@ async def meeting_doc_page(req: Request, mid: int):
                 _mins = 0
             if _mins > 0:
                 time_disp = f"{_st[11:16]} ~ {_en[11:16]} ({_mins}분)"
+    # z1199: 베트남어 사용자 = 번역(새것) + 베트남어 칸 이름 · ?orig=1 = 한국어 원문 그대로(지금 양식) · 한국어 사용자 = 그대로
+    _dtr = _tr_view_mtg(u, m, light=True) if _tr_vi_user(u) else None
+    _dlang = "vi" if (_dtr is not None and not req.query_params.get("orig")) else "ko"
+    if _dlang == "vi":
+        if _dtr.get("summary"):
+            sum_lines = [dict(_ln, html=_tr_tag_vi(_ln.get("html") or "")) for _ln in _mtg_doc_sum_lines(_dtr["summary"])]
+        decisions = [dict(_d, what=_dtr["decisions"].get(str(_d.get("id")), _d.get("what"))) for _d in decisions]
+        actions = [dict(_a, task=_dtr["actions"].get(str(_a.get("id")), _a.get("task"))) for _a in actions]
+        if _dtr.get("title"):
+            m = dict(m, title=_dtr["title"])
+        sec = _TR_SEC_VI.get(m.get("visibility"), _TR_SEC_VI["team"])
+        date_disp = _tr_date_vi(date_disp)
+        time_disp = (time_disp or "").replace("분)", " phút)")
+    _di = get_all_translations(_dlang)
     return tpl.TemplateResponse(request=req, name="meeting_doc.html", context={
         "m": m, "decisions": decisions, "actions": actions, "owner_name": owner_name,
         "owner_disp": owner_disp,
         "sec": sec, "docno": docno, "date_disp": date_disp, "time_disp": time_disp,
         "owner_line": owner_line, "att_rows": att_rows, "sum_lines": sum_lines,
         "link_proj": link_proj, "link_opp": link_opp,
+        "i": _di, "dl": _tr_doc_js(_di), "doc_lang": _dlang, "tr": _dtr,   # z1199
+        "tr_back": get_all_translations("vi").get("md_tr_vi", ""),
     })
 
 
@@ -4768,6 +5057,8 @@ def _viz_worker(mid: int):
         err = f"{type(_e).__name__}: {str(_e)[:200]}"
     with _MTG_VIZ_LOCK:
         _MTG_VIZ_JOBS[mid] = {"state": ("error" if err else "done"), "error": err, "viz": viz}
+    if not err:
+        _tr_kick("mtg", mid, "viz")   # z1199: 그림 글도 번역
 
 
 @app.get("/meetings/{mid:int}/viz", response_class=HTMLResponse)
@@ -4794,7 +5085,22 @@ async def meeting_viz_page(req: Request, mid: int):
         viz = None
     gate = bool((m.get("summary") or "").strip()) and _meeting_has_minutes(m)
     stale = bool(viz) and (m.get("viz_sum_sig") or "") != _viz_sig(m.get("summary"))
+    # z1199: 베트남어 사용자 = 그림 글 번역(새것) + 베트남어 화면 글자 · ?orig=1 = 한국어 원문 그대로 · 원문 근거(q)는 옮기지 않는다
+    _vtr = _tr_view_mtg(u, m) if _tr_vi_user(u) else None
+    _vlang = "vi" if (_vtr is not None and not req.query_params.get("orig")) else "ko"
+    if _vlang == "vi" and viz and _vtr.get("viz"):
+        try:
+            _vv = _js93.loads(_vtr["viz"])
+            if isinstance(_vv, dict):
+                viz = _vv
+        except Exception as _e:
+            print(f"[TR-Z1199] 그림 번역 읽기 실패 {mid}: {type(_e).__name__}", flush=True)
+    _vi = get_all_translations(_vlang)
+    if _vlang == "vi" and _vtr.get("title"):
+        m = dict(m, title=_vtr["title"])   # 머리 제목도 번역(근거 찾기는 원문 body·summary 그대로)
     return tpl.TemplateResponse(request=req, name="meeting_viz.html", context={
+        "i": _vi, "vl": _tr_viz_js(_vi, _vlang), "vlang": _vlang, "tr": _vtr,   # z1199 (더한 줄만 — 원래 줄은 그대로 아래)
+        "tr_back": get_all_translations("vi").get("md_tr_vi", ""),
         "m": m, "viz": viz, "viz_at": m.get("viz_at") or "", "stale": stale, "gate": gate, "can_edit": can_edit,
         "owner_disp": owner_disp, "body": m.get("body") or "", "summary": m.get("summary") or ""})
 
@@ -5203,6 +5509,22 @@ async def api_meeting_set_author(req: Request, mid: int):
     return JSONResponse({"ok": True, "author_id": _mtg_author_id(m), "author_disp": disp, "manual": bool(m.get("author_set_by"))})
 
 
+@app.get("/api/meeting/{mid:int}/tr")
+async def api_meeting_tr(req: Request, mid: int):
+    """z1199 — 베트남어 사용자가 볼 번역(새것만) + 상태(running · done · missing · none). 화면이 3초마다 묻는다(번역 중일 때)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_view_meeting(c, u, m):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+    return JSONResponse({"ok": True, "tr": _tr_view_mtg(u, m, light=True)})
+
+
 @app.post("/api/meeting")
 async def api_meeting_create(req: Request):
     # ⚠ 함수 전체를 try로 감싼다 — req.json()/get_user 등 try 바깥에서 터지면
@@ -5293,6 +5615,7 @@ async def api_meeting_update(req: Request, mid: int):
         new_ts = _row_ts(c, "meetings", mid)
         _mw = dict(c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone())
     # z1185: 화면이 「📄 회의록 양식」 단추를 저장한 그 자리에서 다시 맞춘다(판정은 서버 한 곳)
+    _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True, "updated_at": new_ts,
                          "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)})
 
@@ -5338,6 +5661,7 @@ async def api_meeting_summary_save(req: Request, mid: int):
             pass
         new_ts = _row_ts(c, "meetings", mid)
         _mw = dict(c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone())
+    _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True, "updated_at": new_ts, "changed": True,   # z1185: 판정도 함께
                          "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)})
 
@@ -5413,6 +5737,7 @@ async def api_meeting_summary_restore(req: Request, mid: int):
             "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
         actions = [dict(r2) for r2 in c.execute(
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
+    _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True, "summary": prev, "decisions": decisions, "actions": actions,
                          "updated_at": new_ts, "has_prev": bool(cur_sum),
                          "prev_at": ((_pv["summary_prev_at"] if _pv else "") or "")[:16] if cur_sum else "",
@@ -5567,6 +5892,8 @@ def _mtg_sum_worker(mid: int):
     with _MTG_SUM_LOCK:
         _MTG_SUM_JOBS[mid] = {"state": ("error" if err else "done"),
                               "error": err, "result": payload or {}}
+    if not err:
+        _tr_kick("mtg", mid, "sum")   # z1199: 정리 직후 — 베트남어 참석자가 있으면 뒤에서 번역
 
 
 @app.post("/api/meeting/{mid:int}/extract")
@@ -5669,6 +5996,7 @@ async def api_meeting_decision_add(req: Request, mid: int):
         )
         did = cur.lastrowid
         # 자식 목록 추가는 meetings.updated_at 을 바꾸지 않음(편집 중 base_ts 드리프트 방지).
+    _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True, "id": did})
 
 
@@ -5682,6 +6010,7 @@ async def api_meeting_decision_del(req: Request, mid: int, did: int):
         if not m or not _can_edit_meeting(u, dict(m), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         c.execute("DELETE FROM meeting_decisions WHERE id=? AND meeting_id=?", (did, mid))
+    _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True})
 
 
@@ -5706,6 +6035,7 @@ async def api_meeting_action_add(req: Request, mid: int):
         )
         aid = cur.lastrowid
         # 자식 목록 추가는 meetings.updated_at 을 바꾸지 않음(편집 중 base_ts 드리프트 방지).
+    _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True, "id": aid})
 
 
@@ -5719,6 +6049,7 @@ async def api_meeting_action_del(req: Request, mid: int, aid: int):
         if not m or not _can_edit_meeting(u, dict(m), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
         c.execute("DELETE FROM meeting_actions WHERE id=? AND meeting_id=?", (aid, mid))
+    _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True})
 
 
