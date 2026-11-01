@@ -27,7 +27,7 @@
 {# 허브별 path 목록 — longest-prefix 계산용 #}
 {% set _paths_home = ['/home','/daily','/now','/team','/weekly','/dashboard','/board/company'] %}
 {% set _paths_sales = ['/sales','/sales/opportunities','/projects','/projects/new','/sales/schedule','/customers','/sales/quotations','/sales/orders','/consumables','/sales/shipments-receipts','/sales/outstanding','/export','/as'] %}
-{% set _paths_logi = ['/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issues','/rates'] %}
+{% set _paths_logi = ['/logistics','/parts','/suppliers','/po','/po/new','/stock/movements','/stock/issues','/rates','/catalog','/materials/requests'] %}
 {% set _paths_common = ['/notifications','/calendar','/tickets','/changes','/issues','/search','/meetings','/voice-notes','/admin','/admin/permissions'] %}
 {% set _all_paths = _paths_home + _paths_sales + _paths_logi + _paths_common %}
 
@@ -491,7 +491,7 @@ var CH = {
     }
     var p = location.pathname;
     if (/^\/(sales|projects|customer|quote|order|export)/.test(p)) location.assign('/sales');
-    else if (/^\/(logistics|po|parts|supplier|stock|rates|materials)/.test(p)) location.assign('/logistics');
+    else if (/^\/(logistics|po|parts|supplier|stock|rates|materials|catalog)/.test(p)) location.assign('/logistics');
     else location.assign('/home');
   };
 
@@ -586,6 +586,9 @@ var CH = {
        출고 요청 목록(/stock/issues)으로 교체. 직접 차감 화면은 서버에서도 잠김. #}
     {{ a('/stock/issues',      i.ch_m_issues, 'M-02-08') }}
     {{ a('/rates',             i.ch_m_rates,        'M-02-13') }}
+    {# z1191w (대표 지시 2026-11-01): 자재 카탈로그·자재 요청서 = 공통 → 자재구매센터. 메뉴 자리만 옮겼다 — 경로는 전처럼 로그인만 보면 열린다. #}
+    {{ a('/catalog',            i.ch_m_catalog, 'M-02-29') }}
+    {{ a('/materials/requests', i.ch_m_matreq,  'M-02-30') }}
     {{ a('/materials/new-review', i.ch_m_newmat, 'M-02-16') }}
   {% else %}
     <div class="sb-group">{{ i.ch_tab_home }}</div>
@@ -607,8 +610,6 @@ var CH = {
   <div class="sb-group">{{ i.ch_g_common }}</div>
   {# v5H226z898 (대표 지시): 전사 일정표를 공통 메뉴 맨 위(자재 카탈로그 위)로 — 자주 쓰는 메뉴 우선 노출. #}
   {{ a('/dept/schedule', i.ch_m_deptsch, 'M-00-22') }}
-  {{ a('/catalog',            i.ch_m_catalog, 'M-00-14') }}
-  {{ a('/materials/requests', i.ch_m_matreq,   'M-00-15') }}
   {# v5H226z1096 (WP-04 입구 분리): 설계자용 BOM 입구를 '공통'에 둔다 — 공통 그룹은 세 허브
      (통합·매출영업·자재구매) 어디서나 보이므로 **자재구매센터를 거치지 않고** 바로 들어간다.
      ⭐구매 담당자에게는 여기를 감춘다(can_bom_purchase 가 참이면 구매 입구 하나만) —

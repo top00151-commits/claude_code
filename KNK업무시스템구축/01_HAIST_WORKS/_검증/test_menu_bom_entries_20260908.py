@@ -137,7 +137,8 @@ print("=" * 78)
 # 허브별 메뉴는 그 허브 화면에서만 뜬다 — 각각의 자리에서 확인한다
 CASES = [
     ("/sales", "매출영업", ["매출 홈", "프로젝트", "작업 일정표", "고객사", "견적서", "수주"]),
-    ("/logistics", "자재구매", ["자재 홈", "부품 마스터", "BOM 보드", "협력사", "발주 목록", "환율"]),
+    ("/logistics", "자재구매", ["자재 홈", "부품 마스터", "BOM 보드", "협력사", "발주 목록", "환율",
+                            "자재 카탈로그", "자재 요청서"]),  # z1191w(대표 2026-11-01): 공통 → 자재구매센터
     ("/home", "통합", ["업무현황"]),
 ]
 for path, hub, must in CASES:
@@ -151,7 +152,7 @@ for path, hub, must in CASES:
 h_all = render("/logistics", can_bom_design=True, can_bom_purchase=True, can_supplier=True,
                role="admin")
 names = [n for _, n in menus(h_all)]
-common = ["전사 일정표", "자재 카탈로그", "자재 요청서", "연락처", "회의록",
+common = ["전사 일정표", "연락처", "회의록",
           "알림함", "캘린더", "검색", "변경 공지"]
 missing = [m for m in common if not any(m in n for n in names)]
 chk(not missing, "공통 메뉴 %d개 그대로 (빠진 것 %s)" % (len(common), missing or "없음"))
