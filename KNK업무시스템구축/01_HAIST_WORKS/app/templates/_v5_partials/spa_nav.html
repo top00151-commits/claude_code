@@ -121,12 +121,25 @@
     if (push) { try { history.pushState({ knkSpa: true }, '', url); } catch(e){} }
   }
 
+  // z1191x (대표 지시 2026-11-01 「1번 고쳐」): 서버가 다른 화면으로 돌려보내면 그 화면으로 전체 이동한다.
+  //   본문만 갈아 끼우면 주소창은 누른 주소로 남고(/logistics 인데 화면은 홈) 같은 화면의 스크립트가 두 번 돌아 오류가 난다.
+  //   돌아온 곳이 홈이면 안내(?no_perm=1 · chrome.html 이 토스트로 보이고 주소에서 지운다) — 서버가 이미 적었으면(?no_perm=logistics) 그대로.
+  function afterRedirect(asked, final){
+    try {
+      var a = new URL(asked, location.href), f = new URL(final, location.href);
+      if (f.pathname === '/home' && a.pathname !== '/' && a.pathname !== '/home' && !f.searchParams.has('no_perm')) {
+        f.searchParams.set('no_perm', '1');
+      }
+      return f.href;
+    } catch(e){ return final; }
+  }
+
   function navigate(url, push){
     fetch(url, { headers: { 'X-KNK-Partial': '1' }, credentials: 'same-origin' })
       .then(function(r){
         var ct = r.headers.get('content-type') || '';
         if (!r.ok || ct.indexOf('text/html') === -1) { fullNav(url); return null; }
-        if (r.redirected && /\/login(\?|$)/.test(r.url)) { fullNav(r.url); return null; } // 인증만료 등
+        if (r.redirected) { fullNav(afterRedirect(url, r.url)); return null; } // 인증만료 · 권한 없음 등
         return r.text();
       })
       .then(function(html){ if (html != null) apply(html, url, push); })

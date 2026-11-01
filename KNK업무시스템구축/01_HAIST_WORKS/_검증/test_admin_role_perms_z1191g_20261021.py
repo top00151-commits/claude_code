@@ -135,7 +135,8 @@ print("=" * 78)
 loc = lambda r: (r.status_code, r.headers.get("location", ""))   # noqa: E731
 r1, r2, r3, r4, r5, r6 = (get("Z920", p) for p in ("/sales", "/logistics", "/sales/bank-recon", "/export", "/fx/rates", "/sales/schedule"))
 check("3 체크 없는 관리자: 매출·자재·은행 대사·수출입·환율 → 홈으로(303) · 작업일정표 → 전사일정표",
-      all(loc(r) == (303, "/home") for r in (r1, r2, r3, r4, r5)) and loc(r6) == (303, "/dept/schedule"),
+      loc(r1) == (303, "/home?no_perm=sales") and loc(r2) == (303, "/home?no_perm=logistics")   # z1191x: 센터 입구는 안내값을 붙여 돌려보낸다
+      and all(loc(r) == (303, "/home") for r in (r3, r4, r5)) and loc(r6) == (303, "/dept/schedule"),
       [loc(r) for r in (r1, r2, r3, r4, r5, r6)])
 d0 = get("Z920", "/dashboard")
 check("   대시보드는 열림(200) · 매출·미수금·수출·재고 카드 없음 · 품질·완료율·지연·환율 카드는 있음",

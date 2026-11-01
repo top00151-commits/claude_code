@@ -56,6 +56,9 @@ var CH = {
   back: {{ i.ch_back|tojson }},
   back_t: {{ i.ch_back_t|tojson }},
   drag: {{ i.ch_drag|tojson }},
+  no_perm: {{ i.ch_no_perm|tojson }},
+  no_perm_logi: {{ i.ch_no_perm_logi|tojson }},
+  no_perm_sales: {{ i.ch_no_perm_sales|tojson }},
   pin: {{ i.ch_pin|tojson }},
   pin_max_a: {{ i.ch_pin_max_a|tojson }},
   pin_max_b: {{ i.ch_pin_max_b|tojson }},
@@ -76,6 +79,22 @@ var CH = {
   vd_nomatch: {{ i.ch_vd_nomatch|tojson }},
   vd_think: {{ i.ch_vd_think|tojson }}
 };
+</script>
+
+{# z1191x (대표 지시 2026-11-01 「1번 고쳐」): 권한이 없어 돌려보낸 화면(?no_perm=) 안내 — 표준 토스트 ·
+   주소에서 바로 지운다(새로고침해도 다시 안 뜨고 · 이전 페이지 기록·최근 탭에도 안 남게 — 그 스크립트들보다 먼저 돈다).
+   ?no_perm=dashboard(A-008)는 home.html 로 바뀌며 배너가 빠져 말이 없었다 → 어느 화면이든 여기서 보인다. #}
+<script>
+(function(){
+  try {
+    var u = new URL(location.href), k = u.searchParams.get('no_perm');
+    if (k === null) return;
+    u.searchParams.delete('no_perm');
+    history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+    var m = k === 'logistics' ? CH.no_perm_logi : k === 'sales' ? CH.no_perm_sales : CH.no_perm;
+    window.KNKBusy.toast(m, 'err', 6000);
+  } catch(e){ console.warn('no_perm 안내 실패', e); }
+})();
 </script>
 
 {# v5H226z849 (대표 지시): '테스트 날짜 변경' 노란 배너 제거 — 더 이상 사용 안 함 #}

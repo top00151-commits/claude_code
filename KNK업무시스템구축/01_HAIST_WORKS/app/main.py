@@ -25047,7 +25047,7 @@ def logi_dashboard(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191x: 말없이 돌려보내지 않는다(chrome.html 이 안내)
     parts_stats = _logi.parts_count()
     from .database import stock_kpi as _stock_kpi, stock_trend_7d as _stock_trend_7d
     try:
@@ -25786,7 +25786,7 @@ async def sales_dashboard(request: Request):
         return RedirectResponse("/login", 303)
     # Plan Y S1 회귀 #2: /sales 는 can_use_sales (도메인 분리). /logistics 와 권한 독립
     if not can_view_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191x: 말없이 돌려보내지 않는다(chrome.html 이 안내)
     proj_stats = _logi.projects_count_logi()
     # 매출 KPI (Victor sales 핸들러와 동일 로직)
     today = date.today()
