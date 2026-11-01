@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>음성 메모 · KNK HAIST WORKS</title>
+<title>{{ vnt('음성 메모 · KNK HAIST WORKS', lang) }}</title>
 {# ============================================================
    voice_notes.html — 🎤 음성 메모 목록 (z1144 · 대표 지시 2026-10-08)
    회의가 아닌 것(떠오른 생각·전화 통화·현장 메모·말로 하는 보고)을 녹음해 올리면
@@ -54,18 +54,18 @@
 <main class="main" data-dn="voice-notes-main">
   <div class="page-head">
     <div>
-      <div class="page-meta">음성 메모 · 회의가 아닌 것도 말로 남기면 정리됩니다</div>
-      <h1 class="page-title">🎤 음성 <em>메모</em></h1>
+      <div class="page-meta">{{ vnt('음성 메모 · 회의가 아닌 것도 말로 남기면 정리됩니다', lang)|safe }}</div>
+      <h1 class="page-title">{{ vnt('🎤 음성 <em>메모</em>', lang)|safe }}</h1>
     </div>
     <div style="display:flex;gap:10px;">
-      <a class="btn btn-primary" href="/voice-notes/new">+ 새 메모</a>
+      <a class="btn btn-primary" href="/voice-notes/new">{{ vnt('+ 새 메모', lang)|safe }}</a>
     </div>
   </div>
 
   <div class="vn-lead">
-    떠오른 생각·지시사항 · 전화 통화·고객 방문 · 현장·설비 메모 · 말로 하는 보고 —
-    <b>휴대폰 기본 녹음기</b>로 녹음해 올리면 <b>글자로 바꾸고 요점·할 일까지 정리</b>해 드립니다.
-    여기 메모는 <b>나만 봅니다</b>.
+    {{ vnt('떠오른 생각·지시사항 · 전화 통화·고객 방문 · 현장·설비 메모 · 말로 하는 보고 —', lang)|safe }}
+    {{ vnt('<b>휴대폰 기본 녹음기</b>로 녹음해 올리면 <b>글자로 바꾸고 요점·할 일까지 정리</b>해 드립니다.', lang)|safe }}
+    {{ vnt('여기 메모는 <b>나만 봅니다</b>.', lang)|safe }}
   </div>
 
   {% if notes %}
@@ -76,28 +76,31 @@
       <div class="mq-box">
         <span class="mq-ic" aria-hidden="true">🔍</span>
         <input type="text" id="vqInput" readonly autocomplete="off" autocapitalize="off" spellcheck="false"
-               maxlength="120" enterkeyhint="search" placeholder="제목·정리·원문으로 찾기" aria-label="제목·정리·원문으로 찾기"
-               title="띄어 쓰면 낱말이 모두 들어간 메모만 찾습니다" data-lpignore="true" data-1p-ignore>
-        <button type="button" class="mq-clear" id="vqClear" hidden aria-label="검색어 지우기" title="검색어 지우기">✕</button>
+               maxlength="120" enterkeyhint="search" placeholder="{{ vnt('제목·정리·원문으로 찾기', lang)|safe }}" aria-label="{{ vnt('제목·정리·원문으로 찾기', lang)|safe }}"
+               title="{{ vnt('띄어 쓰면 낱말이 모두 들어간 메모만 찾습니다', lang)|safe }}" data-lpignore="true" data-1p-ignore>
+        <button type="button" class="mq-clear" id="vqClear" hidden aria-label="{{ vnt('검색어 지우기', lang)|safe }}" title="{{ vnt('검색어 지우기', lang)|safe }}">✕</button>
       </div>
       <div class="mq-cnt" id="vqCnt" aria-live="polite"></div>
     </div>
-    <div class="vn-empty" id="vqNone" hidden>🔍 <b>찾는 메모가 없습니다</b> — 다른 낱말로 찾아 보세요.</div>
+    <div class="vn-empty" id="vqNone" hidden>🔍 {{ vnt('<b>찾는 메모가 없습니다</b> — 다른 낱말로 찾아 보세요.', lang)|safe }}</div>
     {% for n in notes %}
     <a class="vn-card" href="/voice-notes/{{ n.id }}" data-vid="{{ n.id }}">
-      <div class="vn-ttl">{{ n.title or '제목 없는 메모' }}</div>
+      <div class="vn-ttl">{{ n.title or vnt('제목 없는 메모', lang) }}</div>
       <div class="vn-meta">
         <span>{{ n.created_at[:16] }}</span>
-        {% if n.summary %}<span class="vn-tag done">정리됨</span>
-        {% elif n.body %}<span class="vn-tag wait">글자만</span>
-        {% elif n.audio_path %}<span class="vn-tag wait">바꾸는 중</span>
-        {% else %}<span class="vn-tag none">녹음 없음</span>{% endif %}
+        {% if n.summary %}<span class="vn-tag done">{{ vnt('정리됨', lang)|safe }}</span>
+        {% elif n.body %}<span class="vn-tag wait">{{ vnt('글자만', lang)|safe }}</span>
+        {% elif n.audio_path %}<span class="vn-tag wait">{{ vnt('바꾸는 중', lang)|safe }}</span>
+        {% else %}<span class="vn-tag none">{{ vnt('녹음 없음', lang)|safe }}</span>{% endif %}
       </div>
       {% if n.summary %}<div class="vn-pre">{{ n.summary_plain or n.summary }}</div>{# z1183 — 마크다운 기호 없이 #}
       {% elif n.body %}<div class="vn-pre">{{ n.body }}</div>{% endif %}
     </a>
     {% endfor %}
     <script>
+  var _VND = {{ vn_js_dict(lang)|tojson }};   // z1200: 베트남어 화면만 사전이 찬다
+  function _vnL(s){ return _VND[s] || s; }
+
     /* 🔍 z1180 음성 메모 검색 — 회의록 검색(z1178)과 같은 방식: 치는 대로(0.25초 뒤) 서버에 묻고, 찾은 메모만 남긴다.
        · 메모 카드는 그대로 두고 숨기기만 한다 · 찾은 카드 아래 「어디서 찾았나」(제목·정리·원문) + 찾은 곳 앞뒤 한 줄 · 낱말은 노랗게
        · 검색어는 주소(?q=)에 남긴다 — 메모를 열었다가 「뒤로」 오면 그대로 다시 찾는다
@@ -105,7 +108,7 @@
     (function(){
       var inp = document.getElementById('vqInput'); if (!inp) return;
       var clr = document.getElementById('vqClear'), cnt = document.getElementById('vqCnt'), none = document.getElementById('vqNone');
-      var VQF = { title: '제목', summary: '정리', body: '원문' };
+      var VQF = { title: _vnL('제목'), summary: _vnL('정리'), body: _vnL('원문') };
       var CARDS = Array.prototype.map.call(document.querySelectorAll('.vn-card[data-vid]'), function(a){
         var t = a.querySelector('.vn-ttl');
         return { el: a, id: +a.getAttribute('data-vid'), ttl: t, t0: t ? t.textContent : '' };
@@ -142,13 +145,13 @@
       }
       async function run(q){
         var my = ++seq, j = null;
-        cnt.textContent = '찾는 중…';
+        cnt.textContent = _vnL('찾는 중…');
         try {
           var r = await fetch('/api/voice-notes/search?q=' + encodeURIComponent(q), { credentials: 'same-origin' });
           j = await r.json();
         } catch(_){ j = null; }
         if (my !== seq || !inp.isConnected) return;    // 더 새 검색이 있거나 화면을 떠났다
-        if (!j || !j.ok){ cnt.textContent = '검색하지 못했습니다 — 잠시 뒤 다시 해 주세요.'; return; }
+        if (!j || !j.ok){ cnt.textContent = _vnL('검색하지 못했습니다 — 잠시 뒤 다시 해 주세요.'); return; }
         var by = {}; (j.items || []).forEach(function(it){ by[it.id] = it; });
         var n = 0;
         CARDS.forEach(function(R){
@@ -164,7 +167,7 @@
             + (it.snip ? '<span class="mq-snip">' + marks(it.snip, j.terms) + '</span>' : '');
           R.el.appendChild(d);
         });
-        cnt.textContent = '검색 결과 ' + n + '건';
+        cnt.textContent = _vnL('검색 결과 ') + n + _vnL('건');
         none.hidden = n > 0;
       }
       function onType(){
@@ -194,8 +197,8 @@
     </script>
   {% else %}
     <div class="vn-empty">
-      아직 메모가 없습니다.<br>
-      <b>+ 새 메모</b>를 눌러 휴대폰으로 녹음한 파일을 올려 보세요.
+      {{ vnt('아직 메모가 없습니다.<br>', lang)|safe }}
+      {{ vnt('<b>+ 새 메모</b>를 눌러 휴대폰으로 녹음한 파일을 올려 보세요.', lang)|safe }}
     </div>
   {% endif %}
 </main>

@@ -231,6 +231,9 @@ def _t_helper(key: str, default: str = "", lang: str = "ko"):
         pass
     return default or key
 tpl.env.globals["t"] = _t_helper
+from . import voice_note_vi as _vnv   # z1200: 음성 메모 베트남어(정리·화면 글자)
+tpl.env.globals["vnt"] = _vnv.vnt
+tpl.env.globals["vn_js_dict"] = _vnv.js_dict
 # z1157: 고객 등급 알약 색·순서의 기준 한 곳(customer_tier) — 화면마다 따로 적지 않는다
 from .customer_tier import tier_pill_class as _tier_pill_class, TIER_ORDER_SQL as _TIER_ORDER_SQL   # noqa: E402
 tpl.env.globals["tier_pill"] = _tier_pill_class
@@ -303,7 +306,7 @@ tpl.env.globals["rank_label"] = rank_label
 
 # v5H226z800 (대표 지시·규칙): user id → '이름 직책 부서'(VN=베트남어(한국발음)). 이름만 스냅샷(..._by_name)을
 #   발행자·작성자 표시 시 그 id로 현재 직책·부서를 붙여 규칙 통일. 없으면 fallback(스냅샷 이름). [[knk_name_display_rule]]
-def user_disp_by_id(c, uid, fallback=""):
+def user_disp_by_id(c, uid, fallback="", lang=None):
     try:
         if uid:
             r = c.execute(
@@ -311,7 +314,7 @@ def user_disp_by_id(c, uid, fallback=""):
                 "COALESCE(t.name,'') AS team_name FROM users u "
                 "LEFT JOIN teams t ON u.team_id=t.id WHERE u.id=?", (uid,)).fetchone()
             if r:
-                s = vname_full(dict(r))
+                s = vname_full(dict(r), lang=lang)   # z1200: 직책을 보는 사람의 말로
                 if s:
                     return s
     except Exception:
@@ -7277,7 +7280,7 @@ async def voice_note_detail_page(req: Request, nid: int):
     if not n or not _vn_mine(u, n):
         return RedirectResponse("/voice-notes", 303)
     with db_session() as c:   # z1194 — 🖼 이미지 맨 아래 「작성」(이름 직책 부서)
-        who = user_disp_by_id(c, u.get("id"), u.get("name") or "")
+        who = user_disp_by_id(c, u.get("id"), u.get("name") or "", lang=u.get("lang"))
     return ctx(req, "voice_note_form.html", user=u, note=n, who_disp=who)
 
 
@@ -7310,7 +7313,7 @@ async def api_voice_note_get(req: Request, nid: int):
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
-        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
     out = {k: n.get(k) for k in ("id", "title", "body", "summary", "audio_path", "created_at", "updated_at",
                                  "meta_when", "meta_place", "meta_people")}   # z1194 — 일시·장소·참여자
     #  z1183: 「↩ 이전 정리」 단추를 켤지 · 언제 것인지
@@ -7329,7 +7332,7 @@ async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile =
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
-        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
     orig = file.filename or "rec.m4a"
     ext = os.path.splitext(orig)[1].lower() or ".m4a"
     if ext not in _MEETING_AUDIO_EXT:
@@ -7339,7 +7342,7 @@ async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile =
     if _sz is not None and _sz > _lim:
         return JSONResponse({"ok": False, "error": _meeting_audio_too_big(_sz)}, 400)
     if _sz is not None and _sz < 100:
-        return JSONResponse({"ok": False, "error": "빈/손상 음성 파일입니다."}, 400)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("빈/손상 음성 파일입니다.", (u or {}).get("lang"))}, 400)
     import time as _time
     from starlette.concurrency import run_in_threadpool
     audio_dir = os.path.join(_VN_DIR, f"note_{nid}")
@@ -7350,7 +7353,7 @@ async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile =
     if _n > _lim:
         return JSONResponse({"ok": False, "error": _meeting_audio_too_big(_n, exact=False)}, 400)
     if _n < 100:
-        return JSONResponse({"ok": False, "error": "빈/손상 음성 파일입니다."}, 400)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("빈/손상 음성 파일입니다.", (u or {}).get("lang"))}, 400)
     rel = disk_path.replace("\\", "/")
     with db_session() as c:
         c.execute("UPDATE voice_notes SET audio_path=?, updated_at=datetime('now','localtime') WHERE id=?",
@@ -7358,7 +7361,7 @@ async def api_voice_note_audio_upload(req: Request, nid: int, file: UploadFile =
     # z1194: 일시가 비어 있으면 녹음 파일 시각·길이로 먼저 채운다 — 사람이 적어 둔 일시는 바꾸지 않는다
     # z1195: 채운 글은 meta_when_auto 에도 적어 둔다 · 「📁 녹음 다시 올리기」(replace=1)는 일시가 **자동으로 채운 그대로**면
     #        새 녹음 기준으로 다시(새 녹음 시각을 모르면 비움 — 잘못 올린 녹음의 시각을 남기지 않는다) · 사람이 고쳐 적은 일시는 그대로
-    _mw = await run_in_threadpool(_vn_when_from_file, disk_path, rec_end_ms, u)
+    _mw = _vnv.when_vi(await run_in_threadpool(_vn_when_from_file, disk_path, rec_end_ms, u), u.get("lang"))   # z1200
     _rep = str(replace or "").strip() == "1"
     with db_session() as c:
         if _rep:
@@ -7407,10 +7410,10 @@ async def api_voice_note_transcribe(req: Request, nid: int):
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
-        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
     disk = (n.get("audio_path") or "").strip()
     if not disk or not os.path.exists(disk):
-        return JSONResponse({"ok": False, "error": "녹음 파일이 없습니다. 먼저 올려 주세요."}, 400)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("녹음 파일이 없습니다. 먼저 올려 주세요.", (u or {}).get("lang"))}, 400)
     with _VN_LOCK:
         if (_VN_JOBS.get(nid) or {}).get("state") == "running":
             return JSONResponse({"ok": True, "already": True})
@@ -7428,9 +7431,12 @@ async def api_voice_note_stt_status(req: Request, nid: int):
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
-        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
     with _VN_LOCK:
         j = dict(_VN_JOBS.get(nid) or {"state": "idle"})
+    for _k in ("error", "progress"):   # z1200
+        if j.get(_k):
+            j[_k] = _vnv.server_text(j[_k], u.get("lang"))
     j["ok"] = True
     return JSONResponse(j)
 
@@ -7449,7 +7455,13 @@ def _vn_sum_worker(nid: int):
         else:
             # z1184: [메모 정보] — 메모 날짜(요일)를 함께 준다(「오늘」「다음 달 10일」 같은 기한을 실제 날짜로 바꿀 근거)
             _vd = ((n or {}).get("created_at") or "")[:10]
-            ok, r = ai_client.ai_extract_note(body, context=(f"메모 날짜: {_vd}{_ko_wd(_vd)}" if _vd else ""))
+            _ctx = (f"메모 날짜: {_vd}{_ko_wd(_vd)}" if _vd else "")
+            with db_session() as c:   # z1200: 메모 주인 화면 언어가 베트남어면 처음부터 베트남어로 정리(한국어 지시문은 그대로)
+                _own = c.execute("SELECT lang FROM users WHERE id=?", ((n or {}).get("owner_id"),)).fetchone()
+            if _own and _own["lang"] == "vi":
+                ok, r = _vnv.extract(body, context=_ctx)
+            else:
+                ok, r = ai_client.ai_extract_note(body, context=_ctx)
             if not ok:
                 err = r.get("error") or "정리 실패"
             else:
@@ -7488,14 +7500,14 @@ async def api_voice_note_extract(req: Request, nid: int):
         return JSONResponse({"error": "로그인 필요"}, 401)
     from . import ai_client
     if not ai_client.ai_available():
-        return JSONResponse({"ok": False, "error": "빅터AI가 비활성 상태입니다(키 미설정)."}, 400)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("빅터AI가 비활성 상태입니다(키 미설정).", (u or {}).get("lang"))}, 400)
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
-        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
     body = (n.get("body") or "").strip()
     if not body:
-        return JSONResponse({"ok": False, "error": "정리할 내용이 없습니다. 녹음을 먼저 올리세요."}, 400)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("정리할 내용이 없습니다. 녹음을 먼저 올리세요.", (u or {}).get("lang"))}, 400)
     # 🔴 z1183: 사람이 고친 정리가 있으면 먼저 묻는다(회의록과 같다 · 200 + need_confirm) — 다시 정리하면 지금 정리는
     #    「이전 정리」로 보관
     _edited = (n.get("summary_edited_at") or "").strip() if (n.get("summary") or "").strip() else ""
@@ -7526,9 +7538,11 @@ async def api_voice_note_extract_status(req: Request, nid: int):
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
-        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
     with _VN_LOCK:
         j = dict(_VN_SUM_JOBS.get(nid) or {"state": "idle", "error": ""})
+    if j.get("error"):   # z1200
+        j["error"] = _vnv.server_text(j["error"], u.get("lang"))
     # z1177: 시작 시각은 그대로 내보내지 않고, 돌고 있으면 몇 초째인지(서버 시계로)만 알려 준다
     t0 = j.pop("t0", None)
     if j.get("state") == "running" and t0:
@@ -7551,7 +7565,7 @@ async def api_voice_note_save(req: Request, nid: int):
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
-        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
     sets, args = [], []
     if d.get("title") is not None:
         sets.append("title=?")
@@ -7570,7 +7584,7 @@ async def api_voice_note_save(req: Request, nid: int):
         if _ns != ((n or {}).get("summary") or "").strip():
             sets.append("summary_edited_at=datetime('now','localtime')")
     if not sets:
-        return JSONResponse({"ok": False, "error": "바꿀 내용이 없습니다."}, 400)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("바꿀 내용이 없습니다.", (u or {}).get("lang"))}, 400)
     args.append(nid)
     with db_session() as c:
         c.execute("UPDATE voice_notes SET " + ", ".join(sets)
@@ -7588,10 +7602,10 @@ async def api_voice_note_summary_restore(req: Request, nid: int):
     with db_session() as c:
         n = _vn_row(c, nid)
         if not _vn_mine(u, n):
-            return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+            return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
         prev = (n.get("summary_prev") or "").strip()
         if not prev:
-            return JSONResponse({"ok": False, "error": "되돌릴 이전 정리가 없습니다."}, 400)
+            return JSONResponse({"ok": False, "error": _vnv.server_text("되돌릴 이전 정리가 없습니다.", (u or {}).get("lang"))}, 400)
         cur = (n.get("summary") or "").strip()
         c.execute("UPDATE voice_notes SET summary=?, summary_prev=?, summary_prev_at=datetime('now','localtime'), "
                   "summary_edited_at=datetime('now','localtime'), updated_at=datetime('now','localtime') WHERE id=?",
@@ -7610,7 +7624,7 @@ async def api_voice_note_delete(req: Request, nid: int):
     with db_session() as c:
         n = _vn_row(c, nid)
     if not _vn_mine(u, n):
-        return JSONResponse({"ok": False, "error": "없거나 볼 수 없는 메모입니다."}, 404)
+        return JSONResponse({"ok": False, "error": _vnv.server_text("없거나 볼 수 없는 메모입니다.", (u or {}).get("lang"))}, 404)
     import shutil as _sh
     try:
         _dir = os.path.join(_VN_DIR, f"note_{nid}")

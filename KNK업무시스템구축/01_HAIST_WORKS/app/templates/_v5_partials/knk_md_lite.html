@@ -30,8 +30,8 @@
 </style>
 <script>
 window.KNKMdLite = window.KNKMdLite || (function(){
-  var TAGS = { '결정': 'dec', '제안': 'pro', '미결': 'und', '확인 필요': 'chk', '확인필요': 'chk', '내부 방침': 'int' };
-  var TAG_RE = /^\[(결정|제안|미결|확인 ?필요|내부 방침)\]\s*/;
+  var TAGS = { '결정': 'dec', '제안': 'pro', '미결': 'und', '확인 필요': 'chk', '확인필요': 'chk', '내부 방침': 'int', 'Quyết định': 'dec', 'Đề xuất': 'pro', 'Chưa quyết': 'und', 'Cần xác nhận': 'chk' };   // z1200: 베트남어 음성 메모
+  var TAG_RE = /^\[(결정|제안|미결|확인 ?필요|내부 방침|Quyết định|Đề xuất|Chưa quyết|Cần xác nhận)\]\s*/;
   var SEC_RE = /^[■#*\s]*(결론|목적|회의\s*내용|내용|할\s*일|핵심)[\s*:：]*$/;
   function esc(s){
     return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){

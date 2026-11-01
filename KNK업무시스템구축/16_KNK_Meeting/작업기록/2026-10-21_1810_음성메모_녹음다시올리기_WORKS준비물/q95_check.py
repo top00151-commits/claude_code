@@ -184,7 +184,8 @@ chk("기동 마이그레이션 · 일꾼 replace · 올리기 replace", mn.count
     and 'def _vn_worker(nid: int, disk: str, lang: str = "", replace: bool = False):' in mn
     and 'replace: str = Form("")' in mn and mn.count("args=(nid, disk, lang or \"\", _rep)") == 1)
 chk("🔴 반대: 운영 일꾼은 늘 덧붙인다", 'body = ((prev + "\\n\\n") if prev else "") + text.strip()' in mb and "replace" not in mb.split("def _vn_worker(")[1].split("\n@app.")[0])
-fb, fn = rd("app_base", "templates/voice_note_form.html"), rd("app_new", "templates/voice_note_form.html")
+_unv = lambda t: re.sub(r"\{\{ vnt\('((?:[^'\\\\]|\\\\.)*)', lang\)(?:\|safe)? \}\}", r"\1", re.sub(r"_vnL\(('(?:[^'\\\\]|\\\\.)*')\)", r"\1", t))   # z1200: 사전 감싸기 벗김
+fb, fn = _unv(rd("app_base", "templates/voice_note_form.html")), _unv(rd("app_new", "templates/voice_note_form.html"))
 remf = sorted(d[1:] for d in diff(fb, fn) if d.startswith("-"))
 chk("화면 파일 바뀐 줄 = 두 줄(올리기 글을 칸으로 · 받아쓰기 요청)", remf == sorted([
     "      <label class=\"vn-up\">📁 녹음 파일 올리기",

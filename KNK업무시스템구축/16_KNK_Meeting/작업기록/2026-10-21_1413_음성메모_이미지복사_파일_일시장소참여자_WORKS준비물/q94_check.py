@@ -514,7 +514,8 @@ try:
         chk("파일 시각을 안 보내면 안 채움", st == 200 and j.get("meta_when") == "", j)
         cxv, gv = mk(PN, VNU)
         e7, s7 = kfmt(endms / 1000.0, 7), kfmt(endms / 1000.0 - 120, 7)
-        exp7 = "%s (%s) %s ~ %s (2분)" % (s7.strftime("%Y-%m-%d"), wd(s7), s7.strftime("%H:%M"), e7.strftime("%H:%M"))
+        _wv = dict(zip("월화수목금토일", ("T2", "T3", "T4", "T5", "T6", "T7", "CN")))   # z1200: 베트남어 직원은 일시 글도 베트남어
+        exp7 = "%s (%s) %s ~ %s (2 phút)" % (s7.strftime("%Y-%m-%d"), _wv[wd(s7)], s7.strftime("%H:%M"), e7.strftime("%H:%M"))
         st, j = up(gv, PN, I["NV"], W125, endms)
         chk("베트남법인 직원 → +7 로", st == 200 and j.get("meta_when") == exp7, (j, exp7))
         st, j = up(gb, PB, I["N5"], W125, endms)
