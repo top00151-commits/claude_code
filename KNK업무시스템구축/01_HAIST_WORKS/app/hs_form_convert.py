@@ -16,6 +16,10 @@
   · 옛 양식에만 있는 칸(Duty · VAT · HS CODE CHECK · Loại hình …)은 뺀다 — 뺀 칸과 값 수를 돌려준다
   · 품목이 틀보다 많으면 줄을 늘린다(합계 수식 · 서명 그림 · 인쇄 영역 · 필터 · 병합 · 조건부 서식을 함께 민다)
   · 옮긴 뒤 새 파일을 다시 읽어 칸마다 · 품목 수 · 금액 합 · 사진을 대조 — 하나라도 다르면 ok=False(부르는 쪽은 옛 모양 그대로 채운다)
+  · z1191y(대표 2026-11-02 「단위는 바꾸면 안 돼 … 패킹 시트에도 앞쪽 시트에 있는 내용, 품명, 수량 … 다 채워줘」):
+      수량 단위(수량 칸 표시 형식의 "EA"·"SET"·"PCS" …)는 원본 줄마다 그대로 — 틀 줄의 형식을 쓰면 대표 260921 의 8번째 줄
+      SET 이 다른 인보이스에 남고 원본 SET 이 EA 가 됐다(261110 실측) · 원본 패킹에 품목이 없으면 인보이스 품목(관리코드 ·
+      품명 · 수량 · 단위)으로 채운다(중량 · 부피 · 박스 표는 원본에 없어 비움)
 ⚠ 파일은 엑셀 도구로 통째 저장하지 않는다 — XML 칸만 바꾼다(그림 · 서식 · 인쇄 설정을 지킨다 · hs_fill 과 같은 방식)
 ⚠ 읽기는 엑셀 XML 을 바로 읽는다(hs_fill.sheet_cells · scan_fast) — 최종 양식 틀은 서식이 3만 개 넘게 쌓여 있어
    openpyxl 로 한 번 읽는 데 2~3초(10-28 실측 · 한 파일 13초 → 1초)
@@ -53,6 +57,139 @@ _EQUIP = re.compile(r"^\s*'?\s*(.+?)\s*[\(（]?\s*(\d+)\s*대\s*[\)）]?\s*$")  
 _DIM = re.compile(r"\d\s*[*xX×]\s*\d")                     # 「85*48*1.6(H) / FR4」 같은 크기
 _TOTAL = H.TOTAL_ROW
 PHOTO_BOX = (821100, 360000)     # IMAGE 칸 안 그림 크기 상한(EMU) — 대표 최종 양식 사진과 같은 크기(가로 86 · 세로 38 화소쯤)
+
+
+# ─────────────────────────────────────────────────────────────
+# z1191y: 수량 단위 = 수량 칸 표시 형식 안의 따옴표 글자(옛·최종 양식 모두 `###,###\ "EA"` 꼴 · 실물 57개: EA · SET · PCS)
+# ─────────────────────────────────────────────────────────────
+def _unit_of(code) -> str:
+    """표시 형식 → 단위 글자('EA' · 'SET' …) · 단위 없는 형식(General · 숫자만)이면 ''."""
+    if not code:
+        return ""
+    q = [x for x in re.findall(r'"([^"]*)"', str(code).split(";")[0]) if re.fullmatch(r"\s*[A-Za-z][A-Za-z.]{0,7}\s*", x)]
+    return q[-1].strip() if q else ""
+
+
+_UNIT_WORD = re.compile(r"\s*[A-Za-z][A-Za-z.]{0,7}\s*")
+
+
+def _g_unit(fmt_unit, g) -> object:
+    """줄 단위 = 수량 칸 형식의 단위 · 형식에 없고 G 칸(F:G 합친 수량 칸 옆)에 'EA'·'SET' 같은 글자만 있으면 그 글자.
+    None = 칸 서식을 못 읽음(틀 그대로)."""
+    if fmt_unit:
+        return fmt_unit
+    if isinstance(g, str) and _UNIT_WORD.fullmatch(g):
+        return g.strip()
+    return fmt_unit
+
+
+def _is_g_unit(it, g) -> bool:
+    """G 칸 값이 그 줄 단위로 옮겨진 글자인가(그러면 「뺀 값」으로 세지 않는다)."""
+    return isinstance(g, str) and _UNIT_WORD.fullmatch(g) is not None and (it.get("unit") or "").upper() == g.strip().upper()
+
+
+def _numfmts(sx: str) -> dict:
+    out = {}
+    for m in re.finditer(r"<numFmt\b[^>]*?/>", sx):
+        i, f = re.search(r'numFmtId="(\d+)"', m.group(0)), re.search(r'formatCode="([^"]*)"', m.group(0))
+        if i and f:
+            out[int(i.group(1))] = H._unesc(f.group(1))
+    return out
+
+
+def _xfs(sx: str) -> list:
+    m = re.search(r"<cellXfs\b[^>]*>(.*?)</cellXfs>", sx, re.S)
+    return re.findall(r"<xf\b[^>]*?(?:/>|>.*?</xf>)", m.group(1), re.S) if m else []
+
+
+def _xf_units(sx: str) -> list:
+    """styles.xml → 서식 번호(s) 차례대로 그 서식의 단위 글자."""
+    fm = _numfmts(sx)
+    out = []
+    for x in _xfs(sx):
+        i = re.search(r'numFmtId="(\d+)"', x[:x.index(">") + 1])
+        out.append(_unit_of(fm.get(int(i.group(1)))) if i else "")
+    return out
+
+
+def _col_style_ids(xml: str, col: int) -> dict:
+    """시트 XML → {줄: 그 칸 서식 번호} (서식 없으면 0)."""
+    out = {}
+    for m in re.finditer(r'<c\b[^>]*?\br="%s(\d+)"[^>]*>' % H._col_letter(col), xml):
+        s = re.search(r'\bs="(\d+)"', m.group(0))
+        out[int(m.group(1))] = int(s.group(1)) if s else 0
+    return out
+
+
+def _units_of_sheet(z, path) -> dict:
+    """{줄: 수량(F) 칸 단위} — 스타일을 못 읽으면 빈 사전(그 줄은 단위를 모름 → 틀 그대로)."""
+    try:
+        xu = _xf_units(z.read("xl/styles.xml").decode("utf-8"))
+    except KeyError:
+        return {}
+    return {r: (xu[s] if s < len(xu) else "") for r, s in _col_style_ids(z.read(path).decode("utf-8"), 6).items()}
+
+
+def _unit_style(sx: str, base, unit: str, cache: dict) -> tuple:
+    """틀 칸 서식(base)에서 단위만 바꾼 서식 번호 → (번호, 고친 styles.xml). 같은 서식이 이미 있으면 그것을 쓴다."""
+    key = (str(base), unit)
+    if key in cache:
+        return cache[key], sx
+    xfs = _xfs(sx)
+    b = int(base)
+    if b >= len(xfs):
+        return str(base), sx
+    bx = xfs[b]
+    head = bx[:bx.index(">") + 1]
+    nm = re.search(r'numFmtId="(\d+)"', head)
+    fm = _numfmts(sx)
+    code = fm.get(int(nm.group(1)), "") if nm else ""
+    cur = _unit_of(code)
+    if cur == unit:
+        cache[key] = str(base)
+        return str(base), sx
+    first, rest = (code.split(";", 1) + [""])[:2] if code else ("###,###", "")
+    if cur:
+        i = first.rfind('"%s"' % cur)
+        first = (first[:i] + ('"%s"' % unit if unit else "") + first[i + len(cur) + 2:]) if i >= 0 else first
+        if not unit:
+            first = re.sub(r"\\?\s*$", "", first).rstrip("\\ ") or "General"
+    else:
+        first = (first if first and first != "General" else "###,###") + '\\ "%s"' % unit
+    new = first + ((";" + rest) if rest else "")
+    nid = next((i for i, c in fm.items() if c == new), None)
+    if nid is None:
+        nid = max([163] + list(fm)) + 1
+        el = '<numFmt numFmtId="%d" formatCode="%s"/>' % (nid, _xml_escape(new, {'"': "&quot;"}))
+        if re.search(r"<numFmts\b", sx):
+            sx = re.sub(r"(<numFmts\b[^>]*>)", lambda m: m.group(1) + el, sx, count=1)
+            sx = re.sub(r'(<numFmts\b[^>]*\bcount=")(\d+)', lambda m: m.group(1) + str(int(m.group(2)) + 1), sx, count=1)
+        else:
+            sx = re.sub(r"(<styleSheet\b[^>]*>)", lambda m: m.group(1) + '<numFmts count="1">%s</numFmts>' % el, sx, count=1)
+    nh = re.sub(r'numFmtId="\d+"', 'numFmtId="%d"' % nid, head) if nm else head.replace("<xf ", '<xf numFmtId="%d" ' % nid, 1)
+    if "applyNumberFormat" not in nh:
+        nh = nh.replace("<xf ", '<xf applyNumberFormat="1" ', 1)
+    nx = nh + bx[len(head):]
+    xfs = _xfs(sx)
+    idx = next((i for i, x in enumerate(xfs) if x == nx), None)
+    if idx is None:
+        idx = len(xfs)
+        sx = sx.replace("</cellXfs>", nx + "</cellXfs>", 1)
+        sx = re.sub(r'(<cellXfs\b[^>]*\bcount=")(\d+)', lambda m: m.group(1) + str(idx + 1), sx, count=1)
+    cache[key] = str(idx)
+    return str(idx), sx
+
+
+def _row_styles_all(xml: str) -> dict:
+    """{줄: {칸: 서식 번호}} — 한 번에(줄마다 다시 찾으면 큰 파일이 느리다)."""
+    out = {}
+    for rm in _ROW.finditer(xml):
+        d = out.setdefault(int(rm.group(1)), {})
+        for cm in _CELL.finditer(rm.group(0)):
+            sm = re.search(r'\bs="(\d+)"', cm.group(0)[:cm.group(0).index(">") + 1])
+            if sm:
+                d[H._col_num(cm.group(1))] = sm.group(1)
+    return out
 
 
 def _norm(s) -> str:
@@ -292,6 +429,7 @@ def extract(data: bytes, bk=None) -> dict:
             means[sh["col_vn"]] = "vn"
         for c, t in labels.items():
             src["right"].setdefault(c, t)
+        units = _units_of_sheet(bk["zip"], sh["path"])          # z1191y: 줄마다 수량 단위(표시 형식)
         rows = []
         for r in range(start, top + 1):
             if any(isinstance(_v(cells, r, c), str) and _TOTAL.match(_v(cells, r, c)) for c in range(1, 5)):
@@ -316,7 +454,8 @@ def extract(data: bytes, bk=None) -> dict:
                 for c, v in vals.items():
                     _drop(src, labels.get(c, H._col_letter(c)), means.get(c, ""), v)
                 continue
-            it = {"sheet": sh["title"], "row": r, "left": {}, "right": {}, "unl": {}, "amount_f": _f(cells, r, 9)}
+            it = {"sheet": sh["title"], "row": r, "left": {}, "right": {}, "unl": {}, "amount_f": _f(cells, r, 9),
+                  "unit": _g_unit(units.get(r), vals.get(7))}
             for c, v in vals.items():
                 if c < 10:
                     it["left"][c] = v
@@ -333,6 +472,9 @@ def extract(data: bytes, bk=None) -> dict:
                and p in bk["zip"].namelist()), None)
     if pl:
         src["pl"] = _pl_extract(bk["cells"](pl[1]))
+        pu = _units_of_sheet(bk["zip"], pl[1])
+        for it in src["pl"]["items"]:
+            it["unit"] = _g_unit(pu.get(it["row"]), it["left"].get(7))
     src["photos"] = _photos(bk["zip"], sc, src)
     return src
 
@@ -504,7 +646,7 @@ def _row_values(it, kind, src, tinfo, report) -> dict:
     for c in (1, 2, 3, 4, 5, 6, 8):
         if c in it["left"]:
             out[c] = it["left"][c]
-    if 7 in it["left"]:
+    if 7 in it["left"] and not _is_g_unit(it, it["left"][7]):      # z1191y: 단위 글자면 수량 칸 형식으로 옮겼다
         _drop(report, "G", "g", it["left"][7])
     cols = tinfo["cols"]
     right = dict(it["right"])
@@ -727,6 +869,9 @@ def _expand(xml: str, first: int, last: int, k: int, own: str, shifts: dict) -> 
     return xml
 
 
+_KEEP = object()        # _write_cells: 값은 그대로 두고 서식만 바꾸라는 표시
+
+
 def _cell_xml(ref: str, style, v) -> str:
     st = (' s="%s"' % style) if style is not None else ""
     if _blank(v):
@@ -745,11 +890,15 @@ def _cell_xml(ref: str, style, v) -> str:
     return '<c r="%s"%s t="inlineStr"><is><t xml:space="preserve">%s</t></is></c>' % (ref, st, _xml_escape(s))
 
 
-def _write_cells(xml: str, writes: dict, style_col: dict) -> str:
-    """writes = {(줄, 칸): 값} — 칸 서식은 그 칸 것(없으면 같은 칸 첫 품목 줄 서식) · 값만 바꾼다."""
+def _write_cells(xml: str, writes: dict, style_col: dict, over: dict = None) -> str:
+    """writes = {(줄, 칸): 값} — 칸 서식은 그 칸 것(없으면 같은 칸 첫 품목 줄 서식) · 값만 바꾼다.
+    over = {(줄, 칸): 서식 번호} — z1191y: 수량 칸은 원본 단위를 담은 서식으로(값이 없는 칸도)."""
+    over = over or {}
     by_row = {}
     for (r, c), v in writes.items():
         by_row.setdefault(r, {})[c] = v
+    for (r, c) in over:
+        by_row.setdefault(r, {}).setdefault(c, writes.get((r, c), _KEEP))
 
     def fix_row(rm):
         r = int(rm.group(1))
@@ -769,7 +918,16 @@ def _write_cells(xml: str, writes: dict, style_col: dict) -> str:
         for c, v in by_row[r].items():
             old = cells.get(c)
             sm = re.search(r'\bs="(\d+)"', old[:old.index(">") + 1]) if old else None
-            cells[c] = _cell_xml("%s%d" % (H._col_letter(c), r), sm.group(1) if sm else style_col.get(c), v)
+            st = over.get((r, c)) or (sm.group(1) if sm else style_col.get(c))
+            if v is _KEEP:                                   # 값은 그대로 · 서식만(z1191y 단위)
+                if old:
+                    oh = old[:old.index(">") + 1] if not old.rstrip().endswith("/>") or "</c>" in old else old
+                    nh = re.sub(r'\bs="\d+"', 's="%s"' % st, oh) if sm else oh.replace("<c ", '<c s="%s" ' % st, 1)
+                    cells[c] = nh + old[len(oh):]
+                else:
+                    cells[c] = _cell_xml("%s%d" % (H._col_letter(c), r), st, None)
+            else:
+                cells[c] = _cell_xml("%s%d" % (H._col_letter(c), r), st, v)
             if c not in order:
                 order.append(c)
         order.sort()
@@ -1009,12 +1167,41 @@ def build(src: dict, kind: str) -> tuple:
     T = _template(kind)
     z = zipfile.ZipFile(io.BytesIO(T["bytes"]))
     inv, pl = T["sheets"]["INV"], T["sheets"].get("PL")
-    report = {"kind": kind, "items": len(src["items"]), "pl_items": len(src["pl"]["items"]), "expanded": 0, "pl_expanded": 0,
-              "photos": 0, "photos_dropped": 0, "equip": len(src["equip"]), "sheets": src["sheets"],
+    # z1191y: 원본 패킹에 품목이 없으면(261110) 인보이스 품목으로 채운다 — 대표 최종본(260921 · 261015)처럼 관리코드(B) · 품명(D) ·
+    #   수량(F, 단위 그대로) 값 · 중량 · 부피 · 박스 표는 원본에 없어 비움. 원본 패킹에 품목이 있으면 그것을 옮긴다(전과 같음)
+    pl_items = src["pl"]["items"]
+    pl_from_inv = 0
+    if pl and not pl_items:
+        pl_items = [{"row": it["row"], "left": {c: it["left"][c] for c in (2, 4, 6) if c in it["left"]}, "box": {}, "f": {}, "unl": {},
+                     "unit": it.get("unit")}
+                    for it in src["items"] if not (_blank(it["left"].get(4)) and _blank(it["left"].get(6)))]
+        pl_from_inv = len(pl_items)
+    report = {"kind": kind, "items": len(src["items"]), "pl_items": len(pl_items), "pl_from_inv": pl_from_inv, "expanded": 0,
+              "pl_expanded": 0, "photos": 0, "photos_dropped": 0, "equip": len(src["equip"]), "sheets": src["sheets"],
               "named": sum(1 for it in src["items"] if not _blank(it["left"].get(4))),      # 품명 있는 줄(① 채움 품목 수와 맞춰 본다)
-              "dropped": {k: dict(v, ex=list(v["ex"])) for k, v in src["dropped"].items()}}
+              "dropped": {k: dict(v, ex=list(v["ex"])) for k, v in src["dropped"].items()}, "units": {}}
     k_inv = max(0, len(src["items"]) - (inv["last"] - inv["first"] + 1))
-    k_pl = max(0, len(src["pl"]["items"]) - (pl["last"] - pl["first"] + 1)) if pl else 0
+    k_pl = max(0, len(pl_items) - (pl["last"] - pl["first"] + 1)) if pl else 0
+    sx_styles = z.read("xl/styles.xml").decode("utf-8")
+    sx_orig, ucache, exp_units = sx_styles, {}, {}
+
+    def put_unit(sheet, x_rows, style_col, r, it, over):
+        """그 줄 수량 칸 서식 = 틀 칸 서식에서 단위만 원본 것으로(원본 단위를 모르면 틀 첫 품목 줄 서식)."""
+        nonlocal sx_styles
+        u = it.get("unit")
+        if u is None:
+            base = style_col.get(6)
+            if base is not None:
+                over[(r, 6)] = base
+            return
+        base = (x_rows.get(r) or {}).get(6) or style_col.get(6)
+        if base is None:
+            return
+        sid, sx_styles = _unit_style(sx_styles, base, u, ucache)
+        over[(r, 6)] = sid
+        exp_units[(sheet, r)] = u
+        bag = report["units"] if sheet == "INVOICE" else report.setdefault("pl_units", {})
+        bag[u or "(단위 없음)"] = bag.get(u or "(단위 없음)", 0) + 1
     shifts = {inv["name"]: (inv["last"], k_inv)}
     if pl:
         shifts[pl["name"]] = (pl["last"], k_pl)
@@ -1039,8 +1226,10 @@ def build(src: dict, kind: str) -> tuple:
         if rc and not _blank(v):
             exp_inv[rc] = v
     amount_vals = 0
+    inv_rows, over_inv = _row_styles_all(x_inv), {}
     for i, it in enumerate(src["items"]):
         r = inv["first"] + i
+        put_unit("INVOICE", inv_rows, style_inv, r, it, over_inv)
         for c, v in _row_values(it, kind, src, inv, report).items():
             exp_inv[(r, c)] = v
         # 금액: 원본이 '수량×단가' 수식이면 틀 수식 그대로 · 원본 칸이 비었으면 비움(없던 금액을 만들지 않게) · 아니면 원본 값
@@ -1055,7 +1244,7 @@ def build(src: dict, kind: str) -> tuple:
         if kind == "소모품" and (r, 3) not in exp_inv and r > inv["last"]:
             exp_inv[(r, 3)] = i + 1                          # 일반: 늘린 줄의 번호(C) — 틀 줄은 틀 번호 그대로
     report["amount_values"] = amount_vals
-    changed[inv["path"]] = _write_cells(x_inv, exp_inv, style_inv)
+    changed[inv["path"]] = _write_cells(x_inv, exp_inv, style_inv, over_inv)
     if pl:
         x_pl = _unshare(z.read(pl["path"]).decode("utf-8"))
         style_pl = _styles_of_row(x_pl, pl["first"])
@@ -1068,11 +1257,14 @@ def build(src: dict, kind: str) -> tuple:
         exp_pl.update(w2)
         report["header_moved"] += [dict(m, block="패킹 " + m["block"]) for m in moved2]
         put_top = {}
-        for i, it in enumerate(src["pl"]["items"]):
+        pl_rows, over_pl = _row_styles_all(x_pl), {}
+        for i, it in enumerate(pl_items):
             r = pl["first"] + i
+            put_unit("PACKING LIST", pl_rows, style_pl, r, it, over_pl)
             for c, v in it["left"].items():
                 if c == 7:
-                    _drop(report, "패킹 G", "g", v)
+                    if not _is_g_unit(it, v):                          # z1191y: 단위 글자면 수량 칸 형식으로 옮겼다
+                        _drop(report, "패킹 G", "g", v)
                     continue
                 val = ("f", it["f"][c]) if (c in it["f"] and not re.search(r"[A-Z]{1,3}\$?\d", it["f"][c])) else v
                 if c in pl["vmerge"]:                         # 세로로 합친 칸(수책 중량·부피 · 일반 부피) — 위 칸 하나에
@@ -1095,7 +1287,9 @@ def build(src: dict, kind: str) -> tuple:
                 exp_pl[(pl["first"], c)] = vs[0][0]
                 for _, x in vs[1:]:
                     _drop(report, "패킹 " + H._col_letter(c), "합친 칸에 값이 여러 개 — 첫 값만", x)
-        changed[pl["path"]] = _write_cells(x_pl, exp_pl, style_pl)
+        changed[pl["path"]] = _write_cells(x_pl, exp_pl, style_pl, over_pl)
+    if sx_styles != sx_orig:
+        changed["xl/styles.xml"] = sx_styles
     # 저장값 새로 셈(합계 · 금액 · 패킹 머리 참조) — 다시 계산 안 하는 보기 화면에 틀 원본(261015 · 260921) 숫자가 보이지 않게
     sx = {inv["name"]: changed[inv["path"]]}
     if pl:
@@ -1156,7 +1350,8 @@ def build(src: dict, kind: str) -> tuple:
             zi = zipfile.ZipInfo(name, date_time=(2026, 10, 28, 0, 0, 0))
             zi.compress_type = zipfile.ZIP_DEFLATED
             zo.writestr(zi, buf)
-    return out.getvalue(), {"inv": exp_inv, "pl": exp_pl, "photos": photos_expect, "k_inv": k_inv, "k_pl": k_pl}, report
+    return out.getvalue(), {"inv": exp_inv, "pl": exp_pl, "photos": photos_expect, "k_inv": k_inv, "k_pl": k_pl,
+                            "units": exp_units}, report
 
 
 def _add_photos(z, dp, dx, src, inv, report, photos_expect) -> tuple:
@@ -1263,6 +1458,17 @@ def verify(out: bytes, src: dict, kind: str, exp: dict) -> list:
                 ends = [int(x) for x in re.findall(r":\$?[A-Z]{1,3}\$?(\d+)", f)]
                 if ends and max(ends) < last:
                     bad.append("%s 합계 %s%d 수식 %s 가 끝 줄 %d 을 안 덮음" % (key, H._col_letter(c), tr, f, last))
+    # z1191y: 수량 단위 — 새 파일을 다시 읽어 줄마다 원본 단위와 같은지(EA ↔ SET 이 바뀌면 법적 서류가 바뀐다)
+    if exp.get("units"):
+        xu = _xf_units(bk["zip"].read("xl/styles.xml").decode("utf-8"))
+        got_u = {}
+        for key, info in (("INVOICE", T["sheets"]["INV"]), ("PACKING LIST", T["sheets"].get("PL"))):
+            if info:
+                for r, s in _col_style_ids(bk["zip"].read(info["path"]).decode("utf-8"), 6).items():
+                    got_u[(key, r)] = xu[s] if s < len(xu) else ""
+        ub = [(k, u, got_u.get(k)) for k, u in exp["units"].items() if got_u.get(k) != u]
+        for (key, r), u, g in ub[:10]:
+            bad.append("%s F%d 단위: 원본 %s · 새 파일 %s" % (key, r, u or "(없음)", g if g is not None else "(칸 없음)"))
     sc = H.scan_fast(out)
     if src.get("invoice_no") and sc.get("invoice_no") != src["invoice_no"]:
         bad.append("인보이스 번호: 원본 %s · 새 파일 %s" % (src["invoice_no"], sc.get("invoice_no") or "없음"))

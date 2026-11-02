@@ -394,6 +394,10 @@
     var bits = ['품목 ' + c.items + '줄'];
     if(c.expanded) bits.push('틀보다 많아 ' + c.expanded + '줄 늘림');
     if(c.photos) bits.push('품목 사진 ' + c.photos + '장 → IMAGE 칸');
+    // z1191y: 수량 단위는 올린 파일 그대로 — EA 가 아닌 단위가 있으면 그 수를 보인다 · 원본 패킹이 비어 인보이스 품목으로 채운 줄
+    var un = Object.keys(c.units || {}).filter(function(u){ return u !== 'EA'; });
+    if(un.length) bits.push('수량 단위는 올린 파일 그대로(' + un.map(function(u){ return u + ' ' + c.units[u] + '줄'; }).join(' · ') + ')');
+    if(c.pl_from_inv) bits.push('패킹 ' + c.pl_from_inv + '줄은 인보이스 품목으로 채움(중량·부피는 비어 있음)');
     var h = '<div class="hf-conv">🔁 <b>옛 양식 → ' + esc(c.kind) + ' 최종 양식으로 바꿔서 채웠습니다</b> '
       + '<span class="hf-ev">(' + (c.auto ? '자동 — ' + esc(c.why) : '본사가 고름') + ')</span>'
       + '<div>' + esc(bits.join(' · ')) + '</div>';

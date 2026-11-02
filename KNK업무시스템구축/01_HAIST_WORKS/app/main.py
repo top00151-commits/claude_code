@@ -44497,6 +44497,8 @@ def _hs_conv_note(conv: dict):
         return {"ok": True, "kind": _hf.form_name(conv.get("kind")), "auto": bool(conv.get("auto")), "why": conv.get("why") or "",
                 "items": rp.get("items", 0), "expanded": rp.get("expanded", 0), "photos": rp.get("photos", 0),
                 "photos_dropped": rp.get("photos_dropped", 0), "header_moved": moved, "keep": _HS_FILL_KEEP_DAYS,
+                # z1191y: 수량 단위는 올린 파일 그대로(줄마다) · 원본 패킹이 비어 인보이스 품목으로 채운 줄 수
+                "units": rp.get("units") or {}, "pl_from_inv": rp.get("pl_from_inv", 0),
                 "header_final": [d["block"] for d in conv.get("header_diffs") or []],
                 "dropped": [{"label": k, "n": v["n"], "why": v["why"], "ex": [str(x)[:40] for x in v["ex"]][:3]}
                             for k, v in (rp.get("dropped") or {}).items()]}
