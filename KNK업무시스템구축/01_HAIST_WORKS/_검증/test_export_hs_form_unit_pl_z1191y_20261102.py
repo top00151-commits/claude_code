@@ -216,7 +216,7 @@ REAL = os.path.join(ROOT, "수출자료")
 if not os.path.isdir(REAL):
     print("  (수출자료 폴더 없음 — 건너뜀)")
 else:
-    for name, kind, want_inv in (("Invoice&packinglist_VN(261110).xlsx", "소모품", {"EA": 19, "SET": 1}),
+    for name, kind, want_inv in (("Invoice&packinglist_VN(261110).xlsx", "소모품", {"EA": 18, "SET": 1}),
                                  ("Invoice&packinglist_VN(260126).xlsx", None, {"EA": 30, "SET": 4})):
         ps = glob.glob(os.path.join(REAL, "**", name), recursive=True)
         if not ps:

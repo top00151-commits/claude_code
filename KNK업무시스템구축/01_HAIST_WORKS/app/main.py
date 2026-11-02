@@ -44499,6 +44499,8 @@ def _hs_conv_note(conv: dict):
                 "photos_dropped": rp.get("photos_dropped", 0), "header_moved": moved, "keep": _HS_FILL_KEEP_DAYS,
                 # z1191y: 수량 단위는 올린 파일 그대로(줄마다) · 원본 패킹이 비어 인보이스 품목으로 채운 줄 수
                 "units": rp.get("units") or {}, "pl_from_inv": rp.get("pl_from_inv", 0),
+                # z1191z: 틀의 남는 빈 품목 칸 줄을 지운 수(인보이스 · 패킹) · 원본 끝 빈 품목 줄(번호만)을 뺀 수
+                "rows_cut": rp.get("rows_cut", 0), "pl_rows_cut": rp.get("pl_rows_cut", 0), "tail_cut": rp.get("items_tail_cut", 0),
                 "header_final": [d["block"] for d in conv.get("header_diffs") or []],
                 "dropped": [{"label": k, "n": v["n"], "why": v["why"], "ex": [str(x)[:40] for x in v["ex"]][:3]}
                             for k, v in (rp.get("dropped") or {}).items()]}
@@ -44695,6 +44697,7 @@ async def export_hs_fill_run(req: Request):
 
 # z1191n (대표 2026-10-27 「사전 확정을 하고 싶을때 어떻게해??」 → 「진행해」): ① 결과에서 본사가 그 줄의 HS 를 고른다.
 #   고를 수 있는 값 = hs_fill.plan 의 choices(적힌 값 ↔ 사전 값 · 모델만 일치한 값 · 사전에 확인 대기로 있는 값)만.
+#   z1191z: + 사전에 없는 KNK-○ 규격이면 같은 묶음(KNK-P …)의 확정 HS — 고르면 품명은 묶음 품명에서 번호만 바꿔 넣는다.
 #   → 사전 확정(누가·언제·전 값을 note 에) + 이 인보이스 파일을 **올린 원본에서** 다시 만든다(적힌 값과 다르면 그 칸도).
 #   노랑·주황이 다 풀리면 '회신 필요 없음'. ⚠쓰기 잠금을 쥔 채 파일을 다시 만들지 않는다(큰 파일은 1~2초).
 import threading as _hsf_thr
@@ -44771,8 +44774,14 @@ def _hs_fill_confirm_do(lid: int, sheet: str, row: int, hs: str, u) -> dict:
                     dict_changed = False      # 사전은 이미 그 값(확정) — 파일 칸만 그 값으로
             else:
                 # 모델만 일치한 후보를 확정 → 이 규격을 새로 넣는다(후보의 베트남어 품명 — 파일에도 그 품명이 주황으로 들어가 있었다)
-                _way, e, _memo = _hf.lookup(_hf.build_index(entries), a["desc"])
+                _idx = _hf.build_index(entries)
+                _way, e, _memo = _hf.lookup(_idx, a["desc"])
                 vn = (e.get("vn_name") or "").strip() if (e and _hf.digits(e.get("hs_code")) == hs) else ""
+                # z1191z: 같은 묶음(KNK-P …)에서 고른 HS — 품명은 같은 묶음 · 같은 HS 사전 품명에서 번호만 새 규격으로(대표 11-02 「3. 추천」)
+                if not vn and any(ch.get("kind") == "family" and ch.get("hs") == hs for ch in (a.get("choices") or [])):
+                    vn = _hf.family_vn(_idx, a["desc"], hs)
+                    fam = next(ch for ch in a["choices"] if ch.get("kind") == "family" and ch.get("hs") == hs)
+                    note += " · 같은 묶음 %s 값(예 %s)" % (fam.get("fam") or "", fam.get("ex") or "")
                 c.execute(
                     "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,first_seen,last_seen,"
                     "source_file,note,updated_by) VALUES(?,?,?,?,?,'','CONFIRMED',1,?,?,?,?,?)",

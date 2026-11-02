@@ -20,6 +20,10 @@
       수량 단위(수량 칸 표시 형식의 "EA"·"SET"·"PCS" …)는 원본 줄마다 그대로 — 틀 줄의 형식을 쓰면 대표 260921 의 8번째 줄
       SET 이 다른 인보이스에 남고 원본 SET 이 EA 가 됐다(261110 실측) · 원본 패킹에 품목이 없으면 인보이스 품목(관리코드 ·
       품명 · 수량 · 단위)으로 채운다(중량 · 부피 · 박스 표는 원본에 없어 비움)
+  · z1191z(대표 2026-11-02 「리스트 없는 항목들 칸은 삭제를 하고, 패킹 리스트 쪽도 없는 항목들 칸은 삭제」 → 「1. 추천으로」):
+      품목이 틀 칸(일반 52 · 수책 153)보다 적으면 **마지막 품목 아래 빈 칸 줄을 지운다**(인보이스 · 패킹 둘 다) — 아래 TOTAL ·
+      서명 · 도장은 올리고 합계 수식 · 인쇄 영역 · 세로 병합(패킹 중량·부피) · 조건부 서식을 함께 줄인다(늘릴 때와 같은 길 · k<0) ·
+      원본 끝의 빈 품목 줄(번호만 · 금액 수식만)도 지운다 · 품목 **사이** 빈 줄은 원본 모양이라 그대로
 ⚠ 파일은 엑셀 도구로 통째 저장하지 않는다 — XML 칸만 바꾼다(그림 · 서식 · 인쇄 설정을 지킨다 · hs_fill 과 같은 방식)
 ⚠ 읽기는 엑셀 XML 을 바로 읽는다(hs_fill.sheet_cells · scan_fast) — 최종 양식 틀은 서식이 3만 개 넘게 쌓여 있어
    openpyxl 로 한 번 읽는 데 2~3초(10-28 실측 · 한 파일 13초 → 1초)
@@ -749,6 +753,8 @@ def _shift_formula(f: str, shifts: dict, own: str) -> str:
         row = int(m.group(5))
         if last is not None and k and row > last:
             row += k
+        elif last is not None and k < 0 and row > last + k:
+            row = last + k                      # z1191z: 지운 줄(빈 품목 칸)을 가리키면 남은 끝 품목 줄로(범위 끝)
         out.append("%s%s%s%s%d" % (m.group(1) or "", m.group(2), m.group(3), m.group(4), row))
     out.append(f[pos:])
     return "".join(out)
@@ -778,12 +784,26 @@ def _unshare(xml: str) -> str:
 
 
 def _shift_range(ref: str, first: int, last: int, k: int, extend: bool) -> str:
-    """'A1:B2' 또는 'A1' — last 아래면 내리고, extend 이고 끝 품목 줄(last)을 덮으면(시작 ≤ last ≤ 끝) 끝만 늘린다."""
+    """'A1:B2' 또는 'A1' — last 아래면 내리고, extend 이고 끝 품목 줄(last)을 덮으면(시작 ≤ last ≤ 끝) 끝만 늘린다.
+    z1191z: k<0 = 끝 쪽 빈 품목 줄(last+k+1 ~ last)을 지움 — 그 안에만 있는 주소는 None(부르는 쪽이 뺀다) · 걸치면 줄인다."""
     m = re.match(r"^(\$?[A-Z]{1,3}\$?)(\d+)(?::(\$?[A-Z]{1,3}\$?)(\d+))?$", ref)
     if not m:
         return ref
     c1, r1 = m.group(1), int(m.group(2))
     c2, r2 = (m.group(3), int(m.group(4))) if m.group(3) else (c1, r1)
+    if k < 0:
+        cut = last + k                                    # 남는 끝 품목 줄
+        if cut < r1 <= last:
+            if r2 <= last:
+                return None                               # 지운 줄 안에만 있음
+            r1 = cut + 1                                  # 지운 줄에서 시작해 아래로 이어짐 → 지운 줄 다음부터
+            r2 = r2 + k if r2 < 1048576 else r2
+        elif r1 > last:
+            r1 += k
+            r2 = r2 + k if r2 < 1048576 else r2
+        elif r2 > cut and r2 < 1048576:                   # 위에서 시작해 지운 줄에 걸침/넘음 → 끝을 줄임
+            r2 = r2 + k if r2 > last else cut
+        return "%s%d" % (c1, r1) if not m.group(3) else "%s%d:%s%d" % (c1, r1, c2, r2)
     if r1 > last:
         r1 += k
         r2 = r2 + k if r2 < 1048576 else r2
@@ -820,20 +840,25 @@ def _new_row(pat_xml: str, r_pat: int, r_new: int) -> str:
 
 
 def _expand(xml: str, first: int, last: int, k: int, own: str, shifts: dict) -> str:
-    """품목 끝 줄(last) 뒤에 k 줄을 끼운다 — 새 줄은 끝 줄 모양(서식·병합·금액 수식) · 그 아래는 모두 k 만큼 내린다."""
+    """품목 끝 줄(last) 뒤에 k 줄을 끼운다 — 새 줄은 끝 줄 모양(서식·병합·금액 수식) · 그 아래는 모두 k 만큼 내린다.
+    z1191z: k<0 이면 끝 쪽 빈 품목 줄 -k 개(last+k+1 ~ last)를 지우고 그 아래를 -k 만큼 올린다(병합 · 조건부 서식 · 합계도 함께)."""
     rows = list(_ROW.finditer(xml))
     if not any(int(m.group(1)) == last for m in rows):
         raise ValueError("틀의 끝 품목 줄(%d)을 찾지 못했습니다" % last)
+    if k < 0 and last + k < first:
+        raise ValueError("품목 줄을 모두 지울 수는 없습니다(틀 %d줄 · 지울 %d줄)" % (last - first + 1, -k))
     pieces, pos = [], 0
     for m in rows:
         r = int(m.group(1))
         pieces.append(xml[pos:m.start()])
         pos = m.end()
+        if k < 0 and last + k < r <= last:
+            continue                                      # z1191z: 빈 품목 칸 줄 지움
         row_xml = _fix_formulas_all(m.group(0), shifts, own)
         if r > last:
             row_xml = _renumber_row(row_xml, r, r + k)
         pieces.append(row_xml)
-        if r == last:
+        if r == last and k > 0:
             pieces += [_new_row(m.group(0), last, last + i) for i in range(1, k + 1)]
     pieces.append(xml[pos:])
     xml = "".join(pieces)
@@ -846,6 +871,15 @@ def _expand(xml: str, first: int, last: int, k: int, own: str, shifts: dict) -> 
                 new_refs.append(ref)
                 continue
             r1, r2 = int(mm.group(2)), int(mm.group(4))
+            if k < 0:
+                nr = _shift_range(ref, first, last, k, True)      # 지운 줄 안 병합(F:G) = 없앰 · 세로 병합(패킹 중량) = 줄임
+                if nr and r1 != r2 and re.match(r"^[A-Z]+(\d+):[A-Z]+(\d+)$", nr) and \
+                        re.match(r"^[A-Z]+(\d+):[A-Z]+(\d+)$", nr).group(1) == re.match(r"^[A-Z]+(\d+):[A-Z]+(\d+)$", nr).group(2) and \
+                        mm.group(1) == mm.group(3):
+                    nr = None                                     # 세로 한 칸 병합이 1칸이 되면 병합을 푼다
+                if nr:
+                    new_refs.append(nr)
+                continue
             if r1 > last:
                 new_refs.append("%s%d:%s%d" % (mm.group(1), r1 + k, mm.group(3), r2 + k))
             elif r1 <= first and r2 >= last:                      # 품목 덩어리를 세로로 덮는 병합(패킹 중량) — 늘림
@@ -858,12 +892,31 @@ def _expand(xml: str, first: int, last: int, k: int, own: str, shifts: dict) -> 
         xml = xml[:mc.start()] + head + "".join('<mergeCell ref="%s"/>' % r for r in new_refs) + "</mergeCells>" + xml[mc.end():]
 
     def sq(m, extend=True):
-        return m.group(1) + " ".join(_shift_range(r, first, last, k, extend) for r in m.group(2).split()) + m.group(3)
-    xml = re.sub(r'(<conditionalFormatting\b[^>]*\bsqref=")([^"]+)(")', sq, xml)
-    xml = re.sub(r'(<dataValidation\b[^>]*\bsqref=")([^"]+)(")', sq, xml)
+        parts = [x for x in (_shift_range(r, first, last, k, extend) for r in m.group(2).split()) if x]
+        return m.group(1) + (" ".join(parts) if parts else "\x00") + m.group(3)
+    if k < 0:
+        # z1191z: 지운 줄 안에만 있던 조건부 서식(D61 · D67:D80 …)·입력 규칙은 통째로 없앤다(빈 sqref 는 엑셀 '복구')
+        def drop_empty(rx_el, x):
+            def one(m):
+                y = re.sub(r'(\bsqref=")([^"]+)(")', sq, m.group(0), count=1)
+                return "" if "\x00" in y else y
+            return re.sub(rx_el, one, x, flags=re.S)
+        xml = drop_empty(r"<conditionalFormatting\b.*?</conditionalFormatting>", xml)
+        xml = drop_empty(r"<dataValidation\b(?:[^>]*/>|.*?</dataValidation>)", xml)
+        n_dv = len(re.findall(r"<dataValidation\b", xml))
+        xml = re.sub(r'(<dataValidations\b[^>]*\bcount=")\d+(")', lambda m: "%s%d%s" % (m.group(1), n_dv, m.group(2)), xml)
+        xml = re.sub(r"<dataValidations\b[^>]*>\s*</dataValidations>|<dataValidations\b[^>]*/>", "", xml)
+        xml = re.sub(r'(<hyperlink\b[^>]*\bref=")([^"]+)(")[^>]*/>',
+                     lambda m: m.group(0) if _shift_range(m.group(2), first, last, k, False) else "", xml)
+    else:
+        xml = re.sub(r'(<conditionalFormatting\b[^>]*\bsqref=")([^"]+)(")', sq, xml)
+    if k > 0:
+        xml = re.sub(r'(<dataValidation\b[^>]*\bsqref=")([^"]+)(")', sq, xml)
     xml = re.sub(r'(<autoFilter\b[^>]*\bref=")([^"]+)(")', sq, xml)
     xml = re.sub(r'(<hyperlink\b[^>]*\bref=")([^"]+)(")', lambda m: sq(m, False), xml)
     xml = re.sub(r'(<dimension ref="[A-Z]+\d+:[A-Z]+)(\d+)(")', lambda m: "%s%d%s" % (m.group(1), int(m.group(2)) + k, m.group(3)), xml)
+    if k < 0:
+        xml = re.sub(r'<brk\b[^>]*\bid="(\d+)"[^>]*/>', lambda m: "" if last + k < int(m.group(1)) <= last else m.group(0), xml)
     xml = re.sub(r'(<brk\b[^>]*\bid=")(\d+)(")',
                  lambda m: "%s%d%s" % (m.group(1), int(m.group(2)) + (k if int(m.group(2)) > last else 0), m.group(3)), xml)
     return xml
@@ -951,8 +1004,14 @@ def _styles_of_row(xml: str, r: int) -> dict:
 
 def _shift_drawing(dx: str, last: int, k: int) -> str:
     """그림판 — last 줄 아래(0부터 센 줄 ≥ last)에 걸린 그림은 k 줄 내린다(서명·도장)."""
-    return re.sub(r"(<(?:\w+:)?row>)(\d+)(</(?:\w+:)?row>)",
-                  lambda m: "%s%d%s" % (m.group(1), int(m.group(2)) + (k if int(m.group(2)) >= last else 0), m.group(3)), dx)
+    def one(m):
+        r = int(m.group(2))
+        if r >= last:
+            r += k
+        elif k < 0 and r >= last + k:
+            r = last + k                     # z1191z: 지운 줄에 걸린 그림(틀에는 없음)은 남은 끝 줄 아래로
+        return "%s%d%s" % (m.group(1), r, m.group(3))
+    return re.sub(r"(<(?:\w+:)?row>)(\d+)(</(?:\w+:)?row>)", one, dx)
 
 
 def _defined_names(wbx: str, sheet: str, first: int, last: int, k: int) -> str:
@@ -961,7 +1020,7 @@ def _defined_names(wbx: str, sheet: str, first: int, last: int, k: int) -> str:
         body = m.group(2)
 
         def ref(mm):
-            return mm.group(1) + _shift_range(mm.group(2), first, last, k, True)
+            return mm.group(1) + (_shift_range(mm.group(2), first, last, k, True) or mm.group(2))
         return m.group(1) + re.sub(r"('?%s'?!)(\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)" % re.escape(sheet), ref, body) + m.group(3)
     return re.sub(r"(<definedName\b[^>]*>)(.*?)(</definedName>)", one, wbx, flags=re.S)
 
@@ -1162,26 +1221,52 @@ def _recalc(sheets_x: dict, ss) -> tuple:
 # ─────────────────────────────────────────────────────────────
 # 만들기
 # ─────────────────────────────────────────────────────────────
+def _tail_blank(it, photos) -> bool:
+    """z1191z: 원본 끝의 빈 품목 줄인가 — 번호(C)·금액 수식 말고는 값이 없고 사진도 없다
+    (261110 20번째 줄 = 번호 20 · 금액 =++F53*H53 의 저장값 0)."""
+    for c, v in it["left"].items():
+        if c == 3 or _blank(v):
+            continue
+        if c == 9 and isinstance(v, (int, float)) and not isinstance(v, bool) and v == 0:
+            continue                                          # 빈 줄의 금액 수식 저장값 0
+        return False
+    if any(not _blank(v) for d in (it.get("box"), it.get("right"), it.get("unl")) for v in (d or {}).values()):
+        return False
+    return not any(row == it["row"] for (_t, row) in (photos or {}))
+
+
+def _trim_tail(items, photos=None) -> list:
+    """끝에서부터 빈 품목 줄을 뗀다(품목 사이 빈 줄은 원본 모양이라 그대로) · 적어도 한 줄은 남긴다."""
+    n = len(items)
+    while n > 1 and _tail_blank(items[n - 1], photos):
+        n -= 1
+    return items[:n]
+
+
 def build(src: dict, kind: str) -> tuple:
-    """(새 엑셀 bytes, 기대값 {inv:{(줄,칸): 값}, pl:{…}, photos:{줄: 장 수}, k_inv, k_pl}, report)"""
+    """(새 엑셀 bytes, 기대값 {inv:{(줄,칸): 값}, pl:{…}, photos:{줄: 장 수}, k_inv, k_pl}, report)
+    z1191z: k_inv · k_pl 이 음수면 틀의 끝 쪽 빈 품목 칸 줄을 그만큼 지운다(늘릴 때와 같은 길)."""
     T = _template(kind)
     z = zipfile.ZipFile(io.BytesIO(T["bytes"]))
     inv, pl = T["sheets"]["INV"], T["sheets"].get("PL")
     # z1191y: 원본 패킹에 품목이 없으면(261110) 인보이스 품목으로 채운다 — 대표 최종본(260921 · 261015)처럼 관리코드(B) · 품명(D) ·
     #   수량(F, 단위 그대로) 값 · 중량 · 부피 · 박스 표는 원본에 없어 비움. 원본 패킹에 품목이 있으면 그것을 옮긴다(전과 같음)
-    pl_items = src["pl"]["items"]
+    items_all = src["items"]
+    items = _trim_tail(items_all, src.get("photos"))                # z1191z: 원본 끝 빈 품목 줄(번호만)은 옮기지 않는다
+    pl_items = _trim_tail(src["pl"]["items"]) if src["pl"]["items"] else []
     pl_from_inv = 0
     if pl and not pl_items:
         pl_items = [{"row": it["row"], "left": {c: it["left"][c] for c in (2, 4, 6) if c in it["left"]}, "box": {}, "f": {}, "unl": {},
                      "unit": it.get("unit")}
-                    for it in src["items"] if not (_blank(it["left"].get(4)) and _blank(it["left"].get(6)))]
+                    for it in items if not (_blank(it["left"].get(4)) and _blank(it["left"].get(6)))]
         pl_from_inv = len(pl_items)
-    report = {"kind": kind, "items": len(src["items"]), "pl_items": len(pl_items), "pl_from_inv": pl_from_inv, "expanded": 0,
+    report = {"kind": kind, "items": len(items), "items_tail_cut": len(items_all) - len(items), "pl_items": len(pl_items), "pl_from_inv": pl_from_inv, "expanded": 0,
               "pl_expanded": 0, "photos": 0, "photos_dropped": 0, "equip": len(src["equip"]), "sheets": src["sheets"],
               "named": sum(1 for it in src["items"] if not _blank(it["left"].get(4))),      # 품명 있는 줄(① 채움 품목 수와 맞춰 본다)
               "dropped": {k: dict(v, ex=list(v["ex"])) for k, v in src["dropped"].items()}, "units": {}}
-    k_inv = max(0, len(src["items"]) - (inv["last"] - inv["first"] + 1))
-    k_pl = max(0, len(pl_items) - (pl["last"] - pl["first"] + 1)) if pl else 0
+    # z1191z: 틀 칸보다 적으면 음수 = 끝 쪽 빈 칸 줄을 지운다(대표 「리스트 없는 항목들 칸은 삭제」) · 패킹 품목이 없으면 한 줄은 남긴다
+    k_inv = len(items) - (inv["last"] - inv["first"] + 1)
+    k_pl = (max(1, len(pl_items)) - (pl["last"] - pl["first"] + 1)) if pl else 0
     sx_styles = z.read("xl/styles.xml").decode("utf-8")
     sx_orig, ucache, exp_units = sx_styles, {}, {}
 
@@ -1212,7 +1297,8 @@ def build(src: dict, kind: str) -> tuple:
         x_inv = _expand(x_inv, inv["first"], inv["last"], k_inv, inv["name"], shifts)    # 다른 시트 주소도 함께(shifts)
     elif pl and k_pl:
         x_inv = _fix_formulas_all(x_inv, {pl["name"]: shifts[pl["name"]]}, inv["name"])
-    report["expanded"] = k_inv
+    report["expanded"] = max(0, k_inv)
+    report["rows_cut"] = max(0, -k_inv)
     exp_inv, exp_pl = {}, {}
     # 머리: 인보이스마다 다른 묶음(INCOTERMS · 결제 · 제목 …)은 원본 그대로 · 번호 · 날짜 · 선적일
     w, moved = _header_blocks(lambda r, c: src["header"].get((r, c)), inv["hcells"])
@@ -1227,7 +1313,7 @@ def build(src: dict, kind: str) -> tuple:
             exp_inv[rc] = v
     amount_vals = 0
     inv_rows, over_inv = _row_styles_all(x_inv), {}
-    for i, it in enumerate(src["items"]):
+    for i, it in enumerate(items):
         r = inv["first"] + i
         put_unit("INVOICE", inv_rows, style_inv, r, it, over_inv)
         for c, v in _row_values(it, kind, src, inv, report).items():
@@ -1252,7 +1338,8 @@ def build(src: dict, kind: str) -> tuple:
             x_pl = _expand(x_pl, pl["first"], pl["last"], k_pl, pl["name"], shifts)       # 인보이스 시트 주소도 함께(한 번만)
         elif k_inv:
             x_pl = _fix_formulas_all(x_pl, {inv["name"]: shifts[inv["name"]]}, pl["name"])
-        report["pl_expanded"] = k_pl
+        report["pl_expanded"] = max(0, k_pl)
+        report["pl_rows_cut"] = max(0, -k_pl)
         w2, moved2 = _header_blocks(lambda r, c: src["pl"].get("header", {}).get((r, c)), pl["hcells"])
         exp_pl.update(w2)
         report["header_moved"] += [dict(m, block="패킹 " + m["block"]) for m in moved2]

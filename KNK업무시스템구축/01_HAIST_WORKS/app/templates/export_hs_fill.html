@@ -37,6 +37,7 @@
 .hf-flash { margin-top:6px; font-size:12px; color:#1d4ed8; font-weight:700; }
 .hf-pick { padding:3px 9px; margin:1px 4px 1px 0; border:1px solid #1d4ed8; background:#fff; color:#1d4ed8; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
 .hf-pick.file { border-color:#b45309; color:#b45309; }
+.hf-pick.fam { border-color:#047857; color:#047857; white-space:normal; text-align:left; }
 .hf-pick:disabled { opacity:.5; cursor:default; }
 .hf-ev { font-family:inherit; font-size:10.5px; color:var(--mute,#64748b); font-weight:400; }
 {# z1191p: 지난 수출 이력과 비교(① 결과) · 📚 등록 칸 #}
@@ -384,7 +385,9 @@
   function picks(lid, a){
     return (a.choices || []).map(function(c){
       var lab = c.kind === 'file' ? '✓ 적힌 값 ' + c.hs : (a.status === 'CONFLICT' ? '✓ 사전 값 ' : '✓ 이 값 확정 ') + c.hs;
-      return '<button type="button" class="hf-pick' + (c.kind === 'file' ? ' file' : '') + '" data-lid="' + esc(lid) + '" data-sheet="' + esc(a.sheet)
+      /* z1191z: 사전에 없는 KNK-○ 규격 — 같은 묶음(KNK-P …)의 확정 HS 를 고른다(몇 건 · 예 규격 · 같은 번호 다른 판이면 표시 · 품명 뜻) */
+      if(c.kind === 'family') lab = '✓ ' + c.fam + ' 묶음 ' + c.hs + ' (' + c.n + '건 · 예 ' + c.ex + (c.same ? ' · 같은 번호' : '') + (c.hint ? ' · ' + c.hint : '') + ')';
+      return '<button type="button" class="hf-pick' + (c.kind === 'file' ? ' file' : (c.kind === 'family' ? ' fam' : '')) + '" data-lid="' + esc(lid) + '" data-sheet="' + esc(a.sheet)
         + '" data-row="' + esc(a.row) + '" data-hs="' + esc(c.hs) + '" data-desc="' + esc(a.desc) + '" onclick="hfConfirm(this)">' + esc(lab) + '</button>';
     }).join('');
   }
@@ -398,6 +401,9 @@
     var un = Object.keys(c.units || {}).filter(function(u){ return u !== 'EA'; });
     if(un.length) bits.push('수량 단위는 올린 파일 그대로(' + un.map(function(u){ return u + ' ' + c.units[u] + '줄'; }).join(' · ') + ')');
     if(c.pl_from_inv) bits.push('패킹 ' + c.pl_from_inv + '줄은 인보이스 품목으로 채움(중량·부피는 비어 있음)');
+    // z1191z: 품목 아래 남는 빈 칸 줄은 지움(TOTAL·서명·도장은 그대로 위로) · 원본 끝 빈 줄(번호만)도
+    if(c.rows_cut || c.pl_rows_cut) bits.push('남는 빈 칸 지움(인보이스 ' + (c.rows_cut || 0) + '줄 · 패킹 ' + (c.pl_rows_cut || 0) + '줄)');
+    if(c.tail_cut) bits.push('원본 끝 빈 품목 줄 ' + c.tail_cut + '줄 뺌');
     var h = '<div class="hf-conv">🔁 <b>옛 양식 → ' + esc(c.kind) + ' 최종 양식으로 바꿔서 채웠습니다</b> '
       + '<span class="hf-ev">(' + (c.auto ? '자동 — ' + esc(c.why) : '본사가 고름') + ')</span>'
       + '<div>' + esc(bits.join(' · ')) + '</div>';

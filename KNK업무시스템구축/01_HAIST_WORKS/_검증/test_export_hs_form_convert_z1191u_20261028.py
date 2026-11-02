@@ -303,7 +303,7 @@ check("11 머리 — 번호·날짜·선적일은 원본 · INCOTERMS(F.O.B)는 
       and any(m["block"].startswith("11) Remarks") for m in r1["report"]["header_moved"])
       and any(d["block"].startswith("2) For Account") for d in r1["header_diffs"]),
       (C._v(c1, 21, 7), C._v(c1, 14, 2), r1["report"]["header_moved"]))
-tot = inv1["total"]
+tot = inv1["total"] + (5 - (inv1["last"] - inv1["first"] + 1))      # z1191z: 품목 5줄 · 틀의 남는 빈 칸 줄은 지워 TOTAL 이 올라온다
 check("12 저장값 새로 셈 — 금액 F×H(37.5) · TOTAL 금액 204.5 · 수량 21 (틀에 남은 대표 원본 261015 합계 아님)",
       C._v(c1, 34, 9) == 37.5 and abs(C._v(c1, tot, 9) - 204.5) < 1e-9 and C._v(c1, tot, 6) == 21,
       (C._v(c1, 34, 9), C._v(c1, tot, 9), C._v(c1, tot, 6)))

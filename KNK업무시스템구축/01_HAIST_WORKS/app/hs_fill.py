@@ -29,6 +29,13 @@ z1191p (대표 2026-10-27 「올해 수출한 내용을 수책통관, 일반통�
   · scan 이 줄마다 수량·단가·금액(qty·price·amount)과 인보이스 날짜(date)도 읽는다 — 31줄 머리글 F·H·I(모든 KNK 양식 같음).
   · hist_lines = 지난 수출 이력 줄 · compare = ① 결과 줄 ↔ 이력(같은 규격만 · 단가 ±HIST_PRICE_TOL% · HS 다름) — 화면에만.
 
+z1191z (대표 2026-11-02 「PCB 같은 경우는 KNKP-5019 … 난반은 항상 업데이트가 돼 … KNK-P 뭐 이런 식으로 KNK-G, KNK-F, KNK-M
+        … 거기까지는 같은 항목으로 보고 HS 코드를 찾아서 선택을 할 수 있으면 좋겠어」 → 「2. KNK-○ 모양만 · 3. 추천」):
+  · 사전에 없는 규격이 KNK-○-숫자 모양이면 같은 묶음(KNK-P …)의 확정 HS 를 고르기 후보(choices kind='family')로 준다.
+    자동으로 채우지는 않는다(노랑 그대로) — 운영 사전 KNK-P 28줄이 85371099(부품 붙은 기판) 18 · 85340010(빈 기판) 10 으로 갈림(11-02 실측).
+  · 본사가 고르면 사전에 확정으로 들어가고 품명은 같은 묶음 · 같은 HS 사전 품명에서 「mã hàng: 번호」만 새 규격으로 바꿔 쓴다(family_vn).
+  · lookup 은 그대로(📚 · 📌 도 lookup 을 쓴다) — plan 이 「사전에 없음」일 때만 family_choices 를 본다.
+
 z1191r (대표 2026-10-27 「등록할때 이미지도 가능하면 같이 사진,단가 부분도 볼수있게 등록을해줘」):
   · row_images = 품목 줄에 붙은 그림(그림 자리 from~to 줄이 품목 줄에 걸리면 그 줄 · 첫 그림만) — 54개 실물 그림 510 중 450이 품목 줄.
 """
@@ -118,9 +125,19 @@ def formula_junk_sql(v) -> int:
 # ─────────────────────────────────────────────────────────────
 # 사전 색인
 # ─────────────────────────────────────────────────────────────
+# z1191z: KNK-○ 묶음 — 「KNK-P-5019」·「KNKP-5019」·「KNK-P5019-1」 → (KNK-P, 5019). KNK-○ 모양만(대표 11-02 「2. KNK-○ 모양만」)
+_FAMILY = re.compile(r"^KNK-?([A-Z]{1,3})-?(\d+(?:\.\d+)?)")
+
+
+def family_of(key) -> tuple:
+    """규격 키(norm_key) → ('KNK-P', '5019') · 묶음 모양이 아니면 ('', '')."""
+    m = _FAMILY.match(norm_key(key))
+    return ("KNK-" + m.group(1), m.group(2)) if m else ("", "")
+
+
 def build_index(entries) -> dict:
-    """entries: export_hs_dict 줄(dict) 목록 → {exact: {키: 줄}, tok: {조각: [줄…]}}"""
-    exact, tok = {}, {}
+    """entries: export_hs_dict 줄(dict) 목록 → {exact: {키: 줄}, tok: {조각: [줄…]}, fam: {묶음: [줄…]}}"""
+    exact, tok, fam = {}, {}, {}
     for e in entries:
         k = e.get("part_key") or ""
         if not k:
@@ -129,7 +146,67 @@ def build_index(entries) -> dict:
         ts = tokens(e.get("model")) | ({k} if (len(k) >= 5 and re.search(r"\d", k)) else set())
         for t in ts:
             tok.setdefault(t, []).append(e)
-    return {"exact": exact, "tok": tok}
+        f, _n = family_of(k)
+        if f:
+            fam.setdefault(f, []).append(e)
+    return {"exact": exact, "tok": tok, "fam": fam}
+
+
+# 고르는 사람(본사)이 베트남어를 몰라도 고를 수 있게 — 사전 품명의 그 말을 한국어로 한 줄
+_VN_HINT = [(re.compile(r"ch[ưu]a\s*g[ắa]n\s*linh\s*ki[ệe]n", re.I), "빈 기판(부품 안 붙음)"),
+            (re.compile(r"đ[ãa]\s*g[ắa]n\s*linh\s*ki[ệe]n", re.I), "부품 붙은 기판"),
+            (re.compile(r"m[ạa]ch\s*đi[ềe]u\s*khi[ểe]n", re.I), "제어 기판")]
+
+
+def _vn_hint(vn) -> str:
+    for rx, ko in _VN_HINT:
+        if rx.search(vn or ""):
+            return ko
+    return ""
+
+
+def _fam_rank(e, num):
+    """같은 번호(5019-1 ↔ 5019) 먼저 · 많이 나온 것 · 최근 것"""
+    _f, n = family_of(e.get("part_key"))
+    return (0 if n == num else 1, -(e.get("seen_count") or 0), str(e.get("last_seen") or ""))
+
+
+def family_choices(index, desc) -> list:
+    """사전에 없는 KNK-○ 규격 → 같은 묶음의 확정 HS 후보 [{hs, kind:'family', fam, n, ex, hint, same}] (많은 것 먼저 · 같은 번호면 맨 앞).
+    묶음 모양이 아니거나 그 묶음에 확정 줄이 없으면 []."""
+    f, num = family_of(desc)
+    if not f:
+        return []
+    by_hs = {}
+    for e in index.get("fam", {}).get(f, []):
+        if not _confirmed(e) or formula_junk(e.get("vn_name")):
+            continue
+        by_hs.setdefault(digits(e.get("hs_code")), []).append(e)
+    out = []
+    for hs, es in by_hs.items():
+        es = sorted(es, key=lambda e: (_fam_rank(e, num)[0], _fam_rank(e, num)[1]))
+        same = any(family_of(e.get("part_key"))[1] == num for e in es)
+        hint = next((h for h in (_vn_hint(e.get("vn_name")) for e in es) if h), "")
+        out.append({"hs": hs, "kind": "family", "fam": f, "n": len(es), "ex": es[0].get("part_key") or "", "hint": hint, "same": same})
+    out.sort(key=lambda c: (0 if c["same"] else 1, -c["n"], c["hs"]))
+    return out
+
+
+def family_vn(index, desc, hs) -> str:
+    """고른 HS 의 같은 묶음 사전 품명 하나(같은 번호 → 많이 나온 것 → 최근) — 품명 안 「KNK-P-4822」 같은 묶음 번호는 새 규격으로 바꾼다.
+    (그대로 두면 품명에 남의 번호가 들어간다) · 없으면 ''."""
+    f, num = family_of(desc)
+    if not f:
+        return ""
+    es = [e for e in index.get("fam", {}).get(f, []) if _confirmed(e) and digits(e.get("hs_code")) == hs
+          and (e.get("vn_name") or "").strip() and not formula_junk(e.get("vn_name"))]
+    if not es:
+        return ""
+    es.sort(key=lambda e: _fam_rank(e, num)[:2] + (-int(re.sub(r"\D", "", str(e.get("last_seen") or "")) or 0),))
+    vn = (es[0].get("vn_name") or "").strip()
+    new = str(desc or "").strip()
+    rx = re.compile(r"KNK-?%s-?\d+(?:\.\d+)?(?:-[0-9A-Z]+)*" % re.escape(f[4:]), re.I)
+    return rx.sub(lambda m: new, vn)
 
 
 def _confirmed(e) -> bool:
@@ -556,6 +633,13 @@ def plan(sc, index, overrides=None) -> list:
                 # z1191n: 사전에 이 규격이 '확인 대기'·'AI 추정'으로 있으면 본사가 그 값을 바로 확정할 수 있다
                 if way == "pending" and e is not None and e.get("part_key") == key and len(dhs) == 8:
                     a["choices"] = [{"hs": dhs, "kind": "dict"}]
+                # z1191z: 사전에 없는 KNK-○ 규격 — 같은 묶음 확정 HS 를 고르기 후보로(자동 채움은 안 함 · 노랑 그대로)
+                if way == "none":
+                    fc = family_choices(index, it["desc"])
+                    if fc:
+                        a["choices"] = fc
+                        a["why"] = "사전에 없음(새 품목) · 같은 묶음 %s 에서 고르기(%s)" % (
+                            fc[0]["fam"], " · ".join("%s %d건" % (c["hs"], c["n"]) for c in fc))
                 if has_vn and not vn0:
                     a["color_vn"] = YELLOW
             if vn_junk:
