@@ -141,10 +141,12 @@ check("2 노랑·주황이 하나도 없으면 no_reply — 전부 자동(2) · 
 src9, chs9, cvn9 = make_form("수책", ITEMS)
 r9 = H.fill(src9, DICT)
 ch = {a["row"]: a["choices"] for a in r9["acts"]}
-check("3 고를 값: 39 적힌·사전 둘 · 35 모델만 일치 값 · 37 확인 대기 값 · 36·38·42(후보 갈림·새 품목·수식)와 34·40·41 은 없음",
+# z1191z2(대표 11-02 「예측을하고 분석을 해서」): 후보가 갈린 36줄은 품명 낱말 예측 단추가 붙는다(확신 0.8 미만이라 채우지는 않음)
+check("3 고를 값: 39 적힌·사전 둘 · 35 모델만 일치 값 · 37 확인 대기 값 · 36(후보 갈림) = 예측 단추(안 채움) · 38·42(새 품목·수식)와 34·40·41 은 없음",
       ch[39] == [{"hs": "85364990", "kind": "file"}, {"hs": "85364199", "kind": "dict"}]
       and ch[35] == [{"hs": "85389019", "kind": "dict"}] and ch[37] == [{"hs": "39231090", "kind": "dict"}]
-      and all(ch[r] == [] for r in (34, 36, 38, 40, 41, 42)), ch)
+      and [c["kind"] for c in ch[36]] == ["predict"] and ch[36][0]["conf"] < 0.8
+      and all(ch[r] == [] for r in (34, 38, 40, 41, 42)), ch)
 ac = {a["row"]: a for a in r9["acts"]}
 check("4 근거: 35 = 다른 규격 SP100F120H6.5TTBM · 2번 · 마지막 2026-09-21 / 37 = 확인 대기 / 34 = 같은 규격이라 규격 표시 없음",
       ac[35]["dict_model"] == "SP100F120H6.5TTBM" and ac[35]["dict_seen"] == 2 and ac[35]["dict_last"] == "2026-09-21"
@@ -252,7 +254,7 @@ check("10 ① 노랑·주황 있음: 자동 2·확인 2·법인 입력 4 · 글 
       j1.get("ok") and j1["summary"] == {"total": 8, "auto": 2, "check": 2, "need": 4, "keep": 0} and j1["no_reply"] is False
       and "노란 칸 4줄" in j1["message"] and "주황 칸 2줄" in j1["message"] and set(at) == {35, 36, 37, 38, 39, 40}
       and at[40]["st"] == "NEED" and "품명은 사전에 없음" in at[40]["why"]
-      and {r for r, a in at.items() if a["choices"]} == {35, 37, 39}, (j1.get("summary"), sorted(at)))
+      and {r for r, a in at.items() if a["choices"]} == {35, 36, 37, 39}, (j1.get("summary"), sorted(at)))     # z1191z2: 36 = 예측 단추
 check("10b 결과 JSON 에 품명 근거(39줄 적힌·사전)", at.get(39, {}).get("vn_written") == "Rơ le an toàn" and at.get(39, {}).get("dict_vn") == "Rơ le",
       at.get(39))
 pg2 = quiet(cl.get, "/export/hs-fill").text

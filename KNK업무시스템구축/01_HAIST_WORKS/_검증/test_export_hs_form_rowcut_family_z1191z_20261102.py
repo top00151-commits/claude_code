@@ -285,9 +285,11 @@ def sc_of(descs):
 
 acts = H.plan(sc_of(["KNK-P-5019", "KNK-P-4800", "KNK-Q-0001", "SM-F971 SUB TOP"]), idx)
 a0, a1, a2, a3 = acts
-check("plan: 새 KNK-P = 노랑 그대로(자동 채움 없음) + 묶음 후보 2 · 까닭 글", a0["status"] == H.NEED and a0["color_hs"] == H.YELLOW
-      and a0["write_hs"] is None and [c["hs"] for c in a0["choices"]] == ["85371099", "85340010"]
-      and "같은 묶음 KNK-P 에서 고르기" in a0["why"], (a0["status"], a0["why"], a0["choices"]))
+# z1191z2(대표 11-02 「2. 추천」): 새 KNK-P 는 많은 쪽 HS 를 주황(확인)으로 채우고 다른 HS 는 단추로 남긴다(z1191z 때는 노랑 그대로였다)
+check("plan: 새 KNK-P = 많은 쪽 85371099 주황 채움 + 묶음 후보 2(다르면 단추) · 품명도 주황(번호 바꿈)", a0["status"] == H.CHECK
+      and a0["color_hs"] == H.ORANGE and a0["write_hs"] == "85371099" and [c["hs"] for c in a0["choices"]] == ["85371099", "85340010"]
+      and "같은 묶음 KNK-P 많은 쪽 85371099 로 채움(확인)" in a0["why"] and "mã hàng: KNK-P-5019," in (a0["write_vn"] or "")
+      and a0["color_vn"] == H.ORANGE, (a0["status"], a0["why"], a0["choices"]))
 check("plan: 사전에 있는 규격은 전처럼 자동 · 다른 묶음은 후보 없음 · 묶음 아닌 모양은 전과 같은 길(모델만 일치 = 확인)",
       a1["status"] == H.AUTO and a1["write_hs"] == "85371099" and a2["choices"] == [] and a3["status"] == H.CHECK
       and not any(c.get("kind") == "family" for c in a3["choices"])
@@ -303,13 +305,13 @@ print("§7 서버 · 화면 글")
 main = io.open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
 html = io.open(os.path.join(ROOT, "app", "templates", "export_hs_fill.html"), encoding="utf-8").read()
 check("확정: 묶음 값 고르면 묶음 품명(번호 바꿈)으로 사전에 넣고 note 에 묶음 · 예 규격",
-      'vn = _hf.family_vn(_idx, a["desc"], hs)' in main and 'note += " · 같은 묶음 %s 값(예 %s)"' in main
-      and 'ch.get("kind") == "family" and ch.get("hs") == hs' in main)
+      'vn = _hf.suggest_vn(_idx, a["desc"], hs)' in main and 'note += " · 같은 묶음 %s 값(예 %s)"' in main
+      and 'ch.get("kind") in ("family", "predict") and ch.get("hs") == hs' in main)          # z1191z2: 예측 단추와 같은 길
 check("확정: 고를 수 있는 값 검사는 그대로(choices 안의 값만)", 'if hs not in [ch.get("hs") for ch in (a.get("choices") or [])]:' in main)
 check("바꿈 요약에 지운 줄 수", '"rows_cut": rp.get("rows_cut", 0), "pl_rows_cut": rp.get("pl_rows_cut", 0), "tail_cut": rp.get("items_tail_cut", 0)' in main)
 check("화면: 묶음 단추 글(묶음 · HS · 건수 · 예 · 같은 번호 · 뜻) · 초록 단추",
       "if(c.kind === 'family') lab = '✓ ' + c.fam + ' 묶음 ' + c.hs" in html and ".hf-pick.fam {" in html
-      and "(c.kind === 'family' ? ' fam' : '')" in html)
+      and "(c.kind === 'family' || c.kind === 'predict' ? ' fam' : '')" in html)             # z1191z2: 예측 단추도 초록
 check("화면: 결과 카드 「남는 빈 칸 지움(인보이스 N줄 · 패킹 M줄)」 · 「원본 끝 빈 품목 줄 N줄 뺌」",
       "'남는 빈 칸 지움(인보이스 ' + (c.rows_cut || 0) + '줄 · 패킹 ' + (c.pl_rows_cut || 0) + '줄)'" in html
       and "'원본 끝 빈 품목 줄 ' + c.tail_cut + '줄 뺌'" in html)

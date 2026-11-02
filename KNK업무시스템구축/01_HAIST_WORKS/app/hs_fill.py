@@ -36,10 +36,22 @@ z1191z (대표 2026-11-02 「PCB 같은 경우는 KNKP-5019 … 난반은 항상
   · 본사가 고르면 사전에 확정으로 들어가고 품명은 같은 묶음 · 같은 HS 사전 품명에서 「mã hàng: 번호」만 새 규격으로 바꿔 쓴다(family_vn).
   · lookup 은 그대로(📚 · 📌 도 lookup 을 쓴다) — plan 이 「사전에 없음」일 때만 family_choices 를 본다.
 
+z1191z2 (대표 2026-11-02 「최대한 비슷한걸 넣었으면 좋겠어.. 기존에 입력된 HS사전에서 내용을 확인한 후 품명 및 용도가 비슷하면
+        자동으로 채워줘 … "PIN BLOCK" … PUSHER 기구 부품 … 단순 비교만으로 보지말고 예측을하고 분석을 해서」 → 분석·측정 보고 →
+        「1. 추천 2. 추천 3. 추천」 = 확신 0.8 · KNK-P 많은 쪽 주황 + 단추 · 품명도 주황):
+  · 지금 규칙(규격 그대로 · 모델 글자)으로 못 찾는 줄 — 사전 **확정** 줄에서 「낱말 → HS 쏠림」을 배워 예측한다(predict).
+    늘 같은 HS 로 가는 낱말(부품 종류: PIN BLOCK · RUBBER)은 무게 크게, 흩어지는 낱말(모델: SM · SUB)은 작게.
+    측정(8월 전 사전으로 8월 이후 새 품목 · 지금 규칙으로 못 찾는 201줄): 확신 ≥0.8 → 45% 채움 · 96.7% 맞음(11-02).
+  · 확신 ≥ PRED_MIN 이면 HS · 품명을 **주황(확인)** 으로 채운다 — 사전에는 넣지 않는다(10-28 z1191t 「확정한것만」 유지:
+    법인 ③ 회신 · 본사 「이 값 확정」 때만 사전 확정). 미만이면 노랑 그대로 + 예측 HS 를 고르기 단추로.
+  · KNK-○ 묶음: 많은 쪽(같은 번호 판이 있으면 그쪽) HS 를 주황으로 채우고 다른 HS 는 단추로 남긴다.
+  · 품명 = 같은 HS 중 가장 비슷한 사전 품목 품명 — 「mã hàng: 옛 규격」은 새 규격으로(predict_vn).
+
 z1191r (대표 2026-10-27 「등록할때 이미지도 가능하면 같이 사진,단가 부분도 볼수있게 등록을해줘」):
   · row_images = 품목 줄에 붙은 그림(그림 자리 from~to 줄이 품목 줄에 걸리면 그 줄 · 첫 그림만) — 54개 실물 그림 510 중 450이 품목 줄.
 """
 import io
+import math
 import re
 import zipfile
 from xml.sax.saxutils import escape as _xml_escape
@@ -149,7 +161,120 @@ def build_index(entries) -> dict:
         f, _n = family_of(k)
         if f:
             fam.setdefault(f, []).append(e)
-    return {"exact": exact, "tok": tok, "fam": fam}
+    return {"exact": exact, "tok": tok, "fam": fam, "pred": _pred_index(entries)}
+
+
+# ── z1191z2: 품명 낱말 예측 ──
+PRED_MIN = 0.8          # 이 확신 이상만 주황으로 채운다(대표 11-02 「1. 추천」 · 8월 이후 새 품목 측정 96.7%)
+_PRED_STOP = {"THE", "AND", "FOR", "WITH", "OF", "TO", "NEW", "ASSY", "SET", "TYPE", "PCS", "EA", "KNK", "PART", "PARTS", "HSX", "HANG"}
+
+
+def pred_words(text) -> set:
+    """품명 → 낱말(영문 3자 이상 · 숫자 없는 것 · 끝 숫자 1~2자리는 뗌: PUSHER1 → PUSHER) · 이웃 낱말 쌍(PIN BLOCK) ·
+    코드 앞머리(HSP0320-35E → #HSP · #HSP0320)"""
+    raw = str(text or "").upper()
+    ws = []
+    for w in re.sub(r"[^A-Z0-9]+", " ", raw).split():
+        m = re.fullmatch(r"([A-Z]{4,})\d{1,2}", w)
+        if m:
+            w = m.group(1)
+        if len(w) >= 3 and not re.search(r"\d", w) and w not in _PRED_STOP:
+            ws.append(w)
+    out = set(ws) | {a + " " + b for a, b in zip(ws, ws[1:])}
+    for tok in re.split(r"[\s(),/]+", raw):
+        m = re.match(r"^([A-Z]{2,5})(\d{2,})", tok)
+        if m:
+            out.add("#" + m.group(1))
+            out.add("#" + m.group(1) + m.group(2)[:4])
+    return out
+
+
+def _pred_text(e) -> str:
+    """사전 줄 글 = 규격 · 영문 품명 · 베트남어 품명 앞 영문 이름(「SPRING#&Lò xo」의 SPRING)"""
+    vn = e.get("vn_name") or ""
+    return " ".join(x for x in (e.get("model"), e.get("name_en"), vn.split("#&")[0] if "#&" in vn else "") if x)
+
+
+def _pred_index(entries) -> dict:
+    """확정 줄만 — {cnt: {낱말: {HS: 줄 수}}, ents: [(낱말 묶음, 줄)]}"""
+    cnt, ents = {}, []
+    for e in entries:
+        if not _confirmed(e):
+            continue
+        ws = pred_words(_pred_text(e))
+        h = digits(e.get("hs_code"))
+        ents.append((ws, e))
+        for w in ws:
+            c = cnt.setdefault(w, {})
+            c[h] = c.get(h, 0) + 1
+    return {"cnt": cnt, "ents": ents}
+
+
+def _pred_weight(c) -> float:
+    n = sum(c.values())
+    return (max(c.values()) / n) ** 3 * math.log(1 + n) if n >= 2 else 0.0
+
+
+def predict(index, desc):
+    """규격 → {hs, conf, why:[(낱말, 그 낱말의 HS, 쏠림, 줄 수)], ex: 가장 비슷한 사전 규격, e: 그 줄} · 낱말이 없으면 None.
+    낱말마다 무게 = (가장 많은 HS 몫)^3 × log(1+줄 수) (낱말 쌍은 1.5배) — HS 별로 무게 × 몫을 더해 가장 높은 HS · 확신 = 그 몫."""
+    P = index.get("pred") or {"cnt": {}, "ents": []}
+    ws = pred_words(desc)
+    score, why = {}, []
+    for w in ws:
+        c = P["cnt"].get(w)
+        if not c:
+            continue
+        wt = _pred_weight(c) * (1.5 if " " in w else 1.0)
+        if not wt:
+            continue
+        n = sum(c.values())
+        for h, k in c.items():
+            score[h] = score.get(h, 0.0) + wt * k / n
+        top = max(c.items(), key=lambda x: x[1])
+        why.append((wt, w, top[0], round(top[1] / n, 2), n))
+    if not score:
+        return None
+    tot = sum(score.values())
+    hs = max(score.items(), key=lambda x: x[1])[0]
+    e = _pred_best(P, ws, hs)
+    return {"hs": hs, "conf": score[hs] / tot, "why": [(w, h, pu, n) for _wt, w, h, pu, n in sorted(why, reverse=True)[:3]],
+            "ex": ((e.get("model") or e.get("part_key") or "") if e else ""), "e": e}
+
+
+def _pred_best(P, ws, hs):
+    """같은 HS 사전 줄 중 낱말이 가장 많이(무게로) 겹치는 줄 — 같으면 많이 나온 것 · 품명 있는 것"""
+    best, key = None, None
+    for ews, e in P["ents"]:
+        if digits(e.get("hs_code")) != hs:
+            continue
+        ov = sum(_pred_weight(P["cnt"].get(w) or {}) * (1.5 if " " in w else 1.0) for w in ws & ews)
+        if ov <= 0:
+            continue
+        k = (ov, 1 if (e.get("vn_name") or "").strip() and not formula_junk(e.get("vn_name")) else 0, e.get("seen_count") or 0)
+        if key is None or k > key:
+            best, key = e, k
+    return best
+
+
+_MAHANG = re.compile(r"(m[ãa]\s*h[àa]ng\s*:\s*)([^,;]+)", re.I)
+
+
+def predict_vn(index, desc, hs) -> str:
+    """예측 HS 의 품명 — 같은 HS 중 가장 비슷한 사전 품목 품명 · 「mã hàng: 옛 규격」은 새 규격으로 · 없으면 ''."""
+    pr = predict(index, desc)
+    P = index.get("pred") or {"cnt": {}, "ents": []}
+    e = pr["e"] if (pr and pr["hs"] == hs) else _pred_best(P, pred_words(desc), hs)
+    vn = (e.get("vn_name") or "").strip() if e else ""
+    if not vn or formula_junk(vn):
+        return ""
+    new = str(desc or "").strip()
+    return _MAHANG.sub(lambda m: m.group(1) + new, vn, count=1)
+
+
+def suggest_vn(index, desc, hs) -> str:
+    """고르기 단추로 확정할 때의 품명 — KNK-○ 묶음이면 묶음 품명(번호 바꿈) · 아니면 예측 품명"""
+    return family_vn(index, desc, hs) if family_of(desc)[0] else predict_vn(index, desc, hs)
 
 
 # 고르는 사람(본사)이 베트남어를 몰라도 고를 수 있게 — 사전 품명의 그 말을 한국어로 한 줄
@@ -633,19 +758,46 @@ def plan(sc, index, overrides=None) -> list:
                 # z1191n: 사전에 이 규격이 '확인 대기'·'AI 추정'으로 있으면 본사가 그 값을 바로 확정할 수 있다
                 if way == "pending" and e is not None and e.get("part_key") == key and len(dhs) == 8:
                     a["choices"] = [{"hs": dhs, "kind": "dict"}]
-                # z1191z: 사전에 없는 KNK-○ 규격 — 같은 묶음 확정 HS 를 고르기 후보로(자동 채움은 안 함 · 노랑 그대로)
-                if way == "none":
-                    fc = family_choices(index, it["desc"])
-                    if fc:
-                        a["choices"] = fc
-                        a["why"] = "사전에 없음(새 품목) · 같은 묶음 %s 에서 고르기(%s)" % (
-                            fc[0]["fam"], " · ".join("%s %d건" % (c["hs"], c["n"]) for c in fc))
                 if has_vn and not vn0:
                     a["color_vn"] = YELLOW
+                if way in ("none", "ambiguous"):               # z1191z2: 모델 글자가 여러 HS 와 겹친 줄(SM-F971 …)도 품명 낱말로 예측
+                    _guess(a, index, it["desc"], has_vn and not vn0)
             if vn_junk:
                 _junk_done(a, vn_raw)
             acts.append(a)
     return acts
+
+
+def _guess(a, index, desc, need_vn):
+    """z1191z: 사전에 없는 KNK-○ 규격 → 같은 묶음 확정 HS 를 고르기 후보로
+    z1191z2: 그 많은 쪽 HS 를 주황(확인)으로 채운다(다른 HS 는 단추로 남김) · 묶음이 아니면 품명 낱말 예측 —
+             확신 ≥ PRED_MIN 이면 주황으로 채우고 미만이면 노랑 그대로 + 예측 HS 단추. 사전에는 넣지 않는다(확정은 ③ · 본사 단추)."""
+    fc = family_choices(index, desc)
+    if fc:
+        top = fc[0]
+        a["choices"] = fc
+        a.update(status=CHECK, write_hs=top["hs"], color_hs=ORANGE,
+                 why="사전에 없음 · 같은 묶음 %s %s 로 채움(확인)%s" % (
+                     top["fam"], ("같은 번호 " if top["same"] else "많은 쪽 ") + top["hs"],
+                     (" — 묶음 " + " · ".join("%s %d건" % (c["hs"], c["n"]) for c in fc) + " · 다르면 단추") if len(fc) > 1 else ""))
+        if need_vn:
+            v = family_vn(index, desc, top["hs"])
+            a.update(write_vn=v or None, color_vn=ORANGE if v else YELLOW)
+        return
+    pr = predict(index, desc)
+    if not pr:
+        return
+    a["choices"] = [{"hs": pr["hs"], "kind": "predict", "conf": round(pr["conf"], 2), "ex": pr["ex"]}]
+    a["dict_hs"], a["dict_model"] = pr["hs"], pr["ex"]
+    basis = "비슷한 사전 품목 %s · 근거 낱말 %s" % (pr["ex"][:40] or "-", " · ".join(w for w, _h, _p, _n in pr["why"]))
+    if pr["conf"] >= PRED_MIN:
+        a.update(status=CHECK, write_hs=pr["hs"], color_hs=ORANGE, why="%s · 예측(확신 %.2f)으로 채움(확인) — %s" % (
+            "사전에 없음" if a["why"].startswith("사전에 없음") else a["why"], pr["conf"], basis))
+        if need_vn:
+            v = predict_vn(index, desc, pr["hs"])
+            a.update(write_vn=v or None, color_vn=ORANGE if v else YELLOW)
+    else:
+        a["why"] = "%s · 예측 후보 %s(확신 %.2f — 기준 %.1f 미만이라 안 채움) — %s" % (a["why"], pr["hs"], pr["conf"], PRED_MIN, basis)
 
 
 def summary(acts) -> dict:

@@ -387,7 +387,9 @@
       var lab = c.kind === 'file' ? '✓ 적힌 값 ' + c.hs : (a.status === 'CONFLICT' ? '✓ 사전 값 ' : '✓ 이 값 확정 ') + c.hs;
       /* z1191z: 사전에 없는 KNK-○ 규격 — 같은 묶음(KNK-P …)의 확정 HS 를 고른다(몇 건 · 예 규격 · 같은 번호 다른 판이면 표시 · 품명 뜻) */
       if(c.kind === 'family') lab = '✓ ' + c.fam + ' 묶음 ' + c.hs + ' (' + c.n + '건 · 예 ' + c.ex + (c.same ? ' · 같은 번호' : '') + (c.hint ? ' · ' + c.hint : '') + ')';
-      return '<button type="button" class="hf-pick' + (c.kind === 'file' ? ' file' : (c.kind === 'family' ? ' fam' : '')) + '" data-lid="' + esc(lid) + '" data-sheet="' + esc(a.sheet)
+      /* z1191z2: 품명 낱말 예측 HS — 확신 · 가장 비슷한 사전 품목 */
+      if(c.kind === 'predict') lab = '✓ 예측 ' + c.hs + ' 확정 (확신 ' + c.conf + (c.ex ? ' · 비슷한 ' + c.ex : '') + ')';
+      return '<button type="button" class="hf-pick' + (c.kind === 'file' ? ' file' : (c.kind === 'family' || c.kind === 'predict' ? ' fam' : '')) + '" data-lid="' + esc(lid) + '" data-sheet="' + esc(a.sheet)
         + '" data-row="' + esc(a.row) + '" data-hs="' + esc(c.hs) + '" data-desc="' + esc(a.desc) + '" onclick="hfConfirm(this)">' + esc(lab) + '</button>';
     }).join('');
   }

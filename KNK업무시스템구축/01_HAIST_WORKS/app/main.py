@@ -44698,6 +44698,7 @@ async def export_hs_fill_run(req: Request):
 # z1191n (대표 2026-10-27 「사전 확정을 하고 싶을때 어떻게해??」 → 「진행해」): ① 결과에서 본사가 그 줄의 HS 를 고른다.
 #   고를 수 있는 값 = hs_fill.plan 의 choices(적힌 값 ↔ 사전 값 · 모델만 일치한 값 · 사전에 확인 대기로 있는 값)만.
 #   z1191z: + 사전에 없는 KNK-○ 규격이면 같은 묶음(KNK-P …)의 확정 HS — 고르면 품명은 묶음 품명에서 번호만 바꿔 넣는다.
+#   z1191z2: + 품명 낱말 예측 HS(kind='predict') — 고르면 품명은 같은 HS 의 가장 비슷한 사전 품명(mã hàng 만 새 규격).
 #   → 사전 확정(누가·언제·전 값을 note 에) + 이 인보이스 파일을 **올린 원본에서** 다시 만든다(적힌 값과 다르면 그 칸도).
 #   노랑·주황이 다 풀리면 '회신 필요 없음'. ⚠쓰기 잠금을 쥔 채 파일을 다시 만들지 않는다(큰 파일은 1~2초).
 import threading as _hsf_thr
@@ -44778,10 +44779,14 @@ def _hs_fill_confirm_do(lid: int, sheet: str, row: int, hs: str, u) -> dict:
                 _way, e, _memo = _hf.lookup(_idx, a["desc"])
                 vn = (e.get("vn_name") or "").strip() if (e and _hf.digits(e.get("hs_code")) == hs) else ""
                 # z1191z: 같은 묶음(KNK-P …)에서 고른 HS — 품명은 같은 묶음 · 같은 HS 사전 품명에서 번호만 새 규격으로(대표 11-02 「3. 추천」)
-                if not vn and any(ch.get("kind") == "family" and ch.get("hs") == hs for ch in (a.get("choices") or [])):
-                    vn = _hf.family_vn(_idx, a["desc"], hs)
-                    fam = next(ch for ch in a["choices"] if ch.get("kind") == "family" and ch.get("hs") == hs)
-                    note += " · 같은 묶음 %s 값(예 %s)" % (fam.get("fam") or "", fam.get("ex") or "")
+                # z1191z2: 예측 HS(kind='predict')를 고르면 품명은 같은 HS 의 가장 비슷한 사전 품명(mã hàng 만 새 규격)
+                pick = next((ch for ch in (a.get("choices") or []) if ch.get("kind") in ("family", "predict") and ch.get("hs") == hs), None)
+                if not vn and pick:
+                    vn = _hf.suggest_vn(_idx, a["desc"], hs)
+                    if pick.get("kind") == "family":
+                        note += " · 같은 묶음 %s 값(예 %s)" % (pick.get("fam") or "", pick.get("ex") or "")
+                    else:
+                        note += " · 예측 값(확신 %s · 비슷한 %s)" % (pick.get("conf"), (pick.get("ex") or "")[:40])
                 c.execute(
                     "INSERT INTO export_hs_dict(part_key,model,name_en,vn_name,hs_code,origin,status,seen_count,first_seen,last_seen,"
                     "source_file,note,updated_by) VALUES(?,?,?,?,?,'','CONFIRMED',1,?,?,?,?,?)",
