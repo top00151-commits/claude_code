@@ -601,6 +601,7 @@
          위 줄(sumSt2)은 12px 회색 글 한 줄뿐이고, 밑에는 옛 정리가 그대로 보여 **멈춘 것처럼** 보였다.
          → 정리하는 동안은 이 진행 칸(도는 표시 · ⏱ 시계 · 안내)이 위 줄 자리를 대신하고, 옛 정리는 흐리게. #}
       {% if can_edit %}<div id="aiBusy" hidden></div>{% endif %}
+      {% if can_edit %}<div class="mf-hint" id="kleHint" hidden style="margin:-2px 0 6px;font-size:12px;">{{ i.kle_hint }}</div>{% endif %}{# z1202 #}
       <div class="sum-box empty" id="mtgSummary">{{ i.mf_sum_empty }}</div>
       {% if can_edit %}
       {# z1139: 고치기 상자 — 「✏ 고치기」를 누르면 위 정리 글 대신 이 칸이 보인다 #}
@@ -757,6 +758,7 @@
 {% include "_v5_partials/knk_ai_busy.html" %}
 {# z1183: 정리 글 「가벼운 마크다운」 그리기 — 🎤 음성 메모·📄 회의록 양식과 같은 규칙 #}
 {% include "_v5_partials/knk_md_lite.html" %}
+{% include "_v5_partials/knk_line_edit.html" %}{# z1202 #}
 
 <script>
 {# z1159: 자바스크립트가 쓸 말 — 번역 사전(i)에서 한 번만 내려 준다 #}
@@ -959,6 +961,9 @@ var MF = {
   sum_empty: {{ i.mf_sum_empty|tojson }},
   sum_saved: {{ i.mf_sum_saved|tojson }},
   sumedit: {{ i.mf_sumedit|tojson }},
+  kle_saved: {{ i.kle_saved|tojson }}, kle_body_n: {{ i.kle_body_n|tojson }}, kle_body_0: {{ i.kle_body_0|tojson }},   {# z1202 #}
+  kle_dirty: {{ i.kle_dirty|tojson }}, kle_dirty_undo: {{ i.kle_dirty_undo|tojson }}, kle_undo: {{ i.kle_undo|tojson }},
+  kle_undone: {{ i.kle_undone|tojson }}, kle_bad: {{ i.kle_bad|tojson }},
   tab_pause: {{ i.mf_tab_pause|tojson }},
   tab_rec: {{ i.mf_tab_rec|tojson }},
   tab_tail: {{ i.mf_tab_tail|tojson }},
@@ -1145,7 +1150,9 @@ window.__MTG = {
       else { box.textContent = M.summary; box.className = 'sum-box'; }
     }
     else { box.textContent=MF.sum_empty; box.className='sum-box empty'; }
+    box.removeAttribute('data-kle-off');
     syncPrev();
+    kleMark();   // z1202
   }
   //  z1183: 「↩ 이전 정리」 — 다시 정리로 바뀌기 전 정리가 있을 때만 · 말풍선에 언제 것인지
   function syncPrev(){
@@ -1206,6 +1213,8 @@ window.__MTG = {
       var useVi = (VS_LANG === 'vi' && VT.summary);
       box.innerHTML = vsNote() + (useVi ? vsTagVi(vsMd(VT.summary)) : vsMd(M.summary));
       box.className = 'sum-box mdl';
+      box.setAttribute('data-kle-off', useVi ? '1' : '');   // z1202: 번역으로 보는 중엔 그 자리 고치기 끔
+      kleMark();
     };
     var vsRows = function(boxId, items, map){
       if (VS_LANG !== 'vi') return;
@@ -1236,7 +1245,7 @@ window.__MTG = {
         var th = $('viTitleHint');
         if (!th && VT.title){ var ti = $('mtgTitle'); if (ti && ti.parentNode){ th = document.createElement('div'); th.className = 'vi-title-hint'; th.id = 'viTitleHint'; ti.parentNode.appendChild(th); } }
         if (th && VT.title) th.textContent = '🌐 ' + VT.title;
-        renderSummary(); renderDecisions(); renderActions();
+        if (!(window.KNKLineEdit && KNKLineEdit.editing())) { renderSummary(); renderDecisions(); renderActions(); }   // z1202
         if (t.state === 'running') setTimeout(function(){ vsPoll(n + 1); }, 3000);
       }).catch(function(){ setTimeout(function(){ vsPoll(n + 1); }, 6000); });
     };
@@ -1583,6 +1592,7 @@ window.__MTG = {
   var _bSumE=$('btnSumEdit');
   if(_bSumE) _bSumE.addEventListener('click', function(){
     var w=$('sumEditWrap'); if(!w) return;
+    if (window.KNKLineEdit && KNKLineEdit.editing()) KNKLineEdit.finish(false);   // z1202
     sumEditShow(!!w.hidden); sumSt('');
   });
   var _bSumC=$('btnSumCancel');
@@ -1626,6 +1636,70 @@ window.__MTG = {
     } else {
       sumSt((r.data && r.data.error) || MF.save_fail, 'err');
     }
+  });
+
+  // ── z1202 정리 글 그 자리에서 고치기 (대표 2026-11-03 「고치기를 누르면 이 형태가 깨지기 때문에 내가 본 화면이 어디 있는지 찾기가 너무 어려워」) ──
+  //   줄을 누르면 그 줄만 같은 자리에서 고친다(knk_line_edit) · 고친 낱말은 회의 원문에도 같은 글자 전부(대표 선택) · 원문 되돌리기 단추
+  //   🔵 원문 칸에 저장 안 된 고침이 있으면 원문은 건드리지 않는다(그 고침을 덮지 않게) · 번역(베트남어)으로 보는 중엔 끈다
+  function kleLines(box){ return Array.prototype.filter.call(box.children, function(x){ return /(^|\s)md-/.test(x.className); }); }
+  function kleRaws(){ return String(M.summary || '').replace(/\r/g, '').split(KNKLineEdit.NL); }
+  function kleMark(){
+    var box = $('mtgSummary'), h = $('kleHint');
+    if (!box || !CAN_EDIT || !window.KNKLineEdit || !window.KNKMdLite) { if (h) h.hidden = true; return; }
+    var ls = kleLines(box), rs = kleRaws();
+    var off = box.getAttribute('data-kle-off') === '1' || !String(M.summary || '').trim() || ls.length !== rs.length;
+    if (h) h.hidden = off;
+    if (off) return;
+    ls.forEach(function(el, i){ el.setAttribute('data-kle', i); if (!/(^|\s)md-e(\s|$)/.test(el.className)) el.setAttribute('data-kle-on', ''); });
+  }
+  function kleBodyDirty(){ var b = $('mtgBody'); return !!(b && _base.mtgBody != null && String(b.value) !== _base.mtgBody); }
+  function kleBodySet(body){ var b = $('mtgBody'); if (b && body != null){ b.value = body; rebase(['mtgBody']); } }
+  function kleFixToast(d, fix, dirty){
+    var bf = d.body_fix;
+    if (bf && bf.n > 0){
+      kleBodySet(d.body);
+      KNKLineEdit.toast(MF.kle_body_n.replace('{n}', bf.n).replace('{o}', bf.old).replace('{w}', bf['new']), {
+        btn: MF.kle_undo, onBtn: async function(){
+          if (kleBodyDirty()){ KNKLineEdit.toast(MF.kle_dirty_undo, {err: true}); return; }
+          var r = await jreq('POST', '/api/meeting/' + M.id + '/body-fix-undo', { fix_id: bf.id });
+          if (r.ok && r.data && r.data.ok){ kleBodySet(r.data.body); M.base_ts = r.data.updated_at || M.base_ts; KNKLineEdit.toast(MF.kle_undone); }
+          else KNKLineEdit.toast((r.data && (r.data.error || r.data.message)) || MF.save_fail, {err: true});
+        } });
+    }
+    else if (fix && dirty) KNKLineEdit.toast(MF.kle_dirty);
+    else if (fix && bf && bf.n === 0) KNKLineEdit.toast(MF.kle_body_0.replace('{o}', bf.old));
+    else KNKLineEdit.toast(MF.kle_saved);
+  }
+  var _kleBox = $('mtgSummary');
+  if (_kleBox && CAN_EDIT && window.KNKLineEdit) _kleBox.addEventListener('click', function(e){
+    var el = e.target && e.target.closest ? e.target.closest('[data-kle]') : null;
+    if (!el || el.parentNode !== _kleBox || !el.hasAttribute('data-kle-on') || el.isContentEditable) return;
+    var ab = $('aiBusy'); if (ab && !ab.hidden) return;          // 빅터AI 가 다시 정리하는 중
+    var i = +el.getAttribute('data-kle'), raws = kleRaws(), raw = raws[i];
+    if (raw == null) return;
+    KNKLineEdit.begin({ el: el,
+      html: function(){ return KNKMdLite.line(raw).h; },
+      restore: function(){ renderSummary(); },
+      commit: async function(newVis, oldVis){
+        var nr = newVis.trim() ? KNKLineEdit.applyRaw(raw, oldVis, newVis) : '';
+        if (nr === null){ KNKLineEdit.toast(MF.kle_bad, {err: true, ms: 6000}); return false; }
+        var lines = raws.slice();
+        if (newVis.trim()) lines[i] = nr; else lines.splice(i, 1);
+        var txt = lines.join(KNKLineEdit.NL).trim();
+        var fix = KNKLineEdit.fixKey(oldVis, newVis), dirty = kleBodyDirty();
+        var r = await jreq('POST', '/api/meeting/' + M.id + '/summary', { summary: txt, base_ts: M.base_ts, fix: (fix && !dirty) ? fix : null });
+        if (!(r.ok && r.data && r.data.ok)){
+          KNKLineEdit.toast(r.status === 409 ? ((r.data && r.data.message) || MF.conflict) : ((r.data && r.data.error) || MF.save_fail), {err: true, ms: 6000});
+          return false;
+        }
+        M.summary = txt; M.base_ts = r.data.updated_at || M.base_ts;
+        minutesSync(r.data);
+        renderSummary();
+        var nl = _kleBox.querySelector('[data-kle="' + i + '"]');
+        if (nl && newVis.trim()){ nl.classList.add('kle-saved'); setTimeout(function(){ nl.classList.remove('kle-saved'); }, 1400); }
+        kleFixToast(r.data, fix, dirty);
+        return true;
+      } }, e);
   });
 
   var bDel=$('btnDelete'); if(bDel) bDel.addEventListener('click', delMeeting);

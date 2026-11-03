@@ -1,0 +1,162 @@
+{# ============================================================
+   _v5_partials/knk_line_edit.html — 정리 글을 「보이는 모양 그대로」 그 자리에서 고치기 (z1202 · 🗓 회의록 정리 화면 · 📄 회의록 양식)
+   대표 2026-11-03 「고치기를 누르면 이 형태가 깨지기 때문에 내가 본 화면이 어디 있는지 찾기가 너무 어려워」
+                   「여기서 수정한 단어 … 회의 내용 원본에도 틀린 내용이 자동으로 수정이 될 수 있게」
+   · 줄을 누르면 **그 줄만** 같은 자리·같은 글씨로 고치는 칸이 된다(다른 줄은 그대로) · Enter = 저장 · Esc = 취소 · 다른 곳 누르면 저장
+   · 사람은 보이는 글(■ · • · [결정] · 굵게)을 고친다 → 바뀐 부분만 원래 줄(## · - · ** 표시)에 옮긴다.
+     🔴 옮긴 줄을 다시 그려 **보이는 글이 사람이 고친 글과 똑같을 때만** 쓴다(아니면 쓰지 않고 「✏ 고치기」로 안내).
+   · 원문 고침 열쇠(fixKey) = 바뀐 낱말 + 앞뒤 글자(공백 뺀 3글자 이상) — 한 글자만 바꿔도 원문 다른 곳의 그 글자가 바뀌지 않게.
+     숫자 가운데를 고치면 숫자 전체를 열쇠로(「26대」 → 「28대」 가 「126대」를 건드리지 않게). 넣기만 한 것·긴 문장 고침은 원문을 건드리지 않는다.
+   · 누를 수 있는 칸 표시 = data-kle-on 속성(class 를 더하지 않는다 — 양식·정리의 class 를 보는 검사·규칙이 그대로)
+   · 글자 판정은 KNKMdLite(knk_md_lite.html)와 같은 그리기를 쓴다 — 그 파일을 먼저 넣을 것.
+   ============================================================ #}
+<style>
+[data-kle-on] { cursor: text; border-radius: 4px; }
+@media (hover: hover) { [data-kle-on]:hover { background: rgba(250, 204, 21, .16); } }
+.kle-edit { outline: 2px solid rgba(160, 30, 30, .45); outline-offset: 1px; background: #fffbea !important; border-radius: 4px; cursor: text; }
+.kle-busy { opacity: .55; }
+.kle-saved { background: rgba(34, 197, 94, .2) !important; }
+.kle-toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 99999; background: #111827; color: #fff;
+  font-size: 13.5px; line-height: 1.5; padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 22px rgba(0, 0, 0, .28);
+  display: flex; gap: 12px; align-items: center; max-width: 92vw; font-family: inherit; }
+.kle-toast.err { background: #991b1b; }
+.kle-toast button { background: #fff; color: #111827; border: 0; border-radius: 7px; padding: 5px 10px; font-weight: 800;
+  cursor: pointer; font-family: inherit; font-size: 13px; white-space: nowrap; }
+@media print { .kle-toast { display: none !important; } [data-kle-on], .kle-edit { outline: none !important; background: none !important; } }
+</style>
+<script>
+window.KNKLineEdit = window.KNKLineEdit || (function(){
+  var NL = String.fromCharCode(10);
+  //  한 줄(원래 글) → 보이는 글 — 화면이 그리는 것과 같은 그리기
+  function vis(raw){
+    var d = document.createElement('div');
+    d.innerHTML = window.KNKMdLite ? KNKMdLite.line(raw).h : String(raw);
+    return d.textContent;
+  }
+  function norm(s){ return String(s == null ? '' : s).replace(/ /g, ' ').replace(/[\r\n]+/g, ' '); }
+  function diff(a, b){
+    var p = 0; while (p < a.length && p < b.length && a[p] === b[p]) p++;
+    var s = 0; while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+    return { p: p, s: s, o: a.slice(p, a.length - s), n: b.slice(p, b.length - s) };
+  }
+  //  보이는 글의 바뀐 곳 → 원래 줄에 같은 바꿈. 맞는 자리가 여럿이면 보이는 글에서의 자리와 가장 가까운 곳. 없으면 null
+  function applyRaw(raw, oldVis, newVis){
+    if (vis(raw) !== oldVis) return null;
+    var d = diff(oldVis, newVis), best = null, want = oldVis.length ? d.p / oldVis.length : 0;
+    function tryAt(i, len){
+      var c = raw.slice(0, i) + d.n + raw.slice(i + len);
+      if (vis(c) !== newVis) return;
+      var dist = Math.abs((raw.length ? i / raw.length : 0) - want);
+      if (!best || dist < best.dist) best = { c: c, dist: dist };
+    }
+    if (d.o){ for (var i = raw.indexOf(d.o); i >= 0; i = raw.indexOf(d.o, i + 1)) tryAt(i, d.o.length); }
+    else { for (var j = 0; j <= raw.length; j++) tryAt(j, 0); }
+    if (best) return best.c;
+    //  굵은 표시(**) 경계를 넘는 고침 — 그 줄의 굵은 표시를 빼고 한 번 더(보이는 글은 같다)
+    var plain = raw.replace(/\*\*([^*]+?)\*\*/g, '$1');
+    return plain !== raw ? applyRaw(plain, oldVis, newVis) : null;
+  }
+  function ns(x){ return x.replace(/\s/g, '').length; }
+  //  원문 고침 열쇠 {old, new} 또는 null
+  function fixKey(oldVis, newVis){
+    var d = diff(oldVis, newVis);
+    if (!d.o || ns(d.o) === 0) return null;                  // 넣기만 · 띄어쓰기만
+    if (d.o.length > 30 || d.n.length > 30) return null;      // 문장을 새로 쓴 것
+    var a = d.p, b = oldVis.length - d.s, na = d.p, nb = newVis.length - d.s;
+    while (a > 0 && /\d/.test(oldVis[a - 1])){ a--; na--; }
+    while (b < oldVis.length && /\d/.test(oldVis[b])){ b++; nb++; }
+    var k = 0;
+    while (ns(oldVis.slice(a, b)) < 3 && (a > 0 || b < oldVis.length)){
+      if ((k++ % 2 === 0 && b < oldVis.length) || a === 0){ b++; nb++; } else { a--; na--; }
+    }
+    var o = oldVis.slice(a, b), n = newVis.slice(na, nb);
+    var lo = o.length - o.replace(/^\s+/, '').length, ln = n.length - n.replace(/^\s+/, '').length, l = Math.min(lo, ln);
+    o = o.slice(l); n = n.slice(l);
+    var to = o.length - o.replace(/\s+$/, '').length, tn = n.length - n.replace(/\s+$/, '').length, t = Math.min(to, tn);
+    if (t){ o = o.slice(0, o.length - t); n = n.slice(0, n.length - t); }
+    if (ns(o) < 3 || o === n || o.length > 60 || n.length > 80) return null;
+    return { old: o, 'new': n };
+  }
+  var _toastT = null;
+  function toast(msg, opt){
+    opt = opt || {};
+    var old = document.querySelector('.kle-toast'); if (old) old.remove();
+    clearTimeout(_toastT);
+    var t = document.createElement('div');
+    t.className = 'kle-toast' + (opt.err ? ' err' : '');
+    var sp = document.createElement('span'); sp.textContent = msg; t.appendChild(sp);
+    if (opt.btn && opt.onBtn){
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = opt.btn;
+      b.addEventListener('mousedown', function(e){ e.preventDefault(); });
+      b.addEventListener('click', function(){ t.remove(); opt.onBtn(); });
+      t.appendChild(b);
+    }
+    document.body.appendChild(t);
+    _toastT = setTimeout(function(){ t.remove(); }, opt.ms || (opt.btn ? 9000 : 3500));
+  }
+  function caretAt(el, x, y){
+    var r = null;
+    try {
+      if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(x, y);
+      else if (document.caretPositionFromPoint){
+        var p = document.caretPositionFromPoint(x, y);
+        if (p){ r = document.createRange(); r.setStart(p.offsetNode, p.offset); r.collapse(true); }
+      }
+    } catch (_){ r = null; }
+    if (!r || !el.contains(r.startContainer)){ r = document.createRange(); r.selectNodeContents(el); r.collapse(false); }
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  function editable(el, on){
+    if (!on){ el.removeAttribute('contenteditable'); return; }
+    el.contentEditable = 'plaintext-only';
+    if (el.contentEditable !== 'plaintext-only') el.contentEditable = 'true';
+  }
+  /* 한 칸을 그 자리에서 고친다.
+     o.el      : 칸
+     o.html()  : 고치기 시작할 때 칸에 넣을 그림(없으면 그대로)
+     o.commit(newText, oldText) → Promise<bool>  (true = 저장됨 · false = 되돌림)
+     o.restore(): 취소·실패 때 칸을 원래대로 */
+  var _cur = null;
+  function begin(o, ev){
+    if (_cur && _cur.el === o.el) return;
+    if (_cur) finish(true);
+    if (o.html){ var h = o.html(); if (h != null) o.el.innerHTML = h; }
+    var oldText = norm(o.el.textContent);
+    _cur = { el: o.el, o: o, old: oldText, busy: false };
+    editable(o.el, true);
+    o.el.classList.add('kle-edit');
+    try { o.el.focus({ preventScroll: true }); } catch (_){ o.el.focus(); }
+    if (ev && ev.clientX != null) caretAt(o.el, ev.clientX, ev.clientY);
+  }
+  async function finish(save){
+    var c = _cur; if (!c || c.busy) return;
+    var el = c.el, now = norm(el.textContent);
+    editable(el, false); el.classList.remove('kle-edit');
+    if (!save || now === c.old){ _cur = null; c.o.restore(); return; }
+    c.busy = true; el.classList.add('kle-busy');
+    var ok = false;
+    try { ok = await c.o.commit(now, c.old); } catch (_){ ok = false; }
+    el.classList.remove('kle-busy');
+    _cur = null;
+    if (!ok){ c.o.restore(); return; }
+    el.classList.add('kle-saved'); setTimeout(function(){ el.classList.remove('kle-saved'); }, 1400);
+  }
+  document.addEventListener('keydown', function(e){
+    if (!_cur || e.target !== _cur.el) return;
+    if (e.isComposing || e.keyCode === 229) return;          // 한글 조합 중 Enter 는 조합 끝내기
+    if (e.key === 'Enter'){ e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); finish(false); }
+  }, true);
+  document.addEventListener('paste', function(e){
+    if (!_cur || e.target !== _cur.el && !_cur.el.contains(e.target)) return;
+    e.preventDefault();
+    var t = norm((e.clipboardData || window.clipboardData).getData('text'));
+    if (document.execCommand) document.execCommand('insertText', false, t);
+  }, true);
+  document.addEventListener('focusout', function(e){
+    if (_cur && e.target === _cur.el) setTimeout(function(){ if (_cur && document.activeElement !== _cur.el) finish(true); }, 0);
+  }, true);
+  function editing(){ return !!_cur; }
+  return { vis: vis, diff: diff, applyRaw: applyRaw, fixKey: fixKey, toast: toast, begin: begin, finish: finish, editing: editing, NL: NL };
+})();
+</script>

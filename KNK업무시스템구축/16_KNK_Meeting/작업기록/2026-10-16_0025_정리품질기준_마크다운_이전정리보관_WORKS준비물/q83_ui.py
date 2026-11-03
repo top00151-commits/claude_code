@@ -192,7 +192,8 @@ SKEL = """() => { var sh = document.querySelector('.sheet'); if (!sh) return nul
   var c = sh.cloneNode(true); var b = c.querySelector('.body'); if (b) b.innerHTML = '';
   var tb = document.querySelector('.toolbar');
   return { sheet: c.outerHTML, toolbar: tb ? tb.outerHTML : '' }; }"""
-STYLES = "() => Array.from(document.querySelectorAll('style')).map(function(s){ return s.textContent; }).join('\\n')"
+#  z1202: 회의록 양식에 「그 자리에서 고치기」 조각(knk_line_edit)·정리 그리기 조각(knk_md_lite)의 style 이 붙는다 — 양식 CSS 비교 밖
+STYLES = "() => Array.from(document.querySelectorAll('style')).filter(function(s){ return !/kle-toast|\\.mdl /.test(s.textContent); }).map(function(s){ return s.textContent; }).join('\\n')"
 
 pb = pn = None
 try:

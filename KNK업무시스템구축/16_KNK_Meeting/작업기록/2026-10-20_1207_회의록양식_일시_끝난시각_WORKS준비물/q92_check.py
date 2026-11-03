@@ -143,7 +143,9 @@ try:
         for k in WANT_NEW:
             sb_, hb = html(gb, PB, IB[k])
             sn_, hn = html(gn, PN, IN[k])
-            HB[k], HN[k] = hb, hn
+            #  z1202: 고칠 수 있는 사람의 양식엔 「그 자리에서 고치기」 자료 한 줄(회의 고친 시각 포함 — 두 서버가 다르다)이 붙는다 → 비교 밖
+            _k02 = lambda h: re.sub(r"  var K = \{.*?\}, T = ", "  var K = (z1202), T = ", h)
+            HB[k], HN[k] = _k02(hb), _k02(hn)
             cb, cn = CELL.search(hb), CELL.search(hn)
             cb, cn = (cb.group(1).strip() if cb else None), (cn.group(1).strip() if cn else None)
             chk("%s 새것 「%s」" % (k, WANT_NEW[k] or "(빈 칸)"), sn_ == 200 and cn == WANT_NEW[k], (sn_, cn))

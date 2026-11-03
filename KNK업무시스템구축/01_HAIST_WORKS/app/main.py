@@ -4872,6 +4872,8 @@ async def meeting_doc_page(req: Request, mid: int):
             "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
         actions = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
+        _kle_can = _can_edit_meeting(u, m, c)          # z1202: 양식 그 자리에서 고치기
+        _kle_ts = _row_ts(c, "meetings", mid)
         # 종이 양식 '부서/작성자' 칸 — 작성자의 부서까지 함께 읽는다.
         orow = c.execute(
             "SELECT u.name, COALESCE(u.name_vi,'') AS name_vi, COALESCE(u.rank,'') AS rank, "
@@ -4959,6 +4961,10 @@ async def meeting_doc_page(req: Request, mid: int):
         date_disp = _tr_date_vi(date_disp)
         time_disp = (time_disp or "").replace("분)", " phút)")
     _di = get_all_translations(_dlang)
+    # z1202: 고칠 수 있는 사람 + 한국어 양식(번역 보기는 보여 주기만)일 때만 그 자리에서 고친다
+    _kle = ({"id": mid, "ts": _kle_ts, "summary": (m.get("summary") or "").replace("\r\n", "\n").strip()}
+            if (_kle_can and _dlang == "ko") else None)
+    _kle_t = {k: _di.get("kle_" + k, "") for k in ("saved", "body_n", "body_0", "undo", "undone", "bad", "empty", "fail")}
     return tpl.TemplateResponse(request=req, name="meeting_doc.html", context={
         "m": m, "decisions": decisions, "actions": actions, "owner_name": owner_name,
         "owner_disp": owner_disp,
@@ -4967,6 +4973,7 @@ async def meeting_doc_page(req: Request, mid: int):
         "link_proj": link_proj, "link_opp": link_opp,
         "i": _di, "dl": _tr_doc_js(_di), "doc_lang": _dlang, "tr": _dtr,   # z1199
         "tr_back": get_all_translations("vi").get("md_tr_vi", ""),
+        "kle": _kle, "kle_t": _kle_t, "kle_hint": _di.get("kle_hint", ""),   # z1202
     })
 
 
@@ -5623,6 +5630,152 @@ async def api_meeting_update(req: Request, mid: int):
                          "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)})
 
 
+# ════ z1202 (대표 2026-11-03): 정리·결정·할 일에서 고친 낱말 → 회의 원문(body)에도 「같은 글자 전부」 ════
+#   「여기서 수정한 단어 … 회의 내용 원본에도 틀린 내용이 자동으로 수정이 될 수 있게」 · 대표 선택 「같은 글자 전부 자동」
+#   열쇠는 화면(knk_line_edit.fixKey)이 고른다 — 바뀐 낱말 + 앞뒤 글자(공백 뺀 3글자 이상). 여기서 한 번 더 막는다.
+#   되돌리기: 고치기 전·뒤 원문을 meeting_body_fix 에 남기고, 지금 원문이 「뒤」와 같을 때만 「전」으로.
+import re as _re202
+_MTG_BODY_FIX_DDL = ("CREATE TABLE IF NOT EXISTS meeting_body_fix (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                     "meeting_id INTEGER NOT NULL, user_id INTEGER, old_text TEXT, new_text TEXT, n INTEGER, "
+                     "body_before TEXT, body_after TEXT, created_at TEXT DEFAULT (datetime('now','localtime')), "
+                     "undone_at TEXT)")
+
+
+def _mtg_fix_replace(body: str, old: str, new: str):
+    """원문에서 old → new (같은 글자 전부). new 안에 old 가 들어 있으면(「팀장」→「팀장님」) 이미 new 인 곳은 건너뛴다.
+    숫자로 시작·끝나는 열쇠는 더 긴 숫자의 한 조각이면 건너뛴다.
+    돌려줌: (새 글, 바꾼 수)"""
+    k = new.find(old)
+    out, i, n = [], 0, 0
+    while True:
+        p = body.find(old, i)
+        if p < 0:
+            break
+        e = p + len(old)
+        if ((k >= 0 and p - k >= 0 and body[p - k:p - k + len(new)] == new)
+                or (old[0].isdigit() and p > 0 and body[p - 1].isdigit())          # 「26대」가 「126대」를 건드리지 않게
+                or (old[-1].isdigit() and e < len(body) and body[e].isdigit())):
+            out.append(body[i:p + len(old)])
+        else:
+            out.append(body[i:p])
+            out.append(new)
+            n += 1
+        i = p + len(old)
+    out.append(body[i:])
+    return "".join(out), n
+
+
+def _mtg_body_fix(c, u, mid: int, fix):
+    """고친 낱말을 회의 원문에도. 돌려줌: None(열쇠 없음·막힘) 또는 {n, id, old, new, body(바뀐 때만)}"""
+    if not isinstance(fix, dict):
+        return None
+    old, new = str(fix.get("old") or ""), str(fix.get("new") or "")
+    if ("\n" in old or "\n" in new or old == new or len(_re202.sub(r"\s", "", old)) < 3
+            or len(old) > 60 or len(new) > 80):
+        return None
+    row = c.execute("SELECT body FROM meetings WHERE id=?", (mid,)).fetchone()
+    body = (row["body"] if row else "") or ""
+    nb, n = _mtg_fix_replace(body, old, new)
+    res = {"n": n, "id": None, "old": old, "new": new}
+    if not n:
+        return res
+    c.execute(_MTG_BODY_FIX_DDL)
+    # 🔵 z1185 와 같이 「사람이 원문을 고쳤다」 시각도 남긴다
+    c.execute("UPDATE meetings SET body=?, body_edited_at=datetime('now','localtime'), "
+              "updated_at=datetime('now','localtime') WHERE id=?", (nb, mid))
+    cur = c.execute("INSERT INTO meeting_body_fix(meeting_id, user_id, old_text, new_text, n, body_before, body_after) "
+                    "VALUES(?,?,?,?,?,?,?)", (mid, u["id"], old, new, n, body, nb))
+    res.update(id=cur.lastrowid, body=nb)
+    return res
+
+
+def _mtg_body_fix_out(bf):
+    """응답에 싣는 모양 — 원문 글은 바뀐 때만"""
+    if not bf:
+        return {"body_fix": None}
+    out = {"body_fix": {k: bf.get(k) for k in ("n", "id", "old", "new")}}
+    if bf.get("body") is not None:
+        out["body"] = bf["body"]
+    return out
+
+
+@app.post("/api/meeting/{mid:int}/body-fix-undo")
+async def api_meeting_body_fix_undo(req: Request, mid: int):
+    """z1202: 정리에서 고친 낱말로 바뀐 회의 원문을 되돌린다 — 지금 원문이 그 고침 바로 뒤 그대로일 때만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    try:
+        d = await req.json()
+        fid = int((d or {}).get("fix_id") or 0)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "본문을 읽지 못했습니다."}, 400)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m:
+            return JSONResponse({"ok": False, "error": "없는 회의록입니다."}, 404)
+        m = dict(m)
+        if not _can_edit_meeting(u, m, c):
+            return JSONResponse({"ok": False, "error": "수정 권한이 없습니다."}, 403)
+        c.execute(_MTG_BODY_FIX_DDL)
+        r = c.execute("SELECT * FROM meeting_body_fix WHERE id=? AND meeting_id=?", (fid, mid)).fetchone()
+        if not r or r["undone_at"]:
+            return JSONResponse({"ok": False, "error": "되돌릴 고침이 없습니다."}, 400)
+        if (m.get("body") or "") != (r["body_after"] or ""):
+            return JSONResponse({"ok": False, "error": "그 뒤로 회의 원문이 또 바뀌어 되돌리지 않았습니다."}, 409)
+        c.execute("UPDATE meetings SET body=?, updated_at=datetime('now','localtime') WHERE id=?", (r["body_before"], mid))
+        c.execute("UPDATE meeting_body_fix SET undone_at=datetime('now','localtime') WHERE id=?", (fid,))
+        new_ts = _row_ts(c, "meetings", mid)
+    return JSONResponse({"ok": True, "updated_at": new_ts, "body": r["body_before"] or ""})
+
+
+async def _mtg_item_edit(req: Request, mid: int, iid: int, table: str, fields: dict, must: str):
+    """z1202: 📄 회의록 양식 표에서 결정·할 일 한 칸을 그 자리에서 고친다(보낸 칸만). fix = 원문 고침 열쇠."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "본문을 읽지 못했습니다."}, 400)
+    if not isinstance(d, dict):
+        return JSONResponse({"ok": False, "error": "본문을 읽지 못했습니다."}, 400)
+    sets = {}
+    for k, col in fields.items():
+        if d.get(k) is not None:
+            v = _re202.sub(r"[\r\n]+", " ", str(d.get(k))).strip()[:2000]
+            if k == must and not v:
+                return JSONResponse({"ok": False, "error": "내용은 비울 수 없습니다."}, 400)
+            sets[col] = v
+    if not sets:
+        return JSONResponse({"ok": False, "error": "고친 칸이 없습니다."}, 400)
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m or not _can_edit_meeting(u, dict(m), c):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        if not c.execute(f"SELECT id FROM {table} WHERE id=? AND meeting_id=?", (iid, mid)).fetchone():
+            return JSONResponse({"ok": False, "error": "없는 줄입니다."}, 404)
+        if "assignee_name" in sets:
+            sets["assignee_user_id"] = _meeting_match_user_id(c, sets["assignee_name"])
+        c.execute(f"UPDATE {table} SET " + ", ".join(f"{k}=?" for k in sets) + " WHERE id=? AND meeting_id=?",
+                  (*sets.values(), iid, mid))
+        _bf = _mtg_body_fix(c, u, mid, d.get("fix"))
+        new_ts = _row_ts(c, "meetings", mid)
+    _tr_kick("mtg", mid, "edit")   # z1199
+    return JSONResponse({"ok": True, "updated_at": new_ts, **_mtg_body_fix_out(_bf)})
+
+
+@app.post("/api/meeting/{mid:int}/decision/{did:int}/edit")
+async def api_meeting_decision_edit(req: Request, mid: int, did: int):
+    return await _mtg_item_edit(req, mid, did, "meeting_decisions", {"what": "what", "who": "who", "due": "due"}, "what")
+
+
+@app.post("/api/meeting/{mid:int}/action/{aid:int}/edit")
+async def api_meeting_action_edit(req: Request, mid: int, aid: int):
+    return await _mtg_item_edit(req, mid, aid, "meeting_actions",
+                                {"task": "task", "assignee": "assignee_name", "due": "due_date"}, "task")
+
+
 @app.post("/api/meeting/{mid:int}/summary")
 async def api_meeting_summary_save(req: Request, mid: int):
     """z1139 (대표 지시 2026-10-05): 「📋 회의록 정리」 글을 **사람이 바로 고친다**.
@@ -5656,6 +5809,7 @@ async def api_meeting_summary_save(req: Request, mid: int):
         c.execute("UPDATE meetings SET summary=?, summary_edited_at=datetime('now','localtime'), "
                   "updated_at=datetime('now','localtime') WHERE id=?",
                   (summary, mid))
+        _bf = _mtg_body_fix(c, u, mid, d.get("fix"))   # z1202: 고친 낱말 → 회의 원문에도(같은 글자 전부)
         try:    # 누가 고쳤는지 남긴다(AI 정리와 사람이 고친 것을 나중에 가릴 수 있게)
             log_activity(c, u["id"], "meeting_summary_edit",
                          f"{u['name']} 회의록 정리 고침: {(m.get('title') or '')[:60]}",
@@ -5666,7 +5820,8 @@ async def api_meeting_summary_save(req: Request, mid: int):
         _mw = dict(c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone())
     _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True, "updated_at": new_ts, "changed": True,   # z1185: 판정도 함께
-                         "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)})
+                         "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw),
+                         **_mtg_body_fix_out(_bf)})   # z1202
 
 
 def _mtg_ai_items(c, mid: int) -> dict:

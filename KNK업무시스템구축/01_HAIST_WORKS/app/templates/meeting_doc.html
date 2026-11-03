@@ -168,6 +168,7 @@
   <button type="button" class="btn img" id="btnImg" data-title="{{ m.title }}" data-date="{{ m.meeting_date or '' }}">{{ i.md_img }}</button>
   <a class="btn print" href="javascript:void(0)" onclick="window.print()">{{ i.md_print }}</a>
 </div>
+{% if kle %}<div class="toolbar" style="margin-top:6px;justify-content:flex-start;font-size:12px;color:#475569;">{{ kle_hint }}</div>{% endif %}{# z1202 #}
 
 <div class="sheet">
 
@@ -237,8 +238,8 @@
       <thead><tr><th>#</th><th>{{ i.md_dec_h }}</th><th>{{ i.md_dec_who }}</th><th>{{ i.md_due }}</th></tr></thead>
       <tbody>
         {% for d in decisions %}
-        <tr><td class="c">{{ loop.index }}</td><td>{{ d.what }}</td>
-            <td class="c">{{ d.who or '—' }}</td><td class="c">{{ d.due or '—' }}</td></tr>
+        <tr><td class="c">{{ loop.index }}</td><td{% if kle %} data-klec="dec:{{ d.id }}:what" data-v="{{ d.what or '' }}"{% endif %}>{{ d.what }}</td>
+            <td class="c"{% if kle %} data-klec="dec:{{ d.id }}:who" data-v="{{ d.who or '' }}"{% endif %}>{{ d.who or '—' }}</td><td class="c"{% if kle %} data-klec="dec:{{ d.id }}:due" data-v="{{ d.due or '' }}"{% endif %}>{{ d.due or '—' }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -251,9 +252,9 @@
       <thead><tr><th>#</th><th>{{ i.md_act_h }}</th><th>{{ i.md_act_who }}</th><th>{{ i.md_due }}</th></tr></thead>
       <tbody>
         {% for a in actions %}
-        <tr><td class="c">{{ loop.index }}</td><td>{{ a.task }}</td>
-            <td class="c" title="{{ a.assignee_disp or a.assignee_name or '' }}">{{ a.assignee_name or '—' }}</td>
-            <td class="c">{{ a.due_date or '—' }}</td></tr>
+        <tr><td class="c">{{ loop.index }}</td><td{% if kle %} data-klec="act:{{ a.id }}:task" data-v="{{ a.task or '' }}"{% endif %}>{{ a.task }}</td>
+            <td class="c" title="{{ a.assignee_disp or a.assignee_name or '' }}"{% if kle %} data-klec="act:{{ a.id }}:assignee" data-v="{{ a.assignee_name or '' }}"{% endif %}>{{ a.assignee_name or '—' }}</td>
+            <td class="c"{% if kle %} data-klec="act:{{ a.id }}:due" data-v="{{ a.due_date or '' }}"{% endif %}>{{ a.due_date or '—' }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -447,5 +448,103 @@
   });
 })();
 </script>
+{% if kle %}
+{# z1202 (대표 2026-11-03): 양식 그대로 그 자리에서 고치기 — 정리 줄 · 결정·할 일 표 칸 · 고친 낱말은 회의 원문에도(같은 글자 전부) #}
+{% include "_v5_partials/knk_md_lite.html" %}
+{% include "_v5_partials/knk_line_edit.html" %}
+<script>
+(function(){
+  var K = {{ kle|tojson }}, T = {{ kle_t|tojson }};
+  if (!window.KNKLineEdit || !window.KNKMdLite) return;
+  var NL = KNKLineEdit.NL, body = document.querySelector('.sheet .body');
+  if (!body) return;
+  function esc(s){ var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+  function raws(){ return String(K.summary || '').replace(/\r/g, '').split(NL); }
+  function lines(){ return Array.prototype.filter.call(body.children, function(x){ return /(^|\s)ln(\s|$)/.test(x.className) && !/(^|\s)none(\s|$)/.test(x.className); }); }
+  function mark(){
+    var ls = lines(), rs = raws();
+    if (!String(K.summary || '').trim() || ls.length !== rs.length) return;
+    ls.forEach(function(el, i){ el.setAttribute('data-kle', i); if (!/(^|\s)e(\s|$)/.test(el.className)) el.setAttribute('data-kle-on', ''); });
+  }
+  //  정리 줄 다시 그리기 — 서버 양식과 같은 그리기(KNKMdLite.line · 종류 이름이 같다)
+  function redraw(){
+    var ls = lines(), at = ls.length ? ls[0] : null;
+    if (!at) return;
+    raws().forEach(function(r){
+      var x = KNKMdLite.line(r), d = document.createElement('div');
+      d.className = 'ln ' + x.k; d.innerHTML = x.h; body.insertBefore(d, at);
+    });
+    ls.forEach(function(el){ el.remove(); });
+    mark();
+  }
+  async function post(url, data){
+    try {
+      var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), credentials: 'same-origin' });
+      var j = {}; try { j = await r.json(); } catch (_){}
+      return { ok: r.ok, status: r.status, data: j };
+    } catch (e){ return { ok: false, status: 0, data: { error: T.fail } }; }
+  }
+  function fixToast(d, fix){
+    var bf = d.body_fix;
+    if (bf && bf.n > 0){
+      KNKLineEdit.toast(T.body_n.replace('{n}', bf.n).replace('{o}', bf.old).replace('{w}', bf['new']), {
+        btn: T.undo, onBtn: async function(){
+          var r = await post('/api/meeting/' + K.id + '/body-fix-undo', { fix_id: bf.id });
+          if (r.ok && r.data && r.data.ok){ K.ts = r.data.updated_at || K.ts; KNKLineEdit.toast(T.undone); }
+          else KNKLineEdit.toast((r.data && (r.data.error || r.data.message)) || T.fail, { err: true });
+        } });
+    }
+    else if (fix && bf && bf.n === 0) KNKLineEdit.toast(T.body_0.replace('{o}', bf.old));
+    else KNKLineEdit.toast(T.saved);
+  }
+  function failToast(r){ KNKLineEdit.toast((r.data && (r.data.message || r.data.error)) || T.fail, { err: true, ms: 6000 }); }
+  body.addEventListener('click', function(e){
+    var el = e.target && e.target.closest ? e.target.closest('[data-kle],[data-klec]') : null;
+    if (!el || !body.contains(el) || !el.hasAttribute('data-kle-on') || el.isContentEditable) return;
+    if (el.hasAttribute('data-kle')){
+      var i = +el.getAttribute('data-kle'), rs = raws(), raw = rs[i];
+      if (raw == null) return;
+      KNKLineEdit.begin({ el: el,
+        html: function(){ return KNKMdLite.line(raw).h; },
+        restore: function(){ el.innerHTML = KNKMdLite.line(raw).h; },
+        commit: async function(newVis, oldVis){
+          var nr = newVis.trim() ? KNKLineEdit.applyRaw(raw, oldVis, newVis) : '';
+          if (nr === null){ KNKLineEdit.toast(T.bad, { err: true, ms: 6000 }); return false; }
+          var ln = rs.slice(); if (newVis.trim()) ln[i] = nr; else ln.splice(i, 1);
+          var txt = ln.join(NL).trim(), fix = KNKLineEdit.fixKey(oldVis, newVis);
+          var r = await post('/api/meeting/' + K.id + '/summary', { summary: txt, base_ts: K.ts, fix: fix });
+          if (!(r.ok && r.data && r.data.ok)){ failToast(r); return false; }
+          K.summary = txt; K.ts = r.data.updated_at || K.ts;
+          if (!newVis.trim() || nr.split(NL).length !== 1) { redraw(); }
+          else { el.innerHTML = KNKMdLite.line(nr).h; el.className = 'ln ' + KNKMdLite.line(nr).k; }
+          fixToast(r.data, fix);
+          return true;
+        } }, e);
+      return;
+    }
+    //  결정·할 일 표 칸 — data-klec="dec:12:what" · data-v = 저장값(빈칸이면 「—」만 보인다)
+    var p = el.getAttribute('data-klec').split(':'), kind = p[0], id = p[1], f = p[2], v = el.getAttribute('data-v') || '';
+    KNKLineEdit.begin({ el: el,
+      html: function(){ return esc(v); },
+      restore: function(){ el.textContent = v || '—'; },
+      commit: async function(newVal){
+        newVal = newVal.trim();
+        if (newVal === v){ el.textContent = v || '—'; return true; }
+        if (!newVal && (f === 'what' || f === 'task')){ KNKLineEdit.toast(T.empty, { err: true }); return false; }
+        var fix = (f === 'what' || f === 'task') ? KNKLineEdit.fixKey(v, newVal) : null, data = { fix: fix };
+        data[f] = newVal;
+        var r = await post('/api/meeting/' + K.id + '/' + (kind === 'dec' ? 'decision' : 'action') + '/' + id + '/edit', data);
+        if (!(r.ok && r.data && r.data.ok)){ failToast(r); return false; }
+        v = newVal; el.setAttribute('data-v', v); el.textContent = v || '—';
+        K.ts = r.data.updated_at || K.ts;
+        fixToast(r.data, fix);
+        return true;
+      } }, e);
+  });
+  mark();
+  Array.prototype.forEach.call(body.querySelectorAll('[data-klec]'), function(el){ el.setAttribute('data-kle-on', ''); });
+})();
+</script>
+{% endif %}
 </body>
 </html>
