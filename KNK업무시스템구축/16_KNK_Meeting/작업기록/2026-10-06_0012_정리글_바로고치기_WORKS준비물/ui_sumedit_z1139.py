@@ -26,6 +26,13 @@ AI_SUM = ("핵심: 주요 설비의 구매·검수를 일정에 맞춰 마무리
 FIXED = AI_SUM.replace("방앗간 공장", "반월 공장")
 
 
+
+def _raw03(pg):
+    """z1203 (대표 2026-11-04): 「✏ 고치기」는 이제 보이는 모양 그대로 고치기 — 글 상자는 안내 줄의 「줄 넣기·빼기」로 연다(옛 앱엔 없다 → 그대로)"""
+    pg.wait_for_timeout(150)
+    if pg.locator("#btnSumRaw").count() and pg.locator("#btnSumRaw").is_visible():
+        pg.click("#btnSumRaw")
+
 def ok(name, cond, extra=""):
     (OK if cond else NG).append(name)
     print(("  ✅ " if cond else "  ❌ ") + name + (("  — " + str(extra)[:170]) if extra != "" else ""), flush=True)
@@ -77,7 +84,7 @@ def main():
         ok("A1 정리 칸에 「✏ 고치기」가 보인다", p.locator("#btnSumEdit").is_visible())
         ok("A2 처음엔 고치기 상자가 숨어 있다", not p.locator("#sumEditWrap").is_visible())
         ok("A3 정리 글이 AI 가 적은 그대로", "방앗간 공장" in p.locator("#mtgSummary").inner_text())
-        p.click("#btnSumEdit")
+        p.click("#btnSumEdit"); _raw03(p)
         p.wait_for_timeout(350)
         ok("A4 누르면 고치기 글칸이 나온다", p.locator("#sumEdit").is_visible())
         ok("A5 읽기 전용 글상자는 숨는다", not p.locator("#mtgSummary").is_visible())
@@ -106,7 +113,7 @@ def main():
 
         # ══════════ C. 취소 ══════════
         print("\n■ C. 「취소」는 아무것도 안 바꾼다", flush=True)
-        p.click("#btnSumEdit")
+        p.click("#btnSumEdit"); _raw03(p)
         p.wait_for_timeout(300)
         p.fill("#sumEdit", "엉뚱한 글로 바꿔 보기")
         p.click("#btnSumCancel")
@@ -118,7 +125,7 @@ def main():
 
         # ══════════ D. 「🔄 다시 정리」 되묻기 ══════════
         print("\n■ D. 손으로 고친 뒤 「🔄 다시 정리」는 한 번 묻는다", flush=True)
-        p.click("#btnSumEdit")
+        p.click("#btnSumEdit"); _raw03(p)
         p.wait_for_timeout(250)
         p.fill("#sumEdit", FIXED + "\n- 손으로 한 줄 더")
         p.click("#btnSumSave")

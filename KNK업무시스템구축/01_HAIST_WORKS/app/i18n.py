@@ -1453,6 +1453,10 @@ T = {
     "kle_hint": {"ko": "✏ 글을 누르면 그 자리에서 고칩니다 · Enter 저장 · Esc 취소 · 고친 낱말은 회의 원문에도 같이 고쳐집니다",
                  "vi": "✏ Nhấn vào chữ để sửa ngay tại chỗ · Enter lưu · Esc hủy · Từ đã sửa cũng được sửa trong bản gốc cuộc họp"},
     "kle_saved": {"ko": "✓ 저장했습니다", "vi": "✓ Đã lưu"},
+    # z1203 (대표 2026-11-04): 「✏ 고치기」 = 보이는 모양 그대로 고치기 모드
+    "kle_mode": {"ko": "✏ 고치는 중 — 줄을 누르면 그 자리에서 고칩니다 · Enter 저장 · Esc 취소 · 고친 낱말은 원문에도 ·",
+                 "vi": "✏ Đang sửa — nhấn vào dòng để sửa tại chỗ · Enter lưu · Esc hủy · từ đã sửa cũng sửa trong bản gốc ·"},
+    "kle_raw": {"ko": "줄 넣기·빼기", "vi": "Thêm·bớt dòng"},
     "kle_body_n": {"ko": "✓ 저장 · 회의 원문 {n}곳도 「{o}」 → 「{w}」 로 고쳤습니다",
                    "vi": "✓ Đã lưu · Đã sửa {n} chỗ trong bản gốc: 「{o}」 → 「{w}」"},
     "kle_body_0": {"ko": "✓ 저장 · 회의 원문에는 「{o}」 가 없어 정리만 고쳤습니다",

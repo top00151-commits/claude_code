@@ -44,6 +44,13 @@ KNOWN = "Transition was skipped"   # 운영에도 있는 공용 화면 전환 �
 OK = FAIL = 0
 
 
+
+def _raw03(pg):
+    """z1203 (대표 2026-11-04): 「✏ 고치기」는 이제 보이는 모양 그대로 고치기 — 글 상자는 안내 줄의 「줄 넣기·빼기」로 연다(옛 앱엔 없다 → 그대로)"""
+    pg.wait_for_timeout(150)
+    if pg.locator("#btnSumRaw").count() and pg.locator("#btnSumRaw").is_visible():
+        pg.click("#btnSumRaw")
+
 def chk(name, cond, detail=""):
     global OK, FAIL
     if cond:
@@ -467,7 +474,7 @@ try:
             "사람이 적은 결정" in d0 and "사람이 적은 할 일" in a0 and "일일카드로 보낸 AI 할 일" in a0, (d0, a0))
         gn.goto(U(PN, "/meetings/%d" % MQ), wait_until="domcontentloaded")
         gn.wait_for_selector("#btnSumEdit", timeout=20000)
-        gn.click("#btnSumEdit")
+        gn.click("#btnSumEdit"); _raw03(gn)
         gn.wait_for_timeout(300)
         raw = gn.input_value("#sumEdit")
         chk("✏ 고치기 칸엔 **원래 글**(## · ** 그대로)", raw.startswith("## 핵심") and "**" in raw, raw[:30])

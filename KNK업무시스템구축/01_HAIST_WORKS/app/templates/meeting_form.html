@@ -209,6 +209,13 @@
   color: var(--qv-ink); font-family:inherit; white-space:pre-wrap; resize:vertical; }
 #sumEdit:focus { outline:2px solid rgba(160,30,30,.35); outline-offset:1px; }
 #btnSumEdit { color: var(--knk-red); border-color: var(--knk-red); font-weight:800; }
+/* z1203 (대표 2026-11-04 「고치기를 눌렀을 때도 사진 1 형태가 유지되는 상태에서 고칠 수 있게」):
+   「✏ 고치기」 = 보이는 모양 그대로 — 고칠 수 있는 줄에 옅은 점선(outline 이라 자리·높이 그대로) · 위에 안내 띠 */
+.kle-modebar { margin:-2px 0 6px; font-size:12px; color:#b45309; font-weight:700; }   /* 안내 줄(kleHint)과 같은 자리·크기 — 바뀌어도 정리가 안 밀린다 */
+.kle-modebar[hidden] { display:none !important; }
+.kle-rawbtn { margin-left:6px; border:0; background:none; color:#1d4ed8; text-decoration:underline; cursor:pointer; font:inherit; padding:0; }
+#mtgSummary[data-kle-mode] [data-kle-on] { outline:1px dashed rgba(160,30,30,.30); outline-offset:1px; }
+#mtgSummary[data-kle-mode] .kle-edit { outline:2px solid rgba(160,30,30,.45); }
 /* 🔴 .sum-box / div 의 display 가 hidden 속성을 덮는다 — 이겨야 서로 바꿔 보인다 */
 #sumEditWrap[hidden], #mtgSummary[hidden] { display:none !important; }
 /* ── 📁 파일 고르기 입력칸 숨기기 — z1141 (아이폰 신고 2026-10-06) ──
@@ -602,6 +609,7 @@
          → 정리하는 동안은 이 진행 칸(도는 표시 · ⏱ 시계 · 안내)이 위 줄 자리를 대신하고, 옛 정리는 흐리게. #}
       {% if can_edit %}<div id="aiBusy" hidden></div>{% endif %}
       {% if can_edit %}<div class="mf-hint" id="kleHint" hidden style="margin:-2px 0 6px;font-size:12px;">{{ i.kle_hint }}</div>{% endif %}{# z1202 #}
+      {% if can_edit %}<div class="kle-modebar" id="kleModeBar" hidden>{{ i.kle_mode }} <button type="button" class="kle-rawbtn" id="btnSumRaw">{{ i.kle_raw }}</button></div>{% endif %}{# z1203 #}
       <div class="sum-box empty" id="mtgSummary">{{ i.mf_sum_empty }}</div>
       {% if can_edit %}
       {# z1139: 고치기 상자 — 「✏ 고치기」를 누르면 위 정리 글 대신 이 칸이 보인다 #}
@@ -1590,10 +1598,28 @@ window.__MTG = {
     if(on){ var t2=$('sumEdit'); if(t2){ try{ t2.focus(); }catch(_){} } }
   }
   var _bSumE=$('btnSumEdit');
+  //  z1203 (대표 2026-11-04 「고치기를 누르면 사진 1 상태에서 사진 2 상태로 변하는데 형태가 틀어지니까 어디를 고치려고 했는지 다시 찾기가 너무 어려워」):
+  //   「✏ 고치기」 = 보이는 모양 그대로 고치기 모드(줄에 점선 · 안내 띠) — 글 상자로 바꾸지 않는다.
+  //   글 상자(줄 넣기·빼기)는 안내 띠의 「글 전체로 고치기」로만 · 줄 고치기를 못 하는 때(번역으로 보는 중 등)는 예전처럼 글 상자.
+  function kleModeSet(on){
+    var box=$('mtgSummary'), bar=$('kleModeBar'), b=$('btnSumEdit'), h=$('kleHint');
+    if(box){ if(on) box.setAttribute('data-kle-mode',''); else box.removeAttribute('data-kle-mode'); }
+    if(bar) bar.hidden = !on;
+    if(b) b.textContent = on ? MF.edit_stop : MF.sumedit;
+    if(h && on) h.hidden = true; else if(!on) kleMark();
+  }
   if(_bSumE) _bSumE.addEventListener('click', function(){
-    var w=$('sumEditWrap'); if(!w) return;
+    var w=$('sumEditWrap'), box=$('mtgSummary'); if(!w) return;
     if (window.KNKLineEdit && KNKLineEdit.editing()) KNKLineEdit.finish(false);   // z1202
-    sumEditShow(!!w.hidden); sumSt('');
+    if (!w.hidden){ sumEditShow(false); sumSt(''); kleModeSet(false); return; }       // 글 상자 → 닫기
+    if (box && box.hasAttribute('data-kle-mode')){ kleModeSet(false); return; }        // 고치기 모드 → 끝
+    if (box && box.querySelector('[data-kle-on]')){ kleModeSet(true); return; }        // 보이는 모양 그대로
+    sumEditShow(true); sumSt('');
+  });
+  var _bSumR=$('btnSumRaw');
+  if(_bSumR) _bSumR.addEventListener('click', function(){
+    if (window.KNKLineEdit && KNKLineEdit.editing()) KNKLineEdit.finish(false);
+    kleModeSet(false); sumEditShow(true); sumSt('');
   });
   var _bSumC=$('btnSumCancel');
   if(_bSumC) _bSumC.addEventListener('click', function(){ sumEditShow(false); sumSt(''); });
@@ -1648,7 +1674,7 @@ window.__MTG = {
     if (!box || !CAN_EDIT || !window.KNKLineEdit || !window.KNKMdLite) { if (h) h.hidden = true; return; }
     var ls = kleLines(box), rs = kleRaws();
     var off = box.getAttribute('data-kle-off') === '1' || !String(M.summary || '').trim() || ls.length !== rs.length;
-    if (h) h.hidden = off;
+    if (h) h.hidden = off || box.hasAttribute('data-kle-mode');   // z1203: 고치기 모드면 안내 띠가 대신
     if (off) return;
     ls.forEach(function(el, i){ el.setAttribute('data-kle', i); if (!/(^|\s)md-e(\s|$)/.test(el.className)) el.setAttribute('data-kle-on', ''); });
   }

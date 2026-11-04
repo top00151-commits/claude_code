@@ -301,6 +301,10 @@ try:
         pg.wait_for_timeout(300)
         pg.locator("#btnSumEdit").click()
         pg.wait_for_timeout(120)
+        #  z1203: 「✏ 고치기」 = 보이는 모양 그대로 — 글 상자는 안내 줄의 「줄 넣기·빼기」로 연다(옛 앱엔 없다 → 그대로)
+        if pg.locator("#btnSumRaw").count() and pg.locator("#btnSumRaw").is_visible():
+            pg.locator("#btnSumRaw").click()
+            pg.wait_for_timeout(120)
         mt = pg.evaluate("() => { const t = document.querySelector('#sumEdit').getBoundingClientRect(), p = document.querySelector('#sumEditWrap').getBoundingClientRect(); return {w: t.width, pw: p.width, h: t.height}; }")
         chk("회의록 고치기 칸은 원래부터 꽉 참(같은 병 없음)", abs(mt["w"] - mt["pw"]) <= 1 and mt["w"] > 800, "칸 %.0f / %.0f · 높이 %.0f" % (mt["w"], mt["pw"], mt["h"]))
         ctx.close()
