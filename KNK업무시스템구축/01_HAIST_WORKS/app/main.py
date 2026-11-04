@@ -18445,6 +18445,28 @@ def _so_is_parts974(c, oid) -> bool:
         return False
 
 
+def _so_is_semi_z4c(c, oid) -> bool:
+    """z1191z4c (이새롬 프로 요청 · 대표 결정): 이 수주가 「제품」인가 — 상세 수주 카드 배지와 **같은 판정**
+    (get_project_orders → so_form_label_key: so_form · so_type · 'N호기' 줄 수 · 프로젝트 유형) +
+    프로젝트 형태가 제품(SEMI)인 경우. 소모품 프로젝트·상품은 아니다(각자 경로가 따로 있다)."""
+    import re as _re_s
+    o = c.execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
+    if not o:
+        return False
+    o = dict(o)
+    pr = c.execute("SELECT COALESCE(project_type,'NEW_EQUIP') AS pt, COALESCE(shipment_form,'') AS sf "
+                   "FROM projects WHERE id=?", (o.get("project_id"),)).fetchone()
+    pt = ((pr["pt"] if pr else "") or "NEW_EQUIP").upper()
+    psf = ((pr["sf"] if pr else "") or "").upper()
+    if pt == "CONSUMABLE" or psf == "PARTS":   # 화면도 이 둘은 소모품·상품 칸(제품 표 아님)
+        return False
+    labels = [r[0] or "" for r in c.execute("SELECT unit_label FROM order_items WHERE order_id=?", (oid,))]
+    hogi_n = sum(1 for l in labels if _re_s.match(r"^\d+", l))
+    key = _pwf.so_form_label_key(so_form=o.get("so_form"), so_type=o.get("so_type"),
+                                 shipment_form=o.get("shipment_form"), hogi_n=hogi_n, proj_ptype=pt)[1]
+    return key == "semi" or (psf == "SEMI" and key not in ("parts", "consumable", "etc"))
+
+
 @app.post("/projects/{pid:int}/import-parts-lines/confirm")
 async def projects_import_parts_confirm(req: Request, pid: int):
     """v5H226z: 정식 PACKING LIST 라인 일괄 INSERT.
@@ -19246,6 +19268,7 @@ async def sales_order_item_delete(req: Request, iid: int):
         del_amt = float(it["amt"] or 0)
         old_total = float(it["old_total"] or 0)
         _isp974 = _so_is_parts974(c, oid)  # v5H226z1018b: 상품 여부 (unit_qty 보존 + 이력 표현 공용)
+        _issemi = (not _isp974) and _so_is_semi_z4c(c, oid)   # z1191z4c: 제품 — 수량 = 품목 수량 합
         c.execute("DELETE FROM order_items WHERE id=?", (iid,))
         # SO 재계산
         rows = c.execute(
@@ -19254,6 +19277,9 @@ async def sales_order_item_delete(req: Request, iid: int):
         ).fetchall()
         new_total = sum(float(r["amount"] or 0) for r in rows)
         new_qty = max(1, len(rows))
+        if _issemi:
+            new_qty = max(1, int(float(c.execute("SELECT COALESCE(SUM(qty),0) FROM order_items WHERE order_id=?",
+                                                 (oid,)).fetchone()[0] or 0)))
         new_label = " · ".join((r["unit_label"] or f"호기 {i+1}") for i, r in enumerate(rows))
         if _isp974:
             # v5H226z974: 상품 SO — unit_qty(완제품 대분) 보존, 합계·라벨만 재계산
@@ -19271,7 +19297,10 @@ async def sales_order_item_delete(req: Request, iid: int):
             pass
         # v5H100: 삭제 이력  (v5H226z1018b: 상품은 '부품 행' 표현)
         try:
-            if _isp974:
+            if _issemi:
+                note_msg = (f"품목 줄 삭제 [{del_lbl}] · 금액 {del_amt:,.0f} 제거 · "
+                            f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
+            elif _isp974:
                 note_msg = (f"부품 행 삭제 [{del_lbl}] · 금액 {del_amt:,.0f} 제거 · "
                             f"SO 합계 {old_total:,.0f} → {new_total:,.0f}")
             else:
@@ -19301,7 +19330,8 @@ async def sales_orders_add_unit(req: Request, oid: int):
     label = (form.get("label") or "").strip()
     raw_a = (form.get("amount") or "0").strip().replace(",", "")
     note  = (form.get("note") or "").strip()
-    _af1173 = _z1173_autofill_guard(u, [("비고", note), ("호기", label)])   # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기
+    spec_v = (form.get("spec") or "").strip()[:200]   # z1191z4c: 제품 품목 규격
+    _af1173 = _z1173_autofill_guard(u, [("비고", note), ("호기", label), ("규격", spec_v)])   # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기
     if _af1173:
         return JSONResponse({"ok": False, "message": _z1173_autofill_msg(_af1173)}, 400)
     cur_v = (form.get("currency") or "").strip().upper() or "KRW"
@@ -19365,8 +19395,10 @@ async def sales_orders_add_unit(req: Request, oid: int):
             items_in_project = 0
         # v5H226z974 (대표 지시): 상품(PARTS) SO 는 unit_qty='완제품 몇 대분' 보존 — 부품 추가로 증가시키지 않음
         _isp974 = _so_is_parts974(c, oid)
+        # z1191z4c: 제품 수주 = 품목 1줄(수량 N · 금액 = 단가×N) — 호기로 나누지 않고 'N호기' 이름도 안 붙인다
+        _issemi = (not _isp974) and _so_is_semi_z4c(c, oid)
         # v5H226z1018: 장비(호기) 상한 100대는 그대로 — 상품은 낱개 수량이라 위 9999 상한만 적용
-        if not _isp974 and bulk_qty > 100:
+        if not _isp974 and not _issemi and bulk_qty > 100:
             return JSONResponse({"ok": False, "message": "한 번에 100대 초과 불가"}, 400)
         # v5H110: 시작 라벨에서 숫자 추출 → bulk 시 N개 자동 증가
         import re as _re
@@ -19381,7 +19413,7 @@ async def sales_orders_add_unit(req: Request, oid: int):
         #   기존엔 장비 호기 로직(수량 N=호기 N줄)이 상품에도 적용돼 'CYLINDER 12개'가 12줄(CYLINDER·2호기~12호기)로
         #   쪼개짐(2026-07-16 M-260707-1 실사례·대표 신고). 상품 줄=부품 1종(qty=낱개 수량) —
         #   등록폼(z430)·상품 양식 업로드(import-parts-lines)와 동일 규칙. 장비·소모품=기존 그대로(대표 승인: 상품만).
-        if _isp974:
+        if _isp974 or _issemi:
             labels_bulk = [label or "(품명 미입력)"]
         else:
             # bulk_qty 만큼 라벨 생성: ['5호기', '6호기', ...]
@@ -19389,7 +19421,13 @@ async def sales_orders_add_unit(req: Request, oid: int):
             # bulk 0번째가 사용자 입력 커스텀 라벨이면 그대로 첫 라벨 사용
             if label and not _re.match(r"^\d+호기$", label):
                 labels_bulk[0] = label  # 커스텀 라벨 유지, 나머지는 N호기 형식
-        new_qty = int(cur["unit_qty"] or 1) if _isp974 else (items_in_so + bulk_qty)
+        if _isp974:
+            new_qty = int(cur["unit_qty"] or 1)
+        elif _issemi:   # z1191z4c: 제품 SO 수량 = 품목 수량 합(z1050 규칙)
+            new_qty = int(float(c.execute("SELECT COALESCE(SUM(qty),0) FROM order_items WHERE order_id=?",
+                                          (oid,)).fetchone()[0] or 0)) + bulk_qty
+        else:
+            new_qty = items_in_so + bulk_qty
         new_total = float(cur["total_amount"] or 0) + amt * bulk_qty
         old_lbl = (cur["unit_label"] or "").strip()
         new_lbl = (old_lbl + " · " + " · ".join(labels_bulk)) if old_lbl else " · ".join(labels_bulk)
@@ -19402,8 +19440,8 @@ async def sales_orders_add_unit(req: Request, oid: int):
             _oicols_au = set()
         _has_cm = ("cost_price" in _oicols_au) and ("margin_pct" in _oicols_au)
         # v5H226z1018: 장비=호기 N줄(각 qty=1·금액=단가) / 상품=품명 1줄(qty=낱개 N·금액=단가×N)
-        _row_qty = bulk_qty if _isp974 else 1
-        _row_amt = round(amt * bulk_qty, 2) if _isp974 else amt
+        _row_qty = bulk_qty if (_isp974 or _issemi) else 1
+        _row_amt = round(amt * bulk_qty, 2) if (_isp974 or _issemi) else amt
         for _lbl in labels_bulk:
             try:
                 if _has_cm and (_cost_v is not None):
@@ -19420,6 +19458,10 @@ async def sales_orders_add_unit(req: Request, oid: int):
                     )
             except Exception:
                 pass
+        # z1191z4c: 제품 품목 규격(칸이 있을 때) — 방금 넣은 1줄
+        if _issemi and spec_v and "spec" in _oicols_au:
+            c.execute("UPDATE order_items SET spec=? WHERE id=(SELECT MAX(id) FROM order_items WHERE order_id=?)",
+                      (spec_v, oid))
         # orders 누적 (+ currency 필요 시 갱신)
         try:
             c.execute(

@@ -103,7 +103,8 @@ def main():
     h = r.text
     check("상세 화면 200", r.status_code == 200, r.status_code)
     card = h[h.find('data-soid="%d"' % oid):]
-    check("수주 카드에 「＋ 호기 추가」 단추(잠금 상태에서도 그려짐)", 'class="btn-mini primary add-unit">＋ 호기 추가<' in card)
+    # z1191z4c: 이 수주는 'N호기' 줄이 없어 배지가 「제품」 → 단추 이름이 「＋ 품목 추가」(같은 add-unit 단추)
+    check("수주 카드에 추가 단추(잠금 상태에서도 그려짐 · 제품 수주라 「＋ 품목 추가」)", 'class="btn-mini primary add-unit">＋ 품목 추가<' in card)
     check("× 칸 헤더 = 「삭제」(예전 「수정」 아님)", '<th class="center edit-only" style="width:80px;">삭제</th>' in card
           and '<th class="center edit-only" style="width:80px;">수정</th>' not in h)
     check("줄마다 삭제(×) 단추 3개", card.count('class="row-del"') >= 3, card.count('class="row-del"'))

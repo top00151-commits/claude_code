@@ -679,6 +679,9 @@
                 <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'add')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주에 부품을 '추가'합니다(기존 부품 유지·여러 번 나눠 올리기 가능). 관리번호·수주번호 유지 / 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 부품 추가 업로드</button>
                 <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 전체 교체</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 부품 추가</button>
+                {% elif (so.form_key == 'semi' or (p.shipment_form or '')|upper == 'SEMI') %}
+                {# z1191z4c (이새롬 프로 요청 · 대표 결정): 제품 수주는 호기가 없다 — 「＋ 품목 추가」(1줄 · 수량 N) #}
+                <button type="button" class="btn-mini primary add-unit">＋ 품목 추가</button>
                 {% else %}
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
                 {% endif %}
@@ -735,7 +738,8 @@
                **규격 칸이 아예 없어 저장한 규격이 사라진 것처럼 보였다**(실측: THES123-SK 안 보임).
                → 제품이면 '호기' 대신 **품명**으로 부르고 **규격·수량 칸을 연다**(§4 규칙 14: 보여주는 곳엔 고치는 자리도).
                ⛔완제품·상품·소모품 판정은 건드리지 않는다 — 제품일 때만 칸 2개가 늘어난다. #}
-            {% set _is_semi = _is_equip and ((p.shipment_form or '')|upper == 'SEMI') %}
+            {# z1191z4c: 혼합 프로젝트(완제품+제품)의 제품 수주도 제품 표로 — 수주별 「제품」 배지(form_key)와 같은 기준 #}
+            {% set _is_semi = _is_equip and (((p.shipment_form or '')|upper == 'SEMI') or so.form_key == 'semi') %}
             {% set _is_fx_view = (_is_parts and _so_ccy != 'KRW') %}
             {# v5H226z609: 매입/판매 칸의 통화 단위 — _pfx면 KRW환산값=KRW, fx뷰(환율없음)면 외화, 그외 KRW #}
             {# v5H226z738(대표 지시): z735로 cost_krw/sell_krw(KRW 원본)가 저장된 수출 부품은 매입/판매 값을 'KRW'로 표시한다 →
@@ -818,7 +822,7 @@
                   <th class="px-x" style="width:160px;" data-pgroup="basic">상세 내용</th>
                   {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
-                  <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(1대)</span>{% endif %}</th>
+                  <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">{% if _is_semi %}(1개){% else %}(1대){% endif %}</span>{% endif %}</th>{# z1191z4c: 제품 = 1개 단가 #}
                   {# v5H226z634 (대표 지시): 완제품 금액 칸(=호기 라인 금액) #}
                   {% if _is_equip and can_sales_amt %}<th class="num px-x" style="width:120px;background:#fef9e6;">금액</th>{% endif %}
                   <th class="px-x" style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
@@ -1136,9 +1140,10 @@
             {% if _editable %}
             {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
             {% set _is_parts_add = ((so.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}
+            {% set _is_semi_add = (not _is_parts_add) and (not _is_co) and (so.form_key == 'semi' or (p.shipment_form or '')|upper == 'SEMI') %}{# z1191z4c #}
             <div class="add-unit-card">
               <div class="row">
-                <span style="font-weight:700;color:var(--amber-deep);">{% if _is_parts_add %}＋ 부품 추가{% elif _is_co %}＋ 항목 추가{% else %}＋ 호기 추가{% endif %}</span>
+                <span style="font-weight:700;color:var(--amber-deep);">{% if _is_parts_add %}＋ 부품 추가{% elif _is_co %}＋ 항목 추가{% elif _is_semi_add %}＋ 품목 추가{% else %}＋ 호기 추가{% endif %}</span>
                 {% if _is_parts_add %}
                 <input type="text" name="label" placeholder="품명 (예: CYLINDER)" style="flex:1;min-width:160px;" title="부품 품명">
                 <input type="number" name="qty" min="1" max="9999" value="1" style="width:70px;text-align:center;" title="수량">
@@ -1152,6 +1157,12 @@
                 <input type="text" name="label" placeholder="품명 (예: 릴레이 24V)" style="flex:1;min-width:200px;" title="소모품 항목명">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="수량">
                 <span style="color:var(--mute);font-size:12px;">EA ×</span>
+                {% elif _is_semi_add %}
+                {# z1191z4c: 제품 = 품목 1줄(수량 N · 금액 = 단가×N) — 호기로 나누지 않는다(신규 등록 z1050 · 추가 발주 z1084 와 같은 규칙) #}
+                <input type="text" name="label" placeholder="품명 (예: TOP PIN BLOCK)" style="flex:1;min-width:180px;" title="제품 품명">
+                <input type="text" name="spec" placeholder="규격 (선택)" style="width:150px;" title="규격" autocomplete="off">
+                <input type="number" name="qty" min="1" max="9999" value="1" style="width:75px;text-align:center;" title="수량">
+                <span style="color:var(--mute);font-size:12px;">개 ×</span>
                 {% else %}
                 <input type="text" name="label" placeholder="시작 라벨 (비우면 자동: N호기)" style="width:200px;" title="예: '5호기' + 수량 10대 → 5호기~14호기 자동 생성">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="동일 단가로 N대 한 번에 추가">
@@ -1165,7 +1176,7 @@
                   <option value="CNY" {% if _cur == 'CNY' %}selected{% endif %}>CNY</option>
                   <option value="EUR" {% if _cur == 'EUR' %}selected{% endif %}>EUR</option>
                 </select>
-                <input type="text" name="amount" inputmode="numeric" placeholder="단가 (1대당)" class="amt knk-money">
+                <input type="text" name="amount" inputmode="numeric" placeholder="{% if _is_semi_add %}단가 (1개당){% else %}단가 (1대당){% endif %}" class="amt knk-money">
                 <input type="text" name="note" placeholder="비고 (선택)" class="note" autocomplete="off">
                 <button type="button" class="save-btn">저장</button>
                 <button type="button" class="cancel-btn">취소</button>
@@ -1182,6 +1193,9 @@
                 {% set _ppq974 = ((so.units|map(attribute='qty')|select|map('int')|sum) if so.units else 0) %}
                 <span>수량 <b>{% if (so.unit_qty or 1)|int >= 2 %}완제품 {{ so.unit_qty }}대분{% else %}1식{% endif %}</b>
                   {%- if so.items_n %} <span style="color:var(--mute);font-weight:500;">· 부품 {{ so.items_n }}종 {{ '{:,}'.format(_ppq974|int) }}개</span>{% endif %}</span>
+                {% elif _is_semi %}
+                {# z1191z4c: 제품 줄은 「대」로 세지 않는다 #}
+                <span>품목 <b>{{ so.items_n }}</b> · 수량 <b>{{ _qq }}개</b></span>
                 {% else %}
                 <span>수량 <b>{{ _qq }}대</b></span>
                 {% endif %}
@@ -1210,9 +1224,12 @@
         {# z1097 (대표 지시 2026-09-10): 금액 누적(t) 폐기 — 통화를 안 보고 더해
            원화와 달러가 한 숫자로 붙었다. 금액은 서버 so_total_bd(통화별)만 쓴다.
            아래 q/pm/pp/ps 는 '수량' 집계라 통화와 무관하므로 그대로 둔다. #}
-        {% set _gtotal = namespace(q=0, pm=0, pp=0, ps=0) %}
+        {% set _gtotal = namespace(q=0, pm=0, pp=0, ps=0, sq=0) %}
         {% for _so in project_orders %}
-          {% if _so.form_key == 'parts' %}
+          {% set _semi_g = ((p.project_type or '')|upper != 'CONSUMABLE') and (_so.form_key == 'semi' or ((p.shipment_form or '')|upper == 'SEMI' and _so.form_key != 'parts')) %}{# z1191z4c #}
+          {% if _semi_g %}
+            {% set _gtotal.sq = _gtotal.sq + ((_so.units|map(attribute='qty')|select|map('int')|sum) if _so.units else (_so.unit_qty or 1)) %}
+          {% elif _so.form_key == 'parts' %}
             {% set _gtotal.ps = _gtotal.ps + 1 %}
             {% if (_so.unit_qty or 1)|int >= 2 %}{% set _gtotal.pm = _gtotal.pm + (_so.unit_qty|int) %}{% endif %}
             {% set _gtotal.pp = _gtotal.pp + ((_so.units|map(attribute='qty')|select|map('int')|sum) if _so.units else 0) %}
@@ -1285,7 +1302,7 @@
         </script>
         <div class="so-grand-total">
           <div>
-            <div class="label">총 수주번호 {{ project_orders|length }}건{% if _gtotal.q %} · 총 수량 {{ _gtotal.q }}대{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% else %}{{ _gtotal.ps }}식{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
+            <div class="label">총 수주번호 {{ project_orders|length }}건{% if _gtotal.q %} · 총 수량 {{ _gtotal.q }}대{% endif %}{% if _gtotal.sq %} · 제품 {{ _gtotal.sq }}개{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% else %}{{ _gtotal.ps }}식{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
           </div>
           <div class="value">
             {% if can_sales_amt %}
@@ -1659,6 +1676,8 @@
                 if (qtyInp) body.set('qty', qtyInp.value || '1');
                 const curSel = addCard.querySelector('select[name="cur"]');
                 if (curSel) body.set('currency', curSel.value);
+                const specInpA = addCard.querySelector('input[name="spec"]');   // z1191z4c: 제품 규격
+                if (specInpA) body.set('spec', specInpA.value || '');
                 // v5H226z460: 매입단가·마진% 전송 (마진은 등록 후 정리 가능 → 매입가만으로도 추가 허용)
                 const _hasCost = addCostInp && parseFloat((addCostInp.value||'0').replace(/,/g,'')) > 0;
                 if (addCostInp && addCostInp.value) body.set('cost_price', (addCostInp.value||'').replace(/,/g,''));
@@ -2106,7 +2125,9 @@
                (부품·소모품처럼 '대' 단위가 아닌 프로젝트는 곱셈이 성립하지 않아 숨는다.
                 금액 자체는 바로 위 '수주액'에 이미 정확히 나와 있다.) #}
             {% set _sum_ok = _pq and _pp and (((_pp * _pq) - _displayed_amt)|abs) < 1 %}
-            {% if _displayed_amt and _sum_ok %}
+            {# z1191z4c: 제품 줄이 섞이면 「× N대」가 거짓이 된다 → 숨김(금액 합계·수주별 목록은 위·아래 그대로) #}
+            {% set _has_semi0 = ((p.shipment_form or '')|upper == 'SEMI') or ((all_units_sorted or [])|selectattr('form_key', 'equalto', 'semi')|list|length > 0) %}
+            {% if _displayed_amt and _sum_ok and not _has_semi0 %}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:4px;line-height:1.5;">
               단가 <b style="color:var(--ink);">{{ money(_pp, p.currency or 'KRW') }}</b>{% if _uneven %}<span style="font-size:10px;" title="호기마다 단가가 달라 평균으로 보여줍니다 — 호기별 금액은 아래 목록 참조">(평균)</span>{% endif %} × <b style="color:var(--ink);" {% if _units_n %}title="실제 등록된 호기 수 (수주 {{ project_orders|length }}건 합계)"{% endif %}>{{ _pq }}대</b> = <b style="color:var(--knk-red);">{{ money(_displayed_amt, p.currency or 'KRW') }}</b>
             </div>
