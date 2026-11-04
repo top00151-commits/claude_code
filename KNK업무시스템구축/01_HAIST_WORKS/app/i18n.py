@@ -1441,7 +1441,7 @@ T = {
                     "vi": "Chưa tổng hợp — chỉ cần ghi nội dung cuộc họp hoặc ghi âm thì sẽ tự động tổng hợp."},
     "mf_sum_saved": {"ko": "정리를 고쳤습니다 ✓",
                     "vi": "Đã sửa bản tổng hợp ✓"},
-    "mf_sumedit": {"ko": "✏ 고치기",
+    "mf_sumedit": {"ko": "✏ 수정하기",   # z1205 (대표 2026-11-04 「수정하기로 변경」)
                   "vi": "✏ Sửa"},
     "mf_sumedit_note": {"ko": "잘못 들린 낱말만 고쳐 저장하세요 —\n          <b>빅터AI를 다시 돌리지 않으므로 다른 문장은 그대로</b> 있습니다.\n          (회의 원문까지 바로잡고 싶으시면 아래 「회의 내용」을 고친 뒤 「🔧 다시 하기 · 녹음 추가」의 「🔄 다시 정리」를 쓰세요.)",
                        "vi": "Chỉ sửa những từ bị nghe sai rồi lưu —\n          <b>vì không chạy lại Victor AI nên các câu khác vẫn giữ nguyên</b>.\n          (Nếu muốn sửa cả nội dung gốc, hãy sửa 「Nội dung cuộc họp」 bên dưới rồi dùng 「🔄 Tổng hợp lại」 trong 「🔧 Làm lại · Thêm ghi âm」.)"},
@@ -1451,7 +1451,7 @@ T = {
                     "vi": "Sửa ngay tại đây những từ mà nhận dạng giọng nói nghe sai (không chạy lại Victor AI)"},
     # z1202 (대표 2026-11-03): 정리 글·회의록 양식 그 자리에서 고치기 + 고친 낱말을 회의 원문에도
     #  z1204: 고치기는 「✏ 고치기」를 누른 뒤에만 — 누르기 전 안내
-    "kle_hint": {"ko": "「✏ 고치기」를 누르면 보이는 그대로 그 자리에서 고칩니다 · 고친 낱말은 회의 원문에도 같이 고쳐집니다",
+    "kle_hint": {"ko": "「✏ 수정하기」를 누르면 보이는 그대로 그 자리에서 고칩니다 · 고친 낱말은 회의 원문에도 같이 고쳐집니다",
                  "vi": "Nhấn 「✏ Sửa」 để sửa ngay tại chỗ · Từ đã sửa cũng được sửa trong bản gốc cuộc họp"},
     "kle_saved": {"ko": "✓ 저장했습니다", "vi": "✓ Đã lưu"},
     # z1203 (대표 2026-11-04): 「✏ 고치기」 = 보이는 모양 그대로 고치기 모드
@@ -1472,7 +1472,7 @@ T = {
                        "vi": "Ô bản gốc có thay đổi chưa lưu nên không hoàn tác"},
     "kle_undo": {"ko": "↩ 원문 되돌리기", "vi": "↩ Hoàn tác bản gốc"},
     "kle_undone": {"ko": "회의 원문을 되돌렸습니다", "vi": "Đã hoàn tác bản gốc"},
-    "kle_bad": {"ko": "이 줄은 그 자리에서 고칠 수 없습니다 — 회의록 화면의 「✏ 고치기」로 고쳐 주세요",
+    "kle_bad": {"ko": "이 줄은 그 자리에서 고칠 수 없습니다 — 회의록 화면의 「✏ 수정하기」 → 「줄 넣기·빼기」로 고쳐 주세요",
                 "vi": "Không sửa tại chỗ được dòng này — hãy dùng 「✏ Sửa」 trên màn hình biên bản"},
     "kle_empty": {"ko": "내용은 비울 수 없습니다", "vi": "Không được để trống nội dung"},
     "kle_fail": {"ko": "저장하지 못했습니다", "vi": "Không lưu được"},

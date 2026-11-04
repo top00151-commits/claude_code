@@ -26,6 +26,11 @@ NP = [0, 0]
 ERRS = []
 
 
+def _isoff(t):
+    """z1205: 시작 단추 글 = 「✏ 고치기」(z1204 까지) 또는 「✏ 수정하기」(z1205~)"""
+    return "고치기" in t or "수정하기" in t
+
+
 def chk(name, cond, extra=""):
     NP[0 if cond else 1] += 1
     print(("  ✅ " if cond else "  ❌ ") + name + ("" if cond else "  ← " + str(extra)[:300]))
@@ -75,7 +80,7 @@ def main():
         ctx, pg = page(b, ME, "/meetings/%d" % M1)
         pg.wait_for_selector("#mtgSummary")
         sel = '#mtgSummary > [data-kle="6"]'
-        chk("누르기 전 안내 = 「✏ 고치기」를 누르면 …", pg.is_visible("#kleHint") and "고치기」를 누르면" in pg.inner_text("#kleHint"))
+        chk("누르기 전 안내 = 「✏ 고치기」를 누르면 …", pg.is_visible("#kleHint") and "를 누르면" in pg.inner_text("#kleHint"))
         pg.click(sel)
         pg.wait_for_timeout(200)
         chk("누르기 전엔 줄을 눌러도 안 고쳐진다", not editing(pg, sel))
@@ -94,7 +99,7 @@ def main():
         pg.click("#btnSumEdit")
         pg.wait_for_timeout(1500)
         chk("Enter 안 누르고 「✔ 수정 완료」 = 고치던 줄 저장", "- 강 팀장이 업체에" in summ(M1), summ(M1)[:200])
-        chk("수정 완료 = 모드 끝 · 단추 「✏ 고치기」 · 안내 띠 숨김", "고치기" in pg.inner_text("#btnSumEdit") and not pg.is_visible("#kleModeBar")
+        chk("수정 완료 = 모드 끝 · 단추 「✏ 고치기」 · 안내 띠 숨김", _isoff(pg.inner_text("#btnSumEdit")) and not pg.is_visible("#kleModeBar")
             and not pg.evaluate("() => document.getElementById('mtgSummary').hasAttribute('data-kle-mode')"))
         chk("화면에도 고친 글", "강 팀장이 업체에" in pg.inner_text("#mtgSummary"))
         pg.screenshot(path=os.path.join(SHOTS, "form_done.png"))
@@ -107,13 +112,13 @@ def main():
         chk("Esc = 그 줄만 취소 · 모드 그대로", "XYZ" not in summ(M1) and "수정 완료" in pg.inner_text("#btnSumEdit"))
         pg.click("#btnSumEdit")
         pg.wait_for_timeout(300)
-        chk("바뀐 것 없이 「✔ 수정 완료」 = 그냥 끝", "XYZ" not in summ(M1) and "고치기" in pg.inner_text("#btnSumEdit"))
+        chk("바뀐 것 없이 「✔ 수정 완료」 = 그냥 끝", "XYZ" not in summ(M1) and _isoff(pg.inner_text("#btnSumEdit")))
         ctx.close()
 
         print("== 회의록 양식: 「✏ 고치기」 → 「✔ 수정 완료」 ==")
         for w, h, mob, tag in ((1280, 900, False, "pc"), (390, 844, True, "phone")):
             ctx, pg = page(b, ME, "/meetings/%d/doc" % M1, w, h, mob)
-            chk("[%s] 「✏ 고치기」 단추 있음" % tag, pg.is_visible("#btnKle") and "고치기" in pg.inner_text("#btnKle"))
+            chk("[%s] 「✏ 고치기」 단추 있음" % tag, pg.is_visible("#btnKle") and _isoff(pg.inner_text("#btnKle")))
             g0 = pg.evaluate(DOC_GEO)
             if tag == "pc":
                 pg.screenshot(path=os.path.join(SHOTS, "doc_before.png"))
@@ -132,7 +137,7 @@ def main():
             pg.screenshot(path=os.path.join(SHOTS, "doc_mode.png"))
             pg.click("#btnKle")
             pg.wait_for_timeout(200)
-            chk("[pc] 다시 누르면 끝 · 점선 없음 · 「✏ 고치기」", "고치기" in pg.inner_text("#btnKle") and pg.evaluate("""() =>
+            chk("[pc] 다시 누르면 끝 · 점선 없음 · 「✏ 고치기」", _isoff(pg.inner_text("#btnKle")) and pg.evaluate("""() =>
                 Array.from(document.querySelectorAll('.sheet .body [data-kle-on]')).every(e => getComputedStyle(e).outlineStyle !== 'dashed')"""))
             dsel = '.sheet .body [data-kle="6"]'
             pg.click(dsel)
@@ -147,7 +152,7 @@ def main():
             pg.click("#btnKle")
             pg.wait_for_timeout(1500)
             chk("[pc] 양식 정리 줄 — Enter 없이 「✔ 수정 완료」 = 저장", "- 감 팀장이 업체에" in summ(M1), summ(M1)[:200])
-            chk("[pc] 수정 완료 = 모드 끝", "고치기" in pg.inner_text("#btnKle") and not pg.evaluate("() => document.querySelector('.sheet .body').hasAttribute('data-kle-mode')"))
+            chk("[pc] 수정 완료 = 모드 끝", _isoff(pg.inner_text("#btnKle")) and not pg.evaluate("() => document.querySelector('.sheet .body').hasAttribute('data-kle-mode')"))
             # 표 칸: Enter 저장 → 모드 유지 → 수정 완료
             csel = '[data-klec="dec:%d:what"]' % D2
             pg.click("#btnKle")

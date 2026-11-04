@@ -24,6 +24,11 @@ os.makedirs(SHOTS, exist_ok=True)
 NP = [0, 0]
 
 
+def _isoff(t):
+    """z1205: 시작 단추 글 = 「✏ 고치기」(z1204 까지) 또는 「✏ 수정하기」(z1205~)"""
+    return "고치기" in t or "수정하기" in t
+
+
 def chk(name, cond, extra=""):
     NP[0 if cond else 1] += 1
     print(("  ✅ " if cond else "  ❌ ") + name + ("" if cond else "  ← " + str(extra)[:300]))
@@ -90,7 +95,7 @@ def main():
         # 그만두기
         pg.click("#btnSumEdit")
         pg.wait_for_timeout(200)
-        chk("그만두기 = 모드 끝 · 안내 띠 숨김 · 단추 「고치기」", (not pg.is_visible("#kleModeBar")) and "고치기" in pg.inner_text("#btnSumEdit")
+        chk("그만두기 = 모드 끝 · 안내 띠 숨김 · 단추 「고치기」", (not pg.is_visible("#kleModeBar")) and _isoff(pg.inner_text("#btnSumEdit"))
             and not pg.evaluate("() => document.getElementById('mtgSummary').hasAttribute('data-kle-mode')"))
         chk("모드 끝나면 점선 없음", pg.evaluate("""() => Array.from(document.querySelectorAll('#mtgSummary [data-kle-on]'))
             .every(e => getComputedStyle(e).outlineStyle !== 'dashed')"""))
@@ -102,7 +107,7 @@ def main():
             and not pg.is_visible("#kleModeBar"))
         pg.click("#btnSumCancel")
         pg.wait_for_timeout(300)
-        chk("글 상자 취소 = 정리 모양으로 · 단추 「고치기」", pg.is_visible("#mtgSummary") and "고치기" in pg.inner_text("#btnSumEdit")
+        chk("글 상자 취소 = 정리 모양으로 · 단추 「고치기」", pg.is_visible("#mtgSummary") and _isoff(pg.inner_text("#btnSumEdit"))
             and not pg.is_visible("#kleModeBar"))
         pg.click("#btnSumEdit")
         pg.click("#btnSumRaw")
