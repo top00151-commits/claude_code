@@ -227,7 +227,7 @@
                상품 줄은 부품이 여러 줄이어도 수량 편집 허용(JS가 orders.unit_qty(quick-edit)로 라우팅 — 부품 qty 오염 없음). #}
           {# v5H226z1088 (대표 지시): 제품 표시수량(is_bqty) 줄 — "10 SET"·"1식" 표기·셀 직접수정 제외(값의 출처=등록/수정 폼 하나) #}
           {% set _qty_edit = (r.kind != 'consumable' and not r.is_bqty and (r.is_parts or not r.is_unit or (r.unit_iids and r.unit_iids|length == 1))) %}
-          <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty"{% if _qty_edit %} data-edit="qty"{% endif %}{% if r.is_bqty %} title="제품 표시수량 (등록 때 적은 값) — 수정은 프로젝트 수정(빠른 폼)에서"{% elif r.is_parts %} title="상품 수량 = 완제품 몇 대분 (1=1식·부품만 출하)"{% endif %}>{% if r.is_bqty and r.qty %}{% if (r.board_unit or 'EA') in ('식', '대') %}{{ r.qty }}{{ r.board_unit }}{% else %}{{ r.qty }} {{ r.board_unit or 'EA' }}{% endif %}{% elif r.is_parts and r.qty %}{% if r.qty|int >= 2 %}{{ r.qty }}대분{% else %}1식{% endif %}{% else %}{{ r.qty if r.qty else ('＋' if _qty_edit else '') }}{% if r.qty and r.board_unit %}{% if r.board_unit in ('식', '대') %}{{ r.board_unit }}{% else %} {{ r.board_unit }}{% endif %}{% endif %}{% endif %}</td>
+          <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty" data-unit="{{ r|qtyunit }}"{% if _qty_edit %} data-edit="qty"{% endif %}{% if r.is_bqty %} title="제품 표시수량 (등록 때 적은 값) — 수정은 프로젝트 수정(빠른 폼)에서"{% elif r.is_parts %} title="상품 수량 = 완제품 몇 대분 (1=1식·부품만 출하)"{% endif %}>{# z1191z4e (이새롬 프로 요청 · 대표 결정): 모든 줄 수량에 단위 — 숫자 오른쪽·단위 왼쪽 정렬 칸으로 줄맞춤 #}{% if r.qty %}<span class="qwrap"><span class="qn">{{ (1 if (r.is_parts and r.qty|int < 2) else r.qty)|qtyfmt }}</span><span class="qu">{{ r|qtyunit }}</span></span>{% else %}{{ '＋' if _qty_edit else '' }}{% endif %}</td>
           {% if can_sales_amt %}
           <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.price %}{{ money(r.price, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
           <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.amount %}{{ money(r.amount, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
@@ -451,7 +451,8 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_sales_amt %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date'{% if can_sales_amt %},'statement','tax_inv1','tax_inv2','tax_inv3'{% endif %},'sales_owner'];
 const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',statement:'거래명세서',tax_inv1:'1세금계산서',tax_inv2:'2세금계산서',tax_inv3:'3세금계산서',stage:'단계',sales_owner:'영업담당자'};
 // z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
-const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:48,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv1:104,tax_inv2:104,tax_inv3:104,stage:150,sales_owner:96};
+// z1191z4e: 수량 기본 폭 48 → 84px — 수량 옆 단위(대·EA·SET·식·건·대분)가 들어가게(직접 조절한 폭은 그대로)
+const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:84,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv1:104,tax_inv2:104,tax_inv3:104,stage:150,sales_owner:96};
 const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 폭(px)
 const LAST_DAY = {{ days|length }};
 let COLS = {};
@@ -1254,6 +1255,7 @@ function startEdit(td){
   if(td.dataset.edit==='cust' && td.dataset.real!=null) cur = td.dataset.real.trim();
   // 숫자/금액 칸은 통화기호·콤마 빼고 순수 숫자만 편집
   if(['qty','price','amount'].indexOf(td.dataset.edit)>=0) cur=cur.replace(_MONEY_STRIP,'');
+  if(td.dataset.edit==='qty') cur=_qtyNum(cur);   // z1191z4e: 「2대」 → 2
   const inp=_mkCellInput(td.dataset.edit, cur);   // z1132: 날짜 칸이면 달력이 붙는다
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
@@ -1362,6 +1364,7 @@ function startUnitEdit(td, tr, uids){
   const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';   // v5H226z687: 통화기호 포함 원본 표시(무변경·취소·오류 복원용 — 숫자칸 복원 시 ₩/$ 유지)
   let cur = origDisp;
   if(isNum) cur=cur.replace(_MONEY_STRIP,'');
+  if(fld==='qty') cur=_qtyNum(cur);   // z1191z4e: 「2대」 → 2
   const inp=_mkCellInput(td.dataset.edit, cur);   // z1132: 날짜 칸이면 달력이 붙는다
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
@@ -1577,6 +1580,24 @@ function refreshTaxStatus(tr){
 // z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
 function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'})[c]||'₩'; }
 var _MONEY_STRIP=/[₩$₫¥€元,\s＋]/g;
+// z1191z4e: 수량 칸 = 숫자 + 단위(data-unit). 편집은 숫자만, 저장·취소로 글자가 되면 다시 줄맞춤 칸으로
+function _qtyNum(s){ return String(s||'').replace(/[^\d.\-]/g,''); }
+function _qtyPaint(td){
+  if(!td || td.querySelector('input,.qwrap')) return;
+  var n=_qtyNum((td.textContent||'').replace(/,/g,'')), u=td.dataset.unit||'';
+  if(!n || !u) return;
+  var shown=Number(n).toLocaleString('en-US',{maximumFractionDigits:3});
+  td.innerHTML='<span class="qwrap"><span class="qn"></span><span class="qu"></span></span>';
+  td.querySelector('.qn').textContent=shown; td.querySelector('.qu').textContent=u;
+}
+(function(){
+  if(!window.MutationObserver) return;
+  var mo=new MutationObserver(function(ms){ ms.forEach(function(m){
+    var td=(m.target.nodeType===1?m.target:m.target.parentNode); td=td&&td.closest?td.closest('td[data-col="qty"]'):null;
+    if(td) _qtyPaint(td);
+  }); });
+  document.querySelectorAll('td[data-col="qty"][data-unit]').forEach(function(td){ mo.observe(td,{childList:true,characterData:true,subtree:true}); });
+})();
 function fmtMoney(v){ var n=parseFloat(String(v).replace(_MONEY_STRIP,'')); return isNaN(n)||n===0?'':n.toLocaleString(); }
 // v5H226z986 (대표 신고 '소수점 이하 직접 입력이 아예 안 됨'): 금액 입력 콤마 — 소수점 보존.
 //   기존 재포맷이 [^0-9] 로 '.'을 키 입력 즉시 지워 외화(EUR 등) 소수 입력 자체가 불가능했음(단가·세금계산서/인보이스 공통).

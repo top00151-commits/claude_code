@@ -144,8 +144,9 @@ rows = [r for r in (res.get("rows") or []) if p1 and r.get("ref_id") == p1["id"]
 check("작업일정표 줄(엑셀 경로)에 기타 단위가 실림(SET · 대)", rows and {"SET", "대"} <= {r.get("board_unit") for r in rows},
       [(r.get("qty"), r.get("board_unit")) for r in rows])
 sb = q(cl.get, "/sales/schedule?ym=2026-11").text
-check("작업일정표 화면 수량 칸 「… SET」 · 「4대」 · 제품 「10대」", " SET</td>" in sb and "4대</td>" in sb and "10대</td>" in sb,
-      (sb.count(" SET</td>"), sb.count("4대</td>"), sb.count("10대</td>")))
+# z1191z4e: 수량 칸 = 숫자 칸 + 단위 칸(줄맞춤)
+_qc = re.findall(r'<span class="qn">([^<]*)</span><span class="qu">([^<]*)</span>', sb)
+check("작업일정표 화면 수량 칸 「… SET」 · 「4대」 · 제품 「10대」", ("4", "대") in _qc and ("10", "대") in _qc and any(u == "SET" for _, u in _qc), _qc)
 if p1:
     dh = q(cl.get, "/project/%d" % p1["id"]).text
     # 이 시험은 화면이 만드는 줄 칸(unit_label[] 등)을 보내지 않아 신규 기타 수주가 「수량 1 · 줄 없음」으로 생긴다(운영 실데이터는 줄이 있다)

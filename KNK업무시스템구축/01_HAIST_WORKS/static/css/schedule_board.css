@@ -200,6 +200,10 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 /* z280: 모델명 칸 글꼴을 나머지와 동일하게(기본 글꼴·12px) — 별도 Consolas/11px 제거(대표 지시) */
 .sched .cw-note { color:var(--qv-ink-3); }
 .sched .cw-qty, .sched .cw-trade, .sched .cw-po, .sched .cw-form { text-align:center; }
+/* z1191z4e (대표 지시): 수량 = 숫자(오른쪽 맞춤 · 고정 폭) + 단위(왼쪽 맞춤 · 고정 폭) — 글자 수가 달라도 줄이 맞는다 */
+.qwrap { display:inline-grid; grid-template-columns:2.9em 2.3em; column-gap:3px; align-items:baseline; white-space:nowrap; }
+.qwrap .qn { text-align:right; font-variant-numeric:tabular-nums; }
+.qwrap .qu { text-align:left; color:#64748b; font-size:.92em; }
 .sched .cw-price, .sched .cw-amount { text-align:right; padding:0 8px; font-variant-numeric:tabular-nums; }
 .sched thead .cw-price, .sched thead .cw-amount { text-align:center; padding:0; }
 .sched .cw-ord, .sched .cw-due { text-align:center; }                 /* z282: 발주일·납품일 가운데 */

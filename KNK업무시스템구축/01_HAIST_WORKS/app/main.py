@@ -409,6 +409,30 @@ def _ccy_sym(ccy):
 
 
 tpl.env.filters["qtyfmt"] = _fmt_qty
+
+# z1191z4e (이새롬 프로 요청 · 대표 결정): 작업일정표·부서 일정표·엑셀 수량 단위 — 한 곳에서 정한다
+_QTY_UNIT_BY_FORM_Z4E = {"완제품": "대", "제품": "EA", "기타": "식", "소모품": "건", "상품": "식"}
+
+
+def _board_qty_unit(r) -> str:
+    """줄(dict) → 수량 단위. 소모품 줄 = 건 · 상품 = 대분(2+)/식 · 적어 둔 단위(제품 표시수량·기타) ·
+    형태별 기본(완제품 대 · 제품 EA · 기타 식) · 모르면 대(호기)."""
+    r = r or {}
+    if r.get("kind") == "consumable":
+        return "건"
+    if r.get("is_parts"):
+        try:
+            return "대분" if int(float(r.get("qty") or 1)) >= 2 else "식"
+        except (TypeError, ValueError):
+            return "식"
+    bu = str(r.get("board_unit") or "").strip()
+    if bu:
+        return bu
+    ft = str(r.get("qty_form") or r.get("form_type") or "").strip()
+    return _QTY_UNIT_BY_FORM_Z4E.get(ft, "대")
+
+
+tpl.env.filters["qtyunit"] = _board_qty_unit
 tpl.env.filters["pricefmt"] = _fmt_price
 tpl.env.filters["money"] = _fmt_money
 tpl.env.filters["ccysym"] = _ccy_sym
@@ -30311,8 +30335,11 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
             _inject_oi_tax_into_rows(rows, _oimap, _proj_iids)
         except Exception:
             pass
-    headers = ["관리번호", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량"]
-    keys = ["code", "so_no", "name", "model", "equip", "note", "qty"]
+    # z1191z4e (대표 지시): 수량은 숫자 그대로 · 바로 옆 「단위」 칸(화면과 같은 규칙) — 올리기 파서는 이 칸을 안 읽는다
+    for _row in rows:
+        _row["_qty_unit"] = _board_qty_unit(_row) if _row.get("qty") else ""
+    headers = ["관리번호", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량", "단위"]
+    keys = ["code", "so_no", "name", "model", "equip", "note", "qty", "_qty_unit"]
     if can_money:
         headers += ["단가", "금액", "통화"]; keys += ["price", "amount", "currency"]
     headers += ["거래구분", "PO유형", "형태", "고객사1", "고객사2", "부서", "담당자", "연락처",
@@ -33489,6 +33516,11 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
                     _iu["model"] = _ln.get("so_model")
                 if _ln.get("so_equip"):
                     _iu["equip"] = _ln.get("so_equip")
+                # z1191z4e: 수량 단위 재료(작업일정표와 같은 규칙 · 형태 칸 표시는 그대로)
+                _iu["board_unit"] = _ln.get("board_unit") or ""
+                _iu["is_bqty"] = bool(_ln.get("is_bqty"))
+                _iu["is_parts"] = (str(_ln.get("so_type") or "").upper() == "PARTS_EXPORT")
+                _iu["qty_form"] = _ln.get("form_label") or ""
                 try:
                     _iu["multi"] = int(_iu.get("qty") or 0) >= 2
                 except Exception:
