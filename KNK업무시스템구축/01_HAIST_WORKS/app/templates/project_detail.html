@@ -686,7 +686,7 @@
                 {% endif %}
                 {% if loop.first %}{# v5H226z650: 삭제는 최초(메인) 수주에서만 — 참고(추가) 수주는 읽기전용 #}
                 {% if can_sales_del %}
-                <button type="button" class="btn-mini danger" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})'>🗑 삭제</button>
+                <button type="button" class="btn-mini danger" onclick='deleteSO({{ so.id }}, {{ so.order_no|tojson }})' title="수주번호 전체(모든 줄·송장·수금·이력)를 지웁니다 — 한 줄만 지우려면 ✏️ 수정 → 줄 오른쪽 ×">🗑 수주 삭제</button>{# z1191z4b (대표 지시): 줄 삭제(×)와 헷갈리지 않게 '삭제' → '수주 삭제' #}
                 {% else %}
                 <span style="color:var(--line);font-size:14px;" title="삭제 권한 없음">🔒</span>
                 {% endif %}
@@ -1819,7 +1819,8 @@
         async function deleteSO(oid, orderNo) {
           await window.knkConfirmWithPassword({
             title: '⚠ 수주 삭제',
-            message: '수주번호: ' + orderNo + '\n\n' +
+            message: '수주번호 ' + orderNo + ' 전체를 삭제합니다.\n\n' +
+                     '· 한 줄만 지우려면 취소 → ✏️ 수정 → 줄 오른쪽 × 를 쓰세요.\n' +
                      '· 라인/송장/수금/이력도 함께 삭제됩니다.\n' +
                      '· 마지막 수주면 관리번호도 회수되어 제안 단계로 복원됩니다.\n' +
                      '· 본인 비밀번호로 재확인 후 진행됩니다.',

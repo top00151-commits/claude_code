@@ -107,6 +107,7 @@ def main():
     check("× 칸 헤더 = 「삭제」(예전 「수정」 아님)", '<th class="center edit-only" style="width:80px;">삭제</th>' in card
           and '<th class="center edit-only" style="width:80px;">수정</th>' not in h)
     check("줄마다 삭제(×) 단추 3개", card.count('class="row-del"') >= 3, card.count('class="row-del"'))
+    check("z1191z4b: 카드 위 단추 = 「🗑 수주 삭제」(예전 「🗑 삭제」 없음)", ">🗑 수주 삭제</button>" in card and ">🗑 삭제</button>" not in h)
 
     r = cl.post("/sales/orders/items/%d/delete" % ids[1])
     j = r.json()
@@ -170,6 +171,8 @@ def main():
     check("확인창 문구 「○○」 · 금액 ○○ 을 삭제합니다 + 함께 지워지는 기록 안내",
           "' 을 삭제합니다.'" in html and "이 줄에 적힌 아래 기록도 함께 지워집니다" in html and "마지막 줄입니다" in html)
     check("저장 안 한 다른 줄 변경이 있으면 먼저 저장하게(삭제·추가 둘 다)", html.count("먼저 위 「💾 저장」을 누른 뒤") == 2)
+    check("z1191z4b: 수주 삭제 확인창 첫 줄 「수주번호 ○○ 전체를 삭제합니다」 + 한 줄은 × 안내",
+          "' 전체를 삭제합니다.\\n\\n'" in html and "한 줄만 지우려면 취소 → ✏️ 수정 → 줄 오른쪽 ×" in html)
     print("결과: 통과 %d / 실패 %d" % (OK, FAIL))
     return FAIL
 
