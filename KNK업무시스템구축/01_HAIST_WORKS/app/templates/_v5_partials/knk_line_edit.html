@@ -11,8 +11,9 @@
    · 글자 판정은 KNKMdLite(knk_md_lite.html)와 같은 그리기를 쓴다 — 그 파일을 먼저 넣을 것.
    ============================================================ #}
 <style>
-[data-kle-on] { cursor: text; border-radius: 4px; }
-@media (hover: hover) { [data-kle-on]:hover { background: rgba(250, 204, 21, .16); } }
+/* z1204: 고치기는 「✏ 고치기」를 누른 뒤(그 칸을 감싼 상자에 data-kle-mode)에만 — 누를 칸에 옅은 점선(outline 이라 자리·높이 그대로) */
+[data-kle-mode] [data-kle-on] { cursor: text; border-radius: 4px; outline: 1px dashed rgba(160, 30, 30, .30); outline-offset: 1px; }
+@media (hover: hover) { [data-kle-mode] [data-kle-on]:hover { background: rgba(250, 204, 21, .16); } }
 .kle-edit { outline: 2px solid rgba(160, 30, 30, .45); outline-offset: 1px; background: #fffbea !important; border-radius: 4px; cursor: text; }
 .kle-busy { opacity: .55; }
 .kle-saved { background: rgba(34, 197, 94, .2) !important; }
@@ -118,6 +119,7 @@ window.KNKLineEdit = window.KNKLineEdit || (function(){
      o.restore(): 취소·실패 때 칸을 원래대로 */
   var _cur = null;
   function begin(o, ev){
+    if (!o.el.closest || !o.el.closest('[data-kle-mode]')) return;   // z1204: 「✏ 고치기」 누르기 전엔 안 고친다
     if (_cur && _cur.el === o.el) return;
     if (_cur) finish(true);
     if (o.html){ var h = o.html(); if (h != null) o.el.innerHTML = h; }

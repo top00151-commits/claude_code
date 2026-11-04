@@ -828,6 +828,7 @@ var MF = {
   del_q8: {{ i.mf_del_q8|tojson }},
   del_t: {{ i.mf_del_t|tojson }},
   edit_stop: {{ i.mf_edit_stop|tojson }},
+  kle_done: {{ i.kle_done|tojson }},   // z1204
   end_ask: {{ i.mf_end_ask|tojson }},
   end_card: {{ i.mf_end_card|tojson }},
   end_done: {{ i.mf_end_done|tojson }},
@@ -1605,12 +1606,13 @@ window.__MTG = {
     var box=$('mtgSummary'), bar=$('kleModeBar'), b=$('btnSumEdit'), h=$('kleHint');
     if(box){ if(on) box.setAttribute('data-kle-mode',''); else box.removeAttribute('data-kle-mode'); }
     if(bar) bar.hidden = !on;
-    if(b) b.textContent = on ? MF.edit_stop : MF.sumedit;
+    if(b) b.textContent = on ? MF.kle_done : MF.sumedit;   // z1204: 「✔ 수정 완료」
     if(h && on) h.hidden = true; else if(!on) kleMark();
   }
-  if(_bSumE) _bSumE.addEventListener('click', function(){
+  if(_bSumE) _bSumE.addEventListener('click', async function(){
     var w=$('sumEditWrap'), box=$('mtgSummary'); if(!w) return;
-    if (window.KNKLineEdit && KNKLineEdit.editing()) KNKLineEdit.finish(false);   // z1202
+    //  z1204: 「✔ 수정 완료」 = 고치던 줄(Enter 안 누른 것)도 저장하고 끝
+    if (window.KNKLineEdit && KNKLineEdit.editing()) await KNKLineEdit.finish(true);
     if (!w.hidden){ sumEditShow(false); sumSt(''); kleModeSet(false); return; }       // 글 상자 → 닫기
     if (box && box.hasAttribute('data-kle-mode')){ kleModeSet(false); return; }        // 고치기 모드 → 끝
     if (box && box.querySelector('[data-kle-on]')){ kleModeSet(true); return; }        // 보이는 모양 그대로

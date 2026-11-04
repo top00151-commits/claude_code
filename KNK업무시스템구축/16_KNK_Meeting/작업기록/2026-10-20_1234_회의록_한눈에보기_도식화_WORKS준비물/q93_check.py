@@ -207,6 +207,7 @@ def ndiff(rel):
     a = io.open(os.path.join(APPDIR, "app_base", "app", rel), encoding="utf-8").read().splitlines()
     b = io.open(os.path.join(APPDIR, "app_new", "app", rel), encoding="utf-8").read().splitlines()
     d = [x for x in difflib.unified_diff(a, b, lineterm="", n=0) if x[:1] in "+-" and not x.startswith(("+++", "---"))]
+    d = [x for x in d if "z1204" not in x]   # z1204: 양식 「✏ 고치기」 단추 줄은 세지 않는다(옛 바탕엔 붙일 자리가 없어 남는다)
     return sum(1 for x in d if x[0] == "+"), sum(1 for x in d if x[0] == "-")
 chk("양식(meeting_doc.html) = 「📊 한눈에 보기」 1줄만", ndiff("templates/meeting_doc.html") == (1, 0), ndiff("templates/meeting_doc.html"))
 fdiff = ndiff("templates/meeting_form.html")

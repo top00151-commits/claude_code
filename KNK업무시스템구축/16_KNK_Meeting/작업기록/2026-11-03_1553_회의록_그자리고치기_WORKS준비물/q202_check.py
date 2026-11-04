@@ -103,6 +103,17 @@ def line_sel(i):
     return '#mtgSummary > [data-kle="%d"]' % i
 
 
+def _mode04(pg):
+    """z1204: 고치기는 「✏ 고치기」를 누른 뒤에만 — 정리 화면(#kleModeBar 있는 앱)·회의록 양식(#btnKle 있는 앱)이면 먼저 모드를 켠다(옛 앱 = 그대로)"""
+    if pg.locator("#btnKle").count():
+        if not pg.evaluate("() => document.querySelector('.sheet .body').hasAttribute('data-kle-mode')"):
+            pg.click("#btnKle")
+    elif pg.locator("#kleModeBar").count() and pg.locator("#mtgSummary [data-kle-on]").count():
+        if not pg.evaluate("() => document.getElementById('mtgSummary').hasAttribute('data-kle-mode')"):
+            pg.click("#btnSumEdit")
+    pg.wait_for_timeout(150)
+
+
 def edit_replace(pg, sel, word, new, nth=0, end=False):
     notoast(pg)
     pg.click(sel)
@@ -135,6 +146,7 @@ def main():
         geo = """() => { const b = document.getElementById('mtgSummary'); const r = b.getBoundingClientRect();
                  return { h: r.height, tops: Array.from(b.children).map(x => Math.round(x.getBoundingClientRect().top - r.top)),
                           htmls: Array.from(b.children).map(x => x.innerHTML) }; }"""
+        _mode04(pg)
         g0 = pg.evaluate(geo)
         pg.click(line_sel(6))
         y0 = pg.evaluate("() => window.scrollY")
@@ -235,6 +247,7 @@ def main():
         print("== 겹친 고침 ==")
         ctx = ctx_for(b, ME)
         pg = open_form(ctx)
+        _mode04(pg)
         cur = mrow(M1)
         st, _ = http("/api/meeting/%d/summary" % M1, ATT, {"summary": cur["summary"] + "\n- 참석자가 덧붙임", "base_ts": cur["ts"]})
         chk("참석자는 정리 고치기 가능(API 200)", st == 200, st)
@@ -279,10 +292,11 @@ def main():
         pg = ctx.new_page()
         pg.goto(BASE + "/meetings/%d/doc" % M1, wait_until="domcontentloaded")
         pg.wait_for_timeout(500)
+        chk("양식 안내 줄", "그 자리에서" in pg.inner_text("body"))   # z1204: 글이 「✏ 고치기」를 누르면 … 으로 바뀜
+        _mode04(pg)
         sm = mrow(M1)["summary"].split("\n")
         nl = pg.eval_on_selector_all(".sheet .body > .ln[data-kle]", "e => e.length")
         chk("양식 정리 줄 = 원래 글 줄 수", nl == len(sm), (nl, len(sm)))
-        chk("양식 안내 줄", "글을 누르면 그 자리에서" in pg.inner_text("body"))
         dgeo = "() => ({ h: document.querySelector('.sheet').getBoundingClientRect().height, tops: Array.from(document.querySelectorAll('.sheet .body > *')).map(x => Math.round(x.getBoundingClientRect().top - document.querySelector('.sheet').getBoundingClientRect().top)) })"
         k = sm.index("- 이번 일정 지연의 제일 큰 원인은 지급품 입고 지연이었다.")
         sel = '.sheet .body > .ln[data-kle="%d"]' % k
@@ -357,6 +371,7 @@ def main():
         ctx = ctx_for(b, ME, 390, 844, True)
         pg = open_form(ctx)
         pg.evaluate("() => { const d = document.getElementById('worksInstallHint'); if (d) d.remove(); }")   # 앱 설치 안내(시험과 무관)
+        _mode04(pg)
         g0 = pg.evaluate(geo)
         pg.tap(line_sel(5))
         pg.wait_for_timeout(250)

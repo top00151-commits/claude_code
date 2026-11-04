@@ -356,6 +356,11 @@ try:
             gb.goto(U(PB, "/meetings/%d/doc" % IB[mk]), wait_until="domcontentloaded")
             gn.goto(U(PN, "/meetings/%d/doc" % IN[mk]), wait_until="domcontentloaded")
             kb, kn = gb.evaluate(SKEL), gn.evaluate(SKEL)
+            #  z1204: 양식 도구 줄에 「✏ 고치기」(#btnKle) 단추가 더해졌다 — 그 단추 한 줄만 비교 밖
+            import re as _re04
+            for _k in (kb, kn):
+                if _k:
+                    _k["toolbar"] = _re04.sub(r'\n\s*<button[^>]*id="btnKle"[^>]*>[^<]*</button>', "", _k["toolbar"])
             #  MQ 는 ①에서 두 서버의 가짜 AI 가 각각 한 번씩 돌아 결정·할 일 표의 글도 같다(가짜 1)
             chk("%s: 안건 본문 밖 양식(로고·결재란·회의 정보·참석자·결정사항·할 일 표·하단)이 운영과 **한 글자도 같다**" % mk,
                 kb and kn and kb["sheet"] == kn["sheet"], "길이 %s vs %s" % (len((kb or {}).get("sheet", "")),
@@ -364,7 +369,7 @@ try:
                 kb and kn and kb["toolbar"] == kn["toolbar"] and "인쇄" in kn["toolbar"] and "이미지" in kn["toolbar"])
         sty_b, sty_n = gb.evaluate(STYLES), gn.evaluate(STYLES)
         lb, ln_ = set(sty_b.split("\n")), set(sty_n.split("\n"))
-        added = [x for x in sty_n.split("\n") if x not in lb]
+        added = [x for x in sty_n.split("\n") if x not in lb and ".btn.kle" not in x]   # z1204: 「✏ 고치기」 단추 CSS 두 줄은 비교 밖
         chk("양식 CSS: 운영 줄은 하나도 안 빠졌다", not [x for x in sty_b.split("\n") if x not in ln_],
             [x for x in sty_b.split("\n") if x not in ln_][:3])
         chk("양식 CSS: 더한 줄은 안건 본문 그리기(.ln …)와 그 주석뿐 (%d줄)" % len(added),

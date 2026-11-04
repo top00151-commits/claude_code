@@ -30,6 +30,8 @@
   button.btn { font-family: inherit; line-height: inherit; }
   .btn.img { background: #a5282c; color: #fff; border-color: #a5282c; }
   .btn:disabled { opacity: .6; cursor: default; }
+  .btn.kle { color: #a5282c; border-color: #a5282c; min-width: 112px; }   /* z1204 — 「✔ 수정 완료」로 바뀌어도 폭 그대로 */
+  .btn.kle.on { background: #fff4f4; }
 
   /* A4 세로(210mm) — 화면에서도 종이 비율 그대로 */
   .sheet { width: 794px; max-width: 96vw; margin: 12px auto 26px; background: #fff;
@@ -165,10 +167,11 @@
 <div class="toolbar">
   <a class="btn" href="/meetings/{{ m.id }}">{{ i.md_back }}</a>{% if tr is not none %}{% if doc_lang == 'vi' %}<a class="btn" href="/meetings/{{ m.id }}/doc?orig=1">{{ i.md_tr_orig }}</a>{% else %}<a class="btn" href="/meetings/{{ m.id }}/doc">{{ tr_back }}</a>{% endif %}{% endif %}{# z1199 #}
   <a class="btn" href="/meetings/{{ m.id }}/viz">{{ i.md_viz }}</a>{# z1193 — 도식화(추가 화면) #}
+  {% if kle %}<button type="button" class="btn kle" id="btnKle" data-on="{{ i.kle_done }}" data-off="{{ i.mf_sumedit }}">{{ i.mf_sumedit }}</button>{% endif %}{# z1204 #}
   <button type="button" class="btn img" id="btnImg" data-title="{{ m.title }}" data-date="{{ m.meeting_date or '' }}">{{ i.md_img }}</button>
   <a class="btn print" href="javascript:void(0)" onclick="window.print()">{{ i.md_print }}</a>
 </div>
-{% if kle %}<div class="toolbar" style="margin-top:6px;justify-content:flex-start;font-size:12px;color:#475569;">{{ kle_hint }}</div>{% endif %}{# z1202 #}
+{% if kle %}<div class="toolbar" id="kleDocHint" data-on="{{ i.kle_mode_doc }}" data-off="{{ kle_hint }}" style="margin-top:6px;justify-content:flex-start;font-size:12px;color:#475569;">{{ kle_hint }}</div>{% endif %}{# z1202 · z1204 #}
 
 <div class="sheet">
 
@@ -543,6 +546,27 @@
   });
   mark();
   Array.prototype.forEach.call(body.querySelectorAll('[data-klec]'), function(el){ el.setAttribute('data-kle-on', ''); });
+  //  z1204 (대표 2026-11-04 「수정할때 수정하기 누르고 완료되면 수정완료 이렇게 누르게」):
+  //   「✏ 고치기」 → 고치기 모드(칸마다 점선 · 양식 모양 그대로) → 「✔ 수정 완료」 = 고치던 칸도 저장하고 끝
+  var kb = document.getElementById('btnKle'), kh = document.getElementById('kleDocHint');
+  function setMode(on){
+    if (on) body.setAttribute('data-kle-mode', ''); else body.removeAttribute('data-kle-mode');
+    if (kb){ kb.textContent = kb.getAttribute(on ? 'data-on' : 'data-off'); kb.classList.toggle('on', !!on); }
+    if (kh){ kh.textContent = kh.getAttribute(on ? 'data-on' : 'data-off'); kh.style.color = on ? '#b45309' : '#475569'; kh.style.fontWeight = on ? '700' : ''; }
+  }
+  if (kb) kb.addEventListener('click', async function(){
+    if (body.hasAttribute('data-kle-mode')){
+      if (KNKLineEdit.editing()) await KNKLineEdit.finish(true);
+      setMode(false);
+    } else setMode(true);
+  });
+  //  이미지 저장 = 점선이 그림에 안 들어가게 먼저 끝낸다(고치던 칸은 저장)
+  document.addEventListener('click', function(e){
+    if (e.target && e.target.closest && e.target.closest('#btnImg') && body.hasAttribute('data-kle-mode')){
+      if (KNKLineEdit.editing()) KNKLineEdit.finish(true);
+      setMode(false);
+    }
+  }, true);
 })();
 </script>
 {% endif %}

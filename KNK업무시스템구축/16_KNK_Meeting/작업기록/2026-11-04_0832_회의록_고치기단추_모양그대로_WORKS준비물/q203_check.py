@@ -71,7 +71,7 @@ def main():
         chk("정리 모양 그대로 보임", g1["vis"])
         chk("줄 자리·칸 높이 그대로", g1["tops"] == g0["tops"] and abs(g1["h"] - g0["h"]) <= 1, (g0["h"], g1["h"]))
         chk("화면이 안 움직임(스크롤·정리 칸 위치 그대로)", g1["y"] == g0["y"] and g1["top"] == g0["top"], (g0["y"], g1["y"], g0["top"], g1["top"]))
-        chk("안내 띠 보임 · 단추 「그만두기」", pg.is_visible("#kleModeBar") and "그만두기" in pg.inner_text("#btnSumEdit"))
+        chk("안내 띠 보임 · 단추 「그만두기」", pg.is_visible("#kleModeBar") and any(x in pg.inner_text("#btnSumEdit") for x in ("그만두기", "수정 완료")))   # z1204: 「✔ 수정 완료」
         chk("고칠 줄에 점선(빈 줄 빼고)", pg.evaluate("""() => Array.from(document.querySelectorAll('#mtgSummary [data-kle-on]'))
             .every(e => getComputedStyle(e).outlineStyle === 'dashed')"""))
         # 모드 안에서 한 줄 고치기 → 모드 유지

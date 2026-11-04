@@ -150,6 +150,9 @@ def strip_html(h):
     #  z1202: 고칠 수 있는 사람의 양식 = 「그 자리에서 고치기」 안내 줄 · 표 칸 표시(data-klec·data-v) — 비교 밖
     h = re.sub(r'<div class="toolbar" style="margin-top:6px;justify-content:flex-start;[^"]*">.*?</div>', "", h, flags=re.S)
     h = re.sub(r' data-klec="[^"]*" data-v="[^"]*"', "", h)
+    #  z1204: 양식 「✏ 고치기」 단추 · 안내 줄(id·data-on/off 붙음) — 비교 밖
+    h = re.sub(r'<button type="button" class="btn kle" id="btnKle"[^>]*>[^<]*</button>', "", h)
+    h = re.sub(r'<div class="toolbar" id="kleDocHint"[^>]*>.*?</div>', "", h, flags=re.S)
     h = re.sub(r"\d{2}:\d{2}:\d{2}", "T", h)
     h = re.sub(r"\?v=t\d+", "?v=t", h)   # 정적 파일 주소에 붙는 서버 기동 시각
     return re.sub(r"\s+", " ", h).strip()

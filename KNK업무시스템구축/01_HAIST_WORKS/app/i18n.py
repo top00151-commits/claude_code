@@ -1450,12 +1450,17 @@ T = {
     "mf_sumedit_t": {"ko": "음성 인식이 잘못 들은 낱말을 여기서 바로 고칩니다(빅터AI를 다시 돌리지 않습니다)",
                     "vi": "Sửa ngay tại đây những từ mà nhận dạng giọng nói nghe sai (không chạy lại Victor AI)"},
     # z1202 (대표 2026-11-03): 정리 글·회의록 양식 그 자리에서 고치기 + 고친 낱말을 회의 원문에도
-    "kle_hint": {"ko": "✏ 글을 누르면 그 자리에서 고칩니다 · Enter 저장 · Esc 취소 · 고친 낱말은 회의 원문에도 같이 고쳐집니다",
-                 "vi": "✏ Nhấn vào chữ để sửa ngay tại chỗ · Enter lưu · Esc hủy · Từ đã sửa cũng được sửa trong bản gốc cuộc họp"},
+    #  z1204: 고치기는 「✏ 고치기」를 누른 뒤에만 — 누르기 전 안내
+    "kle_hint": {"ko": "「✏ 고치기」를 누르면 보이는 그대로 그 자리에서 고칩니다 · 고친 낱말은 회의 원문에도 같이 고쳐집니다",
+                 "vi": "Nhấn 「✏ Sửa」 để sửa ngay tại chỗ · Từ đã sửa cũng được sửa trong bản gốc cuộc họp"},
     "kle_saved": {"ko": "✓ 저장했습니다", "vi": "✓ Đã lưu"},
     # z1203 (대표 2026-11-04): 「✏ 고치기」 = 보이는 모양 그대로 고치기 모드
-    "kle_mode": {"ko": "✏ 고치는 중 — 줄을 누르면 그 자리에서 고칩니다 · Enter 저장 · Esc 취소 · 고친 낱말은 원문에도 ·",
-                 "vi": "✏ Đang sửa — nhấn vào dòng để sửa tại chỗ · Enter lưu · Esc hủy · từ đã sửa cũng sửa trong bản gốc ·"},
+    "kle_mode": {"ko": "✏ 고치는 중 — 줄을 누르면 그 자리에서 고칩니다 · Enter 저장 · 다 고치면 「✔ 수정 완료」 ·",
+                 "vi": "✏ Đang sửa — nhấn vào dòng để sửa tại chỗ · Enter lưu · sửa xong nhấn 「✔ Sửa xong」 ·"},
+    # z1204 (대표 2026-11-04 「"수정완료" 버튼이 있어야할것 같은데」): 고치기 모드 끝 단추 · 회의록 양식 안내
+    "kle_done": {"ko": "✔ 수정 완료", "vi": "✔ Sửa xong"},
+    "kle_mode_doc": {"ko": "✏ 고치는 중 — 글·표 칸을 누르면 그 자리에서 고칩니다 · Enter 저장 · Esc 취소 · 다 고치면 「✔ 수정 완료」",
+                     "vi": "✏ Đang sửa — nhấn vào chữ·ô bảng để sửa tại chỗ · Enter lưu · Esc hủy · sửa xong nhấn 「✔ Sửa xong」"},
     "kle_raw": {"ko": "줄 넣기·빼기", "vi": "Thêm·bớt dòng"},
     "kle_body_n": {"ko": "✓ 저장 · 회의 원문 {n}곳도 「{o}」 → 「{w}」 로 고쳤습니다",
                    "vi": "✓ Đã lưu · Đã sửa {n} chỗ trong bản gốc: 「{o}」 → 「{w}」"},
