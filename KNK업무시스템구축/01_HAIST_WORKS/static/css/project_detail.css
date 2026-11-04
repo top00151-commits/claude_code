@@ -449,6 +449,14 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
            row-save(💾 저장)는 위 규칙으로 계속 숨김(저장은 카드 상단 '💾 모두 저장'). */
         .so-card.editable.unlocked .parts-excel th.edit-only,
         .so-card.editable.unlocked .parts-excel td.edit-only { display: table-cell !important; }
+        /* z1191z4 (이새롬 프로 요청 · 대표 승인 11-04): 장비 호기·항목 줄도 ✏️ 수정(unlocked) 때만 삭제(×) 칸을 보인다.
+           z92 의 「상태 '취소'로 대체」는 금액이 합계에서 빠지지 않아 잘못 넣은 줄을 정리할 수 없었다.
+           row-save(💾 저장)는 위 규칙으로 계속 숨김. 「호기·일련번호 관리」에 등록된 줄은 서버가 막는다. */
+        .so-card.editable.unlocked .so-units th.edit-only,
+        .so-card.editable.unlocked .so-units td.edit-only { display: table-cell !important; }
+        /* z1191z4: 장비·항목 표는 화면보다 넓어 × 칸이 오른쪽 끝(가로로 밀어야 보임)에 숨는다 → 표 오른쪽 가장자리에 고정 */
+        .so-card.editable.unlocked table.so-units:not(.parts-excel) th.edit-only,
+        .so-card.editable.unlocked table.so-units:not(.parts-excel) td.edit-only { position: sticky; right: 0; z-index: 3; width: 46px !important; min-width: 46px; background: var(--paper); box-shadow: -3px 0 5px rgba(0,0,0,0.07); }
         /* v5H226z88: 카드 상단 "💾 모두 저장" — 편집 모드 시만 노출 */
         .so-card .save-all-btn { display: none; }
         .so-card.editable .save-all-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; background: #15803d; color: #fff; border: 0; border-radius: 5px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
@@ -519,8 +527,8 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         /* 잠금 상태에서 일괄적용 / 호기 추가 / 라인삭제 / 호기 상태 일괄 모두 숨김 */
         .so-card.editable:not(.unlocked) .bulk-status-tools,
         .so-card.editable:not(.unlocked) .add-unit-card,
-        .so-card.editable:not(.unlocked) .row-del,
-        .so-card.editable:not(.unlocked) .add-unit { display: none !important; }
+        .so-card.editable:not(.unlocked) .row-del { display: none !important; }
+        /* z1191z4: 「＋ 호기 추가」는 잠금 상태에서도 보인다 — 누르면 수정 모드가 자동으로 켜지고 추가 칸이 열린다 */
         /* '✏️ 수정' / '💾 변경사항 저장' 토글 버튼 */
         .so-card .toggle-edit { background: var(--paper); border: 1px solid var(--line); color: #475569; border-radius: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
         .so-card .toggle-edit:hover { background: var(--paper-2); }

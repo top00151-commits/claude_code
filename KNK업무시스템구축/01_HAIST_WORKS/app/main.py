@@ -19225,6 +19225,22 @@ async def sales_order_item_delete(req: Request, iid: int):
                 "ok": False,
                 "message": f"{st} 상태 SO 의 호기는 삭제 불가"
             }, 400)
+        # z1191z4: 「호기·일련번호 관리」(project_units)에 등록된 호기의 출처 줄은 지우지 않는다
+        #   — 지우면 일련번호 기록이 가리키는 수주 줄이 사라진다. 상태 '취소'로 처리하게 안내.
+        import sqlite3 as _sq_z4
+        try:
+            _pu_link = c.execute(
+                "SELECT COALESCE(current_unit_no, working_name, '') FROM project_units "
+                "WHERE seed_order_item_id=? LIMIT 1", (iid,)).fetchone()
+        except _sq_z4.OperationalError:   # 표가 없는 옛 DB
+            _pu_link = None
+        if _pu_link is not None:
+            _pu_no = (_pu_link[0] or "").strip()
+            return JSONResponse({
+                "ok": False,
+                "message": "이 줄은 「호기·일련번호 관리」에 등록된 호기" + (f"({_pu_no})" if _pu_no else "")
+                           + "와 연결돼 있어 지울 수 없습니다. 상태를 '취소'로 바꿔 주세요."
+            }, 400)
         oid = it["order_id"]
         del_lbl = it["lbl"] or "—"
         del_amt = float(it["amt"] or 0)
