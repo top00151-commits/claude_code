@@ -828,6 +828,10 @@ def build_co_bulk_template_buf():
     c = ws.cell(3, 10, "진행사업부"); c.font = white; c.fill = knk; c.border = border
     ws.cell(3, 11, "").border = border
     ws.cell(3, 12, "(검사기/자동화 — 카드 사업부 표기 · 비우면 '소모품')").font = hintf
+    # z1191z3 (대표 2026-11-04): 프로젝트명 — J4 라벨 + K4 값(TSP/PBA/SENSOR 고르기 · 직접 입력도 됨) · 비우면 '소모품'
+    c = ws.cell(4, 10, "프로젝트명"); c.font = white; c.fill = knk; c.border = border
+    ws.cell(4, 11, "").border = border
+    ws.cell(4, 12, "(TSP/PBA/SENSOR 고르기 또는 직접 입력 · 비우면 '소모품')").font = hintf
     # 라인 머리글(11행) — v5H226z730(대표 지시): 모델명·장비명은 '발주(전체 대표) 단위'(위 기본정보 우측 블록 모델명=G5·장비명=G6)로만.
     #   각 소모품 부품(라인)에는 모델명·장비명을 입력하지 않음 → 라인 머리글에서 제거(18→16열·소모품 품명이 1열 A로).
     line_hdrs = ["소모품 품명", "소모품 규격 (SPEC)",
@@ -850,9 +854,11 @@ def build_co_bulk_template_buf():
     dv_status = DataValidation(type="list", formula1='"진행중,출하,취소,보류"', allow_blank=True)
     dv_form = DataValidation(type="list", formula1='"완제품,제품,상품,기타"', allow_blank=True)
     dv_biz = DataValidation(type="list", formula1='"검사기,자동화"', allow_blank=True)   # z987b: 진행 사업부(K3)
-    for dv in (dv_ccy, dv_exp, dv_status, dv_form, dv_biz):
+    # z1191z3: 프로젝트명(K4) — 목록에서 고르거나 직접 입력(목록 밖 글자도 막지 않음: showErrorMessage=False)
+    dv_pj = DataValidation(type="list", formula1='"%s"' % ",".join(PROJECT_NAME_CHOICES), allow_blank=True, showErrorMessage=False)
+    for dv in (dv_ccy, dv_exp, dv_status, dv_form, dv_biz, dv_pj):
         ws.add_data_validation(dv)
-    dv_ccy.add("G3"); dv_exp.add("G4"); dv_status.add("G9"); dv_form.add("F12:F2000"); dv_biz.add("K3")
+    dv_ccy.add("G3"); dv_exp.add("G4"); dv_status.add("G9"); dv_form.add("F12:F2000"); dv_biz.add("K3"); dv_pj.add("K4")
     ws.freeze_panes = "A12"
     # 예시 2줄(12~13행) — 품명 '예)' 접두라 업로드 시 자동 스킵. v5H226z730: 모델명·장비명 열 제거(16열).
     ex = [["예) Grip Pad", "50x50", "", "", "2026-01-30", "상품",
@@ -877,6 +883,7 @@ def build_co_bulk_template_buf():
         ["품명·수량 *", "필수. 단가/금액은 숫자(콤마 없이). 금액 비우면 수량×단가로 자동."],
         ["드롭다운", "통화(G3) / 거래구분 내수·수출(G4) / 상태 진행중·출하·취소·보류(G9) / 형태 완제품·제품·상품·기타(F열·라인) / 진행사업부 검사기·자동화(K3)."],
         ["진행사업부 (K3)", "검사기/자동화 중 선택 — 제작요청서목록 카드 오른쪽 위 사업부 배지·색으로 표기. 비우면 '소모품'으로 표기(등록 후 소모품 상세에서 변경 가능)."],
+        ["프로젝트명 (K4)", "TSP/PBA/SENSOR 중 고르거나 직접 입력 — 프로젝트 목록·작업일정표의 프로젝트명. 비우면 '소모품'(등록 후 소모품 상세에서 변경 가능)."],
         ["자재코드", "등록 자재(파트) 코드를 적으면 업로드 시 그 자재로 자동 연결(선택)."],
         ["연결 관리번호", "이 소모품이 어느 장비(관리번호)의 것인지(선택). 예: 012T2601."],
         ["거래명세서·세금계산서", "발주 단위 — 발행일/금액(세금계산서 1건). 날짜 YYYY-MM-DD·금액 숫자. 비우면 미발행."],
@@ -1034,7 +1041,8 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
               "고객담당자": "cc_name", "고객연락처": "cc_phone", "발주일": "order_date", "납기일": "due_date",
               "통화": "currency", "거래구분": "is_export", "모델명": "model_name", "장비명": "equip_name",
               "납품위치": "ship_to", "영업담당자": "sales_name", "상태": "status",
-              "진행사업부": "biz_div_raw"}   # v5H226z987b: J3 라벨·K3 값(검사기/자동화)
+              "진행사업부": "biz_div_raw",   # v5H226z987b: J3 라벨·K3 값(검사기/자동화)
+              "프로젝트명": "project_name"}   # z1191z3: J4 라벨·K4 값(TSP/PBA/SENSOR 또는 직접 입력)
     hb = {}
     for r in range(1, hdr):
         for lc, vc in ((1, 2), (6, 7), (10, 11)):   # A->B, F->G, J->K(z987b 진행사업부)
@@ -1082,6 +1090,7 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
         "cc_name": s(hb.get("cc_name")), "cc_phone": s(hb.get("cc_phone")),
         "ship_to": s(hb.get("ship_to")), "sales_name": s(hb.get("sales_name")),
         "model_name": s(hb.get("model_name")), "equip_name": s(hb.get("equip_name")),
+        "project_name": norm_project_name(hb.get("project_name")),   # z1191z3
         "status": _norm_co_status(hb.get("status")),
         "cust_ok": bool(match_customer_by_name(cust)) if cust else False,
         "biz_div": _bd987, "note": "", "form_type": "",   # z987b: 카드 사업부 배지(z987) 연동
@@ -1213,11 +1222,11 @@ def co_list(status: str = "", q: str = "", limit: int = 200, overlap=None) -> li
         # v5H226z1083 (대표 지시 2026-08-11): 품명·규격도 검색 — "KNK-P-4847" 치면 그 품목이 담긴 발주가 나옴
         #   (실무자가 규격으로 출하 이력을 못 찾던 문제). 관리번호(mgmt_code)도 함께.
         sql += (" AND (co_no LIKE ? OR customer_name LIKE ? OR note LIKE ?"
-                " OR COALESCE(mgmt_code,'') LIKE ?"
+                " OR COALESCE(mgmt_code,'') LIKE ? OR COALESCE(project_name,'') LIKE ?"   # z1191z3: 프로젝트명(PBA …)
                 " OR customer_id IN (SELECT c.id FROM customers c WHERE c.name LIKE ? OR COALESCE(c.alias,'') LIKE ?)"
                 " OR id IN (SELECT ci.co_id FROM consumable_order_items ci"
                 "           WHERE COALESCE(ci.part_name,'') LIKE ? OR COALESCE(ci.spec,'') LIKE ?))")
-        params += [f"%{q}%"] * 8
+        params += [f"%{q}%"] * 9
     if overlap:
         # v5H226z864 (성능): overlap=(시작,끝) — 발주~납품 기간이 겹치는 건만(일정표 월 보기 프리필터).
         #   일정표 행 판정(_mk_row: s=(발주 or 납품), e=(납품 or 발주), 스왑 후 겹침)과 동일 재현.
@@ -1269,7 +1278,45 @@ _ORDER_FIELD_LABELS = {
     "tax_invoice_date": "1세금계산서 발행일", "tax_invoice_amt1": "1세금계산서 금액",
     "tax_invoice_date2": "2세금계산서 발행일", "tax_invoice_amt2": "2세금계산서 금액",
     "tax_invoice_date3": "3세금계산서 발행일", "tax_invoice_amt3": "3세금계산서 금액",
+    # z1191z3 (이새롬 프로 요청 · 대표 2026-11-04): 프로젝트명 — 검사기 장비 프로젝트처럼 TSP·PBA·SENSOR(또는 직접 입력)
+    "project_name": "프로젝트명",
 }
+
+# z1191z3: 소모품 프로젝트명 — 고를 이름(검사기 장비 프로젝트명과 같은 제품군 · 운영 11-04: PBA 257 · SENSOR 77 · TSP 37) ·
+#   직접 써넣어도 된다(대표 「고를수있게하고 또 직접 써 넣을수도 있게」). 비우면 화면은 지금처럼 「소모품」(v5H226z931 고정의 기본값).
+PROJECT_NAME_CHOICES = ("TSP", "PBA", "SENSOR")
+PROJECT_NAME_DEFAULT = "소모품"
+PROJECT_NAME_MAX = 40
+
+
+def norm_project_name(v) -> str:
+    """입력 → 저장값: 앞뒤 빈칸·겹친 빈칸 정리 · 고를 이름과 대소문자만 다르면 그 이름(pba → PBA) · 40자까지 · 「소모품」은 빈칸(기본값)."""
+    t = re.sub(r"\s+", " ", str(v if v is not None else "")).strip()[:PROJECT_NAME_MAX]
+    for ch in PROJECT_NAME_CHOICES:
+        if t.upper() == ch:
+            return ch
+    return "" if t == PROJECT_NAME_DEFAULT else t
+
+
+def project_label(co) -> str:
+    """화면에 보일 소모품 프로젝트명 — 적힌 이름 · 없으면 「소모품」"""
+    return (str((co or {}).get("project_name") or "").strip()) or PROJECT_NAME_DEFAULT
+
+
+def project_name_choices() -> list:
+    """고르기 목록 — TSP·PBA·SENSOR + 이미 소모품에 직접 써넣은 이름(많이 쓴 순 · 20개까지)"""
+    out = list(PROJECT_NAME_CHOICES)
+    try:
+        with db_session() as c:
+            cols = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+            if "project_name" in cols:
+                for r in c.execute("SELECT project_name, COUNT(*) n FROM consumable_orders WHERE TRIM(COALESCE(project_name,''))<>'' "
+                                   "GROUP BY project_name ORDER BY n DESC, project_name LIMIT 20"):
+                    if r[0] not in out:
+                        out.append(r[0])
+    except Exception as e:                      # 목록만 못 만든 것 — 고를 이름 세 개는 그대로 보인다
+        print(f"[z1191z3] 프로젝트명 목록 읽기 실패: {e}")
+    return out
 _LINE_FIELD_LABELS = {"model_use": "모델", "equip_name": "장비명", "part_name": "품명",
                       "spec": "규격", "qty": "수량", "unit": "단위", "unit_price": "단가",
                       "note": "비고", "linked_project_id": "관리번호 연결", "part_id": "자재 연결"}
@@ -1375,6 +1422,8 @@ def co_update_order_field(co_id: int, field: str, value, by_id=None, by_name: st
         new_v = 1 if str(value).strip() in ("수출", "1", "export", "EXPORT") else 0
     elif field == "currency":
         new_v = (str(value).strip().upper() or "KRW")
+    elif field == "project_name":
+        new_v = norm_project_name(value)      # z1191z3: 고를 이름 대소문자 맞춤 · 「소모품」=빈칸(기본값)
     elif field == "biz_div":
         # v5H226z987: 진행 사업부 = 검사기(T)/자동화(M)/미지정('') 만 — 등록 폼(v5H218 T/M)과 동일 어휘
         new_v = (str(value).strip().upper() if value is not None else "")

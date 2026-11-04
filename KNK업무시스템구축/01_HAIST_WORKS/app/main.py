@@ -28419,9 +28419,10 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     #   "KNK-P-4847" 검색 시 그 품목이 담긴 소모품 발주 행이 나온다.
                     _cconds.append("(co.mgmt_code LIKE ? OR co.co_no LIKE ? OR co.customer_name LIKE ? "
                                    "OR cu.alias LIKE ? OR co.model_name LIKE ? OR co.equip_name LIKE ? "
+                                   "OR COALESCE(co.project_name,'') LIKE ? "      # z1191z3
                                    "OR co.id IN (SELECT ci.co_id FROM consumable_order_items ci "
                                    "             WHERE COALESCE(ci.part_name,'') LIKE ? OR COALESCE(ci.spec,'') LIKE ?))")
-                    _cparams += [f"%{_q}%"] * 8
+                    _cparams += [f"%{_q}%"] * 9
                 if _period == "day":
                     _cconds.append("substr(COALESCE(order_date,''),1,10) = ?"); _cparams.append(_today)
                 elif _period == "week":
@@ -29014,12 +29015,13 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                 # v5H226z931 (대표 지시): 소모품 행 프로젝트명·모델명·장비명을 작업일정표(schedule_board)와 동일하게 —
                 #   프로젝트명='소모품'(고정) · 모델명/장비명=소모품 발주 대표값(consumable_orders.model_name/equip_name).
                 #   (기존엔 프로젝트명=자동 래퍼명·모델/장비 미설정→'—' 였음. 고객사·번호는 고객사 칸·상세 링크로 유지.)
+                # z1191z3 (대표 2026-11-04): 프로젝트명 = 소모품에 적은 이름(TSP·PBA·SENSOR · 직접 입력) · 비면 '소모품'(위 고정값이 기본값)
                 rows.append({
                     "_kind": "consumable",
                     "id": cr.get("id"),
                     "mgmt_code": cr.get("mgmt_code") or "—",
-                    "name": "소모품",
-                    "project_name": "소모품",
+                    "name": _co_mod.project_label(cr),
+                    "project_name": _co_mod.project_label(cr),
                     "model_name": cr.get("model_name") or "",
                     "equip_name": cr.get("equip_name") or "",
                     "customer_name": cr.get("customer_name") or "—",
@@ -30112,7 +30114,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             info = {
                 "parts_blob": _co_pblob.get(cr.get("id"), ""),   # v5H226z1083
                 "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
-                "so_no": cr.get("co_no") or "", "name": "소모품",
+                "so_no": cr.get("co_no") or "", "name": _co_mod.project_label(cr),   # z1191z3: 비면 '소모품'
                 "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
                 "note": cr.get("note") or "", "qty": 1,
                 "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
@@ -31647,7 +31649,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 "ref_id": cr.get("id"),                    # v5H226z264: 셀 편집/메모용
                 "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "",
-                "name": "소모품",
+                "name": _co_mod.project_label(cr),          # z1191z3: 소모품 프로젝트명(비면 '소모품')
                 "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
                 # v5H226z291 (대표 지시): 소모품은 보드에 한 줄로 표현 → 수량=1·단가=금액(총액)·금액=총액 (공란 금지)
                 "note": cr.get("note") or "", "qty": 1,
@@ -49278,7 +49280,8 @@ async def consumables_new_form(request: Request, embed: str = ""):
     return ctx(request, "consumable_form_upload.html",
                user=u, active="consumables", embed=_embed,
                customers=_logi.customers_for_picker(),
-               can_manual_mgmt=_can_manual_mgmt(u))
+               can_manual_mgmt=_can_manual_mgmt(u),
+               project_choices=_co.project_name_choices())     # z1191z3
 
 
 @app.post("/consumables/create-direct")
@@ -49291,6 +49294,7 @@ async def consumables_create_direct(request: Request,
                                     currency: str = Form("KRW"),
                                     note: str = Form(""),
                                     manual_mgmt_code: str = Form(""),
+                                    project_name: str = Form(""),
                                     mode: str = Form("")):
     """v5H226z309/z312 (대표 지시): 엑셀 없이 시스템에서 직접(수기) 소모품 수주 등록 —
     빈 발주 생성(관리번호·수주번호 자동) 후 상세 화면으로 이동해 정보·라인·사진을 직접 입력.
@@ -49339,6 +49343,11 @@ async def consumables_create_direct(request: Request,
                                   currency=(currency or "KRW"), note=(note or ""),
                                   source_file="직접등록", created_by=u.get("id"),
                                   mgmt_code_override=_override)
+    # z1191z3 (대표 2026-11-04): 프로젝트명(TSP·PBA·SENSOR · 직접 입력) — 비면 저장 안 함(화면은 '소모품')
+    _pjn = _co.norm_project_name(project_name)
+    if _pjn:
+        with db_session() as c:
+            c.execute("UPDATE consumable_orders SET project_name=? WHERE id=?", (_pjn, int(co_id)))
     if cid:
         # v5H226z310 (적대검토·연결성 절대준수): 명시 선택/정확매칭된 고객사 직접 set, 실패 표면화(except:pass 금지)
         with db_session() as c:
@@ -49597,6 +49606,7 @@ async def consumables_import_bulk_confirm(request: Request):
                 #   사진1(엑셀 기본정보 모델명·장비명) ↔ 사진2(상세 '제품' 모델명·장비명) 매칭.
                 _put("model_name", (o.get("model_name") or "").strip())
                 _put("equip_name", (o.get("equip_name") or "").strip())
+                _put("project_name", _co.norm_project_name(o.get("project_name")))   # z1191z3: 양식 K4 프로젝트명
                 _put("cc_name", o.get("cc_name")); _put("cc_phone", o.get("cc_phone"))
                 _put("ship_to", o.get("ship_to")); _put("sales_name", o.get("sales_name"))
                 _put("form_type", o.get("form_type"))   # v5H226z563: 엑셀 형태(제품/상품/기타) 반영
@@ -49917,7 +49927,8 @@ async def consumables_detail(request: Request, co_id: int):
                co=co, items=items, teams=_teams, team_members=_team_members,
                history=_history, customers=_customers,
                STATUS_LABELS=_co.CO_STATUS_LABELS,
-               STATUSES=_co.CO_STATUSES)
+               STATUSES=_co.CO_STATUSES,
+               project_choices=_co.project_name_choices())     # z1191z3
 
 
 @app.get("/consumables/{co_id:int}/prod-request", response_class=HTMLResponse)

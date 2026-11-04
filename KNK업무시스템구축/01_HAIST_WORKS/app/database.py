@@ -3266,6 +3266,11 @@ def init_db():
             if "status_date" not in cocols:
                 c.execute("ALTER TABLE consumable_orders ADD COLUMN status_date TEXT")
                 print("[v5H226z1038] consumable_orders.status_date 컬럼 추가됨")
+            # z1191z3 (이새롬 프로 요청 · 대표 2026-11-04 「진행해 … 고를수있게하고 또 직접 써 넣을수도 있게」):
+            #   소모품 프로젝트명(TSP·PBA·SENSOR 또는 직접 입력) — 비면 지금처럼 「소모품」으로 보인다. 추가형·무손실(기존 줄 NULL).
+            if "project_name" not in cocols:
+                c.execute("ALTER TABLE consumable_orders ADD COLUMN project_name TEXT")
+                print("[z1191z3] consumable_orders.project_name 컬럼 추가됨")
             # v5H226z890 (대표 지시): 소모품 통보를 제작요청서 체계로 편입 — 통보 대상/수신자 스냅샷 기록.
             #   제작요청(prod_requests)의 recipients/dept_names/user_ids/team_ids/sent_to/dept_count 와 대응. 추가형·무손실.
             for _nc in ("notify_recipients", "notify_dept_names", "notify_user_ids",

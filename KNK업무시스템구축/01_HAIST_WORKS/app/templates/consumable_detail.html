@@ -306,6 +306,14 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
               <input type="date" class="ef" id="coStatusDate" data-field="status_date"
                      title="상태가 그렇게 된 날 — 작업일정표 달력과 같은 값입니다"
                      value="{{ (co.status_date or '')[:10] }}" style="max-width:130px;"></div>
+            {# z1191z3 (이새롬 프로 요청 · 대표 2026-11-04 「고를수있게하고 또 직접 써 넣을수도 있게」):
+               프로젝트명 — TSP·PBA·SENSOR 를 고르거나 직접 입력 · 비우면 프로젝트 목록·작업일정표에 지금처럼 「소모품」.
+               저장은 다른 칸과 같은 길(.ef data-field → 💾수정 반영 · 변경 이력). 「상태 발생일」 옆 빈 2칸 자리. #}
+            <div class="h-cell" style="grid-column:span 2;"><div class="lbl">프로젝트명</div>
+              <input class="ef" data-field="project_name" list="coProjList" maxlength="40" autocomplete="off"
+                     title="TSP·PBA·SENSOR 중 고르거나 직접 입력 — 비우면 '소모품'"
+                     value="{{ (co.project_name or '')|e }}" placeholder="소모품 (TSP·PBA·SENSOR 고르기 · 직접 입력)">
+              <datalist id="coProjList">{% for n in (project_choices or ['TSP','PBA','SENSOR']) %}<option value="{{ n|e }}"></option>{% endfor %}</datalist></div>
           </div>
         </div>
         {# ② 고객 정보 — v5H226z298: 업로드 후 수정 가능(작업일정표와 양방향 동기화)+이력 #}
@@ -659,6 +667,7 @@ document.querySelectorAll('.ef[data-field]').forEach(el=>{
       if(d.ok){
         el.style.background='#dcfce7'; setTimeout(()=>{ el.style.background=''; },700);
         if(field==='customer_id' || field==='customer_name'){ el.classList.toggle('cust-bad', d.cust_ok===false); }
+        if(field==='project_name' && typeof d.value==='string'){ el.value = d.value; }   // z1191z3: 저장된 값(pba → PBA · '소모품' → 빈칸)
         document.querySelectorAll('.ef[data-field="'+field+'"]').forEach(o=>{ if(o!==el && o.value!==el.value){ o.value=el.value; } });
       } else { el.style.background='#fee2e2'; alert('저장 실패: '+(d.error||'')); }
     }catch(e){ el.style.background='#fee2e2'; }
