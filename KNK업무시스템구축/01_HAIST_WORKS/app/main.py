@@ -18445,6 +18445,24 @@ def _so_is_parts974(c, oid) -> bool:
         return False
 
 
+_BOARD_UNITS_Z4D = ("EA", "식", "SET", "대")   # z1191z4d (대표 지시): 「대」 추가 — 제품 표시수량·기타 수량 단위
+
+
+def _z4d_set_unit(c, pid, unit, latest_only=True):
+    """z1191z4d: 형태=기타 수주의 수량 단위(orders.board_unit) 기록 — 표시 전용(금액·수량 계산 무관).
+    latest_only=True: 대표 SO(취소 제외 · 최신 1건 = 수정 화면이 읽는 SO) / False: 이 프로젝트 SO 전부(신규 등록 직후)."""
+    cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    if "board_unit" not in cols or unit not in _BOARD_UNITS_Z4D:
+        return 0
+    if latest_only:
+        r = c.execute("SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                      "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+        if not r:
+            return 0
+        return c.execute("UPDATE orders SET board_unit=? WHERE id=?", (unit, r[0])).rowcount
+    return c.execute("UPDATE orders SET board_unit=? WHERE project_id=?", (unit, pid)).rowcount
+
+
 def _so_is_semi_z4c(c, oid) -> bool:
     """z1191z4c (이새롬 프로 요청 · 대표 결정): 이 수주가 「제품」인가 — 상세 수주 카드 배지와 **같은 판정**
     (get_project_orders → so_form_label_key: so_form · so_type · 'N호기' 줄 수 · 프로젝트 유형) +
@@ -29516,6 +29534,18 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     return [_collapse_line(_so)]
                 return _merge_units_same(_ul)
 
+            # z1191z4d: SO 에 단위(board_unit)가 있으면 표시수량 줄이 아닌 줄에도 실어 보낸다(기타 「3 SET」 등)
+            _so_lines_z4d = _so_lines
+
+            def _so_lines(_so):
+                _ls = _so_lines_z4d(_so)
+                _bu = (_so.get("o_bunit") or "").strip()
+                if _bu:
+                    for _l in _ls:
+                        if not _l.get("board_unit"):
+                            _l["board_unit"] = _bu
+                return _ls
+
             # 프로젝트별로 SO 묶기 (oid 오름차순 = 최초 먼저).
             _proj_sos: dict = {}
             for (pid, oid), so in _so_acc.items():
@@ -34766,7 +34796,7 @@ async def projects_new_submit(request: Request):
         if _bq_i > 0:
             _bq_v = _bq_i
         _bu_v = (form.get("board_unit") or "").strip()
-        if _bu_v not in ("EA", "식", "SET"):
+        if _bu_v not in _BOARD_UNITS_Z4D:   # z1191z4d: 「대」 추가
             _bu_v = "EA"
     _strict = (_status_v in ("진행중", "출하") or _confirm_now_v) and not _is_consumable and not _is_parts_reg
     # PO유형은 항상 필수 (관리코드 산출 키)
@@ -35039,6 +35069,12 @@ async def projects_new_submit(request: Request):
                                              (_bq_v, _bu_v, _fu_oid88))
                         except Exception as _e88:
                             log.warning("z1088b 추가발주 표시수량 저장 실패: %s", _e88)
+                    # z1191z4d: 형태=기타 추가 발주 — 고른 단위를 새 SO 에
+                    if _fu_sf == "ETC" and (form.get("etc_unit") or "").strip() in _BOARD_UNITS_Z4D:
+                        _fu_oidz4d = (_fu_res88 or {}).get("order_id") if isinstance(_fu_res88, dict) else None
+                        if _fu_oidz4d:
+                            _cc3.execute("UPDATE orders SET board_unit=? WHERE id=?",
+                                         ((form.get("etc_unit") or "").strip(), _fu_oidz4d))
             # v5H226z384 (대표 지시): 추가 발주도 제작요청 발행(전부서 통보) — 신규처럼. 같은 관리번호의 기존 프로젝트로 통보.
             _fu_url = f"/project/{_existing['id']}?followup=1"
             if _fu_sf == "PARTS":   # v5H226z436: 상품 추가발주는 상세 PACKING LIST 로 유도
@@ -35546,6 +35582,10 @@ async def projects_new_submit(request: Request):
                     )
         except Exception:
             return _finish_new(new_pid, "so_issue_failed")
+        # z1191z4d: 형태=기타 — 고른 단위를 이번에 만든 SO(새 프로젝트의 SO 전부)에
+        if (form.get("shipment_form") or "").strip().upper() == "ETC" and (form.get("etc_unit") or "").strip() in _BOARD_UNITS_Z4D:
+            with db_session() as _cz4d:
+                _z4d_set_unit(_cz4d, int(new_pid), (form.get("etc_unit") or "").strip(), latest_only=False)
         return _finish_new(new_pid)
     # v5H87: confirm_now 미체크 + status 가 won (진행중/출하) 인 경우
     # 자동으로 SO 발행 (관리코드만 있고 SO 없는 모순 상태 방지)
@@ -35610,6 +35650,10 @@ async def projects_new_submit(request: Request):
                     )
         except Exception:
             return _finish_new(new_pid, "so_issue_failed")
+        # z1191z4d: 형태=기타 — 고른 단위를 이번에 만든 SO(새 프로젝트의 SO 전부)에
+        if (form.get("shipment_form") or "").strip().upper() == "ETC" and (form.get("etc_unit") or "").strip() in _BOARD_UNITS_Z4D:
+            with db_session() as _cz4d:
+                _z4d_set_unit(_cz4d, int(new_pid), (form.get("etc_unit") or "").strip(), latest_only=False)
         return _finish_new(new_pid)
     # v5H224: 모든 등록은 항상 프로젝트 상세 페이지로 이동 (이전: /projects 목록으로 이동했음)
     if new_pid:
@@ -38286,7 +38330,7 @@ async def projects_edit_submit(request: Request, pid: int):
             except (ValueError, TypeError):
                 _bq88 = 0
             _bu88 = (form.get("board_unit") or "").strip()
-            if _bu88 not in ("EA", "식", "SET"):
+            if _bu88 not in _BOARD_UNITS_Z4D:   # z1191z4d: 「대」 추가
                 _bu88 = "EA"
             with db_session() as _sc1088:
                 _ocols1088 = {r[1] for r in _sc1088.execute("PRAGMA table_info(orders)").fetchall()}
@@ -38300,6 +38344,12 @@ async def projects_edit_submit(request: Request, pid: int):
                                          (_bu88 if _bq88 > 0 else None), _so1088[0]))
         except Exception as _bq_err1088:
             print(f"[v5H226z1088] board_qty SO sync err: {_bq_err1088}")
+    # z1191z4d (이새롬 프로 요청 · 대표 결정): 형태=기타 — 빠른 폼의 단위를 대표 SO(최신 · 위 제품과 같은 규칙)에 기록
+    if _sf976 == "ETC" and _is_quick_edit and form.get("etc_unit") is not None:
+        _eu_v = (form.get("etc_unit") or "").strip()
+        if _eu_v in _BOARD_UNITS_Z4D:
+            with db_session() as _scz4d:
+                _z4d_set_unit(_scz4d, pid, _eu_v, latest_only=True)
     # v5H226z354 (대표 지시): 빠른 폼 수정 모드는 납품위치(ship_to)를 대표 SO(orders 최신)에 반영.
     #   정식 폼은 호기별 unit_ship[] 을 쓰므로 top-level 'ship_to' 를 보내지 않음 → 빠른 폼에만 적용(필드 존재 시).
     if _is_quick_edit and (form.get("ship_to") is not None):

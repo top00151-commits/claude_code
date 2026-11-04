@@ -1162,7 +1162,7 @@
                 <input type="text" name="label" placeholder="품명 (예: TOP PIN BLOCK)" style="flex:1;min-width:180px;" title="제품 품명">
                 <input type="text" name="spec" placeholder="규격 (선택)" style="width:150px;" title="규격" autocomplete="off">
                 <input type="number" name="qty" min="1" max="9999" value="1" style="width:75px;text-align:center;" title="수량">
-                <span style="color:var(--mute);font-size:12px;">개 ×</span>
+                <span style="color:var(--mute);font-size:12px;">{{ so.board_unit or '개' }} ×</span>{# z1191z4d: 수주 단위 따라 #}
                 {% else %}
                 <input type="text" name="label" placeholder="시작 라벨 (비우면 자동: N호기)" style="width:200px;" title="예: '5호기' + 수량 10대 → 5호기~14호기 자동 생성">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="동일 단가로 N대 한 번에 추가">
@@ -1195,7 +1195,11 @@
                   {%- if so.items_n %} <span style="color:var(--mute);font-weight:500;">· 부품 {{ so.items_n }}종 {{ '{:,}'.format(_ppq974|int) }}개</span>{% endif %}</span>
                 {% elif _is_semi %}
                 {# z1191z4c: 제품 줄은 「대」로 세지 않는다 #}
-                <span>품목 <b>{{ so.items_n }}</b> · 수량 <b>{{ _qq }}개</b></span>
+                {% set _su4d = so.board_unit or '개' %}{# z1191z4d: 수주 단위(없으면 개) #}
+                <span>품목 <b>{{ so.items_n }}</b> · 수량 <b>{{ _qq }}{% if _su4d in ('개', '식', '대') %}{{ _su4d }}{% else %} {{ _su4d }}{% endif %}</b></span>
+                {% elif so.board_unit %}
+                {# z1191z4d: 수주에 단위가 적혀 있으면 그 단위(기타 등록·추가 발주 때 고른 값) — 배지는 제품/완제품으로 보일 수 있다 #}
+                <span>수량 <b>{{ _qq }}{% if so.board_unit in ('식', '대') %}{{ so.board_unit }}{% else %} {{ so.board_unit }}{% endif %}</b></span>
                 {% else %}
                 <span>수량 <b>{{ _qq }}대</b></span>
                 {% endif %}

@@ -269,6 +269,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="EA" {% if ed and (board_unit|default('')) == 'EA' %}selected{% endif %}>EA</option>
               <option value="식" {% if ed and (board_unit|default('')) == '식' %}selected{% endif %}>식</option>
               <option value="SET" {% if ed and (board_unit|default('')) == 'SET' %}selected{% endif %}>SET</option>
+              <option value="대" {% if ed and (board_unit|default('')) == '대' %}selected{% endif %}>대</option>{# z1191z4d (대표 지시) #}
             </select></div>
           <div class="qf-f c4" id="qSemiAmtCell" style="display:none;"><label>금액 <span style="font-weight:400;color:var(--qv-ink-3);">({% if ed %}수주 금액{% else %}항목 합계 · 자동{% endif %})</span></label>
             <div id="qSemiAmt" style="min-height:38px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 12px;background:var(--qv-surface-3);border:1px solid var(--qv-line);border-radius:8px;font-weight:700;">0 <span id="qSemiAmtCur" style="font-weight:400;font-size:11px;color:var(--qv-ink-3);">KRW</span></div></div>
@@ -374,7 +375,16 @@ html,body{background:#fff!important;overflow:auto!important;}
 <div class="qf-group" id="qQtyAmtGroup"><div class="qf-group-ttl">수량 · 금액</div><div class="qf-grid">
 
           {# 4행 — 수량(0000·좁게) · 통화 · 단가 · 금액(단가보다 크게). 수량은 항상 표시, 금액류는 영업·관리만 #}
-          <div class="qf-f c2" id="qTopQtyCell"><label>수량</label><input type="number" name="unit_qty" min="1" placeholder="0000" value="{{ project.unit_qty|default(1) if ed else 1 }}"></div>
+          {# z1191z4d (이새롬 프로 요청 · 대표 결정): 완제품 수량 = 호기 수 → 「(대)」 고정 글자 · 기타 = 단위 고르기(아래 칸) #}
+          <div class="qf-f c2" id="qTopQtyCell"><label>수량 <span id="qQtyUnitFixed" style="font-weight:400;color:var(--qv-ink-3);">(대)</span></label><input type="number" name="unit_qty" min="1" placeholder="0000" value="{{ project.unit_qty|default(1) if ed else 1 }}"></div>
+          <div class="qf-f c2" id="qEtcUnitCell" style="display:none;"><label>단위</label>
+            <select name="etc_unit" id="qEtcUnit">
+              <option value="">선택</option>
+              <option value="EA" {% if ed and (board_unit|default('')) == 'EA' %}selected{% endif %}>EA</option>
+              <option value="식" {% if ed and (board_unit|default('')) == '식' %}selected{% endif %}>식</option>
+              <option value="SET" {% if ed and (board_unit|default('')) == 'SET' %}selected{% endif %}>SET</option>
+              <option value="대" {% if ed and (board_unit|default('')) == '대' %}selected{% endif %}>대</option>
+            </select></div>
           {% if can_money %}
           <div class="qf-f c3" id="qCcyCell"><label>통화</label>
             <select name="currency" id="qCurrency" onchange="qToggleFx()">
@@ -634,6 +644,9 @@ function qSyncShip(){
   if(en) en.style.display=(v==='ETC')?'flex':'none';
   // v5H226z444/z455(대표 지시): 각인(장비 마킹)은 완제품(ASSEMBLY)만 — 제품/상품/기타는 숨김
   var eg=document.getElementById('qEngraveBox'); if(eg) eg.style.display=(v==='ASSEMBLY')?'':'none';
+  // z1191z4d: 완제품 수량 = 호기 수 → 「(대)」 고정 · 기타 = 단위 고르기
+  var _qu=document.getElementById('qQtyUnitFixed'); if(_qu) _qu.style.display=(v==='ASSEMBLY')?'':'none';
+  var _eu=document.getElementById('qEtcUnitCell'); if(_eu) _eu.style.display=(v==='ETC')?'':'none';
   // v5H226z721(대표 지시): 상품(PARTS)은 자재 목록이 수량/단가/금액의 단일 소스 → 상단 수량·단가·금액칸 숨김(중복·혼동 방지). 통화칸은 유지(상단 통화칸).
   var _isParts=(v==='PARTS');
   ['qTopQtyCell','qTopPriceCell','qTopAmtCell'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=_isParts?'none':''; });

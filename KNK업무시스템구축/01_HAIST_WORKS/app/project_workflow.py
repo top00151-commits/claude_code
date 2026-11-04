@@ -1257,6 +1257,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                "end_customer"):   # z1190: 수주별 2차 발주처(최종 고객) — SO 카드 표시·수정
         if cn in cols:
             extra.append(cn)
+    if "board_unit" in cols:   # z1191z4d: 수량 단위(제품 표시수량·기타) — SO 카드 수량 표시
+        extra.append("board_unit")
     extra_sql = (", " + ", ".join(extra)) if extra else ""
     # v5H226z202 (대표 지시): 수주(SO)별 발주처 표시 — customer_id + 고객사명(서브쿼리)
     rows = c.execute(
