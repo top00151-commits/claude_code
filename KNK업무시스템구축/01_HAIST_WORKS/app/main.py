@@ -29423,7 +29423,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
-                "COALESCE(o.total_amount,0) AS o_total, COALESCE(o.unit_qty,1) AS o_qty, "
+                "COALESCE(o.total_amount,0) AS o_total, o.total_amount AS o_total_raw, COALESCE(o.unit_qty,1) AS o_qty, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
                 + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", " + _optype_col + ", "
                 + _soform_col + ", " + _soship_col + ", " + _pptype_sub + ", " + _bqty_col + ", "
@@ -29447,6 +29447,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "pid": pid, "oid": oid, "so_no": d.get("so_no") or "",
                         "so_type": (d.get("so_type") or "").upper(),
                         "o_total": float(d.get("o_total") or 0), "o_qty": int(d.get("o_qty") or 1),
+                        "o_total_raw": d.get("o_total_raw"),   # z1191z8: NULL(안 적음) 과 0(무상) 구분용
                         "o_ord": str(d.get("o_ord") or "")[:10], "o_due": str(d.get("o_due") or "")[:10],
                         "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
                         "o_cust": (d.get("o_cust_name") or ""), "o_cust_id": d.get("o_cust_id"),   # v5H226z668/z682: SO 고객사(이름·id)
@@ -29464,6 +29465,19 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     }
                 if d.get("oi_id") is not None:
                     _so_acc[k]["items"].append(d)
+
+            # z1191z8 (이새롬 프로 요청 · 대표 승인 2026-11-06): 「무상」 판정 — 단가 0 을 **적은** 것(z1171 「0 을 적으면 무상」).
+            #   호기(order_items) 있으면 전부 단가·금액 0(NULL 아님) · 호기 없으면 수주금액이 0 으로 적혀 있을 때(NULL 은 안 적음).
+            def _free_so(_so):
+                _its = _so.get("items") or []
+                if _its:
+                    return all((it.get("up") is not None or it.get("amt") is not None)
+                               and float(it.get("up") or 0) == 0 and float(it.get("amt") or 0) == 0 for it in _its)
+                return _so.get("o_total_raw") is not None and float(_so.get("o_total_raw") or 0) == 0
+
+            def _free_item(it):
+                return ((it.get("up") is not None or it.get("amt") is not None)
+                        and float(it.get("up") or 0) == 0 and float(it.get("amt") or 0) == 0)
             # v5H226z1058 (대표 지시): 이 수주(SO)의 형태(라벨,키) — 상세 수주내역과 같은 공용 함수(so_form_label_key).
             #   호기수 = 라벨이 숫자로 시작하는 items 수(1호기·23호기…). so_form 있으면 그게 우선이라 이 폴백은 옛 데이터만 탐.
             def _so_form_lk(_so):
@@ -29524,6 +29538,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "so_note": (None if _so.get("so_type") == "PARTS_EXPORT"
                                 else _join_notes981([_it.get("i_note") for _it in _citems])),
                     "form_label": _cflk[0], "form_key": _cflk[1],   # v5H226z1058: 이 수주 형태(작업일정표 형태 칸)
+                    "is_free": _free_so(_so),   # z1191z8: 무상(단가 0 으로 적음)
                 }
 
             def _so_lines(_so):
@@ -29568,6 +29583,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "so_ptype": _so.get("o_ptype") or "",   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
                         "so_note": (None if it.get("i_note") is None else str(it.get("i_note")).strip()),
                         "form_label": _lflk[0], "form_key": _lflk[1],   # v5H226z1058: 이 수주 형태(작업일정표 형태 칸)
+                        "is_free": _free_item(it),   # z1191z8: 무상(이 호기 단가 0 으로 적음)
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -30062,7 +30078,7 @@ async def admin_import_health(req: Request):
 
 # v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
 #   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
-def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""):
+def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = "", cbiz: str = ""):
     _can_money = bool(can_view_field(u, "sales_amount"))   # v5H226z823: 매출 금액·세금계산서 = 매출금액 열람정책(임원·허용팀). 보드데이터·엑셀 공용.
     import calendar as _cal
     from datetime import date as _date, datetime as _dt
@@ -30137,6 +30153,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
 
     rows = []
     _split_map = _board_split_lines_map()   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할
+    _pfree8 = _proj_free_so_map_z1191z8()   # z1191z8: 분할 안 되는 줄의 무상 판정(수주 기준)
     _bus_iid, _bus_proj = _board_unit_status_maps()   # v5H226z661 (대표 지시): 호기 상태 라이브 맵 — 달력 납기 지연색을 '상세 수주내역 상태'와 동기화
     for p in (dict(r) for r in _logi.projects_list_logi()):
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
@@ -30148,6 +30165,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "name": p.get("name") or "", "model": p.get("model_name") or "",
             "equip": p.get("equip_name") or "", "note": p.get("logi_note") or "",
             "qty": p.get("unit_qty") or "", "price": p.get("unit_price") or 0,
+            "is_free": _proj_free_z1191z8(p, _pfree8),   # z1191z8: 수주 없는 줄 — 단가·금액을 0 으로 적었을 때만 무상
             "amount": p.get("order_amount") or 0, "currency": (p.get("currency") or "KRW"),
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
             "po_type": p.get("po_type") or "",
@@ -30180,6 +30198,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["unit_label"] = _ln["label"]
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
                 _iu["price"] = _ln["price"]
+                _iu["is_free"] = bool(_ln.get("is_free"))   # z1191z8: 무상 표기
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
@@ -30245,6 +30264,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         _co_map = {"DRAFT": "초기협의", "QUOTED": "견적발행", "CONFIRMED": "진행중",
                    "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
         _co_pblob = _co_parts_blob_map()   # v5H226z1083: 품명·규격 찾기 매칭용(엑셀 저장 경로도 동일)
+        _cofree8 = _co_free_ids_z1191z8()   # z1191z8
         for cr in _co_mod.co_list(status="", q="", limit=1000):
             info = {
                 "parts_blob": _co_pblob.get(cr.get("id"), ""),   # v5H226z1083
@@ -30253,6 +30273,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
                 "note": cr.get("note") or "", "qty": 1,
                 "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
+                "is_free": (cr.get("id") in _cofree8), "cbiz": (cr.get("biz_div") or "").strip().upper(),   # z1191z8: 무상 · 진행 사업부(하위 책갈피)
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "form_type": (cr.get("form_type") or "상품"),   # v5H226z563: 엑셀 형태 반영(기본 상품)
@@ -30294,12 +30315,13 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         rows = [r for r in rows if r["div"] == _biz]
     else:
         _biz = ""
+    rows, _cbiz, _cbiz_counts = _board_cbiz_apply_z1191z8(rows, _biz, cbiz)   # z1191z8: 소모품 하위 책갈피
     return {"rows": rows, "div_counts": div_counts, "can_money": _can_money,
-            "today_day": today_day, "last_day": last_day, "biz": _biz}
+            "today_day": today_day, "last_day": last_day, "biz": _biz, "cbiz": _cbiz, "cbiz_counts": _cbiz_counts}
 
 
 @app.get("/sales/schedule/export.xlsx")
-async def schedule_board_export(request: Request, ym: str = "", cust: str = "", biz: str = ""):
+async def schedule_board_export(request: Request, ym: str = "", cust: str = "", biz: str = "", cbiz: str = ""):
     """v5H226z316 (대표 지시): 작업일정표를 엑셀로 저장 — 현재 월/사업부/고객사 필터 그대로 .xlsx.
     금액 컬럼(단가·금액·통화)은 매출 조회 권한자에게만 포함."""
     u = get_user(request)
@@ -30316,7 +30338,7 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
             raise ValueError
     except Exception:
         _y, _m = today.year, today.month
-    data = build_schedule_board_rows(u, _y, _m, cust=cust, biz=biz)
+    data = build_schedule_board_rows(u, _y, _m, cust=cust, biz=biz, cbiz=cbiz)
     rows, can_money = data["rows"], data["can_money"]
     # v5H226z475 (대표 지시): 엑셀 저장 컬럼을 화면 작업일정표와 일치 — '납기'→'납품일'(이름 일치) +
     #   화면에 추가된 거래명세서·세금계산서 1/2/3차(can_money) 컬럼 반영. 세금계산서 칸은 화면처럼 발행일+금액.
@@ -30375,7 +30397,7 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
         keys += ["statement_date", "tax_invoice_date", "_ti_a1", "_ti_d2", "_ti_a2", "_ti_d3", "_ti_a3"]
     headers += ["영업담당자"]   # v5H226z708: '단계'(폐기) 제거 — 상태는 위에서 표기
     keys += ["sales_owner"]
-    out_rows = [[r.get(k, "") for k in keys] for r in rows]
+    out_rows = [[("무상" if (r.get("is_free") and k in ("price", "amount")) else r.get(k, "")) for k in keys] for r in rows]   # z1191z8: 무상 표기
     # v5H226z476 (대표 지시): 이 저장본을 그대로 '일괄업로드' 파일로 쓰도록 시트명을 '일괄등록'으로
     #   (파서가 '일괄등록' 시트를 찾음 · 자동/표시 컬럼은 업로드 시 무시). 파일명엔 월 표기 유지.
     sheets = [{"name": "일괄등록", "headers": headers, "rows": out_rows}]
@@ -31502,7 +31524,7 @@ def _sched_cust_hit(row, q):
 @app.get("/sales/schedule", response_class=HTMLResponse)
 # v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
 def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
-                         pf: str = "", pt: str = "", focus_ref: str = "", focus_so: str = ""):
+                         pf: str = "", pt: str = "", focus_ref: str = "", focus_so: str = "", cbiz: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -31666,6 +31688,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
         _cust_alias = {}
     rows = []
     _split_map = _board_split_lines_map(pids=_pids)   # z389: 호기별 단가·납기 상이 → 호기당 1줄로 분할 (z864: 월 한정)
+    _pfree8 = _proj_free_so_map_z1191z8(_pids)   # z1191z8: 분할 안 되는 줄의 무상 판정(수주 기준)
     _bus_iid, _bus_proj = _board_unit_status_maps(pids=_pids)   # v5H226z661 (대표 지시): 호기 상태 라이브 맵 — 달력 납기 지연색을 '상세 수주내역 상태'와 동기화
     for p in (dict(r) for r in _logi.projects_list_logi(ids=_pids)):   # v5H226z864: 월 보기 후보만
         if (p.get("project_type") or "").upper() == "CONSUMABLE":
@@ -31682,6 +31705,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
             "note": p.get("logi_note") or "",
             "qty": p.get("unit_qty") or "",
             "price": p.get("unit_price") or 0,      # v5H226z277: 단가
+            "is_free": _proj_free_z1191z8(p, _pfree8),       # z1191z8: 수주 없는 줄 — 단가·금액을 0 으로 적었을 때만 무상
             "amount": p.get("order_amount") or 0,   # v5H226z277: 금액(수량×단가)
             "currency": (p.get("currency") or "KRW"),  # v5H226z278: 통화
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
@@ -31723,6 +31747,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 _iu["unit_label"] = _ln["label"]
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
                 _iu["price"] = _ln["price"]
+                _iu["is_free"] = bool(_ln.get("is_free"))   # z1191z8: 무상 표기
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
@@ -31790,6 +31815,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                    "SHIPPED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
         # v5H226z864: 월 보기면 그 달과 겹치는 소모품 발주만(SQL) — 프리필터 실패(None) 시 전체(기존)
         _co_pblob = _co_parts_blob_map()   # v5H226z1083: 품명·규격 찾기 매칭용
+        _cofree8 = _co_free_ids_z1191z8()   # z1191z8
         for cr in _co_mod.co_list(status="", q="", limit=1000,
                                   overlap=((mstart, mend) if _pids is not None else None)):
             info = {
@@ -31802,6 +31828,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 # v5H226z291 (대표 지시): 소모품은 보드에 한 줄로 표현 → 수량=1·단가=금액(총액)·금액=총액 (공란 금지)
                 "note": cr.get("note") or "", "qty": 1,
                 "price": cr.get("total_amount") or 0, "amount": cr.get("total_amount") or 0,
+                "is_free": (cr.get("id") in _cofree8), "cbiz": (cr.get("biz_div") or "").strip().upper(),   # z1191z8: 무상 · 진행 사업부(하위 책갈피)
                 "currency": (cr.get("currency") or "KRW"),
                 "trade": "수출" if int(cr.get("is_export") or 0) else "내수",
                 "po_type": "소모품", "form_type": (cr.get("form_type") or "상품"),   # v5H226z563: 엑셀 형태 반영(기본 상품)
@@ -31920,6 +31947,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
         rows = [r for r in rows if r["div"] == _biz]
     else:
         _biz = ""
+    rows, _cbiz, _cbiz_counts = _board_cbiz_apply_z1191z8(rows, _biz, cbiz)   # z1191z8: 소모품 하위 책갈피
     summary = {
         "deliver_today": sum(1 for r in rows if r["dday"] == today_day and today_day),
         "delay": sum(1 for r in rows if r["is_delay"]),
@@ -31952,7 +31980,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
     # v5H226z1041 (대표 지시·달력 규정 §7): 일 빨강 + 토 파랑 + 한국(K)·베트남(V) 공휴일 배지
     day_marks = _calendar_day_marks(_y, _m, last_day)
     return ctx(request, "schedule_board.html", user=u, active="sales_schedule",
-               ti_map=_ti_map,
+               ti_map=_ti_map, cbiz=_cbiz, cbiz_counts=_cbiz_counts,   # z1191z8
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
                days=days, today_day=today_day, day_marks=day_marks, rows=rows, summary=summary, cust=cust,
@@ -33430,7 +33458,7 @@ def _dept_sched_dept_of(u):
 
 @app.get("/dept/schedule", response_class=HTMLResponse)
 # v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
-def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = ""):
+def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "", cbiz: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -33585,6 +33613,7 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
                 "kind": "consumable", "ref_id": cr.get("id"), "code": cr.get("mgmt_code") or "—",
                 "so_no": cr.get("co_no") or "", "model": cr.get("model_name") or "", "equip": cr.get("equip_name") or "",
                 "qty": 1, "po_type": "소모품", "form_type": (cr.get("form_type") or "상품"),   # v5H226z563: 엑셀 형태 반영(기본 상품)
+                "cbiz": (cr.get("biz_div") or "").strip().upper(),   # z1191z8: 진행 사업부(소모품 하위 책갈피)
                 "customer": (_cust_alias.get(cr.get("customer_id")) or cr.get("customer_name") or "—"),   # v5H226z550: 시스템명 우선
                 "cust_ok": bool(cr.get("customer_id")),
                 "owner": cr.get("cc_name") or "",
@@ -33622,6 +33651,7 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
         rows = [r for r in rows if r["div"] == _biz]
     else:
         _biz = ""
+    rows, _cbiz, _cbiz_counts = _board_cbiz_apply_z1191z8(rows, _biz, cbiz)   # z1191z8: 소모품 하위 책갈피
     rows.sort(key=lambda r: (0 if r["dday"] else 1, r["dday"] or 99, r["code"]))
 
     # v5H226z571 (대표 지시): 단계 시스템 완전 제거 — 부서일정표의 '단계' 연동 컬럼도 폐지.
@@ -33719,7 +33749,7 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "")
                rows=rows, days=days, today_day=today_day, day_marks=day_marks,
                month_label=f"{_y}년 {_m}월", ym=f"{_y:04d}-{_m:02d}",
                prev_ym=prev_ym, next_ym=next_ym, cur_ym=f"{today.year:04d}-{today.month:02d}",
-               biz=_biz, div_counts=div_counts, cellsum=cellsum, logmap=logmap,
+               biz=_biz, div_counts=div_counts, cellsum=cellsum, logmap=logmap, cbiz=_cbiz, cbiz_counts=_cbiz_counts,   # z1191z8
                my_team=my_team, all_depts=all_depts, sel_dept=sel_dept, summary=summary,
                types=["진행", "완료", "변경", "기타"],
                today=today.isoformat(), is_admin=bool(u.get("role") in ("admin", "ceo")), uid=u.get("id"))
@@ -50547,6 +50577,69 @@ async def consumables_set_status(request: Request, co_id: int):
 # v5H226z1019 (대표 지시): 소모품 사업부 배지 = '소모품' 유지 + 진행사업부(biz_div) 부기('소모품·검사기').
 #   빈값/미지정은 '소모품'만. 목록 카드·소모품 상세·이음 카드 공용(표기 통일).
 _CONS_BIZ_SUB = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}
+def _proj_free_so_map_z1191z8(pids=None):
+    """z1191z8: 프로젝트별 「수주가 전부 무상인가」 {project_id: bool} — 호기(order_items) 분할 줄이 안 나오는
+    단일 수주·호기 없는 프로젝트 줄용. 수주 무상 = 호기 있으면 단가·금액 전부 0(NULL 아님) · 호기 없으면 수주금액이 0 으로 적힘.
+    수주가 없는 프로젝트는 빠짐(→ projects 값으로 판정)."""
+    out = {}
+    try:
+        with db_session() as _c:
+            for r in _c.execute(
+                "SELECT o.project_id AS pid, o.total_amount AS tot, COUNT(oi.id) AS n, "
+                "SUM(CASE WHEN oi.unit_price IS NULL AND oi.amount IS NULL THEN 1 ELSE 0 END) AS nn, "
+                "SUM(CASE WHEN COALESCE(oi.unit_price,0)<>0 OR COALESCE(oi.amount,0)<>0 THEN 1 ELSE 0 END) AS nz "
+                "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
+                "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'" + _board_in_frag("o.project_id", pids) +
+                " GROUP BY o.id"):
+                d = dict(r)
+                _free = ((d["n"] or 0) > 0 and (d["nn"] or 0) == 0 and (d["nz"] or 0) == 0) or                         ((d["n"] or 0) == 0 and d["tot"] is not None and float(d["tot"] or 0) == 0)
+                out[d["pid"]] = out.get(d["pid"], True) and bool(_free)
+    except Exception:
+        return {}
+    return out
+
+
+def _proj_free_z1191z8(p, so_map=None):
+    """z1191z8: 수주(SO) 분할 줄이 없는 프로젝트 줄 — 수주가 있으면 그 수주 전부 무상일 때(so_map) ·
+    수주가 없으면 projects 단가·금액을 **둘 다 0 으로 적었을 때만** 무상(NULL=안 적음 · 단가 있고 금액 0 은 아님)."""
+    try:
+        if so_map and p.get("id") in so_map:
+            return bool(so_map[p.get("id")])
+        return (p.get("order_amount") is not None and float(p.get("order_amount") or 0) == 0
+                and p.get("unit_price") is not None and float(p.get("unit_price") or 0) == 0)
+    except Exception:
+        return False
+
+
+def _co_free_ids_z1191z8():
+    """z1191z8 (이새롬 프로 요청 · 대표 승인 2026-11-06): 「무상」 소모품 id 집합 —
+    품목이 1줄 이상 있고 **단가를 전부 0 으로 적은** 건(단가 NULL 은 '아직 안 적음'이라 제외). 운영 4건(012C2603 등)."""
+    try:
+        with db_session() as _c:
+            return {r[0] for r in _c.execute(
+                "SELECT co_id FROM consumable_order_items GROUP BY co_id "
+                "HAVING SUM(unit_price IS NULL)=0 AND SUM(CASE WHEN COALESCE(unit_price,0)<>0 OR COALESCE(amount,0)<>0 THEN 1 ELSE 0 END)=0")}
+    except Exception:
+        return set()
+
+
+def _board_cbiz_apply_z1191z8(rows, biz, cbiz):
+    """z1191z8: 소모품 탭(biz=C) 안 하위 책갈피 — 진행 사업부(consumable_orders.biz_div T/M) 건수와 필터.
+    반환 (rows, cbiz, cbiz_counts). biz 가 C 가 아니면 필터 없음(cbiz='')."""
+    _cb = (cbiz or "").strip().upper()
+    _cnt = {"all": 0, "T": 0, "M": 0, "": 0}
+    for r in rows:
+        if r.get("div") == "C":
+            _cnt["all"] += 1
+            _k = (r.get("cbiz") or "")
+            _cnt[_k if _k in ("T", "M") else ""] += 1
+    if biz == "C" and _cb in ("T", "M"):
+        rows = [r for r in rows if (r.get("cbiz") or "") == _cb]
+    else:
+        _cb = ""
+    return rows, _cb, _cnt
+
+
 def _consumable_biz_label(biz_div):
     _sub = _CONS_BIZ_SUB.get(str(biz_div or "").strip().upper())
     return "소모품·" + _sub if _sub else "소모품"

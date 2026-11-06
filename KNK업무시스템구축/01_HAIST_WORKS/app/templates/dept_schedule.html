@@ -175,6 +175,10 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 .dsx-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 16px;font-weight:800;font-size:13px;cursor:pointer;}
 .dsx-btn.primary{background:var(--knk-red);color:#fff;border-color:var(--knk-red);}
 @media (max-width:768px){ .dsx-legend{margin-left:0;} }
+/* z1191z8: 소모품 하위 책갈피 */
+.dsx-sub { display:inline-flex; align-items:center; gap:4px; margin-left:6px; padding-left:8px; border-left:2px solid #e2e8f0; }
+.dsx-sub-lab { font-size:11px; color:#64748b; white-space:nowrap; }
+.dsx-tab.dsx-s { font-size:12px; padding:2px 8px; }
 </style>
 <script>
 /* v5H226z502 (FIX): 이 페이지는 '교차문서 화면전환'을 강제로 건너뛴다. 전환 스냅샷이 다 그려진 본문(667px)을
@@ -200,7 +204,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
 
   {# 필터 유지용 쿼리 조각(부서·사업부) #}
   {% set _dq = ('&dept=' ~ (sel_dept|urlencode)) if sel_dept else '' %}
-  {% set _bq = ('&biz=' ~ biz) if biz else '' %}
+  {% set _bq = (('&biz=' ~ biz) if biz else '') ~ (('&cbiz=' ~ cbiz) if cbiz else '') %}   {# z1191z8: 소모품 하위 책갈피 유지 #}
   <div class="dsx-tools">
     <div class="dsx-mn">
       <a href="/dept/schedule?ym={{ prev_ym }}{{ _bq }}{{ _dq }}" title="이전 달">←</a>
@@ -215,6 +219,12 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       {% for code,label,cnt in _tabs %}
       <a class="dsx-tab{% if biz==code %} on{% endif %}" href="/dept/schedule?ym={{ ym }}{% if code %}&biz={{ code }}{% endif %}{{ _dq }}">{{ label }} {{ cnt }}</a>
       {% endfor %}
+      {# z1191z8 (이새롬 프로 요청 · 대표 승인 2026-11-06): 소모품 탭 안 하위 책갈피 — 등록 때 고른 진행 사업부(검사기/자동화) #}
+      {% if biz == 'C' %}<span class="dsx-sub"><span class="dsx-sub-lab">↳ 소모품 나눠 보기</span>
+        <a class="dsx-tab dsx-s{% if not cbiz %} on{% endif %}" href="/dept/schedule?ym={{ ym }}&biz=C{{ _dq }}">전체 {{ cbiz_counts.all }}</a>
+        <a class="dsx-tab dsx-s{% if cbiz=='T' %} on{% endif %}" href="/dept/schedule?ym={{ ym }}&biz=C&cbiz=T{{ _dq }}">🔬 검사기 {{ cbiz_counts.T }}</a>
+        <a class="dsx-tab dsx-s{% if cbiz=='M' %} on{% endif %}" href="/dept/schedule?ym={{ ym }}&biz=C&cbiz=M{{ _dq }}">⚙ 자동화 {{ cbiz_counts.M }}</a>
+      </span>{% endif %}
     </div>
     <div class="dsx-legend">
       <span><i style="background:#dceaf9;"></i>일정(발주~납기)</span>

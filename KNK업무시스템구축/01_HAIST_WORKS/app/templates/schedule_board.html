@@ -29,12 +29,12 @@
       {% if range_mode %}
       {# v5H226z371: 기간 보기 — 월 이동 대신 기간 표시 + 월 보기 복귀 #}
       <span class="cur">📅 기간 {{ pf }} ~ {{ pt }}</span>
-      <a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="월 보기로 돌아가기">↩ 월 보기</a>
+      <a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="월 보기로 돌아가기">↩ 월 보기</a>
       {% else %}
-      <a href="?ym={{ prev_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이전 달">←</a>
+      <a href="?ym={{ prev_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이전 달">←</a>
       <span class="cur">📅 {{ month_label }}</span>
-      <a href="?ym={{ next_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="다음 달">→</a>
-      {% if ym != cur_ym %}<a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이번 달">오늘</a>{% endif %}
+      <a href="?ym={{ next_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="다음 달">→</a>
+      {% if ym != cur_ym %}<a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이번 달">오늘</a>{% endif %}
       {% endif %}
     </div>
     <div class="sched-sum">
@@ -70,7 +70,7 @@
     <button type="button" id="sbSaveBtn" class="sb-act" onclick="sbManualSave()" title="지금 입력 중인 칸을 저장 반영하고 확인합니다. (모든 수정은 평소에도 자동 저장됩니다)" style="background:#1d4ed8;color:#fff;border:1px solid #1d4ed8;"><span class="ti">💾</span> 저장</button>
     {# v5H226z395 (대표 지시): '엑셀로 저장'을 상단 우측 '신규 등록' 왼쪽으로 이동 + 약간 녹색 계열. #}
     {# v5H226z1074c: 엑셀 저장도 '입력칸에 지금 보이는 검색어' 기준 — 지운 뒤 저장했는데 옛 검색어로 걸러져 나오는 불일치 방지 #}
-    <button type="button" class="sb-act" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cust='+encodeURIComponent(((document.getElementById('schedSearch')||{}).value||'').trim())" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;"><span class="ti">📥</span> 엑셀로 저장</button>
+    <button type="button" class="sb-act" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cbiz={{ cbiz }}&cust='+encodeURIComponent(((document.getElementById('schedSearch')||{}).value||'').trim())" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;"><span class="ti">📥</span> 엑셀로 저장</button>
     {# v5H226z347→z395 (대표 지시): 신규 등록 — 우측 끝(엑셀 버튼이 margin-left:auto 를 맡으므로 여긴 기본 gap 간격) #}
     <button type="button" class="sb-act" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);"><span class="ti">＋</span> 신규 등록</button>
   </div>
@@ -87,6 +87,14 @@
     <a class="sbm{% if biz=='L' %} on{% endif %}" href="?{{ _period }}&biz=L{{ _q }}"><span class="ti">💄</span> 라이프밸류 <b>{{ div_counts.L }}</b></a>
     <a class="sbm{% if biz=='E' %} on{% endif %}" href="?{{ _period }}&biz=E{{ _q }}"><span class="ti">🗂</span> 기타 <b>{{ div_counts.E }}</b></a>
     <a class="sbm{% if biz=='C' %} on{% endif %}" href="?{{ _period }}&biz=C{{ _q }}"><span class="ti">🧴</span> 소모품 <b>{{ div_counts.C }}</b></a>
+    {# z1191z8 (이새롬 프로 요청 · 대표 승인 2026-11-06): 소모품 탭 안 하위 책갈피 — 소모품 등록 때 고른 진행 사업부(검사기/자동화)로 나눠 보기 #}
+    {% if biz == 'C' %}<span class="sbm-sub" title="소모품 등록 때 고른 진행 사업부로 나눠 보기">
+      <span class="sbm-sub-lab">↳ 소모품 나눠 보기</span>
+      <a class="sbm sbm-s{% if not cbiz %} on{% endif %}" href="?{{ _period }}&biz=C{{ _q }}">전체 <b>{{ cbiz_counts.all }}</b></a>
+      <a class="sbm sbm-s{% if cbiz=='T' %} on{% endif %}" href="?{{ _period }}&biz=C&cbiz=T{{ _q }}"><span class="ti">🔬</span> 검사기 <b>{{ cbiz_counts.T }}</b></a>
+      <a class="sbm sbm-s{% if cbiz=='M' %} on{% endif %}" href="?{{ _period }}&biz=C&cbiz=M{{ _q }}"><span class="ti">⚙</span> 자동화 <b>{{ cbiz_counts.M }}</b></a>
+      {% if cbiz_counts[''] %}<span class="sbm-sub-none" title="등록 때 진행 사업부를 고르지 않은 소모품 — 소모품 상세에서 고를 수 있음">미지정 {{ cbiz_counts[''] }}</span>{% endif %}
+    </span>{% endif %}
   </div>
 
   {# v5H226z394 (대표 지시 2026-06-13): 상단 띠 높이 축소 — '작업'(전체화면·인쇄·엑셀) 3버튼을 '표 설정' 띠로 합쳐 5줄→4줄.
@@ -136,7 +144,7 @@
       <span class="period-sep">~</span>
       <input type="date" id="schedPT" class="period-inp" value="{{ pt }}" title="기간 끝" />
       <button type="button" class="period-go" onclick="schedRangeGo()"><span class="ti">🔎</span> 기간으로 찾기</button>
-      {% if range_mode %}<a class="period-clear" href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}">월 보기로</a>{% endif %}
+      {% if range_mode %}<a class="period-clear" href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}">월 보기로</a>{% endif %}
     </span>
     <label class="selall-lab"><input type="checkbox" id="schedSelAll" onclick="schedToggleAll(this)" /> 보이는 행 전체선택</label>
     {# v5H226z472 (대표 지시): 일괄출하 — 체크한 행들을 오늘 날짜로 출하(납품완료) 처리(한꺼번에 많이). 우측 정렬. #}
@@ -229,8 +237,8 @@
           {% set _qty_edit = (r.kind != 'consumable' and not r.is_bqty and (r.is_parts or not r.is_unit or (r.unit_iids and r.unit_iids|length == 1))) %}
           <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty" data-unit="{{ r|qtyunit }}"{% if _qty_edit %} data-edit="qty"{% endif %}{% if r.is_bqty %} title="제품 표시수량 (등록 때 적은 값) — 수정은 프로젝트 수정(빠른 폼)에서"{% elif r.is_parts %} title="상품 수량 = 완제품 몇 대분 (1=1식·부품만 출하)"{% endif %}>{# z1191z4e (이새롬 프로 요청 · 대표 결정): 모든 줄 수량에 단위 — 숫자 오른쪽·단위 왼쪽 정렬 칸으로 줄맞춤 #}{% if r.qty %}<span class="qwrap"><span class="qn">{{ (1 if (r.is_parts and r.qty|int < 2) else r.qty)|qtyfmt }}</span><span class="qu">{{ r|qtyunit }}</span></span>{% else %}{{ '＋' if _qty_edit else '' }}{% endif %}</td>
           {% if can_sales_amt %}
-          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price %} filled{% endif %}{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.price %}{{ money(r.price, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
-          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount %} filled{% endif %}{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.amount %}{{ money(r.amount, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
+          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price or r.is_free %} filled{% endif %}{% endif %}{% if r.is_free %} free{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.is_free %}<span class="free-tag" title="무상 — 단가를 0 으로 적은 건">무상</span>{% elif r.price %}{{ money(r.price, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
+          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount or r.is_free %} filled{% endif %}{% endif %}{% if r.is_free %} free{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.is_free %}<span class="free-tag" title="무상 — 단가를 0 으로 적은 건">무상</span>{% elif r.amount %}{{ money(r.amount, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
           {% endif %}
           <td class="c-info cw-trade{% if r.kind != 'consumable' %} editable{% if r.trade %} filled{% endif %}{% endif %}" data-col="trade"{% if r.kind != 'consumable' %} data-edit="trade"{% endif %}>{{ r.trade }}</td>
           <td class="c-info cw-po{% if r.kind != 'consumable' %} editable{% if r.po_type %} filled{% endif %}{% endif %}" data-col="po"{% if r.kind != 'consumable' %} data-edit="po_type"{% endif %}>{{ r.po_type or ('＋' if r.kind != 'consumable' else '—') }}</td>
@@ -1282,7 +1290,8 @@ function startEdit(td){
           if(f==='qty') disp=fmtMoney(val);
           else if(f==='price'||f==='amount'){ var fm=fmtMoney(val); disp=fm?curSym(tr.dataset.cur)+fm:''; }
           else disp=val;
-          td.textContent=disp||'＋'; td.classList.toggle('filled',!!val); td.title=val; _knkCellOk(td);   // z1191z6: 저장된 칸 ✓
+          td.textContent=disp||'＋'; td.classList.toggle('filled',!!val); td.title=val; _knkFreeClear(td); _knkCellOk(td);   // z1191z6: 저장된 칸 ✓
+          if((f==='price'||f==='amount') && _knkIsZero(val)) _knkFreeShow(td, val);   // z1191z8: 0 = 무상
           // v5H226z366 (대표 지시): 고객사1은 등록 고객사 연결여부를 즉시 표시(미매칭=빨강·확인 유도)
           if(f==='cust'){ td.dataset.real=val; td.classList.toggle('cust-unmatched', !j.cust_ok); td.title='정식: '+val+(j.cust_ok?'':' — 등록 고객사 미연결(확인 필요)'); toast(j.cust_ok?'저장됨 · 고객사 연결됨(표시는 시스템명·새로고침 시 반영)':'저장됨 · 미매칭(확인 필요)'); }
           else toast('저장됨');
@@ -1394,7 +1403,7 @@ function startUnitEdit(td, tr, uids){
         if(!j.ok){ okAll=false; msg=j.error||'저장 실패'; break; }
       }
       _editing=null;
-      if(okAll){ td.textContent=val||'＋'; td.classList.toggle('filled',!!val); _knkCellOk(td); toast('저장됨 · 호기 반영'); try{var _s=document.getElementById('schedSearch'); if(_s&&_s.value) sessionStorage.setItem('knk.sched.q.keep','1');}catch(e){} _knkSafeReload(); }
+      if(okAll){ td.textContent=val||'＋'; td.classList.toggle('filled',!!val); _knkFreeClear(td); if(isNum && fld!=='qty' && _knkIsZero(val)) _knkFreeShow(td, val); _knkCellOk(td); toast('저장됨 · 호기 반영'); try{var _s=document.getElementById('schedSearch'); if(_s&&_s.value) sessionStorage.setItem('knk.sched.q.keep','1');}catch(e){} _knkSafeReload(); }
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+msg); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
@@ -1583,7 +1592,7 @@ function refreshTaxStatus(tr){
 }
 // z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
 function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'})[c]||'₩'; }
-var _MONEY_STRIP=/[₩$₫¥€元,\s＋]/g;
+var _MONEY_STRIP=/[₩$₫¥€元,\s＋]|무상/g;   // z1191z8: 「무상」 표기도 걷어내 숫자만(=0) 남긴다
 // z1191z6 (대표 2026-11-06 「자동저장 권고 1·2·3 진행」): 자동 저장은 두고 빠지는 길을 막는다.
 //   ① 저장 뒤 통째 새로고침은 다른 칸이 열려 있으면 닫힐 때까지 기다린다(실측 S4′: 0.45초 새로고침이 옆 칸 타자를 지웠다)
 //   ② 칸 편집 중 값이 바뀐 채 F5·뒤로가기·주소 이동이면 브라우저 경고(실측 S3·S10·S11: 요청도 없이 사라졌다)
@@ -1622,6 +1631,10 @@ function fmtMoney(v){ var n=parseFloat(String(v).replace(_MONEY_STRIP,'')); retu
 function _fmtAmtTyping(v){ return window.knkFmtAmtTyping(v); }
 // z986: 저장 직후 칸 표시 — 서버 money() 규칙과 동일(KRW 정수·외화 소수 2자리 고정)
 function _fmtAmtShow(v,ccy){ var n=Number(v)||0; return (ccy&&ccy!=='KRW')?n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):n.toLocaleString(); }
+// z1191z8: 단가·금액 칸에 0 을 저장했으면 「무상」(z1171 「0 을 적으면 무상」) — 빈칸(＋)과 구분
+function _knkIsZero(v){ var s=String(v==null?'':v).replace(/,/g,'').trim(); return s!=='' && !isNaN(parseFloat(s)) && parseFloat(s)===0; }
+function _knkFreeShow(td, v){ td.textContent=''; var sp=document.createElement('span'); sp.className='free-tag'; sp.title='무상 — 단가를 0 으로 적은 건'; sp.textContent='무상'; td.appendChild(sp); td.classList.add('filled','free'); }
+function _knkFreeClear(td){ td.classList.remove('free'); }
 function recalcAmount(tr){
   var qtyTd=tr.querySelector('td[data-edit="qty"]'), priceTd=tr.querySelector('td[data-edit="price"]'), amtTd=tr.querySelector('td[data-edit="amount"]');
   if(!priceTd||!amtTd) return;   // 단가/금액 칸 없으면(권한없음) skip
@@ -1630,7 +1643,7 @@ function recalcAmount(tr){
   var amt=qty*price, sym=curSym(tr.dataset.cur);
   fetch('/sales/schedule/cell',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
     body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:'amount',value:String(amt),base_ts:tr.dataset.ts||''})})
-    .then(r=>r.json()).then(j=>{ if(j.updated_at) tr.dataset.ts=j.updated_at; if(j.ok){ amtTd.textContent=amt?sym+amt.toLocaleString():'＋'; amtTd.classList.toggle('filled',!!amt); amtTd.title=String(amt); }});
+    .then(r=>r.json()).then(j=>{ if(j.updated_at) tr.dataset.ts=j.updated_at; if(j.ok){ amtTd.textContent=amt?sym+amt.toLocaleString():'＋'; amtTd.classList.toggle('filled',!!amt); _knkFreeClear(amtTd); if(!amt && priceTd.classList.contains('free')) _knkFreeShow(amtTd, 0); amtTd.title=String(amt); }});
 }
 
 // ---- 진행기간 막대 메모 ----
@@ -1968,13 +1981,14 @@ var _BF={}; BULK_FIELDS.forEach(function(x){ _BF[x.f]=x; });
 var CONS_OK_FIELDS=['note','dept','owner','ship_to','order_date','due_date'];
 
 // v5H226z371 (대표 지시): 기간(범위) 찾기 — pf~pt 로 이동(여러 달 한 번에 로드). 사업부·고객사 필터 유지.
-var _SCHED_BIZ = {{ biz|tojson }}, _SCHED_CUST = {{ cust|tojson }};
+var _SCHED_BIZ = {{ biz|tojson }}, _SCHED_CUST = {{ cust|tojson }}, _SCHED_CBIZ = {{ cbiz|tojson }};   {# z1191z8: 소모품 하위 책갈피(cbiz) 유지 — 기간 찾기·전체에서 찾기 URL #}
 function schedRangeGo(){
   var f=(document.getElementById('schedPF')||{}).value||'', t=(document.getElementById('schedPT')||{}).value||'';
   if(!f || !t){ toast('기간 시작·끝 날짜를 모두 정하세요'); return; }
   if(f>t){ toast('시작일이 끝일보다 늦습니다'); return; }
   var q='?pf='+encodeURIComponent(f)+'&pt='+encodeURIComponent(t);
   if(_SCHED_BIZ) q+='&biz='+encodeURIComponent(_SCHED_BIZ);
+  if(_SCHED_CBIZ) q+='&cbiz='+encodeURIComponent(_SCHED_CBIZ);   // z1191z8
   // v5H226z1074c: 검색어는 서버 렌더 시점 값(_SCHED_CUST)이 아니라 '입력칸에 지금 보이는 값' — 지운 검색어 부활 방지
   var _cq=((document.getElementById('schedSearch')||{}).value||'').trim();
   if(_cq) q+='&cust='+encodeURIComponent(_cq);
@@ -2065,6 +2079,7 @@ function schedGlobalSearch(){
   var u='/sales/schedule', ps=[];
   if(q) ps.push('cust='+encodeURIComponent(q));
   if(typeof _SCHED_BIZ!=='undefined' && _SCHED_BIZ) ps.push('biz='+encodeURIComponent(_SCHED_BIZ));
+  if(typeof _SCHED_CBIZ!=='undefined' && _SCHED_CBIZ) ps.push('cbiz='+encodeURIComponent(_SCHED_CBIZ));   // z1191z8
   if(ps.length) u+='?'+ps.join('&');
   schedNavVeil(q ? '전체 기간에서 "'+q+'" 찾는 중…' : '이번 달 달력 불러오는 중…');   // v5H226z1074: 클릭 즉시 표시
   location.href=u;

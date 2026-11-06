@@ -334,6 +334,14 @@ td.ux-ok { box-shadow: inset 0 0 0 2px #86efac; transition: box-shadow .3s; }
 .th-wrap.sort-asc .sort-ind, .th-wrap.sort-desc .sort-ind { color:var(--knk-red); }
 
 .sched td.editable { cursor:text; }
+/* z1191z8 (이새롬 프로 요청 · 대표 승인 2026-11-06): 단가·금액 0 = 「무상」 표기(회색 알약) · 빈칸(＋)과 구분 */
+.sched td.free { text-align:center; }
+.sched .free-tag { display:inline-block; padding:0 7px; border-radius:999px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-size:11px; font-weight:700; line-height:18px; letter-spacing:.02em; }
+/* z1191z8: 소모품 탭 안 하위 책갈피(검사기/자동화) */
+.sched .sbm-sub { display:inline-flex; align-items:center; gap:4px; margin-left:6px; padding-left:8px; border-left:2px solid #e2e8f0; }
+.sched .sbm-sub-lab { font-size:11px; color:#64748b; margin-right:2px; white-space:nowrap; }
+.sched .sbm.sbm-s { padding:1px 8px; font-size:12px; }
+.sched .sbm-sub-none { font-size:11px; color:#b45309; background:#fffbeb; border:1px solid #fcd34d; border-radius:999px; padding:0 7px; line-height:18px; white-space:nowrap; }
 .sched td.editable:hover { background:#eef6ff !important; box-shadow: inset 0 0 0 1px #93c5fd; }
 /* v5H226z467/z469: 세금계산서 1/2/3차 셀(발행일+금액 2줄) + 미니 편집창. z486(대표 지시): 발행완료 텍스트 제거→2줄·줄간격 압축으로 칸 높이 절감 */
 .sched td.taxinv-cell { cursor:pointer; line-height:1.05; padding-top:1px; padding-bottom:1px; }
