@@ -50235,6 +50235,26 @@ async def consumable_prod_request_view(request: Request, co_id: int):
                can_open_detail=_can_open_detail)
 
 
+def _co_item_of_z1191z9(co_id, iid):
+    """z1191z9: 그 품목(iid)이 주소의 소모품(co_id) 것인가 — 아니면 저장·삭제 거부(앞에 본 소모품 번호로 남의 품목을 고치던 사고)."""
+    try:
+        it = _co.coi_get(iid)
+        return bool(it) and int(it.get("co_id") or 0) == int(co_id)
+    except Exception:
+        return False
+
+
+_CO_PAGE_MSG_Z1191Z9 = "화면이 바뀌었습니다 — 새로 고침(F5) 뒤 다시 저장해 주세요(이번 저장은 반영 안 됨)"
+
+
+def _co_page_ok_z1191z9(co_id, b):
+    """z1191z9: 저장 요청의 「화면 소모품 번호」(page_co)가 주소 번호와 같은가. 없으면(옛 화면 스크립트) 거부."""
+    try:
+        return int(str((b or {}).get("page_co") or "0")) == int(co_id)
+    except Exception:
+        return False
+
+
 @app.post("/consumables/{co_id:int}/items/{iid:int}/edit")
 async def consumables_item_edit(request: Request, co_id: int, iid: int):
     u = get_user(request)
@@ -50242,6 +50262,8 @@ async def consumables_item_edit(request: Request, co_id: int, iid: int):
         return JSONResponse({"ok": False, "error": "auth"}, 401)
     if not (can_use_logistics(u) or can_use_sales(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    if not _co_item_of_z1191z9(co_id, iid):   # z1191z9: 이 소모품의 품목만
+        return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
     form = await request.form()
     fields = {}
     for k in ("model_use", "equip_name", "part_name", "spec", "unit", "note"):  # v5H226z297: 장비명 편집
@@ -50274,6 +50296,8 @@ async def consumables_edit_field(request: Request, co_id: int):
         b = await request.json()
     except Exception:
         b = {}
+    if not _co_page_ok_z1191z9(co_id, b):   # z1191z9: 화면 번호 ≠ 주소 번호 → 거부
+        return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
     field = (b.get("field") or "").strip()
     value = b.get("value", "")
     ok, new_v, _old, cust_ok = _co.co_update_order_field(
@@ -50297,9 +50321,20 @@ async def consumables_save_all(request: Request, co_id: int):
         b = await request.json()
     except Exception:
         return JSONResponse({"ok": False, "error": "invalid_json"}, 400)
+    if not _co_page_ok_z1191z9(co_id, b):   # z1191z9: 화면 번호 ≠ 주소 번호(앞에 본 소모품) → 아무것도 안 씀
+        return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
     _by_id = u.get("id"); _by_name = (u.get("name") or u.get("login_id") or "")
     header = b.get("header") or {}
     lines = b.get("lines") or []
+    # z1191z9: 품목이 하나라도 이 소모품 것이 아니면 통째 거부(머리도 안 씀)
+    for _ln9 in (lines if isinstance(lines, list) else []):
+        try:
+            _iid9 = int((_ln9 or {}).get("iid"))
+        except Exception:
+            continue
+        if not _co_item_of_z1191z9(co_id, _iid9):
+            return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
+    _cur9 = str(((_co.co_get(co_id) or {}).get("currency")) or "KRW").upper()
     cust_ok = None
     saved = 0
     if isinstance(header, dict):
@@ -50334,6 +50369,17 @@ async def consumables_save_all(request: Request, co_id: int):
                         fields[k] = 0
                 else:
                     fields[k] = ("" if v is None else str(v)).strip()
+            # z1191z9: 화면은 단가를 소수 2자리(원화 정수)로 보여 준다 — 그 표시값을 그대로 다시 쓰면 755.5625 → 755.56 처럼
+            #   저장만 눌러도 단가·합계가 바뀐다(재현 6,044.50 → 6,044.48). 표시 반올림 차이면 원래 값을 둔다.
+            try:
+                _old9 = _co.coi_get(iid) or {}
+                for _k9 in ("unit_price", "qty"):
+                    if _k9 in fields and _old9.get(_k9) is not None:
+                        _nd9 = 0 if (_k9 == "qty" or _cur9 == "KRW") else 2
+                        if round(float(_old9.get(_k9) or 0), _nd9) == round(float(fields[_k9] or 0), _nd9):
+                            fields.pop(_k9)
+            except Exception:
+                pass
             if fields:
                 try:
                     _co.coi_update(iid, fields, by_id=_by_id, by_name=_by_name)
@@ -50356,6 +50402,8 @@ async def consumables_item_link_project(request: Request, co_id: int, iid: int):
         return JSONResponse({"ok": False, "error": "auth"}, 401)
     if not (can_use_logistics(u) or can_use_sales(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    if not _co_item_of_z1191z9(co_id, iid):   # z1191z9: 이 소모품의 품목만
+        return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
     form = await request.form()
     pid_raw = (form.get("project_id") or "").strip()
     pid = int(pid_raw) if pid_raw.isdigit() else None
@@ -50371,6 +50419,8 @@ async def consumables_item_link_by_mgmt(request: Request, co_id: int, iid: int):
         return JSONResponse({"ok": False, "error": "auth"}, 401)
     if not (can_use_logistics(u) or can_use_sales(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    if not _co_item_of_z1191z9(co_id, iid):   # z1191z9: 이 소모품의 품목만
+        return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
     try:
         b = await request.json()
     except Exception:
@@ -50551,6 +50601,8 @@ async def consumables_item_delete(request: Request, co_id: int, iid: int):
         return JSONResponse({"ok": False, "error": "auth"}, 401)
     if not (can_use_logistics(u) or can_use_sales(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    if not _co_item_of_z1191z9(co_id, iid):   # z1191z9: 이 소모품의 품목만
+        return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
     _co.coi_delete(iid)
     return JSONResponse({"ok": True})
 

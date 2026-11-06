@@ -105,7 +105,7 @@ Cc = direct("NE1 PE 지그")
 check("직접 등록: 프로젝트명 pba → PBA 저장 · 비우면 빈칸 · 직접 쓴 이름 그대로",
       A and co_row(A)["project_name"] == "PBA" and B and not co_row(B)["project_name"] and Cc and co_row(Cc)["project_name"] == "NE1 PE 지그",
       (A, B, Cc))
-r = q(cl.post, "/consumables/%d/edit-field" % B, json={"field": "project_name", "value": "sensor"})
+r = q(cl.post, "/consumables/%d/edit-field" % B, json={"field": "project_name", "value": "sensor", "page_co": B})   # z1191z9: 화면 번호 같이
 check("상세 한 칸 저장(자동저장): sensor → SENSOR · 돌려준 값도 SENSOR", r.status_code == 200 and r.json().get("value") == "SENSOR"
       and co_row(B)["project_name"] == "SENSOR", r.text[:200])
 with D.db_session() as c:
@@ -114,9 +114,9 @@ with D.db_session() as c:
 hl = CO.co_history_list(B)
 check("변경 이력에 「프로젝트명」 (빈칸 → SENSOR)", any("프로젝트명" in json.dumps(h, ensure_ascii=False) and "SENSOR" in json.dumps(h, ensure_ascii=False)
                                                for h in hl), hl[:3])
-r = q(cl.post, "/consumables/%d/edit-field" % B, json={"field": "project_name", "value": "소모품"})
+r = q(cl.post, "/consumables/%d/edit-field" % B, json={"field": "project_name", "value": "소모품", "page_co": B})
 check("「소모품」이라고 쓰면 빈칸으로(기본값) — 화면은 「소모품」", r.status_code == 200 and r.json().get("value") == "" and not co_row(B)["project_name"])
-r = q(cl.post, "/consumables/%d/save-all" % B, json={"header": {"project_name": "tsp"}, "lines": []})
+r = q(cl.post, "/consumables/%d/save-all" % B, json={"header": {"project_name": "tsp"}, "lines": [], "page_co": B})
 check("💾 수정 반영(save-all)에서도 저장 · tsp → TSP", r.status_code == 200 and co_row(B)["project_name"] == "TSP", (r.status_code, r.text[:160]))
 html = q(cl.get, "/consumables/%d" % A).text
 check("상세 화면: 프로젝트명 칸(data-field=project_name · 값 PBA) · 고르기 목록 TSP·PBA·SENSOR + 직접 쓴 이름",

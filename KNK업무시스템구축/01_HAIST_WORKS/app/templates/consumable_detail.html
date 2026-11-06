@@ -211,6 +211,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         {# v5H226z370(대표 지시): 수정 반영(저장) — 현재 입력값(고객사 포함) 전부 한 번에 저장 후 새로고침. 자동저장도 유지. #}
         <button id="coSaveBtn" type="button" onclick="coSaveAll()" style="background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">💾 수정 반영(저장)</button>
         <span id="coSaveMsg" style="font-size:12px;font-weight:700;color:#16a34a;"></span>
+        {# z1191z9: 이 화면이 보여 주는 소모품 번호 — 저장 때 같이 보내 서버가 주소 번호와 맞춰 본다(다르면 저장 거부) #}
+        <span id="coPage" data-co-id="{{ co.id }}" hidden></span>
         {# v5H145 — 관련부서 통보 발송 (자재구매·생산팀 + admin) #}
         <button id="notifyBtn" class="btn-notify" type="button" onclick="sendNotify()">📤 관련부서 통보</button>
         <span id="notifyMsg"></span>
@@ -327,9 +329,9 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
               <input class="ef" data-cust-picker data-cust-name="__co_cust_name" data-cust-id="__co_cust_id" data-cust-required="1"
                      data-cust-initial="{{ (co.customer_name or '')|e }}"{% if co.customer_id %} data-cust-initial-id="{{ co.customer_id }}"{% endif %}
                      placeholder="고객사명·시스템명 검색" autocomplete="off"></div>
-            <div class="h-cell"><div class="lbl">2차 고객사</div><input class="ef" data-field="secondary_customer" value="{{ co.secondary_customer|e }}" placeholder="—"></div>
-            <div class="h-cell"><div class="lbl">고객 담당자</div><input class="ef" data-field="cc_name" value="{{ co.cc_name|e }}" placeholder="—"></div>
-            <div class="h-cell"><div class="lbl">연락처</div><input class="ef" data-field="cc_phone" value="{{ co.cc_phone|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">2차 고객사</div><input class="ef" data-field="secondary_customer" value="{{ (co.secondary_customer or '')|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">고객 담당자</div><input class="ef" data-field="cc_name" value="{{ (co.cc_name or '')|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">연락처</div><input class="ef" data-field="cc_phone" value="{{ (co.cc_phone or '')|e }}" placeholder="—"></div>
           </div>
         </div>
         {# ③ 거래 조건 #}
@@ -352,10 +354,10 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
           <div class="sect-label">제품</div>
           <div class="info-row c4">
             {# v5H226z731(대표 지시): 발주 전체 대표 값임을 명시 — 라벨에 '(대표)' #}
-            <div class="h-cell"><div class="lbl">모델명(대표)</div><input class="ef" data-field="model_name" value="{{ co.model_name|e }}" placeholder="—"></div>
-            <div class="h-cell"><div class="lbl">장비명(대표)</div><input class="ef" data-field="equip_name" value="{{ co.equip_name|e }}" placeholder="—"></div>
-            <div class="h-cell"><div class="lbl">납품위치</div><input class="ef" data-field="ship_to" value="{{ co.ship_to|e }}" placeholder="—"></div>
-            <div class="h-cell"><div class="lbl">영업담당자</div><input class="ef" data-field="sales_name" value="{{ co.sales_name|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">모델명(대표)</div><input class="ef" data-field="model_name" value="{{ (co.model_name or '')|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">장비명(대표)</div><input class="ef" data-field="equip_name" value="{{ (co.equip_name or '')|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">납품위치</div><input class="ef" data-field="ship_to" value="{{ (co.ship_to or '')|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">영업담당자</div><input class="ef" data-field="sales_name" value="{{ (co.sales_name or '')|e }}" placeholder="—"></div>
           </div>
         </div>
       </div>
@@ -426,10 +428,10 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
                원래 저장 번호는 마우스를 올리면 보인다. #}
             <td><b title="저장된 줄 번호 {{ it.line_no }}">{{ loop.index }}</b></td>
             {# v5H226z730: 모델명·장비명은 발주 단위(위 '제품' 섹션)로 일원화 → 라인에서 제거. 품목별 칸 = 품명·규격~ #}
-            <td><input data-k="part_name" value="{{ it.part_name|e }}" placeholder="소모품 품명" /></td>
+            <td><input data-k="part_name" value="{{ (it.part_name or '')|e }}" placeholder="소모품 품명" /></td>
             {# v5H226z1083 (대표 지시 2026-08-11): 규격 옆 [이력] — 이 규격이 어느 업체로·언제·얼마에 나갔는지 팝업 #}
             {# v5H226z1083b (대표 지적): td 를 flex 로 바꾸면 표 셀 높이·정렬이 틀어짐 → td 는 그대로, 안쪽 wrapper 만 flex #}
-            <td class="spec-cell"><div class="spec-wrap"><input data-k="spec" value="{{ it.spec|e }}" placeholder="규격" /><button type="button" class="spec-hist-btn" title="이 규격의 출하 이력 보기 — 어느 업체로·언제·업체별 단가" onclick="openSpecHist(this)">📊</button></div></td>
+            <td class="spec-cell"><div class="spec-wrap"><input data-k="spec" value="{{ (it.spec or '')|e }}" placeholder="규격" /><button type="button" class="spec-hist-btn" title="이 규격의 출하 이력 보기 — 어느 업체로·언제·업체별 단가" onclick="openSpecHist(this)">📊</button></div></td>
             {# v5H226z904 (대표 지시): 칸 클릭 후 Ctrl+V 로 클립보드 사진 붙여넣기(📷 파일선택도 그대로) #}
             <td class="photo-cell" tabindex="0" data-iid="{{ it.id }}" data-cat="loc" title="클릭 후 Ctrl+V 로 복사한 사진 붙여넣기">
               {% if it.image_loc_thumb_path %}
@@ -448,7 +450,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             <td><input data-k="unit" value="{{ it.unit or 'EA' }}" /></td>
             <td><span class="amt-inp"><span class="ccy-pre">{{ (co.currency or 'KRW')|ccysym }}</span><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></span></td>
             <td class="amount cell-amount">{{ (it.amount or 0)|money(co.currency or 'KRW') }}</td>
-            <td><input data-k="note" value="{{ it.note|e }}" placeholder="비고" /></td>
+            <td><input data-k="note" value="{{ (it.note or '')|e }}" placeholder="비고" /></td>
             {# v5H226z300(대표 지시): 자재코드 연결 — 등록 자재 자동연결(업로드)+추천+수동검색 #}
             <td>
               {% if it.part_id %}
@@ -530,6 +532,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
 <input type="file" id="linePhotoInput" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;left:-9999px;pointer-events:none;">
 <script>
 const CO_ID = {{ co.id }};
+// z1191z9: 저장 때 보내는 「화면의 소모품 번호」 — 스크립트가 기억한 번호(CO_ID)가 아니라 지금 화면에 그려진 번호
+function _coPageId(){ var e=document.getElementById('coPage'); return e ? (parseInt(e.dataset.coId,10)||0) : 0; }
 const CURR = "{{ co.currency or 'KRW' }}";
 const CO_TOTAL = {{ (co.total_amount or 0)|float }};   {# z1052: 통화 오등록 되묻기용 합계 #}
 // v5H226z956 (대표 지시): 단가·통화 표시 규정(z750 money) 준수 — 기호+숫자·USD 2자리·KRW 정수. 서버 money()와 동일 포맷.
@@ -662,7 +666,7 @@ document.querySelectorAll('.ef[data-field]').forEach(el=>{
     const field = el.dataset.field;
     const value = el.classList.contains('knk-money') ? (el.value||'').replace(/,/g,'') : el.value;
     try{
-      const r = await fetch(`/consumables/${CO_ID}/edit-field`,{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})});   // z1191z6
+      const r = await fetch(`/consumables/${CO_ID}/edit-field`,{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value,page_co:_coPageId()})});   // z1191z6 · z1191z9 화면 번호
       const d = await r.json();
       if(d.ok){
         el.style.background='#dcfce7'; setTimeout(()=>{ el.style.background=''; },700);
@@ -736,7 +740,7 @@ async function coSaveAll(){
     lines.push({iid:iid, fields:f});
   });
   try{
-    const r=await fetch(`/consumables/${CO_ID}/save-all`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({header:header, lines:lines})});
+    const r=await fetch(`/consumables/${CO_ID}/save-all`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({header:header, lines:lines, page_co:_coPageId()})});   // z1191z9 화면 번호
     const j=await r.json();
     if(j.ok){ if(window.KNKBusy) KNKBusy.flashOnReload('✅ 저장되었습니다','ok'); if(msg){ msg.textContent='✓ 저장됨'; } setTimeout(()=>(window.knkLeaveOk=true, location.reload()), 350); }
     else { if(h) h.fail('저장 실패'); else if(btn){ btn.disabled=false; btn.textContent=_t; } alert('저장 실패: '+(j.error||'')); }

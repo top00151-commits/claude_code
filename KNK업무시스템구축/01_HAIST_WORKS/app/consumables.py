@@ -1431,6 +1431,8 @@ def co_update_order_field(co_id: int, field: str, value, by_id=None, by_name: st
             return (False, None, None, None)
     else:
         new_v = (str(value).strip() if value is not None else "")
+        if new_v == "None":   # z1191z9: 화면이 빈칸을 「None」으로 그려 그 글자가 저장되던 것(운영 197칸) — 빈칸으로
+            new_v = ""
     cust_id = None
     cust_changed = (field == "customer_name")
     cust_ok = None
@@ -1461,6 +1463,9 @@ def coi_update(item_id: int, fields: dict, by_id=None, by_name: str = "") -> Non
     keys = [k for k in fields.keys() if k in allowed]
     if not keys:
         return
+    for _k9 in ("model_use", "equip_name", "part_name", "spec", "unit", "note"):   # z1191z9: 「None」 글자 → 빈칸
+        if _k9 in fields and isinstance(fields[_k9], str) and fields[_k9].strip() == "None":
+            fields[_k9] = ""
     co_id = None
     old = {}
     with db_session() as c:
