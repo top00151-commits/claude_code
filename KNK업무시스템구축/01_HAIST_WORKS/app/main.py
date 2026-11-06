@@ -18956,7 +18956,7 @@ async def sales_order_item_edit(req: Request, iid: int):
         # v5H100 / v5H183: 변경 전 값 캡처 (이력 기록용) — order_date/due_date/ship_to 도 포함
         it = c.execute(
             "SELECT oi.order_id, oi.unit_label AS old_lbl, oi.amount AS old_amt, "
-            "       oi.line_note AS old_note, "
+            "       oi.line_note AS old_note, oi.unit_price AS old_up, "
             "       oi.order_date AS old_oi_ord, oi.due_date AS old_oi_due, "
             "       oi.ship_to AS old_oi_ship, "
             "       o.status, o.project_id, o.total_amount AS old_total, "
@@ -18972,6 +18972,19 @@ async def sales_order_item_edit(req: Request, iid: int):
         # v5H226z630(대표 지시): 1줄 완제품은 상세에서 호기 칸을 숨김 → label 입력칸 부재로 미전송.
         #   label 키가 폼에 없으면 기존 unit_label 유지(빈값 덮어쓰기 방지). 키가 있으면 그대로 반영.
         _lbl_to_save = (label or None) if ("label" in form) else (it["old_lbl"] or None)
+        # z1191z10 (데이터 꼬임 점검 · 대표 「4 진행」): 화면이 바뀐 칸만 보낸다 — 안 보낸 칸은 기존 값 그대로.
+        #   예전엔 한 칸만 고쳐도 그 줄 전부를 다시 보내 금액칸 없는 줄은 0, 외화 부품 단가는 원화 표시÷환율로 조금씩 어긋났다.
+        _has_amt10 = ("amount" in form)
+        if not _has_amt10:
+            amt = float(it["old_amt"] or 0)
+        if "note" not in form:
+            note = it["old_note"] or ""
+        if "order_date" not in form:
+            u_order = it["old_oi_ord"] or None
+        if "due_date" not in form:
+            u_due = it["old_oi_due"] or None
+        if "ship_to" not in form:
+            u_ship = it["old_oi_ship"] or None
         st = (it["status"] or "").upper()
         if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
             return JSONResponse({
@@ -19004,10 +19017,12 @@ async def sales_order_item_edit(req: Request, iid: int):
             # v5H197: 거래구분 — 폼에서 받은 그대로 (NULL = 변경 안 함이 아니라 명시 입력만)
             # v5H226z460: PARTS 는 판매단가(unit_price)를 별도 전송 → amt(금액)와 분리. 미전송이면 호기 legacy(=amt).
             _up_for_save = amt if u_unit_price == "__SKIP__" else u_unit_price
+            if u_unit_price == "__SKIP__" and not _has_amt10:   # z1191z10: 금액·단가 둘 다 안 보냄 = 단가 그대로
+                _up_for_save = it["old_up"]
             cols_set = ["unit_label=?", "unit_price=?", "amount=?", "line_note=?",
                         "order_date=?", "due_date=?", "ship_to=?"]
             vals_set = [_lbl_to_save, _up_for_save, amt, note or None, ov_o, ov_d, ov_s]
-            if "currency" in _oicols:
+            if "currency" in _oicols and "currency" in form:   # z1191z10: 통화 안 보냄 = 그대로(예전엔 상속으로 지움)
                 cols_set.append("currency=?"); vals_set.append(ov_c)
             if "is_export" in _oicols and u_iex is not None:
                 cols_set.append("is_export=?"); vals_set.append(u_iex)
@@ -19065,7 +19080,7 @@ async def sales_order_item_edit(req: Request, iid: int):
             # v5H226z460: 판매단가(unit_price) 분리 — PARTS 미전송이면 amt(legacy 호기)
             c.execute(
                 "UPDATE order_items SET unit_label=?, unit_price=?, amount=?, line_note=?, updated_at=datetime('now','localtime') WHERE id=?",
-                (_lbl_to_save, (amt if u_unit_price == "__SKIP__" else u_unit_price), amt, note or None, iid)
+                (_lbl_to_save, ((it["old_up"] if not _has_amt10 else amt) if u_unit_price == "__SKIP__" else u_unit_price), amt, note or None, iid)
             )
         # SO total_amount = SUM(items.amount), unit_label 재구성
         oid = it["order_id"]
@@ -32559,7 +32574,13 @@ async def schedule_board_bulk_ship(request: Request):
         if kind not in ("project", "consumable") or not ref_id:
             n_fail += 1
             continue
-        key = (kind, ref_id)
+        # z1191z10 (데이터 꼬임 점검 · 대표 「2 진행」): 고른 줄의 호기(uids)·수주(so_oid)만 출하 — 관리번호 전체 아님
+        try:
+            _iids10 = sorted({int(x) for x in (it.get("uids") or []) if str(x).strip().isdigit()})
+        except Exception:
+            _iids10 = []
+        _soid10 = int(it.get("so_oid")) if str(it.get("so_oid") or "").strip().isdigit() else None
+        key = (kind, ref_id, tuple(_iids10), _soid10)
         if key in done_keys:
             continue   # v5H226z472: 중복(같은 건 여러 줄) 제거
         # v5H226z571 (대표 지시): 단계 시스템 제거 — 일괄출하는 '실제 출하'만 수행(단계 거울 폐지).
@@ -32568,7 +32589,7 @@ async def schedule_board_bulk_ship(request: Request):
         try:
             if kind == "project":
                 with db_session() as _cz:
-                    _pwf.mark_units_delivered(_cz, ref_id, uid)
+                    _pwf.mark_units_delivered(_cz, ref_id, uid, iids=(_iids10 or None), order_id=_soid10)   # z1191z10
                 ok = True
             elif kind == "consumable":
                 with db_session() as _cz:
@@ -38338,6 +38359,18 @@ async def projects_edit_submit(request: Request, pid: int):
                              "currency": _mr["currency"]}
     except Exception:
         _old_meta = {}
+    # z1191z10 (데이터 꼬임 점검 · 대표 「1 진행」 2026-11-06): 바꾸기 전 프로젝트 전체 값 + 수주 유무.
+    #   「정보 수정」 화면(project_form)에는 영업담당·PM·고객 PO·2단계 발주 칸이 없어 저장할 때마다 빈칸으로 덮었다
+    #   (운영: 등록 때 있던 영업담당이 빈칸 12곳 · 비고 지워짐 16건 · 수주확정 → 초기협의 = 안지연 프로 신고 ④).
+    _old10, _has_so10 = {}, False
+    try:
+        with db_session() as _c10:
+            _r10 = _c10.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+            _old10 = dict(_r10) if _r10 else {}
+            _has_so10 = bool(_c10.execute(
+                "SELECT 1 FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' LIMIT 1", (pid,)).fetchone())
+    except Exception:
+        _old10, _has_so10 = {}, False
     # z1191: 고객사1·2 = 대표(첫 수주) — 바꾸기 전 대표값을 잡아 두었다가 저장 뒤 첫 수주도 맞춘다
     _old1191 = None
     try:
@@ -38384,6 +38417,15 @@ async def projects_edit_submit(request: Request, pid: int):
         unit_qty = 1
     if unit_qty > 100:
         unit_qty = 100
+    # z1191z10: 단가 — 수주가 있으면 화면은 읽기 전용(평균 단가를 정수로 보여 줌)이라 그 값을 저장하지 않는다(기존 값).
+    #   수주가 없어도 화면 표시(정수 반올림)와 같은 값이 오면 기존의 정확한 값을 둔다(12,345.67 → 12,346 저장 방지).
+    try:
+        _oup10 = _old10.get("unit_price")
+        if _oup10 is not None:
+            if _has_so10 or (unit_price > 0 and round(float(_oup10)) == round(unit_price)):
+                unit_price = float(_oup10)
+    except Exception:
+        pass
     if unit_price > 0:
         amt = unit_price * unit_qty
     elif amt > 0 and unit_qty >= 1:
@@ -38411,6 +38453,14 @@ async def projects_edit_submit(request: Request, pid: int):
             _pu976 = 1
         unit_qty = max(1, min(100, _pu976))
     status_val = form.get("status", "초기협의") or "초기협의"
+    # z1191z10: 상태 칸을 안 보냈으면 기존 상태 · 수주가 있는 프로젝트를 「초기협의」로 되돌리는 저장은 막음
+    #   (정보 수정 화면 상태 목록에 「수주확정」이 없어, 수주확정 프로젝트를 열면 첫 항목 초기협의가 골라진 채 저장됐다)
+    _ost10 = (_old10.get("status") or "")
+    if "status" not in form and _ost10:
+        status_val = _ost10
+    elif status_val == "초기협의" and _has_so10 and _ost10 and _ost10 != "초기협의":
+        print(f"[z1191z10] {pid} 상태 초기협의 저장 막음(수주 있음) — 기존 {_ost10} 유지")
+        status_val = _ost10
     # v5H137: 프로젝트 유형 + 부모 프로젝트
     _ptype = (form.get("project_type") or "NEW_EQUIP").strip().upper()
     if _ptype not in _logi.PROJECT_TYPES:
@@ -38419,7 +38469,7 @@ async def projects_edit_submit(request: Request, pid: int):
     _parent_id = int(_parent_id_raw) if _parent_id_raw.isdigit() else None
     if _ptype not in ("CONSUMABLE", "SERVICE"):
         _parent_id = None
-    _logi.projects_update_logi(pid, {
+    _upd10 = {
         "_changed_by": _u.get("id"),
         # v5H226z652 (대표 지시): 콤보박스에서 고른 종사업장(customer_id) 우선 적용 — 간편폼/picker 사용 폼의 수정 경로 반영
         "customer_id": (int(form.get("customer_id")) if (form.get("customer_id") or "").strip().isdigit() else None),
@@ -38463,7 +38513,24 @@ async def projects_edit_submit(request: Request, pid: int):
         "two_tier_order": form.get("two_tier_order", ""),
         "secondary_customer": form.get("secondary_customer", ""),
         "final_amount": form.get("final_amount", ""),
-    })
+    }
+    # z1191z10: 화면에 없는 칸 = 기존 값 그대로(빈칸으로 덮지 않음). 화면에 있으면서 비운 칸은 비운 대로.
+    for _fk10, _dk10, _col10 in (("customer_po", "customer_po", "customer_po"), ("pm", "pm", "pm_name"),
+                                 ("sales", "sales", "sales_name"), ("note", "note", "logi_note"),
+                                 ("two_tier_order", "two_tier_order", "two_tier_order"),
+                                 ("secondary_customer", "secondary_customer", "secondary_customer"),
+                                 ("final_amount", "final_amount", "final_amount"),
+                                 ("proposal_date", "proposal_date", "proposal_date"),
+                                 ("quotation_date", "quotation_date", "quotation_date"),
+                                 ("cc_name", "cc_name", "cc_name"), ("cc_dept", "cc_dept", "cc_dept"),
+                                 ("cc_position", "cc_position", "cc_position"), ("cc_phone", "cc_phone", "cc_phone"),
+                                 ("cc_email", "cc_email", "cc_email"), ("cc_note", "cc_note", "cc_note"),
+                                 ("model", "model", "model_name"), ("equip_name", "equip_name", "equip_name"),
+                                 ("fx_rate", "fx_rate", "fx_rate"), ("amount_krw", "amount_krw", "amount_krw")):
+        if _fk10 not in form and _old10:
+            _ov10 = _old10.get(_col10)
+            _upd10[_dk10] = _ov10 if _dk10 in ("fx_rate", "amount_krw") else ("" if _ov10 is None else str(_ov10))
+    _logi.projects_update_logi(pid, _upd10)
     # v5H226z976 (대표 지시): 형태=상품 — '완제품 몇 대분'을 단일 상품 SO(orders.unit_qty)에도 동기화.
     #   작업일정표 상품 줄 수량의 소스가 orders.unit_qty 이므로 여기까지 맞춰야 화면이 일치.
     #   상품 SO가 여러 건이면 건드리지 않음(수주별 대수는 작업일정표에서). CANCELLED 제외.
@@ -50455,6 +50522,8 @@ async def consumables_item_match_part(request: Request, co_id: int, iid: int):
         return JSONResponse({"ok": False, "error": "auth"}, 401)
     if not (can_use_logistics(u) or can_use_sales(u)):
         return JSONResponse({"ok": False, "error": "forbidden"}, 403)
+    if not _co_item_of_z1191z9(co_id, iid):   # z1191z10: 이 소모품의 품목만(z1191z9 에서 빠졌던 경로)
+        return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
     form = await request.form()
     pid_raw = (form.get("part_id") or "").strip()
     pid = int(pid_raw) if pid_raw.isdigit() else None

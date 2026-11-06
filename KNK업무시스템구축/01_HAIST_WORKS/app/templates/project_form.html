@@ -1080,6 +1080,8 @@ html,body{background:#fff!important;overflow:auto!important;}
         <div class="pf-field full">
           <label>초기 상태 <span class="sub">(저장 후 프로젝트 상세에서 클릭으로 수시 변경 가능)</span></label>
           <select name="status">
+            {# z1191z10: 지금 상태가 목록에 없으면(수주확정 등) 그 상태를 골라진 채로 — 없으면 첫 항목(초기협의)이 골라져 저장됐다 #}
+            {% if project and project.status and project.status not in STATUSES %}<option value="{{ project.status }}" selected>{{ project.status }}</option>{% endif %}
             {% for s in STATUSES %}
             <option value="{{ s }}" {% if project and project.status == s %}selected{% elif not project and s == '초기협의' %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
@@ -1394,7 +1396,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <h3>📝 {% if _is_consumable or _is_parts_form %}③{% else %}④{% endif %} 비고</h3>
       <div class="pf-row solo">
         <div class="pf-field full">
-          <textarea name="note" placeholder="프로젝트 특이사항 (선택)">{{ project.note or '' }}</textarea>
+          <textarea name="note" placeholder="프로젝트 특이사항 (선택)">{{ (project.logi_note if project else '') or '' }}</textarea>{# z1191z10: 비고 = logi_note(예전 project.note 는 없는 칸이라 늘 빈칸 → 저장하면 비고가 지워졌다) #}
         </div>
       </div>
     </div>

@@ -1663,16 +1663,25 @@ def sync_ship_stage_from_units(c, project_id: int, on_date: str = "",
         return False
 
 
-def mark_units_delivered(c, project_id: int, changed_by: int | None = None) -> int:
+def mark_units_delivered(c, project_id: int, changed_by: int | None = None, iids=None, order_id=None) -> int:
     """v5H226z473 (대표 지시): 출하 처리 [보드→상세] 방향 — 활성 호기(취소·기납품 제외) 전체를 '출하'로.
     이어서 cascade_unit_status_to_project(프로젝트·SO 상태 동기화 + sync_ship_stage_from_units)까지 호출.
     반환=새로 출하로 바뀐 호기 수."""
+    # z1191z10 (데이터 꼬임 점검 · 대표 「2 진행」): iids(고른 호기) · order_id(고른 수주)가 오면 그것만 — 관리번호 소속인 것만.
+    #   작업일정표 일괄 출하가 줄 하나를 골라도 그 관리번호의 모든 수주 호기를 출하로 바꾸던 것.
     try:
-        r = c.execute(
-            "UPDATE order_items SET unit_status='출하' "
-            "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?) "
-            "  AND COALESCE(unit_status,'진행중') NOT IN ('출하','취소')",
-            (project_id,))
+        _sql = ("UPDATE order_items SET unit_status='출하' "
+                "WHERE order_id IN (SELECT id FROM orders WHERE project_id=?) "
+                "  AND COALESCE(unit_status,'진행중') NOT IN ('출하','취소')")
+        _args = [project_id]
+        if iids:
+            _ids = [int(x) for x in iids]
+            _sql += " AND id IN (%s)" % ",".join("?" * len(_ids))
+            _args += _ids
+        elif order_id:
+            _sql += " AND order_id=?"
+            _args.append(int(order_id))
+        r = c.execute(_sql, tuple(_args))
         n = r.rowcount or 0
     except Exception:
         n = 0

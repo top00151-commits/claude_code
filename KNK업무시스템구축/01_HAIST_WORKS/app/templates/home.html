@@ -488,7 +488,7 @@ button { font-family: inherit; cursor: pointer; }
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
-const SEL_DATE = '{{ sel_date }}';
+window.SEL_DATE = '{{ sel_date }}';   // z1191z10: const 금지 — 맨 위 const 가 남아 일일업무 화면이 이 날짜로 저장했다
 
 async function addTask() {
   const title = document.getElementById('newTitle').value.trim();
@@ -496,7 +496,7 @@ async function addTask() {
   const r = await fetch('/api/task', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
-      title, work_date: SEL_DATE, status: '진행중',
+      title, work_date: window.SEL_DATE, status: '진행중',
       hours: parseFloat(document.getElementById('newHours').value) || 0,
       category: '기타',
       project_id: document.getElementById('newProject').value || null,
@@ -511,7 +511,7 @@ async function carryForward(tid) {
   if (!confirm('이 업무를 오늘로 이월하시겠습니까?')) return;
   const r = await fetch('/api/task/' + tid + '/carry', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ work_date: SEL_DATE })
+    body: JSON.stringify({ work_date: window.SEL_DATE })
   });
   if (r.ok) { showToast('이월되었습니다'); setTimeout(() => location.reload(), 500); }
   else { showToast('이월 실패'); }

@@ -1436,62 +1436,66 @@
               let okCount = 0;
               let failed = [];
               // 호기 라인 sequential save (FK/total_amount 정합 위해)
+              // z1191z10 (대표 「4 진행」): 줄 안에서도 바뀐 칸만 보낸다(서버는 안 보낸 칸을 그대로 둔다).
+              //   예전엔 한 칸만 고쳐도 줄 전부를 다시 보내 금액칸 없는 줄은 0, 외화 부품 단가는 원화 표시÷환율로 조금씩 어긋났다.
+              const _dz = inp => !!inp && (inp.value || '') !== (inp.dataset.orig || '');
+              const _dzN = inp => !!inp && parseFloat((inp.value || '0').replace(/,/g,'')) !== parseFloat((inp.dataset.orig || '0').replace(/,/g,''));
               for (const r of dirtyRows) {
                 const body = new URLSearchParams();
                 body.set('base_ts', r.baseTs || '');   // v5H226z408: 동시 편집 감지(호기) — 충돌 시 409→실패목록 표시
-                if (r.lblInp) body.set('label', r.lblInp.value || '');  // v5H226z630: 호기 칸 숨김(1줄 완제품) 시 미전송 → 백엔드가 기존 라벨 유지
-                body.set('amount', r.amtInp ? (r.amtInp.value || '0').replace(/,/g,'') : '0');
-                body.set('note', r.noteInp ? (r.noteInp.value || '') : '');
-                if (r.ordInp) body.set('order_date', r.ordInp.value || '');
-                if (r.dueInp) body.set('due_date', r.dueInp.value || '');
-                if (r.shipInp) body.set('ship_to', r.shipInp.value || '');
+                if (_dz(r.lblInp)) body.set('label', r.lblInp.value || '');  // v5H226z630: 호기 칸 숨김(1줄 완제품) 시 미전송 → 백엔드가 기존 라벨 유지
+                if (_dzN(r.amtInp)) body.set('amount', (r.amtInp.value || '0').replace(/,/g,''));
+                if (_dz(r.noteInp)) body.set('note', r.noteInp.value || '');
+                if (_dz(r.ordInp)) body.set('order_date', r.ordInp.value || '');
+                if (_dz(r.dueInp)) body.set('due_date', r.dueInp.value || '');
+                if (_dz(r.shipInp)) body.set('ship_to', r.shipInp.value || '');
                 // v5H189: 호기별 통화 (override)
-                if (r.curSel) body.set('currency', r.curSel.value || '');
+                if (_dz(r.curSel)) body.set('currency', r.curSel.value || '');
                 // v5H197: 호기별 거래구분
-                if (r.iexSel) body.set('is_export', r.iexSel.value || '');
+                if (_dz(r.iexSel)) body.set('is_export', r.iexSel.value || '');
                 // v5H226z14: PARTS 부품 메타 + 통관 (input 존재 시에만 전송 — 호기 layout 영향 X)
-                if (r.specInp)     body.set('spec',           r.specInp.value || '');
-                if (r.makerInp)    body.set('maker',          r.makerInp.value || '');
-                if (r.supplierInp) body.set('supplier',       r.supplierInp.value || '');
-                if (r.originInp)   body.set('origin',         r.originInp.value || '');
-                if (r.boxInp)      body.set('box_no',         r.boxInp.value || '');
-                if (r.qtyInp)      body.set('qty',            (r.qtyInp.value || '0').replace(/,/g,''));
-                if (r.unitInp)     body.set('unit',           r.unitInp.value || '');
-                if (r.arrivalInp)  body.set('arrival_status', r.arrivalInp.value || '');
+                if (_dz(r.specInp))     body.set('spec',           r.specInp.value || '');
+                if (_dz(r.makerInp))    body.set('maker',          r.makerInp.value || '');
+                if (_dz(r.supplierInp)) body.set('supplier',       r.supplierInp.value || '');
+                if (_dz(r.originInp))   body.set('origin',         r.originInp.value || '');
+                if (_dz(r.boxInp))      body.set('box_no',         r.boxInp.value || '');
+                if (_dzN(r.qtyInp)) body.set('qty',            (r.qtyInp.value || '0').replace(/,/g,''));
+                if (_dz(r.unitInp))     body.set('unit',           r.unitInp.value || '');
+                if (_dz(r.arrivalInp))  body.set('arrival_status', r.arrivalInp.value || '');
                 // v5H226z460: 상품 원가관리 — 매입단가·마진%·판매단가 (input 존재 시에만 전송)
                 // v5H226z601: 매입/판매를 KRW로 입력받는 외화 부품(data-fx)은 저장 시 환율로 USD 환산(÷fx).
                 // v5H226z1024: 외화 건 입력칸은 'KRW 원본' → USD 로 환산해 저장하되, KRW 원본도 함께 보존.
                 //   (원본을 안 남기면 다음 화면이 USD×환율 로 역산해 몇 원씩 어긋난다 — 대표 지적 건)
-                if (r.costInp) {
+                if (_dz(r.costInp)) {
                   var _cvKrw = (r.costInp.value || '').replace(/,/g,'');
                   var _cv = _cvKrw;
                   var _cfx = parseFloat(r.costInp.dataset.fx || '0');
                   if (_cfx > 0 && _cv !== '') { _cv = (parseFloat(_cv) / _cfx).toFixed(4); body.set('cost_krw', _cvKrw); }
                   body.set('cost_price', _cv);
                 }
-                if (r.marginInp)   body.set('margin_pct',     (r.marginInp.value || '').replace(/,/g,''));
-                if (r.priceInp) {
+                if (_dz(r.marginInp)) body.set('margin_pct',     (r.marginInp.value || '').replace(/,/g,''));
+                if (_dz(r.priceInp)) {
                   var _pvKrw = (r.priceInp.value || '').replace(/,/g,'');
                   var _pv = _pvKrw;
                   var _pfx2 = parseFloat(r.priceInp.dataset.fx || '0');
                   if (_pfx2 > 0 && _pv !== '') { _pv = (parseFloat(_pv) / _pfx2).toFixed(4); body.set('sell_krw', _pvKrw); }
                   body.set('unit_price', _pv);
                 }
-                if (r.hsInp)       body.set('hs_code',        r.hsInp.value || '');
-                if (r.dutyRateInp) body.set('duty_rate',      r.dutyRateInp.value || '');
-                if (r.vatRateInp)  body.set('vat_rate',       r.vatRateInp.value || '');
-                if (r.invUpUsdInp) body.set('invoice_unit_price_usd', r.invUpUsdInp.value || '');
-                if (r.invAmtUsdInp)body.set('invoice_amount_usd',     r.invAmtUsdInp.value || '');
-                if (r.dutyKrwInp)  body.set('duty_krw',       r.dutyKrwInp.value || '');
-                if (r.dutyUsdInp)  body.set('duty_usd',       r.dutyUsdInp.value || '');
-                if (r.finalUsdInp) body.set('final_amount_usd', r.finalUsdInp.value || '');
-                if (r.descInp)     body.set('description',    r.descInp.value || '');
-                if (r.palletInp)   body.set('pallet_size',    r.palletInp.value || '');
-                if (r.weightInp)   body.set('weight_kg',      r.weightInp.value || '');
+                if (_dz(r.hsInp))       body.set('hs_code',        r.hsInp.value || '');
+                if (_dz(r.dutyRateInp)) body.set('duty_rate',      r.dutyRateInp.value || '');
+                if (_dz(r.vatRateInp))  body.set('vat_rate',       r.vatRateInp.value || '');
+                if (_dz(r.invUpUsdInp)) body.set('invoice_unit_price_usd', r.invUpUsdInp.value || '');
+                if (_dz(r.invAmtUsdInp)) body.set('invoice_amount_usd',     r.invAmtUsdInp.value || '');
+                if (_dz(r.dutyKrwInp))  body.set('duty_krw',       r.dutyKrwInp.value || '');
+                if (_dz(r.dutyUsdInp))  body.set('duty_usd',       r.dutyUsdInp.value || '');
+                if (_dz(r.finalUsdInp)) body.set('final_amount_usd', r.finalUsdInp.value || '');
+                if (_dz(r.descInp))     body.set('description',    r.descInp.value || '');
+                if (_dz(r.palletInp))   body.set('pallet_size',    r.palletInp.value || '');
+                if (_dz(r.weightInp))   body.set('weight_kg',      r.weightInp.value || '');
                 // v5H226z1076 (안지연 프로 신고): 제품(SEMI) 행 — 단가 입력(.amt)=1대 단가.
                 //   z1050 모델(unit_price=단가 · amount=단가×수량)로 저장해야 수량이 금액·합계에 반영된다.
                 //   판별: 수량 칸이 있고 상품(parts-excel) 표가 아닌 행 = 제품. 상품·완제품(수량 칸 없음)은 기존 그대로.
-                if (r.qtyInp && r.amtInp && r.row && !r.row.closest('table.parts-excel')) {
+                if (r.qtyInp && r.amtInp && r.row && !r.row.closest('table.parts-excel') && (_dzN(r.qtyInp) || _dzN(r.amtInp))) {   // z1191z10: 수량·단가가 바뀐 때만 금액 다시 계산
                   var _semiUnit = parseFloat((r.amtInp.value || '0').replace(/,/g,'')) || 0;
                   var _semiQty = parseFloat((r.qtyInp.value || '1').replace(/,/g,'')) || 1;
                   body.set('unit_price', String(_semiUnit));

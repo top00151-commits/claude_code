@@ -529,7 +529,7 @@ async function addTask() {
   const r = await fetch('/api/task', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
-      title, work_date: SEL_DATE, status: '진행중',
+      title, work_date: window.SEL_DATE, status: '진행중',   // z1191z10: 홈이 남긴 날짜 말고 이 화면 날짜
       hours: parseFloat(document.getElementById('newHours').value) || 0,
       category: '기타',
       project_id: proj.id, project_label: proj.label,
@@ -547,7 +547,7 @@ async function quickLogWf(wfNodeId, title, projId) {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
       title: title,
-      work_date: SEL_DATE,
+      work_date: window.SEL_DATE,   // z1191z10
       status: '진행중',
       hours: h,
       category: '기타',
@@ -564,11 +564,11 @@ async function quickLogWf(wfNodeId, title, projId) {
 
 // v5H34: 어제 미완료 → 오늘로 이월 (실제 엔드포인트는 /api/carry-forward)
 async function carry(tid) {
-  if (!confirm('이 업무를 오늘(' + SEL_DATE + ')로 이월하시겠습니까?\n새 카드가 생성되고 진행/수정 가능합니다.')) return;
+  if (!confirm('이 업무를 오늘(' + window.SEL_DATE + ')로 이월하시겠습니까?\n새 카드가 생성되고 진행/수정 가능합니다.')) return;
   try {
     const r = await fetch('/api/carry-forward', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ date: SEL_DATE, ids: [tid] })
+      body: JSON.stringify({ date: window.SEL_DATE, ids: [tid] })   // z1191z10
     });
     const j = await r.json().catch(()=>({}));
     if (r.ok && j.ok) {

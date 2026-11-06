@@ -2136,12 +2136,15 @@ function schedBulkShip(){
   rows.forEach(function(tr){
     var kind=tr.dataset.kind||'', ref=tr.dataset.ref||'';
     if(!kind||!ref) return;
-    var k=kind+':'+ref;
-    if(seen[k]) return; seen[k]=1;             // (kind,ref) 중복 제거 — 호기 분할 줄 대비
-    items.push({kind:kind, ref_id:Number(ref)});
+    // z1191z10 (대표 「2 진행」): 그 줄의 호기(uids)·수주(soid)도 보낸다 — 서버가 고른 줄만 출하(예전엔 관리번호 전체)
+    var uids=(tr.dataset.uids||'').split(',').filter(function(x){return /^\d+$/.test(x);}).map(Number);
+    var soid=/^\d+$/.test(tr.dataset.soid||'') ? Number(tr.dataset.soid) : null;
+    var k=kind+':'+ref+':'+uids.join('.')+':'+(soid||'');
+    if(seen[k]) return; seen[k]=1;             // 같은 줄 중복 제거
+    items.push({kind:kind, ref_id:Number(ref), uids:uids, so_oid:soid});
   });
   if(!items.length){ toast('출하 처리할 대상이 없습니다'); return; }
-  if(!confirm(items.length+'건을 오늘 날짜로 출하 처리할까요?\n(호기 전체가 납품완료로 처리되고 출하일이 기록됩니다)')) return;
+  if(!confirm(items.length+'건을 오늘 날짜로 출하 처리할까요?\n(고른 줄의 호기가 납품완료로 처리됩니다 — 같은 관리번호의 다른 수주는 그대로)')) return;
   var btn=document.querySelector('.bulk-ship-go');
   var h = window.KNKBusy ? KNKBusy.btn(btn, '출하 처리 중…') : null;
   if(!h && btn) btn.disabled=true;
