@@ -1111,7 +1111,7 @@ function _expandConsumableItems(tr, btn, ref, key){
 }
 function _uxSave(iid, field, value, el){
   if(_isDateField(field) && !_dateOk(value)){ _dateWarn(); return; }   // z1132: 호기별 표도 날짜만
-  fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})})
+  fetch('/sales/schedule/unit-field',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})})
     .then(r=>r.json()).then(j=>{
       if(j&&j.ok){ toast('저장됨'); if(el){ el.classList.add('ux-ok'); setTimeout(function(){el.classList.remove('ux-ok');},900);} }
       else toast('⚠ '+((j&&j.error)||'저장 실패'));
@@ -1124,7 +1124,7 @@ function schedCollapseUnits(){
 }
 // v5H226z485 (대표 지시): 펼친 호기 줄 세금계산서 — 보드 메인행과 동일한 발행일+금액 팝업(저장은 호기 단위 /unit-field).
 async function _uxSaveTax(iid, field, value){
-  const r=await fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})});
+  const r=await fetch('/sales/schedule/unit-field',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})});
   const j=await r.json(); if(!j||!j.ok) throw new Error((j&&j.error)||'fail'); return j;
 }
 var _CSYM={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'};   // v5H226z704→z759: 세금계산서/인보이스 팝업 통화 기호(보드·펼침 공용·CNY 元로 통일)
@@ -1200,7 +1200,7 @@ function _dateOk(s){
 function _dateWarn(){ toast('⚠ 날짜는 2026-09-29 처럼 적어 주세요 — 달력에서 고르면 가장 정확합니다'); }
 function _calIsOpen(){ var p=document.querySelector('.knk-cal-pop'); return !!(p && !p.classList.contains('hidden')); }
 function _mkCellInput(field, cur){
-  var inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
+  var inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off'; inp.dataset.knkOrig=cur;   // z1191z6
   if(_isDateField(field)){
     inp.classList.add('knk-cal'); inp.placeholder='YYYY-MM-DD'; inp.setAttribute('inputmode','numeric');
     if(window.KnkCal && KnkCal.attach) KnkCal.attach(inp);   // 이어지는 focus() 가 달력을 연다
@@ -1212,6 +1212,7 @@ function _mkCellInput(field, cur){
    그래서 날짜 칸은 **달력이 닫힌 뒤** 마무리한다 — 날짜를 고르든 닫든 지우든 한 길로 끝난다. */
 function _bindCellBlur(inp, field, finish){
   inp.addEventListener('blur', function(){
+    inp.dataset.knkSaving='1';   // z1191z6: 저장 시작 — 떠날 때 경고 대상에서 뺀다(요청은 keepalive 로 끝까지)
     if(!(_isDateField(field) && _calIsOpen())){ finish(true); return; }
     var t=setInterval(function(){
       if(!document.body.contains(inp)){ clearInterval(t); return; }   // 다른 경로로 이미 끝남
@@ -1271,7 +1272,7 @@ function startEdit(td){
     if(!save){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); _editing=null; return; }
     // v5H226z1033: 이 줄의 수주번호(so_oid)도 함께 보낸다 — PO유형은 **그 수주에** 저장(줄마다 다를 수 있음).
     //   안 보내면 프로젝트가 고쳐지는데 화면은 수주값을 보여줘 '고쳐도 안 바뀌는' 상태가 된다.
-    fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
+    fetch('/sales/schedule/cell',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
       body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||'',so_oid:tr.dataset.soid||''})})
       .then(r=>r.json()).then(j=>{
         _editing=null;
@@ -1281,7 +1282,7 @@ function startEdit(td){
           if(f==='qty') disp=fmtMoney(val);
           else if(f==='price'||f==='amount'){ var fm=fmtMoney(val); disp=fm?curSym(tr.dataset.cur)+fm:''; }
           else disp=val;
-          td.textContent=disp||'＋'; td.classList.toggle('filled',!!val); td.title=val;
+          td.textContent=disp||'＋'; td.classList.toggle('filled',!!val); td.title=val; _knkCellOk(td);   // z1191z6: 저장된 칸 ✓
           // v5H226z366 (대표 지시): 고객사1은 등록 고객사 연결여부를 즉시 표시(미매칭=빨강·확인 유도)
           if(f==='cust'){ td.dataset.real=val; td.classList.toggle('cust-unmatched', !j.cust_ok); td.title='정식: '+val+(j.cust_ok?'':' — 등록 고객사 미연결(확인 필요)'); toast(j.cust_ok?'저장됨 · 고객사 연결됨(표시는 시스템명·새로고침 시 반영)':'저장됨 · 미매칭(확인 필요)'); }
           else toast('저장됨');
@@ -1303,7 +1304,7 @@ function startCustEdit(td, tr){
   var cur=(td.textContent||'').trim(); if(cur==='＋') cur='';
   _editing={td}; td.textContent='';
   var wrap=document.createElement('div'); wrap.style.cssText='position:relative;';
-  var inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off';
+  var inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off'; inp.dataset.knkOrig=cur;   // z1191z6
   // v5H226z626 (대표 지시): 보드 셀 overflow:hidden 에 잘리던 문제 — 드롭다운을 body에 fixed로 띄움
   var dd=document.createElement('div'); dd.className='knkcust-dd'; dd.style.position='fixed'; dd.style.zIndex='99999'; dd.style.display='none';
   wrap.appendChild(inp); td.appendChild(wrap); document.body.appendChild(dd); inp.focus(); inp.select();
@@ -1333,7 +1334,7 @@ function startCustEdit(td, tr){
   function _restore(){ td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); }
   function save(opt){
     var sendName = opt ? opt.name : inp.value.trim();   // 서버 저장·세금계산서 기준은 정식 상호
-    fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
+    fetch('/sales/schedule/cell',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
       body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:'cust',value:sendName,base_ts:tr.dataset.ts||'',customer_id:(opt?opt.id:''),so_oid:tr.dataset.soid||''})})
       .then(function(r){return r.json();}).then(function(j){ _editing=null;
         if(j.updated_at) tr.dataset.ts=j.updated_at;
@@ -1351,7 +1352,7 @@ function startCustEdit(td, tr){
     // v5H226z647 (대표 지시): 값 안 바꾸고 닫으면 재저장 안 함 — 같은 상호 여러 종사업장에서 customer_id 연결이 끊기는 사고 방지
     if(!picked && inp.value.trim()===cur){ _restore(); _editing=null; return; }
     if(picked){ save(picked); } else { exact(inp.value).then(function(o){ save(o); }); } }
-  inp.addEventListener('blur', function(){ setTimeout(function(){ finish(true); }, 180); });
+  inp.addEventListener('blur', function(){ inp.dataset.knkSaving='1'; setTimeout(function(){ finish(true); }, 180); });   // z1191z6
   inp.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); inp.blur(); } else if(ev.key==='Escape'){ ev.preventDefault(); finish(false); } });
 }
 // v5H226z487 (대표 지시): 호기 분할 줄(is_unit) 인라인 편집 — 프로젝트 대표값이 아니라 '그 호기(order_items)'를 직접 수정.
@@ -1387,13 +1388,13 @@ function startUnitEdit(td, tr, uids){
     try{
       let okAll=true, msg='';
       for(let k=0;k<uids.length;k++){
-        const r=await fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},
+        const r=await fetch('/sales/schedule/unit-field',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
           body:JSON.stringify({iid:parseInt(uids[k],10),field:ufield,value:uvalue})});
         const j=await r.json();
         if(!j.ok){ okAll=false; msg=j.error||'저장 실패'; break; }
       }
       _editing=null;
-      if(okAll){ toast('저장됨 · 호기 반영'); try{var _s=document.getElementById('schedSearch'); if(_s&&_s.value) sessionStorage.setItem('knk.sched.q.keep','1');}catch(e){} setTimeout(function(){ location.reload(); }, 450); }
+      if(okAll){ td.textContent=val||'＋'; td.classList.toggle('filled',!!val); _knkCellOk(td); toast('저장됨 · 호기 반영'); try{var _s=document.getElementById('schedSearch'); if(_s&&_s.value) sessionStorage.setItem('knk.sched.q.keep','1');}catch(e){} _knkSafeReload(); }
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+msg); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
@@ -1407,7 +1408,7 @@ function startPartsQtyEdit(td, tr){
   if(_editing) return;
   const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';
   let cur=String(tr.dataset.qty||'').replace(_MONEY_STRIP,'');
-  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off'; inp.title='완제품 몇 대분인지 (부품만 출하=1)';
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off'; inp.dataset.knkOrig=cur; inp.title='완제품 몇 대분인지 (부품만 출하=1)';
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
   const finish=async(save)=>{
@@ -1416,10 +1417,10 @@ function startPartsQtyEdit(td, tr){
     if(!save || val===cur || !val){ td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); _editing=null; return; }
     try{
       const fd=new FormData(); fd.append('unit_qty', val);
-      const r=await fetch('/sales/orders/'+tr.dataset.soid+'/quick-edit',{method:'POST',body:fd});
+      const r=await fetch('/sales/orders/'+tr.dataset.soid+'/quick-edit',{method:'POST',keepalive:true,body:fd});
       const j=await r.json();
       _editing=null;
-      if(j.ok){ toast('저장됨 · '+(parseInt(val,10)>=2?('완제품 '+val+'대분'):'1식(부품만)')); setTimeout(function(){ location.reload(); }, 450); }
+      if(j.ok){ td.textContent=val; td.classList.add('filled'); _knkCellOk(td); toast('저장됨 · '+(parseInt(val,10)>=2?('완제품 '+val+'대분'):'1식(부품만)')); _knkSafeReload(); }   // z1191z6: 다른 칸 편집이 끝난 뒤 새로고침
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+(j.message||j.error||'저장 실패')); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
@@ -1434,7 +1435,7 @@ function startSoTextEdit(td, tr){
   const origDisp = td.classList.contains('filled') ? td.textContent.trim() : '';
   const fmap={model:'model_name', equip:'equip_name', note:'line_note'};
   const cur=origDisp;
-  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off'; inp.title='이 수주(발주)에만 저장됩니다';
+  const inp=document.createElement('input'); inp.className='cell-input'; inp.value=cur; inp.autocomplete='off'; inp.dataset.knkOrig=cur; inp.title='이 수주(발주)에만 저장됩니다';
   _editing={td}; td.textContent=''; td.appendChild(inp); inp.focus(); inp.select();
   let done=false;
   const finish=async(save)=>{
@@ -1443,10 +1444,11 @@ function startSoTextEdit(td, tr){
     if(!save || val===cur){ td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); _editing=null; return; }
     try{
       const fd=new FormData(); fd.append(fmap[td.dataset.edit]||td.dataset.edit, val);
-      const r=await fetch('/sales/orders/'+tr.dataset.soid+'/quick-edit',{method:'POST',body:fd});
+      const r=await fetch('/sales/orders/'+tr.dataset.soid+'/quick-edit',{method:'POST',keepalive:true,body:fd});
       const j=await r.json();
       _editing=null;
-      if(j.ok){ toast('저장됨 · 이 수주에만 반영'); setTimeout(function(){ location.reload(); }, 450); }
+      // z1191z6: 통째 새로고침(0.45초) 대신 그 칸만 갱신 — 옆 칸 타자를 지우지 않는다
+      if(j.ok){ td.textContent=val||'＋'; td.classList.toggle('filled',!!val); td.title=val; _knkCellOk(td); toast('저장됨 · 이 수주에만 반영'); }
       else { td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ '+(j.message||j.error||'저장 실패')); }
     }catch(e){ _editing=null; td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
@@ -1457,7 +1459,7 @@ function startSoTextEdit(td, tr){
 function startSelectEdit(td, tr, opts){
   if(_editing) return;
   let cur = td.classList.contains('filled') ? td.textContent.trim() : '';
-  const sel=document.createElement('select'); sel.className='cell-input';
+  const sel=document.createElement('select'); sel.className='cell-input'; sel.dataset.knkOrig=cur;   // z1191z6
   opts.forEach(o=>{ const op=document.createElement('option'); op.value=o; op.textContent=o||'—'; if(o===cur) op.selected=true; sel.appendChild(op); });
   _editing={td}; td.textContent=''; td.appendChild(sel); sel.focus();
   let done=false;
@@ -1469,7 +1471,7 @@ function startSelectEdit(td, tr, opts){
     var _uidsT=(tr.dataset.uids||'').split(',').filter(Boolean);
     if(td.dataset.edit==='trade' && _uidsT.length){
       var _iexV=(val==='수출')?'1':'0';
-      Promise.all(_uidsT.map(function(uid){ return fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:parseInt(uid,10),field:'is_export',value:_iexV})}).then(function(r){return r.json();}); }))
+      Promise.all(_uidsT.map(function(uid){ return fetch('/sales/schedule/unit-field',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:parseInt(uid,10),field:'is_export',value:_iexV})}).then(function(r){return r.json();}); }))
         .then(function(rs){ _editing=null; var okAll=rs.every(function(j){return j&&j.ok;});
           if(okAll){ td.textContent=val||'＋'; td.classList.toggle('filled',!!val); td.title=val; toast('저장됨 · 호기 반영'); }
           else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ 저장 실패'); } })
@@ -1478,7 +1480,7 @@ function startSelectEdit(td, tr, opts){
     }
     // v5H226z1033: 이 줄의 수주번호(so_oid)도 함께 보낸다 — PO유형은 **그 수주에** 저장(줄마다 다를 수 있음).
     //   안 보내면 프로젝트가 고쳐지는데 화면은 수주값을 보여줘 '고쳐도 안 바뀌는' 상태가 된다.
-    fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
+    fetch('/sales/schedule/cell',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
       body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||'',so_oid:tr.dataset.soid||''})})
       .then(r=>r.json()).then(j=>{
         _editing=null;
@@ -1487,8 +1489,8 @@ function startSelectEdit(td, tr, opts){
         else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ '+(j.message||j.error||'저장 실패')); }
       }).catch(()=>{ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
   };
-  sel.addEventListener('change',()=>finish(true));
-  sel.addEventListener('blur',()=>finish(true));
+  sel.addEventListener('change',()=>{ sel.dataset.knkSaving='1'; finish(true); });   // z1191z6
+  sel.addEventListener('blur',()=>{ sel.dataset.knkSaving='1'; finish(true); });
   sel.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z467 (대표 지시): 세금계산서 1/2/3차 — 발행일+금액을 작은 편집창에서 함께 입력(계약금/중도금/잔금 분할 발행).
@@ -1580,6 +1582,16 @@ function refreshTaxStatus(tr){
 // z277/z278: 천단위 콤마 / 통화 기호 / 금액 자동계산(수량×단가)
 function curSym(c){ return ({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'})[c]||'₩'; }
 var _MONEY_STRIP=/[₩$₫¥€元,\s＋]/g;
+// z1191z6 (대표 2026-11-06 「자동저장 권고 1·2·3 진행」): 자동 저장은 두고 빠지는 길을 막는다.
+//   ① 저장 뒤 통째 새로고침은 다른 칸이 열려 있으면 닫힐 때까지 기다린다(실측 S4′: 0.45초 새로고침이 옆 칸 타자를 지웠다)
+//   ② 칸 편집 중 값이 바뀐 채 F5·뒤로가기·주소 이동이면 브라우저 경고(실측 S3·S10·S11: 요청도 없이 사라졌다)
+//   ③ 저장 요청 keepalive(이동 중에도 끝까지 보냄) · 저장된 칸에 잠깐 초록 테두리(✓)
+window.knkLeaveOk=false;   // 우리 코드가 새로고침·이동할 때 true → 경고 안 함
+function _knkCellOpen(){ return document.querySelector('td input.cell-input, td select.cell-input'); }
+function _knkCellDirty(){ var i=_knkCellOpen(); if(!i || i.dataset.knkOrig===undefined || i.dataset.knkSaving) return false; return String(i.value||'').trim()!==String(i.dataset.knkOrig||'').trim(); }
+function _knkSafeReload(){ if(_knkCellOpen()){ setTimeout(_knkSafeReload, 300); return; } window.knkLeaveOk=true; location.reload(); }
+function _knkCellOk(td){ if(!td) return; td.classList.add('ux-ok'); setTimeout(function(){ td.classList.remove('ux-ok'); }, 1200); }
+window.addEventListener('beforeunload', function(e){ if(window.knkLeaveOk) return; if(_knkCellDirty()){ e.preventDefault(); e.returnValue='저장되지 않은 입력이 있습니다.'; return e.returnValue; } });
 // z1191z4e: 수량 칸 = 숫자 + 단위(data-unit). 편집은 숫자만, 저장·취소로 글자가 되면 다시 줄맞춤 칸으로
 function _qtyNum(s){ return String(s||'').replace(/[^\d.\-]/g,''); }
 function _qtyPaint(td){
@@ -1614,7 +1626,7 @@ function recalcAmount(tr){
   var qty=parseFloat((qtyTd?qtyTd.textContent:'').replace(_MONEY_STRIP,''))||0;
   var price=parseFloat((priceTd.textContent||'').replace(_MONEY_STRIP,''))||0;
   var amt=qty*price, sym=curSym(tr.dataset.cur);
-  fetch('/sales/schedule/cell',{method:'POST',headers:{'Content-Type':'application/json'},
+  fetch('/sales/schedule/cell',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
     body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:'amount',value:String(amt),base_ts:tr.dataset.ts||''})})
     .then(r=>r.json()).then(j=>{ if(j.updated_at) tr.dataset.ts=j.updated_at; if(j.ok){ amtTd.textContent=amt?sym+amt.toLocaleString():'＋'; amtTd.classList.toggle('filled',!!amt); amtTd.title=String(amt); }});
 }
@@ -1666,12 +1678,12 @@ function setRowStatus(st){
     .then(r=>r.json()).then(j=>{
       btns.forEach(b=>b.disabled=false);
       if(j.ok){ toast('저장됨 · '+st+(j.date?(' '+j.date):'')+(isCo?'':(' · 호기 '+(j.count||0)+'건'))); closeMemo();
-        setTimeout(function(){ location.reload(); }, 450); }
+        _knkSafeReload(); }   // z1191z6
       else { toast('⚠ '+(j.error||'저장 실패')); }
     }).catch(()=>{ btns.forEach(b=>b.disabled=false); toast('⚠ 통신 오류'); });
 }
 window.setRowStatus=setRowStatus;
-// v5H226z712 (대표 지시): 저장(새로고침) 후 보던 화면 위치 유지 — 보드 가로·세로 + 페이지 스크롤을 새로고침 직전 저장→복원(같은 화면일 때만·8초 내). 모든 location.reload() 저장 경로에 beforeunload 로 일괄 적용.
+// v5H226z712 (대표 지시): 저장(새로고침) 후 보던 화면 위치 유지 — 보드 가로·세로 + 페이지 스크롤을 새로고침 직전 저장→복원(같은 화면일 때만·8초 내). 모든 (window.knkLeaveOk=true, location.reload()) 저장 경로에 beforeunload 로 일괄 적용.
 function _saveSchedScroll(){
   try{
     var w=document.getElementById('schedWrap'), m=document.querySelector('.main');
@@ -1758,7 +1770,7 @@ function openStagePanel(kind, ref, tr){
 function closeStagePanel(){
   document.getElementById('stageModal').classList.remove('show');
   const dirty=_stagePanel&&_stagePanel.dirty; _stagePanel=null;
-  if(dirty) location.reload();
+  if(dirty) (window.knkLeaveOk=true, location.reload());
 }
 document.getElementById('stageModal').addEventListener('click',(e)=>{ if(e.target.id==='stageModal') closeStagePanel(); });
 
@@ -1920,7 +1932,7 @@ if(_regF) _regF.addEventListener('load', function(){
   try{
     const p=this.contentWindow.location.pathname;
     // 등록 완료 → 상세(/project/{id} 또는 /consumables/{id})로 이동 → 모달 닫고 보드 갱신(새 건 등장)
-    if(/^\/project\/\d+/.test(p) || /^\/consumables\/\d+$/.test(p)){ closeRegModal(); location.reload(); }
+    if(/^\/project\/\d+/.test(p) || /^\/consumables\/\d+$/.test(p)){ closeRegModal(); (window.knkLeaveOk=true, location.reload()); }
   }catch(e){}
 });
 _on(window,'message',function(e){ if(e&&e.data&&e.data.knkRegClose){ closeRegModal(); } });
@@ -2122,7 +2134,7 @@ function schedBulkShip(){
       if(!j||!j.ok){ toast('출하 처리 실패: '+((j&&j.error)||'오류')); if(h) h.fail('출하 처리 실패'); else if(btn) btn.disabled=false; return; }
       if(window.KNKBusy) KNKBusy.flashOnReload(j.n+'건 출하 처리 완료','ok');
       toast(j.n+'건 출하 처리 완료 (출하일 '+(j.on_date||'')+')'+(j.fail? ' · 실패 '+j.fail+'건':''));
-      setTimeout(function(){ location.reload(); }, 900);
+      setTimeout(function(){ (window.knkLeaveOk=true, location.reload()); }, 900);
     })
     .catch(function(e){ toast('출하 처리 오류: '+e); if(h) h.fail('출하 처리 오류'); else if(btn) btn.disabled=false; });
 }
@@ -2232,7 +2244,7 @@ function _tiSubmit(force){
       _tiCloseModal();
       if(window.KNKBusy) KNKBusy.flashOnReload(_tiTier+'차 세금계산서 #'+j.ti_no+' 발행 완료','ok');
       toast(_tiTier+'차 세금계산서 #'+j.ti_no+' 발행 완료 ('+j.n+'건)');
-      setTimeout(function(){ location.reload(); }, 800);
+      setTimeout(function(){ (window.knkLeaveOk=true, location.reload()); }, 800);
     })
     .catch(function(e){ if(h) h.fail('발행 오류'); else if(btn) btn.disabled=false; toast('발행 오류: '+e); });
 }
@@ -2265,7 +2277,7 @@ function _tiCancel(tiid){
   if(!confirm('이 세금계산서 묶음 발행을 취소할까요?\n(작업일정표의 묶음 표시가 사라지고, 다시 개별 칸으로 돌아갑니다)')) return;
   fetch('/sales/schedule/tax-invoice/'+encodeURIComponent(tiid)+'/cancel',{method:'POST'})
     .then(function(r){ return r.json(); })
-    .then(function(j){ if(!j||!j.ok){ toast('취소 실패'); return; } _tiCloseModal(); toast('발행 취소됨'); setTimeout(function(){ location.reload(); }, 700); })
+    .then(function(j){ if(!j||!j.ok){ toast('취소 실패'); return; } _tiCloseModal(); toast('발행 취소됨'); setTimeout(function(){ (window.knkLeaveOk=true, location.reload()); }, 700); })
     .catch(function(e){ toast('취소 오류: '+e); });
 }
 function _buildBulkFieldSel(){

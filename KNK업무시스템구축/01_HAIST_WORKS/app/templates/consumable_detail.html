@@ -539,7 +539,7 @@ function moneyFmt(n){ n=Number(n)||0; var k=(CURR==='KRW'); return (_CSYM[CURR]|
 // v5H226z309 (대표 지시): 라인 직접 추가 — 빈 줄 1개 생성 후 새로고침해 인라인 입력
 function addLine(){
   fetch(`/consumables/${CO_ID}/items/add`, {method:'POST'})
-    .then(r=>r.json()).then(j=>{ if(j.ok){ location.reload(); } else { alert('라인 추가 실패: '+(j.error||'')); } })
+    .then(r=>r.json()).then(j=>{ if(j.ok){ (window.knkLeaveOk=true, location.reload()); } else { alert('라인 추가 실패: '+(j.error||'')); } })
     .catch(()=>alert('통신 오류'));
 }
 // v5H226z311 (대표 지시): 라인 사진 첨부 — 셀엔 작은 📷 버튼만, 파일 input 은 페이지에 1개만 숨겨두고 JS로 호출.
@@ -662,7 +662,7 @@ document.querySelectorAll('.ef[data-field]').forEach(el=>{
     const field = el.dataset.field;
     const value = el.classList.contains('knk-money') ? (el.value||'').replace(/,/g,'') : el.value;
     try{
-      const r = await fetch(`/consumables/${CO_ID}/edit-field`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})});
+      const r = await fetch(`/consumables/${CO_ID}/edit-field`,{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})});   // z1191z6
       const d = await r.json();
       if(d.ok){
         el.style.background='#dcfce7'; setTimeout(()=>{ el.style.background=''; },700);
@@ -738,11 +738,18 @@ async function coSaveAll(){
   try{
     const r=await fetch(`/consumables/${CO_ID}/save-all`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({header:header, lines:lines})});
     const j=await r.json();
-    if(j.ok){ if(window.KNKBusy) KNKBusy.flashOnReload('✅ 저장되었습니다','ok'); if(msg){ msg.textContent='✓ 저장됨'; } setTimeout(()=>location.reload(), 350); }
+    if(j.ok){ if(window.KNKBusy) KNKBusy.flashOnReload('✅ 저장되었습니다','ok'); if(msg){ msg.textContent='✓ 저장됨'; } setTimeout(()=>(window.knkLeaveOk=true, location.reload()), 350); }
     else { if(h) h.fail('저장 실패'); else if(btn){ btn.disabled=false; btn.textContent=_t; } alert('저장 실패: '+(j.error||'')); }
   }catch(e){ if(h) h.fail('통신 오류'); else if(btn){ btn.disabled=false; btn.textContent=_t; } alert('통신 오류: '+e); }
 }
 window.coSaveAll = coSaveAll;
+// z1191z6 (대표 2026-11-06): 고치고 아직 저장(칸 떠나기)이 안 된 입력이 있으면 떠날 때 브라우저 경고 — 실측 S6: 칸을 안 떠나고 이동하면 요청 없이 사라졌다
+(function(){
+  window.knkLeaveOk=false;
+  function wire(el){ el.addEventListener('input', function(){ el.dataset.knkDirty='1'; }); el.addEventListener('change', function(){ delete el.dataset.knkDirty; }); }
+  document.querySelectorAll('table.items tbody input[data-k], .ef[data-field]').forEach(wire);
+  window.addEventListener('beforeunload', function(e){ if(window.knkLeaveOk) return; if(document.querySelector('[data-knk-dirty="1"]')){ e.preventDefault(); e.returnValue='저장되지 않은 입력이 있습니다.'; return e.returnValue; } });
+})();
 
 // v5H226z958 (대표 지시): 고객사 검색형 선택창 → 기존 자동저장 브리지.
 //   KNKCust picker 가 고객사를 '확정'하면 change 발화 → hidden(__co_cust_id) 값을 #coCustIdField(.ef data-field=customer_id)로 복사 후 change 재발화 → 기존 .ef 자동저장이 그대로 처리(💾수정반영·coSaveAll도 동일 hidden 수집).
@@ -769,7 +776,7 @@ document.querySelectorAll('table.items tbody input[data-k]').forEach(inp => {   
     // v5H226z86 — knk-money 콤마 포맷 환원 후 전송 (백엔드는 순수 숫자 수신)
     const v = inp.classList.contains('knk-money') ? inp.value.replace(/,/g, '') : inp.value;
     const fd = new FormData(); fd.append(k, v);
-    const res = await fetch(`/consumables/${CO_ID}/items/${iid}/edit`, {method:'POST', body:fd});
+    const res = await fetch(`/consumables/${CO_ID}/items/${iid}/edit`, {method:'POST', keepalive:true, body:fd});   // z1191z6: 이동 중에도 끝까지
     const data = await res.json();
     if (data.ok) {
       // recompute row amount client-side too
@@ -806,12 +813,12 @@ document.querySelectorAll('.part-search').forEach(inp=>{
 async function linkPart(iid,pid){
   const fd=new FormData(); fd.append('part_id',pid);
   const r=await fetch(`/consumables/${CO_ID}/items/${iid}/match-part`,{method:'POST',body:fd});
-  const d=await r.json(); if(d.ok) location.reload(); else alert('연결 실패');
+  const d=await r.json(); if(d.ok) (window.knkLeaveOk=true, location.reload()); else alert('연결 실패');
 }
 async function unlinkPart(iid){
   const fd=new FormData(); fd.append('part_id','');
   const r=await fetch(`/consumables/${CO_ID}/items/${iid}/match-part`,{method:'POST',body:fd});
-  const d=await r.json(); if(d.ok) location.reload();
+  const d=await r.json(); if(d.ok) (window.knkLeaveOk=true, location.reload());
 }
 
 // v5H226z301: 관리번호 입력 + 모델/장비 검증 → 다르면 알람·확인 후 연결
@@ -826,21 +833,21 @@ async function linkMgmt(iid, code, force){
     const r=await fetch(`/consumables/${CO_ID}/items/${iid}/link-by-mgmt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mgmt_code:code,force:force?1:0})});
     const d=await r.json();
     if(!d.ok){ alert(d.error||'오류'); return; }
-    if(d.linked){ location.reload(); return; }
+    if(d.linked){ (window.knkLeaveOk=true, location.reload()); return; }
     if(d.warn){ if(confirm('⚠ '+d.message+'\n\n그래도 이 관리번호로 연결하시겠습니까?')) linkMgmt(iid, code, 1); return; }
     if(d.message){ alert(d.message); }
   }catch(e){ alert('통신 오류'); }
 }
 async function unlinkMgmt(iid){
   const r=await fetch(`/consumables/${CO_ID}/items/${iid}/link-by-mgmt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mgmt_code:''})});
-  const d=await r.json(); if(d.ok) location.reload();
+  const d=await r.json(); if(d.ok) (window.knkLeaveOk=true, location.reload());
 }
 
 async function delLine(iid) {
   if (!confirm('이 라인을 삭제하시겠습니까?')) return;
   const res = await fetch(`/consumables/${CO_ID}/items/${iid}/delete`, {method:'POST'});
   const data = await res.json();
-  if (data.ok) location.reload();
+  if (data.ok) (window.knkLeaveOk=true, location.reload());
 }
 
 // v5H226z292 — 관련부서 통보: 부서 선택 모달
@@ -950,7 +957,7 @@ async function doNotify() {
       msg.textContent = `✅ ${d.sent_to||0}명에게 통보 완료` + (d.msg_sent ? ' · 📱'+d.msg_sent : '');
       const nb = document.getElementById('notifyBtn'); nb.textContent = '✓ 통보 완료';
       if(window.KNKBusy) KNKBusy.flashOnReload('✅ '+(d.sent_to||0)+'명에게 통보 완료','ok');
-      setTimeout(function(){ location.reload(); }, 900);   // 수신부서 표시 갱신
+      setTimeout(function(){ (window.knkLeaveOk=true, location.reload()); }, 900);   // 수신부서 표시 갱신
     } else {
       msg.className = 'err'; msg.textContent = '⚠ ' + (d.message || d.error || '발송 실패');
     }
