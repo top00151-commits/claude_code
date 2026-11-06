@@ -630,7 +630,15 @@
                 <span class="item"><span class="k">💱 통화</span><span class="v">{{ _cur }}</span></span>
                 {# v5H226z981: 수주(SO)별 모델명·장비명 — 한 관리번호 아래 성격이 다른 발주 구분(값 있을 때만·프로젝트 값과 다르면 강조) #}
                 {% set _so_meq = (so.model_name or so.equip_name) %}
-                {% if _so_meq %}<span class="item" title="이 수주의 모델명/장비명 (프로젝트 대표값과 별개)"><span class="k">📦 모델/장비</span><span class="v" style="{% if (so.model_name and so.model_name != p.model_name) or (so.equip_name and so.equip_name != p.equip_name) %}font-weight:700;color:#7c2d12;{% endif %}">{{ so.model_name or '—' }}{% if so.equip_name and so.equip_name != so.model_name %} · {{ so.equip_name }}{% endif %}</span></span>{% endif %}
+                {# z1191z5 (안지연 프로 신고 ② · 대표 2026-11-06): 항상 보이고, ✏️ 수정 때 **이 수주만** 고친다(저장 = 카드 「💾 저장」 →
+                   수주 머리 수정 입구 z981 · 다른 머리 칸과 같이). 비어 있으면 프로젝트 대표값을 (기본값)으로 보인다. 예전엔 값 있을 때만 표시였고 고칠 자리가 없어
+                   직원이 [프로젝트 정보 수정]으로 갈 수밖에 없었는데 거기는 첫 등록(대표)값만 나왔다. #}
+                {% set _so_mdl = so.model_name or '' %}{% set _so_eqp = so.equip_name or '' %}
+                {% set _meq_m = _so_mdl or p.model_name or '' %}{% set _meq_e = _so_eqp or p.equip_name or '' %}
+                <span class="item" title="이 수주의 모델명/장비명 (프로젝트 대표값과 별개 · 비면 프로젝트 값을 따름)"><span class="k">📦 모델/장비</span>
+                  <span class="v display-val" style="{% if (_so_mdl and _so_mdl != p.model_name) or (_so_eqp and _so_eqp != p.equip_name) %}font-weight:700;color:#7c2d12;{% endif %}">{{ _meq_m or '—' }}{% if _meq_e and _meq_e != _meq_m %} · {{ _meq_e }}{% endif %}{% if not _so_meq %} <span class="so-meq-inherit" style="font-size:10px;color:var(--mute);cursor:help" title="이 수주에 따로 적은 모델명·장비명이 없어 프로젝트 대표값을 보이고 있습니다. ✏️ 수정에서 적으면 이 수주만의 값이 됩니다.">(기본값)</span>{% endif %}</span>
+                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="model_name" data-orig="{{ _so_mdl }}" value="{{ _so_mdl }}" placeholder="모델명{% if p.model_name %} (기본 {{ p.model_name }}){% endif %}" autocomplete="off" title="이 수주번호({{ so.order_no }})의 모델명 — 비우면 프로젝트 대표값을 따릅니다" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:120px;"><input type="text" class="so-meta-edit" data-field="equip_name" data-orig="{{ _so_eqp }}" value="{{ _so_eqp }}" placeholder="장비명{% if p.equip_name %} (기본 {{ p.equip_name }}){% endif %}" autocomplete="off" title="이 수주번호({{ so.order_no }})의 장비명 — 비우면 프로젝트 대표값을 따릅니다" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:120px;margin-left:3px;">{% endif %}
+                </span>
                 {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음
                    v5H226z1079 (이새롬 프로 신고): 편집 가능하게 — 표시만 있고 고칠 수단이 없어 잘못 등록된 발주처
                    (015T2607 드림텍 본사↔아산)를 실무자가 못 바로잡던 문제. 등록 고객사 정확 일치만 저장·비우면
@@ -685,7 +693,7 @@
                 {% else %}
                 <button type="button" class="btn-mini primary add-unit">＋ 호기 추가</button>
                 {% endif %}
-                <button type="button" class="btn-mini so-meta-save" title="발주일/납기/납품처 저장" style="display:none;">💾 메타 저장</button>
+                <button type="button" class="btn-mini so-meta-save" title="발주일/납기/납품처/모델·장비/발주처 저장 — 이 수주번호만" style="display:none;">💾 메타 저장</button>
                 {% endif %}
                 {% if loop.first %}{# v5H226z650: 삭제는 최초(메인) 수주에서만 — 참고(추가) 수주는 읽기전용 #}
                 {% if can_sales_del %}
@@ -2065,13 +2073,13 @@
           <dd>{% if form_summary and form_summary.has_orders %}{% if form_summary.mixed %}<b style="color:var(--amber-deep);">혼합</b>{% for lbl, n in form_summary.breakdown %} · {{ lbl }} {{ n }}{% endfor %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;" title="이 관리번호에 형태가 다른 수주가 섞여 있습니다. 각 수주의 형태는 아래 [수주 내역]의 카드 배지에서 확인·수정하세요.">수주마다 다르면 <b>아래 수주 내역</b>에서</span>{% else %}{{ form_summary.label }}{% endif %}{% else %}{% set _sf2 = (p.shipment_form or '')|upper %}{% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품{% elif _sf2 == 'PARTS' %}상품{% elif _sf2 == 'ETC' %}기타{% elif _sf2 == 'SEMI' %}제품{% else %}완제품{% endif %}{% endif %}</dd>
           {# v5H226z994: 유형(제목 옆 알약에서 이동) — 한글만, 시스템 코드 비노출 #}
           <dt>유형</dt><dd>{% set _pty994 = (p.project_type or 'NEW_EQUIP')|upper %}{% if _pty994 == 'CONSUMABLE' %}소모품·부품{% elif _pty994 == 'SERVICE' %}수리·유지보수{% elif _pty994 == 'OTHER' %}기타{% else %}신규 장비{% endif %}</dd>
-          <dt>모델명</dt><dd>{{ p.model_name|default('—') }}</dd>
+          <dt>모델명{% if project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;" title="프로젝트 대표값입니다. 수주마다 다르면 아래 [수주 내역] 카드의 📦 모델/장비에서 그 수주만 고칩니다(z1191z5)">(대표값)</span>{% endif %}</dt><dd>{{ p.model_name|default('—') }}</dd>
           {# z1191d (대표 2026-10-19 「내수,수출 섞임(수출2건,내수1대)으로」): 호기 거래구분이 섞였는지 센다 — 취소 수주·취소 호기 제외 · 비면 프로젝트 값(수주 카드와 같은 규칙) · 장비 호기=대 · 상품 수주=건 #}{% set _ix1191 = namespace(eu=0, du=0, es=0, ds=0) %}{% for _s1191 in (project_orders or []) %}{% if (_s1191.status or '')|upper != 'CANCELLED' %}{% set _sx1191 = namespace(e=0, d=0) %}{% for _u1191 in (_s1191.units or []) %}{% if (_u1191.unit_status or '') != '취소' %}{% if (_u1191.is_export if _u1191.is_export is not none else (1 if p.is_export else 0)) %}{% set _sx1191.e = _sx1191.e + 1 %}{% else %}{% set _sx1191.d = _sx1191.d + 1 %}{% endif %}{% endif %}{% endfor %}{% if ((_s1191.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}{% if _sx1191.e %}{% set _ix1191.es = _ix1191.es + 1 %}{% endif %}{% if _sx1191.d %}{% set _ix1191.ds = _ix1191.ds + 1 %}{% endif %}{% else %}{% set _ix1191.eu = _ix1191.eu + _sx1191.e %}{% set _ix1191.du = _ix1191.du + _sx1191.d %}{% endif %}{% endif %}{% endfor %}
           <dt>거래 구분</dt><dd>{% if (_ix1191.eu + _ix1191.es) > 0 and (_ix1191.du + _ix1191.ds) > 0 %}<span id="hf_export_disp" title="이 관리번호는 호기마다 거래구분이 다릅니다 — 아래 수주 카드의 「거래방식」" style="background:#f3e8ff;color:#6b21a8;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;white-space:nowrap;">내수·수출 섞임</span> <span class="trade-mix1191" style="font-size:11px;color:#64748b;font-weight:500;white-space:nowrap;">(수출 {% if _ix1191.eu %}{{ _ix1191.eu }}대{% endif %}{% if _ix1191.eu and _ix1191.es %}+{% endif %}{% if _ix1191.es %}{{ _ix1191.es }}건{% endif %} · 내수 {% if _ix1191.du %}{{ _ix1191.du }}대{% endif %}{% if _ix1191.du and _ix1191.ds %}+{% endif %}{% if _ix1191.ds %}{{ _ix1191.ds }}건{% endif %})</span>{% elif p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}</dd>
           {# v5H200/z645: 상태 pill + 1줄 분포(진행/완료/취소/보류) #}
           {% set _pds = project_display_status|default({'label': p.status|default('—'), 'tone':'muted', 'dist': {'진행중':0,'출하':0,'취소':0,'보류':0}, 'total': 0}) %}
           <dt>상태</dt><dd><span class="pill {% if _pds.tone == 'done' %}pill-done{% elif _pds.tone == 'danger' %}pill-danger{% elif _pds.tone == 'warn' %}pill-warn{% elif _pds.tone == 'progress' %}pill-progress{% else %}pill-muted{% endif %}" style="font-size:12px;font-weight:700;">{{ _pds.label }}</span>{% if _pds.total > 0 %}<span style="margin-left:8px;font-size:11px;color:var(--mute);font-weight:600;white-space:nowrap;">진행 {{ _pds.dist['진행중'] }} · 완료 {{ _pds.dist['출하'] }} · 취소 {{ _pds.dist['취소'] }} · 보류 {{ _pds.dist['보류'] }}</span>{% endif %}</dd>
-          <dt>장비명</dt><dd>{{ p.equip_name|default('—') }}</dd>
+          <dt>장비명{% if project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;" title="프로젝트 대표값입니다. 수주마다 다르면 아래 [수주 내역] 카드의 📦 모델/장비에서 그 수주만 고칩니다(z1191z5)">(대표값)</span>{% endif %}</dt><dd>{{ p.equip_name|default('—') }}</dd>
           {# v5H201: 제안 단계 일정 #}
           <dt>제안서</dt><dd>{{ p.proposal_date or '—' }}</dd>
           <dt>견적서</dt><dd>{{ p.quotation_date or '—' }}</dd>

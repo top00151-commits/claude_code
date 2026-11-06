@@ -7359,6 +7359,23 @@ def get_quotation_history(quotation_id: int, limit: int = 50) -> list[dict]:
             return []
 
 
+def freeze_inherited_po_type_z1191z5(c, pid, old_value) -> int:
+    """z1191z5 (안지연 프로 신고 ③ · 대표 2026-11-06): 프로젝트 PO유형을 바꾸기 **전에**, 자기 값이 없는 수주
+    (2026-08 z1033 이전 등록분 · 운영 40건)에 지금 보이던 값(옛 프로젝트 값 · 비면 '신규')을 먼저 적어 굳힌다.
+    안 그러면 프로젝트 값을 따라 보이던 기등록 수주가 통째로 '개조'로 바뀐다(001M2509 등 · 상품 양식 올리기·정보 수정).
+    화면 규칙(상세 카드·작업일정표)과 같은 값: 수주 값 없음 → 프로젝트 값 → '신규'. 반환 = 굳힌 수주 수."""
+    try:
+        _oc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    except Exception:
+        return 0
+    if "po_type" not in _oc:
+        return 0
+    _ov = str(old_value or "").strip() or "신규"
+    _cur = c.execute("UPDATE orders SET po_type=? WHERE project_id=? AND COALESCE(TRIM(po_type),'')=''",
+                     (_ov, int(pid)))
+    return int(_cur.rowcount or 0)
+
+
 def projects_update_logi(pid: int, data: dict) -> str | None:
     current = projects_get_logi(pid)
     if not current:
@@ -7428,6 +7445,13 @@ def projects_update_logi(pid: int, data: dict) -> str | None:
         cust_id, _ = resolve_customer_id(c, vals.get("customer_name"),
                                          picked_id=(data.get("customer_id") if isinstance(data, dict) else None),
                                          prefer_id=_ex_cid)
+        # z1191z5 (안지연 프로 신고 ③): PO유형이 바뀌면 자기 값 없는 수주를 옛 값으로 먼저 굳힌다(기등록 수주 표시 불변)
+        _old_pt5 = (current.get("po_type") if isinstance(current, dict)
+                    else (current["po_type"] if "po_type" in current.keys() else None))
+        if (str(_old_pt5 or "").strip() or "신규") != (str(vals.get("po_type") or "").strip() or "신규"):
+            _n5 = freeze_inherited_po_type_z1191z5(c, pid, _old_pt5)
+            if _n5:
+                _pending_logs.append(("PO유형(기존 수주 유지)", "", f"자기 값 없던 수주 {_n5}건을 '{str(_old_pt5 or '').strip() or '신규'}'로 굳힘"))
         c.execute("""
             UPDATE projects
             SET mgmt_code=?, name=?, biz_div=?, customer_id=?, customer_name=?, model_name=?,
@@ -14420,6 +14444,12 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
     # v5H226z366 (대표 지시): PO유형은 고정 선택지만(빈값=해제 허용). 저장은 아래 일반경로(화이트리스트 컬럼).
     if field == "po_type" and val and val not in PO_TYPES:
         return (False, "PO유형은 신규/추가/개조/수리/기타 중에서만 선택")
+    # z1191z5 (안지연 프로 신고 ③): 프로젝트 PO유형을 바꾸기 전에 자기 값 없는 수주를 옛 값으로 굳힌다(저장은 아래 일반경로 그대로)
+    if ref_kind == "project" and field == "po_type":
+        with db_session() as c:
+            _old5 = c.execute("SELECT po_type FROM projects WHERE id=?", (int(ref_id),)).fetchone()
+            if _old5 is not None and (str(_old5[0] or "").strip() or "신규") != (val or "신규"):
+                freeze_inherited_po_type_z1191z5(c, int(ref_id), _old5[0])
     # v5H226z349 (대표 지시): 형태는 고정 선택지(제품/상품/기타)만 — 그 외 값 차단(빈값=해제 허용)
     if field == "form_type" and val and val not in FORM_TYPES:
         return (False, "형태는 제품/상품/기타 중에서만 선택")

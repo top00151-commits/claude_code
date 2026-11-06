@@ -16376,6 +16376,10 @@ async def projects_header_edit(req: Request, pid: int):
         old_val = old_row[0]
         if (old_val or "") == (val or ""):
             return JSONResponse({"ok": True, "message": "변동 없음", "value": val, "updated_at": _row_ts(c, "projects", pid)})
+        # z1191z5 (안지연 프로 신고 ③): PO유형을 바꾸기 전에 자기 값 없는 수주를 옛 값으로 굳힌다(기등록 수주 표시 불변)
+        _frozen5 = 0
+        if field == "po_type":
+            _frozen5 = _logi.freeze_inherited_po_type_z1191z5(c, pid, old_val)
         # v5H226z406: 인라인 편집도 updated_at 갱신(낙관적 잠금 버전 증가)
         c.execute(f"UPDATE projects SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?", (val, pid))
         # v5H226s: 메타필드(due_date/order_date/currency) 변경 → 자식 SO·호기 cascade
@@ -16398,6 +16402,8 @@ async def projects_header_edit(req: Request, pid: int):
             _note = f"인라인 편집 ({field})"
             if cascade_info:
                 _note += f" · {cascade_info}"
+            if _frozen5:
+                _note += f" · 자기 값 없던 수주 {_frozen5}건은 '{str(old_val or '').strip() or '신규'}'로 유지(z1191z5)"
             c.execute(
                 "INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) "
                 "VALUES(?,?,?,?,?,?)",
@@ -19911,6 +19917,16 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 _oset.append("due_date=?"); _oval.append(due_date)
             if "order_date" in _ocols and order_date:
                 _oset.append("order_date=?"); _oval.append(order_date)
+            # z1191z5 (안지연 프로 신고 ③·② · 대표 2026-11-06): 양식의 PO유형·모델명·장비명은 **올린 그 수주(SO)** 에 적는다.
+            #   예전엔 PO유형을 프로젝트에 덮어써(z943), 자기 값 없는 옛 수주(z1033 이전)가 전부 '개조'로 보였다(001M2509 등).
+            #   z943 「엑셀값이 최종」은 그대로 두되 PO유형만 수주 값으로(대표 결정 11-06). 모델·장비도 이 수주에 남긴다(z981 칸).
+            _expo5 = str(proj.get("po_type") or "").strip()
+            if _expo5 and _expo5 in _logi.PO_TYPES and "po_type" in _ocols:
+                _oset.append("po_type=?"); _oval.append(_expo5)
+            for _k5, _v5 in (("model_name", str(proj.get("model") or "").strip()),
+                             ("equip_name", str(proj.get("equip") or "").strip())):
+                if _v5 and _k5 in _ocols:
+                    _oset.append(f"{_k5}=?"); _oval.append(_v5[:200])
             _oval.append(oid)
             c.execute(f"UPDATE orders SET {', '.join(_oset)} WHERE id=?", _oval)
             # 프로젝트 갱신 — 덮어쓰기는 엑셀값으로 모델/장비/발주일/납기/통화/환율 '강제' 갱신(빈칸일 때만 아님)
@@ -19929,8 +19945,7 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
             # v5H226z943 (대표 지시): '엑셀값이 최종' — 고객사·프로젝트명·PO유형·영업담당자도 엑셀대로 갱신(빈값이면 기존 유지).
             _exname943 = str(proj.get("name") or "").strip()
             if _exname943 and "name" in _pcols: _pset.append("name=?"); _pval.append(_exname943)
-            _expo943 = str(proj.get("po_type") or "").strip()
-            if _expo943 and "po_type" in _pcols: _pset.append("po_type=?"); _pval.append(_expo943)
+            # z1191z5: PO유형은 위에서 **이 수주**에 적었다 — 프로젝트 PO유형은 덮지 않는다(기등록 수주가 따라 바뀌는 결함 ③)
             _exsales943 = str(proj.get("sales") or "").strip()
             if _exsales943 and "sales" in _pcols: _pset.append("sales=?"); _pval.append(_exsales943)
             _ex2cust943 = str(proj.get("secondary_customer") or "").strip()
@@ -29581,8 +29596,16 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     #   (z638 '메인만 행·추가는 묶음' 폐지). 각 SO 가 자기 호기 라인(z389/z454 분할 유지)으로 행이 됨
                     #   → 작업일정표에서 수주번호별 납기·상태·색이 보이고, 상세 '참고 수주' 클릭이 그 수주번호 행으로 이동 가능.
                     all_lines = []
-                    for (_oid, _so) in so_list:
-                        all_lines.extend(_so_lines(_so))
+                    for _k5, (_oid, _so) in enumerate(so_list):
+                        _ls5 = _so_lines(_so)
+                        # z1191z5 (안지연 프로 신고 ⑤ · 대표 2026-11-06): 프로젝트 비고(logi_note) 대신 보이기는 **첫 수주 줄에만**.
+                        #   추가·개조 수주 줄은 자기 비고만(없으면 빈칸). 예전엔 비고를 안 적은 추가 수주 줄에 첫 등록 비고가
+                        #   그대로 보여 「이전 비고가 똑같이 따라온다」고 보였다(운영 7건). 저장값은 안 바꾼다(z983 3상태 그대로).
+                        if _k5 > 0:
+                            for _l5 in _ls5:
+                                if _l5.get("so_note") is None:
+                                    _l5["so_note"] = ""
+                        all_lines.extend(_ls5)
                     # v5H226z666 (대표 지시·전면 통일): 호기(order_items)가 1건이라도 있으면 분할 경로로 보냄
                     #   → 그 행이 is_unit(호기 기반)이 되어 읽기·쓰기가 정규 소스(order_items/orders)로 통일됨
                     #   (단가/금액/납기/발주일/납품처는 /unit-field, projects 미러 의존 제거). 단일 SO·균일도 1줄 그대로 유지(행 수 불변).
@@ -31397,6 +31420,16 @@ async def projects_import_product_confirm(request: Request):
                     _oset.append("due_date=?"); _oval.append(due_date)
                 if "order_date" in _ocols and order_date:
                     _oset.append("order_date=?"); _oval.append(order_date)
+                if _is_followup:
+                    # z1191z5 (안지연 프로 신고 ③·②): 추가 발주(기존 관리번호)면 양식의 PO유형·모델명·장비명을 **이 새 수주에** 적는다
+                    #   (프로젝트는 안 건드림 — 기등록 수주 표시 불변). 신규 프로젝트는 projects_create_logi 가 이미 반영.
+                    _expo5 = str(proj.get("po_type") or "").strip()
+                    if _expo5 and _expo5 in _logi.PO_TYPES and "po_type" in _ocols:
+                        _oset.append("po_type=?"); _oval.append(_expo5)
+                    for _k5, _v5 in (("model_name", str(proj.get("model") or "").strip()),
+                                     ("equip_name", str(proj.get("equip") or "").strip())):
+                        if _v5 and _k5 in _ocols:
+                            _oset.append(f"{_k5}=?"); _oval.append(_v5[:200])
                 if _oset:
                     _oval.append(oid)
                     c.execute(f"UPDATE orders SET {', '.join(_oset)} WHERE id=?", _oval)
@@ -35005,6 +35038,12 @@ async def projects_new_submit(request: Request):
                         _end1190 = (form.get("secondary_customer") or "").strip()
                         if _end1190 and "end_customer" in {r[1] for r in _cc3.execute("PRAGMA table_info(orders)").fetchall()}:
                             _cc3.execute("UPDATE orders SET end_customer=? WHERE id=?", (_end1190[:100], _po_oid))
+                        # z1191z5 (안지연 프로 신고 ②): 상품 추가 발주도 화면의 모델명·장비명을 이 수주에(z981 칸)
+                        _ocols5 = {r[1] for r in _cc3.execute("PRAGMA table_info(orders)").fetchall()}
+                        for _k5, _v5 in (("model_name", (form.get("model") or "").strip()),
+                                         ("equip_name", (form.get("equip_name") or "").strip())):
+                            if _v5 and _k5 in _ocols5:
+                                _cc3.execute(f"UPDATE orders SET {_k5}=? WHERE id=?", (_v5[:200], _po_oid))
                     if _po_oid and _fu_parts:
                         _oicols = {r[1] for r in _cc3.execute("PRAGMA table_info(order_items)").fetchall()}
                         for _pp2 in _fu_parts:
@@ -35085,6 +35124,9 @@ async def projects_new_submit(request: Request):
                         # v5H226z1033: 사용자가 고른 PO유형을 **그 수주에** 남긴다.
                         #   '추가'뿐 아니라 개조·수리·기타도 있으므로 폼값을 그대로 쓴다(비면 '추가').
                         po_type=(form.get("po_type") or "").strip(),
+                        # z1191z5 (안지연 프로 신고 ②): 화면에 적은 모델명·장비명을 **이 수주에** 남긴다(예전엔 버려졌다)
+                        model_name=((form.get("model") or "").strip() or None),
+                        equip_name=((form.get("equip_name") or "").strip() or None),
                         # v5H226z1084: 형태='제품' — 항목 줄 그대로 저장(호기 발번 없음).
                         #   항목을 안 적은 제품 폴백도 호기 분할 금지(1줄) + 'N호기' 라벨 방지.
                         items=(_fu_semi_items or None),
@@ -35352,7 +35394,8 @@ async def projects_new_submit(request: Request):
                             created_by=_u.get("id") or 0, po_number=form.get("customer_po", ""),
                             note=f"[추가품목] {_nm}{(' / 모델: ' + _md) if _md else ''}",
                             qty=_q, so_type=_so_t, currency=_ccy_v, ship_to="",
-                            expand_units=_exp, line_label=(_md or _nm))
+                            expand_units=_exp, line_label=(_md or _nm),
+                            model_name=(_md or None))   # z1191z5: 추가 품목 줄의 모델명을 그 수주에
                         if _r.get("ok") and _r.get("order_id"):
                             _logi.project_item_update(_cpi, _pi_id, {"order_id": _r["order_id"]})
                             _z209_extra_oids.append(int(_r["order_id"]))
@@ -36956,7 +36999,9 @@ async def projects_import_confirm(request: Request):
                                     currency=(r.get("currency") or "KRW").upper(),
                                     ship_to=r.get("ship_to") or "",
                                     order_customer_id=_ord_cust_id,
-                                    expand_units=_expand, line_label=_line_lbl)
+                                    expand_units=_expand, line_label=_line_lbl,
+                                    model_name=(r.get("model_name") or None),   # z1191z5: 엑셀 줄의 모델명·장비명을 그 수주에
+                                    equip_name=(r.get("equip_name") or None))
                                 if _res.get("ok", True):
                                     _fu_oid = _res.get("order_id"); _fu_sono = _res.get("so_no")
                         # 호기 상태 + 수주별 담당자 기록(같은 트랜잭션) — 신규/재사용 공통.

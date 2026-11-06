@@ -261,6 +261,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         po_type: str = "",   # v5H226z1033: 이 수주의 PO유형(비우면 '추가')
                         items: list | None = None,   # v5H226z1050: 한 수주에 서로 다른 품목 N줄
                         is_export: int | None = None,   # z1186: 이 수주의 거래구분(0 내수·1 수출) — None=예전처럼 프로젝트 값 상속
+                        model_name: str | None = None,   # z1191z5: 이 수주의 모델명(안지연 프로 신고 ② — 추가 발주 때 적은 값이 버려졌다)
+                        equip_name: str | None = None,   # z1191z5: 이 수주의 장비명(비우면 안 적음 = 프로젝트 대표값)
                         end_customer: str | None = None) -> dict:   # z1190: 이 수주의 2차 발주처(최종 고객) — None=미지정
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
@@ -454,6 +456,13 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     # z1190: 이 수주의 2차 발주처(최종 고객) — 화면의 고객사2. 비면 적지 않는다(NULL = 미지정)
     if end_customer and str(end_customer).strip() and "end_customer" in _ord_cols:
         cols.append("end_customer"); vals.append(str(end_customer).strip()[:100])
+    # z1191z5 (안지연 프로 신고 ② · 대표 2026-11-06): 추가·개조 발주 때 적은 모델명·장비명을 **이 수주에** 남긴다(z981 칸).
+    #   예전엔 인자가 없어 등록 화면 값이 버려졌고(수주 model_name NULL), 상세 카드·작업일정표가 프로젝트 대표값(첫 등록)을
+    #   보였다. 비우면 적지 않는다(NULL = 프로젝트 대표값을 따름 · 옛 데이터와 같은 모양).
+    if model_name is not None and str(model_name).strip() and "model_name" in _ord_cols:
+        cols.append("model_name"); vals.append(str(model_name).strip()[:200])
+    if equip_name is not None and str(equip_name).strip() and "equip_name" in _ord_cols:
+        cols.append("equip_name"); vals.append(str(equip_name).strip()[:200])
     if _has_sotype:
         cols.append("so_type"); vals.append(_st)
     if _has_currency:
