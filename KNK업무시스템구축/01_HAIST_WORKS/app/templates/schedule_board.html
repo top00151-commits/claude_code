@@ -1567,13 +1567,15 @@ function refreshTaxStatus(tr){
   const cells=tr.querySelectorAll('td.taxinv-cell'); if(!cells.length) return;
   let sum=0, anyAmt=false;
   cells.forEach(c=>{ const a=parseFloat(c.dataset.amt||'0')||0; if((c.dataset.amt||'').trim()) anyAmt=true; sum+=a; });
-  const total=Math.round(parseFloat(tr.dataset.rowamt||'0')||0), ssum=Math.round(sum);
+  const total=parseFloat(tr.dataset.rowamt||'0')||0;   // z1191z7: 반올림하지 않은 그대로 비교(아래 0.01 허용)
   let status='none';   // none=입력없음 / ok=합계=총액(발행완료) / mismatch=합계≠총액(미발행)
   // v5H226z1137 (이새롬 프로 신고 "마이너스 세금계산서는 미발행으로 인식 됩니다"): 판정은 금액의 **부호를 가정하지 않는다.**
   //   `total>0` 이라 마이너스 수주(네고·할인 — 999T2606 -1,865,000)는 판정을 통째로 건너뛰어 무색(미발행처럼)이었다.
   //   그 건에 플러스로 잘못 넣어도 무색이라 걸러지지 않았다 → 합계=수주금액이면 초록, 다르면 주황(부호가 달라도 주황).
   //   수주금액이 0(미입력)인 줄만 판정에서 뺀다 — 견줄 금액이 없다.
-  if(anyAmt && total!==0) status=(ssum===total)?'ok':'mismatch';
+  // z1191z7 (안지연 프로 신고 · 대표 2026-11-06): 정수 반올림 비교는 8065.4999…(수주금액) vs 8065.5000…(발행 합계)를
+  //   8,065 vs 8,066 으로 갈라 전액 발행을 주황으로 칠했다(001M2606 M-260820-1). 1센트(0.01) 미만 차이는 같은 금액.
+  if(anyAmt && total!==0) status=(Math.abs(sum-total)<0.01)?'ok':'mismatch';
   cells.forEach(c=>{ c.classList.remove('tax-ok','tax-mismatch'); if(status==='ok') c.classList.add('tax-ok'); else if(status==='mismatch') c.classList.add('tax-mismatch'); });
   // v5H226z486 (대표 지시): '✓ 발행완료/⚠ 미발행' 텍스트 뱃지 제거(칸 높이 절약) — 셀 배경색(tax-ok/tax-mismatch)만으로 상태 표시.
   const first=tr.querySelector('td.taxinv-cell[data-edit="taxinv1"]');

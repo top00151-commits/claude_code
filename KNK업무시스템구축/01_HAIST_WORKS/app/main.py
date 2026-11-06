@@ -35038,6 +35038,15 @@ async def projects_new_submit(request: Request):
                         _end1190 = (form.get("secondary_customer") or "").strip()
                         if _end1190 and "end_customer" in {r[1] for r in _cc3.execute("PRAGMA table_info(orders)").fetchall()}:
                             _cc3.execute("UPDATE orders SET end_customer=? WHERE id=?", (_end1190[:100], _po_oid))
+                        # z1191z7 (안지연 프로 신고 ③ 보강 · 대표 2026-11-06): 상품 추가 발주도 화면에서 고른 **PO유형·1차 발주처**를 이 수주에.
+                        #   완제품 경로(add_followup_order)는 z1033·z1191 부터 받았지만 상품 경로(confirm_order_multi)는 버려서
+                        #   수주 PO유형이 비고(프로젝트값 따라 보임) 발주처가 프로젝트 고객으로 저장됐다(001M2509 M-260311-1 — 안지연 프로가 작업일정표에서 손으로 고침).
+                        _ocols7 = {r[1] for r in _cc3.execute("PRAGMA table_info(orders)").fetchall()}
+                        _po7 = (form.get("po_type") or "").strip()
+                        if _po7 and _po7 in _logi.PO_TYPES and "po_type" in _ocols7:
+                            _cc3.execute("UPDATE orders SET po_type=? WHERE id=?", (_po7, _po_oid))
+                        if _fu_cust_id:
+                            _cc3.execute("UPDATE orders SET customer_id=? WHERE id=?", (int(_fu_cust_id), _po_oid))
                         # z1191z5 (안지연 프로 신고 ②): 상품 추가 발주도 화면의 모델명·장비명을 이 수주에(z981 칸)
                         _ocols5 = {r[1] for r in _cc3.execute("PRAGMA table_info(orders)").fetchall()}
                         for _k5, _v5 in (("model_name", (form.get("model") or "").strip()),
@@ -38206,14 +38215,58 @@ async def projects_edit_form(request: Request, pid: int):
             so_amount = sum(float(o.get("total_amount") or 0) for o in sos)
             for _o in sos:
                 _us = _o.get("units") or []
+                # z1191z7 (안지연 프로 신고 · 대표 2026-11-06): 호기 수는 **완제품 수주만** 센다 — 상품 수주의 부품 384줄까지
+                #   더해 「호기 395대 · 1대 단가 742」가 뜨던 혼합 프로젝트(001M2509) 혼란.
+                _hn7 = sum(1 for x in _us if str(x.get("unit_label") or "").strip()[:1].isdigit())
+                _lk7 = _pwf.so_form_label_key(so_form=_o.get("so_form"), so_type=_o.get("so_type"),
+                                             shipment_form=_o.get("shipment_form"), hogi_n=_hn7,
+                                             proj_ptype=(p.get("project_type") or "NEW_EQUIP"))
+                if _lk7[1] != "assembly":
+                    continue
                 so_qty += (sum(int(x.get("qty") or 0) for x in _us) if _us
                            else int(_o.get("unit_qty") or 1))
     except Exception:
         so_qty, so_amount, so_count = 0, 0.0, 0
+    # z1191z7: 수주별 표(수주번호·형태·PO유형·고객사·수량·금액) — 수주 2건 이상이면 ③ 확정 금액을 이 표로 보인다
+    so_rows, so_mixed = [], False
+    try:
+        _keys7 = set()
+        for _o in (sos or []):
+            if (_o.get("status") or "").upper() == "CANCELLED":
+                continue
+            _us = _o.get("units") or []
+            _hn7 = sum(1 for x in _us if str(x.get("unit_label") or "").strip()[:1].isdigit())
+            _lbl7, _key7 = _pwf.so_form_label_key(so_form=_o.get("so_form"), so_type=_o.get("so_type"),
+                                                shipment_form=_o.get("shipment_form"), hogi_n=_hn7,
+                                                proj_ptype=(p.get("project_type") or "NEW_EQUIP"))
+            _keys7.add(_key7)
+            _uq7 = int(_o.get("unit_qty") or 1)
+            if _key7 == "assembly":
+                _qd7 = "%d대" % (sum(int(x.get("qty") or 0) for x in _us) if _us else _uq7)
+            elif _key7 == "parts":
+                _qd7 = ("%d대분" % _uq7) if _uq7 >= 2 else "1식"
+            elif _key7 == "consumable":
+                _qd7 = "%d건" % max(1, len(_us))
+            else:
+                _bq7 = int(_o.get("board_qty") or 0) if "board_qty" in _o else 0
+                _qd7 = "%d %s" % ((_bq7 or sum(int(x.get("qty") or 0) for x in _us) or _uq7), (_o.get("board_unit") or ("식" if _key7 == "etc" else "EA")))
+            so_rows.append({
+                "id": _o.get("id"), "order_no": _o.get("order_no") or "", "form": _lbl7, "key": _key7,
+                "po_type": (str(_o.get("po_type") or "").strip() or ((str(p.get("po_type") or "").strip() or "신규") + " (기본값)")),
+                "customer": _o.get("so_customer") or p.get("customer_name") or "",
+                "qty": _qd7, "amount": float(_o.get("total_amount") or 0), "currency": (_o.get("currency") or p.get("currency") or "KRW"),
+                "order_date": str(_o.get("order_date") or "")[:10],
+            })
+        so_rows.sort(key=lambda r: (r["id"] or 0))
+        so_mixed = len(_keys7) > 1
+    except Exception as _e7:
+        print(f"[z1191z7] 수주별 표 만들기 실패: {_e7}")
+        so_rows, so_mixed = [], False
     return ctx(request, "project_form.html",
                user=u, active="sales_projects",
                project=p,
                so_qty=so_qty, so_amount=so_amount, so_count=so_count,
+               so_rows=so_rows, so_mixed=so_mixed,   # z1191z7
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES,
                PROJECT_TYPES=_logi.PROJECT_TYPES,

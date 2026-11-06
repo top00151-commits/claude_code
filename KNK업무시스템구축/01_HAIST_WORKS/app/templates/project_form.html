@@ -260,6 +260,20 @@ html,body{background:#fff!important;overflow:auto!important;}
     </div>
     {% endif %}
 
+{% macro so_table7(rows) %}
+<table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;">
+  <thead><tr style="background:var(--qv-surface-3);"><th style="padding:6px 8px;text-align:left;">수주번호</th><th style="padding:6px 8px;text-align:left;">형태</th><th style="padding:6px 8px;text-align:left;">PO유형</th><th style="padding:6px 8px;text-align:left;">고객사</th><th style="padding:6px 8px;text-align:right;">수량</th><th style="padding:6px 8px;text-align:right;">금액</th><th style="padding:6px 8px;text-align:left;">발주일</th></tr></thead>
+  <tbody>{% for r in rows %}<tr style="border-top:1px solid var(--qv-line,#e5e7eb);"><td style="padding:6px 8px;font-weight:700;"><a href="/project/{{ project.id }}?so={{ r.order_no }}" style="color:#1d4ed8;text-decoration:none;" title="상세 화면의 이 수주 카드로">{{ r.order_no }}</a></td><td style="padding:6px 8px;">{{ r.form }}</td><td style="padding:6px 8px;">{{ r.po_type }}</td><td style="padding:6px 8px;">{{ r.customer }}</td><td style="padding:6px 8px;text-align:right;">{{ r.qty }}</td><td style="padding:6px 8px;text-align:right;font-weight:700;">{{ '{:,.2f}'.format(r.amount) if r.currency != 'KRW' else '{:,.0f}'.format(r.amount) }} {{ r.currency }}</td><td style="padding:6px 8px;">{{ r.order_date }}</td></tr>{% endfor %}</tbody>
+</table>
+{% endmacro %}
+    {# z1191z7 (안지연 프로 신고 · 대표 2026-11-06): 이 화면은 관리번호 전체의 공통 정보 — 수주마다 다른 값은 상세 수주 카드에서 #}
+    {% if project and so_rows and so_rows|length >= 2 %}
+    <div style="margin:0 0 var(--space-4);padding:12px 18px;background:#fff7ed;border:1px solid #fdba74;border-radius:var(--radius-md);font-size:12.5px;line-height:1.65;">
+      ⓘ 이 화면은 관리번호 <b>{{ project.mgmt_code }}</b> 전체(<b>수주 {{ so_rows|length }}건</b>{% if so_mixed %} · 형태 섞임{% endif %})의 <b>공통 정보</b>입니다.
+      수주마다 다른 <b>고객사·PO유형·형태·모델·장비·수량·금액</b>은 여기서 고치지 않고, 상세 화면 <b>[수주 내역] 카드</b>에서 그 수주만 고칩니다(아래 수주번호를 누르면 그 카드로 갑니다).
+      <div style="margin-top:8px;">{{ so_table7(so_rows) }}</div>
+    </div>
+    {% endif %}
     <!-- ① 기본 정보 -->
     <div class="pf-section">
       <h3>📌 ① 기본 정보</h3>
@@ -281,7 +295,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="pf-row solo">
         <div class="pf-field full">
           {# v5H226z455 (대표 지시): 형태 4종 — 완제품/제품/상품/기타. 호기는 완제품에서만 매김. 내부값 ASSEMBLY/SEMI/PARTS/ETC. #}
-          <label>형태 <span class="sub">(완제품=장비 완성품·호기 / 제품=반제품·가공품 / 상품=구매품 2차가공없이 재판매)</span></label>
+          <label>형태{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(완제품=장비 완성품·호기 / 제품=반제품·가공품 / 상품=구매품 2차가공없이 재판매)</span></label>
           <div style="display:flex;gap:18px;padding:8px 4px;flex-wrap:wrap;">
             <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
               <input type="radio" name="shipment_form" value="ASSEMBLY" {% if _ship_form not in ('SEMI','PARTS','ETC') %}checked{% endif %}>
@@ -321,7 +335,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                  autocomplete="off" placeholder="예: Display 압착 자동화설비">
         </div>
         <div class="pf-field">
-          <label>모델명{% if _eq_req %}<span class="req">*</span>{% endif %} <span class="sub">(장비 모델명)</span></label>
+          <label>모델명{% if _eq_req %}<span class="req">*</span>{% endif %}{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(장비 모델명)</span></label>
           <input type="text" name="model" id="pf_model_input"
                  value="{{ project.model_name or '' }}"{% if _eq_req %} required{% endif %}
                  autocomplete="off" placeholder="예: BATTPRESSAUTO-S-V2">
@@ -430,7 +444,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           </script>
         </div>
         <div class="pf-field">
-          <label>PO 유형 {% if project %}<span class="sub" style="color:var(--qv-ink-3);">(바꾸면 변경 이력에 남습니다)</span>{% endif %}</label>
+          <label>PO 유형{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} {% if project %}<span class="sub" style="color:var(--qv-ink-3);">(바꾸면 변경 이력에 남습니다)</span>{% endif %}</label>
           {% if project %}
             {# v5H177 의 '등록 후 영구 잠금'을 v5H226z1031(안지연 프로 신고·대표 지시)에서 **해제**.
                잠근 탓에 잘못 넣으면 고칠 방법이 없어 **삭제하고 다시 등록** → 수주번호가 새로 발번되어
@@ -707,7 +721,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="pf-row" style="grid-template-columns:1fr 1fr;align-items:start;">
         {# v5H226z163 (대표 지시): 전체 미리보기(datalist) 대신 타이핑하면 뜨는 자동완성 #}
         <div class="pf-field" style="position:relative;">
-          <label>고객사1 <span class="sub">(등록된 고객사만 선택 가능)</span></label>
+          <label>고객사1{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(등록된 고객사만 선택 가능)</span></label>
           {# v5H226z653 (대표 지시): 옛 이름전용 자동완성 → KNKCust 종사업장 picker 로 교체(같은 상호 여러 종사업장 구분·hidden customer_id 제출). 추가발주 잠금/자동채움은 free 모드, 편집은 기존 customer_id 로 복원(아래 스크립트). #}
           <input type="text" id="pf_customer_input" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id"
                  data-cust-required="1" data-cust-initial="{{ project.customer_name or '' }}" autocomplete="off"
@@ -895,14 +909,27 @@ html,body{background:#fff!important;overflow:auto!important;}
                "1대짜리 고치러 들어왔는데 6대가 나온다"는 혼란이 났다(안지연 프로).
          ⚠부품·소모품은 '대' 단위가 아니라 서버가 so_qty=0 을 준다 → 그때는 기존 예상값 그대로. #}
       {% set _confirmed = (so_qty|default(0))|int > 0 %}
-      <h3>💰 ③ {% if _confirmed %}확정 금액{% else %}예상 금액{% endif %} <span class="sub" style="font-size:11px;color:var(--qv-ink-3);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">{% if _confirmed %}수주 {{ so_count }}건 · 호기 {{ so_qty }}대 합계 (실제 등록된 값) — 고치려면 [프로젝트 상세]의 호기별 편집{% else %}수주 전 예상 매출 — 1대 예상단가 × 수량 (자동). 확정 금액은 아래 호기별로 입력{% endif %}</span></h3>
+      <h3>💰 ③ {% if _confirmed %}확정 금액{% else %}예상 금액{% endif %} <span class="sub" style="font-size:11px;color:var(--qv-ink-3);text-transform:none;letter-spacing:0;font-weight:500;margin-left:8px;">{% if _confirmed and so_rows and so_rows|length >= 2 %}수주 {{ so_count }}건 — 수주별 실제 값은 아래 표{% elif _confirmed %}수주 {{ so_count }}건 · 완제품 호기 {{ so_qty }}대 합계 (실제 등록된 값) — 고치려면 [프로젝트 상세]의 호기별 편집{% else %}수주 전 예상 매출 — 1대 예상단가 × 수량 (자동). 확정 금액은 아래 호기별로 입력{% endif %}</span></h3>
       {# v5H226z180 (대표 지시): 예상 금액은 수주 확정 전에도 입력 가능 → 모순 안내문 제거, 입력칸 항상 표시 #}
       <div id="pfMoneyHint" style="display:none;"></div>
       {% set _p_qty = so_qty|int if _confirmed else (project.unit_qty if (project and project.unit_qty) else 1) %}
       {# v5H226z161: ③ = '예상 금액' — 편집 시 expected_amount 우선(없으면 order_amount 폴백) #}
       {% set _p_amt = (so_amount|default(0)) if _confirmed else ((project.expected_amount if (project and project.expected_amount) else (project.order_amount if project else 0)) or 0) %}
       {% set _p_price = (_p_amt / _p_qty if _p_qty else _p_amt) if _confirmed else (project.unit_price if (project and project.unit_price) else (_p_amt / _p_qty if _p_qty else _p_amt)) %}
+      {% set _multi7 = (project and so_rows and so_rows|length >= 2) %}
       <div id="pfMoneyRows">
+      {% if _multi7 %}
+      {# z1191z7: 수주 2건 이상 — 한 칸에 합친 「수량 395 · 단가 742」 대신 수주별 실제 값. 단가·수량 칸은 숨김(서버는 어차피 변경 차단) #}
+      <div class="pf-row solo"><div class="pf-field full">
+        <label>수주별 수량 · 금액 <span class="sub">(실제 등록된 값 · 읽기 전용 — 고치려면 수주번호를 눌러 상세 카드에서)</span></label>
+        {{ so_table7(so_rows) }}
+        <div style="margin-top:8px;text-align:right;font-size:13px;">합계 <b style="color:var(--knk-red);font-size:15px;">{{ '{:,.2f}'.format(_p_amt) if (project.currency or 'KRW') != 'KRW' else '{:,.0f}'.format(_p_amt) }} {{ project.currency or 'KRW' }}</b> <span class="sub">(수주 {{ so_rows|length }}건)</span></div>
+        <input type="hidden" id="pf_unit_price" name="unit_price" value="{{ '{:,.0f}'.format(_p_price) if _p_price else '' }}">
+        <input type="hidden" id="pf_unit_qty" name="unit_qty" value="{{ _p_qty }}">
+        <input type="hidden" id="pf_amount_display" value="{{ '{:,.0f}'.format(_p_amt) }}">
+        <input type="hidden" id="pf_order_amount" name="order_amount" value="{{ _p_amt }}">
+      </div></div>
+      {% else %}
       <div class="pf-row three">
         <div class="pf-field">
           <label>{% if _confirmed %}1대 단가{% else %}1대 예상 단가{% endif %} <span class="req">*</span>
@@ -926,6 +953,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <input type="hidden" id="pf_order_amount" name="order_amount" value="{{ _p_amt }}">
         </div>
       </div>
+      {% endif %}{# /_multi7 #}
       <div class="pf-row three">
         <div class="pf-field">
           <label>통화</label>
@@ -959,12 +987,14 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="pf-row solo">
         <div class="pf-field full">
           <div style="font-size:11.5px;color:var(--qv-ink-3);line-height:1.55;padding:0;">
+            {% if _multi7 %}ⓘ 수주별 수량·금액은 위 표의 수주번호를 눌러 <b>상세 카드</b>에서 고칩니다. 합계는 자동 계산됩니다.{% else %}
             ⓘ <b>단가 × 수량</b> 으로 수주액이 자동 계산됩니다.
             외화 선택 시 <b>기준환율</b> 입력하면 향후 원화 매출 확인 시 환산값이 보존됩니다.<br>
             저장 시 <b>수량 N대</b> 면 <b>호기 N개</b>가 자동으로 만들어집니다 (상태 = 진행중/출하 또는 '수주확정 동시발급' 체크).
             <br><span style="font-size:11px;color:var(--qv-ink-3);">※ <b>SO</b> = Sales Order (수주번호). 호기 1대당 또는 같은 납기·납품처 그룹별로 1개씩 발행됩니다 (예: T-260507-1).</span>
+            {% endif %}
             {# v5H226z1034: 위 숫자가 '예상'인지 '확정'인지 분명히 — 예상 6대가 떠서 생긴 혼란(안지연 프로) #}
-            {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 수주가 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.{% if _confirmed %}<br>위 수량·금액은 <b>실제 등록된 수주 {{ so_count }}건({{ so_qty }}대) 합계</b>입니다 — 처음 적었던 예상값이 아닙니다.{% endif %}</span>{% endif %}
+            {% if has_orders %}<br><span style="color:var(--knk-red);font-weight:700;">⚠ 이미 수주가 발행된 프로젝트입니다. 수량/단가 변경은 차단됩니다 — 호기는 상세 화면에서 편집하세요.{% if _confirmed and not _multi7 %}<br>위 수량·금액은 <b>실제 등록된 수주 {{ so_count }}건({{ so_qty }}대) 합계</b>입니다 — 처음 적었던 예상값이 아닙니다.{% endif %}</span>{% endif %}
           </div>
         </div>
       </div>
