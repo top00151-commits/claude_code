@@ -707,7 +707,9 @@ async function changeStatus(tid) {
 
   // 클립보드 Ctrl+V 처리 — textarea 포커스 시점의 task 카드에 붙여넣음
   function bindClipboardPaste(){
-    document.addEventListener('paste', function(e){
+    // z1191z11: 본문 교체로 일일업무를 다시 열 때마다 paste 처리기가 쌓여 사진 한 장이 N번 올라가던 것 → 한 번만 걸고 최신 처리 함수만
+    if (!window.__knkDailyPasteBound) { window.__knkDailyPasteBound = 1; document.addEventListener('paste', function(e){ if (window.__knkDailyPasteFn) window.__knkDailyPasteFn(e); }); }
+    window.__knkDailyPasteFn = (function(e){
       // 포커스가 task-notes-edit 인 경우만 (다른 곳에서 paste 영향 X)
       const active = document.activeElement;
       if (!active || !active.classList.contains('task-notes-edit')) return;

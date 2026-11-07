@@ -685,6 +685,7 @@ document.querySelectorAll('.ef[data-field]').forEach(el=>{
 (function(){
   var prev = CURR || 'KRW';
   document.addEventListener('change', function(ev){
+    if(!document.getElementById('coPage')) return;   // z1191z11: 소모품 화면을 떠난 뒤(본문 교체)엔 안 물음 — 작업일정표 통화 칸에 앞 소모품 금액으로 묻던 것
     var el = ev.target;
     if(!el || !el.dataset || el.dataset.field !== 'currency') return;
     var ccy = (el.value || 'KRW').toUpperCase();

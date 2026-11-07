@@ -19253,6 +19253,9 @@ async def projects_units_bulk_status(req: Request, pid: int):
         if "unit_status" not in _oicols:
             return JSONResponse({"ok": False,
                                   "message": "unit_status 컬럼 미생성"}, 500)
+        # z1191z11 (데이터 꼬임 점검 · 대표 「중간 위험 진행」): 보낸 수주가 이 관리번호 소속인지 — 아니면 아무것도 안 바꿈
+        if scope_oid_i and not c.execute("SELECT 1 FROM orders WHERE id=? AND project_id=?", (scope_oid_i, pid)).fetchone():
+            return JSONResponse({"ok": False, "message": "다른 관리번호의 호기·수주가 섞여 있습니다 — 새로 고침(F5) 뒤 다시 해 주세요(이번 요청은 반영 안 됨)"}, 409)
         if scope_oid_i:
             r = c.execute(
                 "UPDATE order_items SET unit_status=? "
@@ -32996,6 +32999,20 @@ async def schedule_board_row_status(request: Request):
                          "skipped": len(_blocked)})
 
 
+def _units_of_project_z1191z11(c, pid, uids):
+    """z1191z11: 보낸 호기(uids)가 전부 그 관리번호(pid) 소속인가 — 하나라도 아니면 False."""
+    try:
+        _ids = sorted({int(x) for x in uids if str(x).strip().isdigit()})
+        if not _ids:
+            return True
+        _ph = ",".join("?" * len(_ids))
+        n = c.execute(f"SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                      f"WHERE oi.id IN ({_ph}) AND o.project_id=?", _ids + [int(pid)]).fetchone()[0]
+        return int(n or 0) == len(_ids)
+    except Exception:
+        return False
+
+
 @app.post("/sales/schedule/row-tax")
 async def schedule_board_row_tax(request: Request):
     """v5H226z562 (대표 지시): 메인 행 세금계산서·거래명세서 편집 = 그 줄의 호기(order_items) 전체에 적용.
@@ -33031,6 +33048,9 @@ async def schedule_board_row_tax(request: Request):
             _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
             if field not in _oic:
                 return JSONResponse({"ok": False, "error": f"order_items.{field} 컬럼 없음"}, 400)
+            # z1191z11: 보낸 호기가 이 줄(관리번호) 소속인지 — 아니면 아무것도 안 씀
+            if _uid_list and not _units_of_project_z1191z11(c, ref_id, _uid_list):
+                return JSONResponse({"ok": False, "error": "다른 관리번호의 호기·수주가 섞여 있습니다 — 새로 고침(F5) 뒤 다시 해 주세요(이번 요청은 반영 안 됨)"}, 409)
             # 대상 호기 결정: uids(분할 줄) 우선, 없으면 그 프로젝트 전체 호기(취소 SO 제외)
             if _uid_list:
                 _ph = ",".join("?" * len(_uid_list))
@@ -33332,6 +33352,10 @@ async def schedule_tax_invoice_issue(request: Request):
     cust_name = (custs[0] if custs else "")
     try:
         with db_session() as c:
+            # z1191z11: 줄마다 보낸 호기가 그 관리번호 소속인지 — 하나라도 아니면 발행 안 함(장부와 호기 기록이 어긋나던 것)
+            for _n11 in norm:
+                if _n11["rkind"] == "unit" and _n11.get("uids") and not _units_of_project_z1191z11(c, _n11["ref_id"], str(_n11["uids"]).split(",")):
+                    return JSONResponse({"ok": False, "error": "다른 관리번호의 호기·수주가 섞여 있습니다 — 새로 고침(F5) 뒤 다시 해 주세요(이번 요청은 반영 안 됨)"}, 409)
             # v5H226z489: 같은 차수가 이미 다른 '발행' 세금계산서에 묶여 있으면 차단(이중발행 방지)
             _sigs = [n["sig"] for n in norm]
             if _sigs:

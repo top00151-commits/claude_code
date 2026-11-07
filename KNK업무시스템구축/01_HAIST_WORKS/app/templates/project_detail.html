@@ -1336,11 +1336,15 @@
         <script>
         // z1191z6: 떠날 때 경고(카드 ✏️ 수정 중 바뀐 값) — 우리 코드의 새로고침·이동은 knkLeaveOk 로 제외
         window.knkLeaveOk = false;
-        window.addEventListener('beforeunload', function(e){
-          if (window.knkLeaveOk) return;
-          var fns = window._knkCardDirtyFns || [];
-          for (var i = 0; i < fns.length; i++) { try { if (fns[i]()) { e.preventDefault(); e.returnValue = '저장되지 않은 변경이 있습니다.'; return e.returnValue; } } catch (_e) {} }
-        });
+        window._knkCardDirtyFns = [];   // z1191z11: 이 화면의 카드만(본문 교체로 다시 열 때 옛 카드 목록이 쌓이던 것)
+        if (!window.__knkPdLeaveBound) {   // z1191z11: 처리기는 한 번만
+          window.__knkPdLeaveBound = 1;
+          window.addEventListener('beforeunload', function(e){
+            if (window.knkLeaveOk) return;
+            var fns = window._knkCardDirtyFns || [];
+            for (var i = 0; i < fns.length; i++) { try { if (fns[i]()) { e.preventDefault(); e.returnValue = '저장되지 않은 변경이 있습니다.'; return e.returnValue; } } catch (_e) {} }
+          });
+        }
         // v5H93/106/107: 카드 레이아웃 — 읽기/편집 모드 토글 + 인라인 편집
         (function(){
           document.querySelectorAll('.so-card').forEach(card => {
@@ -1529,7 +1533,8 @@
               // SO 헤더 메타 저장 (있을 때)
               if (metaDirty) {
                 const body = new URLSearchParams();
-                metaInputs.forEach(inp => body.set(inp.dataset.field, inp.value || ''));
+                // z1191z11: 바뀐 칸만 — 안 바꾼 납기·납품처를 열어 둘 때 값으로 다시 써 작업일정표에서 고친 값을 덮던 것
+                metaInputs.forEach(inp => { if ((inp.value || '') !== (inp.dataset.orig || '')) body.set(inp.dataset.field, inp.value || ''); });
                 try {
                   const resp = await fetch('/sales/orders/' + soid + '/quick-edit',
                                            { method:'POST', body });
@@ -1623,6 +1628,7 @@
             const metaInputs = card.querySelectorAll('.so-meta-edit');
             // z1191z6 (대표 2026-11-06): ✏️ 수정 중 바뀐 값이 있으면 페이지를 떠날 때 경고 — 실측 S8·S9: 💾 저장 전 이동이 경고 없이 사라졌다
             (window._knkCardDirtyFns = window._knkCardDirtyFns || []).push(function(){
+              if (!document.contains(card)) return false;   // z1191z11: 떠난 화면의 카드는 안 봄
               if (!card.classList.contains('unlocked')) return false;
               try { if (collectDirtyRows().length) return true; } catch (e) {}
               var d = false; metaInputs.forEach(function(inp){ if ((inp.value || '') !== (inp.dataset.orig || '')) d = true; });
@@ -1644,7 +1650,7 @@
                 if (window.knkDropAutofill) { var _afm = knkDropAutofill(metaInputs); if (_afm) { knkAutofillNotice(_afm); metaDirty(); return; } }   // z1173
                 const body = new URLSearchParams();
                 metaInputs.forEach(inp => {
-                  body.set(inp.dataset.field, inp.value || '');
+                  if ((inp.value || '') !== (inp.dataset.orig || '')) body.set(inp.dataset.field, inp.value || '');   // z1191z11: 바뀐 칸만
                 });
                 try {
                   const r = await fetch('/sales/orders/' + soid + '/quick-edit',
@@ -3057,13 +3063,16 @@
       }catch(e){ btn.disabled=false; _tiToast('⚠ '+(e.message||'저장 실패')); }
     });
   }
-  document.addEventListener('click',function(e){
+  // z1191z11: 화면을 본문 교체로 다시 열 때마다 document 에 click 처리기가 쌓여 팝업이 겹쳐 뜨고, 아래 남은 팝업의 저장이
+  //   같은 호기를 옛 값으로 덮을 수 있었다 → 처리기는 한 번만 걸고, 최신 화면의 처리 함수만 부른다.
+  window.__knkTiClickFn = function(e){
     var cell=e.target.closest&&e.target.closest('.ti-cell'); if(!cell) return;
     var card=cell.closest('.so-card');
     if(!card||!card.classList.contains('editable')) return;   // 참고(추가)·읽기전용 카드는 발행입력 안 함(최초 수주만)
     if(!card.classList.contains('unlocked')){ _tiToast('✏️ 수정을 먼저 누르면 발행을 입력할 수 있어요'); return; }
     _openTiPop(cell);
-  });
+  };
+  if(!window.__knkTiClickBound){ window.__knkTiClickBound=1; document.addEventListener('click',function(e){ if(window.__knkTiClickFn) window.__knkTiClickFn(e); }); }
 })();
 </script>
 

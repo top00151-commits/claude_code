@@ -496,12 +496,15 @@ async function parseBizDoc() {
     fd.append('file', file);
     const r = await fetch('/customers/parse-biz', { method: 'POST', body: fd });
     const j = await r.json();
+    // z1191z11: 인식 중(몇 초)에 다른 화면으로 가면 그 화면의 칸(프로젝트명·상호 등)이 채워지던 것 — 이 화면이 아직 있을 때만 · 이 폼 안에서만
+    if (!document.contains(fileEl)) return;
+    const _bizScope = fileEl.closest('form') || document;
     if (j.ok && j.fields) {
       const f = j.fields;
       // 폼 필드에 자동 입력 (값이 있는 것만)
       const setIf = (name, val) => {
         if (!val) return false;
-        const el = document.querySelector(`[name="${name}"]`);
+        const el = _bizScope.querySelector(`[name="${name}"]`);
         if (el && !el.value) { el.value = val; return true; }
         if (el) { el.value = val; return true; }
         return false;

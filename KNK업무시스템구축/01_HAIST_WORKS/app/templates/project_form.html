@@ -753,9 +753,12 @@ html,body{background:#fff!important;overflow:auto!important;}
           {% if project and project.customer_id %}
           // 편집: 기존 customer_id 로 picker 확정(종사업장 모호해도 정확 복원)
           var _ie_tries=0;
-          function _initEdit(){ var ci=_ci();
+          // z1191z11: 고객 목록을 기다리는 사이 다른 프로젝트·새 프로젝트 화면으로 가면 이 프로젝트 고객사가 채워지던 것 → 이 화면일 때만
+          var _ieAlive=function(){ var fm=document.querySelector('form.pf-wrap'); return !!fm && fm.getAttribute('action')==='/projects/{{ project.id }}/edit'; };
+          function _initEdit(){ if(!_ieAlive()) return; var ci=_ci();
             if(!ci || !window.KNKCust){ if(_ie_tries++<40) setTimeout(_initEdit,80); return; }
             KNKCust.load().then(function(opts){
+              if(!_ieAlive() || !document.contains(ci)) return;
               var tid=String({{ project.customer_id }});
               var o=(opts||[]).filter(function(x){return String(x.id)===tid;})[0];
               if(!o) return;
