@@ -133,7 +133,7 @@
     <span class="find-grp">
       {# v5H226z1074 (대표 지시 2026-08-03): 타이핑=이 화면 즉시 필터. '전 기간(모든 달) 검색'은 Enter·[전체에서 찾기] 버튼일 때만 —
          z862의 '0.8초 멈추면 자동 전체검색(페이지 전환)'이 타이핑 중 끼어들어 입력이 날아가던 문제 제거. #}
-      <input type="search" id="schedSearch" class="sched-search" value="{{ cust }}" placeholder="🔍 관리번호·프로젝트명·모델·장비·고객사 — Enter=전체 기간에서 찾기" oninput="schedDoSearch()" onkeydown="schedSearchKey(event)" autocomplete="off" />
+      <input type="search" id="schedSearch" class="sched-search" value="{{ cust }}" placeholder="🔍 관리번호·프로젝트명·모델·장비·고객사·기타사항(비고) — Enter=전체 기간에서 찾기" oninput="schedDoSearch()" onkeydown="schedSearchKey(event)" autocomplete="off" />
       <button type="button" class="period-go" onclick="schedGlobalSearch()" title="입력한 검색어로 모든 달(전 기간)에서 찾기 — Enter 와 같음"><span class="ti">🔎</span> 전체에서 찾기</button>
       <span class="find-count" id="schedFindCount"></span>
     </span>
@@ -221,7 +221,7 @@
         {% set _ti2 = (ti_map.get(r.row_sig ~ '|2') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         {% set _ti3 = (ti_map.get(r.row_sig ~ '|3') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}{% if r.is_parts %} data-parts="1"{% endif %}{% if r.so_oid %} data-soid="{{ r.so_oid }}"{% endif %}>
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}{% if r.is_parts %} data-parts="1"{% endif %}{% if r.so_oid %} data-soid="{{ r.so_oid }}"{% endif %}{% set _fz12 = ((r.note_blob or '') ~ ' ' ~ (r.parts_blob or ''))|trim %}{% if _fz12 and _fz12 != (r.note or '') %} data-find="{{ _fz12 }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}{% if r.so_no %}?so={{ r.so_no|urlencode }}{% endif %}" title="프로젝트 상세">{{ r.code }}</a>{# v5H226z695 (대표 지시): 누른 행의 수주번호를 상세로 전달 → 그 수주가 메인 카드로 #}{# v5H226z565 (대표 지시): 관리번호 뒤 호기 라벨(N호기) 표시 삭제 — 호기는 '+' 펼침으로 확인 #}{% endif %}{# v5H226z632 (대표 지시): 관리번호 옆 '+' 펼치기 제거 — 장비 호기·소모품 품목보기 모두. (편집은 프로젝트/소모품 상세에서) #}</td>
           {# v5H226z650e (대표 지시): 수주번호 옆 '참고 N' 칩 제거 — 추가 수주는 프로젝트 상세의 참고 영역에서 확인(z638 칩 폐기). #}
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
@@ -2020,6 +2020,7 @@ function _schedApplyFilter(){
     if(q){
       var cells=tr.querySelectorAll('td.c-info'), hay='';
       for(var j=0;j<cells.length;j++) hay+=cells[j].textContent+' ';
+      hay+=(tr.getAttribute('data-find')||'');   // z1191z12: 화면에 안 보이는 비고(부품 비고·소모품 품목 비고·잘린 비고)도 — 서버 「전체에서 찾기」와 같게
       hit = hay.toLowerCase().indexOf(q)>=0;
     }
     if(hit) shown++;

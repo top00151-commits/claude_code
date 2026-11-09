@@ -29284,8 +29284,22 @@ def _merge_units_same(lines):
             base["amount"] = round(float(grp[0].get("amount") or 0) * n, 2)  # 그룹 소계(=단가×묶음수량)
             # v5H226z981: 묶인 호기들의 비고(중복 제거 합침) — 병합 수주(PO 두 개 섞임)도 다 보이게
             base["so_note"] = _join_notes981([g.get("so_note") for g in grp])
+            # z1191z12 (이새롬 프로 요청 · 대표 「1,2,3,4 진행해」 2026-11-09): 찾기용 비고는 3개에서 자르지 않고 전부
+            base["find_note"] = _find_note_z12([g.get("find_note") for g in grp])
         merged.append(base)
     return merged
+
+
+def _find_note_z12(vals):
+    """z1191z12 (이새롬 프로 요청 · 대표 「1,2,3,4 진행해」 2026-11-09): 작업일정표 「찾기」용 비고 묶음.
+    화면 기타사항(_join_notes981)은 3개에서 자르고 상품(부품) 수주 비고는 빼지만, 찾기는 전부 본다.
+    빈칸·'None' 글자는 뺀다. 표시에 쓰지 않는다(찾기 전용)."""
+    _ns = []
+    for _v in (vals or []):
+        _s = str(_v if _v is not None else "").strip()
+        if _s and _s != "None" and _s not in _ns:
+            _ns.append(_s)
+    return " ".join(_ns)
 
 
 def _join_notes981(vals, cap=3):
@@ -29555,6 +29569,8 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "so_ptype": _so.get("o_ptype") or "",   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
                     "so_note": (None if _so.get("so_type") == "PARTS_EXPORT"
                                 else _join_notes981([_it.get("i_note") for _it in _citems])),
+                    # z1191z12: 찾기용 — 상품(부품) 수주의 부품 비고도(기타사항 칸엔 안 보임) · 자르지 않음
+                    "find_note": _find_note_z12([_it.get("i_note") for _it in _citems]),
                     "form_label": _cflk[0], "form_key": _cflk[1],   # v5H226z1058: 이 수주 형태(작업일정표 형태 칸)
                     "is_free": _free_so(_so),   # z1191z8: 무상(단가 0 으로 적음)
                 }
@@ -29600,6 +29616,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
                     "so_ptype": _so.get("o_ptype") or "",   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
                         "so_note": (None if it.get("i_note") is None else str(it.get("i_note")).strip()),
+                        "find_note": _find_note_z12([it.get("i_note")]),   # z1191z12: 찾기용
                         "form_label": _lflk[0], "form_key": _lflk[1],   # v5H226z1058: 이 수주 형태(작업일정표 형태 칸)
                         "is_free": _free_item(it),   # z1191z8: 무상(이 호기 단가 0 으로 적음)
                     })
@@ -30268,6 +30285,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                     _iu["form_type"] = _ln["form_label"]
                 if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
+                _iu["note_blob"] = _ln.get("find_note") or ""   # z1191z12: 찾기용 비고(부품 비고·잘린 비고 포함)
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and _sched_cust_hit(_ru, cust):
@@ -31517,23 +31535,34 @@ def _co_parts_blob_map():
     try:
         with db_session() as c:
             return {r[0]: (r[1] or "") for r in c.execute(
-                "SELECT co_id, GROUP_CONCAT(COALESCE(part_name,'')||' '||COALESCE(spec,''), ' ') "
+                # z1191z12: 품목 비고도(PO 번호 등) — 'None' 글자는 빼고
+                "SELECT co_id, GROUP_CONCAT(COALESCE(part_name,'')||' '||COALESCE(spec,'')||' '||"
+                "CASE WHEN COALESCE(note,'')='None' THEN '' ELSE COALESCE(note,'') END, ' ') "
                 "FROM consumable_order_items GROUP BY co_id")}
     except Exception:
         return {}
+
+
+_SCHED_FIND_KEYS_Z12 = ("code", "name", "model", "equip", "customer", "customer_disp", "so_no", "parts_blob",
+                        "note", "note_blob", "cust2", "dept", "owner", "contact", "ship_to", "sales_owner",
+                        "trade", "po_type", "form_type", "order_date", "due_date")
 
 
 def _sched_cust_hit(row, q):
     """v5H226z862 (대표 지시): 작업일정표 '찾기' 매칭 — 검색어가 관리번호/프로젝트명/모델/장비/고객사/수주번호
     중 하나라도 부분매칭(대소문자 무시)이면 통과. 빈 검색어면 전부 통과.
     (기존엔 고객사만 매칭했고 그 달 행만 필터돼 불편 → 다중 필드 + 전 기간 검색으로 확장).
-    v5H226z1083: 소모품 행은 품명·규격 묶음(parts_blob)도 매칭."""
+    v5H226z1083: 소모품 행은 품명·규격 묶음(parts_blob)도 매칭.
+    z1191z12 (이새롬 프로 요청 · 대표 「1,2,3,4 진행해」 2026-11-09): 기타사항(note)·찾기용 비고(note_blob —
+    호기 비고 전부·상품 부품 비고)·소모품 품목 비고(parts_blob) + 화면에 보이는 글자 칸(고객사2·부서·담당자·
+    연락처·납품위치·영업담당자·거래구분·PO유형·형태·발주일·납품일)도 — 글자를 칠 때(이 화면 거르기)와
+    Enter(전 기간)가 같은 칸을 보게. 금액·세금계산서 칸은 안 본다."""
     if not q:
         return True
     ql = str(q).strip().lower()
     if not ql:
         return True
-    for _k in ("code", "name", "model", "equip", "customer", "customer_disp", "so_no", "parts_blob"):
+    for _k in _SCHED_FIND_KEYS_Z12:
         if ql in str(row.get(_k) or "").lower():
             return True
     return False
@@ -31817,6 +31846,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                     _iu["form_type"] = _ln["form_label"]
                 if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
+                _iu["note_blob"] = _ln.get("find_note") or ""   # z1191z12: 찾기용 비고(부품 비고·잘린 비고 포함)
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and _sched_cust_hit(_ru, cust):
