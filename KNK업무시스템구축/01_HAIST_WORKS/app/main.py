@@ -22565,6 +22565,99 @@ async def mail_send_route(req: Request):
     return JSONResponse({"ok": ok, "message": msg})
 
 
+# ─── 🔒 메일 읽기 전용 조회 (AI 비서 '락아' 용 · 대표 지시 2026-11-09) ──────────
+# 목표: 락아가 메일을 확인해도 **읽음·안읽음 상태와 읽은 시각이 바뀌지 않는다.**
+#       대표가 기존 화면에서 직접 열 때는 지금처럼 읽음 처리된다(화면 라우트는 건드리지 않음).
+# ⭐설계: 새 조회 로직을 짜지 않는다. mail_store 의 get_mail/list_*/get_attachment 는 이미
+#        "순수 SELECT + 소유권을 SQL 에 박은" 함수다. 화면 라우트가 그 뒤에 따로 부르던
+#        mark_read 를 **부르지 않는** 경로를 둘 뿐이다.
+#        (읽은 뒤 다시 안읽음으로 되돌리는 방식은 쓰지 않는다 — 대표 지시)
+# 🔴 이 구역에서 절대 부르지 않는 것: mark_read · set_read · 삭제/휴지통/복구/분류 변경 ·
+#    bump_large_download (/dl/{token} 은 다운로드 횟수를 올린다 → 읽기 전용에 쓰면 안 된다)
+# 🔴 소유자는 **서버 세션**으로만 정한다. 요청이 보낸 사용자 번호는 절대 믿지 않는다.
+# 🔴 list_attachments 에는 user_id 인자가 없다 → 반드시 get_mail 로 소유권을 먼저 확인한 뒤에만 부른다.
+# ⛔ 로그에 메일 내용·주소를 남기지 않는다(번호만).
+
+def _mail_ro_user(req: Request):
+    """읽기 전용 조회를 허용할 로그인 사용자. 아니면 None. 판정은 mail_store.ro_allowed 한 곳."""
+    u = get_user(req)
+    if not u:
+        return None
+    return u if _mailbox.ro_allowed(dict(u)) else None
+
+
+@app.get("/api/mail/ro/list")
+async def mail_ro_list(req: Request, box: str = "inbox", q: str = "", unread: int = 0,
+                       df: str = "", dt: str = "", limit: int = 50, offset: int = 0):
+    """메일 목록·검색(읽기 전용). box=inbox|sent|drafts|trash. 상태를 바꾸지 않는다."""
+    u = _mail_ro_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    try:
+        limit = max(1, min(int(limit or 50), 200))
+        offset = max(0, int(offset or 0))
+    except Exception:
+        limit, offset = 50, 0
+    box = (box or "inbox").strip().lower()
+    with db_session() as c:
+        if box == "inbox":
+            rows = _mailbox.list_inbox(c, u["id"], q=q, unread=bool(unread),
+                                       date_from=df, date_to=dt, limit=limit, offset=offset)
+        elif box == "sent":
+            rows = _mailbox.list_sent(c, u["id"], q=q, limit=limit, offset=offset)
+        elif box == "drafts":
+            rows = _mailbox.list_drafts(c, u["id"])
+        elif box == "trash":
+            rows = _mailbox.list_trash(c, u["id"], limit=limit)
+        else:
+            return JSONResponse({"ok": False, "message": "box 는 inbox/sent/drafts/trash 중 하나"}, 400)
+    return JSONResponse({"ok": True, "box": box, "count": len(rows), "mails": rows})
+
+
+@app.get("/api/mail/ro/mail/{mail_id:int}")
+async def mail_ro_detail(req: Request, mail_id: int, html: int = 0):
+    """메일 1통 상세(읽기 전용) — mark_read 를 부르지 않는다. 기본은 본문 텍스트."""
+    u = _mail_ro_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])          # 소유권을 SQL 에서 강제
+        if not m:
+            return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다."}, 404)
+        atts = _mailbox.list_attachments(c, mail_id)        # 위에서 소유권 확인된 뒤에만
+    out = {k: m.get(k) for k in ("id", "direction", "from_email", "from_name", "to_email",
+                                 "cc", "subject", "category", "received_at",
+                                 "is_read", "read_at", "is_starred")}
+    out["body_text"] = m.get("body_text") or ""
+    if html:
+        out["body_html"] = _mailbox.strip_remote_refs(m.get("body_html") or "")
+    out["attachments"] = atts
+    return JSONResponse({"ok": True, "mail": out})
+
+
+@app.get("/api/mail/ro/mail/{mail_id:int}/attachment/{att_id:int}")
+async def mail_ro_attachment(req: Request, mail_id: int, att_id: int):
+    """첨부 1건(읽기 전용) — 소유권 2겹 확인. 대용량 링크(/dl)의 횟수 증가 경로를 쓰지 않는다."""
+    u = _mail_ro_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])          # ① 메일 소유권
+        if not m:
+            return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다."}, 404)
+        ids = {int(a["id"]) for a in _mailbox.list_attachments(c, mail_id)}
+        if int(att_id) not in ids:                          # ② 그 메일의 첨부가 맞는지
+            return JSONResponse({"ok": False, "message": "첨부를 찾을 수 없습니다."}, 404)
+        a = _mailbox.get_attachment(c, att_id, u["id"])     # ③ 첨부 소유권(JOIN) — 횟수 안 올림
+    if not a or a.get("data") is None:
+        return JSONResponse({"ok": False, "message": "첨부 내용이 없습니다."}, 404)
+    import urllib.parse as _up
+    fn = a.get("filename") or "attachment"
+    return Response(content=a["data"], media_type=a.get("mime") or "application/octet-stream",
+                    headers={"Content-Disposition": "attachment; filename*=UTF-8''" + _up.quote(fn),
+                             "X-Content-Type-Options": "nosniff"})
+
+
 # ─── KNK 대용량 첨부 (큰 파일 → NAS 업로드 + 다운로드 링크) ───────────
 _WORKS_PUBLIC_BASE = "https://works.knknara.co.kr"
 _LARGE_MAX = 500 * 1024 * 1024   # 1파일 최대 500MB

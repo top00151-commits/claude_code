@@ -1216,6 +1216,36 @@ def get_attachment(c, att_id: int, user_id: int):
             "mime": r["mime"] or "application/octet-stream", "data": data}
 
 
+# ─── 🔒 읽기 전용 조회 도우미 (AI 비서 '락아' 용 · 대표 지시 2026-11-09) ──────
+# 아래 둘은 '순수 함수'라 앱을 띄우지 않고도 시험할 수 있다 — 보안 핵심이라 반드시 시험한다.
+
+def ro_allowed(user) -> bool:
+    """메일 읽기 전용 조회를 쓸 수 있는 사람 — 지금은 김정락 대표 한 명(사번 5 / login_id 'kjr').
+    ※ ceo 역할 계정이 둘이라(z411 선례) role 로 막지 않고 본인만 정확히 지정한다.
+    넓힐 일이 생기면 이 함수 한 곳만 고치면 된다."""
+    if not isinstance(user, dict):
+        return False
+    empno = str(user.get("employee_no") or "").strip()
+    login = str(user.get("login_id") or "").strip().lower()
+    return empno == "5" or login == "kjr"
+
+
+# 바깥(http(s)) 으로 자동 요청이 나가는 참조만 고른다. cid: 와 우리 서버 상대경로(/mail/...)는 남긴다.
+_RO_REMOTE_ATTR = re.compile(r'''(?is)\s(?:src|background|poster)\s*=\s*["\']?\s*(?:https?:)?//[^\s"\'>]*["\']?''')
+_RO_REMOTE_CSSURL = re.compile(r"""(?is)url\(\s*["']?\s*(?:https?:)?//[^)]*\)""")
+
+
+def strip_remote_refs(html: str) -> str:
+    """추적 픽셀·원격 이미지가 '열리지 않게' 바깥 참조를 떼어낸다.
+    화면용 sanitize_html_for_view 는 원본 충실도를 위해 원격 이미지를 허용하지만,
+    읽기 전용(락아)은 내용을 읽는 게 목적이라 바깥으로 나가는 요청을 만들지 않는다."""
+    if not html:
+        return ""
+    s = _RO_REMOTE_ATTR.sub(' data-knk-remote-removed="1"', html)
+    s = _RO_REMOTE_CSSURL.sub("none", s)
+    return s
+
+
 def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
     """받은 메일 HTML 을 '격리 iframe' 안에서 보여줄 안전 HTML 로 정리.
     - 스크립트/폼/임베드 등 위험 태그 제거, on* 이벤트·javascript: 스킴 제거.
