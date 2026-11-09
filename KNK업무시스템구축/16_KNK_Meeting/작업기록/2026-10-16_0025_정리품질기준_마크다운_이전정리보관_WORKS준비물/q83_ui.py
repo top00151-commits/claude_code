@@ -361,6 +361,8 @@ try:
             for _k in (kb, kn):
                 if _k:
                     _k["toolbar"] = _re04.sub(r'\n\s*<button[^>]*id="btnKle"[^>]*>[^<]*</button>', "", _k["toolbar"])
+                    #  z1207: 「🔗 링크 복사」(#btnLink) 단추 한 줄도 비교 밖
+                    _k["toolbar"] = _re04.sub(r'\n\s*<button[^>]*id="btnLink"[^>]*>[^<]*</button>', "", _k["toolbar"])
             #  MQ 는 ①에서 두 서버의 가짜 AI 가 각각 한 번씩 돌아 결정·할 일 표의 글도 같다(가짜 1)
             chk("%s: 안건 본문 밖 양식(로고·결재란·회의 정보·참석자·결정사항·할 일 표·하단)이 운영과 **한 글자도 같다**" % mk,
                 kb and kn and kb["sheet"] == kn["sheet"], "길이 %s vs %s" % (len((kb or {}).get("sheet", "")),

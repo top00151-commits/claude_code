@@ -24,6 +24,12 @@
     font-family: "Malgun Gothic","맑은 고딕",system-ui,sans-serif; font-size: 13px; line-height: 1.55; }
 
   .toolbar { width: 794px; max-width: 96vw; margin: 14px auto 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+  /* z1207 🔗 링크 복사 — 알림 띠(아래 가운데) · 자동 복사가 막히면 주소 칸을 보여 준다 */
+  .lnk-toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 60; width: max-content; max-width: min(560px, 92vw);
+    background: #1f2937; color: #fff; border-radius: 10px; padding: 10px 14px; font-size: 13px; line-height: 1.5; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  .lnk-toast input { display: block; width: 100%; box-sizing: border-box; margin-top: 8px; padding: 6px 8px; border: 0; border-radius: 6px; font-size: 13px; color: #111; }
+  @media print { .lnk-toast { display: none !important; } }
+  .lnk-toast button { margin-top: 8px; background: transparent; color: #cbd5e1; border: 1px solid #64748b; border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
   .btn { font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 7px; cursor: pointer;
     border: 1px solid #cbd5e1; background: #fff; color: #1f2937; text-decoration: none; }
   .btn.print { background: #111827; color: #fff; border-color: #111827; }
@@ -168,6 +174,7 @@
   <a class="btn" href="/meetings/{{ m.id }}">{{ i.md_back }}</a>{% if tr is not none %}{% if doc_lang == 'vi' %}<a class="btn" href="/meetings/{{ m.id }}/doc?orig=1">{{ i.md_tr_orig }}</a>{% else %}<a class="btn" href="/meetings/{{ m.id }}/doc">{{ tr_back }}</a>{% endif %}{% endif %}{# z1199 #}
   <a class="btn" href="/meetings/{{ m.id }}/viz">{{ i.md_viz }}</a>{# z1193 — 도식화(추가 화면) #}
   {% if kle %}<button type="button" class="btn kle" id="btnKle" data-on="{{ i.kle_done }}" data-off="{{ i.mf_sumedit }}">{{ i.mf_sumedit }}</button>{% endif %}{# z1204 #}
+  <button type="button" class="btn" id="btnLink" data-mid="{{ m.id }}" data-ok="{{ i.md_copylink_ok }}" data-manual="{{ i.md_copylink_manual }}" data-close="{{ i.md_js_close }}">{{ i.md_copylink }}</button>{# z1207 #}
   <button type="button" class="btn img" id="btnImg" data-title="{{ m.title }}" data-date="{{ m.meeting_date or '' }}">{{ i.md_img }}</button>
   <a class="btn print" href="javascript:void(0)" onclick="window.print()">{{ i.md_print }}</a>
 </div>
@@ -570,5 +577,56 @@
 })();
 </script>
 {% endif %}
+<script>
+/* z1207 (대표 2026-11-09) 🔗 링크 복사 — 이 회의록 양식 화면 주소를 복사한다(엑셀 등에 붙여 두고 나중에 눌러 연다).
+   · 주소 = 지금 주소의 앞부분(https://works…) + /meetings/<번호>/doc — ?orig=1 같은 꼬리는 뺀다(여는 사람 말로 열림)
+   · 🔒 링크에 열쇠·토큰을 넣지 않는다 — 열 때 로그인(이음)·공개 범위는 서버(meeting_doc_page)가 그대로 본다
+   · 복사: 클립보드 → 안 되면 숨은 글 상자 복사 → 그래도 안 되면 주소 칸을 띄워 손으로 복사 */
+(function () {
+  var b = document.getElementById('btnLink');
+  if (!b) return;
+  var url = location.origin + '/meetings/' + b.getAttribute('data-mid') + '/doc';
+  var box = null, timer = null;
+  function closeBox() { if (box && box.parentNode) box.parentNode.removeChild(box); box = null; }
+  function show(msg, manual) {
+    closeBox(); clearTimeout(timer);
+    box = document.createElement('div');
+    box.className = 'lnk-toast';
+    box.setAttribute('role', 'status');
+    var t = document.createElement('div'); t.textContent = msg; box.appendChild(t);
+    if (manual) {
+      var inp = document.createElement('input'); inp.type = 'text'; inp.readOnly = true; inp.value = url; inp.id = 'lnkUrl';
+      box.appendChild(inp);
+      var c = document.createElement('button'); c.type = 'button'; c.textContent = b.getAttribute('data-close') || '닫기';
+      c.addEventListener('click', closeBox); box.appendChild(c);
+      document.body.appendChild(box);
+      inp.focus(); inp.select();
+    } else {
+      document.body.appendChild(box);
+      timer = setTimeout(closeBox, 4500);
+    }
+  }
+  function oldCopy() {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = url; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.top = '-1000px';
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand('copy');
+      ta.parentNode.removeChild(ta);
+      return !!ok;
+    } catch (e) { return false; }
+  }
+  b.addEventListener('click', async function () {
+    var ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(url); ok = true; }
+    } catch (e) { ok = false; }
+    if (!ok) ok = oldCopy();
+    if (ok) show(b.getAttribute('data-ok'), false);
+    else show(b.getAttribute('data-manual'), true);
+  });
+})();
+</script>
 </body>
 </html>

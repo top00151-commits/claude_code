@@ -914,6 +914,12 @@ T = {
     "md_back": {"ko": "← 회의록으로", "vi": "← Về biên bản"},
     "md_viz": {"ko": "📊 한눈에 보기", "vi": "📊 Xem tổng quan"},
     "md_img": {"ko": "🖼 이미지 저장·복사", "vi": "🖼 Lưu · sao chép ảnh"},
+    # z1207 (대표 2026-11-09): 🔗 링크 복사 — 엑셀 등에 붙여 두고 눌러 연다(열 때 이음 로그인 · 공개 범위 그대로)
+    "md_copylink": {"ko": "🔗 링크 복사", "vi": "🔗 Sao chép liên kết"},
+    "md_copylink_ok": {"ko": "링크를 복사했습니다 — 엑셀 등에 붙여 넣으세요. 열 때는 이음 로그인이 필요하고, 볼 수 있는 사람만 열립니다.",
+                   "vi": "Đã sao chép liên kết — hãy dán vào Excel v.v. Khi mở cần đăng nhập Eum và chỉ người có quyền xem mới mở được."},
+    "md_copylink_manual": {"ko": "자동 복사가 막혔습니다 — 아래 주소를 복사해 쓰세요(PC: Ctrl+C · 휴대폰: 길게 눌러 복사).",
+                       "vi": "Không tự sao chép được — hãy sao chép địa chỉ bên dưới (PC: Ctrl+C · điện thoại: nhấn giữ để sao chép)."},
     "md_print": {"ko": "🖨 인쇄 / PDF 저장", "vi": "🖨 In / Lưu PDF"},
     "md_doc_title": {"ko": "회의록", "vi": "BIÊN BẢN HỌP"},
     "md_appr": {"ko": "결<br>재", "vi": "Duyệt"},

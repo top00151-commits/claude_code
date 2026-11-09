@@ -153,6 +153,8 @@ def strip_html(h):
     #  z1204: 양식 「✏ 고치기」 단추 · 안내 줄(id·data-on/off 붙음) — 비교 밖
     h = re.sub(r'<button type="button" class="btn kle" id="btnKle"[^>]*>[^<]*</button>', "", h)
     h = re.sub(r'<div class="toolbar" id="kleDocHint"[^>]*>.*?</div>', "", h, flags=re.S)
+    #  z1207: 「🔗 링크 복사」 단추 — 비교 밖
+    h = re.sub(r'<button type="button" class="btn" id="btnLink"[^>]*>[^<]*</button>', "", h)
     h = re.sub(r"\d{2}:\d{2}:\d{2}", "T", h)
     h = re.sub(r"\?v=t\d+", "?v=t", h)   # 정적 파일 주소에 붙는 서버 기동 시각
     return re.sub(r"\s+", " ", h).strip()
