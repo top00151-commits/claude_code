@@ -313,7 +313,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
           <td title="{{ r.model }}">{{ r.model or '—' }}</td>
           <td title="{{ r.equip }}">{{ r.equip or '—' }}</td>
           {# z1191z4e: 작업일정표와 같은 단위 · 줄맞춤 #}
-          <td class="c-num" style="text-align:center;">{% if r.qty %}<span class="qwrap"><span class="qn">{{ (1 if (r.is_parts and r.qty|int < 2) else r.qty)|qtyfmt }}</span><span class="qu">{{ r|qtyunit }}</span></span>{% endif %}</td>
+          <td class="c-num" style="text-align:center;">{% if r.qty and r.is_parts and r.qty_missing %}<span style="color:#b91c1c;font-weight:700;" title="상품 수량이 저장돼 있지 않습니다 — 작업일정표 수량 칸에서 넣으세요">⚠ 미입력</span>{% elif r.qty %}<span class="qwrap"><span class="qn">{{ (1 if (r.is_parts and r.qty|int < 2) else r.qty)|qtyfmt }}</span><span class="qu">{{ r|qtyunit }}</span></span>{% endif %}</td>
           <td>{{ r.po_type or '—' }}</td>
           <td>{{ r.form_type or '—' }}</td>
           <td class="{% if not r.cust_ok %}cust-bad{% endif %}" title="{{ r.customer }}{% if not r.cust_ok %} — 등록 고객사 미연결{% endif %}">{{ r.customer }}</td>

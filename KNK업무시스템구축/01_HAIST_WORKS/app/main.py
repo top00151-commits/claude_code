@@ -427,9 +427,11 @@ def _parts_qty_z15(qty, po_type) -> dict:
         _n = int(float(qty or 0))
     except (TypeError, ValueError):
         _n = 0
-    _n = max(1, _n)
     _u = _parts_qty_unit_z15(po_type)
-    return {"n": _n, "unit": _u, "short": "%d%s" % (_n, _u),
+    # z1191z16 (안지연 프로 확인 · 대표 「1,2,3 진행해」 2026-11-10): 수량 0·빈칸을 1 로 보이면 안 넣은 줄을 못 찾는다 → 「⚠ 미입력」
+    if _n < 1:
+        return {"n": 0, "unit": _u, "short": "미입력", "label": "⚠ 수량 미입력", "missing": True}
+    return {"n": _n, "unit": _u, "short": "%d%s" % (_n, _u), "missing": False,
             "label": ("%d식" % _n) if _u == "식" else ("완제품 %d대분" % _n)}
 
 
@@ -445,6 +447,8 @@ def _board_qty_unit(r) -> str:
     if bu:
         return bu
     ft = str(r.get("qty_form") or r.get("form_type") or "").strip()
+    if ft == "상품":   # z1191z16: 수주로 안 갈라진 상품 줄도 PO유형 규칙(z1191z15)
+        return _parts_qty_unit_z15(r.get("po_type"))
     return _QTY_UNIT_BY_FORM_Z4E.get(ft, "대")
 
 
@@ -29579,7 +29583,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
-                "COALESCE(o.total_amount,0) AS o_total, o.total_amount AS o_total_raw, COALESCE(o.unit_qty,1) AS o_qty, "
+                "COALESCE(o.total_amount,0) AS o_total, o.total_amount AS o_total_raw, COALESCE(o.unit_qty,1) AS o_qty, o.unit_qty AS o_qty_raw, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
                 + _ocust_col + ", " + _occ_col + ", " + _omeq_col + ", " + _optype_col + ", "
                 + _soform_col + ", " + _soship_col + ", " + _pptype_sub + ", " + _bqty_col + ", "
@@ -29603,6 +29607,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "pid": pid, "oid": oid, "so_no": d.get("so_no") or "",
                         "so_type": (d.get("so_type") or "").upper(),
                         "o_total": float(d.get("o_total") or 0), "o_qty": int(d.get("o_qty") or 1),
+                        "o_qty_raw": d.get("o_qty_raw"),   # z1191z16: 상품 수량 0·빈칸 = 미입력 구분
                         "o_total_raw": d.get("o_total_raw"),   # z1191z8: NULL(안 적음) 과 0(무상) 구분용
                         "o_ord": str(d.get("o_ord") or "")[:10], "o_due": str(d.get("o_due") or "")[:10],
                         "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
@@ -29680,6 +29685,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "price": (float(_so["o_total"] or 0) / max(1, _dqty)), "amount": _so["o_total"], "currency": _so["o_cur"],   # v5H226z684/z1063: 단가=총액÷표시수량(개당) → 단가×수량=금액 일치(소모품=실수량 합)
                     "order_date": (_eff_c("i_ord", _so["o_ord"]) or "")[:10], "due_date": _due944, "ship_to": _eff_c("i_ship", _so["o_ship"]),   # v5H226z710/z944: 호기 override 우선(없으면 SO) · 부품 SO는 헤더납기까지(max)
                     "so_no": _so["so_no"], "count": _dqty,
+                    "qty_missing": (_so.get("so_type") == "PARTS_EXPORT" and not (int(float(_so.get("o_qty_raw") or 0)) >= 1)),   # z1191z16
                     "qty": _dqty,   # v5H226z666/z1063: 표시 수량(소모품=호기 수량합·부품=대분 o_qty·빈SO=o_qty)
                     "oid": _so.get("oid"), "so_type": (_so.get("so_type") or ""),   # v5H226z974: 상품 줄 수량(완제품 대분) 표시·편집 라우팅용
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
@@ -30368,6 +30374,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 #   줄 단위 판정(so_type)이라 '장비 프로젝트+상품 추가발주(z436)' 혼합도 그 줄만 상품으로 처리.
                 _iu["so_oid"] = _ln.get("oid")
                 _iu["is_parts"] = (str(_ln.get("so_type") or "").upper() == "PARTS_EXPORT")
+                _iu["qty_missing"] = bool(_iu["is_parts"] and _ln.get("qty_missing"))   # z1191z16: 상품 수량 미입력
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
@@ -30542,7 +30549,8 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
             pass
     # z1191z4e (대표 지시): 수량은 숫자 그대로 · 바로 옆 「단위」 칸(화면과 같은 규칙) — 올리기 파서는 이 칸을 안 읽는다
     for _row in rows:
-        _row["_qty_unit"] = _board_qty_unit(_row) if _row.get("qty") else ""
+        _row["_qty_unit"] = ((_board_qty_unit(_row) + (" 미입력" if (_row.get("is_parts") and _row.get("qty_missing")) else ""))
+                             if _row.get("qty") else "")   # z1191z16
     headers = ["관리번호", "수주번호", "프로젝트명", "모델명", "장비명", "기타사항", "수량", "단위"]
     keys = ["code", "so_no", "name", "model", "equip", "note", "qty", "_qty_unit"]
     if can_money:
@@ -31929,6 +31937,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 #   줄 단위 판정(so_type)이라 '장비 프로젝트+상품 추가발주(z436)' 혼합도 그 줄만 상품으로 처리.
                 _iu["so_oid"] = _ln.get("oid")
                 _iu["is_parts"] = (str(_ln.get("so_type") or "").upper() == "PARTS_EXPORT")
+                _iu["qty_missing"] = bool(_iu["is_parts"] and _ln.get("qty_missing"))   # z1191z16: 상품 수량 미입력
                 _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
@@ -33780,6 +33789,7 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "",
                 _iu["board_unit"] = _ln.get("board_unit") or ""
                 _iu["is_bqty"] = bool(_ln.get("is_bqty"))
                 _iu["is_parts"] = (str(_ln.get("so_type") or "").upper() == "PARTS_EXPORT")
+                _iu["qty_missing"] = bool(_iu["is_parts"] and _ln.get("qty_missing"))   # z1191z16: 상품 수량 미입력
                 _iu["qty_form"] = _ln.get("form_label") or ""
                 try:
                     _iu["multi"] = int(_iu.get("qty") or 0) >= 2
@@ -38481,7 +38491,7 @@ async def projects_edit_form(request: Request, pid: int):
             if _key7 == "assembly":
                 _qd7 = "%d대" % (sum(int(x.get("qty") or 0) for x in _us) if _us else _uq7)
             elif _key7 == "parts":
-                _qd7 = _parts_qty_z15(_uq7, (str(_o.get("po_type") or "").strip() or str(p.get("po_type") or "").strip()))["short"]   # z1191z15
+                _qd7 = _parts_qty_z15(_o.get("unit_qty"), (str(_o.get("po_type") or "").strip() or str(p.get("po_type") or "").strip()))["short"]   # z1191z15
             elif _key7 == "consumable":
                 _qd7 = "%d건" % max(1, len(_us))
             else:
@@ -38507,6 +38517,9 @@ async def projects_edit_form(request: Request, pid: int):
                 "ship_to": str(_o.get("ship_to") or "").strip(),
                 "model_name": str(_o.get("model_name") or "").strip(),
                 "equip_name": str(_o.get("equip_name") or "").strip(),
+                # z1191z16: 상품 수주 수량(완제품 대분 · 개조 식) — 이 화면에서 그 수주만 고친다(0·빈칸 = 미입력)
+                "is_parts14": _key7 == "parts",
+                "uq_raw": (lambda _v: int(float(_v)) if str(_v or "").strip() not in ("", "None") else 0)(_o.get("unit_qty")),
             })
         so_rows.sort(key=lambda r: (r["id"] or 0))
         so_mixed = len(_keys7) > 1

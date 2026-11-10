@@ -87,7 +87,8 @@ def orders_of(pid):
 print("§1 단위 함수(한 곳)")
 F = M._parts_qty_z15
 check(F(1, "신규")["label"] == "완제품 1대분" and F(1, "신규")["short"] == "1대분", "신규 1 → 완제품 1대분(예전 1식)")
-check(F(11, "추가")["short"] == "11대분" and F(0, "추가")["short"] == "1대분" and F(None, "")["short"] == "1대분", "추가 11 → 11대분 · 0·빈칸 → 1대분")
+# z1191z16 (대표 「1,2,3 진행해」 2026-11-10): 0·빈칸은 1대분이 아니라 「미입력」
+check(F(11, "추가")["short"] == "11대분" and F(0, "추가")["short"] == "미입력" and F(None, "")["missing"] is True, "추가 11 → 11대분 · 0·빈칸 → 미입력(z1191z16)")
 check(F(1, "개조")["label"] == "1식" and F(2, "개조")["short"] == "2식" and F(3, " 개조 ")["short"] == "3식", "개조 → 1식·2식·3식(2 이상도 식)")
 U = M._board_qty_unit
 check(U({"is_parts": True, "qty": 1, "po_type": "신규"}) == "대분" and U({"is_parts": True, "qty": 2, "po_type": "개조"}) == "식"

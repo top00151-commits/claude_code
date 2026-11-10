@@ -302,6 +302,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div><span class="z14-k">납품처</span> {{ r.ship_to or '—' }}</div>
           <div><span class="z14-k">모델명</span> {{ r.model_name or project.model_name or '—' }}</div>
           <div><span class="z14-k">장비명</span> {{ r.equip_name or project.equip_name or '—' }}</div>
+          {% if r.is_parts14 %}<div><span class="z14-k">수량</span> {{ r.qty }}</div>{% endif %}
         </div>
         {% else %}
         <div class="z14-grid">
@@ -316,6 +317,9 @@ html,body{background:#fff!important;overflow:auto!important;}
           <label>납품처<input type="text" class="z14-f" data-field="ship_to" data-orig="{{ r.ship_to }}" value="{{ r.ship_to }}" autocomplete="off" placeholder="(미지정)"></label>
           <label>모델명<input type="text" class="z14-f" data-field="model_name" data-orig="{{ r.model_name }}" value="{{ r.model_name }}" autocomplete="off" placeholder="(비움 = 프로젝트 {{ project.model_name or '' }})"></label>
           <label>장비명<input type="text" class="z14-f" data-field="equip_name" data-orig="{{ r.equip_name }}" value="{{ r.equip_name }}" autocomplete="off" placeholder="(비움 = 프로젝트 {{ project.equip_name or '' }})"></label>
+          {% if r.is_parts14 %}{# z1191z16 (안지연 프로 확인 · 대표 「1,2,3 진행해」): 상품 수량 — 이 수주만(작업일정표 수량 칸과 같은 저장) #}
+          <label>수량 <span class="z14-inh">(상품 · <span class="z16-u">{{ '식' if r.po_eff == '개조' else '완제품 대분' }}</span>)</span><input type="number" min="1" max="999" step="1" class="z14-f" data-field="unit_qty" data-orig="{{ r.uq_raw if r.uq_raw >= 1 else '' }}" value="{{ r.uq_raw if r.uq_raw >= 1 else '' }}" placeholder="⚠ 미입력 — 숫자를 넣으세요"{% if r.uq_raw < 1 %} style="border-color:#b91c1c;"{% endif %}></label>
+          {% endif %}
         </div>
         <div class="z14-act">
           <button type="button" class="btn btn-primary z14-save">💾 이 수주({{ r.order_no }})만 저장</button>
@@ -1687,6 +1691,9 @@ html,body{background:#fff!important;overflow:auto!important;}
         var mark = function(){ el.classList.toggle('z14-dirty', (el.value || '') !== (el.getAttribute('data-orig') || '')); };
         el.addEventListener('input', mark); el.addEventListener('change', mark);
       });
+      // z1191z16: PO유형을 바꾸면 상품 수량 단위 글자도(개조 = 식 · 그 밖 = 완제품 대분)
+      var po16 = pn.querySelector('[data-po]'), u16 = pn.querySelector('.z16-u');
+      if (po16 && u16) po16.addEventListener('change', function(){ u16.textContent = (po16.value === '개조') ? '식' : '완제품 대분'; });
       var btn = pn.querySelector('.z14-save');
       if (!btn) return;
       btn.addEventListener('click', async function(){

@@ -154,7 +154,8 @@ check('data-field="model_name"' in card2 and 'value="M2-추가"' in card2 and 'd
 check("(기본값)" not in card2.split("🏢 발주처")[0], "자기 값 있는 수주엔 (기본값) 표시 없음")
 card_blank, _ = so_card(PA["id"], so_blank["order_no"], so_blank["id"])
 check("📦 모델/장비" in card_blank and "M1-처음" in card_blank and "(기본값)" in card_blank, "자기 값 없는 수주 카드는 프로젝트 값 M1-처음 + (기본값)")
-check("(대표값)" in html2, "프로젝트 정보 칸 모델명·장비명에 (대표값) 안내(수주 2건 이상)")
+# z1191z16 (대표 「1,2,3 진행해」 2026-11-10): ?so= 로 열면 위쪽은 그 수주 값((수주)) · 그냥 열면 대표값((대표값))
+check("(대표값)" in q(cl.get, "/project/%d" % PA["id"]).text and "(수주)" in html2, "프로젝트 정보 칸 모델명·장비명: 그냥 열면 (대표값) · ?so= 면 (수주)(z1191z16)")
 r = q(cl.post, "/sales/orders/%d/quick-edit" % OA[1]["id"], data={"model_name": "M2-고침", "equip_name": "E2-고침"})
 o1 = orders_of(PA["id"])[1]
 check(r.status_code == 200 and r.json().get("ok") and o1.get("model_name") == "M2-고침" and o1.get("equip_name") == "E2-고침", "수주 머리 수정 입구로 모델·장비 저장 → 그 수주만 바뀜")
