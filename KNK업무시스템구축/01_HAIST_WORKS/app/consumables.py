@@ -1318,6 +1318,7 @@ def project_name_choices() -> list:
         print(f"[z1191z3] 프로젝트명 목록 읽기 실패: {e}")
     return out
 _LINE_FIELD_LABELS = {"model_use": "모델", "equip_name": "장비명", "part_name": "품명",
+                      "secondary_customer": "2차 고객사(품목)",   # z1191z20
                       "spec": "규격", "qty": "수량", "unit": "단위", "unit_price": "단가",
                       "note": "비고", "linked_project_id": "관리번호 연결", "part_id": "자재 연결"}
 
@@ -1459,11 +1460,12 @@ def co_update_order_field(co_id: int, field: str, value, by_id=None, by_name: st
 def coi_update(item_id: int, fields: dict, by_id=None, by_name: str = "") -> None:
     """라인 인라인 편집 — fields 의 키만 갱신 + 변경 이력 기록."""
     allowed = {"model_use", "equip_name", "part_name", "spec", "qty", "unit",
-               "unit_price", "linked_project_id", "part_id", "note"}
+               "unit_price", "linked_project_id", "part_id", "note",
+               "secondary_customer"}   # z1191z20: 품목별 2차 고객사
     keys = [k for k in fields.keys() if k in allowed]
     if not keys:
         return
-    for _k9 in ("model_use", "equip_name", "part_name", "spec", "unit", "note"):   # z1191z9: 「None」 글자 → 빈칸
+    for _k9 in ("model_use", "equip_name", "part_name", "spec", "unit", "note", "secondary_customer"):   # z1191z9: 「None」 글자 → 빈칸
         if _k9 in fields and isinstance(fields[_k9], str) and fields[_k9].strip() == "None":
             fields[_k9] = ""
     co_id = None

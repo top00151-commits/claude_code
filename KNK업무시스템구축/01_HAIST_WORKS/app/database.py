@@ -3292,6 +3292,11 @@ def init_db():
             if "equip_name" not in _coicols:
                 c.execute("ALTER TABLE consumable_order_items ADD COLUMN equip_name TEXT")
                 print("[v5H226z288] consumable_order_items.equip_name 컬럼 추가됨")
+            # z1191z20 (이새롬 프로 · 대표 「2 ① 진행해」 2026-11-10): 품목마다 2차 고객사 — 한 소모품에 2차가 여럿일 때.
+            #   빈칸 = 위(발주 공통) 2차 고객사를 따른다. 인덱스 없음(추가형 칸 · executescript 에 넣지 말 것).
+            if "secondary_customer" not in _coicols:
+                c.execute("ALTER TABLE consumable_order_items ADD COLUMN secondary_customer TEXT")
+                print("[z1191z20] consumable_order_items.secondary_customer 컬럼 추가됨")
             # v5H225: 관리코드 prefix 정책 변경 — K → E (Etc.), S → C (Consumable)
             # 기존 데이터 자동 백필 + project_history 에 변경 이력 기록
             try:

@@ -410,6 +410,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
           <th style="width:110px;">단가</th>
           <th style="width:120px;" class="amount">금액</th>
           <th style="width:150px;">비고</th>
+          {# z1191z20 (이새롬 프로 · 대표 「2 ① 진행해」): 품목마다 2차 고객사 — 비우면 위 「2차 고객사」(발주 공통)를 따른다 #}
+          <th style="width:130px;" title="한 소모품에 2차 고객사가 여럿이면 품목마다 적습니다 · 비우면 위 「2차 고객사」를 따릅니다">2차 고객사<br><span style="font-size:9px;font-weight:400;">(품목별 · 비우면 위 값)</span></th>
           <th style="width:160px;">자재코드</th>
           <th style="width:150px;">연결 관리번호</th>
           <th class="ord-col" style="width:130px;">거래명세서<br><span style="font-size:9px;font-weight:400;">발행일(발주 공통)</span></th>
@@ -451,6 +453,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             <td><span class="amt-inp"><span class="ccy-pre">{{ (co.currency or 'KRW')|ccysym }}</span><input data-k="unit_price" type="text" inputmode="numeric" class="knk-money" value="{{ (it.unit_price or 0)|pricefmt(co.currency or 'KRW') }}" /></span></td>
             <td class="amount cell-amount">{{ (it.amount or 0)|money(co.currency or 'KRW') }}</td>
             <td><input data-k="note" value="{{ (it.note or '')|e }}" placeholder="비고" /></td>
+            <td><input data-k="secondary_customer" value="{{ (it.secondary_customer or '')|e if (it.secondary_customer or '') != 'None' else '' }}" placeholder="{{ (co.secondary_customer or '—')|e }}" title="비우면 위 「2차 고객사」({{ (co.secondary_customer or '없음')|e }})를 따릅니다" /></td>
             {# v5H226z300(대표 지시): 자재코드 연결 — 등록 자재 자동연결(업로드)+추천+수동검색 #}
             <td>
               {% if it.part_id %}
@@ -490,7 +493,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             {# v5H226z957 (대표 지시): 합계를 '금액' 컬럼 아래로 정렬 — 18컬럼 중 금액=11번째라 앞 10칸 colspan(기존 12는 20폭이라 어긋났음). #}
             <td colspan="10" style="text-align:right;">합계</td>
             <td class="amount" id="footTotal">{{ (co.total_amount or 0)|money(co.currency or 'KRW') }}</td>
-            <td colspan="7"></td>
+            <td colspan="8"></td>{# z1191z20: 2차 고객사 칸 하나 늘어 7 → 8 #}
           </tr>
         </tfoot>
       </table>
@@ -976,10 +979,11 @@ async function doNotify() {
 // v5H226z725: 상태 '알약' 제거 → 상태는 기본정보 드롭다운(.ef data-field=status)으로 일원화(자동저장).
 
 // v5H226z303/z305(대표 지시): 라인 표 — 칸 너비조정 + 칸 표시/숨기기 + 전체화면 + 화면인쇄 (작업일정표 메뉴 이식, 날짜 컨트롤 제외)
-const ITEMS_VIEW_KEY = 'co_items_view_v4';   // v5H226z730: 모델명·장비명 라인열 제거(20→18)로 키 갱신 — 옛 저장폭 무효화
+const ITEMS_VIEW_KEY = 'co_items_view_v5';   // z1191z20: 2차 고객사(품목별) 칸 추가(18→19)로 키 갱신
+//   // v5H226z730: 모델명·장비명 라인열 제거(20→18)로 키 갱신 — 옛 저장폭 무효화
 const ITEMS_COLW_OLDKEY = 'co_items_colw_v1';
-const ITEMS_COLW_DEFAULTS = [40,150,140,100,100,120,84,70,55,110,120,150,160,150,130,130,120,50];
-const ITEMS_COL_LABELS = ['No','품명','규격','사진(LOC)','사진(PIC)','납품일','형태','수량','단위','단가','금액','비고','자재코드','연결관리번호','거래명세서','세금계산서일','세금계산서금액','삭제'];
+const ITEMS_COLW_DEFAULTS = [40,150,140,100,100,120,84,70,55,110,120,150,130,160,150,130,130,120,50];   // z1191z20: 비고 다음 2차(130)
+const ITEMS_COL_LABELS = ['No','품명','규격','사진(LOC)','사진(PIC)','납품일','형태','수량','단위','단가','금액','비고','2차 고객사','자재코드','연결관리번호','거래명세서','세금계산서일','세금계산서금액','삭제'];
 const ITEMS_PHOTO_MIN = 100;   // 사진(가로 90px)보다 칸이 좁아지지 않게
 (function(){
   const table = document.querySelector('table.items');

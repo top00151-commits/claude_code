@@ -26293,6 +26293,39 @@ def _z17_norm2(v) -> str:
     return ",".join(out)
 
 
+def _z20_parts(items, order2):
+    """z1191z20: 소모품 품목들의 2차 몫 — [(2차, 비율, 품목 수)] · 품목 2차 빈칸 = 발주 공통 2차(order2).
+    2차가 하나뿐이거나 품목 금액 합이 0 이면 None(지금처럼 한 줄)."""
+    if not items:
+        return None
+    tot = sum(a for _, a in items)
+    if not tot:
+        return None
+    grp = {}
+    for s2, a in items:
+        k = _z17_norm2(s2) if s2 else order2
+        g = grp.setdefault(k, [0.0, 0])
+        g[0] += a; g[1] += 1
+    if len(grp) <= 1:
+        only = next(iter(grp))
+        return None if only == order2 else [(only, 1.0, grp[only][1])]
+    return [(k, v[0] / tot, v[1]) for k, v in sorted(grp.items(), key=lambda kv: -kv[1][0])]
+
+
+def _z20_split(line, parts):
+    """z1191z20: 소모품 매출 한 줄을 품목별 2차 몫으로 나눈다 — 나눈 줄의 합 = 원래 줄(마지막 줄이 나머지를 가짐)."""
+    if not parts:
+        return [line]
+    out, ra, rk = [], line["amt"], line["krw"]
+    for i, (k, f, n) in enumerate(parts):
+        last = (i == len(parts) - 1)
+        a = ra if last else round(line["amt"] * f, 2)
+        w = rk if last else line["krw"] * f
+        ra -= a; rk -= w
+        out.append(dict(line, amt=a, krw=w, cust2=k, label=("품목 %d줄" % n) if len(parts) > 1 else line.get("label", "")))
+    return out
+
+
 def _z17_lines(c, rates, oi_map, basis):
     """매출 줄 — 호기(order_items)·소모품(consumable_orders) 한 줄씩. 세금계산서 기준은 1·2·3차마다 한 줄."""
     missing, fx_fb = set(), {}
@@ -26367,8 +26400,14 @@ def _z17_lines(c, rates, oi_map, basis):
     cocols = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
     _cst = "status_date" if "status_date" in cocols else "NULL"
     _ccid = "customer_id" if "customer_id" in cocols else "NULL"
+    # z1191z20: 소모품 품목마다 2차(빈칸 = 발주 공통) → 2차가 둘 이상이면 그 소모품 매출을 품목 금액 비율로 나눈다
+    _co_item2 = {}
+    if "secondary_customer" in {r[1] for r in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}:
+        for _ci, _s2, _am in c.execute("SELECT co_id, COALESCE(secondary_customer,''), COALESCE(amount,0) "
+                                       "FROM consumable_order_items ORDER BY co_id, line_no, id"):
+            _co_item2.setdefault(_ci, []).append((str(_s2 or "").strip(), float(_am or 0)))
     for r in c.execute(
-            "SELECT mgmt_code, co_no, customer_name, " + _ccid + " AS cid, secondary_customer, currency, total_amount, status, "
+            "SELECT id AS coid, mgmt_code, co_no, customer_name, " + _ccid + " AS cid, secondary_customer, currency, total_amount, status, "
             "UPPER(COALESCE(biz_div,'')) AS bd, model_name, order_date, "
             "COALESCE(NULLIF(TRIM(" + _cst + "),''),NULLIF(TRIM(due_date),''),NULLIF(TRIM(order_date),'')) AS dd_s, "
             "tax_invoice_date AS d1, tax_invoice_amt1 AS a1, tax_invoice_date2 AS d2, tax_invoice_amt2 AS a2, "
@@ -26384,6 +26423,7 @@ def _z17_lines(c, rates, oi_map, basis):
                 "cust2": _z17_norm2(d["secondary_customer"]),
                 "is_vina": (cid in vina_ids) or str(d["customer_name"] or "").upper().replace(" ", "") == "KNKVINA",
                 "ccy": (d["currency"] or "KRW").upper(), "kind": "consumable"}
+        _parts = _z20_parts(_co_item2.get(d["coid"]), base["cust2"])   # z1191z20: 품목별 2차 몫(하나뿐이면 None)
         if basis == "tax":
             for n_, (dk, ak) in enumerate((("d1", "a1"), ("d2", "a2"), ("d3", "a3")), 1):
                 dd = str(d[dk] or "").strip()
@@ -26393,7 +26433,7 @@ def _z17_lines(c, rates, oi_map, basis):
                     continue
                 if not dd or amt == 0:
                     continue
-                out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth="%d차" % n_))
+                out.extend(_z20_split(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth="%d차" % n_), _parts))
         else:
             if basis == "ship" and d["status"] not in ("SHIPPED", "PAID"):
                 continue
@@ -26401,7 +26441,7 @@ def _z17_lines(c, rates, oi_map, basis):
             if not dd:
                 continue
             amt = float(d["total_amount"] or 0)
-            out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth=""))
+            out.extend(_z20_split(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth=""), _parts))
     return out, missing, fx_fb
 
 
@@ -51365,7 +51405,7 @@ async def consumables_item_edit(request: Request, co_id: int, iid: int):
         return JSONResponse({"ok": False, "error": _CO_PAGE_MSG_Z1191Z9}, 409)
     form = await request.form()
     fields = {}
-    for k in ("model_use", "equip_name", "part_name", "spec", "unit", "note"):  # v5H226z297: 장비명 편집
+    for k in ("model_use", "equip_name", "part_name", "spec", "unit", "note", "secondary_customer"):  # v5H226z297: 장비명 편집 · z1191z20: 품목 2차
         if k in form:
             fields[k] = (form.get(k) or "").strip()
     for k in ("qty", "unit_price"):
@@ -51447,7 +51487,7 @@ async def consumables_save_all(request: Request, co_id: int):
                         cust_ok = _cok
             except Exception:
                 pass
-    _LINE_OK = {"model_use", "equip_name", "part_name", "spec", "qty", "unit", "unit_price", "note"}
+    _LINE_OK = {"model_use", "equip_name", "part_name", "spec", "qty", "unit", "unit_price", "note", "secondary_customer"}   # z1191z20
     if isinstance(lines, list):
         for ln in lines:
             try:
