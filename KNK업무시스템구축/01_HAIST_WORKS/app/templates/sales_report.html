@@ -65,7 +65,7 @@
         <select name="q" id="rpQ"{% if rep.mode != 'quarter' %} style="display:none;"{% endif %}>{% for q in ['1','2','3','4'] %}<option value="{{ q }}"{% if q == rep.sel_q %} selected{% endif %}>{{ q }}분기</option>{% endfor %}</select>
         <select name="m" id="rpM"{% if rep.mode != 'month' %} style="display:none;"{% endif %}>{% for m in range(1,13) %}<option value="{{ m }}"{% if (m|string) == rep.sel_m %} selected{% endif %}>{{ m }}월</option>{% endfor %}</select>
         <button type="submit">보기</button>
-        <a class="btnx" href="/sales/report.xlsx?{{ qs }}">📥 엑셀 저장</a>
+        <a class="btnx" href="/sales/report.xlsx?{{ qs }}" title="첫 장 「보고」 = 팀장 보고 양식(A4 가로 한 장 · 백만원) · 뒤 시트 = 월별 추이·고객사·KNK VINA 2차·프로젝트·상세(원)">📥 보고용 엑셀 저장</a>
       </form>
 
       <div class="rp-kpi">

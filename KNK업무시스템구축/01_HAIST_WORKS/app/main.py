@@ -26514,6 +26514,506 @@ def sales_report_z17(request: Request):
                qs=str(request.url.query or ""))
 
 
+# ── z1191z18 매출 보고서 엑셀 = 기술영업팀장 보고 양식 (대표 2026-11-10 「1-②, 2 넣고, 3 넣어, 4-① 진행해」) ──────────────
+#   1장 「보고」(A4 가로 한 장 · 백만원): 제목·결재칸(작성/검토/팀장) · 총괄(전월·전년 같은 기간·올해 누계) · 사업부×구분 ·
+#   고객사 TOP 10 · KNK VINA 2차 · 확인할 점.  뒤 시트(원): 월별 추이 · 고객사 · KNK VINA 2차 · 프로젝트 · 상세.
+#   숫자는 매출 보고서(_sales_report_z17 · _z17_lines)와 같은 줄을 더한다 → 보고 시트 합계 = 화면 합계 = 매출 홈(시험).
+_Z18_BIZ_TXT = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타",
+                "CT": "소모품(검사기)", "CM": "소모품(자동화)", "CE": "소모품(기타)"}
+# WORKS 에 매출 자료가 다 들어오기 시작한 달 — 운영 자료 월별 합(11-10): 세금계산서 2025-05~09 는 월 0.2억 아래 · 2025-11 부터 정상.
+#   이 달 앞 기간과의 비교(전월·전년·누계)는 숫자 대신 「자료 부족」(엉뚱한 증감률 29,573% 같은 것을 보고에 올리지 않게).
+_Z18_DATA_FROM = "2025-11"
+_Z18_NA = "자료 부족"
+
+
+def _z18_has(year, months) -> bool:
+    return all("%04d-%02d" % (int(year), int(m)) >= _Z18_DATA_FROM for m in months)
+
+
+def _z18_months(mode, sel_q, sel_m):
+    if mode == "quarter":
+        try:
+            qi = min(4, max(1, int(sel_q)))
+        except Exception:
+            qi = 1
+        return list(range(qi * 3 - 2, qi * 3 + 1))
+    if mode == "month":
+        try:
+            mi = min(12, max(1, int(sel_m)))
+        except Exception:
+            mi = 1
+        return [mi]
+    return list(range(1, 13))
+
+
+def _z18_prev(mode, year, sel_q, sel_m):
+    """바로 앞 기간 (연도, 달 목록, 이름) — 월 → 전월 · 분기 → 전 분기 · 연간 → 전년."""
+    y = int(year)
+    if mode == "month":
+        m = _z18_months(mode, sel_q, sel_m)[0]
+        return (y, [m - 1], "%d년 %d월" % (y, m - 1)) if m > 1 else (y - 1, [12], "%d년 12월" % (y - 1))
+    if mode == "quarter":
+        qi = _z18_months(mode, sel_q, sel_m)[0] // 3 + 1
+        if qi > 1:
+            return y, list(range((qi - 1) * 3 - 2, (qi - 1) * 3 + 1)), "%d년 %d분기" % (y, qi - 1)
+        return y - 1, [10, 11, 12], "%d년 4분기" % (y - 1)
+    return y - 1, list(range(1, 13)), "%d년" % (y - 1)
+
+
+def _z18_pick(lines, year, months):
+    ys, ms = str(year), set(months)
+    out = []
+    for x in lines:
+        d = x.get("date") or ""
+        if d[:4] != ys:
+            continue
+        try:
+            if int(d[5:7]) in ms:
+                out.append(x)
+        except Exception:
+            continue
+    return out
+
+
+def _z18_report_xlsx(c, rates, oi_map, rep):
+    """보고 양식 엑셀(bytes). rep = _sales_report_z17 결과(지금 기간·기준)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter as _gcl
+    basis, mode, year = rep["basis"], rep["mode"], int(rep["sel_year"])
+    months = _z18_months(mode, rep["sel_q"], rep["sel_m"])
+    py_, pmonths, plabel = _z18_prev(mode, year, rep["sel_q"], rep["sel_m"])
+    ytd = list(range(1, max(months) + 1))
+    # 세 기준 줄(같은 계산) — 선택 기준은 위, 나머지 둘은 참고
+    all_lines = {}
+    for b in ("tax", "ship", "order"):
+        all_lines[b] = _z17_lines(c, rates, oi_map, b)[0]
+    L = all_lines[basis]
+    cur = _z18_pick(L, year, months)
+    prv = _z18_pick(L, py_, pmonths)
+    S = lambda ls: sum(x["krw"] for x in ls)
+    cur_total = S(cur)
+    prev_word = {"month": "전월", "quarter": "전 분기", "year": "전년"}[mode]
+    yoy_word = {"month": "전년 같은 달", "quarter": "전년 같은 분기", "year": ""}[mode]
+    ytd_txt = "1~%d월" % max(months)
+
+    # ── 모양
+    FN = "맑은 고딕"
+    f_base = Font(name=FN, size=10)
+    f_b = Font(name=FN, size=10, bold=True)
+    f_title = Font(name=FN, size=18, bold=True)
+    f_sub = Font(name=FN, size=10, color="555555")
+    f_sec = Font(name=FN, size=11, bold=True, color="7A1C1F")
+    f_head = Font(name=FN, size=10, bold=True, color="3A0D0F")
+    f_note = Font(name=FN, size=9, color="555555")
+    f_warn = Font(name=FN, size=9, color="B45309")
+    fill_head = PatternFill("solid", fgColor="F3DEDE")
+    fill_tot = PatternFill("solid", fgColor="EFEFEF")
+    fill_main = PatternFill("solid", fgColor="FFF8E6")
+    thin = Side(style="thin", color="BFBFBF")
+    med = Side(style="medium", color="7A1C1F")
+    box = Border(left=thin, right=thin, top=thin, bottom=thin)
+    a_c = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    a_l = Alignment(horizontal="left", vertical="center")
+    a_r = Alignment(horizontal="right", vertical="center")
+    NF_M = '#,##0.0,,;[Red]-#,##0.0,,;"-"'     # 원 값을 백만원으로 보여 줌(셀 값은 원)
+    NF_W = '#,##0;[Red]-#,##0;"-"'
+    NF_P = '0.0%;[Red]-0.0%;"-"'
+    wb = Workbook()
+
+    def put(ws, r, col, v, font=f_base, fill=None, nf=None, al=None, border=box):
+        cell = ws.cell(row=r, column=col, value=v)
+        cell.font = font
+        if fill is not None:
+            cell.fill = fill
+        if nf and isinstance(v, (int, float)):
+            cell.number_format = nf
+        cell.alignment = al or (a_r if isinstance(v, (int, float)) else a_l)
+        if border is not None:
+            cell.border = border
+        return cell
+
+    def head(ws, r, labels, c0=1):
+        for i, t in enumerate(labels):
+            if t is None:
+                continue
+            put(ws, r, c0 + i, t, font=f_head, fill=fill_head, al=a_c)
+        ws.row_dimensions[r].height = 30
+
+    def rate(a, b):
+        return ((a - b) / abs(b)) if b else None
+
+    def r0(v):
+        return round(float(v or 0))
+
+    def pcell(ws_, r_, col, v, nf, font=f_base, fill=None, ok=None):
+        """앞 기간 값 칸 — 그 기간 자료가 WORKS 에 없으면 「자료 부족」."""
+        if (p_ok if ok is None else ok):
+            return put(ws_, r_, col, r0(v), font=font, fill=fill, nf=nf)
+        return put(ws_, r_, col, _Z18_NA, font=f_note, fill=fill, al=a_c)
+
+    def setup(ws, title_rows=None, fit_height=0):
+        ws.page_setup.orientation = "landscape"
+        ws.page_setup.paperSize = 9
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = fit_height
+        ws.page_margins.left = ws.page_margins.right = 0.4
+        ws.page_margins.top = 0.5
+        ws.page_margins.bottom = 0.6
+        ws.print_options.horizontalCentered = True
+        ws.oddFooter.left.text = "HAIST WORKS 매출 보고서"
+        ws.oddFooter.left.size = 8
+        ws.oddFooter.right.text = "&P / &N"
+        ws.oddFooter.right.size = 8
+        if title_rows:
+            ws.print_title_rows = title_rows
+
+    now = _kst_wall_now()
+    sub = "%s 기준 · 공급가(부가세 제외) · 외화는 그 달 기준환율로 원화" % rep["basis_label"]
+
+    # ════ 1장 「보고」 ════
+    ws = wb.active
+    ws.title = "보고"
+    ws.sheet_view.showGridLines = False
+    for i, w in enumerate([24] + [13] * 9, 1):
+        ws.column_dimensions[_gcl(i)].width = w
+    ws.merge_cells("A1:G1")
+    put(ws, 1, 1, "%s 매출 보고" % rep["period_label"], font=f_title, border=None)
+    ws.row_dimensions[1].height = 30
+    ws.merge_cells("A2:G2")
+    put(ws, 2, 1, "기술영업팀 · " + sub, font=f_sub, border=None)
+    ws.merge_cells("A3:G3")
+    put(ws, 3, 1, "단위: 백만원 (셀 값은 원 · 원 단위는 뒤 시트) · 작성일 %s · 자료: HAIST WORKS 매출 보고서"
+        % now.strftime("%Y-%m-%d %H:%M"), font=f_sub, border=None)
+    for i, t in enumerate(("작성", "검토", "팀장")):
+        col = 8 + i
+        put(ws, 1, col, t, font=f_b, fill=fill_tot, al=a_c)
+        ws.merge_cells(start_row=2, start_column=col, end_row=3, end_column=col)
+        for rr in (2, 3):
+            ws.cell(row=rr, column=col).border = box
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 22
+    for col in range(1, 11):
+        ws.cell(row=4, column=col).border = Border(top=med)
+
+    # 1. 총괄
+    r = 5
+    put(ws, r, 1, "1. 총괄", font=f_sec, border=None)
+    r += 1
+    if mode == "year":
+        head(ws, r, ["구분", "%d년" % year, "%d년(전년)" % (year - 1), "증감", "증감률"])
+    else:
+        head(ws, r, ["구분", rep["period_label"].split(" ", 1)[-1] + "(이번)", "%s\n%s" % (prev_word, plabel),
+                     "증감", "증감률", "%s\n%d년" % (yoy_word, year - 1), "전년 대비",
+                     "올해 누계\n(%s)" % ytd_txt, "전년 누계\n(%s)" % ytd_txt, "누계 증감률"])
+    p_ok = _z18_has(py_, pmonths)
+    yy_ok = _z18_has(year - 1, months)
+    yp_ok = _z18_has(year - 1, ytd)
+    na_used = not (p_ok and (mode == "year" or (yy_ok and yp_ok)))
+    order_b = [basis] + [b for b in ("tax", "ship", "order") if b != basis]
+    for b in order_b:
+        r += 1
+        lb = all_lines[b]
+        a = S(_z18_pick(lb, year, months))
+        p = S(_z18_pick(lb, py_, pmonths)) if p_ok else None
+        main = (b == basis)
+        fnt = f_b if main else f_base
+        fl = fill_main if main else None
+        put(ws, r, 1, (_Z17_BASIS[b] + " 매출") if main else ("참고: " + _Z17_BASIS[b]), font=fnt, fill=fl)
+        # (값, 비율인가) — 값 None = 비교할 자료 없음
+        vals = [(a, 0), (p, 0), (None if p is None else a - p, 0), (None if p is None else rate(a, p), 1)]
+        if mode != "year":
+            yy = S(_z18_pick(lb, year - 1, months)) if yy_ok else None
+            yt = S(_z18_pick(lb, year, ytd))
+            yp = S(_z18_pick(lb, year - 1, ytd)) if yp_ok else None
+            vals += [(yy, 0), (None if yy is None else rate(a, yy), 1), (yt, 0), (yp, 0), (None if yp is None else rate(yt, yp), 1)]
+        for i, (v, is_rate) in enumerate(vals):
+            if v is None:
+                put(ws, r, 2 + i, "—" if is_rate else _Z18_NA, font=f_note, fill=fl, al=a_c)
+            else:
+                put(ws, r, 2 + i, v if is_rate else r0(v), font=fnt, fill=fl, nf=NF_P if is_rate else NF_M)
+    r += 2
+
+    # 2. 사업부별 · 구분별
+    put(ws, r, 1, "2. 사업부별 · 구분별 (%s)" % _Z17_BASIS[basis], font=f_sec, border=None)
+    r += 1
+    head(ws, r, ["사업부"] + list(_Z17_CATS) + ["합계", "비중", "%s\n%s" % (prev_word, plabel), "증감률"])
+    pb = {}
+    for x in prv:
+        pb[x["biz"]] = pb.get(x["biz"], 0.0) + x["krw"]
+    for b in rep["biz_rows"]:
+        if b["key"] in ("L", "E", "CE") and not b["total"] and not pb.get(b["key"]):
+            continue   # 이번·앞 기간 모두 0 인 작은 사업부는 줄을 줄인다(합계에는 영향 없음)
+        r += 1
+        put(ws, r, 1, _Z18_BIZ_TXT.get(b["key"], b["label"]))
+        for i, ct in enumerate(_Z17_CATS):
+            put(ws, r, 2 + i, r0(b["cats"][ct]), nf=NF_M)
+        put(ws, r, 7, r0(b["total"]), font=f_b, nf=NF_M)
+        put(ws, r, 8, (b["total"] / cur_total) if cur_total else 0, nf=NF_P)
+        pcell(ws, r, 9, pb.get(b["key"], 0), NF_M)
+        rt = rate(b["total"], pb.get(b["key"], 0)) if p_ok else None
+        put(ws, r, 10, "—" if rt is None else rt, nf=NF_P, al=a_c if rt is None else None)
+    r += 1
+    put(ws, r, 1, "합계", font=f_b, fill=fill_tot)
+    for i, ct in enumerate(_Z17_CATS):
+        put(ws, r, 2 + i, r0(sum(b["cats"][ct] for b in rep["biz_rows"])), font=f_b, fill=fill_tot, nf=NF_M)
+    put(ws, r, 7, r0(cur_total), font=f_b, fill=fill_tot, nf=NF_M)
+    put(ws, r, 8, 1.0 if cur_total else 0, font=f_b, fill=fill_tot, nf=NF_P)
+    pt = S(prv)
+    pcell(ws, r, 9, pt, NF_M, font=f_b, fill=fill_tot)
+    rt = rate(cur_total, pt) if p_ok else None
+    put(ws, r, 10, "—" if rt is None else rt, font=f_b, fill=fill_tot, nf=NF_P, al=a_c if rt is None else None)
+    r += 2
+
+    # 3. 고객사 TOP 10 (왼쪽 A~D) · 4. KNK VINA 2차 (오른쪽 F~J)
+    put(ws, r, 1, "3. 고객사 TOP 10 (수주 1차 발주처)", font=f_sec, border=None)
+    put(ws, r, 6, "4. KNK VINA 2차 고객사", font=f_sec, border=None)
+    r += 1
+    top0 = r
+    head(ws, r, ["고객사", "금액", "비중", prev_word])
+    ws.merge_cells(start_row=r, start_column=6, end_row=r, end_column=7)
+    head(ws, r, ["2차 고객사", None, "금액", "VINA 안 비중", prev_word], c0=6)
+    pc = {}
+    for x in prv:
+        pc[x["cust"]] = pc.get(x["cust"], 0.0) + x["krw"]
+    cr = rep["cust_rows"]
+    rows_l = [(a["name"], a["total"], pc.get(a["name"], 0)) for a in cr[:10]]
+    if len(cr) > 10:
+        rest = cr[10:]
+        rows_l.append(("그 밖 %d곳" % len(rest), sum(a["total"] for a in rest),
+                       sum(v for k, v in pc.items() if k not in {a["name"] for a in cr[:10]})))
+    rl = r
+    for nm, v, pv in rows_l:
+        rl += 1
+        put(ws, rl, 1, nm)
+        put(ws, rl, 2, r0(v), nf=NF_M)
+        put(ws, rl, 3, (v / cur_total) if cur_total else 0, nf=NF_P)
+        pcell(ws, rl, 4, pv, NF_M)
+    rl += 1
+    put(ws, rl, 1, "합계", font=f_b, fill=fill_tot)
+    put(ws, rl, 2, r0(cur_total), font=f_b, fill=fill_tot, nf=NF_M)
+    put(ws, rl, 3, 1.0 if cur_total else 0, font=f_b, fill=fill_tot, nf=NF_P)
+    pcell(ws, rl, 4, pt, NF_M, font=f_b, fill=fill_tot)
+    pv2 = {}
+    for x in prv:
+        if x["is_vina"]:
+            k = x["cust2"] or "(2차 미입력)"
+            pv2[k] = pv2.get(k, 0.0) + x["krw"]
+    vt = rep["vina_total"]
+
+    def vname(a, short=False):
+        if a["name"] == "(2차 미입력)":
+            return "⚠ 2차 미입력"
+        return a["name"] + ((" ⚠여러 고객" if short else " (여러 고객 · 다시 등록 대기)") if a.get("multi") else "")
+    vr = rep["vina_rows"]
+    rows_v = [(vname(a, True), a["total"], pv2.get(a["name"], 0)) for a in vr[:10]]
+    if len(vr) > 10:
+        rest = vr[10:]
+        rows_v.append(("그 밖 %d곳" % len(rest), sum(a["total"] for a in rest),
+                       sum(v for k, v in pv2.items() if k not in {a["name"] for a in vr[:10]})))
+    rv = r
+    for nm, v, pv in rows_v:
+        rv += 1
+        ws.merge_cells(start_row=rv, start_column=6, end_row=rv, end_column=7)
+        put(ws, rv, 6, nm, font=f_warn if "⚠" in nm else f_base)
+        ws.cell(row=rv, column=7).border = box
+        put(ws, rv, 8, r0(v), nf=NF_M)
+        put(ws, rv, 9, (v / vt) if vt else 0, nf=NF_P)
+        pcell(ws, rv, 10, pv, NF_M)
+    rv += 1
+    ws.merge_cells(start_row=rv, start_column=6, end_row=rv, end_column=7)
+    put(ws, rv, 6, "KNK VINA 합계 (전체의 %.1f%%)" % ((vt / cur_total * 100) if cur_total else 0), font=f_b, fill=fill_tot)
+    ws.cell(row=rv, column=7).border = box
+    put(ws, rv, 8, r0(vt), font=f_b, fill=fill_tot, nf=NF_M)
+    put(ws, rv, 9, 1.0 if vt else 0, font=f_b, fill=fill_tot, nf=NF_P)
+    pcell(ws, rv, 10, sum(pv2.values()), NF_M, font=f_b, fill=fill_tot)
+    r = max(rl, rv, top0) + 2
+
+    # 5. 확인할 점
+    put(ws, r, 1, "5. 확인할 점", font=f_sec, border=None)
+    notes = []
+    notes.append(("✓ 합계 맞춤 — 사업부·구분·고객사·프로젝트 합 = 총합" if rep["checks_ok"]
+                  else "⚠ 합계가 맞지 않습니다 — 담당자 확인 필요", rep["checks_ok"]))
+    miss2 = [a for a in vr if a["name"] == "(2차 미입력)"]
+    if miss2:
+        notes.append(("⚠ KNK VINA 2차 고객사 미입력 %d줄 · %s원" % (miss2[0]["cnt"], format(r0(miss2[0]["total"]), ",")), False))
+    multi = [a for a in vr if a.get("multi")]
+    if multi:
+        notes.append(("⚠ 2차 고객사가 여러 개 적힌 수주 %d묶음 · %s원 — 고객별로 나눠 다시 등록 대기"
+                      % (len(multi), format(r0(sum(a["total"] for a in multi)), ",")), False))
+    for fb in rep.get("fx_fallback") or []:
+        notes.append(("⚠ %s 기준환율 없는 달 %s → %s 환율로 계산" % (fb["ccy"], ", ".join(fb["months"]), fb["applied"]), False))
+    if rep.get("missing_fx"):
+        notes.append(("⚠ 기준환율이 하나도 없는 통화: %s (원화 0 으로 계산)" % ", ".join(rep["missing_fx"]), False))
+    if na_used:
+        notes.append(("· WORKS 매출 자료는 %s년 %d월부터 있습니다 — 그 전 기간과의 비교는 「%s」로 둡니다"
+                      % (_Z18_DATA_FROM[:4], int(_Z18_DATA_FROM[5:7]), _Z18_NA), True))
+    notes.append(("· 고객사 = 수주에 적힌 1차 발주처 기준 (매출 홈 첫 화면 TOP5 는 프로젝트 고객 기준이라 다를 수 있음)", True))
+    notes.append(("· 백만원 아래는 반올림해 보여 줍니다 — 칸을 더한 값과 합계가 조금 다를 수 있음 (셀 값·뒤 시트는 원)", True))
+    for t, ok in notes:
+        r += 1
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=10)
+        put(ws, r, 1, t, font=f_note if ok else f_warn, border=None)
+    setup(ws, fit_height=1)
+
+    # ════ 뒤 시트 공통 ════
+    def sheet(name, title, widths):
+        w2 = wb.create_sheet(name)
+        for i, w in enumerate(widths, 1):
+            w2.column_dimensions[_gcl(i)].width = w
+        w2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(widths))
+        put(w2, 1, 1, "%s — %s" % (rep["period_label"], title), font=Font(name=FN, size=13, bold=True), border=None)
+        w2.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(widths))
+        put(w2, 2, 1, sub + " · 단위: 원", font=f_sub, border=None)
+        return w2
+
+    def finish(w2, hr, last_row, ncol, filt=False):
+        w2.freeze_panes = w2.cell(row=hr + 1, column=1)
+        if filt and last_row > hr:
+            w2.auto_filter.ref = "A%d:%s%d" % (hr, _gcl(ncol), last_row)
+        setup(w2, title_rows="%d:%d" % (hr, hr))
+
+    # 월별 추이(올해 1월 ~ 선택 기간 끝 달)
+    ms = ytd
+    w2 = sheet("월별 추이", "사업부 월별 추이 (%d년 %s · %s)" % (year, ytd_txt, _Z17_BASIS[basis]),
+               [18] + [14] * len(ms) + [16, 16, 10])
+    head(w2, 4, ["사업부"] + ["%d월" % m for m in ms] + ["누계", "전년 누계", "증감률"])
+    rr = 4
+    ycur = _z18_pick(L, year, ms)
+    yprv = _z18_pick(L, year - 1, ms)
+    for k, _lb in _Z17_BIZ:
+        cl = [x for x in ycur if x["biz"] == k]
+        pl = [x for x in yprv if x["biz"] == k]
+        if k in ("L", "E", "CE") and not cl and not pl:
+            continue
+        rr += 1
+        put(w2, rr, 1, _Z18_BIZ_TXT[k])
+        for i, m in enumerate(ms):
+            put(w2, rr, 2 + i, r0(S([x for x in cl if int(x["date"][5:7]) == m])), nf=NF_W)
+        a, p = S(cl), S(pl)
+        put(w2, rr, 2 + len(ms), r0(a), font=f_b, nf=NF_W)
+        pcell(w2, rr, 3 + len(ms), p, NF_W, ok=yp_ok)
+        rt = rate(a, p) if yp_ok else None
+        put(w2, rr, 4 + len(ms), "—" if rt is None else rt, nf=NF_P, al=a_c if rt is None else None)
+    for lbl, src, bold in (("합계", ycur, True), ("전년 같은 달", yprv, False)):
+        rr += 1
+        put(w2, rr, 1, lbl, font=f_b if bold else f_base, fill=fill_tot if bold else None)
+        for i, m in enumerate(ms):
+            pcell(w2, rr, 2 + i, S([x for x in src if int(x["date"][5:7]) == m]), NF_W, font=f_b if bold else f_base,
+                  fill=fill_tot if bold else None, ok=True if bold else _z18_has(year - 1, [m]))
+        if bold:
+            a, p = S(ycur), S(yprv)
+            put(w2, rr, 2 + len(ms), r0(a), font=f_b, fill=fill_tot, nf=NF_W)
+            pcell(w2, rr, 3 + len(ms), p, NF_W, font=f_b, fill=fill_tot, ok=yp_ok)
+            rt = rate(a, p) if yp_ok else None
+            put(w2, rr, 4 + len(ms), "—" if rt is None else rt, font=f_b, fill=fill_tot, nf=NF_P, al=a_c if rt is None else None)
+    for b in order_b[1:]:
+        rr += 1
+        put(w2, rr, 1, "참고: " + _Z17_BASIS[b], font=f_note)
+        lb = _z18_pick(all_lines[b], year, ms)
+        for i, m in enumerate(ms):
+            put(w2, rr, 2 + i, r0(S([x for x in lb if int(x["date"][5:7]) == m])), font=f_note, nf=NF_W)
+        put(w2, rr, 2 + len(ms), r0(S(lb)), font=f_note, nf=NF_W)
+    finish(w2, 4, rr, len(ms) + 4)
+
+    # 고객사
+    w2 = sheet("고객사", "고객사별 (수주 1차 발주처)", [7, 30, 17, 9, 10, 17, 17, 7])
+    head(w2, 4, ["순위", "고객사", "금액", "비중", "누적 비중", "%s 금액" % prev_word, "증감", "줄"])
+    rr, acc = 4, 0.0
+    for i, a in enumerate(cr, 1):
+        rr += 1
+        acc += a["total"]
+        pv = pc.get(a["name"], 0)
+        put(w2, rr, 1, i, al=a_c)
+        put(w2, rr, 2, a["name"])
+        put(w2, rr, 3, r0(a["total"]), nf=NF_W)
+        put(w2, rr, 4, (a["total"] / cur_total) if cur_total else 0, nf=NF_P)
+        put(w2, rr, 5, (acc / cur_total) if cur_total else 0, nf=NF_P)
+        pcell(w2, rr, 6, pv, NF_W)
+        pcell(w2, rr, 7, a["total"] - pv, NF_W)
+        put(w2, rr, 8, a["cnt"], al=a_c)
+    rr += 1
+    put(w2, rr, 1, "", fill=fill_tot)
+    put(w2, rr, 2, "합계 (%d곳)" % len(cr), font=f_b, fill=fill_tot)
+    put(w2, rr, 3, r0(cur_total), font=f_b, fill=fill_tot, nf=NF_W)
+    put(w2, rr, 4, 1.0 if cur_total else 0, font=f_b, fill=fill_tot, nf=NF_P)
+    put(w2, rr, 5, "", fill=fill_tot)
+    pcell(w2, rr, 6, pt, NF_W, font=f_b, fill=fill_tot)
+    pcell(w2, rr, 7, cur_total - pt, NF_W, font=f_b, fill=fill_tot)
+    put(w2, rr, 8, rep["cnt"], font=f_b, fill=fill_tot, al=a_c)
+    finish(w2, 4, rr - 1, 8, filt=True)
+
+    # KNK VINA 2차
+    w2 = sheet("KNK VINA 2차", "KNK VINA 2차 고객사별 (드림텍 계열 = DRT)", [40, 17, 11, 17, 7])
+    head(w2, 4, ["2차 고객사", "금액", "VINA 안 비중", "%s 금액" % prev_word, "줄"])
+    rr = 4
+    for a in vr:
+        rr += 1
+        nm = vname(a)
+        put(w2, rr, 1, nm, font=f_warn if (nm.startswith("⚠") or a.get("multi")) else f_base)
+        put(w2, rr, 2, r0(a["total"]), nf=NF_W)
+        put(w2, rr, 3, (a["total"] / vt) if vt else 0, nf=NF_P)
+        pcell(w2, rr, 4, pv2.get(a["name"], 0), NF_W)
+        put(w2, rr, 5, a["cnt"], al=a_c)
+    rr += 1
+    put(w2, rr, 1, "KNK VINA 합계 (전체 매출의 %.1f%%)" % ((vt / cur_total * 100) if cur_total else 0), font=f_b, fill=fill_tot)
+    put(w2, rr, 2, r0(vt), font=f_b, fill=fill_tot, nf=NF_W)
+    put(w2, rr, 3, 1.0 if vt else 0, font=f_b, fill=fill_tot, nf=NF_P)
+    pcell(w2, rr, 4, sum(pv2.values()), NF_W, font=f_b, fill=fill_tot)
+    put(w2, rr, 5, rep["vina_cnt"], font=f_b, fill=fill_tot, al=a_c)
+    finish(w2, 4, rr - 1, 5)
+
+    # 프로젝트
+    w2 = sheet("프로젝트", "프로젝트별", [7, 12, 34, 22, 15, 30, 17, 9, 7])
+    head(w2, 4, ["순위", "관리번호", "프로젝트명", "고객사", "사업부", "수주번호", "금액", "비중", "줄"])
+    rr = 4
+    for i, a in enumerate(rep["proj_rows"], 1):
+        rr += 1
+        put(w2, rr, 1, i, al=a_c)
+        put(w2, rr, 2, a["code"])
+        put(w2, rr, 3, a["pname"])
+        put(w2, rr, 4, a["cust"])
+        put(w2, rr, 5, _Z18_BIZ_TXT.get(a["biz"], a["biz"]))
+        put(w2, rr, 6, a["sos"])
+        put(w2, rr, 7, r0(a["total"]), nf=NF_W)
+        put(w2, rr, 8, (a["total"] / cur_total) if cur_total else 0, nf=NF_P)
+        put(w2, rr, 9, a["cnt"], al=a_c)
+    rr += 1
+    for col in range(1, 10):
+        put(w2, rr, col, "", fill=fill_tot)
+    put(w2, rr, 3, "합계 (%d건)" % len(rep["proj_rows"]), font=f_b, fill=fill_tot)
+    put(w2, rr, 7, r0(cur_total), font=f_b, fill=fill_tot, nf=NF_W)
+    put(w2, rr, 8, 1.0 if cur_total else 0, font=f_b, fill=fill_tot, nf=NF_P)
+    put(w2, rr, 9, rep["cnt"], font=f_b, fill=fill_tot, al=a_c)
+    finish(w2, 4, rr - 1, 9, filt=True)
+
+    # 상세
+    hd = ["날짜", "차수", "관리번호", "수주번호", "호기", "프로젝트명", "모델명", "사업부", "구분", "고객사", "2차 고객사",
+          "KNK VINA", "통화", "금액(그 통화)", "원화"]
+    w2 = sheet("상세", "상세 줄 (호기·소모품 · 세금계산서는 차수마다 한 줄)", [11, 6, 11, 14, 8, 26, 18, 14, 8, 20, 18, 9, 6, 15, 16])
+    head(w2, 4, hd)
+    rr = 4
+    for x in rep["lines"]:
+        rr += 1
+        vals = [x["date"], x["nth"], x["code"], x["so"], x["label"], x["pname"], x["model"],
+                _Z18_BIZ_TXT.get(x["biz"], x["biz"]), x["cat"], x["cust"], x["cust2"], "Y" if x["is_vina"] else "", x["ccy"]]
+        for i, v in enumerate(vals):
+            put(w2, rr, 1 + i, v, al=a_c if i in (0, 1, 4, 8, 11, 12) else None)
+        put(w2, rr, 14, x["amt"], nf='#,##0.##;[Red]-#,##0.##' if x["ccy"] != "KRW" else NF_W)
+        put(w2, rr, 15, r0(x["krw"]), nf=NF_W)
+    rr += 1
+    for col in range(1, 16):
+        put(w2, rr, col, "", fill=fill_tot)
+    put(w2, rr, 6, "합계 (%d줄)" % rep["cnt"], font=f_b, fill=fill_tot)
+    put(w2, rr, 15, r0(cur_total), font=f_b, fill=fill_tot, nf=NF_W)
+    finish(w2, 4, rr - 1, 15, filt=True)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 @app.get("/sales/report.xlsx")
 def sales_report_xlsx_z17(request: Request):
     u = get_user(request)
@@ -26526,24 +27026,14 @@ def sales_report_xlsx_z17(request: Request):
     with db_session() as c:
         rates = _fx_load_rates(c)
         rep = _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m)
-    bl = dict(_Z17_BIZ)
-    r0 = lambda v: round(float(v or 0))
-    sheets = [
-        {"name": "사업부", "headers": ["사업부", "합계(원)", "줄"] + list(rep["cats"]),
-         "rows": [[b["label"], r0(b["total"]), b["cnt"]] + [r0(b["cats"][ct]) for ct in rep["cats"]] for b in rep["biz_rows"]]
-                 + [["합계", r0(rep["total"]), rep["cnt"]] + [r0(sum(b["cats"][ct] for b in rep["biz_rows"])) for ct in rep["cats"]]]},
-        {"name": "고객사", "headers": ["고객사(1차 발주처)", "합계(원)", "줄"],
-         "rows": [[a["name"], r0(a["total"]), a["cnt"]] for a in rep["cust_rows"]]},
-        {"name": "KNK VINA 2차", "headers": ["2차 고객사", "합계(원)", "줄"],
-         "rows": [[a["name"], r0(a["total"]), a["cnt"]] for a in rep["vina_rows"]]},
-        {"name": "프로젝트", "headers": ["관리번호", "프로젝트명", "고객사", "사업부", "수주번호", "합계(원)", "줄"],
-         "rows": [[a["code"], a["pname"], a["cust"], bl.get(a["biz"], a["biz"]), a["sos"], r0(a["total"]), a["cnt"]] for a in rep["proj_rows"]]},
-        {"name": "상세", "headers": ["날짜", "차수", "관리번호", "수주번호", "호기", "프로젝트명", "모델명", "사업부", "구분", "고객사",
-                                     "2차 고객사", "KNK VINA", "통화", "금액(원 통화)", "원화"],
-         "rows": [[x["date"], x["nth"], x["code"], x["so"], x["label"], x["pname"], x["model"], bl.get(x["biz"], x["biz"]), x["cat"],
-                   x["cust"], x["cust2"], "Y" if x["is_vina"] else "", x["ccy"], x["amt"], r0(x["krw"])] for x in rep["lines"]]},
-    ]
-    return _make_xlsx_response(sheets, "매출보고서_%s_%s" % (rep["basis_label"].split("(")[0], rep["period_label"].replace(" ", "")))
+    # z1191z18: 보고 양식(1장 「보고」 + 월별 추이·고객사·KNK VINA 2차·프로젝트·상세)
+    with db_session() as c:
+        data = _z18_report_xlsx(c, rates, oi_map, rep)
+    from urllib.parse import quote as _q18
+    fname = "매출보고_%s_%s_%s.xlsx" % (rep["basis_label"].replace(" ", "").split("(")[0], rep["period_label"].replace(" ", ""),
+                                     _kst_wall_now().strftime("%Y%m%d"))
+    return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": "attachment; filename*=UTF-8''%s" % _q18(fname)})
 
 
 # ── 부품 마스터 (parts) ────────────────────────────────

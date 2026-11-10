@@ -168,10 +168,10 @@ try:
     det = list(wb["상세"].iter_rows(values_only=True))
     hdr_i = [i for i, r_ in enumerate(det) if r_ and "날짜" in r_][0]
     nlines = len([r_ for r_ in det[hdr_i + 1:] if r_ and r_[0]])
-    ok_x = names[:5] == ["사업부", "고객사", "KNK VINA 2차", "프로젝트", "상세"] and nlines == R["cnt"]
+    ok_x = names == ["보고", "월별 추이", "고객사", "KNK VINA 2차", "프로젝트", "상세"] and nlines == R["cnt"]   # z1191z18: 보고 양식
 except Exception as _e:
     names = repr(_e)
-check(ok_x, "엑셀 5시트 · 상세 줄 수 = 화면 줄 수(%d)" % R["cnt"], names)
+check(ok_x, "엑셀(z1191z18 보고 양식 6시트) · 상세 줄 수 = 화면 줄 수(%d)" % R["cnt"], names)
 hh = q(cl.get, "/sales").text
 check('href="/sales/report"' in hh, "매출 홈에 「📊 매출 보고서」 단추")
 with D.db_session() as c:
