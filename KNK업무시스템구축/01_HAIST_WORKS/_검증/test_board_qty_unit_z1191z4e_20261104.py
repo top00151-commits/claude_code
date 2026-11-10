@@ -81,7 +81,10 @@ def post(**kw):
 print("§1 단위 정하기(한 곳)")
 U = M._board_qty_unit
 check("소모품 줄 = 건(형태가 상품이라 적혀 있어도)", U({"kind": "consumable", "form_type": "상품", "qty": 1}) == "건")
-check("상품 = 2 이상 대분 · 1 식", U({"is_parts": True, "qty": 3}) == "대분" and U({"is_parts": True, "qty": 1}) == "식")
+# z1191z15 (대표 「개조는 모두 식으로 1식, 2식, 3식」 2026-11-10): 상품 단위 = PO유형 — 개조 식 · 그 밖 대분(1대분 포함)
+check("상품 = 개조 식 · 신규·추가 대분(1이어도 대분)", U({"is_parts": True, "qty": 3, "po_type": "추가"}) == "대분"
+      and U({"is_parts": True, "qty": 1, "po_type": "신규"}) == "대분" and U({"is_parts": True, "qty": 2, "po_type": "개조"}) == "식"
+      and U({"is_parts": True, "qty": 1, "po_type": "개조"}) == "식")
 check("적어 둔 단위가 먼저(SET · 대)", U({"board_unit": "SET", "form_type": "제품"}) == "SET" and U({"board_unit": "대", "form_type": "기타"}) == "대")
 check("형태별 기본: 완제품 대 · 제품 EA · 기타 식 · 모름 대",
       U({"form_type": "완제품"}) == "대" and U({"form_type": "제품"}) == "EA" and U({"form_type": "기타"}) == "식" and U({}) == "대")

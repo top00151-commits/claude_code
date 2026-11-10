@@ -444,11 +444,11 @@ html,body{background:#fff!important;overflow:auto!important;}
            비우면 1(=1식, 부품만 출하). 저장 시 projects.unit_qty + 단일 상품 SO(orders.unit_qty)에 반영(작업일정표 수량과 동일 소스). #}
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 2px;padding:8px 12px;background:#fff;border:1px solid #fed7aa;border-radius:8px;">
           <span style="font-weight:700;color:#9a3412;font-size:13px;">🏭 완제품 장비 수량</span>
-          <input type="number" name="parts_units" min="1" max="100" placeholder="비우면 1식"
-                 value="{{ project.unit_qty if project and (project.unit_qty or 1)|int >= 2 else '' }}"
+          <input type="number" name="parts_units" min="1" max="100" placeholder="비우면 1"
+                 value="{{ project.unit_qty if project and (project.unit_qty or 0)|int >= 1 else '' }}"
                  style="width:110px;text-align:center;font-weight:700;">
-          <span style="color:var(--qv-ink-3);font-size:12.5px;">대분 — <b style="color:#9a3412;">부품 수량이 아닙니다.</b>
-            이 상품(부품 묶음)으로 만드는 <b>완제품 장비가 몇 대</b>인지. 장비 제작용이 아니라 <b>부품만</b> 보내면 비워두세요(1식).</span>
+          <span style="color:var(--qv-ink-3);font-size:12.5px;">대분 <span style="color:#9a3412;">(PO유형 개조면 식)</span> — <b style="color:#9a3412;">부품 수량이 아닙니다.</b>
+            신규·추가 = 이 상품(부품 묶음)으로 만드는 <b>완제품 장비가 몇 대</b>인지(1대분도 1) · 개조 = <b>몇 식</b>인지(1식·2식…).</span>
         </div>
         <div class="sub" style="font-size:11px;color:#7c4a03;line-height:1.6;margin-top:8px;">
           {# ⚠ '아래 추가 품목' 은 **신규 등록에서만** 있다({% raw %}{% if not project %}{% endraw %}) — 수정 화면에서 그렇게 안내하면

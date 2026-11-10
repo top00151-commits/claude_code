@@ -285,10 +285,10 @@ html,body{background:#fff!important;overflow:auto!important;}
                비우면 1(=1식, 부품만 출하). 등록 후엔 작업일정표 수량 칸에서 바로 수정 가능. #}
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 8px;padding:8px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">
               <span style="font-weight:700;color:#9a3412;font-size:13px;">🏭 완제품 장비 수량</span>
-              <input type="number" name="parts_units" min="1" max="100" placeholder="비우면 1식"
-                     value="{% if ed and project.shipment_form == 'PARTS' and (project.unit_qty or 1)|int >= 2 %}{{ project.unit_qty }}{% endif %}"
+              <input type="number" name="parts_units" min="1" max="100" placeholder="비우면 1"
+                     value="{% if ed and project.shipment_form == 'PARTS' and (project.unit_qty or 0)|int >= 1 %}{{ project.unit_qty }}{% endif %}"
                      style="width:110px;text-align:center;">
-              <span style="color:var(--qv-ink-3);font-size:12.5px;">대분 — 이 상품(부품 묶음)으로 만드는 <b>완제품 장비가 몇 대</b>인지. 장비 제작용이 아니라 <b>부품만</b> 보내면 비워두세요(1식).</span>
+              <span style="color:var(--qv-ink-3);font-size:12.5px;">대분 <span style="color:#9a3412;">(PO유형 개조면 식)</span> — 신규·추가 = 이 상품(부품 묶음)으로 만드는 <b>완제품 장비가 몇 대</b>인지(1대분도 1) · 개조 = <b>몇 식</b>인지(1식·2식…).</span>
             </div>
             <label>자재 목록 <span style="font-weight:400;color:var(--qv-ink-3);">{% if can_money %}(<b style="color:#c2410c;">매입단가·마진%</b> 입력 → 판매단가 자동. 수량×판매단가 = 금액, 합산은 아래 합계. 통화는 상단 통화칸 / 마진은 비워도 OK, 등록 후 상세에서 정리){% else %}(수량·단가 입력 → 금액 자동. 통화는 상단 통화칸){% endif %}</span></label>
             {# v5H226z460(대표 지시): 상품=매입가에 마진% 가산 → 판매가. 마진 일괄적용 후 행별 개별 조정. 원가는 영업·관리(can_money)만. #}

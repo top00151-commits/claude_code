@@ -414,17 +414,33 @@ tpl.env.filters["qtyfmt"] = _fmt_qty
 _QTY_UNIT_BY_FORM_Z4E = {"완제품": "대", "제품": "EA", "기타": "식", "소모품": "건", "상품": "식"}
 
 
+# z1191z15 (안지연 프로 요청 · 대표 「개조는 모두 식으로 1식, 2식, 3식」 2026-11-10): 상품(부품 묶음) 수량 단위 = PO유형으로.
+#   개조 = N식(1식·2식…) · 신규·추가(그 밖) = 완제품 N대분(1대분 포함). 예전엔 PO유형과 상관없이 2+ 대분 · 1 식이라
+#   신규·추가 1대가 「1식」으로 보였다. 수량 0·빈칸은 1로 본다(화면 숫자와 같게). 한 곳 — 작업일정표·부서 일정표·엑셀·
+#   상세 수주 카드·합계·수정 화면 표가 모두 이 함수를 쓴다(템플릿 전역 partsqty).
+def _parts_qty_unit_z15(po_type) -> str:
+    return "식" if str(po_type or "").strip() == "개조" else "대분"
+
+
+def _parts_qty_z15(qty, po_type) -> dict:
+    try:
+        _n = int(float(qty or 0))
+    except (TypeError, ValueError):
+        _n = 0
+    _n = max(1, _n)
+    _u = _parts_qty_unit_z15(po_type)
+    return {"n": _n, "unit": _u, "short": "%d%s" % (_n, _u),
+            "label": ("%d식" % _n) if _u == "식" else ("완제품 %d대분" % _n)}
+
+
 def _board_qty_unit(r) -> str:
-    """줄(dict) → 수량 단위. 소모품 줄 = 건 · 상품 = 대분(2+)/식 · 적어 둔 단위(제품 표시수량·기타) ·
+    """줄(dict) → 수량 단위. 소모품 줄 = 건 · 상품 = PO유형 개조면 식, 그 밖은 대분(z1191z15) · 적어 둔 단위(제품 표시수량·기타) ·
     형태별 기본(완제품 대 · 제품 EA · 기타 식) · 모르면 대(호기)."""
     r = r or {}
     if r.get("kind") == "consumable":
         return "건"
     if r.get("is_parts"):
-        try:
-            return "대분" if int(float(r.get("qty") or 1)) >= 2 else "식"
-        except (TypeError, ValueError):
-            return "식"
+        return _parts_qty_unit_z15(r.get("po_type"))
     bu = str(r.get("board_unit") or "").strip()
     if bu:
         return bu
@@ -433,6 +449,7 @@ def _board_qty_unit(r) -> str:
 
 
 tpl.env.filters["qtyunit"] = _board_qty_unit
+tpl.env.globals["partsqty"] = _parts_qty_z15   # z1191z15: 상품 수량 표시(개조 N식 · 그 밖 N대분)
 tpl.env.filters["pricefmt"] = _fmt_price
 tpl.env.filters["money"] = _fmt_money
 tpl.env.filters["ccysym"] = _ccy_sym
@@ -38464,7 +38481,7 @@ async def projects_edit_form(request: Request, pid: int):
             if _key7 == "assembly":
                 _qd7 = "%d대" % (sum(int(x.get("qty") or 0) for x in _us) if _us else _uq7)
             elif _key7 == "parts":
-                _qd7 = ("%d대분" % _uq7) if _uq7 >= 2 else "1식"
+                _qd7 = _parts_qty_z15(_uq7, (str(_o.get("po_type") or "").strip() or str(p.get("po_type") or "").strip()))["short"]   # z1191z15
             elif _key7 == "consumable":
                 _qd7 = "%d건" % max(1, len(_us))
             else:
