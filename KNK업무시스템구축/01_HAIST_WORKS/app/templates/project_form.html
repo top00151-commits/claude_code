@@ -262,17 +262,96 @@ html,body{background:#fff!important;overflow:auto!important;}
 
 {% macro so_table7(rows) %}
 <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;">
-  <thead><tr style="background:var(--qv-surface-3);"><th style="padding:6px 8px;text-align:left;">수주번호</th><th style="padding:6px 8px;text-align:left;">형태</th><th style="padding:6px 8px;text-align:left;">PO유형</th><th style="padding:6px 8px;text-align:left;">고객사</th><th style="padding:6px 8px;text-align:right;">수량</th><th style="padding:6px 8px;text-align:right;">금액</th><th style="padding:6px 8px;text-align:left;">발주일</th></tr></thead>
-  <tbody>{% for r in rows %}<tr style="border-top:1px solid var(--qv-line,#e5e7eb);"><td style="padding:6px 8px;font-weight:700;"><a href="/project/{{ project.id }}?so={{ r.order_no }}" style="color:#1d4ed8;text-decoration:none;" title="상세 화면의 이 수주 카드로">{{ r.order_no }}</a></td><td style="padding:6px 8px;">{{ r.form }}</td><td style="padding:6px 8px;">{{ r.po_type }}</td><td style="padding:6px 8px;">{{ r.customer }}</td><td style="padding:6px 8px;text-align:right;">{{ r.qty }}</td><td style="padding:6px 8px;text-align:right;font-weight:700;">{{ '{:,.2f}'.format(r.amount) if r.currency != 'KRW' else '{:,.0f}'.format(r.amount) }} {{ r.currency }}</td><td style="padding:6px 8px;">{{ r.order_date }}</td></tr>{% endfor %}</tbody>
+  <thead><tr style="background:var(--qv-surface-3);"><th style="padding:6px 8px;text-align:left;">수주번호</th><th style="padding:6px 8px;text-align:left;">형태</th><th style="padding:6px 8px;text-align:left;">PO유형</th><th style="padding:6px 8px;text-align:left;">고객사</th><th style="padding:6px 8px;text-align:right;">수량</th><th style="padding:6px 8px;text-align:right;">금액</th><th style="padding:6px 8px;text-align:left;">발주일</th><th style="padding:6px 8px;text-align:left;">납기</th></tr></thead>
+  <tbody>{% for r in rows %}<tr style="border-top:1px solid var(--qv-line,#e5e7eb);"><td style="padding:6px 8px;font-weight:700;white-space:nowrap;"><a href="?so={{ r.order_no|urlencode }}" class="z14-pick-link" data-so="{{ r.order_no }}" style="color:#1d4ed8;text-decoration:underline;" title="이 화면에서 이 수주만 고치기(z1191z14)">{{ r.order_no }}</a> <a href="/project/{{ project.id }}?so={{ r.order_no|urlencode }}" style="color:var(--qv-ink-3);font-size:11px;text-decoration:none;" title="상세 화면의 이 수주 카드로(수량·금액·호기)">↗</a></td><td style="padding:6px 8px;">{{ r.form }}</td><td style="padding:6px 8px;">{{ r.po_type }}</td><td style="padding:6px 8px;">{{ r.customer }}</td><td style="padding:6px 8px;text-align:right;">{{ r.qty }}</td><td style="padding:6px 8px;text-align:right;font-weight:700;">{{ '{:,.2f}'.format(r.amount) if r.currency != 'KRW' else '{:,.0f}'.format(r.amount) }} {{ r.currency }}</td><td style="padding:6px 8px;">{{ r.order_date }}</td><td style="padding:6px 8px;">{{ r.due_date|default('') }}</td></tr>{% endfor %}</tbody>
 </table>
 {% endmacro %}
     {# z1191z7 (안지연 프로 신고 · 대표 2026-11-06): 이 화면은 관리번호 전체의 공통 정보 — 수주마다 다른 값은 상세 수주 카드에서 #}
     {% if project and so_rows and so_rows|length >= 2 %}
-    <div style="margin:0 0 var(--space-4);padding:12px 18px;background:#fff7ed;border:1px solid #fdba74;border-radius:var(--radius-md);font-size:12.5px;line-height:1.65;">
-      ⓘ 이 화면은 관리번호 <b>{{ project.mgmt_code }}</b> 전체(<b>수주 {{ so_rows|length }}건</b>{% if so_mixed %} · 형태 섞임{% endif %})의 <b>공통 정보</b>입니다.
-      수주마다 다른 <b>고객사·PO유형·형태·모델·장비·수량·금액</b>은 여기서 고치지 않고, 상세 화면 <b>[수주 내역] 카드</b>에서 그 수주만 고칩니다(아래 수주번호를 누르면 그 카드로 갑니다).
-      <div style="margin-top:8px;">{{ so_table7(so_rows) }}</div>
+    {# z1191z14 (안지연 프로 요청 · 대표 「1번 진행해」 2026-11-10): 「고칠 대상」 고르기 — 관리번호 공통 / 수주마다.
+       예전엔 이 화면이 대표값(첫 수주 발주일 · 마지막 수주 납기 …)만 보여 어느 수주 이야기인지 몰랐고, 수주번호를 눌러도 화면은 그대로였다.
+       수주를 고르면 그 수주의 칸만 보이고 「이 수주만 저장」 = 상세 수주 카드와 같은 저장 경로(/sales/orders/{id}/quick-edit ·
+       PO유형 /sales/schedule/cell + so_oid) — 두 화면에서 고친 결과가 늘 같다. 수량·금액·호기는 상세 수주 카드에서. #}
+    {% set _z14ok = (request.query_params.get('z14ok') if request else '') or '' %}
+    {% if _z14ok %}<div style="margin:0 0 var(--space-3);padding:10px 16px;background:#d1fae5;border:1px solid #10b981;border-radius:var(--radius-md);color:#065f46;font-weight:700;font-size:13px;">✅ 수주 <b>{{ _z14ok }}</b> 저장됨 — 이 수주만 바뀌었고 변경 이력에 남았습니다.</div>{% endif %}
+    <div id="z14Box" data-pid="{{ project.id }}" data-mgmt="{{ project.mgmt_code }}" data-n="{{ so_rows|length }}" data-sel="{{ z14_sel|default('') }}"
+         style="margin:0 0 var(--space-4);padding:12px 18px;background:#fff7ed;border:1px solid #fdba74;border-radius:var(--radius-md);font-size:12.5px;line-height:1.65;">
+      <div class="z14-pick">
+        <span class="z14-pick-lbl">✏️ 고칠 대상</span>
+        <button type="button" class="z14-tab" data-so="">🗂 관리번호 공통</button>
+        {% for r in so_rows %}<button type="button" class="z14-tab" data-so="{{ r.order_no }}" title="{{ r.form }} · {{ r.qty }} · 발주 {{ r.order_date or '—' }} · 납기 {{ r.due_date or '—' }}">{{ r.order_no }} <span class="z14-tab-sub">{{ r.form }}</span></button>{% endfor %}
+      </div>
+      <div class="z14-now" id="z14Now"></div>
+      <div class="z14-common-note">
+        ⓘ <b>관리번호 공통</b> = 관리번호 <b>{{ project.mgmt_code }}</b> 전체(<b>수주 {{ so_rows|length }}건</b>{% if so_mixed %} · 형태 섞임{% endif %})에 해당하는 정보입니다(프로젝트명·사업부·거래 구분·상태·고객 담당자 등).
+        수주마다 다른 <b>발주처·2차 고객사·PO유형·발주일·납기·납품처·모델·장비</b>는 위에서 <b>수주번호를 골라</b> 그 수주만 고칩니다. 수량·금액·호기는 상세 화면 수주 카드(↗)에서 고칩니다.
+        <div style="margin-top:8px;">{{ so_table7(so_rows) }}</div>
+      </div>
+      {% for r in so_rows %}
+      <div class="z14-panel" data-so="{{ r.order_no }}" data-soid="{{ r.id }}" style="display:none;">
+        <div class="z14-head">📌 수주 <b>{{ r.order_no }}</b> · {{ r.form }} · {{ r.qty }} · {{ '{:,.2f}'.format(r.amount) if r.currency != 'KRW' else '{:,.0f}'.format(r.amount) }} {{ r.currency }}
+          <a href="/project/{{ project.id }}?so={{ r.order_no|urlencode }}" class="z14-detail" title="수량·금액·호기는 상세 화면 수주 카드에서">상세 수주 카드 ↗</a></div>
+        {% if not r.editable14 %}
+        <div class="z14-warn">🔒 이 수주는 <b>{{ r.status }}</b> 상태라 고칠 수 없습니다(계산서·수금이 끝났거나 취소된 수주).</div>
+        <div class="z14-grid z14-grid-ro">
+          <div><span class="z14-k">발주처(고객사1)</span> {{ r.cust_edit or ('(프로젝트 고객 ' ~ (project.customer_name or '') ~ ')') }}</div>
+          <div><span class="z14-k">고객사2(최종)</span> {{ r.end_customer or r.end_inh or '—' }}</div>
+          <div><span class="z14-k">PO유형</span> {{ r.po_eff }}</div>
+          <div><span class="z14-k">발주일</span> {{ r.order_date or '—' }}</div>
+          <div><span class="z14-k">납기</span> {{ r.due_date or '—' }}</div>
+          <div><span class="z14-k">납품처</span> {{ r.ship_to or '—' }}</div>
+          <div><span class="z14-k">모델명</span> {{ r.model_name or project.model_name or '—' }}</div>
+          <div><span class="z14-k">장비명</span> {{ r.equip_name or project.equip_name or '—' }}</div>
+        </div>
+        {% else %}
+        <div class="z14-grid">
+          <label>발주처(고객사1)<input type="text" class="z14-f" data-field="order_customer" data-orig="{{ r.cust_edit }}" value="{{ r.cust_edit }}" list="z14CustList" autocomplete="off"
+                 placeholder="(비움 = 프로젝트 고객 {{ project.customer_name or '' }})" title="등록 고객사 시스템명(예: 드림텍(아산)) 그대로 — 비우면 프로젝트 고객사를 따릅니다"></label>
+          <label>고객사2 (최종 고객)<input type="text" class="z14-f" data-field="end_customer" data-orig="{{ r.end_customer }}" value="{{ r.end_customer }}" autocomplete="off"
+                 placeholder="{% if r.end_inh %}(비움 = 프로젝트 값 {{ r.end_inh }}){% else %}(최종 고객 · 선택){% endif %}" title="이 수주의 2차 발주처(최종 고객)"></label>
+          <label>PO유형{% if not r.po_raw %} <span class="z14-inh" title="이 수주에 따로 정한 값이 없어 프로젝트 기본값을 따르고 있습니다. 고르면 이 수주만의 값이 됩니다.">(기본값)</span>{% endif %}
+            <select class="z14-f" data-po="1" data-orig="{{ r.po_eff }}">{% for t in PO_TYPES %}<option value="{{ t }}"{% if r.po_eff == t %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+          <label>발주일<input type="date" class="z14-f knk-cal" data-field="order_date" data-orig="{{ r.order_date }}" value="{{ r.order_date }}"></label>
+          <label>납기<input type="date" class="z14-f knk-cal" data-field="due_date" data-orig="{{ r.due_date }}" value="{{ r.due_date }}"></label>
+          <label>납품처<input type="text" class="z14-f" data-field="ship_to" data-orig="{{ r.ship_to }}" value="{{ r.ship_to }}" autocomplete="off" placeholder="(미지정)"></label>
+          <label>모델명<input type="text" class="z14-f" data-field="model_name" data-orig="{{ r.model_name }}" value="{{ r.model_name }}" autocomplete="off" placeholder="(비움 = 프로젝트 {{ project.model_name or '' }})"></label>
+          <label>장비명<input type="text" class="z14-f" data-field="equip_name" data-orig="{{ r.equip_name }}" value="{{ r.equip_name }}" autocomplete="off" placeholder="(비움 = 프로젝트 {{ project.equip_name or '' }})"></label>
+        </div>
+        <div class="z14-act">
+          <button type="button" class="btn btn-primary z14-save">💾 이 수주({{ r.order_no }})만 저장</button>
+          <span class="z14-msg"></span>
+        </div>
+        <div class="z14-hint">저장하면 <b>이 수주만</b> 바뀌고 변경 이력에 남습니다(상세 수주 카드·작업일정표에도 같은 값). 먼저 위 <b>[🔓 수정 잠금 해제]</b>를 눌러야 고칠 수 있습니다.</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      <datalist id="z14CustList">{% for cc in (customers or []) %}<option value="{{ cc.alias or cc.name }}">{% endfor %}</datalist>
     </div>
+    <style>
+    #z14Box .z14-pick { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:8px; }
+    #z14Box .z14-pick-lbl { font-weight:800; color:#9a3412; margin-right:4px; }
+    #z14Box .z14-tab { padding:5px 12px; border:1px solid #fdba74; background:#fff; border-radius:999px; font-size:12.5px; font-weight:700; color:#9a3412; cursor:pointer; }
+    #z14Box .z14-tab .z14-tab-sub { font-weight:500; font-size:11px; color:#b45309; }
+    #z14Box .z14-tab.on { background:#c2410c; border-color:#c2410c; color:#fff; }
+    #z14Box .z14-tab.on .z14-tab-sub { color:#ffedd5; }
+    #z14Box .z14-now { margin:2px 0 8px; padding:8px 12px; background:#fff; border:2px solid #c2410c; border-radius:8px; font-size:14px; color:#7c2d12; }
+    #z14Box .z14-head { font-size:13px; margin-bottom:8px; }
+    #z14Box .z14-detail { margin-left:8px; font-size:12px; color:#1d4ed8; }
+    #z14Box .z14-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px 14px; background:#fff; border:1px solid #fed7aa; border-radius:8px; padding:12px; }
+    #z14Box .z14-grid label { display:flex; flex-direction:column; gap:3px; font-size:12px; font-weight:700; color:var(--qv-ink-2); }
+    #z14Box .z14-grid input, #z14Box .z14-grid select { padding:6px 9px; border:1px solid var(--qv-line); border-radius:6px; font-size:13px; font-weight:500; background:var(--qv-surface,#fff); }
+    #z14Box .z14-grid .z14-dirty { border-color:#c2410c; background:#fff7ed; }
+    #z14Box .z14-grid-ro div { font-size:13px; }
+    #z14Box .z14-k { display:inline-block; min-width:92px; color:var(--qv-ink-3); font-size:12px; }
+    #z14Box .z14-inh { font-size:10.5px; font-weight:500; color:var(--qv-ink-3); }
+    #z14Box .z14-warn { margin-bottom:8px; padding:8px 12px; background:#fef2f2; border:1px solid #fca5a5; border-radius:6px; color:#991b1b; }
+    #z14Box .z14-act { margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    #z14Box .z14-msg { font-weight:700; }
+    #z14Box .z14-hint { margin-top:6px; font-size:11.5px; color:var(--qv-ink-3); }
+    form.pf-wrap.z14-so-mode .pf-section, form.pf-wrap.z14-so-mode .pf-actions { display:none !important; }
+    .z14-ro-date { padding:9px 12px; border:1px dashed #fdba74; border-radius:8px; background:#fffbeb; font-size:14px; font-weight:700; color:var(--qv-ink); }
+    .z14-ro-date .z14-src { font-size:11.5px; font-weight:500; color:#9a3412; margin-left:6px; }
+    </style>
     {% endif %}
     <!-- ① 기본 정보 -->
     <div class="pf-section">
@@ -728,7 +807,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                  placeholder="고객사명·시스템명 입력 → 목록에서 종사업장까지 선택. 없으면 /customers/new 에서 등록">
         </div>
         <div class="pf-field">
-          <label>고객사2 <span class="sub">(최종 고객 — 다를 때만, 선택)</span></label>
+          <label>고객사2{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값 — 자기 2차를 따로 적지 않은 수주(1차가 프로젝트 고객과 같은 수주)가 이 값을 따릅니다. 수주마다 다르면 맨 위 「고칠 대상」에서 그 수주를 골라 고칩니다(z1191z14)">(대표값)</span>{% endif %} <span class="sub">(최종 고객 — 다를 때만, 선택)</span></label>
           <input type="text" name="secondary_customer" id="pf_secondary_customer" autocomplete="off"
                  value="{{ project.secondary_customer or '' }}" placeholder="최종 고객사명(선택)">
           {# 최종 고객 매출(참고)은 UI에서 내림 — 기존 값은 hidden 으로 보존(편집 시 미손실)
@@ -814,6 +893,23 @@ html,body{background:#fff!important;overflow:auto!important;}
       {% macro pf_confirm_schedule_block(project, preset, is_consumable) %}
       {# v5H226z221 (대표 지시): '이미 수주가 확정된 프로젝트' 토글 제거 — 발주일·납기 항상 표시.
          수주확정 여부는 '상태' 드롭다운으로 통일. (비워두면 제안 단계, 나중에 입력 가능) #}
+      {% if project and so_rows and so_rows|length >= 2 %}
+      {# z1191z14: 수주 2건 이상 — 프로젝트 발주일·납기는 가장 이른 발주 · 가장 늦은 납기를 보여 줄 뿐(화면이 열릴 때 다시 맞춤).
+         여기서 고치면 다른 수주까지 날짜가 퍼졌다 → 고치는 칸 대신 「어느 수주 값인지」 · 서버도 날짜를 받지 않는다. #}
+      {% set _o14 = so_rows|selectattr('order_date')|sort(attribute='order_date')|first %}
+      {% set _d14 = so_rows|selectattr('due_date')|sort(attribute='due_date')|last %}
+      <div class="pf-row" id="pfConfirmRows">
+        <div class="pf-field">
+          <label>발주일 <span class="sub" style="color:#b45309;font-weight:700;">(수주마다 다름 — 가장 이른 발주)</span></label>
+          <div class="z14-ro-date">{{ project.order_date or '—' }}{% if _o14 %}<span class="z14-src">← 수주 {{ _o14.order_no }}</span>{% endif %}</div>
+        </div>
+        <div class="pf-field">
+          <label>납기 <span class="sub" style="color:#b45309;font-weight:700;">(수주마다 다름 — 가장 늦은 납기)</span></label>
+          <div class="z14-ro-date">{{ project.due_date or '—' }}{% if _d14 %}<span class="z14-src">← 수주 {{ _d14.order_no }}</span>{% endif %}</div>
+        </div>
+      </div>
+      <div style="margin:-4px 0 10px;font-size:11.5px;color:#9a3412;">ⓘ 수주가 {{ so_rows|length }}건이라 발주일·납기는 여기서 고치지 않습니다 — 맨 위 <b>「✏️ 고칠 대상」</b>에서 수주번호를 골라 그 수주의 날짜를 고치세요.</div>
+      {% else %}
       <div class="pf-row" id="pfConfirmRows">
         <div class="pf-field">
           <label>발주일</label>
@@ -824,6 +920,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <input type="date" class="knk-cal" name="due_date" value="{{ project.due_date or '' }}">
         </div>
       </div>
+      {% endif %}
       {# v5H201: 제안 단계 일정 — 수주확정 전 스케줄 관리용. 검사기(T)는 기본 '해당없음'. #}
       {% if not is_consumable %}
       {% set _bd_for_sched = (project.biz_div if project and project.biz_div else (preset.biz_div if preset else 'T')) %}
@@ -1103,7 +1200,9 @@ html,body{background:#fff!important;overflow:auto!important;}
           if (strict) {
             hint.style.background = '#fff8e8';
             hint.style.color = '#7c4a03';
-            hint.innerHTML = '⚠ <b>' + v + '</b> 단계는 실제 수주 발생 — <b>1대 단가 · 발주일 · 납기</b> 입력 필수입니다.';
+            hint.innerHTML = document.getElementById('z14Box')
+              ? '⚠ <b>' + v + '</b> 단계는 실제 수주 발생 — 발주일·납기는 <b>수주마다</b> 맨 위 「✏️ 고칠 대상」에서 그 수주를 골라 고칩니다(z1191z14).'
+              : '⚠ <b>' + v + '</b> 단계는 실제 수주 발생 — <b>1대 단가 · 발주일 · 납기</b> 입력 필수입니다.';
           } else {
             hint.style.background = 'var(--qv-surface-3)';
             hint.style.color = 'var(--qv-ink-3)';
@@ -1539,6 +1638,100 @@ html,body{background:#fff!important;overflow:auto!important;}
   {% if project %}
   {# v5H195: password_confirm 모달 — 폼 밖에 위치해야 setLocked 영향 안받음 #}
   {% include "_v5_partials/password_confirm.html" %}
+  {# z1191z14 (안지연 프로 요청 · 대표 「1번 진행해」 2026-11-10): 고칠 대상 고르기 · 이 수주만 저장 #}
+  <script>
+  (function(){
+    var box = document.getElementById('z14Box');
+    if (!box) return;
+    var form = document.querySelector('form.pf-wrap');
+    var pid = box.getAttribute('data-pid');
+    var mgmt = box.getAttribute('data-mgmt') || '';
+    var nSo = box.getAttribute('data-n') || '';
+    var panels = Array.prototype.slice.call(box.querySelectorAll('.z14-panel'));
+    var tabs = Array.prototype.slice.call(box.querySelectorAll('.z14-tab'));
+    var nowEl = document.getElementById('z14Now');
+    var common = box.querySelector('.z14-common-note');
+    function esc(t){ return String(t == null ? '' : t).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+    function fields(pn){ return Array.prototype.slice.call(pn.querySelectorAll('.z14-f')); }
+    function dirty(pn){ return fields(pn).some(function(el){ return (el.value || '') !== (el.getAttribute('data-orig') || ''); }); }
+    function resetP(pn){ fields(pn).forEach(function(el){ el.value = el.getAttribute('data-orig') || ''; el.classList.remove('z14-dirty'); }); }
+    function cur(){ for (var i = 0; i < panels.length; i++) { if (panels[i].style.display !== 'none') return panels[i]; } return null; }
+    function pick(so, noUrl){
+      var c = cur();
+      if (c && c.getAttribute('data-so') !== so && dirty(c)) {
+        if (!confirm('수주 ' + c.getAttribute('data-so') + ' 에 저장하지 않은 변경이 있습니다.\n버리고 넘어갈까요?')) return;
+        resetP(c);
+      }
+      panels.forEach(function(pn){ pn.style.display = (so && pn.getAttribute('data-so') === so) ? '' : 'none'; });
+      tabs.forEach(function(t){ t.classList.toggle('on', (t.getAttribute('data-so') || '') === (so || '')); });
+      if (form) form.classList.toggle('z14-so-mode', !!so);
+      if (common) common.style.display = so ? 'none' : '';
+      if (nowEl) nowEl.innerHTML = so
+        ? '지금 고치는 것: <b>수주 ' + esc(so) + '</b> — 저장하면 <b>이 수주만</b> 바뀝니다'
+        : '지금 고치는 것: <b>관리번호 ' + esc(mgmt) + ' 공통 정보</b> (수주 ' + esc(nSo) + '건 전체) — 수주마다 다른 칸은 위에서 수주번호를 고르세요';
+      if (!noUrl) {
+        try {
+          var u = new URL(location.href);
+          if (so) u.searchParams.set('so', so); else u.searchParams.delete('so');
+          u.searchParams.delete('z14ok');
+          history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+        } catch (e) {}
+      }
+    }
+    tabs.forEach(function(t){ t.addEventListener('click', function(){ pick(t.getAttribute('data-so') || ''); }); });
+    Array.prototype.slice.call(box.querySelectorAll('.z14-pick-link')).forEach(function(a){
+      a.addEventListener('click', function(ev){ ev.preventDefault(); pick(a.getAttribute('data-so') || ''); try { box.scrollIntoView({block:'start'}); } catch (e) {} });
+    });
+    panels.forEach(function(pn){
+      fields(pn).forEach(function(el){
+        var mark = function(){ el.classList.toggle('z14-dirty', (el.value || '') !== (el.getAttribute('data-orig') || '')); };
+        el.addEventListener('input', mark); el.addEventListener('change', mark);
+      });
+      var btn = pn.querySelector('.z14-save');
+      if (!btn) return;
+      btn.addEventListener('click', async function(){
+        var msg = pn.querySelector('.z14-msg');
+        var so = pn.getAttribute('data-so'), soid = pn.getAttribute('data-soid');
+        if (!window._pfUnlocked) { alert('🔒 먼저 위의 [🔓 수정 잠금 해제]를 눌러 주세요.'); return; }
+        var body = new URLSearchParams(), n = 0;
+        fields(pn).forEach(function(el){
+          var f = el.getAttribute('data-field');
+          if (!f) return;
+          if ((el.value || '') !== (el.getAttribute('data-orig') || '')) { body.set(f, (el.value || '').trim()); n++; }
+        });
+        var po = pn.querySelector('[data-po]');
+        var poCh = !!po && (po.value || '') !== (po.getAttribute('data-orig') || '');
+        if (!n && !poCh) { msg.style.color = 'var(--qv-ink-3)'; msg.textContent = '바뀐 칸이 없습니다'; return; }
+        btn.disabled = true; msg.style.color = 'var(--qv-ink-3)'; msg.textContent = '저장 중…';
+        try {
+          if (n) {
+            var r = await fetch('/sales/orders/' + soid + '/quick-edit', { method: 'POST', body: body });
+            var j = await r.json().catch(function(){ return {}; });
+            if (!(r.ok && j.ok)) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+            fields(pn).forEach(function(el){ if (el.getAttribute('data-field')) el.setAttribute('data-orig', el.value || ''); });
+          }
+          if (poCh) {
+            var r2 = await fetch('/sales/schedule/cell', { method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({kind: 'project', ref_id: Number(pid), field: 'po_type', value: po.value, so_oid: soid}) });
+            var j2 = await r2.json().catch(function(){ return {}; });
+            if (!(j2 && j2.ok)) throw new Error('PO유형 — ' + ((j2 && (j2.error || j2.message)) || ('HTTP ' + r2.status)) + (n ? ' (다른 칸은 저장됨)' : ''));
+            po.setAttribute('data-orig', po.value || '');
+          }
+          window.knkLeaveOk = true;
+          location.href = '/projects/' + pid + '/edit?so=' + encodeURIComponent(so) + '&z14ok=' + encodeURIComponent(so);
+        } catch (e) {
+          msg.style.color = '#b91c1c'; msg.textContent = '⚠ ' + e.message;
+          btn.disabled = false;
+        }
+      });
+    });
+    window.addEventListener('beforeunload', function(ev){
+      if (window.knkLeaveOk || !document.contains(box)) return;
+      if (panels.some(dirty)) { ev.preventDefault(); ev.returnValue = ''; }
+    });
+    pick(box.getAttribute('data-sel') || '', true);
+  })();
+  </script>
   {# v5H192: 수정 모드 — 비밀번호 잠금. 잠금 해제 시 입력 활성화 + submit 허용 #}
   <script>
   (function(){
@@ -1591,6 +1784,7 @@ html,body{background:#fff!important;overflow:auto!important;}
     }
     // 초기 상태 = 잠금
     setLocked(true);
+    window._pfUnlocked = false;   // z1191z14: 「고칠 대상」 수주 칸 저장도 잠금 해제 뒤에만
     // 잠금 상태 submit 차단
     var unlocked = false;
     form.addEventListener('submit', function(e){
@@ -1611,6 +1805,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                    + '수정 잠금을 해제할까요?')) return;
         unlocked = true;
         setLocked(false);
+        window._pfUnlocked = true;   // z1191z14
         if (lockBanner) lockBanner.style.display = 'none';
         if (unlockedBanner) unlockedBanner.style.display = 'flex';
         if (saveBtn) {

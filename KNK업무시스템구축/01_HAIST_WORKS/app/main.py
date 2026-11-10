@@ -38441,6 +38441,14 @@ async def projects_edit_form(request: Request, pid: int):
         so_qty, so_amount, so_count = 0, 0.0, 0
     # z1191z7: 수주별 표(수주번호·형태·PO유형·고객사·수량·금액) — 수주 2건 이상이면 ③ 확정 금액을 이 표로 보인다
     so_rows, so_mixed = [], False
+    # z1191z14 (안지연 프로 요청 · 대표 「1번 진행해」 2026-11-10): 수정 화면에서 수주를 골라 그 수주만 고친다 —
+    #   고객사1 칸에 보일 이름 = 상세 수주 카드와 같은 규칙(시스템명 우선 · 수주에 발주처가 없으면 빈칸 = 프로젝트 고객 상속)
+    _alias14 = {}
+    try:
+        with db_session() as _ca14:
+            _alias14 = {r[0]: r[1] for r in _ca14.execute("SELECT id, alias FROM customers WHERE COALESCE(alias,'')<>''")}
+    except Exception:
+        _alias14 = {}
     try:
         _keys7 = set()
         for _o in (sos or []):
@@ -38468,6 +38476,20 @@ async def projects_edit_form(request: Request, pid: int):
                 "customer": _o.get("so_customer") or p.get("customer_name") or "",
                 "qty": _qd7, "amount": float(_o.get("total_amount") or 0), "currency": (_o.get("currency") or p.get("currency") or "KRW"),
                 "order_date": str(_o.get("order_date") or "")[:10],
+                # z1191z14: 이 수주만 고치는 칸(상세 수주 카드 · 작업일정표와 같은 값 · 같은 저장 경로)
+                "due_date": str(_o.get("due_date") or "")[:10],
+                "status": str(_o.get("status") or "").upper(),
+                "editable14": str(_o.get("status") or "").upper() not in ("INVOICED", "PAID", "CANCELLED"),
+                "cust_edit": ((_alias14.get(_o.get("customer_id")) or _o.get("so_customer") or "") if _o.get("customer_id") else ""),
+                "end_customer": str(_o.get("end_customer") or "").strip(),
+                "end_inh": (str(p.get("secondary_customer") or "").strip()
+                            if ((not str(_o.get("end_customer") or "").strip())
+                                and ((not _o.get("customer_id")) or _o.get("customer_id") == p.get("customer_id"))) else ""),
+                "po_raw": str(_o.get("po_type") or "").strip(),
+                "po_eff": str(_o.get("po_type") or "").strip() or (str(p.get("po_type") or "").strip() or "신규"),
+                "ship_to": str(_o.get("ship_to") or "").strip(),
+                "model_name": str(_o.get("model_name") or "").strip(),
+                "equip_name": str(_o.get("equip_name") or "").strip(),
             })
         so_rows.sort(key=lambda r: (r["id"] or 0))
         so_mixed = len(_keys7) > 1
@@ -38479,6 +38501,8 @@ async def projects_edit_form(request: Request, pid: int):
                project=p,
                so_qty=so_qty, so_amount=so_amount, so_count=so_count,
                so_rows=so_rows, so_mixed=so_mixed,   # z1191z7
+               z14_sel=(lambda _s: _s if any(r.get("order_no") == _s for r in so_rows) else "")(
+                   (request.query_params.get("so") or "").strip()),   # z1191z14: ?so=수주번호 → 그 수주를 고른 채로 연다
                STAGES=_logi.STAGES, STATUSES=_logi.LOGI_STATUSES,
                PO_TYPES=_logi.PO_TYPES,
                PROJECT_TYPES=_logi.PROJECT_TYPES,
@@ -38520,6 +38544,19 @@ async def projects_edit_submit(request: Request, pid: int):
                              "currency": _mr["currency"]}
     except Exception:
         _old_meta = {}
+    # z1191z14 (안지연 프로 요청 · 대표 「1번 진행해」 2026-11-10): 수주가 2건 이상이면 프로젝트 발주일·납기는
+    #   수주들의 가장 이른 발주·가장 늦은 납기를 보여 줄 뿐이다(상세·수정 화면이 열릴 때 다시 맞춘다).
+    #   여기서 날짜를 받으면 납기가 같은 수주·날짜 빈 호기에 새 날짜가 퍼져 한 수주만 고치려다 다른 수주가 바뀐다
+    #   → 공통 저장은 날짜를 버린다(빈 값 = 변경 없음 · z1080 규칙). 수주 날짜는 「고칠 대상」에서 그 수주를 골라 고친다.
+    try:
+        with db_session() as _c14:
+            _multi14 = (_c14.execute("SELECT COUNT(*) FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'",
+                                     (pid,)).fetchone()[0] or 0) >= 2
+    except Exception:
+        _multi14 = False
+    if _multi14 and (("order_date" in form) or ("due_date" in form)):
+        from starlette.datastructures import FormData as _FD14
+        form = _FD14([(k, v) for k, v in form.multi_items() if k not in ("order_date", "due_date")])
     # z1191z10 (데이터 꼬임 점검 · 대표 「1 진행」 2026-11-06): 바꾸기 전 프로젝트 전체 값 + 수주 유무.
     #   「정보 수정」 화면(project_form)에는 영업담당·PM·고객 PO·2단계 발주 칸이 없어 저장할 때마다 빈칸으로 덮었다
     #   (운영: 등록 때 있던 영업담당이 빈칸 12곳 · 비고 지워짐 16건 · 수주확정 → 초기협의 = 안지연 프로 신고 ④).
