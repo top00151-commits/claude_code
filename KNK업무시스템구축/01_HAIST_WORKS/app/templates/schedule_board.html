@@ -1494,7 +1494,10 @@ function startSelectEdit(td, tr, opts){
       .then(r=>r.json()).then(j=>{
         _editing=null;
         if(j.updated_at) tr.dataset.ts=j.updated_at;   // v5H226z409: 다음 편집 기준 갱신
-        if(j.ok){ td.textContent=val||'＋'; td.classList.toggle('filled',!!val); td.title=val; toast('저장됨'); }
+        if(j.ok){
+          // z1191z19: 형태를 수주에 저장했으면 서버 라벨로(해제 = 기본 규칙 라벨) — 새로 고침 뒤와 같은 글자
+          if(td.dataset.edit==='form_type' && j.scope==='so'){ var _fv=j.value||''; td.textContent=_fv||'＋'; td.classList.toggle('filled',!!_fv); td.title=_fv; toast('저장됨 · 이 수주에만 반영'); return; }
+          td.textContent=val||'＋'; td.classList.toggle('filled',!!val); td.title=val; toast('저장됨'); }
         else { td.textContent=cur||'＋'; td.classList.toggle('filled',!!cur); toast('⚠ '+(j.message||j.error||'저장 실패')); }
       }).catch(()=>{ td.textContent=cur||'＋'; _editing=null; toast('⚠ 통신 오류'); });
   };
@@ -2377,7 +2380,8 @@ function schedBulkConfirm(){
         if(!tr) tr=_tbody.querySelector('tr[data-kind="'+t.kind+'"][data-ref="'+t.ref_id+'"]');
         if(!tr) return;
         var cust_ok = (j.field==='cust') ? !!(cr[t.ref_id+':'+t.so_oid] || cr[String(t.ref_id)]) : true;
-        setCellDisplay(tr, p.field, p.value, cust_ok);
+        var _v19 = (p.field==='form_type' && j.so_values && j.so_values[_ks]!=null) ? j.so_values[_ks] : p.value;   // z1191z19
+        setCellDisplay(tr, p.field, _v19, cust_ok);
       });
       closeBulkModal();
       var msg=j.ok_count+'건 적용됨'+(j.fail_count?(' · '+j.fail_count+'건 건너뜀/실패'):'');

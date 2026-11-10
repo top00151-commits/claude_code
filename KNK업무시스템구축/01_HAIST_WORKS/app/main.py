@@ -33035,6 +33035,25 @@ def _z1191_hist(c, oid, user, note):
         print(f"[z1191] 변경 이력 남기기 실패: {e}")
 
 
+# z1191z19 (이새롬 프로 신고 2026-11-10 · 대표 「1~4 진행」): 작업일정표 「형태」 = 그 줄 수주의 so_form.
+#   화면은 수주 형태(so_form_label_key)를 보이는데 고치면 프로젝트 형태가 바뀌어 「저장됨」 뒤에도 그대로였다(z1033 PO유형과 같은 병).
+#   빈 값(해제) = so_form 비움 → 기본 규칙(호기 있으면 완제품 · 없으면 제품 …)으로 돌아간다.
+_Z19_FORM_CODE = {"완제품": "ASSEMBLY", "제품": "SEMI", "상품": "PARTS", "기타": "ETC", "": None}
+
+
+def _z19_so_form_label(c, so_oid):
+    """수주 한 건의 형태 라벨 — 작업일정표·상세 수주내역과 같은 공용 함수(so_form_label_key)·같은 입력."""
+    r = c.execute("SELECT COALESCE(o.so_form,''), COALESCE(o.so_type,''), "
+                  "(SELECT COALESCE(pj.project_type,'NEW_EQUIP') FROM projects pj WHERE pj.id=o.project_id) "
+                  "FROM orders o WHERE o.id=?", (int(so_oid),)).fetchone()
+    if not r:
+        return ""
+    hn = sum(1 for (lb,) in c.execute("SELECT COALESCE(unit_label,'') FROM order_items WHERE order_id=?", (int(so_oid),))
+             if str(lb or "").strip()[:1].isdigit())
+    return _pwf.so_form_label_key(so_form=r[0], so_type=r[1], shipment_form="", hogi_n=hn,
+                                  proj_ptype=(r[2] or "NEW_EQUIP").upper())[0]
+
+
 def _z1191_so_cell(field, value, so_oid, pid, picked_cid=None, uids=None, user=None):
     """작업일정표 칸 → **그 줄의 수주**에 저장. field = cust(1차) · cust2(2차) · trade(거래구분) · po_type(일괄).
     계산서 발행·수금이 끝난(또는 취소된) 수주는 1차·거래구분을 바꾸지 않는다(상세 수주 카드와 같은 기준). 반환 dict(ok, error, value)."""
@@ -33093,6 +33112,18 @@ def _z1191_so_cell(field, value, so_oid, pid, picked_cid=None, uids=None, user=N
             c.execute("UPDATE orders SET po_type=?, updated_at=datetime('now','localtime') WHERE id=?", (pv, so_oid))
             _z1191_hist(c, so_oid, user, f"PO유형 변경: {old_po or '(미지정)'} → {pv} (작업일정표 일괄)")
             return {"ok": True, "value": pv}
+        if field == "form_type":   # z1191z19
+            if "so_form" not in oc:
+                return {"ok": False, "error": "수주별 형태 칸 없음(마이그레이션 필요)"}
+            if val not in _Z19_FORM_CODE:
+                return {"ok": False, "error": "형태는 완제품/제품/상품/기타 중 하나여야 합니다"}
+            old_lbl = _z19_so_form_label(c, so_oid)
+            c.execute("UPDATE orders SET so_form=?, updated_at=datetime('now','localtime') WHERE id=?",
+                      (_Z19_FORM_CODE[val], so_oid))
+            new_lbl = _z19_so_form_label(c, so_oid)
+            _z1191_hist(c, so_oid, user, f"형태 변경: {old_lbl or '(없음)'} → {new_lbl}"
+                        + ("" if val else " (해제 · 기본 규칙)") + " (작업일정표)")
+            return {"ok": True, "value": new_lbl}
     return {"ok": False, "error": "허용되지 않은 항목"}
 
 
@@ -33207,7 +33238,7 @@ async def schedule_board_cell(request: Request):
     # z1191 (대표 2026-10-19 「수주번호 기준」): 고객사1·고객사2·거래구분도 **그 줄의 수주**에 저장(위 z1033 과 같은 원칙 —
     #   화면은 수주 값을 보이는데 프로젝트를 고치면 고쳐도 안 바뀌고, 같은 관리번호 다른 수주 줄까지 바뀌었다).
     #   so_oid 가 없는 줄(수주 없는 프로젝트)은 기존대로 프로젝트를 고친다.
-    if field in ("cust", "cust2", "trade") and kind == "project" and _so_oid.isdigit():
+    if field in ("cust", "cust2", "trade", "form_type") and kind == "project" and _so_oid.isdigit():   # z1191z19: 형태도
         _uids1191 = [x for x in str(b.get("uids") or "").split(",") if x.strip().isdigit()]
         try:
             _r1191 = _z1191_so_cell(field, value, _so_oid, ref_id, picked_cid=b.get("customer_id"), uids=_uids1191, user=u)
@@ -33284,6 +33315,7 @@ async def schedule_board_bulk_cell(request: Request):
     ok_count = 0
     failures = []
     cust_results = {}
+    so_values = {}   # z1191z19
     ok_keys = []   # v5H226z366 리뷰반영: 성공 키(kind:ref)를 직접 반환 → 클라가 '성공건만' 화면 갱신(실패목록 잘림과 무관하게 정확)
     for t in targets:
         try:
@@ -33294,7 +33326,7 @@ async def schedule_board_bulk_cell(request: Request):
             continue
         # z1191: 고객사1·고객사2·거래구분·PO유형은 고른 **줄의 수주**에(한 칸 고치기와 같은 규칙)
         _soid1191 = str((t or {}).get("so_oid") or "").strip()
-        if field in ("cust", "cust2", "trade", "po_type") and _kind == "project" and _soid1191.isdigit():
+        if field in ("cust", "cust2", "trade", "po_type", "form_type") and _kind == "project" and _soid1191.isdigit():   # z1191z19: 형태도
             _uids1191 = [x for x in str((t or {}).get("uids") or "").split(",") if x.strip().isdigit()]
             try:
                 _r1191 = _z1191_so_cell(field, value, _soid1191, _ref, uids=_uids1191, user=u)
@@ -33304,6 +33336,7 @@ async def schedule_board_bulk_cell(request: Request):
             if _r1191.get("ok"):
                 ok_count += 1
                 ok_keys.append(f"{_kind}:{_ref}:{_soid1191}")
+                so_values[f"{_kind}:{_ref}:{_soid1191}"] = _r1191.get("value", "")   # z1191z19: 줄 표시 값(형태 해제 = 기본 규칙 라벨)
                 if field == "cust":
                     cust_results[f"{_ref}:{_soid1191}"] = True
             else:
@@ -33323,7 +33356,7 @@ async def schedule_board_bulk_cell(request: Request):
             failures.append({"ref_id": _ref, "kind": _kind, "error": msg or "실패"})
     return JSONResponse({"ok": True, "total": len(targets), "ok_count": ok_count,
                         "fail_count": len(failures), "failures": failures[:80],
-                        "ok_keys": ok_keys, "cust_results": cust_results, "field": field})
+                        "ok_keys": ok_keys, "cust_results": cust_results, "field": field, "so_values": so_values})
 
 
 @app.post("/sales/schedule/memo")
