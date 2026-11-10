@@ -10934,6 +10934,17 @@ th{{background:#A5282C;color:#fff}}.dn{{color:#16a34a}}.up{{color:#dc2626}}</sty
 # =====================================================
 # PROJECT DETAIL
 # =====================================================
+# z1191z13 (대표 2026-11-10 「내가 변경한 적 없는데 내 이름이야」 → 「진행해」):
+#   상세 화면 자가치유(수주액 맞춤·누락 SO 자동 발행)는 화면을 연 사람의 행동이 아니다.
+#   변경자는 시스템(None → 이력 화면 「시스템」)으로 남기고, 누가 화면을 열 때였는지는 메모 끝에만 붙인다.
+def _heal_by_z13(u) -> str:
+    try:
+        _nm = str((u or {}).get("name") or "").strip()
+    except Exception:
+        _nm = ""
+    return f" · 화면 연 사람: {_nm}" if _nm else ""
+
+
 @app.get("/project/{pid}", response_class=HTMLResponse)
 async def project_detail(req: Request, pid: int):
     u = get_user(req)
@@ -11135,10 +11146,12 @@ async def project_detail(req: Request, pid: int):
                     if res and res.get("ok"):
                         grp = (res.get("groups") or [{}])[0]
                         _auto_no = grp.get("so_no") or res.get("so_no") or ""
+                        # z1191z13 (대표 11-10 「내가 변경한 적 없는데 내 이름」): 자가치유는 사람이 한 일이 아니다 →
+                        #   변경자 = 시스템(None) · 화면을 연 사람은 메모로만.
                         _logi.log_project_change(
-                            c2, pid, u.get("id"), "수주발행(자동)",
+                            c2, pid, None, "수주발행(자동)",
                             "", _auto_no or _logi.project_unit_label(_ptype_h, 1),
-                            note=f"v5H130 자가치유 — 상세 진입 시 누락된 SO 자동 발행 ({_p_amt:,.0f})"
+                            note=f"v5H130 자가치유 — 상세 진입 시 누락된 SO 자동 발행 ({_p_amt:,.0f}){_heal_by_z13(u)}"
                         )
             except Exception:
                 pass
@@ -11169,10 +11182,11 @@ async def project_detail(req: Request, pid: int):
                                (_so_sum, pid))
                     # v5H130: 자가치유 변경 이력 기록 (이전 누락분)
                     try:
+                        # z1191z13: 자가치유 = 변경자 시스템(None) · 화면을 연 사람은 메모로만
                         _logi.log_project_change(
-                            c2, pid, u.get("id"), "수주액(자가치유)",
+                            c2, pid, None, "수주액(자가치유)",
                             f"{_curr:,.0f}", f"{_so_sum:,.0f}",
-                            note="v5H130 SO 합계 기준 자동 정정"
+                            note="v5H130 SO 합계 기준 자동 정정" + _heal_by_z13(u)
                         )
                     except Exception:
                         pass
