@@ -26025,8 +26025,9 @@ def _sales_period_ok(mm: int, mode: str, q, m) -> bool:
 #      (검사기 check_date_fallback · 현황판 §4 규칙 57 · 시험 _검증/test_sales_date_rule_z1164_20261011.py).
 SALES_DD_ORDER = ("COALESCE(NULLIF(TRIM(oi.order_date),''),NULLIF(TRIM(o.order_date),''),"
                   "NULLIF(TRIM(p.order_date),''))")                                   # ① 수주매출 — 발주일
-SALES_DD_SHIP = ("COALESCE(NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),"
-                 "NULLIF(TRIM(p.due_date),''),NULLIF(TRIM(p.order_date),''))")         # ② 진행매출 — 납기(출하)
+# z1191z17 (대표 결정 2026-11-10 「납품일 = 작업일정표에 출하가 찍힌 날」): 호기 상태 발생일(출하 표시 날)이 있으면 그 날 → 없으면 납기
+SALES_DD_SHIP = ("COALESCE(NULLIF(TRIM(oi.status_date),''),NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),"
+                 "NULLIF(TRIM(p.due_date),''),NULLIF(TRIM(p.order_date),''))")         # ② 진행매출 — 출하일(상태 발생일 → 납기)
 SALES_CCY_ITEM = ("COALESCE(NULLIF(TRIM(oi.currency),''),NULLIF(TRIM(o.currency),''),"
                   "NULLIF(TRIM(p.currency),''))")                                     # 호기 통화(①②③ 공통)
 
@@ -26113,7 +26114,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
         add("prog", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
     for r in c.execute(
             "SELECT 'C' AS biz, COALESCE(customer_name,'') AS cust, total_amount AS amount, "
-            "currency, COALESCE(NULLIF(TRIM(due_date),''),NULLIF(TRIM(order_date),'')) AS dd FROM consumable_orders "   # z1164: 빈 글자 = 빈칸
+            "currency, COALESCE(NULLIF(TRIM(status_date),''),NULLIF(TRIM(due_date),''),NULLIF(TRIM(order_date),'')) AS dd FROM consumable_orders "   # z1164: 빈 글자 = 빈칸 · z1191z17: 상태 발생일(출하한 날) 먼저
             "WHERE status IN ('SHIPPED','PAID')").fetchall():
         d = dict(r)
         add("prog", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
@@ -26263,6 +26264,286 @@ async def sales_dashboard(request: Request):
                user=u, active="sales",
                proj_stats=proj_stats, sales_kpi=sales_kpi,
                s3=s3, year_span=year_span)
+
+
+# ── z1191z17 매출 보고서 (대표 「1,2,3 진행해」 2026-11-10 · 이새롬·안지연 프로 답) ─────────────────────────
+#   매출 = 세금계산서 발행 기준(주) · 출하(납품) · 수주 보조. 사업부별(소모품은 소모품(검사기)·소모품(자동화) 따로) ·
+#   사업부 안 구분(장비·제품·상품·소모품·기타) · 고객사별(수주의 1차 발주처) · KNK VINA 2차 고객사별(드림텍 계열 = DRT 로 통합 ·
+#   SEV·SEVT·SEMV 따로) · 프로젝트별 · 줄 목록 · 엑셀. 날짜·통화·환율은 매출 홈(_sales_3way)과 같은 규칙(SALES_DD_* · SALES_CCY_ITEM ·
+#   _fx_to_krw 기준월 환율) — 매출 홈 합계와 보고서 합계가 같아야 한다(시험).
+_Z17_BASIS = {"tax": "세금계산서 발행", "ship": "출하(납품)", "order": "수주(발주)"}
+_Z17_CAT_BY_KEY = {"assembly": "장비", "semi": "제품", "parts": "상품", "consumable": "소모품", "etc": "기타"}
+_Z17_CATS = ("장비", "제품", "상품", "소모품", "기타")
+_Z17_BIZ = (("T", "🔬 검사기"), ("M", "🤖 자동화"), ("L", "💗 라이프밸류"), ("E", "기타"),
+            ("CT", "🧴 소모품(검사기)"), ("CM", "🧴 소모품(자동화)"), ("CE", "🧴 소모품(기타)"))
+
+
+def _z17_norm2(v) -> str:
+    """2차 고객사 이름 묶기 — 이새롬 프로 답(2026-11-10): DRT·DRT1·DRT2·DREAMTECH VINA·드림텍 = DRT · SEV/SEVT/SEMV 는 따로.
+    여러 개 적힌 값(「DSV,DRT」)은 각 이름을 묶은 뒤 그대로 한 묶음(다시 등록 대기)."""
+    s = str(v or "").strip()
+    if not s or s == "None":
+        return ""
+    out = []
+    for part in [x.strip() for x in s.split(",") if x.strip()]:
+        u = part.upper().replace(" ", "")
+        name = "DRT" if (u.startswith("DRT") or u.startswith("DREAMTECH") or "드림텍" in part) else part
+        if name not in out:
+            out.append(name)
+    return ",".join(out)
+
+
+def _z17_lines(c, rates, oi_map, basis):
+    """매출 줄 — 호기(order_items)·소모품(consumable_orders) 한 줄씩. 세금계산서 기준은 1·2·3차마다 한 줄."""
+    missing, fx_fb = set(), {}
+    alias = {r[0]: (r[1] or "") for r in c.execute("SELECT id, alias FROM customers")}
+    names = {r[0]: (r[1] or "") for r in c.execute("SELECT id, name FROM customers")}
+    vina_ids = {i for i, n in names.items() if str(n).upper().replace(" ", "") == "KNKVINA"}
+    # 소모품은 고객사 번호 없이 이름만 적힌 것이 있다 → 정식명·시스템명이 **딱 한 곳**과 같을 때만 그 고객사로(같은 고객이 두 줄로 갈리지 않게)
+    _nm2id = {}
+    for _i, _n in list(names.items()) + list(alias.items()):
+        _k = str(_n or "").strip()
+        if _k:
+            _nm2id.setdefault(_k, set()).add(_i)
+    ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    _sf = "o.shipment_form" if "shipment_form" in ocols else "NULL"
+    _sfm = "o.so_form" if "so_form" in ocols else "NULL"
+    hogi = {r[0]: r[1] for r in c.execute(
+        "SELECT order_id, SUM(CASE WHEN substr(TRIM(COALESCE(unit_label,'')),1,1) GLOB '[0-9]' THEN 1 ELSE 0 END) FROM order_items GROUP BY order_id")}
+    out = []
+
+    def _krw(amount, ccy, dd):
+        k = _fx_to_krw(rates, amount, ccy, dd[:7], missing)
+        _fc = (ccy or "KRW").strip().upper() or "KRW"
+        if _fc != "KRW" and k:
+            _fr, _fym = _fx_pick(rates, _fc, dd[:7])
+            if _fym and _fym != dd[:7]:
+                _key17 = (_fc, _fym)   # z1191z17: 매출 홈과 같은 「기준환율 미입력 달」 표시
+                fx_fb.setdefault(_key17, set()).add(dd[:7])
+        return k
+
+    for r in c.execute(
+            "SELECT oi.id AS iid, oi.amount AS amount, oi.unit_status AS us, oi.unit_label AS lbl, "
+            "UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, p.mgmt_code AS code, p.name AS pname, p.id AS pid, "
+            "p.customer_id AS pcid, p.customer_name AS pcname, p.secondary_customer AS psec, p.project_type AS ptype, "
+            "o.id AS oid, o.order_no AS so, o.customer_id AS ocid, o.end_customer AS oend, o.so_type AS so_type, "
+            + _sfm + " AS so_form, " + _sf + " AS o_sf, "
+            "COALESCE(NULLIF(TRIM(o.model_name),''), p.model_name) AS model, "
+            + SALES_CCY_ITEM + " AS ccy, " + SALES_DD_ORDER + " AS dd_o, " + SALES_DD_SHIP + " AS dd_s "
+            "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
+        d = dict(r)
+        _lbl, _key = _pwf.so_form_label_key(so_form=d["so_form"], so_type=d["so_type"], shipment_form=d["o_sf"],
+                                           hogi_n=hogi.get(d["oid"], 0), proj_ptype=(d["ptype"] or "NEW_EQUIP"))
+        cid = d["ocid"] or d["pcid"]
+        c2 = d["oend"] or ((d["psec"] or "") if ((not d["ocid"]) or d["ocid"] == d["pcid"]) else "")
+        biz = d["biz"] if d["biz"] in ("T", "M", "L", "E") else "E"
+        base = {"code": d["code"] or "", "pname": d["pname"] or "", "pid": d["pid"], "so": d["so"] or "", "label": d["lbl"] or "",
+                "model": d["model"] or "", "biz": biz, "cat": _Z17_CAT_BY_KEY.get(_key, "기타"),
+                "cust": (alias.get(cid) or names.get(cid) or d["pcname"] or "—") if cid else (d["pcname"] or "—"),
+                "cust2": _z17_norm2(c2), "is_vina": cid in vina_ids, "ccy": (d["ccy"] or "KRW").upper(), "kind": "project"}
+        if basis == "tax":
+            tx = (oi_map or {}).get(d["iid"]) or {}
+            for n_, (dk, ak) in enumerate((("t1d", "t1a"), ("t2d", "t2a"), ("t3d", "t3a")), 1):
+                dd, av = (tx.get(dk) or ""), tx.get(ak)
+                if not dd or av in (None, ""):
+                    continue
+                try:
+                    amt = float(av)
+                except Exception:
+                    continue
+                if amt == 0:
+                    continue
+                out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth="%d차" % n_))
+        else:
+            if basis == "ship" and d["us"] != "출하":
+                continue
+            dd = (d["dd_s"] if basis == "ship" else d["dd_o"]) or ""
+            if not dd:
+                continue
+            amt = float(d["amount"] or 0)
+            out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth=""))
+    # 소모품(소모품 화면) — 사업부 = 소모품마다 적힌 사업부(검사기·자동화)
+    cocols = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+    _cst = "status_date" if "status_date" in cocols else "NULL"
+    _ccid = "customer_id" if "customer_id" in cocols else "NULL"
+    for r in c.execute(
+            "SELECT mgmt_code, co_no, customer_name, " + _ccid + " AS cid, secondary_customer, currency, total_amount, status, "
+            "UPPER(COALESCE(biz_div,'')) AS bd, model_name, order_date, "
+            "COALESCE(NULLIF(TRIM(" + _cst + "),''),NULLIF(TRIM(due_date),''),NULLIF(TRIM(order_date),'')) AS dd_s, "
+            "tax_invoice_date AS d1, tax_invoice_amt1 AS a1, tax_invoice_date2 AS d2, tax_invoice_amt2 AS a2, "
+            "tax_invoice_date3 AS d3, tax_invoice_amt3 AS a3 FROM consumable_orders WHERE COALESCE(status,'')<>'CANCELLED'").fetchall():
+        d = dict(r)
+        cid = d["cid"]
+        if not cid:
+            _hit = _nm2id.get(str(d["customer_name"] or "").strip()) or set()
+            cid = next(iter(_hit)) if len(_hit) == 1 else None
+        biz = "C" + (d["bd"] if d["bd"] in ("T", "M") else "E")
+        base = {"code": d["mgmt_code"] or "", "pname": "소모품", "pid": None, "so": d["co_no"] or "", "label": "", "model": d["model_name"] or "",
+                "biz": biz, "cat": "소모품", "cust": (alias.get(cid) or names.get(cid) or d["customer_name"] or "—") if cid else (d["customer_name"] or "—"),
+                "cust2": _z17_norm2(d["secondary_customer"]),
+                "is_vina": (cid in vina_ids) or str(d["customer_name"] or "").upper().replace(" ", "") == "KNKVINA",
+                "ccy": (d["currency"] or "KRW").upper(), "kind": "consumable"}
+        if basis == "tax":
+            for n_, (dk, ak) in enumerate((("d1", "a1"), ("d2", "a2"), ("d3", "a3")), 1):
+                dd = str(d[dk] or "").strip()
+                try:
+                    amt = float(d[ak] or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not dd or amt == 0:
+                    continue
+                out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth="%d차" % n_))
+        else:
+            if basis == "ship" and d["status"] not in ("SHIPPED", "PAID"):
+                continue
+            dd = str((d["dd_s"] if basis == "ship" else d["order_date"]) or "").strip()
+            if not dd:
+                continue
+            amt = float(d["total_amount"] or 0)
+            out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth=""))
+    return out, missing, fx_fb
+
+
+def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
+    basis = basis if basis in _Z17_BASIS else "tax"
+    lines_all, missing, fx_fb = _z17_lines(c, rates, oi_map, basis)
+    sel = str(sel_year)
+    lines = []
+    for ln in lines_all:
+        dd = ln["date"]
+        if dd[:4] != sel:
+            continue
+        try:
+            mm = int(dd[5:7])
+        except Exception:
+            continue
+        if _sales_period_ok(mm, mode, sel_q, sel_m):
+            lines.append(ln)
+    lines.sort(key=lambda x: (x["date"], x["code"], x["so"], x["label"]))
+    total = sum(x["krw"] for x in lines)
+    biz_rows = []
+    for k, lbl in _Z17_BIZ:
+        ls = [x for x in lines if x["biz"] == k]
+        if not ls and k in ("CE",):
+            continue
+        cats = {ct: sum(x["krw"] for x in ls if x["cat"] == ct) for ct in _Z17_CATS}
+        biz_rows.append({"key": k, "label": lbl, "total": sum(x["krw"] for x in ls), "cnt": len(ls), "cats": cats})
+    agg = {}
+    for x in lines:
+        a = agg.setdefault(x["cust"], {"name": x["cust"], "total": 0.0, "cnt": 0})
+        a["total"] += x["krw"]; a["cnt"] += 1
+    cust_rows = sorted(agg.values(), key=lambda a: -a["total"])
+    vl = [x for x in lines if x["is_vina"]]
+    va = {}
+    for x in vl:
+        k = x["cust2"] or "(2차 미입력)"
+        a = va.setdefault(k, {"name": k, "total": 0.0, "cnt": 0, "multi": ("," in k)})
+        a["total"] += x["krw"]; a["cnt"] += 1
+    vina_rows = sorted(va.values(), key=lambda a: -a["total"])
+    pa = {}
+    for x in lines:
+        k = (x["code"], x["kind"])
+        a = pa.setdefault(k, {"code": x["code"], "pname": x["pname"], "pid": x["pid"], "cust": x["cust"], "biz": x["biz"],
+                              "total": 0.0, "cnt": 0, "sos": set()})
+        a["total"] += x["krw"]; a["cnt"] += 1; a["sos"].add(x["so"])
+    proj_rows = sorted(pa.values(), key=lambda a: (-a["total"], a["code"]))
+    for a in proj_rows:
+        a["sos"] = ", ".join(sorted(s for s in a["sos"] if s))
+    # 맞춤 확인 — 사업부·고객사·프로젝트 합 = 줄 합(1원 아래)
+    s_b = sum(b["total"] for b in biz_rows)
+    s_c = sum(a["total"] for a in cust_rows)
+    s_p = sum(a["total"] for a in proj_rows)
+    s_bc = sum(sum(b["cats"].values()) for b in biz_rows)
+    checks = {"biz": abs(s_b - total) < 1, "cust": abs(s_c - total) < 1, "proj": abs(s_p - total) < 1, "cats": abs(s_bc - total) < 1}
+    if mode == "quarter":
+        plabel = "%s년 %s분기" % (sel, sel_q)
+    elif mode == "month":
+        try:
+            plabel = "%s년 %d월" % (sel, int(sel_m))
+        except Exception:
+            plabel = "%s년" % sel
+    else:
+        plabel = "%s년" % sel
+    return {"basis": basis, "basis_label": _Z17_BASIS[basis], "period_label": plabel, "mode": mode, "sel_year": sel,
+            "sel_q": str(sel_q), "sel_m": str(sel_m), "total": total, "cnt": len(lines), "lines": lines,
+            "biz_rows": biz_rows, "cats": _Z17_CATS, "cust_rows": cust_rows, "vina_rows": vina_rows,
+            "vina_total": sum(x["krw"] for x in vl), "vina_cnt": len(vl), "proj_rows": proj_rows, "checks": checks,
+            "checks_ok": all(checks.values()), "missing_fx": sorted({ccy for (ccy, _y) in missing}),
+            "fx_fallback": [{"ccy": k[0], "applied": k[1], "months": sorted(v)} for k, v in sorted(fx_fb.items())]}
+
+
+def _z17_params(request):
+    from datetime import date as _d
+    qp = request.query_params
+    today = _d.today()
+    _sy = (qp.get("year") or "").strip()
+    sel_year = _sy if (_sy.isdigit() and len(_sy) == 4) else str(today.year)
+    mode = (qp.get("mode") or "month").strip().lower()
+    if mode not in ("year", "quarter", "month"):
+        mode = "month"
+    _q = (qp.get("q") or "").strip()
+    sel_q = _q if _q in ("1", "2", "3", "4") else str((today.month - 1) // 3 + 1)
+    _m = (qp.get("m") or "").strip()
+    sel_m = _m if (_m.isdigit() and 1 <= int(_m) <= 12) else str(today.month)
+    basis = (qp.get("basis") or "tax").strip().lower()
+    return basis, mode, sel_year, sel_q, sel_m
+
+
+@app.get("/sales/report", response_class=HTMLResponse)
+def sales_report_z17(request: Request):
+    """z1191z17: 매출 보고서 — 세금계산서(기본)·출하·수주 기준 · 사업부·구분·고객사·KNK VINA 2차·프로젝트 · 엑셀."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home?no_perm=sales", 303)
+    if not can_view_field(u, "sales_amount"):
+        return RedirectResponse("/sales?no_perm=sales_amount", 303)
+    basis, mode, sel_year, sel_q, sel_m = _z17_params(request)
+    oi_map, _pi = _board_tax_oi_map()
+    with db_session() as c:
+        rates = _fx_load_rates(c)
+        rep = _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m)
+    from datetime import date as _d
+    yr = _d.today().year
+    year_span = [str(y) for y in range(yr, yr - 4, -1)]
+    if rep["sel_year"] not in year_span:
+        year_span.append(rep["sel_year"])
+    return ctx(request, "sales_report.html", user=u, active="sales", rep=rep, year_span=year_span,
+               qs=str(request.url.query or ""))
+
+
+@app.get("/sales/report.xlsx")
+def sales_report_xlsx_z17(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_view_sales(u) and can_view_field(u, "sales_amount")):
+        return RedirectResponse("/home?no_perm=sales", 303)
+    basis, mode, sel_year, sel_q, sel_m = _z17_params(request)
+    oi_map, _pi = _board_tax_oi_map()
+    with db_session() as c:
+        rates = _fx_load_rates(c)
+        rep = _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m)
+    bl = dict(_Z17_BIZ)
+    r0 = lambda v: round(float(v or 0))
+    sheets = [
+        {"name": "사업부", "headers": ["사업부", "합계(원)", "줄"] + list(rep["cats"]),
+         "rows": [[b["label"], r0(b["total"]), b["cnt"]] + [r0(b["cats"][ct]) for ct in rep["cats"]] for b in rep["biz_rows"]]
+                 + [["합계", r0(rep["total"]), rep["cnt"]] + [r0(sum(b["cats"][ct] for b in rep["biz_rows"])) for ct in rep["cats"]]]},
+        {"name": "고객사", "headers": ["고객사(1차 발주처)", "합계(원)", "줄"],
+         "rows": [[a["name"], r0(a["total"]), a["cnt"]] for a in rep["cust_rows"]]},
+        {"name": "KNK VINA 2차", "headers": ["2차 고객사", "합계(원)", "줄"],
+         "rows": [[a["name"], r0(a["total"]), a["cnt"]] for a in rep["vina_rows"]]},
+        {"name": "프로젝트", "headers": ["관리번호", "프로젝트명", "고객사", "사업부", "수주번호", "합계(원)", "줄"],
+         "rows": [[a["code"], a["pname"], a["cust"], bl.get(a["biz"], a["biz"]), a["sos"], r0(a["total"]), a["cnt"]] for a in rep["proj_rows"]]},
+        {"name": "상세", "headers": ["날짜", "차수", "관리번호", "수주번호", "호기", "프로젝트명", "모델명", "사업부", "구분", "고객사",
+                                     "2차 고객사", "KNK VINA", "통화", "금액(원 통화)", "원화"],
+         "rows": [[x["date"], x["nth"], x["code"], x["so"], x["label"], x["pname"], x["model"], bl.get(x["biz"], x["biz"]), x["cat"],
+                   x["cust"], x["cust2"], "Y" if x["is_vina"] else "", x["ccy"], x["amt"], r0(x["krw"])] for x in rep["lines"]]},
+    ]
+    return _make_xlsx_response(sheets, "매출보고서_%s_%s" % (rep["basis_label"].split("(")[0], rep["period_label"].replace(" ", "")))
 
 
 # ── 부품 마스터 (parts) ────────────────────────────────

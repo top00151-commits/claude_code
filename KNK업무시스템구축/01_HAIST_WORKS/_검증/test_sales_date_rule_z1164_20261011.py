@@ -181,8 +181,9 @@ srcM = io.open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
 srcD = io.open(os.path.join(ROOT, "app", "database.py"), encoding="utf-8").read()
 check("SALES_DD_ORDER = 호기 → 수주 → 프로젝트 · 빈 글자 = 빈칸",
       M.SALES_DD_ORDER == "COALESCE(NULLIF(TRIM(oi.order_date),''),NULLIF(TRIM(o.order_date),''),NULLIF(TRIM(p.order_date),''))")
-check("SALES_DD_SHIP = 호기 납기 → 수주 → 프로젝트 납기 → 프로젝트 발주일",
-      M.SALES_DD_SHIP == "COALESCE(NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),"
+# z1191z17 (대표 2026-11-10 「납품일 = 작업일정표에 출하가 찍힌 날」): 호기 상태 발생일이 맨 앞
+check("SALES_DD_SHIP = 호기 상태 발생일 → 호기 납기 → 수주 → 프로젝트 납기 → 프로젝트 발주일",
+      M.SALES_DD_SHIP == "COALESCE(NULLIF(TRIM(oi.status_date),''),NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),"
                          "NULLIF(TRIM(p.due_date),''),NULLIF(TRIM(p.order_date),''))")
 check("SALES_CCY_ITEM = 호기 → 수주 → 프로젝트",
       M.SALES_CCY_ITEM == "COALESCE(NULLIF(TRIM(oi.currency),''),NULLIF(TRIM(o.currency),''),NULLIF(TRIM(p.currency),''))")
@@ -204,8 +205,8 @@ _root = CS.ROOT
 MUT = [
     ("app/main.py", '            + SALES_DD_ORDER + " AS dd "', '            "COALESCE(o.order_date,p.order_date) AS dd "', "①",
      "수주매출 날짜를 옛 식으로"),
-    ("app/main.py", "SALES_DD_SHIP = (\"COALESCE(NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),\"",
-     "SALES_DD_SHIP = (\"COALESCE(NULLIF(TRIM(o.due_date),''),NULLIF(TRIM(oi.due_date),''),\"", "②", "납기 순서를 수주 먼저로"),
+    ("app/main.py", "SALES_DD_SHIP = (\"COALESCE(NULLIF(TRIM(oi.status_date),''),NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),\"",
+     "SALES_DD_SHIP = (\"COALESCE(NULLIF(TRIM(oi.status_date),''),NULLIF(TRIM(o.due_date),''),NULLIF(TRIM(oi.due_date),''),\"", "②", "납기 순서를 수주 먼저로"),
     ("app/main.py", "SALES_CCY_ITEM = (\"COALESCE(NULLIF(TRIM(oi.currency),''),NULLIF(TRIM(o.currency),''),\"",
      "SALES_CCY_ITEM = (\"COALESCE(NULLIF(TRIM(oi.currency),''),\"", "②", "통화에서 수주를 뺌"),
     ("app/main.py", "                fx_fb.setdefault((_fc, _fym), set()).add(dd[:7])\n", "                pass\n", "③",

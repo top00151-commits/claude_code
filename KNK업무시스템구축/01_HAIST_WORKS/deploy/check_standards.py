@@ -1303,7 +1303,8 @@ def check_date_fallback(files):
                                       "매출은 SALES_DD_ORDER/SALES_DD_SHIP/SALES_CCY_ITEM"))
     exp = {
         "SALES_DD_ORDER": "COALESCE(NULLIF(TRIM(oi.order_date),''),NULLIF(TRIM(o.order_date),''),NULLIF(TRIM(p.order_date),''))",
-        "SALES_DD_SHIP": ("COALESCE(NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),"
+        # z1191z17 (대표 2026-11-10 「납품일 = 출하가 찍힌 날」): 호기 상태 발생일 먼저
+        "SALES_DD_SHIP": ("COALESCE(NULLIF(TRIM(oi.status_date),''),NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),"
                           "NULLIF(TRIM(p.due_date),''),NULLIF(TRIM(p.order_date),''))"),
         "SALES_CCY_ITEM": "COALESCE(NULLIF(TRIM(oi.currency),''),NULLIF(TRIM(o.currency),''),NULLIF(TRIM(p.currency),''))",
     }
@@ -1348,28 +1349,28 @@ def check_date_fallback(files):
             "CREATE TABLE orders(id INTEGER PRIMARY KEY, project_id INTEGER, status TEXT, currency TEXT,"
             " order_date TEXT, due_date TEXT);"
             "CREATE TABLE order_items(id INTEGER PRIMARY KEY, order_id INTEGER, amount REAL, currency TEXT,"
-            " order_date TEXT, due_date TEXT, unit_status TEXT);"
+            " order_date TEXT, due_date TEXT, unit_status TEXT, status_date TEXT);"   # z1191z17: 출하 표시 날(상태 발생일)
             "CREATE TABLE consumable_orders(id INTEGER PRIMARY KEY, customer_name TEXT, total_amount REAL, currency TEXT,"
             " order_date TEXT, due_date TEXT, status TEXT, tax_invoice_date TEXT, tax_invoice_amt1 REAL,"
-            " tax_invoice_date2 TEXT, tax_invoice_amt2 REAL, tax_invoice_date3 TEXT, tax_invoice_amt3 REAL);"
+            " tax_invoice_date2 TEXT, tax_invoice_amt2 REAL, tax_invoice_date3 TEXT, tax_invoice_amt3 REAL, status_date TEXT);"
             # 가: 수주 발주일 빈 글자 → 프로젝트 발주일 · 호기 납기 공백 → 수주 납기
             "INSERT INTO projects VALUES(1,'001T2601','가','KRW','2026-01-26','2026-05-08',0);"
             "INSERT INTO orders VALUES(1,1,'SHIPPED','KRW','','2026-02-04');"
-            "INSERT INTO order_items VALUES(1,1,100,NULL,NULL,'  ','출하');"
+            "INSERT INTO order_items VALUES(1,1,100,NULL,NULL,'  ','출하',NULL);"
             # 나: 수주·프로젝트 발주일 빈 글자 · 호기 발주일만 있음
             "INSERT INTO projects VALUES(2,'002M2602','나','KRW','','2026-07-27',0);"
             "INSERT INTO orders VALUES(2,2,'CONFIRMED','KRW','','');"
-            "INSERT INTO order_items VALUES(2,2,1000,NULL,'2026-03-05',NULL,'진행중');"
+            "INSERT INTO order_items VALUES(2,2,1000,NULL,'2026-03-05',NULL,'진행중',NULL);"
             # 다: 프로젝트 USD · 수주 원화 · 호기 통화 비어 있음 → 원화
             "INSERT INTO projects VALUES(3,'005M2511','다','USD','2025-11-27','2026-08-19',0);"
             "INSERT INTO orders VALUES(3,3,'SHIPPED','KRW','2026-08-19','2026-08-19');"
-            "INSERT INTO order_items VALUES(3,3,1720000,NULL,NULL,'2026-08-19','출하');"
+            "INSERT INTO order_items VALUES(3,3,1720000,NULL,NULL,'2026-08-19','출하',NULL);"
             # 라: 프로젝트 원화 · 수주 USD · 9월(환율 없음 → 8월 환율)
             "INSERT INTO projects VALUES(4,'004T2605','라','KRW','2026-09-01','2026-09-10',0);"
             "INSERT INTO orders VALUES(4,4,'SHIPPED','USD','2026-09-01','2026-09-10');"
-            "INSERT INTO order_items VALUES(4,4,10,NULL,NULL,'2026-09-10','출하');"
+            "INSERT INTO order_items VALUES(4,4,10,NULL,NULL,'2026-09-10','출하',NULL);"
             # 소모품: 납기 빈 글자 → 발주일
-            "INSERT INTO consumable_orders VALUES(1,'마',500,'KRW','2026-04-01','','SHIPPED','2026-04-30',500,NULL,NULL,NULL,NULL);")
+            "INSERT INTO consumable_orders VALUES(1,'마',500,'KRW','2026-04-01','','SHIPPED','2026-04-30',500,NULL,NULL,NULL,NULL,NULL);")
         rates = {"USD": {"2026-08": 1500.0}}
         oi_map = {3: {"t1d": "2026-08-20", "t1a": 1720000.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""},
                   4: {"t1d": "2026-09-15", "t1a": 10.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""}}

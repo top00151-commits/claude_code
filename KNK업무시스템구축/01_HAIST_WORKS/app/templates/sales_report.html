@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>매출 보고서 · KNK HAIST WORKS</title>
+{# z1191z17 (대표 「1,2,3 진행해」 2026-11-10 · 이새롬·안지연 프로 답): 매출 보고서 — 세금계산서 발행 기준(주)·출하·수주 ·
+   사업부(소모품(검사기)·소모품(자동화) 따로) · 사업부 안 구분 · 고객사 · KNK VINA 2차(DRT 통합) · 프로젝트 · 줄 · 엑셀 #}
+<link href="/static/css/v5_tokens.css?v=20260726v5H226z1057" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+.rp-wrap { padding: 0 var(--content-pad, 32px) 40px; }
+.rp-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 14px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; margin:0 0 14px; font-size:13px; }
+.rp-bar select, .rp-bar button, .rp-bar a.btnx { padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:#fff; }
+.rp-bar button { background:#1d4ed8; color:#fff; border-color:#1d4ed8; font-weight:700; cursor:pointer; }
+.rp-bar a.btnx { text-decoration:none; color:#065f46; border-color:#10b981; font-weight:700; }
+.rp-kpi { display:flex; flex-wrap:wrap; gap:12px; margin:0 0 14px; }
+.rp-kpi .k { flex:1 1 220px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:12px 16px; }
+.rp-kpi .k .l { font-size:12px; color:#64748b; }
+.rp-kpi .k .v { font-size:26px; font-weight:800; color:#b45309; font-variant-numeric:tabular-nums; }
+.rp-ok { color:#065f46; background:#d1fae5; border:1px solid #10b981; padding:6px 10px; border-radius:8px; font-weight:700; font-size:12.5px; }
+.rp-bad { color:#991b1b; background:#fef2f2; border:1px solid #fca5a5; padding:6px 10px; border-radius:8px; font-weight:700; font-size:12.5px; }
+.rp-sec { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:12px 16px; margin:0 0 14px; }
+.rp-sec h3 { margin:0 0 8px; font-size:15px; }
+.rp-sec .sub { font-size:11.5px; color:#64748b; font-weight:500; }
+.rp-t { width:100%; border-collapse:collapse; font-size:12.5px; }
+.rp-t th { text-align:left; padding:6px 8px; background:#f8fafc; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
+.rp-t td { padding:6px 8px; border-bottom:1px solid #f1f5f9; }
+.rp-t .n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.rp-t tfoot td { font-weight:800; border-top:2px solid #e5e7eb; }
+.rp-grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+@media (max-width: 1100px) { .rp-grid { grid-template-columns: 1fr; } }
+.rp-scroll { max-height: 520px; overflow:auto; }
+.rp-warn { color:#b91c1c; font-weight:700; }
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active = 'sales_home' %}
+  {% set active_tab = 'sales' %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main">
+    <header class="knk-page-head">
+      <div>
+        <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> › <b>매출 보고서</b></nav>
+        <h1 class="knk-page-title">📊 매출 보고서</h1>
+        <p class="knk-page-meta">{{ rep.basis_label }} 기준 · {{ rep.period_label }} · 공급가(부가세 제외) · 외화는 그 달 기준환율로 원화</p>
+      </div>
+    </header>
+    <div class="rp-wrap">
+      <form class="rp-bar" method="get" action="/sales/report">
+        <b>기준</b>
+        <select name="basis">
+          <option value="tax"{% if rep.basis == 'tax' %} selected{% endif %}>세금계산서 발행(매출)</option>
+          <option value="ship"{% if rep.basis == 'ship' %} selected{% endif %}>출하(납품)</option>
+          <option value="order"{% if rep.basis == 'order' %} selected{% endif %}>수주(발주)</option>
+        </select>
+        <b style="margin-left:8px;">기간</b>
+        <select name="mode" id="rpMode">
+          <option value="month"{% if rep.mode == 'month' %} selected{% endif %}>월</option>
+          <option value="quarter"{% if rep.mode == 'quarter' %} selected{% endif %}>분기</option>
+          <option value="year"{% if rep.mode == 'year' %} selected{% endif %}>연간</option>
+        </select>
+        <select name="year">{% for y in year_span %}<option value="{{ y }}"{% if y == rep.sel_year %} selected{% endif %}>{{ y }}년</option>{% endfor %}</select>
+        <select name="q" id="rpQ"{% if rep.mode != 'quarter' %} style="display:none;"{% endif %}>{% for q in ['1','2','3','4'] %}<option value="{{ q }}"{% if q == rep.sel_q %} selected{% endif %}>{{ q }}분기</option>{% endfor %}</select>
+        <select name="m" id="rpM"{% if rep.mode != 'month' %} style="display:none;"{% endif %}>{% for m in range(1,13) %}<option value="{{ m }}"{% if (m|string) == rep.sel_m %} selected{% endif %}>{{ m }}월</option>{% endfor %}</select>
+        <button type="submit">보기</button>
+        <a class="btnx" href="/sales/report.xlsx?{{ qs }}">📥 엑셀 저장</a>
+      </form>
+
+      <div class="rp-kpi">
+        <div class="k"><div class="l">매출 합계 · {{ rep.basis_label }} · {{ rep.period_label }}</div><div class="v">{{ '{:,.0f}'.format(rep.total) }} <span style="font-size:13px;color:#64748b;">원</span></div><div class="l">{{ rep.cnt }}줄</div></div>
+        <div class="k"><div class="l">KNK VINA 매출</div><div class="v" style="color:#1d4ed8;">{{ '{:,.0f}'.format(rep.vina_total) }} <span style="font-size:13px;color:#64748b;">원</span></div><div class="l">{{ rep.vina_cnt }}줄 · 2차 고객사별은 아래</div></div>
+        <div class="k" style="display:flex;flex-direction:column;justify-content:center;gap:6px;">
+          {% if rep.checks_ok %}<span class="rp-ok">✅ 합계 맞춤 — 사업부·구분·고객사·프로젝트 합 = 총합(1원 아래)</span>
+          {% else %}<span class="rp-bad">⚠ 합계가 맞지 않습니다 {{ rep.checks }}</span>{% endif %}
+          {% if rep.missing_fx %}<span class="rp-bad">⚠ 환율 미입력: {{ rep.missing_fx|join(', ') }} (원화 0 처리)</span>{% endif %}
+          {% if rep.fx_fallback %}<span class="rp-bad" style="font-weight:600;">⚠ 기준환율 미입력 달: {% for f in rep.fx_fallback %}{{ f.ccy }} {{ f.months|join('·') }}({{ f.applied }} 환율로 계산){% if not loop.last %} · {% endif %}{% endfor %}</span>{% endif %}
+        </div>
+      </div>
+
+      <section class="rp-sec">
+        <h3>사업부별 <span class="sub">— 소모품(소모품 화면 등록분)은 소모품(검사기)·소모품(자동화) 따로 · 프로젝트 안 수주는 그 수주 형태로 구분</span></h3>
+        <table class="rp-t">
+          <thead><tr><th>사업부</th><th class="n">합계(원)</th>{% for ct in rep.cats %}<th class="n">{{ ct }}</th>{% endfor %}<th class="n">줄</th></tr></thead>
+          <tbody>{% for b in rep.biz_rows %}<tr><td>{{ b.label }}</td><td class="n"><b>{{ '{:,.0f}'.format(b.total) }}</b></td>{% for ct in rep.cats %}<td class="n">{{ '{:,.0f}'.format(b.cats[ct]) if b.cats[ct] else '' }}</td>{% endfor %}<td class="n">{{ b.cnt }}</td></tr>{% endfor %}</tbody>
+          <tfoot><tr><td>합계</td><td class="n">{{ '{:,.0f}'.format(rep.total) }}</td>{% for ct in rep.cats %}<td class="n">{{ '{:,.0f}'.format(rep.biz_rows|map(attribute='cats')|map(attribute=ct)|sum) }}</td>{% endfor %}<td class="n">{{ rep.cnt }}</td></tr></tfoot>
+        </table>
+      </section>
+
+      <div class="rp-grid">
+        <section class="rp-sec">
+          <h3>고객사별 <span class="sub">— 수주에 적힌 1차 발주처(없으면 프로젝트 고객) · 큰 순</span></h3>
+          <div class="rp-scroll"><table class="rp-t">
+            <thead><tr><th>고객사</th><th class="n">합계(원)</th><th class="n">줄</th></tr></thead>
+            <tbody>{% for a in rep.cust_rows %}<tr><td>{{ a.name }}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n">{{ a.cnt }}</td></tr>{% endfor %}</tbody>
+            <tfoot><tr><td>합계</td><td class="n">{{ '{:,.0f}'.format(rep.total) }}</td><td class="n">{{ rep.cnt }}</td></tr></tfoot>
+          </table></div>
+        </section>
+        <section class="rp-sec">
+          <h3>KNK VINA — 2차 고객사별 <span class="sub">— 드림텍 계열(DRT·DRT1·DRT2·DREAMTECH VINA·드림텍) = DRT · SEV·SEVT·SEMV 따로</span></h3>
+          <div class="rp-scroll"><table class="rp-t">
+            <thead><tr><th>2차 고객사</th><th class="n">합계(원)</th><th class="n">줄</th></tr></thead>
+            <tbody>{% for a in rep.vina_rows %}<tr><td>{% if a.name == '(2차 미입력)' %}<span class="rp-warn">⚠ (2차 미입력)</span>{% else %}{{ a.name }}{% if a.multi %} <span class="sub rp-warn" title="2차가 여러 개 적혀 금액을 나눌 수 없습니다 — 고객사별로 다시 등록하면 나뉩니다">(여러 고객 · 다시 등록 대기)</span>{% endif %}{% endif %}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n">{{ a.cnt }}</td></tr>{% else %}<tr><td colspan="3" class="sub">이 기간 KNK VINA 매출 없음</td></tr>{% endfor %}</tbody>
+            <tfoot><tr><td>KNK VINA 합계</td><td class="n">{{ '{:,.0f}'.format(rep.vina_total) }}</td><td class="n">{{ rep.vina_cnt }}</td></tr></tfoot>
+          </table></div>
+        </section>
+      </div>
+
+      <section class="rp-sec">
+        <h3>프로젝트별 <span class="sub">— 관리번호 · 큰 순 (소모품은 소모품 관리번호)</span></h3>
+        <div class="rp-scroll"><table class="rp-t">
+          <thead><tr><th>관리번호</th><th>프로젝트명</th><th>고객사</th><th>수주번호</th><th class="n">합계(원)</th><th class="n">줄</th></tr></thead>
+          <tbody>{% for a in rep.proj_rows %}<tr><td>{% if a.pid %}<a href="/project/{{ a.pid }}">{{ a.code }}</a>{% else %}{{ a.code }}{% endif %}</td><td>{{ a.pname }}</td><td>{{ a.cust }}</td><td style="font-size:11.5px;color:#475569;">{{ a.sos }}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n">{{ a.cnt }}</td></tr>{% endfor %}</tbody>
+          <tfoot><tr><td colspan="4">합계</td><td class="n">{{ '{:,.0f}'.format(rep.total) }}</td><td class="n">{{ rep.cnt }}</td></tr></tfoot>
+        </table></div>
+      </section>
+
+      <section class="rp-sec">
+        <details>
+          <summary style="cursor:pointer;font-weight:800;">상세 줄 {{ rep.cnt }}줄 보기 <span class="sub">— 어떤 호기·소모품을 더한 숫자인지 (엑셀 「상세」 시트와 같음)</span></summary>
+          <div class="rp-scroll" style="margin-top:8px;"><table class="rp-t">
+            <thead><tr><th>날짜</th><th>차수</th><th>관리번호</th><th>수주번호</th><th>호기</th><th>모델명</th><th>구분</th><th>고객사</th><th>2차</th><th>통화</th><th class="n">금액</th><th class="n">원화</th></tr></thead>
+            <tbody>{% for x in rep.lines[:3000] %}<tr><td>{{ x.date }}</td><td>{{ x.nth }}</td><td>{{ x.code }}</td><td>{{ x.so }}</td><td>{{ x.label }}</td><td>{{ x.model }}</td><td>{{ x.cat }}</td><td>{{ x.cust }}</td><td>{{ x.cust2 }}</td><td>{{ x.ccy }}</td><td class="n">{{ '{:,.2f}'.format(x.amt) if x.ccy != 'KRW' else '{:,.0f}'.format(x.amt) }}</td><td class="n">{{ '{:,.0f}'.format(x.krw) }}</td></tr>{% endfor %}</tbody>
+          </table>{% if rep.cnt > 3000 %}<div class="sub">앞 3,000줄만 보입니다 — 전체는 엑셀로</div>{% endif %}</div>
+        </details>
+      </section>
+    </div>
+    <script>
+    (function(){
+      var md = document.getElementById('rpMode'), q = document.getElementById('rpQ'), m = document.getElementById('rpM');
+      if (!md) return;
+      md.addEventListener('change', function(){ q.style.display = md.value === 'quarter' ? '' : 'none'; m.style.display = md.value === 'month' ? '' : 'none'; });
+    })();
+    </script>
+  </main>
+</div>
+</body>
+</html>
