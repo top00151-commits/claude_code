@@ -8288,6 +8288,19 @@ async def api_meeting_msg_status(req: Request):
                   # z1123: 보는 사람이 이 회의록을 지울 수 있나(작성자·관리자 = WORKS 🗑 삭제와 같은 판단) — 이음 🗓 회의 「삭제」
                   #   확인 창이 「📋 WORKS 회의록도 함께 지워집니다 / 남습니다」를 미리 보이게(대표 결정 2026-09-22).
                   "can_delete": bool(viewer) and _can_delete_meeting(viewer, m)}
+            # 🔁 z1209 (대표 지시 2026-11-11 · 세션 10 요청 · 이음 v935 짝): 이음웍스 회의록에서 고친 제목·참석자를
+            #   이음 회의·카드가 따라가게 — 이음이 1분마다 묻는 이 답에 싣는다(이음웍스는 이음을 되부르지 않는다 · z1123).
+            #   서버끼리만 받는 답(공유키)이라 볼 수 있는지(can_view)와 무관하게 싣는다 — 이음은 화면에 그대로 주지 않는다.
+            #   att_emps = 계정이 연결된 참석자의 사번 · att_ext = 계정 없는 참석자 이름(고객사 분 등) ·
+            #   계정은 연결됐는데 사번이 빈 사람은 어느 쪽에도 넣지 않는다(이음이 사번으로만 사람을 찾는다).
+            _ar = [dict(r) for r in c.execute(
+                "SELECT a.user_id, a.name, u.employee_no FROM meeting_attendees a "
+                "LEFT JOIN users u ON u.id=a.user_id WHERE a.meeting_id=? ORDER BY a.id", (m["id"],))]
+            it["title"] = str(m.get("title") or "")
+            it["att_emps"] = [str(r["employee_no"]).strip() for r in _ar
+                              if r.get("user_id") and str(r.get("employee_no") or "").strip()]
+            it["att_ext"] = [str(r.get("name") or "").strip() for r in _ar
+                             if not r.get("user_id") and str(r.get("name") or "").strip()]
             if can_view:                  # 볼 수 없는 사람에겐 회의록 주소 자체를 주지 않는다
                 it["meeting_id"] = m["id"]
                 # 「📋 회의록 보기」 착지 (대표 지시 2026-09-16): 정리가 끝났으면 **회의록 양식**으로 바로.
