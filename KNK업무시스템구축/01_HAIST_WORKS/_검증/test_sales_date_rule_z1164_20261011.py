@@ -134,9 +134,12 @@ check("환율 대체 = [USD 2026-02 → 2025-12, USD 2026-09 → 2026-08]",
                                  {"ccy": "USD", "applied": "2026-08", "months": ["2026-09"]}], r26.get("fx_fallback"))
 check("환율 자체가 없는 통화는 그대로 missing_fx(이번 자료엔 없음)", r26.get("missing_fx") == [], r26.get("missing_fx"))
 by = {b["biz"]: b for b in r26["biz_rows"]}
-check("사업부: 검사기 T(100+15,000+28,000) · 자동화 M(1,000+1,720,000) · 소모품 C(500)",
-      (round(by["T"]["order"]), round(by["M"]["order"]), round(by["C"]["order"])) == (43100, 1721000, 500),
-      {b: round(by[b]["order"]) for b in ("T", "M", "C")})
+# z1191z22 (이새롬 프로 요청 · 대표 「진행해」 2026-11-12): 매출 홈도 소모품을 소모품(검사기) CT · 소모품(자동화) CM · 그 밖 CE 로 나눔
+#   → 「소모품 C」 한 줄 대신 세 줄의 합으로 본다(이 자료의 소모품은 사업부 칸 빈칸 → CE)
+_co22 = sum(by[b]["order"] for b in ("CT", "CM", "CE") if b in by)
+check("사업부: 검사기 T(100+15,000+28,000) · 자동화 M(1,000+1,720,000) · 소모품(CT+CM+CE)(500)",
+      (round(by["T"]["order"]), round(by["M"]["order"]), round(_co22)) == (43100, 1721000, 500) and "C" not in by,
+      {b: round(by[b]["order"]) for b in by})
 
 print("§2 매출 홈 화면(/sales)")
 with D.db_session() as c:

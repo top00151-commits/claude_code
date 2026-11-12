@@ -1313,7 +1313,8 @@ def check_date_fallback(files):
         tree = _ast.parse(src)
     except Exception as e:
         return bad + [(main_p, 1, "② main.py 를 읽지 못했다(%s)" % e)]
-    want_c = set(exp) | {"FX_KRW_CURRENCIES", "SALES_BIZ", "SALES_BIZ_LABEL"}
+    want_c = set(exp) | {"FX_KRW_CURRENCIES", "SALES_BIZ", "SALES_BIZ_LABEL",
+                         "SALES3_BIZ", "SALES3_BIZ_LABEL", "_SALES3_CO_BIZ"}   # z1191z22: 매출 홈 소모품(검사기/자동화) 나누기
     want_f = {"_fx_pick", "_fx_rate_for", "_fx_to_krw", "_sales_period_ok", "_sales_3way", "admin_consumable_sales_audit"}
     consts, funcs = {}, {}
     for node in tree.body:
@@ -1324,7 +1325,7 @@ def check_date_fallback(files):
         elif isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and node.name in want_f:
             funcs[node.name] = _ast.get_source_segment(src, node)
     ns = {}
-    for k in sorted(want_c):
+    for k in sorted(want_c, key=lambda x: ("SALES3" in x, x)):   # z1191z22: SALES3_BIZ_LABEL 은 SALES_BIZ_LABEL 다음에
         if k not in consts:
             bad.append((main_p, 1, "② %s 가 없다" % k))
             continue
@@ -1371,6 +1372,7 @@ def check_date_fallback(files):
             "INSERT INTO order_items VALUES(4,4,10,NULL,NULL,'2026-09-10','출하',NULL);"
             # 소모품: 납기 빈 글자 → 발주일
             "INSERT INTO consumable_orders VALUES(1,'마',500,'KRW','2026-04-01','','SHIPPED','2026-04-30',500,NULL,NULL,NULL,NULL,NULL);")
+        con.execute("ALTER TABLE consumable_orders ADD COLUMN biz_div TEXT")   # z1191z22: 운영처럼 소모품 사업부 칸(빈칸 = 소모품(기타))
         rates = {"USD": {"2026-08": 1500.0}}
         oi_map = {3: {"t1d": "2026-08-20", "t1a": 1720000.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""},
                   4: {"t1d": "2026-09-15", "t1a": 10.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""}}

@@ -25915,6 +25915,11 @@ async def admin_fx_rates_save(req: Request):
 SALES_BIZ = ("T", "M", "L", "E", "C")
 SALES_BIZ_LABEL = {"T": "🔬 검사기", "M": "🤖 자동화", "L": "💗 라이프밸류",
                    "E": "🗂 기타", "C": "🧴 소모품"}
+# z1191z22 (이새롬 프로 요청 · 대표 「진행해」 2026-11-12): 매출 홈 사업부별 표도 매출 보고서처럼 소모품을
+#   소모품(검사기) CT · 소모품(자동화) CM 로 나눈다(소모품의 사업부 칸 T/M · 그 밖 = CE). CE 는 금액이 있을 때만 줄로 보인다.
+SALES3_BIZ = ("T", "M", "L", "E", "CT", "CM", "CE")
+SALES3_BIZ_LABEL = dict(SALES_BIZ_LABEL, CT="🧴 소모품(검사기)", CM="🧴 소모품(자동화)", CE="🧴 소모품(기타)")
+_SALES3_CO_BIZ = "('C' || CASE WHEN UPPER(COALESCE(biz_div,'')) IN ('T','M') THEN UPPER(biz_div) ELSE 'E' END)"
 
 
 def _sales_delivered(c, rates, sel_year, cur_ym):
@@ -26064,7 +26069,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
         if not _sales_period_ok(mm, mode, sel_q, sel_m):
             return
         b = (biz or "").strip().upper()
-        if b not in SALES_BIZ:
+        if b not in SALES3_BIZ:   # z1191z22: 소모품은 CT/CM/CE
             b = "E"      # 관리번호 없음/미지정 → 기타
         krw = _fx_to_krw(rates, amount, currency, dd[:7], missing)
         # z1164: 그 달 기준환율이 없어 다른 달 환율로 계산했으면 적어 둔다 → 매출 홈에 「미입력」 표시
@@ -26094,7 +26099,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
         d = dict(r)
         add("order", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
     for r in c.execute(
-            "SELECT 'C' AS biz, COALESCE(customer_name,'') AS cust, total_amount AS amount, "
+            "SELECT " + _SALES3_CO_BIZ + " AS biz, COALESCE(customer_name,'') AS cust, total_amount AS amount, "   # z1191z22
             "currency, order_date AS dd FROM consumable_orders "
             "WHERE COALESCE(status,'')<>'CANCELLED'").fetchall():
         d = dict(r)
@@ -26113,7 +26118,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
         d = dict(r)
         add("prog", d["dd"], d["biz"], d["cust"], d["amount"], d["currency"])
     for r in c.execute(
-            "SELECT 'C' AS biz, COALESCE(customer_name,'') AS cust, total_amount AS amount, "
+            "SELECT " + _SALES3_CO_BIZ + " AS biz, COALESCE(customer_name,'') AS cust, total_amount AS amount, "   # z1191z22
             "currency, COALESCE(NULLIF(TRIM(status_date),''),NULLIF(TRIM(due_date),''),NULLIF(TRIM(order_date),'')) AS dd FROM consumable_orders "   # z1164: 빈 글자 = 빈칸 · z1191z17: 상태 발생일(출하한 날) 먼저
             "WHERE status IN ('SHIPPED','PAID')").fetchall():
         d = dict(r)
@@ -26149,7 +26154,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
     # v5H226z1086 (대표 "진행해" 08-19): 소모품 세금계산서 발행분도 최종매출에 — 호기와 같은 규칙
     #   (발행칸에 적힌 1~3차 금액만 · 각 차수 발행일의 달 환율 · 출하만 되고 발행칸 비면 미포함).
     for r in c.execute(
-            "SELECT COALESCE(customer_name,'') AS cust, currency, "
+            "SELECT " + _SALES3_CO_BIZ + " AS biz, COALESCE(customer_name,'') AS cust, currency, "   # z1191z22
             "tax_invoice_date AS d1, COALESCE(tax_invoice_amt1,0) AS a1, "
             "tax_invoice_date2 AS d2, COALESCE(tax_invoice_amt2,0) AS a2, "
             "tax_invoice_date3 AS d3, COALESCE(tax_invoice_amt3,0) AS a3 "
@@ -26163,7 +26168,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
                 continue
             if not dd or amt == 0:
                 continue
-            add("final", dd, "C", d["cust"], amt, d["currency"])
+            add("final", dd, d["biz"], d["cust"], amt, d["currency"])   # z1191z22: 소모품(검사기/자동화)
 
     all_years = sorted(set(agg["order"]["years"]) | set(agg["prog"]["years"])
                        | set(agg["final"]["years"]), reverse=True)
@@ -26171,10 +26176,11 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
                    "order": agg["order"]["years"].get(y, 0.0),
                    "prog": agg["prog"]["years"].get(y, 0.0),
                    "final": agg["final"]["years"].get(y, 0.0)} for y in all_years]
-    biz_rows = [{"biz": b, "label": SALES_BIZ_LABEL[b],
+    biz_rows = [{"biz": b, "label": SALES3_BIZ_LABEL[b],
                  "order": agg["order"]["biz"].get(b, 0.0),
                  "prog": agg["prog"]["biz"].get(b, 0.0),
-                 "final": agg["final"]["biz"].get(b, 0.0)} for b in SALES_BIZ]
+                 "final": agg["final"]["biz"].get(b, 0.0)} for b in SALES3_BIZ
+                if b != "CE" or any(agg[k]["biz"].get("CE") for k in ("order", "prog", "final"))]   # z1191z22: 소모품(기타)는 있을 때만
     cust_names = set(agg["order"]["cust"]) | set(agg["prog"]["cust"]) | set(agg["final"]["cust"])
     top = sorted([{"customer_name": nm,
                    "order": agg["order"]["cust"].get(nm, 0.0),
@@ -35819,6 +35825,29 @@ def _parse_cost_margin(cost_list, margin_list, i):
     return round(_c, 2), round(_m, 2)
 
 
+# z1191z22: 등록 화면 형태(shipment_form) → 수주 형태(so_form) — 작업일정표 「형태」 칸(z1191z19)과 같은 값
+_Z22_SF2SO = {"ASSEMBLY": "ASSEMBLY", "SEMI": "SEMI", "PARTS": "PARTS", "ETC": "ETC"}
+
+
+def _z22_set_so_form(pid, shipment_form, exclude_ids=None):
+    """새 프로젝트의 수주 중 형태가 비어 있는 것에 등록 화면의 형태를 넣는다(추가 품목 수주는 제외 — 그 품목 형태가 따로 있음)."""
+    code = _Z22_SF2SO.get(str(shipment_form or "").strip().upper())
+    if not code:
+        return 0
+    ex = [int(x) for x in (exclude_ids or []) if str(x).isdigit() or isinstance(x, int)]
+    try:
+        with db_session() as c:
+            if "so_form" not in {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}:
+                return 0
+            q = "UPDATE orders SET so_form=? WHERE project_id=? AND COALESCE(so_form,'')=''"
+            if ex:
+                q += " AND id NOT IN (%s)" % ",".join("?" * len(ex))
+            return c.execute(q, (code, int(pid), *ex)).rowcount
+    except Exception as e:   # 형태 저장 실패는 등록을 막지 않는다 — 작업일정표 「형태」 칸에서 고칠 수 있음
+        log.warning("z1191z22 형태 저장 실패(pid=%s): %s", pid, e)
+        return 0
+
+
 @app.post("/projects/new")
 async def projects_new_submit(request: Request):
     """v5H52: project_form.html 의 실제 필드명(name/customer_name 등)과
@@ -35858,6 +35887,8 @@ async def projects_new_submit(request: Request):
     def _err_redirect(code: str, extra: str = "") -> RedirectResponse:
         if _is_quick:
             url = f"/projects/quick?error={code}" + ("&embed=1" if _embed_q else "")
+            if biz_div in ("T", "M", "L", "E"):   # z1191z22: 보던 탭(기타 등)으로 되돌린다 — 예전엔 빠져서 검사기 화면으로 넘어갔다
+                url += f"&biz_div={biz_div}"
         else:
             url = f"/projects/new?{_back_qs}&error={code}"
         if extra:
@@ -35866,7 +35897,9 @@ async def projects_new_submit(request: Request):
     if not project_name:
         return _err_redirect("name_required")
     # v5H218: 진행 사업부는 항상 T 또는 M 이어야 함 (K 기타는 chooser 에서 K 로 들어와도 폼에서 T/M 으로 보정)
-    if biz_div not in ("T", "M", "L"):
+    # z1191z22 (이새롬 프로 신고 · 대표 「진행해」): 간편 등록 「기타」 탭(z355)은 E 를 보낸다 — 여기서 막혀 한 번도 등록되지 않았다.
+    #   E 는 관리번호 NNN E YYMM · 수주번호 E-YYMMDD-N(project_type OTHER) · 매출 홈·보고서의 「기타」 줄.
+    if biz_div not in ("T", "M", "L", "E"):
         return _err_redirect("biz_div_required")
     if not customer:
         return _err_redirect("customer_required")
@@ -36235,6 +36268,10 @@ async def projects_new_submit(request: Request):
                                              (_bq_v, _bu_v, _fu_oid88))
                         except Exception as _e88:
                             log.warning("z1088b 추가발주 표시수량 저장 실패: %s", _e88)
+                    # z1191z22: 추가 발주도 고른 형태를 새 수주(so_form)에 — M-260909-1(셋업비 · 기타)이 「제품」으로 보이던 원인
+                    _fu_oid22 = (_fu_res88 or {}).get("order_id") if isinstance(_fu_res88, dict) else None
+                    if _fu_oid22 and _Z22_SF2SO.get(_fu_sf):
+                        _cc3.execute("UPDATE orders SET so_form=? WHERE id=? AND COALESCE(so_form,'')=''", (_Z22_SF2SO[_fu_sf], _fu_oid22))
                     # z1191z4d: 형태=기타 추가 발주 — 고른 단위를 새 SO 에
                     if _fu_sf == "ETC" and (form.get("etc_unit") or "").strip() in _BOARD_UNITS_Z4D:
                         _fu_oidz4d = (_fu_res88 or {}).get("order_id") if isinstance(_fu_res88, dict) else None
@@ -36526,6 +36563,10 @@ async def projects_new_submit(request: Request):
     def _finish_new(_pid, _warn=""):
         """등록 성공 후 공통 종료 — 제작요청 발행(통보)까지 한 번에 처리하고 상세로 이동."""
         _qs = []
+        # z1191z22: 등록 화면에서 고른 형태를 이번에 만든 수주(추가 품목 수주 제외)에 저장 — 안 하면 「기타」로 등록해도
+        #   작업일정표·상세·보고서에 기본 규칙(호기 있으면 완제품 · 없으면 제품)으로 보였다(M-260909-1 과 같은 병).
+        if _pid and not _warn:
+            _z22_set_so_form(int(_pid), form.get("shipment_form"), exclude_ids=_z209_extra_oids)
         if _warn:
             _qs.append(f"warn={_warn}")
         # v5H226z428(대표 지시): 형태=상품이면 상세의 PACKING LIST 로 유도(자동 스크롤·강조)
