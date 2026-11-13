@@ -492,6 +492,39 @@ if h:
     check("· 베트남 책갈피만 만든다", 'data-entity="VN"' in h)
 
 
+# ════════════ §12 이음 📧 바로가기가 기대는 WORKS 착지 경로 ════════════
+# 2026-11-14 세션 10(이음)이 메일 쓰기 바로가기를 운영 반영(v936 · 커밋 fd67709).
+#   길: 이음 📧 → 이음 /sso/login → WORKS /sso/land?next=%2Fmail%2Fcompose → 메일 쓰기
+# ⭐이제 **이음 아이콘이 WORKS 의 _safe_next_path 에 기댄다.** 누가 이 함수를 조이면
+#   아이콘이 조용히 죽고, 원인이 메신저 쪽으로 오해받는다. 그래서 여기서 못박는다.
+#   동시에 ⭐오픈 리다이렉트 방어가 약해지지 않았는지도 함께 본다(조이는 게 아니라 뚫는 쪽 사고).
+print("\n§12 이음 📧 바로가기 착지 경로 (세션 10 과의 약속)")
+_src = io.open(os.path.join(ROOT, "app", "main.py"), "r", encoding="utf-8").read()
+_tree = ast.parse(_src)
+_fn = next((n for n in ast.walk(_tree)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and n.name == "_safe_next_path"), None)
+check("_safe_next_path 가 있다", _fn is not None)
+if _fn:
+    _ns = {}
+    exec(compile(ast.Module(body=[_fn], type_ignores=[]), "<safe_next>", "exec"), _ns)
+    safe = _ns["_safe_next_path"]
+    check("⭐이음 📧 이 쓰는 /mail/compose 가 통과한다", safe("/mail/compose") == "/mail/compose",
+          safe("/mail/compose"))
+    check("· 물음표가 붙어도 통과", safe("/mail/compose?app=1") == "/mail/compose?app=1")
+    check("· 대표님이 쓰는 /mail/app 도 통과", safe("/mail/app") == "/mail/app")
+    for bad, why in [("//evil.com", "프로토콜상대 주소"),
+                     ("https://evil.com", "외부 URL"),
+                     ("/\\evil.com", "역슬래시 우회"),
+                     ("/mail /compose", "공백 섞임"),
+                     ("/mail\ncompose", "줄바꿈 섞임"),
+                     ("", "빈 값")]:
+        check("⭐바깥으로 내보내지 않는다 — %s" % why, safe(bad) == "", repr(safe(bad)))
+    # (대조군) 이 검사가 '통과'를 실제로 구분하는가
+    check("(대조군) 검사가 통과/차단을 실제로 가른다",
+          safe("/mail/compose") != "" and safe("https://evil.com") == "")
+
+
 print("\n" + "=" * 56)
 print("  통과 %d / 실패 %d" % (PASS, FAIL))
 print("=" * 56)
