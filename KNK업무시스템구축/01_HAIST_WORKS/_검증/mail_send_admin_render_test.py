@@ -93,6 +93,8 @@ def render(mode, st, label):
             my_from=(st["addr"] or "test@knk-mailtest.com"),
             cur_fetch_host="", cur_fetch_port="465", saved=False,
             mail_app=True,
+            relay_ready=True,
+            via_on=(mode != "off" and st["ok"]),
         )
     except Exception:
         check("렌더 성공 (%s)" % label, False, traceback.format_exc()[-1600:])
@@ -131,6 +133,13 @@ if h:
                encoding="utf-8").read()
     check("· 동그라미 폭을 못 박아 둠 (width:100% 상속 차단)",
           ".vf-radio>input[type=radio]" in src and "width:16px" in src)
+    # ⭐켜져 있을 때, 안 쓰이는 아래 카드가 '안 쓰임'으로 보여야 한다.
+    #   (대표가 그 칸의 test@ 주소를 보고 「고쳐야 하나?」 하고 멈췄음 — 11-13)
+    check("· 켜짐 → 아래 발송망 카드에 「지금 안 쓰임」 표시", "지금 안 쓰임" in h)
+    check("· 켜짐 → 아래 카드를 「발송 준비됨」으로 부르지 않는다", "발송 준비됨" not in h)
+    check("· 켜짐 → 아래 카드가 흐리게(ms-idle-card)", "ms-idle-card" in h)
+    check("· 켜짐 → 「회사 주소를 넣지 마세요」 + 스팸 이유를 적어 둔다",
+          "회사 주소를 넣지 마세요" in h and "스팸함으로 떨어집니다" in h)
 
 h = render("off", ST_NO, "꺼짐 · 아직 못 씀")
 if h:
@@ -141,6 +150,10 @@ if h:
     check("· 「메일 가져오기」로 가는 길 표시", "/admin/mail-fetch" in h)
     check("· 꺼짐 표시", "꺼짐" in h)
     check("· 끄기가 체크돼 있다", 'value="off" checked' in t)
+    check("· 꺼짐 → 아래 발송망 카드는 평소대로(「발송 준비됨」)",
+          "발송 준비됨" in h and "지금 안 쓰임" not in h)
+    check("· 꺼짐 → 「안 쓰임」 경고를 괜히 띄우지 않는다",
+          "회사 주소를 넣지 마세요" not in h)
 
 h = render("all", ST_OK, "전 직원")
 if h:

@@ -29,6 +29,13 @@
   .vf-radio>input[type=radio]{width:16px;height:16px;flex:none;margin:1px 0 0;padding:0;
             box-sizing:border-box;accent-color:var(--knk-red)}
   .vf-radio>span{flex:1;min-width:0}
+  /* 지금 안 쓰이는 카드 — 흐리게. 끄면 다시 쓰므로 입력은 그대로 되게 둔다. */
+  .ms-idle{background:#f1f5f9;color:#475569}
+  .ms-idle-card{background:#fafbfc;border-style:dashed}
+  .ms-idle-card .fld label,.ms-idle-card .ms-note,.ms-idle-card .fld input{opacity:.6}
+  .ms-idle-card .fld input:focus{opacity:1}
+  .ms-idle-why{border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;
+               padding:11px 13px;margin:8px 0 12px;font-size:12.5px;line-height:1.8}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -106,13 +113,22 @@
   </form>
 
   <!-- 상태 + 입력 -->
-  <form class="ms-card" method="POST" action="/admin/mail-send" autocomplete="off">
+  <form class="ms-card{% if via_on %} ms-idle-card{% endif %}" method="POST" action="/admin/mail-send" autocomplete="off">
     <input type="hidden" name="section" value="smtp">
     <h2>발송망(SMTP) 자격
-      {% if ready %}<span class="ms-status ms-on">발송 준비됨</span>{% else %}<span class="ms-status ms-off">미설정</span>{% endif %}
+      {% if via_on %}<span class="ms-status ms-idle">지금 안 쓰임</span>
+      {% elif relay_ready %}<span class="ms-status ms-on">발송 준비됨</span>
+      {% else %}<span class="ms-status ms-off">미설정</span>{% endif %}
     </h2>
-    <p class="ms-note">📮 <b>지금 보내는 주소 = {{ my_from }}</b>
-      {% if fetch_mode != 'off' and fetch_st.ok %}(위 「내 회사 메일주소로 보내기」가 켜져 있어 아래 칸은 쓰이지 않습니다){% endif %}</p>
+    <p class="ms-note">📮 <b>지금 보내는 주소 = {{ my_from }}</b></p>
+    {% if via_on %}
+    <div class="ms-idle-why">💤 위 「내 회사 메일주소로 보내기」가 켜져 있어 <b>이 카드의 값은 지금 쓰이지 않습니다.</b>
+      위 기능을 <b>껐을 때만</b> 쓰이는 예비 길입니다.<br>
+      🔴 <b>아래 「보내는 주소(From)」에 회사 주소를 넣지 마세요.</b> 이 발송망(Cloudflare)은
+      <code>knknara.co.kr</code> 의 정식 발송자가 아니라서, 거기에 회사 주소를 넣으면
+      나중에 위 기능을 껐을 때 <b>보낸 메일이 상대방 스팸함으로 떨어집니다.</b>
+      <code>{{ cur_from }}</code> 그대로 두는 것이 맞습니다.</div>
+    {% endif %}
     <p class="ms-note">회사 발송망(Cloudflare 보내기)으로 메일을 내보냅니다. 아래 ②~④ 안내대로 Cloudflare에서 발급한 값을 입력하세요. 비밀번호는 암호화 보관됩니다.</p>
     <div class="frow">
       <div class="fld"><label>SMTP 호스트</label><input name="host" value="{{ cur_host or 'smtp.mx.cloudflare.net' }}" placeholder="smtp.mx.cloudflare.net"></div>

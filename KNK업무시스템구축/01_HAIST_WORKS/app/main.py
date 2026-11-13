@@ -22833,8 +22833,14 @@ async def admin_mail_send_page(req: Request):
         fetch_mode = _mail.via_fetch_mode(c)
         fetch_st = _mail.fetch_send_status(c, u["id"])
         my_from = _mail_from_address_for(c, u)
+        # 아래 '발송망(SMTP) 자격' 카드는 시스템 발송망만의 상태를 보여야 한다.
+        # (ready 는 '내 받기 계정으로 보내기' 까지 합친 값이라, 그걸 쓰면 그 카드가
+        #  설정이 비어 있어도 '발송 준비됨' 으로 보여 사람을 헷갈리게 한다.)
+        relay_ready = _mail.get_send_config(c) is not None
+        via_on = (fetch_mode != "off") and bool(fetch_st.get("ok"))
     return ctx(req, "admin_mail_send.html", user=u, active="admin",
-               ready=ready, mail_key=_mail.mail_available(),
+               ready=ready, relay_ready=relay_ready, via_on=via_on,
+               mail_key=_mail.mail_available(),
                cur_host=get_setting("mail_send_host", ""),
                cur_port=(get_setting("mail_send_port", "") or "465"),
                cur_user=get_setting("mail_send_user", ""),
