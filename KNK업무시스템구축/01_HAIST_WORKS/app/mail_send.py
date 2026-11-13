@@ -22,7 +22,7 @@ import ssl
 import base64
 import smtplib
 from email.message import EmailMessage
-from email.utils import formataddr, parseaddr, make_msgid
+from email.utils import formataddr, formatdate, parseaddr, make_msgid
 
 SMTP_HOST = os.environ.get("KNK_SMTP_HOST", "smtps.hiworks.com")
 SMTP_PORT = int(os.environ.get("KNK_SMTP_PORT", "465"))
@@ -157,6 +157,25 @@ def delete_creds(c, user_id: int) -> None:
 
 
 # ─── 발송 ────────────────────────────────────────────────────────────
+def _stamp_required_headers(msg, from_email: str) -> None:
+    """⭐RFC 5322 필수(Date)·권장(Message-ID) 헤더를 찍는다.
+
+    왜 필요한가 (2026-11-13 실제 사고):
+      · EmailMessage 는 From/To/Subject/Content-* 만 만들고,
+        smtplib.send_message 는 **Resent-Date 만** 다룬다 — 일반 Date 도,
+        Message-ID 도 넣어 주지 않는다(실측 확인).
+      · 그래서 우리가 보낸 메일엔 Date·Message-ID 가 아예 없었고,
+        지메일이 이를 '규격 미달'로 보고 **스팸함으로 분류**했다.
+        (같은 도메인에서 하이웍스 웹메일로 보낸 메일은 정상 수신 — 도메인 문제가 아니었다.)
+    Date 는 보내는 사람 시간대(한국)로, Message-ID 는 보내는 도메인으로 만든다.
+    """
+    if not msg.get("Date"):
+        msg["Date"] = formatdate(localtime=True)
+    if not msg.get("Message-ID"):
+        domain = (from_email or "").split("@")[-1].strip()
+        msg["Message-ID"] = make_msgid(domain=domain or None)
+
+
 def send_mail(from_email: str, password: str, to_email: str, subject: str, body: str,
               from_name: str = "", cc: str = "", attachments=None) -> tuple[bool, str]:
     """본인 계정으로 SMTP 발송. 반환 (성공, 메시지).
@@ -171,6 +190,7 @@ def send_mail(from_email: str, password: str, to_email: str, subject: str, body:
     if cc.strip():
         msg["Cc"] = cc.strip()
     msg["Subject"] = subject or "(제목 없음)"
+    _stamp_required_headers(msg, from_email)   # ⭐Date·Message-ID (없으면 스팸 분류)
     msg.set_content(body or "")
     for fname, data, mime in (attachments or []):
         maintype, _, subtype = (mime or "application/octet-stream").partition("/")
@@ -254,6 +274,7 @@ def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
     if (bcc or "").strip():
         msg["Bcc"] = bcc.strip()   # send_message 가 봉투 수신자로 쓰고 헤더는 제거
     msg["Subject"] = subject or "(제목 없음)"
+    _stamp_required_headers(msg, from_email)   # ⭐Date·Message-ID (없으면 스팸 분류)
     msg.set_content(body or "")
     if html and html.strip():
         html_send, inline_imgs = _inline_data_images(html)
