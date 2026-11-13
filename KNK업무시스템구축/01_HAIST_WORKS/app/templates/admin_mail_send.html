@@ -18,8 +18,17 @@
   .vf-box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0 12px;font-size:13px;line-height:1.85}
   .vf-ok{border-color:#6ee7b7;background:#ecfdf5}
   .vf-no{border-color:#fcd34d;background:#fffbeb}
-  .vf-radio{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin:6px 0;cursor:pointer}
-  .vf-radio input{margin-top:3px;flex:none}
+  /* ⭐.fld 안에 두면 .fld label{display:block} · .fld input{width:100%} 이 이겨서
+     동그라미가 글자 위에 가운데로 뜬다(명시도 싸움). 그래서 .fld 를 쓰지 않는다. */
+  .vf-pick{margin:2px 0 12px}
+  .vf-hd{display:block;font-size:12.5px;color:var(--mute);margin-bottom:6px}
+  .vf-radio{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.55;
+            margin:0;padding:8px 10px;border-radius:8px;cursor:pointer}
+  .vf-radio+.vf-radio{margin-top:2px}
+  .vf-radio:hover{background:#eef5ff}
+  .vf-radio>input[type=radio]{width:16px;height:16px;flex:none;margin:1px 0 0;padding:0;
+            box-sizing:border-box;accent-color:var(--knk-red)}
+  .vf-radio>span{flex:1;min-width:0}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -69,8 +78,8 @@
       {% endif %}
     </div>
 
-    <div class="fld" style="max-width:520px;">
-      <label>이 기능을 쓸 사람</label>
+    <div class="vf-pick" style="max-width:560px;">
+      <div class="vf-hd">이 기능을 쓸 사람</div>
       <label class="vf-radio"><input type="radio" name="via_fetch" value="off" {% if fetch_mode == 'off' %}checked{% endif %}>
         <span><b>끄기</b> — 지금처럼 회사 발송망(아래 칸)으로 보냄</span></label>
       <label class="vf-radio"><input type="radio" name="via_fetch" value="one" {% if fetch_mode == 'one' %}checked{% endif %}>

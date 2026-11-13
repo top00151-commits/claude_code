@@ -119,6 +119,18 @@ if h:
     check("⭐비밀번호가 화면에 없다", FAKE_PW not in h and "gAAAAA" not in h)
     check("· 두 폼이 구분자를 각각 갖는다",
           'value="via_fetch"' in h and 'value="smtp"' in h)
+    # ⭐배치 회귀 (2026-11-13 실제 발생): 선택칸을 .fld 안에 두면
+    #   .fld label{display:block} 과 .fld input{width:100%} 이 .vf-radio 를 이겨서
+    #   동그라미가 글자 왼쪽이 아니라 '글자 위 가운데'로 뜬다.
+    seg = h[h.find('class="vf-pick"'):h.find('value="all"')]
+    check("· 선택칸이 .fld 밖에 있다 (동그라미가 글자 위로 뜨던 병 재발 방지)",
+          'class="vf-pick"' in seg and 'class="fld"' not in seg)
+    check("· 선택지 3개가 <label class=\"vf-radio\"> 로 감싸져 글자를 눌러도 골라진다",
+          h.count('class="vf-radio"') == 3, h.count('class="vf-radio"'))
+    src = open(os.path.join(ROOT, "app", "templates", "admin_mail_send.html"),
+               encoding="utf-8").read()
+    check("· 동그라미 폭을 못 박아 둠 (width:100% 상속 차단)",
+          ".vf-radio>input[type=radio]" in src and "width:16px" in src)
 
 h = render("off", ST_NO, "꺼짐 · 아직 못 씀")
 if h:
