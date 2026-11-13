@@ -26297,19 +26297,75 @@ _Z17_BIZ = (("T", "🔬 검사기"), ("M", "🤖 자동화"), ("L", "💗 라이
             ("CT", "🧴 소모품(검사기)"), ("CM", "🧴 소모품(자동화)"), ("CE", "🧴 소모품(기타)"))
 
 
+# z1191z21 (대표 2026-11-11): 2차 고객사 칸에 「SEV 8대, SEVT 3대」처럼 대수를 적으면 총 금액을 대수로 나눠(1대 금액) 회사별로 넣는다.
+#   대수는 단위(대분·대·식)가 붙은 숫자만 읽는다 — 「DRT2」 같은 이름 속 숫자는 대수가 아니다. 괄호는 있어도 없어도 된다.
+#   나누는 기호: 쉼표 · / · 「·」 · + · 、
+import re as _re_z21
+_Z21_SPLIT = _re_z21.compile(r"[,/·，、+]")
+_Z21_CNT = _re_z21.compile(r"^(.*?)[\s(（\[]*(\d+(?:\.\d+)?)\s*(대분|대|식)\s*[)）\]]?$")
+
+
+def _z21_part(part):
+    """「SEV(8대분)」 → ("SEV", 8.0) · 대수 없으면 (이름, None)."""
+    p = part.strip()
+    m = _Z21_CNT.match(p)
+    if m and m.group(1).strip(" -:(（"):
+        return m.group(1).strip(" -:(（"), float(m.group(2))
+    return p, None
+
+
 def _z17_norm2(v) -> str:
     """2차 고객사 이름 묶기 — 이새롬 프로 답(2026-11-10): DRT·DRT1·DRT2·DREAMTECH VINA·드림텍 = DRT · SEV/SEVT/SEMV 는 따로.
-    여러 개 적힌 값(「DSV,DRT」)은 각 이름을 묶은 뒤 그대로 한 묶음(다시 등록 대기)."""
+    여러 개 적힌 값(「DSV,DRT」)은 각 이름을 묶은 뒤 그대로 한 묶음(다시 등록 대기).
+    z1191z21: 대수가 적혀 있으면 지킨다 → 「SEV(8대분),SEVT(3대분)」(같은 이름은 대수를 더함) — 나누기는 _z21_split."""
     s = str(v or "").strip()
     if not s or s == "None":
         return ""
-    out = []
-    for part in [x.strip() for x in s.split(",") if x.strip()]:
-        u = part.upper().replace(" ", "")
-        name = "DRT" if (u.startswith("DRT") or u.startswith("DREAMTECH") or "드림텍" in part) else part
+    out, cnt, unit = [], {}, {}
+    for part in [x.strip() for x in _Z21_SPLIT.split(s) if x.strip()]:
+        nm, n = _z21_part(part)
+        _m21 = _Z21_CNT.match(part) if n is not None else None
+        un = "식" if (_m21 and _m21.group(3) == "식") else "대분"   # z1191z21b: 적은 단위(식)를 지킴 · 대·대분 = 대분
+        u = nm.upper().replace(" ", "")
+        name = "DRT" if (u.startswith("DRT") or u.startswith("DREAMTECH") or "드림텍" in nm) else nm
         if name not in out:
             out.append(name)
-    return ",".join(out)
+        if n is not None:
+            cnt[name] = cnt.get(name, 0.0) + n
+            unit[name] = un if unit.get(name, un) == un else "대분"   # 같은 이름에 단위가 섞이면 대분
+    return ",".join(("%s(%s%s)" % (k, ("%g" % cnt[k]), unit.get(k, "대분"))) if k in cnt else k for k in out)
+
+
+def _z21_counts(cust2):
+    """묶은 2차(「SEV(8대분),SEVT(3대분)」) → [(이름, 대수)] · 한 이름이라도 대수가 없으면 None(나눌 근거 없음)."""
+    parts = [x for x in str(cust2 or "").split(",") if x]
+    if not parts:
+        return None
+    out = []
+    for x in parts:
+        m = _re_z21.match(r"^(.+)\((\d+(?:\.\d+)?)(?:대분|식)\)$", x)
+        if not m:
+            return None
+        out.append((m.group(1), float(m.group(2))))
+    return out if sum(n for _, n in out) > 0 else None
+
+
+def _z21_split(line):
+    """z1191z21: 매출 한 줄을 2차 대수 비율로 나눈다(총 금액 ÷ 전체 대수 × 회사 대수) — 나눈 합 = 원래 줄(마지막이 나머지)."""
+    cs = _z21_counts(line.get("cust2"))
+    if not cs:
+        return [line]
+    tot = sum(n for _, n in cs)
+    us = dict(_re_z21.findall(r"([^,]+)\(\d+(?:\.\d+)?(대분|식)\)", str(line.get("cust2") or "")))   # z1191z21b: 이름 → 적은 단위
+    out, ra, rk = [], line["amt"], line["krw"]
+    for i, (nm, n) in enumerate(cs):
+        last = (i == len(cs) - 1)
+        a = ra if last else round(line["amt"] * n / tot, 2)
+        w = rk if last else line["krw"] * n / tot
+        ra -= a; rk -= w
+        lb = (line.get("label") or "")
+        out.append(dict(line, amt=a, krw=w, cust2=nm, label=(lb + " · " if lb else "") + ("%g%s" % (n, us.get(nm, "대분")))))
+    return out
 
 
 def _z20_parts(items, order2):
@@ -26461,6 +26517,7 @@ def _z17_lines(c, rates, oi_map, basis):
                 continue
             amt = float(d["total_amount"] or 0)
             out.extend(_z20_split(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth=""), _parts))
+    out = [y for x in out for y in _z21_split(x)]   # z1191z21: 2차 「SEV 8대, SEVT 3대」 → 대수 비율로 나눔
     return out, missing, fx_fb
 
 

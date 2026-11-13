@@ -813,7 +813,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         <div class="pf-field">
           <label>고객사2{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값 — 자기 2차를 따로 적지 않은 수주(1차가 프로젝트 고객과 같은 수주)가 이 값을 따릅니다. 수주마다 다르면 맨 위 「고칠 대상」에서 그 수주를 골라 고칩니다(z1191z14)">(대표값)</span>{% endif %} <span class="sub">(최종 고객 — 다를 때만, 선택)</span></label>
           <input type="text" name="secondary_customer" id="pf_secondary_customer" autocomplete="off"
-                 value="{{ project.secondary_customer or '' }}" placeholder="최종 고객사명(선택)">
+                 value="{{ project.secondary_customer or '' }}" placeholder="최종 고객사명(선택) · 여러 곳: SEV 8대, SEVT 3대" title="여러 곳이면 대수를 함께 — 예: SEV 8대, SEVT 3대 (매출 보고서가 총 금액을 대수로 나눠 회사별로 넣습니다)">
           {# 최종 고객 매출(참고)은 UI에서 내림 — 기존 값은 hidden 으로 보존(편집 시 미손실)
              v5H226z975 (대표 신고 500 수정): |default('')는 None(DB NULL)엔 무력 → value="None" 렌더 → 저장 시 float('None') 500.
              None이면 빈칸으로. #}

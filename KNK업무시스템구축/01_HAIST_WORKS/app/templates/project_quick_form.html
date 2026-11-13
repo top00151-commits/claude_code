@@ -199,7 +199,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
           {# v5H226z350: 2차거래 폐지 → 고객사2(최종 고객) 직접 입력칸 #}
           <div class="qf-f c4"><label>고객사2 <span style="font-weight:400;color:var(--qv-ink-3);">(최종 고객·선택)</span></label>
-            <input list="qCustList" name="secondary_customer" placeholder="최종 고객사명(선택)" autocomplete="off" value="{{ (project.secondary_customer or '') if ed else '' }}">
+            <input list="qCustList" name="secondary_customer" placeholder="최종 고객사명(선택) · 여러 곳: SEV 8대, SEVT 3대" title="여러 곳이면 대수를 함께 — 예: SEV 8대, SEVT 3대 (매출 보고서가 총 금액을 대수로 나눠 회사별로 넣습니다)" autocomplete="off" value="{{ (project.secondary_customer or '') if ed else '' }}">
             <div id="qCust2Chips" class="qf-chips" hidden></div></div>
 
           {# 2행(대표 지시 z435 배치 변경) — PO유형 · 형태 · 거래구분 · 프로젝트명(넓게) #}

@@ -329,7 +329,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
               <input class="ef" data-cust-picker data-cust-name="__co_cust_name" data-cust-id="__co_cust_id" data-cust-required="1"
                      data-cust-initial="{{ (co.customer_name or '')|e }}"{% if co.customer_id %} data-cust-initial-id="{{ co.customer_id }}"{% endif %}
                      placeholder="고객사명·시스템명 검색" autocomplete="off"></div>
-            <div class="h-cell"><div class="lbl">2차 고객사</div><input class="ef" data-field="secondary_customer" value="{{ (co.secondary_customer or '')|e }}" placeholder="—"></div>
+            <div class="h-cell"><div class="lbl">2차 고객사</div><input class="ef" data-field="secondary_customer" value="{{ (co.secondary_customer or '')|e }}" placeholder="— · 여러 곳: SEV 8대, SEVT 3대" title="여러 곳이면 대수를 함께 — 예: SEV 8대, SEVT 3대 (매출 보고서가 총 금액을 대수로 나눠 회사별로 넣습니다) · 품목마다 다르면 아래 품목 표 「2차 고객사」 칸"></div>
             <div class="h-cell"><div class="lbl">고객 담당자</div><input class="ef" data-field="cc_name" value="{{ (co.cc_name or '')|e }}" placeholder="—"></div>
             <div class="h-cell"><div class="lbl">연락처</div><input class="ef" data-field="cc_phone" value="{{ (co.cc_phone or '')|e }}" placeholder="—"></div>
           </div>
