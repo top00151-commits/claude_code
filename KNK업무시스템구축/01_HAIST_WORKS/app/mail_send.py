@@ -297,9 +297,156 @@ def get_send_config(c):
             "user": user, "password": pw}
 
 
-def system_send_ready(c) -> bool:
-    """시스템 발송 가능 여부(암호화키 + 호스트·계정·비번 설정)."""
-    return mail_available() and get_send_config(c) is not None
+# ─── '내 받기 계정으로 보내기' — 받기 자격증명을 발송(SMTP)에 재사용 ──────────
+# 왜: 하이웍스처럼 받기(POP3/IMAP)와 보내기(SMTP)가 '같은 계정·같은 (앱)비밀번호'인
+#     제공사는, 「메일 가져오기」에 이미 등록해 둔 자격증명을 그대로 SMTP 로그인에
+#     쓸 수 있다. → 비밀번호를 다시 입력하지 않고 '내 회사 주소로 보내기'를 켤 수 있다.
+#     받기·보내기 비밀번호 모두 같은 Fernet 키(KNK_MAIL_KEY)로 저장돼 decrypt 가 통한다.
+# 켜는 곳(app_settings):
+#   mail_send_via_fetch      off | one | all   (기본 off = 지금 동작 그대로, 변화 0)
+#   mail_send_via_fetch_uid  'one' 일 때 허용할 users.id (검토 기간 = 저장한 본인만)
+#   mail_send_fetch_host     아래 표에 없는 제공사일 때만 쓰는 보내기 호스트 수동 입력
+#   mail_send_fetch_port     보내기 포트(기본 465) — 시스템 발송망 포트와 섞이지 않게 분리
+
+# 받기 호스트 → 같은 제공사의 보내기(SMTP) 호스트. 확인된 곳만 적는다(짐작 금지).
+_FETCH_TO_SMTP_HOST = {
+    "pop3s.hiworks.com": "smtps.hiworks.com",
+    "pop3.hiworks.com": "smtps.hiworks.com",
+    "imap.hiworks.com": "smtps.hiworks.com",
+    "imaps.hiworks.com": "smtps.hiworks.com",
+}
+
+
+def smtp_host_from_fetch(fetch_host: str) -> str:
+    """받기 호스트에 대응하는 보내기(SMTP) 호스트. 모르는 제공사면 빈 문자열."""
+    return _FETCH_TO_SMTP_HOST.get((fetch_host or "").strip().lower(), "")
+
+
+def via_fetch_mode(c) -> str:
+    """'내 받기 계정으로 보내기' 모드: off | one | all."""
+    m = (_setting(c, "mail_send_via_fetch", "off") or "off").strip().lower()
+    return m if m in ("off", "one", "all") else "off"
+
+
+def via_fetch_uid(c) -> str:
+    """mode='one' 일 때 허용 대상 users.id (문자열, 없으면 '')."""
+    return (_setting(c, "mail_send_via_fetch_uid", "") or "").strip()
+
+
+def via_fetch_allowed(c, owner_id) -> bool:
+    """이 사람이 '내 받기 계정으로 보내기' 대상인가."""
+    if owner_id is None:
+        return False
+    mode = via_fetch_mode(c)
+    if mode == "all":
+        return True
+    if mode == "one":
+        uid = via_fetch_uid(c)
+        return bool(uid) and str(owner_id) == uid
+    return False
+
+
+def get_fetch_send_config(c, owner_id):
+    """그 사람 받기 계정 자격증명으로 만든 발송망 설정. 못 만들면 None(이유는 로그)."""
+    if not mail_available() or owner_id is None:
+        return None
+    try:
+        from . import mail_fetch as _mf
+        acc = _mf.get_account(c, owner_id)
+    except Exception as e:
+        print("[MAIL-SEND] 받기 계정 조회 실패(owner=%s): %s" % (owner_id, str(e)[:120]), flush=True)
+        return None
+    if not acc:
+        return None
+    user = (acc.get("username") or "").strip()
+    pw_enc = (acc.get("password_enc") or "").strip()
+    if not (user and pw_enc and is_valid_email(user)):
+        return None
+    try:
+        pw = decrypt(pw_enc)
+    except Exception as e:
+        print("[MAIL-SEND] 받기 비밀번호 복호화 실패(owner=%s): %s"
+              % (owner_id, type(e).__name__), flush=True)
+        return None
+    if not pw:
+        return None
+    host = (smtp_host_from_fetch(acc.get("host"))
+            or (_setting(c, "mail_send_fetch_host") or "").strip())
+    if not host:
+        return None
+    try:
+        port = int(_setting(c, "mail_send_fetch_port", "465") or "465")
+    except Exception:
+        port = 465
+    # From 은 계정 주소로 고정 — 제공사가 '남의 주소로 보내기'를 막는다.
+    return {"host": host, "port": port, "user": user, "password": pw,
+            "from": user, "src": "fetch"}
+
+
+def get_send_config_for(c, owner_id=None):
+    """발송망 설정. '내 받기 계정으로 보내기' 대상이면 그것 먼저, 아니면 시스템 발송망."""
+    if via_fetch_allowed(c, owner_id):
+        cfg = get_fetch_send_config(c, owner_id)
+        if cfg:
+            return cfg
+    return get_send_config(c)
+
+
+def fetch_send_status(c, owner_id) -> dict:
+    """받기 계정을 발송에 쓸 수 있는지 + 안 되면 왜 (화면 표시용).
+    ⭐비밀번호 값은 절대 담지 않는다 — 있는지(has_pass)만 담는다."""
+    st = {"ok": False, "why": "", "addr": "", "host": "", "port": 465,
+          "fetch_host": "", "protocol": "", "has_pass": False}
+    if not mail_available():
+        st["why"] = "서버에 메일 암호화 키(KNK_MAIL_KEY)가 없습니다. 전산담당자에게 요청하세요."
+        return st
+    if owner_id is None:
+        st["why"] = "대상 사용자가 정해지지 않았습니다."
+        return st
+    try:
+        from . import mail_fetch as _mf
+        acc = _mf.get_account(c, owner_id)
+    except Exception as e:
+        st["why"] = "받기 계정을 읽지 못했습니다: %s" % str(e)[:80]
+        return st
+    if not acc:
+        st["why"] = "「메일 가져오기」에 등록된 받기 계정이 없습니다. 그걸 먼저 등록하세요."
+        return st
+    st["protocol"] = (acc.get("protocol") or "").strip()
+    st["fetch_host"] = (acc.get("host") or "").strip()
+    st["addr"] = (acc.get("username") or "").strip()
+    st["has_pass"] = bool((acc.get("password_enc") or "").strip())
+    if not st["addr"]:
+        st["why"] = "받기 계정에 아이디(메일주소)가 없습니다."
+        return st
+    if not st["has_pass"]:
+        st["why"] = "받기 계정에 저장된 비밀번호가 없습니다. 「메일 가져오기」에서 한 번 저장하세요."
+        return st
+    if not is_valid_email(st["addr"]):
+        st["why"] = ("받기 계정 아이디가 메일주소 형태가 아닙니다(%s) — 보내는 주소로 쓸 수 없습니다."
+                     % st["addr"])
+        return st
+    st["host"] = (smtp_host_from_fetch(st["fetch_host"])
+                  or (_setting(c, "mail_send_fetch_host") or "").strip())
+    if not st["host"]:
+        st["why"] = ("받기 호스트(%s)에 맞는 보내기(SMTP) 호스트를 모릅니다. 아래 '직접 입력'에 넣으세요."
+                     % st["fetch_host"])
+        return st
+    try:
+        st["port"] = int(_setting(c, "mail_send_fetch_port", "465") or "465")
+    except Exception:
+        st["port"] = 465
+    if get_fetch_send_config(c, owner_id) is None:
+        st["why"] = "저장된 비밀번호를 풀지 못했습니다(암호화 키가 바뀐 경우). 받기 비밀번호를 다시 저장하세요."
+        return st
+    st["ok"] = True
+    return st
+
+
+def system_send_ready(c, owner_id=None) -> bool:
+    """발송 가능 여부(암호화키 + 발송망 설정).
+    owner_id 를 주면 그 사람의 '내 받기 계정으로 보내기'까지 함께 본다."""
+    return mail_available() and get_send_config_for(c, owner_id) is not None
 
 
 def save_send_config(c, host: str, port: str, user: str, password: str) -> None:
@@ -316,11 +463,15 @@ def save_send_config(c, host: str, port: str, user: str, password: str) -> None:
 
 def send_system(c, from_email: str, to_email: str, subject: str, body: str,
                 from_name: str = "", cc: str = "", attachments=None,
-                bcc: str = "", html: str = "") -> tuple[bool, str]:
-    """회사 발송망(시스템 SMTP)으로 발송. from_email = 보내는 직원의 @우리도메인 주소."""
-    cfg = get_send_config(c)
+                bcc: str = "", html: str = "", owner_id=None) -> tuple[bool, str]:
+    """회사 발송망(시스템 SMTP)으로 발송. from_email = 보내는 직원의 @우리도메인 주소.
+    owner_id 가 '내 받기 계정으로 보내기' 대상이면 그 계정으로 SMTP 로그인하고,
+    보내는 주소도 그 계정 주소로 맞춘다(제공사가 남의 주소로 보내기를 막으므로)."""
+    cfg = get_send_config_for(c, owner_id)
     if not cfg:
         return (False, "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 입력하세요.")
+    if cfg.get("src") == "fetch" and cfg.get("from"):
+        from_email = cfg["from"]
     return _smtp_send(cfg["host"], cfg["port"], cfg["user"], cfg["password"],
                       from_email, to_email, subject, body, from_name, cc, attachments,
                       bcc=bcc, html=html)

@@ -14,6 +14,12 @@
   .ms-num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--knk-red);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
   .ms-step div{font-size:13px;line-height:1.6}
   .ms-note{font-size:12px;color:var(--mute);line-height:1.7}
+  .vf-card{border-color:#93c5fd;background:#f8fbff}
+  .vf-box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0 12px;font-size:13px;line-height:1.85}
+  .vf-ok{border-color:#6ee7b7;background:#ecfdf5}
+  .vf-no{border-color:#fcd34d;background:#fffbeb}
+  .vf-radio{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin:6px 0;cursor:pointer}
+  .vf-radio input{margin-top:3px;flex:none}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -36,11 +42,68 @@
   </div>
   {% endif %}
 
+  <!-- ⭐ 내 회사 메일주소로 보내기 (받기 계정 자격증명 재사용) -->
+  <form class="ms-card vf-card" method="POST" action="/admin/mail-send" autocomplete="off">
+    <input type="hidden" name="section" value="via_fetch">
+    <h2>⭐ 내 회사 메일주소로 보내기
+      {% if fetch_mode == 'one' %}<span class="ms-status ms-on">켜짐 · 나만</span>
+      {% elif fetch_mode == 'all' %}<span class="ms-status ms-on">켜짐 · 전 직원</span>
+      {% else %}<span class="ms-status ms-off">꺼짐</span>{% endif %}
+    </h2>
+    <p class="ms-note"><b>비밀번호를 새로 넣지 않아도 됩니다.</b> 「메일 가져오기」에 이미 등록해 둔
+      받기 계정의 비밀번호를 보내기(SMTP) 로그인에도 그대로 씁니다 — 하이웍스는 받기와 보내기가
+      같은 계정·같은 비밀번호이기 때문입니다. 보내는 주소는 <b>그 계정 주소로 고정</b>됩니다
+      (메일 제공사가 남의 주소로 보내는 것을 막습니다).</p>
+
+    <div class="vf-box {% if fetch_st.ok %}vf-ok{% else %}vf-no{% endif %}">
+      {% if fetch_st.ok %}
+        ✅ <b>지금 바로 쓸 수 있습니다.</b><br>
+        · 보내는 주소 = <b>{{ fetch_st.addr }}</b><br>
+        · 보내기 서버 = <code>{{ fetch_st.host }}</code> : <code>{{ fetch_st.port }}</code><br>
+        · 받기 계정 = <code>{{ fetch_st.fetch_host }}</code> ({{ fetch_st.protocol or 'pop3' }}) · 저장된 비밀번호 있음
+      {% else %}
+        ⚠ <b>아직 못 씁니다.</b> {{ fetch_st.why }}<br>
+        {% if fetch_st.addr %}· 받기 계정 아이디 = <b>{{ fetch_st.addr }}</b><br>{% endif %}
+        {% if fetch_st.fetch_host %}· 받기 호스트 = <code>{{ fetch_st.fetch_host }}</code> ({{ fetch_st.protocol or 'pop3' }})<br>{% endif %}
+        · <a href="/admin/mail-fetch">「메일 가져오기」 설정으로 가기</a>
+      {% endif %}
+    </div>
+
+    <div class="fld" style="max-width:520px;">
+      <label>이 기능을 쓸 사람</label>
+      <label class="vf-radio"><input type="radio" name="via_fetch" value="off" {% if fetch_mode == 'off' %}checked{% endif %}>
+        <span><b>끄기</b> — 지금처럼 회사 발송망(아래 칸)으로 보냄</span></label>
+      <label class="vf-radio"><input type="radio" name="via_fetch" value="one" {% if fetch_mode == 'one' %}checked{% endif %}>
+        <span><b>나만</b> (검토용) — 지금 로그인한 나({{ user.name or '본인' }})만 내 주소로 보냄</span></label>
+      <label class="vf-radio"><input type="radio" name="via_fetch" value="all" {% if fetch_mode == 'all' %}checked{% endif %}>
+        <span><b>전 직원</b> — 받기 계정을 등록한 사람은 모두 본인 주소로 보냄</span></label>
+    </div>
+
+    <details style="margin:4px 0 10px;">
+      <summary class="ms-note" style="cursor:pointer;">받기 호스트를 자동으로 못 알아내는 제공사일 때만 — 직접 입력</summary>
+      <div class="frow" style="margin-top:8px;">
+        <div class="fld"><label>보내기(SMTP) 호스트</label>
+          <input name="fetch_host" value="{{ cur_fetch_host }}" placeholder="하이웍스는 비워 두세요 (자동: smtps.hiworks.com)"></div>
+        <div class="fld" style="max-width:120px;"><label>포트</label>
+          <input name="fetch_port" value="{{ cur_fetch_port or '465' }}" placeholder="465"></div>
+      </div>
+    </details>
+
+    <div class="actions" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px;">
+      <button type="submit" class="btn btn-primary">💾 저장</button>
+      <a href="/mail/compose" class="btn btn-secondary">메일 쓰기로</a>
+      <a href="/admin/mail-fetch" class="btn btn-secondary">메일 가져오기 설정</a>
+    </div>
+  </form>
+
   <!-- 상태 + 입력 -->
   <form class="ms-card" method="POST" action="/admin/mail-send" autocomplete="off">
+    <input type="hidden" name="section" value="smtp">
     <h2>발송망(SMTP) 자격
       {% if ready %}<span class="ms-status ms-on">발송 준비됨</span>{% else %}<span class="ms-status ms-off">미설정</span>{% endif %}
     </h2>
+    <p class="ms-note">📮 <b>지금 보내는 주소 = {{ my_from }}</b>
+      {% if fetch_mode != 'off' and fetch_st.ok %}(위 「내 회사 메일주소로 보내기」가 켜져 있어 아래 칸은 쓰이지 않습니다){% endif %}</p>
     <p class="ms-note">회사 발송망(Cloudflare 보내기)으로 메일을 내보냅니다. 아래 ②~④ 안내대로 Cloudflare에서 발급한 값을 입력하세요. 비밀번호는 암호화 보관됩니다.</p>
     <div class="frow">
       <div class="fld"><label>SMTP 호스트</label><input name="host" value="{{ cur_host or 'smtp.mx.cloudflare.net' }}" placeholder="smtp.mx.cloudflare.net"></div>

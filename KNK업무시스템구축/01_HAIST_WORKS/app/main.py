@@ -22514,6 +22514,20 @@ def _mail_from_address() -> str:
     return (get_setting("mail_from_address", "") or "").strip() or _MAIL_POC_ADDR
 
 
+def _mail_from_address_for(c, u) -> str:
+    """이 사람의 '보내는 주소'. '내 받기 계정으로 보내기' 대상이면 그 계정 주소,
+    아니면 시스템 설정값(mail_from_address). 보낸편지함 기록도 이 값과 같아진다."""
+    try:
+        uid = (u or {}).get("id")
+        if uid is not None and _mail.via_fetch_allowed(c, uid):
+            cfg = _mail.get_fetch_send_config(c, uid)
+            if cfg and cfg.get("from"):
+                return cfg["from"]
+    except Exception as e:
+        print("[MAIL-FROM] 받기 계정 주소 확인 실패: %s" % str(e)[:120], flush=True)
+    return _mail_from_address()
+
+
 @app.get("/mail/compose", response_class=HTMLResponse)
 async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                             forward: int = 0, draft: int = 0):
@@ -22522,10 +22536,11 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         return RedirectResponse("/login", 303)
     prefill = {"to": "", "cc": "", "bcc": "", "subject": "", "body": "", "draft_id": ""}
     with db_session() as c:
-        ready = _mail.system_send_ready(c)
+        ready = _mail.system_send_ready(c, u["id"])
         sig = _mailbox.get_signature(c, u["id"])
         sigblock = ""   # 서명은 HTML 로 분리 전달(아래 sig_html) — 텍스트 본문에 안 엮음 (이미지 서명 지원)
-        my_addr = (_mail_from_address() or "").lower()
+        my_from = _mail_from_address_for(c, u)
+        my_addr = (my_from or "").lower()
         if draft:
             d = _mailbox.get_draft(c, draft, u["id"])
             if d:
@@ -22563,7 +22578,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         else:
             prefill["body"] = sigblock
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
-               from_addr=_mail_from_address(), ai_on=ai_enabled_for(u),
+               from_addr=my_from, ai_on=ai_enabled_for(u),
                sig_html=("" if draft else sig))   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
 
@@ -22594,9 +22609,9 @@ async def mail_send_route(req: Request):
         return JSONResponse({"ok": False, "message": "첨부 합계가 24MB를 넘습니다. 큰 파일은 링크로 보내세요(대용량 첨부는 추후 기능)."}, 400)
     if not _mail.is_valid_email(to_email):
         return JSONResponse({"ok": False, "message": "받는 메일주소가 올바르지 않습니다."}, 400)
-    from_addr = _mail_from_address()
     with db_session() as c:
-        if not _mail.system_send_ready(c):
+        from_addr = _mail_from_address_for(c, u)
+        if not _mail.system_send_ready(c, u["id"]):
             return JSONResponse({"ok": False, "message": "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 발송망을 먼저 등록하세요."}, 400)
         large_block = _mailbox.large_links_block(c, large_tokens, _WORKS_PUBLIC_BASE) if large_tokens else ""
         send_body = body + large_block
@@ -22609,7 +22624,7 @@ async def mail_send_route(req: Request):
                               + _htmlmod.escape(large_block) + "</pre>")
         ok, msg = _mail.send_system(c, from_addr, to_email, subject, send_body,
                                     from_name=u.get("name") or "", cc=cc, attachments=attachments,
-                                    bcc=bcc, html=send_html)
+                                    bcc=bcc, html=send_html, owner_id=u["id"])
         if ok:
             _mailbox.store_outbound(c, user_id=u["id"], from_email=from_addr,
                                     from_name=u.get("name") or "", to_email=to_email,
@@ -22814,7 +22829,10 @@ async def admin_mail_send_page(req: Request):
         _au = get_user(req)
         return RedirectResponse(role_home(_au) if _au else "/login", 303)
     with db_session() as c:
-        ready = _mail.system_send_ready(c)
+        ready = _mail.system_send_ready(c, u["id"])
+        fetch_mode = _mail.via_fetch_mode(c)
+        fetch_st = _mail.fetch_send_status(c, u["id"])
+        my_from = _mail_from_address_for(c, u)
     return ctx(req, "admin_mail_send.html", user=u, active="admin",
                ready=ready, mail_key=_mail.mail_available(),
                cur_host=get_setting("mail_send_host", ""),
@@ -22822,6 +22840,9 @@ async def admin_mail_send_page(req: Request):
                cur_user=get_setting("mail_send_user", ""),
                has_pass=bool(get_setting("mail_send_pass_enc", "")),
                cur_from=_mail_from_address(),
+               fetch_mode=fetch_mode, fetch_st=fetch_st, my_from=my_from,
+               cur_fetch_host=get_setting("mail_send_fetch_host", ""),
+               cur_fetch_port=(get_setting("mail_send_fetch_port", "") or "465"),
                saved=(req.query_params.get("saved") == "1"))
 
 
@@ -22833,15 +22854,30 @@ async def admin_mail_send_save(req: Request):
     if not _mail.mail_available():
         return JSONResponse({"ok": False, "message": "메일 암호화 키(KNK_MAIL_KEY)가 서버에 없습니다. 전산담당자에게 .env 등록 요청."}, 400)
     form = await req.form()
+    # ⭐화면에 폼이 둘(발송망 자격 / 내 받기 계정으로 보내기)이고 주소가 같다.
+    #   section 으로 갈라야 한 폼을 저장할 때 다른 폼의 값이 빈 값으로 덮이지 않는다.
+    section = (form.get("section") or "smtp").strip().lower()
     with db_session() as c:
-        _mail.save_send_config(c, (form.get("host") or "").strip(),
-                               (form.get("port") or "465").strip(),
-                               (form.get("user") or "").strip(),
-                               (form.get("password") or "").strip())
-        from_addr = (form.get("from_address") or "").strip()
-        if from_addr:
-            c.execute("INSERT INTO app_settings(key, value) VALUES('mail_from_address', ?) "
-                      "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (from_addr,))
+        def _set_opt(k, v):
+            c.execute("INSERT INTO app_settings(key, value) VALUES(?, ?) "
+                      "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
+        if section == "via_fetch":
+            vf = (form.get("via_fetch") or "off").strip().lower()
+            if vf not in ("off", "one", "all"):
+                vf = "off"
+            _set_opt("mail_send_via_fetch", vf)
+            if vf == "one":
+                _set_opt("mail_send_via_fetch_uid", str(u["id"]))
+            _set_opt("mail_send_fetch_host", (form.get("fetch_host") or "").strip())
+            _set_opt("mail_send_fetch_port", (form.get("fetch_port") or "465").strip())
+        else:
+            _mail.save_send_config(c, (form.get("host") or "").strip(),
+                                   (form.get("port") or "465").strip(),
+                                   (form.get("user") or "").strip(),
+                                   (form.get("password") or "").strip())
+            from_addr = (form.get("from_address") or "").strip()
+            if from_addr:
+                _set_opt("mail_from_address", from_addr)
     return RedirectResponse("/admin/mail-send?saved=1", 303)
 
 
