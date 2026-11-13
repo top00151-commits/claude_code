@@ -19779,7 +19779,11 @@ async def sales_orders_quick_edit(req: Request, oid: int):
                     print(f"[z1191] 첫 수주 → 프로젝트 대표값 맞추기 실패: {_e1191}")
         # v5H226z981: 이 수주 호기 비고 일괄 수정(작업일정표 기타사항 셀 = 그 SO 호기 전체)
         # v5H226z983: 지움='' 저장(NULL 아님) — 보드가 프로젝트 메모로 되살리지 않게('지우면 진짜 지워짐')
-        if _note981 is not None:
+        if _note981 is not None and _isp974q:
+            # z1191z23 (이새롬 프로 신고 11-13): 상품(PARTS) 수주는 부품마다 비고가 따로다 → 작업일정표 기타사항 = 수주 메모(unit_note).
+            #   예전엔 부품 비고 전부를 같은 글로 덮어쓰고, 화면은 프로젝트 메모(「[상품 일괄등록]」)를 보여 지워도 안 지워졌다.
+            c.execute("UPDATE orders SET unit_note=? WHERE id=?", (_note981, oid))
+        elif _note981 is not None:
             try:
                 c.execute("UPDATE order_items SET line_note=? WHERE order_id=?",
                           (_note981, oid))
@@ -19799,6 +19803,12 @@ async def sales_orders_quick_edit(req: Request, oid: int):
                 change_desc.append(f"호기수→{int(form.get('unit_qty') or 0)}")
             if "total_amount=?" in ",".join(sets):
                 change_desc.append(f"금액→{float(raw_a or 0):,.0f}")
+            if _note981 is not None:   # z1191z23: 기타사항·모델·장비도 이력에 글로
+                change_desc.append("기타사항→" + (_note981[:60] or "(지움)") + (" (수주 메모)" if _isp974q else ""))
+            if "model_name=?" in ",".join(sets):
+                change_desc.append("모델명→" + ((form.get("model_name") or "").strip()[:60] or "(지움)"))
+            if "equip_name=?" in ",".join(sets):
+                change_desc.append("장비명→" + ((form.get("equip_name") or "").strip()[:60] or "(지움)"))
             c.execute(
                 "INSERT INTO order_status_history(order_id, from_status, to_status, "
                 "changed_by, note) VALUES(?,?,?,?,?)",
@@ -26521,6 +26531,29 @@ def _z17_lines(c, rates, oi_map, basis):
     return out, missing, fx_fb
 
 
+_Z23_FX_DEC = {"VND": 0, "JPY": 0, "KRW": 0}
+
+
+def _z23_fx_add(a, x):
+    """z1191z23 (이새롬 프로 요청): 원래 통화 금액(원화 아닌 것)을 통화별로 더함 — 「합계(외화)」."""
+    ccy = str(x.get("ccy") or "KRW").upper()
+    if ccy == "KRW":
+        return
+    fx = a.setdefault("fx", {})
+    fx[ccy] = fx.get(ccy, 0.0) + float(x.get("amt") or 0)
+
+
+def _z23_fx_txt(fx):
+    """{'USD': 24180.5} → 「USD 24,180.50」 · 여러 통화는 「 · 」 · 큰 금액 통화 먼저 · 없으면 빈 글."""
+    if not fx:
+        return ""
+    out = []
+    for ccy, v in sorted(fx.items(), key=lambda kv: (-abs(kv[1]), kv[0])):
+        d = _Z23_FX_DEC.get(ccy, 2)
+        out.append("%s %s" % (ccy, format(round(v, d), ",.%df" % d)))
+    return " · ".join(out)
+
+
 def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
     basis = basis if basis in _Z17_BASIS else "tax"
     lines_all, missing, fx_fb = _z17_lines(c, rates, oi_map, basis)
@@ -26549,6 +26582,7 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
     for x in lines:
         a = agg.setdefault(x["cust"], {"name": x["cust"], "total": 0.0, "cnt": 0})
         a["total"] += x["krw"]; a["cnt"] += 1
+        _z23_fx_add(a, x)
     cust_rows = sorted(agg.values(), key=lambda a: -a["total"])
     vl = [x for x in lines if x["is_vina"]]
     va = {}
@@ -26556,6 +26590,7 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
         k = x["cust2"] or "(2차 미입력)"
         a = va.setdefault(k, {"name": k, "total": 0.0, "cnt": 0, "multi": ("," in k)})
         a["total"] += x["krw"]; a["cnt"] += 1
+        _z23_fx_add(a, x)
     vina_rows = sorted(va.values(), key=lambda a: -a["total"])
     pa = {}
     for x in lines:
@@ -26563,9 +26598,17 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
         a = pa.setdefault(k, {"code": x["code"], "pname": x["pname"], "pid": x["pid"], "cust": x["cust"], "biz": x["biz"],
                               "total": 0.0, "cnt": 0, "sos": set()})
         a["total"] += x["krw"]; a["cnt"] += 1; a["sos"].add(x["so"])
+        _z23_fx_add(a, x)
     proj_rows = sorted(pa.values(), key=lambda a: (-a["total"], a["code"]))
     for a in proj_rows:
         a["sos"] = ", ".join(sorted(s for s in a["sos"] if s))
+    for a in cust_rows + vina_rows + proj_rows:   # z1191z23: 합계(외화) 글
+        a["fx_txt"] = _z23_fx_txt(a.get("fx"))
+    _fx_all, _fx_vina = {}, {}
+    for x in lines:
+        _z23_fx_add(_fx_all, x)
+    for x in vl:
+        _z23_fx_add(_fx_vina, x)
     # 맞춤 확인 — 사업부·고객사·프로젝트 합 = 줄 합(1원 아래)
     s_b = sum(b["total"] for b in biz_rows)
     s_c = sum(a["total"] for a in cust_rows)
@@ -26585,6 +26628,7 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
             "sel_q": str(sel_q), "sel_m": str(sel_m), "total": total, "cnt": len(lines), "lines": lines,
             "biz_rows": biz_rows, "cats": _Z17_CATS, "cust_rows": cust_rows, "vina_rows": vina_rows,
             "vina_total": sum(x["krw"] for x in vl), "vina_cnt": len(vl), "proj_rows": proj_rows, "checks": checks,
+            "fx_total_txt": _z23_fx_txt(_fx_all.get("fx")), "fx_vina_txt": _z23_fx_txt(_fx_vina.get("fx")),   # z1191z23
             "checks_ok": all(checks.values()), "missing_fx": sorted({ccy for (ccy, _y) in missing}),
             "fx_fallback": [{"ccy": k[0], "applied": k[1], "months": sorted(v)} for k, v in sorted(fx_fb.items())]}
 
@@ -30467,6 +30511,8 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             _bqty_col = ("COALESCE(o.board_qty,0) AS o_bqty, COALESCE(o.board_unit,'') AS o_bunit"
                          if "board_qty" in _ord_cols else "0 AS o_bqty, '' AS o_bunit")
             _i_extra += (", oi.line_note AS i_note" if "line_note" in _oi_cols else ", '' AS i_note")
+            # z1191z23: 상품 수주 기타사항 = 수주 메모(NULL = 안 적음 → 지금처럼 프로젝트 메모 · '' = 지움)
+            _bqty_col += (", o.unit_note AS o_unote" if "unit_note" in _ord_cols else ", NULL AS o_unote")
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
@@ -30509,6 +30555,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "o_shipform": (d.get("o_shipform") or "").upper(),   # v5H226z1058: 형태 폴백용
                         "proj_ptype": (d.get("proj_ptype") or "NEW_EQUIP").upper(),   # v5H226z1058: 소모품 프로젝트 판정용
                         "o_bqty": int(d.get("o_bqty") or 0), "o_bunit": (d.get("o_bunit") or ""),   # v5H226z1088: 표시수량·단위
+                        "o_unote": d.get("o_unote"),   # z1191z23: 수주 메모(상품 수주 기타사항) — None 그대로 둠
                         "items": [],
                     }
                 if d.get("oi_id") is not None:
@@ -30584,7 +30631,8 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     # v5H226z983: None=안 적음(프로젝트 메모 폴백) / ''=지움(폴백 안 함) / 문자열=비고
                     "so_model": _so.get("o_model") or "", "so_equip": _so.get("o_equip") or "",
                     "so_ptype": _so.get("o_ptype") or "",   # v5H226z1033: 이 수주의 PO유형(빈값=프로젝트 상속)
-                    "so_note": (None if _so.get("so_type") == "PARTS_EXPORT"
+                    "so_note": ((None if _so.get("o_unote") is None else str(_so.get("o_unote")).strip())   # z1191z23
+                                if _so.get("so_type") == "PARTS_EXPORT"
                                 else _join_notes981([_it.get("i_note") for _it in _citems])),
                     # z1191z12: 찾기용 — 상품(부품) 수주의 부품 비고도(기타사항 칸엔 안 보임) · 자르지 않음
                     "find_note": _find_note_z12([_it.get("i_note") for _it in _citems]),
@@ -32425,7 +32473,7 @@ async def projects_import_product_confirm(request: Request):
                 "shipment_form": "PARTS",
                 "secondary_customer": str(proj.get("secondary_customer") or ""),
                 "sales": str(proj.get("sales") or ""),
-                "note": "[상품 일괄등록]",
+                "note": "",   # z1191z23: 예전 「[상품 일괄등록]」 표시 글 — 작업일정표 기타사항에 남아 지워지지 않았다(등록은 이력에 남음)
                 "project_type": "NEW_EQUIP",
             })
         except Exception as e:

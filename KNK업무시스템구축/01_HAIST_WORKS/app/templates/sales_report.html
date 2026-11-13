@@ -92,17 +92,17 @@
         <section class="rp-sec">
           <h3>고객사별 <span class="sub">— 수주에 적힌 1차 발주처(없으면 프로젝트 고객) · 큰 순</span></h3>
           <div class="rp-scroll"><table class="rp-t">
-            <thead><tr><th>고객사</th><th class="n">합계(원)</th><th class="n">줄</th></tr></thead>
-            <tbody>{% for a in rep.cust_rows %}<tr><td>{{ a.name }}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n">{{ a.cnt }}</td></tr>{% endfor %}</tbody>
-            <tfoot><tr><td>합계</td><td class="n">{{ '{:,.0f}'.format(rep.total) }}</td><td class="n">{{ rep.cnt }}</td></tr></tfoot>
+            <thead><tr><th>고객사</th><th class="n">합계(원)</th><th class="n">합계(외화)</th><th class="n">줄</th></tr></thead>
+            <tbody>{% for a in rep.cust_rows %}<tr><td>{{ a.name }}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.cnt }}</td></tr>{% endfor %}</tbody>
+            <tfoot><tr><td>합계</td><td class="n">{{ '{:,.0f}'.format(rep.total) }}</td><td class="n rp-fx">{{ rep.fx_total_txt }}</td><td class="n">{{ rep.cnt }}</td></tr></tfoot>
           </table></div>
         </section>
         <section class="rp-sec">
           <h3>KNK VINA — 2차 고객사별 <span class="sub">— 드림텍 계열(DRT·DRT1·DRT2·DREAMTECH VINA·드림텍) = DRT · SEV·SEVT·SEMV 따로</span></h3>
           <div class="rp-scroll"><table class="rp-t">
-            <thead><tr><th>2차 고객사</th><th class="n">합계(원)</th><th class="n">줄</th></tr></thead>
-            <tbody>{% for a in rep.vina_rows %}<tr><td>{% if a.name == '(2차 미입력)' %}<span class="rp-warn">⚠ (2차 미입력)</span>{% else %}{{ a.name }}{% if a.multi %} <span class="sub rp-warn" title="2차가 여러 개 적혀 금액을 나눌 수 없습니다 — 고객사별로 다시 등록하면 나뉩니다">(여러 고객 · 다시 등록 대기)</span>{% endif %}{% endif %}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n">{{ a.cnt }}</td></tr>{% else %}<tr><td colspan="3" class="sub">이 기간 KNK VINA 매출 없음</td></tr>{% endfor %}</tbody>
-            <tfoot><tr><td>KNK VINA 합계</td><td class="n">{{ '{:,.0f}'.format(rep.vina_total) }}</td><td class="n">{{ rep.vina_cnt }}</td></tr></tfoot>
+            <thead><tr><th>2차 고객사</th><th class="n">합계(원)</th><th class="n">합계(외화)</th><th class="n">줄</th></tr></thead>
+            <tbody>{% for a in rep.vina_rows %}<tr><td>{% if a.name == '(2차 미입력)' %}<span class="rp-warn">⚠ (2차 미입력)</span>{% else %}{{ a.name }}{% if a.multi %} <span class="sub rp-warn" title="2차가 여러 개 적혀 금액을 나눌 수 없습니다 — 고객사별로 다시 등록하면 나뉩니다">(여러 고객 · 다시 등록 대기)</span>{% endif %}{% endif %}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.cnt }}</td></tr>{% else %}<tr><td colspan="4" class="sub">이 기간 KNK VINA 매출 없음</td></tr>{% endfor %}</tbody>
+            <tfoot><tr><td>KNK VINA 합계</td><td class="n">{{ '{:,.0f}'.format(rep.vina_total) }}</td><td class="n rp-fx">{{ rep.fx_vina_txt }}</td><td class="n">{{ rep.vina_cnt }}</td></tr></tfoot>
           </table></div>
         </section>
       </div>
@@ -110,9 +110,9 @@
       <section class="rp-sec">
         <h3>프로젝트별 <span class="sub">— 관리번호 · 큰 순 (소모품은 소모품 관리번호)</span></h3>
         <div class="rp-scroll"><table class="rp-t">
-          <thead><tr><th>관리번호</th><th>프로젝트명</th><th>고객사</th><th>수주번호</th><th class="n">합계(원)</th><th class="n">줄</th></tr></thead>
-          <tbody>{% for a in rep.proj_rows %}<tr><td>{% if a.pid %}<a href="/project/{{ a.pid }}">{{ a.code }}</a>{% else %}{{ a.code }}{% endif %}</td><td>{{ a.pname }}</td><td>{{ a.cust }}</td><td style="font-size:11.5px;color:#475569;">{{ a.sos }}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n">{{ a.cnt }}</td></tr>{% endfor %}</tbody>
-          <tfoot><tr><td colspan="4">합계</td><td class="n">{{ '{:,.0f}'.format(rep.total) }}</td><td class="n">{{ rep.cnt }}</td></tr></tfoot>
+          <thead><tr><th>관리번호</th><th>프로젝트명</th><th>고객사</th><th>수주번호</th><th class="n">합계(원)</th><th class="n">합계(외화)</th><th class="n">줄</th></tr></thead>
+          <tbody>{% for a in rep.proj_rows %}<tr><td>{% if a.pid %}<a href="/project/{{ a.pid }}">{{ a.code }}</a>{% else %}{{ a.code }}{% endif %}</td><td>{{ a.pname }}</td><td>{{ a.cust }}</td><td style="font-size:11.5px;color:#475569;">{{ a.sos }}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.cnt }}</td></tr>{% endfor %}</tbody>
+          <tfoot><tr><td colspan="4">합계</td><td class="n">{{ '{:,.0f}'.format(rep.total) }}</td><td class="n rp-fx">{{ rep.fx_total_txt }}</td><td class="n">{{ rep.cnt }}</td></tr></tfoot>
         </table></div>
       </section>
 
