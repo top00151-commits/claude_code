@@ -22934,23 +22934,42 @@ async def admin_mail_send_page(req: Request):
         #  설정이 비어 있어도 '발송 준비됨' 으로 보여 사람을 헷갈리게 한다.)
         relay_ready = _mail.get_send_config(c) is not None
         via_on = (fetch_mode != "off") and bool(fetch_st.get("ok"))
-        # 명단 모드용 — 고를 수 있는 직원과 지금 고른 사람
+        # 명단 모드용 — 고를 수 있는 직원을 ⭐법인(본사/베트남) → 부서로 묶어서 넘긴다.
+        # 화면은 KNK 공용 선택위젯(z886 대표 지시 규정)을 쓴다: 책갈피 + 검색 + 선택칩.
+        # 🔴법인 구분의 단일 기준은 teams.entity (z747 — users.entity 는 신뢰하지 않는다).
         from . import mail_fetch as _mailfetch
         _mailfetch._ensure_table(c)
         fetch_uids = _mail.via_fetch_uids(c)
         _lang = (u.get("lang") or "ko")
-        emp_rows = [{"id": str(r["id"]),
-                     "label": vname_full(dict(r), lang=_lang),
-                     "no": (r["employee_no"] or ""),
-                     "linked": bool(r["linked"])}
-                    for r in c.execute(
-                        "SELECT u.id, u.name, u.rank, u.team_id, u.employee_no, "
-                        "       t.name AS team_name, COALESCE(t.display_order,999) AS t_ord, "
-                        "       (SELECT COUNT(*) FROM mail_fetch_accounts a "
-                        "          WHERE a.owner_user_id=u.id "
-                        "            AND COALESCE(a.password_enc,'')<>'') AS linked "
-                        "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
-                        "WHERE COALESCE(u.is_active,1)=1 ORDER BY t_ord, u.name")]
+        emp_groups = {"KOR": [], "VN": [], "ETC": []}
+        _bucket = {}
+        for _r in c.execute(
+                "SELECT u.id, u.name, COALESCE(u.name_vi,'') AS name_vi, u.rank, u.team_id, "
+                "       u.employee_no, t.name AS team_name, "
+                "       COALESCE(t.display_order,999) AS t_ord, "
+                "       COALESCE(t.entity,'KOR') AS t_ent, "
+                "       (SELECT COUNT(*) FROM mail_fetch_accounts a "
+                "          WHERE a.owner_user_id=u.id "
+                "            AND COALESCE(a.password_enc,'')<>'') AS linked "
+                "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                "WHERE COALESCE(u.is_active,1)=1 ORDER BY t_ord, t.name, u.name"):
+            _d = dict(_r)
+            _e = (str(_d.get("t_ent") or "KOR")).strip().upper()
+            _e = "VN" if _e in ("VN", "VNM") else ("KOR" if _e in ("KOR", "KR", "KO") else "ETC")
+            _team = (_d.get("team_name") or "부서 없음").strip() or "부서 없음"
+            _key = (_e, _d.get("team_id"), _team)
+            if _key not in _bucket:
+                _bucket[_key] = {"team": _team, "members": [], "has_checked": False}
+                emp_groups[_e].append(_bucket[_key])
+            _uid = str(_d["id"])
+            _bucket[_key]["members"].append({
+                "id": _uid,
+                "label": vname_full(_d, lang=_lang),
+                "no": (_d.get("employee_no") or ""),
+                "linked": bool(_d.get("linked")),
+            })
+            if _uid in fetch_uids:
+                _bucket[_key]["has_checked"] = True
     return ctx(req, "admin_mail_send.html", user=u, active="admin",
                ready=ready, relay_ready=relay_ready, via_on=via_on,
                mail_key=_mail.mail_available(),
@@ -22960,7 +22979,7 @@ async def admin_mail_send_page(req: Request):
                has_pass=bool(get_setting("mail_send_pass_enc", "")),
                cur_from=_mail_from_address(),
                fetch_mode=fetch_mode, fetch_st=fetch_st, my_from=my_from,
-               emp_rows=emp_rows, fetch_uids=fetch_uids,
+               emp_groups=emp_groups, fetch_uids=fetch_uids,
                cur_fetch_host=get_setting("mail_send_fetch_host", ""),
                cur_fetch_port=(get_setting("mail_send_fetch_port", "") or "465"),
                saved=(req.query_params.get("saved") == "1"))

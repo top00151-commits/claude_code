@@ -31,8 +31,16 @@
   .vf-radio>span{flex:1;min-width:0}
   .vf-radio>input[type=checkbox]{width:16px;height:16px;flex:none;margin:1px 0 0;padding:0;
             box-sizing:border-box;accent-color:var(--knk-red)}
-  .vf-emp{max-height:270px;overflow:auto;border:1px solid var(--line);border-radius:9px;
-          padding:4px 8px;background:#fff}
+  .vf-emp{border:1px solid var(--line);border-radius:9px;padding:6px 10px 8px;background:#fff}
+  .vf-team{border-top:1px dashed var(--line);padding:4px 0}
+  .vf-team:first-child{border-top:none}
+  .vf-teamrow{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 2px}
+  .vf-teamrow b{font-weight:800}
+  .vf-exp{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:7px;
+          padding:3px 9px;font-size:11.5px;cursor:pointer;color:var(--mute);white-space:nowrap}
+  .vf-exp:hover{background:#f3f4f6}
+  .vf-members{display:none;flex-direction:column;gap:0;padding:0 0 6px 20px}
+  .vf-members.knkp-open,.vf-members.open{display:flex}
   /* 지금 안 쓰이는 카드 — 흐리게. 끄면 다시 쓰므로 입력은 그대로 되게 둔다. */
   .ms-idle{background:#f1f5f9;color:#475569}
   .ms-idle-card{background:#fafbfc;border-style:dashed}
@@ -106,10 +114,31 @@
     <div class="vf-pick" style="max-width:560px;">
       <div class="vf-hd">「고른 사람만」일 때 대상
         <span style="color:var(--mute)">· 📮 = 본인 계정 연결을 이미 마친 사람 · 이름 뒤 숫자 = 사번</span></div>
-      <div class="vf-emp">
-        {% for e in emp_rows %}
-        <label class="vf-radio"><input type="checkbox" name="via_fetch_uids" value="{{ e.id }}" {% if e.id in fetch_uids %}checked{% endif %}>
-          <span>{{ e.label }}{% if e.no %} <span style="color:var(--mute)">({{ e.no }})</span>{% endif %}{% if e.linked %} 📮{% endif %}</span></label>
+      {# z886(대표 지시·규정) 공용 선택위젯 — 🏢본사/🌏베트남 책갈피 + 검색 + 선택칩.
+         🔴손으로 만들지 말 것: 이 위젯이 부서·사람 고르기의 표준이다. #}
+      <div class="vf-emp" data-knk-picker data-knkp-ph="🔍 이름 · 부서 · 사번 으로 찾기">
+        {% for _ent, _elabel in [('KOR','🏢 본사'), ('VN','🌏 베트남'), ('ETC','기타')] %}
+          {% if emp_groups[_ent] %}
+          <div class="knkp-panel" data-entity="{{ _ent }}" data-knkp-label="{{ _elabel }}">
+            {% for g in emp_groups[_ent] %}
+            <div class="vf-team">
+              <div class="vf-teamrow">
+                <b>{{ g.team }}</b>
+                <span style="color:var(--mute)">{{ g.members|length }}명</span>
+                <button type="button" class="vf-exp" onclick="vfExp(this)">▸ 펼치기</button>
+              </div>
+              <div class="vf-members knkp-collapse{% if g.has_checked %} open{% endif %}">
+                {% for m in g.members %}
+                {# data-label 로 거른다 → vname_full(이름 직책 부서) + 사번 이라 셋 다 검색됨 #}
+                <label class="vf-radio knkp-item" data-kind="user" data-label="{{ m.label }} {{ m.no }}">
+                  <input type="checkbox" name="via_fetch_uids" value="{{ m.id }}" {% if m.id in fetch_uids %}checked{% endif %}>
+                  <span>{{ m.label }}{% if m.no %} <span style="color:var(--mute)">({{ m.no }})</span>{% endif %}{% if m.linked %} 📮{% endif %}</span></label>
+                {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
         {% endfor %}
       </div>
       <div class="ms-note" style="margin-top:6px;">고른 사람도 <b>본인이 「📮 내 메일 계정」에서 연결</b>해야 실제로 보낼 수 있습니다
@@ -181,4 +210,23 @@
     <p class="ms-note">막히는 화면이 나오면 캡처해서 빅터에게 보내주세요. 단계별로 안내합니다. (대량 발송이 필요해지면 AWS SES로 호스트만 바꿔도 됩니다)</p>
   </div>
 </main></div>
+{# z886(대표 지시·규정): 부서/사용자 선택창 표준 위젯 — 본사/베트남 탭 + 검색 + 선택칩 #}
+{% include "_knk_picker.html" %}
+<script>
+  // 부서 줄의 「▸ 펼치기」 — 검색 중에는 위젯이 알아서 펼친다(knkp-open).
+  function vfExp(btn){
+    var box = btn.closest('.vf-team').querySelector('.vf-members');
+    if(!box) return;
+    var open = !box.classList.contains('open');
+    box.classList.toggle('open', open);
+    btn.textContent = open ? '▾ 접기' : '▸ 펼치기';
+  }
+  // 처음 열 때, 이미 고른 사람이 있는 부서는 펼쳐 둔다.
+  document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.vf-members.open').forEach(function(box){
+      var b = box.closest('.vf-team').querySelector('.vf-exp');
+      if(b) b.textContent = '▾ 접기';
+    });
+  });
+</script>
 </body></html>

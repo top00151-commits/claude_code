@@ -413,36 +413,83 @@ if h:
     check("렌더 성공 (내 계정 · 받기 켜진 사람)", True)
     check("⭐받기도 멈춘다고 경고한다", "받아오기도 멈춥니다" in h)
 
-EMP = [{"id": "1", "label": "김정락 대표이사 총괄", "no": "5", "linked": True},
-       {"id": "67", "label": "안지연 프로 관리팀", "no": "67", "linked": False},
-       {"id": "306", "label": "이새롬 프로 영업팀", "no": "306", "linked": False}]
-h = render("admin_mail_send.html", _case="명단 모드", active="admin",
-           ready=True, relay_ready=True, via_on=True, mail_key=True,
-           cur_host="smtp.mx.cloudflare.net", cur_port="465", cur_user="relay-user",
-           has_pass=True, cur_from="test@knk-mailtest.com",
-           fetch_mode="list", fetch_st=ST_OK, my_from=A_CEO,
-           cur_fetch_host="", cur_fetch_port="465", saved=False,
-           emp_rows=EMP, fetch_uids={"1", "67", "306"})
+# 직원 고르기 = KNK 공용 선택위젯(z886 대표 지시 규정) — 법인 책갈피 + 검색 + 선택칩 + 부서 묶음
+GROUPS = {
+    "KOR": [
+        {"team": "총괄", "has_checked": True,
+         "members": [{"id": "1", "label": "김정락 대표이사 총괄", "no": "5", "linked": True}]},
+        {"team": "관리팀", "has_checked": True,
+         "members": [{"id": "67", "label": "안지연 프로 관리팀", "no": "67", "linked": False}]},
+        {"team": "영업팀", "has_checked": True,
+         "members": [{"id": "306", "label": "이새롬 프로 영업팀", "no": "306", "linked": False}]},
+    ],
+    "VN": [
+        {"team": "베트남법인", "has_checked": False,
+         "members": [{"id": "500", "label": "Nguyen (응우옌) 매니저 베트남법인",
+                      "no": "VN01", "linked": False}]},
+    ],
+    "ETC": [],
+}
+ADMIN_CTX = dict(active="admin", ready=True, relay_ready=True, via_on=True, mail_key=True,
+                 cur_host="smtp.mx.cloudflare.net", cur_port="465", cur_user="relay-user",
+                 has_pass=True, cur_from="test@knk-mailtest.com",
+                 fetch_st=ST_OK, my_from=A_CEO, cur_fetch_host="", cur_fetch_port="465",
+                 saved=False)
+
+h = render("admin_mail_send.html", _case="명단 모드", fetch_mode="list",
+           emp_groups=GROUPS, fetch_uids={"1", "67", "306"}, **ADMIN_CTX)
 if h:
     t = " ".join(h.split())
     check("렌더 성공 (관리 · 명단 모드)", True)
-    check("· 꼬리표가 「켜짐 · 고른 3명」", "켜짐 · 고른 3명" in t, t[:0])
-    check("· 세 사람이 모두 체크돼 있다", t.count('name="via_fetch_uids"') == 3)
+    check("· 꼬리표가 「켜짐 · 고른 3명」", "켜짐 · 고른 3명" in t)
+    print("   — 대표 지시: 본사/베트남 책갈피 · 검색 · 부서별 —")
+    check("⭐공용 선택위젯을 쓴다(직접 만든 목록 아님)",
+          "data-knk-picker" in h and "knkpStyle" in h)
+    check("⭐🏢본사 책갈피가 있다", 'data-entity="KOR"' in h and "🏢 본사" in h)
+    check("⭐🌏베트남 책갈피가 있다", 'data-entity="VN"' in h and "🌏 베트남" in h)
+    check("· 빈 법인(기타)은 책갈피를 안 만든다", 'data-entity="ETC"' not in h)
+    check("⭐검색칸 안내문이 이름·부서·사번을 말한다",
+          "data-knkp-ph" in h and "부서" in h and "사번" in h)
+    check("⭐부서별로 묶여 있다", h.count('class="vf-team"') == 4, h.count('class="vf-team"'))
+    check("· 부서 이름이 보인다", "관리팀" in h and "영업팀" in h and "베트남법인" in h)
+    check("· 부서별 인원수가 보인다", "1명" in h)
+    check("⭐검색이 부서·사번까지 걸린다(data-label)",
+          'data-label="안지연 프로 관리팀 67"' in h)
+    check("· 고른 사람이 있는 부서는 펼쳐져 있다",
+          h.count("vf-members knkp-collapse open") == 3,
+          h.count("vf-members knkp-collapse open"))
+    check("· 아무도 안 고른 부서는 접혀 있다",
+          h.count('class="vf-members knkp-collapse"') == 1)
+    # 위젯 소스에도 'knkp-item' 글자가 들어 있으므로 라벨 자리만 센다
+    check("· 사람 줄이 위젯이 아는 항목(knkp-item)이다",
+          h.count('class="vf-radio knkp-item"') == 4,
+          h.count('class="vf-radio knkp-item"'))
+    check("· 네 사람 모두 고를 수 있다", t.count('name="via_fetch_uids"') == 4)
     check("· 고른 사람에 체크 표시", t.count('value="67" checked') == 1)
-    check("· 이름이 「이름 직책 부서」 규칙으로 보인다", "안지연 프로 관리팀" in h)
+    check("· 안 고른 사람은 체크 없음", 'value="500" checked' not in t)
+    check("· 이름이 「이름 직책 부서」 규칙", "안지연 프로 관리팀" in h)
+    check("· 베트남 이름 병기가 그대로 나온다", "Nguyen (응우옌)" in h)
     check("· 사번이 함께 보인다", "(306)" in h)
     check("· 연결을 마친 사람에 📮 표시", "📮" in h)
     check("· 끄는 길이 그대로 있다", 'value="off"' in h)
 
-h = render("admin_mail_send.html", _case="명단 비었을 때", active="admin",
-           ready=False, relay_ready=False, via_on=False, mail_key=True,
-           cur_host="", cur_port="465", cur_user="", has_pass=False,
-           cur_from="test@knk-mailtest.com", fetch_mode="list", fetch_st=ST_NO,
-           my_from="test@knk-mailtest.com", cur_fetch_host="", cur_fetch_port="465",
-           saved=False, emp_rows=EMP, fetch_uids=set())
+# has_checked 는 서버가 fetch_uids 로 계산해 넘기는 값 → 빈 명단이면 전부 False
+GROUPS_NONE = {k: [dict(g, has_checked=False) for g in v] for k, v in GROUPS.items()}
+h = render("admin_mail_send.html", _case="명단 비었을 때", fetch_mode="list",
+           emp_groups=GROUPS_NONE, fetch_uids=set(), **ADMIN_CTX)
 if h:
     check("렌더 성공 (관리 · 명단 비었을 때)", True)
     check("· 체크된 사람이 없다", "checked" not in h.split('name="via_fetch_uids"')[1][:60])
+    check("· 모든 부서가 접혀 있다", h.count("knkp-collapse open") == 0,
+          h.count("knkp-collapse open"))
+
+h = render("admin_mail_send.html", _case="베트남만 있을 때", fetch_mode="list",
+           emp_groups={"KOR": [], "VN": GROUPS["VN"], "ETC": []},
+           fetch_uids=set(), **ADMIN_CTX)
+if h:
+    check("렌더 성공 (베트남만 있을 때)", True)
+    check("· 본사 책갈피를 안 만든다", 'data-entity="KOR"' not in h)
+    check("· 베트남 책갈피만 만든다", 'data-entity="VN"' in h)
 
 
 print("\n" + "=" * 56)
