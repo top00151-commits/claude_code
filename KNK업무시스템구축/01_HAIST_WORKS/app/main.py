@@ -22509,6 +22509,98 @@ async def mail_signature_save(req: Request):
     return JSONResponse({"ok": True})
 
 
+# ─── 📮 내 메일 계정 연결 (보내기 전용) ─────────────────────────────────
+# 대표 지시 2026-11-13: 안지연 프로·이새롬 프로도 본인 주소로 보낼 수 있게.
+# 기존 연결 화면은 /admin/mail-fetch 하나뿐이고 '관리자 전용'이라 두 분이 못 들어갔다.
+# → 로그인한 사람이 '자기 것만' 연결하는 화면을 따로 둔다.
+# ⭐'보내기 전용': 새로 연결하면 자동 가져오기를 꺼 둔다(그 사람 메일을 WORKS 로 안 당겨옴).
+#   이미 연결돼 있던 사람(대표)의 가져오기 설정은 건드리지 않는다.
+_MAIL_LINK_HOST = "pop3s.hiworks.com"   # 보내기 호스트는 이 값에서 자동 유도(smtps.hiworks.com)
+_MAIL_LINK_PORT = 995
+
+
+@app.get("/mail/account", response_class=HTMLResponse)
+async def mail_account_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import mail_fetch as _mailfetch
+    with db_session() as c:
+        _mailfetch._ensure_table(c)
+        acct = _mailfetch.get_account(c, u["id"])
+        acct = dict(acct) if acct else None
+        allowed = _mail.via_fetch_allowed(c, u["id"])
+        st = _mail.fetch_send_status(c, u["id"])
+        my_from = _mail_from_address_for(c, u)
+    return ctx(req, "mail_account.html", user=u, active="mail",
+               addr=((acct or {}).get("username") or ""),
+               has_pass=bool((acct or {}).get("password_enc")),
+               fetch_on=bool((acct or {}).get("enabled")),
+               allowed=allowed, st=st, my_from=my_from,
+               mail_key=_mail.mail_available())
+
+
+@app.post("/mail/account")
+async def mail_account_save(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not _mail.mail_available():
+        return JSONResponse({"ok": False, "message": "서버에 메일 암호화 키(KNK_MAIL_KEY)가 없습니다. 전산담당자에게 요청하세요."}, 400)
+    form = await req.form()
+    addr = (form.get("address") or "").strip()
+    pw = (form.get("password") or "").strip()
+    if not _mail.is_valid_email(addr):
+        return JSONResponse({"ok": False, "message": "메일주소가 올바르지 않습니다."}, 400)
+    from . import mail_fetch as _mailfetch
+    with db_session() as c:
+        _mailfetch._ensure_table(c)
+        exist = _mailfetch.get_account(c, u["id"])
+        if not exist and not pw:
+            return JSONResponse({"ok": False, "message": "처음 연결할 때는 비밀번호를 넣어야 합니다."}, 400)
+        _mailfetch.save_account(
+            c, u["id"], protocol="pop3", host=_MAIL_LINK_HOST, port=_MAIL_LINK_PORT,
+            use_ssl=1, username=addr,
+            password_enc=(_mail.encrypt(pw) if pw else None),
+            label=(u.get("name") or ""))
+        if not exist:
+            # ⭐보내기 전용 — 새로 연결한 사람의 메일은 가져오지 않는다.
+            _mailfetch.set_enabled(c, u["id"], False)
+    return JSONResponse({"ok": True, "message": "연결했습니다."})
+
+
+@app.post("/mail/account/test")
+async def mail_account_test(req: Request):
+    """보내기(SMTP) 로그인만 시험한다 — 메일은 보내지 않는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_fetch as _mailfetch
+    with db_session() as c:
+        _mailfetch._ensure_table(c)
+        cfg = _mail.get_fetch_send_config(c, u["id"])
+    # ⭐DB 세션을 닫은 뒤에 네트워크를 기다린다(잠금 쥔 채 기다리지 않기).
+    if not cfg:
+        return JSONResponse({"ok": False, "message": "연결된 계정이 없거나 저장된 비밀번호를 풀 수 없습니다. 비밀번호를 다시 넣어 저장해 보세요."}, 400)
+    ok, msg = _mail.smtp_login_test(cfg["host"], cfg["port"], cfg["user"], cfg["password"])
+    return JSONResponse({"ok": ok, "message": msg})
+
+
+@app.post("/mail/account/unlink")
+async def mail_account_unlink(req: Request):
+    """연결 풀기. ⭐행을 지우지 않고 비밀번호만 비운다 —
+    계정 번호(account_id)와 '이미 가져온 메일' 기록을 보존해, 다시 연결해도 과거 메일을 또 당겨오지 않는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_fetch as _mailfetch
+    with db_session() as c:
+        _mailfetch._ensure_table(c)
+        c.execute("UPDATE mail_fetch_accounts SET password_enc='', enabled=0 WHERE owner_user_id=?",
+                  (u["id"],))
+    return JSONResponse({"ok": True, "message": "연결을 풀었습니다."})
+
+
 # ─── 보내기 (메일 쓰기·답장·발송·보낸편지함 + 발송망 설정) ───────────────
 def _mail_from_address() -> str:
     return (get_setting("mail_from_address", "") or "").strip() or _MAIL_POC_ADDR
@@ -22541,6 +22633,9 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         sigblock = ""   # 서명은 HTML 로 분리 전달(아래 sig_html) — 텍스트 본문에 안 엮음 (이미지 서명 지원)
         my_from = _mail_from_address_for(c, u)
         my_addr = (my_from or "").lower()
+        # 내 계정으로 보내도 되는 사람인가 / 이미 연결돼 있나 (안내문·진입경로용)
+        can_link = _mail.via_fetch_allowed(c, u["id"])
+        acct_ok = bool(_mail.get_fetch_send_config(c, u["id"])) if can_link else False
         if draft:
             d = _mailbox.get_draft(c, draft, u["id"])
             if d:
@@ -22579,6 +22674,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
             prefill["body"] = sigblock
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
                from_addr=my_from, ai_on=ai_enabled_for(u),
+               can_link=can_link, acct_ok=acct_ok,
                sig_html=("" if draft else sig))   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
 
@@ -22838,6 +22934,23 @@ async def admin_mail_send_page(req: Request):
         #  설정이 비어 있어도 '발송 준비됨' 으로 보여 사람을 헷갈리게 한다.)
         relay_ready = _mail.get_send_config(c) is not None
         via_on = (fetch_mode != "off") and bool(fetch_st.get("ok"))
+        # 명단 모드용 — 고를 수 있는 직원과 지금 고른 사람
+        from . import mail_fetch as _mailfetch
+        _mailfetch._ensure_table(c)
+        fetch_uids = _mail.via_fetch_uids(c)
+        _lang = (u.get("lang") or "ko")
+        emp_rows = [{"id": str(r["id"]),
+                     "label": vname_full(dict(r), lang=_lang),
+                     "no": (r["employee_no"] or ""),
+                     "linked": bool(r["linked"])}
+                    for r in c.execute(
+                        "SELECT u.id, u.name, u.rank, u.team_id, u.employee_no, "
+                        "       t.name AS team_name, COALESCE(t.display_order,999) AS t_ord, "
+                        "       (SELECT COUNT(*) FROM mail_fetch_accounts a "
+                        "          WHERE a.owner_user_id=u.id "
+                        "            AND COALESCE(a.password_enc,'')<>'') AS linked "
+                        "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                        "WHERE COALESCE(u.is_active,1)=1 ORDER BY t_ord, u.name")]
     return ctx(req, "admin_mail_send.html", user=u, active="admin",
                ready=ready, relay_ready=relay_ready, via_on=via_on,
                mail_key=_mail.mail_available(),
@@ -22847,6 +22960,7 @@ async def admin_mail_send_page(req: Request):
                has_pass=bool(get_setting("mail_send_pass_enc", "")),
                cur_from=_mail_from_address(),
                fetch_mode=fetch_mode, fetch_st=fetch_st, my_from=my_from,
+               emp_rows=emp_rows, fetch_uids=fetch_uids,
                cur_fetch_host=get_setting("mail_send_fetch_host", ""),
                cur_fetch_port=(get_setting("mail_send_fetch_port", "") or "465"),
                saved=(req.query_params.get("saved") == "1"))
@@ -22869,11 +22983,15 @@ async def admin_mail_send_save(req: Request):
                       "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
         if section == "via_fetch":
             vf = (form.get("via_fetch") or "off").strip().lower()
-            if vf not in ("off", "one", "all"):
+            if vf not in ("off", "one", "all", "list"):
                 vf = "off"
             _set_opt("mail_send_via_fetch", vf)
             if vf == "one":
                 _set_opt("mail_send_via_fetch_uid", str(u["id"]))
+            if vf == "list":
+                picked = [str(x).strip() for x in form.getlist("via_fetch_uids")
+                          if str(x).strip().isdigit()]
+                _set_opt("mail_send_via_fetch_uids", ",".join(sorted(set(picked), key=int)))
             _set_opt("mail_send_fetch_host", (form.get("fetch_host") or "").strip())
             _set_opt("mail_send_fetch_port", (form.get("fetch_port") or "465").strip())
         else:

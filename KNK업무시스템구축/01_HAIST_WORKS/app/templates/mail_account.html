@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>내 메일 계정 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  .ac-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:720px;margin-bottom:14px}
+  .ac-box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0 14px;font-size:13px;line-height:1.85}
+  .ac-ok{border-color:#6ee7b7;background:#ecfdf5}
+  .ac-no{border-color:#fcd34d;background:#fffbeb}
+  .ac-stop{border-color:#fca5a5;background:#fef2f2}
+  .ac-fld{margin-bottom:12px}
+  .ac-fld label{display:block;font-size:12.5px;color:var(--mute);margin-bottom:4px}
+  .ac-fld input{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line);
+                border-radius:8px;font-size:14px}
+  .ac-actions{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap;
+              border-top:1px solid var(--line);padding-top:14px}
+  .ac-step{display:flex;gap:10px;margin:10px 0}
+  .ac-num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--knk-red);color:#fff;
+          font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .ac-step div{font-size:13px;line-height:1.65}
+  .ac-note{font-size:12px;color:var(--mute);line-height:1.75}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 내 메일 계정</div>
+    <h1 class="page-title">📮 내 <em>메일 계정 연결</em></h1>
+  </div></div>
+
+  {% if not mail_key %}
+  <div class="ac-card" style="border-color:var(--amber);">
+    <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;">⚠ 서버에 메일 암호화 키(<code>KNK_MAIL_KEY</code>)가 없어
+      비밀번호를 안전하게 저장할 수 없습니다. 전산담당자에게 요청하세요.</div>
+  </div>
+  {% endif %}
+
+  <div class="ac-card">
+    <div style="font-size:13.5px;line-height:1.75;margin-bottom:4px;">
+      내 회사 메일주소(<b>@knknara.co.kr</b>)로 <b>메일을 보내기</b> 위해 한 번만 연결합니다.</div>
+    <div class="ac-note">🔒 비밀번호는 <b>암호화해서 보관</b>하며, 화면·기록 어디에도 다시 나타나지 않습니다.</div>
+
+    <div class="ac-box {% if st.ok %}ac-ok{% else %}ac-no{% endif %}">
+      {% if st.ok and allowed %}
+        ✅ <b>지금 바로 쓸 수 있습니다.</b><br>
+        · 보내는 주소 = <b>{{ st.addr }}</b><br>
+        · 보내기 서버 = <code>{{ st.host }}</code> : <code>{{ st.port }}</code>
+      {% elif st.ok and not allowed %}
+        🔗 <b>계정은 연결됐습니다.</b> 다만 아직 <b>내 주소로 보내기 대상</b>이 아닙니다 —
+        지금 보내면 <b>{{ my_from }}</b> 으로 나갑니다.<br>
+        · 연결된 주소 = <b>{{ st.addr }}</b><br>
+        · <b>대표님께 「내 주소로 보내기」 명단에 넣어 달라고 요청</b>하세요.
+      {% else %}
+        ⚠ <b>아직 못 씁니다.</b> {{ st.why }}
+      {% endif %}
+    </div>
+
+    {% if fetch_on %}
+    <div class="ac-box ac-stop">
+      🔴 이 계정은 <b>받은 메일 가져오기가 켜져 있습니다.</b>
+      아래 <b>연결 풀기</b>를 누르면 <b>보내기뿐 아니라 받아오기도 멈춥니다.</b> 주의하세요.
+    </div>
+    {% else %}
+    <div class="ac-note" style="margin:-4px 0 12px;">💡 <b>보내기 전용</b>입니다 — 이 연결로
+      <b>내 메일을 WORKS 로 가져오지 않습니다.</b> 하이웍스 메일함은 그대로입니다.</div>
+    {% endif %}
+
+    <div class="ac-fld">
+      <label>내 회사 메일주소</label>
+      <input id="acAddr" type="email" value="{{ addr }}" placeholder="예) hong@knknara.co.kr" autocomplete="off">
+    </div>
+    <div class="ac-fld">
+      <label>메일 전용 비밀번호 {% if has_pass %}<span style="font-size:10.5px;">— 바꿀 때만 넣으세요</span>{% endif %}</label>
+      <input id="acPw" type="password" placeholder="{% if has_pass %}그대로 두면 기존 비밀번호 유지{% else %}하이웍스에서 발급한 「메일 전용 비밀번호」{% endif %}" autocomplete="new-password">
+    </div>
+
+    <div class="ac-actions">
+      <button type="button" class="btn btn-primary" onclick="acSave()">💾 연결 저장</button>
+      <button type="button" class="btn btn-secondary" onclick="acTest()">🔌 연결 시험</button>
+      <a href="/mail/compose" class="btn btn-secondary">메일 쓰기로</a>
+      {% if has_pass %}<button type="button" class="btn btn-secondary" onclick="acUnlink()">연결 풀기</button>{% endif %}
+      <span id="acMsg" style="font-size:12.5px;margin-left:6px;"></span>
+    </div>
+    <div class="ac-note" style="margin-top:8px;">🔌 <b>연결 시험</b>은 로그인만 해 보고 끊습니다 — <b>메일을 보내지 않습니다.</b></div>
+  </div>
+
+  <div class="ac-card">
+    <h2 style="margin:0 0 6px;font-size:15px;">「메일 전용 비밀번호」 받는 법</h2>
+    <div class="ac-note" style="margin-bottom:8px;">🔴 하이웍스 <b>로그인 비밀번호가 아닙니다.</b> 따로 발급받는 별도 비밀번호입니다.</div>
+    <div class="ac-step"><div class="ac-num">1</div><div>하이웍스 메일 → <b>환경설정</b> → <b>POP3/SMTP</b></div></div>
+    <div class="ac-step"><div class="ac-num">2</div><div><b>POP3/SMTP 사용</b>이 「사용 함」인지 확인</div></div>
+    <div class="ac-step"><div class="ac-num">3</div><div><b>「메일 전용 비밀번호 설정」</b>에서 발급</div></div>
+    <div class="ac-step"><div class="ac-num">4</div><div>발급된 비밀번호를 위 칸에 넣고 <b>연결 저장</b> → <b>연결 시험</b></div></div>
+    <div class="ac-note">막히는 화면이 나오면 캡처해서 빅터에게 보내 주세요. 단계별로 안내합니다.</div>
+  </div>
+</main></div>
+<script>
+(function(){
+  var msg = document.getElementById('acMsg');
+  function say(t, color){ msg.textContent = t; msg.style.color = color || ''; }
+
+  async function post(url, fd){
+    try{
+      var r = await fetch(url, {method:'POST', body: fd});
+      return await r.json();
+    }catch(e){ return {ok:false, message:'네트워크 오류'}; }
+  }
+
+  window.acSave = async function(){
+    var addr = (document.getElementById('acAddr').value || '').trim();
+    var pw = document.getElementById('acPw').value || '';
+    if(!addr){ say('⚠ 메일주소를 넣으세요', '#b91c1c'); return; }
+    say('저장 중…');
+    var fd = new FormData();
+    fd.append('address', addr);
+    fd.append('password', pw);
+    var j = await post('/mail/account', fd);
+    if(j.ok){
+      document.getElementById('acPw').value = '';   // 화면에 남기지 않음
+      say('✅ ' + (j.message || '연결했습니다.') + ' 새로고침합니다…', '#047857');
+      setTimeout(function(){ location.reload(); }, 900);
+    } else {
+      say('⚠ ' + (j.message || '저장 실패'), '#b91c1c');
+    }
+  };
+
+  window.acTest = async function(){
+    say('연결 확인 중… (메일은 보내지 않습니다)');
+    var j = await post('/mail/account/test', new FormData());
+    say((j.ok ? '✅ ' : '⚠ ') + (j.message || ''), j.ok ? '#047857' : '#b91c1c');
+  };
+
+  window.acUnlink = async function(){
+    if(!confirm('연결을 풉니다.\n이 계정으로 더 이상 메일을 보낼 수 없게 됩니다.\n\n계속할까요?')) return;
+    say('푸는 중…');
+    var j = await post('/mail/account/unlink', new FormData());
+    if(j.ok){ say('✅ ' + (j.message||''), '#047857'); setTimeout(function(){ location.reload(); }, 900); }
+    else { say('⚠ ' + (j.message||'실패'), '#b91c1c'); }
+  };
+})();
+</script>
+</body></html>

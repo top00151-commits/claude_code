@@ -127,8 +127,15 @@ if h:
     seg = h[h.find('class="vf-pick"'):h.find('value="all"')]
     check("· 선택칸이 .fld 밖에 있다 (동그라미가 글자 위로 뜨던 병 재발 방지)",
           'class="vf-pick"' in seg and 'class="fld"' not in seg)
-    check("· 선택지 3개가 <label class=\"vf-radio\"> 로 감싸져 글자를 눌러도 골라진다",
-          h.count('class="vf-radio"') == 3, h.count('class="vf-radio"'))
+    # ⭐선택지 개수를 숫자로 박지 않는다 — 나중에 선택지를 늘리면 멀쩡한 화면인데 시험이 깨진다
+    #   (2026-11-13 「고른 사람만」을 더했을 때 실제로 깨졌다). 보려는 것은 '모든 선택지가
+    #   <label> 로 감싸져 글자를 눌러도 골라지는가' 다.
+    import re as _re
+    n_choice = len(_re.findall(r'name="via_fetch"\s+value="', t))
+    n_wrapped = len(_re.findall(r'<label class="vf-radio"><input type="radio" name="via_fetch"', t))
+    check("· 모든 선택지가 <label class=\"vf-radio\"> 로 감싸져 글자를 눌러도 골라진다",
+          n_choice >= 3 and n_wrapped == n_choice,
+          "선택지 %d · 감싼 것 %d" % (n_choice, n_wrapped))
     src = open(os.path.join(ROOT, "app", "templates", "admin_mail_send.html"),
                encoding="utf-8").read()
     check("· 동그라미 폭을 못 박아 둠 (width:100% 상속 차단)",

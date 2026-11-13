@@ -301,6 +301,23 @@ def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
         return (False, f"발송 오류: {str(e)[:120]}")
 
 
+def smtp_login_test(host: str, port, user: str, password: str) -> tuple[bool, str]:
+    """보내기(SMTP) 로그인만 해 보고 끊는다. ⭐메일은 보내지 않는다.
+    사람이 '내 계정이 되는지'를 발송 전에 확인할 수 있게 하는 용도."""
+    if not (host and user and password):
+        return (False, "연결된 계정 정보가 모자랍니다.")
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, int(port or 465), context=ctx, timeout=20) as s:
+            s.login(user, password)
+        return (True, "연결 성공 — 이 계정으로 보낼 수 있습니다.")
+    except smtplib.SMTPAuthenticationError:
+        return (False, "로그인 실패 — 메일주소/비밀번호를 확인하세요. "
+                       "하이웍스 「메일 전용 비밀번호」여야 합니다(로그인 비밀번호 아님).")
+    except Exception as e:
+        return (False, "연결 오류: %s" % str(e)[:120])
+
+
 def get_send_config(c):
     """시스템 발송망 설정. 없으면 None."""
     host = _setting(c, "mail_send_host")
@@ -346,12 +363,24 @@ def smtp_host_from_fetch(fetch_host: str) -> str:
 def via_fetch_mode(c) -> str:
     """'내 받기 계정으로 보내기' 모드: off | one | all."""
     m = (_setting(c, "mail_send_via_fetch", "off") or "off").strip().lower()
-    return m if m in ("off", "one", "all") else "off"
+    return m if m in ("off", "one", "all", "list") else "off"
 
 
 def via_fetch_uid(c) -> str:
     """mode='one' 일 때 허용 대상 users.id (문자열, 없으면 '')."""
     return (_setting(c, "mail_send_via_fetch_uid", "") or "").strip()
+
+
+def via_fetch_uids(c) -> set:
+    """mode='list' 일 때 허용 대상 users.id 집합(문자열).
+    ⭐사람 참조는 users.id 로만 저장한다(이름·사번은 바뀔 수 있다)."""
+    raw = _setting(c, "mail_send_via_fetch_uids", "") or ""
+    out = set()
+    for part in raw.replace(";", ",").replace(" ", ",").split(","):
+        part = part.strip()
+        if part.isdigit():
+            out.add(part)
+    return out
 
 
 def via_fetch_allowed(c, owner_id) -> bool:
@@ -364,6 +393,8 @@ def via_fetch_allowed(c, owner_id) -> bool:
     if mode == "one":
         uid = via_fetch_uid(c)
         return bool(uid) and str(owner_id) == uid
+    if mode == "list":
+        return str(owner_id) in via_fetch_uids(c)
     return False
 
 

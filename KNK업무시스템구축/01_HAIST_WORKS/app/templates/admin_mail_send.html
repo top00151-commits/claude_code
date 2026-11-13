@@ -29,6 +29,10 @@
   .vf-radio>input[type=radio]{width:16px;height:16px;flex:none;margin:1px 0 0;padding:0;
             box-sizing:border-box;accent-color:var(--knk-red)}
   .vf-radio>span{flex:1;min-width:0}
+  .vf-radio>input[type=checkbox]{width:16px;height:16px;flex:none;margin:1px 0 0;padding:0;
+            box-sizing:border-box;accent-color:var(--knk-red)}
+  .vf-emp{max-height:270px;overflow:auto;border:1px solid var(--line);border-radius:9px;
+          padding:4px 8px;background:#fff}
   /* 지금 안 쓰이는 카드 — 흐리게. 끄면 다시 쓰므로 입력은 그대로 되게 둔다. */
   .ms-idle{background:#f1f5f9;color:#475569}
   .ms-idle-card{background:#fafbfc;border-style:dashed}
@@ -63,6 +67,7 @@
     <input type="hidden" name="section" value="via_fetch">
     <h2>⭐ 내 회사 메일주소로 보내기
       {% if fetch_mode == 'one' %}<span class="ms-status ms-on">켜짐 · 나만</span>
+      {% elif fetch_mode == 'list' %}<span class="ms-status ms-on">켜짐 · 고른 {{ fetch_uids|length }}명</span>
       {% elif fetch_mode == 'all' %}<span class="ms-status ms-on">켜짐 · 전 직원</span>
       {% else %}<span class="ms-status ms-off">꺼짐</span>{% endif %}
     </h2>
@@ -91,8 +96,24 @@
         <span><b>끄기</b> — 지금처럼 회사 발송망(아래 칸)으로 보냄</span></label>
       <label class="vf-radio"><input type="radio" name="via_fetch" value="one" {% if fetch_mode == 'one' %}checked{% endif %}>
         <span><b>나만</b> (검토용) — 지금 로그인한 나({{ user.name or '본인' }})만 내 주소로 보냄</span></label>
+      <label class="vf-radio"><input type="radio" name="via_fetch" value="list" {% if fetch_mode == 'list' %}checked{% endif %}>
+        <span><b>고른 사람만</b> — 아래에서 고른 사람만 본인 주소로 보냄 <b>(권장)</b></span></label>
       <label class="vf-radio"><input type="radio" name="via_fetch" value="all" {% if fetch_mode == 'all' %}checked{% endif %}>
-        <span><b>전 직원</b> — 받기 계정을 등록한 사람은 모두 본인 주소로 보냄</span></label>
+        <span><b>전 직원</b> — 계정을 연결한 사람은 <b>모두</b> 본인 주소로 보냄
+          <span style="color:var(--mute)">(나중에 연결하는 사람도 자동으로 켜집니다)</span></span></label>
+    </div>
+
+    <div class="vf-pick" style="max-width:560px;">
+      <div class="vf-hd">「고른 사람만」일 때 대상
+        <span style="color:var(--mute)">· 📮 = 본인 계정 연결을 이미 마친 사람 · 이름 뒤 숫자 = 사번</span></div>
+      <div class="vf-emp">
+        {% for e in emp_rows %}
+        <label class="vf-radio"><input type="checkbox" name="via_fetch_uids" value="{{ e.id }}" {% if e.id in fetch_uids %}checked{% endif %}>
+          <span>{{ e.label }}{% if e.no %} <span style="color:var(--mute)">({{ e.no }})</span>{% endif %}{% if e.linked %} 📮{% endif %}</span></label>
+        {% endfor %}
+      </div>
+      <div class="ms-note" style="margin-top:6px;">고른 사람도 <b>본인이 「📮 내 메일 계정」에서 연결</b>해야 실제로 보낼 수 있습니다
+        (비밀번호는 본인만 넣을 수 있습니다).</div>
     </div>
 
     <details style="margin:4px 0 10px;">
