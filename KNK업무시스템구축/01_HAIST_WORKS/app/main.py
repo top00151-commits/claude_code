@@ -22933,7 +22933,14 @@ async def admin_mail_send_page(req: Request):
         # (ready 는 '내 받기 계정으로 보내기' 까지 합친 값이라, 그걸 쓰면 그 카드가
         #  설정이 비어 있어도 '발송 준비됨' 으로 보여 사람을 헷갈리게 한다.)
         relay_ready = _mail.get_send_config(c) is not None
-        via_on = (fetch_mode != "off") and bool(fetch_st.get("ok"))
+        # ⭐「계정이 연결됐나」(fetch_st.ok)와 「내가 실제로 내 주소로 보내나」는 다른 물음이다.
+        #   「고른 사람만」인데 내가 명단에 없으면, 계정이 연결돼 있어도 내 메일은
+        #   시스템 발송망으로 나간다(_mail_from_address_for 가 그렇게 돌아간다).
+        #   🔴2026-11-14: 대표가 본인을 빼고 저장했는데 화면이 초록으로 「지금 바로 쓸 수
+        #   있습니다」라고 해서 「나는 계속 내 주소로 보낸다」고 믿으셨다. 그 거짓말을 없앤다.
+        me_on_list = _mail.via_fetch_allowed(c, u["id"])
+        me_via_on = me_on_list and bool(fetch_st.get("ok"))
+        via_on = me_via_on
         # 명단 모드용 — 고를 수 있는 직원을 ⭐법인(본사/베트남) → 부서로 묶어서 넘긴다.
         # 화면은 KNK 공용 선택위젯(z886 대표 지시 규정)을 쓴다: 책갈피 + 검색 + 선택칩.
         # 🔴법인 구분의 단일 기준은 teams.entity (z747 — users.entity 는 신뢰하지 않는다).
@@ -22972,6 +22979,7 @@ async def admin_mail_send_page(req: Request):
                 _bucket[_key]["has_checked"] = True
     return ctx(req, "admin_mail_send.html", user=u, active="admin",
                ready=ready, relay_ready=relay_ready, via_on=via_on,
+               me_on_list=me_on_list, me_id=str(u["id"]), me_name=(u.get("name") or "나"),
                mail_key=_mail.mail_available(),
                cur_host=get_setting("mail_send_host", ""),
                cur_port=(get_setting("mail_send_port", "") or "465"),

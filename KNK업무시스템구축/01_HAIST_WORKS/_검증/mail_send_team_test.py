@@ -434,7 +434,7 @@ ADMIN_CTX = dict(active="admin", ready=True, relay_ready=True, via_on=True, mail
                  cur_host="smtp.mx.cloudflare.net", cur_port="465", cur_user="relay-user",
                  has_pass=True, cur_from="test@knk-mailtest.com",
                  fetch_st=ST_OK, my_from=A_CEO, cur_fetch_host="", cur_fetch_port="465",
-                 saved=False)
+                 saved=False, me_on_list=True, me_id="1", me_name="김정락")
 
 h = render("admin_mail_send.html", _case="명단 모드", fetch_mode="list",
            emp_groups=GROUPS, fetch_uids={"1", "67", "306"}, **ADMIN_CTX)
@@ -464,7 +464,10 @@ if h:
     check("· 사람 줄이 위젯이 아는 항목(knkp-item)이다",
           h.count('class="vf-radio knkp-item"') == 4,
           h.count('class="vf-radio knkp-item"'))
-    check("· 네 사람 모두 고를 수 있다", t.count('name="via_fetch_uids"') == 4)
+    # 🔴JS 안에도 'via_fetch_uids' 글자가 있다 → 체크박스 자리만 센다
+    check("· 네 사람 모두 고를 수 있다",
+          t.count('<input type="checkbox" name="via_fetch_uids"') == 4,
+          t.count('<input type="checkbox" name="via_fetch_uids"'))
     check("· 고른 사람에 체크 표시", t.count('value="67" checked') == 1)
     check("· 안 고른 사람은 체크 없음", 'value="500" checked' not in t)
     check("· 이름이 「이름 직책 부서」 규칙", "안지연 프로 관리팀" in h)
@@ -523,6 +526,80 @@ if _fn:
     # (대조군) 이 검사가 '통과'를 실제로 구분하는가
     check("(대조군) 검사가 통과/차단을 실제로 가른다",
           safe("/mail/compose") != "" and safe("https://evil.com") == "")
+
+
+# ════════ §13 「고른 사람만」인데 본인이 빠졌을 때 (2026-11-14 실제 사고) ════════
+# 무슨 일: 대표가 「고른 사람만」에 안지연·이새롬만 체크하고 저장 → 본인은 명단 밖.
+#   그런데 화면은 **초록으로 「지금 바로 쓸 수 있습니다」** 라고 해서
+#   「나는 계속 내 주소로 보낸다」고 믿으셨다. 실제로는 시스템 발송망으로 나가고 있었다.
+# 뿌리: 초록 판정이 '계정이 연결됐나'(fetch_st.ok)만 보고 '내가 실제로 내 주소로 보내나'는 안 봤다.
+#   같은 조건으로 아래 발송망 카드도 「지금 안 쓰임」이라 떴다 — 실제로는 쓰이고 있는데.
+print("\n§13 「고른 사람만」인데 본인이 명단 밖일 때 (대표 사고 재현)")
+
+CEO_CTX = dict(ADMIN_CTX, me_id="1", me_name="김정락", my_from="test@knk-mailtest.com")
+
+# (가) 사고 그대로 — 계정 연결됨 + 명단 밖
+h = render("admin_mail_send.html", _case="명단 밖", fetch_mode="list",
+           emp_groups=GROUPS, fetch_uids={"67", "306"},
+           **dict(CEO_CTX, via_on=False, me_on_list=False, fetch_st=ST_OK))
+if h:
+    check("렌더 성공 (명단 밖)", True)
+    check("⭐초록으로 「지금 바로 쓸 수 있습니다」라고 하지 않는다",
+          "지금 바로 쓸 수 있습니다" not in h)
+    check("⭐초록 칠(vf-ok)을 하지 않는다", "vf-box vf-ok" not in h)
+    check("⭐「나는 지금 대상이 아닙니다」라고 말한다",
+          "나(김정락)는 지금 대상이 아닙니다" in h)
+    check("⭐지금 어느 주소로 나가는지 알려 준다",
+          "지금 내 메일은" in h and "test@knk-mailtest.com" in h)
+    check("· 무엇을 하면 되는지 알려 준다", "나(김정락)</b>를 체크하고 저장" in h)
+    check("· 계정 연결 자체는 됐다고 알려 준다(겁주지 않음)",
+          "쓸 준비는 끝남" in h and ST_OK["addr"] in h)
+    check("⭐아래 발송망 카드를 「지금 안 쓰임」이라 하지 않는다 (실제로 쓰이는 중)",
+          "지금 안 쓰임" not in h)
+    check("· 저장 전에도 알려 줄 자리가 있다", 'id="vfMeWarn"' in h)
+    check("· 내 체크를 보고 갱신하는 코드가 있다",
+          'via_fetch_uids"][value="' in h and 'vfMeWarn' in h)
+
+# (나) 대조군 — 본인도 체크했을 때
+h2 = render("admin_mail_send.html", _case="명단 안", fetch_mode="list",
+            emp_groups=GROUPS, fetch_uids={"1", "67", "306"},
+            **dict(CEO_CTX, via_on=True, me_on_list=True, my_from=A_CEO, fetch_st=ST_OK))
+if h2:
+    check("렌더 성공 (명단 안)", True)
+    check("(대조군) 본인이 명단에 있으면 초록이 뜬다", "지금 바로 쓸 수 있습니다" in h2)
+    check("(대조군) 경고 문구가 사라진다", "지금 대상이 아닙니다" not in h2)
+    check("(대조군) 발송망 카드는 「지금 안 쓰임」", "지금 안 쓰임" in h2)
+
+# (다) 「나만」·「전 직원」 에서는 경고가 뜨지 않는다
+for _m in ("one", "all"):
+    h3 = render("admin_mail_send.html", _case="모드 %s" % _m, fetch_mode=_m,
+                emp_groups=GROUPS, fetch_uids=set(),
+                **dict(CEO_CTX, via_on=True, me_on_list=True, my_from=A_CEO, fetch_st=ST_OK))
+    if h3:
+        check("「%s」 모드에서는 명단 경고가 없다" % _m, "지금 대상이 아닙니다" not in h3)
+
+# (라) 계정 자체가 없을 때는 기존 안내가 그대로 (엉뚱한 경고로 덮지 않기)
+h4 = render("admin_mail_send.html", _case="계정 없음", fetch_mode="list",
+            emp_groups=GROUPS, fetch_uids=set(),
+            **dict(CEO_CTX, via_on=False, me_on_list=False, fetch_st=ST_NO))
+if h4:
+    check("렌더 성공 (계정 없음)", True)
+    check("계정이 없으면 기존 「아직 못 씁니다」 안내", "아직 못 씁니다" in h4)
+    check("· 명단 경고로 덮어쓰지 않는다", "지금 대상이 아닙니다" not in h4)
+
+# (마) 서버 쪽 — me_via_on 이 '명단 + 연결' 둘 다를 본다
+print("\n  서버 판정 — 명단과 연결을 모두 본다")
+c = make_db()
+link_as_route(c, CEO, A_CEO, FAKE_PW)
+setopt(c, "mail_send_via_fetch", "list")
+setopt(c, "mail_send_via_fetch_uids", "67,306")          # 대표 빠짐
+check("⭐명단 밖이면 via_fetch_allowed 가 False", not ms.via_fetch_allowed(c, CEO))
+check("· 그래도 계정 상태(fetch_send_status)는 ok=True (둘은 다른 물음)",
+      ms.fetch_send_status(c, CEO)["ok"] is True)
+check("⭐그래서 화면은 둘을 반드시 따로 봐야 한다",
+      ms.fetch_send_status(c, CEO)["ok"] != ms.via_fetch_allowed(c, CEO))
+setopt(c, "mail_send_via_fetch_uids", "1,67,306")        # 대표 넣음
+check("명단에 넣으면 allowed=True", ms.via_fetch_allowed(c, CEO))
 
 
 print("\n" + "=" * 56)

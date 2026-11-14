@@ -41,6 +41,8 @@
   .vf-exp:hover{background:#f3f4f6}
   .vf-members{display:none;flex-direction:column;gap:0;padding:0 0 6px 20px}
   .vf-members.knkp-open,.vf-members.open{display:flex}
+  .vf-mewarn{border:1px solid #fca5a5;background:#fef2f2;color:#991b1b;border-radius:9px;
+             padding:9px 12px;margin:2px 0 10px;font-size:12.5px;line-height:1.7;max-width:560px}
   /* 지금 안 쓰이는 카드 — 흐리게. 끄면 다시 쓰므로 입력은 그대로 되게 둔다. */
   .ms-idle{background:#f1f5f9;color:#475569}
   .ms-idle-card{background:#fafbfc;border-style:dashed}
@@ -84,12 +86,21 @@
       같은 계정·같은 비밀번호이기 때문입니다. 보내는 주소는 <b>그 계정 주소로 고정</b>됩니다
       (메일 제공사가 남의 주소로 보내는 것을 막습니다).</p>
 
-    <div class="vf-box {% if fetch_st.ok %}vf-ok{% else %}vf-no{% endif %}">
-      {% if fetch_st.ok %}
+    {# ⭐초록(쓸 수 있음)은 「계정 연결됨」이 아니라 「내가 실제로 내 주소로 보냄」일 때만.
+       계정은 연결됐는데 내가 명단에 없으면 → 노랑 경고(내 메일은 다른 주소로 나간다). #}
+    <div class="vf-box {% if via_on %}vf-ok{% else %}vf-no{% endif %}">
+      {% if via_on %}
         ✅ <b>지금 바로 쓸 수 있습니다.</b><br>
         · 보내는 주소 = <b>{{ fetch_st.addr }}</b><br>
         · 보내기 서버 = <code>{{ fetch_st.host }}</code> : <code>{{ fetch_st.port }}</code><br>
         · 받기 계정 = <code>{{ fetch_st.fetch_host }}</code> ({{ fetch_st.protocol or 'pop3' }}) · 저장된 비밀번호 있음
+      {% elif fetch_st.ok and not me_on_list %}
+        ⚠ <b>내 계정은 연결됐지만, 나({{ me_name }})는 지금 대상이 아닙니다.</b><br>
+        · 연결된 주소 = <b>{{ fetch_st.addr }}</b> (쓸 준비는 끝남)<br>
+        · 🔴 <b>지금 내 메일은 <code>{{ my_from }}</code> 으로 나갑니다.</b><br>
+        {% if fetch_mode == 'list' %}· 아래 <b>「고른 사람만」 대상</b>에서 <b>나({{ me_name }})</b>를 체크하고 저장하세요.
+        {% elif fetch_mode == 'off' %}· 위에서 <b>「나만」</b> 또는 <b>「고른 사람만」</b>을 고르고 저장하세요.
+        {% else %}· 위 선택을 확인하세요.{% endif %}
       {% else %}
         ⚠ <b>아직 못 씁니다.</b> {{ fetch_st.why }}<br>
         {% if fetch_st.addr %}· 받기 계정 아이디 = <b>{{ fetch_st.addr }}</b><br>{% endif %}
@@ -109,6 +120,12 @@
       <label class="vf-radio"><input type="radio" name="via_fetch" value="all" {% if fetch_mode == 'all' %}checked{% endif %}>
         <span><b>전 직원</b> — 계정을 연결한 사람은 <b>모두</b> 본인 주소로 보냄
           <span style="color:var(--mute)">(나중에 연결하는 사람도 자동으로 켜집니다)</span></span></label>
+    </div>
+
+    {# 저장 전에도 바로 알 수 있게 — 내 체크를 켜고 끌 때마다 이 줄이 나타났다 사라진다 #}
+    <div id="vfMeWarn" class="vf-mewarn" style="display:none;">
+      ⚠ <b>나({{ me_name }})가 대상에서 빠져 있습니다.</b>
+      이대로 저장하면 <b>내 메일은 내 주소로 안 나갑니다.</b>
     </div>
 
     <div class="vf-pick" style="max-width:560px;">
@@ -221,6 +238,29 @@
     box.classList.toggle('open', open);
     btn.textContent = open ? '▾ 접기' : '▸ 펼치기';
   }
+  // 「고른 사람만」인데 내가 빠져 있으면 저장 전에도 알려 준다(고르는 즉시 갱신).
+  (function(){
+    var ME = "{{ me_id }}";
+    function myBox(){
+      return document.querySelector('input[name="via_fetch_uids"][value="' + ME + '"]');
+    }
+    function modeNow(){
+      var r = document.querySelector('input[name="via_fetch"]:checked');
+      return r ? r.value : "off";
+    }
+    function sync(){
+      var warn = document.getElementById('vfMeWarn');
+      if(!warn) return;
+      var cb = myBox();
+      var show = (modeNow() === 'list') && !!cb && !cb.checked;
+      warn.style.display = show ? '' : 'none';
+    }
+    document.addEventListener('DOMContentLoaded', function(){
+      document.querySelectorAll('input[name="via_fetch"],input[name="via_fetch_uids"]')
+        .forEach(function(el){ el.addEventListener('change', sync); });
+      sync();
+    });
+  })();
   // 처음 열 때, 이미 고른 사람이 있는 부서는 펼쳐 둔다.
   document.addEventListener('DOMContentLoaded', function(){
     document.querySelectorAll('.vf-members.open').forEach(function(box){
