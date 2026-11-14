@@ -53,8 +53,12 @@ echo "boot_id         : $(cat /proc/sys/kernel/random/boot_id 2>/dev/null || ech
 echo ""
 echo "--- cross-visibility (decisive) ---"
 PSOUT=$( (ps -eo pid,etime,args 2>/dev/null || ps aux 2>/dev/null) )
-echo "sees old-mail run.py        : $(echo "$PSOUT" | grep -c '[r]un\.py')"
-echo "sees old-mail watchdog      : $(echo "$PSOUT" | grep -c '[m]ail_watchdog')"
+# !! match the FULL PATH. A bare "run.py" also matches the portal quality app
+#    (/opt/knk_portal/src/quality/run.py) on 32201 -> false positive, wrong verdict.
+#    Caught by session 10 on 2026-11-14 against real output.
+echo "sees old-mail run.py        : $(echo "$PSOUT" | grep -c '[/]opt/knk_mail/run\.py')"
+echo "sees old-mail watchdog      : $(echo "$PSOUT" | grep -c '[/]opt/knk_mail/mail_watchdog')"
+echo "  (any run.py at all, FYI)  : $(echo "$PSOUT" | grep -c '[r]un\.py')   <- NOT a verdict"
 echo "sees WORKS (knk_haist)      : $(echo "$PSOUT" | grep -c '[k]nk_haist')"
 echo "sees messenger (knk_msg)    : $(echo "$PSOUT" | grep -cE '[k]nk_msg|[k]nk_messenger')"
 echo "total processes             : $(ls -1 /proc 2>/dev/null | grep -cE '^[0-9]+$')"
@@ -86,12 +90,18 @@ foreach ($p in $Ports) {
 
 Write-Host ""
 Write-Host "HOW TO READ IT" -ForegroundColor Cyan
-Write-Host "  TWO SEPARATE containers  <= ns_pid / ns_net / ns_mnt DIFFER between the ports,"
-Write-Host "                              or the container_id values differ,"
-Write-Host "                              or 32201 does NOT see run.py / mail_watchdog."
-Write-Host "  ONE container (two doors) <= those namespace inodes are IDENTICAL,"
-Write-Host "                              or 32201 DOES see the old-mail processes."
+Write-Host "  PRIMARY (trust these):  ns_pid and ns_mnt and container_id"
+Write-Host "     DIFFER between the ports  -> TWO SEPARATE containers"
+Write-Host "     IDENTICAL                 -> ONE container (two ssh doors)"
 Write-Host ""
-Write-Host "  IGNORE machine_id and boot_id - they can match even for separate containers." -ForegroundColor Yellow
+Write-Host "  ns_net may be IDENTICAL even for separate containers" -ForegroundColor Yellow
+Write-Host "     (host network mode - that is why 5051 and 5053 share one port space)."
+Write-Host "     So ns_net alone decides NOTHING."
+Write-Host ""
+Write-Host "  IGNORE machine_id and boot_id - they match even for separate containers." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  Cross-visibility is only CORROBORATION, and only the FULL-PATH lines count:" -ForegroundColor Yellow
+Write-Host "     'sees old-mail run.py / watchdog' use /opt/knk_mail/... and are meaningful."
+Write-Host "     'any run.py at all' is NOT - the portal quality app is also a run.py."
 Write-Host ""
 Write-Host "[DONE] Paste the FULL output above to Victor (session 15_KNK_Mail)." -ForegroundColor Green
