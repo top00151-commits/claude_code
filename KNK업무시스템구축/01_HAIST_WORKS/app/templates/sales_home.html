@@ -33,23 +33,25 @@ body {
 /* v5H226z107: sales_home 통합 정리 — main flex column 명시 + 자식별 flex 처리로 진동 근본 해결 */
 /* page-head sticky 제거 (첫 자식이라 항상 보임) + 마지막 grid-2가 남은 공간 + 그 안 list-card 각자 스크롤 */
 body { overflow: hidden !important; }
+/* z1191z25 (대표 2026-11-15 「작은 모니터에서 아래 내용을 볼 수 없어 · 스크롤이 빠졌어」):
+   예전엔 본문을 화면 높이에 고정하고 넘침을 잘랐다(스크롤 막대도 숨김) — 3지표·환율·기간·사업부별 표가 늘며
+   작은 모니터에서 아래가 잘려 안 보였다. → 본문 세로 스크롤(막대 보임) · 위 칸은 제 높이 · 맨 아래(TOP5·최근)는
+   내용 높이만큼(TOP5 ≤5줄 · 최근 ≤7줄) + 큰 화면에선 남은 공간까지(작은 화면에선 아래로 내려 봄).
+   ⚠ 높이는 공용 틀 격자(상단바 · 탭 줄 · 본문 1fr — z989)가 정한다. 예전 calc(100vh - 80px)는 탭 줄을 몰라
+   본문 아래 41px 이 늘 화면 밖으로 나가 있었다. */
 .main {
   display: flex !important;
   flex-direction: column;
-  height: calc(100vh - var(--topbar-h, 80px)) !important;
-  overflow: hidden !important;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.main::-webkit-scrollbar { display: none; }
-/* 고정 영역 (page-head, KPI, 차트 grid-2) — flex-shrink: 0 */
-.main > .knk-page-head,
-.main > .kpi-row,
-.main > .grid-2[data-dn="grid-biz-stage"] { flex-shrink: 0; }
-/* 마지막 grid-2 (TOP5 + 최근 프로젝트) — 남은 공간 차지 + 자체 overflow 차단 */
-.main > .grid-2[data-dn="grid-customer-recent"] {
-  flex: 1 1 0;
   min-height: 0;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+/* 고정 영역 (page-head, KPI, 환율·기간 바, 사업부·년도별 표) — 줄어들지 않음 */
+.main > * { flex-shrink: 0; }
+/* 마지막 grid-2 (TOP5 + 최근 프로젝트) — 내용 높이 + 남은 공간 차지(좁은 폭에서 두 카드가 위아래로 쌓여도 잘리지 않게) */
+.main > .grid-2[data-dn="grid-customer-recent"] {
+  flex: 1 0 auto;
+  min-height: 360px;
   overflow: hidden;
   max-height: none;
 }
