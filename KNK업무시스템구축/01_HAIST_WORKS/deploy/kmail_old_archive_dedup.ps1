@@ -590,7 +590,7 @@ if ($Apply) {
     Write-Host "  A full backup is made and verified first, and is kept until you run -PurgeBackup." -ForegroundColor Yellow
     Write-Host "--------------------------------------------------" -ForegroundColor Yellow
     $answer = Read-Host "Type DELETE (capital letters) to continue, anything else to stop"
-    if ($answer -cne "DELETE") {
+    if ("$answer".Trim() -cne "DELETE") {
         Write-Host "Stopped. Nothing was changed." -ForegroundColor Green
         return
     }
@@ -602,7 +602,7 @@ if ($Apply) {
     Write-Host "=================================================="
     Write-Host "  This removes the backup made by -Apply. After this, -Restore is no longer possible." -ForegroundColor Yellow
     $answer = Read-Host "Type PURGE (capital letters) to continue, anything else to stop"
-    if ($answer -cne "PURGE") {
+    if ("$answer".Trim() -cne "PURGE") {
         Write-Host "Stopped. Nothing was changed." -ForegroundColor Green
         return
     }
@@ -612,7 +612,7 @@ if ($Apply) {
     Write-Host "  Old mail archive - put the backup back (undo)" -ForegroundColor Cyan
     Write-Host "=================================================="
     $answer = Read-Host "Type RESTORE (capital letters) to continue, anything else to stop"
-    if ($answer -cne "RESTORE") {
+    if ("$answer".Trim() -cne "RESTORE") {
         Write-Host "Stopped. Nothing was changed." -ForegroundColor Green
         return
     }
