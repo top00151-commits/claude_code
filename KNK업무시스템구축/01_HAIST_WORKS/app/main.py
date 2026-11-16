@@ -181,6 +181,13 @@ app.add_middleware(
 from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=600)
 
+# ─── 📮 메일 전용 주소(kmail) — 이 주소로 들어오면 메일 화면만 ────────────────
+# 대표 지시 2026-11-16 「이음메일을 이음웍스와 별개로」 → 「5053으로 적용해서 설정해」.
+#   판정 · 넘김 · 메일 전용 입구(포트)는 app/mail_site.py 한 곳에 있다.
+#   ⭐메일 전용 주소가 아닌 요청(= works 로 들어오는 전부)에는 아무것도 하지 않는다.
+from . import mail_site as _mail_site   # noqa: E402
+app.add_middleware(_mail_site.Guard)
+
 
 # v5H226z... http→https 강제 전환 (대표 지시 2026-06-04). 메신저와 동일 효과, FastAPI 미들웨어 방식.
 #   DSM 리버스 프록시가 원래 scheme 을 X-Forwarded-Proto 로 정확히 전달함(메신저에서 실측 확인 2026-06-04).
@@ -2166,7 +2173,9 @@ def ctx(request, name, **kwargs):
             _mail_app = bool(request.session.get("mail_app"))
     except Exception:
         _mail_app = False
-    base["mail_app"] = _mail_app
+    # 📮 메일 전용 주소(kmail)로 들어왔으면 늘 「메일만」 화면 — 업무 사이드바를 붙이지 않는다
+    #   (그 주소에서는 업무 화면이 works 로 넘어가므로, 사이드바가 있으면 누를 때마다 다른 주소로 튄다).
+    base["mail_app"] = _mail_app or _mail_site.is_mail_site(request)
     # v5H226z706 (대표 지시·정책): 전 화면 고객사 표시는 '시스템명(alias)' 우선 — 공용 맵 주입(customer_id→시스템명).
     #   템플릿 패턴: {{ (cust_alias|default({},true)).get(x.customer_id) or x.customer_name }} (없으면 정식명 폴백·안전).
     #   정식명(매칭·세금계산서/인보이스/견적 등 발행문서)은 그대로 customer_name 사용.
@@ -3172,12 +3181,17 @@ async def login_page(req: Request):
     **항상 KNK Eum 메신저 로그인(force)으로 직행** (기존 안내 페이지 대신) — 앱·브라우저 모두
     항상 메신저를 통해 로그인. 토큰 오류 시 sso_land 가 login.html(안내)로 메시지 표시."""
     u = get_user(req)
+    _on_mail_site = _mail_site.is_mail_site(req)     # 📮 메일 전용 주소(kmail)로 들어왔는가
     if u:
-        return RedirectResponse(role_home(u), 303)
+        return RedirectResponse(_mail_site.MAIL_HOME if _on_mail_site else role_home(u), 303)
     from urllib.parse import quote
     from . import sso_client
     nxt = _safe_next_path(req.query_params.get("next") or "/home") or "/home"
-    redirect_uri = _WORKS_PUBLIC_BASE + "/sso/land?next=" + quote(nxt, safe="")
+    if _on_mail_site:
+        # 메일 전용 주소에서는 메일 안쪽으로만 착지(그 밖이면 받은편지함)
+        nxt = _mail_site.landing(_safe_next_path(req.query_params.get("next") or ""))
+    # 들어온 주소(works / kmail)로 돌아오게 — ⭐허용은 그 둘뿐(mail_site 에 박아 둠 · Host 로 조립하지 않는다)
+    redirect_uri = _mail_site.public_base(req) + "/sso/land?next=" + quote(nxt, safe="")
     # v5H226z425(대표 지시): force 제거 — 메신저 로그인돼 있으면 자동 로그인(SSO 단일 로그인).
     #   보안은 세션 비영구화(닫으면 만료→재검증)로 유지. 미인증이면 메신저 로그인 화면.
     return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
@@ -3294,6 +3308,9 @@ def sso_land(req: Request):
     # role 무관 — 대표도 업무현황으로 진입 (대시보드는 메뉴에서 이동)
     # 단, next=<내부경로> 가 지정되면(메신저 📧메일 아이콘 등) 그 화면으로 착지.
     nxt = _safe_next_path(req.query_params.get("next") or "")
+    if _mail_site.is_mail_site(req):
+        # 📮 메일 전용 주소(kmail)에서는 메일 안쪽으로만 착지(그 밖이면 받은편지함)
+        return RedirectResponse(_mail_site.landing(nxt), 303)
     return RedirectResponse(nxt or "/home", 303)
 
 
@@ -22192,14 +22209,16 @@ def _mail_pwa_icon_png(size: int) -> bytes:
 
 
 @app.get("/mail/manifest.webmanifest")
-async def mail_manifest():
+async def mail_manifest(req: Request):
     return JSONResponse({
         "id": "/mail/app",
         "name": "KNK Eum MAIL",
         "short_name": "Eum MAIL",
         "description": "KNK Eum MAIL — 사내 메일",
         "start_url": "/mail/app",
-        "scope": "/mail/",
+        # 📮 메일 전용 주소(kmail)는 통째로 메일이라 범위를 주소 전체로 —
+        #   발송 설정(/admin/mail-…)·로그인 왕복이 앱 창 안에서 주소줄 없이 열린다. works 에서는 지금 그대로 /mail/.
+        "scope": "/" if _mail_site.is_mail_site(req) else "/mail/",
         "display": "standalone",
         "orientation": "portrait",
         "background_color": "#ffffff",
@@ -22212,7 +22231,9 @@ async def mail_manifest():
         ],
         "categories": ["business", "productivity"],
         # v5H226z424 (대표 지시): /mail 범위 링크 클릭 시 '설치된 KNK Eum MAIL 앱'으로 열림(링크 캡처).
-        "launch_handler": {"client_mode": ["focus-existing", "auto"]},
+        # 이미 메일 창이 열려 있어도 **그 주소로 이동**(focus-existing 이면 창만 앞으로 와서
+        # 「메일 쓰기」로 눌러도 받은편지함 그대로였다).
+        "launch_handler": {"client_mode": ["navigate-existing", "auto"]},
         "handle_links": "preferred",
     }, media_type="application/manifest+json")
 
@@ -22250,8 +22271,32 @@ async def mail_app_launch(req: Request):
     #   (force 제거 = SSO 단일 로그인). 보안은 세션 비영구화로 유지(닫으면 만료→재검증).
     from urllib.parse import quote
     from . import sso_client
-    redirect_uri = _WORKS_PUBLIC_BASE + "/sso/land?next=" + quote("/mail/inbox?app=1", safe="")
+    # 메일 쓰기처럼 「메일 안쪽」으로 바로 열 수 있게 next 를 받는다.
+    #   예) /mail/app?next=%2Fmail%2Fcompose
+    # ⭐/mail/ 안쪽만 허용 — 바깥 경로를 넣어 엉뚱한 데로 보내지 못하게 좁힌다(그 밖이면 받은편지함).
+    nxt = _safe_next_path(req.query_params.get("next") or "")
+    if not nxt.startswith("/mail/"):
+        nxt = "/mail/inbox?app=1"
+    redirect_uri = _mail_site.public_base(req) + "/sso/land?next=" + quote(nxt, safe="")
     return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
+
+
+# 📮 메일 전용 입구(포트) — 환경변수 KNK_MAIL_SITE_PORT 가 있을 때만 연다(없으면 아무것도 안 함).
+#   ⚠이 훅은 위쪽 startup()(DB 준비) **뒤에** 돌아야 한다 — 등록 순서 = 파일 순서이므로
+#     startup() 보다 아래인 이 자리에 둔다(위로 옮기지 말 것).
+#   ⚠try 로 감싼 까닭: 라이브러리 판이 달라 등록 자체가 실패해도 **WORKS 기동을 막지 않게**
+#     (그 경우 입구만 없이 뜬다 — 업무시스템은 그대로).
+try:
+    @app.on_event("startup")
+    async def _mail_site_listen_start():
+        _mail_site.start(app)
+
+    @app.on_event("shutdown")
+    async def _mail_site_listen_stop():
+        await _mail_site.stop()
+except Exception as _mail_site_hook_err:
+    print("[MAIL-SITE] ERROR hook — 입구 훅 등록 실패(WORKS 본체 무영향): %s"
+          % str(_mail_site_hook_err)[:160], flush=True)
 
 
 @app.post("/mail/inbox/demo")
