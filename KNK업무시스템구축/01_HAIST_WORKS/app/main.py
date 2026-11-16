@@ -31712,7 +31712,9 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["so_oid"] = _ln.get("oid")
                 _iu["is_parts"] = (str(_ln.get("so_type") or "").upper() == "PARTS_EXPORT")
                 _iu["qty_missing"] = bool(_iu["is_parts"] and _ln.get("qty_missing"))   # z1191z16: 상품 수량 미입력
-                _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
+                # z1191z34 (이새롬 프로 신고 · 대표 2026-11-16): 납품위치 = 줄(호기) → 그 수주 값까지만. 같은 관리번호 다른 수주 값을
+                #   빌려 보이지 않는다(국내 납품 수주에 「드림텍 베트남」이 보이고 지워도 다시 보이던 병) · 빈칸이면 빈칸
+                _iu["ship_to"] = _ln["ship_to"] or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
                 _iu["status_date"] = _ln.get("status_date") or ""   # v5H226z711: 상태 발생일(호기) → 달력 표식
@@ -33352,7 +33354,9 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 _iu["so_oid"] = _ln.get("oid")
                 _iu["is_parts"] = (str(_ln.get("so_type") or "").upper() == "PARTS_EXPORT")
                 _iu["qty_missing"] = bool(_iu["is_parts"] and _ln.get("qty_missing"))   # z1191z16: 상품 수량 미입력
-                _iu["ship_to"] = _ln["ship_to"] or info.get("ship_to") or ""
+                # z1191z34 (이새롬 프로 신고 · 대표 2026-11-16): 납품위치 = 줄(호기) → 그 수주 값까지만. 같은 관리번호 다른 수주 값을
+                #   빌려 보이지 않는다(국내 납품 수주에 「드림텍 베트남」이 보이고 지워도 다시 보이던 병) · 빈칸이면 빈칸
+                _iu["ship_to"] = _ln["ship_to"] or ""
                 _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
                 _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
                 _iu["status_date"] = _ln.get("status_date") or ""   # v5H226z711: 상태 발생일(호기) → 달력 표식
