@@ -573,6 +573,39 @@ def _ti_title(o, ccy="KRW", mx=_TI_MAX):
     return "\n".join(ln)
 
 
+def _so_tax_issued_z30(c, oid):
+    """z1191z30 (대표 2026-11-16): 이 수주(SO)에 세금계산서가 발행됐나 — 호기(order_items) 1~10차 발행일·금액 중 하나라도
+    (작업일정표·호기 표·묶어 발행 모두 호기 칸에 적힌다) · 옛 수주 칸(orders 1~3차)도 본다. 반환 = 발행 흔적 있는 호기 수(0 = 없음)."""
+    oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    conds = (["COALESCE(TRIM(%s),'')<>''" % d for d in _TI_DCOLS if d in oic] +
+             ["COALESCE(%s,0)<>0" % a for a in _TI_ACOLS if a in oic])
+    n = 0
+    if conds:
+        n = c.execute("SELECT COUNT(*) FROM order_items WHERE order_id=? AND (" + " OR ".join(conds) + ")", (oid,)).fetchone()[0] or 0
+    if not n:
+        oc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+        oconds = (["COALESCE(TRIM(%s),'')<>''" % d for d in _TI_DCOLS[:3] if d in oc] +
+                  ["COALESCE(%s,0)<>0" % a for a in _TI_ACOLS[:3] if a in oc])
+        if oconds and c.execute("SELECT 1 FROM orders WHERE id=? AND (" + " OR ".join(oconds) + ")", (oid,)).fetchone():
+            n = 1
+    return int(n)
+
+
+_Z30_MSG = ("⚠ 세금계산서가 발행 완료된 항목입니다 (수주번호 %s).\n"
+            "「전체 교체」를 하면 기존 부품 줄이 지워지면서 세금계산서 발행 기록(발행일·금액·설명)도 함께 지워지므로 할 수 없습니다.\n"
+            "부품이 더 생겼으면 「부품 추가」로 올려 주세요.")
+
+
+def _ti_so_issued_tpl(oid):
+    """z1191z30: 상세 화면 「전체 교체」 단추 — 그릴 때 발행 여부(서버 저장 경로가 마지막에 한 번 더 막는다)."""
+    try:
+        with db_session() as c:
+            return _so_tax_issued_z30(c, int(oid)) > 0
+    except Exception:
+        return False
+
+
+tpl.env.globals["ti_so_issued"] = _ti_so_issued_tpl
 tpl.env.globals["ti_json"] = _ti_json
 tpl.env.globals["ti_bundle_json"] = _ti_bundle_json
 tpl.env.globals["ti_cell_html"] = _ti_cell_html
@@ -20026,13 +20059,11 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
             # 안전 ②: 엑셀 관리번호가 있고 이 수주의 관리번호와 다르면 차단 (다른 프로젝트 데이터로 덮어쓰기 방지)
             if ex_mgmt and cur_mgmt and ex_mgmt != cur_mgmt:
                 return JSONResponse({"ok": False, "message": f"엑셀 관리번호({ex_mgmt})가 이 수주의 관리번호({cur_mgmt})와 다릅니다. 같은 관리번호 파일만 덮어쓸 수 있습니다."}, 200)
-            # 안전 ③: 세금계산서가 발행된 수주는 차단 (회계 기록 보호)
-            try:
-                _tx = c.execute("SELECT COUNT(*) FROM tax_invoice_lines WHERE order_id=?", (oid,)).fetchone()[0]
-            except Exception:
-                _tx = 0
-            if _tx:
-                return JSONResponse({"ok": False, "message": f"세금계산서가 발행된 수주({order_no})는 덮어쓸 수 없습니다. 먼저 세금계산서를 취소하세요."}, 200)
+            # 안전 ③ → z1191z30 (대표 2026-11-16): 세금계산서가 발행된 수주는 「전체 교체」 금지(「부품 추가」는 된다 — 줄을 안 지운다).
+            #   예전 ③은 tax_invoice_lines.order_id 로 찾았는데 그 표엔 order_id 칸이 없어 늘 오류 → 0건 → 한 번도 안 막았다.
+            #   이제 실제로 쓰는 호기 칸(1~10차 발행일·금액)을 본다 — 교체하면 호기 줄이 지워지며 발행 기록·설명이 함께 사라진다.
+            if not _is_add943 and _so_tax_issued_z30(c, oid):
+                return JSONResponse({"ok": False, "tax_issued": True, "message": _Z30_MSG % order_no}, 200)
             # v5H226z971 (대표 지적): 교체/추가가 변경 이력에 안 남던 문제 → 교체 전 개수 캡처(아래서 이력 1줄 기록)
             _old_cnt971 = c.execute("SELECT COUNT(*) FROM order_items WHERE order_id=?", (oid,)).fetchone()[0]
             # ── 라인 교체(replace): 기존 order_items 삭제 → 새로 INSERT / 추가(add): 삭제 없이 append (order_no·project 유지)

@@ -687,7 +687,8 @@
                 {# v5H226z943 (대표 지시): 부품은 추가 업로드 가능 → '추가'(기존 유지·append) + '전체 교체'(삭제 후 채움) 두 버튼. 둘 다 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신. #}
                 {# v5H226z971 (대표 지적): 두 버튼은 [✏️ 수정] 후에만(ow-need-edit — 잠금 시 흐림+knkOwClick 가드) #}
                 <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'add')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주에 부품을 '추가'합니다(기존 부품 유지·여러 번 나눠 올리기 가능). 관리번호·수주번호 유지 / 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 부품 추가 업로드</button>
-                <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 전체 교체</button>
+                {# z1191z30 (대표 2026-11-16): 세금계산서가 발행된 수주는 「전체 교체」 금지 — 파일 고르기 전에 안내(서버도 한 번 더 막음) · 「부품 추가」는 그대로 #}
+                <button type="button" class="btn-mini ow-need-edit{% if ti_so_issued(so.id) %} ow-tax-issued{% endif %}" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace', this)" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 전체 교체</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 부품 추가</button>
                 {% elif (so.form_key == 'semi' or (p.shipment_form or '')|upper == 'SEMI') %}
                 {# z1191z4c (이새롬 프로 요청 · 대표 결정): 제품 수주는 호기가 없다 — 「＋ 품목 추가」(1줄 · 수량 N) #}
@@ -2887,8 +2888,13 @@
 <script>
 (function(){
   var _owSoId = null, _owSoNo = '', _owMode = 'replace';
-  window.knkOwClick = function(soId, soNo, mode){
+  window.knkOwClick = function(soId, soNo, mode, btn){
     mode = (mode === 'add') ? 'add' : 'replace';
+    // z1191z30 (대표 2026-11-16): 세금계산서가 발행된 수주는 「전체 교체」 금지 — 파일 고르기 전에 안내
+    if(mode === 'replace' && btn && btn.classList.contains('ow-tax-issued')){
+      alert('⚠ 세금계산서가 발행 완료된 항목입니다 (수주번호 ' + (soNo||'') + ').\n「전체 교체」를 하면 기존 부품 줄이 지워지면서 세금계산서 발행 기록(발행일·금액·설명)도 함께 지워지므로 할 수 없습니다.\n부품이 더 생겼으면 「부품 추가」로 올려 주세요.');
+      return;
+    }
     // v5H226z971 (대표 지적): 업로드/교체는 [✏️ 수정]을 눌러 편집 모드(unlocked)일 때만 — 실수로 눌러 데이터 갈아엎는 것 방지.
     var _card = document.querySelector('.so-card[data-soid="' + soId + '"]');
     if(_card && !_card.classList.contains('unlocked')){
