@@ -21920,6 +21920,7 @@ async def contact_mail_send(req: Request, cid: int):
 #  · /mail/inbox(받은편지함)·/mail/{id}(보기)·별표·삭제·AI 번역
 # ═══════════════════════════════════════════════════════════════════════════
 from . import mail_store as _mailbox
+from . import mail_signature as _mail_sig   # 2026-11-16 메일 서명 → 주소록 채우기
 
 _MAIL_CATEGORIES = ("견적", "발주", "세금계산서", "일반")
 # v5H226z494 (컨테이너 분리·대표 지시): 메일 공개도메인 env화 — 기본 kmail.knknara.co.kr(메일 전용 컨테이너).
@@ -22431,6 +22432,11 @@ async def mail_to_contact(req: Request, mail_id: int):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    # 2026-11-16: 화면에서 확인한 칸(이름·직급·회사·휴대폰…)이 함께 오면 그대로 저장. 안 오면 옛 방식(이름·메일만).
+    try:
+        _form = await req.form()
+    except Exception:
+        _form = {}
     with db_session() as c:
         m = _mailbox.get_mail(c, mail_id, u["id"])
         if not m:
@@ -22439,16 +22445,76 @@ async def mail_to_contact(req: Request, mail_id: int):
         if not email or "@" not in email:
             return JSONResponse({"ok": False, "message": "보낸사람 이메일이 없어 등록할 수 없습니다."}, 400)
         name = (m.get("from_name") or "").strip() or email.split("@")[0]
-        row = c.execute("SELECT id FROM shared_contacts WHERE email IS NOT NULL "
-                        "AND lower(email)=lower(?) ORDER BY id LIMIT 1", (email,)).fetchone()
+        _email_form = (_form.get("email") or "").strip()
+        row = c.execute("SELECT id, name, company FROM shared_contacts WHERE email IS NOT NULL "
+                        "AND (lower(email)=lower(?) OR (?<>'' AND lower(email)=lower(?))) ORDER BY id LIMIT 1",
+                        (email, _email_form, _email_form)).fetchone()
         if row:
             return JSONResponse({"ok": True, "contact_id": row["id"], "existed": True,
+                                 "name": row["name"] or "", "company": row["company"] or "",
                                  "message": "이미 등록된 연락처입니다."})
+        if (_form.get("name") or "").strip():
+            # 화면에서 사람이 확인한 칸 그대로(서명에서 읽은 초안을 고친 것) — 주소록 직접 등록과 같은 저장 길
+            data = _contact_form_data(_form)
+            for _k in _contacts.FIELD_KEYS:
+                data[_k] = (data.get(_k) or "")[:300 if _k in ("address", "note") else 120]
+            data["name"] = data["name"][:80]
+            data["email"] = data["email"] if "@" in data["email"] else email[:120]
+            data["source"], data["card_image"] = "signature", ""
+            if data.get("visibility") == "dept":
+                data["share_team_id"] = u.get("team_id")
+            if data.get("customer_id") and not c.execute(
+                    "SELECT 1 FROM customers WHERE id=?", (data["customer_id"],)).fetchone():
+                data["customer_id"] = None
+            cid = _contacts.create_contact(c, data, u["id"])
+            return JSONResponse({"ok": True, "contact_id": cid, "existed": False,
+                                 "name": data["name"], "company": data.get("company") or "",
+                                 "message": "주소록에 저장했습니다."})
         cur = c.execute("INSERT INTO shared_contacts(name, email, source) VALUES(?,?,'signature')",
                         (name[:80], email[:120]))
         cid = cur.lastrowid
     return JSONResponse({"ok": True, "contact_id": cid, "existed": False,
                          "message": "연락처로 등록했습니다. (상세에서 회사·연락처를 채워주세요)"})
+
+
+@app.api_route("/mail/{mail_id:int}/contact-draft", methods=["GET", "POST"])
+async def mail_contact_draft(req: Request, mail_id: int):
+    """받은 메일의 서명에서 연락처 칸(이름·직급·회사·부서·휴대폰·전화·팩스·주소)을 채운 「초안」(JSON).
+    저장하지 않는다 — 사람이 화면에서 확인한 뒤 to-contact 로 저장. POST text= 면 사람이 고친(붙여 넣은) 서명으로 다시 읽는다.
+    규칙으로만 읽는다(AI·외부 전송 없음 · app/mail_signature.py)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    text = ""
+    if req.method == "POST":
+        try:
+            text = ((await req.form()).get("text") or "").strip()[:4000]
+        except Exception:
+            text = ""
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m:
+            return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다(본인 메일만)."}, 404)
+        if text:
+            d = _mail_sig.draft_from_text(text, m.get("from_name") or "", m.get("from_email") or "", is_block=True)
+            d["customer_id"] = _mail_sig.company_hint(c, m.get("from_email") or "")["customer_id"]
+        else:
+            d = _mail_sig.draft_from_mail(m, c)
+        cust = None
+        if d.get("customer_id"):
+            _cu = c.execute("SELECT " + _CUST_PICK_COLS + " FROM customers WHERE id=?",
+                            (d["customer_id"],)).fetchone()
+            if _cu:
+                cust = {"id": _cu["id"], "label": _cust_pick_label(dict(_cu))}
+        # 같은 휴대폰·메일의 기존 연락처 — 내가 볼 수 있는 것만 알린다(남의 개인 연락처는 드러내지 않는다)
+        dups = [{"id": x["id"], "name": x["name"], "company": x.get("company") or ""}
+                for x in _contacts.find_duplicates(c, mobile=d["fields"].get("mobile") or "",
+                                                   email=d["fields"].get("email") or "")
+                if _contacts.can_see(x, u)][:3]
+    return JSONResponse({"ok": True, "fields": d["fields"], "sig_text": d.get("sig_text") or "",
+                         "notes": d.get("notes") or [], "filled": d.get("filled") or [],
+                         "customer": cust, "dups": dups},
+                        headers={"Cache-Control": "no-store"})
 
 
 # ─── 메일 자동분류 규칙 (Phase2) — 보낸사람/제목 키워드 → 카테고리 강제 ───

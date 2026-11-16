@@ -30,7 +30,7 @@
   <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary">↪ 전달</a>
   {% if m.direction != 'out' %}
   <button type="button" class="btn btn-secondary" style="border-color:#16a34a;color:#15803d;font-weight:700" onclick="mailToTask()" title="이 메일을 내 할 일(일일카드)로 등록 — 메일이 곧 업무">📋 할 일로 추가</button>
-  {% if sender_contact %}<a href="/contacts/{{ sender_contact.id }}" class="btn btn-secondary" style="border-color:#7c3aed;color:#7c3aed" title="이 보낸사람의 주소록 연락처 보기">📇 {{ sender_contact.name }}{% if sender_contact.company %} · {{ sender_contact.company }}{% endif %} 연락처</a>{% else %}<button type="button" class="btn btn-secondary" style="border-color:#7c3aed;color:#7c3aed" onclick="mailToContact()" title="보낸사람을 전사 주소록에 등록">📇 연락처로 등록</button>{% endif %}
+  {% if sender_contact %}<a href="/contacts/{{ sender_contact.id }}" class="btn btn-secondary" style="border-color:#7c3aed;color:#7c3aed" title="이 보낸사람의 주소록 연락처 보기">📇 {{ sender_contact.name }}{% if sender_contact.company %} · {{ sender_contact.company }}{% endif %} 연락처</a>{% else %}<button type="button" class="btn btn-secondary" id="mvContactBtn" style="border-color:#7c3aed;color:#7c3aed" onclick="mailToContact()" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</button>{% endif %}
   {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" class="btn btn-secondary" style="border-color:#1d4ed8;color:#1d4ed8" title="견적 작성 화면 열기(이 메일 참고)">📝 견적 작성</a>{% endif %}
   {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" class="btn btn-secondary" style="border-color:#047857;color:#047857" title="수주 등록 화면 열기(이 메일 참고)">📦 수주 등록</a>{% endif %}
   <button type="button" class="btn btn-secondary" onclick="markUnread()">● 안읽음 표시</button>{% endif %}
@@ -42,6 +42,39 @@
   {% if not pane %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}
 </div>
 
+{% if m.direction != 'out' and not sender_contact %}
+{# 주소록에 등록 — 서명에서 읽어 채운 칸(대표 지시 2026-11-16). 저장은 사람이 확인하고 누를 때만. #}
+<div class="mv-contact" id="mvContact" style="display:none">
+  <div class="mvc-h">📇 주소록에 등록 <span class="mvc-msg" id="mvcMsg"></span></div>
+  <div class="mvc-notes" id="mvcNotes"></div>
+  <div class="mvc-grid">
+    <label>이름 *<input type="text" id="mvc_name" maxlength="80" autocomplete="off"></label>
+    <label>직급<input type="text" id="mvc_position" maxlength="60" autocomplete="off"></label>
+    <label>회사<input type="text" id="mvc_company" maxlength="120" autocomplete="off"></label>
+    <label>부서<input type="text" id="mvc_department" maxlength="80" autocomplete="off"></label>
+    <label>휴대폰<input type="text" id="mvc_mobile" maxlength="40" autocomplete="off"></label>
+    <label>회사 전화<input type="text" id="mvc_phone" maxlength="40" autocomplete="off"></label>
+    <label>팩스<input type="text" id="mvc_fax" maxlength="40" autocomplete="off"></label>
+    <label class="wide">메일 주소<input type="text" id="mvc_email" maxlength="120" autocomplete="off"></label>
+    <label class="full">회사 주소<input type="text" id="mvc_address" maxlength="300" autocomplete="off"></label>
+  </div>
+  <label class="mvc-line" id="mvcCustRow" style="display:none"><input type="checkbox" id="mvc_cust" value=""> 거래처 연결: <b id="mvcCustName"></b> <span class="mvc-dim">(같은 메일 주소 뒷부분을 쓰는 기존 연락처 기준)</span></label>
+  <div class="mvc-line">누가 볼 수 있나:
+    <label><input type="radio" name="mvc_vis" value="private" checked> 🔒 나만</label>
+    <label><input type="radio" name="mvc_vis" value="dept"> 👥 내 부서</label>
+    <label><input type="radio" name="mvc_vis" value="company"> 🌐 전 직원</label>
+  </div>
+  <details class="mvc-sig"><summary>읽어 온 서명 보기 · 고쳐서 다시 채우기</summary>
+    <textarea id="mvc_sig" rows="6" placeholder="메일의 서명 부분을 여기에 붙여 넣고 [이 글로 다시 채우기]를 누르세요."></textarea>
+    <button type="button" class="btn btn-secondary" onclick="mvcReparse()">🔄 이 글로 다시 채우기</button>
+  </details>
+  <div class="mvc-btns">
+    <button type="button" class="btn btn-primary" id="mvcSaveBtn" onclick="mvcSave()">💾 주소록에 저장</button>
+    <button type="button" class="btn btn-secondary" onclick="mvcClose()">취소</button>
+    <span class="mvc-dim">초록 칸 = 서명에서 읽은 값. 틀린 곳만 고치면 됩니다.</span>
+  </div>
+</div>
+{% endif %}
 {% if has_html %}
 <div class="mv-viewtabs">
   <button type="button" class="mv-vtab active" id="vtabHtml" onclick="mvShow('html')">📄 원본(서식)</button>
@@ -148,12 +181,63 @@
       else { alert('⚠ '+(j.message||'추가 실패')); }
     }catch(e){ alert('네트워크 오류'); }
   };
+  // 주소록에 등록 — 서명에서 읽어 채운 칸을 보여 주고, 확인 뒤 저장(대표 지시 2026-11-16)
+  var MVC_KEYS=['name','position','company','department','mobile','phone','fax','email','address'];
+  function mvcEl(id){ return document.getElementById(id); }
+  function mvcFill(j){
+    var f=j.fields||{};
+    MVC_KEYS.forEach(function(k){ var el=mvcEl('mvc_'+k); if(!el) return;
+      el.value=f[k]||''; if(f[k]) el.classList.add('mvc-auto'); else el.classList.remove('mvc-auto'); });
+    var n=mvcEl('mvcNotes'); n.textContent='';
+    (j.notes||[]).forEach(function(t){ var d=document.createElement('div'); d.textContent='ℹ️ '+t; n.appendChild(d); });
+    (j.dups||[]).forEach(function(x){ var d=document.createElement('div'); d.className='mvc-dup';
+      d.textContent='⚠ 같은 휴대폰·메일 주소의 연락처가 이미 있습니다: '+x.name+(x.company?(' · '+x.company):''); n.appendChild(d); });
+    var cr=mvcEl('mvcCustRow'), cu=mvcEl('mvc_cust');
+    if(j.customer){ cr.style.display=''; cu.checked=true; cu.value=j.customer.id; mvcEl('mvcCustName').textContent=j.customer.label; }
+    else { cr.style.display='none'; cu.checked=false; cu.value=''; }
+    mvcEl('mvc_sig').value=j.sig_text||'';
+    var cnt=(j.filled||[]).length;
+    mvcEl('mvcMsg').textContent = cnt ? ('서명에서 '+cnt+'칸을 읽어 채웠습니다 — 맞는지 보고 저장만 누르세요') : '';
+  }
   window.mailToContact=async function(){
-    if(!confirm('보낸사람을 전사 주소록(연락처)에 등록할까요?')) return;
-    try{ var r=await fetch('/mail/'+MAIL_ID+'/to-contact',{method:'POST'}); var j=await r.json();
-      if(j.ok){ if(confirm('📇 '+(j.message||'')+'\n\n지금 연락처를 열까요?')) location.href='/contacts/'+j.contact_id; else if(!IN_PANE) location.reload(); }
-      else { alert('⚠ '+(j.message||'등록 실패')); }
+    var box=mvcEl('mvContact'); if(!box) return;
+    if(box.style.display!=='none'){ box.style.display='none'; return; }
+    box.style.display='block'; mvcEl('mvcMsg').textContent='서명을 읽는 중…';
+    try{ var r=await fetch('/mail/'+MAIL_ID+'/contact-draft'); var j=await r.json();
+      if(j.ok){ mvcFill(j); try{ box.scrollIntoView({block:'nearest'}); }catch(e){} }
+      else { mvcEl('mvcMsg').textContent='⚠ '+(j.message||'서명을 읽지 못했습니다 — 직접 적어 저장할 수 있습니다'); }
+    }catch(e){ mvcEl('mvcMsg').textContent='⚠ 네트워크 오류 — 직접 적어 저장할 수 있습니다'; }
+  };
+  window.mvcReparse=async function(){
+    var t=(mvcEl('mvc_sig').value||'').trim();
+    if(!t){ alert('서명 글을 붙여 넣어 주세요.'); return; }
+    try{ var fd=new FormData(); fd.append('text', t);
+      var r=await fetch('/mail/'+MAIL_ID+'/contact-draft',{method:'POST',body:fd}); var j=await r.json();
+      if(j.ok){ mvcFill(j); } else { alert('⚠ '+(j.message||'읽지 못했습니다')); }
     }catch(e){ alert('네트워크 오류'); }
+  };
+  window.mvcClose=function(){ var box=mvcEl('mvContact'); if(box) box.style.display='none'; };
+  window.mvcSave=async function(){
+    var nm=(mvcEl('mvc_name').value||'').trim();
+    if(!nm){ alert('이름을 적어 주세요.'); mvcEl('mvc_name').focus(); return; }
+    var fd=new FormData();
+    MVC_KEYS.forEach(function(k){ fd.append(k, (mvcEl('mvc_'+k).value||'').trim()); });
+    var cu=mvcEl('mvc_cust'); if(cu && cu.checked && cu.value) fd.append('customer_id', cu.value);
+    var vis=document.querySelector('#mvContact input[name="mvc_vis"]:checked'); fd.append('visibility', vis?vis.value:'private');
+    var btn=mvcEl('mvcSaveBtn'); btn.disabled=true;
+    try{ var r=await fetch('/mail/'+MAIL_ID+'/to-contact',{method:'POST',body:fd}); var j=await r.json();
+      if(j.ok){
+        mvcClose();
+        var b=mvcEl('mvContactBtn');
+        if(b){ var a=document.createElement('a'); a.href='/contacts/'+j.contact_id; a.className='btn btn-secondary';
+          a.style.cssText='border-color:#7c3aed;color:#7c3aed'; a.title='이 보낸사람의 주소록 연락처 보기';
+          a.textContent='📇 '+(j.name||nm)+(j.company?(' · '+j.company):'')+' 연락처';
+          var ok=document.createElement('span'); ok.className='mvc-done'; ok.textContent='✅ '+(j.message||'주소록에 저장했습니다.');
+          b.parentNode.replaceChild(a,b); a.parentNode.insertBefore(ok,a.nextSibling);
+          setTimeout(function(){ if(ok.parentNode) ok.parentNode.removeChild(ok); }, 5000); }
+      } else { alert('⚠ '+(j.message||'저장하지 못했습니다')); }
+    }catch(e){ alert('네트워크 오류'); }
+    btn.disabled=false;
   };
   var f=document.getElementById('mvFrame');
   if(f){ f.addEventListener('load',mvResize); setTimeout(mvResize,120); }
