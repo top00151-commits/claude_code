@@ -524,6 +524,15 @@ def apply_rules_existing(c, user_id: int) -> int:
 
 
 # ─── 조회 ───────────────────────────────────────────────────────────
+def _dup_count_sql(c) -> str:
+    """목록에 쓸 「합친 통수」 식. 칸이 없는 DB(읽기 전용 사본 · 옛 DB)에서도 목록이 죽지 않게 — 읽는 길에서는 칸을 만들지 않는다."""
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()]
+        return "COALESCE(dup_count,1)" if "dup_count" in cols else "1"
+    except Exception:
+        return "1"
+
+
 def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                starred=None, unread=None, date_from: str = "", date_to: str = "",
                has_att=None, cust: str = "", limit: int = 200, offset: int = 0):
@@ -569,6 +578,7 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     rows = c.execute(
         f"""SELECT id, from_email, from_name, subject, category, lang,
                    is_read, is_starred, received_at, COALESCE(risk_level,0) AS risk_level,
+                   {_dup_count_sql(c)} AS dup_count,
                    substr(COALESCE(summary,''),1,160) AS summary_short
             FROM mail_messages WHERE {where}
             ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?""",

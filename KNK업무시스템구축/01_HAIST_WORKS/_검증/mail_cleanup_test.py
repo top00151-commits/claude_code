@@ -220,6 +220,20 @@ try:
         put(c, 9001, "x@inject.example", '<img src=x onerror=alert(1)>', '<script>alert(2)</script>', "본문")
     h = k.get("/mail/cleanup").text
     check("이름·제목의 태그는 글자로만", "<img src=x onerror" not in h and "<script>alert(2)" not in h and "&lt;script&gt;alert(2)" in h)
+
+    print("== 8. 같은 메일 여러 통 → 한 통 + 「×N」 표시 ==")
+    with _db.db_session() as c:
+        for grp in ("gongyong", "giyeong", "hoero", "gwanri"):   # 그룹 주소 4곳으로 같은 메일(같은 고유번호)
+            ms.store_inbound(c, to_email=grp + "@knknara.co.kr", from_email="buyer@fourcopies.example", from_name="네통발신",
+                             subject="같은 메일 네 통", text="같은 본문", owner_id=9001, run_ai=False, message_id="four-copies@test")
+        ms.store_inbound(c, to_email="t9001@knknara.co.kr", from_email="buyer@fourcopies.example", from_name="네통발신",
+                         subject="한 통만 온 메일", text="다른 본문", owner_id=9001, run_ai=False, message_id="one-copy@test")
+    r4 = rows("SELECT dup_count FROM mail_messages WHERE user_id=9001 AND subject='같은 메일 네 통' AND is_deleted=0")
+    check("네 곳으로 온 같은 메일은 한 통만 남고 4로 적힌다", len(r4) == 1 and r4[0]["dup_count"] == 4, r4)
+    h = k.get("/mail/inbox").text
+    check("받은편지함 목록에 ×4 표시", 'class="mbx-dup"' in h and "×4</span>" in h and "같은 메일이 4통 와서 한 통으로 합쳤습니다" in h)
+    check("한 통만 온 메일에는 표시 없음", h.count('class="mbx-dup"') == h.count("×4</span>"), (h.count('class="mbx-dup"'), h.count("×4</span>")))
+    check("차단함·휴지통 화면도 그대로 열린다", k.get("/mail/blocked").status_code == 200 and k.get("/mail/trash").status_code == 200)
 finally:
     m.get_user = _keep
 
