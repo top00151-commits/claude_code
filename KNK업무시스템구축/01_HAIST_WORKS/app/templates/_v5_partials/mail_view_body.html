@@ -14,7 +14,7 @@
 <div class="mv-head">
   <h1 class="mv-subj">{{ m.subject }}<span class="mv-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span></h1>
   <div class="mv-meta">
-    <b>보낸사람</b> {{ m.from_name }} &lt;{{ m.from_email }}&gt;<br>
+    <b>보낸사람</b> {{ m.from_name }} &lt;{{ m.from_email }}&gt;{% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}{% if sender_contact %} <span class="mv-ct-inline on" title="주소록에 이미 있는 사람">📇 주소록에 있음</span>{% else %} <a href="#" id="mvContactInline" class="mv-ct-inline" onclick="mailToContact();return false" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</a>{% endif %}{% endif %}<br>
     <b>받은주소</b> {{ m.to_email }}{% if m.cc %} · <b>참조</b> {{ m.cc }}{% endif %}<br>
     <b>받은시각</b> {{ m.received_at }}{% if m.lang %} · <b>언어</b> {{ m.lang }}{% endif %}
   </div>
@@ -237,6 +237,8 @@
     try{ var r=await fetch('/mail/'+MAIL_ID+'/to-contact',{method:'POST',body:fd}); var j=await r.json();
       if(j.ok){
         mvcClose();
+        var il=mvcEl('mvContactInline');
+        if(il){ var s2=document.createElement('span'); s2.className='mv-ct-inline on'; s2.textContent='📇 주소록에 있음'; il.parentNode.replaceChild(s2, il); }
         var b=mvcEl('mvContactBtn');
         if(b){ var a=document.createElement('a'); a.href='/contacts/'+j.contact_id; a.className='btn btn-secondary';
           a.style.cssText='border-color:#7c3aed;color:#7c3aed'; a.title='이 보낸사람의 주소록 연락처 보기';
