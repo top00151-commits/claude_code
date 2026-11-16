@@ -1316,7 +1316,8 @@ def check_date_fallback(files):
     want_c = set(exp) | {"FX_KRW_CURRENCIES", "SALES_BIZ", "SALES_BIZ_LABEL",
                          "SALES3_BIZ", "SALES3_BIZ_LABEL", "_SALES3_CO_BIZ",   # z1191z22: 매출 홈 소모품(검사기/자동화) 나누기
                          "_TI_MAX"}   # z1191z24: 호기 세금계산서 차수 1~10(최종매출이 이 상수로 돈다)
-    want_f = {"_fx_pick", "_fx_rate_for", "_fx_to_krw", "_sales_period_ok", "_sales_3way", "admin_consumable_sales_audit"}
+    want_f = {"_fx_pick", "_fx_rate_for", "_fx_to_krw", "_sales_period_ok", "_sales_3way", "admin_consumable_sales_audit",
+              "_z40_period_range"}   # z1191z40: 매출 홈 ⓘ 설명 기간(_sales_3way 가 부름)
     consts, funcs = {}, {}
     for node in tree.body:
         if isinstance(node, _ast.Assign):
@@ -1341,7 +1342,8 @@ def check_date_fallback(files):
     if "SALES_DD_ORDER" not in au or "SALES_CCY_ITEM" not in au:
         bad.append((main_p, 1, "④ 소모품 매출 진단이 매출 홈 ①과 같은 식(SALES_DD_ORDER·SALES_CCY_ITEM)을 안 쓴다"))
     try:
-        for k in ("_fx_pick", "_fx_rate_for", "_fx_to_krw", "_sales_period_ok", "_sales_3way"):
+        exec("import calendar", ns)   # z1191z40: _z40_period_range 가 씀
+        for k in ("_fx_pick", "_fx_rate_for", "_fx_to_krw", "_sales_period_ok", "_z40_period_range", "_sales_3way"):
             exec(funcs[k], ns)
         con = _sq.connect(":memory:")
         con.row_factory = _sq.Row
@@ -1374,6 +1376,11 @@ def check_date_fallback(files):
             # 소모품: 납기 빈 글자 → 발주일
             "INSERT INTO consumable_orders VALUES(1,'마',500,'KRW','2026-04-01','','SHIPPED','2026-04-30',500,NULL,NULL,NULL,NULL,NULL);")
         con.execute("ALTER TABLE consumable_orders ADD COLUMN biz_div TEXT")   # z1191z22: 운영처럼 소모품 사업부 칸(빈칸 = 소모품(기타))
+        # z1191z40: 운영처럼 수주번호 · 소모품 관리번호·발주번호 칸(카드 건수 = 수주번호 수 · 소모품 발주 수)
+        con.execute("ALTER TABLE orders ADD COLUMN order_no TEXT")
+        con.execute("ALTER TABLE consumable_orders ADD COLUMN mgmt_code TEXT")
+        con.execute("ALTER TABLE consumable_orders ADD COLUMN co_no TEXT")
+        con.executescript("UPDATE orders SET order_no='SO-'||id; UPDATE consumable_orders SET co_no='CO-'||id, mgmt_code='001C2604';")
         rates = {"USD": {"2026-08": 1500.0}}
         oi_map = {3: {"t1d": "2026-08-20", "t1a": 1720000.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""},
                   4: {"t1d": "2026-09-15", "t1a": 10.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""}}
@@ -1384,6 +1391,9 @@ def check_date_fallback(files):
         if got != want:
             bad.append((main_p, 1, "③ 메모리 DB 에서 돌린 매출 3지표가 다르다: %r (맞는 값 %r · 빈 글자 넘김·호기 발주일·수주 통화)"
                         % (got, want)))
+        _cn = tuple(k3.get(x) for x in ("order_so", "order_co", "prog_so", "prog_co", "final_so", "final_co"))
+        if _cn != (4, 1, 3, 1, 2, 1):   # z1191z40: 수주 4(가·나·다·라) · 진행 3(나 = 진행중 빼고) · 최종 2(다·라) · 소모품 1
+            bad.append((main_p, 1, "③ 카드 건수(수주번호 수 · 소모품 발주 수)가 다르다: %r (맞는 값 (4, 1, 3, 1, 2, 1))" % (_cn,)))
         if r.get("fx_fallback") != [{"ccy": "USD", "applied": "2026-08", "months": ["2026-09"]}]:
             bad.append((main_p, 1, "③ 환율 대체(9월 → 8월 환율) 표시가 다르다: %r" % (r.get("fx_fallback"),)))
         con.close()
