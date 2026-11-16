@@ -84,6 +84,13 @@ S = s3()
 B = {b["biz"]: b for b in S["biz_rows"]}
 check([b["biz"] for b in S["biz_rows"]] == ["T", "M", "L", "E", "CT", "CM", "CE"], "줄 순서: 검사기·자동화·라이프밸류·기타·소모품(검사기)·소모품(자동화)·소모품(기타)", list(B))
 check("C" not in B and B["CT"]["label"].endswith("소모품(검사기)") and B["CM"]["label"].endswith("소모품(자동화)"), "「소모품」 한 줄 대신 소모품(검사기)·소모품(자동화)")
+# z1191z35: 사업부 아이콘 = 프로젝트 등록 「유형 선택」 화면(T·M·L·E·C 카드)과 같음 — 매출 홈 · 매출 보고서
+_chooser = open(os.path.join(ROOT, "app", "templates", "project_new_chooser.html"), encoding="utf-8").read()
+_ic = re.findall(r'<div class="ic">([^<]+)</div>', _chooser)[:5]
+_home = [B[k]["label"].split()[0] for k in ("T", "M", "L", "E", "CT", "CM")]
+_rep = [lb.split()[0] for _k, lb in M._Z17_BIZ]
+check(_ic == ["🔬", "🤖", "💄", "🌐", "📦"] and _home == _ic + ["📦"] and _rep == _ic + ["📦", "📦"],
+      "사업부 아이콘 = 등록 화면과 같음(🔬 🤖 💄 🌐 📦) — 매출 홈·매출 보고서(z1191z35)", (_ic, _home, _rep))
 for k in ("order", "prog", "final"):
     check(abs(B["CT"][k] - 800000) < 1 and abs(B["CM"][k] - 140000) < 1 and abs(B["CE"][k] - 70000) < 1,
           "%s: 검사기 800,000 · 자동화 140,000(USD 100) · 사업부 빈칸 70,000 = 소모품(기타)" % k, (B["CT"][k], B["CM"][k], B["CE"][k]))
