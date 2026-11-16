@@ -160,7 +160,7 @@ check(h.status_code == 200 and "✅ 합계 맞춤" in h.text and "MCB · 8대분
 x = q(cl.get, "/sales/report.xlsx?basis=tax&mode=month&year=2026&m=10")
 import openpyxl  # noqa: E402
 wb = openpyxl.load_workbook(io.BytesIO(x.content))
-vs = [r[0] for r in wb["KNK VINA 2차"].iter_rows(values_only=True) if r and isinstance(r[0], str)]
+vs = [r[1] for r in wb["KNK VINA 2차"].iter_rows(values_only=True) if r and len(r) > 1 and isinstance(r[1], str)]   # z1191z33: A칸 = 순위
 check(x.status_code == 200 and "SEV" in vs and "SEVT" in vs and not any(v.startswith("SEV(8대분),SEVT(3대분)") for v in vs), "보고용 엑셀 KNK VINA 2차 시트: SEV · SEVT 따로", vs[:8])
 
 print("§4 입력칸 안내 글")

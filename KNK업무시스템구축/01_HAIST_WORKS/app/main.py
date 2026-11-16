@@ -26890,6 +26890,11 @@ def _z23_fx_txt(fx):
     return " · ".join(out)
 
 
+def _z33_sok(x):
+    """z1191z33: 건수를 세는 열쇠 = 수주 하나(상품·장비 수주번호 · 소모품 수주번호) — 부품·호기·세금계산서 차수와 상관없이 1건."""
+    return (x.get("kind") or "", x.get("code") or "", x.get("so") or "")
+
+
 def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
     basis = basis if basis in _Z17_BASIS else "tax"
     lines_all, missing, fx_fb = _z17_lines(c, rates, oi_map, basis)
@@ -26913,32 +26918,40 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
         if not ls and k in ("CE",):
             continue
         cats = {ct: sum(x["krw"] for x in ls if x["cat"] == ct) for ct in _Z17_CATS}
-        biz_rows.append({"key": k, "label": lbl, "total": sum(x["krw"] for x in ls), "cnt": len(ls), "cats": cats})
-    agg = {}
+        biz_rows.append({"key": k, "label": lbl, "total": sum(x["krw"] for x in ls), "cnt": len(ls), "cats": cats,
+                         "so_n": len({_z33_sok(x) for x in ls})})   # z1191z33: 건수 = 수주 수
+    agg, _so = {}, {}
     for x in lines:
         a = agg.setdefault(x["cust"], {"name": x["cust"], "total": 0.0, "cnt": 0})
         a["total"] += x["krw"]; a["cnt"] += 1
+        _so.setdefault(x["cust"], set()).add(_z33_sok(x))
         _z23_fx_add(a, x)
+    for k_, a in agg.items():
+        a["so_n"] = len(_so.get(k_, ()))
     cust_rows = sorted(agg.values(), key=lambda a: -a["total"])
     vl = [x for x in lines if x["is_vina"]]
-    va = {}
+    va, _so = {}, {}
     for x in vl:
         # z1191z31b (대표 2026-11-16 「2차고객사가 비어 있으면 당연히 입력된 1차 고객사로 적용」): 빈칸 = 1차 고객사(KNK VINA) 줄로
         k = x["cust2"] or (x["cust"] or "KNK VINA")
         a = va.setdefault(k, {"name": k, "total": 0.0, "cnt": 0, "multi": bool(x["cust2"]) and ("," in k)})
         a["total"] += x["krw"]; a["cnt"] += 1
+        _so.setdefault(k, set()).add(_z33_sok(x))
         _z23_fx_add(a, x)
+    for k_, a in va.items():
+        a["so_n"] = len(_so.get(k_, ()))
     vina_rows = sorted(va.values(), key=lambda a: -a["total"])
     pa = {}
     for x in lines:
         k = (x["code"], x["kind"])
         a = pa.setdefault(k, {"code": x["code"], "pname": x["pname"], "pid": x["pid"], "cust": x["cust"], "biz": x["biz"],
-                              "total": 0.0, "cnt": 0, "sos": set()})
-        a["total"] += x["krw"]; a["cnt"] += 1; a["sos"].add(x["so"])
+                              "total": 0.0, "cnt": 0, "sos": set(), "_sok": set()})
+        a["total"] += x["krw"]; a["cnt"] += 1; a["sos"].add(x["so"]); a["_sok"].add(_z33_sok(x))
         _z23_fx_add(a, x)
     proj_rows = sorted(pa.values(), key=lambda a: (-a["total"], a["code"]))
     for a in proj_rows:
         a["sos"] = ", ".join(sorted(s for s in a["sos"] if s))
+        a["so_n"] = len(a.pop("_sok"))
     for a in cust_rows + vina_rows + proj_rows:   # z1191z23: 합계(외화) 글
         a["fx_txt"] = _z23_fx_txt(a.get("fx"))
     _fx_all, _fx_vina = {}, {}
@@ -26965,6 +26978,7 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
             "sel_q": str(sel_q), "sel_m": str(sel_m), "total": total, "cnt": len(lines), "lines": lines,
             "biz_rows": biz_rows, "cats": _Z17_CATS, "cust_rows": cust_rows, "vina_rows": vina_rows,
             "vina_total": sum(x["krw"] for x in vl), "vina_cnt": len(vl), "proj_rows": proj_rows, "checks": checks,
+            "so_n": len({_z33_sok(x) for x in lines}), "vina_so_n": len({_z33_sok(x) for x in vl}),   # z1191z33: 건수 = 수주 수
             "fx_total_txt": _z23_fx_txt(_fx_all.get("fx")), "fx_vina_txt": _z23_fx_txt(_fx_vina.get("fx")),   # z1191z23
             "checks_ok": all(checks.values()), "missing_fx": sorted({ccy for (ccy, _y) in missing}),
             "fx_fallback": [{"ccy": k[0], "applied": k[1], "months": sorted(v)} for k, v in sorted(fx_fb.items())]}
@@ -27412,7 +27426,7 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
 
     # 고객사
     w2 = sheet("고객사", "고객사별 (수주 1차 발주처)", [7, 30, 17, 9, 10, 17, 17, 7])
-    head(w2, 4, ["순위", "고객사", "금액", "비중", "누적 비중", "%s 금액" % prev_word, "증감", "줄"])
+    head(w2, 4, ["순위", "고객사", "금액", "비중", "누적 비중", "%s 금액" % prev_word, "증감", "건수"])   # z1191z33: 줄 → 건수(수주 수)
     rr, acc = 4, 0.0
     for i, a in enumerate(cr, 1):
         rr += 1
@@ -27425,7 +27439,7 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
         put(w2, rr, 5, (acc / cur_total) if cur_total else 0, nf=NF_P)
         pcell(w2, rr, 6, pv, NF_W)
         pcell(w2, rr, 7, a["total"] - pv, NF_W)
-        put(w2, rr, 8, a["cnt"], al=a_c)
+        put(w2, rr, 8, a["so_n"], al=a_c)
     rr += 1
     put(w2, rr, 1, "", fill=fill_tot)
     put(w2, rr, 2, "합계 (%d곳)" % len(cr), font=f_b, fill=fill_tot)
@@ -27434,32 +27448,34 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     put(w2, rr, 5, "", fill=fill_tot)
     pcell(w2, rr, 6, pt, NF_W, font=f_b, fill=fill_tot)
     pcell(w2, rr, 7, cur_total - pt, NF_W, font=f_b, fill=fill_tot)
-    put(w2, rr, 8, rep["cnt"], font=f_b, fill=fill_tot, al=a_c)
+    put(w2, rr, 8, rep["so_n"], font=f_b, fill=fill_tot, al=a_c)
     finish(w2, 4, rr - 1, 8, filt=True)
 
     # KNK VINA 2차
-    w2 = sheet("KNK VINA 2차", "KNK VINA 2차 고객사별 (드림텍 계열 = DRT)", [40, 17, 11, 17, 7])
-    head(w2, 4, ["2차 고객사", "금액", "VINA 안 비중", "%s 금액" % prev_word, "줄"])
+    w2 = sheet("KNK VINA 2차", "KNK VINA 2차 고객사별 (드림텍 계열 = DRT)", [7, 40, 17, 11, 17, 7])
+    head(w2, 4, ["순위", "2차 고객사", "금액", "VINA 안 비중", "%s 금액" % prev_word, "건수"])   # z1191z33: 순위 · 줄 → 건수
     rr = 4
-    for a in vr:
+    for i, a in enumerate(vr, 1):
         rr += 1
         nm = vname(a)
-        put(w2, rr, 1, nm, font=f_warn if (nm.startswith("⚠") or a.get("multi")) else f_base)
-        put(w2, rr, 2, r0(a["total"]), nf=NF_W)
-        put(w2, rr, 3, (a["total"] / vt) if vt else 0, nf=NF_P)
-        pcell(w2, rr, 4, pv2.get(a["name"], 0), NF_W)
-        put(w2, rr, 5, a["cnt"], al=a_c)
+        put(w2, rr, 1, i, al=a_c)
+        put(w2, rr, 2, nm, font=f_warn if (nm.startswith("⚠") or a.get("multi")) else f_base)
+        put(w2, rr, 3, r0(a["total"]), nf=NF_W)
+        put(w2, rr, 4, (a["total"] / vt) if vt else 0, nf=NF_P)
+        pcell(w2, rr, 5, pv2.get(a["name"], 0), NF_W)
+        put(w2, rr, 6, a["so_n"], al=a_c)
     rr += 1
-    put(w2, rr, 1, "KNK VINA 합계 (전체 매출의 %.1f%%)" % ((vt / cur_total * 100) if cur_total else 0), font=f_b, fill=fill_tot)
-    put(w2, rr, 2, r0(vt), font=f_b, fill=fill_tot, nf=NF_W)
-    put(w2, rr, 3, 1.0 if vt else 0, font=f_b, fill=fill_tot, nf=NF_P)
-    pcell(w2, rr, 4, sum(pv2.values()), NF_W, font=f_b, fill=fill_tot)
-    put(w2, rr, 5, rep["vina_cnt"], font=f_b, fill=fill_tot, al=a_c)
-    finish(w2, 4, rr - 1, 5)
+    put(w2, rr, 1, "", fill=fill_tot)
+    put(w2, rr, 2, "KNK VINA 합계 (전체 매출의 %.1f%%)" % ((vt / cur_total * 100) if cur_total else 0), font=f_b, fill=fill_tot)
+    put(w2, rr, 3, r0(vt), font=f_b, fill=fill_tot, nf=NF_W)
+    put(w2, rr, 4, 1.0 if vt else 0, font=f_b, fill=fill_tot, nf=NF_P)
+    pcell(w2, rr, 5, sum(pv2.values()), NF_W, font=f_b, fill=fill_tot)
+    put(w2, rr, 6, rep["vina_so_n"], font=f_b, fill=fill_tot, al=a_c)
+    finish(w2, 4, rr - 1, 6)
 
     # 프로젝트
     w2 = sheet("프로젝트", "프로젝트별", [7, 12, 34, 22, 15, 30, 17, 9, 7])
-    head(w2, 4, ["순위", "관리번호", "프로젝트명", "고객사", "사업부", "수주번호", "금액", "비중", "줄"])
+    head(w2, 4, ["순위", "관리번호", "프로젝트명", "고객사", "사업부", "수주번호", "금액", "비중", "건수"])   # z1191z33
     rr = 4
     for i, a in enumerate(rep["proj_rows"], 1):
         rr += 1
@@ -27471,14 +27487,14 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
         put(w2, rr, 6, a["sos"])
         put(w2, rr, 7, r0(a["total"]), nf=NF_W)
         put(w2, rr, 8, (a["total"] / cur_total) if cur_total else 0, nf=NF_P)
-        put(w2, rr, 9, a["cnt"], al=a_c)
+        put(w2, rr, 9, a["so_n"], al=a_c)
     rr += 1
     for col in range(1, 10):
         put(w2, rr, col, "", fill=fill_tot)
     put(w2, rr, 3, "합계 (%d건)" % len(rep["proj_rows"]), font=f_b, fill=fill_tot)
     put(w2, rr, 7, r0(cur_total), font=f_b, fill=fill_tot, nf=NF_W)
     put(w2, rr, 8, 1.0 if cur_total else 0, font=f_b, fill=fill_tot, nf=NF_P)
-    put(w2, rr, 9, rep["cnt"], font=f_b, fill=fill_tot, al=a_c)
+    put(w2, rr, 9, rep["so_n"], font=f_b, fill=fill_tot, al=a_c)
     finish(w2, 4, rr - 1, 9, filt=True)
 
     # 상세

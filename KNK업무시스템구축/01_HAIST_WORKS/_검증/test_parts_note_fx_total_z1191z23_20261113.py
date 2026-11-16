@@ -174,6 +174,19 @@ M._z17_lines = _orig
 check(h.count("합계(외화)") >= 3, "화면 머리줄 「합계(외화)」 3곳(고객사별·KNK VINA·프로젝트별)", h.count("합계(외화)"))
 check("USD 1,500.00" in h and "VND 2,000,000" in h and "VND 2,000,000 · USD 1,500.00" in h, "화면에 외화 합계 글")
 
+print("§9 z1191z33 건수 = 수주번호 수 · 순위 번호")
+so_c = {a["name"]: a["so_n"] for a in R["cust_rows"]}
+so_v = {a["name"]: a["so_n"] for a in R["vina_rows"]}
+so_p = {a["code"]: a["so_n"] for a in R["proj_rows"]}
+so_b = {b["key"]: b["so_n"] for b in R["biz_rows"] if b["so_n"]}
+check(so_c == {"KNK VINA": 1, "드림텍": 2} and R["so_n"] == 3, "고객사별 건수: KNK VINA 1건(2줄이어도 수주 M-1 하나) · 드림텍 2건(T-1·T-2) · 전체 3건", (so_c, R["so_n"]))
+check(so_v == {"SEV": 1, "SEVT": 1} and R["vina_so_n"] == 1, "2차별: 한 수주를 SEV·SEVT 에 나눔 → 각 1건 · 합계는 실제 수주 1건", (so_v, R["vina_so_n"]))
+check(so_p == {"001M2509": 1, "002T2509": 2} and so_b == {"M": 1, "T": 2}, "프로젝트별·사업부별 건수", (so_p, so_b))
+check(R["cnt"] == 4, "상세 줄 수(cnt)는 그대로 4줄", R["cnt"])
+check(">줄</th>" not in h and h.count(">건수</th>") == 4 and "수주 3건" in h and "수주 1건" in h, "화면 머리줄 「줄」 → 「건수」 4곳 · 맨 위 「수주 3건」·「수주 1건」", h.count(">건수</th>"))
+rk = re.findall(r'<td class="n rp-rk">(\d+)</td><td>([^<]+)</td>', h)
+check(rk[:2] == [("1", "드림텍"), ("2", "KNK VINA")] and ("1", "SEV") in rk and ("2", "SEVT") in rk, "고객사별·2차별 앞에 순위 번호(큰 금액 순)", rk[:6])
+
 print()
 print("결과: %d 통과 / %d 실패" % (OK, FAIL))
 sys.exit(1 if FAIL else 0)
