@@ -21920,6 +21920,7 @@ async def contact_mail_send(req: Request, cid: int):
 #  · /mail/inbox(받은편지함)·/mail/{id}(보기)·별표·삭제·AI 번역
 # ═══════════════════════════════════════════════════════════════════════════
 from . import mail_store as _mailbox
+from . import mail_cleanup as _mail_cleanup   # 2026-11-16 보낸 곳별 정리 · 다시 안 받기(나에게만)
 from . import mail_signature as _mail_sig   # 2026-11-16 메일 서명 → 주소록 채우기
 
 _MAIL_CATEGORIES = ("견적", "발주", "세금계산서", "일반")
@@ -23635,6 +23636,81 @@ async def mail_blocklist_remove(req: Request):
     with db_session() as c:
         _mailbox.remove_block(c, bid)
     return JSONResponse({"ok": True})
+
+
+# ─── 보낸 곳별 정리 · 다시 안 받기(나에게만) — 2026-11-16 대표 지시 (app/mail_cleanup.py) ───
+#   지우지 않는다: 휴지통(되돌리기) · 차단함(되돌리기). 메일 속 「수신거부」 링크에는 접속하지 않는다.
+@app.get("/mail/cleanup", response_class=HTMLResponse)
+async def mail_cleanup_page(req: Request):
+    """받은편지함을 보낸 곳별로 묶어 보여 주는 화면 — 광고·알림으로 보이는 곳을 위에."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        d = _mail_cleanup.sender_groups(c, u["id"])
+        mutes = _mail_cleanup.list_mutes(c, u["id"])
+    return ctx(req, "mail_cleanup.html", user=u, groups=d["groups"], scanned=d["scanned"],
+               total=d["total"], mutes=mutes)
+
+
+@app.post("/mail/cleanup/apply")
+async def mail_cleanup_apply(req: Request):
+    """고른 보낸 곳을 한 번에 — action=trash(휴지통으로) / mute(나에게만 다시 안 받기 + 차단함으로). 본인 메일만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    action = (form.get("action") or "").strip()
+    addrs = [str(a) for a in form.getlist("addr")][:_mail_cleanup.MAX_ADDRS]
+    if action not in ("trash", "mute") or not addrs:
+        return JSONResponse({"ok": False, "message": "정리할 곳을 골라 주세요."}, 400)
+    with db_session() as c:
+        if action == "trash":
+            r = _mail_cleanup.trash_senders(c, u["id"], addrs)
+            msg = "%d곳의 메일 %d통을 휴지통으로 옮겼습니다." % (r["senders"], r["moved"])
+            if r["kept_starred"]:
+                msg += " (별표한 %d통은 남겼습니다)" % r["kept_starred"]
+        else:
+            r = _mail_cleanup.mute_senders(c, u["id"], addrs)
+            msg = "%d곳을 다시 안 받기로 했습니다. 이미 받은 %d통은 차단함으로 옮겼습니다." % (r["senders"], r["moved"])
+            if r["skipped_internal"]:
+                msg += " (사내 주소 %d곳은 건너뛰었습니다)" % r["skipped_internal"]
+    return JSONResponse(dict(r, ok=True, message=msg))
+
+
+@app.post("/mail/cleanup/unmute")
+async def mail_cleanup_unmute(req: Request):
+    """「다시 안 받기」 풀기 — restore=1 이면 차단함에 옮겨 둔 그 발신의 메일을 받은편지함으로 되돌린다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    addr = (form.get("addr") or "").strip()
+    restore = (form.get("restore") or "") == "1"
+    if not _mail_cleanup.norm(addr):
+        return JSONResponse({"ok": False, "message": "주소가 올바르지 않습니다."}, 400)
+    with db_session() as c:
+        n = _mail_cleanup.remove_mute(c, u["id"], addr, restore=restore)
+    return JSONResponse({"ok": True, "restored": n,
+                         "message": "풀었습니다. 앞으로 이 곳의 메일을 다시 받습니다."
+                                    + ((" 차단함의 %d통을 받은편지함으로 되돌렸습니다." % n) if n else "")})
+
+
+@app.post("/mail/{mail_id:int}/mute-sender")
+async def mail_mute_sender(req: Request, mail_id: int):
+    """이 메일의 보낸 사람을 **나에게만** 「다시 안 받기」(회사 전체 차단은 관리자의 /block-sender)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m or not _mail_cleanup.norm(m.get("from_email")):
+            return JSONResponse({"ok": False, "message": "보낸 사람을 찾을 수 없습니다(본인 메일만)."}, 404)
+        addr = _mail_cleanup.norm(m.get("from_email"))
+        if _mail_cleanup.is_internal(addr):
+            return JSONResponse({"ok": False, "message": "사내 주소는 다시 안 받기로 할 수 없습니다."}, 400)
+        moved = _mail_cleanup.add_mute(c, u["id"], addr, "메일에서")
+    return JSONResponse({"ok": True, "addr": addr, "moved": moved})
 
 
 @app.post("/mail/dedup")

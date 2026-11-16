@@ -38,6 +38,7 @@
   <button type="button" class="btn btn-secondary" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
   <button type="button" class="btn btn-secondary" onclick="window.print()" title="이 메일을 인쇄하거나 PDF로 저장(인쇄 대화상자에서 'PDF로 저장' 선택)">🖨 인쇄/PDF</button>
   <span style="flex:1"></span>
+  {% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}<button type="button" class="btn btn-secondary" style="color:#7c2d12;border-color:#fdba74" onclick="muteSender()" title="이 발신의 메일을 나에게만 다시 안 받기 — 지금 것도, 앞으로 오는 것도 차단함으로(「보낸 곳별 정리」에서 풀 수 있음)">🔕 다시 안 받기</button>{% endif %}
   <button type="button" class="btn btn-secondary" style="color:var(--knk-red)" onclick="delMail({{ m.id }})">🗑 삭제</button>
   {% if not pane %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}
 </div>
@@ -160,6 +161,14 @@
       if(j.ok){ st.textContent=''; document.getElementById('transSubj').textContent=j.subject||''; document.getElementById('transBody').textContent=j.body||''; }
       else { st.textContent='⚠ '+(j.message||'번역 실패'); }
     }catch(e){ st.textContent='⚠ 네트워크 오류'; }
+  };
+  // 이 발신 다시 안 받기 — 나에게만(대표 지시 2026-11-16). 지우지 않고 차단함으로 · 「보낸 곳별 정리」에서 풀 수 있음
+  window.muteSender=async function(){
+    if(!confirm('이 발신의 메일을 다시 안 받을까요? (나에게만 적용)\n\n이미 받은 메일도, 앞으로 오는 메일도 받은편지함에 안 보이고 차단함에 모입니다.\n지우지 않으며, 「📮 보낸 곳별 정리」 화면에서 언제든 풀 수 있습니다.')) return;
+    try{ var r=await fetch('/mail/'+MAIL_ID+'/mute-sender',{method:'POST'}); var j=await r.json();
+      if(j.ok){ alert('🔕 다시 안 받기로 했습니다: '+(j.addr||'')+(j.moved?('\n이미 받은 '+j.moved+'통도 차단함으로 옮겼습니다.'):'')); location.href=inboxHref(); }
+      else { alert('⚠ '+(j.message||'하지 못했습니다')); }
+    }catch(e){ alert('네트워크 오류'); }
   };
   window.delMail=async function(id){
     if(!confirm('이 메일을 삭제할까요?')) return;

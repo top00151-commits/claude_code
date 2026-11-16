@@ -372,6 +372,13 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     # 보안: 차단목록 격리 + 규칙기반 위험판별 (대표 지시 2026-06-19)
     _ensure_security_cols(c)
     _blocked = 1 if is_sender_blocked(c, from_email) else 0
+    # 2026-11-16: 받는 사람이 「다시 안 받기」로 한 발신 → 그 사람의 차단함으로(나에게만 · 회사 전체 차단목록과 별개)
+    try:
+        from . import mail_cleanup as _mc
+        if _mc.is_muted(c, owner, from_email):
+            _blocked = 1
+    except Exception:
+        pass
     _rlevel, _rnote = assess_risk(from_email, to_email, subject, body, html, attachments,
                                   from_name=from_name, auth=auth, reply_to=reply_to, c=c)
     # 2026-11-16: 위험(3) = 차단함으로 격리(지우지 않음 · 차단함에서 복구 가능)

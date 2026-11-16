@@ -138,6 +138,7 @@
       {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a><a href="/admin/mail-fetch" class="btn btn-secondary" title="하이웍스 등 기존 메일을 KNK 메일로 당겨오기">📥 가져오기</a><a href="/admin/mail-purge" class="btn btn-secondary" title="휴지통 비우기·오래된 메일 완전삭제·디스크 정리">🧹 정리</a>{% endif %}
       {% if box=='in' %}
       <a href="/mail/rules" class="btn btn-secondary" title="보낸사람·제목 키워드로 메일을 자동 분류">⚙ 자동분류</a>
+      <a href="/mail/cleanup" class="btn btn-secondary" title="받은편지함을 보낸 곳별로 묶어 광고·알림 메일을 한 번에 정리 · 다시 안 받기">📮 보낸 곳별 정리</a>
       {% if box=='in' %}<a href="#" class="btn btn-secondary" title="여러 그룹메일로 같은 메일이 여러 통 온 중복을 1통만 남기고 정리(답장은 안 건드림)" onclick="dedupInbox(event)">🔁 중복정리</a>{% endif %}
       {% endif %}
     </div>
