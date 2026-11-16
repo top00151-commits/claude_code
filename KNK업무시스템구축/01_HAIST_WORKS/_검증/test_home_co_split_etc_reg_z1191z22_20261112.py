@@ -91,6 +91,15 @@ _home = [B[k]["label"].split()[0] for k in ("T", "M", "L", "E", "CT", "CM")]
 _rep = [lb.split()[0] for _k, lb in M._Z17_BIZ]
 check(_ic == ["🔬", "🤖", "💄", "🌐", "📦"] and _home == _ic + ["📦"] and _rep == _ic + ["📦", "📦"],
       "사업부 아이콘 = 등록 화면과 같음(🔬 🤖 💄 🌐 📦) — 매출 홈·매출 보고서(z1191z35)", (_ic, _home, _rep))
+# z1191z36: 프로젝트 목록 · 작업일정표 사업부 칩도 같은 아이콘(그린 화면에서 읽음)
+_pl = q(cl.get, "/projects").text
+_pchips = re.findall(r'data-div="([TMLEC])"[^>]*class="bm">(\S+) ', _pl)
+_sb = q(cl.get, "/sales/schedule?ym=2026-05").text
+_schips = re.findall(r'&biz=([TMLEC])\{\{ _q \}\}|&biz=([TMLEC])[^"]*"><span class="ti">([^<]+)</span>', _sb)
+_schips = [(a or b, c) for a, b, c in _schips if c]
+_want = dict(zip("TMLEC", _ic))
+check(dict(_pchips) == _want and dict(_schips) == _want,
+      "프로젝트 목록·작업일정표 사업부 칩 아이콘 = 등록 화면(z1191z36)", (_pchips, _schips))
 for k in ("order", "prog", "final"):
     check(abs(B["CT"][k] - 800000) < 1 and abs(B["CM"][k] - 140000) < 1 and abs(B["CE"][k] - 70000) < 1,
           "%s: 검사기 800,000 · 자동화 140,000(USD 100) · 사업부 빈칸 70,000 = 소모품(기타)" % k, (B["CT"][k], B["CM"][k], B["CE"][k]))
