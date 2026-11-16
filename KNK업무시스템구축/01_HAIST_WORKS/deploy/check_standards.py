@@ -685,7 +685,7 @@ def check_amt_sign(files):
     # z1135: 신호를 넓힌다 — 세금계산서 팝업 저장 줄(`av=(pa.value||'')...`)이 주변 3줄에
     #   'amt' 신호가 없어 빠져나가던 구멍을 시험(§4)이 찾아냈다.
     amt_sig = re.compile(
-        r"knk-money|pi-price|ti-pa|ti-amt|ti-pd|ux-money|price|amount|amt|금액|단가|money"
+        r"knk-money|pi-price|ti-pa|ti-amt|ti-pd|ti-m-a|ux-money|price|amount|amt|금액|단가|money"   # z1191z24: 공용 세금계산서 창 금액 칸(ti-m-a)
         r"|AmtTyping|AmtToRaw|pa\.value|taxSave|taxinv|tax_invoice|세금계산서|인보이스|발행",
         re.I)
     LEAD_NEG = re.compile(r"\^\\s\*-|\^-|charAt\(0\)\s*===\s*'-'|startsWith\('-'\)|\[0\]\s*===\s*'-'")
@@ -1290,8 +1290,8 @@ def check_date_fallback(files):
     bad = []
     app = os.path.join(ROOT, "app")
     main_p = os.path.join(app, "main.py")
-    dcol = r"(?:order_date|due_date|statement_date|tax_invoice_date[23]?|ship_date|shipped_at|delivery_date|issue_date|status_date)"
-    dcol2 = r"(?:order_date|due_date|statement_date|tax_invoice_date[23]?|ship_date|shipped_at|delivery_date|issue_date|status_date|created_at)"
+    dcol = r"(?:order_date|due_date|statement_date|tax_invoice_date(?:10|[2-9])?|ship_date|shipped_at|delivery_date|issue_date|status_date)"
+    dcol2 = r"(?:order_date|due_date|statement_date|tax_invoice_date(?:10|[2-9])?|ship_date|shipped_at|delivery_date|issue_date|status_date|created_at)"
     pat = re.compile(r"COALESCE\(\s*(?:[a-z_0-9]+\.)?" + dcol + r"\s*,\s*(?:[a-z_0-9]+\.)?" + dcol2
                      + r"|COALESCE\(\s*(?:[a-z_0-9]+\.)?currency\s*,\s*(?:[a-z_0-9]+\.)?currency", re.I)
     for p in sorted(_walk(app, (".py",))):
@@ -1314,7 +1314,8 @@ def check_date_fallback(files):
     except Exception as e:
         return bad + [(main_p, 1, "② main.py 를 읽지 못했다(%s)" % e)]
     want_c = set(exp) | {"FX_KRW_CURRENCIES", "SALES_BIZ", "SALES_BIZ_LABEL",
-                         "SALES3_BIZ", "SALES3_BIZ_LABEL", "_SALES3_CO_BIZ"}   # z1191z22: 매출 홈 소모품(검사기/자동화) 나누기
+                         "SALES3_BIZ", "SALES3_BIZ_LABEL", "_SALES3_CO_BIZ",   # z1191z22: 매출 홈 소모품(검사기/자동화) 나누기
+                         "_TI_MAX"}   # z1191z24: 호기 세금계산서 차수 1~10(최종매출이 이 상수로 돈다)
     want_f = {"_fx_pick", "_fx_rate_for", "_fx_to_krw", "_sales_period_ok", "_sales_3way", "admin_consumable_sales_audit"}
     consts, funcs = {}, {}
     for node in tree.body:
@@ -1412,6 +1413,88 @@ def split_baseline(hits, rule):
         if len(rows) > keep:
             new.extend(rows[keep:])
     return new, old
+
+
+# ── 본문 앞 스크립트 = 화면 전환 때 안 돈다 (z1191z26 · 대표 신고 2026-11-16) ──
+#    면제: 화면 전환과 상관없는 것만. 사유를 적고, 늘어나면 잡는다.
+SPA_HEAD_ALLOW = {
+    # 「교차문서 화면전환」 건너뛰기(pagereveal/pageswap) — 전체 로드에서만 뜻이 있는 스크립트(z502).
+    #   화면 전환(SPA) 때는 그 이벤트 자체가 없으므로 안 돌아도 된다.
+    "dept_schedule.html": {"inline": 1},
+}
+#    메일 화면(mail_*·admin_mail_*)은 메일 전용 머리(mail_app_head·mail_pwa_head)를 본문 앞에 둔다 — 메일 = 세션 15 구역.
+#    화면 전환으로 들어오면 「← 이전」·「🔄」·「📲 앱 설치」 함수가 없을 수 있다(같은 뿌리) → 세션 15 에 알림 · 여기선 면제만.
+SPA_HEAD_ALLOW_INC = {"_v5_partials/mail_app_head.html", "_v5_partials/mail_pwa_head.html"}
+
+
+def check_spa_head_scripts(_files=None):
+    """§본문 앞 스크립트 = 화면 전환 때 안 돈다 (z1191z26 · 대표 신고 2026-11-16).
+
+    신고: "작업 일정표 세금계산서 칸을 눌러도 아무 반응이 없다. 새로고침(F5)하면 그때는 눌리고 팝업이 뜬다."
+
+    왜: 공통 틀의 화면 전환(`_v5_partials/spa_nav.html`)은 문서를 새로 열지 않고 **본문(.main)만 갈아 끼운다.**
+        다시 돌리는 스크립트 = 본문 **안**과 본문 **뒤**의 것뿐. 본문 **앞**(<head>·공통 틀 앞)의 스크립트는
+        처음 연 화면의 것이 그대로 남는다. 작업일정표는 금액 공용 함수(`knk_amt.html`)를 <head> 에서만 불러,
+        매출영업센터 홈에서 링크로 들어오면 `window.knkFmtAmtTyping` 이 없어 세금계산서 칸을 누르는 순간 멈췄다.
+        F5 는 전체 로드라 <head> 가 돌아 정상 — 그래서 「새로고침하면 된다」.
+
+    올바른 방법
+      · 여러 화면이 쓰는 공용 조각(함수 정의)은 공통 틀 `chrome.html` 에서도 include 한다(중복 가드 필수).
+      · 화면 전용 스크립트는 본문 안이나 본문 뒤에 둔다(화면 전환 때 다시 돈다).
+
+    잡는 것(chrome.html 을 쓰는 화면만 — 화면 전환 대상)
+      ① 본문 앞에서 include 한 조각에 <script> 가 있는데 chrome.html 에는 그 include 가 없다
+      ② 본문 앞에 화면 자체 <script>(인라인·src) 가 있다 — 면제 목록 SPA_HEAD_ALLOW 밖
+    """
+    bad = []
+    chrome = _read(os.path.join(TPL, "_v5_partials", "chrome.html"))
+    styles = _read(os.path.join(TPL, "_v5_partials", "styles.html"))
+    shell = set(re.findall(r'\{%-?\s*include\s+"([^"]+)"', chrome)) | set(re.findall(r'\{%-?\s*include\s+"([^"]+)"', styles))
+    shell |= {"_v5_partials/chrome.html", "_v5_partials/styles.html"}
+    _memo = {}
+
+    def has_script(name, depth=0):
+        if name in _memo:
+            return _memo[name]
+        _memo[name] = False
+        s = _read(os.path.join(TPL, name))
+        r = bool(re.search(r"<script\b", s, re.I))
+        if not r and depth < 5:
+            r = any(has_script(i, depth + 1) for i in re.findall(r'\{%-?\s*include\s+"([^"]+)"', s) if i != name)
+        _memo[name] = r
+        return r
+
+    for p in _walk(TPL, (".html",)):
+        rel = os.path.relpath(p, TPL).replace("\\", "/")
+        if rel.startswith("_v5_partials/"):
+            continue
+        src = _read(p)
+        if "_v5_partials/chrome.html" not in src:
+            continue
+        m = re.search(r'<main\b[^>]*class="[^"]*\bmain\b', src) or re.search(r'class="main\b', src)
+        if not m:
+            continue
+        pre = src[:m.start()]
+        pre_nc = re.sub(r"\{#.*?#\}", lambda x: "\n" * x.group(0).count("\n"), pre, flags=re.S)
+        # ①
+        for mm in re.finditer(r'\{%-?\s*include\s+"([^"]+)"', pre_nc):
+            inc = mm.group(1)
+            if inc in shell or inc in SPA_HEAD_ALLOW_INC:
+                continue
+            if has_script(inc):
+                ln = pre_nc[:mm.start()].count("\n") + 1
+                bad.append((p, ln, "① 본문 앞 include %s 에 <script> 가 있는데 공통 틀(chrome.html)에 없다 — "
+                                   "다른 화면에서 링크로 들어오면 안 돈다(F5 해야 됨)" % inc))
+        # ②
+        n_inline = 0
+        allow = SPA_HEAD_ALLOW.get(os.path.basename(p), {}).get("inline", 0)
+        for mm in re.finditer(r"<script\b[^>]*>", pre_nc, re.I):
+            n_inline += 1
+            if n_inline <= allow:
+                continue
+            ln = pre_nc[:mm.start()].count("\n") + 1
+            bad.append((p, ln, "② 본문 앞 화면 스크립트 — 화면 전환 때 안 돈다(본문 안·뒤로 옮기거나 공용이면 chrome.html)"))
+    return bad
 
 
 def main():
@@ -1586,6 +1669,15 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ DB 사본 : 기능마다 최근 7개 · 9/2 이전 기록용 보존 (공용 정리 함수 한 곳)")
+
+    sh_bad = check_spa_head_scripts()
+    if sh_bad:
+        fail += len(sh_bad)
+        print("  ❌ 본문 앞 스크립트(화면 전환 때 안 돈다) : %d건 → 공용 조각은 chrome.html 에도 include · 화면 전용은 본문 안·뒤로" % len(sh_bad))
+        for f, l, m in sh_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 본문 앞 스크립트 : 화면 전환(본문만 교체)으로 들어와도 공용 함수가 있음 (chrome.html)")
 
     df_bad = check_date_fallback(files)
     if df_bad:

@@ -51,9 +51,8 @@
   /* 날짜 칸 이름 → 차수. 거래명세서(statement_date) 처럼 세금계산서가 아니면 0(아무것도 안 그린다) */
   function tierOf(datefield){
     if (datefield === 'tax_invoice_date') return 1;
-    if (datefield === 'tax_invoice_date2') return 2;
-    if (datefield === 'tax_invoice_date3') return 3;
-    return 0;
+    var m = /^tax_invoice_date([2-9]|10)$/.exec(datefield || '');   // z1191z24: 수주 차수 1~10
+    return m ? parseInt(m[1], 10) : 0;
   }
   window.knkTaxSameDayTier = tierOf;
   window.knkTaxSameDay = function(host, q){

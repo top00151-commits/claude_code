@@ -36,6 +36,7 @@ from datetime import date, datetime, timedelta
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TPL = os.path.join(ROOT, "app", "templates")
 BOARD = os.path.join(TPL, "schedule_board.html")
+MULTI = os.path.join(TPL, "_v5_partials", "knk_tax_multi.html")   # z1191z24: 세금계산서 칸 1개 + 공용 입력 창
 MAIN = os.path.join(ROOT, "app", "main.py")
 
 try:
@@ -92,20 +93,24 @@ sec("§1. 작업일정표 색 판정 — refreshTaxStatus 원문을 node 로 실
 fn_status = CS._js_func(board_src, "refreshTaxStatus")
 chk("refreshTaxStatus 원문 추출", bool(fn_status) and "tax-ok" in fn_status)
 
-FAKE_DOM = r"""
-function mkCell(edit, amt){
+# z1191z24: 세금계산서 칸은 1개(data-tis = [[발행일, 금액], …] · 1~10차) — 판정은 공용 knkTaxMulti.parse 로 읽는다.
+#   그 공용 스크립트 원문을 그대로 node 에 싣는다(화면에 실리는 진짜 코드).
+MULTI_JS = re.search(r"<script>(.*?)</script>", read(MULTI), re.S).group(1)
+FAKE_DOM = "var window = {};\n" + MULTI_JS + "\nvar knkTaxMulti = window.knkTaxMulti;\n" + r"""
+function mkCell(tis){
   var cls = {};
-  return { dataset:{edit:edit, amt:amt},
+  return { dataset:{edit:'taxinv1', tis:JSON.stringify(tis), timax:'10'},
            classList:{ add:function(c){cls[c]=1;},
                        remove:function(){ for(var i=0;i<arguments.length;i++) delete cls[arguments[i]]; },
                        contains:function(c){return !!cls[c];} },
            querySelector:function(){return null;}, _cls:cls };
 }
 function mkRow(rowamt, a1, a2, a3){
-  var cells=[mkCell('taxinv1',a1), mkCell('taxinv2',a2), mkCell('taxinv3',a3)];
+  var cells=[mkCell([['',a1],['',a2],['',a3]])];
   return { dataset:{rowamt:String(rowamt)}, _cells:cells,
            querySelectorAll:function(){ return cells; }, querySelector:function(){ return cells[0]; } };
 }
+function setAmt(tr, k, v){ var t=JSON.parse(tr._cells[0].dataset.tis); t[k][1]=v; tr._cells[0].dataset.tis=JSON.stringify(t); }
 function color(tr){
   var out = tr._cells.map(function(c){ return c._cls['tax-ok']?'ok':(c._cls['tax-mismatch']?'mis':'none'); });
   return out.join(',');
@@ -137,29 +142,31 @@ js = FAKE_DOM + fn_status + "\nvar C=" + json.dumps([[c[1], c[2], c[3], c[4]] fo
     ";\nconsole.log(JSON.stringify(C.map(function(c){ return stat(c[0],c[1],c[2],c[3]); })));"
 got = node(js)
 for (name, _a, _b, _c, _d, want), g in zip(CASES1, got):
-    chk(name, g == ",".join([want] * 3), g)
+    chk(name, g == want, g)   # z1191z24: 세금계산서 칸 1개
 
 # 한 줄에서 값이 바뀌면 예전 색을 지우는가(초록 → 주황 → 무색 → 초록)
 js = FAKE_DOM + fn_status + r"""
 var tr=mkRow(-1865000,'-1865000','',''); var out=[];
 refreshTaxStatus(tr); out.push(color(tr));
-tr._cells[0].dataset.amt='-1000000'; refreshTaxStatus(tr); out.push(color(tr));
-tr._cells[0].dataset.amt=''; refreshTaxStatus(tr); out.push(color(tr));
-tr._cells[0].dataset.amt='-1865000'; refreshTaxStatus(tr); out.push(color(tr));
+setAmt(tr,0,'-1000000'); refreshTaxStatus(tr); out.push(color(tr));
+setAmt(tr,0,''); refreshTaxStatus(tr); out.push(color(tr));
+setAmt(tr,0,'-1865000'); refreshTaxStatus(tr); out.push(color(tr));
 console.log(JSON.stringify(out));"""
 got = node(js)
 chk("값을 고치면 색이 따라 바뀐다(초록→주황→무색→초록) · 옛 색이 안 남는다",
-    got == ["ok,ok,ok", "mis,mis,mis", "none,none,none", "ok,ok,ok"], got)
+    got == ["ok", "mis", "none", "ok"], got)
 
 # ══════════════════════════════════════════════════════════════════════
 sec("§2. 작업일정표 1차 금액 미리 채움 — 그 줄 원문을 node 로 실행")
 # ══════════════════════════════════════════════════════════════════════
-pre = [ln for ln in board_src.splitlines()
-       if "td.dataset.edit==='taxinv1'" in ln and "rowamt" in ln and not ln.lstrip().startswith("//")]
-chk("미리 채움 줄을 정확히 1개 찾음", len(pre) == 1, len(pre))
+# z1191z24: 1차 미리 채움은 공용 입력 창(knk_tax_multi)이 한다 — 작업일정표는 prefill1:true · total=parseFloat(rowamt)(NaN=없음)
+pre = [ln for ln in read(MULTI).splitlines()
+       if "o.prefill1" in ln and "total" in ln and not ln.lstrip().startswith("//")]
+chk("미리 채움 줄을 정확히 1개 찾음", len(pre) == 1 and board_src.count("prefill1:true") == 1, (len(pre), board_src.count("prefill1:true")))
 PRE_LINE = pre[0] if pre else ""
-js = ("function pre(edit, amt, rowamt){ var td={dataset:{edit:edit, amt:amt}}, tr={dataset:{rowamt:String(rowamt)}};\n"
-      "  let curAmt=td.dataset.amt||'';\n" + PRE_LINE + "\n  return curAmt; }\n"
+js = ("function pre(edit, amt, rowamt){ var o={prefill1:(edit==='taxinv1')}; var _rt=parseFloat(String(rowamt));\n"
+      "  var total=isNaN(_rt)?null:_rt; var v1=['', (amt===''?null:Number(amt))];\n" + PRE_LINE + "\n"
+      "  return v1[1]===null?'':String(v1[1]); }\n"
       "console.log(JSON.stringify([pre('taxinv1','',-1865000), pre('taxinv1','',1865000), pre('taxinv1','',0),"
       " pre('taxinv1','-500000',-1865000), pre('taxinv2','',-1865000), pre('taxinv1','',-1234.56),"
       " pre('taxinv1','',1315.5), pre('taxinv1','','')]));")
@@ -309,15 +316,16 @@ env = {"db_session": lambda: _NoClose(), "date": date, "datetime": datetime, "ti
        "_s1_guard": lambda req: {"id": 1}, "can_view_sales": lambda u: True,
        "ctx": lambda req, tpl, **kw: kw, "RedirectResponse": lambda *a, **k: None,
        "Request": object, "HTMLResponse": object}
-WANT = {"sales_shipments_receipts_page", "_board_tax_oi_map", "_board_in_frag", "_fmt_money", "_sr_bill_state"}
+WANT = {"sales_shipments_receipts_page", "_board_tax_oi_map", "_board_in_frag", "_fmt_money", "_sr_bill_state",
+        "_ti_dcol", "_ti_acol"}   # z1191z24: 차수 칸 이름 함수(1~10차)
 got_fn = set()
 for n in tree.body:
-    if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == "_CCY_SYMBOL" for t in n.targets):
+    if isinstance(n, ast.Assign) and any(getattr(t, "id", "") in ("_CCY_SYMBOL", "_TI_MAX") for t in n.targets):   # z1191z24
         exec(compile(ast.get_source_segment(main_src, n), "sym", "exec"), env)
     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in WANT:
         exec(compile(ast.get_source_segment(main_src, n), n.name, "exec"), env)
         got_fn.add(n.name)
-chk("화면 함수와 딸린 함수 5개 원문 추출", got_fn == WANT, WANT - got_fn)
+chk("화면 함수와 딸린 함수 원문 추출(z1191z24: 차수 함수 2개 포함 7개)", got_fn == WANT, WANT - got_fn)
 
 
 class _Req:
@@ -333,8 +341,8 @@ chk("목록에 나오는 수주 8건(출하 전·취소·아무것도 없는 0�
 o = rows["T-260611-1"]
 chk("🔴 999T2606(마이너스 전액 발행): 「하나도 안 끊음」 아님 · 발행 대기 아님",
     (not o["nothing_issued"]) and (not o["billing_due"]), (o["nothing_issued"], o["billing_due"]))
-chk("   · 발행 표시 = 「전액 ✓ 2026-06-30 ₩-1,865,000」",
-    [(t["label"], t["date"], t["amt_fmt"]) for t in o["tier_chips"]] == [("전액", "2026-06-30", "₩-1,865,000")], o["tier_chips"])
+chk("   · 발행 표시 = 「1차 ✓ 2026-06-30 ₩-1,865,000」(z1191z24 차수 이름)",
+    [(t["label"], t["date"], t["amt_fmt"]) for t in o["tier_chips"]] == [("1차", "2026-06-30", "₩-1,865,000")], o["tier_chips"])
 chk("   · 미발행 잔액 ₩0 · 부가세 -186,500", o["unbilled_fmt"] == "₩0" and o["vat"] == -186500, (o["unbilled_fmt"], o["vat"]))
 chk("   · 「챙길 것」이 아니라 발행완료 쪽 목록에 있다", any(x["order_no"] == "T-260611-1" for x in res["inmonth"]))
 
@@ -345,7 +353,7 @@ chk("   · 미발행 잔액 ₩-500,000 · 「챙길 것」 목록에 뜬다",
 o = rows["SO-F"]
 chk("마이너스 수주 · 일부만 끊음 → 「발행 대기」 · 잔액 ₩-300,000",
     o["state"] == "발행 대기" and o["unbilled_fmt"] == "₩-300,000", (o["state"], o["unbilled_fmt"]))
-chk("   · 발행 표시 = 「계약금」(다 끊지 않았으므로)", [t["label"] for t in o["tier_chips"]] == ["계약금"], o["tier_chips"])
+chk("   · 발행 표시 = 「1차」(z1191z24 차수 이름 — 예전 「계약금」)", [t["label"] for t in o["tier_chips"]] == ["1차"], o["tier_chips"])
 o = rows["SO-H"]
 chk("마이너스 금액만 적고 발행일 없음 → 발행 표시가 뜬다(예전엔 금액이 있는데도 「미발행」 딱지)",
     len(o["tier_chips"]) == 1 and o["tier_chips"][0]["amt_fmt"] == "₩-300,000", o["tier_chips"])
@@ -401,12 +409,12 @@ try:
     h = draw(rows["T-260611-1"])
     st, tx = cell(h, "미발행 잔액")
     chk("잔액 0(999T2606)은 강조 안 함", "color:#b45309" not in (st or "") and tx == "₩0", (st, tx))
-    chk("   · 세금계산서 칸에 「전액 ✓ 06-30」 · 「미발행」 딱지 없음", "전액 ✓ 06-30" in h and ">미발행<" not in h)
+    chk("   · 세금계산서 칸에 「1차 ✓ 06-30」(z1191z24) · 「미발행」 딱지 없음", "1차 ✓ 06-30" in h and ">미발행<" not in h)
     h = draw(rows["SO-A"])
     st, tx = cell(h, "미발행 잔액")
     chk("플러스 전액 발행은 강조 안 함 (무변화)", "color:#b45309" not in (st or "") and tx == "₩0", (st, tx))
     h = draw(rows["SO-H"])
-    chk("금액만 적은 마이너스 건(SO-H): 「미발행」 딱지 대신 발행 표시", ">미발행<" not in h and "계약금 ✓" in h)
+    chk("금액만 적은 마이너스 건(SO-H): 「미발행」 딱지 대신 발행 표시", ">미발행<" not in h and "1차 ✓" in h)
 except ImportError:
     chk("jinja2 가 없어 §5 를 못 돌렸다", False)
 
@@ -459,7 +467,9 @@ b = mutated([])
 chk("사본을 그대로 두면 통과(되돌림 시험 장치 자체 확인)", b == [], b[:2])
 b = mutated([("app/templates/schedule_board.html", "if(anyAmt && total!==0) status=", "if(anyAmt && total>0) status=")])
 chk("되돌림 ① 색 판정을 `total>0` 으로 → 잡는다", has(b, "①"), b)
-b = mutated([("app/templates/schedule_board.html", "if(rt!==0) curAmt=", "if(rt>0) curAmt=")])
+# z1191z24: 1차 미리 채움은 공용 창이 total 로 한다 — 작업일정표가 수주금액(rowamt)을 「0보다 클 때만」 넘기게 되돌림
+b = mutated([("app/templates/schedule_board.html", "const _rt=parseFloat(tr.dataset.rowamt||'');",
+              "const _rt=(parseFloat(tr.dataset.rowamt||'')>0?parseFloat(tr.dataset.rowamt||''):NaN);")])
 chk("되돌림 ② 미리 채움을 `rt>0` 으로 → 잡는다", has(b, "②"), b)
 b = mutated([("app/main.py", '"nothing_issued": abs(issued_amt) <= eps}', '"nothing_issued": issued_amt <= eps}')])
 chk("되돌림 ③-a 「하나도 안 끊음」을 `발행합계 <= 0` 으로 → **돌려 보고** 잡는다",

@@ -118,7 +118,8 @@ check("🔴 위쪽 「마감이월(전부 미발행)」 %d건 = 아래 목록의
 
 d, h = row_of(t, "T-260611-1")
 check("🔴 999T2606(마이너스 전액 발행) 줄이 있고 「마감이월」이 아니다", bool(d) and d.get("state") != "마감이월", d)
-check("   · 세금계산서 칸 「전액 ✓ 06-30」 · 「미발행」 딱지 없음", "전액 ✓ 06-30" in h and ">미발행<" not in h)
+# z1191z24 (대표 2026-11-16 · 안지연·이새롬 프로 답): 미수금 이름 = 그 세금계산서의 차수(1차·2차…) — 「전액·계약금…」 폐기
+check("   · 세금계산서 칸 「1차 ✓ 06-30」 · 「미발행」 딱지 없음", "1차 ✓ 06-30" in h and ">미발행<" not in h)
 check("   · 발행합계 값이 마이너스 그대로(-1865000.0)", bool(d) and d.get("issued") == "-1865000.0", d and d.get("issued"))
 d, h = row_of(t, "T-260601-3")
 check("마이너스 수주 · 안 끊음 → 「마감이월」로 목록에 뜬다(예전엔 안 나왔다)", bool(d) and d.get("state") == "마감이월", d)
@@ -146,10 +147,11 @@ def board_row(html, mg):
         if mg not in body:
             continue
         rowamt = re.search(r'data-rowamt="([^"]*)"', m.group(0))
-        amts = []
-        for k in ("1", "2", "3"):
-            c = re.search(r'<td class="[^"]*\btaxinv-cell\b[^"]*"[^>]*data-edit="taxinv%s"[^>]*data-amt="([^"]*)"' % k, body)
-            amts.append(c.group(1) if c else None)
+        # z1191z24: 세금계산서 칸 1개 · data-tis=[[발행일, 금액], …](1~10차) — 1·2·3차 금액을 꺼낸다(정수로 떨어지면 정수꼴)
+        import html as _h
+        c = re.search(r'<td class="[^"]*\btaxinv-cell\b[^"]*"[^>]*data-tis="([^"]*)"', body)
+        tis = json.loads(_h.unescape(c.group(1))) if c else []
+        amts = [("" if (t[1] is None) else ("%d" % t[1] if float(t[1]).is_integer() else repr(t[1]))) for t in tis[:3]]
         return (rowamt.group(1) if rowamt else None), amts
     return None, []
 
@@ -167,11 +169,13 @@ check("여섯 건 모두 일정표에 그려졌다", all(v[0] is not None and le
 check("🔴 서버가 그린 999T2606 — 수주금액 -1865000.0 · 1차 -1865000 (마이너스 그대로)",
       rows["999T2606"] == ("-1865000.0", ["-1865000", "", ""]), rows["999T2606"])
 
-JS = r"""
-function mkCell(edit, amt){ var cls={}; return { dataset:{edit:edit, amt:amt},
+# z1191z24: 화면에 실린 공용 입력 창 스크립트(knkTaxMulti) 원문 그대로 — 판정 함수가 그 parse 로 칸(data-tis)을 읽는다
+_mj = [s for s in re.findall(r"<script>(.*?)</script>", page, re.S) if "window.knkTaxMulti = {" in s]
+JS = "var window = {};\n" + (_mj[0] if _mj else "") + "\nvar knkTaxMulti = window.knkTaxMulti;\n" + r"""
+function mkCell(tis){ var cls={}; return { dataset:{edit:'taxinv1', tis:JSON.stringify(tis), timax:'10'},
   classList:{ add:function(c){cls[c]=1;}, remove:function(){ for(var i=0;i<arguments.length;i++) delete cls[arguments[i]]; } },
   querySelector:function(){return null;}, _cls:cls }; }
-function stat(rowamt, a){ var cells=[mkCell('taxinv1',a[0]||''), mkCell('taxinv2',a[1]||''), mkCell('taxinv3',a[2]||'')];
+function stat(rowamt, a){ var cells=[mkCell([['',a[0]||''],['',a[1]||''],['',a[2]||'']])];
   var tr={ dataset:{rowamt:rowamt}, querySelectorAll:function(){return cells;}, querySelector:function(){return cells[0];} };
   refreshTaxStatus(tr); var c=cells[0]._cls; return c['tax-ok']?'ok':(c['tax-mismatch']?'mis':'none'); }
 """ + (fn or "") + "\nvar R=" + json.dumps({k: [v[0], v[1]] for k, v in rows.items()}) + \

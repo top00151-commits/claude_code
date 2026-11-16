@@ -1330,6 +1330,11 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                        "statement_date", "tax_invoice_date", "tax_invoice_amt1",
                        "tax_invoice_date2", "tax_invoice_amt2",
                        "tax_invoice_date3", "tax_invoice_amt3",
+                       # z1191z24 (대표 2026-11-16): 수주(호기) 세금계산서 4~10차 — 수주 내역 표 「세금계산서」 1칸 + ＋N장
+                       "tax_invoice_date4", "tax_invoice_amt4", "tax_invoice_date5", "tax_invoice_amt5",
+                       "tax_invoice_date6", "tax_invoice_amt6", "tax_invoice_date7", "tax_invoice_amt7",
+                       "tax_invoice_date8", "tax_invoice_amt8", "tax_invoice_date9", "tax_invoice_amt9",
+                       "tax_invoice_date10", "tax_invoice_amt10",
                        # v5H226z5: 통관 컬럼
                        "hs_code", "duty_rate", "vat_rate",
                        "invoice_unit_price", "invoice_amount",

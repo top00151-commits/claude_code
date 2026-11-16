@@ -177,7 +177,10 @@
 .sched-hint { line-height:1.15; }
 .sched-wrap { margin:0 var(--content-pad); border:1px solid var(--line); border-radius:10px;
   overflow:auto; max-height:calc(100vh - 210px); background:var(--paper-3); }
-.sched-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; max-height:100vh; border-radius:0; }
+/* z1191z27: 전체화면 = 문서 전체(html) + 표 .fs — 층 700(상단바 500 위 · 창 1000~ 아래). 예전 9999 는 묶어 발행(1200)·
+   일괄수정(9100)·세금계산서 창(9999) 같은 창을 표 뒤로 숨겼다. 인쇄 창(200)은 전체화면 중엔 표 위로 올린다. */
+.sched-wrap.fs { position:fixed; inset:0; z-index:700; margin:0; max-height:100vh; border-radius:0; }
+body.sched-fs .print-modal { z-index:1150; }
 /* v5H226z363 (대표 지시): 휴대폰에선 보드 높이 제한 해제 → 표 전체가 보이고 페이지가 세로 스크롤(표는 가로 스크롤 유지) */
 @media (max-width:1023px){ .sched-wrap:not(.fs) { max-height:none; } }
 /* z279: 고정 px + 좌우 스크롤(엑셀식). 표 폭 = 칸 px 합 (JS가 지정). 한 칸 조정해도 다른 칸 불변. */

@@ -933,6 +933,19 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
    기준: 작업기록/달력_캘린더_빌드_조건_사양_2026-06-13.md (§1 데이트픽커). 중복 include 는 내부 가드로 안전. #}
 {% include "_v5_partials/knk_datepicker.html" ignore missing %}
 
+{# z1191z26 (대표 신고 2026-11-16 「작업일정표 세금계산서 칸을 눌러도 반응이 없다 · F5 하면 눌린다」):
+   화면 전환(spa_nav)은 본문(.main)만 갈아 끼우고 **새 화면의 <head> 스크립트는 다시 돌리지 않는다.**
+   작업일정표·프로젝트 상세·프로젝트 수정은 금액 공용 함수(knk_amt.html)·「같은 날 함께 발행」(knk_tax_sameday.html)·세금계산서 여러 장 창(knk_tax_multi.html · z1191z24)을
+   <head> 에서만 불러, 매출영업센터 홈·사이드바 등 다른 화면에서 링크로 들어오면 함수가 없었다
+   → 세금계산서 칸을 누르는 순간 「window.knkFmtAmtTyping is not a function」 으로 멈춤(팝업 안 뜸) ·
+     빈 칸 팝업은 떠도 금액 콤마·저장이 같은 오류로 멈춤. F5(전체 로드)면 <head> 가 돌아 정상.
+   → 모든 화면의 공통 틀(여기)에서도 불러 둔다 — 처음 연 화면이 무엇이든 함수가 있다.
+     두 조각 모두 함수만 정의하고(자동 실행 없음) 중복 include 가드가 있어 화면 쪽 include 와 겹쳐도 안전.
+   배포 전 검사: deploy/check_standards.py `check_spa_head_scripts` (본문 앞 스크립트 조각은 여기에도 있어야 한다). #}
+{% include "_v5_partials/knk_amt.html" %}
+{% include "_v5_partials/knk_tax_sameday.html" %}
+{% include "_v5_partials/knk_tax_multi.html" %}
+
 {# v5H226z28 (2026-05-08): 디버그 오버레이 - URL ?debug=1 시 영역명·크기 표시 (전 페이지 공통) #}
 {% include "_v5_partials/debug_overlay.html" ignore missing %}
 

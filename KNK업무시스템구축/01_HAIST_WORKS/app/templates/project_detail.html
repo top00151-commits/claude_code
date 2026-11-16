@@ -6,6 +6,8 @@
 {% include "_v5_partials/knk_amt.html" %}
 {# z1136: 세금계산서 「같은 날 함께 발행」 보기(공용) #}
 {% include "_v5_partials/knk_tax_sameday.html" %}
+{# z1191z24: 세금계산서 여러 장(최대 10장) 입력 창(공용) — 수주 내역 호기 표 #}
+{% include "_v5_partials/knk_tax_multi.html" %}
 {# z1097: 통화별 합계 표기 공용 한 벌 — 원화+달러 환산 없는 합산 재발 방지 #}
 {% import "_v5_partials/knk_ccy_total.html" as _ccy %}
 <link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" />
@@ -849,9 +851,8 @@
                   {# v5H226z634 (대표 지시): 완제품 — 호기별 거래명세서·세금계산서1/2/3 (보기 전용 · 발행/편집은 작업일정표 보드) · z829: 매출금액 정책(can_sales_amt) #}
                   {% if _is_equip and can_sales_amt %}
                   <th class="px-x center" style="width:92px;">거래명세서</th>
-                  <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">1차</span></th>
-                  <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">2차</span></th>
-                  <th class="px-x center" style="width:110px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">3차</span></th>
+                  {# z1191z24 (대표 2026-11-16): 세금계산서 1칸 — 첫 장 + 「＋N장 · 합」 · 눌러서 1~10차(＋로 한 장씩) #}
+                  <th class="px-x center" style="width:130px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">최대 {{ TI_MAX }}장</span></th>
                   {% endif %}
                   {# v5H226z86: 동작 → 수정 (호기별 개별 저장/삭제이지만 사용자 인지 일관성) #}
                   {# v5H226z1018b: 상품(PARTS)은 이 컬럼이 행 삭제(×) 전용으로 복원(CSS) — 헤더도 '삭제'로 #}
@@ -1103,9 +1104,9 @@
                   {% if _is_equip and can_sales_amt %}
                   {# v5H226z690 (대표 지시): 호기별 거래명세서·세금계산서 — '수정' 잠금해제 시 칸 클릭→발행일/금액 팝업(/unit-field 호기 저장). 출하 일정 다르면 호기별 분리 발행. #}
                   <td class="center px-x" style="font-size:11px;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="statement_date" data-date="{{ u.statement_date or '' }}" data-title="거래명세서">{{ u.statement_date or '—' }}</span></td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ u.tax_invoice_date or '' }}" data-amt="{{ u.tax_invoice_amt1 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 1차">{% if u.tax_invoice_date or u.tax_invoice_amt1 %}<div>{{ u.tax_invoice_date or '–' }}</div>{% if u.tax_invoice_amt1 %}<div style="color:#1d4ed8;font-weight:700;">{{ money(u.tax_invoice_amt1, _u_ccy) }}</div>{% endif %}{% else %}—{% endif %}</span></td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ u.tax_invoice_date2 or '' }}" data-amt="{{ u.tax_invoice_amt2 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 2차">{% if u.tax_invoice_date2 or u.tax_invoice_amt2 %}<div>{{ u.tax_invoice_date2 or '–' }}</div>{% if u.tax_invoice_amt2 %}<div style="color:#1d4ed8;font-weight:700;">{{ money(u.tax_invoice_amt2, _u_ccy) }}</div>{% endif %}{% else %}—{% endif %}</span></td>
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ u.tax_invoice_date3 or '' }}" data-amt="{{ u.tax_invoice_amt3 or '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서 3차">{% if u.tax_invoice_date3 or u.tax_invoice_amt3 %}<div>{{ u.tax_invoice_date3 or '–' }}</div>{% if u.tax_invoice_amt3 %}<div style="color:#1d4ed8;font-weight:700;">{{ money(u.tax_invoice_amt3, _u_ccy) }}</div>{% endif %}{% else %}—{% endif %}</span></td>
+                  {# z1191z24: 세금계산서 1칸(data-multi) — 누르면 1~10차 입력 창 · 저장은 그대로 /unit-field(호기) #}
+                  {% set _tih24 = ti_cell_html(u, _u_ccy, False) %}
+                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-multi="1" data-iid="{{ u.id }}" data-tis="{{ ti_json(u) }}" data-total="{{ u.amount if u.amount is not none else '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서" title="{{ ti_title(u, _u_ccy) }}">{% if _tih24 != '＋' %}{{ _tih24 }}{% else %}—{% endif %}</span></td>
                   {% endif %}
                   {% if _editable %}
                   <td class="center edit-only">
@@ -3030,7 +3031,28 @@
     }
   }
   var _tiPopOpen=false;
+  // z1191z24 (대표 2026-11-16): 세금계산서 1칸 → 1~10차 입력 창(공용 knk_tax_multi.html) · 저장 = 호기 /unit-field
+  function _openTiMulti(cell){
+    if(_tiPopOpen) return;
+    var iid=cell.dataset.iid; if(!iid) return;
+    if(!window.knkTaxMulti){ _tiToast('⚠ 화면을 새로 고침(F5)해 주세요'); return; }
+    var ccy=cell.dataset.ccy||'KRW', max=(function(){ try{ return JSON.parse(cell.dataset.tis||'[]').length||10; }catch(e){ return 10; } })();   // 상한 = 서버가 보낸 차수 수(_TI_MAX) · 스크립트 줄엔 Jinja 기호를 안 쓴다
+    var tis=knkTaxMulti.parse(cell.dataset.tis, max), tot=parseFloat(cell.dataset.total||'');
+    _tiPopOpen=true;
+    try{
+      knkTaxMulti.open({anchor:cell, tis:tis, max:max, ccy:ccy, isExp:false, total:(isNaN(tot)?null:tot), totalLabel:'이 호기 금액', prefill1:false,
+        sameday:function(n,d){ return {tier:n, date:d, iid:iid}; },
+        save:function(f,v){ return _tiSave(iid, f, v); },
+        onSaved:function(next){
+          cell.dataset.tis=JSON.stringify(next);
+          var h=knkTaxMulti.cellHtml(next, ccy, false, null); cell.innerHTML=(h==='＋'?'—':h);
+          cell.title=knkTaxMulti.title(next, ccy, max);
+        },
+        onClose:function(){ _tiPopOpen=false; }});
+    }catch(e){ _tiPopOpen=false; _tiToast('⚠ '+(e.message||'입력 창 오류')); }
+  }
   function _openTiPop(cell){
+    if(cell.dataset.multi){ _openTiMulti(cell); return; }   // z1191z24
     if(_tiPopOpen) return;
     var iid=cell.dataset.iid; if(!iid) return;
     var datefield=cell.dataset.datefield, amtfield=cell.dataset.amtfield||'', hasAmt=!!amtfield;

@@ -463,6 +463,110 @@ tpl.env.globals["money"] = _fmt_money
 tpl.env.globals["ccysym"] = _ccy_sym
 
 
+# ─── z1191z24 (대표 2026-11-16 「묶어 발행만 보류하고 나머지는 진행」 · 안지연·이새롬 프로 답) ───
+#   수주(호기) 세금계산서 최대 10장 — 「비율로 나누지 말고 ＋로 한 장씩 추가 · 합이 수주금액과 맞으면 끝」.
+#   작업일정표엔 세금계산서 1칸(첫 장 + 「＋N장 · 합」) · 누르면 1~10차 입력 창(knk_tax_multi.html).
+#   미수금 이름 = 1차·2차·3차… · 소모품은 1~3차 그대로(해당 없음) · 묶어 발행은 1~3차 그대로(보류).
+#   ⚠ 차수 칸 이름은 이 함수들로만 만든다 — 1·2·3 을 손으로 늘어놓으면 한 곳이 빠져 매출·미수금에서 금액이 빠진다.
+_TI_MAX = 10          # 수주(호기 order_items) 차수 1~10 — database.TAX_TIER_MAX 와 같아야 한다(시험이 본다)
+_TI_MAX_CONS = 3      # 소모품(consumable_orders) 차수 1~3
+
+
+def _ti_dcol(n):
+    return "tax_invoice_date" if int(n) == 1 else "tax_invoice_date%d" % int(n)
+
+
+def _ti_acol(n):
+    return "tax_invoice_amt%d" % int(n)
+
+
+_TI_DCOLS = tuple(_ti_dcol(_n) for _n in range(1, _TI_MAX + 1))
+_TI_ACOLS = tuple(_ti_acol(_n) for _n in range(1, _TI_MAX + 1))
+
+
+def _ti_get(o, k):
+    try:
+        return o.get(k)
+    except AttributeError:
+        try:
+            return o[k]
+        except Exception:
+            return None
+
+
+def _ti_tiers(o, mx=_TI_MAX):
+    """줄·호기 dict → [{n, d(발행일), a(금액 float|None)}] — 차수 1..mx(빈 차수 포함)."""
+    out = []
+    for n in range(1, int(mx) + 1):
+        d = str(_ti_get(o, _ti_dcol(n)) or "").strip()[:10]
+        a = _ti_get(o, _ti_acol(n))
+        try:
+            a = float(str(a).replace(",", "")) if a not in (None, "") else None
+        except (TypeError, ValueError):
+            a = None
+        out.append({"n": n, "d": d, "a": a})
+    return out
+
+
+def _ti_json(o, mx=_TI_MAX):
+    """data-tis 속성 — [[발행일, 금액|null], …](차수 1..mx 순서). 입력 창(knkTaxMulti)이 읽는다."""
+    import json as _json_z24
+    return _json_z24.dumps([[t["d"], t["a"]] for t in _ti_tiers(o, mx)], ensure_ascii=False)
+
+
+def _ti_bundle_json(ti_map, sig):
+    """묶어 발행(1~3차 · z488) 차수 → {"1": {"id":…, "no":…}} — 입력 창에서 그 차수는 보기만."""
+    import json as _json_z24
+    out = {}
+    if ti_map and sig:
+        for n in (1, 2, 3):
+            b = ti_map.get("%s|%d" % (sig, n))
+            if b:
+                out[str(n)] = {"id": _ti_get(b, "id"), "no": _ti_get(b, "no")}
+    return _json_z24.dumps(out, ensure_ascii=False)
+
+
+def _ti_cell_html(o, ccy="KRW", is_exp=False, mx=_TI_MAX, bundle=None):
+    """세금계산서 1칸 표시 — 첫 장(발행일·금액) + 「＋N장 · 합 …」. 빈 칸은 「＋」.
+    ⚠ knk_tax_multi.html 의 knkTaxMulti.cellHtml 과 같은 모양(저장 뒤 화면이 다시 그린다)."""
+    from markupsafe import Markup, escape
+    ts = [t for t in _ti_tiers(o, mx) if t["d"] or t["a"]]
+    if not ts:
+        return Markup("＋")
+    f, h = ts[0], ""
+    if is_exp:
+        h += '<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>'
+    if bundle and f["n"] == 1:
+        h += '<span class="ti-bundle-chip">📄 #%s</span>' % escape(_ti_get(bundle, "no") or "")
+        h += '<div class="ti-a">%s</div>' % (escape(_fmt_money(f["a"], ccy)) if f["a"] else "")
+    else:
+        if f["n"] != 1:
+            h += '<span class="ti-n">%d차</span>' % f["n"]
+        h += '<div class="ti-d">%s</div>' % escape(f["d"] or "–")
+        h += '<div class="ti-a">%s</div>' % (escape(_fmt_money(f["a"], ccy)) if f["a"] else "")
+    if len(ts) > 1:
+        h += '<div class="ti-more">＋%d장 · <span class="ti-sum">합 %s</span></div>' % (len(ts) - 1, escape(_fmt_money(sum((t["a"] or 0) for t in ts), ccy)))
+    return Markup(h)
+
+
+def _ti_title(o, ccy="KRW", mx=_TI_MAX):
+    """칸 풍선 도움말 — 1차 2026-09-16 ₩371,200,000 / 2차 … / 합계 …"""
+    ts = [t for t in _ti_tiers(o, mx) if t["d"] or t["a"]]
+    if not ts:
+        return "세금계산서 — 눌러서 발행일·금액 입력(최대 %d장)" % mx
+    ln = ["%d차 %s %s" % (t["n"], t["d"] or "–", _fmt_money(t["a"], ccy) if t["a"] else "") for t in ts]
+    ln.append("합계 %s — 눌러서 보기·추가" % _fmt_money(sum((t["a"] or 0) for t in ts), ccy))
+    return "\n".join(ln)
+
+
+tpl.env.globals["ti_json"] = _ti_json
+tpl.env.globals["ti_bundle_json"] = _ti_bundle_json
+tpl.env.globals["ti_cell_html"] = _ti_cell_html
+tpl.env.globals["ti_title"] = _ti_title
+tpl.env.globals["TI_MAX"] = _TI_MAX
+tpl.env.globals["TI_MAX_CONS"] = _TI_MAX_CONS
+
+
 def _team_label(name, entity=None):
     """v5H226z542: 팀 이름 앞에 법인(본사/베트남)을 붙여 표시 — 본사/베트남 부서 구분.
     entity 미지정(베트남법인 버킷·테스트팀 등)은 이름 그대로."""
@@ -26349,7 +26453,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
         if not mm:
             continue
         biz, cust, currency = mm
-        for dk, ak in (("t1d", "t1a"), ("t2d", "t2a"), ("t3d", "t3a")):
+        for dk, ak in [("t%dd" % _n, "t%da" % _n) for _n in range(1, _TI_MAX + 1)]:   # z1191z24: 1~10차
             dd = tx.get(dk) or ""
             av = tx.get(ak)
             if not dd or av in (None, ""):
@@ -26649,7 +26753,7 @@ def _z17_lines(c, rates, oi_map, basis):
                 "cust2": _z17_norm2(c2), "is_vina": cid in vina_ids, "ccy": (d["ccy"] or "KRW").upper(), "kind": "project"}
         if basis == "tax":
             tx = (oi_map or {}).get(d["iid"]) or {}
-            for n_, (dk, ak) in enumerate((("t1d", "t1a"), ("t2d", "t2a"), ("t3d", "t3a")), 1):
+            for n_, (dk, ak) in enumerate([("t%dd" % _n, "t%da" % _n) for _n in range(1, _TI_MAX + 1)], 1):   # z1191z24
                 dd, av = (tx.get(dk) or ""), tx.get(ak)
                 if not dd or av in (None, ""):
                     continue
@@ -31011,7 +31115,7 @@ def _board_tax_oi_map(pids=None):
     """호기(order_items)별 거래명세서·세금계산서(1/2/3차) 발행일·금액을 해석.
     값 우선순위 = order_items 실제값 > (그 호기 SO(orders) 값을 SO 호기수로 균등분배한 폴백).
     묶음(tax_invoice_lines)은 미포함(호출측에서 칩/펼침으로 처리). 소모품은 대상 아님.
-    반환: (oi_map={iid:{stmt,t1d,t1a,t2d,t2a,t3d,t3a}}, proj_iids={pid:[iid,...]})
+    반환: (oi_map={iid:{stmt,t1d,t1a,…,t10d,t10a}}, proj_iids={pid:[iid,...]}) — z1191z24: 차수 1~10(_TI_MAX)
     v5H226z864 (성능): pids=프로젝트 한정(월 보기 프리필터). None=전체(기존).
       균등분배 분모(n=SO 호기수)는 SO 단위 집계라 프로젝트 한정과 무관 — 값 동일."""
     oi_map: dict = {}
@@ -31029,9 +31133,9 @@ def _board_tax_oi_map(pids=None):
             sql = (
                 "SELECT oi.id AS iid, oi.order_id AS oid, o.project_id AS pid, "
                 f"{_oiC('statement_date')} AS i_st, {_oC('statement_date')} AS o_st, "
-                f"{_oiC('tax_invoice_date')} AS i_d1, {_oiC('tax_invoice_amt1')} AS i_a1, {_oC('tax_invoice_date')} AS o_d1, {_oC('tax_invoice_amt1')} AS o_a1, "
-                f"{_oiC('tax_invoice_date2')} AS i_d2, {_oiC('tax_invoice_amt2')} AS i_a2, {_oC('tax_invoice_date2')} AS o_d2, {_oC('tax_invoice_amt2')} AS o_a2, "
-                f"{_oiC('tax_invoice_date3')} AS i_d3, {_oiC('tax_invoice_amt3')} AS i_a3, {_oC('tax_invoice_date3')} AS o_d3, {_oC('tax_invoice_amt3')} AS o_a3 "
+                # z1191z24: 차수 1~10 — 수주(orders) 칸은 1~3차뿐이라 4차 이상은 NULL(호기 값만)
+                + ", ".join(f"{_oiC(_ti_dcol(_n))} AS i_d{_n}, {_oiC(_ti_acol(_n))} AS i_a{_n}, "
+                            f"{_oC(_ti_dcol(_n))} AS o_d{_n}, {_oC(_ti_acol(_n))} AS o_a{_n}" for _n in range(1, _TI_MAX + 1)) + " "
                 "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
                 "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"
                 + _board_in_frag("o.project_id", pids) +   # v5H226z864: 월 보기 프리필터
@@ -31061,12 +31165,11 @@ def _board_tax_oi_map(pids=None):
                         except Exception:
                             return ""
                     return ""
-                oi_map[r["iid"]] = {
-                    "stmt": _rd("i_st", "o_st"),
-                    "t1d": _rd("i_d1", "o_d1"), "t1a": _ra("i_a1", "o_a1"),
-                    "t2d": _rd("i_d2", "o_d2"), "t2a": _ra("i_a2", "o_a2"),
-                    "t3d": _rd("i_d3", "o_d3"), "t3a": _ra("i_a3", "o_a3"),
-                }
+                _om = {"stmt": _rd("i_st", "o_st")}
+                for _n in range(1, _TI_MAX + 1):   # z1191z24: 차수 1~10
+                    _om["t%dd" % _n] = _rd("i_d%d" % _n, "o_d%d" % _n)
+                    _om["t%da" % _n] = _ra("i_a%d" % _n, "o_a%d" % _n)
+                oi_map[r["iid"]] = _om
                 if r.get("pid"):
                     proj_iids.setdefault(r["pid"], []).append(r["iid"])
     except Exception as _e:
@@ -31121,9 +31224,13 @@ def _inject_oi_tax_into_rows(rows, oi_map, proj_iids):
                 _sd = m["stmt"]
                 break
         _row["statement_date"] = _sd
-        _d1, _a1 = _agg("t1d", "t1a"); _row["tax_invoice_date"] = _d1; _row["tax_invoice_amt1"] = _a1; _row["_ti_a1"] = _a1
-        _d2, _a2 = _agg("t2d", "t2a"); _row["tax_invoice_date2"] = _d2; _row["_ti_d2"] = _d2; _row["tax_invoice_amt2"] = _a2; _row["_ti_a2"] = _a2
-        _d3, _a3 = _agg("t3d", "t3a"); _row["tax_invoice_date3"] = _d3; _row["_ti_d3"] = _d3; _row["tax_invoice_amt3"] = _a3; _row["_ti_a3"] = _a3
+        for _n in range(1, _TI_MAX + 1):   # z1191z24: 차수 1~10(1~3차 키·엑셀 _ti_* 키 이름은 그대로)
+            _dn, _an = _agg("t%dd" % _n, "t%da" % _n)
+            _row[_ti_dcol(_n)] = _dn
+            _row[_ti_acol(_n)] = _an
+            _row["_ti_a%d" % _n] = _an
+            if _n >= 2:
+                _row["_ti_d%d" % _n] = _dn
 
 
 # ─── v5H226z662 (대표 지시·A안): 작업일정표 ↔ 수주내역 상세 '세금계산서' 표시 단일화 ──────────
@@ -31153,9 +31260,8 @@ def _enrich_units_tax(c, project_id, units, can_money, iid_key="iid"):
                 continue
             if not u.get("statement_date") and m.get("stmt"):
                 u["statement_date"] = m["stmt"]
-            for _dk, _ak, _df2, _af2 in (("t1d", "t1a", "tax_invoice_date", "tax_invoice_amt1"),
-                                         ("t2d", "t2a", "tax_invoice_date2", "tax_invoice_amt2"),
-                                         ("t3d", "t3a", "tax_invoice_date3", "tax_invoice_amt3")):
+            for _dk, _ak, _df2, _af2 in [("t%dd" % _n, "t%da" % _n, _ti_dcol(_n), _ti_acol(_n))
+                                         for _n in range(1, _TI_MAX + 1)]:   # z1191z24: 차수 1~10
                 if not u.get(_df2) and m.get(_dk):
                     u[_df2] = m[_dk]
                 if (u.get(_af2) in (None, "")) and m.get(_ak) not in (None, ""):
@@ -31184,8 +31290,8 @@ async def admin_tax_trace(req: Request, code: str = ""):
     def _row_html(cells):
         return "<tr>" + "".join("<td>" + _e(c2) + "</td>" for c2 in cells) + "</tr>"
 
-    _tc = ["statement_date", "tax_invoice_date", "tax_invoice_amt1",
-           "tax_invoice_date2", "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3"]
+    _tc = ["statement_date"] + [_f for _n in range(1, _TI_MAX + 1) for _f in (_ti_dcol(_n), _ti_acol(_n))]   # z1191z24
+    _tcol24 = [_x for _n in range(1, _TI_MAX + 1) for _x in ("%d세금일" % _n, "%d금액" % _n)]
     H = ["<html><head><meta charset='utf-8'><title>세금계산서 추적</title><style>",
          "body{font-family:system-ui,'Malgun Gothic';font-size:13px;padding:18px;color:#1f2937;}",
          "table{border-collapse:collapse;margin:6px 0 22px;}th,td{border:1px solid #cbd5e1;padding:4px 8px;white-space:nowrap;}",
@@ -31266,14 +31372,12 @@ async def admin_tax_trace(req: Request, code: str = ""):
     _sm = _board_split_lines_map(unfold_sos=True).get(pid) or []
     _oimap, _proj_iids = _board_tax_oi_map()
     H.append("<h3>① 작업일정표(보드) — 행별로 읽는 세금계산서 (_inject_oi_tax_into_rows 결과)</h3><table>"
-             + _row_html(["수주번호", "unit_iids", "stmt", "1세금일", "1금액", "2세금일", "2금액", "3세금일", "3금액"]))
+             + _row_html(["수주번호", "unit_iids", "stmt"] + _tcol24))
     for ln in _sm:
         _r = {"kind": "project", "ref_id": pid, "unit_iids": ln.get("iids") or []}
         _inject_oi_tax_into_rows([_r], _oimap, _proj_iids)
-        H.append(_row_html([ln.get("so_no"), ln.get("iids"), _r.get("statement_date"),
-                            _r.get("tax_invoice_date"), _r.get("tax_invoice_amt1"),
-                            _r.get("tax_invoice_date2"), _r.get("tax_invoice_amt2"),
-                            _r.get("tax_invoice_date3"), _r.get("tax_invoice_amt3")]))
+        H.append(_row_html([ln.get("so_no"), ln.get("iids"), _r.get("statement_date")]
+                           + [_r.get(_f) for _f in _tc[1:]]))
     H.append("</table>")
     # ② 상세가 호기별로 읽는 세금계산서(_enrich_units_tax 결과)
     with db_session() as c:
@@ -31282,11 +31386,9 @@ async def admin_tax_trace(req: Request, code: str = ""):
             "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (pid,)).fetchall()]
         _enrich_units_tax(c, pid, _units, True, iid_key="id")
     H.append("<h3>② 수주내역(상세) — 호기별로 읽는 세금계산서 (_enrich_units_tax 결과)</h3><table>"
-             + _row_html(["iid", "stmt", "1세금일", "1금액", "2세금일", "2금액", "3세금일", "3금액"]))
+             + _row_html(["iid", "stmt"] + _tcol24))
     for un in _units:
-        H.append(_row_html([un.get("id"), un.get("statement_date"), un.get("tax_invoice_date"),
-                            un.get("tax_invoice_amt1"), un.get("tax_invoice_date2"), un.get("tax_invoice_amt2"),
-                            un.get("tax_invoice_date3"), un.get("tax_invoice_amt3")]))
+        H.append(_row_html([un.get("id"), un.get("statement_date")] + [un.get(_f) for _f in _tc[1:]]))
     H.append("</table><p style='color:#64748b;'>①과 ②가 다르면 그 차이가 화면 불일치의 원인입니다.</p></body></html>")
     return HTMLResponse("".join(H))
 
@@ -31319,8 +31421,7 @@ async def admin_import_health(req: Request):
         n_prj = _one("SELECT COUNT(*) FROM projects")
         n_ord = _one("SELECT COUNT(*) FROM orders WHERE COALESCE(status,'')<>'CANCELLED'")
         n_oi = _one("SELECT COUNT(*) FROM order_items")
-        _taxf = [f for f in ("tax_invoice_date", "tax_invoice_amt1", "tax_invoice_date2",
-                             "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3") if f in _oic]
+        _taxf = [f for f in (_TI_DCOLS + _TI_ACOLS) if f in _oic]   # z1191z24: 차수 1~10
         _taxcond = " OR ".join(f"COALESCE({f},'')<>''" for f in _taxf) if _taxf else "0"
         n_tax = _one("SELECT COUNT(*) FROM order_items WHERE " + _taxcond)
         n_stmt = _one("SELECT COUNT(*) FROM order_items WHERE COALESCE(statement_date,'')<>''") if "statement_date" in _oic else "?"
@@ -31685,6 +31786,12 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
     if can_money:
         headers += ["거래명세서", "1세금계산서", "금액", "2세금계산서", "금액", "3세금계산서", "금액"]
         keys += ["statement_date", "tax_invoice_date", "_ti_a1", "_ti_d2", "_ti_a2", "_ti_d3", "_ti_a3"]
+        # z1191z24: 4~10차 — 실제로 쓴 차수까지만 칸을 붙인다(엑셀 올리기는 1~3차만 읽는다 · 4차 이상은 화면에서 입력)
+        _mx24 = max([_n for _r in rows for _n in range(4, _TI_MAX + 1)
+                     if _r.get("_ti_d%d" % _n) or _r.get("_ti_a%d" % _n)] or [3])
+        for _n in range(4, _mx24 + 1):
+            headers += ["%d세금계산서" % _n, "금액"]
+            keys += ["_ti_d%d" % _n, "_ti_a%d" % _n]
     headers += ["영업담당자"]   # v5H226z708: '단계'(폐기) 제거 — 상태는 위에서 표기
     keys += ["sales_owner"]
     out_rows = [[("무상" if (r.get("is_free") and k in ("price", "amount")) else r.get(k, "")) for k in keys] for r in rows]   # z1191z8: 무상 표기
@@ -33964,6 +34071,9 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
             _ti1 = "oi.tax_invoice_date AS t1d, oi.tax_invoice_amt1 AS t1a," if "tax_invoice_date" in _cols else "'' AS t1d, NULL AS t1a,"
             _ti2 = "oi.tax_invoice_date2 AS t2d, oi.tax_invoice_amt2 AS t2a," if "tax_invoice_date2" in _cols else "'' AS t2d, NULL AS t2a,"
             _ti3 = "oi.tax_invoice_date3 AS t3d, oi.tax_invoice_amt3 AS t3a," if "tax_invoice_date3" in _cols else "'' AS t3d, NULL AS t3a,"
+            # z1191z24: 4~10차(호기 칸)
+            _ti4p = " ".join((("oi.%s AS t%dd, oi.%s AS t%da," % (_ti_dcol(_n), _n, _ti_acol(_n), _n)) if _ti_dcol(_n) in _cols
+                              else ("'' AS t%dd, NULL AS t%da," % (_n, _n))) for _n in range(4, _TI_MAX + 1))
             # v5H226z624: 펼침 범위 — 분할(uids) 우선, 없으면 그 행의 수주번호(so_no=order_no)로 한정. 둘 다 없으면 프로젝트 전체(기존)
             _so_filt = (so_no or "").strip()
             _params = [int(ref_id)]
@@ -33976,7 +34086,7 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                 _wx = ""
             rows = c.execute(
                 f"SELECT oi.id AS iid, oi.unit_label AS lbl, {_due} {_ust} {_up} {_od} {_sh} {_ie} {_ln} {_ic} "
-                f"{_stm} {_ti1} {_ti2} {_ti3} "
+                f"{_stm} {_ti1} {_ti2} {_ti3} {_ti4p} "
                 f"oi.amount AS amt, COALESCE(oi.qty,1) AS qty, "
                 f"o.order_no AS so_no, o.due_date AS o_due, o.order_date AS o_ord, o.ship_to AS o_ship, "
                 f"COALESCE(o.statement_date,'') AS o_stmt, "   # v5H226z559: 거래명세서 발행일 대표 SO 폴백
@@ -34018,6 +34128,9 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                         "tax_invoice_date2": str(d.get("t2d") or "")[:10], "tax_invoice_amt2": _amt(d.get("t2a")),
                         "tax_invoice_date3": str(d.get("t3d") or "")[:10], "tax_invoice_amt3": _amt(d.get("t3a")),
                     })
+                    for _n in range(4, _TI_MAX + 1):   # z1191z24: 4~10차
+                        _ud[_ti_dcol(_n)] = str(d.get("t%dd" % _n) or "")[:10]
+                        _ud[_ti_acol(_n)] = _amt(d.get("t%da" % _n))
                 units.append(_ud)
             # v5H226z662 (대표 지시·A안): 세금계산서/거래명세서 폴백(묶음 균등분배 + orders 폴백)을
             #   공유 헬퍼로 — 수주내역 상세(_enrich_units_tax)와 '같은 코드'로 채워 두 화면 항상 일치.
@@ -34087,8 +34200,7 @@ async def schedule_board_unit_field(request: Request):
         if _af1173:
             return JSONResponse({"ok": False, "error": _z1173_autofill_msg(_af1173)}, 400)
     # v5H226z483/z484 (대표 지시): 발주일·납품처·통화·거래방식·비고 + 호기별 거래명세서·세금계산서(발행일+금액)
-    _TAX_FIELDS = ("statement_date", "tax_invoice_date", "tax_invoice_amt1",
-                   "tax_invoice_date2", "tax_invoice_amt2", "tax_invoice_date3", "tax_invoice_amt3")
+    _TAX_FIELDS = ("statement_date",) + _TI_DCOLS + _TI_ACOLS   # z1191z24: 세금계산서 차수 1~10
     if field not in (("status", "due_date", "unit_price", "qty", "amount", "order_date", "ship_to", "currency", "is_export", "note") + _TAX_FIELDS):
         return JSONResponse({"ok": False, "error": "bad_field"}, 400)
     # 단가·수량·금액(청구 성격)·거래명세서·세금계산서는 영업·관리만
@@ -34193,11 +34305,11 @@ async def schedule_board_unit_field(request: Request):
             elif field == "is_export":
                 iv = 1 if str(value).strip() in ("1", "수출", "true", "True") else 0
                 c.execute("UPDATE order_items SET is_export=?, updated_at=datetime('now','localtime') WHERE id=?", (iv, iid))
-            elif field in ("statement_date", "tax_invoice_date", "tax_invoice_date2", "tax_invoice_date3"):
+            elif field == "statement_date" or field in _TI_DCOLS:   # z1191z24: 1~10차
                 # v5H226z484: 호기별 발행일(화이트리스트 필드명이라 f-string 안전)
                 c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?",
                           (str(value or "").strip() or None, iid))
-            elif field in ("tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"):
+            elif field in _TI_ACOLS:   # z1191z24: 1~10차
                 try:
                     av = float(str(value).replace(",", "")) if value not in (None, "") else None
                 except Exception:
@@ -34350,8 +34462,8 @@ async def schedule_board_row_tax(request: Request):
     field = (b.get("field") or "").strip()
     value = b.get("value") or ""
     uids = b.get("uids") or ""
-    _DATE_F = ("statement_date", "tax_invoice_date", "tax_invoice_date2", "tax_invoice_date3")
-    _AMT_F = ("tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3")
+    _DATE_F = ("statement_date",) + _TI_DCOLS   # z1191z24: 세금계산서 차수 1~10
+    _AMT_F = _TI_ACOLS
     if field not in (_DATE_F + _AMT_F):
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
     # z1132 (이새롬 프로 신고): 발행일에 금액 같은 글자가 저장되던 것 차단 — 서버가 마지막 방어선
@@ -34581,7 +34693,7 @@ async def tax_invoice_same_day(request: Request, tier: int = 1, date: str = "",
     if not can_view_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
     date = (date or "").strip()
-    if tier not in (1, 2, 3) or not date or not _logi.date_cell_ok(date):
+    if tier not in range(1, _TI_MAX + 1) or not date or not _logi.date_cell_ok(date):   # z1191z24: 1~10차
         return JSONResponse({"ok": False, "error": "bad_request"}, 400)
     try:
         with db_session() as c:
@@ -43891,7 +44003,8 @@ async def sales_shipments_receipts_page(req: Request):
                  "total_amount": d["total_amount"] or 0, "order_date": d["order_date"] or "",
                  "n_total": 0, "n_ship": 0, "issue_date": "", "is_export": 0,
                  # v5H226z908 (대표 지시): 차수별(계약금1·중도금2·잔금3) 발행 집계 — 미발행 잔액 산출용
-                 "t1a": 0.0, "t1d": "", "t2a": 0.0, "t2d": "", "t3a": 0.0, "t3d": ""}
+                 # z1191z24: 차수 1~10
+                 **{("t%d%s" % (_n, _k)): (0.0 if _k == "a" else "") for _n in range(1, _TI_MAX + 1) for _k in ("a", "d")}}
             agg[oid] = o
         o["n_total"] += 1
         if d["ust"] == "출하":
@@ -43900,7 +44013,7 @@ async def sales_shipments_receipts_page(req: Request):
             o["is_export"] = 1
         m = oi_map.get(d["iid"])
         if m:
-            for _tk in ("1", "2", "3"):   # 호기별 차수 발행일·금액 합산(대표 발행일=가장 이른 호기)
+            for _tk in [str(_n) for _n in range(1, _TI_MAX + 1)]:   # 호기별 차수 발행일·금액 합산(대표 발행일=가장 이른 호기) · z1191z24: 1~10차
                 _dv = (m.get("t" + _tk + "d") or "")
                 if _dv and not o["t" + _tk + "d"]:
                     o["t" + _tk + "d"] = _dv
@@ -43923,7 +44036,7 @@ async def sales_shipments_receipts_page(req: Request):
         # v5H226z908 (대표 지시): 차수별 발행합계 + 미발행 잔액(수주금액 − 발행합계).
         #   잔액이 0이 될 때까지 '발행 대기'로 남아 부분 누락(계약금만·중도금 깜빡 등)까지 잡는다.
         _eps = 0.5 if o["currency"] == "KRW" else 0.005
-        o["issued_amt"] = round((o.get("t1a") or 0) + (o.get("t2a") or 0) + (o.get("t3a") or 0), 2)
+        o["issued_amt"] = round(sum((o.get("t%da" % _n) or 0) for _n in range(1, _TI_MAX + 1)), 2)   # z1191z24: 1~10차
         # v5H226z1137 (이새롬 프로 신고): 발행 판정은 공용 순수 함수 한 곳 — 금액의 부호를 가정하지 않는다.
         _bs = _sr_bill_state(o["total_amount"], o["issued_amt"], _eps)
         o["unbilled"] = _bs["unbilled"]                    # 수주금액 방향으로 남은 금액(마이너스 수주는 −)
@@ -43970,24 +44083,18 @@ async def sales_shipments_receipts_page(req: Request):
         o["vat_fmt"] = _money(o["vat"], o["currency"])                # z913 부가세
         o["billed_incl_fmt"] = _money(o["billed_incl"], o["currency"])   # z913 청구합계(부가세 포함)
         o["out_incl_fmt"] = _money(o["outstanding_incl"] if o["outstanding_incl"] > 0 else 0, o["currency"])  # z913 미수(포함)
-        # z910 (대표 지시): 발행된 세금계산서만·금액으로 계약금/중도금/잔금 판정(고정 3줄 폐기).
-        #   1장=전액(완납)/계약금(부분) · 2장↑=계약금·중도금·(완납이면 마지막=잔금). 안 끊은 차수는 숨김.
+        # z910 → z1191z24 (대표 2026-11-16 · 안지연·이새롬 프로 답 「지금처럼 세금계산서 1차, 2차, 3차 이런 식으로」):
+        #   이름 = 그 세금계산서의 차수(1차·2차·…·10차). 예전 계약금·중도금·잔금(z910)은 폐기 — 금액을 비율로
+        #   나누지 않고 ＋로 한 장씩 더하므로 「몇 번째 장」이 맞는 이름이다. 발행된 세금계산서만(안 끊은 차수는 숨김).
         _iss = []
-        for _tk in ("1", "2", "3"):
+        for _tk in [str(_n) for _n in range(1, _TI_MAX + 1)]:
             _td = o.get("t" + _tk + "d") or ""
             _ta = o.get("t" + _tk + "a") or 0
             if _td or (_ta and abs(_ta) > _eps):   # z1137: 마이너스 발행액도 「끊은 것」이다
-                _iss.append({"date": _td, "amt": _ta})
-        _chips, _ni = [], len(_iss)
-        for _idx, _it in enumerate(_iss):
-            if _ni == 1:
-                _lab = "전액" if o["fully_issued"] else "계약금"
-            elif _idx == 0:
-                _lab = "계약금"
-            elif o["fully_issued"] and _idx == _ni - 1:
-                _lab = "잔금"
-            else:
-                _lab = "중도금"
+                _iss.append({"n": int(_tk), "date": _td, "amt": _ta})
+        _chips = []
+        for _it in _iss:
+            _lab = "%d차" % _it["n"]
             _chips.append({"label": _lab, "date": _it["date"],
                            "amt_fmt": (_money(_it["amt"], o["currency"]) if _it["amt"] else "")})
         o["tier_chips"] = _chips   # 빈 리스트 = 미발행

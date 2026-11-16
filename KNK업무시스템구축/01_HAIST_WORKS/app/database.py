@@ -3951,6 +3951,22 @@ def init_db():
                 ("tax_invoice_amt2",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt2 REAL"),
                 ("tax_invoice_date3",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date3 TEXT"),
                 ("tax_invoice_amt3",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt3 REAL"),
+                # z1191z24 (대표 2026-11-16 · 안지연·이새롬 프로 답): 수주(호기) 세금계산서 4~10차 — 「＋」로 한 장씩
+                #   추가(최대 10장 · TAX_TIER_MAX). 소모품(consumable_orders)·수주(orders) 칸은 1~3차 그대로.
+                ("tax_invoice_date4",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date4 TEXT"),
+                ("tax_invoice_amt4",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt4 REAL"),
+                ("tax_invoice_date5",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date5 TEXT"),
+                ("tax_invoice_amt5",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt5 REAL"),
+                ("tax_invoice_date6",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date6 TEXT"),
+                ("tax_invoice_amt6",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt6 REAL"),
+                ("tax_invoice_date7",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date7 TEXT"),
+                ("tax_invoice_amt7",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt7 REAL"),
+                ("tax_invoice_date8",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date8 TEXT"),
+                ("tax_invoice_amt8",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt8 REAL"),
+                ("tax_invoice_date9",  "ALTER TABLE order_items ADD COLUMN tax_invoice_date9 TEXT"),
+                ("tax_invoice_amt9",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt9 REAL"),
+                ("tax_invoice_date10", "ALTER TABLE order_items ADD COLUMN tax_invoice_date10 TEXT"),
+                ("tax_invoice_amt10",  "ALTER TABLE order_items ADD COLUMN tax_invoice_amt10 REAL"),
                 # v5H226z711 (대표 지시): 작업일정표 달력에서 상태(출하/취소/보류) 선택 시 '발생일' 기록 — 호기별
                 ("status_date",        "ALTER TABLE order_items ADD COLUMN status_date TEXT"),
                 # v5H226z836 (대표 지시): 원 납기(due_date_orig) — 처음 등록 납기 기억. 납기를 뒤로 미루면
@@ -14284,8 +14300,12 @@ _SCHED_CELL_MAP = {
 _SCHED_NUM_FIELDS = {"qty", "price", "amount"}  # 숫자 필드 (콤마 제거 후 저장)
 
 
+# z1191z24 (대표 2026-11-16): 수주(호기) 세금계산서 최대 10장 — 소모품은 1~3차 그대로(TAX_TIER_MAX_CONS)
+TAX_TIER_MAX = 10
+TAX_TIER_MAX_CONS = 3
 DATE_CELL_FIELDS = ("order_date", "due_date", "statement_date",
-                    "tax_invoice_date", "tax_invoice_date2", "tax_invoice_date3")
+                    "tax_invoice_date", "tax_invoice_date2", "tax_invoice_date3") + tuple(
+                    "tax_invoice_date%d" % _n for _n in range(4, TAX_TIER_MAX + 1))   # z1191z24: 4~10차 발행일도 날짜만
 DATE_CELL_MSG = "날짜는 2026-09-29 처럼 적어 주세요 (달력에서 고르면 가장 정확합니다)"
 
 
@@ -14340,12 +14360,12 @@ def tax_same_day(c, tier, date, iid=0, kind="", ref_id=0) -> dict:
         tier = int(tier)          # 0·None 을 조용히 1차로 바꾸지 않는다(시험이 잡아낸 구멍)
     except (TypeError, ValueError):
         tier = 0
-    if tier not in (1, 2, 3):
+    if tier not in range(1, TAX_TIER_MAX + 1):   # z1191z24: 수주 차수 1~10
         return {"ok": False, "error": "bad_tier", "items": [], "totals": {}}
     date = (date or "").strip()
     if not date or not date_cell_ok(date):
         return {"ok": False, "error": "bad_date", "items": [], "totals": {}}
-    dcol = "tax_invoice_date" if tier == 1 else "tax_invoice_date%d" % tier   # 화이트리스트(차수 1~3)에서만 만든다
+    dcol = "tax_invoice_date" if tier == 1 else "tax_invoice_date%d" % tier   # 화이트리스트(차수 1~10)에서만 만든다
     acol = "tax_invoice_amt%d" % tier
 
     cid, self_pid, self_oid, self_cons = None, 0, 0, 0
@@ -14386,12 +14406,12 @@ def tax_same_day(c, tier, date, iid=0, kind="", ref_id=0) -> dict:
             items.append(g)
         g["units"] += 1
         g["amount"] += float(r[5] or 0)
-    # 소모품 — 한 발주가 한 줄
-    for r in c.execute(
+    # 소모품 — 한 발주가 한 줄 (z1191z24: 소모품 칸은 1~3차뿐 — 4차 이상은 소모품 없음)
+    for r in (c.execute(
             f"SELECT id, mgmt_code, co_no, {acol}, COALESCE(NULLIF(TRIM(currency),''),'KRW'), "
             f"COALESCE(model_name,''), COALESCE(equip_name,'') "
             f"FROM consumable_orders WHERE {dcol}=? AND customer_id=? ORDER BY mgmt_code, id",
-            (date, cid)).fetchall():
+            (date, cid)).fetchall() if tier <= TAX_TIER_MAX_CONS else []):
         nm = " ".join(x for x in ((r[5] or "").strip(), (r[6] or "").strip()) if x)
         items.append({"kind": "consumable", "ref_id": int(r[0]), "order_id": 0,
                       "mgmt_code": r[1] or "", "name": nm, "order_no": r[2] or "",

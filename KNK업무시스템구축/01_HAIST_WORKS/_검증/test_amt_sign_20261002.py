@@ -25,6 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TPL = os.path.join(ROOT, "app", "templates")
 SHARED = os.path.join(TPL, "_v5_partials", "knk_amt.html")
 BOARD = os.path.join(TPL, "schedule_board.html")
+MULTI = os.path.join(TPL, "_v5_partials", "knk_tax_multi.html")   # z1191z24: 세금계산서 여러 장 입력 창(공용)
 DETAIL = os.path.join(TPL, "project_detail.html")
 
 OK = FAIL = 0
@@ -85,9 +86,12 @@ chk("프로젝트 상세도 공용 부품을 포함한다", 'include "_v5_partia
 
 _left = len(re.findall(r"replace\(\s*/\[\^0-9\.\]/g", board))
 chk("작업일정표에 부호를 지우던 자리 0곳", _left == 0, "%d곳" % _left)
-chk("세금계산서 팝업 2곳이 공용 저장 변환을 쓴다",
-    board.count("av=window.knkAmtToRaw(pa.value)") == 2,
-    "%d곳" % board.count("av=window.knkAmtToRaw(pa.value)"))
+# z1191z24: 세금계산서 팝업(메인 줄·펼친 호기) 2곳은 공용 입력 창(knk_tax_multi)을 부르고, 그 창이 공용 저장 변환을 쓴다
+multi = io.open(MULTI, encoding="utf-8").read()
+chk("세금계산서 팝업 2곳이 공용 입력 창을 부른다",
+    board.count("knkTaxMulti.open(") == 2, "%d곳" % board.count("knkTaxMulti.open("))
+chk("공용 입력 창이 공용 저장 변환(knkAmtToRaw)을 쓴다",
+    "window.knkAmtToRaw(r.querySelector('.ti-m-a').value)" in multi and not re.search(r"replace\(\s*/\[\^0-9\.\]/g", multi))
 chk("호기별 표 저장도 공용을 쓴다", "_uxSave(iid,f,window.knkAmtToRaw(t.value),t)" in board)
 chk("프로젝트 상세 폴백도 부호를 지킨다", "[^0-9.\\-]" in detail)
 
@@ -216,17 +220,24 @@ except Exception as e:
     CS = None
 
 if CS is not None:
-    def run(shared_sub=None, board_sub=None, extra=None):
+    def run(shared_sub=None, board_sub=None, extra=None, multi_sub=None):
         """진짜 소스를 복사해 한 군데만 망가뜨린 뒤 검사기를 돌린다(원본은 안 건드린다)."""
         d = tempfile.mkdtemp(prefix="z1135m_")
         os.makedirs(os.path.join(d, "app", "templates", "_v5_partials"), exist_ok=True)
         sh = shared.replace(*shared_sub) if shared_sub else shared
         bd = board.replace(*board_sub) if board_sub else board
+        if board_sub:
+            assert board_sub[0] in board, ("망가뜨릴 글이 없다", board_sub[0][:60])
+        mt = multi.replace(*multi_sub) if multi_sub else multi
+        if multi_sub:
+            assert multi_sub[0] in multi, ("망가뜨릴 글이 없다", multi_sub[0][:60])
         ps = os.path.join(d, "app", "templates", "_v5_partials", "knk_amt.html")
         pb = os.path.join(d, "app", "templates", "schedule_board.html")
         io.open(ps, "w", encoding="utf-8", newline="").write(sh)
         io.open(pb, "w", encoding="utf-8", newline="").write(bd)
-        files = [ps, pb]
+        pm = os.path.join(d, "app", "templates", "_v5_partials", "knk_tax_multi.html")
+        io.open(pm, "w", encoding="utf-8", newline="").write(mt)
+        files = [ps, pb, pm]
         if extra is not None:
             pe = os.path.join(d, "app", "templates", "x.html")
             io.open(pe, "w", encoding="utf-8", newline="").write(extra)
@@ -248,9 +259,9 @@ if CS is not None:
          dict(shared_sub=("var neg = s.charAt(0) === '-';", "var neg = false;"))),
         ("① 공용 함수 이름이 바뀜",
          dict(shared_sub=("function fmtAmtTyping(v)", "function fmtAmtTypingX(v)"))),
-        ("② 화면이 다시 [^0-9.] 로 금액 저장",
-         dict(board_sub=("av=window.knkAmtToRaw(pa.value);",
-                         "av=(pa.value||'').replace(/[^0-9.]/g,'');"))),
+        ("② 세금계산서 입력 창이 다시 [^0-9.] 로 금액 저장(z1191z24 공용 창)",
+         dict(multi_sub=("window.knkAmtToRaw ? window.knkAmtToRaw(r.querySelector('.ti-m-a').value) : String(r.querySelector('.ti-m-a').value || '').replace(/[^0-9.\-]/g, '')",
+                         "String(r.querySelector('.ti-m-a').value || '').replace(/[^0-9.]/g, '')"))),
         ("② 호기별 표가 다시 부호를 버림",
          dict(board_sub=("_uxSave(iid,f,window.knkAmtToRaw(t.value),t)",
                          "_uxSave(iid,f,(t.value||'').replace(/[^0-9.]/g,''),t)"))),

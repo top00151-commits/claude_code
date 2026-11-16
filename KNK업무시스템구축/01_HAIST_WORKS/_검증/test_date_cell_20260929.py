@@ -94,8 +94,12 @@ _saves = ("startEdit", "startUnitEdit", "startTaxInvEdit", "_uxSave")
 for fn in _saves:
     b = js_block(board, r"(?m)^function " + fn + r"\(")
     chk("%s 가 저장 전 _dateOk() 를 거친다" % fn, "_dateOk" in b)
+# z1191z24: 세금계산서 팝업 2곳(메인 줄·펼친 호기)은 공용 입력 창(knk_tax_multi)에 작업일정표 _dateOk 를 넘기고,
+#   창은 저장 요청 전에 그것으로 막는다(발행일이 날짜가 아니면 알림 후 return — 서버로 안 보냄)
+_multi = io.open(os.path.join(TPL, "_v5_partials", "knk_tax_multi.html"), encoding="utf-8").read()
 chk("세금계산서 발행일 팝업 2곳 모두 막는다",
-    board.count("if(!_dateOk(dv)){ _dateWarn(); pd.focus(); return; }") == 2)
+    board.count("dateOk:_dateOk,") == 2 and "if (!(o.dateOk || dateOk)(v[0])){" in _multi
+    and _multi.index("if (!(o.dateOk || dateOk)(v[0])){") < _multi.index("await o.save("))
 chk("묶음 세금계산서 발행일도 막는다", "if(!_dateOk(datev))" in board)
 chk("일괄수정도 막는다", "if(_isDateField(field)){ val=_normDate(val); if(!_dateOk(val))" in board)
 
@@ -263,8 +267,8 @@ if CS is not None:
          dict(board_sub=("if(save && !_dateOk(val)){ _dateWarn(); td.textContent=cur||'＋';",
                          "if(false){ _dateWarn(); td.textContent=cur||'＋';"))),
         ("③ 발행일 검사 뺌(startTaxInvEdit)",
-         dict(board_sub=("    if(!_dateOk(dv)){ _dateWarn(); pd.focus(); return; }   // z1132: 발행일은 날짜만(신고 ②)\n    const btn=pop.querySelector('.ti-save'); btn.disabled=true;\n    try{\n      await taxSave(",
-                         "    const btn=pop.querySelector('.ti-save'); btn.disabled=true;\n    try{\n      await taxSave("))),
+         dict(board_sub=("      dateOk:_dateOk,   // z1132: 발행일은 날짜만(공용 검사)\n      save:function(f,v){ return taxSave(tr, f, v); },",
+                         "      save:function(f,v){ return taxSave(tr, f, v); },"))),   # z1191z24: 공용 창에 검사를 안 넘김
         ("③ 호기별 표 검사 뺌(_uxSave)",
          dict(board_sub=("  if(_isDateField(field) && !_dateOk(value)){ _dateWarn(); return; }", "  "))),
         ("④ 서버 셀 저장 검사 뺌",

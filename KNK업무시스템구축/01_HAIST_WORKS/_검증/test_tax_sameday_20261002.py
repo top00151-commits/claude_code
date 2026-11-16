@@ -58,6 +58,9 @@ sec("§1. 서버 조회 — database.tax_same_day 원문을 메모리 DB 로 실
 # ════════════════════════════════════════════════════════════════════
 ns = {}
 for n in ast.parse(db_src).body:
+    # z1191z24: tax_same_day 가 차수 상한(TAX_TIER_MAX · 소모품 TAX_TIER_MAX_CONS)을 쓴다 — 그 상수도 원문 그대로
+    if isinstance(n, ast.Assign) and any(getattr(t, "id", None) in ("TAX_TIER_MAX", "TAX_TIER_MAX_CONS") for t in n.targets):
+        exec(compile(ast.get_source_segment(db_src, n), "const", "exec"), ns)
     if isinstance(n, ast.FunctionDef) and n.name in ("date_cell_ok", "tax_same_day"):
         exec(compile(ast.get_source_segment(db_src, n), n.name, "exec"), ns)
 chk("서버 함수 2개 추출", "tax_same_day" in ns and "date_cell_ok" in ns)
@@ -143,7 +146,7 @@ chk("호기 없이 프로젝트만 줘도 된다(프로젝트 고객 기준)", "
 
 chk("없는 호기 → 빈 결과(오류 아님)", tsd(c, 1, "2026-09-30", iid=99999) == {
     "ok": True, "customer_id": None, "items": [], "totals": {}})
-chk("차수가 1~3 이 아니면 거부", tsd(c, 4, "2026-09-30", iid=101)["ok"] is False
+chk("차수가 1~10 이 아니면 거부(z1191z24: 수주 최대 10장)", tsd(c, 11, "2026-09-30", iid=101)["ok"] is False
     and tsd(c, 0, "2026-09-30", iid=101)["ok"] is False)
 chk("날짜가 아니면 거부(주입 방지 포함)",
     tsd(c, 1, "2026-09-30' OR 1=1 --", iid=101)["ok"] is False and tsd(c, 1, "", iid=101)["ok"] is False
@@ -243,8 +246,10 @@ board = read(os.path.join(TPL, "schedule_board.html"))
 chk("프로젝트 상세가 공용 부품을 포함한다", 'include "_v5_partials/knk_tax_sameday.html"' in detail)
 chk("작업일정표가 공용 부품을 포함한다", 'include "_v5_partials/knk_tax_sameday.html"' in board)
 chk("프로젝트 상세 세금계산서 팝업이 부른다", detail.count("window.knkTaxSameDay(pop,") == 1)
-chk("작업일정표 팝업 2곳(호기별·행)이 부른다", board.count("window.knkTaxSameDay(pop,") == 2,
-    board.count("window.knkTaxSameDay(pop,"))
+# z1191z24: 작업일정표 세금계산서 팝업 2곳(호기별·행)은 공용 입력 창(knk_tax_multi)에 sameday 를 넘기고, 창이 「같은 날」을 부른다
+_mt = io.open(os.path.join(TPL, "_v5_partials", "knk_tax_multi.html"), encoding="utf-8").read()
+chk("작업일정표 팝업 2곳(호기별·행)이 부른다", board.count("sameday:function(n,d)") == 2 and "window.knkTaxSameDay(slot, q)" in _mt,
+    board.count("sameday:function(n,d)"))
 
 
 def func_src(src, name):
@@ -258,7 +263,7 @@ ep = func_src(main_src, "tax_invoice_same_day")
 chk("입구가 있다", bool(ep))
 chk("⭐세금계산서 금액은 영업·관리만(can_view_sales)", "can_view_sales(u)" in ep and "permission_denied" in ep)
 chk("로그인 확인", "login_required" in ep)
-chk("날짜·차수 검증", "date_cell_ok(date)" in ep and "tier not in (1, 2, 3)" in ep)
+chk("날짜·차수 검증", "date_cell_ok(date)" in ep and "tier not in range(1, _TI_MAX + 1)" in ep)
 chk("금액 표기는 공용 money(z751)", "_fmt_money(" in ep)
 chk("읽기만 한다(UPDATE·INSERT·DELETE 없음)",
     not re.search(r"\b(UPDATE|INSERT|DELETE)\b", ep + func_src(db_src, "tax_same_day")))

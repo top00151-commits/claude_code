@@ -10,6 +10,8 @@
 {% include "_v5_partials/knk_amt.html" %}
 {# z1136: 세금계산서 「같은 날 함께 발행」 보기(공용) #}
 {% include "_v5_partials/knk_tax_sameday.html" %}
+{# z1191z24: 세금계산서 여러 장(최대 10장) 입력 창(공용) — 작업일정표 메인 줄 · 펼친 호기 줄 #}
+{% include "_v5_partials/knk_tax_multi.html" %}
 <link rel="stylesheet" href="/static/css/schedule_board.css?v={{ APP_VERSION }}" />
 </head>
 <body>
@@ -53,7 +55,7 @@
     {# v5H226z673 (대표 지시): 세금계산서 1/2/3차 칸 '색상' 의미 범례 — 영업·관리만(세금계산서 칸 자체가 can_sales_amt). 색 기준=refreshTaxStatus(z469): 1·2·3차 발행금액 합계 vs 수주금액. #}
     {# v5H226z823: 매출금액 표시 게이트 can_money→can_sales_amt(임원·매출금액 허용팀). #}
     {% if can_sales_amt %}
-    <span class="legend ti-color-legend" style="margin-left:16px;" title="세금계산서 칸 배경색 = 1·2·3차 발행금액 합계와 그 건 수주금액 비교 — 합계=수주액이면 초록(전액 발행), 다르면 주황(일부만 발행했거나 금액 불일치), 미입력은 무색 · 마이너스(네고·할인) 건도 같은 기준">
+    <span class="legend ti-color-legend" style="margin-left:16px;" title="세금계산서 칸 배경색 = 발행한 세금계산서(최대 10장) 금액 합계와 그 건 수주금액 비교 — 합계=수주액이면 초록(전액 발행), 다르면 주황(일부만 발행했거나 금액 불일치), 미입력은 무색 · 마이너스(네고·할인) 건도 같은 기준">
       <b style="font-weight:800;color:var(--qv-ink-2,#475569);">세금계산서:</b>
       <span><i style="background:#f0fdf4;box-shadow:inset 0 0 0 1px #86efac;"></i>전액 발행</span>
       <span><i style="background:#fff4ed;box-shadow:inset 2px 0 0 #f59e0b;"></i>일부·불일치</span>
@@ -162,14 +164,14 @@
   {# v5H226z1074 (대표 지시 2026-08-03): 화면 전환 베일 — 월 이동·전체 검색 클릭 '즉시' 불러오는 중 표시(멈춘 느낌 제거). 새 화면이 오면 통째로 교체되며 자연 소멸. #}
   <div id="schedNavVeil" aria-hidden="true"><span class="nv-box"><span class="nv-spin"></span><b id="schedNavVeilTxt">불러오는 중…</b></span></div>
 
-  <div class="sched-wrap" id="schedWrap">
+  <div class="sched-wrap" id="schedWrap" data-ti-max="{{ TI_MAX }}">
     {% if rows %}
     <table class="sched" id="schedTable">
       <colgroup id="schedCols">
         <col data-col="code"><col data-col="so_no"><col data-col="name">
         <col data-col="model"><col data-col="equip"><col data-col="note">
         <col data-col="qty">{% if can_sales_amt %}<col data-col="price"><col data-col="amount">{% endif %}<col data-col="trade"><col data-col="po"><col data-col="form">
-        <col data-col="cust"><col data-col="cust2"><col data-col="dept"><col data-col="owner"><col data-col="contact"><col data-col="ship"><col data-col="order_date"><col data-col="due_date">{% if can_sales_amt %}<col data-col="statement"><col data-col="tax_inv1"><col data-col="tax_inv2"><col data-col="tax_inv3">{% endif %}
+        <col data-col="cust"><col data-col="cust2"><col data-col="dept"><col data-col="owner"><col data-col="contact"><col data-col="ship"><col data-col="order_date"><col data-col="due_date">{% if can_sales_amt %}<col data-col="statement"><col data-col="tax_inv1">{% endif %}
         {% for d in days %}<col class="cgd" data-day="{{ d }}">{% endfor %}
         <col data-col="sales_owner">
       </colgroup>
@@ -200,10 +202,8 @@
           {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자 — 영업·관리 권한만(z823 can_sales_amt) #}
           {% if can_sales_amt %}
           <th class="c-info cw-stmt" data-col="statement"><div class="th-wrap">거래명세서<span class="col-resizer" data-col="statement"></span></div></th>
-          {# v5H226z467 (대표 지시): 세금계산서 1/2/3차(계약금·중도금·잔금) — 각 발행일+금액 #}
-          <th class="c-info cw-taxinv1" data-col="tax_inv1" title="1세금계산서 (계약금)"><div class="th-wrap">1세금계산서<span class="col-resizer" data-col="tax_inv1"></span></div></th>
-          <th class="c-info cw-taxinv2" data-col="tax_inv2" title="2세금계산서 (중도금)"><div class="th-wrap">2세금계산서<span class="col-resizer" data-col="tax_inv2"></span></div></th>
-          <th class="c-info cw-taxinv3" data-col="tax_inv3" title="3세금계산서 (잔금)"><div class="th-wrap">3세금계산서<span class="col-resizer" data-col="tax_inv3"></span></div></th>
+          {# z1191z24 (대표 2026-11-16 · 안지연·이새롬 프로 답): 세금계산서 1칸만 — 첫 장 + 「＋N장 · 합」 · 누르면 1~10차 입력 창(＋로 한 장씩) #}
+          <th class="c-info cw-taxinv1" data-col="tax_inv1" title="세금계산서 — 첫 장과 「＋N장 · 합계」 · 눌러서 보기·추가(최대 {{ TI_MAX }}장)"><div class="th-wrap">세금계산서<span class="col-resizer" data-col="tax_inv1"></span></div></th>
           {% endif %}
           {# v5H226z1041 (대표 지시·달력 규정 §4·§7): 일요일·공휴일 빨강 / 토요일 파랑 / 한국 K(빨강)·베트남 V(주황) 배지(대체공휴일=점선).
              칸이 좁아 공휴일 '이름'은 마우스오버 안내문(title)으로. #}
@@ -218,8 +218,6 @@
         {% for r in rows %}
         {# v5H226z489 (대표 지시): 세금계산서 묶음은 차수(1/2/3) 단위 — 차수 칸마다 (행서명|차수)로 묶음 조회 #}
         {% set _ti1 = (ti_map.get(r.row_sig ~ '|1') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
-        {% set _ti2 = (ti_map.get(r.row_sig ~ '|2') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
-        {% set _ti3 = (ti_map.get(r.row_sig ~ '|3') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
             data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}{% if r.is_parts %} data-parts="1"{% endif %}{% if r.so_oid %} data-soid="{{ r.so_oid }}"{% endif %}{% set _fz12 = ((r.note_blob or '') ~ ' ' ~ (r.parts_blob or ''))|trim %}{% if _fz12 and _fz12 != (r.note or '') %} data-find="{{ _fz12 }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}{% if r.so_no %}?so={{ r.so_no|urlencode }}{% endif %}" title="프로젝트 상세">{{ r.code }}</a>{# v5H226z695 (대표 지시): 누른 행의 수주번호를 상세로 전달 → 그 수주가 메인 카드로 #}{# v5H226z565 (대표 지시): 관리번호 뒤 호기 라벨(N호기) 표시 삭제 — 호기는 '+' 펼침으로 확인 #}{% endif %}{# v5H226z632 (대표 지시): 관리번호 옆 '+' 펼치기 제거 — 장비 호기·소모품 품목보기 모두. (편집은 프로젝트/소모품 상세에서) #}</td>
@@ -255,12 +253,12 @@
           {# v5H226z367 (대표 지시): 거래명세서·세금계산서 발행일자(YYYY-MM-DD 직접 입력) — 프로젝트=대표 SO 연동·소모품=자체. 영업·관리만(z823 can_sales_amt). #}
           {% if can_sales_amt %}
           <td class="c-info cw-stmt editable{% if r.statement_date %} filled{% endif %}" data-col="statement" data-edit="statement_date" title="거래명세서 발행일자{% if r.statement_date %}: {{ r.statement_date }}{% endif %}">{{ r.statement_date or '＋' }}</td>
-          {# v5H226z489 (대표 지시): 세금계산서 1/2/3차 — 차수별로 '묶음 발행'이면 📄#번호 칩, 아니면 개별 발행일+금액 편집. 1차=계약금·2차=중도금·3차=잔금. #}
+          {# z1191z24 (대표 2026-11-16): 세금계산서 1칸 — 첫 장(발행일·금액) + 「＋N장 · 합」 · 누르면 1~10차 입력 창(소모품은 1~3차).
+             data-tis=[[발행일,금액],…] · data-tib=묶어 발행(1~3차 · 보기만) · 색(전액/일부)은 refreshTaxStatus 가 모든 차수 합으로. #}
           {# v5H226z703 (대표 지시): 수출은 세금계산서가 아니라 인보이스 발행 → 수출 행은 'INV' 표식+인보이스 툴팁, 금액은 행 통화(_csym)로. #}
           {% set _is_exp = (r.trade == '수출') %}{# z759: 금액은 money(값,통화)로 통일 — 통화기호 자동(외화 소수2·KRW 정수) #}
-          <td class="c-info cw-taxinv1{% if _ti1 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date or r.tax_invoice_amt1 %} filled{% endif %}{% endif %}" data-col="tax_inv1"{% if _ti1 %} data-tiid="{{ _ti1.id }}" title="1차 묶음 세금계산서 #{{ _ti1.no }}{% if _ti1.amt %} · {{ money(_ti1.amt, _ti1.cur) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv1" data-datefield="tax_invoice_date" data-amtfield="tax_invoice_amt1" data-date="{{ r.tax_invoice_date or '' }}" data-amt="{{ r.tax_invoice_amt1 or '' }}" title="{% if _is_exp %}1차 인보이스 (수출 — 세금계산서 아님){% else %}1세금계산서 (계약금){% endif %} — 발행일·금액"{% endif %}>{% if _ti1 %}<span class="ti-bundle-chip">📄 #{{ _ti1.no }}</span>{% if _ti1.amt %}<div class="ti-a">{{ money(_ti1.amt, _ti1.cur) }}</div>{% endif %}{% elif r.tax_invoice_date or r.tax_invoice_amt1 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt1 %}{{ money(r.tax_invoice_amt1, r.currency or 'KRW') }}{% endif %}</div>{% else %}＋{% endif %}</td>
-          <td class="c-info cw-taxinv2{% if _ti2 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date2 or r.tax_invoice_amt2 %} filled{% endif %}{% endif %}" data-col="tax_inv2"{% if _ti2 %} data-tiid="{{ _ti2.id }}" title="2차 묶음 세금계산서 #{{ _ti2.no }}{% if _ti2.amt %} · {{ money(_ti2.amt, _ti2.cur) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv2" data-datefield="tax_invoice_date2" data-amtfield="tax_invoice_amt2" data-date="{{ r.tax_invoice_date2 or '' }}" data-amt="{{ r.tax_invoice_amt2 or '' }}" title="{% if _is_exp %}2차 인보이스 (수출 — 세금계산서 아님){% else %}2세금계산서 (중도금){% endif %} — 발행일·금액"{% endif %}>{% if _ti2 %}<span class="ti-bundle-chip">📄 #{{ _ti2.no }}</span>{% if _ti2.amt %}<div class="ti-a">{{ money(_ti2.amt, _ti2.cur) }}</div>{% endif %}{% elif r.tax_invoice_date2 or r.tax_invoice_amt2 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date2 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt2 %}{{ money(r.tax_invoice_amt2, r.currency or 'KRW') }}{% endif %}</div>{% else %}＋{% endif %}</td>
-          <td class="c-info cw-taxinv3{% if _ti3 %} taxinv-bundle filled{% else %} editable taxinv-cell{% if r.tax_invoice_date3 or r.tax_invoice_amt3 %} filled{% endif %}{% endif %}" data-col="tax_inv3"{% if _ti3 %} data-tiid="{{ _ti3.id }}" title="3차 묶음 세금계산서 #{{ _ti3.no }}{% if _ti3.amt %} · {{ money(_ti3.amt, _ti3.cur) }}{% endif %} — 클릭하면 구성 보기"{% else %} data-edit="taxinv3" data-datefield="tax_invoice_date3" data-amtfield="tax_invoice_amt3" data-date="{{ r.tax_invoice_date3 or '' }}" data-amt="{{ r.tax_invoice_amt3 or '' }}" title="{% if _is_exp %}3차 인보이스 (수출 — 세금계산서 아님){% else %}3세금계산서 (잔금){% endif %} — 발행일·금액"{% endif %}>{% if _ti3 %}<span class="ti-bundle-chip">📄 #{{ _ti3.no }}</span>{% if _ti3.amt %}<div class="ti-a">{{ money(_ti3.amt, _ti3.cur) }}</div>{% endif %}{% elif r.tax_invoice_date3 or r.tax_invoice_amt3 %}{% if _is_exp %}<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>{% endif %}<div class="ti-d">{{ r.tax_invoice_date3 or '–' }}</div><div class="ti-a">{% if r.tax_invoice_amt3 %}{{ money(r.tax_invoice_amt3, r.currency or 'KRW') }}{% endif %}</div>{% else %}＋{% endif %}</td>
+          {% set _timx = (TI_MAX if r.kind == 'project' else TI_MAX_CONS) %}{% set _ccy24 = r.currency or 'KRW' %}{% set _tih = ti_cell_html(r, _ccy24, _is_exp, _timx, _ti1) %}
+          <td class="c-info cw-taxinv1 editable taxinv-cell{% if _tih != '＋' %} filled{% endif %}" data-col="tax_inv1" data-edit="taxinv1" data-timax="{{ _timx }}" data-tis="{{ ti_json(r, _timx) }}" data-tib="{{ ti_bundle_json(ti_map if ti_map is defined else None, r.row_sig) }}" title="{{ ti_title(r, _ccy24, _timx) }}">{{ _tih }}</td>
           {% endif %}
           {# v5H226z569 (대표 지시): '단계' 칸 정리 — 부서 작업 추적은 부서일정표(/dept/schedule)로 일원화 #}
           {#- v5H226z1074 (대표 지시 2026-08-03): 이 일자 루프는 '행수×일수'만큼 반복돼 줄바꿈·들여쓰기 공백만 행당 ~4KB 전송되던 곳 —
@@ -456,11 +454,11 @@ window.__schedCleanup = function(){ __docL.forEach(function(h){ try{ h[0].remove
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // ===== z265→z279: 작업 일정표 — 고정 px 컬럼 모델(엑셀식 · 좌우 스크롤) =====
 // z282: 고객사2·연락처·발주일·납품일·영업담당자(맨 끝, 날짜 뒤) 추가
-const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_sales_amt %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date'{% if can_sales_amt %},'statement','tax_inv1','tax_inv2','tax_inv3'{% endif %},'sales_owner'];
-const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',statement:'거래명세서',tax_inv1:'1세금계산서',tax_inv2:'2세금계산서',tax_inv3:'3세금계산서',stage:'단계',sales_owner:'영업담당자'};
+const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_sales_amt %},'price','amount'{% endif %},'trade','po','form','cust','cust2','dept','owner','contact','ship','order_date','due_date'{% if can_sales_amt %},'statement','tax_inv1'{% endif %},'sales_owner'];
+const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',statement:'거래명세서',tax_inv1:'세금계산서',stage:'단계',sales_owner:'영업담당자'};
 // z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
 // z1191z4e: 수량 기본 폭 48 → 84px — 수량 옆 단위(대·EA·SET·식·건·대분)가 들어가게(직접 조절한 폭은 그대로)
-const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:84,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv1:104,tax_inv2:104,tax_inv3:104,stage:150,sales_owner:96};
+const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:84,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv1:124,stage:150,sales_owner:96};
 const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 폭(px)
 const LAST_DAY = {{ days|length }};
 let COLS = {};
@@ -833,14 +831,27 @@ document.querySelectorAll('#schedTable thead th.c-info[data-col]').forEach(th=>{
 });
 
 // ---- 전체화면 ----
-function schedFullscreen(){
-  const w=document.getElementById('schedWrap');
-  if(!document.fullscreenElement && w.requestFullscreen){
-    w.requestFullscreen().then(()=>setTimeout(applyCols,50)).catch(()=>{ w.classList.toggle('fs'); applyCols(); });
-  } else if(document.fullscreenElement){ document.exitFullscreen(); }
-  else { w.classList.toggle('fs'); applyCols(); }
+// z1191z27 (대표 2026-11-16): 예전엔 표 칸(#schedWrap)만 브라우저 전체화면 → body 에 붙는 창(세금계산서·달력·메모·묶어 발행…)이
+//   화면에 안 그려져 「눌러도 반응 없음 · F5(=전체화면 풀림) 하면 됨」. → 전체화면은 문서 전체(html), 표는 .fs 로 화면을 채운다.
+//   .fs 층(700) = 상단바(500) 위 · 모든 창(1000~) 아래 — 창이 늘 표 위에 뜬다.
+function _schedFsOff(){
+  const w=document.getElementById('schedWrap'); if(w) w.classList.remove('fs');
+  document.body.classList.remove('sched-fs');
 }
-_on(document,'fullscreenchange',()=>setTimeout(applyCols,50));
+function schedFullscreen(){
+  const w=document.getElementById('schedWrap'); if(!w) return;
+  if(document.fullscreenElement || w.classList.contains('fs')){
+    _schedFsOff();
+    if(document.fullscreenElement && document.exitFullscreen){ try{ document.exitFullscreen().catch(()=>{}); }catch(e){} }
+    setTimeout(applyCols,50); return;
+  }
+  w.classList.add('fs'); document.body.classList.add('sched-fs');
+  const de=document.documentElement;
+  if(de.requestFullscreen){ try{ de.requestFullscreen().then(()=>setTimeout(applyCols,50)).catch(()=>setTimeout(applyCols,50)); }catch(e){ applyCols(); } }
+  else { applyCols(); }
+}
+// 브라우저 Esc·F11 로 전체화면이 풀리면 표도 원래 자리로
+_on(document,'fullscreenchange',()=>{ if(!document.fullscreenElement) _schedFsOff(); setTimeout(applyCols,50); });
 _on(document,'keydown',(e)=>{ if(e.key==='Escape'){ document.getElementById('schedWrap').classList.remove('fs'); setTimeout(applyCols,30);} });
 _on(window,'resize',()=>setTimeout(updateSticky,50));
 function schedPrint(){ window.print(); }
@@ -1051,10 +1062,16 @@ function toggleRowUnits(tr, btn){
         return '<td><div class="ux-ti'+(lk?' ux-locked':'')+'" data-iid="'+iid+'" data-datefield="'+df+'" data-amtfield="'+af+'" data-date="'+_uxEsc(dv||'')+'" data-amt="'+(av!=null?av:'')+'" title="'+ttl2+'">'
           +(has?(invTag+'<div class="ti-d">'+_uxEsc(dv||'–')+'</div><div class="ti-a">'+(av!=null&&av!==''?sym+Number(av).toLocaleString():'')+'</div>'):'＋')+'</div></td>';
       }
+      // z1191z24 (대표 2026-11-16): 호기 세금계산서 1칸 — 첫 장 + 「＋N장 · 합」 · 누르면 1~10차 입력 창(openUnitTaxPop)
+      function _tiM(u){
+        var tis=knkTaxMulti.fromObj(u, TI_MAX_JS), cur=u.currency||'KRW';
+        return '<td><div class="ux-ti'+(u.locked?' ux-locked':'')+'" data-iid="'+u.iid+'" data-tis="'+_uxEsc(JSON.stringify(tis))+'" data-total="'+(u.amount!=null?u.amount:'')+'"'
+          +' title="'+_uxEsc(knkTaxMulti.title(tis, cur, TI_MAX_JS))+'">'+knkTaxMulti.cellHtml(tis, cur, !!u.is_export, null)+'</div></td>';
+      }
       // v5H226z631(대표 지시): 펼치기 패널 '호기·품목' 칸 무조건 제거(헤더+셀). 줄 수 무관.
       let h='<div class="ux-wrap"><table class="ux-tab"><thead><tr>'+(CM?'<th>단가</th>':'')+'<th>통화</th><th>거래방식</th><th>발주일</th><th>납기</th><th>납품처</th><th>상태</th><th>비고</th>'
-        +(CM?'<th>거래명세서</th><th>1세금계산서</th><th>2세금계산서</th><th>3세금계산서</th>':'')+'</tr></thead><tbody>';
-      const ncol=(CM?12:7);
+        +(CM?'<th>거래명세서</th><th>세금계산서</th>':'')+'</tr></thead><tbody>';   // z1191z24: 세금계산서 1칸(＋N장)
+      const ncol=(CM?10:7);
       (j.units||[]).forEach(function(u){
         const dis=u.locked?' disabled title="확정 SO 라 수정 불가"':'';
         h+='<tr data-iid="'+u.iid+'">';  // v5H226z631: 호기·품목 라벨 셀 제거 (수주번호는 부모 행에 표시)
@@ -1067,9 +1084,7 @@ function toggleRowUnits(tr, btn){
         h+='<td><input type="text" class="ux-txt ux-note" data-field="note" value="'+_uxEsc(u.note||'')+'" placeholder="비고"'+dis+'></td>';
         if(CM){
           h+=_dt('statement_date',u.statement_date,dis)
-            +_ti('tax_invoice_date','tax_invoice_amt1',u.tax_invoice_date,u.tax_invoice_amt1,'1세금계산서',u.iid,u.locked,u.currency,u.is_export)
-            +_ti('tax_invoice_date2','tax_invoice_amt2',u.tax_invoice_date2,u.tax_invoice_amt2,'2세금계산서',u.iid,u.locked,u.currency,u.is_export)
-            +_ti('tax_invoice_date3','tax_invoice_amt3',u.tax_invoice_date3,u.tax_invoice_amt3,'3세금계산서',u.iid,u.locked,u.currency,u.is_export);
+            +_tiM(u);   // z1191z24: 1~10차 한 칸
         }
         h+='</tr>';
       });
@@ -1137,49 +1152,28 @@ async function _uxSaveTax(iid, field, value){
 }
 var _CSYM={KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'};   // v5H226z704→z759: 세금계산서/인보이스 팝업 통화 기호(보드·펼침 공용·CNY 元로 통일)
 function openUnitTaxPop(box){
+  // z1191z24 (대표 2026-11-16): 호기 세금계산서 1~10차 입력 창(공용 knk_tax_multi.html) — 저장은 호기 단위 /unit-field(그대로).
   if(_editing) return;
   const iid=box.dataset.iid; if(!iid) return;
-  const curDate=box.dataset.date||''; let curAmt=box.dataset.amt||'';
-  // v5H226z704 (대표 지시): 팝업 통화·제목 = 그 행 통화·수출여부 — ₩/원 하드코딩 제거, 수출은 인보이스로.
+  if(!window.knkTaxMulti){ toast('⚠ 화면을 새로 고침(F5)해 주세요'); return; }
   const _tr=box.closest('tr');
   const _ccy=((_tr&&_tr.querySelector('select[data-field="currency"]'))||{}).value||'KRW';
   const _exp=(((_tr&&_tr.querySelector('select[data-field="is_export"]'))||{}).value==='1');
-  const _sym=(_CSYM[_ccy]||'₩');
-  const _tier=(box.dataset.amtfield||'').slice(-1)||'1';
-  const _ttl=_tier+'차 '+(_exp?'인보이스 (수출)':'세금계산서')+' 발행';
-  const pop=document.createElement('div'); pop.className='ti-pop';
-  pop.innerHTML='<div class="ti-pop-ttl">'+_ttl+'</div>'
-    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+_sym+'</span><input type="text" inputmode="decimal" class="ti-pa" value="'+(curAmt?_fmtAmtTyping(curAmt):'')+'" placeholder="0"><span class="ti-unit">'+_ccy+'</span></div>'
-    +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd knk-cal" value="'+curDate+'"></div>'
-    +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 발행일·금액(세금계산서 아님).':'이 호기의 세금계산서 발행일·금액을 입력하세요.')+'</div>'
-    +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
-  _editing={box,pop}; document.body.appendChild(pop);
-  // z1136: 같은 고객사·같은 날 함께 발행한 다른 건(보기 전용)
-  if(window.knkTaxSameDay){ window.knkTaxSameDay(pop, {datefield:box.dataset.datefield, date:curDate, iid:iid}); }
-  // v5H226z995 (대표 지시): 셀 아래 붙이기(하단 행=화면 밖) → 화면 중앙 + 제목줄 드래그 이동
-  if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
-  else { const rect=box.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
-  const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
-  pa.addEventListener('input',function(){ pa.value=_fmtAmtTyping(pa.value); });   // z986: 소수점 보존(외화)
-  setTimeout(()=>{ pa.focus(); pa.select(); },0);
-  let done=false;
-  const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
-  // KNK 날짜선택 달력(.knk-cal-pop)은 body에 따로 떠서 '바깥'으로 잡힘 → 달력 클릭 시 닫기 제외(z485)
-  const onDoc=(ev)=>{ if(!pop.contains(ev.target) && ev.target!==box && !box.contains(ev.target) && !(ev.target.closest && ev.target.closest('.knk-cal-pop'))){ document.removeEventListener('mousedown',onDoc); close(); } };
-  setTimeout(()=>document.addEventListener('mousedown',onDoc),0);
-  pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
-  pop.querySelector('.ti-save').addEventListener('click',async ()=>{
-    const dv=(pd.value||'').trim(), av=window.knkAmtToRaw(pa.value);   // z1135: 마이너스(네고) 보존
-    if(!_dateOk(dv)){ _dateWarn(); pd.focus(); return; }   // z1132: 발행일은 날짜만(신고 ②)
-    const btn=pop.querySelector('.ti-save'); btn.disabled=true;
-    try{
-      await _uxSaveTax(iid, box.dataset.datefield, dv);
-      await _uxSaveTax(iid, box.dataset.amtfield, av);
-      box.dataset.date=dv; box.dataset.amt=av;
-      box.innerHTML=(dv||av)?((_exp?'<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>':'')+'<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?_sym+_fmtAmtShow(av,_ccy):'')+'</div>'):'＋';
-      toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
-    }catch(e){ btn.disabled=false; toast('⚠ '+(e.message||'저장 실패')); }
-  });
+  const tis=knkTaxMulti.parse(box.dataset.tis, TI_MAX_JS);
+  const _tot=parseFloat(box.dataset.total||'');
+  _editing={box};
+  try{
+    knkTaxMulti.open({anchor:box, tis:tis, max:TI_MAX_JS, ccy:_ccy, isExp:_exp, total:(isNaN(_tot)?null:_tot), totalLabel:'이 호기 금액', prefill1:false,
+      sameday:function(n,d){ return {tier:n, date:d, iid:iid}; },
+      dateOk:_dateOk,   // z1132: 발행일은 날짜만(공용 검사)
+      save:function(f,v){ return _uxSaveTax(iid, f, v); },
+      onSaved:function(next){
+        box.dataset.tis=JSON.stringify(next);
+        box.innerHTML=knkTaxMulti.cellHtml(next, _ccy, _exp, null);
+        box.title=knkTaxMulti.title(next, _ccy, TI_MAX_JS);
+      },
+      onClose:function(){ _editing=null; }});
+  }catch(e){ _editing=null; toast('⚠ '+(e.message||'입력 창 오류')); }
 }
 // v5H226z486 (대표 지시): 날짜 직접입력 정규화 — 260618(YYMMDD)·20260618(YYYYMMDD)·2026.06.18·2026/6/8 등 → YYYY-MM-DD. 못 알아보면 원문.
 /* v5H226z1132 (이새롬 프로 신고 2026-09-29): 날짜 칸은 ①달력이 뜨고 ②날짜만 저장된다.
@@ -1195,7 +1189,12 @@ function openUnitTaxPop(box){
         서버도 같은 검사를 한다(database.date_cell_ok) — 일괄수정·다른 경로로 들어와도 막힌다.
         배포 전 검사: deploy/check_standards.py `check_date_cell_guard`. */
 var _DATE_FIELDS = ['order_date','due_date','statement_date',
-                    'tax_invoice_date','tax_invoice_date2','tax_invoice_date3'];
+                    'tax_invoice_date','tax_invoice_date2','tax_invoice_date3',
+                    // z1191z24: 4~10차
+                    'tax_invoice_date4','tax_invoice_date5','tax_invoice_date6','tax_invoice_date7',
+                    'tax_invoice_date8','tax_invoice_date9','tax_invoice_date10'];
+// z1191z24: 수주(호기) 세금계산서 최대 장수 = 서버 _TI_MAX(#schedWrap data-ti-max) — 스크립트 줄엔 Jinja 기호를 안 쓴다(z1191 규칙)
+var TI_MAX_JS = parseInt(((document.getElementById('schedWrap')||{}).dataset||{}).tiMax||'10',10)||10;
 function _isDateField(f){ return _DATE_FIELDS.indexOf(f) >= 0; }
 function _dateOk(s){
   s=(s||'').trim();
@@ -1521,64 +1520,41 @@ async function taxSave(tr, field, value){
   const j=await r.json(); if(j.updated_at) tr.dataset.ts=j.updated_at; if(!j.ok) throw new Error(j.message||j.error||'fail'); return j;
 }
 function startTaxInvEdit(td, tr){
+  // z1191z24 (대표 2026-11-16 · 안지연·이새롬 프로 답): 1칸 → 1~10차 입력 창(공용 knk_tax_multi.html).
+  //   「비율로 나누지 말고 ＋로 한 장씩 추가 · 합이 수주금액과 맞으면 끝」 · 소모품 줄은 1~3차.
+  //   저장은 그대로 taxSave(프로젝트=/row-tax 호기 전체 · 소모품=/cell) — 바뀐 칸만 보낸다.
+  //   z469: 1차가 비어 있으면 수주금액을 미리 채움 · z1137: 마이너스 수주도 그대로(예전 `rt>0` 은 마이너스 건만 빈칸이었다) · z1132: 발행일은 날짜만.
   if(_editing) return;
-  const curDate=td.dataset.date||'';
-  let curAmt=td.dataset.amt||'';
-  // v5H226z469 (대표 지시): 1세금계산서 금액 기본값 = 수주금액(총액). 비어 있을 때만 채움(다르게 적으면 2/3차 발행이 있다는 뜻).
-  // v5H226z1137 (이새롬 프로 신고): 마이너스 수주(네고·할인)도 그 금액 그대로 미리 채운다. `rt>0` 이라 마이너스 건만
-  //   빈칸이 떠서 `-` 를 손으로 쳐야 했고, 빠뜨리면 플러스로 들어갔다(z1135 와 같은 뿌리 — 「금액은 플러스」라는 가정).
-  if(!curAmt && td.dataset.edit==='taxinv1'){ const rt=parseFloat(tr.dataset.rowamt||'0')||0; if(rt!==0) curAmt=String(Math.round(rt*100)/100); }   // z986: 외화 소수 보존(정수 반올림 제거)
-  // v5H226z704 (대표 지시): 팝업 통화·제목 = 그 행 통화·수출여부 — ₩/원 하드코딩 제거, 수출은 인보이스로.
+  if(!window.knkTaxMulti){ toast('⚠ 화면을 새로 고침(F5)해 주세요'); return; }
+  const max=parseInt(td.dataset.timax||'10',10)||10;
+  const tis=knkTaxMulti.parse(td.dataset.tis, max);
+  let bundles={}; try{ bundles=JSON.parse(td.dataset.tib||'{}')||{}; }catch(e){ bundles={}; }
   const _ccy=tr.dataset.cur||'KRW';
   const _exp=(((tr.querySelector('td[data-col="trade"]'))||{}).textContent||'').trim()==='수출';
-  const _sym=(_CSYM[_ccy]||'₩');
-  const _tier=(td.dataset.edit||'').slice(-1)||'1';
-  const _ttl=_tier+'차 '+(_exp?'인보이스 (수출)':'세금계산서')+' 발행';
-  const pop=document.createElement('div'); pop.className='ti-pop';
-  // 금액을 위, 발행일을 아래로 — 날짜 달력이 아래로 펼쳐져도 금액칸을 가리지 않게(겹침 해소).
-  pop.innerHTML='<div class="ti-pop-ttl">'+_ttl+'</div>'
-    +'<div class="ti-pop-row"><label>금액</label><span class="ti-cur">'+_sym+'</span><input type="text" inputmode="decimal" class="ti-pa" value="'+(curAmt?_fmtAmtTyping(curAmt):'')+'" placeholder="0"><span class="ti-unit">'+_ccy+'</span></div>'
-    +'<div class="ti-pop-row"><label>발행일</label><input type="date" class="ti-pd" value="'+curDate+'"></div>'
-    +'<div class="ti-pop-hint">'+(_exp?'수출 — 인보이스 금액(세금계산서 아님). ':'')+'1·2·3차 합계가 수주금액과 같으면 <b>초록</b>, 다르면 <b>주황</b>.</div>'
-    +'<div class="ti-pop-btns"><button type="button" class="ti-cancel">취소</button><button type="button" class="ti-save">저장</button></div>';
-  _editing={td,pop}; document.body.appendChild(pop);
-  // z1136: 같은 고객사·같은 날 함께 발행한 다른 건(보기 전용) — 프로젝트는 그 줄 첫 호기로 발주처를 찾는다
-  if(window.knkTaxSameDay){ var _u0=String(tr.dataset.uids||'').split(',')[0];
-    window.knkTaxSameDay(pop, {datefield:td.dataset.datefield, date:curDate, iid:(_u0||''),
-                                kind:tr.dataset.kind, ref_id:tr.dataset.ref}); }
-  // v5H226z995 (대표 지시): 셀 아래 붙이기(하단 행=화면 밖) → 화면 중앙 + 제목줄 드래그 이동
-  if(window.KNK_popCenterDrag){ window.KNK_popCenterDrag(pop, '.ti-pop-ttl'); }
-  else { const rect=td.getBoundingClientRect(); pop.style.left=Math.max(8,Math.min(rect.left, window.innerWidth-312))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
-  const pd=pop.querySelector('.ti-pd'), pa=pop.querySelector('.ti-pa');
-  // v5H226z470: 금액 입력 시 천단위 콤마 자동 (저장 시엔 숫자만 추출)
-  pa.addEventListener('input',function(){ pa.value=_fmtAmtTyping(pa.value); });   // z986: 소수점 보존(외화)
-  setTimeout(()=>{ pa.focus(); pa.select(); },0);
-  let done=false;
-  const close=()=>{ if(done)return; done=true; pop.remove(); _editing=null; };
-  // v5H226z485 (대표 지적): KNK 날짜선택 달력(.knk-cal-pop)은 body에 따로 떠서 '바깥'으로 잡힘 → 날짜 클릭 시 팝업이 닫히던 버그. 달력 클릭은 닫기 제외.
-  const onDoc=(ev)=>{ if(!pop.contains(ev.target) && ev.target!==td && !td.contains(ev.target) && !(ev.target.closest && ev.target.closest('.knk-cal-pop'))){ document.removeEventListener('mousedown',onDoc); close(); } };
-  setTimeout(()=>document.addEventListener('mousedown',onDoc),0);
-  pop.querySelector('.ti-cancel').addEventListener('click',()=>{ document.removeEventListener('mousedown',onDoc); close(); });
-  pop.querySelector('.ti-save').addEventListener('click',async ()=>{
-    const dv=(pd.value||'').trim(), av=window.knkAmtToRaw(pa.value);   // z1135: 마이너스(네고) 보존
-    if(!_dateOk(dv)){ _dateWarn(); pd.focus(); return; }   // z1132: 발행일은 날짜만(신고 ②)
-    const btn=pop.querySelector('.ti-save'); btn.disabled=true;
-    try{
-      await taxSave(tr, td.dataset.datefield, dv);
-      await taxSave(tr, td.dataset.amtfield, av);
-      td.dataset.date=dv; td.dataset.amt=av;
-      td.innerHTML=(dv||av)?((_exp?'<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>':'')+'<div class="ti-d">'+(dv||'–')+'</div><div class="ti-a">'+(av?_sym+_fmtAmtShow(av,_ccy):'')+'</div>'):'＋';
-      td.classList.toggle('filled', !!(dv||av));
-      refreshTaxStatus(tr);
-      toast('저장됨'); document.removeEventListener('mousedown',onDoc); close();
-    }catch(e){ btn.disabled=false; toast('⚠ '+(e.message||'저장 실패')); }
-  });
+  const _rt=parseFloat(tr.dataset.rowamt||'');
+  _editing={td};
+  try{
+    knkTaxMulti.open({anchor:td, tis:tis, max:max, ccy:_ccy, isExp:_exp, total:(isNaN(_rt)?null:_rt), prefill1:true, bundles:bundles,
+      sameday:function(n,d){ var _u0=String(tr.dataset.uids||'').split(',')[0]; return {tier:n, date:d, iid:(_u0||''), kind:tr.dataset.kind, ref_id:tr.dataset.ref}; },
+      dateOk:_dateOk,   // z1132: 발행일은 날짜만(공용 검사)
+      save:function(f,v){ return taxSave(tr, f, v); },
+      onSaved:function(next){
+        td.dataset.tis=JSON.stringify(next);
+        td.innerHTML=knkTaxMulti.cellHtml(next, _ccy, _exp, bundles);
+        td.title=knkTaxMulti.title(next, _ccy, max);
+        td.classList.toggle('filled', knkTaxMulti.stats(next).count>0);
+        refreshTaxStatus(tr);
+      },
+      onClose:function(){ _editing=null; },
+      onBundle:function(id){ openTiView(id); }});
+  }catch(e){ _editing=null; toast('⚠ '+(e.message||'입력 창 오류')); }
 }
 // v5H226z469 (대표 지시): 세금계산서 발행 상태 — 1/2/3차 금액 합계가 수주금액과 같으면 '발행완료', 다르면 '미발행' 표기.
 function refreshTaxStatus(tr){
-  const cells=tr.querySelectorAll('td.taxinv-cell'); if(!cells.length) return;
+  // z1191z24: 세금계산서 1칸(data-tis) — 1~10차(소모품 1~3차) 금액을 모두 더해 수주금액과 비교
+  const cells=tr.querySelectorAll('td.taxinv-cell[data-tis]'); if(!cells.length || !window.knkTaxMulti) return;
   let sum=0, anyAmt=false;
-  cells.forEach(c=>{ const a=parseFloat(c.dataset.amt||'0')||0; if((c.dataset.amt||'').trim()) anyAmt=true; sum+=a; });
+  cells.forEach(c=>{ knkTaxMulti.parse(c.dataset.tis, parseInt(c.dataset.timax||'10',10)||10).forEach(t=>{ if(t[1]!==null){ sum+=t[1]; anyAmt=true; } }); });
   const total=parseFloat(tr.dataset.rowamt||'0')||0;   // z1191z7: 반올림하지 않은 그대로 비교(아래 0.01 허용)
   let status='none';   // none=입력없음 / ok=합계=총액(발행완료) / mismatch=합계≠총액(미발행)
   // v5H226z1137 (이새롬 프로 신고 "마이너스 세금계산서는 미발행으로 인식 됩니다"): 판정은 금액의 **부호를 가정하지 않는다.**
