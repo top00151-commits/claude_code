@@ -82,13 +82,14 @@ def s3(m="5"):
 print("§1 매출 홈 소모품 나누기")
 S = s3()
 B = {b["biz"]: b for b in S["biz_rows"]}
-check([b["biz"] for b in S["biz_rows"]] == ["T", "M", "L", "E", "CT", "CM", "CE"], "줄 순서: 검사기·자동화·라이프밸류·기타·소모품(검사기)·소모품(자동화)·소모품(기타)", list(B))
+check([b["biz"] for b in S["biz_rows"]] == ["T", "M", "L", "CT", "CM", "CE", "E"], "줄 순서(z1191z39): 검사기·자동화·라이프밸류·소모품(검사기)·소모품(자동화)·소모품(기타)·기타", list(B))
+check([k for k, _l in M._Z17_BIZ] == ["T", "M", "L", "CT", "CM", "CE", "E"], "매출 보고서 사업부 순서도 같음(기타 맨 아래 · z1191z39)", [k for k, _l in M._Z17_BIZ])
 check("C" not in B and B["CT"]["label"].endswith("소모품(검사기)") and B["CM"]["label"].endswith("소모품(자동화)"), "「소모품」 한 줄 대신 소모품(검사기)·소모품(자동화)")
 # z1191z35: 사업부 아이콘 = 프로젝트 등록 「유형 선택」 화면(T·M·L·E·C 카드)과 같음 — 매출 홈 · 매출 보고서
 _chooser = open(os.path.join(ROOT, "app", "templates", "project_new_chooser.html"), encoding="utf-8").read()
 _ic = re.findall(r'<div class="ic">([^<]+)</div>', _chooser)[:5]
 _home = [B[k]["label"].split()[0] for k in ("T", "M", "L", "E", "CT", "CM")]
-_rep = [lb.split()[0] for _k, lb in M._Z17_BIZ]
+_rep = [dict(M._Z17_BIZ)[k].split()[0] for k in ("T", "M", "L", "E", "CT", "CM", "CE")]   # z1191z39: 순서와 상관없이 열쇠로
 check(_ic == ["🔬", "🤖", "💄", "🌐", "📦"] and _home == _ic + ["📦"] and _rep == _ic + ["📦", "📦"],
       "사업부 아이콘 = 등록 화면과 같음(🔬 🤖 💄 🌐 📦) — 매출 홈·매출 보고서(z1191z35)", (_ic, _home, _rep))
 # z1191z36: 프로젝트 목록 · 작업일정표 사업부 칩도 같은 아이콘(그린 화면에서 읽음)
