@@ -29969,6 +29969,109 @@ async def admin_so_suffix_migrate(request: Request, do: str = "", pid: int = 0):
 # ── 프로젝트 / 관리코드 발행대장 ─────────────────────────
 # v5H226z762 (대표 지시): 제작요청서 목록 — 발행된 제작요청서를 프로젝트 넘어 한곳에서 모아보기·검색.
 #   요청사항이 통보로만 흘러가 사라지던 문제 해결(저장은 prod_requests). 가격 없음 → 로그인만 게이트(상세 페이지와 동일).
+# z1191z42 (대표 2026-11-16): 📒 관리번호대장 — 지금까지 부여한 관리번호와 그 수주번호를 한 화면에.
+#   이음웍스에 등록된 것이 기준(엑셀 「관리코드발행목록」 M·T 시트는 칸 구성만 참고 · 자료는 안 가져옴).
+#   한 줄 = 관리번호 하나(프로젝트 · 소모품) · 수주번호는 그 관리번호의 수주 전부(취소는 줄 그어 표시) · 폐기한 프로젝트도 「폐기」로 남김
+#   (번호를 부여했다는 기록이므로). 정렬 = 발행 연월 ↓ · 번호 ↓. 읽기만(고치기는 각 프로젝트·소모품 화면에서).
+_Z42_SO_ST = {"DRAFT": "작성중", "QUOTED": "견적", "CONFIRMED": "진행중", "IN_PRODUCTION": "진행중",
+              "READY_TO_SHIP": "진행중", "SHIPPED": "출하", "INVOICED": "출하", "PAID": "출하",
+              "CANCELLED": "취소", "HOLD": "보류"}
+_Z42_BIZ = {"T": "🔬 검사기", "M": "🤖 자동화", "L": "💄 라이프밸류", "E": "🌐 기타", "C": "📦 소모품"}
+
+
+def _z42_code_key(code):
+    """관리번호 NNN·사업부·YYMM → 정렬 열쇠(연월, 번호). 모양이 다르면 맨 뒤."""
+    s = (code or "").strip().upper()
+    try:
+        return (s[4:8], int(s[:3]))
+    except Exception:
+        return ("", 0)
+
+
+def _z42_ledger_rows(c):
+    out = {}
+    for r in c.execute(
+            "SELECT p.id, p.mgmt_code, COALESCE(p.name,'') AS pname, COALESCE(p.model_name,'') AS model, "
+            "COALESCE(p.equip_name,'') AS equip, COALESCE(NULLIF(cu.alias,''), cu.name, p.customer_name, '') AS cust, "
+            "COALESCE(p.sales_name,'') AS sales, COALESCE(p.server_path,'') AS spath, COALESCE(p.logi_note,'') AS note, "
+            "COALESCE(p.status,'') AS st, COALESCE(p.is_archived,0) AS arch, COALESCE(p.created_at,'') AS created "
+            "FROM projects p LEFT JOIN customers cu ON cu.id = p.customer_id "
+            "WHERE COALESCE(TRIM(p.mgmt_code),'') <> ''").fetchall():
+        d = dict(r)
+        code = d["mgmt_code"].strip().upper()
+        out[("P", d["id"])] = {"kind": "P", "id": d["id"], "code": code, "biz": code[3:4], "pname": d["pname"],
+                               "model": d["model"], "equip": d["equip"], "cust": d["cust"], "sales": d["sales"],
+                               "spath": d["spath"], "note": d["note"], "status": d["st"] or "—", "arch": bool(d["arch"]),
+                               "created": d["created"][:10], "sos": []}
+    for r in c.execute(
+            "SELECT project_id, COALESCE(order_no,'') AS no, COALESCE(order_date,'') AS od, COALESCE(status,'') AS st "
+            "FROM orders WHERE project_id IS NOT NULL ORDER BY COALESCE(order_date,''), id").fetchall():
+        row = out.get(("P", r["project_id"]))
+        if row is not None and r["no"].strip():
+            row["sos"].append({"no": r["no"].strip(), "date": r["od"][:10], "st": _Z42_SO_ST.get(r["st"], r["st"] or ""),
+                               "cancel": r["st"] == "CANCELLED"})
+    # 소모품 — 관리번호(C) 하나에 소모품 발주가 여럿이면 한 줄로 묶음
+    for r in c.execute(
+            "SELECT co.id, UPPER(TRIM(co.mgmt_code)) AS code, COALESCE(co.co_no,'') AS no, COALESCE(co.order_date,'') AS od, "
+            "COALESCE(co.status,'') AS st, COALESCE(co.model_name,'') AS model, COALESCE(co.equip_name,'') AS equip, "
+            "COALESCE(NULLIF(cu.alias,''), cu.name, co.customer_name, '') AS cust, COALESCE(co.sales_name,'') AS sales, "
+            "COALESCE(co.project_name,'') AS pname, COALESCE(co.note,'') AS note, COALESCE(co.created_at,'') AS created "
+            "FROM consumable_orders co LEFT JOIN customers cu ON cu.id = co.customer_id "
+            "WHERE COALESCE(TRIM(co.mgmt_code),'') <> '' ORDER BY co.id").fetchall():
+        d = dict(r)
+        k = ("C", d["code"])
+        row = out.get(k)
+        if row is None:
+            row = out[k] = {"kind": "C", "id": d["id"], "code": d["code"], "biz": "C", "pname": d["pname"] or "소모품",
+                            "model": d["model"], "equip": d["equip"], "cust": d["cust"], "sales": d["sales"], "spath": "",
+                            "note": d["note"], "status": "", "arch": False, "created": d["created"][:10], "sos": []}
+        if d["no"].strip():
+            row["sos"].append({"no": d["no"].strip(), "date": d["od"][:10], "st": _Z42_SO_ST.get(d["st"], d["st"] or ""),
+                               "cancel": d["st"] == "CANCELLED"})
+    rows = list(out.values())
+    for x in rows:
+        live = [s for s in x["sos"] if not s["cancel"]]
+        if x["kind"] == "C":
+            sts = {s["st"] for s in live}
+            x["status"] = "취소" if not live and x["sos"] else ("진행중" if "진행중" in sts or "작성중" in sts else ("출하" if sts else "—"))
+        x["biz_label"] = _Z42_BIZ.get(x["biz"], x["biz"] or "—")
+        x["ym"] = ("20%s-%s" % (x["code"][4:6], x["code"][6:8])) if len(x["code"]) >= 8 and x["code"][4:8].isdigit() else ""
+    rows.sort(key=lambda x: _z42_code_key(x["code"]), reverse=True)
+    return rows
+
+
+@app.get("/projects/ledger", response_class=HTMLResponse)
+def mgmt_ledger_page(request: Request, biz: str = "", year: str = "", q: str = ""):
+    """z1191z42: 📒 관리번호대장(읽기만) — 프로젝트 목록과 같은 권한(can_view_sales)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home?no_perm=sales", 303)
+    _biz = (biz or "").strip().upper()
+    if _biz not in _Z42_BIZ:
+        _biz = ""
+    _year = (year or "").strip()
+    if not (_year.isdigit() and len(_year) == 4):
+        _year = ""
+    _q = (q or "").strip()
+    with db_session() as c:
+        allr = _z42_ledger_rows(c)
+    years = sorted({x["ym"][:4] for x in allr if x["ym"]}, reverse=True)
+    by_year = [x for x in allr if (not _year or x["ym"][:4] == _year)]
+    counts = {"": len(by_year)}
+    for x in by_year:
+        counts[x["biz"]] = counts.get(x["biz"], 0) + 1
+    rows = [x for x in by_year if (not _biz or x["biz"] == _biz)]
+    if _q:
+        ql = _q.lower()
+        rows = [x for x in rows if ql in " ".join([x["code"], x["pname"], x["model"], x["equip"], x["cust"], x["sales"],
+                                                    x["note"], x["spath"]] + [s["no"] for s in x["sos"]]).lower()]
+    n_so = sum(len([s for s in x["sos"] if not s["cancel"]]) for x in rows)
+    return ctx(request, "mgmt_ledger.html", user=u, active="sales", rows=rows, counts=counts, years=years,
+               biz=_biz, year=_year, q=_q, n_so=n_so, biz_labels=_Z42_BIZ)
+
+
 @app.get("/prod-requests", response_class=HTMLResponse)
 async def prod_requests_list_page(request: Request, q: str = "", period: str = "", biz: str = ""):
     u = get_user(request)

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>관리번호대장 · KNK HAIST WORKS</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* z1191z42 (대표 2026-11-16): 📒 관리번호대장 — 지금까지 부여한 관리번호 + 그 수주번호(이음웍스 등록 기준 · 읽기만) */
+body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
+.prq-tabs { display:flex; gap:4px; margin:0 var(--content-pad) var(--space-4); border-bottom:2px solid var(--qv-line); flex-wrap:wrap; }
+.prq-tabs a, .prq-tabs span { padding:9px 20px; font-size:14px; font-weight:700; text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-2px; }
+.prq-tabs .on { font-weight:800; color:var(--knk-red); border-bottom-color:var(--knk-red); }
+.prq-tabs a { color:var(--qv-ink-3); }
+.lg-filter { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:0 var(--content-pad) var(--space-3); }
+.lg-filter .pf { padding:7px 15px; font-size:13px; font-weight:700; text-decoration:none; border-radius:999px; border:1px solid var(--qv-line); background:#fff; color:#475569; white-space:nowrap; }
+.lg-filter .pf:hover { border-color:#fca5a5; color:var(--knk-red); }
+.lg-filter .pf.on { background:var(--knk-red); border-color:var(--knk-red); color:#fff; }
+.lg-filter .pf b { font-weight:800; margin-left:3px; }
+.lg-search { display:flex; gap:8px; margin:0 var(--content-pad) var(--space-3); flex-wrap:wrap; align-items:center; }
+.lg-search input[type=text] { flex:1; min-width:200px; padding:9px 12px; border:1px solid var(--qv-line); border-radius:8px; font-size:14px; }
+.lg-search select { padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13.5px; background:#fff; }
+.lg-sum { margin:0 var(--content-pad) var(--space-2); font-size:12.5px; color:var(--qv-ink-3); }
+.lg-wrap { margin:0 var(--content-pad) 24px; overflow:auto; border:1px solid #e2e8f0; border-radius:10px; background:#fff; }
+.lg-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
+.lg-tbl th { position:sticky; top:0; z-index:1; background:#f8fafc; text-align:left; padding:8px 8px; border-bottom:2px solid #e2e8f0; color:#475569; white-space:nowrap; font-weight:800; }
+.lg-tbl td { padding:6px 8px; border-bottom:1px solid #eef0f4; vertical-align:top; }
+.lg-tbl tr:hover td { background:#fffbeb; }
+.lg-tbl .n { text-align:right; color:#94a3b8; font-variant-numeric:tabular-nums; }
+.lg-tbl .nw { white-space:nowrap; }
+.lg-code { font-weight:800; color:#1d4ed8; text-decoration:none; font-variant-numeric:tabular-nums; }
+.lg-code:hover { text-decoration:underline; }
+.lg-so { display:inline-block; margin:1px 4px 1px 0; padding:1px 7px; border-radius:6px; background:#eff6ff; color:#1e3a8a; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.lg-so.cancel { background:#f1f5f9; color:#94a3b8; text-decoration:line-through; font-weight:600; }
+.lg-none { color:#cbd5e1; }
+.lg-st { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11.5px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; }
+.lg-st.s-출하 { background:#dcfce7; color:#166534; }
+.lg-st.s-진행중, .lg-st.s-수주확정 { background:#fef9c3; color:#854d0e; }
+.lg-st.s-보류, .lg-st.s-취소 { background:#e2e8f0; color:#334155; }
+.lg-arch td { color:#94a3b8; }
+.lg-arch .lg-code { color:#94a3b8; }
+.lg-archb { display:inline-block; margin-left:4px; padding:0 6px; border-radius:4px; background:#e2e8f0; color:#475569; font-size:11px; font-weight:800; }
+.lg-path { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64748b; font-size:11.5px; }
+.lg-note { max-width:240px; color:#475569; }
+.lg-dim { color:#64748b; }
+.lg-empty { margin:30px var(--content-pad); padding:40px; text-align:center; color:var(--qv-ink-3); background:#fff; border:1px dashed #cbd5e1; border-radius:12px; }
+</style>
+</head>
+<body>
+<div class="app">
+{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <div class="page-head" data-dn="page-head">
+    <div>
+      <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <a href="/projects">프로젝트</a> · <b>관리번호대장</b></div>
+      <h1 class="page-title" data-dn="title"><em>📒 관리번호대장</em></h1>
+    </div>
+  </div>
+
+  <div class="prq-tabs" data-dn="ledger-tabs">
+    <a href="/projects">📋 전체 목록</a>
+    <a href="/projects/new">🆕 등록</a>
+    <a href="/prod-requests">📋 제작요청서목록</a>
+    <span class="on">📒 관리번호대장</span>
+  </div>
+
+  {%- macro lgurl(b, y) -%}/projects/ledger?biz={{ b }}&amp;year={{ y }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{%- endmacro -%}
+  <div class="lg-filter" data-dn="ledger-biz">
+    <a class="pf{% if not biz %} on{% endif %}" href="{{ lgurl('', year) }}">전체<b>{{ counts.get('', 0) }}</b></a>
+    {% for k in ['T','M','L','E','C'] %}
+    <a class="pf{% if biz == k %} on{% endif %}" href="{{ lgurl(k, year) }}">{{ biz_labels[k] }}<b>{{ counts.get(k, 0) }}</b></a>
+    {% endfor %}
+  </div>
+
+  <form class="lg-search" method="get" action="/projects/ledger">
+    {% if biz %}<input type="hidden" name="biz" value="{{ biz }}">{% endif %}
+    <select name="year" onchange="this.form.submit()" aria-label="발행 연도">
+      <option value="">발행 연도 전체</option>
+      {% for y in years %}<option value="{{ y }}"{% if y == year %} selected{% endif %}>{{ y }}년 발행</option>{% endfor %}
+    </select>
+    <input type="text" name="q" value="{{ q }}" placeholder="관리번호 · 수주번호 · 모델 · 설비 · 고객사 · 영업 담당 검색" autocomplete="off">
+    <button type="submit" class="btn btn-primary">🔍 검색</button>
+    {% if q %}<a class="btn btn-secondary" href="/projects/ledger?biz={{ biz }}&amp;year={{ year }}">검색 해제</a>{% endif %}
+  </form>
+
+  <div class="lg-sum">
+    관리번호 <b style="color:#334155;">{{ '{:,}'.format(rows|length) }}</b>개 · 수주번호 <b style="color:#334155;">{{ '{:,}'.format(n_so) }}</b>건(취소 빼고)
+    · 이음웍스에 등록된 관리번호 기준 · 최근 발행 순 · 관리번호를 누르면 그 프로젝트(소모품) 화면으로 갑니다 · 줄 그은 수주번호 = 취소
+  </div>
+
+  {% if rows %}
+  <div class="lg-wrap" data-knk-fill>
+    <table class="lg-tbl">
+      <thead><tr>
+        <th>#</th><th>관리번호</th><th>사업부</th><th>발행월</th><th>수주번호</th><th>모델명</th><th>설비명</th>
+        <th>프로젝트명</th><th>고객사</th><th>영업 담당</th><th>상태</th><th>서버경로</th><th>비고</th>
+      </tr></thead>
+      <tbody>
+      {% for x in rows %}
+        <tr class="{% if x.arch %}lg-arch{% endif %}" data-kind="{{ x.kind }}">
+          <td class="n">{{ loop.index }}</td>
+          <td class="nw"><a class="lg-code" href="{% if x.kind == 'C' %}/consumables/{{ x.id }}{% else %}/project/{{ x.id }}{% endif %}">{{ x.code }}</a>{% if x.arch %}<span class="lg-archb" title="폐기한 프로젝트 — 번호는 부여된 기록으로 남김">폐기</span>{% endif %}</td>
+          <td class="nw">{{ x.biz_label }}</td>
+          <td class="nw lg-dim">{{ x.ym or '—' }}</td>
+          <td>{% for s in x.sos %}<span class="lg-so{% if s.cancel %} cancel{% endif %}" title="{{ s.no }} · 발주일 {{ s.date or '—' }} · {{ s.st or '—' }}">{{ s.no }}</span>{% else %}<span class="lg-none">없음</span>{% endfor %}</td>
+          <td>{{ x.model or '—' }}</td>
+          <td>{{ x.equip or '—' }}</td>
+          <td>{{ x.pname or '—' }}</td>
+          <td>{{ x.cust or '—' }}</td>
+          <td class="nw">{{ x.sales or '—' }}</td>
+          <td class="nw"><span class="lg-st s-{{ x.status }}">{{ x.status }}</span></td>
+          <td><div class="lg-path" title="{{ x.spath }}">{{ x.spath or '' }}</div></td>
+          <td><div class="lg-note">{{ x.note or '' }}</div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="lg-empty">
+    <div style="font-size:36px;margin-bottom:8px;">📒</div>
+    <div style="font-size:15px;font-weight:700;color:#334155;">조건에 맞는 관리번호가 없습니다</div>
+    <div style="margin-top:12px;"><a class="btn btn-secondary" href="/projects/ledger">전체 보기</a></div>
+  </div>
+  {% endif %}
+</main>
+</div>
+</body>
+</html>

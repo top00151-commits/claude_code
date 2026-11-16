@@ -91,6 +91,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
     <a href="/projects">📋 전체 목록</a>
     <a href="/projects/new">🆕 등록</a>
     <span class="on">📋 제작요청서목록</span>
+    <a href="/projects/ledger">📒 관리번호대장</a>{# z1191z42 #}
   </div>
 
   {%- macro prqurl(b, p) -%}/prod-requests?biz={{ b }}&amp;period={{ p }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{%- endmacro -%}
