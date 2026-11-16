@@ -1765,7 +1765,8 @@ def _mailfetch_run_owner(owner_id):
                     subject=parsed.get("subject", ""), text=parsed.get("text", ""),
                     html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
                     owner_id=acct["owner_user_id"], run_ai=ai_on,
-                    attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""))
+                    attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
+                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""))
                 if mid:
                     stored += 1
             except Exception:
@@ -21959,6 +21960,7 @@ async def mail_inbound(req: Request):
          "size": d.get("size") or 0, "message_id": d.get("message_id") or ""}
     raw = d.get("raw") or ""
     _atts = None
+    _auth, _reply_to = None, ""
     if raw:
         parsed = _mailbox.parse_raw_email(raw)
         if parsed:
@@ -21969,6 +21971,7 @@ async def mail_inbound(req: Request):
                 f["to_email"] = parsed["to_email"]
             f["size"] = len(raw)
             _atts = parsed.get("attachments")
+            _auth, _reply_to = parsed.get("auth"), parsed.get("reply_to", "")
 
     if not f["to_email"]:
         return JSONResponse({"ok": False, "message": "수신 주소(to)가 없습니다."}, 400)
@@ -21978,6 +21981,7 @@ async def mail_inbound(req: Request):
             from_name=f["from_name"], subject=f["subject"], text=f["text"],
             html=f["html"], cc=f["cc"], size=f["size"], run_ai=True,
             attachments=_atts, message_id=f.get("message_id", ""),
+            auth=_auth, reply_to=_reply_to,
         )
     if not mid:
         # 데이터 연결성 원칙: 조용히 버리지 않고 사유 표면화
@@ -22344,7 +22348,8 @@ async def mail_view_page(req: Request, mail_id: int):
         all_atts = _mailbox.list_attachments(c, mail_id)
         inline_atts = [a for a in all_atts if a.get("is_inline")]
         file_atts = [a for a in all_atts if not a.get("is_inline")]
-        safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts)
+        safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts,
+                                                    defang=int(m.get("risk_level") or 0) >= 2)
         # 보낸사람 ↔ 연락처 자동연결 — 이메일 '정확 일치 1건'이면 링크, 없으면 등록 유도.
         #   (데이터 연결 안전: 추측 매칭 안 함. 정확히 같은 이메일만 단일 후보로 연결)
         sender_contact = None
@@ -22374,7 +22379,8 @@ async def mail_view_pane(req: Request, mail_id: int):
         all_atts = _mailbox.list_attachments(c, mail_id)
         inline_atts = [a for a in all_atts if a.get("is_inline")]
         file_atts = [a for a in all_atts if not a.get("is_inline")]
-        safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts)
+        safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts,
+                                                    defang=int(m.get("risk_level") or 0) >= 2)
         sender_contact = None
         _fe = (m.get("from_email") or "").strip()
         if _fe:
@@ -23401,7 +23407,8 @@ async def admin_mail_fetch_run(req: Request):
                     from_email=parsed.get("from_email", ""), from_name=parsed.get("from_name", ""),
                     subject=parsed.get("subject", ""), text=parsed.get("text", ""),
                     html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
-                    owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""))
+                    owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
+                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""))
                 if mid:
                     stored += 1
             except Exception:

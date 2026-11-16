@@ -4,7 +4,9 @@
 {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
 
 {% if m.risk_level and m.risk_level >= 2 %}
-<div class="mv-warn high">⚠ <b>위험 메일 — 주의</b> · {{ m.risk_note or '외부·미인증 발신' }}. <span>모르는 발신이면 <b>링크·첨부를 절대 누르지 마세요.</b></span>{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">🚫 이 발신 차단</button>{% endif %}</div>
+<div class="mv-warn high">⚠ <b>{{ '위험 메일 — 차단함으로 옮겼습니다' if m.risk_level >= 3 else '피싱·사칭 의심 메일' }}</b>
+  <ul class="mv-warn-list" style="margin:6px 0 4px 18px;padding:0;font-weight:500">{% for _r in (m.risk_note or '외부·미인증 발신').split(' / ') %}<li>{{ _r }}</li>{% endfor %}</ul>
+  <span>링크는 눌리지 않게 막았습니다(마우스를 올리면 실제 주소). <b>첨부를 열거나 회신·송금하기 전에 보낸 사람에게 전화로 확인</b>하세요.</span>{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">🚫 이 발신 차단</button>{% endif %}</div>
 {% elif m.risk_level and m.risk_level == 1 %}
 <div class="mv-warn low">ℹ️ 외부에서 온 메일입니다. 모르는 발신이면 링크·첨부에 주의하세요.{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">🚫 차단</button>{% endif %}</div>
 {% endif %}

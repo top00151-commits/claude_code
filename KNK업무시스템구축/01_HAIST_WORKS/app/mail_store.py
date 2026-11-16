@@ -273,9 +273,37 @@ _PHISH_KW = ("비밀번호", "암호", "계정", "본인확인", "인증", "정�
              "suspend", "urgent", "confirm", "payment", "refund", "login", "secur")
 
 
-def assess_risk(from_email, to_email="", subject="", body="", html="", attachments=None):
-    """규칙기반 위험판별(AI 아님·무료·빠름). 반환 (level 0~3, note문자열).
-    3=실행파일 첨부 / 2=외부발신+의심링크+피싱문구 / 1=외부발신 / 0=내부·안전."""
+_STAFF_NAMES = {"t": 0.0, "v": ()}
+
+
+def _staff_names(c):
+    """재직 직원 이름(이름 사칭 판별용) — 10분 캐시. 실패하면 빈 값(판별만 약해질 뿐 저장은 계속)."""
+    import time as _t
+    if c is None:
+        return ()
+    if _t.time() - _STAFF_NAMES["t"] < 600:
+        return _STAFF_NAMES["v"]
+    try:
+        rows = c.execute("SELECT name FROM users WHERE COALESCE(is_active,1)=1").fetchall()
+        v = tuple(sorted({(r[0] or "").strip() for r in rows if r and len((r[0] or "").strip()) >= 2}))
+    except Exception:
+        v = ()
+    _STAFF_NAMES.update(t=_t.time(), v=v)
+    return v
+
+
+def assess_risk(from_email, to_email="", subject="", body="", html="", attachments=None,
+                *, from_name="", auth=None, reply_to="", c=None):
+    """규칙기반 위험판별(AI 아님·무료·빠름 · 메일 내용을 밖으로 보내지 않음). 반환 (level 0~3, note).
+    2026-11-16 대표 지시로 판별을 app/mail_guard.py 로 넓힘(인증 결과·흉내 주소·이름 사칭·답장 주소·링크 속임·
+    매크로/HTML/압축 첨부·송금 계좌 변경). 3=위험(차단함 격리) / 2=의심(경고·링크 무력화) / 1=외부 / 0=사내."""
+    try:
+        from . import mail_guard as _mg
+        return _mg.assess(from_email=from_email, from_name=from_name, subject=subject, body=body, html=html,
+                          attachments=attachments, auth=auth, reply_to=reply_to, staff_names=_staff_names(c))
+    except Exception:
+        pass
+    # ↓ 새 판별이 실패하면 옛 규칙으로(저장은 막지 않는다)
     notes = []
     addr = _norm_addr(from_email)
     dom = addr.split("@")[-1] if "@" in addr else ""
@@ -302,7 +330,7 @@ def assess_risk(from_email, to_email="", subject="", body="", html="", attachmen
 def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = "",
                   subject: str = "", text: str = "", html: str = "", cc: str = "",
                   size=0, owner_id=None, run_ai: bool = True, attachments=None,
-                  message_id: str = ""):
+                  message_id: str = "", auth=None, reply_to: str = ""):
     """받은 메일 1건 저장. 반환 (mail_id, owner_id).
     owner_id 미지정 시 to_email 로 수신자 해석. 수신자 없으면 (None, None).
     attachments: parse_raw_email 이 만든 [{filename,mime,size,content_id,inline,data}, ...]."""
@@ -344,7 +372,16 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     # 보안: 차단목록 격리 + 규칙기반 위험판별 (대표 지시 2026-06-19)
     _ensure_security_cols(c)
     _blocked = 1 if is_sender_blocked(c, from_email) else 0
-    _rlevel, _rnote = assess_risk(from_email, to_email, subject, body, html, attachments)
+    _rlevel, _rnote = assess_risk(from_email, to_email, subject, body, html, attachments,
+                                  from_name=from_name, auth=auth, reply_to=reply_to, c=c)
+    # 2026-11-16: 위험(3) = 차단함으로 격리(지우지 않음 · 차단함에서 복구 가능)
+    #   증거가 강한 경우만(우리 회사 흉내 주소 · 우리 주소 인증 실패 · 위장 실행파일 · 회사 밖 실행파일) — 정상 메일을 숨기지 않게
+    try:
+        from . import mail_guard as _mg
+        if _mg.should_quarantine(from_email, attachments, auth, _rlevel):
+            _blocked = 1
+    except Exception:
+        pass
     cur = c.execute(
         """INSERT INTO mail_messages
            (user_id, direction, from_email, from_name, to_email, cc,
@@ -1021,6 +1058,13 @@ def parse_raw_email(raw) -> dict:
     to_addr = parseaddr(_h("To"))[1] or _h("To")
     cc = _h("Cc")
     message_id = str(msg.get("Message-ID") or msg.get("Message-Id") or "").strip().strip("<>").strip()
+    # 스팸·피싱 판별 재료(2026-11-16): 메일 서버가 붙인 인증 결과 · 답장 주소
+    try:
+        from . import mail_guard as _mg
+        _auth = _mg.parse_auth_results([_recover8(str(v)) for v in (msg.get_all("Authentication-Results") or [])])
+    except Exception:
+        _auth = {}
+    reply_to = parseaddr(_h("Reply-To"))[1]
 
     text, html, atts = "", "", []
     if msg.is_multipart():
@@ -1074,7 +1118,7 @@ def parse_raw_email(raw) -> dict:
     return {
         "from_email": from_addr, "from_name": from_name, "to_email": to_addr,
         "subject": subject, "text": body, "html": html, "cc": cc, "attachments": atts,
-        "message_id": message_id,
+        "message_id": message_id, "auth": _auth, "reply_to": reply_to,
     }
 
 
@@ -1246,7 +1290,7 @@ def strip_remote_refs(html: str) -> str:
     return s
 
 
-def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
+def sanitize_html_for_view(html: str, mail_id: int, inline_atts, defang: bool = False) -> str:
     """받은 메일 HTML 을 '격리 iframe' 안에서 보여줄 안전 HTML 로 정리.
     - 스크립트/폼/임베드 등 위험 태그 제거, on* 이벤트·javascript: 스킴 제거.
     - 인라인 이미지(src="cid:...")는 우리 서버(/mail/{id}/att/{att_id})로 치환 → 서명 로고 표시.
@@ -1304,6 +1348,13 @@ def sanitize_html_for_view(html: str, mail_id: int, inline_atts) -> str:
                 'font-family:sans-serif">\U0001F5BC 이미지</span>')
 
     s = re.sub(r"(?is)<img\b[^>]*>", _img_sub, s)
+    if defang:
+        # 의심·위험 메일: 링크를 누를 수 없게(실제 주소는 마우스를 올리면 보임) — 2026-11-16
+        try:
+            from . import mail_guard as _mg
+            s = _mg.defang_links_html(s)
+        except Exception:
+            pass
     return s
 
 
