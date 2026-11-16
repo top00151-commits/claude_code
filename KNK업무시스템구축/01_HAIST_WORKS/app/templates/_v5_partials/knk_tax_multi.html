@@ -10,18 +10,28 @@
 #}
 <style>
 /* .ti-pop.ti-mpop — 작업일정표 CSS 의 .ti-pop{width:296px}(뒤에 읽힘)를 이기게 두 클래스로(실측: 폭이 296 으로 돌아가 금액이 잘림) */
+/* z1191z29 (대표 2026-11-16): 오른쪽 아래 모서리로 크기 조절(resize) · 처음엔 설명 칸까지 다 보이는 폭 · 높이는 내용대로(화면보다 길면 창 안 스크롤) */
 .ti-pop.ti-mpop { position:absolute; z-index:9999; background:#fff; border:1px solid #94a3b8; border-radius:9px; box-shadow:0 10px 30px rgba(0,0,0,0.24);
-  padding:12px 14px; width:408px; max-width:calc(100vw - 16px); box-sizing:border-box; font-size:12.5px; color:#0f172a; }
+  padding:12px 14px; width:660px; max-width:calc(100vw - 16px); max-height:calc(100vh - 16px); box-sizing:border-box; font-size:12.5px; color:#0f172a;
+  resize:both; overflow:auto; min-width:380px; min-height:220px; }
 .ti-mpop .ti-pop-ttl { font-weight:800; font-size:13px; margin-bottom:8px; line-height:1.35; cursor:move; }
 .ti-mpop .ti-pop-ttl small { font-weight:600; color:#64748b; font-size:11px; }
 .ti-mpop .ti-m-head { display:flex; justify-content:space-between; gap:8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:5px 8px; margin-bottom:8px; }
 .ti-mpop .ti-m-head b { color:#0f172a; }
-.ti-mpop .ti-m-list { max-height:min(46vh, 360px); overflow-y:auto; }
+.ti-mpop .ti-m-list { }   /* z1191z29: 목록 높이 제한 없앰(창이 내용대로 · 창 크기는 손으로 조절) */
+.ti-mpop .ti-m-hd { display:flex; align-items:center; gap:6px; margin:0 0 3px; font-size:10.5px; font-weight:700; color:#64748b; }
+.ti-mpop .ti-m-hd .h-n { width:34px; flex:none; }
+.ti-mpop .ti-m-hd .h-c { width:9px; flex:none; }
+.ti-mpop .ti-m-hd .h-a { flex:1 1 110px; width:0; text-align:right; padding-right:8px; }
+.ti-mpop .ti-m-hd .h-d { flex:0 0 118px; }
+.ti-mpop .ti-m-hd .h-m { flex:2 1 170px; width:0; }
+.ti-mpop .ti-m-hd .h-x { width:22px; flex:none; }
 .ti-mpop .ti-m-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
 .ti-mpop .ti-m-n { width:34px; flex:none; font-weight:800; color:#475569; text-align:right; }
 .ti-mpop .ti-m-cur { flex:none; color:#475569; font-weight:800; }
 .ti-mpop .ti-m-row input { min-width:0; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font:inherit; font-size:12.5px; box-sizing:border-box; }
-.ti-mpop .ti-m-row input.ti-m-a { flex:1 1 auto; width:0; text-align:right; }
+.ti-mpop .ti-m-row input.ti-m-a { flex:1 1 110px; width:0; text-align:right; }
+.ti-mpop .ti-m-row input.ti-m-m { flex:2 1 170px; width:0; }   /* z1191z29: 설명(발행 참고 · 300자) */
 .ti-mpop .ti-m-row input.ti-m-d { flex:0 0 118px; width:118px; }   /* 2026-09-18 이 다 보이게(실측: 40% 는 끝자리가 잘림) */
 .ti-mpop .ti-m-x { flex:none; border:0; background:transparent; color:#94a3b8; cursor:pointer; font-size:14px; padding:2px 4px; }
 .ti-mpop .ti-m-x:hover { color:#b0271f; }
@@ -44,6 +54,7 @@
 .ti-more { font-size:10.5px; font-weight:700; color:#6d28d9; margin-top:1px; white-space:normal; line-height:1.3; }
 .ti-more .ti-sum { white-space:nowrap; }   /* 좁은 칸이면 「합 ₩…」을 통째로 다음 줄로(잘리지 않게 · 실측 ₩5,605,600,0… 잘림) */
 .ti-cell .ti-a { color:#1d4ed8; font-weight:700; }   /* 상세 호기 표(예전 칸과 같은 글자색) */
+.ti-mk { font-size:11px; margin-left:2px; cursor:help; }   /* z1191z29: 설명 있음 */
 .ti-n { display:inline-block; font-size:10px; font-weight:800; color:#475569; background:#e2e8f0; border-radius:4px; padding:0 4px; margin-bottom:1px; }
 </style>
 <script>
@@ -54,6 +65,7 @@
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
   function dcol(n){ return n === 1 ? 'tax_invoice_date' : 'tax_invoice_date' + n; }
   function acol(n){ return 'tax_invoice_amt' + n; }
+  function mcol(n){ return 'tax_invoice_memo' + n; }   // z1191z29: 차수별 설명
   function num(v){ if (v === null || v === undefined || v === '') return null; var x = Number(String(v).replace(/,/g, '')); return isNaN(x) ? null : x; }
   function money(v, ccy){
     var n = Number(v); if (isNaN(n)) return '';
@@ -69,20 +81,22 @@
     var y = +s.slice(0,4), m = +s.slice(5,7), d = +s.slice(8,10), dt = new Date(y, m-1, d);
     return dt.getFullYear() === y && dt.getMonth() === m-1 && dt.getDate() === d;
   }
-  /* data-tis 글 → [[발행일, 금액|null], …] (차수 1..max) */
+  /* data-tis 글 → [[발행일, 금액|null, 설명], …] (차수 1..max) · z1191z29: 설명 */
   function parse(s, max){
     var a = []; try { a = JSON.parse(s || '[]') || []; } catch (e) { a = []; }
     var out = [];
-    for (var i = 0; i < (max || a.length); i++){ var t = a[i] || ['', null]; out.push([String(t[0] || '').slice(0,10), num(t[1])]); }
+    for (var i = 0; i < (max || a.length); i++){ var t = a[i] || ['', null, '']; out.push([String(t[0] || '').slice(0,10), num(t[1]), String(t[2] || '')]); }
     return out;
   }
   /* 객체(호기 JSON 등)의 tax_invoice_date / tax_invoice_dateN / tax_invoice_amtN 칸 → tis */
   function fromObj(o, max){
     var out = [];
-    for (var n = 1; n <= max; n++){ out.push([String((o && o[dcol(n)]) || '').slice(0,10), num(o && o[acol(n)])]); }
+    for (var n = 1; n <= max; n++){ out.push([String((o && o[dcol(n)]) || '').slice(0,10), num(o && o[acol(n)]), String((o && o[mcol(n)]) || '')]); }
     return out;
   }
   function filled(t){ return !!(t && (t[0] || (t[1] !== null && t[1] !== 0))); }
+  function hasMemo(tis){ return (tis || []).some(function(t){ return t && t[2]; }); }   // z1191z29
+  var MK = '<span class="ti-mk" title="설명 있음 — 눌러서 보기">📝</span>';
   function stats(tis){
     var n = 0, s = 0, first = null;
     tis.forEach(function(t, i){ if (filled(t)){ n++; s += (t[1] || 0); if (first === null) first = i; } });
@@ -90,7 +104,7 @@
   }
   /* 칸 표시 — main._ti_cell_html 과 같은 모양 */
   function cellHtml(tis, ccy, isExp, bundles){
-    var st = stats(tis); if (!st.count) return '＋';
+    var st = stats(tis); if (!st.count) return '＋' + (hasMemo(tis) ? MK : '');
     var i = st.first, t = tis[i], h = '';
     if (isExp) h += '<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>';
     var b = bundles && bundles['1'];
@@ -101,11 +115,12 @@
       h += '<div class="ti-d">' + esc(t[0] || '–') + '</div><div class="ti-a">' + (t[1] ? esc(money(t[1], ccy)) : '') + '</div>';
     }
     if (st.count > 1) h += '<div class="ti-more">＋' + (st.count - 1) + '장 · <span class="ti-sum">합 ' + esc(money(st.sum, ccy)) + '</span></div>';
+    if (hasMemo(tis)) h += MK;   // z1191z29
     return h;
   }
   function title(tis, ccy, max){
     var ln = [];
-    tis.forEach(function(t, i){ if (filled(t)) ln.push((i + 1) + '차 ' + (t[0] || '–') + ' ' + (t[1] ? money(t[1], ccy) : '')); });
+    tis.forEach(function(t, i){ if (filled(t) || t[2]) ln.push((i + 1) + '차 ' + (t[0] || '–') + ' ' + (t[1] ? money(t[1], ccy) : '') + (t[2] ? ' — ' + t[2] : '')); });
     if (!ln.length) return '세금계산서 — 눌러서 발행일·금액 입력(최대 ' + max + '장)';
     ln.push('합계 ' + money(stats(tis).sum, ccy) + ' — 눌러서 보기·추가');
     return ln.join('\n');
@@ -116,13 +131,16 @@
           sameday(n, date) → knkTaxSameDay 조회 조건|null, save(field, value) → Promise, onSaved(newTis), onClose(), onBundle(id)} */
   function open(o){
     var max = o.max || 10, ccy = (o.ccy || 'KRW').toUpperCase(), sym = SYM[ccy] || ccy;
-    var orig = (o.tis || []).slice(0, max); while (orig.length < max) orig.push(['', null]);
+    var orig = (o.tis || []).slice(0, max).map(function(t){ return [t[0] || '', (t[1] === undefined ? null : t[1]), t[2] || '']; });
+    while (orig.length < max) orig.push(['', null, '']);
     var bundles = o.bundles || {}, total = (o.total === null || o.total === undefined || o.total === '') ? null : Number(o.total);
     var eps = (ccy === 'KRW') ? 0.5 : 0.005;
     var kind = o.isExp ? '인보이스 (수출)' : '세금계산서';
     var pop = document.createElement('div'); pop.className = 'ti-pop ti-mpop';
     pop.innerHTML = '<div class="ti-pop-ttl">' + kind + ' 발행 <small>(최대 ' + max + '장 · ＋로 한 장씩)</small></div>'
       + (total !== null ? '<div class="ti-m-head"><span>' + (o.totalLabel || '수주금액') + '</span><b>' + esc(money(total, ccy)) + '</b></div>' : '')
+      + '<div class="ti-m-hd"><span class="h-n"></span><span class="h-c"></span><span class="h-a">금액</span><span class="h-d">발행일</span>'
+      + '<span class="h-m">설명 (발행 때 참고할 내용)</span><span class="h-x"></span></div>'   // z1191z29
       + '<div class="ti-m-list"></div>'
       + '<button type="button" class="ti-m-add">＋ ' + kind + ' 추가</button>'
       + '<div class="ti-m-sum"><span>발행 합계 <b class="ti-m-s"></b></span><span class="ti-m-r"></span></div>'
@@ -135,15 +153,18 @@
     document.body.appendChild(pop);
     var list = pop.querySelector('.ti-m-list'), addBtn = pop.querySelector('.ti-m-add');
     var cleared = {};   // ✕ 로 지운 차수(저장 때 빈 값으로)
+    // z1191z29: 외화는 소수 둘째 자리까지 보이게(33840.4 → 33,840.40) · 원화는 그대로
+    function fmtInit(a){ var s = (ccy !== 'KRW') ? (Math.round(Number(a) * 100) / 100).toFixed(2) : String(a);
+      return window.knkFmtAmtTyping ? window.knkFmtAmtTyping(s) : s; }
 
     function rowEl(n){ return list.querySelector('.ti-m-row[data-n="' + n + '"]'); }
     function shown(){ return Array.prototype.map.call(list.querySelectorAll('.ti-m-row'), function(r){ return +r.dataset.n; }); }
     function curVal(n){
       var r = rowEl(n);
-      if (!r) return cleared[n] ? ['', null] : orig[n-1];
+      if (!r) return cleared[n] ? ['', null, ''] : orig[n-1];
       if (r.classList.contains('bundle')) return orig[n-1];
       var a = window.knkAmtToRaw ? window.knkAmtToRaw(r.querySelector('.ti-m-a').value) : String(r.querySelector('.ti-m-a').value || '').replace(/[^0-9.\-]/g, '');
-      return [(r.querySelector('.ti-m-d').value || '').trim(), num(a)];
+      return [(r.querySelector('.ti-m-d').value || '').trim(), num(a), (r.querySelector('.ti-m-m').value || '').trim().slice(0, 300)];   // z1191z29: 설명
     }
     function refreshSum(){
       var s = 0, any = false;
@@ -172,14 +193,15 @@
       var r = document.createElement('div'); r.className = 'ti-m-row' + (b ? ' bundle' : ''); r.dataset.n = n;
       if (b){
         r.innerHTML = '<span class="ti-m-n">' + n + '차</span><span class="ti-m-bt">📄 #' + esc(b.no || '') + ' 묶어 발행 · '
-          + esc(val[0] || '–') + (val[1] !== null ? ' · ' + esc(money(val[1], ccy)) : '') + '</span>'
+          + esc(val[0] || '–') + (val[1] !== null ? ' · ' + esc(money(val[1], ccy)) : '') + (val[2] ? ' · 📝 ' + esc(val[2]) : '') + '</span>'
           + '<button type="button" class="ti-m-bv">구성 보기</button>';
         r.querySelector('.ti-m-bv').addEventListener('click', function(){ if (o.onBundle) o.onBundle(b.id); });
       } else {
         var dis = o.locked ? ' disabled' : '';
         r.innerHTML = '<span class="ti-m-n">' + n + '차</span><span class="ti-m-cur">' + esc(sym) + '</span>'
-          + '<input type="text" class="ti-m-a" inputmode="decimal" placeholder="금액" value="' + (val[1] !== null ? esc(window.knkFmtAmtTyping ? window.knkFmtAmtTyping(String(val[1])) : val[1]) : '') + '"' + dis + '>'
+          + '<input type="text" class="ti-m-a" inputmode="decimal" placeholder="금액" value="' + (val[1] !== null ? esc(fmtInit(val[1])) : '') + '"' + dis + '>'
           + '<input type="date" class="ti-m-d knk-cal" placeholder="발행일" value="' + esc(val[0] || '') + '"' + dis + '>'
+          + '<input type="text" class="ti-m-m" maxlength="300" placeholder="설명 (예: 선적 후 발행 · 담당 확인)" value="' + esc(val[2] || '') + '"' + dis + '>'
           + (o.locked ? '' : '<button type="button" class="ti-m-x" title="이 차수 지우기(저장해야 반영)">✕</button>');
         var ai = r.querySelector('.ti-m-a'), di = r.querySelector('.ti-m-d');
         if (window.knkAttachAmt) window.knkAttachAmt(ai);
@@ -190,7 +212,7 @@
         var x = r.querySelector('.ti-m-x');
         if (x) x.addEventListener('click', function(){
           cleared[n] = true; r.remove();
-          if (!list.querySelector('.ti-m-row')) addRow(1, ['', null], true);   // 빈 1차 줄(그 줄 값 = 빈 값으로 저장)
+          if (!list.querySelector('.ti-m-row')) addRow(1, ['', null, ''], true);   // 빈 1차 줄(그 줄 값 = 빈 값으로 저장)
           refreshSum();
         });
         if (window.KnkCal && KnkCal.attach) { try { KnkCal.attach(di); } catch (e) {} }
@@ -203,7 +225,7 @@
     }
     // 처음 보이는 줄 = 값이 있는 차수 전부(없으면 1차 하나)
     var any = false;
-    for (var n = 1; n <= max; n++){ if (filled(orig[n-1]) || bundles[String(n)]){ addRow(n, orig[n-1], false); any = true; } }
+    for (var n = 1; n <= max; n++){ if (filled(orig[n-1]) || orig[n-1][2] || bundles[String(n)]){ addRow(n, orig[n-1], false); any = true; } }   // z1191z29: 설명만 적은 차수도
     if (!any){
       var v1 = orig[0].slice();
       if (o.prefill1 && v1[1] === null && total !== null && total !== 0) v1[1] = Math.round(total * 100) / 100;   // z469: 1차 기본 = 수주금액
@@ -218,7 +240,7 @@
       var s = 0; for (var k = 1; k <= max; k++){ var v = curVal(k); if (v[1] !== null) s += v[1]; }
       var left = (total !== null && total !== 0) ? Math.round((total - s) * 100) / 100 : null;
       delete cleared[nx];
-      addRow(nx, ['', (left !== null && Math.abs(left) >= eps) ? left : null], true);   // 남은 금액을 미리 채움(고쳐 써도 됨)
+      addRow(nx, ['', (left !== null && Math.abs(left) >= eps) ? left : null, ''], true);   // 남은 금액을 미리 채움(고쳐 써도 됨)
       refreshSum();
     });
     refreshSum();
@@ -249,6 +271,7 @@
         var od = orig[n-1][0] || '', oa = orig[n-1][1];
         if ((v[0] || '') !== od) jobs.push([dcol(n), v[0] || '']);
         if (!((v[1] === null && oa === null) || (v[1] !== null && oa !== null && Math.abs(v[1] - oa) < 1e-9))) jobs.push([acol(n), v[1] === null ? '' : String(v[1])]);
+        if ((v[2] || '') !== (orig[n-1][2] || '')) jobs.push([mcol(n), v[2] || '']);   // z1191z29: 설명 — 바뀐 차수만 보낸다(안 고친 설명은 그대로)
       }
       if (!jobs.length){ close(); return; }
       sv.disabled = true;
@@ -269,6 +292,6 @@
       t.style.cssText = 'position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:#1f2937;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:100070;';
       document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 2200); } catch (e) {}
   }
-  window.knkTaxMulti = {open:open, parse:parse, fromObj:fromObj, cellHtml:cellHtml, title:title, stats:stats, dcol:dcol, acol:acol, money:money};
+  window.knkTaxMulti = {open:open, parse:parse, fromObj:fromObj, cellHtml:cellHtml, title:title, stats:stats, dcol:dcol, acol:acol, mcol:mcol, money:money};
 })();
 </script>

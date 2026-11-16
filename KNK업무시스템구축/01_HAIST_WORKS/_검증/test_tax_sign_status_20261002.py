@@ -317,7 +317,7 @@ env = {"db_session": lambda: _NoClose(), "date": date, "datetime": datetime, "ti
        "ctx": lambda req, tpl, **kw: kw, "RedirectResponse": lambda *a, **k: None,
        "Request": object, "HTMLResponse": object}
 WANT = {"sales_shipments_receipts_page", "_board_tax_oi_map", "_board_in_frag", "_fmt_money", "_sr_bill_state",
-        "_ti_dcol", "_ti_acol"}   # z1191z24: 차수 칸 이름 함수(1~10차)
+        "_ti_dcol", "_ti_acol", "_ti_mcol"}   # z1191z24: 차수 칸 이름 함수(1~10차) · z1191z29: 설명 칸
 got_fn = set()
 for n in tree.body:
     if isinstance(n, ast.Assign) and any(getattr(t, "id", "") in ("_CCY_SYMBOL", "_TI_MAX") for t in n.targets):   # z1191z24
@@ -325,7 +325,7 @@ for n in tree.body:
     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in WANT:
         exec(compile(ast.get_source_segment(main_src, n), n.name, "exec"), env)
         got_fn.add(n.name)
-chk("화면 함수와 딸린 함수 원문 추출(z1191z24: 차수 함수 2개 포함 7개)", got_fn == WANT, WANT - got_fn)
+chk("화면 함수와 딸린 함수 원문 추출(z1191z24·z29: 차수 함수 3개 포함 8개)", got_fn == WANT, WANT - got_fn)
 
 
 class _Req:

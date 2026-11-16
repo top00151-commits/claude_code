@@ -484,6 +484,15 @@ _TI_DCOLS = tuple(_ti_dcol(_n) for _n in range(1, _TI_MAX + 1))
 _TI_ACOLS = tuple(_ti_acol(_n) for _n in range(1, _TI_MAX + 1))
 
 
+def _ti_mcol(n):
+    """z1191z29 (대표 2026-11-16): 세금계산서 차수별 「설명」 칸 — 발행 때 참고할 내용 · 나중에 추적 · 작업일정표 찾기에 걸림."""
+    return "tax_invoice_memo%d" % int(n)
+
+
+_TI_MCOLS = tuple(_ti_mcol(_n) for _n in range(1, _TI_MAX + 1))
+_TI_MEMO_MAXLEN = 300
+
+
 def _ti_get(o, k):
     try:
         return o.get(k)
@@ -504,14 +513,15 @@ def _ti_tiers(o, mx=_TI_MAX):
             a = float(str(a).replace(",", "")) if a not in (None, "") else None
         except (TypeError, ValueError):
             a = None
-        out.append({"n": n, "d": d, "a": a})
+        m = str(_ti_get(o, _ti_mcol(n)) or "").strip()   # z1191z29: 설명
+        out.append({"n": n, "d": d, "a": a, "m": m})
     return out
 
 
 def _ti_json(o, mx=_TI_MAX):
-    """data-tis 속성 — [[발행일, 금액|null], …](차수 1..mx 순서). 입력 창(knkTaxMulti)이 읽는다."""
+    """data-tis 속성 — [[발행일, 금액|null, 설명], …](차수 1..mx 순서). 입력 창(knkTaxMulti)이 읽는다. z1191z29: 설명 추가."""
     import json as _json_z24
-    return _json_z24.dumps([[t["d"], t["a"]] for t in _ti_tiers(o, mx)], ensure_ascii=False)
+    return _json_z24.dumps([[t["d"], t["a"], t["m"]] for t in _ti_tiers(o, mx)], ensure_ascii=False)
 
 
 def _ti_bundle_json(ti_map, sig):
@@ -532,7 +542,8 @@ def _ti_cell_html(o, ccy="KRW", is_exp=False, mx=_TI_MAX, bundle=None):
     from markupsafe import Markup, escape
     ts = [t for t in _ti_tiers(o, mx) if t["d"] or t["a"]]
     if not ts:
-        return Markup("＋")
+        return Markup("＋" + ('<span class="ti-mk" title="설명 있음 — 눌러서 보기">📝</span>'
+                              if any(t["m"] for t in _ti_tiers(o, mx)) else ""))   # z1191z29
     f, h = ts[0], ""
     if is_exp:
         h += '<span class="ti-inv" title="수출 — 인보이스 발행 금액(세금계산서 아님)">INV</span>'
@@ -546,15 +557,18 @@ def _ti_cell_html(o, ccy="KRW", is_exp=False, mx=_TI_MAX, bundle=None):
         h += '<div class="ti-a">%s</div>' % (escape(_fmt_money(f["a"], ccy)) if f["a"] else "")
     if len(ts) > 1:
         h += '<div class="ti-more">＋%d장 · <span class="ti-sum">합 %s</span></div>' % (len(ts) - 1, escape(_fmt_money(sum((t["a"] or 0) for t in ts), ccy)))
+    if any(t["m"] for t in _ti_tiers(o, mx)):   # z1191z29: 설명이 있으면 📝(내용은 풍선 도움말·입력 창)
+        h += '<span class="ti-mk" title="설명 있음 — 눌러서 보기">📝</span>'
     return Markup(h)
 
 
 def _ti_title(o, ccy="KRW", mx=_TI_MAX):
     """칸 풍선 도움말 — 1차 2026-09-16 ₩371,200,000 / 2차 … / 합계 …"""
-    ts = [t for t in _ti_tiers(o, mx) if t["d"] or t["a"]]
+    ts = [t for t in _ti_tiers(o, mx) if t["d"] or t["a"] or t["m"]]   # z1191z29: 설명만 있는 차수도
     if not ts:
         return "세금계산서 — 눌러서 발행일·금액 입력(최대 %d장)" % mx
-    ln = ["%d차 %s %s" % (t["n"], t["d"] or "–", _fmt_money(t["a"], ccy) if t["a"] else "") for t in ts]
+    ln = ["%d차 %s %s%s" % (t["n"], t["d"] or "–", _fmt_money(t["a"], ccy) if t["a"] else "",
+                             (" — " + t["m"]) if t["m"] else "") for t in ts]
     ln.append("합계 %s — 눌러서 보기·추가" % _fmt_money(sum((t["a"] or 0) for t in ts), ccy))
     return "\n".join(ln)
 
@@ -31135,7 +31149,8 @@ def _board_tax_oi_map(pids=None):
                 f"{_oiC('statement_date')} AS i_st, {_oC('statement_date')} AS o_st, "
                 # z1191z24: 차수 1~10 — 수주(orders) 칸은 1~3차뿐이라 4차 이상은 NULL(호기 값만)
                 + ", ".join(f"{_oiC(_ti_dcol(_n))} AS i_d{_n}, {_oiC(_ti_acol(_n))} AS i_a{_n}, "
-                            f"{_oC(_ti_dcol(_n))} AS o_d{_n}, {_oC(_ti_acol(_n))} AS o_a{_n}" for _n in range(1, _TI_MAX + 1)) + " "
+                            f"{_oC(_ti_dcol(_n))} AS o_d{_n}, {_oC(_ti_acol(_n))} AS o_a{_n}, "
+                            f"{_oiC(_ti_mcol(_n))} AS i_m{_n}" for _n in range(1, _TI_MAX + 1)) + " "   # z1191z29: 설명(호기 값만)
                 "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
                 "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'"
                 + _board_in_frag("o.project_id", pids) +   # v5H226z864: 월 보기 프리필터
@@ -31169,6 +31184,7 @@ def _board_tax_oi_map(pids=None):
                 for _n in range(1, _TI_MAX + 1):   # z1191z24: 차수 1~10
                     _om["t%dd" % _n] = _rd("i_d%d" % _n, "o_d%d" % _n)
                     _om["t%da" % _n] = _ra("i_a%d" % _n, "o_a%d" % _n)
+                    _om["t%dm" % _n] = str(r.get("i_m%d" % _n) or "").strip()   # z1191z29: 설명
                 oi_map[r["iid"]] = _om
                 if r.get("pid"):
                     proj_iids.setdefault(r["pid"], []).append(r["iid"])
@@ -31231,6 +31247,13 @@ def _inject_oi_tax_into_rows(rows, oi_map, proj_iids):
             _row["_ti_a%d" % _n] = _an
             if _n >= 2:
                 _row["_ti_d%d" % _n] = _dn
+            # z1191z29: 설명 = 그 줄 호기들의 설명(같으면 하나 · 다르면 「 / 」로 이어 붙임)
+            _ms = []
+            for _iid in iids:
+                _mm = (oi_map.get(_iid) or {}).get("t%dm" % _n) or ""
+                if _mm and _mm not in _ms:
+                    _ms.append(_mm)
+            _row[_ti_mcol(_n)] = " / ".join(_ms)
 
 
 # ─── v5H226z662 (대표 지시·A안): 작업일정표 ↔ 수주내역 상세 '세금계산서' 표시 단일화 ──────────
@@ -31481,6 +31504,8 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
         except Exception:
             return None
 
+    _tmm29 = _ti_memo_maps() if _can_money else None   # z1191z29: 세금계산서 설명 찾기(매출 권한일 때만)
+
     def _mk_row(info, od, dd, status, kind):
         s, e = (od or dd), (dd or od)
         if not s and not e:
@@ -31642,12 +31667,12 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["note_blob"] = _ln.get("find_note") or ""   # z1191z12: 찾기용 비고(부품 비고·잘린 비고 포함)
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
-                if _ru and _sched_cust_hit(_ru, cust):
+                if _ru and _sched_cust_hit(_ti_memo_attach(_ru, _tmm29), cust):   # z1191z29
                     rows.append(_ru)
         else:
             _eff_st = _board_agg_status(_bus_proj.get(p.get("id")) or []) or p.get("status")
             _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
-            if _r and _sched_cust_hit(_r, cust):
+            if _r and _sched_cust_hit(_ti_memo_attach(_r, _tmm29), cust):   # z1191z29
                 rows.append(_r)
     try:
         from . import consumables as _co_mod
@@ -31686,7 +31711,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
             _r = _mk_row(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")),
                          _co_map.get(cr.get("status") or "DRAFT", "초기협의"), "consumable")
-            if _r and _sched_cust_hit(_r, cust):
+            if _r and _sched_cust_hit(_ti_memo_attach(_r, _tmm29), cust):   # z1191z29
                 rows.append(_r)
     except Exception:
         pass
@@ -32906,7 +32931,76 @@ def _co_parts_blob_map():
 
 _SCHED_FIND_KEYS_Z12 = ("code", "name", "model", "equip", "customer", "customer_disp", "so_no", "parts_blob",
                         "note", "note_blob", "cust2", "dept", "owner", "contact", "ship_to", "sales_owner",
-                        "trade", "po_type", "form_type", "order_date", "due_date")
+                        "trade", "po_type", "form_type", "order_date", "due_date",
+                        "ti_memo_blob")   # z1191z29: 세금계산서 설명(매출 권한일 때만 붙음 · _ti_memo_attach)
+
+
+def _ti_memo_maps():
+    """z1191z29 (대표 2026-11-16 「검색을 했을 때도 찾을 수 있게」): 세금계산서 설명 찾기용 —
+    {"iid": {호기: 글}, "pid": {프로젝트: 글}, "co": {소모품: 글}} · 설명이 있는 것만(한 번 읽어 줄마다 붙인다)."""
+    out = {"iid": {}, "pid": {}, "co": {}}
+    try:
+        with db_session() as c:
+            oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            mc = [m for m in _TI_MCOLS if m in oic]
+            if mc:
+                sql = ("SELECT oi.id, o.project_id, " + ", ".join("oi." + m for m in mc) +
+                       " FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE COALESCE(o.status,'')<>'CANCELLED' AND (" +
+                       " OR ".join("COALESCE(TRIM(oi.%s),'')<>''" % m for m in mc) + ")")
+                for r in c.execute(sql).fetchall():
+                    ms = []
+                    for v in r[2:]:
+                        v = str(v or "").strip()
+                        if v and v not in ms:
+                            ms.append(v)
+                    out["iid"][r[0]] = " ".join(ms)
+                    pl = out["pid"].setdefault(r[1], [])
+                    for v in ms:
+                        if v not in pl:
+                            pl.append(v)
+                out["pid"] = {k: " ".join(v) for k, v in out["pid"].items()}
+            coc = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
+            cmc = [m for m in _TI_MCOLS[:_TI_MAX_CONS] if m in coc]
+            if cmc:
+                for r in c.execute("SELECT id, " + ", ".join(cmc) + " FROM consumable_orders WHERE " +
+                                   " OR ".join("COALESCE(TRIM(%s),'')<>''" % m for m in cmc)).fetchall():
+                    ms = []
+                    for v in r[1:]:
+                        v = str(v or "").strip()
+                        if v and v not in ms:
+                            ms.append(v)
+                    out["co"][r[0]] = " ".join(ms)
+    except Exception as _e:
+        try:
+            print(f"[z1191z29] 세금계산서 설명 찾기 지도 실패: {_e!r}")
+        except Exception:
+            pass
+    return out
+
+
+def _ti_memo_attach(row, maps):
+    """z1191z29: 줄(작업일정표)에 그 줄 세금계산서 설명 묶음(ti_memo_blob)을 붙여 돌려준다 — 「찾기」 전에.
+    maps=None(매출 권한 없음)이면 안 붙인다. 호기 분할 줄 = 그 호기들 · 그 밖 프로젝트 줄 = 그 프로젝트 · 소모품 = 그 소모품."""
+    if not row or not maps:
+        return row
+    try:
+        if row.get("kind") == "consumable":
+            t = maps["co"].get(row.get("ref_id"), "")
+        else:
+            iids = row.get("unit_iids") or []
+            if iids:
+                ms = []
+                for i in iids:
+                    v = maps["iid"].get(int(i), "")
+                    if v and v not in ms:
+                        ms.append(v)
+                t = " ".join(ms)
+            else:
+                t = maps["pid"].get(row.get("ref_id"), "")
+        row["ti_memo_blob"] = t
+    except Exception:
+        pass
+    return row
 
 
 def _sched_cust_hit(row, q):
@@ -33016,6 +33110,8 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
     #   이후 로드(수주맵·호기분할·상태맵·목록·소모품)를 한정. 찾기 전체검색(z862·1900~2999)은 전체(None).
     #   _board_month_pids 실패 시 None = 전체 로드(기존 동작 폴백).
     _pids = _board_month_pids(mstart, mend) if mstart.year > 1901 else None
+
+    _tmm29 = _ti_memo_maps() if _can_money else None   # z1191z29: 세금계산서 설명 찾기(매출 권한일 때만)
 
     def _mk_row(info, od, dd, status, kind):
         """info=표시필드 dict, od/dd=발주·납기, status, kind. 달 겹침·막대 계산 후 dict 반환."""
@@ -33211,12 +33307,12 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 _iu["note_blob"] = _ln.get("find_note") or ""   # z1191z12: 찾기용 비고(부품 비고·잘린 비고 포함)
                 _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
-                if _ru and _sched_cust_hit(_ru, cust):
+                if _ru and _sched_cust_hit(_ti_memo_attach(_ru, _tmm29), cust):   # z1191z29
                     rows.append(_ru)
         else:
             _eff_st = _board_agg_status(_bus_proj.get(p.get("id")) or []) or p.get("status")
             _r = _mk_row(info, _pd(p.get("order_date")), _pd(p.get("due_date")), _eff_st, "project")
-            if _r and _sched_cust_hit(_r, cust):
+            if _r and _sched_cust_hit(_ti_memo_attach(_r, _tmm29), cust):   # z1191z29
                 rows.append(_r)
     # 소모품 일정 (전사 포함)
     try:
@@ -33264,7 +33360,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
             info["st_cur"], info["st_prog_n"] = _st_summary(info["st"])
             _r = _mk_row(info, _pd(cr.get("order_date")), _pd(cr.get("due_date")),
                          _co_map.get(cr.get("status") or "DRAFT", "초기협의"), "consumable")
-            if _r and _sched_cust_hit(_r, cust):
+            if _r and _sched_cust_hit(_ti_memo_attach(_r, _tmm29), cust):   # z1191z29
                 rows.append(_r)
     except Exception:
         pass
@@ -33277,7 +33373,8 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
     _vis_cids = ({r.get("ref_id") for r in rows if r.get("kind") == "consumable"}
                  if _pids is not None else None)
     try:
-        _tf = ["tax_invoice_date2", "tax_invoice_date3", "tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"]
+        _tf = ["tax_invoice_date2", "tax_invoice_date3", "tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3",
+               "tax_invoice_memo1", "tax_invoice_memo2", "tax_invoice_memo3"]   # z1191z29: 소모품 설명(수주 칸엔 없음 → NULL)
         with db_session() as _tc:
             _oc = {r[1] for r in _tc.execute("PRAGMA table_info(orders)").fetchall()}
             _osel = ",".join(f if f in _oc else f"NULL AS {f}" for f in _tf)
@@ -33299,6 +33396,8 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
         _row["tax_invoice_amt1"] = _ti.get("tax_invoice_amt1") or ""
         _row["tax_invoice_amt2"] = _ti.get("tax_invoice_amt2") or ""
         _row["tax_invoice_amt3"] = _ti.get("tax_invoice_amt3") or ""
+        for _mk29 in ("tax_invoice_memo1", "tax_invoice_memo2", "tax_invoice_memo3"):   # z1191z29: 소모품 설명(프로젝트는 아래 호기 집계가 덮음)
+            _row[_mk29] = str(_ti.get(_mk29) or "")
     # v5H226z562 (대표 지시): 프로젝트 행은 호기(order_items) 집계로 덮어씀 — 펼침과 단일 진실 일치.
     #   (orders 직접발행분은 위 _taxmap 폴백으로 보존되며, 호기에 값이 있으면 그게 우선)
     if _can_money:
@@ -33645,7 +33744,8 @@ async def schedule_board_cell(request: Request):
                      "form_type", "statement_date", "tax_invoice_date",
                      # v5H226z467: 세금계산서 3차 분할(발행일 2/3차 + 금액 1/2/3차)
                      "tax_invoice_date2", "tax_invoice_date3",
-                     "tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3"):
+                     "tax_invoice_amt1", "tax_invoice_amt2", "tax_invoice_amt3",
+                     "tax_invoice_memo1", "tax_invoice_memo2", "tax_invoice_memo3"):   # z1191z29: 소모품 설명
         # v5H226z282 / z349(형태) / z365(프로젝트명) / z366(모델·장비·거래구분·PO유형·고객사1) / z367(거래명세서·세금계산서 발행일자) / z467(세금계산서 3차)
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
     # v5H226z277/z367/z467: 단가·금액·발행일자·세금계산서(1/2/3차)는 청구 성격 — 영업·관리 권한만(서버 차단)
@@ -34074,6 +34174,9 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
             # z1191z24: 4~10차(호기 칸)
             _ti4p = " ".join((("oi.%s AS t%dd, oi.%s AS t%da," % (_ti_dcol(_n), _n, _ti_acol(_n), _n)) if _ti_dcol(_n) in _cols
                               else ("'' AS t%dd, NULL AS t%da," % (_n, _n))) for _n in range(4, _TI_MAX + 1))
+            # z1191z29: 설명 1~10차
+            _ti4p += " " + " ".join((("oi.%s AS t%dm," % (_ti_mcol(_n), _n)) if _ti_mcol(_n) in _cols else ("'' AS t%dm," % _n))
+                                    for _n in range(1, _TI_MAX + 1))
             # v5H226z624: 펼침 범위 — 분할(uids) 우선, 없으면 그 행의 수주번호(so_no=order_no)로 한정. 둘 다 없으면 프로젝트 전체(기존)
             _so_filt = (so_no or "").strip()
             _params = [int(ref_id)]
@@ -34131,6 +34234,8 @@ async def schedule_board_units(request: Request, ref_id: int, kind: str = "proje
                     for _n in range(4, _TI_MAX + 1):   # z1191z24: 4~10차
                         _ud[_ti_dcol(_n)] = str(d.get("t%dd" % _n) or "")[:10]
                         _ud[_ti_acol(_n)] = _amt(d.get("t%da" % _n))
+                    for _n in range(1, _TI_MAX + 1):   # z1191z29: 설명
+                        _ud[_ti_mcol(_n)] = str(d.get("t%dm" % _n) or "")
                 units.append(_ud)
             # v5H226z662 (대표 지시·A안): 세금계산서/거래명세서 폴백(묶음 균등분배 + orders 폴백)을
             #   공유 헬퍼로 — 수주내역 상세(_enrich_units_tax)와 '같은 코드'로 채워 두 화면 항상 일치.
@@ -34200,7 +34305,7 @@ async def schedule_board_unit_field(request: Request):
         if _af1173:
             return JSONResponse({"ok": False, "error": _z1173_autofill_msg(_af1173)}, 400)
     # v5H226z483/z484 (대표 지시): 발주일·납품처·통화·거래방식·비고 + 호기별 거래명세서·세금계산서(발행일+금액)
-    _TAX_FIELDS = ("statement_date",) + _TI_DCOLS + _TI_ACOLS   # z1191z24: 세금계산서 차수 1~10
+    _TAX_FIELDS = ("statement_date",) + _TI_DCOLS + _TI_ACOLS + _TI_MCOLS   # z1191z24: 세금계산서 차수 1~10 · z1191z29: 설명
     if field not in (("status", "due_date", "unit_price", "qty", "amount", "order_date", "ship_to", "currency", "is_export", "note") + _TAX_FIELDS):
         return JSONResponse({"ok": False, "error": "bad_field"}, 400)
     # 단가·수량·금액(청구 성격)·거래명세서·세금계산서는 영업·관리만
@@ -34309,6 +34414,9 @@ async def schedule_board_unit_field(request: Request):
                 # v5H226z484: 호기별 발행일(화이트리스트 필드명이라 f-string 안전)
                 c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?",
                           (str(value or "").strip() or None, iid))
+            elif field in _TI_MCOLS:   # z1191z29: 세금계산서 설명(글자 · 300자까지 · 빈값 = 지움)
+                c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?",
+                          ((str(value or "").strip()[:_TI_MEMO_MAXLEN] or None), iid))
             elif field in _TI_ACOLS:   # z1191z24: 1~10차
                 try:
                     av = float(str(value).replace(",", "")) if value not in (None, "") else None
@@ -34464,7 +34572,8 @@ async def schedule_board_row_tax(request: Request):
     uids = b.get("uids") or ""
     _DATE_F = ("statement_date",) + _TI_DCOLS   # z1191z24: 세금계산서 차수 1~10
     _AMT_F = _TI_ACOLS
-    if field not in (_DATE_F + _AMT_F):
+    _MEMO_F = _TI_MCOLS   # z1191z29: 설명(글자) — 그 줄 호기 전체 같은 글
+    if field not in (_DATE_F + _AMT_F + _MEMO_F):
         return JSONResponse({"ok": False, "error": "허용되지 않은 필드"}, 400)
     # z1132 (이새롬 프로 신고): 발행일에 금액 같은 글자가 저장되던 것 차단 — 서버가 마지막 방어선
     if field in _DATE_F and not _logi.date_cell_ok(value):
@@ -34494,7 +34603,12 @@ async def schedule_board_row_tax(request: Request):
             ids = [int(r[0]) for r in tgt]
             if not ids:
                 return JSONResponse({"ok": False, "error": "이 줄에 연결된 호기(수주 품목)가 없습니다"}, 400)
-            if field in _DATE_F:
+            if field in _MEMO_F:   # z1191z29: 설명 = 호기 전체 같은 글(300자까지 · 빈값 = 지움)
+                mv = (str(value or "").strip()[:_TI_MEMO_MAXLEN] or None)
+                _ph = ",".join("?" * len(ids))
+                c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id IN ({_ph})",
+                          [mv] + ids)
+            elif field in _DATE_F:
                 dv = (str(value or "").strip() or None)   # 빈값=발행 취소(NULL)
                 _ph = ",".join("?" * len(ids))
                 c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id IN ({_ph})",

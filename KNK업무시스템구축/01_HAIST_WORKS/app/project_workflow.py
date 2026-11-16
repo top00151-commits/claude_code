@@ -1335,6 +1335,9 @@ def get_project_orders(c, project_id: int) -> list[dict]:
                        "tax_invoice_date6", "tax_invoice_amt6", "tax_invoice_date7", "tax_invoice_amt7",
                        "tax_invoice_date8", "tax_invoice_amt8", "tax_invoice_date9", "tax_invoice_amt9",
                        "tax_invoice_date10", "tax_invoice_amt10",
+                       # z1191z29: 세금계산서 차수별 「설명」
+                       "tax_invoice_memo1", "tax_invoice_memo2", "tax_invoice_memo3", "tax_invoice_memo4", "tax_invoice_memo5",
+                       "tax_invoice_memo6", "tax_invoice_memo7", "tax_invoice_memo8", "tax_invoice_memo9", "tax_invoice_memo10",
                        # v5H226z5: 통관 컬럼
                        "hs_code", "duty_rate", "vat_rate",
                        "invoice_unit_price", "invoice_amount",

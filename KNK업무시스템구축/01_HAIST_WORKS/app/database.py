@@ -3256,7 +3256,9 @@ def init_db():
             # v5H226z467 (대표 지시): 소모품도 세금계산서 3차 분할(계약금/중도금/잔금) — 1차=기존 tax_invoice_date
             for _dc, _typ in (("tax_invoice_amt1", "REAL"), ("tax_invoice_date2", "TEXT"),
                               ("tax_invoice_amt2", "REAL"), ("tax_invoice_date3", "TEXT"),
-                              ("tax_invoice_amt3", "REAL")):
+                              ("tax_invoice_amt3", "REAL"),
+                              # z1191z29: 소모품 세금계산서 차수별 「설명」(1~3차)
+                              ("tax_invoice_memo1", "TEXT"), ("tax_invoice_memo2", "TEXT"), ("tax_invoice_memo3", "TEXT")):
                 if _dc not in cocols:
                     c.execute(f"ALTER TABLE consumable_orders ADD COLUMN {_dc} {_typ}")
                     print(f"[v5H226z467] consumable_orders.{_dc} 컬럼 추가됨")
@@ -3967,6 +3969,17 @@ def init_db():
                 ("tax_invoice_amt9",   "ALTER TABLE order_items ADD COLUMN tax_invoice_amt9 REAL"),
                 ("tax_invoice_date10", "ALTER TABLE order_items ADD COLUMN tax_invoice_date10 TEXT"),
                 ("tax_invoice_amt10",  "ALTER TABLE order_items ADD COLUMN tax_invoice_amt10 REAL"),
+                # z1191z29 (대표 2026-11-16): 세금계산서 차수별 「설명」(발행 때 참고할 내용 · 나중에 추적 · 작업일정표 찾기에 걸림)
+                ("tax_invoice_memo1",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo1 TEXT"),
+                ("tax_invoice_memo2",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo2 TEXT"),
+                ("tax_invoice_memo3",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo3 TEXT"),
+                ("tax_invoice_memo4",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo4 TEXT"),
+                ("tax_invoice_memo5",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo5 TEXT"),
+                ("tax_invoice_memo6",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo6 TEXT"),
+                ("tax_invoice_memo7",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo7 TEXT"),
+                ("tax_invoice_memo8",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo8 TEXT"),
+                ("tax_invoice_memo9",  "ALTER TABLE order_items ADD COLUMN tax_invoice_memo9 TEXT"),
+                ("tax_invoice_memo10", "ALTER TABLE order_items ADD COLUMN tax_invoice_memo10 TEXT"),
                 # v5H226z711 (대표 지시): 작업일정표 달력에서 상태(출하/취소/보류) 선택 시 '발생일' 기록 — 호기별
                 ("status_date",        "ALTER TABLE order_items ADD COLUMN status_date TEXT"),
                 # v5H226z836 (대표 지시): 원 납기(due_date_orig) — 처음 등록 납기 기억. 납기를 뒤로 미루면
@@ -14550,7 +14563,13 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
         "tax_invoice_amt1":  ("tax_invoice_amt1",  "num"),
         "tax_invoice_amt2":  ("tax_invoice_amt2",  "num"),
         "tax_invoice_amt3":  ("tax_invoice_amt3",  "num"),
+        # z1191z29: 차수별 「설명」(글자) — 프로젝트=그 호기 전체 같은 글 · 소모품=그 소모품
+        "tax_invoice_memo1": ("tax_invoice_memo1", "text"),
+        "tax_invoice_memo2": ("tax_invoice_memo2", "text"),
+        "tax_invoice_memo3": ("tax_invoice_memo3", "text"),
     }
+    if field in _TAXINV_FIELDS and _TAXINV_FIELDS[field][1] == "text":
+        val = (str(val or "").strip())[:300]   # z1191z29: 설명은 300자까지
     if field in _TAXINV_FIELDS:
         _col, _ftype = _TAXINV_FIELDS[field]
         # v5H226z562 (대표 지시): 프로젝트 세금계산서 단일 진실 = 호기(order_items). 이 경로(일괄수정 등)도 호기에 적용.
@@ -14565,7 +14584,7 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
                     "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (int(ref_id),)).fetchall()]
                 if not _ids:
                     return (False, "이 프로젝트에 수주(SO) 호기가 없어 세금계산서를 저장할 수 없습니다")
-                if _ftype == "date":
+                if _ftype in ("date", "text"):   # z1191z29: 설명(글자)도 호기 전체 같은 값
                     _store = val or None
                     _ph = ",".join("?" * len(_ids))
                     c.execute(f"UPDATE order_items SET {_col}=? WHERE id IN ({_ph})", [_store] + _ids)
@@ -14584,7 +14603,7 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
                             c.execute(f"UPDATE order_items SET {_col}=? WHERE id=?", (_share + (_rem if _i == 0 else 0), _iid))
             return (True, "")
         # 소모품 = consumable_orders (기존 유지)
-        if _ftype == "date":
+        if _ftype in ("date", "text"):   # z1191z29: 설명(글자)
             _store = val or None   # 빈값 = 발행 취소(NULL)
         else:
             _raw = val.replace(",", "").strip()

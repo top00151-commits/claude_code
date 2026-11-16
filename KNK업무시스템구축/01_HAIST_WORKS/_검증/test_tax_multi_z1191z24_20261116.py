@@ -121,7 +121,7 @@ cls, attrs, inner, H = board_cell("project", P)
 check(inner is not None, "프로젝트 줄 세금계산서 칸이 있다", (H[:300] if inner is None else None))
 if inner is not None:
     tis = json.loads(_html.unescape(re.search(r'data-tis="([^"]*)"', attrs).group(1)))
-    check(len(tis) == 10 and tis[3] == ["2026-09-26", 100000.0] and tis[4] == ["2026-09-30", 100000.0] and tis[5] == ["", None],
+    check(len(tis) == 10 and tis[3] == ["2026-09-26", 100000.0, ""] and tis[4] == ["2026-09-30", 100000.0, ""] and tis[5] == ["", None, ""],   # z1191z29: [발행일, 금액, 설명]
           "data-tis = 10칸 · 4·5차 값 · 6차 빈칸", tis)
     check('data-timax="10"' in attrs and 'data-edit="taxinv1"' in attrs and "editable taxinv-cell" in cls, "프로젝트 줄 상한 10 · 누르면 입력 창(taxinv1)")
     check("2026-09-05" in inner and "₩400,000" in inner and "＋4장 · " in inner and "합 ₩1,000,000" in re.sub(r"<[^>]+>", "", inner), "칸 글 = 1차 날짜·금액 + 「＋4장 · 합 ₩1,000,000」", inner)
@@ -198,6 +198,44 @@ check('<span class="ti-n">2차</span>' in h2 and "$5.00" in h2 and "ti-more" not
 h3 = str(M._ti_cell_html({"tax_invoice_date": "2026-10-01", "tax_invoice_amt1": 7}, "KRW", True, 10, {"id": 3, "no": "12"}))
 check("📄 #12" in h3 and "INV" in h3, "1차 묶어 발행 = 📄 칩 · 수출 = INV", h3)
 check(M._ti_bundle_json({"unit:1,2|2": {"id": 9, "no": "5"}}, "unit:1,2") == '{"2": {"id": 9, "no": "5"}}', "묶음 차수 JSON")
+
+print("§11 z1191z29 세금계산서 「설명」 — 저장 · 다른 저장에 안 지워짐 · 찾기")
+r = rowtax("tax_invoice_memo2", "  선적 후 발행 · 담당 확인  ")
+check(r.status_code == 200 and r.json().get("ok"), "줄 저장(/row-tax) 2차 설명 ok", r.text[:200])
+check([tuple(db1("SELECT tax_invoice_memo2 FROM order_items WHERE id=?", i))[0] for i in (I1, I2)] == ["선적 후 발행 · 담당 확인"] * 2,
+      "2차 설명 = 호기 2대 모두 같은 글(앞뒤 빈칸 정리)")
+rowtax("tax_invoice_amt2", "200000"); rowtax("tax_invoice_date2", "2026-09-13")
+check(tuple(db1("SELECT tax_invoice_memo2 FROM order_items WHERE id=?", I1))[0] == "선적 후 발행 · 담당 확인", "2차 금액·발행일을 다시 저장해도 설명은 그대로")
+r = q(cl.post, "/sales/schedule/unit-field", json={"iid": I1, "field": "tax_invoice_memo5", "value": "x" * 400})
+check(r.status_code == 200 and len(tuple(db1("SELECT tax_invoice_memo5 FROM order_items WHERE id=?", I1))[0]) == 300, "호기 한 칸 저장(5차 설명) · 300자까지만", r.text[:120])
+check(tuple(db1("SELECT tax_invoice_memo5 FROM order_items WHERE id=?", I2))[0] is None, "다른 호기 5차 설명은 그대로(빈칸)")
+q(cl.post, "/sales/schedule/unit-field", json={"iid": I1, "field": "tax_invoice_memo5", "value": ""})
+check(tuple(db1("SELECT tax_invoice_memo5 FROM order_items WHERE id=?", I1))[0] is None, "빈 값 = 설명 지움(NULL)")
+cls, attrs, inner, H = board_cell("project", P)
+tis = json.loads(_html.unescape(re.search(r'data-tis="([^"]*)"', attrs).group(1)))
+check(tis[1][2] == "선적 후 발행 · 담당 확인" and "📝" in inner and "선적 후 발행" in _html.unescape(attrs), "작업일정표 칸 data-tis 에 설명 · 📝 표시 · 풍선 도움말", (tis[1], inner[-80:]))
+m = re.search(r'<tr[^>]*data-kind="project"[^>]*data-ref="%d"[^>]*>' % P, H)
+check(m and "선적 후 발행" in _html.unescape(m.group(0)), "줄 data-find(화면 글자 거르기)에 설명", m.group(0)[-200:] if m else None)
+h2 = q(cl.get, "/sales/schedule?ym=2026-09&cust=" + "담당 확인").text
+check('data-ref="%d"' % P in h2, "「찾기」(전체에서 찾기와 같은 서버 거르기) — 설명 글로 그 줄이 나옴")
+h3 = q(cl.get, "/sales/schedule?ym=2026-09&cust=" + "없는설명글자zz").text
+check('data-ref="%d"' % P not in h3, "없는 글자로는 안 나옴(거르기가 실제로 걸림)")
+j = q(cl.get, "/sales/schedule/units?kind=project&ref_id=%d" % P).json()
+check(all(u.get("tax_invoice_memo2") == "선적 후 발행 · 담당 확인" for u in j.get("units", [])), "펼친 호기 JSON 에 설명")
+h4 = q(cl.get, "/project/%d" % P).text
+check("선적 후 발행 · 담당 확인" in _html.unescape(h4), "프로젝트 상세 호기 표 칸(data-tis)에 설명")
+r = q(cl.post, "/sales/schedule/cell", json={"kind": "consumable", "ref_id": CO, "field": "tax_invoice_memo1", "value": "소모품 설명 시험"})
+check(r.status_code == 200 and r.json().get("ok") and tuple(db1("SELECT tax_invoice_memo1 FROM consumable_orders WHERE id=?", CO))[0] == "소모품 설명 시험",
+      "소모품 1차 설명 저장(/cell)", r.text[:150])
+h5 = q(cl.get, "/sales/schedule?ym=2026-09&cust=" + "소모품 설명").text
+check('data-ref="%d"' % CO in h5, "소모품 설명 글로도 찾아짐")
+_c2, _a2, _i2, _h2 = board_cell("consumable", CO)
+check(_a2 and "소모품 설명 시험" in _html.unescape(_a2), "소모품 줄 data-tis 에 설명")
+with D.db_session() as c:
+    c.execute("UPDATE users SET can_view_sales=0 WHERE id=?", (ADMIN["id"],))
+M.get_user = lambda request: dict(ADMIN, can_view_sales=0, role="staff")
+check(M._ti_memo_attach({"kind": "project", "ref_id": P}, None).get("ti_memo_blob") is None, "매출 권한 없음(maps=None) → 설명을 줄에 안 붙임")
+M.get_user = lambda request: ADMIN
 
 print()
 print("결과: 통과 %d · 실패 %d" % (OK, FAIL))
