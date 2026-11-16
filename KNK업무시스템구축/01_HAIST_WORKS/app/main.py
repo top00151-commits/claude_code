@@ -26923,9 +26923,9 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
     vl = [x for x in lines if x["is_vina"]]
     va = {}
     for x in vl:
-        # z1191z31 (대표 2026-11-16 「1차 고객사만 적혀 있는 건 2차 고객사가 없다는 거야」): 빈칸 = 2차 없음(미입력 경고 아님)
-        k = x["cust2"] or "(2차 없음)"
-        a = va.setdefault(k, {"name": k, "total": 0.0, "cnt": 0, "multi": ("," in k)})
+        # z1191z31b (대표 2026-11-16 「2차고객사가 비어 있으면 당연히 입력된 1차 고객사로 적용」): 빈칸 = 1차 고객사(KNK VINA) 줄로
+        k = x["cust2"] or (x["cust"] or "KNK VINA")
+        a = va.setdefault(k, {"name": k, "total": 0.0, "cnt": 0, "multi": bool(x["cust2"]) and ("," in k)})
         a["total"] += x["krw"]; a["cnt"] += 1
         _z23_fx_add(a, x)
     vina_rows = sorted(va.values(), key=lambda a: -a["total"])
@@ -27295,13 +27295,11 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     pv2 = {}
     for x in prv:
         if x["is_vina"]:
-            k = x["cust2"] or "(2차 없음)"   # z1191z31: 빈칸 = 2차 없음
+            k = x["cust2"] or (x["cust"] or "KNK VINA")   # z1191z31b: 빈칸 = 1차 고객사
             pv2[k] = pv2.get(k, 0.0) + x["krw"]
     vt = rep["vina_total"]
 
     def vname(a, short=False):
-        if a["name"] == "(2차 없음)":   # z1191z31: 1차 고객사만 = 2차 고객사 없음(경고 아님)
-            return "2차 없음 (1차만)"
         return a["name"] + ((" ⚠여러 고객" if short else " (여러 고객 · 다시 등록 대기)") if a.get("multi") else "")
     vr = rep["vina_rows"]
     rows_v = [(vname(a, True), a["total"], pv2.get(a["name"], 0)) for a in vr[:10]]

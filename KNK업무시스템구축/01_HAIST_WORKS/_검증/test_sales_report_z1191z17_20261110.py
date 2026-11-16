@@ -138,8 +138,8 @@ hs = [a for a in R["cust_rows"] if a["name"] == "한국성전"]
 check(hs and abs(hs[0]["total"] - (13620000 + 500000)) < 1 and hs[0]["cnt"] == 5, "고객사: 한국성전 = 호기 4 + 소모품 1 (수주÷호기 나눔 포함)", hs)
 V = {a["name"]: a["total"] for a in R["vina_rows"]}
 check(abs(V.get("DRT", 0) - (150 + 1000) * 1400) < 1, "KNK VINA 2차: DRT2 · DREAMTECH VINA → DRT 로 묶음", V)
-check(abs(V.get("SEVT", 0) - 2800000) < 1 and abs(V.get("(2차 없음)", 0) - 420000) < 1 and abs(V.get("DSV,DRT", 0) - 560000) < 1,
-      "SEVT 따로 · 2차 없음(빈칸 = 1차만 · z1191z31) · 여러 개(DSV,DRT1 → DSV,DRT 묶음)", V)
+check(abs(V.get("SEVT", 0) - 2800000) < 1 and abs(V.get("KNK VINA", 0) - 420000) < 1 and "(2차 없음)" not in V and abs(V.get("DSV,DRT", 0) - 560000) < 1,
+      "SEVT 따로 · 2차 빈칸 = 1차 고객사 KNK VINA 줄(z1191z31b) · 여러 개(DSV,DRT1 → DSV,DRT 묶음)", V)
 check(abs(R["vina_total"] - sum(V.values())) < 1, "KNK VINA 합계 = 2차 합")
 P = {a["code"]: a["total"] for a in R["proj_rows"]}
 check(abs(P.get("001T2605", 0) - 13620000) < 1, "프로젝트별 001T2605 = 13,620,000(6월 계산서 제외)", P.get("001T2605"))

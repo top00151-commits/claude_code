@@ -222,27 +222,45 @@ input.knk-cal { cursor: pointer; }
     // 먼저 보여주고 실제 사이즈 측정 — 그 후 위치 결정
     p.classList.remove('hidden');
     p.style.top = '-9999px'; p.style.left = '0px';
+    p.style.maxHeight = ''; p.style.overflowY = '';
+    // z1191z32 (대표 2026-11-16 「팝업이 떴을 때 화면에서 잘리는 건 발생이 되면 안 되는 건데」):
+    //   예전엔 위/아래만 보고 「위가 더 넓으면 위」 → 인보이스 창이 길면 달력 윗부분이 화면 밖으로 잘림.
+    //   이제 ① 아래 → 위 → 오른쪽 → 왼쪽 중 화면 안에 다 들어가는 첫 자리 ② 없으면 창(.ti-pop)을 옆으로 비켜 자리를 만들고
+    //   ③ 그래도 없으면 누른 날짜 칸 바로 옆 ④ 마지막에 언제나 화면 안으로 당김(화면보다 크면 달력 안 스크롤).
+    var vw = window.innerWidth, vh = window.innerHeight, G = 8, GAP = 4;
     var ph = p.offsetHeight || 360;
     var pw = p.offsetWidth || 340;
-    // v5H226z558: 입력이 팝업(.ti-pop 세금계산서 편집창) 안이면, 팝업 전체를 기준으로 띄워 달력이 팝업과 겹치지 않게.
-    var _anchor = (input.closest && input.closest('.ti-pop')) || input;
-    var r = _anchor.getBoundingClientRect();
-    var spaceBelow = window.innerHeight - r.bottom;
-    var spaceAbove = r.top;
-    var top, left;
-    // 아래 공간 부족하고 위 공간이 더 많으면 위에 띄움
-    if (spaceBelow < ph + 10 && spaceAbove > spaceBelow) {
-      top = window.pageYOffset + r.top - ph - 4;
-    } else {
-      top = window.pageYOffset + r.bottom + 4;
+    if (ph > vh - 2 * G) { p.style.maxHeight = (vh - 2 * G) + 'px'; p.style.overflowY = 'auto'; ph = vh - 2 * G; }
+    function cx(l){ return Math.max(G, Math.min(l, vw - pw - G)); }
+    function cy(t){ return Math.max(G, Math.min(t, vh - ph - G)); }
+    function fits(c){ return c[0] >= G - 0.5 && c[1] >= G - 0.5 && c[0] + ph <= vh - G + 0.5 && c[1] + pw <= vw - G + 0.5; }
+    function around(r, ir){   // [top, left] 후보: 아래 · 위 · 오른쪽 · 왼쪽 (옆은 누른 칸 높이에 맞춤)
+      return [[r.bottom + GAP, cx(r.left)], [r.top - ph - GAP, cx(r.left)],
+              [cy(ir.top), r.right + GAP], [cy(ir.top), r.left - pw - GAP]];
     }
-    left = window.pageXOffset + r.left;
-    var maxLeft = window.pageXOffset + window.innerWidth - pw - 8;
-    var minLeft = window.pageXOffset + 8;
-    if (left > maxLeft) left = maxLeft;
-    if (left < minLeft) left = minLeft;
-    p.style.top = top + 'px';
-    p.style.left = left + 'px';
+    function first(cs){ for (var i = 0; i < cs.length; i++) { if (fits(cs[i])) return cs[i]; } return null; }
+    // v5H226z558: 입력이 팝업(.ti-pop 세금계산서 편집창) 안이면, 팝업 전체를 기준으로 띄워 달력이 팝업과 겹치지 않게.
+    var tip = input.closest && input.closest('.ti-pop');
+    var ir = input.getBoundingClientRect();
+    var ar = (tip || input).getBoundingClientRect();
+    var pos = first(around(ar, ir));
+    if (!pos && tip && ar.width + pw + GAP + 2 * G <= vw) {
+      // ② 창 옆에 자리가 모자라면 창을 왼쪽(또는 오른쪽)으로 비켜 달력 자리를 만든다 — 창도 화면 안에 그대로
+      var needR = (ar.right + GAP + pw + G) - vw;     // 오른쪽에 달력을 두려면 창을 이만큼 왼쪽으로
+      var needL = G + pw + GAP - ar.left;             // 왼쪽에 두려면 이만큼 오른쪽으로
+      var dx = (ar.left - needR >= G) ? -needR : ((ar.right + needL <= vw - G) ? needL : 0);
+      if (dx) {
+        var cs = window.getComputedStyle(tip);
+        var l0 = parseFloat(tip.style.left); if (isNaN(l0)) l0 = parseFloat(cs.left) || tip.offsetLeft || 0;
+        tip.style.left = (l0 + dx) + 'px';
+        ir = input.getBoundingClientRect(); ar = tip.getBoundingClientRect();
+        pos = first(around(ar, ir));
+      }
+    }
+    if (!pos) pos = first(around(ir, ir));            // ③ 누른 날짜 칸 바로 옆(창 위에 겹쳐도 화면 안)
+    if (!pos) pos = [cy(ir.bottom + GAP), cx(ir.left)];   // ④ 마지막: 화면 안으로 당김
+    p.style.top = (window.pageYOffset + cy(pos[0])) + 'px';
+    p.style.left = (window.pageXOffset + cx(pos[1])) + 'px';
   }
 
   function hide(){

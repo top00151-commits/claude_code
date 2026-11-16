@@ -190,7 +190,9 @@ vrow = row_of(ws, "KNK VINA 합계", col=6)
 check(vrow is not None and abs(vrow[7].value - (150 + 1000 + 2000 + 300 + 400) * 1400) <= 1, "KNK VINA 합계(H칸)", vrow and vrow[7].value)
 txt = "\n".join(str(c_.value) for row in ws.iter_rows() for c_ in row if isinstance(c_.value, str))
 check("합계 맞춤" in txt and "2025년 11월" in txt and "자료 부족" in txt, "확인할 점: 합계 맞춤 · 자료 시작 달 안내")
-check("2차 없음 (1차만)" in txt and "2차 미입력" not in txt, "KNK VINA 2차 빈칸 = 「2차 없음 (1차만)」 · 미입력 경고 없음(z1191z31)")
+_kv = row_of(ws, "KNK VINA", col=6)
+check(_kv is not None and abs(_kv[7].value - 300 * 1400) <= 1 and "2차 없음" not in txt and "2차 미입력" not in txt,
+      "KNK VINA 2차 빈칸 = 1차 고객사 「KNK VINA」 줄(z1191z31b) · 「2차 없음」·「2차 미입력」 글자 없음", _kv and _kv[7].value)
 check(not any(ch in txt for ch in "🔧🏭🧪📦"), "1장에 그림 글자 없음")
 
 print("§3 뒤 시트(원)")
