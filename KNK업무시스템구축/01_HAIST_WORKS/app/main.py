@@ -26923,7 +26923,8 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
     vl = [x for x in lines if x["is_vina"]]
     va = {}
     for x in vl:
-        k = x["cust2"] or "(2차 미입력)"
+        # z1191z31 (대표 2026-11-16 「1차 고객사만 적혀 있는 건 2차 고객사가 없다는 거야」): 빈칸 = 2차 없음(미입력 경고 아님)
+        k = x["cust2"] or "(2차 없음)"
         a = va.setdefault(k, {"name": k, "total": 0.0, "cnt": 0, "multi": ("," in k)})
         a["total"] += x["krw"]; a["cnt"] += 1
         _z23_fx_add(a, x)
@@ -27294,13 +27295,13 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     pv2 = {}
     for x in prv:
         if x["is_vina"]:
-            k = x["cust2"] or "(2차 미입력)"
+            k = x["cust2"] or "(2차 없음)"   # z1191z31: 빈칸 = 2차 없음
             pv2[k] = pv2.get(k, 0.0) + x["krw"]
     vt = rep["vina_total"]
 
     def vname(a, short=False):
-        if a["name"] == "(2차 미입력)":
-            return "⚠ 2차 미입력"
+        if a["name"] == "(2차 없음)":   # z1191z31: 1차 고객사만 = 2차 고객사 없음(경고 아님)
+            return "2차 없음 (1차만)"
         return a["name"] + ((" ⚠여러 고객" if short else " (여러 고객 · 다시 등록 대기)") if a.get("multi") else "")
     vr = rep["vina_rows"]
     rows_v = [(vname(a, True), a["total"], pv2.get(a["name"], 0)) for a in vr[:10]]
@@ -27331,9 +27332,7 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     notes = []
     notes.append(("✓ 합계 맞춤 — 사업부·구분·고객사·프로젝트 합 = 총합" if rep["checks_ok"]
                   else "⚠ 합계가 맞지 않습니다 — 담당자 확인 필요", rep["checks_ok"]))
-    miss2 = [a for a in vr if a["name"] == "(2차 미입력)"]
-    if miss2:
-        notes.append(("⚠ KNK VINA 2차 고객사 미입력 %d줄 · %s원" % (miss2[0]["cnt"], format(r0(miss2[0]["total"]), ",")), False))
+    # z1191z31 (대표 2026-11-16): 2차 칸 빈칸 = 2차 고객사 없음 → 「2차 미입력」 경고 폐기
     multi = [a for a in vr if a.get("multi")]
     if multi:
         notes.append(("⚠ 2차 고객사가 여러 개 적힌 수주 %d묶음 · %s원 — 고객별로 나눠 다시 등록 대기"
