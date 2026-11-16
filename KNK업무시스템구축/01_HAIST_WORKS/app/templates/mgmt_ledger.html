@@ -21,14 +21,23 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .lg-search select { padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13.5px; background:#fff; }
 .lg-sum { margin:0 var(--content-pad) var(--space-2); font-size:12.5px; color:var(--qv-ink-3); }
 .lg-wrap { margin:0 var(--content-pad) 24px; overflow:auto; border:1px solid #e2e8f0; border-radius:10px; background:#fff; }
-.lg-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
-.lg-tbl th { position:sticky; top:0; z-index:1; background:#f8fafc; text-align:left; padding:8px 8px; border-bottom:2px solid #e2e8f0; color:#475569; white-space:nowrap; font-weight:800; }
+.lg-tbl { border-collapse:collapse; font-size:12.5px; table-layout:fixed; }   /* z1191z43: 칸 너비 = colgroup(끌어서 조절) */
+.lg-tbl td { overflow-wrap:anywhere; }
+.lg-rz { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; user-select:none; }
+.lg-rz:hover, .lg-rz.on { background:var(--knk-red); opacity:.45; }
+.lg-tools { display:flex; justify-content:flex-end; margin:0 var(--content-pad) 6px; }
+.lg-tools button { border:1px solid #cbd5e1; background:#fff; border-radius:8px; padding:4px 10px; font-size:12px; color:#475569; cursor:pointer; }
+.lg-tools button:hover { border-color:#1d4ed8; color:#1d4ed8; }
+.lg-tbl th { position:sticky; top:0; z-index:1; background:#f8fafc; text-align:left; padding:8px 8px; border-bottom:2px solid #e2e8f0; color:#475569; white-space:nowrap; font-weight:800; overflow:hidden; text-overflow:ellipsis; }
 .lg-tbl td { padding:6px 8px; border-bottom:1px solid #eef0f4; vertical-align:top; }
 .lg-tbl tr:hover td { background:#fffbeb; }
 .lg-tbl .n { text-align:right; color:#94a3b8; font-variant-numeric:tabular-nums; }
 .lg-tbl .nw { white-space:nowrap; }
 .lg-code { font-weight:800; color:#1d4ed8; text-decoration:none; font-variant-numeric:tabular-nums; }
 .lg-code:hover { text-decoration:underline; }
+a.lg-so { text-decoration:none; }
+a.lg-so:hover { background:#1d4ed8; color:#fff; }
+a.lg-so.cancel:hover { background:#cbd5e1; color:#475569; }
 .lg-so { display:inline-block; margin:1px 4px 1px 0; padding:1px 7px; border-radius:6px; background:#eff6ff; color:#1e3a8a; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .lg-so.cancel { background:#f1f5f9; color:#94a3b8; text-decoration:line-through; font-weight:600; }
 .lg-none { color:#cbd5e1; }
@@ -39,8 +48,8 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .lg-arch td { color:#94a3b8; }
 .lg-arch .lg-code { color:#94a3b8; }
 .lg-archb { display:inline-block; margin-left:4px; padding:0 6px; border-radius:4px; background:#e2e8f0; color:#475569; font-size:11px; font-weight:800; }
-.lg-path { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64748b; font-size:11.5px; }
-.lg-note { max-width:240px; color:#475569; }
+.lg-path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64748b; font-size:11.5px; }
+.lg-note { color:#475569; }
 .lg-dim { color:#64748b; }
 .lg-empty { margin:30px var(--content-pad); padding:40px; text-align:center; color:var(--qv-ink-3); background:#fff; border:1px dashed #cbd5e1; border-radius:12px; }
 </style>
@@ -85,16 +94,29 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 
   <div class="lg-sum">
     관리번호 <b style="color:#334155;">{{ '{:,}'.format(rows|length) }}</b>개 · 수주번호 <b style="color:#334155;">{{ '{:,}'.format(n_so) }}</b>건(취소 빼고)
-    · 이음웍스에 등록된 관리번호 기준 · 최근 발행 순 · 관리번호를 누르면 그 프로젝트(소모품) 화면으로 갑니다 · 줄 그은 수주번호 = 취소
+    · 이음웍스에 등록된 관리번호 기준 · 최근 발행 순 · 관리번호·수주번호를 누르면 그 프로젝트(소모품) 화면으로 갑니다(수주번호는 그 수주가 앞에) · 줄 그은 수주번호 = 취소 · 머리글 오른쪽 끝을 끌면 칸 너비 조절
   </div>
 
   {% if rows %}
+  <div class="lg-tools"><button type="button" id="lgRzReset" title="끌어서 바꾼 칸 너비를 처음대로">↺ 칸 너비 처음대로</button></div>
   <div class="lg-wrap" data-knk-fill>
-    <table class="lg-tbl">
-      <thead><tr>
-        <th>#</th><th>관리번호</th><th>사업부</th><th>발행월</th><th>수주번호</th><th>모델명</th><th>설비명</th>
-        <th>프로젝트명</th><th>고객사</th><th>영업 담당</th><th>상태</th><th>서버경로</th><th>비고</th>
-      </tr></thead>
+    <table class="lg-tbl" id="lgTbl">
+      <colgroup>
+        <col data-col="no" style="width:44px">
+        <col data-col="code" style="width:118px">
+        <col data-col="biz" style="width:100px">
+        <col data-col="ym" style="width:78px">
+        <col data-col="so" style="width:150px">
+        <col data-col="model" style="width:200px">
+        <col data-col="equip" style="width:220px">
+        <col data-col="pname" style="width:140px">
+        <col data-col="cust" style="width:140px">
+        <col data-col="sales" style="width:86px">
+        <col data-col="st" style="width:80px">
+        <col data-col="spath" style="width:220px">
+        <col data-col="note" style="width:200px">
+      </colgroup>
+      <thead><tr><th data-col="no">#<span class="lg-rz" data-rz="no" title="끌어서 칸 너비 조절"></span></th><th data-col="code">관리번호<span class="lg-rz" data-rz="code" title="끌어서 칸 너비 조절"></span></th><th data-col="biz">사업부<span class="lg-rz" data-rz="biz" title="끌어서 칸 너비 조절"></span></th><th data-col="ym">발행월<span class="lg-rz" data-rz="ym" title="끌어서 칸 너비 조절"></span></th><th data-col="so">수주번호<span class="lg-rz" data-rz="so" title="끌어서 칸 너비 조절"></span></th><th data-col="model">모델명<span class="lg-rz" data-rz="model" title="끌어서 칸 너비 조절"></span></th><th data-col="equip">설비명<span class="lg-rz" data-rz="equip" title="끌어서 칸 너비 조절"></span></th><th data-col="pname">프로젝트명<span class="lg-rz" data-rz="pname" title="끌어서 칸 너비 조절"></span></th><th data-col="cust">고객사<span class="lg-rz" data-rz="cust" title="끌어서 칸 너비 조절"></span></th><th data-col="sales">영업 담당<span class="lg-rz" data-rz="sales" title="끌어서 칸 너비 조절"></span></th><th data-col="st">상태<span class="lg-rz" data-rz="st" title="끌어서 칸 너비 조절"></span></th><th data-col="spath">서버경로<span class="lg-rz" data-rz="spath" title="끌어서 칸 너비 조절"></span></th><th data-col="note">비고<span class="lg-rz" data-rz="note" title="끌어서 칸 너비 조절"></span></th></tr></thead>
       <tbody>
       {% for x in rows %}
         <tr class="{% if x.arch %}lg-arch{% endif %}" data-kind="{{ x.kind }}">
@@ -102,7 +124,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
           <td class="nw"><a class="lg-code" href="{% if x.kind == 'C' %}/consumables/{{ x.id }}{% else %}/project/{{ x.id }}{% endif %}">{{ x.code }}</a>{% if x.arch %}<span class="lg-archb" title="폐기한 프로젝트 — 번호는 부여된 기록으로 남김">폐기</span>{% endif %}</td>
           <td class="nw">{{ x.biz_label }}</td>
           <td class="nw lg-dim">{{ x.ym or '—' }}</td>
-          <td>{% for s in x.sos %}<span class="lg-so{% if s.cancel %} cancel{% endif %}" title="{{ s.no }} · 발주일 {{ s.date or '—' }} · {{ s.st or '—' }}">{{ s.no }}</span>{% else %}<span class="lg-none">없음</span>{% endfor %}</td>
+          <td>{% for s in x.sos %}<a class="lg-so{% if s.cancel %} cancel{% endif %}" href="{% if x.kind == 'C' %}/consumables/{{ x.id }}{% else %}/project/{{ x.id }}?so={{ s.no|urlencode }}{% endif %}" title="{{ s.no }} · 발주일 {{ s.date or '—' }} · {{ s.st or '—' }} — 누르면 이 수주의 프로젝트 정보">{{ s.no }}</a>{% else %}<span class="lg-none">없음</span>{% endfor %}</td>
           <td>{{ x.model or '—' }}</td>
           <td>{{ x.equip or '—' }}</td>
           <td>{{ x.pname or '—' }}</td>
@@ -116,6 +138,33 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
       </tbody>
     </table>
   </div>
+  <script>
+  // z1191z43: 칸 너비 끌어서 조절 — 내 브라우저에 기억(다른 사람·다른 기기에는 영향 없음)
+  (function(){
+    var T=document.getElementById('lgTbl'); if(!T) return;
+    var KEY='knk.ledger.colw', DEF={no:44,code:118,biz:100,ym:78,so:150,model:200,equip:220,pname:140,cust:140,sales:86,st:80,spath:220,note:200}, MIN=44;
+    function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'null')||{}; }catch(e){ return {}; } }
+    function save(v){ try{ localStorage.setItem(KEY, JSON.stringify(v)); }catch(e){} }
+    function col(k){ return T.querySelector('col[data-col="'+k+'"]'); }
+    function fit(){ var s=0; T.querySelectorAll('col').forEach(function(c){ s+=parseInt(c.style.width)||0; }); T.style.width=s+'px'; }
+    function apply(){ var w=load(); Object.keys(DEF).forEach(function(k){ var c=col(k); if(c) c.style.width=(w[k]||DEF[k])+'px'; }); fit(); }
+    apply();
+    T.querySelectorAll('.lg-rz').forEach(function(h){
+      h.addEventListener('mousedown', function(e){
+        e.preventDefault(); e.stopPropagation();
+        var k=h.getAttribute('data-rz'), c=col(k); if(!c) return;
+        var x0=e.clientX, w0=parseInt(c.style.width)||DEF[k]; h.classList.add('on');
+        function mv(ev){ c.style.width=Math.max(MIN, w0+ev.clientX-x0)+'px'; fit(); }
+        function up(){ document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); h.classList.remove('on');
+          var w=load(); w[k]=parseInt(c.style.width); save(w); }
+        document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+      });
+      h.addEventListener('click', function(e){ e.stopPropagation(); });
+    });
+    var rb=document.getElementById('lgRzReset');
+    if(rb) rb.addEventListener('click', function(){ save({}); apply(); });
+  })();
+  </script>
   {% else %}
   <div class="lg-empty">
     <div style="font-size:36px;margin-bottom:8px;">📒</div>

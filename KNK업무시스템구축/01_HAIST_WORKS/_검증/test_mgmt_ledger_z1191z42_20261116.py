@@ -4,6 +4,7 @@
   ① 한 줄 = 관리번호 하나(프로젝트·소모품) · 그 관리번호의 수주번호 전부(취소는 줄 그음) · 수주 없으면 「없음」
   ② 폐기한 프로젝트도 「폐기」로 남김 · 최근 발행 순(연월 ↓ · 번호 ↓) · 소모품 관리번호(C)
   ③ 거르기(사업부·발행 연도·검색 — 수주번호로도) · 권한(매출 못 보면 못 들어옴) · 프로젝트 화면 3곳 탭
+  ④ z1191z43: 수주번호 = 링크(?so= 그 수주 기준) · 칸 너비 끌어서 조절
   임시 DB · TestClient · 운영 아님
 """
 import contextlib, io, os, re, sys, tempfile
@@ -116,7 +117,15 @@ check(r.status_code == 200, "관리번호대장 열림", r.status_code)
 codes = re.findall(r'class="lg-code" href="[^"]+">([^<]+)</a>', h)
 check(codes == [x["code"] for x in R], "표 줄 = 대장 순서", codes)
 check(('href="/project/%d"' % P2) in h and "/consumables/" in h, "관리번호 누르면 프로젝트 · 소모품 화면")
-check('<span class="lg-so cancel"' in h and "T-261113-9" in h, "취소 수주번호는 줄 그음")
+check('class="lg-so cancel"' in h and "T-261113-9" in h, "취소 수주번호는 줄 그음")
+# z1191z43 (대표 「수주번호도 누르면 해당 수주번호에 프로젝트 정보창」): 수주번호 = 링크(그 수주가 메인 카드 · ?so=)
+check(('<a class="lg-so" href="/project/%d?so=T-261112-2"' % P2) in h, "z43: 수주번호 누르면 그 프로젝트(그 수주 기준 · ?so=)")
+check(re.search(r'<a class="lg-so" href="/consumables/\d+"[^>]*>C-261103-2</a>', h), "z43: 소모품 발주번호 누르면 소모품 화면")
+# z1191z43 (대표 「항목별 칸 너비를 조정할수잇게 · 특히 설비명·모델명·프로젝트명」): 모든 칸 머리글에 너비 손잡이 · 기본 너비 colgroup · 처음대로 단추
+_rz = re.findall(r'class="lg-rz" data-rz="(\w+)"', h)
+check(len(_rz) == 13 and all(k in _rz for k in ("model", "equip", "pname")), "z43: 칸 13개 모두 너비 손잡이(설비명·모델명·프로젝트명 포함)", _rz)
+check(re.search(r'<col data-col="model" style="width:\d+px">', h) and 'id="lgRzReset"' in h and "knk.ledger.colw" in h,
+      "z43: 기본 너비(colgroup) · 「↺ 칸 너비 처음대로」 · 내 브라우저에 기억")
 check('<span class="lg-none">없음</span>' in h, "수주 없으면 「없음」")
 check("lg-archb" in h and "폐기" in h, "폐기 표시")
 check("관리번호 <b" in h and re.search(r"관리번호 <b[^>]*>6</b>개 · 수주번호 <b[^>]*>6</b>건", h), "요약: 관리번호 6개 · 수주번호 6건(취소 빼고)")
