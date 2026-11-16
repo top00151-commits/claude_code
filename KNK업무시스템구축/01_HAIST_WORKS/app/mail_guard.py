@@ -50,6 +50,11 @@ _CRED_PAT = re.compile(
     r"password|verify\s*your|account\s*(suspend|locked|verify|expire)|sign\s*in\s*to|log\s*in\s*to|"
     r"mailbox\s*(full|quota|suspend)|unusual\s*(sign|activity)|security\s*alert|mật\s*khẩu|xác\s*minh)", re.I)
 _URGENT_PAT = re.compile(r"(긴급|즉시|오늘\s*안|24\s*시간|정지\s*예정|urgent|immediately|within\s*24|asap|final\s*notice|khẩn)", re.I)
+# 계정·메일함을 「정지·잠금·만료시킨다」는 으름장 — 긴급 문구가 없어도 피싱의 전형(2026-11-17 옛 시험 mail_security_test 가 잡아 줌)
+_THREAT_PAT = re.compile(
+    r"((계정|아이디|메일함|사서함|메일\s*계정|서비스)\s*(이|가|을|를|은|는)?\s*.{0,10}(정지|잠금|잠김|잠겼|만료|차단|중지|해지|삭제|폐쇄|비활성)|"
+    r"(account|mailbox|e-?mail|access)\s.{0,20}(suspend|lock|expire|disabl|deactivat|terminat|restrict|clos)|"
+    r"tài\s*khoản.{0,15}(khóa|tạm\s*ngưng|hết\s*hạn))", re.I)
 _ARCH_PW_PAT = re.compile(r"(압축|첨부|파일).{0,20}(비밀번호|암호|password)|(password|비밀번호|암호)\s*[:：]\s*\S{3,}", re.I)
 
 
@@ -288,7 +293,7 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
         level = max(level, 2)
         notes.append("송금·계좌 변경 요구 — 반드시 전화로 거래처에 직접 확인")
     if external and nlinks and _CRED_PAT.search(blob):
-        level = max(level, 2 if (_URGENT_PAT.search(blob) or fails or lnotes) else 1)
+        level = max(level, 2 if (_URGENT_PAT.search(blob) or _THREAT_PAT.search(blob) or fails or lnotes) else 1)
         notes.append("계정·비밀번호 확인을 요구하는 링크")
 
     if external and not notes:
