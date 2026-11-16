@@ -3193,8 +3193,10 @@ async def login_page(req: Request):
     # 들어온 주소(works / kmail)로 돌아오게 — ⭐허용은 그 둘뿐(mail_site 에 박아 둠 · Host 로 조립하지 않는다)
     redirect_uri = _mail_site.public_base(req) + "/sso/land?next=" + quote(nxt, safe="")
     # v5H226z425(대표 지시): force 제거 — 메신저 로그인돼 있으면 자동 로그인(SSO 단일 로그인).
-    #   보안은 세션 비영구화(닫으면 만료→재검증)로 유지. 미인증이면 메신저 로그인 화면.
-    return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
+    #   보안은 세션 비영구화(닫으면 만료→재검증)로 유지.
+    # 대표 2026-11-16: 이음이 로그아웃이면 이음 로그인 화면 대신 「이음 메신저에 로그인한 뒤 접속」 안내
+    #   (prompt=none → /sso/land?error=login_required 로 돌아온다 · 이음이 그 표시를 모르는 동안은 지금과 같다).
+    return RedirectResponse(_mail_site.silent_sso_url(sso_client.build_login_url(redirect_uri)), 303)
 
 
 def _safe_next_path(nxt: str) -> str:
@@ -3273,6 +3275,15 @@ def sso_land(req: Request):
     from .sso_client import (verify_token, upsert_user_from_payload,
                              mark_pwv_checked, MESSENGER_BASE)
     token = req.query_params.get("token") or ""
+    # 이음에 로그인돼 있지 않아 돌아온 경우(prompt=none 의 답: error=login_required · 손님이면 access_denied) —
+    #   이음 로그인 화면을 이 창에 띄우는 대신 「이음 메신저에 로그인해 주세요」 안내를 보여 준다(대표 2026-11-16).
+    #   메일로 가려던 길(메일 전용 주소이거나 next 가 /mail/…)이면 메일 안내, 그 밖은 이음웍스 안내.
+    _sso_err = (req.query_params.get("error") or "").strip().lower()
+    if not token and _sso_err:
+        _nx_land = _safe_next_path(req.query_params.get("next") or "")
+        _site = "mail" if (_mail_site.is_mail_site(req) or _nx_land.startswith("/mail/")) else "works"
+        return HTMLResponse(_mail_site.need_login_page(MESSENGER_BASE, _nx_land, _sso_err, site=_site),
+                            headers={"Cache-Control": "no-store"})
     if not token:
         return ctx(req, "login.html", messenger_url=MESSENGER_BASE,
                    error="입장 토큰이 없습니다. 메신저에서 'WORKS 열기'로 다시 들어와주세요.")
@@ -22176,7 +22187,10 @@ async def works_app_launch(req: Request):
     from urllib.parse import quote
     from . import sso_client
     redirect_uri = _WORKS_PUBLIC_BASE + "/sso/land?next=" + quote("/home?app=1", safe="")
-    return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
+    # 대표 2026-11-16: 이음 메신저가 로그아웃이면 이음 로그인 화면 대신 「이음 메신저에 로그인한 뒤 접속」 안내.
+    #   prompt=none → 이음이 로그인돼 있으면 지금처럼 바로 입장, 아니면 /sso/land?error=login_required 로 돌아온다
+    #   (이음이 그 표시를 모르는 동안은 무시돼 지금과 같다 — 이음 로그인 화면).
+    return RedirectResponse(_mail_site.silent_sso_url(sso_client.build_login_url(redirect_uri)), 303)
 
 
 _MAIL_PWA_ICON_SVG = (
@@ -22278,7 +22292,12 @@ async def mail_app_launch(req: Request):
     if not nxt.startswith("/mail/"):
         nxt = "/mail/inbox?app=1"
     redirect_uri = _mail_site.public_base(req) + "/sso/land?next=" + quote(nxt, safe="")
-    return RedirectResponse(sso_client.build_login_url(redirect_uri), 303)
+    # 📮 바로 넘기지 않고 「여는 중」 화면을 먼저 그린다(대표 2026-11-16: 아이콘을 누르면 1~2초 흰 화면).
+    #   이음 로그인 왕복(이음 → /sso/land → 받은편지함) 동안 흰 창 대신 메일 머리띠가 보인다.
+    #   prompt=none: 이음에 로그인돼 있지 않으면 이음 로그인 화면 대신 안내(/sso/land 의 error)로 돌아오게 한다.
+    #   (이음이 그 표시를 모르는 동안은 무시돼 지금과 같다)
+    _sso_url = _mail_site.silent_sso_url(sso_client.build_login_url(redirect_uri))
+    return HTMLResponse(_mail_site.launch_page(_sso_url), headers={"Cache-Control": "no-store"})
 
 
 # 📮 메일 전용 입구(포트) — 환경변수 KNK_MAIL_SITE_PORT 가 있을 때만 연다(없으면 아무것도 안 함).

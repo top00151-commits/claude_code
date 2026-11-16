@@ -194,6 +194,143 @@ class Guard:
         await send({"type": "http.response.body", "body": b""})
 
 
+# ─── 메일 앱을 열 때 보이는 화면 두 장 ───────────────────────────────────────
+# 대표 2026-11-16: ① 아이콘을 누르면 1~2초 흰 화면이었다 ② 이음에서 로그아웃한 채 메일을 누르면
+#   「로그인해 주세요」 안내가 아니라 이음 로그인 화면이 메일 창에 떴다.
+#
+#   메일을 열면 이음 로그인 왕복을 거친다:  /mail/app → 이음 /sso/login → /sso/land → 받은편지함.
+#   그 사이 그릴 것이 없어 창이 하얗게 남았다 → **「여는 중」 화면을 먼저 그린 뒤** 왕복한다(launch_page).
+#   이음에 「조용히」(prompt=none) 물어, 로그인돼 있지 않으면 이음 로그인 화면 대신
+#   error=login_required 로 돌아오게 하고 → **안내 화면**을 보여 준다(need_login_page).
+#   ⚠이음이 prompt=none 을 모르는 동안은 그 표시가 무시돼 지금과 똑같이 동작한다(이음 로그인 화면).
+#
+# 두 화면은 틀(템플릿)을 쓰지 않는 한 장짜리 HTML 이다 — 공용 틀이 바뀌어도 깨지지 않고, DB 를 읽지 않아 바로 뜬다.
+_PAGE_CSS = (
+    "*{box-sizing:border-box}html,body{margin:0;height:100%}"
+    # 바탕색 = 받은편지함의 body 바탕(#f3f5f2) → 받은편지함으로 바뀔 때 번쩍이지 않는다
+    "body{background:#f3f5f2;color:#1f2937;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,"
+    "'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕',sans-serif}"
+    # 받은편지함의 머리띠(.mail-app-top)와 같은 색·높이·글자 자리 → 화면이 바뀔 때 머리띠가 그대로 이어져 보인다.
+    #   실측(2026-11-16 · 운영 틀과 CSS 그대로 그려 잼): 높이 48.1px · 글자 왼쪽 16px · 글자 가운데 = 위에서 24px
+    #   (폰 640px 이하: 높이 47.4px · 왼쪽 10px · 글자 14px). 줄 높이 30px + 위아래 9px = 48px.
+    ".top{background:#A5282C;color:#fff;padding:9px 16px;font-weight:800;font-size:15px;line-height:30px;"
+    "white-space:nowrap;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.12)}"
+    "@media(max-width:640px){.top{padding:8px 10px;font-size:14px;line-height:31.4px}}"
+    ".mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;"
+    "min-height:calc(100% - 48px);padding:24px;text-align:center}"
+    ".card{display:flex;flex-direction:column;align-items:center;gap:14px;background:#fff;border:1px solid #e5e7eb;"
+    "border-radius:14px;padding:32px 30px;max-width:460px;box-shadow:0 1px 3px rgba(0,0,0,.06)}"
+    ".spin{width:34px;height:34px;border-radius:50%;border:3px solid #f1d5d6;border-top-color:#A5282C;"
+    "animation:knkspin .8s linear infinite}@keyframes knkspin{to{transform:rotate(360deg)}}"
+    ".msg{font-size:15px;color:#4b5563}"
+    ".late{font-size:13px;color:#A5282C;opacity:0;animation:knklate .3s linear 2.5s forwards}"
+    "@keyframes knklate{to{opacity:1}}"
+    "h1{font-size:19px;margin:0;color:#111827}p{margin:0;font-size:14.5px;line-height:1.65;color:#4b5563}"
+    ".ic{font-size:40px;line-height:1}.btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}"
+    ".b{display:inline-block;padding:10px 18px;border-radius:9px;font-size:14.5px;font-weight:700;text-decoration:none}"
+    ".b1{background:#A5282C;color:#fff}.b2{background:#fff;color:#A5282C;border:1.5px solid #A5282C}"
+    ".sub{font-size:12.5px;color:#9ca3af}"
+)
+_PAGE_HEAD = (
+    '<!doctype html><html lang="ko" translate="no"><head><meta charset="utf-8">'
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+    '<meta name="google" content="notranslate"><meta name="robots" content="noindex">'
+    '<meta name="theme-color" content="#A5282C"><title>KNK Eum MAIL</title>'
+    '<link rel="manifest" href="/mail/manifest.webmanifest">'
+    '<link rel="icon" type="image/svg+xml" href="/mail/icon.svg">'
+    "<style>" + _PAGE_CSS + "</style></head><body>"
+    '<div class="top">📧 HAIST WORKS 메일함</div>'
+)
+
+
+# 이음웍스(업무) 길의 안내 화면 머리 — 메일 머리띠·메일 앱 표시(manifest) 없이
+_WORKS_HEAD = (
+    _PAGE_HEAD.replace("<title>KNK Eum MAIL</title>", "<title>HAIST WORKS</title>")
+    .replace('<link rel="manifest" href="/mail/manifest.webmanifest">', "")
+    .replace('<link rel="icon" type="image/svg+xml" href="/mail/icon.svg">', "")
+    .replace('<div class="top">📧 HAIST WORKS 메일함</div>', '<div class="top">HAIST WORKS</div>')
+)
+
+
+def _h(s) -> str:
+    """HTML 속성·본문에 넣을 글자 — 따옴표까지 바꾼다."""
+    return (str(s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;").replace("'", "&#39;"))
+
+
+def _js(s) -> str:
+    """<script> 안에 넣을 글자(따옴표 포함) — 태그를 끊을 수 있는 글자는 전부 \\u 로."""
+    import json
+    return (json.dumps(str(s or "")).replace("<", "\\u003c").replace(">", "\\u003e")
+            .replace("&", "\\u0026").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+
+
+def silent_sso_url(url: str) -> str:
+    """이음 로그인 주소에 「조용히」 표시(prompt=none)를 붙인다 —
+    이음에 로그인돼 있으면 평소처럼 토큰을 받아 돌아오고, 아니면 로그인 화면 대신 error=login_required 로 돌아온다."""
+    u = str(url or "")
+    return u + ("&" if "?" in u else "?") + "prompt=none"
+
+
+def launch_page(sso_url: str) -> str:
+    """메일 앱을 열 때 맨 먼저 그리는 「여는 중」 화면. 한 번 그린 뒤 곧바로 sso_url 로 넘어간다."""
+    return (
+        _PAGE_HEAD
+        + '<div class="mid"><div class="spin"></div><div class="msg">메일을 여는 중…</div>'
+        + '<a class="late" id="go" href="' + _h(sso_url) + '">넘어가지 않으면 여기를 눌러 주세요</a></div>'
+        + "<script>(function(){var u=" + _js(sso_url) + ",done=0;"
+        # 받은편지함이 「누른 뒤 뜰 때까지」를 잴 수 있게 시작 시각을 남긴다(이 창 안에서만 · 숫자 하나)
+        #   값 = 「지금 시각,이 화면이 뜨기까지 걸린 ms」 (뒤 숫자 = 누른 뒤 이 화면이 보이기까지 = 남은 흰 화면 시간)
+        + "try{sessionStorage.setItem('knkMailT0',Date.now()+','+Math.round(performance.now()));}catch(e){}"
+        + "function go(){if(done)return;done=1;location.replace(u);}"
+        # 한 번 그린 다음에 넘어간다(바로 넘어가면 이 화면이 그려지기 전에 떠나 버려 다시 흰 창이 된다)
+        + "if(window.requestAnimationFrame){requestAnimationFrame(function(){setTimeout(go,0);});}"
+        + "setTimeout(go,300);})();</script>"
+        + '<noscript><meta http-equiv="refresh" content="0;url=' + _h(sso_url) + '"></noscript>'
+        + "</body></html>"
+    )
+
+
+def need_login_page(messenger_base: str, nxt: str = "", err: str = "", site: str = "mail") -> str:
+    """이음에 로그인돼 있지 않아 못 열 때의 안내 화면(이음 로그인 화면을 이 창에 띄우지 않는다).
+    site="mail" = 메일 창(다시 열기 → /mail/app) · site="works" = 이음웍스(다시 열기 → /login, 가려던 업무 화면 유지)."""
+    n = (nxt or "").strip()
+    works = (site == "works")
+    if works:
+        retry = "/login"
+        if n and n.startswith("/") and not n.startswith("//") and not n.startswith("/mail/") and n not in ("/home", "/home?app=1"):
+            retry += "?next=" + quote(n, safe="")
+        what = "이음웍스"
+    else:
+        retry = "/mail/app"
+        if n and n != MAIL_HOME and landing(n) == n and n.startswith("/mail/"):
+            retry += "?next=" + quote(n, safe="")
+        what = "메일"
+    msg_url = (messenger_base or "").rstrip("/") + "/"
+    if (err or "").strip().lower() == "access_denied":
+        title = "이 계정으로는 이음웍스를 열 수 없습니다" if works else "이 계정으로는 메일을 열 수 없습니다"
+        body = "이음 메신저에 <b>직원 계정</b>으로 로그인돼 있는지 확인해 주세요."
+    else:
+        title = "이음 메신저에 로그인해 주세요"
+        body = (what + "는 이음 메신저에 로그인한 상태에서 열립니다.<br>" if works else
+                "메일은 이음 메신저에 로그인한 상태에서 열립니다.<br>") + "이음 메신저에 로그인한 뒤 <b>다시 열기</b>를 눌러 주세요."
+    return (
+        (_WORKS_HEAD if works else _PAGE_HEAD)
+        + '<div class="mid"><div class="card"><div class="ic">🔒</div><h1>' + title + "</h1><p>" + body + "</p>"
+        + '<div class="btns"><a class="b b1" href="' + _h(msg_url) + '" target="_blank" rel="noopener">이음 메신저 열기</a>'
+        + '<a class="b b2" id="retry" href="' + _h(retry) + '">다시 열기</a></div>'
+        + '<p class="sub">이음 메신저에 로그인하고 이 창으로 돌아오면 자동으로 다시 엽니다.</p></div></div>'
+        # 다른 창(이음)에 다녀온 뒤 이 창으로 돌아오면 한 번 다시 연다 — 4초 안에 거듭 열지 않는다(왕복 방지)
+        + "<script>(function(){var r=" + _js(retry) + ",away=false,last=0;"
+        + "function again(){var n=Date.now();if(n-last<4000)return;last=n;location.replace(r);}"
+        + "window.addEventListener('blur',function(){away=true;});"
+        + "window.addEventListener('focus',function(){if(away){away=false;again();}});"
+        + "document.addEventListener('visibilitychange',function(){if(document.hidden){away=true;}"
+        + "else if(away){away=false;again();}});})();</script>"
+        + "</body></html>"
+    )
+
+
 # ─── 메일 전용 입구(포트) — WORKS 프로세스 안에서 함께 듣는다 ────────────────
 #   로그 맨 앞 낱말(WAIT · LISTEN · STOP · ERROR)은 **영문 고정** — 서버 점검 스크립트가 이 글자로 상태를 읽는다.
 _RETRY_SEC = 10.0            # 포트가 막혀 있으면 이 간격으로 다시 본다(옛 앱이 멈춘 뒤 이 안에 넘겨받는다)

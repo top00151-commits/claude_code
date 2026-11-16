@@ -7,6 +7,8 @@ except Exception:
     pass
 W = "https://works.knknara.co.kr"
 K = "https://kmail.knknara.co.kr"
+# 이음 로그인 주소 안의 「돌아올 곳 = kmail」 글자(주소 그대로 견준다)
+RU = "redirect_uri=https%3A%2F%2Fkmail.knknara.co.kr%2Fsso%2Fland"
 
 
 class NoRedir(urllib.request.HTTPRedirectHandler):
@@ -17,12 +19,12 @@ class NoRedir(urllib.request.HTTPRedirectHandler):
 op = urllib.request.build_opener(NoRedir)
 
 
-def get(url):
+def get(url, n=400):
     try:
         r = op.open(url, timeout=8)
-        return r.status, {k.title(): v for k, v in r.headers.items()}, r.read(400)
+        return r.status, {k.title(): v for k, v in r.headers.items()}, r.read(n)
     except urllib.error.HTTPError as e:
-        return e.code, {k.title(): v for k, v in e.headers.items()}, e.read(400)
+        return e.code, {k.title(): v for k, v in e.headers.items()}, e.read(n)
     except Exception as e:
         return 0, {}, ("ERR " + type(e).__name__).encode()
 
@@ -76,11 +78,15 @@ s, h, b = get(K + "/api/version")
 vk = json.loads(b).get("v") if (s == 200 and b.strip().startswith(b'{"v"')) else None
 vw = json.loads(bw).get("v") if (sw == 200 and bw.strip().startswith(b'{"v"')) else None
 s1, h1, b1 = get(K + "/home")
-s2, h2, b2 = get(K + "/mail/app")
+s2, h2, b2 = get(K + "/mail/app", 8000)
 s3, h3, b3 = get(K + "/")
 extra = [
     ("kmail /home → works 로 넘김(307)", s1 == 307 and h1.get("Location") == W + "/home"),
-    ("kmail /mail/app → 이음 로그인 · 돌아올 곳 kmail", s2 == 303 and "redirect_uri=https%3A%2F%2Fkmail.knknara.co.kr%2Fsso%2Fland" in h2.get("Location", "")),
+    # 2026-11-16 밤부터 /mail/app 은 「여는 중」 화면(200)을 먼저 그리고 넘어간다 — 그 화면 안의 주소를 본다.
+    #   (그 전 판은 바로 넘김 303 — 둘 다 「이음 로그인으로 · 돌아올 곳 kmail」이면 통과)
+    ("kmail /mail/app → 이음 로그인으로 · 돌아올 곳 kmail",
+     (s2 == 200 and b"msg.knknara.co.kr/sso/login?" in b2 and RU.encode() in b2)
+     or (s2 == 303 and "msg.knknara.co.kr/sso/login?" in h2.get("Location", "") and RU in h2.get("Location", ""))),
     ("kmail / → 받은편지함", s3 == 303 and h3.get("Location") == "/mail/inbox?app=1"),
     ("kmail 과 works 가 같은 판", bool(vk) and vk == vw),
 ]
