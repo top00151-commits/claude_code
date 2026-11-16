@@ -106,7 +106,7 @@ select.prq-in { appearance:auto; }
             </div>
             <div class="pe-f"><label>사업부</label>
               <select class="prq-in" name="biz_div">
-                {% for v, l in [('T','🔎 검사기'), ('M','⚙️ 자동화'), ('L','💡 라이프밸류'), ('E','🗂 기타'), ('C','🧴 소모품'), ('R','🔬 연구')] %}
+                {% for v, l in [('T','🔬 검사기'), ('M','🤖 자동화'), ('L','💄 라이프밸류'), ('E','🌐 기타'), ('C','📦 소모품'), ('R','🧪 연구')] %}
                 <option value="{{ v }}"{% if biz_cur == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
               </select>
             </div>
@@ -256,7 +256,7 @@ select.prq-in { appearance:auto; }
             </div>
             <div class="pe-f"><label>사업부</label>
               <select class="prq-in" name="biz_div">
-                {% for v, l in [('T','🔎 검사기'), ('M','⚙️ 자동화'), ('L','💡 라이프밸류'), ('E','🗂 기타'), ('C','🧴 소모품'), ('R','🔬 연구')] %}
+                {% for v, l in [('T','🔬 검사기'), ('M','🤖 자동화'), ('L','💄 라이프밸류'), ('E','🌐 기타'), ('C','📦 소모품'), ('R','🧪 연구')] %}
                 <option value="{{ v }}"{% if biz_cur == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
               </select>
             </div>

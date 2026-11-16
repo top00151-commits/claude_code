@@ -44,7 +44,7 @@
 <div class="rd-wrap" id="rd" data-id="{{ p.id }}" data-canedit="{{ '1' if can_edit else '' }}">
   <div class="page-head" data-dn="page-head">
     <div><div class="crumbs" data-dn="crumb"><a href="/rnd">연구개발 과제</a> · <b>{{ p.mgmt_code or '—' }}</b></div>
-      <h1 class="page-title" data-dn="title">🔬 <em>{{ p.title }}</em></h1></div>
+      <h1 class="page-title" data-dn="title">🧪 <em>{{ p.title }}</em></h1></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a class="btn btn-secondary" href="/rnd">← 목록</a>
       {% if can_edit %}<button type="button" class="btn btn-secondary" id="rdEditBtn" onclick="rdToggleEdit()">✏ 수정</button>

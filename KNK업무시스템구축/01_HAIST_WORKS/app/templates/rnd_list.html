@@ -48,7 +48,7 @@ table.rnd{ width:100%; border-collapse:separate; border-spacing:0; font-size:13p
 <div class="rnd-wrap" id="rnd">
   <div class="page-head" data-dn="page-head">
     <div><div class="crumbs" data-dn="crumb"><a href="/home">홈</a> · <b>연구개발 과제</b></div>
-      <h1 class="page-title" data-dn="title">🔬 <em>연구개발 과제</em></h1></div>
+      <h1 class="page-title" data-dn="title">🧪 <em>연구개발 과제</em></h1></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button type="button" class="btn btn-primary" onclick="rndOpenNew()">＋ 연구과제 등록</button>
     </div>
@@ -91,14 +91,14 @@ table.rnd{ width:100%; border-collapse:separate; border-spacing:0; font-size:13p
     </table>
   </div>
   {% else %}
-  <div class="rnd-empty">🔬 등록된 연구과제가 없습니다.<br><br><button type="button" class="rnd-btn primary" onclick="rndOpenNew()">＋ 첫 연구과제 등록</button></div>
+  <div class="rnd-empty">🧪 등록된 연구과제가 없습니다.<br><br><button type="button" class="rnd-btn primary" onclick="rndOpenNew()">＋ 첫 연구과제 등록</button></div>
   {% endif %}
 </div>
 
 {# 등록 모달 — SPA 규칙: .main 안 #}
 <div class="rnd-back" id="rndBack">
   <div class="rnd-modal" role="dialog" aria-modal="true">
-    <h3>🔬 연구과제 등록 <button type="button" class="x" onclick="rndCloseNew()">×</button></h3>
+    <h3>🧪 연구과제 등록 <button type="button" class="x" onclick="rndCloseNew()">×</button></h3>
     <div class="rnd-form">
       <div class="row"><div class="f" style="flex:1 1 100%;"><label>과제명 <span class="req">*</span></label><input type="text" id="rTitle" placeholder="예: 차세대 비전 검사 알고리즘 개발"></div></div>
       <div class="row">

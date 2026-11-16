@@ -479,7 +479,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             <details class="qf-adv" style="margin-top:8px;">
               <summary>통보 부서·인원 선택 <span>(기본 미선택 — 통보할 부서/사람을 직접 선택 · ▸개별로 사람만도 가능)</span></summary>
               {# z746(대표 지시): 자동 라우팅 안내 — 통보는 '이 사업부·공통' 담당자에게만 #}
-              {% set _bizmap = {'T':'🔎 검사기','M':'⚙️ 자동화','L':'💡 라이프밸류','E':'🗂 기타'} %}
+              {% set _bizmap = {'T':'🔬 검사기','M':'🤖 자동화','L':'💄 라이프밸류','E':'🌐 기타'} %}{# z1191z38: 등록 화면 아이콘 #}
               <div style="margin:8px 2px 2px;padding:8px 11px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:11.5px;color:#9a3412;line-height:1.6;">
                 📡 이 제작요청은 <b>{{ _bizmap.get(preset_biz, preset_biz) }}</b> 사업부 → 선택한 부서에서 <b>{{ _bizmap.get(preset_biz, preset_biz) }}·공통</b> 담당자에게만 통보됩니다.
                 <span style="color:#c2772a;">(담당 사업부는 설정▸사용자 수정에서 지정 · 미지정=공통=항상 통보. 표시된 인원수는 팀 전체)</span>

@@ -1652,8 +1652,8 @@ T = {
                  "vi": "📋 Báo giá"},
     "ch_m_rates": {"ko": "💱 환율",
                   "vi": "💱 Tỷ giá"},
-    "ch_m_rnd": {"ko": "🔬 연구개발 과제",
-                "vi": "🔬 Đề tài R&D"},
+    "ch_m_rnd": {"ko": "🧪 연구개발 과제",   # z1191z38: 검사기 🔬 와 겹치지 않게
+                "vi": "🧪 Đề tài R&D"},
     "ch_m_sales": {"ko": "🏢 매출 홈",
                   "vi": "🏢 Trang doanh thu"},
     "ch_m_sched": {"ko": "📅 작업 일정표",

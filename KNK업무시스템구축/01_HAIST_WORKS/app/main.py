@@ -30462,7 +30462,8 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
                 pr_images = []
     # v5H226z773: 등록 시 작성한 정보의 사람친화 라벨(형태·사업부·거래구분) — 코드값을 그대로 노출하지 않음
     _FORM_LBL = {"ASSEMBLY": "🏭 완제품", "SEMI": "📦 제품", "PARTS": "🧰 상품", "ETC": "🗂 기타"}
-    _BIZ_LBL = {"T": "🔎 검사기", "M": "⚙️ 자동화", "L": "💡 라이프밸류", "E": "🗂 기타", "C": "🧴 소모품", "R": "🔬 연구"}
+    # z1191z37 (대표 2026-11-16): 사업부 아이콘 = 프로젝트 등록 화면(🔬 🤖 💄 🌐 📦) · 연구는 검사기와 겹치지 않게 🧪
+    _BIZ_LBL = {"T": "🔬 검사기", "M": "🤖 자동화", "L": "💄 라이프밸류", "E": "🌐 기타", "C": "📦 소모품", "R": "🧪 연구"}
     _form_label = _FORM_LBL.get(str(p.get("shipment_form") or "").upper(), (p.get("shipment_form") or "—"))
     _bd = str(p.get("biz_div") or "").upper()
     if not _bd:

@@ -223,7 +223,7 @@ table.dsx{border-collapse:separate;border-spacing:0;font-size:12px;white-space:n
       {% if biz == 'C' %}<span class="dsx-sub"><span class="dsx-sub-lab">↳ 소모품 나눠 보기</span>
         <a class="dsx-tab dsx-s{% if not cbiz %} on{% endif %}" href="/dept/schedule?ym={{ ym }}&biz=C{{ _dq }}">전체 {{ cbiz_counts.all }}</a>
         <a class="dsx-tab dsx-s{% if cbiz=='T' %} on{% endif %}" href="/dept/schedule?ym={{ ym }}&biz=C&cbiz=T{{ _dq }}">🔬 검사기 {{ cbiz_counts.T }}</a>
-        <a class="dsx-tab dsx-s{% if cbiz=='M' %} on{% endif %}" href="/dept/schedule?ym={{ ym }}&biz=C&cbiz=M{{ _dq }}">⚙ 자동화 {{ cbiz_counts.M }}</a>
+        <a class="dsx-tab dsx-s{% if cbiz=='M' %} on{% endif %}" href="/dept/schedule?ym={{ ym }}&biz=C&cbiz=M{{ _dq }}">🤖 자동화 {{ cbiz_counts.M }}</a>
       </span>{% endif %}
     </div>
     <div class="dsx-legend">
