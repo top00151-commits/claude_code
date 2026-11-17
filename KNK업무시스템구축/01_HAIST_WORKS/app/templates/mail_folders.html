@@ -27,6 +27,9 @@
   .mf-add{padding:6px 12px 8px 34px;border-bottom:1px solid var(--line)}
   .mf-add input{border:1px dashed #cbd5e1;border-radius:6px;padding:4px 8px;font-size:12.5px;font-family:inherit;width:220px}
   .mf-sec{font-size:14px;font-weight:700;margin:20px 0 8px}
+  .mf-al input{border:1px solid transparent;border-radius:6px;padding:3px 7px;font-size:12px;font-family:inherit;width:260px;color:var(--mute);background:transparent}
+  .mf-al input:hover,.mf-al input:focus{border-color:#cbd5e1;background:#fff;color:var(--ink)}
+  @media(max-width:720px){.mf-al{display:none}}
   .mf-rule{display:grid;grid-template-columns:minmax(200px,1.4fr) 24px minmax(140px,1fr) 120px auto;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px}
   .mf-rule:last-child{border-bottom:0}
   .mf-rule small{color:var(--mute)}
@@ -53,7 +56,9 @@
     <br>· <b>고객사·업체</b> — 주소록·거래처 담당자 이메일, 같은 회사 주소(@ 뒤), 서명의 회사 이름이 폴더 이름과 같을 때. 이음웍스 거래처인데 폴더가 없으면 「기타 고객사」로.
     <br>· <b>케이엔케이</b> — 우리 회사 주소(@knknara.co.kr)는 직원 명부의 부서로(명부에 없으면 서명의 부서 이름).
     <br>· 어디에도 안 걸리면 <b>「일반」</b>. 메일을 열어 <b>「📁 이 폴더로」</b>를 고르면 그 회사(개인 메일은 그 주소)에서 온 메일이 지난 것·앞으로 올 것 모두 그 폴더로 갑니다.
+    <br>· 폴더 이름 옆 <b>다른 이름</b>(영문 이름·회사 주소)도 같이 봅니다 — 예: 「드림텍」 옆에 Dreamtech 를 적어 두면 @dreamtech… 주소와 영문 서명도 드림텍으로.
     <br>· 폴더를 지워도 <b>메일은 지워지지 않습니다</b>(자동 분류나 「일반」으로 돌아갑니다).
+    {% if gen.n %}<br>· 「일반」에 <b>{{ gen.n }}통</b> 남아 있습니다 → <a href="/mail/folders/general"><b>🧹 일반 정리하기</b></a>(보낸 곳별로 묶어 한 번에){% endif %}
   </div>
 
   {% if not groups %}
@@ -83,6 +88,8 @@
     <div class="mf-row k">
       <form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="rename"><input type="hidden" name="id" value="{{ k.id }}">
         <input class="mf-name" name="name" value="{{ k.name }}" maxlength="60" title="이름을 고치고 Enter — 서명의 회사 이름과 맞출 때도 이 이름을 씁니다"></form>
+      <form method="post" action="/mail/folders/op" class="mf-al"><input type="hidden" name="op" value="aliases"><input type="hidden" name="id" value="{{ k.id }}">
+        <input name="aliases" value="{{ k.aliases }}" maxlength="300" placeholder="다른 이름(영문·회사 주소) — 쉼표로" title="서명·보낸 사람 이름·회사 주소(@ 뒤)와 맞출 때 같이 봅니다. 예: Dreamtech, dreamtech.co.kr — 고치고 Enter"></form>
       <span class="mf-n">{{ cnt.get(kk, (0,0))[0] }}통{% if cnt.get(kk, (0,0))[1] %} · <b>{{ cnt.get(kk)[1] }}</b>{% endif %}</span>
       <form method="post" action="/mail/folders/op"><input type="hidden" name="id" value="{{ k.id }}">
         <button class="mf-btn" name="op" value="up" title="위로">↑</button><button class="mf-btn" name="op" value="down" title="아래로">↓</button></form>

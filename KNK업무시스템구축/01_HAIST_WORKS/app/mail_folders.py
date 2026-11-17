@@ -62,12 +62,47 @@ def ensure(c) -> None:
         pattern TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now','localtime')),
         UNIQUE(user_id, kind, pattern))""")
+    # 11-17 2차: 폴더마다 「다른 이름」(영문 이름·회사 주소) — 서명·보낸 사람 이름·회사 주소와 맞출 때 같이 본다
+    try:
+        c.execute("ALTER TABLE mail_folders ADD COLUMN aliases TEXT")
+    except Exception:
+        pass
     _OK["v"] = True
 
 
+# 대표 아웃룩 폴더의 영문 이름(회사 주소 @ 뒤가 보통 영문이라 한글 폴더 이름만으로는 못 맞춤).
+#   이름 맞추기에만 쓴다 — 관리 화면에서 보이고 고칠 수 있다. 점(.)이 들어간 것은 회사 주소 그대로.
+SEED_ALIASES = {
+    "탑엔지니어링": "TOP Engineering, topeng",
+    "세경하이테크": "Sekyung Hitech, sekyunghitech",
+    "두성테크": "Doosung Tech, doosungtech",
+    "드림텍": "Dreamtech",
+    "삼성전기": "Samsung Electro-Mechanics, SEMCO",
+    "삼성전자": "Samsung Electronics",
+    "시노펙스": "Synopex",
+    "씨젠": "Seegene",
+    "아이마켓코리아": "iMarketKorea, imarketkorea",
+    "에스아이플렉스": "SI Flex, siflex",
+    "이엠텍": "EM-Tech, emtech",
+    "엠씨넥스": "MCNEX",
+    "일진디스플레이": "Iljin Display, iljindisplay",
+    "파트론": "Partron",
+    "하나머티리얼즈": "Hana Materials, hanamaterials",
+    "리딩유아이": "Leading UI, leadingui",
+    "멜파스": "MELFAS",
+    "시냅틱스": "Synaptics",
+    "실리콘웍스": "Silicon Works, siliconworks, LX Semicon, lxsemicon",
+    "싸이프레스": "Cypress",
+    "어보브반도체": "ABOV, abov",
+    "STMicroelectronics": "st.com, 에스티마이크로일렉트로닉스",
+    "AMS": "ams.com, ams-osram.com, ams OSRAM",
+}
+
+
 # ─── 이름 맞추기 ────────────────────────────────────────────────────
-_RE_CORP = re.compile(r"\(주\)|㈜|\(유\)|\(株\)|주식회사|유한회사|co\.?,?\s*ltd\.?|corporation|corp\.?|inc\.?|"
-                      r"limited|ltd\.?|company|vina|vietnam", re.I)
+_RE_CORP = re.compile(r"\(주\)|㈜|\(유\)|\(株\)|주식회사|유한회사|"
+                      r"(?<![a-z])(?:co\.?,?\s*ltd\.?|corporation|corp\.?|inc\.?|limited|ltd\.?|company|vina|vietnam)(?![a-z])",
+                      re.I)
 
 
 def norm_name(s: str) -> str:
@@ -75,6 +110,68 @@ def norm_name(s: str) -> str:
     t = _RE_CORP.sub(" ", s or "")
     t = re.sub(r"[\s\-_.,·&/()\[\]'\"]+", "", t)
     return t.lower()
+
+
+_RE_HANGUL = re.compile(r"[가-힣]")
+_RE_TOK = re.compile(r"[^0-9a-zA-Z가-힣]+")
+
+
+class NameIndex:
+    """폴더 이름·다른 이름 → 폴더. 글에서 폴더를 찾을 때 **한 곳만** 걸릴 때만 쓴다.
+    - 같음: 글 전체(㈜·띄어쓰기 뺀)가 이름과 같음
+    - 들어 있음: 한글 3자 이상 / 영문 5자 이상 이름이 글 안에 있음
+    - 낱말 같음: 짧은 이름(다온·씨젠·GTS·SRC…)은 낱말 하나가 정확히 같을 때만(「김다온」은 안 걸림)."""
+
+    def __init__(self, items):
+        self.exact, self.contain, self.short, self.dom, self.label = {}, [], {}, {}, []
+        for fid, raw in items:
+            raw = (raw or "").strip()
+            if not raw:
+                continue
+            if "." in raw and " " not in raw and not _RE_HANGUL.search(raw):
+                self.dom.setdefault(raw.lower().lstrip("@"), set()).add(fid)
+                continue
+            n = norm_name(raw)
+            if not n:
+                continue
+            self.exact.setdefault(n, set()).add(fid)
+            long_enough = (len(n) >= 3) if _RE_HANGUL.search(n) else (len(n) >= 5)
+            if long_enough:
+                self.contain.append((n, fid))
+            else:
+                self.short.setdefault(n, set()).add(fid)
+            if not _RE_HANGUL.search(n) and len(n) >= 4:
+                self.label.append((n, fid))
+
+    def find(self, text):
+        """글 → 폴더 id 집합."""
+        n = norm_name(text)
+        if not n:
+            return set()
+        if n in self.exact:
+            return set(self.exact[n])
+        hit = {fid for k, fid in self.contain if k in n}
+        for t in _RE_TOK.split(text or ""):
+            t2 = norm_name(t)
+            if t2 and t2 in self.short:
+                hit |= self.short[t2]
+        return hit
+
+    def find_domain(self, d):
+        """회사 주소(@ 뒤) → 폴더 id 집합. ① 적어 둔 주소 그대로(하위 주소 포함) ② 맨 앞 이름이 영문 이름과 같거나 그것으로 시작."""
+        d = (d or "").lower()
+        hit = set()
+        for k, ids in self.dom.items():
+            if d == k or d.endswith("." + k):
+                hit |= ids
+        if hit:
+            return hit
+        lab = re.sub(r"[^a-z0-9]", "", d.split(".")[0])
+        if len(lab) >= 4:
+            for k, fid in self.label:
+                if lab == k or (len(k) >= 5 and lab.startswith(k)):
+                    hit.add(fid)
+        return hit
 
 
 def _dom(e: str) -> str:
@@ -117,13 +214,35 @@ def seed_if_owner(c, uid) -> bool:
             return False
     except Exception:
         return False
-    return seed(c, uid)
+    made = seed(c, uid)
+    apply_seed_aliases(c, uid)
+    return made
+
+
+def apply_seed_aliases(c, uid) -> int:
+    """대표 아웃룩 폴더에 영문 이름을 채운다 — 아직 비어 있는(NULL) 폴더만(사람이 고친 것은 그대로)."""
+    ensure(c)
+    n = 0
+    for name, al in SEED_ALIASES.items():
+        n += c.execute("UPDATE mail_folders SET aliases=? WHERE user_id=? AND name=? AND aliases IS NULL "
+                       "AND parent_id IS NOT NULL", (al, uid, name)).rowcount
+    if n:
+        _CACHE.pop(uid, None)
+    return n
+
+
+def set_aliases(c, uid, fid, aliases) -> bool:
+    al = ", ".join(x.strip() for x in re.split(r"[,\n]+", aliases or "") if x.strip())[:300]
+    n = c.execute("UPDATE mail_folders SET aliases=? WHERE id=? AND user_id=?", (al, fid, uid)).rowcount
+    _CACHE.pop(uid, None)
+    return bool(n)
 
 
 def folders(c, uid) -> list:
     ensure(c)
     return [dict(r) for r in c.execute(
-        "SELECT id, parent_id, name, sort, COALESCE(kind,'') AS kind FROM mail_folders WHERE user_id=? "
+        "SELECT id, parent_id, name, sort, COALESCE(kind,'') AS kind, COALESCE(aliases,'') AS aliases "
+        "FROM mail_folders WHERE user_id=? "
         "ORDER BY sort, id", (uid,)).fetchall()]
 
 
@@ -155,7 +274,7 @@ def _stamp(c, uid):
                   (uid,)).fetchone()
     b = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0) FROM mail_folders WHERE user_id=?", (uid,)).fetchone()
     r = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0) FROM mail_folder_rules WHERE user_id=?", (uid,)).fetchone()
-    nm = c.execute("SELECT COALESCE(group_concat(id||':'||name||':'||COALESCE(parent_id,0)||':'||sort,'|'),'') "
+    nm = c.execute("SELECT COALESCE(group_concat(id||':'||name||':'||COALESCE(parent_id,0)||':'||sort||':'||COALESCE(aliases,''),'|'),'') "
                    "FROM mail_folders WHERE user_id=?", (uid,)).fetchone()
     # 주소록·거래처 담당자·직원이 바뀌면 다시 계산
     ex = []
@@ -300,6 +419,15 @@ def classify(c, uid) -> dict:
     for f in fl:
         if f["parent_id"]:
             leaf_by_name.setdefault(norm_name(f["name"]), set()).add(f["id"])
+    # 이름·다른 이름(영문·회사 주소) 찾기 — 묶음 아래 폴더만
+    _items = []
+    for f in fl:
+        if f["parent_id"]:
+            _items.append((f["id"], f["name"]))
+            for a in re.split(r"[,\n]+", f.get("aliases") or ""):
+                if a.strip():
+                    _items.append((f["id"], a.strip()))
+    idx = NameIndex(_items)
     cust_by_name = {}
     for cid, nm in M["customers"].items():
         cust_by_name.setdefault(norm_name(nm), set()).add(cid)
@@ -325,6 +453,7 @@ def classify(c, uid) -> dict:
 
     from .mail_cleanup import _RE_ROBOT
     senders = {}
+    _last_ids = {}
     rows = c.execute(
         "SELECT lower(from_email) AS e, MAX(from_name) AS nm, MAX(id) AS last_id, COUNT(*) AS n, "
         "SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u FROM mail_messages "
@@ -389,12 +518,17 @@ def classify(c, uid) -> dict:
                     got = folder_for_supplier(sid)
                     if got:
                         key, how = got[0], got[1]
-            # ⑤ 서명의 회사 이름(사람 주소만 — 알림·광고 주소는 건너뜀)
+            # ⑤ 회사 주소(@ 뒤)가 폴더의 영문 이름·적어 둔 주소와 같음(예: @partron.co.kr → 파트론)
+            if key is None and d and d not in M["free"]:
+                fid = _one(idx.find_domain(d))
+                if fid:
+                    key, how = "f%d" % fid, "회사 주소 @%s = 폴더 이름" % d
+            # ⑥ 서명의 회사 이름(사람 주소만 — 알림·광고 주소는 건너뜀)
             if key is None and not _RE_ROBOT.match(e.split("@")[0] or ""):
                 comp, _dept = _sig_of(c, e, r["last_id"], r["nm"])
                 cn = norm_name(comp)
                 if cn and len(cn) >= 2:
-                    fid = _one(leaf_by_name.get(cn))
+                    fid = _one(leaf_by_name.get(cn)) or _one(idx.find(comp))
                     if fid:
                         key, how = "f%d" % fid, "서명의 회사 이름"
                     else:
@@ -403,9 +537,30 @@ def classify(c, uid) -> dict:
                             got = folder_for_customer(cid)
                             if got:
                                 key, how = got[0], got[1] + "(서명의 회사 이름)"
+            # ⑦ 보낸 사람 이름 칸(예: 「홍길동(드림텍)」「Dreamtech Kim」)
+            if key is None and r["nm"]:
+                fid = _one(idx.find(r["nm"]))
+                if fid:
+                    key, how = "f%d" % fid, "보낸 사람 이름의 회사"
         if key is None:
             key, how = "gen", "일반"
         senders[e] = {"key": key, "how": how, "n": r["n"] or 0, "u": r["u"] or 0}
+        _last_ids[e] = r["last_id"]
+
+    # ⑧ 같은 회사 주소의 다른 사람이 폴더 **한 곳**으로만 갔으면 나머지도 그리로(개인 메일·우리 회사 주소 제외)
+    by_dom = {}
+    for e2, s2 in senders.items():
+        d2 = _dom(e2)
+        if s2["key"].startswith("f") and d2 and d2 not in M["free"] and d2 not in OUR_DOMAINS \
+                and not s2["how"].startswith("내 규칙(주소)"):
+            by_dom.setdefault(d2, set()).add(s2["key"])
+    for e2, s2 in senders.items():
+        if s2["key"] == "gen":
+            d2 = _dom(e2)
+            ks = by_dom.get(d2)
+            if ks and len(ks) == 1:
+                s2["key"] = next(iter(ks))
+                s2["how"] = "같은 회사 주소(@%s)의 다른 사람이 이 폴더" % d2
 
     cnt = {}
     for s in senders.values():
@@ -445,9 +600,84 @@ def classify(c, uid) -> dict:
     labels["gen"] = "일반"
     keys_of["gen"] = {"gen"}
     res = {"senders": senders, "nodes": nodes, "labels": labels, "keys_of": keys_of,
-           "gen": {"n": cnt.get("gen", [0, 0])[0], "u": cnt.get("gen", [0, 0])[1]}}
+           "gen": {"n": cnt.get("gen", [0, 0])[0], "u": cnt.get("gen", [0, 0])[1]},
+           "_idx": idx, "_last": dict(_last_ids)}
     _CACHE[uid] = (st, res)
     return res
+
+
+_RE_TAG = re.compile(r"[\[(（【<〔]\s*([^\])）】>〕]{2,24}?)\s*[\])）】>〕]")
+
+
+def general_groups(c, uid, res, limit=300) -> list:
+    """「일반」에 남은 메일을 보낸 곳(회사 주소 @ 뒤 · 개인 메일은 그 주소)별로 묶는다 — 일반 정리 화면용.
+    단서(서명의 회사 이름 · 제목의 [회사])는 **추천**만 한다(사람이 누르기 전에는 옮기지 않음)."""
+    free = _free_domains()
+    idx = res.get("_idx")
+    labels = res.get("labels", {})
+    groups = {}
+    for e, s0 in res["senders"].items():
+        if s0["key"] != "gen":
+            continue
+        d = _dom(e)
+        gk = e if (not d or d in free or d in OUR_DOMAINS) else d
+        g = groups.setdefault(gk, {"key": gk, "is_domain": gk == d, "senders": [], "n": 0, "u": 0})
+        g["senders"].append(e)
+        g["n"] += s0["n"]
+        g["u"] += s0["u"]
+    out = sorted(groups.values(), key=lambda g: (-g["n"], g["key"]))[:limit]
+    if not out:
+        return []
+    allsend = [e for g in out for e in g["senders"]]
+    c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_gs(e TEXT PRIMARY KEY)")
+    c.execute("DELETE FROM _mf_gs")
+    c.executemany("INSERT OR IGNORE INTO _mf_gs(e) VALUES(?)", [(x,) for x in allsend])
+    recent = {}
+    for r in c.execute(
+            "SELECT lower(from_email) AS e, from_name AS nm, subject AS sj, received_at AS at FROM mail_messages "
+            "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 "
+            "AND lower(from_email) IN (SELECT e FROM _mf_gs) ORDER BY received_at DESC, id DESC LIMIT 6000",
+            (uid,)).fetchall():
+        recent.setdefault(r["e"], []).append(r)
+    for g in out:
+        rows = sorted((x for e in g["senders"] for x in recent.get(e, [])[:6]),
+                      key=lambda x: (x["at"] or ""), reverse=True)
+        g["names"] = []
+        for x in rows:
+            nm = (x["nm"] or "").strip()
+            if nm and nm not in g["names"]:
+                g["names"].append(nm)
+            if len(g["names"]) >= 3:
+                break
+        g["subject"] = rows[0]["sj"] if rows else ""
+        g["at"] = (rows[0]["at"] or "")[:16] if rows else ""
+        g["sample"] = g["senders"][0]
+        hints, sug = [], set()
+        comps = []
+        for e in g["senders"][:5]:
+            lid = res.get("_last", {}).get(e)
+            comp = (_SIG_CACHE.get((e, lid)) or ("", ""))[0] if lid else ""
+            if comp and comp not in comps:
+                comps.append(comp)
+        for comp in comps[:2]:
+            hints.append("서명: " + comp)
+            if idx:
+                sug |= idx.find(comp)
+        tags = []
+        for x in rows[:8]:
+            for t in _RE_TAG.findall(x["sj"] or ""):
+                t = t.strip()
+                if t and t not in tags:
+                    tags.append(t)
+        for t in tags[:3]:
+            hints.append("제목: [" + t + "]")
+            if idx:
+                sug |= idx.find(t)
+        g["hints"] = hints
+        fid = _one(sug)
+        g["suggest"] = fid
+        g["suggest_name"] = labels.get("f%d" % fid, "") if fid else ""
+    return out
 
 
 def senders_in(res, key) -> list:

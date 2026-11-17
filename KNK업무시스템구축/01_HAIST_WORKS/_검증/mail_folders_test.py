@@ -228,6 +228,66 @@ try:
     check("로그인 안 하면 401", k.post("/mail/%d/folder" % ids["free"], data={"folder_id": yj}).status_code == 401)
     _UID["v"] = OWN
 
+    print("== 4b. 더 똑똑하게(영문 이름·회사 주소·보낸 사람 이름·같은 회사 사람) + 일반 정리 ==")
+    with _db.db_session() as c:
+        mf.apply_seed_aliases(c, OWN)
+    ids2 = {}
+    ids2["dom_alias"] = put("kim@partron.example", "견적", "견적입니다.")
+    ids2["en_sig"] = put("lee@dt-global.example", "Sample", "Please check.\n\nBest regards,\n\nJohn Lee\nManager\nDreamtech Co., Ltd.\nTel +82-31-000-0000")
+    ids2["name_tag"] = put("park@skht.example", "회의", "회의 일정", name="박부장(세경하이테크)")
+    ids2["short_bad"] = put("kimdaon@personal-x.example", "안녕", "개인", name="김다온")
+    ids2["short_ok"] = put("cs@daon-x.example", "견적", "견적", name="다온 김철수")
+    ids2["prop_a"] = put("a1@abovsemi.example", "칩", "자료\n\n감사합니다.\n\n홍길동 과장\n㈜어보브반도체\nTel 043-000-0000")
+    ids2["prop_b"] = put("b2@abovsemi.example", "칩2", "자료입니다.")
+    ids2["sam_a"] = put("x@samsung.example", "기", "자료\n\n감사합니다.\n\n김삼성 책임\n삼성전기㈜\nTel 031-000-0000")
+    ids2["sam_b"] = put("y@samsung.example", "자", "자료\n\n감사합니다.\n\n이삼성 프로\n삼성전자㈜\nTel 031-000-0001")
+    ids2["sam_c"] = put("z@samsung.example", "?", "누구인지 모름")
+    ids2["subj_tag"] = put("q@unknown-fine.example", "[파인텍] 견적 송부", "견적 송부드립니다.")
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+    fo = lambda e: mf.folder_of(res, e)["name"]
+    check("회사 주소 @partron… → 파트론(영문 이름)", fo("kim@partron.example") == "파트론", mf.folder_of(res, "kim@partron.example"))
+    check("영문 서명 「Dreamtech Co., Ltd.」 → 드림텍", fo("lee@dt-global.example") == "드림텍", mf.folder_of(res, "lee@dt-global.example"))
+    check("보낸 사람 이름 「박부장(세경하이테크)」 → 세경하이테크", fo("park@skht.example") == "세경하이테크", mf.folder_of(res, "park@skht.example"))
+    check("짧은 이름은 낱말이 같을 때만 — 「김다온」은 다온 아님", fo("kimdaon@personal-x.example") == "일반")
+    check("「다온 김철수」 → 다온", fo("cs@daon-x.example") == "다온", mf.folder_of(res, "cs@daon-x.example"))
+    check("같은 회사 주소의 다른 사람이 어보브반도체 → 나머지도 어보브반도체", fo("b2@abovsemi.example") == "어보브반도체", mf.folder_of(res, "b2@abovsemi.example"))
+    check("한 회사 주소가 두 폴더(삼성전기·삼성전자)면 나머지는 짐작 안 함(일반)",
+          fo("x@samsung.example") == "삼성전기" and fo("y@samsung.example") == "삼성전자" and fo("z@samsung.example") == "일반")
+    check("제목 [파인텍] 만으로는 자동으로 옮기지 않음(추천만)", fo("q@unknown-fine.example") == "일반")
+    check("이름 비교에서 Incheon 의 inc 를 지우지 않음", mf.norm_name("Incheon Tech") == "incheontech", mf.norm_name("Incheon Tech"))
+    with _db.db_session() as c:
+        gg = mf.general_groups(c, OWN, res)
+    gmap = {g["key"]: g for g in gg}
+    check("일반 정리: 회사 주소별로 묶음(@samsung.example 한 줄)", "samsung.example" in gmap and gmap["samsung.example"]["n"] == 1)
+    check("일반 정리: 제목 [파인텍] → 추천 폴더 파인텍", gmap.get("unknown-fine.example", {}).get("suggest_name") == "파인텍", gmap.get("unknown-fine.example"))
+    check("일반 정리: 개인 메일은 주소 하나로", "other.person@gmail.com" in gmap and gmap["other.person@gmail.com"]["is_domain"] is False)
+    gp = k.get("/mail/folders/general")
+    check("일반 정리 화면 200 · 노란 추천 줄 · 추천대로 모두 옮기기", gp.status_code == 200 and "gn-row sug" in gp.text and "추천대로 모두 옮기기" in gp.text, gp.status_code)
+    gh = k.get("/mail/inbox?fd=gen").text
+    check("일반 보기 띠·왼쪽에 「🧹 일반 정리하기」", gh.count("🧹 일반 정리하기") >= 2)
+    with _db.db_session() as c:
+        fine = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='파인텍'", (OWN,)).fetchone()["id"]
+        init = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='이니텍'", (OWN,)).fetchone()["id"]
+    j = k.post("/mail/folders/rule", data={"sender": "q@unknown-fine.example", "folder_id": fine}).json()
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+    check("「옮기기」 → 회사 주소 규칙 · 파인텍으로", j.get("ok") and j.get("kind") == "domain" and fo("q@unknown-fine.example") == "파인텍", j)
+    check("내 메일에 없는 주소로는 규칙 못 만듦(404)", k.post("/mail/folders/rule", data={"sender": "nobody@x.example", "folder_id": fine}).status_code == 404)
+    later2 = put("z9@newcorp.example", "새 회사", "처음")
+    k.post("/mail/folders/op", data={"op": "aliases", "id": init, "aliases": "INITECH, newcorp.example"})
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+        al = c.execute("SELECT aliases FROM mail_folders WHERE id=?", (init,)).fetchone()["aliases"]
+    check("관리 화면에서 다른 이름(회사 주소) 적기 → 그 주소 메일이 이니텍으로", fo("z9@newcorp.example") == "이니텍" and al == "INITECH, newcorp.example", (al, mf.folder_of(res, "z9@newcorp.example")))
+    with _db.db_session() as c:
+        c.execute("UPDATE mail_folders SET aliases='내가 고친 이름' WHERE user_id=? AND name='파트론'", (OWN,))
+        mf.apply_seed_aliases(c, OWN)
+        al2 = c.execute("SELECT aliases FROM mail_folders WHERE user_id=? AND name='파트론'", (OWN,)).fetchone()["aliases"]
+    check("사람이 고친 다른 이름은 다시 덮지 않음", al2 == "내가 고친 이름")
+    mp = k.get("/mail/folders").text
+    check("관리 화면에 다른 이름 칸 · 일반 정리 바로가기", 'name="aliases"' in mp and "/mail/folders/general" in mp)
+
     print("== 5. 관리 화면 ==")
     r = k.get("/mail/folders")
     check("관리 화면 열림 · 규칙 3개 보임", r.status_code == 200 and "@newco.example" in r.text and "hello.yj@gmail.com" in r.text, r.status_code)

@@ -22691,6 +22691,43 @@ async def mail_folders_page(req: Request, msg: str = ""):
                team_labels=[_mail_folders.team_label(t) for t in tl])
 
 
+@app.get("/mail/folders/general", response_class=HTMLResponse)
+async def mail_folders_general_page(req: Request):
+    """「일반」 정리 — 일반에 남은 메일을 보낸 곳(회사 주소·개인 메일 주소)별로 묶고, 고른 폴더로 한 번에(나에게만)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        _mail_folders.seed_if_owner(c, u["id"])
+        if not _mail_folders.has_tree(c, u["id"]):
+            return RedirectResponse("/mail/folders", 303)
+        res = _mail_folders.classify(c, u["id"])
+        groups = _mail_folders.general_groups(c, u["id"], res)
+        choices = _mail_folders.assignable(c, u["id"])
+    return ctx(req, "mail_folders_general.html", user=u, groups=groups, choices=choices,
+               gen=res.get("gen") or {"n": 0, "u": 0})
+
+
+@app.post("/mail/folders/rule")
+async def mail_folders_rule(req: Request):
+    """일반 정리 화면의 「옮기기」 — 그 보낸 곳(회사 주소 · 개인 메일은 주소)을 그 폴더로 기억. 내 받은 메일의 주소만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    sender = (form.get("sender") or "").strip().lower()
+    try:
+        fid = int(form.get("folder_id") or 0)
+    except Exception:
+        fid = 0
+    with db_session() as c:
+        if not c.execute("SELECT 1 FROM mail_messages WHERE user_id=? AND direction='in' AND lower(from_email)=? LIMIT 1",
+                         (u["id"], sender)).fetchone():
+            return JSONResponse({"ok": False, "message": "내 받은 메일의 보낸 주소가 아닙니다."}, 404)
+        r = _mail_folders.set_rule(c, u["id"], fid, sender)
+    return JSONResponse(r, 200 if r.get("ok") else 400)
+
+
 @app.post("/mail/folders/op")
 async def mail_folders_op(req: Request):
     u = get_user(req)
@@ -22720,6 +22757,8 @@ async def mail_folders_op(req: Request):
         elif op == "delete":
             n = _mail_folders.delete_folder(c, uid, _i("id"))
             msg = ("폴더 %d개를 지웠습니다(메일은 그대로 · 자동 분류나 일반으로 돌아갑니다)." % n) if n else ""
+        elif op == "aliases":
+            msg = "다른 이름을 저장했습니다." if _mail_folders.set_aliases(c, uid, _i("id"), form.get("aliases")) else ""
         elif op == "delrule":
             msg = "규칙을 지웠습니다." if _mail_folders.delete_rule(c, uid, _i("id")) else ""
     from urllib.parse import quote

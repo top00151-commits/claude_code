@@ -59,6 +59,8 @@
   .mf-cur{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:13px;color:#1e3a8a}
   .mf-cur span{color:#64748b;font-size:12px}
   .mf-cur a{margin-left:auto;font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:600}
+  .mf-cur a.mf-cur-go{background:#1d4ed8;color:#fff;border-radius:999px;padding:3px 11px}
+  .mf-cur a.mf-cur-go + a{margin-left:0}
   /* 메일 목록 행 — 제목 우선(굵게·한 줄 전체), 보낸사람·요약은 아래 작게 (대표 지시: 리스트 잘 보이게) */
   .mbx-list{display:flex;flex-direction:column}
   .mbx-row{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
@@ -240,6 +242,7 @@
       <a href="/mail/inbox?fd=gen" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == 'gen' else '' }}" title="위 폴더 어디에도 안 걸린 메일 {{ mf.gen.n }}통 — 메일을 열어 「📁 이 폴더로」를 누르면 그 회사 메일이 모두 그 폴더로 갑니다">
         <span class="mf-tg mf-tg-x"></span><span class="fname">일반</span>{% if mf.gen.u %}<span class="mf-u">{{ mf.gen.u }}</span>{% endif %}
       </a>
+      {% if mf.gen.n %}<a href="/mail/folders/general" class="mbx-fold mf-k" style="color:#1d4ed8;font-size:12px" title="일반에 남은 메일 {{ mf.gen.n }}통을 보낸 곳별로 묶어 한 번에 폴더로"><span class="fname">🧹 일반 정리하기</span></a>{% endif %}
       {% endif %}
 
       {% if box=='in' %}
@@ -279,7 +282,7 @@
     <div class="mbx-listcol">
     {% if box=='in' and cur_fd|default('') %}
     {# 지금 보고 있는 폴더(11-17) — 왼쪽 목록이 길어 위로 밀려도 어느 폴더인지 보이게 #}
-    <div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ mails|length }}통{% if mails|length >= 200 %}+{% endif %}</span><a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
+    <div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ mails|length }}통{% if mails|length >= 200 %}+{% endif %}</span>{% if cur_fd == 'gen' %}<a href="/mail/folders/general" class="mf-cur-go" title="일반에 남은 메일을 보낸 곳별로 묶어 한 번에 폴더로">🧹 일반 정리하기</a>{% endif %}<a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
     {% endif %}
     {% if mails %}
     <div class="mbx-list">

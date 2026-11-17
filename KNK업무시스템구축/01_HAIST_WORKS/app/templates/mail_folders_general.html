@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>일반 정리 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* 「일반」 정리(대표 지시 2026-11-17 「일반에 남은 메일 정리해줘」) — 보낸 곳별로 묶어 한 번에 폴더로 */
+  .gn-wrap{max-width:1180px}
+  .gn-help{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
+  .gn-help b{color:var(--ink)}
+  .gn-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
+  .gn-q{flex:1;min-width:160px;max-width:300px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
+  .gn-list{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+  .gn-row{display:grid;grid-template-columns:28px minmax(190px,1.3fr) 70px minmax(180px,1.6fr) minmax(210px,auto);gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
+  .gn-row:last-child{border-bottom:0}
+  .gn-row.head{background:#f8fafc;font-size:12px;color:var(--mute);font-weight:700}
+  .gn-row.done{background:#f0fdf4}
+  .gn-row.sug{background:#fffbeb}
+  .gn-row input[type=checkbox]{width:17px;height:17px;cursor:pointer}
+  .gn-who{min-width:0}
+  .gn-key{font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gn-names{font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gn-n{font-weight:700;text-align:right;white-space:nowrap}
+  .gn-n small{display:block;font-weight:600;font-size:11px;color:#2563eb}
+  .gn-subj{min-width:0}
+  .gn-subj .s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+  .gn-subj .h{font-size:11.5px;color:#92400e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gn-subj .d{font-size:11px;color:var(--mute)}
+  .gn-act{display:flex;gap:6px;align-items:center;justify-content:flex-end}
+  .gn-act select{font-size:12.5px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:7px;max-width:190px;background:#fff}
+  .gn-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;font-family:inherit;color:var(--ink)}
+  .gn-btn:hover{background:#f3f4f6}
+  .gn-btn.go{background:#1d4ed8;border-color:#1d4ed8;color:#fff;font-weight:700}
+  .gn-ok{font-size:12px;color:#047857;font-weight:700;white-space:nowrap}
+  .gn-sel{position:sticky;bottom:0;z-index:5;margin-top:12px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .gn-empty{padding:34px 16px;text-align:center;color:var(--mute);line-height:1.8}
+  @media(max-width:760px){
+    .gn-row{grid-template-columns:26px 1fr auto;gap:6px 8px}
+    .gn-row.head{display:none}
+    .gn-subj{grid-column:2/-1}
+    .gn-act{grid-column:2/-1;justify-content:flex-start}
+  }
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+<div class="gn-wrap">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/folders">폴더</a> · 일반 정리</div>
+    <h1 class="page-title">🧹 「일반」 <em>정리</em></h1>
+  </div><div><a href="/mail/inbox?fd=gen" class="btn btn-secondary">← 일반 메일 보기</a></div></div>
+
+  <div class="gn-help">
+    「일반」에 남은 메일 <b>{{ gen.n }}통</b>을 <b>보낸 곳별로 묶었습니다</b>(회사 주소 @ 뒤 · 지메일 같은 개인 메일은 그 주소 하나).
+    <br>· 줄마다 폴더를 고르고 <b>옮기기</b> — 그 곳에서 온 메일이 <b>지난 것·앞으로 올 것 모두</b> 그 폴더로 갑니다(나에게만 · <a href="/mail/folders">폴더 관리</a>에서 언제든 지울 수 있음).
+    <br>· <span style="background:#fffbeb;padding:0 4px;border-radius:4px">노란 줄</span>은 서명의 회사 이름이나 제목의 [회사]로 <b>추천 폴더를 미리 골라 둔 줄</b>입니다 — 맞으면 아래 <b>「추천대로 모두 옮기기」</b> 한 번이면 됩니다.
+  </div>
+
+  {% if groups %}
+  <div class="gn-bar">
+    <input type="text" class="gn-q" id="gnQ" placeholder="주소·이름·제목으로 찾기" oninput="gnFilter()">
+    <span style="color:var(--mute)">보낸 곳 {{ groups|length }}곳{% set sug_n = groups|selectattr('suggest')|list|length %}{% if sug_n %} · 추천 있는 곳 <b style="color:#92400e">{{ sug_n }}</b>{% endif %}</span>
+  </div>
+  <div class="gn-list" id="gnList">
+    <div class="gn-row head"><span><input type="checkbox" id="gnAll" onclick="gnAllTog(this)" title="보이는 줄 모두 고르기"></span><span>보낸 곳</span><span style="text-align:right">메일</span><span>최근 제목 · 단서</span><span style="text-align:right">폴더로 옮기기</span></div>
+    {% for g in groups %}
+    <div class="gn-row{{ ' sug' if g.suggest else '' }}" data-sender="{{ g.sample }}" data-q="{{ (g.key ~ ' ' ~ g.names|join(' ') ~ ' ' ~ (g.subject or '') ~ ' ' ~ g.hints|join(' '))|lower }}">
+      <span><input type="checkbox" class="gn-ck"></span>
+      <div class="gn-who">
+        <div class="gn-key" title="{{ g.senders|join(', ') }}">{% if g.is_domain %}@{{ g.key }}{% else %}{{ g.key }}{% endif %}</div>
+        <div class="gn-names">{{ g.names|join(' · ') }}{% if g.senders|length > 1 %} <span title="{{ g.senders|join(', ') }}">· {{ g.senders|length }}명</span>{% endif %}</div>
+      </div>
+      <div class="gn-n">{{ g.n }}통{% if g.u %}<small>안읽음 {{ g.u }}</small>{% endif %}</div>
+      <div class="gn-subj">
+        <div class="s" title="{{ g.subject }}">{{ g.subject }}</div>
+        {% if g.hints %}<div class="h" title="{{ g.hints|join(' · ') }}">💡 {{ g.hints|join(' · ') }}</div>{% endif %}
+        <div class="d">{{ g.at }} · <a href="/mail/inbox?fd=gen&q={{ g.key|urlencode }}" target="_blank" rel="noopener">메일 보기</a></div>
+      </div>
+      <div class="gn-act">
+        <select class="gn-fsel">
+          <option value="">폴더 고르기…</option>
+          {% for f in choices %}<option value="{{ f.id }}"{% if g.suggest == f.id %} selected{% endif %}>{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
+        </select>
+        <button type="button" class="gn-btn go" onclick="gnOne(this)">옮기기</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="gn-sel">
+    {% if sug_n %}<button type="button" class="gn-btn go" onclick="gnSuggested()">💡 추천대로 모두 옮기기 ({{ sug_n }}곳)</button>{% endif %}
+    <span style="margin-left:auto">고른 줄을</span>
+    <select id="gnBulk" style="font-size:13px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:7px">
+      <option value="">폴더 고르기…</option>
+      {% for f in choices %}<option value="{{ f.id }}">{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
+    </select>
+    <button type="button" class="gn-btn go" onclick="gnBulk()">로 옮기기</button>
+  </div>
+  {% else %}
+  <div class="gn-list"><div class="gn-empty">🎉 「일반」에 남은 메일이 없습니다.</div></div>
+  {% endif %}
+</div>
+</main>
+</div>
+<script>
+(function(){
+  function rows(){ return Array.from(document.querySelectorAll('#gnList .gn-row:not(.head)')); }
+  window.gnFilter=function(){
+    var q=(document.getElementById('gnQ').value||'').trim().toLowerCase();
+    rows().forEach(function(r){ r.style.display = (!q || (r.getAttribute('data-q')||'').indexOf(q)>=0) ? '' : 'none'; });
+  };
+  window.gnAllTog=function(cb){ rows().forEach(function(r){ if(r.style.display!=='none' && !r.classList.contains('done')){ var c=r.querySelector('.gn-ck'); if(c) c.checked=cb.checked; } }); };
+  async function move(r, fid){
+    if(!fid || r.classList.contains('done')) return false;
+    var fd=new FormData(); fd.append('sender', r.getAttribute('data-sender')); fd.append('folder_id', fid);
+    try{ var res=await fetch('/mail/folders/rule',{method:'POST',body:fd}); var j=await res.json();
+      if(!j.ok){ alert('⚠ '+(j.message||'옮기지 못했습니다')); return false; }
+      r.classList.remove('sug'); r.classList.add('done');
+      var sel=r.querySelector('.gn-fsel'); var name=sel?sel.querySelector('option[value="'+fid+'"]'):null;
+      var act=r.querySelector('.gn-act'); if(act){ act.innerHTML='<span class="gn-ok">✓ '+((name?name.textContent:'').replace(/^[\s　└]+/,''))+' · '+(j.moved||0)+'통</span>'; }
+      var ck=r.querySelector('.gn-ck'); if(ck){ ck.checked=false; ck.disabled=true; }
+      return true;
+    }catch(e){ alert('네트워크 오류'); return false; }
+  }
+  window.gnOne=function(btn){ var r=btn.closest('.gn-row'); var fid=r.querySelector('.gn-fsel').value; if(!fid){ alert('먼저 폴더를 골라 주세요.'); return; } move(r, fid); };
+  window.gnSuggested=async function(){
+    var list=rows().filter(function(r){ return r.classList.contains('sug') && !r.classList.contains('done'); });
+    if(!list.length){ alert('추천이 남은 줄이 없습니다.'); return; }
+    if(!confirm('노란 줄 '+list.length+'곳을 추천한 폴더로 옮길까요?\n(줄마다 고른 폴더를 바꿔 두셨으면 바꾼 대로 옮깁니다)')) return;
+    var n=0; for(var i=0;i<list.length;i++){ if(await move(list[i], list[i].querySelector('.gn-fsel').value)) n++; }
+    alert('✓ '+n+'곳을 옮겼습니다.');
+  };
+  window.gnBulk=async function(){
+    var fid=document.getElementById('gnBulk').value; if(!fid){ alert('옮길 폴더를 골라 주세요.'); return; }
+    var list=rows().filter(function(r){ var c=r.querySelector('.gn-ck'); return c && c.checked; });
+    if(!list.length){ alert('먼저 줄을 골라 주세요(왼쪽 네모).'); return; }
+    var fname=document.getElementById('gnBulk').selectedOptions[0].textContent.replace(/^[\s　└]+/,'');
+    if(!confirm('고른 '+list.length+'곳을 「'+fname+'」 폴더로 옮길까요?')) return;
+    var n=0; for(var i=0;i<list.length;i++){ if(await move(list[i], fid)) n++; }
+    alert('✓ '+n+'곳을 옮겼습니다.');
+  };
+})();
+</script>
+</body></html>
