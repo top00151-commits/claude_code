@@ -18067,7 +18067,7 @@ def projects_export_so_xlsx(req: Request, pid: int, so_id: int):
             cell.alignment = Alignment(vertical="center", wrap_text=False)
         # 숫자 포맷
         for c_idx in (price_col, amount_col):
-            ws.cell(r, c_idx).number_format = '#,##0'
+            ws.cell(r, c_idx).number_format = _z46_mfmt(so_ccy)   # z1191z46: 달러면 둘째 자리(전엔 #,##0 — 센트가 안 보였다)
             ws.cell(r, c_idx).alignment = Alignment(horizontal="right", vertical="center")
         ws.cell(r, qty_col).number_format = '#,##0.##'
         ws.cell(r, qty_col).alignment = Alignment(horizontal="right", vertical="center")
@@ -32059,13 +32059,15 @@ async def admin_import_health(req: Request):
 
 # v5H226z316 (대표 지시): 작업일정표 엑셀 내보내기용 행 빌드 — 보드 화면 로직과 동일(월 겹침·사업부·고객사 필터).
 #   ⚠ schedule_board 라우트의 행 빌드와 동일 구조(중복). 보드 컬럼/필터 변경 시 이 함수도 함께 갱신할 것.
-def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = "", cbiz: str = ""):
+def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = "", cbiz: str = "", span=None):
     _can_money = bool(can_view_field(u, "sales_amount"))   # v5H226z823: 매출 금액·세금계산서 = 매출금액 열람정책(임원·허용팀). 보드데이터·엑셀 공용.
     import calendar as _cal
     from datetime import date as _date, datetime as _dt
     today = _dt.now().date()
     last_day = _cal.monthrange(_y, _m)[1]
     mstart, mend = _date(_y, _m, 1), _date(_y, _m, last_day)
+    if span:   # z1191z46: 기간 보기·「전체에서 찾기」·고른 줄 저장 — 화면(schedule_board)과 같은 기간
+        mstart, mend = span[0], span[1]
     today_day = today.day if (today.year == _y and today.month == _m) else None
 
     def _pd(s):
@@ -32307,8 +32309,377 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "today_day": today_day, "last_day": last_day, "biz": _biz, "cbiz": _cbiz, "cbiz_counts": _cbiz_counts}
 
 
+# ── z1191z46 엑셀로 저장 — 수주별 상세내역 시트 (대표 2026-11-17 · 요청사항 1·2) ─────────────────────
+#   ① 작업일정표에서 줄을 골라 저장 → 고른 수주마다 상세내역 한 시트 · ② 소모품 상세 라인 항목 한 건 저장.
+#   금액은 저장된 값 그대로 넣고 칸 서식으로만 소수 둘째 자리까지 보이게 한다 → 엑셀 합계 = WORKS 합계.
+def _z46_mfmt(ccy):
+    return '#,##0' if str(ccy or "KRW").upper() == "KRW" else '#,##0.00'
+
+
+def _z46_num(v):
+    try:
+        return float(v) if v not in (None, "") else None
+    except Exception:
+        return None
+
+
+def _z46_txt(v):
+    s = "" if v is None else str(v).strip()
+    return "" if s == "None" else s
+
+
+def _z46_sname(name, used):
+    """엑셀 시트 이름 — 금지 글자 바꾸고 31자 · 겹치면 (2)(3)…"""
+    import re as _re
+    base = _re.sub(r'[\[\]:*?/\\]', '-', str(name or "").strip()) or "상세"
+    base = base[:31]
+    nm, k = base, 2
+    while nm.lower() in used:
+        suf = "(%d)" % k
+        nm = base[:31 - len(suf)] + suf
+        k += 1
+    used.add(nm.lower())
+    return nm
+
+
+def _z46_co_sheet(co_id):
+    """소모품 수주 한 건 → 상세 시트(화면 「라인 항목」 칸 순서 그대로)."""
+    co = _co.co_get(int(co_id))
+    if not co:
+        return None
+    items = _co.coi_list(int(co_id))
+    ccy = (co.get("currency") or "KRW").upper()
+    mf = _z46_mfmt(ccy)
+    code, so = _z46_txt(co.get("mgmt_code")), _z46_txt(co.get("co_no"))
+    tot = sum(float(it.get("amount") or 0) for it in items)
+    info = [("관리번호", code), ("수주번호", so), ("고객사", _z46_txt(co.get("customer_name"))),
+            ("2차 고객사", _z46_txt(co.get("secondary_customer"))),
+            ("발주일", _z46_txt(co.get("order_date"))[:10]), ("납기", _z46_txt(co.get("due_date"))[:10]),
+            ("통화", ccy), ("거래구분", "수출" if int(co.get("is_export") or 0) else "내수"),
+            ("모델명(대표)", _z46_txt(co.get("model_name"))), ("장비명(대표)", _z46_txt(co.get("equip_name"))),
+            ("상태", _co.CO_STATUS_LABELS.get(co.get("status") or "", _z46_txt(co.get("status")))),
+            ("합계", tot)]
+    headers = ["No", "소모품 품명", "규격", "사진\n(LOCATION)", "사진\n(PICTURE)", "납품일", "형태", "수량", "단위",
+               "단가", "금액", "통화", "비고", "2차 고객사", "자재코드", "연결 관리번호",
+               "거래명세서\n발행일", "세금계산서\n발행일", "세금계산서\n금액"]
+    rows, imgs = [], {}
+    for i, it in enumerate(items):
+        rows.append([i + 1, _z46_txt(it.get("part_name")), _z46_txt(it.get("spec")), "", "",
+                     _z46_txt(co.get("due_date"))[:10], _z46_txt(co.get("form_type")),
+                     _z46_num(it.get("qty")), _z46_txt(it.get("unit")) or "EA",
+                     _z46_num(it.get("unit_price")), _z46_num(it.get("amount")), ccy,
+                     _z46_txt(it.get("note")), _z46_txt(it.get("secondary_customer")),
+                     _z46_txt(it.get("part_no")), _z46_txt(it.get("linked_mgmt_code")),
+                     _z46_txt(co.get("statement_date"))[:10], _z46_txt(co.get("tax_invoice_date"))[:10],
+                     _z46_num(co.get("tax_invoice_amt1"))])
+        if it.get("image_loc_thumb_path"):
+            imgs[(i, 4)] = it.get("image_loc_thumb_path")
+        if it.get("image_thumb_path"):
+            imgs[(i, 5)] = it.get("image_thumb_path")
+    return {"sheet": so or code or ("소모품%s" % co_id), "code": code, "so": so,
+            "title": "%s · %s 상세내역" % (so or "-", code or "-"),
+            "info": info, "info_fmt": mf, "headers": headers, "rows": rows, "imgs": imgs,
+            "fmts": {8: '#,##0.##', 10: mf, 11: mf, 19: mf}, "total": {11: tot}}
+
+
+def _z46_so_sheet(c, oid):
+    """프로젝트 수주(orders) 한 건 → 상세 시트(호기·품목 줄). 비어 있는 칸(메이커·규격 등)은 뺀다."""
+    o = c.execute("SELECT * FROM orders WHERE id=?", (int(oid),)).fetchone()
+    if not o:
+        return None
+    o = dict(o)
+    p = c.execute("SELECT * FROM projects WHERE id=?", (o.get("project_id"),)).fetchone() if o.get("project_id") else None
+    p = dict(p) if p else {}
+    cust = ""
+    if o.get("customer_id"):
+        _cr = c.execute("SELECT name FROM customers WHERE id=?", (o["customer_id"],)).fetchone()
+        cust = _cr[0] if _cr else ""
+    cust = cust or _z46_txt(p.get("customer_name"))
+    its = [dict(r) for r in c.execute(
+        "SELECT * FROM order_items WHERE order_id=? ORDER BY id", (int(oid),)).fetchall()]
+    so_ccy = (o.get("currency") or p.get("currency") or "KRW").upper()
+    ccys = {((it.get("currency") or so_ccy) or "KRW").upper() for it in its} or {so_ccy}
+    one_ccy = len(ccys) == 1
+    ccy = next(iter(ccys)) if one_ccy else so_ccy
+    mf = _z46_mfmt(ccy)
+    tot = sum(float(it.get("amount") or 0) for it in its)
+    code, so = _z46_txt(p.get("mgmt_code")), _z46_txt(o.get("order_no"))
+    cols = [  # (머리글, 값 함수, 숫자 서식, 비어도 남김)
+        ("No", None, None, True),
+        ("호기·품명", lambda it: _z46_txt(it.get("unit_label")), None, True),
+        ("규격", lambda it: _z46_txt(it.get("spec")), None, False),
+        ("메이커", lambda it: _z46_txt(it.get("maker")), None, False),
+        ("사진", lambda it: "", None, False),
+        ("수량", lambda it: _z46_num(it.get("qty")), '#,##0.##', True),
+        ("단위", lambda it: _z46_txt(it.get("unit")), None, False),
+        ("단가", lambda it: _z46_num(it.get("unit_price")), mf, True),
+        ("금액", lambda it: _z46_num(it.get("amount")), mf, True),
+        ("통화", lambda it: ((it.get("currency") or so_ccy) or "KRW").upper(), None, True),
+        ("발주일", lambda it: (_z46_txt(it.get("order_date")) or _z46_txt(o.get("order_date")))[:10], None, False),
+        ("납품일", lambda it: (_z46_txt(it.get("due_date")) or _z46_txt(o.get("due_date")))[:10], None, False),
+        ("납품위치", lambda it: _z46_txt(it.get("ship_to")) or _z46_txt(o.get("ship_to")), None, False),
+        ("거래구분", lambda it: ("" if it.get("is_export") is None else ("수출" if int(it.get("is_export") or 0) else "내수")), None, False),
+        ("상태", lambda it: _z46_txt(it.get("unit_status")), None, False),
+        ("거래명세서\n발행일", lambda it: (_z46_txt(it.get("statement_date")) or _z46_txt(o.get("statement_date")))[:10], None, False),
+        ("세금계산서\n발행일", lambda it: (_z46_txt(it.get("tax_invoice_date")) or _z46_txt(o.get("tax_invoice_date")))[:10], None, False),
+        ("세금계산서\n금액", lambda it: _z46_num(it.get("tax_invoice_amt1")), mf, False),
+        ("비고", lambda it: _z46_txt(it.get("line_note")), None, False),
+    ]
+    raw = []
+    for i, it in enumerate(its):
+        raw.append([i + 1] + [f(it) for (_h, f, _m, _k) in cols[1:]])
+    has_img = any(it.get("image_thumb_path") for it in its)
+    keep = []
+    for j, (h, f, m, k) in enumerate(cols):
+        if k or (h == "사진" and has_img) or (h != "사진" and any(r[j] not in ("", None) for r in raw)):
+            keep.append(j)
+    headers = [cols[j][0] for j in keep]
+    rows = [[r[j] for j in keep] for r in raw]
+    fmts = {n + 1: cols[j][2] for n, j in enumerate(keep) if cols[j][2]}
+    imgs = {}
+    if has_img:
+        pc = keep.index(4) + 1
+        for i, it in enumerate(its):
+            if it.get("image_thumb_path"):
+                imgs[(i, pc)] = it.get("image_thumb_path")
+    info = [("관리번호", code), ("수주번호", so), ("프로젝트명", _z46_txt(p.get("name"))), ("고객사", cust),
+            ("2차 고객사", _z46_txt(o.get("end_customer")) or _z46_txt(p.get("secondary_customer"))),
+            ("발주일", _z46_txt(o.get("order_date"))[:10]), ("납기", _z46_txt(o.get("due_date"))[:10]),
+            ("통화", ccy if one_ccy else "/".join(sorted(ccys))),
+            ("모델명", _z46_txt(o.get("model_name")) or _z46_txt(p.get("model_name"))),
+            ("장비명", _z46_txt(o.get("equip_name")) or _z46_txt(p.get("equip_name"))),
+            ("호기·품목 수", len(its)), ("합계", tot if one_ccy else "통화가 섞여 합계 없음")]
+    amt_col = keep.index(8) + 1
+    return {"sheet": so or code or ("수주%s" % oid), "code": code, "so": so,
+            "title": "%s · %s 상세내역" % (so or "-", code or "-"),
+            "info": info, "info_fmt": mf, "headers": headers, "rows": rows, "imgs": imgs,
+            "fmts": fmts, "total": ({amt_col: tot} if one_ccy else None)}
+
+
+def _z46_write_detail(wb, sh, first):
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    ws = wb.active if first else wb.create_sheet()
+    ws.title = sh["sheet"]
+    FN = "맑은 고딕"
+    ncol = len(sh["headers"])
+    t = ws.cell(1, 1, sh["title"])
+    t.font = Font(name=FN, bold=True, size=13, color="7C4A03")
+    r = 2
+    info = sh.get("info") or []
+    for k in range(0, len(info), 4):
+        col = 1
+        for lab, val in info[k:k + 4]:
+            a = ws.cell(r, col, lab)
+            a.font = Font(name=FN, size=9, color="7A6F5E")
+            b = ws.cell(r, col + 1, val if val is not None else "")
+            b.font = Font(name=FN, size=10, bold=True, color="3D3328")
+            if isinstance(val, (int, float)) and lab == "합계":
+                b.number_format = sh.get("info_fmt") or "General"
+                b.alignment = Alignment(horizontal="left")
+            col += 2
+        r += 1
+    hdr = r + 1
+    thin = Side(style="thin", color="D9D2C5")
+    bd = Border(left=thin, right=thin, top=thin, bottom=thin)
+    hfill = PatternFill("solid", fgColor="A5282C")
+    for j, h in enumerate(sh["headers"], 1):
+        c = ws.cell(hdr, j, h)
+        c.font = Font(name=FN, color="FFFFFF", bold=True, size=10)
+        c.fill = hfill
+        c.border = bd
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[hdr].height = 30
+    fmts = sh.get("fmts") or {}
+    for i, row in enumerate(sh["rows"]):
+        rr = hdr + 1 + i
+        for j, v in enumerate(row, 1):
+            c = ws.cell(rr, j, v if v is not None else "")
+            c.font = Font(name=FN, size=10, color="3D3328")
+            c.border = bd
+            if j in fmts and isinstance(v, (int, float)):
+                c.number_format = fmts[j]
+                c.alignment = Alignment(horizontal="right", vertical="center")
+            else:
+                c.alignment = Alignment(vertical="center", horizontal=("center" if j == 1 else "general"))
+    last = hdr + len(sh["rows"])
+    if sh.get("total"):
+        tr = last + 1
+        tf = PatternFill("solid", fgColor="F5EBDD")
+        for j in range(1, ncol + 1):
+            ws.cell(tr, j).fill = tf
+            ws.cell(tr, j).border = bd
+        a = ws.cell(tr, 1, "합계")
+        a.font = Font(name=FN, bold=True, size=10)
+        a.alignment = Alignment(horizontal="center")
+        for j, v in sh["total"].items():
+            c = ws.cell(tr, j, v)
+            c.font = Font(name=FN, bold=True, size=10, color="B91C1C")
+            c.number_format = fmts.get(j, "General")
+            c.alignment = Alignment(horizontal="right")
+    # 칸 너비 — 머리글·값 중 긴 것(한글 2칸) · 6~40
+    img_cols = {j for (_i, j) in (sh.get("imgs") or {})}
+    for j in range(1, ncol + 1):
+        w = max([sum(2 if ord(ch) > 0x7F else 1 for ch in part) for part in str(sh["headers"][j - 1]).split("\n")] + [4])
+        for row in sh["rows"]:
+            v = row[j - 1]
+            if isinstance(v, float):
+                v = "{:,.2f}".format(v)
+            w = max(w, sum(2 if ord(ch) > 0x7F else 1 for ch in str(v if v is not None else "")))
+        w = 13 if j in img_cols else min(40, max(6, w + 2))
+        ws.column_dimensions[get_column_letter(j)].width = w
+    # 사진(썸네일) — 칸 안에 들어가게
+    if sh.get("imgs"):
+        try:
+            from openpyxl.drawing.image import Image as XLImage
+            from PIL import Image as PILImage
+            img_root = os.path.join(BASE, "uploads")
+            for (i, j), url in sh["imgs"].items():
+                rel = str(url).lstrip("/").replace("uploads/", "", 1)
+                path = os.path.normpath(os.path.join(img_root, rel))
+                if not path.startswith(os.path.normpath(img_root)) or not os.path.isfile(path):
+                    continue
+                try:
+                    with PILImage.open(path) as _im:
+                        iw, ih = _im.size
+                    sc = min(86.0 / max(iw, 1), 56.0 / max(ih, 1), 1.0)
+                    xi = XLImage(path)
+                    xi.width, xi.height = int(iw * sc), int(ih * sc)
+                    ws.add_image(xi, ws.cell(hdr + 1 + i, j).coordinate)
+                    ws.row_dimensions[hdr + 1 + i].height = 46
+                except Exception as _e:
+                    print("[z1191z46] 사진 넣기 실패", url, _e)
+        except Exception as _e:
+            print("[z1191z46] 사진 모듈", _e)
+    ws.freeze_panes = ws.cell(hdr + 1, 3).coordinate
+    ws.sheet_view.zoomScale = 100
+
+
+def _z46_xlsx_response(summary, details, prefix):
+    """summary = {"name","headers","rows"}(1행 머리글 · 일괄등록 양식과 같음) 또는 None · details = 상세 시트들."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    import io
+    wb = Workbook()
+    used = set()
+    first = True
+    if summary:
+        ws = wb.active
+        ws.title = _z46_sname(summary["name"], used)
+        first = False
+        ws.append(summary["headers"])
+        thin = Side(style="thin", color="DDDDDD")
+        for j in range(1, len(summary["headers"]) + 1):
+            c = ws.cell(1, j)
+            c.font = Font(color="FFFFFF", bold=True)
+            c.fill = PatternFill("solid", fgColor="A5282C")
+            c.alignment = Alignment(horizontal="center", vertical="center")
+            c.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        for row in summary["rows"]:
+            ws.append(list(row))
+        for col in ws.columns:
+            ml = 8
+            for cell in col:
+                v = str(cell.value) if cell.value is not None else ""
+                ml = max(ml, min(50, sum(2 if ord(ch) > 0x7F else 1 for ch in v) + 2))
+            ws.column_dimensions[col[0].column_letter].width = ml
+        ws.freeze_panes = "A2"
+    for sh in details:
+        sh["sheet"] = _z46_sname(sh["sheet"], used)
+        _z46_write_detail(wb, sh, first)
+        first = False
+    if first:
+        wb.active.append(["저장할 상세내역이 없습니다"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    from urllib.parse import quote
+    fname = f"{prefix}_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(buf, media_type=_XLSX_MIME_Z46,
+                             headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
+
+
+_XLSX_MIME_Z46 = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _z46_parse_sel(sel):
+    """작업일정표 고른 줄 — 줄마다 「종류|번호|호기id.호기id|수주번호」."""
+    out = []
+    for ln in str(sel or "").splitlines()[:500]:
+        parts = ln.strip().split("|")
+        if len(parts) < 2:
+            continue
+        kind = parts[0].strip()
+        ref = parts[1].strip()
+        ids = parts[2].strip() if len(parts) > 2 else ""
+        sono = parts[3].strip()[:60] if len(parts) > 3 else ""
+        if kind not in ("project", "consumable") or not ref.isdigit():
+            continue
+        idl = sorted({int(x) for x in ids.split(".") if x.strip().isdigit()})
+        out.append((kind, ref, ".".join(str(x) for x in idl), sono))
+    return out
+
+
+def _z46_rkey(r):
+    ids = ""
+    if r.get("is_unit") and r.get("unit_iids"):
+        ids = ".".join(str(x) for x in sorted({int(x) for x in r.get("unit_iids") or []}))
+    return (r.get("kind") or "project", str(r.get("ref_id") or ""), ids)
+
+
+def _z46_detail_sheets(toks):
+    out, seen = [], set()
+    with db_session() as c:
+        for kind, ref, ids, sono in toks:
+            if kind == "consumable":
+                key = ("c", int(ref))
+                if key in seen:
+                    continue
+                seen.add(key)
+                sh = _z46_co_sheet(int(ref))
+                if sh:
+                    out.append(sh)
+                continue
+            oids = []
+            idl = [int(x) for x in ids.split(".") if x]
+            if idl:
+                q = ",".join("?" * len(idl))
+                oids = [r[0] for r in c.execute(
+                    f"SELECT DISTINCT order_id FROM order_items WHERE id IN ({q}) AND order_id IS NOT NULL ORDER BY order_id", idl)]
+            if not oids and sono:
+                oids = [r[0] for r in c.execute(
+                    "SELECT id FROM orders WHERE project_id=? AND order_no=? ORDER BY id", (int(ref), sono))]
+            if not oids:
+                oids = [r[0] for r in c.execute(
+                    "SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' ORDER BY id", (int(ref),))]
+            for oid in oids:
+                if ("o", oid) in seen:
+                    continue
+                seen.add(("o", oid))
+                sh = _z46_so_sheet(c, oid)
+                if sh:
+                    out.append(sh)
+    return out
+
+
+@app.get("/consumables/{co_id:int}/export.xlsx")
+def consumables_export_xlsx_z46(request: Request, co_id: int):
+    """z1191z46 ② 소모품 상세 「라인 항목」을 그 수주 한 건만 엑셀로 (권한 = 상세 화면과 같음)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_logistics(u) or can_use_sales(u)):
+        return RedirectResponse("/home", 303)
+    sh = _z46_co_sheet(co_id)
+    if not sh:
+        return RedirectResponse("/consumables", 303)
+    return _z46_xlsx_response(None, [sh], "%s_%s_상세내역" % (sh["code"] or "소모품", sh["so"] or co_id))
+
+
 @app.get("/sales/schedule/export.xlsx")
-async def schedule_board_export(request: Request, ym: str = "", cust: str = "", biz: str = "", cbiz: str = ""):
+@app.post("/sales/schedule/export.xlsx")
+async def schedule_board_export(request: Request, ym: str = "", cust: str = "", biz: str = "", cbiz: str = "",
+                                pf: str = "", pt: str = ""):
     """v5H226z316 (대표 지시): 작업일정표를 엑셀로 저장 — 현재 월/사업부/고객사 필터 그대로 .xlsx.
     금액 컬럼(단가·금액·통화)은 매출 조회 권한자에게만 포함."""
     u = get_user(request)
@@ -32325,8 +32696,42 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
             raise ValueError
     except Exception:
         _y, _m = today.year, today.month
-    data = build_schedule_board_rows(u, _y, _m, cust=cust, biz=biz, cbiz=cbiz)
+    # z1191z46 (대표 2026-11-17 요청사항 1): 고른 줄 → 그 줄만 + 수주별 상세내역 시트.
+    #   기간 보기(pf~pt)·「전체에서 찾기」(검색어)는 화면처럼 그 기간 전체(전엔 이번 달만 저장됐다).
+    _z46_sel = []
+    if request.method == "POST":
+        try:
+            _z46_sel = _z46_parse_sel((await request.form()).get("sel") or "")
+        except Exception:
+            _z46_sel = []
+    _z46_fname = f"작업일정표_{_y}-{_m:02d}"
+    _z46_span = None
+    try:
+        _z46_pf = _dt.strptime(str(pf)[:10], "%Y-%m-%d").date() if pf else None
+        _z46_pt = _dt.strptime(str(pt)[:10], "%Y-%m-%d").date() if pt else None
+    except Exception:
+        _z46_pf = _z46_pt = None
+    if _z46_sel:
+        from datetime import date as _z46d
+        _z46_span = (_z46d(1900, 1, 1), _z46d(2999, 12, 31))
+        _z46_fname = f"작업일정표_선택{len(_z46_sel)}줄"
+        data = build_schedule_board_rows(u, _y, _m, span=_z46_span)   # 고른 줄은 거르개 없이 전 기간에서 찾는다
+    else:
+        if _z46_pf and _z46_pt and _z46_pf <= _z46_pt:
+            _z46_span = (_z46_pf, _z46_pt)
+            _z46_fname = f"작업일정표_{_z46_pf}~{_z46_pt}"
+        elif (cust or "").strip():
+            from datetime import date as _z46d
+            _z46_span = (_z46d(1900, 1, 1), _z46d(2999, 12, 31))
+            _z46_fname = "작업일정표_찾기"
+        data = build_schedule_board_rows(u, _y, _m, cust=cust, biz=biz, cbiz=cbiz, span=_z46_span)
     rows, can_money = data["rows"], data["can_money"]
+    if _z46_sel:
+        _z46_order = {}
+        for _i, _t in enumerate(_z46_sel):
+            _z46_order.setdefault(_t[:3], _i)
+        rows = [r for r in rows if _z46_rkey(r) in _z46_order]
+        rows.sort(key=lambda r: _z46_order.get(_z46_rkey(r), 99999))
     # v5H226z475 (대표 지시): 엑셀 저장 컬럼을 화면 작업일정표와 일치 — '납기'→'납품일'(이름 일치) +
     #   화면에 추가된 거래명세서·세금계산서 1/2/3차(can_money) 컬럼 반영. 세금계산서 칸은 화면처럼 발행일+금액.
     #   세금계산서 2/3차·금액(amt1/2/3)은 export 빌더에 없으므로 페이지 빌더와 동일한 _taxmap 후처리로 주입.
@@ -32395,7 +32800,9 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
     # v5H226z476 (대표 지시): 이 저장본을 그대로 '일괄업로드' 파일로 쓰도록 시트명을 '일괄등록'으로
     #   (파서가 '일괄등록' 시트를 찾음 · 자동/표시 컬럼은 업로드 시 무시). 파일명엔 월 표기 유지.
     sheets = [{"name": "일괄등록", "headers": headers, "rows": out_rows}]
-    return _make_xlsx_response(sheets, f"작업일정표_{_y}-{_m:02d}")
+    if _z46_sel:   # z1191z46: 고른 줄 + 수주마다 상세내역 시트
+        return _z46_xlsx_response(sheets[0], _z46_detail_sheets(_z46_sel), _z46_fname)
+    return _make_xlsx_response(sheets, _z46_fname)
 
 
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

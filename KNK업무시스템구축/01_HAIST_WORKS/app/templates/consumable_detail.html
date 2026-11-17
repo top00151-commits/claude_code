@@ -385,6 +385,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
       <div class="co-tools">
         <button type="button" onclick="coFullscreen()">⛶ 전체화면 보기</button>
         <button type="button" onclick="coPrint()">🖨 화면 인쇄</button>
+        {# z1191z46 (대표 2026-11-17 요청사항 2): 이 수주 상세내역(라인 항목)을 엑셀로 — 저장된 값 그대로(화면에서 고친 뒤엔 「수정 반영(저장)」 먼저) #}
+        <button type="button" onclick="location.href='/consumables/{{ co.id }}/export.xlsx'" title="이 수주의 라인 항목을 엑셀로 저장 (저장된 내용 기준)">📥 엑셀로 저장</button>
         <div class="cols-menu">
           <button type="button" class="tool-btn" onclick="coToggleColsMenu(event)">☷ 칸 표시/숨기기 ▾</button>
           <div class="cols-pop" id="coColsPop"></div>

@@ -72,7 +72,8 @@
     <button type="button" id="sbSaveBtn" class="sb-act" onclick="sbManualSave()" title="지금 입력 중인 칸을 저장 반영하고 확인합니다. (모든 수정은 평소에도 자동 저장됩니다)" style="background:#1d4ed8;color:#fff;border:1px solid #1d4ed8;"><span class="ti">💾</span> 저장</button>
     {# v5H226z395 (대표 지시): '엑셀로 저장'을 상단 우측 '신규 등록' 왼쪽으로 이동 + 약간 녹색 계열. #}
     {# v5H226z1074c: 엑셀 저장도 '입력칸에 지금 보이는 검색어' 기준 — 지운 뒤 저장했는데 옛 검색어로 걸러져 나오는 불일치 방지 #}
-    <button type="button" class="sb-act" onclick="location.href='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cbiz={{ cbiz }}&cust='+encodeURIComponent(((document.getElementById('schedSearch')||{}).value||'').trim())" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;"><span class="ti">📥</span> 엑셀로 저장</button>
+    {# z1191z46 (대표 2026-11-17 요청사항 1): 줄을 고르면 그 줄만 + 고른 수주마다 상세내역 시트 · 안 고르면 지금처럼 화면 전체 #}
+    <button type="button" class="sb-act" id="schedXlsxBtn" onclick="schedExportXlsx()" title="줄을 고르면(☑) 고른 줄 + 수주마다 상세내역 시트 · 안 고르면 화면 전체" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;"><span class="ti">📥</span> 엑셀로 저장<span id="schedXlsxN"></span></button>
     {# v5H226z347→z395 (대표 지시): 신규 등록 — 우측 끝(엑셀 버튼이 margin-left:auto 를 맡으므로 여긴 기본 gap 간격) #}
     <button type="button" class="sb-act" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);"><span class="ti">＋</span> 신규 등록</button>
   </div>
@@ -2109,8 +2110,25 @@ function syncSelAll(){
   vis.forEach(function(tr){ var c=tr.querySelector('.row-sel'); if(c&&c.checked) sel++; });
   sa.checked = (n>0 && sel===n); sa.indeterminate = (sel>0 && sel<n);
 }
+// z1191z46 (대표 2026-11-17 요청사항 1): 엑셀로 저장 — 고른 줄이 있으면 그 줄만 + 수주마다 상세내역 시트
+function schedExportXlsx(){
+  var q=((document.getElementById('schedSearch')||{}).value||'').trim();
+  var u='/sales/schedule/export.xlsx?ym={{ ym }}&biz={{ biz }}&cbiz={{ cbiz }}{% if range_mode and pf and pt %}&pf={{ pf }}&pt={{ pt }}{% endif %}&cust='+encodeURIComponent(q);
+  var sel=_selRows();
+  if(!sel.length){ location.href=u; return; }
+  var toks=sel.map(function(tr){
+    var ids=(tr.dataset.uids||'').split(',').filter(function(x){return /^\d+$/.test(x);}).map(Number).sort(function(a,b){return a-b;});
+    return [tr.dataset.kind||'project', tr.dataset.ref||'', ids.join('.'), (tr.dataset.sono||'').replace(/[|\n]/g,' ')].join('|');
+  });
+  var f=document.createElement('form'); f.method='POST'; f.action=u; f.style.display='none';
+  var i=document.createElement('input'); i.type='hidden'; i.name='sel'; i.value=toks.join('\n'); f.appendChild(i);
+  document.body.appendChild(f); f.submit(); setTimeout(function(){ try{f.remove();}catch(e){} }, 5000);
+  try{ toast('고른 '+sel.length+'줄 + 수주마다 상세내역 시트로 저장합니다'); }catch(e){}
+}
+window.schedExportXlsx = schedExportXlsx;   // 이 스크립트는 (function(){…})() 안 — 단추 onclick 이 찾을 수 있게
 function syncBulkBar(){
   var n=_selRows().length;
+  var _xn=document.getElementById('schedXlsxN'); if(_xn) _xn.textContent = n ? ' (고른 '+n+'줄)' : '';   // z1191z46
   var sc=document.getElementById('schedSelCount'); if(sc) sc.textContent=n;
   var bar=document.getElementById('schedBulkBar'); if(bar) bar.style.display = n? '' : 'none';
 }
