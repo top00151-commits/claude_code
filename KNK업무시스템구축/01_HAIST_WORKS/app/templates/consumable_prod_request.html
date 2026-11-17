@@ -35,6 +35,76 @@
 .prq-items .pi-qty { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .prq-footer { display:flex; justify-content:flex-start; align-items:center; gap:10px 12px; margin-top:16px; flex-wrap:wrap; }
 .prq-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
+/* z1191z48 (대표 2026-11-17 「기존에 쓰는 제작 요청서와 최대한 비슷하게」): 종이 양식(엑셀 「제작 요청서」「소모품 요청서」) 배치 —
+   파란 머리칸 · 검은 줄 표. 넓은 화면 = 표(.z48-desk) · 휴대폰 폭 = 카드(.z48-mob) · 인쇄 = 표만 A4. */
+.z48-prs { width:100%; border-collapse:collapse; background:#fff; table-layout:fixed; border:2px solid #222; margin:0; }
+.z48-prs + .z48-prs { border-top:0; }
+.z48-prs td { border:1px solid #222; padding:7px 10px; font-size:13.5px; text-align:center; vertical-align:middle; word-break:break-word; color:#1f2937; }
+.z48-prs td.z48-tt { font-size:26px; font-weight:800; letter-spacing:6px; padding:9px; color:#111; }
+.z48-prs td.z48-h { background:#b8cce4; font-weight:700; }
+.z48-prs td.z48-hk { background:#e6b8b7; font-weight:700; }
+.z48-prs td.z48-l { text-align:left; }
+.z48-prs td.z48-r { text-align:right; font-variant-numeric:tabular-nums; }
+.z48-prs td.z48-req { text-align:left; vertical-align:top; white-space:pre-wrap; line-height:1.7; height:150px; }
+.z48-prs td.z48-gist { text-align:left; font-weight:700; color:#7c2d12; background:#fff7ed; }
+.z48-prs td.z48-info { text-align:left; padding:5px 10px; }
+.z48-mgc, .z48-prs td.z48-mgc { font-weight:800; color:#9a3412; letter-spacing:1px; }
+.z48-so, .z48-prs td.z48-so { font-weight:700; color:#1d4ed8; }
+.z48-sub, .z48-prs td.z48-sub { font-size:12px; color:#475569; }
+.z48-pn { display:inline-block; font-size:11px; font-weight:700; color:#475569; background:#eef2f7; border-radius:4px; padding:0 5px; margin-right:6px; }
+.z48-bdg { display:inline-block; font-size:13px; font-weight:800; border-radius:6px; padding:2px 10px; margin-left:12px; vertical-align:middle; letter-spacing:0; }
+.z48-new { background:#bbf7d0; color:#166534; } .z48-add { background:#bfdbfe; color:#1e40af; } .z48-mod { background:#fde68a; color:#92400e; } .z48-etc { background:#e5e7eb; color:#374151; }
+.z48-dd { display:inline-block; font-size:11px; font-weight:800; color:#b45309; background:#fef3c7; border-radius:5px; padding:1px 6px; margin-left:6px; white-space:nowrap; }
+.z48-kv { display:inline-flex; gap:6px; margin:1px 16px 1px 0; font-size:12.5px; align-items:baseline; }
+.z48-kv .k { color:#64748b; font-weight:700; font-size:11.5px; }
+.z48-kv .v { color:#1f2937; }
+.z48-copy { font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; padding:2px 9px; margin-left:8px; white-space:nowrap; }
+.z48-copy:hover { border-color:#c2410c; color:#c2410c; }
+.z48-rev { background:#eff6ff; border:1px solid #93c5fd; color:#1e3a8a; border-radius:8px; padding:8px 12px; font-size:12.5px; margin:0 0 8px; line-height:1.6; }
+.z48-nl { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:3px 0; border-bottom:1px dashed #e2e8f0; text-align:left; font-size:13px; }
+.z48-nl:last-child { border-bottom:0; }
+.z48-nl span { word-break:break-all; }
+.z48-thumb { width:56px; height:42px; object-fit:cover; border-radius:5px; border:1px solid #cbd5e1; cursor:zoom-in; display:block; margin:0 auto; }
+.z48-imgband { background:#b8cce4; border:2px solid #222; border-bottom-width:1px; font-weight:700; text-align:center; padding:6px; font-size:13.5px; color:#1f2937; margin-top:10px; }
+.z48-imghint { font-weight:400; font-size:11.5px; color:#475569; margin-left:6px; }
+.prq-imgs.z48-imgs { border:2px solid #222; border-top:0; padding:10px; margin:0 0 6px; background:#fff; gap:9px; }
+.prq-imgs.z48-imgs .prq-imgcell { width:150px; height:110px; }
+/* 수주 고르기(작성·수정) */
+.z48-ol { display:flex; flex-direction:column; gap:3px; max-height:190px; overflow:auto; border:1px solid var(--line,#eef0f4); border-radius:7px; padding:7px 10px; background:#fff; }
+.z48-oc { display:flex; align-items:center; gap:7px; font-size:13px; color:#1f2937; cursor:pointer; }
+.z48-od { color:var(--mute,#64748b); font-size:11.5px; margin-left:auto; }
+.z48-hint { font-size:11.5px; color:var(--mute,#64748b); margin:4px 0 2px; line-height:1.5; }
+/* 휴대폰 폭 — 여러 칸짜리 표는 못 읽으므로 카드로 */
+.z48-mob { display:none; }
+.z48-card { background:#fff; border:2px solid #222; margin:0 0 8px; }
+.z48-card .z48-ch { background:#b8cce4; font-weight:700; font-size:13px; text-align:center; padding:5px; border-bottom:1px solid #222; color:#1f2937; }
+.z48-card .z48-cb { padding:8px 11px; font-size:13.5px; line-height:1.7; color:#1f2937; white-space:pre-wrap; word-break:break-word; }
+.z48-mkv { display:flex; border-bottom:1px solid #222; font-size:13.5px; color:#1f2937; }
+.z48-mkv:last-child { border-bottom:0; }
+.z48-mkv .k { flex:0 0 92px; background:#b8cce4; font-weight:700; padding:6px 8px; text-align:center; border-right:1px solid #222; }
+.z48-mkv .v { flex:1; padding:6px 10px; word-break:break-word; }
+.z48-it { border-bottom:1px solid #222; padding:8px 11px; color:#1f2937; }
+.z48-it:last-child { border-bottom:0; }
+.z48-it .l1 { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.z48-it .l2 { font-size:13.5px; margin-top:2px; }
+.z48-it .l3 { font-size:12.5px; color:#475569; margin-top:2px; }
+@media (max-width:640px) {
+  .z48-desk { display:none; }
+  .z48-mob { display:block; }
+  .prq-imgs.z48-imgs .prq-imgcell { width:calc(50% - 5px); height:110px; }
+}
+/* 인쇄 — 종이 양식만 A4 로(메뉴·단추·통보 줄은 빼고) */
+@media print {
+  @page { size:A4; margin:10mm; }
+  body * { visibility:hidden !important; }
+  #z48Paper, #z48Paper * { visibility:visible !important; }
+  #z48Paper { position:absolute; left:0; top:0; width:100%; }
+  #z48Paper .z48-desk { display:table !important; }
+  #z48Paper .z48-mob, #z48Paper .z48-copy { display:none !important; }
+  #z48Paper .z48-prs td, #z48Paper .z48-imgband { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  #z48Paper .z48-prs td { font-size:11.5px; padding:5px 7px; }
+  #z48Paper .z48-prs td.z48-tt { font-size:22px; }
+}
 </style>
 </head>
 <body>
@@ -49,6 +119,7 @@
     </div>
     <div style="display:flex;gap:8px;">
       {# z984c(대표 신고): data-knk-back — 직전 화면이 제작요청서목록이면 그 주소(필터·기간 포함) 그대로 복귀(위치 복원 연동). 아니면 소모품 필터 기본. #}
+      <button type="button" class="btn btn-secondary" onclick="window.print()" title="종이 양식 그대로 A4 로 인쇄">🖨 인쇄</button>
       <a class="btn btn-secondary" href="/prod-requests?biz=C" data-knk-back title="제작요청서목록(소모품)">📋 제작요청서목록</a>
       {# z895(대표 지시): 소모품 상세(편집)는 영업·물류 권한자만 — 일반 직원은 비활성(회색) #}
       {% if can_open_detail %}<a class="btn btn-secondary" href="/consumables/{{ co.id }}">↩ 소모품 상세</a>{% else %}<span class="btn btn-secondary" style="opacity:.4;cursor:not-allowed;" title="소모품 상세(편집)는 영업·물류 담당자만 열 수 있습니다" aria-disabled="true">↩ 소모품 상세</span>{% endif %}
@@ -71,51 +142,76 @@
         <div class="prq-meta"><span style="color:#b45309;">📣 아직 관련부서에 통보하지 않았습니다 — 소모품 상세의 <b>‘📤 관련부서 통보’</b>로 발행하세요.</span></div>
         {% endif %}
 
-        <div class="prq-sec">📄 기본 정보</div>
-        <div class="prq-info">
-          <div class="prq-ir"><span class="k">관리번호</span><span class="v" style="color:#9a3412;font-weight:800;">{{ co.mgmt_code or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">수주번호</span><span class="v">{{ co.co_no or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">고객사</span><span class="v">{{ co.customer_name or '—' }}</span></div>
-          {% if co.cc_name %}<div class="prq-ir"><span class="k">고객 담당자</span><span class="v">{{ co.cc_name }}</span></div>{% endif %}
-          <div class="prq-ir"><span class="k">장비명</span><span class="v">{{ co.equip_name or '—' }}</span></div>
-          {# z896(대표 지시): 소모품은 부품별 수량 — 총 합산은 오히려 헷갈려 표시 안 함(아래 라인 표에 항목별 수량). #}
-          <div class="prq-ir"><span class="k">수량</span><span class="v" style="color:var(--mute,#64748b);">항목별 · 아래 라인 참고</span></div>
-          <div class="prq-ir"><span class="k">납기</span><span class="v">{{ (co.due_date or '')[:10] or '—' }}</span></div>
-          <div class="prq-ir"><span class="k">형태</span><span class="v">{{ form_label }}</span></div>
-          <div class="prq-ir"><span class="k">사업부</span><span class="v">📦 {{ biz_label or '소모품' }}</span>{# z1191z37: 사업부 아이콘 = 등록 화면 #}</div>
-          <div class="prq-ir"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></div>
-          {% if co.order_date %}<div class="prq-ir"><span class="k">발주일</span><span class="v">{{ (co.order_date)[:10] }}</span></div>{% endif %}
-          {% if co.ship_to %}<div class="prq-ir"><span class="k">납품위치</span><span class="v">{{ co.ship_to }}</span></div>{% endif %}
+        {# z1191z48 (대표 2026-11-17 「소모품 제작요청서는 다른 거 사용 · 여기에도 관리번호·수주번호」): 종이 「소모품 요청서」 배치 —
+             고객사/작성자 · 고객사 담당자/내용 · 관리번호/수주번호 · 품목 표[NO·(사진)·모델명·품명·수량·납기·(연결 장비)] · 요청사항.
+             사진·연결 장비 칸은 그런 줄이 있을 때만. 웍스에만 있는 값(사업부·형태·거래구분·발주일·납품위치)은 한 줄로. 금액 없음. #}
+        <div id="z48Paper">
+        <table class="z48-prs z48-desk">
+          <colgroup><col style="width:16%"><col style="width:42%"><col style="width:16%"><col style="width:26%"></colgroup>
+          <tr><td colspan="4" class="z48-tt">소모품 요청서</td></tr>
+          <tr><td class="z48-h">고객사</td><td>{{ co.customer_name or '—' }}</td><td class="z48-h">작성자</td><td>{{ z48c.author or '—' }}</td></tr>
+          <tr><td class="z48-h">고객사 담당자</td><td>{{ co.cc_name or '—' }}</td><td class="z48-h">내용</td><td>{{ z48c.content }}</td></tr>
+          <tr><td class="z48-hk">관리번호</td><td class="z48-mgc">{{ z48c.mg or '—' }}</td><td class="z48-h">수주번호</td><td class="z48-so">{{ co.co_no or '—' }}</td></tr>
+        </table>
+        <table class="z48-prs z48-desk">
+          <colgroup><col style="width:6%">{% if z48c.has_img %}<col style="width:8%">{% endif %}<col style="width:15%"><col><col style="width:9%"><col style="width:15%">{% if z48c.has_link %}<col style="width:12%">{% endif %}</colgroup>
+          {% set _z48_nc = 5 + (1 if z48c.has_img else 0) + (1 if z48c.has_link else 0) %}
+          <tr><td class="z48-h">NO.</td>{% if z48c.has_img %}<td class="z48-h">사진</td>{% endif %}<td class="z48-h">모델명</td><td class="z48-h">품명</td><td class="z48-h">수량</td><td class="z48-h">납기</td>{% if z48c.has_link %}<td class="z48-h" title="이 소모품이 쓰이는 장비의 관리번호">연결 장비</td>{% endif %}</tr>
+          {% for it in items %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            {% if z48c.has_img %}<td style="padding:4px;">{% if it.image_thumb_path or it.image_path %}<a href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="{{ it.spec or it.part_name or ('라인 ' ~ it.line_no) }} 사진" target="_blank"><img class="z48-thumb" src="{{ it.image_thumb_path or it.image_path }}" alt="{{ it.part_name or '라인' }} 사진" loading="lazy"></a>{% else %}<span class="z48-sub">—</span>{% endif %}</td>{% endif %}
+            <td>{{ it.model_use or it.equip_name or z48c.head_model or '—' }}</td>
+            <td class="z48-l">{% if it.part_name and it.spec %}<span class="z48-pn">{{ it.part_name }}</span>{{ it.spec }}{% else %}{{ it.spec or it.part_name or '—' }}{% endif %}</td>
+            <td class="z48-r">{{ it.qty|int if it.qty else '—' }}{% if it.qty and it.unit %} {{ it.unit }}{% endif %}</td>
+            <td>{{ (co.due_date or '')[:10] or '—' }}</td>
+            {% if z48c.has_link %}<td class="z48-mgc" style="font-size:12.5px;">{{ it.linked_mgmt_code or '' }}</td>{% endif %}
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ _z48_nc }}" class="z48-sub" style="padding:12px;">라인 항목이 없습니다.</td></tr>
+          {% endfor %}
+          <tr><td colspan="{{ _z48_nc }}" class="z48-h">요청사항</td></tr>
+          <tr><td colspan="{{ _z48_nc }}" style="padding:8px 14px;">
+            {% if z48c.notes %}{% for n in z48c.notes %}<div class="z48-nl"><span>{{ n.text }}</span>{% if n.path %}<button type="button" class="z48-copy" data-copy="{{ n.path }}" onclick="z48Copy(this)" title="탐색기 주소줄에 붙여 넣을 수 있게 경로를 복사합니다">📋 복사</button>{% endif %}</div>{% endfor %}{% else %}<span class="z48-sub">—</span>{% endif %}
+            {% if co.source_file %}<div class="z48-nl z48-sub"><span>원본 파일 : {{ co.source_file }}</span></div>{% endif %}
+          </td></tr>
+          <tr><td colspan="{{ _z48_nc }}" class="z48-info">
+            <span class="z48-kv"><span class="k">사업부</span><span class="v">📦 {{ biz_label or '소모품' }}</span></span>{# z1191z37: 사업부 아이콘 = 등록 화면 #}
+            <span class="z48-kv"><span class="k">형태</span><span class="v">{{ form_label }}</span></span>
+            <span class="z48-kv"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></span>
+            {% if co.order_date %}<span class="z48-kv"><span class="k">발주일</span><span class="v">{{ (co.order_date)[:10] }}</span></span>{% endif %}
+            <span class="z48-kv"><span class="k">납기</span><span class="v">{{ (co.due_date or '')[:10] or '—' }}{% if z48c.dday %}<span class="z48-dd" title="납기까지 남은 날">{{ z48c.dday }}</span>{% endif %}</span></span>
+            {% if co.ship_to %}<span class="z48-kv"><span class="k">납품위치</span><span class="v">{{ co.ship_to }}</span></span>{% endif %}
+            {% if z48c.head_model %}<span class="z48-kv"><span class="k">모델명</span><span class="v">{{ z48c.head_model }}</span></span>{% endif %}
+          </td></tr>
+        </table>
+        {# 휴대폰 폭 — 같은 내용을 카드로(표는 숨김) #}
+        <div class="z48-mob">
+          <div class="z48-card">
+            <div class="z48-ch" style="font-size:16px;letter-spacing:3px;">소모품 요청서</div>
+            <div class="z48-mkv"><div class="k">고객사</div><div class="v">{{ co.customer_name or '—' }}</div></div>
+            <div class="z48-mkv"><div class="k">담당자</div><div class="v">{{ co.cc_name or '—' }}</div></div>
+            <div class="z48-mkv"><div class="k">내용</div><div class="v">{{ z48c.content }}</div></div>
+            <div class="z48-mkv"><div class="k">관리번호</div><div class="v z48-mgc">{{ z48c.mg or '—' }}</div></div>
+            <div class="z48-mkv"><div class="k">수주번호</div><div class="v z48-so">{{ co.co_no or '—' }}</div></div>
+            <div class="z48-mkv"><div class="k">납기</div><div class="v">{{ (co.due_date or '')[:10] or '—' }}{% if z48c.dday %}<span class="z48-dd">{{ z48c.dday }}</span>{% endif %}</div></div>
+            <div class="z48-mkv"><div class="k">작성자</div><div class="v">{{ z48c.author or '—' }}</div></div>
+          </div>
+          <div class="z48-card">
+            <div class="z48-ch">품목 {{ items|length }}건</div>
+            {% for it in items %}
+            <div class="z48-it">
+              <div class="l1"><span><b>{{ loop.index }}.</b> {% if it.part_name and it.spec %}<span class="z48-pn">{{ it.part_name }}</span>{{ it.spec }}{% else %}{{ it.spec or it.part_name or '—' }}{% endif %}</span><b style="white-space:nowrap;">{{ it.qty|int if it.qty else '—' }}{% if it.qty and it.unit %} {{ it.unit }}{% endif %}</b></div>
+              {% if it.model_use or it.equip_name or z48c.head_model or it.linked_mgmt_code %}<div class="l3">{{ it.model_use or it.equip_name or z48c.head_model or '' }}{% if it.linked_mgmt_code %} · 연결 장비 <b class="z48-mgc">{{ it.linked_mgmt_code }}</b>{% endif %}</div>{% endif %}
+            </div>
+            {% else %}
+            <div class="z48-it z48-sub">라인 항목이 없습니다.</div>
+            {% endfor %}
+          </div>
+          {% if z48c.notes %}<div class="z48-card"><div class="z48-ch">요청사항</div><div class="z48-cb" style="white-space:normal;">{% for n in z48c.notes %}<div class="z48-nl"><span>{{ n.text }}</span>{% if n.path %}<button type="button" class="z48-copy" data-copy="{{ n.path }}" onclick="z48Copy(this)">📋 복사</button>{% endif %}</div>{% endfor %}</div></div>{% endif %}
         </div>
-
-        <div class="prq-sec">🛠 제작 사양</div>
-        <div class="prq-info">
-          <div class="prq-ir"><span class="k">모델명</span><span class="v">{{ co.model_name or '—' }}</span></div>
         </div>
-        {% if co.source_file %}<div class="prq-lbl">원본 파일</div><div class="prq-ro">{{ co.source_file }}</div>{% endif %}
-        {% if co.note %}<div class="prq-lbl">요청 · 기타 사항</div><div class="prq-ro">{{ co.note }}</div>{% endif %}
-
-        {# z893(대표 지시): 부품 사진은 몰아넣지 말고 '해당 부품에 같이' — 라인 항목 표(품명·규격·수량 + 그 줄 사진) #}
-        <div class="prq-sec">📦 라인 항목 <span style="font-weight:600;font-size:11px;color:var(--mute,#64748b);">({{ items|length }}건 · 사진 눌러서 확대)</span></div>
-        {% if items %}
-        <div style="overflow-x:auto;">
-          <table class="prq-items">
-            <thead><tr><th style="width:70px;">사진</th><th>품명</th><th>규격</th><th style="width:70px;text-align:right;">수량</th></tr></thead>
-            <tbody>
-              {% for it in items %}
-              <tr>
-                <td class="pi-img">{% if it.image_thumb_path or it.image_path %}<a href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="{{ it.part_name or ('라인 ' ~ it.line_no) }} 사진" target="_blank"><img src="{{ it.image_thumb_path or it.image_path }}" alt="{{ it.part_name or '라인' }} 사진" loading="lazy"></a>{% else %}<span class="pi-noimg">—</span>{% endif %}</td>
-                <td class="pi-name">{{ it.part_name or '—' }}</td>
-                <td class="pi-spec">{{ it.spec or '—' }}</td>
-                <td class="pi-qty">{{ it.qty|int if it.qty else '—' }}{% if it.unit %} {{ it.unit }}{% endif %}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <div class="prq-imgempty">라인 항목이 없습니다.</div>
-        {% endif %}
+        {% include "_z48_copy.html" %}
 
         {# 이동 버튼 — 제작요청서(사진2)와 동일: 작업일정표 · 전사일정표. 편집은 소모품 상세. #}
         <div class="prq-footer">

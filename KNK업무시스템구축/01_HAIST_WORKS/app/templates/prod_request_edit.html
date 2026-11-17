@@ -49,8 +49,98 @@ select.prq-in { appearance:auto; }
 .prq-actgrp { display:inline-flex; gap:8px; }
 .prq-actgrp[hidden] { display:none !important; }
 .prq-edithint { font-size:11px; color:var(--mute,#64748b); text-align:right; margin-top:6px; }
+/* z1191z48 (대표 2026-11-17 「기존에 쓰는 제작 요청서와 최대한 비슷하게」): 종이 양식(엑셀 「제작 요청서」「소모품 요청서」) 배치 —
+   파란 머리칸 · 검은 줄 표. 넓은 화면 = 표(.z48-desk) · 휴대폰 폭 = 카드(.z48-mob) · 인쇄 = 표만 A4. */
+.z48-prs { width:100%; border-collapse:collapse; background:#fff; table-layout:fixed; border:2px solid #222; margin:0; }
+.z48-prs + .z48-prs { border-top:0; }
+.z48-prs td { border:1px solid #222; padding:7px 10px; font-size:13.5px; text-align:center; vertical-align:middle; word-break:break-word; color:#1f2937; }
+.z48-prs td.z48-tt { font-size:26px; font-weight:800; letter-spacing:6px; padding:9px; color:#111; }
+.z48-prs td.z48-h { background:#b8cce4; font-weight:700; }
+.z48-prs td.z48-hk { background:#e6b8b7; font-weight:700; }
+.z48-prs td.z48-l { text-align:left; }
+.z48-prs td.z48-r { text-align:right; font-variant-numeric:tabular-nums; }
+.z48-prs td.z48-req { text-align:left; vertical-align:top; white-space:pre-wrap; line-height:1.7; height:150px; }
+.z48-prs td.z48-gist { text-align:left; font-weight:700; color:#7c2d12; background:#fff7ed; }
+.z48-prs td.z48-info { text-align:left; padding:5px 10px; }
+.z48-mgc, .z48-prs td.z48-mgc { font-weight:800; color:#9a3412; letter-spacing:1px; }
+.z48-so, .z48-prs td.z48-so { font-weight:700; color:#1d4ed8; }
+.z48-sub, .z48-prs td.z48-sub { font-size:12px; color:#475569; }
+.z48-pn { display:inline-block; font-size:11px; font-weight:700; color:#475569; background:#eef2f7; border-radius:4px; padding:0 5px; margin-right:6px; }
+.z48-bdg { display:inline-block; font-size:13px; font-weight:800; border-radius:6px; padding:2px 10px; margin-left:12px; vertical-align:middle; letter-spacing:0; }
+.z48-new { background:#bbf7d0; color:#166534; } .z48-add { background:#bfdbfe; color:#1e40af; } .z48-mod { background:#fde68a; color:#92400e; } .z48-etc { background:#e5e7eb; color:#374151; }
+.z48-dd { display:inline-block; font-size:11px; font-weight:800; color:#b45309; background:#fef3c7; border-radius:5px; padding:1px 6px; margin-left:6px; white-space:nowrap; }
+.z48-kv { display:inline-flex; gap:6px; margin:1px 16px 1px 0; font-size:12.5px; align-items:baseline; }
+.z48-kv .k { color:#64748b; font-weight:700; font-size:11.5px; }
+.z48-kv .v { color:#1f2937; }
+.z48-copy { font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; padding:2px 9px; margin-left:8px; white-space:nowrap; }
+.z48-copy:hover { border-color:#c2410c; color:#c2410c; }
+.z48-rev { background:#eff6ff; border:1px solid #93c5fd; color:#1e3a8a; border-radius:8px; padding:8px 12px; font-size:12.5px; margin:0 0 8px; line-height:1.6; }
+.z48-nl { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:3px 0; border-bottom:1px dashed #e2e8f0; text-align:left; font-size:13px; }
+.z48-nl:last-child { border-bottom:0; }
+.z48-nl span { word-break:break-all; }
+.z48-thumb { width:56px; height:42px; object-fit:cover; border-radius:5px; border:1px solid #cbd5e1; cursor:zoom-in; display:block; margin:0 auto; }
+.z48-imgband { background:#b8cce4; border:2px solid #222; border-bottom-width:1px; font-weight:700; text-align:center; padding:6px; font-size:13.5px; color:#1f2937; margin-top:10px; }
+.z48-imghint { font-weight:400; font-size:11.5px; color:#475569; margin-left:6px; }
+.prq-imgs.z48-imgs { border:2px solid #222; border-top:0; padding:10px; margin:0 0 6px; background:#fff; gap:9px; }
+.prq-imgs.z48-imgs .prq-imgcell { width:150px; height:110px; }
+/* 수주 고르기(작성·수정) */
+.z48-ol { display:flex; flex-direction:column; gap:3px; max-height:190px; overflow:auto; border:1px solid var(--line,#eef0f4); border-radius:7px; padding:7px 10px; background:#fff; }
+.z48-oc { display:flex; align-items:center; gap:7px; font-size:13px; color:#1f2937; cursor:pointer; }
+.z48-od { color:var(--mute,#64748b); font-size:11.5px; margin-left:auto; }
+.z48-hint { font-size:11.5px; color:var(--mute,#64748b); margin:4px 0 2px; line-height:1.5; }
+/* 휴대폰 폭 — 여러 칸짜리 표는 못 읽으므로 카드로 */
+.z48-mob { display:none; }
+.z48-card { background:#fff; border:2px solid #222; margin:0 0 8px; }
+.z48-card .z48-ch { background:#b8cce4; font-weight:700; font-size:13px; text-align:center; padding:5px; border-bottom:1px solid #222; color:#1f2937; }
+.z48-card .z48-cb { padding:8px 11px; font-size:13.5px; line-height:1.7; color:#1f2937; white-space:pre-wrap; word-break:break-word; }
+.z48-mkv { display:flex; border-bottom:1px solid #222; font-size:13.5px; color:#1f2937; }
+.z48-mkv:last-child { border-bottom:0; }
+.z48-mkv .k { flex:0 0 92px; background:#b8cce4; font-weight:700; padding:6px 8px; text-align:center; border-right:1px solid #222; }
+.z48-mkv .v { flex:1; padding:6px 10px; word-break:break-word; }
+.z48-it { border-bottom:1px solid #222; padding:8px 11px; color:#1f2937; }
+.z48-it:last-child { border-bottom:0; }
+.z48-it .l1 { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.z48-it .l2 { font-size:13.5px; margin-top:2px; }
+.z48-it .l3 { font-size:12.5px; color:#475569; margin-top:2px; }
+@media (max-width:640px) {
+  .z48-desk { display:none; }
+  .z48-mob { display:block; }
+  .prq-imgs.z48-imgs .prq-imgcell { width:calc(50% - 5px); height:110px; }
+}
+/* 인쇄 — 종이 양식만 A4 로(메뉴·단추·통보 줄은 빼고) */
+@media print {
+  @page { size:A4; margin:10mm; }
+  body * { visibility:hidden !important; }
+  #z48Paper, #z48Paper * { visibility:visible !important; }
+  #z48Paper { position:absolute; left:0; top:0; width:100%; }
+  #z48Paper .z48-desk { display:table !important; }
+  #z48Paper .z48-mob, #z48Paper .z48-copy { display:none !important; }
+  #z48Paper .z48-prs td, #z48Paper .z48-imgband { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  #z48Paper .z48-prs td { font-size:11.5px; padding:5px 7px; }
+  #z48Paper .z48-prs td.z48-tt { font-size:22px; }
+}
 </style>
 </head>
+{# z1191z48 (대표 2026-11-17): 작성·수정 폼 공통 — 이 요청서가 가리키는 수주(수주가 여러 건일 때만 고름) + 요지 한 줄 #}
+{% macro z48_fields(gist_val) %}
+          <div class="prq-sec">🧾 수주번호 · 요지</div>
+          {% if z48.orders|length > 1 %}
+          <div class="z48-ol">
+            {# 최근 수주가 맨 위 — 기본으로 체크되는 것이 스크롤 없이 보이게 #}
+            {% for o in z48.orders|reverse %}
+            <label class="z48-oc"><input type="checkbox" name="order_ids" value="{{ o.id }}"{% if o.id in z48.sel_ids %} checked{% endif %}> <b>{{ o.order_no }}</b>{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.unit_label %} · {{ o.unit_label }}{% endif %}<span class="z48-od">{{ (o.order_date or o.created_at)[:10] }}</span></label>
+            {% endfor %}
+          </div>
+          <div class="z48-hint">이 관리번호에는 수주가 {{ z48.orders|length }}건 있습니다 — <b>이번 요청서에 해당하는 수주만</b> 체크하세요. 제작요청서와 알림에 그 수주번호만 나갑니다.</div>
+          {% elif z48.orders %}
+          <input type="hidden" name="order_ids" value="{{ z48.orders[0].id }}">
+          <div class="z48-hint">수주번호 <b style="color:#1d4ed8;">{{ z48.orders[0].order_no }}</b> — 등록된 수주에서 자동으로 들어갑니다.</div>
+          {% else %}
+          <div class="z48-hint">이 관리번호에 등록된 수주가 없습니다 — 수주번호 없이 발행됩니다(수주를 등록하면 자동으로 채워집니다).</div>
+          {% endif %}
+          <div class="prq-lbl">요지 <span style="font-weight:400;color:var(--mute,#64748b);">— 한 줄 · 안 써도 됩니다</span></div>
+          <input class="prq-in" type="text" name="gist" maxlength="200" value="{{ gist_val }}" placeholder="예) 적층도 및 두께 변경으로 신규 가공 진행">
+{% endmacro %}
 <body>
 <div class="app">
 {% set active_tab = 'sales' %}
@@ -63,6 +153,7 @@ select.prq-in { appearance:auto; }
     </div>
     <div style="display:flex;gap:8px;">
       {# v5H226z842 (대표 지시): 제작요청서 목록 바로가기 — '프로젝트로' 왼쪽. z984c: data-knk-back — 직전 화면이 목록이면 그 주소(필터·기간 포함) 그대로 복귀. #}
+      {% if pr and not create_mode %}<button type="button" class="btn btn-secondary" onclick="window.print()" title="종이 양식 그대로 A4 로 인쇄">🖨 인쇄</button>{% endif %}
       <a class="btn btn-secondary" href="/prod-requests" data-knk-back title="제작요청서 목록 열기">📋 제작요청서목록</a>
       <a class="btn btn-secondary" href="/project/{{ p.id }}">↩ 프로젝트로</a>
     </div>
@@ -87,6 +178,7 @@ select.prq-in { appearance:auto; }
         <form id="prqNewForm" method="post" action="/project/{{ p.id }}/prod-request/new" onsubmit="return prqValidate(this);">
           <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit">
           <input type="hidden" name="full_edit" value="1">
+          {{ z48_fields('') }}
           <div class="prq-sec">📄 기본 정보 <span class="prq-sec-sub">— 관리번호 빼고 전부 편집</span></div>
           <div class="prq-info-edit">
             <div class="pe-f"><label>관리번호</label><div class="pe-fixed">{{ p.mgmt_code or '—' }} <span>(고정)</span></div></div>
@@ -204,32 +296,69 @@ select.prq-in { appearance:auto; }
           {% if pr.updated_at %}<span style="color:#2563eb;">✏️ 수정 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</span>{% endif %}
         </div>
 
-        {# ===== 보기 모드(기본) — 등록 시 작성한 모든 정보(금액 제외) ===== #}
+        {# ===== 보기 모드(기본) — z1191z48 (대표 2026-11-17 「기존에 쓰는 제작 요청서와 최대한 비슷하게 · 수주번호」):
+             종이 「제작 요청서」 배치(제목+구분 · 고객사/작성자 · 담당자/MODEL · 요지 · 각인 · 품목 표[관리코드·수주번호·호기·모델명·품명·수량·일정]
+             · 자료 경로 · 고객사 요청사항｜기타 요청사항). 웍스에만 있는 값(프로젝트명·사업부·형태·거래구분·발주일)은 한 줄로. 금액 없음. ===== #}
         <div id="prqView">
-          <div class="prq-sec">📄 기본 정보</div>
-          <div class="prq-info">
-            <div class="prq-ir"><span class="k">관리번호</span><span class="v" style="color:#9a3412;font-weight:800;">{{ p.mgmt_code or '—' }}</span></div>
-            <div class="prq-ir"><span class="k">프로젝트명</span><span class="v">{{ p.name or '—' }}</span></div>
-            <div class="prq-ir"><span class="k">고객사</span><span class="v">{{ p.customer_name or '—' }}</span></div>
-            {% if p.cc_name %}<div class="prq-ir"><span class="k">고객 담당자</span><span class="v">{{ p.cc_name }}{% if p.cc_position %} · {{ p.cc_position }}{% endif %}</span></div>{% endif %}
-            <div class="prq-ir"><span class="k">장비명</span><span class="v">{{ p.equip_name or '—' }}</span></div>
-            <div class="prq-ir"><span class="k">수량</span><span class="v">{{ p.unit_qty or 1 }}</span></div>
-            <div class="prq-ir"><span class="k">납기</span><span class="v">{{ (p.due_date or '')[:10] or '—' }}</span></div>
-            <div class="prq-ir"><span class="k">형태</span><span class="v">{{ form_label }}</span></div>
-            <div class="prq-ir"><span class="k">사업부</span><span class="v">{{ biz_label }}</span></div>
-            <div class="prq-ir"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></div>
-            {% if p.customer_po %}<div class="prq-ir"><span class="k">발주(PO)</span><span class="v">{{ p.customer_po }}</span></div>{% endif %}
-            {% if p.order_date %}<div class="prq-ir"><span class="k">발주일</span><span class="v">{{ (p.order_date)[:10] }}</span></div>{% endif %}
+          {% if z48.rev %}<div class="z48-rev">✏️ <b>수정발행 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</b> — {{ z48.rev }}</div>{% endif %}
+          {% set _z48_so %}{% if z48.sel %}{% for o in z48.sel %}{{ o.order_no }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}—{% endif %}{% endset %}
+          {% set _z48_hogi %}{% for o in z48.sel %}{% if o.unit_label %}{{ o.unit_label }}{% if not loop.last %}<br>{% endif %}{% endif %}{% endfor %}{% endset %}
+          <div id="z48Paper">
+          <table class="z48-prs z48-desk">
+            <colgroup><col style="width:4%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:17%"><col style="width:23%"><col style="width:7%"><col style="width:18%"></colgroup>
+            <tr><td colspan="8" class="z48-tt">제작 요청서{% if z48.kind %}<span class="z48-bdg z48-{{ z48.kind_cls }}" title="구분 — 가리키는 수주의 발주유형">{{ z48.kind }}</span>{% endif %}</td></tr>
+            <tr><td colspan="3" class="z48-h">고객사</td><td colspan="3">{{ p.customer_name or '—' }}</td><td class="z48-h">작성자</td><td>{{ pr.issued_by_disp or pr.issued_by_name or '—' }}</td></tr>
+            <tr><td colspan="3" class="z48-h">고객사 담당자</td><td colspan="3">{{ p.cc_name or '—' }}{% if p.cc_name and p.cc_position %} {{ p.cc_position }}{% endif %}</td><td class="z48-h">MODEL</td><td>{{ p.model_name or '—' }}</td></tr>
+            {% if pr.gist %}<tr><td colspan="3" class="z48-h">요지</td><td colspan="5" class="z48-gist">{{ pr.gist }}</td></tr>{% endif %}
+            <tr><td colspan="8" class="z48-h">각인</td></tr>
+            <tr><td colspan="8">{% if z48.eng %}{% for e in z48.eng %}{{ e }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}—{% endif %}</td></tr>
+            <tr><td class="z48-h">No</td><td class="z48-hk">관리코드</td><td class="z48-h">수주번호</td><td class="z48-h">호기</td><td class="z48-h">모델명</td><td class="z48-h">품명</td><td class="z48-h">수량</td><td class="z48-h">일정</td></tr>
+            <tr><td>1</td><td class="z48-mgc">{{ z48.mg or '—' }}</td><td class="z48-so">{{ _z48_so }}</td><td class="z48-sub">{{ _z48_hogi if _z48_hogi|trim else '—' }}</td><td>{{ p.model_name or '—' }}</td><td>{{ p.equip_name or '—' }}</td><td>{{ p.unit_qty or 1 }}</td><td>{{ (p.due_date or '')[:10] or '—' }}{% if z48.dday %}<span class="z48-dd" title="납기까지 남은 날">{{ z48.dday }}</span>{% endif %}</td></tr>
+            <tr><td colspan="8" class="z48-h">자료 경로</td></tr>
+            <tr><td colspan="8" style="padding:11px;">{% if p.server_path %}<span style="word-break:break-all;">{{ p.server_path }}</span><button type="button" class="z48-copy" data-copy="{{ p.server_path }}" onclick="z48Copy(this)" title="탐색기 주소줄에 붙여 넣을 수 있게 경로를 복사합니다">📋 경로 복사</button>{% else %}—{% endif %}</td></tr>
+            <tr><td colspan="6" class="z48-h">고객사 요청사항</td><td colspan="2" class="z48-h">기타 요청사항</td></tr>
+            <tr><td colspan="6" class="z48-req">{{ pr.cust_req or '(없음)' }}</td><td colspan="2" class="z48-req">{{ pr.note or '' }}</td></tr>
+            <tr><td colspan="8" class="z48-info">
+              <span class="z48-kv"><span class="k">프로젝트명</span><span class="v">{{ p.name or '—' }}</span></span>
+              <span class="z48-kv"><span class="k">사업부</span><span class="v">{{ biz_label }}</span></span>
+              <span class="z48-kv"><span class="k">형태</span><span class="v">{{ form_label }}</span></span>
+              <span class="z48-kv"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></span>
+              {% if p.order_date %}<span class="z48-kv"><span class="k">발주일</span><span class="v">{{ (p.order_date)[:10] }}</span></span>{% endif %}
+              {% if p.customer_po %}<span class="z48-kv"><span class="k">발주(PO)</span><span class="v">{{ p.customer_po }}</span></span>{% endif %}
+            </td></tr>
+          </table>
+          {# 휴대폰 폭 — 같은 내용을 카드로(표는 숨김) #}
+          <div class="z48-mob">
+            <div class="z48-card">
+              <div class="z48-ch" style="font-size:16px;letter-spacing:3px;">제작 요청서{% if z48.kind %}<span class="z48-bdg z48-{{ z48.kind_cls }}" style="font-size:12px;margin-left:8px;">{{ z48.kind }}</span>{% endif %}</div>
+              <div class="z48-mkv"><div class="k">고객사</div><div class="v">{{ p.customer_name or '—' }}</div></div>
+              <div class="z48-mkv"><div class="k">담당자</div><div class="v">{{ p.cc_name or '—' }}{% if p.cc_name and p.cc_position %} {{ p.cc_position }}{% endif %}</div></div>
+              <div class="z48-mkv"><div class="k">MODEL</div><div class="v">{{ p.model_name or '—' }}</div></div>
+              <div class="z48-mkv"><div class="k">작성자</div><div class="v">{{ pr.issued_by_disp or pr.issued_by_name or '—' }}</div></div>
+              {% if pr.gist %}<div class="z48-mkv"><div class="k">요지</div><div class="v" style="font-weight:700;color:#7c2d12;">{{ pr.gist }}</div></div>{% endif %}
+              <div class="z48-mkv"><div class="k">각인</div><div class="v">{% if z48.eng %}{{ z48.eng|join(' / ') }}{% else %}—{% endif %}</div></div>
+            </div>
+            <div class="z48-card">
+              <div class="z48-ch">품목</div>
+              <div class="z48-it">
+                <div class="l1"><b class="z48-mgc" style="font-size:15px;">{{ z48.mg or '—' }}</b><span class="z48-so" style="font-size:12.5px;text-align:right;">{{ _z48_so }}</span></div>
+                <div class="l2">{{ p.equip_name or '—' }}</div>
+                <div class="l3">{{ p.model_name or '—' }}{% if _z48_hogi|trim %} · {{ _z48_hogi|replace('<br>', ', ')|safe }}{% endif %} · 수량 <b>{{ p.unit_qty or 1 }}</b> · 일정 <b>{{ (p.due_date or '')[:10] or '—' }}</b>{% if z48.dday %}<span class="z48-dd">{{ z48.dday }}</span>{% endif %}</div>
+              </div>
+            </div>
+            {% if p.server_path %}<div class="z48-card"><div class="z48-ch">자료 경로</div><div class="z48-cb" style="word-break:break-all;">{{ p.server_path }}<br><button type="button" class="z48-copy" style="margin-left:0;" data-copy="{{ p.server_path }}" onclick="z48Copy(this)">📋 경로 복사</button></div></div>{% endif %}
+            <div class="z48-card"><div class="z48-ch">고객사 요청사항</div><div class="z48-cb">{{ pr.cust_req or '(없음)' }}</div></div>
+            {% if pr.note %}<div class="z48-card"><div class="z48-ch">기타 요청사항</div><div class="z48-cb">{{ pr.note }}</div></div>{% endif %}
+            <div class="z48-card"><div class="z48-cb" style="white-space:normal;">
+              <span class="z48-kv"><span class="k">프로젝트명</span><span class="v">{{ p.name or '—' }}</span></span>
+              <span class="z48-kv"><span class="k">사업부</span><span class="v">{{ biz_label }}</span></span>
+              <span class="z48-kv"><span class="k">형태</span><span class="v">{{ form_label }}</span></span>
+              <span class="z48-kv"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></span>
+              {% if p.order_date %}<span class="z48-kv"><span class="k">발주일</span><span class="v">{{ (p.order_date)[:10] }}</span></span>{% endif %}
+            </div></div>
           </div>
-          <div class="prq-sec">🛠 제작 사양</div>
-          <div class="prq-info">
-            <div class="prq-ir"><span class="k">모델명</span><span class="v">{{ p.model_name or '—' }}</span></div>
-            <div class="prq-ir"><span class="k">각인</span><span class="v">{{ p.engraving or '—' }}</span></div>
           </div>
-          {% if p.server_path %}<div class="prq-lbl">자료 경로</div><div class="prq-ro">{{ p.server_path }}</div>{% endif %}
-          <div class="prq-lbl">고객사 요청사항</div>
-          <div class="prq-ro">{{ pr.cust_req or '(없음)' }}</div>
-          {% if pr.note %}<div class="prq-lbl">기타 요청사항</div><div class="prq-ro">{{ pr.note }}</div>{% endif %}
+          {% include "_z48_copy.html" %}
         </div>
 
         {# ===== 편집 모드(수정하기) — 관리번호만 고정, 나머지 전부 편집 ===== #}
@@ -237,6 +366,7 @@ select.prq-in { appearance:auto; }
         <form id="prqEditForm" method="post" action="/project/{{ p.id }}/prod-request/{{ pr.id }}/update" hidden onsubmit="return prqValidate(this);">
           <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit?prid={{ pr.id }}">
           <input type="hidden" name="full_edit" value="1">
+          {{ z48_fields(pr.gist or '') }}
           <div class="prq-sec">📄 기본 정보 <span class="prq-sec-sub">— 관리번호 빼고 전부 편집</span></div>
           <div class="prq-info-edit">
             <div class="pe-f"><label>관리번호</label><div class="pe-fixed">{{ p.mgmt_code or '—' }} <span>(고정)</span></div></div>
@@ -346,11 +476,11 @@ select.prq-in { appearance:auto; }
         {% endif %}
 
         {# ===== 참고 이미지(기타 요청사항 아래·항상 표시) — 삭제 X는 편집 모드에서만 ===== #}
-        <div class="prq-lbl" style="margin-top:14px;">📷 참고 이미지 <span id="prqImgCount" style="font-weight:400;color:var(--mute,#64748b);">{% if pr_images %}({{ pr_images|length }}장){% endif %}</span></div>
-        <div id="prqImgGrid" class="prq-imgs">
+        <div class="z48-imgband">참고 이미지 <span id="prqImgCount" style="font-weight:400;">{% if pr_images %}({{ pr_images|length }}장){% endif %}</span> <span class="z48-imghint">눌러서 크게 보기</span></div>
+        <div id="prqImgGrid" class="prq-imgs z48-imgs">
           {% for im in pr_images %}
           <div class="prq-imgcell" data-imgid="{{ im.id }}">
-            <a href="{{ im.url }}" target="_blank" rel="noopener"><img src="{{ im.thumb_url or im.url }}" alt="{{ im.orig_name or '이미지' }}" loading="lazy"></a>
+            <a href="{{ im.url }}" data-knk-zoom data-knk-name="{{ im.orig_name or '참고 이미지' }}" target="_blank" rel="noopener"><img src="{{ im.thumb_url or im.url }}" alt="{{ im.orig_name or '이미지' }}" loading="lazy"></a>
             {% if can_edit %}<button type="button" class="prq-imgdel" title="삭제" onclick="prqImgDelete({{ im.id }}, this)">×</button>{% endif %}
           </div>
           {% endfor %}

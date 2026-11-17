@@ -1,0 +1,24 @@
+{# z1191z48 (대표 2026-11-17): 자료 경로 「복사」 — Z:\… 경로는 화면에서 눌러 열 수 없어, 탐색기 주소줄에 붙여 넣게 복사만 해 준다.
+   제작요청서·소모품 요청서 공용. 단추 = <button class="z48-copy" data-copy="경로" onclick="z48Copy(this)"> #}
+<script>
+window.z48Copy = window.z48Copy || function(btn){
+  var t = btn.getAttribute('data-copy') || '';
+  var old = btn.getAttribute('data-old') || btn.textContent;
+  btn.setAttribute('data-old', old);
+  function done(ok){
+    btn.textContent = ok ? '✅ 복사했습니다' : '⚠ 복사가 안 됩니다 — 경로를 직접 끌어서 복사하세요';
+    setTimeout(function(){ btn.textContent = old; }, ok ? 1600 : 3200);
+  }
+  function fallback(){
+    try{
+      var ta = document.createElement('textarea');
+      ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta); done(!!ok);
+    }catch(e){ done(false); }
+  }
+  if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(t).then(function(){ done(true); }, fallback); }
+  else { fallback(); }
+};
+</script>

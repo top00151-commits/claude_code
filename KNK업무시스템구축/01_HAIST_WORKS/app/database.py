@@ -2632,6 +2632,9 @@ def init_db():
             for _prcol, _prddl in [
                 ("updated_at",      "ALTER TABLE prod_requests ADD COLUMN updated_at TEXT"),
                 ("updated_by_name", "ALTER TABLE prod_requests ADD COLUMN updated_by_name TEXT"),
+                # z1191z48 (대표 2026-11-17): 이 요청서가 가리키는 수주(orders.id 쉼표) · 요지 한 줄
+                ("order_ids",       "ALTER TABLE prod_requests ADD COLUMN order_ids TEXT"),
+                ("gist",            "ALTER TABLE prod_requests ADD COLUMN gist TEXT"),
             ]:
                 if _prcol not in prcols:
                     try:
