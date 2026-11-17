@@ -22059,6 +22059,7 @@ async def contact_mail_send(req: Request, cid: int):
 from . import mail_store as _mailbox
 from . import mail_cleanup as _mail_cleanup   # 2026-11-16 보낸 곳별 정리 · 다시 안 받기(나에게만)
 from . import mail_reply as _mail_reply       # 2026-11-17 ④ 회신 필요(추정) — 규칙으로만(대표 「규칙으로 먼저 만들어」)
+from . import mail_folders as _mail_folders   # 2026-11-17 받은 메일 폴더(아웃룩식 · 대표 「아웃룩을 이런 식으로 구분해서」)
 from . import mail_signature as _mail_sig   # 2026-11-16 메일 서명 → 주소록 채우기
 
 _MAIL_CATEGORIES = ("견적", "발주", "세금계산서", "일반")
@@ -22189,11 +22190,23 @@ async def admin_mail_inbound_bind(req: Request):
 @app.get("/mail/inbox")
 async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0,
                           df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
-                          reply: int = 0):
+                          reply: int = 0, fd: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    fd = (fd or "").strip()
     with db_session() as c:
+        # 받은 메일 폴더(아웃룩식 · 11-17) — 대표 계정은 처음 열 때 아웃룩 구조 그대로 만든다. 실패해도 받은편지함은 연다.
+        mf = None
+        try:
+            _mail_folders.seed_if_owner(c, u["id"])
+            if _mail_folders.has_tree(c, u["id"]):
+                mf = _mail_folders.classify(c, u["id"])
+        except Exception as _e:
+            print(f"[MAIL-FOLDERS ERR] {type(_e).__name__}: {_e}")
+            mf = None
+        if mf is None or fd not in mf["keys_of"]:
+            fd = ""
         # ④ 회신 필요(추정) — 규칙으로만(AI·외부 전송 없음). 실패해도 받은편지함은 연다.
         try:
             reply_map = _mail_reply.scan(c, u["id"])
@@ -22202,7 +22215,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
         mails = _mailbox.list_inbox(c, u["id"], category=cat, q=q,
                                     starred=bool(star), unread=bool(unread),
                                     date_from=df, date_to=dt, has_att=bool(att), cust=cust,
-                                    only_ids=(list(reply_map.keys()) if reply else None))
+                                    only_ids=(list(reply_map.keys()) if reply else None),
+                                    senders=(_mail_folders.senders_in(mf, fd) if fd else None))
         for _m in mails:
             _m["reply"] = reply_map.get(_m["id"])
         unread_n = _mailbox.count_unread(c, u["id"])
@@ -22218,7 +22232,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
                drafts_n=drafts_n, thread_on=thread_on, threads=threads,
                folders=folders, cur_cust=(cust or "").strip(),
-               reply_n=len(reply_map), cur_reply=bool(reply))
+               reply_n=len(reply_map), cur_reply=bool(reply),
+               mf=mf, cur_fd=fd, cur_fd_name=((mf or {}).get("labels", {}).get(fd, "") if fd else ""))
 
 
 # ── 메일 = 설치형 앱(PWA) — KNK Eum 처럼 바탕화면/홈 아이콘으로 설치 (대표 지시 2026-06-14) ──
@@ -22513,9 +22528,10 @@ async def mail_view_page(req: Request, mail_id: int):
             reply_info = _mail_reply.one(c, u["id"], m["id"])
         except Exception:
             reply_info = {}
+        folder_info = _mail_folder_info(c, u["id"], m)
     return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
-               sender_contact=sender_contact, reply_info=reply_info)
+               sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
@@ -22546,9 +22562,110 @@ async def mail_view_pane(req: Request, mail_id: int):
             reply_info = _mail_reply.one(c, u["id"], m["id"])
         except Exception:
             reply_info = {}
+        folder_info = _mail_folder_info(c, u["id"], m)
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
-               sender_contact=sender_contact, reply_info=reply_info)
+               sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info)
+
+
+def _mail_folder_info(c, uid, m):
+    """읽기 화면의 「📁 폴더」 줄 — 폴더 나무가 있는 사람의 받은 메일만. 실패하면 줄을 안 보인다."""
+    try:
+        if m.get("direction") == "out" or not _mail_folders.has_tree(c, uid):
+            return None
+        res = _mail_folders.classify(c, uid)
+        cur = _mail_folders.folder_of(res, m.get("from_email") or "")
+        tgt = _mail_folders.rule_target(m.get("from_email") or "")
+        return {"cur": cur, "choices": _mail_folders.assignable(c, uid),
+                "target": ({"kind": tgt[0], "pattern": tgt[1]} if tgt else None),
+                "staff": (cur["key"] == "tx" or cur["key"].startswith("t"))}
+    except Exception as _e:
+        print(f"[MAIL-FOLDERS view ERR] {type(_e).__name__}: {_e}")
+        return None
+
+
+@app.post("/mail/{mail_id:int}/folder")
+async def mail_set_folder(req: Request, mail_id: int):
+    """「📁 이 폴더로」 — 이 메일 보낸 곳(회사 주소 @ 뒤, 개인 메일은 그 주소)을 그 폴더로 기억. 지난·앞으로 메일 모두."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    try:
+        fid = int(form.get("folder_id") or 0)
+    except Exception:
+        fid = 0
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m or m.get("direction") == "out":
+            return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다(본인 받은 메일만)."}, 404)
+        r = _mail_folders.set_rule(c, u["id"], fid, m.get("from_email") or "")
+        if not r.get("ok"):
+            return JSONResponse(r, 400)
+        res = _mail_folders.classify(c, u["id"])
+        cur = _mail_folders.folder_of(res, m.get("from_email") or "")
+    return JSONResponse({"ok": True, "folder": cur["name"], "key": cur["key"], "kind": r["kind"],
+                         "pattern": r["pattern"], "moved": r["moved"]})
+
+
+@app.get("/mail/folders", response_class=HTMLResponse)
+async def mail_folders_page(req: Request, msg: str = ""):
+    """폴더 관리 — 더하기·이름 바꾸기·순서·지우기 · 내가 정한 규칙 보기·지우기(나에게만)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        _mail_folders.ensure(c)
+        fl = _mail_folders.folders(c, u["id"])
+        rl = _mail_folders.rules(c, u["id"])
+        res = _mail_folders.classify(c, u["id"]) if fl else None
+        tl = _mail_folders.teams(c)
+    groups = [f for f in fl if not f["parent_id"]]
+    for g in groups:
+        g["kids"] = [f for f in fl if f["parent_id"] == g["id"]]
+    cnt = {}
+    for g in ((res or {}).get("nodes") or []):
+        cnt[g["key"]] = (g["n"], g["u"])
+        for k in g["children"]:
+            cnt[k["key"]] = (k["n"], k["u"])
+    return ctx(req, "mail_folders.html", user=u, groups=groups, rules=rl, res=res, msg=msg, cnt=cnt,
+               gen=((res or {}).get("gen") or {"n": 0, "u": 0}),
+               team_labels=[_mail_folders.team_label(t) for t in tl])
+
+
+@app.post("/mail/folders/op")
+async def mail_folders_op(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    op = (form.get("op") or "").strip()
+
+    def _i(k):
+        try:
+            return int(form.get(k) or 0)
+        except Exception:
+            return 0
+    msg = ""
+    with db_session() as c:
+        uid = u["id"]
+        if op == "seed":
+            msg = "아웃룩 폴더를 만들었습니다." if _mail_folders.seed(c, uid) else "이미 폴더가 있어 그대로 두었습니다."
+        elif op == "add":
+            pid = _i("parent_id") or None
+            msg = "폴더를 더했습니다." if _mail_folders.add_folder(c, uid, form.get("name"), pid,
+                                                                 (form.get("kind") or "").strip()) else "이름을 적어 주세요."
+        elif op == "rename":
+            msg = "이름을 바꿨습니다." if _mail_folders.rename_folder(c, uid, _i("id"), form.get("name")) else ""
+        elif op in ("up", "down"):
+            _mail_folders.move_folder(c, uid, _i("id"), -1 if op == "up" else 1)
+        elif op == "delete":
+            n = _mail_folders.delete_folder(c, uid, _i("id"))
+            msg = ("폴더 %d개를 지웠습니다(메일은 그대로 · 자동 분류나 일반으로 돌아갑니다)." % n) if n else ""
+        elif op == "delrule":
+            msg = "규칙을 지웠습니다." if _mail_folders.delete_rule(c, uid, _i("id")) else ""
+    from urllib.parse import quote
+    return RedirectResponse("/mail/folders" + (("?msg=" + quote(msg)) if msg else ""), 303)
 
 
 @app.post("/mail/{mail_id:int}/reply-mark")

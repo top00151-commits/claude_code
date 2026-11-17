@@ -559,7 +559,8 @@ def _dup_count_sql(c) -> str:
 
 def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                starred=None, unread=None, date_from: str = "", date_to: str = "",
-               has_att=None, cust: str = "", limit: int = 200, offset: int = 0, only_ids=None):
+               has_att=None, cust: str = "", limit: int = 200, offset: int = 0, only_ids=None,
+               senders=None):
     _ensure_security_cols(c)
     where = "user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0"
     args = [user_id]
@@ -607,6 +608,16 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
             return []
         where += " AND id IN (" + ",".join("?" * len(_ids)) + ")"
         args += _ids
+    # (11-17 대표 지시 「아웃룩처럼 폴더」) 폴더 = 보낸 사람 묶음 — mail_folders.classify 가 정한 주소들만.
+    #   주소가 수백 개일 수 있어 IN (?,?,…) 대신 이 연결 전용 임시 표로 거른다(SQLite 인자 개수 한도 회피).
+    if senders is not None:
+        _ss = sorted({(x or "").strip().lower() for x in senders})
+        if not _ss:
+            return []
+        c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_senders(e TEXT PRIMARY KEY)")
+        c.execute("DELETE FROM _mf_senders")
+        c.executemany("INSERT OR IGNORE INTO _mf_senders(e) VALUES(?)", [(x,) for x in _ss])
+        where += " AND lower(from_email) IN (SELECT e FROM _mf_senders)"
     q = (q or "").strip()
     if q:
         where += " AND (from_email LIKE ? OR from_name LIKE ? OR subject LIKE ? OR body_text LIKE ?)"

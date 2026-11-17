@@ -1,0 +1,311 @@
+# -*- coding: utf-8 -*-
+"""받은 메일 폴더(아웃룩식) 시험 — 가짜 직원·가짜 거래처·가짜 메일·임시 DB(운영 무접촉 · 실제 메일 없음).
+대표 지시 2026-11-17 「지금 아웃룩을 이런 식으로 구분해서 사용하고 있어」 「진행해」.
+① 대표 계정은 처음 열면 아웃룩 구조 그대로 생김 · 다른 사람은 안 생김(예전 거래처 폴더 그대로)
+② 나누기: 직원 명부(주소·로그인 아이디·이름) → 서명의 부서 → KNK 기타 / 주소록·거래처 담당자 / 같은 회사 주소 /
+   공급업체 / 서명의 회사 이름 / 폴더 없는 거래처 → 기타 고객사 / 둘 이상이면 일반
+③ 「📁 이 폴더로」 = 회사 주소 규칙(개인 메일은 그 주소) · 규칙이 자동보다 먼저 · 남의 메일 막기
+④ 숫자 = 목록 · 화면(works·kmail) · 관리(이름·더하기·순서·지우기 · 메일은 안 지움)
+사용: py -3.13 _검증/mail_folders_test.py"""
+import io
+import os
+import sys
+import tempfile
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+sys.path.insert(0, ROOT)
+os.chdir(ROOT)
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+_so = sys.stdout
+sys.stdout = io.StringIO()
+try:
+    import app.database as _db
+    _TMP = tempfile.mkdtemp(prefix="knk_mfold_")
+    _db.DB_PATH = os.path.join(_TMP, "t.db")
+    _db.init_db()
+    import app.main as m
+    from app import mail_store as ms
+    from app import mail_folders as mf
+finally:
+    sys.stdout = _so
+from starlette.testclient import TestClient  # noqa: E402
+
+P = F = 0
+_SEQ = [0]
+
+
+def check(name, cond, extra=""):
+    global P, F
+    if cond:
+        P += 1
+        print("  [PASS]", name)
+    else:
+        F += 1
+        print("  [FAIL]", name, "<-", str(extra)[:600])
+
+
+OWN, OTHER = 9001, 9002
+with _db.db_session() as c:
+    c.execute("UPDATE users SET login_id=login_id||'_x' WHERE login_id='kjr'")
+    c.execute("INSERT INTO users(id, login_id, name, role, is_active, password) VALUES(9001,'kjr','시험대표','ceo',1,'x')")
+    c.execute("INSERT INTO users(id, login_id, name, role, is_active, password) VALUES(9002,'t9002','시험이','member',1,'x')")
+    c.execute("INSERT INTO teams(id, code, name, display_order) VALUES(981,'81','시험영업팀',81)")
+    c.execute("INSERT INTO teams(id, code, name, display_order) VALUES(982,'82','시험설계팀',82)")
+    c.execute("INSERT INTO users(id, login_id, name, role, is_active, password, email, team_id) VALUES(9101,'st_a','가직원','member',1,'x','a1@knknara.co.kr',981)")
+    c.execute("INSERT INTO users(id, login_id, name, role, is_active, password, team_id) VALUES(9102,'bb2','나직원','member',1,'x',982)")
+    c.execute("INSERT INTO users(id, login_id, name, role, is_active, password, team_id) VALUES(9103,'cc3','최명부','member',1,'x',981)")
+    c.execute("INSERT INTO customers(id, name) VALUES(701,'삼성전기㈜')")
+    c.execute("INSERT INTO customers(id, name) VALUES(702,'㈜가나다전자')")
+    c.execute("INSERT INTO customers(id, name) VALUES(703,'㈜라마바')")
+    c.execute("INSERT INTO customers(id, name) VALUES(704,'㈜사아자')")
+    c.execute("INSERT INTO customer_contacts(customer_id, role, name, email) VALUES(701,'구매','박구매','p@semco.example')")
+    c.execute("INSERT INTO shared_contacts(name, email, visibility, created_by, customer_id) VALUES('홍길동','gildong@ganada.example','company',9001,702)")
+    c.execute("INSERT INTO shared_contacts(name, email, visibility, created_by, customer_id) VALUES('이라마','rama@shared.example','company',9001,703)")
+    c.execute("INSERT INTO shared_contacts(name, email, visibility, created_by, customer_id) VALUES('정사아','saa@shared.example','company',9001,704)")
+    c.execute("INSERT INTO suppliers(name, code, email) VALUES('GTS','SUP-T1','sales@gts.example')")
+
+
+def put(frm, subject, text, owner=OWN, name="보낸이", unread=True):
+    _SEQ[0] += 1
+    with _db.db_session() as c:
+        mid, _o = ms.store_inbound(c, to_email="t%d@knknara.co.kr" % owner, from_email=frm, from_name=name,
+                                   subject=subject, text=text, owner_id=owner, run_ai=False,
+                                   message_id="mf-%d@test" % _SEQ[0])
+        c.execute("UPDATE mail_messages SET received_at=datetime('now','localtime', ?), is_read=? WHERE id=?",
+                  ("-%d seconds" % (9000 - _SEQ[0]), 0 if unread else 1, mid))
+    return mid
+
+
+SIG_MELFAS = "샘플 일정 공유드립니다.\n\n감사합니다.\n\n김철수 과장\n㈜멜파스\nTel 02-1234-5678\nkim@melfas.example"
+SIG_DEPT = "도면 첨부합니다.\n\n감사합니다.\n\n유영희 대리\n시험설계팀\nTel 031-123-4567"
+ids = {}
+ids["staff_addr"] = put("a1@knknara.co.kr", "주간보고", "보고드립니다.", name="가직원")
+ids["staff_login"] = put("bb2@knknara.co.kr", "도면", "도면입니다.", name="나직원")
+ids["staff_name"] = put("myungbu@knknara.co.kr", "견적", "견적입니다.", name="최명부 과장")
+ids["staff_sig"] = put("yhyu@knknara.co.kr", "도면 송부", SIG_DEPT, name="Yu")
+ids["staff_x"] = put("who@knknara.co.kr", "안내", "안내입니다.", name="?")
+ids["cust_contact"] = put("p@semco.example", "삼성발주건", "발주서 송부", name="박구매")
+ids["cust_dom"] = put("new.person@ganada.example", "문의", "문의드립니다.")
+ids["cust_amb"] = put("x@shared.example", "공동", "두 거래처가 같이 쓰는 주소")
+ids["sup_dom"] = put("eng@gts.example", "PIN 견적", "견적서")
+ids["sig_comp"] = put("kim@melfas.example", "샘플", SIG_MELFAS, name="김철수")
+ids["free"] = put("hello.yj@gmail.com", "외주 견적", "견적입니다.")
+ids["free2"] = put("other.person@gmail.com", "안녕하세요", "개인 메일")
+ids["newco1"] = put("a@newco.example", "처음", "처음 연락드립니다.")
+ids["newco2"] = put("b@newco.example", "두번째", "두 번째 사람", unread=False)
+ids["robot"] = put("noreply@service.example", "알림", "자동 발송 알림입니다.")
+ids["other_user"] = put("p@semco.example", "남의 메일", "x", owner=OTHER)
+
+print("== 1. 처음 열기 — 대표 계정만 아웃룩 구조 생성 ==")
+_UID = {"v": OWN}
+_keep = m.get_user
+m.get_user = lambda req: ({"id": _UID["v"], "role": "member", "name": "시험", "team_id": None, "team_name": ""} if _UID["v"] else None)
+
+
+def client(port=5051, host="works.knknara.co.kr"):
+    k = TestClient(m.app, base_url="http://127.0.0.1:%d" % port, raise_server_exceptions=False, follow_redirects=False)
+    k.headers.update({"host": host, "x-forwarded-proto": "https"})
+    return k
+
+
+try:
+    k = client()
+    h = k.get("/mail/inbox?thread=0").text
+    with _db.db_session() as c:
+        fl = mf.folders(c, OWN)
+        fl_other = mf.folders(c, OTHER)
+    gnames = [f["name"] for f in fl if not f["parent_id"]]
+    check("대표 계정: 묶음 6개가 아웃룩 순서 그대로", gnames == ["1.고객사", "2.기타 고객사", "3.외주업체", "4.PIN BLOCK 업체", "5.CHIP업체", "6.케이엔케이"], gnames)
+    check("1.고객사 아래 19곳 · 5.CHIP업체 아래 9곳",
+          len([f for f in fl if f["parent_id"] == fl[0]["id"]]) == 19 and len([f for f in fl if f["parent_id"] == [g for g in fl if g["name"] == "5.CHIP업체"][0]["id"]]) == 9)
+    check("왼쪽에 「📁 폴더」 + 묶음 이름 + 「일반」", "📁 폴더" in h and "1.고객사" in h and "4.PIN BLOCK 업체" in h and 'href="/mail/inbox?fd=gen"' in h)
+    check("폴더가 생기면 예전 「📁 거래처 폴더」는 숨김", "📁 거래처 폴더" not in h)
+    k.get("/mail/inbox")
+    with _db.db_session() as c:
+        check("두 번 열어도 두 번 만들지 않음", len(mf.folders(c, OWN)) == len(fl))
+
+    _UID["v"] = OTHER
+    h2 = k.get("/mail/inbox").text
+    with _db.db_session() as c:
+        check("다른 사람: 폴더 자동 생성 안 함 · 예전 거래처 폴더 그대로", not mf.folders(c, OTHER) and "📁 거래처 폴더" in h2 and "📁 폴더" not in h2)
+    _UID["v"] = OWN
+
+    print("== 2. 나누기 ==")
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+        lab = res["labels"]
+
+        def where(key):
+            with _db.db_session() as c2:
+                mm = c2.execute("SELECT from_email FROM mail_messages WHERE id=?", (ids[key],)).fetchone()
+            s = res["senders"].get(mm["from_email"].lower())
+            return (lab.get(s["key"]), s["how"]) if s else (None, None)
+    check("직원 명부(주소) → 81_시험영업팀", where("staff_addr")[0] == "81_시험영업팀", where("staff_addr"))
+    check("직원 명부(로그인 아이디) → 82_시험설계팀", where("staff_login")[0] == "82_시험설계팀", where("staff_login"))
+    check("직원 명부(이름 「최명부 과장」) → 81_시험영업팀", where("staff_name")[0] == "81_시험영업팀", where("staff_name"))
+    check("명부에 없는 직원 → 서명의 부서 「시험설계팀」", where("staff_sig")[0] == "82_시험설계팀", where("staff_sig"))
+    check("부서를 모르는 우리 회사 주소 → KNK 기타", where("staff_x")[0] == "KNK 기타(부서 모름)", where("staff_x"))
+    check("거래처 담당자 이메일 → 1.고객사/삼성전기(이름 ㈜ 무시)", where("cust_contact")[0] == "삼성전기", where("cust_contact"))
+    check("같은 회사 주소 · 폴더 없는 거래처 → 2.기타 고객사", where("cust_dom")[0] == "2.기타 고객사", where("cust_dom"))
+    check("두 거래처가 같이 쓰는 주소 → 짐작 안 함(일반)", where("cust_amb")[0] == "일반", where("cust_amb"))
+    check("공급업체 명단 회사 주소 → 4.PIN BLOCK 업체/GTS", where("sup_dom")[0] == "GTS", where("sup_dom"))
+    check("서명의 회사 이름 「㈜멜파스」 → 5.CHIP업체/멜파스", where("sig_comp")[0] == "멜파스", where("sig_comp"))
+    check("모르는 개인 메일 → 일반", where("free")[0] == "일반" and where("robot")[0] == "일반")
+    check("6.케이엔케이 아래는 메일 있는 부서만 · 코드_이름", [x["name"] for x in [g for g in res["nodes"] if g["kind"] == "staff"][0]["children"]] == ["81_시험영업팀", "82_시험설계팀", "KNK 기타(부서 모름)"],
+          [x["name"] for x in [g for g in res["nodes"] if g["kind"] == "staff"][0]["children"]])
+    check("남의 메일은 내 폴더 숫자에 안 섞임", sum(s["n"] for s in res["senders"].values()) == len(ids) - 1)
+
+    print("== 3. 숫자 = 목록 ==")
+    bad = []
+    for key in list(res["keys_of"].keys()):
+        with _db.db_session() as c:
+            lst = ms.list_inbox(c, OWN, senders=mf.senders_in(res, key), limit=500)
+        node_n = None
+        for g in res["nodes"]:
+            if g["key"] == key:
+                node_n = g["n"]
+            for ch in g["children"]:
+                if ch["key"] == key:
+                    node_n = ch["n"]
+        if key == "gen":
+            node_n = res["gen"]["n"]
+        if node_n is not None and node_n != len(lst):
+            bad.append((key, node_n, len(lst)))
+    check("모든 폴더: 왼쪽 숫자 = 눌렀을 때 목록 수", not bad, bad)
+    tot = sum(g["n"] for g in res["nodes"]) + res["gen"]["n"]
+    check("묶음 합 + 일반 = 받은편지함 전체(빠짐·겹침 없음)", tot == len(ids) - 1, tot)
+    gen_h = k.get("/mail/inbox?fd=gen&thread=0").text
+    check("「일반」 누르면 그 메일만 · 다른 폴더 메일(삼성발주건·주간보고)은 안 보임", "외주 견적" in gen_h and "삼성발주건" not in gen_h and "주간보고" not in gen_h)
+    cust_key = [g for g in res["nodes"] if g["name"] == "1.고객사"][0]["key"]
+    g_h = k.get("/mail/inbox?fd=%s&thread=0" % cust_key).text
+    check("묶음(1.고객사)을 누르면 아래 폴더 메일 모두", "삼성발주건" in g_h and "외주 견적" not in g_h)
+    check("엉뚱한 fd 는 무시(전체 받은편지함)", k.get("/mail/inbox?fd=f999999").status_code == 200)
+    check("선택한 폴더는 검색해도 유지(숨은 칸)", 'name="fd" value="gen"' in gen_h)
+    check("목록 위에 지금 폴더 띠 「📁 일반 · ✕ 전체 보기」", 'class="mf-cur"' in gen_h and "✕ 전체 보기" in gen_h)
+    check("폴더를 안 고르면 띠 없음", 'class="mf-cur"' not in k.get("/mail/inbox").text)
+
+    print("== 4. 「📁 이 폴더로」 ==")
+    pane = k.get("/mail/%d/pane" % ids["free"]).text
+    check("읽기 칸에 「폴더 · 📁 일반」 + 고르기", "📁 일반" in pane and 'id="mvFolderSel"' in pane and "와이제이전자" in pane)
+    check("6.케이엔케이 묶음은 고를 수 없음(부서 자동)", ">6.케이엔케이<" not in pane)
+    with _db.db_session() as c:
+        yj = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='와이제이전자'", (OWN,)).fetchone()["id"]
+        outs = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='3.외주업체'", (OWN,)).fetchone()["id"]
+        staff_g = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND kind='staff'", (OWN,)).fetchone()["id"]
+        semco = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='삼성전기'", (OWN,)).fetchone()["id"]
+    j = k.post("/mail/%d/folder" % ids["free"], data={"folder_id": yj}).json()
+    check("개인 메일 → 그 주소 하나만 기억", j.get("ok") and j.get("kind") == "email" and j.get("pattern") == "hello.yj@gmail.com" and j.get("folder") == "와이제이전자", j)
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+    check("같은 gmail 의 다른 사람은 그대로 일반", mf.folder_of(res, "other.person@gmail.com")["name"] == "일반")
+    j = k.post("/mail/%d/folder" % ids["newco1"], data={"folder_id": outs}).json()
+    check("회사 주소 → @newco.example 전체 기억 · 옮긴 메일 2통", j.get("ok") and j.get("kind") == "domain" and j.get("pattern") == "newco.example" and j.get("moved") == 2, j)
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+    check("같은 회사 다른 사람(b@newco)도 3.외주업체로", mf.folder_of(res, "b@newco.example")["name"] == "3.외주업체")
+    later = put("c@newco.example", "나중에 온 메일", "앞으로 올 메일도")
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+    check("앞으로 올 메일도 같은 폴더로", mf.folder_of(res, "c@newco.example")["name"] == "3.외주업체")
+    j = k.post("/mail/%d/folder" % ids["cust_amb"], data={"folder_id": semco}).json()
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+    check("내 규칙이 자동보다 먼저(짐작 못 하던 주소 → 삼성전기)", mf.folder_of(res, "x@shared.example")["name"] == "삼성전기", j)
+    j2 = k.post("/mail/%d/folder" % ids["free"], data={"folder_id": staff_g})
+    check("6.케이엔케이 묶음으로는 못 옮김(400)", j2.status_code == 400)
+    j3 = k.post("/mail/%d/folder" % ids["other_user"], data={"folder_id": yj})
+    check("남의 메일은 못 건드림(404)", j3.status_code == 404)
+    with _db.db_session() as c:
+        oth_f = mf.add_folder(c, OTHER, "남의 폴더")
+    j4 = k.post("/mail/%d/folder" % ids["free2"], data={"folder_id": oth_f})
+    check("남의 폴더로는 못 옮김(400)", j4.status_code == 400)
+    _UID["v"] = None
+    check("로그인 안 하면 401", k.post("/mail/%d/folder" % ids["free"], data={"folder_id": yj}).status_code == 401)
+    _UID["v"] = OWN
+
+    print("== 5. 관리 화면 ==")
+    r = k.get("/mail/folders")
+    check("관리 화면 열림 · 규칙 3개 보임", r.status_code == 200 and "@newco.example" in r.text and "hello.yj@gmail.com" in r.text, r.status_code)
+    k.post("/mail/folders/op", data={"op": "rename", "id": yj, "name": "와이제이전자(외주)"})
+    k.post("/mail/folders/op", data={"op": "add", "parent_id": outs, "name": "새외주"})
+    with _db.db_session() as c:
+        kids = [f["name"] for f in mf.folders(c, OWN) if f["parent_id"] == outs]
+    check("이름 바꾸기 · 폴더 더하기", kids == ["배송 및 포장업체", "와이제이전자(외주)", "새외주"], kids)
+    with _db.db_session() as c:
+        nf = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='새외주'", (OWN,)).fetchone()["id"]
+    k.post("/mail/folders/op", data={"op": "up", "id": nf})
+    with _db.db_session() as c:
+        kids = [f["name"] for f in mf.folders(c, OWN) if f["parent_id"] == outs]
+    check("위로 한 칸", kids == ["배송 및 포장업체", "새외주", "와이제이전자(외주)"], kids)
+    with _db.db_session() as c:
+        n_mail_before = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=0", (OWN,)).fetchone()[0]
+    k.post("/mail/folders/op", data={"op": "delete", "id": outs})
+    with _db.db_session() as c:
+        n_mail_after = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=0", (OWN,)).fetchone()[0]
+        left = c.execute("SELECT COUNT(*) FROM mail_folder_rules WHERE user_id=? AND folder_id IN (?,?)", (OWN, outs, yj)).fetchone()[0]
+        res = mf.classify(c, OWN)
+    check("묶음 지우기: 아래 폴더·규칙도 지움 · 메일은 그대로", left == 0 and n_mail_before == n_mail_after)
+    check("지운 폴더의 메일 → 일반으로 돌아감", mf.folder_of(res, "a@newco.example")["name"] == "일반" and mf.folder_of(res, "hello.yj@gmail.com")["name"] == "일반")
+    with _db.db_session() as c:
+        rid = c.execute("SELECT id FROM mail_folder_rules WHERE user_id=?", (OWN,)).fetchone()["id"]
+    k.post("/mail/folders/op", data={"op": "delrule", "id": rid})
+    with _db.db_session() as c:
+        res = mf.classify(c, OWN)
+    check("규칙 지우기 → 자동 분류로 돌아감(공동 주소 → 일반)", mf.folder_of(res, "x@shared.example")["name"] == "일반")
+    _UID["v"] = OTHER
+    with _db.db_session() as c:
+        c.execute("DELETE FROM mail_folders WHERE user_id=?", (OTHER,))
+    k.post("/mail/folders/op", data={"op": "seed"})
+    with _db.db_session() as c:
+        check("다른 사람은 관리 화면 단추로 직접 만들 수 있음", len([f for f in mf.folders(c, OTHER) if not f["parent_id"]]) == 6)
+    _UID["v"] = OWN
+
+    print("== 6. kmail 주소 · 보낸편지함 ==")
+    km = client(port=5053, host="kmail.knknara.co.kr")
+    check("kmail: 받은편지함 폴더 보기 200", km.get("/mail/inbox?fd=gen").status_code == 200)
+    check("kmail: 폴더 관리 200", km.get("/mail/folders").status_code == 200)
+    check("kmail: 「📁 이 폴더로」 POST 동작", km.post("/mail/%d/folder" % ids["free2"], data={"folder_id": semco}).json().get("ok"))
+    check("보낸편지함·휴지통은 폴더 없이 그대로", k.get("/mail/sent").status_code == 200 and k.get("/mail/trash").status_code == 200)
+    check("메일 전체 화면에도 폴더 줄", "mvFolderCur" in k.get("/mail/%d" % ids["sig_comp"]).text)
+
+    print("== 7. 속도(가짜 보낸 사람 800명) ==")
+    with _db.db_session() as c:
+        for i in range(800):
+            _SEQ[0] += 1
+            ms.store_inbound(c, to_email="t9001@knknara.co.kr", from_email="u%d@corp%d.example" % (i, i % 300),
+                             from_name="사람%d" % i, subject="제목 %d" % i,
+                             text="본문입니다.\n\n감사합니다.\n\n사람%d 과장\n㈜회사%d\nTel 02-111-%04d" % (i, i % 300, i),
+                             owner_id=OWN, run_ai=False, message_id="perf-%d@test" % i)
+    mf._CACHE.clear()
+    mf._SIG_CACHE.clear()
+    t0 = time.time()
+    with _db.db_session() as c:
+        mf.classify(c, OWN)
+    t1 = time.time()
+    with _db.db_session() as c:
+        mf.classify(c, OWN)
+    t2 = time.time()
+    mf._CACHE.clear()
+    t3 = time.time()
+    with _db.db_session() as c:
+        mf.classify(c, OWN)
+    t4 = time.time()
+    print("    처음 %.2f초 · 바로 다시 %.3f초 · 새 메일 뒤(서명 기억) %.2f초" % (t1 - t0, t2 - t1, t4 - t3))
+    check("서명을 실제로 읽었음(보낸 사람 800명분)", len(mf._SIG_CACHE) >= 800, len(mf._SIG_CACHE))
+    check("처음 계산 3초 안", t1 - t0 < 3.0, t1 - t0)
+    check("다시 열 때 0.2초 안", t2 - t1 < 0.2, t2 - t1)
+    check("서명은 다시 읽지 않음(1초 안)", t4 - t3 < 1.0, t4 - t3)
+    t5 = time.time()
+    r = k.get("/mail/inbox?thread=0")
+    print("    받은편지함 화면 %.2f초" % (time.time() - t5))
+    check("받은편지함 화면 200", r.status_code == 200)
+finally:
+    m.get_user = _keep
+
+print("\n결과: %d 통과 / %d 실패" % (P, F))
+sys.exit(1 if F else 0)

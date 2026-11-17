@@ -46,6 +46,19 @@
   .mbx-fold .fbadge{background:#dc2626;color:#fff;font-size:9.5px;font-weight:700;padding:0 6px;border-radius:999px;line-height:1.7}
   .mbx-fold.on .fbadge{background:#fff;color:var(--knk-red)}
   .mbx-fold-div{height:1px;background:var(--line);margin:7px 4px}
+  /* 받은 메일 폴더(아웃룩식 · 11-17) — 묶음 ▾ 접기 · 숫자=안 읽은 메일(아웃룩처럼 파란 글자) */
+  .mf-gh{font-weight:700}
+  .mf-tg{display:inline-flex;width:14px;justify-content:center;color:var(--mute);font-size:10px;flex:none;transition:transform .12s}
+  .mf-tg-x{visibility:hidden}
+  .mf-g.closed .mf-tg{transform:rotate(-90deg)}
+  .mf-g.closed .mf-kids{display:none}
+  .mf-k{padding-left:29px}
+  .mf-k.mf-zero:not(.on){color:var(--mute)}
+  .mf-u{font-size:11.5px;font-weight:700;color:#2563eb}
+  .mbx-fold.on .mf-u,.mbx-fold.on .mf-tg{color:#fff}
+  .mf-cur{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:13px;color:#1e3a8a}
+  .mf-cur span{color:#64748b;font-size:12px}
+  .mf-cur a{margin-left:auto;font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:600}
   /* 메일 목록 행 — 제목 우선(굵게·한 줄 전체), 보낸사람·요약은 아래 작게 (대표 지시: 리스트 잘 보이게) */
   .mbx-list{display:flex;flex-direction:column}
   .mbx-row{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
@@ -122,7 +135,7 @@
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
-  {% set _all_on = (box=='in' and not cur_cust|default('') and not cur_cat|default('') and not cur_star|default(false) and not cur_unread|default(false)) %}
+  {% set _all_on = (box=='in' and not cur_cust|default('') and not cur_fd|default('') and not cur_cat|default('') and not cur_star|default(false) and not cur_unread|default(false)) %}
 
   {# ── 상단 컴팩트 메뉴: 검색 + 액션 (메뉴 최대한 상단) ── #}
   <div class="mbx-topbar">
@@ -132,6 +145,7 @@
       {% if box=='in' %}
       <input type="hidden" name="cat" value="{{ cur_cat|default('') }}">
       <input type="hidden" name="cust" value="{{ cur_cust|default('') }}">
+      {% if cur_fd|default('') %}<input type="hidden" name="fd" value="{{ cur_fd }}">{% endif %}
       <input type="date" name="df" value="{{ cur_df|default('') }}" title="받은날짜 시작">
       <span style="color:var(--mute);font-size:12px;">~</span>
       <input type="date" name="dt" value="{{ cur_dt|default('') }}" title="받은날짜 끝">
@@ -204,6 +218,30 @@
       <a href="/mail/cleanup" class="mbx-fold" title="받은 메일을 보낸 곳별로 묶어 광고·알림 메일을 한 번에 휴지통으로 · 나에게만 다시 안 받기"><span class="fname">📮 보낸 곳별 정리</span><span class="cnt" style="color:#c2410c;font-weight:700">광고·알림</span></a>
       {% if is_admin %}<a href="/mail/blocklist" class="mbx-fold {{ 'on' if box=='blocklist' else '' }}" title="위험·스팸 주소 등록 관리"><span class="fname">⛔ 차단목록 관리</span></a>{% endif %}
 
+      {% if box=='in' and mf %}
+      {# 받은 메일 폴더(아웃룩식 · 대표 11-17 「아웃룩을 이런 식으로 구분해서 사용하고 있어」) — 보낸 사람으로 자동 · 숫자=안 읽은 메일 #}
+      <div class="mbx-fold-div"></div>
+      <div class="mbx-fold-h" style="display:flex;align-items:center">📁 폴더<a href="/mail/folders" style="margin-left:auto;font-weight:600;color:var(--mute);text-decoration:none" title="폴더 더하기·이름 바꾸기·순서 · 내가 정한 규칙">⚙ 관리</a></div>
+      {% for g in mf.nodes %}
+      <div class="mf-g" data-g="{{ g.key }}">
+        <a href="/mail/inbox?fd={{ g.key }}" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == g.key else '' }}" title="{{ g.name }} — 받은 메일 {{ g.n }}통{% if g.u %} · 안 읽음 {{ g.u }}통{% endif %}">
+          {% if g.children %}<span class="mf-tg" onclick="return mfToggle(event,'{{ g.key }}')" title="펼치기·접기">▾</span>{% else %}<span class="mf-tg mf-tg-x"></span>{% endif %}
+          <span class="fname">{{ g.name }}</span>{% if g.u %}<span class="mf-u">{{ g.u }}</span>{% endif %}
+        </a>
+        <div class="mf-kids">
+        {% for k in g.children %}
+          <a href="/mail/inbox?fd={{ k.key }}" class="mbx-fold mf-k {{ 'on' if cur_fd|default('') == k.key else '' }}{{ ' mf-zero' if not k.n else '' }}" title="{{ k.name }} — 받은 메일 {{ k.n }}통{% if k.u %} · 안 읽음 {{ k.u }}통{% endif %}">
+            <span class="fname">{{ k.name }}</span>{% if k.u %}<span class="mf-u">{{ k.u }}</span>{% endif %}
+          </a>
+        {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      <a href="/mail/inbox?fd=gen" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == 'gen' else '' }}" title="위 폴더 어디에도 안 걸린 메일 {{ mf.gen.n }}통 — 메일을 열어 「📁 이 폴더로」를 누르면 그 회사 메일이 모두 그 폴더로 갑니다">
+        <span class="mf-tg mf-tg-x"></span><span class="fname">일반</span>{% if mf.gen.u %}<span class="mf-u">{{ mf.gen.u }}</span>{% endif %}
+      </a>
+      {% endif %}
+
       {% if box=='in' %}
       <div class="mbx-fold-div"></div>
       <div class="mbx-fold-h">분류</div>
@@ -211,7 +249,7 @@
       <a href="/mail/inbox?cat={{ ct }}" class="mbx-fold {{ 'on' if cur_cat|default('')==ct else '' }}"><span class="fname">{{ ct }}</span><span class="cnt">{{ cat_counts.get(ct,0) }}</span></a>
       {% endfor %}
 
-      {% if folders %}
+      {% if folders and not mf %}
       <div class="mbx-fold-div"></div>
       <div class="mbx-fold-h">📁 거래처 폴더</div>
       {% for cf in folders.customers %}
@@ -231,7 +269,7 @@
       <a href="/mail/inbox?reply=1" class="mbx-fold {{ 'on' if cur_reply|default(false) else '' }}" title="최근 {{ 14 }}일 받은 메일 중 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함) — 규칙으로 추정"><span class="fname">↩ 회신 필요</span>{% if reply_n|default(0) %}<span class="fbadge">{{ reply_n }}</span>{% endif %}</a>
       <a href="/mail/inbox?star=1" class="mbx-fold {{ 'on' if cur_star|default(false) else '' }}"><span class="fname">⭐ 별표</span></a>
       <a href="/mail/inbox?unread=1" class="mbx-fold {{ 'on' if cur_unread|default(false) else '' }}"><span class="fname">● 안읽음</span></a>
-      <a href="/mail/inbox?thread={{ 0 if thread_on|default(true) else 1 }}{% if cur_cust|default('') %}&cust={{ cur_cust }}{% endif %}" class="mbx-fold {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:) 메일을 한 대화로 묶기"><span class="fname">💬 대화묶기</span></a>
+      <a href="/mail/inbox?thread={{ 0 if thread_on|default(true) else 1 }}{% if cur_cust|default('') %}&cust={{ cur_cust }}{% endif %}{% if cur_fd|default('') %}&fd={{ cur_fd }}{% endif %}" class="mbx-fold {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:) 메일을 한 대화로 묶기"><span class="fname">💬 대화묶기</span></a>
       {% endif %}
     </nav>
 
@@ -239,6 +277,10 @@
 
     {# 중: 메일 목록 #}
     <div class="mbx-listcol">
+    {% if box=='in' and cur_fd|default('') %}
+    {# 지금 보고 있는 폴더(11-17) — 왼쪽 목록이 길어 위로 밀려도 어느 폴더인지 보이게 #}
+    <div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ mails|length }}통{% if mails|length >= 200 %}+{% endif %}</span><a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
+    {% endif %}
     {% if mails %}
     <div class="mbx-list">
       {% if box=='in' and thread_on|default(true) and threads %}
@@ -326,7 +368,7 @@
     </div>
     {% else %}
     <div class="mbx-empty">
-      {% if q or cur_star|default(false) or cur_unread|default(false) or cur_cust|default('') %}
+      {% if q or cur_star|default(false) or cur_unread|default(false) or cur_cust|default('') or cur_fd|default('') %}
       🔍 조건에 맞는 메일이 없습니다.<br><br><span style="font-size:12.5px;">검색어나 폴더·필터를 바꿔보세요.</span>
       {% elif box=='sent' %}
       📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
@@ -510,6 +552,28 @@ function toggleFolders(btn){
   try{
     var split=document.querySelector('.mbx-split');
     if(split && window.matchMedia('(max-width:640px)').matches){ split.classList.add('folders-collapsed'); }
+  }catch(e){}
+})();
+/* ── 받은 메일 폴더 묶음 ▾ 접기·펴기 (11-17) — 이 브라우저에만 기억(없어도 펼친 채로 동작) ── */
+function mfToggle(ev, key){
+  ev.preventDefault(); ev.stopPropagation();
+  var g=document.querySelector('.mf-g[data-g="'+key+'"]'); if(!g) return false;
+  var closed=g.classList.toggle('closed');
+  try{ var st=JSON.parse(localStorage.getItem('mfClosed')||'{}'); if(closed) st[key]=1; else delete st[key]; localStorage.setItem('mfClosed', JSON.stringify(st)); }catch(e){}
+  return false;
+}
+(function(){
+  try{
+    var st=JSON.parse(localStorage.getItem('mfClosed')||'{}');
+    document.querySelectorAll('.mf-g').forEach(function(g){
+      if(st[g.getAttribute('data-g')] && !g.querySelector('.mbx-fold.on')) g.classList.add('closed');
+    });
+    // 고른 폴더가 왼쪽 목록에서 안 보이면 보이는 데까지만 굴림(보이면 그대로)
+    setTimeout(function(){
+      var on=document.querySelector('.mbx-side .mf-g .mbx-fold.on, .mbx-side a.mf-gh.on'), side=document.querySelector('.mbx-side');
+      if(on && side){ var a=on.getBoundingClientRect(), b=side.getBoundingClientRect();
+        if(a.top<b.top || a.bottom>b.bottom){ side.scrollTop += (a.top-b.top) - 40; } }
+    }, 60);
   }catch(e){}
 })();
 </script>

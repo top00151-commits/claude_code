@@ -17,6 +17,19 @@
     <b>보낸사람</b> {{ m.from_name }} &lt;{{ m.from_email }}&gt;{% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}{% if sender_contact %} <span class="mv-ct-inline on" title="주소록에 이미 있는 사람">📇 주소록에 있음</span>{% else %} <a href="#" id="mvContactInline" class="mv-ct-inline" onclick="mailToContact();return false" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</a>{% endif %}{% endif %}<br>
     <b>받은주소</b> {{ m.to_email }}{% if m.cc %} · <b>참조</b> {{ m.cc }}{% endif %}<br>
     <b>받은시각</b> {{ m.received_at }}{% if m.lang %} · <b>언어</b> {{ m.lang }}{% endif %}
+    {% if folder_info is defined and folder_info %}
+    {# 받은 메일 폴더(아웃룩식 · 11-17) — 지금 폴더 + 「📁 이 폴더로」(그 회사 메일 전부 · 나에게만) #}
+    <br><b>폴더</b> <span id="mvFolderCur" class="mv-fd-cur" title="{{ folder_info.cur.how or '어디에도 안 걸린 메일' }}">📁 {{ folder_info.cur.name }}</span>
+    {% if folder_info.target %}
+    <select id="mvFolderSel" class="mv-fd-sel" onchange="mailSetFolder(this)"
+            data-kind="{{ folder_info.target.kind }}" data-pattern="{{ folder_info.target.pattern }}"
+            title="{% if folder_info.target.kind == 'domain' %}회사 주소 @{{ folder_info.target.pattern }} 에서 온 메일을 모두{% else %}{{ folder_info.target.pattern }} 에서 온 메일을 모두{% endif %} 고른 폴더로 — 지난 메일·앞으로 올 메일 · 나에게만">
+      <option value="">📁 이 폴더로…</option>
+      {% for f in folder_info.choices %}<option value="{{ f.id }}">{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
+    </select>
+    <span id="mvFolderMsg" class="mv-fd-msg"></span>
+    {% endif %}
+    {% endif %}
   </div>
 </div>
 
@@ -194,6 +207,20 @@
       }
       try{ var row=document.querySelector('.mbx-row.active .mbx-reply, .mbx-headlink.active .mbx-reply'); if(row && !j.lv) row.remove(); }catch(e){}
     }catch(e){ alert('네트워크 오류'); }
+  };
+  // 「📁 이 폴더로」 (11-17) — 그 회사 주소(개인 메일은 그 주소)를 기억 → 지난·앞으로 메일 모두 그 폴더로(나에게만)
+  window.mailSetFolder=async function(sel){
+    var fid=sel.value; if(!fid) return;
+    var name=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,'');
+    var who=sel.getAttribute('data-kind')==='domain' ? ('회사 주소 @'+sel.getAttribute('data-pattern')+' 에서 온 메일') : (sel.getAttribute('data-pattern')+' 에서 온 메일');
+    if(!confirm(who+'을 모두 「'+name+'」 폴더로 옮길까요?\n\n지난 메일과 앞으로 올 메일 모두 · 나에게만 적용됩니다.\n(폴더 ⚙ 관리에서 언제든 지울 수 있습니다)')){ sel.value=''; return; }
+    try{ var fd=new FormData(); fd.append('folder_id', fid);
+      var r=await fetch('/mail/'+MAIL_ID+'/folder',{method:'POST',body:fd}); var j=await r.json();
+      if(!j.ok){ alert('⚠ '+(j.message||'옮기지 못했습니다')); sel.value=''; return; }
+      var cur=document.getElementById('mvFolderCur'); if(cur){ cur.textContent='📁 '+j.folder; cur.title='내 규칙'; }
+      var msg=document.getElementById('mvFolderMsg'); if(msg){ msg.textContent='✓ 메일 '+j.moved+'통을 옮겼습니다 · 왼쪽 숫자는 받은편지함을 다시 열면 바뀝니다'; }
+      sel.value='';
+    }catch(e){ alert('네트워크 오류'); sel.value=''; }
   };
   window.muteSender=async function(){
     if(!confirm('이 발신의 메일을 다시 안 받을까요? (나에게만 적용)\n\n이미 받은 메일도, 앞으로 오는 메일도 받은편지함에 안 보이고 차단함에 모입니다.\n지우지 않으며, 「📮 보낸 곳별 정리」 화면에서 언제든 풀 수 있습니다.')) return;

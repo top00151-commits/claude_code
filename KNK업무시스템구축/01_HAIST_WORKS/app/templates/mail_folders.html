@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 폴더 관리 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* 받은 메일 폴더 관리(아웃룩식 · 대표 지시 2026-11-17) */
+  .mf-wrap{max-width:980px}
+  .mf-help{border:1px solid var(--line);border-radius:12px;background:#fff;padding:13px 16px;font-size:13px;color:var(--mute);line-height:1.8;margin-bottom:12px}
+  .mf-help b{color:var(--ink)}
+  .mf-msg{border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;margin-bottom:12px}
+  .mf-box{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;margin-bottom:14px}
+  .mf-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:13px}
+  .mf-row:last-child{border-bottom:0}
+  .mf-row.g{background:#f8fafc}
+  .mf-row.k{padding-left:34px}
+  .mf-row form{display:flex;align-items:center;gap:6px;margin:0}
+  .mf-name{border:1px solid transparent;border-radius:6px;padding:4px 7px;font-size:13px;font-family:inherit;min-width:0;width:240px;background:transparent}
+  .mf-row.g .mf-name{font-weight:700}
+  .mf-name:hover,.mf-name:focus{border-color:#cbd5e1;background:#fff}
+  .mf-n{margin-left:auto;font-size:12px;color:var(--mute);white-space:nowrap;min-width:70px;text-align:right}
+  .mf-n b{color:#2563eb}
+  .mf-btn{border:1px solid var(--line);background:#fff;border-radius:7px;padding:3px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--ink);white-space:nowrap}
+  .mf-btn:hover{background:#f3f4f6}
+  .mf-btn.del{color:#b91c1c;border-color:#fecaca}
+  .mf-btn.go{background:var(--knk-red,#c0392b);border-color:transparent;color:#fff;font-weight:700}
+  .mf-auto{font-size:12px;color:var(--mute);padding:7px 12px 9px 34px;border-bottom:1px solid var(--line);line-height:1.7}
+  .mf-add{padding:6px 12px 8px 34px;border-bottom:1px solid var(--line)}
+  .mf-add input{border:1px dashed #cbd5e1;border-radius:6px;padding:4px 8px;font-size:12.5px;font-family:inherit;width:220px}
+  .mf-sec{font-size:14px;font-weight:700;margin:20px 0 8px}
+  .mf-rule{display:grid;grid-template-columns:minmax(200px,1.4fr) 24px minmax(140px,1fr) 120px auto;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px}
+  .mf-rule:last-child{border-bottom:0}
+  .mf-rule small{color:var(--mute)}
+  .mf-empty{padding:20px 14px;color:var(--mute);font-size:13px;text-align:center}
+  @media(max-width:720px){
+    .mf-name{width:150px}
+    .mf-rule{grid-template-columns:1fr auto;}
+    .mf-rule .ar,.mf-rule .dt{display:none}
+  }
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+<div class="mf-wrap">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 폴더 관리</div>
+    <h1 class="page-title">📁 메일 <em>폴더</em></h1>
+  </div><div><a href="/mail/inbox" class="btn btn-secondary">← 메일함</a></div></div>
+
+  {% if msg %}<div class="mf-msg">✓ {{ msg }}</div>{% endif %}
+
+  <div class="mf-help">
+    받은 메일은 <b>보낸 사람으로 저절로</b> 폴더에 나뉩니다(아웃룩 규칙과 같습니다 · <b>나에게만</b> 적용).
+    <br>· <b>고객사·업체</b> — 주소록·거래처 담당자 이메일, 같은 회사 주소(@ 뒤), 서명의 회사 이름이 폴더 이름과 같을 때. 이음웍스 거래처인데 폴더가 없으면 「기타 고객사」로.
+    <br>· <b>케이엔케이</b> — 우리 회사 주소(@knknara.co.kr)는 직원 명부의 부서로(명부에 없으면 서명의 부서 이름).
+    <br>· 어디에도 안 걸리면 <b>「일반」</b>. 메일을 열어 <b>「📁 이 폴더로」</b>를 고르면 그 회사(개인 메일은 그 주소)에서 온 메일이 지난 것·앞으로 올 것 모두 그 폴더로 갑니다.
+    <br>· 폴더를 지워도 <b>메일은 지워지지 않습니다</b>(자동 분류나 「일반」으로 돌아갑니다).
+  </div>
+
+  {% if not groups %}
+  <div class="mf-box"><div class="mf-empty">
+    아직 폴더가 없습니다.<br><br>
+    <form method="post" action="/mail/folders/op" style="display:inline"><input type="hidden" name="op" value="seed">
+      <button class="mf-btn go" type="submit">📁 기본 폴더 만들기(고객사·기타 고객사·외주·PIN BLOCK·CHIP·케이엔케이)</button></form>
+  </div></div>
+  {% else %}
+  <div class="mf-box">
+    {% for g in groups %}
+    {% set gk = 'f%d' % g.id %}
+    <div class="mf-row g">
+      <form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="rename"><input type="hidden" name="id" value="{{ g.id }}">
+        <input class="mf-name" name="name" value="{{ g.name }}" maxlength="60" title="이름을 고치고 Enter"></form>
+      <span class="mf-n" title="받은 메일(안 읽음)">{{ cnt.get(gk, (0,0))[0] }}통{% if cnt.get(gk, (0,0))[1] %} · <b>{{ cnt.get(gk)[1] }}</b>{% endif %}</span>
+      <form method="post" action="/mail/folders/op"><input type="hidden" name="id" value="{{ g.id }}">
+        <button class="mf-btn" name="op" value="up" title="위로">↑</button><button class="mf-btn" name="op" value="down" title="아래로">↓</button></form>
+      <form method="post" action="/mail/folders/op" onsubmit="return confirm('「{{ g.name }}」 묶음과 그 아래 폴더를 지울까요?\n메일은 지워지지 않습니다.')">
+        <input type="hidden" name="op" value="delete"><input type="hidden" name="id" value="{{ g.id }}"><button class="mf-btn del" type="submit">지우기</button></form>
+    </div>
+    {% if g.kind == 'staff' %}
+    <div class="mf-auto">부서 폴더는 <b>회사 부서표에서 자동</b>으로 보입니다(메일이 있는 부서만): {{ team_labels|join(' · ') }}</div>
+    {% endif %}
+    {% for k in g.kids %}
+    {% set kk = 'f%d' % k.id %}
+    <div class="mf-row k">
+      <form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="rename"><input type="hidden" name="id" value="{{ k.id }}">
+        <input class="mf-name" name="name" value="{{ k.name }}" maxlength="60" title="이름을 고치고 Enter — 서명의 회사 이름과 맞출 때도 이 이름을 씁니다"></form>
+      <span class="mf-n">{{ cnt.get(kk, (0,0))[0] }}통{% if cnt.get(kk, (0,0))[1] %} · <b>{{ cnt.get(kk)[1] }}</b>{% endif %}</span>
+      <form method="post" action="/mail/folders/op"><input type="hidden" name="id" value="{{ k.id }}">
+        <button class="mf-btn" name="op" value="up" title="위로">↑</button><button class="mf-btn" name="op" value="down" title="아래로">↓</button></form>
+      <form method="post" action="/mail/folders/op" onsubmit="return confirm('「{{ k.name }}」 폴더를 지울까요?\n메일은 지워지지 않습니다.')">
+        <input type="hidden" name="op" value="delete"><input type="hidden" name="id" value="{{ k.id }}"><button class="mf-btn del" type="submit">지우기</button></form>
+    </div>
+    {% endfor %}
+    {% if g.kind != 'staff' %}
+    <div class="mf-add"><form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="add"><input type="hidden" name="parent_id" value="{{ g.id }}">
+      <input name="name" maxlength="60" placeholder="+ 「{{ g.name }}」 안에 폴더 더하기 (업체 이름)"><button class="mf-btn" type="submit">더하기</button></form></div>
+    {% endif %}
+    {% endfor %}
+    <div class="mf-row g"><span style="padding:4px 7px;font-weight:700">일반</span><span class="mf-n">{{ gen.n }}통{% if gen.u %} · <b>{{ gen.u }}</b>{% endif %}</span><span style="font-size:12px;color:var(--mute)">어디에도 안 걸린 메일(지울 수 없음)</span></div>
+  </div>
+  <div class="mf-box"><div class="mf-add" style="padding-left:12px;border-bottom:0">
+    <form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="add">
+      <input name="name" maxlength="60" placeholder="+ 새 묶음 이름 (예: 7.협력업체)"><button class="mf-btn" type="submit">새 묶음 더하기</button></form>
+  </div></div>
+  {% endif %}
+
+  <div class="mf-sec">📌 내가 정한 규칙 {{ rules|length }}</div>
+  <div class="mf-box">
+    {% for r in rules %}
+    <div class="mf-rule">
+      <span>{% if r.kind == 'domain' %}회사 주소 <b>@{{ r.pattern }}</b> <small>에서 온 메일 모두</small>{% else %}<b>{{ r.pattern }}</b> <small>에서 온 메일</small>{% endif %}</span>
+      <span class="ar">→</span>
+      <span>📁 {{ r.folder_name or '(지운 폴더)' }}</span>
+      <span class="dt"><small>{{ (r.created_at or '')[:16] }}</small></span>
+      <form method="post" action="/mail/folders/op" onsubmit="return confirm('이 규칙을 지울까요? 메일은 자동 분류(또는 일반)로 돌아갑니다.')" style="margin:0;text-align:right">
+        <input type="hidden" name="op" value="delrule"><input type="hidden" name="id" value="{{ r.id }}"><button class="mf-btn del" type="submit">지우기</button></form>
+    </div>
+    {% else %}
+    <div class="mf-empty">아직 없습니다. 메일을 열어 「📁 이 폴더로」를 고르면 여기에 생깁니다.</div>
+    {% endfor %}
+  </div>
+</div>
+</main>
+</div>
+</body></html>
