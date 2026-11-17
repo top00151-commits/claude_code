@@ -524,6 +524,30 @@ def apply_rules_existing(c, user_id: int) -> int:
 
 
 # ─── 조회 ───────────────────────────────────────────────────────────
+# 같은 회사 주소(@ 뒤)로 거래처 묶기에서 빼는 주소 — 개인 메일(여러 회사 사람이 같이 씀) · 우리 회사.
+_NO_DOMAIN_GROUP = tuple(sorted(set(
+    ("gmail.com", "naver.com", "daum.net", "hanmail.net", "kakao.com", "nate.com", "outlook.com", "hotmail.com",
+     "live.com", "yahoo.com", "yahoo.co.kr", "icloud.com", "me.com", "qq.com", "163.com", "126.com", "proton.me",
+     "protonmail.com", "msn.com", "aol.com", "korea.com", "lycos.co.kr", "gmx.com", "mail.ru", "yandex.com",
+     "zoho.com", "hotmail.co.kr", "outlook.kr", "empas.com", "dreamwiz.com", "paran.com", "freechal.com",
+     "chol.com", "hitel.net", "sina.com", "foxmail.com", "yahoo.com.vn")
+    + _OUR_DOMAINS)))
+
+
+def _dom_sql(col: str) -> str:
+    """메일 주소 칸 → 소문자 회사 주소(@ 뒤) SQL 식."""
+    return "lower(substr(%s, instr(%s,'@')+1))" % (col, col)
+
+
+# 회사 주소 → 거래처: 그 주소를 쓰는 연락처들이 **한 거래처만** 가리킬 때만(둘 이상이면 묶지 않음 · 추측 금지).
+_CUST_DOMAIN_MAP_SQL = (
+    "SELECT " + _dom_sql("trim(email)") + " AS dom, MIN(customer_id) AS cid FROM shared_contacts "
+    "WHERE email LIKE '%_@_%.%' AND customer_id IS NOT NULL "
+    "GROUP BY " + _dom_sql("trim(email)") + " "
+    "HAVING COUNT(DISTINCT customer_id)=1 AND " + _dom_sql("trim(email)") + " NOT IN ("
+    + ",".join("'%s'" % d for d in _NO_DOMAIN_GROUP) + ")")
+
+
 def _dup_count_sql(c) -> str:
     """목록에 쓸 「합친 통수」 식. 칸이 없는 DB(읽기 전용 사본 · 옛 DB)에서도 목록이 죽지 않게 — 읽는 길에서는 칸을 만들지 않는다."""
     try:
@@ -535,7 +559,7 @@ def _dup_count_sql(c) -> str:
 
 def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                starred=None, unread=None, date_from: str = "", date_to: str = "",
-               has_att=None, cust: str = "", limit: int = 200, offset: int = 0):
+               has_att=None, cust: str = "", limit: int = 200, offset: int = 0, only_ids=None):
     _ensure_security_cols(c)
     where = "user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0"
     args = [user_id]
@@ -559,17 +583,30 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     if has_att:
         where += (" AND EXISTS(SELECT 1 FROM mail_attachments a "
                   "WHERE a.mail_id=mail_messages.id AND COALESCE(a.is_inline,0)=0)")
-    # C1 거래처 폴더 — 보낸사람 이메일 정확일치(소문자)로만 거래처 매핑(추측 금지). cust='none'=미분류.
+    # C1 거래처 폴더 — ① 보낸사람 이메일 정확일치(소문자) ② (11-17 대표 지시 「업체별 구분」) 정확일치가 없으면
+    #   같은 회사 주소(@ 뒤)가 **한 거래처만** 가리킬 때 그 거래처로. 개인 메일·우리 회사 주소는 묶지 않음. cust='none'=미분류.
     cust = (cust or "").strip()
-    if cust == "none":
-        where += (" AND NOT EXISTS(SELECT 1 FROM shared_contacts sc "
+    _exact_any = ("EXISTS(SELECT 1 FROM shared_contacts sc "
                   "WHERE sc.email IS NOT NULL AND lower(sc.email)=lower(mail_messages.from_email) "
                   "AND sc.customer_id IS NOT NULL)")
+    _mdom = _dom_sql("mail_messages.from_email")
+    if cust == "none":
+        where += (" AND NOT " + _exact_any +
+                  " AND " + _mdom + " NOT IN (SELECT dom FROM (" + _CUST_DOMAIN_MAP_SQL + "))")
     elif cust.isdigit():
-        where += (" AND EXISTS(SELECT 1 FROM shared_contacts sc "
+        where += (" AND (EXISTS(SELECT 1 FROM shared_contacts sc "
                   "WHERE sc.email IS NOT NULL AND lower(sc.email)=lower(mail_messages.from_email) "
-                  "AND sc.customer_id=?)")
-        args.append(int(cust))
+                  "AND sc.customer_id=?)"
+                  " OR (NOT " + _exact_any + " AND " + _mdom +
+                  " IN (SELECT dom FROM (" + _CUST_DOMAIN_MAP_SQL + ") WHERE cid=?)))")
+        args += [int(cust), int(cust)]
+    # ④ 회신 필요(추정) 보기 — 고른 메일만(mail_reply.scan 결과)
+    if only_ids is not None:
+        _ids = [int(i) for i in list(only_ids)[:500]]
+        if not _ids:
+            return []
+        where += " AND id IN (" + ",".join("?" * len(_ids)) + ")"
+        args += _ids
     q = (q or "").strip()
     if q:
         where += " AND (from_email LIKE ? OR from_name LIKE ? OR subject LIKE ? OR body_text LIKE ?)"
@@ -624,39 +661,60 @@ def group_threads(mails: list) -> list:
 
 def customer_folder_counts(c, user_id: int) -> dict:
     """받은편지함을 보낸사람→연락처→거래처 매핑으로 거래처별 집계 (C1 폴더, 2026-06-14).
-    매핑은 이메일 '정확일치(소문자)'만 — 추측 금지([[feedback-data-connectivity]]). 미매핑=미분류.
-    반환: {total, total_unread, unclassified, unclassified_unread, customers:[{id,name,cnt,unread}]}."""
-    base_args = (user_id,)
+    매핑 ① 이메일 '정확일치(소문자)' ② (2026-11-17) 정확일치가 없으면 같은 회사 주소(@ 뒤)가 한 거래처만 가리킬 때
+    — 둘 이상이면 묶지 않음(추측 금지 [[feedback-data-connectivity]]). 미매핑=미분류. 목록 거르기(list_inbox cust=)와 같은 규칙.
+    반환: {total, total_unread, unclassified, unclassified_unread, customers:[{id,name,cnt,unread,by_domain}]}."""
     tot = c.execute(
         "SELECT COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u "
         "FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0",
-        base_args).fetchone()
-    rows = c.execute(
-        """SELECT cu.id AS id, cu.name AS name,
-                  COUNT(DISTINCT m.id) AS cnt,
-                  COUNT(DISTINCT CASE WHEN m.is_read=0 THEN m.id END) AS unread
-           FROM mail_messages m
-           JOIN shared_contacts sc ON sc.email IS NOT NULL
-                AND lower(sc.email)=lower(m.from_email) AND sc.customer_id IS NOT NULL
-           JOIN customers cu ON cu.id=sc.customer_id
-           WHERE m.user_id=? AND m.direction='in' AND m.is_deleted=0
-           GROUP BY cu.id, cu.name
-           ORDER BY cnt DESC, cu.name""",
-        base_args).fetchall()
-    unc = c.execute(
-        """SELECT COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u
-           FROM mail_messages m
-           WHERE m.user_id=? AND m.direction='in' AND m.is_deleted=0
-             AND NOT EXISTS(SELECT 1 FROM shared_contacts sc
-                  WHERE sc.email IS NOT NULL AND lower(sc.email)=lower(m.from_email)
-                    AND sc.customer_id IS NOT NULL)""",
-        base_args).fetchone()
+        (user_id,)).fetchone()
+    exact, dom_map = {}, {}
+    try:
+        for r in c.execute("SELECT lower(email) AS e, customer_id AS cid FROM shared_contacts "
+                           "WHERE email IS NOT NULL AND customer_id IS NOT NULL").fetchall():
+            exact.setdefault(r["e"], set()).add(r["cid"])
+        for r in c.execute(_CUST_DOMAIN_MAP_SQL).fetchall():
+            dom_map[r["dom"]] = r["cid"]
+    except Exception:
+        exact, dom_map = {}, {}
+    names = {}
+    try:
+        for r in c.execute("SELECT id, name FROM customers").fetchall():
+            names[r["id"]] = r["name"]
+    except Exception:
+        pass
+    per = {}
+    unc_n = unc_u = 0
+    for r in c.execute(
+            "SELECT lower(from_email) AS e, COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u "
+            "FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 GROUP BY lower(from_email)",
+            (user_id,)).fetchall():
+        e = r["e"] or ""
+        n, un = r["n"] or 0, r["u"] or 0
+        cids = [x for x in exact.get(e, ()) if x in names]
+        by_dom = False
+        if not exact.get(e):
+            d = e.rsplit("@", 1)[-1] if "@" in e else ""
+            if d in dom_map and dom_map[d] in names:
+                cids, by_dom = [dom_map[d]], True
+        if not cids:
+            if not exact.get(e):
+                unc_n += n
+                unc_u += un
+            continue
+        for cid in cids:
+            p = per.setdefault(cid, {"id": cid, "name": names[cid], "cnt": 0, "unread": 0, "by_domain": 0})
+            p["cnt"] += n
+            p["unread"] += un
+            if by_dom:
+                p["by_domain"] += n
+    customers = sorted(per.values(), key=lambda x: (-x["cnt"], x["name"] or ""))
     return {
         "total": (tot["n"] or 0) if tot else 0,
         "total_unread": (tot["u"] or 0) if tot else 0,
-        "unclassified": (unc["n"] or 0) if unc else 0,
-        "unclassified_unread": (unc["u"] or 0) if unc else 0,
-        "customers": [dict(r) for r in rows],
+        "unclassified": unc_n,
+        "unclassified_unread": unc_u,
+        "customers": customers,
     }
 
 

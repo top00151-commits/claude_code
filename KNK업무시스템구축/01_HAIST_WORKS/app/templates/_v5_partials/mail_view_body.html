@@ -20,6 +20,16 @@
   </div>
 </div>
 
+{% if m.direction != 'out' and reply_info is defined and reply_info %}
+<div id="mvReply" class="mv-reply{{ ' on lv%d' % reply_info.lv if reply_info.lv else '' }}">
+  {% if reply_info.lv %}<b>↩ 회신 필요(추정){{ ' · 중요' if reply_info.lv >= 2 else '' }}</b> <span class="mv-reply-why">— {{ reply_info.why }}</span>
+  <a href="/mail/compose?reply={{ m.id }}" class="mv-reply-btn mv-reply-go">↩ 답장 쓰기</a><button type="button" class="mv-reply-btn" onclick="replyMark('done')" title="이 메일은 회신하지 않아도 됨 — 표시를 끕니다(나에게만)">✓ 회신 안 해도 됨</button>
+  {% elif reply_info.state == 'done' %}<span class="mv-reply-why">✓ 「회신 안 해도 됨」으로 표시한 메일</span> <button type="button" class="mv-reply-btn" onclick="replyMark('clear')">되돌리기</button>
+  {% else %}<button type="button" class="mv-reply-btn" onclick="replyMark('need')" title="규칙이 놓친 메일을 직접 「회신 필요」로 표시 — 답장하면 저절로 빠집니다">↩ 회신 필요로 표시</button>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if m.summary %}
 <div class="mv-ai"><b>📝 AI 요약</b><br>{{ m.summary }}</div>
 {% endif %}
@@ -163,6 +173,28 @@
     }catch(e){ st.textContent='⚠ 네트워크 오류'; }
   };
   // 이 발신 다시 안 받기 — 나에게만(대표 지시 2026-11-16). 지우지 않고 차단함으로 · 「보낸 곳별 정리」에서 풀 수 있음
+  window.replyMark=async function(state){
+    try{ var fd=new FormData(); fd.append('state', state);
+      var r=await fetch('/mail/'+MAIL_ID+'/reply-mark',{method:'POST',body:fd}); var j=await r.json();
+      if(!j.ok){ alert('⚠ '+(j.message||'바꾸지 못했습니다')); return; }
+      var box=document.getElementById('mvReply'); if(!box) return;
+      var was=box.classList.contains('on'), now=!!j.lv;
+      if(was!==now){ try{ var lk=document.querySelector('.mbx-fold[href="/mail/inbox?reply=1"]');
+        if(lk){ var fb=lk.querySelector('.fbadge'); var n=(fb?parseInt(fb.textContent,10)||0:0)+(now?1:-1);
+          if(!fb && n>0){ fb=document.createElement('span'); fb.className='fbadge'; lk.appendChild(fb); }
+          if(fb){ if(n>0){ fb.textContent=n; } else { fb.remove(); } } } }catch(e){} }
+      var esc=function(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; };
+      if(j.lv){ box.className='mv-reply on lv'+j.lv;
+        box.innerHTML='<b>↩ 회신 필요(추정)'+(j.lv>=2?' · 중요':'')+'</b> <span class="mv-reply-why">— '+esc(j.why)+'</span> '+
+          '<a href="/mail/compose?reply='+MAIL_ID+'" class="mv-reply-btn mv-reply-go">↩ 답장 쓰기</a><button type="button" class="mv-reply-btn" onclick="replyMark(&quot;done&quot;)">✓ 회신 안 해도 됨</button>';
+      } else if(j.state==='done'){ box.className='mv-reply';
+        box.innerHTML='<span class="mv-reply-why">✓ 「회신 안 해도 됨」으로 표시한 메일</span> <button type="button" class="mv-reply-btn" onclick="replyMark(&quot;clear&quot;)">되돌리기</button>';
+      } else { box.className='mv-reply';
+        box.innerHTML='<button type="button" class="mv-reply-btn" onclick="replyMark(&quot;need&quot;)">↩ 회신 필요로 표시</button>';
+      }
+      try{ var row=document.querySelector('.mbx-row.active .mbx-reply, .mbx-headlink.active .mbx-reply'); if(row && !j.lv) row.remove(); }catch(e){}
+    }catch(e){ alert('네트워크 오류'); }
+  };
   window.muteSender=async function(){
     if(!confirm('이 발신의 메일을 다시 안 받을까요? (나에게만 적용)\n\n이미 받은 메일도, 앞으로 오는 메일도 받은편지함에 안 보이고 차단함에 모입니다.\n지우지 않으며, 「📮 보낸 곳별 정리」 화면에서 언제든 풀 수 있습니다.')) return;
     try{ var r=await fetch('/mail/'+MAIL_ID+'/mute-sender',{method:'POST'}); var j=await r.json();

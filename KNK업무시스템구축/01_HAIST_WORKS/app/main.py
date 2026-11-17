@@ -21921,6 +21921,7 @@ async def contact_mail_send(req: Request, cid: int):
 # ═══════════════════════════════════════════════════════════════════════════
 from . import mail_store as _mailbox
 from . import mail_cleanup as _mail_cleanup   # 2026-11-16 보낸 곳별 정리 · 다시 안 받기(나에게만)
+from . import mail_reply as _mail_reply       # 2026-11-17 ④ 회신 필요(추정) — 규칙으로만(대표 「규칙으로 먼저 만들어」)
 from . import mail_signature as _mail_sig   # 2026-11-16 메일 서명 → 주소록 채우기
 
 _MAIL_CATEGORIES = ("견적", "발주", "세금계산서", "일반")
@@ -22050,14 +22051,23 @@ async def admin_mail_inbound_bind(req: Request):
 
 @app.get("/mail/inbox")
 async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0,
-                          df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = ""):
+                          df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
+                          reply: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
+        # ④ 회신 필요(추정) — 규칙으로만(AI·외부 전송 없음). 실패해도 받은편지함은 연다.
+        try:
+            reply_map = _mail_reply.scan(c, u["id"])
+        except Exception:
+            reply_map = {}
         mails = _mailbox.list_inbox(c, u["id"], category=cat, q=q,
                                     starred=bool(star), unread=bool(unread),
-                                    date_from=df, date_to=dt, has_att=bool(att), cust=cust)
+                                    date_from=df, date_to=dt, has_att=bool(att), cust=cust,
+                                    only_ids=(list(reply_map.keys()) if reply else None))
+        for _m in mails:
+            _m["reply"] = reply_map.get(_m["id"])
         unread_n = _mailbox.count_unread(c, u["id"])
         cat_counts = _mailbox.category_counts(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
@@ -22070,7 +22080,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES, cur_df=df, cur_dt=dt, cur_att=bool(att),
                ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
                drafts_n=drafts_n, thread_on=thread_on, threads=threads,
-               folders=folders, cur_cust=(cust or "").strip())
+               folders=folders, cur_cust=(cust or "").strip(),
+               reply_n=len(reply_map), cur_reply=bool(reply))
 
 
 # ── 메일 = 설치형 앱(PWA) — KNK Eum 처럼 바탕화면/홈 아이콘으로 설치 (대표 지시 2026-06-14) ──
@@ -22361,9 +22372,13 @@ async def mail_view_page(req: Request, mail_id: int):
                             "WHERE email IS NOT NULL AND lower(email)=lower(?) ORDER BY id LIMIT 1",
                             (_fe,)).fetchone()
             sender_contact = dict(_sc) if _sc else None
+        try:
+            reply_info = _mail_reply.one(c, u["id"], m["id"])
+        except Exception:
+            reply_info = {}
     return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
-               sender_contact=sender_contact)
+               sender_contact=sender_contact, reply_info=reply_info)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
@@ -22390,9 +22405,30 @@ async def mail_view_pane(req: Request, mail_id: int):
                             "WHERE email IS NOT NULL AND lower(email)=lower(?) ORDER BY id LIMIT 1",
                             (_fe,)).fetchone()
             sender_contact = dict(_sc) if _sc else None
+        try:
+            reply_info = _mail_reply.one(c, u["id"], m["id"])
+        except Exception:
+            reply_info = {}
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
-               sender_contact=sender_contact)
+               sender_contact=sender_contact, reply_info=reply_info)
+
+
+@app.post("/mail/{mail_id:int}/reply-mark")
+async def mail_reply_mark(req: Request, mail_id: int):
+    """④ 회신 필요 표시를 본인이 고친다 — state=done(회신 안 해도 됨) / need(회신 필요로 표시) / clear(규칙대로)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    state = (form.get("state") or "").strip()
+    if state not in ("done", "need", "clear"):
+        return JSONResponse({"ok": False, "message": "잘못된 요청"}, 400)
+    with db_session() as c:
+        if not _mail_reply.set_mark(c, u["id"], mail_id, state):
+            return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다(본인 받은 메일만)."}, 404)
+        info = _mail_reply.one(c, u["id"], mail_id)
+    return JSONResponse({"ok": True, "lv": info.get("lv", 0), "why": info.get("why", ""), "state": info.get("state")})
 
 
 @app.post("/mail/{mail_id:int}/to-task")

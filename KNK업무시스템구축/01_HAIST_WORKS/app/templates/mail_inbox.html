@@ -31,6 +31,9 @@
   .mbx-rp-tips{margin-top:18px;max-width:440px;text-align:left;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.7;color:#374151}
   .mbx-rp-tips div+div{margin-top:6px}
   .mbx-rp-tips a{color:#c2410c}
+  .mbx-reply{font-size:10.5px;font-weight:800;border-radius:6px;padding:1px 6px;vertical-align:middle;white-space:nowrap}
+  .mbx-reply.lv1{color:#b45309;background:#fef3c7}
+  .mbx-reply.lv2{color:#fff;background:#dc2626}
   .mbx-dup-eg{font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px}
   /* 좌측 폴더/메일함 네비 */
   .mbx-fold-h{font-size:10.5px;font-weight:700;color:var(--mute);padding:8px 8px 4px;letter-spacing:.03em}
@@ -77,7 +80,7 @@
   /* 좁은 화면(태블릿 세로·휴대폰): 한 칸으로 쌓고 읽기창은 풀페이지로 폴백 */
   @media(max-width:900px){
     .mbx-split,.mbx-split.np{display:flex;flex-direction:column;height:auto !important;border:0}
-    .mbx-gutter,.mbx-readpane{display:none}
+    .mbx-gutter,.mbx-readpane,.mbx-readpane.empty{display:none}
     .mbx-side{height:auto;max-height:46vh;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
     .mbx-listcol{height:auto;border:1px solid var(--line);border-radius:10px}
   }
@@ -158,7 +161,7 @@
     <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>
     <div class="mbx-main">
       <div class="mbx-r1">
-        <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
+        <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
         <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
       </div>
       <div class="mbx-r2">
@@ -212,12 +215,12 @@
       <div class="mbx-fold-div"></div>
       <div class="mbx-fold-h">📁 거래처 폴더</div>
       {% for cf in folders.customers %}
-      <a href="/mail/inbox?cust={{ cf.id }}" class="mbx-fold {{ 'on' if cur_cust|default('') == cf.id|string else '' }}" title="{{ cf.name }}">
+      <a href="/mail/inbox?cust={{ cf.id }}" class="mbx-fold {{ 'on' if cur_cust|default('') == cf.id|string else '' }}" title="{{ cf.name }}{% if cf.by_domain %} — 주소록에 없는 같은 회사 주소(@ 뒤가 같은 곳) 메일 {{ cf.by_domain }}통 포함{% endif %}">
         <span class="fname">🏢 {{ cf.name }}</span><span class="cnt">{{ cf.cnt }}</span>
         {% if cf.unread %}<span class="fbadge" title="안읽음 {{ cf.unread }}통">{{ cf.unread }}</span>{% endif %}
       </a>
       {% endfor %}
-      <a href="/mail/inbox?cust=none" class="mbx-fold {{ 'on' if cur_cust|default('') == 'none' else '' }}" title="거래처가 연결되지 않은 보낸사람의 메일">
+      <a href="/mail/inbox?cust=none" class="mbx-fold {{ 'on' if cur_cust|default('') == 'none' else '' }}" title="거래처를 알 수 없는 메일 — 보낸 사람이나 같은 회사 사람을 주소록에 거래처와 함께 등록하면 그 거래처 폴더로 옮겨집니다">
         <span class="fname">🗂 미분류</span><span class="cnt">{{ folders.unclassified }}</span>
         {% if folders.unclassified_unread %}<span class="fbadge">{{ folders.unclassified_unread }}</span>{% endif %}
       </a>
@@ -225,6 +228,7 @@
 
       <div class="mbx-fold-div"></div>
       <div class="mbx-fold-h">보기</div>
+      <a href="/mail/inbox?reply=1" class="mbx-fold {{ 'on' if cur_reply|default(false) else '' }}" title="최근 {{ 14 }}일 받은 메일 중 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함) — 규칙으로 추정"><span class="fname">↩ 회신 필요</span>{% if reply_n|default(0) %}<span class="fbadge">{{ reply_n }}</span>{% endif %}</a>
       <a href="/mail/inbox?star=1" class="mbx-fold {{ 'on' if cur_star|default(false) else '' }}"><span class="fname">⭐ 별표</span></a>
       <a href="/mail/inbox?unread=1" class="mbx-fold {{ 'on' if cur_unread|default(false) else '' }}"><span class="fname">● 안읽음</span></a>
       <a href="/mail/inbox?thread={{ 0 if thread_on|default(true) else 1 }}{% if cur_cust|default('') %}&cust={{ cur_cust }}{% endif %}" class="mbx-fold {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:) 메일을 한 대화로 묶기"><span class="fname">💬 대화묶기</span></a>
@@ -275,7 +279,7 @@
         <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
           <div class="mbx-main">
             <div class="mbx-r1">
-              <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
+              <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
               <span class="mbx-time">🗑 {{ m.deleted_at[5:16] if m.deleted_at else (m.received_at[5:16] if m.received_at else '') }}</span>
             </div>
             <div class="mbx-r2">
@@ -293,7 +297,7 @@
         {% for m in mails %}
         <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
           <div class="mbx-main">
-            <div class="mbx-r1"><span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span><span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span></div>
+            <div class="mbx-r1"><span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span><span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span></div>
             <div class="mbx-r2"><span class="mbx-from">{{ m.from_name or m.from_email or '(보낸사람 없음)' }}</span>{% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}</div>
           </div>
           <a href="/mail/{{ m.id }}" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;white-space:nowrap" title="내용 보기(주의해서)">열기</a>
@@ -307,7 +311,7 @@
           {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
           <div class="mbx-main">
             <div class="mbx-r1">
-              <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
+              <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
               <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
             </div>
             <div class="mbx-r2">
@@ -345,6 +349,7 @@
       <div class="mbx-rp-tips">
         <div>📇 메일을 열고 보낸사람 옆 <b>「주소록에 등록」</b> → 서명에서 이름·직급·회사·전화·주소를 채워 드려요(확인만 하고 저장)</div>
         <div>📮 광고·알림 메일은 <a href="/mail/cleanup"><b>보낸 곳별 정리</b></a>에서 한 번에 휴지통으로 · 나에게만 다시 안 받기</div>
+        <div><span class="mbx-reply lv2">↩ 회신</span> 제목 앞 표시 = 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함). 왼쪽 <b>↩ 회신 필요</b>에서 모아 보기</div>
         <div><span class="mbx-dup-eg">×2</span> 제목 앞 숫자 = 그룹 주소 여러 곳으로 같은 메일이 와서 한 통으로 합친 것</div>
       </div>
     </div>
