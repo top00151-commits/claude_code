@@ -34,11 +34,86 @@
       <a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="월 보기로 돌아가기">↩ 월 보기</a>
       {% else %}
       <a href="?ym={{ prev_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이전 달">←</a>
-      <span class="cur">📅 {{ month_label }}</span>
+      {# z1191z47 (대표 2026-11-17 「월 선택이 너무 어려워 · 2026년 11월을 누르면 연·월이 보여서 바로 이동」) #}
+      <span class="ym-pick-wrap">
+        <button type="button" class="cur ym-pick-btn" id="ymPickBtn" onclick="schedYmPick(event)" aria-haspopup="true" aria-expanded="false" title="눌러서 연·월을 골라 바로 이동">📅 {{ month_label }} <span class="ym-caret">▾</span></button>
+        <div class="ym-pop" id="ymPop" hidden data-y="{{ ym[:4] }}" data-m="{{ ym[5:7]|int }}" data-ty="{{ cur_ym[:4] }}" data-tm="{{ cur_ym[5:7]|int }}">
+          <div class="ym-pop-y"><button type="button" class="ym-yb" data-yd="-1" title="작년">◀</button><b id="ymPopY">{{ ym[:4] }}년</b><button type="button" class="ym-yb" data-yd="1" title="내년">▶</button></div>
+          <div class="ym-pop-m">{% for mm in range(1, 13) %}<button type="button" class="ym-mb" data-m="{{ mm }}">{{ mm }}월</button>{% endfor %}</div>
+          <div class="ym-pop-f"><button type="button" class="ym-today">이번 달로</button></div>
+        </div>
+      </span>
       <a href="?ym={{ next_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="다음 달">→</a>
       {% if ym != cur_ym %}<a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이번 달">오늘</a>{% endif %}
       {% endif %}
     </div>
+    <style>
+    /* z1191z47: 연·월 고르기 판 */
+    .sched-nav .ym-pick-wrap{ position:relative; display:inline-flex; }
+    .sched-nav button.ym-pick-btn{ font:inherit; font-size:13px; font-weight:700; cursor:pointer; line-height:inherit; }
+    .sched-nav button.ym-pick-btn:hover{ filter:brightness(1.08); }
+    .ym-caret{ font-size:10px; opacity:.85; margin-left:2px; }
+    .ym-pop{ position:absolute; top:calc(100% + 6px); left:0; z-index:400; width:264px; box-sizing:border-box; background:#fff; border:1px solid var(--line,#ddd);
+             border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,.18); padding:10px; }
+    .ym-pop[hidden]{ display:none; }
+    .ym-pop-y{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    .ym-pop-y b{ font-size:15px; color:var(--ink,#222); }
+    .ym-pop button{ font:inherit; cursor:pointer; border:1px solid var(--line,#ddd); background:var(--paper-2,#faf8f4); border-radius:7px; color:var(--ink,#222); }
+    .ym-yb{ width:34px; height:30px; font-size:12px; }
+    .ym-pop-m{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+    .ym-mb{ height:34px; padding:0 !important; font-size:13px; font-weight:600; white-space:nowrap; min-width:0; }
+    .ym-mb:hover, .ym-yb:hover, .ym-today:hover{ border-color:var(--knk-red,#a5282c); color:var(--knk-red,#a5282c); }
+    .ym-mb.is-today{ border:2px solid var(--knk-red,#a5282c); }
+    .ym-mb.is-sel{ background:var(--knk-red,#a5282c); border-color:var(--knk-red,#a5282c); color:#fff; }
+    .ym-pop-f{ margin-top:8px; text-align:right; }
+    .ym-today{ padding:5px 10px; font-size:12px; }
+    </style>
+    <script>
+    /* z1191z47: 연·월 고르기 — 이전/다음 달 링크 주소(사업부·소모품 칸·찾기어 유지)에서 ym 만 바꿔 이동 */
+    (function(){
+      function pop(){ return document.getElementById('ymPop'); }
+      function paint(){
+        var p=pop(); if(!p) return;
+        var y=+p.dataset.vy, sy=+p.dataset.y, sm=+p.dataset.m, ty=+p.dataset.ty, tm=+p.dataset.tm;
+        document.getElementById('ymPopY').textContent=y+'년';
+        p.querySelectorAll('.ym-mb').forEach(function(b){ var m=+b.dataset.m;
+          b.classList.toggle('is-sel', y===sy && m===sm); b.classList.toggle('is-today', y===ty && m===tm); });
+      }
+      function go(y,m){
+        var base=document.querySelector('.sched-nav a[title="이전 달"]'), u;
+        try{ u=new URL(base ? base.href : location.href); }catch(e){ u=new URL(location.href); }
+        u.searchParams.set('ym', y+'-'+(m<10?'0':'')+m);
+        u.searchParams.delete('pf'); u.searchParams.delete('pt');
+        close();
+        var v=document.getElementById('schedNavVeil'), t=document.getElementById('schedNavVeilTxt');
+        if(t) t.textContent=y+'년 '+m+'월 불러오는 중…';
+        if(v){ try{ v.classList.add('show'); }catch(e){} }
+        location.href=u.pathname+u.search;
+      }
+      function close(){ var p=pop(); if(p && !p.hidden){ p.hidden=true; var b=document.getElementById('ymPickBtn'); if(b) b.setAttribute('aria-expanded','false'); } }
+      window.schedYmPick=function(ev){
+        if(ev) ev.stopPropagation();
+        var p=pop(); if(!p) return;
+        if(!p.hidden){ close(); return; }
+        p.dataset.vy=p.dataset.y; paint(); p.hidden=false;
+        var b=document.getElementById('ymPickBtn'); if(b) b.setAttribute('aria-expanded','true');
+        // 화면 오른쪽 밖으로 나가면 왼쪽으로 당김(휴대폰 폭)
+        p.style.left='0px'; var r=p.getBoundingClientRect();
+        if(r.right > window.innerWidth-8){ p.style.left=Math.min(0, window.innerWidth-8-r.right)+'px'; }
+      };
+      document.addEventListener('click', function(e){
+        var p=pop(); if(!p || p.hidden) return;
+        var yb=e.target.closest && e.target.closest('.ym-yb');
+        if(yb && p.contains(yb)){ p.dataset.vy=(+p.dataset.vy)+(+yb.dataset.yd); paint(); return; }
+        var mb=e.target.closest && e.target.closest('.ym-mb');
+        if(mb && p.contains(mb)){ go(+p.dataset.vy, +mb.dataset.m); return; }
+        var td=e.target.closest && e.target.closest('.ym-today');
+        if(td && p.contains(td)){ go(+p.dataset.ty, +p.dataset.tm); return; }
+        if(!p.contains(e.target)) close();
+      });
+      document.addEventListener('keydown', function(e){ if(e.key==='Escape') close(); });
+    })();
+    </script>
     <div class="sched-sum">
       <span class="pill s-total">전체 {{ summary.total }}</span>
       <span class="pill s-deliver">오늘 납품 {{ summary.deliver_today }}</span>
