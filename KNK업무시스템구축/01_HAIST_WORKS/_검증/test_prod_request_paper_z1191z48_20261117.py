@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """z1191z48 시험 (대표 2026-11-17 「이음웍스 제작요청서를 기존에 쓰는 제작 요청서와 최대한 비슷하게 · 수주번호」
-                「소모품 요청서 … 여기에도 관리번호·수주번호」 「진행해」)
+                「소모품 요청서 … 여기에도 관리번호·수주번호」 「진행해」 · z48c 「관리번호 수주번호는 필수 입력 사항임」)
   ① 가리키는 수주 고르기 규칙(저장값 · 옛 요청서 · 수주 없음 · 취소 수주)
   ② 제작요청서 보기 = 종이 양식(관리코드·수주번호·호기·구분·요지·남은 날·경로 복사·휴대폰 카드·인쇄) · 옛 화면 글자(사업부) 유지
   ③ 작성·수정 폼: 수주 고르기 + 요지 → 저장 · 알림 글 · 이음 카드에 그 수주번호만
@@ -71,6 +71,11 @@ with D.db_session() as c:
     AX = order(P2, "T-260401-9", "추가", "9호기", "2026-04-01 10:00:00", status="CANCELLED")
     A4 = order(P2, "T-261116-5", "개조", "38호기", "2026-11-17 09:00:00")
     P3 = proj("030T2611")
+    # z48e: 자동화·상품 수주처럼 「호기 표시」 칸에 부품 이름 목록이 든 것 · 호기가 길게 이어진 것
+    P6 = proj("001M2607", biz_div="M", model_name="DWMT4400", equip_name="가상 자동화 설비")
+    F1 = order(P6, "M-260707-1", "신규", " · ".join(["SENSOR", "CP", "SMPS (찬넬형)", "TOWER LAMP", "CONNECT PLUG", "EARTH BAR", "TOUCH SCREEN", "LM GUIDE"] * 30), "2026-07-07 14:57:00")
+    P7 = proj("029T2601")
+    G1 = order(P7, "T-260323-8", "추가", " · ".join("%d호기" % n for n in range(6, 16)) + " · 22호기 · 23호기 · 30호기", "2026-03-23 10:00:00")
     P4 = proj("031T2611")
     B1 = order(P4, "T-261117-1", "신규", "1호기", "2026-11-17 09:00:00")
     CO1 = ins(c, "consumable_orders", {"co_no": "C-261117-1", "mgmt_code": "010C2611", "customer_name": "가상고객 인도", "currency": "USD", "total_amount": 1000,
@@ -81,6 +86,10 @@ with D.db_session() as c:
                                       "image_path": "/uploads/x.jpg", "image_thumb_path": "/uploads/x_t.jpg", "linked_project_id": P1})
     ins(c, "consumable_order_items", {"co_id": CO1, "line_no": 2, "part_name": "PINBLOCK", "spec": "KNK-SM-S956 SUB-AP1", "qty": 1, "unit": "EA"})
     ins(c, "consumable_order_items", {"co_id": CO1, "line_no": 3, "part_name": "POGOPIN", "spec": "", "qty": 400, "unit": "EA"})
+    P5 = proj("TMP-NOMG", mgmt_code="")
+    E1 = order(P5, "T-261117-9", "신규", "1호기", "2026-11-17 09:30:00")
+    CO3 = ins(c, "consumable_orders", {"co_no": "C-261117-9", "mgmt_code": "", "customer_name": "가상고객(주)", "currency": "KRW", "total_amount": 1, "status": "CONFIRMED",
+                                       "biz_div": "T", "order_date": "2026-11-17", "due_date": FUT})
     CO2 = ins(c, "consumable_orders", {"co_no": "C-260907-1", "mgmt_code": "001C2609", "customer_name": "가상고객(주)", "currency": "KRW", "total_amount": 1000,
                                        "status": "CONFIRMED", "biz_div": "T", "order_date": "2026-09-07", "due_date": PAST, "model_name": "ON 2,3,4 FRC"})
     ins(c, "consumable_order_items", {"co_id": CO2, "line_no": 1, "part_name": "러버", "spec": "빗살무늬", "qty": 40, "unit": "EA"})
@@ -108,6 +117,8 @@ with D.db_session() as c:
                                   "created_at": "2026-11-16 10:09", "created_date": "2026-11-16", "issued_by": ADMIN["id"], "issued_by_name": "가상관리자"})
     L2 = ins(c, "prod_requests", {"project_id": P2, "mgmt_code": "028T2601", "cust_req": "추가 2호기", "created_at": "2026-02-05 11:00", "created_date": "2026-02-05",
                                   "issued_by_name": "가상관리자"})
+    L6 = ins(c, "prod_requests", {"project_id": P6, "mgmt_code": "001M2607", "cust_req": "자동화 요청", "created_at": "2026-07-07 14:57", "created_date": "2026-07-07", "issued_by_name": "가상관리자"})
+    L7 = ins(c, "prod_requests", {"project_id": P7, "mgmt_code": "029T2601", "cust_req": "추가 호기", "created_at": "2026-03-23 11:00", "created_date": "2026-03-23", "issued_by_name": "가상관리자"})
     L3 = ins(c, "prod_requests", {"project_id": P3, "mgmt_code": "030T2611", "cust_req": "수주 없는 건", "created_at": "2026-11-17 10:00", "created_date": "2026-11-17",
                                   "issued_by_name": "가상관리자"})
     try:
@@ -172,7 +183,9 @@ top = re.search(r'<span class="k">사업부</span><span class="v">([^<]*)</span>
 check(top and top.group(1).strip() == "🔬 검사기" and "🏭 완제품" in v and "🏠 내수" in v and "2026-11-13" in v, "웍스에만 있는 값 한 줄(사업부·형태·거래구분·발주일) — 옛 시험이 보는 글자 그대로", top and top.group(1))
 check("요지</td>" not in v, "요지를 안 썼으면 그 줄 없음")
 mob = h[h.find('<div class="z48-mob">'):]
-check('<div class="z48-mob">' in h and "020 T 2611" in mob and "T-261113-5" in mob and "@media (max-width:640px)" in h and ".z48-desk { display:none; }" in h, "휴대폰 폭 = 카드(표 숨김)")
+check('<div class="z48-mob">' in h and "020 T 2611" in mob and "T-261113-5" in mob and "@container (max-width:820px)" in h and "container-type:inline-size" in h and "@media (max-width:760px)" in h and h.count(".z48-desk { display:none; }") == 2,
+      "좁은 폭(휴대폰 · 좁힌 창) = 카드(표 숨김) — 양식 자리 폭 기준 + 옛 브라우저용 화면 폭 기준")
+check("td.z48-h { background:#b8cce4; font-weight:700; white-space:nowrap; }" in h and "letter-spacing:1px; white-space:nowrap; }" in h, "머리글·관리번호·수주번호는 줄바꿈 안 함(글자마다 꺾이지 않게)")
 check("@media print" in h and "#z48Paper" in h and 'onclick="window.print()"' in h and "🖨 인쇄" in h and "size:A4" in h, "인쇄 단추 + 인쇄 때 종이 양식만")
 check('data-knk-zoom data-knk-name="마킹 위치.jpg"' in h and "prq-imgs z48-imgs" in h and "눌러서 크게 보기" in h, "참고 이미지 크게 · 눌러서 확대")
 check("z48-rev" not in v, "수정발행 전에는 수정 띠 없음")
@@ -181,6 +194,20 @@ check(row2[:3] == ["028 T 2601", "T-260202-2", "2호기"] and 'class="z48-bdg z4
 check("D-" not in row2[6], "납기가 지난 건에는 남은 날 없음", row2[6:])
 h3 = q(cl.get, "/project/%d/prod-request/edit" % P3).text; row3 = cells(h3, "")
 check(row3[1:3] == ["—", "—"], "수주가 없으면 수주번호·호기 「—」", row3[:3])
+
+print("§2-1 호기 칸 (z48e · 대표 신고 「웍스에 적용이 잘못된 것 같은데」 — 자동화 요청서 호기 칸에 부품 이름이 줄줄이)")
+hg = M._z48_hogi
+check(hg("1호기") == "1호기" and hg("1호기 · 2호기") == "1~2호기" and hg("6호기 · 7호기 · 8호기 · 10호기") == "6~8호기, 10호기", "호기만 뽑아 이어진 번호는 묶음")
+check(hg("SENSOR · CP · SMPS (찬넬형)") == "" and hg("SM-A27 USB PBA ×3") == "" and hg("") == "" and hg(None) == "" and hg("사양변경") == "", "호기가 아닌 글(부품 이름·모델·메모)은 빈칸")
+h6 = q(cl.get, "/project/%d/prod-request/edit" % P6).text; r6 = cells(h6, "")
+check(r6[:3] == ["001 M 2607", "M-260707-1", "—"] and "TOWER LAMP" not in view(h6) and len(view(h6)) < 9000, "부품 이름 목록이 든 수주 = 호기 칸 「—」 · 화면에 그 목록 안 나옴", (r6[:3], len(view(h6))))
+check(r6[3:6] == ["DWMT4400", "가상 자동화 설비", "1"], "그 줄의 모델명·품명·수량은 그대로 보임", r6[3:6])
+mob6 = h6[h6.find('<div class="z48-mob">'):h6.find('{% include', 0) if False else len(h6)]
+check("TOWER LAMP" not in mob6.split("고객사 요청사항")[0], "휴대폰 카드에도 그 목록 안 나옴")
+h7 = q(cl.get, "/project/%d/prod-request/edit" % P7).text; r7 = cells(h7, "")
+check(r7[2] == "6~15호기, 22~23호기, 30호기", "호기 13대 = 「6~15호기, 22~23호기, 30호기」", r7[2])
+h6n = q(cl.get, "/project/%d/prod-request/edit?new=1" % P2).text
+check("38호기" in h6n, "수주 고르는 목록에는 호기 그대로")
 
 print("§3 작성·수정 폼 — 수주 고르기 + 요지")
 hn = q(cl.get, "/project/%d/prod-request/edit?new=1" % P2).text
@@ -191,7 +218,9 @@ check('name="gist"' in hn and "수주가 4건 있습니다" in hn, "요지 칸 +
 hn1 = q(cl.get, "/project/%d/prod-request/edit?new=1" % P4).text
 check('<input type="hidden" name="order_ids" value="%d">' % B1 in hn1 and "T-261117-1" in hn1 and 'type="checkbox" name="order_ids"' not in hn1, "수주가 한 건이면 고르지 않고 자동")
 hn3 = q(cl.get, "/project/%d/prod-request/edit?new=1" % P3).text
-check('name="order_ids"' not in hn3 and "등록된 수주가 없습니다" in hn3, "수주가 없으면 안내만")
+check('name="order_ids"' not in hn3 and 'class="z48-need"' in hn3 and "수주를 먼저 등록해야" in hn3
+      and re.search(r'<button type="submit" form="prqNewForm"[^>]* disabled ', hn3), "수주가 없으면 「먼저 등록」 안내 + 발행 단추 못 누름(필수)")
+check(not re.search(r'<button type="submit" form="prqNewForm"[^>]* disabled ', hn) and "(필수)" in hn and "수주번호를 하나 이상 고르세요" in hn, "수주가 있으면 단추 살아 있음 · 「필수」 표시 · 안 고르면 막는 확인")
 
 base = {"full_edit": "", "server_path": "", "model_name": "VPL-1", "engraving": ""}
 CARDS.clear()
@@ -230,11 +259,39 @@ CARDS.clear()
 r = q(cl.post, "/project/%d/prod-request/%d/update" % (P2, NEW), data=dict(base, cust_req="다시 수정", note="", gist="", _back="/project/%d/prod-request/edit?prid=%d" % (P2, NEW)))
 with D.db_session() as c:
     rw = c.execute("SELECT order_ids, gist FROM prod_requests WHERE id=?", (NEW,)).fetchone()
-check(rw[0] == "%d,%d" % (A2, A3) and not rw[1] and CARDS and CARDS[0]["card"]["so_nos"] == ["T-260202-2", "T-260311-5"] and "■ 요지" not in CARDS[0]["body"],
-      "수주를 하나도 안 고르고 수정발행 = 저장된 수주 그대로 · 요지는 비우면 비워짐", (tuple(rw), CARDS and CARDS[0]["card"].get("so_nos")))
+with D.db_session() as c:
+    cr = c.execute("SELECT cust_req FROM prod_requests WHERE id=?", (NEW,)).fetchone()[0]
+check(r.status_code == 303 and "prod_need=pick" in r.headers.get("location", "") and "edit=1" in r.headers.get("location", "") and rw[0] == "%d,%d" % (A2, A3)
+      and rw[1] == "가공 품목 변경" and cr == "38호기 MODIFY · 수정" and not CARDS,
+      "수주를 하나도 안 고르고 수정발행 = 막힘(필수) · 아무것도 안 바뀜 · 통보 없음", (r.headers.get("location"), tuple(rw), cr, len(CARDS)))
+hb = q(cl.get, r.headers["location"]).text
+check('id="z48NeedMsg"' in hb and "수주번호를 하나 이상 골라야" in hb, "돌아온 화면에 막힌 까닭")
+r = q(cl.post, "/project/%d/prod-request/%d/update" % (P2, NEW), data=dict(base, cust_req="다시 수정", note="", gist="", order_ids=[str(A2), str(A3)], _back="/project/%d/prod-request/edit?prid=%d" % (P2, NEW)))
+with D.db_session() as c:
+    rw = c.execute("SELECT order_ids, gist FROM prod_requests WHERE id=?", (NEW,)).fetchone()
+check(not rw[1] and CARDS and "■ 요지" not in CARDS[0]["body"], "요지는 비우면 비워짐", tuple(rw))
 CARDS.clear()
 r = q(cl.post, "/project/%d/prod-request/new" % P2, data=dict(base, cust_req="안 고르고 발행", note="", add_team_ids=[str(TEAM)], _back="/project/%d/prod-request/edit" % P2))
-check(CARDS and CARDS[0]["card"]["so_nos"] == ["T-261116-5"], "수주를 안 고르고 새 발행 = 가장 최근 수주 한 건", CARDS and CARDS[0]["card"].get("so_nos"))
+with D.db_session() as c:
+    n_after = c.execute("SELECT COUNT(*) FROM prod_requests WHERE project_id=?", (P2,)).fetchone()[0]
+check(r.status_code == 303 and "prod_need=pick" in r.headers.get("location", "") and "new=1" in r.headers.get("location", "") and not CARDS and n_after == 2,
+      "수주를 안 고르고 새 발행 = 막힘(필수) · 요청서 안 생김 · 통보 없음", (r.headers.get("location"), len(CARDS), n_after))
+CARDS.clear()
+r = q(cl.post, "/project/%d/prod-request/new" % P3, data=dict(base, cust_req="수주 없는 관리번호", note="", add_team_ids=[str(TEAM)], _back="/project/%d/prod-request/edit" % P3))
+with D.db_session() as c:
+    n3 = c.execute("SELECT COUNT(*) FROM prod_requests WHERE project_id=?", (P3,)).fetchone()[0]
+check("prod_need=order" in r.headers.get("location", "") and not CARDS and n3 == 1, "수주가 없는 관리번호 = 발행 못 함(수주번호 필수)", (r.headers.get("location"), n3))
+r = q(cl.post, "/project/%d/prod-request/new" % P5, data=dict(base, cust_req="관리번호 없음", note="", order_ids=[str(E1)], add_team_ids=[str(TEAM)], _back="/project/%d/prod-request/edit" % P5))
+check("prod_need=mgmt" in r.headers.get("location", "") and not CARDS, "관리번호가 없는 프로젝트 = 발행 못 함(관리번호 필수)", r.headers.get("location"))
+with contextlib.redirect_stdout(io.StringIO()):
+    res3 = M._prod_request_notify_core(P3, "다른 길로 들어옴", "", [TEAM], ADMIN)
+    res5 = M._prod_request_notify_core(P5, "다른 길로 들어옴", "", [TEAM], ADMIN)
+with D.db_session() as c:
+    n3b = c.execute("SELECT COUNT(*) FROM prod_requests WHERE project_id IN (?,?)", (P3, P5)).fetchone()[0]
+check(res3 == {"ok": False, "error": "need_mgmt_order", "need": "order"} and res5.get("need") == "mgmt" and not CARDS and n3b == 1,
+      "등록하면서 발행·추가 발주 같은 다른 길도 통보 코어에서 막힘(저장·통보 없음)", (res3, res5, n3b))
+hd = q(cl.get, "/project/%d?prod_need=order" % P3).text
+check("제작요청서를 발행하지 못했습니다" in hd and "수주번호는 필수" in hd, "프로젝트 화면에 막힌 까닭")
 CARDS.clear()
 with contextlib.redirect_stdout(io.StringIO()):
     res = M._prod_request_notify_core(P4, "등록하면서 발행", "", [TEAM], ADMIN)
@@ -268,6 +325,15 @@ check(hdr2 == ["NO.", "모델명", "품명", "수량", "납기"] and ">9월 소�
       "사진·연결 장비가 없는 수주 = 그 칸 없음 · 내용 자동(「9월 소모품(1종)」) · 줄 모델이 비면 수주의 모델명", hdr2)
 check("가격" not in pc and "1,000" not in pc and "1000" not in pc, "금액 없음")
 check(".z48-prs td.z48-so" in hc and ".z48-prs td.z48-mgc" in hc, "수주번호·관리번호 글자색이 표 안에서도 먹음(표 칸 규칙에 안 눌림)")
+
+CARDS.clear()
+with D.db_session() as c:   # 기동할 때 빈 관리번호는 자동으로 채워진다(운영에는 빈 것이 없음) → 막는 자리만 따로 시험하려고 다시 비움
+    c.execute("UPDATE consumable_orders SET mgmt_code='' WHERE id=?", (CO3,))
+rj = q(cl.post, "/consumables/%d/notify" % CO3, json={"team_ids": [TEAM], "user_ids": []})
+check(rj.status_code == 400 and rj.json().get("error") == "need_mgmt_order" and "필수" in rj.json().get("message", "") and not CARDS, "소모품: 관리번호가 없으면 요청서 발행 못 함(필수)", (rj.status_code, rj.text[:120]))
+CARDS.clear()
+rj = q(cl.post, "/consumables/%d/notify" % CO1, json={"team_ids": [TEAM], "user_ids": []})
+check(rj.status_code == 200 and rj.json().get("ok") and CARDS and CARDS[0]["card"]["so_nos"] == ["C-261117-1"] and CARDS[0]["card"]["mgmt"] == "010C2611", "소모품: 둘 다 있으면 지금처럼 발행 · 카드에 관리번호·수주번호", (rj.status_code, rj.text[:160]))
 
 print("§5 다른 화면은 그대로")
 for u in ("/prod-requests", "/project/%d" % P1, "/consumables/%d" % CO1):

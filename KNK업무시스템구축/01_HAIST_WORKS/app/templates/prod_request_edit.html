@@ -55,15 +55,15 @@ select.prq-in { appearance:auto; }
 .z48-prs + .z48-prs { border-top:0; }
 .z48-prs td { border:1px solid #222; padding:7px 10px; font-size:13.5px; text-align:center; vertical-align:middle; word-break:break-word; color:#1f2937; }
 .z48-prs td.z48-tt { font-size:26px; font-weight:800; letter-spacing:6px; padding:9px; color:#111; }
-.z48-prs td.z48-h { background:#b8cce4; font-weight:700; }
-.z48-prs td.z48-hk { background:#e6b8b7; font-weight:700; }
+.z48-prs td.z48-h { background:#b8cce4; font-weight:700; white-space:nowrap; }
+.z48-prs td.z48-hk { background:#e6b8b7; font-weight:700; white-space:nowrap; }
 .z48-prs td.z48-l { text-align:left; }
 .z48-prs td.z48-r { text-align:right; font-variant-numeric:tabular-nums; }
 .z48-prs td.z48-req { text-align:left; vertical-align:top; white-space:pre-wrap; line-height:1.7; height:150px; }
 .z48-prs td.z48-gist { text-align:left; font-weight:700; color:#7c2d12; background:#fff7ed; }
 .z48-prs td.z48-info { text-align:left; padding:5px 10px; }
-.z48-mgc, .z48-prs td.z48-mgc { font-weight:800; color:#9a3412; letter-spacing:1px; }
-.z48-so, .z48-prs td.z48-so { font-weight:700; color:#1d4ed8; }
+.z48-mgc, .z48-prs td.z48-mgc { font-weight:800; color:#9a3412; letter-spacing:1px; white-space:nowrap; }
+.z48-so, .z48-prs td.z48-so { font-weight:700; color:#1d4ed8; white-space:nowrap; }
 .z48-sub, .z48-prs td.z48-sub { font-size:12px; color:#475569; }
 .z48-pn { display:inline-block; font-size:11px; font-weight:700; color:#475569; background:#eef2f7; border-radius:4px; padding:0 5px; margin-right:6px; }
 .z48-bdg { display:inline-block; font-size:13px; font-weight:800; border-radius:6px; padding:2px 10px; margin-left:12px; vertical-align:middle; letter-spacing:0; }
@@ -88,6 +88,8 @@ select.prq-in { appearance:auto; }
 .z48-oc { display:flex; align-items:center; gap:7px; font-size:13px; color:#1f2937; cursor:pointer; }
 .z48-od { color:var(--mute,#64748b); font-size:11.5px; margin-left:auto; }
 .z48-hint { font-size:11.5px; color:var(--mute,#64748b); margin:4px 0 2px; line-height:1.5; }
+.z48-need { font-size:12.5px; font-weight:700; color:#991b1b; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:8px 11px; margin:4px 0 2px; line-height:1.6; }
+.z48-need a { color:#1d4ed8; margin-left:6px; white-space:nowrap; }
 /* 휴대폰 폭 — 여러 칸짜리 표는 못 읽으므로 카드로 */
 .z48-mob { display:none; }
 .z48-card { background:#fff; border:2px solid #222; margin:0 0 8px; }
@@ -102,9 +104,18 @@ select.prq-in { appearance:auto; }
 .z48-it .l1 { display:flex; justify-content:space-between; align-items:center; gap:8px; }
 .z48-it .l2 { font-size:13.5px; margin-top:2px; }
 .z48-it .l3 { font-size:12.5px; color:#475569; margin-top:2px; }
-@media (max-width:640px) {
+/* z1191z48b: 종이 표는 칸이 많아 양식 폭이 820px 아래로 내려가면(휴대폰 · 좁힌 창 · 태블릿) 머리글이 글자마다 꺾인다 →
+   「화면 폭」이 아니라 「양식이 놓인 자리의 폭」으로 카드 전환(왼쪽 메뉴가 있든 없든 맞음). 아래 @media 는 옛 브라우저용. */
+#z48Paper { container-type:inline-size; }
+@container (max-width:820px) {
   .z48-desk { display:none; }
   .z48-mob { display:block; }
+}
+@media (max-width:760px) {
+  .z48-desk { display:none; }
+  .z48-mob { display:block; }
+}
+@media (max-width:640px) {
   .prq-imgs.z48-imgs .prq-imgcell { width:calc(50% - 5px); height:110px; }
 }
 /* 인쇄 — 종이 양식만 A4 로(메뉴·단추·통보 줄은 빼고) */
@@ -112,7 +123,7 @@ select.prq-in { appearance:auto; }
   @page { size:A4; margin:10mm; }
   body * { visibility:hidden !important; }
   #z48Paper, #z48Paper * { visibility:visible !important; }
-  #z48Paper { position:absolute; left:0; top:0; width:100%; }
+  #z48Paper { position:absolute; left:0; top:0; width:100%; container-type:normal; }
   #z48Paper .z48-desk { display:table !important; }
   #z48Paper .z48-mob, #z48Paper .z48-copy { display:none !important; }
   #z48Paper .z48-prs td, #z48Paper .z48-imgband { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -123,12 +134,12 @@ select.prq-in { appearance:auto; }
 </head>
 {# z1191z48 (대표 2026-11-17): 작성·수정 폼 공통 — 이 요청서가 가리키는 수주(수주가 여러 건일 때만 고름) + 요지 한 줄 #}
 {% macro z48_fields(gist_val) %}
-          <div class="prq-sec">🧾 수주번호 · 요지</div>
+          <div class="prq-sec">🧾 수주번호 <span style="color:#dc2626;">(필수)</span> · 요지</div>
           {% if z48.orders|length > 1 %}
           <div class="z48-ol">
             {# 최근 수주가 맨 위 — 기본으로 체크되는 것이 스크롤 없이 보이게 #}
             {% for o in z48.orders|reverse %}
-            <label class="z48-oc"><input type="checkbox" name="order_ids" value="{{ o.id }}"{% if o.id in z48.sel_ids %} checked{% endif %}> <b>{{ o.order_no }}</b>{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.unit_label %} · {{ o.unit_label }}{% endif %}<span class="z48-od">{{ (o.order_date or o.created_at)[:10] }}</span></label>
+            <label class="z48-oc"><input type="checkbox" name="order_ids" value="{{ o.id }}"{% if o.id in z48.sel_ids %} checked{% endif %}> <b>{{ o.order_no }}</b>{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}<span class="z48-od">{{ (o.order_date or o.created_at)[:10] }}</span></label>
             {% endfor %}
           </div>
           <div class="z48-hint">이 관리번호에는 수주가 {{ z48.orders|length }}건 있습니다 — <b>이번 요청서에 해당하는 수주만</b> 체크하세요. 제작요청서와 알림에 그 수주번호만 나갑니다.</div>
@@ -136,7 +147,7 @@ select.prq-in { appearance:auto; }
           <input type="hidden" name="order_ids" value="{{ z48.orders[0].id }}">
           <div class="z48-hint">수주번호 <b style="color:#1d4ed8;">{{ z48.orders[0].order_no }}</b> — 등록된 수주에서 자동으로 들어갑니다.</div>
           {% else %}
-          <div class="z48-hint">이 관리번호에 등록된 수주가 없습니다 — 수주번호 없이 발행됩니다(수주를 등록하면 자동으로 채워집니다).</div>
+          <div class="z48-need">⚠ {{ z48.need_now or '이 관리번호에 등록된 수주가 없습니다 — 수주를 먼저 등록해야 발행할 수 있습니다(수주번호는 필수).' }} <a href="/project/{{ p.id }}">프로젝트 화면에서 수주 등록 →</a></div>
           {% endif %}
           <div class="prq-lbl">요지 <span style="font-weight:400;color:var(--mute,#64748b);">— 한 줄 · 안 써도 됩니다</span></div>
           <input class="prq-in" type="text" name="gist" maxlength="200" value="{{ gist_val }}" placeholder="예) 적층도 및 두께 변경으로 신규 가공 진행">
@@ -168,6 +179,10 @@ select.prq-in { appearance:auto; }
     <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 저장에 실패했습니다 — 관리자에게 문의하세요.</div>
     {% endif %}
 
+    {# z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수 입력 사항임」): 막힌 까닭 #}
+    {% if z48.need_msg %}
+    <div id="z48NeedMsg" style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13px;font-weight:700;">⚠ 발행하지 못했습니다 — {{ z48.need_msg }}</div>
+    {% endif %}
     {% if create_mode %}
     {# v5H226z787 (대표 지시): 신규 작성 — 이 프로젝트(관리번호 유지)에 제작요청서를 새로 써서 발행. 프로젝트 정보 프리필·요청사항 빈칸. #}
     <div class="prq-box">
@@ -275,7 +290,7 @@ select.prq-in { appearance:auto; }
         </form>
         <div class="prq-btns">
           <a class="btn btn-secondary" href="/project/{{ p.id }}">취소</a>
-          <button type="submit" form="prqNewForm" class="btn btn-primary" style="background:#c2410c;">📤 제작요청서 발행 · 부서 통보</button>
+          <button type="submit" form="prqNewForm" class="btn btn-primary" style="background:#c2410c;{% if z48.need %}opacity:.45;cursor:not-allowed;{% endif %}"{% if z48.need %} disabled title="{{ z48.need_now }}"{% endif %}>📤 제작요청서 발행 · 부서 통보</button>
         </div>
         <div style="font-size:11px;color:var(--mute,#64748b);text-align:right;margin-top:6px;">발행하면 관련 부서에 통보됩니다. 참고 이미지는 발행 후 이 페이지에서 추가할 수 있습니다.</div>
         {% else %}
@@ -302,10 +317,10 @@ select.prq-in { appearance:auto; }
         <div id="prqView">
           {% if z48.rev %}<div class="z48-rev">✏️ <b>수정발행 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</b> — {{ z48.rev }}</div>{% endif %}
           {% set _z48_so %}{% if z48.sel %}{% for o in z48.sel %}{{ o.order_no }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}—{% endif %}{% endset %}
-          {% set _z48_hogi %}{% for o in z48.sel %}{% if o.unit_label %}{{ o.unit_label }}{% if not loop.last %}<br>{% endif %}{% endif %}{% endfor %}{% endset %}
+          {# z1191z48e: 호기만(부품 이름 목록 같은 글은 빼고 · 이어진 번호는 묶어서) #}{% set _z48_hogi %}{% for o in z48.sel|selectattr('hogi') %}{{ o.hogi }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% endset %}
           <div id="z48Paper">
           <table class="z48-prs z48-desk">
-            <colgroup><col style="width:4%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:17%"><col style="width:23%"><col style="width:7%"><col style="width:18%"></colgroup>
+            <colgroup><col style="width:4%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:16%"><col style="width:20%"><col style="width:9%"><col style="width:19%"></colgroup>
             <tr><td colspan="8" class="z48-tt">제작 요청서{% if z48.kind %}<span class="z48-bdg z48-{{ z48.kind_cls }}" title="구분 — 가리키는 수주의 발주유형">{{ z48.kind }}</span>{% endif %}</td></tr>
             <tr><td colspan="3" class="z48-h">고객사</td><td colspan="3">{{ p.customer_name or '—' }}</td><td class="z48-h">작성자</td><td>{{ pr.issued_by_disp or pr.issued_by_name or '—' }}</td></tr>
             <tr><td colspan="3" class="z48-h">고객사 담당자</td><td colspan="3">{{ p.cc_name or '—' }}{% if p.cc_name and p.cc_position %} {{ p.cc_position }}{% endif %}</td><td class="z48-h">MODEL</td><td>{{ p.model_name or '—' }}</td></tr>
@@ -511,7 +526,7 @@ select.prq-in { appearance:auto; }
             {% if can_edit %}
             <span id="prqEditBtns" class="prq-actgrp" hidden>
               <button type="button" class="btn btn-secondary" onclick="prqCancelEdit()">취소</button>
-              <button type="submit" form="prqEditForm" class="btn btn-primary" style="background:#c2410c;">🔁 수정발행 · 부서 다시 통보</button>
+              <button type="submit" form="prqEditForm" class="btn btn-primary" style="background:#c2410c;{% if z48.need %}opacity:.45;cursor:not-allowed;{% endif %}"{% if z48.need %} disabled title="{{ z48.need_now }}"{% endif %}>🔁 수정발행 · 부서 다시 통보</button>
             </span>
             {% endif %}
           </div>
@@ -589,6 +604,14 @@ select.prq-in { appearance:auto; }
       if(e.g) e.g.classList.remove('editing');
     };
     window.prqValidate=function(form){
+      // z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 수주가 여러 건이면 하나 이상 골라야 한다
+      try{
+        if(form.querySelector('input[type=checkbox][name=order_ids]') && !form.querySelector('input[type=checkbox][name=order_ids]:checked')){
+          alert('수주번호를 하나 이상 고르세요 — 수주번호는 필수입니다.');
+          try{ form.querySelector('input[type=checkbox][name=order_ids]').focus(); }catch(_){}
+          return false;
+        }
+      }catch(_){}
       try{ if(window.KNKCust && KNKCust.validate){ var bad=KNKCust.validate(form);
         if(bad){ alert('고객사를 등록된 목록에서 선택하세요.'); try{ bad.focus(); }catch(_){} return false; } } }catch(_){}
       return true;

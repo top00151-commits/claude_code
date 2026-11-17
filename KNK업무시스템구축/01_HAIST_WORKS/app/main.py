@@ -11682,6 +11682,28 @@ def _z48_ids(csv):
     return [int(x) for x in str(csv or "").replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
 
 
+def _z48_hogi(label):
+    """수주의 호기 표시에서 「N호기」만 뽑아 줄여 쓴다: '6호기 · 7호기 · 8호기 · 10호기' → '6~8호기, 10호기'.
+    z1191z48e: 그 칸에는 호기가 아닌 글(상품·부품 이름 목록 — 'SENSOR · CP · SMPS …')도 들어 있다 → 그런 것은 빈칸."""
+    import re as _re48
+    nums = []
+    for seg in _re48.split(r"\s*[·,/]\s*", str(label or "")):
+        m = _re48.match(r"^(\d+)\s*호기$", seg.strip())
+        if m:
+            nums.append(int(m.group(1)))
+    if not nums:
+        return ""
+    nums = sorted(set(nums))
+    runs, a, b = [], nums[0], nums[0]
+    for n in nums[1:]:
+        if n == b + 1:
+            b = n
+        else:
+            runs.append((a, b)); a = b = n
+    runs.append((a, b))
+    return ", ".join(("%d호기" % x) if x == y else ("%d~%d호기" % (x, y)) for x, y in runs)
+
+
 def _z48_project_orders(c, pid):
     """프로젝트의 수주(취소 제외 · 등록 순) — 제작요청서가 가리킬 수 있는 후보."""
     out = []
@@ -11690,6 +11712,10 @@ def _z48_project_orders(c, pid):
                        "FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall():
         d = dict(r)
         if d.get("order_no") and str(d.get("status") or "").upper() != "CANCELLED":
+            # z1191z48e: 화면에는 호기만(hogi) · 고르는 목록에는 짧게(label_short — 호기가 아니면 앞 28자)
+            d["hogi"] = _z48_hogi(d.get("unit_label"))
+            _ul = str(d.get("unit_label") or "").strip()
+            d["label_short"] = d["hogi"] or (_ul if len(_ul) <= 28 else (_ul[:28].rstrip(" ·") + " …"))
             out.append(d)
     return out
 
@@ -11710,6 +11736,27 @@ def _z48_pick_orders(orders, stored_csv="", issued_at=""):
         cand = [o for o in orders if str(o.get("created_at") or "")[:16] <= t]
         return [cand[-1]] if cand else [orders[0]]
     return [orders[-1]]
+
+
+# z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수 입력 사항임」): 발행 전에 묻는 한 곳.
+_Z48_NEED_MSG = {
+    "mgmt": "관리번호가 없는 프로젝트입니다 — 관리번호를 먼저 등록해야 제작요청서를 발행할 수 있습니다(관리번호는 필수).",
+    "order": "이 관리번호에 등록된 수주가 없습니다 — 수주를 먼저 등록해야 제작요청서를 발행할 수 있습니다(수주번호는 필수).",
+    "pick": "수주번호를 하나 이상 골라야 발행할 수 있습니다(수주번호는 필수).",
+}
+
+
+def _z48_need(c, pid, chosen_ids=None, must_pick=False):
+    """발행할 수 없는 까닭: '' = 발행 가능 · 'mgmt' = 관리번호 없음 · 'order' = 수주 없음 · 'pick' = (must_pick) 고른 수주가 없음."""
+    r = c.execute("SELECT COALESCE(mgmt_code,'') FROM projects WHERE id=?", (pid,)).fetchone()
+    if not r or not str(r[0] or "").strip():
+        return "mgmt"
+    orders = _z48_project_orders(c, pid)
+    if not orders:
+        return "order"
+    if must_pick and not [o for o in orders if o["id"] in (chosen_ids or [])]:
+        return "pick"
+    return ""
 
 
 def _z48_mg(code):
@@ -11747,7 +11794,13 @@ def _z48_view_ctx(c, p, pr):
             rev = (_r[0] if _r else "") or ""
         except Exception as _e48:
             print(f"[z1191z48] 수정 내용 읽기 실패: {_e48}")
+    try:
+        need = _z48_need(c, p["id"])
+    except Exception as _e48:
+        print(f"[z1191z48c] 필수 판정 실패: {_e48}")
+        need = ""
     return {"orders": orders, "sel": sel, "sel_ids": [o["id"] for o in sel], "kind": kind, "kind_cls": kind_cls,
+            "need": need, "need_now": _Z48_NEED_MSG.get(need, ""),
             "mg": _z48_mg(p.get("mgmt_code")), "dday": _z48_dday(p.get("due_date")), "rev": rev,
             "eng": [x.strip() for x in str(p.get("engraving") or "").replace("\r", "").split("\n") if x.strip()]}
 
@@ -11828,6 +11881,11 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         _z48_picked = _z48_pick_orders(_z48_all, _z48_csv, _z48_at)
         so_nos = [o["order_no"] for o in _z48_picked]
         _z48_oid_csv = ",".join(str(o["id"]) for o in _z48_picked)
+        # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 관리번호나 가리킬 수주가 없으면 발행·통보·저장을 하지 않는다.
+        #   화면(작성·수정)은 먼저 막지만, 등록하면서 발행·추가 발주처럼 다른 길로 들어와도 여기서 한 번 더 막는다.
+        if not str(p.get("mgmt_code") or "").strip() or not _z48_picked:
+            return {"ok": False, "error": "need_mgmt_order",
+                    "need": ("mgmt" if not str(p.get("mgmt_code") or "").strip() else "order")}
         # 통보 부서 — 아무 대상도 안 골랐을 때만 전부서(활성 인원 있는 팀 전체)
         tids = [int(t) for t in (team_ids or []) if str(t).strip().isdigit() and int(t) > 0]
         # v5H226z794 (대표 지시): 개별 지정 인원 — 사업부 필터 없이 그 사람에게 정확히 통보(팀통보와 합집합).
@@ -30837,6 +30895,11 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     def _dest(qs):
         base = _back if (_back.startswith("/") and not _back.startswith("//")) else f"/project/{pid}"
         return base + ("&" if "?" in base else "?") + qs
+    # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 아무것도 저장하기 전에 묻고, 안 되면 까닭과 함께 수정 화면으로 돌려보낸다
+    with db_session() as _c48:
+        _z48_nd = _z48_need(_c48, pid, _z48_oids, must_pick=True)
+    if _z48_nd:
+        return RedirectResponse(_dest("edit=1&prod_need=" + _z48_nd), 303)
     _team_ids = []
     _img_count = 0
     try:
@@ -30983,6 +31046,11 @@ async def prod_request_new(request: Request, pid: int):
     def _dest(qs):
         base = _back if (_back.startswith("/") and not _back.startswith("//")) else f"/project/{pid}"
         return base + ("&" if "?" in base else "?") + qs
+    # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 아무것도 저장하기 전에 묻고, 안 되면 까닭과 함께 작성 화면으로 돌려보낸다
+    with db_session() as _c48:
+        _z48_nd = _z48_need(_c48, pid, _z48_oids, must_pick=True)
+    if _z48_nd:
+        return RedirectResponse(_dest("new=1&prod_need=" + _z48_nd), 303)
     # 1) 프로젝트 서술필드 갱신 — 통보 본문·상세 표시에 새 값 반영(관리번호 불변). 수정 라우트와 동일 로직.
     try:
         with db_session() as c:
@@ -31208,6 +31276,7 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
                 pr_images = []
         # z1191z48 (대표 2026-11-17): 종이 양식 화면에 쓸 값 — 가리키는 수주(수주번호·호기) · 구분 · 남은 날 · 수정 내용
         _z48 = _z48_view_ctx(c, p, pr)
+        _z48["need_msg"] = _Z48_NEED_MSG.get(request.query_params.get("prod_need") or "", "")   # z48c: 막힌 까닭(돌려보낼 때)
     # v5H226z773: 등록 시 작성한 정보의 사람친화 라벨(형태·사업부·거래구분) — 코드값을 그대로 노출하지 않음
     _FORM_LBL = {"ASSEMBLY": "🏭 완제품", "SEMI": "📦 제품", "PARTS": "🧰 상품", "ETC": "🗂 기타"}
     # z1191z37 (대표 2026-11-16): 사업부 아이콘 = 프로젝트 등록 화면(🔬 🤖 💄 🌐 📦) · 연구는 검사기와 겹치지 않게 🧪
@@ -38080,6 +38149,8 @@ async def projects_new_submit(request: Request):
                             _fu_url += "&prod_msgerr=1"
                         if _fu_res.get("stage_warn"):
                             _fu_url += "&prod_stagewarn=1"
+                    elif _fu_res.get("error") == "need_mgmt_order":   # z1191z48c: 관리번호·수주번호 필수
+                        _fu_url += "&prod_need=" + str(_fu_res.get("need") or "order")
                     else:
                         _fu_url += "&prod_err=1"
                 except Exception:
@@ -38383,6 +38454,8 @@ async def projects_new_submit(request: Request):
                     # z762: 제작요청서 저장 실패 시 신호(통보는 됐지만 이력 미저장 — 조용히 넘기지 않음)
                     if _res.get("pr_save_err"):
                         _qs.append("prod_saveerr=1")
+                elif _res.get("error") == "need_mgmt_order":   # z1191z48c: 관리번호·수주번호 필수
+                    _qs.append("prod_need=" + str(_res.get("need") or "order"))
                 else:
                     _qs.append("prod_err=1")
             except Exception:
@@ -53668,6 +53741,10 @@ def _consumable_notify_send(co, items, team_ids, user_ids, user):
     sender_id = user.get("id") or -1
     by_name = user.get("name") or user.get("username") or "—"
     now_str = _dt2.now().strftime("%Y-%m-%d %H:%M")
+    # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 둘 중 하나라도 없으면 소모품 요청서를 내보내지 않는다
+    if not str(co.get("mgmt_code") or "").strip() or not str(co.get("co_no") or "").strip():
+        return {"ok": False, "error": "need_mgmt_order",
+                "message": "관리번호·수주번호가 없는 소모품 수주입니다 — 둘 다 있어야 소모품 요청서를 발행할 수 있습니다(필수)."}
     mgmt = co.get("mgmt_code") or "—"
     co_no = co.get("co_no") or f"CO-{co_id}"
     model = co.get("model_name") or "소모품"
@@ -53826,7 +53903,7 @@ async def consumables_notify(request: Request, co_id: int):
                              "message": "통보할 부서 또는 인원을 선택하세요"}, 400)
     res = _consumable_notify_send(co, items, team_ids, user_ids, u)
     if not res.get("ok"):
-        return JSONResponse(res, 500)
+        return JSONResponse(res, 400 if res.get("error") == "need_mgmt_order" else 500)   # z48c: 필수값 없음 = 요청 쪽 문제
     return JSONResponse(res)
 
 

@@ -145,6 +145,9 @@
   <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13.5px;font-weight:600;line-height:1.5;">
     📋 제작요청 발행 완료 — {{ request.query_params.get('prod_dept','0') }}개 부서 · {{ request.query_params.get('prod_sent','0') }}명에게 통보 + 작업일정표 '제작요청' 자동기록{% if request.query_params.get('prod_msg') is not none %} · 📱 KNK Eum 메신저 {{ request.query_params.get('prod_msg','0') }}명 푸시{% if request.query_params.get('prod_msgerr') %} <span style="color:#b45309;">(메신저 통보 일부 실패 — 사번 미연결·메신저 준비 전일 수 있음)</span>{% endif %}{% endif %}{% if request.query_params.get('prod_stagewarn') %} <span style="color:#b45309;">(일정표 기록 경고 — 확인 필요)</span>{% endif %}
   </div>
+  {% elif request.query_params.get('prod_need') %}
+  {# z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수 입력 사항임」) #}
+  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13.5px;font-weight:600;">⚠ 제작요청서를 발행하지 못했습니다 — {% if request.query_params.get('prod_need') == 'mgmt' %}관리번호가 없습니다(필수).{% else %}등록된 수주가 없습니다 · 수주번호는 필수입니다.{% endif %} 등록한 뒤 「제작요청서」에서 다시 발행하세요.</div>
   {% elif request.query_params.get('prod_err') %}
   <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13.5px;font-weight:600;">⚠ 제작요청 통보 중 오류가 발생했습니다 — 관리자에게 문의하세요.</div>
   {% endif %}
