@@ -41,6 +41,11 @@ a.lg-so.cancel:hover { background:#cbd5e1; color:#475569; }
 .lg-so { display:inline-block; margin:1px 4px 1px 0; padding:1px 7px; border-radius:6px; background:#eff6ff; color:#1e3a8a; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .lg-so.cancel { background:#f1f5f9; color:#94a3b8; text-decoration:line-through; font-weight:600; }
 .lg-none { color:#cbd5e1; }
+/* z1191z44: 수주가 여럿이면 접어 두기 — 최근 수주 하나 + 「▾ 외 N건」 */
+.lg-sos:not(.open) .lg-sox { display:none; }
+.lg-more { display:inline-block; margin:1px 0; padding:1px 7px; border:1px dashed #93c5fd; border-radius:6px; background:#fff; color:#1d4ed8; font-size:11.5px; font-weight:800; white-space:nowrap; cursor:pointer; line-height:1.5; }
+.lg-more:hover { background:#eff6ff; border-style:solid; }
+.lg-so.hit { outline:2px solid #f59e0b; outline-offset:0; }
 .lg-st { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11.5px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; }
 .lg-st.s-출하 { background:#dcfce7; color:#166534; }
 .lg-st.s-진행중, .lg-st.s-수주확정 { background:#fef9c3; color:#854d0e; }
@@ -94,11 +99,11 @@ a.lg-so.cancel:hover { background:#cbd5e1; color:#475569; }
 
   <div class="lg-sum">
     관리번호 <b style="color:#334155;">{{ '{:,}'.format(rows|length) }}</b>개 · 수주번호 <b style="color:#334155;">{{ '{:,}'.format(n_so) }}</b>건(취소 빼고)
-    · 이음웍스에 등록된 관리번호 기준 · 최근 발행 순 · 관리번호·수주번호를 누르면 그 프로젝트(소모품) 화면으로 갑니다(수주번호는 그 수주가 앞에) · 줄 그은 수주번호 = 취소 · 머리글 오른쪽 끝을 끌면 칸 너비 조절
+    · 이음웍스에 등록된 관리번호 기준 · 최근 발행 순 · 관리번호·수주번호를 누르면 그 프로젝트(소모품) 화면으로 갑니다(수주번호는 그 수주가 앞에) · 줄 그은 수주번호 = 취소 · 수주가 여럿이면 「▾ 외 N건」을 누르면 전부 · 머리글 오른쪽 끝을 끌면 칸 너비 조절
   </div>
 
   {% if rows %}
-  <div class="lg-tools"><button type="button" id="lgRzReset" title="끌어서 바꾼 칸 너비를 처음대로">↺ 칸 너비 처음대로</button></div>
+  <div class="lg-tools" style="gap:6px;"><button type="button" id="lgSoAll" title="수주가 여럿인 줄을 한꺼번에 펼치거나 접기">▾ 수주번호 모두 펼치기</button><button type="button" id="lgRzReset" title="끌어서 바꾼 칸 너비를 처음대로">↺ 칸 너비 처음대로</button></div>
   <div class="lg-wrap" data-knk-fill>
     <table class="lg-tbl" id="lgTbl">
       <colgroup>
@@ -124,7 +129,8 @@ a.lg-so.cancel:hover { background:#cbd5e1; color:#475569; }
           <td class="nw"><a class="lg-code" href="{% if x.kind == 'C' %}/consumables/{{ x.id }}{% else %}/project/{{ x.id }}{% endif %}">{{ x.code }}</a>{% if x.arch %}<span class="lg-archb" title="폐기한 프로젝트 — 번호는 부여된 기록으로 남김">폐기</span>{% endif %}</td>
           <td class="nw">{{ x.biz_label }}</td>
           <td class="nw lg-dim">{{ x.ym or '—' }}</td>
-          <td>{% for s in x.sos %}<a class="lg-so{% if s.cancel %} cancel{% endif %}" href="{% if x.kind == 'C' %}/consumables/{{ x.id }}{% else %}/project/{{ x.id }}?so={{ s.no|urlencode }}{% endif %}" title="{{ s.no }} · 발주일 {{ s.date or '—' }} · {{ s.st or '—' }} — 누르면 이 수주의 프로젝트 정보">{{ s.no }}</a>{% else %}<span class="lg-none">없음</span>{% endfor %}</td>
+          {%- set nso = x.sos|length %}{% set ns = namespace(k=nso - 1) %}{% for s in x.sos %}{% if not s.cancel %}{% set ns.k = loop.index0 %}{% endif %}{% endfor %}
+          <td>{% if nso > 1 %}<div class="lg-sos" data-n="{{ nso }}">{% endif %}{% for s in x.sos %}<a class="lg-so{% if s.cancel %} cancel{% endif %}{% if nso > 1 and loop.index0 != ns.k %} lg-sox{% endif %}" href="{% if x.kind == 'C' %}/consumables/{{ x.id }}{% else %}/project/{{ x.id }}?so={{ s.no|urlencode }}{% endif %}" title="{{ s.no }} · 발주일 {{ s.date or '—' }} · {{ s.st or '—' }} — 누르면 이 수주의 프로젝트 정보">{{ s.no }}</a>{% else %}<span class="lg-none">없음</span>{% endfor %}{% if nso > 1 %}<button type="button" class="lg-more" data-more="{{ nso - 1 }}" title="이 관리번호의 수주번호 {{ nso }}건 전부 보기">▾ 외 {{ nso - 1 }}건</button></div>{% endif %}</td>
           <td>{{ x.model or '—' }}</td>
           <td>{{ x.equip or '—' }}</td>
           <td>{{ x.pname or '—' }}</td>
@@ -163,6 +169,27 @@ a.lg-so.cancel:hover { background:#cbd5e1; color:#475569; }
     });
     var rb=document.getElementById('lgRzReset');
     if(rb) rb.addEventListener('click', function(){ save({}); apply(); });
+  })();
+  // z1191z44: 수주가 여럿이면 접어 두고 「▾ 외 N건」으로 펼치기 · 수주번호로 찾은 줄은 펼친 채
+  (function(){
+    var T=document.getElementById('lgTbl'); if(!T) return;
+    function set(box, on){ box.classList.toggle('open', on); var b=box.querySelector('.lg-more');
+      if(b) b.textContent = on ? '▴ 접기' : ('▾ 외 '+b.getAttribute('data-more')+'건'); }
+    T.addEventListener('click', function(e){
+      var b=e.target.closest && e.target.closest('.lg-more'); if(!b) return;
+      e.preventDefault(); var box=b.closest('.lg-sos'); set(box, !box.classList.contains('open')); syncAll();
+    });
+    var all=document.getElementById('lgSoAll');
+    function boxes(){ return T.querySelectorAll('.lg-sos'); }
+    function syncAll(){ if(!all) return; var bs=boxes(), open=0; bs.forEach(function(x){ if(x.classList.contains('open')) open++; });
+      all.textContent = (bs.length && open===bs.length) ? '▴ 수주번호 모두 접기' : '▾ 수주번호 모두 펼치기'; }
+    if(all) all.addEventListener('click', function(){ var bs=boxes(), open=0; bs.forEach(function(x){ if(x.classList.contains('open')) open++; });
+      var on = !(bs.length && open===bs.length); bs.forEach(function(x){ set(x, on); }); syncAll(); });
+    var qi=document.querySelector('input[name="q"]'), q=(qi && qi.value || '').trim().toUpperCase();
+    if(q) T.querySelectorAll('.lg-so').forEach(function(a){
+      if(a.textContent.toUpperCase().indexOf(q) >= 0){ a.classList.add('hit'); var box=a.closest('.lg-sos'); if(box) set(box, true); }
+    });
+    syncAll();
   })();
   </script>
   {% else %}

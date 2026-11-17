@@ -5,6 +5,7 @@
   ② 폐기한 프로젝트도 「폐기」로 남김 · 최근 발행 순(연월 ↓ · 번호 ↓) · 소모품 관리번호(C)
   ③ 거르기(사업부·발행 연도·검색 — 수주번호로도) · 권한(매출 못 보면 못 들어옴) · 프로젝트 화면 3곳 탭
   ④ z1191z43: 수주번호 = 링크(?so= 그 수주 기준) · 칸 너비 끌어서 조절
+  ⑤ z1191z44: 수주가 여럿이면 최근 수주 하나 + 「▾ 외 N건」(누르면 전부) · 모두 펼치기 · 수주번호로 찾은 줄은 펼친 채
   임시 DB · TestClient · 운영 아님
 """
 import contextlib, io, os, re, sys, tempfile
@@ -117,7 +118,19 @@ check(r.status_code == 200, "관리번호대장 열림", r.status_code)
 codes = re.findall(r'class="lg-code" href="[^"]+">([^<]+)</a>', h)
 check(codes == [x["code"] for x in R], "표 줄 = 대장 순서", codes)
 check(('href="/project/%d"' % P2) in h and "/consumables/" in h, "관리번호 누르면 프로젝트 · 소모품 화면")
-check('class="lg-so cancel"' in h and "T-261113-9" in h, "취소 수주번호는 줄 그음")
+check(re.search(r'class="lg-so cancel[^"]*"[^>]*>T-261113-9<', h), "취소 수주번호는 줄 그음")
+# z1191z44 (대표 11-17 「수주번호가 여러 개 있는 건 한번에 보이게 하지 말고 … 내리기 버튼 누르면 다 보일 수 있게」)
+_p2 = re.search(r'<div class="lg-sos" data-n="3">(.*?)</div>', h, re.S)
+_p2h = _p2.group(1) if _p2 else ""
+_shown = re.findall(r'<a class="lg-so"[^>]*>([^<]+)</a>', _p2h)
+_fold = re.findall(r'<a class="lg-so[^"]*lg-sox"[^>]*>([^<]+)</a>', _p2h)
+check(_shown == ["T-261112-2"] and sorted(_fold) == ["T-261110-1", "T-261113-9"],
+      "z44: 수주 3건 → 처음엔 가장 최근 수주(취소 아닌 것) 하나만 · 나머지는 접힘", (_shown, _fold))
+check('<button type="button" class="lg-more" data-more="2"' in _p2h and "▾ 외 2건" in _p2h, "z44: 「▾ 외 2건」 단추(누르면 전부)")
+_p1 = re.search(r'<td>(<a class="lg-so"[^>]*>T-261005-1</a>)</td>', h)
+check(_p1 and "lg-more" not in _p1.group(0), "z44: 수주 하나면 그대로(단추 없음)")
+check(h.count('class="lg-sos"') == 1 and 'id="lgSoAll"' in h and "수주번호 모두 펼치기" in h, "z44: 위에 「▾ 수주번호 모두 펼치기」 · 접는 칸은 수주 여럿인 줄만")
+check(".lg-sos:not(.open) .lg-sox { display:none; }" in h and "classList.add('hit')" in h, "z44: 접힘은 화면 규칙 · 수주번호로 찾으면 그 줄 펼침")
 # z1191z43 (대표 「수주번호도 누르면 해당 수주번호에 프로젝트 정보창」): 수주번호 = 링크(그 수주가 메인 카드 · ?so=)
 check(('<a class="lg-so" href="/project/%d?so=T-261112-2"' % P2) in h, "z43: 수주번호 누르면 그 프로젝트(그 수주 기준 · ?so=)")
 check(re.search(r'<a class="lg-so" href="/consumables/\d+"[^>]*>C-261103-2</a>', h), "z43: 소모품 발주번호 누르면 소모품 화면")
