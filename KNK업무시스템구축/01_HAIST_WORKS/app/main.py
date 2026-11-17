@@ -26690,7 +26690,7 @@ def _z40_open_projects(c):
     return {"projects": rows, "n": len(rows), "units": sum(d["n_open"] for d in rows)}
 
 
-def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
+def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None):
     """v5H226z925 (대표 지시): 매출 홈 3지표 —
        ① 수주매출 = 발주일(orders.order_date) 기준, 전 호기 oi.amount + 소모품 발주.
        ② 진행매출 = 출하일 기준, unit_status='출하'(기존 _sales_delivered 와 동일 로직).
@@ -26741,6 +26741,8 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m):
             A["cnt"] += 1
             if sok:   # z1191z40: 건수 = 수주 하나(수주번호 · 소모품 발주번호) — 매출 보고서 _z33_sok 와 같은 열쇠
                 A["so"].add(sok)
+            if detail is not None:   # z1191z45: 깊이 보기 — 매출 홈 합계와 같은 줄(지표 · 사업부 · 고객사 · 원화 · 수주 열쇠)
+                detail.append((metric, b, nm, krw, sok))
 
     # ① 수주매출 — 발주일(orders.order_date) 기준, 전 호기(취소/폐기 제외)
     for r in c.execute(
@@ -26935,6 +26937,119 @@ async def sales_dashboard(request: Request):
                user=u, active="sales",
                proj_stats=proj_stats, sales_kpi=sales_kpi,
                s3=s3, year_span=year_span, open_proj=open_proj, today_iso=today.isoformat())
+
+
+# ── z1191z45 매출 홈 깊이 보기 (대표 2026-11-17) ─────────────────────────────────────────
+#   「사업부별 매출」 사업부 → 고객사별 수주·진행·최종 · 「TOP 5 고객사」 고객사 → 수주(소모품 발주)별.
+#   숫자 = _sales_3way 가 매출 홈 합계에 더한 바로 그 줄(detail) — 따로 다시 세지 않는다(합계가 어긋나지 않게).
+def _z45_period(qp):
+    """매출 홈(/sales)과 같은 기간 읽기 — mode·year·q·m."""
+    today = date.today()
+    _sy = (qp.get("year") or "").strip()
+    sel_year = _sy if (_sy.isdigit() and len(_sy) == 4) else str(today.year)
+    mode = (qp.get("mode") or "year").strip().lower()
+    if mode not in ("year", "quarter", "month"):
+        mode = "year"
+    _q = (qp.get("q") or "").strip()
+    sel_q = _q if _q in ("1", "2", "3", "4") else str((today.month - 1) // 3 + 1)
+    _m = (qp.get("m") or "").strip()
+    sel_m = _m if (_m.isdigit() and 1 <= int(_m) <= 12) else str(today.month)
+    return mode, sel_year, sel_q, sel_m
+
+
+def _z45_drill(c, lines, biz, cust):
+    """detail 줄 → 깊이 보기 표. biz·cust 로 거른 뒤
+       cust 없으면 고객사별 [{cust, order, prog, final, n}] · cust 있으면 수주별 [{kind, code, so, …}] + 사업부별 소계."""
+    sel = [x for x in lines if (not biz or x[1] == biz) and (not cust or x[2] == cust)]
+    tot = {"order": 0.0, "prog": 0.0, "final": 0.0}
+    for m, _b, _n, k, _s in sel:
+        tot[m] += k
+    if not cust:
+        g = {}
+        for m, _b, nm, k, sok in sel:
+            r = g.setdefault(nm, {"cust": nm, "order": 0.0, "prog": 0.0, "final": 0.0, "sos": set()})
+            r[m] += k
+            if sok:
+                r["sos"].add(sok)
+        rows = sorted(g.values(), key=lambda r: (-r["prog"], -r["order"], -r["final"], r["cust"]))
+        for r in rows:
+            r["n"] = len(r.pop("sos"))
+        return {"kind": "cust", "rows": rows, "tot": tot}
+    g, bz = {}, {}
+    for m, b, _nm, k, sok in sel:
+        key = sok or ("?", "", "")
+        r = g.setdefault(key, {"kind": key[0], "code": key[1], "so": key[2], "biz": b,
+                               "order": 0.0, "prog": 0.0, "final": 0.0})
+        r[m] += k
+        s = bz.setdefault(b, {"biz": b, "label": SALES3_BIZ_LABEL.get(b, b), "order": 0.0, "prog": 0.0, "final": 0.0})
+        s[m] += k
+    rows = list(g.values())
+    # 화면에 보일 프로젝트·소모품 정보(읽기만) — 관리번호 · 수주번호로 찾는다
+    codes = sorted({r["code"] for r in rows if r["kind"] == "S" and r["code"]})
+    pmap = {}
+    for i in range(0, len(codes), 400):
+        part = codes[i:i + 400]
+        for p in c.execute("SELECT id, mgmt_code, COALESCE(model_name,'') AS model, COALESCE(equip_name,'') AS equip, "
+                           "COALESCE(name,'') AS pname FROM projects WHERE mgmt_code IN (%s) "
+                           "ORDER BY COALESCE(is_archived,0), id" % ",".join("?" * len(part)), part).fetchall():
+            pmap.setdefault(p["mgmt_code"], dict(p))
+    sonos = sorted({r["so"] for r in rows if r["kind"] == "S" and r["so"]})
+    omap = {}
+    for i in range(0, len(sonos), 400):
+        part = sonos[i:i + 400]
+        # 발주일 = 수주매출이 쓰는 날짜와 같게(호기 → 수주 → 프로젝트 · 수주 발주일 칸이 빈 것이 운영에 있음)
+        for o in c.execute("SELECT o.order_no AS order_no, MIN(" + SALES_DD_ORDER + ") AS od "
+                           "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
+                           "WHERE o.order_no IN (%s) AND COALESCE(o.status,'')<>'CANCELLED' "
+                           "GROUP BY o.order_no" % ",".join("?" * len(part)), part).fetchall():
+            omap.setdefault(o["order_no"], o["od"] or "")
+    conos = sorted({r["so"] for r in rows if r["kind"] == "C" and r["so"]})
+    cmap = {}
+    for i in range(0, len(conos), 400):
+        part = conos[i:i + 400]
+        for o in c.execute("SELECT id, co_no, COALESCE(model_name,'') AS model, COALESCE(equip_name,'') AS equip, "
+                           "COALESCE(project_name,'') AS pname, COALESCE(order_date,'') AS od FROM consumable_orders "
+                           "WHERE co_no IN (%s)" % ",".join("?" * len(part)), part).fetchall():
+            cmap.setdefault(o["co_no"], dict(o))
+    for r in rows:
+        r["label"] = SALES3_BIZ_LABEL.get(r["biz"], r["biz"])
+        if r["kind"] == "C":
+            o = cmap.get(r["so"]) or {}
+            r.update({"id": o.get("id"), "model": o.get("model", ""), "equip": o.get("equip", ""),
+                      "pname": o.get("pname", ""), "od": (o.get("od") or "")[:10]})
+        else:
+            p = pmap.get(r["code"]) or {}
+            r.update({"id": p.get("id"), "model": p.get("model", ""), "equip": p.get("equip", ""),
+                      "pname": p.get("pname", ""), "od": (omap.get(r["so"]) or "")[:10]})
+    rows.sort(key=lambda r: (-r["prog"], -r["order"], -r["final"], r["od"], r["so"]))
+    order = {b: i for i, b in enumerate(SALES3_BIZ)}
+    return {"kind": "so", "rows": rows, "tot": tot,
+            "biz_sub": sorted(bz.values(), key=lambda s: order.get(s["biz"], 99))}
+
+
+@app.get("/sales/drill", response_class=HTMLResponse)
+async def sales_drill_page(request: Request):
+    """z1191z45: 매출 홈 깊이 보기(읽기만) — ?biz=T(사업부 → 고객사별) · ?cust=고객사(→ 수주별) · 기간은 매출 홈과 같음."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home?no_perm=sales", 303)
+    qp = request.query_params
+    mode, sel_year, sel_q, sel_m = _z45_period(qp)
+    biz = (qp.get("biz") or "").strip().upper()
+    if biz not in SALES3_BIZ:
+        biz = ""
+    cust = (qp.get("cust") or "").strip()
+    oi_map, _pi = _board_tax_oi_map()
+    lines = []
+    with db_session() as c:
+        rates = _fx_load_rates(c)
+        s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=lines)
+        dr = _z45_drill(c, lines, biz, cust)
+    year_span = sorted(set(s3.get("year_choices") or []) | {str(date.today().year), str(sel_year)}, reverse=True)
+    return ctx(request, "sales_drill.html", user=u, active="sales", s3=s3, dr=dr, biz=biz, cust=cust,
+               biz_label=SALES3_BIZ_LABEL.get(biz, ""), year_span=year_span)
 
 
 # ── z1191z17 매출 보고서 (대표 「1,2,3 진행해」 2026-11-10 · 이새롬·안지연 프로 답) ─────────────────────────

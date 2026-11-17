@@ -93,6 +93,13 @@ body { overflow: hidden !important; }
 .z40-open { cursor: pointer; }
 .z40-open:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
 .z40-cnt { white-space: nowrap; }
+/* z1191z45: 사업부·고객사를 누르면 깊이 보기 */
+a.z45-link { color:var(--qv-ink,#1e293b); text-decoration:none; }
+a.z45-link:hover { color:#1d4ed8; text-decoration:underline; }
+.z45-go { color:#94a3b8; font-weight:800; }
+a.z45-link:hover .z45-go { color:#1d4ed8; }
+a.z45-all { float:right; font-size:11.5px; font-weight:700; color:#1d4ed8; text-decoration:none; margin-top:2px; }
+a.z45-all:hover { text-decoration:underline; }
 .z40-more { font-size: 12px; font-weight: 700; color: #1d4ed8; margin-left: 10px; vertical-align: middle; }
 .z40-modal { position: fixed; inset: 0; z-index: 1900; background: rgba(15,23,42,.38); display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px 16px; box-sizing: border-box; }
 .z40-modal[hidden] { display: none; }
@@ -320,7 +327,7 @@ body { overflow: hidden !important; }
             <tbody>
               {% for b in s3.biz_rows %}
               <tr>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);">{{ b.label }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?biz={{ b.biz }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="{{ b.label }} — 고객사별 수주·진행·최종 매출 보기">{{ b.label }} <span class="z45-go">›</span></a></td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;font-weight:600;">{{ '{:,.0f}'.format(b.order) }}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(b.prog) }}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;font-weight:600;">{{ '{:,.0f}'.format(b.final) }}</td>
@@ -370,7 +377,8 @@ body { overflow: hidden !important; }
     <div class="grid-2" data-dn="grid-customer-recent" data-dn-tone="blue">
       {# v5H226z925: TOP5 — 3지표(수주/진행/최종), 진행매출 순 #}
       <div class="card" data-dn="top-customers">
-        <h3>TOP 5 고객사 · {{ s3.period_label }} <span style="font-size:11px;color:var(--qv-ink-3);font-weight:600;">(진행매출 순)</span></h3>
+        <h3>TOP 5 고객사 · {{ s3.period_label }} <span style="font-size:11px;color:var(--qv-ink-3);font-weight:600;">(진행매출 순)</span>
+          <a class="z45-all" href="/sales/drill?mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="이 기간 모든 고객사의 수주·진행·최종 매출">고객사 전체 보기 ›</a></h3>
         <div class="list-card list-scroll-sm" style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
             <thead><tr>
@@ -382,7 +390,7 @@ body { overflow: hidden !important; }
             <tbody>
               {% for c in (s3.top_customers or []) %}
               <tr>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a href="/customers?q={{ c.customer_name }}" style="color:var(--qv-ink);text-decoration:none;font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }}</a></td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ c.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="{{ c.customer_name }} — 어떤 수주로 이 매출이 났는지 보기" style="font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }} <span class="z45-go">›</span></a></td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(c.order) }}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(c.prog) }}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(c.final) }}</td>
