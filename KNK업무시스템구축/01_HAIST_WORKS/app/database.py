@@ -2635,6 +2635,9 @@ def init_db():
                 # z1191z48 (대표 2026-11-17): 이 요청서가 가리키는 수주(orders.id 쉼표) · 요지 한 줄
                 ("order_ids",       "ALTER TABLE prod_requests ADD COLUMN order_ids TEXT"),
                 ("gist",            "ALTER TABLE prod_requests ADD COLUMN gist TEXT"),
+                # z1191z49 (대표 2026-11-17 2차): 묶음 발행 — 대표 줄의 id(대표 줄도 자기 id) · 묶음 이름(MODEL)
+                ("bundle_id",       "ALTER TABLE prod_requests ADD COLUMN bundle_id INTEGER"),
+                ("bundle_model",    "ALTER TABLE prod_requests ADD COLUMN bundle_model TEXT"),
             ]:
                 if _prcol not in prcols:
                     try:

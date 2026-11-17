@@ -11738,11 +11738,148 @@ def _z48_pick_orders(orders, stored_csv="", issued_at=""):
     return [orders[-1]]
 
 
+# z1191z49 (대표 2026-11-17 「2차 진행해」 · 묶음 발행): 한 장에 관리번호 여러 개.
+#   저장 = 관리번호마다 prod_requests 한 줄 그대로 + bundle_id(대표 줄의 id · 대표 줄도 자기 id) → 프로젝트 상세·목록·삭제는 그대로 동작.
+_Z49_PCOLS = ("id, mgmt_code, name, customer_id, customer_name, model_name, equip_name, unit_qty, due_date, order_date, engraving, "
+              "COALESCE(is_archived,0) AS is_archived")
+
+
+def _z49_item(c, proj, stored_csv="", issued_at=""):
+    """품목 표 한 줄(관리번호 하나) — 가리키는 수주·호기·모델·품명·수량·일정·각인."""
+    orders = _z48_project_orders(c, proj["id"])
+    sel = _z48_pick_orders(orders, stored_csv, issued_at)
+    return {"pid": proj["id"], "mgmt": proj.get("mgmt_code") or "", "mg": _z48_mg(proj.get("mgmt_code")),
+            "so_nos": [o["order_no"] for o in sel], "hogi": [o["unit_label"] for o in sel if o.get("unit_label")],
+            "model": proj.get("model_name") or "", "equip": proj.get("equip_name") or "", "qty": proj.get("unit_qty") or 1,
+            "due": str(proj.get("due_date") or "")[:10], "dday": _z48_dday(proj.get("due_date")),
+            "eng": [x.strip() for x in str(proj.get("engraving") or "").replace("\r", "").split("\n") if x.strip()]}
+
+
+def _z49_bundle_rows(c, pr):
+    """제작요청서 줄 → 같은 묶음의 줄들(대표 줄 먼저). 묶음이 아니면 자기 한 줄."""
+    bid = pr.get("bundle_id")
+    if not bid:
+        return [pr]
+    rows = [dict(r) for r in c.execute(
+        "SELECT m.id, m.project_id, COALESCE(m.order_ids,'') AS order_ids, COALESCE(m.created_at,'') AS created_at, m.bundle_id FROM prod_requests m "
+        "LEFT JOIN projects p ON p.id=m.project_id "   # 대표 줄 먼저 · 그 뒤는 관리번호 순(고른 순서가 아니라)
+        "WHERE m.bundle_id=? ORDER BY (CASE WHEN m.id=m.bundle_id THEN 0 ELSE 1 END), COALESCE(p.mgmt_code,''), m.id", (bid,)).fetchall()]
+    return rows or [pr]
+
+
+def _z49_candidates(c, p, exclude_pids, limit=60):
+    """함께 묶을 수 있는 관리번호: 같은 고객사 · 폐기 아님 · 관리번호와 살아 있는 수주가 있음(필수).
+    같은 발주일이면서 제작요청서가 아직 없는 것(suggest)이 맨 앞 → 같은 발주일 → 나머지(최근 순)."""
+    if not p.get("customer_id"):
+        return []
+    out = []
+    pod = str(p.get("order_date") or "")[:10]
+    for r in c.execute("SELECT " + _Z49_PCOLS + ", (SELECT COUNT(*) FROM prod_requests pr WHERE pr.project_id=projects.id) AS n_pr "
+                       "FROM projects WHERE customer_id=? AND id<>? AND COALESCE(is_archived,0)=0 AND COALESCE(mgmt_code,'')<>'' "
+                       "ORDER BY id DESC LIMIT 300", (p["customer_id"], p["id"])).fetchall():
+        d = dict(r)
+        if d["id"] in exclude_pids:
+            continue
+        orders = _z48_project_orders(c, d["id"])
+        if not orders:
+            continue
+        d["orders"] = orders
+        d["same_day"] = bool(pod) and str(d.get("order_date") or "")[:10] == pod
+        d["suggest"] = bool(d["same_day"] and not d["n_pr"])
+        out.append(d)
+    # 권하는 것(같은 날·요청서 없음)은 관리번호 순 · 그 밖은 최근 것부터
+    out.sort(key=lambda d: ((0, str(d.get("mgmt_code") or ""), 0) if d["suggest"] else ((1 if d["same_day"] else 2), "", -d["id"])))
+    return out[:limit] if limit else out
+
+
+def _z49_pick_members(c, pid, bundle_pids, form):
+    """폼에서 고른 「함께 묶을 관리번호」 → [{pid, order_ids}] — 묶을 수 있는 것(같은 고객사·수주 있음)만 받는다."""
+    if not bundle_pids:
+        return []
+    p = c.execute("SELECT id, customer_id, order_date FROM projects WHERE id=?", (pid,)).fetchone()
+    if not p:
+        return []
+    ok = {d["id"]: d for d in _z49_candidates(c, dict(p), set(), limit=None)}
+    out, seen = [], set()
+    for b in bundle_pids:
+        if b == pid or b in seen or b not in ok:
+            continue
+        seen.add(b)
+        mo = str(form.get("m_order_%d" % b) or "").strip()
+        ids = [int(mo)] if (mo.isdigit() and int(mo) in [o["id"] for o in ok[b]["orders"]]) else []
+        out.append({"pid": b, "order_ids": ids})
+    out.sort(key=lambda m: str(ok[m["pid"]].get("mgmt_code") or ""))   # 고른 순서가 아니라 관리번호 순
+    return out
+
+
+def _z49_members_need(c, prid):
+    """수정발행 전에 묻는다: 묶인 관리번호 가운데 관리번호·수주가 없어진 것이 있으면 'member'(필수) · 없으면 ''."""
+    row = c.execute("SELECT bundle_id FROM prod_requests WHERE id=?", (prid,)).fetchone()
+    bid = (row[0] if row else None) or None
+    if not bid:
+        return ""
+    for r in c.execute("SELECT m.project_id, COALESCE(m.order_ids,''), COALESCE(m.created_at,''), COALESCE(p.mgmt_code,'') FROM prod_requests m "
+                       "LEFT JOIN projects p ON p.id=m.project_id WHERE m.bundle_id=? AND m.id<>m.bundle_id", (bid,)).fetchall():
+        if not str(r[3] or "").strip() or not _z48_pick_orders(_z48_project_orders(c, r[0]), r[1], r[2]):
+            return "member"
+    return ""
+
+
+def _z49_apply_update(c, prid, pid, bundle, bundle_model, cust_req, note, gist, now, by):
+    """수정발행: 새로 붙인 관리번호는 묶음에 줄 추가 · 글(요청사항·기타·요지)과 묶음 이름은 묶음의 모든 줄에 같게.
+    묶음이 아니고 붙이는 것도 없으면 아무것도 하지 않는다."""
+    row = c.execute("SELECT bundle_id FROM prod_requests WHERE id=?", (prid,)).fetchone()
+    bid = (row[0] if row else None) or None
+    exist = ({r[0] for r in c.execute("SELECT project_id FROM prod_requests WHERE bundle_id=?", (bid,)).fetchall()} if bid else {pid})
+    add = [b for b in (bundle or []) if b["pid"] not in exist]
+    if add and not bid:
+        c.execute("UPDATE prod_requests SET bundle_id=? WHERE id=?", (prid, prid))
+        bid = prid
+    if not bid:
+        return
+    lead = dict(c.execute("SELECT * FROM prod_requests WHERE id=?", (bid,)).fetchone())
+    for b in add:
+        mp = c.execute("SELECT COALESCE(mgmt_code,'') FROM projects WHERE id=?", (b["pid"],)).fetchone()
+        pick = _z48_pick_orders(_z48_project_orders(c, b["pid"]), ",".join(str(x) for x in (b.get("order_ids") or [])), now)
+        if not mp or not str(mp[0] or "").strip() or not pick:
+            continue   # 관리번호·수주 필수 — 묶을 수 있는 것만 넘어오지만 한 번 더 거른다
+        c.execute(
+            "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, wt_team_ids, user_ids, dept_names, recipients, "
+            "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date, order_ids, gist, bundle_id) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (b["pid"], mp[0], cust_req, note, lead.get("team_ids"), lead.get("wt_team_ids"), lead.get("user_ids"), lead.get("dept_names"),
+             lead.get("recipients"), lead.get("issued_by"), lead.get("issued_by_name"), lead.get("sent_to"), lead.get("dept_count"),
+             lead.get("msg_sent"), lead.get("created_at"), lead.get("created_date"), ",".join(str(o["id"]) for o in pick), (gist or None), bid))
+    c.execute("UPDATE prod_requests SET cust_req=?, note=?, gist=?, bundle_model=?, updated_at=?, updated_by_name=? WHERE bundle_id=?",
+              (cust_req, note, (gist or None), (bundle_model or None), now, by, bid))
+
+
+def _z49_view_ctx(c, p, pr, cur_pid):
+    """화면에 넘길 묶음 값 — items(품목 줄 · 대표 먼저) · cands(더 묶을 수 있는 관리번호) · n_sug(같은 날 발주·요청서 없는 것 수)."""
+    items = []
+    if pr:
+        for r in _z49_bundle_rows(c, pr):
+            if int(r.get("project_id") or 0) == int(p["id"]):
+                proj = p
+            else:
+                x = c.execute("SELECT " + _Z49_PCOLS + " FROM projects WHERE id=?", (r.get("project_id"),)).fetchone()
+                proj = dict(x) if x else None
+            if proj:
+                items.append(_z49_item(c, proj, r.get("order_ids") or "", r.get("created_at") or ""))
+    try:
+        cands = _z49_candidates(c, p, {i["pid"] for i in items} | {p["id"]})
+    except Exception as _e49:
+        print(f"[z1191z49] 묶을 관리번호 읽기 실패: {_e49}")
+        cands = []
+    return {"bitems": items, "cur_pid": cur_pid, "cands": cands, "n_sug": sum(1 for d in cands if d["suggest"])}
+
+
 # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수 입력 사항임」): 발행 전에 묻는 한 곳.
 _Z48_NEED_MSG = {
     "mgmt": "관리번호가 없는 프로젝트입니다 — 관리번호를 먼저 등록해야 제작요청서를 발행할 수 있습니다(관리번호는 필수).",
     "order": "이 관리번호에 등록된 수주가 없습니다 — 수주를 먼저 등록해야 제작요청서를 발행할 수 있습니다(수주번호는 필수).",
     "pick": "수주번호를 하나 이상 골라야 발행할 수 있습니다(수주번호는 필수).",
+    "member": "함께 묶은 관리번호 중에 수주가 없는 것이 있습니다 — 그 관리번호의 수주를 먼저 등록하거나 묶음에서 빼세요(수주번호는 필수).",
 }
 
 
@@ -11838,7 +11975,7 @@ def _z48_co_ctx(co, items):
 
 
 def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False, image_count=0, user_ids=None, prid=None,
-                              order_ids=None, gist=None):
+                              order_ids=None, gist=None, bundle=None, bundle_model=None):
     """v5H226z372→z373 (대표 지시): 제작요청 통보 코어.
     제작요청서 = 프로젝트 생성의 출발점으로 일원화 — 신규 등록(발행) 직후 호출:
       ① 작업일정표 '제작요청(prod_request)' 단계 자동 체크(누가·언제·요청사항)
@@ -11886,6 +12023,44 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         if not str(p.get("mgmt_code") or "").strip() or not _z48_picked:
             return {"ok": False, "error": "need_mgmt_order",
                     "need": ("mgmt" if not str(p.get("mgmt_code") or "").strip() else "order")}
+        # z1191z49 (대표 2026-11-17 2차 · 묶음 발행): 함께 내보내는 다른 관리번호들.
+        #   새 발행 = 넘겨받은 bundle · 수정발행 = 저장된 묶음 줄에서 읽음. 구성원도 관리번호·수주가 있어야 한다(필수).
+        _z49_src = []
+        _z49_bm = (bundle_model or "").strip()
+        if record:
+            _z49_src = [dict(m) for m in (bundle or []) if isinstance(m, dict)]
+        elif prid is not None and str(prid).strip().isdigit():
+            try:
+                for _br in c.execute("SELECT m.project_id, COALESCE(m.order_ids,''), COALESCE(m.created_at,'') FROM prod_requests m "
+                                     "LEFT JOIN projects mp ON mp.id=m.project_id "
+                                     "WHERE m.bundle_id IS NOT NULL AND m.bundle_id=(SELECT bundle_id FROM prod_requests WHERE id=?) AND m.id<>? "
+                                     "ORDER BY COALESCE(mp.mgmt_code,''), m.id", (int(prid), int(prid))).fetchall():
+                    _z49_src.append({"pid": _br[0], "order_ids": _z48_ids(_br[1]), "at": _br[2]})
+                if bundle_model is None:
+                    _bmr = c.execute("SELECT COALESCE(bundle_model,'') FROM prod_requests WHERE id=?", (int(prid),)).fetchone()
+                    _z49_bm = ((_bmr[0] if _bmr else "") or "").strip()
+            except Exception as _z49e:
+                print(f"[z1191z49] 묶음 줄 읽기 실패: {_z49e}")
+        _z49_members = []
+        _z49_seen = {int(pid)}
+        for _m in _z49_src:
+            try:
+                _mpid = int(_m.get("pid") or 0)
+            except Exception:
+                _mpid = 0
+            if _mpid <= 0 or _mpid in _z49_seen:
+                continue
+            _z49_seen.add(_mpid)
+            _mp = c.execute("SELECT " + _Z49_PCOLS + " FROM projects WHERE id=?", (_mpid,)).fetchone()
+            if not _mp:
+                continue
+            _mp = dict(_mp)
+            _mo = _z48_pick_orders(_z48_project_orders(c, _mpid), ",".join(str(x) for x in (_m.get("order_ids") or [])), _m.get("at") or _z48_at)
+            if not str(_mp.get("mgmt_code") or "").strip() or not _mo:
+                return {"ok": False, "error": "need_mgmt_order", "need": "member", "who": (_mp.get("mgmt_code") or str(_mpid))}
+            _z49_members.append({"pid": _mpid, "p": _mp, "picked": _mo, "so_nos": [o["order_no"] for o in _mo]})
+        _z49_n = len(_z49_members)
+        _z49_all_so = list(so_nos) + [x for _m in _z49_members for x in _m["so_nos"]]
         # 통보 부서 — 아무 대상도 안 골랐을 때만 전부서(활성 인원 있는 팀 전체)
         tids = [int(t) for t in (team_ids or []) if str(t).strip().isdigit() and int(t) > 0]
         # v5H226z794 (대표 지시): 개별 지정 인원 — 사업부 필터 없이 그 사람에게 정확히 통보(팀통보와 합집합).
@@ -11921,6 +12096,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     _stage_warn = ""
     # ② 통보 — 단가·금액 제외(생산에 필요한 자료경로·모델·품명·수량·납기·요청사항만)
     title = f"📋 제작요청{' [수정]' if is_update else ''} [{mgmt}] {model}"
+    if _z49_n:   # z1191z49 묶음: 「020T2611 외 3건」 + 묶음 이름
+        title = f"📋 제작요청{' [수정]' if is_update else ''} [{mgmt} 외 {_z49_n}건] {_z49_bm or model}"
     cust_disp = p.get("customer_name") or "—"
     # v5H226z882 (대표 지시): 수정발행 흑백처리·수정사항 diff용 표시항목 스냅샷 + 판정값.
     #   _diff_card = 이음 카드와 동일한 8개 표시항목(수량·납기·발주유형·모델·각인·장비·고객사·수주번호).
@@ -11929,7 +12106,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         "qty": (p.get("unit_qty") or 1), "due": due,
         "po_type": (str(p.get("po_type") or "신규").strip() or "신규"),
         "model": model, "engraving": eng, "equip": (p.get("equip_name") or ""),
-        "customer": cust_disp, "so_nos": list(so_nos),
+        "customer": cust_disp, "so_nos": list(_z49_all_so),   # z1191z49: 묶음이면 묶음의 수주번호 전부
     }
     _diff_card_json = _json.dumps(_diff_card, ensure_ascii=False)
     _is_rev = 1 if is_update else 0
@@ -11946,11 +12123,20 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     if cc_nm:
         _cust_line += f" · 담당자 {cc_nm}{(' ' + cc_pos) if cc_pos else ''}"
     body += _cust_line + "\n"
-    body += f"■ 품명 : {pname} · 수량 {qty}\n"
-    _due_line = f"■ 일정 : {due}"
-    if so_nos:
-        _due_line += f" · 수주 {', '.join(so_nos)}"
-    body += _due_line + "\n"
+    if _z49_n:   # z1191z49 묶음: 관리번호마다 한 줄
+        body += f"■ 품목 {_z49_n + 1}건" + (f" · MODEL {_z49_bm}" if _z49_bm else "") + "\n"
+        body += f"  1. {mgmt} · {(p.get('equip_name') or pname)} · 수량 {qty} · {due}" + (f" · 수주 {', '.join(so_nos)}" if so_nos else "") + "\n"
+        for _i49, _m in enumerate(_z49_members, 2):
+            _q49 = _m["p"].get("unit_qty") or 1
+            _d49 = (str(_m["p"].get("due_date") or "")[:10]) or "—"
+            body += (f"  {_i49}. {_m['p'].get('mgmt_code')} · {(_m['p'].get('equip_name') or _m['p'].get('name') or '—')} · 수량 {_q49} · {_d49}"
+                     f" · 수주 {', '.join(_m['so_nos'])}\n")
+    else:
+        body += f"■ 품명 : {pname} · 수량 {qty}\n"
+        _due_line = f"■ 일정 : {due}"
+        if so_nos:
+            _due_line += f" · 수주 {', '.join(so_nos)}"
+        body += _due_line + "\n"
     if eng:
         body += f"■ 각인 : {eng}\n"
     if spath:
@@ -12145,6 +12331,17 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                      (user.get("id") or None), by_name, sent_to, dept_count, 0, now_str, now_str[:10],
                      (_z48_oid_csv or None), (_z48_gist or None)))   # z1191z48
                 _pr_new_id = _cur.lastrowid or 0
+                # z1191z49 묶음: 대표 줄에 묶음 표시 + 구성원 관리번호마다 같은 글의 줄(가리키는 수주는 각자)
+                if _pr_new_id and _z49_n:
+                    c.execute("UPDATE prod_requests SET bundle_id=?, bundle_model=? WHERE id=?", (_pr_new_id, (_z49_bm or None), _pr_new_id))
+                    for _m in _z49_members:
+                        c.execute(
+                            "INSERT INTO prod_requests(project_id, mgmt_code, cust_req, note, team_ids, wt_team_ids, user_ids, dept_names, recipients, "
+                            "issued_by, issued_by_name, sent_to, dept_count, msg_sent, created_at, created_date, order_ids, gist, bundle_id, bundle_model) "
+                            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (_m["pid"], _m["p"].get("mgmt_code"), cust_req, note, ",".join(str(t) for t in sorted(_dept_ids)), _wt_csv, _uid_csv, dept_names, recipients,
+                             (user.get("id") or None), by_name, sent_to, dept_count, 0, now_str, now_str[:10],
+                             ",".join(str(o["id"]) for o in _m["picked"]), (_z48_gist or None), _pr_new_id, (_z49_bm or None)))
                 # v5H226z882 (대표 지시): 신규발행은 통보 시점에 prid 가 없어 prod_prid=NULL 로 넣었음 → 지금 확정된 prid 로 백필.
                 #   이후 이 요청서를 '수정발행'하면 이 알림들이 흑백처리 대상으로 정확히 매칭됨.
                 if _pr_new_id and _new_notif_ids:
@@ -12178,6 +12375,19 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                 print(f"[z977] 제작요청서 발행 → 프로젝트 {pid} 상태 수주확정→진행중")
     except Exception as _pe977:
         print(f"[z977 상태승격 ERR] {_pe977}")
+    for _m in _z49_members:   # z1191z49 묶음: 구성원 프로젝트도 같은 규칙(수주확정 → 진행중)
+        try:
+            with db_session() as _c977b:
+                _st977b = _c977b.execute("SELECT COALESCE(status,'') FROM projects WHERE id=?", (_m["pid"],)).fetchone()
+                if _st977b and str(_st977b[0]).strip() == "수주확정":
+                    _c977b.execute("UPDATE projects SET status='진행중' WHERE id=?", (_m["pid"],))
+                    try:
+                        _logi.log_project_change(_c977b, _m["pid"], (user or {}).get("id"), "상태",
+                                                 "수주확정", "진행중", "제작요청서 발행(묶음) → 자동 승격")
+                    except Exception:
+                        pass
+        except Exception as _pe977b:
+            print(f"[z1191z49 상태승격 ERR] {_pe977b}")
     # 같은 '한 번의 발행'을 유일 식별(수신자용·발행자 본인용 2번 호출이 같은 _card 를 공유) — 메신저가 '이전 발행분만' 흑백처리하도록.
     _issue_token = _dt2.now().strftime("%Y%m%d%H%M%S%f")
     # v5H226z391 (대표 지시): ③ 메신저(KNK Eum) 통보 — 'WORKS 알림' 봇이 담당자에게 1:1 푸시.
@@ -12211,6 +12421,14 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             #   is_revision = 수정발행 여부(카드 상단 '수정발행' 뱃지). 발행측이 직접 표기(수신자·발행자 본인 카드 모두 일관).
             "prid": (_eff_prid or None), "issue_token": _issue_token, "is_revision": bool(is_update),
         }
+        if _z49_n:   # z1191z49 묶음: 지금 카드 칸으로도 묶음인 것이 보이게(관리번호 「외 N건」 · 수주번호 전부) + 새 칸 items(이음이 그리면 품목 줄)
+            _card["mgmt"] = f"{mgmt} 외 {_z49_n}건"
+            _card["so_nos"] = list(_z49_all_so)
+            _card["model"] = _z49_bm or model
+            _card["items"] = ([{"mgmt": mgmt, "so_nos": list(so_nos), "model": model, "equip": (p.get("equip_name") or ""), "qty": qty, "due": due}]
+                              + [{"mgmt": _m["p"].get("mgmt_code"), "so_nos": list(_m["so_nos"]), "model": (_m["p"].get("model_name") or ""),
+                                  "equip": (_m["p"].get("equip_name") or ""), "qty": (_m["p"].get("unit_qty") or 1),
+                                  "due": (str(_m["p"].get("due_date") or "")[:10])} for _m in _z49_members])
         _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=_card)
         # v5H226z812 (대표 지시): 발행자 본인에게도 이음 'WORKS 알림' 카드 — 벨(z804)+메신저 둘 다. 통보 수(msg_sent)엔 미포함.
         #   z881: 본인을 통보대상으로 골랐으면(_self_selected) 본인 사번이 emp_nos 에 포함돼 위에서 이미 카드 수신 → receipt 생략.
@@ -30923,6 +31141,17 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _add_user_ids = [int(x) for x in form.getlist("add_user_ids") if str(x).strip().isdigit() and int(x) > 0]
     # v5H226z817 (대표 지시 ①): 옛 발행분 — 부서 전체 폴백 대신 '고른 대상에게만' 정밀 전환
     _precise_override = (form.get("precise_override") or "").strip() == "1"
+    # z1191z49 묶음: 구성원 줄 번호로 들어와도 대표 줄(=묶음 전체)에 적용
+    try:
+        with db_session() as _c49:
+            _lr49 = _c49.execute("SELECT l.id, l.project_id FROM prod_requests m JOIN prod_requests l ON l.id=m.bundle_id "
+                                 "WHERE m.id=? AND m.project_id=? AND m.bundle_id IS NOT NULL AND m.bundle_id<>m.id", (prid, pid)).fetchone()
+        if _lr49:
+            prid, pid = int(_lr49[0]), int(_lr49[1])
+    except Exception as _e49:
+        print(f"[z1191z49] 대표 줄 찾기 실패: {_e49}")
+    _z49_bp = [int(x) for x in form.getlist("bundle_pids") if str(x).strip().isdigit() and int(x) > 0]
+    _z49_bm = (form.get("bundle_model") or "").strip()[:120]
     # z1191z48: 요지 · 이 요청서가 가리키는 수주(체크한 것)
     _z48_gist = (form.get("gist") or "").strip()[:200]
     _z48_oids = [int(x) for x in form.getlist("order_ids") if str(x).strip().isdigit() and int(x) > 0]
@@ -30936,7 +31165,8 @@ async def prod_request_update(request: Request, pid: int, prid: int):
         return base + ("&" if "?" in base else "?") + qs
     # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 아무것도 저장하기 전에 묻고, 안 되면 까닭과 함께 수정 화면으로 돌려보낸다
     with db_session() as _c48:
-        _z48_nd = _z48_need(_c48, pid, _z48_oids, must_pick=True)
+        _z48_nd = _z48_need(_c48, pid, _z48_oids, must_pick=True) or _z49_members_need(_c48, prid)   # z1191z49: 묶인 관리번호도 수주 필수
+        _z49_bundle = _z49_pick_members(_c48, pid, _z49_bp, form)   # z1191z49: 새로 붙일 관리번호(같은 고객사 · 수주 있음)
     if _z48_nd:
         return RedirectResponse(_dest("edit=1&prod_need=" + _z48_nd), 303)
     _team_ids = []
@@ -30984,6 +31214,8 @@ async def prod_request_update(request: Request, pid: int, prid: int):
             c.execute("UPDATE prod_requests SET gist=? WHERE id=?", ((_z48_gist or None), prid))
             if _z48_ok:
                 c.execute("UPDATE prod_requests SET order_ids=? WHERE id=?", (",".join(str(x) for x in _z48_ok), prid))
+            # z1191z49 묶음: 새로 붙인 관리번호는 줄 추가 · 글(요청사항·기타·요지)과 묶음 이름은 묶음의 모든 줄에 같게
+            _z49_apply_update(c, prid, pid, _z49_bundle, _z49_bm, _cust_req, _note, _z48_gist, _now, _by)
             # v5H226z815 (대표 지시·[[feedback_user_ref_by_id]]): 정밀 재통보 — 개별선택자는 그 사람 id로만(부서 확대 금지)
             _st_wt = [int(x) for x in str(pr.get("wt_team_ids") or "").replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
             _st_uid = [int(x) for x in str(pr.get("user_ids") or "").replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
@@ -31078,6 +31310,8 @@ async def prod_request_new(request: Request, pid: int):
     # v5H226z817 (대표 지시 ②): 새 작성 시 통보 대상 선택 — 안 고르면 None → 현행(사업부 전 부서). 개별 지정 시 그 사람에게만(z815 정밀저장·부서 확대 없음).
     _sel_team_ids = [int(x) for x in form.getlist("add_team_ids") if str(x).strip().isdigit() and int(x) > 0]
     _sel_user_ids = [int(x) for x in form.getlist("add_user_ids") if str(x).strip().isdigit() and int(x) > 0]
+    _z49_bp = [int(x) for x in form.getlist("bundle_pids") if str(x).strip().isdigit() and int(x) > 0]   # z1191z49 묶음
+    _z49_bm = (form.get("bundle_model") or "").strip()[:120]
     # z1191z48: 요지 · 이 요청서가 가리키는 수주(체크한 것 · 없으면 가장 최근 수주)
     _z48_gist = (form.get("gist") or "").strip()[:200]
     _z48_oids = [int(x) for x in form.getlist("order_ids") if str(x).strip().isdigit() and int(x) > 0]
@@ -31088,6 +31322,7 @@ async def prod_request_new(request: Request, pid: int):
     # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 아무것도 저장하기 전에 묻고, 안 되면 까닭과 함께 작성 화면으로 돌려보낸다
     with db_session() as _c48:
         _z48_nd = _z48_need(_c48, pid, _z48_oids, must_pick=True)
+        _z49_bundle = _z49_pick_members(_c48, pid, _z49_bp, form)   # z1191z49: 함께 묶을 관리번호(같은 고객사 · 수주 있음)
     if _z48_nd:
         return RedirectResponse(_dest("new=1&prod_need=" + _z48_nd), 303)
     # 1) 프로젝트 서술필드 갱신 — 통보 본문·상세 표시에 새 값 반영(관리번호 불변). 수정 라우트와 동일 로직.
@@ -31132,7 +31367,8 @@ async def prod_request_new(request: Request, pid: int):
         _res = _prod_request_notify_core(int(pid), _cust_req, _note, (_sel_team_ids or None), u,
                                          record=True, is_update=False, image_count=0,
                                          user_ids=(_sel_user_ids or None),
-                                         order_ids=(_z48_oids or None), gist=_z48_gist)
+                                         order_ids=(_z48_oids or None), gist=_z48_gist,
+                                         bundle=(_z49_bundle or None), bundle_model=_z49_bm)
         if _res.get("ok"):
             _newid = _res.get("pr_id") or 0
             _qs = ([f"prid={_newid}"] if _newid else []) + [
@@ -31144,6 +31380,8 @@ async def prod_request_new(request: Request, pid: int):
                 _qs.append("prod_msgerr=1")
             if _res.get("pr_save_err"):
                 _qs.append("prod_saveerr=1")
+        elif _res.get("error") == "need_mgmt_order":   # z1191z49: 묶은 관리번호에 수주가 없음 등(필수)
+            _qs = ["new=1", "prod_need=" + str(_res.get("need") or "order")]
         else:
             _qs.append("prod_renotifyerr=1")
     except Exception as _e:
@@ -31285,10 +31523,11 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         if not str(p.get("customer_name") or "").strip() and p.get("_cust_join"):
             p["customer_name"] = p["_cust_join"]
         # v5H226z770: 목록 카드에서 특정 요청서(prid)로 진입 — 없거나 불일치면 최신으로 폴백.
-        _cols = ("SELECT id, mgmt_code, cust_req, note, dept_names, recipients, issued_by, issued_by_name, "
+        _cols = ("SELECT id, project_id, mgmt_code, cust_req, note, dept_names, recipients, issued_by, issued_by_name, "
                  "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name, "
                  "COALESCE(wt_team_ids,'') AS wt_team_ids, COALESCE(user_ids,'') AS user_ids, "
-                 "COALESCE(order_ids,'') AS order_ids, COALESCE(gist,'') AS gist "   # z1191z48
+                 "COALESCE(order_ids,'') AS order_ids, COALESCE(gist,'') AS gist, "   # z1191z48
+                 "bundle_id, COALESCE(bundle_model,'') AS bundle_model "               # z1191z49
                  "FROM prod_requests WHERE project_id=? ")
         _pr = None
         if prid and prid > 0:
@@ -31296,6 +31535,20 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         if not _pr:
             _pr = c.execute(_cols + "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
         pr = dict(_pr) if _pr else None
+        # z1191z49 묶음: 구성원 관리번호로 들어와도 같은 한 장 — 대표 줄과 대표 프로젝트로 바꿔 그린다(새 작성 new=1 은 그대로)
+        _z49_cur = pid
+        if pr and pr.get("bundle_id") and int(pr["bundle_id"]) != int(pr["id"]) and request.query_params.get("new") != "1":
+            _lead = c.execute(_cols.replace("WHERE project_id=? ", "WHERE id=? "), (int(pr["bundle_id"]),)).fetchone()
+            _lp = None
+            if _lead:
+                _lp = c.execute("SELECT p.*, cu.name AS _cust_join FROM projects p "
+                                "LEFT JOIN customers cu ON cu.id = p.customer_id WHERE p.id=?", (dict(_lead)["project_id"],)).fetchone() if "project_id" in dict(_lead) else None
+            if _lead and _lp and not int(dict(_lp).get("is_archived") or 0):
+                pr = dict(_lead)
+                p = dict(_lp)
+                if not str(p.get("customer_name") or "").strip() and p.get("_cust_join"):
+                    p["customer_name"] = p["_cust_join"]
+                pid = int(p["id"])
         if pr:  # v5H226z800 (대표 지시·규칙): 발행자 = 이름 직책 부서 [[knk_name_display_rule]]
             pr["issued_by_disp"] = user_disp_by_id(c, pr.get("issued_by"), pr.get("issued_by_name") or "")
         # v5H226z787 (대표 지시): 신규 작성 모드 — new=1(이 프로젝트에 추가 발행) 또는 제작요청서 없음 →
@@ -31315,6 +31568,7 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
                 pr_images = []
         # z1191z48 (대표 2026-11-17): 종이 양식 화면에 쓸 값 — 가리키는 수주(수주번호·호기) · 구분 · 남은 날 · 수정 내용
         _z48 = _z48_view_ctx(c, p, pr)
+        _z48.update(_z49_view_ctx(c, p, pr, _z49_cur))   # z1191z49: 묶음 품목 줄 · 묶을 수 있는 관리번호
         _z48["need_msg"] = _Z48_NEED_MSG.get(request.query_params.get("prod_need") or "", "")   # z48c: 막힌 까닭(돌려보낼 때)
     # v5H226z773: 등록 시 작성한 정보의 사람친화 라벨(형태·사업부·거래구분) — 코드값을 그대로 노출하지 않음
     _FORM_LBL = {"ASSEMBLY": "🏭 완제품", "SEMI": "📦 제품", "PARTS": "🧰 상품", "ETC": "🗂 기타"}
