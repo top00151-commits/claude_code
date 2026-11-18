@@ -560,10 +560,29 @@ def _dup_count_sql(c) -> str:
 def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                starred=None, unread=None, date_from: str = "", date_to: str = "",
                has_att=None, cust: str = "", limit: int = 200, offset: int = 0, only_ids=None,
-               senders=None):
+               senders=None, qf: str = "all", with_sent: bool = False, who: str = "", dom: str = "",
+               q_senders=None, noad=None, count_only: bool = False):
+    """받은편지함 목록.
+    (11-18 대표 「쉽게 찾기」) q = 띄어 쓴 낱말 **모두** 들어간 메일(낱말마다 보낸 사람·받는 사람·참조·제목·본문·첨부 파일 이름 중 한 곳) ·
+    qf = all|from|subj|att(어디서 찾을지) · with_sent = 보낸 메일도 함께 · who/dom = 이 사람·이 회사와 주고받은 메일 ·
+    q_senders = 낱말마다 「그 이름의 폴더에 든 보낸 주소」(회사 이름을 치면 영문 주소로 온 메일도) · noad = 빼고 볼 광고·알림 주소 ·
+    count_only = 통수만."""
     _ensure_security_cols(c)
-    where = "user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0"
+    who = (who or "").strip().lower()
+    dom = (dom or "").strip().lower().lstrip("@")
+    _sent_ok = bool(with_sent or who or dom) and senders is None and not cust and only_ids is None
+    if _sent_ok:
+        where = ("user_id=? AND is_deleted=0 AND (direction='out' OR (direction='in' AND COALESCE(is_blocked,0)=0))")
+    else:
+        where = "user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0"
     args = [user_id]
+    if who:
+        where += " AND (lower(from_email)=? OR lower(COALESCE(to_email,'')) LIKE ? OR lower(COALESCE(cc,'')) LIKE ?)"
+        args += [who, "%" + who + "%", "%" + who + "%"]
+    if dom:
+        where += (" AND (lower(from_email) LIKE ? OR lower(COALESCE(to_email,'')) LIKE ? "
+                  "OR lower(COALESCE(cc,'')) LIKE ?)")
+        args += ["%@" + dom, "%@" + dom + "%", "%@" + dom + "%"]
     if category and category in CATEGORIES:
         where += " AND category=?"
         args.append(category)
@@ -618,21 +637,76 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
         c.execute("DELETE FROM _mf_senders")
         c.executemany("INSERT OR IGNORE INTO _mf_senders(e) VALUES(?)", [(x,) for x in _ss])
         where += " AND lower(from_email) IN (SELECT e FROM _mf_senders)"
-    q = (q or "").strip()
-    if q:
-        where += " AND (from_email LIKE ? OR from_name LIKE ? OR subject LIKE ? OR body_text LIKE ?)"
-        like = f"%{q}%"
-        args += [like, like, like, like]
+    # 광고·알림 빼고 보기(11-18) — 「보낸 곳별 정리」가 광고·알림으로 본 주소(받은 메일만 해당)
+    if noad:
+        _na = sorted({(x or "").strip().lower() for x in noad if x})
+        if _na:
+            c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_noad(e TEXT PRIMARY KEY)")
+            c.execute("DELETE FROM _mf_noad")
+            c.executemany("INSERT OR IGNORE INTO _mf_noad(e) VALUES(?)", [(x,) for x in _na])
+            where += " AND NOT (direction='in' AND lower(from_email) IN (SELECT e FROM _mf_noad))"
+    terms = search_terms(q)
+    if terms:
+        qf = qf if qf in ("all", "from", "subj", "att") else "all"
+        _att = ("EXISTS(SELECT 1 FROM mail_attachments a WHERE a.mail_id=mail_messages.id "
+                "AND COALESCE(a.is_inline,0)=0 AND a.filename LIKE ?)")
+        _qs = list(q_senders or [])
+        if any(_qs):
+            c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_qs(t INTEGER, e TEXT, PRIMARY KEY(t, e))")
+            c.execute("DELETE FROM _mf_qs")
+        for i, t in enumerate(terms):
+            like = "%" + t + "%"
+            if qf == "from":
+                parts = ["from_email LIKE ?", "from_name LIKE ?", "(direction='out' AND COALESCE(to_email,'') LIKE ?)"]
+                pargs = [like, like, like]
+            elif qf == "subj":
+                parts, pargs = ["subject LIKE ?"], [like]
+            elif qf == "att":
+                parts, pargs = [_att], [like]
+            else:
+                parts = ["from_email LIKE ?", "from_name LIKE ?", "subject LIKE ?", "body_text LIKE ?",
+                         "COALESCE(to_email,'') LIKE ?", "COALESCE(cc,'') LIKE ?", _att]
+                pargs = [like] * 7
+            ss = sorted({(x or "").strip().lower() for x in (_qs[i] if i < len(_qs) else None) or [] if x})
+            if ss and qf in ("all", "from"):
+                c.executemany("INSERT OR IGNORE INTO _mf_qs(t, e) VALUES(?,?)", [(i, x) for x in ss])
+                parts.append("(direction='in' AND lower(from_email) IN (SELECT e FROM _mf_qs WHERE t=%d))" % i)
+            where += " AND (" + " OR ".join(parts) + ")"
+            args += pargs
+    if count_only:
+        return int(c.execute(f"SELECT COUNT(*) FROM mail_messages WHERE {where}", args).fetchone()[0] or 0)
     rows = c.execute(
-        f"""SELECT id, from_email, from_name, subject, category, lang,
+        f"""SELECT id, direction, from_email, from_name, to_email, cc, subject, category, lang,
                    is_read, is_starred, received_at, COALESCE(risk_level,0) AS risk_level,
                    {_dup_count_sql(c)} AS dup_count,
+                   (SELECT COUNT(*) FROM mail_attachments a WHERE a.mail_id=mail_messages.id
+                      AND COALESCE(a.is_inline,0)=0) AS att_n,
                    substr(COALESCE(summary,''),1,160) AS summary_short
             FROM mail_messages WHERE {where}
             ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?""",
         (*args, limit, offset),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def search_terms(q) -> list:
+    """찾기 칸 글 → 낱말(띄어쓰기로 나눔 · 「따옴표 안」은 한 낱말 · 같은 낱말 한 번 · 최대 6개)."""
+    import shlex
+    q = (q or "").strip()
+    if not q:
+        return []
+    try:
+        raw = shlex.split(q.replace("“", '"').replace("”", '"'))
+    except Exception:
+        raw = q.split()
+    out = []
+    for t in raw:
+        t = t.strip()
+        if t and t.lower() not in [x.lower() for x in out]:
+            out.append(t[:60])
+        if len(out) >= 6:
+            break
+    return out
 
 
 # ── 대화 묶기(스레드) — 같은 제목(RE/FW 접두 제거)으로 받은 메일을 한 대화로 (B1, 2026-06-14) ──

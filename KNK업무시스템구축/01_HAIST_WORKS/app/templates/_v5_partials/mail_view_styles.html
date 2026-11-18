@@ -1,3 +1,5 @@
+{# 글자 크게(11-18 · ⚙ 설정·정리에서 켬 · 이 기기에만 기억) — 그리기 전에 바로 #}
+<script>try{ if(localStorage.getItem('knkmail.big')==='1') document.documentElement.classList.add('mbx-big'); }catch(e){}</script>
 <style>
   /* 메일 내용 보기 — 풀페이지(mail_view)와 읽기 창(mail_inbox 우측 pane) 공용 */
   .mv-head{border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px 18px;margin-bottom:14px}
@@ -35,6 +37,22 @@
   .mv-more-box .warn{color:#9a3412}
   .mv-more-box hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
   @media print{.mv-more{display:none}}
+  /* 11-18 보낸 사람 눌러 모아 보기 · 이전 대화 접기 */
+  .mv-who-wrap{position:relative}
+  .mv-who{color:#1d4ed8;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+  .mv-who-pop{position:absolute;left:0;top:calc(100% + 6px);z-index:40;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.14);padding:6px;min-width:260px;display:flex;flex-direction:column}
+  .mv-who-pop[hidden]{display:none}
+  .mv-who-pop a{padding:8px 11px;border-radius:7px;font-size:13.5px;color:var(--ink);text-decoration:none;white-space:nowrap}
+  .mv-who-pop a:hover{background:#f3f4f6}
+  .mv-who-h{font-size:12px;color:var(--mute);font-weight:700;padding:5px 11px 3px}
+  .mv-quote{margin-top:12px;border-top:1px dashed #d1d5db;padding-top:8px}
+  .mv-quote>summary{cursor:pointer;color:#6b7280;font-size:13px;list-style:none}
+  .mv-quote>summary::-webkit-details-marker{display:none}
+  .mv-quote[open]>summary{margin-bottom:8px}
+  .mv-quote .mv-body{color:#4b5563}
+  @media print{.mv-who-pop{display:none}.mv-quote{display:block}}
+  html.mbx-big .mv-body,html.mbx-big .mv-meta{font-size:16px}
+  html.mbx-big .mv-subj{font-size:22px}
   .mv-trans{border:1px dashed #c7d2fe;background:#f5f7ff;border-radius:10px;padding:12px 14px;margin-top:12px;display:none}
   .mv-viewtabs{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
   .mv-vtab{font-size:12.5px;padding:5px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}

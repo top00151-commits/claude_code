@@ -96,6 +96,46 @@
   .mf-g:not(.showzero) .mf-k.mf-zero:not(.on){display:none}
   .mf-g.showzero .mf-zero-more{display:none}
   .mbx-fab{display:none}
+  /* ── 11-18 2단계 쉽게 찾기·구분·보기 ── */
+  .mbx-adv{flex-direction:column;align-items:stretch;gap:8px;min-width:520px;left:auto;right:0}
+  .mbx-adv-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .mbx-adv-row>b{width:66px;font-size:12.5px;color:#374151}
+  .mbx-rad{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer;background:#fff}
+  .mbx-rad input{display:none}
+  .mbx-rad.on,.mbx-rad:has(input:checked){background:var(--ink);color:#fff;border-color:var(--ink)}
+  .mbx-res{background:#fefce8;border-bottom:1px solid #fde68a;padding:8px 12px;font-size:13px;line-height:1.6;color:#713f12}
+  .mbx-res b{color:#422006}.mbx-res-n{margin-left:2px}
+  .mbx-res-fd{color:#854d0e}
+  .mbx-res-x{margin-left:8px;color:#1d4ed8;text-decoration:none;font-weight:600;white-space:nowrap}
+  .mbx-chips-n{margin-left:auto;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap}
+  .mbx-day{position:sticky;top:44px;z-index:1;background:#f8fafc;color:#64748b;font-size:12px;font-weight:700;padding:5px 12px;border-bottom:1px solid var(--line)}
+  .mbx-row.robot .mbx-main,.mbx-headlink.robot .mbx-main{opacity:.6}
+  .mbx-cc{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#ede9fe;color:#5b21b6;white-space:nowrap}
+  .mbx-ad{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#f3f4f6;color:#6b7280;white-space:nowrap}
+  .mbx-att{flex:none;margin-left:auto;font-size:12px;color:#475569;white-space:nowrap}
+  .mbx-sent{font-size:11px;font-weight:700;color:#0f766e;background:#ccfbf1;border-radius:6px;padding:1px 6px;vertical-align:middle}
+  .mbx-fdtag.fk-customer,.mbx-fdtag.fk-other_customer{background:#dbeafe;color:#1e40af}
+  .mbx-fdtag.fk-vendor{background:#dcfce7;color:#166534}
+  .mbx-fdtag.fk-staff{background:#f1f5f9;color:#334155}
+  .mf-dot{width:9px;height:9px;border-radius:3px;flex:none;background:#cbd5e1}
+  .mf-dot.fk-customer,.mf-dot.fk-other_customer{background:#3b82f6}
+  .mf-dot.fk-vendor{background:#22c55e}
+  .mf-dot.fk-staff{background:#94a3b8}
+  .mf-dot.fk-gen{background:#f59e0b}
+  mark.mbx-hl{background:#fde047;color:inherit;padding:0 1px;border-radius:2px}
+  .mbx-morerows{padding:14px;text-align:center}
+  .mbx-morerows .btn{min-width:220px}
+  /* 글씨(11-18 「쉽게 보기」) — 제목 14.5 · 보낸 사람 13 · 시간 12 · ⚙ 설정·정리의 「글자 크게」면 한 단계 더 */
+  .mbx-subj{font-size:14.5px}
+  .mbx-from{font-size:13px}
+  .mbx-time{font-size:12px}
+  .mbx-sum{font-size:12px}
+  .mbx-fdtag{font-size:11.5px}
+  html.mbx-big .mbx-subj{font-size:16.5px}
+  html.mbx-big .mbx-from{font-size:14.5px}
+  html.mbx-big .mbx-time,html.mbx-big .mbx-sum,html.mbx-big .mbx-att{font-size:13.5px}
+  html.mbx-big .mbx-fold{font-size:14px}
+  @media(max-width:900px){.mbx-day{top:0}}
   /* 대화 묶기(스레드) */
   .mbx-thread{border-bottom:1px solid var(--line)}
   .mbx-thread .mbx-row{border-bottom:0}
@@ -138,8 +178,9 @@
     /* 메일 목록 — 손가락에 맞게 큼직하게 */
     .mbx-row{padding:13px 12px;gap:11px}
     .mbx-child{padding-left:24px !important}
-    .mbx-subj{font-size:15px}
-    .mbx-from{font-size:13px;max-width:58%}
+    .mbx-subj{font-size:15.5px}
+    .mbx-from{font-size:14px;max-width:58%}
+    .mbx-adv{min-width:0;width:92vw}
     .mbx-sum{font-size:12.5px}
     .mbx-time{font-size:12px}
     .mbx-badge{font-size:11px}
@@ -162,7 +203,7 @@
   <div class="mbx-topbar">
     <form class="mbx-search" method="get" action="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}">
       <input type="text" name="q" value="{{ q|default('') }}" autocomplete="off"
-             placeholder="🔍 {{ '받는사람' if box=='sent' else '보낸사람' }}·제목·본문 검색">
+             placeholder="🔍 {{ '받는사람·제목·본문으로 찾기' if box=='sent' else '사람·회사·제목·내용·첨부 이름으로 찾기 (띄어 쓰면 모두 들어간 메일)' }}">
       {% if box=='in' %}
       <input type="hidden" name="cat" value="{{ cur_cat|default('') }}">
       <input type="hidden" name="cust" value="{{ cur_cust|default('') }}">
@@ -170,20 +211,36 @@
       {% if cur_att|default(false) %}<input type="hidden" name="att" value="1">{% endif %}
       {% if cur_unread|default(false) %}<input type="hidden" name="unread" value="1">{% endif %}
       {% if cur_star|default(false) %}<input type="hidden" name="star" value="1">{% endif %}
+      {% if cur_noad|default(false) %}<input type="hidden" name="noad" value="1">{% endif %}
+      {% if cur_who|default('') %}<input type="hidden" name="who" value="{{ cur_who }}">{% endif %}
+      {% if cur_dom|default('') %}<input type="hidden" name="dom" value="{{ cur_dom }}">{% endif %}
       {% endif %}
       <button type="submit" class="btn btn-secondary">검색</button>
       {% if box=='in' %}
-      <details class="mbx-more"{% if cur_df|default('') or cur_dt|default('') %} open{% endif %}>
-        <summary title="받은 날짜로 찾기">📅 날짜{% if cur_df|default('') or cur_dt|default('') %} ●{% endif %} ▾</summary>
-        <div class="mbx-more-box">받은 날짜
-          <input type="date" name="df" value="{{ cur_df|default('') }}" title="받은날짜 시작">
-          <span style="color:var(--mute);font-size:12px;">~</span>
-          <input type="date" name="dt" value="{{ cur_dt|default('') }}" title="받은날짜 끝">
-          <button type="submit" class="btn btn-secondary" style="padding:5px 10px">찾기</button>
+      {% set _adv = cur_per|default('') or cur_df|default('') or cur_dt|default('') or cur_qf|default('all') != 'all' or cur_where|default('') %}
+      <details class="mbx-more"{% if _adv and not search_on|default(false) %} open{% endif %}>
+        <summary title="기간 · 어디서 · 무엇을 찾을지">▾ 자세히{% if _adv %} ●{% endif %}</summary>
+        <div class="mbx-more-box mbx-adv">
+          <div class="mbx-adv-row"><b>기간</b>
+            {% for pk, pn in periods|default([]) %}<label class="mbx-rad{{ ' on' if (cur_per|default('')) == pk and not (cur_df|default('') and not cur_per|default('')) else '' }}"><input type="radio" name="per" value="{{ pk }}" {{ 'checked' if (cur_per|default('')) == pk else '' }} onchange="this.form.df.value='';this.form.dt.value='';this.form.submit()">{{ pn }}</label>{% endfor %}
+          </div>
+          <div class="mbx-adv-row"><b>어디서</b>
+            <label class="mbx-rad{{ ' on' if not cur_where|default('') else '' }}"><input type="radio" name="where" value="" {{ 'checked' if not cur_where|default('') else '' }}>받은+보낸 메일</label>
+            <label class="mbx-rad{{ ' on' if cur_where|default('') == 'in' else '' }}"><input type="radio" name="where" value="in" {{ 'checked' if cur_where|default('') == 'in' else '' }}>받은 메일만</label>
+          </div>
+          <div class="mbx-adv-row"><b>무엇을</b>
+            {% for qk, qn in (('all','전부'),('from','보낸·받는 사람'),('subj','제목'),('att','첨부 파일 이름')) %}<label class="mbx-rad{{ ' on' if (cur_qf|default('all')) == qk else '' }}"><input type="radio" name="qf" value="{{ qk }}" {{ 'checked' if (cur_qf|default('all')) == qk else '' }}>{{ qn }}</label>{% endfor %}
+          </div>
+          <div class="mbx-adv-row"><b>날짜 직접</b>
+            <input type="date" name="df" value="{{ cur_df|default('') if not cur_per|default('') else '' }}" title="받은날짜 시작" onchange="var r=this.form.querySelector('input[name=per][value=\'\']'); if(r) r.checked=true;">
+            <span style="color:var(--mute);font-size:12px;">~</span>
+            <input type="date" name="dt" value="{{ cur_dt|default('') if not cur_per|default('') else '' }}" title="받은날짜 끝">
+            <button type="submit" class="btn btn-secondary" style="padding:5px 12px">찾기</button>
+          </div>
         </div>
       </details>
       {% endif %}
-      {% if q or cur_df|default('') or cur_dt|default('') %}<a href="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}" class="btn btn-secondary" title="찾기 끝 — 모든 메일 보기">✕ 찾기 끝</a>{% endif %}
+      {% if q or cur_df|default('') or cur_dt|default('') or cur_per|default('') or cur_who|default('') or cur_dom|default('') %}<a href="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}" class="btn btn-secondary" title="찾기 끝 — 모든 메일 보기">✕ 찾기 끝</a>{% endif %}
     </form>
   </div>
   <a href="/mail/compose" class="mbx-fab" title="새 메일 쓰기">✏️ 쓰기</a>
@@ -191,24 +248,6 @@
   {% if not ai_on %}
   <div style="border:1px solid var(--amber);border-radius:8px;background:#fffbeb;padding:6px 12px;margin:0 2px 8px;font-size:12px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 AI 키가 설정돼 있을 때 작동합니다.</div>
   {% endif %}
-
-  {# ── 받은편지함 행 매크로 (제목 우선 2줄) ── #}
-  {% macro mailrow(m, BG, FG, child=False) %}
-  <a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read %} unread{% endif %}{% if child %} mbx-child{% endif %}" data-mail-id="{{ m.id }}" onclick="return rowClick(event,{{ m.id }})">
-    <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ m.id }})">★</button>
-    <div class="mbx-main">
-      <div class="mbx-r1">
-        <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
-        <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
-      </div>
-      <div class="mbx-r2">
-        <span class="mbx-from">{{ m.from_name or m.from_email or '(보낸사람 없음)' }}</span>
-        {% if m.fdname %}<span class="mbx-fdtag" title="폴더">{{ m.fdname }}</span>{% endif %}
-        {% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}
-      </div>
-    </div>
-  </a>
-  {% endmacro %}
 
   {% if box=='trash' and mails %}
   <div style="display:flex;align-items:center;gap:10px;margin:0 2px 8px;padding:8px 12px;border:1px solid #fca5a5;background:#fef2f2;border-radius:9px;flex-wrap:wrap;">
@@ -251,7 +290,7 @@
       <div class="mf-g" data-g="{{ g.key }}">
         <a href="/mail/inbox?fd={{ g.key }}" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == g.key else '' }}" title="{{ g.name }} — 받은 메일 {{ g.n }}통{% if g.u %} · 안 읽음 {{ g.u }}통{% endif %}">
           {% if g.children %}<span class="mf-tg" onclick="return mfToggle(event,'{{ g.key }}')" title="펼치기·접기">▾</span>{% else %}<span class="mf-tg mf-tg-x"></span>{% endif %}
-          <span class="fname">{{ g.name }}</span>{% if g.u %}<span class="mf-u">{{ g.u }}</span>{% endif %}
+          <span class="mf-dot fk-{{ g.kind or 'x' }}"></span><span class="fname">{{ g.name }}</span>{% if g.u %}<span class="mf-u">{{ g.u }}</span>{% endif %}
         </a>
         <div class="mf-kids">
         {% set _zero = g.children|selectattr('n', 'equalto', 0)|list %}
@@ -265,7 +304,7 @@
       </div>
       {% endfor %}
       <a href="/mail/inbox?fd=gen" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == 'gen' else '' }}" title="위 폴더 어디에도 안 걸린 메일 {{ mf.gen.n }}통 — 메일을 열어 「📁 이 폴더로」를 누르면 그 회사 메일이 모두 그 폴더로 갑니다">
-        <span class="mf-tg mf-tg-x"></span><span class="fname">일반</span>{% if mf.gen.u %}<span class="mf-u">{{ mf.gen.u }}</span>{% endif %}
+        <span class="mf-tg mf-tg-x"></span><span class="mf-dot fk-gen"></span><span class="fname">일반</span>{% if mf.gen.u %}<span class="mf-u">{{ mf.gen.u }}</span>{% endif %}
       </a>
       {% if mf.gen.n %}<a href="/mail/folders/general" class="mbx-fold mf-k" style="color:#1d4ed8;font-size:12px" title="일반에 남은 메일 {{ mf.gen.n }}통을 보낸 곳별로 묶어 한 번에 폴더로"><span class="fname">🧹 일반 정리하기</span></a>{% endif %}
       {% endif %}
@@ -295,53 +334,40 @@
     <div class="mbx-listcol">
     {% if box=='in' and cur_fd|default('') %}
     {# 지금 보고 있는 폴더(11-17) — 왼쪽 목록이 길어 위로 밀려도 어느 폴더인지 보이게 #}
-    <div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ mails|length }}통{% if mails|length >= 200 %}+{% endif %}</span>{% if cur_fd == 'gen' %}<a href="/mail/folders/general" class="mf-cur-go" title="일반에 남은 메일을 보낸 곳별로 묶어 한 번에 폴더로">🧹 일반 정리하기</a>{% endif %}<a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
+    <div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ '{:,}'.format(total_n|default(mails|length)) }}통</span>{% if cur_fd == 'gen' %}<a href="/mail/folders/general" class="mf-cur-go" title="일반에 남은 메일을 보낸 곳별로 묶어 한 번에 폴더로">🧹 일반 정리하기</a>{% endif %}<a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
     {% endif %}
     {% if box=='in' %}
-    {% set _fdq = ('&fd=' ~ cur_fd) if cur_fd|default('') else '' %}{% set _cq = ('&cust=' ~ cur_cust) if cur_cust|default('') else '' %}
-    {% set _base = '/mail/inbox?x=1' ~ _fdq ~ _cq ~ ('&star=1' if cur_star|default(false) else '') ~ ('&reply=1' if cur_reply|default(false) else '') ~ (('&q=' ~ (q|urlencode)) if q else '') %}
+    {% set _b = '/mail/inbox?' ~ (base_q|default('')) %}
+    {% set _thr = '' if thread_on|default(true) else '&thread=0' %}
+    {% set _na = '&noad=1' if cur_noad|default(false) else '' %}
+    {% if search_on|default(false) %}
+    <div class="mbx-res">
+      {% if cur_who|default('') %}✉ <b>{{ cur_who }}</b> 와 주고받은 메일
+      {% elif cur_dom|default('') %}🏢 <b>@{{ cur_dom }}</b> 와 주고받은 메일
+      {% endif %}
+      {% if terms|default([]) %}{% for t in terms %}「<b>{{ t }}</b>」{% endfor %}{{ ' 모두' if terms|length > 1 else '' }} 들어간 메일{% endif %}
+      {% if not terms|default([]) and not cur_who|default('') and not cur_dom|default('') %}받은 메일{% endif %}
+      <b class="mbx-res-n">{{ '{:,}'.format(total_n|default(0)) }}통</b>
+      {% if per_name|default('') %} · {{ per_name }}{% elif cur_df|default('') or cur_dt|default('') %} · {{ cur_df|default('') }} ~ {{ cur_dt|default('') }}{% endif %}
+      {% if (terms|default([]) or cur_who|default('') or cur_dom|default('')) %} · {{ '받은 메일만' if cur_where|default('') == 'in' or cur_fd|default('') else '받은+보낸 메일' }}{% endif %}
+      {% if cur_qf|default('all') != 'all' %} · {{ {'from':'보낸·받는 사람','subj':'제목','att':'첨부 파일 이름'}[cur_qf] }}에서{% endif %}
+      {% if fd_hits|default([]) %}<span class="mbx-res-fd"> · 「{{ fd_hits|join('」「') }}」 폴더 메일(영문 주소 포함)도 함께</span>{% endif %}
+      <a href="/mail/inbox" class="mbx-res-x">✕ 찾기 끝</a>
+    </div>
+    {% endif %}
     <div class="mbx-chips">
-      {% set _thr = '' if thread_on|default(true) else '&thread=0' %}
-      <a href="{{ _base }}{{ _thr }}" class="mbx-chip {{ 'on' if not cur_unread|default(false) and not cur_att|default(false) else '' }}">전체</a>
-      <a href="{{ _base }}&unread=1{{ _thr }}" class="mbx-chip {{ 'on' if cur_unread|default(false) else '' }}">● 안 읽음</a>
-      <a href="{{ _base }}&att=1{{ _thr }}" class="mbx-chip {{ 'on' if cur_att|default(false) else '' }}" title="첨부파일이 있는 메일만">📎 첨부</a>
-      <a href="{{ _base }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}&thread={{ 0 if thread_on|default(true) else 1 }}" class="mbx-chip {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:) 메일을 한 대화로 묶기 — 누를 때마다 켜고 끔">💬 대화로 묶기</a>
+      <a href="{{ _b }}{{ _thr }}{{ _na }}" class="mbx-chip {{ 'on' if not cur_unread|default(false) and not cur_att|default(false) else '' }}">전체</a>
+      <a href="{{ _b }}&unread=1{{ _thr }}{{ _na }}" class="mbx-chip {{ 'on' if cur_unread|default(false) else '' }}">● 안 읽음</a>
+      <a href="{{ _b }}&att=1{{ _thr }}{{ _na }}" class="mbx-chip {{ 'on' if cur_att|default(false) else '' }}" title="첨부파일이 있는 메일만">📎 첨부</a>
+      <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ '' if cur_noad|default(false) else '&noad=1' }}" class="mbx-chip {{ 'on' if cur_noad|default(false) else '' }}" title="은행·쇼핑몰·소식지처럼 사람이 아닌 곳에서 온 메일을 빼고 보기(지우지 않음) — 누를 때마다 켜고 끔">🔕 광고·알림 빼기</a>
+      <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}&thread={{ 0 if thread_on|default(true) else 1 }}{{ _na }}" class="mbx-chip {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:) 메일을 한 대화로 묶기 — 누를 때마다 켜고 끔">💬 대화로 묶기</a>
+      <span class="mbx-chips-n" title="지금 조건에 맞는 메일">{{ '{:,}'.format(total_n|default(mails|length)) }}통</span>
     </div>
     {% endif %}
     {% if mails %}
     <div class="mbx-list">
-      {% if box=='in' and thread_on|default(true) and threads %}
-        {% for t in threads %}
-          {% if t['count'] > 1 %}
-          <div class="mbx-thread">
-            <div class="mbx-thread-head{% if not t['latest'].is_read %} unread{% endif %}">
-              <button type="button" class="mbx-twist" title="대화 펼치기/접기" aria-expanded="false" onclick="toggleThread(event,this)">▸</button>
-              <a href="/mail/{{ t['latest'].id }}" class="mbx-headlink{% if not t['latest'].is_read %} unread{% endif %}" data-mail-id="{{ t['latest'].id }}" onclick="return rowClick(event,{{ t['latest'].id }})">
-                <button type="button" class="mbx-star {{ 'on' if t['latest'].is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ t['latest'].id }})">★</button>
-                <div class="mbx-main">
-                  <div class="mbx-r1">
-                    <span class="mbx-subj">{{ t['latest'].subject or '(제목 없음)' }}</span>
-                    <span class="mbx-tcount{% if t['unread_count'] %} has-unread{% endif %}" title="이 대화 {{ t['count'] }}통{% if t['unread_count'] %} · 안읽음 {{ t['unread_count'] }}통{% endif %}">💬 {{ t['count'] }}</span>
-                    <span class="mbx-time">{{ t['latest'].received_at[5:16] if t['latest'].received_at else '' }}</span>
-                  </div>
-                  <div class="mbx-r2">
-                    <span class="mbx-from">{{ t['latest'].from_name or t['latest'].from_email or '(보낸사람 없음)' }}</span>
-                    {% if t['latest'].fdname %}<span class="mbx-fdtag" title="폴더">{{ t['latest'].fdname }}</span>{% endif %}
-                    {% if t['latest'].summary_short %}<span class="mbx-sum">— {{ t['latest'].summary_short }}</span>{% endif %}
-                  </div>
-                </div>
-              </a>
-            </div>
-            <div class="mbx-thread-kids" style="display:none">
-              {% for k in t['items'][1:]|reverse %}{{ mailrow(k, BG, FG, child=True) }}{% endfor %}
-            </div>
-          </div>
-          {% else %}
-          {{ mailrow(t['latest'], BG, FG) }}
-          {% endif %}
-        {% endfor %}
-      {% elif box=='in' %}
-        {% for m in mails %}{{ mailrow(m, BG, FG) }}{% endfor %}
+      {% if box=='in' %}
+        {% include "_v5_partials/mail_inbox_rows.html" %}
       {% elif box=='trash' %}
         {# 휴지통: 복원 / 완전삭제 #}
         {% for m in mails %}
@@ -393,7 +419,7 @@
     </div>
     {% else %}
     <div class="mbx-empty">
-      {% if q or cur_star|default(false) or cur_unread|default(false) or cur_cust|default('') or cur_fd|default('') %}
+      {% if q or cur_star|default(false) or cur_unread|default(false) or cur_cust|default('') or cur_fd|default('') or search_on|default(false) or cur_att|default(false) or cur_noad|default(false) %}
       🔍 조건에 맞는 메일이 없습니다.<br><br><span style="font-size:12.5px;">검색어나 폴더·필터를 바꿔보세요.</span>
       {% elif box=='sent' %}
       📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">왼쪽 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
@@ -573,6 +599,56 @@ function toggleFolders(btn){
     if(split && window.matchMedia('(max-width:640px)').matches){ split.classList.add('folders-collapsed'); }
   }catch(e){}
 })();
+/* ── ▼ 더 보기(11-18 · 200통에서 끊기지 않게) — 같은 조건으로 다음 200통을 이어 붙임 · 목록 끝이 보이면 저절로 ── */
+window._mbxTerms = {{ (terms|default([]))|tojson }};
+async function mbxMore(box){
+  if(!box || box.dataset.busy) return; box.dataset.busy='1';
+  var b=box.querySelector('button'); if(b) b.textContent='불러오는 중…';
+  try{
+    var r=await fetch(box.dataset.href+'&prev='+encodeURIComponent(box.dataset.prev||''),{headers:{'X-Requested-With':'fetch'}});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var html=await r.text();
+    var tmp=document.createElement('div'); tmp.innerHTML=html;
+    var list=box.parentNode;
+    while(tmp.firstChild){ list.insertBefore(tmp.firstChild, box); }
+    box.remove(); mbxHighlight(list); mbxWatchMore();
+  }catch(e){ delete box.dataset.busy; if(b) b.textContent='⚠ 다시 누르기 (불러오지 못했습니다)'; }
+}
+function mbxWatchMore(){
+  var box=document.querySelector('.mbx-morerows'); if(!box) return;
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ io.disconnect(); mbxMore(box); } }); },
+      {root:(window.matchMedia('(max-width:900px)').matches ? null : document.querySelector('.mbx-listcol')), rootMargin:'300px'});
+    io.observe(box);
+  }
+}
+/* 목록 끝 가까이 내려가면(스크롤 위치로도) — 보이기 감지가 안 되는 환경 대비 */
+(function(){
+  function near(){ var box=document.querySelector('.mbx-morerows'); if(!box || box.dataset.busy) return;
+    var lc=document.querySelector('.mbx-listcol');
+    if(lc && lc.scrollHeight>lc.clientHeight+10){ if(lc.scrollTop+lc.clientHeight>=lc.scrollHeight-400) mbxMore(box); }
+    else if(window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-400){ mbxMore(box); } }
+  var lc=document.querySelector('.mbx-listcol'); if(lc) lc.addEventListener('scroll', near, {passive:true});
+  window.addEventListener('scroll', near, {passive:true});
+})();
+function mbxHighlight(root){
+  var ts=(window._mbxTerms||[]).filter(function(t){ return t && t.length>=1; }); if(!ts.length) return;
+  var esc=function(t){ return t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); };
+  var re=new RegExp('('+ts.map(esc).join('|')+')','gi');
+  (root||document).querySelectorAll('.mbx-subj, .mbx-from').forEach(function(el){
+    if(el.dataset.hl) return; el.dataset.hl='1';
+    var walk=document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), nodes=[], n;
+    while((n=walk.nextNode())){ if(n.parentNode && n.parentNode.closest('.mbx-reply,.mbx-dup,.mbx-sent')) continue; nodes.push(n); }
+    nodes.forEach(function(tn){
+      var tx=tn.nodeValue; re.lastIndex=0; if(!re.test(tx)) return;
+      var frag=document.createDocumentFragment(), last=0; re.lastIndex=0; var mm;
+      while((mm=re.exec(tx))){ frag.appendChild(document.createTextNode(tx.slice(last, mm.index)));
+        var mk=document.createElement('mark'); mk.className='mbx-hl'; mk.textContent=mm[0]; frag.appendChild(mk); last=mm.index+mm[0].length; }
+      frag.appendChild(document.createTextNode(tx.slice(last))); tn.parentNode.replaceChild(frag, tn);
+    });
+  });
+}
+(function(){ try{ mbxHighlight(document.querySelector('.mbx-list')); mbxWatchMore(); }catch(e){} })();
 /* ── 메일 없는 폴더 보기(11-18) — 기본은 접어 둠 ── */
 function mfShowZero(ev, key){
   ev.preventDefault(); ev.stopPropagation();

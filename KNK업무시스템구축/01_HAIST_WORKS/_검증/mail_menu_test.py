@@ -2,7 +2,7 @@
 """메일 화면 1단계 「메뉴 단순하게」 시험 — 가짜 직원·가짜 메일·임시 DB(운영 무접촉 · 실제 메일 없음).
 대표 지시 2026-11-18 「메일 메뉴 구성을 사용자 입장에서 … 쉽게 보이고 쉽게 사용할 수 있게」 → 2차 검토 → 「진행해」.
 ① 받은편지함: 왼쪽 = 메일 쓰기 · 빨리 보기(받은편지함·⭐ 중요·↩ 회신 필요) · 내 메일 · 폴더 · ⚙ 설정·정리
-   위 도구줄 8개·메일 종류(분류) 칸·보기 칸은 없음 · 목록 위 거르기(전체·안 읽음·첨부·대화로 묶기) · 날짜는 「📅 날짜」 안
+   위 도구줄 8개·메일 종류(분류) 칸·보기 칸은 없음 · 목록 위 거르기(전체·안 읽음·첨부·대화로 묶기) · 날짜는 「▾ 자세히」 안(2단계에서 기간·어디서·무엇을과 함께)
 ② 목록 꼬리표 = 폴더 이름(「일반」은 안 붙임) · 메일 없는 폴더는 접힘(＋ 메일 없는 N곳)
 ③ 읽기: 한 줄(답장·전체답장·전달·중요·삭제) + ⋯ 더 보기(안 읽음·할 일·주소록·번역·인쇄·다시 안 받기) · 「답장 쓰기」 중복 없음
 ④ ⚙ 설정·정리 한 화면 — 관리자 칸은 관리자만 · 앱 머리띠 링크는 왼쪽 메뉴가 없는 화면에만
@@ -114,7 +114,7 @@ try:
         check("도구줄에 「%s」 없음" % nm, needle not in top, needle)
     check("도구줄에 「메일 쓰기」 단추 없음(왼쪽 한 곳만)", "/mail/compose" not in top)
     check("찾기 칸 + 검색 단추는 그대로", 'name="q"' in top and ">검색</button>" in top)
-    check("날짜는 「📅 날짜」 안(늘 보이지 않음)", "<details class=\"mbx-more\"" in top and 'name="df"' in top and "📅 날짜" in top)
+    check("날짜는 「▾ 자세히」 안(늘 보이지 않음)", "<details class=\"mbx-more\"" in top and 'name="df"' in top and "▾ 자세히" in top)
     check("첨부 체크박스(숫자만 보이던 것) 없음", 'type="checkbox" name="att"' not in top)
     ch = h[h.find('class="mbx-chips"'):h.find('class="mbx-chips"') + 2000]
     check("목록 위 거르기: 전체 · ● 안 읽음 · 📎 첨부 · 💬 대화로 묶기", all(x in ch for x in (">전체</a>", "● 안 읽음", "📎 첨부", "💬 대화로 묶기")))
@@ -123,11 +123,12 @@ try:
     check("거르기 겹쳐 쓰기 200", r2.status_code == 200)
     ch2 = r2.text[r2.text.find('class="mbx-chips"'):r2.text.find('class="mbx-chips"') + 2000].replace("&amp;", "&")
     check("대화 묶기 끈 채로 「안 읽음」 누르면 끈 상태 유지(&thread=0)", "&unread=1&thread=0" in ch2, ch2[:600])
-    check("날짜로 찾으면 「📅 날짜」가 펼쳐져 있음", "<details class=\"mbx-more\" open>" in k.get("/mail/inbox?df=2026-01-01").text)
+    _hd = k.get("/mail/inbox?df=2026-01-01").text
+    check("날짜로 찾으면 「▾ 자세히 ●」 표시 · 결과 띠에 날짜", "▾ 자세히 ●" in _hd and "2026-01-01 ~" in _hd)
 
     print("== 3. 목록 꼬리표 · 폴더 접기 ==")
     check("메일 종류 「일반」 꼬리표 없음", 'class="mbx-badge"' not in h[h.find('class="mbx-list"'):])
-    check("폴더 이름 꼬리표(삼성전기)", 'class="mbx-fdtag" title="폴더">삼성전기</span>' in h, h.count("mbx-fdtag"))
+    check("폴더 이름 꼬리표(삼성전기 · 고객사 색)", 'class="mbx-fdtag fk-customer" title="폴더">삼성전기</span>' in h, h.count("mbx-fdtag"))
     gen_row = h[h.find('data-mail-id="%d"' % M_GEN):]
     gen_row = gen_row[:gen_row.find("</a>")]
     check("「일반」 메일에는 폴더 꼬리표 안 붙임", "mbx-fdtag" not in gen_row, gen_row[:300])

@@ -22503,6 +22503,7 @@ from . import mail_store as _mailbox
 from . import mail_cleanup as _mail_cleanup   # 2026-11-16 보낸 곳별 정리 · 다시 안 받기(나에게만)
 from . import mail_reply as _mail_reply       # 2026-11-17 ④ 회신 필요(추정) — 규칙으로만(대표 「규칙으로 먼저 만들어」)
 from . import mail_folders as _mail_folders   # 2026-11-17 받은 메일 폴더(아웃룩식 · 대표 「아웃룩을 이런 식으로 구분해서」)
+from . import mail_find as _mail_find   # 2026-11-18 쉽게 찾기·구분·보기(시간·날짜 묶음·회사 이름 찾기·광고·참조·인용 접기)
 from . import mail_signature as _mail_sig   # 2026-11-16 메일 서명 → 주소록 채우기
 
 _MAIL_CATEGORIES = ("견적", "발주", "세금계산서", "일반")
@@ -22633,11 +22634,24 @@ async def admin_mail_inbound_bind(req: Request):
 @app.get("/mail/inbox")
 async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0,
                           df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
-                          reply: int = 0, fd: str = ""):
+                          reply: int = 0, fd: str = "", qf: str = "all", where: str = "", per: str = "",
+                          who: str = "", dom: str = "", noad: int = 0, off: int = 0, frag: int = 0, prev: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     fd = (fd or "").strip()
+    # (11-18 대표 「쉽게 찾기」 2단계) 기간 단추 → 날짜 · 보낸 메일 함께(폴더·거래처·회신 보기는 받은 메일만) · 이어서 더 보기
+    q = (q or "").strip()[:200]
+    who = (who or "").strip().lower()[:120]
+    dom = (dom or "").strip().lower().lstrip("@")[:80]
+    per = per if per in ("today", "week", "month", "3m", "year") else ""
+    if per and not (df or dt):
+        df, dt = _mail_find.period_range(per)
+    qf = qf if qf in ("all", "from", "subj", "att") else "all"
+    where = "in" if where == "in" else ""
+    off = max(0, min(int(off or 0), 200000))
+    _PAGE = 200
+    _terms = _mailbox.search_terms(q)
     with db_session() as c:
         # 받은 메일 폴더(아웃룩식 · 11-17) — 대표 계정은 처음 열 때 아웃룩 구조 그대로 만든다. 실패해도 받은편지함은 연다.
         mf = None
@@ -22655,20 +22669,35 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             reply_map = _mail_reply.scan(c, u["id"])
         except Exception:
             reply_map = {}
-        mails = _mailbox.list_inbox(c, u["id"], category=cat, q=q,
-                                    starred=bool(star), unread=bool(unread),
-                                    date_from=df, date_to=dt, has_att=bool(att), cust=cust,
-                                    only_ids=(list(reply_map.keys()) if reply else None),
-                                    senders=(_mail_folders.senders_in(mf, fd) if fd else None))
+        _bulk = _mail_find.bulk_senders(c, u["id"])
+        _qs = _mail_find.q_senders(mf, _terms) if (_terms and mf and not fd) else None
+        _kw = dict(category=cat, q=q, starred=bool(star), unread=bool(unread),
+                   date_from=df, date_to=dt, has_att=bool(att), cust=cust,
+                   only_ids=(list(reply_map.keys()) if reply else None),
+                   senders=(_mail_folders.senders_in(mf, fd) if fd else None),
+                   qf=qf, with_sent=bool((_terms or who or dom) and where != "in"), who=who, dom=dom,
+                   q_senders=_qs, noad=(_bulk if noad else None))
+        mails = _mailbox.list_inbox(c, u["id"], limit=_PAGE, offset=off, **_kw)
+        total_n = _mailbox.list_inbox(c, u["id"], count_only=True, **_kw) or 0
+        _kinds = _mail_find.folder_kinds(mf) if mf else {}
+        _mine = _mail_find.my_addresses(c, u["id"])
         for _m in mails:
             _m["reply"] = reply_map.get(_m["id"])
-            # 목록 꼬리표 = 폴더 이름(11-18 대표 「쉽게 구분」) — 「일반」은 안 붙임(모두 같아 정보가 없음)
-            if mf:
+            _m["tlabel"] = _mail_find.time_label(_m.get("received_at"))
+            _m["day"] = _mail_find.day_label(_m.get("received_at"))
+            _inb = (_m.get("direction") or "in") == "in"
+            _m["ad"] = bool(_inb and (_m.get("from_email") or "").strip().lower() in _bulk)
+            _m["ccme"] = _mail_find.is_cc(_m, _mine)
+            # 목록 꼬리표 = 폴더 이름(11-18 대표 「쉽게 구분」) — 「일반」은 안 붙임(모두 같아 정보가 없음) · 색 = 묶음 갈래
+            _m["fdname"], _m["fdkind"] = "", ""
+            if mf and _inb:
                 try:
                     _f = _mail_folders.folder_of(mf, _m.get("from_email") or "")
-                    _m["fdname"] = "" if _f.get("key") == "gen" else (_f.get("name") or "")
+                    if _f.get("key") != "gen":
+                        _m["fdname"] = _f.get("name") or ""
+                        _m["fdkind"] = _kinds.get(_f.get("key"), "")
                 except Exception:
-                    _m["fdname"] = ""
+                    pass
         unread_n = _mailbox.count_unread(c, u["id"])
         cat_counts = _mailbox.category_counts(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
@@ -22677,13 +22706,30 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
     # B1 대화 묶기: 같은 제목(RE/FW 접두 제거) 받은 메일을 한 대화로(기본 ON). thread=0 이면 평면 목록.
     thread_on = bool(thread)
     threads = _mailbox.group_threads(mails) if thread_on else None
+    # 이어서 더 보기 — 같은 조건 그대로 다음 200통(조각만)
+    from urllib.parse import urlencode as _ue
+    _keep_q = [(k, v) for k, v in req.query_params.multi_items() if k not in ("off", "frag", "prev")]
+    more_href = ("/mail/inbox?" + _ue(_keep_q + [("off", str(off + _PAGE)), ("frag", "1")])) if (off + len(mails) < total_n and len(mails) >= _PAGE) else ""
+    _base_q = [(k, v) for k, v in req.query_params.multi_items()
+               if k not in ("off", "frag", "prev", "unread", "att", "thread", "noad", "app")]
+    _ctx_more = dict(more_href=more_href, total_n=total_n, remain_n=max(0, total_n - off - len(mails)),
+                     prev_day=(prev or "")[:40], page_off=off,
+                     base_q=_ue(_base_q), search_on=bool(_terms or who or dom or per or df or dt),
+                     terms=_terms, cur_qf=qf, cur_where=where, cur_per=per, cur_who=who, cur_dom=dom,
+                     cur_noad=bool(noad), periods=_mail_find.PERIOD_NAMES,
+                     fd_hits=(_mail_find.matched_folders(mf, _terms) if (_terms and not fd) else []),
+                     per_name=(dict(_mail_find.PERIOD_NAMES).get(per, "") if per else ""))
+    if frag:
+        return ctx(req, "_v5_partials/mail_inbox_rows.html", user=u, mails=mails, box="in",
+                   thread_on=thread_on, threads=threads, **_ctx_more)
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread_n,
                cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES, cur_df=df, cur_dt=dt, cur_att=bool(att),
                ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
                drafts_n=drafts_n, thread_on=thread_on, threads=threads,
                folders=folders, cur_cust=(cust or "").strip(),
                reply_n=len(reply_map), cur_reply=bool(reply),
-               mf=mf, cur_fd=fd, cur_fd_name=((mf or {}).get("labels", {}).get(fd, "") if fd else ""))
+               mf=mf, cur_fd=fd, cur_fd_name=((mf or {}).get("labels", {}).get(fd, "") if fd else ""),
+               **_ctx_more)
 
 
 @app.get("/mail/tools", response_class=HTMLResponse)
@@ -22991,6 +23037,9 @@ async def mail_view_page(req: Request, mail_id: int):
         file_atts = [a for a in all_atts if not a.get("is_inline")]
         safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts,
                                                     defang=int(m.get("risk_level") or 0) >= 2)
+        # (11-18 「쉽게 보기」) 이전 대화(인용)는 접어 두고 새로 쓴 내용만 먼저 — 서식 메일·글 메일 모두
+        safe_html = _mail_find.fold_quote_html(safe_html)
+        body_own, body_quote = _mail_find.split_quote_text(m.get("body_text") or "")
         # 보낸사람 ↔ 연락처 자동연결 — 이메일 '정확 일치 1건'이면 링크, 없으면 등록 유도.
         #   (데이터 연결 안전: 추측 매칭 안 함. 정확히 같은 이메일만 단일 후보로 연결)
         sender_contact = None
@@ -23005,9 +23054,11 @@ async def mail_view_page(req: Request, mail_id: int):
         except Exception:
             reply_info = {}
         folder_info = _mail_folder_info(c, u["id"], m)
+        who_info = _mail_who_info(m, folder_info)
     return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
-               sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info)
+               sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
+               who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
@@ -23027,6 +23078,9 @@ async def mail_view_pane(req: Request, mail_id: int):
         file_atts = [a for a in all_atts if not a.get("is_inline")]
         safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts,
                                                     defang=int(m.get("risk_level") or 0) >= 2)
+        # (11-18 「쉽게 보기」) 이전 대화(인용)는 접어 두고 새로 쓴 내용만 먼저 — 서식 메일·글 메일 모두
+        safe_html = _mail_find.fold_quote_html(safe_html)
+        body_own, body_quote = _mail_find.split_quote_text(m.get("body_text") or "")
         sender_contact = None
         _fe = (m.get("from_email") or "").strip()
         if _fe:
@@ -23039,9 +23093,34 @@ async def mail_view_pane(req: Request, mail_id: int):
         except Exception:
             reply_info = {}
         folder_info = _mail_folder_info(c, u["id"], m)
+        who_info = _mail_who_info(m, folder_info)
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
-               sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info)
+               sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
+               who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS)
+
+
+def _mail_who_info(m, folder_info):
+    """읽기 화면 보낸 사람 이름을 누르면 — 이 사람과 주고받은 메일 · 이 회사 메일 · 이 사람에게 쓰기(11-18 「쉽게 찾기」)."""
+    try:
+        if (m.get("direction") or "in") == "out":
+            return None
+        e = (m.get("from_email") or "").strip().lower()
+        if not e or "@" not in e:
+            return None
+        from urllib.parse import quote as _qq
+        d = e.split("@", 1)[1]
+        out = {"email": e, "name": (m.get("from_name") or "").strip() or e,
+               "who_href": "/mail/inbox?who=" + _qq(e, safe="@"), "compose_href": "/mail/compose?to=" + _qq(e, safe="@"),
+               "co_href": "", "co_name": ""}
+        cur = (folder_info or {}).get("cur") or {}
+        if cur.get("key") and cur.get("key") != "gen":
+            out["co_href"], out["co_name"] = "/mail/inbox?fd=" + _qq(cur["key"]), cur.get("name") or ""
+        elif d not in _mail_folders._free_domains():
+            out["co_href"], out["co_name"] = "/mail/inbox?dom=" + _qq(d), "@" + d
+        return out
+    except Exception:
+        return None
 
 
 def _mail_folder_info(c, uid, m):
@@ -23713,7 +23792,7 @@ def _mail_from_address_for(c, u) -> str:
 
 @app.get("/mail/compose", response_class=HTMLResponse)
 async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
-                            forward: int = 0, draft: int = 0):
+                            forward: int = 0, draft: int = 0, to: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -23763,6 +23842,9 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                 prefill["body"] = sigblock + hdr + (m.get("body_text") or "")
         else:
             prefill["body"] = sigblock
+            _to = (to or "").strip()
+            if _to and len(_to) <= 200 and "@" in _to and not any(ch in _to for ch in "<>\"'\r\n"):
+                prefill["to"] = _to
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
                from_addr=my_from, ai_on=ai_enabled_for(u),
                can_link=can_link, acct_ok=acct_ok,

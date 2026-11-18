@@ -16,6 +16,8 @@
   .mt-n{display:inline-block;margin-left:6px;font-size:12px;font-weight:700;color:#fff;background:#dc2626;border-radius:999px;padding:0 7px;vertical-align:1px}
   .mt-n.b{background:#2563eb}
   .mt-admin .mt-card{background:#fbfaf8}
+  .mt-sw{display:inline-block;margin-left:6px;font-size:12px;font-weight:700;border-radius:999px;padding:0 9px;background:#e5e7eb;color:#374151;vertical-align:1px}
+  .mt-sw.on{background:#16a34a;color:#fff}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -52,6 +54,8 @@
       <span class="mt-d" style="display:block">메일 끝에 붙는 이름·직책·연락처</span></span></a>
     <a class="mt-card" href="/mail/account"><span class="mt-ico">🔗</span><span><span class="mt-t">내 회사 주소 연결</span>
       <span class="mt-d" style="display:block">내 @knknara.co.kr 주소로 보내기 · 받기 연결</span></span></a>
+    <button type="button" class="mt-card" id="mtBig" onclick="mtBigToggle()"><span class="mt-ico">🔠</span><span><span class="mt-t">글자 크게 보기 <span class="mt-sw" id="mtBigSw">끔</span></span>
+      <span class="mt-d" style="display:block">메일 목록·읽기 글자를 한 단계 크게(이 컴퓨터·이 휴대폰에만 · 누를 때마다 켜고 끔)</span></span></button>
   </div>
 
   <div class="mt-sec">🛡 보안 <small>위험·스팸 메일</small></div>
@@ -81,6 +85,13 @@
 </main>
 </div>
 <script>
+/* 글자 크게 보기(11-18) — 이 기기에만 기억(localStorage) · 메일 목록·읽기 화면이 머리에서 읽음 */
+function mtBigShow(){ var on=false; try{ on=localStorage.getItem('knkmail.big')==='1'; }catch(e){}
+  var sw=document.getElementById('mtBigSw'); if(sw){ sw.textContent=on?'켬':'끔'; sw.classList.toggle('on',on); } }
+function mtBigToggle(){ try{ var on=localStorage.getItem('knkmail.big')==='1';
+    if(on) localStorage.removeItem('knkmail.big'); else localStorage.setItem('knkmail.big','1'); }catch(e){ alert('이 브라우저에서는 저장할 수 없습니다'); }
+  mtBigShow(); }
+mtBigShow();
 /* 같은 메일 여러 통 정리 — 받은편지함 도구줄에 있던 「🔁 중복정리」와 같은 동작(11-18 이 화면으로 옮김) */
 async function dedupInbox(ev){
   if(ev) ev.preventDefault();
