@@ -83,6 +83,27 @@ select.prq-in { appearance:auto; }
 .z48-imghint { font-weight:400; font-size:11.5px; color:#475569; margin-left:6px; }
 .prq-imgs.z48-imgs { border:2px solid #222; border-top:0; padding:10px; margin:0 0 6px; background:#fff; gap:9px; }
 .prq-imgs.z48-imgs .prq-imgcell { width:150px; height:110px; }
+/* z1191z50 작성 화면 편의 — 발행 전 이미지 · 품목 번호 넣기 · 지난 요청서 불러오기 */
+.z50-drop { border:1.5px dashed #fdba74; background:#fff; border-radius:10px; padding:14px 12px; cursor:pointer; transition:background .15s,border-color .15s; outline:none; }
+.z50-drop:focus-visible, .z50-drop.drag { background:#fff7ed; border-color:#f97316; }
+.z50-drop-hint { font-size:12.5px; color:#c2772a; text-align:center; font-weight:700; }
+.z50-mo { display:none; }
+@media (hover:none) and (pointer:coarse) { .z50-pc { display:none; } .z50-mo { display:inline; } }   /* 휴대폰은 「사진 찍기·고르기」 */
+.z50-prev { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.z50-prev:empty { display:none; }
+.z50-cell { position:relative; width:96px; height:84px; border-radius:8px; overflow:hidden; border:1px solid #fed7aa; background:#f7f8fa; }
+.z50-cell img { width:100%; height:100%; object-fit:cover; display:block; }
+.z50-del { position:absolute; top:2px; right:2px; width:20px; height:20px; line-height:18px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:14px; cursor:pointer; padding:0; text-align:center; }
+.z50-del:hover { background:#dc2626; }
+.z50-msg { font-size:11.5px; color:#9a3412; margin-top:4px; }
+.z50-msg:empty { display:none; }
+.z50-btn { margin-left:8px; border:1px solid #fdba74; background:#fff7ed; color:#9a3412; border-radius:6px; padding:2px 9px; font-size:11.5px; font-weight:700; cursor:pointer; vertical-align:1px; }
+.z50-btn:hover { background:#ffedd5; }
+.z50-past { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:12px 0 2px; padding:8px 10px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; font-size:12.5px; font-weight:700; color:#334155; }
+.z50-past select { flex:1 1 260px; min-width:0; max-width:100%; padding:5px 7px; border:1px solid #cbd5e1; border-radius:6px; font-size:12.5px; background:#fff; }
+.z50-past-msg { flex-basis:100%; font-weight:600; font-size:11.5px; color:#047857; }
+.z50-past-msg:empty { display:none; }
+.prq-imgs.z50-drag { outline:2px dashed #f97316; outline-offset:2px; background:#fff7ed; }
 /* 수주 고르기(작성·수정) */
 .z48-ol { display:flex; flex-direction:column; gap:3px; max-height:190px; overflow:auto; border:1px solid var(--line,#eef0f4); border-radius:7px; padding:7px 10px; background:#fff; }
 .z48-oc { display:flex; align-items:center; gap:7px; font-size:13px; color:#1f2937; cursor:pointer; }
@@ -152,12 +173,12 @@ select.prq-in { appearance:auto; }
           <div class="z48-ol">
             {# 최근 수주가 맨 위 — 기본으로 체크되는 것이 스크롤 없이 보이게 #}
             {% for o in z48.orders|reverse %}
-            <label class="z48-oc"><input type="checkbox" name="order_ids" value="{{ o.id }}"{% if o.id in z48.sel_ids %} checked{% endif %}> <b>{{ o.order_no }}</b>{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}<span class="z48-od">{{ (o.order_date or o.created_at)[:10] }}</span></label>
+            <label class="z48-oc"><input type="checkbox" name="order_ids" value="{{ o.id }}" data-hogi="{{ o.hogi }}"{% if o.id in z48.sel_ids %} checked{% endif %}> <b>{{ o.order_no }}</b>{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}<span class="z48-od">{{ (o.order_date or o.created_at)[:10] }}</span></label>
             {% endfor %}
           </div>
           <div class="z48-hint">이 관리번호에는 수주가 {{ z48.orders|length }}건 있습니다 — <b>이번 요청서에 해당하는 수주만</b> 체크하세요. 제작요청서와 알림에 그 수주번호만 나갑니다.</div>
           {% elif z48.orders %}
-          <input type="hidden" name="order_ids" value="{{ z48.orders[0].id }}">
+          <input type="hidden" name="order_ids" value="{{ z48.orders[0].id }}" data-hogi="{{ z48.orders[0].hogi }}">
           <div class="z48-hint">수주번호 <b style="color:#1d4ed8;">{{ z48.orders[0].order_no }}</b> — 등록된 수주에서 자동으로 들어갑니다.</div>
           {% else %}
           <div class="z48-need">⚠ {{ z48.need_now or '이 관리번호에 등록된 수주가 없습니다 — 수주를 먼저 등록해야 발행할 수 있습니다(수주번호는 필수).' }} <a href="/project/{{ p.id }}">프로젝트 화면에서 수주 등록 →</a></div>
@@ -167,7 +188,7 @@ select.prq-in { appearance:auto; }
           <div class="prq-lbl">함께 묶을 관리번호 <span style="font-weight:400;color:var(--mute,#64748b);">— 같은 고객사 · 한 장으로 발행 · 통보 한 번 (안 묶어도 됩니다)</span></div>
           <div class="z49-box">
             {% if z48.bitems|length > 1 %}
-            <div class="z49-chips">{% for it in z48.bitems %}<span class="z49-chip">{{ it.mgmt }}</span>{% endfor %}<span class="z48-hint" style="margin:0;">이미 묶인 관리번호입니다 — 아래에서 더 붙일 수 있습니다.</span></div>
+            <div class="z49-chips">{% for it in z48.bitems %}<span class="z49-chip" data-mgmt="{{ it.mgmt }}" data-equip="{{ it.equip }}" data-qty="{{ it.qty }}" data-hogi="{{ it.hogi|join(', ') }}"{% if loop.first %} data-lead="1"{% endif %}>{{ it.mgmt }}</span>{% endfor %}<span class="z48-hint" style="margin:0;">이미 묶인 관리번호입니다 — 아래에서 더 붙일 수 있습니다.</span></div>
             {% endif %}
             {% if z48.n_sug %}
             <div class="z49-sug"><span>같은 날 발주된 관리번호가 <b>{{ z48.n_sug }}건</b> 더 있습니다(제작요청서 아직 없음) — 한 장으로 묶을까요?</span><button type="button" onclick="z49CheckSug(this)">모두 묶기</button></div>
@@ -176,12 +197,12 @@ select.prq-in { appearance:auto; }
             <input class="prq-in" type="text" placeholder="🔍 관리번호 · 모델 · 장비명으로 찾기" oninput="z49Filter(this)" autocomplete="off">
             <div class="z49-list">
               {% for d in z48.cands %}
-              <label class="z49-item{% if d.suggest %} is-sug{% endif %}" data-t="{{ ((d.mgmt_code or '') ~ ' ' ~ (d.model_name or '') ~ ' ' ~ (d.equip_name or ''))|lower }}">
+              <label class="z49-item{% if d.suggest %} is-sug{% endif %}" data-mgmt="{{ d.mgmt_code }}" data-equip="{{ d.equip_name or d.name or '' }}" data-qty="{{ d.unit_qty or 1 }}" data-t="{{ ((d.mgmt_code or '') ~ ' ' ~ (d.model_name or '') ~ ' ' ~ (d.equip_name or ''))|lower }}">
                 <input type="checkbox" name="bundle_pids" value="{{ d.id }}"> <b>{{ d.mgmt_code }}</b> <span>{{ d.equip_name or d.name or '' }}</span>{% if d.model_name %}<span class="z49-d">{{ d.model_name }}</span>{% endif %}<span class="z49-d">발주 {{ (d.order_date or '')[:10] or '—' }}{% if d.n_pr %} · 요청서 있음{% endif %}</span>
                 {% if d.orders|length > 1 %}
-                <select name="m_order_{{ d.id }}" title="이 관리번호의 어느 수주인지 고릅니다(기본 = 가장 최근)">{% for o in d.orders|reverse %}<option value="{{ o.id }}">{{ o.order_no }}{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}</option>{% endfor %}</select>
+                <select name="m_order_{{ d.id }}" title="이 관리번호의 어느 수주인지 고릅니다(기본 = 가장 최근)">{% for o in d.orders|reverse %}<option value="{{ o.id }}" data-hogi="{{ o.hogi }}">{{ o.order_no }}{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}</option>{% endfor %}</select>
                 {% else %}
-                <span class="z49-so1">{{ d.orders[0].order_no }}</span><input type="hidden" name="m_order_{{ d.id }}" value="{{ d.orders[0].id }}">
+                <span class="z49-so1">{{ d.orders[0].order_no }}</span><input type="hidden" name="m_order_{{ d.id }}" value="{{ d.orders[0].id }}" data-hogi="{{ d.orders[0].hogi }}">
                 {% endif %}
               </label>
               {% endfor %}
@@ -214,7 +235,7 @@ select.prq-in { appearance:auto; }
 
   <div class="prq-wrap">
     {% if request.query_params.get('prod_created') %}
-    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13px;font-weight:700;">📤 제작요청서 발행 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 통보{% endif %}.</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13px;font-weight:700;">📤 제작요청서 발행 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 통보{% endif %}{% if request.query_params.get('prod_img') %} · 참고 이미지 {{ request.query_params.get('prod_img') }}장{% endif %}.{% if request.query_params.get('prod_imgskip') %}<div style="margin-top:4px;font-weight:600;color:#9a3412;">⚠ 이미지 {{ request.query_params.get('prod_imgskip') }}장은 붙이지 못했습니다 — JPG·PNG 로 「✏️ 수정하기」에서 다시 붙여 주세요.</div>{% endif %}</div>
     {% elif request.query_params.get('prod_updated') %}
     <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13px;font-weight:600;">✏️ 저장 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% endif %}.</div>
     {% elif request.query_params.get('prod_upderr') %}
@@ -232,7 +253,7 @@ select.prq-in { appearance:auto; }
       <div class="prq-bd">
         {% if can_edit %}
         <div class="prq-meta"><span>이 프로젝트(관리번호 <b style="color:#334155;">{{ p.mgmt_code or '—' }}</b>)에 제작요청서를 새로 작성해 발행합니다. 발행하면 관련 부서(사업부)에 통보됩니다.</span></div>
-        <form id="prqNewForm" method="post" action="/project/{{ p.id }}/prod-request/new" onsubmit="return prqValidate(this);">
+        <form id="prqNewForm" method="post" action="/project/{{ p.id }}/prod-request/new" enctype="multipart/form-data" onsubmit="return prqValidate(this);">
           <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit">
           <input type="hidden" name="full_edit" value="1">
           {{ z48_fields('') }}
@@ -275,10 +296,26 @@ select.prq-in { appearance:auto; }
           </div>
           <div class="prq-lbl">자료 경로 (제품자료 서버 경로 — 통보에 포함)</div>
           <input class="prq-in" type="text" name="server_path" value="{{ p.server_path or '' }}">
-          <div class="prq-lbl">고객사 요청사항</div>
-          <textarea class="prq-in" name="cust_req" rows="6" placeholder="예) 사양·수량·반출일·특이사항 등"></textarea>
+          {% if z48.past %}
+          {# z1191z50: 지난 요청서 불러오기 — 이 관리번호의 지난 요청서 먼저 · 그다음 같은 고객사 #}
+          <div class="z50-past">📂 지난 요청서 불러오기
+            <select aria-label="불러올 지난 요청서" onchange="z50Past(this)"><option value="">— 고르면 바로 들어갑니다 ({{ z48.past|length }}건) —</option>{% for d in z48.past %}<option value="{{ loop.index0 }}">{{ d.date }} · {{ d.mgmt }}{% if d.mine %} (이 관리번호){% endif %} · {{ d.head or '(요지 없음)' }}</option>{% endfor %}</select>
+            <span class="z50-past-msg"></span>
+          </div>
+          <script type="application/json" id="z50PastData">{{ z48.past|tojson }}</script>
+          {% endif %}
+          <div class="prq-lbl">고객사 요청사항 <button type="button" class="z50-btn" onclick="z50Number(this)" title="품목(이 관리번호 + 묶은 관리번호)마다 「1. 품명 : 호기」 머리줄을 넣습니다">🔢 품목 번호 넣기</button></div>
+          <textarea class="prq-in" name="cust_req" rows="6" placeholder="예) 사양·수량·반출일·특이사항 등 — 「🔢 품목 번호 넣기」를 누르면 품목마다 머리줄이 들어갑니다"></textarea>
           <div class="prq-lbl">기타 요청사항</div>
           <textarea class="prq-in" name="note" rows="3"></textarea>
+          {# z1191z50 (대표 2026-11-17 2차 · 작성 화면 편의): 발행 전에 참고 이미지 — 고르기 · 끌어다 놓기 · 캡처 붙여넣기(Ctrl+V). 발행과 함께 보냄 #}
+          <div class="prq-lbl">📷 참고 이미지<b id="z50ImgN"></b> <span style="font-weight:400;color:var(--mute,#64748b);">— 도면·케이스·사진 · 여러 장(20장까지) · 발행할 때 함께 붙습니다</span></div>
+          <div id="z50Drop" class="z50-drop" tabindex="0" onclick="document.getElementById('z50ImgInput').click()">
+            <div class="z50-drop-hint"><span class="z50-pc">＋ 이미지 고르기 · 여기로 끌어다 놓기 · 캡처한 화면은 <b>Ctrl+V</b> 로 붙여넣기</span><span class="z50-mo">📷 사진 찍기 · 앨범에서 고르기</span></div>
+            <input type="file" id="z50ImgInput" name="pr_images" accept="image/*" multiple data-knk-no-dropzone style="display:none;">
+          </div>
+          <div id="z50Prev" class="z50-prev"></div>
+          <div id="z50ImgMsg" class="z50-msg"></div>
           {# v5H226z817 (대표 지시 ②): 새 작성 시 통보 대상 선택 — 안 고르면 이 사업부 관련 부서 전체 통보(현행). 개별 지정 시 그 사람에게만(부서 확대 없음). #}
           {% if teams %}
           <style>
@@ -334,7 +371,7 @@ select.prq-in { appearance:auto; }
           <a class="btn btn-secondary" href="/project/{{ p.id }}">취소</a>
           <button type="submit" form="prqNewForm" class="btn btn-primary" style="background:#c2410c;{% if z48.need %}opacity:.45;cursor:not-allowed;{% endif %}"{% if z48.need %} disabled title="{{ z48.need_now }}"{% endif %}>📤 제작요청서 발행 · 부서 통보</button>
         </div>
-        <div style="font-size:11px;color:var(--mute,#64748b);text-align:right;margin-top:6px;">발행하면 관련 부서에 통보됩니다. 참고 이미지는 발행 후 이 페이지에서 추가할 수 있습니다.</div>
+        <div style="font-size:11px;color:var(--mute,#64748b);text-align:right;margin-top:6px;">발행하면 관련 부서에 통보됩니다. 참고 이미지는 발행한 뒤에도 「✏️ 수정하기」에서 더 붙일 수 있습니다.</div>
         {% else %}
         <div style="color:var(--mute,#64748b);font-size:13.5px;line-height:1.7;">이 프로젝트에는 발행된 제작요청서가 없습니다.<br>제작요청서를 작성·발행할 권한이 없습니다(영업·관리자에게 문의).</div>
         {% endif %}
@@ -476,7 +513,7 @@ select.prq-in { appearance:auto; }
           </div>
           <div class="prq-lbl">자료 경로 (제품자료 서버 경로 — 통보에 포함)</div>
           <input class="prq-in" type="text" name="server_path" value="{{ p.server_path or '' }}">
-          <div class="prq-lbl">고객사 요청사항</div>
+          <div class="prq-lbl">고객사 요청사항 <button type="button" class="z50-btn" onclick="z50Number(this)" title="품목(이 관리번호 + 묶은 관리번호)마다 「1. 품명 : 호기」 머리줄을 덧붙입니다">🔢 품목 번호 넣기</button></div>
           <textarea class="prq-in" name="cust_req" rows="6">{{ pr.cust_req or '' }}</textarea>
           <div class="prq-lbl">기타 요청사항</div>
           <textarea class="prq-in" name="note" rows="3">{{ pr.note or '' }}</textarea>
@@ -560,6 +597,7 @@ select.prq-in { appearance:auto; }
           <label class="btn btn-secondary" style="cursor:pointer;font-size:12.5px;padding:5px 11px;">＋ 이미지 추가
             <input type="file" id="prqImgAdd" accept="image/*" multiple style="display:none;" onchange="prqImgUpload(this.files)">
           </label>
+          <span style="font-size:11.5px;color:var(--mute,#64748b);margin-left:6px;">이미지 칸에 끌어다 놓거나 캡처 화면을 Ctrl+V 로 붙여도 됩니다.</span>
           <span id="prqImgMsg" style="font-size:11.5px;color:var(--mute,#64748b);margin-left:8px;"></span>
         </div>
         {% endif %}
@@ -669,6 +707,131 @@ select.prq-in { appearance:auto; }
         r.style.display = on ? '' : 'none';
       });
     };
+    // z1191z50 (대표 2026-11-17 2차 · 작성 화면 편의) ───────────────────────────────
+    // ① 「품목 번호 넣기」: 이 요청서의 품목(대표 관리번호 + 묶은 관리번호)마다 「1. 품명 : 호기」 머리줄과 「-. 」 줄
+    window.z50Number=function(btn){
+      var f=btn.closest('form'); if(!f) return; var ta=f.querySelector('textarea[name=cust_req]'); if(!ta) return;
+      function v(n){ var e=f.querySelector('[name='+n+']'); return e?String(e.value||'').trim():''; }
+      var lh=[]; f.querySelectorAll('input[name=order_ids]').forEach(function(e){ if(e.type!=='checkbox'||e.checked){ var h=e.getAttribute('data-hogi')||''; if(h) lh.push(h); } });
+      var items=[{mgmt:'', equip:v('equip_name')||v('name'), qty:v('unit_qty'), hogi:lh.join(', ')}], rest=[];
+      f.querySelectorAll('.z49-chip[data-mgmt]:not([data-lead])').forEach(function(c){
+        rest.push({mgmt:c.getAttribute('data-mgmt')||'', equip:c.getAttribute('data-equip')||'', qty:c.getAttribute('data-qty')||'', hogi:c.getAttribute('data-hogi')||''}); });
+      f.querySelectorAll('.z49-item input[name=bundle_pids]:checked').forEach(function(cb){
+        var r=cb.closest('.z49-item'); if(!r) return; var h='';
+        var s=r.querySelector('select[name^=m_order_]'); if(s && s.selectedIndex>=0){ h=s.options[s.selectedIndex].getAttribute('data-hogi')||''; }
+        else { var hi=r.querySelector('input[type=hidden][name^=m_order_]'); if(hi) h=hi.getAttribute('data-hogi')||''; }
+        rest.push({mgmt:r.getAttribute('data-mgmt')||'', equip:r.getAttribute('data-equip')||'', qty:r.getAttribute('data-qty')||'', hogi:h}); });
+      rest.sort(function(a,b){ return a.mgmt<b.mgmt?-1:(a.mgmt>b.mgmt?1:0); });   // 품목 표와 같은 순서(대표 먼저 · 그다음 관리번호 순)
+      items=items.concat(rest);
+      var text=items.map(function(it,i){ return (i+1)+'. '+(it.equip||'품명')+' : '+(it.hogi||((it.qty||'1')+'대'))+'\n-. '; }).join('\n\n');
+      var base=String(ta.value||'').replace(/\s+$/,'');
+      // 방금 넣은 번호 줄을 손대지 않았으면(묶음을 고친 뒤 다시 누름) 묻지 않고 새로 바꿔 넣음 — 같은 번호가 두 번 붙지 않게
+      if(base && ta._z50 && base===ta._z50.replace(/\s+$/,'')) base='';
+      if(base){ if(!confirm('이미 쓴 글 아래에 품목 번호 '+items.length+'줄을 덧붙일까요?')) return; ta.value=base+'\n\n'+text; }
+      else ta.value=text;
+      ta._z50=text;
+      var pos=ta.value.length-text.length+text.indexOf('-. ')+3;
+      try{ ta.focus(); ta.setSelectionRange(pos,pos); }catch(_){}
+    };
+    // ② 「지난 요청서 불러오기」: 고른 요청서의 고객사 요청사항·기타·요지를 그대로 가져옴(쓴 글이 있으면 먼저 물음)
+    window.z50Past=function(btn){
+      var f=btn.closest('form'); if(!f) return; var sel=f.querySelector('.z50-past select'); var el=document.getElementById('z50PastData');
+      var data=[]; try{ data=JSON.parse(el?el.textContent:'[]')||[]; }catch(_){}
+      var d=(sel && sel.value!=='')?data[parseInt(sel.value,10)]:null;
+      if(!d) return;
+      var ta=f.querySelector('textarea[name=cust_req]'), nt=f.querySelector('textarea[name=note]'), g=f.querySelector('input[name=gist]');
+      var has=(ta&&ta.value.trim())||(nt&&nt.value.trim())||(g&&g.value.trim());
+      if(has && !confirm('지금 쓴 고객사 요청사항·기타·요지를 고른 요청서 내용으로 바꿀까요?')){ sel.value=''; return; }
+      if(ta){ ta.value=d.cust_req||''; ta._z50=''; } if(nt) nt.value=d.note||''; if(g) g.value=d.gist||'';
+      var m=f.querySelector('.z50-past-msg'); if(m) m.textContent='불러왔습니다('+(d.date||'')+' · '+(d.mgmt||'')+') — 이번 수주에 맞게 호기·수량·일정을 고쳐 쓰세요.';
+      try{ ta.focus(); ta.setSelectionRange(0,0); ta.scrollTop=0; }catch(_){}
+    };
+    // ③ 참고 이미지: 새 작성은 발행할 때 함께 보냄(고르기·끌어다 놓기·Ctrl+V) / 수정하기 중에는 끌어다 놓기·Ctrl+V 도 곧바로 올림
+    function z50IsImg(f){ return f && (f.type ? f.type.indexOf('image/')===0 : /\.(jpe?g|png|gif|webp|bmp)$/i.test(f.name||'')); }
+    function z50Stamp(){ var d=new Date(); function p(n){ return (n<10?'0':'')+n; } return p(d.getHours())+p(d.getMinutes())+p(d.getSeconds()); }
+    function z50Shrink(file){   // 큰 사진(2MB 넘음)은 보내기 전에 줄임(긴 변 2560 · 서버도 다시 줄임) — 한 번에 보내는 크기 한도 안으로
+      return new Promise(function(res){
+        if(!file || file.size<=2*1024*1024 || /gif/i.test(file.type||'')) return res(file);
+        try{
+          var url=URL.createObjectURL(file), img=new Image();
+          img.onload=function(){
+            try{
+              var k=Math.min(1, 2560/Math.max(img.naturalWidth||1, img.naturalHeight||1));
+              var cv=document.createElement('canvas'); cv.width=Math.round(img.naturalWidth*k); cv.height=Math.round(img.naturalHeight*k);
+              cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(url);
+              cv.toBlob(function(b){ if(!b) return res(file); res(new File([b], String(file.name||'image').replace(/\.[^.]+$/,'')+'.jpg', {type:'image/jpeg'})); }, 'image/jpeg', 0.88);
+            }catch(_){ res(file); }
+          };
+          img.onerror=function(){ try{URL.revokeObjectURL(url);}catch(_){} res(file); };
+          img.src=url;
+        }catch(_){ res(file); }
+      });
+    }
+    function z50ClipImgs(e){   // 붙여넣기에 이미지만 있을 때(캡처 화면) — 글(엑셀 칸 등)이 함께 있으면 글 붙여넣기로 둔다
+      var cd=e.clipboardData; if(!cd) return [];
+      var txt=''; try{ txt=cd.getData('text/plain')||''; }catch(_){}
+      if(txt.trim()) return [];
+      var out=[], st=z50Stamp();
+      [].slice.call(cd.files||[]).forEach(function(f,i){ if(z50IsImg(f)){
+        var ext=((f.type||'').split('/')[1]||'png').replace('jpeg','jpg');
+        out.push(/^image\.\w+$/i.test(f.name||'image.png') ? new File([f], '붙여넣기_'+st+'_'+(i+1)+'.'+ext, {type:f.type||'image/png'}) : f);
+      } });
+      return out;
+    }
+    (function(){
+      var input=document.getElementById('z50ImgInput'), prev=document.getElementById('z50Prev'), drop=document.getElementById('z50Drop'), msg=document.getElementById('z50ImgMsg');
+      if(input && prev && drop && !input._z50 && window.DataTransfer){
+        input._z50=true; var dt=new DataTransfer();
+        function say(t){ if(msg) msg.textContent=t||''; }
+        function render(){
+          prev.innerHTML='';
+          for(var i=0;i<dt.files.length;i++){ (function(idx,file){
+            var url=URL.createObjectURL(file);
+            var cell=document.createElement('div'); cell.className='z50-cell'; cell.title=file.name||'';
+            var img=document.createElement('img'); img.src=url; img.onload=function(){ try{URL.revokeObjectURL(url);}catch(_){} };
+            var del=document.createElement('button'); del.type='button'; del.className='z50-del'; del.textContent='×'; del.title='빼기';
+            del.onclick=function(e){ e.stopPropagation(); var nd=new DataTransfer(); for(var j=0;j<dt.files.length;j++){ if(j!==idx) nd.items.add(dt.files[j]); } dt=nd; try{input.files=dt.files;}catch(_){ } render(); };
+            cell.appendChild(img); cell.appendChild(del); prev.appendChild(cell);
+          })(i,dt.files[i]); }
+          var lb=document.getElementById('z50ImgN'); if(lb) lb.textContent=dt.files.length?(' ('+dt.files.length+'장)'):'';
+        }
+        function addFiles(list){
+          var arr=[].slice.call(list||[]).filter(z50IsImg); var skip=(list?list.length:0)-arr.length;
+          if(!arr.length){ if(skip) say('이미지 파일만 붙일 수 있습니다.'); return; }
+          say('붙이는 중…');
+          Promise.all(arr.map(z50Shrink)).then(function(fs){
+            var over=0; fs.forEach(function(f){ if(dt.items.length>=20){ over++; return; } if(f.size>25*1024*1024){ skip++; return; } dt.items.add(f); });
+            try{ input.files=dt.files; }catch(_){ }
+            render();
+            say(over?('20장까지만 붙습니다 — '+over+'장은 빼었습니다.'):(skip?(skip+'장은 이미지가 아니거나 너무 커서 빼었습니다.'):''));
+          });
+        }
+        input.addEventListener('change', function(){ var fs=[].slice.call(input.files||[]); try{input.files=dt.files;}catch(_){ } addFiles(fs); });
+        drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('drag'); });
+        drop.addEventListener('dragleave', function(){ drop.classList.remove('drag'); });
+        drop.addEventListener('drop', function(e){ e.preventDefault(); e.stopPropagation(); drop.classList.remove('drag'); if(e.dataTransfer&&e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+        document.addEventListener('paste', function(e){
+          var nf=document.getElementById('prqNewForm'); if(!nf) return;
+          var fs=z50ClipImgs(e); if(!fs.length) return;
+          e.preventDefault(); addFiles(fs);
+          try{ drop.scrollIntoView({block:'nearest'}); }catch(_){}
+        });
+      }
+      // 수정하기 중(이미 발행한 요청서): 이미지 칸에 끌어다 놓기 · Ctrl+V → 곧바로 올림(「＋ 이미지 추가」와 같은 길)
+      var g=document.getElementById('prqImgGrid');
+      function editing(){ var ef=document.getElementById('prqEditForm'); return !!(ef && !ef.hidden && PRID); }
+      if(g && PRID){
+        g.addEventListener('dragover', function(e){ if(!editing()) return; e.preventDefault(); g.classList.add('z50-drag'); });
+        g.addEventListener('dragleave', function(){ g.classList.remove('z50-drag'); });
+        g.addEventListener('drop', function(e){ if(!editing()) return; e.preventDefault(); e.stopPropagation(); g.classList.remove('z50-drag');
+          var fs=[].slice.call((e.dataTransfer&&e.dataTransfer.files)||[]).filter(z50IsImg); if(fs.length) Promise.all(fs.map(z50Shrink)).then(window.prqImgUpload); });
+        document.addEventListener('paste', function(e){
+          if(!editing()) return; var fs=z50ClipImgs(e); if(!fs.length) return;
+          e.preventDefault(); Promise.all(fs.map(z50Shrink)).then(window.prqImgUpload);
+          try{ g.scrollIntoView({block:'nearest'}); }catch(_){}
+        });
+      }
+    })();
     window.prqValidate=function(form){
       // z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 수주가 여러 건이면 하나 이상 골라야 한다
       try{
@@ -677,6 +840,12 @@ select.prq-in { appearance:auto; }
           try{ form.querySelector('input[type=checkbox][name=order_ids]').focus(); }catch(_){}
           return false;
         }
+      }catch(_){}
+      // z1191z50: 발행 전에 붙인 이미지 합계 — 한 번에 받는 한도(50MB) 안으로
+      try{
+        var zi=form.querySelector('#z50ImgInput');
+        if(zi && zi.files && zi.files.length){ var tot=0; for(var i=0;i<zi.files.length;i++) tot+=zi.files[i].size||0;
+          if(tot>45*1024*1024){ alert('참고 이미지가 너무 큽니다(합계 '+Math.round(tot/1048576)+'MB) — 몇 장 빼고 발행한 뒤 「✏️ 수정하기」에서 나눠 붙이세요.'); return false; } }
       }catch(_){}
       try{ if(window.KNKCust && KNKCust.validate){ var bad=KNKCust.validate(form);
         if(bad){ alert('고객사를 등록된 목록에서 선택하세요.'); try{ bad.focus(); }catch(_){} return false; } } }catch(_){}

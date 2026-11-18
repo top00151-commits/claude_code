@@ -11749,7 +11749,7 @@ def _z49_item(c, proj, stored_csv="", issued_at=""):
     orders = _z48_project_orders(c, proj["id"])
     sel = _z48_pick_orders(orders, stored_csv, issued_at)
     return {"pid": proj["id"], "mgmt": proj.get("mgmt_code") or "", "mg": _z48_mg(proj.get("mgmt_code")),
-            "so_nos": [o["order_no"] for o in sel], "hogi": [o["unit_label"] for o in sel if o.get("unit_label")],
+            "so_nos": [o["order_no"] for o in sel], "hogi": [o["hogi"] for o in sel if o.get("hogi")],   # z1191z50: 호기만(z48e 규칙)
             "model": proj.get("model_name") or "", "equip": proj.get("equip_name") or "", "qty": proj.get("unit_qty") or 1,
             "due": str(proj.get("due_date") or "")[:10], "dday": _z48_dday(proj.get("due_date")),
             "eng": [x.strip() for x in str(proj.get("engraving") or "").replace("\r", "").split("\n") if x.strip()]}
@@ -11872,6 +11872,37 @@ def _z49_view_ctx(c, p, pr, cur_pid):
         print(f"[z1191z49] 묶을 관리번호 읽기 실패: {_e49}")
         cands = []
     return {"bitems": items, "cur_pid": cur_pid, "cands": cands, "n_sug": sum(1 for d in cands if d["suggest"])}
+
+
+# z1191z50 (대표 2026-11-17 「2차 진행해」 · 2-2 작성 화면 편의): 「지난 요청서 불러오기」 목록.
+#   이 관리번호의 지난 요청서 먼저(추가 발주·MODIFY 가 요청의 절반 넘음 — 메일 실측) → 같은 고객사의 최근 요청서.
+#   묶음은 한 장으로(같은 글이 관리번호마다 들어 있으므로) · 글이 하나도 없는 것은 뺀다.
+def _z50_past(c, p, limit=8):
+    out, seen = [], set()
+    cid = p.get("customer_id")
+    q = ("SELECT r.id, r.project_id, COALESCE(r.bundle_id, r.id) AS bkey, COALESCE(r.created_at,'') AS created_at, "
+         "COALESCE(r.cust_req,'') AS cust_req, COALESCE(r.note,'') AS note, COALESCE(r.gist,'') AS gist, "
+         "COALESCE(r.issued_by_name,'') AS by_name, COALESCE(x.mgmt_code,'') AS mgmt "
+         "FROM prod_requests r JOIN projects x ON x.id=r.project_id "
+         "WHERE COALESCE(x.is_archived,0)=0 AND (r.project_id=?" + (" OR x.customer_id=?" if cid else "") + ") "
+         "ORDER BY (CASE WHEN r.project_id=? THEN 0 ELSE 1 END), r.id DESC LIMIT 300")
+    args = (p["id"], cid, p["id"]) if cid else (p["id"], p["id"])
+    for r in c.execute(q, args).fetchall():
+        d = dict(r)
+        if d["bkey"] in seen:
+            continue
+        if not (d["cust_req"].strip() or d["note"].strip() or d["gist"].strip()):
+            continue
+        seen.add(d["bkey"])
+        head = d["gist"].strip() or next((ln.strip() for ln in d["cust_req"].replace("\r", "").split("\n") if ln.strip()), "") \
+            or d["note"].strip()
+        head = head if len(head) <= 40 else head[:40].rstrip() + " …"
+        out.append({"id": d["id"], "mgmt": d["mgmt"], "date": str(d["created_at"])[:10], "by": d["by_name"],
+                    "mine": int(d["project_id"]) == int(p["id"]), "head": head,
+                    "cust_req": d["cust_req"], "note": d["note"], "gist": d["gist"]})
+        if len(out) >= limit:
+            break
+    return out
 
 
 # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수 입력 사항임」): 발행 전에 묻는 한 곳.
@@ -31325,6 +31356,24 @@ async def prod_request_new(request: Request, pid: int):
         _z49_bundle = _z49_pick_members(_c48, pid, _z49_bp, form)   # z1191z49: 함께 묶을 관리번호(같은 고객사 · 수주 있음)
     if _z48_nd:
         return RedirectResponse(_dest("new=1&prod_need=" + _z48_nd), 303)
+    # z1191z50 (대표 2026-11-17 2차 · 작성 화면 편의): 발행 전에 붙인 참고 이미지 — 발행 뒤 새 요청서(묶음이면 대표 줄)에 붙인다
+    _z50_files, _z50_skip = [], 0
+    try:
+        for _imf in form.getlist("pr_images"):
+            _fn = getattr(_imf, "filename", "") or ""
+            if not _fn or not hasattr(_imf, "read"):
+                continue
+            _raw = await _imf.read()
+            if (os.path.splitext(_fn)[1].lower() not in _PROD_IMG_EXT) or not _raw or len(_raw) < 50 or len(_raw) > 25 * 1024 * 1024:
+                _z50_skip += 1
+                continue
+            if len(_z50_files) >= 20:
+                _z50_skip += 1
+                continue
+            _z50_files.append((_fn, _raw))
+    except Exception as _e50:
+        print(f"[z1191z50] 참고 이미지 읽기 실패: {_e50}")
+        _z50_files = []
     # 1) 프로젝트 서술필드 갱신 — 통보 본문·상세 표시에 새 값 반영(관리번호 불변). 수정 라우트와 동일 로직.
     try:
         with db_session() as c:
@@ -31365,7 +31414,7 @@ async def prod_request_new(request: Request, pid: int):
     _qs = ["prod_created=1"]
     try:
         _res = _prod_request_notify_core(int(pid), _cust_req, _note, (_sel_team_ids or None), u,
-                                         record=True, is_update=False, image_count=0,
+                                         record=True, is_update=False, image_count=len(_z50_files),
                                          user_ids=(_sel_user_ids or None),
                                          order_ids=(_z48_oids or None), gist=_z48_gist,
                                          bundle=(_z49_bundle or None), bundle_model=_z49_bm)
@@ -31380,6 +31429,23 @@ async def prod_request_new(request: Request, pid: int):
                 _qs.append("prod_msgerr=1")
             if _res.get("pr_save_err"):
                 _qs.append("prod_saveerr=1")
+            # z1191z50: 참고 이미지 붙이기 — 실패해도 발행·통보는 그대로(까닭만 화면에)
+            if _z50_files or _z50_skip:
+                _z50_saved, _z50_bad = 0, _z50_skip
+                if _newid and _z50_files:
+                    try:
+                        _ir = _attach_prod_images(_newid, pid, _z50_files, (u.get("id") if u else None))
+                        _z50_saved = int(_ir.get("saved") or 0)
+                        _z50_bad += len(_ir.get("skipped") or [])
+                    except Exception as _e50:
+                        print(f"[z1191z50] 참고 이미지 저장 실패: {_e50}")
+                        _z50_bad += len(_z50_files)
+                else:
+                    _z50_bad += len(_z50_files)
+                if _z50_saved:
+                    _qs.append(f"prod_img={_z50_saved}")
+                if _z50_bad:
+                    _qs.append(f"prod_imgskip={_z50_bad}")
         elif _res.get("error") == "need_mgmt_order":   # z1191z49: 묶은 관리번호에 수주가 없음 등(필수)
             _qs = ["new=1", "prod_need=" + str(_res.get("need") or "order")]
         else:
@@ -31570,6 +31636,12 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         _z48 = _z48_view_ctx(c, p, pr)
         _z48.update(_z49_view_ctx(c, p, pr, _z49_cur))   # z1191z49: 묶음 품목 줄 · 묶을 수 있는 관리번호
         _z48["need_msg"] = _Z48_NEED_MSG.get(request.query_params.get("prod_need") or "", "")   # z48c: 막힌 까닭(돌려보낼 때)
+        _z48["past"] = []
+        if create_mode:   # z1191z50: 「지난 요청서 불러오기」(이 관리번호 먼저 → 같은 고객사)
+            try:
+                _z48["past"] = _z50_past(c, p)
+            except Exception as _e50:
+                print(f"[z1191z50] 지난 요청서 읽기 실패: {_e50}")
     # v5H226z773: 등록 시 작성한 정보의 사람친화 라벨(형태·사업부·거래구분) — 코드값을 그대로 노출하지 않음
     _FORM_LBL = {"ASSEMBLY": "🏭 완제품", "SEMI": "📦 제품", "PARTS": "🧰 상품", "ETC": "🗂 기타"}
     # z1191z37 (대표 2026-11-16): 사업부 아이콘 = 프로젝트 등록 화면(🔬 🤖 💄 🌐 📦) · 연구는 검사기와 겹치지 않게 🧪

@@ -146,8 +146,8 @@ check(E in ids and not [d for d in cands if d["id"] == E][0]["suggest"] and S1 i
 check(F not in ids and G not in ids and H not in ids and A not in ids, "수주 없는 것 · 다른 고객사 · 폐기 · 자기 자신은 못 묶음")
 hn = q(cl.get, "/project/%d/prod-request/edit?new=1" % A).text
 check("같은 날 발주된 관리번호가 <b>3건</b> 더 있습니다" in hn and "모두 묶기" in hn and hn.count('name="bundle_pids"') == len(ids), "작성 화면: 「함께 발주된 3건 · 모두 묶기」 + 고를 수 있는 목록", hn.count('name="bundle_pids"'))
-check(re.search(r'<select name="m_order_%d"[^>]*><option value="%d">T-261117-3 · 추가 · 2호기</option><option value="%d">T-261113-8' % (Dd, OD2, OD1), hn) is not None
-      and '<input type="hidden" name="m_order_%d" value="%d">' % (B, OB) in hn, "수주가 여러 건인 관리번호는 그 줄에서 수주를 고름(기본 = 최근) · 한 건이면 자동")
+check(re.search(r'<select name="m_order_%d"[^>]*><option value="%d"(?: data-hogi="[^"]*")?>T-261117-3 · 추가 · 2호기</option><option value="%d"(?: data-hogi="[^"]*")?>T-261113-8' % (Dd, OD2, OD1), hn) is not None
+      and '<input type="hidden" name="m_order_%d" value="%d" data-hogi=' % (B, OB) in hn, "수주가 여러 건인 관리번호는 그 줄에서 수주를 고름(기본 = 최근) · 한 건이면 자동")
 check('name="bundle_model"' in hn, "MODEL(묶음 이름) 칸")
 
 print("§2 묶어서 새 발행")
