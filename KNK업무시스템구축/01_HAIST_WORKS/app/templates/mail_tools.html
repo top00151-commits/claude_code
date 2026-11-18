@@ -7,22 +7,26 @@
      ① 위: 「지금 내 메일」 — 정리할 것을 큰 숫자 + 단추 하나(없으면 ✓ 깨끗해요)
      ② 아래: 「설정」 — 한 줄에 하나 · 오른쪽에 지금 상태와 단추 · 글자 크게·보기 방식은 그 자리에서 바로
      ③ 관리자 — 접어 둠 */
-  .mt-wrap{max-width:1040px}
-  .mt-sec{display:flex;align-items:baseline;gap:8px;margin:22px 0 10px;font-size:16px;font-weight:800;color:var(--ink)}
+  /* 11-18 대표 「비율이 안 맞아 · 안정감 있게」: 가운데 정렬 · 양옆 여백 · 칸 3개씩 두 줄 · 칸 높이·단추 위치 맞춤 */
+  .mt-wrap{max-width:1080px;margin:0 auto;padding:0 24px 40px;box-sizing:border-box}
+  .mt-wrap .page-head{padding-left:0;padding-right:0}
+  .mt-sec{display:flex;align-items:baseline;gap:8px;margin:26px 0 12px;font-size:16px;font-weight:800;color:var(--ink)}
   .mt-sec small{font-weight:500;color:var(--mute);font-size:13px}
   /* ① 지금 내 메일 — 타일 */
-  .mt-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-  .mt-tile{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 16px;min-height:132px}
+  .mt-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;gap:14px}
+  @media(max-width:900px){.mt-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:560px){.mt-tiles{grid-template-columns:1fr;grid-auto-rows:auto}.mt-wrap{padding:0 12px 32px}.mt-sec{flex-wrap:wrap;white-space:nowrap}.mt-sec small{flex-basis:100%;white-space:normal}.mt-tile{min-height:0}}
+  .mt-tile{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:16px 18px;min-height:168px}
   .mt-tile .mt-tt{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#374151}
   .mt-tile .mt-tt .ic{font-size:20px}
-  .mt-tile .num{font-size:28px;font-weight:800;line-height:1.1;color:var(--ink)}
+  .mt-tile .num{font-size:28px;font-weight:800;line-height:1.15;color:var(--ink);min-height:32px;display:flex;align-items:center}
   .mt-tile .num small{font-size:14px;font-weight:600;color:var(--mute);margin-left:3px}
   .mt-tile .why{font-size:12.5px;color:var(--mute);line-height:1.5;flex:1}
-  .mt-tile .go{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;background:var(--knk-red);color:#fff}
+  .mt-tile .go{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;background:var(--knk-red);color:#fff}
   .mt-tile .go.sub{background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:600}
   .mt-tile .go[disabled]{opacity:.45;cursor:default}
   .mt-tile.clean{background:#f6fbf7;border-color:#cfe8d6}
-  .mt-tile.clean .num{color:#15803d;font-size:18px}
+  .mt-tile.clean .num{color:#15803d;font-size:19px}
   .mt-tile.warn{border-color:#fecaca;background:#fffafa}
   .mt-tile select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;padding:2px 6px;margin:0 2px}
   /* ② 설정 — 줄 */
@@ -98,7 +102,7 @@
     </div>
     <div class="mt-tile">
       <div class="mt-tt"><span class="ic">🔁</span>같은 메일 여러 통</div>
-      <div class="num" id="mtDupN" style="font-size:16px;color:var(--mute)">눌러서 검사</div>
+      <div class="num" id="mtDupN" style="font-size:17px;color:var(--mute)">눌러서 검사</div>
       <div class="why">여러 그룹 주소로 같은 메일이 여러 통 온 것을 1통만 남기기(답장은 안 건드림 · 휴지통에서 되살릴 수 있음)</div>
       <button type="button" class="go sub" onclick="dedupInbox(event)">정리하기</button>
     </div>
