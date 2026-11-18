@@ -46,3 +46,4 @@ pdf2image           # 스캔 PDF → 이미지 변환 (poppler 별도)
 #   · Poppler (스캔 PDF → 이미지 변환용)
 #     https://github.com/oschwartz10612/poppler-windows/releases
 # - 미설치 시 PDF만 동작. 이미지 업로드 시 친절한 안내 메시지 표시.
+msoffcrypto-tool==5.4.2   # z1191z62 암호 걸린 엑셀 견적서 풀기(비밀번호는 저장 안 함)

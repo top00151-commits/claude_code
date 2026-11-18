@@ -256,13 +256,13 @@ check(row(TOK1) and os.path.isfile(os.path.join(TMP, "project_quotes", row(TOK1)
 print("§7 등록 화면 띠")
 as_(UA)
 hq = q(cl.get, "/projects/quick?biz_div=T").text
-check('id="z61q"' in hq and 'name="quote_tok" id="z61qTok"' in hq and "견적서로 채우기" in hq and 'id="z61qFile"' in hq, "등록 화면에 「📄 견적서로 채우기」 · 숨은 칸 quote_tok")
+check('id="z61q" class="z61q" data-mode="new"' in hq and 'name="quote_tok" id="z61qTok"' in hq and "견적서로 채우기" in hq and 'id="z61qFile"' in hq, "등록 화면에 「📄 견적서로 채우기」 · 숨은 칸 quote_tok")
 fi = re.search(r'<input type="file" id="z61qFile"[^>]*>', hq)
 check(fi and "name=" not in fi.group(0) and "data-knk-no-dropzone" in fi.group(0), "파일 칸엔 name 없음(등록 때 파일을 또 보내지 않음) · 공용 끌어놓기 제외")
 i_band = hq.find('id="z61q"'); i_cover = hq.find('id="qLockCover"'); i_form = hq.find('id="quickForm"'); i_end = hq.find("</form>", i_form)
 check(i_form < i_band < i_end, "띠는 양식 안(다른 사람이 잡고 있으면 가림막 아래)")
-he = q(cl.get, "/projects/%d/edit?quick=1" % P1).text
-check('id="z61q"' not in he, "수정 화면엔 띠 없음(등록 화면만)")
+he = q(cl.get, "/projects/%d/edit" % P1).text
+check('id="z61q"' in he and 'data-mode="edit"' in he, "z62 부터 수정 화면(고급 편집)에도 띠 · 수정 모드")
 
 print()
 print("결과: ✅ %d · ❌ %d" % (OK, FAIL))

@@ -7,6 +7,9 @@
 - 실물(대표 메일함 견적서 PDF 3양식 — 본사 검사기 · 본사 자동화 · VINA 한/베/영)에서 PDF 글자는 읽히지만
   금액이 「1 1,300,000」처럼 쪼개져 나온다 → 첫 장 그림을 함께 보내 그림 기준으로 읽게 한다.
 - 추측 금지: 견적서에 없는 값은 빈칸. 읽은 값은 화면에서 사람이 확인한 뒤 등록한다.
+- z1191z62 (대표 11-18 「엑셀파일에는 기본적으로 암호가 걸려있을수있어 … 비밀번호를 입력하고 등록이 되도록」):
+  암호 걸린 엑셀(xlsx·xls)·PDF → need_password · 비밀번호로 풀어서 읽음(msoffcrypto-tool · pdfium).
+  비밀번호는 읽는 데만 쓰고 어디에도 저장·기록하지 않는다. 보관 파일은 원본(암호 그대로).
 """
 from __future__ import annotations
 
@@ -61,13 +64,13 @@ def ext_of(name: str) -> str:
     return os.path.splitext(_nfc(name).lower())[1]
 
 
-def file_text(raw: bytes, ext: str) -> str:
-    """파일에서 글자만(참고용). 실패하면 빈 문자열."""
+def file_text(raw: bytes, ext: str, password: str = "") -> str:
+    """파일에서 글자만(참고용). 실패하면 빈 문자열. (엑셀은 이미 푼 바이트를 받는다 · PDF 는 password)"""
     out = ""
     try:
         if ext == ".pdf":
             import pdfplumber
-            with pdfplumber.open(io.BytesIO(raw)) as pdf:
+            with pdfplumber.open(io.BytesIO(raw), password=password or "") as pdf:
                 parts = []
                 for p in pdf.pages[:4]:
                     parts.append(p.extract_text() or "")
@@ -115,12 +118,12 @@ def _png_b64(img, max_side: int = 2000) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def page_image_b64(raw: bytes, ext: str) -> str:
+def page_image_b64(raw: bytes, ext: str, password: str = "") -> str:
     """PDF 첫 장 또는 사진 → PNG base64. 실패하면 빈 문자열."""
     try:
         if ext == ".pdf":
             import pypdfium2 as pdfium
-            pdf = pdfium.PdfDocument(raw)
+            pdf = pdfium.PdfDocument(raw, password=password or None)
             try:
                 if len(pdf) < 1:
                     return ""
@@ -137,6 +140,58 @@ def page_image_b64(raw: bytes, ext: str) -> str:
     except Exception as e:
         print(f"[z1191z61] 그림 만들기 실패({ext}): {str(e)[:120]}")
     return ""
+
+
+# ── z1191z62 암호 ─────────────────────────────────────────────
+_OLE = bytes.fromhex("d0cf11e0a1b11ae1")   # OLE 통(암호 걸린 xlsx · xls)
+
+
+def office_locked(raw: bytes, ext: str) -> bool:
+    """엑셀에 암호가 걸렸나. xlsx 는 원래 zip(PK) — 암호를 걸면 OLE 통으로 바뀐다. xls 는 열어 봐서."""
+    if ext in (".xlsx", ".xlsm"):
+        return raw[:8] == _OLE
+    if ext == ".xls":
+        try:
+            import msoffcrypto
+            return bool(msoffcrypto.OfficeFile(io.BytesIO(raw)).is_encrypted())
+        except ImportError:
+            pass
+        except Exception:
+            return False
+        try:
+            import xlrd
+            xlrd.open_workbook(file_contents=raw, on_demand=True)
+            return False
+        except Exception as e:
+            return "encrypt" in str(e).lower() or "password" in str(e).lower()
+    return False
+
+
+def office_unlock(raw: bytes, password: str):
+    """비밀번호로 푼 바이트. 도구 없음 → 'nolib' · 비밀번호 틀림 → None."""
+    try:
+        import msoffcrypto
+    except ImportError:
+        return "nolib"
+    try:
+        of = msoffcrypto.OfficeFile(io.BytesIO(raw))
+        of.load_key(password=password)
+        out = io.BytesIO()
+        of.decrypt(out)
+        return out.getvalue()
+    except Exception:   # InvalidKeyError·DecryptionError — 비밀번호 틀림(사유 글에 비밀번호가 섞이지 않게 그대로 버림)
+        return None
+
+
+def pdf_locked(raw: bytes, password: str = "") -> bool:
+    """PDF 가 (이 비밀번호로) 안 열리나. 비밀번호 때문일 때만 True."""
+    try:
+        import pypdfium2 as pdfium
+        d = pdfium.PdfDocument(raw, password=password or None)
+        d.close()
+        return False
+    except Exception as e:
+        return "password" in str(e).lower()
 
 
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
@@ -245,13 +300,40 @@ def checks(f: dict) -> list:
     return w
 
 
-def read_quote(raw: bytes, filename: str) -> dict:
-    """반환 {ok, mode, fields, warnings, message}. AI 가 없거나 실패해도 예외 없이 ok=False."""
+def read_quote(raw: bytes, filename: str, password: str = "") -> dict:
+    """반환 {ok, mode, fields, warnings, message, need_password, bad_password}. AI 가 없거나 실패해도 예외 없이 ok=False."""
     ext = ext_of(filename)
-    res = {"ok": False, "mode": "", "fields": {}, "warnings": [], "message": ""}
+    res = {"ok": False, "mode": "", "fields": {}, "warnings": [], "message": "", "need_password": False, "bad_password": False}
     if ext not in EXTS:
         res["message"] = "PDF·엑셀(xlsx·xls)·사진(png·jpg) 파일만 읽을 수 있습니다."
         return res
+    pdf_pw = ""
+    if ext in (".xlsx", ".xlsm", ".xls") and office_locked(raw, ext):
+        res["locked"] = True   # 보관 원본은 암호 파일(풀어 읽어도 그대로) — 상세 「🔒 암호 파일」 표시
+        if not password:
+            res["need_password"] = True
+            res["message"] = "암호가 걸린 엑셀입니다 — 비밀번호를 넣으면 풀어서 읽습니다."
+            return res
+        plain = office_unlock(raw, password)
+        if plain == "nolib":
+            res["message"] = "암호 걸린 엑셀을 푸는 도구가 서버에 아직 없어 읽지 못했습니다. 파일은 등록할 때 그대로 보관됩니다."
+            return res
+        if plain is None:
+            res["need_password"] = res["bad_password"] = True
+            res["message"] = "비밀번호가 맞지 않습니다 — 다시 넣어 주세요."
+            return res
+        raw = plain
+    elif ext == ".pdf" and pdf_locked(raw):
+        res["locked"] = True
+        if not password:
+            res["need_password"] = True
+            res["message"] = "암호가 걸린 PDF 입니다 — 비밀번호를 넣으면 풀어서 읽습니다."
+            return res
+        if pdf_locked(raw, password):
+            res["need_password"] = res["bad_password"] = True
+            res["message"] = "비밀번호가 맞지 않습니다 — 다시 넣어 주세요."
+            return res
+        pdf_pw = password
     try:
         from . import ai_client
     except Exception:
@@ -259,8 +341,8 @@ def read_quote(raw: bytes, filename: str) -> dict:
     if not ai_client.ai_available():
         res["message"] = "AI 를 쓸 수 없어 읽지 못했습니다(관리자 화면의 AI 설정). 파일은 등록할 때 함께 보관됩니다."
         return res
-    text = file_text(raw, ext) if ext in (".pdf", ".xlsx", ".xlsm", ".xls") else ""
-    img = page_image_b64(raw, ext) if ext in (".pdf", ".png", ".jpg", ".jpeg") else ""
+    text = file_text(raw, ext, pdf_pw) if ext in (".pdf", ".xlsx", ".xlsm", ".xls") else ""
+    img = page_image_b64(raw, ext, pdf_pw) if ext in (".pdf", ".png", ".jpg", ".jpeg") else ""
     prompt = PROMPT
     if text:
         prompt += "\n\n[파일에서 뽑은 글자 — 참고용 · 숫자 띄어쓰기가 깨졌을 수 있음]\n" + text

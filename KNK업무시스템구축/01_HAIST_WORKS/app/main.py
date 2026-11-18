@@ -39071,10 +39071,6 @@ async def api_project_quote_read(req: Request, file: UploadFile = File(...)):
         return JSONResponse({"ok": False, "error": "save", "message": "파일을 서버에 저장하지 못했습니다 — 다시 올려 주세요."})
     from starlette.concurrency import run_in_threadpool as _rit61
     rd = await _rit61(_qr61.read_quote, raw, name)   # AI 기다림은 DB 를 잡기 전에(쓰기 잠금 쥔 채 기다리지 않기)
-    f = rd.get("fields") or {}
-    if not can_view_sales(u):   # 금액 볼 권한이 없으면 단가·금액·통화는 돌려주지 않는다(등록 화면에도 그 칸이 없다)
-        f = {k: v for k, v in f.items() if k not in ("unit_price", "amount", "currency")}
-        rd["warnings"] = [w for w in (rd.get("warnings") or []) if "금액" not in w]
     with db_session() as c:
         _z61_table(c)
         try:
@@ -39085,10 +39081,97 @@ async def api_project_quote_read(req: Request, file: UploadFile = File(...)):
                   "VALUES(?,?,?,?,?,?,?,?,?)",
                   (tok, name, stored, len(raw), _hl61.sha256(raw).hexdigest(), u.get("id"),
                    vname_full(u) or u.get("name"), _z61_now(), _qr61.dumps(rd)))
-        cust = _z61_match_customer(c, f.get("customer")) if f.get("customer") else {"id": None, "label": "", "cands": []}
-    return JSONResponse({"ok": True, "read_ok": bool(rd.get("ok")), "tok": tok, "name": name, "size": len(raw),
-                         "fields": f, "warnings": rd.get("warnings") or [], "message": rd.get("message") or "",
-                         "cust": cust})
+        return JSONResponse(_z61_reply(c, u, rd, tok, name, len(raw)))
+
+
+def _z61_reply(c, u, rd, tok, name, size):
+    """읽기 결과 → 화면 답(올리기 · 비밀번호로 다시 읽기 같은 모양). 비밀번호는 rd 에 없다."""
+    f = rd.get("fields") or {}
+    warns = rd.get("warnings") or []
+    if not can_view_sales(u):   # 금액 볼 권한이 없으면 단가·금액·통화는 돌려주지 않는다(등록 화면에도 그 칸이 없다)
+        f = {k: v for k, v in f.items() if k not in ("unit_price", "amount", "currency")}
+        warns = [w for w in warns if "금액" not in w]
+    cust = _z61_match_customer(c, f.get("customer")) if f.get("customer") else {"id": None, "label": "", "cands": []}
+    return {"ok": True, "read_ok": bool(rd.get("ok")), "tok": tok, "name": name, "size": size,
+            "need_password": bool(rd.get("need_password")), "bad_password": bool(rd.get("bad_password")),
+            "fields": f, "warnings": warns, "message": rd.get("message") or "", "cust": cust}
+
+
+@app.post("/api/project-quote/reread")
+async def api_project_quote_reread(req: Request):
+    """z1191z62 (대표 11-18 「암호가 걸려있는 엑셀을 넣으면 업로드 화면에서 비밀번호를 입력하고 등록」):
+    올린 파일(표지) + 비밀번호 → 풀어서 다시 읽기. 비밀번호는 읽는 데만 쓰고 저장·기록하지 않는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "forbidden", "message": "등록 권한이 없습니다."}, 403)
+    form = await req.form()
+    tok = (form.get("tok") or "").strip()[:40]
+    pw = form.get("password") or ""
+    if not tok or not pw:
+        return JSONResponse({"ok": False, "message": "비밀번호를 넣어 주세요."})
+    with db_session() as c:
+        _z61_table(c)
+        r = c.execute("SELECT orig_name, stored, size, by_id, project_id FROM project_quote_files WHERE tok=?", (tok,)).fetchone()
+    if not r or r["by_id"] != u.get("id") or r["project_id"] is not None:
+        return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다 — 다시 올려 주세요."})
+    try:
+        with open(os.path.join(_z61_dir(), r["stored"]), "rb") as _f62:
+            raw = _f62.read()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "그 견적서 파일을 찾지 못했습니다 — 다시 올려 주세요."})
+    from starlette.concurrency import run_in_threadpool as _rit62
+    rd = await _rit62(_qr61.read_quote, raw, r["orig_name"], pw)
+    pw = None
+    with db_session() as c:
+        c.execute("UPDATE project_quote_files SET read_json=? WHERE tok=?", (_qr61.dumps(rd), tok))
+        return JSONResponse(_z61_reply(c, u, rd, tok, r["orig_name"], r["size"]))
+
+
+@app.post("/api/project-quote/attach/{pid}")
+async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = File(...)):
+    """z1191z62 (대표 11-18 「상세 화면에도 둠」): 등록된 프로젝트에 견적서만 바로 보관(칸 채우기·AI 없음)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "error": "forbidden", "message": "견적서를 올릴 권한이 없습니다."}, 403)
+    with db_session() as c:
+        if not c.execute("SELECT 1 FROM projects WHERE id=?", (pid,)).fetchone():
+            return JSONResponse({"ok": False, "message": "프로젝트를 찾지 못했습니다."}, 404)
+    name = _qr61._nfc(file.filename or "견적서")[:200]
+    ext = _qr61.ext_of(name)
+    if ext not in _qr61.EXTS:
+        return JSONResponse({"ok": False, "message": "PDF·엑셀(xlsx·xls)·사진(png·jpg) 파일만 올릴 수 있습니다."})
+    raw = await file.read(_qr61.MAX_BYTES + 1)
+    if not raw:
+        return JSONResponse({"ok": False, "message": "빈 파일입니다."})
+    if len(raw) > _qr61.MAX_BYTES:
+        return JSONResponse({"ok": False, "message": "20MB 보다 큰 파일은 올릴 수 없습니다."})
+    import secrets as _sc62, hashlib as _hl62
+    tok = _sc62.token_hex(12)
+    sub = _z61_now()[:7].replace("-", "")
+    stored = f"{sub}/{tok}{ext}"
+    try:
+        os.makedirs(os.path.join(_z61_dir(), sub), exist_ok=True)
+        with open(os.path.join(_z61_dir(), stored), "wb") as _f62:
+            _f62.write(raw)
+    except Exception as _e:
+        print(f"[z1191z62] 파일 저장 실패: {_e}")
+        return JSONResponse({"ok": False, "message": "파일을 서버에 저장하지 못했습니다 — 다시 올려 주세요."})
+    with db_session() as c:
+        _z61_table(c)
+        c.execute("INSERT INTO project_quote_files(tok, project_id, orig_name, stored, size, sha256, by_id, by_name, created_at, attached_at) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                  (tok, int(pid), name, stored, len(raw), _hl62.sha256(raw).hexdigest(), u.get("id"),
+                   vname_full(u) or u.get("name"), _z61_now(), _z61_now()))
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (int(pid), u.get("id"), "견적서 파일", "", name, "z1191z62 상세 화면 「＋ 견적서 올리기」"))
+    return JSONResponse({"ok": True, "name": name})
+
+
+tpl.env.globals["z62_can_upload"] = lambda u: bool(u) and can_use_sales(u) and can_view_sales(u)
 
 
 @app.get("/api/project-quote/{tok}")
@@ -39105,8 +39188,8 @@ async def api_project_quote_state(req: Request, tok: str):
     return JSONResponse({"ok": True, "usable": r["project_id"] is None, "name": r["orig_name"]})
 
 
-def _z61_attach(pid, tok, u):
-    """등록된 프로젝트에 견적서 붙이기 — 올린 사람 본인 · 아직 안 붙은 것만. 실패해도 등록은 막지 않는다."""
+def _z61_attach(pid, tok, u, note="z1191z61 등록 화면 「견적서로 채우기」"):
+    """등록·수정된 프로젝트에 견적서 붙이기 — 올린 사람 본인 · 아직 안 붙은 것만. 실패해도 저장은 막지 않는다."""
     tok = (tok or "").strip()[:40]
     if not pid or not tok:
         return False
@@ -39119,7 +39202,7 @@ def _z61_attach(pid, tok, u):
                 return False
             c.execute("UPDATE project_quote_files SET project_id=?, attached_at=? WHERE id=?", (int(pid), _z61_now(), r["id"]))
             c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                      (int(pid), (u or {}).get("id"), "견적서 파일", "", r["orig_name"], "z1191z61 등록 화면 「견적서로 채우기」"))
+                      (int(pid), (u or {}).get("id"), "견적서 파일", "", r["orig_name"], note))
         return True
     except Exception as _e:
         print(f"[z1191z61] 견적서 붙이기 실패 pid={pid}: {_e}")
@@ -39130,9 +39213,23 @@ def _z61_quote_files(pid):
     try:
         with db_session() as c:
             _z61_table(c)
-            return [dict(r) for r in c.execute(
-                "SELECT id, orig_name, size, by_name, created_at FROM project_quote_files WHERE project_id=? ORDER BY id",
-                (int(pid),)).fetchall()]
+            out = []
+            for r in c.execute("SELECT id, orig_name, size, by_name, created_at, read_json FROM project_quote_files WHERE project_id=? ORDER BY id",
+                               (int(pid),)).fetchall():
+                x = dict(r)
+                try:   # z1191z62 (대표 「등록된 견적은 프로젝트 정보에서 볼수있게」): 읽은 값 요약(품명·금액·견적일)
+                    rj = _qr61.json.loads(x.pop("read_json") or "{}")
+                except Exception:
+                    rj = {}
+                fd = rj.get("fields") or {}
+                x["item"] = fd.get("item_name") or ""
+                x["qdate"] = fd.get("quote_date") or ""
+                x["amount"] = fd.get("amount")
+                x["cur"] = fd.get("currency") or ""
+                x["locked"] = bool(rj.get("locked") or rj.get("need_password"))
+                x["kind"] = "pdf" if (x["orig_name"] or "").lower().endswith(".pdf") else ("img" if _qr61.ext_of(x["orig_name"] or "") in (".png", ".jpg", ".jpeg") else "file")
+                out.append(x)
+            return out
     except Exception as _e:
         print(f"[z1191z61] 견적서 목록 실패 pid={pid}: {_e}")
         return []
@@ -43395,6 +43492,7 @@ async def projects_edit_submit(request: Request, pid: int):
                 _z1191_cascade_first_so(c, int(pid), _old1191[0], _old1191[1])
         except Exception as _e1191:
             print(f"[z1191] 정보수정 → 첫 수주 맞추기 실패: {_e1191}")
+    _z61_attach(pid, form.get("quote_tok"), _u, note="z1191z62 수정 화면 「견적서로 채우기」")   # z1191z62: [저장] 때 견적서 보관
     return RedirectResponse(f"/project/{pid}", status_code=303)
 
 
