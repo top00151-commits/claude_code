@@ -195,6 +195,43 @@ try:
     hv = k.get("/mail/inbox?fd=tv").text
     check("왼쪽 칸: 「20_베트남법인」 + 그 아래 한 칸 더 들여 쓴 부서 · 그 폴더 목록에 베트남 메일", 'href="/mail/inbox?fd=tv"' in hv and "mf-k2" in hv and ('data-mail-id="%d"' % ids["vn1"]) in hv and ('data-mail-id="%d"' % ids["nx1"]) not in hv)
 
+    print("== 3f. 메일 부서 폴더 고치기(11-19 대표 「부서이름 수정·삭제·추가」 → 메일에서만) ==")
+    check("「12_베트남법인」처럼 번호가 있어도 이름이 베트남법인이면 20_베트남법인 안으로", mf.is_vn_team({"code": "12", "name": "베트남법인"}) and not mf.is_vn_team({"code": "12", "name": "개발혁신팀"}))
+    tk_hq = "t981"
+    with _db.db_session() as c:
+        team_before = c.execute("SELECT name FROM teams WHERE id=981").fetchone()[0]
+    r1_ = k.post("/mail/folders/team", data={"op": "rename", "key": tk_hq, "name": "81_시험영업지원팀"})
+    with _db.db_session() as c:
+        res3 = mf.classify(c, OWN)
+        team_after = c.execute("SELECT name FROM teams WHERE id=981").fetchone()[0]
+    check("이름 바꾸기 → 메일 폴더 이름만 바뀜 · 회사 부서표는 그대로", r1_.status_code == 303 and res3["labels"][tk_hq] == "81_시험영업지원팀" and team_after == team_before, (res3["labels"].get(tk_hq), team_after))
+    k.post("/mail/folders/team", data={"op": "addgroup", "name": "30_시험묶음"})
+    with _db.db_session() as c:
+        gkey = [kk for kk, v in mf.team_prefs(c, OWN).items() if v["name"] == "30_시험묶음"][0]
+    k.post("/mail/folders/team", data={"op": "move", "key": tk_hq, "parent": gkey})
+    with _db.db_session() as c:
+        res3 = mf.classify(c, OWN)
+    stf3 = [g for g in res3["nodes"] if g.get("kind") == "staff"][0]
+    gnode = [x for x in stf3["children"] if x["key"] == gkey]
+    check("부서 폴더 더하기 + 위치 옮기기 → 그 안으로(번호 순서 자리)", gnode and [y["key"] for y in gnode[0]["children"]] == [tk_hq], [x["name"] for x in stf3["children"]])
+    tvn = vnode[0]["children"][0]["key"]
+    k.post("/mail/folders/team", data={"op": "merge", "key": tvn, "into": "t983"})
+    with _db.db_session() as c:
+        res3 = mf.classify(c, OWN)
+    stf3 = [g for g in res3["nodes"] if g.get("kind") == "staff"][0]
+    allkeys = [x["key"] for x in stf3["children"]] + [y["key"] for x in stf3["children"] for y in (x.get("children") or [])]
+    check("지우기(합칠 곳 23_NEXT2028) → 그 폴더 안 보임 · 그 메일은 합친 곳에서", tvn not in allkeys and res3["senders"]["vn1@knknara.co.kr"]["key"] == "t983", res3["senders"].get("vn1@knknara.co.kr"))
+    tf = k.get("/mail/folders").text
+    check("폴더 관리: 지운 부서 줄 + 되살리기 · 이름 고치는 칸 · 위치 고르기 · 부서 폴더 더하기", "지운 부서 폴더" in tf and "unmerge" in tf and 'action="/mail/folders/team"' in tf and 'name="parent"' in tf and 'value="addgroup"' in tf)
+    k.post("/mail/folders/team", data={"op": "unmerge", "key": tvn})
+    k.post("/mail/folders/team", data={"op": "delgroup", "key": gkey})
+    with _db.db_session() as c:
+        res3 = mf.classify(c, OWN)
+        prefs3 = mf.team_prefs(c, OWN)
+    stf3 = [g for g in res3["nodes"] if g.get("kind") == "staff"][0]
+    check("되살리기 → 다시 보임 · 부서 폴더 지우기 → 안 부서는 바로 아래로", res3["senders"]["vn1@knknara.co.kr"]["key"] == tvn and tk_hq in [x["key"] for x in stf3["children"]] and gkey not in prefs3)
+    check("잘못된 열쇠는 거절(⚠)", "%E2%9A%A0" in k.post("/mail/folders/team", data={"op": "rename", "key": "f1", "name": "x"}).headers.get("location", ""))
+
     print("== 4. 서버 길(놓기 · 되돌리기) ==")
     f1 = sorted(ok_ids)[0]
     j = k.post("/mail/bulk", data={"op": "pin", "ids": "%d,%d" % (ids["s1"], ids["other"]), "folder_id": f1}).json()

@@ -23411,9 +23411,88 @@ async def mail_folders_page(req: Request, msg: str = ""):
             cnt[k["key"]] = (k["n"], k["u"])
             for k2 in k.get("children") or []:
                 cnt[k2["key"]] = (k2["n"], k2["u"])
+    # 11-19 부서 폴더 편집용 — 지금 나무 · 지운 부서 · 옮길 곳·합칠 곳 고르기
+    staff_tree, staff_gone, staff_parents, staff_into = [], [], [("top", "6.케이엔케이 바로 아래")], []
+    try:
+        with db_session() as c:
+            _tp = _mail_folders.team_prefs(c, u["id"])
+        stn = [g for g in ((res or {}).get("nodes") or []) if g.get("kind") == "staff"]
+        if stn:
+            staff_tree = [x for x in stn[0]["children"] if x["key"][:1] in ("t", "g")]
+        labels = (res or {}).get("labels") or {}
+        for x in staff_tree:
+            if x.get("group"):
+                staff_parents.append((x["key"], x["name"]))
+        for gk2, pr in _tp.items():
+            if gk2.startswith("g") and gk2 not in dict(staff_parents):
+                staff_parents.append((gk2, pr.get("name") or gk2))
+        if "tv" not in dict(staff_parents) and not _tp.get("tv", {}).get("merge"):
+            staff_parents.append(("tv", _tp.get("tv", {}).get("name") or _mail_folders.VN_FOLDER_NAME))
+        for x in staff_tree:
+            staff_into.append((x["key"], x["name"]))
+            for y in x.get("children") or []:
+                staff_into.append((y["key"], "　└ " + y["name"]))
+        staff_into.append(("tx", "KNK 기타(부서 모름)"))
+        for k3, pr in _tp.items():
+            if pr.get("merge") and k3.startswith("t") and k3 != "tv":
+                staff_gone.append({"key": k3, "name": labels.get(k3, k3), "into": labels.get(pr["merge"], "KNK 기타(부서 모름)")})
+            elif k3 == "tv" and pr.get("merge"):
+                staff_gone.append({"key": "tv", "name": pr.get("name") or _mail_folders.VN_FOLDER_NAME, "into": "", "group": True})
+    except Exception:
+        pass
     return ctx(req, "mail_folders.html", user=u, groups=groups, rules=rl, res=res, msg=msg, cnt=cnt,
                gen=((res or {}).get("gen") or {"n": 0, "u": 0}),
-               team_labels=[_mail_folders.team_label(t) for t in tl])
+               team_labels=[_mail_folders.team_label(t) for t in tl],
+               staff_tree=staff_tree, staff_gone=staff_gone, staff_parents=staff_parents, staff_into=staff_into)
+
+
+@app.post("/mail/folders/team")
+async def mail_folders_team(req: Request):
+    """메일 부서 폴더(6.케이엔케이 아래) — 이름 바꾸기 · 위치 옮기기 · 지우기(합칠 곳) · 되살리기 · 부서 폴더 더하기·지우기.
+    11-19 대표 「부서이름 수정·삭제·추가」 → 「메일에서만 고치기」: 회사 부서표·권한·결재·이음은 그대로 · 나에게만."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    form = await req.form()
+    op = (form.get("op") or "").strip()
+    key = (form.get("key") or "").strip()
+    msg = ""
+    try:
+        with db_session() as c:
+            if op == "rename":
+                nm = (form.get("name") or "").strip()
+                _mail_folders.set_team_pref(c, u["id"], key, name=nm)
+                msg = "이름을 바꿨습니다(메일에서만)" if nm else "원래 이름으로 되돌렸습니다"
+            elif op == "move":
+                _mail_folders.set_team_pref(c, u["id"], key, parent=(form.get("parent") or "").strip())
+                msg = "위치를 옮겼습니다"
+            elif op == "merge":
+                into = (form.get("into") or "tx").strip() or "tx"
+                if into == key:
+                    into = "tx"
+                _mail_folders.set_team_pref(c, u["id"], key, merge=into)
+                msg = "부서 폴더를 지웠습니다 — 그 메일은 합친 곳에서 보입니다(아래 「지운 부서」에서 되살릴 수 있음)"
+            elif op == "unmerge":
+                _mail_folders.set_team_pref(c, u["id"], key, merge="")
+                msg = "되살렸습니다"
+            elif op == "reset":
+                _mail_folders.del_team_pref(c, u["id"], key)
+                msg = "처음(회사 부서표) 상태로 되돌렸습니다"
+            elif op == "addgroup":
+                _mail_folders.add_team_group(c, u["id"], form.get("name") or "")
+                msg = "부서 폴더를 더했습니다 — 각 부서의 「위치」에서 이 폴더를 고르면 그 안으로 들어갑니다"
+            elif op == "delgroup":
+                _mail_folders.del_team_group(c, u["id"], key)
+                msg = "부서 폴더를 지웠습니다 — 안에 있던 부서는 6.케이엔케이 바로 아래로"
+            elif op == "restoregroup":
+                _mail_folders.set_team_pref(c, u["id"], key, merge="")
+                msg = "되살렸습니다"
+            else:
+                msg = "모르는 일입니다"
+    except ValueError as e:
+        msg = "⚠ " + str(e)
+    import urllib.parse as _up
+    return RedirectResponse("/mail/folders?msg=" + _up.quote(msg) + "#staff", 303)
 
 
 @app.get("/mail/folders/general", response_class=HTMLResponse)

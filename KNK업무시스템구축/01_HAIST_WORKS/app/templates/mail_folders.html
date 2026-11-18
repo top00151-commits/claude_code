@@ -24,6 +24,17 @@
   .mf-btn.del{color:#b91c1c;border-color:#fecaca}
   .mf-btn.go{background:var(--knk-red,#c0392b);border-color:transparent;color:#fff;font-weight:700}
   .mf-auto{font-size:12px;color:var(--mute);padding:7px 12px 9px 34px;border-bottom:1px solid var(--line);line-height:1.7}
+  /* 11-19 부서 폴더 편집(메일에서만) */
+  .mf-trow.sub{padding-left:62px}
+  .mf-trow.grp .mf-name{font-weight:700}
+  .mf-ti{color:#9ca3af;width:16px;text-align:center}
+  .mf-was{font-size:11.5px;color:var(--mute);white-space:nowrap}
+  .mf-sel{border:1px solid var(--line);border-radius:7px;padding:3px 6px;font-size:12px;font-family:inherit;background:#fff;max-width:200px}
+  .mf-del{position:relative}
+  .mf-del>summary{list-style:none}
+  .mf-del>summary::-webkit-details-marker{display:none}
+  .mf-delbox{position:absolute;right:0;top:30px;z-index:5;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.12);padding:10px 12px;font-size:12.5px;white-space:nowrap;display:flex;gap:6px;align-items:center}
+  .mf-gone{background:#fffbeb}
   .mf-add{padding:6px 12px 8px 34px;border-bottom:1px solid var(--line)}
   .mf-add input{border:1px dashed #cbd5e1;border-radius:6px;padding:4px 8px;font-size:12.5px;font-family:inherit;width:220px}
   .mf-sec{font-size:14px;font-weight:700;margin:20px 0 8px}
@@ -81,7 +92,52 @@
         <input type="hidden" name="op" value="delete"><input type="hidden" name="id" value="{{ g.id }}"><button class="mf-btn del" type="submit">지우기</button></form>
     </div>
     {% if g.kind == 'staff' %}
-    <div class="mf-auto">부서 폴더는 <b>회사 부서표에서 자동</b>으로 보입니다(메일이 있는 부서만): {{ team_labels|join(' · ') }}</div>
+    {# 11-19 대표 「부서이름 수정·삭제·추가」 → 메일에서만(회사 부서표·권한·결재·이음은 그대로 · 나에게만) #}
+    <div class="mf-auto" id="staff">부서 폴더는 <b>회사 부서표에서 자동</b>으로 보입니다(메일이 있는 부서만). 여기서 고친 <b>이름·지우기·더하기·위치</b>는 <b>메일 폴더에서만</b> 바뀝니다 — 회사 부서표·권한·결재·이음은 그대로. 순서는 이름 앞 번호대로(예: 「21_…」은 20 다음).</div>
+    {% macro trow(x, sub) %}
+    <div class="mf-row k mf-trow{{ ' sub' if sub else '' }}{{ ' grp' if x.group else '' }}">
+      <form method="post" action="/mail/folders/team" title="이름을 고치고 Enter — 비우고 Enter 하면 원래 이름">
+        <input type="hidden" name="op" value="rename"><input type="hidden" name="key" value="{{ x.key }}">
+        <span class="mf-ti">{{ '📂' if x.group else ('└' if sub else '·') }}</span>
+        <input class="mf-name" name="name" value="{{ x.name }}" maxlength="60" placeholder="{{ x.auto_name or x.name }}">
+      </form>
+      {% if x.renamed %}<span class="mf-was" title="회사 부서표 이름">원래: {{ x.auto_name }}</span>{% endif %}
+      <span class="mf-n">{{ x.n }}통{% if x.u %} · <b>{{ x.u }}</b>{% endif %}</span>
+      {% if not x.group %}
+      <form method="post" action="/mail/folders/team" title="이 부서 폴더를 어디에 둘지">
+        <input type="hidden" name="op" value="move"><input type="hidden" name="key" value="{{ x.key }}">
+        <select name="parent" class="mf-sel" onchange="this.form.submit()">
+          <option value="">위치: 자동</option>
+          {% for pk, pn in staff_parents %}<option value="{{ pk }}"{{ ' selected' if x.par_pref == pk else '' }}>위치: {{ pn }}</option>{% endfor %}
+        </select>
+      </form>
+      <details class="mf-del"><summary class="mf-btn del">지우기</summary>
+        <form method="post" action="/mail/folders/team" class="mf-delbox">
+          <input type="hidden" name="op" value="merge"><input type="hidden" name="key" value="{{ x.key }}">
+          이 부서 메일은
+          <select name="into" class="mf-sel">{% for ik, iname in staff_into if ik != x.key %}<option value="{{ ik }}"{{ ' selected' if ik == 'tx' else '' }}>{{ iname }}</option>{% endfor %}</select>
+          에서 보이게 <button class="mf-btn go" type="submit">지우기</button>
+        </form>
+      </details>
+      {% else %}
+      <form method="post" action="/mail/folders/team" onsubmit="return confirm('「{{ x.name }}」 부서 폴더를 지울까요?\n안에 있던 부서는 6.케이엔케이 바로 아래로 갑니다. 메일은 지워지지 않습니다.')">
+        <input type="hidden" name="op" value="delgroup"><input type="hidden" name="key" value="{{ x.key }}"><button class="mf-btn del" type="submit">지우기</button></form>
+      {% endif %}
+    </div>
+    {% endmacro %}
+    {% for x in staff_tree|default([]) %}
+      {{ trow(x, False) }}
+      {% for y in x.children or [] %}{{ trow(y, True) }}{% endfor %}
+    {% endfor %}
+    {% if staff_gone|default([]) %}
+    <div class="mf-auto mf-gone"><b>지운 부서 폴더</b>:
+      {% for z in staff_gone %}<form method="post" action="/mail/folders/team" style="display:inline">
+        <input type="hidden" name="op" value="{{ 'restoregroup' if z.group else 'unmerge' }}"><input type="hidden" name="key" value="{{ z.key }}">
+        {{ z.name }}{% if z.into %} → {{ z.into }}{% endif %} <button class="mf-btn" type="submit">↺ 되살리기</button></form>{{ ' · ' if not loop.last else '' }}{% endfor %}
+    </div>
+    {% endif %}
+    <div class="mf-add"><form method="post" action="/mail/folders/team"><input type="hidden" name="op" value="addgroup">
+      <input name="name" maxlength="60" style="width:min(460px,70vw)" placeholder="+ 부서 폴더 더하기 (예: 21_영업지원) — 만든 뒤 각 부서 「위치」에서 고르면 그 안으로"><button class="mf-btn" type="submit">더하기</button></form></div>
     {% endif %}
     {% for k in g.kids %}
     {% set kk = 'f%d' % k.id %}
