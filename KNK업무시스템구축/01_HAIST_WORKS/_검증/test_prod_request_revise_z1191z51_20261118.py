@@ -218,7 +218,10 @@ hc = q(cl.get, "/project/%d/prod-request/edit" % Cc).text
 check("묶음에서 뺀 관리번호입니다" in hc and "020T2611 묶음 요청서 보기" in hc and 'id="prqEditForm"' not in hc and "📋 새로 작성" in hc and "제작요청서 · 022T2611" in hc,
       "빠진 관리번호(022T2611)로 열면: 「묶음에서 뺀 관리번호」 띠 · 묶음 요청서로 가는 길 · 고치기 없음 · 새로 작성")
 h = q(cl.get, "/project/%d/prod-request/edit" % A).text
-check('name="bundle_pids" value="%d"' % Cc in edit_form(h), "뺀 관리번호는 다시 붙일 수 있는 목록에 돌아옴")
+# z1191z58 (대표 11-18): 이미 보낸 요청서에 붙이는 것은 수정발행이 아니라 「묶어서 다시 발행」(?from) — 수정하기에는 붙이기 목록 대신 그 단추
+hf = q(cl.get, "/project/%d/prod-request/edit?new=1&from=%d" % (A, LEAD)).text
+check("z58-rebtn" in h and 'name="bundle_pids"' not in edit_form(h) and 'name="bundle_pids" value="%d"' % Cc in hf,
+      "뺀 관리번호는 「🔗 관리번호 더 묶어서 다시 발행」 화면의 목록에 돌아옴(수정하기에서는 안 붙임 · z1191z58)")
 CARDS.clear()
 r = q(cl.post, "/project/%d/prod-request/%d/update" % (A, LEAD), data=dict(base, rev_reason="품목 추가", cust_req="1. 1연배\n2. MAP\n3. DOM\n4. ECALL", note="", gist="4종",
                                                                          order_ids=[str(OA)], bundle_pids=[str(Cc)], _back="/project/%d/prod-request/edit?prid=%d" % (A, LEAD),

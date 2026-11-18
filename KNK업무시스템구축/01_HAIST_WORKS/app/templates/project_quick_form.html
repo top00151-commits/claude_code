@@ -457,12 +457,22 @@ html,body{background:#fff!important;overflow:auto!important;}
            ② 관련부서 WORKS 통보(단가·금액 제외). 제작메일 대체. 신규 등록 전용(수정 모드 숨김). #}
         {% if not ed %}
         <div style="margin-top:14px;border:1px solid #fed7aa;background:#fff7ed;border-radius:10px;padding:14px 16px;">
-          <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;font-weight:800;color:#9a3412;cursor:pointer;line-height:1.4;">
-            <input type="checkbox" name="prod_notify" value="1" id="qProdNotify" checked onchange="qToggleProd()" style="width:16px;height:16px;margin-top:1px;flex:none;">
-            <span>📋 등록과 동시에 <u>제작요청</u> 발행 — 관련부서 통보 + 작업일정표 자동기록</span>
-          </label>
-          <div style="font-size:11.5px;color:#9a3412;opacity:.9;margin:6px 0 0 24px;">제작메일 대체 · 통보에는 <b>단가·금액이 포함되지 않습니다</b>(자료경로·모델·품명·수량·납기·요청사항만). 제안 단계 등록이면 체크를 해제하세요.</div>
+          {# z1191z58 (대표 11-18 「처음부터 발행할 때 묶어서」): 지금 발행 / 묶어서 발행(기다림) / 발행 안 함 — 체크 칸(prod_notify)은 「지금 발행」과 같이 움직임 #}
+          <div style="font-size:14px;font-weight:800;color:#9a3412;line-height:1.4;">📋 제작요청서</div>
+          <input type="checkbox" name="prod_notify" value="1" id="qProdNotify" checked onchange="qToggleProd()" hidden>
+          <div class="z58-modes">
+            <label><input type="radio" name="prod_mode" value="now" checked onchange="z58Mode()"> <b>지금 발행</b> <span>관련부서 통보 + 작업일정표 자동기록</span></label>
+            <label id="z58WaitOpt"><input type="radio" name="prod_mode" value="wait" onchange="z58Mode()"> <b>묶어서 발행 (기다림)</b> <span>같은 발주의 다른 관리번호를 다 등록한 뒤 한 장으로</span></label>
+            <label><input type="radio" name="prod_mode" value="none" onchange="z58Mode()"> <b>발행 안 함</b> <span>제안 단계 등</span></label>
+          </div>
+          <div id="z58WaitMsg" class="z58-waitmsg" hidden>⏳ 이 관리번호는 제작요청서를 <b>아직 보내지 않고 기다립니다</b>. 같은 발주의 <b>마지막 관리번호를 등록할 때 「지금 발행」</b>을 고르면 기다리던 관리번호와 <b>한 장으로 처음 발행</b>됩니다. (작업일정표에서 ☑ 골라 [📋 골라서 제작요청서]로 내도 됩니다)</div>
+          <div style="font-size:11.5px;color:#9a3412;opacity:.9;margin:6px 0 0 24px;">제작메일 대체 · 통보에는 <b>단가·금액이 포함되지 않습니다</b>(자료경로·모델·품명·수량·납기·요청사항만). 제안 단계 등록이면 「발행 안 함」을 고르세요.</div>
           <div id="qProdBox" style="margin-top:10px;">
+            <div id="z58Waits" class="z58-waits" hidden>
+              <div class="z58-wt">🔗 같은 고객사로 <b>「묶어서 발행」을 기다리는 관리번호</b> — 고르면 이 등록과 <b>한 장으로 처음 발행</b>합니다(같은 발주일은 미리 골라 둠)</div>
+              <div id="z58WaitList"></div>
+              <div class="qf-f" style="margin-top:6px;"><label>MODEL <span style="font-weight:400;color:#9a3412;">(묶음 이름 · 선택 · 비우면 이 관리번호 모델명)</span></label><input name="pr_bundle_model" maxlength="120" placeholder="예) VPL2132_2138-0126000"></div>
+            </div>
             <div style="display:grid;grid-template-columns:1fr;gap:10px;">
               <div class="qf-f"><label>고객사 요청사항 <span style="font-weight:400;color:#9a3412;">(케이스·개조·반출일정 등 상세 사양 — 여러 줄 OK)</span></label><textarea name="pr_cust_req" rows="8" placeholder="예:&#10;1. S3908 ASSY 검사기 1호기&#10;-. 케이스 제외.&#10;-. S3916A 모델 → S3908 모델로 개조 진행.&#10;-. 검사기·시료·IC보드 반출일정: 06/18~19" style="resize:vertical;"></textarea></div>
               <div class="qf-f"><label>기타 요청사항</label><textarea name="pr_note" rows="3" placeholder="(선택)" style="resize:vertical;"></textarea></div>
@@ -1531,6 +1541,57 @@ function qIexApply(){
   drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('drag'); });
   drop.addEventListener('dragleave', function(){ drop.classList.remove('drag'); });
   drop.addEventListener('drop', function(e){ e.preventDefault(); drop.classList.remove('drag'); if(e.dataTransfer&&e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+})();
+</script>
+<style>
+/* z1191z58 (대표 11-18): 제작요청 = 지금 발행 / 묶어서 발행(기다림) / 발행 안 함 · 기다리던 관리번호와 한 장으로 */
+.z58-modes { display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0 0; }
+.z58-modes label { display:flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid #fed7aa; background:#fff; border-radius:8px; cursor:pointer; font-size:13px; color:#7c2d12; }
+.z58-modes label span { font-size:11.5px; color:#9a3412; opacity:.85; }
+.z58-modes label:has(input:checked) { border-color:#c2410c; background:#ffedd5; box-shadow:0 0 0 1px #c2410c inset; }
+.z58-waitmsg { margin-top:8px; padding:8px 10px; border-radius:8px; background:#fffbeb; border:1px solid #fcd34d; color:#92400e; font-size:12.5px; line-height:1.55; }
+.z58-waitmsg[hidden], .z58-waits[hidden] { display:none; }
+.z58-waits { margin:0 0 10px; padding:9px 11px; border-radius:9px; background:#fff; border:1.5px solid #fb923c; }
+.z58-wt { font-size:12.5px; color:#9a3412; margin-bottom:6px; }
+.z58-wi { display:flex; align-items:center; gap:8px; font-size:13px; padding:3px 2px; border-bottom:1px dashed #fde4cc; cursor:pointer; flex-wrap:wrap; }
+.z58-wi .d { font-size:11.5px; color:#64748b; }
+.z58-wi.other .d.od { color:#b45309; font-weight:700; }
+</style>
+<script>
+/* z1191z58 등록 화면 — 지금 발행 / 묶어서 발행(기다림) / 발행 안 함 */
+(function(){
+  var f=document.getElementById('quickForm'); if(!f || !document.getElementById('z58Waits')) return;
+  function mode(){ var r=f.querySelector('input[name=prod_mode]:checked'); return r? r.value : 'now'; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  var _t=null, _last='';
+  function load(){
+    var box=document.getElementById('z58Waits'), list=document.getElementById('z58WaitList');
+    var fu=(typeof qIsFollowup==='function') && qIsFollowup();
+    if(mode()!=='now' || fu){ box.hidden=true; return; }
+    var cid=(f.querySelector('[name=customer_id]')||{}).value||'', cn=(f.querySelector('[name=customer_name]')||{}).value||'', od=(document.getElementById('qOrderDate')||{}).value||'';
+    var key=cid+'|'+cn+'|'+od; if(key===_last && !box.hidden) return; _last=key;
+    if(!cid && !cn){ box.hidden=true; return; }
+    fetch('/api/prod-request/waits?customer_id='+encodeURIComponent(cid)+'&customer_name='+encodeURIComponent(cn)+'&order_date='+encodeURIComponent(od))
+      .then(function(r){ return r.json(); }).then(function(j){
+        var its=(j&&j.items)||[]; if(!its.length){ box.hidden=true; list.innerHTML=''; return; }
+        list.innerHTML=its.map(function(x){ return '<label class="z58-wi'+(x.same?'':' other')+'"><input type="checkbox" name="prq_bundle_pids" value="'+x.pid+'"'+(x.same?' checked':'')+'> <b>'+esc(x.mgmt)+'</b> <span>'+esc(x.equip||'')+'</span><span class="d">'+esc(x.model||'')+'</span><span class="d od">발주 '+esc(x.od||'—')+(x.same?'':' (다른 발주일)')+'</span><span class="d">⏳ '+esc(x.by||'')+' '+esc((x.at||'').slice(5))+'</span></label>'; }).join('');
+        box.hidden=false;
+      }).catch(function(){});
+  }
+  function deb(){ if(_t) clearTimeout(_t); _t=setTimeout(load, 450); }
+  window.z58Mode=function(){
+    var m=mode(), c=document.getElementById('qProdNotify');
+    if(c){ c.checked=(m==='now'); }
+    try{ qToggleProd(); }catch(e){}
+    document.getElementById('z58WaitMsg').hidden=(m!=='wait');
+    _last=''; load();
+  };
+  f.addEventListener('change', function(e){ var n=(e.target&&e.target.name)||''; if(n==='customer_id'||n==='customer_name'||n==='order_date'||n==='po_type') deb(); });
+  f.addEventListener('input', function(e){ var n=(e.target&&e.target.name)||''; if(n==='customer_name') deb(); });
+  setInterval(function(){ if(mode()==='now') load(); }, 4000);   // 고객사 고르기 칸은 change 를 안 낼 수 있어 가볍게 다시 봄(바뀐 때만 묻는다)
+  function syncFu(){ var o=document.getElementById('z58WaitOpt'); var fu=(typeof qIsFollowup==='function') && qIsFollowup(); if(o){ o.style.display=fu?'none':''; if(fu && mode()==='wait'){ var r=f.querySelector('input[name=prod_mode][value=now]'); if(r){ r.checked=true; window.z58Mode(); } } } }
+  var po=document.getElementById('qPoType'); if(po) po.addEventListener('change', function(){ syncFu(); deb(); });
+  syncFu(); window.z58Mode();
 })();
 </script>
 <style>

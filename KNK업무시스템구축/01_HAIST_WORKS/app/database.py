@@ -2662,6 +2662,8 @@ def init_db():
                 ("cancel_reason",     "ALTER TABLE prod_requests ADD COLUMN cancel_reason TEXT"),
                 ("cancel_kind",       "ALTER TABLE prod_requests ADD COLUMN cancel_kind TEXT"),
                 ("cancelled_by_name", "ALTER TABLE prod_requests ADD COLUMN cancelled_by_name TEXT"),
+                # z1191z58 (대표 2026-11-18 「묶어서 다시 발행」): 앞 요청서가 어느 묶음 요청서로 바뀌었는지(cancel_kind='replace')
+                ("replaced_by",       "ALTER TABLE prod_requests ADD COLUMN replaced_by INTEGER"),
             ]:
                 if _prcol not in prcols:
                     try:

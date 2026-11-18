@@ -150,6 +150,8 @@
     {# z1191z46 (대표 2026-11-17 요청사항 1): 줄을 고르면 그 줄만 + 고른 수주마다 상세내역 시트 · 안 고르면 지금처럼 화면 전체 #}
     <button type="button" class="sb-act" id="schedXlsxBtn" onclick="schedExportXlsx()" title="줄을 고르면(☑) 고른 줄 + 수주마다 상세내역 시트 · 안 고르면 화면 전체" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;"><span class="ti">📥</span> 엑셀로 저장<span id="schedXlsxN"></span></button>
     {# v5H226z347→z395 (대표 지시): 신규 등록 — 우측 끝(엑셀 버튼이 margin-left:auto 를 맡으므로 여긴 기본 gap 간격) #}
+    {# z1191z58 (대표 11-18): 같은 발주의 관리번호를 ☑ 골라 한 장으로 묶은 제작요청서 새 작성(처음 발행) #}
+    <button type="button" class="sb-act" id="schedPrqBtn" onclick="schedPrqBundle()" title="같은 고객사 관리번호 줄을 ☑ 고른 뒤 누르면 한 장으로 묶은 제작요청서 새 작성 화면이 열립니다(처음 발행)" style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;"><span class="ti">📋</span> 골라서 제작요청서</button>
     <button type="button" class="sb-act" onclick="openRegModal()" style="background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);"><span class="ti">＋</span> 신규 등록</button>
   </div>
 
@@ -2201,6 +2203,15 @@ function schedExportXlsx(){
   try{ toast('고른 '+sel.length+'줄 + 수주마다 상세내역 시트로 저장합니다'); }catch(e){}
 }
 window.schedExportXlsx = schedExportXlsx;   // 이 스크립트는 (function(){…})() 안 — 단추 onclick 이 찾을 수 있게
+// z1191z58 (대표 11-18): ☑ 고른 관리번호 줄 → 한 장으로 묶은 제작요청서 새 작성(첫 줄 = 대표 · 그 줄의 수주번호 그대로)
+function schedPrqBundle(){
+  var sel=_selRows().filter(function(tr){ return (tr.dataset.kind||'project')==='project' && /^\d+$/.test(tr.dataset.ref||''); });
+  if(!sel.length){ try{ toast('제작요청서로 묶을 관리번호 줄을 먼저 ☑ 고르세요(소모품 줄은 따로)'); }catch(e){} return; }
+  var seen={}, toks=[];
+  sel.forEach(function(tr){ var r=tr.dataset.ref; if(seen[r]) return; seen[r]=1; toks.push(r+':'+(/^\d+$/.test(tr.dataset.soid||'')?tr.dataset.soid:'')); });
+  location.href='/project/'+toks[0].split(':')[0]+'/prod-request/edit?new=1&with='+encodeURIComponent(toks.join(','));
+}
+window.schedPrqBundle = schedPrqBundle;
 function syncBulkBar(){
   var n=_selRows().length;
   var _xn=document.getElementById('schedXlsxN'); if(_xn) _xn.textContent = n ? ' (고른 '+n+'줄)' : '';   // z1191z46
