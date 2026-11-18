@@ -173,6 +173,28 @@ try:
     check("관리자 설정은 접어 둠(대표 계정에 보임)", '<details class="mt-adm">' in tt and "/admin/mail-send" in tt)
     check("공통 화면 이름(top)과 겹치는 이름 안 씀(본문 안 · 겹치면 화면이 옆으로 밀림)", 'class="top"' not in tt[tt.find('<main'):tt.find('</main>')])
 
+    print("== 3e. 「20_베트남법인」(11-18 대표 「번호 없는 부서 = 베트남 법인 → 그 폴더 안으로」) ==")
+    check("번호 판정: 숫자 코드 = 본사 · 숫자 아님/빈칸 = 베트남", (not mf.is_vn_team({"code": "01"})) and (not mf.is_vn_team({"code": "23"})) and mf.is_vn_team({"code": "VN01"}) and mf.is_vn_team({"code": ""}))
+    with _db.db_session() as c:
+        c.execute("INSERT INTO teams(id, code, name, display_order) VALUES(982,'VN01','조립팀',50)")
+        c.execute("INSERT INTO teams(id, code, name, display_order) VALUES(983,'23','NEXT2028',23)")
+        c.execute("INSERT INTO users(id, login_id, name, role, is_active, password, email, team_id) VALUES(9005,'t9005','응우옌','member',1,'x','vn1@knknara.co.kr',982)")
+        c.execute("INSERT INTO users(id, login_id, name, role, is_active, password, email, team_id) VALUES(9006,'t9006','넥스트','member',1,'x','nx1@knknara.co.kr',983)")
+    ids["vn1"] = put("vn1@knknara.co.kr", "[VN] 조립 보고", "보고", name="응우옌", ago="-50 minutes")
+    ids["nx1"] = put("nx1@knknara.co.kr", "NEXT 회의", "자료", name="넥스트", ago="-55 minutes")
+    with _db.db_session() as c:
+        res2 = mf.classify(c, OWN)
+    stf = [g for g in res2["nodes"] if g.get("kind") == "staff"][0]
+    names = [x["name"] for x in stf["children"]]
+    vnode = [x for x in stf["children"] if x["key"] == "tv"]
+    check("6.케이엔케이 아래 「20_베트남법인」 · 번호 순서 자리(23_NEXT2028·81_시험영업팀 앞)", bool(vnode) and names.index("20_베트남법인") < names.index("23_NEXT2028") < names.index("81_시험영업팀"), names)
+    check("「20_베트남법인」 안 = 번호 없는 부서(조립팀) · 바로 아래에는 번호 없는 부서 없음",
+          vnode and [y["name"] for y in vnode[0]["children"]] == ["조립팀"] and all(not x["name"].startswith("조립팀") for x in stf["children"]), names)
+    check("「20_베트남법인」을 누르면 그 안 부서 메일 모두(열쇠 묶음) · 6.케이엔케이 전체에도 포함",
+          res2["keys_of"]["tv"] >= {"tv", vnode[0]["children"][0]["key"]} and vnode[0]["children"][0]["key"] in res2["keys_of"][stf["key"]])
+    hv = k.get("/mail/inbox?fd=tv").text
+    check("왼쪽 칸: 「20_베트남법인」 + 그 아래 한 칸 더 들여 쓴 부서 · 그 폴더 목록에 베트남 메일", 'href="/mail/inbox?fd=tv"' in hv and "mf-k2" in hv and ('data-mail-id="%d"' % ids["vn1"]) in hv and ('data-mail-id="%d"' % ids["nx1"]) not in hv)
+
     print("== 4. 서버 길(놓기 · 되돌리기) ==")
     f1 = sorted(ok_ids)[0]
     j = k.post("/mail/bulk", data={"op": "pin", "ids": "%d,%d" % (ids["s1"], ids["other"]), "folder_id": f1}).json()

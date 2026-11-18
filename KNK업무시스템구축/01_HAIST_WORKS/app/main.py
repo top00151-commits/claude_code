@@ -23409,6 +23409,8 @@ async def mail_folders_page(req: Request, msg: str = ""):
         cnt[g["key"]] = (g["n"], g["u"])
         for k in g["children"]:
             cnt[k["key"]] = (k["n"], k["u"])
+            for k2 in k.get("children") or []:
+                cnt[k2["key"]] = (k2["n"], k2["u"])
     return ctx(req, "mail_folders.html", user=u, groups=groups, rules=rl, res=res, msg=msg, cnt=cnt,
                gen=((res or {}).get("gen") or {"n": 0, "u": 0}),
                team_labels=[_mail_folders.team_label(t) for t in tl])

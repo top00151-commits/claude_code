@@ -255,6 +255,16 @@ def teams(c) -> list:
         return []
 
 
+VN_FOLDER_CODE = 20
+VN_FOLDER_NAME = "20_베트남법인"
+
+
+def is_vn_team(t: dict) -> bool:
+    """베트남 법인 부서인가 — 대표 11-18 「부서 앞에 번호가 있는 건 본사, 없는 건 베트남 법인」(번호 = 숫자만인 부서 코드)."""
+    code = (t.get("code") or "").strip()
+    return not (code and code.isdigit())
+
+
 def team_label(t: dict) -> str:
     code = (t.get("code") or "").strip()
     return ("%s_%s" % (code, t["name"])) if code and code.isdigit() else t["name"]
@@ -608,19 +618,39 @@ def classify(c, uid) -> dict:
             ch.append({"key": fk, "name": f["name"], "n": cnt.get(fk, [0, 0])[0], "u": cnt.get(fk, [0, 0])[1],
                        "assignable": True})
         if g["kind"] == "staff":
+            # 11-18 대표: 부서 앞 번호 있는 것 = 본사 · 없는 것 = 베트남 법인 → 「20_베트남법인」 폴더 안으로(번호 순서 자리)
+            vn = []
             for t in tlist:
                 tk = "t%d" % t["id"]
                 labels[tk] = team_label(t)
                 keys_of[tk] = {tk}
                 if tk in cnt:
-                    ch.append({"key": tk, "name": team_label(t), "n": cnt[tk][0], "u": cnt[tk][1],
-                               "assignable": False})
+                    node = {"key": tk, "name": team_label(t), "n": cnt[tk][0], "u": cnt[tk][1], "assignable": False}
+                    if is_vn_team(t):
+                        vn.append(node)
+                    else:
+                        node["_code"] = int((t.get("code") or "0").strip() or 0)
+                        ch.append(node)
+            if vn:
+                vks = {"tv"} | {x["key"] for x in vn}
+                labels["tv"] = VN_FOLDER_NAME
+                keys_of["tv"] = vks
+                vnode = {"key": "tv", "name": VN_FOLDER_NAME, "children": vn, "assignable": False,
+                         "n": sum(x["n"] for x in vn), "u": sum(x["u"] for x in vn)}
+                pos = len(ch)
+                for i, x in enumerate(ch):
+                    if x.get("_code", -1) > VN_FOLDER_CODE:
+                        pos = i
+                        break
+                ch.insert(pos, vnode)
+            for x in ch:
+                x.pop("_code", None)
             labels["tx"] = "KNK 기타(부서 모름)"
             keys_of["tx"] = {"tx"}
             if "tx" in cnt:
                 ch.append({"key": "tx", "name": "KNK 기타(부서 모름)", "n": cnt["tx"][0], "u": cnt["tx"][1],
                            "assignable": False})
-        ks = {gk} | {x["key"] for x in ch}
+        ks = {gk} | {x["key"] for x in ch} | {y["key"] for x in ch for y in (x.get("children") or [])}
         keys_of[gk] = ks
         nodes.append({"key": gk, "name": g["name"], "kind": g["kind"], "children": ch,
                       "n": sum(cnt.get(k, [0, 0])[0] for k in ks), "u": sum(cnt.get(k, [0, 0])[1] for k in ks),

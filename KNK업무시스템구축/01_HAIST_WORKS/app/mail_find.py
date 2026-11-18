@@ -89,6 +89,8 @@ def folder_kinds(mf) -> dict:
         out[g["key"]] = g.get("kind") or ""
         for k in g.get("children") or []:
             out[k["key"]] = g.get("kind") or ""
+            for k2 in k.get("children") or []:   # 11-18 「20_베트남법인」 안 부서
+                out[k2["key"]] = g.get("kind") or ""
     return out
 
 
