@@ -14534,11 +14534,15 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
         return (True, "")
     # v5H226z277: 숫자 필드(수량·단가·금액)는 콤마 제거 후 숫자로
     if field in _SCHED_NUM_FIELDS:
+        if num_swap_hint(val) is not None:   # z1191z56: 「13.224,61」 → 저장 안 함 · 바로잡을 값 안내
+            return (False, num_swap_msg(val))
         _raw = val.replace(",", "").strip()
         try:
             _num = float(_raw) if _raw else 0
         except ValueError:
             return (False, "숫자만 입력")
+        if field == "amount":
+            _num = money_r2(_num)   # z1191z56: 새로 저장하는 금액 = 둘째 자리 반올림
         # 금액(project) = order_amount + expected_amount, 단일 SO면 그 SO total_amount 도 일치(상세 자가치유 대비)
         if ref_kind == "project" and field == "amount":
             with db_session() as c:
@@ -16787,3 +16791,52 @@ def material_baseline_history(conn, project_id):
             "ORDER BY id DESC", (project_id,)).fetchall()]
     except Exception:
         return []
+
+
+# z1191z56 (대표 2026-11-18 「달러 소수점 — 우선 지금까지 저장된 값은 그대로 적용하고」):
+#   앞으로 새로 치거나 고치는 숫자만 — ① 점·쉼표를 바꿔 친 숫자(「13.224,61」)는 저장하지 않고 바로잡을 값을 알려 줌
+#   ② 새로 저장하는 금액은 둘째 자리에서 엑셀처럼 반올림(ROUND_HALF_UP). 저장돼 있는 값은 건드리지 않는다.
+import re as _z56_re
+_Z56_US = _z56_re.compile(r"^[+-]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$")
+_Z56_NUMISH = _z56_re.compile(r"^[+-]?[\d.,]+$")
+
+
+def num_swap_hint(v):
+    """숫자로 받을 글자가 점·쉼표를 잘못 쓴 것이면 바로잡은 값('13,224.61') · 바로잡을 수 없으면 '' · 괜찮으면 None.
+    괜찮은 것: 1234.56 · 1,234.56 · 1,234 · 0.5 · 빈칸 · 숫자가 아닌 글자(여기서는 판단 안 함)."""
+    s = str(v if v is not None else "").strip()
+    for ch in " $₩₫€¥元 ":
+        s = s.replace(ch, "")
+    if not s or ("," not in s and s.count(".") <= 1):
+        return None
+    if _Z56_US.match(s) or not _Z56_NUMISH.match(s):
+        return None
+    t = s.replace(".", "").replace(",", ".")   # 유럽식으로 읽기: 점 = 천 단위 · 쉼표 = 소수점
+    if t.count(".") > 1:
+        return ""
+    try:
+        from decimal import Decimal
+        d = Decimal(t)
+    except Exception:
+        return ""
+    k = len(t.split(".")[1]) if "." in t else 0
+    return ("{:,.%df}" % k).format(d)
+
+
+def num_swap_msg(v, hint=None):
+    h = num_swap_hint(v) if hint is None else hint
+    raw = str(v if v is not None else "").strip()
+    if h:
+        return "「%s」 — 점(.)과 쉼표(,)가 바뀐 것 같습니다. %s 로 치셨나요? (점 = 소수점 · 쉼표 = 천 단위) 저장하지 않았습니다." % (raw, h)
+    return "「%s」 — 숫자 형식이 맞지 않습니다(점 = 소수점 · 쉼표 = 천 단위). 저장하지 않았습니다." % raw
+
+
+def money_r2(x):
+    """금액을 둘째 자리에서 엑셀처럼 반올림(2,806.659 → 2,806.66 · 41.355 → 41.36). None 은 None."""
+    if x is None:
+        return None
+    from decimal import Decimal, ROUND_HALF_UP
+    try:
+        return float(Decimal(str(x)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    except Exception:
+        return x

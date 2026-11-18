@@ -386,9 +386,15 @@ def _fmt_price(v, ccy="KRW"):
         f = float(str(v).replace(",", "")) if v not in (None, "") else 0.0
     except Exception:
         return v
+    # z1191z56 (대표 11-18): 끝자리 5 는 엑셀처럼 올림(41.355 → 41.36 · 전엔 파이썬 반올림이라 41.35) — 표시만 · 저장값 그대로
+    from decimal import Decimal as _D56, ROUND_HALF_UP as _HU56
+    try:
+        _d56 = _D56(str(v).replace(",", "").strip()) if v not in (None, "") else _D56(0)
+    except Exception:
+        _d56 = _D56(repr(f))
     if (str(ccy or "KRW").upper()) == "KRW":
-        return "{:,.0f}".format(f)           # 원화: 소수점 없음
-    return "{:,.2f}".format(f)               # 외화: 소수 2자리 유지
+        return "{:,.0f}".format(_d56.quantize(_D56("1"), rounding=_HU56))      # 원화: 소수점 없음
+    return "{:,.2f}".format(_d56.quantize(_D56("0.01"), rounding=_HU56))       # 외화: 소수 2자리 유지
 
 
 _CCY_SYMBOL = {"USD": "$", "KRW": "₩", "VND": "₫", "EUR": "€", "JPY": "¥", "CNY": "元"}
@@ -19690,6 +19696,10 @@ async def sales_order_item_edit(req: Request, iid: int):
     if not can_use_sales(u):
         return JSONResponse({"error": "권한 없음"}, 403)
     form = await req.form()
+    for _k56 in ("amount", "unit_price", "cost_price", "margin_pct", "qty", "invoice_unit_price_usd", "invoice_amount_usd",
+                 "duty_krw", "duty_usd", "final_amount_usd", "cost_krw", "sell_krw", "weight_kg", "duty_rate", "vat_rate"):
+        if _k56 in form and _logi.num_swap_hint(form.get(_k56)) is not None:   # z1191z56: 점·쉼표 바꿔 친 숫자
+            return JSONResponse({"ok": False, "message": _logi.num_swap_msg(form.get(_k56))}, 400)
     label = (form.get("label") or "").strip()
     raw_a = (form.get("amount") or "0").strip().replace(",", "")
     note  = (form.get("note") or "").strip()
@@ -19790,6 +19800,8 @@ async def sales_order_item_edit(req: Request, iid: int):
         _has_amt10 = ("amount" in form)
         if not _has_amt10:
             amt = float(it["old_amt"] or 0)
+        else:
+            amt = _logi.money_r2(amt)   # z1191z56: 새로 저장하는 금액 = 둘째 자리 반올림
         if "note" not in form:
             note = it["old_note"] or ""
         if "order_date" not in form:
@@ -20206,6 +20218,10 @@ async def sales_orders_add_unit(req: Request, oid: int):
     if not can_use_sales(u):
         return JSONResponse({"error": "권한 없음"}, 403)
     form = await req.form()
+    for _k56 in ("amount", "unit_price", "cost_price", "margin_pct", "qty", "invoice_unit_price_usd", "invoice_amount_usd",
+                 "duty_krw", "duty_usd", "final_amount_usd", "cost_krw", "sell_krw", "weight_kg", "duty_rate", "vat_rate"):
+        if _k56 in form and _logi.num_swap_hint(form.get(_k56)) is not None:   # z1191z56: 점·쉼표 바꿔 친 숫자
+            return JSONResponse({"ok": False, "message": _logi.num_swap_msg(form.get(_k56))}, 400)
     label = (form.get("label") or "").strip()
     raw_a = (form.get("amount") or "0").strip().replace(",", "")
     note  = (form.get("note") or "").strip()
@@ -20232,6 +20248,7 @@ async def sales_orders_add_unit(req: Request, oid: int):
         amt = float(raw_a) if raw_a else 0
     except ValueError:
         return JSONResponse({"ok": False, "message": "금액 형식 오류"}, 400)
+    amt = _logi.money_r2(amt)   # z1191z56: 호기 추가 금액 = 둘째 자리 반올림
     # v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%. 마진은 등록 후 정리 가능 → 매입가만으로도 추가 허용.
     _raw_cost = (form.get("cost_price") or "").strip().replace(",", "")
     _raw_margin = (form.get("margin_pct") or "").strip().replace(",", "")
@@ -36533,6 +36550,8 @@ async def schedule_board_unit_field(request: Request):
             if (it.get("sost") or "").upper() in ("INVOICED", "PAID", "CANCELLED"):
                 return JSONResponse({"ok": False, "error": f"{it['sost']} 상태 SO 는 수정 불가"}, 400)
             pid = it.get("project_id")
+            if (field in ("unit_price", "amount", "qty") or field in _TI_ACOLS) and _logi.num_swap_hint(value) is not None:
+                return JSONResponse({"ok": False, "error": _logi.num_swap_msg(value)}, 400)   # z1191z56: 점·쉼표 바꿔 친 숫자
             if field == "status":
                 ns = (value or "").strip()
                 if ns not in UNIT_STATUSES:   # v5H226z482: UNIT_STATUSES는 main 전역(_logi 아님)
@@ -36557,7 +36576,7 @@ async def schedule_board_unit_field(request: Request):
                     return JSONResponse({"ok": False, "error": "단가 형식 오류"}, 400)
                 qty = float(it.get("qty") or 1) or 1
                 c.execute("UPDATE order_items SET unit_price=?, amount=?, updated_at=datetime('now','localtime') WHERE id=?",
-                          (up, up * qty, iid))
+                          (up, _logi.money_r2(up * qty), iid))   # z1191z56: 금액 둘째 자리 반올림
                 oid = it.get("order_id")
                 rws = c.execute("SELECT amount FROM order_items WHERE order_id=?", (oid,)).fetchall()
                 new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
@@ -36573,6 +36592,7 @@ async def schedule_board_unit_field(request: Request):
                 except Exception:
                     return JSONResponse({"ok": False, "error": "금액 형식 오류"}, 400)
                 qv = float(it.get("qty") or 1) or 1
+                av = _logi.money_r2(av)   # z1191z56: 금액 둘째 자리 반올림
                 c.execute("UPDATE order_items SET amount=?, unit_price=?, updated_at=datetime('now','localtime') WHERE id=?",
                           (av, av / qv, iid))
                 oid = it.get("order_id")
@@ -36592,7 +36612,7 @@ async def schedule_board_unit_field(request: Request):
                 _uprow = c.execute("SELECT COALESCE(unit_price,0) FROM order_items WHERE id=?", (iid,)).fetchone()
                 _up = float((_uprow[0] if _uprow else 0) or 0)
                 c.execute("UPDATE order_items SET qty=?, amount=?, updated_at=datetime('now','localtime') WHERE id=?",
-                          (q, _up * q, iid))
+                          (q, _logi.money_r2(_up * q), iid))   # z1191z56
                 oid = it.get("order_id")
                 rws = c.execute("SELECT amount FROM order_items WHERE order_id=?", (oid,)).fetchall()
                 new_total = sum(float((r[0] if isinstance(r, tuple) else r["amount"]) or 0) for r in rws)
@@ -36629,7 +36649,7 @@ async def schedule_board_unit_field(request: Request):
                     av = float(str(value).replace(",", "")) if value not in (None, "") else None
                 except Exception:
                     return JSONResponse({"ok": False, "error": "금액 형식 오류"}, 400)
-                c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?", (av, iid))
+                c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?", (_logi.money_r2(av), iid))   # z1191z56
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     return JSONResponse({"ok": True})
@@ -36822,13 +36842,15 @@ async def schedule_board_row_tax(request: Request):
                           [dv] + ids)
             else:
                 # 금액 = 입력값을 호기 수로 균등 분배(합계 보존). 빈값=NULL(발행 취소)
+                if _logi.num_swap_hint(value) is not None:   # z1191z56: 「13.224,61」 → 저장 안 함(11-16·17 실제로 13.22461 로 저장됐던 곳)
+                    return JSONResponse({"ok": False, "error": _logi.num_swap_msg(value)}, 400)
                 _raw = str(value).replace(",", "").strip()
                 if _raw == "":
                     _ph = ",".join("?" * len(ids))
                     c.execute(f"UPDATE order_items SET {field}=NULL, updated_at=datetime('now','localtime') WHERE id IN ({_ph})", ids)
                 else:
                     try:
-                        total = float(_raw)
+                        total = _logi.money_r2(float(_raw))   # z1191z56: 둘째 자리 반올림
                     except Exception:
                         return JSONResponse({"ok": False, "error": "금액 형식 오류"}, 400)
                     n = len(ids)
@@ -54200,6 +54222,9 @@ async def consumables_item_edit(request: Request, co_id: int, iid: int):
     for k in ("model_use", "equip_name", "part_name", "spec", "unit", "note", "secondary_customer"):  # v5H226z297: 장비명 편집 · z1191z20: 품목 2차
         if k in form:
             fields[k] = (form.get(k) or "").strip()
+    for k in ("qty", "unit_price"):
+        if k in form and _logi.num_swap_hint(form.get(k)) is not None:   # z1191z56: 점·쉼표 바꿔 친 숫자
+            return JSONResponse({"ok": False, "error": _logi.num_swap_msg(form.get(k))}, 400)
     for k in ("qty", "unit_price"):
         if k in form:
             try:

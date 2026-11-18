@@ -26,6 +26,9 @@
       el.value = formatNumberWithCommas(el.value);
     }
     el.addEventListener('input', function(e) {
+      // z1191z56 (대표 11-18): 점 뒤에 쉼표(「13.224,61」)나 점 두 개(「1.234.567」) = 점·쉼표를 바꿔 치는 중 →
+      //   여기서 쉼표를 지우면 13.22461 로 바뀌어 저장됐다(11-16·17). 손대지 않고 두면 저장 전에 공용 틀(chrome.html)이 바로잡기를 묻는다.
+      if (/\.[^,]*,/.test(el.value) || (el.value.split('.').length > 2)) return;
       var caret = el.selectionStart;
       var oldLen = el.value.length;
       el.value = formatNumberWithCommas(el.value);

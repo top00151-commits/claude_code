@@ -1561,6 +1561,11 @@ T = {
                   "vi": "↩ Đã khôi phục {n} ô bạn đang nhập trước khi cập nhật — hãy kiểm tra rồi lưu"},
     "ch_dr_show": {"ko": "되살린 칸 보기",
                    "vi": "Xem ô đã khôi phục"},
+    # z1191z56 (대표 2026-11-18 「달러 소수점」): 숫자 칸에 점·쉼표를 바꿔 쳤을 때
+    "ch_ns_ask": {"ko": "「{raw}」 — 점(.)과 쉼표(,)가 바뀐 것 같습니다.\n\n{fix} 로 고쳐서 저장할까요?\n(점 = 소수점 · 쉼표 = 천 단위)\n\n[확인] {fix} 로 저장   [취소] 저장하지 않고 원래 값으로",
+                  "vi": "「{raw}」 — có vẻ dấu chấm (.) và dấu phẩy (,) bị đảo.\n\nSửa thành {fix} rồi lưu?\n(dấu chấm = phần thập phân · dấu phẩy = hàng nghìn)\n\n[OK] Lưu {fix}   [Hủy] Không lưu, trở về giá trị cũ"},
+    "ch_ns_bad": {"ko": "「{raw}」 — 숫자 형식이 맞지 않습니다. 점(.) = 소수점 · 쉼표(,) = 천 단위로 다시 쳐 주세요. (저장하지 않았습니다)",
+                  "vi": "「{raw}」 — định dạng số không đúng. Hãy nhập lại: dấu chấm (.) = thập phân · dấu phẩy (,) = hàng nghìn. (Chưa lưu)"},
     "ch_g_admin": {"ko": "관리",
                   "vi": "Quản trị"},
     "ch_g_common": {"ko": "공통",
