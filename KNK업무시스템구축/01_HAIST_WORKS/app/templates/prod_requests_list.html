@@ -63,6 +63,17 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .prq-card[data-biz="C"] { border-left-color:#d97706; } .prq-card[data-biz="C"] .pc-biz { color:#92400e; background:#fef3c7; border-color:#fcd34d; }
 .pc-st2 { display:inline-block; font-size:10.5px; font-weight:800; border-radius:6px; padding:1px 6px; }
 .pc-qtyv { color:#1f2937; font-weight:800; font-size:11.5px; }
+/* z1191z55 (대표 11-18): 카드 = 제작요청서 한 장 · 수주가 둘 이상(묶음 발행 등)이면 카드 안에 줄로 */
+.pc-more { display:inline-block; margin-left:3px; padding:0 5px; border-radius:5px; background:#eef2ff; color:#4338ca; font-size:10.5px; font-weight:800; white-space:nowrap; }
+.pc-lines { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:4px; border-top:1px dashed #dbe1ea; }
+.pc-lines td { padding:4px 6px; font-size:11.5px; color:#334155; border-bottom:1px solid #f1f4f8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pc-lines td.l-m { width:74px; font-weight:800; color:#1f2937; }
+.pc-lines td.l-s { width:96px; }
+.pc-lines td.l-q { width:44px; text-align:right; }
+.pc-lines td.l-t { width:52px; text-align:center; }
+.pc-lines td.l-more { text-align:center; color:#6d28d9; font-weight:700; }
+.pc-lines .l-h { color:#64748b; font-size:10.5px; }
+.pc-nw { white-space:nowrap; }
 .pc-metarow { display:flex; flex-wrap:wrap; gap:3px 12px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--qv-line); font-size:11.5px; color:#475569; }
 .pc-metarow b { color:#1f2937; }
 
@@ -71,6 +82,8 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   .prq-cards { grid-template-columns:1fr; gap:12px; }
   .prq-tabs a, .prq-tabs span { padding:8px 12px; font-size:13px; }
   .prq-filter .pp, .prq-filter .pf { padding:7px 12px; font-size:12.5px; }
+  .pc-lines td { padding:4px 4px; font-size:11px; }
+  .pc-lines td.l-m { width:64px; } .pc-lines td.l-s { width:80px; } .pc-lines td.l-q { width:32px; } .pc-lines td.l-t { width:46px; }
 }
 </style>
 </head>
@@ -126,7 +139,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   </form>
 
   <div style="margin:0 var(--content-pad) var(--space-3); font-size:12.5px; color:var(--qv-ink-3);">
-    <b style="color:#6d28d9;">{{ biz_label_cur }}</b> · <b style="color:#334155;">{{ period_label }}</b> · 수주(호기) <b>{{ rows|length }}</b>건{% if rows|length >= 300 %} <span style="color:#b45309;">(최근 300건만 표시 — 사업부·기간·검색으로 좁혀 보세요)</span>{% endif %} · 카드 = 수주 1건 · 누르면 <b style="color:#9a3412;">제작요청서(수정·발행)</b> 화면으로 이동합니다.
+    <b style="color:#6d28d9;">{{ biz_label_cur }}</b> · <b style="color:#334155;">{{ period_label }}</b> · 제작요청서 <b>{{ rows|length }}</b>장 · 수주 <b>{{ n_so_total }}</b>건{% if rows|length >= 300 %} <span style="color:#b45309;">(최근 300건만 표시 — 사업부·기간·검색으로 좁혀 보세요)</span>{% endif %} · 카드 = 제작요청서 한 장(묶음 발행이면 한 묶음 · 수주는 그 요청서가 가리키는 것만) · 누르면 <b style="color:#9a3412;">제작요청서(수정·발행)</b> 화면으로 이동합니다.
   </div>
 
   {% if rows %}
@@ -138,8 +151,8 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
       <table class="pc-tbl">
         <colgroup><col class="pc-l"><col><col class="pc-l"><col><col class="pc-r"></colgroup>
         <tr>
-          <td class="pc-k">관리번호</td><td class="pc-v">{{ pr.mgmt_code or '—' }}{% if pr.pr_cancelled %} <span title="취소한 제작요청서" style="display:inline-block;margin-left:4px;padding:0 6px;border-radius:5px;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;">🚫 취소</span>{% endif %}</td>
-          <td class="pc-k">수주번호</td><td class="pc-v">{{ pr.order_no or '—' }}</td>
+          <td class="pc-k">관리번호</td><td class="pc-v"><span class="pc-nw">{{ pr.mgmt_code or '—' }}</span>{% if (pr.n_mgmt or 1) > 1 %}<span class="pc-more" title="묶음 발행 — 관리번호 {{ pr.n_mgmt }}개">외 {{ pr.n_mgmt - 1 }}건</span>{% endif %}{% if pr.pr_cancelled %} <span title="취소한 제작요청서" style="display:inline-block;margin-left:4px;padding:0 6px;border-radius:5px;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;">🚫 취소</span>{% endif %}</td>
+          <td class="pc-k">수주번호</td><td class="pc-v"><span class="pc-nw">{{ pr.order_no or '—' }}</span>{% if (pr.n_so or 0) > 1 %}<span class="pc-more" title="이 요청서가 가리키는 수주 {{ pr.n_so }}건">외 {{ pr.n_so - 1 }}건</span>{% endif %}</td>
           {# z1019: 소모품 배지 '소모품·검사기'는 좁은 칸에서 가운뎃점 기준 딱 2줄로(소모품/검사기) — 관리번호칸 침범 없이 온전 표시 #}
           <td class="pc-rc">{% if pr.biz_label %}<span class="pc-biz">{% for _bp in pr.biz_label.split('·') %}<span style="display:block;">{{ _bp }}</span>{% endfor %}</span>{% else %}—{% endif %}</td>
         </tr>
@@ -158,6 +171,16 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
           <td class="pc-rc pc-qtyv">{% if pr._kind == 'consumable' %}<span title="소모품은 항목별 수량 — 카드를 눌러 라인별 수량 확인">항목별</span>{% else %}수량 {{ pr.qty|int if pr.qty is not none else '—' }}{% endif %}</td>
         </tr>
       </table>
+      {% if pr.lines and pr.lines|length > 1 %}
+      {# z1191z55: 묶음·수주 여러 건 — 관리번호·수주마다 한 줄(6줄까지 · 나머지는 눌러서) #}
+      <table class="pc-lines">
+        <tr class="l-h"><td class="l-m l-h">관리번호</td><td class="l-s l-h">수주번호</td><td class="l-h">장비명</td><td class="l-q l-h">수량</td><td class="l-t l-h">상태</td></tr>
+        {% for ln in pr.lines[:6] %}
+        <tr><td class="l-m">{{ ln.mgmt or '—' }}</td><td class="l-s" title="{{ ln.so }}{% if ln.hogi %} · {{ ln.hogi }}{% endif %}">{{ ln.so or '—' }}</td><td title="{{ ln.equip }}">{{ ln.equip or '—' }}</td><td class="l-q">{{ ln.qty|int if ln.qty is not none else '—' }}</td><td class="l-t"><span class="pc-st2 pc-st-{{ {'출하':'done','진행중':'prog','취소':'cancel','보류':'hold'}.get(ln.st, 'na') }}">{{ ln.st }}</span></td></tr>
+        {% endfor %}
+        {% if pr.lines|length > 6 %}<tr><td class="l-more" colspan="5">… 외 {{ pr.lines|length - 6 }}줄 — 눌러서 전체 보기</td></tr>{% endif %}
+      </table>
+      {% endif %}
     </a>
     {% endfor %}
   </div>

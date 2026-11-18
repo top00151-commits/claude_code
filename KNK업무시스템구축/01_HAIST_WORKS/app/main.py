@@ -31361,32 +31361,28 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
     rows = []
     try:
         with db_session() as c:
-            # v5H226z791 (대표 지시): 제작요청서 목록을 '수주(호기)당 카드 1장'으로 — 핵심 10필드만.
-            #   제작요청서 있는 프로젝트 → 그 프로젝트의 수주(orders)마다 1행(LEFT JOIN: 수주 없으면 1행·수주번호 —).
-            #   프로젝트에 제작요청서 여러 건이면 최신(MAX id)으로 연결. 상태·수량은 호기(order_items)에서 집계.
+            # z1191z55 (대표 11-18 「제작요청서 목록 묶음」): 카드 = 제작요청서 한 장(묶음 발행이면 한 묶음).
+            #   z791 은 「그 관리번호의 수주 전부 × 카드 1장」 → 수주 16건 관리번호(028T2601)는 요청서 한 장에 카드 16장 ·
+            #   묶음(z49)은 관리번호마다 카드가 따로였다. 이제 카드 1장 = 요청서 1장 · 카드의 수주는 요청서가 가리키는 수주만
+            #   (제작요청서 화면 품목 표와 같은 규칙 _z48_pick_orders) · 수주가 둘 이상이면 카드 안에 줄로(누르지 않아도 보임).
+            #   z791 의 「수주(호기)마다 상태·수량이 보이게」는 카드 안 줄로 이어 감.
             # v5H226z987 (대표 지시): 고객사 = 시스템명(customers.alias·z550) 우선, 없으면 정식 상호
-            sql = ("SELECT p.id AS project_id, p.mgmt_code, p.model_name, p.equip_name, "
-                   "p.po_type, p.unit_qty AS proj_qty, p.name AS project_name, "
-                   "p.customer_name AS p_customer, COALESCE(NULLIF(cu.alias,''), cu.name) AS cust_name, "
-                   "o.id AS order_id, o.order_no, o.order_date AS o_order_date, "
-                   # v5H226z977 (대표 승인): 납품일 폴백 — SO 납기 비면 프로젝트 납기(상품 빈 SO '—' 방지)
-                   "COALESCE(NULLIF(o.due_date,''), NULLIF(p.due_date,'')) AS o_due_date, o.status AS o_status, "
-                   "pr.id AS pr_id, pr.created_at, pr.created_date, pr.issued_by_name, COALESCE(pr.cancelled_at,'') AS pr_cancelled "
+            sql = ("SELECT pr.id AS pr_id, pr.bundle_id, COALESCE(pr.cancel_kind,'') AS cancel_kind "
                    "FROM (SELECT project_id, MAX(id) AS mpr FROM prod_requests GROUP BY project_id) lpr "
                    "JOIN projects p ON p.id = lpr.project_id "
                    "JOIN prod_requests pr ON pr.id = lpr.mpr "
-                   "LEFT JOIN customers cu ON cu.id = p.customer_id "
-                   "LEFT JOIN orders o ON o.project_id = p.id ")
+                   "LEFT JOIN customers cu ON cu.id = p.customer_id ")
             _dref = "substr(COALESCE(NULLIF(pr.created_at,''), pr.created_date, ''),1,10)"  # 발행일 YYYY-MM-DD
             conds, params = [], []
             # v5H226z871 (대표 지시): 폐기(숨김)된 프로젝트의 제작요청서는 목록에서 제외 — 폐기했는데 목록/상세로 열리던 누출 차단.
             conds.append("COALESCE(p.is_archived,0)=0")
             if _q:
-                # z987: 시스템명(alias) 검색 포함 — 화면에 보이는 이름으로 찾아지게
+                # z987: 시스템명(alias) 검색 포함 — 화면에 보이는 이름으로 찾아지게 (아래에서 카드에 보이는 글로 한 번 더 거름)
                 conds.append("(p.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
                              "OR p.equip_name LIKE ? OR cu.name LIKE ? OR cu.alias LIKE ? OR p.customer_name LIKE ? "
-                             "OR o.order_no LIKE ? OR pr.issued_by_name LIKE ?)")
-                params += [f"%{_q}%"] * 9
+                             "OR COALESCE(pr.bundle_model,'') LIKE ? "
+                             "OR EXISTS(SELECT 1 FROM orders o WHERE o.project_id = p.id AND o.order_no LIKE ?) OR pr.issued_by_name LIKE ?)")
+                params += [f"%{_q}%"] * 10
             if _period == "day":
                 conds.append(f"{_dref} = ?"); params.append(_today)
             elif _period == "week":
@@ -31395,48 +31391,93 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                 conds.append(f"{_dref} LIKE ?"); params.append(_kn.strftime("%Y-%m") + "%")
             elif _period == "year":
                 conds.append(f"{_dref} LIKE ?"); params.append(_kn.strftime("%Y") + "%")
-            if _biz:   # z808: 사업부 = 관리번호 4번째 글자
+            if _biz:   # z808: 사업부 = 관리번호 4번째 글자 (묶음은 그 사업부 관리번호가 하나라도 있으면)
                 conds.append("UPPER(substr(p.mgmt_code,4,1)) = ?"); params.append(_biz)
             if conds:
                 sql += "WHERE " + " AND ".join(conds) + " "
-            sql += "ORDER BY pr.id DESC, o.order_no LIMIT 300"
-            rows = [dict(r) for r in c.execute(sql, params).fetchall()]
+            sql += "ORDER BY pr.id DESC LIMIT 300"
+            _keys, _seen = [], set()
+            for _r in c.execute(sql, params).fetchall():
+                _d = dict(_r)
+                _k = _d["bundle_id"] if (_d.get("bundle_id") and _d["cancel_kind"] != "remove") else _d["pr_id"]
+                if _k not in _seen:
+                    _seen.add(_k); _keys.append(_k)
             # 수주(order)별 수량 합 + 상태 롤업 — 호기(order_items.unit_status) 단일소스([[knk_board_detail_sync]])
             _SO_ST_KO = {"DRAFT": "작성중", "QUOTED": "견적", "CONFIRMED": "진행중",
                          "IN_PRODUCTION": "진행중", "READY_TO_SHIP": "진행중", "SHIPPED": "출하",
                          "INVOICED": "출하", "PAID": "출하", "CANCELLED": "취소", "HOLD": "보류"}
             # v5H226z807 (대표 지시): 사업부(검사기 등) — 관리번호 4번째 글자로 판별 [[biz_div_code_standard]]
             _BIZ_KO = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타", "C": "소모품", "R": "연구"}
-            _oids = [r["order_id"] for r in rows if r.get("order_id")]
-            _qtymap, _stmap = {}, {}
-            if _oids:
-                _iph = ",".join("?" * len(_oids))
-                try:
-                    for _ir in c.execute(
-                        f"SELECT oi.order_id AS oid, COALESCE(oi.unit_status,'진행중') AS st, "
-                        f"COALESCE(oi.qty,0) AS q FROM order_items oi WHERE oi.order_id IN ({_iph})", _oids):
-                        _d = dict(_ir)
-                        _qtymap[_d["oid"]] = _qtymap.get(_d["oid"], 0) + (_d["q"] or 0)
-                        _stmap.setdefault(_d["oid"], []).append(_d["st"])
-                except Exception:
-                    _qtymap, _stmap = {}, {}
-            for r in rows:
-                _mc = str(r.get("mgmt_code") or "")
-                r["biz_label"] = _BIZ_KO.get(_mc[3].upper(), "") if (len(_mc) >= 4 and _mc[3].isalpha()) else ""
-                # v5H226z907 (대표 지시): 카드 사업부별 색상 — 관리번호 4번째 글자(T/M/L/E/C)를 카드에 부여
-                r["biz"] = (_mc[3].upper() if (len(_mc) >= 4 and _mc[3].isalpha()) else "")
-                _oid = r.get("order_id")
-                if not _oid:
-                    r["qty"] = r.get("proj_qty"); r["status_ko"] = "—"; continue
-                r["qty"] = _qtymap.get(_oid) or r.get("proj_qty")
-                if (r.get("o_status") or "").upper() == "CANCELLED":
-                    r["status_ko"] = "취소"
-                else:
-                    _agg = _board_agg_status(_stmap.get(_oid, []))
-                    r["status_ko"] = _agg or _SO_ST_KO.get((r.get("o_status") or "").upper(), (r.get("o_status") or "—"))
+            _ql = _q.lower()
+            for _k in _keys:
+                _lead = c.execute("SELECT * FROM prod_requests WHERE id=?", (_k,)).fetchone()
+                if not _lead:
+                    continue
+                _lead = dict(_lead)
+                _lines, _projs = [], []
+                for _m in _z49_bundle_rows(c, _lead):
+                    _pj = c.execute("SELECT p.id, p.mgmt_code, p.name, p.model_name, p.equip_name, p.po_type, p.unit_qty, p.due_date, "
+                                    "p.customer_name, COALESCE(p.is_archived,0) AS arch, COALESCE(NULLIF(cu.alias,''), cu.name) AS cust "
+                                    "FROM projects p LEFT JOIN customers cu ON cu.id = p.customer_id WHERE p.id=?", (_m.get("project_id"),)).fetchone()
+                    if not _pj or _pj["arch"]:
+                        continue
+                    _pj = dict(_pj)
+                    _projs.append(_pj)
+                    _sel = _z48_pick_orders(_z48_project_orders(c, _pj["id"]), _m.get("order_ids") or "",
+                                            _m.get("created_at") or _lead.get("created_at") or _lead.get("created_date") or "")
+                    if not _sel:
+                        _lines.append({"mgmt": _pj.get("mgmt_code") or "", "so": "", "hogi": "", "equip": _pj.get("equip_name") or "",
+                                       "qty": _pj.get("unit_qty"), "st": "—", "due": str(_pj.get("due_date") or "")[:10], "_sts": []})
+                        continue
+                    for _o in _sel:
+                        _od = c.execute("SELECT COALESCE(status,'') AS st, COALESCE(NULLIF(due_date,''), ?) AS due FROM orders WHERE id=?",
+                                        (_pj.get("due_date") or "", _o["id"])).fetchone()
+                        _sts, _qs = [], 0
+                        for _ir in c.execute("SELECT COALESCE(unit_status,'진행중') AS st, COALESCE(qty,0) AS q FROM order_items WHERE order_id=?", (_o["id"],)):
+                            _sts.append(_ir["st"]); _qs += (_ir["q"] or 0)
+                        _ost = str((_od["st"] if _od else "") or "").upper()
+                        _st = _board_agg_status(_sts) or _SO_ST_KO.get(_ost, _ost or "—")
+                        _lines.append({"mgmt": _pj.get("mgmt_code") or "", "so": _o.get("order_no") or "", "hogi": _o.get("hogi") or "",
+                                       "equip": _pj.get("equip_name") or "", "qty": (_qs or _pj.get("unit_qty")), "st": _st,
+                                       "due": str((_od["due"] if _od else "") or "")[:10], "_sts": _sts or [_st]})
+                if not _projs:
+                    continue
+                _p0 = _projs[0]
+                _mc = str(_p0.get("mgmt_code") or "")
+                _mgs = []
+                for _ln in _lines:
+                    if _ln["mgmt"] and _ln["mgmt"] not in _mgs:
+                        _mgs.append(_ln["mgmt"])
+                _sos = [_ln["so"] for _ln in _lines if _ln["so"]]
+                _all_sts = [s for _ln in _lines for s in _ln["_sts"] if s and s != "—"]
+                _dues = sorted(_ln["due"] for _ln in _lines if _ln["due"])
+                _qty = sum(int(_ln["qty"] or 0) for _ln in _lines)
+                card = {
+                    "pr_id": _lead["id"], "project_id": _lead["project_id"], "pr_cancelled": _lead.get("cancelled_at") or "",
+                    "mgmt_code": _mgs[0] if _mgs else _mc, "n_mgmt": max(len(_mgs), 1),
+                    "order_no": _sos[0] if _sos else "", "n_so": len(_sos),
+                    "model_name": _lead.get("bundle_model") or _p0.get("model_name") or "",
+                    "equip_name": _p0.get("equip_name") or "", "po_type": _p0.get("po_type"),
+                    "cust_name": _p0.get("cust"), "p_customer": _p0.get("customer_name"),
+                    "o_due_date": _dues[0] if _dues else "", "qty": (_qty or None),
+                    "status_ko": (_board_agg_status(_all_sts) if _all_sts else "—"),
+                    "biz": (_mc[3].upper() if (len(_mc) >= 4 and _mc[3].isalpha()) else ""),
+                    "biz_label": (_BIZ_KO.get(_mc[3].upper(), "") if (len(_mc) >= 4 and _mc[3].isalpha()) else ""),
+                    "issued_by_name": _lead.get("issued_by_name") or "",
+                    "lines": [{x: _ln[x] for x in ("mgmt", "so", "hogi", "equip", "qty", "st", "due")} for _ln in _lines],
+                }
+                if _biz and not any(len(m) >= 4 and m[3].upper() == _biz for m in (_mgs or [_mc])):
+                    continue
+                if _ql:
+                    _txt = " ".join([card["model_name"], str(card["cust_name"] or ""), str(card["p_customer"] or ""), card["issued_by_name"]]
+                                    + [str(p.get("name") or "") + " " + str(p.get("model_name") or "") for p in _projs]
+                                    + [_ln["mgmt"] + " " + _ln["so"] + " " + _ln["equip"] for _ln in _lines]).lower()
+                    if _ql not in _txt:
+                        continue
+                rows.append(card)
     except Exception as _e:
         rows = []
-        print(f"[z791] 제작요청서 목록(수주별) 조회 실패: {_e}")
+        print(f"[z1191z55] 제작요청서 목록(요청서별) 조회 실패: {_e}")
     # v5H226z890 (대표 지시): 소모품(consumable_orders)도 '제작요청서와 같은 것' → 소모품(C)·전체 탭에 카드로 노출.
     #   기존 prod_requests 쿼리/카드는 불변, 소모품 행을 카드 dict 로 매핑해 덧붙임(회귀 0·projects 병합 패턴).
     if _biz in ("", "C"):
@@ -31495,11 +31536,13 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     r["status_ko"] = _CO_ST_KO.get(_st, ("진행중" if not _st else _st))
                     r["project_id"] = None
                     r["pr_id"] = None
+                    r["n_mgmt"] = 1; r["n_so"] = 1 if r.get("order_no") else 0; r["lines"] = []   # z1191z55
                 rows = rows + _crows
         except Exception as _ce:
             print(f"[z890] 소모품 카드 병합 실패: {_ce}")
     return ctx(request, "prod_requests_list.html", user=u, rows=rows, q=_q,
-               period=_period, period_label=_period_label, biz=_biz, biz_label_cur=_biz_label_cur)
+               period=_period, period_label=_period_label, biz=_biz, biz_label_cur=_biz_label_cur,
+               n_so_total=sum(int(r.get("n_so") or 0) for r in rows))   # z1191z55
 
 
 # v5H226z763 (대표 지시): 제작요청서 수정 — 발행 후 자료경로·모델·각인·요청사항을 고치고, 항상 부서에 다시 통보.
