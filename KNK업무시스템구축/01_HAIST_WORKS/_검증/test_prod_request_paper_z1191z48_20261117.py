@@ -129,6 +129,17 @@ cl = TestClient(M.app, follow_redirects=False)
 OK = FAIL = 0
 
 
+def _z65_meta(html, key):
+    """z1191z65: 맨 아래 정보 칸(파란 이름 칸 위 · 값 아래)에서 이름 → 값."""
+    t = re.search(r'<table class="z65-meta">(.*?)</table>', html, re.S)
+    if not t:
+        return None
+    rows = [[re.sub(r"<[^>]+>", "", x).strip() for x in re.findall(r"<td[^>]*>(.*?)</td>", r, re.S)] for r in re.findall(r"<tr[^>]*>(.*?)</tr>", t.group(1), re.S)]
+    if len(rows) < 2 or key not in rows[0]:
+        return None
+    return rows[1][rows[0].index(key)]
+
+
 def check(cond, msg, got=None):
     global OK, FAIL
     if cond:
@@ -179,8 +190,9 @@ check(">고객사</td>" in v and "가상고객(주)" in v and ">작성자</td>" 
 check(">각인</td>" in v and "VPL-1 FUNCTION TESTER" in v, "각인")
 check('data-copy="Z:\\가상고객\\TSP\\VPL-1\\9. 제품자료"' in v and "z48Copy(this)" in v and "📋 경로 복사" in v and "window.z48Copy" in h, "자료 경로 + 「경로 복사」 단추")
 check('class="z48-req">1. 가상 검사기 : 1호기\n-. 케이스 포함</td>' in v and 'class="z48-req"># 마킹 적용</td>' in v, "고객사 요청사항 ｜ 기타 요청사항 나란히")
-top = re.search(r'<span class="k">사업부</span><span class="v">([^<]*)</span>', h)
-check(top and top.group(1).strip() == "🔬 검사기" and "🏭 완제품" in v and "🏠 내수" in v and "2026-11-13" in v, "웍스에만 있는 값 한 줄(사업부·형태·거래구분·발주일) — 옛 시험이 보는 글자 그대로", top and top.group(1))
+_m = {k: _z65_meta(v, k) for k in ("프로젝트명", "사업부", "형태", "거래구분", "발주일")}   # z1191z65: 한 줄 → 종이 양식 칸
+check(_m == {"프로젝트명": "PBA", "사업부": "🔬 검사기", "형태": "🏭 완제품", "거래구분": "🏠 내수", "발주일": "2026-11-13"} and 'class="z48-kv"' not in v,
+      "웍스에만 있는 값 = 파란 이름 칸 + 값 칸(프로젝트명·사업부·형태·거래구분·발주일 · 작은 회색 한 줄 없음)", _m)
 check("요지</td>" not in v, "요지를 안 썼으면 그 줄 없음")
 mob = h[h.find('<div class="z48-mob">'):]
 check('<div class="z48-mob">' in h and "020 T 2611" in mob and "T-261113-5" in mob and "@container (max-width:820px)" in h and "container-type:inline-size" in h and "@media (max-width:760px)" in h and h.count(".z48-desk { display:none; }") == 2,
@@ -315,8 +327,9 @@ check('<span class="z48-pn">PCB</span>KNK-P-4963' in pc and ">SM-S956</td>" in p
       "품목 줄: 모델명 · 품명(종류+규격) · 수량 · 납기 · 연결 장비")
 check('data-knk-zoom data-knk-name="KNK-P-4963 사진"' in pc and "z48-thumb" in pc, "줄 사진 — 눌러서 크게")
 check(pc.count('class="z48-copy"') == 2 and 'data-copy="Z:\\가상\\제조\\SM-S956\\1. 013T2606_기능검사기"' in pc and "납품 전 연락" in pc, "요청사항: 줄마다 · 경로에는 「복사」(경로 아닌 줄엔 없음)")
-m2 = re.search(r'<span class="k">사업부</span><span class="v">([^<]*)</span>', hc)
-check(m2 and m2.group(1).strip().split()[0] == "📦" and "D-10" in pc, "웍스에만 있는 값 한 줄(사업부 글자 그대로) + 남은 날", m2 and m2.group(1))
+m2 = _z65_meta(pc, "사업부")   # z1191z65
+check(m2 and m2.split()[0] == "📦" and "D-10" in (_z65_meta(pc, "납기") or "") and _z65_meta(pc, "발주일") == "2026-11-17" and 'class="z48-kv"' not in pc,
+      "맨 아래 정보 = 칸(사업부 📦 · 발주일 · 납기 + 남은 날)", m2)
 check('<div class="z48-mob">' in hc and "@media print" in hc and 'onclick="window.print()"' in hc and "window.z48Copy" in hc, "휴대폰 카드 · 인쇄 · 복사 스크립트")
 hc2 = q(cl.get, "/consumables/%d/prod-request" % CO2).text
 pc2 = hc2[hc2.find('<div id="z48Paper">'):hc2.find('<div class="z48-mob">')]

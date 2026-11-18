@@ -81,12 +81,23 @@ def q(fn, *a, **k):
 _chooser = open(os.path.join(ROOT, "app", "templates", "project_new_chooser.html"), encoding="utf-8").read()
 IC = dict(zip("TMLEC", re.findall(r'<div class="ic">([^<]+)</div>', _chooser)[:5]))
 print("등록 화면 아이콘:", IC)
+
+def _z65_meta(html, key):
+    """z1191z65: 맨 아래 정보 칸(파란 이름 칸 위 · 값 아래)에서 이름 → 값."""
+    t = re.search(r'<table class="z65-meta">(.*?)</table>', html, re.S)
+    if not t:
+        return None
+    rows = [[re.sub(r"<[^>]+>", "", x).strip() for x in re.findall(r"<td[^>]*>(.*?)</td>", r, re.S)] for r in re.findall(r"<tr[^>]*>(.*?)</tr>", t.group(1), re.S)]
+    if len(rows) < 2 or key not in rows[0]:
+        return None
+    return rows[1][rows[0].index(key)]
+
 print("§1 제작요청서 작성 화면")
 for bd, pid in PIDS.items():
     r = q(cl.get, "/project/%d/prod-request/edit" % pid)
     h = r.text
-    top = re.search(r'<span class="k">사업부</span><span class="v">([^<]*)</span>', h)
-    check(r.status_code == 200 and top and top.group(1).strip().split()[0] == IC[bd], "%s 프로젝트 — 위쪽 사업부 표시 = %s" % (bd, IC[bd]), top and top.group(1))
+    top = _z65_meta(h, "사업부")   # z1191z65: 맨 아래 정보 칸
+    check(r.status_code == 200 and top and top.split()[0] == IC[bd], "%s 프로젝트 — 사업부 표시 = %s" % (bd, IC[bd]), top)
 opts = re.findall(r'<option[^>]*value="([TMLECR])"[^>]*>\s*([^<\s]+)', h)
 o = {}
 for v, ic in opts:
@@ -94,8 +105,8 @@ for v, ic in opts:
 check(all(o.get(k) == {IC[k]} for k in "TMLEC") and o.get("R") == {"🧪"}, "사업부 고르기 = 등록 화면 아이콘 · 연구 🧪(검사기 🔬 와 안 겹침)", o)
 print("§2 소모품 제작요청서")
 h2 = q(cl.get, "/consumables/%d/prod-request" % CO).text
-m2 = re.search(r'<span class="k">사업부</span><span class="v">([^<]*)</span>', h2)
-check(m2 and m2.group(1).strip().split()[0] == IC["C"], "소모품 제작요청서 사업부 = %s" % IC["C"], m2 and m2.group(1))
+m2 = _z65_meta(h2, "사업부")   # z1191z65
+check(m2 and m2.split()[0] == IC["C"], "소모품 제작요청서 사업부 = %s" % IC["C"], m2)
 print("§3 제작요청서 목록(이미 같음)")
 h3 = q(cl.get, "/prod-requests").text if q(cl.get, "/prod-requests").status_code == 200 else ""
 l3 = dict(re.findall(r"prqurl\('([TMLEC])'[^>]*>\s*([^<\s]+)", open(os.path.join(ROOT, "app", "templates", "prod_requests_list.html"), encoding="utf-8").read()))

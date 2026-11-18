@@ -55,6 +55,16 @@
 .z48-bdg { display:inline-block; font-size:13px; font-weight:800; border-radius:6px; padding:2px 10px; margin-left:12px; vertical-align:middle; letter-spacing:0; }
 .z48-new { background:#bbf7d0; color:#166534; } .z48-add { background:#bfdbfe; color:#1e40af; } .z48-mod { background:#fde68a; color:#92400e; } .z48-etc { background:#e5e7eb; color:#374151; }
 .z48-dd { display:inline-block; font-size:11px; font-weight:800; color:#b45309; background:#fef3c7; border-radius:5px; padding:1px 6px; margin-left:6px; white-space:nowrap; }
+/* z1191z65 (대표 11-19 「보기가 어렵네 · 바로 눈에 안 들어와」): 맨 아래 정보 = 종이 양식 칸(파란 이름 칸 위 · 진한 값 아래) */
+.z48-prs td.z65-cell { padding:0; }
+.z65-meta { width:100%; border-collapse:collapse; table-layout:auto; margin:0; }
+.z48-prs .z65-meta td { border:1px solid #222; padding:6px 8px; font-size:13.5px; }
+.z48-prs .z65-meta td.z48-h { white-space:normal; }
+.z65-meta tr:first-child td { border-top:0; }
+.z65-meta tr:last-child td { border-bottom:0; }
+.z65-meta td:first-child { border-left:0; }
+.z65-meta td:last-child { border-right:0; }
+.z65-meta .z65-v td { font-weight:600; color:#111827; }
 .z48-kv { display:inline-flex; gap:6px; margin:1px 16px 1px 0; font-size:12.5px; align-items:baseline; }
 .z48-kv .k { color:#64748b; font-weight:700; font-size:11.5px; }
 .z48-kv .v { color:#1f2937; }
@@ -185,15 +195,11 @@
             {% if z48c.notes %}{% for n in z48c.notes %}<div class="z48-nl"><span>{{ n.text }}</span>{% if n.path %}<button type="button" class="z48-copy" data-copy="{{ n.path }}" onclick="z48Copy(this)" title="탐색기 주소줄에 붙여 넣을 수 있게 경로를 복사합니다">📋 복사</button>{% endif %}</div>{% endfor %}{% else %}<span class="z48-sub">—</span>{% endif %}
             {% if co.source_file %}<div class="z48-nl z48-sub"><span>원본 파일 : {{ co.source_file }}</span></div>{% endif %}
           </td></tr>
-          <tr><td colspan="{{ _z48_nc }}" class="z48-info">
-            <span class="z48-kv"><span class="k">사업부</span><span class="v">📦 {{ biz_label or '소모품' }}</span></span>{# z1191z37: 사업부 아이콘 = 등록 화면 #}
-            <span class="z48-kv"><span class="k">형태</span><span class="v">{{ form_label }}</span></span>
-            <span class="z48-kv"><span class="k">거래구분</span><span class="v">{{ export_label }}</span></span>
-            {% if co.order_date %}<span class="z48-kv"><span class="k">발주일</span><span class="v">{{ (co.order_date)[:10] }}</span></span>{% endif %}
-            <span class="z48-kv"><span class="k">납기</span><span class="v">{{ (co.due_date or '')[:10] or '—' }}{% if z48c.dday %}<span class="z48-dd" title="납기까지 남은 날">{{ z48c.dday }}</span>{% endif %}</span></span>
-            {% if co.ship_to %}<span class="z48-kv"><span class="k">납품위치</span><span class="v">{{ co.ship_to }}</span></span>{% endif %}
-            {% if z48c.head_model %}<span class="z48-kv"><span class="k">모델명</span><span class="v">{{ z48c.head_model }}</span></span>{% endif %}
-          </td></tr>
+          {# z1191z65: 맨 아래 정보 — 작은 회색 한 줄 → 종이 양식 칸(파란 이름 칸 · 진한 값) #}
+          <tr><td colspan="{{ _z48_nc }}" class="z65-cell"><table class="z65-meta">
+            <tr><td class="z48-h">사업부</td><td class="z48-h">형태</td><td class="z48-h">거래구분</td><td class="z48-h">발주일</td><td class="z48-h">납기</td>{% if co.ship_to %}<td class="z48-h">납품위치</td>{% endif %}{% if z48c.head_model %}<td class="z48-h">모델명</td>{% endif %}</tr>
+            <tr class="z65-v"><td>📦 {{ biz_label or '소모품' }}</td>{# z1191z37: 사업부 아이콘 = 등록 화면 #}<td>{{ form_label }}</td><td>{{ export_label }}</td><td>{{ (co.order_date or '')[:10] or '—' }}</td><td>{{ (co.due_date or '')[:10] or '—' }}{% if z48c.dday %}<span class="z48-dd" title="납기까지 남은 날">{{ z48c.dday }}</span>{% endif %}</td>{% if co.ship_to %}<td>{{ co.ship_to }}</td>{% endif %}{% if z48c.head_model %}<td>{{ z48c.head_model }}</td>{% endif %}</tr>
+          </table></td></tr>
         </table>
         {# 휴대폰 폭 — 같은 내용을 카드로(표는 숨김) #}
         <div class="z48-mob">
@@ -206,6 +212,12 @@
             <div class="z48-mkv"><div class="k">수주번호</div><div class="v z48-so">{{ co.co_no or '—' }}</div></div>
             <div class="z48-mkv"><div class="k">납기</div><div class="v">{{ (co.due_date or '')[:10] or '—' }}{% if z48c.dday %}<span class="z48-dd">{{ z48c.dday }}</span>{% endif %}</div></div>
             <div class="z48-mkv"><div class="k">작성자</div><div class="v">{{ z48c.author or '—' }}</div></div>
+            {# z1191z65: 표 맨 아래 정보도 휴대폰에 #}
+            <div class="z48-mkv"><div class="k">사업부</div><div class="v">📦 {{ biz_label or '소모품' }}</div></div>
+            <div class="z48-mkv"><div class="k">형태</div><div class="v">{{ form_label }}</div></div>
+            <div class="z48-mkv"><div class="k">거래구분</div><div class="v">{{ export_label }}</div></div>
+            <div class="z48-mkv"><div class="k">발주일</div><div class="v">{{ (co.order_date or '')[:10] or '—' }}</div></div>
+            {% if co.ship_to %}<div class="z48-mkv"><div class="k">납품위치</div><div class="v">{{ co.ship_to }}</div></div>{% endif %}
           </div>
           <div class="z48-card">
             <div class="z48-ch">품목 {{ items|length }}건</div>
