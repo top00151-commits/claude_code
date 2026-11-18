@@ -56,6 +56,10 @@ var CH = {
   back: {{ i.ch_back|tojson }},
   back_t: {{ i.ch_back_t|tojson }},
   drag: {{ i.ch_drag|tojson }},
+  dr_close: {{ i.ch_dr_close|tojson }},
+  dr_drop: {{ i.ch_dr_drop|tojson }},
+  dr_msg: {{ i.ch_dr_msg|tojson }},
+  dr_show: {{ i.ch_dr_show|tojson }},
   no_perm: {{ i.ch_no_perm|tojson }},
   no_perm_logi: {{ i.ch_no_perm_logi|tojson }},
   no_perm_sales: {{ i.ch_no_perm_sales|tojson }},
@@ -1032,6 +1036,108 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
   }
 </style>
 <script>
+/* z1191z53 (대표 2026-11-18 규칙 「배포된걸 적용하기전에는 무조건 직전 상태를 저장하고 업데이트」):
+   새 버전으로 새로고침되기 직전에 이 화면에서 입력 중이던 칸(저장 안 한 값)을 이 탭에 저장 → 다시 열리면 되살리고 「확인 후 저장」 안내.
+   · 저장 = sessionStorage(이 탭 · 이 주소) · 30분 안에 다시 열 때만 · 한 번 되살리면 지움
+   · 되살릴 때 change 는 일으키지 않음(자동 저장 칸이 사람 확인 없이 저장되지 않게) — input 만
+   · 비밀번호·파일·숨은 칸은 저장 안 함 · 칸에 data-knk-no-draft 를 달면 뺌 */
+(function () {
+  if (window.knkDraft) return;
+  var PFX = 'knkDraft:', TTL = 30 * 60 * 1000;
+  function cands() {
+    return [].filter.call(document.querySelectorAll('input, textarea, select'), function (el) {
+      var t = (el.type || '').toLowerCase();
+      if (/^(hidden|password|file|submit|button|reset|image)$/.test(t)) return false;
+      if (el.disabled || el.hasAttribute('data-knk-no-draft') || el.closest('#knkUpdateBar, #knkDraftBar')) return false;
+      return true;
+    });
+  }
+  function dirty(el) {
+    var t = (el.type || '').toLowerCase();
+    if (t === 'checkbox' || t === 'radio') return el.checked !== el.defaultChecked;
+    if (el.tagName === 'SELECT') { for (var i = 0; i < el.options.length; i++) { if (el.options[i].selected !== el.options[i].defaultSelected) return true; } return false; }
+    return typeof el.value === 'string' && el.value !== el.defaultValue;
+  }
+  function key(el) {
+    if (el.id) return '#' + el.id;
+    var dk = el.getAttribute('data-k') || el.getAttribute('data-field');
+    var row = el.closest('[data-iid], [data-id], [data-row]');
+    if (row && dk) return 'r:' + (row.getAttribute('data-iid') || row.getAttribute('data-id') || row.getAttribute('data-row')) + ':' + dk;
+    var nm = el.getAttribute('name') || dk; if (!nm) return null;
+    var f = el.form, fi = f ? (f.id ? 'f#' + f.id : 'f' + [].indexOf.call(document.forms, f)) : 'nf';
+    var t = (el.type || '').toLowerCase();
+    if (t === 'radio' || t === 'checkbox') nm += '=' + el.value;
+    var same = cands().filter(function (o) {
+      var on = o.getAttribute('name') || o.getAttribute('data-k') || o.getAttribute('data-field');
+      var ot = (o.type || '').toLowerCase();
+      if (ot === 'radio' || ot === 'checkbox') on += '=' + o.value;
+      return o.form === f && on === nm && o.tagName === el.tagName;
+    });
+    return fi + ':' + nm + ':' + same.indexOf(el);
+  }
+  function val(el) {
+    if (el.tagName === 'SELECT' && el.multiple) return [].filter.call(el.options, function (o) { return o.selected; }).map(function (o) { return o.value; });
+    return el.value;
+  }
+  function save() {
+    try {
+      var f = [];
+      cands().forEach(function (el) { if (!dirty(el)) return; var k = key(el); if (!k) return; f.push({ k: k, v: val(el), c: !!el.checked }); });
+      var sk = PFX + location.pathname + location.search;
+      if (f.length) sessionStorage.setItem(sk, JSON.stringify({ at: Date.now(), f: f })); else sessionStorage.removeItem(sk);
+      return f.length;
+    } catch (e) { return 0; }
+  }
+  function put(el, d) {
+    var t = (el.type || '').toLowerCase();
+    if (t === 'checkbox' || t === 'radio') el.checked = !!d.c;
+    else if (el.tagName === 'SELECT' && el.multiple && Array.isArray(d.v)) { [].forEach.call(el.options, function (o) { o.selected = d.v.indexOf(o.value) >= 0; }); }
+    else el.value = d.v;
+  }
+  function undo(el) {
+    var t = (el.type || '').toLowerCase();
+    if (t === 'checkbox' || t === 'radio') el.checked = el.defaultChecked;
+    else if (el.tagName === 'SELECT') { [].forEach.call(el.options, function (o) { o.selected = o.defaultSelected; }); }
+    else el.value = el.defaultValue;
+  }
+  function restore() {
+    var sk = PFX + location.pathname + location.search, d = null;
+    try { d = JSON.parse(sessionStorage.getItem(sk) || 'null'); sessionStorage.removeItem(sk); } catch (e) { d = null; }
+    if (!d || !d.f || !d.f.length || (Date.now() - (d.at || 0)) > TTL) return;
+    var map = {}; cands().forEach(function (el) { var k = key(el); if (k && !map[k]) map[k] = el; });
+    var els = [];
+    d.f.forEach(function (x) {
+      var el = map[x.k]; if (!el || dirty(el)) return;
+      put(el, x); if (!dirty(el)) return;
+      el.dataset.knkDirty = '1'; el.classList.add('knk-draft-back');
+      el.style.outline = '2px solid #f59e0b'; el.style.outlineOffset = '1px';
+      try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+      el.addEventListener('input', function () { el.style.outline = ''; el.style.outlineOffset = ''; }, { once: true });   // 고치기 시작하면 표시 지움
+      els.push(el);
+    });
+    if (!els.length) return;
+    try { document.dispatchEvent(new CustomEvent('knk:draft-restored', { detail: { els: els } })); } catch (e) {}
+    var bar = document.createElement('div'); bar.id = 'knkDraftBar';
+    bar.setAttribute('style', 'position:fixed;left:0;right:0;top:86px;margin:0 auto;width:max-content;z-index:2147483000;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;background:#7c2d12;color:#fff;padding:12px 16px;border-radius:14px;box-shadow:0 12px 34px rgba(0,0,0,.32);font-size:14px;font-weight:600;max-width:92vw;');
+    var msg = document.createElement('span'); msg.textContent = (CH.dr_msg || '').replace('{n}', els.length);
+    var show = document.createElement('button'); show.textContent = CH.dr_show;
+    show.setAttribute('style', 'background:#f59e0b;color:#1f2937;border:0;border-radius:10px;padding:8px 14px;font-size:13.5px;font-weight:800;cursor:pointer;');
+    show.onclick = function () { var v = els.filter(function (e) { return e.offsetParent !== null; })[0] || els[0]; try { v.scrollIntoView({ block: 'center' }); v.focus(); } catch (e) {} };
+    var drop = document.createElement('button'); drop.textContent = CH.dr_drop;
+    drop.setAttribute('style', 'background:transparent;color:rgba(255,255,255,.8);border:0;font-size:13px;cursor:pointer;');
+    drop.onclick = function () { els.forEach(function (el) { undo(el); delete el.dataset.knkDirty; el.style.outline = ''; try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {} }); bar.remove(); };
+    var x = document.createElement('button'); x.textContent = '✕'; x.title = CH.dr_close;
+    x.setAttribute('style', 'background:transparent;color:#fff;border:0;font-size:15px;cursor:pointer;');
+    x.onclick = function () { bar.remove(); };
+    bar.appendChild(msg); bar.appendChild(show); bar.appendChild(drop); bar.appendChild(x);
+    document.body.appendChild(bar);
+  }
+  window.knkDraft = { save: save, restore: restore };
+  if (document.readyState === 'complete') setTimeout(restore, 300);
+  else window.addEventListener('load', function () { setTimeout(restore, 300); });
+})();
+</script>
+<script>
 /* 배포(코드 변경) 감지: 페이지 로드시 버전과 서버 버전(/api/version)을 주기 비교.
    서버 버전이 바뀌면 = 새로 배포됨 → 새로고침 아이콘 강조 + 안내 배너. (대표 지시 2026-05-31) */
 (function () {
@@ -1070,6 +1176,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
       if (Date.now() - last < 25000) return;
       sessionStorage.setItem('knkAutoReloadTs', String(Date.now()));
     } catch (e) {}
+    try { if (window.knkDraft) knkDraft.save(); } catch (e) {}   // z1191z53: 새로고침 직전 입력 중이던 칸 저장
     try { location.reload(); } catch (e) {}
   }
 
@@ -1085,7 +1192,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     var reload = document.createElement('button');
     reload.className = 'knk-up-reload';
     reload.textContent = CH.up_now;
-    reload.onclick = function () { try { location.reload(); } catch (e) {} };
+    reload.onclick = function () { try { if (window.knkDraft) knkDraft.save(); } catch (e) {} try { location.reload(); } catch (e) {} };   // z1191z53
     var later = document.createElement('button');
     later.className = 'knk-up-later';
     later.textContent = CH.up_later;
@@ -1127,6 +1234,8 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     if (document.visibilityState === 'visible') { if (pending) safeReload(); else check(); }
     else if (pending) { safeReload(); }
   });
+  // z1191z53: 새 버전이 감지된 뒤 F5·주소창 등으로 떠날 때도 입력 중이던 칸 저장(돌아오면 되살림)
+  window.addEventListener('pagehide', function () { if (pending) { try { if (window.knkDraft) knkDraft.save(); } catch (e) {} } });
 })();
 </script>
 

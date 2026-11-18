@@ -933,6 +933,10 @@ select.prq-in { appearance:auto; }
       var p=document.getElementById('prqView'); if(!p) return; var off=p.classList.toggle('z51-plain');
       btn.textContent=off?'바뀐 곳 보이기':'바뀐 곳 숨기기';
     };
+    // z1191z53: 업데이트 전에 수정하던 칸이 되살아나면 수정 화면을 열어 보이게
+    document.addEventListener('knk:draft-restored', function(e){
+      try{ var ef=document.getElementById('prqEditForm'); if(ef && ef.hidden && (e.detail.els||[]).some(function(el){ return ef.contains(el); })) window.prqEnterEdit(); }catch(_){}
+    });
     window.prqValidate=function(form){
       // z1191z51: 수정 사유 — 비어 있으면 한 번 묻는다(받는 사람이 무엇이 왜 바뀌었는지 알도록)
       try{
