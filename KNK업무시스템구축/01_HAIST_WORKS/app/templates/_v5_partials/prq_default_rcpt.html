@@ -1,0 +1,80 @@
+{# z1191z59 (대표 2026-11-18 「사업부별 기본 받는 부서 — 우선 만들고 실무자들이 선택해서 저장할수있게」):
+   받는 사람 고르는 곳(등록 화면 · 제작요청서 새 작성 · 소모품 관련부서 통보) 위 띠 — 사업부 기본값 보기 · 지금 고른 것을 기본으로 저장 · 비우기.
+   화면을 열 때 아무것도 안 골라져 있으면 기본값을 미리 체크(직전 통보·「묶어서 다시 발행」으로 이미 골라진 것은 그대로).
+   넘겨받는 값: dr_biz(T/M/L/E/C) · dr_root(공용 선택위젯 뿌리 id) · dr_team · dr_user(체크 칸 고르는 말) · dr_apply(미리 체크 여부) #}
+<div class="z59-dr" data-biz="{{ dr_biz }}" data-root="{{ dr_root }}" data-team="{{ dr_team }}" data-user="{{ dr_user }}" data-apply="{{ '1' if dr_apply else '' }}">
+  <div class="z59-top"><span class="z59-ttl">⭐ 기본 받는 사람 · <b>{{ {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타','C':'소모품'}.get(dr_biz, dr_biz) }}</b></span>
+    <span class="z59-btns"><button type="button" data-a="apply">기본으로 다시 고르기</button><button type="button" data-a="save" class="pri">지금 고른 것을 기본으로 저장</button><button type="button" data-a="clear">기본 비우기</button></span></div>
+  <div class="z59-now">불러오는 중…</div>
+  <div class="z59-msg" hidden></div>
+</div>
+{% if not _z59_once %}{% set _z59_once = True %}
+<style>
+.z59-dr { margin:8px 2px 6px; padding:8px 11px; border-radius:9px; background:#f8fafc; border:1px solid #cbd5e1; font-size:12.5px; color:#334155; }
+.z59-top { display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap; }
+.z59-ttl { font-weight:700; color:#1e3a8a; }
+.z59-btns { display:flex; gap:5px; flex-wrap:wrap; }
+.z59-btns button { font:inherit; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; color:#475569; cursor:pointer; }
+.z59-btns button.pri { border-color:#2563eb; color:#1d4ed8; background:#eff6ff; }
+.z59-btns button:hover { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+.z59-now { margin-top:4px; line-height:1.55; }
+.z59-now .z59-who { color:#64748b; font-size:11.5px; }
+.z59-msg { margin-top:5px; padding:5px 8px; border-radius:6px; background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; font-size:12px; }
+.z59-msg[hidden] { display:none; }
+</style>
+<script>
+(function(){
+  if(window.__z59) return; window.__z59=1;
+  var BZ={T:'검사기',M:'자동화',L:'라이프밸류',E:'기타',C:'소모품'};
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function fire(el){ try{ el.dispatchEvent(new Event('change',{bubbles:true})); }catch(_){} }
+  function init(box){
+    var biz=box.dataset.biz, root=document.getElementById(box.dataset.root)||document, TS=box.dataset.team, US=box.dataset.user;
+    var now=box.querySelector('.z59-now'), msg=box.querySelector('.z59-msg'), cur={teams:[],users:[]};
+    function say(t){ msg.textContent=t; msg.hidden=!t; }
+    function show(d){
+      cur=d||{teams:[],users:[]};
+      var names=(cur.teams||[]).map(function(t){ return '🏢 '+esc(t.name); }).concat((cur.users||[]).map(function(u){ return '👤 '+esc(u.name); }));
+      now.innerHTML=names.length ? names.join(' · ')+(cur.by?' <span class="z59-who">— 정한 사람: '+esc(cur.by)+' · '+esc(cur.at||'')+'</span>':'')
+        : '<span class="z59-who">아직 정하지 않았습니다 — 받을 부서·사람을 고른 뒤 [지금 고른 것을 기본으로 저장]을 누르면 다음부터 '+esc(BZ[biz]||biz)+' 발행 때 미리 골라져 나옵니다.</span>';
+    }
+    function cnt(){ var k=checked(); return '부서 '+k.teams.length+' · 개별 '+k.users.length+'명'; }
+    function checked(){ return {teams:[].slice.call(root.querySelectorAll(TS+':checked')).map(function(c){ return parseInt(c.value,10); }),
+                                users:[].slice.call(root.querySelectorAll(US+':checked')).map(function(c){ return parseInt(c.value,10); })}; }
+    function apply(clear){
+      if(clear) root.querySelectorAll(TS+','+US).forEach(function(c){ if(c.checked){ c.checked=false; fire(c); } });
+      var n=0;
+      function openUp(el){ for(var d=el.parentElement; d; d=d.parentElement){ if(d.tagName==='DETAILS') d.open=true; } }   // 감싼 상자를 모두 연다(골라진 것이 보이게)
+      (cur.teams||[]).forEach(function(t){ var c=root.querySelector(TS+'[value="'+t.id+'"]'); if(c){ if(!c.checked){ c.checked=true; fire(c); } n++; openUp(c); } });
+      (cur.users||[]).forEach(function(u){ var c=root.querySelector(US+'[value="'+u.id+'"]'); if(c){ if(!c.checked){ c.checked=true; fire(c); } n++;
+        var m=c.closest('.knkp-collapse'); if(m){ m.style.display='flex'; m.classList.add('open'); } openUp(c); } });
+      try{ if(window.KNKPicker && box.dataset.root) KNKPicker.refresh(box.dataset.root); }catch(_){}
+      return n;
+    }
+    box.addEventListener('click', function(e){
+      var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return; e.preventDefault();
+      if(a==='apply'){ var n=apply(true); say(n? '기본 받는 사람으로 다시 골랐습니다('+cnt()+') — 필요하면 더하거나 빼세요.' : '정해 둔 기본 받는 사람이 없습니다.'); return; }
+      var body = a==='save' ? checked() : {teams:[],users:[]};
+      if(a==='save' && !body.teams.length && !body.users.length){ say('먼저 받을 부서나 사람을 고르세요.'); return; }
+      var q = a==='save' ? (BZ[biz]||biz)+' 기본 받는 사람을 지금 고른 부서 '+body.teams.length+'곳 · 개별 '+body.users.length+'명으로 저장할까요?\n다음부터 '+(BZ[biz]||biz)+' 요청서를 발행할 때 모두에게 미리 골라져 나옵니다(그때그때 더하거나 뺄 수 있음).'
+                         : (BZ[biz]||biz)+' 기본 받는 사람을 비울까요? (다음부터 미리 골라지지 않음)';
+      if(!confirm(q)) return;
+      fetch('/api/prq-default-recipients/'+encodeURIComponent(biz), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({team_ids:body.teams, user_ids:body.users})})
+        .then(function(r){ return r.json(); }).then(function(j){
+          if(!j.ok){ say('저장하지 못했습니다: '+(j.error||'')); return; }
+          show(j.d); say(a==='save' ? '저장했습니다 — 다음부터 '+(BZ[biz]||biz)+' 발행 때 미리 골라져 나옵니다.' : '기본 받는 사람을 비웠습니다.');
+        }).catch(function(){ say('저장하지 못했습니다(통신 오류) — 다시 눌러 주세요.'); });
+    });
+    fetch('/api/prq-default-recipients?biz='+encodeURIComponent(biz)).then(function(r){ return r.json(); }).then(function(j){
+      show(j && j.d);
+      if(box.dataset.apply && ((cur.teams||[]).length || (cur.users||[]).length)){
+        var c0=checked();
+        if(!c0.teams.length && !c0.users.length){ var n=apply(false); if(n) say('✅ '+(BZ[biz]||biz)+' 기본 받는 사람을 미리 골라 두었습니다('+cnt()+') — 필요하면 더하거나 빼세요.'); }
+      }
+    }).catch(function(){ now.textContent='기본 받는 사람을 불러오지 못했습니다.'; });
+  }
+  function boot(){ document.querySelectorAll('.z59-dr').forEach(function(b){ if(!b.__z59){ b.__z59=1; init(b); } }); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot, 0); }); else setTimeout(boot, 0);
+})();
+</script>
+{% endif %}

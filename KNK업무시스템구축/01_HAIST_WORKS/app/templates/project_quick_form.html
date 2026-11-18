@@ -497,6 +497,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               </div>
               <div id="prImgPreview" class="pr-imgprev"></div>
             </div>
+            {% with dr_biz=preset_biz, dr_root='knkpPr', dr_team='.pr-team', dr_user='.pr-user', dr_apply=True %}{% include "_v5_partials/prq_default_rcpt.html" %}{% endwith %}{# z1191z59 #}
             <details class="qf-adv" style="margin-top:8px;">
               <summary>통보 부서·인원 선택 <span>(기본 미선택 — 통보할 부서/사람을 직접 선택 · ▸개별로 사람만도 가능)</span></summary>
               {# z746(대표 지시): 자동 라우팅 안내 — 통보는 '이 사업부·공통' 담당자에게만 #}

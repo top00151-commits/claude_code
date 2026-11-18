@@ -388,6 +388,7 @@ select.prq-in { appearance:auto; }
             .pns-members.open { display:flex; }
             .pns-mrow { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#334155; cursor:pointer; }
           </style>
+          {% with dr_biz=(biz_cur if biz_cur in ['T','M','L','E','C'] else 'T'), dr_root='knkpPns', dr_team='input[name=add_team_ids]', dr_user='input[name=add_user_ids]', dr_apply=True %}{% include "_v5_partials/prq_default_rcpt.html" %}{% endwith %}{# z1191z59 #}
           <details class="pns-wrap">
             <summary class="pns-sum">👥 통보 대상 선택 <span class="pns-hint">— 선택하지 않으면 이 사업부의 관련 부서 전체에 통보됩니다. 특정 인원만 고르면 그 사람에게만 통보됩니다.</span></summary>
             {# z886(대표 지시·규정): 본사/베트남 책갈피(탭)+검색+선택칩 — 공용 선택위젯 #}

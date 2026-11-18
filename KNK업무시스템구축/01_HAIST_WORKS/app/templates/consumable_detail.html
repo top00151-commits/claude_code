@@ -245,6 +245,7 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         <div class="ntf-body">
           <div class="ntf-actions"><a onclick="ntfAll(true)">전체 선택</a> · <a onclick="ntfAll(false)">전체 해제</a></div>
           {# z886(대표 지시·규정): 본사/베트남 책갈피(탭)+검색+선택칩 — 공용 선택위젯 #}
+          {% with dr_biz='C', dr_root='knkpNtf', dr_team='.ntf-ck', dr_user='.ntf-uck', dr_apply=True %}{% include "_v5_partials/prq_default_rcpt.html" %}{% endwith %}{# z1191z59 #}
           <div id="knkpNtf" data-knk-picker data-knkp-ph="🔍 부서명 검색">
             {# z891(대표 지시): 직전 통보 대상(부서·개별)을 미리 선택 — 누락된 사람만 바로 추가. co.notify_team_ids/user_ids(z890 저장). 옛 '구매팀 자동선택' 하드코딩 폐기. #}
             {% set _last_teams = (co.notify_team_ids|string).split(',') if co.notify_team_ids else [] %}

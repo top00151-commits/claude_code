@@ -38852,6 +38852,80 @@ async def api_z57_guide_save(request: Request, key: str):
     return JSONResponse({"ok": True, "guide": {"label": _Z57_GKEYS[key][0], "body": body, "by": nm, "at": at}})
 
 
+# z1191z59 (대표 2026-11-18 「사업부별 기본 받는 부서 … 우선 만들고 실무자들이 선택해서 저장할수있게」):
+#   사업부(T 검사기 · M 자동화 · L 라이프밸류 · E 기타 · C 소모품)마다 기본 받는 부서·사람 — 발행 권한자 누구나 저장(고친 사람·시각 · 이력).
+#   등록 화면 · 제작요청서 새 작성 · 소모품 관련부서 통보에서 아무것도 안 골라져 있으면 미리 체크(공용 조각 _v5_partials/prq_default_rcpt.html).
+_Z59_BIZ = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타", "C": "소모품"}
+
+
+def _z59_tables(c):
+    c.execute("CREATE TABLE IF NOT EXISTS prq_default_rcpt(biz TEXT PRIMARY KEY, team_ids TEXT, user_ids TEXT, by_id INTEGER, by_name TEXT, at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS prq_default_rcpt_hist(id INTEGER PRIMARY KEY AUTOINCREMENT, biz TEXT, team_ids TEXT, user_ids TEXT, by_id INTEGER, by_name TEXT, at TEXT)")
+
+
+def _z59_get(c, biz):
+    _z59_tables(c)
+    r = c.execute("SELECT COALESCE(team_ids,''), COALESCE(user_ids,''), COALESCE(by_name,''), COALESCE(at,'') FROM prq_default_rcpt WHERE biz=?", (biz,)).fetchone()
+    tids = [int(x) for x in (r[0] if r else "").split(",") if x.strip().isdigit()]
+    uids = [int(x) for x in (r[1] if r else "").split(",") if x.strip().isdigit()]
+    teams, users = [], []
+    for t in tids:   # 지금 있는 부서·사람만(없어진 팀·퇴사자는 빼고 보임)
+        x = c.execute("SELECT id, name FROM teams WHERE id=?", (t,)).fetchone()
+        if x:
+            teams.append({"id": x[0], "name": x[1]})
+    for u in uids:
+        x = c.execute("SELECT * FROM users WHERE id=? AND COALESCE(is_active,1)=1", (u,)).fetchone()
+        if x:
+            users.append({"id": x["id"], "name": vname_full(dict(x)) or x["name"]})
+    return {"biz": biz, "teams": teams, "users": users, "by": (r[2] if r else ""), "at": (r[3] if r else "")}
+
+
+@app.get("/api/prq-default-recipients")
+async def api_z59_default_get(request: Request, biz: str = ""):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    b = (biz or "").strip().upper()
+    if b not in _Z59_BIZ:
+        return JSONResponse({"ok": False, "error": "bad_biz"}, 400)
+    with db_session() as c:
+        return JSONResponse({"ok": True, "d": _z59_get(c, b)})
+
+
+@app.post("/api/prq-default-recipients/{biz}")
+async def api_z59_default_save(request: Request, biz: str):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) or can_use_logistics(u)):   # 발행(통보)할 수 있는 사람
+        return JSONResponse({"ok": False, "error": "발행 권한이 있는 분만 기본 받는 사람을 정할 수 있습니다"}, 403)
+    b = (biz or "").strip().upper()
+    if b not in _Z59_BIZ:
+        return JSONResponse({"ok": False, "error": "bad_biz"}, 400)
+    try:
+        j = await request.json()
+    except Exception:
+        j = {}
+    tids = sorted({int(x) for x in (j.get("team_ids") or []) if str(x).strip().isdigit()})[:200]
+    uids = sorted({int(x) for x in (j.get("user_ids") or []) if str(x).strip().isdigit()})[:500]
+    from datetime import datetime as _d59, timezone as _tz59, timedelta as _td59
+    at = _d59.now(_tz59(_td59(hours=9))).strftime("%Y-%m-%d %H:%M")
+    nm = vname_full(u) or (u.get("name") or "")
+    with db_session() as c:
+        _z59_tables(c)
+        if tids:
+            tids = [r[0] for r in c.execute("SELECT id FROM teams WHERE id IN (%s)" % ",".join("?" * len(tids)), tids).fetchall()]
+        if uids:
+            uids = [r[0] for r in c.execute("SELECT id FROM users WHERE id IN (%s)" % ",".join("?" * len(uids)), uids).fetchall()]
+        ts, us = ",".join(str(x) for x in sorted(tids)), ",".join(str(x) for x in sorted(uids))
+        c.execute("INSERT INTO prq_default_rcpt(biz, team_ids, user_ids, by_id, by_name, at) VALUES(?,?,?,?,?,?) "
+                  "ON CONFLICT(biz) DO UPDATE SET team_ids=excluded.team_ids, user_ids=excluded.user_ids, by_id=excluded.by_id, "
+                  "by_name=excluded.by_name, at=excluded.at", (b, ts, us, u.get("id"), nm, at))
+        c.execute("INSERT INTO prq_default_rcpt_hist(biz, team_ids, user_ids, by_id, by_name, at) VALUES(?,?,?,?,?,?)", (b, ts, us, u.get("id"), nm, at))
+        d = _z59_get(c, b)
+    return JSONResponse({"ok": True, "d": d})
+
+
 @app.get("/api/prod-request/waits")
 async def api_z58_waits(request: Request, customer_id: str = "", customer_name: str = "", order_date: str = ""):
     """z1191z58: 등록 화면 — 같은 고객사로 「묶어서 발행」을 기다리는 관리번호(같은 발주일 먼저 · 요청서 없음 · 수주 있음)."""
