@@ -252,6 +252,15 @@ try:
     check("다른 부서 사람: 부서 공유 연락처 안 보임 · 전사 공개는 보임", "dept@team.example" not in em3 and "all@pub.example" in em3, em3)
     _U["v"] = {"id": OWN, "role": "ceo", "name": "시험대표", "team_id": 981, "team_name": "시험영업팀"}
 
+    print("== 6b. 대표 규칙 「배포 적용 전 직전 상태 저장」 · 화면 전환 ==")
+    check("쓰기: 쓰던 내용을 이 기기에 계속 저장 · 다시 열면 「되살리기」", "knkmail.keep.v1:" in cp and 'id="cKeep"' in cp and "cKeepRestore()" in cp)
+    check("쓰기: 보내기·💾 임시저장 성공하면 저장본 지움", cp.count("if(window.cKeepClear) window.cKeepClear();") == 2)
+    check("쓰기: 받는 사람·참조·숨은참조·제목은 공통 틀 저장과 겹치지 않게(data-knk-no-draft)", cp.count("data-knk-no-draft") == 4)
+    vs = open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_view_styles.html"), encoding="utf-8").read()
+    hi = k.get("/mail/inbox").text
+    check("「글자 크게」 스크립트는 본문 안(머리 조각엔 스크립트 없음 · 화면 전환 때도 돎)",
+          "<script" not in vs and hi.find("knkmail.big") > hi.find('<main class="main"') > 0)
+
     print("== 7. kmail · 로그인 ==")
     km = client(port=5053, host="kmail.knknara.co.kr")
     check("kmail 보관함 200 · 여러 통 POST 동작", km.get("/mail/inbox?arc=1").status_code == 200 and km.post("/mail/bulk", data={"op": "read", "ids": str(ids["s1"])}).json().get("ok"))

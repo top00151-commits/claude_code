@@ -12,6 +12,11 @@
   /* z1168(대표 지시): 같은 단추줄을 위에도 — 긴 메일에서 끝까지 안 내려가도 보낼 수 있게 */
   .cmp-actions-top{margin-top:0;margin-bottom:10px;padding:8px 0 10px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;background:#fff}
   .mail-app-top ~ .main .cmp-actions-top{top:50px}   /* 앱(kmail) 머리띠 아래에 붙게 */
+  .cmp-keep{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 12px;margin:0 0 10px;font-size:13px;color:#78350f}
+  .cmp-keep[hidden]{display:none}
+  .cmp-keep button{border:1px solid #fcd34d;background:#fff;border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
+  .cmp-keep button.x{font-weight:400;color:#92400e}
+  .cmp-keep-n{color:#a16207;font-size:12px}
   .cmp-pick{flex:none;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit}
   .cmp-pick:hover{background:#e0e7ff}
   .ab-wrap{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center}
@@ -95,14 +100,15 @@
       {% if can_link %}<a href="/mail/account" class="btn btn-secondary" title="내 회사 메일주소로 보내기 연결">📮 내 계정{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
       <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
+    <div class="cmp-keep" id="cKeep" hidden>📝 <b>쓰다가 닫힌 메일</b>이 있습니다 <span id="cKeepAt"></span> — <button type="button" onclick="cKeepRestore()">되살리기</button> <button type="button" class="x" onclick="cKeepDrop()">버리기</button> <span class="cmp-keep-n">(첨부 파일은 다시 붙여 주세요)</span></div>
     <div class="cmp-from">보내는 사람 &nbsp;<b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</div>
-    <div class="cmp-row"><label>받는사람</label><input id="cTo" type="email" placeholder="customer@example.com" value="{{ prefill.to }}">
+    <div class="cmp-row"><label>받는사람</label><input id="cTo" type="email" placeholder="customer@example.com" value="{{ prefill.to }}" data-knk-no-draft>
       <button type="button" class="cmp-pick" onclick="abOpen('cTo')" title="주소록에서 골라 넣기(이름·회사로 찾기)">📇 주소록</button></div>
-    <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}">
+    <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}" data-knk-no-draft>
       <button type="button" class="cmp-pick" onclick="abOpen('cCc')" title="주소록에서 골라 참조에 넣기">📇 주소록</button>
       <a href="javascript:void(0)" id="bccToggle" style="font-size:12px;color:var(--mute);text-decoration:none;flex:none;">+ 숨은참조</a></div>
-    <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}"></div>
-    <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}"></div>
+    <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}" data-knk-no-draft></div>
+    <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}" data-knk-no-draft></div>
     {% if ai_on %}
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
       <button type="button" class="btn btn-primary" id="cAiBtn" style="background:#7c3aed;border-color:#7c3aed;" onclick="aiCompose()">✨ AI로 정리</button>
@@ -150,6 +156,43 @@
   </div>
 </div>
 <script>
+/* 쓰던 메일 지키기(대표 규칙 11-18 「배포 적용 전에는 무조건 직전 상태를 저장」) —
+   새 버전 적용·새로고침·창 닫힘·네트워크 끊김이 있어도 쓰던 받는 사람·제목·본문을 **이 기기**에 계속 저장해 두었다가,
+   같은 화면(새 메일/같은 답장/같은 임시저장)을 다시 열면 「되살리기」를 묻는다. 보내거나 💾 임시저장하면 지운다. 서버로는 안 보냄. */
+(function(){
+  var KEY='knkmail.keep.v1:'+(location.search||'?new');
+  var ids=['cTo','cCc','cBcc','cSubj'];
+  function ed(){ return document.getElementById('cBody'); }
+  function snap(){ var o={t:Date.now()}; ids.forEach(function(i){ var e=document.getElementById(i); o[i]=e?e.value:''; }); var b=ed(); o.html=b?b.innerHTML:''; return o; }
+  var base=null;
+  function same(a,b){ if(!a||!b) return false; return ids.every(function(i){ return (a[i]||'')===(b[i]||''); }) && (a.html||'')===(b.html||''); }
+  function save(){ try{ var s=snap(); if(base && same(s, base)) return; localStorage.setItem(KEY, JSON.stringify(s)); }catch(e){} }
+  window.cKeepClear=function(){ try{ localStorage.removeItem(KEY); }catch(e){} base=snap(); var k=document.getElementById('cKeep'); if(k) k.hidden=true; };
+  window.cKeepDrop=function(){ window.cKeepClear(); };
+  window.cKeepRestore=function(){
+    try{ var o=JSON.parse(localStorage.getItem(KEY)||'null'); if(!o) return;
+      ids.forEach(function(i){ var e=document.getElementById(i); if(e && o[i]!=null) e.value=o[i]; });
+      if(o.cBcc){ var r=document.getElementById('bccRow'); if(r) r.style.display=''; }
+      var b=ed(); if(b && o.html!=null) b.innerHTML=o.html;
+    }catch(e){}
+    var k=document.getElementById('cKeep'); if(k) k.hidden=true;
+  };
+  setTimeout(function(){
+    base=snap();
+    try{ var o=JSON.parse(localStorage.getItem(KEY)||'null');
+      if(o && !same(o, base) && (Date.now()-(o.t||0)) < 7*24*3600*1000){
+        var d=new Date(o.t||Date.now()); var at=document.getElementById('cKeepAt');
+        if(at) at.textContent='('+(d.getMonth()+1)+'월 '+d.getDate()+'일 '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' 저장)';
+        var k=document.getElementById('cKeep'); if(k) k.hidden=false;
+      } else if(o){ localStorage.removeItem(KEY); }
+    }catch(e){}
+    setInterval(save, 3000);
+    document.addEventListener('input', function(){ clearTimeout(window._cKeepT); window._cKeepT=setTimeout(save, 600); }, true);
+    window.addEventListener('pagehide', save);
+    document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') save(); });
+  }, 300);
+  document.querySelectorAll('a[href="/mail/inbox"]').forEach(function(a){ if(a.textContent.trim()==='취소') a.addEventListener('click', function(){ window.cKeepClear(); }); });
+})();
 /* 📇 주소록에서 고르기(11-18 3단계) — 내가 볼 수 있는 연락처만(개인·부서·전사 공개 범위) · 여러 명 골라 받는 사람/참조에 */
 var _abItems=[], _abPick={}, _abTarget='cTo', _abT=null;
 function abEsc(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; }
@@ -500,7 +543,7 @@ function abPut(target){
     var did=document.getElementById('cDraftId').value; if(did) fd.append('draft_id', did);
     cmsg('💾 저장 중...','');
     try{ var r=await fetch('/mail/draft/save',{method:'POST',body:fd}); var j=await r.json();
-      if(j.ok){ document.getElementById('cDraftId').value=j.draft_id; cmsg('💾 임시저장됨 — 「📝 쓰다 만 메일」에서 이어 쓸 수 있어요','green'); }
+      if(j.ok){ document.getElementById('cDraftId').value=j.draft_id; cmsg('💾 임시저장됨 — 「📝 쓰다 만 메일」에서 이어 쓸 수 있어요','green'); if(window.cKeepClear) window.cKeepClear(); }
       else cmsg('⚠ 저장 실패','red');
     }catch(e){ cmsg('⚠ 네트워크 오류','red'); }
   };
@@ -554,7 +597,7 @@ function abPut(target){
     try{
       var r=await fetch('/mail/send',{method:'POST',body:fd});
       var j=await r.json();
-      if(j.ok){ cmsg('✅ 보냈습니다. 보낸편지함으로 이동합니다...','green'); setTimeout(function(){location.href='/mail/sent';},800); }
+      if(j.ok){ if(window.cKeepClear) window.cKeepClear(); cmsg('✅ 보냈습니다. 보낸편지함으로 이동합니다...','green'); setTimeout(function(){location.href='/mail/sent';},800); }
       else { cmsg('⚠ '+(j.message||'발송 실패'),'red'); setSend(false); }
     }catch(e){ cmsg('⚠ 네트워크 오류','red'); setSend(false); }
   };

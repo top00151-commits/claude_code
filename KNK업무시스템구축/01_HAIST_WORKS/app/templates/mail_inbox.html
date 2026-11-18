@@ -207,6 +207,8 @@
 </head><body>
 <div class="app">{% set mail_has_side = true %}{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
+  {# 글자 크게(11-18 · ⚙ 설정·정리에서 켬 · 이 기기에만) — 본문 안에 두어야 다른 화면에서 들어와도 돈다(머리 스크립트는 화면 전환 때 안 돎) #}
+  <script>try{ if(localStorage.getItem('knkmail.big')==='1') document.documentElement.classList.add('mbx-big'); }catch(e){}</script>
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
