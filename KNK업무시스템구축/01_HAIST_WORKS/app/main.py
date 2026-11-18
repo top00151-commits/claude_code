@@ -39017,13 +39017,19 @@ def _z61_table(c):
         by_id INTEGER, by_name TEXT, created_at TEXT, attached_at TEXT,
         read_json TEXT)""")
     c.execute("CREATE INDEX IF NOT EXISTS ix_pqf_project ON project_quote_files(project_id)")
+    _cols = {r[1] for r in c.execute("PRAGMA table_info(project_quote_files)").fetchall()}   # z1191z63: 빼기(숨김) · 누가
+    for _cn, _ct in (("removed_at", "TEXT"), ("removed_by", "INTEGER"), ("removed_by_name", "TEXT")):
+        if _cn not in _cols:
+            c.execute(f"ALTER TABLE project_quote_files ADD COLUMN {_cn} {_ct}")
 
 
 def _z61_cleanup(c):
     """등록 안 하고 3일 지난 파일 지우기(행+파일)."""
     from datetime import datetime as _d61, timedelta as _td61
     cut = (_d61.strptime(_z61_now(), "%Y-%m-%d %H:%M") - _td61(days=3)).strftime("%Y-%m-%d %H:%M")
-    rows = c.execute("SELECT id, stored FROM project_quote_files WHERE project_id IS NULL AND created_at < ?", (cut,)).fetchall()
+    cut30 = (_d61.strptime(_z61_now(), "%Y-%m-%d %H:%M") - _td61(days=30)).strftime("%Y-%m-%d %H:%M")   # z1191z63: 뺀 지 30일
+    rows = c.execute("SELECT id, stored FROM project_quote_files WHERE (project_id IS NULL AND created_at < ?) "
+                     "OR (removed_at IS NOT NULL AND removed_at < ?)", (cut, cut30)).fetchall()
     for r in rows:
         try:
             fp = os.path.join(_z61_dir(), r[1] or "")
@@ -39191,11 +39197,81 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
                   (tok, int(pid), name, stored, len(raw), _hl62.sha256(raw).hexdigest(), u.get("id"),
                    vname_full(u) or u.get("name"), _z61_now(), _z61_now()))
         c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                  (int(pid), u.get("id"), "견적서 파일", "", name, "z1191z62 상세 화면 「＋ 견적서 올리기」"))
+                  (int(pid), u.get("id"), "견적서 파일", "", name, f"z1191z62 상세 화면 「＋ 견적서 올리기」 · {vname_full(u) or u.get('name') or ''}"))   # z1191z63: 누가
     return JSONResponse({"ok": True, "name": name})
 
 
 tpl.env.globals["z62_can_upload"] = lambda u: bool(u) and can_use_sales(u) and can_view_sales(u)
+
+
+# z1191z63 (대표 11-18 「견적을 잘못 올려서 삭제할려면」 → 「견적빼기는 견적 등록하는 화면에는 무조건 넣어줘」
+#   → 「빼기는 올린사람 또는 관리자 기술영업팀 인원(등록,빼기할때 항상 누가 했는지 이력 남길것)」 → 「견적은 관리자는 빼자」):
+#   뺄 수 있는 사람 = 올린 사람 · 기술영업팀(관리자·대표 계정은 남의 것 못 뺌)
+#   빼기 = 화면에서 숨김(removed_at·누가) + 프로젝트 변경 이력(누가) · 파일은 30일 보관 뒤 지움 · 「되돌리기」도 같은 사람들 · 이력
+def _z63_is_tech_sales(u):
+    try:
+        tid = (u or {}).get("team_id")
+        if not tid:
+            return False
+        with db_session() as c:
+            r = c.execute("SELECT name FROM teams WHERE id=?", (int(tid),)).fetchone()
+        return bool(r and "기술영업" in (r["name"] or ""))
+    except Exception as _e:
+        print(f"[z1191z63] 팀 확인 실패: {_e}")
+        return False
+
+
+def _z63_can_remove(u, row):
+    """올린 사람 본인 · 기술영업팀 — 그리고 견적서를 볼 수 있는 사람(금액 권한).
+    대표 11-18 「견적은 관리자는 빼자」: 관리자·대표 계정이라고 남의 견적서를 빼지는 못한다(자기가 올린 것은 뺄 수 있음)."""
+    if not u or not can_view_sales(u):
+        return False
+    if row and row.get("by_id") and row.get("by_id") == u.get("id"):
+        return True
+    return _z63_is_tech_sales(u)
+
+
+tpl.env.globals["z63_can_remove"] = _z63_can_remove
+
+
+def _z63_toggle(req, fid, remove):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    with db_session() as c:
+        _z61_table(c)
+        r = c.execute("SELECT id, project_id, orig_name, by_id, removed_at FROM project_quote_files WHERE id=?", (fid,)).fetchone()
+        if not r or r["project_id"] is None:
+            return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다."}, 404)
+        if not _z63_can_remove(u, dict(r)):
+            return JSONResponse({"ok": False, "message": "견적서는 올린 사람과 기술영업팀만 뺄 수 있습니다."}, 403)
+        if remove and r["removed_at"]:
+            return JSONResponse({"ok": True, "already": True})
+        if (not remove) and not r["removed_at"]:
+            return JSONResponse({"ok": True, "already": True})
+        who = vname_full(u) or u.get("name")
+        if remove:
+            c.execute("UPDATE project_quote_files SET removed_at=?, removed_by=?, removed_by_name=? WHERE id=?",
+                      (_z61_now(), u.get("id"), who, fid))
+            c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                      (r["project_id"], u.get("id"), "견적서 파일", r["orig_name"], "",
+                       f"z1191z63 견적서 빼기 · {who}"))
+        else:
+            c.execute("UPDATE project_quote_files SET removed_at=NULL, removed_by=NULL, removed_by_name=NULL WHERE id=?", (fid,))
+            c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                      (r["project_id"], u.get("id"), "견적서 파일", "", r["orig_name"],
+                       f"z1191z63 견적서 되돌리기 · {who}"))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/project-quote/remove/{fid}")
+async def api_project_quote_remove(req: Request, fid: int):
+    return _z63_toggle(req, fid, True)
+
+
+@app.post("/api/project-quote/restore/{fid}")
+async def api_project_quote_restore(req: Request, fid: int):
+    return _z63_toggle(req, fid, False)
 
 
 @app.get("/api/project-quote/{tok}")
@@ -39226,7 +39302,7 @@ def _z61_attach(pid, tok, u, note="z1191z61 등록 화면 「견적서로 채우
                 return False
             c.execute("UPDATE project_quote_files SET project_id=?, attached_at=? WHERE id=?", (int(pid), _z61_now(), r["id"]))
             c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                      (int(pid), (u or {}).get("id"), "견적서 파일", "", r["orig_name"], note))
+                      (int(pid), (u or {}).get("id"), "견적서 파일", "", r["orig_name"], f"{note} · {vname_full(u or {}) or (u or {}).get('name') or ''}"))   # z1191z63: 누가
         return True
     except Exception as _e:
         print(f"[z1191z61] 견적서 붙이기 실패 pid={pid}: {_e}")
@@ -39238,7 +39314,8 @@ def _z61_quote_files(pid):
         with db_session() as c:
             _z61_table(c)
             out = []
-            for r in c.execute("SELECT id, orig_name, size, by_name, created_at, read_json FROM project_quote_files WHERE project_id=? ORDER BY id",
+            for r in c.execute("SELECT id, orig_name, size, by_id, by_name, created_at, read_json FROM project_quote_files "
+                               "WHERE project_id=? AND removed_at IS NULL ORDER BY id",
                                (int(pid),)).fetchall():
                 x = dict(r)
                 try:   # z1191z62 (대표 「등록된 견적은 프로젝트 정보에서 볼수있게」): 읽은 값 요약(품명·금액·견적일)
@@ -39271,7 +39348,7 @@ async def project_quote_file_open(req: Request, pid: int, fid: int):
         return PlainTextResponse("견적서는 금액을 볼 수 있는 분만 열 수 있습니다.", status_code=403)
     with db_session() as c:
         _z61_table(c)
-        r = c.execute("SELECT orig_name, stored FROM project_quote_files WHERE id=? AND project_id=?", (fid, pid)).fetchone()
+        r = c.execute("SELECT orig_name, stored FROM project_quote_files WHERE id=? AND project_id=? AND removed_at IS NULL", (fid, pid)).fetchone()
     fp = os.path.join(_z61_dir(), (r["stored"] if r else "") or "")
     if not r or not r["stored"] or not os.path.isfile(fp):
         return PlainTextResponse("견적서 파일을 찾지 못했습니다.", status_code=404)

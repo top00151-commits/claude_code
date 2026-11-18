@@ -190,7 +190,7 @@ html,body{background:#fff!important;overflow:auto!important;}
     <div id="pfUnlockedBanner" style="display:none;margin: 0 0 var(--space-4); padding: 12px 18px; background: #d1fae5; border: 1px solid #10b981; border-radius: var(--radius-md); align-items: center; gap: 12px; color: #065f46; font-weight: 700; font-size: 13px;">
       ✓ 잠금 해제됨 — 변경 후 [💾 저장] 클릭. 일부 필드(관리코드/사업부/유형)는 여전히 영구 잠금입니다.
     </div>
-    {% set qf_mode = 'edit' %}{% include "_v5_partials/quote_fill.html" %}{# z1191z62 (대표 11-18 「수정화면에서는 견적서 등록하는곳이 없는데」) #}
+    {% set qf_mode = 'edit' %}{% set qf_pid = project.id %}{% include "_v5_partials/quote_fill.html" %}{# z1191z62 (대표 11-18 「수정화면에서는 견적서 등록하는곳이 없는데」) #}
     {# v5H195: password_confirm 모달은 폼 밖으로 이동 (form 안에 두면 setLocked 가 모달 input 까지 잠금) #}
     {% else %}
     <div class="pf-hero">

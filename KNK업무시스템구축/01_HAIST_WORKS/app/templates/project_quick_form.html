@@ -164,7 +164,7 @@ html,body{background:#fff!important;overflow:auto!important;}
            1)관리번호·수주번호·고객사1·고객사2  2)프로젝트명·거래구분·PO유형·형태(드롭다운)
            3)모델명·장비명·수량  4)통화·단가·금액  5)발주일·납품일  6)부서·담당자·납품위치  7)영업담당자·비고 #}
         <div class="qf-form-body">
-          {% set qf_mode = 'edit' if ed else 'new' %}{% include "_v5_partials/quote_fill.html" %}{# z1191z61·z62 견적서로 채우기(등록·간편 수정) #}
+          {% set qf_mode = 'edit' if ed else 'new' %}{% set qf_pid = project.id if ed else 0 %}{% include "_v5_partials/quote_fill.html" %}{# z1191z61·z62 견적서로 채우기(등록·간편 수정) #}
           <div class="qf-group"><div class="qf-group-ttl">기본 정보</div><div class="qf-grid">
 
           {# v5H226z352(대표 지시): 칸 너비 = 내용 기준. 값 고정칸(자동발급·드롭다운·수량)=좁게, 자유입력칸=넓게.

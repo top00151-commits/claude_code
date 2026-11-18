@@ -210,9 +210,15 @@ with D.db_session() as c:   # 운영 6개처럼 2단 표시 켜짐 + 2차 빈 �
     c.execute("UPDATE projects SET two_tier_order=1, secondary_customer=NULL WHERE id=?", (PB["id"],))
 r = cl.get("/project/%d" % PB["id"])
 h = r.text
+def _qdd(h):   # z1191z62: 견적서 칸이 한 줄 전체(dt/dd.fullw · 견적서 파일 줄)로 바뀜 — 칸 글자만 떼어 본다(뜻은 그대로: 빈 값 = 「—」 · None 없음)
+    m = re.search(r'<dt[^>]*>견적서</dt>\s*<dd[^>]*>(.*?)</dd>', h, re.S)
+    t = re.sub(r"<script.*?</script>", " ", m.group(1), flags=re.S) if m else ""
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", t)).strip()   # 보이는 글자만
+
+
 check("9 상세 화면: 제안서·견적서 빈 값 = 「—」(전엔 None)",
-      r.status_code == 200 and "<dt>제안서</dt><dd>—</dd>" in h and "<dt>견적서</dt><dd>—</dd>" in h,
-      (r.status_code, re.findall(r"<dt>(?:제안서|견적서)</dt><dd>[^<]*</dd>", h)))
+      r.status_code == 200 and "<dt>제안서</dt><dd>—</dd>" in h and _qdd(h).startswith("—") and "None" not in _qdd(h),
+      (r.status_code, re.findall(r"<dt>제안서</dt><dd>[^<]*</dd>", h), _qdd(h)[:80]))
 check("10 상세 화면: 최종 고객(2차) 빈 값 = 「🌐 —」 · 어디에도 <dd>None</dd>·🌐 None 없음",
       "🌐 —</dd>" in h and "<dd>None</dd>" not in h and "🌐 None" not in h,
       (re.findall(r"최종 고객.{0,120}", h)[:1], h.count("<dd>None</dd>")))
