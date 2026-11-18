@@ -38853,6 +38853,206 @@ async def api_z57_guide_save(request: Request, key: str):
     return JSONResponse({"ok": True, "guide": {"label": _Z57_GKEYS[key][0], "body": body, "by": nm, "at": at}})
 
 
+# z1191z61 (대표 2026-11-18 「이화면에서 견적서 등록을 할수있게 만들어서 기존 견적서를 등록하면 견적서에 기록되어있는
+#   기본적인 정보들이 자동으로 작성될수있게」): 등록 화면 「📄 견적서로 채우기」.
+#   · 올리면 바로 읽어(app/quote_reader.py · AI) 빈 칸만 채운다 — 사람이 확인하고 [등록]
+#   · 올린 파일은 표 project_quote_files 에 「아직 프로젝트 없음」으로 두었다가 등록되는 순간 그 프로젝트에 붙는다(대표 「첨부로 보관」)
+#   · 파일은 data/project_quotes/ (공개 /uploads 아님) — 단가가 있어 금액 볼 권한(can_view_sales)이 있어야 열린다
+#   · 등록 안 하고 떠난 파일은 3일 뒤 지운다(다음에 누가 올릴 때)
+from . import quote_reader as _qr61
+
+
+def _z61_now():
+    from datetime import datetime as _d61, timezone as _tz61, timedelta as _td61
+    return _d61.now(_tz61(_td61(hours=9))).strftime("%Y-%m-%d %H:%M")
+
+
+def _z61_dir():
+    from . import database as _db61
+    return os.path.join(os.path.dirname(os.path.abspath(_db61.DB_PATH)), "project_quotes")
+
+
+def _z61_table(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS project_quote_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tok TEXT UNIQUE NOT NULL,
+        project_id INTEGER,
+        orig_name TEXT, stored TEXT, size INTEGER, sha256 TEXT,
+        by_id INTEGER, by_name TEXT, created_at TEXT, attached_at TEXT,
+        read_json TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_pqf_project ON project_quote_files(project_id)")
+
+
+def _z61_cleanup(c):
+    """등록 안 하고 3일 지난 파일 지우기(행+파일)."""
+    from datetime import datetime as _d61, timedelta as _td61
+    cut = (_d61.strptime(_z61_now(), "%Y-%m-%d %H:%M") - _td61(days=3)).strftime("%Y-%m-%d %H:%M")
+    rows = c.execute("SELECT id, stored FROM project_quote_files WHERE project_id IS NULL AND created_at < ?", (cut,)).fetchall()
+    for r in rows:
+        try:
+            fp = os.path.join(_z61_dir(), r[1] or "")
+            if r[1] and os.path.isfile(fp):
+                os.remove(fp)
+        except Exception as _e:
+            print(f"[z1191z61] 지난 파일 지우기 실패 {r[1]}: {_e}")
+        c.execute("DELETE FROM project_quote_files WHERE id=?", (r[0],))
+
+
+def _z61_norm_co(s):
+    import unicodedata as _ud61, re as _re61
+    s = _ud61.normalize("NFC", str(s or "")).lower()
+    s = _re61.sub(r"\(주\)|㈜|주식회사|\(유\)|유한회사|co\.?,?\s*ltd\.?|ltd\.?|inc\.?|corp\.?|công\s*ty\s*tnhh|cong\s*ty\s*tnhh|귀중", "", s)
+    return _re61.sub(r"[\s\.\,\-_()\[\]·]", "", s)
+
+
+def _z61_match_customer(c, name):
+    """견적서의 업체명 → 등록 고객사. 정확히 하나면 {id,label} · 아니면 후보(최대 6)만."""
+    out = {"id": None, "label": "", "cands": []}
+    key = _z61_norm_co(name)
+    if not key:
+        return out
+    cols = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
+    _al = "alias" if "alias" in cols else "''"
+    _sb = "sub_biz_no" if "sub_biz_no" in cols else "''"
+    rows = c.execute(f"SELECT id, name, COALESCE({_al},'') AS alias, COALESCE({_sb},'') AS sb FROM customers "
+                     "WHERE COALESCE(is_active,1)=1").fetchall()
+
+    def _lab(r):
+        return (r["alias"] or r["name"] or "") + (f" [{r['sb']}]" if r["sb"] else "")
+    exact = [r for r in rows if _z61_norm_co(r["name"]) == key or (r["alias"] and _z61_norm_co(r["alias"]) == key)]
+    if len(exact) == 1:
+        out["id"], out["label"] = exact[0]["id"], _lab(exact[0])
+        return out
+    pool = exact or [r for r in rows if len(key) >= 2 and (
+        key in _z61_norm_co(r["name"]) or (r["alias"] and key in _z61_norm_co(r["alias"]))
+        or (len(_z61_norm_co(r["name"])) >= 2 and _z61_norm_co(r["name"]) in key))]
+    out["cands"] = [{"id": r["id"], "label": _lab(r)} for r in pool[:6]]
+    return out
+
+
+@app.post("/api/project-quote/read")
+async def api_project_quote_read(req: Request, file: UploadFile = File(...)):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "forbidden", "message": "등록 권한이 없습니다."}, 403)
+    name = _qr61._nfc(file.filename or "견적서")[:200]
+    ext = _qr61.ext_of(name)
+    if ext not in _qr61.EXTS:
+        return JSONResponse({"ok": False, "error": "ext", "message": "PDF·엑셀(xlsx·xls)·사진(png·jpg) 파일만 올릴 수 있습니다."})
+    raw = await file.read(_qr61.MAX_BYTES + 1)
+    if not raw:
+        return JSONResponse({"ok": False, "error": "empty", "message": "빈 파일입니다."})
+    if len(raw) > _qr61.MAX_BYTES:
+        return JSONResponse({"ok": False, "error": "big", "message": "20MB 보다 큰 파일은 올릴 수 없습니다."})
+    import secrets as _sc61, hashlib as _hl61
+    tok = _sc61.token_hex(12)
+    sub = _z61_now()[:7].replace("-", "")
+    stored = f"{sub}/{tok}{ext}"
+    try:
+        os.makedirs(os.path.join(_z61_dir(), sub), exist_ok=True)
+        with open(os.path.join(_z61_dir(), stored), "wb") as _f61:
+            _f61.write(raw)
+    except Exception as _e:
+        print(f"[z1191z61] 파일 저장 실패: {_e}")
+        return JSONResponse({"ok": False, "error": "save", "message": "파일을 서버에 저장하지 못했습니다 — 다시 올려 주세요."})
+    from starlette.concurrency import run_in_threadpool as _rit61
+    rd = await _rit61(_qr61.read_quote, raw, name)   # AI 기다림은 DB 를 잡기 전에(쓰기 잠금 쥔 채 기다리지 않기)
+    f = rd.get("fields") or {}
+    if not can_view_sales(u):   # 금액 볼 권한이 없으면 단가·금액·통화는 돌려주지 않는다(등록 화면에도 그 칸이 없다)
+        f = {k: v for k, v in f.items() if k not in ("unit_price", "amount", "currency")}
+        rd["warnings"] = [w for w in (rd.get("warnings") or []) if "금액" not in w]
+    with db_session() as c:
+        _z61_table(c)
+        try:
+            _z61_cleanup(c)
+        except Exception as _e:
+            print(f"[z1191z61] 정리 실패: {_e}")
+        c.execute("INSERT INTO project_quote_files(tok, orig_name, stored, size, sha256, by_id, by_name, created_at, read_json) "
+                  "VALUES(?,?,?,?,?,?,?,?,?)",
+                  (tok, name, stored, len(raw), _hl61.sha256(raw).hexdigest(), u.get("id"),
+                   vname_full(u) or u.get("name"), _z61_now(), _qr61.dumps(rd)))
+        cust = _z61_match_customer(c, f.get("customer")) if f.get("customer") else {"id": None, "label": "", "cands": []}
+    return JSONResponse({"ok": True, "read_ok": bool(rd.get("ok")), "tok": tok, "name": name, "size": len(raw),
+                         "fields": f, "warnings": rd.get("warnings") or [], "message": rd.get("message") or "",
+                         "cust": cust})
+
+
+@app.get("/api/project-quote/{tok}")
+async def api_project_quote_state(req: Request, tok: str):
+    """등록 화면을 다시 열었을 때(쓰다 만 내용 복원) 그 견적서가 아직 붙을 수 있는지."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    with db_session() as c:
+        _z61_table(c)
+        r = c.execute("SELECT orig_name, project_id, by_id FROM project_quote_files WHERE tok=?", (tok[:40],)).fetchone()
+    if not r or r["by_id"] != u.get("id"):
+        return JSONResponse({"ok": True, "usable": False})
+    return JSONResponse({"ok": True, "usable": r["project_id"] is None, "name": r["orig_name"]})
+
+
+def _z61_attach(pid, tok, u):
+    """등록된 프로젝트에 견적서 붙이기 — 올린 사람 본인 · 아직 안 붙은 것만. 실패해도 등록은 막지 않는다."""
+    tok = (tok or "").strip()[:40]
+    if not pid or not tok:
+        return False
+    try:
+        with db_session() as c:
+            _z61_table(c)
+            r = c.execute("SELECT id, orig_name FROM project_quote_files WHERE tok=? AND project_id IS NULL AND by_id=?",
+                          (tok, (u or {}).get("id"))).fetchone()
+            if not r:
+                return False
+            c.execute("UPDATE project_quote_files SET project_id=?, attached_at=? WHERE id=?", (int(pid), _z61_now(), r["id"]))
+            c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                      (int(pid), (u or {}).get("id"), "견적서 파일", "", r["orig_name"], "z1191z61 등록 화면 「견적서로 채우기」"))
+        return True
+    except Exception as _e:
+        print(f"[z1191z61] 견적서 붙이기 실패 pid={pid}: {_e}")
+        return False
+
+
+def _z61_quote_files(pid):
+    try:
+        with db_session() as c:
+            _z61_table(c)
+            return [dict(r) for r in c.execute(
+                "SELECT id, orig_name, size, by_name, created_at FROM project_quote_files WHERE project_id=? ORDER BY id",
+                (int(pid),)).fetchall()]
+    except Exception as _e:
+        print(f"[z1191z61] 견적서 목록 실패 pid={pid}: {_e}")
+        return []
+
+
+tpl.env.globals["z61_quote_files"] = _z61_quote_files
+
+
+@app.get("/projects/{pid}/quote-files/{fid}")
+async def project_quote_file_open(req: Request, pid: int, fid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return PlainTextResponse("견적서는 금액을 볼 수 있는 분만 열 수 있습니다.", status_code=403)
+    with db_session() as c:
+        _z61_table(c)
+        r = c.execute("SELECT orig_name, stored FROM project_quote_files WHERE id=? AND project_id=?", (fid, pid)).fetchone()
+    fp = os.path.join(_z61_dir(), (r["stored"] if r else "") or "")
+    if not r or not r["stored"] or not os.path.isfile(fp):
+        return PlainTextResponse("견적서 파일을 찾지 못했습니다.", status_code=404)
+    from urllib.parse import quote as _uq61
+    ext = _qr61.ext_of(r["orig_name"] or r["stored"])
+    mt = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+          ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12", ".xls": "application/vnd.ms-excel"}.get(ext, "application/octet-stream")
+    disp = "inline" if ext in (".pdf", ".png", ".jpg", ".jpeg") else "attachment"
+    return FileResponse(fp, media_type=mt, headers={
+        "Content-Disposition": f"{disp}; filename*=UTF-8''{_uq61(r['orig_name'] or ('quote' + ext))}",
+        "Cache-Control": "private, no-store"})
+
+
 # z1191z59 (대표 2026-11-18 「사업부별 기본 받는 부서 … 우선 만들고 실무자들이 선택해서 저장할수있게」):
 #   사업부(T 검사기 · M 자동화 · L 라이프밸류 · E 기타 · C 소모품)마다 기본 받는 부서·사람 — 발행 권한자 누구나 저장(고친 사람·시각 · 이력).
 #   등록 화면 · 제작요청서 새 작성 · 소모품 관련부서 통보에서 아무것도 안 골라져 있으면 미리 체크(공용 조각 _v5_partials/prq_default_rcpt.html).
@@ -39863,6 +40063,7 @@ async def projects_new_submit(request: Request):
     def _finish_new(_pid, _warn=""):
         """등록 성공 후 공통 종료 — 제작요청 발행(통보)까지 한 번에 처리하고 상세로 이동."""
         _qs = []
+        _z61_attach(_pid, form.get("quote_tok"), _u)   # z1191z61: 등록 화면에서 올린 견적서 → 이 프로젝트에 보관
         # z1191z22: 등록 화면에서 고른 형태를 이번에 만든 수주(추가 품목 수주 제외)에 저장 — 안 하면 「기타」로 등록해도
         #   작업일정표·상세·보고서에 기본 규칙(호기 있으면 완제품 · 없으면 제품)으로 보였다(M-260909-1 과 같은 병).
         if _pid and not _warn:
