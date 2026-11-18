@@ -156,8 +156,10 @@ try:
     check("공급업체 명단 회사 주소 → 4.PIN BLOCK 업체/GTS", where("sup_dom")[0] == "GTS", where("sup_dom"))
     check("서명의 회사 이름 「㈜멜파스」 → 5.CHIP업체/멜파스", where("sig_comp")[0] == "멜파스", where("sig_comp"))
     check("모르는 개인 메일 → 일반", where("free")[0] == "일반" and where("robot")[0] == "일반")
-    check("6.케이엔케이 아래는 메일 있는 부서만 · 코드_이름", [x["name"] for x in [g for g in res["nodes"] if g["kind"] == "staff"][0]["children"]] == ["81_시험영업팀", "82_시험설계팀", "KNK 기타(부서 모름)"],
-          [x["name"] for x in [g for g in res["nodes"] if g["kind"] == "staff"][0]["children"]])
+    _stf = [g for g in res["nodes"] if g["kind"] == "staff"][0]
+    check("6.케이엔케이 아래 = 「본사」(11-19 대분류) 안에 메일 있는 부서만 · 코드_이름 · 그다음 KNK 기타",
+          [x["name"] for x in _stf["children"]] == ["본사", "KNK 기타(부서 모름)"] and [y["name"] for y in _stf["children"][0]["children"]] == ["81_시험영업팀", "82_시험설계팀"],
+          [(x["name"], [y["name"] for y in (x.get("children") or [])]) for x in _stf["children"]])
     check("남의 메일은 내 폴더 숫자에 안 섞임", sum(s["n"] for s in res["senders"].values()) == len(ids) - 1)
 
     print("== 3. 숫자 = 목록 ==")

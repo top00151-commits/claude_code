@@ -23426,18 +23426,20 @@ async def mail_folders_page(req: Request, msg: str = ""):
         for gk2, pr in _tp.items():
             if gk2.startswith("g") and gk2 not in dict(staff_parents):
                 staff_parents.append((gk2, pr.get("name") or gk2))
-        if "tv" not in dict(staff_parents) and not _tp.get("tv", {}).get("merge"):
-            staff_parents.append(("tv", _tp.get("tv", {}).get("name") or _mail_folders.VN_FOLDER_NAME))
+        for _gk, _gn in (("th", _mail_folders.HQ_FOLDER_NAME), ("tv", _mail_folders.VN_FOLDER_NAME)):
+            if _gk not in dict(staff_parents) and not _tp.get(_gk, {}).get("merge"):
+                staff_parents.append((_gk, _tp.get(_gk, {}).get("name") or _gn))
         for x in staff_tree:
             staff_into.append((x["key"], x["name"]))
             for y in x.get("children") or []:
                 staff_into.append((y["key"], "　└ " + y["name"]))
         staff_into.append(("tx", "KNK 기타(부서 모름)"))
         for k3, pr in _tp.items():
-            if pr.get("merge") and k3.startswith("t") and k3 != "tv":
+            if pr.get("merge") and k3.startswith("t") and k3 not in ("tv", "th"):
                 staff_gone.append({"key": k3, "name": labels.get(k3, k3), "into": labels.get(pr["merge"], "KNK 기타(부서 모름)")})
-            elif k3 == "tv" and pr.get("merge"):
-                staff_gone.append({"key": "tv", "name": pr.get("name") or _mail_folders.VN_FOLDER_NAME, "into": "", "group": True})
+            elif k3 in ("tv", "th") and pr.get("merge"):
+                staff_gone.append({"key": k3, "name": pr.get("name") or (_mail_folders.VN_FOLDER_NAME if k3 == "tv" else _mail_folders.HQ_FOLDER_NAME),
+                                   "into": "", "group": True})
     except Exception:
         pass
     return ctx(req, "mail_folders.html", user=u, groups=groups, rules=rl, res=res, msg=msg, cnt=cnt,

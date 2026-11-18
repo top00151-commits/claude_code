@@ -260,23 +260,50 @@ def folders(c, uid) -> list:
 def teams(c) -> list:
     try:
         return [dict(r) for r in c.execute(
+            "SELECT id, COALESCE(code,'') AS code, name, COALESCE(display_order,0) AS ord, COALESCE(entity,'') AS entity FROM teams "
+            "ORDER BY COALESCE(display_order,0), code, id").fetchall()]
+    except Exception:
+        pass
+    try:   # 법인 칸이 없는 옛 DB
+        return [dict(r) for r in c.execute(
             "SELECT id, COALESCE(code,'') AS code, name, COALESCE(display_order,0) AS ord FROM teams "
             "ORDER BY COALESCE(display_order,0), code, id").fetchall()]
     except Exception:
         return []
 
 
-VN_FOLDER_CODE = 20
-VN_FOLDER_NAME = "20_베트남법인"
+# 11-19 대표: 6.케이엔케이 = 「본사」·「베트남법인」 대분류 → 그 아래 각 법인 부서(본사 00_총괄~23_NEXT2028 · 베트남 00_총괄~09_구매팀)
+#   법인 판정은 회사 부서표 teams.entity(KOR/VN · 회사 규칙 z747 단일소스) — 칸이 비어 있으면 「부서 코드가 숫자만 = 본사」
+HQ_FOLDER_NAME = "본사"
+VN_FOLDER_NAME = "베트남법인"
+VN_FOLDER_CODE = 20   # (옛 「20_베트남법인」 · 쓰지 않음)
 
 
 def is_vn_team(t: dict) -> bool:
-    """베트남 법인 부서인가 — 대표 11-18 「부서 앞에 번호가 있는 건 본사, 없는 건 베트남 법인」(번호 = 숫자만인 부서 코드)
-    + 11-19 「12_베트남법인」처럼 번호가 있어도 이름이 베트남법인이면 그 안으로."""
-    code = (t.get("code") or "").strip()
+    """베트남 법인 부서인가 — 회사 부서표 법인 칸(entity) 먼저(회사 규칙과 같게) ·
+    칸이 비어 있으면 대표 11-18 「부서 앞에 번호가 있는 건 본사, 없는 건 베트남 법인」 + 이름이 베트남법인이면 베트남."""
+    e = (t.get("entity") or "").strip().upper()
+    if e in ("VN", "VNM"):
+        return True
+    if e in ("KOR", "KR", "KO"):
+        return False
     if "베트남법인" in (t.get("name") or "").replace(" ", ""):
         return True
+    code = (t.get("code") or "").strip()
     return not (code and code.isdigit())
+
+
+def is_vn_bucket(t: dict) -> bool:
+    """회사 부서표의 옛 「베트남법인」 부서(부서를 아직 못 정한 베트남 직원 묶음) — 메일에서는 「베트남법인」 폴더 바로 아래로."""
+    return (t.get("name") or "").replace(" ", "") == "베트남법인"
+
+
+def folder_team_label(t: dict) -> str:
+    """메일 폴더 이름 — 본사 = 「00_총괄」(코드_이름) · 베트남 = 코드의 번호로 「00_총괄」「05_조립팀」(V00·05_2 → 00·05)."""
+    if not is_vn_team(t):
+        return team_label(t)
+    m = re.search(r"(\d{1,2})", (t.get("code") or ""))
+    return ("%02d_%s" % (int(m.group(1)), t["name"])) if m else t["name"]
 
 
 def team_prefs(c, uid) -> dict:
@@ -291,7 +318,7 @@ def team_prefs(c, uid) -> dict:
 def set_team_pref(c, uid, key, **kw) -> None:
     ensure(c)
     key = (key or "").strip()
-    if not key or not (key[:1] in ("t", "g") and (key[1:].isdigit() or key == "tv")):
+    if not key or not (key[:1] in ("t", "g") and (key[1:].isdigit() or key in ("tv", "th"))):
         raise ValueError("잘못된 부서 폴더")
     c.execute("INSERT OR IGNORE INTO mail_team_prefs(user_id, key) VALUES(?,?)", (uid, key))
     for f in ("name", "parent", "merge"):
@@ -327,8 +354,8 @@ def add_team_group(c, uid, name) -> str:
 def del_team_group(c, uid, key) -> None:
     """부서 폴더(묶음) 지우기 — 안에 있던 부서는 「6.케이엔케이」 바로 아래로 · 이리로 합쳐 두었던 지운 부서는 「KNK 기타」로."""
     ensure(c)
-    if key == "tv":
-        set_team_pref(c, uid, "tv", merge="x")
+    if key in ("tv", "th"):
+        set_team_pref(c, uid, key, merge="x")
     else:
         c.execute("DELETE FROM mail_team_prefs WHERE user_id=? AND key=?", (uid, key))
     c.execute("UPDATE mail_team_prefs SET parent='' WHERE user_id=? AND parent=?", (uid, key))
@@ -665,7 +692,12 @@ def classify(c, uid) -> dict:
 
     # 11-19 지운 부서 폴더 — 그 부서 메일은 합친 곳(다른 부서·묶음·KNK 기타)으로
     _tp = team_prefs(c, uid)
-    _merge = {k: v["merge"] for k, v in _tp.items() if k.startswith("t") and k != "tv" and v.get("merge")}
+    _merge = {k: v["merge"] for k, v in _tp.items() if k.startswith("t") and k not in ("tv", "th") and v.get("merge")}
+    if not _tp.get("tv", {}).get("merge"):
+        for _t in tlist:
+            _tk = "t%d" % _t["id"]
+            if is_vn_bucket(_t) and _tk not in _merge and not _tp.get(_tk, {}).get("parent"):
+                _merge[_tk] = "tv"
     if _merge:
         for s in senders.values():
             k0, hop = s["key"], 0
@@ -713,6 +745,8 @@ def classify(c, uid) -> dict:
             # 11-18 대표: 부서 앞 번호 있는 것 = 본사 · 없는 것 = 베트남 법인 → 「20_베트남법인」 폴더 안으로(번호 순서 자리)
             #   11-19: 메일에서만 이름 바꾸기·지우기(합치기)·부서 폴더 더하기·위치 옮기기(mail_team_prefs) · 순서 = 이름 앞 번호
             gdefs = []
+            if not _tp.get("th", {}).get("merge"):
+                gdefs.append(("th", _tp.get("th", {}).get("name") or HQ_FOLDER_NAME))
             if not _tp.get("tv", {}).get("merge"):
                 gdefs.append(("tv", _tp.get("tv", {}).get("name") or VN_FOLDER_NAME))
             for gk2 in sorted([k for k in _tp if k.startswith("g")], key=lambda x: int(x[1:]) if x[1:].isdigit() else 0):
@@ -722,18 +756,19 @@ def classify(c, uid) -> dict:
             for oi, t in enumerate(tlist):
                 tk = "t%d" % t["id"]
                 pr = _tp.get(tk, {})
-                nm = pr.get("name") or team_label(t)
+                nm = pr.get("name") or folder_team_label(t)
                 labels[tk] = nm
                 keys_of[tk] = {tk}
                 if pr.get("merge") or tk not in cnt:
                     continue
                 node = {"key": tk, "name": nm, "n": cnt[tk][0], "u": cnt[tk][1], "assignable": False, "_o": oi,
-                        "auto_name": team_label(t), "renamed": bool(pr.get("name")), "par_pref": pr.get("parent") or ""}
+                        "auto_name": folder_team_label(t), "renamed": bool(pr.get("name")), "par_pref": pr.get("parent") or "",
+                        "vn": is_vn_team(t)}
                 par = pr.get("parent") or ""
                 if par == "top":
                     par = ""
                 elif not par:
-                    par = "tv" if is_vn_team(t) else ""
+                    par = "tv" if is_vn_team(t) else "th"
                 (gnodes[par]["children"] if par in gnodes else top).append(node)
             for gk2, gn in gnodes.items():
                 labels[gk2] = gn["name"]
@@ -742,9 +777,10 @@ def classify(c, uid) -> dict:
                 gn["n"] = cnt.get(gk2, [0, 0])[0] + sum(x["n"] for x in gn["children"])
                 gn["u"] = cnt.get(gk2, [0, 0])[1] + sum(x["u"] for x in gn["children"])
                 if gn["children"] or gk2.startswith("g") or cnt.get(gk2):
-                    gn["_o"] = 10 ** 6
+                    # 대분류 순서: 본사 → 베트남법인 → 내가 더한 부서 폴더(이름 앞 번호) → 바로 아래 부서
+                    gn["_o"] = {"th": -2, "tv": -1}.get(gk2, 0)
                     top.append(gn)
-            top.sort(key=lambda x: (_lead_num(x["name"]), x.get("_o", 0)))
+            top.sort(key=lambda x: ((0, x["_o"], 0) if x.get("group") else (1, _lead_num(x["name"]), x.get("_o", 0))))
             for x in top:
                 x.pop("_o", None)
                 for y in x.get("children") or []:
