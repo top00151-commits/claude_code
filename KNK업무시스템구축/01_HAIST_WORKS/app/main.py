@@ -31477,14 +31477,8 @@ def _z42_ledger_rows(c):
     return rows
 
 
-@app.get("/projects/ledger", response_class=HTMLResponse)
-def mgmt_ledger_page(request: Request, biz: str = "", year: str = "", q: str = ""):
-    """z1191z42: 📒 관리번호대장(읽기만) — 프로젝트 목록과 같은 권한(can_view_sales)."""
-    u = get_user(request)
-    if not u:
-        return RedirectResponse("/login", 303)
-    if not can_view_sales(u):
-        return RedirectResponse("/home?no_perm=sales", 303)
+def _z66_ledger_pick(biz, year, q):
+    """z1191z66: 관리번호대장 거르기(사업부 · 발행 연도 · 검색) — 화면과 엑셀 내려받기가 같은 결과를 쓰도록 한 곳에."""
     _biz = (biz or "").strip().upper()
     if _biz not in _Z42_BIZ:
         _biz = ""
@@ -31504,9 +31498,58 @@ def mgmt_ledger_page(request: Request, biz: str = "", year: str = "", q: str = "
         ql = _q.lower()
         rows = [x for x in rows if ql in " ".join([x["code"], x["pname"], x["model"], x["equip"], x["cust"], x["sales"],
                                                     x["note"], x["spath"]] + [s["no"] for s in x["sos"]]).lower()]
+    return rows, counts, years, _biz, _year, _q
+
+
+@app.get("/projects/ledger", response_class=HTMLResponse)
+def mgmt_ledger_page(request: Request, biz: str = "", year: str = "", q: str = ""):
+    """z1191z42: 📒 관리번호대장(읽기만) — 프로젝트 목록과 같은 권한(can_view_sales)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home?no_perm=sales", 303)
+    rows, counts, years, _biz, _year, _q = _z66_ledger_pick(biz, year, q)   # z1191z66: 엑셀 내려받기와 같은 거르기
     n_so = sum(len([s for s in x["sos"] if not s["cancel"]]) for x in rows)
     return ctx(request, "mgmt_ledger.html", user=u, active="sales", rows=rows, counts=counts, years=years,
                biz=_biz, year=_year, q=_q, n_so=n_so, biz_labels=_Z42_BIZ)
+
+
+@app.get("/projects/ledger/excel")
+def mgmt_ledger_excel(request: Request, biz: str = "", year: str = "", q: str = ""):
+    """z1191z66 (대표 11-19 「관리번호 대장을 엑셀로 다운로드」): 지금 화면 조건 그대로 엑셀(.xlsx) — 화면과 같은 권한(can_view_sales).
+    한 줄 = 관리번호 하나 · 수주번호는 한 칸에 줄바꿈(취소는 「(취소)」) · 맨 위에 조건·내려받은 시각."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home?no_perm=sales", 303)
+    rows, _c, _y, _biz, _year, _q = _z66_ledger_pick(biz, year, q)
+    from app import knk_xlsx as KX   # 공용 깔끔한 양식(대표 11-19 「양식을 깔끔하게 항상」)
+    now = _z61_now()
+    biz_txt = (_Z42_BIZ.get(_biz, "").split(" ", 1)[-1]) if _biz else "전체"
+    cond = "사업부 %s · 발행 연도 %s%s" % (biz_txt, (_year + "년") if _year else "전체", (" · 검색 「%s」" % _q) if _q else "")
+    n_so = sum(len([s for s in x["sos"] if not s["cancel"]]) for x in rows)
+    COLS = [{"h": "#", "w": 5, "al": "c"}, {"h": "관리번호", "w": 12, "al": "c", "bold": True}, {"h": "사업부", "w": 9, "al": "c"},
+            {"h": "발행월", "w": 9, "al": "c"}, {"h": "수주번호", "w": 19, "al": "c", "wrap": True}, {"h": "수주 수", "w": 7, "al": "c"},
+            {"h": "모델명", "w": 26, "wrap": True}, {"h": "설비명", "w": 30, "wrap": True}, {"h": "프로젝트명", "w": 14, "wrap": True},
+            {"h": "고객사", "w": 14, "wrap": True}, {"h": "영업 담당", "w": 9, "al": "c"}, {"h": "상태", "w": 16, "al": "c", "wrap": True},
+            {"h": "서버경로", "w": 36, "wrap": True}, {"h": "비고", "w": 30, "wrap": True}]
+    data, dim = [], []
+    for n, x in enumerate(rows, 1):
+        sos = [(KX.strike(s["no"] + " (취소)") if s["cancel"] else s["no"]) for s in x["sos"]]
+        if x["arch"]:
+            dim.append(n - 1)
+        data.append([n, x["code"], _Z42_BIZ.get(x["biz"], x["biz"] or "").split(" ", 1)[-1], x["ym"], sos or "",
+                     len([s for s in x["sos"] if not s["cancel"]]), x["model"], x["equip"], x["pname"], x["cust"], x["sales"],
+                     x["status"] + (" · 폐기" if x["arch"] else ""), x["spath"], x["note"]])
+    wb = KX.new_book("관리번호대장")
+    KX.table_sheet(wb.active, "관리번호대장",
+                   "%s · 관리번호 %d개 · 수주번호 %d건(취소 빼고) · 내려받은 시각 %s · 이음웍스 기준" % (cond, len(rows), n_so, now),
+                   COLS, data, freeze_cols=2, dim_rows=dim,
+                   note="※ 줄 그은 수주번호 = 취소 · 흐린 줄 = 폐기한 프로젝트(번호를 부여한 기록이라 남김) · 금액 없음")
+    fn = "KNK_관리번호대장_%s%s_%s.xlsx" % (biz_txt, ("_" + _year) if _year else "", now.replace("-", "").replace(":", "").replace(" ", "_"))
+    return KX.xlsx_response(wb, fn, "KNK_mgmt_ledger.xlsx")
 
 
 @app.get("/prod-requests", response_class=HTMLResponse)

@@ -28,6 +28,9 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .lg-tools { display:flex; justify-content:flex-end; margin:0 var(--content-pad) 6px; }
 .lg-tools button { border:1px solid #cbd5e1; background:#fff; border-radius:8px; padding:4px 10px; font-size:12px; color:#475569; cursor:pointer; }
 .lg-tools button:hover { border-color:#1d4ed8; color:#1d4ed8; }
+/* z1191z66: 엑셀로 내려받기 — 왼쪽 끝 · 눈에 띄는 초록 */
+.lg-tools .lg-xls { margin-right:auto; display:inline-flex; align-items:center; gap:5px; border:1px solid #15803d; background:#16a34a; color:#fff; border-radius:8px; padding:5px 12px; font-size:12.5px; font-weight:700; text-decoration:none; }
+.lg-tools .lg-xls:hover { background:#15803d; color:#fff; }
 .lg-tbl th { position:sticky; top:0; z-index:1; background:#f8fafc; text-align:left; padding:8px 8px; border-bottom:2px solid #e2e8f0; color:#475569; white-space:nowrap; font-weight:800; overflow:hidden; text-overflow:ellipsis; }
 .lg-tbl td { padding:6px 8px; border-bottom:1px solid #eef0f4; vertical-align:top; }
 .lg-tbl tr:hover td { background:#fffbeb; }
@@ -103,7 +106,7 @@ a.lg-so.cancel:hover { background:#cbd5e1; color:#475569; }
   </div>
 
   {% if rows %}
-  <div class="lg-tools" style="gap:6px;"><button type="button" id="lgSoAll" title="수주가 여럿인 줄을 한꺼번에 펼치거나 접기">▾ 수주번호 모두 펼치기</button><button type="button" id="lgRzReset" title="끌어서 바꾼 칸 너비를 처음대로">↺ 칸 너비 처음대로</button></div>
+  <div class="lg-tools" style="gap:6px;"><a class="lg-xls" id="lgXls" href="/projects/ledger/excel?biz={{ biz }}&amp;year={{ year }}&amp;q={{ q|urlencode }}" title="지금 보이는 목록(사업부 · 발행 연도 · 검색 조건 그대로)을 엑셀 파일로 내려받습니다">⬇ 엑셀로 내려받기 <span style="font-weight:400;opacity:.9;">({{ '{:,}'.format(rows|length) }}줄)</span></a><button type="button" id="lgSoAll" title="수주가 여럿인 줄을 한꺼번에 펼치거나 접기">▾ 수주번호 모두 펼치기</button><button type="button" id="lgRzReset" title="끌어서 바꾼 칸 너비를 처음대로">↺ 칸 너비 처음대로</button></div>
   <div class="lg-wrap" data-knk-fill>
     <table class="lg-tbl" id="lgTbl">
       <colgroup>
