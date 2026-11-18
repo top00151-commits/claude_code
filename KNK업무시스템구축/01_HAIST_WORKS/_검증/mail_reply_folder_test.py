@@ -186,7 +186,8 @@ try:
     for nm, rr in (("모아 보기에 0통이면 빈 목록", None),):
         pass
     p = k.get("/mail/%d/pane" % M_REQ).text
-    check("읽기 칸: 회신 필요 상자 + 답장 쓰기 + 회신 안 해도 됨", 'id="mvReply"' in p and "회신 필요(추정)" in p and "↩ 답장 쓰기" in p and "replyMark('done')" in p, p[:0])
+    # 11-18 메뉴 단순하게: 상자 안 「↩ 답장 쓰기」는 바로 아래 「↩ 답장」과 같아서 뺌(같은 단추는 한 번만)
+    check("읽기 칸: 회신 필요 상자 + 회신 안 해도 됨 · 답장은 아래 「↩ 답장」 하나", 'id="mvReply"' in p and "회신 필요(추정)" in p and "↩ 답장 쓰기" not in p and "↩ 답장</a>" in p and "replyMark('done')" in p, p[:0])
     p2 = k.get("/mail/%d/pane" % M_FYI).text
     check("읽기 칸: 참고 메일은 「회신 필요로 표시」 단추만", 'id="mvReply" class="mv-reply">' in p2 and "replyMark('need')" in p2 and "회신 필요(추정)" not in p2.split('id="mvReply"')[1].split("</div>")[0])
     r = k.post("/mail/%d/reply-mark" % M_REQ, data={"state": "done"}).json()

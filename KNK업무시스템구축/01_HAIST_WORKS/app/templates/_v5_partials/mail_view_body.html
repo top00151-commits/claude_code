@@ -12,7 +12,7 @@
 {% endif %}
 
 <div class="mv-head">
-  <h1 class="mv-subj">{{ m.subject }}<span class="mv-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span></h1>
+  <h1 class="mv-subj">{{ m.subject }}{% if m.category and m.category != '일반' %}<span class="mv-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}</h1>
   <div class="mv-meta">
     <b>보낸사람</b> {{ m.from_name }} &lt;{{ m.from_email }}&gt;{% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}{% if sender_contact %} <span class="mv-ct-inline on" title="주소록에 이미 있는 사람">📇 주소록에 있음</span>{% else %} <a href="#" id="mvContactInline" class="mv-ct-inline" onclick="mailToContact();return false" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</a>{% endif %}{% endif %}<br>
     <b>받은주소</b> {{ m.to_email }}{% if m.cc %} · <b>참조</b> {{ m.cc }}{% endif %}<br>
@@ -36,7 +36,7 @@
 {% if m.direction != 'out' and reply_info is defined and reply_info %}
 <div id="mvReply" class="mv-reply{{ ' on lv%d' % reply_info.lv if reply_info.lv else '' }}">
   {% if reply_info.lv %}<b>↩ 회신 필요(추정){{ ' · 중요' if reply_info.lv >= 2 else '' }}</b> <span class="mv-reply-why">— {{ reply_info.why }}</span>
-  <a href="/mail/compose?reply={{ m.id }}" class="mv-reply-btn mv-reply-go">↩ 답장 쓰기</a><button type="button" class="mv-reply-btn" onclick="replyMark('done')" title="이 메일은 회신하지 않아도 됨 — 표시를 끕니다(나에게만)">✓ 회신 안 해도 됨</button>
+  <button type="button" class="mv-reply-btn" onclick="replyMark('done')" title="이 메일은 회신하지 않아도 됨 — 표시를 끕니다(나에게만)">✓ 회신 안 해도 됨</button>
   {% elif reply_info.state == 'done' %}<span class="mv-reply-why">✓ 「회신 안 해도 됨」으로 표시한 메일</span> <button type="button" class="mv-reply-btn" onclick="replyMark('clear')">되돌리기</button>
   {% else %}<button type="button" class="mv-reply-btn" onclick="replyMark('need')" title="규칙이 놓친 메일을 직접 「회신 필요」로 표시 — 답장하면 저절로 빠집니다">↩ 회신 필요로 표시</button>
   {% endif %}
@@ -51,18 +51,26 @@
   {% if m.direction != 'out' %}<a href="/mail/compose?reply={{ m.id }}" class="btn btn-primary">↩ 답장</a>
   <a href="/mail/compose?replyall={{ m.id }}" class="btn btn-secondary">↩↩ 전체답장</a>{% endif %}
   <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary">↪ 전달</a>
-  {% if m.direction != 'out' %}
-  <button type="button" class="btn btn-secondary" style="border-color:#16a34a;color:#15803d;font-weight:700" onclick="mailToTask()" title="이 메일을 내 할 일(일일카드)로 등록 — 메일이 곧 업무">📋 할 일로 추가</button>
-  {% if sender_contact %}<a href="/contacts/{{ sender_contact.id }}" class="btn btn-secondary" style="border-color:#7c3aed;color:#7c3aed" title="이 보낸사람의 주소록 연락처 보기">📇 {{ sender_contact.name }}{% if sender_contact.company %} · {{ sender_contact.company }}{% endif %} 연락처</a>{% else %}<button type="button" class="btn btn-secondary" id="mvContactBtn" style="border-color:#7c3aed;color:#7c3aed" onclick="mailToContact()" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</button>{% endif %}
-  {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" class="btn btn-secondary" style="border-color:#1d4ed8;color:#1d4ed8" title="견적 작성 화면 열기(이 메일 참고)">📝 견적 작성</a>{% endif %}
-  {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" class="btn btn-secondary" style="border-color:#047857;color:#047857" title="수주 등록 화면 열기(이 메일 참고)">📦 수주 등록</a>{% endif %}
-  <button type="button" class="btn btn-secondary" onclick="markUnread()">● 안읽음 표시</button>{% endif %}
-  <button type="button" class="btn btn-secondary" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
-  <button type="button" class="btn btn-secondary" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
-  <button type="button" class="btn btn-secondary" onclick="window.print()" title="이 메일을 인쇄하거나 PDF로 저장(인쇄 대화상자에서 'PDF로 저장' 선택)">🖨 인쇄/PDF</button>
-  <span style="flex:1"></span>
-  {% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}<button type="button" class="btn btn-secondary" style="color:#7c2d12;border-color:#fdba74" onclick="muteSender()" title="이 발신의 메일을 나에게만 다시 안 받기 — 지금 것도, 앞으로 오는 것도 차단함으로(「보낸 곳별 정리」에서 풀 수 있음)">🔕 다시 안 받기</button>{% endif %}
+  {% if m.direction != 'out' %}<button type="button" id="mvStarBtn" class="btn btn-secondary mv-star{{ ' on' if m.is_starred else '' }}" onclick="mvStar()" title="중요 표시 — 왼쪽 「⭐ 중요」에 모입니다 · 다시 누르면 풀림">{{ '⭐ 중요' if m.is_starred else '☆ 중요 표시' }}</button>{% endif %}
   <button type="button" class="btn btn-secondary" style="color:var(--knk-red)" onclick="delMail({{ m.id }})">🗑 삭제</button>
+  <span style="flex:1"></span>
+  {# 가끔 쓰는 것 — 11-18 대표 「쉽게 보이고 쉽게 사용」: 매일 쓰는 단추만 밖에 #}
+  <details class="mv-more" id="mvMore">
+    <summary class="btn btn-secondary" title="안 읽음 · 할 일 · 주소록 · 번역 · 인쇄 · 다시 안 받기">⋯ 더 보기</summary>
+    <div class="mv-more-box">
+      {% if m.direction != 'out' %}
+      <button type="button" onclick="markUnread()">● 안 읽음으로</button>
+      <button type="button" onclick="mailToTask()" title="이 메일을 내 할 일(일일카드)로 등록 — 메일이 곧 업무">📋 할 일로 추가</button>
+      {% if sender_contact %}<a href="/contacts/{{ sender_contact.id }}" title="이 보낸사람의 주소록 연락처 보기">📇 {{ sender_contact.name }}{% if sender_contact.company %} · {{ sender_contact.company }}{% endif %} 연락처</a>{% else %}<button type="button" id="mvContactBtn" onclick="mailToContact()" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</button>{% endif %}
+      {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" title="견적 작성 화면 열기(이 메일 참고)">📝 견적 작성</a>{% endif %}
+      {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" title="수주 등록 화면 열기(이 메일 참고)">📦 수주 등록</a>{% endif %}
+      {% endif %}
+      <button type="button" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
+      <button type="button" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
+      <button type="button" onclick="window.print()" title="이 메일을 인쇄하거나 PDF로 저장(인쇄 대화상자에서 'PDF로 저장' 선택)">🖨 인쇄·PDF</button>
+      {% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}<hr><button type="button" class="warn" onclick="muteSender()" title="이 발신의 메일을 나에게만 다시 안 받기 — 지금 것도, 앞으로 오는 것도 차단함으로(⚙ 설정·정리 → 보낸 곳별 정리에서 풀 수 있음)">🔕 이 보낸 곳 다시 안 받기</button>{% endif %}
+    </div>
+  </details>
   {% if not pane %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}
 </div>
 
@@ -199,7 +207,7 @@
       var esc=function(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; };
       if(j.lv){ box.className='mv-reply on lv'+j.lv;
         box.innerHTML='<b>↩ 회신 필요(추정)'+(j.lv>=2?' · 중요':'')+'</b> <span class="mv-reply-why">— '+esc(j.why)+'</span> '+
-          '<a href="/mail/compose?reply='+MAIL_ID+'" class="mv-reply-btn mv-reply-go">↩ 답장 쓰기</a><button type="button" class="mv-reply-btn" onclick="replyMark(&quot;done&quot;)">✓ 회신 안 해도 됨</button>';
+          '<button type="button" class="mv-reply-btn" onclick="replyMark(&quot;done&quot;)">✓ 회신 안 해도 됨</button>';
       } else if(j.state==='done'){ box.className='mv-reply';
         box.innerHTML='<span class="mv-reply-why">✓ 「회신 안 해도 됨」으로 표시한 메일</span> <button type="button" class="mv-reply-btn" onclick="replyMark(&quot;clear&quot;)">되돌리기</button>';
       } else { box.className='mv-reply';
@@ -236,6 +244,22 @@
       else { alert('삭제 실패'); }
     }catch(e){ alert('네트워크 오류'); }
   };
+  // ⭐ 중요 표시(= 별표) — 목록의 ★ 와 같은 저장(11-18)
+  window.mvStar=async function(){
+    var b=document.getElementById('mvStarBtn'); if(!b) return;
+    try{ var r=await fetch('/mail/'+MAIL_ID+'/star',{method:'POST'}); var j=await r.json();
+      if(!j.ok){ alert('⚠ 바꾸지 못했습니다'); return; }
+      b.classList.toggle('on', !!j.starred); b.textContent = j.starred ? '⭐ 중요' : '☆ 중요 표시';
+      try{ var st=document.querySelector('.mbx-list [data-mail-id="'+MAIL_ID+'"] .mbx-star'); if(st) st.classList.toggle('on', !!j.starred); }catch(e){}
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  // 「⋯ 더 보기」 — 항목을 누르거나 바깥을 누르면 닫힘
+  (function(){
+    var d=document.getElementById('mvMore'); if(!d) return;
+    d.querySelectorAll('.mv-more-box button, .mv-more-box a').forEach(function(x){ x.addEventListener('click', function(){ d.open=false; }); });
+    if(!window._mvMoreBound){ window._mvMoreBound=true;
+      document.addEventListener('click', function(ev){ var m=document.getElementById('mvMore'); if(m && m.open && !m.contains(ev.target)) m.open=false; }); }
+  })();
   window.markUnread=async function(){
     try{ var fd=new FormData(); fd.append('read','0');
       await fetch('/mail/'+MAIL_ID+'/read',{method:'POST',body:fd});
@@ -299,8 +323,8 @@
         var il=mvcEl('mvContactInline');
         if(il){ var s2=document.createElement('span'); s2.className='mv-ct-inline on'; s2.textContent='📇 주소록에 있음'; il.parentNode.replaceChild(s2, il); }
         var b=mvcEl('mvContactBtn');
-        if(b){ var a=document.createElement('a'); a.href='/contacts/'+j.contact_id; a.className='btn btn-secondary';
-          a.style.cssText='border-color:#7c3aed;color:#7c3aed'; a.title='이 보낸사람의 주소록 연락처 보기';
+        if(b){ var a=document.createElement('a'); a.href='/contacts/'+j.contact_id; a.className=b.className||'';
+          a.style.cssText=b.getAttribute('style')||''; a.title='이 보낸사람의 주소록 연락처 보기';
           a.textContent='📇 '+(j.name||nm)+(j.company?(' · '+j.company):'')+' 연락처';
           var ok=document.createElement('span'); ok.className='mvc-done'; ok.textContent='✅ '+(j.message||'주소록에 저장했습니다.');
           b.parentNode.replaceChild(a,b); a.parentNode.insertBefore(ok,a.nextSibling);

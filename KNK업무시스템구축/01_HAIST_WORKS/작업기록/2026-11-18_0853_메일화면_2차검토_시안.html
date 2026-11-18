@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>메일 화면 2차 시안</title>
+<style>
+:root{--red:#8f2d2d;--ink:#1f2937;--mute:#6b7280;--line:#e5e7eb;--bg:#f6f4f1;--blue:#1d4ed8;--y:#fff7d6}
+*{box-sizing:border-box}body{margin:0;font-family:"Malgun Gothic","맑은 고딕",sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+h1{font-size:21px;margin:18px 16px 4px}p.sub{margin:0 16px 14px;color:var(--mute);font-size:14px}
+h2{font-size:17px;margin:26px 16px 8px}
+.wrap{padding:0 16px 20px}
+.note{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:0 16px 12px;line-height:1.75;font-size:14px}
+.n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;background:#dc2626;color:#fff;font-size:12px;font-weight:700;margin-right:4px;vertical-align:middle;padding:0 5px}
+.new{background:#16a34a}
+.app{background:#fff;border:1px solid #d6d3d1;border-radius:12px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.06);max-width:1320px}
+.top{background:var(--red);color:#fff;display:flex;align-items:center;gap:12px;padding:9px 14px}
+.top b{font-size:16px}.top .sp{flex:1}
+.srch{flex:0 1 560px;background:#fff;border-radius:999px;padding:8px 16px;color:var(--ink);font-size:14px;position:relative}
+.srch .ph{color:var(--mute)}
+.top .me{background:rgba(255,255,255,.18);border-radius:999px;padding:4px 12px;font-size:14px}
+.body{display:grid;grid-template-columns:240px 440px 1fr;min-height:620px}
+.side{border-right:1px solid var(--line);padding:12px 10px;background:#fbfaf8}
+.write{display:block;text-align:center;background:var(--red);color:#fff;border-radius:10px;padding:12px 0;font-weight:700;font-size:16px;margin-bottom:12px}
+.sec{font-size:12px;color:var(--mute);margin:12px 6px 4px;font-weight:700}
+.it{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;font-size:15px}
+.it.on{background:#f3e3e1;font-weight:700;color:var(--red)}
+.it .c{margin-left:auto;font-size:12px;background:#dc2626;color:#fff;border-radius:999px;padding:0 7px;font-weight:700}
+.it .g{margin-left:auto;font-size:13px;color:var(--mute)}
+.fold{padding:4px 8px 4px 28px;font-size:14px;color:#374151;display:flex}
+.fold .c{margin-left:auto;font-size:13px;color:var(--blue);font-weight:700}
+.dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+.it.set{margin-top:14px;border-top:1px solid var(--line);border-radius:0;padding-top:12px;color:#374151}
+.list{border-right:1px solid var(--line);position:relative}
+.lh{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap}
+.chip{border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:13px;background:#fff}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.res{background:#fefce8;border-bottom:1px solid #fde68a;padding:8px 12px;font-size:13px}
+.day{background:#f9fafb;color:var(--mute);font-size:12px;font-weight:700;padding:5px 12px;border-bottom:1px solid var(--line)}
+.row{display:grid;grid-template-columns:20px 18px 1fr auto;gap:7px;align-items:start;padding:10px 12px;border-bottom:1px solid #f1f0ee}
+.row.u .s{font-weight:700}.row.u .ud{background:var(--blue)}
+.row.cur{background:#fdf2f0}.row.robot{opacity:.62}
+.ud{width:8px;height:8px;border-radius:50%;margin-top:7px}
+.star{color:#d1d5db;font-size:16px}.star.on{color:#f59e0b}
+.s{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f{font-size:14px;color:#374151;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t{font-size:13px;color:var(--mute);text-align:right;white-space:nowrap}
+.tag{font-size:12px;border-radius:5px;padding:1px 6px;margin-left:4px;white-space:nowrap}
+.tag.r{background:#fee2e2;color:#b91c1c;margin:0 4px 0 0}
+.c1{background:#dbeafe;color:#1e40af}.c2{background:#dcfce7;color:#166534}.c3{background:#f3f4f6;color:#374151}.c4{background:#fef3c7;color:#92400e}
+.tag.cc{background:#ede9fe;color:#5b21b6}.tag.al{background:#f3f4f6;color:#6b7280}
+mark{background:#fde047;padding:0 1px;border-radius:2px}
+.more{text-align:center;color:var(--mute);font-size:13px;padding:12px}
+.read{padding:14px 18px;position:relative}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;font-size:14px}
+.btn.p{background:var(--red);color:#fff;border-color:var(--red);font-weight:700}
+.btn.mo{margin-left:auto}
+.subj{font-size:20px;font-weight:700;margin:14px 0 6px}
+.meta{font-size:14px;color:#374151;line-height:1.9}
+.meta .k{color:var(--mute);display:inline-block;width:76px;white-space:nowrap}
+.who{color:var(--blue);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.pop{position:absolute;left:110px;top:196px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.14);padding:8px;width:270px;z-index:3;font-size:14px}
+.pop div{padding:7px 10px;border-radius:6px}.pop div:hover{background:#f3f4f6}.pop .h{font-weight:700;color:var(--mute);font-size:12px}
+.mail{padding:12px 2px;line-height:1.85;font-size:15px}
+.qt{margin-top:10px;border-left:3px solid #d1d5db;padding:6px 12px;color:var(--mute);font-size:14px;background:#fafafa;border-radius:0 8px 8px 0}
+.att{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
+.att span{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;background:#fafafa}
+.callout{position:relative}.callout>.n{position:absolute;top:-10px;left:-10px;z-index:4}
+table.cmp{border-collapse:collapse;margin:0 16px;background:#fff;font-size:14px;max-width:1200px}
+table.cmp td,table.cmp th{border:1px solid var(--line);padding:8px 11px;vertical-align:top;text-align:left;line-height:1.6}
+table.cmp th{background:#f9fafb;white-space:nowrap}
+.dd{position:absolute;left:0;right:0;top:40px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.14);padding:10px 12px;z-index:5;color:var(--ink);font-size:13px;line-height:2}
+.dd .chip{margin-right:4px}
+@media(max-width:1000px){.body{grid-template-columns:1fr}}
+</style></head><body>
+<h1>메일 화면 2차 시안 — 쉽게 찾기 · 쉽게 구분 · 쉽게 보기</h1>
+<p class="sub">1차 시안에 더한 것은 <span class="n new">초록 번호</span>, 1차 그대로는 빨간 번호입니다. 그림이라 눌러도 동작하지 않습니다. 작성 2026-11-18 (수) 08:53 KST</p>
+
+<div class="note"><b>2차 검토에서 새로 찾은 큰 문제 3가지</b><br>
+① <b>목록에 최근 200통까지만 나옵니다.</b> 대표님 받은편지함은 약 7,800통이라 그 아래 7,600통은 목록을 내려도 안 보이고, 찾기로만 볼 수 있습니다.<br>
+② <b>찾기가 「붙은 글자 그대로」만 찾습니다.</b> 「삼성 견적」은 두 낱말이 붙어 있어야 나오고, 받는 사람·참조·첨부 파일 이름은 안 찾으며, 받은 메일·보낸 메일을 따로따로 찾아야 합니다. 「드림텍」을 치면 영문 주소(dreamtech…)로 온 메일은 안 나옵니다.<br>
+③ <b>글자가 작고 날짜에 연도가 없습니다.</b> 목록의 시간 11px·보낸 사람 12px, 「11-18 08:07」처럼 연도가 없어 작년 메일과 구분이 안 됩니다. 첨부 있는 메일도 목록에서 표시가 없습니다.</div>
+
+<h2>받은편지함 — 「드림텍 샘플」을 찾은 모습</h2>
+<div class="wrap"><div class="dd" style="position:static;box-shadow:none;max-width:900px;margin:0 0 10px">「▾ 자세히」를 누르면 → <b>기간</b> <span class="chip">오늘</span><span class="chip">이번 주</span><span class="chip on">이번 달</span><span class="chip">3개월</span><span class="chip">올해</span><span class="chip">전체</span><span class="chip">📅 직접</span><br>
+      <b>어디서</b> <span class="chip on">받은+보낸 메일 모두</span><span class="chip">받은 메일만</span><span class="chip">보낸 메일만</span><br>
+      <b>무엇을</b> <span class="chip on">전부</span><span class="chip">보낸 사람</span><span class="chip">제목</span><span class="chip">첨부 파일 이름</span> &nbsp; <span class="chip">📎 첨부 있는 것만</span></div>
+<div class="app">
+  <div class="top"><b>📮 KNK 메일</b>
+    <span class="srch callout"><span class="n new">A</span>🔍 드림텍 샘플<span style="float:right;color:var(--mute);font-size:12px">▾ 자세히</span>
+</span>
+    <span class="sp"></span><span class="me">시연 대표 ▾</span></div>
+  <div class="body">
+    <div class="side">
+      <span class="write">✏️ 메일 쓰기</span>
+      <div class="sec">빨리 보기</div>
+      <div class="it on">📥 받은편지함<span class="c">18</span></div>
+      <div class="it">⭐ 중요<span class="g">4</span></div>
+      <div class="it">↩ 답장할 메일<span class="c" style="background:#f59e0b">7</span></div>
+      <div class="sec">내 메일</div>
+      <div class="it">📤 보낸 메일</div>
+      <div class="it">📝 쓰다 만 메일</div>
+      <div class="it">📦 보관함</div>
+      <div class="it">🗑 휴지통</div>
+      <div class="sec callout">폴더 <span class="n new" style="position:static;margin-left:4px">B</span></div>
+      <div class="it"><span class="dot" style="background:#3b82f6"></span>1.고객사<span class="g" style="color:var(--blue);font-weight:700">6</span></div>
+      <div class="fold">드림텍<span class="c">3</span></div>
+      <div class="fold">삼성전기<span class="c">1</span></div>
+      <div class="fold" style="color:var(--mute)">… 15곳 접힘</div>
+      <div class="it"><span class="dot" style="background:#3b82f6"></span>2.기타 고객사<span class="g">1</span></div>
+      <div class="it"><span class="dot" style="background:#22c55e"></span>3.외주업체</div>
+      <div class="it"><span class="dot" style="background:#22c55e"></span>4.PIN BLOCK 업체<span class="g">1</span></div>
+      <div class="it"><span class="dot" style="background:#22c55e"></span>5.CHIP업체<span class="g">1</span></div>
+      <div class="it"><span class="dot" style="background:#9ca3af"></span>6.케이엔케이<span class="g">5</span></div>
+      <div class="it"><span class="dot" style="background:#f59e0b"></span>분류 안 된 메일<span class="g">4</span></div>
+      <div class="it set">⚙ 설정·정리</div>
+    </div>
+    <div class="list">
+      <div class="res callout"><span class="n new">C</span>「<b>드림텍</b>」「<b>샘플</b>」 둘 다 들어간 메일 <b>5통</b> · 이번 달 · 받은+보낸 · 「드림텍」 폴더 메일(영문 주소 포함)도 함께 &nbsp;<span style="color:var(--blue)">✕ 찾기 끝</span></div>
+      <div class="lh callout"><span class="n">7</span><span class="chip on">전체</span><span class="chip">안 읽음</span><span class="chip">📎 첨부</span><span class="chip callout">광고·알림 빼기<span class="n new" style="position:absolute;top:-10px;right:-10px;left:auto">D</span></span><span class="chip">💬 대화로 묶기</span></div>
+      <div class="day callout"><span class="n new">E</span>오늘 · 11월 18일 (수)</div>
+      <div class="row u cur"><span class="ud"></span><span class="star on">★</span><div><div class="s"><span class="tag r">↩ 답장</span><mark>드림텍</mark> <mark>샘플</mark> 일정 문의</div><div class="f">한드림 과장<span class="tag c1">드림텍</span></div></div><div class="t callout">06:53<br>📎 1<span class="n new" style="position:absolute;top:-6px;right:-14px;left:auto">F</span></div></div>
+      <div class="row"><span class="ud"></span><span class="star">★</span><div><div class="s">RE: <mark>드림텍</mark> <mark>샘플</mark> 일정</div><div class="f">이드림 대리<span class="tag c1">드림텍</span><span class="tag cc callout">참조<span class="n new" style="position:absolute;top:-12px;right:-14px;left:auto">G</span></span></div></div><div class="t">06:16</div></div>
+      <div class="day">어제 · 11월 17일 (화)</div>
+      <div class="row u"><span class="ud"></span><span class="star">★</span><div><div class="s">Sample schedule (<mark>샘플</mark> 일정)</div><div class="f">John Lee<span class="tag c1">드림텍</span></div></div><div class="t">21:01</div></div>
+      <div class="row"><span class="ud"></span><span class="star">★</span><div><div class="s">📤 [보냄] RE: <mark>드림텍</mark> <mark>샘플</mark> 견적</div><div class="f">받는 사람: 한드림 과장<span class="tag c1">드림텍</span></div></div><div class="t">15:40<br>📎 2</div></div>
+      <div class="day">이번 주</div>
+      <div class="row"><span class="ud"></span><span class="star on">★</span><div><div class="s"><mark>드림텍</mark> <mark>샘플</mark> 도면 송부</div><div class="f">한드림 과장<span class="tag c1">드림텍</span></div></div><div class="t">11-16 (월)<br>📎 3</div></div>
+      <div class="day callout"><span class="n new">H</span>예전 메일은 날짜에 연도까지</div>
+      <div class="row robot"><span class="ud"></span><span class="star">★</span><div><div class="s">[자동] 거래 알림</div><div class="f">은행<span class="tag al">광고·알림</span></div></div><div class="t">2025-12-03</div></div>
+      <div class="more callout"><span class="n new">I</span>▼ 아래로 내리면 계속 나옵니다 (지금은 200통에서 끊김)</div>
+    </div>
+    <div class="read">
+      <div class="bar"><span class="btn p">↩ 답장</span><span class="btn">↩↩ 전체 답장</span><span class="btn">↪ 전달</span><span class="btn">⭐ 중요</span><span class="btn">📦 보관</span><span class="btn">🗑 삭제</span><span class="btn mo">⋯ 더 보기</span></div>
+      <div class="subj">드림텍 샘플 일정 문의</div>
+      <div class="meta callout"><span class="k">보낸 사람</span><span class="who">한드림 과장</span> &lt;han@dreamtech…&gt; <span class="tag c1">드림텍</span> <span class="n new" style="position:static">J</span><br>
+        <span class="k">받는 사람</span>나 &nbsp; <span class="k" style="width:auto">참조</span> 김영업 과장 외 1명<br>
+        <span class="k">받은 시각</span>2026-11-18 (수) 06:53</div>
+      <div class="pop"><div class="h">한드림 과장 · 드림텍</div><div>✉ 이 사람과 주고받은 메일 모두 (12통)</div><div>🏢 드림텍 메일 모두 (38통)</div><div>📇 주소록에 등록</div><div>✏️ 이 사람에게 메일 쓰기</div></div>
+      <div class="att"><span>📎 샘플일정표.xlsx · 42KB</span></div>
+      <div class="mail">대표님 안녕하세요.<br>샘플 일정 가능할까요? 다음 주 화요일까지 회신 부탁드립니다.</div>
+      <div class="qt callout"><span class="n new">K</span>▸ 이전 메일 2통 보기 (접혀 있음)</div>
+      <div style="display:flex;gap:8px;margin-top:22px"><span class="btn">‹ 이전 메일</span><span class="btn">다음 메일 ›</span></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="note">
+<span class="n new">A</span><b>찾기 한 칸이 다 합니다</b> — 띄어 쓴 낱말은 <b>모두 들어간 메일</b>, 받은 메일과 보낸 메일을 <b>함께</b>, 받는 사람·참조·<b>첨부 파일 이름</b>까지. 「▾ 자세히」에 기간 단추(오늘·이번 주·이번 달·3개월·올해·전체)와 어디서·무엇을. 날짜 칸 두 개를 직접 칠 일이 없어집니다.<br>
+<span class="n new">B</span><b>폴더 색 4가지</b> — 고객사 파랑 · 업체 초록 · 케이엔케이 회색 · 분류 안 된 메일 노랑. 목록 꼬리표도 같은 색이라 <b>눈으로 바로 구분</b>.<br>
+<span class="n new">C</span><b>찾은 결과 띠</b> — 몇 통 찾았는지 · 어떤 조건인지 · 「✕ 찾기 끝」. 회사 이름을 치면 <b>그 폴더의 메일(영문 주소로 온 것 포함)</b>도 같이. 찾은 글자는 <mark>노랗게</mark>.<br>
+<span class="n new">D</span><b>광고·알림 빼기</b> — 은행·쇼핑몰·뉴스레터처럼 사람이 아닌 곳에서 온 메일은 흐리게 + 「광고·알림」 꼬리표, 단추 하나로 빼고 보기(지우지 않음). 판별은 지금 「보낸 곳별 정리」가 쓰는 기준 그대로.<br>
+<span class="n new">E</span><b>날짜 묶음</b> — 오늘 · 어제 · 이번 주 · 지난주 · 이번 달 · 그 전. 언제 온 메일인지 한눈에.<br>
+<span class="n new">F</span><b>📎 첨부 표시</b> — 목록에서 첨부 있는 메일과 개수가 보임(지금은 열어 봐야 앎).<br>
+<span class="n new">G</span><b>「참조」 꼬리표</b> — 나에게 직접 온 메일이 아니라 참조로 받은 메일 구분.<br>
+<span class="n new">H</span><b>시간 표시</b> — 오늘은 「06:53」, 올해는 「11-16 (월)」, 작년 이전은 「2025-12-03」. 글자 크기: 제목 15px · 보낸 사람 14px · 시간 13px(지금 13.5 · 12 · 11). 「⚙ 설정」에 <b>글자 크게</b>(보통/크게) 하나.<br>
+<span class="n new">I</span><b>200통에서 끊기지 않게</b> — 내리면 계속 더 나옴(가장 오래된 메일까지).<br>
+<span class="n new">J</span><b>사람·회사로 모아 보기</b> — 보낸 사람 이름을 누르면 「이 사람과 주고받은 메일 모두」 「이 회사 메일 모두」 「이 사람에게 메일 쓰기」.<br>
+<span class="n new">K</span><b>이전 대화 접기</b> — 답장 메일 아래 줄줄이 붙은 이전 메일은 접어 두고 「▸ 이전 메일 N통 보기」. 새로 쓴 내용만 먼저 보임. 받는 사람·참조도 머리에 표시.</div>
+
+<h2>2차 검토 — 빼는 것</h2>
+<table class="cmp"><tr><th>빼는 것</th><th>까닭</th><th>대신</th></tr>
+<tr><td>메일 종류 칸(견적·발주·세금계산서·일반)과 목록의 「일반」 꼬리표</td><td>폴더와 겹치고, 지금 견적·발주·세금계산서 0통 · 「일반」만 붙음</td><td>폴더 색 꼬리표(B)</td></tr>
+<tr><td>위 띠의 받은편지함·보낸편지함·임시보관함·쓰기</td><td>왼쪽과 똑같음</td><td>왼쪽만</td></tr>
+<tr><td>도구줄 8개(받기·보내기 설정·가져오기·정리·자동분류·보낸 곳별 정리·중복정리)</td><td>매일 쓰지 않음</td><td>⚙ 설정·정리</td></tr>
+<tr><td>왼쪽 차단함·차단목록 관리·보낸 곳별 정리</td><td>가끔 씀</td><td>⚙ 설정·정리 · 차단된 메일이 새로 생기면 받은편지함 위에 한 줄 알림</td></tr>
+<tr><td>번역 단추 두 개(한국어·베트남어)</td><td>자리 차지</td><td>⋯ 더 보기 → 「번역」 하나 안에서 고름</td></tr>
+<tr><td>오른쪽 빈 칸의 도움말 4줄</td><td>매번 같은 글</td><td>「왼쪽에서 메일을 고르세요」 한 줄</td></tr>
+<tr><td>날짜 칸 2개 · 숫자만 보이는 첨부 체크</td><td>늘 보여 자리 차지 · 뜻을 모름</td><td>찾기 「▾ 자세히」 안으로(A)</td></tr>
+</table>
+
+<h2>나눠서 만들기 (2차 반영 — 3단계)</h2>
+<table class="cmp"><tr><th>단계</th><th>내용</th><th>운영 데이터베이스</th></tr>
+<tr><td><b>1단계 · 메뉴 단순하게</b></td><td>1차 시안 자리 정리(왼쪽 메뉴 순서 · 도구줄·중복 빼기 · ⚙ 설정·정리 한 화면 · 읽기 단추 한 줄+더 보기 · 휴대폰 목록 먼저) + 위 「빼는 것」 전부</td><td>그대로</td></tr>
+<tr><td><b>2단계 · 찾기·보기</b></td><td>A 찾기 한 칸 · B 폴더 색 · C 결과 띠·노란 표시 · D 광고·알림 · E 날짜 묶음 · F 📎 · G 참조 · H 시간·글자 크기 · I 200통 끊김 없애기 · J 사람·회사로 모아 보기 · K 이전 대화 접기</td><td>그대로(찾기 빠르게 하는 색인만 더할 수 있음)</td></tr>
+<tr><td><b>3단계 · 구분·보관 새 기능</b></td><td>📦 보관함 · 여러 통 한 번에 · 「이 메일만」 폴더 옮기기 · 이전·다음 메일 · 쓰기 화면 주소록 단추·넓게 · <b>「3개월 지난 읽은 메일 한 번에 보관」</b>(받은편지함 7,800통 → 최근 것만)</td><td>새 칸(보관 표시 · 한 통 폴더)</td></tr>
+</table>
+<p class="sub" style="margin-top:10px">각 단계 = 시험 서버에서 실제 화면으로 만들어 보여 드림 → 「올려」 → 업무시간 피해 배포. 지금 잘 되는 것(폴더 자동 분류 · 회신 필요 · 보낸 곳별 정리 · 스팸·피싱 판별 · ×N 묶음)은 그대로.</p>
+</body></html>

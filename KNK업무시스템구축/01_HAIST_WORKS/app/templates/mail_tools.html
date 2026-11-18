@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>설정·정리 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* ⚙ 설정·정리 (대표 지시 2026-11-18 「쉽게 보이고 쉽게 사용」) — 매일 화면에서 뺀 단추를 한 곳에 */
+  .mt-wrap{max-width:980px}
+  .mt-sec{margin:18px 0 8px;font-size:15px;font-weight:800;color:var(--ink)}
+  .mt-sec small{font-weight:500;color:var(--mute);font-size:12.5px;margin-left:6px}
+  .mt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+  .mt-card{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;background:#fff;padding:13px 15px;text-decoration:none;color:var(--ink);cursor:pointer;font-family:inherit;text-align:left;width:100%}
+  .mt-card:hover{border-color:#cbd5e1;background:#fafafa}
+  .mt-ico{font-size:22px;line-height:1;flex:none;margin-top:1px}
+  .mt-t{font-size:14.5px;font-weight:700}
+  .mt-d{font-size:13px;color:var(--mute);line-height:1.6;margin-top:3px}
+  .mt-n{display:inline-block;margin-left:6px;font-size:12px;font-weight:700;color:#fff;background:#dc2626;border-radius:999px;padding:0 7px;vertical-align:1px}
+  .mt-n.b{background:#2563eb}
+  .mt-admin .mt-card{background:#fbfaf8}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+<div class="mt-wrap">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">메일</a> · 설정·정리</div>
+    <h1 class="page-title">⚙ 설정·<em>정리</em></h1>
+  </div><div><a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a></div></div>
+
+  <div class="mt-sec">🧹 정리 <small>메일이 쌓였을 때</small></div>
+  <div class="mt-grid">
+    <a class="mt-card" href="/mail/cleanup"><span class="mt-ico">📮</span><span><span class="mt-t">보낸 곳별 정리</span>
+      <span class="mt-d" style="display:block">광고·알림을 보낸 곳별로 묶어 한 번에 휴지통으로 · 나에게만 다시 안 받기</span></span></a>
+    <button type="button" class="mt-card" onclick="dedupInbox(event)"><span class="mt-ico">🔁</span><span><span class="mt-t">같은 메일 여러 통 정리</span>
+      <span class="mt-d" style="display:block">여러 그룹 주소로 같은 메일이 여러 통 온 것을 1통만 남기기(답장은 안 건드림 · 휴지통에서 되살릴 수 있음)</span></span></button>
+    {% if has_tree %}<a class="mt-card" href="/mail/folders/general"><span class="mt-ico">🧹</span><span><span class="mt-t">일반 정리하기{% if gen_n %}<span class="mt-n b">{{ gen_n }}</span>{% endif %}</span>
+      <span class="mt-d" style="display:block">폴더에 안 들어간 「일반」 메일을 보낸 곳별로 묶어 한 번에 폴더로</span></span></a>{% endif %}
+    <a class="mt-card" href="/mail/trash"><span class="mt-ico">🗑</span><span><span class="mt-t">휴지통</span>
+      <span class="mt-d" style="display:block">지운 메일 되살리기 · 완전히 지우기 · 휴지통 비우기</span></span></a>
+  </div>
+
+  <div class="mt-sec">📁 분류 <small>메일이 어느 폴더로 갈지</small></div>
+  <div class="mt-grid">
+    <a class="mt-card" href="/mail/folders"><span class="mt-ico">📁</span><span><span class="mt-t">폴더 관리</span>
+      <span class="mt-d" style="display:block">폴더 더하기·이름 바꾸기·순서 · 다른 이름(영문·회사 주소) · 내가 정한 규칙</span></span></a>
+    <a class="mt-card" href="/mail/rules"><span class="mt-ico">🏷</span><span><span class="mt-t">자동 분류 규칙</span>
+      <span class="mt-d" style="display:block">보낸 사람·제목 낱말로 메일 종류를 정하는 규칙</span></span></a>
+  </div>
+
+  <div class="mt-sec">✍ 내 메일 <small>보낼 때 쓰는 것</small></div>
+  <div class="mt-grid">
+    <a class="mt-card" href="/mail/signature"><span class="mt-ico">✍</span><span><span class="mt-t">서명</span>
+      <span class="mt-d" style="display:block">메일 끝에 붙는 이름·직책·연락처</span></span></a>
+    <a class="mt-card" href="/mail/account"><span class="mt-ico">🔗</span><span><span class="mt-t">내 회사 주소 연결</span>
+      <span class="mt-d" style="display:block">내 @knknara.co.kr 주소로 보내기 · 받기 연결</span></span></a>
+  </div>
+
+  <div class="mt-sec">🛡 보안 <small>위험·스팸 메일</small></div>
+  <div class="mt-grid">
+    <a class="mt-card" href="/mail/blocked"><span class="mt-ico">🚫</span><span><span class="mt-t">차단함{% if blocked_n %}<span class="mt-n">{{ blocked_n }}</span>{% endif %}</span>
+      <span class="mt-d" style="display:block">위험하거나 다시 안 받기로 한 메일이 모인 곳(지우지 않음 · 되살릴 수 있음)</span></span></a>
+    {% if is_admin %}<a class="mt-card" href="/mail/blocklist"><span class="mt-ico">⛔</span><span><span class="mt-t">차단 목록 관리</span>
+      <span class="mt-d" style="display:block">회사 전체에서 막을 위험·스팸 주소 등록(관리자)</span></span></a>{% endif %}
+  </div>
+
+  {% if is_admin %}
+  <div class="mt-admin">
+  <div class="mt-sec">🔧 관리자 <small>처음 한 번 설정하는 것</small></div>
+  <div class="mt-grid">
+    <a class="mt-card" href="/admin/mail-inbound"><span class="mt-ico">📥</span><span><span class="mt-t">받기 설정</span>
+      <span class="mt-d" style="display:block">메일이 이음웍스로 들어오는 길</span></span></a>
+    <a class="mt-card" href="/admin/mail-send"><span class="mt-ico">📤</span><span><span class="mt-t">보내기 설정</span>
+      <span class="mt-d" style="display:block">메일을 내보내는 길(발송망)</span></span></a>
+    <a class="mt-card" href="/admin/mail-fetch"><span class="mt-ico">⤵</span><span><span class="mt-t">기존 메일 가져오기</span>
+      <span class="mt-d" style="display:block">하이웍스 등 기존 메일을 이음웍스 메일로 당겨오기</span></span></a>
+    <a class="mt-card" href="/admin/mail-purge"><span class="mt-ico">💽</span><span><span class="mt-t">저장 공간 정리</span>
+      <span class="mt-d" style="display:block">휴지통 비우기 · 오래된 메일 완전삭제 · 디스크 정리</span></span></a>
+  </div>
+  </div>
+  {% endif %}
+</div>
+</main>
+</div>
+<script>
+/* 같은 메일 여러 통 정리 — 받은편지함 도구줄에 있던 「🔁 중복정리」와 같은 동작(11-18 이 화면으로 옮김) */
+async function dedupInbox(ev){
+  if(ev) ev.preventDefault();
+  if(!confirm('여러 그룹메일로 같은 메일이 여러 통 온 것을 1통만 남기고 정리할까요?\n(답장·내용이 다른 메일은 안 건드리고, 정리된 메일은 휴지통으로 갑니다 — 복구 가능)')) return;
+  try{ var r=await fetch('/mail/dedup',{method:'POST'}); var j=await r.json();
+    alert(j.message||(j.ok?'정리 완료':'실패')); }catch(e){ alert('네트워크 오류'); }
+}
+</script>
+</body></html>

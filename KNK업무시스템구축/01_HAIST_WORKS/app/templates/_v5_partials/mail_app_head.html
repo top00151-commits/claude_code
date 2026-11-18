@@ -55,10 +55,13 @@
 </style>
 <div class="mail-app-top">
   <span class="brand">📧 HAIST WORKS 메일함</span>
+  {# 11-18 대표 「쉽게」: 왼쪽 메뉴가 있는 화면(받은편지함 등)에서는 같은 링크를 또 두지 않는다 — 쓰기·설정 화면에만 #}
+  {% if not mail_has_side|default(false) %}
   <a href="/mail/inbox">받은편지함</a>
   <a href="/mail/sent">보낸편지함</a>
-  <a href="/mail/drafts">임시보관함</a>
+  <a href="/mail/drafts">쓰다 만 메일</a>
   <a href="/mail/compose">✏️ 쓰기</a>
+  {% endif %}
   <span class="sp"></span>
   <button type="button" id="mailInstallBtn" class="install" onclick="mailInstallApp()" title="이 메일을 앱처럼 설치 — 바탕화면/홈 화면 아이콘으로 독립 실행">📲 앱 설치</button>
   <button type="button" class="navbtn" onclick="mailGoBack()" title="이전 페이지로 돌아가기">← 이전</button>

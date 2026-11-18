@@ -133,7 +133,8 @@ try:
     check("보낸 곳 7줄 · 주소가 보인다", h.count(' data-kind="') == 7 and "ad@shop.example" in h and "partner@vendor.example" in h, h.count(' data-kind="'))
     check("광고·알림 3곳 칩 · 까닭 표시", "광고·알림으로 보이는 곳 3" in h and "제목에 (광고) 표기" in h and "주소록에 있음" in h)
     check("사내 주소 줄에는 「다시 안 받기」가 없다", h.count("clOne(this,'mute')") == 6, h.count("clOne(this,'mute')"))
-    check("받은편지함에 들어가는 단추", "/mail/cleanup" in k.get("/mail/inbox").text)
+    # 11-18 메뉴 단순하게: 받은편지함 → 「⚙ 설정·정리」 → 보낸 곳별 정리
+    check("받은편지함에 들어가는 길(⚙ 설정·정리 → 보낸 곳별 정리)", 'href="/mail/tools"' in k.get("/mail/inbox").text and 'href="/mail/cleanup"' in k.get("/mail/tools").text)
     _UID["v"] = 0
     check("로그인 안 함 → 화면은 로그인으로, 길은 401", k.get("/mail/cleanup").status_code == 303
           and k.post("/mail/cleanup/apply", data={"action": "trash", "addr": "ad@shop.example"}).status_code == 401
@@ -234,15 +235,16 @@ try:
     check("받은편지함 목록에 ×4 표시", 'class="mbx-dup"' in h and "×4</span>" in h and "같은 메일이 4통 와서 한 통으로 합쳤습니다" in h)
     check("한 통만 온 메일에는 표시 없음", h.count('class="mbx-dup"') == h.count("×4</span>"), (h.count('class="mbx-dup"'), h.count("×4</span>")))
     # 11-17 대표 「항목이 안 보인다」 → 찾기 쉽게: 왼쪽 메일함 · 빈 읽기 칸 안내 · 보낸사람 옆 「주소록에 등록」(바깥 사람만)
-    check("왼쪽 메일함에 「보낸 곳별 정리」", h.count('href="/mail/cleanup"') >= 3 and "광고·알림</span>" in h, h.count('href="/mail/cleanup"'))
-    check("빈 읽기 칸에 새 기능 안내(주소록 · 보낸 곳별 정리 · ×N)", "mbx-rp-tips" in h and "주소록에 등록" in h and "_mbxEmptyPane" in h)
+    # 11-18 대표 「쉽게 보이고 쉽게 사용」(메뉴 단순하게) → 가끔 쓰는 것은 「⚙ 설정·정리」 한 곳 · 빈 읽기 칸은 한 줄
+    check("왼쪽 메뉴 「⚙ 설정·정리」 → 보낸 곳별 정리가 그 안 첫 칸", 'href="/mail/tools"' in h and k.get("/mail/tools").text.count('href="/mail/cleanup"') == 1)
+    check("빈 읽기 칸은 한 줄(도움말 묶음 없음)", 'class="mbx-rp-tips"' not in h and "_mbxEmptyPane" in h)
     with _db.db_session() as c:
         _ext = c.execute("SELECT id FROM mail_messages WHERE user_id=9001 AND subject='한 통만 온 메일'").fetchone()["id"]
         ms.store_inbound(c, to_email="t9001@knknara.co.kr", from_email="dong@knknara.co.kr", from_name="사내동료", subject="사내 메일 하나", text="회의", owner_id=9001, run_ai=False, message_id="in-1@test")
         _int = c.execute("SELECT id FROM mail_messages WHERE user_id=9001 AND subject='사내 메일 하나'").fetchone()["id"]
     pe = k.get("/mail/%d/pane" % _ext).text
     pi = k.get("/mail/%d/pane" % _int).text
-    check("바깥 사람 메일: 보낸사람 옆에 「주소록에 등록」", 'id="mvContactInline"' in pe, pe[:0])
+    check("바깥 사람 메일: 보낸사람 옆에 「주소록에 등록」 · ⋯ 더 보기 안에도", 'id="mvContactInline"' in pe and 'id="mvContactBtn"' in pe.split('id="mvMore"')[1], pe[:0])
     check("사내 동료 메일: 보낸사람 옆 표시 없음(군더더기)", "mv-ct-inline" not in pi.split("mv-actions")[0])
     check("차단함·휴지통 화면도 그대로 열린다", k.get("/mail/blocked").status_code == 200 and k.get("/mail/trash").status_code == 200)
 finally:

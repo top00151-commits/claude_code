@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>{{ '보낸편지함' if box=='sent' else ('임시보관함' if box=='draft' else '받은편지함') }} · KNK 메일</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ '보낸편지함' if box=='sent' else ('쓰다 만 메일' if box=='draft' else '받은편지함') }} · KNK 메일</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 {% include "_v5_partials/mail_view_styles.html" %}
@@ -79,6 +79,23 @@
   .mbx-from{flex:none;max-width:46%;font-size:12px;font-weight:600;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mbx-sum{flex:1;min-width:0;font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mbx-empty{padding:48px 16px;text-align:center;color:var(--mute);line-height:1.7}
+  /* ── 11-18 메뉴 단순하게(대표 「쉽게 보이고 쉽게 사용」) ── */
+  .mbx-write{display:block;text-align:center;background:var(--knk-red);color:#fff;border-radius:10px;padding:10px 0;font-size:14.5px;font-weight:800;text-decoration:none;margin:2px 0 8px}
+  .mbx-write:hover{filter:brightness(1.07)}
+  .mbx-tools{margin-top:4px;color:#374151}
+  .mbx-more{position:relative}
+  .mbx-more>summary{list-style:none;cursor:pointer;font-size:12.5px;color:var(--mute);padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;white-space:nowrap}
+  .mbx-more>summary::-webkit-details-marker{display:none}
+  .mbx-more[open]>summary{color:var(--ink);border-color:#cbd5e1}
+  .mbx-more-box{position:absolute;z-index:20;top:36px;left:0;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.12);padding:10px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;width:max-content;max-width:86vw;font-size:12.5px}
+  .mbx-chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:2}
+  .mf-cur + .mbx-chips{top:37px}
+  .mbx-fdtag{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#eef2ff;color:#3730a3;white-space:nowrap;max-width:40%;overflow:hidden;text-overflow:ellipsis}
+  .mf-zero-more{font-size:11.5px;color:var(--mute);cursor:pointer;padding:3px 9px 5px 29px;display:block}
+  .mf-zero-more:hover{color:var(--ink)}
+  .mf-g:not(.showzero) .mf-k.mf-zero:not(.on){display:none}
+  .mf-g.showzero .mf-zero-more{display:none}
+  .mbx-fab{display:none}
   /* 대화 묶기(스레드) */
   .mbx-thread{border-bottom:1px solid var(--line)}
   .mbx-thread .mbx-row{border-bottom:0}
@@ -129,10 +146,12 @@
     .mbx-star{font-size:20px;padding:3px 2px 0}
     .mbx-twist{width:30px;font-size:14px;padding:13px 0 0 8px}
     .mbx-tcount{font-size:11px}
+    .mbx-fab{display:flex;position:fixed;right:16px;bottom:18px;z-index:50;align-items:center;gap:6px;background:var(--knk-red);color:#fff;border-radius:999px;padding:13px 18px;font-size:15px;font-weight:800;text-decoration:none;box-shadow:0 6px 16px rgba(0,0,0,.25)}
+    .mbx-side .mbx-write{display:none}
   }
 </style>
 </head><body>
-<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<div class="app">{% set mail_has_side = true %}{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
@@ -148,24 +167,26 @@
       <input type="hidden" name="cat" value="{{ cur_cat|default('') }}">
       <input type="hidden" name="cust" value="{{ cur_cust|default('') }}">
       {% if cur_fd|default('') %}<input type="hidden" name="fd" value="{{ cur_fd }}">{% endif %}
-      <input type="date" name="df" value="{{ cur_df|default('') }}" title="받은날짜 시작">
-      <span style="color:var(--mute);font-size:12px;">~</span>
-      <input type="date" name="dt" value="{{ cur_dt|default('') }}" title="받은날짜 끝">
-      <label class="mbx-chip" style="{% if cur_att|default(false) %}background:var(--knk-red);color:#fff;border-color:var(--knk-red);{% endif %}" title="첨부파일이 있는 메일만"><input type="checkbox" name="att" value="1" {% if cur_att|default(false) %}checked{% endif %} onchange="this.form.submit()" style="margin-right:3px;vertical-align:middle;">📎</label>
+      {% if cur_att|default(false) %}<input type="hidden" name="att" value="1">{% endif %}
+      {% if cur_unread|default(false) %}<input type="hidden" name="unread" value="1">{% endif %}
+      {% if cur_star|default(false) %}<input type="hidden" name="star" value="1">{% endif %}
       {% endif %}
       <button type="submit" class="btn btn-secondary">검색</button>
-      {% if q or cur_df|default('') or cur_dt|default('') or cur_att|default(false) %}<a href="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}" class="btn btn-secondary">✕</a>{% endif %}
-    </form>
-    <div class="mbx-actions">
-      <a href="/mail/compose" class="btn btn-primary">✏️ 메일 쓰기</a>
-      {% if is_admin and box=='in' %}<a href="/admin/mail-inbound" class="btn btn-secondary">⚙ 받기</a><a href="/admin/mail-send" class="btn btn-secondary">⚙ 보내기</a><a href="/admin/mail-fetch" class="btn btn-secondary" title="하이웍스 등 기존 메일을 KNK 메일로 당겨오기">📥 가져오기</a><a href="/admin/mail-purge" class="btn btn-secondary" title="휴지통 비우기·오래된 메일 완전삭제·디스크 정리">🧹 정리</a>{% endif %}
       {% if box=='in' %}
-      <a href="/mail/rules" class="btn btn-secondary" title="보낸사람·제목 키워드로 메일을 자동 분류">⚙ 자동분류</a>
-      <a href="/mail/cleanup" class="btn btn-secondary" style="border-color:#fb923c;color:#c2410c;font-weight:700;background:#fff7ed" title="받은편지함을 보낸 곳별로 묶어 광고·알림 메일을 한 번에 정리 · 다시 안 받기">📮 보낸 곳별 정리</a>
-      {% if box=='in' %}<a href="#" class="btn btn-secondary" title="여러 그룹메일로 같은 메일이 여러 통 온 중복을 1통만 남기고 정리(답장은 안 건드림)" onclick="dedupInbox(event)">🔁 중복정리</a>{% endif %}
+      <details class="mbx-more"{% if cur_df|default('') or cur_dt|default('') %} open{% endif %}>
+        <summary title="받은 날짜로 찾기">📅 날짜{% if cur_df|default('') or cur_dt|default('') %} ●{% endif %} ▾</summary>
+        <div class="mbx-more-box">받은 날짜
+          <input type="date" name="df" value="{{ cur_df|default('') }}" title="받은날짜 시작">
+          <span style="color:var(--mute);font-size:12px;">~</span>
+          <input type="date" name="dt" value="{{ cur_dt|default('') }}" title="받은날짜 끝">
+          <button type="submit" class="btn btn-secondary" style="padding:5px 10px">찾기</button>
+        </div>
+      </details>
       {% endif %}
-    </div>
+      {% if q or cur_df|default('') or cur_dt|default('') %}<a href="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}" class="btn btn-secondary" title="찾기 끝 — 모든 메일 보기">✕ 찾기 끝</a>{% endif %}
+    </form>
   </div>
+  <a href="/mail/compose" class="mbx-fab" title="새 메일 쓰기">✏️ 쓰기</a>
 
   {% if not ai_on %}
   <div style="border:1px solid var(--amber);border-radius:8px;background:#fffbeb;padding:6px 12px;margin:0 2px 8px;font-size:12px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 AI 키가 설정돼 있을 때 작동합니다.</div>
@@ -174,15 +195,15 @@
   {# ── 받은편지함 행 매크로 (제목 우선 2줄) ── #}
   {% macro mailrow(m, BG, FG, child=False) %}
   <a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read %} unread{% endif %}{% if child %} mbx-child{% endif %}" data-mail-id="{{ m.id }}" onclick="return rowClick(event,{{ m.id }})">
-    <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>
+    <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ m.id }})">★</button>
     <div class="mbx-main">
       <div class="mbx-r1">
         <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
         <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
       </div>
       <div class="mbx-r2">
-        <span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>
         <span class="mbx-from">{{ m.from_name or m.from_email or '(보낸사람 없음)' }}</span>
+        {% if m.fdname %}<span class="mbx-fdtag" title="폴더">{{ m.fdname }}</span>{% endif %}
         {% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}
       </div>
     </div>
@@ -207,18 +228,20 @@
 
     {# 좌: 메일함 + 분류 + 거래처 폴더 + 보기 (대표 지시: 분류 폴더 왼쪽) #}
     <nav class="mbx-side" aria-label="메일함·폴더">
-      <div class="mbx-fold-h">메일함</div>
+      <a href="/mail/compose" class="mbx-write" title="새 메일 쓰기">✏️ 메일 쓰기</a>
+      <div class="mbx-fold-h">빨리 보기</div>
       <a href="/mail/inbox" class="mbx-fold {{ 'on' if _all_on else '' }}">
         <span class="fname">📥 받은편지함</span>
         {% if folders %}<span class="cnt">{{ folders.total }}</span>{% endif %}
         <span class="fbadge" id="unreadBadge" title="안 읽은 메일"{% if not unread %} style="display:none"{% endif %}>{{ unread }}</span>
       </a>
+      <a href="/mail/inbox?star=1" class="mbx-fold {{ 'on' if cur_star|default(false) else '' }}" title="★ 를 눌러 중요 표시한 메일"><span class="fname">⭐ 중요</span></a>
+      <a href="/mail/inbox?reply=1" class="mbx-fold {{ 'on' if cur_reply|default(false) else '' }}" title="최근 {{ 14 }}일 받은 메일 중 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함) — 규칙으로 추정"><span class="fname">↩ 회신 필요</span>{% if reply_n|default(0) %}<span class="fbadge">{{ reply_n }}</span>{% endif %}</a>
+      <div class="mbx-fold-h" style="margin-top:4px">내 메일</div>
       <a href="/mail/sent" class="mbx-fold {{ 'on' if box=='sent' else '' }}"><span class="fname">📤 보낸편지함</span></a>
-      <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}"><span class="fname">📝 임시보관함</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
+      <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}" title="쓰다가 저장한 메일(임시 저장)"><span class="fname">📝 쓰다 만 메일</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
       <a href="/mail/trash" class="mbx-fold {{ 'on' if box=='trash' else '' }}"><span class="fname">🗑 휴지통</span></a>
-      <a href="/mail/blocked" class="mbx-fold {{ 'on' if box=='blocked' else '' }}" title="차단목록에 걸려 격리된 메일(복구 가능)"><span class="fname">🚫 차단함</span></a>
-      <a href="/mail/cleanup" class="mbx-fold" title="받은 메일을 보낸 곳별로 묶어 광고·알림 메일을 한 번에 휴지통으로 · 나에게만 다시 안 받기"><span class="fname">📮 보낸 곳별 정리</span><span class="cnt" style="color:#c2410c;font-weight:700">광고·알림</span></a>
-      {% if is_admin %}<a href="/mail/blocklist" class="mbx-fold {{ 'on' if box=='blocklist' else '' }}" title="위험·스팸 주소 등록 관리"><span class="fname">⛔ 차단목록 관리</span></a>{% endif %}
+      {% if box=='blocked' %}<a href="/mail/blocked" class="mbx-fold on" title="차단목록에 걸려 격리된 메일(복구 가능)"><span class="fname">🚫 차단함</span></a>{% endif %}
 
       {% if box=='in' and mf %}
       {# 받은 메일 폴더(아웃룩식 · 대표 11-17 「아웃룩을 이런 식으로 구분해서 사용하고 있어」) — 보낸 사람으로 자동 · 숫자=안 읽은 메일 #}
@@ -231,11 +254,13 @@
           <span class="fname">{{ g.name }}</span>{% if g.u %}<span class="mf-u">{{ g.u }}</span>{% endif %}
         </a>
         <div class="mf-kids">
+        {% set _zero = g.children|selectattr('n', 'equalto', 0)|list %}
         {% for k in g.children %}
           <a href="/mail/inbox?fd={{ k.key }}" class="mbx-fold mf-k {{ 'on' if cur_fd|default('') == k.key else '' }}{{ ' mf-zero' if not k.n else '' }}" title="{{ k.name }} — 받은 메일 {{ k.n }}통{% if k.u %} · 안 읽음 {{ k.u }}통{% endif %}">
             <span class="fname">{{ k.name }}</span>{% if k.u %}<span class="mf-u">{{ k.u }}</span>{% endif %}
           </a>
         {% endfor %}
+        {% if _zero %}<span class="mf-zero-more" onclick="mfShowZero(event,'{{ g.key }}')" title="받은 메일이 없는 폴더도 보기">＋ 메일 없는 {{ _zero|length }}곳</span>{% endif %}
         </div>
       </div>
       {% endfor %}
@@ -245,14 +270,7 @@
       {% if mf.gen.n %}<a href="/mail/folders/general" class="mbx-fold mf-k" style="color:#1d4ed8;font-size:12px" title="일반에 남은 메일 {{ mf.gen.n }}통을 보낸 곳별로 묶어 한 번에 폴더로"><span class="fname">🧹 일반 정리하기</span></a>{% endif %}
       {% endif %}
 
-      {% if box=='in' %}
-      <div class="mbx-fold-div"></div>
-      <div class="mbx-fold-h">분류</div>
-      {% for ct in categories %}
-      <a href="/mail/inbox?cat={{ ct }}" class="mbx-fold {{ 'on' if cur_cat|default('')==ct else '' }}"><span class="fname">{{ ct }}</span><span class="cnt">{{ cat_counts.get(ct,0) }}</span></a>
-      {% endfor %}
-
-      {% if folders and not mf %}
+      {% if box=='in' and folders and not mf %}
       <div class="mbx-fold-div"></div>
       <div class="mbx-fold-h">📁 거래처 폴더</div>
       {% for cf in folders.customers %}
@@ -268,12 +286,7 @@
       {% endif %}
 
       <div class="mbx-fold-div"></div>
-      <div class="mbx-fold-h">보기</div>
-      <a href="/mail/inbox?reply=1" class="mbx-fold {{ 'on' if cur_reply|default(false) else '' }}" title="최근 {{ 14 }}일 받은 메일 중 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함) — 규칙으로 추정"><span class="fname">↩ 회신 필요</span>{% if reply_n|default(0) %}<span class="fbadge">{{ reply_n }}</span>{% endif %}</a>
-      <a href="/mail/inbox?star=1" class="mbx-fold {{ 'on' if cur_star|default(false) else '' }}"><span class="fname">⭐ 별표</span></a>
-      <a href="/mail/inbox?unread=1" class="mbx-fold {{ 'on' if cur_unread|default(false) else '' }}"><span class="fname">● 안읽음</span></a>
-      <a href="/mail/inbox?thread={{ 0 if thread_on|default(true) else 1 }}{% if cur_cust|default('') %}&cust={{ cur_cust }}{% endif %}{% if cur_fd|default('') %}&fd={{ cur_fd }}{% endif %}" class="mbx-fold {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:) 메일을 한 대화로 묶기"><span class="fname">💬 대화묶기</span></a>
-      {% endif %}
+      <a href="/mail/tools" class="mbx-fold mbx-tools" title="보낸 곳별 정리 · 같은 메일 정리 · 폴더 관리 · 서명 · 차단함 등 가끔 쓰는 것 모두"><span class="fname">⚙ 설정·정리</span></a>
     </nav>
 
     <div class="mbx-gutter" data-g="1" title="끌어서 폭 조절"></div>
@@ -284,6 +297,17 @@
     {# 지금 보고 있는 폴더(11-17) — 왼쪽 목록이 길어 위로 밀려도 어느 폴더인지 보이게 #}
     <div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ mails|length }}통{% if mails|length >= 200 %}+{% endif %}</span>{% if cur_fd == 'gen' %}<a href="/mail/folders/general" class="mf-cur-go" title="일반에 남은 메일을 보낸 곳별로 묶어 한 번에 폴더로">🧹 일반 정리하기</a>{% endif %}<a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
     {% endif %}
+    {% if box=='in' %}
+    {% set _fdq = ('&fd=' ~ cur_fd) if cur_fd|default('') else '' %}{% set _cq = ('&cust=' ~ cur_cust) if cur_cust|default('') else '' %}
+    {% set _base = '/mail/inbox?x=1' ~ _fdq ~ _cq ~ ('&star=1' if cur_star|default(false) else '') ~ ('&reply=1' if cur_reply|default(false) else '') ~ (('&q=' ~ (q|urlencode)) if q else '') %}
+    <div class="mbx-chips">
+      {% set _thr = '' if thread_on|default(true) else '&thread=0' %}
+      <a href="{{ _base }}{{ _thr }}" class="mbx-chip {{ 'on' if not cur_unread|default(false) and not cur_att|default(false) else '' }}">전체</a>
+      <a href="{{ _base }}&unread=1{{ _thr }}" class="mbx-chip {{ 'on' if cur_unread|default(false) else '' }}">● 안 읽음</a>
+      <a href="{{ _base }}&att=1{{ _thr }}" class="mbx-chip {{ 'on' if cur_att|default(false) else '' }}" title="첨부파일이 있는 메일만">📎 첨부</a>
+      <a href="{{ _base }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}&thread={{ 0 if thread_on|default(true) else 1 }}" class="mbx-chip {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:) 메일을 한 대화로 묶기 — 누를 때마다 켜고 끔">💬 대화로 묶기</a>
+    </div>
+    {% endif %}
     {% if mails %}
     <div class="mbx-list">
       {% if box=='in' and thread_on|default(true) and threads %}
@@ -293,7 +317,7 @@
             <div class="mbx-thread-head{% if not t['latest'].is_read %} unread{% endif %}">
               <button type="button" class="mbx-twist" title="대화 펼치기/접기" aria-expanded="false" onclick="toggleThread(event,this)">▸</button>
               <a href="/mail/{{ t['latest'].id }}" class="mbx-headlink{% if not t['latest'].is_read %} unread{% endif %}" data-mail-id="{{ t['latest'].id }}" onclick="return rowClick(event,{{ t['latest'].id }})">
-                <button type="button" class="mbx-star {{ 'on' if t['latest'].is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ t['latest'].id }})">★</button>
+                <button type="button" class="mbx-star {{ 'on' if t['latest'].is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ t['latest'].id }})">★</button>
                 <div class="mbx-main">
                   <div class="mbx-r1">
                     <span class="mbx-subj">{{ t['latest'].subject or '(제목 없음)' }}</span>
@@ -301,8 +325,8 @@
                     <span class="mbx-time">{{ t['latest'].received_at[5:16] if t['latest'].received_at else '' }}</span>
                   </div>
                   <div class="mbx-r2">
-                    <span class="mbx-badge" style="background:{{ BG.get(t['latest'].category,'#f3f4f6') }};color:{{ FG.get(t['latest'].category,'#4b5563') }}">{{ t['latest'].category }}</span>
                     <span class="mbx-from">{{ t['latest'].from_name or t['latest'].from_email or '(보낸사람 없음)' }}</span>
+                    {% if t['latest'].fdname %}<span class="mbx-fdtag" title="폴더">{{ t['latest'].fdname }}</span>{% endif %}
                     {% if t['latest'].summary_short %}<span class="mbx-sum">— {{ t['latest'].summary_short }}</span>{% endif %}
                   </div>
                 </div>
@@ -328,7 +352,6 @@
               <span class="mbx-time">🗑 {{ m.deleted_at[5:16] if m.deleted_at else (m.received_at[5:16] if m.received_at else '') }}</span>
             </div>
             <div class="mbx-r2">
-              {% if m.category %}<span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}
               <span class="mbx-from">{% if m.direction=='out' %}→ {{ m.to_email or '(받는사람 미정)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</span>
               {% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}
             </div>
@@ -353,14 +376,13 @@
         {# 보낸/임시함 (제목 우선 2줄, 보낸사람=받는사람) #}
         {% for m in mails %}
         <a href="{% if box=='draft' %}/mail/compose?draft={{ m.id }}{% else %}/mail/{{ m.id }}{% endif %}" class="mbx-row">
-          {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="별표" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
+          {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
           <div class="mbx-main">
             <div class="mbx-r1">
               <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
               <span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span>
             </div>
             <div class="mbx-r2">
-              {% if box != 'draft' %}<span class="mbx-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}
               <span class="mbx-from">→ {{ m.to_email or '(받는사람 미정)' }}</span>
               {% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}
             </div>
@@ -374,13 +396,13 @@
       {% if q or cur_star|default(false) or cur_unread|default(false) or cur_cust|default('') or cur_fd|default('') %}
       🔍 조건에 맞는 메일이 없습니다.<br><br><span style="font-size:12.5px;">검색어나 폴더·필터를 바꿔보세요.</span>
       {% elif box=='sent' %}
-      📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
+      📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">왼쪽 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
       {% elif box=='draft' %}
-      📝 임시저장된 메일이 없습니다.
+      📝 쓰다 만 메일이 없습니다.
       {% elif box=='trash' %}
       🗑 휴지통이 비어 있습니다.<br><br><span style="font-size:12.5px;">메일을 삭제하면 여기로 옮겨지고, 여기서 완전삭제할 수 있습니다.</span>
       {% else %}
-      📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">메일을 받거나 <b>📥 가져오기</b>로 당겨오면 여기에 쌓입니다.</span>
+      📭 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">메일을 받으면 여기에 쌓입니다.</span>
       {% endif %}
     </div>
     {% endif %}
@@ -391,12 +413,6 @@
     <div id="readPane" class="mbx-readpane empty">
       <div class="mbx-rp-ico">📧</div>
       왼쪽 목록에서 메일을 선택하면<br>여기에서 바로 내용을 볼 수 있어요.
-      <div class="mbx-rp-tips">
-        <div>📇 메일을 열고 보낸사람 옆 <b>「주소록에 등록」</b> → 서명에서 이름·직급·회사·전화·주소를 채워 드려요(확인만 하고 저장)</div>
-        <div>📮 광고·알림 메일은 <a href="/mail/cleanup"><b>보낸 곳별 정리</b></a>에서 한 번에 휴지통으로 · 나에게만 다시 안 받기</div>
-        <div><span class="mbx-reply lv2">↩ 회신</span> 제목 앞 표시 = 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함). 왼쪽 <b>↩ 회신 필요</b>에서 모아 보기</div>
-        <div><span class="mbx-dup-eg">×2</span> 제목 앞 숫자 = 그룹 주소 여러 곳으로 같은 메일이 와서 한 통으로 합친 것</div>
-      </div>
     </div>
     {% endif %}
   </div>
@@ -557,6 +573,12 @@ function toggleFolders(btn){
     if(split && window.matchMedia('(max-width:640px)').matches){ split.classList.add('folders-collapsed'); }
   }catch(e){}
 })();
+/* ── 메일 없는 폴더 보기(11-18) — 기본은 접어 둠 ── */
+function mfShowZero(ev, key){
+  ev.preventDefault(); ev.stopPropagation();
+  var g=document.querySelector('.mf-g[data-g="'+key+'"]'); if(g) g.classList.add('showzero');
+  return false;
+}
 /* ── 받은 메일 폴더 묶음 ▾ 접기·펴기 (11-17) — 이 브라우저에만 기억(없어도 펼친 채로 동작) ── */
 function mfToggle(ev, key){
   ev.preventDefault(); ev.stopPropagation();

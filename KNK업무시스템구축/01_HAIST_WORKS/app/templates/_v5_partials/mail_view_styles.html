@@ -24,6 +24,17 @@
   .mv-ai{border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#1e3a8a;white-space:pre-wrap;line-height:1.75}
   .mv-body{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;white-space:pre-wrap;line-height:1.8;font-size:14px;color:var(--ink)}
   .mv-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;align-items:center}
+  /* 11-18 단추 한 줄 + ⋯ 더 보기 */
+  .mv-star.on{border-color:#f59e0b;color:#b45309;background:#fffbeb;font-weight:700}
+  .mv-more{position:relative}
+  .mv-more>summary{list-style:none;cursor:pointer}
+  .mv-more>summary::-webkit-details-marker{display:none}
+  .mv-more-box{position:absolute;right:0;top:calc(100% + 4px);z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.14);padding:6px;min-width:230px;display:flex;flex-direction:column}
+  .mv-more-box button,.mv-more-box a{display:block;text-align:left;border:0;background:none;padding:8px 11px;border-radius:7px;font-size:13.5px;color:var(--ink);text-decoration:none;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .mv-more-box button:hover,.mv-more-box a:hover{background:#f3f4f6}
+  .mv-more-box .warn{color:#9a3412}
+  .mv-more-box hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+  @media print{.mv-more{display:none}}
   .mv-trans{border:1px dashed #c7d2fe;background:#f5f7ff;border-radius:10px;padding:12px 14px;margin-top:12px;display:none}
   .mv-viewtabs{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
   .mv-vtab{font-size:12.5px;padding:5px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}

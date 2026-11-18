@@ -22526,6 +22526,13 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                                     senders=(_mail_folders.senders_in(mf, fd) if fd else None))
         for _m in mails:
             _m["reply"] = reply_map.get(_m["id"])
+            # 목록 꼬리표 = 폴더 이름(11-18 대표 「쉽게 구분」) — 「일반」은 안 붙임(모두 같아 정보가 없음)
+            if mf:
+                try:
+                    _f = _mail_folders.folder_of(mf, _m.get("from_email") or "")
+                    _m["fdname"] = "" if _f.get("key") == "gen" else (_f.get("name") or "")
+                except Exception:
+                    _m["fdname"] = ""
         unread_n = _mailbox.count_unread(c, u["id"])
         cat_counts = _mailbox.category_counts(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
@@ -22541,6 +22548,32 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                folders=folders, cur_cust=(cust or "").strip(),
                reply_n=len(reply_map), cur_reply=bool(reply),
                mf=mf, cur_fd=fd, cur_fd_name=((mf or {}).get("labels", {}).get(fd, "") if fd else ""))
+
+
+@app.get("/mail/tools", response_class=HTMLResponse)
+async def mail_tools_page(req: Request):
+    """⚙ 설정·정리 — 한 달에 한 번 쓰는 메일 도구를 한 화면에(11-18 대표 「쉽게 보이고 쉽게 사용」).
+    매일 화면(받은편지함)에서는 뺀 단추들이 모두 여기에 있다. 화면만 — 새 기능·저장 칸 없음."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    has_tree = False
+    gen_n = 0
+    blocked_n = 0
+    with db_session() as c:
+        try:
+            _mail_folders.seed_if_owner(c, u["id"])
+            has_tree = bool(_mail_folders.has_tree(c, u["id"]))
+            if has_tree:
+                gen_n = int(((_mail_folders.classify(c, u["id"]) or {}).get("gen") or {}).get("n") or 0)
+        except Exception:
+            has_tree = False
+        try:
+            blocked_n = int(c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' "
+                                      "AND is_deleted=0 AND COALESCE(is_blocked,0)=1", (u["id"],)).fetchone()[0] or 0)
+        except Exception:
+            blocked_n = 0
+    return ctx(req, "mail_tools.html", user=u, has_tree=has_tree, gen_n=gen_n, blocked_n=blocked_n)
 
 
 # ── 메일 = 설치형 앱(PWA) — KNK Eum 처럼 바탕화면/홈 아이콘으로 설치 (대표 지시 2026-06-14) ──
