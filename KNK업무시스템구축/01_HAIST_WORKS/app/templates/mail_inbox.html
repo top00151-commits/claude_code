@@ -19,6 +19,48 @@
     grid-template-columns:var(--mbx-c1) 6px var(--mbx-c2) 6px minmax(0,1fr);
     border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
   .mbx-split.np{grid-template-columns:var(--mbx-c1) 6px minmax(0,1fr)}
+  /* ── 보기 방식(11-18 대표 「작은 모니터에서 세 칸은 못 본다」) — 아웃룩 「읽기 창: 오른쪽·아래·끄기」 + 폴더 칸 접기 ──
+     자리 이름(grid-area)으로 배치: 같은 화면 조각을 칸만 바꿔 놓는다. 900px 이하(휴대폰·태블릿 세로)는 지금처럼 한 줄로 쌓음. */
+  .mbx-split{position:relative;grid-template-areas:"side g1 list g2 read";
+    grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) var(--mbx-c2) 6px minmax(0,1fr)}
+  .mbx-split.np{grid-template-areas:"side g1 list";grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) minmax(0,1fr)}
+  .mbx-split>.mbx-side{grid-area:side}
+  .mbx-split>.mbx-gutter[data-g="1"]{grid-area:g1}
+  .mbx-split>.mbx-listcol{grid-area:list}
+  .mbx-split>.mbx-gutter[data-g="2"]{grid-area:g2}
+  .mbx-split>.mbx-readpane{grid-area:read}
+  /* 폴더 칸 접기 → ☰ 로 서랍처럼 열기 */
+  .mbx-split.fold-off{--mbx-c1e:0px;--mbx-gw:0px}
+  .mbx-split.fold-off>.mbx-side,.mbx-split.fold-off>.mbx-gutter[data-g="1"]{display:none}
+  .mbx-split.fold-off.fold-pop>.mbx-side{display:block;position:absolute;left:0;top:0;bottom:0;width:270px;z-index:30;box-shadow:6px 0 22px rgba(0,0,0,.18);border-right:1px solid var(--line)}
+  /* 읽기 칸 아래 */
+  .mbx-split.v-bottom{grid-template-areas:"side g1 list" "side g1 g2" "side g1 read";
+    grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) minmax(0,1fr);grid-template-rows:var(--mbx-r1,50%) 6px minmax(0,1fr)}
+  .mbx-split.v-bottom>.mbx-gutter[data-g="2"]{cursor:row-resize}
+  .mbx-split.v-bottom>.mbx-gutter[data-g="2"]::after{left:50%;right:auto;top:1px;bottom:1px;height:auto;width:34px;transform:translateX(-50%)}
+  /* 읽기 칸 끄기 — 목록만 넓게, 메일을 누르면 그 자리에서 크게(← 목록으로 · Esc) */
+  .mbx-split.v-list{grid-template-areas:"side g1 list";grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) minmax(0,1fr)}
+  .mbx-split.v-list>.mbx-gutter[data-g="2"]{display:none}
+  .mbx-split.v-list>.mbx-readpane{grid-area:list;display:none;z-index:2}
+  .mbx-split.v-list.reading>.mbx-readpane{display:block}
+  .mbx-readback{position:sticky;top:-14px;z-index:6;display:flex;align-items:center;gap:10px;margin:-14px -16px 12px;padding:8px 14px;background:#fff;border-bottom:1px solid var(--line)}
+  .mbx-readback button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .mbx-readback button:hover{background:#f1f5f9}
+  .mbx-readback span{color:var(--mute);font-size:12px}
+  /* 보기 단추(위 찾기 줄 왼쪽) */
+  .mbx-viewctl{display:flex;gap:6px;align-items:center}
+  .mbx-viewctl>button,.mbx-viewdd>summary{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 11px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;color:var(--ink);font-weight:600;list-style:none;white-space:nowrap}
+  .mbx-viewdd>summary::-webkit-details-marker{display:none}
+  .mbx-viewctl>button:hover,.mbx-viewdd>summary:hover{background:#f5f6f8}
+  .mbx-viewctl>button[hidden]{display:none}
+  .mbx-viewdd{position:relative}
+  .mbx-viewmenu{position:absolute;left:0;top:40px;z-index:40;width:290px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.14);padding:10px 12px;font-size:13px}
+  .mbx-viewmenu b{display:block;font-size:11.5px;color:var(--mute);margin:6px 0 4px}
+  .mbx-viewmenu label{display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:7px;cursor:pointer}
+  .mbx-viewmenu label:hover{background:#f5f6f8}
+  .mbx-viewmenu .pic{font-family:monospace;color:#64748b;font-size:12px;margin-left:auto;letter-spacing:-1px}
+  .mbx-viewmenu .note{margin-top:8px;font-size:11.5px;color:var(--mute);line-height:1.5}
+  @media(max-width:900px){.mbx-viewctl{display:none}}
   .mbx-gutter{background:#eef0f2;cursor:col-resize;position:relative}
   .mbx-gutter:hover,.mbx-gutter.dragging{background:var(--knk-red)}
   .mbx-gutter::after{content:"";position:absolute;left:1px;right:1px;top:50%;transform:translateY(-50%);height:30px;border-radius:3px;background:rgba(0,0,0,.12)}
@@ -229,6 +271,25 @@
 
   {# ── 상단 컴팩트 메뉴: 검색 + 액션 (메뉴 최대한 상단) ── #}
   <div class="mbx-topbar">
+    <div class="mbx-viewctl">
+      <button type="button" class="mbx-foldbtn" onclick="mbxFoldPop(event)" title="메일함·폴더 칸 열기(메일을 끌어 이 단추 위에 잠깐 두면 열림)" hidden>☰ 폴더</button>
+      {% if box=='in' %}
+      <details class="mbx-viewdd"><summary title="화면 나누는 방식 — 이 컴퓨터에서 기억">🗔 보기 ▾</summary>
+        <div class="mbx-viewmenu">
+          <b>읽기 칸(메일 내용)</b>
+          <label><input type="radio" name="mbxv" value="auto"> 자동 — 화면 크기에 맞춤 <span class="pic">추천</span></label>
+          <label><input type="radio" name="mbxv" value="right"> 오른쪽 <span class="pic">▯▯▯</span></label>
+          <label><input type="radio" name="mbxv" value="bottom"> 아래 — 목록 위·내용 아래 <span class="pic">▯▤</span></label>
+          <label><input type="radio" name="mbxv" value="list"> 끄기 — 목록만, 누르면 크게 <span class="pic">▯▭</span></label>
+          <b>폴더 칸</b>
+          <label><input type="radio" name="mbxf" value="auto"> 자동 — 좁으면 접기</label>
+          <label><input type="radio" name="mbxf" value="show"> 늘 보이기</label>
+          <label><input type="radio" name="mbxf" value="hide"> 접기 — 「☰ 폴더」로 열기</label>
+          <div class="note">이 컴퓨터에서만 기억합니다 · 칸 사이 경계선을 끌어 폭(아래 모드는 높이)도 바꿀 수 있어요</div>
+        </div>
+      </details>
+      {% endif %}
+    </div>
     <form class="mbx-search" method="get" action="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}">
       <input type="text" name="q" value="{{ q|default('') }}" autocomplete="off"
              placeholder="🔍 {{ '받는사람·제목·본문으로 찾기' if box=='sent' else '사람·회사·제목·내용·첨부 이름으로 찾기 (띄어 쓰면 모두 들어간 메일)' }}">
@@ -564,6 +625,7 @@ function clearActive(){ document.querySelectorAll('.mbx-row.active, .mbx-headlin
 (function(){ var p=document.getElementById('readPane'); if(p && p.classList.contains('empty')) window._mbxEmptyPane=p.innerHTML; })();
 function resetPane(){
   var pane=document.getElementById('readPane'); if(!pane) return;
+  var _sp=document.querySelector('.mbx-split'); if(_sp) _sp.classList.remove('reading');
   clearActive(); pane.classList.add('empty');
   pane.innerHTML = window._mbxEmptyPane || '<div class="mbx-rp-ico">📧</div>왼쪽 목록에서 메일을 선택하면<br>여기에서 바로 내용을 볼 수 있어요.';
 }
@@ -576,6 +638,12 @@ async function loadPane(id, rowEl, q){
     var r=await fetch('/mail/'+id+'/pane'+(q||''),{headers:{'X-Requested-With':'fetch'}});
     if(!r.ok){ pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#b91c1c">메일을 불러오지 못했습니다.</div>'; return; }
     var html=await r.text(); pane.innerHTML=html;
+    var _sp=document.querySelector('.mbx-split');
+    if(_sp && _sp.classList.contains('v-list')){
+      _sp.classList.add('reading');
+      pane.insertAdjacentHTML('afterbegin','<div class="mbx-readback"><button type="button" onclick="mbxBackToList()">← 목록으로</button><span>Esc 키로도 돌아가요</span></div>');
+      pane.scrollTop=0;
+    }
     pane.querySelectorAll('script').forEach(function(old){
       var s=document.createElement('script');
       if(old.src) s.src=old.src; else s.textContent=old.textContent;
@@ -630,6 +698,7 @@ function toggleThread(ev, btn){
     var g=split.querySelector(sel); if(!g) return;
     g.addEventListener('mousedown', function(e){
       if(narrow()) return;
+      if(varName==='--mbx-c2' && split.classList.contains('v-bottom')){ return mbxDragRows(e, g); }
       e.preventDefault();
       var startX=e.clientX;
       var cur=parseInt(getComputedStyle(split).getPropertyValue(varName),10)||0;
@@ -647,6 +716,19 @@ function toggleThread(ev, btn){
       document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
     });
   }
+  // 아래 모드: 목록 높이(--mbx-r1) 끌어 바꾸기
+  window.mbxDragRows=function(e, g){
+    e.preventDefault();
+    var startY=e.clientY, lc=split.querySelector('.mbx-listcol'), cur=lc?lc.getBoundingClientRect().height:300;
+    var H=split.getBoundingClientRect().height;
+    g.classList.add('dragging'); document.body.style.cursor='row-resize'; document.body.style.userSelect='none';
+    function move(ev){ var h=Math.min(H-140, Math.max(140, cur+(ev.clientY-startY))); split.style.setProperty('--mbx-r1', h+'px'); }
+    function up(){ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up);
+      g.classList.remove('dragging'); document.body.style.cursor=''; document.body.style.userSelect='';
+      try{ localStorage.setItem('knkmail.r1', parseInt(split.style.getPropertyValue('--mbx-r1'),10)||0); }catch(e){} }
+    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+  };
+  try{ var r1=localStorage.getItem('knkmail.r1'); if(r1 && parseInt(r1,10)>0) split.style.setProperty('--mbx-r1', parseInt(r1,10)+'px'); }catch(e){}
   attachDrag('[data-g="1"]','--mbx-c1','knkmail.c1',150,520);
   attachDrag('[data-g="2"]','--mbx-c2','knkmail.c2',260,920);
 })();
@@ -910,6 +992,63 @@ async function mbxDropDo(tg, ids){
     if(!tg || tg.dataset.drop==='no') return;
     e.preventDefault(); mbxDropDo(tg, d.ids);
   });
+})();
+/* ── 보기 방식(11-18) — 자동(화면 폭) · 오른쪽 · 아래 · 끄기(목록만) + 폴더 칸 자동·보이기·접기 · 이 컴퓨터에 기억 ──
+   자동: 메일 칸 전체 폭 1250 이상 = 세 칸 / 1000~1250 = 폴더 접고 두 칸 / 1000 미만 = 목록만(누르면 크게) */
+(function(){
+  var split=document.querySelector('.mbx-split'); if(!split) return;
+  var isIn=!split.classList.contains('np');
+  function get(k,d){ try{ return localStorage.getItem(k)||d; }catch(e){ return d; } }
+  function put(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  function apply(){
+    var fb=document.querySelector('.mbx-foldbtn');
+    if(window.matchMedia('(max-width:900px)').matches){
+      split.classList.remove('v-bottom','v-list','fold-off','fold-pop','reading'); if(fb) fb.hidden=true; return;
+    }
+    var W=split.clientWidth||window.innerWidth;
+    var v=get('knkmail.view','auto'), f=get('knkmail.fold','auto');
+    var ev = isIn ? (v==='auto' ? (W>=1000 ? 'right' : 'list') : v) : 'right';
+    var ef = f==='auto' ? ((ev==='right' && isIn) ? (W>=1250 ? 'show' : 'hide') : (W>=860 ? 'show' : 'hide')) : f;
+    split.classList.toggle('v-bottom', ev==='bottom');
+    var wasList=split.classList.contains('v-list');
+    split.classList.toggle('v-list', ev==='list');
+    if(wasList && ev!=='list'){ split.classList.remove('reading'); var bk=document.querySelector('.mbx-readback'); if(bk) bk.remove(); }
+    if(!wasList && ev==='list'){ var p=document.getElementById('readPane'); if(p && !p.classList.contains('empty')){ split.classList.add('reading');
+      if(!p.querySelector('.mbx-readback')) p.insertAdjacentHTML('afterbegin','<div class="mbx-readback"><button type="button" onclick="mbxBackToList()">← 목록으로</button><span>Esc 키로도 돌아가요</span></div>'); } }
+    split.classList.toggle('fold-off', ef==='hide');
+    if(ef!=='hide') split.classList.remove('fold-pop');
+    if(fb) fb.hidden=(ef!=='hide');
+    document.querySelectorAll('input[name=mbxv]').forEach(function(r){ r.checked=(r.value===v); });
+    document.querySelectorAll('input[name=mbxf]').forEach(function(r){ r.checked=(r.value===f); });
+    split.dataset.view=ev; split.dataset.fold=ef;
+  }
+  window.mbxApplyView=apply;
+  document.addEventListener('change', function(e){
+    var t=e.target; if(!t || !t.name) return;
+    if(t.name==='mbxv'){ put('knkmail.view', t.value); apply(); }
+    else if(t.name==='mbxf'){ put('knkmail.fold', t.value); apply(); }
+  });
+  var rt=0; window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(apply, 80); });
+  apply();
+  window.mbxFoldPop=function(ev){ if(ev) ev.stopPropagation(); split.classList.toggle('fold-pop'); };
+  window.mbxBackToList=function(){ resetPane(); };
+  document.addEventListener('click', function(e){
+    if(split.classList.contains('fold-pop') && !e.target.closest('.mbx-side') && !e.target.closest('.mbx-foldbtn')) split.classList.remove('fold-pop');
+    var dd=document.querySelector('.mbx-viewdd'); if(dd && dd.open && !e.target.closest('.mbx-viewdd')) dd.open=false;
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Escape') return;
+    if(split.classList.contains('fold-pop')){ split.classList.remove('fold-pop'); return; }
+    var tg=e.target, tag=(tg && tg.tagName)||'';
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(tg && tg.isContentEditable)) return;
+    if(split.classList.contains('v-list') && split.classList.contains('reading')) resetPane();
+  });
+  // 메일을 끌다가 「☰ 폴더」 위에 잠깐 두면 폴더 서랍이 열림(끌어서 옮기기와 함께)
+  document.addEventListener('dragover', function(e){
+    var b=e.target && e.target.closest ? e.target.closest('.mbx-foldbtn') : null;
+    if(b && !split.classList.contains('fold-pop')){ split.classList.add('fold-pop'); }
+  });
+  document.addEventListener('dragend', function(){ setTimeout(function(){ split.classList.remove('fold-pop'); }, 50); });
 })();
 /* ── 메일 없는 폴더 보기(11-18) — 기본은 접어 둠 ── */
 function mfShowZero(ev, key){

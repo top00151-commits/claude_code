@@ -136,6 +136,16 @@ try:
     check("빈 읽기 칸에 사용법 한 줄", "끌어서</b> 왼쪽 폴더" in h)
     check("접힌 폴더 묶음·「메일 없는 N곳」 위에 머물면 펼침", "mf-zero-more" in h and "showzero" in h and "650" in h)
 
+    print("== 3b. 보기 방식(11-18 대표 「작은 모니터에서 세 칸은 못 본다」) ==")
+    check("「🗔 보기」 메뉴: 읽기 칸 자동·오른쪽·아래·끄기 + 폴더 칸 자동·보이기·접기", all(('name="mbxv" value="%s"' % v) in h for v in ("auto", "right", "bottom", "list")) and all(('name="mbxf" value="%s"' % v) in h for v in ("auto", "show", "hide")))
+    check("「☰ 폴더」 서랍 단추 + 끌다가 올려 두면 열림", 'class="mbx-foldbtn"' in h and "closest('.mbx-foldbtn')" in h)
+    check("자동 = 칸 폭 1250 이상 세 칸 · 1000~1250 폴더 접기 · 1000 미만 목록만", "W>=1000 ? 'right' : 'list'" in h and "W>=1250 ? 'show' : 'hide'" in h)
+    check("목록만 모드: 누르면 그 자리에서 크게 + 「← 목록으로」 + Esc", "mbx-readback" in h and "mbxBackToList()" in h and "e.key!=='Escape'" in h)
+    check("자리 이름 배치(아래 모드 3줄 · 끄기 모드는 같은 칸에 겹침)", '"side g1 list" "side g1 g2" "side g1 read"' in h and ".mbx-split.v-list>.mbx-readpane{grid-area:list" in h)
+    check("이 컴퓨터에 기억(knkmail.view · knkmail.fold · 아래 모드 높이)", "knkmail.view" in h and "knkmail.fold" in h and "knkmail.r1" in h)
+    hs0 = k.get("/mail/sent").text
+    check("보낸편지함 등 다른 메일함: 「보기」 메뉴 없음 · 폴더 접기 단추는 있음", 'name="mbxv"' not in hs0 and 'class="mbx-foldbtn"' in hs0)
+
     print("== 4. 서버 길(놓기 · 되돌리기) ==")
     f1 = sorted(ok_ids)[0]
     j = k.post("/mail/bulk", data={"op": "pin", "ids": "%d,%d" % (ids["s1"], ids["other"]), "folder_id": f1}).json()
