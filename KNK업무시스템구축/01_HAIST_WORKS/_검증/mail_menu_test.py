@@ -98,8 +98,8 @@ try:
     check("왼쪽 맨 위 「✏️ 메일 쓰기」", sd.find('class="mbx-write"') >= 0 and sd.find('class="mbx-write"') < sd.find("받은편지함"), sd[:300])
     check("빨리 보기: 받은편지함 → ⭐ 중요 → ↩ 회신 필요 (순서)",
           0 < sd.find("📥 받은편지함") < sd.find("⭐ 중요") < sd.find("↩ 회신 필요"), (sd.find("📥 받은편지함"), sd.find("⭐ 중요"), sd.find("↩ 회신 필요")))
-    check("내 메일: 보낸편지함 · 쓰다 만 메일 · 휴지통", "📤 보낸편지함" in sd and "📝 쓰다 만 메일" in sd and "🗑 휴지통" in sd)
-    check("「임시보관함」 이름 없음(뒤에 올 「보관함」과 헷갈리지 않게)", "임시보관함" not in h)
+    check("메일함(11-18 2단계 아웃룩·하이웍스 이름): 보낸편지함 · 임시보관함 · 휴지통", "📤 보낸편지함" in sd and "📝 임시보관함" in sd and ">즐겨찾기</div>" in sd and ">메일함</div>" in sd and "🗑 휴지통" in sd)
+    check("「쓰다 만 메일」 이름 없음 → 「임시보관함」(익숙한 이름 · 11-18 2단계) · 「📦 보관함」과 따로", "쓰다 만 메일" not in h and "📦 보관함" in sd)
     check("폴더가 빨리 보기 아래 · ⚙ 설정·정리는 맨 아래", sd.find("↩ 회신 필요") < sd.find("📁 폴더") < sd.find("⚙ 설정·정리"), (sd.find("📁 폴더"), sd.find("⚙ 설정·정리")))
     check("⚙ 설정·정리 → /mail/tools", 'href="/mail/tools"' in sd)
     check("메일 종류(분류) 칸 없음 — ?cat= 링크·「분류」 머리 없음", "?cat=" not in sd and '>분류</div>' not in sd)
@@ -114,7 +114,7 @@ try:
                        ("정리(디스크)", "/admin/mail-purge"), ("자동분류", "/mail/rules"), ("보낸 곳별 정리", "/mail/cleanup"),
                        ("중복정리", "dedupInbox")):
         check("도구줄에 「%s」 없음" % nm, needle not in top, needle)
-    check("도구줄에 「메일 쓰기」 단추 없음(왼쪽 한 곳만)", "/mail/compose" not in top)
+    check("위 명령 줄 「✉ 새 메일」(아웃룩처럼 · 11-18 2단계) — 찾기 칸 안에는 쓰기 단추 없음", 'id="mbxCmd"' in h and "새 메일</span>" in h and "/mail/compose" not in top[top.find('<form class="mbx-search"'):])
     check("찾기 칸 + 검색 단추는 그대로", 'name="q"' in top and ">검색</button>" in top)
     check("날짜는 「▾ 자세히」 안(늘 보이지 않음)", "<details class=\"mbx-more\"" in top and 'name="df"' in top and "▾ 자세히" in top)
     check("첨부 체크박스(숫자만 보이던 것) 없음", 'type="checkbox" name="att"' not in top)
@@ -143,7 +143,7 @@ try:
     check("kmail 받은편지함: 머리띠에 받은·보낸·쓰다 만·쓰기 링크 없음", 'href="/mail/sent"' not in head and 'href="/mail/compose"' not in head, head[:400])
     hc = km.get("/mail/compose").text
     headc = hc[hc.find('class="mail-app-top"'):hc.find('class="mail-app-top"') + 3000]
-    check("kmail 쓰기 화면(왼쪽 메뉴 없음): 머리띠 링크 그대로 · 「쓰다 만 메일」", 'href="/mail/inbox"' in headc and "쓰다 만 메일" in headc, headc[:400])
+    check("kmail 쓰기 화면(왼쪽 메뉴 없음): 머리띠 링크 그대로 · 「임시보관함」", 'href="/mail/inbox"' in headc and "임시보관함" in headc, headc[:400])
     check("kmail ⚙ 설정·정리 200 · 머리띠 링크 있음", km.get("/mail/tools").status_code == 200 and 'href="/mail/inbox">받은편지함</a>' in km.get("/mail/tools").text)
 
     print("== 5. 읽기 화면 ==")

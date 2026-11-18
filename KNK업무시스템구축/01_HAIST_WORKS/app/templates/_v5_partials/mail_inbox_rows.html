@@ -1,24 +1,24 @@
 {# 받은편지함 목록 줄 — 첫 화면과 「▼ 더 보기」(이어서 200통) 공용 (11-18 대표 「쉽게 찾기·구분·보기」 2단계)
+   11-18 메일 2단계(아웃룩식): 한 줄 = ① 보낸 사람 · 시각 ② 제목 · 📎 ③ 꼬리표 · 본문 첫 줄 — 아웃룩·하이웍스와 같은 순서
    기대 컨텍스트: mails, threads, thread_on, more_href, remain_n, prev_day #}
+{% macro rowdata(m) %} data-mail-id="{{ m.id }}" data-arc="{{ m.is_archived|default(0) }}" data-pin="{{ m.fd_pin|default('') or '' }}" data-fd="{{ m.fdkey|default('') }}" data-from="{{ m.from_email|default('') or '' }}" data-dir="{{ m.direction|default('in') }}" onclick="return rowClick(event,{{ m.id }})"{% endmacro %}
+{% macro tags(m) %}{% if m.fdname %}<span class="mbx-fdtag fk-{{ m.fdkind or 'x' }}" title="폴더">{{ m.fdname }}</span>{% endif %}{% if m.ccme %}<span class="mbx-cc" title="나는 참조로 받은 메일">참조</span>{% endif %}{% if m.ad %}<span class="mbx-ad" title="광고·알림으로 보이는 곳(⚙ 설정·정리 → 보낸 곳별 정리와 같은 기준)">광고·알림</span>{% endif %}{% if m.is_archived %}<span class="mbx-arc" title="보관한 메일(받은편지함에서 빠짐 · 지우지 않음)">📦 보관</span>{% endif %}{% endmacro %}
+{% macro pv(m) %}{% set _p = (m.preview or m.summary_short or '')|replace('  ', ' ')|replace('  ', ' ') %}{% if _p %}<span class="mbx-pv mbx-sum">{{ _p[:160] }}</span>{% endif %}{% endmacro %}
 {% macro mailrow(m, child=False) %}
 {% set _out = (m.direction|default('in')) == 'out' %}
-<a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read and not _out %} unread{% endif %}{% if child %} mbx-child{% endif %}{% if m.ad %} robot{% endif %}" data-mail-id="{{ m.id }}" data-arc="{{ m.is_archived|default(0) }}" data-pin="{{ m.fd_pin|default('') or '' }}" data-fd="{{ m.fdkey|default('') }}" data-from="{{ m.from_email|default('') or '' }}" data-dir="{{ m.direction|default('in') }}" onclick="return rowClick(event,{{ m.id }})">
+<a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read and not _out %} unread{% endif %}{% if child %} mbx-child{% endif %}{% if m.ad %} robot{% endif %}"{{ rowdata(m) }}>
   <input type="checkbox" class="mbx-ck" data-ids="{{ m.id }}" title="고르기 — 여러 통 한 번에" onclick="mbxCk(event,this)">
   <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ m.id }})">★</button>
   <div class="mbx-main">
     <div class="mbx-r1">
-      <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{% if _out %}<span class="mbx-sent" title="내가 보낸 메일">📤 보냄</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
+      <span class="mbx-from">{% if _out %}→ {{ m.to_email or '(받는사람 없음)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</span>
       <span class="mbx-time" title="{{ m.received_at }}">{{ m.tlabel or (m.received_at[5:16] if m.received_at else '') }}</span>
     </div>
-    <div class="mbx-r2">
-      <span class="mbx-from">{% if _out %}→ {{ m.to_email or '(받는사람 없음)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</span>
-      {% if m.fdname %}<span class="mbx-fdtag fk-{{ m.fdkind or 'x' }}" title="폴더">{{ m.fdname }}</span>{% endif %}
-      {% if m.ccme %}<span class="mbx-cc" title="나는 참조로 받은 메일">참조</span>{% endif %}
-      {% if m.ad %}<span class="mbx-ad" title="광고·알림으로 보이는 곳(⚙ 설정·정리 → 보낸 곳별 정리와 같은 기준)">광고·알림</span>{% endif %}
-      {% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}
-      {% if m.is_archived %}<span class="mbx-arc" title="보관한 메일(받은편지함에서 빠짐 · 지우지 않음)">📦 보관</span>{% endif %}
+    <div class="mbx-rs">
+      <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{% if _out %}<span class="mbx-sent" title="내가 보낸 메일">📤 보냄</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
       {% if m.att_n %}<span class="mbx-att" title="첨부파일 {{ m.att_n }}개">📎 {{ m.att_n }}</span>{% endif %}
     </div>
+    <div class="mbx-r2">{{ tags(m) }}{{ pv(m) }}</div>
   </div>
 </a>
 {% endmacro %}
@@ -28,27 +28,24 @@
     {% set L = t['latest'] %}
     {% if L.day and L.day != ns.day %}<div class="mbx-day">{{ L.day }}</div>{% set ns.day = L.day %}{% endif %}
     {% if t['count'] > 1 %}
+    {% set _lout = (L.direction|default('in')) == 'out' %}
     <div class="mbx-thread">
       <div class="mbx-thread-head{% if not L.is_read %} unread{% endif %}">
         <button type="button" class="mbx-twist" title="대화 펼치기/접기" aria-expanded="false" onclick="toggleThread(event,this)">▸</button>
-        <a href="/mail/{{ L.id }}" class="mbx-headlink{% if not L.is_read %} unread{% endif %}{% if L.ad %} robot{% endif %}" data-mail-id="{{ L.id }}" data-arc="{{ L.is_archived|default(0) }}" data-pin="{{ L.fd_pin|default('') or '' }}" data-fd="{{ L.fdkey|default('') }}" data-from="{{ L.from_email|default('') or '' }}" data-dir="{{ L.direction|default('in') }}" onclick="return rowClick(event,{{ L.id }})">
+        <a href="/mail/{{ L.id }}" class="mbx-headlink{% if not L.is_read %} unread{% endif %}{% if L.ad %} robot{% endif %}"{{ rowdata(L) }}>
           <input type="checkbox" class="mbx-ck" data-ids="{% for x in t['items'] %}{{ x.id }}{{ ',' if not loop.last else '' }}{% endfor %}" title="이 대화 {{ t['count'] }}통 모두 고르기" onclick="mbxCk(event,this)">
           <button type="button" class="mbx-star {{ 'on' if L.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ L.id }})">★</button>
           <div class="mbx-main">
             <div class="mbx-r1">
-              <span class="mbx-subj">{% if (L.direction|default('in')) == 'out' %}<span class="mbx-sent">📤 보냄</span> {% endif %}{{ L.subject or '(제목 없음)' }}</span>
+              <span class="mbx-from">{% if _lout %}→ {{ L.to_email or '' }}{% else %}{{ L.from_name or L.from_email or '(보낸사람 없음)' }}{% endif %}</span>
               <span class="mbx-tcount{% if t['unread_count'] %} has-unread{% endif %}" title="이 대화 {{ t['count'] }}통{% if t['unread_count'] %} · 안읽음 {{ t['unread_count'] }}통{% endif %}">💬 {{ t['count'] }}</span>
               <span class="mbx-time" title="{{ L.received_at }}">{{ L.tlabel or (L.received_at[5:16] if L.received_at else '') }}</span>
             </div>
-            <div class="mbx-r2">
-              <span class="mbx-from">{% if (L.direction|default('in')) == 'out' %}→ {{ L.to_email or '' }}{% else %}{{ L.from_name or L.from_email or '(보낸사람 없음)' }}{% endif %}</span>
-              {% if L.fdname %}<span class="mbx-fdtag fk-{{ L.fdkind or 'x' }}" title="폴더">{{ L.fdname }}</span>{% endif %}
-              {% if L.ccme %}<span class="mbx-cc" title="나는 참조로 받은 메일">참조</span>{% endif %}
-              {% if L.ad %}<span class="mbx-ad">광고·알림</span>{% endif %}
-              {% if L.summary_short %}<span class="mbx-sum">— {{ L.summary_short }}</span>{% endif %}
-              {% if L.is_archived %}<span class="mbx-arc">📦 보관</span>{% endif %}
+            <div class="mbx-rs">
+              <span class="mbx-subj">{% if _lout %}<span class="mbx-sent">📤 보냄</span> {% endif %}{{ L.subject or '(제목 없음)' }}</span>
               {% if L.att_n %}<span class="mbx-att" title="첨부파일 {{ L.att_n }}개">📎 {{ L.att_n }}</span>{% endif %}
             </div>
+            <div class="mbx-r2">{{ tags(L) }}{{ pv(L) }}</div>
           </div>
         </a>
       </div>

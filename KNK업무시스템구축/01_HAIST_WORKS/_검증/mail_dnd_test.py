@@ -146,6 +146,22 @@ try:
     hs0 = k.get("/mail/sent").text
     check("보낸편지함 등 다른 메일함: 「보기」 메뉴 없음 · 폴더 접기 단추는 있음", 'name="mbxv"' not in hs0 and 'class="mbx-foldbtn"' in hs0)
 
+    print("== 3c. 아웃룩식 화면(11-18 2단계) ==")
+    a1x = h[h.find('data-mail-id="%d"' % ids["s1"]):]
+    a1x = a1x[:a1x.find("</a>")]
+    check("목록 줄 = ① 보낸 사람·시각 ② 제목 ③ 꼬리표·본문 첫 줄(아웃룩 순서)",
+          0 < a1x.find('class="mbx-from"') < a1x.find('class="mbx-subj"') < a1x.find('class="mbx-pv') and "발주서 송부드립니다" in a1x, a1x[:600])
+    check("명령 줄: 새 메일·삭제·보관·이동·답장·전체 답장·전달·읽음·중요", 'id="mbxCmd"' in h and all(('data-cmd="%s"' % c_) in h for c_ in ("delete", "archive", "move", "reply", "replyall", "forward", "read", "star")))
+    check("오른쪽 클릭 메뉴 + 이동 ▾ 메뉴(왼쪽 폴더와 같은 목록)", "addEventListener('contextmenu'" in h and "mbxMoveMenu" in h and '.mbx-side [data-drop="pin"]' in h)
+    check("단축키(아웃룩): ↑↓ · R · Shift+R · Shift+F · Delete · E · U · Insert · N — 글 쓰는 칸에서는 안 함",
+          all(x in h for x in ("'ArrowDown'", "mbxCmd('reply')", "mbxCmd('replyall')", "mbxCmd('forward')", "'Delete':'delete'", "'e':'archive'", "'u':'read'", "'Insert':'star'")) and "isContentEditable" in h)
+    check("지우거나 보관하면 그 자리의 다음 메일이 열림(아웃룩처럼)", "loadPane(_nx.dataset.mailId, _nx)" in h)
+    check("왼쪽 이름: 즐겨찾기 · 메일함 · 임시보관함", ">즐겨찾기</div>" in h and ">메일함</div>" in h and "📝 임시보관함" in h)
+    vp = k.get("/mail/%d/pane" % ids["s1"]).text
+    check("읽기 칸: 제목 → (머리글자) 보낸 사람 줄 + 같은 줄 오른쪽 답장 단추 → 표시 한 줄",
+          0 < vp.find('class="mv-subj"') < vp.find('class="mv-av"') < vp.find('class="mv-hwho"') < vp.find('class="mv-actions"') < vp.find('class="mv-chips"'), vp[:300])
+    check("읽기 칸: 「받은주소·받은시각」 표 대신 한 줄 「받는 사람 … · 시각」 · 서식/글자 탭은 ⋯ 안으로", "받은주소" not in vp and 'class="mv-hsub">받는 사람' in vp and '<div class="mv-viewtabs" hidden>' in vp or 'mv-viewtabs' not in vp)
+
     print("== 4. 서버 길(놓기 · 되돌리기) ==")
     f1 = sorted(ok_ids)[0]
     j = k.post("/mail/bulk", data={"op": "pin", "ids": "%d,%d" % (ids["s1"], ids["other"]), "folder_id": f1}).json()

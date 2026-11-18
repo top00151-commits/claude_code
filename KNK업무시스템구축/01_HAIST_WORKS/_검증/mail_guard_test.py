@@ -210,7 +210,8 @@ check("읽기 화면: 위험(3)·스팸함 = 「스팸함으로 옮겼습니다�
 v2 = render(2, "송금·계좌 변경 요구 — 반드시 전화로 거래처에 직접 확인")
 check("읽기 화면: 의심(2) = 「피싱·사칭 의심 메일」", "피싱·사칭 의심 메일" in v2 and v2.count("<li>") == 1)
 check("읽기 화면: 이유 글에 태그가 섞여도 그대로 글자로(끼워넣기 불가)", "<script>alert(1)" not in render(2, "<script>alert(1)</script>") and "&lt;script&gt;alert(1)" in render(2, "<script>alert(1)</script>"))
-check("읽기 화면: 외부(1)는 옛 안내 그대로 · 안전(0)은 안내 없음", "외부에서 온 메일입니다" in render(1, "외부 발신") and "mv-warn" not in render(0, ""))
+check("읽기 화면: 외부(1)는 띠 대신 작은 표시 「회사 밖에서 온 메일」(11-18 2단계 · 본문까지 띠 줄이기) · 안전(0)은 표시 없음",
+      "회사 밖에서 온 메일" in render(1, "외부 발신") and "mv-warn" not in render(1, "외부 발신") and "회사 밖에서 온 메일" not in render(0, "") and "mv-warn" not in render(0, ""))
 
 print("\n결과: PASS %d / FAIL %d" % (P, F))
 sys.exit(1 if F else 0)

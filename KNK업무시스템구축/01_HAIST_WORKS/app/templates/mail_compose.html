@@ -543,7 +543,7 @@ function abPut(target){
     var did=document.getElementById('cDraftId').value; if(did) fd.append('draft_id', did);
     cmsg('💾 저장 중...','');
     try{ var r=await fetch('/mail/draft/save',{method:'POST',body:fd}); var j=await r.json();
-      if(j.ok){ document.getElementById('cDraftId').value=j.draft_id; cmsg('💾 임시저장됨 — 「📝 쓰다 만 메일」에서 이어 쓸 수 있어요','green'); if(window.cKeepClear) window.cKeepClear(); }
+      if(j.ok){ document.getElementById('cDraftId').value=j.draft_id; cmsg('💾 임시저장됨 — 「📝 임시보관함」에서 이어 쓸 수 있어요','green'); if(window.cKeepClear) window.cKeepClear(); }
       else cmsg('⚠ 저장 실패','red');
     }catch(e){ cmsg('⚠ 네트워크 오류','red'); }
   };

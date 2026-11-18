@@ -796,7 +796,8 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                    {_dup_count_sql(c)} AS dup_count,
                    (SELECT COUNT(*) FROM mail_attachments a WHERE a.mail_id=mail_messages.id
                       AND COALESCE(a.is_inline,0)=0) AS att_n,
-                   substr(COALESCE(summary,''),1,160) AS summary_short
+                   substr(COALESCE(summary,''),1,160) AS summary_short,
+                   trim(replace(replace(replace(substr(COALESCE(body_text,''),1,240), char(13),' '), char(10),' '), char(9),' ')) AS preview
             FROM mail_messages WHERE {where}
             ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?""",
         (*args, limit, offset),
