@@ -8,7 +8,7 @@
               <button type="button" class="z61q-btn" id="z61qPick">📎 견적서 고르기</button>
               <input type="file" id="z61qFile" accept=".pdf,.xlsx,.xlsm,.xls,.png,.jpg,.jpeg" data-knk-no-dropzone style="display:none;">
             </div>
-            {% if qf_mode == 'edit' and qf_pid and z62_can_upload(user) and z61_quote_files(qf_pid) %}{# z1191z63: 이미 붙은 견적서 · 🗑 빼기 #}
+            {% if qf_mode == 'edit' and qf_pid and z62_can_upload(user) %}{# z1191z63·z64: 이미 붙은 견적서 · 🗑 빼기 · 없으면 「등록된 견적서가 없습니다.」 #}
             <div class="z63-have" style="margin-top:8px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;"><div style="font-size:12.5px;font-weight:700;color:#334155;">📎 이 프로젝트에 붙은 견적서 <span style="font-weight:400;color:#64748b;">— 잘못 올린 것은 🗑 빼기</span></div>
             {% set qr_pid = qf_pid %}{% include "_v5_partials/quote_rows.html" %}</div>
             {% endif %}

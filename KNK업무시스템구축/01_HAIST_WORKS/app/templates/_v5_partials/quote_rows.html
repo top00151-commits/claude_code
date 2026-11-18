@@ -1,8 +1,12 @@
 {# z1191z63 (대표 11-18 「견적을 잘못 올려서 삭제할려면 어떻게해야해?」 → 「견적빼기는 견적 등록하는 화면에는 무조건 넣어줘」):
    프로젝트에 붙은 견적서 줄 — 📄 이름 · 읽은 품명·금액·견적일 · 올린 사람 · 👁 보기/⬇ 내려받기 · 🗑 빼기(올린 사람·기술영업팀 — 대표 「관리자는 빼자」)
    쓰는 곳: 상세 「프로젝트 정보」 견적서 칸 · 수정 화면 두 곳의 견적서 띠.  변수: qr_pid
-   빼기 = 화면에서 숨김 + 이력 · 파일은 30일 보관 뒤 지움 · 뺀 자리에 「되돌리기」 #}
-{% for _qf61 in z61_quote_files(qr_pid) %}
+   z1191z64 (대표 11-18 「뺀 견적서는 … "등록된 견적서가 없습니다." 이렇게 … 처음부터 없을때도 · 되돌리기 기능은 삭제 · 30일 보관도 하지마」):
+   빼기 = 파일·줄 바로 지움(되돌릴 수 없음) · 변경 이력(누가)만 남음 · 줄이 하나도 없으면 「등록된 견적서가 없습니다.」 #}
+{% set _qfl64 = z61_quote_files(qr_pid) %}
+<div class="z63-list" data-pid="{{ qr_pid }}">
+<div class="z63-none" style="margin-top:6px;font-size:12px;color:#64748b;{% if _qfl64 %}display:none;{% endif %}">등록된 견적서가 없습니다.</div>
+{% for _qf61 in _qfl64 %}
 <div class="z62-qrow" data-fid="{{ _qf61.id }}" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;padding:6px 9px;border:1px solid #dbeafe;background:#f8fbff;border-radius:8px;">
   <a class="z61-qf" href="/projects/{{ qr_pid }}/quote-files/{{ _qf61.id }}" target="_blank" rel="noopener" title="{{ _qf61.by_name or '' }} · {{ _qf61.created_at or '' }} 올림" style="font-size:12px;color:#1d4ed8;font-weight:700;text-decoration:none;word-break:break-all;">📄 {{ _qf61.orig_name }}</a>
   <span style="font-size:11.5px;color:#475569;">{% if _qf61.item %}품명 <b style="color:#0f172a;">{{ _qf61.item }}</b>{% endif %}{% if _qf61.amount %} · 금액 <b style="color:#0f172a;">{{ '{:,.0f}'.format(_qf61.amount|float) }}</b> {{ _qf61.cur }}{% endif %}{% if _qf61.qdate %} · 견적일 {{ _qf61.qdate }}{% endif %}{% if _qf61.locked %} · 🔒 암호 파일(열 때 비밀번호){% endif %}</span>
@@ -10,10 +14,11 @@
   <span style="margin-left:auto;display:inline-flex;gap:6px;">
   {% if _qf61.kind in ('pdf', 'img') %}<button type="button" class="z62-view" data-url="/projects/{{ qr_pid }}/quote-files/{{ _qf61.id }}" data-kind="{{ _qf61.kind }}" data-name="{{ _qf61.orig_name }}" style="padding:2px 10px;border:1px solid #93c5fd;background:#fff;color:#1d4ed8;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">👁 보기</button>
   {% else %}<a href="/projects/{{ qr_pid }}/quote-files/{{ _qf61.id }}" style="padding:2px 10px;border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:6px;font-size:11.5px;font-weight:700;text-decoration:none;" title="엑셀은 브라우저에서 바로 볼 수 없어 내려받아 엽니다">⬇ 내려받기</a>{% endif %}
-  {% if z63_can_remove(user, _qf61) %}<button type="button" class="z63-rm" data-fid="{{ _qf61.id }}" data-name="{{ _qf61.orig_name }}" title="잘못 올린 견적서를 이 프로젝트에서 뺍니다(30일 안에는 되살릴 수 있음)" style="padding:2px 10px;border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑 빼기</button>{% endif %}
+  {% if z63_can_remove(user, _qf61) %}<button type="button" class="z63-rm" data-fid="{{ _qf61.id }}" data-name="{{ _qf61.orig_name }}" title="잘못 올린 견적서를 이 프로젝트에서 뺍니다(파일은 바로 지워지고 되돌릴 수 없음)" style="padding:2px 10px;border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑 빼기</button>{% endif %}
   </span>
 </div>
 {% endfor %}
+</div>
 <script>(function(){
   if(window.__z63rows) return; window.__z63rows=1;
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -41,30 +46,17 @@
       document.addEventListener('keydown', onKey);
       return;
     }
-    /* 🗑 빼기 → 확인 한 번 → 그 줄을 「빼었습니다 · 되돌리기」로(화면을 다시 불러오지 않음 — 수정 화면에 쓰던 칸이 날아가지 않게) */
+    /* 🗑 빼기 → 확인 한 번 → 그 줄을 없앰(화면을 다시 불러오지 않음 — 수정 화면에 쓰던 칸이 날아가지 않게) · 하나도 없으면 「등록된 견적서가 없습니다.」 */
     var rm=e.target.closest && e.target.closest('.z63-rm');
     if(rm){
-      var row=rm.closest('.z62-qrow'), fid=rm.getAttribute('data-fid'), nm=rm.getAttribute('data-name');
-      if(!window.confirm('「'+nm+'」 견적서를 이 프로젝트에서 뺄까요?\n(바로 「되돌리기」로 되살릴 수 있고, 30일 동안은 보관됩니다)')) return;
+      var row=rm.closest('.z62-qrow'), list=rm.closest('.z63-list'), fid=rm.getAttribute('data-fid'), nm=rm.getAttribute('data-name');
+      if(!window.confirm('「'+nm+'」 견적서를 이 프로젝트에서 뺄까요?\n빼면 파일이 바로 지워지고 되돌릴 수 없습니다. (누가 뺐는지는 변경 이력에 남습니다)')) return;
       rm.disabled=true;
       post('/api/project-quote/remove/'+fid).then(function(j){
-        rm.disabled=false;
-        if(!j || !j.ok){ alert((j&&j.message)||'빼지 못했습니다 — 다시 해 보세요.'); return; }
-        row.setAttribute('data-html', row.innerHTML);
-        row.style.background='#fef2f2'; row.style.borderColor='#fecaca';
-        row.innerHTML='<span style="font-size:12px;color:#991b1b;">🗑 「'+esc(nm)+'」 견적서를 뺐습니다.</span>'
-          +'<button type="button" class="z63-undo" data-fid="'+esc(fid)+'" style="margin-left:auto;padding:2px 10px;border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">↺ 되돌리기</button>';
+        if(!j || !j.ok){ rm.disabled=false; alert((j&&j.message)||'빼지 못했습니다 — 다시 해 보세요.'); return; }
+        if(row && row.parentNode) row.parentNode.removeChild(row);
+        if(list && !list.querySelector('.z62-qrow')){ var nn=list.querySelector('.z63-none'); if(nn) nn.style.display=''; }
       }).catch(function(){ rm.disabled=false; alert('인터넷 연결이 끊겨 빼지 못했습니다.'); });
-      return;
-    }
-    var un=e.target.closest && e.target.closest('.z63-undo');
-    if(un){
-      var row2=un.closest('.z62-qrow'), fid2=un.getAttribute('data-fid');
-      un.disabled=true;
-      post('/api/project-quote/restore/'+fid2).then(function(j){
-        if(!j || !j.ok){ un.disabled=false; alert((j&&j.message)||'되돌리지 못했습니다.'); return; }
-        row2.innerHTML=row2.getAttribute('data-html')||''; row2.style.background='#f8fbff'; row2.style.borderColor='#dbeafe';
-      }).catch(function(){ un.disabled=false; alert('인터넷 연결이 끊겨 되돌리지 못했습니다.'); });
     }
   });
 })();</script>

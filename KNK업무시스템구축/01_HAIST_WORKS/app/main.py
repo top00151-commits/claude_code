@@ -39027,9 +39027,9 @@ def _z61_cleanup(c):
     """등록 안 하고 3일 지난 파일 지우기(행+파일)."""
     from datetime import datetime as _d61, timedelta as _td61
     cut = (_d61.strptime(_z61_now(), "%Y-%m-%d %H:%M") - _td61(days=3)).strftime("%Y-%m-%d %H:%M")
-    cut30 = (_d61.strptime(_z61_now(), "%Y-%m-%d %H:%M") - _td61(days=30)).strftime("%Y-%m-%d %H:%M")   # z1191z63: 뺀 지 30일
+    # z1191z64 (대표 「30일 보관도 하지마」): 뺀 것은 날짜 상관없이 바로 지움(z63 때 빼 둔 것 포함)
     rows = c.execute("SELECT id, stored FROM project_quote_files WHERE (project_id IS NULL AND created_at < ?) "
-                     "OR (removed_at IS NOT NULL AND removed_at < ?)", (cut, cut30)).fetchall()
+                     "OR removed_at IS NOT NULL", (cut,)).fetchall()
     for r in rows:
         try:
             fp = os.path.join(_z61_dir(), r[1] or "")
@@ -39234,44 +39234,35 @@ def _z63_can_remove(u, row):
 tpl.env.globals["z63_can_remove"] = _z63_can_remove
 
 
-def _z63_toggle(req, fid, remove):
+def _z64_drop(c, fid, stored):
+    """견적서 파일·줄을 바로 지움(되돌릴 수 없음 — 대표 「되돌리기 기능은 삭제 · 30일 보관도 하지마」)."""
+    try:
+        fp = os.path.join(_z61_dir(), stored or "")
+        if stored and os.path.isfile(fp):
+            os.remove(fp)
+    except Exception as _e:
+        print(f"[z1191z64] 견적서 파일 지우기 실패 {stored}: {_e}")
+    c.execute("DELETE FROM project_quote_files WHERE id=?", (fid,))
+
+
+@app.post("/api/project-quote/remove/{fid}")
+async def api_project_quote_remove(req: Request, fid: int):
+    """z1191z63·z64: 견적서 빼기 — 올린 사람·기술영업팀만 · 파일·줄 바로 지움 · 변경 이력에 누가(이름·번호)."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     with db_session() as c:
         _z61_table(c)
-        r = c.execute("SELECT id, project_id, orig_name, by_id, removed_at FROM project_quote_files WHERE id=?", (fid,)).fetchone()
+        r = c.execute("SELECT id, project_id, orig_name, stored, by_id FROM project_quote_files WHERE id=?", (fid,)).fetchone()
         if not r or r["project_id"] is None:
-            return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다."}, 404)
+            return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다(이미 뺐을 수 있습니다)."}, 404)
         if not _z63_can_remove(u, dict(r)):
             return JSONResponse({"ok": False, "message": "견적서는 올린 사람과 기술영업팀만 뺄 수 있습니다."}, 403)
-        if remove and r["removed_at"]:
-            return JSONResponse({"ok": True, "already": True})
-        if (not remove) and not r["removed_at"]:
-            return JSONResponse({"ok": True, "already": True})
         who = vname_full(u) or u.get("name")
-        if remove:
-            c.execute("UPDATE project_quote_files SET removed_at=?, removed_by=?, removed_by_name=? WHERE id=?",
-                      (_z61_now(), u.get("id"), who, fid))
-            c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                      (r["project_id"], u.get("id"), "견적서 파일", r["orig_name"], "",
-                       f"z1191z63 견적서 빼기 · {who}"))
-        else:
-            c.execute("UPDATE project_quote_files SET removed_at=NULL, removed_by=NULL, removed_by_name=NULL WHERE id=?", (fid,))
-            c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                      (r["project_id"], u.get("id"), "견적서 파일", "", r["orig_name"],
-                       f"z1191z63 견적서 되돌리기 · {who}"))
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (r["project_id"], u.get("id"), "견적서 파일", r["orig_name"], "", f"z1191z63 견적서 빼기 · {who}"))
+        _z64_drop(c, r["id"], r["stored"])
     return JSONResponse({"ok": True})
-
-
-@app.post("/api/project-quote/remove/{fid}")
-async def api_project_quote_remove(req: Request, fid: int):
-    return _z63_toggle(req, fid, True)
-
-
-@app.post("/api/project-quote/restore/{fid}")
-async def api_project_quote_restore(req: Request, fid: int):
-    return _z63_toggle(req, fid, False)
 
 
 @app.get("/api/project-quote/{tok}")
@@ -39313,6 +39304,8 @@ def _z61_quote_files(pid):
     try:
         with db_session() as c:
             _z61_table(c)
+            for _r64 in c.execute("SELECT id, stored FROM project_quote_files WHERE project_id=? AND removed_at IS NOT NULL", (int(pid),)).fetchall():
+                _z64_drop(c, _r64["id"], _r64["stored"])   # z1191z64: z63 때 숨겨 둔 것 → 바로 지움
             out = []
             for r in c.execute("SELECT id, orig_name, size, by_id, by_name, created_at, read_json FROM project_quote_files "
                                "WHERE project_id=? AND removed_at IS NULL ORDER BY id",
