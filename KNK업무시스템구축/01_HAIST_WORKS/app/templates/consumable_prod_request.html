@@ -171,7 +171,7 @@
           <tr>
             <td>{{ loop.index }}</td>
             {% if z48c.has_img %}<td style="padding:4px;">{% if it.image_thumb_path or it.image_path %}<a href="{{ it.image_path or it.image_thumb_path }}" data-knk-zoom data-knk-name="{{ it.spec or it.part_name or ('라인 ' ~ it.line_no) }} 사진" target="_blank"><img class="z48-thumb" src="{{ it.image_thumb_path or it.image_path }}" alt="{{ it.part_name or '라인' }} 사진" loading="lazy"></a>{% else %}<span class="z48-sub">—</span>{% endif %}</td>{% endif %}
-            <td>{{ it.model_use or it.equip_name or z48c.head_model or '—' }}</td>
+            <td>{{ it.model_use or it.link_model or it.equip_name or z48c.head_model or '—' }}</td>
             <td class="z48-l">{% if it.part_name and it.spec %}<span class="z48-pn">{{ it.part_name }}</span>{{ it.spec }}{% else %}{{ it.spec or it.part_name or '—' }}{% endif %}</td>
             <td class="z48-r">{{ it.qty|int if it.qty else '—' }}{% if it.qty and it.unit %} {{ it.unit }}{% endif %}</td>
             <td>{{ (co.due_date or '')[:10] or '—' }}</td>
@@ -212,7 +212,7 @@
             {% for it in items %}
             <div class="z48-it">
               <div class="l1"><span><b>{{ loop.index }}.</b> {% if it.part_name and it.spec %}<span class="z48-pn">{{ it.part_name }}</span>{{ it.spec }}{% else %}{{ it.spec or it.part_name or '—' }}{% endif %}</span><b style="white-space:nowrap;">{{ it.qty|int if it.qty else '—' }}{% if it.qty and it.unit %} {{ it.unit }}{% endif %}</b></div>
-              {% if it.model_use or it.equip_name or z48c.head_model or it.linked_mgmt_code %}<div class="l3">{{ it.model_use or it.equip_name or z48c.head_model or '' }}{% if it.linked_mgmt_code %} · 연결 장비 <b class="z48-mgc">{{ it.linked_mgmt_code }}</b>{% endif %}</div>{% endif %}
+              {% if it.model_use or it.link_model or it.equip_name or z48c.head_model or it.linked_mgmt_code %}<div class="l3">{{ it.model_use or it.link_model or it.equip_name or z48c.head_model or '' }}{% if it.linked_mgmt_code %} · 연결 장비 <b class="z48-mgc">{{ it.linked_mgmt_code }}</b>{% endif %}</div>{% endif %}
             </div>
             {% else %}
             <div class="z48-it z48-sub">라인 항목이 없습니다.</div>

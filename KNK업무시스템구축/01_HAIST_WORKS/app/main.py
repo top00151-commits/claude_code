@@ -53905,6 +53905,18 @@ async def consumable_prod_request_view(request: Request, co_id: int):
     #   일반 직원(등록자)은 상세 진입 시 홈으로 튕기므로 버튼을 비활성(회색) 표시.
     _can_open_detail = bool(can_use_logistics(u) or can_use_sales(u))
     # z1191z48 (대표 2026-11-17 「소모품 요청서 … 여기에도 관리번호·수주번호」): 종이 양식 머리 칸에 쓸 값
+    # z1191z52 (대표 2026-11-18 「연결 장비 모델 자동」): 줄 모델명 = 연결 장비(관리번호)의 모델명 — 줄에 따로 입력하지 않음(z730)
+    try:
+        _lp52 = sorted({int(it["linked_project_id"]) for it in items if str(it.get("linked_project_id") or "").isdigit()})
+        _mm52 = {}
+        if _lp52:
+            with db_session() as _c52:
+                _mm52 = {r[0]: str(r[1] or "").strip() for r in _c52.execute(
+                    "SELECT id, model_name FROM projects WHERE id IN (%s)" % ",".join("?" * len(_lp52)), tuple(_lp52)).fetchall()}
+        for it in items:
+            it["link_model"] = _mm52.get(int(it["linked_project_id"]), "") if str(it.get("linked_project_id") or "").isdigit() else ""
+    except Exception as _e52:
+        print(f"[z1191z52] 연결 장비 모델 읽기 실패: {_e52}")
     _z48c = _z48_co_ctx(co, items)
     return ctx(request, "consumable_prod_request.html", user=u, active="consumables", z48c=_z48c,
                co=co, items=items, qty_total=qty_total,
