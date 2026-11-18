@@ -2,7 +2,7 @@
    기대 컨텍스트: mails, threads, thread_on, more_href, remain_n, prev_day #}
 {% macro mailrow(m, child=False) %}
 {% set _out = (m.direction|default('in')) == 'out' %}
-<a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read and not _out %} unread{% endif %}{% if child %} mbx-child{% endif %}{% if m.ad %} robot{% endif %}" data-mail-id="{{ m.id }}" data-arc="{{ m.is_archived|default(0) }}" onclick="return rowClick(event,{{ m.id }})">
+<a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read and not _out %} unread{% endif %}{% if child %} mbx-child{% endif %}{% if m.ad %} robot{% endif %}" data-mail-id="{{ m.id }}" data-arc="{{ m.is_archived|default(0) }}" data-pin="{{ m.fd_pin|default('') or '' }}" data-fd="{{ m.fdkey|default('') }}" data-from="{{ m.from_email|default('') or '' }}" data-dir="{{ m.direction|default('in') }}" onclick="return rowClick(event,{{ m.id }})">
   <input type="checkbox" class="mbx-ck" data-ids="{{ m.id }}" title="고르기 — 여러 통 한 번에" onclick="mbxCk(event,this)">
   <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ m.id }})">★</button>
   <div class="mbx-main">
@@ -31,7 +31,7 @@
     <div class="mbx-thread">
       <div class="mbx-thread-head{% if not L.is_read %} unread{% endif %}">
         <button type="button" class="mbx-twist" title="대화 펼치기/접기" aria-expanded="false" onclick="toggleThread(event,this)">▸</button>
-        <a href="/mail/{{ L.id }}" class="mbx-headlink{% if not L.is_read %} unread{% endif %}{% if L.ad %} robot{% endif %}" data-mail-id="{{ L.id }}" data-arc="{{ L.is_archived|default(0) }}" onclick="return rowClick(event,{{ L.id }})">
+        <a href="/mail/{{ L.id }}" class="mbx-headlink{% if not L.is_read %} unread{% endif %}{% if L.ad %} robot{% endif %}" data-mail-id="{{ L.id }}" data-arc="{{ L.is_archived|default(0) }}" data-pin="{{ L.fd_pin|default('') or '' }}" data-fd="{{ L.fdkey|default('') }}" data-from="{{ L.from_email|default('') or '' }}" data-dir="{{ L.direction|default('in') }}" onclick="return rowClick(event,{{ L.id }})">
           <input type="checkbox" class="mbx-ck" data-ids="{% for x in t['items'] %}{{ x.id }}{{ ',' if not loop.last else '' }}{% endfor %}" title="이 대화 {{ t['count'] }}통 모두 고르기" onclick="mbxCk(event,this)">
           <button type="button" class="mbx-star {{ 'on' if L.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ L.id }})">★</button>
           <div class="mbx-main">

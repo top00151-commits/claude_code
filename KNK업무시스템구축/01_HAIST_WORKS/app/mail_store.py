@@ -771,11 +771,23 @@ def archive_old(c, user_id, months=3, dry=True) -> int:
 
 
 def bulk_apply(c, user_id, ids, op) -> int:
-    """여러 통 한 번에 — read · unread · star · unstar · archive · unarchive · delete(휴지통). 내 메일만."""
+    """여러 통 한 번에 — read · unread · star · unstar · archive · unarchive · delete(휴지통) · restore(휴지통에서 되살림). 내 메일만."""
     if op == "archive":
         return set_archived(c, user_id, ids, True)
     if op == "unarchive":
         return set_archived(c, user_id, ids, False)
+    if op == "restore":  # 휴지통에서 되살리기(11-18 끌어서 옮기기 「↺ 되돌리기」) — 내 메일 · 지운 것만
+        nums = []
+        for x in list(ids or [])[:500]:
+            try:
+                nums.append(int(x))
+            except Exception:
+                pass
+        if not nums:
+            return 0
+        q = ",".join("?" * len(nums))
+        return c.execute("UPDATE mail_messages SET is_deleted=0, deleted_at=NULL WHERE user_id=? AND is_deleted=1 AND id IN (" + q + ")",
+                         (user_id, *nums)).rowcount
     own = _own_ids(c, user_id, ids)
     if not own:
         return 0

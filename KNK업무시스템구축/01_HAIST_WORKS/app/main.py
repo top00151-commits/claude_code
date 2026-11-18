@@ -22731,7 +22731,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _m["ad"] = bool(_inb and (_m.get("from_email") or "").strip().lower() in _bulk)
             _m["ccme"] = _mail_find.is_cc(_m, _mine)
             # 목록 꼬리표 = 폴더 이름(11-18 대표 「쉽게 구분」) — 「일반」은 안 붙임(모두 같아 정보가 없음) · 색 = 묶음 갈래
-            _m["fdname"], _m["fdkind"] = "", ""
+            _m["fdname"], _m["fdkind"], _m["fdkey"] = "", "", ""
             if mf and _inb:
                 try:
                     _pk = _m.get("fd_pin") or ""
@@ -22739,6 +22739,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                         _f = {"key": _pk, "name": mf["labels"][_pk]}
                     else:
                         _f = _mail_folders.folder_of(mf, _m.get("from_email") or "")
+                    _m["fdkey"] = _f.get("key") or ""
                     if _f.get("key") != "gen":
                         _m["fdname"] = _f.get("name") or ""
                         _m["fdkind"] = _kinds.get(_f.get("key"), "")
@@ -23215,7 +23216,7 @@ async def mail_archive_one(req: Request, mail_id: int):
 
 @app.post("/mail/bulk")
 async def mail_bulk(req: Request):
-    """여러 통 한 번에 — op = read·unread·star·unstar·archive·unarchive·delete·pin(folder_id · 0=자동으로) · 내 메일만 · 500통까지."""
+    """여러 통 한 번에 — op = read·unread·star·unstar·archive·unarchive·delete·restore·pin(folder_id · 0=자동으로) · 내 메일만 · 500통까지."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
@@ -23236,7 +23237,7 @@ async def mail_bulk(req: Request):
                     return JSONResponse({"ok": False, "message": "옮길 수 없는 폴더입니다."}, 400)
                 key = "f%d" % fid
             n = _mailbox.set_pin(c, u["id"], ids, key)
-        elif op in ("read", "unread", "star", "unstar", "archive", "unarchive", "delete"):
+        elif op in ("read", "unread", "star", "unstar", "archive", "unarchive", "delete", "restore"):
             n = _mailbox.bulk_apply(c, u["id"], ids, op)
         else:
             return JSONResponse({"ok": False, "message": "모르는 일입니다."}, 400)
