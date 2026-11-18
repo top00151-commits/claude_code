@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>메일 아웃룩식·AI·안전 시안</title>
+<!-- 작성: 2026-11-18 (수) 20:45 KST · 2차(AI·스팸·피싱 더함) · · 세션 15 · 대표 「사용자 입장 위주로 다시 다듬어」 — 가짜 메일만(실제 메일 없음) -->
+<style>
+:root{--ink:#1f2937;--mute:#6b7280;--line:#e5e7eb;--brand:#8f1d1d;--sel:#e8f0fe;--blue:#2563eb}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Malgun Gothic","맑은 고딕",system-ui,sans-serif;color:var(--ink);background:#f3f4f6;font-size:13.5px}
+.note{background:#fffbeb;border-bottom:1px solid #fde68a;padding:7px 14px;font-size:12.5px;color:#78350f}
+/* ① 맨 위 한 줄: 이름 + 찾기(가운데) */
+.top{display:flex;align-items:center;gap:14px;height:46px;padding:0 14px;background:var(--brand);color:#fff}
+.top b{font-size:15px;white-space:nowrap}
+.top .find{flex:1;max-width:640px;margin:0 auto;display:flex;align-items:center;background:#fff;border-radius:6px;height:32px;padding:0 10px;color:var(--mute)}
+.top .find input{border:0;outline:0;flex:1;font:inherit;margin-left:6px}
+.top .me{white-space:nowrap;font-size:12.5px;opacity:.9}
+/* ② 명령줄(아웃룩 리본 자리) — 늘 같은 곳 */
+.cmd{display:flex;align-items:center;gap:4px;height:44px;padding:0 10px;background:#fff;border-bottom:1px solid var(--line)}
+.cmd button{display:flex;align-items:center;gap:5px;height:32px;padding:0 11px;border:0;background:none;border-radius:6px;font:inherit;color:var(--ink);cursor:pointer;white-space:nowrap}
+.cmd button:hover{background:#f1f5f9}
+.cmd .new{background:var(--brand);color:#fff;font-weight:700;padding:0 14px;margin-right:6px}
+.cmd .new:hover{background:#7a1818}
+.cmd .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.cmd .dim{color:#b6bcc6;cursor:default}
+.cmd .sp{flex:1}
+/* ③ 세 칸 */
+.wrap{display:grid;grid-template-columns:230px 430px 1fr;height:calc(100vh - 46px - 44px - 54px);min-height:520px}
+.nav{background:#fafafa;border-right:1px solid var(--line);overflow:auto;padding:8px 6px}
+.nav h4{margin:10px 8px 4px;font-size:11.5px;color:var(--mute);font-weight:700;display:flex;align-items:center;gap:4px;cursor:pointer}
+.nav a{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;color:var(--ink);text-decoration:none;cursor:pointer}
+.nav a:hover{background:#eef0f3}
+.nav a.on{background:#e3e8f0;font-weight:700}
+.nav a .n{margin-left:auto;font-size:12px;color:var(--blue);font-weight:700}
+.nav a.sub{padding-left:28px}
+.nav a .dot{width:8px;height:8px;border-radius:50%}
+.list{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.lh{display:flex;align-items:center;gap:10px;padding:10px 14px 6px}
+.lh h2{margin:0;font-size:17px}
+.tabs{display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);align-items:flex-end}
+.tabs span{padding:7px 10px;cursor:pointer;color:var(--mute);border-bottom:2px solid transparent}
+.tabs span.on{color:var(--ink);font-weight:700;border-color:var(--blue)}
+.tabs .flt{margin-left:auto;position:relative}
+.tabs .flt>span{color:var(--ink)}
+.menu{position:absolute;right:0;top:32px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:6px;min-width:200px;z-index:20;display:none}
+.menu.open{display:block}
+.menu div{padding:7px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.menu div:hover{background:#f1f5f9}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.rows{overflow:auto;flex:1}
+.day{padding:8px 14px 4px;font-size:12px;font-weight:700;color:var(--mute);background:#fafafa;border-bottom:1px solid var(--line);cursor:pointer}
+.row{display:grid;grid-template-columns:4px 22px 1fr auto;gap:0 8px;padding:8px 12px 8px 0;border-bottom:1px solid #f0f1f3;cursor:pointer;position:relative}
+.row .bar{grid-row:1/4;background:transparent}
+.row.unread .bar{background:var(--blue)}
+.row .ck{grid-row:1/4;align-self:start;margin-top:2px;opacity:0}
+.row:hover .ck,.row.picked .ck{opacity:1}
+.row:hover{background:#f7f9fc}
+.row.on{background:var(--sel)}
+.row .who{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.unread .who,.row.unread .subj{font-weight:700}
+.row.unread .subj{color:var(--blue)}
+.row .tm{font-size:12px;color:var(--mute);text-align:right;white-space:nowrap}
+.row.unread .tm{color:var(--blue);font-weight:700}
+.row .subj{grid-column:3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ic{grid-column:4;text-align:right;font-size:12px;color:var(--mute);white-space:nowrap}
+.row .pv{grid-column:3/5;color:var(--mute);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{display:inline-block;font-size:11px;border-radius:4px;padding:0 6px;margin-right:5px;vertical-align:1px}
+.t-cust{background:#dbeafe;color:#1e40af}.t-out{background:#dcfce7;color:#166534}.t-knk{background:#f3e8ff;color:#6b21a8}.t-reply{background:#fee2e2;color:#b91c1c}.t-ad{background:#f3f4f6;color:#6b7280}
+.row.ad{opacity:.62}
+/* 읽기 칸 */
+.read{background:#fff;overflow:auto;padding:18px 26px}
+.read h1{font-size:20px;margin:0 0 12px;font-weight:700}
+.hd{display:flex;gap:12px;align-items:flex-start}
+.av{width:40px;height:40px;border-radius:50%;background:#c7d2fe;color:#1e3a8a;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+.hd .who b{font-size:14.5px}
+.hd .who .em{color:var(--mute);font-size:12.5px}
+.hd .who .to{color:var(--mute);font-size:12.5px;margin-top:2px}
+.hd .act{margin-left:auto;display:flex;gap:4px;flex:none}
+.hd .act button{height:32px;padding:0 11px;border:1px solid var(--line);background:#fff;border-radius:6px;font:inherit;cursor:pointer}
+.hd .act button:hover{background:#f1f5f9}
+.chips{margin:10px 0 0 52px;display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
+.chips span{border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:#374151;background:#fafafa}
+.chips .warn{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+.att{margin:12px 0 0 52px;display:flex;gap:8px}
+.att div{border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12.5px;background:#fafafa}
+.body{margin:16px 0 0 52px;line-height:1.75;font-size:14px;max-width:760px}
+.quote{color:var(--mute);margin-top:10px;cursor:pointer;font-size:12.5px}
+/* 오른쪽 클릭 메뉴 */
+#ctx{position:fixed;display:none;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:6px;min-width:210px;z-index:50}
+#ctx div{padding:7px 12px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;gap:16px}
+#ctx div:hover{background:#f1f5f9}
+#ctx div kbd{color:var(--mute);font-family:inherit;font-size:11.5px}
+#ctx hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.callout{position:absolute;z-index:30;pointer-events:none;background:#fbbf24;color:#1e3a8a;border-radius:50%;width:20px;height:20px;text-align:center;line-height:20px;font-weight:800;font-size:12px;box-shadow:0 0 0 2px #fff,0 2px 6px rgba(0,0,0,.3)}
+.lg{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px}
+.lg i{font-style:normal;display:inline-block;background:#fbbf24;color:#1e3a8a;border-radius:50%;width:16px;height:16px;text-align:center;line-height:16px;font-weight:800;font-size:11px;margin-right:4px}
+#cl{position:absolute;inset:0;pointer-events:none}
+.hidecl #cl{display:none}
+.brief{margin:8px 10px;border:1px solid #c7d2fe;background:linear-gradient(180deg,#eef2ff,#fff);border-radius:10px;padding:9px 12px;font-size:12.5px}
+.brief b{color:#3730a3}
+.brief ol{margin:5px 0 4px 18px;padding:0}
+.brief li{margin:2px 0;cursor:pointer}
+.brief .sec{color:#065f46;margin-top:4px}
+.aibox{margin:14px 0 0 52px;border:1px solid #c7d2fe;background:#f5f7ff;border-radius:10px;padding:10px 14px;max-width:760px;font-size:13px}
+.aibox h5{margin:0 0 4px;font-size:12.5px;color:#3730a3}
+.aibox ul{margin:2px 0 6px 18px;padding:0;line-height:1.6}
+.aibox .todo{background:#fff;border:1px dashed #a5b4fc;border-radius:8px;padding:5px 10px;margin:4px 0 8px}
+.aibox .rp button{border:1px solid #a5b4fc;background:#fff;border-radius:999px;padding:4px 11px;margin:2px 4px 2px 0;font:inherit;font-size:12.5px;cursor:pointer;color:#3730a3}
+.aibox .fine{color:var(--mute);font-size:11.5px;margin-top:4px}
+.danger{margin:0 0 14px;border:1px solid #fca5a5;background:#fef2f2;border-radius:10px;padding:10px 14px;color:#991b1b;font-size:13px}
+.danger b{font-size:14px}
+.danger ul{margin:4px 0 6px 18px;padding:0}
+.danger button{border:1px solid #fca5a5;background:#fff;border-radius:7px;padding:4px 10px;font:inherit;font-size:12.5px;cursor:pointer;color:#991b1b;margin-right:4px}
+.att .bad{border-color:#fca5a5;background:#fef2f2;color:#991b1b}
+.att .warnf{border-color:#fde68a;background:#fffbeb;color:#92400e}
+.imgoff{margin:10px 0 0 52px;font-size:12px;color:var(--mute);border:1px dashed var(--line);border-radius:8px;padding:5px 10px;display:inline-block}
+.row.danger-row .who{color:#b91c1c}
+.tgl{position:fixed;right:14px;bottom:14px;z-index:60;background:#1e3a8a;color:#fff;border:0;border-radius:8px;padding:8px 12px;font:inherit;cursor:pointer}
+</style></head>
+<body>
+<div class="note">🧪 <b>시안</b>(가짜 메일 · 눌러 보실 수 있음) — 아웃룩처럼: 위 <b>명령줄</b> · 왼쪽 <b>편지함 이름</b> · 가운데 <b>보낸 사람 → 제목 → 첫 줄</b> · 오른쪽 <b>제목 → 보낸 사람 옆 답장 단추 → 본문</b> · 메일 위에서 <b>오른쪽 클릭</b> · 단축키
+<div class="lg"><span><i>1</i>명령 단추는 늘 위 한 줄(고른 메일에 적용)</span><span><i>2</i>편지함 이름 = 아웃룩·하이웍스와 같은 말</span><span><i>3</i>목록 = 보낸 사람 → 제목 → 첫 줄</span><span><i>4</i>목록 넓게(제목 안 잘림)</span><span><i>5</i>읽기 = 제목 → 보낸 사람 옆 답장 → 바로 본문</span><span><i>6</i>메일 위 오른쪽 클릭 = 메뉴</span><span><i>7</i>거르기·정렬은 한 단추 안에</span><span><i>8</i>✨ AI: 오늘 꼭 볼 메일 · 요약 · 할 일 · 답장 초안(락아 OpenAI만)</span><span><i>9</i>🛡 스팸은 스팸함으로 자동 · 위험 첨부는 막고 이유 설명</span></div></div>
+<div class="top"><b>📧 KNK 메일</b><div class="find">🔍<input placeholder="메일 찾기 — 사람·회사·제목·내용·첨부 이름"></div><span class="me">김정락 대표 ▾</span></div>
+<div class="cmd">
+  <button class="new" title="Ctrl+N">✉ 새 메일</button>
+  <span class="sep"></span>
+  <button title="Delete">🗑 삭제</button><button title="Backspace">📦 보관</button><button>📁 이동 ▾</button>
+  <span class="sep"></span>
+  <button title="Ctrl+R">↩ 답장</button><button title="Ctrl+Shift+R">↩↩ 전체 답장</button><button title="Ctrl+F">↪ 전달</button>
+  <span class="sep"></span>
+  <button title="Ctrl+Q / Ctrl+U">✉ 읽음·안 읽음</button><button title="Insert">⭐ 중요</button>
+  <span class="sep"></span>
+  <button>🚫 스팸·피싱 신고</button>
+  <button style="color:#4338ca;font-weight:700">✨ AI 요약</button>
+  <span class="sp"></span>
+  <button>⚙ 설정·정리</button>
+</div>
+<div style="position:relative">
+<div class="wrap">
+  <nav class="nav">
+    <h4>▾ 즐겨찾기</h4>
+    <a class="on">📥 받은편지함 <span class="n">24</span></a>
+    <a>⭐ 중요</a>
+    <a>↩ 회신 필요 <span class="n" style="color:#dc2626">17</span></a>
+    <h4>▾ 메일함</h4>
+    <a>📝 임시보관함 <span class="n" style="color:var(--mute)">2</span></a>
+    <a>📤 보낸편지함</a>
+    <a>📦 보관함 <span class="n" style="color:var(--mute);font-weight:400">46</span></a>
+    <a>🗑 휴지통</a>
+    <a title="스팸·피싱으로 보이는 메일이 저절로 모임 · 「스팸 아님」 한 번이면 그 사람은 다시 안 옮김 · 30일 뒤 비움">🚫 스팸함 <span class="n" style="color:var(--mute);font-weight:400">12</span></a>
+    <h4>▾ 폴더 <span style="margin-left:auto;font-weight:400">＋</span></h4>
+    <a><span class="dot" style="background:#3b82f6"></span>1.고객사 <span class="n">9</span></a>
+    <a class="sub">드림텍 <span class="n">5</span></a>
+    <a class="sub">삼성전기 <span class="n">1</span></a>
+    <a class="sub">파트론 <span class="n">2</span></a>
+    <a class="sub" style="color:var(--mute);font-size:12px">… 메일 없는 15곳</a>
+    <a><span class="dot" style="background:#60a5fa"></span>2.기타 고객사 <span class="n">1</span></a>
+    <a><span class="dot" style="background:#22c55e"></span>3.외주업체</a>
+    <a><span class="dot" style="background:#14b8a6"></span>4.PIN BLOCK 업체 <span class="n">1</span></a>
+    <a><span class="dot" style="background:#f59e0b"></span>5.CHIP업체 <span class="n">1</span></a>
+    <a><span class="dot" style="background:#a855f7"></span>6.케이엔케이 <span class="n">5</span></a>
+    <a><span class="dot" style="background:#9ca3af"></span>일반 <span class="n">7</span></a>
+  </nav>
+  <section class="list">
+    <div class="lh"><h2>받은편지함</h2><span style="color:var(--mute);font-size:12.5px">290통 · 안 읽음 24</span></div>
+    <div class="tabs"><span class="on">전체</span><span>안 읽음</span><span>📎 첨부</span>
+      <div class="flt"><span onclick="document.getElementById('fm').classList.toggle('open')">거르기·정렬 ▾</span>
+        <div class="menu" id="fm"><div>✓ 대화로 묶기</div><div>광고·알림 빼기</div><hr><div>기간: 오늘 · 이번 주 · 이번 달 · 올해</div><hr><div>✓ 날짜순(새 메일 위)</div><div>보낸 사람순</div><div>크기순</div><hr><div>첫 줄 미리보기 끄기</div><div>🔠 글자 크게</div></div></div></div>
+    <div class="brief"><b>✨ 오늘 꼭 볼 메일</b> <span style="color:var(--mute)">· AI가 안 읽은 메일 24통에서 골랐어요</span>
+      <ol><li><b>삼성전기</b> 11월 발주서 — 납기 회신 요청</li><li><b>드림텍</b> 샘플 일정 — 화요일 가능 여부 답장 필요</li><li><b>파트론</b> 견적 수정본 — 단가 같음 · 납기 1주 당김</li></ol>
+      <div class="sec">🛡 오늘 스팸함으로 옮긴 메일 3통 · 위험한 첨부 1개 막음 · 회사 흉내 메일 1통 경고</div></div>
+    <div class="rows" id="rows"></div>
+  </section>
+  <section class="read" id="read"></section>
+</div>
+<div id="cl"></div>
+</div>
+<div id="ctx"><div>↩ 답장 <kbd>Ctrl+R</kbd></div><div>↩↩ 전체 답장 <kbd>Ctrl+Shift+R</kbd></div><div>↪ 전달 <kbd>Ctrl+F</kbd></div><hr><div>✉ 읽음으로 <kbd>Ctrl+Q</kbd></div><div>⭐ 중요 표시 <kbd>Insert</kbd></div><hr><div>📁 이 메일만 다른 폴더로 ▸</div><div>📁 이 회사 메일 모두 폴더로 ▸</div><div>📦 보관 <kbd>Backspace</kbd></div><div>🔍 이 사람 메일 모두 보기</div><div>🔕 이 사람 메일 다시 안 받기</div><hr><div style="color:#b91c1c">🗑 삭제 <kbd>Delete</kbd></div></div>
+<button class="tgl" onclick="document.body.classList.toggle('hidecl')">노란 번호 숨기기/보기</button>
+<script>
+var M=[
+ {d:'오늘',who:'김정락 대표',em:'knk.ceo.office@gmail.com',co:'',k:'',s:'[긴급] 거래처 송금 계좌 변경 건',pv:'오늘 안으로 아래 계좌로 송금 부탁합니다. 회의 중이라 전화는 어렵습니다.',t:'20:12',u:1,r:0,a:1,danger:1},
+ {d:'오늘',who:'한드림 과장',em:'han@dreamtech-demo.example',co:'드림텍',k:'cust',s:'RE: 드림텍 샘플 일정',pv:'대표님 안녕하세요. 샘플 일정 다음 주 화요일 가능합니다. 확인 부탁드립니다.',t:'20:00',u:1,r:1,a:0},
+ {d:'오늘',who:'오파트 차장',em:'oh@partron-demo.example',co:'파트론',k:'cust',s:'RE: 파트론 견적 (글 메일 인용)',pv:'견적 수정본 보내드립니다. 단가는 지난번과 같고 납기만 1주 당겼습니다.',t:'20:05',u:1,r:0,a:1},
+ {d:'오늘',who:'박구매 책임',em:'p@semco-demo.example',co:'삼성전기',k:'cust',s:'[삼성전기] 11월 발주서 송부',pv:'11월 발주서 첨부드립니다. 납기 확인 후 회신 부탁드립니다.',t:'19:33',u:1,r:1,a:2},
+ {d:'오늘',who:'윤품질 프로',em:'yun@semco-demo.example',co:'삼성전기',k:'cust',s:'[삼성전기] 검사기 품질 이슈 공유',pv:'라인 3번 검사기 오검출 건 공유드립니다. 원인 확인 중입니다.',t:'18:56',u:0,r:0,a:0},
+ {d:'오늘',who:'주간소식',em:'news@weekly-demo.example',co:'',k:'ad',s:'(광고) 주간 소식 3호',pv:'이번 주 업계 소식을 전해 드립니다.',t:'18:10',u:0,r:0,a:0,ad:1},
+ {d:'어제',who:'이드림 대리',em:'lee@dreamtech-demo.example',co:'드림텍',k:'cust',s:'RE: 드림텍 샘플 일정',pv:'일정 공유드립니다. 수요일 오전 방문 가능하실까요?',t:'11-17 (화)',u:0,r:0,a:0},
+ {d:'어제',who:'최설계 팀장',em:'choi@knknara.co.kr',co:'04_설계팀',k:'knk',s:'PIN BLOCK 도면 수정본',pv:'수정된 도면 올립니다. 2번 항목 치수 바뀌었습니다.',t:'11-17 (화)',u:0,r:0,a:1},
+ {d:'지난주',who:'GTS Sales',em:'sales@gts-demo.example',co:'GTS',k:'out',s:'PIN quotation',pv:'Please find the attached quotation for the PIN order.',t:'11-13 (금)',u:0,r:0,a:1},
+ {d:'지난주',who:'한드림 과장',em:'han@dreamtech-demo.example',co:'드림텍',k:'cust',s:'[드림텍] 견적 요청 1차',pv:'견적 요청드립니다. 수량 2,000ea 기준입니다.',t:'11-12 (목)',u:0,r:1,a:0}
+];
+var cur=0;
+function rows(){
+  var h='',d='';
+  M.forEach(function(m,i){
+    if(m.d!==d){ d=m.d; h+='<div class="day">▾ '+d+'</div>'; }
+    h+='<div class="row'+(m.u?' unread':'')+(i===cur?' on':'')+(m.ad?' ad':'')+(m.danger?' danger-row':'')+'" data-i="'+i+'" draggable="true"><div class="bar"></div><input type="checkbox" class="ck">'+
+       '<div class="who">'+m.who+'</div><div class="tm">'+m.t+'</div>'+
+       '<div class="subj">'+m.s+'</div><div class="ic">'+(m.a?'📎':'')+(m.r?' <span class="tag t-reply" style="margin:0">↩ 회신</span>':'')+'</div>'+
+       '<div class="pv">'+(m.danger?'<span class="tag t-reply">⚠ 위험 · 회사 흉내</span>':'')+(m.co?'<span class="tag t-'+m.k+'">'+m.co+'</span>':'')+(m.ad?'<span class="tag t-ad">광고·알림</span>':'')+m.pv+'</div></div>';
+  });
+  document.getElementById('rows').innerHTML=h;
+}
+function read(){
+  var m=M[cur];
+  var dz = m.danger ? '<div class="danger"><b>⚠ 위험한 메일입니다 — 첨부를 열거나 송금하지 마세요</b><ul><li>대표 이름을 쓰지만 <b>회사 주소가 아닌 개인 메일</b>(gmail)에서 왔습니다</li><li><b>계좌 변경·급한 송금</b>을 요구합니다(흔한 사기 수법)</li><li>첨부 「송금확인서.pdf.exe」는 <b>PDF로 위장한 실행파일</b>입니다 → 내려받기를 막았습니다</li></ul>보낸 사람에게 <b>전화로 직접</b> 확인하세요. <button>🚫 피싱 신고(전산 담당에게)</button><button>스팸함으로</button></div>' : '';
+  var ai = m.danger ? '' : '<div class="aibox"><h5>✨ AI 요약 <span style="font-weight:400;color:var(--mute)">· 이 메일만</span></h5><ul><li>'+m.pv+'</li><li>보낸 곳: '+(m.co||'—')+' · '+m.who+'</li></ul>'+(m.r?'<div class="todo">📌 <b>할 일</b>: 가능 여부 회신 · <b>마감</b> 11-19(목)까지로 보임</div>':'')+'<div class="rp">✨ 답장 초안: <button>네, 가능합니다</button><button>다른 날짜 제안</button><button>더 물어보기</button><button>직접 지시…</button></div><div class="fine">초안은 쓰기 화면에 들어갈 뿐 저절로 보내지 않습니다 · AI = 락아 OpenAI(메일 글자만 · 첨부는 안 보냄)</div></div>';
+  var att = m.danger ? '<div class="att"><div class="bad">🔒 송금확인서.pdf.exe · 실행파일(위장) — 내려받기 막음</div></div>' : (m.a?'<div class="att">'+(m.a>1?'<div>📄 발주서_11월.xlsx · 48KB</div><div>📄 사양서.pdf · 1.2MB</div>':'<div>📄 첨부파일.pdf · 820KB</div>')+'</div>':'');
+  document.getElementById('read').innerHTML=dz+'<h1>'+m.s+'</h1><div class="hd"><div class="av">'+m.who[0]+'</div><div class="who"><b>'+m.who+'</b> <span class="em">&lt;'+m.em+'&gt;</span><div class="to">받는 사람: 나 · 2026-11-18 (수) '+(m.t.length<6?m.t:'')+'</div></div>'+
+   '<div class="act"><button>↩ 답장</button><button>↩↩ 전체 답장</button><button>↪ 전달</button><button>⋯</button></div></div>'+
+   '<div class="chips">'+(m.co?'<span>📁 '+m.co+' ▾</span>':'')+(m.r?'<span style="border-color:#fecaca;color:#b91c1c">↩ 회신 필요 · ✓ 답장 안 해도 됨</span>':'')+(m.em.indexOf('knknara')<0?'<span class="warn">⚠ 회사 밖에서 온 메일</span>':'')+'<span>📇 주소록에 있음</span></div>'+
+   att+ai+(m.danger?'<div class="imgoff">🖼 이 메일의 그림·링크는 막아 두었습니다(위험 메일)</div>':(m.em.indexOf('knknara')<0?'<div class="imgoff">🖼 처음 보는 곳의 그림은 꺼 둠(읽음 추적 막기) · <u>그림 보기</u></div>':''))+
+   '<div class="body">'+m.pv+'<br><br>감사합니다.<br>'+m.who+' 드림<div class="quote">▸ 이전 메일 보기</div></div>';
+}
+rows(); read();
+document.getElementById('rows').addEventListener('click',function(e){ var r=e.target.closest('.row'); if(!r||e.target.classList.contains('ck')) return; cur=+r.dataset.i; M[cur].u=0; rows(); read(); });
+var ctx=document.getElementById('ctx');
+document.getElementById('rows').addEventListener('contextmenu',function(e){ var r=e.target.closest('.row'); if(!r) return; e.preventDefault(); ctx.style.display='block'; ctx.style.left=Math.min(e.clientX,innerWidth-230)+'px'; ctx.style.top=Math.min(e.clientY,innerHeight-360)+'px'; });
+document.addEventListener('click',function(e){ if(!e.target.closest('#ctx')) ctx.style.display='none'; if(!e.target.closest('.flt')) document.getElementById('fm').classList.remove('open'); });
+/* 노란 번호(바뀐 곳) */
+function cl(n,txt,x,y){ var d=document.createElement('div'); d.className='callout'; d.title=txt; d.textContent=n; d.style.left=x+'px'; d.style.top=y+'px'; document.getElementById('cl').appendChild(d); }
+cl(1,'명령 단추는 늘 이 한 줄에(고른 메일에 적용)',118,-34);
+cl(2,'편지함 이름 = 아웃룩·하이웍스와 같은 말',196,10);
+cl(3,'보낸 사람 → 제목 → 첫 줄(아웃룩 순서)',238,96);
+cl(4,'목록 폭 넓게(제목이 안 잘림)',632,10);
+cl(5,'제목 → 보낸 사람 옆 답장 단추 → 바로 본문',1010,14);
+cl(6,'메일 위 오른쪽 클릭 = 메뉴',560,250);
+cl(8,'AI 오늘 꼭 볼 메일',210,88);cl(9,'스팸함 자동',196,214);cl(7,'거르기·정렬은 한 단추 안에',640,42);
+</script>
+</body></html>

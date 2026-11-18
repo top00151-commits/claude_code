@@ -218,6 +218,17 @@ def ai_available() -> bool:
     return bool(p) and _sdk_ok(p) and bool(_key_for(p))
 
 
+# 메일 AI 공급사 고정(대표 규칙 · 11-18 「메일은 OpenAI 로 고정」): 메일 내용은 락아 OpenAI 계정으로만.
+#   화면·환경의 공급사 설정(Claude 우선 자동 감지 포함)과 상관없이 메일 AI 는 OpenAI 만 부른다.
+#   OpenAI 키가 없으면 메일 AI 는 꺼진다(다른 AI 로 새지 않음).
+MAIL_AI_PROVIDER = "openai"
+
+
+def mail_ai_available() -> bool:
+    """메일 AI(분류·요약·번역·쓰기 도움·답장 초안)를 쓸 수 있는가 — OpenAI 키·SDK 가 있을 때만."""
+    return _sdk_ok(MAIL_AI_PROVIDER) and bool(_key_for(MAIL_AI_PROVIDER))
+
+
 def ai_status() -> dict:
     """관리자/헬스 화면용 상태 (키 원문 절대 노출 안 함)."""
     p = get_provider()
@@ -288,6 +299,7 @@ def ai_chat(
     temperature: float = 0.3,
     cache_system: bool = True,
     timeout_sec: float = 0,
+    provider: str = "",
 ) -> tuple[bool, str]:
     """
     단발 채팅 호출 (공급사 자동). 반환 (성공여부, 응답 또는 오류메시지).
@@ -300,9 +312,14 @@ def ai_chat(
       🔵 `with_options()` 는 **새 사본을 돌려주고 원래 클라이언트는 안 건드린다**(실측 확인).
          받아쓰기용 클라이언트는 이미 300초를 쓰고 있었다(아래 `ai_transcribe`).
     """
-    provider = get_provider()
+    _forced = bool(provider)   # 11-18: 공급사를 콕 집으면(메일 = openai) 그 공급사만 — 키가 없으면 다른 데로 안 감
+    provider = (provider or get_provider()).strip().lower()
+    if provider in ("anthropic",):
+        provider = "claude"
     if not provider:
         return (False, "AI 비활성 (공급사·키 미설정)")
+    if _forced and not (_sdk_ok(provider) and _key_for(provider)):
+        return (False, f"AI 비활성 ({provider} 키 미등록 또는 SDK 미설치)")
     client = _get_client(provider)
     if client is None:
         return (False, f"AI 비활성 ({provider} 키 미등록 또는 SDK 미설치)")
@@ -313,6 +330,11 @@ def ai_chat(
             pass                                                # 못 바꾸면 지금까지대로 간다
 
     mdl = model or default_model(provider)
+    if _forced:   # 화면 「모델」 설정이 다른 공급사 모델이면 이 공급사 기본 모델로
+        if provider == "openai" and mdl.lower().startswith("claude"):
+            mdl = DEFAULT_MODEL_OPENAI
+        elif provider == "claude" and not mdl.lower().startswith("claude"):
+            mdl = DEFAULT_MODEL_CLAUDE
     try:
         if provider == "claude":
             kwargs: dict[str, Any] = {
@@ -398,7 +420,7 @@ def ai_vision(
         return (False, f"AI 비전 호출 오류({provider}): {e}")
 
 
-def ai_translate(text: str, target: str = "vi") -> tuple[bool, str]:
+def ai_translate(text: str, target: str = "vi", provider: str = "") -> tuple[bool, str]:
     """한↔베트남 번역. target='vi'(베트남어)/'ko'(한국어)."""
     if not text or not text.strip():
         return (True, "")
@@ -409,10 +431,10 @@ def ai_translate(text: str, target: str = "vi") -> tuple[bool, str]:
         "기술 용어·고객사명·모델명·치수는 원문 의미를 유지하고, "
         "번역문만 출력하세요(설명·따옴표 금지)."
     )
-    return ai_chat(text, system=system, max_tokens=1500, temperature=0.2)
+    return ai_chat(text, system=system, max_tokens=1500, temperature=0.2, provider=provider)
 
 
-def ai_summarize(text: str, *, style: str = "bullet") -> tuple[bool, str]:
+def ai_summarize(text: str, *, style: str = "bullet", provider: str = "") -> tuple[bool, str]:
     """긴 글·대화·회의록 요약. style='bullet'/'short'."""
     if not text or not text.strip():
         return (True, "")
@@ -421,7 +443,7 @@ def ai_summarize(text: str, *, style: str = "bullet") -> tuple[bool, str]:
         "당신은 KNK 업무 비서입니다. 아래 내용을 한국어로 요약하세요. "
         f"{fmt}. 결정사항·담당·기한이 있으면 반드시 포함. 요약문만 출력하세요."
     )
-    return ai_chat(text, system=system, max_tokens=800, temperature=0.2)
+    return ai_chat(text, system=system, max_tokens=800, temperature=0.2, provider=provider)
 
 
 # ── 회의록 추출 (16_KNK_Meeting 모드 A·B) — 구조화 정리 + 회사 맥락 주입 ──────────

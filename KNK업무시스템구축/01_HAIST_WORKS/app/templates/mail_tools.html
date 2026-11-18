@@ -71,7 +71,7 @@
 
   <div class="mt-sec">🛡 보안 <small>위험·스팸 메일</small></div>
   <div class="mt-grid">
-    <a class="mt-card" href="/mail/blocked"><span class="mt-ico">🚫</span><span><span class="mt-t">차단함{% if blocked_n %}<span class="mt-n">{{ blocked_n }}</span>{% endif %}</span>
+    <a class="mt-card" href="/mail/blocked"><span class="mt-ico">🚫</span><span><span class="mt-t">스팸함{% if blocked_n %}<span class="mt-n">{{ blocked_n }}</span>{% endif %}</span>
       <span class="mt-d" style="display:block">위험하거나 다시 안 받기로 한 메일이 모인 곳(지우지 않음 · 되살릴 수 있음)</span></span></a>
     {% if is_admin %}<a class="mt-card" href="/mail/blocklist"><span class="mt-ico">⛔</span><span><span class="mt-t">차단 목록 관리</span>
       <span class="mt-d" style="display:block">회사 전체에서 막을 위험·스팸 주소 등록(관리자)</span></span></a>{% endif %}

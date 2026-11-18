@@ -191,8 +191,12 @@ def link_findings(html: str, text: str):
 
 
 def assess(from_email="", from_name="", subject="", body="", html="", attachments=None,
-           auth=None, reply_to="", staff_names=()):
-    """반환 (level 0~3, note 글). note 는 사람이 읽는 이유를 ' / ' 로 잇는다."""
+           auth=None, reply_to="", staff_names=(), codes=None):
+    """반환 (level 0~3, note 글). note 는 사람이 읽는 이유를 ' / ' 로 잇는다.
+    codes(목록을 넘기면) = 스팸함으로 옮길 만한 「강한 이유」 이름을 담는다(11-18 대표 「스팸은 자동으로 걸러」).
+      링크 속임(광고 메일 추적 링크에도 흔함)·외부 발신·압축파일 그 자체는 넣지 않는다 — 정상 메일이 숨지 않게."""
+    if codes is None:
+        codes = []
     notes = []
     level = 0
     dom = _domain(from_email)
@@ -206,12 +210,15 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
     # ① 인증 결과
     if ours and (au.get("dmarc") == "fail" or au.get("spf") == "fail"):
         level = max(level, 3)
+        codes.append("auth_ours")
         notes.append("우리 회사 주소로 왔지만 메일 서버 인증 실패(%s) — 회사 사칭 의심" % "·".join(fails))
     elif external and au.get("dmarc") == "fail":
         level = max(level, 2)
+        codes.append("auth")
         notes.append("보낸 회사 주소 인증 실패(DMARC) — 사칭 의심")
     elif external and au.get("spf") == "fail" and au.get("dkim") != "pass":
         level = max(level, 2)
+        codes.append("auth")
         notes.append("메일 서버 인증 실패(%s)" % "·".join(fails))
     elif external and fails:
         # 전달(포워딩)·메일링 리스트에서도 흔하다 → 표시만
@@ -222,6 +229,7 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
     la = lookalike_of_ours(dom)
     if la:
         level = max(level, 3)
+        codes.append("lookalike")
         notes.append("우리 회사 주소(%s)를 흉내 낸 주소(%s)" % (la, dom))
 
     # ③ 이름 사칭
@@ -240,6 +248,10 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
                     break
         if hit and free:
             level = max(level, 2)
+            # 11-18: 「사장·대표」 같은 흔한 직함만으로는 스팸함으로 안 옮김 — 작은 협력사 사장님이 개인 메일을 많이 씀(시험 서버에서 실제로 걸림)
+            #   우리 회사 이름·우리 직원 이름을 쓴 경우만 옮길 이유
+            if hit != "대표":
+                codes.append("spoof_name")
             notes.append("보낸 이 이름은 %s인데 주소는 개인 무료 메일(%s) — 사칭 의심" % (hit, dom))
         elif hit and hit != "회사 이름" and not la:
             level = max(level, 1)
@@ -252,6 +264,8 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
         f_free = _base(dom) in FREE_MAIL or dom in FREE_MAIL
         # 회사 주소로 보내면서 답장만 개인 무료 메일로 = 거래처 사칭의 전형. 그 밖(뉴스레터·접수 시스템)은 표시만.
         level = max(level, 2 if (r_free and not f_free) else 1)
+        if r_free and not f_free:
+            codes.append("reply_to")
         notes.append("답장이 다른 곳(%s)으로 가도록 돼 있음" % rdom)
 
     # ⑤ 링크 — 광고 메일의 추적 링크도 「보이는 주소 ≠ 실제 주소」라 격리(3)까지는 올리지 않는다(경고·링크 막기까지)
@@ -267,22 +281,48 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
     dbl = [n for n in names if _ext(n) in EXEC_EXTS and _ext(n[: -len(_ext(n))]) in DOC_LIKE]
     if dbl:
         level = max(level, 3)
+        codes.append("exec")
         notes.append("문서로 위장한 실행파일(%s)" % ", ".join(dbl[:2]))
     elif exe:
         level = max(level, 3)
+        if external:
+            codes.append("exec")
         notes.append("실행파일 첨부(%s)" % ", ".join(exe[:3]))
     mac = [n for n in names if _ext(n) in MACRO_EXTS]
     if mac and external:
         level = max(level, 2)
+        codes.append("macro")
         notes.append("매크로가 든 문서(%s) — 「콘텐츠 사용」을 누르지 말 것" % ", ".join(mac[:2]))
     hta = [n for n in names if _ext(n) in HTML_EXTS]
     if hta and external:
         level = max(level, 2)
+        codes.append("html_att")
         notes.append("웹페이지 파일 첨부(%s) — 로그인 화면 위장에 흔함" % ", ".join(hta[:2]))
+    # 11-18 첨부 「속」 검사(이름만 바꾼 실행파일 · 압축 안 실행파일 · 숨은 매크로 · 비밀번호 압축) — 이 서버 안에서만
+    try:
+        from . import mail_attcheck as _ac
+        for a in atts:
+            if a.get("inline") or not a.get("data"):
+                continue
+            r = _ac.inspect(a.get("filename") or "", a.get("mime") or "", a.get("data") or b"")
+            if r["kind"] == "block" and not any(r["why"] in n for n in notes):
+                level = max(level, 3)
+                codes.append("att_block")
+                notes.append("위험한 첨부 %s — %s" % (a.get("filename") or "", r["why"]))
+            elif r["kind"] == "warn" and external and _ext(a.get("filename") or "") not in MACRO_EXTS | HTML_EXTS:
+                if r["why"].startswith("이름은 PDF"):   # 깨진·특이한 PDF 도 있다 → 표시만(스팸함으로 안 옮김)
+                    level = max(level, 1)
+                else:
+                    level = max(level, 2)
+                    codes.append("att_warn")
+                notes.append("주의할 첨부 %s — %s" % (a.get("filename") or "", r["why"]))
+    except Exception:
+        pass
     arc = [n for n in names if _ext(n) in ARCHIVE_EXTS]
     if arc and external:
         if _ARCH_PW_PAT.search(blob):
             level = max(level, 2)
+            codes.append("zip_pw")
             notes.append("비밀번호 걸린 압축파일(%s) — 백신 검사를 피하는 수법" % ", ".join(arc[:2]))
         else:
             level = max(level, 1)
@@ -291,9 +331,13 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
     # ⑦ 송금·계좌 변경 / 계정 확인 요구
     if (external or fails or la) and _BEC_PAT.search(blob):
         level = max(level, 2)
+        codes.append("bec")
         notes.append("송금·계좌 변경 요구 — 반드시 전화로 거래처에 직접 확인")
     if external and nlinks and _CRED_PAT.search(blob):
-        level = max(level, 2 if (_URGENT_PAT.search(blob) or _THREAT_PAT.search(blob) or fails or lnotes) else 1)
+        _cl = 2 if (_URGENT_PAT.search(blob) or _THREAT_PAT.search(blob) or fails or lnotes) else 1
+        level = max(level, _cl)
+        if _cl >= 2:
+            codes.append("cred")
         notes.append("계정·비밀번호 확인을 요구하는 링크")
 
     if external and not notes:
@@ -323,7 +367,17 @@ def should_quarantine(from_email="", attachments=None, auth=None, level=0) -> bo
     names = [(a.get("filename") or "") for a in (attachments or []) if not a.get("inline")]
     exe = [n for n in names if _ext(n) in EXEC_EXTS]
     dbl = [n for n in exe if _ext(n[: -len(_ext(n))]) in DOC_LIKE]
-    return bool(dbl) or (bool(exe) and not ours)
+    if bool(dbl) or (bool(exe) and not ours):
+        return True
+    # 11-18 속까지 본 결과 「막아야 할」 첨부(이름만 바꾼 실행파일 · 압축 안 실행파일)
+    try:
+        from . import mail_attcheck as _ac
+        for a in (attachments or []):
+            if not a.get("inline") and a.get("data") and _ac.inspect(a.get("filename") or "", a.get("mime") or "", a.get("data"))["kind"] == "block":
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def defang_links_html(html: str) -> str:

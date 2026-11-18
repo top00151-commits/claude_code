@@ -311,7 +311,7 @@
       <a href="/mail/inbox?arc=1" class="mbx-fold {{ 'on' if cur_arc|default(false) else '' }}"{% if box=='in' and not cur_arc|default(false) %} data-drop="archive" data-dname="보관함"{% endif %} title="📦 보관한 메일 — 받은편지함에서만 빠지고 지우지 않음(찾기·폴더에는 그대로 나옴)"><span class="fname">📦 보관함</span>{% if arc_n|default(0) %}<span class="cnt">{{ '{:,}'.format(arc_n) }}</span>{% endif %}</a>
       <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}" title="쓰다가 저장한 메일(임시 저장)"><span class="fname">📝 쓰다 만 메일</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
       <a href="/mail/trash" class="mbx-fold {{ 'on' if box=='trash' else '' }}"{% if box=='in' %} data-drop="delete" data-dname="휴지통"{% endif %}><span class="fname">🗑 휴지통</span></a>
-      {% if box=='blocked' %}<a href="/mail/blocked" class="mbx-fold on" title="차단목록에 걸려 격리된 메일(복구 가능)"><span class="fname">🚫 차단함</span></a>{% endif %}
+      <a href="/mail/blocked" class="mbx-fold {{ 'on' if box=='blocked' else '' }}" title="스팸·피싱으로 보이는 메일이 저절로 모이는 곳(지우지 않음) — 아는 사람(주소록·거래처·내가 메일 보낸 사람)은 옮기지 않음 · 「✓ 스팸 아님」 한 번이면 그 사람은 다시 안 옮김"><span class="fname">🚫 스팸함</span>{% if spam_n|default(0) %}<span class="cnt">{{ '{:,}'.format(spam_n) }}</span>{% endif %}</a>
 
       {% if box=='in' and mf %}
       {# 받은 메일 폴더(아웃룩식 · 대표 11-17 「아웃룩을 이런 식으로 구분해서 사용하고 있어」) — 보낸 사람으로 자동 · 숫자=안 읽은 메일 #}
@@ -358,7 +358,7 @@
       {% endif %}
 
       <div class="mbx-fold-div"></div>
-      <a href="/mail/tools" class="mbx-fold mbx-tools" title="보낸 곳별 정리 · 같은 메일 정리 · 폴더 관리 · 서명 · 차단함 등 가끔 쓰는 것 모두"><span class="fname">⚙ 설정·정리</span></a>
+      <a href="/mail/tools" class="mbx-fold mbx-tools" title="보낸 곳별 정리 · 같은 메일 정리 · 폴더 관리 · 서명 · 스팸함 등 가끔 쓰는 것 모두"><span class="fname">⚙ 설정·정리</span></a>
     </nav>
 
     <div class="mbx-gutter" data-g="1" title="끌어서 폭 조절"></div>
@@ -439,7 +439,9 @@
         </div>
         {% endfor %}
       {% elif box=='blocked' %}
-        {# 차단함: 격리된 메일 — 열기 / 받은편지함 복구 (삭제 아님) #}
+        {# 스팸함(옛 차단함): 스팸·피싱으로 보여 옮긴 메일 · 다시 안 받기 · 회사 차단목록 — 열기 / ✓ 스팸 아님 (삭제 아님) #}
+        <div class="mf-cur" style="background:#fef2f2;border-color:#fecaca">🚫 <b>스팸함</b> <span>{{ mails|length }}통 · 스팸·피싱으로 보여 저절로 옮긴 메일과 「다시 안 받기」 한 곳 — 지우지 않습니다 · 정상 메일이면 「✓ 스팸 아님」</span></div>
+        {% if not mails %}<div style="padding:40px 16px;text-align:center;color:#6b7280">스팸함이 비어 있습니다 👍</div>{% endif %}
         {% for m in mails %}
         <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
           <div class="mbx-main">
@@ -447,7 +449,7 @@
             <div class="mbx-r2"><span class="mbx-from">{{ m.from_name or m.from_email or '(보낸사람 없음)' }}</span>{% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}</div>
           </div>
           <a href="/mail/{{ m.id }}" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;white-space:nowrap" title="내용 보기(주의해서)">열기</a>
-          <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;color:#15803d;white-space:nowrap" onclick="unblockMail(event,{{ m.id }})" title="받은편지함으로 되돌리기">↩ 복구</button>
+          <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;color:#15803d;white-space:nowrap" onclick="notSpam(event,{{ m.id }})" title="받은편지함으로 되돌리고 이 보낸 사람은 앞으로 스팸함으로 옮기지 않음(나에게만)">✓ 스팸 아님</button>
         </div>
         {% endfor %}
       {% else %}
@@ -525,6 +527,14 @@ async function emptyTrash(){
     if(j.ok){ alert(j.count+'통을 완전삭제했습니다.'); location.reload(); }
     else alert('실패'); }catch(e){ alert('네트워크 오류'); }
 }
+/* ── ✓ 스팸 아님(11-18) — 받은편지함으로 + 이 사람은 다시 안 옮김(나에게만) ── */
+async function notSpam(ev, id){
+  if(ev) ev.preventDefault();
+  try{ var r=await fetch('/mail/'+id+'/notspam',{method:'POST'}); var j=await r.json();
+    if(j.ok){ var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]'); if(row) row.remove();
+      if(typeof mbxToast==='function') mbxToast('✓ 받은편지함으로 돌렸어요 · '+(j.addr||'이 사람')+' 메일은 앞으로 스팸함으로 옮기지 않아요'); }
+    else alert(j.message||'하지 못했습니다'); }catch(e){ alert('네트워크 오류'); }
+}
 /* ── 차단함: 받은편지함으로 복구 (대표 지시 2026-06-19 스팸방어) ── */
 async function unblockMail(ev, id){
   if(ev) ev.preventDefault();
@@ -557,13 +567,13 @@ function resetPane(){
   clearActive(); pane.classList.add('empty');
   pane.innerHTML = window._mbxEmptyPane || '<div class="mbx-rp-ico">📧</div>왼쪽 목록에서 메일을 선택하면<br>여기에서 바로 내용을 볼 수 있어요.';
 }
-async function loadPane(id, rowEl){
+async function loadPane(id, rowEl, q){
   var pane=document.getElementById('readPane'); if(!pane) return;
   clearActive(); if(rowEl) rowEl.classList.add('active');
   pane.classList.remove('empty');
   pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#9ca3af">메일 불러오는 중…</div>';
   try{
-    var r=await fetch('/mail/'+id+'/pane',{headers:{'X-Requested-With':'fetch'}});
+    var r=await fetch('/mail/'+id+'/pane'+(q||''),{headers:{'X-Requested-With':'fetch'}});
     if(!r.ok){ pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#b91c1c">메일을 불러오지 못했습니다.</div>'; return; }
     var html=await r.text(); pane.innerHTML=html;
     pane.querySelectorAll('script').forEach(function(old){

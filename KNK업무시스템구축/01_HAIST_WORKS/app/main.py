@@ -1755,7 +1755,7 @@ def _mailfetch_run_owner(owner_id):
         ur = c.execute("SELECT * FROM users WHERE id=?", (owner_id,)).fetchone()
     owner_user = dict(ur) if ur else {"id": owner_id}
     try:
-        ai_on = ai_enabled_for(owner_user)
+        ai_on = mail_ai_enabled_for(owner_user)
     except Exception:
         ai_on = False
     stored = 0
@@ -2058,6 +2058,26 @@ def ai_enabled_for(user) -> bool:
     try:
         from . import ai_client
         if not ai_client.ai_available():
+            return False
+    except Exception:
+        return False
+    if not user:
+        return False
+    try:
+        flag = user.get("can_use_ai") if isinstance(user, dict) else None
+        if flag is not None:
+            return bool(flag)
+    except Exception:
+        pass
+    return True
+
+
+def mail_ai_enabled_for(user) -> bool:
+    """메일 AI(가져올 때 분류·요약 · 번역 · AI로 정리 · 화면 AI 표시) — 11-18 대표 「메일은 OpenAI 로 고정」.
+    다른 기능의 AI 공급사 설정과 상관없이 메일은 OpenAI(락아 계정) 키가 있을 때만 켜진다. 직원별 can_use_ai 는 그대로 따름."""
+    try:
+        from . import ai_client
+        if not ai_client.mail_ai_available():
             return False
     except Exception:
         return False
@@ -22604,7 +22624,7 @@ async def mail_inbound(req: Request):
         mid, owner = _mailbox.store_inbound(
             c, to_email=f["to_email"], from_email=f["from_email"],
             from_name=f["from_name"], subject=f["subject"], text=f["text"],
-            html=f["html"], cc=f["cc"], size=f["size"], run_ai=True,
+            html=f["html"], cc=f["cc"], size=f["size"], run_ai=None,   # 11-18: 받는 사람의 메일 AI 허용(OpenAI)일 때만
             attachments=_atts, message_id=f.get("message_id", ""),
             auth=_auth, reply_to=_reply_to,
         )
@@ -22761,7 +22781,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                if k not in ("off", "frag", "prev", "unread", "att", "thread", "noad", "app")]
     with db_session() as c:
         _arc_n = _mailbox.count_archived(c, u["id"])
-    _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n,
+        _spam_n = _mailbox.count_blocked(c, u["id"])
+    _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n,
                      hides_arc=bool(not arc and not fd and not _terms and not who and not dom and not star and not reply and not cust),
                      fd_choices=((_mail_folders.assignable_list(mf) if mf else [])), remain_n=max(0, total_n - off - len(mails)),
                      prev_day=(prev or "")[:40], page_off=off,
@@ -22775,7 +22796,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                    thread_on=thread_on, threads=threads, **_ctx_more)
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread_n,
                cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES, cur_df=df, cur_dt=dt, cur_att=bool(att),
-               ai_on=ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
+               ai_on=mail_ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
                drafts_n=drafts_n, thread_on=thread_on, threads=threads,
                folders=folders, cur_cust=(cust or "").strip(),
                reply_n=len(reply_map), cur_reply=bool(reply),
@@ -23074,7 +23095,7 @@ async def mail_inbox_demo(req: Request):
 
 
 @app.get("/mail/{mail_id:int}")
-async def mail_view_page(req: Request, mail_id: int):
+async def mail_view_page(req: Request, mail_id: int, img: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -23091,6 +23112,22 @@ async def mail_view_page(req: Request, mail_id: int):
         # (11-18 「쉽게 보기」) 이전 대화(인용)는 접어 두고 새로 쓴 내용만 먼저 — 서식 메일·글 메일 모두
         safe_html = _mail_find.fold_quote_html(safe_html)
         body_own, body_quote = _mail_find.split_quote_text(m.get("body_text") or "")
+        # 11-18 「안전하게」: 처음 보는 곳(아는 사람 아님)·의심 메일은 바깥 그림을 꺼 둔다(읽음 추적·피싱 그림 막기) — 「그림 보기」로 켬
+        img_off = False
+        try:
+            _in = (m.get("direction") or "in") == "in"
+            if _in and not img and (int(m.get("risk_level") or 0) >= 2 or not _mailbox.is_known_sender(c, u["id"], m.get("from_email"))):
+                _s2 = _mailbox.strip_remote_refs(safe_html)
+                img_off = (_s2 != safe_html)
+                safe_html = _s2
+        except Exception:
+            img_off = False
+        from . import mail_attcheck as _macheck
+        for _a in file_atts:
+            try:
+                _a["chk"] = _macheck.quick(_a.get("filename"), _a.get("mime"))
+            except Exception:
+                _a["chk"] = {"kind": "ok", "why": ""}
         # 보낸사람 ↔ 연락처 자동연결 — 이메일 '정확 일치 1건'이면 링크, 없으면 등록 유도.
         #   (데이터 연결 안전: 추측 매칭 안 함. 정확히 같은 이메일만 단일 후보로 연결)
         sender_contact = None
@@ -23107,15 +23144,15 @@ async def mail_view_page(req: Request, mail_id: int):
         folder_info = _mail_folder_info(c, u["id"], m)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
-    return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u),
+    return ctx(req, "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav)
+               nav=nav, img_off=img_off)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
-async def mail_view_pane(req: Request, mail_id: int):
+async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
     # A1 읽기 창(아웃룩식) — 받은편지함 우측에 innerHTML 주입할 메일 내용 '조각'.
     #   풀페이지 /mail/{id} 와 동일 로직(본인 메일·읽음처리·sanitize) — 보안 동일.
     u = get_user(req)
@@ -23134,6 +23171,22 @@ async def mail_view_pane(req: Request, mail_id: int):
         # (11-18 「쉽게 보기」) 이전 대화(인용)는 접어 두고 새로 쓴 내용만 먼저 — 서식 메일·글 메일 모두
         safe_html = _mail_find.fold_quote_html(safe_html)
         body_own, body_quote = _mail_find.split_quote_text(m.get("body_text") or "")
+        # 11-18 「안전하게」: 처음 보는 곳(아는 사람 아님)·의심 메일은 바깥 그림을 꺼 둔다(읽음 추적·피싱 그림 막기) — 「그림 보기」로 켬
+        img_off = False
+        try:
+            _in = (m.get("direction") or "in") == "in"
+            if _in and not img and (int(m.get("risk_level") or 0) >= 2 or not _mailbox.is_known_sender(c, u["id"], m.get("from_email"))):
+                _s2 = _mailbox.strip_remote_refs(safe_html)
+                img_off = (_s2 != safe_html)
+                safe_html = _s2
+        except Exception:
+            img_off = False
+        from . import mail_attcheck as _macheck
+        for _a in file_atts:
+            try:
+                _a["chk"] = _macheck.quick(_a.get("filename"), _a.get("mime"))
+            except Exception:
+                _a["chk"] = {"kind": "ok", "why": ""}
         sender_contact = None
         _fe = (m.get("from_email") or "").strip()
         if _fe:
@@ -23148,11 +23201,11 @@ async def mail_view_pane(req: Request, mail_id: int):
         folder_info = _mail_folder_info(c, u["id"], m)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
-    return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=ai_enabled_for(u),
+    return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav)
+               nav=nav, img_off=img_off)
 
 
 def _mail_who_info(m, folder_info):
@@ -23610,6 +23663,34 @@ async def mail_attachment(req: Request, mail_id: int, att_id: int, confirm: int 
     fn = a["filename"] or "attachment"
     _ext = _mailbox._att_ext(fn)
     _danger = _ext in _mailbox.DANGEROUS_EXTS
+    # 11-18 「위험한 파일 자동으로 찾아 안전하게」 — 이름뿐 아니라 파일 속(이름만 바꾼 실행파일 · 압축 안 실행파일 · 숨은 매크로)까지
+    from . import mail_attcheck as _macheck
+    _chk = _macheck.inspect(fn, a.get("mime") or "", a.get("data") or b"")
+    if _chk["kind"] == "block":
+        _danger = True
+    if _chk["kind"] in ("block", "warn") and not confirm:
+        import html as _hm
+        _is_admin = (u.get("role") in ("admin", "ceo"))
+        _blk = _chk["kind"] == "block"
+        _ins = ("<p style='font-size:13px;color:#6b7280'>압축 안: " + _hm.escape(", ".join(_chk.get("inside") or [])) + "</p>") if _chk.get("inside") else ""
+        _go = ("" if (_blk and not _is_admin) else
+               "<a href='?confirm=1' style='background:#fff;color:#b91c1c;border:1px solid #fca5a5;text-decoration:none;padding:11px 18px;border-radius:9px'>"
+               + ("관리자 — 위험을 감수하고 받기" if _blk else "확인했습니다 — 받기") + "</a>")
+        page = ("<!DOCTYPE html><html lang='ko'><head><meta charset='utf-8'>"
+                "<meta name='viewport' content='width=device-width, initial-scale=1'><title>" + ("위험한 첨부" if _blk else "주의할 첨부") + "</title></head>"
+                "<body style=\"font-family:system-ui,-apple-system,'Malgun Gothic',sans-serif;max-width:560px;margin:42px auto;padding:0 18px;color:#1f2430\">"
+                "<div style='border:2px solid " + ("#fca5a5;background:#fef2f2" if _blk else "#fde68a;background:#fffbeb") + ";border-radius:14px;padding:22px'>"
+                "<h2 style='color:" + ("#b91c1c" if _blk else "#92400e") + ";margin:0 0 10px'>" + ("⛔ 열면 안 되는 첨부입니다" if _blk else "⚠ 주의할 첨부입니다") + "</h2>"
+                "<p style='font-size:15px;line-height:1.7'><b>" + _hm.escape(fn) + "</b><br>" + _hm.escape(_chk["why"]) + "</p>" + _ins +
+                "<p style='font-size:14px;color:#6b7280;line-height:1.7'>" +
+                ("악성코드·랜섬웨어일 가능성이 높아 <b>내려받기를 막았습니다</b>. 꼭 필요한 파일이면 보낸 사람에게 <b>전화로</b> 확인한 뒤 전산 담당자에게 요청하세요."
+                 if _blk else "보낸 사람을 <b>확실히 알고</b> 이 파일을 받기로 <b>미리 약속</b>한 게 아니라면 열지 마세요. 의심되면 보낸 사람에게 <b>전화로</b> 확인하세요.") +
+                "</p><div style='margin-top:18px;display:flex;gap:10px;flex-wrap:wrap'>"
+                "<a href='javascript:history.back()' style='background:#15803d;color:#fff;text-decoration:none;padding:11px 18px;border-radius:9px;font-weight:700'>← 돌아가기 (안전)</a>"
+                + _go + "</div></div></body></html>")
+        return HTMLResponse(page)
+    if _chk["kind"] == "block" and confirm and u.get("role") not in ("admin", "ceo"):
+        return Response(status_code=403)
     if _danger and not confirm:
         import html as _hm
         sfn, sext = _hm.escape(fn), _hm.escape(_ext)
@@ -23632,12 +23713,15 @@ async def mail_attachment(req: Request, mail_id: int, att_id: int, confirm: int 
     # 파일명 RFC5987(한글 안전) — ASCII fallback + UTF-8
     import urllib.parse as _up
     # 위험 확장자는 confirm 후에도 브라우저서 바로 안 열리게 무조건 다운로드(attachment). 그 외 이미지·PDF는 미리보기.
-    disp = "attachment" if _danger else ("inline" if (mime.startswith("image/") or mime == "application/pdf") else "attachment")
+    # 11-18: SVG·HTML 은 스크립트가 들 수 있어 우리 주소에서 바로 열지 않는다(그림·PDF 만 바로 보기) + 막는 머리글
+    disp = "attachment" if (_danger or _chk["kind"] != "ok") else ("inline" if _macheck.inline_ok(mime, fn) else "attachment")
     headers = {
         "Content-Disposition": f"{disp}; filename*=UTF-8''{_up.quote(fn)}",
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, max-age=3600",
     }
+    if disp == "attachment" or not mime.lower().startswith("application/pdf"):
+        headers["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'"
     return Response(content=a["data"], media_type=mime, headers=headers)
 
 
@@ -23732,7 +23816,7 @@ async def mail_drafts_page(req: Request):
         drafts_n = _mailbox.count_drafts(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
-               ai_on=ai_enabled_for(u), box="draft", drafts_n=drafts_n)
+               ai_on=mail_ai_enabled_for(u), box="draft", drafts_n=drafts_n)
 
 
 @app.post("/api/mail/{mail_id:int}/translate")
@@ -23777,8 +23861,8 @@ async def mail_ai_compose(req: Request):
     try:
         import json as _json
         from . import ai_client
-        if not ai_client.ai_available():
-            return JSONResponse({"ok": False, "message": "AI가 비활성 상태입니다(키 미설정)."})
+        if not ai_client.mail_ai_available():   # 11-18 메일 AI = OpenAI 만
+            return JSONResponse({"ok": False, "message": "AI가 꺼져 있습니다(메일 AI = OpenAI 키 필요)."})
         system = (
             "당신은 ㈜케이엔케이(KNK·검사기/자동화 설비 제조)의 비즈니스 이메일 작성 도우미입니다. "
             "사용자가 적은 거친 메모·요점을 정중하고 명확한 업무 이메일로 다듬으세요. "
@@ -23788,7 +23872,8 @@ async def mail_ai_compose(req: Request):
             '출력은 JSON 한 줄만: {"subject":"제목 제안","body":"메일 본문"} . 다른 텍스트·설명·코드블록 금지.'
         )
         prompt = f"[현재 제목]\n{cur_subject or '(없음)'}\n\n[거친 메모]\n{rough[:4000]}"
-        ok, resp = ai_client.ai_chat(prompt, system=system, max_tokens=900, temperature=0.4)
+        ok, resp = ai_client.ai_chat(prompt, system=system, max_tokens=900, temperature=0.4,
+                                     provider=ai_client.MAIL_AI_PROVIDER)
         if not ok:
             return JSONResponse({"ok": False, "message": "AI 정리 실패 — 잠시 후 다시 시도해주세요."})
         subject, bodyout = cur_subject, (resp or "").strip()
@@ -23996,7 +24081,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
             if _to and len(_to) <= 200 and "@" in _to and not any(ch in _to for ch in "<>\"'\r\n"):
                 prefill["to"] = _to
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
-               from_addr=my_from, ai_on=ai_enabled_for(u),
+               from_addr=my_from, ai_on=mail_ai_enabled_for(u),
                can_link=can_link, acct_ok=acct_ok,
                sig_html=("" if draft else sig))   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
@@ -24237,7 +24322,7 @@ async def mail_sent_page(req: Request, q: str = ""):
         drafts_n = _mailbox.count_drafts(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
-               ai_on=ai_enabled_for(u), box="sent", sent_n=sent_n, q=q, drafts_n=drafts_n)
+               ai_on=mail_ai_enabled_for(u), box="sent", sent_n=sent_n, q=q, drafts_n=drafts_n)
 
 
 @app.get("/admin/mail-send", response_class=HTMLResponse)
@@ -24499,7 +24584,7 @@ async def admin_mail_fetch_run(req: Request):
             _mailfetch.set_status(c, u["id"], status="실패: " + res.get("error", ""))
         return JSONResponse({"ok": False, "message": "가져오기 실패: " + res.get("error", "")})
     stored = 0
-    ai_on = ai_enabled_for(u)
+    ai_on = mail_ai_enabled_for(u)
     with db_session() as c:
         for key, raw in res.get("messages", []):
             try:
@@ -24539,7 +24624,7 @@ async def mail_trash_page(req: Request):
         drafts_n = _mailbox.count_drafts(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
-               ai_on=ai_enabled_for(u), box="trash", drafts_n=drafts_n)
+               ai_on=mail_ai_enabled_for(u), box="trash", drafts_n=drafts_n)
 
 
 @app.post("/mail/{mail_id:int}/restore")
@@ -24583,9 +24668,10 @@ async def mail_blocked_page(req: Request):
         mails = _mailbox.list_blocked(c, u["id"])
         unread = _mailbox.count_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
+        spam_n = len(mails)
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
-               ai_on=ai_enabled_for(u), box="blocked", drafts_n=drafts_n)
+               ai_on=mail_ai_enabled_for(u), box="blocked", drafts_n=drafts_n, spam_n=spam_n)
 
 
 @app.post("/mail/{mail_id:int}/block")
@@ -24608,6 +24694,32 @@ async def mail_unblock_one(req: Request, mail_id: int):
     with db_session() as c:
         _mailbox.set_blocked(c, u["id"], mail_id, False)
     return JSONResponse({"ok": True})
+
+
+@app.post("/mail/{mail_id:int}/notspam")
+async def mail_not_spam(req: Request, mail_id: int):
+    """✓ 스팸 아님(11-18) — 받은편지함으로 되돌리고, 이 보낸 사람은 앞으로 스팸함으로 옮기지 않음(나에게만).
+    내가 「다시 안 받기」 해 둔 사람이면 그것도 푼다. 회사 전체 차단목록은 관리자 일이라 그대로."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        row = c.execute("SELECT from_email FROM mail_messages WHERE id=? AND user_id=? AND direction='in'",
+                        (mail_id, u["id"])).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "message": "내 받은 메일이 아닙니다."}, 404)
+        addr = (row["from_email"] or "").strip().lower()
+        if addr and _mailbox.is_sender_blocked(c, addr):
+            return JSONResponse({"ok": False, "message": "회사 전체 차단목록에 있는 주소라 관리자만 풀 수 있습니다."}, 400)
+        _mailbox.set_blocked(c, u["id"], mail_id, False)
+        if addr:
+            _mailbox.allow_sender(c, u["id"], addr)
+            try:
+                from . import mail_cleanup as _mcl
+                _mcl.remove_mute(c, u["id"], addr, restore=False)
+            except Exception:
+                pass
+    return JSONResponse({"ok": True, "addr": addr})
 
 
 @app.post("/mail/{mail_id:int}/block-sender")

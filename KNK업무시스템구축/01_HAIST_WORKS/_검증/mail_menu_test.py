@@ -9,6 +9,7 @@
 사용: py -3.13 _검증/mail_menu_test.py"""
 import io
 import os
+import re
 import sys
 import tempfile
 
@@ -103,7 +104,8 @@ try:
     check("⚙ 설정·정리 → /mail/tools", 'href="/mail/tools"' in sd)
     check("메일 종류(분류) 칸 없음 — ?cat= 링크·「분류」 머리 없음", "?cat=" not in sd and '>분류</div>' not in sd)
     check("보기 칸(⭐ 별표·● 안읽음·💬 대화묶기) 왼쪽에서 빠짐", "⭐ 별표" not in sd and "● 안읽음" not in sd and "💬 대화묶기" not in sd)
-    check("차단함·보낸 곳별 정리·차단목록 관리 → 왼쪽에서 빠짐(설정·정리 안)", "/mail/blocked" not in sd and "/mail/cleanup" not in sd and "/mail/blocklist" not in sd)
+    check("보낸 곳별 정리·차단목록 관리 → 왼쪽에서 빠짐(설정·정리 안)", "/mail/cleanup" not in sd and "/mail/blocklist" not in sd)
+    check("🚫 스팸함은 왼쪽 「내 메일」에 늘 보임(11-18 대표 「스팸은 자동으로 걸러」 — 아웃룩처럼)", 'href="/mail/blocked"' in sd and "🚫 스팸함" in sd and sd.find("🗑 휴지통") < sd.find("🚫 스팸함") < sd.find("📁 폴더"))
     check("「일반」 + 「🧹 일반 정리하기」는 그대로", ">일반</span>" in sd and "🧹 일반 정리하기" in sd)
 
     print("== 2. 위 도구줄 · 찾기 · 거르기 ==")
@@ -169,7 +171,7 @@ try:
     check("설정·정리 200", t.status_code == 200, t.status_code)
     for nm, needle in (("보낸 곳별 정리", 'href="/mail/cleanup"'), ("같은 메일 정리", "dedupInbox(event)"), ("일반 정리하기", 'href="/mail/folders/general"'),
                        ("휴지통", 'href="/mail/trash"'), ("폴더 관리", 'href="/mail/folders"'), ("자동 분류 규칙", 'href="/mail/rules"'),
-                       ("서명", 'href="/mail/signature"'), ("내 회사 주소 연결", 'href="/mail/account"'), ("차단함", 'href="/mail/blocked"')):
+                       ("서명", 'href="/mail/signature"'), ("내 회사 주소 연결", 'href="/mail/account"'), ("스팸함", 'href="/mail/blocked"')):
         check("설정·정리에 「%s」" % nm, needle in th, needle)
     check("대표(관리자): 관리자 칸(받기·보내기·가져오기·저장 공간) + 차단 목록 관리",
           all(x in th for x in ("/admin/mail-inbound", "/admin/mail-send", "/admin/mail-fetch", "/admin/mail-purge", "/mail/blocklist")))
@@ -186,7 +188,7 @@ try:
     for path in ("/mail/sent", "/mail/drafts", "/mail/trash", "/mail/blocked", "/mail/inbox?fd=gen", "/mail/inbox?reply=1", "/mail/inbox?star=1", "/mail/inbox?q=%EB%B0%9C%EC%A3%BC"):
         rr = k.get(path)
         check("%s 200 · 왼쪽 메일 쓰기" % path, rr.status_code == 200 and 'class="mbx-write"' in rr.text, rr.status_code)
-    check("차단함을 열면 왼쪽에 「🚫 차단함」(지금 위치 표시)", "🚫 차단함" in side(k.get("/mail/blocked").text))
+    check("스팸함을 열면 왼쪽 「🚫 스팸함」에 지금 위치 표시", re.search(r'href="/mail/blocked" class="mbx-fold on"', side(k.get("/mail/blocked").text)) is not None)
     _U["v"] = None
     check("로그인 안 하면 설정·정리 → /login", k.get("/mail/tools").status_code == 303)
 finally:

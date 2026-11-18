@@ -4,9 +4,10 @@
 {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
 
 {% if m.risk_level and m.risk_level >= 2 %}
-<div class="mv-warn high">⚠ <b>{{ '위험 메일 — 차단함으로 옮겼습니다' if m.risk_level >= 3 else '피싱·사칭 의심 메일' }}</b>
-  <ul class="mv-warn-list" style="margin:6px 0 4px 18px;padding:0;font-weight:500">{% for _r in (m.risk_note or '외부·미인증 발신').split(' / ') %}<li>{{ _r }}</li>{% endfor %}</ul>
-  <span>링크는 눌리지 않게 막았습니다(마우스를 올리면 실제 주소). <b>첨부를 열거나 회신·송금하기 전에 보낸 사람에게 전화로 확인</b>하세요.</span>{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">🚫 이 발신 차단</button>{% endif %}</div>
+<div class="mv-warn high">⚠ <b>{{ ('위험 메일 — 스팸함으로 옮겼습니다' if m.risk_level >= 3 else '피싱·사칭 의심 메일 — 스팸함으로 옮겼습니다') if m.is_blocked else ('위험 메일' if m.risk_level >= 3 else '피싱·사칭 의심 메일') }}</b>
+  <ul class="mv-warn-list" style="margin:6px 0 4px 18px;padding:0;font-weight:500">{% for _r in (m.risk_note or '외부·미인증 발신').split(' / ') if _r != '스팸함으로 옮김' %}<li>{{ _r }}</li>{% endfor %}</ul>
+  <span>링크는 눌리지 않게 막았습니다(마우스를 올리면 실제 주소). <b>첨부를 열거나 회신·송금하기 전에 보낸 사람에게 전화로 확인</b>하세요.</span>
+  {% if m.direction != 'out' %}<div style="margin-top:6px">{% if m.is_blocked %}<button type="button" class="mv-warn-btn" style="margin-left:0" onclick="mvNotSpam({{ m.id }})" title="받은편지함으로 · 이 보낸 사람은 앞으로 스팸함으로 옮기지 않음(나에게만)">✓ 스팸 아님</button>{% elif not (m.from_email|lower).endswith('@knknara.co.kr') %}<button type="button" class="mv-warn-btn" style="margin-left:0" onclick="muteSender()" title="이 보낸 사람 메일은 앞으로 스팸함으로(나에게만 · 지우지 않음)">🚫 스팸함으로 · 다시 안 받기</button>{% endif %}</div>{% endif %}{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">🚫 이 발신 차단</button>{% endif %}</div>
 {% elif m.risk_level and m.risk_level == 1 %}
 <div class="mv-warn low">ℹ️ 외부에서 온 메일입니다. 모르는 발신이면 링크·첨부에 주의하세요.{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">🚫 차단</button>{% endif %}</div>
 {% endif %}
@@ -80,7 +81,7 @@
       <button type="button" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
       <button type="button" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
       <button type="button" onclick="window.print()" title="이 메일을 인쇄하거나 PDF로 저장(인쇄 대화상자에서 'PDF로 저장' 선택)">🖨 인쇄·PDF</button>
-      {% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}<hr><button type="button" class="warn" onclick="muteSender()" title="이 발신의 메일을 나에게만 다시 안 받기 — 지금 것도, 앞으로 오는 것도 차단함으로(⚙ 설정·정리 → 보낸 곳별 정리에서 풀 수 있음)">🔕 이 보낸 곳 다시 안 받기</button>{% endif %}
+      {% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}<hr><button type="button" class="warn" onclick="muteSender()" title="이 발신의 메일을 나에게만 다시 안 받기 — 지금 것도, 앞으로 오는 것도 스팸함으로(⚙ 설정·정리 → 보낸 곳별 정리에서 풀 수 있음)">🔕 이 보낸 곳 다시 안 받기</button>{% endif %}
     </div>
   </details>
   {% if not pane %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}
@@ -119,6 +120,9 @@
   </div>
 </div>
 {% endif %}
+{% if img_off is defined and img_off %}
+<div class="mv-imgoff">🖼 처음 보는 곳의 메일이라 <b>바깥 그림을 꺼 두었습니다</b>(읽음 추적·가짜 로그인 그림 막기) <button type="button" onclick="mvImgOn(this)">그림 보기</button></div>
+{% endif %}
 {% if has_html %}
 <div class="mv-viewtabs">
   <button type="button" class="mv-vtab active" id="vtabHtml" onclick="mvShow('html')">📄 원본(서식)</button>
@@ -144,11 +148,11 @@
       <span class="mv-att-cap">🖼 {{ a.filename }}</span>
     </a>
     {% else %}
-    {% set _ext = (a.filename or '').lower().rsplit('.',1)[-1] if '.' in (a.filename or '') else '' %}
-    {% set _dng = _ext in ('exe','scr','com','pif','bat','cmd','vbs','vbe','js','jse','jar','lnk','msi','reg','ps1','wsf','hta','cpl','scf','inf','chm','iso','img','vhd') %}
-    <a class="mv-att {{ 'danger' if _dng else '' }}" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer"{% if _dng %} title="위험: 실행파일 — 함부로 열지 마세요"{% endif %}>
-      <span>{% if _dng %}⚠{% elif a.mime == 'application/pdf' %}📕{% else %}📄{% endif %}</span>
-      <span>{{ a.filename }}{% if _dng %} <b>(위험: 실행파일)</b>{% endif %}</span>
+    {% set _ck = a.chk if a.chk is defined and a.chk else {'kind':'ok','why':''} %}
+    {% set _dng = _ck.kind in ('block','exec') %}
+    <a class="mv-att {{ 'danger' if _dng else ('warnf' if _ck.kind == 'warn' else '') }}" href="/mail/{{ m.id }}/att/{{ a.id }}" target="_blank" rel="noopener noreferrer"{% if _ck.why %} title="{{ _ck.why }}"{% endif %}>
+      <span>{% if _dng %}⛔{% elif _ck.kind == 'warn' %}⚠{% elif a.mime == 'application/pdf' %}📕{% else %}📄{% endif %}</span>
+      <span>{{ a.filename }}{% if _dng %} <b>({{ '위험: ' ~ _ck.why }})</b>{% elif _ck.kind == 'warn' %} <b style="color:#92400e">(주의: {{ _ck.why }})</b>{% endif %}</span>
       <span class="mv-att-sz">{% if a.size %}{{ (a.size / 1024)|round(1) }} KB{% endif %}</span>
     </a>
     {% endif %}
@@ -170,6 +174,20 @@
 <script>
 (function(){
   var MAIL_ID = {{ m.id }};
+  /* 11-18 안전: 꺼 둔 바깥 그림 켜기 — 읽기 칸이면 그 자리에서, 풀페이지면 ?img=1 */
+  window.mvImgOn=function(btn){
+    var pane=document.getElementById('readPane');
+    if(pane && btn && pane.contains(btn) && typeof loadPane==='function'){ loadPane(MAIL_ID, document.querySelector('.mbx-row.active,.mbx-headlink.active'), '?img=1'); }
+    else { location.href='/mail/'+MAIL_ID+'?img=1'; }
+  };
+  /* ✓ 스팸 아님 — 받은편지함으로 + 이 보낸 사람은 앞으로 스팸함으로 안 옮김(나에게만) */
+  window.mvNotSpam=async function(id){
+    try{ var r=await fetch('/mail/'+id+'/notspam',{method:'POST'}); var j=await r.json();
+      if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); return; }
+      alert('✓ 받은편지함으로 돌렸습니다.'+String.fromCharCode(10)+(j.addr||'이 사람')+' 메일은 앞으로 스팸함으로 옮기지 않습니다.');
+      location.href='/mail/inbox';
+    }catch(e){ alert('네트워크 오류'); }
+  };
   var IN_PANE = {{ 'true' if pane else 'false' }};
   // 읽기 창(pane)에서 목록으로 돌아갈 때 현재 검색·앱모드 파라미터 유지
   function inboxHref(){ return '/mail/inbox' + (IN_PANE ? (location.search||'') : ''); }
@@ -190,9 +208,9 @@
       if(bh)bh.classList.add('active'); if(bt)bt.classList.remove('active'); }
   };
   window.blockSender=async function(id){
-    if(!confirm('이 보낸사람을 차단목록에 추가할까요?\n앞으로 이 발신의 메일은 받은편지함에 안 보이고 🚫차단함으로 자동 격리됩니다(이미 받은 것도 이동·삭제 아님).')) return;
+    if(!confirm('이 보낸사람을 차단목록에 추가할까요?\n앞으로 이 발신의 메일은 받은편지함에 안 보이고 🚫스팸함으로 자동 격리됩니다(이미 받은 것도 이동·삭제 아님).')) return;
     try{ var r=await fetch('/mail/'+id+'/block-sender',{method:'POST'}); var j=await r.json();
-      if(j.ok){ alert('🚫 차단했습니다: '+(j.addr||'')+(j.moved?('\n기존 '+j.moved+'통도 차단함으로 옮겼습니다.'):'')); location.href='/mail/inbox'; }
+      if(j.ok){ alert('🚫 차단했습니다: '+(j.addr||'')+(j.moved?('\n기존 '+j.moved+'통도 스팸함으로 옮겼습니다.'):'')); location.href='/mail/inbox'; }
       else { alert('⚠ '+(j.message||'실패')); }
     }catch(e){ alert('네트워크 오류'); }
   };
@@ -212,7 +230,7 @@
       else { st.textContent='⚠ '+(j.message||'번역 실패'); }
     }catch(e){ st.textContent='⚠ 네트워크 오류'; }
   };
-  // 이 발신 다시 안 받기 — 나에게만(대표 지시 2026-11-16). 지우지 않고 차단함으로 · 「보낸 곳별 정리」에서 풀 수 있음
+  // 이 발신 다시 안 받기 — 나에게만(대표 지시 2026-11-16). 지우지 않고 스팸함으로 · 「보낸 곳별 정리」에서 풀 수 있음
   window.replyMark=async function(state){
     try{ var fd=new FormData(); fd.append('state', state);
       var r=await fetch('/mail/'+MAIL_ID+'/reply-mark',{method:'POST',body:fd}); var j=await r.json();
@@ -280,9 +298,9 @@
     }catch(e){ alert('네트워크 오류'); sel.value=''; }
   };
   window.muteSender=async function(){
-    if(!confirm('이 발신의 메일을 다시 안 받을까요? (나에게만 적용)\n\n이미 받은 메일도, 앞으로 오는 메일도 받은편지함에 안 보이고 차단함에 모입니다.\n지우지 않으며, 「📮 보낸 곳별 정리」 화면에서 언제든 풀 수 있습니다.')) return;
+    if(!confirm('이 발신의 메일을 다시 안 받을까요? (나에게만 적용)\n\n이미 받은 메일도, 앞으로 오는 메일도 받은편지함에 안 보이고 스팸함에 모입니다.\n지우지 않으며, 「📮 보낸 곳별 정리」 화면에서 언제든 풀 수 있습니다.')) return;
     try{ var r=await fetch('/mail/'+MAIL_ID+'/mute-sender',{method:'POST'}); var j=await r.json();
-      if(j.ok){ alert('🔕 다시 안 받기로 했습니다: '+(j.addr||'')+(j.moved?('\n이미 받은 '+j.moved+'통도 차단함으로 옮겼습니다.'):'')); location.href=inboxHref(); }
+      if(j.ok){ alert('🔕 다시 안 받기로 했습니다: '+(j.addr||'')+(j.moved?('\n이미 받은 '+j.moved+'통도 스팸함으로 옮겼습니다.'):'')); location.href=inboxHref(); }
       else { alert('⚠ '+(j.message||'하지 못했습니다')); }
     }catch(e){ alert('네트워크 오류'); }
   };

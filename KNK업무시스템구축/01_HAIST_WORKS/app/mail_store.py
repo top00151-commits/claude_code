@@ -110,7 +110,7 @@ def _ai_classify(subject: str, body: str):
     """메일 → (분류, 언어). AI 없거나 오류면 ('일반','')."""
     try:
         from . import ai_client
-        if not ai_client.ai_available():
+        if not ai_client.mail_ai_available():   # 11-18 메일 AI = OpenAI 만(대표 규칙)
             return ("일반", "")
         text = f"제목: {subject}\n본문:\n{(body or '')[:2000]}"
         system = (
@@ -120,7 +120,8 @@ def _ai_classify(subject: str, body: str):
             "category=메일 성격(견적 요청·회신→견적, 주문·발주→발주, 세금계산서·인보이스→세금계산서, "
             "그 외→일반). lang=본문 주 언어. 설명·따옴표·다른 텍스트 금지, JSON 만 출력."
         )
-        ok, resp = ai_client.ai_chat(text, system=system, max_tokens=60, temperature=0)
+        ok, resp = ai_client.ai_chat(text, system=system, max_tokens=60, temperature=0,
+                                     provider=ai_client.MAIL_AI_PROVIDER)
         if not ok:
             return ("일반", "")
         return _parse_classify(resp)
@@ -132,11 +133,11 @@ def _ai_summary(body: str) -> str:
     """본문 → 5줄 불릿 요약. AI 없거나 오류면 ''."""
     try:
         from . import ai_client
-        if not ai_client.ai_available():
+        if not ai_client.mail_ai_available():   # 11-18 메일 AI = OpenAI 만
             return ""
         if not (body or "").strip():
             return ""
-        ok, resp = ai_client.ai_summarize(body, style="bullet")
+        ok, resp = ai_client.ai_summarize(body, style="bullet", provider=ai_client.MAIL_AI_PROVIDER)
         return (resp or "").strip() if ok else ""
     except Exception:
         return ""
@@ -184,6 +185,69 @@ _OUR_DOMAINS = ("knknara.co.kr",)
 DANGEROUS_EXTS = {".exe", ".scr", ".com", ".pif", ".bat", ".cmd", ".vbs", ".vbe", ".js",
                   ".jse", ".jar", ".lnk", ".msi", ".reg", ".ps1", ".wsf", ".hta", ".cpl",
                   ".scf", ".inf", ".chm", ".iso", ".img", ".vhd"}
+try:   # 11-18 판별(mail_guard)과 같은 목록으로 — 두 목록이 달라 .dll·.msix 등이 경고 없이 내려받아지던 것
+    from .mail_guard import EXEC_EXTS as _GEXE
+    DANGEROUS_EXTS = DANGEROUS_EXTS | set(_GEXE)
+except Exception:
+    pass
+
+
+def _owner_mail_ai_ok(c, owner) -> bool:
+    """받는 사람에게 메일 AI 를 돌려도 되는가 — 메일 AI(OpenAI) 가능 + 그 사람 AI 허용(can_use_ai 칸이 있으면)."""
+    try:
+        from . import ai_client
+        if not ai_client.mail_ai_available():
+            return False
+    except Exception:
+        return False
+    try:
+        r = c.execute("SELECT * FROM users WHERE id=?", (owner,)).fetchone()
+        if r is not None and "can_use_ai" in r.keys() and r["can_use_ai"] is not None:
+            return bool(r["can_use_ai"])
+    except Exception:
+        pass
+    return True
+
+
+def is_known_sender(c, user_id, email) -> bool:
+    """아는 사람인가(11-18 스팸함 자동에서 빼는 사람 · 그림 보이기) — 사내 주소 · 「스팸 아님」 누른 사람 ·
+    주소록 · 거래처 담당자 · 협력사 · 내가 메일을 보낸 적 있는 사람 · 내 폴더 규칙에 넣은 곳."""
+    a = _norm_addr(email)
+    if not a or "@" not in a:
+        return False
+    dom = a.split("@")[-1]
+    if any(dom == d or dom.endswith("." + d) for d in _OUR_DOMAINS):
+        return True
+    checks = [
+        ("SELECT 1 FROM mail_user_allow WHERE user_id=? AND email=? LIMIT 1", (user_id, a)),
+        ("SELECT 1 FROM shared_contacts WHERE email IS NOT NULL AND lower(email)=? LIMIT 1", (a,)),
+        ("SELECT 1 FROM customer_contacts WHERE email IS NOT NULL AND lower(email)=? LIMIT 1", (a,)),
+        ("SELECT 1 FROM suppliers WHERE email IS NOT NULL AND lower(email)=? LIMIT 1", (a,)),
+        ("SELECT 1 FROM mail_folder_rules WHERE user_id=? AND lower(pattern) IN (?, ?) LIMIT 1", (user_id, a, dom)),
+        ("SELECT 1 FROM mail_messages WHERE user_id=? AND direction='out' AND is_deleted=0 "
+         "AND (lower(to_email) LIKE ? OR lower(COALESCE(cc,'')) LIKE ?) LIMIT 1", (user_id, "%" + a + "%", "%" + a + "%")),
+    ]
+    for q, p in checks:
+        try:
+            if c.execute(q, p).fetchone():
+                return True
+        except Exception:
+            continue   # 표가 없는 DB(시험·옛 사본)는 건너뜀
+    return False
+
+
+def allow_sender(c, user_id, email) -> bool:
+    """「스팸 아님」 — 이 사람은 앞으로 스팸함으로 옮기지 않는다(나에게만). 새 표 mail_user_allow(처음 누를 때 생김)."""
+    a = _norm_addr(email)
+    if not a or not user_id:
+        return False
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_user_allow(
+        user_id INTEGER NOT NULL,
+        email TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        PRIMARY KEY(user_id, email))""")
+    c.execute("INSERT OR IGNORE INTO mail_user_allow(user_id, email) VALUES(?,?)", (user_id, a))
+    return True
 
 
 def _ensure_security_cols(c):
@@ -317,14 +381,15 @@ def _staff_names(c):
 
 
 def assess_risk(from_email, to_email="", subject="", body="", html="", attachments=None,
-                *, from_name="", auth=None, reply_to="", c=None):
+                *, from_name="", auth=None, reply_to="", c=None, codes=None):
     """규칙기반 위험판별(AI 아님·무료·빠름 · 메일 내용을 밖으로 보내지 않음). 반환 (level 0~3, note).
     2026-11-16 대표 지시로 판별을 app/mail_guard.py 로 넓힘(인증 결과·흉내 주소·이름 사칭·답장 주소·링크 속임·
     매크로/HTML/압축 첨부·송금 계좌 변경). 3=위험(차단함 격리) / 2=의심(경고·링크 무력화) / 1=외부 / 0=사내."""
     try:
         from . import mail_guard as _mg
         return _mg.assess(from_email=from_email, from_name=from_name, subject=subject, body=body, html=html,
-                          attachments=attachments, auth=auth, reply_to=reply_to, staff_names=_staff_names(c))
+                          attachments=attachments, auth=auth, reply_to=reply_to, staff_names=_staff_names(c),
+                          codes=codes)
     except Exception:
         pass
     # ↓ 새 판별이 실패하면 옛 규칙으로(저장은 막지 않는다)
@@ -379,6 +444,8 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
             pass
         return (_dup["id"], owner)   # 중복 — 새로 저장하지 않음(남은 1통에 N 표시)
     category, lang, summary = "일반", "", ""
+    if run_ai is None:   # 11-18: 바깥 입구(/api/mail/inbound)도 받는 사람의 AI 허용·메일 AI(OpenAI) 여부를 따른다
+        run_ai = _owner_mail_ai_ok(c, owner)
     if run_ai:
         category, lang = _ai_classify(subject, body)
         summary = _ai_summary(body)
@@ -403,8 +470,9 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
             _blocked = 1
     except Exception:
         pass
+    _codes = []
     _rlevel, _rnote = assess_risk(from_email, to_email, subject, body, html, attachments,
-                                  from_name=from_name, auth=auth, reply_to=reply_to, c=c)
+                                  from_name=from_name, auth=auth, reply_to=reply_to, c=c, codes=_codes)
     # 2026-11-16: 위험(3) = 차단함으로 격리(지우지 않음 · 차단함에서 복구 가능)
     #   증거가 강한 경우만(우리 회사 흉내 주소 · 우리 주소 인증 실패 · 위장 실행파일 · 회사 밖 실행파일) — 정상 메일을 숨기지 않게
     try:
@@ -413,6 +481,15 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
             _blocked = 1
     except Exception:
         pass
+    # 11-18 대표 「스팸메일은 자동으로 걸러」(확실+의심까지 · 아는 사람은 제외): 의심(2) 이상이고 강한 이유가 있으면 스팸함으로.
+    #   주소록·거래처 담당자·내가 메일을 보낸 적 있는 사람·「스팸 아님」 누른 사람·사내 주소는 옮기지 않는다(경고만).
+    if not _blocked and _rlevel >= 2 and _codes:
+        try:
+            if not is_known_sender(c, owner, from_email):
+                _blocked = 1
+                _rnote = ("스팸함으로 옮김 / " + (_rnote or ""))[:600]
+        except Exception:
+            pass
     cur = c.execute(
         """INSERT INTO mail_messages
            (user_id, direction, from_email, from_name, to_email, cc,
@@ -1278,10 +1355,11 @@ def translate_mail(c, mail_id: int, user_id: int, target: str = "ko"):
         return (False, "메일을 찾을 수 없습니다.")
     try:
         from . import ai_client
-        if not ai_client.ai_available():
-            return (False, "AI 번역이 비활성 상태입니다(AI 키 미설정).")
-        ok1, tsubj = ai_client.ai_translate(m.get("subject") or "", target=target)
-        ok2, tbody = ai_client.ai_translate(m.get("body_text") or "", target=target)
+        if not ai_client.mail_ai_available():
+            return (False, "AI 번역이 꺼져 있습니다(메일 AI = OpenAI 키 필요).")
+        _p = ai_client.MAIL_AI_PROVIDER
+        ok1, tsubj = ai_client.ai_translate(m.get("subject") or "", target=target, provider=_p)
+        ok2, tbody = ai_client.ai_translate(m.get("body_text") or "", target=target, provider=_p)
         if not (ok1 and ok2):
             return (False, "번역 중 오류가 발생했습니다.")
         return (True, {"subject": tsubj, "body": tbody})

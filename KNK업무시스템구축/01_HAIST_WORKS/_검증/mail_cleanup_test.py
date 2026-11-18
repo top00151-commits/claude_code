@@ -172,7 +172,7 @@ try:
     check("다른 발신은 그대로 받은편지함", state(9001, "partner@vendor.example") == (6, 0, 0))
     check("회사 전체 차단목록은 건드리지 않았다", rows("SELECT COUNT(*) n FROM mail_blocklist")[0]["n"] == 0)
     h = k.get("/mail/cleanup").text
-    check("화면: 다시 안 받기로 한 곳 1 · 차단함 5통", "다시 안 받기로 한 곳 1" in h and "차단함에 5통" in h and 'data-addr="newsletter@weekly.example" data-held="5"' in h)
+    check("화면: 다시 안 받기로 한 곳 1 · 스팸함 5통(11-18 차단함 → 스팸함)", "다시 안 받기로 한 곳 1" in h and "스팸함에 5통" in h and 'data-addr="newsletter@weekly.example" data-held="5"' in h)
     check("화면: 차단함으로 간 곳은 묶음에서 빠짐", 'class="cl-addr">newsletter@weekly.example' not in h)
 
     print("== 5. 메일 읽기 화면의 「다시 안 받기」 ==")

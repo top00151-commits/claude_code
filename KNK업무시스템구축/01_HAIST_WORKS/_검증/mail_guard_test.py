@@ -170,7 +170,11 @@ def put(rawmsg):
 r, p = put(raw("대표 <ceo@knknara.co.kr>", "송금", "오늘 송금", auth="mx; spf=fail; dmarc=fail"))
 check("원문의 인증 결과를 읽어 넘긴다 → 위험(3) · 차단함(is_blocked=1)", p["auth"] == {"spf": "fail", "dmarc": "fail"} and r["risk_level"] == 3 and r["is_blocked"] == 1, (p.get("auth"), r["risk_level"], r["is_blocked"]))
 r, p = put(raw("Kim <kim@partner-a.example>", "계좌", "새 계좌로 송금", reply_to="x@gmail.com"))
-check("원문의 답장 주소를 읽어 넘긴다 → 의심(2) · 받은편지함에 남고 ⚠", p["reply_to"] == "x@gmail.com" and r["risk_level"] == 2 and r["is_blocked"] == 0, (p.get("reply_to"), r["risk_level"]))
+check("원문의 답장 주소를 읽어 넘긴다 → 의심(2) · 모르는 사람이라 스팸함으로(11-18 대표 「확실+의심까지 · 아는 사람 제외」)",
+      p["reply_to"] == "x@gmail.com" and r["risk_level"] == 2 and r["is_blocked"] == 1 and r["risk_note"].startswith("스팸함으로 옮김"), (p.get("reply_to"), r["risk_level"], r["is_blocked"]))
+ms.allow_sender(con, 1, "lee@partner-b.example")
+r, p = put(raw("Lee <lee@partner-b.example>", "계좌2", "새 계좌로 송금", reply_to="y@gmail.com"))
+check("⭐같은 의심이라도 「스팸 아님」 누른(아는) 사람이면 받은편지함에 남고 ⚠ 경고만", r["risk_level"] == 2 and r["is_blocked"] == 0, (r["risk_level"], r["is_blocked"]))
 r, p = put(raw("a@x.example", "견적", "첨부", att="견적서.pdf.exe"))
 check("위장 실행파일 → 차단함", r["risk_level"] == 3 and r["is_blocked"] == 1, (r["risk_level"], r["is_blocked"], r["risk_note"]))
 r, p = put(raw("홍길동 <hong@knknara.co.kr>", "도구", "첨부", att="tool.exe", auth="mx; spf=pass; dkim=pass; dmarc=pass"))
@@ -179,9 +183,9 @@ r, p = put(raw("김영업 <kim@partner-a.example>", "견적서 송부", "견적�
 check("⭐정상 거래처 메일 → 받은편지함 · 외부(1) · ⚠ 없음", r["risk_level"] == 1 and r["is_blocked"] == 0, (r["risk_level"], r["risk_note"]))
 inbox = [x["subject"] for x in ms.list_inbox(con, 1)]
 blocked = [x["subject"] for x in ms.list_blocked(con, 1)]
-check("받은편지함 3통 · 차단함 2통으로 나뉜다(차단함은 복구 가능 · 지우지 않음)", sorted(inbox) == sorted(["계좌", "도구", "견적서 송부"]) and sorted(blocked) == sorted(["송금", "견적"]), (inbox, blocked))
+check("받은편지함 3통 · 스팸함 3통으로 나뉜다(스팸함은 복구 가능 · 지우지 않음)", sorted(inbox) == sorted(["계좌2", "도구", "견적서 송부"]) and sorted(blocked) == sorted(["송금", "견적", "계좌"]), (inbox, blocked))
 ms.set_blocked(con, 1, con.execute("SELECT id FROM mail_messages WHERE subject='견적'").fetchone()[0], False)
-check("차단함에서 꺼내면 받은편지함으로 돌아온다", "견적" in [x["subject"] for x in ms.list_inbox(con, 1)])
+check("스팸함에서 꺼내면 받은편지함으로 돌아온다", "견적" in [x["subject"] for x in ms.list_inbox(con, 1)])
 lv, n = ms.assess_risk("a@x.example", "", "s", "b", "", [{"filename": "a.exe"}])
 check("옛 호출 모양(인자 6개)도 그대로 동작", lv == 3 and "실행파일" in n, (lv, n))
 h = ms.sanitize_html_for_view('<p><a href="https://evil.example/">go</a><script>x()</script></p>', 1, [], defang=True)
@@ -196,13 +200,13 @@ class M(dict):
     __getattr__ = dict.get
 
 
-def render(level, note):
-    return t.render(m=M(id=1, subject="s", category="일반", risk_level=level, risk_note=note, body_text="b", from_email="a@x", from_name="a"),
+def render(level, note, blocked=0):
+    return t.render(m=M(id=1, subject="s", category="일반", risk_level=level, risk_note=note, body_text="b", from_email="a@x", from_name="a", is_blocked=blocked, direction="in"),
                     safe_html="", has_html=False, file_atts=[], sender_contact=None, is_admin=False, ai_on=False, user=None)
 
 
-v3 = render(3, "우리 회사 주소(knknara.co.kr)를 흉내 낸 주소(knknarra.co.kr) / 실행파일 첨부(a.exe)")
-check("읽기 화면: 위험(3) = 「차단함으로 옮겼습니다」 · 이유가 줄마다", "차단함으로 옮겼습니다" in v3 and v3.count("<li>") == 2 and "전화로 확인" in v3, v3[:400])
+v3 = render(3, "우리 회사 주소(knknara.co.kr)를 흉내 낸 주소(knknarra.co.kr) / 실행파일 첨부(a.exe)", blocked=1)
+check("읽기 화면: 위험(3)·스팸함 = 「스팸함으로 옮겼습니다」 · 이유가 줄마다 · 「✓ 스팸 아님」", "스팸함으로 옮겼습니다" in v3 and "mvNotSpam(1)" in v3 and v3.count("<li>") == 2 and "전화로 확인" in v3, v3[:400])
 v2 = render(2, "송금·계좌 변경 요구 — 반드시 전화로 거래처에 직접 확인")
 check("읽기 화면: 의심(2) = 「피싱·사칭 의심 메일」", "피싱·사칭 의심 메일" in v2 and v2.count("<li>") == 1)
 check("읽기 화면: 이유 글에 태그가 섞여도 그대로 글자로(끼워넣기 불가)", "<script>alert(1)" not in render(2, "<script>alert(1)</script>") and "&lt;script&gt;alert(1)" in render(2, "<script>alert(1)</script>"))
