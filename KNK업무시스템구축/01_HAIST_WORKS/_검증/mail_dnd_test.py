@@ -177,9 +177,9 @@ try:
     check("법인 판정: 회사 부서표 법인 칸 먼저(KOR=본사·VN=베트남) · 칸 없으면 숫자 코드 = 본사",
           mf.is_vn_team({"code": "V00", "name": "총괄", "entity": "VN"}) and mf.is_vn_team({"code": "12", "name": "베트남법인", "entity": "VN"})
           and not mf.is_vn_team({"code": "00", "name": "총괄", "entity": "KOR"}) and not mf.is_vn_team({"code": "01"}) and mf.is_vn_team({"code": "VN01"}))
-    check("베트남 부서 이름 = 코드 번호(V00·05_2·V09 → 00_총괄·05_조립팀·09_구매팀) · 본사 = 00_총괄",
-          mf.folder_team_label({"code": "V00", "name": "총괄", "entity": "VN"}) == "00_총괄" and mf.folder_team_label({"code": "05_2", "name": "조립팀", "entity": "VN"}) == "05_조립팀"
-          and mf.folder_team_label({"code": "V09", "name": "구매팀", "entity": "VN"}) == "09_구매팀" and mf.folder_team_label({"code": "00", "name": "총괄", "entity": "KOR"}) == "00_총괄")
+    check("베트남 부서 이름 = 「VN」+코드 번호(V00·05_2·V09 → VN00_총괄·VN05_조립팀·VN09_구매팀 · 대표 11-19) · 본사 = 00_총괄",
+          mf.folder_team_label({"code": "V00", "name": "총괄", "entity": "VN"}) == "VN00_총괄" and mf.folder_team_label({"code": "05_2", "name": "조립팀", "entity": "VN"}) == "VN05_조립팀"
+          and mf.folder_team_label({"code": "V09", "name": "구매팀", "entity": "VN"}) == "VN09_구매팀" and mf.folder_team_label({"code": "00", "name": "총괄", "entity": "KOR"}) == "00_총괄")
     with _db.db_session() as c:
         c.execute("INSERT INTO teams(id, code, name, display_order) VALUES(982,'VN01','조립팀',50)")
         c.execute("INSERT INTO teams(id, code, name, display_order) VALUES(983,'23','NEXT2028',23)")
@@ -199,13 +199,15 @@ try:
     check("6.케이엔케이 아래 대분류 = 본사 → 베트남법인(순서)", top_names[:2] == ["본사", "베트남법인"], top_names)
     hqn = [y["name"] for y in hq[0]["children"]] if hq else []
     check("본사 안 = 본사 부서(번호 순서 23_NEXT2028 → 81_시험영업팀)", hqn.index("23_NEXT2028") < hqn.index("81_시험영업팀"), hqn)
-    check("베트남법인 안 = 베트남 부서(01_조립팀) · 옛 「베트남법인」 부서 메일은 베트남법인 폴더 바로 아래",
-          vnode and [y["name"] for y in vnode[0]["children"]] == ["01_조립팀"] and res2["senders"]["vb1@knknara.co.kr"]["key"] == "tv" and vnode[0]["n"] == 2, (vnode and vnode[0]["children"], res2["senders"].get("vb1@knknara.co.kr")))
+    check("베트남법인 안 = 베트남 부서(VN01_조립팀) · 옛 「베트남법인」 부서 메일은 베트남법인 폴더 바로 아래",
+          vnode and [y["name"] for y in vnode[0]["children"]] == ["VN01_조립팀"] and res2["senders"]["vb1@knknara.co.kr"]["key"] == "tv" and vnode[0]["n"] == 2, (vnode and vnode[0]["children"], res2["senders"].get("vb1@knknara.co.kr")))
     check("베트남법인을 누르면 그 안 부서 메일 모두(열쇠 묶음) · 6.케이엔케이 전체에도 포함",
           res2["keys_of"]["tv"] >= {"tv", vnode[0]["children"][0]["key"]} and vnode[0]["children"][0]["key"] in res2["keys_of"][stf["key"]] and "th" in res2["keys_of"][stf["key"]])
     hv = k.get("/mail/inbox?fd=tv").text
     check("왼쪽 칸: 본사·베트남법인 + 그 아래 한 칸 더 들여 쓴 부서 · 베트남법인 목록 = 베트남 메일만",
           'href="/mail/inbox?fd=th"' in hv and 'href="/mail/inbox?fd=tv"' in hv and "mf-k2" in hv and ('data-mail-id="%d"' % ids["vn1"]) in hv and ('data-mail-id="%d"' % ids["vb1"]) in hv and ('data-mail-id="%d"' % ids["nx1"]) not in hv)
+
+    check("베트남 부서 순서 = VN 뒤 번호대로(VN00 → VN05 → VN09)", mf._lead_num("VN00_총괄") < mf._lead_num("VN05_조립팀") < mf._lead_num("VN09_구매팀") and mf._lead_num("23_NEXT2028") == 23)
 
     print("== 3f. 메일 부서 폴더 고치기(11-19 대표 「부서이름 수정·삭제·추가」 → 메일에서만) ==")
     tk_hq = "t981"

@@ -299,11 +299,11 @@ def is_vn_bucket(t: dict) -> bool:
 
 
 def folder_team_label(t: dict) -> str:
-    """메일 폴더 이름 — 본사 = 「00_총괄」(코드_이름) · 베트남 = 코드의 번호로 「00_총괄」「05_조립팀」(V00·05_2 → 00·05)."""
+    """메일 폴더 이름 — 본사 = 「00_총괄」(코드_이름) · 베트남 = 「VN」+코드의 번호 「VN00_총괄」「VN05_조립팀」(V00·05_2 → VN00·VN05 · 대표 11-19)."""
     if not is_vn_team(t):
         return team_label(t)
     m = re.search(r"(\d{1,2})", (t.get("code") or ""))
-    return ("%02d_%s" % (int(m.group(1)), t["name"])) if m else t["name"]
+    return ("VN%02d_%s" % (int(m.group(1)), t["name"])) if m else ("VN_" + t["name"])
 
 
 def team_prefs(c, uid) -> dict:
@@ -364,7 +364,7 @@ def del_team_group(c, uid, key) -> None:
 
 
 def _lead_num(name):
-    m = re.match(r"\s*(\d+)", name or "")
+    m = re.match(r"\s*(?:VN)?(\d+)", name or "", re.I)   # 「VN05_조립팀」도 번호 05 로(11-19)
     return int(m.group(1)) if m else 10 ** 5
 
 
